@@ -1,0 +1,140 @@
+TARGET			PicoDrive.exe
+TARGETTYPE		exe
+//TARGETPATH		?
+UID				0x100039CE 0xA00010F3
+EPOCSTACKSIZE	0x3000 // required by CQikSelectFileDlg
+EPOCHEAPSIZE	0x100 0x00800000 // required by large ROMs :)
+
+// resource
+SOURCEPATH		Rsc
+START RESOURCE 	PicoDrive.rss
+HEADER
+TARGETPATH 		\Resource\Apps
+LANG			SC
+END
+
+START RESOURCE	PicoDrive_reg.rss
+TARGETPATH		\private\10003a3f\apps
+END
+
+START RESOURCE	PicoDrive_loc.rss
+TARGETPATH		\Resource\Apps
+LANG			SC
+END
+
+CAPABILITY		none // SwEvent // forbidden
+
+USERINCLUDE     ..\..
+
+SYSTEMINCLUDE	\epoc32\include
+SYSTEMINCLUDE	\epoc32\include\libc
+
+// launcher
+SOURCEPATH      .
+SYSTEMINCLUDE	.		// for port_config.h
+SOURCE			App.cpp
+SOURCE			Engine.cpp
+SOURCE			Dialogs.cpp
+SOURCE			CSimpleTextParser.cpp
+
+// engine
+SOURCEPATH      engine
+SOURCE			main.cpp
+SOURCE			vid.cpp
+SOURCE			polledas.cpp
+SOURCE			debug.cpp
+SOURCE			audio_mediaserver.cpp
+SOURCE			blit.c
+
+// pico
+MACRO			_UNZIP_SUPPORT
+SOURCEPATH      ..\..\Pico
+USERINCLUDE     ..\..\Pico
+SOURCE			Area.c
+SOURCE			Cart.c
+SOURCE			Draw.c
+SOURCE			Draw2.c
+SOURCE			Memory.c
+SOURCE			Misc.c
+SOURCE			Pico.c
+SOURCE			Sek.c
+SOURCE			Utils.c
+SOURCE			VideoPort.c
+
+// pico - sound
+SOURCEPATH      ..\..\Pico\Sound
+SOURCE			sound.c
+SOURCE			sn76496.c
+SOURCE			ym2612.c
+
+// CPU cores
+MACRO			EMU_M68K
+SOURCEPATH      ..\..\cpu\Musashi
+USERINCLUDE     ..\..\cpu\Musashi
+SOURCE			m68kcpu.c
+SOURCE			m68kopac.c
+SOURCE			m68kopdm.c
+SOURCE			m68kopnz.c
+SOURCE			m68kops.c
+
+//MACRO			_USE_MZ80
+//SOURCEPATH      ..\win32\z80
+//SOURCE			mz80_asm.obj
+
+// misc
+SOURCEPATH      ..\..\unzip
+USERINCLUDE     ..\..\unzip
+SOURCE			unzip.c
+SOURCEPATH      ..\..\zlib
+USERINCLUDE     ..\..\zlib
+SOURCE			gzio_symb.c
+
+
+// TODO: get rid of unneeded stuff
+LIBRARY			ESTLIB.LIB
+LIBRARY			euser.lib 
+LIBRARY			apparc.lib 
+LIBRARY			cone.lib 
+LIBRARY			eikcore.lib 
+LIBRARY			eikcoctl.lib 
+LIBRARY			qikcore.lib
+LIBRARY			qikdlg.lib // CQikSelectFileDlg
+LIBRARY			etext.lib  // TCharFormat
+LIBRARY			bafl.lib   // CDesCArrayFlat
+LIBRARY			efsrv.lib
+LIBRARY			eikctl.lib
+
+LIBRARY			WS32.LIB
+LIBRARY			EIKDLG.LIB
+//LIBRARY			EGUL.LIB  // CColorList
+LIBRARY			GDI.LIB   // TTypeface
+LIBRARY			estor.lib // RWriteStream
+
+LIBRARY			EZLIB.LIB
+LIBRARY			HAL.LIB
+
+LIBRARY			mediaclient.LIB
+LIBRARY			mediaclientaudiostream.LIB
+
+
+
+STATICLIBRARY	qikalloc.lib
+LIBRARY			qikallocdll.lib
+
+
+MACRO			__DEBUG_PRINT
+MACRO			__BROKEN_FWRITE
+
+
+USERINCLUDE     .
+START BITMAP	PicoDrive.mbm
+HEADER
+TARGETPATH		\Resource\Apps
+SOURCEPATH		Rsc
+SOURCE	c24		Pico18x18.bmp
+SOURCE	8		Pico18x18m.bmp
+SOURCE	c24		Pico40x40.bmp
+SOURCE	8		Pico40x40m.bmp
+SOURCE	c24		Pico64x64.bmp
+SOURCE	8		Pico64x64m.bmp
+END

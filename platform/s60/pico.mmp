@@ -1,0 +1,24 @@
+// *** Definitions
+
+TARGET          pico.lib
+TARGETTYPE      lib
+SOURCEPATH      ..\pico
+
+source Area.c Cart.c Draw.c  Memory.c Misc.c Pico.c Sek.c Utils.c VideoPort.c Draw2.c ggenie.c
+// source Draw2.c
+SYSTEMINCLUDE   \epoc32\include \epoc32\include\libc
+USERINCLUDE     ..\pico ..\cyclone
+
+sourcepath ..\pico\sound
+source sn76496.c sound.c ym2612.c
+#ifdef WINS
+MACRO _USE_MZ80
+MACRO  EMU_A68K
+#else
+MACRO  EMU_C68K
+MACRO _USE_DRZ80
+MACRO _ASM_DRAW_C
+MACRO _ASM_MEMORY_C
+MACRO _USE_YM2612_ASM_HELPER
+#endif
+

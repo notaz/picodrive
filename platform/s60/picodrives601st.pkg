@@ -1,0 +1,27 @@
+;
+; Basic install file for picodriveS60
+;
+
+; Languages
+; none -  English only by default
+
+; Installation header
+; Only one component name as we only support English
+; UID is the app's UID 
+#{"PicoDriveS60 1st Edition "},( 0x101F9B49 ),0,60,0
+(0x101F6F88), 0, 0, 0, {"Series60ProductID"}
+; Application file
+"\epoc32\release\armi\urel\picodriveS60.app"-"!:\system\apps\picodriveS60\picodriveS60.app"
+"\epoc32\release\armi\urel\picodrive.exe"-"!:\system\apps\picodriveS60\picodrive.exe"
+"\epoc32\release\armi\urel\picodriveS60.rsc"-"!:\system\apps\picodriveS60\picodriveS60.rsc"
+"\epoc32\release\armi\urel\picodriveS60.aif"-"!:\system\apps\picodriveS60\picodriveS60.aif"
+""-"c:\system\apps\picodriveS60\picodriveS60.ini",FN
+
+".\install.txt"-"!:\system\apps\PicodriveS60\install.txt",FILETEXT
+; Required files
+; None
+; Component .sis files
+; None
+
+
+       

@@ -1,0 +1,16 @@
+Be sure to configure keys before loading your first ROM, because there is no default config. You need to configure 'pause emu' function to exit game.
+
+Key configuration tutorial:
+http://notaz.atspace.com/pico_tut/
+
+You can also hold power button to exit (PXXX only).
+(Motorola users, try the 'end' button).
+
+Some quick sound related notes:
+* You must use auto frameskip or you will get stuttering sound.
+* Sound needs a lot of CPU power, so it is best to use "fit 0" or "fit 180" display modes and to exit all other apps.
+* if you change sound settings AFTER loading a ROM, you may need to reset game to get sound (this depends on a ROM itself).
+
+Enabling Z80 in sound settings will improve compatibility (you don't have to enable anything else, only Z80), because some games need it to run. But it slows emulation down, so turn it off if the game doesn't need it.
+
+See readme for more details.

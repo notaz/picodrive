@@ -1,0 +1,25 @@
+; 
+
+; List of localised vendor names - one per language. At least one must be provided (English [EN]). 
+; List must correspond to list of languages specified elsewhere in the .pkg
+%{"notaz"}
+
+; The non-localised, globally unique vendor name (mandatory)
+:"notaz"
+
+; Package header
+; Name, UID3, Major, Minor, Build, Package-type
+#{"PicoDrive"}, (0xA00010F3), 0, 96, 0, TYPE=SA
+
+; ProductID for UIQ 3.0
+; Product/platform version UID, Major, Minor, Build, Component name
+(0x101F6300), 3, 0, 0, {"UIQ30ProductID"}
+
+
+; Files to install for the application
+; If you move the example to another destination then you also need to change these paths.
+"..\PicoDrive.exe"-"!:\sys\bin\PicoDrive.exe"
+"..\rsc\PicoDrive.rsc"-"!:\resource\apps\PicoDrive.rsc"
+"..\rsc\PicoDrive.mbm"-"!:\resource\apps\PicoDrive.mbm"
+"..\rsc\PicoDrive_loc.rsc"-"!:\resource\apps\PicoDrive_loc.rsc"
+"..\rsc\PicoDrive_reg.rsc"-"!:\private\10003a3f\import\apps\PicoDrive_reg.rsc"

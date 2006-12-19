@@ -1,0 +1,34 @@
+TARGET			PicodriveN.app
+TARGETTYPE		app
+TARGETPATH		\system\Apps\PicodriveN
+UID				0x100039CE 0x1000C193
+
+
+USERINCLUDE     .
+
+SYSTEMINCLUDE	\epoc32\include
+
+SOURCEPATH      .
+SOURCE			App.cpp
+SOURCE			Engine.cpp
+SOURCE			Dialogs.cpp
+SOURCE			CSimpleTextParser.cpp
+SOURCE			SimpleClient.cpp
+
+LIBRARY			EUSER.LIB WS32.LIB EFSRV.LIB
+LIBRARY			APPARC.LIB CONE.LIB
+LIBRARY			EIKCOCTL.LIB EIKCORE.LIB EIKDLG.LIB EIKCTL.LIB
+LIBRARY			EIKFILE.LIB // CEikFileOpenDialog
+LIBRARY			EGUL.LIB  // CColorList
+LIBRARY			ETEXT.LIB // TCharFormat
+LIBRARY			GDI.LIB   // TTypeface
+
+//LIBRARY			ETEL.LIB
+//LIBRARY			APGRFX.LIB FBSCLI.LIB bafl.lib BITGDI.LIB   
+
+SOURCEPATH		.
+RESOURCE        PicodriveN.rss
+
+//MACRO			__DEBUG_PRINT
+
+AIF  PicodriveN.aif . PicodriveNAif.rss c8 PicoN20x16.bmp PicoN20x16m.bmp PicoN32x32.bmp PicoN32x32m.bmp

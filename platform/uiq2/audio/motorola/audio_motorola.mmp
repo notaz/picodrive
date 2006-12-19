@@ -1,0 +1,20 @@
+TARGET			audio_motorola.dll
+TARGETTYPE		dll
+UID				0x100039CE 0x1000C197
+
+USERINCLUDE     .
+USERINCLUDE     ..\..\
+
+SYSTEMINCLUDE	\epoc32\include
+
+SOURCEPATH      .
+SOURCE			audio_motorola.cpp
+SOURCE			polledas.cpp
+
+LIBRARY			EUSER.LIB
+LIBRARY         maudiofb.lib
+LIBRARY         maudioac.lib
+
+deffile			.\audio_motorola.def
+
+nostrictdef

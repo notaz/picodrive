@@ -1,0 +1,16 @@
+all : a68k.obj
+
+a68k.obj :
+	cl /DWIN32 /DFASTCALL make68kd.c
+	make68kd a68k.asm a68k_jmp.asm 00
+	nasm -f win32 a68k.asm
+
+
+clean : tidy
+	del a68k.obj
+
+tidy :
+	del a68k.asm
+	del a68k_jmp.asm
+	del make68kd.exe
+	del make68kd.obj

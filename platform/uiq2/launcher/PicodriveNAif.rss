@@ -1,0 +1,14 @@
+#include <aiftool.rh>
+
+RESOURCE AIF_DATA
+{
+    app_uid=0x1000C193;
+    caption_list=
+        { 
+        CAPTION { code=ELangEnglish; caption="PicodriveN"; }
+        };
+    num_icons=2;
+    embeddability=KAppNotEmbeddable;
+    newfile=KAppDoesNotSupportNewFile;
+}
+

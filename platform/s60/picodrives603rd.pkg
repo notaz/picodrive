@@ -1,0 +1,35 @@
+;
+; Basic install file for picodriveS60
+;
+
+; Languages
+;Language - standard language definitions
+&EN
+; List of localised vendor names - one per language. At least one must be provided (English [EN]).
+; List must correspond to list of languages specified elsewhere in the .pkg
+%{"PicoDrive"}
+; The non-localised, globally unique vendor name (mandatory)
+:"PicoDrive"
+
+; Installation header
+; Only one component name as we only support English
+; UID is the app's UID 
+#{"PicoDriveS60 3rd Edition "},( 0xA00007BE ),0,50,0
+;Supports Series 60 v 3.0
+[0x101F7961], 0, 0, 0, {"Series60ProductID"}
+; Application file
+"\epoc32\release\gcce\urel\picodrive.exe"-"!:\sys\bin\picodrive.exe"
+"\epoc32\data\z\resource\apps\picodrive.rsc"-"!:\resource\apps\picodrive.rsc"
+"\epoc32\data\z\resource\apps\picodrive.mbm"-"!:\resource\apps\picodrive.mbm"
+"\epoc32\data\z\resource\apps\picodrive_loc.rsc"-"!:\resource\apps\picodrive_loc.rsc"
+"\epoc32\data\z\private\10003a3f\apps\picodrive_reg.rsc"-"!:\private\10003a3f\import\apps\picodrive_reg.rsc"
+
+""-"c:\private\A00007BE\picodriveS60.ini",FN
+".\install.txt"-"!:\resource\apps\picodrive_install.txt",FILETEXT
+; Required files
+; None
+; Component .sis files
+; None
+
+
+       

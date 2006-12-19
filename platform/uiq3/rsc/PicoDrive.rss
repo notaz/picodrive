@@ -1,0 +1,601 @@
+NAME PCDR
+
+#include <eikon.rh>
+#include <eikon.rsg>
+#include <qikon.rh>
+#include <QikCommand.rh>
+#include "picodrive.hrh"
+
+
+RESOURCE RSS_SIGNATURE { }
+
+// Defines the name of the default file the application framework creates.
+// This resource must always be the second resource in the resource file.
+RESOURCE TBUF { buf = "PicoDrive"; }
+
+RESOURCE EIK_APP_INFO { }
+
+
+// A view shall use the QIK_VIEW_CONFIGURATIONS resource struct to define which 
+// UI configurations it supports. Can also use QIK_VIEW_CONFIGURATIONS to setup 
+// the view to switch layout and command list automatically when changes of UI 
+// configuration occur. This is done with the view and command_list members of 
+// the QIK_VIEW_CONFIGURATIONS.
+// The application supports the reference UI Configurations that are supported
+// in the UIQ 3 SDK. Use the UiqEnv tool, to change the UI Configuration in the
+// emulator in order to develop and test the application with varying phone styles.
+RESOURCE QIK_VIEW_CONFIGURATIONS r_app_ui_configurations
+{
+	configurations = 
+	{
+		QIK_VIEW_CONFIGURATION
+		{
+			ui_config_mode = KQikPenStyleTouchPortrait;
+			command_list = r_app_commands;
+			view = r_app_layout;
+		},
+		QIK_VIEW_CONFIGURATION
+		{
+			ui_config_mode = KQikPenStyleTouchLandscape;
+			command_list = r_app_commands;
+			view = r_app_layout;
+		},
+		QIK_VIEW_CONFIGURATION
+		{
+			ui_config_mode = KQikSoftkeyStyleTouchPortrait;
+			command_list = r_app_commands;
+			view = r_app_layout;
+		},
+		QIK_VIEW_CONFIGURATION
+		{
+			ui_config_mode = KQikSoftkeyStylePortrait;
+			command_list = r_app_commands;
+			view = r_app_layout;
+		},
+		QIK_VIEW_CONFIGURATION
+		{
+			ui_config_mode = KQikSoftkeyStyleSmallPortrait;
+			command_list = r_app_commands;
+			view = r_app_layout;
+		}
+	};
+}
+
+// Commands are defined with the QIK_COMMAND_LIST struct, 
+// commands can also be created in code by instantiating CQikCommand.
+// The control command id for debug command is a reserved id from uikon.hrh.
+// The id for each command is defined in the .hrh file.
+RESOURCE QIK_COMMAND_LIST r_app_commands
+{
+	items = 
+	{
+//		QIK_COMMAND { id=EEikCmdPicoMain;          text="Main";           type=EQikCommandTypeDone; namedGroupLinkId=EEikCmdPicoMain; },
+//		QIK_COMMAND { id=EEikCmdPicoDebugInfo;     text="Debug info";     type=EQikCommandTypeScreen; stateFlags=EQikCmdFlagDebugOnly; },
+		QIK_COMMAND { id=EEikCmdPicoFrameskip;     text="Frameskip";      type=EQikCommandTypeScreen; namedGroupLinkId=EEikCmdPicoFrameskip; },
+		QIK_COMMAND { id=EEikCmdPicoFrameskipAuto; text="Auto";           type=EQikCommandTypeScreen; namedGroupId=EEikCmdPicoFrameskip;
+			groupId=EEikCmdPicoFrameskip;  stateFlags=EQikCmdFlagRadioStart; },
+		QIK_COMMAND { id=EEikCmdPicoFrameskip0;    text="0";              type=EQikCommandTypeScreen; namedGroupId=EEikCmdPicoFrameskip;
+			groupId=EEikCmdPicoFrameskip0; stateFlags=EQikCmdFlagRadioMiddle; },
+		QIK_COMMAND { id=EEikCmdPicoFrameskip1;    text="1";              type=EQikCommandTypeScreen; namedGroupId=EEikCmdPicoFrameskip;
+			groupId=EEikCmdPicoFrameskip0; stateFlags=EQikCmdFlagRadioMiddle; },
+		QIK_COMMAND { id=EEikCmdPicoFrameskip2;    text="2";              type=EQikCommandTypeScreen; namedGroupId=EEikCmdPicoFrameskip;
+			groupId=EEikCmdPicoFrameskip0; stateFlags=EQikCmdFlagRadioMiddle; },
+		QIK_COMMAND { id=EEikCmdPicoFrameskip4;    text="4";              type=EQikCommandTypeScreen; namedGroupId=EEikCmdPicoFrameskip;
+			groupId=EEikCmdPicoFrameskip0; stateFlags=EQikCmdFlagRadioMiddle; },
+		QIK_COMMAND { id=EEikCmdPicoFrameskip8;    text="8";              type=EQikCommandTypeScreen; namedGroupId=EEikCmdPicoFrameskip;
+			groupId=EEikCmdPicoFrameskip0; stateFlags=EQikCmdFlagRadioEnd; },
+		QIK_COMMAND { id=EEikCmdPicoConfig;        text="Configure";      type=EQikCommandTypeScreen; namedGroupLinkId=EEikCmdPicoConfig; },
+		QIK_COMMAND { id=EEikCmdPicoKeys;          text="Keys";           type=EQikCommandTypeScreen; namedGroupId=EEikCmdPicoConfig; },
+		QIK_COMMAND { id=EEikCmdPicoSettings;      text="Settings";       type=EQikCommandTypeScreen; namedGroupId=EEikCmdPicoConfig; },
+		QIK_COMMAND { id=EEikCmdHelpAbout;         text="About";          type=EQikCommandTypeScreen; namedGroupId=EEikCmdPicoConfig; },
+
+		QIK_COMMAND { id=EEikCmdPicoLoadROM;       text="Load new ROM";   type=EQikCommandTypeScreen; groupId=EEikCmdPicoResume; },
+		QIK_COMMAND { id=EEikCmdPicoReset;         text="Reset game";     type=EQikCommandTypeScreen; groupId=EEikCmdPicoResume; },
+		QIK_COMMAND { id=EEikCmdPicoLoadState;     text="Load state";     type=EQikCommandTypeScreen; groupId=EEikCmdPicoResume; },
+		QIK_COMMAND { id=EEikCmdPicoSaveState;     text="Save state";     type=EQikCommandTypeScreen; groupId=EEikCmdPicoResume; },
+		QIK_COMMAND { id=EEikCmdPicoResume;        text="Resume game";    type=EQikCommandTypeScreen; groupId=EEikCmdPicoResume; cpfFlags=EQikCpfFlagIsDefault; },
+
+		QIK_COMMAND { id=EEikCmdExit;              text="Exit";           type=EQikCommandTypeScreen; groupId=EEikCmdExit; }
+	};
+}
+
+
+// Defines the view by linking to the pages.
+RESOURCE QIK_VIEW r_app_layout
+{
+	pages = {};
+}
+
+
+/**************************************
+ *
+ * config dialog
+ *
+ **************************************/
+
+RESOURCE DIALOG r_pico_config
+{
+   title   = "Settings";
+   buttons = R_EIK_BUTTONS_CANCEL_OK;
+   flags   = EEikDialogFlagWait;
+   pages   = r_pico_config_pages;
+}
+
+RESOURCE ARRAY r_pico_config_pages
+{
+   items = {
+      PAGE
+      {
+         id    = ECtlOptPageMain;
+         text  = "Main";
+         lines = r_pico_config_page_main;
+      },
+      PAGE
+      {
+         id    = ECtlOptPageSound;
+         text  = "Sound";
+         lines = r_pico_config_page_sound;
+      },
+      PAGE
+      {
+         id    = ECtlOptPageMisc;
+         text  = "Misc";
+         lines = r_pico_config_page_misc;
+      }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_page_main
+{
+   items = {
+      DLG_LINE
+      {
+	      id      = ECtlOptRotationLabel;
+          type    = EEikCtLabel;
+          prompt  = "Screen Rotation";
+          control = LABEL { horiz_align = EEikLabelAlignHLeft; };
+      },
+      DLG_LINE
+      {
+         id      = ECtlOptRotation;
+         type    = EEikCtHorOptionButList;
+         control = HOROPBUT
+         {
+            array_id = r_pico_config_rotation_buttons;
+         };
+      },
+      DLG_LINE
+      {
+	      id      = ECtlOptScreenModeLabel;
+          type    = EEikCtLabel;
+          prompt  = "Screen Mode";
+          control = LABEL { horiz_align = EEikLabelAlignHLeft; };
+      },
+      DLG_LINE
+      {
+         id      = ECtlOptScreenMode;
+         type    = EEikCtHorOptionButList;
+         control = HOROPBUT
+         {
+            array_id = r_pico_config_screenmode_buttons;
+         };
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptUseAltRend;
+         type   = EEikCtCheckBox;
+         prompt = "Fast renderer (inaccurate)";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptUseAccTiming;
+         type   = EEikCtCheckBox;
+         prompt = "Accurate timing (slower)";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptUseAccSprites;
+         type   = EEikCtCheckBox;
+         prompt = "Accurate sprites (slower)";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptShowFPS;
+         type   = EEikCtCheckBox;
+         prompt = "Show FPS";
+      }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_page_sound
+{
+   items = {
+      DLG_LINE
+      {
+         id     = ECtlOptEnableSound;
+         type   = EEikCtCheckBox;
+         prompt = "Enable sound";
+      },
+      DLG_LINE
+      {
+	     id      = ECtlOptChipSelLabel;
+         type    = EEikCtLabel;
+         prompt  = "Emulate these sound chips:";
+         control = LABEL { horiz_align = EEikLabelAlignHLeft; };
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptEmulateZ80;
+         type   = EEikCtCheckBox;
+         prompt = "Z80";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptEmulateYM2612;
+         type   = EEikCtCheckBox;
+         prompt = "YM2612";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptEmulateSN76496;
+         type   = EEikCtCheckBox;
+         prompt = "SN76496 (PSG)";
+      },
+      DLG_LINE
+      {
+	     id      = ECtlOptSndQLabel;
+         type    = EEikCtLabel;
+         prompt  = "Quality (lowest is fastest)";
+         control = LABEL { horiz_align = EEikLabelAlignHLeft; };
+      },
+      DLG_LINE
+      {
+         id      = ECtlOptSndQuality;
+         type    = EEikCtChoiceList;
+         prompt  = "";
+         control = CHOICELIST { array_id = r_pico_config_snd_quality; };
+         itemflags = EEikDlgItemNonFocusing;
+      }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_page_misc
+{
+   items = {
+      DLG_LINE
+      {
+         id     = ECtlOpt6ButtonPad;
+         type   = EEikCtCheckBox;
+         prompt = "6 button pad";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptGzipStates;
+         type   = EEikCtCheckBox;
+         prompt = "gzip save states";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptUseSRAM;
+         type   = EEikCtCheckBox;
+         prompt = "Use SRAM saves (.srm)";
+      },
+      DLG_LINE
+      {
+         id      = ECtlOptRegion;
+         type    = EEikCtChoiceList;
+         prompt  = "Region:";
+         control = CHOICELIST { array_id = r_pico_config_region; };
+         itemflags = EEikDlgItemNonFocusing;
+      }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_rotation_buttons
+{
+   items = {
+     OPBUT { id = ECtlOptRotation0;    text = "0º";   },
+     OPBUT { id = ECtlOptRotation90;   text = "90º";  },
+     OPBUT { id = ECtlOptRotation180;  text = "180º";  },
+     OPBUT { id = ECtlOptRotation270;  text = "270º";  }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_screenmode_buttons
+{
+   items = {
+     OPBUT { id = ECtlOptScreenModeCenter;  text = "Center"; },
+     OPBUT { id = ECtlOptScreenModeFit;     text = "Fit";    },
+     OPBUT { id = ECtlOptScreenModeFit2;    text = "Fit2";   }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_snd_quality
+{
+   items = {
+     LBUF { txt = "8000Hz mono";          },
+     LBUF { txt = "11025Hz mono";         },
+     LBUF { txt = "16000Hz mono";         },
+     LBUF { txt = "22050Hz mono";         },
+     LBUF { txt = "44100Hz mono";         },
+     LBUF { txt = "8000Hz stereo";        },
+     LBUF { txt = "11025Hz stereo";       },
+     LBUF { txt = "16000Hz stereo";       },
+     LBUF { txt = "22050Hz stereo";       },
+     LBUF { txt = "44100Hz stereo";       }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_region
+{
+   items = {
+     LBUF { txt = "Auto";        },
+     LBUF { txt = "Europe";      },
+     LBUF { txt = "USA";         },
+     LBUF { txt = "Japan PAL";   },
+     LBUF { txt = "Japan NTSC";  }
+   };
+}
+
+
+/**************************************
+ *
+ * about dialog
+ *
+ **************************************/
+
+// A simple dialog shall use the QIK_DIALOG resource struct to 
+// define which UI configurations it supports.
+RESOURCE QIK_DIALOG r_pico_about
+{
+	title = "About";
+	configurations = 
+	{
+		QIK_DIALOG_CONFIGURATION
+		{
+			ui_config_mode = 0;
+			container = r_pico_about_container;
+			command_list = r_pico_about_commands;
+		}
+	};
+	controls = r_pico_about_controls;
+}
+
+RESOURCE QIK_COMMAND_LIST r_pico_about_commands
+{
+	items=
+	{
+		QIK_COMMAND
+		{
+			id = EEikCmdPicoAboutDoneCmd;
+			type = EQikCommandTypeDone;
+			text = "Done";
+		},
+		QIK_COMMAND
+		{
+			id = EEikCmdPicoAboutCreditsCmd;
+			type = EQikCommandTypeItem;
+			text = "Credits";
+		}
+	};
+}
+ 
+// A collection of controls that can be used throughout the various 
+// view/container/building block structs by using the unique handle in 
+// QIK_CONTROL. So you can specify how the control should be created here and 
+// just reference to it from other places.
+RESOURCE QIK_CONTROL_COLLECTION r_pico_about_controls
+{
+	items = 
+	{
+		QIK_CONTROL
+		{
+			unique_handle = ECtlPicoAboutText;
+			type = EEikCtRichTextEditor;
+			control = r_pico_about_rtxted;
+			itemflags = EQikCtrlFlagIsEditInPlace;
+		}
+	};
+}
+
+// the controls themselves
+RESOURCE RTXTED r_pico_about_rtxted
+{
+    flags = EEikEdwinDisplayOnly|EEikEdwinReadOnly|EEikEdwinNoHorizScrolling;
+    numlines = 13;
+	displayMode = 1; // EDisplayModeView;
+}
+
+// Defines the content of the simple dialog and how they are laid out. 
+// Default layout manager is used for laying out the controls, which is a row 
+// layout.
+RESOURCE QIK_CONTAINER_SETTINGS r_pico_about_container
+{
+	controls = 
+	{
+		QIK_CONTAINER_ITEM_CI_LI
+		{
+			type = EQikCtOnelineBuildingBlock;
+			control = r_pico_about_bb1;
+		}
+	};
+}
+    
+// Building block that contains the label.
+RESOURCE QIK_SYSTEM_BUILDING_BLOCK r_pico_about_bb1
+{
+	content =
+	{
+		QIK_SLOT_CONTENT
+		{
+			slot_id = EQikItemSlot1;
+			unique_handle = ECtlPicoAboutText;
+		}
+	};
+}
+
+RESOURCE TBUF r_pico_text_about
+{
+	buf= 
+		"<f=Polo><s=26><a=center><fg=RgbDarkBlue>PicoDrive"\
+		"<p><f=Polo><s=10><a=center>for UIQ3"\
+		"<p><s=6> <p><f=Corinna><s=12>Version %S, by notaz."\
+		"<p><s=5> <p><s=10>Port based on UIQ2 version, which is based on PicoDrive 0.030 for Pocket PC by Dave"\
+		"<p><s=5> <p><f=Corinna><s=11><u>Email</u>: notasas@gmail.com"\
+		"<p><f=Corinna><s=10><u>Web</u>: http://notaz.atspace.com"\
+		"<p><f=Corinna><s=10><u>Dave's Web</u>: http://www.finalburn.com";
+}
+
+/**************************************
+ *
+ * credits dialog
+ *
+ **************************************/
+
+// A simple dialog shall use the QIK_DIALOG resource struct to 
+// define which UI configurations it supports.
+RESOURCE QIK_DIALOG r_pico_credits
+{
+	title = "Credits and thanks";
+	configurations = 
+	{
+		QIK_DIALOG_CONFIGURATION
+		{
+			ui_config_mode = 0;
+			container = r_pico_credits_container;
+			command_list = r_pico_credits_commands;
+		}
+	};
+	controls = r_pico_credits_controls;
+}
+
+RESOURCE QIK_COMMAND_LIST r_pico_credits_commands
+{
+	items=
+	{
+		QIK_COMMAND
+		{
+			id = EEikCmdPicoAboutDoneCmd;
+			type = EQikCommandTypeDone;
+			text = "Done";
+		}
+	};
+}
+
+// A collection of controls that can be used throughout the various 
+// view/container/building block structs by using the unique handle in 
+// QIK_CONTROL. So you can specify how the control should be created here and 
+// just reference to it from other places.
+RESOURCE QIK_CONTROL_COLLECTION r_pico_credits_controls
+{
+	items = 
+	{
+		QIK_CONTROL
+		{
+			unique_handle = ECtlPicoCreditsText;
+			type = EEikCtEdwin;
+			control = r_pico_credits_edwin;
+			itemflags = EQikCtrlFlagIsEditInPlace;
+		}
+	};
+}
+
+// the controls themselves
+RESOURCE EDWIN r_pico_credits_edwin
+{
+	flags = EEikEdwinDisplayOnly|EEikEdwinReadOnly|EEikEdwinNoHorizScrolling|EEikEdwinDisableAutoCurEnd;
+	lines = 11;
+}
+
+// Defines the content of the simple dialog and how they are laid out. 
+// Default layout manager is used for laying out the controls, which is a row 
+// layout.
+RESOURCE QIK_CONTAINER_SETTINGS r_pico_credits_container
+{
+	controls = 
+	{
+		QIK_CONTAINER_ITEM_CI_LI
+		{
+			type = EQikCtOnelineBuildingBlock;
+			control = r_pico_credits_bb1;
+		}
+	};
+}
+    
+// Building block that contains the label.
+RESOURCE QIK_SYSTEM_BUILDING_BLOCK r_pico_credits_bb1
+{
+	content =
+	{
+		QIK_SLOT_CONTENT
+		{
+			slot_id = EQikItemSlot1;
+			unique_handle = ECtlPicoCreditsText;
+		}
+	};
+}
+
+
+RESOURCE ARRAY r_pico_tbuf_credits
+{
+  items=
+  {
+	LBUF{txt="This emulator uses code from these people / projects:";},
+	LBUF{txt="";},
+	LBUF{txt="Dave";},
+	LBUF{txt="- Cyclone 68000 core, Pico emulation library";},
+	LBUF{txt="Homepage: http://www.finalburn.com/";},
+	LBUF{txt="";},
+	LBUF{txt="Reesy & FluBBa";},
+	LBUF{txt="- DrZ80, the Z80 emulator written in ARM assembly.";},
+	LBUF{txt="Homepage: http://reesy.gp32x.de/";},
+	LBUF{txt="";},
+	LBUF{txt="Tatsuyuki Satoh, Jarek Burczynski, MultiArcadeMachineEmulator (MAME) development";},
+	LBUF{txt="- software implementation of Yamaha FM sound generator and";},
+	LBUF{txt="Texas Instruments SN76489 / SN76496 programmable tone / noise generator";},
+	LBUF{txt="Homepage: http://www.mame.net/";},
+	LBUF{txt="";},
+	LBUF{txt="Additional thanks:";},
+	LBUF{txt="- Charles MacDonald (http://cgfm2.emuviews.com/) for old but still very useful info about genesis hardware.";},
+	LBUF{txt="- Stéphane Dallongeville for creating Gens and making it open-source.";},
+	LBUF{txt="- Steve Snake for all that he has done for Genesis emulation scene.";},
+	LBUF{txt="- Bart Trzynadlowski for his SSFII and 68000 docs.";},
+	LBUF{txt="- Maze for his research (http://haze.mameworld.info).";},
+	LBUF{txt="- Mark and Jean-loup for zlib library.";},
+	LBUF{txt="- Peter van Sebille for his various open-source Symbian projects to learn from.";},
+	LBUF{txt="- Steve Fischer for his open-source Motorola projects.";},
+	LBUF{txt="- AnotherGuest for all his Symbian stuff and support.";},
+	LBUF{txt="- Inder for the icons.";},
+	LBUF{txt="- Anyone else I forgot. You know who you are.";}
+  };
+}
+
+
+/**************************************
+ *
+ * debug dialog
+ *
+ **************************************/
+
+RESOURCE QIK_DIALOG r_pico_debug
+{
+	title = "debug";
+	configurations = 
+	{
+		QIK_DIALOG_CONFIGURATION
+		{
+			ui_config_mode = 0;
+			container = r_pico_credits_container; // stuff from credits should fit
+			command_list = r_pico_credits_commands;
+		}
+	};
+	controls = r_pico_credits_controls;
+}
+

@@ -1,0 +1,136 @@
+// PicoDriveS60.RSS
+//
+//
+
+NAME PICO
+#include <eikon.rh>
+#include <eikon.rsg>
+#include <avkon.rsg>
+#include <avkon.rh>
+RESOURCE RSS_SIGNATURE { }
+
+RESOURCE TBUF16 { buf=""; }
+
+RESOURCE EIK_APP_INFO
+	{ 
+	menubar = r_pico_menubar;
+	}
+
+RESOURCE MENU_BAR r_pico_menubar                                         // *** Menu bar
+{
+      titles =
+    {
+	};
+}
+
+RESOURCE ARRAY r_picodrive_keys
+{
+items=
+{
+	LBUF{txt="Up";},
+	LBUF{txt="Down";},
+	LBUF{txt="Left";},
+	LBUF{txt="Right";},
+	LBUF{txt="A";},
+	LBUF{txt="B";},
+	LBUF{txt="C";},
+	LBUF{txt="X";},
+	LBUF{txt="Y";},
+	LBUF{txt="Z";},
+	LBUF{txt="Mode";},
+	LBUF{txt="Start";},
+	LBUF{txt="Up&Left";},
+	LBUF{txt="Up&Right";},
+	LBUF{txt="Down&Right";},
+	LBUF{txt="Down&Left";},
+	LBUF{txt="Soft reset";},
+	LBUF{txt="Pan left";},
+	LBUF{txt="Pan right";}
+	};
+ }
+
+
+
+RESOURCE DIALOG r_pico_file_select_dialog
+{ 
+flags = EGeneralQueryFlags; 
+buttons = R_AVKON_SOFTKEYS_DONE_CANCEL; 
+items = 
+{ 
+DLG_LINE 
+{ 
+type = EAknCtListQueryControl; 
+id = EListQueryControl; 
+
+control = AVKON_LIST_QUERY_CONTROL 
+{ 
+heading = "Files"; 
+listtype = EAknCtSinglePopupMenuListBox; 
+listbox = LISTBOX 
+{ 
+flags = EAknDialogSelectionList; 
+height = 3; 
+width = 1; 
+}; 
+}; 
+} 
+}; 
+} 
+
+RESOURCE DIALOG r_pico_add_cheat
+{
+	title="Add cheatcode";					
+	flags=EEikDialogFlagNoDrag | 			 
+		EEikDialogFlagCbaButtons | 
+		EEikDialogFlagModeless|EEikDialogFlagWait;
+    buttons = R_AVKON_SOFTKEYS_OK_CANCEL;
+	items=
+		{
+		DLG_LINE
+		{
+		 type=EEikCtLabel;
+		  id=0x2002;
+		 itemflags = EEikDlgItemNonFocusing;
+		    control= LABEL
+
+				 {
+				 	txt = "Enter cheatcode";
+					 
+				};
+		},
+		DLG_LINE
+		{
+		itemflags = EEikDlgItemNonFocusing;
+		 id=0x2001;
+		 type=EEikCtLabel;
+		    control= LABEL { 
+			horiz_align=EEikLabelAlignHLeft;
+			 	txt = "\nGG: XXXX-XXXX\nPatch: XXXXXX:YYYY"; 
+				};
+		},
+		DLG_LINE
+            {
+            type=EEikCtEdwin;    
+            id=0x2000;
+            itemflags =   EEikDlgItemOfferAllHotKeys|EEikDlgItemSeparatorAfter;
+
+            control= EDWIN { 				
+				 maxlength=12; 
+				};
+         
+
+            }
+		};
+}
+
+RESOURCE ARRAY r_picodrive_regions
+{
+	items=
+	{
+	LBUF{txt="Region: Auto";},
+	LBUF{txt="Region: Jap NTSC";},
+	LBUF{txt="Region: Jap PAL";},
+	LBUF{txt="Region: US NTSC";},
+	LBUF{txt="Region: EUR PAL";}
+	};
+}

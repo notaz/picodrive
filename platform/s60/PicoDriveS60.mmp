@@ -1,0 +1,37 @@
+target          PicoDrive.exe
+TARGETTYPE      exedll
+TARGETPATH  system\apps\PicoDriveS60
+SOURCEPATH      ..\S60
+source picodriveexe.cpp 
+sourcepath ..
+source unzip.c
+#ifndef WINS
+sourcepath  ..\gcc
+source libgcc2.c
+#endif
+
+SYSTEMINCLUDE   \epoc32\include \epoc32\include\libc
+USERINCLUDE     ..\pico ..\pico\sound ..\s60 ..
+// libraries
+library         cone.lib  EIKCORE.lib  MEDIACLIENTAUDIOSTREAM.LIB
+library         euser.lib   zlib.lib
+library          efsrv.lib estlib.lib fbscli.lib estor.lib eikcoctl.lib 
+library  ws32.lib  AVKON.LIB bafl.lib bitgdi.lib eikdlg.lib
+
+staticlibrary pico.lib 
+
+#if defined(WINS)
+staticlibrary a68k.obj
+staticlibrary mz80_asm.obj
+#else
+staticlibrary cyclone.o 
+staticlibrary DRZ80.o
+staticlibrary draw.o
+//staticlibrary blit.o
+staticlibrary ym2612_helper.o
+staticlibrary memory.o
+staticlibrary draw2.o
+#endif
+
+EPOCHEAPSIZE 1024000 8192000
+//EPOCSTACKSIZE 65535

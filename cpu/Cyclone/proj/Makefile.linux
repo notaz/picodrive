@@ -1,0 +1,39 @@
+CFLAGS = -Wall
+
+ALL : cyclone.s
+
+cyclone.s : Cyclone.exe
+	./Cyclone.exe
+
+Cyclone.exe : Main.o Ea.o OpAny.o OpArith.o OpBranch.o OpLogic.o Disa.o OpMove.o
+	$(CC) $^ -o $@ -lstdc++
+
+Main.o : ../Main.cpp ../app.h
+	$(CC) $(CFLAGS) ../Main.cpp -c -o $@
+
+Ea.o : ../Ea.cpp ../app.h
+	$(CC) $(CFLAGS) ../Ea.cpp -c -o $@
+
+OpAny.o : ../OpAny.cpp ../app.h
+	$(CC) $(CFLAGS) ../OpAny.cpp -c -o $@
+
+OpArith.o : ../OpArith.cpp ../app.h
+	$(CC) $(CFLAGS) ../OpArith.cpp -c -o $@
+
+OpBranch.o : ../OpBranch.cpp ../app.h
+	$(CC) $(CFLAGS) ../OpBranch.cpp -c -o $@
+
+OpLogic.o : ../OpLogic.cpp ../app.h
+	$(CC) $(CFLAGS) ../OpLogic.cpp -c -o $@
+
+OpMove.o : ../OpMove.cpp ../app.h
+	$(CC) $(CFLAGS) ../OpMove.cpp -c -o $@
+
+Disa.o : ../Disa/Disa.c ../Disa/Disa.h
+	$(CC) $(CFLAGS) ../Disa/Disa.c -c -o $@
+
+../app.h : ../config.h
+
+clean :
+	$(RM) *.o Cyclone.exe Cyclone.s
+

@@ -1,0 +1,24 @@
+#{"PicodriveN"},(0x1000C193),0,93,0
+
+;
+; For the UIQ?
+(0x101F617B), 2, 0, 0, {"UIQ20ProductID"}
+
+;
+; PicodriveN (Frontend)
+;
+"..\..\..\..\..\epoc32\release\armi\urel\PicodriveN.app"-"!:\system\apps\PicodriveN\PicodriveN.app"
+"..\..\..\..\..\epoc32\data\z\system\apps\PicodriveN\PicodriveN.rsc"-"!:\system\apps\PicodriveN\PicodriveN.rsc"
+"..\..\..\..\..\epoc32\data\z\system\apps\PicodriveN\PicodriveN.aif"-"!:\system\apps\PicodriveN\PicodriveN.aif"
+"..\audio\audio_mediaserver.dll"-"!:\system\apps\PicodriveN\audio_mediaserver.dll"
+"..\audio\audio_motorola.dll"-"!:\system\apps\PicodriveN\audio_motorola.dll"
+
+;
+; Picosmall
+;
+"..\PICOSMALL.EXE"-"!:\system\apps\PicodriveN\PICOSMALL.EXE"
+
+;
+; Text to show during installation, not copied to destination
+;
+".\install.txt"-"!:\system\apps\PicodriveN\install.txt",FILETEXT

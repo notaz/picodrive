@@ -1,0 +1,12 @@
+PRJ_PLATFORMS
+
+GCCE winscw
+
+
+PRJ_MMPFILES
+..\pico.mmp BUILD_AS_ARM
+..\picodriveS60V3.mmp BUILD_AS_ARM
+
+
+
+

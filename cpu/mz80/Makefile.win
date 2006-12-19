@@ -1,0 +1,18 @@
+all : mz80.obj
+
+mz80.obj : mz80.asm
+	nasm -f win32 mz80.asm -o $@
+
+mz80.asm : makez80.exe
+	makez80.exe -s -x86 $@
+
+makez80.exe : makez80.c
+	cl /DWIN32 /W3 makez80.c
+
+
+clean : tidy
+	del mz80.obj
+
+tidy :
+	del mz80.asm makez80.exe makez80.obj 
+

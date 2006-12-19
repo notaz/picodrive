@@ -1,0 +1,118 @@
+
+__________________________________________________________________________________________
+
+          ______ _______ __   _ _______ ______   ______ _____ _    _ _______
+         |  ____ |______ | \  | |_____| |     \ |_____/   |    \  /  |______
+         |_____| |______ |  \_| |     | |_____/ |    \_ __|__   \/   |______
+                                                                    
+              G      E      N      A       D      R      I      V      E
+
+
+             GenaDrive is a Genesis / MegaDrive emulator for the XBox.
+
+
+  #include <std_disclaimer.h>
+    I do not accept responsibility for any effects, adverse or otherwise, that
+      this code may have on you, your computer, your sanity, your dog... etc.
+    You can use this software freely as long as you don't use it commercially.
+__________________________________________________________________________________________
+
+                                   Weird Name?
+
+GenaDrive is a porn-star emulator, based on legendary porn star Jenna Ja... no not really.
+GenaDrive (one word, capital G, capital D), is pronounced "Jen-A-Drive".
+
+(Think 'MegaDrive' but with 'Gen' instead of 'Meg'.)
+
+__________________________________________________________________________________________
+
+What's New
+
+  v0.004
+  * Merged the PicoDrive and GenaDrive 'Pico' directories, with ifdefs for
+    EMU_C68K (Cyclone) and EMU_A68K.
+
+  v0.003 - Added .SMD support
+
+  v0.002 - First release
+
+__________________________________________________________________________________________
+
+                               Okay but what is it?
+
+  GenaDrive is a partially-complete MegaDrive emulator for the XBox. It emulates the
+  hardware of the MegaDrive console on the XBox. Basically, it makes your XBox act like
+  a MegaDrive.
+
+  It actually uses the same code-base as my Pocket PC 'PicoDrive' emulator, but instead
+  of an ARM-optimized 68000 emulator it uses (naturally) an Intel-optimized one - A68K
+  from the MAME project.
+
+__________________________________________________________________________________________
+
+                                   How to use
+
+  Put the emulator (default.xbe) in a directory such as e:\Emulators\GenaDrive\
+  Make sure there is a directory e:\Emulators\GenaDrive\Roms
+  Put your rom images there.
+
+  Run GenaDrive.
+  If it doesn't work, try running 'xbepatch' on the XBE first to convert it to a retail XBE.
+
+  This is minimal zip support, though there must be no other files in each zip.
+
+  Run the emulator and you will see a list of rom images. Push up/down and press A
+  to select a rom image.
+  Click the Right thumbstick in to pause and return to the menu.
+
+  To exit the emulator hold L and R and press Black, or press Back+Start.
+
+  This is just an early version so there's quite a few things missing or not up to scratch,
+  e.g. sound, z80, joypad 2
+
+__________________________________________________________________________________________
+
+What's currently emulated:
+
+  68000 : Yes
+
+  VDP
+    Scroll A/B  : Yes
+    Line Scroll : Yes
+    Sprites     : Sort of
+    Window      : Not yet
+    H-Ints/HV Counter : Not yet
+
+  Sound:
+    Z80    : Not yet (faked)
+    YM2151 : Not yet
+    PSG    : Not yet
+
+  Compatibility: ~50% ?
+
+__________________________________________________________________________________________
+
+Web page and contact info:
+
+  I (Dave) can be reached at the usual spot, my web-page is:
+
+    http://www.finalburn.com/
+
+  And my e-mail address is as follows, just change the (atsymbol) to @
+  
+    dev(atsymbol)finalburn.com
+
+  NB - I had to shut down the 'dave' mailbox so it's now 'dev', because the 'dave'
+  e-mail address was printed everywhere and spambots logged it and spammed it to death! :P
+  So if you must quote it, please quote it as above... or better yet just link to my webpage.
+
+Thanks to:
+  Mike Coates and Darren Olafson once again for A68K
+  Sam for getting me set up on my XBox!
+  Charles Macdonald, for researching just about every console ever
+  MameDev+FBA, for keeping on going and going and going
+  XPort for loads of great XBox emulators
+
+  ...and anyone else I forgot!
+
+__________________________________________________________________________________________

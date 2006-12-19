@@ -1,0 +1,474 @@
+NAME PDN
+
+#include <eikon.rh>
+#include <eikon.rsg>
+#include "picodriven.hrh"
+
+
+RESOURCE RSS_SIGNATURE { }
+
+RESOURCE TBUF { buf=""; }
+
+RESOURCE EIK_APP_INFO
+	{
+	menubar=r_app_menubar;
+	hotkeys=r_app_hotkeys;
+	}
+
+RESOURCE HOTKEYS r_app_hotkeys
+    {
+    control=
+        {
+        HOTKEY { command=EEikCmdExit; key='e'; }
+        };
+    }
+
+RESOURCE MENU_BAR r_app_menubar
+    {
+    titles=
+        {
+        MENU_TITLE { menu_pane=r_app_emu_menu; txt="Emu"; },
+        MENU_TITLE { menu_pane=r_app_frameskip_menu; txt="Frameskip"; }
+#ifdef __DEBUG_PRINT
+        ,MENU_TITLE { menu_pane=r_app_debug_menu; txt="Debug"; }
+#endif
+		};
+    }
+
+RESOURCE MENU_PANE r_app_emu_menu
+	{
+	items=
+		{
+		MENU_ITEM { command=EEikCmdPicoLoadState; txt="Load state";  flags=EEikMenuItemDimmed; },
+		MENU_ITEM { command=EEikCmdPicoSaveState; txt="Save state";  flags=EEikMenuItemDimmed; },
+		MENU_ITEM { command=EEikCmdPicoLoadROM;   txt="Load new ROM"; },
+		MENU_ITEM { command=EEikCmdPicoResume;    txt="Resume game"; flags=EEikMenuItemDimmed; },
+		MENU_ITEM { command=EEikCmdPicoReset;     txt="Reset game";  flags=EEikMenuItemDimmed; },
+		MENU_ITEM { command=EEikCmdPicoKeys;      txt="Configure keys"; },
+		MENU_ITEM { command=EEikCmdPicoSettings;  txt="Settings"; },
+		MENU_ITEM { command=EEikCmdHelpAbout;     txt="About";       flags=EEikMenuItemSeparatorAfter; },
+		MENU_ITEM { command=EEikCmdExit;          txt="Exit"; }
+        };
+    }
+
+RESOURCE MENU_PANE r_app_frameskip_menu
+	{
+	items=
+		{
+		MENU_ITEM { command=EEikCmdPicoFrameskipAuto; txt="Auto"; flags=EEikMenuItemRadioStart | EEikMenuItemSeparatorAfter; },
+		MENU_ITEM { command=EEikCmdPicoFrameskip0;    txt="0";    flags=EEikMenuItemRadioMiddle; },
+		MENU_ITEM { command=EEikCmdPicoFrameskip1;    txt="1";    flags=EEikMenuItemRadioMiddle; },
+		MENU_ITEM { command=EEikCmdPicoFrameskip2;    txt="2";    flags=EEikMenuItemRadioMiddle; },
+		MENU_ITEM { command=EEikCmdPicoFrameskip4;    txt="4";    flags=EEikMenuItemRadioMiddle; },
+		MENU_ITEM { command=EEikCmdPicoFrameskip8;    txt="8";    flags=EEikMenuItemRadioEnd; }
+        };
+    }
+
+RESOURCE MENU_PANE r_app_debug_menu
+	{
+	items=
+		{
+		MENU_ITEM { command=EEikCmdPicoDebugKillEmu; txt="Kill emu proc"; },
+		MENU_ITEM { command=EEikCmdPicoDebugInfo;    txt="info"; }
+        };
+    }
+
+
+
+/**************************************
+ *
+ * about dialog
+ *
+ **************************************/
+
+RESOURCE DIALOG r_dialog_about
+{
+	title = "About";
+	buttons = r_buttons_continue_credits;
+	flags = EEikDialogFlagWait;
+	items =
+	{
+		DLG_LINE
+		{
+			itemflags = EQikDlgItemUseFullWidth | EQikDlgItemDenselyPacked;
+			type = EEikCtRichTextEditor;
+			id = ECtlAboutVersion;
+			control = RTXTED
+			{
+				flags = EEikEdwinResizable | EEikEdwinNoAutoSelection | EEikEdwinReadOnly | EEikEdwinWidthInPixels;
+				numlines = 4;
+			};
+		},
+		DLG_LINE
+		{
+			itemflags = EQikDlgItemUseFullWidth | EQikDlgItemDenselyPacked;
+			type = EEikCtRichTextEditor;
+			id = ECtlAboutLinks;
+			control = RTXTED
+			{
+				flags = EEikEdwinResizable | EEikEdwinNoAutoSelection | EEikEdwinReadOnly | EEikEdwinWidthInPixels | 0x00200000;
+				numlines = 4;
+			};
+		}
+	};
+}
+
+RESOURCE DLG_BUTTONS r_buttons_continue_credits
+{
+	buttons =
+	{
+		DLG_BUTTON { id = EEikBidYes; button = CMBUT { txt = "Credits"; }; },
+		DLG_BUTTON { id = EEikBidCancel; button = CMBUT { txt = "Continue"; }; flags=EEikLabeledButtonIsDefault; }
+	};
+}
+
+
+RESOURCE TBUF r_simple_text_about_links
+{
+	buf= 
+		"<f=Corinna><s=11><u>Email</u>: notasas@gmail.com"\
+		"<p><f=Corinna><s=11><u>Web</u>:<p>http://notaz.atspace.com"\
+		"<p><f=Corinna><s=11><u>Dave's Web</u>:<p>http://www.finalburn.com";
+}
+
+
+RESOURCE TBUF r_simple_text_about
+{
+	buf= 
+		"<f=Polo><s=26><a=center><fg=RgbDarkBlue>PicodriveN"\
+		"<p><f=Polo><s=10><a=center>for UIQ2"\
+		"<p> <p><f=Corinna><s=12>Version %S, by notaz."\
+		"<p><s=6> <p><s=10>Port based on PicoDrive 0.030 for Pocket PC by Dave";
+}
+
+
+RESOURCE DIALOG r_dialog_credits
+{
+	title = "Credits and thanks";
+	buttons = R_EIK_BUTTONS_DONE;
+	flags = EEikDialogFlagWait;
+	items = 
+	{
+		DLG_LINE
+		{
+			type = EEikCtGlobalTextEditor;
+			id = ECtlCredits;
+			control = GTXTED
+			{ 
+				width = 150; height = 200; numlines = 26; flags = EEikEdwinReadOnly | EEikEdwinNoAutoSelection | EEikEdwinDisplayOnly;
+			};
+		}
+	};
+}
+
+
+RESOURCE ARRAY r_tbuf_credits
+{
+  items=
+  {
+	LBUF{txt="This emulator uses code from these people / projects:";},
+	LBUF{txt="";},
+	LBUF{txt="Dave";},
+	LBUF{txt="- Cyclone 68000 core, Pico emulation library";},
+	LBUF{txt="Homepage: http://www.finalburn.com/";},
+	LBUF{txt="E-mail: david(atsymbol)finalburn.com";},
+	LBUF{txt="";},
+	LBUF{txt="Reesy & FluBBa";},
+	LBUF{txt="- DrZ80, the Z80 emulator written in ARM assembly.";},
+	LBUF{txt="Homepage: http://reesy.gp32x.de/";},
+	LBUF{txt="E-mail: drsms_reesy(atsymbol)yahoo.co.uk";},
+	LBUF{txt="";},
+	LBUF{txt="Tatsuyuki Satoh, Jarek Burczynski, MultiArcadeMachineEmulator (MAME) development";},
+	LBUF{txt="- software implementation of Yamaha FM sound generator and";},
+	LBUF{txt="Texas Instruments SN76489 / SN76496 programmable tone / noise generator";},
+	LBUF{txt="Homepage: http://www.mame.net/";},
+	LBUF{txt="";},
+	LBUF{txt="Additional thanks:";},
+	LBUF{txt="- Peter van Sebille for ECompXL and his various open-source Symbian projects to learn from.";},
+	LBUF{txt="- Steve Fischer for his open-source Motorola projects.";},
+	LBUF{txt="- Charles MacDonald (http://cgfm2.emuviews.com/) for old but still very useful info about genesis hardware.";},
+	LBUF{txt="- Stéphane Dallongeville for creating Gens and making it open-source.";},
+	LBUF{txt="- Steve Snake for all that he has done for Genesis emulation scene.";},
+	LBUF{txt="- Bart Trzynadlowski for his SSFII and 68000 docs.";},
+	LBUF{txt="- Haze for his research (http://haze.mameworld.info).";},
+	LBUF{txt="- The development team behind \"Symbian GCC Improvement Project \" (http://www.inf.u-szeged.hu/symbian-gcc/) for their updated compile tools.";},
+	LBUF{txt="- Mark and Jean-loup for zlib library.";},
+	LBUF{txt="- Reesy for also finding some Cyclone bugs.";},
+	LBUF{txt="- Inder for the icons.";}
+  };
+}
+
+
+/**************************************
+ *
+ * debug dialog
+ *
+ **************************************/
+
+RESOURCE DIALOG r_dialog_debug
+{
+	title = "debug";
+	buttons = R_EIK_BUTTONS_DONE;
+	flags = EEikDialogFlagWait;
+	items = 
+	{
+		DLG_LINE
+		{
+			type = EEikCtGlobalTextEditor;
+			id = ECtlDebugEdit;
+			control = GTXTED
+			{ 
+				width = 150; height = 200; numlines = 26; flags = EEikEdwinReadOnly | EEikEdwinNoAutoSelection | EEikEdwinDisplayOnly;
+			};
+		}
+	};
+}
+
+
+/**************************************
+ *
+ * config dialog
+ *
+ **************************************/
+
+RESOURCE DIALOG r_pico_config
+{
+   title   = "Settings";
+   buttons = R_EIK_BUTTONS_CANCEL_OK;
+   flags   = EEikDialogFlagWait;
+   pages   = r_pico_config_pages;
+}
+
+RESOURCE ARRAY r_pico_config_pages
+{
+   items = {
+      PAGE
+      {
+         id    = ECtlOptPageMain;
+         text  = "Main";
+         lines = r_pico_config_page_main;
+      },
+      PAGE
+      {
+         id    = ECtlOptPageSound;
+         text  = "Sound";
+         lines = r_pico_config_page_sound;
+      },
+      PAGE
+      {
+         id    = ECtlOptPageMisc;
+         text  = "Misc";
+         lines = r_pico_config_page_misc;
+      }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_page_main
+{
+   items = {
+      DLG_LINE
+      {
+	      id      = ECtlOptRotationLabel;
+          type    = EEikCtLabel;
+          prompt  = "Screen Rotation";
+          control = LABEL { horiz_align = EEikLabelAlignHLeft; };
+      },
+      DLG_LINE
+      {
+         id      = ECtlOptRotation;
+         type    = EEikCtHorOptionButList;
+         control = HOROPBUT
+         {
+            array_id = r_pico_config_rotation_buttons;
+         };
+      },
+      DLG_LINE
+      {
+	      id      = ECtlOptScreenModeLabel;
+          type    = EEikCtLabel;
+          prompt  = "Screen Mode";
+          control = LABEL { horiz_align = EEikLabelAlignHLeft; };
+      },
+      DLG_LINE
+      {
+         id      = ECtlOptScreenMode;
+         type    = EEikCtHorOptionButList;
+         control = HOROPBUT
+         {
+            array_id = r_pico_config_screenmode_buttons;
+         };
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptUseAltRend;
+         type   = EEikCtCheckBox;
+         prompt = "Fast renderer (inaccurate)";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptUseAccTiming;
+         type   = EEikCtCheckBox;
+         prompt = "Accurate timing (slower)";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptUseAccSprites;
+         type   = EEikCtCheckBox;
+         prompt = "Accurate sprites (slower)";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptShowFPS;
+         type   = EEikCtCheckBox;
+         prompt = "Show FPS";
+      }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_page_sound
+{
+   items = {
+      DLG_LINE
+      {
+         id     = ECtlOptEnableSound;
+         type   = EEikCtCheckBox;
+         prompt = "Enable sound";
+      },
+      DLG_LINE
+      {
+	     id      = ECtlOptChipSelLabel;
+         type    = EEikCtLabel;
+         prompt  = "Emulate these sound chips:";
+         control = LABEL { horiz_align = EEikLabelAlignHLeft; };
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptEmulateZ80;
+         type   = EEikCtCheckBox;
+         prompt = "Z80";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptEmulateYM2612;
+         type   = EEikCtCheckBox;
+         prompt = "YM2612";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptEmulateSN76496;
+         type   = EEikCtCheckBox;
+         prompt = "SN76496 (PSG)";
+      },
+      DLG_LINE
+      {
+	     id      = ECtlOptSndQLabel;
+         type    = EEikCtLabel;
+         prompt  = "Quality (lowest is fastest)";
+         control = LABEL { horiz_align = EEikLabelAlignHLeft; };
+      },
+      DLG_LINE
+      {
+         id      = ECtlOptSndQuality;
+         type    = EEikCtChoiceList;
+         prompt  = "";
+         control = CHOICELIST { array_id = r_pico_config_snd_quality; };
+         itemflags = EEikDlgItemNonFocusing;
+      }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_page_misc
+{
+   items = {
+      DLG_LINE
+      {
+         id     = ECtlOpt6ButtonPad;
+         type   = EEikCtCheckBox;
+         prompt = "6 button pad";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptGzipStates;
+         type   = EEikCtCheckBox;
+         prompt = "gzip save states";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptUseSRAM;
+         type   = EEikCtCheckBox;
+         prompt = "Use SRAM saves (.srm)";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptMotDontUseVol;
+         type   = EEikCtCheckBox;
+         prompt = "Motorola: don't use volume keys for game controls";
+      },
+      DLG_LINE
+      {
+	     id      = ECtlOptRegionLabel;
+         type    = EEikCtLabel;
+         prompt  = "Region:                  ";
+         control = LABEL { horiz_align = EEikLabelAlignHLeft; };
+      },
+      DLG_LINE
+      {
+         id      = ECtlOptRegion;
+         type    = EEikCtChoiceList;
+         prompt  = "";
+         control = CHOICELIST { array_id = r_pico_config_region; };
+         itemflags = EEikDlgItemNonFocusing;
+      }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_rotation_buttons
+{
+   items = {
+     OPBUT { id = ECtlOptRotation0;    text = "0º";   },
+     OPBUT { id = ECtlOptRotation90;   text = "90º";  },
+     OPBUT { id = ECtlOptRotation180;  text = "180º";  },
+     OPBUT { id = ECtlOptRotation270;  text = "270º";  }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_screenmode_buttons
+{
+   items = {
+     OPBUT { id = ECtlOptScreenModeCenter;  text = "Center"; },
+     OPBUT { id = ECtlOptScreenModeFit;     text = "Fit";    },
+     OPBUT { id = ECtlOptScreenModeFit2;    text = "Fit2";   }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_snd_quality
+{
+   items = {
+     LBUF { txt = "8000Hz mono";          },
+     LBUF { txt = "11025Hz mono";         },
+     LBUF { txt = "16000Hz mono";         },
+     LBUF { txt = "22050Hz mono";         },
+     LBUF { txt = "8000Hz stereo";        },
+     LBUF { txt = "11025Hz stereo";       },
+     LBUF { txt = "16000Hz stereo";       },
+     LBUF { txt = "22050Hz stereo";       }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_region
+{
+   items = {
+     LBUF { txt = "Auto";        },
+     LBUF { txt = "Europe";      },
+     LBUF { txt = "USA";         },
+     LBUF { txt = "Japan PAL";   },
+     LBUF { txt = "Japan NTSC";  }
+   };
+}

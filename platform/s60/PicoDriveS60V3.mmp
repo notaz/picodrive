@@ -1,0 +1,77 @@
+target          PicoDrive.exe
+TARGETTYPE      exe
+TARGETPATH  sys\bin
+SOURCEPATH      ..\S60
+UID             0x100039ce 0xA00007BE
+source picodriveexe.cpp 
+sourcepath ..
+source unzip.c
+
+SYSTEMINCLUDE   \epoc32\include \epoc32\include\libc
+systeminclude   \epoc32\include\mmf\plugin
+
+USERINCLUDE     ..\pico ..\pico\sound ..\s60 ..
+// libraries
+library         cone.lib  EIKCORE.lib  MEDIACLIENTAUDIOSTREAM.LIB
+library         euser.lib   apparc.lib
+library          efsrv.lib estlib.lib fbscli.lib estor.lib eikcoctl.lib
+library  ws32.lib  AVKON.LIB bafl.lib bitgdi.lib gdi.lib eikdlg.lib
+
+staticlibrary pico.lib 
+
+#if defined(WINS)
+staticlibrary a68k.obj
+staticlibrary mz80_asm.obj
+staticlibrary zlib.lib
+#else
+staticlibrary cyclone.o 
+staticlibrary DRZ80.o
+staticlibrary draw.o
+//staticlibrary blit.o
+staticlibrary ym2612_helper.o
+staticlibrary zlib.lib
+staticlibrary memory.o
+staticlibrary draw2.o
+#endif
+
+
+sourcepath ..\S60
+
+DOCUMENT interpolatevideo.inl
+DOCUMENT  normalvideo.inl
+DOCUMENT S60V3Video.inl
+START RESOURCE  PicoDrive_reg.rss
+TARGETPATH              \private\10003a3f\apps
+END
+
+START RESOURCE  PicoDrive_loc.rss
+TARGETPATH              \Resource\Apps
+LANG                    SC
+END
+
+SOURCEPATH 	..\s60
+START RESOURCE  PicoDrive.rss
+HEADER
+TARGETPATH              \Resource\Apps
+LANG                    SC
+END 
+
+START BITMAP    PicoDrive.mbm
+TARGETPATH              \Resource\Apps
+SOURCEPATH              ..\s60
+// Source Color-depth Source-bitmap-list
+// c denotes whether the bitmap is a colour bitmap and the digits represent the
+// colour-depth of the bitmap and the bitmap mask respectively
+SOURCE  c24             PicoS.bmp
+SOURCE  8               PicoSMI.bmp
+SOURCE  c24             PicoL.bmp
+SOURCE  8               PicoLMI.bmp
+END
+
+
+MACRO S60V3
+
+EPOCHEAPSIZE 1024000 8192000
+
+
+CAPABILITY NONE

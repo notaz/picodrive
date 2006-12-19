@@ -1,0 +1,112 @@
+Welcome to the S60 version
+of Picodrive!
+
+Credits
+-------
+This work is mainly based on
+Picodrive by Dave,
+(www.finalburn.com)
+with added sound support and other improvements by Notaz 
+(http://notaz.atspace.com).
+
+ARM asm Z80 core is provided by DrZ80 by Reezy
+(http://reesy.gp32x.de/)
+and YM2612 and SN76489 support are provided by the M.A.M.E project
+(http://www.mame.net/).
+
+See credits within Picodrive for more information.
+
+Instructions
+------------
+Picodrive S60 is a Megadrive/ Genesis emulator which enables you to play old games on your S60 phone.
+
+When its started you are presented with a main menu.
+
+Use arrows to navigate up and down in the menu and use left softkey or the middle button to select an option
+
+* Load ROM
+Displays a simple built in filebrowser. Displays the last folder you browsed,and default this is top level, with a drive listine (E: is your memory card)
+
+Use the left soft key (right softkey will cancel) and then navigate until you are in the folder with your rom files.
+Use the left softkey to select a file, and emulation will comence as soon as the rom has been loaded.
+
+Supported data types are either SMD,BIN or a ZIP with a single SMD or BIN file inside.
+
+* Load state
+Only working when a rom has been loaded, used to load a saved game state for the currently loaded rom. Emulation will resume automatically when the state has been loaded.
+
+* Save state
+Only working when a rom has been loaded. Saves the current state of a rom.
+
+* Configure controls
+Lets you configure the controls to use for game play.
+Only one control at port 1 is supported. It might be either a 3 button or 6 button joypad.
+Select using the confirm/left softkey and return to the main menu using the 'C' key.
+Default is 
+3 button pad.
+Up - Joystick up
+Down - Joystick down
+Left - Joystick left
+Right - Joystick right
+ A    - Left soft key
+ B    - Middle/confirm key
+ C    - Right soft key
+ X    - Not configured
+ Y    - Not configured
+ Z    - Not configured
+Start - '0' key
+Up&Left - Not configured
+Up&Right - Not configured
+Down&Right - Not configured
+Down&Left - Not configured
+
+'C' key is used to get back to the main menu when running the emulation and should not be used for anything else.
+
+3 button pad/6 button pad - Selects to toggle between the two pad types
+
+Configure keys - Select this to redefine the key bindings
+Press the key you want to assign to the requested action. 
+You can assign the same key to the same action, and is good if you dont need the 8 way controls.
+
+* Configure screen
+Lets you configure the screen mode and frameskip.
+Use left softkey or confirm key to select mode. After adjust interpolate or frameskip, select  a screen mode to exit the menu
+
+Portrait is a scaled mode, to 176x168 (default)
+Landscape modes are a portrait mode which scales down to 208x168
+Portrait stretched is a scaled modenot in aspect, and scales to 176x208
+
+Interpolate on means that a scanline is interpolated to a smoother look, but this also requires more cpu.
+(default on)
+
+Frameskip lets you decide if you want to set your own constant frameskip or let the action decide
+(default is auto)
+
+
+* Configure sound
+Lets you configure sound settings. 
+Use confirm or left soft key to change a value and use the 'c' key to exit to the main menu
+
+Z80 - Used in many games to drive the sound Will cost a penalty in shown FPS, but can  increase compability if enabled even if sound is turned off.
+(default is on)
+YM2612 - FM OPL sound Enable for FM sound
+(default is on)
+SN76496 - TI Sound chip - Enable for sound
+(default is on)
+Volume - Select to change volume 
+(Default is 60%)
+Sample rate - Select to toggle between 8Khz,11Khz,16Khz and 22Khz. If you select a rate which is not compatible with your phone it will be reset back to 8Khz.
+(default is 8KHZ)
+
+* Reset
+Will reset the current rom if loaded,  and resume execution from the start
+
+* Credits
+Displays a full credits list for the Picodrive project
+
+* Exit
+Exit Picodrive
+
+Last line will display the name of the rom currently loaded
+
+Please enjoy and have fun.

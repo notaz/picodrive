@@ -1,0 +1,110 @@
+1. Keys:
+
+If it looks confusing to you, check this tutorial first:
+http://notaz.atspace.com/pico_tut/
+
+There are no default settings.
+When you start key configuration mode, black screen with dark-red squares will
+appear. Also there will be little 'control' on the top with the function
+name in it, and arrows on the corners of it. You can tap on these corners to
+select a function. You can also tap on these squares to bind that function to
+them. This way you can associate touchpad areas with game-controls or functions.
+I also made a small square in every corner of the screen to be used as a virtual
+button for some function, like save state. You can bind it as you like. To
+bind phone buttons, simply select the function you need, and press a button
+you want. To unbind any key or touchpad area, simply push or tap it again.
+
+When finished, select 'done' and press any key. You can also press 'Power'
+to exit.
+
+You need to bind 'pause emu' function to be able exit game when ROM is loaded.
+It is bound to 'back' button by default.
+
+2. Main Settings:
+
+Here you can set the orientation of screen and the drawing mode. The "fit"
+option will scale the image so it better fits in the screen, but some detail
+will be lost. "center" displays the game at the center of the screen, but
+non-fitting parts are not visible then. "fit2" is simmilar to "fit" but is
+a bit more stretched (fit modes are only meaningful in 0 or 180 rotation
+modes).
+
+"Fast renderer" enables faster rendering method, but it works only with some
+games (some other have serious glitches or even hang).
+
+"Accurate timing" is needed for some games to run (like Red Zone). It should
+be kept off for all other games, because it slows emulation down. Some games
+also need this option for proper sound, so enable this if game has any
+glitches.
+
+"Accurate sprites" fixes sprite priority problems, for example if game
+character is in front of or behind some object it should not be, this option
+should fix it. This option does not work in "Fast renderer" mode.
+
+"Show FPS" shows game frames per second in format XX/YY, where XX is the
+number of frames shown per previous second, and YY is the number of frames
+emulated, but not necessarily shown. By calculating YY-XX you get the number
+of skipped frames per second.
+
+3. Sound settings:
+
+Sound emulation is very picky on CPU power (in most cases sound alone uses
+more CPU power than everything else altogether), but it is still possible to
+play some games. When using sound, the recommended display modes are "fit 0"
+and "fit 180", because these are the fastest ones. Also try "Alternative
+renderer", but it might cause graphical glitches. You must use auto frameskip
+when using sound, or else you will get stuttering sound. Also, it is
+recommended to exit all other non-vital apps (you can use SMan for this),
+disable bluetooth and any other devices your phone may have. I also noticed
+that simply connecting the phone battery charger strangely slows everything
+down.
+
+"Enable sound" tries to enable sound output on your device, but that alone is
+not enough to get sound. You need to enable the sound chips below:
+"Z80" is secondary CPU in genesis and is mostly used to control the other 2
+sound chips. So if you disable Z80, sound will be lost in most games, with
+some exceptions like Sonic1. It is possible to use Z80 for other things,
+some games do that and Z80 must be enabled to run them at all.
+
+"YM2612" is a fairly complex Frequency Modulation (FM) sound synthesis chip.
+It was the main sound output device in genesis and is horrible CPU hog when
+is tried to be emulated in software. Disabling it gives large speed
+improvement, but most of the sound is lost.
+
+"SN76496" is programmable sound generator (PSG) chip, used for various sound
+effects and music elements.
+
+Note: if you change sound settings AFTER loading a ROM, you may need to reset
+game to get sound. This is because most games initialize sound chips on
+startup, and this data is lost when sound chips are being enabled/disabled.
+
+4. Misc:
+
+"6 button pad" will enable 6 button gamepad emulation and will add additional
+X, Y, Z and MODE actions to key configuration.
+Note: if you enable this, games may detect that and use different button
+configuration, for example A ("high punch") will change to "low punch" in
+Mortal Kombat and you will need to bind X for "high punch".
+
+"gzip save states" enables gzip (similar to ordinary zip, but a little
+different) compression on your save states to save space. The compression
+ratio is 50-90%, so it's worth to enable this.
+
+"Use SRAM saves" option enables emulation of batery-backed save RAM some game
+cartridges had. RPG games used it alot, but there were some others too, like
+Sonic 3. If this is enabled, <ROMname>.srm files are generated when you exit
+the emulator or load another ROM. Format is compatible with other popular
+emulators (like Gens and Fusion).
+
+"Region" lets you set the region of emulated genesis machine.
+
+
+5. Frameskip:
+
+"Auto"  option tries to run the game in it's original speed by skipping next
+        frame if the previous was rendered too slow.
+"0"     displays every frame, thus game runs very slow, sound skips.
+"1"     skips every other frame. Use this for a game which is smoother, but a bit
+        too slow (actually depends on display mode you use).
+"2"     also makes the game smoother, but it will be too fast in most areas.
+"4","8" similar to above, but skips more frames and often becomes choppy.

@@ -1,0 +1,78 @@
+
+enum TAppMenuCommands
+{
+	// Emu menu
+	EEikCmdPicoMain = 10000,
+	EEikCmdPicoResume,
+	EEikCmdPicoLoadState,
+	EEikCmdPicoSaveState,
+	EEikCmdPicoLoadROM,
+	EEikCmdPicoReset,
+	EEikCmdPicoConfig,
+	EEikCmdPicoKeys,
+	EEikCmdPicoSettings,
+
+	// Frameskip submenu
+	EEikCmdPicoFrameskip,
+	EEikCmdPicoFrameskipAuto,
+	EEikCmdPicoFrameskip0,
+	EEikCmdPicoFrameskip1,
+	EEikCmdPicoFrameskip2,
+	EEikCmdPicoFrameskip4,
+	EEikCmdPicoFrameskip8,
+
+	// Debug menu
+	EEikCmdPicoDebug,
+//	EEikCmdPicoDebugKillEmu,
+	EEikCmdPicoDebugInfo,
+
+	// config Dialog
+	ECtlOptDone,
+	// pages
+	ECtlOptPageMain,
+	ECtlOptPageSound,
+	ECtlOptPageMisc,
+	// main page
+	ECtlOptRotationLabel,
+	ECtlOptRotation,
+	ECtlOptRotation0,
+	ECtlOptRotation90,
+	ECtlOptRotation180,
+	ECtlOptRotation270,
+	ECtlOptScreenModeLabel,
+	ECtlOptScreenMode,
+	ECtlOptScreenModeCenter,
+	ECtlOptScreenModeFit,
+	ECtlOptScreenModeFit2,
+	ECtlOptUseAltRend,
+	ECtlOptUseAccTiming,
+	ECtlOptUseAccSprites,
+	ECtlOptShowFPS,
+	// sound page
+	ECtlOptEnableSound,
+	ECtlOptChipSelLabel,
+	ECtlOptEmulateZ80,
+	ECtlOptEmulateYM2612,
+	ECtlOptEmulateSN76496,
+	ECtlOptSndQLabel,
+	ECtlOptSndQuality,
+	// misc page
+	ECtlOpt6ButtonPad,
+	ECtlOptGzipStates,
+	ECtlOptUseSRAM,
+	ECtlOptMotDontUseVol,
+	ECtlOptRegion,
+	// about dialog
+	EEikCmdPicoAboutDoneCmd,
+	EEikCmdPicoAboutCreditsCmd,
+	ECtlPicoAboutText,
+	// credits
+	ECtlPicoCreditsText,
+	// debug
+	ECtlDebugEdit
+};
+
+
+#define ECtlAboutVersion	1
+#define ECtlAboutLinks		2
+

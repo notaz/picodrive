@@ -1,0 +1,18 @@
+TARGET			audio_mediaserver.dll
+TARGETTYPE		dll
+UID				0x100039CE 0x1000C196
+
+USERINCLUDE     .
+USERINCLUDE     ..\..\
+
+SYSTEMINCLUDE	\epoc32\include
+
+SOURCEPATH      .
+SOURCE			audio_mediaserver.cpp
+SOURCE			polledas.cpp
+
+LIBRARY			EUSER.LIB mediaclientaudiostream.lib mediaclient.lib
+
+deffile			.\audio_mediaserver.def
+
+nostrictdef

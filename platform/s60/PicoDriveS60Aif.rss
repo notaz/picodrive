@@ -1,0 +1,20 @@
+#include <aiftool.rh>
+
+
+RESOURCE AIF_DATA
+	{
+	app_uid= 0x101F9B49;
+	//
+	hidden=KAppNotHidden;
+	embeddability=KAppNotEmbeddable;
+	caption_list=
+		{ 
+		CAPTION { code=ELangEnglish;  caption="PicoDrive"; },
+		CAPTION { code=ELangAmerican; caption="PicoDrive"; }
+		};
+	//
+	num_icons=1;
+	}
+
+
+

@@ -1,0 +1,12 @@
+PRJ_PLATFORMS
+
+WINS ARMI arm4 thumb winscw
+
+
+PRJ_MMPFILES
+.\pico.mmp
+.\picodriveS60.mmp
+.\PicoDriveAppS60.mmp
+
+
+

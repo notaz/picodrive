@@ -1,0 +1,31 @@
+//
+// MAKEFILE.MMP for component PicoDrive S60
+//
+
+target          PicoDriveS60.app
+targetpath      system\apps\PicoDriveS60
+targettype      app
+
+UID      0x100039ce 0x101F9B49
+MACRO SERIES60
+SOURCEPATH	..\s60
+userinclude	..\s60
+systeminclude   \epoc32\include \epoc32\include\libc ..\s60
+
+// app source
+source PicoDriveAppS60.cpp
+
+// libraries
+library         cone.lib  eikcore.lib
+library         euser.lib apparc.lib  
+library           efsrv.lib apgrfx.lib
+library  avkon.lib
+
+
+//resource file
+sourcepath ..\S60
+resource       PicoDriveS60.rss
+
+
+// Color Bitmap - UK only
+AIF picodriveS60.aif ..\S60 picodriveS60aif.rss c12 PicoL.bmp PicoLm.bmp 

@@ -1,0 +1,138 @@
+As PicoDrive is multiplatform emulator, this is GP2X specific part of readme
+about configuration.
+
+
+Configuration
+-------------
+
+1. "Renderer"
+8bit fast:
+This enables alternative heavily optimized tile-based renderer, which renders
+pixels not line-by-line (this is what accurate renderers do), but in 8x8 tiles,
+which is much faster. But because of the way it works it can't render any
+mid-frame image changes (raster effects), so it is useful only with some games.
+
+Other two are accurate line-based renderers. The 8bit is faster but does not
+run well with some games like Street Racer.
+
+2. "Accurate timing"
+This adds some more emulation precision, but slows the emulation down. Whithout
+this option some games do not boot (Red Zone for example), others have sound
+problems.
+
+3. "Accurate sprites"
+This option improves emulation of sprite priorities, it also enables emulation
+of sprite collision bit. If you see one sprite being drawn incorrectly above
+the other (often seen in Sonic 3D Blast), you can enable this to fix the problem.
+This only works with the default renderer (see first option).
+
+4. "Show FPS"
+Self-explanatory. Format is XX/YY, where XX is the number of rendered frames and
+YY is the number of emulated frames per second.
+
+5. "Frameskip"
+How many frames to skip rendering before displaying another.
+"Auto" is recommended.
+
+6. "Enable sound"
+Does what it says. You must enable at least YM2612 or SN76496 (in advanced options,
+see below) for this to make sense.
+
+7. "Sound Quality"
+Sound rate and stereo mode. If you want 44100Hz sound, it is recommended to enable
+the second core (next option).
+
+8. "Use ARM940 core for sound"
+This option causes PicoDrive to use ARM940T core (GP2X's second CPU) for sound 
+(i.e. to generate YM2612 samples) to improve performance noticeably.
+
+9. "6 button pad"
+If you enable this, games will think that 6 button gamepad is connected. If you
+go and reconfigure your keys, you will be able to bind X,Y,Z and mode actions.
+
+10. "Genesis Region"
+This option lets you force the game to think it is running on machine from the
+specified region.
+
+11. "Use SRAM savestates"
+This will automatically read/write SRAM savestates for games which are using them.
+SRAM is saved whenever you pause your game or exit the emulator.
+
+12. "GP2X CPU clocks"
+Here you can change clocks of both GP2X's CPUs. Larger values increase performance.
+There is no separate option for the second CPU because both CPUs use the same clock
+source. Setting this option to 200 will cause PicoDrive NOT to change GP2X's clocks
+at all.
+
+13. "[advanced options]"
+Enters advanced options menu (see below).
+
+14. "Save cfg as default"
+If you save your config here it will be loaded on next ROM load, but only if there
+is no game specific config saved (which will be loaded in that case).
+
+15. "Save cfg for current game only"
+Whenever you load current ROM again these settings will be loaded (squidgehack and
+RAM settings will not take effect until emulator is restarted).
+
+Advanced configuration
+----------------------
+
+Enter [advanced options] in config menu to see these options.
+
+1. "Scale 32 column mode"
+This enables hardware scaling for lower-res genesis mode (where width is
+32 8-pixel tiles, instead of 40 in other mode).
+
+2. "Gamma correction"
+Alters image gamma through GP2X hardware. Larger values make image to look brighter,
+lower - darker (default is 1.0).
+
+3. "Emulate Z80"
+Enables emulation of Z80 chip, which was mostly used to drive the other sound chips.
+Some games do complex sync with it, so you must enable it even if you don't use
+sound to be able to play them.
+
+4. "Emulate YM2612 (FM)"
+This enables emulation of six-channel FM sound synthesizer chip, which was used to
+produce sound effects and music.
+
+5. "Emulate SN76496 (PSG)"
+This enables emulation of additional sound chip for additional effects.
+
+Note: if you change sound settings AFTER loading a ROM, you may need to reset
+game to get sound. This is because most games initialize sound chips on
+startup, and this data is lost when sound chips are being enabled/disabled.
+
+6. "gzip savestates"
+This will always apply gzip compression on your savestates, allowing you to
+save some space and load/save time.
+
+7. "USB joy controls player X"
+If you are able to use USB joysticks with your GP2X, this options selects which
+player the joystick controls.
+
+8. "Don't save config on exit"
+This will disable config autowrite on exit (which might cause SD card corruption
+according to DaveC).
+
+9. "craigix's RAM timings"
+This overclocks the GP2X RAM chips, but may cause instability. Recommended if you
+use the second core for sound. Needs emulator restart to take effect.
+See this thread:
+http://www.gp32x.com/board/index.php?showtopic=32319
+
+10. "squidgehack"
+Well known way to improve the GP2X performance. You must restart the emulator
+for the change of this option to take effect.
+
+
+Key configuration
+-----------------
+
+When you select "Configure controls" from the menu, you enter a key configuration
+mode, where you use SELECT to change an action, and then press a key you like to
+bind to that action. You can press the same key again to unbind. Select "DONE"
+action and press any key to finish.
+
+
