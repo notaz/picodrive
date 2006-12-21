@@ -181,49 +181,49 @@ u32 UnusualRead16(u32 a, int realsize)
   // some dumb detection is used, but that should be enough to make things work
   if ((a>>22) == 1 && Pico.romsize >= 512*1024) {
     if      (*(int *)(Pico.rom+0x123e4) == 0x00550c39 && *(int *)(Pico.rom+0x123e8) == 0x00000040) { // Super Bubble Bobble (Unl) [!]
-	  if      (a == 0x400000) { d=0x55<<8; goto end; }
-	  else if (a == 0x400002) { d=0x0f<<8; goto end; }
-	}
-	else if (*(int *)(Pico.rom+0x008c4) == 0x66240055 && *(int *)(Pico.rom+0x008c8) == 0x00404df9) { // Smart Mouse (Unl)
-	  if      (a == 0x400000) { d=0x55<<8; goto end; }
-	  else if (a == 0x400002) { d=0x0f<<8; goto end; }
-	  else if (a == 0x400004) { d=0xaa<<8; goto end; }
-	  else if (a == 0x400006) { d=0xf0<<8; goto end; }
-	}
-	else if (*(int *)(Pico.rom+0x00404) == 0x00a90600 && *(int *)(Pico.rom+0x00408) == 0x6708b013) { // King of Fighters '98, The (Unl) [!]
-	  if      (a == 0x480000 || a == 0x4800e0 || a == 0x4824a0 || a == 0x488880) { d=0xaa<<8; goto end; }
-	  else if (a == 0x4a8820) { d=0x0a<<8; goto end; }
-	  // there is also a read @ 0x4F8820 which needs 0, but that is returned in default case
-	}
-	else if (*(int *)(Pico.rom+0x01b24) == 0x004013f9 && *(int *)(Pico.rom+0x01b28) == 0x00ff0000) { // Mahjong Lover (Unl) [!]
-	  if      (a == 0x400000) { d=0x90<<8; goto end; }
-	  else if (a == 0x401000) { d=0xd3<<8; goto end; } // this one doesn't seem to be needed, the code does 2 comparisons and only then
-	                                                   // checks the result, which is of the above one. Left it just in case.
-	}
-	else if (*(int *)(Pico.rom+0x05254) == 0x0c3962d0 && *(int *)(Pico.rom+0x05258) == 0x00400055) { // Elf Wor (Unl)
-	  if      (a == 0x400000) { d=0x55<<8; goto end; }
-	  else if (a == 0x400004) { d=0xc9<<8; goto end; } // this check is done if the above one fails
-	  else if (a == 0x400002) { d=0x0f<<8; goto end; }
-	  else if (a == 0x400006) { d=0x18<<8; goto end; } // similar to above
-	}
+      if      (a == 0x400000) { d=0x55<<8; goto end; }
+      else if (a == 0x400002) { d=0x0f<<8; goto end; }
+    }
+    else if (*(int *)(Pico.rom+0x008c4) == 0x66240055 && *(int *)(Pico.rom+0x008c8) == 0x00404df9) { // Smart Mouse (Unl)
+      if      (a == 0x400000) { d=0x55<<8; goto end; }
+      else if (a == 0x400002) { d=0x0f<<8; goto end; }
+      else if (a == 0x400004) { d=0xaa<<8; goto end; }
+      else if (a == 0x400006) { d=0xf0<<8; goto end; }
+    }
+    else if (*(int *)(Pico.rom+0x00404) == 0x00a90600 && *(int *)(Pico.rom+0x00408) == 0x6708b013) { // King of Fighters '98, The (Unl) [!]
+      if      (a == 0x480000 || a == 0x4800e0 || a == 0x4824a0 || a == 0x488880) { d=0xaa<<8; goto end; }
+      else if (a == 0x4a8820) { d=0x0a<<8; goto end; }
+      // there is also a read @ 0x4F8820 which needs 0, but that is returned in default case
+    }
+    else if (*(int *)(Pico.rom+0x01b24) == 0x004013f9 && *(int *)(Pico.rom+0x01b28) == 0x00ff0000) { // Mahjong Lover (Unl) [!]
+      if      (a == 0x400000) { d=0x90<<8; goto end; }
+      else if (a == 0x401000) { d=0xd3<<8; goto end; } // this one doesn't seem to be needed, the code does 2 comparisons and only then
+                                                       // checks the result, which is of the above one. Left it just in case.
+    }
+    else if (*(int *)(Pico.rom+0x05254) == 0x0c3962d0 && *(int *)(Pico.rom+0x05258) == 0x00400055) { // Elf Wor (Unl)
+      if      (a == 0x400000) { d=0x55<<8; goto end; }
+      else if (a == 0x400004) { d=0xc9<<8; goto end; } // this check is done if the above one fails
+      else if (a == 0x400002) { d=0x0f<<8; goto end; }
+      else if (a == 0x400006) { d=0x18<<8; goto end; } // similar to above
+    }
     // our default behaviour is to return whatever was last written a 0x400000-0x7fffff range (used by Squirrel King (R) [!])
-	// Lion King II, The (Unl) [!]  writes @ 400000 and wants to get that val @ 400002 and wites another val
-	// @ 400004 which is expected @ 400006, so we really remember 2 values here
+    // Lion King II, The (Unl) [!]  writes @ 400000 and wants to get that val @ 400002 and wites another val
+    // @ 400004 which is expected @ 400006, so we really remember 2 values here
     d = Pico.m.prot_bytes[(a>>2)&1]<<8;
   }
   else if (a == 0xa13000 && Pico.romsize >= 1024*1024) {
     if      (*(int *)(Pico.rom+0xc8af0) == 0x30133013 && *(int *)(Pico.rom+0xc8af4) == 0x000f0240) { // Rockman X3 (Unl) [!]
-	  d=0x0c; goto end;
-	}
+      d=0x0c; goto end;
+    }
     else if (*(int *)(Pico.rom+0x28888) == 0x07fc0000 && *(int *)(Pico.rom+0x2888c) == 0x4eb94e75) { // Bug's Life, A (Unl) [!]
-	  d=0x28; goto end; // does the check from RAM
-	}
+      d=0x28; goto end; // does the check from RAM
+    }
     else if (*(int *)(Pico.rom+0xc8778) == 0x30133013 && *(int *)(Pico.rom+0xc877c) == 0x000f0240) { // Super Mario Bros. (Unl) [!]
-	  d=0x0c; goto end; // seems to be the same code as in Rockman X3 (Unl) [!]
-	}
+      d=0x0c; goto end; // seems to be the same code as in Rockman X3 (Unl) [!]
+    }
     else if (*(int *)(Pico.rom+0xf20ec) == 0x30143013 && *(int *)(Pico.rom+0xf20f0) == 0x000f0200) { // Super Mario 2 1998 (Unl) [!]
-	  d=0x0a; goto end;
-	}
+      d=0x0a; goto end;
+    }
   }
   else if (a == 0xa13002) { // Pocket Monsters (Unl)
     d=0x01; goto end;
@@ -233,7 +233,7 @@ u32 UnusualRead16(u32 a, int realsize)
   }
   else if (a == 0x30fe02) {
     // Virtua Racing - just for fun
-	// this seems to be some flag that SVP is ready or something similar
+    // this seems to be some flag that SVP is ready or something similar
     d=1; goto end;
   }
 
@@ -251,8 +251,8 @@ u32 OtherRead16(u32 a, int realsize)
 
   if ((a&0xff0000)==0xa00000) {
     if ((a&0x4000)==0x0000) { d=z80Read8(a); d|=d<<8; goto end; } // Z80 ram (not byteswaped)
-    if ((a&0x6000)==0x4000) { if(PicoOpt&1) d=YM2612Read(); else d=Pico.m.rotate++&3; goto end; } // 0x4000-0x5fff, Fudge if disabled
-	d=0xffff; goto end;
+    if ((a&0x6000)==0x4000) { if(PicoOpt&1) d=YM2612Read(); else d=Pico.m.rotate++&3; dprintf("read ym2612: %04x", d); goto end; } // 0x4000-0x5fff, Fudge if disabled
+    d=0xffff; goto end;
   }
   if ((a&0xffffe0)==0xa10000) { // I/O ports
     a=(a>>1)&0xf;
@@ -266,7 +266,17 @@ u32 OtherRead16(u32 a, int realsize)
     goto end;
   }
   // |=0x80 for Shadow of the Beast & Super Offroad; rotate fakes next fetched instruction for Time Killers
-  if (a==0xa11100) { d=((Pico.m.z80Run&1)<<8)|0x8000|Pico.m.rotate++; goto end; }
+  if (a==0xa11100) {
+    extern int z80stopCycle; // TODO: tidy
+    d=Pico.m.z80Run&1;
+    if (!d) {
+      int stop_before = SekCyclesDone() - z80stopCycle;
+      if (stop_before > 0 && stop_before <= 16*2) // Gens uses 16 here
+        d = 1; // bus not yet available
+    }
+    d=(d<<8)|0x8000|Pico.m.rotate++;
+    dprintf("get_zrun: %04x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), SekPc);
+    goto end; }
 
 #ifndef _ASM_MEMORY_C
   if ((a&0xe700e0)==0xc00000) { d=PicoVideoRead(a); goto end; }
@@ -302,23 +312,23 @@ static void OtherWrite8(u32 a,u32 d,int realsize)
     return;
   }
   if (a==0xa11100) {
-	extern int z80startCycle, z80stopCycle;
+    extern int z80startCycle, z80stopCycle;
     //int lineCycles=(488-SekCyclesLeft)&0x1ff;
     d&=1; d^=1;
-	if(!d) {
- 	  // hack: detect a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
-      if((PicoOpt&4) && Pico.m.z80Run==1) z80_run(20);
-	  z80stopCycle = SekCyclesDone();
-	  //z80ExtraCycles += (lineCycles>>1)-(lineCycles>>5); // only meaningful in PicoFrameHints()
-	} else {
-	  z80startCycle = SekCyclesDone();
-	  //if(Pico.m.scanline != -1)
-	  //z80ExtraCycles -= (lineCycles>>1)-(lineCycles>>5)+16;
-	}
-    //dprintf("set_zrun: %i [%i|%i] zPC=%04x @%06x", d, Pico.m.scanline, SekCyclesDone(), mz80GetRegisterValue(NULL, 0), SekPc);
-	Pico.m.z80Run=(u8)d; return;
+    if(!d) {
+       // hack: detect a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
+      // if((PicoOpt&4) && Pico.m.z80Run==1) z80_run(20); // FIXME: movies
+      z80stopCycle = SekCyclesDone();
+      //z80ExtraCycles += (lineCycles>>1)-(lineCycles>>5); // only meaningful in PicoFrameHints()
+    } else {
+      z80startCycle = SekCyclesDone();
+      //if(Pico.m.scanline != -1)
+      //z80ExtraCycles -= (lineCycles>>1)-(lineCycles>>5)+16;
+    }
+    dprintf("set_zrun: %02x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), /*mz80GetRegisterValue(NULL, 0),*/ SekPc);
+    Pico.m.z80Run=(u8)d; return;
   }
-  if (a==0xa11200) { if(!(d&1)) z80_reset(); return; }
+  if (a==0xa11200) { dprintf("write z80Reset: %02x", d); if(!(d&1)) z80_reset(); return; }
 
   if ((a&0xff7f00)==0xa06000) // Z80 BANK register
   {
@@ -336,29 +346,29 @@ static void OtherWrite8(u32 a,u32 d,int realsize)
   if(a >= SRam.start && a <= SRam.end) {
     unsigned int sreg = Pico.m.sram_reg;
     if(!(sreg & 0x10)) {
-	  // not detected SRAM
-	  if((a&~1)==0x200000) {
+      // not detected SRAM
+      if((a&~1)==0x200000) {
         Pico.m.sram_reg|=4; // this should be a game with EEPROM (like NBA Jam)
         SRam.start=0x200000; SRam.end=SRam.start+1;
       }
-	  Pico.m.sram_reg|=0x10;
-	}
+      Pico.m.sram_reg|=0x10;
+    }
     if(sreg & 4) { // EEPROM write
-	  if(SekCyclesDoneT()-lastSSRamWrite < 46) {
-	    // just update pending state
-		SRAMUpdPending(a, d);
-	  } else {
-	    SRAMWriteEEPROM(sreg>>6); // execute pending
-		SRAMUpdPending(a, d);
+      if(SekCyclesDoneT()-lastSSRamWrite < 46) {
+        // just update pending state
+        SRAMUpdPending(a, d);
+      } else {
+        SRAMWriteEEPROM(sreg>>6); // execute pending
+        SRAMUpdPending(a, d);
         lastSSRamWrite = SekCyclesDoneT();
-	  }
+      }
     } else if(!(sreg & 2)) {
       u8 *pm=(u8 *)(SRam.data-SRam.start+a);
       if(*pm != (u8)d) {
         SRam.changed = 1;
         *pm=(u8)d;
       }
-	}
+    }
     return;
   }
 
@@ -379,12 +389,12 @@ static void OtherWrite8(u32 a,u32 d,int realsize)
 
   if(a >= 0xA13004 && a < 0xA13040) {
     // dumb 12-in-1 or 4-in-1 banking support
-	int len;
-	a &= 0x3f; a <<= 16;
-	len = Pico.romsize - a;
-	if (len <= 0) return; // invalid/missing bank
-	if (len > 0x200000) len = 0x200000; // 2 megs
-	memcpy(Pico.rom, Pico.rom+a, len); // code which does this is in RAM so this is safe.
+    int len;
+    a &= 0x3f; a <<= 16;
+    len = Pico.romsize - a;
+    if (len <= 0) return; // invalid/missing bank
+    if (len > 0x200000) len = 0x200000; // 2 megs
+    memcpy(Pico.rom, Pico.rom+a, len); // code which does this is in RAM so this is safe.
     return;
   }
 
@@ -415,7 +425,7 @@ static void OtherWrite16(u32 a,u32 d)
     return;
   }
   if (a==0xa11100) { OtherWrite8(a, d>>8, 16); return; }
-  if (a==0xa11200) { if(!(d&0x100)) z80_reset(); return; }
+  if (a==0xa11200) { dprintf("write z80reset: %04x", d); if(!(d&0x100)) z80_reset(); return; }
 
   OtherWrite8(a,  d>>8, 16);
   OtherWrite8(a+1,d&0xff, 16);
@@ -438,8 +448,8 @@ u8 CPU_CALL PicoRead8(u32 a)
   if(a >= SRam.start && a <= SRam.end) {
     unsigned int sreg = Pico.m.sram_reg;
     if(!(sreg & 0x10) && (sreg & 1) && a > 0x200001) { // not yet detected SRAM
-	  Pico.m.sram_reg|=0x10; // should be normal SRAM
-	}
+      Pico.m.sram_reg|=0x10; // should be normal SRAM
+    }
     if(sreg & 4) { // EEPROM read
       d = SRAMReadEEPROM();
       goto end;
@@ -711,32 +721,32 @@ void PicoWriteCD32w(unsigned int a, unsigned int d);
 
 unsigned int  m68k_read_memory_8(unsigned int address)
 {
-	return (PicoMCD&1) ? PicoReadCD8w(address)  : PicoRead8(address);
+    return (PicoMCD&1) ? PicoReadCD8w(address)  : PicoRead8(address);
 }
 
 unsigned int  m68k_read_memory_16(unsigned int address)
 {
-	return (PicoMCD&1) ? PicoReadCD16w(address) : PicoRead16(address);
+    return (PicoMCD&1) ? PicoReadCD16w(address) : PicoRead16(address);
 }
 
 unsigned int  m68k_read_memory_32(unsigned int address)
 {
-	return (PicoMCD&1) ? PicoReadCD32w(address) : PicoRead32(address);
+    return (PicoMCD&1) ? PicoReadCD32w(address) : PicoRead32(address);
 }
 
 void m68k_write_memory_8(unsigned int address, unsigned int value)
 {
-	if (PicoMCD&1) PicoWriteCD8w(address, (u8)value); else PicoWrite8(address, (u8)value);
+    if (PicoMCD&1) PicoWriteCD8w(address, (u8)value); else PicoWrite8(address, (u8)value);
 }
 
 void m68k_write_memory_16(unsigned int address, unsigned int value)
 {
-	if (PicoMCD&1) PicoWriteCD16w(address,(u16)value); else PicoWrite16(address,(u16)value);
+    if (PicoMCD&1) PicoWriteCD16w(address,(u16)value); else PicoWrite16(address,(u16)value);
 }
 
 void m68k_write_memory_32(unsigned int address, unsigned int value)
 {
-	if (PicoMCD&1) PicoWriteCD32w(address, value); else PicoWrite32(address, value);
+    if (PicoMCD&1) PicoWriteCD32w(address, value); else PicoWrite32(address, value);
 }
 #endif
 #endif // EMU_M68K

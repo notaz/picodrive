@@ -55,7 +55,7 @@ static int combo_keys = 0, combo_acts = 0;	// keys and actions which need button
 static int gp2x_old_gamma = 100;
 static unsigned char *movie_data = NULL;
 static int movie_size = 0;
-static int frame_count = 0;
+int frame_count = 0;
 unsigned char *framebuff = 0;  // temporary buffer for alt renderer
 int state_slot = 0;
 
@@ -219,11 +219,18 @@ int emu_ReloadRom(void)
 		if(movie_data[0x14] == '6')
 		     PicoOpt |=  0x20; // 6 button pad
 		else PicoOpt &= ~0x20;
+		PicoOpt |= 0x40; // accurate timing
 		if(movie_data[0xF] >= 'A') {
-			//Pico.m.pal = movie_data[0x16] >> 7;
+			if(movie_data[0x16] & 0x80) {
+				PicoRegionOverride = 8;
+			} else {
+				PicoRegionOverride = 4;
+			}
+			PicoReset(0);
 			// TODO: bits 6 & 5
 		}
-		strcpy(noticeMsg, "MOVIE LOADED");
+		movie_data[0x18+30] = 0;
+		sprintf(noticeMsg, "MOVIE: %s", (char *) &movie_data[0x18]);
 	}
 	else
 	{
@@ -987,6 +994,26 @@ void emu_Loop(void)
 
 		updateKeys();
 		PicoFrame();
+
+#if 0
+		// debug
+		{
+			static unsigned char oldscr[320*240*2];
+			FILE *f; char name[128]; int i;
+			for (i = 0; i < 320*240*2; i++)
+				if(oldscr[i] != ((unsigned char *)gp2x_screen)[i]) break;
+			if (i < 320*240*2)
+			{
+				for (i = 0; i < 320*240*2; i++)
+					oldscr[i] = ((unsigned char *)gp2x_screen)[i];
+				sprintf(name, "%05i.raw", frame_count);
+				f = fopen(name, "wb");
+				if (!f) { printf("!f\n"); exit(1); }
+				fwrite(gp2x_screen, 1, 320*240*2, f);
+				fclose(f);
+			}
+		}
+#endif
 
 		// check time
 		gettimeofday(&tval, 0);

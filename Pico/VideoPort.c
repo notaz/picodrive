@@ -53,7 +53,7 @@ static unsigned int VideoRead()
     case 8: d=Pico.cram [a&0x003f]; break;
     case 4: d=Pico.vsram[a&0x003f]; break;
   }
-  
+
   AutoIncrement();
   return d;
 }
@@ -99,22 +99,26 @@ static void DmaSlow(int len)
   source|=Pico.video.reg[0x16]<<9;
   source|=Pico.video.reg[0x17]<<17;
 
-  //dprintf("DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%i|%i]", Pico.video.type, source, a, len, inc,
-  //         (Pico.video.status&8)||!(Pico.video.reg[1]&0x40), Pico.m.scanline, SekCyclesDone());
+  dprintf("DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%i|%i]", Pico.video.type, source, a, len, inc,
+           (Pico.video.status&8)||!(Pico.video.reg[1]&0x40), Pico.m.scanline, SekCyclesDone());
 
   if ((source&0xe00000)==0xe00000) { pd=(u16 *)(Pico.ram+(source&0xfffe)); pdend=(u16 *)(Pico.ram+0x10000); } // Ram
   else if(source<Pico.romsize)     { pd=(u16 *)(Pico.rom+(source&~1)); pdend=(u16 *)(Pico.rom+Pico.romsize); } // Rom
   else return; // Invalid source address
 
+#if 0
   // CPU is stopped during DMA, so we burn some cycles to compensate that
   if((Pico.video.status&8)||!(Pico.video.reg[1]&0x40)) { // vblank?
       burn = (len*(((488<<8)/167))>>8); // very approximate
       if(!(Pico.video.status&8)) burn+=burn>>1; // a hack for Legend of Galahad
   } else burn = DmaSlowBurn(len);
   SekCyclesBurn(burn);
+#else
+  Pico.m.dma_bytes += len;
+#endif
   if(!(Pico.video.status&8))
     SekEndRun(0);
-  //dprintf("DmaSlow burn: %i @ %06x", burn, SekPc);
+//  dprintf("DmaSlow burn: %i @ %06x", burn, SekPc);
 
   switch (Pico.video.type)
   {
@@ -132,10 +136,10 @@ static void DmaSlow(int len)
       }
       rendstatus|=0x10;
       break;
-    
+
     case 3: // cram
-      //dprintf("DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%i|%i]", Pico.video.type, source, a, len, inc,
-      //         (Pico.video.status&8)||!(Pico.video.reg[1]&0x40), Pico.m.scanline, SekCyclesDone());
+      dprintf("DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%i|%i]", Pico.video.type, source, a, len, inc,
+               (Pico.video.status&8)||!(Pico.video.reg[1]&0x40), Pico.m.scanline, SekCyclesDone());
       Pico.m.dirtyPal = 1;
       r = Pico.cram;
       for(a2=a&0x7f; len; len--)
@@ -177,7 +181,10 @@ static void DmaCopy(int len)
   unsigned char *vrs;
   unsigned char inc=Pico.video.reg[0xf];
   int source;
-  //dprintf("DmaCopy len %i [%i|%i]", len, Pico.m.scanline, SekCyclesDone());
+  dprintf("DmaCopy len %i [%i|%i]", len, Pico.m.scanline, SekCyclesDone());
+
+  Pico.m.dma_bytes += len;
+  Pico.video.status|=2; // dma busy
 
   source =Pico.video.reg[0x15];
   source|=Pico.video.reg[0x16]<<8;
@@ -205,9 +212,12 @@ static void DmaFill(int data)
   unsigned char *vr=(unsigned char *) Pico.vram;
   unsigned char high = (unsigned char) (data >> 8);
   unsigned char inc=Pico.video.reg[0xf];
-  
+
   len=GetDmaLength();
-  //dprintf("DmaFill len %i inc %i [%i|%i]", len, inc, Pico.m.scanline, SekCyclesDone());
+  dprintf("DmaFill len %i inc %i [%i|%i]", len, inc, Pico.m.scanline, SekCyclesDone());
+
+  Pico.m.dma_bytes += len;
+  Pico.video.status|=2; // dma busy
 
   // from Charles MacDonald's genvdp.txt:
   // Write lower byte to address specified
@@ -273,7 +283,7 @@ void PicoVideoWrite(unsigned int a,unsigned short d)
   a&=0x1c;
 
   if (a==0x00) // Data port 0 or 2
-  {    
+  {
     if (pvid->pending) CommandChange();
     pvid->pending=0;
 
@@ -351,7 +361,7 @@ void PicoVideoWrite(unsigned int a,unsigned short d)
 unsigned int PicoVideoRead(unsigned int a)
 {
   unsigned int d=0;
-  
+
   a&=0x1c;
 
   if (a==0x00) // data port
@@ -362,12 +372,12 @@ unsigned int PicoVideoRead(unsigned int a)
 
   if (a==0x04) // control port
   {
-    //dprintf("sr_read @ %06x [%i|%i]", SekPc, Pico.m.scanline, SekCyclesDone());
     d=Pico.video.status;
     if(PicoOpt&0x10) d|=0x0020; // sprite collision (Shadow of the Beast)
     if(Pico.m.rotate++&8) d|=0x0100; else d|=0x0200; // Toggle fifo full empty (who uses that stuff?)
     if(!(Pico.video.reg[1]&0x40)) d|=0x0008; // set V-Blank if display is disabled
     if(SekCyclesLeft < 84+4)      d|=0x0004; // H-Blank (Sonic3 vs)
+    dprintf("sr_read %04x @ %06x [%i|%i]", d, SekPc, Pico.m.scanline, SekCyclesDone());
 
     Pico.video.pending=0; // ctrl port reads clear write-pending flag (Charles MacDonald)
 
@@ -387,7 +397,7 @@ unsigned int PicoVideoRead(unsigned int a)
   // |---------------------|--------------------------|
   // E4  (hc[0x43]==0)    07                         B1 // 40
   // E8  (hc[0x45]==0)    05                         91 // 32
-  
+
   // check: Sonic 3D Blast bonus, Cannon Fodder, Chase HQ II, 3 Ninjas kick back, Road Rash 3, Skitchin', Wheel of Fortune
   if ((a&0x1c)==0x08)
   {
@@ -420,7 +430,7 @@ unsigned int PicoVideoRead(unsigned int a)
       if (d&0xf00) d|= 1;
     }
 
-    //dprintf("hv: %02x %02x (%i) @ %06x", hc, d, SekCyclesDone(), SekPc);
+    dprintf("hv: %02x %02x (%i) @ %06x", hc, d, SekCyclesDone(), SekPc);
     d&=0xff; d<<=8;
     d|=hc;
     goto end;

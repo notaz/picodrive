@@ -123,7 +123,8 @@ struct PicoMisc
   unsigned char sram_cycle;  // EEPROM SRAM cycle number
   unsigned char sram_slave;  // EEPROM slave word for X24C02 and better SRAMs
   unsigned char prot_bytes[2]; // simple protection fakeing
-  unsigned char pad1[8];
+  unsigned short dma_bytes;  //
+  unsigned char pad1[6];
 };
 
 // some assembly stuff depend on these, do not touch!
