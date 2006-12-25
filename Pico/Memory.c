@@ -267,13 +267,16 @@ u32 OtherRead16(u32 a, int realsize)
   }
   // |=0x80 for Shadow of the Beast & Super Offroad; rotate fakes next fetched instruction for Time Killers
   if (a==0xa11100) {
-    extern int z80stopCycle; // TODO: tidy
     d=Pico.m.z80Run&1;
+#if 0
     if (!d) {
+      // do we need this?
+      extern int z80stopCycle; // TODO: tidy
       int stop_before = SekCyclesDone() - z80stopCycle;
-      if (stop_before > 0 && stop_before <= 16*2) // Gens uses 16 here
+      if (stop_before > 0 && stop_before <= 16) // Gens uses 16 here
         d = 1; // bus not yet available
     }
+#endif
     d=(d<<8)|0x8000|Pico.m.rotate++;
     dprintf("get_zrun: %04x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), SekPc);
     goto end; }
@@ -569,7 +572,9 @@ static void CPU_CALL PicoWrite8(u32 a,u8 d)
   //  dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 
 
-  if ((a&0xe00000)==0xe00000) { u8 *pm=(u8 *)(Pico.ram+((a^1)&0xffff)); pm[0]=d; return; } // Ram
+  if ((a&0xe00000)==0xe00000) {
+	  if((a&0xffff)==0xf62a) dprintf("(f62a) = %02x [%i|%i] @ %x", d, Pico.m.scanline, SekCyclesDone(), SekPc);
+	   u8 *pm=(u8 *)(Pico.ram+((a^1)&0xffff)); pm[0]=d; return; } // Ram
 
   a&=0xffffff;
   OtherWrite8(a,d,8);

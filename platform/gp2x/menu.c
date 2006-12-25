@@ -603,7 +603,7 @@ static void draw_amenu_options(int menu_sel)
 
 static void amenu_loop_options(void)
 {
-	int menu_sel = 0, menu_sel_max = 11;
+	int menu_sel = 0, menu_sel_max = 10;
 	unsigned long inp = 0;
 
 	for(;;)

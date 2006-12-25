@@ -55,7 +55,6 @@ static int combo_keys = 0, combo_acts = 0;	// keys and actions which need button
 static int gp2x_old_gamma = 100;
 static unsigned char *movie_data = NULL;
 static int movie_size = 0;
-int frame_count = 0;
 unsigned char *framebuff = 0;  // temporary buffer for alt renderer
 int state_slot = 0;
 
@@ -246,7 +245,7 @@ int emu_ReloadRom(void)
 	if(currentConfig.EmuOpt & 1)
 		emu_SaveLoadGame(1, 1);
 
-	frame_count = 0;
+	Pico.m.frame_count = 0;
 
 	return 1;
 }
@@ -713,7 +712,7 @@ static void updateKeys(void)
 
 	if(movie_data)
 	{
-		int offs = frame_count*3 + 0x40;
+		int offs = Pico.m.frame_count*3 + 0x40;
 		if (offs+3 > movie_size) {
 			free(movie_data);
 			movie_data = 0;
@@ -736,8 +735,6 @@ static void updateKeys(void)
 			PicoPad[1] |= (~movie_data[offs+2] & 0xA0) << 4; // ! MZYX
 			if(!(movie_data[offs+2] & 0x10)) PicoPad[1] |= 0x0400; // X
 			if(!(movie_data[offs+2] & 0x40)) PicoPad[1] |= 0x0100; // Z
-			if ((PicoPad[0] & 0x80) || (PicoPad[1] & 0x80))
-				printf("%d: start\n", frame_count);
 		}
 	}
 	else
@@ -745,7 +742,7 @@ static void updateKeys(void)
 		PicoPad[0] = (unsigned short) allActions[0];
 		PicoPad[1] = (unsigned short) allActions[1];
 	}
-	frame_count++;
+	Pico.m.frame_count++;
 
 	events = (allActions[0] | allActions[1]) >> 16;
 
@@ -996,20 +993,58 @@ void emu_Loop(void)
 		PicoFrame();
 
 #if 0
+if (Pico.m.frame_count == 31563) {
+	FILE *f;
+	f = fopen("ram_p.bin", "wb");
+	if (!f) { printf("!f\n"); exit(1); }
+	fwrite(Pico.ram, 1, 0x10000, f);
+	fclose(f);
+	exit(0);
+}
+#endif
+#if 0
 		// debug
 		{
-			static unsigned char oldscr[320*240*2];
-			FILE *f; char name[128]; int i;
-			for (i = 0; i < 320*240*2; i++)
-				if(oldscr[i] != ((unsigned char *)gp2x_screen)[i]) break;
-			if (i < 320*240*2)
+			#define BYTE unsigned char
+			#define WORD unsigned short
+			struct
 			{
-				for (i = 0; i < 320*240*2; i++)
-					oldscr[i] = ((unsigned char *)gp2x_screen)[i];
-				sprintf(name, "%05i.raw", frame_count);
+				BYTE IDLength;        /* 00h  Size of Image ID field */
+				BYTE ColorMapType;    /* 01h  Color map type */
+				BYTE ImageType;       /* 02h  Image type code */
+				WORD CMapStart;       /* 03h  Color map origin */
+				WORD CMapLength;      /* 05h  Color map length */
+				BYTE CMapDepth;       /* 07h  Depth of color map entries */
+				WORD XOffset;         /* 08h  X origin of image */
+				WORD YOffset;         /* 0Ah  Y origin of image */
+				WORD Width;           /* 0Ch  Width of image */
+				WORD Height;          /* 0Eh  Height of image */
+				BYTE PixelDepth;      /* 10h  Image pixel size */
+				BYTE ImageDescriptor; /* 11h  Image descriptor byte */
+			} __attribute__((packed)) TGAHEAD;
+			static unsigned short oldscr[320*240];
+			FILE *f; char name[128]; int i;
+
+			memset(&TGAHEAD, 0, sizeof(TGAHEAD));
+			TGAHEAD.ImageType = 2;
+			TGAHEAD.Width = 320;
+			TGAHEAD.Height = 240;
+			TGAHEAD.PixelDepth = 16;
+			TGAHEAD.ImageDescriptor = 2<<4; // image starts at top-left
+
+			#define CONV(X) (((X>>1)&0x7fe0)|(X&0x1f)) // 555?
+
+			for (i = 0; i < 320*240; i++)
+				if(oldscr[i] != CONV(((unsigned short *)gp2x_screen)[i])) break;
+			if (i < 320*240)
+			{
+				for (i = 0; i < 320*240; i++)
+					oldscr[i] = CONV(((unsigned short *)gp2x_screen)[i]);
+				sprintf(name, "%05i.tga", Pico.m.frame_count);
 				f = fopen(name, "wb");
 				if (!f) { printf("!f\n"); exit(1); }
-				fwrite(gp2x_screen, 1, 320*240*2, f);
+				fwrite(&TGAHEAD, 1, sizeof(TGAHEAD), f);
+				fwrite(oldscr, 1, 320*240*2, f);
 				fclose(f);
 			}
 		}

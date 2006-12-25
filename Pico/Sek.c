@@ -81,8 +81,8 @@ static int SekUnrecognizedOpcode()
 #ifdef EMU_M68K
 static int SekIntAckM68K(int level)
 {
-  if     (level == 4) { Pico.video.pending_ints  =  0;    } // dprintf("hack: [%i|%i]", Pico.m.scanline, SekCyclesDone()); }
-  else if(level == 6) { Pico.video.pending_ints &= ~0x20; } // dprintf("vack: [%i|%i]", Pico.m.scanline, SekCyclesDone()); }
+  if     (level == 4) { Pico.video.pending_ints  =  0;    dprintf("hack: [%i|%i]", Pico.m.scanline, SekCyclesDone()); }
+  else if(level == 6) { Pico.video.pending_ints &= ~0x20; dprintf("vack: [%i|%i]", Pico.m.scanline, SekCyclesDone()); }
   CPU_INT_LEVEL = 0;
   return M68K_INT_ACK_AUTOVECTOR;
 }

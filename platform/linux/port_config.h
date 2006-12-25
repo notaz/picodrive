@@ -12,9 +12,7 @@
 // pico.c
 #define CAN_HANDLE_240_LINES	1
 
-extern int frame_count;
-
-#define dprintf(f,...) printf("%05i: " f "\n",frame_count,##__VA_ARGS__)
+#define dprintf(f,...) printf("%05i: " f "\n",Pico.m.frame_count,##__VA_ARGS__)
 //#define dprintf(x...)
 
 #endif //PORT_CONFIG_H

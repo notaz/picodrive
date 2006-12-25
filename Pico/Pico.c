@@ -194,22 +194,32 @@ static int dma_timings[] = {
 9,    18,  17,   9  // ...
 };
 
-static void CheckDMA(void)
+static int dma_bsycles[] = {
+(488<<8)/83,  (488<<8)/167, (488<<8)/166, (488<<8)/83,
+(488<<8)/102, (488<<8)/205, (488<<8)/204, (488<<8)/102,
+(488<<8)/8,   (488<<8)/16,  (488<<8)/15,  (488<<8)/8,
+(488<<8)/9,   (488<<8)/18,  (488<<8)/17,  (488<<8)/9
+};
+
+//static
+int CheckDMA(void)
 {
   int burn = 0, bytes_can = 0, dma_op = Pico.video.reg[0x17]>>6; // see gens for 00 and 01 modes
   int bytes = Pico.m.dma_bytes;
+  int dma_op1;
 
-  if(dma_op & 2) bytes_can = dma_op;
-  else if(Pico.video.type!=1) bytes_can  = 1; // setting dma_timings offset here according to Gens
-  if(Pico.video.reg[12] & 1)  bytes_can += 4; // 40 cell mode?
-  if(!(Pico.video.status&8)&&(Pico.video.reg[1]&0x40)) { dma_op|=4; bytes_can += 8; } // active display?
-  bytes_can = dma_timings[bytes_can];
+  if(!(dma_op&2)) dma_op = (Pico.video.type==1) ? 0 : 1; // setting dma_timings offset here according to Gens
+  dma_op1 = dma_op;
+  if(Pico.video.reg[12] & 1) dma_op |= 4; // 40 cell mode?
+  if(!(Pico.video.status&8)&&(Pico.video.reg[1]&0x40)) dma_op|=8; // active display?
+  bytes_can = dma_timings[dma_op];
 
   if(bytes <= bytes_can) {
     if(dma_op&2) Pico.video.status&=~2; // dma no longer busy
     else {
-      if(dma_op&4) burn = bytes*(((488<<8)/18 ))>>8; // have to be approximate because can't afford division..
-      else         burn = bytes*(((488<<8)/205))>>8;
+      burn = bytes * dma_bsycles[dma_op] >> 8; // have to be approximate because can't afford division..
+      //SekCycleCnt-=Pico.m.dma_endcycles;
+      //Pico.m.dma_endcycles = 0;
     }
     Pico.m.dma_bytes = 0;
   } else {
@@ -217,8 +227,10 @@ static void CheckDMA(void)
     Pico.m.dma_bytes -= bytes_can;
   }
 
-  SekCycleCnt+=burn;
-  dprintf("~Dma %i op=%i can=%i burn=%i [%i|%i]", Pico.m.dma_bytes, dma_op, bytes_can, burn, Pico.m.scanline, SekCyclesDone());
+  //SekCycleCnt+=burn;
+  dprintf("~Dma %i op=%i can=%i burn=%i [%i|%i]", Pico.m.dma_bytes, dma_op1, bytes_can, burn, Pico.m.scanline, SekCyclesDone());
+  //dprintf("~aim: %i, cnt: %i", SekCycleAim, SekCycleCnt);
+  return burn;
 }
 
 static __inline void SekRun(int cyc)
@@ -250,7 +262,9 @@ static __inline void SekRun(int cyc)
     		Pico.m.scanline, SekCyclesDone());
   }
 #endif
+  //dprintf("aim: %i, cnt: %i", SekCycleAim, SekCycleCnt);
   if((cyc_do=SekCycleAim-SekCycleCnt) <= 0) return;
+  //dprintf("cyc_do: %i", cyc_do);
 #if   defined(EMU_C68K) && defined(EMU_M68K)
   // this means we do run-compare Cyclone vs Musashi
   SekCycleCnt+=CM_compareRun(cyc_do);
@@ -390,12 +404,14 @@ static int PicoFrameHints(void)
     // V-Interrupt:
     if (y == lines_vis)
     {
-      //dprintf("vint: @ %06x [%i|%i]", SekPc, y, SekCycleCnt);
-      pv->status|=0x88; // V-Int happened, go into vblank
+      dprintf("vint: @ %06x [%i|%i], aim=%i cnt=%i", SekPc, y, SekCycleCnt, SekCycleAim, SekCycleCnt);
+      pv->status|=0x08; // go into vblank
       if(!Pico.m.dma_bytes||(Pico.video.reg[0x17]&0x80)) {
         // there must be a gap between H and V ints, also after vblank bit set (Mazin Saga, Bram Stoker's Dracula)
-        SekRun(128); SekCycleAim-=128;
+        SekRun(128); SekCycleAim-=128; // 128; ?
       }
+      dprintf("[%i|%i], aim=%i cnt=%i @ %x", y, SekCycleCnt, SekCycleAim, SekCycleCnt, SekPc);
+      pv->status|=0x80; // V-Int happened
       pv->pending_ints|=0x20;
       if(pv->reg[1]&0x20) SekInterrupt(6);
       if(Pico.m.z80Run && (PicoOpt&4)) // ?
@@ -421,7 +437,7 @@ static int PicoFrameHints(void)
       getSamples(y);
 
     // Run scanline:
-    if(Pico.m.dma_bytes) CheckDMA();
+    if(Pico.m.dma_bytes) SekCycleCnt+=CheckDMA();
     SekRun(cycles_68k);
     if((PicoOpt&4) && Pico.m.z80Run) {
       Pico.m.z80Run|=2;

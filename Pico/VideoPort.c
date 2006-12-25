@@ -58,6 +58,7 @@ static unsigned int VideoRead()
   return d;
 }
 
+#if 0
 // calculate the number of cycles 68k->VDP dma operation would take
 static int DmaSlowBurn(int len)
 {
@@ -75,6 +76,7 @@ static int DmaSlowBurn(int len)
 
   return burn;
 }
+#endif
 
 static int GetDmaLength()
 {
@@ -93,14 +95,15 @@ static void DmaSlow(int len)
   u16 *pd=0, *pdend, *r;
   unsigned int a=Pico.video.addr, a2, d;
   unsigned char inc=Pico.video.reg[0xf];
-  unsigned int source, burn;
+  unsigned int source; // , burn;
 
   source =Pico.video.reg[0x15]<<1;
   source|=Pico.video.reg[0x16]<<9;
   source|=Pico.video.reg[0x17]<<17;
 
-  dprintf("DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%i|%i]", Pico.video.type, source, a, len, inc,
-           (Pico.video.status&8)||!(Pico.video.reg[1]&0x40), Pico.m.scanline, SekCyclesDone());
+  dprintf("DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%i|%i] @ %x",
+    Pico.video.type, source, a, len, inc, (Pico.video.status&8)||!(Pico.video.reg[1]&0x40),
+    Pico.m.scanline, SekCyclesDone(), SekPc);
 
   if ((source&0xe00000)==0xe00000) { pd=(u16 *)(Pico.ram+(source&0xfffe)); pdend=(u16 *)(Pico.ram+0x10000); } // Ram
   else if(source<Pico.romsize)     { pd=(u16 *)(Pico.rom+(source&~1)); pdend=(u16 *)(Pico.rom+Pico.romsize); } // Rom
@@ -116,8 +119,12 @@ static void DmaSlow(int len)
 #else
   Pico.m.dma_bytes += len;
 #endif
-  if(!(Pico.video.status&8))
-    SekEndRun(0);
+  //if(!(Pico.video.status&8))
+//    SekEndRun(0);
+	//Pico.m.dma_endcycles  = 0;//SekCyclesLeft;
+	//Pico.m.dma_endcycles -= Pico.m.dma_endcycles>>3; // hack
+	SekSetCyclesLeft(SekCyclesLeft - CheckDMA());
+//    CheckDMA();
 //  dprintf("DmaSlow burn: %i @ %06x", burn, SekPc);
 
   switch (Pico.video.type)
@@ -138,8 +145,6 @@ static void DmaSlow(int len)
       break;
 
     case 3: // cram
-      dprintf("DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%i|%i]", Pico.video.type, source, a, len, inc,
-               (Pico.video.status&8)||!(Pico.video.reg[1]&0x40), Pico.m.scanline, SekCyclesDone());
       Pico.m.dirtyPal = 1;
       r = Pico.cram;
       for(a2=a&0x7f; len; len--)
@@ -314,8 +319,8 @@ void PicoVideoWrite(unsigned int a,unsigned short d)
       {
         // Register write:
         int num=(d>>8)&0x1f;
-        //if(num==00) dprintf("hint_onoff: %i->%i [%i|%i] pend=%i @ %06x", (pvid->reg[0]&0x10)>>4, (d&0x10)>>4, Pico.m.scanline, SekCyclesDone(), (pvid->pending_ints&0x10)>>4, SekPc);
-        //if(num==01) dprintf("vint_onoff: %i->%i [%i|%i] pend=%i @ %06x", (pvid->reg[1]&0x20)>>5, (d&0x20)>>5, Pico.m.scanline, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
+        if(num==00) dprintf("hint_onoff: %i->%i [%i|%i] pend=%i @ %06x", (pvid->reg[0]&0x10)>>4, (d&0x10)>>4, Pico.m.scanline, SekCyclesDone(), (pvid->pending_ints&0x10)>>4, SekPc);
+        if(num==01) dprintf("vint_onoff: %i->%i [%i|%i] pend=%i @ %06x", (pvid->reg[1]&0x20)>>5, (d&0x20)>>5, Pico.m.scanline, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
         //if(num==01) dprintf("set_blank: %i @ %06x [%i|%i]", !((d&0x40)>>6), SekPc, Pico.m.scanline, SekCyclesDone());
         //if(num==05) dprintf("spr_set: %i @ %06x [%i|%i]", (unsigned char)d, SekPc, Pico.m.scanline, SekCyclesDone());
         //if(num==10) dprintf("hint_set: %i @ %06x [%i|%i]", (unsigned char)d, SekPc, Pico.m.scanline, SekCyclesDone());

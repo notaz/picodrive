@@ -124,7 +124,8 @@ struct PicoMisc
   unsigned char sram_slave;  // EEPROM slave word for X24C02 and better SRAMs
   unsigned char prot_bytes[2]; // simple protection fakeing
   unsigned short dma_bytes;  //
-  unsigned char pad1[6];
+  unsigned char pad[2];
+  unsigned int  frame_count; // mainly for movies
 };
 
 // some assembly stuff depend on these, do not touch!
@@ -209,6 +210,7 @@ void PicoWriteCD32(unsigned int a, unsigned int d);
 extern struct Pico Pico;
 extern struct PicoSRAM SRam;
 extern int emustatus;
+int CheckDMA(void);
 
 // cd/Pico.c
 int  PicoInitMCD(void);
