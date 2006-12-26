@@ -95,21 +95,28 @@ static int try_rfn_ext(char *ext)
 	return 0;
 }
 
-int emu_ReloadRom(void)
+static void get_ext(char *ext)
 {
-	unsigned int rom_size = 0;
-	char ext[5], *p;
-	FILE *rom;
-	int ret;
+	char *p;
 
-	printf("emu_ReloadRom(%s)\n", romFileName);
-
-	// detect wrong extensions (.srm and .mds)
 	p = romFileName + strlen(romFileName) - 4;
 	if (p < romFileName) p = romFileName;
 	strncpy(ext, p, 4);
 	ext[4] = 0;
 	strlwr(ext);
+}
+
+int emu_ReloadRom(void)
+{
+	unsigned int rom_size = 0;
+	char ext[5];
+	FILE *rom;
+	int ret;
+
+	printf("emu_ReloadRom(%s)\n", romFileName);
+
+	// detect wrong extensions
+	get_ext(ext);
 
 	if(!strcmp(ext, ".srm") || !strcmp(ext, "s.gz") || !strcmp(ext, ".mds")) { // s.gz ~ .mds.gz
 		sprintf(menuErrorMsg, "Not a ROM selected.");
@@ -155,6 +162,7 @@ int emu_ReloadRom(void)
 			sprintf(menuErrorMsg, "Could't find a ROM for movie.");
 			return 0;
 		}
+		get_ext(ext);
 	}
 
 	rom = fopen(romFileName, "rb");
@@ -615,6 +623,8 @@ static void RunEvents(unsigned int which)
 		}
 		if (do_it) {
 			blit("", (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
+			if(movie_data) {
+			}
 			emu_SaveLoadGame(which & 0x1000, 0);
 		}
 
@@ -650,6 +660,35 @@ static void RunEvents(unsigned int which)
 	}
 	if(which & 0x0080) {
 		engineState = PGS_Menu;
+	}
+}
+
+
+static void updateMovie(void)
+{
+	int offs = Pico.m.frame_count*3 + 0x40;
+	if (offs+3 > movie_size) {
+		free(movie_data);
+		movie_data = 0;
+		strcpy(noticeMsg, "END OF MOVIE.");
+		printf("END OF MOVIE.\n");
+		gettimeofday(&noticeMsgTime, 0);
+	} else {
+		// MXYZ SACB RLDU
+		PicoPad[0] = ~movie_data[offs]   & 0x8f; // ! SCBA RLDU
+		if(!(movie_data[offs]   & 0x10)) PicoPad[0] |= 0x40; // A
+		if(!(movie_data[offs]   & 0x20)) PicoPad[0] |= 0x10; // B
+		if(!(movie_data[offs]   & 0x40)) PicoPad[0] |= 0x20; // A
+		PicoPad[1] = ~movie_data[offs+1] & 0x8f; // ! SCBA RLDU
+		if(!(movie_data[offs+1] & 0x10)) PicoPad[1] |= 0x40; // A
+		if(!(movie_data[offs+1] & 0x20)) PicoPad[1] |= 0x10; // B
+		if(!(movie_data[offs+1] & 0x40)) PicoPad[1] |= 0x20; // A
+		PicoPad[0] |= (~movie_data[offs+2] & 0x0A) << 8; // ! MZYX
+		if(!(movie_data[offs+2] & 0x01)) PicoPad[0] |= 0x0400; // X
+		if(!(movie_data[offs+2] & 0x04)) PicoPad[0] |= 0x0100; // Z
+		PicoPad[1] |= (~movie_data[offs+2] & 0xA0) << 4; // ! MZYX
+		if(!(movie_data[offs+2] & 0x10)) PicoPad[1] |= 0x0400; // X
+		if(!(movie_data[offs+2] & 0x40)) PicoPad[1] |= 0x0100; // Z
 	}
 }
 
@@ -710,39 +749,8 @@ static void updateKeys(void)
 		}
 	}
 
-	if(movie_data)
-	{
-		int offs = Pico.m.frame_count*3 + 0x40;
-		if (offs+3 > movie_size) {
-			free(movie_data);
-			movie_data = 0;
-			strcpy(noticeMsg, "END OF MOVIE.");
-			printf("END OF MOVIE.\n");
-			gettimeofday(&noticeMsgTime, 0);
-		} else {
-			// MXYZ SACB RLDU
-			PicoPad[0] = ~movie_data[offs]   & 0x8f; // ! SCBA RLDU
-			if(!(movie_data[offs]   & 0x10)) PicoPad[0] |= 0x40; // A
-			if(!(movie_data[offs]   & 0x20)) PicoPad[0] |= 0x10; // B
-			if(!(movie_data[offs]   & 0x40)) PicoPad[0] |= 0x20; // A
-			PicoPad[1] = ~movie_data[offs+1] & 0x8f; // ! SCBA RLDU
-			if(!(movie_data[offs+1] & 0x10)) PicoPad[1] |= 0x40; // A
-			if(!(movie_data[offs+1] & 0x20)) PicoPad[1] |= 0x10; // B
-			if(!(movie_data[offs+1] & 0x40)) PicoPad[1] |= 0x20; // A
-			PicoPad[0] |= (~movie_data[offs+2] & 0x0A) << 8; // ! MZYX
-			if(!(movie_data[offs+2] & 0x01)) PicoPad[0] |= 0x0400; // X
-			if(!(movie_data[offs+2] & 0x04)) PicoPad[0] |= 0x0100; // Z
-			PicoPad[1] |= (~movie_data[offs+2] & 0xA0) << 4; // ! MZYX
-			if(!(movie_data[offs+2] & 0x10)) PicoPad[1] |= 0x0400; // X
-			if(!(movie_data[offs+2] & 0x40)) PicoPad[1] |= 0x0100; // Z
-		}
-	}
-	else
-	{
-		PicoPad[0] = (unsigned short) allActions[0];
-		PicoPad[1] = (unsigned short) allActions[1];
-	}
-	Pico.m.frame_count++;
+	PicoPad[0] = (unsigned short) allActions[0];
+	PicoPad[1] = (unsigned short) allActions[1];
 
 	events = (allActions[0] | allActions[1]) >> 16;
 
@@ -762,6 +770,7 @@ static void updateKeys(void)
 
 	events &= ~prevEvents;
 	if (events) RunEvents(events);
+	if (movie_data) updateMovie();
 
 	prevEvents = (allActions[0] | allActions[1]) >> 16;
 }

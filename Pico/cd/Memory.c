@@ -25,7 +25,7 @@ typedef unsigned int   u32;
 
 // -----------------------------------------------------------------
 
-extern m68ki_cpu_core m68ki_cpu;
+// extern m68ki_cpu_core m68ki_cpu;
 
 extern int counter75hz;
 

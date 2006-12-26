@@ -189,7 +189,8 @@ static void DmaCopy(int len)
   dprintf("DmaCopy len %i [%i|%i]", len, Pico.m.scanline, SekCyclesDone());
 
   Pico.m.dma_bytes += len;
-  Pico.video.status|=2; // dma busy
+  if(Pico.m.scanline != -1)
+    Pico.video.status|=2; // dma busy
 
   source =Pico.video.reg[0x15];
   source|=Pico.video.reg[0x16]<<8;
@@ -222,7 +223,8 @@ static void DmaFill(int data)
   dprintf("DmaFill len %i inc %i [%i|%i]", len, inc, Pico.m.scanline, SekCyclesDone());
 
   Pico.m.dma_bytes += len;
-  Pico.video.status|=2; // dma busy
+  if(Pico.m.scanline != -1)
+    Pico.video.status|=2; // dma busy (in accurate mode)
 
   // from Charles MacDonald's genvdp.txt:
   // Write lower byte to address specified
@@ -416,7 +418,7 @@ unsigned int PicoVideoRead(unsigned int a)
            hc=hcounts_40[lineCycles];
       else hc=hcounts_32[lineCycles];
 
-      if(lineCycles > 488-12) d++; // Wheel of Fortune
+      //if(lineCycles > 488-12) d++; // Wheel of Fortune
     } else {
       // get approximate V-Counter
       d=vcounts[SekCyclesDone()>>8];

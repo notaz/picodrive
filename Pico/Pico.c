@@ -621,6 +621,8 @@ int PicoFrame(void)
 {
   int acc;
 
+  Pico.m.frame_count++;
+
   if (PicoMCD & 1) {
     PicoFrameMCD();
     return 0;
