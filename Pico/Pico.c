@@ -23,7 +23,7 @@ struct PicoSRAM SRam;
 int z80startCycle = 0, z80stopCycle = 0; // in 68k cycles
 //int z80ExtraCycles = 0;
 int PicoPad[2]; // Joypads, format is SACB RLDU
-int PicoMCD = 0; // mega CD status
+int PicoMCD = 1; // mega CD status: scd_started
 
 // to be called once on emu init
 int PicoInit(void)

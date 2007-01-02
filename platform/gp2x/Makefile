@@ -92,10 +92,15 @@ ifeq "$(up)" "1"
 	@cmd //C copy $@ \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
 endif
 
-up: up940
-	@cmd //C copy PicoDrive.gpe \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
+up: # up940
+	@cp -v PicoDrive.gpe /mnt/gp2x/mnt/sd/games/PicoDrive/
+
+#	@cmd //C copy PicoDrive.gpe \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
+
 up940:
-	@cmd //C copy code940.bin \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
+	@cp -v code940.bin /mnt/gp2x/mnt/sd/games/PicoDrive/
+
+#	@cmd //C copy code940.bin \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
 
 testrefr.gpe : test.o gp2x.o asmutils.o
 	@echo $@

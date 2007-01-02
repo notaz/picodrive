@@ -1,7 +1,7 @@
 // This is part of Pico Library
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2007 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -11,7 +11,7 @@
 #include "../sound/sound.h"
 
 
-int counter75hz = 0;
+static int counter75hz = 0; // TODO: move 2 context
 
 
 int PicoInitMCD(void)
@@ -33,6 +33,7 @@ int PicoResetMCD(int hard)
   // clear everything except BIOS
   memset(Pico_mcd->prg_ram, 0, sizeof(mcd_state) - sizeof(Pico_mcd->bios));
   PicoMCD |= 2; // s68k reset pending
+  Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode with m68k access after reset
   counter75hz = 0;
 
   LC89510_Reset();
@@ -71,7 +72,7 @@ extern unsigned char s68k_regs[0x200];
 static int PicoFrameHintsMCD(void)
 {
   struct PicoVideo *pv=&Pico.video;
-  int total_z80=0,lines,y,lines_vis = 224,z80CycleAim = 0,line_sample;
+  int total_z80=0,lines,y,lines_vis = 224,z80CycleAim = 0,line_sample,counter75hz_lim;
   const int cycles_68k=488,cycles_z80=228,cycles_s68k=795; // both PAL and NTSC compile to same values
   int skip=PicoSkipFrame || (PicoOpt&0x10);
   int hint; // Hint counter
@@ -81,11 +82,13 @@ static int PicoFrameHintsMCD(void)
     //cycles_z80 = (int) ((double) OSC_PAL  / 15 / 50 / 312 + 0.4); // 228
     lines  = 312;    // Steve Snake says there are 313 lines, but this seems to also work well
     line_sample = 68;
+    counter75hz_lim = 2080;
     if(pv->reg[1]&8) lines_vis = 240;
   } else {
     //cycles_68k = (int) ((double) OSC_NTSC /  7 / 60 / 262 + 0.4); // 488
     //cycles_z80 = (int) ((double) OSC_NTSC / 15 / 60 / 262 + 0.4); // 228
     lines  = 262;
+    counter75hz_lim = 2096;
     line_sample = 93;
   }
 
@@ -160,6 +163,7 @@ static int PicoFrameHintsMCD(void)
 
     // Run scanline:
       //dprintf("m68k starting exec @ %06x", SekPc);
+    if(Pico.m.dma_bytes) SekCycleCnt+=CheckDMA();
     SekRun(cycles_68k);
     if ((Pico_mcd->m68k_regs[1]&3) == 1) { // no busreq/no reset
 #if 0
@@ -185,9 +189,8 @@ static int PicoFrameHintsMCD(void)
       total_z80+=z80_run(z80CycleAim-total_z80);
     }
 
-    // if cdd is on, counter elapsed and irq4 is not masked, do irq4
-    if ((Pico_mcd->s68k_regs[0x37]&4) && ++counter75hz > 209 && (Pico_mcd->s68k_regs[0x33]&(1<<4))) {
-      counter75hz = 0;
+    if ((counter75hz+=10) >= counter75hz_lim) {
+      counter75hz -= counter75hz_lim;
       Check_CD_Command();
     }
   }

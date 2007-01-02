@@ -39,8 +39,8 @@ static const char* copyright_notice =
 /* ================================= DATA ================================= */
 /* ======================================================================== */
 
-int  m68ki_initial_cycles;
-int  m68ki_remaining_cycles = 0;                     /* Number of clocks remaining */
+// int  m68ki_initial_cycles; // moved to m68k_execute() stack
+// int  m68ki_remaining_cycles = 0;                     /* Number of clocks remaining */
 uint m68ki_tracing = 0;
 uint m68ki_address_space;
 
@@ -771,6 +771,8 @@ void m68k_set_cpu_type(unsigned int cpu_type)
 /* ASG: removed per-instruction interrupt checks */
 int m68k_execute(int num_cycles)
 {
+	int  m68ki_initial_cycles;
+
 	/* Make sure we're not stopped */
 	if(!CPU_STOPPED)
 	{
@@ -827,17 +829,19 @@ int m68k_execute(int num_cycles)
 	return num_cycles;
 }
 
-
+#if 0
 int m68k_cycles_run(void)
 {
 	return m68ki_initial_cycles - GET_CYCLES();
 }
+#endif
 
 int m68k_cycles_remaining(void)
 {
 	return GET_CYCLES();
 }
 
+#if 0
 /* Change the timeslice */
 void m68k_modify_timeslice(int cycles)
 {
@@ -851,7 +855,7 @@ void m68k_end_timeslice(void)
 	m68ki_initial_cycles = GET_CYCLES();
 	SET_CYCLES(0);
 }
-
+#endif
 
 /* ASG: rewrote so that the int_level is a mask of the IPL0/IPL1/IPL2 bits */
 /* KS: Modified so that IPL* bits match with mask positions in the SR

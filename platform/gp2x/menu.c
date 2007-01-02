@@ -352,11 +352,11 @@ static char *romsel_loop(char *curr_path)
 	for (;;)
 	{
 		draw_dirlist(curr_path, namelist, n, sel);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_B|GP2X_X);
+		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_L|GP2X_R|GP2X_B|GP2X_X);
 		if(inp & GP2X_UP  )  { sel--;   if (sel < 0)   sel = n-2; }
 		if(inp & GP2X_DOWN)  { sel++;   if (sel > n-2) sel = 0; }
-		if(inp & GP2X_LEFT)  { sel-=10; if (sel < 0)   sel = 0; }
-		if(inp & GP2X_RIGHT) { sel+=10; if (sel > n-2) sel = n-2; }
+		if(inp &(GP2X_LEFT|GP2X_L))  { sel-=10; if (sel < 0)   sel = 0; }
+		if(inp &(GP2X_RIGHT|GP2X_R)) { sel+=10; if (sel > n-2) sel = n-2; }
 		if(inp & GP2X_B)     { // enter dir/select
 			again:
 			if (namelist[sel+1]->d_type == DT_REG) {
@@ -827,7 +827,7 @@ static void draw_menu_credits(void)
 	int tl_x = 15, tl_y = 70, y;
 	memset(gp2x_screen, 0, 320*240);
 
-	gp2x_text_out8(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006");
+	gp2x_text_out8(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006,2007");
 	y = tl_y;
 	gp2x_text_out8(tl_x, y, "Credits:");
 	gp2x_text_out8(tl_x, (y+=10), "Dave: Cyclone 68000 core,");

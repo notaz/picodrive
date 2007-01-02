@@ -536,7 +536,7 @@ void CDD_Export_Status(void)
 	csum += Pico_mcd->cdd.Ext;
 	Pico_mcd->s68k_regs[0x38+9] = ~csum & 0xf;
 
-	Pico_mcd->s68k_regs[0x36] &= 3; // CDD.Control
+	Pico_mcd->s68k_regs[0x37] &= 3; // CDD.Control
 
 	if (Pico_mcd->s68k_regs[0x33] & (1<<4))
 	{

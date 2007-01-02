@@ -79,14 +79,15 @@ static void strlwr(char* string)
 	while ( (*string++ = (char)tolower(*string)) );
 }
 
-static int try_rfn_ext(char *ext)
+static int try_rfn_cut(void)
 {
 	FILE *tmp;
 	char *p;
 
-	p = romFileName + strlen(romFileName) - 4;
-	if (p < romFileName) p = romFileName;
-	strcpy(p, ext);
+	p = romFileName + strlen(romFileName) - 1;
+	for (; p > romFileName; p--)
+		if (*p == '.') break;
+	*p = 0;
 
 	if((tmp = fopen(romFileName, "rb"))) {
 		fclose(tmp);
@@ -156,8 +157,7 @@ int emu_ReloadRom(void)
 			sprintf(menuErrorMsg, "Invalid GMV file.");
 			return 0;
 		}
-		dummy = try_rfn_ext(".zip") || try_rfn_ext(".bin") ||
-			try_rfn_ext(".smd") || try_rfn_ext(".gen");
+		dummy = try_rfn_cut() || try_rfn_cut();
 		if (!dummy) {
 			sprintf(menuErrorMsg, "Could't find a ROM for movie.");
 			return 0;

@@ -58,26 +58,6 @@ static unsigned int VideoRead()
   return d;
 }
 
-#if 0
-// calculate the number of cycles 68k->VDP dma operation would take
-static int DmaSlowBurn(int len)
-{
-  // test: Legend of Galahad, Time Killers
-  int burn,maxlen,line=Pico.m.scanline;
-
-  if(line == -1) line=vcounts[SekCyclesDone()>>8];
-  maxlen=(224-line)*18;
-  if(len <= maxlen)
-    burn = len*(((488<<8)/18))>>8;
-  else {
-    burn  = maxlen*(((488<<8)/18))>>8;
-    burn += (len-maxlen)*(((488<<8)/180))>>8;
-  }
-
-  return burn;
-}
-#endif
-
 static int GetDmaLength()
 {
   struct PicoVideo *pvid=&Pico.video;
@@ -95,7 +75,7 @@ static void DmaSlow(int len)
   u16 *pd=0, *pdend, *r;
   unsigned int a=Pico.video.addr, a2, d;
   unsigned char inc=Pico.video.reg[0xf];
-  unsigned int source; // , burn;
+  unsigned int source;
 
   source =Pico.video.reg[0x15]<<1;
   source|=Pico.video.reg[0x16]<<9;
@@ -105,27 +85,22 @@ static void DmaSlow(int len)
     Pico.video.type, source, a, len, inc, (Pico.video.status&8)||!(Pico.video.reg[1]&0x40),
     Pico.m.scanline, SekCyclesDone(), SekPc);
 
-  if ((source&0xe00000)==0xe00000) { pd=(u16 *)(Pico.ram+(source&0xfffe)); pdend=(u16 *)(Pico.ram+0x10000); } // Ram
-  else if(source<Pico.romsize)     { pd=(u16 *)(Pico.rom+(source&~1)); pdend=(u16 *)(Pico.rom+Pico.romsize); } // Rom
-  else return; // Invalid source address
+  if(Pico.m.scanline != -1) {
+    Pico.m.dma_bytes += len;
+    SekSetCyclesLeft(SekCyclesLeft - CheckDMA());
+  } else {
+    // be approximate in non-accurate mode
+    SekSetCyclesLeft(SekCyclesLeft - (len*(((488<<8)/167))>>8));
+  }
 
-#if 0
-  // CPU is stopped during DMA, so we burn some cycles to compensate that
-  if((Pico.video.status&8)||!(Pico.video.reg[1]&0x40)) { // vblank?
-      burn = (len*(((488<<8)/167))>>8); // very approximate
-      if(!(Pico.video.status&8)) burn+=burn>>1; // a hack for Legend of Galahad
-  } else burn = DmaSlowBurn(len);
-  SekCyclesBurn(burn);
-#else
-  Pico.m.dma_bytes += len;
-#endif
-  //if(!(Pico.video.status&8))
-//    SekEndRun(0);
-	//Pico.m.dma_endcycles  = 0;//SekCyclesLeft;
-	//Pico.m.dma_endcycles -= Pico.m.dma_endcycles>>3; // hack
-	SekSetCyclesLeft(SekCyclesLeft - CheckDMA());
-//    CheckDMA();
-//  dprintf("DmaSlow burn: %i @ %06x", burn, SekPc);
+  if ((source&0xe00000)==0xe00000) { pd=(u16 *)(Pico.ram+(source&0xfffe)); pdend=(u16 *)(Pico.ram+0x10000); } // Ram
+  else if(PicoMCD & 1) {
+    if(source<0x20000) { pd=(u16 *)(Pico_mcd->bios+(source&~1)); pdend=(u16 *)(Pico_mcd->bios+0x20000); } // Bios area
+    else { dprintf("unsupported src"); return; } // Invalid source address
+  } else {
+    if(source<Pico.romsize) { pd=(u16 *)(Pico.rom+(source&~1)); pdend=(u16 *)(Pico.rom+Pico.romsize); } // Rom
+    else { dprintf("invalid dma src"); return; } // Invalid source address
+  }
 
   switch (Pico.video.type)
   {

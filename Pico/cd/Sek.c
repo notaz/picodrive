@@ -22,7 +22,7 @@ m68ki_cpu_core PicoS68kCPU; // Mega CD's CPU
 #ifdef EMU_M68K
 int SekIntAckS68k(int level)
 {
-  dprintf("s68k: int %i ack [%i|%i]", level, Pico.m.scanline, SekCyclesDone());
+  dprintf("s68kACK %i", level);
   CPU_INT_LEVEL = 0;
   return M68K_INT_ACK_AUTOVECTOR;
 }

@@ -891,13 +891,16 @@ typedef struct
 	void (*set_fc_callback)(unsigned int new_fc);     /* Called when the CPU function code changes */
 	void (*instr_hook_callback)(void);                /* Called every instruction cycle prior to execution */
 
+	sint cyc_remaining_cycles;
 } m68ki_cpu_core;
 
 
 extern m68ki_cpu_core *m68ki_cpu_p;
 #define m68ki_cpu (*m68ki_cpu_p) // test
 
-extern sint           m68ki_remaining_cycles;
+// extern sint           m68ki_remaining_cycles;
+#define m68ki_remaining_cycles m68ki_cpu_p->cyc_remaining_cycles
+
 extern uint           m68ki_tracing;
 extern uint8          m68ki_shift_8_table[];
 extern uint16         m68ki_shift_16_table[];
