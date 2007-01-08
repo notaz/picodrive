@@ -42,6 +42,7 @@ static u32 m68k_reg_read16(u32 a, int realsize)
       goto end;
     case 2:
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0xc7);
+      dprintf("m68k_regs r3: %02x @%06x", (u8)d, SekPc);
       goto end;
     case 8:
       dprintf("m68k host data read");
@@ -96,6 +97,7 @@ static void m68k_reg_write8(u32 a, u32 d, int realsize)
       Pico_mcd->s68k_regs[2] = d; // really use s68k side register
       return;
     case 3:
+      dprintf("m68k_regs w3: %02x @%06x", (u8)d, SekPc);
       d &= 0xc2;
       if ((Pico_mcd->s68k_regs[3]>>6) != ((d>>6)&3))
         dprintf("m68k: prg bank: %i -> %i", (Pico_mcd->s68k_regs[a]>>6), ((d>>6)&3));
@@ -143,6 +145,7 @@ static u32 s68k_reg_read16(u32 a, int realsize)
       d = 1; goto end; // ver = 0, not in reset state
     case 2:
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0x1f);
+      dprintf("s68k_regs r3: %02x @%06x", (u8)d, SekPc);
       goto end;
     case 6:
       d = CDC_Read_Reg();
@@ -178,6 +181,7 @@ static void s68k_reg_write8(u32 a, u32 d, int realsize)
     case 2:
       return; // only m68k can change WP
     case 3:
+      dprintf("s68k_regs w3: %02x @%06x", (u8)d, SekPc);
       d &= 0x1d;
       if (d&4) {
         d |= Pico_mcd->s68k_regs[3]&0xc2;
@@ -457,7 +461,13 @@ u8 PicoReadM68k8(u32 a)
   if ((a&0xfc0000)==0x200000) {
     dprintf("m68k_wram r8: [%06x] @%06x", a, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO
+      if (a >= 0x220000) {
+        dprintf("cell");
+      } else {
+        a=((a&0x1fffe)<<1)|(a&1);
+	if (Pico_mcd->s68k_regs[3]&1) a+=2;
+        d = Pico_mcd->word_ram[a^1];
+      }
     } else {
       // allow access in any mode, like Gens does
       d = Pico_mcd->word_ram[(a^1)&0x3ffff];
@@ -468,13 +478,13 @@ u8 PicoReadM68k8(u32 a)
 
   if ((a&0xff4000)==0xa00000) { d=z80Read8(a); goto end; } // Z80 Ram
 
-  if ((a&0xffffc0)==0xa12000)
-    dprintf("m68k_regs r8: [%02x] @%06x", a&0x3f, SekPc);
+  //if ((a&0xffffc0)==0xa12000)
+  //  dprintf("m68k_regs r8: [%02x] @%06x", a&0x3f, SekPc);
 
   d=OtherRead16(a&~1, 8|(a&1)); if ((a&1)==0) d>>=8;
 
-  if ((a&0xffffc0)==0xa12000)
-    dprintf("ret = %02x", (u8)d);
+  //if ((a&0xffffc0)==0xa12000)
+  //  dprintf("ret = %02x", (u8)d);
 
   end:
 
@@ -505,7 +515,13 @@ u16 PicoReadM68k16(u32 a)
   if ((a&0xfc0000)==0x200000) {
     dprintf("m68k_wram r16: [%06x] @%06x", a, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO
+      if (a >= 0x220000) {
+        dprintf("cell");
+      } else {
+        a=((a&0x1fffe)<<1);
+	if (Pico_mcd->s68k_regs[3]&1) a+=2;
+        d = *(u16 *)(Pico_mcd->word_ram+a);
+      }
     } else {
       // allow access in any mode, like Gens does
       d = *(u16 *)(Pico_mcd->word_ram+(a&0x3fffe));
@@ -514,13 +530,13 @@ u16 PicoReadM68k16(u32 a)
     goto end;
   }
 
-  if ((a&0xffffc0)==0xa12000)
-    dprintf("m68k_regs r16: [%02x] @%06x", a&0x3f, SekPc);
+  //if ((a&0xffffc0)==0xa12000)
+  //  dprintf("m68k_regs r16: [%02x] @%06x", a&0x3f, SekPc);
 
   d = (u16)OtherRead16(a, 16);
 
-  if ((a&0xffffc0)==0xa12000)
-    dprintf("ret = %04x", d);
+  //if ((a&0xffffc0)==0xa12000)
+  //  dprintf("ret = %04x", d);
 
   end:
 
@@ -552,7 +568,15 @@ u32 PicoReadM68k32(u32 a)
   if ((a&0xfc0000)==0x200000) {
     dprintf("m68k_wram r32: [%06x] @%06x", a, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO
+      if (a >= 0x220000) {
+        dprintf("cell");
+      } else {
+        u16 *pm;
+        a=((a&0x1fffe)<<1);
+	if (Pico_mcd->s68k_regs[3]&1) a+=2;
+        pm=(u16 *)(Pico_mcd->word_ram+a);
+	d = (pm[0]<<16)|pm[1];
+      }
     } else {
       // allow access in any mode, like Gens does
       u16 *pm=(u16 *)(Pico_mcd->word_ram+(a&0x3fffe)); d = (pm[0]<<16)|pm[1];
@@ -561,13 +585,13 @@ u32 PicoReadM68k32(u32 a)
     goto end;
   }
 
-  if ((a&0xffffc0)==0xa12000)
-    dprintf("m68k_regs r32: [%02x] @%06x", a&0x3f, SekPc);
+  //if ((a&0xffffc0)==0xa12000)
+  //  dprintf("m68k_regs r32: [%02x] @%06x", a&0x3f, SekPc);
 
   d = (OtherRead16(a, 32)<<16)|OtherRead16(a+2, 32);
 
-  if ((a&0xffffc0)==0xa12000)
-    dprintf("ret = %08x", d);
+  //if ((a&0xffffc0)==0xa12000)
+  //  dprintf("ret = %08x", d);
 
   end:
 #ifdef __debug_io
@@ -595,8 +619,7 @@ void PicoWriteM68k8(u32 a,u8 d)
   // prg RAM
   if ((a&0xfe0000)==0x020000) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
-    u8 *pm=(u8 *)(prg_bank+((a^1)&0x1ffff));
-    *pm=d;
+    *(u8 *)(prg_bank+((a^1)&0x1ffff))=d;
     return;
   }
 
@@ -604,17 +627,22 @@ void PicoWriteM68k8(u32 a,u8 d)
   if ((a&0xfc0000)==0x200000) {
     dprintf("m68k_wram w8: [%06x] %02x @%06x", a, d, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO
+      if (a >= 0x220000) {
+        dprintf("cell");
+      } else {
+        a=((a&0x1fffe)<<1)|(a&1);
+	if (Pico_mcd->s68k_regs[3]&1) a+=2;
+        *(u8 *)(Pico_mcd->word_ram+(a^1))=d;
+      }
     } else {
       // allow access in any mode, like Gens does
-      u8 *pm=(u8 *)(Pico_mcd->word_ram+((a^1)&0x3ffff));
-      *pm=d;
+      *(u8 *)(Pico_mcd->word_ram+((a^1)&0x3ffff))=d;
     }
     return;
   }
 
-  if ((a&0xffffc0)==0xa12000)
-    dprintf("m68k_regs w8: [%02x] %02x @%06x", a&0x3f, d, SekPc);
+  //if ((a&0xffffc0)==0xa12000)
+  //  dprintf("m68k_regs w8: [%02x] %02x @%06x", a&0x3f, d, SekPc);
 
   OtherWrite8(a,d,8);
 }
@@ -624,7 +652,6 @@ void PicoWriteM68k16(u32 a,u16 d)
 #ifdef __debug_io
   dprintf("w16: %06x, %04x", a&0xffffff, d);
 #endif
-  //if ((a&0xe0ffff)==0xe0AF0E+0x69c||(a&0xe0ffff)==0xe0A9A8+0x69c||(a&0xe0ffff)==0xe0A9AA+0x69c||(a&0xe0ffff)==0xe0A9AC+0x69c)
   //  dprintf("w16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
 
   if ((a&0xe00000)==0xe00000) { *(u16 *)(Pico.ram+(a&0xfffe))=d; return; } // Ram
@@ -642,7 +669,13 @@ void PicoWriteM68k16(u32 a,u16 d)
   if ((a&0xfc0000)==0x200000) {
     dprintf("m68k_wram w16: [%06x] %04x @%06x", a, d, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO
+      if (a >= 0x220000) {
+        dprintf("cell");
+      } else {
+        a=((a&0x1fffe)<<1);
+	if (Pico_mcd->s68k_regs[3]&1) a+=2;
+        *(u16 *)(Pico_mcd->word_ram+a)=d;
+      }
     } else {
       // allow access in any mode, like Gens does
       *(u16 *)(Pico_mcd->word_ram+(a&0x3fffe))=d;
@@ -650,8 +683,8 @@ void PicoWriteM68k16(u32 a,u16 d)
     return;
   }
 
-  if ((a&0xffffc0)==0xa12000)
-    dprintf("m68k_regs w16: [%02x] %04x @%06x", a&0x3f, d, SekPc);
+  //if ((a&0xffffc0)==0xa12000)
+  //  dprintf("m68k_regs w16: [%02x] %04x @%06x", a&0x3f, d, SekPc);
 
   OtherWrite16(a,d);
 }
@@ -685,7 +718,15 @@ void PicoWriteM68k32(u32 a,u32 d)
     if (d != 0) // don't log clears
       dprintf("m68k_wram w32: [%06x] %08x @%06x", a, d, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO
+      if (a >= 0x220000) {
+        dprintf("cell");
+      } else {
+        u16 *pm;
+        a=((a&0x1fffe)<<1);
+	if (Pico_mcd->s68k_regs[3]&1) a+=2;
+        pm=(u16 *)(Pico_mcd->word_ram+a);
+        pm[0]=(u16)(d>>16); pm[1]=(u16)d;
+      }
     } else {
       // allow access in any mode, like Gens does
       u16 *pm=(u16 *)(Pico_mcd->word_ram+(a&0x3fffe));
@@ -694,8 +735,8 @@ void PicoWriteM68k32(u32 a,u32 d)
     return;
   }
 
-  if ((a&0xffffc0)==0xa12000)
-    dprintf("m68k_regs w32: [%02x] %08x @%06x", a&0x3f, d, SekPc);
+  //if ((a&0xffffc0)==0xa12000)
+  //  dprintf("m68k_regs w32: [%02x] %08x @%06x", a&0x3f, d, SekPc);
 
   OtherWrite16(a,  (u16)(d>>16));
   OtherWrite16(a+2,(u16)d);
@@ -719,9 +760,9 @@ u8 PicoReadS68k8(u32 a)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    dprintf("s68k_regs r8: [%02x] @ %06x", a&0x1ff, SekPcS68k);
+    //dprintf("s68k_regs r8: [%02x] @ %06x", a&0x1ff, SekPcS68k);
     d = s68k_reg_read16(a&~1, 8|(a&1)); if ((a&1)==0) d>>=8;
-    dprintf("ret = %02x", (u8)d);
+    //dprintf("ret = %02x", (u8)d);
     goto end;
   }
 
@@ -742,7 +783,10 @@ u8 PicoReadS68k8(u32 a)
   // word RAM (1M area)
   if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
     dprintf("s68k_wram1M r8: [%06x] @%06x", a, SekPc);
-    // TODO
+    a=((a&0x1fffe)<<1)|(a&1);
+    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
+    d = Pico_mcd->word_ram[a^1];
+    dprintf("ret = %02x", (u8)d);
     goto end;
   }
 
@@ -770,9 +814,9 @@ u16 PicoReadS68k16(u32 a)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    dprintf("s68k_regs r16: [%02x] @ %06x", a&0x1fe, SekPcS68k);
+    //dprintf("s68k_regs r16: [%02x] @ %06x", a&0x1fe, SekPcS68k);
     d = s68k_reg_read16(a, 16);
-    dprintf("ret = %04x", d);
+    //dprintf("ret = %04x", d);
     goto end;
   }
 
@@ -793,7 +837,10 @@ u16 PicoReadS68k16(u32 a)
   // word RAM (1M area)
   if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
     dprintf("s68k_wram1M r16: [%06x] @%06x", a, SekPc);
-    // TODO
+    a=((a&0x1fffe)<<1);
+    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
+    d = *(u16 *)(Pico_mcd->word_ram+a);
+    dprintf("ret = %04x", (u8)d);
     goto end;
   }
 
@@ -822,9 +869,9 @@ u32 PicoReadS68k32(u32 a)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    dprintf("s68k_regs r32: [%02x] @ %06x", a&0x1fe, SekPcS68k);
+    //dprintf("s68k_regs r32: [%02x] @ %06x", a&0x1fe, SekPcS68k);
     d = (s68k_reg_read16(a, 32)<<16)|s68k_reg_read16(a+2, 32);
-    dprintf("ret = %08x", d);
+    //dprintf("ret = %08x", d);
     goto end;
   }
 
@@ -844,8 +891,13 @@ u32 PicoReadS68k32(u32 a)
 
   // word RAM (1M area)
   if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
+    u16 *pm;
     dprintf("s68k_wram1M 32: [%06x] @%06x", a, SekPc);
-    // TODO
+    a=((a&0x1fffe)<<1);
+    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
+    pm=(u16 *)(Pico_mcd->word_ram+a);
+    d  = (pm[0]<<16)|pm[1];
+    dprintf("ret = %08x", (u8)d);
     goto end;
   }
 
@@ -881,7 +933,7 @@ void PicoWriteS68k8(u32 a,u8 d)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    dprintf("s68k_regs w8: [%02x] %02x @ %06x", a&0x1ff, d, SekPcS68k);
+    //dprintf("s68k_regs w8: [%02x] %02x @ %06x", a&0x1ff, d, SekPcS68k);
     s68k_reg_write8(a,d,8);
     return;
   }
@@ -894,8 +946,7 @@ void PicoWriteS68k8(u32 a,u8 d)
       dprintf("(decode)");
     } else {
       // allow access in any mode, like Gens does
-      u8 *pm=(u8 *)(Pico_mcd->word_ram+((a^1)&0x3ffff));
-      *pm=d;
+      *(u8 *)(Pico_mcd->word_ram+((a^1)&0x3ffff))=d;
     }
     return;
   }
@@ -904,7 +955,9 @@ void PicoWriteS68k8(u32 a,u8 d)
   if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
     if (d)
       dprintf("s68k_wram1M w8: [%06x] %02x @%06x", a, d, SekPc);
-    // TODO
+    a=((a&0x1fffe)<<1)|(a&1);
+    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
+    *(u8 *)(Pico_mcd->word_ram+(a^1))=d;
     return;
   }
 
@@ -927,7 +980,7 @@ void PicoWriteS68k16(u32 a,u16 d)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    dprintf("s68k_regs w16: [%02x] %04x @ %06x", a&0x1ff, d, SekPcS68k);
+    //dprintf("s68k_regs w16: [%02x] %04x @ %06x", a&0x1ff, d, SekPcS68k);
     s68k_reg_write8(a,  d>>8, 16);
     s68k_reg_write8(a+1,d&0xff, 16);
     return;
@@ -950,7 +1003,9 @@ void PicoWriteS68k16(u32 a,u16 d)
   if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
     if (d)
       dprintf("s68k_wram1M w16: [%06x] %04x @%06x", a, d, SekPc);
-    // TODO
+    a=((a&0x1fffe)<<1);
+    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
+    *(u16 *)(Pico_mcd->word_ram+a)=d;
     return;
   }
 
@@ -974,7 +1029,7 @@ void PicoWriteS68k32(u32 a,u32 d)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    dprintf("s68k_regs w32: [%02x] %08x @ %06x", a&0x1ff, d, SekPcS68k);
+    //dprintf("s68k_regs w32: [%02x] %08x @ %06x", a&0x1ff, d, SekPcS68k);
     s68k_reg_write8(a,   d>>24, 32);
     s68k_reg_write8(a+1,(d>>16)&0xff, 32);
     s68k_reg_write8(a+2,(d>>8) &0xff, 32);
@@ -998,9 +1053,13 @@ void PicoWriteS68k32(u32 a,u32 d)
 
   // word RAM (1M area)
   if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
+    u16 *pm;
     if (d)
       dprintf("s68k_wram1M w32: [%06x] %08x @%06x", a, d, SekPc);
-    // TODO
+    a=((a&0x1fffe)<<1);
+    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
+    pm=(u16 *)(Pico_mcd->word_ram+a);
+    pm[0]=(u16)(d>>16); pm[1]=(u16)d;
     return;
   }
   dprintf("s68k w32: %06x, %08x @%06x", a&0xffffff, d, SekPcS68k);

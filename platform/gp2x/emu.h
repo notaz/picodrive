@@ -19,7 +19,8 @@ typedef struct {
 	char lastRomFile[512];
 	int EmuOpt;		// LSb->MSb: use_sram, show_fps, enable_sound, gzip_saves,
 					// squidgehack, save_cfg_on_exit, <unused>, 16_bit_mode
-					// craigix_ram, confirm_save
+					// craigix_ram, confirm_save, show_cd_leds, enable_cdda
+					// enable_pcm
 	int PicoOpt;  // used for config saving only, see Pico.h
 	int PsndRate; // ditto
 	int PicoRegion; // ditto
@@ -44,3 +45,5 @@ void emu_Loop(void);
 void emu_ResetGame(void);
 int  emu_ReadConfig(int game);
 int  emu_WriteConfig(int game);
+int  find_bios(int region, char **bios_file);
+

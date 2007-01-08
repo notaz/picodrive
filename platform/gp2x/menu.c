@@ -562,10 +562,8 @@ static void kc_sel_loop(void)
 
 
 
-
-// --------- advanced options ----------
-
 // order must match that of currentConfig_t
+
 struct {
 	int EmuOpt;
 	int PicoOpt;
@@ -575,6 +573,94 @@ struct {
 	int CPUclock;
 } tmp_opts;
 int tmp_gamma;
+
+// --------- sega/mega cd options ----------
+
+static void draw_cd_menu_options(int menu_sel, char *b_us, char *b_eu, char *b_jp)
+{
+	int tl_x = 25, tl_y = 60, y;
+
+	y = tl_y;
+	memset(gp2x_screen, 0, 320*240);
+	gp2x_text_out8(tl_x, y,       "USA BIOS:     %s", b_us); // 0
+	gp2x_text_out8(tl_x, (y+=10), "EUR BIOS:     %s", b_eu); // 1
+	gp2x_text_out8(tl_x, (y+=10), "JAP BIOS:     %s", b_jp); // 2
+	gp2x_text_out8(tl_x, (y+=10), "CD LEDs                    %s", (tmp_opts.EmuOpt &0x400)?"ON":"OFF"); // 3
+	gp2x_text_out8(tl_x, (y+=10), "CDDA audio (using mp3s)    %s", (tmp_opts.EmuOpt &0x800)?"ON":"OFF"); // 4
+	gp2x_text_out8(tl_x, (y+=10), "Done");
+
+	// draw cursor
+	gp2x_text_out8(tl_x - 16, tl_y + menu_sel*10, ">");
+
+	if ((menu_sel == 0 && strcmp(b_us, "NOT FOUND")) ||
+		(menu_sel == 1 && strcmp(b_eu, "NOT FOUND")) ||
+		(menu_sel == 2 && strcmp(b_jp, "NOT FOUND")))
+			gp2x_text_out8(tl_x, 220, "Press start to test selected BIOS");
+
+	gp2x_video_flip();
+}
+
+static void cd_menu_loop_options(void)
+{
+	int menu_sel = 0, menu_sel_max = 5;
+	unsigned long inp = 0;
+	char bios_us[32], bios_eu[32], bios_jp[32], *bios, *p;
+
+	if (find_bios(4, &bios)) { // US
+		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--); p++;
+		strncpy(bios_us, p, 31); bios_us[31] = 0;
+	} else	strcpy(bios_us, "NOT FOUND");
+
+	if (find_bios(8, &bios)) { // EU
+		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--); p++;
+		strncpy(bios_eu, p, 31); bios_eu[31] = 0;
+	} else	strcpy(bios_eu, "NOT FOUND");
+
+	if (find_bios(1, &bios)) { // JP
+		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--); p++;
+		strncpy(bios_jp, p, 31); bios_jp[31] = 0;
+	} else	strcpy(bios_jp, "NOT FOUND");
+
+	for(;;)
+	{
+		draw_cd_menu_options(menu_sel, bios_us, bios_eu, bios_jp);
+		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_B|GP2X_X|GP2X_A|GP2X_START);
+		if(inp & GP2X_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
+		if(inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
+		if((inp& GP2X_B)||(inp&GP2X_LEFT)||(inp&GP2X_RIGHT)) { // toggleable options
+			switch (menu_sel) {
+				case  3: tmp_opts.EmuOpt ^=0x400; break;
+				case  4: return;
+			}
+		}
+		if(inp & (GP2X_X|GP2X_A)) return;
+		if(inp &  GP2X_START) { // BIOS testers
+			switch (menu_sel) {
+				case 0:	if (find_bios(4, &bios)) { // test US
+						strcpy(romFileName, bios);
+						engineState = PGS_ReloadRom;
+						return;
+					}
+					break;
+				case 1:	if (find_bios(8, &bios)) { // test EU
+						strcpy(romFileName, bios);
+						engineState = PGS_ReloadRom;
+						return;
+					}
+					break;
+				case 2:	if (find_bios(1, &bios)) { // test JP
+						strcpy(romFileName, bios);
+						engineState = PGS_ReloadRom;
+						return;
+					}
+					break;
+			}
+		}
+	}
+}
+
+
+// --------- advanced options ----------
 
 static void draw_amenu_options(int menu_sel)
 {
@@ -683,11 +769,12 @@ static void draw_menu_options(int menu_sel)
 	gp2x_text_out8(tl_x, (y+=10), "Use ARM940 core for sound  %s", (tmp_opts.PicoOpt&0x200)?"ON":"OFF"); // 7
 	gp2x_text_out8(tl_x, (y+=10), "6 button pad               %s", (tmp_opts.PicoOpt&0x020)?"ON":"OFF"); // 8
 	gp2x_text_out8(tl_x, (y+=10), "Genesis Region:            %s", region_name(tmp_opts.PicoRegion));
-	gp2x_text_out8(tl_x, (y+=10), "Use SRAM savestates        %s", (tmp_opts.EmuOpt &0x001)?"ON":"OFF"); // 10
+	gp2x_text_out8(tl_x, (y+=10), "Use SRAM/BRAM savestates   %s", (tmp_opts.EmuOpt &0x001)?"ON":"OFF"); // 10
 	gp2x_text_out8(tl_x, (y+=10), "Confirm save overwrites    %s", (tmp_opts.EmuOpt &0x200)?"ON":"OFF"); // 11
 	gp2x_text_out8(tl_x, (y+=10), "Save slot                  %i", state_slot); // 12
 	gp2x_text_out8(tl_x, (y+=10), "GP2X CPU clocks            %iMhz", tmp_opts.CPUclock);
-	gp2x_text_out8(tl_x, (y+=10), "[advanced options]");
+	gp2x_text_out8(tl_x, (y+=10), "[Sega/Mega CD options]");
+	gp2x_text_out8(tl_x, (y+=10), "[advanced options]");		// 15
 	gp2x_text_out8(tl_x, (y+=10), "Save cfg as default");
 	if (rom_data)
 		gp2x_text_out8(tl_x, (y+=10), "Save cfg for current game only");
@@ -726,9 +813,9 @@ static void menu_options_save(void)
 	}
 }
 
-static void menu_loop_options(void)
+static int menu_loop_options(void)
 {
-	int menu_sel = 0, menu_sel_max = 15;
+	int menu_sel = 0, menu_sel_max = 16;
 	unsigned long inp = 0;
 
 	if (rom_data) menu_sel_max++;
@@ -754,21 +841,27 @@ static void menu_loop_options(void)
 				case  8: tmp_opts.PicoOpt^=0x020; break;
 				case 10: tmp_opts.EmuOpt ^=0x001; break;
 				case 11: tmp_opts.EmuOpt ^=0x200; break;
-				case 14: amenu_loop_options();    break;
-				case 15: // done (save)
+				case 14: cd_menu_loop_options();
+					if (engineState == PGS_ReloadRom)
+						return 0; // test BIOS
+					break;
+				case 15: amenu_loop_options();    break;
+				case 16: // done (update and write)
 					menu_options_save();
-					emu_WriteConfig(0);
-					return;
-				case 16: // done (save for current game)
+					if (emu_WriteConfig(0)) strcpy(menuErrorMsg, "config saved");
+					else strcpy(menuErrorMsg, "failed to write config");
+					return 1;
+				case 17: // done (update and write for current game)
 					menu_options_save();
-					emu_WriteConfig(1);
-					return;
+					if (emu_WriteConfig(1)) strcpy(menuErrorMsg, "config saved");
+					else strcpy(menuErrorMsg, "failed to write config");
+					return 1;
 			}
 		}
-		if(inp & GP2X_X) return;  // done (no save)
+		if(inp & GP2X_X) return 0;  // done (no update or write)
 		if(inp & GP2X_A) {
 			menu_options_save();
-			return;  // done (save)
+			return 0;  // done (update, no write)
 		}
 		if(inp & (GP2X_LEFT|GP2X_RIGHT)) { // multi choise
 			switch (menu_sel) {
@@ -882,7 +975,7 @@ static void draw_menu_root(int menu_sel)
 
 static void menu_loop_root(void)
 {
-	int menu_sel = 4, menu_sel_max = 8, menu_sel_min = 4;
+	int ret, menu_sel = 4, menu_sel_max = 8, menu_sel_min = 4;
 	unsigned long inp = 0;
 	char curr_path[PATH_MAX], *selfname;
 	FILE *tstf;
@@ -948,13 +1041,14 @@ static void menu_loop_root(void)
 					selfname = romsel_loop(curr_path);
 					if (selfname) {
 						printf("selected file: %s\n", selfname);
-						strncpy(currentConfig.lastRomFile, selfname, sizeof(currentConfig.lastRomFile)-1);
-						currentConfig.lastRomFile[sizeof(currentConfig.lastRomFile)-1] = 0;
 						engineState = PGS_ReloadRom;
 					}
 					return;
 				case 5: // options
-					menu_loop_options();
+					ret = menu_loop_options();
+					if (ret == 1) continue; // status update
+					if (engineState == PGS_ReloadRom)
+						return; // BIOS test
 					break;
 				case 6: // controls
 					kc_sel_loop();

@@ -96,29 +96,131 @@ static int try_rfn_cut(void)
 	return 0;
 }
 
-static void get_ext(char *ext)
+static void get_ext(char *file, char *ext)
 {
 	char *p;
 
-	p = romFileName + strlen(romFileName) - 4;
-	if (p < romFileName) p = romFileName;
+	p = file + strlen(file) - 4;
+	if (p < file) p = file;
 	strncpy(ext, p, 4);
 	ext[4] = 0;
 	strlwr(ext);
 }
 
+char *biosfiles_us[] = { "us_scd2_9306", "SegaCDBIOS9303", "us_scd1_9210" };
+char *biosfiles_eu[] = { "eu_mcd2_9306", "eu_mcd2_9303",   "eu_mcd1_9210" };
+char *biosfiles_jp[] = { "jp_mcd1_9112", "jp_mcd1_9111" };
+
+extern char **g_argv;
+
+int find_bios(int region, char **bios_file)
+{
+	static char bios_path[1024];
+	int i, j, count;
+	char **files;
+	FILE *f = NULL;
+
+	if (region == 4) { // US
+		files = biosfiles_us;
+		count = sizeof(biosfiles_us) / sizeof(char *);
+	} else if (region == 8) { // EU
+		files = biosfiles_eu;
+		count = sizeof(biosfiles_eu) / sizeof(char *);
+	} else if (region == 1 || region == 2) {
+		files = biosfiles_jp;
+		count = sizeof(biosfiles_jp) / sizeof(char *);
+	} else {
+		return 0;
+	}
+
+	for (i = 0; i < count; i++)
+	{
+		strncpy(bios_path, g_argv[0], 1023);
+		bios_path[1024-32] = 0;
+		for (j = strlen(bios_path); j > 0; j--)
+			if (bios_path[j] == '/') { bios_path[j+1] = 0; break; }
+		strcat(bios_path, files[i]);
+		strcat(bios_path, ".bin");
+		f = fopen(bios_path, "rb");
+		if (f) break;
+
+		bios_path[strlen(bios_path) - 4] = 0;
+		strcat(bios_path, ".zip");
+		f = fopen(bios_path, "rb");
+		if (f) break;
+	}
+
+	if (f) {
+		printf("using bios: %s\n", bios_path);
+		fclose(f);
+		if (bios_file) *bios_file = bios_path;
+		return 1;
+	} else {
+		sprintf(menuErrorMsg, "no %s BIOS files found, read docs",
+			region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
+		printf("%s\n", menuErrorMsg);
+		return 0;
+	}
+}
+
+/* checks if romFileName points to valid MegaCD image
+ * if so, checks for suitable BIOS */
+static int cd_check(char *ext, char **bios_file)
+{
+	unsigned char buf[32];
+	FILE *cd_f;
+	int type = 0, region = 4; // 1: Japan, 4: US, 8: Europe
+
+	cd_f = fopen(romFileName, "rb");
+	if (!cd_f) return 0; // let the upper level handle this
+
+	if (fread(buf, 1, 32, cd_f) != 32) {
+		fclose(cd_f);
+		return 0;
+	}
+
+	if (!strncasecmp("SEGADISCSYSTEM", (char *)buf+0x00, 14)) type = 1;       // Sega CD (ISO)
+	if (!strncasecmp("SEGADISCSYSTEM", (char *)buf+0x10, 14)) type = 2;       // Sega CD (BIN)
+	if (type == 0) {
+		fclose(cd_f);
+		return 0;
+	}
+
+	/* it seems we have a CD image here. Try to detect region and load a suitable BIOS now.. */
+	fseek(cd_f, (type == 1) ? 0x100 : 0x110, SEEK_SET);
+	fread(buf, 1, 1, cd_f);
+	fclose(cd_f);
+
+	if (buf[0] == 0x64) region = 4; // EU
+	if (buf[0] == 0xa1) region = 1; // JAP
+
+	printf("detected %s Sega/Mega CD image with %s region\n",
+		type == 2 ? "BIN" : "ISO", region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
+
+	if (PicoRegionOverride) {
+		region = PicoRegionOverride;
+		printf("overrided region to %s\n", region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
+	}
+
+	if(find_bios(region, bios_file))
+		 return type;	// CD and BIOS detected
+
+	return -1;     		// CD detected but load failed
+}
+
 int emu_ReloadRom(void)
 {
 	unsigned int rom_size = 0;
+	char *used_rom_name = romFileName;
 	char ext[5];
 	FILE *rom;
-	int ret;
+	int ret, cd_state;
 
 	printf("emu_ReloadRom(%s)\n", romFileName);
 
-	// detect wrong extensions
-	get_ext(ext);
+	get_ext(romFileName, ext);
 
+	// detect wrong extensions
 	if(!strcmp(ext, ".srm") || !strcmp(ext, "s.gz") || !strcmp(ext, ".mds")) { // s.gz ~ .mds.gz
 		sprintf(menuErrorMsg, "Not a ROM selected.");
 		return 0;
@@ -162,10 +264,22 @@ int emu_ReloadRom(void)
 			sprintf(menuErrorMsg, "Could't find a ROM for movie.");
 			return 0;
 		}
-		get_ext(ext);
+		get_ext(romFileName, ext);
 	}
 
-	rom = fopen(romFileName, "rb");
+	// check for MegaCD image
+	cd_state = cd_check(ext, &used_rom_name);
+	if (cd_state > 0) {
+		PicoMCD |= 1;
+		get_ext(used_rom_name, ext);
+	} else if (cd_state == -1) {
+		// bios_help() ?
+		return 0;
+	} else {
+		PicoMCD &= ~1;
+	}
+
+	rom = fopen(used_rom_name, "rb");
 	if(!rom) {
 		sprintf(menuErrorMsg, "Failed to open rom.");
 		return 0;
@@ -180,9 +294,9 @@ int emu_ReloadRom(void)
 	// zipfile support
 	if(!strcasecmp(ext, ".zip")) {
 		fclose(rom);
-		ret = CartLoadZip(romFileName, &rom_data, &rom_size);
+		ret = CartLoadZip(used_rom_name, &rom_data, &rom_size);
 		if(ret) {
-			if (ret == 4) strcpy(menuErrorMsg, "No ROMs in zip found.");
+			if (ret == 4) strcpy(menuErrorMsg, "No ROMs found in zip.");
 			else sprintf(menuErrorMsg, "Unzip failed with code %i", ret);
 			printf("%s\n", menuErrorMsg);
 			return 0;
@@ -206,16 +320,28 @@ int emu_ReloadRom(void)
 		return 0;
 	}
 
+	// load config for this ROM (do this before insert to get correct region)
+	ret = emu_ReadConfig(1);
+	if (!ret)
+		emu_ReadConfig(0);
+
 	printf("PicoCartInsert(%p, %d);\n", rom_data, rom_size);
 	if(PicoCartInsert(rom_data, rom_size)) {
 		sprintf(menuErrorMsg, "Failed to load ROM.");
 		return 0;
 	}
 
-	// load config for this ROM
-	ret = emu_ReadConfig(1);
-	if (!ret)
-		emu_ReadConfig(0);
+	Pico.m.frame_count = 0;
+
+	// insert CD if it was detected
+	if (cd_state > 0) {
+		ret = Insert_CD(romFileName, cd_state == 2);
+		if (ret != 0) {
+			sprintf(menuErrorMsg, "Insert_CD() failed, invalid CD image?");
+			printf("%s\n", menuErrorMsg);
+			return 0;
+		}
+	}
 
 	// emu_ReadConfig() might have messed currentConfig.lastRomFile
 	strncpy(currentConfig.lastRomFile, romFileName, sizeof(currentConfig.lastRomFile)-1);
@@ -252,8 +378,6 @@ int emu_ReloadRom(void)
 	// load SRAM for this ROM
 	if(currentConfig.EmuOpt & 1)
 		emu_SaveLoadGame(1, 1);
-
-	Pico.m.frame_count = 0;
 
 	return 1;
 }
@@ -440,19 +564,14 @@ void osd_text(int x, int y, char *text)
 	int len = strlen(text)*8;
 
 	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
-		int *p, i, h, black, white;
-		if (PicoOpt&0x10) {
-			black = 0x40404040; white = 0x41;
-		} else {
-			black = 0xe0e0e0e0; white = 0xf0;
-		}
+		int *p, i, h;
 		x &= ~3; // align x
 		len = (len+3) >> 2;
 		for (h = 0; h < 8; h++) {
 			p = (int *) ((unsigned char *) gp2x_screen+x+320*(y+h));
-			for (i = len; i; i--, p++) *p = black;
+			for (i = len; i; i--, p++) *p = 0xe0e0e0e0;
 		}
-		gp2x_text_out8_2(x, y, text, white);
+		gp2x_text_out8_2(x, y, text, 0xf0);
 	} else {
 		int *p, i, h;
 		x &= ~1; // align x
@@ -462,6 +581,33 @@ void osd_text(int x, int y, char *text)
 			for (i = len; i; i--, p++) *p = (*p>>2)&0x39e7;
 		}
 		gp2x_text_out15(x, y, text);
+	}
+}
+
+static void cd_leds(void)
+{
+	static int old_reg = 0;
+	if (!((Pico_mcd->s68k_regs[0] ^ old_reg) & 3)) return; // no change
+	old_reg = Pico_mcd->s68k_regs[0];
+
+	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
+		// 8-bit modes
+		unsigned int col_g = (old_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
+		unsigned int col_r = (old_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
+		*(unsigned int *)((char *)gp2x_screen + 320*2+306) =
+		*(unsigned int *)((char *)gp2x_screen + 320*3+306) =
+		*(unsigned int *)((char *)gp2x_screen + 320*4+306) = col_g;
+		*(unsigned int *)((char *)gp2x_screen + 320*2+312) =
+		*(unsigned int *)((char *)gp2x_screen + 320*3+312) =
+		*(unsigned int *)((char *)gp2x_screen + 320*4+312) = col_r;
+	} else {
+		// 16-bit modes
+		unsigned int *p = (unsigned int *)((short *)gp2x_screen + 320*2+306);
+		unsigned int col_g = (old_reg & 2) ? 0x06000600 : 0;
+		unsigned int col_r = (old_reg & 1) ? 0xc000c000 : 0;
+		*p++ = col_g; *p++ = col_g; p++; *p++ = col_r; *p++ = col_r; p += 320/2 - 10/2;
+		*p++ = col_g; *p++ = col_g; p++; *p++ = col_r; *p++ = col_r; p += 320/2 - 10/2;
+		*p++ = col_g; *p++ = col_g; p++; *p++ = col_r; *p++ = col_r; p += 320/2 - 10/2;
 	}
 }
 
@@ -486,6 +632,8 @@ static void (*vidCpyM2)(void *dest, void *src) = NULL;
 
 static void blit(char *fps, char *notice)
 {
+	int emu_opt = currentConfig.EmuOpt;
+
 	if (PicoOpt&0x10) {
 		// 8bit fast renderer
 		if (Pico.m.dirtyPal) {
@@ -495,7 +643,7 @@ static void blit(char *fps, char *notice)
 			gp2x_video_setpalette(localPal, 0x40);
 		}
 		vidCpyM2((unsigned char *)gp2x_screen+320*8, framebuff+328*8);
-	} else if (!(currentConfig.EmuOpt&0x80)) {
+	} else if (!(emu_opt&0x80)) {
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal) {
 			Pico.m.dirtyPal = 0;
@@ -504,6 +652,8 @@ static void blit(char *fps, char *notice)
 				vidConvCpyRGB32sh(localPal+0x40, Pico.cram, 0x40);
 				vidConvCpyRGB32hi(localPal+0x80, Pico.cram, 0x40);
 				blockcpy(localPal+0xc0, localPal+0x40, 0x40*4);
+				localPal[0xc0] = 0x0000c000;
+				localPal[0xd0] = 0x00c00000;
 				localPal[0xe0] = 0x00000000; // reserved pixels for OSD
 				localPal[0xf0] = 0x00ffffff;
 				gp2x_video_setpalette(localPal, 0x100);
@@ -520,8 +670,10 @@ static void blit(char *fps, char *notice)
 	}
 
 	if (notice) osd_text(4, 232, notice);
-	if (currentConfig.EmuOpt & 2)
+	if (emu_opt & 2)
 		osd_text(osd_fps_x, 232, fps);
+	if ((emu_opt & 0x400) && (PicoMCD & 1))
+		cd_leds();
 
 	//gp2x_video_wait_vsync();
 	gp2x_video_flip();
@@ -543,18 +695,14 @@ static void blit(char *fps, char *notice)
 // clears whole screen or just the notice area (in all buffers)
 static void clearArea(int full)
 {
-	if (PicoOpt&0x10) {
-		// 8bit fast renderer
-		if (full) gp2x_memset_all_buffers(0, 0x40, 320*240);
-		else      gp2x_memset_all_buffers(320*232, 0x40, 320*8);
-	} else if (currentConfig.EmuOpt&0x80) {
+	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
+		// 8-bit renderers
+		if (full) gp2x_memset_all_buffers(0, 0xe0, 320*240);
+		else      gp2x_memset_all_buffers(320*232, 0xe0, 320*8);
+	} else {
 		// 16bit accurate renderer
 		if (full) gp2x_memset_all_buffers(0, 0, 320*240*2);
 		else      gp2x_memset_all_buffers(320*232*2, 0, 320*8*2);
-	} else {
-		// 8bit accurate renderer
-		if (full) gp2x_memset_all_buffers(0, 0xe0, 320*240);
-		else      gp2x_memset_all_buffers(320*232, 0xe0, 320*8);
 	}
 }
 
@@ -562,27 +710,27 @@ static void clearArea(int full)
 static void vidResetMode(void)
 {
 	if (PicoOpt&0x10) {
-		localPal[0x40] = 0;
-		localPal[0x41] = 0x00ffffff;
 		gp2x_video_changemode(8);
-		gp2x_video_setpalette(localPal, 0x42);
-		gp2x_memset_all_buffers(0, 0x40, 320*240);
-		gp2x_video_flip();
 	} else if (currentConfig.EmuOpt&0x80) {
 		gp2x_video_changemode(15);
 		PicoDrawSetColorFormat(1);
 		PicoScan = EmuScan16;
 		PicoScan(0, 0);
 	} else {
-		localPal[0xe0] = 0x00000000; // reserved pixels for OSD
-		localPal[0xf0] = 0x00ffffff;
 		gp2x_video_changemode(8);
-		gp2x_video_setpalette(localPal, 0x100);
-		gp2x_memset_all_buffers(0, 0xe0, 320*240);
-		gp2x_video_flip();
 		PicoDrawSetColorFormat(2);
 		PicoScan = EmuScan8;
 		PicoScan(0, 0);
+	}
+	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
+		// setup pal for 8-bit modes
+		localPal[0xc0] = 0x0000c000; // MCD LEDs
+		localPal[0xd0] = 0x00c00000;
+		localPal[0xe0] = 0x00000000; // reserved pixels for OSD
+		localPal[0xf0] = 0x00ffffff;
+		gp2x_video_setpalette(localPal, 0x100);
+		gp2x_memset_all_buffers(0, 0xe0, 320*240);
+		gp2x_video_flip();
 	}
 	Pico.m.dirtyPal = 1;
 	// reset scaling

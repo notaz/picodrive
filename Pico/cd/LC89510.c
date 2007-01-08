@@ -1,13 +1,11 @@
-#if 0
-#include <stdio.h>
-#include <windows.h>
-#include "misc.h"
-#include "lc89510.h"
-#include "cd_aspi.h"
-#include "Star_68k.h"
-#include "mem_S68k.h"
-#include "pcm.h"
-#endif
+/***********************************************************
+ *                                                         *
+ * This source is taken from the Gens project              *
+ * Written by Stéphane Dallongeville                       *
+ * Copyright (c) 2002 by Stéphane Dallongeville            *
+ * Modified/adapted for Picodrive by notaz, 2007           *
+ *                                                         *
+ ***********************************************************/
 
 #include "../PicoInt.h"
 
@@ -18,7 +16,7 @@
 #define CDC_DMA_SPEED 256
 
 int CDC_Decode_Reg_Read;
-static int Status_CDC;		// internal status
+static int Status_CDC;		// internal status (TODO: 2 context?)
 
 
 static void CDD_Reset(void)
@@ -73,129 +71,90 @@ void LC89510_Reset(void)
 	Pico_mcd->cdc.Stop_Watch = 0;
 }
 
-#if 0 // TODO
-void Update_CDC_TRansfer(void)
+
+void Update_CDC_TRansfer(int which)
 {
-	unsigned int i, dep, lenght, add_dest;
-	unsigned char *dest;
-
-	if ((Status_CDC & 0x08) == 0) return;
-
-	switch(Pico_mcd->s68k_regs[4] & 7)
-	{
-		case 0x0200:				// MAIN CPU
-		case 0x0300:				// SUB CPU
-			Pico_mcd->s68k_regs[4] |= 0x40;	// Data ready in host port
-			return;
-
-		case 0x0400:		// PCM RAM
-			dest = (unsigned char *) Ram_PCM;
-			dep = ((Pico_mcd->cdc.DMA_Adr & 0x03FF) << 2) + PCM_Chip.Bank;
-			add_dest = 2;
-			break;
-
-		case 0x0500:		// PRG RAM
-			dest = (unsigned char *) Ram_Prg;
-			dep = (Pico_mcd->cdc.DMA_Adr & 0xFFFF) << 3;
-			add_dest = 2;
-//			cdprintf("DMA transfer PRG RAM : adr = %.8X  ", dep);
-			break;
-
-		case 0x0700:		// WORD RAM
-			if (Ram_Word_State >= 2)
-			{
-				dest = (unsigned char *) Ram_Word_1M;
-				add_dest = 2;
-				if (Ram_Word_State & 1) dep = ((Pico_mcd->cdc.DMA_Adr & 0x3FFF) << 3);
-				else dep = ((Pico_mcd->cdc.DMA_Adr & 0x3FFF) << 3) + 0x20000;
-			}
-			else
-			{
-				dest = (unsigned char *) Ram_Word_2M;
-				dep = ((Pico_mcd->cdc.DMA_Adr & 0x7FFF) << 3);
-				add_dest = 2;
-			}
-			break;
-
-		default:
-			return;
-	}
+	unsigned int dep, length, len;
+	unsigned short *dest;
+	unsigned char  *src;
 
 	if (Pico_mcd->cdc.DBC.N <= (CDC_DMA_SPEED * 2))
 	{
-		lenght = (Pico_mcd->cdc.DBC.N + 1) >> 1;
-		Status_CDC &= ~0x08;				// Last transfer
-		Pico_mcd->s68k_regs[4] |=  0x80;		// End data transfer
-		Pico_mcd->s68k_regs[4] &= ~0x40;		// no more data ready
-		Pico_mcd->cdc.IFSTAT |= 0x08;			// No more data transfer in progress
+		length = (Pico_mcd->cdc.DBC.N + 1) >> 1;
+		Status_CDC &= ~0x08;			// Last transfer
+		Pico_mcd->s68k_regs[4] |=  0x80;	// End data transfer
+		Pico_mcd->s68k_regs[4] &= ~0x40;	// no more data ready
+		Pico_mcd->cdc.IFSTAT |= 0x08;		// No more data transfer in progress
 
-		if (Pico_mcd->cdc.IFCTRL & 0x40)		// DTEIEN = Data Trasnfer End Interrupt Enable ?
+		if (Pico_mcd->cdc.IFCTRL & 0x40)	// DTEIEN = Data Trasnfer End Interrupt Enable ?
 		{
 			Pico_mcd->cdc.IFSTAT &= ~0x40;
 
-			if (Int_Mask_S68K & 0x20) sub68k_interrupt(5, -1);
-
-			cdprintf("CDC - DTE interrupt\n");
+			if (Pico_mcd->s68k_regs[0x33] & (1<<5))
+			{
+				dprintf("cdc DTE irq 5");
+				SekInterruptS68k(5);
+			}
 		}
 	}
-	else lenght = CDC_DMA_SPEED;
-
-//	cdprintf("DMA lenght = %.4X\n", lenght);
+	else length = CDC_DMA_SPEED;
 
 
-	if ((Pico_mcd->s68k_regs[4] & 7) == 4)		// PCM DMA
+	// TODO: dst bounds checking? DAC.N alignment?
+	src = Pico_mcd->cdc.Buffer + Pico_mcd->cdc.DAC.N;
+
+
+	if (which == 7) // WORD RAM
 	{
-	__asm
+		if (Pico_mcd->s68k_regs[3] & 4)
 		{
-			mov ecx, lenght
-			mov edi, dest
-			lea esi, Pico_mcd->cdc.Buffer
-			add edi, dep
-			add esi, Pico_mcd->cdc.DAC.N
-			mov ebx, add_dest
+			dep = ((Pico_mcd->cdc.DMA_Adr & 0x3FFF) << 3);
+			cdprintf("CD DMA # %04x -> word_ram1M # %06x, len=%i",
+					Pico_mcd->cdc.DAC.N, dep, length);
 
-		Loop_DMA_PCM:
-			mov ax, [esi]
-			add esi, 2
-			mov [edi], ax
-			add edi, ebx
-			dec ecx
-			jnz Loop_DMA_PCM
+			dep = ((Pico_mcd->cdc.DMA_Adr & 0x3FFF) << 4);
+			if (!(Pico_mcd->s68k_regs[3]&1)) dep += 2;
+			dest = (unsigned short *) (Pico_mcd->word_ram + dep);
+
+			for (len = length; len > 0; len--, src+=2, dest+=2)
+				*dest = (src[0]<<8) | src[1];
 		}
+		else
+		{
+			dep = ((Pico_mcd->cdc.DMA_Adr & 0x7FFF) << 3);
+			cdprintf("CD DMA # %04x -> word_ram2M # %06x, len=%i",
+					Pico_mcd->cdc.DAC.N, dep, length);
+			dest = (unsigned short *) (Pico_mcd->word_ram + dep);
 
-		lenght <<= 1;
-		Pico_mcd->cdc.DMA_Adr += lenght >> 2;
+			for (len = length; len > 0; len--, src+=2, dest++)
+				*dest = (src[0]<<8) | src[1];
+		}
 	}
-	else									// OTHER DMA
+	else if (which == 4) // PCM RAM
 	{
-		__asm
-		{
-			mov ecx, lenght
-			mov edi, dest
-			lea esi, Pico_mcd->cdc.Buffer
-			add edi, dep
-			add esi, Pico_mcd->cdc.DAC.N
-			mov ebx, add_dest
+#if 0
+			dest = (unsigned char *) Ram_PCM;
+			dep = ((Pico_mcd->cdc.DMA_Adr & 0x03FF) << 2) + PCM_Chip.Bank;
+#else
+			cdprintf("TODO: PCM Dma");
+#endif
+	}
+	else if (which == 5) // PRG RAM
+	{
+		dep = (Pico_mcd->cdc.DMA_Adr & 0xFFFF) << 3;
+		dest = (unsigned short *) (Pico_mcd->prg_ram + dep);
+		cdprintf("CD DMA # %04x -> prg_ram # %06x, len=%i",
+				Pico_mcd->cdc.DAC.N, dep, length);
 
-		Loop_DMA:
-			mov ax, [esi]
-			add esi, 2
-			rol ax, 8
-			mov [edi], ax
-			add edi, ebx
-			dec ecx
-			jnz Loop_DMA
-		}
-
-		lenght <<= 1;
-		Pico_mcd->cdc.DMA_Adr += lenght >> 3;
+		for (len = length; len > 0; len--, src+=2, dest++)
+			*dest = (src[0]<<8) | src[1];
 	}
 
-	Pico_mcd->cdc.DAC.N = (Pico_mcd->cdc.DAC.N + lenght) & 0xFFFF;
-	if (Status_CDC & 0x08) Pico_mcd->cdc.DBC.N -= lenght;
+	length <<= 1;
+	Pico_mcd->cdc.DAC.N = (Pico_mcd->cdc.DAC.N + length) & 0xFFFF;
+	if (Status_CDC & 0x08) Pico_mcd->cdc.DBC.N -= length;
 	else Pico_mcd->cdc.DBC.N = 0;
 }
-#endif
 
 
 unsigned short Read_CDC_Host(int is_sub)
@@ -592,7 +551,7 @@ void CDD_Import_Command(void)
 					Get_Current_Track_CDD_c22();
 					break;
 
-				case 0x3:	// get total lenght (MSF format)
+				case 0x3:	// get total length (MSF format)
 					Pico_mcd->cdd.Status = (Pico_mcd->cdd.Status & 0xFF00) | 3;
 					Get_Total_Lenght_CDD_c23();
 					break;

@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "cd_sys.h"
-//#include "cd_file.h"
+#include "cd_file.h"
 
 #include "../PicoInt.h"
 
@@ -14,18 +14,6 @@
 #define FAST_FOW	0x0300		// FAST FORWARD track CDD status
 #define FAST_REV	0x10300		// FAST REVERSE track CDD status
 #define PLAYING		0x0100		// PLAYING audio track CDD status
-
-/*
-#include "gens.h"
-#include "G_dsound.h"
-#include "cdda_mp3.h"
-#include "lc89510.h"
-#include "Star_68k.h"
-#include "Mem_M68K.h"
-#include "Mem_S68K.h"
-#include "save.h"
-#include "misc.h"
-*/
 
 
 /*
@@ -44,8 +32,6 @@ int CD_Timer_Counter = 0; // TODO: check refs
 static int CDD_Complete;
 
 static int File_Add_Delay = 0;
-
-//_scd SCD;
 
 
 
@@ -191,9 +177,7 @@ void Check_CD_Command(void)
 
 		if (File_Add_Delay == 0)
 		{
-#if 0 // TODO
 			FILE_Read_One_LBA_CDC();
-#endif
 		}
 		else File_Add_Delay--;
 	}
@@ -215,9 +199,7 @@ void Check_CD_Command(void)
 
 int Init_CD_Driver(void)
 {
-#if 0 // TODO
 	FILE_Init();
-#endif
 
 	return 0;
 }
@@ -225,9 +207,7 @@ int Init_CD_Driver(void)
 
 void End_CD_Driver(void)
 {
-#if 0 // TODO
 	FILE_End();
-#endif
 }
 
 
@@ -240,33 +220,29 @@ void Reset_CD(void)
 }
 
 
-int Insert_CD(char *buf, char *iso_name)
+int Insert_CD(char *iso_name, int is_bin)
 {
+	int ret = 0;
+
 //	memset(CD_Audio_Buffer_L, 0, 4096 * 4);
 //	memset(CD_Audio_Buffer_R, 0, 4096 * 4);
 
-	if (iso_name == NULL)
+	CD_Present = 0;
+
+	if (iso_name != NULL)
 	{
-		CD_Present = 0;
-	}
-	else
-	{
-#if 0 // TODO
-		Load_ISO(buf, iso_name);
-		CD_Present = 1;
-#endif
-		return 0;
+		ret = Load_ISO(iso_name, is_bin);
+		if (ret == 0)
+			CD_Present = 1;
 	}
 
-	return 0;
+	return ret;
 }
 
 
 void Stop_CD(void)
 {
-#if 0 // TODO
 	Unload_ISO();
-#endif
 	CD_Present = 0;
 }
 
@@ -436,7 +412,7 @@ int Get_Total_Lenght_CDD_c23(void)
 	Pico_mcd->cdd.Ext = 0;
 
 // FIXME: remove
-Pico_mcd->cdd.Seconde = 2;
+//Pico_mcd->cdd.Seconde = 2;
 
 	CDD_Complete = 1;
 
@@ -462,7 +438,7 @@ int Get_First_Last_Track_CDD_c24(void)
 	Pico_mcd->cdd.Ext = 0;
 
 // FIXME: remove
-Pico_mcd->cdd.Minute = Pico_mcd->cdd.Seconde = 1;
+//Pico_mcd->cdd.Minute = Pico_mcd->cdd.Seconde = 1;
 
 	CDD_Complete = 1;
 
@@ -546,9 +522,7 @@ int Play_CDD_c3(void)
 	{
 		Pico_mcd->s68k_regs[0x36] &= ~0x01;				// AUDIO
 		//CD_Audio_Starting = 1;
-#if 0 // TODO
 		FILE_Play_CD_LBA();
-#endif
 	}
 
 	if (Pico_mcd->scd.Cur_Track == 100) Pico_mcd->cdd.Minute = 0x0A02;
@@ -651,9 +625,7 @@ int Resume_CDD_c7(void)
 	{
 		Pico_mcd->s68k_regs[0x36] &= ~0x01;				// AUDIO
 		//CD_Audio_Starting = 1;
-#if 0 // TODO
 		FILE_Play_CD_LBA();
-#endif
 	}
 
 	if (Pico_mcd->scd.Cur_Track == 100) Pico_mcd->cdd.Minute = 0x0A02;
@@ -669,7 +641,7 @@ int Resume_CDD_c7(void)
 }
 
 
-int	Fast_Foward_CDD_c8(void)
+int Fast_Foward_CDD_c8(void)
 {
 	CHECK_TRAY_OPEN
 	CHECK_CD_PRESENT
@@ -690,7 +662,7 @@ int	Fast_Foward_CDD_c8(void)
 }
 
 
-int	Fast_Rewind_CDD_c9(void)
+int Fast_Rewind_CDD_c9(void)
 {
 	CHECK_TRAY_OPEN
 	CHECK_CD_PRESENT
@@ -751,9 +723,7 @@ int Open_Tray_CDD_cD(void)
 
 	Pico_mcd->scd.Status_CDC &= ~1;			// Stop CDC read
 
-#if 0 // TODO
 	Unload_ISO();
-#endif
 	CD_Present = 0;
 
 	Pico_mcd->scd.Status_CDD = TRAY_OPEN;

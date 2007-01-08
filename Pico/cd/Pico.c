@@ -64,9 +64,22 @@ static __inline void SekRunS68k(int cyc)
 #endif
 }
 
-// TODO: tidy
-extern unsigned char m68k_regs[0x40];
-extern unsigned char s68k_regs[0x200];
+static int Status_CDC;
+
+static __inline void check_cd_dma(void)
+{
+	int ddx;
+
+	if (!(Status_CDC & 0x08)) return;
+
+	ddx = Pico_mcd->s68k_regs[4] & 7;
+	if (ddx <  2) return; // invalid
+	if (ddx <  4) Pico_mcd->s68k_regs[4] |= 0x40; // Data set ready in host port
+	if (ddx == 6) return; // invalid
+
+	Update_CDC_TRansfer(ddx); // now go and do the actual transfer
+}
+
 
 // Accurate but slower frame which does hints
 static int PicoFrameHintsMCD(void)
@@ -114,6 +127,8 @@ static int PicoFrameHintsMCD(void)
       if(Pico.m.padDelay[0]++ > 25) Pico.m.padTHPhase[0]=0;
       if(Pico.m.padDelay[1]++ > 25) Pico.m.padTHPhase[1]=0;
     }
+
+    check_cd_dma();
 
     // H-Interrupts:
     if(y <= lines_vis && --hint < 0) // y <= lines_vis: Comix Zone, Golden Axe

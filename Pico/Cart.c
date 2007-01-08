@@ -57,18 +57,21 @@ static int DecodeSmd(unsigned char *data,int len)
   return 0;
 }
 
+static unsigned char *cd_realloc(void *old, int filesize)
+{
+  unsigned char *rom;
+  dprintf("sizeof(mcd_state): %i", sizeof(mcd_state));
+  rom=realloc(old, sizeof(mcd_state));
+  if (rom) memset(rom+0x20000, 0, sizeof(mcd_state)-0x20000);
+  return rom;
+}
+
 static unsigned char *PicoCartAlloc(int filesize)
 {
   int alloc_size;
   unsigned char *rom;
 
-  if (PicoMCD & 1) {
-    dprintf("sizeof(mcd_state): %i", sizeof(mcd_state));
-    if (filesize > 0x20000) return NULL; // invalid BIOS
-    rom=(unsigned char *)malloc(sizeof(mcd_state));
-    if (rom) memset(rom, 0, sizeof(mcd_state));
-    return rom;
-  }
+  if (PicoMCD & 1) return cd_realloc(NULL, filesize);
 
   alloc_size=filesize+0x7ffff;
   if((filesize&0x3fff)==0x200) alloc_size-=0x200;
@@ -90,19 +93,19 @@ int PicoCartLoad(FILE *f,unsigned char **prom,unsigned int *psize)
 
   fseek(f,0,SEEK_END); size=ftell(f); fseek(f,0,SEEK_SET);
   if (size <= 0) return 1;
-  if (PicoMCD & 1) {
-    if (size > 0x20000) return 1; // invalid BIOS
-    size = 0xe0000;
-  } else {
-    size=(size+3)&~3; // Round up to a multiple of 4
-  }
+  size=(size+3)&~3; // Round up to a multiple of 4
 
   // Allocate space for the rom plus padding
   rom=PicoCartAlloc(size);
   if (rom==NULL) return 1; // { fclose(f); return 1; }
 
   fread(rom,1,size,f); // Load up the rom
-  // fclose(f); // this is confusing. From now on, caller should close it, because it opened this.
+
+  // maybe we are loading MegaCD BIOS?
+  if (!(PicoMCD&1) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) || !strncmp((char *)rom+0x128, "BOOT", 4))) {
+    PicoMCD |= 1;
+    rom = cd_realloc(rom, size);
+  }
 
   // Check for SMD:
   if ((size&0x3fff)==0x200) { DecodeSmd(rom,size); size-=0x200; } // Decode and byteswap SMD
@@ -183,6 +186,13 @@ int CartLoadZip(const char *fname, unsigned char **prom, unsigned int *psize)
 	}
 
 	closezip(zipfile);
+
+        // maybe we are loading MegaCD BIOS?
+        if (!(PicoMCD&1) && size == 0x20000 &&
+			(!strncmp((char *)rom+0x124, "BOOT", 4) || !strncmp((char *)rom+0x128, "BOOT", 4))) {
+		PicoMCD |= 1;
+		rom = cd_realloc(rom, size);
+        }
 
 	// Check for SMD:
 	if ((size&0x3fff)==0x200) { DecodeSmd(rom,size); size-=0x200; } // Decode and byteswap SMD

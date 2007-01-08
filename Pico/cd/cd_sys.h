@@ -60,7 +60,7 @@ void Check_CD_Command(void);
 
 int  Init_CD_Driver(void);
 void End_CD_Driver(void);
-int  Insert_CD(char *buf, char *iso_name);
+int  Insert_CD(char *iso_name, int is_bin);
 void Stop_CD(void);
 void Change_CD(void);
 void Reset_CD(void);

@@ -359,7 +359,7 @@ unsigned int PicoVideoRead(unsigned int a)
     if(Pico.m.rotate++&8) d|=0x0100; else d|=0x0200; // Toggle fifo full empty (who uses that stuff?)
     if(!(Pico.video.reg[1]&0x40)) d|=0x0008; // set V-Blank if display is disabled
     if(SekCyclesLeft < 84+4)      d|=0x0004; // H-Blank (Sonic3 vs)
-    dprintf("sr_read %04x @ %06x [%i|%i]", d, SekPc, Pico.m.scanline, SekCyclesDone());
+    // dprintf("sr_read %04x @ %06x [%i|%i]", d, SekPc, Pico.m.scanline, SekCyclesDone());
 
     Pico.video.pending=0; // ctrl port reads clear write-pending flag (Charles MacDonald)
 
