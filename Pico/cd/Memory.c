@@ -22,6 +22,7 @@ typedef unsigned int   u32;
 
 //#define __debug_io
 //#define __debug_io2
+#define rdprintf dprintf
 
 // -----------------------------------------------------------------
 
@@ -38,24 +39,28 @@ static u32 m68k_reg_read16(u32 a, int realsize)
 
   switch (a) {
     case 0:
-      d = ((Pico_mcd->s68k_regs[0x33]<<13)&0x8000) | Pico_mcd->m68k_regs[1]; // here IFL2 is always 0, just like in Gens
+      d = ((Pico_mcd->s68k_regs[0x33]<<13)&0x8000) | Pico_mcd->m.busreq; // here IFL2 is always 0, just like in Gens
       goto end;
     case 2:
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0xc7);
       dprintf("m68k_regs r3: %02x @%06x", (u8)d, SekPc);
       goto end;
+    case 4:
+      d = Pico_mcd->s68k_regs[4]<<8;
+      goto end;
+    case 6:
+      d = Pico_mcd->m.hint_vector;
+      goto end;
     case 8:
       dprintf("m68k host data read");
       d = Read_CDC_Host(0);
       goto end;
+    case 0xA:
+      dprintf("m68k reserved read");
+      goto end;
     case 0xC:
       dprintf("m68k stopwatch read");
       break;
-  }
-
-  if (a < 0xE) {
-    d = (Pico_mcd->m68k_regs[a]<<8) | Pico_mcd->m68k_regs[a+1];
-    goto end;
   }
 
   if (a < 0x30) {
@@ -81,18 +86,19 @@ static void m68k_reg_write8(u32 a, u32 d, int realsize)
     case 0:
       d &= 1;
       if ((d&1) && (Pico_mcd->s68k_regs[0x33]&(1<<2))) { dprintf("m68k: s68k irq 2"); SekInterruptS68k(2); }
-      break;
+      return;
     case 1:
       d &= 3;
       if (!(d&1)) PicoMCD |= 2; // reset pending, needed to be sure we fetch the right vectors on reset
-      if ( (Pico_mcd->m68k_regs[1]&1) != (d&1)) dprintf("m68k: s68k reset %i", !(d&1));
-      if ( (Pico_mcd->m68k_regs[1]&2) != (d&2)) dprintf("m68k: s68k brq %i", (d&2)>>1);
-      if (/*!(Pico_mcd->m68k_regs[1]&1) &&*/ (PicoMCD&2) && (d&3)==1) {
+      if ( (Pico_mcd->m.busreq&1) != (d&1)) dprintf("m68k: s68k reset %i", !(d&1));
+      if ( (Pico_mcd->m.busreq&2) != (d&2)) dprintf("m68k: s68k brq %i", (d&2)>>1);
+      if ((PicoMCD&2) && (d&3)==1) {
         SekResetS68k(); // S68k comes out of RESET or BRQ state
 	PicoMCD&=~2;
 	dprintf("m68k: resetting s68k, cycles=%i", SekCyclesLeft);
       }
-      break;
+      Pico_mcd->m.busreq = d;
+      return;
     case 2:
       Pico_mcd->s68k_regs[2] = d; // really use s68k side register
       return;
@@ -108,18 +114,19 @@ static void m68k_reg_write8(u32 a, u32 d, int realsize)
       if (!(d & 4) && (d & 2)) d &= ~1; // return word RAM to s68k in 2M mode
       Pico_mcd->s68k_regs[3] = d; // really use s68k side register
       return;
+    case 6:
+      *((char *)&Pico_mcd->m.hint_vector+1) = d;
+      return;
+    case 7:
+      *(char *)&Pico_mcd->m.hint_vector = d;
+      return;
     case 0xe:
       //dprintf("m68k: comm flag: %02x", d);
 
       //dprintf("s68k @ %06x", SekPcS68k);
 
       Pico_mcd->s68k_regs[0xe] = d;
-      break;
-  }
-
-  if (a < 0x10) {
-    Pico_mcd->m68k_regs[a] = (u8) d;
-    return;
+      return;
   }
 
   if ((a&0xf0) == 0x10) {
@@ -127,8 +134,7 @@ static void m68k_reg_write8(u32 a, u32 d, int realsize)
       return;
   }
 
-  if (a >= 0x20 || (a >= 0xa && a <= 0xd) || a == 0x0f)
-    dprintf("m68k: invalid write?");
+  dprintf("m68k: invalid write? [%02x] %02x", a, d);
 }
 
 
@@ -142,7 +148,8 @@ static u32 s68k_reg_read16(u32 a, int realsize)
 
   switch (a) {
     case 0:
-      d = 1; goto end; // ver = 0, not in reset state
+      d = 1; // ver = 0, not in reset state
+      goto end;
     case 2:
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0x1f);
       dprintf("s68k_regs r3: %02x @%06x", (u8)d, SekPc);
@@ -196,7 +203,7 @@ static void s68k_reg_write8(u32 a, u32 d, int realsize)
       Pico_mcd->s68k_regs[4] = (Pico_mcd->s68k_regs[4]&0xC0) | (d&7); // CDC mode
       return;
     case 5:
-      dprintf("s68k CDC reg addr: %x", d&0xf);
+      //dprintf("s68k CDC reg addr: %x", d&0xf);
       break;
     case 7:
       CDC_Write_Reg(d);
@@ -478,13 +485,13 @@ u8 PicoReadM68k8(u32 a)
 
   if ((a&0xff4000)==0xa00000) { d=z80Read8(a); goto end; } // Z80 Ram
 
-  //if ((a&0xffffc0)==0xa12000)
-  //  dprintf("m68k_regs r8: [%02x] @%06x", a&0x3f, SekPc);
+  if ((a&0xffffc0)==0xa12000)
+    rdprintf("m68k_regs r8: [%02x] @%06x", a&0x3f, SekPc);
 
   d=OtherRead16(a&~1, 8|(a&1)); if ((a&1)==0) d>>=8;
 
-  //if ((a&0xffffc0)==0xa12000)
-  //  dprintf("ret = %02x", (u8)d);
+  if ((a&0xffffc0)==0xa12000)
+    rdprintf("ret = %02x", (u8)d);
 
   end:
 
@@ -530,13 +537,13 @@ u16 PicoReadM68k16(u32 a)
     goto end;
   }
 
-  //if ((a&0xffffc0)==0xa12000)
-  //  dprintf("m68k_regs r16: [%02x] @%06x", a&0x3f, SekPc);
+  if ((a&0xffffc0)==0xa12000)
+    rdprintf("m68k_regs r16: [%02x] @%06x", a&0x3f, SekPc);
 
   d = (u16)OtherRead16(a, 16);
 
-  //if ((a&0xffffc0)==0xa12000)
-  //  dprintf("ret = %04x", d);
+  if ((a&0xffffc0)==0xa12000)
+    rdprintf("ret = %04x", d);
 
   end:
 
@@ -585,13 +592,13 @@ u32 PicoReadM68k32(u32 a)
     goto end;
   }
 
-  //if ((a&0xffffc0)==0xa12000)
-  //  dprintf("m68k_regs r32: [%02x] @%06x", a&0x3f, SekPc);
+  if ((a&0xffffc0)==0xa12000)
+    rdprintf("m68k_regs r32: [%02x] @%06x", a&0x3f, SekPc);
 
   d = (OtherRead16(a, 32)<<16)|OtherRead16(a+2, 32);
 
-  //if ((a&0xffffc0)==0xa12000)
-  //  dprintf("ret = %08x", d);
+  if ((a&0xffffc0)==0xa12000)
+    rdprintf("ret = %08x", d);
 
   end:
 #ifdef __debug_io
@@ -641,8 +648,8 @@ void PicoWriteM68k8(u32 a,u8 d)
     return;
   }
 
-  //if ((a&0xffffc0)==0xa12000)
-  //  dprintf("m68k_regs w8: [%02x] %02x @%06x", a&0x3f, d, SekPc);
+  if ((a&0xffffc0)==0xa12000)
+    rdprintf("m68k_regs w8: [%02x] %02x @%06x", a&0x3f, d, SekPc);
 
   OtherWrite8(a,d,8);
 }
@@ -683,8 +690,8 @@ void PicoWriteM68k16(u32 a,u16 d)
     return;
   }
 
-  //if ((a&0xffffc0)==0xa12000)
-  //  dprintf("m68k_regs w16: [%02x] %04x @%06x", a&0x3f, d, SekPc);
+  if ((a&0xffffc0)==0xa12000)
+    rdprintf("m68k_regs w16: [%02x] %04x @%06x", a&0x3f, d, SekPc);
 
   OtherWrite16(a,d);
 }
@@ -735,8 +742,8 @@ void PicoWriteM68k32(u32 a,u32 d)
     return;
   }
 
-  //if ((a&0xffffc0)==0xa12000)
-  //  dprintf("m68k_regs w32: [%02x] %08x @%06x", a&0x3f, d, SekPc);
+  if ((a&0xffffc0)==0xa12000)
+    rdprintf("m68k_regs w32: [%02x] %08x @%06x", a&0x3f, d, SekPc);
 
   OtherWrite16(a,  (u16)(d>>16));
   OtherWrite16(a+2,(u16)d);
@@ -760,9 +767,9 @@ u8 PicoReadS68k8(u32 a)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    //dprintf("s68k_regs r8: [%02x] @ %06x", a&0x1ff, SekPcS68k);
+    rdprintf("s68k_regs r8: [%02x] @ %06x", a&0x1ff, SekPcS68k);
     d = s68k_reg_read16(a&~1, 8|(a&1)); if ((a&1)==0) d>>=8;
-    //dprintf("ret = %02x", (u8)d);
+    rdprintf("ret = %02x", (u8)d);
     goto end;
   }
 
@@ -814,9 +821,9 @@ u16 PicoReadS68k16(u32 a)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    //dprintf("s68k_regs r16: [%02x] @ %06x", a&0x1fe, SekPcS68k);
+    rdprintf("s68k_regs r16: [%02x] @ %06x", a&0x1fe, SekPcS68k);
     d = s68k_reg_read16(a, 16);
-    //dprintf("ret = %04x", d);
+    rdprintf("ret = %04x", d);
     goto end;
   }
 
@@ -869,9 +876,9 @@ u32 PicoReadS68k32(u32 a)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    //dprintf("s68k_regs r32: [%02x] @ %06x", a&0x1fe, SekPcS68k);
+    rdprintf("s68k_regs r32: [%02x] @ %06x", a&0x1fe, SekPcS68k);
     d = (s68k_reg_read16(a, 32)<<16)|s68k_reg_read16(a+2, 32);
-    //dprintf("ret = %08x", d);
+    rdprintf("ret = %08x", d);
     goto end;
   }
 
@@ -933,7 +940,7 @@ void PicoWriteS68k8(u32 a,u8 d)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    //dprintf("s68k_regs w8: [%02x] %02x @ %06x", a&0x1ff, d, SekPcS68k);
+    rdprintf("s68k_regs w8: [%02x] %02x @ %06x", a&0x1ff, d, SekPcS68k);
     s68k_reg_write8(a,d,8);
     return;
   }
@@ -980,7 +987,7 @@ void PicoWriteS68k16(u32 a,u16 d)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    //dprintf("s68k_regs w16: [%02x] %04x @ %06x", a&0x1ff, d, SekPcS68k);
+    rdprintf("s68k_regs w16: [%02x] %04x @ %06x", a&0x1ff, d, SekPcS68k);
     s68k_reg_write8(a,  d>>8, 16);
     s68k_reg_write8(a+1,d&0xff, 16);
     return;
@@ -1029,7 +1036,7 @@ void PicoWriteS68k32(u32 a,u32 d)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    //dprintf("s68k_regs w32: [%02x] %08x @ %06x", a&0x1ff, d, SekPcS68k);
+    rdprintf("s68k_regs w32: [%02x] %08x @ %06x", a&0x1ff, d, SekPcS68k);
     s68k_reg_write8(a,   d>>24, 32);
     s68k_reg_write8(a+1,(d>>16)&0xff, 32);
     s68k_reg_write8(a+2,(d>>8) &0xff, 32);

@@ -64,17 +64,18 @@ static __inline void SekRunS68k(int cyc)
 #endif
 }
 
-static int Status_CDC;
-
 static __inline void check_cd_dma(void)
 {
 	int ddx;
 
-	if (!(Status_CDC & 0x08)) return;
+	if (!(Pico_mcd->scd.Status_CDC & 0x08)) return;
 
 	ddx = Pico_mcd->s68k_regs[4] & 7;
 	if (ddx <  2) return; // invalid
-	if (ddx <  4) Pico_mcd->s68k_regs[4] |= 0x40; // Data set ready in host port
+	if (ddx <  4) {
+		Pico_mcd->s68k_regs[4] |= 0x40; // Data set ready in host port
+		return;
+	}
 	if (ddx == 6) return; // invalid
 
 	Update_CDC_TRansfer(ddx); // now go and do the actual transfer
@@ -180,7 +181,7 @@ static int PicoFrameHintsMCD(void)
       //dprintf("m68k starting exec @ %06x", SekPc);
     if(Pico.m.dma_bytes) SekCycleCnt+=CheckDMA();
     SekRun(cycles_68k);
-    if ((Pico_mcd->m68k_regs[1]&3) == 1) { // no busreq/no reset
+    if ((Pico_mcd->m.busreq&3) == 1) { // no busreq/no reset
 #if 0
 	    int i;
 	    FILE *f = fopen("prg_ram.bin", "wb");

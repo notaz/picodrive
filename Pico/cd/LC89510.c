@@ -9,14 +9,13 @@
 
 #include "../PicoInt.h"
 
-#define cdprintf printf
+#define cdprintf dprintf
 //#define cdprintf(x...)
 
 
 #define CDC_DMA_SPEED 256
 
-int CDC_Decode_Reg_Read;
-static int Status_CDC;		// internal status (TODO: 2 context?)
+int CDC_Decode_Reg_Read; // 2 context?
 
 
 static void CDD_Reset(void)
@@ -57,7 +56,7 @@ static void CDC_Reset(void)
 	Pico_mcd->cdc.CTRL.N = 0;
 
 	CDC_Decode_Reg_Read = 0;
-	Status_CDC = 0;
+	Pico_mcd->scd.Status_CDC &= ~0x08;
 }
 
 
@@ -81,7 +80,7 @@ void Update_CDC_TRansfer(int which)
 	if (Pico_mcd->cdc.DBC.N <= (CDC_DMA_SPEED * 2))
 	{
 		length = (Pico_mcd->cdc.DBC.N + 1) >> 1;
-		Status_CDC &= ~0x08;			// Last transfer
+		Pico_mcd->scd.Status_CDC &= ~0x08;	// Last transfer
 		Pico_mcd->s68k_regs[4] |=  0x80;	// End data transfer
 		Pico_mcd->s68k_regs[4] &= ~0x40;	// no more data ready
 		Pico_mcd->cdc.IFSTAT |= 0x08;		// No more data transfer in progress
@@ -152,7 +151,7 @@ void Update_CDC_TRansfer(int which)
 
 	length <<= 1;
 	Pico_mcd->cdc.DAC.N = (Pico_mcd->cdc.DAC.N + length) & 0xFFFF;
-	if (Status_CDC & 0x08) Pico_mcd->cdc.DBC.N -= length;
+	if (Pico_mcd->scd.Status_CDC & 0x08) Pico_mcd->cdc.DBC.N -= length;
 	else Pico_mcd->cdc.DBC.N = 0;
 }
 
@@ -161,9 +160,10 @@ unsigned short Read_CDC_Host(int is_sub)
 {
 	int addr;
 
-	if (!(Status_CDC & 0x08))
+	if (!(Pico_mcd->scd.Status_CDC & 0x08))
 	{
 		// Transfer data disabled
+		cdprintf("Read_CDC_Host: Transfer data disabled");
 		return 0;
 	}
 
@@ -171,6 +171,7 @@ unsigned short Read_CDC_Host(int is_sub)
 		(!is_sub && (Pico_mcd->s68k_regs[4] & 7) != 2))
 	{
 		// Wrong setting
+		cdprintf("Read_CDC_Host: Wrong setting");
 		return 0;
 	}
 
@@ -179,7 +180,7 @@ unsigned short Read_CDC_Host(int is_sub)
 	if (Pico_mcd->cdc.DBC.N <= 0)
 	{
 		Pico_mcd->cdc.DBC.N = 0;
-		Status_CDC &= ~0x08;				// Last transfer
+		Pico_mcd->scd.Status_CDC &= ~0x08;		// Last transfer
 		Pico_mcd->s68k_regs[4] |=  0x80;		// End data transfer
 		Pico_mcd->s68k_regs[4] &= ~0x40;		// no more data ready
 		Pico_mcd->cdc.IFSTAT |= 0x08;			// No more data transfer in progress
@@ -193,12 +194,16 @@ unsigned short Read_CDC_Host(int is_sub)
 				SekInterruptS68k(5);
 			}
 
-			cdprintf("CDC - DTE interrupt\n");
+			cdprintf("CDC - DTE interrupt");
 		}
 	}
 
 	addr = Pico_mcd->cdc.DAC.N;
 	Pico_mcd->cdc.DAC.N += 2;
+
+	cdprintf("Read_CDC_Host sub=%i d=%04x dac=%04x dbc=%04x", is_sub,
+		(Pico_mcd->cdc.Buffer[addr]<<8) | Pico_mcd->cdc.Buffer[addr+1], Pico_mcd->cdc.DAC.N, Pico_mcd->cdc.DBC.N);
+
 	return (Pico_mcd->cdc.Buffer[addr]<<8) | Pico_mcd->cdc.Buffer[addr+1];
 
 #if 0
@@ -244,112 +249,110 @@ unsigned char CDC_Read_Reg(void)
 {
 	unsigned char ret;
 
-	cdprintf("CDC read reg %.2d = ", Pico_mcd->s68k_regs[5] & 0xF);
-
 	switch(Pico_mcd->s68k_regs[5] & 0xF)
 	{
 		case 0x0: // COMIN
-			cdprintf("%.2X\n", Pico_mcd->cdc.COMIN);
+			cdprintf("CDC read reg 00 = %.2X", Pico_mcd->cdc.COMIN);
 
 			Pico_mcd->s68k_regs[5] = 0x1;
 			return Pico_mcd->cdc.COMIN;
 
 		case 0x1: // IFSTAT
-			cdprintf("%.2X\n", Pico_mcd->cdc.IFSTAT);
+			cdprintf("CDC read reg 01 = %.2X", Pico_mcd->cdc.IFSTAT);
 
 			CDC_Decode_Reg_Read |= (1 << 1);		// Reg 1 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x2;
 			return Pico_mcd->cdc.IFSTAT;
 
 		case 0x2: // DBCL
-			cdprintf("%.2X\n", Pico_mcd->cdc.DBC.B.L);
+			cdprintf("CDC read reg 02 = %.2X", Pico_mcd->cdc.DBC.B.L);
 
 			Pico_mcd->s68k_regs[5] = 0x3;
 			return Pico_mcd->cdc.DBC.B.L;
 
 		case 0x3: // DBCH
-			cdprintf("%.2X\n", Pico_mcd->cdc.DBC.B.H);
+			cdprintf("CDC read reg 03 = %.2X", Pico_mcd->cdc.DBC.B.H);
 
 			Pico_mcd->s68k_regs[5] = 0x4;
 			return Pico_mcd->cdc.DBC.B.H;
 
 		case 0x4: // HEAD0
-			cdprintf("%.2X\n", Pico_mcd->cdc.HEAD.B.B0);
+			cdprintf("CDC read reg 04 = %.2X", Pico_mcd->cdc.HEAD.B.B0);
 
 			CDC_Decode_Reg_Read |= (1 << 4);		// Reg 4 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x5;
 			return Pico_mcd->cdc.HEAD.B.B0;
 
 		case 0x5: // HEAD1
-			cdprintf("%.2X\n", Pico_mcd->cdc.HEAD.B.B1);
+			cdprintf("CDC read reg 05 = %.2X", Pico_mcd->cdc.HEAD.B.B1);
 
 			CDC_Decode_Reg_Read |= (1 << 5);		// Reg 5 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x6;
 			return Pico_mcd->cdc.HEAD.B.B1;
 
 		case 0x6: // HEAD2
-			cdprintf("%.2X\n", Pico_mcd->cdc.HEAD.B.B2);
+			cdprintf("CDC read reg 06 = %.2X", Pico_mcd->cdc.HEAD.B.B2);
 
 			CDC_Decode_Reg_Read |= (1 << 6);		// Reg 6 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x7;
 			return Pico_mcd->cdc.HEAD.B.B2;
 
 		case 0x7: // HEAD3
-			cdprintf("%.2X\n", Pico_mcd->cdc.HEAD.B.B3);
+			cdprintf("CDC read reg 07 = %.2X", Pico_mcd->cdc.HEAD.B.B3);
 
 			CDC_Decode_Reg_Read |= (1 << 7);		// Reg 7 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x8;
 			return Pico_mcd->cdc.HEAD.B.B3;
 
 		case 0x8: // PTL
-			cdprintf("%.2X\n", Pico_mcd->cdc.PT.B.L);
+			cdprintf("CDC read reg 08 = %.2X", Pico_mcd->cdc.PT.B.L);
 
 			CDC_Decode_Reg_Read |= (1 << 8);		// Reg 8 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x9;
 			return Pico_mcd->cdc.PT.B.L;
 
 		case 0x9: // PTH
-			cdprintf("%.2X\n", Pico_mcd->cdc.PT.B.H);
+			cdprintf("CDC read reg 09 = %.2X", Pico_mcd->cdc.PT.B.H);
 
 			CDC_Decode_Reg_Read |= (1 << 9);		// Reg 9 (decoding)
 			Pico_mcd->s68k_regs[5] = 0xA;
 			return Pico_mcd->cdc.PT.B.H;
 
 		case 0xA: // WAL
-			cdprintf("%.2X\n", Pico_mcd->cdc.WA.B.L);
+			cdprintf("CDC read reg 10 = %.2X", Pico_mcd->cdc.WA.B.L);
 
 			Pico_mcd->s68k_regs[5] = 0xB;
 			return Pico_mcd->cdc.WA.B.L;
 
 		case 0xB: // WAH
-			cdprintf("%.2X\n", Pico_mcd->cdc.WA.B.H);
+			cdprintf("CDC read reg 11 = %.2X", Pico_mcd->cdc.WA.B.H);
 
 			Pico_mcd->s68k_regs[5] = 0xC;
 			return Pico_mcd->cdc.WA.B.H;
 
 		case 0xC: // STAT0
-			cdprintf("%.2X\n", Pico_mcd->cdc.STAT.B.B0);
+			cdprintf("CDC read reg 12 = %.2X", Pico_mcd->cdc.STAT.B.B0);
 
 			CDC_Decode_Reg_Read |= (1 << 12);		// Reg 12 (decoding)
 			Pico_mcd->s68k_regs[5] = 0xD;
 			return Pico_mcd->cdc.STAT.B.B0;
 
 		case 0xD: // STAT1
-			cdprintf("%.2X\n", Pico_mcd->cdc.STAT.B.B1);
+			cdprintf("CDC read reg 13 = %.2X", Pico_mcd->cdc.STAT.B.B1);
 
 			CDC_Decode_Reg_Read |= (1 << 13);		// Reg 13 (decoding)
 			Pico_mcd->s68k_regs[5] = 0xE;
 			return Pico_mcd->cdc.STAT.B.B1;
 
 		case 0xE: // STAT2
-			cdprintf("%.2X\n", Pico_mcd->cdc.STAT.B.B2);
+			cdprintf("CDC read reg 14 = %.2X", Pico_mcd->cdc.STAT.B.B2);
 
 			CDC_Decode_Reg_Read |= (1 << 14);		// Reg 14 (decoding)
 			Pico_mcd->s68k_regs[5] = 0xF;
 			return Pico_mcd->cdc.STAT.B.B2;
 
 		case 0xF: // STAT3
-			cdprintf("%.2X\n", Pico_mcd->cdc.STAT.B.B3);
+			cdprintf("CDC read reg 15 = %.2X", Pico_mcd->cdc.STAT.B.B3);
 
 			ret = Pico_mcd->cdc.STAT.B.B3;
 			Pico_mcd->cdc.IFSTAT |= 0x20;			// decoding interrupt flag cleared
@@ -367,7 +370,7 @@ unsigned char CDC_Read_Reg(void)
 
 void CDC_Write_Reg(unsigned char Data)
 {
-	cdprintf("CDC write reg%d = %.2X\n", Pico_mcd->s68k_regs[5] & 0xF, Data);
+	cdprintf("CDC write reg%02d = %.2X", Pico_mcd->s68k_regs[5] & 0xF, Data);
 
 	switch (Pico_mcd->s68k_regs[5] & 0xF)
 	{
@@ -384,7 +387,7 @@ void CDC_Write_Reg(unsigned char Data)
 			if ((Pico_mcd->cdc.IFCTRL & 0x02) == 0)		// Stop data transfer
 			{
 				Pico_mcd->cdc.DBC.N = 0;
-				Status_CDC &= ~0x08;
+				Pico_mcd->scd.Status_CDC &= ~0x08;
 				Pico_mcd->cdc.IFSTAT |= 0x08;		// No more data transfer in progress
 			}
 			break;
@@ -417,10 +420,10 @@ void CDC_Write_Reg(unsigned char Data)
 			if (Pico_mcd->cdc.IFCTRL & 0x02)		// Data transfer enable ?
 			{
 				Pico_mcd->cdc.IFSTAT &= ~0x08;		// Data transfer in progress
-				Status_CDC |= 0x08;			// Data transfer in progress
+				Pico_mcd->scd.Status_CDC |= 0x08;	// Data transfer in progress
 				Pico_mcd->s68k_regs[4] &= 0x7F;		// A data transfer start
 
-				cdprintf("\n************** Starting Data Transfer ***********\n");
+				cdprintf("************** Starting Data Transfer ***********");
 				cdprintf("RS0 = %.4X  DAC = %.4X  DBC = %.4X  DMA adr = %.4X\n\n", Pico_mcd->s68k_regs[4]<<8,
 					Pico_mcd->cdc.DAC.N, Pico_mcd->cdc.DBC.N, Pico_mcd->cdc.DMA_Adr);
 			}
@@ -503,8 +506,8 @@ void CDD_Export_Status(void)
 		SekInterruptS68k(4);
 	}
 
-	cdprintf("CDD exported status\n");
-	cdprintf("Status =%.4X, Minute=%.4X, Second=%.4X, Frame=%.4X  Checksum=%.4X\n",
+//	cdprintf("CDD exported status\n");
+	cdprintf("out:  Status=%.4X, Minute=%.4X, Second=%.4X, Frame=%.4X  Checksum=%.4X",
 		(Pico_mcd->s68k_regs[0x38+0] << 8) | Pico_mcd->s68k_regs[0x38+1],
 		(Pico_mcd->s68k_regs[0x38+2] << 8) | Pico_mcd->s68k_regs[0x38+3],
 		(Pico_mcd->s68k_regs[0x38+4] << 8) | Pico_mcd->s68k_regs[0x38+5],
@@ -515,8 +518,8 @@ void CDD_Export_Status(void)
 
 void CDD_Import_Command(void)
 {
-	cdprintf("CDD importing command\n");
-	cdprintf("Command=%.4X, Minute=%.4X, Second=%.4X, Frame=%.4X  Checksum=%.4X\n",
+//	cdprintf("CDD importing command\n");
+	cdprintf("in:  Command=%.4X, Minute=%.4X, Second=%.4X, Frame=%.4X  Checksum=%.4X",
 		(Pico_mcd->s68k_regs[0x38+10+0] << 8) | Pico_mcd->s68k_regs[0x38+10+1],
 		(Pico_mcd->s68k_regs[0x38+10+2] << 8) | Pico_mcd->s68k_regs[0x38+10+3],
 		(Pico_mcd->s68k_regs[0x38+10+4] << 8) | Pico_mcd->s68k_regs[0x38+10+5],

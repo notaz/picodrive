@@ -20,8 +20,9 @@
 
 #include "../PicoInt.h"
 
-#define cdprintf printf
+#define cdprintf dprintf
 //#define cdprintf(x...)
+#define DEBUG_CD
 
 struct _file_track Tracks[100];
 char Track_Played;
@@ -92,7 +93,7 @@ int Load_ISO(const char *iso_name, int is_bin)
 	SCD_TOC_Tracks[0].MSF.S = 2;
 	SCD_TOC_Tracks[0].MSF.F = 0;
 
-	cdprintf("\nTrack 0 - %02d:%02d:%02d %s\n", SCD_TOC_Tracks[0].MSF.M, SCD_TOC_Tracks[0].MSF.S, SCD_TOC_Tracks[0].MSF.F,
+	cdprintf("Track 0 - %02d:%02d:%02d %s", SCD_TOC_Tracks[0].MSF.M, SCD_TOC_Tracks[0].MSF.S, SCD_TOC_Tracks[0].MSF.F,
 		SCD_TOC_Tracks[0].Type ? "DATA" : "AUDIO");
 
 	Cur_LBA = Tracks[0].Lenght;				// Size in sectors
@@ -127,7 +128,7 @@ int Load_ISO(const char *iso_name, int is_bin)
 
 				LBA_to_MSF(Cur_LBA, &(SCD_TOC_Tracks[index].MSF));
 
-				cdprintf("\nTrack %i - %02d:%02d:%02d %s\n", index, SCD_TOC_Tracks[index].MSF.M,
+				cdprintf("Track %i - %02d:%02d:%02d %s", index, SCD_TOC_Tracks[index].MSF.M,
 					SCD_TOC_Tracks[index].MSF.S, SCD_TOC_Tracks[index].MSF.F,
 					SCD_TOC_Tracks[index].Type ? "DATA" : "AUDIO");
 
@@ -194,7 +195,7 @@ int FILE_Read_One_LBA_CDC(void)
 		fseek(Tracks[0].F, where_read, SEEK_SET);
 		fread(cp_buf, 1, 2048, Tracks[0].F);
 
-		cdprintf("\n\nRead file CDC 1 data sector :\n");
+		cdprintf("Read file CDC 1 data sector :\n");
 	}
 	else									// AUDIO
 	{
@@ -207,7 +208,7 @@ int FILE_Read_One_LBA_CDC(void)
 			// Write_CD_Audio((short *) cp_buf, rate, channel, 588);
 		}
 
-		cdprintf("\n\nRead file CDC 1 audio sector :\n");
+		cdprintf("Read file CDC 1 audio sector :\n");
 	}
 
 	// Update CDC stuff
@@ -231,8 +232,8 @@ int FILE_Read_One_LBA_CDC(void)
 				memcpy(&Pico_mcd->cdc.Buffer[Pico_mcd->cdc.PT.N], &Pico_mcd->cdc.HEAD, 4);
 
 #ifdef DEBUG_CD
-				cdprintf("\nRead -> WA = %d  Buffer[%d] =\n", Pico_mcd->cdc.WA.N, Pico_mcd->cdc.PT.N & 0x3FFF);
-				cdprintf("Header 1 = %.2X %.2X %.2X %.2X\n", Pico_mcd->cdc.HEAD.B.B0,
+				cdprintf("Read -> WA = %d  Buffer[%d] =", Pico_mcd->cdc.WA.N, Pico_mcd->cdc.PT.N & 0x3FFF);
+				cdprintf("Header 1 = %.2X %.2X %.2X %.2X", Pico_mcd->cdc.HEAD.B.B0,
 					Pico_mcd->cdc.HEAD.B.B1, Pico_mcd->cdc.HEAD.B.B2, Pico_mcd->cdc.HEAD.B.B3);
 				cdprintf("Header 2 = %.2X %.2X %.2X %.2X --- %.2X %.2X\n\n",
 					Pico_mcd->cdc.Buffer[(Pico_mcd->cdc.PT.N + 0) & 0x3FFF],
@@ -302,7 +303,7 @@ int FILE_Play_CD_LBA(void)
 {
 	int index = Pico_mcd->scd.Cur_Track - Pico_mcd->scd.TOC.First_Track;
 
-	cdprintf("Play FILE Comp\n");
+	cdprintf("Play FILE Comp");
 
 	if (Tracks[index].F == NULL)
 	{

@@ -4,8 +4,9 @@
 
 #include "../PicoInt.h"
 
-#define cdprintf printf
+#define cdprintf dprintf
 //#define cdprintf(x...)
+#define DEBUG_CD
 
 #define TRAY_OPEN	0x0500		// TRAY OPEN CDD status
 #define NOCD		0x0000		// CD removed CDD status
@@ -153,7 +154,7 @@ int Track_to_LBA(int track)
 
 void Check_CD_Command(void)
 {
-	cdprintf("CHECK CD COMMAND\n");
+	cdprintf("CHECK CD COMMAND");
 
 	// Check CDD
 
@@ -168,7 +169,7 @@ void Check_CD_Command(void)
 
 	if (Pico_mcd->scd.Status_CDC & 1)			// CDC is reading data ...
 	{
-		cdprintf("Sending a read command\n");
+		cdprintf("Got a read command");
 
 		// DATA ?
 		if (Pico_mcd->scd.TOC.Tracks[Pico_mcd->scd.Cur_Track - Pico_mcd->scd.TOC.First_Track].Type)
@@ -256,7 +257,7 @@ void Change_CD(void)
 
 int Get_Status_CDD_c0(void)
 {
-	cdprintf("Status command : Cur LBA = %d\n", Pico_mcd->scd.Cur_LBA);
+	cdprintf("Status command : Cur LBA = %d", Pico_mcd->scd.Cur_LBA);
 
 	// Clear immediat status
 	if ((Pico_mcd->cdd.Status & 0x0F00) == 0x0200)
@@ -299,7 +300,7 @@ int Get_Pos_CDD_c20(void)
 {
 	_msf MSF;
 
-	cdprintf("command 200 : Cur LBA = %d\n", Pico_mcd->scd.Cur_LBA);
+	cdprintf("command 200 : Cur LBA = %d", Pico_mcd->scd.Cur_LBA);
 
 	CHECK_TRAY_OPEN
 
@@ -312,7 +313,7 @@ int Get_Pos_CDD_c20(void)
 //	else if (!(CDC.CTRL.B.B0 & 0x80)) Pico_mcd->cdd.Status |= Pico_mcd->scd.Status_CDD;
 	Pico_mcd->cdd.Status |= Pico_mcd->scd.Status_CDD;
 
-	cdprintf("Status CDD = %.4X  Status = %.4X\n", Pico_mcd->scd.Status_CDD, Pico_mcd->cdd.Status);
+	cdprintf("Status CDD = %.4X  Status = %.4X", Pico_mcd->scd.Status_CDD, Pico_mcd->cdd.Status);
 
 	LBA_to_MSF(Pico_mcd->scd.Cur_LBA, &MSF);
 
@@ -348,7 +349,7 @@ int Get_Track_Pos_CDD_c21(void)
 	elapsed_time = Pico_mcd->scd.Cur_LBA - Track_to_LBA(LBA_to_Track(Pico_mcd->scd.Cur_LBA));
 	LBA_to_MSF(elapsed_time - 150, &MSF);
 
-	cdprintf("   elapsed = %d\n", elapsed_time);
+	cdprintf("   elapsed = %d", elapsed_time);
 
 	Pico_mcd->cdd.Minute = INT_TO_BCDW(MSF.M);
 	Pico_mcd->cdd.Seconde = INT_TO_BCDW(MSF.S);
@@ -363,7 +364,7 @@ int Get_Track_Pos_CDD_c21(void)
 
 int Get_Current_Track_CDD_c22(void)
 {
-	cdprintf("Status CDD = %.4X  Status = %.4X\n", Pico_mcd->scd.Status_CDD, Pico_mcd->cdd.Status);
+	cdprintf("Status CDD = %.4X  Status = %.4X", Pico_mcd->scd.Status_CDD, Pico_mcd->cdd.Status);
 
 	CHECK_TRAY_OPEN
 
@@ -504,7 +505,7 @@ int Play_CDD_c3(void)
 	Pico_mcd->scd.Cur_LBA = new_lba;
 	CDC_Update_Header();
 
-	cdprintf("Read : Cur LBA = %d, M=%d, S=%d, F=%d\n", Pico_mcd->scd.Cur_LBA, MSF.M, MSF.S, MSF.F);
+	cdprintf("Read : Cur LBA = %d, M=%d, S=%d, F=%d", Pico_mcd->scd.Cur_LBA, MSF.M, MSF.S, MSF.F);
 
 	if (Pico_mcd->scd.Status_CDD != PLAYING) delay += 20;
 
@@ -610,7 +611,7 @@ int Resume_CDD_c7(void)
 	{
 		_msf MSF;
 		LBA_to_MSF(Pico_mcd->scd.Cur_LBA, &MSF);
-		cdprintf("Resume read : Cur LBA = %d, M=%d, S=%d, F=%d\n", Pico_mcd->scd.Cur_LBA, MSF.M, MSF.S, MSF.F);
+		cdprintf("Resume read : Cur LBA = %d, M=%d, S=%d, F=%d", Pico_mcd->scd.Cur_LBA, MSF.M, MSF.S, MSF.F);
 	}
 #endif
 

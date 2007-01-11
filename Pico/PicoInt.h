@@ -162,6 +162,14 @@ struct PicoSRAM
 #include "cd/cd_sys.h"
 #include "cd/LC89510.h"
 
+struct mcd_misc
+{
+	unsigned short hint_vector;
+	unsigned char  busreq;
+	unsigned char  pad0;
+
+};
+
 typedef struct
 {
 	unsigned char bios[0x20000];
@@ -171,10 +179,10 @@ typedef struct
 	};
 	unsigned char word_ram[0x40000];
 	unsigned char s68k_regs[0x200];
-	unsigned char m68k_regs[0x10];
 	CDD  cdd;
 	CDC  cdc;
 	_scd scd;
+	struct mcd_misc m;
 } mcd_state;
 
 #define Pico_mcd ((mcd_state *)Pico.rom)
