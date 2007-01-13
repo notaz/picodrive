@@ -30,7 +30,7 @@ OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Utils.o ../../Pico/Memory
 		../../Pico/Pico.o ../../Pico/Sek.o ../../Pico/VideoPort.o ../../Pico/Draw2.o ../../Pico/Draw.o
 # Pico - CD
 OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
-		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o
+		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o
 # Pico - sound
 OBJS += ../../Pico/sound/sound.o ../../Pico/sound/sn76496.o ../../Pico/sound/ym2612.o
 # zlib

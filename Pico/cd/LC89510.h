@@ -8,9 +8,9 @@ extern "C" {
 typedef struct
 {
 	unsigned char Buffer[(32 * 1024 * 2) + 2352];
-	unsigned int Host_Data;
-	unsigned int DMA_Adr;
-	unsigned int Stop_Watch;
+//	unsigned int Host_Data;		// unused
+//	unsigned int DMA_Adr;		// 0A
+//	unsigned int Stop_Watch;	// 0C
 	unsigned int COMIN;
 	unsigned int IFSTAT;
 	union

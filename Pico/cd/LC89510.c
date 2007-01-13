@@ -65,15 +65,14 @@ void LC89510_Reset(void)
 	CDD_Reset();
 	CDC_Reset();
 
-	Pico_mcd->cdc.Host_Data = 0;
-	Pico_mcd->cdc.DMA_Adr = 0;
-	Pico_mcd->cdc.Stop_Watch = 0;
+	// clear DMA_Adr & Stop_Watch
+	memset(Pico_mcd->s68k_regs + 0xA, 0, 4);
 }
 
 
 void Update_CDC_TRansfer(int which)
 {
-	unsigned int dep, length, len;
+	unsigned int DMA_Adr, dep, length, len;
 	unsigned short *dest;
 	unsigned char  *src;
 
@@ -101,17 +100,17 @@ void Update_CDC_TRansfer(int which)
 
 	// TODO: dst bounds checking? DAC.N alignment?
 	src = Pico_mcd->cdc.Buffer + Pico_mcd->cdc.DAC.N;
-
+	DMA_Adr = (Pico_mcd->s68k_regs[0xA]<<8) | Pico_mcd->s68k_regs[0xB];
 
 	if (which == 7) // WORD RAM
 	{
 		if (Pico_mcd->s68k_regs[3] & 4)
 		{
-			dep = ((Pico_mcd->cdc.DMA_Adr & 0x3FFF) << 3);
+			dep = ((DMA_Adr & 0x3FFF) << 3);
 			cdprintf("CD DMA # %04x -> word_ram1M # %06x, len=%i",
 					Pico_mcd->cdc.DAC.N, dep, length);
 
-			dep = ((Pico_mcd->cdc.DMA_Adr & 0x3FFF) << 4);
+			dep = ((DMA_Adr & 0x3FFF) << 4);
 			if (!(Pico_mcd->s68k_regs[3]&1)) dep += 2;
 			dest = (unsigned short *) (Pico_mcd->word_ram + dep);
 
@@ -120,7 +119,7 @@ void Update_CDC_TRansfer(int which)
 		}
 		else
 		{
-			dep = ((Pico_mcd->cdc.DMA_Adr & 0x7FFF) << 3);
+			dep = ((DMA_Adr & 0x7FFF) << 3);
 			cdprintf("CD DMA # %04x -> word_ram2M # %06x, len=%i",
 					Pico_mcd->cdc.DAC.N, dep, length);
 			dest = (unsigned short *) (Pico_mcd->word_ram + dep);
@@ -133,14 +132,14 @@ void Update_CDC_TRansfer(int which)
 	{
 #if 0
 			dest = (unsigned char *) Ram_PCM;
-			dep = ((Pico_mcd->cdc.DMA_Adr & 0x03FF) << 2) + PCM_Chip.Bank;
+			dep = ((DMA_Adr & 0x03FF) << 2) + PCM_Chip.Bank;
 #else
-			cdprintf("TODO: PCM Dma");
+			cdprintf("CD DMA # %04x -> PCD TODO", Pico_mcd->cdc.DAC.N);
 #endif
 	}
 	else if (which == 5) // PRG RAM
 	{
-		dep = (Pico_mcd->cdc.DMA_Adr & 0xFFFF) << 3;
+		dep = DMA_Adr << 3;
 		dest = (unsigned short *) (Pico_mcd->prg_ram + dep);
 		cdprintf("CD DMA # %04x -> prg_ram # %06x, len=%i",
 				Pico_mcd->cdc.DAC.N, dep, length);
@@ -425,7 +424,7 @@ void CDC_Write_Reg(unsigned char Data)
 
 				cdprintf("************** Starting Data Transfer ***********");
 				cdprintf("RS0 = %.4X  DAC = %.4X  DBC = %.4X  DMA adr = %.4X\n\n", Pico_mcd->s68k_regs[4]<<8,
-					Pico_mcd->cdc.DAC.N, Pico_mcd->cdc.DBC.N, Pico_mcd->cdc.DMA_Adr);
+					Pico_mcd->cdc.DAC.N, Pico_mcd->cdc.DBC.N, (Pico_mcd->s68k_regs[0xA]<<8) | Pico_mcd->s68k_regs[0xB]);
 			}
 			break;
 

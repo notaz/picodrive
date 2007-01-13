@@ -16,13 +16,16 @@
 #include "../sound/ym2612.h"
 #include "../sound/sn76496.h"
 
+#include "gfx_cd.h"
+
 typedef unsigned char  u8;
 typedef unsigned short u16;
 typedef unsigned int   u32;
 
 //#define __debug_io
 //#define __debug_io2
-#define rdprintf dprintf
+//#define rdprintf dprintf
+#define rdprintf(...)
 
 // -----------------------------------------------------------------
 
@@ -31,7 +34,7 @@ typedef unsigned int   u32;
 extern int counter75hz;
 
 
-static u32 m68k_reg_read16(u32 a, int realsize)
+static u32 m68k_reg_read16(u32 a)
 {
   u32 d=0;
   a &= 0x3e;
@@ -52,7 +55,6 @@ static u32 m68k_reg_read16(u32 a, int realsize)
       d = Pico_mcd->m.hint_vector;
       goto end;
     case 8:
-      dprintf("m68k host data read");
       d = Read_CDC_Host(0);
       goto end;
     case 0xA:
@@ -77,7 +79,7 @@ end:
   return d;
 }
 
-static void m68k_reg_write8(u32 a, u32 d, int realsize)
+static void m68k_reg_write8(u32 a, u32 d)
 {
   a &= 0x3f;
   // dprintf("m68k_regs w%2i: [%02x] %02x @%06x", realsize, a, d, SekPc);
@@ -139,16 +141,15 @@ static void m68k_reg_write8(u32 a, u32 d, int realsize)
 
 
 
-static u32 s68k_reg_read16(u32 a, int realsize)
+static u32 s68k_reg_read16(u32 a)
 {
   u32 d=0;
-  a &= 0x1fe;
 
   // dprintf("s68k_regs r%2i: [%02x] @ %06x", realsize&~1, a+(realsize&1), SekPcS68k);
 
   switch (a) {
     case 0:
-      d = 1; // ver = 0, not in reset state
+      d = ((Pico_mcd->s68k_regs[0]&3)<<8) | 1; // ver = 0, not in reset state
       goto end;
     case 2:
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0x1f);
@@ -158,8 +159,7 @@ static u32 s68k_reg_read16(u32 a, int realsize)
       d = CDC_Read_Reg();
       goto end;
     case 8:
-      dprintf("s68k host data read");
-      d = Read_CDC_Host(1);
+      d = Read_CDC_Host(1); // Gens returns 0 here on byte reads
       goto end;
     case 0xC:
       dprintf("s68k stopwatch read");
@@ -178,9 +178,8 @@ end:
   return d;
 }
 
-static void s68k_reg_write8(u32 a, u32 d, int realsize)
+static void s68k_reg_write8(u32 a, u32 d)
 {
-  a &= 0x1ff;
   //dprintf("s68k_regs w%2i: [%02x] %02x @ %06x", realsize, a, d, SekPcS68k);
 
   // TODO: review against Gens
@@ -349,7 +348,7 @@ static u32 OtherRead16(u32 a, int realsize)
   if ((a&0xe700e0)==0xc00000) { d=PicoVideoRead(a); goto end; }
 
   if ((a&0xffffc0)==0xa12000) {
-    d=m68k_reg_read16(a, realsize);
+    d=m68k_reg_read16(a);
     goto end;
   }
 
@@ -411,7 +410,7 @@ static void OtherWrite8(u32 a,u32 d,int realsize)
 
   if ((a&0xe700e0)==0xc00000) { PicoVideoWrite(a,(u16)(d|(d<<8))); return; } // Byte access gets mirrored
 
-  if ((a&0xffffc0)==0xa12000) { m68k_reg_write8(a, d, realsize); return; }
+  if ((a&0xffffc0)==0xa12000) { m68k_reg_write8(a, d); return; }
 
   dprintf("strange w%i: %06x, %08x @%06x", realsize, a&0xffffff, d, SekPc);
 }
@@ -767,8 +766,12 @@ u8 PicoReadS68k8(u32 a)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    rdprintf("s68k_regs r8: [%02x] @ %06x", a&0x1ff, SekPcS68k);
-    d = s68k_reg_read16(a&~1, 8|(a&1)); if ((a&1)==0) d>>=8;
+    a &= 0x1ff;
+    rdprintf("s68k_regs r8: [%02x] @ %06x", a, SekPcS68k);
+    if (a >= 0x50 && a < 0x68)
+         d = gfx_cd_read(a&~1);
+    else d = s68k_reg_read16(a&~1);
+    if ((a&1)==0) d>>=8;
     rdprintf("ret = %02x", (u8)d);
     goto end;
   }
@@ -821,8 +824,11 @@ u16 PicoReadS68k16(u32 a)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    rdprintf("s68k_regs r16: [%02x] @ %06x", a&0x1fe, SekPcS68k);
-    d = s68k_reg_read16(a, 16);
+    a &= 0x1fe;
+    rdprintf("s68k_regs r16: [%02x] @ %06x", a, SekPcS68k);
+    if (a >= 0x50 && a < 0x68)
+         d = gfx_cd_read(a);
+    else d = s68k_reg_read16(a);
     rdprintf("ret = %04x", d);
     goto end;
   }
@@ -876,8 +882,11 @@ u32 PicoReadS68k32(u32 a)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    rdprintf("s68k_regs r32: [%02x] @ %06x", a&0x1fe, SekPcS68k);
-    d = (s68k_reg_read16(a, 32)<<16)|s68k_reg_read16(a+2, 32);
+    a &= 0x1fe;
+    rdprintf("s68k_regs r32: [%02x] @ %06x", a, SekPcS68k);
+    if (a >= 0x50 && a < 0x68)
+         d = (gfx_cd_read(a)<<16)|gfx_cd_read(a+2);
+    else d = (s68k_reg_read16(a)<<16)|s68k_reg_read16(a+2);
     rdprintf("ret = %08x", d);
     goto end;
   }
@@ -940,8 +949,11 @@ void PicoWriteS68k8(u32 a,u8 d)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    rdprintf("s68k_regs w8: [%02x] %02x @ %06x", a&0x1ff, d, SekPcS68k);
-    s68k_reg_write8(a,d,8);
+    a &= 0x1ff;
+    rdprintf("s68k_regs w8: [%02x] %02x @ %06x", a, d, SekPcS68k);
+    if (a >= 0x50 && a < 0x68)
+         gfx_cd_write(a&~1, (d<<8)|d);
+    else s68k_reg_write8(a,d);
     return;
   }
 
@@ -987,9 +999,14 @@ void PicoWriteS68k16(u32 a,u16 d)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    rdprintf("s68k_regs w16: [%02x] %04x @ %06x", a&0x1ff, d, SekPcS68k);
-    s68k_reg_write8(a,  d>>8, 16);
-    s68k_reg_write8(a+1,d&0xff, 16);
+    a &= 0x1fe;
+    rdprintf("s68k_regs w16: [%02x] %04x @ %06x", a, d, SekPcS68k);
+    if (a >= 0x50 && a < 0x68)
+      gfx_cd_write(a, d);
+    else {
+      s68k_reg_write8(a,  d>>8);
+      s68k_reg_write8(a+1,d&0xff);
+    }
     return;
   }
 
@@ -1036,11 +1053,17 @@ void PicoWriteS68k32(u32 a,u32 d)
 
   // regs
   if ((a&0xfffe00) == 0xff8000) {
-    rdprintf("s68k_regs w32: [%02x] %08x @ %06x", a&0x1ff, d, SekPcS68k);
-    s68k_reg_write8(a,   d>>24, 32);
-    s68k_reg_write8(a+1,(d>>16)&0xff, 32);
-    s68k_reg_write8(a+2,(d>>8) &0xff, 32);
-    s68k_reg_write8(a+3, d     &0xff, 32);
+    a &= 0x1fe;
+    rdprintf("s68k_regs w32: [%02x] %08x @ %06x", a, d, SekPcS68k);
+    if (a >= 0x50 && a < 0x68) {
+      gfx_cd_write(a,   d>>16);
+      gfx_cd_write(a+2, d&0xffff);
+    } else {
+      s68k_reg_write8(a,   d>>24);
+      s68k_reg_write8(a+1,(d>>16)&0xff);
+      s68k_reg_write8(a+2,(d>>8) &0xff);
+      s68k_reg_write8(a+3, d     &0xff);
+    }
     return;
   }
 
