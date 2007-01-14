@@ -24,8 +24,8 @@ typedef unsigned int   u32;
 
 //#define __debug_io
 //#define __debug_io2
-#define rdprintf dprintf
-//#define rdprintf(...)
+//#define rdprintf dprintf
+#define rdprintf(...)
 
 // -----------------------------------------------------------------
 
@@ -61,7 +61,7 @@ static u32 m68k_reg_read16(u32 a)
       dprintf("m68k reserved read");
       goto end;
     case 0xC:
-      dprintf("m68k stopwatch read");
+      dprintf("m68k stopwatch timer read");
       break;
   }
 
@@ -118,9 +118,11 @@ static void m68k_reg_write8(u32 a, u32 d)
       return;
     case 6:
       *((char *)&Pico_mcd->m.hint_vector+1) = d;
+      Pico_mcd->bios[0x72 + 1] = d; // simple hint vector changer
       return;
     case 7:
       *(char *)&Pico_mcd->m.hint_vector = d;
+      Pico_mcd->bios[0x72] = d;
       return;
     case 0xe:
       //dprintf("m68k: comm flag: %02x", d);
@@ -162,7 +164,10 @@ static u32 s68k_reg_read16(u32 a)
       d = Read_CDC_Host(1); // Gens returns 0 here on byte reads
       goto end;
     case 0xC:
-      dprintf("s68k stopwatch read");
+      dprintf("s68k stopwatch timer read");
+      break;
+    case 0x30:
+      dprintf("s68k int3 timer read");
       break;
     case 0x34: // fader
       d = 0; // no busy bit
@@ -209,6 +214,12 @@ static void s68k_reg_write8(u32 a, u32 d)
       return;
     case 0xa:
       dprintf("s68k set CDC dma addr");
+      break;
+    case 0xc:
+      dprintf("s68k set stopwatch timer");
+      break;
+    case 0x31:
+      dprintf("s68k set int3 timer");
       break;
     case 0x33: // IRQ mask
       dprintf("s68k irq mask: %02x", d);

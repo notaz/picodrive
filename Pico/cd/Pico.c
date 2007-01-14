@@ -32,6 +32,7 @@ int PicoResetMCD(int hard)
 {
   // clear everything except BIOS
   memset(Pico_mcd->prg_ram, 0, sizeof(mcd_state) - sizeof(Pico_mcd->bios));
+  *(unsigned int *)(Pico_mcd->bios + 0x70) = 0xffffffff; // reset hint vector (simplest way to implement reg6)
   PicoMCD |= 2; // s68k reset pending
   Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode with m68k access after reset
   counter75hz = 0;
@@ -209,6 +210,9 @@ static int PicoFrameHintsMCD(void)
       counter75hz -= counter75hz_lim;
       Check_CD_Command();
     }
+
+    if (Pico_mcd->rot_comp.Reg_58 & 0x8000)
+      gfx_cd_update();
   }
 
   // draw a frame just after vblank in alternative render mode

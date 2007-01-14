@@ -161,6 +161,7 @@ struct PicoSRAM
 // MCD
 #include "cd/cd_sys.h"
 #include "cd/LC89510.h"
+#include "cd/gfx_cd.h"
 
 struct mcd_misc
 {
@@ -183,6 +184,7 @@ typedef struct
 	CDD  cdd;
 	CDC  cdc;
 	_scd scd;
+	Rot_Comp rot_comp;
 	struct mcd_misc m;
 } mcd_state;
 
