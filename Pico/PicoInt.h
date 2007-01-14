@@ -13,7 +13,7 @@
 #include "Pico.h"
 
 
-// to select core, define EMU_C68K, EMU_M68K or EMU_A68K in your makefile
+// to select core, define EMU_C68K, EMU_M68K or EMU_A68K in your makefile or project
 
 #ifdef __cplusplus
 extern "C" {
@@ -172,12 +172,13 @@ struct mcd_misc
 
 typedef struct
 {
-	unsigned char bios[0x20000];
+	unsigned char bios[0x20000];			// 128K
 	union {
-		unsigned char prg_ram[0x80000];
+		unsigned char prg_ram[0x80000];		// 512K
 		unsigned char prg_ram_b[4][0x20000];
 	};
-	unsigned char word_ram[0x40000];
+	unsigned char word_ram[0x40000];		// 256K
+	unsigned char bram[0x2000];			// 8K
 	unsigned char s68k_regs[0x200];
 	CDD  cdd;
 	CDC  cdc;

@@ -24,8 +24,8 @@ typedef unsigned int   u32;
 
 //#define __debug_io
 //#define __debug_io2
-//#define rdprintf dprintf
-#define rdprintf(...)
+#define rdprintf dprintf
+//#define rdprintf(...)
 
 // -----------------------------------------------------------------
 
@@ -500,6 +500,7 @@ u8 PicoReadM68k8(u32 a)
   return (u8)d;
 }
 
+
 u16 PicoReadM68k16(u32 a)
 {
   u16 d=0;
@@ -552,6 +553,7 @@ u16 PicoReadM68k16(u32 a)
   return d;
 }
 
+
 u32 PicoReadM68k32(u32 a)
 {
   u32 d=0;
@@ -577,11 +579,10 @@ u32 PicoReadM68k32(u32 a)
       if (a >= 0x220000) {
         dprintf("cell");
       } else {
-        u16 *pm;
         a=((a&0x1fffe)<<1);
 	if (Pico_mcd->s68k_regs[3]&1) a+=2;
-        pm=(u16 *)(Pico_mcd->word_ram+a);
-	d = (pm[0]<<16)|pm[1];
+        d  = *(u16 *)(Pico_mcd->word_ram+a) << 16;
+        d |= *(u16 *)(Pico_mcd->word_ram+a+4);
       }
     } else {
       // allow access in any mode, like Gens does
@@ -606,6 +607,7 @@ u32 PicoReadM68k32(u32 a)
   return d;
 }
 
+
 // -----------------------------------------------------------------
 //                            Write Ram
 
@@ -618,7 +620,10 @@ void PicoWriteM68k8(u32 a,u8 d)
   //  dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 
 
-  if ((a&0xe00000)==0xe00000) { u8 *pm=(u8 *)(Pico.ram+((a^1)&0xffff)); pm[0]=d; return; } // Ram
+  if ((a&0xe00000)==0xe00000) { // Ram
+    *(u8 *)(Pico.ram+((a^1)&0xffff)) = d;
+    return;
+  }
 
   a&=0xffffff;
 
@@ -653,6 +658,7 @@ void PicoWriteM68k8(u32 a,u8 d)
   OtherWrite8(a,d,8);
 }
 
+
 void PicoWriteM68k16(u32 a,u16 d)
 {
 #ifdef __debug_io
@@ -660,7 +666,10 @@ void PicoWriteM68k16(u32 a,u16 d)
 #endif
   //  dprintf("w16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
 
-  if ((a&0xe00000)==0xe00000) { *(u16 *)(Pico.ram+(a&0xfffe))=d; return; } // Ram
+  if ((a&0xe00000)==0xe00000) { // Ram
+    *(u16 *)(Pico.ram+(a&0xfffe))=d;
+    return;
+  }
 
   a&=0xfffffe;
 
@@ -695,6 +704,7 @@ void PicoWriteM68k16(u32 a,u16 d)
   OtherWrite16(a,d);
 }
 
+
 void PicoWriteM68k32(u32 a,u32 d)
 {
 #ifdef __debug_io
@@ -727,11 +737,10 @@ void PicoWriteM68k32(u32 a,u32 d)
       if (a >= 0x220000) {
         dprintf("cell");
       } else {
-        u16 *pm;
         a=((a&0x1fffe)<<1);
 	if (Pico_mcd->s68k_regs[3]&1) a+=2;
-        pm=(u16 *)(Pico_mcd->word_ram+a);
-        pm[0]=(u16)(d>>16); pm[1]=(u16)d;
+        *(u16 *)(Pico_mcd->word_ram+a) = d>>16;
+        *(u16 *)(Pico_mcd->word_ram+a+4) = d;
       }
     } else {
       // allow access in any mode, like Gens does
@@ -743,6 +752,22 @@ void PicoWriteM68k32(u32 a,u32 d)
 
   if ((a&0xffffc0)==0xa12000)
     rdprintf("m68k_regs w32: [%02x] %08x @%06x", a&0x3f, d, SekPc);
+
+#if 0
+  if ((a&0x3f) == 0x1c && SekPc == 0xffff05ba)
+  {
+	  int i;
+	  FILE *ff;
+	  unsigned short *ram = (unsigned short *) Pico.ram;
+	  // unswap and dump RAM
+	  for (i = 0; i < 0x10000/2; i++)
+		  ram[i] = (ram[i]>>8) | (ram[i]<<8);
+	  ff = fopen("ram.bin", "wb");
+	  fwrite(ram, 1, 0x10000, ff);
+	  fclose(ff);
+	  exit(0);
+  }
+#endif
 
   OtherWrite16(a,  (u16)(d>>16));
   OtherWrite16(a+2,(u16)d);
@@ -800,6 +825,12 @@ u8 PicoReadS68k8(u32 a)
     goto end;
   }
 
+  // bram
+  if ((a&0xff0000)==0xfe0000) {
+    d = Pico_mcd->bram[(a>>1)&0x1fff];
+    goto end;
+  }
+
   dprintf("s68k r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPcS68k);
 
   end:
@@ -809,6 +840,7 @@ u8 PicoReadS68k8(u32 a)
 #endif
   return (u8)d;
 }
+
 
 u16 PicoReadS68k16(u32 a)
 {
@@ -843,7 +875,7 @@ u16 PicoReadS68k16(u32 a)
       // allow access in any mode, like Gens does
       d = *(u16 *)(Pico_mcd->word_ram+(a&0x3fffe));
     }
-    dprintf("ret = %04x", (u8)d);
+    dprintf("ret = %04x", d);
     goto end;
   }
 
@@ -853,7 +885,17 @@ u16 PicoReadS68k16(u32 a)
     a=((a&0x1fffe)<<1);
     if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
     d = *(u16 *)(Pico_mcd->word_ram+a);
-    dprintf("ret = %04x", (u8)d);
+    dprintf("ret = %04x", d);
+    goto end;
+  }
+
+  // bram
+  if ((a&0xff0000)==0xfe0000) {
+    dprintf("s68k_bram r16: [%06x] @%06x", a, SekPc);
+    a = (a>>1)&0x1fff;
+    d = Pico_mcd->bram[a++];		// Gens does little endian here, an so do we..
+    d|= Pico_mcd->bram[a++] << 8;
+    dprintf("ret = %04x", d);
     goto end;
   }
 
@@ -866,6 +908,7 @@ u16 PicoReadS68k16(u32 a)
 #endif
   return d;
 }
+
 
 u32 PicoReadS68k32(u32 a)
 {
@@ -901,19 +944,30 @@ u32 PicoReadS68k32(u32 a)
       // allow access in any mode, like Gens does
       u16 *pm=(u16 *)(Pico_mcd->word_ram+(a&0x3fffe)); d = (pm[0]<<16)|pm[1];
     }
-    dprintf("ret = %08x", (u8)d);
+    dprintf("ret = %08x", d);
     goto end;
   }
 
   // word RAM (1M area)
   if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
-    u16 *pm;
-    dprintf("s68k_wram1M 32: [%06x] @%06x", a, SekPc);
+    dprintf("s68k_wram1M r32: [%06x] @%06x", a, SekPc);
     a=((a&0x1fffe)<<1);
     if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
-    pm=(u16 *)(Pico_mcd->word_ram+a);
-    d  = (pm[0]<<16)|pm[1];
-    dprintf("ret = %08x", (u8)d);
+    d  = *(u16 *)(Pico_mcd->word_ram+a) << 16;
+    d |= *(u16 *)(Pico_mcd->word_ram+a+4);
+    dprintf("ret = %08x", d);
+    goto end;
+  }
+
+  // bram
+  if ((a&0xff0000)==0xfe0000) {
+    dprintf("s68k_bram r32: [%06x] @%06x", a, SekPc);
+    a = (a>>1)&0x1fff;
+    d = Pico_mcd->bram[a++] << 16;		// middle endian? TODO: verify against Fusion..
+    d|= Pico_mcd->bram[a++] << 24;
+    d|= Pico_mcd->bram[a++];
+    d|= Pico_mcd->bram[a++] << 8;
+    dprintf("ret = %08x", d);
     goto end;
   }
 
@@ -926,6 +980,7 @@ u32 PicoReadS68k32(u32 a)
 #endif
   return d;
 }
+
 
 // -----------------------------------------------------------------
 
@@ -980,8 +1035,16 @@ void PicoWriteS68k8(u32 a,u8 d)
     return;
   }
 
+  // bram
+  if ((a&0xff0000)==0xfe0000) {
+    Pico_mcd->bram[(a>>1)&0x1fff] = d;
+    SRam.changed = 1;
+    return;
+  }
+
   dprintf("s68k w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPcS68k);
 }
+
 
 void PicoWriteS68k16(u32 a,u16 d)
 {
@@ -1033,8 +1096,19 @@ void PicoWriteS68k16(u32 a,u16 d)
     return;
   }
 
+  // bram
+  if ((a&0xff0000)==0xfe0000) {
+    dprintf("s68k_bram w16: [%06x] %04x @%06x", a, d, SekPc);
+    a = (a>>1)&0x1fff;
+    Pico_mcd->bram[a++] = d;		// Gens does little endian here, an so do we..
+    Pico_mcd->bram[a++] = d >> 8;
+    SRam.changed = 1;
+    return;
+  }
+
   dprintf("s68k w16: %06x, %04x @%06x", a&0xffffff, d, SekPcS68k);
 }
+
 
 void PicoWriteS68k32(u32 a,u32 d)
 {
@@ -1083,15 +1157,27 @@ void PicoWriteS68k32(u32 a,u32 d)
 
   // word RAM (1M area)
   if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
-    u16 *pm;
     if (d)
       dprintf("s68k_wram1M w32: [%06x] %08x @%06x", a, d, SekPc);
     a=((a&0x1fffe)<<1);
     if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
-    pm=(u16 *)(Pico_mcd->word_ram+a);
-    pm[0]=(u16)(d>>16); pm[1]=(u16)d;
+    *(u16 *)(Pico_mcd->word_ram+a) = d>>16;
+    *(u16 *)(Pico_mcd->word_ram+a+4) = d;
     return;
   }
+
+  // bram
+  if ((a&0xff0000)==0xfe0000) {
+    dprintf("s68k_bram w32: [%06x] %08x @%06x", a, d, SekPc);
+    a = (a>>1)&0x1fff;
+    Pico_mcd->bram[a++] = d >> 16;		// middle endian? verify?
+    Pico_mcd->bram[a++] = d >> 24;
+    Pico_mcd->bram[a++] = d;
+    Pico_mcd->bram[a++] = d >> 8;
+    SRam.changed = 1;
+    return;
+  }
+
   dprintf("s68k w32: %06x, %08x @%06x", a&0xffffff, d, SekPcS68k);
 }
 

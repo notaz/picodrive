@@ -771,8 +771,6 @@ static void RunEvents(unsigned int which)
 		}
 		if (do_it) {
 			blit("", (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
-			if(movie_data) {
-			}
 			emu_SaveLoadGame(which & 0x1000, 0);
 		}
 
@@ -1269,7 +1267,7 @@ int emu_SaveLoadGame(int load, int sram)
 
 	// make save filename
 	romfname_ext(saveFname, "");
-	if(sram) strcat(saveFname, ".srm");
+	if(sram) strcat(saveFname, (PicoMCD&1) ? ".brm" : ".srm");
 	else {
 		if(state_slot > 0 && state_slot < 10) sprintf(saveFname, "%s.%i", saveFname, state_slot);
 		strcat(saveFname, ".mds");
@@ -1279,30 +1277,41 @@ int emu_SaveLoadGame(int load, int sram)
 
 	if(sram) {
 		FILE *sramFile;
-		int sram_size = SRam.end-SRam.start+1;
-		if(SRam.reg_back & 4) sram_size=0x2000;
-		if(!SRam.data) return 0; // SRam forcefully disabled for this game
+		int sram_size;
+		unsigned char *sram_data;
+		if (PicoMCD&1) {
+			sram_size = 0x2000;
+			sram_data = Pico_mcd->bram;
+		} else {
+			sram_size = SRam.end-SRam.start+1;
+			if(SRam.reg_back & 4) sram_size=0x2000;
+			sram_data = SRam.data;
+		}
+		if(!sram_data) return 0; // SRam forcefully disabled for this game
+
 		if(load) {
 			sramFile = fopen(saveFname, "rb");
 			if(!sramFile) return -1;
-			fread(SRam.data, 1, sram_size, sramFile);
+			fread(sram_data, 1, sram_size, sramFile);
 			fclose(sramFile);
 		} else {
 			// sram save needs some special processing
 			// see if we have anything to save
 			for(; sram_size > 0; sram_size--)
-				if(SRam.data[sram_size-1]) break;
+				if(sram_data[sram_size-1]) break;
 
 			if(sram_size) {
 				sramFile = fopen(saveFname, "wb");
-				ret = fwrite(SRam.data, 1, sram_size, sramFile);
+				ret = fwrite(sram_data, 1, sram_size, sramFile);
 				ret = (ret != sram_size) ? -1 : 0;
 				fclose(sramFile);
 				sync();
 			}
 		}
 		return ret;
-	} else {
+	}
+	else
+	{
 		void *PmovFile = NULL;
 		// try gzip first
 		if(currentConfig.EmuOpt & 8) {

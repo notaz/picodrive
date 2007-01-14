@@ -14,6 +14,7 @@ extern const unsigned char  hcounts_40[];
 extern const unsigned short vcounts[];
 extern int rendstatus;
 
+typedef unsigned char  u8;
 typedef unsigned short u16;
 
 
@@ -93,13 +94,44 @@ static void DmaSlow(int len)
     SekSetCyclesLeft(SekCyclesLeft - (len*(((488<<8)/167))>>8));
   }
 
-  if ((source&0xe00000)==0xe00000) { pd=(u16 *)(Pico.ram+(source&0xfffe)); pdend=(u16 *)(Pico.ram+0x10000); } // Ram
-  else if(PicoMCD & 1) {
-    if(source<0x20000) { pd=(u16 *)(Pico_mcd->bios+(source&~1)); pdend=(u16 *)(Pico_mcd->bios+0x20000); } // Bios area
-    else { dprintf("unsupported src"); return; } // Invalid source address
+  if ((source&0xe00000)==0xe00000) { // Ram
+    pd=(u16 *)(Pico.ram+(source&0xfffe));
+    pdend=(u16 *)(Pico.ram+0x10000);
+  } else if(PicoMCD & 1) {
+    dprintf("DmaSlow CD");
+    if(source<0x20000) { // Bios area
+      pd=(u16 *)(Pico_mcd->bios+(source&~1));
+      pdend=(u16 *)(Pico_mcd->bios+0x20000);
+    } else if ((source&0xfc0000)==0x200000 && (!(Pico_mcd->s68k_regs[3]&4))) { // Word Ram
+      if (!(Pico_mcd->s68k_regs[3]&4)) { // 2M mode
+        pd=(u16 *)(Pico_mcd->word_ram+(source&0x3fffe));
+        pdend=(u16 *)(Pico_mcd->word_ram+0x40000);
+      } else {
+        dprintf("DmaSlow: unsupported src");
+	return;
+      }
+    } else if ((source&0xfe0000)==0x020000) { // Prg Ram
+      u8 *prg_ram = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
+      pd=(u16 *)(prg_ram+(source&0x1fffe));
+      pdend=(u16 *)(prg_ram+0x20000);
+    } else {
+      dprintf("DmaSlow: unsupported src");
+      return;
+    }
   } else {
-    if(source<Pico.romsize) { pd=(u16 *)(Pico.rom+(source&~1)); pdend=(u16 *)(Pico.rom+Pico.romsize); } // Rom
-    else { dprintf("invalid dma src"); return; } // Invalid source address
+    if(source<Pico.romsize) { // Rom
+      pd=(u16 *)(Pico.rom+(source&~1));
+      pdend=(u16 *)(Pico.rom+Pico.romsize);
+    } else {
+      dprintf("DmaSlow: invalid dma src");
+      return;
+    }
+  }
+
+  // overflow protection, might break something..
+  if (len > pdend - pd) {
+    len = pdend - pd;
+    dprintf("DmaSlow overflow");
   }
 
   switch (Pico.video.type)
@@ -114,7 +146,7 @@ static void DmaSlow(int len)
         // AutoIncrement
         a=(u16)(a+inc);
         // didn't src overlap?
-        if(pd >= pdend) pd-=0x8000; // should be good for RAM, bad for ROM
+        //if(pd >= pdend) pd-=0x8000; // should be good for RAM, bad for ROM
       }
       rendstatus|=0x10;
       break;
@@ -128,7 +160,7 @@ static void DmaSlow(int len)
         // AutoIncrement
         a2+=inc;
         // didn't src overlap?
-        if(pd >= pdend) pd-=0x8000;
+        //if(pd >= pdend) pd-=0x8000;
         // good dest?
         if(a2 >= 0x80) break; // Todds Adventures in Slime World / Andre Agassi tennis
       }
@@ -143,7 +175,7 @@ static void DmaSlow(int len)
         // AutoIncrement
         a2+=inc;
         // didn't src overlap?
-        if(pd >= pdend) pd-=0x8000;
+        //if(pd >= pdend) pd-=0x8000;
         // good dest?
         if(a2 >= 0x80) break;
       }
