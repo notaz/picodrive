@@ -1,7 +1,7 @@
 // This is part of Pico Library
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2007 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -474,6 +474,22 @@ u8 PicoReadM68k8(u32 a)
     goto end;
   }
 
+#if 0
+  if (a == 0x200000 && SekPc == 0xff0b66 && Pico.m.frame_count > 1000)
+  {
+	  int i;
+	  FILE *ff;
+	  unsigned short *ram = (unsigned short *) Pico.ram;
+	  // unswap and dump RAM
+	  for (i = 0; i < 0x10000/2; i++)
+		  ram[i] = (ram[i]>>8) | (ram[i]<<8);
+	  ff = fopen("ram.bin", "wb");
+	  fwrite(ram, 1, 0x10000, ff);
+	  fclose(ff);
+	  exit(0);
+  }
+#endif
+
   // word RAM
   if ((a&0xfc0000)==0x200000) {
     dprintf("m68k_wram r8: [%06x] @%06x", a, SekPc);
@@ -763,22 +779,6 @@ void PicoWriteM68k32(u32 a,u32 d)
 
   if ((a&0xffffc0)==0xa12000)
     rdprintf("m68k_regs w32: [%02x] %08x @%06x", a&0x3f, d, SekPc);
-
-#if 0
-  if ((a&0x3f) == 0x1c && SekPc == 0xffff05ba)
-  {
-	  int i;
-	  FILE *ff;
-	  unsigned short *ram = (unsigned short *) Pico.ram;
-	  // unswap and dump RAM
-	  for (i = 0; i < 0x10000/2; i++)
-		  ram[i] = (ram[i]>>8) | (ram[i]<<8);
-	  ff = fopen("ram.bin", "wb");
-	  fwrite(ram, 1, 0x10000, ff);
-	  fclose(ff);
-	  exit(0);
-  }
-#endif
 
   OtherWrite16(a,  (u16)(d>>16));
   OtherWrite16(a+2,(u16)d);
@@ -1196,6 +1196,97 @@ void PicoWriteS68k32(u32 a,u32 d)
 
 // -----------------------------------------------------------------
 
+
+#if defined(EMU_C68K)
+static __inline int PicoMemBaseM68k(u32 pc)
+{
+  int membase=0;
+
+  if (pc < 0x20000)
+  {
+    membase=(int)Pico_mcd->bios; // Program Counter in BIOS
+  }
+  else if ((pc&0xe00000)==0xe00000)
+  {
+    membase=(int)Pico.ram-(pc&0xff0000); // Program Counter in Ram
+  }
+  else if ((pc&0xfc0000)==0x200000 && !(Pico_mcd->s68k_regs[3]&4))
+  {
+    membase=(int)Pico_mcd->word_ram-0x200000; // Program Counter in Word Ram
+  }
+  else
+  {
+    // Error - Program Counter is invalid
+    dprintf("m68k: unhandled jump to %06x", pc);
+    membase=(int)Pico.rom;
+  }
+
+  return membase;
+}
+
+
+static u32 PicoCheckPcM68k(u32 pc)
+{
+  pc-=PicoCpu.membase; // Get real pc
+  pc&=0xfffffe;
+
+  PicoCpu.membase=PicoMemBaseM68k(pc);
+
+  return PicoCpu.membase+pc;
+}
+
+
+static __inline int PicoMemBaseS68k(u32 pc)
+{
+  int membase;
+
+  membase=(int)Pico_mcd->prg_ram; // Program Counter in Prg RAM
+  if (pc >= 0x80000)
+  {
+    // Error - Program Counter is invalid
+    dprintf("s68k: unhandled jump to %06x", pc);
+  }
+
+  return membase;
+}
+
+
+static u32 PicoCheckPcS68k(u32 pc)
+{
+  pc-=PicoCpuS68k.membase; // Get real pc
+  pc&=0xfffffe;
+
+  PicoCpuS68k.membase=PicoMemBaseS68k(pc);
+
+  return PicoCpuS68k.membase+pc;
+}
+#endif
+
+
+void PicoMemSetupCD()
+{
+  dprintf("PicoMemSetupCD()");
+#ifdef EMU_C68K
+  // Setup m68k memory callbacks:
+  PicoCpu.checkpc=PicoCheckPcM68k;
+  PicoCpu.fetch8 =PicoCpu.read8 =PicoReadM68k8;
+  PicoCpu.fetch16=PicoCpu.read16=PicoReadM68k16;
+  PicoCpu.fetch32=PicoCpu.read32=PicoReadM68k32;
+  PicoCpu.write8 =PicoWriteM68k8;
+  PicoCpu.write16=PicoWriteM68k16;
+  PicoCpu.write32=PicoWriteM68k32;
+  // s68k
+  PicoCpuS68k.checkpc=PicoCheckPcS68k;
+  PicoCpuS68k.fetch8 =PicoCpuS68k.read8 =PicoReadS68k8;
+  PicoCpuS68k.fetch16=PicoCpuS68k.read16=PicoReadS68k16;
+  PicoCpuS68k.fetch32=PicoCpuS68k.read32=PicoReadS68k32;
+  PicoCpuS68k.write8 =PicoWriteS68k8;
+  PicoCpuS68k.write16=PicoWriteS68k16;
+  PicoCpuS68k.write32=PicoWriteS68k32;
+#endif
+}
+
+
 #ifdef EMU_M68K
 unsigned char  PicoReadCD8w (unsigned int a) {
 	return m68ki_cpu_p == &PicoS68kCPU ? PicoReadS68k8(a) : PicoReadM68k8(a);
@@ -1221,10 +1312,13 @@ unsigned int  m68k_read_pcrelative_CD8 (unsigned int a) {
   a&=0xffffff;
   if(m68ki_cpu_p == &PicoS68kCPU) {
     if (a < 0x80000) return *(u8 *)(Pico_mcd->prg_ram+(a^1)); // PRG Ram
-    else dprintf("s68k read_pcrel8 @ %06x", a);
+    dprintf("s68k_read_pcrelative_CD8: can't handle %06x", a);
   } else {
-    if(a<Pico.romsize)         return *(u8 *)(Pico.rom+(a^1)); // Rom
+    if(a<0x20000)              return *(u8 *)(Pico.rom+(a^1)); // Bios
     if((a&0xe00000)==0xe00000) return *(u8 *)(Pico.ram+((a^1)&0xffff)); // Ram
+    if(!(Pico_mcd->s68k_regs[3]&4) && (a&0xfc0000)==0x200000)
+      return Pico_mcd->word_ram[(a^1)&0x3fffe];
+    dprintf("m68k_read_pcrelative_CD8: can't handle %06x", a);
   }
   return 0;//(u8)  lastread_d;
 }
@@ -1232,23 +1326,29 @@ unsigned int  m68k_read_pcrelative_CD16(unsigned int a) {
   a&=0xffffff;
   if(m68ki_cpu_p == &PicoS68kCPU) {
     if (a < 0x80000) return *(u16 *)(Pico_mcd->prg_ram+(a&~1)); // PRG Ram
-    else dprintf("s68k read_pcrel16 @ %06x", a);
+    dprintf("s68k_read_pcrelative_CD16: can't handle %06x", a);
   } else {
-    if(a<Pico.romsize)         return *(u16 *)(Pico.rom+(a&~1)); // Rom
+    if(a<0x20000)              return *(u16 *)(Pico.rom+(a&~1)); // Bios
     if((a&0xe00000)==0xe00000) return *(u16 *)(Pico.ram+(a&0xfffe)); // Ram
+    if(!(Pico_mcd->s68k_regs[3]&4) && (a&0xfc0000)==0x200000)
+      return *(u16 *)(Pico_mcd->word_ram+(a&0x3fffe));
+    dprintf("m68k_read_pcrelative_CD16: can't handle %06x", a);
   }
-  return 0;//(u16) lastread_d;
+  return 0;
 }
 unsigned int  m68k_read_pcrelative_CD32(unsigned int a) {
   a&=0xffffff;
   if(m68ki_cpu_p == &PicoS68kCPU) {
     if (a < 0x80000) { u16 *pm=(u16 *)(Pico_mcd->prg_ram+(a&~1)); return (pm[0]<<16)|pm[1]; } // PRG Ram
-    else dprintf("s68k read_pcrel32 @ %06x", a);
+    dprintf("s68k_read_pcrelative_CD32: can't handle %06x", a);
   } else {
-    if(a<Pico.romsize)         { u16 *pm=(u16 *)(Pico.rom+(a&~1));     return (pm[0]<<16)|pm[1]; }
+    if(a<0x20000)              { u16 *pm=(u16 *)(Pico.rom+(a&~1));     return (pm[0]<<16)|pm[1]; }
     if((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); return (pm[0]<<16)|pm[1]; } // Ram
+    if(!(Pico_mcd->s68k_regs[3]&4) && (a&0xfc0000)==0x200000)
+      { u16 *pm=(u16 *)(Pico_mcd->word_ram+(a&0x3fffe)); return (pm[0]<<16)|pm[1]; }
+    dprintf("m68k_read_pcrelative_CD32: can't handle %06x", a);
   }
-  return 0; //lastread_d;
+  return 0;
 }
 #endif // EMU_M68K
 

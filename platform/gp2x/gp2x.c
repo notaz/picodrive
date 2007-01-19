@@ -223,9 +223,9 @@ void Pause940(int yes)
 }
 
 
-void Reset940(int yes)
+void Reset940(int yes, int bank)
 {
-	gp2x_memregs[0x3B48>>1] = ((yes&1) << 7) | (0x03); /* bank=3 */
+	gp2x_memregs[0x3B48>>1] = ((yes&1) << 7) | (bank & 0x03); /* bank=3 */
 }
 
 
@@ -280,7 +280,7 @@ char *ext_menu = 0, *ext_state = 0;
 
 void gp2x_deinit(void)
 {
-	Reset940(1);
+	Reset940(1, 3);
 	Pause940(1);
 
 	gp2x_video_changemode(15);

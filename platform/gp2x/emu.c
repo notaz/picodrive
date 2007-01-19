@@ -374,7 +374,7 @@ int emu_ReloadRom(void)
 		}
 	}
 	gettimeofday(&noticeMsgTime, 0);
-
+printf("PicoMCD: %x\n", PicoMCD);
 	// load SRAM for this ROM
 	if(currentConfig.EmuOpt & 1)
 		emu_SaveLoadGame(1, 1);
@@ -586,8 +586,10 @@ void osd_text(int x, int y, char *text)
 
 static void cd_leds(void)
 {
-	static int old_reg = 0;
-	if (!((Pico_mcd->s68k_regs[0] ^ old_reg) & 3)) return; // no change
+	// mmu problems?
+//	static
+	int old_reg;
+//	if (!((Pico_mcd->s68k_regs[0] ^ old_reg) & 3)) return; // no change
 	old_reg = Pico_mcd->s68k_regs[0];
 
 	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
@@ -1021,7 +1023,7 @@ void emu_Loop(void)
 		if(PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old || crashed_940) {
 			/* if 940 is turned off, we need it to be put back to sleep */
 			if (!(PicoOpt&0x200) && ((PicoOpt^PicoOpt_old)&0x200)) {
-				Reset940(1);
+				Reset940(1, 2);
 				Pause940(1);
 			}
 			sound_rerate();

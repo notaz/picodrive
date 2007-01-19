@@ -250,9 +250,10 @@ static void wait_busy_940(void)
 }
 
 
-static void add_job_940(int job)
+static void add_job_940(int job0, int job1)
 {
-	shared_ctl->job = job;
+	shared_ctl->jobs[0] = job0;
+	shared_ctl->jobs[1] = job1;
 	shared_ctl->busy = 1;
 	gp2x_memregs[0x3B3E>>1] = 0xffff; // cause an IRQ for 940
 }
@@ -276,7 +277,7 @@ void YM2612PicoStateLoad_940(void)
 
 	addr_A1 = old_A1;
 
-	add_job_940(JOB940_PICOSTATELOAD);
+	add_job_940(JOB940_PICOSTATELOAD, 0);
 }
 
 
@@ -299,10 +300,9 @@ extern char **g_argv;
 void YM2612Init_940(int baseclock, int rate)
 {
 	printf("YM2612Init_940()\n");
-	//printf("sizeof(*shared_data): %i (%x)\n", sizeof(*shared_data), sizeof(*shared_data));
-	//printf("sizeof(*shared_ctl): %i (%x)\n", sizeof(*shared_ctl), sizeof(*shared_ctl));
+	printf("Mem usage: shared_data: %i, shared_ctl: %i\n", sizeof(*shared_data), sizeof(*shared_ctl));
 
-	Reset940(1);
+	Reset940(1, 2);
 	Pause940(1);
 
 	gp2x_memregs[0x3B46>>1] = 0xffff; // clear pending DUALCPU interrupts for 940
@@ -312,7 +312,7 @@ void YM2612Init_940(int baseclock, int rate)
 
 	if (shared_mem == NULL)
 	{
-		shared_mem = (unsigned char *) mmap(0, 0x210000, PROT_READ|PROT_WRITE, MAP_SHARED, memdev, 0x3000000);
+		shared_mem = (unsigned char *) mmap(0, 0x210000, PROT_READ|PROT_WRITE, MAP_SHARED, memdev, 0x2000000);
 		if(shared_mem == MAP_FAILED)
 		{
 			printf("mmap(shared_data) failed with %i\n", errno);
@@ -373,11 +373,12 @@ void YM2612Init_940(int baseclock, int rate)
 	/* now cause 940 to init it's ym2612 stuff */
 	shared_ctl->baseclock = baseclock;
 	shared_ctl->rate = rate;
-	shared_ctl->job = JOB940_YM2612INIT;
+	shared_ctl->jobs[0] = JOB940_YM2612INIT;
+	shared_ctl->jobs[1] = 0;
 	shared_ctl->busy = 1;
 
 	/* start the 940 */
-	Reset940(0);
+	Reset940(0, 2);
 	Pause940(0);
 
 	// YM2612ResetChip_940(); // will be done on JOB940_YM2612INIT
@@ -396,7 +397,7 @@ void YM2612ResetChip_940(void)
 
 	internal_reset();
 
-	add_job_940(JOB940_YM2612RESETCHIP);
+	add_job_940(JOB940_YM2612RESETCHIP, 0);
 }
 
 
@@ -444,7 +445,7 @@ void YM2612UpdateOne_940(short *buffer, int length, int stereo)
 	shared_ctl->writebuffsel ^= 1;
 	shared_ctl->length = length;
 	shared_ctl->stereo = stereo;
-	add_job_940(JOB940_YM2612UPDATEONE);
+	add_job_940(JOB940_YM2612UPDATEONE, 0);
 	//spend_cycles(512);
 	//printf("SRCPND: %08lx, INTMODE: %08lx, INTMASK: %08lx, INTPEND: %08lx\n",
 	//	gp2x_memregl[0x4500>>2], gp2x_memregl[0x4504>>2], gp2x_memregl[0x4508>>2], gp2x_memregl[0x4510>>2]);

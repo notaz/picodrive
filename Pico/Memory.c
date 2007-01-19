@@ -319,14 +319,16 @@ static void OtherWrite8(u32 a,u32 d,int realsize)
     //int lineCycles=(488-SekCyclesLeft)&0x1ff;
     d&=1; d^=1;
     if(!d) {
-       // hack: detect a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
-      // if((PicoOpt&4) && Pico.m.z80Run==1) z80_run(20); // FIXME: movies
-      z80stopCycle = SekCyclesDone();
-      //z80ExtraCycles += (lineCycles>>1)-(lineCycles>>5); // only meaningful in PicoFrameHints()
+      // this is for a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
+      if (Pico.m.z80Run) {
+        int lineCycles=(488-SekCyclesLeft)&0x1ff;
+        z80stopCycle = SekCyclesDone();
+        lineCycles=(lineCycles>>1)-(lineCycles>>5);
+        z80_run(lineCycles);
+      }
     } else {
       z80startCycle = SekCyclesDone();
       //if(Pico.m.scanline != -1)
-      //z80ExtraCycles -= (lineCycles>>1)-(lineCycles>>5)+16;
     }
     dprintf("set_zrun: %02x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), /*mz80GetRegisterValue(NULL, 0),*/ SekPc);
     Pico.m.z80Run=(u8)d; return;
@@ -621,7 +623,7 @@ static void CPU_CALL PicoWrite32(u32 a,u32 d)
 
 
 // -----------------------------------------------------------------
-int PicoMemInit()
+void PicoMemSetup()
 {
 #ifdef EMU_C68K
   // Setup memory callbacks:
@@ -633,7 +635,6 @@ int PicoMemInit()
   PicoCpu.write16=PicoWrite16;
   PicoCpu.write32=PicoWrite32;
 #endif
-  return 0;
 }
 
 #ifdef EMU_A68K

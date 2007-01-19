@@ -327,7 +327,7 @@ void Pause940(int yes)
 {
 }
 
-void Reset940(int yes)
+void Reset940(int yes, int bank)
 {
 }
 

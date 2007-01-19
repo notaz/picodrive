@@ -41,8 +41,8 @@ static int (*ResetCallback)()=DoReset;
 
 
 
-// interrupt acknowledgment
 #ifdef EMU_C68K
+// interrupt acknowledgment
 static void SekIntAck(int level)
 {
   // try to emulate VDP's reaction to 68000 int ack
@@ -143,12 +143,8 @@ int SekReset()
   PicoInitPc(M68000_regs.pc);
 #endif
 #ifdef EMU_M68K
-  {
-    void *oldcontext = m68ki_cpu_p;
-    m68k_set_context(&PicoM68kCPU);
-    m68k_pulse_reset();
-    m68k_set_context(oldcontext);
-  }
+  m68k_set_context(&PicoM68kCPU); // if we ever reset m68k, we always need it's context to be set
+  m68k_pulse_reset();
 #endif
 
   return 0;

@@ -23,10 +23,11 @@ extern "C" {
 // ----------------------- 68000 CPU -----------------------
 #ifdef EMU_C68K
 #include "../cpu/Cyclone/Cyclone.h"
-extern struct Cyclone PicoCpu;
+extern struct Cyclone PicoCpu, PicoCpuS68k;
 #define SekCyclesLeft PicoCpu.cycles // cycles left for this run
 #define SekSetCyclesLeft(c) PicoCpu.cycles=c
 #define SekPc (PicoCpu.pc-PicoCpu.membase)
+#define SekPcS68k (PicoCpuS68k.pc-PicoCpuS68k.membase)
 #endif
 
 #ifdef EMU_A68K
@@ -201,15 +202,16 @@ void PicoFrameFull();
 // Memory.c
 int PicoInitPc(unsigned int pc);
 unsigned int CPU_CALL PicoRead32(unsigned int a);
-int  PicoMemInit();
+void PicoMemSetup();
 void PicoMemReset();
-void PicoDasm(int start,int len);
+//void PicoDasm(int start,int len);
 unsigned char z80_read(unsigned short a);
 unsigned short z80_read16(unsigned short a);
 void z80_write(unsigned char data, unsigned short a);
 void z80_write16(unsigned short data, unsigned short a);
 
 // cd/Memory.c
+void PicoMemSetupCD();
 unsigned char  PicoReadCD8 (unsigned int a);
 unsigned short PicoReadCD16(unsigned int a);
 unsigned int   PicoReadCD32(unsigned int a);

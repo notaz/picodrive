@@ -33,7 +33,7 @@ int PicoResetMCD(int hard)
   // clear everything except BIOS
   memset(Pico_mcd->prg_ram, 0, sizeof(mcd_state) - sizeof(Pico_mcd->bios));
   *(unsigned int *)(Pico_mcd->bios + 0x70) = 0xffffffff; // reset hint vector (simplest way to implement reg6)
-  PicoMCD |= 2; // s68k reset pending
+  PicoMCD |= 2; // s68k reset pending. TODO: move
   Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode with m68k access after reset
   counter75hz = 0;
 
@@ -48,7 +48,11 @@ static __inline void SekRun(int cyc)
   int cyc_do;
   SekCycleAim+=cyc;
   if((cyc_do=SekCycleAim-SekCycleCnt) < 0) return;
-#if defined(EMU_M68K)
+#if defined(EMU_C68K)
+  PicoCpu.cycles=cyc_do;
+  CycloneRun(&PicoCpu);
+  SekCycleCnt+=cyc_do-PicoCpu.cycles;
+#elif defined(EMU_M68K)
   m68k_set_context(&PicoM68kCPU);
   SekCycleCnt+=m68k_execute(cyc_do);
 #endif
@@ -59,7 +63,11 @@ static __inline void SekRunS68k(int cyc)
   int cyc_do;
   SekCycleAimS68k+=cyc;
   if((cyc_do=SekCycleAimS68k-SekCycleCntS68k) < 0) return;
-#if defined(EMU_M68K)
+#if defined(EMU_C68K)
+  PicoCpuS68k.cycles=cyc_do;
+  CycloneRun(&PicoCpuS68k);
+  SekCycleCntS68k+=cyc_do-PicoCpuS68k.cycles;
+#elif defined(EMU_M68K)
   m68k_set_context(&PicoS68kCPU);
   SekCycleCntS68k+=m68k_execute(cyc_do);
 #endif
@@ -81,6 +89,27 @@ static __inline void check_cd_dma(void)
 
 	Update_CDC_TRansfer(ddx); // now go and do the actual transfer
 }
+
+// to be called on 224 or line_sample scanlines only
+static __inline void getSamples(int y)
+{
+  if(y == 224) {
+    //dprintf("sta%i: %i [%i]", (emustatus & 2), emustatus, y);
+    if(emustatus & 2)
+        sound_render(PsndLen/2, PsndLen-PsndLen/2);
+    else sound_render(0, PsndLen);
+    if (emustatus&1) emustatus|=2; else emustatus&=~2;
+    if (PicoWriteSound) PicoWriteSound();
+    // clear sound buffer
+    memset(PsndOut, 0, (PicoOpt & 8) ? (PsndLen<<2) : (PsndLen<<1));
+  }
+  else if(emustatus & 3) {
+    emustatus|= 2;
+    emustatus&=~1;
+    sound_render(0, PsndLen/2);
+  }
+}
+
 
 
 // Accurate but slower frame which does hints
@@ -176,7 +205,7 @@ static int PicoFrameHintsMCD(void)
     if(y == 32 && PsndOut)
       emustatus &= ~1;
     else if((y == 224 || y == line_sample) && PsndOut)
-      ;//getSamples(y);
+      getSamples(y);
 
     // Run scanline:
       //dprintf("m68k starting exec @ %06x", SekPc);

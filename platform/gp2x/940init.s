@@ -31,9 +31,9 @@ code940:                          @ interrupt table:
     b       .Begin
 .b_irq:
     mov     r12, #6
-	mov     sp, #0x100000       @ reset stack
-	sub     sp, sp, #4
-    mov     r1, #0xbd000000     @ assume we live @ 0x3000000 bank
+    mov     sp, #0x100000       @ reset stack
+    sub     sp, sp, #4
+    mov     r1, #0xbe000000     @ assume we live @ 0x2000000 bank
     orr     r2, r1, #0x3B00
     orr     r2, r2, #0x0046
     mvn     r3, #0
@@ -48,51 +48,51 @@ code940:                          @ interrupt table:
     b       .Begin
 
 .Begin:
-	mov sp, #0x100000           @ set the stack top (1M)
-	sub sp, sp, #4              @ minus 4
+    mov sp, #0x100000           @ set the stack top (1M)
+    sub sp, sp, #4              @ minus 4
 
-	@ set up memory region 0 -- the whole 4GB address space
-	mov r0, #(0x1f<<1)|1        @ region data
-	mcr p15, 0, r0, c6, c0, 0   @ opcode2 ~ data/instr
-	mcr p15, 0, r0, c6, c0, 1
+    @ set up memory region 0 -- the whole 4GB address space
+    mov r0, #(0x1f<<1)|1        @ region data
+    mcr p15, 0, r0, c6, c0, 0   @ opcode2 ~ data/instr
+    mcr p15, 0, r0, c6, c0, 1
 
     @ set up region 1 which is the first 2 megabytes.
-	mov r0, #(0x14<<1)|1        @ region data
-	mcr p15, 0, r0, c6, c1, 0
-	mcr p15, 0, r0, c6, c1, 1
+    mov r0, #(0x14<<1)|1        @ region data
+    mcr p15, 0, r0, c6, c1, 0
+    mcr p15, 0, r0, c6, c1, 1
 
     @ set up region 2: 64k 0x200000-0x210000
-	mov r0, #(0x0f<<1)|1
+    mov r0, #(0x0f<<1)|1
     orr r0, r0, #0x200000
-	mcr p15, 0, r0, c6, c2, 0
-	mcr p15, 0, r0, c6, c2, 1
+    mcr p15, 0, r0, c6, c2, 0
+    mcr p15, 0, r0, c6, c2, 1
 
-    @ set up region 3: 64k 0xbd000000-0xbd010000 (hw control registers)
-	mov r0, #(0x0f<<1)|1
-    orr r0, r0, #0xbd000000
-	mcr p15, 0, r0, c6, c3, 0
-	mcr p15, 0, r0, c6, c3, 1
+    @ set up region 3: 64k 0xbe000000-0xbe010000 (hw control registers)
+    mov r0, #(0x0f<<1)|1
+    orr r0, r0, #0xbe000000
+    mcr p15, 0, r0, c6, c3, 0
+    mcr p15, 0, r0, c6, c3, 1
 
     @ set region 1 to be cacheable (so the first 2M will be cacheable)
-	mov r0, #2
-	mcr p15, 0, r0, c2, c0, 0
-	mcr p15, 0, r0, c2, c0, 1
+    mov r0, #2
+    mcr p15, 0, r0, c2, c0, 0
+    mcr p15, 0, r0, c2, c0, 1
 
     @ set region 1 to be bufferable too (only data)
-	mcr p15, 0, r0, c3, c0, 0
+    mcr p15, 0, r0, c3, c0, 0
 
     @ set protection, allow accsess only to regions 1 and 2
-	mov r0, #(3<<6)|(3<<4)|(3<<2)|(0)  @ data: [full, full, full, no access] for regions [3 2 1 0]
-	mcr p15, 0, r0, c5, c0, 0
-	mov r0, #(0<<6)|(0<<4)|(3<<2)|(0)  @ instructions: [no access, no, full, no]
-	mcr p15, 0, r0, c5, c0, 1
+    mov r0, #(3<<6)|(3<<4)|(3<<2)|(0)  @ data: [full, full, full, no access] for regions [3 2 1 0]
+    mcr p15, 0, r0, c5, c0, 0
+    mov r0, #(0<<6)|(0<<4)|(3<<2)|(0)  @ instructions: [no access, no, full, no]
+    mcr p15, 0, r0, c5, c0, 1
 
-	mrc p15, 0, r0, c1, c0, 0   @ fetch current control reg
-	orr r0, r0, #1              @ 0x00000001: enable protection unit
-	orr r0, r0, #4              @ 0x00000004: enable D cache
-	orr r0, r0, #0x1000         @ 0x00001000: enable I cache
-	orr r0, r0, #0xC0000000     @ 0xC0000000: async+fastbus
-	mcr p15, 0, r0, c1, c0, 0   @ set control reg
+    mrc p15, 0, r0, c1, c0, 0   @ fetch current control reg
+    orr r0, r0, #1              @ 0x00000001: enable protection unit
+    orr r0, r0, #4              @ 0x00000004: enable D cache
+    orr r0, r0, #0x1000         @ 0x00001000: enable I cache
+    orr r0, r0, #0xC0000000     @ 0xC0000000: async+fastbus
+    mcr p15, 0, r0, c1, c0, 0   @ set control reg
 
     @ flush (invalidate) the cache (just in case)
     mov r0, #0
@@ -172,3 +172,5 @@ wait_irq:
     b       .b_reserved
 
 .pool
+
+@ vim:filetype=ignored:

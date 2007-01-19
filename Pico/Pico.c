@@ -11,7 +11,7 @@
 #include "sound/sound.h"
 #include "sound/ym2612.h"
 
-int PicoVer=0x0080;
+int PicoVer=0x0110;
 struct Pico Pico;
 int PicoOpt=0; // disable everything by default
 int PicoSkipFrame=0; // skip rendering frame?
@@ -35,9 +35,6 @@ int PicoInit(void)
   // Init CPUs:
   SekInit();
   z80_init(); // init even if we aren't going to use it
-
-  // Setup memory callbacks:
-  PicoMemInit();
 
   PicoInitMCD();
 
@@ -66,6 +63,10 @@ int PicoReset(int hard)
 
   if (Pico.romsize<=0) return 1;
 
+  // setup correct memory map
+  if (PicoMCD & 1)
+       PicoMemSetupCD();
+  else PicoMemSetup();
   PicoMemReset();
   SekReset();
   SekCycleCntT=0;
@@ -237,31 +238,6 @@ static __inline void SekRun(int cyc)
 {
   int cyc_do;
   SekCycleAim+=cyc;
-#if 0
-  if(Pico.m.dma_bytes) {
-    int burn=0;
-    if((Pico.video.status&8)||!(Pico.video.reg[1]&0x40)) { // vblank?
-      if(Pico.m.dma_bytes < 205) {
-	burn = Pico.m.dma_bytes*(((488<<8)/205))>>8;
-	Pico.m.dma_bytes = 0;
-      } else {
-        burn += 488;
-	Pico.m.dma_bytes -= 205;
-      }
-    } else {
-      if(Pico.m.dma_bytes < 18) {
-	burn = Pico.m.dma_bytes*(((488<<8)/18))>>8;
-	Pico.m.dma_bytes = 0;
-      } else {
-        burn += 488;
-	Pico.m.dma_bytes -= 18;
-      }
-    }
-    SekCycleCnt+=burn;
-    dprintf("~DmaSlow %i burn=%i do=%i [%i|%i]", Pico.m.dma_bytes, burn, SekCycleAim-SekCycleCnt,
-    		Pico.m.scanline, SekCyclesDone());
-  }
-#endif
   //dprintf("aim: %i, cnt: %i", SekCycleAim, SekCycleCnt);
   if((cyc_do=SekCycleAim-SekCycleCnt) <= 0) return;
   //dprintf("cyc_do: %i", cyc_do);

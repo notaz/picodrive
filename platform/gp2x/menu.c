@@ -959,7 +959,7 @@ static void draw_menu_root(int menu_sel)
 	} else {
 		y += 30;
 	}
-	gp2x_text_out8(tl_x, (y+=10), "Load new ROM");
+	gp2x_text_out8(tl_x, (y+=10), "Load new ROM/ISO");
 	gp2x_text_out8(tl_x, (y+=10), "Change options");
 	gp2x_text_out8(tl_x, (y+=10), "Configure controls");
 	gp2x_text_out8(tl_x, (y+=10), "Credits");

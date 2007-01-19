@@ -86,8 +86,8 @@ int main(int argc, char *argv[])
 		mmuhack_status = ret;
 	}
 	cpuctrl_init();
-	Reset940(1);
-	Pause940(1);
+	// Reset940(1);
+	// Pause940(1);
 	if (currentConfig.EmuOpt&0x100) {
 		printf("setting RAM timings.. "); fflush(stdout);
 		// craigix: --trc 6 --tras 4 --twr 1 --tmrd 1 --trfc 1 --trp 2 --trcd 2
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 
 			case PGS_Quit:
 				goto endloop;
-			
+
 			default:
 				printf("engine got into unknown state (%i), exitting\n", engineState);
 				goto endloop;

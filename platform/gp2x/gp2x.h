@@ -25,7 +25,7 @@ unsigned long gp2x_joystick_read(int allow_usb_joy);
 
 /* 940 core */
 void Pause940(int yes);
-void Reset940(int yes);
+void Reset940(int yes, int bank);
 
 
 extern void *gp2x_screen;

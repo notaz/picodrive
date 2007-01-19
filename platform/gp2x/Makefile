@@ -10,7 +10,7 @@ CROSS = arm-linux-
 dprint = 1
 #mz80 = 1
 #debug_cyclone = 1
-asm_memory = 1
+asm_memory = 0	# TODO
 asm_render = 1
 asm_ym2612 = 1
 #profile = 1
@@ -42,7 +42,7 @@ OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Utils.o ../../Pico/Memory
 		../../Pico/Pico.o ../../Pico/Sek.o ../../Pico/VideoPort.o ../../Pico/Draw2.o ../../Pico/Draw.o
 # Pico - CD
 OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
-		../../Pico/cd/cd_sys.o
+		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o
 # asm stuff
 ifeq "$(asm_render)" "1"
 DEFINC += -D_ASM_DRAW_C
