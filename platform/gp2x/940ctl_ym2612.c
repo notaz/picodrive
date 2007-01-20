@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include "940shared.h"
+#include "code940/940shared.h"
 #include "gp2x.h"
 #include "emu.h"
 #include "menu.h"
@@ -235,11 +235,11 @@ static void wait_busy_940(void)
 	printf("wait iterations: %i\n", i);
 #else
 	for (i = 0; shared_ctl->busy && i < 0x10000; i++)
-		spend_cycles(4*1024);
+		spend_cycles(8*1024); // tested to be best for mp3 dec
 	if (i < 0x10000) return;
 
 	/* 940 crashed */
-	printf("940 crashed (cnt: %i, wc: %i, ve: ", shared_ctl->loopc, shared_ctl->waitc);
+	printf("940 crashed (cnt: %i, ve: ", shared_ctl->loopc);
 	for (i = 0; i < 8; i++)
 		printf("%i ", shared_ctl->vstarts[i]);
 	printf(")\n");
@@ -373,7 +373,7 @@ void YM2612Init_940(int baseclock, int rate)
 	/* now cause 940 to init it's ym2612 stuff */
 	shared_ctl->baseclock = baseclock;
 	shared_ctl->rate = rate;
-	shared_ctl->jobs[0] = JOB940_YM2612INIT;
+	shared_ctl->jobs[0] = JOB940_INITALL;
 	shared_ctl->jobs[1] = 0;
 	shared_ctl->busy = 1;
 

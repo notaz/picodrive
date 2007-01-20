@@ -1,8 +1,6 @@
 
 # you may or may not need to change this
 #devkit_path = x:/stuff/dev/devkitgp2x/
-devkit_path = /usr/local/devkitPro/devkitGP2X/
-lgcc_path = $(devkit_path)lib/gcc/arm-linux/4.0.3/
 CROSS = arm-linux-
 #CROSS = $(devkit_path)bin/arm-linux-
 
@@ -17,7 +15,7 @@ asm_ym2612 = 1
 #use_musashi = 1
 #up = 1
 
-DEFINC = -I../.. -I. -D__GP2X__ -D_UNZIP_SUPPORT # -DBENCHMARK
+DEFINC = -I../.. -I. -DARM -D__GP2X__ -D_UNZIP_SUPPORT # -DBENCHMARK
 COPT_COMMON = -static -s -O3 -ftracer -fstrength-reduce -Wall -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math
 ifeq "$(profile)" "1"
 COPT_COMMON += -fprofile-generate
@@ -80,7 +78,7 @@ DEFINC += -D_USE_DRZ80
 OBJS += ../../cpu/DrZ80/drz80.o
 endif
 
-all: PicoDrive.gpe code940.bin
+all: PicoDrive.gpe
 
 PicoDrive.gpe : $(OBJS)
 	@echo $@
@@ -92,15 +90,11 @@ ifeq "$(up)" "1"
 	@cmd //C copy $@ \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
 endif
 
-up: # up940
+up:
 	@cp -v PicoDrive.gpe /mnt/gp2x/mnt/sd/games/PicoDrive/
 
 #	@cmd //C copy PicoDrive.gpe \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
 
-up940:
-	@cp -v code940.bin /mnt/gp2x/mnt/sd/games/PicoDrive/
-
-#	@cmd //C copy code940.bin \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
 
 testrefr.gpe : test.o gp2x.o asmutils.o
 	@echo $@
@@ -133,45 +127,13 @@ testrefr.gpe : test.o gp2x.o asmutils.o
 	@make -C ../../cpu/Cyclone/proj -f Makefile.linux
 
 
-# stuff for 940 core
-
-# init, emu_control, emu
-OBJS940 += 940init.o 940.o 940ym2612.o
-# the asm code seems to be faster when run on 920, but not on 940 for some reason
-# OBJS940 += ../../Pico/sound/ym2612_asm.o
-
-# uClibc library code
-OBJS940 += uClibc/memset.o uClibc/s_floor.o uClibc/e_pow.o uClibc/e_sqrt.o uClibc/s_fabs.o
-OBJS940 += uClibc/s_scalbn.o uClibc/s_copysign.o uClibc/k_sin.o uClibc/k_cos.o uClibc/s_sin.o
-OBJS940 += uClibc/e_rem_pio2.o uClibc/k_rem_pio2.o uClibc/e_log.o uClibc/wrappers.o
-
-code940.bin : code940.gpe
-	@echo $@
-	@$(OBJCOPY) -O binary $< $@
-
-code940.gpe : $(OBJS940)
-	@echo $@
-	@$(LD) -static -e code940 -Ttext 0x0 $^ -L$(lgcc_path) -lgcc -o $@
-
-940ym2612.o : ../../Pico/sound/ym2612.c
-	@echo $@
-	@$(GCC) $(COPT_COMMON) -mtune=arm940t $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
-
-
 # cleanup
-clean: clean_pd clean_940
-tidy: tidy_pd tidy_940
-
-clean_pd: tidy_pd
+clean: tidy
 	@$(RM) PicoDrive.gpe
-tidy_pd:
+tidy:
 	@$(RM) $(OBJS)
 #	@make -C ../../cpu/Cyclone/proj -f Makefile.linux clean
 
-clean_940: tidy_940
-	@$(RM) code940.bin
-tidy_940:
-	@$(RM) code940.gpe $(OBJS940)
 
 clean_prof:
 	find ../.. -name '*.gcno' -delete
@@ -190,10 +152,3 @@ usbjoy.o : usbjoy.c
 	@echo $<
 	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@
 
-uClibc/e_pow.o : uClibc/e_pow.c
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@
-
-uClibc/e_sqrt.o : uClibc/e_sqrt.c
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@

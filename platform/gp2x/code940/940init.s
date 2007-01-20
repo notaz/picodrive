@@ -73,25 +73,34 @@ code940:                          @ interrupt table:
     mcr p15, 0, r0, c6, c3, 0
     mcr p15, 0, r0, c6, c3, 1
 
-    @ set region 1 to be cacheable (so the first 2M will be cacheable)
-    mov r0, #2
+    @ set up region 4: 16M 0x01000000-0x02000000 (mp3 area)
+    mov r0, #(0x17<<1)|1
+    orr r0, r0, #0x01000000
+    mcr p15, 0, r0, c6, c4, 0
+    mcr p15, 0, r0, c6, c4, 1
+
+    @ set regions 1 and 4 to be cacheable (so the first 2M and mp3 area will be cacheable)
+    mov r0, #(1<<1)|(1<<4)
     mcr p15, 0, r0, c2, c0, 0
     mcr p15, 0, r0, c2, c0, 1
 
     @ set region 1 to be bufferable too (only data)
+    mov r0, #(1<<1)
     mcr p15, 0, r0, c3, c0, 0
 
     @ set protection, allow accsess only to regions 1 and 2
-    mov r0, #(3<<6)|(3<<4)|(3<<2)|(0)  @ data: [full, full, full, no access] for regions [3 2 1 0]
+    mov r0, #(3<<8)|(3<<6)|(3<<4)|(3<<2)|(0)  @ data: [full, full, full, full, no access] for regions [4 3 2 1 0]
     mcr p15, 0, r0, c5, c0, 0
-    mov r0, #(0<<6)|(0<<4)|(3<<2)|(0)  @ instructions: [no access, no, full, no]
+    mov r0, #(0<<8)|(0<<6)|(0<<4)|(3<<2)|(0)  @ instructions: [no access, no, no, full, no]
     mcr p15, 0, r0, c5, c0, 1
 
     mrc p15, 0, r0, c1, c0, 0   @ fetch current control reg
     orr r0, r0, #1              @ 0x00000001: enable protection unit
     orr r0, r0, #4              @ 0x00000004: enable D cache
     orr r0, r0, #0x1000         @ 0x00001000: enable I cache
-    orr r0, r0, #0xC0000000     @ 0xC0000000: async+fastbus
+    bic r0, r0, #0xC0000000
+    orr r0, r0, #0x40000000     @ 0x40000000: synchronous, faster?
+@    orr r0, r0, #0xC0000000     @ 0xC0000000: async
     mcr p15, 0, r0, c1, c0, 0   @ set control reg
 
     @ flush (invalidate) the cache (just in case)
@@ -173,4 +182,4 @@ wait_irq:
 
 .pool
 
-@ vim:filetype=ignored:
+@ vim:filetype=armasm:
