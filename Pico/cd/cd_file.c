@@ -46,7 +46,7 @@ void FILE_End(void)
 int Load_ISO(const char *iso_name, int is_bin)
 {
 	struct stat file_stat;
-	int i, j, num_track, Cur_LBA, index, ret;
+	int i, j, num_track, Cur_LBA, index, ret, iso_name_len;
 	_scd_track *SCD_TOC_Tracks = Pico_mcd->scd.TOC.Tracks;
 	FILE *tmp_file;
 	char tmp_name[1024], tmp_ext[10];
@@ -64,17 +64,17 @@ int Load_ISO(const char *iso_name, int is_bin)
 	ret = stat(iso_name, &file_stat);
 	if (ret != 0) return -1;
 
-	Tracks[0].Lenght = file_stat.st_size;
+	Tracks[0].Length = file_stat.st_size;
 
-	if (Tracks[0].Type == TYPE_ISO) Tracks[0].Lenght >>= 11;	// size in sectors
-	else Tracks[0].Lenght /= 2352;					// size in sectors
+	if (Tracks[0].Type == TYPE_ISO) Tracks[0].Length >>= 11;	// size in sectors
+	else Tracks[0].Length /= 2352;					// size in sectors
 
 
 	Tracks[0].F = fopen(iso_name, "rb");
 	if (Tracks[0].F == NULL)
 	{
 		Tracks[0].Type = 0;
-		Tracks[0].Lenght = 0;
+		Tracks[0].Length = 0;
 		return -1;
 	}
 
@@ -89,37 +89,56 @@ int Load_ISO(const char *iso_name, int is_bin)
 	SCD_TOC_Tracks[0].Num = 1;
 	SCD_TOC_Tracks[0].Type = 1;				// DATA
 
-	SCD_TOC_Tracks[0].MSF.M = 0;
-	SCD_TOC_Tracks[0].MSF.S = 2;
-	SCD_TOC_Tracks[0].MSF.F = 0;
+	SCD_TOC_Tracks[0].MSF.M = 0; // minutes
+	SCD_TOC_Tracks[0].MSF.S = 2; // seconds
+	SCD_TOC_Tracks[0].MSF.F = 0; // frames
 
 	cdprintf("Track 0 - %02d:%02d:%02d %s", SCD_TOC_Tracks[0].MSF.M, SCD_TOC_Tracks[0].MSF.S, SCD_TOC_Tracks[0].MSF.F,
 		SCD_TOC_Tracks[0].Type ? "DATA" : "AUDIO");
 
-	Cur_LBA = Tracks[0].Lenght;				// Size in sectors
+	Cur_LBA = Tracks[0].Length;				// Size in sectors
 
 	strcpy(tmp_name, iso_name);
+	iso_name_len = strlen(iso_name);
 
-	for(num_track = 2, i = 0; i < 100; i++)
+	for (num_track = 2, i = 0; i < 100; i++)
 	{
 		if (sizeof(exts)/sizeof(char *) != 10) { printf("eee"); exit(1); }
 
 		for(j = 0; j < sizeof(exts)/sizeof(char *); j++)
 		{
-			tmp_name[strlen(iso_name) - 4] = 0;
+			int ext_len;
 			sprintf(tmp_ext, exts[j], i);
+			ext_len = strlen(tmp_ext);
+
+			memcpy(tmp_name, iso_name, iso_name_len + 1);
+			tmp_name[iso_name_len - 4] = 0;
 			strcat(tmp_name, tmp_ext);
 
 			tmp_file = fopen(tmp_name, "rb");
+			if (!tmp_file && i > 1 && iso_name_len > ext_len) {
+				tmp_name[iso_name_len - ext_len] = 0;
+				strcat(tmp_name, tmp_ext);
+				tmp_file = fopen(tmp_name, "rb");
+			}
 
 			if (tmp_file)
 			{
-				float fs;
+				// float fs;
+				int fs;
 				index = num_track - Pico_mcd->scd.TOC.First_Track;
 
-				stat(tmp_name, &file_stat);
+				ret = stat(tmp_name, &file_stat);
+				fs = file_stat.st_size;				// used to calculate lenght
 
-				fs = (float) file_stat.st_size;				// used to calculate lenght
+				Tracks[index].KBtps = (short) mp3_get_bitrate(tmp_file, fs);
+				Tracks[index].KBtps >>= 3;
+				if (ret != 0 || Tracks[index].KBtps <= 0)
+				{
+					cdprintf("Error track %i: stat %i, rate %i", index, ret, Tracks[index].KBtps);
+					fclose(tmp_file);
+					continue;
+				}
 
 				Tracks[index].F = tmp_file;
 
@@ -128,16 +147,16 @@ int Load_ISO(const char *iso_name, int is_bin)
 
 				LBA_to_MSF(Cur_LBA, &(SCD_TOC_Tracks[index].MSF));
 
-				cdprintf("Track %i - %02d:%02d:%02d %s", index, SCD_TOC_Tracks[index].MSF.M,
-					SCD_TOC_Tracks[index].MSF.S, SCD_TOC_Tracks[index].MSF.F,
-					SCD_TOC_Tracks[index].Type ? "DATA" : "AUDIO");
-
 				// MP3 File
 				Tracks[index].Type = TYPE_MP3;
-				fs /= (128>>3); // (float) (MP3_Get_Bitrate(Tracks[num_track - 1].F) >> 3);
 				fs *= 75;
-				Tracks[index].Lenght = (int) fs;
-				Cur_LBA += Tracks[index].Lenght;
+				fs /= Tracks[index].KBtps * 1000;
+				Tracks[index].Length = fs;
+				Cur_LBA += Tracks[index].Length;
+
+				cdprintf("Track %i: %s - %02d:%02d:%02d len=%i %s", index, tmp_name, SCD_TOC_Tracks[index].MSF.M,
+					SCD_TOC_Tracks[index].MSF.S, SCD_TOC_Tracks[index].MSF.F, fs,
+					SCD_TOC_Tracks[index].Type ? "DATA" : "AUDIO");
 
 				num_track++;
 				break;
@@ -170,7 +189,7 @@ void Unload_ISO(void)
 	{
 		if (Tracks[i].F) fclose(Tracks[i].F);
 		Tracks[i].F = NULL;
-		Tracks[i].Lenght = 0;
+		Tracks[i].Length = 0;
 		Tracks[i].Type = 0;
 	}
 }
@@ -186,7 +205,7 @@ int FILE_Read_One_LBA_CDC(void)
 		if (Tracks[0].F == NULL) return -1;
 
 		if (Pico_mcd->scd.Cur_LBA < 0) where_read = 0;
-		else if (Pico_mcd->scd.Cur_LBA >= Tracks[0].Lenght) where_read = Tracks[0].Lenght - 1;
+		else if (Pico_mcd->scd.Cur_LBA >= Tracks[0].Length) where_read = Tracks[0].Length - 1;
 		else where_read = Pico_mcd->scd.Cur_LBA;
 
 		if (Tracks[0].Type == TYPE_ISO) where_read <<= 11;
@@ -312,10 +331,13 @@ int FILE_Play_CD_LBA(void)
 
 	if (Tracks[index].Type == TYPE_MP3)
 	{
+		int pos1000 = 0;
 		int Track_LBA_Pos = Pico_mcd->scd.Cur_LBA - Track_to_LBA(Pico_mcd->scd.Cur_Track);
 		if (Track_LBA_Pos < 0) Track_LBA_Pos = 0;
+		if (Track_LBA_Pos)
+			pos1000 = Track_LBA_Pos * 1024 / Tracks[index].Length;
 
-		// MP3_Play(index, Track_LBA_Pos); // TODO
+		mp3_start_play(Tracks[index].F, pos1000);
 	}
 	else
 	{

@@ -187,11 +187,11 @@ static int cd_check(char *ext, char **bios_file)
 	}
 
 	/* it seems we have a CD image here. Try to detect region and load a suitable BIOS now.. */
-	fseek(cd_f, (type == 1) ? 0x100 : 0x110, SEEK_SET);
+	fseek(cd_f, (type == 1) ? 0x100+0x10B : 0x110+0x10B, SEEK_SET);
 	fread(buf, 1, 1, cd_f);
 	fclose(cd_f);
 
-	if (buf[0] == 0x64) region = 4; // EU
+	if (buf[0] == 0x64) region = 8; // EU
 	if (buf[0] == 0xa1) region = 1; // JAP
 
 	printf("detected %s Sega/Mega CD image with %s region\n",
@@ -452,9 +452,9 @@ int emu_ReadConfig(int game)
 		// set default config
 		memset(&currentConfig, 0, sizeof(currentConfig));
 		currentConfig.lastRomFile[0] = 0;
-		currentConfig.EmuOpt  = 0x1f;
-		currentConfig.PicoOpt = 0x0f;
-		currentConfig.PsndRate = 22050;
+		currentConfig.EmuOpt  = 0x1f | 0xc00; // | cd_leds | cd_cdda
+		currentConfig.PicoOpt = 0x0f | 0x200; // | use_940
+		currentConfig.PsndRate = 44100;
 		currentConfig.PicoRegion = 0; // auto
 		currentConfig.Frameskip = -1; // auto
 		currentConfig.CPUclock = 200;

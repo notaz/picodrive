@@ -298,6 +298,11 @@ void gp2x_sound_write(void *buff, int len)
 	write(sounddev, buff, len);
 }
 
+void gp2x_sound_sync(void)
+{
+	ioctl(sounddev, SOUND_PCM_SYNC, 0);
+}
+
 void gp2x_sound_volume(int l, int r)
 {
  	l=l<0?0:l; l=l>255?255:l; r=r<0?0:r; r=r>255?255:r;

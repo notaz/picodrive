@@ -15,8 +15,9 @@ extern "C" {
 
 struct _file_track {
 	FILE *F;
-	int Lenght;
-	int Type;
+	int Length;
+	short Type; // can be char
+	short KBtps; // bytes per sec for mp3s (bitrate / 8)
 };
 
 extern struct _file_track Tracks[100];

@@ -12,6 +12,7 @@
 #include "emu.h"
 #include "menu.h"
 #include "asmutils.h"
+#include "../../Pico/PicoInt.h"
 
 /* we will need some gp2x internals here */
 extern volatile unsigned short *gp2x_memregs; /* from minimal library rlyeh */
@@ -20,6 +21,9 @@ extern volatile unsigned long  *gp2x_memregl;
 static unsigned char *shared_mem = 0;
 static _940_data_t *shared_data = 0;
 static _940_ctl_t *shared_ctl = 0;
+static unsigned char *mp3_mem = 0;
+
+#define MP3_SIZE_MAX (0x1000000 - 4*640*480)
 
 int crashed_940 = 0;
 
@@ -321,6 +325,12 @@ void YM2612Init_940(int baseclock, int rate)
 		shared_data = (_940_data_t *) (shared_mem+0x100000);
 		/* this area must not get buffered on either side */
 		shared_ctl =  (_940_ctl_t *)  (shared_mem+0x200000);
+		mp3_mem = (unsigned char *) mmap(0, MP3_SIZE_MAX, PROT_READ|PROT_WRITE, MAP_SHARED, memdev, 0x3000000);
+		if (mp3_mem == MAP_FAILED)
+		{
+			printf("mmap(mp3_mem) failed with %i\n", errno);
+			exit(1);
+		}
 		crashed_940 = 1;
 	}
 
@@ -401,9 +411,70 @@ void YM2612ResetChip_940(void)
 }
 
 
+static void mix_samples(short *dest_buf, int *ym_buf, short *mp3_buf, int len, int stereo)
+{
+	if (mp3_buf)
+	{
+		if (stereo)
+		{
+			for (; len > 0; len--)
+			{
+				int l, r, lm, rm;
+				l = r = *dest_buf;
+				l += *ym_buf++;  r += *ym_buf++;
+				lm = *mp3_buf++; rm = *mp3_buf++;
+				l += lm - lm/2; r += rm - rm/2;
+				Limit( l, MAXOUT, MINOUT );
+				Limit( r, MAXOUT, MINOUT );
+				*dest_buf++ = l; *dest_buf++ = r;
+			}
+		} else {
+			for (; len > 0; len--)
+			{
+				// TODO: normalize
+				int l = *ym_buf++;
+				l += *dest_buf;
+				l += *mp3_buf++;
+				Limit( l, MAXOUT, MINOUT );
+				*dest_buf++ = l;
+			}
+		}
+	}
+	else
+	{
+		if (stereo)
+		{
+			for (; len > 0; len--)
+			{
+				int l, r;
+				l = r = *dest_buf;
+				l += *ym_buf++, r += *ym_buf++;
+				Limit( l, MAXOUT, MINOUT );
+				Limit( r, MAXOUT, MINOUT );
+				*dest_buf++ = l; *dest_buf++ = r;
+			}
+		} else {
+			for (; len > 0; len--)
+			{
+				int l = *ym_buf++;
+				l += *dest_buf;
+				Limit( l, MAXOUT, MINOUT );
+				*dest_buf++ = l;
+			}
+		}
+	}
+}
+
+
+// here we assume that length is different between games, but constant in one game
+
+static FILE *loaded_mp3 = 0;
+
 void YM2612UpdateOne_940(short *buffer, int length, int stereo)
 {
-	int i, *mix_buffer = shared_data->mix_buffer;
+	int cdda_on, *ym_buffer = shared_data->mix_buffer, mp3_job = 0;
+	static int mp3_samples_ready = 0, mp3_buffer_offs = 0;
+	static int mp3_play_bufsel = 1;
 
 	//printf("YM2612UpdateOne_940()\n");
 	if (shared_ctl->busy) wait_busy_940();
@@ -413,24 +484,29 @@ void YM2612UpdateOne_940(short *buffer, int length, int stereo)
 	//	printf("%i ", shared_ctl->vstarts[i]);
 	//printf(")\n");
 
+	// emulatind MCD, cdda enabled in config, not data track, CDC is reading, playback was started, track not ended
+	cdda_on = (PicoMCD & 1) && (currentConfig.EmuOpt&0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
+			(Pico_mcd->scd.Status_CDC & 1) && loaded_mp3 && shared_ctl->mp3_offs < shared_ctl->mp3_len;
+
 	/* mix data from previous go */
-	if (stereo) {
-		int *mb = mix_buffer;
-		for (i = length; i > 0; i--) {
-			int l, r;
-			l = r = *buffer;
-			l += *mb++, r += *mb++;
-			Limit( l, MAXOUT, MINOUT );
-			Limit( r, MAXOUT, MINOUT );
-			*buffer++ = l; *buffer++ = r;
+	if (cdda_on && mp3_samples_ready >= length)
+	{
+		if (1152 - mp3_buffer_offs >= length) {
+			mix_samples(buffer, ym_buffer, shared_data->mp3_buffer[mp3_play_bufsel] + mp3_buffer_offs*2, length, stereo);
+
+			mp3_buffer_offs += length;
+		} else {
+			// collect from both buffers..
+			int left = 1152 - mp3_buffer_offs;
+			mix_samples(buffer, ym_buffer, shared_data->mp3_buffer[mp3_play_bufsel] + mp3_buffer_offs*2, left, stereo);
+			mp3_play_bufsel ^= 1;
+			mp3_buffer_offs = length - left;
+			mix_samples(buffer + left * 2, ym_buffer + left * 2,
+				shared_data->mp3_buffer[mp3_play_bufsel], mp3_buffer_offs, stereo);
 		}
+		mp3_samples_ready -= length;
 	} else {
-		for (i = 0; i < length; i++) {
-			int l = mix_buffer[i];
-			l += buffer[i];
-			Limit( l, MAXOUT, MINOUT );
-			buffer[i] = l;
-		}
+		mix_samples(buffer, ym_buffer, 0, length, stereo);
 	}
 
 	//printf("new writes: %i\n", writebuff_ptr);
@@ -441,12 +517,56 @@ void YM2612UpdateOne_940(short *buffer, int length, int stereo)
 	}
 	writebuff_ptr = 0;
 
-	/* give 940 another job */
+	/* give 940 ym job */
 	shared_ctl->writebuffsel ^= 1;
 	shared_ctl->length = length;
 	shared_ctl->stereo = stereo;
-	add_job_940(JOB940_YM2612UPDATEONE, 0);
+
+	// make sure we will have enough mp3 samples next frame
+	if (cdda_on && mp3_samples_ready < length)
+	{
+		shared_ctl->mp3_buffsel ^= 1;
+		mp3_job = JOB940_MP3DECODE;
+		mp3_samples_ready += 1152;
+	}
+
+	add_job_940(JOB940_YM2612UPDATEONE, mp3_job);
 	//spend_cycles(512);
 	//printf("SRCPND: %08lx, INTMODE: %08lx, INTMASK: %08lx, INTPEND: %08lx\n",
 	//	gp2x_memregl[0x4500>>2], gp2x_memregl[0x4504>>2], gp2x_memregl[0x4508>>2], gp2x_memregl[0x4510>>2]);
 }
+
+
+/***********************************************************/
+
+void mp3_start_play(FILE *f, int pos) // pos is 0-1023
+{
+	int byte_offs = 0;
+
+	if (!(currentConfig.EmuOpt&0x800)) { // cdda disabled?
+		return;
+	}
+
+	if (loaded_mp3 != f)
+	{
+		printf("loading mp3... "); fflush(stdout);
+		fseek(f, 0, SEEK_SET);
+		fread(mp3_mem, 1, MP3_SIZE_MAX, f);
+		if (feof(f)) printf("done.\n");
+		else printf("done. mp3 too large, not all data loaded.\n");
+		shared_ctl->mp3_len = ftell(f);
+		loaded_mp3 = f;
+	}
+
+	// seek..
+	if (pos) {
+		byte_offs  = (shared_ctl->mp3_len << 6) >> 10;
+		byte_offs *= pos;
+		byte_offs >>= 6;
+	}
+	printf("mp3 pos1024: %i, byte_offs %i/%i\n", pos, byte_offs, shared_ctl->mp3_len);
+
+	shared_ctl->mp3_offs = byte_offs;
+}
+
+

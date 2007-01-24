@@ -630,7 +630,8 @@ static void cd_menu_loop_options(void)
 		if((inp& GP2X_B)||(inp&GP2X_LEFT)||(inp&GP2X_RIGHT)) { // toggleable options
 			switch (menu_sel) {
 				case  3: tmp_opts.EmuOpt ^=0x400; break;
-				case  4: return;
+				case  4: tmp_opts.EmuOpt ^=0x800; break;
+				case  5: return;
 			}
 		}
 		if(inp & (GP2X_X|GP2X_A)) return;

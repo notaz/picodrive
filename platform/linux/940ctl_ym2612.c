@@ -12,6 +12,9 @@
 #include "../gp2x/gp2x.h"
 #include "../gp2x/emu.h"
 #include "../gp2x/menu.h"
+#include "../gp2x/code940/940shared.h"
+#include "../gp2x/helix/pub/mp3dec.h"
+#include "../../Pico/PicoInt.h"
 
 
 static YM2612 ym2612;
@@ -20,6 +23,14 @@ YM2612 *ym2612_940 = &ym2612;
 int  mix_buffer_[44100/50*2];	/* this is where the YM2612 samples will be mixed to */
 int *mix_buffer = mix_buffer_;
 
+static _940_data_t  shared_data_;
+static _940_ctl_t   shared_ctl_;
+static _940_data_t *shared_data = &shared_data_;
+static _940_ctl_t  *shared_ctl = &shared_ctl_;
+
+unsigned char *mp3_mem = 0;
+
+#define MP3_SIZE_MAX (0x1000000 - 4*640*480)
 
 /***********************************************************/
 
@@ -73,6 +84,8 @@ void YM2612PicoStateLoad_940(void)
 
 void YM2612Init_940(int baseclock, int rate)
 {
+	mp3_mem = malloc(MP3_SIZE_MAX);
+
 	YM2612Init_(baseclock, rate);
 }
 
@@ -83,30 +96,177 @@ void YM2612ResetChip_940(void)
 }
 
 
-void YM2612UpdateOne_940(short *buffer, int length, int stereo)
+static void mix_samples(short *dest_buf, int *ym_buf, short *mp3_buf, int len, int stereo)
 {
-	int i;
-
-	YM2612UpdateOne_(buffer, length, stereo);
-
-	/* mix data */
-	if (stereo) {
-		int *mb = mix_buffer;
-		for (i = length; i > 0; i--) {
-			int l, r;
-			l = r = *buffer;
-			l += *mb++, r += *mb++;
-			Limit( l, MAXOUT, MINOUT );
-			Limit( r, MAXOUT, MINOUT );
-			*buffer++ = l; *buffer++ = r;
+	if (mp3_buf)
+	{
+		if (stereo)
+		{
+			for (; len > 0; len--)
+			{
+				int l, r;
+				l = r = *dest_buf;
+				l += *ym_buf++;  r += *ym_buf++;
+				l += *mp3_buf++; r += *mp3_buf++;
+				Limit( l, MAXOUT, MINOUT );
+				Limit( r, MAXOUT, MINOUT );
+				*dest_buf++ = l; *dest_buf++ = r;
+			}
+		} else {
+			for (; len > 0; len--)
+			{
+				int l = *ym_buf++;
+				l += *dest_buf;
+				l += *mp3_buf++;
+				Limit( l, MAXOUT, MINOUT );
+				*dest_buf++ = l;
+			}
 		}
-	} else {
-		for (i = 0; i < length; i++) {
-			int l = mix_buffer[i];
-			l += buffer[i];
-			Limit( l, MAXOUT, MINOUT );
-			buffer[i] = l;
+	}
+	else
+	{
+		if (stereo)
+		{
+			for (; len > 0; len--)
+			{
+				int l, r;
+				l = r = *dest_buf;
+				l += *ym_buf++, r += *ym_buf++;
+				Limit( l, MAXOUT, MINOUT );
+				Limit( r, MAXOUT, MINOUT );
+				*dest_buf++ = l; *dest_buf++ = r;
+			}
+		} else {
+			for (; len > 0; len--)
+			{
+				int l = *ym_buf++;
+				l += *dest_buf;
+				Limit( l, MAXOUT, MINOUT );
+				*dest_buf++ = l;
+			}
 		}
 	}
 }
+
+#if 0
+static void local_decode(void)
+{
+	int mp3_offs = shared_ctl->mp3_offs;
+	unsigned char *readPtr = mp3_mem + mp3_offs;
+	int bytesLeft = shared_ctl->mp3_len - mp3_offs;
+	int offset; // frame offset from readPtr
+	int err = 0;
+
+	if (bytesLeft <= 0) return; // EOF, nothing to do
+
+	offset = MP3FindSyncWord(readPtr, bytesLeft);
+	if (offset < 0) {
+		shared_ctl->mp3_offs = shared_ctl->mp3_len;
+		return; // EOF
+	}
+	readPtr += offset;
+	bytesLeft -= offset;
+
+	err = MP3Decode(shared_data->mp3dec, &readPtr, &bytesLeft,
+			shared_data->mp3_buffer[shared_ctl->mp3_buffsel], 0);
+	if (err) {
+		if (err == ERR_MP3_INDATA_UNDERFLOW) {
+			shared_ctl->mp3_offs = shared_ctl->mp3_len; // EOF
+			return;
+		} else if (err <= -6 && err >= -12) {
+			// ERR_MP3_INVALID_FRAMEHEADER, ERR_MP3_INVALID_*
+			// just try to skip the offending frame..
+			readPtr++;
+		}
+		shared_ctl->mp3_errors++;
+		shared_ctl->mp3_lasterr = err;
+	}
+	shared_ctl->mp3_offs = readPtr - mp3_mem;
+}
+#endif
+
+
+
+
+static FILE *loaded_mp3 = 0;
+
+void YM2612UpdateOne_940(short *buffer, int length, int stereo)
+{
+#if 0
+	int cdda_on, *ym_buffer = mix_buffer;
+	static int mp3_samples_ready = 0, mp3_buffer_offs = 0;
+	static int mp3_play_bufsel = 1;
+
+
+	YM2612UpdateOne_(buffer, length, stereo); // really writes to mix_buffer
+
+	// emulatind MCD, not data track, CDC is reading, playback was started, track not ended
+	cdda_on = (PicoMCD & 1) && !(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1)
+			&& loaded_mp3 && shared_ctl->mp3_offs < shared_ctl->mp3_len;
+
+	/* mix data from previous go */
+	if (cdda_on && mp3_samples_ready >= length)
+	{
+		if (1152 - mp3_buffer_offs >= length) {
+			mix_samples(buffer, ym_buffer, shared_data->mp3_buffer[mp3_play_bufsel] + mp3_buffer_offs*2, length, stereo);
+
+			mp3_buffer_offs += length;
+		} else {
+			// collect from both buffers..
+			int left = 1152 - mp3_buffer_offs;
+			mix_samples(buffer, ym_buffer, shared_data->mp3_buffer[mp3_play_bufsel] + mp3_buffer_offs*2, left, stereo);
+			mp3_play_bufsel ^= 1;
+			mp3_buffer_offs = length - left;
+			mix_samples(buffer + left * 2, ym_buffer + left * 2,
+				shared_data->mp3_buffer[mp3_play_bufsel], mp3_buffer_offs, stereo);
+		}
+		mp3_samples_ready -= length;
+	} else {
+		mix_samples(buffer, ym_buffer, 0, length, stereo);
+	}
+
+	// make sure we will have enough mp3 samples next frame
+	if (cdda_on && mp3_samples_ready < length)
+	{
+		shared_ctl->mp3_buffsel ^= 1;
+		local_decode();
+		mp3_samples_ready += 1152;
+	}
+#else
+	YM2612UpdateOne_(buffer, length, stereo); // really writes to mix_buffer
+
+	mix_samples(buffer, mix_buffer, 0, length, stereo);
+#endif
+}
+
+
+/***********************************************************/
+
+void mp3_start_play(FILE *f, int pos) // pos is 0-1023
+{
+	int byte_offs = 0;
+
+	if (loaded_mp3 != f)
+	{
+		printf("loading mp3... "); fflush(stdout);
+		fseek(f, 0, SEEK_SET);
+		fread(mp3_mem, 1, MP3_SIZE_MAX, f);
+		if (feof(f)) printf("done.\n");
+		else printf("done. mp3 too large, not all data loaded.\n");
+		shared_ctl->mp3_len = ftell(f);
+		loaded_mp3 = f;
+	}
+
+	// seek..
+	if (pos) {
+		byte_offs  = (shared_ctl->mp3_len << 6) >> 10;
+		byte_offs *= pos;
+		byte_offs >>= 6;
+	}
+	printf("mp3 pos1024: %i, byte_offs %i/%i\n", pos, byte_offs, shared_ctl->mp3_len);
+
+	shared_ctl->mp3_offs = byte_offs;
+}
+
+
 

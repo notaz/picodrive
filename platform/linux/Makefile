@@ -38,6 +38,8 @@ OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/i
 	../../zlib/deflate.o ../../zlib/crc32.o ../../zlib/adler32.o ../../zlib/zutil.o ../../zlib/compress.o
 # unzip
 OBJS += ../../unzip/unzip.o
+# mp3
+OBJS += ../gp2x/mp3.o
 # CPU cores
 DEFINC += -DEMU_M68K
 OBJS += ../../cpu/musashi/m68kcpu.o  ../../cpu/musashi/m68kopac.o ../../cpu/musashi/m68kopdm.o \
@@ -62,7 +64,7 @@ tidy:
 
 PicoDrive : $(OBJS)
 	@echo $@
-	@$(GCC) $(COPT) $(OBJS) $(LDFLAGS) -lm -o $@
+	@$(GCC) $(COPT) $(OBJS) ../gp2x/helix/helix_mp3_x86.a $(LDFLAGS) -lm -o $@
 
 
 ../../cpu/mz80/mz80.o : ../../cpu/mz80/mz80.asm

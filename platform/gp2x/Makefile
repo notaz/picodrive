@@ -61,6 +61,8 @@ OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/i
 	../../zlib/deflate.o ../../zlib/crc32.o ../../zlib/adler32.o ../../zlib/zutil.o ../../zlib/compress.o
 # unzip
 OBJS += ../../unzip/unzip.o
+# mp3
+OBJS += mp3.o
 # CPU cores
 ifeq "$(use_musashi)" "1"
 DEFINC += -DEMU_M68K
@@ -78,13 +80,14 @@ DEFINC += -D_USE_DRZ80
 OBJS += ../../cpu/DrZ80/drz80.o
 endif
 
+
 all: PicoDrive.gpe
 
-PicoDrive.gpe : $(OBJS)
+PicoDrive.gpe : $(OBJS) helix/helix_mp3.a
 	@echo $@
-	@$(GCC) $(COPT) $(OBJS) $(PRELIBS) -lm -o $@
+	@$(GCC) -o $@ $(COPT) $^ -lm
 	@$(STRIP) $@
-#	@$(GCC) $(COPT) $(OBJS) $(PRELIBS) -lm -o PicoDrive_.gpe
+#	@$(GCC) $(COPT) $(OBJS) -lm -o PicoDrive_.gpe
 #	@gpecomp PicoDrive_.gpe $@
 ifeq "$(up)" "1"
 	@cmd //C copy $@ \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
@@ -98,7 +101,7 @@ up:
 
 testrefr.gpe : test.o gp2x.o asmutils.o
 	@echo $@
-	@$(GCC) $(COPT) $^ $(PRELIBS) -o $@
+	@$(GCC) $(COPT) $^ -o $@
 	@$(STRIP) $@
 
 .c.o:
@@ -126,6 +129,10 @@ testrefr.gpe : test.o gp2x.o asmutils.o
 	@echo building Cyclone...
 	@make -C ../../cpu/Cyclone/proj -f Makefile.linux
 
+# build helix libs
+helix/helix_mp3.a:
+	make -C helix
+
 
 # cleanup
 clean: tidy
@@ -138,6 +145,20 @@ tidy:
 clean_prof:
 	find ../.. -name '*.gcno' -delete
 	find ../.. -name '*.gcda' -delete
+
+# ----------- release -----------
+ifneq ($(findstring rel,$(MAKECMDGOALS)),)
+ifeq ($(VER),)
+$(error need VER)
+endif
+endif
+
+rel: PicoDrive.gpe code940/code940.bin ../readme.txt config.txt
+	zip -9 -j ../../PicoDrive_$(VER).zip $^ mmuhack.o
+
+code940/code940.bin:
+	make -C code940/
+
 
 # test
 usbjoy.o : usbjoy.c

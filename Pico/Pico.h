@@ -19,6 +19,11 @@
 extern "C" {
 #endif
 
+// external
+int mp3_get_bitrate(FILE *f, int size);
+void mp3_start_play(FILE *f, int pos);
+
+
 // Pico.c
 // PicoOpt bits LSb->MSb:
 // enable_ym2612&dac, enable_sn76496, enable_z80, stereo_sound,
