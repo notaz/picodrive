@@ -22,8 +22,9 @@ struct PicoArea { void *data; int len; char *name; };
 // taking an address of fread or fwrite causes "application could't be started" error
 // on startup randomly depending on binary layout of executable file.
 
-arearw *areaRead  = (arearw *) 0; // fread;  // read and write function pointers for
-arearw *areaWrite = (arearw *) 0; // fwrite; // gzip save state ability
+arearw  *areaRead  = (arearw *) 0; // fread;  // read and write function pointers for
+arearw  *areaWrite = (arearw *) 0; // fwrite; // gzip save state ability
+areaeof *areaEof = (areaeof *) 0;
 
 
 // Scan one variable and callback
@@ -39,7 +40,7 @@ static int ScanVar(void *data,int len,char *name,void *PmovFile,int PmovAction)
 #define SCANP(x)      ScanVar(&Pico.x,sizeof(Pico.x),#x,PmovFile,PmovAction);
 
 // Pack the cpu into a common format:
-static int PackCpu(unsigned char *cpu)
+int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
 {
   unsigned int pc=0;
 
@@ -52,29 +53,27 @@ static int PackCpu(unsigned char *cpu)
 #endif
 
 #ifdef EMU_C68K
-  memcpy(cpu,PicoCpu.d,0x40);
-  pc=PicoCpu.pc-PicoCpu.membase;
-  *(unsigned int *)(cpu+0x44)=CycloneGetSr(&PicoCpu);
-  *(unsigned int *)(cpu+0x48)=PicoCpu.osp;
+  struct Cyclone *context = is_sub ? &PicoCpuS68k : &PicoCpu;
+  memcpy(cpu,context->d,0x40);
+  pc=context->pc-context->membase;
+  *(unsigned int *)(cpu+0x44)=CycloneGetSr(context);
+  *(unsigned int *)(cpu+0x48)=context->osp;
 #endif
 
 #ifdef EMU_M68K
-  memcpy(cpu,m68ki_cpu.dar,0x40);
-  pc=m68ki_cpu.pc;
+  m68ki_cpu_core *context = is_sub ? &PicoS68kCPU : &PicoM68kCPU;
+  memcpy(cpu,context->dar,0x40);
+  pc=context->pc;
   *(unsigned int  *)(cpu+0x44)=m68k_get_reg(NULL, M68K_REG_SR);
-  *(unsigned int  *)(cpu+0x48)=m68ki_cpu.sp[0];
+  *(unsigned int  *)(cpu+0x48)=context->sp[0];
 #endif
 
   *(unsigned int *)(cpu+0x40)=pc;
   return 0;
 }
 
-static int UnpackCpu(unsigned char *cpu)
+int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
 {
-  unsigned int pc=0;
-
-  pc=*(unsigned int *)(cpu+0x40);
-
 #ifdef EMU_A68K
   memcpy(M68000_regs.d,cpu,0x40);
   M68000_regs.pc=pc;
@@ -84,18 +83,20 @@ static int UnpackCpu(unsigned char *cpu)
 #endif
 
 #ifdef EMU_C68K
-  CycloneSetSr(&PicoCpu, *(unsigned int  *)(cpu+0x44));
-  PicoCpu.osp=*(unsigned int  *)(cpu+0x48);
-  memcpy(PicoCpu.d,cpu,0x40);
-  PicoCpu.membase=0;
-  PicoCpu.pc =PicoCpu.checkpc(pc); // Base pc
+  struct Cyclone *context = is_sub ? &PicoCpuS68k : &PicoCpu;
+  CycloneSetSr(context, *(unsigned int  *)(cpu+0x44));
+  context->osp=*(unsigned int  *)(cpu+0x48);
+  memcpy(context->d,cpu,0x40);
+  context->membase=0;
+  context->pc = context->checkpc(*(unsigned int *)(cpu+0x40)); // Base pc
 #endif
 
 #ifdef EMU_M68K
-  memcpy(m68ki_cpu.dar,cpu,0x40);
-  m68ki_cpu.pc=pc;
+  m68ki_cpu_core *context = is_sub ? &PicoS68kCPU : &PicoM68kCPU;
+  memcpy(context->dar,cpu,0x40);
+  context->pc=*(unsigned int *)(cpu+0x40);
   m68k_set_reg(M68K_REG_SR, *(unsigned int *)(cpu+0x44));
-  m68ki_cpu.sp[0]=*(unsigned int *)(cpu+0x48);
+  context->sp[0]=*(unsigned int *)(cpu+0x48);
 #endif
   return 0;
 }
@@ -117,42 +118,35 @@ static int PicoAreaScan(int PmovAction,unsigned int ver, void *PmovFile)
   {
     Pico.m.scanline=0;
 
-	// Scan all the memory areas:
+    // Scan all the memory areas:
     SCANP(ram) SCANP(vram) SCANP(zram) SCANP(cram) SCANP(vsram)
 
     // Pack, scan and unpack the cpu data:
-    if((PmovAction&3)==1) PackCpu(cpu);
+    if((PmovAction&3)==1) PicoAreaPackCpu(cpu, 0);
     //SekInit();     // notaz: do we really have to do this here?
     //PicoMemInit();
     SCAN_VAR(cpu,"cpu")
-    if((PmovAction&3)==2) UnpackCpu(cpu);
+    if((PmovAction&3)==2) PicoAreaUnpackCpu(cpu, 0);
 
     SCAN_VAR(Pico.m    ,"misc")
     SCAN_VAR(Pico.video,"video")
 
-
-	if(ver == 0x0030) { // zram was being saved incorrectly in 0x0030 (byteswaped?)
-	  Byteswap(Pico.zram, 0x2000);
-	  return 0; // do not try to load sound stuff
-    }
-
-	//SCAN_VAR(Pico.s    ,"sound")
-	// notaz: save/load z80, YM2612, sn76496 states instead of Pico.s (which is unused anyway)
-	if(PicoOpt&7) {
-	  if((PmovAction&3)==1) z80_pack(cpu_z80);
+    // notaz: save/load z80, YM2612, sn76496 states instead of Pico.s (which is unused anyway)
+    if(PicoOpt&7) {
+      if((PmovAction&3)==1) z80_pack(cpu_z80);
       ret = SCAN_VAR(cpu_z80,"cpu_z80")
-	  // do not unpack if we fail to load z80 state
-	  if((PmovAction&3)==2) {
+      // do not unpack if we fail to load z80 state
+      if((PmovAction&3)==2) {
         if(ret) z80_reset();
         else    z80_unpack(cpu_z80);
       }
-	}
-	if(PicoOpt&3)
+    }
+    if(PicoOpt&3)
       ScanVar(sn76496_regs,28*4,"SN76496state", PmovFile, PmovAction); // regs and other stuff
-	if(PicoOpt&1) {
+    if(PicoOpt&1) {
       ScanVar(ym2612_regs, 0x200+4, "YM2612state", PmovFile, PmovAction); // regs + addr line
-	  if((PmovAction&3)==2) YM2612PicoStateLoad(); // reload YM2612 state from it's regs
-	}
+      if((PmovAction&3)==2) YM2612PicoStateLoad(); // reload YM2612 state from it's regs
+    }
   }
 
   return 0;
@@ -166,6 +160,12 @@ int PmovState(int PmovAction, void *PmovFile)
 {
   int minimum=0;
   unsigned char head[32];
+
+  // testing
+  {
+    if (PmovAction&1) return PicoCdSaveState(PmovFile);
+    if (PmovAction&2) return PicoCdLoadState(PmovFile);
+  }
 
   memset(head,0,sizeof(head));
 

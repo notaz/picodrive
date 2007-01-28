@@ -33,6 +33,7 @@ extern int PicoOpt;
 extern int PicoVer;
 extern int PicoSkipFrame; // skip rendering frame, but still do sound (if enabled) and emulation stuff
 extern int PicoRegionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
+extern int PicoAutoRgnOrder; // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
 int PicoInit(void);
 void PicoExit(void);
 int PicoReset(int hard);
@@ -45,10 +46,12 @@ int PicoFrameMCD(void);
 
 // Area.c
 typedef size_t (arearw)(void *p, size_t _size, size_t _n, void *file);
+typedef size_t (areaeof)(void *file);
 // Save or load the state from PmovFile:
 int PmovState(int PmovAction, void *PmovFile); // &1=for reading &2=for writing &4=volatile &8=non-volatile
-extern arearw *areaRead;  // read and write function pointers for
-extern arearw *areaWrite; // gzip save state ability
+extern arearw  *areaRead;  // external read and write function pointers for
+extern arearw  *areaWrite; // gzip save state ability
+extern areaeof *areaEof;
 
 // Cart.c
 int PicoCartLoad(FILE *f,unsigned char **prom,unsigned int *psize);

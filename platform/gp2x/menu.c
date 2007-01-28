@@ -562,18 +562,6 @@ static void kc_sel_loop(void)
 
 
 
-// order must match that of currentConfig_t
-
-struct {
-	int EmuOpt;
-	int PicoOpt;
-	int PsndRate;
-	int PicoRegion;
-	int Frameskip;
-	int CPUclock;
-} tmp_opts;
-int tmp_gamma;
-
 // --------- sega/mega cd options ----------
 
 static void draw_cd_menu_options(int menu_sel, char *b_us, char *b_eu, char *b_jp)
@@ -585,8 +573,8 @@ static void draw_cd_menu_options(int menu_sel, char *b_us, char *b_eu, char *b_j
 	gp2x_text_out8(tl_x, y,       "USA BIOS:     %s", b_us); // 0
 	gp2x_text_out8(tl_x, (y+=10), "EUR BIOS:     %s", b_eu); // 1
 	gp2x_text_out8(tl_x, (y+=10), "JAP BIOS:     %s", b_jp); // 2
-	gp2x_text_out8(tl_x, (y+=10), "CD LEDs                    %s", (tmp_opts.EmuOpt &0x400)?"ON":"OFF"); // 3
-	gp2x_text_out8(tl_x, (y+=10), "CDDA audio (using mp3s)    %s", (tmp_opts.EmuOpt &0x800)?"ON":"OFF"); // 4
+	gp2x_text_out8(tl_x, (y+=10), "CD LEDs                    %s", (currentConfig.EmuOpt &0x400)?"ON":"OFF"); // 3
+	gp2x_text_out8(tl_x, (y+=10), "CDDA audio (using mp3s)    %s", (currentConfig.EmuOpt &0x800)?"ON":"OFF"); // 4
 	gp2x_text_out8(tl_x, (y+=10), "Done");
 
 	// draw cursor
@@ -629,8 +617,8 @@ static void cd_menu_loop_options(void)
 		if(inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if((inp& GP2X_B)||(inp&GP2X_LEFT)||(inp&GP2X_RIGHT)) { // toggleable options
 			switch (menu_sel) {
-				case  3: tmp_opts.EmuOpt ^=0x400; break;
-				case  4: tmp_opts.EmuOpt ^=0x800; break;
+				case  3: currentConfig.EmuOpt ^=0x400; break;
+				case  4: currentConfig.EmuOpt ^=0x800; break;
 				case  5: return;
 			}
 		}
@@ -670,16 +658,16 @@ static void draw_amenu_options(int menu_sel)
 
 	y = tl_y;
 	memset(gp2x_screen, 0, 320*240);
-	gp2x_text_out8(tl_x, y,       "Scale 32 column mode       %s", (tmp_opts.PicoOpt&0x100)?"ON":"OFF"); // 0
-	gp2x_text_out8(tl_x, (y+=10), "Gamma correction           %i.%02i", tmp_gamma / 100, tmp_gamma%100); // 1
-	gp2x_text_out8(tl_x, (y+=10), "Emulate Z80                %s", (tmp_opts.PicoOpt&0x004)?"ON":"OFF"); // 2
-	gp2x_text_out8(tl_x, (y+=10), "Emulate YM2612 (FM)        %s", (tmp_opts.PicoOpt&0x001)?"ON":"OFF"); // 3
-	gp2x_text_out8(tl_x, (y+=10), "Emulate SN76496 (PSG)      %s", (tmp_opts.PicoOpt&0x002)?"ON":"OFF"); // 4
-	gp2x_text_out8(tl_x, (y+=10), "gzip savestates            %s", (tmp_opts.EmuOpt &0x008)?"ON":"OFF"); // 5
-	gp2x_text_out8(tl_x, (y+=10), "Don't save config on exit  %s", (tmp_opts.EmuOpt &0x020)?"ON":"OFF"); // 6
+	gp2x_text_out8(tl_x, y,       "Scale 32 column mode       %s", (currentConfig.PicoOpt&0x100)?"ON":"OFF"); // 0
+	gp2x_text_out8(tl_x, (y+=10), "Gamma correction           %i.%02i", currentConfig.gamma / 100, currentConfig.gamma%100); // 1
+	gp2x_text_out8(tl_x, (y+=10), "Emulate Z80                %s", (currentConfig.PicoOpt&0x004)?"ON":"OFF"); // 2
+	gp2x_text_out8(tl_x, (y+=10), "Emulate YM2612 (FM)        %s", (currentConfig.PicoOpt&0x001)?"ON":"OFF"); // 3
+	gp2x_text_out8(tl_x, (y+=10), "Emulate SN76496 (PSG)      %s", (currentConfig.PicoOpt&0x002)?"ON":"OFF"); // 4
+	gp2x_text_out8(tl_x, (y+=10), "gzip savestates            %s", (currentConfig.EmuOpt &0x008)?"ON":"OFF"); // 5
+	gp2x_text_out8(tl_x, (y+=10), "Don't save config on exit  %s", (currentConfig.EmuOpt &0x020)?"ON":"OFF"); // 6
 	gp2x_text_out8(tl_x, (y+=10), "needs restart:");
-	gp2x_text_out8(tl_x, (y+=10), "craigix's RAM timings      %s", (tmp_opts.EmuOpt &0x100)?"ON":"OFF"); // 8
-	gp2x_text_out8(tl_x, (y+=10), "squidgehack (now %s %s",   mms, (tmp_opts.EmuOpt &0x010)?"ON":"OFF"); // 9
+	gp2x_text_out8(tl_x, (y+=10), "craigix's RAM timings      %s", (currentConfig.EmuOpt &0x100)?"ON":"OFF"); // 8
+	gp2x_text_out8(tl_x, (y+=10), "squidgehack (now %s %s",   mms, (currentConfig.EmuOpt &0x010)?"ON":"OFF"); // 9
 	gp2x_text_out8(tl_x, (y+=10), "Done");
 
 	// draw cursor
@@ -701,14 +689,14 @@ static void amenu_loop_options(void)
 		if(inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if((inp& GP2X_B)||(inp&GP2X_LEFT)||(inp&GP2X_RIGHT)) { // toggleable options
 			switch (menu_sel) {
-				case  0: tmp_opts.PicoOpt^=0x100; break;
-				case  2: tmp_opts.PicoOpt^=0x004; break;
-				case  3: tmp_opts.PicoOpt^=0x001; break;
-				case  4: tmp_opts.PicoOpt^=0x002; break;
-				case  5: tmp_opts.EmuOpt ^=0x008; break;
-				case  6: tmp_opts.EmuOpt ^=0x020; break;
-				case  8: tmp_opts.EmuOpt ^=0x100; break;
-				case  9: tmp_opts.EmuOpt ^=0x010; break;
+				case  0: currentConfig.PicoOpt^=0x100; break;
+				case  2: currentConfig.PicoOpt^=0x004; break;
+				case  3: currentConfig.PicoOpt^=0x001; break;
+				case  4: currentConfig.PicoOpt^=0x002; break;
+				case  5: currentConfig.EmuOpt ^=0x008; break;
+				case  6: currentConfig.EmuOpt ^=0x020; break;
+				case  8: currentConfig.EmuOpt ^=0x100; break;
+				case  9: currentConfig.EmuOpt ^=0x010; break;
 				case 10: return;
 			}
 		}
@@ -717,9 +705,9 @@ static void amenu_loop_options(void)
 			switch (menu_sel) {
 				case 1:
 					while ((inp = gp2x_joystick_read(1)) & (GP2X_LEFT|GP2X_RIGHT)) {
-						tmp_gamma += (inp & GP2X_LEFT) ? -1 : 1;
-						if (tmp_gamma <   1) tmp_gamma =   1;
-						if (tmp_gamma > 300) tmp_gamma = 300;
+						currentConfig.gamma += (inp & GP2X_LEFT) ? -1 : 1;
+						if (currentConfig.gamma <   1) currentConfig.gamma =   1;
+						if (currentConfig.gamma > 300) currentConfig.gamma = 300;
 						draw_amenu_options(menu_sel);
 						usleep(18*1000);
 					}
@@ -731,14 +719,26 @@ static void amenu_loop_options(void)
 
 // -------------- options --------------
 
-static char *region_name(unsigned int code)
+static const char *region_name(unsigned int code)
 {
-	char *names[] = { "Auto", "Japan NTSC", "Japan PAL", "USA", "Europe" };
-	int i = 0;
-	code <<= 1;
-	while((code >>=1)) i++;
-	if (i > 4) return "unknown";
-	return names[i];
+	static const char *names[] = { "Auto", "      Japan NTSC", "      Japan PAL", "      USA", "      Europe" };
+	static const char *names_short[] = { "", " JP", " JP", " US", " EU" };
+	int u, i = 0;
+	if (code) {
+		code <<= 1;
+		while((code >>= 1)) i++;
+		if (i > 4) return "unknown";
+		return names[i];
+	} else {
+		static char name[24];
+		strcpy(name, "Auto:");
+		for (u = 0; u < 3; u++) {
+			i = 0; code = ((PicoAutoRgnOrder >> u*4) & 0xf) << 1;
+			while((code >>= 1)) i++;
+			strcat(name, names_short[i]);
+		}
+		return name;
+	}
 }
 
 static void draw_menu_options(int menu_sel)
@@ -746,13 +746,13 @@ static void draw_menu_options(int menu_sel)
 	int tl_x = 25, tl_y = 40, y;
 	char monostereo[8], strframeskip[8], *strrend;
 
-	strcpy(monostereo, (tmp_opts.PicoOpt&0x08)?"stereo":"mono");
-	if (tmp_opts.Frameskip < 0)
+	strcpy(monostereo, (currentConfig.PicoOpt&0x08)?"stereo":"mono");
+	if (currentConfig.Frameskip < 0)
 		 strcpy(strframeskip, "Auto");
-	else sprintf(strframeskip, "%i", tmp_opts.Frameskip);
-	if (tmp_opts.PicoOpt&0x10) {
+	else sprintf(strframeskip, "%i", currentConfig.Frameskip);
+	if (currentConfig.PicoOpt&0x10) {
 		strrend = " 8bit fast";
-	} else if (tmp_opts.EmuOpt&0x80) {
+	} else if (currentConfig.EmuOpt&0x80) {
 		strrend = "16bit accurate";
 	} else {
 		strrend = " 8bit accurate";
@@ -761,19 +761,19 @@ static void draw_menu_options(int menu_sel)
 	y = tl_y;
 	memset(gp2x_screen, 0, 320*240);
 	gp2x_text_out8(tl_x, y,       "Renderer:            %s", strrend); // 0
-	gp2x_text_out8(tl_x, (y+=10), "Accurate timing (slower)   %s", (tmp_opts.PicoOpt&0x040)?"ON":"OFF"); // 1
-	gp2x_text_out8(tl_x, (y+=10), "Accurate sprites (slower)  %s", (tmp_opts.PicoOpt&0x080)?"ON":"OFF"); // 2
-	gp2x_text_out8(tl_x, (y+=10), "Show FPS                   %s", (tmp_opts.EmuOpt &0x002)?"ON":"OFF"); // 3
+	gp2x_text_out8(tl_x, (y+=10), "Accurate timing (slower)   %s", (currentConfig.PicoOpt&0x040)?"ON":"OFF"); // 1
+	gp2x_text_out8(tl_x, (y+=10), "Accurate sprites (slower)  %s", (currentConfig.PicoOpt&0x080)?"ON":"OFF"); // 2
+	gp2x_text_out8(tl_x, (y+=10), "Show FPS                   %s", (currentConfig.EmuOpt &0x002)?"ON":"OFF"); // 3
 	gp2x_text_out8(tl_x, (y+=10), "Frameskip                  %s", strframeskip);
-	gp2x_text_out8(tl_x, (y+=10), "Enable sound               %s", (tmp_opts.EmuOpt &0x004)?"ON":"OFF"); // 5
-	gp2x_text_out8(tl_x, (y+=10), "Sound Quality:     %5iHz %s", tmp_opts.PsndRate, monostereo);
-	gp2x_text_out8(tl_x, (y+=10), "Use ARM940 core for sound  %s", (tmp_opts.PicoOpt&0x200)?"ON":"OFF"); // 7
-	gp2x_text_out8(tl_x, (y+=10), "6 button pad               %s", (tmp_opts.PicoOpt&0x020)?"ON":"OFF"); // 8
-	gp2x_text_out8(tl_x, (y+=10), "Genesis Region:            %s", region_name(tmp_opts.PicoRegion));
-	gp2x_text_out8(tl_x, (y+=10), "Use SRAM/BRAM savestates   %s", (tmp_opts.EmuOpt &0x001)?"ON":"OFF"); // 10
-	gp2x_text_out8(tl_x, (y+=10), "Confirm save overwrites    %s", (tmp_opts.EmuOpt &0x200)?"ON":"OFF"); // 11
+	gp2x_text_out8(tl_x, (y+=10), "Enable sound               %s", (currentConfig.EmuOpt &0x004)?"ON":"OFF"); // 5
+	gp2x_text_out8(tl_x, (y+=10), "Sound Quality:     %5iHz %s",   currentConfig.PsndRate, monostereo);
+	gp2x_text_out8(tl_x, (y+=10), "Use ARM940 core for sound  %s", (currentConfig.PicoOpt&0x200)?"ON":"OFF"); // 7
+	gp2x_text_out8(tl_x, (y+=10), "6 button pad               %s", (currentConfig.PicoOpt&0x020)?"ON":"OFF"); // 8
+	gp2x_text_out8(tl_x, (y+=10), "Genesis Region:      %s",       region_name(currentConfig.PicoRegion));
+	gp2x_text_out8(tl_x, (y+=10), "Use SRAM/BRAM savestates   %s", (currentConfig.EmuOpt &0x001)?"ON":"OFF"); // 10
+	gp2x_text_out8(tl_x, (y+=10), "Confirm save overwrites    %s", (currentConfig.EmuOpt &0x200)?"ON":"OFF"); // 11
 	gp2x_text_out8(tl_x, (y+=10), "Save slot                  %i", state_slot); // 12
-	gp2x_text_out8(tl_x, (y+=10), "GP2X CPU clocks            %iMhz", tmp_opts.CPUclock);
+	gp2x_text_out8(tl_x, (y+=10), "GP2X CPU clocks            %iMhz", currentConfig.CPUclock);
 	gp2x_text_out8(tl_x, (y+=10), "[Sega/Mega CD options]");
 	gp2x_text_out8(tl_x, (y+=10), "[advanced options]");		// 15
 	gp2x_text_out8(tl_x, (y+=10), "Save cfg as default");
@@ -799,10 +799,32 @@ static int sndrate_prevnext(int rate, int dir)
 	return rates[i];
 }
 
+static void region_prevnext(int right)
+{
+	// jp_ntsc=1, jp_pal=2, usa=4, eu=8
+	static int rgn_orders[] = { 0x148, 0x184, 0x814, 0x418, 0x841, 0x481 };
+	int i;
+	if (right) {
+		if (!currentConfig.PicoRegion) {
+			for (i = 0; i < 6; i++)
+				if (rgn_orders[i] == PicoAutoRgnOrder) break;
+			if (i < 5) PicoAutoRgnOrder = rgn_orders[i+1];
+			else currentConfig.PicoRegion=1;
+		}
+		else currentConfig.PicoRegion<<=1;
+		if (currentConfig.PicoRegion > 8) currentConfig.PicoRegion = 8;
+	} else {
+		if (!currentConfig.PicoRegion) {
+			for (i = 0; i < 6; i++)
+				if (rgn_orders[i] == PicoAutoRgnOrder) break;
+			if (i > 0) PicoAutoRgnOrder = rgn_orders[i-1];
+		}
+		else currentConfig.PicoRegion>>=1;
+	}
+}
+
 static void menu_options_save(void)
 {
-	memcpy(&currentConfig.EmuOpt, &tmp_opts.EmuOpt, sizeof(tmp_opts));
-	currentConfig.gamma = tmp_gamma;
 	PicoOpt = currentConfig.PicoOpt;
 	PsndRate = currentConfig.PsndRate;
 	PicoRegionOverride = currentConfig.PicoRegion;
@@ -820,11 +842,9 @@ static int menu_loop_options(void)
 	unsigned long inp = 0;
 
 	if (rom_data) menu_sel_max++;
-	memcpy(&tmp_opts.EmuOpt, &currentConfig.EmuOpt, sizeof(tmp_opts));
-	tmp_gamma = currentConfig.gamma;
-	tmp_opts.PicoOpt = PicoOpt;
-	tmp_opts.PsndRate = PsndRate;
-	tmp_opts.PicoRegion = PicoRegionOverride;
+	currentConfig.PicoOpt = PicoOpt;
+	currentConfig.PsndRate = PsndRate;
+	currentConfig.PicoRegion = PicoRegionOverride;
 
 	for(;;)
 	{
@@ -834,14 +854,14 @@ static int menu_loop_options(void)
 		if(inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if((inp& GP2X_B)||(inp&GP2X_LEFT)||(inp&GP2X_RIGHT)) { // toggleable options
 			switch (menu_sel) {
-				case  1: tmp_opts.PicoOpt^=0x040; break;
-				case  2: tmp_opts.PicoOpt^=0x080; break;
-				case  3: tmp_opts.EmuOpt ^=0x002; break;
-				case  5: tmp_opts.EmuOpt ^=0x004; break;
-				case  7: tmp_opts.PicoOpt^=0x200; break;
-				case  8: tmp_opts.PicoOpt^=0x020; break;
-				case 10: tmp_opts.EmuOpt ^=0x001; break;
-				case 11: tmp_opts.EmuOpt ^=0x200; break;
+				case  1: currentConfig.PicoOpt^=0x040; break;
+				case  2: currentConfig.PicoOpt^=0x080; break;
+				case  3: currentConfig.EmuOpt ^=0x002; break;
+				case  5: currentConfig.EmuOpt ^=0x004; break;
+				case  7: currentConfig.PicoOpt^=0x200; break;
+				case  8: currentConfig.PicoOpt^=0x020; break;
+				case 10: currentConfig.EmuOpt ^=0x001; break;
+				case 11: currentConfig.EmuOpt ^=0x200; break;
 				case 14: cd_menu_loop_options();
 					if (engineState == PGS_ReloadRom)
 						return 0; // test BIOS
@@ -859,8 +879,7 @@ static int menu_loop_options(void)
 					return 1;
 			}
 		}
-		if(inp & GP2X_X) return 0;  // done (no update or write)
-		if(inp & GP2X_A) {
+		if(inp & (GP2X_X|GP2X_A)) {
 			menu_options_save();
 			return 0;  // done (update, no write)
 		}
@@ -868,32 +887,29 @@ static int menu_loop_options(void)
 			switch (menu_sel) {
 				case  0:
 					if (inp & GP2X_LEFT) {
-						if      (  tmp_opts.PicoOpt&0x10) tmp_opts.PicoOpt&= ~0x10;
-						else if (!(tmp_opts.EmuOpt &0x80))tmp_opts.EmuOpt |=  0x80;
-						else if (  tmp_opts.EmuOpt &0x80) break;
+						if      (  currentConfig.PicoOpt&0x10) currentConfig.PicoOpt&= ~0x10;
+						else if (!(currentConfig.EmuOpt &0x80))currentConfig.EmuOpt |=  0x80;
+						else if (  currentConfig.EmuOpt &0x80) break;
 					} else {
-						if      (  tmp_opts.PicoOpt&0x10) break;
-						else if (!(tmp_opts.EmuOpt &0x80))tmp_opts.PicoOpt|=  0x10;
-						else if (  tmp_opts.EmuOpt &0x80) tmp_opts.EmuOpt &= ~0x80;
+						if      (  currentConfig.PicoOpt&0x10) break;
+						else if (!(currentConfig.EmuOpt &0x80))currentConfig.PicoOpt|=  0x10;
+						else if (  currentConfig.EmuOpt &0x80) currentConfig.EmuOpt &= ~0x80;
 					}
 					break;
 				case  4:
-					tmp_opts.Frameskip += (inp & GP2X_LEFT) ? -1 : 1;
-					if (tmp_opts.Frameskip < 0)  tmp_opts.Frameskip = -1;
-					if (tmp_opts.Frameskip > 32) tmp_opts.Frameskip = 32;
+					currentConfig.Frameskip += (inp & GP2X_LEFT) ? -1 : 1;
+					if (currentConfig.Frameskip < 0)  currentConfig.Frameskip = -1;
+					if (currentConfig.Frameskip > 32) currentConfig.Frameskip = 32;
 					break;
 				case  6:
-					if ((inp & GP2X_RIGHT) && tmp_opts.PsndRate == 44100 && !(tmp_opts.PicoOpt&0x08)) {
-						tmp_opts.PsndRate = 8000;  tmp_opts.PicoOpt|= 0x08;
-					} else if ((inp & GP2X_LEFT) && tmp_opts.PsndRate == 8000 && (tmp_opts.PicoOpt&0x08)) {
-						tmp_opts.PsndRate = 44100; tmp_opts.PicoOpt&=~0x08;
-					} else tmp_opts.PsndRate = sndrate_prevnext(tmp_opts.PsndRate, inp & GP2X_RIGHT);
+					if ((inp & GP2X_RIGHT) && currentConfig.PsndRate == 44100 && !(currentConfig.PicoOpt&0x08)) {
+						currentConfig.PsndRate = 8000;  currentConfig.PicoOpt|= 0x08;
+					} else if ((inp & GP2X_LEFT) && currentConfig.PsndRate == 8000 && (currentConfig.PicoOpt&0x08)) {
+						currentConfig.PsndRate = 44100; currentConfig.PicoOpt&=~0x08;
+					} else currentConfig.PsndRate = sndrate_prevnext(currentConfig.PsndRate, inp & GP2X_RIGHT);
 					break;
 				case  9:
-					if (inp & GP2X_RIGHT) {
-						if (tmp_opts.PicoRegion) tmp_opts.PicoRegion<<=1; else tmp_opts.PicoRegion=1;
-						if (tmp_opts.PicoRegion > 8) tmp_opts.PicoRegion = 8;
-					} else  tmp_opts.PicoRegion>>=1;
+					region_prevnext(inp & GP2X_RIGHT);
 					break;
 				case 12:
 					if (inp & GP2X_RIGHT) {
@@ -903,8 +919,8 @@ static int menu_loop_options(void)
 					break;
 				case 13:
 					while ((inp = gp2x_joystick_read(1)) & (GP2X_LEFT|GP2X_RIGHT)) {
-						tmp_opts.CPUclock += (inp & GP2X_LEFT) ? -1 : 1;
-						if (tmp_opts.CPUclock < 1) tmp_opts.CPUclock = 1;
+						currentConfig.CPUclock += (inp & GP2X_LEFT) ? -1 : 1;
+						if (currentConfig.CPUclock < 1) currentConfig.CPUclock = 1;
 						draw_menu_options(menu_sel);
 						usleep(50*1000);
 					}

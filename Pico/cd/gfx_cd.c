@@ -1,5 +1,6 @@
 // TODO...
 
+// #include <string.h>
 #include "../PicoInt.h"
 
 #define rot_comp Pico_mcd->rot_comp
@@ -196,4 +197,9 @@ void gfx_cd_write(unsigned int a, unsigned int d)
 	}
 }
 
+
+void gfx_cd_reset(void)
+{
+	memset(&rot_comp.Reg_58, 0, 0/*sizeof(Pico_mcd->rot_comp)*/);
+}
 

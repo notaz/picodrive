@@ -11,10 +11,51 @@ void wait_irq(void);
 void spend_cycles(int c);
 void cache_clean(void);
 void cache_clean_flush(void);
+// this should help to resolve race confition where shared var
+// is changed by other core just before we update it
+void set_if_not_changed(int *val, int oldval, int newval);
 
 //	asm volatile ("mov r0, #0" ::: "r0");
 //	asm volatile ("mcr p15, 0, r0, c7, c6,  0" ::: "r0"); /* flush dcache */
 //	asm volatile ("mcr p15, 0, r0, c7, c10, 4" ::: "r0"); /* drain write buffer */
+
+
+static void mp3_decode(void)
+{
+	int mp3_offs = shared_ctl->mp3_offs;
+	unsigned char *readPtr = mp3_data + mp3_offs;
+	int bytesLeft = shared_ctl->mp3_len - mp3_offs;
+	int offset; // frame offset from readPtr
+	int err;
+
+	if (bytesLeft <= 0) return; // EOF, nothing to do
+
+	offset = MP3FindSyncWord(readPtr, bytesLeft);
+	if (offset < 0) {
+		set_if_not_changed(&shared_ctl->mp3_offs, mp3_offs, shared_ctl->mp3_len);
+		return; // EOF
+	}
+	readPtr += offset;
+	bytesLeft -= offset;
+
+	err = MP3Decode(shared_data->mp3dec, &readPtr, &bytesLeft,
+			shared_data->mp3_buffer[shared_ctl->mp3_buffsel], 0);
+	if (err) {
+		if (err == ERR_MP3_INDATA_UNDERFLOW) {
+			shared_ctl->mp3_offs = shared_ctl->mp3_len; // EOF
+			set_if_not_changed(&shared_ctl->mp3_offs, mp3_offs, shared_ctl->mp3_len);
+			return;
+		} else if (err <= -6 && err >= -12) {
+			// ERR_MP3_INVALID_FRAMEHEADER, ERR_MP3_INVALID_*
+			// just try to skip the offending frame..
+			readPtr++;
+		}
+		shared_ctl->mp3_errors++;
+		shared_ctl->mp3_lasterr = err;
+	}
+	set_if_not_changed(&shared_ctl->mp3_offs, mp3_offs, readPtr - mp3_data);
+}
+
 
 void Main940(int startvector)
 {
@@ -85,40 +126,9 @@ void Main940(int startvector)
 					break;
 				}
 
-				case JOB940_MP3DECODE: {
-					int mp3_offs = shared_ctl->mp3_offs;
-					unsigned char *readPtr = mp3_data + mp3_offs;
-					int bytesLeft = shared_ctl->mp3_len - mp3_offs;
-					int offset; // frame offset from readPtr
-					int err;
-
-					if (bytesLeft <= 0) break; // EOF, nothing to do
-
-					offset = MP3FindSyncWord(readPtr, bytesLeft);
-					if (offset < 0) {
-						shared_ctl->mp3_offs = shared_ctl->mp3_len;
-						break; // EOF
-					}
-					readPtr += offset;
-					bytesLeft -= offset;
-
- 					err = MP3Decode(shared_data->mp3dec, &readPtr, &bytesLeft,
-						shared_data->mp3_buffer[shared_ctl->mp3_buffsel], 0);
-					if (err) {
-						if (err == ERR_MP3_INDATA_UNDERFLOW) {
-							shared_ctl->mp3_offs = shared_ctl->mp3_len; // EOF
-							break;
-						} else if (err <= -6 && err >= -12) {
-							// ERR_MP3_INVALID_FRAMEHEADER, ERR_MP3_INVALID_*
-							// just try to skip the offending frame..
-							readPtr++;
-						}
-						shared_ctl->mp3_errors++;
-						shared_ctl->mp3_lasterr = err;
-					}
-					shared_ctl->mp3_offs = readPtr - mp3_data;
+				case JOB940_MP3DECODE:
+					mp3_decode();
 					break;
-				}
 			}
 		}
 

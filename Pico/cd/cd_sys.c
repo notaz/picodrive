@@ -28,11 +28,7 @@ int CD_Audio_Starting;
 */
 
 static int CD_Present = 0;
-int CD_Timer_Counter = 0; // TODO: check refs
-
-static int CDD_Complete;
-
-static int File_Add_Delay = 0;
+// int CD_Timer_Counter = 0; // TODO: check refs
 
 
 
@@ -46,7 +42,7 @@ if (Pico_mcd->scd.Status_CDD == TRAY_OPEN)	\
 	Pico_mcd->cdd.Frame = 0;					\
 	Pico_mcd->cdd.Ext = 0;					\
 									\
-	CDD_Complete = 1;				\
+	Pico_mcd->scd.CDD_Complete = 1;				\
 									\
 	return 2;						\
 }
@@ -63,7 +59,7 @@ if (!CD_Present)					\
 	Pico_mcd->cdd.Frame = 0;					\
 	Pico_mcd->cdd.Ext = 0;					\
 									\
-	CDD_Complete = 1;				\
+	Pico_mcd->scd.CDD_Complete = 1;				\
 									\
 	return 3;						\
 }
@@ -158,9 +154,9 @@ void Check_CD_Command(void)
 
 	// Check CDD
 
-	if (CDD_Complete)
+	if (Pico_mcd->scd.CDD_Complete)
 	{
-		CDD_Complete = 0;
+		Pico_mcd->scd.CDD_Complete = 0;
 
 		CDD_Export_Status();
 	}
@@ -176,11 +172,11 @@ void Check_CD_Command(void)
 		     Pico_mcd->s68k_regs[0x36] |=  0x01;
 		else Pico_mcd->s68k_regs[0x36] &= ~0x01;			// AUDIO
 
-		if (File_Add_Delay == 0)
+		if (Pico_mcd->scd.File_Add_Delay == 0)
 		{
 			FILE_Read_One_LBA_CDC();
 		}
-		else File_Add_Delay--;
+		else Pico_mcd->scd.File_Add_Delay--;
 	}
 
 	if (Pico_mcd->scd.Status_CDD == FAST_FOW)
@@ -217,7 +213,7 @@ void Reset_CD(void)
 	Pico_mcd->scd.Cur_Track = 0;
 	Pico_mcd->scd.Cur_LBA = -150;
 	Pico_mcd->scd.Status_CDD = READY;
-	CDD_Complete = 0;
+	Pico_mcd->scd.CDD_Complete = 0;
 }
 
 
@@ -267,7 +263,7 @@ int Get_Status_CDD_c0(void)
 	else if ((Pico_mcd->cdd.Status & 0x0F00) == 0x0E00)
 		Pico_mcd->cdd.Status = (Pico_mcd->scd.Status_CDD & 0xFF00) | (Pico_mcd->cdd.Status & 0x00FF);
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -290,7 +286,7 @@ int Stop_CDD_c1(void)
 	Pico_mcd->cdd.Frame = 0;
 	Pico_mcd->cdd.Ext = 0;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -322,7 +318,7 @@ int Get_Pos_CDD_c20(void)
 	Pico_mcd->cdd.Frame = INT_TO_BCDW(MSF.F);
 	Pico_mcd->cdd.Ext = 0;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -356,7 +352,7 @@ int Get_Track_Pos_CDD_c21(void)
 	Pico_mcd->cdd.Frame = INT_TO_BCDW(MSF.F);
 	Pico_mcd->cdd.Ext = 0;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -385,7 +381,7 @@ int Get_Current_Track_CDD_c22(void)
 	Pico_mcd->cdd.Frame = 0;
 	Pico_mcd->cdd.Ext = 0;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -415,7 +411,7 @@ int Get_Total_Lenght_CDD_c23(void)
 // FIXME: remove
 //Pico_mcd->cdd.Seconde = 2;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -441,7 +437,7 @@ int Get_First_Last_Track_CDD_c24(void)
 // FIXME: remove
 //Pico_mcd->cdd.Minute = Pico_mcd->cdd.Seconde = 1;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -476,7 +472,7 @@ int Get_Track_Adr_CDD_c25(void)
 
 	if (Pico_mcd->scd.TOC.Tracks[track_number - Pico_mcd->scd.TOC.First_Track].Type) Pico_mcd->cdd.Frame |= 0x0800;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 	return 0;
 }
 
@@ -513,7 +509,7 @@ int Play_CDD_c3(void)
 	Pico_mcd->cdd.Status = 0x0102;
 //	Pico_mcd->cdd.Status = COMM_OK;
 
-	if (File_Add_Delay == 0) File_Add_Delay = delay;
+	if (Pico_mcd->scd.File_Add_Delay == 0) Pico_mcd->scd.File_Add_Delay = delay;
 
 	if (Pico_mcd->scd.TOC.Tracks[Pico_mcd->scd.Cur_Track - Pico_mcd->scd.TOC.First_Track].Type)
 	{
@@ -534,7 +530,7 @@ int Play_CDD_c3(void)
 
 	Pico_mcd->scd.Status_CDC |= 1;			// Read data with CDC
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 	return 0;
 }
 
@@ -571,7 +567,7 @@ int Seek_CDD_c4(void)
 	Pico_mcd->cdd.Frame = 0;
 	Pico_mcd->cdd.Ext = 0;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -594,7 +590,7 @@ int Pause_CDD_c6(void)
 	Pico_mcd->cdd.Frame = 0;
 	Pico_mcd->cdd.Ext = 0;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -637,7 +633,7 @@ int Resume_CDD_c7(void)
 
 	Pico_mcd->scd.Status_CDC |= 1;			// Read data with CDC
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 	return 0;
 }
 
@@ -657,7 +653,7 @@ int Fast_Foward_CDD_c8(void)
 	Pico_mcd->cdd.Frame = 0;
 	Pico_mcd->cdd.Ext = 0;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -678,7 +674,7 @@ int Fast_Rewind_CDD_c9(void)
 	Pico_mcd->cdd.Frame = 0;
 	Pico_mcd->cdd.Ext = 0;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -712,7 +708,7 @@ int Close_Tray_CDD_cC(void)
 		Pico_mcd->cdd.Ext = 0;
 	}
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -735,7 +731,7 @@ int Open_Tray_CDD_cD(void)
 	Pico_mcd->cdd.Frame = 0;
 	Pico_mcd->cdd.Ext = 0;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }
@@ -756,7 +752,7 @@ int CDD_cA(void)
 	Pico_mcd->cdd.Frame = INT_TO_BCDW(1);
 	Pico_mcd->cdd.Ext = 0;
 
-	CDD_Complete = 1;
+	Pico_mcd->scd.CDD_Complete = 1;
 
 	return 0;
 }

@@ -16,6 +16,7 @@ struct Pico Pico;
 int PicoOpt=0; // disable everything by default
 int PicoSkipFrame=0; // skip rendering frame?
 int PicoRegionOverride = 0; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
+int PicoAutoRgnOrder = 0;
 int emustatus = 0;
 void (*PicoWriteSound)(void) = 0; // called once per frame at the best time to send sound buffer (PsndOut) to hardware
 
@@ -106,9 +107,12 @@ int PicoReset(int hard)
       c=region>>(i<<3); c&=0xff;
       if (c<=' ') continue;
 
-           if (c=='J') support|=1;
-      else if (c=='U') support|=4;
-      else if (c=='E') support|=8;
+           if (c=='J')  support|=1;
+      else if (c=='U')  support|=4;
+      else if (c=='E')  support|=8;
+      else if (c=='j') {support|=1; break; }
+      else if (c=='u') {support|=4; break; }
+      else if (c=='e') {support|=8; break; }
       else
       {
         // New style code:
@@ -117,6 +121,13 @@ int PicoReset(int hard)
         support|=strtol(s,NULL,16);
       }
     }
+  }
+
+  // auto detection order override
+  if (PicoAutoRgnOrder) {
+         if (((PicoAutoRgnOrder>>0)&0xf) & support) support = (PicoAutoRgnOrder>>0)&0xf;
+    else if (((PicoAutoRgnOrder>>4)&0xf) & support) support = (PicoAutoRgnOrder>>4)&0xf;
+    else if (((PicoAutoRgnOrder>>8)&0xf) & support) support = (PicoAutoRgnOrder>>8)&0xf;
   }
 
   // Try to pick the best hardware value for English/50hz:

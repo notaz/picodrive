@@ -11,7 +11,7 @@
 #include "../sound/sound.h"
 
 
-static int counter75hz = 0; // TODO: move 2 context
+extern unsigned char formatted_bram[8*0x10];
 
 
 int PicoInitMCD(void)
@@ -30,15 +30,22 @@ void PicoExitMCD(void)
 
 int PicoResetMCD(int hard)
 {
-  // clear everything except BIOS
-  memset(Pico_mcd->prg_ram, 0, sizeof(mcd_state) - sizeof(Pico_mcd->bios));
+  memset(Pico_mcd->prg_ram,  0, sizeof(Pico_mcd->prg_ram));
+  memset(Pico_mcd->word_ram, 0, sizeof(Pico_mcd->word_ram));
+  if (hard) {
+	  memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
+	  memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - 8*0x10, formatted_bram, 8*0x10);
+  }
+  memset(Pico_mcd->s68k_regs, 0, sizeof(Pico_mcd->s68k_regs));
+
   *(unsigned int *)(Pico_mcd->bios + 0x70) = 0xffffffff; // reset hint vector (simplest way to implement reg6)
-  PicoMCD |= 2; // s68k reset pending. TODO: move
+  Pico_mcd->m.state_flags |= 2; // s68k reset pending
   Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode with m68k access after reset
-  counter75hz = 0;
+  Pico_mcd->m.counter75hz = 0;
 
   LC89510_Reset();
   Reset_CD();
+  gfx_cd_reset();
 
   return 0;
 }
@@ -235,8 +242,8 @@ static int PicoFrameHintsMCD(void)
       total_z80+=z80_run(z80CycleAim-total_z80);
     }
 
-    if ((counter75hz+=10) >= counter75hz_lim) {
-      counter75hz -= counter75hz_lim;
+    if ((Pico_mcd->m.counter75hz+=10) >= counter75hz_lim) {
+      Pico_mcd->m.counter75hz -= counter75hz_lim;
       Check_CD_Command();
     }
 

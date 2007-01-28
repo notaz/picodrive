@@ -168,7 +168,9 @@ struct mcd_misc
 {
 	unsigned short hint_vector;
 	unsigned char  busreq;
-	unsigned char  pad0;
+	unsigned char  s68k_pend_ints;
+	unsigned int   state_flags;	// emu state: reset_pending,
+	unsigned int   counter75hz;
 
 };
 
@@ -191,6 +193,13 @@ typedef struct
 
 #define Pico_mcd ((mcd_state *)Pico.rom)
 
+// Area.c
+int PicoAreaPackCpu(unsigned char *cpu, int is_sub);
+int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub);
+
+// cd/Area.c
+int PicoCdSaveState(void *file);
+int PicoCdLoadState(void *file);
 
 // Draw.c
 int PicoLine(int scan);

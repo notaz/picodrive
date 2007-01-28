@@ -23,9 +23,9 @@ YM2612 *ym2612_940 = &ym2612;
 int  mix_buffer_[44100/50*2];	/* this is where the YM2612 samples will be mixed to */
 int *mix_buffer = mix_buffer_;
 
-static _940_data_t  shared_data_;
+// static _940_data_t  shared_data_;
 static _940_ctl_t   shared_ctl_;
-static _940_data_t *shared_data = &shared_data_;
+// static _940_data_t *shared_data = &shared_data_;
 static _940_ctl_t  *shared_ctl = &shared_ctl_;
 
 unsigned char *mp3_mem = 0;

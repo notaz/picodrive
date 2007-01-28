@@ -88,6 +88,7 @@ typedef struct
 		} B;
 		unsigned int N;
 	} CTRL;
+	unsigned int CDC_Decode_Reg_Read;
 } CDC;
 
 typedef struct
@@ -103,9 +104,6 @@ typedef struct
 	unsigned short Frame;
 	unsigned char  Ext;
 } CDD;
-
-
-extern int CDC_Decode_Reg_Read;
 
 
 void LC89510_Reset(void);

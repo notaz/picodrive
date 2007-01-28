@@ -31,8 +31,6 @@ typedef unsigned int   u32;
 
 // extern m68ki_cpu_core m68ki_cpu;
 
-extern int counter75hz;
-
 
 static u32 m68k_reg_read16(u32 a)
 {
@@ -91,12 +89,12 @@ static void m68k_reg_write8(u32 a, u32 d)
       return;
     case 1:
       d &= 3;
-      if (!(d&1)) PicoMCD |= 2; // reset pending, needed to be sure we fetch the right vectors on reset
+      if (!(d&1)) Pico_mcd->m.state_flags |= 1; // reset pending, needed to be sure we fetch the right vectors on reset
       if ( (Pico_mcd->m.busreq&1) != (d&1)) dprintf("m68k: s68k reset %i", !(d&1));
       if ( (Pico_mcd->m.busreq&2) != (d&2)) dprintf("m68k: s68k brq %i", (d&2)>>1);
-      if ((PicoMCD&2) && (d&3)==1) {
+      if ((Pico_mcd->m.state_flags&1) && (d&3)==1) {
         SekResetS68k(); // S68k comes out of RESET or BRQ state
-	PicoMCD&=~2;
+	Pico_mcd->m.state_flags&=~1;
 	dprintf("m68k: resetting s68k, cycles=%i", SekCyclesLeft);
       }
       Pico_mcd->m.busreq = d;
@@ -225,7 +223,6 @@ static void s68k_reg_write8(u32 a, u32 d)
       dprintf("s68k irq mask: %02x", d);
       if ((d&(1<<4)) && (Pico_mcd->s68k_regs[0x37]&4) && !(Pico_mcd->s68k_regs[0x33]&(1<<4))) {
         CDD_Export_Status();
-	// counter75hz = 0; // ???
       }
       break;
     case 0x34: // fader
@@ -238,7 +235,6 @@ static void s68k_reg_write8(u32 a, u32 d)
       Pico_mcd->s68k_regs[0x37] = d&7;
       if ((d&4) && !(d_old&4)) {
         CDD_Export_Status();
-	// counter75hz = 0; // ???
       }
       return;
     }

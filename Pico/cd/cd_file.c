@@ -1,20 +1,3 @@
-/*
-#include <stdio.h>
-#include <string.h>
-#if defined(__WIN__)
-#include <windows.h>
-#else
-#include "port.h"
-#endif
-#include "cd_sys.h"
-#include "cd_file.h"
-#include "lc89510.h"
-#include "cdda_mp3.h"
-#include "star_68k.h"
-#include "rom.h"
-#include "mem_s68k.h"
-*/
-
 #include <sys/stat.h>
 #include "cd_file.h"
 
@@ -24,6 +7,7 @@
 //#define cdprintf(x...)
 #define DEBUG_CD
 
+// TODO: check refs, move 2 context
 struct _file_track Tracks[100];
 char Track_Played;
 
@@ -53,6 +37,7 @@ int Load_ISO(const char *iso_name, int is_bin)
 	static char *exts[] = {
 		"%02d.mp3", " %02d.mp3", "-%02d.mp3", "_%02d.mp3", " - %02d.mp3",
 		"%d.mp3", " %d.mp3", "-%d.mp3", "_%d.mp3", " - %d.mp3",
+		"%02d.MP3", " %02d.MP3", "-%02d.MP3", "_%02d.MP3", " - %02d.MP3",
 		/* "%02d.wav", " %02d.wav", "-%02d.wav", "_%02d.wav", " - %02d.wav",
 		"%d.wav", " %d.wav", "-%d.wav", "_%d.wav", " - %2d.wav" */
 	};
@@ -103,8 +88,6 @@ int Load_ISO(const char *iso_name, int is_bin)
 
 	for (num_track = 2, i = 0; i < 100; i++)
 	{
-		if (sizeof(exts)/sizeof(char *) != 10) { printf("eee"); exit(1); }
-
 		for(j = 0; j < sizeof(exts)/sizeof(char *); j++)
 		{
 			int ext_len;

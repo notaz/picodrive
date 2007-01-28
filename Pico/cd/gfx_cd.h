@@ -36,5 +36,7 @@ void gfx_cd_update(void);
 unsigned int gfx_cd_read(unsigned int a);
 void gfx_cd_write(unsigned int a, unsigned int d);
 
+void gfx_cd_reset(void);
+
 #endif // _GFX_CD_H
 

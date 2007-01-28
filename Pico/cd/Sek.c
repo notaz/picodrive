@@ -23,20 +23,21 @@ struct Cyclone PicoCpuS68k;
 m68ki_cpu_core PicoS68kCPU; // Mega CD's CPU
 #endif
 
-static int irqs = 0; // TODO: 2 context
+static int new_irq_level(int level)
+{
+  int level_new = 0, irqs;
+  Pico_mcd->m.s68k_pend_ints &= ~(1 << level);
+  irqs = Pico_mcd->m.s68k_pend_ints;
+  irqs &= Pico_mcd->s68k_regs[0x33];
+  while ((irqs >>= 1)) level_new++;
 
+  return level_new;
+}
 
 #ifdef EMU_M68K
 static int SekIntAckS68k(int level)
 {
-  int level_new = 0;
-  irqs &= ~(1 << level);
-  irqs &= Pico_mcd->s68k_regs[0x33];
-  if (irqs) {
-    level_new = 6;
-    while (level_new > 0) { if (irqs & (1 << level_new)) break; level_new--; }
-  }
-
+  int level_new = new_irq_level(level);
   dprintf("s68kACK %i -> %i", level, level_new);
   CPU_INT_LEVEL = level_new << 8;
   return M68K_INT_ACK_AUTOVECTOR;
@@ -45,15 +46,9 @@ static int SekIntAckS68k(int level)
 
 #ifdef EMU_C68K
 // interrupt acknowledgment
-static void SekIntAck(int level)
+static void SekIntAckS68k(int level)
 {
-  int level_new = 0;
-  irqs &= ~(1 << level);
-  irqs &= Pico_mcd->s68k_regs[0x33];
-  if (irqs) {
-    level_new = 6;
-    while (level_new > 0) { if (irqs & (1 << level_new)) break; level_new--; }
-  }
+  int level_new = new_irq_level(level);
 
   dprintf("s68kACK %i -> %i", level, level_new);
   PicoCpuS68k.irq = level_new;
@@ -82,7 +77,7 @@ int SekInitS68k()
 #ifdef EMU_C68K
 //  CycloneInit();
   memset(&PicoCpuS68k,0,sizeof(PicoCpuS68k));
-  PicoCpuS68k.IrqCallback=SekIntAck;
+  PicoCpuS68k.IrqCallback=SekIntAckS68k;
   PicoCpuS68k.ResetCallback=SekResetAck;
   PicoCpuS68k.UnrecognizedCallback=SekUnrecognizedOpcode;
 #endif
@@ -132,14 +127,18 @@ int SekResetS68k()
 
 int SekInterruptS68k(int irq)
 {
-  irqs |= 1 << irq;
+  int irqs, real_irq = 1;
+  Pico_mcd->m.s68k_pend_ints |= 1 << irq;
+  irqs = Pico_mcd->m.s68k_pend_ints >> 1;
+  while ((irqs >>= 1)) real_irq++; // this is probably only needed for Cyclone
+
 #ifdef EMU_C68K
-  PicoCpuS68k.irq=irq;
+  PicoCpuS68k.irq=real_irq;
 #endif
 #ifdef EMU_M68K
   void *oldcontext = m68ki_cpu_p;
   m68k_set_context(&PicoS68kCPU);
-  m68k_set_irq(irq); // raise irq (gets lowered after taken or must be done in ack)
+  m68k_set_irq(real_irq); // raise irq (gets lowered after taken or must be done in ack)
   m68k_set_context(oldcontext);
 #endif
   return 0;

@@ -27,6 +27,7 @@ static unsigned char *mp3_mem = 0;
 
 int crashed_940 = 0;
 
+static FILE *loaded_mp3 = 0;
 
 /***********************************************************/
 
@@ -380,6 +381,8 @@ void YM2612Init_940(int baseclock, int rate)
 
 	internal_reset();
 
+	loaded_mp3 = 0;
+
 	/* now cause 940 to init it's ym2612 stuff */
 	shared_ctl->baseclock = baseclock;
 	shared_ctl->rate = rate;
@@ -468,13 +471,12 @@ static void mix_samples(short *dest_buf, int *ym_buf, short *mp3_buf, int len, i
 
 // here we assume that length is different between games, but constant in one game
 
-static FILE *loaded_mp3 = 0;
+static int mp3_samples_ready = 0, mp3_buffer_offs = 0;
+static int mp3_play_bufsel = 0;
 
 void YM2612UpdateOne_940(short *buffer, int length, int stereo)
 {
 	int cdda_on, *ym_buffer = shared_data->mix_buffer, mp3_job = 0;
-	static int mp3_samples_ready = 0, mp3_buffer_offs = 0;
-	static int mp3_play_bufsel = 1;
 
 	//printf("YM2612UpdateOne_940()\n");
 	if (shared_ctl->busy) wait_busy_940();
@@ -567,6 +569,10 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 	printf("mp3 pos1024: %i, byte_offs %i/%i\n", pos, byte_offs, shared_ctl->mp3_len);
 
 	shared_ctl->mp3_offs = byte_offs;
+
+	// reset buffer pointers..
+	mp3_samples_ready = mp3_buffer_offs = mp3_play_bufsel = 0;
+	shared_ctl->mp3_buffsel = 1; // will change to 0 on first decode
 }
 
 

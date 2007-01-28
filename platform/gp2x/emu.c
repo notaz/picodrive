@@ -456,6 +456,7 @@ int emu_ReadConfig(int game)
 		currentConfig.PicoOpt = 0x0f | 0x200; // | use_940
 		currentConfig.PsndRate = 44100;
 		currentConfig.PicoRegion = 0; // auto
+		currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
 		currentConfig.Frameskip = -1; // auto
 		currentConfig.CPUclock = 200;
 		currentConfig.volume = 50;
@@ -490,6 +491,7 @@ int emu_ReadConfig(int game)
 	PicoOpt = currentConfig.PicoOpt;
 	PsndRate = currentConfig.PsndRate;
 	PicoRegionOverride = currentConfig.PicoRegion;
+	PicoAutoRgnOrder = currentConfig.PicoAutoRgnOrder;
 	if (PicoOpt & 0x20) {
 		actionNames[ 8] = "Z"; actionNames[ 9] = "Y";
 		actionNames[10] = "X"; actionNames[11] = "MODE";
@@ -527,6 +529,7 @@ int emu_WriteConfig(int game)
 		currentConfig.PicoOpt = PicoOpt;
 		currentConfig.PsndRate = PsndRate;
 		currentConfig.PicoRegion = PicoRegionOverride;
+		currentConfig.PicoAutoRgnOrder = PicoAutoRgnOrder;
 		bwrite = fwrite(&currentConfig, 1, sizeof(currentConfig), f);
 		fflush(f);
 		fclose(f);
@@ -1231,6 +1234,7 @@ if (Pico.m.frame_count == 31563) {
 
 	// save SRAM
 	if((currentConfig.EmuOpt & 1) && SRam.changed) {
+		blit("", "Writing SRAM/BRAM..");
 		emu_SaveLoadGame(0, 1);
 		SRam.changed = 0;
 	}
@@ -1321,14 +1325,16 @@ int emu_SaveLoadGame(int load, int sram)
 			if( (PmovFile = gzopen(saveFname, load ? "rb" : "wb")) ) {
 				areaRead  = gzRead2;
 				areaWrite = gzWrite2;
+				areaEof   = (areaeof *) gzeof;
 				if(!load) gzsetparams(PmovFile, 9, Z_DEFAULT_STRATEGY);
 			} else
 				saveFname[strlen(saveFname)-3] = 0;
 		}
 		if(!PmovFile) { // gzip failed or was disabled
 			if( (PmovFile = fopen(saveFname, load ? "rb" : "wb")) ) {
-				areaRead  = (STATE_SL_FUNC) fread;
-				areaWrite = (STATE_SL_FUNC) fwrite;
+				areaRead  = (arearw *) fread;
+				areaWrite = (arearw *) fwrite;
+				areaEof   = (areaeof *) feof;
 			}
 		}
 		if(PmovFile) {

@@ -46,10 +46,9 @@ typedef struct {
 	_scd_toc TOC;
 	int Cur_LBA;
 	unsigned int Cur_Track;
+	int File_Add_Delay;
+	char CDD_Complete;
 } _scd;
-
-
-extern int CD_Timer_Counter;
 
 
 void LBA_to_MSF(int lba, _msf *MSF);

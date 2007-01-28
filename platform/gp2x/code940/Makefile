@@ -61,6 +61,10 @@ code940.gpe : $(OBJS940) ../helix/helix_mp3.a
 	@make -C ../helix/
 
 
+up:
+	@cp -v code940.bin /mnt/gp2x/mnt/sd/games/PicoDrive/
+
+
 # cleanup
 clean: tidy
 	@$(RM) code940.bin

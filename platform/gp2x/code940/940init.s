@@ -182,4 +182,14 @@ wait_irq:
 
 .pool
 
+
+.global set_if_not_changed @ int *val, int oldval, int newval
+
+set_if_not_changed:
+    swp    r3, r2, [r0]
+    cmp    r1, r3
+    bxeq   lr
+    strne  r3, [r0] @ restore value which was changed there by other core
+    bx     lr
+
 @ vim:filetype=armasm:
