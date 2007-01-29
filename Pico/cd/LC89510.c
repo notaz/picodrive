@@ -53,7 +53,7 @@ static void CDC_Reset(void)
 	Pico_mcd->cdc.IFCTRL = 0;
 	Pico_mcd->cdc.CTRL.N = 0;
 
-	Pico_mcd->cdd.CDC_Decode_Reg_Read = 0;
+	Pico_mcd->cdc.Decode_Reg_Read = 0;
 	Pico_mcd->scd.Status_CDC &= ~0x08;
 }
 
@@ -257,7 +257,7 @@ unsigned char CDC_Read_Reg(void)
 		case 0x1: // IFSTAT
 			cdprintf("CDC read reg 01 = %.2X", Pico_mcd->cdc.IFSTAT);
 
-			Pico_mcd->cdd.CDC_Decode_Reg_Read |= (1 << 1);		// Reg 1 (decoding)
+			Pico_mcd->cdc.Decode_Reg_Read |= (1 << 1);		// Reg 1 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x2;
 			return Pico_mcd->cdc.IFSTAT;
 
@@ -276,42 +276,42 @@ unsigned char CDC_Read_Reg(void)
 		case 0x4: // HEAD0
 			cdprintf("CDC read reg 04 = %.2X", Pico_mcd->cdc.HEAD.B.B0);
 
-			Pico_mcd->cdd.CDC_Decode_Reg_Read |= (1 << 4);		// Reg 4 (decoding)
+			Pico_mcd->cdc.Decode_Reg_Read |= (1 << 4);		// Reg 4 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x5;
 			return Pico_mcd->cdc.HEAD.B.B0;
 
 		case 0x5: // HEAD1
 			cdprintf("CDC read reg 05 = %.2X", Pico_mcd->cdc.HEAD.B.B1);
 
-			Pico_mcd->cdd.CDC_Decode_Reg_Read |= (1 << 5);		// Reg 5 (decoding)
+			Pico_mcd->cdc.Decode_Reg_Read |= (1 << 5);		// Reg 5 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x6;
 			return Pico_mcd->cdc.HEAD.B.B1;
 
 		case 0x6: // HEAD2
 			cdprintf("CDC read reg 06 = %.2X", Pico_mcd->cdc.HEAD.B.B2);
 
-			Pico_mcd->cdd.CDC_Decode_Reg_Read |= (1 << 6);		// Reg 6 (decoding)
+			Pico_mcd->cdc.Decode_Reg_Read |= (1 << 6);		// Reg 6 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x7;
 			return Pico_mcd->cdc.HEAD.B.B2;
 
 		case 0x7: // HEAD3
 			cdprintf("CDC read reg 07 = %.2X", Pico_mcd->cdc.HEAD.B.B3);
 
-			Pico_mcd->cdd.CDC_Decode_Reg_Read |= (1 << 7);		// Reg 7 (decoding)
+			Pico_mcd->cdc.Decode_Reg_Read |= (1 << 7);		// Reg 7 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x8;
 			return Pico_mcd->cdc.HEAD.B.B3;
 
 		case 0x8: // PTL
 			cdprintf("CDC read reg 08 = %.2X", Pico_mcd->cdc.PT.B.L);
 
-			Pico_mcd->cdd.CDC_Decode_Reg_Read |= (1 << 8);		// Reg 8 (decoding)
+			Pico_mcd->cdc.Decode_Reg_Read |= (1 << 8);		// Reg 8 (decoding)
 			Pico_mcd->s68k_regs[5] = 0x9;
 			return Pico_mcd->cdc.PT.B.L;
 
 		case 0x9: // PTH
 			cdprintf("CDC read reg 09 = %.2X", Pico_mcd->cdc.PT.B.H);
 
-			Pico_mcd->cdd.CDC_Decode_Reg_Read |= (1 << 9);		// Reg 9 (decoding)
+			Pico_mcd->cdc.Decode_Reg_Read |= (1 << 9);		// Reg 9 (decoding)
 			Pico_mcd->s68k_regs[5] = 0xA;
 			return Pico_mcd->cdc.PT.B.H;
 
@@ -330,21 +330,21 @@ unsigned char CDC_Read_Reg(void)
 		case 0xC: // STAT0
 			cdprintf("CDC read reg 12 = %.2X", Pico_mcd->cdc.STAT.B.B0);
 
-			Pico_mcd->cdd.CDC_Decode_Reg_Read |= (1 << 12);		// Reg 12 (decoding)
+			Pico_mcd->cdc.Decode_Reg_Read |= (1 << 12);		// Reg 12 (decoding)
 			Pico_mcd->s68k_regs[5] = 0xD;
 			return Pico_mcd->cdc.STAT.B.B0;
 
 		case 0xD: // STAT1
 			cdprintf("CDC read reg 13 = %.2X", Pico_mcd->cdc.STAT.B.B1);
 
-			Pico_mcd->cdd.CDC_Decode_Reg_Read |= (1 << 13);		// Reg 13 (decoding)
+			Pico_mcd->cdc.Decode_Reg_Read |= (1 << 13);		// Reg 13 (decoding)
 			Pico_mcd->s68k_regs[5] = 0xE;
 			return Pico_mcd->cdc.STAT.B.B1;
 
 		case 0xE: // STAT2
 			cdprintf("CDC read reg 14 = %.2X", Pico_mcd->cdc.STAT.B.B2);
 
-			Pico_mcd->cdd.CDC_Decode_Reg_Read |= (1 << 14);		// Reg 14 (decoding)
+			Pico_mcd->cdc.Decode_Reg_Read |= (1 << 14);		// Reg 14 (decoding)
 			Pico_mcd->s68k_regs[5] = 0xF;
 			return Pico_mcd->cdc.STAT.B.B2;
 
@@ -355,7 +355,7 @@ unsigned char CDC_Read_Reg(void)
 			Pico_mcd->cdc.IFSTAT |= 0x20;			// decoding interrupt flag cleared
 			if ((Pico_mcd->cdc.CTRL.B.B0 & 0x80) && (Pico_mcd->cdc.IFCTRL & 0x20))
 			{
-				if ((Pico_mcd->cdd.CDC_Decode_Reg_Read & 0x73F2) == 0x73F2)
+				if ((Pico_mcd->cdc.Decode_Reg_Read & 0x73F2) == 0x73F2)
 					Pico_mcd->cdc.STAT.B.B3 = 0x80;
 			}
 			return ret;

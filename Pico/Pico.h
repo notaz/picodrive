@@ -19,9 +19,10 @@
 extern "C" {
 #endif
 
-// external
-int mp3_get_bitrate(FILE *f, int size);
+// external funcs for Sega/Mega CD
+int  mp3_get_bitrate(FILE *f, int size);
 void mp3_start_play(FILE *f, int pos);
+int  mp3_get_offset(void); // 0-1023
 
 
 // Pico.c
@@ -47,11 +48,13 @@ int PicoFrameMCD(void);
 // Area.c
 typedef size_t (arearw)(void *p, size_t _size, size_t _n, void *file);
 typedef size_t (areaeof)(void *file);
+typedef int    (areaseek)(void *file, long offset, int whence);
 // Save or load the state from PmovFile:
 int PmovState(int PmovAction, void *PmovFile); // &1=for reading &2=for writing &4=volatile &8=non-volatile
 extern arearw  *areaRead;  // external read and write function pointers for
 extern arearw  *areaWrite; // gzip save state ability
 extern areaeof *areaEof;
+extern areaseek *areaSeek;
 
 // Cart.c
 int PicoCartLoad(FILE *f,unsigned char **prom,unsigned int *psize);

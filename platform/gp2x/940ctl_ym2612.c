@@ -576,3 +576,22 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 }
 
 
+int mp3_get_offset(void)
+{
+	int offs1024 = 0;
+	int cdda_on;
+
+	cdda_on = (PicoMCD & 1) && (currentConfig.EmuOpt&0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
+			(Pico_mcd->scd.Status_CDC & 1) && loaded_mp3 && shared_ctl->mp3_offs < shared_ctl->mp3_len;
+
+	if (cdda_on) {
+		offs1024  = shared_ctl->mp3_offs << 7;
+		offs1024 /= shared_ctl->mp3_len;
+		offs1024 <<= 3;
+	}
+	printf("offs1024=%i (%i/%i)\n", offs1024, shared_ctl->mp3_offs, shared_ctl->mp3_len);
+
+	return offs1024;
+}
+
+

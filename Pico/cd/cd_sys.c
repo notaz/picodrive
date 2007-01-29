@@ -101,19 +101,19 @@ static unsigned int MSF_to_Track(_msf *MSF)
 
 	Start = (MSF->M << 16) + (MSF->S << 8) + MSF->F;
 
-	for(i = Pico_mcd->scd.TOC.First_Track; i <= (Pico_mcd->scd.TOC.Last_Track + 1); i++)
+	for(i = 1; i <= (Pico_mcd->TOC.Last_Track + 1); i++)
 	{
-		Cur = Pico_mcd->scd.TOC.Tracks[i - Pico_mcd->scd.TOC.First_Track].MSF.M << 16;
-		Cur += Pico_mcd->scd.TOC.Tracks[i - Pico_mcd->scd.TOC.First_Track].MSF.S << 8;
-		Cur += Pico_mcd->scd.TOC.Tracks[i - Pico_mcd->scd.TOC.First_Track].MSF.F;
+		Cur = Pico_mcd->TOC.Tracks[i - 1].MSF.M << 16;
+		Cur += Pico_mcd->TOC.Tracks[i - 1].MSF.S << 8;
+		Cur += Pico_mcd->TOC.Tracks[i - 1].MSF.F;
 
 		if (Cur > Start) break;
 	}
 
 	--i;
 
-	if (i > Pico_mcd->scd.TOC.Last_Track) return 100;
-	if (i < Pico_mcd->scd.TOC.First_Track) i = Pico_mcd->scd.TOC.First_Track;
+	if (i > Pico_mcd->TOC.Last_Track) return 100;
+	else if (i < 1) i = 1;
 
 	return (unsigned) i;
 }
@@ -130,12 +130,12 @@ static unsigned int LBA_to_Track(int lba)
 
 static void Track_to_MSF(int track, _msf *MSF)
 {
-	if (track < Pico_mcd->scd.TOC.First_Track) track = Pico_mcd->scd.TOC.First_Track;
-	else if (track > Pico_mcd->scd.TOC.Last_Track) track = Pico_mcd->scd.TOC.Last_Track;
+	if (track < 1) track = 1;
+	else if (track > Pico_mcd->TOC.Last_Track) track = Pico_mcd->TOC.Last_Track;
 
-	MSF->M = Pico_mcd->scd.TOC.Tracks[track - Pico_mcd->scd.TOC.First_Track].MSF.M;
-	MSF->S = Pico_mcd->scd.TOC.Tracks[track - Pico_mcd->scd.TOC.First_Track].MSF.S;
-	MSF->F = Pico_mcd->scd.TOC.Tracks[track - Pico_mcd->scd.TOC.First_Track].MSF.F;
+	MSF->M = Pico_mcd->TOC.Tracks[track - 1].MSF.M;
+	MSF->S = Pico_mcd->TOC.Tracks[track - 1].MSF.S;
+	MSF->F = Pico_mcd->TOC.Tracks[track - 1].MSF.F;
 }
 
 
@@ -168,7 +168,7 @@ void Check_CD_Command(void)
 		cdprintf("Got a read command");
 
 		// DATA ?
-		if (Pico_mcd->scd.TOC.Tracks[Pico_mcd->scd.Cur_Track - Pico_mcd->scd.TOC.First_Track].Type)
+		if (Pico_mcd->scd.Cur_Track == 1)
 		     Pico_mcd->s68k_regs[0x36] |=  0x01;
 		else Pico_mcd->s68k_regs[0x36] &= ~0x01;			// AUDIO
 
@@ -196,8 +196,6 @@ void Check_CD_Command(void)
 
 int Init_CD_Driver(void)
 {
-	FILE_Init();
-
 	return 0;
 }
 
@@ -400,16 +398,10 @@ int Get_Total_Lenght_CDD_c23(void)
 //	else if (!(CDC.CTRL.B.B0 & 0x80)) Pico_mcd->cdd.Status |= Pico_mcd->scd.Status_CDD;
 	Pico_mcd->cdd.Status |= Pico_mcd->scd.Status_CDD;
 
-	Pico_mcd->cdd.Minute = INT_TO_BCDW(Pico_mcd->scd.TOC.Tracks[Pico_mcd->scd.TOC.Last_Track -
-				Pico_mcd->scd.TOC.First_Track + 1].MSF.M);
-	Pico_mcd->cdd.Seconde = INT_TO_BCDW(Pico_mcd->scd.TOC.Tracks[Pico_mcd->scd.TOC.Last_Track -
-				Pico_mcd->scd.TOC.First_Track + 1].MSF.S);
-	Pico_mcd->cdd.Frame = INT_TO_BCDW(Pico_mcd->scd.TOC.Tracks[Pico_mcd->scd.TOC.Last_Track -
-				Pico_mcd->scd.TOC.First_Track + 1].MSF.F);
+	Pico_mcd->cdd.Minute = INT_TO_BCDW(Pico_mcd->TOC.Tracks[Pico_mcd->TOC.Last_Track].MSF.M);
+	Pico_mcd->cdd.Seconde = INT_TO_BCDW(Pico_mcd->TOC.Tracks[Pico_mcd->TOC.Last_Track].MSF.S);
+	Pico_mcd->cdd.Frame = INT_TO_BCDW(Pico_mcd->TOC.Tracks[Pico_mcd->TOC.Last_Track].MSF.F);
 	Pico_mcd->cdd.Ext = 0;
-
-// FIXME: remove
-//Pico_mcd->cdd.Seconde = 2;
 
 	Pico_mcd->scd.CDD_Complete = 1;
 
@@ -429,13 +421,10 @@ int Get_First_Last_Track_CDD_c24(void)
 //	else if (!(CDC.CTRL.B.B0 & 0x80)) Pico_mcd->cdd.Status |= Pico_mcd->scd.Status_CDD;
 	Pico_mcd->cdd.Status |= Pico_mcd->scd.Status_CDD;
 
-	Pico_mcd->cdd.Minute = INT_TO_BCDW(Pico_mcd->scd.TOC.First_Track);
-	Pico_mcd->cdd.Seconde = INT_TO_BCDW(Pico_mcd->scd.TOC.Last_Track);
+	Pico_mcd->cdd.Minute = INT_TO_BCDW(1);
+	Pico_mcd->cdd.Seconde = INT_TO_BCDW(Pico_mcd->TOC.Last_Track);
 	Pico_mcd->cdd.Frame = 0;
 	Pico_mcd->cdd.Ext = 0;
-
-// FIXME: remove
-//Pico_mcd->cdd.Minute = Pico_mcd->cdd.Seconde = 1;
 
 	Pico_mcd->scd.CDD_Complete = 1;
 
@@ -462,15 +451,15 @@ int Get_Track_Adr_CDD_c25(void)
 //	else if (!(CDC.CTRL.B.B0 & 0x80)) Pico_mcd->cdd.Status |= Pico_mcd->scd.Status_CDD;
 	Pico_mcd->cdd.Status |= Pico_mcd->scd.Status_CDD;
 
-	if (track_number > Pico_mcd->scd.TOC.Last_Track) track_number = Pico_mcd->scd.TOC.Last_Track;
-	else if (track_number < Pico_mcd->scd.TOC.First_Track) track_number = Pico_mcd->scd.TOC.First_Track;
+	if (track_number > Pico_mcd->TOC.Last_Track) track_number = Pico_mcd->TOC.Last_Track;
+	else if (track_number < 1) track_number = 1;
 
-	Pico_mcd->cdd.Minute = INT_TO_BCDW(Pico_mcd->scd.TOC.Tracks[track_number - Pico_mcd->scd.TOC.First_Track].MSF.M);
-	Pico_mcd->cdd.Seconde = INT_TO_BCDW(Pico_mcd->scd.TOC.Tracks[track_number - Pico_mcd->scd.TOC.First_Track].MSF.S);
-	Pico_mcd->cdd.Frame = INT_TO_BCDW(Pico_mcd->scd.TOC.Tracks[track_number - Pico_mcd->scd.TOC.First_Track].MSF.F);
+	Pico_mcd->cdd.Minute = INT_TO_BCDW(Pico_mcd->TOC.Tracks[track_number - 1].MSF.M);
+	Pico_mcd->cdd.Seconde = INT_TO_BCDW(Pico_mcd->TOC.Tracks[track_number - 1].MSF.S);
+	Pico_mcd->cdd.Frame = INT_TO_BCDW(Pico_mcd->TOC.Tracks[track_number - 1].MSF.F);
 	Pico_mcd->cdd.Ext = track_number % 10;
 
-	if (Pico_mcd->scd.TOC.Tracks[track_number - Pico_mcd->scd.TOC.First_Track].Type) Pico_mcd->cdd.Frame |= 0x0800;
+	if (track_number == 1) Pico_mcd->cdd.Frame |= 0x0800; // data track
 
 	Pico_mcd->scd.CDD_Complete = 1;
 	return 0;
@@ -511,7 +500,7 @@ int Play_CDD_c3(void)
 
 	if (Pico_mcd->scd.File_Add_Delay == 0) Pico_mcd->scd.File_Add_Delay = delay;
 
-	if (Pico_mcd->scd.TOC.Tracks[Pico_mcd->scd.Cur_Track - Pico_mcd->scd.TOC.First_Track].Type)
+	if (Pico_mcd->scd.Cur_Track == 1)
 	{
 		Pico_mcd->s68k_regs[0x36] |=  0x01;				// DATA
 	}
@@ -558,7 +547,7 @@ int Seek_CDD_c4(void)
 	Pico_mcd->cdd.Status = 0x0200;
 
 	// DATA ?
-	if (Pico_mcd->scd.TOC.Tracks[Pico_mcd->scd.Cur_Track - Pico_mcd->scd.TOC.First_Track].Type)
+	if (Pico_mcd->scd.Cur_Track == 1)
 	     Pico_mcd->s68k_regs[0x36] |=  0x01;
 	else Pico_mcd->s68k_regs[0x36] &= ~0x01;		// AUDIO
 
@@ -614,7 +603,7 @@ int Resume_CDD_c7(void)
 	Pico_mcd->scd.Status_CDD = PLAYING;
 	Pico_mcd->cdd.Status = 0x0102;
 
-	if (Pico_mcd->scd.TOC.Tracks[Pico_mcd->scd.Cur_Track - Pico_mcd->scd.TOC.First_Track].Type)
+	if (Pico_mcd->scd.Cur_Track == 1)
 	{
 		Pico_mcd->s68k_regs[0x36] |=  0x01;				// DATA
 	}

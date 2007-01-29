@@ -1264,7 +1264,6 @@ size_t gzWrite2(void *p, size_t _size, size_t _n, void *file)
 	return gzwrite(file, p, _n);
 }
 
-typedef unsigned int (*STATE_SL_FUNC)(void *, unsigned int, unsigned int, void *);
 
 int emu_SaveLoadGame(int load, int sram)
 {
@@ -1326,6 +1325,7 @@ int emu_SaveLoadGame(int load, int sram)
 				areaRead  = gzRead2;
 				areaWrite = gzWrite2;
 				areaEof   = (areaeof *) gzeof;
+				areaSeek  = (areaseek *) gzseek;
 				if(!load) gzsetparams(PmovFile, 9, Z_DEFAULT_STRATEGY);
 			} else
 				saveFname[strlen(saveFname)-3] = 0;
@@ -1335,18 +1335,23 @@ int emu_SaveLoadGame(int load, int sram)
 				areaRead  = (arearw *) fread;
 				areaWrite = (arearw *) fwrite;
 				areaEof   = (areaeof *) feof;
+				areaSeek  = (areaseek *) fseek;
 			}
 		}
 		if(PmovFile) {
-			PmovState(load ? 6 : 5, PmovFile);
-			strcpy(noticeMsg, load ? "GAME LOADED  " : "GAME SAVED   ");
+			ret = PmovState(load ? 6 : 5, PmovFile);
 			if(areaRead == gzRead2)
 				 gzclose(PmovFile);
 			else fclose ((FILE *) PmovFile);
 			PmovFile = 0;
 			if (!load) sync();
 			else Pico.m.dirtyPal=1;
-		} else {
+		}
+		else	ret = -1;
+		if (!ret)
+			strcpy(noticeMsg, load ? "GAME LOADED  " : "GAME SAVED   ");
+		else
+		{
 			strcpy(noticeMsg, load ? "LOAD FAILED  " : "SAVE FAILED  ");
 			ret = -1;
 		}

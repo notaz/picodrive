@@ -171,7 +171,10 @@ struct mcd_misc
 	unsigned char  s68k_pend_ints;
 	unsigned int   state_flags;	// emu state: reset_pending,
 	unsigned int   counter75hz;
-
+	unsigned short audio_offset;	// for savestates: play pointer offset (0-1023)
+	unsigned char  audio_track;	// playing audio track # (zero based)
+	char pad1;
+	int pad[12];
 };
 
 typedef struct
@@ -184,6 +187,7 @@ typedef struct
 	unsigned char word_ram[0x40000];		// 256K
 	unsigned char bram[0x2000];			// 8K
 	unsigned char s68k_regs[0x200];
+	_scd_toc TOC;					// not to be saved
 	CDD  cdd;
 	CDC  cdc;
 	_scd scd;

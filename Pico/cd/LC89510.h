@@ -88,7 +88,7 @@ typedef struct
 		} B;
 		unsigned int N;
 	} CTRL;
-	unsigned int CDC_Decode_Reg_Read;
+	unsigned int Decode_Reg_Read;
 } CDC;
 
 typedef struct

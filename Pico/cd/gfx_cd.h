@@ -28,6 +28,8 @@ typedef struct
 	unsigned int YD;
 	unsigned int XD_Mul;
 	unsigned int H_Dot;
+
+	int pad[2];
 } Rot_Comp;
 
 

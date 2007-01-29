@@ -29,8 +29,6 @@ typedef unsigned int   u32;
 
 // -----------------------------------------------------------------
 
-// extern m68ki_cpu_core m68ki_cpu;
-
 
 static u32 m68k_reg_read16(u32 a)
 {

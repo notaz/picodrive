@@ -5,7 +5,7 @@
 
 #define rot_comp Pico_mcd->rot_comp
 
-static int Table_Rot_Time[] =
+static const int Table_Rot_Time[] =
 {
 	0x00054000, 0x00048000, 0x00040000, 0x00036000,          //; 008-032               ; briefing - sprite
 	0x0002E000, 0x00028000, 0x00024000, 0x00022000,          //; 036-064               ; arbre souvent

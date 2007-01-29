@@ -22,9 +22,10 @@ struct PicoArea { void *data; int len; char *name; };
 // taking an address of fread or fwrite causes "application could't be started" error
 // on startup randomly depending on binary layout of executable file.
 
-arearw  *areaRead  = (arearw *) 0; // fread;  // read and write function pointers for
-arearw  *areaWrite = (arearw *) 0; // fwrite; // gzip save state ability
-areaeof *areaEof = (areaeof *) 0;
+arearw   *areaRead  = (arearw *) 0; // fread;  // read and write function pointers for
+arearw   *areaWrite = (arearw *) 0; // fwrite; // gzip save state ability
+areaeof  *areaEof   = (areaeof *) 0;
+areaseek *areaSeek  = (areaseek *) 0;
 
 
 // Scan one variable and callback
@@ -161,7 +162,7 @@ int PmovState(int PmovAction, void *PmovFile)
   int minimum=0;
   unsigned char head[32];
 
-  // testing
+  if (PicoMCD & 1)
   {
     if (PmovAction&1) return PicoCdSaveState(PmovFile);
     if (PmovAction&2) return PicoCdLoadState(PmovFile);

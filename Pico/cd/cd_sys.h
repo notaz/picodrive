@@ -1,6 +1,10 @@
 #ifndef _CD_SYS_H
 #define _CD_SYS_H
 
+#include "cd_file.h"
+
+#include <stdio.h> // FILE
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,26 +32,32 @@ typedef struct
 
 typedef struct
 {
-	unsigned char Type;
-	unsigned char Num;
+//	unsigned char Type; // always 1 (data) for 1st track, 0 (audio) for others
+//	unsigned char Num; // unused
 	_msf MSF;
+	//
+	char ftype; // TYPE_ISO, TYPE_BIN, TYPE_MP3
+	FILE *F;
+	int Length;
+	short KBtps; // kbytes per sec for mp3s (bitrate / 1000 / 8)
+	short pad;
 } _scd_track;
 
 typedef struct
 {
-	unsigned char First_Track;
-	unsigned char Last_Track;
+//	unsigned char First_Track; // always 1
 	_scd_track Tracks[100];
+	unsigned int Last_Track;
 } _scd_toc;
 
 typedef struct {
 	unsigned int Status_CDD;
 	unsigned int Status_CDC;
-	_scd_toc TOC;
 	int Cur_LBA;
 	unsigned int Cur_Track;
 	int File_Add_Delay;
 	char CDD_Complete;
+	int pad[6];
 } _scd;
 
 

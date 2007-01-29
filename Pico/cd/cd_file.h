@@ -1,8 +1,6 @@
 #ifndef _CD_FILE_H
 #define _CD_FILE_H
 
-#include <stdio.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -13,18 +11,7 @@ extern "C" {
 //#define TYPE_WAV 4
 
 
-struct _file_track {
-	FILE *F;
-	int Length;
-	short Type; // can be char
-	short KBtps; // bytes per sec for mp3s (bitrate / 8)
-};
 
-extern struct _file_track Tracks[100];
-extern char Track_Played;
-
-
-int FILE_Init(void);
 void FILE_End(void);
 int Load_ISO(const char *iso_name, int is_bin);
 void Unload_ISO(void);
