@@ -142,7 +142,7 @@ typedef struct
 
 void YM2612Init_(int baseclock, int rate);
 void YM2612ResetChip_(void);
-void YM2612UpdateOne_(short *buffer, int length, int stereo);
+int  YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty);
 
 int  YM2612Write_(unsigned int a, unsigned int v);
 unsigned char YM2612Read_(void);
@@ -172,9 +172,9 @@ extern int PicoOpt;
 	if (PicoOpt&0x200) YM2612ResetChip_940(); \
 	else               YM2612ResetChip_(); \
 }
-#define YM2612UpdateOne(buffer,length,stereo) { \
-	if (PicoOpt&0x200) YM2612UpdateOne_940(buffer, length, stereo); \
-	else               YM2612UpdateOne_(buffer, length, stereo); \
+#define YM2612UpdateOne(buffer,length,stereo,is_buf_empty) { \
+	if (PicoOpt&0x200) YM2612UpdateOne_940(buffer, length, stereo, is_buf_empty); \
+	else               YM2612UpdateOne_(buffer, length, stereo, is_buf_empty); \
 }
 #define YM2612Write(a,v) \
 	(PicoOpt&0x200) ?  YM2612Write_940(a, v) : YM2612Write_(a, v)

@@ -276,6 +276,7 @@ int emu_ReloadRom(void)
 		// bios_help() ?
 		return 0;
 	} else {
+		if (PicoMCD & 1) PicoExitMCD();
 		PicoMCD &= ~1;
 	}
 
@@ -374,7 +375,7 @@ int emu_ReloadRom(void)
 		}
 	}
 	gettimeofday(&noticeMsgTime, 0);
-printf("PicoMCD: %x\n", PicoMCD);
+
 	// load SRAM for this ROM
 	if(currentConfig.EmuOpt & 1)
 		emu_SaveLoadGame(1, 1);
@@ -452,8 +453,8 @@ int emu_ReadConfig(int game)
 		// set default config
 		memset(&currentConfig, 0, sizeof(currentConfig));
 		currentConfig.lastRomFile[0] = 0;
-		currentConfig.EmuOpt  = 0x1f | 0xc00; // | cd_leds | cd_cdda
-		currentConfig.PicoOpt = 0x0f | 0x200; // | use_940
+		currentConfig.EmuOpt  = 0x1f | 0x400; // | cd_leds
+		currentConfig.PicoOpt = 0x0f | 0xe00; // | use_940 | cd_pcm | cd_cdda
 		currentConfig.PsndRate = 44100;
 		currentConfig.PicoRegion = 0; // auto
 		currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
@@ -599,20 +600,20 @@ static void cd_leds(void)
 		// 8-bit modes
 		unsigned int col_g = (old_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
 		unsigned int col_r = (old_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
-		*(unsigned int *)((char *)gp2x_screen + 320*2+306) =
-		*(unsigned int *)((char *)gp2x_screen + 320*3+306) =
-		*(unsigned int *)((char *)gp2x_screen + 320*4+306) = col_g;
-		*(unsigned int *)((char *)gp2x_screen + 320*2+312) =
-		*(unsigned int *)((char *)gp2x_screen + 320*3+312) =
-		*(unsigned int *)((char *)gp2x_screen + 320*4+312) = col_r;
+		*(unsigned int *)((char *)gp2x_screen + 320*2+ 4) =
+		*(unsigned int *)((char *)gp2x_screen + 320*3+ 4) =
+		*(unsigned int *)((char *)gp2x_screen + 320*4+ 4) = col_g;
+		*(unsigned int *)((char *)gp2x_screen + 320*2+12) =
+		*(unsigned int *)((char *)gp2x_screen + 320*3+12) =
+		*(unsigned int *)((char *)gp2x_screen + 320*4+12) = col_r;
 	} else {
 		// 16-bit modes
-		unsigned int *p = (unsigned int *)((short *)gp2x_screen + 320*2+306);
+		unsigned int *p = (unsigned int *)((short *)gp2x_screen + 320*2+4);
 		unsigned int col_g = (old_reg & 2) ? 0x06000600 : 0;
 		unsigned int col_r = (old_reg & 1) ? 0xc000c000 : 0;
-		*p++ = col_g; *p++ = col_g; p++; *p++ = col_r; *p++ = col_r; p += 320/2 - 10/2;
-		*p++ = col_g; *p++ = col_g; p++; *p++ = col_r; *p++ = col_r; p += 320/2 - 10/2;
-		*p++ = col_g; *p++ = col_g; p++; *p++ = col_r; *p++ = col_r; p += 320/2 - 10/2;
+		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 320/2 - 12/2;
+		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 320/2 - 12/2;
+		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 320/2 - 12/2;
 	}
 }
 

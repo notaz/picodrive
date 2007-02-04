@@ -11,7 +11,7 @@ CROSS = arm-linux-
 
 DEFINC = -I../.. -I. -D__GP2X__ -DARM # -DBENCHMARK
 COPT_COMMON = -static -s -O3 -ftracer -fstrength-reduce -Wall -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math
-COPT = $(COPT_COMMON) -mtune=arm920t
+COPT = $(COPT_COMMON) -mtune=arm940t
 GCC = $(CROSS)gcc
 STRIP = $(CROSS)strip
 AS = $(CROSS)as
@@ -20,10 +20,6 @@ OBJCOPY = $(CROSS)objcopy
 
 all: code940.bin
 
-up940:
-	@cp -v code940.bin /mnt/gp2x/mnt/sd/games/PicoDrive/
-
-#	@cmd //C copy code940.bin \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
 
 .c.o:
 	@echo $<
@@ -36,7 +32,7 @@ up940:
 # stuff for 940 core
 
 # init, emu_control, emu
-OBJS940 += 940init.o 940.o 940ym2612.o memcpy.o
+OBJS940 += 940init.o 940.o 940ym2612.o memcpy.o mix.o
 # the asm code seems to be faster when run on 920, but not on 940 for some reason
 # OBJS940 += ../../Pico/sound/ym2612_asm.o
 
@@ -51,17 +47,21 @@ code940.bin : code940.gpe
 
 code940.gpe : $(OBJS940) ../helix/helix_mp3.a
 	@echo $@
-	@$(LD) -static -e code940 -Ttext 0x0 $^ -L$(lgcc_path) -lgcc -o $@
+	@$(LD) -static -e code940 -Ttext 0x0 $^ -L$(lgcc_path) -lgcc -o $@ -Map code940.map
 
 940ym2612.o : ../../../Pico/sound/ym2612.c
 	@echo $@
-	@$(GCC) $(COPT_COMMON) -mtune=arm940t $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
+	@$(GCC) $(COPT) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
+
+mix.o : ../../../Pico/sound/mix.s
+	@echo $@
+	@$(GCC) $(COPT) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
 
 ../helix/helix_mp3.a:
 	@make -C ../helix/
 
 
-up:
+up: code940.bin
 	@cp -v code940.bin /mnt/gp2x/mnt/sd/games/PicoDrive/
 
 
@@ -69,7 +69,7 @@ up:
 clean: tidy
 	@$(RM) code940.bin
 tidy:
-	@$(RM) code940.gpe $(OBJS940)
+	@$(RM) code940.gpe $(OBJS940) code940.map
 
 
 OBJSMP3T = mp3test.o ../gp2x.o ../asmutils.o ../usbjoy.o

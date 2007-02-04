@@ -574,7 +574,8 @@ static void draw_cd_menu_options(int menu_sel, char *b_us, char *b_eu, char *b_j
 	gp2x_text_out8(tl_x, (y+=10), "EUR BIOS:     %s", b_eu); // 1
 	gp2x_text_out8(tl_x, (y+=10), "JAP BIOS:     %s", b_jp); // 2
 	gp2x_text_out8(tl_x, (y+=10), "CD LEDs                    %s", (currentConfig.EmuOpt &0x400)?"ON":"OFF"); // 3
-	gp2x_text_out8(tl_x, (y+=10), "CDDA audio (using mp3s)    %s", (currentConfig.EmuOpt &0x800)?"ON":"OFF"); // 4
+	gp2x_text_out8(tl_x, (y+=10), "CDDA audio (using mp3s)    %s", (currentConfig.PicoOpt&0x800)?"ON":"OFF"); // 4
+	gp2x_text_out8(tl_x, (y+=10), "PCM audio                  %s", (currentConfig.PicoOpt&0x400)?"ON":"OFF"); // 5
 	gp2x_text_out8(tl_x, (y+=10), "Done");
 
 	// draw cursor
@@ -590,7 +591,7 @@ static void draw_cd_menu_options(int menu_sel, char *b_us, char *b_eu, char *b_j
 
 static void cd_menu_loop_options(void)
 {
-	int menu_sel = 0, menu_sel_max = 5;
+	int menu_sel = 0, menu_sel_max = 6;
 	unsigned long inp = 0;
 	char bios_us[32], bios_eu[32], bios_jp[32], *bios, *p;
 
@@ -618,8 +619,9 @@ static void cd_menu_loop_options(void)
 		if((inp& GP2X_B)||(inp&GP2X_LEFT)||(inp&GP2X_RIGHT)) { // toggleable options
 			switch (menu_sel) {
 				case  3: currentConfig.EmuOpt ^=0x400; break;
-				case  4: currentConfig.EmuOpt ^=0x800; break;
-				case  5: return;
+				case  4: currentConfig.PicoOpt^=0x800; break;
+				case  5: currentConfig.PicoOpt^=0x400; break;
+				case  6: return;
 			}
 		}
 		if(inp & (GP2X_X|GP2X_A)) return;

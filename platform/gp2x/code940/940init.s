@@ -1,5 +1,7 @@
 .global code940
 
+.equ mmsp2_regs, (0xc0000000-0x02000000) @ assume we live @ 0x2000000 bank
+
 code940:                          @ interrupt table:
     b .b_reset                    @ reset
     b .b_undef                    @ undefined instructions
@@ -33,7 +35,7 @@ code940:                          @ interrupt table:
     mov     r12, #6
     mov     sp, #0x100000       @ reset stack
     sub     sp, sp, #4
-    mov     r1, #0xbe000000     @ assume we live @ 0x2000000 bank
+    mov     r1, #mmsp2_regs
     orr     r2, r1, #0x3B00
     orr     r2, r2, #0x0046
     mvn     r3, #0
@@ -69,7 +71,7 @@ code940:                          @ interrupt table:
 
     @ set up region 3: 64k 0xbe000000-0xbe010000 (hw control registers)
     mov r0, #(0x0f<<1)|1
-    orr r0, r0, #0xbe000000
+    orr r0, r0, #mmsp2_regs
     mcr p15, 0, r0, c6, c3, 0
     mcr p15, 0, r0, c6, c3, 1
 
@@ -88,7 +90,7 @@ code940:                          @ interrupt table:
     mov r0, #(1<<1)
     mcr p15, 0, r0, c3, c0, 0
 
-    @ set protection, allow accsess only to regions 1 and 2
+    @ set protection, allow access only to regions 1 and 2
     mov r0, #(3<<8)|(3<<6)|(3<<4)|(3<<2)|(0)  @ data: [full, full, full, full, no access] for regions [4 3 2 1 0]
     mcr p15, 0, r0, c5, c0, 0
     mov r0, #(0<<8)|(0<<6)|(0<<4)|(3<<2)|(0)  @ instructions: [no access, no, no, full, no]
@@ -98,9 +100,9 @@ code940:                          @ interrupt table:
     orr r0, r0, #1              @ 0x00000001: enable protection unit
     orr r0, r0, #4              @ 0x00000004: enable D cache
     orr r0, r0, #0x1000         @ 0x00001000: enable I cache
-    bic r0, r0, #0xC0000000
-    orr r0, r0, #0x40000000     @ 0x40000000: synchronous, faster?
-@    orr r0, r0, #0xC0000000     @ 0xC0000000: async
+@    bic r0, r0, #0xC0000000
+@    orr r0, r0, #0x40000000     @ 0x40000000: synchronous, faster?
+    orr r0, r0, #0xC0000000     @ 0xC0000000: async
     mcr p15, 0, r0, c1, c0, 0   @ set control reg
 
     @ flush (invalidate) the cache (just in case)
@@ -109,11 +111,13 @@ code940:                          @ interrupt table:
 
 .Enter:
     mov r0, r12
+    mov r1, lr
     bl Main940
 
     @ we should never get here
-.b_deadloop:
-    b .b_deadloop
+@.b_deadloop:
+@    b .b_deadloop
+    b .b_reserved
 
 
 
@@ -171,13 +175,25 @@ cf_inner_loop:
 .global wait_irq
 
 wait_irq:
+    mov     r0, #mmsp2_regs
+    orr     r0, r0, #0x3B00
+    orr     r1, r0, #0x0042
+    mov     r3, #0
+    strh    r3, [r1]                @ disable interrupts
+    orr     r2, r0, #0x003E
+    strh    r3, [r2]                @ remove busy flag
+    mov     r3, #1
+    strh    r3, [r1]                @ enable interrupts
+
     mrs     r0, cpsr
     bic     r0, r0, #0x80
-    msr     cpsr_c, r0               @ enable interrupts
+    msr     cpsr_c, r0              @ enable interrupts
 
     mov     r0, #0
     mcr     p15, 0, r0, c7, c0, 4   @ wait for IRQ
 @    mcr     p15, 0, r0, c15, c8, 2
+    nop
+    nop
     b       .b_reserved
 
 .pool

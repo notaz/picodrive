@@ -23,13 +23,14 @@ extern "C" {
 int  mp3_get_bitrate(FILE *f, int size);
 void mp3_start_play(FILE *f, int pos);
 int  mp3_get_offset(void); // 0-1023
+void mp3_update(int *buffer, int length, int stereo);
 
 
 // Pico.c
 // PicoOpt bits LSb->MSb:
 // enable_ym2612&dac, enable_sn76496, enable_z80, stereo_sound,
 // alt_renderer, 6button_gamepad, accurate_timing, accurate_sprites,
-// draw_no_32col_border, external_ym2612
+// draw_no_32col_border, external_ym2612, enable_pcm, enable cdda
 extern int PicoOpt;
 extern int PicoVer;
 extern int PicoSkipFrame; // skip rendering frame, but still do sound (if enabled) and emulation stuff

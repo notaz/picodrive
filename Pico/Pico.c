@@ -49,7 +49,8 @@ int PicoInit(void)
 // to be called once on emu exit
 void PicoExit(void)
 {
-  PicoExitMCD();
+  if (PicoMCD&1)
+    PicoExitMCD();
   z80_exit();
 
   // notaz: sram
@@ -322,7 +323,8 @@ static __inline void getSamples(int y)
     if (emustatus&1) emustatus|=2; else emustatus&=~2;
     if (PicoWriteSound) PicoWriteSound();
     // clear sound buffer
-    memset(PsndOut, 0, (PicoOpt & 8) ? (PsndLen<<2) : (PsndLen<<1));
+    sound_clear();
+    //memset(PsndOut, 0, (PicoOpt & 8) ? (PsndLen<<2) : (PsndLen<<1));
   }
   else if(emustatus & 3) {
     emustatus|= 2;

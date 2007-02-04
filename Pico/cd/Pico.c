@@ -32,11 +32,13 @@ int PicoResetMCD(int hard)
 {
   memset(Pico_mcd->prg_ram,  0, sizeof(Pico_mcd->prg_ram));
   memset(Pico_mcd->word_ram, 0, sizeof(Pico_mcd->word_ram));
+  memset(Pico_mcd->pcm_ram, 0, sizeof(Pico_mcd->pcm_ram));
   if (hard) {
 	  memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
 	  memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - 8*0x10, formatted_bram, 8*0x10);
   }
   memset(Pico_mcd->s68k_regs, 0, sizeof(Pico_mcd->s68k_regs));
+  memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));
 
   *(unsigned int *)(Pico_mcd->bios + 0x70) = 0xffffffff; // reset hint vector (simplest way to implement reg6)
   Pico_mcd->m.state_flags |= 2; // s68k reset pending
@@ -97,6 +99,38 @@ static __inline void check_cd_dma(void)
 	Update_CDC_TRansfer(ddx); // now go and do the actual transfer
 }
 
+static __inline void update_chips(void)
+{
+	int counter_timer, int3_set;
+	int counter75hz_lim = Pico.m.pal ? 2080 : 2096;
+
+	// 75Hz CDC update
+	if ((Pico_mcd->m.counter75hz+=10) >= counter75hz_lim) {
+		Pico_mcd->m.counter75hz -= counter75hz_lim;
+		Check_CD_Command();
+	}
+
+	// update timers
+	counter_timer = Pico.m.pal ? 0x21630 : 0x2121c; // 136752 : 135708;
+	Pico_mcd->m.timer_stopwatch += counter_timer;
+	if ((int3_set = Pico_mcd->s68k_regs[0x31])) {
+		Pico_mcd->m.timer_int3 -= counter_timer;
+		if (Pico_mcd->m.timer_int3 < 0) {
+			if (Pico_mcd->s68k_regs[0x33] & (1<<3)) {
+				dprintf("s68k: timer irq 3");
+				SekInterruptS68k(3);
+				Pico_mcd->m.timer_int3 += int3_set << 16;
+			}
+			// is this really what happens if irq3 is masked out?
+			Pico_mcd->m.timer_int3 &= 0xffffff;
+		}
+	}
+
+	// update gfx chip
+	if (Pico_mcd->rot_comp.Reg_58 & 0x8000)
+		gfx_cd_update();
+}
+
 // to be called on 224 or line_sample scanlines only
 static __inline void getSamples(int y)
 {
@@ -108,7 +142,8 @@ static __inline void getSamples(int y)
     if (emustatus&1) emustatus|=2; else emustatus&=~2;
     if (PicoWriteSound) PicoWriteSound();
     // clear sound buffer
-    memset(PsndOut, 0, (PicoOpt & 8) ? (PsndLen<<2) : (PsndLen<<1));
+    sound_clear();
+    //memset(PsndOut, 0, (PicoOpt & 8) ? (PsndLen<<2) : (PsndLen<<1));
   }
   else if(emustatus & 3) {
     emustatus|= 2;
@@ -118,12 +153,10 @@ static __inline void getSamples(int y)
 }
 
 
-
-// Accurate but slower frame which does hints
 static int PicoFrameHintsMCD(void)
 {
   struct PicoVideo *pv=&Pico.video;
-  int total_z80=0,lines,y,lines_vis = 224,z80CycleAim = 0,line_sample,counter75hz_lim;
+  int total_z80=0,lines,y,lines_vis = 224,z80CycleAim = 0,line_sample;
   const int cycles_68k=488,cycles_z80=228,cycles_s68k=795; // both PAL and NTSC compile to same values
   int skip=PicoSkipFrame || (PicoOpt&0x10);
   int hint; // Hint counter
@@ -133,13 +166,11 @@ static int PicoFrameHintsMCD(void)
     //cycles_z80 = (int) ((double) OSC_PAL  / 15 / 50 / 312 + 0.4); // 228
     lines  = 312;    // Steve Snake says there are 313 lines, but this seems to also work well
     line_sample = 68;
-    counter75hz_lim = 2080;
     if(pv->reg[1]&8) lines_vis = 240;
   } else {
     //cycles_68k = (int) ((double) OSC_NTSC /  7 / 60 / 262 + 0.4); // 488
     //cycles_z80 = (int) ((double) OSC_NTSC / 15 / 60 / 262 + 0.4); // 228
     lines  = 262;
-    counter75hz_lim = 2096;
     line_sample = 93;
   }
 
@@ -242,13 +273,7 @@ static int PicoFrameHintsMCD(void)
       total_z80+=z80_run(z80CycleAim-total_z80);
     }
 
-    if ((Pico_mcd->m.counter75hz+=10) >= counter75hz_lim) {
-      Pico_mcd->m.counter75hz -= counter75hz_lim;
-      Check_CD_Command();
-    }
-
-    if (Pico_mcd->rot_comp.Reg_58 & 0x8000)
-      gfx_cd_update();
+    update_chips();
   }
 
   // draw a frame just after vblank in alternative render mode

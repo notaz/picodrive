@@ -3,6 +3,7 @@
 @ (c) Copyright 2006, notaz
 @ All Rights Reserved
 
+@ vim:filetype=armasm
 
 @ Convert 0000bbb0 ggg0rrr0 0000bbb0 ggg0rrr0
 @ to      00000000 rrr00000 ggg00000 bbb00000 ...
@@ -197,7 +198,6 @@ vidCpyM2_32col_nobord:
     b       vidCpyM2_32_loop_out
 
 
-@ test
 .global spend_cycles @ c
 
 spend_cycles:
@@ -208,3 +208,12 @@ spend_cycles:
     bpl     .sc_loop
 
     bx      lr
+
+
+@ test
+.global flushcache
+
+flushcache:                                                                                                                                
+    swi #0x9f0002                                                                                                                      
+    mov pc, lr                                                                                                                         
+		                

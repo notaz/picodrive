@@ -1,5 +1,5 @@
 /*
-** This is a bunch of remains of original fm.c from MAME project. All stuff 
+** This is a bunch of remains of original fm.c from MAME project. All stuff
 ** unrelated to ym2612 was removed, multiple chip support was removed,
 ** some parts of code were slightly rewritten and tied to the emulator.
 **
@@ -112,6 +112,7 @@
 #include <math.h>
 
 #include "ym2612.h"
+#include "mix.h"
 
 #ifndef EXTERNAL_YM2612
 #include <stdlib.h>
@@ -120,7 +121,6 @@ static YM2612 ym2612;
 
 #else
 extern YM2612 *ym2612_940;
-extern int *mix_buffer;
 #define ym2612 (*ym2612_940)
 
 #endif
@@ -1584,13 +1584,12 @@ INT32 *ym2612_dacout;
 
 
 /* Generate samples for YM2612 */
-void YM2612UpdateOne_(short *buffer, int length, int stereo)
+int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 {
 	int pan;
-#ifndef EXTERNAL_YM2612
-	int i;
-	static int *mix_buffer = 0, mix_buffer_length = 0;
-#endif
+
+	// if !is_buf_empty, it means it has valid samples to mix with, else it may contain trash
+	if (is_buf_empty) memset32(buffer, 0, length<<stereo);
 
 	/* refresh PG and EG */
 	refresh_fc_eg_chan( &ym2612.CH[0] );
@@ -1613,44 +1612,15 @@ void YM2612UpdateOne_(short *buffer, int length, int stereo)
 	pan = ym2612.OPN.pan;
 	if (stereo) stereo = 1;
 
-#ifndef EXTERNAL_YM2612
-	if (mix_buffer_length < length) {
-		mix_buffer = realloc(mix_buffer, length*4<<stereo); // FIXME: need to free this at some point
-		if (!mix_buffer) return;
-		mix_buffer_length = length;
-	}
-#endif
-	memset(mix_buffer, 0, length*4<<stereo);
+	/* mix to 32bit dest */
+	chan_render(buffer, length, &ym2612.CH[0], stereo|((pan&0x003)<<4)); // flags: stereo, lastchan, disabled, ?, pan_r, pan_l
+	chan_render(buffer, length, &ym2612.CH[1], stereo|((pan&0x00c)<<2));
+	chan_render(buffer, length, &ym2612.CH[2], stereo|((pan&0x030)   ));
+	chan_render(buffer, length, &ym2612.CH[3], stereo|((pan&0x0c0)>>2));
+	chan_render(buffer, length, &ym2612.CH[4], stereo|((pan&0x300)>>4));
+	chan_render(buffer, length, &ym2612.CH[5], stereo|((pan&0xc00)>>6)|(ym2612.dacen<<2)|2);
 
-	/* mix to 32bit temporary buffer */
-	chan_render(mix_buffer, length, &ym2612.CH[0], stereo|((pan&0x003)<<4)); // flags: stereo, lastchan, disabled, ?, pan_r, pan_l
-	chan_render(mix_buffer, length, &ym2612.CH[1], stereo|((pan&0x00c)<<2));
-	chan_render(mix_buffer, length, &ym2612.CH[2], stereo|((pan&0x030)   ));
-	chan_render(mix_buffer, length, &ym2612.CH[3], stereo|((pan&0x0c0)>>2));
-	chan_render(mix_buffer, length, &ym2612.CH[4], stereo|((pan&0x300)>>4));
-	chan_render(mix_buffer, length, &ym2612.CH[5], stereo|((pan&0xc00)>>6)|(ym2612.dacen<<2)|2);
-
-#ifndef EXTERNAL_YM2612
-	/* limit and mix to output buffer */
-	if (stereo) {
-		int *mb = mix_buffer;
-		for (i = length; i > 0; i--) {
-			int l, r;
-			l = r = *buffer;
-			l += *mb++, r += *mb++;
-			Limit( l, MAXOUT, MINOUT );
-			Limit( r, MAXOUT, MINOUT );
-			*buffer++ = l; *buffer++ = r;
-		}
-	} else {
-		for (i = 0; i < length; i++) {
-			int l = mix_buffer[i];
-			l += buffer[i];
-			Limit( l, MAXOUT, MINOUT );
-			buffer[i] = l;
-		}
-	}
-#endif
+	return 1; // buffer updated
 }
 
 

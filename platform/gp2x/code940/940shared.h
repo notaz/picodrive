@@ -24,7 +24,7 @@ typedef struct
 typedef struct
 {
 	int		jobs[MAX_940JOBS];			/* jobs for second core */
-	int		busy;					/* busy status of the 940 core */
+	int		busy_;					/* unused */
 	int		length;					/* number of samples to mix (882 max) */
 	int		stereo;					/* mix samples as stereo, doubles sample count automatically */
 	int		baseclock;				/* ym2612 settings */
@@ -39,4 +39,7 @@ typedef struct
 	int		loopc;					/* debug: main loop counter */
 	int		mp3_errors;			/* debug: mp3 decoder's error counter */
 	int		mp3_lasterr;			/* debug: mp3 decoder's last error */
+	int		last_irq_pc;			/* debug: PC value when IRQ happened */
+	int		lastjob;			/* debug: last job id */
+	int		lastbusy;			/* debug: */
 } _940_ctl_t;

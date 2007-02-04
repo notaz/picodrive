@@ -175,7 +175,7 @@ WRITE8_HANDLER( SN76496_4_w ) {	SN76496Write(4,data); }
 */
 
 //static
-void SN76496Update(short *buffer,int length,int stereo)
+void SN76496Update(short *buffer, int length, int stereo)
 {
 	int i;
 	struct SN76496 *R = &ono_sn;
@@ -258,13 +258,10 @@ void SN76496Update(short *buffer,int length,int stereo)
 
 		if (out > MAX_OUTPUT * STEP) out = MAX_OUTPUT * STEP;
 
-		out /= STEP; // will be optimized to shift
-		if(stereo) {
-			// only left channel for stereo (will be copied to right by ym2612 mixing code)
+		if ((out /= STEP)) // will be optimized to shift; max 0x47ff = 18431
 			*buffer += out;
-			buffer+=2;
-		} else
-			*buffer++ += out;
+		if(stereo) buffer+=2; // only left for stereo, to be mixed to right later
+		else buffer++;
 
 		length--;
 	}

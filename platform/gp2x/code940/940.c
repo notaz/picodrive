@@ -57,17 +57,18 @@ static void mp3_decode(void)
 }
 
 
-void Main940(int startvector)
+void Main940(int startvector, int pc_at_irq)
 {
 	ym2612_940 = &shared_data->ym2612;
 	mix_buffer = shared_data->mix_buffer;
 
 	// debug
 	shared_ctl->vstarts[startvector]++;
+	shared_ctl->last_irq_pc = pc_at_irq;
 	// asm volatile ("mcr p15, 0, r0, c7, c10, 4" ::: "r0");
 
 
-	for (;;)
+//	for (;;)
 	{
 		int job_num = 0;
 /*
@@ -77,13 +78,18 @@ void Main940(int startvector)
 			spend_cycles(8*1024);
 		}
 */
+/*
 		if (!shared_ctl->busy)
 		{
 			wait_irq();
 		}
+		shared_ctl->lastbusy = shared_ctl->busy;
+*/
 
 		for (job_num = 0; job_num < MAX_940JOBS; job_num++)
 		{
+			shared_ctl->lastjob = (job_num << 8) | shared_ctl->jobs[job_num];
+
 			switch (shared_ctl->jobs[job_num])
 			{
 				case JOB940_INITALL:
@@ -122,7 +128,7 @@ void Main940(int startvector)
 						YM2612Write_(d >> 8, d);
 					}
 
-					YM2612UpdateOne_(0, shared_ctl->length, shared_ctl->stereo);
+					YM2612UpdateOne_(mix_buffer, shared_ctl->length, shared_ctl->stereo, 1);
 					break;
 				}
 
@@ -138,7 +144,10 @@ void Main940(int startvector)
 //		cache_clean_flush();
 
 		shared_ctl->loopc++;
-		shared_ctl->busy = 0;
+
+//		// shared_ctl->busy = 0; // shared mem is not reliable?
+
+		wait_irq();
 	}
 }
 

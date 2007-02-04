@@ -20,8 +20,6 @@
 static YM2612 ym2612;
 
 YM2612 *ym2612_940 = &ym2612;
-int  mix_buffer_[44100/50*2];	/* this is where the YM2612 samples will be mixed to */
-int *mix_buffer = mix_buffer_;
 
 // static _940_data_t  shared_data_;
 static _940_ctl_t   shared_ctl_;
@@ -96,58 +94,6 @@ void YM2612ResetChip_940(void)
 }
 
 
-static void mix_samples(short *dest_buf, int *ym_buf, short *mp3_buf, int len, int stereo)
-{
-	if (mp3_buf)
-	{
-		if (stereo)
-		{
-			for (; len > 0; len--)
-			{
-				int l, r;
-				l = r = *dest_buf;
-				l += *ym_buf++;  r += *ym_buf++;
-				l += *mp3_buf++; r += *mp3_buf++;
-				Limit( l, MAXOUT, MINOUT );
-				Limit( r, MAXOUT, MINOUT );
-				*dest_buf++ = l; *dest_buf++ = r;
-			}
-		} else {
-			for (; len > 0; len--)
-			{
-				int l = *ym_buf++;
-				l += *dest_buf;
-				l += *mp3_buf++;
-				Limit( l, MAXOUT, MINOUT );
-				*dest_buf++ = l;
-			}
-		}
-	}
-	else
-	{
-		if (stereo)
-		{
-			for (; len > 0; len--)
-			{
-				int l, r;
-				l = r = *dest_buf;
-				l += *ym_buf++, r += *ym_buf++;
-				Limit( l, MAXOUT, MINOUT );
-				Limit( r, MAXOUT, MINOUT );
-				*dest_buf++ = l; *dest_buf++ = r;
-			}
-		} else {
-			for (; len > 0; len--)
-			{
-				int l = *ym_buf++;
-				l += *dest_buf;
-				Limit( l, MAXOUT, MINOUT );
-				*dest_buf++ = l;
-			}
-		}
-	}
-}
-
 #if 0
 static void local_decode(void)
 {
@@ -190,7 +136,7 @@ static void local_decode(void)
 
 static FILE *loaded_mp3 = 0;
 
-void YM2612UpdateOne_940(short *buffer, int length, int stereo)
+int YM2612UpdateOne_940(int *buffer, int length, int stereo, int is_buf_empty)
 {
 #if 0
 	int cdda_on, *ym_buffer = mix_buffer;
@@ -233,9 +179,7 @@ void YM2612UpdateOne_940(short *buffer, int length, int stereo)
 		mp3_samples_ready += 1152;
 	}
 #else
-	YM2612UpdateOne_(buffer, length, stereo); // really writes to mix_buffer
-
-	mix_samples(buffer, mix_buffer, 0, length, stereo);
+	return YM2612UpdateOne_(buffer, length, stereo, is_buf_empty);
 #endif
 }
 

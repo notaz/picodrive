@@ -1,6 +1,6 @@
 // This is part of Pico Library
 
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2007 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -31,12 +31,14 @@ typedef enum {
 	CHUNK_S68K,
 	CHUNK_PRG_RAM,
 	CHUNK_WORD_RAM,
-	CHUNK_BRAM,	// 15
+	CHUNK_PCM_RAM,	// 15
+	CHUNK_BRAM,
 	CHUNK_GA_REGS,
+	CHUNK_PCM,
 	CHUNK_CDC,
-	CHUNK_CDD,
+	CHUNK_CDD,	// 20
 	CHUNK_SCD,
-	CHUNK_RC,	// 20
+	CHUNK_RC,
 	CHUNK_MISC_CD,
 } chunk_name_e;
 
@@ -96,8 +98,10 @@ int PicoCdSaveState(void *file)
 		CHECKED_WRITE_BUFF(CHUNK_S68K,     buff);
 		CHECKED_WRITE_BUFF(CHUNK_PRG_RAM,  Pico_mcd->prg_ram);
 		CHECKED_WRITE_BUFF(CHUNK_WORD_RAM, Pico_mcd->word_ram); // in 2M format
+		CHECKED_WRITE_BUFF(CHUNK_PCM_RAM,  Pico_mcd->pcm_ram);
 		CHECKED_WRITE_BUFF(CHUNK_BRAM,     Pico_mcd->bram);
-		CHECKED_WRITE_BUFF(CHUNK_GA_REGS,  Pico_mcd->s68k_regs);
+		CHECKED_WRITE_BUFF(CHUNK_GA_REGS,  Pico_mcd->s68k_regs); // GA regs, not CPU regs
+		CHECKED_WRITE_BUFF(CHUNK_PCM,      Pico_mcd->pcm);
 		CHECKED_WRITE_BUFF(CHUNK_CDD,      Pico_mcd->cdd);
 		CHECKED_WRITE_BUFF(CHUNK_CDC,      Pico_mcd->cdc);
 		CHECKED_WRITE_BUFF(CHUNK_SCD,      Pico_mcd->scd);
@@ -147,6 +151,7 @@ int PicoCdLoadState(void *file)
 		CHECKED_READ(1, buff);
 		CHECKED_READ(4, &len);
 		if (len < 0 || len > 1024*512) R_ERROR_RETURN("bad length");
+		if (buff[0] > CHUNK_FM && !(PicoMCD & 1)) R_ERROR_RETURN("cd chunk in non CD state?");
 
 		switch (buff[0])
 		{
@@ -181,8 +186,10 @@ int PicoCdLoadState(void *file)
 
 			case CHUNK_PRG_RAM:	CHECKED_READ_BUFF(Pico_mcd->prg_ram); break;
 			case CHUNK_WORD_RAM:	CHECKED_READ_BUFF(Pico_mcd->word_ram); break;
+			case CHUNK_PCM_RAM:	CHECKED_READ_BUFF(Pico_mcd->pcm_ram); break;
 			case CHUNK_BRAM:	CHECKED_READ_BUFF(Pico_mcd->bram); break;
 			case CHUNK_GA_REGS:	CHECKED_READ_BUFF(Pico_mcd->s68k_regs); break;
+			case CHUNK_PCM:		CHECKED_READ_BUFF(Pico_mcd->pcm); break;
 			case CHUNK_CDD:		CHECKED_READ_BUFF(Pico_mcd->cdd); break;
 			case CHUNK_CDC:		CHECKED_READ_BUFF(Pico_mcd->cdc); break;
 			case CHUNK_SCD:		CHECKED_READ_BUFF(Pico_mcd->scd); break;

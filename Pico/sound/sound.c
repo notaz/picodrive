@@ -23,7 +23,11 @@
 #endif
 
 #include "../PicoInt.h"
+#include "../cd/pcm.h"
+#include "mix.h"
 
+// master int buffer to mix to
+static int PsndBuffer[2*44100/50];
 
 //int z80CycleAim = 0;
 
@@ -77,7 +81,7 @@ static void dac_recalculate()
         dac_cnt -= lines;
         len++;
       }
-	  if (i == mid) // midpoint
+      if (i == mid) // midpoint
         while(pos+len < PsndLen/2) {
           dac_cnt -= lines;
           len++;
@@ -124,9 +128,18 @@ void sound_rerate()
 {
   unsigned int state[28];
 
+  // not all rates are supported in MCD mode due to mp3 decoder
+  if (PicoMCD & 1) {
+    if (PsndRate != 11025 && PsndRate != 22050 && PsndRate != 44100) PsndRate = 22050;
+    if (!(PicoOpt & 8)) PicoOpt |= 8;
+  }
+
+  if ((PicoMCD & 1) && Pico_mcd->m.audio_track) Pico_mcd->m.audio_offset = mp3_get_offset();
   YM2612Init(Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7, PsndRate);
   // feed it back it's own registers, just like after loading state
   YM2612PicoStateLoad();
+  if ((PicoMCD & 1) && Pico_mcd->m.audio_track)
+    mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
 
   memcpy(state, sn76496_regs, 28*4); // remember old state
   SN76496_init(Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15, PsndRate);
@@ -137,56 +150,102 @@ void sound_rerate()
 
   // recalculate dac info
   dac_recalculate();
+
+  if (PicoMCD & 1)
+    pcm_set_rate(PsndRate);
 }
 
 
 // This is called once per raster (aka line), but not necessarily for every line
-int sound_timers_and_dac(int raster)
+void sound_timers_and_dac(int raster)
 {
-  if(raster >= 0 && PsndOut && (PicoOpt&1) && *ym2612_dacen) {
-    short dout = (short) *ym2612_dacout;
-    int pos=dac_info[raster], len=pos&0xf;
-    short *d;
-    pos>>=4;
-
-    if(PicoOpt&8) { // only left channel for stereo (will be copied to right by ym2612 mixing code)
-      d=PsndOut+pos*2;
-      while(len--) { *d = dout; d += 2; }
-    } else {
-      d=PsndOut+pos;
-      while(len--) *d++ = dout;
-    }
-  }
-
-  //dprintf("s: %03i", raster);
+  int pos, len;
+  int do_dac = PsndOut && (PicoOpt&1) && *ym2612_dacen;
+//  int do_pcm = PsndOut && (PicoMCD&1) && (PicoOpt&0x400);
 
   // Our raster lasts 63.61323/64.102564 microseconds (NTSC/PAL)
   YM2612PicoTick(1);
 
-  return 0;
+  if (!do_dac /*&& !do_pcm*/) return;
+
+  pos=dac_info[raster], len=pos&0xf;
+  if (!len) return;
+
+  pos>>=4;
+
+  if (do_dac) {
+    short *d = PsndOut + pos*2;
+    int dout = *ym2612_dacout;
+    if(PicoOpt&8) {
+      // some manual loop unrolling here :)
+      d[0] = dout;
+      if (len > 1) {
+        d[2] = dout;
+        if (len > 2) {
+          d[4] = dout;
+          if (len > 3)
+            d[6] = dout;
+        }
+      }
+    } else {
+      short *d = PsndOut + pos;
+      d[0] = dout;
+      if (len > 1) {
+        d[1] = dout;
+        if (len > 2) {
+          d[2] = dout;
+          if (len > 3)
+            d[3] = dout;
+        }
+      }
+    }
+  }
+
+#if 0
+  if (do_pcm) {
+    int *d = PsndBuffer;
+    d += (PicoOpt&8) ? pos*2 : pos;
+    pcm_update(d, len, 1);
+  }
+#endif
+}
+
+
+void sound_clear(void)
+{
+  if (PicoOpt & 8) memset32((int *) PsndOut, 0, PsndLen);
+  else memset(PsndOut, 0, PsndLen<<1);
+//  memset(PsndBuffer, 0, (PicoOpt & 8) ? (PsndLen<<3) : (PsndLen<<2));
 }
 
 
 int sound_render(int offset, int length)
 {
+  int *buf32 = PsndBuffer+offset;
   int stereo = (PicoOpt & 8) >> 3;
+  // emulating CD && PCM option enabled && PCM chip on && have enabled channels
+  int do_pcm = (PicoMCD&1) && (PicoOpt&0x400) && (Pico_mcd->pcm.control & 0x80) && Pico_mcd->pcm.enabled;
   offset <<= stereo;
 
   // PSG
-  if(PicoOpt & 2)
+  if (PicoOpt & 2)
     SN76496Update(PsndOut+offset, length, stereo);
 
   // Add in the stereo FM buffer
-  if(PicoOpt & 1) {
-    YM2612UpdateOne(PsndOut+offset, length, stereo);
-  } else {
-    // YM2612 upmixes to stereo, so we have to do this manually here
-    int i;
-	short *s = PsndOut+offset;
-	for (i = 0; i < length; i++) {
-      *(s+1) = *s; s+=2;
-    }
-  }
+  if (PicoOpt & 1)
+    YM2612UpdateOne(buf32, length, stereo, 1);
+
+  if (do_pcm)
+    pcm_update(buf32, length, stereo);
+
+  // CDDA audio
+//  if ((PicoMCD & 1) && (PicoOpt & 0x800))
+//    mp3_update(PsndBuffer+offset, length, stereo);
+
+  // convert + limit to normal 16bit output
+  if (stereo)
+       mix_32_to_16l_stereo(PsndOut+offset, buf32, length);
+  else mix_32_to_16_mono   (PsndOut+offset, buf32, length);
 
   return 0;
 }
@@ -259,14 +318,14 @@ void z80_init()
   mz80init();
   // Modify the default context
   mz80GetContext(&z80);
-  
+
   // point mz80 stuff
   z80.z80Base=Pico.zram;
   z80.z80MemRead=mz80_mem_read;
   z80.z80MemWrite=mz80_mem_write;
   z80.z80IoRead=mz80_io_read;
   z80.z80IoWrite=mz80_io_write;
-  
+
   mz80SetContext(&z80);
 
 #elif defined(_USE_DRZ80)

@@ -10,3 +10,5 @@ void vidCpyM2_40col(void *dest, void *src);
 void vidCpyM2_32col(void *dest, void *src);
 void vidCpyM2_32col_nobord(void *dest, void *src);
 void spend_cycles(int c); // utility
+void flushcache(void);
+

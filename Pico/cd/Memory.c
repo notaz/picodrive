@@ -17,6 +17,7 @@
 #include "../sound/sn76496.h"
 
 #include "gfx_cd.h"
+#include "pcm.h"
 
 typedef unsigned char  u8;
 typedef unsigned short u16;
@@ -161,7 +162,8 @@ static u32 s68k_reg_read16(u32 a)
       goto end;
     case 0xC:
       dprintf("s68k stopwatch timer read");
-      break;
+      d = Pico_mcd->m.timer_stopwatch >> 16;
+      goto end;
     case 0x30:
       dprintf("s68k int3 timer read");
       break;
@@ -212,10 +214,13 @@ static void s68k_reg_write8(u32 a, u32 d)
       dprintf("s68k set CDC dma addr");
       break;
     case 0xc:
+    case 0xd:
       dprintf("s68k set stopwatch timer");
-      break;
+      Pico_mcd->m.timer_stopwatch = 0;
+      return;
     case 0x31:
-      dprintf("s68k set int3 timer");
+      dprintf("s68k set int3 timer: %02x", d);
+      Pico_mcd->m.timer_int3 = d << 16;
       break;
     case 0x33: // IRQ mask
       dprintf("s68k irq mask: %02x", d);
@@ -830,6 +835,21 @@ u8 PicoReadS68k8(u32 a)
     goto end;
   }
 
+  // PCM
+  if ((a&0xff8000)==0xff0000) {
+    dprintf("s68k_pcm r8: [%06x] @%06x", a, SekPc);
+    a &= 0x7fff;
+    if (a >= 0x2000)
+      d = Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a>>1)&0xfff];
+    else if (a >= 0x20) {
+      a &= 0x1e;
+      d = Pico_mcd->pcm.ch[a>>2].addr >> PCM_STEP_SHIFT;
+      if (a & 2) d >>= 8;
+    }
+    dprintf("ret = %02x", (u8)d);
+    goto end;
+  }
+
   // bram
   if ((a&0xff0000)==0xfe0000) {
     d = Pico_mcd->bram[(a>>1)&0x1fff];
@@ -849,7 +869,7 @@ u8 PicoReadS68k8(u32 a)
 
 u16 PicoReadS68k16(u32 a)
 {
-  u16 d=0;
+  u32 d=0;
 
   a&=0xfffffe;
 
@@ -898,8 +918,23 @@ u16 PicoReadS68k16(u32 a)
   if ((a&0xff0000)==0xfe0000) {
     dprintf("s68k_bram r16: [%06x] @%06x", a, SekPc);
     a = (a>>1)&0x1fff;
-    d = Pico_mcd->bram[a++];		// Gens does little endian here, an so do we..
+    d = Pico_mcd->bram[a++];		// Gens does little endian here, and so do we..
     d|= Pico_mcd->bram[a++] << 8;
+    dprintf("ret = %04x", d);
+    goto end;
+  }
+
+  // PCM
+  if ((a&0xff8000)==0xff0000) {
+    dprintf("s68k_pcm r16: [%06x] @%06x", a, SekPc);
+    a &= 0x7fff;
+    if (a >= 0x2000)
+      d = Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a>>1)&0xfff];
+    else if (a >= 0x20) {
+      a &= 0x1e;
+      d = Pico_mcd->pcm.ch[a>>2].addr >> PCM_STEP_SHIFT;
+      if (a & 2) d >>= 8;
+    }
     dprintf("ret = %04x", d);
     goto end;
   }
@@ -964,6 +999,29 @@ u32 PicoReadS68k32(u32 a)
     goto end;
   }
 
+  // PCM
+  if ((a&0xff8000)==0xff0000) {
+    dprintf("s68k_pcm r32: [%06x] @%06x", a, SekPc);
+    a &= 0x7fff;
+    if (a >= 0x2000) {
+      a >>= 1;
+      d  = Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][a&0xfff] << 16;
+      d |= Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a+1)&0xfff];
+    } else if (a >= 0x20) {
+      a &= 0x1e;
+      if (a & 2) {
+        a >>= 2;
+        d  = (Pico_mcd->pcm.ch[a].addr >> (PCM_STEP_SHIFT-8)) & 0xff0000;
+        d |= (Pico_mcd->pcm.ch[(a+1)&7].addr >> PCM_STEP_SHIFT)   & 0xff;
+      } else {
+        d = Pico_mcd->pcm.ch[a>>2].addr >> PCM_STEP_SHIFT;
+        d = ((d<<16)&0xff0000) | ((d>>8)&0xff); // PCM chip is LE
+      }
+    }
+    dprintf("ret = %08x", d);
+    goto end;
+  }
+
   // bram
   if ((a&0xff0000)==0xfe0000) {
     dprintf("s68k_bram r32: [%06x] @%06x", a, SekPc);
@@ -1004,9 +1062,6 @@ void PicoWriteS68k8(u32 a,u8 d)
     return;
   }
 
-  if (a != 0xff0011 && (a&0xff8000) == 0xff0000) // PCM hack
-    return;
-
   // regs
   if ((a&0xfffe00) == 0xff8000) {
     a &= 0x1ff;
@@ -1037,6 +1092,16 @@ void PicoWriteS68k8(u32 a,u8 d)
     a=((a&0x1fffe)<<1)|(a&1);
     if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
     *(u8 *)(Pico_mcd->word_ram+(a^1))=d;
+    return;
+  }
+
+  // PCM
+  if ((a&0xff8000)==0xff0000) {
+    a &= 0x7fff;
+    if (a >= 0x2000)
+      Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a>>1)&0xfff] = d;
+    else if (a < 0x12)
+      pcm_write(a>>1, d);
     return;
   }
 
@@ -1098,6 +1163,16 @@ void PicoWriteS68k16(u32 a,u16 d)
     a=((a&0x1fffe)<<1);
     if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
     *(u16 *)(Pico_mcd->word_ram+a)=d;
+    return;
+  }
+
+  // PCM
+  if ((a&0xff8000)==0xff0000) {
+    a &= 0x7fff;
+    if (a >= 0x2000)
+      Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a>>1)&0xfff] = d;
+    else if (a < 0x12)
+      pcm_write(a>>1, d & 0xff);
     return;
   }
 
@@ -1168,6 +1243,21 @@ void PicoWriteS68k32(u32 a,u32 d)
     if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
     *(u16 *)(Pico_mcd->word_ram+a) = d>>16;
     *(u16 *)(Pico_mcd->word_ram+a+4) = d;
+    return;
+  }
+
+  // PCM
+  if ((a&0xff8000)==0xff0000) {
+    a &= 0x7fff;
+    if (a >= 0x2000) {
+      a >>= 1;
+      Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][a&0xfff] = (d >> 16);
+      Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a+1)&0xfff] = d;
+    } else if (a < 0x12) {
+      a >>= 1;
+      pcm_write(a,  (d>>16) & 0xff);
+      pcm_write(a+1, d & 0xff);
+    }
     return;
   }
 

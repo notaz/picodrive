@@ -11,8 +11,9 @@
 extern "C" {
 #endif
 
-int sound_timers_and_dac(int raster);
-int sound_render(int offset, int length);
+void sound_timers_and_dac(int raster);
+int  sound_render(int offset, int length);
+void sound_clear(void);
 
 //int YM2612PicoTick(int n);
 

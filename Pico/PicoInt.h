@@ -164,6 +164,22 @@ struct PicoSRAM
 #include "cd/LC89510.h"
 #include "cd/gfx_cd.h"
 
+struct mcd_pcm
+{
+	unsigned char control; // reg7
+	unsigned char enabled; // reg8
+	unsigned char cur_ch;
+	unsigned char bank;
+	int pad1;
+
+	struct pcm_chan
+	{
+		unsigned char regs[8];
+		unsigned int  addr; // played sample address
+		int pad;
+	} ch[8];
+};
+
 struct mcd_misc
 {
 	unsigned short hint_vector;
@@ -174,7 +190,9 @@ struct mcd_misc
 	unsigned short audio_offset;	// for savestates: play pointer offset (0-1023)
 	unsigned char  audio_track;	// playing audio track # (zero based)
 	char pad1;
-	int pad[12];
+	int            timer_int3;
+	unsigned int   timer_stopwatch;
+	int pad[10];
 };
 
 typedef struct
@@ -185,8 +203,13 @@ typedef struct
 		unsigned char prg_ram_b[4][0x20000];
 	};
 	unsigned char word_ram[0x40000];		// 256K
+	union {
+		unsigned char pcm_ram[0x10000];		// 64K
+		unsigned char pcm_ram_b[0x10][0x1000];
+	};
 	unsigned char bram[0x2000];			// 8K
-	unsigned char s68k_regs[0x200];
+	unsigned char s68k_regs[0x200];			// GA, not CPU regs
+	struct mcd_pcm pcm;
 	_scd_toc TOC;					// not to be saved
 	CDD  cdd;
 	CDC  cdc;

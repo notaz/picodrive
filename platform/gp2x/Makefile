@@ -41,7 +41,7 @@ OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Utils.o ../../Pico/Memory
 # Pico - CD
 OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
 		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o \
-		../../Pico/cd/Area.o ../../Pico/cd/Misc.o
+		../../Pico/cd/Area.o ../../Pico/cd/Misc.o ../../Pico/cd/pcm.o
 # asm stuff
 ifeq "$(asm_render)" "1"
 DEFINC += -D_ASM_DRAW_C
@@ -56,6 +56,7 @@ DEFINC += -D_ASM_YM2612_C
 OBJS += ../../Pico/sound/ym2612_asm.o
 endif
 # Pico - sound
+OBJS += ../../Pico/sound/mix_asm.o
 OBJS += ../../Pico/sound/sound.o ../../Pico/sound/sn76496.o ../../Pico/sound/ym2612.o
 # zlib
 OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/inftrees.o ../../zlib/trees.o \
@@ -94,7 +95,7 @@ ifeq "$(up)" "1"
 	@cmd //C copy $@ \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
 endif
 
-up:
+up: PicoDrive.gpe
 	@cp -v PicoDrive.gpe /mnt/gp2x/mnt/sd/games/PicoDrive/
 
 #	@cmd //C copy PicoDrive.gpe \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
@@ -122,6 +123,9 @@ testrefr.gpe : test.o gp2x.o asmutils.o
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 ../../Pico/sound/ym2612_asm.o : ../../Pico/sound/ym2612.s
+	@echo $<
+	@$(AS) $(ASOPT) $< -o $@
+../../Pico/sound/mix_asm.o : ../../Pico/sound/mix.s
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 
