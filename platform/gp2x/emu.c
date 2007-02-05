@@ -455,7 +455,7 @@ int emu_ReadConfig(int game)
 		currentConfig.lastRomFile[0] = 0;
 		currentConfig.EmuOpt  = 0x1f | 0x400; // | cd_leds
 		currentConfig.PicoOpt = 0x0f | 0xe00; // | use_940 | cd_pcm | cd_cdda
-		currentConfig.PsndRate = 44100;
+		currentConfig.PsndRate = 22050; // 44100;
 		currentConfig.PicoRegion = 0; // auto
 		currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
 		currentConfig.Frameskip = -1; // auto

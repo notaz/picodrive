@@ -152,17 +152,7 @@ void Check_CD_Command(void)
 {
 	cdprintf("CHECK CD COMMAND");
 
-	// Check CDD
-
-	if (Pico_mcd->scd.CDD_Complete)
-	{
-		Pico_mcd->scd.CDD_Complete = 0;
-
-		CDD_Export_Status();
-	}
-
 	// Check CDC
-
 	if (Pico_mcd->scd.Status_CDC & 1)			// CDC is reading data ...
 	{
 		cdprintf("Got a read command");
@@ -177,6 +167,14 @@ void Check_CD_Command(void)
 			FILE_Read_One_LBA_CDC();
 		}
 		else Pico_mcd->scd.File_Add_Delay--;
+	}
+
+	// Check CDD
+	if (Pico_mcd->scd.CDD_Complete)
+	{
+		Pico_mcd->scd.CDD_Complete = 0;
+
+		CDD_Export_Status();
 	}
 
 	if (Pico_mcd->scd.Status_CDD == FAST_FOW)

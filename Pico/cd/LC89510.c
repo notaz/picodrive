@@ -114,6 +114,13 @@ void Update_CDC_TRansfer(int which)
 
 			for (len = length; len > 0; len--, src+=2, dest+=2)
 				*dest = (src[0]<<8) | src[1];
+
+			{ // debug
+				unsigned char *b1 = Pico_mcd->word_ram + dep;
+				unsigned char *b2 = (unsigned char *)dest - 8;
+				dprintf("%02x %02x %02x %02x .. %02x %02x %02x %02x",
+					b1[0], b1[1], b1[4], b1[5], b2[0], b2[1], b2[4], b2[5]);
+			}
 		}
 		else
 		{
@@ -124,6 +131,13 @@ void Update_CDC_TRansfer(int which)
 
 			for (len = length; len > 0; len--, src+=2, dest++)
 				*dest = (src[0]<<8) | src[1];
+
+			{ // debug
+				unsigned char *b1 = Pico_mcd->word_ram + dep;
+				unsigned char *b2 = (unsigned char *)dest - 4;
+				dprintf("%02x %02x %02x %02x .. %02x %02x %02x %02x",
+					b1[0], b1[1], b1[2], b1[3], b2[0], b2[1], b2[2], b2[3]);
+			}
 		}
 	}
 	else if (which == 4) // PCM RAM
@@ -132,7 +146,7 @@ void Update_CDC_TRansfer(int which)
 			dest = (unsigned char *) Ram_PCM;
 			dep = ((DMA_Adr & 0x03FF) << 2) + PCM_Chip.Bank;
 #else
-			cdprintf("CD DMA # %04x -> PCD TODO", Pico_mcd->cdc.DAC.N);
+			cdprintf("CD DMA # %04x -> PCM TODO", Pico_mcd->cdc.DAC.N);
 #endif
 	}
 	else if (which == 5) // PRG RAM
@@ -144,12 +158,26 @@ void Update_CDC_TRansfer(int which)
 
 		for (len = length; len > 0; len--, src+=2, dest++)
 			*dest = (src[0]<<8) | src[1];
+
+		{ // debug
+			unsigned char *b1 = Pico_mcd->prg_ram + dep;
+			unsigned char *b2 = (unsigned char *)dest - 4;
+			dprintf("%02x %02x %02x %02x .. %02x %02x %02x %02x",
+				b1[0], b1[1], b1[2], b1[3], b2[0], b2[1], b2[2], b2[3]);
+		}
 	}
 
 	length <<= 1;
 	Pico_mcd->cdc.DAC.N = (Pico_mcd->cdc.DAC.N + length) & 0xFFFF;
 	if (Pico_mcd->scd.Status_CDC & 0x08) Pico_mcd->cdc.DBC.N -= length;
 	else Pico_mcd->cdc.DBC.N = 0;
+
+	// update DMA_Adr
+	length >>= 2;
+	if (which != 4) length >>= 1;
+	DMA_Adr += length;
+	Pico_mcd->s68k_regs[0xA] = DMA_Adr >> 8;
+	Pico_mcd->s68k_regs[0xB] = DMA_Adr;
 }
 
 

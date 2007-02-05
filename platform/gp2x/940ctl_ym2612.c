@@ -565,7 +565,7 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 {
 	int byte_offs = 0;
 
-	if (!(currentConfig.EmuOpt&0x800)) { // cdda disabled?
+	if (!(PicoOpt&0x800)) { // cdda disabled?
 		return;
 	}
 
@@ -601,7 +601,7 @@ int mp3_get_offset(void)
 	int offs1024 = 0;
 	int cdda_on;
 
-	cdda_on = (PicoMCD & 1) && (currentConfig.EmuOpt&0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
+	cdda_on = (PicoMCD & 1) && (PicoOpt&0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
 			(Pico_mcd->scd.Status_CDC & 1) && loaded_mp3 && shared_ctl->mp3_offs < shared_ctl->mp3_len;
 
 	if (cdda_on) {

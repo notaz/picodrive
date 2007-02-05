@@ -104,6 +104,7 @@ static void DmaSlow(int len)
       pdend=(u16 *)(Pico_mcd->bios+0x20000);
     } else if ((source&0xfc0000)==0x200000 && (!(Pico_mcd->s68k_regs[3]&4))) { // Word Ram
       if (!(Pico_mcd->s68k_regs[3]&4)) { // 2M mode
+        source -= 2;
         pd=(u16 *)(Pico_mcd->word_ram+(source&0x3fffe));
         pdend=(u16 *)(Pico_mcd->word_ram+0x40000);
       } else {
