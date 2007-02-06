@@ -18,7 +18,7 @@ int PicoSkipFrame=0; // skip rendering frame?
 int PicoRegionOverride = 0; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 int PicoAutoRgnOrder = 0;
 int emustatus = 0;
-void (*PicoWriteSound)(void) = 0; // called once per frame at the best time to send sound buffer (PsndOut) to hardware
+void (*PicoWriteSound)(int len) = 0; // called once per frame at the best time to send sound buffer (PsndOut) to hardware
 
 struct PicoSRAM SRam;
 int z80startCycle = 0, z80stopCycle = 0; // in 68k cycles
@@ -315,21 +315,22 @@ static int CheckIdle(void)
 // to be called on 224 or line_sample scanlines only
 static __inline void getSamples(int y)
 {
+  static int curr_pos = 0;
+
   if(y == 224) {
     //dprintf("sta%i: %i [%i]", (emustatus & 2), emustatus, y);
     if(emustatus & 2)
-        sound_render(PsndLen/2, PsndLen-PsndLen/2);
-    else sound_render(0, PsndLen);
+         curr_pos += sound_render(curr_pos, PsndLen-PsndLen/2);
+    else curr_pos  = sound_render(0, PsndLen);
     if (emustatus&1) emustatus|=2; else emustatus&=~2;
-    if (PicoWriteSound) PicoWriteSound();
+    if (PicoWriteSound) PicoWriteSound(curr_pos);
     // clear sound buffer
     sound_clear();
-    //memset(PsndOut, 0, (PicoOpt & 8) ? (PsndLen<<2) : (PsndLen<<1));
   }
   else if(emustatus & 3) {
     emustatus|= 2;
     emustatus&=~1;
-    sound_render(0, PsndLen/2);
+    curr_pos = sound_render(0, PsndLen/2);
   }
 }
 
@@ -538,10 +539,10 @@ static int PicoFrameSimple(void)
 
   // here we render sound if ym2612 is disabled
   if(!(PicoOpt&1) && PsndOut) {
-    sound_render(0, PsndLen);
-    if(PicoWriteSound) PicoWriteSound();
+    int len = sound_render(0, PsndLen);
+    if(PicoWriteSound) PicoWriteSound(len);
     // clear sound buffer
-    memset(PsndOut, 0, (PicoOpt & 8) ? (PsndLen<<2) : (PsndLen<<1));
+    sound_clear();
   }
 
   // render screen

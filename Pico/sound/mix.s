@@ -206,10 +206,10 @@ m16_32_s2_no_unal2:
 @ limit
 @ reg=int_sample, lr=1, r3=tmp, kills flags
 .macro Limit reg
-    add     r3, lr, \reg, asr #16
+    add     r3, lr, \reg, asr #15
     bics    r3, r3, #1			@ in non-overflow conditions r3 is 0 or 1
     movne   \reg, #0x8000
-    submi   \reg, \reg, #1
+    subpl   \reg, \reg, #1
 .endm
 
 
@@ -223,11 +223,11 @@ m16_32_s2_no_unal2:
 @    mov     r3, #0x8000
 @    subpl   r3, r3, #1
 
-    add     r3, lr, \reg, asr #16
+    add     r3, lr, \reg, asr #15
     bics    r3, r3, #1			@ in non-overflow conditions r3 is 0 or 1
     moveq   \reg, \reg, lsl #16
     movne   \reg, #0x80000000
-    submi   \reg, \reg, #0x00010000
+    subpl   \reg, \reg, #0x00010000
 .endm
 
 
@@ -292,7 +292,7 @@ mix_32_to_16_mono:
     @ check if dest is word aligned
     tst     r0, #2
     beq     m32_16_mo_no_unalw
-    ldrsh   r5, [r0], #2
+    ldrsh   r5, [r0]
     ldr     r4, [r1], #4
     sub     r2, r2, #1
     add     r4, r4, r5
@@ -339,7 +339,7 @@ m32_16_mo_end:
 m32_16_mo_no_unal2:
     tst     r2, #1
     ldmeqfd sp!, {r4-r8,pc}
-    ldrsh   r5, [r0], #2
+    ldrsh   r5, [r0]
     ldr     r4, [r1], #4
     add     r4, r4, r5
     Limit   r4

@@ -131,27 +131,6 @@ static __inline void update_chips(void)
 		gfx_cd_update();
 }
 
-// to be called on 224 or line_sample scanlines only
-static __inline void getSamples(int y)
-{
-  if(y == 224) {
-    //dprintf("sta%i: %i [%i]", (emustatus & 2), emustatus, y);
-    if(emustatus & 2)
-        sound_render(PsndLen/2, PsndLen-PsndLen/2);
-    else sound_render(0, PsndLen);
-    if (emustatus&1) emustatus|=2; else emustatus&=~2;
-    if (PicoWriteSound) PicoWriteSound();
-    // clear sound buffer
-    sound_clear();
-    //memset(PsndOut, 0, (PicoOpt & 8) ? (PsndLen<<2) : (PsndLen<<1));
-  }
-  else if(emustatus & 3) {
-    emustatus|= 2;
-    emustatus&=~1;
-    sound_render(0, PsndLen/2);
-  }
-}
-
 
 static int PicoFrameHintsMCD(void)
 {
@@ -240,10 +219,12 @@ static int PicoFrameHintsMCD(void)
       sound_timers_and_dac(y);
 
     // get samples from sound chips
-    if(y == 32 && PsndOut)
-      emustatus &= ~1;
-    else if((y == 224 || y == line_sample) && PsndOut)
-      getSamples(y);
+    if (y == 224 && PsndOut) {
+      int len = sound_render(0, PsndLen);
+      if (PicoWriteSound) PicoWriteSound(len);
+      // clear sound buffer
+      sound_clear();
+    }
 
     // Run scanline:
       //dprintf("m68k starting exec @ %06x", SekPc);

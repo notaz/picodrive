@@ -42,7 +42,7 @@ int PicoReset(int hard);
 int PicoFrame(void);
 extern int PicoPad[2]; // Joypads, format is MXYZ SACB RLDU
 extern int (*PicoCram)(int cram); // Callback to convert colour ram 0000bbb0 ggg0rrr0
-extern void (*PicoWriteSound)(void); // called once per frame at the best time to send sound buffer (PsndOut) to hardware
+extern void (*PicoWriteSound)(int len); // called once per frame at the best time to send sound buffer (PsndOut) to hardware
 
 int PicoFrameMCD(void);
 
@@ -89,7 +89,7 @@ extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to us
 extern int PsndRate,PsndLen;
 extern short *PsndOut;
 void sound_reset();
-void sound_rerate();
+void sound_rerate(int preserve_state);
 void z80_pack(unsigned char *data);
 void z80_unpack(unsigned char *data);
 void z80_reset();

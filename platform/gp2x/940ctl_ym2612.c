@@ -537,6 +537,12 @@ int YM2612UpdateOne_940(int *buffer, int length, int stereo, int is_buf_empty)
 	}
 	writebuff_ptr = 0;
 
+	/* predict sample counter for next frame */
+	if (PsndLen_exc_add) {
+		if (PsndLen_exc_cnt + PsndLen_exc_add >= 0x10000) length = PsndLen + 1;
+		else length = PsndLen;
+	}
+
 	/* give 940 ym job */
 	shared_ctl->writebuffsel ^= 1;
 	shared_ctl->length = length;

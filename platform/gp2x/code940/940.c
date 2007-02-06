@@ -4,7 +4,6 @@ static _940_data_t *shared_data = (_940_data_t *)   0x00100000;
 static _940_ctl_t  *shared_ctl  = (_940_ctl_t *)    0x00200000;
 static unsigned char *mp3_data  = (unsigned char *) 0x01000000;
 YM2612 *ym2612_940;
-int *mix_buffer;
 
 // from init.s
 void wait_irq(void);
@@ -59,8 +58,8 @@ static void mp3_decode(void)
 
 void Main940(int startvector, int pc_at_irq)
 {
+	int mix_buffer = shared_data->mix_buffer;
 	ym2612_940 = &shared_data->ym2612;
-	mix_buffer = shared_data->mix_buffer;
 
 	// debug
 	shared_ctl->vstarts[startvector]++;

@@ -277,6 +277,10 @@ int SekInitS68k(void);
 int SekResetS68k(void);
 int SekInterruptS68k(int irq);
 
+// sound/sound.c
+extern int PsndLen_exc_cnt;
+extern int PsndLen_exc_add;
+
 // VideoPort.c
 void PicoVideoWrite(unsigned int a,unsigned short d);
 unsigned int PicoVideoRead(unsigned int a);

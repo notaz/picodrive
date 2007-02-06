@@ -38,6 +38,8 @@ unsigned short dac_info[312]; // pppppppp ppppllll, p - pos in buff, l - length 
 // for Pico
 int PsndRate=0;
 int PsndLen=0; // number of mono samples, multiply by 2 for stereo
+int PsndLen_exc_add=0; // this is for non-integer sample counts per line, eg. 22050/60
+int PsndLen_exc_cnt=0;
 short *PsndOut=NULL; // PCM data buffer
 
 // from ym2612.c
@@ -55,7 +57,7 @@ static void dac_recalculate()
 
   if(PsndLen <= lines) {
     // shrinking algo
-    dac_cnt = 0;//lines - PsndLen;
+    dac_cnt = -PsndLen;
     len=1; pos=0;
     dac_info[225] = 1;
 
@@ -72,7 +74,7 @@ static void dac_recalculate()
     }
   } else {
     // stretching
-    dac_cnt = PsndLen/2;
+    dac_cnt = PsndLen;
     pos=0;
     for(i = 225; i != 224; i++) {
       if (i >= lines) i = 0;
@@ -92,12 +94,16 @@ static void dac_recalculate()
     }
     // last sample
     for(len = 0, i = pos; i < PsndLen; i++) len++;
+    if (PsndLen_exc_add) len++;
     dac_info[224] = (pos<<4)|len;
   }
-//  dprintf("rate is %i, len %i", PsndRate, PsndLen);
-//  for(i=0; i < lines; i++)
-//    dprintf("%03i : %03i : %i", i, dac_info[i]>>4, dac_info[i]&0xf);
-//exit(8);
+  //for(i=len=0; i < lines; i++) {
+  //  printf("%03i : %03i : %i\n", i, dac_info[i]>>4, dac_info[i]&0xf);
+  //  len+=dac_info[i]&0xf;
+  //}
+  //printf("rate is %i, len %f\n", PsndRate, (double)PsndRate/(Pico.m.pal ? 50.0 : 60.0));
+  //printf("len total: %i, last pos: %i\n", len, pos);
+  //exit(8);
 }
 
 
@@ -106,53 +112,58 @@ void sound_reset()
   extern int z80stopCycle;
   void *ym2612_regs;
 
-  // init even if we are not going to use them, just in case we ever enable it
-  YM2612Init(Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7, PsndRate);
   // also clear the internal registers+addr line
   ym2612_regs = YM2612GetRegs();
   memset(ym2612_regs, 0, 0x200+4);
-
-  SN76496_init(Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15, PsndRate);
-
-  // calculate PsndLen
-  PsndLen=PsndRate/(Pico.m.pal ? 50 : 60);
-
-  // recalculate dac info
-  dac_recalculate();
   z80stopCycle = 0;
+
+  sound_rerate(0);
 }
 
 
 // to be called after changing sound rate or chips
-void sound_rerate()
+void sound_rerate(int preserve_state)
 {
   unsigned int state[28];
+  int target_fps = Pico.m.pal ? 50 : 60;
 
-  // not all rates are supported in MCD mode due to mp3 decoder
+  // not all rates are supported in MCD mode due to mp3 decoder limitations
   if (PicoMCD & 1) {
     if (PsndRate != 11025 && PsndRate != 22050 && PsndRate != 44100) PsndRate = 22050;
-    if (!(PicoOpt & 8)) PicoOpt |= 8;
+    PicoOpt |= 8; // force stereo
   }
 
-  if ((PicoMCD & 1) && Pico_mcd->m.audio_track) Pico_mcd->m.audio_offset = mp3_get_offset();
+  if (preserve_state) {
+    if ((PicoMCD & 1) && Pico_mcd->m.audio_track)
+      Pico_mcd->m.audio_offset = mp3_get_offset();
+  }
   YM2612Init(Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7, PsndRate);
-  // feed it back it's own registers, just like after loading state
-  YM2612PicoStateLoad();
-  if ((PicoMCD & 1) && Pico_mcd->m.audio_track)
-    mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
+  if (preserve_state) {
+    // feed it back it's own registers, just like after loading state
+    YM2612PicoStateLoad();
+    if ((PicoMCD & 1) && Pico_mcd->m.audio_track)
+      mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
+  }
 
-  memcpy(state, sn76496_regs, 28*4); // remember old state
+  if (preserve_state) memcpy(state, sn76496_regs, 28*4); // remember old state
   SN76496_init(Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15, PsndRate);
-  memcpy(sn76496_regs, state, 28*4); // restore old state
+  if (preserve_state) memcpy(sn76496_regs, state, 28*4); // restore old state
 
   // calculate PsndLen
-  PsndLen=PsndRate/(Pico.m.pal ? 50 : 60);
+  PsndLen=PsndRate / target_fps;
+  PsndLen_exc_add=((PsndRate - PsndLen*target_fps)<<16) / target_fps;
+  PsndLen_exc_cnt=0;
 
   // recalculate dac info
   dac_recalculate();
 
   if (PicoMCD & 1)
     pcm_set_rate(PsndRate);
+
+  // clear all buffers
+  memset32(PsndBuffer, 0, sizeof(PsndBuffer)/4);
+  if (PsndOut)
+    sound_clear();
 }
 
 
@@ -181,22 +192,16 @@ void sound_timers_and_dac(int raster)
       d[0] = dout;
       if (len > 1) {
         d[2] = dout;
-        if (len > 2) {
+        if (len > 2)
           d[4] = dout;
-          if (len > 3)
-            d[6] = dout;
-        }
       }
     } else {
       short *d = PsndOut + pos;
       d[0] = dout;
       if (len > 1) {
         d[1] = dout;
-        if (len > 2) {
+        if (len > 2)
           d[2] = dout;
-          if (len > 3)
-            d[3] = dout;
-        }
       }
     }
   }
@@ -213,9 +218,10 @@ void sound_timers_and_dac(int raster)
 
 void sound_clear(void)
 {
-  if (PicoOpt & 8) memset32((int *) PsndOut, 0, PsndLen);
-  else memset(PsndOut, 0, PsndLen<<1);
-//  memset(PsndBuffer, 0, (PicoOpt & 8) ? (PsndLen<<3) : (PsndLen<<2));
+  int len = PsndLen;
+  if (PsndLen_exc_add) len++;
+  if (PicoOpt & 8) memset32((int *) PsndOut, 0, len); // clear both channels at once
+  else memset(PsndOut, 0, len<<1);
 }
 
 
@@ -227,6 +233,15 @@ int sound_render(int offset, int length)
   int do_pcm = (PicoMCD&1) && (PicoOpt&0x400) && (Pico_mcd->pcm.control & 0x80) && Pico_mcd->pcm.enabled;
   offset <<= stereo;
 
+  if (offset == 0) { // should happen once per frame
+    // compensate for float part of PsndLen
+    PsndLen_exc_cnt += PsndLen_exc_add;
+    if (PsndLen_exc_cnt >= 0x10000) {
+      PsndLen_exc_cnt -= 0x10000;
+      length++;
+    }
+  }
+
   // PSG
   if (PicoOpt & 2)
     SN76496Update(PsndOut+offset, length, stereo);
@@ -235,10 +250,11 @@ int sound_render(int offset, int length)
   if (PicoOpt & 1)
     YM2612UpdateOne(buf32, length, stereo, 1);
 
+  // CD: PCM sound
   if (do_pcm)
     pcm_update(buf32, length, stereo);
 
-  // CDDA audio
+  // CD: CDDA audio
 //  if ((PicoMCD & 1) && (PicoOpt & 0x800))
 //    mp3_update(PsndBuffer+offset, length, stereo);
 
@@ -247,7 +263,7 @@ int sound_render(int offset, int length)
        mix_32_to_16l_stereo(PsndOut+offset, buf32, length);
   else mix_32_to_16_mono   (PsndOut+offset, buf32, length);
 
-  return 0;
+  return length;
 }
 
 

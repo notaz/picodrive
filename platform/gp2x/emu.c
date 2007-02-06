@@ -48,6 +48,7 @@ unsigned char *rom_data = NULL;
 
 extern int crashed_940;
 
+static short sndBuffer[2*44100/50];
 static char noticeMsg[64];					// notice msg to draw
 static struct timeval noticeMsgTime = { 0, 0 };	// when started showing
 static int reset_timing, osd_fps_x;
@@ -927,24 +928,10 @@ static void updateKeys(void)
 	prevEvents = (allActions[0] | allActions[1]) >> 16;
 }
 
-static int snd_excess_add = 0, snd_excess_cnt = 0; // hack
 
-static void updateSound(void)
+static void updateSound(int len)
 {
-	int len = (PicoOpt&8)?PsndLen*2:PsndLen;
-
-	snd_excess_cnt += snd_excess_add;
-	if (snd_excess_cnt >= 0x10000) {
-		snd_excess_cnt -= 0x10000;
-		if (PicoOpt&8) {
-			PsndOut[len]   = PsndOut[len-2];
-			PsndOut[len+1] = PsndOut[len-1];
-			len+=2;
-		} else {
-			PsndOut[len]   = PsndOut[len-1];
-			len++;
-		}
-	}
+	if (PicoOpt&8) len<<=1;
 
 	gp2x_sound_write(PsndOut, len<<1);
 }
@@ -1024,22 +1011,23 @@ void emu_Loop(void)
 
 	// prepare sound stuff
 	if(currentConfig.EmuOpt & 4) {
+		int snd_excess_add;
 		if(PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old || crashed_940) {
 			/* if 940 is turned off, we need it to be put back to sleep */
 			if (!(PicoOpt&0x200) && ((PicoOpt^PicoOpt_old)&0x200)) {
 				Reset940(1, 2);
 				Pause940(1);
 			}
-			sound_rerate();
+			sound_rerate(1);
 		}
 		//excess_samples = PsndRate - PsndLen*target_fps;
-		snd_excess_cnt = 0;
 		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
 		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n", PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
 		gp2x_start_sound(PsndRate, 16, (PicoOpt&8)>>3);
 		gp2x_sound_volume(currentConfig.volume, currentConfig.volume);
 		PicoWriteSound = updateSound;
-		PsndOut = calloc((PicoOpt&8) ? (PsndLen*4+4) : (PsndLen*2+2), 1);
+		memset(sndBuffer, 0, sizeof(sndBuffer));
+		PsndOut = sndBuffer;
 		PsndRate_old = PsndRate;
 		PsndLen_real = PsndLen;
 		PicoOpt_old  = PicoOpt;
@@ -1238,11 +1226,6 @@ if (Pico.m.frame_count == 31563) {
 		blit("", "Writing SRAM/BRAM..");
 		emu_SaveLoadGame(0, 1);
 		SRam.changed = 0;
-	}
-
-	if (PsndOut != 0) {
-		free(PsndOut);
-		PsndOut = 0;
 	}
 }
 
