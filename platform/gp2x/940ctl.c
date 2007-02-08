@@ -333,6 +333,16 @@ void sharedmem_init(void)
 }
 
 
+void sharedmem_deinit(void)
+{
+	munmap(shared_mem, 0x210000);
+	munmap(mp3_mem, MP3_SIZE_MAX);
+	shared_mem = mp3_mem = NULL;
+	shared_data = NULL;
+	shared_ctl = NULL;
+}
+
+
 extern char **g_argv;
 
 /* none of the functions in this file should be called before this one */
@@ -433,19 +443,17 @@ void YM2612ResetChip_940(void)
 int YM2612UpdateOne_940(int *buffer, int length, int stereo, int is_buf_empty)
 {
 	int *ym_buf = shared_data->ym_buffer;
+	int ym_active_chs;
 
 	//printf("YM2612UpdateOne_940()\n");
 
 	if (CHECK_BUSY(JOB940_YM2612UPDATEONE)) wait_busy_940(JOB940_YM2612UPDATEONE);
 
-	// mix in ym buffer
-	if (is_buf_empty) memcpy32(buffer, ym_buf, length<<stereo);
-	// else TODO
+	ym_active_chs = shared_ctl->ym_active_chs;
 
-//	for (len = length << stereo; len > 0; len--)
-//	{
-//		*dest_buf++ += *ym_buf++;
-//	}
+	// mix in ym buffer. is_buf_empty means nobody mixed there anything yet and it may contain trash
+	if (is_buf_empty && ym_active_chs) memcpy32(buffer, ym_buf, length<<stereo);
+	else memset32(buffer, 0, length<<stereo);
 
 	if (shared_ctl->writebuffsel == 1) {
 		shared_ctl->writebuff0[writebuff_ptr] = 0xffff;
@@ -467,7 +475,7 @@ int YM2612UpdateOne_940(int *buffer, int length, int stereo, int is_buf_empty)
 
 	add_job_940(JOB940_YM2612UPDATEONE);
 
-	return 1;
+	return ym_active_chs;
 }
 
 

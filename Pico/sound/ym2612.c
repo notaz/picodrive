@@ -841,7 +841,7 @@ typedef struct
 	UINT32 eg_timer;
 	UINT32 eg_timer_add;
 	UINT32 pack;     // 4c: stereo, lastchan, disabled, lfo_enabled | pan_r, pan_l, ams[2] | AMmasks[4] | FB[4] | lfo_ampm[16]
-	UINT32 algo;     /* 50 */
+	UINT32 algo;     /* 50: algo[3], was_update */
 	INT32  op1_out;
 } chan_rend_context;
 
@@ -1077,6 +1077,7 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 			} else {
 				buffer[scounter] += smp;
 			}
+			ct->algo = 8; // algo is only used in asm, here only bit3 is used
 		}
 
 		/* update phase counters AFTER output calculations */
@@ -1091,7 +1092,7 @@ void chan_render_loop(chan_rend_context *ct, int *buffer, unsigned short length)
 #endif
 
 
-static void chan_render(int *buffer, int length, FM_CH *CH, UINT32 flags) // flags: stereo, lastchan, disabled, ?, pan_r, pan_l
+static int chan_render(int *buffer, int length, FM_CH *CH, UINT32 flags) // flags: stereo, lastchan, disabled, ?, pan_r, pan_l
 {
 	chan_rend_context ct;
 
@@ -1193,6 +1194,8 @@ static void chan_render(int *buffer, int length, FM_CH *CH, UINT32 flags) // fla
 	CH->SLOT[SLOT3].phase = ct.phase3;
 	CH->SLOT[SLOT4].phase = ct.phase4;
 	CH->mem_value = ct.mem;
+
+	return (ct.algo & 8) >> 3; // had output
 }
 
 /* update phase increment and envelope generator */
@@ -1587,6 +1590,7 @@ INT32 *ym2612_dacout;
 int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 {
 	int pan;
+	int active_chs = 0;
 
 	// if !is_buf_empty, it means it has valid samples to mix with, else it may contain trash
 	if (is_buf_empty) memset32(buffer, 0, length<<stereo);
@@ -1613,14 +1617,15 @@ int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 	if (stereo) stereo = 1;
 
 	/* mix to 32bit dest */
-	chan_render(buffer, length, &ym2612.CH[0], stereo|((pan&0x003)<<4)); // flags: stereo, lastchan, disabled, ?, pan_r, pan_l
-	chan_render(buffer, length, &ym2612.CH[1], stereo|((pan&0x00c)<<2));
-	chan_render(buffer, length, &ym2612.CH[2], stereo|((pan&0x030)   ));
-	chan_render(buffer, length, &ym2612.CH[3], stereo|((pan&0x0c0)>>2));
-	chan_render(buffer, length, &ym2612.CH[4], stereo|((pan&0x300)>>4));
-	chan_render(buffer, length, &ym2612.CH[5], stereo|((pan&0xc00)>>6)|(ym2612.dacen<<2)|2);
+	// flags: stereo, lastchan, disabled, ?, pan_r, pan_l
+	active_chs |= chan_render(buffer, length, &ym2612.CH[0], stereo|((pan&0x003)<<4)) << 0;
+	active_chs |= chan_render(buffer, length, &ym2612.CH[1], stereo|((pan&0x00c)<<2)) << 1;
+	active_chs |= chan_render(buffer, length, &ym2612.CH[2], stereo|((pan&0x030)   )) << 2;
+	active_chs |= chan_render(buffer, length, &ym2612.CH[3], stereo|((pan&0x0c0)>>2)) << 3;
+	active_chs |= chan_render(buffer, length, &ym2612.CH[4], stereo|((pan&0x300)>>4)) << 4;
+	active_chs |= chan_render(buffer, length, &ym2612.CH[5], stereo|((pan&0xc00)>>6)|(ym2612.dacen<<2)|2) << 5;
 
-	return 1; // buffer updated
+	return active_chs; // 1 if buffer updated
 }
 
 

@@ -35,6 +35,7 @@ typedef struct
 	int		writebuffsel;			/* which write buffer to use (from 940 side) */
 	UINT16  writebuff0[2048];			/* list of writes to ym2612, 1024 for savestates, 1024 extra */
 	UINT16  writebuff1[2048];
+	int		ym_active_chs;
 	int		mp3_len;			/* data len of loaded mp3 */
 	int		mp3_offs;			/* current playback offset (just after last decoded frame) */
 	int		mp3_buffsel;			/* which output buffer to decode to */

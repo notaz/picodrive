@@ -34,7 +34,7 @@ OBJCOPY = $(CROSS)objcopy
 # frontend
 OBJS += main.o menu.o gp2x.o usbjoy.o emu.o squidgehack.o asmutils.o cpuctrl.o
 # 940 core control
-OBJS += 940ctl_ym2612.o
+OBJS += 940ctl.o
 # Pico
 OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Utils.o ../../Pico/Memory.o ../../Pico/Misc.o \
 		../../Pico/Pico.o ../../Pico/Sek.o ../../Pico/VideoPort.o ../../Pico/Draw2.o ../../Pico/Draw.o

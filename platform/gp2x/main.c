@@ -12,6 +12,7 @@
 #include "gp2x.h"
 #include "menu.h"
 #include "emu.h"
+#include "940ctl.h"
 #include "version.h"
 
 #include "squidgehack.h"
@@ -94,6 +95,7 @@ int main(int argc, char *argv[])
 		set_RAM_Timings(6, 4, 1, 1, 1, 2, 2);
 		printf("done.\n"); fflush(stdout);
 	}
+	sharedmem_init();
 	emu_Init();
 
 	engineState = PGS_Menu;
@@ -134,6 +136,7 @@ int main(int argc, char *argv[])
 	endloop:
 
 	emu_Deinit();
+	sharedmem_deinit();
 	cpuctrl_deinit();
 	gp2x_deinit();
 	if(mmuhack_status)

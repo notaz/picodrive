@@ -2,6 +2,8 @@
 @ it does not seem to give much performance increase (if any at all), so don't use it if it causes trouble.
 @ - notaz, 2006
 
+@ vim:filetype=armasm
+
 .equiv SLOT1, 0
 .equiv SLOT2, 2
 .equiv SLOT3, 1
@@ -725,7 +727,7 @@ upd_slot1:
 
 
 @ lr=context, r12=pack (stereo, lastchan, disabled, lfo_enabled | pan_r, pan_l, ams[2] | AMmasks[4] | FB[4] | lfo_ampm[16])
-@ r0-r2=scratch, r3=sin_tab/scratch, r4=(length<<8)|algo, r5=tl_tab/slot,
+@ r0-r2=scratch, r3=sin_tab/scratch, r4=(length<<8)|unused[4],was_update,algo[3], r5=tl_tab/slot,
 @ r6-r7=vol_out[4], r8=eg_timer, r9=eg_timer_add[31:16], r10=op1_out, r11=buffer
 .global chan_render_loop @ chan_rend_context *ct, int *buffer, int length
 
@@ -856,6 +858,7 @@ crl_algo_done:
     @ -- WRITE SAMPLE --
     tst     r0, r0
     beq     ctl_sample_skip
+    orr     r4, r4, #8              @ have_output
     tst     r12, #1
     beq     ctl_sample_mono
 
@@ -908,6 +911,7 @@ crl_do_phase:
 crl_loop_end:
     str     r8,  [lr, #0x44]     @ eg_timer
     str     r12, [lr, #0x4c]     @ pack (for lfo_ampm)
+    str     r4,  [lr, #0x50]     @ was_update
     str     r10, [lr, #0x54]     @ op1_out
     ldmfd   sp!, {r4-r11,pc}
 

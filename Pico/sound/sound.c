@@ -227,6 +227,7 @@ void sound_clear(void)
 
 int sound_render(int offset, int length)
 {
+  int  buf32_updated = 0;
   int *buf32 = PsndBuffer+offset;
   int stereo = (PicoOpt & 8) >> 3;
   // emulating CD && PCM option enabled && PCM chip on && have enabled channels
@@ -248,11 +249,15 @@ int sound_render(int offset, int length)
 
   // Add in the stereo FM buffer
   if (PicoOpt & 1)
-    YM2612UpdateOne(buf32, length, stereo, 1);
+    buf32_updated = YM2612UpdateOne(buf32, length, stereo, 1);
+
+//printf("active_chs: %02x\n", buf32_updated);
 
   // CD: PCM sound
-  if (do_pcm)
+  if (do_pcm) {
     pcm_update(buf32, length, stereo);
+    //buf32_updated = 1;
+  }
 
   // CD: CDDA audio
   if ((PicoMCD & 1) && (PicoOpt & 0x800))

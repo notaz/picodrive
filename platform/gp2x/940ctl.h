@@ -1,4 +1,5 @@
 void sharedmem_init(void);
+void sharedmem_deinit(void);
 
 void YM2612Init_940(int baseclock, int rate);
 void YM2612ResetChip_940(void);

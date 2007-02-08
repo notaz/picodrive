@@ -112,7 +112,8 @@ void Main940(void)
 					YM2612Write_(d >> 8, d);
 				}
 
-				YM2612UpdateOne_(ym_buffer, shared_ctl->length, shared_ctl->stereo, 1);
+				shared_ctl->ym_active_chs =
+					YM2612UpdateOne_(ym_buffer, shared_ctl->length, shared_ctl->stereo, 1);
 				break;
 			}
 

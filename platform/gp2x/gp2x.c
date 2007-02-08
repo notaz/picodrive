@@ -52,6 +52,7 @@ void *gp2x_screen;
 #define FRAMEBUFF_ADDR3 0x4000000-640*480*4
 
 static const int gp2x_screenaddrs[] = { FRAMEBUFF_ADDR0, FRAMEBUFF_ADDR1, FRAMEBUFF_ADDR2, FRAMEBUFF_ADDR3 };
+static unsigned short gp2x_screenaddr_old[4];
 
 
 /* video stuff */
@@ -269,6 +270,11 @@ void gp2x_init(void)
 	gp2x_screen = gp2x_screens[0];
 	screensel = 0;
 
+	gp2x_screenaddr_old[0] = gp2x_memregs[0x290E>>1];
+	gp2x_screenaddr_old[1] = gp2x_memregs[0x2910>>1];
+	gp2x_screenaddr_old[2] = gp2x_memregs[0x2912>>1];
+	gp2x_screenaddr_old[3] = gp2x_memregs[0x2914>>1];
+
 	// snd
   	mixerdev = open("/dev/mixer", O_RDWR);
 	if (mixerdev == -1)
@@ -288,6 +294,11 @@ void gp2x_deinit(void)
 	Pause940(1);
 
 	gp2x_video_changemode(15);
+	gp2x_memregs[0x290E>>1] = gp2x_screenaddr_old[0];
+	gp2x_memregs[0x2910>>1] = gp2x_screenaddr_old[1];
+	gp2x_memregs[0x2912>>1] = gp2x_screenaddr_old[2];
+	gp2x_memregs[0x2914>>1] = gp2x_screenaddr_old[3];
+
 	munmap(gp2x_screens[0], 640*480*4);
 	munmap((void *)gp2x_memregs, 0x10000);
 	close(memdev);
