@@ -6,10 +6,11 @@ static unsigned char *mp3_data  = (unsigned char *) 0x01000000;
 YM2612 *ym2612_940;
 
 // from init.s
-void wait_irq(void);
+int  wait_get_job(int oldjob);
 void spend_cycles(int c);
-void cache_clean(void);
-void cache_clean_flush(void);
+void dcache_clean(void);
+void dcache_clean_flush(void);
+void drain_wb(void);
 // this should help to resolve race confition where shared var
 // is changed by other core just before we update it
 void set_if_not_changed(int *val, int oldval, int newval);
@@ -41,7 +42,6 @@ static void mp3_decode(void)
 			shared_data->mp3_buffer[shared_ctl->mp3_buffsel], 0);
 	if (err) {
 		if (err == ERR_MP3_INDATA_UNDERFLOW) {
-			shared_ctl->mp3_offs = shared_ctl->mp3_len; // EOF
 			set_if_not_changed(&shared_ctl->mp3_offs, mp3_offs, shared_ctl->mp3_len);
 			return;
 		} else if (err <= -6 && err >= -12) {
@@ -56,97 +56,73 @@ static void mp3_decode(void)
 }
 
 
-void Main940(int startvector, int pc_at_irq)
+void Main940(void)
 {
-	int mix_buffer = shared_data->mix_buffer;
+	int *ym_buffer = shared_data->ym_buffer;
+	int job = 0;
 	ym2612_940 = &shared_data->ym2612;
 
-	// debug
-	shared_ctl->vstarts[startvector]++;
-	shared_ctl->last_irq_pc = pc_at_irq;
-	// asm volatile ("mcr p15, 0, r0, c7, c10, 4" ::: "r0");
 
-
-//	for (;;)
+	for (;;)
 	{
-		int job_num = 0;
-/*
-		while (!shared_ctl->busy)
+		job = wait_get_job(job);
+
+		shared_ctl->lastjob = job;
+
+		switch (job)
 		{
-			//shared_ctl->waitc++;
-			spend_cycles(8*1024);
-		}
-*/
-/*
-		if (!shared_ctl->busy)
-		{
-			wait_irq();
-		}
-		shared_ctl->lastbusy = shared_ctl->busy;
-*/
+			case JOB940_INITALL:
+				/* ym2612 */
+				shared_ctl->writebuff0[0] = shared_ctl->writebuff1[0] = 0xffff;
+				YM2612Init_(shared_ctl->baseclock, shared_ctl->rate);
+				/* Helix mp3 decoder */
+				shared_data->mp3dec = MP3InitDecoder();
+				break;
 
-		for (job_num = 0; job_num < MAX_940JOBS; job_num++)
-		{
-			shared_ctl->lastjob = (job_num << 8) | shared_ctl->jobs[job_num];
+			case JOB940_INVALIDATE_DCACHE:
+				drain_wb();
+				dcache_clean_flush();
+				break;
 
-			switch (shared_ctl->jobs[job_num])
-			{
-				case JOB940_INITALL:
-					/* ym2612 */
-					shared_ctl->writebuff0[0] = shared_ctl->writebuff1[0] = 0xffff;
-					YM2612Init_(shared_ctl->baseclock, shared_ctl->rate);
-					/* Helix mp3 decoder */
-					shared_data->mp3dec = MP3InitDecoder();
-					break;
+			case JOB940_YM2612RESETCHIP:
+				YM2612ResetChip_();
+				break;
 
-				case JOB940_YM2612RESETCHIP:
-					YM2612ResetChip_();
-					break;
+			case JOB940_PICOSTATELOAD:
+				YM2612PicoStateLoad_();
+				break;
 
-				case JOB940_PICOSTATELOAD:
-					YM2612PicoStateLoad_();
-					break;
-
-				case JOB940_YM2612UPDATEONE: {
-					int i, dw, *wbuff;
-					if (shared_ctl->writebuffsel == 1) {
-						wbuff = (int *) shared_ctl->writebuff1;
-					} else {
-						wbuff = (int *) shared_ctl->writebuff0;
-					}
-
-					/* playback all writes */
-					for (i = 2048/2; i > 0; i--) {
-						UINT16 d;
-						dw = *wbuff++;
-						d = dw;
-						if (d == 0xffff) break;
-						YM2612Write_(d >> 8, d);
-						d = (dw>>16);
-						if (d == 0xffff) break;
-						YM2612Write_(d >> 8, d);
-					}
-
-					YM2612UpdateOne_(mix_buffer, shared_ctl->length, shared_ctl->stereo, 1);
-					break;
+			case JOB940_YM2612UPDATEONE: {
+				int i, dw, *wbuff;
+				if (shared_ctl->writebuffsel == 1) {
+					wbuff = (int *) shared_ctl->writebuff1;
+				} else {
+					wbuff = (int *) shared_ctl->writebuff0;
 				}
 
-				case JOB940_MP3DECODE:
-					mp3_decode();
-					break;
+				/* playback all writes */
+				for (i = 2048/2; i > 0; i--) {
+					UINT16 d;
+					dw = *wbuff++;
+					d = dw;
+					if (d == 0xffff) break;
+					YM2612Write_(d >> 8, d);
+					d = (dw>>16);
+					if (d == 0xffff) break;
+					YM2612Write_(d >> 8, d);
+				}
+
+				YM2612UpdateOne_(ym_buffer, shared_ctl->length, shared_ctl->stereo, 1);
+				break;
 			}
+
+			case JOB940_MP3DECODE:
+				mp3_decode();
+				break;
 		}
 
-		cache_clean();
-//		asm volatile ("mov r0, #0" ::: "r0");
-//		asm volatile ("mcr p15, 0, r0, c7, c10, 4" ::: "r0"); /* drain write buffer, should be done on nonbuffered write */
-//		cache_clean_flush();
-
 		shared_ctl->loopc++;
-
-//		// shared_ctl->busy = 0; // shared mem is not reliable?
-
-		wait_irq();
+		dcache_clean();
 	}
 }
 

@@ -1,8 +1,13 @@
-.global code940
+@ vim:filetype=armasm:
+
 
 .equ mmsp2_regs, (0xc0000000-0x02000000) @ assume we live @ 0x2000000 bank
+.equ shared_ctl,  0x00200000             @ this is where shared_ctl struncture is located
 
-code940:                          @ interrupt table:
+
+@ exception table:
+.global code940
+code940:
     b .b_reset                    @ reset
     b .b_undef                    @ undefined instructions
     b .b_swi                      @ software interrupt
@@ -32,19 +37,23 @@ code940:                          @ interrupt table:
     mov     r12, #5
     b       .Begin
 .b_irq:
-    mov     r12, #6
     mov     sp, #0x100000       @ reset stack
     sub     sp, sp, #4
-    mov     r1, #mmsp2_regs
-    orr     r2, r1, #0x3B00
-    orr     r2, r2, #0x0046
-    mvn     r3, #0
-    strh    r3, [r2]            @ clear any pending interrupts from the DUALCPU unit
-    orr     r2, r1, #0x4500
-    str     r3, [r2]            @ clear all pending interrupts in irq controller's SRCPND register
-    orr     r2, r2, #0x0010
-    str     r3, [r2]            @ clear all pending interrupts in irq controller's INTPND register
-    b       .Enter
+    mov     r0, #shared_ctl     @ remember where we were when interrupt happened
+    add     r0, r0, #0x20
+    str     lr, [r0]
+    mov     r0, #shared_ctl     @ increment exception counter (for debug)
+    add     r0, r0, #(6*4)
+    ldr     r1, [r0]
+    add     r1, r1, #1
+    str     r1, [r0]
+
+    bl Main940
+
+    @ we should never get here
+    b .b_reserved
+
+
 .b_fiq:
     mov     r12, #7
     b       .Begin
@@ -81,8 +90,13 @@ code940:                          @ interrupt table:
     mcr p15, 0, r0, c6, c4, 0
     mcr p15, 0, r0, c6, c4, 1
 
-    @ set regions 1 and 4 to be cacheable (so the first 2M and mp3 area will be cacheable)
-    mov r0, #(1<<1)|(1<<4)
+    @ region 5: 4K 0x00000000-0x00001000 (boot code protection region)
+    mov r0, #(0x0b<<1)|1
+    mcr p15, 0, r0, c6, c5, 0
+    mcr p15, 0, r0, c6, c5, 1
+
+    @ set regions 1, 4 and 5 to be cacheable (so the first 2M and mp3 area will be cacheable)
+    mov r0, #(1<<1)|(1<<4)|(1<<5)
     mcr p15, 0, r0, c2, c0, 0
     mcr p15, 0, r0, c2, c0, 1
 
@@ -90,10 +104,13 @@ code940:                          @ interrupt table:
     mov r0, #(1<<1)
     mcr p15, 0, r0, c3, c0, 0
 
-    @ set protection, allow access only to regions 1 and 2
-    mov r0, #(3<<8)|(3<<6)|(3<<4)|(3<<2)|(0)  @ data: [full, full, full, full, no access] for regions [4 3 2 1 0]
+    @ set access protection
+    @ data: [no, full, full, full, full, no access] for regions [5 4 3 2 1 0]
+    mov r0, #(0<<10)|(3<<8)|(3<<6)|(3<<4)|(3<<2)|(0)
     mcr p15, 0, r0, c5, c0, 0
-    mov r0, #(0<<8)|(0<<6)|(0<<4)|(3<<2)|(0)  @ instructions: [no access, no, no, full, no]
+    @ instructions: [full, no access, no, no, full, no]
+    mov r0,         #(0<< 6)|(0<<4)|(3<<2)|(0)
+    orr r0, r0,     #(3<<10)|(0<<8)
     mcr p15, 0, r0, c5, c0, 1
 
     mrc p15, 0, r0, c1, c0, 0   @ fetch current control reg
@@ -109,19 +126,74 @@ code940:                          @ interrupt table:
     mov r0, #0
     mcr p15, 0, r0, c7, c6, 0
 
-.Enter:
-    mov r0, r12
-    mov r1, lr
-    bl Main940
+    @ remember which exception vector we came from (increment counter for debug)
+    mov     r0, #shared_ctl
+    add     r0, r0, r12, lsl #2
+    ldr     r1, [r0]
+    add     r1, r1, #1
+    str     r1, [r0]
+    
+    @ remember last lr (for debug)
+    mov     r0, #shared_ctl
+    add     r0, r0, #0x20
+    str     lr, [r0]
 
-    @ we should never get here
-@.b_deadloop:
-@    b .b_deadloop
-    b .b_reserved
+    @ ready to take first job-interrupt
+wait_for_irq:
+    mrs     r0, cpsr
+    bic     r0, r0, #0x80
+    msr     cpsr_c, r0              @ enable interrupts
+
+    mov     r0, #0
+    mcr     p15, 0, r0, c7, c0, 4   @ wait for IRQ
+@    mcr     p15, 0, r0, c15, c8, 2
+    nop
+    nop
+    b       .b_reserved
 
 
 
-@ so asm utils are also defined here:
+@ next job getter
+.global wait_get_job @ int oldjob
+
+wait_get_job:
+    mov     r3, #mmsp2_regs
+    orr     r2, r3, #0x3B00
+    orr     r2, r2, #0x0046         @ DUALPEND940 register
+    ldrh    r12,[r2]
+
+    tst     r0, r0
+    beq     wgj_no_old
+    sub     r0, r0, #1
+    mov     r1, #1
+    mov     r1, r1, lsl r0
+    strh    r1, [r2]                @ clear finished job's pending bit
+    bic     r12,r12,r1
+
+wgj_no_old:
+    tst     r12,r12
+    beq     wgj_no_jobs
+    mov     r0, #0
+wgj_loop:
+    add     r0, r0, #1
+    movs    r12,r12,lsr #1
+    bxcs    lr
+    b       wgj_loop
+
+wgj_no_jobs:
+    mvn     r0, #0
+    orr     r2, r3, #0x4500
+    str     r0, [r2]            @ clear all pending interrupts in irq controller's SRCPND register
+    orr     r2, r2, #0x0010
+    str     r0, [r2]            @ clear all pending interrupts in irq controller's INTPND register
+    b       wait_for_irq
+
+.pool
+
+
+
+
+@ some asm utils are also defined here:
 .global spend_cycles @ c
 
 spend_cycles:
@@ -135,16 +207,16 @@ spend_cycles:
 
 
 @ clean-flush function from ARM940T technical reference manual
-.global cache_clean_flush
+.global dcache_clean_flush
 
-cache_clean_flush:
+dcache_clean_flush:
     mov     r1, #0                  @ init line counter
 ccf_outer_loop:
     mov     r0, #0                  @ segment counter
 ccf_inner_loop:
     orr     r2, r1, r0              @ make segment and line address
     mcr     p15, 0, r2, c7, c14, 2  @ clean and flush that line
-    add     r0, r0, #0x10           @ incremet secment counter
+    add     r0, r0, #0x10           @ incremet segment counter
     cmp     r0, #0x40               @ complete all 4 segments?
     bne     ccf_inner_loop
     add     r1, r1, #0x04000000     @ increment line counter
@@ -153,17 +225,18 @@ ccf_inner_loop:
     bx      lr
 
 
-@ clean-only version
-.global cache_clean
 
-cache_clean:
+@ clean-only version
+.global dcache_clean
+
+dcache_clean:
     mov     r1, #0                  @ init line counter
 cf_outer_loop:
     mov     r0, #0                  @ segment counter
 cf_inner_loop:
     orr     r2, r1, r0              @ make segment and line address
     mcr     p15, 0, r2, c7, c10, 2  @ clean that line
-    add     r0, r0, #0x10           @ incremet secment counter
+    add     r0, r0, #0x10           @ incremet segment counter
     cmp     r0, #0x40               @ complete all 4 segments?
     bne     cf_inner_loop
     add     r1, r1, #0x04000000     @ increment line counter
@@ -172,31 +245,13 @@ cf_inner_loop:
     bx      lr
 
 
-.global wait_irq
+@ drain write buffer
+.global drain_wb
 
-wait_irq:
-    mov     r0, #mmsp2_regs
-    orr     r0, r0, #0x3B00
-    orr     r1, r0, #0x0042
-    mov     r3, #0
-    strh    r3, [r1]                @ disable interrupts
-    orr     r2, r0, #0x003E
-    strh    r3, [r2]                @ remove busy flag
-    mov     r3, #1
-    strh    r3, [r1]                @ enable interrupts
-
-    mrs     r0, cpsr
-    bic     r0, r0, #0x80
-    msr     cpsr_c, r0              @ enable interrupts
-
+drain_wb:
     mov     r0, #0
-    mcr     p15, 0, r0, c7, c0, 4   @ wait for IRQ
-@    mcr     p15, 0, r0, c15, c8, 2
-    nop
-    nop
-    b       .b_reserved
-
-.pool
+    mcr     p15, 0, r0, c7, c10, 4
+    bx      lr
 
 
 .global set_if_not_changed @ int *val, int oldval, int newval
@@ -208,4 +263,10 @@ set_if_not_changed:
     strne  r3, [r0] @ restore value which was changed there by other core
     bx     lr
 
-@ vim:filetype=armasm:
+
+
+@ pad the protected region.
+.rept 1024
+.long 0
+.endr
+

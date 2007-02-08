@@ -255,8 +255,8 @@ int sound_render(int offset, int length)
     pcm_update(buf32, length, stereo);
 
   // CD: CDDA audio
-//  if ((PicoMCD & 1) && (PicoOpt & 0x800))
-//    mp3_update(PsndBuffer+offset, length, stereo);
+  if ((PicoMCD & 1) && (PicoOpt & 0x800))
+    mp3_update(buf32, length, stereo);
 
   // convert + limit to normal 16bit output
   if (stereo)
