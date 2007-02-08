@@ -309,6 +309,30 @@ static void internal_reset(void)
 }
 
 
+/* this must be called after mmu hack, the allocated regions must not get cached */
+void sharedmem_init(void)
+{
+	if (shared_mem != NULL) return;
+
+	shared_mem = (unsigned char *) mmap(0, 0x210000, PROT_READ|PROT_WRITE, MAP_SHARED, memdev, 0x2000000);
+	if(shared_mem == MAP_FAILED)
+	{
+		printf("mmap(shared_data) failed with %i\n", errno);
+		exit(1);
+	}
+	shared_data = (_940_data_t *) (shared_mem+0x100000);
+	/* this area must not get buffered on either side */
+	shared_ctl =  (_940_ctl_t *)  (shared_mem+0x200000);
+	mp3_mem = (unsigned char *) mmap(0, MP3_SIZE_MAX, PROT_READ|PROT_WRITE, MAP_SHARED, memdev, 0x3000000);
+	if (mp3_mem == MAP_FAILED)
+	{
+		printf("mmap(mp3_mem) failed with %i\n", errno);
+		exit(1);
+	}
+	crashed_940 = 1;
+}
+
+
 extern char **g_argv;
 
 /* none of the functions in this file should be called before this one */
@@ -326,27 +350,6 @@ void YM2612Init_940(int baseclock, int rate)
 	gp2x_memregl[0x4504>>2] = 0;        // make sure no FIQs will be generated
 	gp2x_memregl[0x4508>>2] = ~(1<<26); // unmask DUALCPU ints in the undocumented 940's interrupt controller
 
-
-
-	if (shared_mem == NULL)
-	{
-		shared_mem = (unsigned char *) mmap(0, 0x210000, PROT_READ|PROT_WRITE, MAP_SHARED, memdev, 0x2000000);
-		if(shared_mem == MAP_FAILED)
-		{
-			printf("mmap(shared_data) failed with %i\n", errno);
-			exit(1);
-		}
-		shared_data = (_940_data_t *) (shared_mem+0x100000);
-		/* this area must not get buffered on either side */
-		shared_ctl =  (_940_ctl_t *)  (shared_mem+0x200000);
-		mp3_mem = (unsigned char *) mmap(0, MP3_SIZE_MAX, PROT_READ|PROT_WRITE, MAP_SHARED, memdev, 0x3000000);
-		if (mp3_mem == MAP_FAILED)
-		{
-			printf("mmap(mp3_mem) failed with %i\n", errno);
-			exit(1);
-		}
-		crashed_940 = 1;
-	}
 
 	if (crashed_940)
 	{
