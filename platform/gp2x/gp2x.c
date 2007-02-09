@@ -59,27 +59,45 @@ static unsigned short gp2x_screenaddr_old[4];
 void gp2x_video_flip(void)
 {
 	unsigned int address = gp2x_screenaddrs[screensel&3];
+	unsigned short msb16 = (unsigned short)(address >> 16);
+	unsigned short lsb16 = (unsigned short)(address);
 
-	/* test */
-/*	{
-		int i; char *p=gp2x_screen;
-		for (i=0; i < 240; i++) { memset(p+i*320, 0, 32); }
-	}*/
-
-	gp2x_memregs[0x290E>>1]=(unsigned short)(address);
-  	gp2x_memregs[0x2910>>1]=(unsigned short)(address >> 16);
-  	gp2x_memregs[0x2912>>1]=(unsigned short)(address);
-  	gp2x_memregs[0x2914>>1]=(unsigned short)(address >> 16);
+	gp2x_memregs[0x290E>>1] = lsb16;
+  	gp2x_memregs[0x2910>>1] = msb16;
+  	gp2x_memregs[0x2912>>1] = lsb16;
+  	gp2x_memregs[0x2914>>1] = msb16;
 
 	// jump to other buffer:
 	gp2x_screen = gp2x_screens[++screensel&3];
 }
 
+/* doulblebuffered flip */
+void gp2x_video_flip2(void)
+{
+	unsigned int address = gp2x_screenaddrs[screensel&1];
+	unsigned short msb16 = (unsigned short)(address >> 16);
+	unsigned short lsb16 = (unsigned short)(address);
 
-void gp2x_video_changemode(int bpp)
+	gp2x_memregs[0x290E>>1] = lsb16;
+  	gp2x_memregs[0x2910>>1] = msb16;
+  	gp2x_memregs[0x2912>>1] = lsb16;
+  	gp2x_memregs[0x2914>>1] = msb16;
+
+	// jump to other buffer:
+	gp2x_screen = gp2x_screens[++screensel&1];
+}
+
+
+void gp2x_video_changemode2(int bpp)
 {
   	gp2x_memregs[0x28DA>>1]=(((bpp+1)/8)<<9)|0xAB; /*8/15/16/24bpp...*/
   	gp2x_memregs[0x290C>>1]=320*((bpp+1)/8); /*line width in bytes*/
+}
+
+
+void gp2x_video_changemode(int bpp)
+{
+	gp2x_video_changemode2(bpp);
 
   	gp2x_memset_all_buffers(0, 0, 640*480);
 	gp2x_video_flip();
@@ -145,6 +163,14 @@ void gp2x_memset_all_buffers(int offset, int byte, int len)
 	memset((char *)gp2x_screens[1] + offset, byte, len);
 	memset((char *)gp2x_screens[2] + offset, byte, len);
 	memset((char *)gp2x_screens[3] + offset, byte, len);
+}
+
+
+void gp2x_pd_clone_buffer2(void)
+{
+	memcpy(gp2x_screen, gp2x_screens[2], 320*240);
+	memset(gp2x_screen, 0xe0, 320*8);
+	memset(gp2x_screen + 320*232, 0xe0, 320*8);
 }
 
 

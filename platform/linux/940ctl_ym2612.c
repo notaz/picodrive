@@ -24,22 +24,13 @@ YM2612 *ym2612_940 = &ym2612;
 // static _940_data_t  shared_data_;
 static _940_ctl_t   shared_ctl_;
 // static _940_data_t *shared_data = &shared_data_;
-static _940_ctl_t  *shared_ctl = &shared_ctl_;
+_940_ctl_t  *shared_ctl = &shared_ctl_;
 
 unsigned char *mp3_mem = 0;
 
 #define MP3_SIZE_MAX (0x1000000 - 4*640*480)
 
 /***********************************************************/
-
-#define MAXOUT		(+32767)
-#define MINOUT		(-32768)
-
-/* limitter */
-#define Limit(val, max,min) { \
-	if ( val > max )      val = max; \
-	else if ( val < min ) val = min; \
-}
 
 
 int YM2612Write_940(unsigned int a, unsigned int v)
@@ -80,10 +71,18 @@ void YM2612PicoStateLoad_940(void)
 }
 
 
-void YM2612Init_940(int baseclock, int rate)
+void sharedmem_init(void)
 {
 	mp3_mem = malloc(MP3_SIZE_MAX);
+}
 
+void sharedmem_deinit(void)
+{
+	free(mp3_mem);
+}
+
+void YM2612Init_940(int baseclock, int rate)
+{
 	YM2612Init_(baseclock, rate);
 }
 
@@ -184,6 +183,12 @@ int YM2612UpdateOne_940(int *buffer, int length, int stereo, int is_buf_empty)
 }
 
 
+void mp3_update(int *buffer, int length, int stereo)
+{
+	// nothing..
+}
+
+
 /***********************************************************/
 
 void mp3_start_play(FILE *f, int pos) // pos is 0-1023
@@ -216,5 +221,19 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 int mp3_get_offset(void)
 {
 	return 0;
+}
+
+
+/* unimplemented... */
+void mix_16h_to_32(int *dest_buf, short *mp3_buf, int count)
+{
+}
+
+void mix_16h_to_32_s1(int *dest_buf, short *mp3_buf, int count)
+{
+}
+
+void mix_16h_to_32_s2(int *dest_buf, short *mp3_buf, int count)
+{
 }
 

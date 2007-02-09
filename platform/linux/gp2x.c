@@ -236,7 +236,17 @@ void gp2x_video_flip(void)
 	gdk_threads_leave();
 }
 
+void gp2x_video_flip2(void)
+{
+	gp2x_video_flip();
+}
+
 void gp2x_video_changemode(int bpp)
+{
+	current_bpp = bpp;
+}
+
+void gp2x_video_changemode2(int bpp)
 {
 	current_bpp = bpp;
 }
@@ -261,6 +271,10 @@ void gp2x_memset_all_buffers(int offset, int byte, int len)
 	memset((char *)gp2x_screen + offset, byte, len);
 }
 
+void gp2x_pd_clone_buffer2(void)
+{
+	memset(gp2x_screen, 0, 320*240);
+}
 
 /* sound */
 static int s_oldrate = 0, s_oldbits = 0, s_oldstereo = 0;

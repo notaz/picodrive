@@ -634,7 +634,7 @@ static int EmuScan8(unsigned int num, void *sdata)
 	return 0;
 }
 
-static int localPal[0x100];
+int localPal[0x100];
 static void (*vidCpyM2)(void *dest, void *src) = NULL;
 
 static void blit(char *fps, char *notice)
@@ -1001,6 +1001,7 @@ void emu_Loop(void)
 
 	// make sure we are in correct mode
 	vidResetMode();
+	Pico.m.dirtyPal = 1;
 	oldmodes = ((Pico.video.reg[12]&1)<<2) ^ 0xc;
 	find_combos();
 
@@ -1226,6 +1227,14 @@ if (Pico.m.frame_count == 31563) {
 		blit("", "Writing SRAM/BRAM..");
 		emu_SaveLoadGame(0, 1);
 		SRam.changed = 0;
+	}
+
+	// if in 16bit mode, generate 8it image for menu background
+	if (!(PicoOpt&0x10) && (currentConfig.EmuOpt&0x80)) {
+		PicoOpt |= 0x10;
+		PicoFrameFull();
+		blit("", NULL); blit("", NULL); blit("", NULL); blit("", NULL); // be sure buffer3 gets updated
+		PicoOpt &= ~0x10;
 	}
 }
 

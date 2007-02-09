@@ -164,7 +164,7 @@ void gp2x_text_out8(int x, int y, char *texto, ...)
 	vsprintf(buffer,texto,args);
 	va_end(args);
 
-	gp2x_text(gp2x_screen,x,y,buffer,1);
+	gp2x_text(gp2x_screen,x,y,buffer,0xf0);
 }
 
 
@@ -182,7 +182,7 @@ void gp2x_text_out8_lim(int x, int y, char *texto, int max)
 	if (max < 0) max = 0;
 	buffer[max] = 0;
 
-	gp2x_text(gp2x_screen,x,y,buffer,1);
+	gp2x_text(gp2x_screen,x,y,buffer,0xf0);
 }
 
 
@@ -279,7 +279,8 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 	start = 12 - sel;
 	n--; // exclude current dir (".")
 
-	memset(gp2x_screen, 0, 320*240);
+	//memset(gp2x_screen, 0, 320*240);
+	gp2x_pd_clone_buffer2();
 
 	if(start - 2 >= 0)
 		gp2x_text_out8_lim(14, (start - 2)*10, curdir, 38);
@@ -295,7 +296,7 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 		}
 	}
 	gp2x_text_out8(5, 120, ">");
-	gp2x_video_flip();
+	gp2x_video_flip2();
 }
 
 static int scandir_cmp(const void *p1, const void *p2)
@@ -460,7 +461,8 @@ static void draw_key_config(int curr_act, int is_p2)
 		}
 	}
 
-	memset(gp2x_screen, 0, 320*240);
+	//memset(gp2x_screen, 0, 320*240);
+	gp2x_pd_clone_buffer2();
 	gp2x_text_out8(60, 40, "Action: %s", actionNames[curr_act]);
 	gp2x_text_out8(60, 60, "Keys: %s", strkeys);
 
@@ -468,7 +470,7 @@ static void draw_key_config(int curr_act, int is_p2)
 	gp2x_text_out8(30, 190, "Press a key to bind/unbind");
 	gp2x_text_out8(30, 200, "Select \"Done\" action and");
 	gp2x_text_out8(30, 210, "  press any key to finish");
-	gp2x_video_flip();
+	gp2x_video_flip2();
 }
 
 static void key_config_loop(int is_p2)
@@ -515,7 +517,8 @@ static void draw_kc_sel(int menu_sel)
 	char joyname[36];
 
 	y = tl_y;
-	memset(gp2x_screen, 0, 320*240);
+	//memset(gp2x_screen, 0, 320*240);
+	gp2x_pd_clone_buffer2();
 	gp2x_text_out8(tl_x, y,       "Player 1");
 	gp2x_text_out8(tl_x, (y+=10), "Player 2");
 	gp2x_text_out8(tl_x, (y+=10), "Done");
@@ -535,7 +538,7 @@ static void draw_kc_sel(int menu_sel)
 	}
 
 
-	gp2x_video_flip();
+	gp2x_video_flip2();
 }
 
 static void kc_sel_loop(void)
@@ -569,7 +572,9 @@ static void draw_cd_menu_options(int menu_sel, char *b_us, char *b_eu, char *b_j
 	int tl_x = 25, tl_y = 60, y;
 
 	y = tl_y;
-	memset(gp2x_screen, 0, 320*240);
+	//memset(gp2x_screen, 0, 320*240);
+	gp2x_pd_clone_buffer2();
+
 	gp2x_text_out8(tl_x, y,       "USA BIOS:     %s", b_us); // 0
 	gp2x_text_out8(tl_x, (y+=10), "EUR BIOS:     %s", b_eu); // 1
 	gp2x_text_out8(tl_x, (y+=10), "JAP BIOS:     %s", b_jp); // 2
@@ -586,7 +591,7 @@ static void draw_cd_menu_options(int menu_sel, char *b_us, char *b_eu, char *b_j
 		(menu_sel == 2 && strcmp(b_jp, "NOT FOUND")))
 			gp2x_text_out8(tl_x, 220, "Press start to test selected BIOS");
 
-	gp2x_video_flip();
+	gp2x_video_flip2();
 }
 
 static void cd_menu_loop_options(void)
@@ -659,7 +664,9 @@ static void draw_amenu_options(int menu_sel)
 	char *mms = mmuhack_status ? "active)  " : "inactive)";
 
 	y = tl_y;
-	memset(gp2x_screen, 0, 320*240);
+	//memset(gp2x_screen, 0, 320*240);
+	gp2x_pd_clone_buffer2();
+
 	gp2x_text_out8(tl_x, y,       "Scale 32 column mode       %s", (currentConfig.PicoOpt&0x100)?"ON":"OFF"); // 0
 	gp2x_text_out8(tl_x, (y+=10), "Gamma correction           %i.%02i", currentConfig.gamma / 100, currentConfig.gamma%100); // 1
 	gp2x_text_out8(tl_x, (y+=10), "Emulate Z80                %s", (currentConfig.PicoOpt&0x004)?"ON":"OFF"); // 2
@@ -675,7 +682,7 @@ static void draw_amenu_options(int menu_sel)
 	// draw cursor
 	gp2x_text_out8(tl_x - 16, tl_y + menu_sel*10, ">");
 
-	gp2x_video_flip();
+	gp2x_video_flip2();
 }
 
 static void amenu_loop_options(void)
@@ -761,7 +768,9 @@ static void draw_menu_options(int menu_sel)
 	}
 
 	y = tl_y;
-	memset(gp2x_screen, 0, 320*240);
+	//memset(gp2x_screen, 0, 320*240);
+	gp2x_pd_clone_buffer2();
+
 	gp2x_text_out8(tl_x, y,       "Renderer:            %s", strrend); // 0
 	gp2x_text_out8(tl_x, (y+=10), "Accurate timing (slower)   %s", (currentConfig.PicoOpt&0x040)?"ON":"OFF"); // 1
 	gp2x_text_out8(tl_x, (y+=10), "Accurate sprites (slower)  %s", (currentConfig.PicoOpt&0x080)?"ON":"OFF"); // 2
@@ -785,7 +794,7 @@ static void draw_menu_options(int menu_sel)
 	// draw cursor
 	gp2x_text_out8(tl_x - 16, tl_y + menu_sel*10, ">");
 
-	gp2x_video_flip();
+	gp2x_video_flip2();
 }
 
 static int sndrate_prevnext(int rate, int dir)
@@ -937,7 +946,8 @@ static int menu_loop_options(void)
 static void draw_menu_credits(void)
 {
 	int tl_x = 15, tl_y = 70, y;
-	memset(gp2x_screen, 0, 320*240);
+	//memset(gp2x_screen, 0, 320*240);
+	gp2x_pd_clone_buffer2();
 
 	gp2x_text_out8(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006,2007");
 	y = tl_y;
@@ -956,7 +966,7 @@ static void draw_menu_credits(void)
 	gp2x_text_out8(tl_x, (y+=10), "GnoStiC / Puck2099: USB joystick");
 	gp2x_text_out8(tl_x, (y+=10), "craigix: GP2X hardware");
 
-	gp2x_video_flip();
+	gp2x_video_flip2();
 }
 
 
@@ -965,7 +975,8 @@ static void draw_menu_credits(void)
 static void draw_menu_root(int menu_sel)
 {
 	int tl_x = 70, tl_y = 70, y;
-	memset(gp2x_screen, 0, 320*240);
+	//memset(gp2x_screen, 0, 320*240);
+	gp2x_pd_clone_buffer2();
 
 	gp2x_text_out8(tl_x, 20, "PicoDrive v" VERSION);
 
@@ -988,7 +999,7 @@ static void draw_menu_root(int menu_sel)
 	gp2x_text_out8(tl_x - 16, tl_y + menu_sel*10, ">");
 	// error
 	if (menuErrorMsg[0]) gp2x_text_out8(5, 226, menuErrorMsg);
-	gp2x_video_flip();
+	gp2x_video_flip2();
 }
 
 
@@ -1087,17 +1098,28 @@ static void menu_loop_root(void)
 }
 
 
-void menu_loop(void)
+static void menu_gfx_prepare(void)
 {
-	int pal[2];
+	extern int localPal[0x100];
+	int i;
+
+	// don't clear old palette just for fun (but make it dark)
+	for (i = 0x100-1; i >= 0; i--)
+		localPal[i] = (localPal[i] >> 2) & 0x003f3f3f;
+	localPal[0xe0] = 0x00000000; // reserved pixels for OSD
+	localPal[0xf0] = 0x00ffffff;
 
 	// switch to 8bpp
-	gp2x_video_changemode(8);
+	gp2x_video_changemode2(8);
 	gp2x_video_RGB_setscaling(320, 240);
-	// set pal
-	pal[0] = 0;
-	pal[1] = 0x00ffffff;
-	gp2x_video_setpalette(pal, 2);
+	gp2x_video_setpalette(localPal, 0x100);
+	gp2x_video_flip2();
+}
+
+
+void menu_loop(void)
+{
+	menu_gfx_prepare();
 
 	menu_loop_root();
 
