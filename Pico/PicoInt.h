@@ -289,6 +289,9 @@ unsigned int PicoVideoRead(unsigned int a);
 void SRAMWriteEEPROM(unsigned int d);
 unsigned int SRAMReadEEPROM();
 void SRAMUpdPending(unsigned int a, unsigned int d);
+void memcpy16(unsigned short *dest, unsigned short *src, int count);
+void memcpy32(int *dest, int *src, int count);
+void memset32(int *dest, int c, int count);
 
 
 #ifdef __cplusplus

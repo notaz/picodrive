@@ -112,7 +112,6 @@
 #include <math.h>
 
 #include "ym2612.h"
-#include "mix.h"
 
 #ifndef EXTERNAL_YM2612
 #include <stdlib.h>
@@ -124,6 +123,8 @@ extern YM2612 *ym2612_940;
 #define ym2612 (*ym2612_940)
 
 #endif
+
+void memset32(int *dest, int c, int count);
 
 
 #ifndef __GNUC__

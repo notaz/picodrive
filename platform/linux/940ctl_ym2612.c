@@ -224,16 +224,3 @@ int mp3_get_offset(void)
 }
 
 
-/* unimplemented... */
-void mix_16h_to_32(int *dest_buf, short *mp3_buf, int count)
-{
-}
-
-void mix_16h_to_32_s1(int *dest_buf, short *mp3_buf, int count)
-{
-}
-
-void mix_16h_to_32_s2(int *dest_buf, short *mp3_buf, int count)
-{
-}
-

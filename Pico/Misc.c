@@ -85,7 +85,7 @@ const unsigned char hcounts_32[] = {
 0x0a,0x0b,0x0b,0x0b,0x0c,0x0c,0x0c,0x0d,
 };
 
-// vcounter values for PicoFrameSimple 
+// vcounter values for PicoFrameSimple
 const unsigned short vcounts[] = {
   0,  0,  1,  1,  2,  2,  3,  3,  4,  4,  5,  5,  6,  6,  7,  7,
   8,  8,  9,  9, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16,
@@ -303,3 +303,27 @@ void SRAMUpdPending(unsigned int a, unsigned int d)
 
   Pico.m.sram_reg = (unsigned char) sreg;
 }
+
+
+#ifndef _ASM_MISC_C
+void memcpy16(unsigned short *dest, unsigned short *src, int count)
+{
+	while (count--)
+		*dest++ = *src++;
+}
+
+
+void memcpy32(int *dest, int *src, int count)
+{
+	while (count--)
+		*dest++ = *src++;
+}
+
+
+void memset32(int *dest, int c, int count)
+{
+	while (count--)
+		*dest++ = c;
+}
+#endif
+

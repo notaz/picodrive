@@ -1232,6 +1232,7 @@ if (Pico.m.frame_count == 31563) {
 	// if in 16bit mode, generate 8it image for menu background
 	if (!(PicoOpt&0x10) && (currentConfig.EmuOpt&0x80)) {
 		PicoOpt |= 0x10;
+		Pico.m.dirtyPal = 1;
 		PicoFrameFull();
 		blit("", NULL); blit("", NULL); blit("", NULL); blit("", NULL); // be sure buffer3 gets updated
 		PicoOpt &= ~0x10;

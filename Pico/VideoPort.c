@@ -139,15 +139,24 @@ static void DmaSlow(int len)
   {
     case 1: // vram
       r = Pico.vram;
-      for(; len; len--)
+      if (inc == 2 && !(a&1) && a+len*2 < 0x10000)
       {
-        d=*pd++;
-        if(a&1) d=(d<<8)|(d>>8);
-        r[a>>1] = (u16)d; // will drop the upper bits
-        // AutoIncrement
-        a=(u16)(a+inc);
-        // didn't src overlap?
-        //if(pd >= pdend) pd-=0x8000; // should be good for RAM, bad for ROM
+        // most used DMA mode
+	memcpy16(r + (a>>1), pd, len);
+	a += len*2;
+      }
+      else
+      {
+        for(; len; len--)
+        {
+          d=*pd++;
+          if(a&1) d=(d<<8)|(d>>8);
+          r[a>>1] = (u16)d; // will drop the upper bits
+          // AutoIncrement
+          a=(u16)(a+inc);
+          // didn't src overlap?
+          //if(pd >= pdend) pd-=0x8000; // should be good for RAM, bad for ROM
+        }
       }
       rendstatus|=0x10;
       break;

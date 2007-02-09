@@ -11,6 +11,7 @@ dprint = 1
 asm_memory = 0	# TODO
 asm_render = 1
 asm_ym2612 = 1
+asm_misc = 1
 #profile = 1
 #use_musashi = 1
 #up = 1
@@ -54,6 +55,10 @@ endif
 ifeq "$(asm_ym2612)" "1"
 DEFINC += -D_ASM_YM2612_C
 OBJS += ../../Pico/sound/ym2612_asm.o
+endif
+ifeq "$(asm_misc)" "1"
+DEFINC += -D_ASM_MISC_C
+OBJS += ../../Pico/misc_asm.o
 endif
 # Pico - sound
 OBJS += ../../Pico/sound/mix_asm.o
@@ -126,6 +131,9 @@ testrefr.gpe : test.o gp2x.o asmutils.o
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 ../../Pico/sound/mix_asm.o : ../../Pico/sound/mix.s
+	@echo $<
+	@$(AS) $(ASOPT) $< -o $@
+../../Pico/misc_asm.o : ../../Pico/misc.s
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 
