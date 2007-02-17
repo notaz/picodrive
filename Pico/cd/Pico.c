@@ -11,7 +11,7 @@
 #include "../sound/sound.h"
 
 
-extern unsigned char formatted_bram[8*0x10];
+extern unsigned char formatted_bram[4*0x10];
 
 
 int PicoInitMCD(void)
@@ -34,8 +34,9 @@ int PicoResetMCD(int hard)
   memset(Pico_mcd->word_ram, 0, sizeof(Pico_mcd->word_ram));
   memset(Pico_mcd->pcm_ram, 0, sizeof(Pico_mcd->pcm_ram));
   if (hard) {
+	  int fmt_size = sizeof(formatted_bram);
 	  memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
-	  memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - 8*0x10, formatted_bram, 8*0x10);
+	  memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - fmt_size, formatted_bram, fmt_size);
   }
   memset(Pico_mcd->s68k_regs, 0, sizeof(Pico_mcd->s68k_regs));
   memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));

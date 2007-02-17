@@ -14,6 +14,8 @@
 // sn76496
 extern int *sn76496_regs;
 
+void (*PicoStateProgressCB)(const char *str) = 0;
+
 
 typedef enum {
 	CHUNK_M68K = 1,
@@ -43,6 +45,34 @@ typedef enum {
 } chunk_name_e;
 
 
+static char *chunk_names[] = {
+	"Saving.. M68K state",
+	"Saving.. RAM",
+	"Saving.. VRAM",
+	"Saving.. ZRAM",
+	"Saving.. CRAM",	// 5
+	"Saving.. VSRAM",
+	"Saving.. emu state",
+	"Saving.. VIDEO",
+	"Saving.. Z80 state",
+	"Saving.. PSG",		// 10
+	"Saving.. FM",
+	// CD stuff
+	"Saving.. S68K state",
+	"Saving.. PRG_RAM",
+	"Saving.. WORD_RAM",
+	"Saving.. PCM_RAM",	// 15
+	"Saving.. BRAM",
+	"Saving.. GATE ARRAY regs",
+	"Saving.. PCM state",
+	"Saving.. CDC",
+	"Saving.. CDD",		// 20
+	"Saving.. SCD",
+	"Saving.. GFX chip",
+	"Saving.. MCD state",
+};
+
+
 static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 {
 	size_t bwritten = 0;
@@ -55,9 +85,11 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 
 
 #define CHECKED_WRITE(name,len,data) \
+	if (PicoStateProgressCB) PicoStateProgressCB(chunk_names[name]); \
 	if (!write_chunk(name, len, data, file)) return 1;
 
 #define CHECKED_WRITE_BUFF(name,buff) \
+	if (PicoStateProgressCB) PicoStateProgressCB(chunk_names[name]); \
 	if (!write_chunk(name, sizeof(buff), &buff, file)) return 1;
 
 int PicoCdSaveState(void *file)
@@ -88,7 +120,6 @@ int PicoCdSaveState(void *file)
 	if(PicoOpt&1)
 		CHECKED_WRITE(CHUNK_FM, 0x200+4, ym2612_regs);
 
-	// TODO: cd stuff
 	if (PicoMCD & 1)
 	{
 		Pico_mcd->m.audio_offset = mp3_get_offset();

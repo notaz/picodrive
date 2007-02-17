@@ -213,7 +213,7 @@ spend_cycles:
 @ test
 .global flushcache
 
-flushcache:                                                                                                                                
-    swi #0x9f0002                                                                                                                      
-    mov pc, lr                                                                                                                         
-		                
+flushcache:
+    swi #0x9f0002
+    mov pc, lr
+

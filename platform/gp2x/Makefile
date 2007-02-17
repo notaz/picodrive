@@ -11,7 +11,7 @@ dprint = 1
 asm_memory = 0	# TODO
 asm_render = 1
 asm_ym2612 = 1
-asm_misc = 1
+asm_misc = 0
 #profile = 1
 #use_musashi = 1
 #up = 1
@@ -33,7 +33,7 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += main.o menu.o gp2x.o usbjoy.o emu.o squidgehack.o asmutils.o cpuctrl.o
+OBJS += main.o menu.o fonts.o gp2x.o usbjoy.o emu.o squidgehack.o asmutils.o cpuctrl.o
 # 940 core control
 OBJS += 940ctl.o
 # Pico

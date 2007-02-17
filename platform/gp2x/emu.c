@@ -564,7 +564,7 @@ void emu_Deinit(void)
 }
 
 
-void osd_text(int x, int y, char *text)
+void osd_text(int x, int y, const char *text)
 {
 	int len = strlen(text)*8;
 
@@ -637,7 +637,7 @@ static int EmuScan8(unsigned int num, void *sdata)
 int localPal[0x100];
 static void (*vidCpyM2)(void *dest, void *src) = NULL;
 
-static void blit(char *fps, char *notice)
+static void blit(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
@@ -777,8 +777,8 @@ static void RunEvents(unsigned int which)
 			clearArea(0);
 		}
 		if (do_it) {
-			blit("", (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
-			emu_SaveLoadGame(which & 0x1000, 0);
+			osd_text(4, 232, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
+			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
 		}
 
 		reset_timing = 1;
@@ -1224,7 +1224,7 @@ if (Pico.m.frame_count == 31563) {
 
 	// save SRAM
 	if((currentConfig.EmuOpt & 1) && SRam.changed) {
-		blit("", "Writing SRAM/BRAM..");
+		osd_text(4, 232, "Writing SRAM/BRAM..");
 		emu_SaveLoadGame(0, 1);
 		SRam.changed = 0;
 	}
@@ -1232,11 +1232,15 @@ if (Pico.m.frame_count == 31563) {
 	// if in 16bit mode, generate 8it image for menu background
 	if (!(PicoOpt&0x10) && (currentConfig.EmuOpt&0x80)) {
 		PicoOpt |= 0x10;
-		Pico.m.dirtyPal = 1;
 		PicoFrameFull();
-		blit("", NULL); blit("", NULL); blit("", NULL); blit("", NULL); // be sure buffer3 gets updated
+		vidCpyM2((unsigned char *)gp2x_screen+320*8, framebuff+328*8);
+		vidConvCpyRGB32(localPal, Pico.cram, 0x40);
+		gp2x_video_setpalette(localPal, 0x40);
 		PicoOpt &= ~0x10;
 	}
+
+	// for menu bg
+	gp2x_memcpy_all_buffers(gp2x_screen, 0, 320*240*2);
 }
 
 
@@ -1259,10 +1263,19 @@ size_t gzWrite2(void *p, size_t _size, size_t _n, void *file)
 }
 
 
+static void emu_state_cb(const char *str)
+{
+	clearArea(0);
+	blit("", str);
+}
+
 int emu_SaveLoadGame(int load, int sram)
 {
 	int ret = 0;
 	char saveFname[512];
+
+	PicoStateProgressCB = emu_state_cb;
+	gp2x_memcpy_all_buffers(gp2x_screen, 0, 320*240*2);
 
 	// make save filename
 	romfname_ext(saveFname, "");

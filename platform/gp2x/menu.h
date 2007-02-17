@@ -5,9 +5,9 @@
 
 extern char menuErrorMsg[40];
 
-void gp2x_text_out8  (int x, int y, char *texto, ...);
-void gp2x_text_out15 (int x, int y, char *text);
-void gp2x_text_out8_2(int x, int y, char *texto, int color);
+void gp2x_text_out8  (int x, int y, const char *texto, ...);
+void gp2x_text_out15 (int x, int y, const char *text);
+void gp2x_text_out8_2(int x, int y, const char *texto, int color);
 void menu_loop(void);
 
 #define CONFIGURABLE_KEYS \

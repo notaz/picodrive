@@ -46,10 +46,11 @@ static int sounddev = 0, mixerdev = 0;
 
 void *gp2x_screen;
 
-#define FRAMEBUFF_ADDR0 0x4000000-640*480
-#define FRAMEBUFF_ADDR1 0x4000000-640*480*2
-#define FRAMEBUFF_ADDR2 0x4000000-640*480*3
-#define FRAMEBUFF_ADDR3 0x4000000-640*480*4
+#define FRAMEBUFF_WHOLESIZE (0x30000*4) // 320*240*2 + some more
+#define FRAMEBUFF_ADDR0 (0x4000000-FRAMEBUFF_WHOLESIZE)
+#define FRAMEBUFF_ADDR1 (FRAMEBUFF_ADDR0+0x30000)
+#define FRAMEBUFF_ADDR2 (FRAMEBUFF_ADDR1+0x30000)
+#define FRAMEBUFF_ADDR3 (FRAMEBUFF_ADDR2+0x30000)
 
 static const int gp2x_screenaddrs[] = { FRAMEBUFF_ADDR0, FRAMEBUFF_ADDR1, FRAMEBUFF_ADDR2, FRAMEBUFF_ADDR3 };
 static unsigned short gp2x_screenaddr_old[4];
@@ -58,14 +59,12 @@ static unsigned short gp2x_screenaddr_old[4];
 /* video stuff */
 void gp2x_video_flip(void)
 {
-	unsigned int address = gp2x_screenaddrs[screensel&3];
-	unsigned short msb16 = (unsigned short)(address >> 16);
-	unsigned short lsb16 = (unsigned short)(address);
+	unsigned short msw = (unsigned short)(gp2x_screenaddrs[screensel&3] >> 16);
 
-	gp2x_memregs[0x290E>>1] = lsb16;
-  	gp2x_memregs[0x2910>>1] = msb16;
-  	gp2x_memregs[0x2912>>1] = lsb16;
-  	gp2x_memregs[0x2914>>1] = msb16;
+  	gp2x_memregs[0x2910>>1] = msw;
+  	gp2x_memregs[0x2914>>1] = msw;
+	gp2x_memregs[0x290E>>1] = 0;
+  	gp2x_memregs[0x2912>>1] = 0;
 
 	// jump to other buffer:
 	gp2x_screen = gp2x_screens[++screensel&3];
@@ -74,14 +73,12 @@ void gp2x_video_flip(void)
 /* doulblebuffered flip */
 void gp2x_video_flip2(void)
 {
-	unsigned int address = gp2x_screenaddrs[screensel&1];
-	unsigned short msb16 = (unsigned short)(address >> 16);
-	unsigned short lsb16 = (unsigned short)(address);
+	unsigned short msw = (unsigned short)(gp2x_screenaddrs[screensel&1] >> 16);
 
-	gp2x_memregs[0x290E>>1] = lsb16;
-  	gp2x_memregs[0x2910>>1] = msb16;
-  	gp2x_memregs[0x2912>>1] = lsb16;
-  	gp2x_memregs[0x2914>>1] = msb16;
+  	gp2x_memregs[0x2910>>1] = msw;
+  	gp2x_memregs[0x2914>>1] = msw;
+	gp2x_memregs[0x290E>>1] = 0;
+  	gp2x_memregs[0x2912>>1] = 0;
 
 	// jump to other buffer:
 	gp2x_screen = gp2x_screens[++screensel&1];
@@ -99,7 +96,7 @@ void gp2x_video_changemode(int bpp)
 {
 	gp2x_video_changemode2(bpp);
 
-  	gp2x_memset_all_buffers(0, 0, 640*480);
+  	gp2x_memset_all_buffers(0, 0, 320*240*2);
 	gp2x_video_flip();
 }
 
@@ -256,7 +253,7 @@ void Pause940(int yes)
 
 void Reset940(int yes, int bank)
 {
-	gp2x_memregs[0x3B48>>1] = ((yes&1) << 7) | (bank & 0x03); /* bank=3 */
+	gp2x_memregs[0x3B48>>1] = ((yes&1) << 7) | (bank & 0x03);
 }
 
 
@@ -282,16 +279,16 @@ void gp2x_init(void)
 	}
 	gp2x_memregl = (unsigned long *) gp2x_memregs;
 
-  	gp2x_screens[3] = mmap(0, 640*480*4, PROT_WRITE, MAP_SHARED, memdev, FRAMEBUFF_ADDR3);
-	if(gp2x_screens[3] == MAP_FAILED)
+  	gp2x_screens[0] = mmap(0, FRAMEBUFF_WHOLESIZE, PROT_WRITE, MAP_SHARED, memdev, FRAMEBUFF_ADDR0);
+	if(gp2x_screens[0] == MAP_FAILED)
 	{
 		printf("mmap(gp2x_screen) failed with %i\n", errno);
 		exit(1);
 	}
-	printf("framebuffers point to %p\n", gp2x_screens[3]);
-	gp2x_screens[2] = (char *) gp2x_screens[3]+640*480;
-	gp2x_screens[1] = (char *) gp2x_screens[2]+640*480;
-	gp2x_screens[0] = (char *) gp2x_screens[1]+640*480;
+	printf("framebuffers point to %p\n", gp2x_screens[0]);
+	gp2x_screens[1] = (char *) gp2x_screens[0]+0x30000;
+	gp2x_screens[2] = (char *) gp2x_screens[1]+0x30000;
+	gp2x_screens[3] = (char *) gp2x_screens[2]+0x30000;
 
 	gp2x_screen = gp2x_screens[0];
 	screensel = 0;
@@ -300,6 +297,8 @@ void gp2x_init(void)
 	gp2x_screenaddr_old[1] = gp2x_memregs[0x2910>>1];
 	gp2x_screenaddr_old[2] = gp2x_memregs[0x2912>>1];
 	gp2x_screenaddr_old[3] = gp2x_memregs[0x2914>>1];
+
+	gp2x_memset_all_buffers(0, 0, 320*240*2);
 
 	// snd
   	mixerdev = open("/dev/mixer", O_RDWR);
@@ -325,7 +324,7 @@ void gp2x_deinit(void)
 	gp2x_memregs[0x2912>>1] = gp2x_screenaddr_old[2];
 	gp2x_memregs[0x2914>>1] = gp2x_screenaddr_old[3];
 
-	munmap(gp2x_screens[0], 640*480*4);
+	munmap(gp2x_screens[0], FRAMEBUFF_WHOLESIZE);
 	munmap((void *)gp2x_memregs, 0x10000);
 	close(memdev);
 	close(mixerdev);

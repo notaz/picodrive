@@ -56,6 +56,7 @@ extern arearw  *areaRead;  // external read and write function pointers for
 extern arearw  *areaWrite; // gzip save state ability
 extern areaeof *areaEof;
 extern areaseek *areaSeek;
+extern void (*PicoStateProgressCB)(const char *str);
 
 // Cart.c
 int PicoCartLoad(FILE *f,unsigned char **prom,unsigned int *psize);
