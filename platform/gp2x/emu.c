@@ -764,6 +764,12 @@ static int check_save_file(void)
 	return 0;
 }
 
+static void emu_state_cb(const char *str)
+{
+	clearArea(0);
+	blit("", str);
+}
+
 static void RunEvents(unsigned int which)
 {
 	if(which & 0x1800) { // save or load (but not both)
@@ -778,7 +784,10 @@ static void RunEvents(unsigned int which)
 		}
 		if (do_it) {
 			osd_text(4, 232, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
+			PicoStateProgressCB = emu_state_cb;
+			gp2x_memcpy_all_buffers(gp2x_screen, 0, 320*240*2);
 			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
+			PicoStateProgressCB = NULL;
 		}
 
 		reset_timing = 1;
@@ -1263,19 +1272,10 @@ size_t gzWrite2(void *p, size_t _size, size_t _n, void *file)
 }
 
 
-static void emu_state_cb(const char *str)
-{
-	clearArea(0);
-	blit("", str);
-}
-
 int emu_SaveLoadGame(int load, int sram)
 {
 	int ret = 0;
 	char saveFname[512];
-
-	PicoStateProgressCB = emu_state_cb;
-	gp2x_memcpy_all_buffers(gp2x_screen, 0, 320*240*2);
 
 	// make save filename
 	romfname_ext(saveFname, "");

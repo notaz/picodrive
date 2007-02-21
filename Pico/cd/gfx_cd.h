@@ -40,5 +40,7 @@ void gfx_cd_write(unsigned int a, unsigned int d);
 
 void gfx_cd_reset(void);
 
+void DmaSlowCell(unsigned int source, unsigned int a, int len, unsigned char inc);
+
 #endif // _GFX_CD_H
 

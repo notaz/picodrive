@@ -16,3 +16,41 @@ unsigned char formatted_bram[4*0x10] =
 };
 
 
+// offs | 2Mbit  | 1Mbit  |
+//   0  | [ 2M   | unused |
+// 128K |  bit ] | bank0  |
+// 256K | unused | bank1  |
+
+void wram_2M_to_1M(unsigned char *m)
+{
+	unsigned short *m1M_b0, *m1M_b1;
+	unsigned int i, tmp, *m2M;
+
+	m2M = (unsigned int *) (m + 0x40000);
+	m1M_b0 = (unsigned short *) m2M;
+	m1M_b1 = (unsigned short *) (m + 0x60000);
+
+	for (i = 0x40000/4; i; i--)
+	{
+		tmp = *(--m2M);
+		*(--m1M_b0) = tmp;
+		*(--m1M_b1) = tmp >> 16;
+	}
+}
+
+void wram_1M_to_2M(unsigned char *m)
+{
+	unsigned short *m1M_b0, *m1M_b1;
+	unsigned int i, tmp, *m2M;
+
+	m2M = (unsigned int *) m;
+	m1M_b0 = (unsigned short *) (m + 0x20000);
+	m1M_b1 = (unsigned short *) (m + 0x40000);
+
+	for (i = 0x40000/4; i; i--)
+	{
+		tmp = *m1M_b0++ | (*m1M_b1++ << 16);
+		*m2M++ = tmp;
+	}
+}
+

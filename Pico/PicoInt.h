@@ -198,13 +198,22 @@ struct mcd_misc
 typedef struct
 {
 	unsigned char bios[0x20000];			// 128K
-	union {
-		unsigned char prg_ram[0x80000];		// 512K
+	union {						// 512K
+		unsigned char prg_ram[0x80000];
 		unsigned char prg_ram_b[4][0x20000];
 	};
-	unsigned char word_ram[0x40000];		// 256K
-	union {
-		unsigned char pcm_ram[0x10000];		// 64K
+	union {						// 256K
+		struct {
+			unsigned char word_ram2M[0x40000];
+			unsigned char unused[0x20000];
+		};
+		struct {
+			unsigned char unused[0x20000];
+			unsigned char word_ram1M[2][0x20000];
+		};
+	};
+	union {						// 64K
+		unsigned char pcm_ram[0x10000];
 		unsigned char pcm_ram_b[0x10][0x1000];
 	};
 	unsigned char bram[0x2000];			// 8K
@@ -292,6 +301,10 @@ void SRAMUpdPending(unsigned int a, unsigned int d);
 void memcpy16(unsigned short *dest, unsigned short *src, int count);
 void memcpy32(int *dest, int *src, int count);
 void memset32(int *dest, int c, int count);
+
+// cd/Misc.c
+void wram_2M_to_1M(unsigned char *m);
+void wram_1M_to_2M(unsigned char *m);
 
 
 #ifdef __cplusplus

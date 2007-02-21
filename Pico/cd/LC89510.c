@@ -104,19 +104,20 @@ void Update_CDC_TRansfer(int which)
 	{
 		if (Pico_mcd->s68k_regs[3] & 4)
 		{
+			// test: Final Fight
+			int bank = !(Pico_mcd->s68k_regs[3]&1);
 			dep = ((DMA_Adr & 0x3FFF) << 3);
 			cdprintf("CD DMA # %04x -> word_ram1M # %06x, len=%i",
 					Pico_mcd->cdc.DAC.N, dep, length);
 
-			dep = ((DMA_Adr & 0x3FFF) << 4);
-			if (!(Pico_mcd->s68k_regs[3]&1)) dep += 2;
-			dest = (unsigned short *) (Pico_mcd->word_ram + dep);
+			dest = (unsigned short *) (Pico_mcd->word_ram1M[bank] + dep);
 
-			for (len = length; len > 0; len--, src+=2, dest+=2)
+			// TODO: bswapcpy
+			for (len = length; len > 0; len--, src+=2, dest++)
 				*dest = (src[0]<<8) | src[1];
 
 			{ // debug
-				unsigned char *b1 = Pico_mcd->word_ram + dep;
+				unsigned char *b1 = Pico_mcd->word_ram1M[bank] + dep;
 				unsigned char *b2 = (unsigned char *)dest - 8;
 				dprintf("%02x %02x %02x %02x .. %02x %02x %02x %02x",
 					b1[0], b1[1], b1[4], b1[5], b2[0], b2[1], b2[4], b2[5]);
@@ -127,13 +128,13 @@ void Update_CDC_TRansfer(int which)
 			dep = ((DMA_Adr & 0x7FFF) << 3);
 			cdprintf("CD DMA # %04x -> word_ram2M # %06x, len=%i",
 					Pico_mcd->cdc.DAC.N, dep, length);
-			dest = (unsigned short *) (Pico_mcd->word_ram + dep);
+			dest = (unsigned short *) (Pico_mcd->word_ram2M + dep);
 
 			for (len = length; len > 0; len--, src+=2, dest++)
 				*dest = (src[0]<<8) | src[1];
 
 			{ // debug
-				unsigned char *b1 = Pico_mcd->word_ram + dep;
+				unsigned char *b1 = Pico_mcd->word_ram2M + dep;
 				unsigned char *b2 = (unsigned char *)dest - 4;
 				dprintf("%02x %02x %02x %02x .. %02x %02x %02x %02x",
 					b1[0], b1[1], b1[2], b1[3], b2[0], b2[1], b2[2], b2[3]);
@@ -146,7 +147,7 @@ void Update_CDC_TRansfer(int which)
 			dest = (unsigned char *) Ram_PCM;
 			dep = ((DMA_Adr & 0x03FF) << 2) + PCM_Chip.Bank;
 #else
-			cdprintf("CD DMA # %04x -> PCM TODO", Pico_mcd->cdc.DAC.N);
+			dprintf("FIXME: CD DMA # %04x -> PCM", Pico_mcd->cdc.DAC.N);
 #endif
 	}
 	else if (which == 5) // PRG RAM
@@ -188,7 +189,7 @@ unsigned short Read_CDC_Host(int is_sub)
 	if (!(Pico_mcd->scd.Status_CDC & 0x08))
 	{
 		// Transfer data disabled
-		cdprintf("Read_CDC_Host: Transfer data disabled");
+		cdprintf("Read_CDC_Host FIXME: Transfer data disabled");
 		return 0;
 	}
 
@@ -196,7 +197,7 @@ unsigned short Read_CDC_Host(int is_sub)
 		(!is_sub && (Pico_mcd->s68k_regs[4] & 7) != 2))
 	{
 		// Wrong setting
-		cdprintf("Read_CDC_Host: Wrong setting");
+		cdprintf("Read_CDC_Host FIXME: Wrong setting");
 		return 0;
 	}
 

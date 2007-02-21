@@ -8,6 +8,7 @@
 
 
 #include "PicoInt.h"
+#include "cd/gfx_cd.h"
 
 extern const unsigned char  hcounts_32[];
 extern const unsigned char  hcounts_40[];
@@ -98,25 +99,31 @@ static void DmaSlow(int len)
     pd=(u16 *)(Pico.ram+(source&0xfffe));
     pdend=(u16 *)(Pico.ram+0x10000);
   } else if(PicoMCD & 1) {
-    dprintf("DmaSlow CD");
+    dprintf("DmaSlow CD, r3=%02x", Pico_mcd->s68k_regs[3]);
     if(source<0x20000) { // Bios area
       pd=(u16 *)(Pico_mcd->bios+(source&~1));
       pdend=(u16 *)(Pico_mcd->bios+0x20000);
-    } else if ((source&0xfc0000)==0x200000 && (!(Pico_mcd->s68k_regs[3]&4))) { // Word Ram
+    } else if ((source&0xfc0000)==0x200000) { // Word Ram
+      source -= 2;
       if (!(Pico_mcd->s68k_regs[3]&4)) { // 2M mode
-        source -= 2;
-        pd=(u16 *)(Pico_mcd->word_ram+(source&0x3fffe));
-        pdend=(u16 *)(Pico_mcd->word_ram+0x40000);
+        pd=(u16 *)(Pico_mcd->word_ram2M+(source&0x3fffe));
+        pdend=(u16 *)(Pico_mcd->word_ram2M+0x40000);
       } else {
-        dprintf("DmaSlow: unsupported src");
-	return;
+        if (source < 0x220000) { // 1M mode
+          int bank = Pico_mcd->s68k_regs[3]&1;
+          pd=(u16 *)(Pico_mcd->word_ram1M[bank]+(source&0x1fffe));
+          pdend=(u16 *)(Pico_mcd->word_ram1M[bank]+0x20000);
+	} else {
+          DmaSlowCell(source, a, len, inc);
+          return;
+	}
       }
     } else if ((source&0xfe0000)==0x020000) { // Prg Ram
       u8 *prg_ram = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
       pd=(u16 *)(prg_ram+(source&0x1fffe));
       pdend=(u16 *)(prg_ram+0x20000);
     } else {
-      dprintf("DmaSlow: unsupported src");
+      dprintf("DmaSlow FIXME: unsupported src");
       return;
     }
   } else {
@@ -142,8 +149,8 @@ static void DmaSlow(int len)
       if (inc == 2 && !(a&1) && a+len*2 < 0x10000)
       {
         // most used DMA mode
-	memcpy16(r + (a>>1), pd, len);
-	a += len*2;
+        memcpy16(r + (a>>1), pd, len);
+        a += len*2;
       }
       else
       {

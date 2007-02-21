@@ -19,6 +19,8 @@
 #include "gfx_cd.h"
 #include "pcm.h"
 
+#include "cell_map.c"
+
 typedef unsigned char  u8;
 typedef unsigned short u16;
 typedef unsigned int   u32;
@@ -55,7 +57,7 @@ static u32 m68k_reg_read16(u32 a)
       d = Read_CDC_Host(0);
       goto end;
     case 0xA:
-      dprintf("m68k reserved read");
+      dprintf("m68k FIXME: reserved read");
       goto end;
     case 0xC:
       dprintf("m68k stopwatch timer read");
@@ -69,7 +71,7 @@ static u32 m68k_reg_read16(u32 a)
     goto end;
   }
 
-  dprintf("m68k_regs invalid read @ %02x", a);
+  dprintf("m68k_regs FIXME invalid read @ %02x", a);
 
 end:
 
@@ -115,12 +117,13 @@ static void m68k_reg_write8(u32 a, u32 d)
       Pico_mcd->s68k_regs[3] = d; // really use s68k side register
       return;
     case 6:
-      *((char *)&Pico_mcd->m.hint_vector+1) = d;
+      dprintf("FIXME hint[2]: %02x @%06x", (u8)d, SekPc);
       Pico_mcd->bios[0x72 + 1] = d; // simple hint vector changer
       return;
     case 7:
-      *(char *)&Pico_mcd->m.hint_vector = d;
+      dprintf("FIXME hint[3]: %02x @%06x", (u8)d, SekPc);
       Pico_mcd->bios[0x72] = d;
+      dprintf("vector is now %08x", PicoRead32(0x70));
       return;
     case 0xe:
       //dprintf("m68k: comm flag: %02x", d);
@@ -133,7 +136,7 @@ static void m68k_reg_write8(u32 a, u32 d)
       return;
   }
 
-  dprintf("m68k: invalid write? [%02x] %02x", a, d);
+  dprintf("m68k FIXME: invalid write? [%02x] %02x", a, d);
 }
 
 
@@ -187,17 +190,27 @@ static void s68k_reg_write8(u32 a, u32 d)
   switch (a) {
     case 2:
       return; // only m68k can change WP
-    case 3:
+    case 3: {
+      int dold = Pico_mcd->s68k_regs[3];
       dprintf("s68k_regs w3: %02x @%06x", (u8)d, SekPc);
       d &= 0x1d;
       if (d&4) {
-        d |= Pico_mcd->s68k_regs[3]&0xc2;
-        if ((d ^ Pico_mcd->s68k_regs[3]) & 5) d &= ~2; // in case of mode or bank change we clear DMNA (m68k req) bit
+        d |= dold&0xc2;
+        if ((d ^ dold) & 5) d &= ~2; // in case of mode or bank change we clear DMNA (m68k req) bit
+        if (!(dold & 4)) {
+          dprintf("wram mode 2M->1M");
+          wram_2M_to_1M(Pico_mcd->word_ram2M);
+	}
       } else {
         d |= Pico_mcd->s68k_regs[3]&0xc3;
         if (d&1) d &= ~2; // return word RAM to m68k in 2M mode
+        if (dold & 4) {
+          dprintf("wram mode 1M->2M");
+          wram_1M_to_2M(Pico_mcd->word_ram2M);
+	}
       }
       break;
+    }
     case 4:
       dprintf("s68k CDC dest: %x", d&7);
       Pico_mcd->s68k_regs[4] = (Pico_mcd->s68k_regs[4]&0xC0) | (d&7); // CDC mode
@@ -251,7 +264,7 @@ static void s68k_reg_write8(u32 a, u32 d)
 
   if ((a&0x1f0) == 0x10 || (a >= 0x38 && a < 0x42))
   {
-    dprintf("s68k: invalid write @ %02x?", a);
+    dprintf("s68k FIXME: invalid write @ %02x?", a);
     return;
   }
 
@@ -260,200 +273,33 @@ static void s68k_reg_write8(u32 a, u32 d)
 
 
 
-
-
-static int PadRead(int i)
-{
-  int pad=0,value=0,TH;
-  pad=~PicoPad[i]; // Get inverse of pad MXYZ SACB RLDU
-  TH=Pico.ioports[i+1]&0x40;
-
-  if(PicoOpt & 0x20) { // 6 button gamepad enabled
-    int phase = Pico.m.padTHPhase[i];
-
-    if(phase == 2 && !TH) {
-      value=(pad&0xc0)>>2;              // ?0SA 0000
-      goto end;
-    } else if(phase == 3 && TH) {
-      value=(pad&0x30)|((pad>>8)&0xf);  // ?1CB MXYZ
-      goto end;
-    } else if(phase == 3 && !TH) {
-      value=((pad&0xc0)>>2)|0x0f;       // ?0SA 1111
-      goto end;
-    }
-  }
-
-  if(TH) value=(pad&0x3f);              // ?1CB RLDU
-  else   value=((pad&0xc0)>>2)|(pad&3); // ?0SA 00DU
-
-  end:
-
-  // orr the bits, which are set as output
-  value |= Pico.ioports[i+1]&Pico.ioports[i+4];
-
-  return value; // will mirror later
-}
-
-static u8 z80Read8(u32 a)
-{
-  if(Pico.m.z80Run&1) return 0;
-
-  a&=0x1fff;
-
-  if(!(PicoOpt&4)) {
-    // Z80 disabled, do some faking
-    static u8 zerosent = 0;
-    if(a == Pico.m.z80_lastaddr) { // probably polling something
-      u8 d = Pico.m.z80_fakeval;
-      if((d & 0xf) == 0xf && !zerosent) {
-        d = 0; zerosent = 1;
-      } else {
-        Pico.m.z80_fakeval++;
-        zerosent = 0;
-      }
-      return d;
-    } else {
-      Pico.m.z80_fakeval = 0;
-    }
-  }
-
-  Pico.m.z80_lastaddr = (u16) a;
-  return Pico.zram[a];
-}
-
-
-// for nonstandard reads
-static u32 UnusualRead16(u32 a, int realsize)
+static u32 OtherRead16End(u32 a, int realsize)
 {
   u32 d=0;
-
-  dprintf("unusual r%i: %06x @%06x", realsize&~1, (a&0xfffffe)+(realsize&1), SekPc);
-
-
-  dprintf("ret = %04x", d);
-  return d;
-}
-
-static u32 OtherRead16(u32 a, int realsize)
-{
-  u32 d=0;
-
-  if ((a&0xff0000)==0xa00000) {
-    if ((a&0x4000)==0x0000) { d=z80Read8(a); d|=d<<8; goto end; } // Z80 ram (not byteswaped)
-    if ((a&0x6000)==0x4000) { if(PicoOpt&1) d=YM2612Read(); else d=Pico.m.rotate++&3; goto end; } // 0x4000-0x5fff, Fudge if disabled
-	d=0xffff; goto end;
-  }
-  if ((a&0xffffe0)==0xa10000) { // I/O ports
-    a=(a>>1)&0xf;
-    switch(a) {
-      case 0:  d=Pico.m.hardware; break; // Hardware value (Version register)
-      case 1:  d=PadRead(0); d|=Pico.ioports[1]&0x80; break;
-      case 2:  d=PadRead(1); d|=Pico.ioports[2]&0x80; break;
-      default: d=Pico.ioports[a]; break; // IO ports can be used as RAM
-    }
-    d|=d<<8;
-    goto end;
-  }
-  // |=0x80 for Shadow of the Beast & Super Offroad; rotate fakes next fetched instruction for Time Killers
-  if (a==0xa11100) { d=((Pico.m.z80Run&1)<<8)|0x8000|Pico.m.rotate++; goto end; }
-
-  if ((a&0xe700e0)==0xc00000) { d=PicoVideoRead(a); goto end; }
 
   if ((a&0xffffc0)==0xa12000) {
     d=m68k_reg_read16(a);
     goto end;
   }
 
-  d = UnusualRead16(a, realsize);
+  dprintf("m68k FIXME: unusual r%i: %06x @%06x", realsize&~1, (a&0xfffffe)+(realsize&1), SekPc);
 
 end:
   return d;
 }
 
-//extern UINT32 mz80GetRegisterValue(void *, UINT32);
 
-static void OtherWrite8(u32 a,u32 d,int realsize)
+static void OtherWrite8End(u32 a, u32 d, int realsize)
 {
-  if ((a&0xe700f9)==0xc00011||(a&0xff7ff9)==0xa07f11) { if(PicoOpt&2) SN76496Write(d); return; } // PSG Sound
-  if ((a&0xff4000)==0xa00000)  { if(!(Pico.m.z80Run&1)) Pico.zram[a&0x1fff]=(u8)d; return; } // Z80 ram
-  if ((a&0xff6000)==0xa04000)  { if(PicoOpt&1) emustatus|=YM2612Write(a&3, d); return; } // FM Sound
-  if ((a&0xffffe0)==0xa10000)  { // I/O ports
-    a=(a>>1)&0xf;
-    // 6 button gamepad: if TH went from 0 to 1, gamepad changes state
-    if(PicoOpt&0x20) {
-      if(a==1) {
-        Pico.m.padDelay[0] = 0;
-        if(!(Pico.ioports[1]&0x40) && (d&0x40)) Pico.m.padTHPhase[0]++;
-      }
-      else if(a==2) {
-        Pico.m.padDelay[1] = 0;
-        if(!(Pico.ioports[2]&0x40) && (d&0x40)) Pico.m.padTHPhase[1]++;
-      }
-    }
-    Pico.ioports[a]=(u8)d; // IO ports can be used as RAM
-    return;
-  }
-  if (a==0xa11100) {
-    extern int z80startCycle, z80stopCycle;
-    //int lineCycles=(488-SekCyclesLeft)&0x1ff;
-    d&=1; d^=1;
-	if(!d) {
- 	  // hack: detect a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
-      if((PicoOpt&4) && Pico.m.z80Run==1) z80_run(20);
-	  z80stopCycle = SekCyclesDone();
-	  //z80ExtraCycles += (lineCycles>>1)-(lineCycles>>5); // only meaningful in PicoFrameHints()
-	} else {
-	  z80startCycle = SekCyclesDone();
-	  //if(Pico.m.scanline != -1)
-	  //z80ExtraCycles -= (lineCycles>>1)-(lineCycles>>5)+16;
-	}
-    //dprintf("set_zrun: %i [%i|%i] zPC=%04x @%06x", d, Pico.m.scanline, SekCyclesDone(), mz80GetRegisterValue(NULL, 0), SekPc);
-	Pico.m.z80Run=(u8)d; return;
-  }
-  if (a==0xa11200) { if(!(d&1)) z80_reset(); return; }
-
-  if ((a&0xff7f00)==0xa06000) // Z80 BANK register
-  {
-    Pico.m.z80_bank68k>>=1;
-    Pico.m.z80_bank68k|=(d&1)<<8;
-    Pico.m.z80_bank68k&=0x1ff; // 9 bits and filled in the new top one
-    return;
-  }
-
-  if ((a&0xe700e0)==0xc00000) { PicoVideoWrite(a,(u16)(d|(d<<8))); return; } // Byte access gets mirrored
-
   if ((a&0xffffc0)==0xa12000) { m68k_reg_write8(a, d); return; }
 
-  dprintf("strange w%i: %06x, %08x @%06x", realsize, a&0xffffff, d, SekPc);
+  dprintf("m68k FIXME: strange w%i: %06x, %08x @%06x", realsize, a&0xffffff, d, SekPc);
 }
 
-static void OtherWrite16(u32 a,u32 d)
-{
-  if ((a&0xe700e0)==0xc00000) { PicoVideoWrite(a,(u16)d); return; }
-  if ((a&0xff4000)==0xa00000) { if(!(Pico.m.z80Run&1)) Pico.zram[a&0x1fff]=(u8)(d>>8); return; } // Z80 ram (MSB only)
 
-  if ((a&0xffffe0)==0xa10000) { // I/O ports
-    a=(a>>1)&0xf;
-    // 6 button gamepad: if TH went from 0 to 1, gamepad changes state
-    if(PicoOpt&0x20) {
-      if(a==1) {
-        Pico.m.padDelay[0] = 0;
-        if(!(Pico.ioports[1]&0x40) && (d&0x40)) Pico.m.padTHPhase[0]++;
-      }
-      else if(a==2) {
-        Pico.m.padDelay[1] = 0;
-        if(!(Pico.ioports[2]&0x40) && (d&0x40)) Pico.m.padTHPhase[1]++;
-      }
-    }
-    Pico.ioports[a]=(u8)d; // IO ports can be used as RAM
-    return;
-  }
-  if (a==0xa11100) { OtherWrite8(a, d>>8, 16); return; }
-  if (a==0xa11200) { if(!(d&0x100)) z80_reset(); return; }
+#undef _ASM_MEMORY_C
+#include "../MemoryCmn.c"
 
-  OtherWrite8(a,  d>>8, 16);
-  OtherWrite8(a+1,d&0xff, 16);
-}
 
 // -----------------------------------------------------------------
 //                     Read Rom and read Ram
@@ -495,16 +341,14 @@ u8 PicoReadM68k8(u32 a)
   if ((a&0xfc0000)==0x200000) {
     dprintf("m68k_wram r8: [%06x] @%06x", a, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      if (a >= 0x220000) {
-        dprintf("cell");
-      } else {
-        a=((a&0x1fffe)<<1)|(a&1);
-	if (Pico_mcd->s68k_regs[3]&1) a+=2;
-        d = Pico_mcd->word_ram[a^1];
-      }
+      int bank = Pico_mcd->s68k_regs[3]&1;
+      if (a >= 0x220000)
+           a = (a&3) | (cell_map(a >> 2) << 2); // cell arranged
+      else a &= 0x1ffff;
+      d = Pico_mcd->word_ram1M[bank][a^1];
     } else {
       // allow access in any mode, like Gens does
-      d = Pico_mcd->word_ram[(a^1)&0x3ffff];
+      d = Pico_mcd->word_ram2M[(a^1)&0x3ffff];
     }
     dprintf("ret = %02x", (u8)d);
     goto end;
@@ -550,16 +394,14 @@ u16 PicoReadM68k16(u32 a)
   if ((a&0xfc0000)==0x200000) {
     dprintf("m68k_wram r16: [%06x] @%06x", a, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      if (a >= 0x220000) {
-        dprintf("cell");
-      } else {
-        a=((a&0x1fffe)<<1);
-	if (Pico_mcd->s68k_regs[3]&1) a+=2;
-        d = *(u16 *)(Pico_mcd->word_ram+a);
-      }
+      int bank = Pico_mcd->s68k_regs[3]&1;
+      if (a >= 0x220000)
+           a = (a&2) | (cell_map(a >> 2) << 2); // cell arranged
+      else a &= 0x1fffe;
+      d = *(u16 *)(Pico_mcd->word_ram1M[bank]+a);
     } else {
       // allow access in any mode, like Gens does
-      d = *(u16 *)(Pico_mcd->word_ram+(a&0x3fffe));
+      d = *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
     }
     dprintf("ret = %04x", d);
     goto end;
@@ -604,17 +446,20 @@ u32 PicoReadM68k32(u32 a)
   if ((a&0xfc0000)==0x200000) {
     dprintf("m68k_wram r32: [%06x] @%06x", a, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      if (a >= 0x220000) {
-        dprintf("cell");
+      int bank = Pico_mcd->s68k_regs[3]&1;
+      if (a >= 0x220000) { // cell arranged
+        u32 a1, a2;
+        a1 = (a&2) | (cell_map(a >> 2) << 2);
+	if (a&2) a2 = cell_map((a+2) >> 2) << 2;
+	else     a2 = a1 + 2;
+	d  = *(u16 *)(Pico_mcd->word_ram1M[bank]+a1) << 16;
+	d |= *(u16 *)(Pico_mcd->word_ram1M[bank]+a2);
       } else {
-        a=((a&0x1fffe)<<1);
-	if (Pico_mcd->s68k_regs[3]&1) a+=2;
-        d  = *(u16 *)(Pico_mcd->word_ram+a) << 16;
-        d |= *(u16 *)(Pico_mcd->word_ram+a+4);
+        u16 *pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe)); d = (pm[0]<<16)|pm[1];
       }
     } else {
       // allow access in any mode, like Gens does
-      u16 *pm=(u16 *)(Pico_mcd->word_ram+(a&0x3fffe)); d = (pm[0]<<16)|pm[1];
+      u16 *pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe)); d = (pm[0]<<16)|pm[1];
     }
     dprintf("ret = %08x", d);
     goto end;
@@ -666,16 +511,14 @@ void PicoWriteM68k8(u32 a,u8 d)
   if ((a&0xfc0000)==0x200000) {
     dprintf("m68k_wram w8: [%06x] %02x @%06x", a, d, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      if (a >= 0x220000) {
-        dprintf("cell");
-      } else {
-        a=((a&0x1fffe)<<1)|(a&1);
-	if (Pico_mcd->s68k_regs[3]&1) a+=2;
-        *(u8 *)(Pico_mcd->word_ram+(a^1))=d;
-      }
+      int bank = Pico_mcd->s68k_regs[3]&1;
+      if (a >= 0x220000)
+           a = (a&3) | (cell_map(a >> 2) << 2); // cell arranged
+      else a &= 0x1ffff;
+      *(u8 *)(Pico_mcd->word_ram1M[bank]+(a^1))=d;
     } else {
       // allow access in any mode, like Gens does
-      *(u8 *)(Pico_mcd->word_ram+((a^1)&0x3ffff))=d;
+      *(u8 *)(Pico_mcd->word_ram2M+((a^1)&0x3ffff))=d;
     }
     return;
   }
@@ -712,16 +555,14 @@ void PicoWriteM68k16(u32 a,u16 d)
   if ((a&0xfc0000)==0x200000) {
     dprintf("m68k_wram w16: [%06x] %04x @%06x", a, d, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      if (a >= 0x220000) {
-        dprintf("cell");
-      } else {
-        a=((a&0x1fffe)<<1);
-	if (Pico_mcd->s68k_regs[3]&1) a+=2;
-        *(u16 *)(Pico_mcd->word_ram+a)=d;
-      }
+      int bank = Pico_mcd->s68k_regs[3]&1;
+      if (a >= 0x220000)
+           a = (a&2) | (cell_map(a >> 2) << 2); // cell arranged
+      else a &= 0x1fffe;
+      *(u16 *)(Pico_mcd->word_ram1M[bank]+a)=d;
     } else {
       // allow access in any mode, like Gens does
-      *(u16 *)(Pico_mcd->word_ram+(a&0x3fffe))=d;
+      *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe))=d;
     }
     return;
   }
@@ -762,17 +603,21 @@ void PicoWriteM68k32(u32 a,u32 d)
     if (d != 0) // don't log clears
       dprintf("m68k_wram w32: [%06x] %08x @%06x", a, d, SekPc);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      if (a >= 0x220000) {
-        dprintf("cell");
+      int bank = Pico_mcd->s68k_regs[3]&1;
+      if (a >= 0x220000) { // cell arranged
+        u32 a1, a2;
+        a1 = (a&2) | (cell_map(a >> 2) << 2);
+	if (a&2) a2 = cell_map((a+2) >> 2) << 2;
+	else     a2 = a1 + 2;
+	*(u16 *)(Pico_mcd->word_ram1M[bank]+a1) = d >> 16;
+	*(u16 *)(Pico_mcd->word_ram1M[bank]+a2) = d;
       } else {
-        a=((a&0x1fffe)<<1);
-	if (Pico_mcd->s68k_regs[3]&1) a+=2;
-        *(u16 *)(Pico_mcd->word_ram+a) = d>>16;
-        *(u16 *)(Pico_mcd->word_ram+a+4) = d;
+        u16 *pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
+        pm[0]=(u16)(d>>16); pm[1]=(u16)d;
       }
     } else {
       // allow access in any mode, like Gens does
-      u16 *pm=(u16 *)(Pico_mcd->word_ram+(a&0x3fffe));
+      u16 *pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
       pm[0]=(u16)(d>>16); pm[1]=(u16)d;
     }
     return;
@@ -815,24 +660,30 @@ u8 PicoReadS68k8(u32 a)
 
   // word RAM (2M area)
   if ((a&0xfc0000)==0x080000) { // 080000-0bffff
+    // test: batman returns
     dprintf("s68k_wram2M r8: [%06x] @%06x", a, SekPcS68k);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO (decode)
-      dprintf("(decode)");
+    if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
+      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      d = Pico_mcd->word_ram1M[bank][((a>>1)^1)&0x1ffff];
+      if (a&1) d &= 0x0f;
+      else d >>= 4;
+      dprintf("FIXME: decode");
     } else {
       // allow access in any mode, like Gens does
-      d = Pico_mcd->word_ram[(a^1)&0x3ffff];
+      d = Pico_mcd->word_ram2M[(a^1)&0x3ffff];
     }
     dprintf("ret = %02x", (u8)d);
     goto end;
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+    int bank;
     dprintf("s68k_wram1M r8: [%06x] @%06x", a, SekPcS68k);
-    a=((a&0x1fffe)<<1)|(a&1);
-    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
-    d = Pico_mcd->word_ram[a^1];
+    if (!(Pico_mcd->s68k_regs[3]&4))
+      dprintf("s68k_wram1M FIXME: wrong mode");
+    bank = !(Pico_mcd->s68k_regs[3]&1);
+    d = Pico_mcd->word_ram1M[bank][(a^1)&0x1ffff];
     dprintf("ret = %02x", (u8)d);
     goto end;
   }
@@ -895,23 +746,27 @@ u16 PicoReadS68k16(u32 a)
   // word RAM (2M area)
   if ((a&0xfc0000)==0x080000) { // 080000-0bffff
     dprintf("s68k_wram2M r16: [%06x] @%06x", a, SekPcS68k);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO (decode)
-      dprintf("(decode)");
+    if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
+      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      d = Pico_mcd->word_ram1M[bank][((a>>1)^1)&0x1ffff];
+      d |= d << 4; d &= ~0xf0;
+      dprintf("FIXME: decode");
     } else {
       // allow access in any mode, like Gens does
-      d = *(u16 *)(Pico_mcd->word_ram+(a&0x3fffe));
+      d = *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
     }
     dprintf("ret = %04x", d);
     goto end;
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+    int bank;
     dprintf("s68k_wram1M r16: [%06x] @%06x", a, SekPcS68k);
-    a=((a&0x1fffe)<<1);
-    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
-    d = *(u16 *)(Pico_mcd->word_ram+a);
+    if (!(Pico_mcd->s68k_regs[3]&4))
+      dprintf("s68k_wram1M FIXME: wrong mode");
+    bank = !(Pico_mcd->s68k_regs[3]&1);
+    d = *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
     dprintf("ret = %04x", d);
     goto end;
   }
@@ -979,24 +834,29 @@ u32 PicoReadS68k32(u32 a)
   // word RAM (2M area)
   if ((a&0xfc0000)==0x080000) { // 080000-0bffff
     dprintf("s68k_wram2M r32: [%06x] @%06x", a, SekPcS68k);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO (decode)
-      dprintf("(decode)");
+    if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
+      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      a >>= 1;
+      d  = Pico_mcd->word_ram1M[bank][((a+0)^1)&0x1ffff] << 16;
+      d |= Pico_mcd->word_ram1M[bank][((a+1)^1)&0x1ffff];
+      d |= d << 4; d &= 0x0f0f0f0f;
+      dprintf("FIXME: decode");
     } else {
       // allow access in any mode, like Gens does
-      u16 *pm=(u16 *)(Pico_mcd->word_ram+(a&0x3fffe)); d = (pm[0]<<16)|pm[1];
+      u16 *pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe)); d = (pm[0]<<16)|pm[1];
     }
     dprintf("ret = %08x", d);
     goto end;
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+    int bank;
     dprintf("s68k_wram1M r32: [%06x] @%06x", a, SekPcS68k);
-    a=((a&0x1fffe)<<1);
-    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
-    d  = *(u16 *)(Pico_mcd->word_ram+a) << 16;
-    d |= *(u16 *)(Pico_mcd->word_ram+a+4);
+    if (!(Pico_mcd->s68k_regs[3]&4))
+      dprintf("s68k_wram1M FIXME: wrong mode");
+    bank = !(Pico_mcd->s68k_regs[3]&1);
+    u16 *pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe)); d = (pm[0]<<16)|pm[1];
     dprintf("ret = %08x", d);
     goto end;
   }
@@ -1077,23 +937,28 @@ void PicoWriteS68k8(u32 a,u8 d)
   // word RAM (2M area)
   if ((a&0xfc0000)==0x080000) { // 080000-0bffff
     dprintf("s68k_wram2M w8: [%06x] %02x @%06x", a, d, SekPcS68k);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO (decode)
-      dprintf("(decode)");
+    if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
+      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      if (a&1) d &= 0x0f;
+      else d >>= 4;
+      Pico_mcd->word_ram1M[bank][((a>>1)^1)&0x1ffff]=d;
+      dprintf("FIXME: decode");
     } else {
       // allow access in any mode, like Gens does
-      *(u8 *)(Pico_mcd->word_ram+((a^1)&0x3ffff))=d;
+      *(u8 *)(Pico_mcd->word_ram2M+((a^1)&0x3ffff))=d;
     }
     return;
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+    int bank;
     if (d)
       dprintf("s68k_wram1M w8: [%06x] %02x @%06x", a, d, SekPcS68k);
-    a=((a&0x1fffe)<<1)|(a&1);
-    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
-    *(u8 *)(Pico_mcd->word_ram+(a^1))=d;
+    if (!(Pico_mcd->s68k_regs[3]&4))
+      dprintf("s68k_wram1M FIXME: wrong mode");
+    bank = !(Pico_mcd->s68k_regs[3]&1);
+    *(u8 *)(Pico_mcd->word_ram1M[bank]+((a^1)&0x1ffff))=d;
     return;
   }
 
@@ -1152,23 +1017,27 @@ void PicoWriteS68k16(u32 a,u16 d)
   // word RAM (2M area)
   if ((a&0xfc0000)==0x080000) { // 080000-0bffff
     dprintf("s68k_wram2M w16: [%06x] %04x @%06x", a, d, SekPcS68k);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO (decode)
-      dprintf("(decode)");
+    if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
+      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      d &= ~0xf0; d |= d >> 8;
+      Pico_mcd->word_ram1M[bank][((a>>1)^1)&0x1ffff] = d;
+      dprintf("FIXME: decode");
     } else {
       // allow access in any mode, like Gens does
-      *(u16 *)(Pico_mcd->word_ram+(a&0x3fffe))=d;
+      *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe))=d;
     }
     return;
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+    int bank;
     if (d)
       dprintf("s68k_wram1M w16: [%06x] %04x @%06x", a, d, SekPcS68k);
-    a=((a&0x1fffe)<<1);
-    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
-    *(u16 *)(Pico_mcd->word_ram+a)=d;
+    if (!(Pico_mcd->s68k_regs[3]&4))
+      dprintf("s68k_wram1M FIXME: wrong mode");
+    bank = !(Pico_mcd->s68k_regs[3]&1);
+    *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe))=d;
     return;
   }
 
@@ -1230,25 +1099,32 @@ void PicoWriteS68k32(u32 a,u32 d)
   // word RAM (2M area)
   if ((a&0xfc0000)==0x080000) { // 080000-0bffff
     dprintf("s68k_wram2M w32: [%06x] %08x @%06x", a, d, SekPcS68k);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      // TODO (decode)
-      dprintf("(decode)");
+    if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
+      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      a >>= 1;
+      d &= 0x0f0f0f0f; d |= d >> 4;
+      Pico_mcd->word_ram1M[bank][((a+0)^1)&0x1ffff] = d >> 16;
+      Pico_mcd->word_ram1M[bank][((a+1)^1)&0x1ffff] = d;
+      dprintf("FIXME: decode");
     } else {
       // allow access in any mode, like Gens does
-      u16 *pm=(u16 *)(Pico_mcd->word_ram+(a&0x3fffe));
+      u16 *pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
       pm[0]=(u16)(d>>16); pm[1]=(u16)d;
     }
     return;
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+    int bank;
+    u16 *pm;
     if (d)
       dprintf("s68k_wram1M w32: [%06x] %08x @%06x", a, d, SekPcS68k);
-    a=((a&0x1fffe)<<1);
-    if (!(Pico_mcd->s68k_regs[3]&1)) a+=2;
-    *(u16 *)(Pico_mcd->word_ram+a) = d>>16;
-    *(u16 *)(Pico_mcd->word_ram+a+4) = d;
+    if (!(Pico_mcd->s68k_regs[3]&4))
+      dprintf("s68k_wram1M FIXME: wrong mode");
+    bank = !(Pico_mcd->s68k_regs[3]&1);
+    pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
+    pm[0]=(u16)(d>>16); pm[1]=(u16)d;
     return;
   }
 
@@ -1290,28 +1166,26 @@ void PicoWriteS68k32(u32 a,u32 d)
 #if defined(EMU_C68K)
 static __inline int PicoMemBaseM68k(u32 pc)
 {
-  int membase=0;
+  if ((pc&0xe00000)==0xe00000)
+    return (int)Pico.ram-(pc&0xff0000); // Program Counter in Ram
 
   if (pc < 0x20000)
+    return (int)Pico_mcd->bios; // Program Counter in BIOS
+
+  if ((pc&0xfc0000)==0x200000)
   {
-    membase=(int)Pico_mcd->bios; // Program Counter in BIOS
-  }
-  else if ((pc&0xe00000)==0xe00000)
-  {
-    membase=(int)Pico.ram-(pc&0xff0000); // Program Counter in Ram
-  }
-  else if ((pc&0xfc0000)==0x200000 && !(Pico_mcd->s68k_regs[3]&4))
-  {
-    membase=(int)Pico_mcd->word_ram-0x200000; // Program Counter in Word Ram
-  }
-  else
-  {
-    // Error - Program Counter is invalid
-    dprintf("m68k: unhandled jump to %06x", pc);
-    membase=(int)Pico.rom;
+    if (!(Pico_mcd->s68k_regs[3]&4))
+      return (int)Pico_mcd->word_ram2M - 0x200000; // Program Counter in Word Ram
+    if (pc < 0x220000) {
+      int bank = (Pico_mcd->s68k_regs[3]&1);
+      return (int)Pico_mcd->word_ram1M[bank] - 0x200000;
+    }
   }
 
-  return membase;
+  // Error - Program Counter is invalid
+  dprintf("m68k FIXME: unhandled jump to %06x", pc);
+
+  return (int)Pico_mcd->bios;
 }
 
 
@@ -1328,16 +1202,21 @@ static u32 PicoCheckPcM68k(u32 pc)
 
 static __inline int PicoMemBaseS68k(u32 pc)
 {
-  int membase;
+  if (pc < 0x80000)                     // PRG RAM
+    return (int)Pico_mcd->prg_ram;
 
-  membase=(int)Pico_mcd->prg_ram; // Program Counter in Prg RAM
-  if (pc >= 0x80000)
-  {
-    // Error - Program Counter is invalid
-    dprintf("s68k: unhandled jump to %06x", pc);
+  if ((pc&0xfc0000)==0x080000)          // WORD RAM 2M area (assume we are in the right mode..)
+    return (int)Pico_mcd->word_ram2M - 0x080000;
+
+  if ((pc&0xfe0000)==0x0c0000) {        // word RAM 1M area
+    int bank = !(Pico_mcd->s68k_regs[3]&1);
+    return (int)Pico_mcd->word_ram1M[bank] - 0x0c0000;
   }
 
-  return membase;
+  // Error - Program Counter is invalid
+  dprintf("s68k FIXME: unhandled jump to %06x", pc);
+
+  return (int)Pico_mcd->prg_ram;
 }
 
 
@@ -1402,13 +1281,25 @@ unsigned int  m68k_read_pcrelative_CD8 (unsigned int a) {
   a&=0xffffff;
   if(m68ki_cpu_p == &PicoS68kCPU) {
     if (a < 0x80000) return *(u8 *)(Pico_mcd->prg_ram+(a^1)); // PRG Ram
-    dprintf("s68k_read_pcrelative_CD8: can't handle %06x", a);
+    if ((a&0xfc0000)==0x080000 && !(Pico_mcd->s68k_regs[3]&4)) // word RAM (2M area: 080000-0bffff)
+      return *(u8 *)(Pico_mcd->word_ram2M+((a^1)&0x3ffff));
+    if ((a&0xfe0000)==0x0c0000 &&  (Pico_mcd->s68k_regs[3]&4)) { // word RAM (1M area: 0c0000-0dffff)
+      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      return *(u8 *)(Pico_mcd->word_ram1M[bank]+((a^1)&0x1ffff));
+    }
+    dprintf("s68k_read_pcrelative_CD8 FIXME: can't handle %06x", a);
   } else {
-    if(a<0x20000)              return *(u8 *)(Pico.rom+(a^1)); // Bios
     if((a&0xe00000)==0xe00000) return *(u8 *)(Pico.ram+((a^1)&0xffff)); // Ram
-    if(!(Pico_mcd->s68k_regs[3]&4) && (a&0xfc0000)==0x200000)
-      return Pico_mcd->word_ram[(a^1)&0x3fffe];
-    dprintf("m68k_read_pcrelative_CD8: can't handle %06x", a);
+    if(a<0x20000)              return *(u8 *)(Pico.rom+(a^1)); // Bios
+    if((a&0xfc0000)==0x200000) { // word RAM
+      if(!(Pico_mcd->s68k_regs[3]&4)) // 2M?
+        return *(u8 *)(Pico_mcd->word_ram2M+((a^1)&0x3ffff));
+      else if (a < 0x220000) {
+        int bank = Pico_mcd->s68k_regs[3]&1;
+        return *(u8 *)(Pico_mcd->word_ram1M[bank]+((a^1)&0x1ffff));
+      }
+    }
+    dprintf("m68k_read_pcrelative_CD8 FIXME: can't handle %06x", a);
   }
   return 0;//(u8)  lastread_d;
 }
@@ -1416,27 +1307,54 @@ unsigned int  m68k_read_pcrelative_CD16(unsigned int a) {
   a&=0xffffff;
   if(m68ki_cpu_p == &PicoS68kCPU) {
     if (a < 0x80000) return *(u16 *)(Pico_mcd->prg_ram+(a&~1)); // PRG Ram
-    dprintf("s68k_read_pcrelative_CD16: can't handle %06x", a);
+    if ((a&0xfc0000)==0x080000 && !(Pico_mcd->s68k_regs[3]&4)) // word RAM (2M area: 080000-0bffff)
+      return *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
+    if ((a&0xfe0000)==0x0c0000 &&  (Pico_mcd->s68k_regs[3]&4)) { // word RAM (1M area: 0c0000-0dffff)
+      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      return *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
+    }
+    dprintf("s68k_read_pcrelative_CD16 FIXME: can't handle %06x", a);
   } else {
-    if(a<0x20000)              return *(u16 *)(Pico.rom+(a&~1)); // Bios
     if((a&0xe00000)==0xe00000) return *(u16 *)(Pico.ram+(a&0xfffe)); // Ram
-    if(!(Pico_mcd->s68k_regs[3]&4) && (a&0xfc0000)==0x200000)
-      return *(u16 *)(Pico_mcd->word_ram+(a&0x3fffe));
-    dprintf("m68k_read_pcrelative_CD16: can't handle %06x", a);
+    if(a<0x20000)              return *(u16 *)(Pico.rom+(a&~1)); // Bios
+    if((a&0xfc0000)==0x200000) { // word RAM
+      if(!(Pico_mcd->s68k_regs[3]&4)) // 2M?
+        return *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
+      else if (a < 0x220000) {
+        int bank = Pico_mcd->s68k_regs[3]&1;
+        return *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
+      }
+    }
+    dprintf("m68k_read_pcrelative_CD16 FIXME: can't handle %06x", a);
   }
   return 0;
 }
 unsigned int  m68k_read_pcrelative_CD32(unsigned int a) {
+  u16 *pm;
   a&=0xffffff;
   if(m68ki_cpu_p == &PicoS68kCPU) {
     if (a < 0x80000) { u16 *pm=(u16 *)(Pico_mcd->prg_ram+(a&~1)); return (pm[0]<<16)|pm[1]; } // PRG Ram
-    dprintf("s68k_read_pcrelative_CD32: can't handle %06x", a);
+    if ((a&0xfc0000)==0x080000 && !(Pico_mcd->s68k_regs[3]&4)) // word RAM (2M area: 080000-0bffff)
+      { pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe)); return (pm[0]<<16)|pm[1]; }
+    if ((a&0xfe0000)==0x0c0000 &&  (Pico_mcd->s68k_regs[3]&4)) { // word RAM (1M area: 0c0000-0dffff)
+      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
+      return (pm[0]<<16)|pm[1];
+    }
+    dprintf("s68k_read_pcrelative_CD32 FIXME: can't handle %06x", a);
   } else {
-    if(a<0x20000)              { u16 *pm=(u16 *)(Pico.rom+(a&~1));     return (pm[0]<<16)|pm[1]; }
     if((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); return (pm[0]<<16)|pm[1]; } // Ram
-    if(!(Pico_mcd->s68k_regs[3]&4) && (a&0xfc0000)==0x200000)
-      { u16 *pm=(u16 *)(Pico_mcd->word_ram+(a&0x3fffe)); return (pm[0]<<16)|pm[1]; }
-    dprintf("m68k_read_pcrelative_CD32: can't handle %06x", a);
+    if(a<0x20000)              { u16 *pm=(u16 *)(Pico.rom+(a&~1));     return (pm[0]<<16)|pm[1]; }
+    if((a&0xfc0000)==0x200000) { // word RAM
+      if(!(Pico_mcd->s68k_regs[3]&4)) // 2M?
+        { pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe)); return (pm[0]<<16)|pm[1]; }
+      else if (a < 0x220000) {
+        int bank = Pico_mcd->s68k_regs[3]&1;
+        pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
+        return (pm[0]<<16)|pm[1];
+      }
+    }
+    dprintf("m68k_read_pcrelative_CD32 FIXME: can't handle %06x", a);
   }
   return 0;
 }

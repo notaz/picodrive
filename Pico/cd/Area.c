@@ -125,10 +125,13 @@ int PicoCdSaveState(void *file)
 		Pico_mcd->m.audio_offset = mp3_get_offset();
 		memset(buff, 0, sizeof(buff));
 		PicoAreaPackCpu(buff, 1);
+		if (Pico_mcd->s68k_regs[3]&4) // 1M mode?
+			wram_1M_to_2M(Pico_mcd->word_ram2M);
+        	Pico_mcd->m.hint_vector = *(unsigned short *)(Pico_mcd->bios + 0x72);
 
 		CHECKED_WRITE_BUFF(CHUNK_S68K,     buff);
 		CHECKED_WRITE_BUFF(CHUNK_PRG_RAM,  Pico_mcd->prg_ram);
-		CHECKED_WRITE_BUFF(CHUNK_WORD_RAM, Pico_mcd->word_ram); // in 2M format
+		CHECKED_WRITE_BUFF(CHUNK_WORD_RAM, Pico_mcd->word_ram2M); // in 2M format
 		CHECKED_WRITE_BUFF(CHUNK_PCM_RAM,  Pico_mcd->pcm_ram);
 		CHECKED_WRITE_BUFF(CHUNK_BRAM,     Pico_mcd->bram);
 		CHECKED_WRITE_BUFF(CHUNK_GA_REGS,  Pico_mcd->s68k_regs); // GA regs, not CPU regs
@@ -138,6 +141,9 @@ int PicoCdSaveState(void *file)
 		CHECKED_WRITE_BUFF(CHUNK_SCD,      Pico_mcd->scd);
 		CHECKED_WRITE_BUFF(CHUNK_RC,       Pico_mcd->rot_comp);
 		CHECKED_WRITE_BUFF(CHUNK_MISC_CD,  Pico_mcd->m);
+
+		if (Pico_mcd->s68k_regs[3]&4) // convert back
+			wram_2M_to_1M(Pico_mcd->word_ram2M);
 	}
 
 	return 0;
@@ -216,7 +222,7 @@ int PicoCdLoadState(void *file)
 				break;
 
 			case CHUNK_PRG_RAM:	CHECKED_READ_BUFF(Pico_mcd->prg_ram); break;
-			case CHUNK_WORD_RAM:	CHECKED_READ_BUFF(Pico_mcd->word_ram); break;
+			case CHUNK_WORD_RAM:	CHECKED_READ_BUFF(Pico_mcd->word_ram2M); break;
 			case CHUNK_PCM_RAM:	CHECKED_READ_BUFF(Pico_mcd->pcm_ram); break;
 			case CHUNK_BRAM:	CHECKED_READ_BUFF(Pico_mcd->bram); break;
 			case CHUNK_GA_REGS:	CHECKED_READ_BUFF(Pico_mcd->s68k_regs); break;
@@ -225,18 +231,21 @@ int PicoCdLoadState(void *file)
 			case CHUNK_CDC:		CHECKED_READ_BUFF(Pico_mcd->cdc); break;
 			case CHUNK_SCD:		CHECKED_READ_BUFF(Pico_mcd->scd); break;
 			case CHUNK_RC:		CHECKED_READ_BUFF(Pico_mcd->rot_comp); break;
-
-			case CHUNK_MISC_CD:
-				CHECKED_READ_BUFF(Pico_mcd->m);
-				mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
-				break;
+			case CHUNK_MISC_CD:	CHECKED_READ_BUFF(Pico_mcd->m); break;
 
 			default:
-				printf("skipping unknown chunk %i of size %i\n", buff[0], len);
+				printf("PicoCdLoadState: skipping unknown chunk %i of size %i\n", buff[0], len);
 				areaSeek(file, len, SEEK_CUR);
 				break;
 		}
 	}
+
+	/* after load events */
+	if (Pico_mcd->s68k_regs[3]&4) // 1M mode?
+		wram_2M_to_1M(Pico_mcd->word_ram2M);
+	mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
+	// restore hint vector
+        *(unsigned short *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
 
 	return 0;
 }

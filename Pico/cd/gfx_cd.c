@@ -146,7 +146,7 @@ unsigned int gfx_cd_read(unsigned int a)
 		case 0x62: d = rot_comp.Reg_62; break;
 		case 0x64: d = rot_comp.Reg_64; break;
 		case 0x66: break;
-		default: dprintf("gfx_cd_read: unexpected address: %02x", a); break;
+		default: dprintf("gfx_cd_read FIXME: unexpected address: %02x", a); break;
 	}
 
 	dprintf("gfx_cd_read(%02x) = %04x", a, d);
@@ -193,13 +193,82 @@ void gfx_cd_write(unsigned int a, unsigned int d)
 			gfx_cd_start();
 			return;
 
-		default: dprintf("gfx_cd_write: unexpected address: %02x", a); return;
+		default: dprintf("gfx_cd_write FIXME: unexpected address: %02x", a); return;
 	}
 }
 
 
 void gfx_cd_reset(void)
 {
-	memset(&rot_comp.Reg_58, 0, 0/*sizeof(Pico_mcd->rot_comp)*/);
+	memset(&rot_comp.Reg_58, 0, sizeof(rot_comp));
+}
+
+
+// --------------------------------
+
+#include "cell_map.c"
+
+typedef unsigned short u16;
+
+void DmaSlowCell(unsigned int source, unsigned int a, int len, unsigned char inc)
+{
+  unsigned char *base;
+  unsigned int asrc, a2;
+  u16 *r;
+
+  base = Pico_mcd->word_ram1M[Pico_mcd->s68k_regs[3]&1];
+
+  switch (Pico.video.type)
+  {
+    case 1: // vram
+      r = Pico.vram;
+      for(; len; len--)
+      {
+        asrc = cell_map(source >> 2) << 2;
+        asrc |= source & 2;
+        // if(a&1) d=(d<<8)|(d>>8); // ??
+        r[a>>1] = *(u16 *)(base + asrc);
+	source += 2;
+        // AutoIncrement
+        a=(u16)(a+inc);
+      }
+      rendstatus|=0x10;
+      break;
+
+    case 3: // cram
+      Pico.m.dirtyPal = 1;
+      r = Pico.cram;
+      for(a2=a&0x7f; len; len--)
+      {
+        asrc = cell_map(source >> 2) << 2;
+        asrc |= source & 2;
+        r[a2>>1] = *(u16 *)(base + asrc);
+	source += 2;
+        // AutoIncrement
+        a2+=inc;
+        // good dest?
+        if(a2 >= 0x80) break;
+      }
+      a=(a&0xff00)|a2;
+      break;
+
+    case 5: // vsram[a&0x003f]=d;
+      r = Pico.vsram;
+      for(a2=a&0x7f; len; len--)
+      {
+        asrc = cell_map(source >> 2) << 2;
+        asrc |= source & 2;
+        r[a2>>1] = *(u16 *)(base + asrc);
+	source += 2;
+        // AutoIncrement
+        a2+=inc;
+        // good dest?
+        if(a2 >= 0x80) break;
+      }
+      a=(a&0xff00)|a2;
+      break;
+  }
+  // remember addr
+  Pico.video.addr=(u16)a;
 }
 

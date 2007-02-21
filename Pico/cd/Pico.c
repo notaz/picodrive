@@ -30,9 +30,9 @@ void PicoExitMCD(void)
 
 int PicoResetMCD(int hard)
 {
-  memset(Pico_mcd->prg_ram,  0, sizeof(Pico_mcd->prg_ram));
-  memset(Pico_mcd->word_ram, 0, sizeof(Pico_mcd->word_ram));
-  memset(Pico_mcd->pcm_ram, 0, sizeof(Pico_mcd->pcm_ram));
+  memset(Pico_mcd->prg_ram,    0, sizeof(Pico_mcd->prg_ram));
+  memset(Pico_mcd->word_ram2M, 0, sizeof(Pico_mcd->word_ram2M));
+  memset(Pico_mcd->pcm_ram,    0, sizeof(Pico_mcd->pcm_ram));
   if (hard) {
 	  int fmt_size = sizeof(formatted_bram);
 	  memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
