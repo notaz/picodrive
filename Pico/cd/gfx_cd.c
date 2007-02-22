@@ -210,6 +210,7 @@ void gfx_cd_reset(void)
 
 typedef unsigned short u16;
 
+// check: Heart of the alien
 void DmaSlowCell(unsigned int source, unsigned int a, int len, unsigned char inc)
 {
   unsigned char *base;

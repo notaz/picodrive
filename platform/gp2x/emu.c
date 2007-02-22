@@ -1241,6 +1241,7 @@ if (Pico.m.frame_count == 31563) {
 	// if in 16bit mode, generate 8it image for menu background
 	if (!(PicoOpt&0x10) && (currentConfig.EmuOpt&0x80)) {
 		PicoOpt |= 0x10;
+		if (!(Pico.video.reg[12]&1)) clearArea(1);
 		PicoFrameFull();
 		vidCpyM2((unsigned char *)gp2x_screen+320*8, framebuff+328*8);
 		vidConvCpyRGB32(localPal, Pico.cram, 0x40);
