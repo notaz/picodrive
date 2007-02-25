@@ -250,3 +250,37 @@ int PicoCdLoadState(void *file)
 	return 0;
 }
 
+
+int PicoCdLoadStateGfx(void *file)
+{
+	int ver, len, found = 0;
+	char buff[8];
+
+	g_read_offs = 0;
+	CHECKED_READ(8, buff);
+	if (strncmp(buff, "PicoSMCD", 8)) R_ERROR_RETURN("bad header");
+	CHECKED_READ(4, &ver);
+
+	while (!areaEof(file) && found < 4)
+	{
+		CHECKED_READ(1, buff);
+		CHECKED_READ(4, &len);
+		if (len < 0 || len > 1024*512) R_ERROR_RETURN("bad length");
+		if (buff[0] > CHUNK_FM && !(PicoMCD & 1)) R_ERROR_RETURN("cd chunk in non CD state?");
+
+		switch (buff[0])
+		{
+			case CHUNK_VRAM:  CHECKED_READ_BUFF(Pico.vram);  found++; break;
+			case CHUNK_CRAM:  CHECKED_READ_BUFF(Pico.cram);  found++; break;
+			case CHUNK_VSRAM: CHECKED_READ_BUFF(Pico.vsram); found++; break;
+			case CHUNK_VIDEO: CHECKED_READ_BUFF(Pico.video); found++; break;
+			default:
+				areaSeek(file, len, SEEK_CUR);
+				break;
+		}
+	}
+
+	return 0;
+}
+
+

@@ -18,6 +18,7 @@
 #include "version.h"
 
 #include "Pico/PicoInt.h"
+#include "zlib/zlib.h"
 
 #ifndef _DIRENT_HAVE_D_TYPE
 #error "need d_type for file browser
@@ -388,6 +389,139 @@ static char *romsel_loop(char *curr_path)
 	}
 
 	return ret;
+}
+
+// ------------ savestate loader ------------
+
+static void menu_prepare_bg(void);
+
+static int state_slot_flags = 0;
+
+static void state_check_slots(void)
+{
+	int slot;
+
+	state_slot_flags = 0;
+
+	for (slot = 0; slot < 10; slot++)
+	{
+		if (emu_check_save_file(slot))
+		{
+			state_slot_flags |= 1 << slot;
+		}
+	}
+}
+
+static void draw_savestate_bg(int slot)
+{
+	struct PicoVideo tmp_pv;
+	unsigned short tmp_cram[0x40];
+	unsigned short tmp_vsram[0x40];
+	void *tmp_vram, *file;
+	char *fname;
+
+	fname = emu_GetSaveFName(1, 0, slot);
+	if (!fname) return;
+
+	tmp_vram = malloc(sizeof(Pico.vram));
+	if (tmp_vram == NULL) return;
+
+	memcpy(tmp_vram, Pico.vram, sizeof(Pico.vram));
+	memcpy(tmp_cram, Pico.cram, sizeof(Pico.cram));
+	memcpy(tmp_vsram, Pico.vsram, sizeof(Pico.vsram));
+	memcpy(&tmp_pv, &Pico.video, sizeof(Pico.video));
+
+	if (strcmp(fname + strlen(fname) - 3, ".gz") == 0) {
+		file = gzopen(fname, "rb");
+		emu_set_save_cbs(1);
+	} else {
+		file = fopen(fname, "rb");
+		emu_set_save_cbs(0);
+	}
+
+	if (file) {
+		if (PicoMCD & 1) {
+			PicoCdLoadStateGfx(file);
+		} else {
+			areaSeek(file, 0x10020, SEEK_SET);  // skip header and RAM in state file
+			areaRead(Pico.vram, 1, sizeof(Pico.vram), file);
+			areaSeek(file, 0x2000, SEEK_CUR);
+			areaRead(Pico.cram, 1, sizeof(Pico.cram), file);
+			areaRead(Pico.vsram, 1, sizeof(Pico.vsram), file);
+			areaSeek(file, 0x221a0, SEEK_SET);
+			areaRead(&Pico.video, 1, sizeof(Pico.video), file);
+		}
+		areaClose(file);
+	}
+
+	emu_forced_frame();
+	gp2x_memcpy_buffers((1<<2), gp2x_screen, 0, 320*240*2);
+	menu_prepare_bg();
+
+	memcpy(Pico.vram, tmp_vram, sizeof(Pico.vram));
+	memcpy(Pico.cram, tmp_cram, sizeof(Pico.cram));
+	memcpy(Pico.vsram, tmp_vsram, sizeof(Pico.vsram));
+	memcpy(&Pico.video, &tmp_pv,  sizeof(Pico.video));
+	free(tmp_vram);
+}
+
+static void draw_savestate_menu(int menu_sel, int is_loading)
+{
+	int tl_x = 25, tl_y = 60, y, i;
+
+	if (state_slot_flags & (1 << menu_sel))
+		draw_savestate_bg(menu_sel);
+	gp2x_pd_clone_buffer2();
+
+	gp2x_text_out8(tl_x, 30, is_loading ? "Load state" : "Save state");
+
+	/* draw all 10 slots */
+	y = tl_y;
+	for (i = 0; i < 10; i++, y+=10)
+	{
+		gp2x_text_out8(tl_x, y, "SLOT %i (%s)", i, (state_slot_flags & (1 << i)) ? "USED" : "free");
+	}
+	gp2x_text_out8(tl_x, y, "back");
+
+	// draw cursor
+	gp2x_text_out8(tl_x - 16, tl_y + menu_sel*10, ">");
+
+	gp2x_video_flip2();
+}
+
+static int savestate_menu_loop(int is_loading)
+{
+	int menu_sel = 10, menu_sel_max = 10;
+	unsigned long inp = 0;
+
+	state_check_slots();
+
+	for(;;)
+	{
+		draw_savestate_menu(menu_sel, is_loading);
+		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_B|GP2X_X);
+		if(inp & GP2X_UP  ) {
+			do {
+				menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max;
+			} while (!(state_slot_flags & (1 << menu_sel)) && menu_sel != menu_sel_max && is_loading);
+		}
+		if(inp & GP2X_DOWN) {
+			do {
+				menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0;
+			} while (!(state_slot_flags & (1 << menu_sel)) && menu_sel != menu_sel_max && is_loading);
+		}
+		if(inp & GP2X_B) { // save/load
+			if (menu_sel < 10) {
+				state_slot = menu_sel;
+				if (emu_SaveLoadGame(is_loading, 0)) {
+					strcpy(menuErrorMsg, is_loading ? "Load failed" : "Save failed");
+					return 1;
+				}
+				return 0;
+			} else	return 1;
+		}
+		if(inp & GP2X_X) return 1;
+	}
 }
 
 // -------------- key config --------------
@@ -1018,20 +1152,16 @@ static void menu_loop_root(void)
 					break;
 				case 1: // save state
 					if (rom_data) {
-						if(emu_SaveLoadGame(0, 0)) {
-							strcpy(menuErrorMsg, "save failed");
+						if(savestate_menu_loop(0))
 							continue;
-						}
 						engineState = PGS_Running;
 						return;
 					}
 					break;
 				case 2: // load state
 					if (rom_data) {
-						if(emu_SaveLoadGame(1, 0)) {
-							strcpy(menuErrorMsg, "load failed");
+						if(savestate_menu_loop(1))
 							continue;
-						}
 						engineState = PGS_Running;
 						return;
 					}
@@ -1074,21 +1204,29 @@ static void menu_loop_root(void)
 }
 
 
-static void menu_gfx_prepare(void)
+static void menu_prepare_bg(void)
 {
 	extern int localPal[0x100];
-	int i;
+	int c, i;
 
 	// don't clear old palette just for fun (but make it dark)
-	for (i = 0x100-1; i >= 0; i--)
-		localPal[i] = (localPal[i] >> 2) & 0x003f3f3f;
+	for (i = 0x100-1; i >= 0; i--) {
+		c = localPal[i];
+		localPal[i] = ((c >> 1) & 0x007f7f7f) - ((c >> 3) & 0x001f1f1f);
+	}
 	localPal[0xe0] = 0x00000000; // reserved pixels for OSD
 	localPal[0xf0] = 0x00ffffff;
+
+	gp2x_video_setpalette(localPal, 0x100);
+}
+
+static void menu_gfx_prepare(void)
+{
+	menu_prepare_bg();
 
 	// switch to 8bpp
 	gp2x_video_changemode2(8);
 	gp2x_video_RGB_setscaling(320, 240);
-	gp2x_video_setpalette(localPal, 0x100);
 	gp2x_video_flip2();
 }
 

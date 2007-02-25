@@ -145,12 +145,18 @@ void gp2x_video_wait_vsync(void)
 }
 
 
+void gp2x_memcpy_buffers(int buffers, void *data, int offset, int len)
+{
+	if (buffers & (1<<0)) memcpy((char *)gp2x_screens[0] + offset, data, len);
+	if (buffers & (1<<1)) memcpy((char *)gp2x_screens[1] + offset, data, len);
+	if (buffers & (1<<2)) memcpy((char *)gp2x_screens[2] + offset, data, len);
+	if (buffers & (1<<3)) memcpy((char *)gp2x_screens[3] + offset, data, len);
+}
+
+
 void gp2x_memcpy_all_buffers(void *data, int offset, int len)
 {
-	memcpy((char *)gp2x_screens[0] + offset, data, len);
-	memcpy((char *)gp2x_screens[1] + offset, data, len);
-	memcpy((char *)gp2x_screens[2] + offset, data, len);
-	memcpy((char *)gp2x_screens[3] + offset, data, len);
+	gp2x_memcpy_buffers(0xf, data, offset, len);
 }
 
 

@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <linux/limits.h>
 #include <ctype.h>
 #include <unistd.h>
@@ -394,22 +396,36 @@ void emu_Init(void)
 		printf("framebuff == 0\n");
 	}
 
+	// make dirs for saves, cfgs, etc.
+	mkdir("mds", 0777);
+	mkdir("srm", 0777);
+	mkdir("brm", 0777);
+	mkdir("cfg", 0777);
+
 	PicoInit();
 
 //	logf = fopen("log.txt", "w");
 }
 
 
-static void romfname_ext(char *dst, char *ext)
+static void romfname_ext(char *dst, const char *prefix, const char *ext)
 {
 	char *p;
+	int prefix_len = 0;
 
 	// make save filename
 	for (p = romFileName+strlen(romFileName)-1; p >= romFileName && *p != '/'; p--); p++;
-	strncpy(dst, p, 511);
+	*dst = 0;
+	if (prefix) {
+		strcpy(dst, prefix);
+		prefix_len = strlen(prefix);
+	}
+	strncpy(dst + prefix_len, p, 511-prefix_len);
 	dst[511-8] = 0;
-	if(dst[strlen(dst)-4] == '.') dst[strlen(dst)-4] = 0;
-	strcat(dst, ext);
+	if (dst[strlen(dst)-4] == '.') dst[strlen(dst)-4] = 0;
+	if (ext) strcat(dst, ext);
+
+	printf("romfname_ext: %s\n", dst);
 }
 
 
@@ -479,7 +495,10 @@ int emu_ReadConfig(int game)
 		strncpy(cfg, PicoConfigFile, 511);
 		cfg[511] = 0;
 	} else {
-		romfname_ext(cfg, ".pbcfg");
+		romfname_ext(cfg, "cfg/", ".pbcfg");
+		f = fopen(cfg, "rb");
+		if (!f) romfname_ext(cfg, NULL, ".pbcfg");
+		else fclose(f);
 	}
 
 	printf("emu_ReadConfig: %s ", cfg);
@@ -522,7 +541,7 @@ int emu_WriteConfig(int game)
 		strncpy(cfg, PicoConfigFile, 511);
 		cfg[511] = 0;
 	} else {
-		romfname_ext(cfg, ".pbcfg");
+		romfname_ext(cfg, "cfg", ".pbcfg");
 	}
 
 	printf("emu_WriteConfig: %s ", cfg);
@@ -745,25 +764,6 @@ static void vidResetMode(void)
 }
 
 
-static int check_save_file(void)
-{
-	char saveFname[512];
-	char ext[16];
-	FILE *f;
-
-	ext[0] = 0;
-	if(state_slot > 0 && state_slot < 10) sprintf(ext, ".%i", state_slot);
-	strcat(ext, ".mds");
-	if(currentConfig.EmuOpt & 8) strcat(ext, ".gz");
-
-	romfname_ext(saveFname, ext);
-	if ((f = fopen(saveFname, "rb"))) {
-		fclose(f);
-		return 1;
-	}
-	return 0;
-}
-
 static void emu_state_cb(const char *str)
 {
 	clearArea(0);
@@ -774,7 +774,7 @@ static void RunEvents(unsigned int which)
 {
 	if(which & 0x1800) { // save or load (but not both)
 		int do_it = 1;
-		if (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200) && check_save_file()) {
+		if (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200) && emu_check_save_file(state_slot)) {
 			unsigned long keys;
 			blit("", "OVERWRITE SAVE? (Y=yes, X=no)");
 			while( !((keys = gp2x_joystick_read(1)) & (GP2X_X|GP2X_Y)) )
@@ -817,7 +817,7 @@ static void RunEvents(unsigned int which)
 			state_slot += 1;
 			if(state_slot > 9) state_slot = 0;
 		}
-		sprintf(noticeMsg, "SAVE SLOT %i [%s]", state_slot, check_save_file() ? "USED" : "FREE");
+		sprintf(noticeMsg, "SAVE SLOT %i [%s]", state_slot, emu_check_save_file(state_slot) ? "USED" : "FREE");
 		gettimeofday(&noticeMsgTime, 0);
 	}
 	if(which & 0x0080) {
@@ -963,6 +963,24 @@ static void SkipFrame(int do_sound)
 	}
 }
 
+
+void emu_forced_frame(void)
+{
+	int po_old = PicoOpt;
+
+	PicoOpt |= 0x10;
+	PicoFrameFull();
+	PicoOpt = po_old;
+
+	if (!(Pico.video.reg[12]&1)) {
+		vidCpyM2 = vidCpyM2_40col;
+		clearArea(1);
+	} else	vidCpyM2 = vidCpyM2_32col;
+
+	vidCpyM2((unsigned char *)gp2x_screen+320*8, framebuff+328*8);
+	vidConvCpyRGB32(localPal, Pico.cram, 0x40);
+	gp2x_video_setpalette(localPal, 0x40);
+}
 
 static void simpleWait(int thissec, int lim_time)
 {
@@ -1239,18 +1257,11 @@ if (Pico.m.frame_count == 31563) {
 	}
 
 	// if in 16bit mode, generate 8it image for menu background
-	if (!(PicoOpt&0x10) && (currentConfig.EmuOpt&0x80)) {
-		PicoOpt |= 0x10;
-		if (!(Pico.video.reg[12]&1)) clearArea(1);
-		PicoFrameFull();
-		vidCpyM2((unsigned char *)gp2x_screen+320*8, framebuff+328*8);
-		vidConvCpyRGB32(localPal, Pico.cram, 0x40);
-		gp2x_video_setpalette(localPal, 0x40);
-		PicoOpt &= ~0x10;
-	}
+	if (!(PicoOpt&0x10) && (currentConfig.EmuOpt&0x80))
+		emu_forced_frame();
 
 	// for menu bg
-	gp2x_memcpy_all_buffers(gp2x_screen, 0, 320*240*2);
+	gp2x_memcpy_buffers((1<<2), gp2x_screen, 0, 320*240*2);
 }
 
 
@@ -1272,18 +1283,95 @@ size_t gzWrite2(void *p, size_t _size, size_t _n, void *file)
 	return gzwrite(file, p, _n);
 }
 
+static int try_ropen_file(const char *fname)
+{
+	FILE *f;
+
+	f = fopen(fname, "rb");
+	if (f) {
+		fclose(f);
+		return 1;
+	}
+	return 0;
+}
+
+char *emu_GetSaveFName(int load, int is_sram, int slot)
+{
+	static char saveFname[512];
+	char ext[16];
+
+	if (is_sram)
+	{
+		romfname_ext(saveFname, (PicoMCD&1) ? "brm/" : "srm/", (PicoMCD&1) ? ".brm" : ".srm");
+		if (load) {
+			if (try_ropen_file(saveFname)) return saveFname;
+			// try in current dir..
+			romfname_ext(saveFname, NULL, (PicoMCD&1) ? ".brm" : ".srm");
+			if (try_ropen_file(saveFname)) return saveFname;
+			return NULL; // give up
+		}
+	}
+	else
+	{
+		ext[0] = 0;
+		if(slot > 0 && slot < 10) sprintf(ext, ".%i", slot);
+		strcat(ext, (currentConfig.EmuOpt & 8) ? ".mds.gz" : ".mds");
+
+		romfname_ext(saveFname, "mds/", ext);
+		if (load) {
+			if (try_ropen_file(saveFname)) return saveFname;
+			romfname_ext(saveFname, NULL, ext);
+			if (try_ropen_file(saveFname)) return saveFname;
+			if (currentConfig.EmuOpt & 8) {
+				ext[0] = 0;
+				if(slot > 0 && slot < 10) sprintf(ext, ".%i", slot);
+				strcat(ext, ".mds");
+
+				romfname_ext(saveFname, "mds/", ext);
+				if (try_ropen_file(saveFname)) return saveFname;
+				romfname_ext(saveFname, NULL, ext);
+				if (try_ropen_file(saveFname)) return saveFname;
+			}
+			return NULL;
+		}
+	}
+
+	return saveFname;
+}
+
+int emu_check_save_file(int slot)
+{
+	return emu_GetSaveFName(1, 0, slot) ? 1 : 0;
+}
+
+void emu_set_save_cbs(int gz)
+{
+	if (gz) {
+		areaRead  = gzRead2;
+		areaWrite = gzWrite2;
+		areaEof   = (areaeof *) gzeof;
+		areaSeek  = (areaseek *) gzseek;
+		areaClose = (areaclose *) gzclose;
+	} else {
+		areaRead  = (arearw *) fread;
+		areaWrite = (arearw *) fwrite;
+		areaEof   = (areaeof *) feof;
+		areaSeek  = (areaseek *) fseek;
+		areaClose = (areaclose *) fclose;
+	}
+}
 
 int emu_SaveLoadGame(int load, int sram)
 {
 	int ret = 0;
-	char saveFname[512];
+	char *saveFname;
 
 	// make save filename
-	romfname_ext(saveFname, "");
-	if(sram) strcat(saveFname, (PicoMCD&1) ? ".brm" : ".srm");
-	else {
-		if(state_slot > 0 && state_slot < 10) sprintf(saveFname, "%s.%i", saveFname, state_slot);
-		strcat(saveFname, ".mds");
+	saveFname = emu_GetSaveFName(load, sram, state_slot);
+	if (saveFname == NULL) {
+		strcpy(noticeMsg, load ? "LOAD FAILED (missing file)" : "SAVE FAILED  ");
+		gettimeofday(&noticeMsgTime, 0);
+		return -1;
 	}
 
 	printf("saveLoad (%i, %i): %s\n", load, sram, saveFname);
@@ -1326,31 +1414,21 @@ int emu_SaveLoadGame(int load, int sram)
 	else
 	{
 		void *PmovFile = NULL;
-		// try gzip first
-		if(currentConfig.EmuOpt & 8) {
-			strcat(saveFname, ".gz");
+		if (strcmp(saveFname + strlen(saveFname) - 3, ".gz") == 0) {
 			if( (PmovFile = gzopen(saveFname, load ? "rb" : "wb")) ) {
-				areaRead  = gzRead2;
-				areaWrite = gzWrite2;
-				areaEof   = (areaeof *) gzeof;
-				areaSeek  = (areaseek *) gzseek;
+				emu_set_save_cbs(1);
 				if(!load) gzsetparams(PmovFile, 9, Z_DEFAULT_STRATEGY);
-			} else
-				saveFname[strlen(saveFname)-3] = 0;
+			}
 		}
-		if(!PmovFile) { // gzip failed or was disabled
+		else
+		{
 			if( (PmovFile = fopen(saveFname, load ? "rb" : "wb")) ) {
-				areaRead  = (arearw *) fread;
-				areaWrite = (arearw *) fwrite;
-				areaEof   = (areaeof *) feof;
-				areaSeek  = (areaseek *) fseek;
+				emu_set_save_cbs(0);
 			}
 		}
 		if(PmovFile) {
 			ret = PmovState(load ? 6 : 5, PmovFile);
-			if(areaRead == gzRead2)
-				 gzclose(PmovFile);
-			else fclose ((FILE *) PmovFile);
+			areaClose(PmovFile);
 			PmovFile = 0;
 			if (!load) sync();
 			else Pico.m.dirtyPal=1;

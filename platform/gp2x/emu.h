@@ -46,5 +46,9 @@ void emu_Loop(void);
 void emu_ResetGame(void);
 int  emu_ReadConfig(int game);
 int  emu_WriteConfig(int game);
+char *emu_GetSaveFName(int load, int is_sram, int slot);
+int  emu_check_save_file(int slot);
+void emu_set_save_cbs(int gz);
+void emu_forced_frame(void);
 int  find_bios(int region, char **bios_file);
 

@@ -236,6 +236,7 @@ int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub);
 // cd/Area.c
 int PicoCdSaveState(void *file);
 int PicoCdLoadState(void *file);
+int PicoCdLoadStateGfx(void *file);
 
 // Draw.c
 int PicoLine(int scan);
