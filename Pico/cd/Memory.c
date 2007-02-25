@@ -29,6 +29,7 @@ typedef unsigned int   u32;
 //#define __debug_io2
 //#define rdprintf dprintf
 #define rdprintf(...)
+//#define wrdprintf dprintf
 #define wrdprintf(...)
 
 // -----------------------------------------------------------------
@@ -698,11 +699,11 @@ u8 PicoReadS68k8(u32 a)
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
     int bank;
     wrdprintf("s68k_wram1M r8: [%06x] @%06x", a, SekPcS68k);
-    if (!(Pico_mcd->s68k_regs[3]&4))
-      dprintf("s68k_wram1M FIXME: wrong mode");
+//    if (!(Pico_mcd->s68k_regs[3]&4))
+//      dprintf("s68k_wram1M FIXME: wrong mode");
     bank = !(Pico_mcd->s68k_regs[3]&1);
     d = Pico_mcd->word_ram1M[bank][(a^1)&0x1ffff];
     wrdprintf("ret = %02x", (u8)d);
@@ -781,11 +782,11 @@ u16 PicoReadS68k16(u32 a)
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
     int bank;
     wrdprintf("s68k_wram1M r16: [%06x] @%06x", a, SekPcS68k);
-    if (!(Pico_mcd->s68k_regs[3]&4))
-      dprintf("s68k_wram1M FIXME: wrong mode");
+//    if (!(Pico_mcd->s68k_regs[3]&4))
+//      dprintf("s68k_wram1M FIXME: wrong mode");
     bank = !(Pico_mcd->s68k_regs[3]&1);
     d = *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
     wrdprintf("ret = %04x", d);
@@ -871,11 +872,11 @@ u32 PicoReadS68k32(u32 a)
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
     int bank;
     wrdprintf("s68k_wram1M r32: [%06x] @%06x", a, SekPcS68k);
-    if (!(Pico_mcd->s68k_regs[3]&4))
-      dprintf("s68k_wram1M FIXME: wrong mode");
+//    if (!(Pico_mcd->s68k_regs[3]&4))
+//      dprintf("s68k_wram1M FIXME: wrong mode");
     bank = !(Pico_mcd->s68k_regs[3]&1);
     u16 *pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe)); d = (pm[0]<<16)|pm[1];
     wrdprintf("ret = %08x", d);
@@ -972,12 +973,13 @@ void PicoWriteS68k8(u32 a,u8 d)
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
+    // Wing Commander tries to write here in wrong mode
     int bank;
     if (d)
       wrdprintf("s68k_wram1M w8: [%06x] %02x @%06x", a, d, SekPcS68k);
-    if (!(Pico_mcd->s68k_regs[3]&4))
-      dprintf("s68k_wram1M FIXME: wrong mode");
+//    if (!(Pico_mcd->s68k_regs[3]&4))
+//      dprintf("s68k_wram1M FIXME: wrong mode");
     bank = !(Pico_mcd->s68k_regs[3]&1);
     *(u8 *)(Pico_mcd->word_ram1M[bank]+((a^1)&0x1ffff))=d;
     return;
@@ -1051,12 +1053,12 @@ void PicoWriteS68k16(u32 a,u16 d)
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
     int bank;
     if (d)
       wrdprintf("s68k_wram1M w16: [%06x] %04x @%06x", a, d, SekPcS68k);
-    if (!(Pico_mcd->s68k_regs[3]&4))
-      dprintf("s68k_wram1M FIXME: wrong mode");
+//    if (!(Pico_mcd->s68k_regs[3]&4))
+//      dprintf("s68k_wram1M FIXME: wrong mode");
     bank = !(Pico_mcd->s68k_regs[3]&1);
     *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe))=d;
     return;
@@ -1136,13 +1138,13 @@ void PicoWriteS68k32(u32 a,u32 d)
   }
 
   // word RAM (1M area)
-  if ((a&0xfe0000)==0x0c0000) { // 0c0000-0dffff
+  if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
     int bank;
     u16 *pm;
     if (d)
       wrdprintf("s68k_wram1M w32: [%06x] %08x @%06x", a, d, SekPcS68k);
-    if (!(Pico_mcd->s68k_regs[3]&4))
-      dprintf("s68k_wram1M FIXME: wrong mode");
+//    if (!(Pico_mcd->s68k_regs[3]&4))
+//      dprintf("s68k_wram1M FIXME: wrong mode");
     bank = !(Pico_mcd->s68k_regs[3]&1);
     pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
     pm[0]=(u16)(d>>16); pm[1]=(u16)d;

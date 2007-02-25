@@ -83,6 +83,46 @@ static __inline void SekRunS68k(int cyc)
 #endif
 }
 
+#define PS_STEP_M68K 8
+#define PS_STEP_S68K 13
+
+static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
+{
+  int cyc_do_m68k, cyc_do_s68k, it=0;
+  int cyc_done_m68k=0, cyc_done_s68k=0;
+  SekCycleAim+=cyc_m68k;
+  SekCycleAimS68k+=cyc_s68k;
+  cyc_do_m68k=SekCycleAim-SekCycleCnt;
+  cyc_do_s68k=SekCycleAimS68k-SekCycleCntS68k;
+  while (cyc_done_m68k < cyc_do_m68k || cyc_done_s68k < cyc_do_s68k) {
+    it++;
+    if (cyc_done_m68k < cyc_do_m68k && it*PS_STEP_M68K > cyc_done_m68k) {
+#if defined(EMU_C68K)
+      PicoCpu.cycles = PS_STEP_M68K;
+      CycloneRun(&PicoCpu);
+      cyc_done_m68k += PS_STEP_M68K - PicoCpu.cycles;
+#elif defined(EMU_M68K)
+      m68k_set_context(&PicoM68kCPU);
+      cyc_done_m68k += m68k_execute(PS_STEP_M68K);
+#endif
+    } //else dprintf("m68k skipping it #%i", it);
+    if (cyc_done_s68k < cyc_do_s68k && it*PS_STEP_S68K > cyc_done_s68k) {
+#if defined(EMU_C68K)
+      PicoCpuS68k.cycles = PS_STEP_S68K;
+      CycloneRun(&PicoCpuS68k);
+      cyc_done_s68k += PS_STEP_S68K - PicoCpuS68k.cycles;
+#elif defined(EMU_M68K)
+      m68k_set_context(&PicoS68kCPU);
+      cyc_done_s68k += m68k_execute(PS_STEP_S68K);
+#endif
+    } //else dprintf("s68k skipping it #%i", it);
+  }
+  SekCycleCnt += cyc_done_m68k;
+  SekCycleCntS68k += cyc_done_s68k;
+  //dprintf("== end SekRunPS, it=%i ==", it);
+}
+
+
 static __inline void check_cd_dma(void)
 {
 	int ddx;
@@ -230,23 +270,12 @@ static int PicoFrameHintsMCD(void)
     // Run scanline:
       //dprintf("m68k starting exec @ %06x", SekPc);
     if(Pico.m.dma_bytes) SekCycleCnt+=CheckDMA();
-    SekRun(cycles_68k);
-    if ((Pico_mcd->m.busreq&3) == 1) { // no busreq/no reset
-#if 0
-	    int i;
-	    FILE *f = fopen("prg_ram.bin", "wb");
-	    for (i = 0; i < 0x80000; i+=2)
-	    {
-		    int tmp = Pico_mcd->prg_ram[i];
-		    Pico_mcd->prg_ram[i] = Pico_mcd->prg_ram[i+1];
-		    Pico_mcd->prg_ram[i+1] = tmp;
-	    }
-	    fwrite(Pico_mcd->prg_ram, 1, 0x80000, f);
-	    fclose(f);
-	    exit(1);
-#endif
-      //dprintf("s68k starting exec @ %06x", SekPcS68k);
-      SekRunS68k(cycles_s68k);
+    if((PicoOpt & 0x2000) && (Pico_mcd->m.busreq&3) == 1) {
+      SekRunPS(cycles_68k, cycles_s68k); // "perfect sync"
+    } else {
+      SekRun(cycles_68k);
+      if ((Pico_mcd->m.busreq&3) == 1) // no busreq/no reset
+        SekRunS68k(cycles_s68k);
     }
 
     if((PicoOpt&4) && Pico.m.z80Run) {

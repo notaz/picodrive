@@ -260,6 +260,11 @@ void gp2x_video_RGB_setscaling(int W, int H)
 {
 }
 
+void gp2x_memcpy_buffers(int buffers, void *data, int offset, int len)
+{
+	memcpy((char *)gp2x_screen + offset, data, len);
+}
+
 void gp2x_memcpy_all_buffers(void *data, int offset, int len)
 {
 	memcpy((char *)gp2x_screen + offset, data, len);

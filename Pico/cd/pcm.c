@@ -48,10 +48,11 @@ void pcm_write(unsigned int a, unsigned int d)
 
 void pcm_set_rate(int rate)
 {
-	double step = 31.8 * 1024.0 / (double) rate; // max <4 @ 8000Hz
+	float step = 31.8 * 1024.0 / (float) rate; // max <4 @ 8000Hz
 	step *= 256*256/4;
 	g_rate = (unsigned int) step;
-	printf("g_rate: %08x\n", g_rate);
+	if (step - (float) g_rate >= 0.5) g_rate++;
+	printf("g_rate: %f %08x\n", (double)step, g_rate);
 }
 
 
@@ -82,7 +83,7 @@ void pcm_update(int *buffer, int length, int stereo)
 		mul_l = ((int)ch->regs[0] * (ch->regs[1] & 0xf)) >> (5+1); // (env * pan) >> 5
 		mul_r = ((int)ch->regs[0] * (ch->regs[1] >>  4)) >> (5+1);
 		step  = ((unsigned int)(*(unsigned short *)&ch->regs[2]) * g_rate) >> 14; // freq step
-//		printf("step=%i, cstep=%i, mul_l=%i, mul_r=%i, ch=%i, addr=%x, en=%02x\n",
+//		fprintf(stderr, "step=%i, cstep=%i, mul_l=%i, mul_r=%i, ch=%i, addr=%x, en=%02x\n",
 //			*(unsigned short *)&ch->regs[2], step, mul_l, mul_r, i, addr, Pico_mcd->pcm.enabled);
 
 		if (!stereo && mul_l < mul_r) mul_l = mul_r;

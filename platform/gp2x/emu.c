@@ -424,8 +424,6 @@ static void romfname_ext(char *dst, const char *prefix, const char *ext)
 	dst[511-8] = 0;
 	if (dst[strlen(dst)-4] == '.') dst[strlen(dst)-4] = 0;
 	if (ext) strcat(dst, ext);
-
-	printf("romfname_ext: %s\n", dst);
 }
 
 
@@ -973,9 +971,9 @@ void emu_forced_frame(void)
 	PicoOpt = po_old;
 
 	if (!(Pico.video.reg[12]&1)) {
-		vidCpyM2 = vidCpyM2_40col;
+		vidCpyM2 = vidCpyM2_32col;
 		clearArea(1);
-	} else	vidCpyM2 = vidCpyM2_32col;
+	} else	vidCpyM2 = vidCpyM2_40col;
 
 	vidCpyM2((unsigned char *)gp2x_screen+320*8, framebuff+328*8);
 	vidConvCpyRGB32(localPal, Pico.cram, 0x40);
@@ -1369,8 +1367,10 @@ int emu_SaveLoadGame(int load, int sram)
 	// make save filename
 	saveFname = emu_GetSaveFName(load, sram, state_slot);
 	if (saveFname == NULL) {
-		strcpy(noticeMsg, load ? "LOAD FAILED (missing file)" : "SAVE FAILED  ");
-		gettimeofday(&noticeMsgTime, 0);
+		if (!sram) {
+			strcpy(noticeMsg, load ? "LOAD FAILED (missing file)" : "SAVE FAILED  ");
+			gettimeofday(&noticeMsgTime, 0);
+		}
 		return -1;
 	}
 
