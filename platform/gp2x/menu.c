@@ -17,8 +17,9 @@
 #include "usbjoy.h"
 #include "version.h"
 
-#include "Pico/PicoInt.h"
-#include "zlib/zlib.h"
+#include <Pico/PicoInt.h>
+#include <Pico/Patch.h>
+#include <zlib/zlib.h>
 
 #ifndef _DIRENT_HAVE_D_TYPE
 #error "need d_type for file browser
@@ -389,6 +390,54 @@ static char *romsel_loop(char *curr_path)
 	}
 
 	return ret;
+}
+
+// ------------ patch/gg menu ------------
+
+static void draw_patchlist(int sel)
+{
+	int start, i, pos;
+
+	start = 12 - sel;
+
+	gp2x_pd_clone_buffer2();
+
+	for (i = 0; i < PicoPatchCount; i++) {
+		pos = start + i;
+		if (pos < 0)  continue;
+		if (pos > 23) break;
+		gp2x_smalltext8_lim(14,     pos*10, PicoPatches[i].active ? "ON " : "OFF", 3);
+		gp2x_smalltext8_lim(14+6*4, pos*10, PicoPatches[i].name, 53-5);
+	}
+	pos = start + i;
+	if (pos < 24) gp2x_smalltext8_lim(14, pos*10, "done", 4);
+
+	gp2x_text_out8(5, 120, ">");
+	gp2x_video_flip2();
+}
+
+
+void patches_menu_loop(void)
+{
+	int menu_sel = 0;
+	unsigned long inp = 0;
+
+	for(;;)
+	{
+		draw_patchlist(menu_sel);
+		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_L|GP2X_R|GP2X_B|GP2X_X);
+		if(inp & GP2X_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = PicoPatchCount; }
+		if(inp & GP2X_DOWN) { menu_sel++; if (menu_sel > PicoPatchCount) menu_sel = 0; }
+		if(inp &(GP2X_LEFT|GP2X_L))  { menu_sel-=10; if (menu_sel < 0) menu_sel = 0; }
+		if(inp &(GP2X_RIGHT|GP2X_R)) { menu_sel+=10; if (menu_sel > PicoPatchCount) menu_sel = PicoPatchCount; }
+		if(inp & GP2X_B) { // action
+			if (menu_sel < PicoPatchCount)
+				PicoPatches[menu_sel].active = !PicoPatches[menu_sel].active;
+			else 	return;
+		}
+		if(inp & GP2X_X) return;
+	}
+
 }
 
 // ------------ savestate loader ------------
@@ -1106,6 +1155,8 @@ static void draw_menu_root(int menu_sel)
 	gp2x_text_out8(tl_x, (y+=10), "Configure controls");
 	gp2x_text_out8(tl_x, (y+=10), "Credits");
 	gp2x_text_out8(tl_x, (y+=10), "Exit");
+	if (PicoPatches)
+		gp2x_text_out8(tl_x, (y+=10), "Patches / GameGenie");
 
 	// draw cursor
 	gp2x_text_out8(tl_x - 16, tl_y + menu_sel*10, ">");
@@ -1133,6 +1184,7 @@ static void menu_loop_root(void)
 	}
 
 	if (rom_data) menu_sel = menu_sel_min = 0;
+	if (PicoPatches) menu_sel_max = 9;
 
 	for(;;)
 	{
@@ -1199,6 +1251,14 @@ static void menu_loop_root(void)
 				case 8: // exit
 					engineState = PGS_Quit;
 					return;
+				case 9: // patches/gg
+					if (rom_data && PicoPatches) {
+						patches_menu_loop();
+						PicoPatchApply();
+						strcpy(menuErrorMsg, "Patches applied");
+						continue;
+					}
+					break;
 			}
 		}
 		menuErrorMsg[0] = 0; // clear error msg

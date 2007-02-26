@@ -27,7 +27,8 @@ LDFLAGS += `pkg-config --libs gthread-2.0`
 OBJS += ../gp2x/main.o ../gp2x/menu.o ../gp2x/fonts.o ../gp2x/emu.o ../gp2x/usbjoy.o blit.o gp2x.o 940ctl_ym2612.o
 # Pico
 OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Utils.o ../../Pico/Memory.o ../../Pico/Misc.o \
-		../../Pico/Pico.o ../../Pico/Sek.o ../../Pico/VideoPort.o ../../Pico/Draw2.o ../../Pico/Draw.o
+		../../Pico/Pico.o ../../Pico/Sek.o ../../Pico/VideoPort.o ../../Pico/Draw2.o ../../Pico/Draw.o \
+		../../Pico/Patch.o
 # Pico - CD
 OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
 		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o \

@@ -21,8 +21,9 @@
 #include "asmutils.h"
 #include "cpuctrl.h"
 
-#include "Pico/PicoInt.h"
-#include "zlib/zlib.h"
+#include <Pico/PicoInt.h>
+#include <Pico/Patch.h>
+#include <zlib/zlib.h>
 
 
 #ifdef BENCHMARK
@@ -229,6 +230,8 @@ int emu_ReloadRom(void)
 		return 0;
 	}
 
+	PicoPatchUnload();
+
 	// check for movie file
 	if(movie_data) {
 		free(movie_data);
@@ -265,6 +268,16 @@ int emu_ReloadRom(void)
 		dummy = try_rfn_cut() || try_rfn_cut();
 		if (!dummy) {
 			sprintf(menuErrorMsg, "Could't find a ROM for movie.");
+			return 0;
+		}
+		get_ext(romFileName, ext);
+	}
+	else if (!strcmp(ext, ".pat")) {
+		int dummy;
+		PicoPatchLoad(romFileName);
+		dummy = try_rfn_cut() || try_rfn_cut();
+		if (!dummy) {
+			sprintf(menuErrorMsg, "Could't find a ROM to patch.");
 			return 0;
 		}
 		get_ext(romFileName, ext);
@@ -350,6 +363,11 @@ int emu_ReloadRom(void)
 	// emu_ReadConfig() might have messed currentConfig.lastRomFile
 	strncpy(currentConfig.lastRomFile, romFileName, sizeof(currentConfig.lastRomFile)-1);
 	currentConfig.lastRomFile[sizeof(currentConfig.lastRomFile)-1] = 0;
+
+	if (PicoPatches) {
+		PicoPatchPrepare();
+		PicoPatchApply();
+	}
 
 	// additional movie stuff
 	if(movie_data) {
