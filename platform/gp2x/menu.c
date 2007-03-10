@@ -407,7 +407,7 @@ static void draw_patchlist(int sel)
 		if (pos < 0)  continue;
 		if (pos > 23) break;
 		gp2x_smalltext8_lim(14,     pos*10, PicoPatches[i].active ? "ON " : "OFF", 3);
-		gp2x_smalltext8_lim(14+6*4, pos*10, PicoPatches[i].name, 53-5);
+		gp2x_smalltext8_lim(14+6*4, pos*10, PicoPatches[i].name, 53-6);
 	}
 	pos = start + i;
 	if (pos < 24) gp2x_smalltext8_lim(14, pos*10, "done", 4);

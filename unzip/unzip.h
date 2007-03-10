@@ -127,6 +127,8 @@ int readcompresszip(ZIP* zip, struct zipent* ent, char* data);
 */
 int readuncompresszip(ZIP* zip, struct zipent* ent, char* data);
 
+int seekcompresszip(ZIP* zip, struct zipent* ent);
+
 /* public functions */
 int /* error */ load_zipped_file (const char *zipfile, const char *filename,
 	unsigned char **buf, unsigned int *length);

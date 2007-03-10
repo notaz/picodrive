@@ -62,10 +62,24 @@ extern areaclose *areaClose;
 extern void (*PicoStateProgressCB)(const char *str);
 
 // Cart.c
-int PicoCartLoad(FILE *f,unsigned char **prom,unsigned int *psize);
+typedef enum
+{
+	PMT_UNCOMPRESSED = 0,
+	PMT_ZIP
+} pm_type;
+typedef struct
+{
+	void *file;		/* file handle */
+	void *param;		/* additional file related field */
+	unsigned int size;	/* size */
+	pm_type type;
+} pm_file;
+pm_file *pm_open(const char *path);
+size_t   pm_read(void *ptr, size_t bytes, pm_file *stream);
+int      pm_seek(pm_file *stream, long offset, int whence);
+int      pm_close(pm_file *fp);
+int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize);
 int PicoCartInsert(unsigned char *rom,unsigned int romsize);
-// notaz
-int CartLoadZip(const char *fname, unsigned char **prom, unsigned int *psize);
 void Byteswap(unsigned char *data,int len);
 // anotherguest
 int PicoUnloadCart(unsigned char* romdata);

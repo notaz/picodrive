@@ -77,7 +77,8 @@ local gzFile gz_open      OF((const char *path, const char *mode, int  fd));
 local int do_flush        OF((gzFile file, int flush));
 local int    get_byte     OF((gz_stream *s));
 local void   check_header OF((gz_stream *s));
-local int    destroy      OF((gz_stream *s));
+//local
+      int    destroy      OF((gz_stream *s));
 local void   putLong      OF((FILE *file, uLong x));
 local uLong  getLong      OF((gz_stream *s));
 
@@ -352,7 +353,8 @@ local void check_header(s)
  * Cleanup then free the given gz_stream. Return a zlib error code.
    Try freeing in the reverse order of allocations.
  */
-local int destroy (s)
+//local
+int destroy (s)
     gz_stream *s;
 {
     int err = Z_OK;

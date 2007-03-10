@@ -16,11 +16,10 @@ void FILE_End(void)
 
 int Load_ISO(const char *iso_name, int is_bin)
 {
-	struct stat file_stat;
 	int i, j, num_track, Cur_LBA, index, ret, iso_name_len;
 	_scd_track *Tracks = Pico_mcd->TOC.Tracks;
-	FILE *tmp_file;
 	char tmp_name[1024], tmp_ext[10];
+	pm_file *pmf;
 	static char *exts[] = {
 		"%02d.mp3", " %02d.mp3", "-%02d.mp3", "_%02d.mp3", " - %02d.mp3",
 		"%d.mp3", " %d.mp3", "-%d.mp3", "_%d.mp3", " - %d.mp3",
@@ -33,16 +32,7 @@ int Load_ISO(const char *iso_name, int is_bin)
 
 	Tracks[0].ftype = is_bin ? TYPE_BIN : TYPE_ISO;
 
-	ret = stat(iso_name, &file_stat);
-	if (ret != 0) return -1;
-
-	Tracks[0].Length = file_stat.st_size;
-
-	if (Tracks[0].ftype == TYPE_ISO) Tracks[0].Length >>= 11;	// size in sectors
-	else Tracks[0].Length /= 2352;					// size in sectors
-
-
-	Tracks[0].F = fopen(iso_name, "rb");
+	Tracks[0].F = pmf = pm_open(iso_name);
 	if (Tracks[0].F == NULL)
 	{
 		Tracks[0].ftype = 0;
@@ -50,11 +40,9 @@ int Load_ISO(const char *iso_name, int is_bin)
 		return -1;
 	}
 
-	if (Tracks[0].ftype == TYPE_ISO) fseek(Tracks[0].F, 0x100, SEEK_SET);
-	else fseek(Tracks[0].F, 0x110, SEEK_SET);
-
-	// fread(buf, 1, 0x200, Tracks[0].F);
-	fseek(Tracks[0].F, 0, SEEK_SET);
+	if (Tracks[0].ftype == TYPE_ISO)
+		Tracks[0].Length = pmf->size >>= 11;	// size in sectors
+	else	Tracks[0].Length = pmf->size /= 2352;
 
 	Tracks[0].MSF.M = 0; // minutes
 	Tracks[0].MSF.S = 2; // seconds
@@ -64,7 +52,6 @@ int Load_ISO(const char *iso_name, int is_bin)
 
 	Cur_LBA = Tracks[0].Length;				// Size in sectors
 
-	strcpy(tmp_name, iso_name);
 	iso_name_len = strlen(iso_name);
 
 	for (num_track = 2, i = 0; i < 100; i++)
@@ -72,6 +59,7 @@ int Load_ISO(const char *iso_name, int is_bin)
 		for(j = 0; j < sizeof(exts)/sizeof(char *); j++)
 		{
 			int ext_len;
+			FILE *tmp_file;
 			sprintf(tmp_ext, exts[j], i);
 			ext_len = strlen(tmp_ext);
 
@@ -88,8 +76,8 @@ int Load_ISO(const char *iso_name, int is_bin)
 
 			if (tmp_file)
 			{
-				// float fs;
 				int fs;
+				struct stat file_stat;
 				index = num_track - 1;
 
 				ret = stat(tmp_name, &file_stat);
@@ -143,13 +131,13 @@ void Unload_ISO(void)
 
 	if (Pico_mcd == NULL) return;
 
-	for(i = 0; i < 100; i++)
+	if (Pico_mcd->TOC.Tracks[0].F) pm_close(Pico_mcd->TOC.Tracks[0].F);
+
+	for(i = 1; i < 100; i++)
 	{
 		if (Pico_mcd->TOC.Tracks[i].F) fclose(Pico_mcd->TOC.Tracks[i].F);
-		Pico_mcd->TOC.Tracks[i].F = NULL;
-		Pico_mcd->TOC.Tracks[i].Length = 0;
-		Pico_mcd->TOC.Tracks[i].ftype = 0;
 	}
+	memset(Pico_mcd->TOC.Tracks, 0, sizeof(Pico_mcd->TOC.Tracks));
 }
 
 
@@ -208,11 +196,11 @@ int FILE_Read_One_LBA_CDC(void)
 				Pico_mcd->cdc.WA.N = (Pico_mcd->cdc.WA.N + 2352) & 0x7FFF;		// add one sector to WA
 				Pico_mcd->cdc.PT.N = (Pico_mcd->cdc.PT.N + 2352) & 0x7FFF;
 
-				memcpy(&Pico_mcd->cdc.Buffer[Pico_mcd->cdc.PT.N], &Pico_mcd->cdc.HEAD, 4);
+				*(unsigned int *)(Pico_mcd->cdc.Buffer + Pico_mcd->cdc.PT.N) = Pico_mcd->cdc.HEAD.N;
 				//memcpy(&Pico_mcd->cdc.Buffer[Pico_mcd->cdc.PT.N + 4], cp_buf, 2048);
 
-				fseek(Pico_mcd->TOC.Tracks[0].F, where_read, SEEK_SET);
-				fread(Pico_mcd->cdc.Buffer + Pico_mcd->cdc.PT.N + 4, 1, 2048, Pico_mcd->TOC.Tracks[0].F);
+				pm_seek(Pico_mcd->TOC.Tracks[0].F, where_read, SEEK_SET);
+				pm_read(Pico_mcd->cdc.Buffer + Pico_mcd->cdc.PT.N + 4, 2048, Pico_mcd->TOC.Tracks[0].F);
 
 #ifdef DEBUG_CD
 				cdprintf("Read -> WA = %d  Buffer[%d] =", Pico_mcd->cdc.WA.N, Pico_mcd->cdc.PT.N & 0x3FFF);

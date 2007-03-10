@@ -25,13 +25,9 @@
 
 
 // notaz
-#ifdef __DEBUG_PRINT
-void dprintf(char *format, ...);
-#define logerror dprintf
-void errormsg(const char* extmsg, const char* usermsg, const char* zipname)
-{
-	dprintf("Error in zipfile %s: %s", zipname, extmsg);
-}
+#if 1 //def __DEBUG_PRINT
+#define logerror printf
+#define errormsg(str1,def,fname) printf("%s: " #def ": " str1 "\n", fname);
 #else
 #define logerror(x...)
 #define errormsg(x...)

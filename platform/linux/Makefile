@@ -39,7 +39,7 @@ OBJS += ../../Pico/sound/sound.o ../../Pico/sound/sn76496.o ../../Pico/sound/ym2
 OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/inftrees.o ../../zlib/trees.o \
 	../../zlib/deflate.o ../../zlib/crc32.o ../../zlib/adler32.o ../../zlib/zutil.o ../../zlib/compress.o
 # unzip
-OBJS += ../../unzip/unzip.o
+OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
 # mp3
 OBJS += ../gp2x/mp3.o
 # CPU cores

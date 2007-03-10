@@ -3,8 +3,6 @@
 
 #include "cd_file.h"
 
-#include <stdio.h> // FILE
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -37,7 +35,7 @@ typedef struct
 	_msf MSF;
 	//
 	char ftype; // TYPE_ISO, TYPE_BIN, TYPE_MP3
-	FILE *F;
+	void *F;
 	int Length;
 	short KBtps; // kbytes per sec for mp3s (bitrate / 1000 / 8)
 	short pad;
@@ -93,9 +91,6 @@ int Close_Tray_CDD_cC(void);
 int Open_Tray_CDD_cD(void);
 
 int CDD_Def(void);
-
-//void Write_CD_Audio(short *Buf, int rate, int channel, int lenght);
-//void Update_CD_Audio(int **Buf, int lenght);
 
 
 #ifdef __cplusplus

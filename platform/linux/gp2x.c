@@ -164,6 +164,7 @@ void gp2x_init(void)
 	printf("entering init()\n"); fflush(stdout);
 
 	gp2x_screen = malloc(320*240*2 + 320*2);
+	memset(gp2x_screen, 0, 320*240*2 + 320*2);
 
 	// snd
   	mixerdev = open("/dev/mixer", O_RDWR);

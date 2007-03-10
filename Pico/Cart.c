@@ -8,6 +8,152 @@
 
 
 #include "PicoInt.h"
+#include "../zlib/zlib.h"
+#include "../unzip/unzip.h"
+#include "../unzip/unzip_stream.h"
+
+static char *rom_exts[] = { "bin", "gen", "smd", "iso" };
+
+
+pm_file *pm_open(const char *path)
+{
+  pm_file *file = NULL;
+  const char *ext;
+  FILE *f;
+
+  if (path == NULL) return NULL;
+
+  if (strlen(path) < 5) ext = NULL; // no ext
+  else ext = path + strlen(path) - 3;
+
+  if (ext && strcasecmp(ext, "zip") == 0)
+  {
+    struct zipent *zipentry;
+    gzFile gzf = NULL;
+    ZIP *zipfile;
+    int i;
+
+    zipfile = openzip(path);
+
+    if (zipfile != NULL)
+    {
+      /* search for suitable file (right extension or large enough file) */
+      while ((zipentry = readzip(zipfile)) != NULL)
+      {
+        if (zipentry->uncompressed_size >= 128*1024) goto found_rom_zip;
+        if (strlen(zipentry->name) < 5) continue;
+
+        ext = zipentry->name+strlen(zipentry->name)-3;
+        for (i = 0; i < sizeof(rom_exts)/sizeof(rom_exts[0]); i++)
+          if (!strcasecmp(ext, rom_exts[i]) == 0) goto found_rom_zip;
+      }
+
+      /* zipfile given, but nothing found suitable for us inside */
+      goto zip_failed;
+
+found_rom_zip:
+      /* try to convert to gzip stream, so we could use standard gzio functions from zlib */
+      gzf = zip2gz(zipfile, zipentry);
+      if (gzf == NULL)  goto zip_failed;
+
+      file = malloc(sizeof(*file));
+      if (file == NULL) goto zip_failed;
+      file->file  = zipfile;
+      file->param = gzf;
+      file->size  = zipentry->uncompressed_size;
+      file->type  = PMT_ZIP;
+      return file;
+
+zip_failed:
+      if (gzf) {
+        gzclose(gzf);
+        zipfile->fp = NULL; // gzclose() closed it
+      }
+      closezip(zipfile);
+      return NULL;
+    }
+  }
+
+  /* not a zip, treat as uncompressed file */
+  f = fopen(path, "rb");
+  if (f == NULL) return NULL;
+
+  file = malloc(sizeof(*file));
+  if (file == NULL) {
+    fclose(f);
+    return NULL;
+  }
+  fseek(f, 0, SEEK_END);
+  file->file  = f;
+  file->param = NULL;
+  file->size  = ftell(f);
+  file->type  = PMT_UNCOMPRESSED;
+  fseek(f, 0, SEEK_SET);
+  return file;
+}
+
+size_t pm_read(void *ptr, size_t bytes, pm_file *stream)
+{
+  int ret;
+
+  if (stream->type == PMT_UNCOMPRESSED)
+  {
+    ret = fread(ptr, 1, bytes, stream->file);
+  }
+  else if (stream->type == PMT_ZIP)
+  {
+    gzFile gf = stream->param;
+    int err;
+    ret = gzread(gf, ptr, bytes);
+    err = gzerror2(gf);
+    if (ret > 0 && (err == Z_DATA_ERROR || err == Z_STREAM_END))
+      /* we must reset stream pointer or else next seek/read fails */
+      gzrewind(gf);
+  }
+  else
+    ret = 0;
+
+  return ret;
+}
+
+int pm_seek(pm_file *stream, long offset, int whence)
+{
+  if (stream->type == PMT_UNCOMPRESSED)
+  {
+    return fseek(stream->file, offset, whence);
+  }
+  else if (stream->type == PMT_ZIP)
+  {
+    return gzseek((gzFile) stream->param, offset, whence);
+  }
+  else
+    return -1;
+}
+
+int pm_close(pm_file *fp)
+{
+  int ret = 0;
+
+  if (fp == NULL) return EOF;
+
+  if (fp->type == PMT_UNCOMPRESSED)
+  {
+    fclose(fp->file);
+  }
+  else if (fp->type == PMT_ZIP)
+  {
+    ZIP *zipfile = fp->file;
+    gzclose((gzFile) fp->param);
+    zipfile->fp = NULL; // gzclose() closed it
+    closezip(zipfile);
+  }
+  else
+    ret = EOF;
+
+  free(fp);
+  return ret;
+}
+
 
 void Byteswap(unsigned char *data,int len)
 {
@@ -86,12 +232,12 @@ static unsigned char *PicoCartAlloc(int filesize)
   return rom;
 }
 
-int PicoCartLoad(FILE *f,unsigned char **prom,unsigned int *psize)
+int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
 {
   unsigned char *rom=NULL; int size;
   if (f==NULL) return 1;
 
-  fseek(f,0,SEEK_END); size=ftell(f); fseek(f,0,SEEK_SET);
+  size=f->size;
   if (size <= 0) return 1;
   size=(size+3)&~3; // Round up to a multiple of 4
 
@@ -99,7 +245,7 @@ int PicoCartLoad(FILE *f,unsigned char **prom,unsigned int *psize)
   rom=PicoCartAlloc(size);
   if (rom==NULL) return 1; // { fclose(f); return 1; }
 
-  fread(rom,1,size,f); // Load up the rom
+  pm_read(rom,size,f); // Load up the rom
 
   // maybe we are loading MegaCD BIOS?
   if (!(PicoMCD&1) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) || !strncmp((char *)rom+0x128, "BOOT", 4))) {
@@ -139,69 +285,3 @@ int PicoUnloadCart(unsigned char* romdata)
   return 0;
 }
 
-
-#ifdef _UNZIP_SUPPORT
-
-// notaz
-#include "../unzip/unzip.h"
-
-// nearly same as PicoCartLoad, but works with zipfiles
-int CartLoadZip(const char *fname, unsigned char **prom, unsigned int *psize)
-{
-	unsigned char *rom=0;
-	struct zipent* zipentry;
-	int size;
-	ZIP *zipfile = openzip(fname);
-
-	if(!zipfile) return 1;
-
-	// find first bin or smd
-	while((zipentry = readzip(zipfile)) != 0)
-	{
-		char *ext;
-		if(strlen(zipentry->name) < 5) continue;
-		ext = zipentry->name+strlen(zipentry->name)-4;
-
-		if(!strcasecmp(ext, ".bin") || !strcasecmp(ext, ".smd") || !strcasecmp(ext, ".gen")) break;
-	}
-
-	if(!zipentry) {
-		closezip(zipfile);
-		return 4; // no roms
-	}
-
-	size = zipentry->uncompressed_size;
-
-	size=(size+3)&~3; // Round up to a multiple of 4
-
-	// Allocate space for the rom plus padding
-	rom=PicoCartAlloc(size);
-	if (rom==NULL) { closezip(zipfile); return 2; }
-
-	if(readuncompresszip(zipfile, zipentry, (char *)rom) != 0) {
-		free(rom);
-		rom = 0;
-		closezip(zipfile);
-		return 5; // unzip failed
-	}
-
-	closezip(zipfile);
-
-        // maybe we are loading MegaCD BIOS?
-        if (!(PicoMCD&1) && size == 0x20000 &&
-			(!strncmp((char *)rom+0x124, "BOOT", 4) || !strncmp((char *)rom+0x128, "BOOT", 4))) {
-		PicoMCD |= 1;
-		rom = cd_realloc(rom, size);
-        }
-
-	// Check for SMD:
-	if ((size&0x3fff)==0x200) { DecodeSmd(rom,size); size-=0x200; } // Decode and byteswap SMD
-	else Byteswap(rom,size); // Just byteswap
-
-	if (prom)  *prom=rom;
-	if (psize) *psize=size;
-
-	return 0;
-}
-
-#endif

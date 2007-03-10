@@ -63,11 +63,13 @@ int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
 #endif
 
 #ifdef EMU_M68K
-  m68ki_cpu_core *context = is_sub ? &PicoS68kCPU : &PicoM68kCPU;
-  memcpy(cpu,context->dar,0x40);
-  pc=context->pc;
+  void *oldcontext = m68ki_cpu_p;
+  m68k_set_context(is_sub ? &PicoS68kCPU : &PicoM68kCPU);
+  memcpy(cpu,m68ki_cpu_p->dar,0x40);
+  pc=m68ki_cpu_p->pc;
   *(unsigned int  *)(cpu+0x44)=m68k_get_reg(NULL, M68K_REG_SR);
-  *(unsigned int  *)(cpu+0x48)=context->sp[0];
+  *(unsigned int  *)(cpu+0x48)=m68ki_cpu_p->sp[0];
+  m68k_set_context(oldcontext);
 #endif
 
   *(unsigned int *)(cpu+0x40)=pc;
@@ -94,11 +96,13 @@ int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
 #endif
 
 #ifdef EMU_M68K
-  m68ki_cpu_core *context = is_sub ? &PicoS68kCPU : &PicoM68kCPU;
-  memcpy(context->dar,cpu,0x40);
-  context->pc=*(unsigned int *)(cpu+0x40);
+  void *oldcontext = m68ki_cpu_p;
+  m68k_set_context(is_sub ? &PicoS68kCPU : &PicoM68kCPU);
+  memcpy(m68ki_cpu_p->dar,cpu,0x40);
+  m68ki_cpu_p->pc=*(unsigned int *)(cpu+0x40);
   m68k_set_reg(M68K_REG_SR, *(unsigned int *)(cpu+0x44));
-  context->sp[0]=*(unsigned int *)(cpu+0x48);
+  m68ki_cpu_p->sp[0]=*(unsigned int *)(cpu+0x48);
+  m68k_set_context(oldcontext);
 #endif
   return 0;
 }

@@ -169,31 +169,31 @@ int find_bios(int region, char **bios_file)
 
 /* checks if romFileName points to valid MegaCD image
  * if so, checks for suitable BIOS */
-static int cd_check(char *ext, char **bios_file)
+static int cd_check(char **bios_file)
 {
 	unsigned char buf[32];
-	FILE *cd_f;
+	pm_file *cd_f;
 	int type = 0, region = 4; // 1: Japan, 4: US, 8: Europe
 
-	cd_f = fopen(romFileName, "rb");
+	cd_f = pm_open(romFileName);
 	if (!cd_f) return 0; // let the upper level handle this
 
-	if (fread(buf, 1, 32, cd_f) != 32) {
-		fclose(cd_f);
+	if (pm_read(buf, 32, cd_f) != 32) {
+		pm_close(cd_f);
 		return 0;
 	}
 
 	if (!strncasecmp("SEGADISCSYSTEM", (char *)buf+0x00, 14)) type = 1;       // Sega CD (ISO)
 	if (!strncasecmp("SEGADISCSYSTEM", (char *)buf+0x10, 14)) type = 2;       // Sega CD (BIN)
 	if (type == 0) {
-		fclose(cd_f);
+		pm_close(cd_f);
 		return 0;
 	}
 
 	/* it seems we have a CD image here. Try to detect region and load a suitable BIOS now.. */
-	fseek(cd_f, (type == 1) ? 0x100+0x10B : 0x110+0x10B, SEEK_SET);
-	fread(buf, 1, 1, cd_f);
-	fclose(cd_f);
+	pm_seek(cd_f, (type == 1) ? 0x100+0x10B : 0x110+0x10B, SEEK_SET);
+	pm_read(buf, 1, cd_f);
+	pm_close(cd_f);
 
 	if (buf[0] == 0x64) region = 8; // EU
 	if (buf[0] == 0xa1) region = 1; // JAP
@@ -217,7 +217,7 @@ int emu_ReloadRom(void)
 	unsigned int rom_size = 0;
 	char *used_rom_name = romFileName;
 	char ext[5];
-	FILE *rom;
+	pm_file *rom;
 	int ret, cd_state;
 
 	printf("emu_ReloadRom(%s)\n", romFileName);
@@ -284,7 +284,7 @@ int emu_ReloadRom(void)
 	}
 
 	// check for MegaCD image
-	cd_state = cd_check(ext, &used_rom_name);
+	cd_state = cd_check(&used_rom_name);
 	if (cd_state > 0) {
 		PicoMCD |= 1;
 		get_ext(used_rom_name, ext);
@@ -296,7 +296,7 @@ int emu_ReloadRom(void)
 		PicoMCD &= ~1;
 	}
 
-	rom = fopen(used_rom_name, "rb");
+	rom = pm_open(used_rom_name);
 	if(!rom) {
 		sprintf(menuErrorMsg, "Failed to open rom.");
 		return 0;
@@ -308,25 +308,13 @@ int emu_ReloadRom(void)
 		rom_size = 0;
 	}
 
-	// zipfile support
-	if(!strcasecmp(ext, ".zip")) {
-		fclose(rom);
-		ret = CartLoadZip(used_rom_name, &rom_data, &rom_size);
-		if(ret) {
-			if (ret == 4) strcpy(menuErrorMsg, "No ROMs found in zip.");
-			else sprintf(menuErrorMsg, "Unzip failed with code %i", ret);
-			printf("%s\n", menuErrorMsg);
-			return 0;
-		}
-	} else {
-		if( (ret = PicoCartLoad(rom, &rom_data, &rom_size)) ) {
-			sprintf(menuErrorMsg, "PicoCartLoad() failed.");
-			printf("%s\n", menuErrorMsg);
-			fclose(rom);
-			return 0;
-		}
-		fclose(rom);
+	if( (ret = PicoCartLoad(rom, &rom_data, &rom_size)) ) {
+		sprintf(menuErrorMsg, "PicoCartLoad() failed.");
+		printf("%s\n", menuErrorMsg);
+		pm_close(rom);
+		return 0;
 	}
+	pm_close(rom);
 
 	// detect wrong files (Pico crashes on very small files), also see if ROM EP is good
 	if(rom_size <= 0x200 || strncmp((char *)rom_data, "Pico", 4) == 0 ||
