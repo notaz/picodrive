@@ -43,7 +43,7 @@ OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Utils.o ../../Pico/Memory
 # Pico - CD
 OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
 		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o \
-		../../Pico/cd/Area.o ../../Pico/cd/Misc.o ../../Pico/cd/pcm.o
+		../../Pico/cd/Area.o ../../Pico/cd/Misc.o ../../Pico/cd/pcm.o ../../Pico/cd/buffering.o
 # asm stuff
 ifeq "$(asm_render)" "1"
 DEFINC += -D_ASM_DRAW_C

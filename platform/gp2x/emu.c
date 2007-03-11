@@ -496,6 +496,7 @@ int emu_ReadConfig(int game)
 		currentConfig.KeyBinds[23] = 1<<29; // vol up
 		currentConfig.KeyBinds[22] = 1<<30; // vol down
 		currentConfig.gamma = 100;
+		currentConfig.PicoCDBuffers = 64;
 		strncpy(cfg, PicoConfigFile, 511);
 		cfg[511] = 0;
 	} else {
@@ -517,6 +518,7 @@ int emu_ReadConfig(int game)
 	PsndRate = currentConfig.PsndRate;
 	PicoRegionOverride = currentConfig.PicoRegion;
 	PicoAutoRgnOrder = currentConfig.PicoAutoRgnOrder;
+	PicoCDBuffers = currentConfig.PicoCDBuffers;
 	if (PicoOpt & 0x20) {
 		actionNames[ 8] = "Z"; actionNames[ 9] = "Y";
 		actionNames[10] = "X"; actionNames[11] = "MODE";
@@ -555,6 +557,7 @@ int emu_WriteConfig(int game)
 		currentConfig.PsndRate = PsndRate;
 		currentConfig.PicoRegion = PicoRegionOverride;
 		currentConfig.PicoAutoRgnOrder = PicoAutoRgnOrder;
+		currentConfig.PicoCDBuffers = PicoCDBuffers;
 		bwrite = fwrite(&currentConfig, 1, sizeof(currentConfig), f);
 		fflush(f);
 		fclose(f);
@@ -1068,6 +1071,9 @@ void emu_Loop(void)
 		PsndOut = 0;
 	}
 
+	// prepare CD buffer
+	if (PicoMCD & 1) PicoCDBufferInit();
+
 	// loop?
 	while (engineState == PGS_Running)
 	{
@@ -1252,6 +1258,9 @@ if (Pico.m.frame_count == 31563) {
 
 		frames_done++; frames_shown++;
 	}
+
+
+	if (PicoMCD & 1) PicoCDBufferFree();
 
 	// save SRAM
 	if((currentConfig.EmuOpt & 1) && SRam.changed) {

@@ -173,7 +173,7 @@ static void DmaSlow(int len)
       r = Pico.cram;
       for(a2=a&0x7f; len; len--)
       {
-        r[a2>>1] = (u16)*pd++;; // bit 0 is ignored
+        r[a2>>1] = (u16)*pd++; // bit 0 is ignored
         // AutoIncrement
         a2+=inc;
         // didn't src overlap?

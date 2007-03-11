@@ -70,7 +70,7 @@ void LC89510_Reset(void)
 
 void Update_CDC_TRansfer(int which)
 {
-	unsigned int DMA_Adr, dep, length, len;
+	unsigned int DMA_Adr, dep, length;
 	unsigned short *dest;
 	unsigned char  *src;
 
@@ -96,7 +96,7 @@ void Update_CDC_TRansfer(int which)
 	else length = CDC_DMA_SPEED;
 
 
-	// TODO: dst bounds checking? DAC.N alignment?
+	// TODO: dst bounds checking?
 	src = Pico_mcd->cdc.Buffer + Pico_mcd->cdc.DAC.N;
 	DMA_Adr = (Pico_mcd->s68k_regs[0xA]<<8) | Pico_mcd->s68k_regs[0xB];
 
@@ -112,13 +112,11 @@ void Update_CDC_TRansfer(int which)
 
 			dest = (unsigned short *) (Pico_mcd->word_ram1M[bank] + dep);
 
-			// TODO: bswapcpy
-			for (len = length; len > 0; len--, src+=2, dest++)
-				*dest = (src[0]<<8) | src[1];
+			memcpy16bswap(dest, src, length);
 
 			{ // debug
 				unsigned char *b1 = Pico_mcd->word_ram1M[bank] + dep;
-				unsigned char *b2 = (unsigned char *)dest - 8;
+				unsigned char *b2 = (unsigned char *)(dest+length) - 8;
 				dprintf("%02x %02x %02x %02x .. %02x %02x %02x %02x",
 					b1[0], b1[1], b1[4], b1[5], b2[0], b2[1], b2[4], b2[5]);
 			}
@@ -130,25 +128,26 @@ void Update_CDC_TRansfer(int which)
 					Pico_mcd->cdc.DAC.N, dep, length);
 			dest = (unsigned short *) (Pico_mcd->word_ram2M + dep);
 
-			for (len = length; len > 0; len--, src+=2, dest++)
-				*dest = (src[0]<<8) | src[1];
+			memcpy16bswap(dest, src, length);
 
 			{ // debug
 				unsigned char *b1 = Pico_mcd->word_ram2M + dep;
-				unsigned char *b2 = (unsigned char *)dest - 4;
+				unsigned char *b2 = (unsigned char *)(dest+length) - 4;
 				dprintf("%02x %02x %02x %02x .. %02x %02x %02x %02x",
 					b1[0], b1[1], b1[2], b1[3], b2[0], b2[1], b2[2], b2[3]);
 			}
 		}
 	}
-	else if (which == 4) // PCM RAM
+	else if (which == 4) // PCM RAM (check: popful Mail)
 	{
-#if 0
-			dest = (unsigned char *) Ram_PCM;
-			dep = ((DMA_Adr & 0x03FF) << 2) + PCM_Chip.Bank;
-#else
-			dprintf("FIXME: CD DMA # %04x -> PCM", Pico_mcd->cdc.DAC.N);
-#endif
+		dep = (DMA_Adr & 0x03FF) << 2;
+		dprintf("CD DMA # %04x -> PCM[%i] # %04x, len=%i",
+			Pico_mcd->cdc.DAC.N, Pico_mcd->pcm.bank, dep, length);
+		dest = (unsigned short *) (Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank] + dep);
+
+		if (Pico_mcd->cdc.DAC.N & 1) /* unaligned src? */
+			memcpy(dest, src, length*2);
+		else	memcpy16(dest, (unsigned short *) src, length);
 	}
 	else if (which == 5) // PRG RAM
 	{
@@ -157,12 +156,11 @@ void Update_CDC_TRansfer(int which)
 		cdprintf("CD DMA # %04x -> prg_ram # %06x, len=%i",
 				Pico_mcd->cdc.DAC.N, dep, length);
 
-		for (len = length; len > 0; len--, src+=2, dest++)
-			*dest = (src[0]<<8) | src[1];
+		memcpy16bswap(dest, src, length);
 
 		{ // debug
 			unsigned char *b1 = Pico_mcd->prg_ram + dep;
-			unsigned char *b2 = (unsigned char *)dest - 4;
+			unsigned char *b2 = (unsigned char *)(dest+length) - 4;
 			dprintf("%02x %02x %02x %02x .. %02x %02x %02x %02x",
 				b1[0], b1[1], b1[2], b1[3], b2[0], b2[1], b2[2], b2[3]);
 		}

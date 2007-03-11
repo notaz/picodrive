@@ -47,6 +47,8 @@ extern void (*PicoWriteSound)(int len); // called once per frame at the best tim
 
 int PicoFrameMCD(void);
 
+extern int PicoCDBuffers;
+
 // Area.c
 typedef size_t (arearw)(void *p, size_t _size, size_t _n, void *file);
 typedef size_t (areaeof)(void *file);
@@ -60,6 +62,10 @@ extern areaeof *areaEof;
 extern areaseek *areaSeek;
 extern areaclose *areaClose;
 extern void (*PicoStateProgressCB)(const char *str);
+
+// cd/buffering.c
+void PicoCDBufferInit(void);
+void PicoCDBufferFree(void);
 
 // Cart.c
 typedef enum

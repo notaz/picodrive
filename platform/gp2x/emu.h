@@ -31,6 +31,7 @@ typedef struct {
 	int gamma;
 	int JoyBinds[4][32];
 	int PicoAutoRgnOrder;
+	int PicoCDBuffers;
 } currentConfig_t;
 
 extern char romFileName[];

@@ -421,6 +421,7 @@ u16 PicoReadM68k16(u32 a)
            a = (a&2) | (cell_map(a >> 2) << 2); // cell arranged
       else a &= 0x1fffe;
       d = *(u16 *)(Pico_mcd->word_ram1M[bank]+a);
+//d = 0xaaaa;
     } else {
       // allow access in any mode, like Gens does
       d = *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
@@ -929,6 +930,63 @@ u32 PicoReadS68k32(u32 a)
 }
 
 
+/* check: jaguar xj 220 (draws entire world using decode) */
+static void decode_write8(u32 a, u8 d, int r3)
+{
+  u8 *pd = Pico_mcd->word_ram1M[!(r3 & 1)] + (((a>>1)^1)&0x1ffff);
+  u8 oldmask = (a&1) ? 0xf0 : 0x0f;
+
+  //if ((a & 0x3ffff) < 0x28000) return;
+  //return;
+
+  r3 &= 0x18;
+  d  &= 0x0f;
+  if (!(a&1)) d <<= 4;
+
+  //dprintf("FIXME: decode, r3 = %02x", r3);
+
+  if (r3 == 8) {
+    if ((!(*pd & (~oldmask))) && d) goto do_it;
+  } else if (r3 > 8) {
+    if (d) goto do_it;
+  } else {
+    goto do_it;
+  }
+
+  return;
+do_it:
+  *pd = d | (*pd & oldmask);
+}
+
+
+static void decode_write16(u32 a, u16 d, int r3)
+{
+  u8 *pd = Pico_mcd->word_ram1M[!(r3 & 1)] + (((a>>1)^1)&0x1ffff);
+
+  //if ((a & 0x3ffff) < 0x28000) return;
+
+  r3 &= 0x18;
+  d  &= 0x0f0f;
+  d  |= d >> 4;
+
+  if (r3 == 8) {
+    u8 dold = *pd;
+    if (!(dold & 0xf0)) dold |= d & 0xf0;
+    if (!(dold & 0x0f)) dold |= d & 0x0f;
+    *pd = dold;
+  } else if (r3 > 8) {
+    u8 dold = *pd;
+    if (!(d & 0xf0)) d |= dold & 0xf0;
+    if (!(d & 0x0f)) d |= dold & 0x0f;
+    *pd = d;
+  } else {
+    *pd = d;
+  }
+
+  //dprintf("FIXME: decode");
+}
+
+
 // -----------------------------------------------------------------
 
 void PicoWriteS68k8(u32 a,u8 d)
@@ -958,13 +1016,10 @@ void PicoWriteS68k8(u32 a,u8 d)
 
   // word RAM (2M area)
   if ((a&0xfc0000)==0x080000) { // 080000-0bffff
+    int r3 = Pico_mcd->s68k_regs[3];
     wrdprintf("s68k_wram2M w8: [%06x] %02x @%06x", a, d, SekPcS68k);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
-      int bank = !(Pico_mcd->s68k_regs[3]&1);
-      if (a&1) d &= 0x0f;
-      else d >>= 4;
-      Pico_mcd->word_ram1M[bank][((a>>1)^1)&0x1ffff]=d;
-      dprintf("FIXME: decode");
+    if (r3 & 4) { // 1M decode mode?
+      decode_write8(a, d, r3);
     } else {
       // allow access in any mode, like Gens does
       *(u8 *)(Pico_mcd->word_ram2M+((a^1)&0x3ffff))=d;
@@ -1039,12 +1094,10 @@ void PicoWriteS68k16(u32 a,u16 d)
 
   // word RAM (2M area)
   if ((a&0xfc0000)==0x080000) { // 080000-0bffff
+    int r3 = Pico_mcd->s68k_regs[3];
     wrdprintf("s68k_wram2M w16: [%06x] %04x @%06x", a, d, SekPcS68k);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
-      int bank = !(Pico_mcd->s68k_regs[3]&1);
-      d &= ~0xf0; d |= d >> 8;
-      Pico_mcd->word_ram1M[bank][((a>>1)^1)&0x1ffff] = d;
-      dprintf("FIXME: decode");
+    if (r3 & 4) { // 1M decode mode?
+      decode_write16(a, d, r3);
     } else {
       // allow access in any mode, like Gens does
       *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe))=d;
@@ -1121,14 +1174,11 @@ void PicoWriteS68k32(u32 a,u32 d)
 
   // word RAM (2M area)
   if ((a&0xfc0000)==0x080000) { // 080000-0bffff
+    int r3 = Pico_mcd->s68k_regs[3];
     wrdprintf("s68k_wram2M w32: [%06x] %08x @%06x", a, d, SekPcS68k);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
-      int bank = !(Pico_mcd->s68k_regs[3]&1);
-      a >>= 1;
-      d &= 0x0f0f0f0f; d |= d >> 4;
-      Pico_mcd->word_ram1M[bank][((a+0)^1)&0x1ffff] = d >> 16;
-      Pico_mcd->word_ram1M[bank][((a+1)^1)&0x1ffff] = d;
-      dprintf("FIXME: decode");
+    if (r3 & 4) { // 1M decode mode?
+      decode_write16(a  , d >> 16, r3);
+      decode_write16(a+2, d      , r3);
     } else {
       // allow access in any mode, like Gens does
       u16 *pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));

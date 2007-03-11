@@ -3,29 +3,62 @@ About
 -----
 
 This version of PicoDrive is another enhanced version of Dave's
-Megadrive / Genesis emulator for Pocket PC. The original Dave's code was
-heavily modified (including Cyclone core), parts of it were rewritten in
-asm, many features added, accuracy increased. This version is aimed at
-ARM-based handheld devices, so ports exist for GP2X handheld console,
-Symbian smartphones and PocketPC devices.
+Megadrive / Genesis emulator for Pocket PC, which now can also emulate
+Sega/Mega CD. The original Dave's code was heavily modified (including
+Cyclone core), parts of it were rewritten in asm, many features added,
+accuracy increased. Sega/Mega CD emulation is mostly based on Gens code.
+This version is aimed at ARM-based handheld devices, so ports exist for
+GP2X handheld console, Symbian smartphones and other devices.
 
 
 How to make it run
 ------------------
 
-GP2X:
 Copy PicoDrive.gpe, code940.bin and mmuhack.o to any place in your filesystem
 (all 3 files must be in the same directory) and run PicoDrive.gpe.
-Then load a ROM and enjoy!
+Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
 
-Symbian:
-Select PicoDrive from application (tools) menu and run it. That's it!
-
-All:
 If you have any problems (game does not boot, sound is glitchy, broken graphics),
 make sure you enable "Accurate timing", "Emulate Z80" and then disable
 "Fast renderer". This way you will get the best compatibility this emulator can
 provide.
+
+
+How to run Sega/Mega CD games
+-----------------------------
+
+To play any game, you need BIOS files. These files must be copied to the same
+directory as PicoDrive.gpe. Files can be named as follows:
+US: us_scd1_9210.bin us_scd2_9306.bin SegaCDBIOS9303.bin
+EU: eu_mcd1_9210.bin eu_mcd2_9303.bin eu_mcd2_9306.bin
+JP: jp_mcd1_9112.bin jp_mcd1_9111.bin
+these files can also be zipped.
+
+The game must be dumped to ISO format, but BIN can be used too. If you want
+CD music, you must use ISO+mp3 files. Audio from BIN files won't be read at
+all due to SD access issues. Also BIN files are usually larger, so it's better
+to use ISO. ISO+mp3 files can be named similarly as for other emus.
+Here are some examples:
+
+SonicCD.iso             data track
+SonicCD_02.mp3          audio track 1 (CD track 2)
+SonicCD_03.mp3
+...
+
+Sonic the Hedgehog CD (US) - Track 01.iso
+Sonic the Hedgehog CD (US) - Track 02.mp3
+Sonic the Hedgehog CD (US) - Track 03.mp3
+...
+
+ISO files can also be zipped (but not mp3 files, as they are already
+compressed). Note that this can cause very long loading times, which may
+take up to several minutes. File naming is similar as with uncompressed ISOs.
+Example:
+
+SonicCD.zip             data track
+SonicCD_02.mp3          audio track 1 (CD track 2)
+SonicCD_03.mp3
+...
 
 
 Configuration
@@ -34,12 +67,85 @@ Configuration
 See config.txt file.
 
 
+Other important stuff
+---------------------
+
+* When you use both GP2X CPUs, keep in mind that you can't overclock as high as
+  when using ARM920 only. For example my GP2X when run singlecore can reach
+  280MHz, but with both cores it's about 250MHz. When overclocked too much,
+  it may start hanging and producing random noise.
+* PicoDrive is not a mp3 player, so all mp3s MUST be encoded at 44.1kHz stereo.
+  Otherwise mp3s will play too fast or too slow.
+* Due to internal implementation mp3s must not be larger that ~15MB
+  (15548416 bytes). Larger mp3s will not be fully loaded.
+* Use lower bitrate for better performance (96 or 128kbps CBRs recommended).
+* RAM timings option is good for dualcore operation (it is disabled by
+  default because it doesn't work on every GP2X, so enable it in advanced
+  options).
+
+
+Cheat support
+-------------
+
+To use GG/patch codes, you must type them into your favorite text editor, one
+per line. Comments may follow code after a whitespace. Only GameGenie and
+Genecyst patch formats are supported.
+Examples:
+
+Genecyst patch (this example is for Sonic):
+
+00334A:0005 Start with five lives
+012D24:0001 Keep invincibility until end of stage
+009C76:5478 each ring worth 2
+009C76:5678 each ring worth 3
+...
+
+Game Genie patch (for Sonic 2):
+
+ACLA-ATD4 Hidden palace instead of death egg in level select
+...
+
+Both GG and patch codes can be mixed in one file.
+
+When the file is ready, name it just like your ROM file, but with additional
+.pat extension, making sure that case matches.
+
+Examples:
+
+ROM: Sonic.zip
+PATCH FILE: Sonic.zip.pat
+
+ROM: Sonic 2.bin
+PATCH FILE: Sonic 2.bin.pat
+
+Put the file into your ROMs directory. Then load the .pat file as you would
+a ROM. Then Cheat Menu Option should appear in main menu.
+
+
+What is emulated?
+-----------------
+
+Genesis/MegaDrive:
+main 68k @ 7.6MHz: yes, Cyclone core
+z80 @ 3.6MHz: yes, DrZ80 core
+VDP: yes, except some quirks not used by games
+YM2612 FM: yes, optimized MAME core
+SN76489 PSG: yes, MAME core
+
+Sega/Mega CD:
+another 68k @ 12.5MHz: yes, Cyclone too
+gfx scaling/rotation chip (custom ASIC): not yet (faked only)
+PCM sound source: yes
+CD-ROM controller: yes (mostly)
+bram (internal backup RAM): yes
+
+
 Problems / limitations
 ----------------------
 
-* 32x, Sega CD, SVP are not emulated.
+* 32x and SVP are not emulated.
 * Various VDP quirks (window bug, scroll size 2, etc.) are not emulated,
-  as very few games use this.
+  as very few games use this (if any at all).
 * Some games don't work or have glitches because of inaccurate timing and sync
   between the emulated chips.
 
@@ -67,13 +173,18 @@ MultiArcadeMachineEmulator (MAME) development
 Texas Instruments SN76489 / SN76496 programmable tone /noise generator
 Homepage: http://www.mame.net/
 
+Stephane Dallongeville
+Gens, MD/Mega CD/32X emulator. Most Sega CD code is based on this emu.
+
+Helix community
+Helix mp3 decoder
+
 
 Additional thanks
 -----------------
 
 * Charles MacDonald (http://cgfm2.emuviews.com/) for old but still very useful
   info about genesis hardware.
-* Stéphane Dallongeville for creating Gens and making it open-source.
 * Steve Snake for all that he has done for Genesis emulation scene.
 * Bart Trzynadlowski for his SSFII and 68000 docs.
 * Haze for his research (http://haze.mameworld.info).
@@ -100,6 +211,47 @@ Symbian:
 
 Changelog
 ---------
+1.2x
+  + ISO files now can be zipped. Note that this causes VERY long loading times.
+  + Added data pre-buffering support, this allows to reduce frequency of short pauses
+    in FMV games, but makes those pauses longer.
+  * Fixed PCM DMA transfers (intro FMV in Popful Mail).
+
+1.201
+  + Added basic cheat support (GameGenie and Genecyst patches).
+
+1.20
+  * Fixed a long-standing problem in audio mixing code which caused slight distortions
+    at lower sample rates.
+  * Changed the way 920 and 940 communicates (again), should be more reliable and give
+    slight performance increase.
+  * Some optimizations in audio mixing code.
+  * Some menu changes (background added, smaller font in ROM browser, savestate loader
+    now can select slots).
+  + 1M mode DMA transfers implemented (used by FMV games like Night Trap and Sewer Shark).
+  + Games now can run code from WORD RAM in 1M mode (fixes Adventures of Willy Beamish).
+  + "Cell arrange" address mapping is now emulated (Heart of the alien).
+  + "Color numeric operation" is now emulated (text in Lunar 2, Silpheed intro graphics).
+  + "Better sync" option added (prevents some games from hanging).
+
+1.14
+  + Region autodetection now can be customized.
+  * When CDDA music tracks changed, old buffer contents were incorrectly played. Fixed.
+  * BRAM is now automatically formatted (no need to enter BIOS menu and format any more).
+  * Games now can be reset, CDDA music no longer breaks after loading another ISO.
+  * Fixed a race condition between 920 and 940 which sometimes caused CDDA music not to play.
+  + Savestates implemented for Sega/Mega CD.
+  + PCM sound added.
+  * Some mixer code rewritten in asm. 22kHz and 11kHz sound rates are now supported in
+    Mega CD mode (but mp3s must still be 44kHz stereo).
+  + Timer emulation added.
+  * CDC DMA tansfers fixed. Snatcher and probably some more games now boot.
+  * 2M word RAM -> VDP transfers fixed, no more corruption in Ecco and some other games.
+
+1.10
+  + GP2X: Added experimental Sega CD support.
+  + GP2X: Added partial gmv movie playback support.
+
 0.964
   * GP2X: Fixed a sound buffer underflow issue on lower sample rate modes, which was
           happening for NTSC games and causing sound clicks.
@@ -299,3 +451,7 @@ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
 CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 POSSIBILITY OF SUCH DAMAGE. 
+
+SEGA/Genesis/MegaDrive/SEGA-CD/Mega-CD/32X are trademarks of
+Sega Enterprises Ltd.
+

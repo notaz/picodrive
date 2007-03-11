@@ -313,6 +313,15 @@ void memcpy16(unsigned short *dest, unsigned short *src, int count)
 }
 
 
+void memcpy16bswap(unsigned short *dest, void *src, int count)
+{
+	unsigned char *src_ = src;
+
+	for (; count; count--, src_ += 2)
+		*dest++ = (src_[0] << 8) | src_[1];
+}
+
+
 void memcpy32(int *dest, int *src, int count)
 {
 	while (count--)

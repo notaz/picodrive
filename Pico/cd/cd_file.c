@@ -141,23 +141,16 @@ void Unload_ISO(void)
 }
 
 
+void PicoCDBufferRead(void *dest, int lba);
+
+
 int FILE_Read_One_LBA_CDC(void)
 {
-	int where_read = 0;
 //	static char cp_buf[2560];
 
 	if (Pico_mcd->s68k_regs[0x36] & 1)					// DATA
 	{
 		if (Pico_mcd->TOC.Tracks[0].F == NULL) return -1;
-
-		if (Pico_mcd->scd.Cur_LBA < 0)
-			where_read = 0;
-		else if (Pico_mcd->scd.Cur_LBA >= Pico_mcd->TOC.Tracks[0].Length)
-			where_read = Pico_mcd->TOC.Tracks[0].Length - 1;
-		else where_read = Pico_mcd->scd.Cur_LBA;
-
-		if (Pico_mcd->TOC.Tracks[0].ftype == TYPE_ISO) where_read <<= 11;
-		else where_read = (where_read * 2352 + 16);
 
 		// moved below..
 		//fseek(Pico_mcd->TOC.Tracks[0].F, where_read, SEEK_SET);
@@ -169,7 +162,7 @@ int FILE_Read_One_LBA_CDC(void)
 	{
 		// int rate, channel;
 
-		if (Pico_mcd->TOC.Tracks[Pico_mcd->scd.Cur_Track - 1].ftype == TYPE_MP3)
+		// if (Pico_mcd->TOC.Tracks[Pico_mcd->scd.Cur_Track - 1].ftype == TYPE_MP3)
 		{
 			// TODO
 			// MP3_Update(cp_buf, &rate, &channel, 0);
@@ -189,7 +182,15 @@ int FILE_Read_One_LBA_CDC(void)
 		{
 			if (Pico_mcd->cdc.CTRL.B.B0 & 0x04)	// WRRQ : this bit enable write to buffer
 			{
+				int where_read = 0;
+
 				// CAUTION : lookahead bit not implemented
+
+				if (Pico_mcd->scd.Cur_LBA < 0)
+					where_read = 0;
+				else if (Pico_mcd->scd.Cur_LBA >= Pico_mcd->TOC.Tracks[0].Length)
+					where_read = Pico_mcd->TOC.Tracks[0].Length - 1;
+				else where_read = Pico_mcd->scd.Cur_LBA;
 
 				Pico_mcd->scd.Cur_LBA++;
 
@@ -199,8 +200,9 @@ int FILE_Read_One_LBA_CDC(void)
 				*(unsigned int *)(Pico_mcd->cdc.Buffer + Pico_mcd->cdc.PT.N) = Pico_mcd->cdc.HEAD.N;
 				//memcpy(&Pico_mcd->cdc.Buffer[Pico_mcd->cdc.PT.N + 4], cp_buf, 2048);
 
-				pm_seek(Pico_mcd->TOC.Tracks[0].F, where_read, SEEK_SET);
-				pm_read(Pico_mcd->cdc.Buffer + Pico_mcd->cdc.PT.N + 4, 2048, Pico_mcd->TOC.Tracks[0].F);
+				//pm_seek(Pico_mcd->TOC.Tracks[0].F, where_read, SEEK_SET);
+				//pm_read(Pico_mcd->cdc.Buffer + Pico_mcd->cdc.PT.N + 4, 2048, Pico_mcd->TOC.Tracks[0].F);
+				PicoCDBufferRead(Pico_mcd->cdc.Buffer + Pico_mcd->cdc.PT.N + 4, where_read);
 
 #ifdef DEBUG_CD
 				cdprintf("Read -> WA = %d  Buffer[%d] =", Pico_mcd->cdc.WA.N, Pico_mcd->cdc.PT.N & 0x3FFF);
