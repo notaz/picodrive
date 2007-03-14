@@ -216,6 +216,9 @@ Changelog
   + Added data pre-buffering support, this allows to reduce frequency of short pauses
     in FMV games, but makes those pauses longer.
   * Fixed PCM DMA transfers (intro FMV in Popful Mail).
+  + Properly implemented "decode" data transformation (Jaguar XJ220).
+  * Integrated "better sync" code into cyclone code, what made this mode much faster.
+  * Fixed a bug related to game specific config saving.
 
 1.201
   + Added basic cheat support (GameGenie and Genecyst patches).

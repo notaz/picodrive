@@ -93,7 +93,7 @@ void CheckInterrupt(int op)
   ot("  ldrleb r1,[r7,#0x44] ;@ Get SR high: T_S__III\n");
   ot("  andle r1,r1,#7 ;@ Get interrupt mask\n");
   ot("  cmple r0,r1 ;@ irq<=6: Is irq<=mask ?\n");
-  ot("  blgt DoInterrupt\n");
+  ot("  blgt CycloneDoInterrupt\n");
   ot("NoInts%x%s\n", op,ms?"":":");
   ot("\n");
 }
@@ -109,7 +109,7 @@ static void PrintFramework()
   ot("  mov r7,r0          ;@ r7 = Pointer to Cpu Context\n");
   ot("                     ;@ r0-3 = Temporary registers\n");
   ot("  ldrb r9,[r7,#0x46] ;@ r9 = Flags (NZCV)\n");
-  ot("  ldr r6,=JumpTab    ;@ r6 = Opcode Jump table\n");
+  ot("  ldr r6,=CycloneJumpTab ;@ r6 = Opcode Jump table\n");
   ot("  ldr r5,[r7,#0x5c]  ;@ r5 = Cycles\n");
   ot("  ldr r4,[r7,#0x40]  ;@ r4 = Current PC + Memory Base\n");
   ot("                     ;@ r8 = Current Opcode\n");
@@ -124,7 +124,7 @@ static void PrintFramework()
   ot("  ldrleb r1,[r7,#0x44] ;@ Get SR high: T_S__III\n");
   ot("  andle r1,r1,#7 ;@ Get interrupt mask\n");
   ot("  cmple r0,r1 ;@ irq<=6: Is irq<=mask ?\n");
-  ot("  blgt DoInterrupt\n");
+  ot("  blgt CycloneDoInterrupt\n");
   ot(";@ Check if interrupt used up all the cycles:\n");
   ot("  subs r5,r5,#0\n");
   ot("  blt CycloneEndNoBack\n");
@@ -143,7 +143,14 @@ static void PrintFramework()
   ot("CycloneEnd%s\n", ms?"":":");
   ot("  sub r4,r4,#2\n");
   ot("CycloneEndNoBack%s\n", ms?"":":");
+#ifdef CYCLONE_FOR_PICODRIVE
+  ot("  ldr r1,[r7,#0x54]\n");
   ot("  mov r9,r9,lsr #28\n");
+  ot("  tst r1,r1\n");
+  ot("  bxne r1            ;@ jump to alternative CycloneEnd\n");
+#else
+  ot("  mov r9,r9,lsr #28\n");
+#endif
   ot("  str r4,[r7,#0x40]  ;@ Save Current PC + Memory Base\n");
   ot("  str r5,[r7,#0x5c]  ;@ Save Cycles\n");
   ot("  strb r9,[r7,#0x46] ;@ Save Flags (NZCV)\n");
@@ -161,7 +168,7 @@ static void PrintFramework()
     ot(";@ uncompress jump table\n");
     if (ms) ot("CycloneInit\n");
     else    ot("CycloneInit:\n");
-    ot("  ldr r12,=JumpTab\n");
+    ot("  ldr r12,=CycloneJumpTab\n");
     ot("  add r0,r12,#0xe000*4 ;@ ctrl code pointer\n");
     ot("  ldr r1,[r0,#-4]\n");
     ot("  tst r1,r1\n");
@@ -187,7 +194,7 @@ static void PrintFramework()
     ot("  bgt unc_loop_in\n");
     ot("  b unc_loop\n");
     ot("unc_finish%s\n", ms?"":":");
-    ot("  ldr r12,=JumpTab\n");
+    ot("  ldr r12,=CycloneJumpTab\n");
     ot("  ;@ set a-line and f-line handlers\n");
     ot("  add r0,r12,#0xa000*4\n");
     ot("  ldr r1,[r0,#4] ;@ a-line handler\n");
@@ -255,7 +262,7 @@ static void PrintFramework()
   ot("\n");
 
   ot(";@ DoInterrupt - r0=IRQ number\n");
-  ot("DoInterrupt%s\n", ms?"":":");
+  ot("CycloneDoInterrupt%s\n", ms?"":":");
   ot("  stmdb sp!,{lr} ;@ Push ARM return address\n");
 
   ot(";@ Get IRQ Vector address:\n");
@@ -475,7 +482,7 @@ static void PrintJumpTable()
 	// space for decompressed table
 	ot(ms?"  area |.data|, data\n":"  .data\n  .align 4\n\n");
 
-	ot("JumpTab%s\n", ms?"":":");
+	ot("CycloneJumpTab%s\n", ms?"":":");
 	if(ms) {
 	  for(i = 0; i < 0xa000/8; i++)
 	    ot("  dcd 0,0,0,0,0,0,0,0\n");
@@ -548,7 +555,7 @@ static void PrintJumpTable()
 	ot("\n");
 	free(indexes);
 #else
-	ot("JumpTab%s\n", ms?"":":");
+	ot("CycloneJumpTab%s\n", ms?"":":");
     len=0xfffe; // Hmmm, armasm 2.50.8684 messes up with a 0x10000 long jump table
                 // notaz: same thing with GNU as 2.9-psion-98r2 (reloc overflow)
                 // this is due to COFF objects using only 2 bytes for reloc count
@@ -613,6 +620,10 @@ static int CycloneMake()
     ot("  .global CycloneSetSr\n");
     ot("  .global CycloneGetSr\n");
     ot("  .global CycloneVer\n");
+#ifdef CYCLONE_FOR_PICODRIVE
+    ot("  .global CycloneDoInterrupt\n");
+    ot("  .global CycloneJumpTab\n");
+#endif
     ot("CycloneVer: .long 0x%.4x\n",CycloneVer);
   }
   ot("\n");
@@ -622,6 +633,8 @@ static int CycloneMake()
   PrintJumpTable();
 
   if (ms) ot("  END\n");
+
+  ot("\n\n;@ vim:filetype=armasm\n");
 
   fclose(AsmFile); AsmFile=NULL;
 

@@ -83,44 +83,55 @@ static __inline void SekRunS68k(int cyc)
 #endif
 }
 
-#define PS_STEP_M68K 8
-#define PS_STEP_S68K 13
+#define PS_STEP_M68K ((488<<16)/20) // ~24
+//#define PS_STEP_S68K 13
 
+#ifndef _ASM_CD_PICO_C
 static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
 {
-  int cyc_do_m68k, cyc_do_s68k, it=0;
-  int cyc_done_m68k=0, cyc_done_s68k=0;
+  int cycn, cycn_s68k, cyc_do;
+  int d_cm = 0, d_cs = 0, ex;
   SekCycleAim+=cyc_m68k;
   SekCycleAimS68k+=cyc_s68k;
-  cyc_do_m68k=SekCycleAim-SekCycleCnt;
-  cyc_do_s68k=SekCycleAimS68k-SekCycleCntS68k;
-  while (cyc_done_m68k < cyc_do_m68k || cyc_done_s68k < cyc_do_s68k) {
-    it++;
-    if (cyc_done_m68k < cyc_do_m68k && it*PS_STEP_M68K > cyc_done_m68k) {
+
+//  fprintf(stderr, "=== start %3i/%3i [%3i/%3i] {%05i.%i} ===\n", cyc_m68k, cyc_s68k,
+//  		SekCycleAim-SekCycleCnt, SekCycleAimS68k-SekCycleCntS68k, Pico.m.frame_count, Pico.m.scanline);
+
+  /* loop 488 downto 0 in steps of PS_STEP */
+  for (cycn = (488<<16)-PS_STEP_M68K; cycn >= 0; cycn -= PS_STEP_M68K)
+  {
+    ex = 0;
+    cycn_s68k = (cycn + cycn/2 + cycn/8) >> 16;
+//fprintf(stderr, "%3i/%3i:  ", cycn>>16, cycn_s68k);
+    if ((cyc_do = SekCycleAim-SekCycleCnt-(cycn>>16)) > 0) {
 #if defined(EMU_C68K)
-      PicoCpu.cycles = PS_STEP_M68K;
+      PicoCpu.cycles = cyc_do;
       CycloneRun(&PicoCpu);
-      cyc_done_m68k += PS_STEP_M68K - PicoCpu.cycles;
+      SekCycleCnt += cyc_do - PicoCpu.cycles;
 #elif defined(EMU_M68K)
       m68k_set_context(&PicoM68kCPU);
-      cyc_done_m68k += m68k_execute(PS_STEP_M68K);
+      SekCycleCnt += (ex = m68k_execute(cyc_do));
 #endif
-    } //else dprintf("m68k skipping it #%i", it);
-    if (cyc_done_s68k < cyc_do_s68k && it*PS_STEP_S68K > cyc_done_s68k) {
+    }
+//fprintf(stderr, "%3i ", ex); d_cm += ex; ex = 0;
+    if ((cyc_do = SekCycleAimS68k-SekCycleCntS68k-cycn_s68k) > 0) {
 #if defined(EMU_C68K)
-      PicoCpuS68k.cycles = PS_STEP_S68K;
+      PicoCpuS68k.cycles = cyc_do;
       CycloneRun(&PicoCpuS68k);
-      cyc_done_s68k += PS_STEP_S68K - PicoCpuS68k.cycles;
+      SekCycleCntS68k += cyc_do - PicoCpuS68k.cycles;
 #elif defined(EMU_M68K)
       m68k_set_context(&PicoS68kCPU);
-      cyc_done_s68k += m68k_execute(PS_STEP_S68K);
+      SekCycleCntS68k += (ex = m68k_execute(cyc_do));
 #endif
-    } //else dprintf("s68k skipping it #%i", it);
+    }
+//fprintf(stderr, "%3i\n", ex); d_cs += ex;
   }
-  SekCycleCnt += cyc_done_m68k;
-  SekCycleCntS68k += cyc_done_s68k;
-  //dprintf("== end SekRunPS, it=%i ==", it);
+
+//fprintf(stderr, "==    end %3i/%3i    ==\n", d_cm, d_cs);
 }
+#else
+void SekRunPS(int cyc_m68k, int cyc_s68k);
+#endif
 
 
 static __inline void check_cd_dma(void)
@@ -271,7 +282,7 @@ static int PicoFrameHintsMCD(void)
       //dprintf("m68k starting exec @ %06x", SekPc);
     if(Pico.m.dma_bytes) SekCycleCnt+=CheckDMA();
     if((PicoOpt & 0x2000) && (Pico_mcd->m.busreq&3) == 1) {
-      SekRunPS(cycles_68k, cycles_s68k); // "perfect sync"
+      SekRunPS(cycles_68k, cycles_s68k); // "better/perfect sync"
     } else {
       SekRun(cycles_68k);
       if ((Pico_mcd->m.busreq&3) == 1) // no busreq/no reset

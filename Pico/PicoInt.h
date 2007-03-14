@@ -24,8 +24,13 @@ extern "C" {
 #ifdef EMU_C68K
 #include "../cpu/Cyclone/Cyclone.h"
 extern struct Cyclone PicoCpu, PicoCpuS68k;
-#define SekCyclesLeft PicoCpu.cycles // cycles left for this run
-#define SekSetCyclesLeft(c) PicoCpu.cycles=c
+#define SekCyclesLeftNoMCD PicoCpu.cycles // cycles left for this run
+#define SekCyclesLeft \
+	(((PicoMCD&1) && (PicoOpt & 0x2000)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
+#define SekSetCyclesLeftNoMCD(c) PicoCpu.cycles=c
+#define SekSetCyclesLeft(c) { \
+	if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCycleCnt=SekCycleAim-(c); else SekSetCyclesLeftNoMCD(c); \
+}
 #define SekPc (PicoCpu.pc-PicoCpu.membase)
 #define SekPcS68k (PicoCpuS68k.pc-PicoCpuS68k.membase)
 #endif
@@ -55,8 +60,13 @@ extern int m68k_ICount;
 extern m68ki_cpu_core PicoM68kCPU; // MD's CPU
 extern m68ki_cpu_core PicoS68kCPU; // Mega CD's CPU
 #ifndef SekCyclesLeft
-#define SekCyclesLeft m68k_cycles_remaining()
-#define SekSetCyclesLeft(c) SET_CYCLES(c)
+#define SekCyclesLeftNoMCD m68k_cycles_remaining()
+#define SekCyclesLeft \
+	(((PicoMCD&1) && (PicoOpt & 0x2000)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
+#define SekSetCyclesLeftNoMCD(c) SET_CYCLES(c)
+#define SekSetCyclesLeft(c) { \
+	if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCycleCnt=SekCycleAim-(c); else SET_CYCLES(c); \
+}
 #define SekPc m68k_get_reg(&PicoM68kCPU, M68K_REG_PC)
 #define SekPcS68k m68k_get_reg(&PicoS68kCPU, M68K_REG_PC)
 #endif

@@ -1,0 +1,179 @@
+@ vim:filetype=armasm
+
+@ SekRunPS runs PicoCpu and PicoCpuS68k interleaved in steps of PS_STEP_M68K
+@ cycles. This is done without calling CycloneRun and jumping directly to
+@ Cyclone code to avoid pushing/popping all the registers every time.
+
+@ (c) Copyright 2007, Grazvydas "notaz" Ignotas
+@ All Rights Reserved
+
+
+.equiv PS_STEP_M68K, ((488<<16)/20) @ ~24
+
+@ .extern is ignored by gas, we add these here just to see what we depend on.
+.extern CycloneJumpTab
+.extern CycloneDoInterrupt
+.extern PicoCpu
+.extern PicoCpuS68k
+.extern SekCycleAim
+.extern SekCycleCnt
+.extern SekCycleAimS68k
+.extern SekCycleCntS68k
+
+
+.text
+.align 4
+
+
+.global SekRunPS @ cyc_m68k, cyc_s68k
+
+SekRunPS:
+    stmfd   sp!, {r4-r11,lr}
+    sub     sp, sp, #2*4          @ sp[0] = main_cycle_cnt, sp[4] = run_cycle_cnt
+
+    @ override CycloneEnd for both contexts
+    ldr     r7, =PicoCpu
+    ldr     lr, =PicoCpuS68k
+    ldr     r2, =CycloneEnd_M68k
+    ldr     r3, =CycloneEnd_S68k
+    str     r2, [r7,#0x54]
+    str     r3, [lr,#0x54]
+
+    @ update aims
+    ldr     r8, =SekCycleAim
+    ldr     r9, =SekCycleAimS68k
+    ldr     r2, [r8]
+    ldr     r3, [r9]
+    add     r2, r2, r0
+    add     r3, r3, r1
+    str     r2, [r8]
+    str     r3, [r9]
+
+    ldr     r1, =SekCycleCnt
+    ldr     r0, =((488<<16)-PS_STEP_M68K)
+    ldr     r6, =CycloneJumpTab
+
+    @ schedule m68k for the first time..
+    ldr     r1, [r1]
+    str     r0, [sp]                  @ main target 'left cycle' counter
+    sub     r1, r2, r1
+    subs    r5, r1, r0, asr #16
+    ble     schedule_s68k             @ m68k has not enough cycles
+
+    str     r5, [sp,#4]               @ run_cycle_cnt
+    b       CycloneRunLocal
+
+
+
+CycloneEnd_M68k:
+    ldr     r3, =SekCycleCnt
+    ldr     r0, [sp,#4]               @ run_cycle_cnt
+    ldr     r1, [r3]
+    str     r4, [r7,#0x40]  ;@ Save Current PC + Memory Base
+    strb    r9, [r7,#0x46]  ;@ Save Flags (NZCV)
+    sub     r0, r0, r5                @ subtract leftover cycles (which should be negative)
+    add     r0, r0, r1
+    str     r0, [r3]
+
+schedule_s68k:
+    ldr     r8, =SekCycleCntS68k
+    ldr     r9, =SekCycleAimS68k
+    ldr     r3, [sp]
+    ldr     r8, [r8]
+    ldr     r9, [r9]
+
+    sub     r0, r9, r8
+    add     r3, r3, r3, asr #1
+    add     r3, r3, r3, asr #3        @ cycn_s68k = (cycn + cycn/2 + cycn/8)
+
+    subs    r5, r0, r3, asr #16
+    ble     schedule_m68k             @ s68k has not enough cycles
+
+    ldr     r7, =PicoCpuS68k
+    str     r5, [sp,#4]               @ run_cycle_cnt
+    b       CycloneRunLocal
+
+
+
+CycloneEnd_S68k:
+    ldr     r3, =SekCycleCntS68k
+    ldr     r0, [sp,#4]               @ run_cycle_cnt
+    ldr     r1, [r3]
+    str     r4, [r7,#0x40]  ;@ Save Current PC + Memory Base
+    strb    r9, [r7,#0x46]  ;@ Save Flags (NZCV)
+    sub     r0, r0, r5                @ subtract leftover cycles (should be negative)
+    add     r0, r0, r1
+    str     r0, [r3]
+
+schedule_m68k:
+    ldr     r1, =PS_STEP_M68K
+    ldr     r3, [sp]                  @ main_cycle_cnt
+    ldr     r8, =SekCycleCnt
+    ldr     r9, =SekCycleAim
+    subs    r3, r3, r1
+    bmi     SekRunPS_end
+
+    ldr     r8, [r8]
+    ldr     r9, [r9]
+    str     r3, [sp]                  @ update main_cycle_cnt
+    sub     r0, r9, r8
+
+    subs    r5, r0, r3, asr #16
+    ble     schedule_s68k             @ m68k has not enough cycles
+
+    ldr     r7, =PicoCpu
+    str     r5, [sp,#4]               @ run_cycle_cnt
+    b       CycloneRunLocal
+
+
+
+SekRunPS_end:
+    ldr     r7, =PicoCpu
+    ldr     lr, =PicoCpuS68k
+    mov     r0, #0
+    str     r0, [r7,#0x54]            @ remove CycloneEnd handler
+    str     r0, [lr,#0x54]
+    @ return
+    add     sp, sp, #2*4
+    ldmfd   sp!, {r4-r11,pc}
+
+
+
+
+CycloneRunLocal:
+                     ;@ r0-3 = Temporary registers
+  ldr r4,[r7,#0x40]  ;@ r4 = Current PC + Memory Base
+                     ;@ r5 = Cycles
+                     ;@ r6 = Opcode Jump table
+                     ;@ r7 = Pointer to Cpu Context
+                     ;@ r8 = Current Opcode
+  ldrb r9,[r7,#0x46] ;@ r9 = Flags (NZCV)
+  ldr r0,[r7,#0x44]
+  mov r9,r9,lsl #28  ;@ r9 = Flags 0xf0000000, cpsr format
+                     ;@ r10 = Source value / Memory Base
+
+;@ CheckInterrupt:
+  movs r0,r0,lsr #24 ;@ Get IRQ level
+  beq NoIntsLocal
+  cmp r0,#6 ;@ irq>6 ?
+  ldrleb r1,[r7,#0x44] ;@ Get SR high: T_S__III
+  andle r1,r1,#7 ;@ Get interrupt mask
+  cmple r0,r1 ;@ irq<=6: Is irq<=mask ?
+  blgt CycloneDoInterrupt
+;@ Check if interrupt used up all the cycles:
+  subs r5,r5,#0
+  ldrlt r1,[r7,#0x54]
+  bxlt r1            ;@ jump to alternative CycloneEnd
+NoIntsLocal:
+
+;@ Check if our processor is in stopped state and jump to opcode handler if not
+  ldr r0,[r7,#0x58]
+  ldrh r8,[r4],#2 ;@ Fetch first opcode
+  tst r0,r0 ;@ stopped?
+  ldreq pc,[r6,r8,asl #2] ;@ Jump to opcode handler
+
+  @ stopped
+  ldr r1,[r7,#0x54]
+  mov r5,#0
+  bx r1
+

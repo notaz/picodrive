@@ -1,6 +1,6 @@
-CFLAGS = -Wall
+CFLAGS = -Wall -DCYCLONE_FOR_PICODRIVE
 
-ALL : cyclone.s
+all : cyclone.s
 
 cyclone.s : Cyclone.exe
 	./Cyclone.exe

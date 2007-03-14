@@ -421,7 +421,6 @@ u16 PicoReadM68k16(u32 a)
            a = (a&2) | (cell_map(a >> 2) << 2); // cell arranged
       else a &= 0x1fffe;
       d = *(u16 *)(Pico_mcd->word_ram1M[bank]+a);
-//d = 0xaaaa;
     } else {
       // allow access in any mode, like Gens does
       d = *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
@@ -935,9 +934,6 @@ static void decode_write8(u32 a, u8 d, int r3)
 {
   u8 *pd = Pico_mcd->word_ram1M[!(r3 & 1)] + (((a>>1)^1)&0x1ffff);
   u8 oldmask = (a&1) ? 0xf0 : 0x0f;
-
-  //if ((a & 0x3ffff) < 0x28000) return;
-  //return;
 
   r3 &= 0x18;
   d  &= 0x0f;

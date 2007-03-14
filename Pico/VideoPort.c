@@ -89,7 +89,8 @@ static void DmaSlow(int len)
 
   if(Pico.m.scanline != -1) {
     Pico.m.dma_bytes += len;
-    SekSetCyclesLeft(SekCyclesLeft - CheckDMA());
+    if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCycleCnt+=CheckDMA();
+    else SekSetCyclesLeftNoMCD(SekCyclesLeftNoMCD - CheckDMA());
   } else {
     // be approximate in non-accurate mode
     SekSetCyclesLeft(SekCyclesLeft - (len*(((488<<8)/167))>>8));

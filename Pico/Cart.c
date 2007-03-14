@@ -12,6 +12,7 @@
 #include "../unzip/unzip.h"
 #include "../unzip/unzip_stream.h"
 
+
 static char *rom_exts[] = { "bin", "gen", "smd", "iso" };
 
 
@@ -78,6 +79,9 @@ zip_failed:
   f = fopen(path, "rb");
   if (f == NULL) return NULL;
 
+  /* we use our own buffering */
+  setvbuf(f, NULL, _IONBF, 0);
+
   file = malloc(sizeof(*file));
   if (file == NULL) {
     fclose(f);
@@ -120,7 +124,8 @@ int pm_seek(pm_file *stream, long offset, int whence)
 {
   if (stream->type == PMT_UNCOMPRESSED)
   {
-    return fseek(stream->file, offset, whence);
+    fseek(stream->file, offset, whence);
+    return ftell(stream->file);
   }
   else if (stream->type == PMT_ZIP)
   {
@@ -243,7 +248,10 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
 
   // Allocate space for the rom plus padding
   rom=PicoCartAlloc(size);
-  if (rom==NULL) return 1; // { fclose(f); return 1; }
+  if (rom==NULL) {
+    printf("out of memory (wanted %i)\n", size);
+    return 1;
+  }
 
   pm_read(rom,size,f); // Load up the rom
 

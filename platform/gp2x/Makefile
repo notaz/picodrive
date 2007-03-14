@@ -12,12 +12,13 @@ asm_memory = 0	# TODO
 asm_render = 1
 asm_ym2612 = 1
 asm_misc = 1
+asm_cdpico = 1
 #profile = 1
 #use_musashi = 1
 #up = 1
 
 DEFINC = -I../.. -I. -DARM -D__GP2X__ -D_UNZIP_SUPPORT # -DBENCHMARK
-COPT_COMMON = -static -s -O3 -ftracer -fstrength-reduce -Wall -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math
+COPT_COMMON = -static -O3 -ftracer -fstrength-reduce -Wall -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math # -s
 ifeq "$(profile)" "1"
 COPT_COMMON += -fprofile-generate
 endif
@@ -61,6 +62,10 @@ ifeq "$(asm_misc)" "1"
 DEFINC += -D_ASM_MISC_C
 OBJS += ../../Pico/misc_asm.o
 endif
+ifeq "$(asm_cdpico)" "1"
+DEFINC += -D_ASM_CD_PICO_C
+OBJS += ../../Pico/cd/pico_asm.o
+endif
 # Pico - sound
 OBJS += ../../Pico/sound/mix_asm.o
 OBJS += ../../Pico/sound/sound.o ../../Pico/sound/sn76496.o ../../Pico/sound/ym2612.o
@@ -93,8 +98,10 @@ all: PicoDrive.gpe
 
 PicoDrive.gpe : $(OBJS) helix/helix_mp3.a
 	@echo $@
-	@$(GCC) -o $@ $(COPT) $^ -lm
+	@$(GCC) -o $@ $(COPT) $^ -lm -Wl,-Map=PicoDrive.map
+ifeq ($(DEBUG),)
 	@$(STRIP) $@
+endif
 #	@$(GCC) $(COPT) $(OBJS) -lm -o PicoDrive_.gpe
 #	@gpecomp PicoDrive_.gpe $@
 ifeq "$(up)" "1"
@@ -135,6 +142,9 @@ testrefr.gpe : test.o gp2x.o asmutils.o
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 ../../Pico/misc_asm.o : ../../Pico/misc.s
+	@echo $<
+	@$(AS) $(ASOPT) $< -o $@
+../../Pico/cd/pico_asm.o : ../../Pico/cd/Pico.s
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 

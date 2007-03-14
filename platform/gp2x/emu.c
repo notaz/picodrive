@@ -547,7 +547,7 @@ int emu_WriteConfig(int game)
 		strncpy(cfg, PicoConfigFile, 511);
 		cfg[511] = 0;
 	} else {
-		romfname_ext(cfg, "cfg", ".pbcfg");
+		romfname_ext(cfg, "cfg/", ".pbcfg");
 	}
 
 	printf("emu_WriteConfig: %s ", cfg);
