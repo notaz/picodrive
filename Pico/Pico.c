@@ -636,19 +636,8 @@ int PicoFrame(void)
   return 0;
 }
 
-static int DefaultCram(int cram)
-{
-  int high=0x0841;
-  // Convert 0000bbbb ggggrrrr
-  // to      rrrr1ggg g10bbbb1
-  high|=(cram&0x00f)<<12; // Red
-  high|=(cram&0x0f0)<< 3; // Green
-  high|=(cram&0xf00)>> 7; // Blue
-  return high;
-}
-
-// Function to convert Megadrive Cram into a native colour:
-int (*PicoCram)(int cram)=DefaultCram;
+// callback to output message from emu
+void (*PicoMessage)(const char *msg)=NULL;
 
 #if defined(__DEBUG_PRINT) || defined(WIN32)
 // tmp debug: dump some stuff

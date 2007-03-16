@@ -49,7 +49,7 @@ void PicoCDBufferFree(void)
 /* this is a try to fight slow SD access of GP2X */
 void PicoCDBufferRead(void *dest, int lba)
 {
-	int is_bin, offs, read_len;
+	int is_bin, offs, read_len, moved = 0;
 	reads++;
 
 	is_bin = Pico_mcd->TOC.Tracks[0].ftype == TYPE_BIN;
@@ -84,13 +84,19 @@ void PicoCDBufferRead(void *dest, int lba)
 
 	if (lba < prev_lba && prev_lba - lba < PicoCDBuffers)
 	{
-		dprintf("CD buffer move");
 		read_len = prev_lba - lba;
+		dprintf("CD buffer move=%i, read_len=%i", PicoCDBuffers - read_len, read_len);
 		memmove(cd_buffer + read_len*2048, cd_buffer, (PicoCDBuffers - read_len)*2048);
+		moved = 1;
 	}
 	else
 	{
 		read_len = PicoCDBuffers;
+	}
+
+	if (PicoMessage != NULL && read_len >= 512)
+	{
+		PicoMessage("Buffering data...");
 	}
 
 	if (is_bin)
@@ -108,5 +114,14 @@ void PicoCDBufferRead(void *dest, int lba)
 	}
 	memcpy32(dest, (int *) cd_buffer, 2048/4);
 	prev_lba = lba;
+
+	if (moved)
+	{
+		/* file pointer must point to the same data in file, as would-be data after our buffer */
+		int where_seek;
+		lba += PicoCDBuffers;
+		where_seek = is_bin ? (lba * 2352 + 16) : (lba << 11);
+		pm_seek(Pico_mcd->TOC.Tracks[0].F, where_seek, SEEK_SET);
+	}
 }
 

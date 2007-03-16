@@ -83,8 +83,9 @@ schedule_s68k:
     ldr     r9, [r9]
 
     sub     r0, r9, r8
-    add     r3, r3, r3, asr #1
-    add     r3, r3, r3, asr #3        @ cycn_s68k = (cycn + cycn/2 + cycn/8)
+    mov     r2, r3
+    add     r3, r3, r2, asr #1
+    add     r3, r3, r2, asr #3        @ cycn_s68k = (cycn + cycn/2 + cycn/8)
 
     subs    r5, r0, r3, asr #16
     ble     schedule_m68k             @ s68k has not enough cycles
@@ -148,31 +149,29 @@ CycloneRunLocal:
                      ;@ r7 = Pointer to Cpu Context
                      ;@ r8 = Current Opcode
   ldrb r9,[r7,#0x46] ;@ r9 = Flags (NZCV)
-  ldr r0,[r7,#0x44]
-  mov r9,r9,lsl #28  ;@ r9 = Flags 0xf0000000, cpsr format
+  ldr r1,[r7,#0x44]  ;@ get SR high and IRQ level
+  orr r9,r9,r9,lsl #28 ;@ r9 = Flags 0xf0000000, cpsr format
                      ;@ r10 = Source value / Memory Base
 
 ;@ CheckInterrupt:
-  movs r0,r0,lsr #24 ;@ Get IRQ level
+  movs r0,r1,lsr #24 ;@ Get IRQ level
   beq NoIntsLocal
   cmp r0,#6 ;@ irq>6 ?
-  ldrleb r1,[r7,#0x44] ;@ Get SR high: T_S__III
   andle r1,r1,#7 ;@ Get interrupt mask
   cmple r0,r1 ;@ irq<=6: Is irq<=mask ?
-  blgt CycloneDoInterrupt
-;@ Check if interrupt used up all the cycles:
-  subs r5,r5,#0
-  ldrlt r1,[r7,#0x54]
-  bxlt r1            ;@ jump to alternative CycloneEnd
+  ldrgt lr,[r7,#0x54]      @ Interrupt will definitely use more cycles than our step,
+  bgt CycloneDoInterrupt   @ so make this function return directly to CycloneEnd_*
 NoIntsLocal:
 
-;@ Check if our processor is in stopped state and jump to opcode handler if not
+  ;@ Check if our processor is in stopped state and jump to opcode handler if not
   ldr r0,[r7,#0x58]
   ldrh r8,[r4],#2 ;@ Fetch first opcode
   tst r0,r0 ;@ stopped?
+  andeq r9,r9,#0xf0000000
   ldreq pc,[r6,r8,asl #2] ;@ Jump to opcode handler
 
   @ stopped
+  sub r4,r4,#2
   ldr r1,[r7,#0x54]
   mov r5,#0
   bx r1

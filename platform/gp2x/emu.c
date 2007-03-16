@@ -393,6 +393,8 @@ int emu_ReloadRom(void)
 }
 
 
+static void emu_msg_cb(const char *msg);
+
 void emu_Init(void)
 {
 	// make temp buffer for alt renderer
@@ -409,6 +411,7 @@ void emu_Init(void)
 	mkdir("cfg", 0777);
 
 	PicoInit();
+	PicoMessage = emu_msg_cb;
 
 //	logf = fopen("log.txt", "w");
 }
@@ -770,6 +773,23 @@ static void vidResetMode(void)
 	gp2x_video_RGB_setscaling((PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 240);
 }
 
+
+static void emu_msg_cb(const char *msg)
+{
+	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
+		// 8-bit renderers
+		gp2x_memset_all_buffers(320*232, 0xe0, 320*8);
+		osd_text(4, 232, msg);
+		gp2x_memcpy_all_buffers((char *)gp2x_screen+320*232, 320*232, 320*8);
+	} else {
+		// 16bit accurate renderer
+		gp2x_memset_all_buffers(320*232*2, 0, 320*8*2);
+		osd_text(4, 232, msg);
+		gp2x_memcpy_all_buffers((char *)gp2x_screen+320*232*2, 320*232*2, 320*8*2);
+	}
+	gettimeofday(&noticeMsgTime, 0);
+	noticeMsgTime.tv_sec -= 2;
+}
 
 static void emu_state_cb(const char *str)
 {

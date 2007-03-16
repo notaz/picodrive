@@ -563,6 +563,12 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 	if (loaded_mp3 != f)
 	{
 		// printf("loading mp3... "); fflush(stdout);
+		if (PicoMessage != NULL)
+		{
+			fseek(f, 0, SEEK_END);
+			if (ftell(f) > 2*1024*1024)
+				PicoMessage("Loading MP3...");
+		}
 		fseek(f, 0, SEEK_SET);
 		fread(mp3_mem, 1, MP3_SIZE_MAX, f);
 		// if (feof(f)) printf("done.\n");

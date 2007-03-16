@@ -384,7 +384,7 @@ m_read8_above_rom:
     stmfd   sp!,{r0,lr}
     bic     r0, r0, #1
     mov     r1, #8
-    bl      UnusualRead16
+    bl      OtherRead16End
     ldmfd   sp!,{r1,lr}
     tst     r1, #1
     moveq   r0, r0, lsr #8
@@ -507,7 +507,7 @@ m_read16_ram:
 
 m_read16_above_rom:
     mov     r1, #16
-    ldr     r2, =UnusualRead16
+    ldr     r2, =OtherRead16End
     bic     r0, r0, #1
     bx      r2
 
@@ -657,13 +657,13 @@ m_read32_above_rom:
     bic     r0, r0, #1
     stmfd   sp!,{r0,lr}
     mov     r1, #32
-    bl      UnusualRead16
+    bl      OtherRead16End
     mov     r1, r0
     ldmfd   sp!,{r0}
     stmfd   sp!,{r1}
     add     r0, r0, #2
     mov     r1, #32
-    bl      UnusualRead16
+    bl      OtherRead16End
     ldmfd   sp!,{r1,lr}
     orr     r0, r0, r1, lsl #16
     bx      lr

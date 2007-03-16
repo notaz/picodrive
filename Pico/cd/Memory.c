@@ -27,6 +27,7 @@ typedef unsigned int   u32;
 
 //#define __debug_io
 //#define __debug_io2
+
 //#define rdprintf dprintf
 #define rdprintf(...)
 //#define wrdprintf dprintf
@@ -106,18 +107,30 @@ static void m68k_reg_write8(u32 a, u32 d)
     case 2:
       Pico_mcd->s68k_regs[2] = d; // really use s68k side register
       return;
-    case 3:
+    case 3: {
+      u32 dold = Pico_mcd->s68k_regs[3]&0x1f;
       dprintf("m68k_regs w3: %02x @%06x", (u8)d, SekPc);
       d &= 0xc2;
-      if ((Pico_mcd->s68k_regs[3]>>6) != ((d>>6)&3))
+      if ((dold>>6) != ((d>>6)&3))
         dprintf("m68k: prg bank: %i -> %i", (Pico_mcd->s68k_regs[a]>>6), ((d>>6)&3));
       //if ((Pico_mcd->s68k_regs[3]&4) != (d&4)) dprintf("m68k: ram mode %i mbit", (d&4) ? 1 : 2);
       //if ((Pico_mcd->s68k_regs[3]&2) != (d&2)) dprintf("m68k: %s", (d&4) ? ((d&2) ? "word swap req" : "noop?") :
       //                                             ((d&2) ? "word ram to s68k" : "word ram to m68k"));
-      d |= Pico_mcd->s68k_regs[3]&0x1d;
-      if (!(d & 4) && (d & 2)) d &= ~1; // return word RAM to s68k in 2M mode
-      Pico_mcd->s68k_regs[3] = d; // really use s68k side register
+      if (dold & 4) {
+        d ^= 2;                // writing 0 to DMNA actually sets it, 1 does nothing
+      } else {
+        //dold &= ~2; // ??
+        if (d & 2) dold &= ~1; // return word RAM to s68k in 2M mode
+      }
+      Pico_mcd->s68k_regs[3] = d | dold; // really use s68k side register
+
+/*
+     d |= Pico_mcd->s68k_regs[3]&0x1d;
+     if (!(d & 4) && (d & 2)) d &= ~1; // return word RAM to s68k in 2M mode
+     Pico_mcd->s68k_regs[3] = d; // really use s68k side register
+*/
       return;
+    }
     case 6:
       Pico_mcd->bios[0x72 + 1] = d; // simple hint vector changer
       return;

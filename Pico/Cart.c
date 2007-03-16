@@ -129,6 +129,11 @@ int pm_seek(pm_file *stream, long offset, int whence)
   }
   else if (stream->type == PMT_ZIP)
   {
+    if (PicoMessage != NULL && offset > 6*1024*1024) {
+      long pos = gztell((gzFile) stream->param);
+      if (offset < pos || offset - pos > 6*1024*1024)
+        PicoMessage("Decompressing data...");
+    }
     return gzseek((gzFile) stream->param, offset, whence);
   }
   else

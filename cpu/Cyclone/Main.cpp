@@ -86,11 +86,10 @@ static void PrintException(int ints)
 void CheckInterrupt(int op)
 {
   ot(";@ CheckInterrupt:\n");
-  ot("  ldr r0,[r7,#0x44]\n"); // same as  ldrb r0,[r7,#0x47]
-  ot("  movs r0,r0,lsr #24 ;@ Get IRQ level (loading word is faster)\n");
+  ot("  ldr r1,[r7,#0x44] ;@ Get SR high T_S__III and irq level\n");
+  ot("  movs r0,r1,lsr #24 ;@ Get IRQ level\n"); // same as  ldrb r0,[r7,#0x47]
   ot("  beq NoInts%x\n",op);
   ot("  cmp r0,#6 ;@ irq>6 ?\n");
-  ot("  ldrleb r1,[r7,#0x44] ;@ Get SR high: T_S__III\n");
   ot("  andle r1,r1,#7 ;@ Get interrupt mask\n");
   ot("  cmple r0,r1 ;@ irq<=6: Is irq<=mask ?\n");
   ot("  blgt CycloneDoInterrupt\n");
@@ -113,15 +112,14 @@ static void PrintFramework()
   ot("  ldr r5,[r7,#0x5c]  ;@ r5 = Cycles\n");
   ot("  ldr r4,[r7,#0x40]  ;@ r4 = Current PC + Memory Base\n");
   ot("                     ;@ r8 = Current Opcode\n");
-  ot("  ldr r0,[r7,#0x44]\n");
+  ot("  ldr r1,[r7,#0x44]  ;@ Get SR high T_S__III and irq level\n");
   ot("  mov r9,r9,lsl #28  ;@ r9 = Flags 0xf0000000, cpsr format\n");
   ot("                     ;@ r10 = Source value / Memory Base\n");
   ot("\n");
   ot(";@ CheckInterrupt:\n");
-  ot("  movs r0,r0,lsr #24 ;@ Get IRQ level\n"); // same as  ldrb r0,[r7,#0x47]
+  ot("  movs r0,r1,lsr #24 ;@ Get IRQ level\n"); // same as  ldrb r0,[r7,#0x47]
   ot("  beq NoInts0\n");
   ot("  cmp r0,#6 ;@ irq>6 ?\n");
-  ot("  ldrleb r1,[r7,#0x44] ;@ Get SR high: T_S__III\n");
   ot("  andle r1,r1,#7 ;@ Get interrupt mask\n");
   ot("  cmple r0,r1 ;@ irq<=6: Is irq<=mask ?\n");
   ot("  blgt CycloneDoInterrupt\n");
