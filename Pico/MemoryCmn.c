@@ -124,7 +124,10 @@ end:
 
 //extern UINT32 mz80GetRegisterValue(void *, UINT32);
 
-static void OtherWrite8(u32 a,u32 d,int realsize)
+#ifndef _ASM_CD_MEMORY_C
+static
+#endif
+void OtherWrite8(u32 a,u32 d,int realsize)
 {
   if ((a&0xe700f9)==0xc00011||(a&0xff7ff9)==0xa07f11) { if(PicoOpt&2) SN76496Write(d); return; } // PSG Sound
   if ((a&0xff4000)==0xa00000)  { if(!(Pico.m.z80Run&1)) Pico.zram[a&0x1fff]=(u8)d; return; } // Z80 ram
@@ -187,7 +190,10 @@ static void OtherWrite8(u32 a,u32 d,int realsize)
 }
 
 
-static void OtherWrite16(u32 a,u32 d)
+#ifndef _ASM_CD_MEMORY_C
+static
+#endif
+void OtherWrite16(u32 a,u32 d)
 {
   if ((a&0xe700e0)==0xc00000) { PicoVideoWrite(a,(u16)d); return; }
   if ((a&0xff4000)==0xa00000) { if(!(Pico.m.z80Run&1)) Pico.zram[a&0x1fff]=(u8)(d>>8); return; } // Z80 ram (MSB only)

@@ -1,3 +1,5 @@
+@ vim:filetype=armasm
+
 @ memory handlers with banking support for SSF II - The New Challengers
 @ mostly based on Gens code
 
@@ -485,18 +487,20 @@ m_read16_romF: @ 0x780000 - 0x7fffff
     m_read16_rom 0xF
 
 m_read16_misc:
-    mov     r1, #16
-    ldr     r2, =OtherRead16
     bic     r0, r0, #1
-    bx      r2
+    mov     r1, #16
+    b       OtherRead16
+@    ldr     r2, =OtherRead16
+@    bx      r2
 
 m_read16_vdp:
     tst     r0, #0x70000
     tsteq   r0, #0x000e0
     bxne    lr              @ invalid read
-    ldr     r1, =PicoVideoRead
     bic     r0, r0, #1
-    bx      r1
+    b       PicoVideoRead
+@    ldr     r1, =PicoVideoRead
+@    bx      r1
 
 m_read16_ram:
     ldr     r1, =Pico
@@ -506,10 +510,11 @@ m_read16_ram:
     bx      lr
 
 m_read16_above_rom:
-    mov     r1, #16
-    ldr     r2, =OtherRead16End
     bic     r0, r0, #1
-    bx      r2
+    mov     r1, #16
+    b       OtherRead16End
+@    ldr     r2, =OtherRead16End
+@    bx      r2
 
 .pool
 
@@ -633,12 +638,10 @@ m_read32_vdp:
     tsteq   r0, #0x000e0
     bxne    lr              @ invalid read
     bic     r0, r0, #1
-    stmfd   sp!,{r0,lr}
+    add     r1, r0, #2
+    stmfd   sp!,{r1,lr}
     bl      PicoVideoRead
-    mov     r1, r0
-    ldmfd   sp!,{r0}
-    stmfd   sp!,{r1}
-    add     r0, r0, #2
+    swp     r0, r0, [sp]
     bl      PicoVideoRead
     ldmfd   sp!,{r1,lr}
     orr     r0, r0, r1, lsl #16

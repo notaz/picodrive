@@ -160,11 +160,11 @@ struct Pico
 // sram
 struct PicoSRAM
 {
-  unsigned char *data; // actual data
-  unsigned int start;  // start address in 68k address space
+  unsigned char *data;		// actual data
+  unsigned int start;		// start address in 68k address space
   unsigned int end;
-  unsigned char resize; // 1=SRAM size changed and needs to be reallocated on PicoReset
-  unsigned char reg_back; // copy of Pico.m.sram_reg to set after reset
+  unsigned char resize;		// 0c: 1=SRAM size changed and needs to be reallocated on PicoReset
+  unsigned char reg_back;	// copy of Pico.m.sram_reg to set after reset
   unsigned char changed;
   unsigned char pad;
 };
@@ -182,10 +182,10 @@ struct mcd_pcm
 	unsigned char bank;
 	int pad1;
 
-	struct pcm_chan
+	struct pcm_chan			// 08, size 0x10
 	{
 		unsigned char regs[8];
-		unsigned int  addr; // played sample address
+		unsigned int  addr;	// .08: played sample address
 		int pad;
 	} ch[8];
 };
@@ -195,24 +195,24 @@ struct mcd_misc
 	unsigned short hint_vector;
 	unsigned char  busreq;
 	unsigned char  s68k_pend_ints;
-	unsigned int   state_flags;	// emu state: reset_pending,
+	unsigned int   state_flags;	// 04: emu state: reset_pending,
 	unsigned int   counter75hz;
-	unsigned short audio_offset;	// for savestates: play pointer offset (0-1023)
+	unsigned short audio_offset;	// 0c: for savestates: play pointer offset (0-1023)
 	unsigned char  audio_track;	// playing audio track # (zero based)
 	char pad1;
-	int            timer_int3;
+	int            timer_int3;	// 10
 	unsigned int   timer_stopwatch;
 	int pad[10];
 };
 
 typedef struct
 {
-	unsigned char bios[0x20000];			// 128K
-	union {						// 512K
+	unsigned char bios[0x20000];			// 000000: 128K
+	union {						// 020000: 512K
 		unsigned char prg_ram[0x80000];
 		unsigned char prg_ram_b[4][0x20000];
 	};
-	union {						// 256K
+	union {						// 0a0000: 256K
 		struct {
 			unsigned char word_ram2M[0x40000];
 			unsigned char unused[0x20000];
@@ -222,19 +222,19 @@ typedef struct
 			unsigned char word_ram1M[2][0x20000];
 		};
 	};
-	union {						// 64K
+	union {						// 100000: 64K
 		unsigned char pcm_ram[0x10000];
 		unsigned char pcm_ram_b[0x10][0x1000];
 	};
-	unsigned char bram[0x2000];			// 8K
-	unsigned char s68k_regs[0x200];			// GA, not CPU regs
-	struct mcd_pcm pcm;
+	unsigned char s68k_regs[0x200];			// 110000: GA, not CPU regs
+	unsigned char bram[0x2000];			// 110200: 8K
+	struct mcd_misc m;				// 112200: misc
+	struct mcd_pcm pcm;				// 112240:
 	_scd_toc TOC;					// not to be saved
 	CDD  cdd;
 	CDC  cdc;
 	_scd scd;
 	Rot_Comp rot_comp;
-	struct mcd_misc m;
 } mcd_state;
 
 #define Pico_mcd ((mcd_state *)Pico.rom)
@@ -268,6 +268,7 @@ void z80_write16(unsigned short data, unsigned short a);
 
 // cd/Memory.c
 void PicoMemSetupCD(void);
+void PicoMemResetCD(int r3);
 unsigned char  PicoReadCD8 (unsigned int a);
 unsigned short PicoReadCD16(unsigned int a);
 unsigned int   PicoReadCD32(unsigned int a);

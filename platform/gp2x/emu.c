@@ -973,21 +973,11 @@ static void updateSound(int len)
 }
 
 
-static void SkipFrame(int do_sound)
+static void SkipFrame(void)
 {
-	void *sndbuff_tmp = 0;
-	if (PsndOut && !do_sound) {
-		sndbuff_tmp = PsndOut;
-		PsndOut = 0;
-	}
-
 	PicoSkipFrame=1;
 	PicoFrame();
 	PicoSkipFrame=0;
-
-	if (sndbuff_tmp && !do_sound) {
-		PsndOut = sndbuff_tmp;
-	}
 }
 
 
@@ -1166,7 +1156,7 @@ void emu_Loop(void)
 				// when second changes, but we don't want buffer to starve.
 				if(PsndOut && frames_done < target_fps && frames_done > target_fps-5) {
 					updateKeys();
-					SkipFrame(1); frames_done++;
+					SkipFrame(); frames_done++;
 				}
 
 				frames_done  -= target_fps; if (frames_done  < 0) frames_done  = 0;
@@ -1179,7 +1169,7 @@ void emu_Loop(void)
 		if(currentConfig.Frameskip >= 0) { // frameskip enabled
 			for(i = 0; i < currentConfig.Frameskip; i++) {
 				updateKeys();
-				SkipFrame(1); frames_done++;
+				SkipFrame(); frames_done++;
 				if (PsndOut) { // do framelimitting if sound is enabled
 					gettimeofday(&tval, 0);
 					if(thissec != tval.tv_sec) tval.tv_usec+=1000000;
@@ -1191,8 +1181,14 @@ void emu_Loop(void)
 			}
 		} else if(tval.tv_usec > lim_time) { // auto frameskip
 			// no time left for this frame - skip
+			if (tval.tv_usec - lim_time >= 0x300000) {
+				/* something caused a slowdown for us (disk access? cache flush?)
+				 * try to recover by resetting timing... */
+				reset_timing = 1;
+				continue;
+			}
 			updateKeys();
-			SkipFrame(tval.tv_usec < lim_time+target_frametime); frames_done++;
+			SkipFrame(/*tval.tv_usec < lim_time+target_frametime*/); frames_done++;
 			continue;
 		}
 
@@ -1259,14 +1255,14 @@ if (Pico.m.frame_count == 31563) {
 
 		// check time
 		gettimeofday(&tval, 0);
-		if(thissec != tval.tv_sec) tval.tv_usec+=1000000;
+		if (thissec != tval.tv_sec) tval.tv_usec+=1000000;
 
-		// sleep if we are still too fast
-		if(PsndOut != 0 || currentConfig.Frameskip < 0)
+		if (currentConfig.Frameskip < 0 && tval.tv_usec - lim_time >= 0x300000) // slowdown detection
+			reset_timing = 1;
+		else if (PsndOut != NULL || currentConfig.Frameskip < 0)
 		{
+			// sleep if we are still too fast
 			// usleep sleeps for ~20ms minimum, so it is not a solution here
-			gettimeofday(&tval, 0);
-			if(thissec != tval.tv_sec) tval.tv_usec+=1000000;
 			if(tval.tv_usec < lim_time)
 			{
 				// we are too fast

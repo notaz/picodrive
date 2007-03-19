@@ -243,6 +243,9 @@ int PicoCdLoadState(void *file)
 	/* after load events */
 	if (Pico_mcd->s68k_regs[3]&4) // 1M mode?
 		wram_2M_to_1M(Pico_mcd->word_ram2M);
+#ifdef _ASM_CD_MEMORY_C
+	PicoMemResetCD(Pico_mcd->s68k_regs[3]);
+#endif
 	if (Pico_mcd->m.audio_track > 0 && Pico_mcd->m.audio_track < Pico_mcd->TOC.Last_Track)
 		mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
 	// restore hint vector

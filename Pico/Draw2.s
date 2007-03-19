@@ -1,3 +1,5 @@
+@ vim:filetype=armasm
+
 @ assembly optimized versions of most funtions from draw2.c
 @ this is highly specialized, be careful if changing related C code!
 

@@ -99,7 +99,13 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 
 	switch( a ) {
 	case 0:	/* address port 0 */
+		if (!addr_A1 && ST_address == v)
+			return 0;	/* address already selected, don't send this command to 940 */
 		ST_address = v;
+		/* don't send DAC or timer related address changes to 940 */
+		if (!addr_A1 && (v & 0xf0) == 0x20 &&
+			(v == 0x24 || v == 0x25 || v == 0x26 || v == 0x2a))
+				return 0;
 		addr_A1 = 0;
 		//ret=0;
 		break;
@@ -162,6 +168,8 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 		break;
 
 	case 2:	/* address port 1 */
+		if (addr_A1 && ST_address == v)
+			return 0;
 		ST_address = v;
 		addr_A1 = 1;
 		//ret=0;
@@ -186,7 +194,7 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 				shared_ctl->writebuff1[writebuff_ptr++] = (a<<8)|v;
 			}
 		} else {
-			printf("warning: writebuff_ptr > 2047\n");
+			printf("warning: writebuff_ptr > 2047 ([%i] %02x)\n", a, v);
 		}
 	}
 

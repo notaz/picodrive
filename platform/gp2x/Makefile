@@ -13,6 +13,7 @@ asm_render = 1
 asm_ym2612 = 1
 asm_misc = 1
 asm_cdpico = 1
+asm_cdmemory = 1
 #profile = 1
 #use_musashi = 1
 #up = 1
@@ -65,6 +66,10 @@ endif
 ifeq "$(asm_cdpico)" "1"
 DEFINC += -D_ASM_CD_PICO_C
 OBJS += ../../Pico/cd/pico_asm.o
+endif
+ifeq "$(asm_cdmemory)" "1"
+DEFINC += -D_ASM_CD_MEMORY_C
+OBJS += ../../Pico/cd/memory_asm.o
 endif
 # Pico - sound
 OBJS += ../../Pico/sound/mix_asm.o
@@ -145,6 +150,9 @@ testrefr.gpe : test.o gp2x.o asmutils.o
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 ../../Pico/cd/pico_asm.o : ../../Pico/cd/Pico.s
+	@echo $<
+	@$(AS) $(ASOPT) $< -o $@
+../../Pico/cd/memory_asm.o : ../../Pico/cd/Memory.s
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 

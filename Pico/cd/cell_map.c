@@ -28,7 +28,7 @@ static unsigned int cell_map(int celln)
       row  = celln & 0x1f;
       row |= (celln & 0x7800) >> 6;
       break;
-    default: // just to make compiler happy
+    default: // never happens, only here to make compiler happy
       col = row = 0;
       break;
   }

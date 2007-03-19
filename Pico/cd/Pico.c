@@ -49,6 +49,9 @@ int PicoResetMCD(int hard)
   LC89510_Reset();
   Reset_CD();
   gfx_cd_reset();
+#ifdef _ASM_CD_MEMORY_C
+  PicoMemResetCD(1);
+#endif
 
   return 0;
 }
