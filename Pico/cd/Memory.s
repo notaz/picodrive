@@ -53,19 +53,12 @@
     .long   m_m68k_&\on&\sz&_ram, m_m68k_&\on&\sz&_ram, m_m68k_&\on&\sz&_ram, m_m68k_&\on&\sz&_ram @          - 0xffffff
 .endm
 
-.macro mk_s68k_jump_table1 on sz @ operation name, size
+.macro mk_s68k_jump_table on sz @ operation name, size
     .long   m_s68k_&\on&\sz&_prg, m_s68k_&\on&\sz&_prg, m_s68k_&\on&\sz&_prg, m_s68k_&\on&\sz&_prg            @ 0x000000 - 0x07ffff
     .long   m_s68k_&\on&\sz&_wordram_2M     @ 0x080000 - 0x09ffff
     .long   m_s68k_&\on&\sz&_wordram_2M     @ 0x0a0000 - 0x0bffff
     .long   m_&\on&_null                    @ 0x0c0000 - 0x0dffff, 1M area
     .long   m_&\on&_null                    @ 0x0e0000 - 0x0fffff
-.endm
-
-.macro mk_s68k_jump_table2 on sz @ operation name, size
-    .long   m_s68k_&\on&\sz&_backup         @ 0xfe0000 - 0xfe7fff
-    .long   m_s68k_&\on&\sz&_backup         @ 0xfe8000 - 0xfeffff
-    .long   m_s68k_&\on&\sz&_pcm            @ 0xff0000 - 0xff7fff
-    .long   m_s68k_&\on&\sz&_regs           @ 0xff8000 - 0xffffff
 .endm
 
 
@@ -77,25 +70,12 @@ m_m68k_write8_table:  mk_m68k_jump_table write 8
 m_m68k_write16_table: mk_m68k_jump_table write 16
 m_m68k_write32_table: mk_m68k_jump_table write 32
 
-
-m_s68k_read8_table:
-    mk_s68k_jump_table1 read 8
-    mk_s68k_jump_table2 read 8
-m_s68k_read16_table:
-    mk_s68k_jump_table1 read 16
-    mk_s68k_jump_table2 read 16
-m_s68k_read32_table:
-    mk_s68k_jump_table1 read 32
-    mk_s68k_jump_table2 read 32
-m_s68k_write8_table:
-    mk_s68k_jump_table1 write 8
-    mk_s68k_jump_table2 write 8
-m_s68k_write16_table:
-    mk_s68k_jump_table1 write 16
-    mk_s68k_jump_table2 write 16
-m_s68k_write32_table:
-    mk_s68k_jump_table1 write 32
-    mk_s68k_jump_table2 write 32
+m_s68k_read8_table:   mk_s68k_jump_table read 8
+m_s68k_read16_table:  mk_s68k_jump_table read 16
+m_s68k_read32_table:  mk_s68k_jump_table read 32
+m_s68k_write8_table:  mk_s68k_jump_table write 8
+m_s68k_write16_table: mk_s68k_jump_table write 16
+m_s68k_write32_table: mk_s68k_jump_table write 32
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -129,7 +109,7 @@ m_s68k_write32_table:
 .extern gfx_cd_read
 .extern s68k_reg_read16
 .extern SRam
-.extern gfx_cd_write
+.extern gfx_cd_write16
 .extern s68k_reg_write8
 
 
@@ -223,37 +203,43 @@ PicoWriteM68k32: @ u32 a, u32 d
     mk_entry_m68k m_m68k_write32_table
 
 
-.macro mk_entry_s68k table
-    ldr     r2, =\table
+.macro mk_entry_s68k on sz
     bic     r0, r0, #0xff000000
-    and     r3, r0, #0x00fe0000
-    cmp     r3, #0x000e0000
+    cmp     r0, #0x00080000
+    blt     m_s68k_&\on&\sz&_prg
+    cmp     r0, #0x000e0000
+    ldrlt   r2, =m_s68k_&\on&\sz&_table
+    andlt   r3, r0, #0x000e0000
     ldrlt   pc, [r2, r3, lsr #15]
-    add     r2, r2, #8*4                @ skip to table2
-    cmp     r3, #0x00fe0000
-    andge   r3, r0, #0x00018000
-    ldrge   pc, [r2, r3, lsr #13]
+    mov     r3,     #0x00ff0000
+    orr     r3, r3, #0x00008000
+    cmp     r0, r3
+    bge     m_s68k_&\on&\sz&_regs
+    cmp     r0, #0x00ff0000
+    bge     m_s68k_&\on&\sz&_pcm
+    cmp     r0, #0x00fe0000
+    bge     m_s68k_&\on&\sz&_backup
     mov     r0, #0
     bx      lr
 .endm
 
 PicoReadS68k8: @ u32 a
-    mk_entry_s68k m_s68k_read8_table
+    mk_entry_s68k read 8
 
 PicoReadS68k16: @ u32 a
-    mk_entry_s68k m_s68k_read16_table
+    mk_entry_s68k read 16
 
 PicoReadS68k32: @ u32 a
-    mk_entry_s68k m_s68k_read32_table
+    mk_entry_s68k read 32
 
 PicoWriteS68k8: @ u32 a, u8 d
-    mk_entry_s68k m_s68k_write8_table
+    mk_entry_s68k write 8
 
 PicoWriteS68k16: @ u32 a, u16 d
-    mk_entry_s68k m_s68k_write16_table
+    mk_entry_s68k write 16
 
 PicoWriteS68k32: @ u32 a, u32 d
-    mk_entry_s68k m_s68k_write32_table
+    mk_entry_s68k write 32
 
 
 .pool
@@ -1188,6 +1174,7 @@ m_m68k_write32_system_io:
     bx      lr
 
 m_m68k_write32_regs:
+    bic     r0, r0, #1
     stmfd   sp!,{r0,r1,lr}
     mov     r1, r1, lsr #24
     bl      m68k_reg_write8
@@ -1206,6 +1193,7 @@ m_m68k_write32_regs:
     b       m68k_reg_write8
 
 m_m68k_write32_misc:
+    bic     r0, r0, #1
     stmfd   sp!,{r0,r1,lr}
     mov     r1, r1, lsr #16
     bl      OtherWrite16
@@ -1238,46 +1226,49 @@ m_m68k_write32_ram:
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+.macro m_s68k_read8_ram map_addr
+    ldr     r1, =(Pico+0x22200)
+    eor     r0, r0, #1
+    ldr     r1, [r1]
+.if \map_addr
+    add     r0, r0, #\map_addr          @ map to our address
+.endif
+    ldrb    r0, [r1, r0]
+    bx      lr
+.endm
+
+.macro m_s68k_read8_wordram_2M_decode map_addr
+    ldr     r2, =(Pico+0x22200)
+    eor     r0, r0, #2
+    ldr     r2, [r2]
+    movs    r0, r0, lsr #1              @ +4-6 <<16
+    add     r2, r2, #\map_addr          @ map to our address
+    ldrb    r0, [r2, r0]
+    movcc   r0, r0, lsr #4
+    andcs   r0, r0, #0xf
+    bx      lr
+.endm
+
 
 m_s68k_read8_prg:                       @ 0x000000 - 0x07ffff
-    ldr     r1, =(Pico+0x22200)
-    eor     r0, r0, #1
-    ldr     r1, [r1]
-    add     r0, r0, #0x020000           @ map to our address
-    ldrb    r0, [r1, r0]
-    bx      lr
-
-
 m_s68k_read8_wordram_2M:                @ 0x080000 - 0x0bffff
-    ldr     r1, =(Pico+0x22200)
-    eor     r0, r0, #1
-    ldr     r1, [r1]
-    add     r0, r0, #0x020000           @ map to our address (0x0a0000)
-    ldrb    r0, [r1, r0]
-    bx      lr
+m_s68k_read8_wordram_1M_b1:             @ 0x0c0000 - 0x0dffff, maps to 0x0e0000
+    m_s68k_read8_ram 0x020000
 
 
 m_s68k_read8_wordram_2M_decode_b0:      @ 0x080000 - 0x0bffff
+    m_s68k_read8_wordram_2M_decode 0x080000 @ + ^ / 2
+
+
 m_s68k_read8_wordram_2M_decode_b1:      @ 0x080000 - 0x0bffff
-    mov     r0, #0
-    bx      lr @ TODO
+    m_s68k_read8_wordram_2M_decode 0x0a0000 @ + ^ / 2
 
 
 m_s68k_read8_wordram_1M_b0:             @ 0x0c0000 - 0x0dffff (same as our offset :)
-    ldr     r1, =(Pico+0x22200)
-    ldr     r1, [r1]
-    eor     r0, r0, #1
-    ldrb    r0, [r1, r0]
-    bx      lr
-
-
-m_s68k_read8_wordram_1M_b1:             @ 0x0c0000 - 0x0dffff
-    ldr     r1, =(Pico+0x22200)
-    add     r0, r0, #0x020000           @ map to our offset, which is 0x0e0000
-    ldr     r1, [r1]
-    eor     r0, r0, #1
-    ldrb    r0, [r1, r0]
-    bx      lr
+    m_s68k_read8_ram 0
 
 
 m_s68k_read8_backup:                    @ 0xfe0000 - 0xfe3fff (repeated?)
@@ -1286,7 +1277,7 @@ m_s68k_read8_backup:                    @ 0xfe0000 - 0xfe3fff (repeated?)
     mov     r0, r0, lsr #1
     ldr     r1, [r1]
     bic     r0, r0, #0xff0000
-    bic     r0, r0, #0x00fe00
+    bic     r0, r0, #0x00e000
     add     r1, r1, #0x110000
     add     r1, r1, #0x000200
     ldrb    r0, [r1, r0]
@@ -1352,45 +1343,46 @@ m_s68k_read8_regs:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
+.macro m_s68k_read16_ram map_addr
+    ldr     r1, =(Pico+0x22200)
+    bic     r0, r0, #1
+    ldr     r1, [r1]
+.if \map_addr
+    add     r0, r0, #\map_addr          @ map to our address
+.endif
+    ldrh    r0, [r1, r0]
+    bx      lr
+.endm
+
+.macro m_s68k_read16_wordram_2M_decode map_addr
+    ldr     r2, =(Pico+0x22200)
+    eor     r0, r0, #2
+    ldr     r2, [r2]
+    mov     r0, r0, lsr #1              @ +4-6 <<16
+    add     r2, r2, #\map_addr          @ map to our address
+    ldrb    r0, [r2, r0]
+    orr     r0, r0, r0, lsl #4
+    bic     r0, r0, #0xf0
+    bx      lr
+.endm
+
+
 m_s68k_read16_prg:                      @ 0x000000 - 0x07ffff
-    ldr     r1, =(Pico+0x22200)
-    bic     r0, r0, #1
-    ldr     r1, [r1]
-    add     r0, r0, #0x020000           @ map to our address
-    ldrh    r0, [r1, r0]
-    bx      lr
-
-
 m_s68k_read16_wordram_2M:               @ 0x080000 - 0x0bffff
-    ldr     r1, =(Pico+0x22200)
-    bic     r0, r0, #1
-    ldr     r1, [r1]
-    add     r0, r0, #0x020000           @ map to our address (0x0a0000)
-    ldrh    r0, [r1, r0]
-    bx      lr
+m_s68k_read16_wordram_1M_b1:            @ 0x0c0000 - 0x0dffff, maps to 0x0e0000
+    m_s68k_read16_ram 0x020000
 
 
 m_s68k_read16_wordram_2M_decode_b0:     @ 0x080000 - 0x0bffff
+    m_s68k_read16_wordram_2M_decode 0x080000
+
+
 m_s68k_read16_wordram_2M_decode_b1:     @ 0x080000 - 0x0bffff
-    mov     r0, #0
-    bx      lr @ TODO
+    m_s68k_read16_wordram_2M_decode 0x0a0000
 
 
 m_s68k_read16_wordram_1M_b0:            @ 0x0c0000 - 0x0dffff (same as our offset :)
-    ldr     r1, =(Pico+0x22200)
-    ldr     r1, [r1]
-    bic     r0, r0, #1
-    ldrh    r0, [r1, r0]
-    bx      lr
-
-
-m_s68k_read16_wordram_1M_b1:            @ 0x0c0000 - 0x0dffff
-    ldr     r1, =(Pico+0x22200)
-    add     r0, r0, #0x020000           @ map to our offset, which is 0x0e0000
-    ldr     r1, [r1]
-    bic     r0, r0, #1
-    ldrh    r0, [r1, r0]
-    bx      lr
+    m_s68k_read16_ram 0
 
 
 @ m_s68k_read16_backup:                 @ 0xfe0000 - 0xfe3fff (repeated?)
@@ -1419,45 +1411,52 @@ m_s68k_read16_regs:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
+.macro m_s68k_read32_ram map_addr
+    ldr     r1, =(Pico+0x22200)
+    bic     r0, r0, #1
+    ldr     r1, [r1]
+.if \map_addr
+    add     r0, r0, #\map_addr          @ map to our address
+.endif
+    m_read32_gen
+    bx      lr
+.endm
+
+.macro m_s68k_read32_wordram_2M_decode map_addr
+    ldr     r2, =(Pico+0x22200)
+    eor     r0, r0, #2
+    ldr     r2, [r2]
+    mov     r0, r0, lsr #1              @ +4-6 <<16
+    add     r2, r2, #\map_addr          @ map to our address
+    ldrb    r1, [r2, r0]!
+    tst     r0, #1
+    ldrneb  r0, [r2, #-1]
+    ldreqb  r0, [r2, #2]
+    orr     r1, r1, r1, lsl #4
+    bic     r1, r1, #0xf0
+    orr     r0, r0, r0, lsl #4
+    bic     r0, r0, #0xf0
+    orr     r0, r0, r1, lsl #16
+    bx      lr
+.endm
+
+
 m_s68k_read32_prg:                      @ 0x000000 - 0x07ffff
-    ldr     r1, =(Pico+0x22200)
-    bic     r0, r0, #1
-    ldr     r1, [r1]
-    add     r0, r0, #0x020000           @ map to our address
-    m_read32_gen
-    bx      lr
-
-
 m_s68k_read32_wordram_2M:               @ 0x080000 - 0x0bffff
-    ldr     r1, =(Pico+0x22200)
-    bic     r0, r0, #1
-    ldr     r1, [r1]
-    add     r0, r0, #0x020000           @ map to our address (0x0a0000)
-    m_read32_gen
-    bx      lr
+m_s68k_read32_wordram_1M_b1:            @ 0x0c0000 - 0x0dffff, maps to 0x0e0000
+    m_s68k_read32_ram 0x020000
 
 
 m_s68k_read32_wordram_2M_decode_b0:     @ 0x080000 - 0x0bffff
+    m_s68k_read32_wordram_2M_decode 0x080000
+
+
 m_s68k_read32_wordram_2M_decode_b1:     @ 0x080000 - 0x0bffff
-    mov     r0, #0
-    bx      lr @ TODO
+    m_s68k_read32_wordram_2M_decode 0x0a0000
 
 
 m_s68k_read32_wordram_1M_b0:            @ 0x0c0000 - 0x0dffff (same as our offset :)
-    ldr     r1, =(Pico+0x22200)
-    ldr     r1, [r1]
-    bic     r0, r0, #1
-    m_read32_gen
-    bx      lr
-
-
-m_s68k_read32_wordram_1M_b1:            @ 0x0c0000 - 0x0dffff
-    ldr     r1, =(Pico+0x22200)
-    add     r0, r0, #0x020000           @ map to our offset, which is 0x0e0000
-    ldr     r1, [r1]
-    bic     r0, r0, #1
-    m_read32_gen
-    bx      lr
+    m_s68k_read32_ram 0
 
 
 m_s68k_read32_backup:                   @ 0xfe0000 - 0xfe3fff (repeated?)
@@ -1519,22 +1518,22 @@ m_s68k_read32_regs_gfx:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
+.macro m_s68k_write8_ram map_addr
+    ldr     r2, =(Pico+0x22200)
+    eor     r0, r0, #1
+    ldr     r2, [r2]
+.if \map_addr
+    add     r0, r0, #\map_addr          @ map to our address
+.endif
+    strb    r1, [r2, r0]
+    bx      lr
+.endm
+
+
 m_s68k_write8_prg:                      @ 0x000000 - 0x07ffff
-    ldr     r2, =(Pico+0x22200)
-    eor     r0, r0, #1
-    ldr     r2, [r2]
-    add     r0, r0, #0x020000           @ map to our address
-    strb    r1, [r2, r0]
-    bx      lr
-
-
 m_s68k_write8_wordram_2M:               @ 0x080000 - 0x0bffff
-    ldr     r2, =(Pico+0x22200)
-    eor     r0, r0, #1
-    ldr     r2, [r2]
-    add     r0, r0, #0x020000           @ map to our address (0x0a0000)
-    strb    r1, [r2, r0]
-    bx      lr
+m_s68k_write8_wordram_1M_b1:            @ 0x0c0000 - 0x0dffff, maps to 0x0e0000
+    m_s68k_write8_ram 0x020000
 
 
 m_s68k_write8_wordram_2M_decode_b0:     @ 0x080000 - 0x0bffff
@@ -1543,20 +1542,7 @@ m_s68k_write8_wordram_2M_decode_b1:     @ 0x080000 - 0x0bffff
 
 
 m_s68k_write8_wordram_1M_b0:            @ 0x0c0000 - 0x0dffff (same as our offset :)
-    ldr     r2, =(Pico+0x22200)
-    ldr     r2, [r2]
-    eor     r0, r0, #1
-    strb    r1, [r2, r0]
-    bx      lr
-
-
-m_s68k_write8_wordram_1M_b1:            @ 0x0c0000 - 0x0dffff
-    ldr     r2, =(Pico+0x22200)
-    add     r0, r0, #0x020000           @ map to our offset, which is 0x0e0000
-    ldr     r2, [r2]
-    eor     r0, r0, #1
-    strb    r1, [r2, r0]
-    bx      lr
+    m_s68k_write8_ram 0
 
 
 m_s68k_write8_backup:                   @ 0xfe0000 - 0xfe3fff (repeated?)
@@ -1565,7 +1551,7 @@ m_s68k_write8_backup:                   @ 0xfe0000 - 0xfe3fff (repeated?)
     mov     r0, r0, lsr #1
     ldr     r2, [r2]
     bic     r0, r0, #0xff0000
-    bic     r0, r0, #0x00fe00
+    bic     r0, r0, #0x00e000
     add     r2, r2, #0x110000
     add     r2, r2, #0x000200
     strb    r1, [r2, r0]
@@ -1608,29 +1594,31 @@ m_s68k_write8_regs:
     bxne    lr
     sub     r2, r0, #0x58
     cmp     r2, #0x10
-    blo     gfx_cd_write
-    b       s68k_reg_write8
+    bhs     s68k_reg_write8
+    bic     r0, r0, #1
+    orr     r1, r1, r1, lsl #8
+    b       gfx_cd_write16
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
+.macro m_s68k_write16_ram map_addr
+    ldr     r2, =(Pico+0x22200)
+    bic     r0, r0, #1
+    ldr     r2, [r2]
+.if \map_addr
+    add     r0, r0, #\map_addr          @ map to our address
+.endif
+    strh    r1, [r2, r0]
+    bx      lr
+.endm
+
+
 m_s68k_write16_prg:                     @ 0x000000 - 0x07ffff
-    ldr     r2, =(Pico+0x22200)
-    bic     r0, r0, #1
-    ldr     r2, [r2]
-    add     r0, r0, #0x020000           @ map to our address
-    strh    r1, [r2, r0]
-    bx      lr
-
-
 m_s68k_write16_wordram_2M:              @ 0x080000 - 0x0bffff
-    ldr     r2, =(Pico+0x22200)
-    bic     r0, r0, #1
-    ldr     r2, [r2]
-    add     r0, r0, #0x020000           @ map to our address (0x0a0000)
-    strh    r1, [r2, r0]
-    bx      lr
+m_s68k_write16_wordram_1M_b1:           @ 0x0c0000 - 0x0dffff, maps to 0x0e0000
+    m_s68k_write16_ram 0x020000
 
 
 m_s68k_write16_wordram_2M_decode_b0:    @ 0x080000 - 0x0bffff
@@ -1639,20 +1627,7 @@ m_s68k_write16_wordram_2M_decode_b1:    @ 0x080000 - 0x0bffff
 
 
 m_s68k_write16_wordram_1M_b0:           @ 0x0c0000 - 0x0dffff (same as our offset :)
-    ldr     r2, =(Pico+0x22200)
-    ldr     r2, [r2]
-    bic     r0, r0, #1
-    strh    r1, [r2, r0]
-    bx      lr
-
-
-m_s68k_write16_wordram_1M_b1:           @ 0x0c0000 - 0x0dffff
-    ldr     r2, =(Pico+0x22200)
-    add     r0, r0, #0x020000           @ map to our offset, which is 0x0e0000
-    ldr     r2, [r2]
-    bic     r0, r0, #1
-    strh    r1, [r2, r0]
-    bx      lr
+    m_s68k_write16_ram 0
 
 
 @ m_s68k_write16_backup:
@@ -1666,47 +1641,51 @@ m_s68k_write16_wordram_1M_b1:           @ 0x0c0000 - 0x0dffff
 m_s68k_write16_regs:
     bic     r0, r0, #0xff0000
     bic     r0, r0, #0x008000
+    bic     r0, r0, #1
     tst     r0, #0x7e00
     movne   r0, #0
     bxne    lr
+    cmp     r0, #0x0e
+    beq     m_s68k_write16_regs_spec
     sub     r2, r0, #0x58
     cmp     r2, #0x10
+    blo     gfx_cd_write16
     and     r3, r1, #0xff
     add     r2, r0, #1
-    blo     m_s68k_write16_regs_gfx
     stmfd   sp!,{r2,r3,lr}
     mov     r1, r1, lsr #8
     bl      s68k_reg_write8
     ldmfd   sp!,{r0,r1,lr}
     b       s68k_reg_write8
 
-m_s68k_write16_regs_gfx:
-    stmfd   sp!,{r2,r3,lr}
-    mov     r1, r1, lsr #8
-    bl      gfx_cd_write
-    ldmfd   sp!,{r0,r1,lr}
-    b       gfx_cd_write
+m_s68k_write16_regs_spec:               @ special case
+    ldr     r2, =(Pico+0x22200)
+    mov     r0, #0x110000
+    ldr     r2, [r2]
+    add     r0, r0, #0x00000f
+    strb    r1, [r2, r0]                @ if (a == 0xe) s68k_regs[0xf] = d;
+    bxeq    lr
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
+.macro m_s68k_write32_ram map_addr
+    ldr     r2, =(Pico+0x22200)
+    bic     r0, r0, #1
+    ldr     r2, [r2]
+.if \map_addr
+    add     r0, r0, #\map_addr          @ map to our address
+.endif
+    m_write32_gen
+    bx      lr
+.endm
+
+
 m_s68k_write32_prg:                     @ 0x000000 - 0x07ffff
-    ldr     r2, =(Pico+0x22200)
-    bic     r0, r0, #1
-    ldr     r2, [r2]
-    add     r0, r0, #0x020000           @ map to our address
-    m_write32_gen
-    bx      lr
-
-
 m_s68k_write32_wordram_2M:              @ 0x080000 - 0x0bffff
-    ldr     r2, =(Pico+0x22200)
-    bic     r0, r0, #1
-    ldr     r2, [r2]
-    add     r0, r0, #0x020000           @ map to our address (0x0a0000)
-    m_write32_gen
-    bx      lr
+m_s68k_write32_wordram_1M_b1:           @ 0x0c0000 - 0x0dffff, maps to 0x0e0000
+    m_s68k_write32_ram 0x020000
 
 
 m_s68k_write32_wordram_2M_decode_b0:    @ 0x080000 - 0x0bffff
@@ -1715,20 +1694,7 @@ m_s68k_write32_wordram_2M_decode_b1:    @ 0x080000 - 0x0bffff
 
 
 m_s68k_write32_wordram_1M_b0:           @ 0x0c0000 - 0x0dffff (same as our offset :)
-    ldr     r2, =(Pico+0x22200)
-    ldr     r2, [r2]
-    bic     r0, r0, #1
-    m_write32_gen
-    bx      lr
-
-
-m_s68k_write32_wordram_1M_b1:           @ 0x0c0000 - 0x0dffff
-    ldr     r2, =(Pico+0x22200)
-    add     r0, r0, #0x020000           @ map to our offset, which is 0x0e0000
-    ldr     r2, [r2]
-    bic     r0, r0, #1
-    m_write32_gen
-    bx      lr
+    m_s68k_write32_ram 0
 
 
 m_s68k_write32_backup:
@@ -1783,6 +1749,7 @@ m_s68k_write32_pcm_reg:
 m_s68k_write32_regs:
     bic     r0, r0, #0xff0000
     bic     r0, r0, #0x008000
+    bic     r0, r0, #1
     tst     r0, #0x7e00
     movne   r0, #0
     bxne    lr
@@ -1808,20 +1775,11 @@ m_s68k_write32_regs:
     b       s68k_reg_write8
 
 m_s68k_write32_regs_gfx:
-    stmfd   sp!,{r0,r1,lr}
-    mov     r1, r1, lsr #24
-    bl      gfx_cd_write
-    ldr     r0, [sp]
-    ldr     r1, [sp, #4]
-    add     r0, r0, #1
+    mov     r3, r1
+    add     r2, r0, #2
+    stmfd   sp!,{r2,r3,lr}
     mov     r1, r1, lsr #16
-    bl      gfx_cd_write
-    ldr     r0, [sp]
-    ldr     r1, [sp, #4]
-    add     r0, r0, #2
-    mov     r1, r1, lsr #8
-    bl      gfx_cd_write
+    bl      gfx_cd_write16
     ldmfd   sp!,{r0,r1,lr}
-    add     r0, r0, #3
-    b       gfx_cd_write
+    b       gfx_cd_write16
 

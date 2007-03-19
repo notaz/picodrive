@@ -77,6 +77,7 @@ int PicoReset(int hard)
   // reset VDP state, VRAM and PicoMisc
   //memset(&Pico.video,0,sizeof(Pico.video));
   //memset(&Pico.vram,0,sizeof(Pico.vram));
+  memset(Pico.ioports,0,sizeof(Pico.ioports)); // needed for MCD to reset properly
   memset(&Pico.m,0,sizeof(Pico.m));
   Pico.video.pending_ints=0;
   emustatus = 0;

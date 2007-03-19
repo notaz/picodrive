@@ -37,9 +37,7 @@ static void CDC_Reset(void)
 {
 	// Reseting CDC
 
-	memset(Pico_mcd->cdc.Buffer, 0, (16 * 1024 * 2) + 2352);
-
-	CDC_Update_Header();
+	memset(Pico_mcd->cdc.Buffer, 0, sizeof(Pico_mcd->cdc.Buffer));
 
 	Pico_mcd->cdc.COMIN = 0;
 	Pico_mcd->cdc.IFSTAT = 0xFF;

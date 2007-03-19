@@ -30,24 +30,24 @@ void PicoExitMCD(void)
 
 int PicoResetMCD(int hard)
 {
-  memset(Pico_mcd->prg_ram,    0, sizeof(Pico_mcd->prg_ram));
-  memset(Pico_mcd->word_ram2M, 0, sizeof(Pico_mcd->word_ram2M));
-  memset(Pico_mcd->pcm_ram,    0, sizeof(Pico_mcd->pcm_ram));
   if (hard) {
 	  int fmt_size = sizeof(formatted_bram);
+	  memset(Pico_mcd->prg_ram,    0, sizeof(Pico_mcd->prg_ram));
+	  memset(Pico_mcd->word_ram2M, 0, sizeof(Pico_mcd->word_ram2M));
+	  memset(Pico_mcd->pcm_ram,    0, sizeof(Pico_mcd->pcm_ram));
 	  memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
 	  memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - fmt_size, formatted_bram, fmt_size);
   }
   memset(Pico_mcd->s68k_regs, 0, sizeof(Pico_mcd->s68k_regs));
   memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));
+  memset(&Pico_mcd->m, 0, sizeof(Pico_mcd->m));
 
   *(unsigned int *)(Pico_mcd->bios + 0x70) = 0xffffffff; // reset hint vector (simplest way to implement reg6)
   Pico_mcd->m.state_flags |= 2; // s68k reset pending
   Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode with m68k access after reset
-  Pico_mcd->m.counter75hz = 0;
 
-  LC89510_Reset();
   Reset_CD();
+  LC89510_Reset();
   gfx_cd_reset();
 #ifdef _ASM_CD_MEMORY_C
   PicoMemResetCD(1);

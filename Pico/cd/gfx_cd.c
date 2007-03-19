@@ -154,9 +154,9 @@ unsigned int gfx_cd_read(unsigned int a)
 	return 0;
 }
 
-void gfx_cd_write(unsigned int a, unsigned int d)
+void gfx_cd_write16(unsigned int a, unsigned int d)
 {
-	dprintf("gfx_cd_write(%x, %04x)", a, d);
+	dprintf("gfx_cd_write16(%x, %04x)", a, d);
 
 	switch (a) {
 		case 0x58: // .Reg_Stamp_Size
@@ -193,7 +193,7 @@ void gfx_cd_write(unsigned int a, unsigned int d)
 			gfx_cd_start();
 			return;
 
-		default: dprintf("gfx_cd_write FIXME: unexpected address: %02x", a); return;
+		default: dprintf("gfx_cd_write16 FIXME: unexpected address: %02x", a); return;
 	}
 }
 

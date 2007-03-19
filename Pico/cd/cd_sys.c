@@ -208,8 +208,10 @@ void Reset_CD(void)
 {
 	Pico_mcd->scd.Cur_Track = 0;
 	Pico_mcd->scd.Cur_LBA = -150;
+	Pico_mcd->scd.Status_CDC &= ~1;
 	Pico_mcd->scd.Status_CDD = READY;
 	Pico_mcd->scd.CDD_Complete = 0;
+	Pico_mcd->scd.File_Add_Delay = 0;
 }
 
 
