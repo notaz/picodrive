@@ -987,7 +987,6 @@ void emu_forced_frame(void)
 
 	PicoOpt |= 0x10;
 	PicoFrameFull();
-	PicoOpt = po_old;
 
 	if (!(Pico.video.reg[12]&1)) {
 		vidCpyM2 = vidCpyM2_32col;
@@ -997,6 +996,8 @@ void emu_forced_frame(void)
 	vidCpyM2((unsigned char *)gp2x_screen+320*8, framebuff+328*8);
 	vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 	gp2x_video_setpalette(localPal, 0x40);
+
+	PicoOpt = po_old;
 }
 
 static void simpleWait(int thissec, int lim_time)

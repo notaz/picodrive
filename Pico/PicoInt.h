@@ -269,6 +269,7 @@ void z80_write16(unsigned short data, unsigned short a);
 // cd/Memory.c
 void PicoMemSetupCD(void);
 void PicoMemResetCD(int r3);
+void PicoMemResetCDdecode(int r3);
 unsigned char  PicoReadCD8 (unsigned int a);
 unsigned short PicoReadCD16(unsigned int a);
 unsigned int   PicoReadCD32(unsigned int a);

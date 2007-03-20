@@ -55,7 +55,7 @@ typedef struct {
 	unsigned int Cur_Track;
 	int File_Add_Delay;
 	char CDD_Complete;
-	int pad[7];
+	int pad[6];
 } _scd;
 
 

@@ -220,6 +220,7 @@ Changelog
   * Integrated "better sync" code into cyclone code, what made this mode much faster.
   * Fixed a bug related to game specific config saving.
   * Frameskipper was skipping sound processing, what caused some audio desyncs. Fixed.
+  * Fixed reset not working for some games.
 
 1.201
   + Added basic cheat support (GameGenie and Genecyst patches).

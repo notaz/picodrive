@@ -35,12 +35,6 @@ typedef unsigned int   u32;
 
 
 #ifndef _ASM_CD_MEMORY_C
-void PicoMemResetCD(int r3)
-{
-}
-#endif
-
-#ifndef _ASM_CD_MEMORY_C
 static u32 m68k_reg_read16(u32 a)
 {
   u32 d=0;
@@ -237,6 +231,7 @@ void s68k_reg_write8(u32 a, u32 d)
   //dprintf("s68k_regs w%2i: [%02x] %02x @ %06x", realsize, a, d, SekPcS68k);
 
   // TODO: review against Gens
+  // Warning: d might have upper bits set
   switch (a) {
     case 2:
       return; // only m68k can change WP
@@ -252,6 +247,10 @@ void s68k_reg_write8(u32 a, u32 d)
           PicoMemResetCD(d);
 #endif
         }
+#ifdef _ASM_CD_MEMORY_C
+        if ((d ^ dold) & 0x1d)
+          PicoMemResetCDdecode(d);
+#endif
         if (!(dold & 4)) {
           dprintf("wram mode 2M->1M");
           wram_2M_to_1M(Pico_mcd->word_ram2M);
@@ -298,7 +297,7 @@ void s68k_reg_write8(u32 a, u32 d)
       return;
     case 0x31:
       dprintf("s68k set int3 timer: %02x", d);
-      Pico_mcd->m.timer_int3 = d << 16;
+      Pico_mcd->m.timer_int3 = (d & 0xff) << 16;
       break;
     case 0x33: // IRQ mask
       dprintf("s68k irq mask: %02x", d);
@@ -1048,6 +1047,8 @@ static void decode_write16(u32 a, u16 d, int r3)
 
 // -----------------------------------------------------------------
 
+//void PicoWriteS68k8_(u32 a,u8 d);
+//void PicoWriteS68k8__(u32 a,u8 d);
 #ifdef _ASM_CD_MEMORY_C
 void PicoWriteS68k8(u32 a,u8 d);
 #else
@@ -1058,6 +1059,16 @@ static void PicoWriteS68k8(u32 a,u8 d)
 #endif
 
   a&=0xffffff;
+#if 0
+    PicoWriteS68k8_(a, d);
+/*  if ((a&0xfc0000)!=0x080000) {
+    PicoWriteS68k8_(a, d);
+    return;
+  }
+  printf("r3: %02x\n", Pico_mcd->s68k_regs[3]);
+  PicoWriteS68k8__(a,d);*/
+  return;
+#endif
 
   // prg RAM
   if (a < 0x80000) {
@@ -1071,7 +1082,7 @@ static void PicoWriteS68k8(u32 a,u8 d)
     a &= 0x1ff;
     rdprintf("s68k_regs w8: [%02x] %02x @ %06x", a, d, SekPcS68k);
     if (a >= 0x58 && a < 0x68)
-         gfx_cd_write(a&~1, (d<<8)|d);
+         gfx_cd_write16(a&~1, (d<<8)|d);
     else s68k_reg_write8(a,d);
     return;
   }
@@ -1146,7 +1157,7 @@ static void PicoWriteS68k16(u32 a,u16 d)
     a &= 0x1fe;
     rdprintf("s68k_regs w16: [%02x] %04x @ %06x", a, d, SekPcS68k);
     if (a >= 0x58 && a < 0x68)
-      gfx_cd_write(a, d);
+      gfx_cd_write16(a, d);
     else {
       if (a == 0xe) { // special case, 2 byte writes would be handled differently
         Pico_mcd->s68k_regs[0xf] = d;
@@ -1231,8 +1242,8 @@ static void PicoWriteS68k32(u32 a,u32 d)
     a &= 0x1fe;
     rdprintf("s68k_regs w32: [%02x] %08x @ %06x", a, d, SekPcS68k);
     if (a >= 0x58 && a < 0x68) {
-      gfx_cd_write(a,   d>>16);
-      gfx_cd_write(a+2, d&0xffff);
+      gfx_cd_write16(a,   d>>16);
+      gfx_cd_write16(a+2, d&0xffff);
     } else {
       s68k_reg_write8(a,   d>>24);
       s68k_reg_write8(a+1,(d>>16)&0xff);
