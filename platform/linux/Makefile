@@ -66,7 +66,7 @@ tidy:
 
 PicoDrive : $(OBJS)
 	@echo $@
-	@$(GCC) $(COPT) $(OBJS) ../gp2x/helix/helix_mp3_x86.a $(LDFLAGS) -lm -o $@
+	@$(GCC) $(COPT) $(OBJS) ../gp2x/helix/helix_mp3_x86.a $(LDFLAGS) -lm -Wl,-Map=PicoDrive.map -o $@
 
 
 ../../cpu/mz80/mz80.o : ../../cpu/mz80/mz80.asm

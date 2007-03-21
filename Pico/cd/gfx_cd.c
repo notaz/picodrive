@@ -44,14 +44,14 @@ typedef struct
 	unsigned int Stamp_Map_Adr;
 	unsigned int Buffer_Adr;
 	unsigned int Vector_Adr;
-	unsigned int Jmp_Adr;
+	unsigned int Function;	// Jmp_Adr;
 	unsigned int Float_Part;
 	unsigned int Draw_Speed;
 
 	unsigned int XS;
 	unsigned int YS;
-	unsigned int DXS;
-	unsigned int DYS;
+	/*unsigned*/ int DXS;
+	/*unsigned*/ int DYS;
 	unsigned int XD;
 	unsigned int YD;
 	unsigned int XD_Mul;
@@ -65,12 +65,33 @@ static void gfx_cd_start(void)
 
 	dprintf("gfx_cd_start()");
 
+	rot_comp.XD_Mul = ((rot_comp.Reg_5C & 0x1f) + 1) * 4;
+	rot_comp.Function = (rot_comp.Reg_58 & 7) | (Pico_mcd->s68k_regs[3] & 0x18);	// Jmp_Adr
+	rot_comp.Buffer_Adr = (rot_comp.Reg_5E & 0xfff8) << 2;
+	rot_comp.YD = (rot_comp.Reg_60 >> 3) & 7;
+	rot_comp.Vector_Adr = (rot_comp.Reg_66 & 0xfffe) << 2;
+
 	upd_len = (rot_comp.Reg_62 >> 3) & 0x3f;
 	upd_len = Table_Rot_Time[upd_len];
-
 	rot_comp.Draw_Speed = rot_comp.Float_Part = upd_len;
 
 	rot_comp.Reg_58 |= 0x8000;	// Stamp_Size,  we start a new GFX operation
+
+	switch (rot_comp.Reg_58 & 6)	// Scr_16?
+	{
+		case 0:	// ?
+			rot_comp.Stamp_Map_Adr = (rot_comp.Reg_5A & 0xff80) << 2;
+			break;
+		case 2: // .Dot_32
+			rot_comp.Stamp_Map_Adr = (rot_comp.Reg_5A & 0xffe0) << 2;
+			break;
+		case 4: // .Scr_16
+			rot_comp.Stamp_Map_Adr = 0x20000;
+			break;
+		case 6: // .Scr_16_Dot_32
+			rot_comp.Stamp_Map_Adr = (rot_comp.Reg_5A & 0xe000) << 2;
+			break;
+	}
 
 	gfx_cd_update();
 }
@@ -88,9 +109,249 @@ static void gfx_completed(void)
 }
 
 
-//static void gfx_do(void)
-//{
-//}
+static void gfx_do(void)
+{
+	unsigned int eax, ebx, ecx, edx, esi, edi, pixel = 0;
+	unsigned int func = rot_comp.Function;
+	unsigned short *ptrs;
+
+	rot_comp.XD = rot_comp.Reg_60 & 7;
+	rot_comp.Buffer_Adr = ((rot_comp.Reg_5E & 0xfff8) + rot_comp.YD) << 2;
+	rot_comp.H_Dot = rot_comp.Reg_62 & 0x1ff;
+	ecx = *(unsigned int *)(Pico_mcd->word_ram2M + rot_comp.Vector_Adr);
+	edx = ecx >> 16;
+	ecx = (ecx & 0xffff) << 8;
+	edx <<= 8;
+	rot_comp.DXS = *(int *)(Pico_mcd->word_ram2M + rot_comp.Vector_Adr + 4);
+	rot_comp.DYS =  rot_comp.DXS >> 16;
+	rot_comp.DXS = (rot_comp.DXS << 16) >> 16; // sign extend
+	rot_comp.Vector_Adr += 8;
+	//if ((rot_comp.H_Dot & 0x1ff) == 0)
+	//	goto nothing_to_draw;
+
+	// MAKE_IMAGE_LINE
+	while (rot_comp.H_Dot)
+	{
+		if (func & 2)		// mode 32x32 dot
+		{
+			if (func & 4)	// 16x16 screen
+			{
+				eax = (ecx >> (11+5)) & 0x7f;
+				ebx = (edx >> (11-2)) & 0x3f80;
+			}
+			else		// 1x1 screen
+			{
+				eax = (ecx >> (11+5)) & 0x0f;
+				ebx = (edx >> (11+2)) & 0x38;
+			}
+		}
+		else			// mode 16x16 dot
+		{
+			if (func & 4)	// 16x16 screen
+			{
+				eax = (ecx >> (11+4)) & 0xff;
+				ebx = (edx >> (11-4)) & 0xff00;
+			}
+			else		// 1x1 screen
+			{
+				eax = (ecx >> (11+4)) & 0x0f;
+				ebx = (edx >> (11+0)) & 0xf0;
+			}
+		}
+		ebx += eax;
+
+		esi = rot_comp.Stamp_Map_Adr;
+		ptrs = (unsigned short *) (Pico_mcd->word_ram2M + rot_comp.Stamp_Map_Adr + ebx*2);
+		edi = ptrs[0] | (ptrs[1] << 16);
+
+		// MAKE_IMAGE_PIXEL
+		if (!(func & 1))	// NOT TILED
+		{
+			if (func & 4)	// 16x16 screen
+			{
+				if ((edx & 0x00800000) || (ecx & 0x00800000)) goto Pixel_Out;
+			}
+			else		// 1x1 screen
+			{
+				if ((edx & 0x00f80000) || (ecx & 0x00f80000)) goto Pixel_Out;
+			}
+		}
+		esi = edi;
+		edi >>= (11+1);
+		esi = (esi & 0x7ff) << 7;
+		if (!esi) goto Pixel_Out;
+		edi &= (0x1c>>1);
+		eax = ecx;
+		ebx = edx;
+		if (func & 2) edi |= 1;	// 32 dots?
+		switch (edi)
+		{
+			case 0x00:	// No_Flip_0, 16x16 dots
+				ebx = (ebx >> 9) & 0x3c;
+				ebx += esi;
+				edi = (eax & 0x3800) ^ 0x1000;		// bswap
+				eax = ((eax >> 8) & 0x40) + ebx;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x01:	// No_Flip_0, 32x32 dots
+				ebx = (ebx >> 9) & 0x7c;
+				ebx += esi;
+				edi = (eax & 0x3800) ^ 0x1000;		// bswap
+				eax = ((eax >> 7) & 0x180) + ebx;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x02:	// No_Flip_90, 16x16 dots
+				eax = (eax >> 9) & 0x3c;
+				eax += esi;
+				edi = (ebx & 0x3800) ^ 0x2800;		// bswap
+				eax += ((ebx >> 8) & 0x40) ^ 0x40;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x03:	// No_Flip_90, 32x32 dots
+				eax = (eax >> 9) & 0x7c;
+				eax += esi;
+				edi = (ebx & 0x3800) ^ 0x2800;		// bswap
+				eax += (ebx >> 7) & 0x180;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x04:	// No_Flip_180, 16x16 dots
+				ebx = ((ebx >> 9) & 0x3c) ^ 0x3c;
+				ebx += esi;
+				edi = (eax & 0x3800) ^ 0x2800;		// bswap and flip
+				eax = (((eax >> 8) & 0x40) ^ 0x40) + ebx;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x05:	// No_Flip_180, 32x32 dots
+				ebx = ((ebx >> 9) & 0x7c) ^ 0x7c;
+				ebx += esi;
+				edi = (eax & 0x3800) ^ 0x2800;		// bswap and flip
+				eax = (((eax >> 7) & 0x180) ^ 0x180) + ebx;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x06:	// No_Flip_270, 16x16 dots
+				eax = ((eax >> 9) & 0x3c) ^ 0x3c;
+				eax += esi;
+				edi = (ebx & 0x3800) ^ 0x1000;		// bswap
+				eax += (ebx >> 8) & 0x40;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x07:	// No_Flip_270, 32x32 dots
+				eax = ((eax >> 9) & 0x7c) ^ 0x7c;
+				eax += esi;
+				edi = (ebx & 0x3800) ^ 0x1000;		// bswap
+				eax += (ebx >> 7) & 0x180;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x08:	// Flip_0, 16x16 dots
+				ebx = ((ebx >> 9) & 0x3c) ^ 0x3c;
+				ebx += esi;
+				edi = (eax & 0x3800) ^ 0x2800;		// bswap, flip
+				eax = (((eax >> 8) & 0x40) ^ 0x40) + ebx;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x09:	// Flip_0, 32x32 dots
+				ebx = ((ebx >> 9) & 0x7c) ^ 0x7c;
+				ebx += esi;
+				edi = (eax & 0x3800) ^ 0x2800;		// bswap, flip
+				eax = (((eax >> 7) & 0x180) ^ 0x180) + ebx;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x0a:	// Flip_90, 16x16 dots
+				eax = ((eax >> 9) & 0x3c) ^ 0x3c;
+				eax += esi;
+				edi = (ebx & 0x3800) ^ 0x2800;		// bswap, flip
+				eax += ((ebx >> 8) & 0x40) ^ 0x40;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x0b:	// Flip_90, 32x32 dots
+				eax = ((eax >> 9) & 0x7c) ^ 0x7c;
+				eax += esi;
+				edi = (ebx & 0x3800) ^ 0x2800;		// bswap, flip
+				eax += ((ebx >> 7) & 0x180) ^ 0x180;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x0c:	// Flip_180, 16x16 dots
+				ebx = ((ebx >> 9) & 0x3c) ^ 0x3c;
+				ebx += esi;
+				edi = (eax & 0x3800) ^ 0x1000;		// bswap
+				eax = ((eax >> 8) & 0x40) + ebx;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x0d:	// Flip_180, 32x32 dots
+				ebx = ((ebx >> 9) & 0x7c) ^ 0x7c;
+				ebx += esi;
+				edi = (eax & 0x3800) ^ 0x1000;		// bswap
+				eax = ((eax >> 7) & 0x180) + ebx;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x0e:	// Flip_270, 16x16 dots
+				eax = (eax >> 9) & 0x3c;
+				eax += esi;
+				edi = (ebx & 0x3800) ^ 0x1000;		// bswap, flip
+				eax += (ebx >> 8) & 0x40;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+			case 0x0f:	// Flip_270, 32x32 dots
+				eax = (eax >> 9) & 0x7c;
+				eax += esi;
+				edi = (ebx & 0x3800) ^ 0x1000;		// bswap, flip
+				eax += (ebx >> 7) & 0x180;
+				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+				if (!(edi & 0x800)) pixel >>= 4;
+				break;
+		}
+
+Pixel_Out:
+//		pixel = 0;
+//Finish:
+		pixel &= 0x0f;
+		if (!pixel && (func & 0x18)) goto Next_Pixel;
+		esi = rot_comp.Buffer_Adr + ((rot_comp.XD>>1)^1);	// pixel addr
+		eax = *(Pico_mcd->word_ram2M + esi);			// old pixel
+		if (rot_comp.XD & 1)
+		{
+			if ((eax & 0x0f) && (func & 0x18) == 0x08) goto Next_Pixel; // underwrite
+			*(Pico_mcd->word_ram2M + esi) = pixel | (eax & 0xf0);
+		}
+		else
+		{
+			if ((eax & 0xf0) && (func & 0x18) == 0x08) goto Next_Pixel; // underwrite
+			*(Pico_mcd->word_ram2M + esi) = (pixel << 4) | (eax & 0xf);
+		}
+
+
+Next_Pixel:
+		ecx += rot_comp.DXS;
+		edx += rot_comp.DYS;
+		rot_comp.XD++;
+		if (rot_comp.XD >= 8)
+		{
+			rot_comp.Buffer_Adr += ((rot_comp.Reg_5C & 0x1f) + 1) << 5;
+			rot_comp.XD = 0;
+		}
+		rot_comp.H_Dot--;
+	}
+
+
+//nothing_to_draw:
+	rot_comp.YD++;
+	// rot_comp.V_Dot--; // will be done by caller
+}
 
 
 void gfx_cd_update(void)
@@ -102,7 +363,6 @@ void gfx_cd_update(void)
 
 	if (!*V_Dot)
 	{
-		// ...
 		gfx_completed();
 		return;
 	}
@@ -120,8 +380,10 @@ void gfx_cd_update(void)
 
 	while (jobs--)
 	{
-		// jmp [Jmp_Adr]:
-		(*V_Dot)--;	// dec byte [V_Dot]
+		if (PicoOpt & 0x1000)
+			gfx_do();	// jmp [Jmp_Adr]:
+
+		(*V_Dot)--;		// dec byte [V_Dot]
 
 		if (!*V_Dot)
 		{

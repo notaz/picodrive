@@ -31,12 +31,12 @@ void PicoExitMCD(void)
 int PicoResetMCD(int hard)
 {
   if (hard) {
-	  int fmt_size = sizeof(formatted_bram);
-	  memset(Pico_mcd->prg_ram,    0, sizeof(Pico_mcd->prg_ram));
-	  memset(Pico_mcd->word_ram2M, 0, sizeof(Pico_mcd->word_ram2M));
-	  memset(Pico_mcd->pcm_ram,    0, sizeof(Pico_mcd->pcm_ram));
-	  memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
-	  memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - fmt_size, formatted_bram, fmt_size);
+    int fmt_size = sizeof(formatted_bram);
+    memset(Pico_mcd->prg_ram,    0, sizeof(Pico_mcd->prg_ram));
+    memset(Pico_mcd->word_ram2M, 0, sizeof(Pico_mcd->word_ram2M));
+    memset(Pico_mcd->pcm_ram,    0, sizeof(Pico_mcd->pcm_ram));
+    memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
+    memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - fmt_size, formatted_bram, fmt_size);
   }
   memset(Pico_mcd->s68k_regs, 0, sizeof(Pico_mcd->s68k_regs));
   memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));
@@ -90,7 +90,9 @@ static __inline void SekRunS68k(int cyc)
 #define PS_STEP_M68K ((488<<16)/20) // ~24
 //#define PS_STEP_S68K 13
 
-#ifndef _ASM_CD_PICO_C
+#ifdef _ASM_CD_PICO_C
+void SekRunPS(int cyc_m68k, int cyc_s68k);
+#else
 static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
 {
   int cycn, cycn_s68k, cyc_do;
@@ -133,8 +135,6 @@ static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
 
 //fprintf(stderr, "==    end %3i/%3i    ==\n", d_cm, d_cs);
 }
-#else
-void SekRunPS(int cyc_m68k, int cyc_s68k);
 #endif
 
 

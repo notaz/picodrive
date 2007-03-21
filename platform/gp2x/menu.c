@@ -744,8 +744,9 @@ static void draw_cd_menu_options(int menu_sel, char *b_us, char *b_eu, char *b_j
 	gp2x_text_out8(tl_x, (y+=10), "CD LEDs                    %s", (currentConfig.EmuOpt &0x0400)?"ON":"OFF"); // 3
 	gp2x_text_out8(tl_x, (y+=10), "CDDA audio (using mp3s)    %s", (currentConfig.PicoOpt&0x0800)?"ON":"OFF"); // 4
 	gp2x_text_out8(tl_x, (y+=10), "PCM audio                  %s", (currentConfig.PicoOpt&0x0400)?"ON":"OFF"); // 5
-	gp2x_text_out8(tl_x, (y+=10), "Better sync (slow)         %s", (currentConfig.PicoOpt&0x2000)?"ON":"OFF"); // 6
-	gp2x_text_out8(tl_x, (y+=10), "ReadAhead buffer      %s", ra_buff); // 7
+	gp2x_text_out8(tl_x, (y+=10), "ReadAhead buffer      %s", ra_buff); // 6
+	gp2x_text_out8(tl_x, (y+=10), "Scale/Rot. fx (buggy,slow) %s", (currentConfig.PicoOpt&0x1000)?"ON":"OFF"); // 7
+	gp2x_text_out8(tl_x, (y+=10), "Better sync (slow)         %s", (currentConfig.PicoOpt&0x2000)?"ON":"OFF"); // 8
 	gp2x_text_out8(tl_x, (y+=10), "Done");
 
 	// draw cursor
@@ -761,7 +762,7 @@ static void draw_cd_menu_options(int menu_sel, char *b_us, char *b_eu, char *b_j
 
 static void cd_menu_loop_options(void)
 {
-	int menu_sel = 0, menu_sel_max = 8;
+	int menu_sel = 0, menu_sel_max = 9;
 	unsigned long inp = 0;
 	char bios_us[32], bios_eu[32], bios_jp[32], *bios, *p;
 
@@ -791,8 +792,7 @@ static void cd_menu_loop_options(void)
 				case  3: currentConfig.EmuOpt ^=0x0400; break;
 				case  4: currentConfig.PicoOpt^=0x0800; break;
 				case  5: currentConfig.PicoOpt^=0x0400; break;
-				case  6: currentConfig.PicoOpt^=0x2000; break;
-				case  7:
+				case  6:
 					if (inp & GP2X_LEFT) {
 						PicoCDBuffers >>= 1;
 						if (PicoCDBuffers < 64) PicoCDBuffers = 0;
@@ -802,7 +802,9 @@ static void cd_menu_loop_options(void)
 						if (PicoCDBuffers > 4096) PicoCDBuffers = 4096;
 					}
 					break;
-				case  8: return;
+				case  7: currentConfig.PicoOpt^=0x1000; break;
+				case  8: currentConfig.PicoOpt^=0x2000; break;
+				case  9: return;
 			}
 		}
 		if(inp & (GP2X_X|GP2X_A)) return;

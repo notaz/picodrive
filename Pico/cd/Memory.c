@@ -991,6 +991,7 @@ static u32 PicoReadS68k32(u32 a)
 #endif
 
 
+#ifndef _ASM_CD_MEMORY_C
 /* check: jaguar xj 220 (draws entire world using decode) */
 static void decode_write8(u32 a, u8 d, int r3)
 {
@@ -1043,7 +1044,7 @@ static void decode_write16(u32 a, u16 d, int r3)
 
   //dprintf("FIXME: decode");
 }
-
+#endif
 
 // -----------------------------------------------------------------
 

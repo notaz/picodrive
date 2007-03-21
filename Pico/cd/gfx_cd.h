@@ -4,19 +4,19 @@
 
 typedef struct
 {
-	unsigned int Reg_58;	// Stamp_Size
+	unsigned int Reg_58;		// Stamp_Size
 	unsigned int Reg_5A;
 	unsigned int Reg_5C;
 	unsigned int Reg_5E;
 	unsigned int Reg_60;
 	unsigned int Reg_62;
-	unsigned int Reg_64;	// V_Dot
+	unsigned int Reg_64;		// V_Dot
 	unsigned int Reg_66;
 
 	unsigned int Stamp_Map_Adr;
 	unsigned int Buffer_Adr;
 	unsigned int Vector_Adr;
-	unsigned int Jmp_Adr;
+	unsigned int Function;		// Jmp_Adr;
 	unsigned int Float_Part;
 	unsigned int Draw_Speed;
 

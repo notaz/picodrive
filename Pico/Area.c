@@ -52,6 +52,8 @@ int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
   *(unsigned char *)(cpu+0x44)=(unsigned char)M68000_regs.ccr;
   *(unsigned char *)(cpu+0x45)=(unsigned char)M68000_regs.srh;
   *(unsigned int  *)(cpu+0x48)=M68000_regs.isp;
+  cpu[0x4c] = M68000_regs.irq;
+  // stop flag?
 #endif
 
 #ifdef EMU_C68K
@@ -60,6 +62,8 @@ int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
   pc=context->pc-context->membase;
   *(unsigned int *)(cpu+0x44)=CycloneGetSr(context);
   *(unsigned int *)(cpu+0x48)=context->osp;
+  cpu[0x4c] = context->irq;
+  cpu[0x4d] = context->stopped;
 #endif
 
 #ifdef EMU_M68K
@@ -69,6 +73,8 @@ int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
   pc=m68ki_cpu_p->pc;
   *(unsigned int  *)(cpu+0x44)=m68k_get_reg(NULL, M68K_REG_SR);
   *(unsigned int  *)(cpu+0x48)=m68ki_cpu_p->sp[0];
+  cpu[0x4c] = CPU_INT_LEVEL>>8;
+  cpu[0x4d] = CPU_STOPPED;
   m68k_set_context(oldcontext);
 #endif
 
@@ -84,6 +90,8 @@ int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
   M68000_regs.ccr=*(unsigned char *)(cpu+0x44);
   M68000_regs.srh=*(unsigned char *)(cpu+0x45);
   M68000_regs.isp=*(unsigned int  *)(cpu+0x48);
+  M68000_regs.irq = cpu[0x4c];
+  // stop flag?
 #endif
 
 #ifdef EMU_C68K
@@ -93,6 +101,8 @@ int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
   memcpy(context->d,cpu,0x40);
   context->membase=0;
   context->pc = context->checkpc(*(unsigned int *)(cpu+0x40)); // Base pc
+  context->irq = cpu[0x4c];
+  context->stopped = cpu[0x4d];
 #endif
 
 #ifdef EMU_M68K
@@ -102,6 +112,8 @@ int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
   m68ki_cpu_p->pc=*(unsigned int *)(cpu+0x40);
   m68k_set_reg(M68K_REG_SR, *(unsigned int *)(cpu+0x44));
   m68ki_cpu_p->sp[0]=*(unsigned int *)(cpu+0x48);
+  CPU_INT_LEVEL = cpu[0x4c] << 8;
+  CPU_STOPPED = cpu[0x4d];
   m68k_set_context(oldcontext);
 #endif
   return 0;

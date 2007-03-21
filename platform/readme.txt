@@ -221,6 +221,7 @@ Changelog
   * Fixed a bug related to game specific config saving.
   * Frameskipper was skipping sound processing, what caused some audio desyncs. Fixed.
   * Fixed reset not working for some games.
+  + New assembly optimized memory handlers for CD (gives at least a few fps).
 
 1.201
   + Added basic cheat support (GameGenie and Genecyst patches).
