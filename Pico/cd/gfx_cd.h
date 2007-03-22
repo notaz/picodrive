@@ -22,8 +22,8 @@ typedef struct
 
 	unsigned int XS;
 	unsigned int YS;
-	unsigned int DXS;
-	unsigned int DYS;
+	/*unsigned*/ int DXS;
+	/*unsigned*/ int DYS;
 	unsigned int XD;
 	unsigned int YD;
 	unsigned int XD_Mul;

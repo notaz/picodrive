@@ -29,36 +29,6 @@ static const int Table_Rot_Time[] =
 };
 
 
-#if 1*0
-typedef struct
-{
-	unsigned int Reg_58;	// Stamp_Size
-	unsigned int Reg_5A;
-	unsigned int Reg_5C;
-	unsigned int Reg_5E;
-	unsigned int Reg_60;
-	unsigned int Reg_62;
-	unsigned int Reg_64;	// V_Dot
-	unsigned int Reg_66;
-
-	unsigned int Stamp_Map_Adr;
-	unsigned int Buffer_Adr;
-	unsigned int Vector_Adr;
-	unsigned int Function;	// Jmp_Adr;
-	unsigned int Float_Part;
-	unsigned int Draw_Speed;
-
-	unsigned int XS;
-	unsigned int YS;
-	/*unsigned*/ int DXS;
-	/*unsigned*/ int DYS;
-	unsigned int XD;
-	unsigned int YD;
-	unsigned int XD_Mul;
-	unsigned int H_Dot;
-} Rot_Comp;
-#endif
-
 static void gfx_cd_start(void)
 {
 	int upd_len;
@@ -126,8 +96,6 @@ static void gfx_do(void)
 	rot_comp.DYS =  rot_comp.DXS >> 16;
 	rot_comp.DXS = (rot_comp.DXS << 16) >> 16; // sign extend
 	rot_comp.Vector_Adr += 8;
-	//if ((rot_comp.H_Dot & 0x1ff) == 0)
-	//	goto nothing_to_draw;
 
 	// MAKE_IMAGE_LINE
 	while (rot_comp.H_Dot)
@@ -136,12 +104,12 @@ static void gfx_do(void)
 		{
 			if (func & 4)	// 16x16 screen
 			{
-				eax = (ecx >> (11+5)) & 0x7f;
+				eax = (ecx >> (11+5)) & 0x007f;
 				ebx = (edx >> (11-2)) & 0x3f80;
 			}
 			else		// 1x1 screen
 			{
-				eax = (ecx >> (11+5)) & 0x0f;
+				eax = (ecx >> (11+5)) & 0x07;
 				ebx = (edx >> (11+2)) & 0x38;
 			}
 		}
@@ -149,7 +117,7 @@ static void gfx_do(void)
 		{
 			if (func & 4)	// 16x16 screen
 			{
-				eax = (ecx >> (11+4)) & 0xff;
+				eax = (ecx >> (11+4)) & 0x00ff;
 				ebx = (edx >> (11-4)) & 0xff00;
 			}
 			else		// 1x1 screen
@@ -160,7 +128,7 @@ static void gfx_do(void)
 		}
 		ebx += eax;
 
-		esi = rot_comp.Stamp_Map_Adr;
+		// esi = rot_comp.Stamp_Map_Adr;
 		ptrs = (unsigned short *) (Pico_mcd->word_ram2M + rot_comp.Stamp_Map_Adr + ebx*2);
 		edi = ptrs[0] | (ptrs[1] << 16);
 
@@ -191,130 +159,101 @@ static void gfx_do(void)
 				ebx += esi;
 				edi = (eax & 0x3800) ^ 0x1000;		// bswap
 				eax = ((eax >> 8) & 0x40) + ebx;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x01:	// No_Flip_0, 32x32 dots
 				ebx = (ebx >> 9) & 0x7c;
 				ebx += esi;
 				edi = (eax & 0x3800) ^ 0x1000;		// bswap
 				eax = ((eax >> 7) & 0x180) + ebx;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x02:	// No_Flip_90, 16x16 dots
 				eax = (eax >> 9) & 0x3c;
 				eax += esi;
 				edi = (ebx & 0x3800) ^ 0x2800;		// bswap
 				eax += ((ebx >> 8) & 0x40) ^ 0x40;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x03:	// No_Flip_90, 32x32 dots
 				eax = (eax >> 9) & 0x7c;
 				eax += esi;
 				edi = (ebx & 0x3800) ^ 0x2800;		// bswap
-				eax += (ebx >> 7) & 0x180;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
+				eax += ((ebx >> 7) & 0x180) ^ 0x180;
 				break;
 			case 0x04:	// No_Flip_180, 16x16 dots
 				ebx = ((ebx >> 9) & 0x3c) ^ 0x3c;
 				ebx += esi;
 				edi = (eax & 0x3800) ^ 0x2800;		// bswap and flip
 				eax = (((eax >> 8) & 0x40) ^ 0x40) + ebx;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x05:	// No_Flip_180, 32x32 dots
 				ebx = ((ebx >> 9) & 0x7c) ^ 0x7c;
 				ebx += esi;
 				edi = (eax & 0x3800) ^ 0x2800;		// bswap and flip
 				eax = (((eax >> 7) & 0x180) ^ 0x180) + ebx;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x06:	// No_Flip_270, 16x16 dots
 				eax = ((eax >> 9) & 0x3c) ^ 0x3c;
 				eax += esi;
 				edi = (ebx & 0x3800) ^ 0x1000;		// bswap
 				eax += (ebx >> 8) & 0x40;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x07:	// No_Flip_270, 32x32 dots
 				eax = ((eax >> 9) & 0x7c) ^ 0x7c;
 				eax += esi;
 				edi = (ebx & 0x3800) ^ 0x1000;		// bswap
 				eax += (ebx >> 7) & 0x180;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x08:	// Flip_0, 16x16 dots
-				ebx = ((ebx >> 9) & 0x3c) ^ 0x3c;
+				ebx = (ebx >> 9) & 0x3c;
 				ebx += esi;
 				edi = (eax & 0x3800) ^ 0x2800;		// bswap, flip
 				eax = (((eax >> 8) & 0x40) ^ 0x40) + ebx;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x09:	// Flip_0, 32x32 dots
-				ebx = ((ebx >> 9) & 0x7c) ^ 0x7c;
+				ebx = (ebx >> 9) & 0x7c;
 				ebx += esi;
 				edi = (eax & 0x3800) ^ 0x2800;		// bswap, flip
 				eax = (((eax >> 7) & 0x180) ^ 0x180) + ebx;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x0a:	// Flip_90, 16x16 dots
 				eax = ((eax >> 9) & 0x3c) ^ 0x3c;
 				eax += esi;
 				edi = (ebx & 0x3800) ^ 0x2800;		// bswap, flip
 				eax += ((ebx >> 8) & 0x40) ^ 0x40;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x0b:	// Flip_90, 32x32 dots
 				eax = ((eax >> 9) & 0x7c) ^ 0x7c;
 				eax += esi;
 				edi = (ebx & 0x3800) ^ 0x2800;		// bswap, flip
 				eax += ((ebx >> 7) & 0x180) ^ 0x180;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x0c:	// Flip_180, 16x16 dots
 				ebx = ((ebx >> 9) & 0x3c) ^ 0x3c;
 				ebx += esi;
 				edi = (eax & 0x3800) ^ 0x1000;		// bswap
 				eax = ((eax >> 8) & 0x40) + ebx;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x0d:	// Flip_180, 32x32 dots
 				ebx = ((ebx >> 9) & 0x7c) ^ 0x7c;
 				ebx += esi;
 				edi = (eax & 0x3800) ^ 0x1000;		// bswap
 				eax = ((eax >> 7) & 0x180) + ebx;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x0e:	// Flip_270, 16x16 dots
 				eax = (eax >> 9) & 0x3c;
 				eax += esi;
 				edi = (ebx & 0x3800) ^ 0x1000;		// bswap, flip
 				eax += (ebx >> 8) & 0x40;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 			case 0x0f:	// Flip_270, 32x32 dots
 				eax = (eax >> 9) & 0x7c;
 				eax += esi;
 				edi = (ebx & 0x3800) ^ 0x1000;		// bswap, flip
 				eax += (ebx >> 7) & 0x180;
-				pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
-				if (!(edi & 0x800)) pixel >>= 4;
 				break;
 		}
+
+		pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
+		if (!(edi & 0x800)) pixel >>= 4;
 
 Pixel_Out:
 //		pixel = 0;

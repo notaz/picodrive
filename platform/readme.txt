@@ -1,14 +1,17 @@
+For help / comments / questions visit GP32X boards at:
+http://www.gp32x.com/board/
+
 
 About
 -----
 
-This version of PicoDrive is another enhanced version of Dave's
-Megadrive / Genesis emulator for Pocket PC, which now can also emulate
-Sega/Mega CD. The original Dave's code was heavily modified (including
-Cyclone core), parts of it were rewritten in asm, many features added,
-accuracy increased. Sega/Mega CD emulation is mostly based on Gens code.
-This version is aimed at ARM-based handheld devices, so ports exist for
-GP2X handheld console, Symbian smartphones and other devices.
+This is yet another Megadrive / Genesis / Sega CD / Mega CD emulator, which
+was written having ARM-based handheld devices in mind (such as PDAs,
+smartphones and handheld consoles like GP2X of course). The critical parts
+(renderer, 68K and Z80 cpu interpreters) and some other random code is
+written in ARM asm, other code is C. The base code originates from Dave's
+(fdave, finalburn) PicoDrive 0.30 for Pocket PC. The Sega/Mega CD code is
+roughly based on Stephane Dallongeville's Gens.
 
 
 How to make it run

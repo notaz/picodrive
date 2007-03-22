@@ -969,13 +969,15 @@ static void updateSound(int len)
 {
 	if (PicoOpt&8) len<<=1;
 
-	gp2x_sound_write(PsndOut, len<<1);
+	/* avoid writing audio when lagging behind to prevent audio lag */
+	if (PicoSkipFrame != 2)
+		gp2x_sound_write(PsndOut, len<<1);
 }
 
 
-static void SkipFrame(void)
+static void SkipFrame(int do_audio)
 {
-	PicoSkipFrame=1;
+	PicoSkipFrame=do_audio ? 1 : 2;
 	PicoFrame();
 	PicoSkipFrame=0;
 }
@@ -1157,7 +1159,7 @@ void emu_Loop(void)
 				// when second changes, but we don't want buffer to starve.
 				if(PsndOut && frames_done < target_fps && frames_done > target_fps-5) {
 					updateKeys();
-					SkipFrame(); frames_done++;
+					SkipFrame(1); frames_done++;
 				}
 
 				frames_done  -= target_fps; if (frames_done  < 0) frames_done  = 0;
@@ -1170,7 +1172,7 @@ void emu_Loop(void)
 		if(currentConfig.Frameskip >= 0) { // frameskip enabled
 			for(i = 0; i < currentConfig.Frameskip; i++) {
 				updateKeys();
-				SkipFrame(); frames_done++;
+				SkipFrame(1); frames_done++;
 				if (PsndOut) { // do framelimitting if sound is enabled
 					gettimeofday(&tval, 0);
 					if(thissec != tval.tv_sec) tval.tv_usec+=1000000;
@@ -1189,7 +1191,7 @@ void emu_Loop(void)
 				continue;
 			}
 			updateKeys();
-			SkipFrame(/*tval.tv_usec < lim_time+target_frametime*/); frames_done++;
+			SkipFrame(tval.tv_usec < lim_time+target_frametime); frames_done++;
 			continue;
 		}
 

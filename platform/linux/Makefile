@@ -63,10 +63,11 @@ clean: tidy
 tidy:
 	@$(RM) $(OBJS)
 	@make -C ../../cpu/mz80/ clean
+	@make -C ../gp2x/helix/ X86=1 clean
 
-PicoDrive : $(OBJS)
+PicoDrive : $(OBJS) ../gp2x/helix/helix_mp3_x86.a
 	@echo $@
-	@$(GCC) $(COPT) $(OBJS) ../gp2x/helix/helix_mp3_x86.a $(LDFLAGS) -lm -Wl,-Map=PicoDrive.map -o $@
+	@$(GCC) $(COPT) $^ $(LDFLAGS) -lm -Wl,-Map=PicoDrive.map -o $@
 
 
 ../../cpu/mz80/mz80.o : ../../cpu/mz80/mz80.asm
@@ -75,6 +76,9 @@ PicoDrive : $(OBJS)
 
 ../../cpu/mz80/mz80.asm :
 	@make -C ../../cpu/mz80/
+
+../gp2x/helix/helix_mp3_x86.a:
+	@make -C ../gp2x/helix/ X86=1 clean all
 
 .c.o:
 	@echo $<

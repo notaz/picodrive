@@ -1,6 +1,9 @@
 As PicoDrive is multiplatform emulator, this is GP2X specific part of readme
 about configuration.
 
+If you have questions, you can use GP32X to ask for help.
+http://www.gp32x.com/board/index.php?showforum=48
+
 
 Configuration
 -------------
@@ -16,9 +19,9 @@ Other two are accurate line-based renderers. The 8bit is faster but does not
 run well with some games like Street Racer.
 
 2. "Accurate timing"
-This adds some more emulation precision, but slows the emulation down. Whithout
+This adds some more emulation precision, but slows the emulation down. Without
 this option some games do not boot (Red Zone for example), others have sound
-problems.
+problems. This options has no effect for Sega/Mega CD emulation.
 
 3. "Accurate sprites"
 This option improves emulation of sprite priorities, it also enables emulation
@@ -52,28 +55,33 @@ go and reconfigure your keys, you will be able to bind X,Y,Z and mode actions.
 
 10. "Genesis Region"
 This option lets you force the game to think it is running on machine from the
-specified region.
+specified region, or just to set autodetection order. Also affects Sega/Mega CD.
 
-11. "Use SRAM savestates"
-This will automatically read/write SRAM savestates for games which are using them.
-SRAM is saved whenever you pause your game or exit the emulator.
+11. "Use SRAM/BRAM savestates"
+This will automatically read/write SRAM (or BRAM for Sega/Mega CD) savestates for
+games which are using them. SRAM is saved whenever you pause your game or exit the
+emulator.
 
 12. "GP2X CPU clocks"
 Here you can change clocks of both GP2X's CPUs. Larger values increase performance.
 There is no separate option for the second CPU because both CPUs use the same clock
 source. Setting this option to 200 will cause PicoDrive NOT to change GP2X's clocks
-at all.
+at all (this is if you use external program to set clock).
 
-13. "[advanced options]"
+13. "[Sega/Mega CD options]"
+Enters Sega/Mega CD options menu (see below).
+
+14. "[advanced options]"
 Enters advanced options menu (see below).
 
-14. "Save cfg as default"
+15. "Save cfg as default"
 If you save your config here it will be loaded on next ROM load, but only if there
 is no game specific config saved (which will be loaded in that case).
 
-15. "Save cfg for current game only"
+16. "Save cfg for current game only"
 Whenever you load current ROM again these settings will be loaded (squidgehack and
 RAM settings will not take effect until emulator is restarted).
+
 
 Advanced configuration
 ----------------------
@@ -108,23 +116,54 @@ startup, and this data is lost when sound chips are being enabled/disabled.
 This will always apply gzip compression on your savestates, allowing you to
 save some space and load/save time.
 
-7. "USB joy controls player X"
-If you are able to use USB joysticks with your GP2X, this options selects which
-player the joystick controls.
-
-8. "Don't save config on exit"
+7. "Don't save config on exit"
 This will disable config autowrite on exit (which might cause SD card corruption
 according to DaveC).
 
-9. "craigix's RAM timings"
+8. "craigix's RAM timings"
 This overclocks the GP2X RAM chips, but may cause instability. Recommended if you
 use the second core for sound. Needs emulator restart to take effect.
 See this thread:
 http://www.gp32x.com/board/index.php?showtopic=32319
 
-10. "squidgehack"
+9. "squidgehack"
 Well known way to improve the GP2X performance. You must restart the emulator
 for the change of this option to take effect.
+
+
+Sega/Mega CD options 
+--------------------
+
+1,2,3. "USA/EUR/JAP BIOS"
+These options just shows if your BIOS files were correctly detected be the
+emulator (it shows the filename it is using). If so, you can press Start to test
+your BIOS.
+
+4. "CD LEDs"
+The Sega/Mega CD unit had two blinking LEDs (red and green) on it. This option
+will display them on left-top corner of the screen.
+
+5. "CDDA audio (using mp3s)"
+This option enables CD audio playback.
+
+6. "PCM audio"
+This enables 8 channel PCM sound source. It is required for some games to run,
+because they monitor state of the audio chip.
+
+7. "ReadAhead buffer"
+This option is for dealing with slow SD card access in GP2X, which makes FMV
+games unplayable. It will allow emulator not to access SD card for longer periods
+of time, but it will take more time to fill the buffer.
+
+8. "Scale/Rot. fx"
+The Sega/Mega CD had scaling/rotation chip, which allows effects similar to
+"Mode 7" effects in SNES. Unfortunately emulating it is slow, and very few games
+used it, so it's better to disable this option.
+
+9. "Better sync"
+This option is similar to "Perfect synchro" in Gens. Some games require it to run,
+for example most (all?) Wolfteam games, and some other ones. Don't use it for
+games which don't need it, it will just slow them down.
 
 
 Key configuration
