@@ -199,6 +199,8 @@ PicoMemResetCD: @ r3
 
 
 PicoMemResetCDdecode: @r3
+    tst     r3, #4
+    bxeq    lr                 @ we should not be called in 2M mode
     ldr     r1, =m_s68k_write8_table
     ldr     r3, =m_s68k_decode_write_table
     and     r2, r0, #0x18
@@ -336,7 +338,7 @@ PicoWriteS68k32: @ u32 a, u32 d
 .endm
 
 
-@ r0=prt1, r1=ptr2
+@ r0=prt1, r1=ptr2; unaligned ptr MUST be r0
 .macro m_read32_gen
     tst     r0, #2
     ldrneh  r0, [r1, r0]!
@@ -347,7 +349,7 @@ PicoWriteS68k32: @ u32 a, u32 d
 .endm
 
 
-@ r0=prt1, r1=data, r2=ptr2
+@ r0=prt1, r1=data, r2=ptr2; unaligned ptr MUST be r0
 .macro m_write32_gen
     tst     r0, #2
     mov     r1, r1, ror #16
@@ -468,7 +470,7 @@ m_m68k_read8_system_io:
     .long   m_m68k_read8_r0d
 m_m68k_read8_r00:
     add     r1, r1, #0x110000
-    ldr     r0, [r1, #30]
+    ldr     r0, [r1, #0x30]
     and     r0, r0, #0x04000000       @ we need irq2 mask state
     mov     r0, r0, lsr #19
     bx      lr
@@ -842,11 +844,12 @@ m_m68k_read32_system_io:
     movge   r0, #0
     bxge    lr
     @ I have seen the range 0x0e-0x2f accessed quite frequently with long i/o, so here is some code for that
-    ldr     r0, =(Pico+0x22200)
+    mov     r0, r1
+    ldr     r1, =(Pico+0x22200)
     mov     r2, #0xff
-    ldr     r0, [r0]
+    ldr     r1, [r1]
     orr     r2, r2, r2, lsl #16
-    add     r0, r0, #0x110000
+    add     r1, r1, #0x110000
     m_read32_gen
     and     r1, r2, r0                @ data is big-endian read as little, have to byteswap
     and     r0, r2, r0, lsr #8

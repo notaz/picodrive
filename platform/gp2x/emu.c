@@ -54,13 +54,14 @@ extern int crashed_940;
 static short sndBuffer[2*44100/50];
 static char noticeMsg[64];					// notice msg to draw
 static struct timeval noticeMsgTime = { 0, 0 };	// when started showing
-static int reset_timing, osd_fps_x;
+static int osd_fps_x;
 static int combo_keys = 0, combo_acts = 0;	// keys and actions which need button combos
 static int gp2x_old_gamma = 100;
 static unsigned char *movie_data = NULL;
 static int movie_size = 0;
 unsigned char *framebuff = 0;  // temporary buffer for alt renderer
 int state_slot = 0;
+int reset_timing = 0;
 
 /*
 // tmp
@@ -1191,7 +1192,7 @@ void emu_Loop(void)
 				continue;
 			}
 			updateKeys();
-			SkipFrame(tval.tv_usec < lim_time+target_frametime); frames_done++;
+			SkipFrame(tval.tv_usec < lim_time+target_frametime*2); frames_done++;
 			continue;
 		}
 

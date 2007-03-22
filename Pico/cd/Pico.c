@@ -51,7 +51,7 @@ int PicoResetMCD(int hard)
   gfx_cd_reset();
 #ifdef _ASM_CD_MEMORY_C
   PicoMemResetCD(1);
-  PicoMemResetCDdecode(1);
+  //PicoMemResetCDdecode(1); // don't have to call this in 2M mode
 #endif
 
   return 0;

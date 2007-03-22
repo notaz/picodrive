@@ -79,18 +79,14 @@ static void gfx_completed(void)
 }
 
 
-static void gfx_do(void)
+static void gfx_do(unsigned int func, unsigned short *stamp_base, unsigned int H_Dot)
 {
 	unsigned int eax, ebx, ecx, edx, esi, edi, pixel;
-	unsigned int XD, Buffer_Adr, H_Dot;
-	unsigned int func = rot_comp.Function;
-	unsigned short *stamp_base;
+	unsigned int XD, Buffer_Adr;
 	int DYXS;
 
 	XD = rot_comp.Reg_60 & 7;
 	Buffer_Adr = ((rot_comp.Reg_5E & 0xfff8) + rot_comp.YD) << 2;
-	stamp_base = (unsigned short *) (Pico_mcd->word_ram2M + rot_comp.Stamp_Map_Adr);
-	H_Dot = rot_comp.Reg_62 & 0x1ff;
 	ecx = *(unsigned int *)(Pico_mcd->word_ram2M + rot_comp.Vector_Adr);
 	edx = ecx >> 16;
 	ecx = (ecx & 0xffff) << 8;
@@ -105,29 +101,28 @@ static void gfx_do(void)
 		{
 			if (func & 4)	// 16x16 screen
 			{
-				eax = (ecx >> (11+5)) & 0x007f;
-				ebx = (edx >> (11-2)) & 0x3f80;
+				ebx = ((ecx >> (11+5)) & 0x007f) |
+				      ((edx >> (11-2)) & 0x3f80);
 			}
 			else		// 1x1 screen
 			{
-				eax = (ecx >> (11+5)) & 0x07;
-				ebx = (edx >> (11+2)) & 0x38;
+				ebx = ((ecx >> (11+5)) & 0x07) |
+				      ((edx >> (11+2)) & 0x38);
 			}
 		}
 		else			// mode 16x16 dot
 		{
 			if (func & 4)	// 16x16 screen
 			{
-				eax = (ecx >> (11+4)) & 0x00ff;
-				ebx = (edx >> (11-4)) & 0xff00;
+				ebx = ((ecx >> (11+4)) & 0x00ff) |
+				      ((edx >> (11-4)) & 0xff00);
 			}
 			else		// 1x1 screen
 			{
-				eax = (ecx >> (11+4)) & 0x0f;
-				ebx = (edx >> (11+0)) & 0xf0;
+				ebx = ((ecx >> (11+4)) & 0x0f) |
+				      ((edx >> (11+0)) & 0xf0);
 			}
 		}
-		ebx += eax;
 
 		// MAKE_IMAGE_PIXEL
 		if (!(func & 1))	// NOT TILED
@@ -141,12 +136,10 @@ static void gfx_do(void)
 			}
 		}
 
-		// esi = rot_comp.Stamp_Map_Adr;
-		edi = stamp_base[ebx] | (stamp_base[ebx+1] << 16);
-		esi = edi;
-		edi >>= (11+1);
-		esi = (esi & 0x7ff) << 7;
+		edi = stamp_base[ebx];// | (stamp_base[ebx+1] << 16);
+		esi = (edi & 0x7ff) << 7;
 		if (!esi) { pixel = 0; goto Pixel_Out; }
+		edi >>= (11+1);
 		edi &= (0x1c>>1);
 		eax = ecx;
 		ebx = edx;
@@ -285,7 +278,7 @@ Next_Pixel:
 	// end while
 
 
-//nothing_to_draw:
+// nothing_to_draw:
 	rot_comp.YD++;
 	// rot_comp.V_Dot--; // will be done by caller
 }
@@ -293,12 +286,12 @@ Next_Pixel:
 
 void gfx_cd_update(void)
 {
-	unsigned char *V_Dot = (unsigned char *) &rot_comp.Reg_64;
+	int V_Dot = rot_comp.Reg_64 & 0xff;
 	int jobs;
 
 	dprintf("gfx_cd_update, Reg_64 = %04x", rot_comp.Reg_64);
 
-	if (!*V_Dot)
+	if (!V_Dot)
 	{
 		gfx_completed();
 		return;
@@ -315,20 +308,36 @@ void gfx_cd_update(void)
 	rot_comp.Float_Part &= 0xffff;
 	rot_comp.Float_Part += rot_comp.Draw_Speed;
 
-	while (jobs--)
+	if (PicoOpt & 0x1000)			// scale/rot enabled
 	{
-		if (PicoOpt & 0x1000)
-			gfx_do();	// jmp [Jmp_Adr]:
+		unsigned int func = rot_comp.Function;
+		unsigned int H_Dot = rot_comp.Reg_62 & 0x1ff;
+		unsigned short *stamp_base = (unsigned short *) (Pico_mcd->word_ram2M + rot_comp.Stamp_Map_Adr);
 
-		(*V_Dot)--;		// dec byte [V_Dot]
-
-		if (!*V_Dot)
+		while (jobs--)
 		{
-			// GFX_Completed:
+			gfx_do(func, stamp_base, H_Dot);	// jmp [Jmp_Adr]:
+
+			V_Dot--;				// dec byte [V_Dot]
+			if (V_Dot == 0)
+			{
+				// GFX_Completed:
+				gfx_completed();
+				return;
+			}
+		}
+	}
+	else
+	{
+		if (jobs >= V_Dot)
+		{
 			gfx_completed();
 			return;
 		}
+		V_Dot -= jobs;
 	}
+
+	rot_comp.Reg_64 = V_Dot;
 }
 
 

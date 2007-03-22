@@ -20,6 +20,7 @@
 extern volatile unsigned short *gp2x_memregs; /* from minimal library rlyeh */
 extern volatile unsigned long  *gp2x_memregl;
 
+extern int reset_timing;
 static unsigned char *shared_mem = 0;
 static _940_data_t *shared_data = 0;
 _940_ctl_t *shared_ctl = 0;
@@ -589,6 +590,7 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 			if (CHECK_BUSY(JOB940_MP3DECODE)) wait_busy_940(JOB940_MP3DECODE);
 			add_job_940(JOB940_INVALIDATE_DCACHE);
 		}
+		reset_timing = 1;
 	}
 
 	// seek..
