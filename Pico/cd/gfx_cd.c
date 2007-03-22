@@ -35,9 +35,9 @@ static void gfx_cd_start(void)
 
 	dprintf("gfx_cd_start()");
 
-	rot_comp.XD_Mul = ((rot_comp.Reg_5C & 0x1f) + 1) * 4;
+	// rot_comp.XD_Mul = ((rot_comp.Reg_5C & 0x1f) + 1) * 4; // unused
 	rot_comp.Function = (rot_comp.Reg_58 & 7) | (Pico_mcd->s68k_regs[3] & 0x18);	// Jmp_Adr
-	rot_comp.Buffer_Adr = (rot_comp.Reg_5E & 0xfff8) << 2;
+	// rot_comp.Buffer_Adr = (rot_comp.Reg_5E & 0xfff8) << 2; // unused?
 	rot_comp.YD = (rot_comp.Reg_60 >> 3) & 7;
 	rot_comp.Vector_Adr = (rot_comp.Reg_66 & 0xfffe) << 2;
 
@@ -81,24 +81,25 @@ static void gfx_completed(void)
 
 static void gfx_do(void)
 {
-	unsigned int eax, ebx, ecx, edx, esi, edi, pixel = 0;
+	unsigned int eax, ebx, ecx, edx, esi, edi, pixel;
+	unsigned int XD, Buffer_Adr, H_Dot;
 	unsigned int func = rot_comp.Function;
-	unsigned short *ptrs;
+	unsigned short *stamp_base;
+	int DYXS;
 
-	rot_comp.XD = rot_comp.Reg_60 & 7;
-	rot_comp.Buffer_Adr = ((rot_comp.Reg_5E & 0xfff8) + rot_comp.YD) << 2;
-	rot_comp.H_Dot = rot_comp.Reg_62 & 0x1ff;
+	XD = rot_comp.Reg_60 & 7;
+	Buffer_Adr = ((rot_comp.Reg_5E & 0xfff8) + rot_comp.YD) << 2;
+	stamp_base = (unsigned short *) (Pico_mcd->word_ram2M + rot_comp.Stamp_Map_Adr);
+	H_Dot = rot_comp.Reg_62 & 0x1ff;
 	ecx = *(unsigned int *)(Pico_mcd->word_ram2M + rot_comp.Vector_Adr);
 	edx = ecx >> 16;
 	ecx = (ecx & 0xffff) << 8;
 	edx <<= 8;
-	rot_comp.DXS = *(int *)(Pico_mcd->word_ram2M + rot_comp.Vector_Adr + 4);
-	rot_comp.DYS =  rot_comp.DXS >> 16;
-	rot_comp.DXS = (rot_comp.DXS << 16) >> 16; // sign extend
+	DYXS = *(int *)(Pico_mcd->word_ram2M + rot_comp.Vector_Adr + 4);
 	rot_comp.Vector_Adr += 8;
 
 	// MAKE_IMAGE_LINE
-	while (rot_comp.H_Dot)
+	while (H_Dot)
 	{
 		if (func & 2)		// mode 32x32 dot
 		{
@@ -128,26 +129,24 @@ static void gfx_do(void)
 		}
 		ebx += eax;
 
-		// esi = rot_comp.Stamp_Map_Adr;
-		ptrs = (unsigned short *) (Pico_mcd->word_ram2M + rot_comp.Stamp_Map_Adr + ebx*2);
-		edi = ptrs[0] | (ptrs[1] << 16);
-
 		// MAKE_IMAGE_PIXEL
 		if (!(func & 1))	// NOT TILED
 		{
-			if (func & 4)	// 16x16 screen
+			int mask = (func & 4) ? 0x00800000 : 0x00f80000;
+			if ((ecx | edx) & mask)
 			{
-				if ((edx & 0x00800000) || (ecx & 0x00800000)) goto Pixel_Out;
-			}
-			else		// 1x1 screen
-			{
-				if ((edx & 0x00f80000) || (ecx & 0x00f80000)) goto Pixel_Out;
+				if (func & 0x18) goto Next_Pixel;
+				pixel = 0;
+				goto Pixel_Out;
 			}
 		}
+
+		// esi = rot_comp.Stamp_Map_Adr;
+		edi = stamp_base[ebx] | (stamp_base[ebx+1] << 16);
 		esi = edi;
 		edi >>= (11+1);
 		esi = (esi & 0x7ff) << 7;
-		if (!esi) goto Pixel_Out;
+		if (!esi) { pixel = 0; goto Pixel_Out; }
 		edi &= (0x1c>>1);
 		eax = ecx;
 		ebx = edx;
@@ -254,15 +253,13 @@ static void gfx_do(void)
 
 		pixel = *(Pico_mcd->word_ram2M + (edi >> 12) + eax);
 		if (!(edi & 0x800)) pixel >>= 4;
+		else pixel &= 0x0f;
 
 Pixel_Out:
-//		pixel = 0;
-//Finish:
-		pixel &= 0x0f;
 		if (!pixel && (func & 0x18)) goto Next_Pixel;
-		esi = rot_comp.Buffer_Adr + ((rot_comp.XD>>1)^1);	// pixel addr
+		esi = Buffer_Adr + ((XD>>1)^1);				// pixel addr
 		eax = *(Pico_mcd->word_ram2M + esi);			// old pixel
-		if (rot_comp.XD & 1)
+		if (XD & 1)
 		{
 			if ((eax & 0x0f) && (func & 0x18) == 0x08) goto Next_Pixel; // underwrite
 			*(Pico_mcd->word_ram2M + esi) = pixel | (eax & 0xf0);
@@ -275,16 +272,17 @@ Pixel_Out:
 
 
 Next_Pixel:
-		ecx += rot_comp.DXS;
-		edx += rot_comp.DYS;
-		rot_comp.XD++;
-		if (rot_comp.XD >= 8)
+		ecx += (DYXS << 16) >> 16;	// rot_comp.DXS;
+		edx +=  DYXS >> 16;		// rot_comp.DYS;
+		XD++;
+		if (XD >= 8)
 		{
-			rot_comp.Buffer_Adr += ((rot_comp.Reg_5C & 0x1f) + 1) << 5;
-			rot_comp.XD = 0;
+			Buffer_Adr += ((rot_comp.Reg_5C & 0x1f) + 1) << 5;
+			XD = 0;
 		}
-		rot_comp.H_Dot--;
+		H_Dot--;
 	}
+	// end while
 
 
 //nothing_to_draw:

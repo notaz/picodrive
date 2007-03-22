@@ -14,22 +14,13 @@ typedef struct
 	unsigned int Reg_66;
 
 	unsigned int Stamp_Map_Adr;
-	unsigned int Buffer_Adr;
 	unsigned int Vector_Adr;
 	unsigned int Function;		// Jmp_Adr;
 	unsigned int Float_Part;
 	unsigned int Draw_Speed;
-
-	unsigned int XS;
-	unsigned int YS;
-	/*unsigned*/ int DXS;
-	/*unsigned*/ int DYS;
-	unsigned int XD;
 	unsigned int YD;
-	unsigned int XD_Mul;
-	unsigned int H_Dot;
 
-	int pad[2];
+	int pad[10];
 } Rot_Comp;
 
 
