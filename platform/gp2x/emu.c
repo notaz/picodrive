@@ -790,6 +790,9 @@ static void emu_msg_cb(const char *msg)
 	}
 	gettimeofday(&noticeMsgTime, 0);
 	noticeMsgTime.tv_sec -= 2;
+
+	/* assumption: emu_msg_cb gets called only when something slow is about to happen */
+	reset_timing = 1;
 }
 
 static void emu_state_cb(const char *str)
@@ -1168,7 +1171,9 @@ void emu_Loop(void)
 				if (frames_shown > frames_done) frames_shown = frames_done;
 			}
 		}
-
+#if 0
+		sprintf(fpsbuff, "%05i", Pico.m.frame_count);
+#endif
 		lim_time = (frames_done+1) * target_frametime;
 		if(currentConfig.Frameskip >= 0) { // frameskip enabled
 			for(i = 0; i < currentConfig.Frameskip; i++) {

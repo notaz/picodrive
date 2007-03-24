@@ -7,6 +7,7 @@
 
 
 .equiv PCM_STEP_SHIFT, 11
+.equiv POLL_LIMIT, 16
 
 @ jump tables
 .data
@@ -132,6 +133,8 @@ m_s68k_decode_write_table:
 .extern SRam
 .extern gfx_cd_write16
 .extern s68k_reg_write8
+.extern s68k_poll_adclk
+.extern PicoCpuS68k
 
 
 @ r0=reg3, r1-r3=temp
@@ -665,7 +668,7 @@ m_m68k_read16_m68k_regs:
     .long   m_m68k_read16_r0c
 m_m68k_read16_r00:
     add     r1, r1, #0x110000
-    ldr     r0, [r1, #30]
+    ldr     r0, [r1, #0x30]
     add     r1, r1, #0x002200
     ldrb    r1, [r1, #2]              @ Pico_mcd->m.busreq
     and     r0, r0, #0x04000000       @ we need irq2 mask state
@@ -1073,6 +1076,9 @@ m_m68k_write16_system_io:
     bne     OtherWrite16
 
 m_m68k_write16_m68k_regs:
+    and     r0, r0, #0x3e
+    cmp     r0, #0x0e
+    beq     m_m68k_write16_regs_spec
     and     r3, r1, #0xff
     add     r2, r0, #1
     stmfd   sp!,{r2,r3,lr}
@@ -1080,6 +1086,24 @@ m_m68k_write16_m68k_regs:
     bl      m68k_reg_write8
     ldmfd   sp!,{r0,r1,lr}
     b       m68k_reg_write8
+
+m_m68k_write16_regs_spec:               @ special case
+    ldr     r2, =(Pico+0x22200)
+    ldr     r3, =s68k_poll_adclk
+    mov     r0, #0x110000
+    ldr     r2, [r2]
+    add     r0, r0, #0x00000e
+    mov     r1, r1, lsr #8
+    strb    r1, [r2, r0]                @ if (a == 0xe) s68k_regs[0x0e] = d >> 8;
+    ldr     r2, [r3]
+    mov     r1, #0
+    and     r2, r2, #0xfe
+    cmp     r2, #0x0e
+    bxne    lr
+    ldr     r0, =PicoCpuS68k
+    str     r1, [r0, #0x58]             @ push s68k out of stopped state
+    str     r1, [r3]
+    bx      lr
 
 
 m_m68k_write16_vdp:
@@ -1454,7 +1478,10 @@ m_s68k_read16_regs:
     sub     r2, r0, #0x58
     cmp     r2, #0x10
     blo     gfx_cd_read
-    b       s68k_reg_read16
+    cmp     r0, #8
+    bne     s68k_reg_read16
+    mov     r0, #1
+    b       Read_CDC_Host
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1664,7 +1691,7 @@ m_s68k_write8_backup:                   @ 0xfe0000 - 0xfe3fff (repeated?)
     strb    r1, [r2, r0]
     ldr     r1, =SRam
     mov     r0, #1
-    str     r0, [r1, #0x0e]             @ SRam.changed = 1
+    strb    r0, [r1, #0x0e]             @ SRam.changed = 1
     bx      lr
 
 

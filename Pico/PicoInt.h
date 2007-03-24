@@ -27,12 +27,16 @@ extern struct Cyclone PicoCpu, PicoCpuS68k;
 #define SekCyclesLeftNoMCD PicoCpu.cycles // cycles left for this run
 #define SekCyclesLeft \
 	(((PicoMCD&1) && (PicoOpt & 0x2000)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
+#define SekCyclesLeftS68k \
+	((PicoOpt & 0x2000) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuS68k.cycles)
 #define SekSetCyclesLeftNoMCD(c) PicoCpu.cycles=c
 #define SekSetCyclesLeft(c) { \
 	if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCycleCnt=SekCycleAim-(c); else SekSetCyclesLeftNoMCD(c); \
 }
 #define SekPc (PicoCpu.pc-PicoCpu.membase)
 #define SekPcS68k (PicoCpuS68k.pc-PicoCpuS68k.membase)
+#define SekSetStop(x) { PicoCpu.stopped=x; if (x) PicoCpu.cycles=0; }
+#define SekSetStopS68k(x) { PicoCpuS68k.stopped=x; if (x) PicoCpuS68k.cycles=0; }
 #endif
 
 #ifdef EMU_A68K
@@ -60,15 +64,25 @@ extern int m68k_ICount;
 extern m68ki_cpu_core PicoM68kCPU; // MD's CPU
 extern m68ki_cpu_core PicoS68kCPU; // Mega CD's CPU
 #ifndef SekCyclesLeft
-#define SekCyclesLeftNoMCD m68k_cycles_remaining()
+#define SekCyclesLeftNoMCD PicoM68kCPU.cyc_remaining_cycles
 #define SekCyclesLeft \
 	(((PicoMCD&1) && (PicoOpt & 0x2000)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
+#define SekCyclesLeftS68k \
+	((PicoOpt & 0x2000) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoS68kCPU.cyc_remaining_cycles)
 #define SekSetCyclesLeftNoMCD(c) SET_CYCLES(c)
 #define SekSetCyclesLeft(c) { \
 	if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCycleCnt=SekCycleAim-(c); else SET_CYCLES(c); \
 }
 #define SekPc m68k_get_reg(&PicoM68kCPU, M68K_REG_PC)
 #define SekPcS68k m68k_get_reg(&PicoS68kCPU, M68K_REG_PC)
+#define SekSetStop(x) { \
+	if(x) { SET_CYCLES(0); PicoM68kCPU.stopped=STOP_LEVEL_STOP; } \
+	else PicoM68kCPU.stopped=0; \
+}
+#define SekSetStopS68k(x) { \
+	if(x) { SET_CYCLES(0); PicoS68kCPU.stopped=STOP_LEVEL_STOP; } \
+	else PicoS68kCPU.stopped=0; \
+}
 #endif
 #endif
 
@@ -91,6 +105,7 @@ extern int SekCycleCntS68k;
 extern int SekCycleAimS68k;
 
 #define SekCyclesResetS68k() {SekCycleCntS68k=SekCycleAimS68k=0;}
+#define SekCyclesDoneS68k()  (SekCycleAimS68k-SekCyclesLeftS68k)
 
 // does not work as expected
 //extern int z80ExtraCycles; // extra z80 cycles, used when z80 is [en|dis]abled

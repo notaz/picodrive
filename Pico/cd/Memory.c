@@ -33,6 +33,12 @@ typedef unsigned int   u32;
 
 // -----------------------------------------------------------------
 
+// poller detection
+#define USE_POLL_DETECT
+#define POLL_LIMIT 16
+#define POLL_CYCLES 124
+// int m68k_poll_addr, m68k_poll_cnt;
+unsigned int s68k_poll_adclk, s68k_poll_cnt;
 
 #ifndef _ASM_CD_MEMORY_C
 static u32 m68k_reg_read16(u32 a)
@@ -126,12 +132,12 @@ void m68k_reg_write8(u32 a, u32 d)
         if (d & 2) dold &= ~1; // return word RAM to s68k in 2M mode
       }
       Pico_mcd->s68k_regs[3] = d | dold; // really use s68k side register
-
-/*
-     d |= Pico_mcd->s68k_regs[3]&0x1d;
-     if (!(d & 4) && (d & 2)) d &= ~1; // return word RAM to s68k in 2M mode
-     Pico_mcd->s68k_regs[3] = d; // really use s68k side register
-*/
+#ifdef USE_POLL_DETECT
+      if ((s68k_poll_adclk&0xfe) == 2 && s68k_poll_cnt > POLL_LIMIT) {
+        SekSetStopS68k(0); s68k_poll_adclk = 0;
+        //printf("%05i:%03i: s68k poll release, a=%02x\n", Pico.m.frame_count, Pico.m.scanline, a);
+      }
+#endif
       return;
     }
     case 6:
@@ -141,14 +147,28 @@ void m68k_reg_write8(u32 a, u32 d)
       Pico_mcd->bios[0x72] = d;
       dprintf("hint vector set to %08x", PicoRead32(0x70));
       return;
+    case 0xf:
+      d = (d << 1) | ((d >> 7) & 1); // rol8 1 (special case)
     case 0xe:
       //dprintf("m68k: comm flag: %02x", d);
       Pico_mcd->s68k_regs[0xe] = d;
+#ifdef USE_POLL_DETECT
+      if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
+        SekSetStopS68k(0); s68k_poll_adclk = 0;
+        //printf("%05i:%03i: s68k poll release, a=%02x\n", Pico.m.frame_count, Pico.m.scanline, a);
+      }
+#endif
       return;
   }
 
   if ((a&0xf0) == 0x10) {
       Pico_mcd->s68k_regs[a] = d;
+#ifdef USE_POLL_DETECT
+      if ((a&0xfe) == (s68k_poll_adclk&0xfe) && s68k_poll_cnt > POLL_LIMIT) {
+        SekSetStopS68k(0); s68k_poll_adclk = 0;
+        //printf("%05i:%03i: s68k poll release, a=%02x\n", Pico.m.frame_count, Pico.m.scanline, a);
+      }
+#endif
       return;
   }
 
@@ -178,48 +198,64 @@ u32 s68k_reg_read16(u32 a)
 
   switch (a) {
     case 0:
-      d = ((Pico_mcd->s68k_regs[0]&3)<<8) | 1; // ver = 0, not in reset state
-      goto end;
+      return ((Pico_mcd->s68k_regs[0]&3)<<8) | 1; // ver = 0, not in reset state
     case 2:
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0x1f);
       dprintf("s68k_regs r3: %02x @%06x", (u8)d, SekPcS68k);
-      goto end;
+      goto poll_detect;
     case 6:
-      d = CDC_Read_Reg();
-      goto end;
+      return CDC_Read_Reg();
     case 8:
-      d = Read_CDC_Host(1); // Gens returns 0 here on byte reads
-      goto end;
+      return Read_CDC_Host(1); // Gens returns 0 here on byte reads
     case 0xC:
       d = Pico_mcd->m.timer_stopwatch >> 16;
       dprintf("s68k stopwatch timer read (%04x)", d);
-      goto end;
+      return d;
     case 0x30:
-      dprintf("s68k int3 timer read (%02x%02x)", Pico_mcd->s68k_regs[30], Pico_mcd->s68k_regs[31]);
-      break;
+      dprintf("s68k int3 timer read (%02x)", Pico_mcd->s68k_regs[31]);
+      return Pico_mcd->s68k_regs[31];
     case 0x34: // fader
-      d = 0; // no busy bit
-      goto end;
+      return 0; // no busy bit
     case 0x50: // font data (check: Lunar 2, Silpheed)
       READ_FONT_DATA(0x00100000);
-      goto end;
+      return d;
     case 0x52:
       READ_FONT_DATA(0x00010000);
-      goto end;
+      return d;
     case 0x54:
       READ_FONT_DATA(0x10000000);
-      goto end;
+      return d;
     case 0x56:
       READ_FONT_DATA(0x01000000);
-      goto end;
+      return d;
   }
 
   d = (Pico_mcd->s68k_regs[a]<<8) | Pico_mcd->s68k_regs[a+1];
 
-end:
+  if (a >= 0x0e && a < 0x30) goto poll_detect;
 
-  // dprintf("ret = %04x", d);
+  return d;
 
+poll_detect:
+#ifdef USE_POLL_DETECT
+  // polling detection
+  if (a == (s68k_poll_adclk&0xfe)) {
+    unsigned int clkdiff = SekCyclesDoneS68k() - (s68k_poll_adclk>>8);
+    if (clkdiff <= POLL_CYCLES) {
+      s68k_poll_cnt++;
+      //printf("-- diff: %u, cnt = %i\n", clkdiff, s68k_poll_cnt);
+      if (s68k_poll_cnt > POLL_LIMIT) {
+        SekSetStopS68k(1);
+        //printf("%05i:%03i: s68k poll detected @ %06x, a=%02x\n", Pico.m.frame_count, Pico.m.scanline, SekPcS68k, a);
+      }
+      s68k_poll_adclk = (SekCyclesDoneS68k() << 8) | a;
+      return d;
+    }
+  }
+  s68k_poll_adclk = (SekCyclesDoneS68k() << 8) | a;
+  s68k_poll_cnt = 0;
+
+#endif
   return d;
 }
 
@@ -292,8 +328,7 @@ void s68k_reg_write8(u32 a, u32 d)
       Pico_mcd->m.timer_stopwatch = 0;
       return;
     case 0xe:
-      Pico_mcd->s68k_regs[0Xf] = (d>>1) | (d<<7); // ror8, Gens note: Dragons lair
-      Pico_mcd->m.timer_stopwatch = 0;
+      Pico_mcd->s68k_regs[0xf] = (d>>1) | (d<<7); // ror8 1, Gens note: Dragons lair
       return;
     case 0x31:
       dprintf("s68k set int3 timer: %02x", d);
@@ -634,8 +669,23 @@ static void PicoWriteM68k16(u32 a,u16 d)
     return;
   }
 
-  if ((a&0xffffc0)==0xa12000)
+  // regs
+  if ((a&0xffffc0)==0xa12000) {
     rdprintf("m68k_regs w16: [%02x] %04x @%06x", a&0x3f, d, SekPc);
+    if (a == 0xe) { // special case, 2 byte writes would be handled differently
+      Pico_mcd->s68k_regs[0xe] = d >> 8;
+#ifdef USE_POLL_DETECT
+      if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
+        SekSetStopS68k(0); s68k_poll_adclk = -1;
+        //printf("%05i:%03i: s68k poll release, a=%02x\n", Pico.m.frame_count, Pico.m.scanline, a);
+      }
+#endif
+      return;
+    }
+    m68k_reg_write8(a,  d>>8);
+    m68k_reg_write8(a+1,d&0xff);
+    return;
+  }
 
   OtherWrite16(a,d);
 }
@@ -1408,6 +1458,8 @@ void PicoMemSetupCD()
   PicoCpuS68k.write16=PicoWriteS68k16;
   PicoCpuS68k.write32=PicoWriteS68k32;
 #endif
+  // m68k_poll_addr = m68k_poll_cnt = 0;
+  s68k_poll_adclk = s68k_poll_cnt = 0;
 }
 
 
