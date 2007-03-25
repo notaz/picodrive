@@ -214,7 +214,7 @@ Symbian:
 
 Changelog
 ---------
-1.2x
+1.30
   + ISO files now can be zipped. Note that this causes VERY long loading times.
   + Added data pre-buffering support, this allows to reduce frequency of short pauses
     in FMV games (caused by SD access), but makes those pauses longer.
@@ -225,6 +225,8 @@ Changelog
   * Frameskipper was skipping sound processing, what caused some audio desyncs. Fixed.
   * Fixed reset not working for some games.
   + New assembly optimized memory handlers for CD (gives at least a few fps).
+    Also re-enabled all optimizations from 0.964 release.
+  + New idle-loop detection code for sub-68k. Speeds up at least a few games.
 
 1.201
   + Added basic cheat support (GameGenie and Genecyst patches).
