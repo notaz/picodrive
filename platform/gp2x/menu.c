@@ -286,7 +286,7 @@ static int scandir_cmp(const void *p1, const void *p2)
 	return alphasort(d1, d2);
 }
 
-static char *filter_exts[] = { ".mp3", ".MP3", ".srm", ".brm", "s.gz", ".mds", "bcfg", ".txt", ".htm", "html", ".gpe" };
+static char *filter_exts[] = { ".mp3", ".MP3", ".srm", ".brm", "s.gz", ".mds", "bcfg", ".txt", ".htm", "html", ".jpg", ".gpe" };
 
 static int scandir_filter(const struct dirent *ent)
 {
@@ -764,7 +764,7 @@ static void draw_cd_menu_options(int menu_sel, char *b_us, char *b_eu, char *b_j
 	gp2x_text_out8(tl_x, (y+=10), "CDDA audio (using mp3s)    %s", (currentConfig.PicoOpt&0x0800)?"ON":"OFF"); // 4
 	gp2x_text_out8(tl_x, (y+=10), "PCM audio                  %s", (currentConfig.PicoOpt&0x0400)?"ON":"OFF"); // 5
 	gp2x_text_out8(tl_x, (y+=10), "ReadAhead buffer      %s", ra_buff); // 6
-	gp2x_text_out8(tl_x, (y+=10), "Scale/Rot. fx (buggy,slow) %s", (currentConfig.PicoOpt&0x1000)?"ON":"OFF"); // 7
+	gp2x_text_out8(tl_x, (y+=10), "Scale/Rot. fx (slow)       %s", (currentConfig.PicoOpt&0x1000)?"ON":"OFF"); // 7
 	gp2x_text_out8(tl_x, (y+=10), "Better sync (slow)         %s", (currentConfig.PicoOpt&0x2000)?"ON":"OFF"); // 8
 	gp2x_text_out8(tl_x, (y+=10), "Done");
 
