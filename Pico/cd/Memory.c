@@ -34,7 +34,6 @@ typedef unsigned int   u32;
 // -----------------------------------------------------------------
 
 // poller detection
-#define USE_POLL_DETECT
 #define POLL_LIMIT 16
 #define POLL_CYCLES 124
 // int m68k_poll_addr, m68k_poll_cnt;
@@ -53,7 +52,7 @@ static u32 m68k_reg_read16(u32 a)
       goto end;
     case 2:
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0xc7);
-      dprintf("m68k_regs r3: %02x @%06x", (u8)d, SekPcS68k);
+      dprintf("m68k_regs r3: %02x @%06x", (u8)d, SekPc);
       goto end;
     case 4:
       d = Pico_mcd->s68k_regs[4]<<8;
@@ -129,7 +128,14 @@ void m68k_reg_write8(u32 a, u32 d)
         d ^= 2;                // writing 0 to DMNA actually sets it, 1 does nothing
       } else {
         //dold &= ~2; // ??
+#if 1
+	if ((d & 2) && !(dold & 2)) {
+          Pico_mcd->m.state_flags |= 2; // we must delay setting DMNA bit (needed for Silpheed)
+          d &= ~2;
+	}
+#else
         if (d & 2) dold &= ~1; // return word RAM to s68k in 2M mode
+#endif
       }
       Pico_mcd->s68k_regs[3] = d | dold; // really use s68k side register
 #ifdef USE_POLL_DETECT
@@ -273,7 +279,7 @@ void s68k_reg_write8(u32 a, u32 d)
       return; // only m68k can change WP
     case 3: {
       int dold = Pico_mcd->s68k_regs[3];
-      dprintf("s68k_regs w3: %02x @%06x", (u8)d, SekPc);
+      dprintf("s68k_regs w3: %02x @%06x", (u8)d, SekPcS68k);
       d &= 0x1d;
       d |= dold&0xc2;
       if (d&4) {

@@ -12,6 +12,9 @@
 #include <string.h>
 #include "Pico.h"
 
+//
+#define USE_POLL_DETECT
+
 
 // to select core, define EMU_C68K, EMU_M68K or EMU_A68K in your makefile or project
 
@@ -210,7 +213,7 @@ struct mcd_misc
 	unsigned short hint_vector;
 	unsigned char  busreq;
 	unsigned char  s68k_pend_ints;
-	unsigned int   state_flags;	// 04: emu state: reset_pending,
+	unsigned int   state_flags;	// 04: emu state: reset_pending, dmna_pending
 	unsigned int   counter75hz;
 	unsigned short audio_offset;	// 0c: for savestates: play pointer offset (0-1023)
 	unsigned char  audio_track;	// playing audio track # (zero based)

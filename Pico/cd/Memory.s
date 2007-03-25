@@ -201,8 +201,8 @@ PicoMemResetCD: @ r3
     bx      lr
 
 
-PicoMemResetCDdecode: @r3
-    tst     r3, #4
+PicoMemResetCDdecode: @reg3
+    tst     r0, #4
     bxeq    lr                 @ we should not be called in 2M mode
     ldr     r1, =m_s68k_write8_table
     ldr     r3, =m_s68k_decode_write_table

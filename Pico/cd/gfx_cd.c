@@ -1,6 +1,4 @@
-// TODO...
 
-// #include <string.h>
 #include "../PicoInt.h"
 
 #define rot_comp Pico_mcd->rot_comp
@@ -359,7 +357,7 @@ unsigned int gfx_cd_read(unsigned int a)
 
 	dprintf("gfx_cd_read(%02x) = %04x", a, d);
 
-	return 0;
+	return d;
 }
 
 void gfx_cd_write16(unsigned int a, unsigned int d)

@@ -799,7 +799,7 @@ static void cd_menu_loop_options(void)
 					} else {
 						if (PicoCDBuffers < 64) PicoCDBuffers = 64;
 						else PicoCDBuffers <<= 1;
-						if (PicoCDBuffers > 4096) PicoCDBuffers = 4096;
+						if (PicoCDBuffers > 8*1024) PicoCDBuffers = 8*1024; // 16M
 					}
 					break;
 				case  7: currentConfig.PicoOpt^=0x1000; break;

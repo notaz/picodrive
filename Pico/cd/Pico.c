@@ -12,6 +12,28 @@
 
 
 extern unsigned char formatted_bram[4*0x10];
+extern unsigned int s68k_poll_adclk;
+
+
+#define dump_ram(ram,fname) \
+{ \
+  int i, d; \
+  FILE *f; \
+\
+  for (i = 0; i < sizeof(ram); i+=2) { \
+    d = (ram[i]<<8) | ram[i+1]; \
+    *(unsigned short *)(ram+i) = d; \
+  } \
+  f = fopen(fname, "wb"); \
+  if (f) { \
+    fwrite(ram, 1, sizeof(ram), f); \
+    fclose(f); \
+  } \
+  for (i = 0; i < sizeof(ram); i+=2) { \
+    d = (ram[i]<<8) | ram[i+1]; \
+    *(unsigned short *)(ram+i) = d; \
+  } \
+}
 
 
 int PicoInitMCD(void)
@@ -26,6 +48,9 @@ int PicoInitMCD(void)
 void PicoExitMCD(void)
 {
   End_CD_Driver();
+
+  //dump_ram(Pico_mcd->prg_ram, "prg.bin");
+  //dump_ram(Pico.ram, "ram.bin");
 }
 
 int PicoResetMCD(int hard)
@@ -185,6 +210,18 @@ static __inline void update_chips(void)
 	// update gfx chip
 	if (Pico_mcd->rot_comp.Reg_58 & 0x8000)
 		gfx_cd_update();
+
+	// delayed setting of DMNA bit (needed for Silpheed)
+	if (Pico_mcd->m.state_flags & 2) {
+		Pico_mcd->m.state_flags &= ~2;
+		Pico_mcd->s68k_regs[3] |=  2;
+		Pico_mcd->s68k_regs[3] &= ~1;
+#ifdef USE_POLL_DETECT
+		if ((s68k_poll_adclk&0xfe) == 2) {
+			SekSetStopS68k(0); s68k_poll_adclk = 0;
+		}
+#endif
+	}
 }
 
 
@@ -284,8 +321,8 @@ static int PicoFrameHintsMCD(void)
 
     // Run scanline:
       //dprintf("m68k starting exec @ %06x", SekPc);
-    if(Pico.m.dma_bytes) SekCycleCnt+=CheckDMA();
-    if((PicoOpt & 0x2000) && (Pico_mcd->m.busreq&3) == 1) {
+    if (Pico.m.dma_bytes) SekCycleCnt+=CheckDMA();
+    if ((PicoOpt & 0x2000) && (Pico_mcd->m.busreq&3) == 1) {
       SekRunPS(cycles_68k, cycles_s68k); // "better/perfect sync"
     } else {
       SekRun(cycles_68k);
@@ -293,7 +330,7 @@ static int PicoFrameHintsMCD(void)
         SekRunS68k(cycles_s68k);
     }
 
-    if((PicoOpt&4) && Pico.m.z80Run) {
+    if ((PicoOpt&4) && Pico.m.z80Run) {
       Pico.m.z80Run|=2;
       z80CycleAim+=cycles_z80;
       total_z80+=z80_run(z80CycleAim-total_z80);
@@ -303,7 +340,7 @@ static int PicoFrameHintsMCD(void)
   }
 
   // draw a frame just after vblank in alternative render mode
-  if(!PicoSkipFrame && (PicoOpt&0x10))
+  if (!PicoSkipFrame && (PicoOpt&0x10))
     PicoFrameFull();
 
   return 0;
