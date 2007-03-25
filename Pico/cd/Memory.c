@@ -52,7 +52,9 @@ static u32 m68k_reg_read16(u32 a)
       goto end;
     case 2:
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0xc7);
-      dprintf("m68k_regs r3: %02x @%06x", (u8)d, SekPc);
+      // the DMNA delay must only be visible on s68k side (Lunar2, Silpheed)
+      if (Pico_mcd->m.state_flags&2) { d &= ~1; d |= 2; }
+      //printf("m68k_regs r3: %02x @%06x\n", (u8)d, SekPc);
       goto end;
     case 4:
       d = Pico_mcd->s68k_regs[4]<<8;
@@ -117,7 +119,7 @@ void m68k_reg_write8(u32 a, u32 d)
       return;
     case 3: {
       u32 dold = Pico_mcd->s68k_regs[3]&0x1f;
-      dprintf("m68k_regs w3: %02x @%06x", (u8)d, SekPc);
+      //printf("m68k_regs w3: %02x @%06x\n", (u8)d, SekPc);
       d &= 0xc2;
       if ((dold>>6) != ((d>>6)&3))
         dprintf("m68k: prg bank: %i -> %i", (Pico_mcd->s68k_regs[a]>>6), ((d>>6)&3));
@@ -207,7 +209,7 @@ u32 s68k_reg_read16(u32 a)
       return ((Pico_mcd->s68k_regs[0]&3)<<8) | 1; // ver = 0, not in reset state
     case 2:
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0x1f);
-      dprintf("s68k_regs r3: %02x @%06x", (u8)d, SekPcS68k);
+      //printf("s68k_regs r3: %02x @%06x\n", (u8)d, SekPcS68k);
       goto poll_detect;
     case 6:
       return CDC_Read_Reg();
@@ -279,7 +281,7 @@ void s68k_reg_write8(u32 a, u32 d)
       return; // only m68k can change WP
     case 3: {
       int dold = Pico_mcd->s68k_regs[3];
-      dprintf("s68k_regs w3: %02x @%06x", (u8)d, SekPcS68k);
+      //printf("s68k_regs w3: %02x @%06x\n", (u8)d, SekPcS68k);
       d &= 0x1d;
       d |= dold&0xc2;
       if (d&4) {
@@ -482,7 +484,9 @@ static u16 PicoReadM68k16(u32 a)
   // prg RAM
   if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&2)) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
+    wrdprintf("m68k_prgram r16: [%i,%06x] @%06x", Pico_mcd->s68k_regs[3]>>6, a, SekPc);
     d = *(u16 *)(prg_bank+(a&0x1fffe));
+    wrdprintf("ret = %04x", d);
     goto end;
   }
 
@@ -655,6 +659,7 @@ static void PicoWriteM68k16(u32 a,u16 d)
   // prg RAM
   if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&2)) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
+    wrdprintf("m68k_prgram w16: [%i,%06x] %04x @%06x", Pico_mcd->s68k_regs[3]>>6, a, d, SekPc);
     *(u16 *)(prg_bank+(a&0x1fffe))=d;
     return;
   }
@@ -863,7 +868,9 @@ static u16 PicoReadS68k16(u32 a)
 
   // prg RAM
   if (a < 0x80000) {
+    wrdprintf("s68k_prgram r16: [%06x] @%06x", a, SekPcS68k);
     d = *(u16 *)(Pico_mcd->prg_ram+a);
+    wrdprintf("ret = %04x", d);
     goto end;
   }
 
@@ -979,7 +986,6 @@ static u32 PicoReadS68k32(u32 a)
       d  = Pico_mcd->word_ram1M[bank][((a+0)^1)&0x1ffff] << 16;
       d |= Pico_mcd->word_ram1M[bank][((a+1)^1)&0x1ffff];
       d |= d << 4; d &= 0x0f0f0f0f;
-      dprintf("FIXME: decode");
     } else {
       // allow access in any mode, like Gens does
       u16 *pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe)); d = (pm[0]<<16)|pm[1];
@@ -1058,8 +1064,6 @@ static void decode_write8(u32 a, u8 d, int r3)
   d  &= 0x0f;
   if (!(a&1)) d <<= 4;
 
-  //dprintf("FIXME: decode, r3 = %02x", r3);
-
   if (r3 == 8) {
     if ((!(*pd & (~oldmask))) && d) goto do_it;
   } else if (r3 > 8) {
@@ -1097,15 +1101,11 @@ static void decode_write16(u32 a, u16 d, int r3)
   } else {
     *pd = d;
   }
-
-  //dprintf("FIXME: decode");
 }
 #endif
 
 // -----------------------------------------------------------------
 
-//void PicoWriteS68k8_(u32 a,u8 d);
-//void PicoWriteS68k8__(u32 a,u8 d);
 #ifdef _ASM_CD_MEMORY_C
 void PicoWriteS68k8(u32 a,u8 d);
 #else
@@ -1116,16 +1116,6 @@ static void PicoWriteS68k8(u32 a,u8 d)
 #endif
 
   a&=0xffffff;
-#if 0
-    PicoWriteS68k8_(a, d);
-/*  if ((a&0xfc0000)!=0x080000) {
-    PicoWriteS68k8_(a, d);
-    return;
-  }
-  printf("r3: %02x\n", Pico_mcd->s68k_regs[3]);
-  PicoWriteS68k8__(a,d);*/
-  return;
-#endif
 
   // prg RAM
   if (a < 0x80000) {
@@ -1205,6 +1195,7 @@ static void PicoWriteS68k16(u32 a,u16 d)
 
   // prg RAM
   if (a < 0x80000) {
+    wrdprintf("s68k_prgram w16: [%06x] %04x @%06x", a, d, SekPcS68k);
     *(u16 *)(Pico_mcd->prg_ram+a)=d;
     return;
   }

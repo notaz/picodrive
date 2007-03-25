@@ -632,7 +632,7 @@ int OpAsrEa(int op)
   return 0;
 }
 
-int OpTas(int op)
+int OpTas(int op, int gen_special)
 {
   int ea=0;
   int use=0;
@@ -645,7 +645,11 @@ int OpTas(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=4;
+  if (!gen_special) OpStart(op);
+  else
+    ot("Op%.4x_%s\n", op, ms?"":":");
+
+  Cycles=4;
   if(ea>=8) Cycles+=10;
 
   EaCalc (10,0x003f,ea,0,1);
@@ -657,7 +661,7 @@ int OpTas(int op)
 
 #if CYCLONE_FOR_GENESIS
   // the original Sega hardware ignores write-back phase (to memory only)
-  if (ea < 0x10) {
+  if (ea < 0x10 || gen_special) {
 #endif
     ot("  orr r1,r1,#0x80000000 ;@ set bit7\n");
 
@@ -667,6 +671,13 @@ int OpTas(int op)
 #endif
 
   OpEnd();
+
+#if CYCLONE_FOR_GENESIS
+  if (!gen_special && ea >= 0x10) {
+    OpTas(op, 1);
+  }
+#endif
+
   return 0;
 }
 

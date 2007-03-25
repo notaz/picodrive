@@ -71,6 +71,8 @@ int PicoReset(int hard)
   else PicoMemSetup();
   PicoMemReset();
   SekReset();
+  // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
+  CycloneSetRealTAS(PicoMCD & 1);
   SekCycleCntT=0;
   z80_reset();
 

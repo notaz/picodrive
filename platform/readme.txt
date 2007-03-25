@@ -214,6 +214,11 @@ Symbian:
 
 Changelog
 ---------
+1.31
+  * Changed the way memory mode register is read (fixes Lunar 2, broken in 1.30).
+  * Fixed TAS opcode on sub-68k side (fixes Batman games).
+  * File browser now filters out mp3s, saves and some other files, which are not ROMS.
+
 1.30
   + ISO files now can be zipped. Note that this causes VERY long loading times.
   + Added data pre-buffering support, this allows to reduce frequency of short pauses

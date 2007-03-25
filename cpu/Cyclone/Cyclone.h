@@ -53,6 +53,9 @@ void CycloneRun(struct Cyclone *pcy);
 void CycloneSetSr(struct Cyclone *pcy, unsigned int sr); // auto-swaps a7<->osp if detects supervisor change
 unsigned int CycloneGetSr(struct Cyclone *pcy);
 
+// genesis: if 1, switch to normal TAS handlers
+void CycloneSetRealTAS(int use_real);
+
 #ifdef __cplusplus
 } // End of extern "C"
 #endif

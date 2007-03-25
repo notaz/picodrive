@@ -31,8 +31,6 @@ static void gfx_cd_start(void)
 {
 	int upd_len;
 
-	dprintf("gfx_cd_start()");
-
 	// rot_comp.XD_Mul = ((rot_comp.Reg_5C & 0x1f) + 1) * 4; // unused
 	rot_comp.Function = (rot_comp.Reg_58 & 7) | (Pico_mcd->s68k_regs[3] & 0x18);	// Jmp_Adr
 	// rot_comp.Buffer_Adr = (rot_comp.Reg_5E & 0xfff8) << 2; // unused?
@@ -60,6 +58,8 @@ static void gfx_cd_start(void)
 			rot_comp.Stamp_Map_Adr = (rot_comp.Reg_5A & 0xe000) << 2;
 			break;
 	}
+
+	dprintf("gfx_cd_start, stamp_map_addr=%06x", rot_comp.Stamp_Map_Adr);
 
 	gfx_cd_update();
 }
@@ -95,6 +95,18 @@ static void gfx_do(unsigned int func, unsigned short *stamp_base, unsigned int H
 	// MAKE_IMAGE_LINE
 	while (H_Dot)
 	{
+		// MAKE_IMAGE_PIXEL
+		if (!(func & 1))	// NOT TILED
+		{
+			int mask = (func & 4) ? 0x00800000 : 0x00f80000;
+			if ((ecx | edx) & mask)
+			{
+				if (func & 0x18) goto Next_Pixel;
+				pixel = 0;
+				goto Pixel_Out;
+			}
+		}
+
 		if (func & 2)		// mode 32x32 dot
 		{
 			if (func & 4)	// 16x16 screen
@@ -122,19 +134,7 @@ static void gfx_do(unsigned int func, unsigned short *stamp_base, unsigned int H
 			}
 		}
 
-		// MAKE_IMAGE_PIXEL
-		if (!(func & 1))	// NOT TILED
-		{
-			int mask = (func & 4) ? 0x00800000 : 0x00f80000;
-			if ((ecx | edx) & mask)
-			{
-				if (func & 0x18) goto Next_Pixel;
-				pixel = 0;
-				goto Pixel_Out;
-			}
-		}
-
-		edi = stamp_base[ebx];// | (stamp_base[ebx+1] << 16);
+		edi = stamp_base[ebx];
 		esi = (edi & 0x7ff) << 7;
 		if (!esi) { pixel = 0; goto Pixel_Out; }
 		edi >>= (11+1);

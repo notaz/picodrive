@@ -286,6 +286,25 @@ static int scandir_cmp(const void *p1, const void *p2)
 	return alphasort(d1, d2);
 }
 
+static char *filter_exts[] = { ".mp3", ".MP3", ".srm", ".brm", "s.gz", ".mds", "bcfg", ".txt", ".htm", "html", ".gpe" };
+
+static int scandir_filter(const struct dirent *ent)
+{
+	const char *p;
+	int i;
+
+	if (ent == NULL || ent->d_name == NULL) return 0;
+	if (strlen(ent->d_name) < 5) return 1;
+
+	p = ent->d_name + strlen(ent->d_name) - 4;
+
+	for (i = 0; i < sizeof(filter_exts)/sizeof(filter_exts[0]); i++)
+	{
+		if (strcmp(p, filter_exts[i]) == 0) return 0;
+	}
+
+	return 1;
+}
 
 static char *romsel_loop(char *curr_path)
 {
@@ -305,10 +324,10 @@ static char *romsel_loop(char *curr_path)
 		fname = p+1;
 	}
 
-	n = scandir(curr_path, &namelist, 0, scandir_cmp);
+	n = scandir(curr_path, &namelist, scandir_filter, scandir_cmp);
 	if (n < 0) {
 		// try root
-		n = scandir(curr_path, &namelist, 0, scandir_cmp);
+		n = scandir("/", &namelist, scandir_filter, scandir_cmp);
 		if (n < 0) {
 			// oops, we failed
 			printf("dir: "); printf(curr_path); printf("\n");

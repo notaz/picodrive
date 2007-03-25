@@ -32,6 +32,51 @@ void ltorg()
   else    ot("  .ltorg\n");
 }
 
+#if CYCLONE_FOR_GENESIS
+// r12=ptr to tas in table, trashes r0,r1
+static void ChangeTAS(int norm)
+{
+  ot("  ldr r0,=Op4ad0%s\n",norm?"_":"");
+  ot("  mov r1,#8\n");
+  ot("setrtas_loop%i0%s ;@ 4ad0-4ad7\n",norm,ms?"":":");
+  ot("  subs r1,r1,#1\n");
+  ot("  str r0,[r12],#4\n");
+  ot("  bne setrtas_loop%i0\n",norm);
+  ot("  ldr r0,=Op4ad8%s\n",norm?"_":"");
+  ot("  mov r1,#7\n");
+  ot("setrtas_loop%i1%s ;@ 4ad8-4ade\n",norm,ms?"":":");
+  ot("  subs r1,r1,#1\n");
+  ot("  str r0,[r12],#4\n");
+  ot("  bne setrtas_loop%i1\n",norm);
+  ot("  ldr r0,=Op4adf%s\n",norm?"_":"");
+  ot("  str r0,[r12],#4\n");
+  ot("  ldr r0,=Op4ae0%s\n",norm?"_":"");
+  ot("  mov r1,#7\n");
+  ot("setrtas_loop%i2%s ;@ 4ae0-4ae6\n",norm,ms?"":":");
+  ot("  subs r1,r1,#1\n");
+  ot("  str r0,[r12],#4\n");
+  ot("  bne setrtas_loop%i2\n",norm);
+  ot("  ldr r0,=Op4ae7%s\n",norm?"_":"");
+  ot("  str r0,[r12],#4\n");
+  ot("  ldr r0,=Op4ae8%s\n",norm?"_":"");
+  ot("  mov r1,#8\n");
+  ot("setrtas_loop%i3%s ;@ 4ae8-4aef\n",norm,ms?"":":");
+  ot("  subs r1,r1,#1\n");
+  ot("  str r0,[r12],#4\n");
+  ot("  bne setrtas_loop%i3\n",norm);
+  ot("  ldr r0,=Op4af0%s\n",norm?"_":"");
+  ot("  mov r1,#8\n");
+  ot("setrtas_loop%i4%s ;@ 4af0-4af7\n",norm,ms?"":":");
+  ot("  subs r1,r1,#1\n");
+  ot("  str r0,[r12],#4\n");
+  ot("  bne setrtas_loop%i4\n",norm);
+  ot("  ldr r0,=Op4af8%s\n",norm?"_":"");
+  ot("  str r0,[r12],#4\n");
+  ot("  ldr r0,=Op4af9%s\n",norm?"_":"");
+  ot("  str r0,[r12],#4\n");
+}
+#endif
+
 // trashes all temp regs
 static void PrintException(int ints)
 {
@@ -259,6 +304,26 @@ static void PrintFramework()
   ot("  bx lr\n");
   ot("\n");
 
+  if (ms) ot("CycloneSetRealTAS\n");
+  else    ot("CycloneSetRealTAS:\n");
+#if CYCLONE_FOR_GENESIS
+  ot("  ldr r12,=CycloneJumpTab\n");
+  ot("  tst r0,r0\n");
+  ot("  add r12,r12,#0x4a00*4\n");
+  ot("  add r12,r12,#0x00d0*4\n");
+  ot("  beq setrtas_off\n");
+  ChangeTAS(1);
+  ot("  bx lr\n");
+  ot("setrtas_off%s\n",ms?"":":");
+  ChangeTAS(0);
+  ot("  bx lr\n");
+  ltorg();
+  ot("\n");
+#else
+  ot("  bx lr\n");
+  ot("\n");
+#endif
+
   ot(";@ DoInterrupt - r0=IRQ number\n");
   ot("CycloneDoInterrupt%s\n", ms?"":":");
   ot("  stmdb sp!,{lr} ;@ Push ARM return address\n");
@@ -470,15 +535,15 @@ static void PrintJumpTable()
 
   ot(";@ -------------------------- Jump Table --------------------------\n");
 
+  // space for decompressed table
+  ot(ms?"  area |.data|, data\n":"  .data\n  .align 4\n\n");
+
 #if COMPRESS_JUMPTABLE
     int handlers=0,reps=0,*indexes,ip,u,out;
     // use some weird compression on the jump table
 	indexes=(int *)malloc(0x10000*4);
 	if(!indexes) { printf("ERROR: out of memory\n"); exit(1); }
 	len=0x10000;
-
-	// space for decompressed table
-	ot(ms?"  area |.data|, data\n":"  .data\n  .align 4\n\n");
 
 	ot("CycloneJumpTab%s\n", ms?"":":");
 	if(ms) {
@@ -607,6 +672,7 @@ static int CycloneMake()
     ot("  export CycloneRun\n");
     ot("  export CycloneSetSr\n");
     ot("  export CycloneGetSr\n");
+    ot("  export CycloneSetRealTAS\n");
     ot("  export CycloneVer\n");
     ot("\n");
     ot("CycloneVer dcd 0x%.4x\n",CycloneVer);
@@ -617,6 +683,7 @@ static int CycloneMake()
     ot("  .global CycloneRun\n");
     ot("  .global CycloneSetSr\n");
     ot("  .global CycloneGetSr\n");
+    ot("  .global CycloneSetRealTAS\n");
     ot("  .global CycloneVer\n");
 #ifdef CYCLONE_FOR_PICODRIVE
     ot("  .global CycloneDoInterrupt\n");

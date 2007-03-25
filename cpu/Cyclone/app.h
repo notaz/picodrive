@@ -79,7 +79,7 @@ int OpExt(int op);
 int OpSet(int op);
 int OpAsr(int op);
 int OpAsrEa(int op);
-int OpTas(int op);
+int OpTas(int op, int gen_special=0);
 
 // OpMove.cpp
 int OpMove(int op);

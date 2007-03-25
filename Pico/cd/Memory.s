@@ -489,7 +489,13 @@ m_m68k_read8_r02:
 m_m68k_read8_r03:
     add     r1, r1, #0x110000
     ldrb    r0, [r1, #3]
+    add     r1, r1, #0x002200
+    ldr     r1, [r1, #4]
     and     r0, r0, #0xc7
+    tst     r1, #2                    @ DMNA pending?
+    bxeq    lr
+    bic     r0, r0, #1
+    orr     r0, r0, #2
     bx      lr
 m_m68k_read8_r04:
     add     r1, r1, #0x110000
@@ -677,9 +683,15 @@ m_m68k_read16_r00:
 m_m68k_read16_r02:
     add     r1, r1, #0x110000
     ldrb    r0, [r1, #2]
-    ldrb    r1, [r1, #3]
-    and     r1, r1, #0xc7
-    orr     r0, r1, r0, lsl #8
+    ldrb    r2, [r1, #3]
+    add     r1, r1, #0x002200
+    ldr     r1, [r1, #4]
+    and     r2, r2, #0xc7
+    orr     r0, r2, r0, lsl #8
+    tst     r1, #2                    @ DMNA pending?
+    bxeq    lr
+    bic     r0, r0, #1
+    orr     r0, r0, #2
     bx      lr
 m_m68k_read16_r04:
     add     r1, r1, #0x110000
