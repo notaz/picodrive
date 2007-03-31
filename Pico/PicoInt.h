@@ -311,6 +311,7 @@ int SekInit(void);
 int SekReset(void);
 int SekInterrupt(int irq);
 void SekState(unsigned char *data);
+void SekSetRealTAS(int use_real);
 
 // cd/Sek.c
 int SekInitS68k(void);

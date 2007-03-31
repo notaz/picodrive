@@ -12,7 +12,7 @@ void gp2x_video_flip2(void);
 void gp2x_video_changemode(int bpp);
 void gp2x_video_changemode2(int bpp);
 void gp2x_video_setpalette(int *pal, int len);
-void gp2x_video_RGB_setscaling(int W, int H);
+void gp2x_video_RGB_setscaling(int ln_offs, int W, int H);
 void gp2x_video_wait_vsync(void);
 void gp2x_memcpy_buffers(int buffers, void *data, int offset, int len);
 void gp2x_memcpy_all_buffers(void *data, int offset, int len);

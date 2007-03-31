@@ -72,7 +72,7 @@ int PicoReset(int hard)
   PicoMemReset();
   SekReset();
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
-  CycloneSetRealTAS(PicoMCD & 1);
+  SekSetRealTAS(PicoMCD & 1);
   SekCycleCntT=0;
   z80_reset();
 
@@ -486,7 +486,13 @@ static int PicoFrameSimple(void)
   int y=0,line=0,lines=0,lines_step=0,sects;
   int cycles_68k_vblock,cycles_68k_block;
 
-  if(Pico.m.pal) {
+  // we don't emulate DMA timing in this mode
+  if (Pico.m.dma_bytes) {
+    Pico.m.dma_bytes=0;
+    Pico.video.status&=~2;
+  }
+
+  if (Pico.m.pal) {
     // M68k cycles/frame: 152009.78
     if(pv->reg[1]&8) { // 240 lines
       cycles_68k_block  = (int) ((double) OSC_PAL  /  7 / 50 / 312 * 15 + 0.4); // 16 sects, 16*15=240, 7308

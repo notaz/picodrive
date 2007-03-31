@@ -90,7 +90,7 @@ PicoDrive : $(OBJS) ../gp2x/helix/helix_mp3_x86.a
 
 ../../Pico/sound/ym2612.o : ../../Pico/sound/ym2612.c
 	@echo $@
-	@$(GCC) $(COPT_COMMON) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@ # -mtune=arm940t
+	@$(GCC) $(COPT_COMMON) $(DEFINC) -c $< -o $@ # -mtune=arm940t -DEXTERNAL_YM2612
 
 # faked asm
 ../../Pico/Draw.o : ../../Pico/Draw.c

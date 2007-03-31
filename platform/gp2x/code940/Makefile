@@ -32,7 +32,7 @@ all: code940.bin
 # stuff for 940 core
 
 # init, emu_control, emu
-OBJS940 += 940init.o 940.o 940ym2612.o memcpy.o mix.o
+OBJS940 += 940init.o 940.o 940ym2612.o memcpy.o mix.o misc.o
 # the asm code seems to be faster when run on 920, but not on 940 for some reason
 # OBJS940 += ../../Pico/sound/ym2612_asm.o
 
@@ -54,6 +54,9 @@ code940.gpe : $(OBJS940) ../helix/helix_mp3.a
 	@$(GCC) $(COPT) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
 
 mix.o : ../../../Pico/sound/mix.s
+	@echo $@
+	@$(GCC) $(COPT) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
+misc.o : ../../../Pico/misc.s
 	@echo $@
 	@$(GCC) $(COPT) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
 

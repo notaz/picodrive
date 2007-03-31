@@ -63,21 +63,7 @@ unsigned char *framebuff = 0;  // temporary buffer for alt renderer
 int state_slot = 0;
 int reset_timing = 0;
 
-/*
-// tmp
-static FILE *logf = NULL;
 
-void pprintf(char *texto, ...)
-{
-	va_list args;
-
-	va_start(args,texto);
-	vfprintf(logf,texto,args);
-	va_end(args);
-	fflush(logf);
-	sync();
-}
-*/
 // utilities
 static void strlwr(char* string)
 {
@@ -467,6 +453,18 @@ static void find_combos(void)
 }
 
 
+void scaling_update(void)
+{
+	PicoOpt &= ~0x4100;
+	switch (currentConfig.scaling) {
+		default: break; // off
+		case 1:  // hw hor
+		case 2:  PicoOpt |=  0x0100; break; // hw hor+vert
+		case 3:  PicoOpt |=  0x4000; break; // sw hor
+	}
+}
+
+
 int emu_ReadConfig(int game)
 {
 	FILE *f;
@@ -501,6 +499,7 @@ int emu_ReadConfig(int game)
 		currentConfig.KeyBinds[22] = 1<<30; // vol down
 		currentConfig.gamma = 100;
 		currentConfig.PicoCDBuffers = 64;
+		currentConfig.scaling = 0;
 		strncpy(cfg, PicoConfigFile, 511);
 		cfg[511] = 0;
 	} else {
@@ -516,7 +515,7 @@ int emu_ReadConfig(int game)
 		bread = fread(&currentConfig, 1, sizeof(currentConfig), f);
 		fclose(f);
 	}
-	printf((bread == sizeof(currentConfig)) ? "(ok)\n" : "(failed)\n");
+	printf(bread > 0 ? "(ok)\n" : "(failed)\n");
 
 	PicoOpt = currentConfig.PicoOpt;
 	PsndRate = currentConfig.PsndRate;
@@ -527,6 +526,7 @@ int emu_ReadConfig(int game)
 		actionNames[ 8] = "Z"; actionNames[ 9] = "Y";
 		actionNames[10] = "X"; actionNames[11] = "MODE";
 	}
+	scaling_update();
 	// some sanity checks
 	if (currentConfig.CPUclock < 1 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;
 	if (currentConfig.gamma < 10 || currentConfig.gamma > 300) currentConfig.gamma = 100;
@@ -536,7 +536,7 @@ int emu_ReadConfig(int game)
 		currentConfig.KeyBinds[22] = 1<<30; // vol down
 	}
 
-	return (bread == sizeof(currentConfig));
+	return (bread > 0); // == sizeof(currentConfig));
 }
 
 
@@ -565,7 +565,9 @@ int emu_WriteConfig(int game)
 		bwrite = fwrite(&currentConfig, 1, sizeof(currentConfig), f);
 		fflush(f);
 		fclose(f);
+#ifndef NO_SYNC
 		sync();
+#endif
 	}
 	printf((bwrite == sizeof(currentConfig)) ? "(ok)\n" : "(failed)\n");
 
@@ -581,8 +583,23 @@ void emu_Deinit(void)
 		SRam.changed = 0;
 	}
 
-	if (!(currentConfig.EmuOpt & 0x20))
-		emu_WriteConfig(0);
+	if (!(currentConfig.EmuOpt & 0x20)) {
+		FILE *f = fopen(PicoConfigFile, "r+b");
+		if (!f) emu_WriteConfig(0);
+		else {
+			// if we already have config, reload it, except last ROM
+			fseek(f, sizeof(currentConfig.lastRomFile), SEEK_SET);
+			fread(&currentConfig.EmuOpt, 1, sizeof(currentConfig) - sizeof(currentConfig.lastRomFile), f);
+			fseek(f, 0, SEEK_SET);
+			fwrite(&currentConfig, 1, sizeof(currentConfig), f);
+			fflush(f);
+			fclose(f);
+#ifndef NO_SYNC
+			sync();
+#endif
+		}
+	}
+
 	free(framebuff);
 
 	PicoExit();
@@ -706,9 +723,13 @@ static void blit(const char *fps, const char *notice)
 		}
 	}
 
-	if (notice) osd_text(4, 232, notice);
-	if (emu_opt & 2)
-		osd_text(osd_fps_x, 232, fps);
+	if (notice || (emu_opt & 2)) {
+		int h = 232;
+		if (currentConfig.scaling == 2 && !(Pico.video.reg[1]&8)) h -= 8;
+		if (notice) osd_text(4, h, notice);
+		if (emu_opt & 2)
+			osd_text(osd_fps_x, h, fps);
+	}
 	if ((emu_opt & 0x400) && (PicoMCD & 1))
 		cd_leds();
 
@@ -771,7 +792,9 @@ static void vidResetMode(void)
 	}
 	Pico.m.dirtyPal = 1;
 	// reset scaling
-	gp2x_video_RGB_setscaling((PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 240);
+	if (currentConfig.scaling == 2 && !(Pico.video.reg[1]&8))
+	     gp2x_video_RGB_setscaling(8, (PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 224);
+	else gp2x_video_RGB_setscaling(0, (PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 240);
 }
 
 
@@ -1133,7 +1156,9 @@ void emu_Loop(void)
 					vidCpyM2 = vidCpyM2_32col;
 				}
 			}
-			gp2x_video_RGB_setscaling(scalex, 240);
+			if (currentConfig.scaling == 2 && !(modes&8)) // want vertical scaling and game is not in 240 line mode
+			     gp2x_video_RGB_setscaling(8, scalex, 224);
+			else gp2x_video_RGB_setscaling(0, scalex, 240);
 			oldmodes = modes;
 			clearArea(1);
 		}
@@ -1171,7 +1196,7 @@ void emu_Loop(void)
 				if (frames_shown > frames_done) frames_shown = frames_done;
 			}
 		}
-#if 0
+#if 1
 		sprintf(fpsbuff, "%05i", Pico.m.frame_count);
 #endif
 		lim_time = (frames_done+1) * target_frametime;
@@ -1446,7 +1471,9 @@ int emu_SaveLoadGame(int load, int sram)
 				ret = fwrite(sram_data, 1, sram_size, sramFile);
 				ret = (ret != sram_size) ? -1 : 0;
 				fclose(sramFile);
+#ifndef NO_SYNC
 				sync();
+#endif
 			}
 		}
 		return ret;
@@ -1470,8 +1497,10 @@ int emu_SaveLoadGame(int load, int sram)
 			ret = PmovState(load ? 6 : 5, PmovFile);
 			areaClose(PmovFile);
 			PmovFile = 0;
-			if (!load) sync();
-			else Pico.m.dirtyPal=1;
+			if (load) Pico.m.dirtyPal=1;
+#ifndef NO_SYNC
+			else sync();
+#endif
 		}
 		else	ret = -1;
 		if (!ret)

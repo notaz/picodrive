@@ -18,7 +18,7 @@ enum TPicoGameState {
 typedef struct {
 	char lastRomFile[512];
 	int EmuOpt;		// LSb->MSb: use_sram, show_fps, enable_sound, gzip_saves,
-					// squidgehack, save_cfg_on_exit, <unused>, 16_bit_mode
+					// squidgehack, no_save_cfg_on_exit, <unused>, 16_bit_mode
 					// craigix_ram, confirm_save, show_cd_leds
 					//
 	int PicoOpt;  // used for config saving only, see Pico.h
@@ -32,6 +32,7 @@ typedef struct {
 	int JoyBinds[4][32];
 	int PicoAutoRgnOrder;
 	int PicoCDBuffers;
+	int scaling; // 0=center, 1=hscale, 2=hvscale, 3=hsoftscale
 } currentConfig_t;
 
 extern char romFileName[];
@@ -52,4 +53,5 @@ int  emu_check_save_file(int slot);
 void emu_set_save_cbs(int gz);
 void emu_forced_frame(void);
 int  find_bios(int region, char **bios_file);
+void scaling_update(void);
 

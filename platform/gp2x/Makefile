@@ -84,7 +84,8 @@ OBJS += mp3.o
 # CPU cores
 ifeq "$(use_musashi)" "1"
 DEFINC += -DEMU_M68K
-OBJS += _build\m68kcpu.o _build\m68kopac.o _build\m68kopdm.o _build\m68kopnz.o _build\m68kops.o
+OBJS += ../../cpu/musashi/m68kcpu.o ../../cpu/musashi/m68kopac.o ../../cpu/musashi/m68kopdm.o
+OBJS += ../../cpu/musashi/m68kopnz.o ../../cpu/musashi/m68kops.o
 else
 DEFINC += -DEMU_C68K
 OBJS += ../../cpu/Cyclone/proj/Cyclone.o

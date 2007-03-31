@@ -186,3 +186,11 @@ void SekState(unsigned char *data)
   memcpy(data+0x40,&PicoM68kCPU.pc, 0x04);
 #endif
 }
+
+void SekSetRealTAS(int use_real)
+{
+#ifdef EMU_C68K
+  CycloneSetRealTAS(use_real);
+#endif
+}
+

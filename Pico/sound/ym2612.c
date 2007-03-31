@@ -1702,7 +1702,9 @@ int YM2612Write_(unsigned int a, unsigned int v)
 		}
 
 		addr = ym2612.OPN.ST.address;
+#ifndef EXTERNAL_YM2612
 		ym2612.REGS[addr] = v;
+#endif
 
 		switch( addr & 0xf0 )
 		{
@@ -1800,7 +1802,9 @@ int YM2612Write_(unsigned int a, unsigned int v)
 		}
 
 		addr = ym2612.OPN.ST.address | 0x100;
+#ifndef EXTERNAL_YM2612
 		ym2612.REGS[addr] = v;
+#endif
 
 		ret = OPNWriteReg(addr, v);
 		break;
@@ -1869,7 +1873,10 @@ void YM2612PicoStateLoad_(void)
 }
 
 
+#ifndef EXTERNAL_YM2612
 void *YM2612GetRegs(void)
 {
 	return ym2612.REGS;
 }
+#endif
+

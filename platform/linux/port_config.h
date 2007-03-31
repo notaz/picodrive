@@ -4,7 +4,7 @@
 #define PORT_CONFIG_H
 
 #define CPU_CALL
-#define NO_IONBF
+#define NO_SYNC
 
 // draw2.c
 #define START_ROW  0 // which row of tiles to start rendering at?

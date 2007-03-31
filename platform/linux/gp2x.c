@@ -257,7 +257,7 @@ void gp2x_video_setpalette(int *pal, int len)
 	memcpy(current_pal, pal, len*4);
 }
 
-void gp2x_video_RGB_setscaling(int W, int H)
+void gp2x_video_RGB_setscaling(int v_offs, int W, int H)
 {
 }
 

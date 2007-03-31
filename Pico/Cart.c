@@ -79,10 +79,8 @@ zip_failed:
   f = fopen(path, "rb");
   if (f == NULL) return NULL;
 
-#ifndef NO_IONBF
   /* we use our own buffering */
   setvbuf(f, NULL, _IONBF, 0);
-#endif
 
   file = malloc(sizeof(*file));
   if (file == NULL) {

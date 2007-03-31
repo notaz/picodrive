@@ -66,8 +66,10 @@ static int   writebuff_ptr = 0;
 
 
 /* OPN Mode Register Write */
-static void set_timers( int v )
+static int set_timers( int v )
 {
+	int change;
+
 	/* b7 = CSM MODE */
 	/* b6 = 3 slot mode */
 	/* b5 = reset b */
@@ -76,6 +78,7 @@ static void set_timers( int v )
 	/* b2 = timer enable a */
 	/* b1 = load b */
 	/* b0 = load a */
+	change = (ST_mode ^ v) & 0xc0;
 	ST_mode = v;
 
 	/* reset Timer b flag */
@@ -85,6 +88,8 @@ static void set_timers( int v )
 	/* reset Timer a flag */
 	if( v & 0x10 )
 		ST_status &= ~1;
+
+	return change;
 }
 
 /* YM2612 write */
@@ -93,10 +98,13 @@ static void set_timers( int v )
 /* returns 1 if sample affecting state changed */
 int YM2612Write_940(unsigned int a, unsigned int v)
 {
-	int addr; //, ret=1;
+	int addr;
+	int upd = 1;	/* the write affects sample generation */
 
 	v &= 0xff;	/* adjust to 8 bit bus */
 	a &= 3;
+
+	//printf("%05i:%03i: ym w ([%i] %02x)\n", Pico.m.frame_count, Pico.m.scanline, a, v);
 
 	switch( a ) {
 	case 0:	/* address port 0 */
@@ -108,7 +116,7 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 			(v == 0x24 || v == 0x25 || v == 0x26 || v == 0x2a))
 				return 0;
 		addr_A1 = 0;
-		//ret=0;
+		upd = 0;
 		break;
 
 	case 1:	/* data port 0    */
@@ -152,14 +160,16 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 				}
 				return 0;
 			case 0x27:	/* mode, timer control */
-				set_timers( v );
-				break; // other side needs ST.mode for 3slot mode
+				if (set_timers( v ))
+					break; // other side needs ST.mode for 3slot mode
+				return 0;
 			case 0x2a:	/* DAC data (YM2612) */
 				dacout = ((int)v - 0x80) << 6;	/* level unknown (notaz: 8 seems to be too much) */
 				return 0;
 			case 0x2b:	/* DAC Sel  (YM2612) */
 				/* b7 = dac enable */
 				dacen = v & 0x80;
+				upd = 0;
 				break; // other side has to know this
 			default:
 				break;
@@ -173,7 +183,7 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 			return 0;
 		ST_address = v;
 		addr_A1 = 1;
-		//ret=0;
+		upd = 0;
 		break;
 
 	case 3:	/* data port 1    */
@@ -186,14 +196,25 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 		break;
 	}
 
+	//printf("ym pass\n");
+
 	if(currentConfig.EmuOpt & 4) {
-		/* queue this write for 940 */
-		if (writebuff_ptr < 2047) {
-			if (shared_ctl->writebuffsel == 1) {
-				shared_ctl->writebuff0[writebuff_ptr++] = (a<<8)|v;
-			} else {
-				shared_ctl->writebuff1[writebuff_ptr++] = (a<<8)|v;
+		UINT16 *writebuff = shared_ctl->writebuffsel ? shared_ctl->writebuff0 : shared_ctl->writebuff1;
+
+		/* detect rapid ym updates */
+		if (upd && !(writebuff_ptr & 0x80000000) && Pico.m.scanline < 224) {
+			int mid = Pico.m.pal ? 68 : 93;
+			if (Pico.m.scanline > mid) {
+				//printf("%05i:%03i: rapid ym\n", Pico.m.frame_count, Pico.m.scanline);
+				writebuff[writebuff_ptr++ & 0xffff] = 0xfffe;
+				writebuff_ptr |= 0x80000000;
+				//printf("%05i:%03i: ym w ([%02x] %02x, upd=%i)\n", Pico.m.frame_count, Pico.m.scanline, addr, v, upd);
 			}
+		}
+
+		/* queue this write for 940 */
+		if ((writebuff_ptr&0xffff) < 2047) {
+			writebuff[writebuff_ptr++ & 0xffff] = (a<<8)|v;
 		} else {
 			printf("warning: writebuff_ptr > 2047 ([%i] %02x)\n", a, v);
 		}
@@ -301,7 +322,7 @@ void YM2612PicoStateLoad_940(void)
 
 	addr_A1 = old_A1;
 
-	add_job_940(JOB940_PICOSTATELOAD);
+//	add_job_940(JOB940_PICOSTATELOAD);
 }
 
 
@@ -465,9 +486,9 @@ int YM2612UpdateOne_940(int *buffer, int length, int stereo, int is_buf_empty)
 	else memset32(buffer, 0, length<<stereo);
 
 	if (shared_ctl->writebuffsel == 1) {
-		shared_ctl->writebuff0[writebuff_ptr] = 0xffff;
+		shared_ctl->writebuff0[writebuff_ptr & 0xffff] = 0xffff;
 	} else {
-		shared_ctl->writebuff1[writebuff_ptr] = 0xffff;
+		shared_ctl->writebuff1[writebuff_ptr & 0xffff] = 0xffff;
 	}
 	writebuff_ptr = 0;
 

@@ -214,6 +214,15 @@ Symbian:
 
 Changelog
 ---------
+1.32
+  + Added some new scaling options.
+  * Fixed DMA timing emulation (caused lock-ups for some genesis games).
+  * Idle loop detection was picking up wrong code and causing glitches, fixed.
+  * The ym2612 code on 940 now can handle multiple updates per frame
+    (fixes Thunger Force III "seiren" level drums for example).
+  * Memory handlers were ignoring some writes to PSG chip, fixed (missing sounds in
+    Popful Mail, Silpheed).
+
 1.31
   * Changed the way memory mode register is read (fixes Lunar 2, broken in 1.30).
   * Fixed TAS opcode on sub-68k side (fixes Batman games).

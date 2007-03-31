@@ -30,10 +30,13 @@ typedef unsigned int   u32;
 #define rdprintf(...)
 //#define wrdprintf dprintf
 #define wrdprintf(...)
+//#define plprintf dprintf
+#define plprintf(...)
 
 // -----------------------------------------------------------------
 
 // poller detection
+//#undef USE_POLL_DETECT
 #define POLL_LIMIT 16
 #define POLL_CYCLES 124
 // int m68k_poll_addr, m68k_poll_cnt;
@@ -143,7 +146,7 @@ void m68k_reg_write8(u32 a, u32 d)
 #ifdef USE_POLL_DETECT
       if ((s68k_poll_adclk&0xfe) == 2 && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
-        //printf("%05i:%03i: s68k poll release, a=%02x\n", Pico.m.frame_count, Pico.m.scanline, a);
+        plprintf("s68k poll release, a=%02x\n", a);
       }
 #endif
       return;
@@ -163,7 +166,7 @@ void m68k_reg_write8(u32 a, u32 d)
 #ifdef USE_POLL_DETECT
       if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
-        //printf("%05i:%03i: s68k poll release, a=%02x\n", Pico.m.frame_count, Pico.m.scanline, a);
+        plprintf("s68k poll release, a=%02x\n", a);
       }
 #endif
       return;
@@ -174,7 +177,7 @@ void m68k_reg_write8(u32 a, u32 d)
 #ifdef USE_POLL_DETECT
       if ((a&0xfe) == (s68k_poll_adclk&0xfe) && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
-        //printf("%05i:%03i: s68k poll release, a=%02x\n", Pico.m.frame_count, Pico.m.scanline, a);
+        plprintf("s68k poll release, a=%02x\n", a);
       }
 #endif
       return;
@@ -183,6 +186,31 @@ void m68k_reg_write8(u32 a, u32 d)
   dprintf("m68k FIXME: invalid write? [%02x] %02x", a, d);
 }
 
+#ifndef _ASM_CD_MEMORY_C
+static
+#endif
+u32 s68k_poll_detect(u32 a, u32 d)
+{
+#ifdef USE_POLL_DETECT
+  // polling detection
+  if (a == (s68k_poll_adclk&0xff)) {
+    unsigned int clkdiff = SekCyclesDoneS68k() - (s68k_poll_adclk>>8);
+    if (clkdiff <= POLL_CYCLES) {
+      s68k_poll_cnt++;
+      //printf("-- diff: %u, cnt = %i\n", clkdiff, s68k_poll_cnt);
+      if (s68k_poll_cnt > POLL_LIMIT) {
+        SekSetStopS68k(1);
+        plprintf("s68k poll detected @ %06x, a=%02x\n", SekPcS68k, a);
+      }
+      s68k_poll_adclk = (SekCyclesDoneS68k() << 8) | a;
+      return d;
+    }
+  }
+  s68k_poll_adclk = (SekCyclesDoneS68k() << 8) | a;
+  s68k_poll_cnt = 0;
+#endif
+  return d;
+}
 
 #define READ_FONT_DATA(basemask) \
 { \
@@ -208,9 +236,9 @@ u32 s68k_reg_read16(u32 a)
     case 0:
       return ((Pico_mcd->s68k_regs[0]&3)<<8) | 1; // ver = 0, not in reset state
     case 2:
-      d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0x1f);
+      d = (Pico_mcd->s68k_regs[2]<<8) | (Pico_mcd->s68k_regs[3]&0x1f);
       //printf("s68k_regs r3: %02x @%06x\n", (u8)d, SekPcS68k);
-      goto poll_detect;
+      return s68k_poll_detect(a, d);
     case 6:
       return CDC_Read_Reg();
     case 8:
@@ -240,30 +268,9 @@ u32 s68k_reg_read16(u32 a)
 
   d = (Pico_mcd->s68k_regs[a]<<8) | Pico_mcd->s68k_regs[a+1];
 
-  if (a >= 0x0e && a < 0x30) goto poll_detect;
+  if (a >= 0x0e && a < 0x30)
+    return s68k_poll_detect(a, d);
 
-  return d;
-
-poll_detect:
-#ifdef USE_POLL_DETECT
-  // polling detection
-  if (a == (s68k_poll_adclk&0xfe)) {
-    unsigned int clkdiff = SekCyclesDoneS68k() - (s68k_poll_adclk>>8);
-    if (clkdiff <= POLL_CYCLES) {
-      s68k_poll_cnt++;
-      //printf("-- diff: %u, cnt = %i\n", clkdiff, s68k_poll_cnt);
-      if (s68k_poll_cnt > POLL_LIMIT) {
-        SekSetStopS68k(1);
-        //printf("%05i:%03i: s68k poll detected @ %06x, a=%02x\n", Pico.m.frame_count, Pico.m.scanline, SekPcS68k, a);
-      }
-      s68k_poll_adclk = (SekCyclesDoneS68k() << 8) | a;
-      return d;
-    }
-  }
-  s68k_poll_adclk = (SekCyclesDoneS68k() << 8) | a;
-  s68k_poll_cnt = 0;
-
-#endif
   return d;
 }
 
@@ -406,6 +413,7 @@ static void OtherWrite8End(u32 a, u32 d, int realsize)
 #include "../MemoryCmn.c"
 #include "cell_map.c"
 #endif // !def _ASM_CD_MEMORY_C
+
 
 // -----------------------------------------------------------------
 //                     Read Rom and read Ram
@@ -631,8 +639,11 @@ static void PicoWriteM68k8(u32 a,u8 d)
     return;
   }
 
-  if ((a&0xffffc0)==0xa12000)
+  if ((a&0xffffc0)==0xa12000) {
     rdprintf("m68k_regs w8: [%02x] %02x @%06x", a&0x3f, d, SekPc);
+    m68k_reg_write8(a, d);
+    return;
+  }
 
   OtherWrite8(a,d,8);
 }
@@ -688,7 +699,7 @@ static void PicoWriteM68k16(u32 a,u16 d)
 #ifdef USE_POLL_DETECT
       if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = -1;
-        //printf("%05i:%03i: s68k poll release, a=%02x\n", Pico.m.frame_count, Pico.m.scanline, a);
+        plprintf("s68k poll release, a=%02x\n", a);
       }
 #endif
       return;
@@ -755,8 +766,10 @@ static void PicoWriteM68k32(u32 a,u32 d)
     return;
   }
 
-  if ((a&0xffffc0)==0xa12000)
+  if ((a&0xffffc0)==0xa12000) {
     rdprintf("m68k_regs w32: [%02x] %08x @%06x", a&0x3f, d, SekPc);
+    if ((a&0x3e) == 0xe) dprintf("m68k FIXME: w32 [%02x]", a&0x3f);
+  }
 
   OtherWrite16(a,  (u16)(d>>16));
   OtherWrite16(a+2,(u16)d);
@@ -785,7 +798,13 @@ static u8 PicoReadS68k8(u32 a)
   if ((a&0xfffe00) == 0xff8000) {
     a &= 0x1ff;
     rdprintf("s68k_regs r8: [%02x] @ %06x", a, SekPcS68k);
-    if (a >= 0x58 && a < 0x68)
+    if (a >= 0x0e && a < 0x30) {
+      d = Pico_mcd->s68k_regs[a];
+      s68k_poll_detect(a, d);
+      rdprintf("ret = %02x", (u8)d);
+      goto end;
+    }
+    else if (a >= 0x58 && a < 0x68)
          d = gfx_cd_read(a&~1);
     else d = s68k_reg_read16(a&~1);
     if ((a&1)==0) d>>=8;
@@ -1008,7 +1027,7 @@ static u32 PicoReadS68k32(u32 a)
 
   // PCM
   if ((a&0xff8000)==0xff0000) {
-    dprintf("FIXME: s68k_pcm r32: [%06x] @%06x", a, SekPcS68k);
+    dprintf("s68k_pcm r32: [%06x] @%06x", a, SekPcS68k);
     a &= 0x7fff;
     if (a >= 0x2000) {
       a >>= 1;
@@ -1293,6 +1312,7 @@ static void PicoWriteS68k32(u32 a,u32 d)
       gfx_cd_write16(a,   d>>16);
       gfx_cd_write16(a+2, d&0xffff);
     } else {
+      if ((a&0x1fe) == 0xe) dprintf("s68k FIXME: w32 [%02x]", a&0x3f);
       s68k_reg_write8(a,   d>>24);
       s68k_reg_write8(a+1,(d>>16)&0xff);
       s68k_reg_write8(a+2,(d>>8) &0xff);

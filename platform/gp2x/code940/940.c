@@ -55,6 +55,56 @@ static void mp3_decode(void)
 	set_if_not_changed(&shared_ctl->mp3_offs, mp3_offs, readPtr - mp3_data);
 }
 
+static void ym_update(int *ym_buffer)
+{
+	int i, dw;
+	int two_upds = 0;
+	UINT16 *wbuff;
+
+	if (shared_ctl->writebuffsel == 1) {
+		wbuff = shared_ctl->writebuff1;
+	} else {
+		wbuff = shared_ctl->writebuff0;
+	}
+
+	/* playback all writes */
+	for (i = 2048/2; i > 0; i--) {
+		UINT16 d;
+		dw = *(int *)wbuff;
+		d = dw;
+		wbuff++;
+		if (d == 0xffff) break;
+		if (d == 0xfffe) { two_upds=1; break; }
+		YM2612Write_(d >> 8, d);
+		d = (dw>>16);
+		wbuff++;
+		if (d == 0xffff) break;
+		if (d == 0xfffe) { two_upds=1; break; }
+		YM2612Write_(d >> 8, d);
+	}
+
+	if (two_upds) {
+		int len1 = shared_ctl->length / 2;
+		shared_ctl->ym_active_chs =
+			YM2612UpdateOne_(ym_buffer, len1, shared_ctl->stereo, 1);
+
+		for (i *= 2; i > 0; i--) {
+			UINT16 d = *wbuff++;
+			if (d == 0xffff) break;
+			YM2612Write_(d >> 8, d);
+		}
+
+		ym_buffer += shared_ctl->stereo ? len1*2 : len1;
+		len1 = shared_ctl->length - len1;
+
+		shared_ctl->ym_active_chs =
+			YM2612UpdateOne_(ym_buffer, len1, shared_ctl->stereo, 1);
+	} else {
+		shared_ctl->ym_active_chs =
+			YM2612UpdateOne_(ym_buffer, shared_ctl->length, shared_ctl->stereo, 1);
+	}
+}
+
 
 void Main940(void)
 {
@@ -92,30 +142,9 @@ void Main940(void)
 				YM2612PicoStateLoad_();
 				break;
 
-			case JOB940_YM2612UPDATEONE: {
-				int i, dw, *wbuff;
-				if (shared_ctl->writebuffsel == 1) {
-					wbuff = (int *) shared_ctl->writebuff1;
-				} else {
-					wbuff = (int *) shared_ctl->writebuff0;
-				}
-
-				/* playback all writes */
-				for (i = 2048/2; i > 0; i--) {
-					UINT16 d;
-					dw = *wbuff++;
-					d = dw;
-					if (d == 0xffff) break;
-					YM2612Write_(d >> 8, d);
-					d = (dw>>16);
-					if (d == 0xffff) break;
-					YM2612Write_(d >> 8, d);
-				}
-
-				shared_ctl->ym_active_chs =
-					YM2612UpdateOne_(ym_buffer, shared_ctl->length, shared_ctl->stereo, 1);
+			case JOB940_YM2612UPDATEONE:
+				ym_update(ym_buffer);
 				break;
-			}
 
 			case JOB940_MP3DECODE:
 				mp3_decode();

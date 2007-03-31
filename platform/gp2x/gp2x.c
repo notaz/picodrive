@@ -52,19 +52,21 @@ void *gp2x_screen;
 #define FRAMEBUFF_ADDR2 (FRAMEBUFF_ADDR1+0x30000)
 #define FRAMEBUFF_ADDR3 (FRAMEBUFF_ADDR2+0x30000)
 
-static const int gp2x_screenaddrs[] = { FRAMEBUFF_ADDR0, FRAMEBUFF_ADDR1, FRAMEBUFF_ADDR2, FRAMEBUFF_ADDR3 };
+static const int gp2x_screenaddrs[4] = { FRAMEBUFF_ADDR0, FRAMEBUFF_ADDR1, FRAMEBUFF_ADDR2, FRAMEBUFF_ADDR3 };
+static int gp2x_screenaddrs_use[4];
 static unsigned short gp2x_screenaddr_old[4];
 
 
 /* video stuff */
 void gp2x_video_flip(void)
 {
-	unsigned short msw = (unsigned short)(gp2x_screenaddrs[screensel&3] >> 16);
+	unsigned short lsw = (unsigned short) gp2x_screenaddrs_use[screensel&3];
+	unsigned short msw = (unsigned short)(gp2x_screenaddrs_use[screensel&3] >> 16);
 
   	gp2x_memregs[0x2910>>1] = msw;
   	gp2x_memregs[0x2914>>1] = msw;
-	gp2x_memregs[0x290E>>1] = 0;
-  	gp2x_memregs[0x2912>>1] = 0;
+	gp2x_memregs[0x290E>>1] = lsw;
+  	gp2x_memregs[0x2912>>1] = lsw;
 
 	// jump to other buffer:
 	gp2x_screen = gp2x_screens[++screensel&3];
@@ -73,7 +75,7 @@ void gp2x_video_flip(void)
 /* doulblebuffered flip */
 void gp2x_video_flip2(void)
 {
-	unsigned short msw = (unsigned short)(gp2x_screenaddrs[screensel&1] >> 16);
+	unsigned short msw = (unsigned short)(gp2x_screenaddrs_use[screensel&1] >> 16);
 
   	gp2x_memregs[0x2910>>1] = msw;
   	gp2x_memregs[0x2914>>1] = msw;
@@ -113,10 +115,17 @@ void gp2x_video_setpalette(int *pal, int len)
 
 
 // TV Compatible function //
-void gp2x_video_RGB_setscaling(int W, int H)
+void gp2x_video_RGB_setscaling(int ln_offs, int W, int H)
 {
 	float escalaw, escalah;
 	int bpp = (gp2x_memregs[0x28DA>>1]>>9)&0x3;
+	unsigned short scalw;
+
+	// set offset
+	gp2x_screenaddrs_use[0] = gp2x_screenaddrs[0] + ln_offs * 320 * bpp;
+	gp2x_screenaddrs_use[1] = gp2x_screenaddrs[1] + ln_offs * 320 * bpp;
+	gp2x_screenaddrs_use[2] = gp2x_screenaddrs[2] + ln_offs * 320 * bpp;
+	gp2x_screenaddrs_use[3] = gp2x_screenaddrs[3] + ln_offs * 320 * bpp;
 
 	escalaw = 1024.0; // RGB Horiz LCD
 	escalah = 320.0; // RGB Vert LCD
@@ -131,7 +140,10 @@ void gp2x_video_RGB_setscaling(int W, int H)
 	}
 
 	// scale horizontal
-	gp2x_memregs[0x2906>>1]=(unsigned short)((float)escalaw *(W/320.0));
+	scalw = (unsigned short)((float)escalaw *(W/320.0));
+	/* if there is no horizontal scaling, vertical doesn't work. Here is a nasty wrokaround... */
+	if (H != 240 && W == 320) scalw--;
+	gp2x_memregs[0x2906>>1]=scalw;
 	// scale vertical
 	gp2x_memregl[0x2908>>2]=(unsigned long)((float)escalah *bpp *(H/240.0));
 }
@@ -304,6 +316,7 @@ void gp2x_init(void)
 	gp2x_screenaddr_old[2] = gp2x_memregs[0x2912>>1];
 	gp2x_screenaddr_old[3] = gp2x_memregs[0x2914>>1];
 
+	memcpy(gp2x_screenaddrs_use, gp2x_screenaddrs, sizeof(gp2x_screenaddrs));
 	gp2x_memset_all_buffers(0, 0, 320*240*2);
 
 	// snd
