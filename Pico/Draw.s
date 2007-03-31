@@ -1,3 +1,5 @@
+@ vim:filetype=armasm
+
 @ assembly "optimized" version of some funtions from draw.c
 @ this is highly specialized, be careful if changing related C code!
 
@@ -1285,35 +1287,21 @@ vidConvCpyRGB565: @ void *to, void *from, int pixels
 
 FinalizeLineRGB555:
     stmfd   sp!, {r4-r8,lr}
-    ldr     r5, =(Pico+0x22228)  @ Pico.video
+    ldr     r8, =(Pico+0x22228)  @ Pico.video
     ldr     r4, =HighPal
 
-    ldrb    r7, [r5, #-0x1a]     @ 0x2220e ~ dirtyPal
+    ldrb    r7, [r8, #-0x1a]     @ 0x2220e ~ dirtyPal
     mov     r6, r0
     mov     r1, #0
     tst     r7, r7
     beq     .fl_noconvRGB555
-    strb    r1, [r5, #-0x1a]
-    sub     r1, r5, #0x128       @ r1=Pico.cram
+    strb    r1, [r8, #-0x1a]
+    sub     r1, r8, #0x128       @ r1=Pico.cram
     mov     r0, r4
     mov     r2, #0x40
     bl      vidConvCpyRGB565
 
 .fl_noconvRGB555:
-    ldrb    r12, [r5, #12]
-    ldr     r0, =DrawLineDest
-    ldr     r0, [r0]
-
-    tst     r12, #1
-    movne   r2, #320/8           @ len
-    bne     .fl_no32colRGB555
-    ldr     r3, =PicoOpt
-    mov     r2, #256/8
-    ldr     r3, [r3]
-    tst     r3, #0x100
-    addeq   r0, r0, #32*2
-
-.fl_no32colRGB555:
     mov     r3, r4
     tst     r6, r6
     beq     .fl_noshRGB555
@@ -1348,12 +1336,27 @@ FinalizeLineRGB555:
 
     sub     r3, r3, #0x40*2
 
-
 .fl_noshRGB555:
+    ldr     r0, =DrawLineDest
     ldr     r1, =(HighCol+8)
+    ldr     r0, [r0]
+
+    ldrb    r12, [r8, #12]
     mov     lr, #0xff
     mov     lr, lr, lsl #1
 
+    tst     r12, #1
+    movne   r2, #320/8           @ len
+    bne     .fl_no32colRGB555
+    ldr     r4, =PicoOpt
+    mov     r2, #256/8
+    ldr     r4, [r4]
+    tst     r4, #0x4000
+    bne     .fl_32scale_RGB555
+    tst     r4, #0x0100
+    addeq   r0, r0, #32*2
+
+.fl_no32colRGB555:
 .fl_loopRGB555:
 
     ldr     r12, [r1], #4
@@ -1387,9 +1390,71 @@ FinalizeLineRGB555:
     stmia   r0!, {r4,r5,r8,r12}
     bne     .fl_loopRGB555
 
-
     ldmfd   sp!, {r4-r8,lr}
-    bx lr
+    bx      lr
+
+
+.fl_32scale_RGB555:
+    stmfd   sp!, {r9,r10}
+    mov     r9, #0x3900 @ f800 07e0 001f | e000 0780 001c | 3800 01e0 0007
+    orr     r9, r9, #0x00e7
+
+.fl_loop32scale_RGB555:
+    ldr     r12, [r1], #4
+    ldr     r7,  [r1], #4
+
+    and     r4, lr, r12,lsl #1
+    ldrh    r4, [r3, r4]
+    and     r5, lr, r12,lsr #7
+    ldrh    r5, [r3, r5]
+    and     r4, r4, r9, lsl #2
+    orr     r4, r4, r4, lsl #14       @ r4[31:16] = 1/4 pix_s 0
+    and     r5, r5, r9, lsl #2
+    sub     r6, r5, r5, lsr #2        @ r6 = 3/4 pix_s 1
+    add     r4, r4, r6, lsl #16       @ pix_d 0, 1
+    and     r6, lr, r12,lsr #15
+    ldrh    r6, [r3, r6]
+    and     r12,lr, r12,lsr #23
+    ldrh    r12,[r3, r12]
+    and     r6, r6, r9, lsl #2
+    add     r5, r5, r6
+    mov     r5, r5, lsr #1
+    sub     r6, r6, r6, lsr #2        @ r6 = 3/4 pix_s 2
+    orr     r5, r5, r6, lsl #16
+
+    and     r6, lr, r7, lsl #1
+    ldrh    r6, [r3, r6]
+    and     r12,r12,r9, lsl #2
+    add     r5, r5, r12,lsl #14       @ pix_d 2, 3
+    and     r6, r6, r9, lsl #2
+    orr     r6, r12,r6, lsl #16       @ pix_d 4, 5
+
+    and     r12,lr, r7, lsr #7
+    ldrh    r12,[r3, r12]
+    and     r10,lr, r7, lsr #15
+    ldrh    r10,[r3, r10]
+    and     r12,r12,r9, lsl #2
+    sub     r8, r12,r12,lsr #2        @ r8 = 3/4 pix_s 1
+    add     r8, r8, r6, lsr #18
+    and     r7, lr, r7, lsr #23
+    ldrh    r7, [r3, r7]
+    and     r10,r10,r9, lsl #2
+    orr     r8, r8, r10,lsl #15
+    add     r8, r8, r12,lsl #15       @ pix_d 6, 7
+    sub     r10,r10,r10,lsr #2        @ r10= 3/4 pix_s 2
+    and     r7, r7, r9, lsl #2
+    add     r10,r10,r7, lsr #2        @ += 1/4 pix_s 3
+    orr     r10,r10,r7, lsl #16       @ pix_d 8, 9
+
+    subs    r2, r2, #1
+
+    stmia   r0!, {r4,r5,r6,r8,r10}
+    bne     .fl_loop32scale_RGB555
+
+    ldmfd   sp!, {r9,r10}
+    ldmfd   sp!, {r4-r8,lr}
+    bx      lr
+
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
