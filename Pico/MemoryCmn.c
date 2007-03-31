@@ -149,16 +149,21 @@ void OtherWrite8(u32 a,u32 d,int realsize)
     return;
   }
   if (a==0xa11100) {
-    extern int z80startCycle, z80stopCycle;
     //int lineCycles=(488-SekCyclesLeft)&0x1ff;
     d&=1; d^=1;
     if(!d) {
       // this is for a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
       if (Pico.m.z80Run) {
-        int lineCycles=(488-SekCyclesLeft)&0x1ff;
+        int lineCycles;
         z80stopCycle = SekCyclesDone();
-        lineCycles=(lineCycles>>1)-(lineCycles>>5);
-        z80_run(lineCycles);
+        if (Pico.m.z80Run&2)
+             lineCycles=(488-SekCyclesLeft)&0x1ff;
+        else lineCycles=z80stopCycle-z80startCycle; // z80 was started at current line
+        if (lineCycles > 0 && lineCycles <= 488) {
+          dprintf("zrun: %i/%i cycles", lineCycles, (lineCycles>>1)-(lineCycles>>5));
+          lineCycles=(lineCycles>>1)-(lineCycles>>5);
+          z80_run(lineCycles);
+        }
       }
     } else {
       z80startCycle = SekCyclesDone();

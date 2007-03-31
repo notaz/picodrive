@@ -430,11 +430,18 @@ static int PicoFrameHints(void)
       getSamples(y);
 
     // Run scanline:
-    if(Pico.m.dma_bytes) SekCycleCnt+=CheckDMA();
+    if (Pico.m.dma_bytes) SekCycleCnt+=CheckDMA();
     SekRun(cycles_68k);
-    if((PicoOpt&4) && Pico.m.z80Run) {
-      Pico.m.z80Run|=2;
-      z80CycleAim+=cycles_z80;
+    if ((PicoOpt&4) && Pico.m.z80Run) {
+      if (Pico.m.z80Run & 2) z80CycleAim+=cycles_z80;
+      else {
+        int cnt = SekCyclesDone() - z80startCycle;
+        cnt = (cnt>>1)-(cnt>>5);
+        //if (cnt > cycles_z80) printf("FIXME: z80 cycles: %i\n", cnt);
+        if (cnt > cycles_z80) cnt = cycles_z80;
+        Pico.m.z80Run |= 2;
+        z80CycleAim+=cnt;
+      }
       total_z80+=z80_run(z80CycleAim-total_z80);
     }
   }

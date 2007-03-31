@@ -299,6 +299,7 @@ void PicoWriteCD32(unsigned int a, unsigned int d);
 extern struct Pico Pico;
 extern struct PicoSRAM SRam;
 extern int emustatus;
+extern int z80startCycle, z80stopCycle; // in 68k cycles
 int CheckDMA(void);
 
 // cd/Pico.c

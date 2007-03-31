@@ -392,10 +392,7 @@ static void CPU_CALL PicoWrite8(u32 a,u8 d)
   //if ((a&0xe0ffff)==0xe0a9ba+0x69c)
   //  dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 
-
-  if ((a&0xe00000)==0xe00000) {
-	  if((a&0xffff)==0xf62a) dprintf("(f62a) = %02x [%i|%i] @ %x", d, Pico.m.scanline, SekCyclesDone(), SekPc);
-	   u8 *pm=(u8 *)(Pico.ram+((a^1)&0xffff)); pm[0]=d; return; } // Ram
+  if ((a&0xe00000)==0xe00000) { *(u8 *)(Pico.ram+((a^1)&0xffff))=d; return; } // Ram
 
   a&=0xffffff;
   OtherWrite8(a,d,8);

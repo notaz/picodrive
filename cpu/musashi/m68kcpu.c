@@ -788,7 +788,7 @@ int m68k_execute(int num_cycles)
 		m68ki_set_address_error_trap(); /* auto-disable (see m68kcpu.h) */
 
 		/* Main loop.  Keep going until we run out of clock cycles */
-		while(GET_CYCLES() > 0)
+		while(GET_CYCLES() >= 0)
 		{
 			/* Set tracing accodring to T1. (T0 is done inside instruction) */
 			m68ki_trace_t1(); /* auto-disable (see m68kcpu.h) */
