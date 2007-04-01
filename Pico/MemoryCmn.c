@@ -98,6 +98,7 @@ u32 OtherRead16(u32 a, int realsize)
   // |=0x80 for Shadow of the Beast & Super Offroad; rotate fakes next fetched instruction for Time Killers
   if (a==0xa11100) { // z80 busreq
     d=Pico.m.z80Run&1;
+#if 1
     if (!d) {
       // needed by buggy Terminator (Sega CD)
       extern int z80stopCycle;
@@ -106,6 +107,7 @@ u32 OtherRead16(u32 a, int realsize)
       if (stop_before > 0 && stop_before <= 32) // Gens uses 16 here
         d = 1; // bus not yet available
     }
+#endif
     d=(d<<8)|0x8000|Pico.m.rotate++;
     dprintf("get_zrun: %04x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), SekPc);
     goto end;

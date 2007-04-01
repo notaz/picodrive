@@ -195,6 +195,8 @@ int PicoReset(int hard)
     // Dino Dini's Soccer malfunctions if SRAM is not filled with 0xff
     if (strncmp((char *)Pico.rom+0x150, "IDOND NI'I", 10) == 0)
       memset(SRam.data, 0xff, sram_size);
+    dprintf("sram: det: %i; eeprom: %i; start: %06x; end: %06x\n",
+      (Pico.m.sram_reg>>4)&1, (Pico.m.sram_reg>>2)&1, SRam.start, SRam.end);
   }
 
   Pico.m.sram_reg = SRam.reg_back; // restore sram_reg

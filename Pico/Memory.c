@@ -70,6 +70,8 @@ static u32 CPU_CALL PicoCheckPc(u32 pc)
 #if defined(EMU_C68K)
   pc-=PicoCpu.membase; // Get real pc
   pc&=0xfffffe;
+  if (pc == 0)
+    return (int)Pico.rom + Pico.romsize; // common crash condition, can happen if acc timing is off
 
   PicoCpu.membase=PicoMemBase(pc);
 
@@ -192,6 +194,7 @@ static void OtherWrite8End(u32 a,u32 d,int realsize)
   //if(a==0x200000) dprintf("cc : %02x @ %06x [%i|%i]", d, SekPc, SekCyclesDoneT(), SekCyclesDone());
   //if(a==0x200001) dprintf("w8 : %02x @ %06x [%i]", d, SekPc, SekCyclesDoneT());
   if(a >= SRam.start && a <= SRam.end) {
+    dprintf("sram w%i: %06x, %08x @%06x", realsize, a&0xffffff, d, SekPc);
     unsigned int sreg = Pico.m.sram_reg;
     if(!(sreg & 0x10)) {
       // not detected SRAM
@@ -229,7 +232,9 @@ static void OtherWrite8End(u32 a,u32 d,int realsize)
 #else
   // sram access register
   if(a == 0xA130F1) {
-    Pico.m.sram_reg = (u8)(d&3);
+    dprintf("sram reg=%02x", d);
+    Pico.m.sram_reg &= ~3;
+    Pico.m.sram_reg |= (u8)(d&3);
     return;
   }
 #endif

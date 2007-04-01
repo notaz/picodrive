@@ -216,12 +216,17 @@ Changelog
 ---------
 1.32
   + Added some new scaling options.
+  + Added ability to reaload CD images while game is running (needed for games
+    with multiple CDs, like Night Trap).
   * Fixed DMA timing emulation (caused lock-ups for some genesis games).
   * Idle loop detection was picking up wrong code and causing glitches, fixed.
   * The ym2612 code on 940 now can handle multiple updates per frame
     (fixes Thunger Force III "seiren" level drums for example).
   * Memory handlers were ignoring some writes to PSG chip, fixed (missing sounds in
     Popful Mail, Silpheed).
+  * Improved z80 timing, should fix some sound problems.
+  * Fixed a bug with sram register (fixes Phantasy Star 4).
+  * Added code for PRG ram write protection register (Dungeon Explorer).
 
 1.31
   * Changed the way memory mode register is read (fixes Lunar 2, broken in 1.30).

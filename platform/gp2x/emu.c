@@ -156,7 +156,7 @@ int find_bios(int region, char **bios_file)
 
 /* checks if romFileName points to valid MegaCD image
  * if so, checks for suitable BIOS */
-static int cd_check(char **bios_file)
+int emu_cd_check(char **bios_file)
 {
 	unsigned char buf[32];
 	pm_file *cd_f;
@@ -177,7 +177,7 @@ static int cd_check(char **bios_file)
 		return 0;
 	}
 
-	/* it seems we have a CD image here. Try to detect region and load a suitable BIOS now.. */
+	/* it seems we have a CD image here. Try to detect region now.. */
 	pm_seek(cd_f, (type == 1) ? 0x100+0x10B : 0x110+0x10B, SEEK_SET);
 	pm_read(buf, 1, cd_f);
 	pm_close(cd_f);
@@ -193,7 +193,9 @@ static int cd_check(char **bios_file)
 		printf("overrided region to %s\n", region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
 	}
 
-	if(find_bios(region, bios_file))
+	if (bios_file == NULL) return type;
+
+	if (find_bios(region, bios_file))
 		 return type;	// CD and BIOS detected
 
 	return -1;     		// CD detected but load failed
@@ -271,7 +273,7 @@ int emu_ReloadRom(void)
 	}
 
 	// check for MegaCD image
-	cd_state = cd_check(&used_rom_name);
+	cd_state = emu_cd_check(&used_rom_name);
 	if (cd_state > 0) {
 		PicoMCD |= 1;
 		get_ext(used_rom_name, ext);
@@ -381,6 +383,7 @@ int emu_ReloadRom(void)
 
 
 static void emu_msg_cb(const char *msg);
+static void emu_msg_tray_open(void);
 
 void emu_Init(void)
 {
@@ -399,8 +402,8 @@ void emu_Init(void)
 
 	PicoInit();
 	PicoMessage = emu_msg_cb;
-
-//	logf = fopen("log.txt", "w");
+	PicoMCDopenTray = emu_msg_tray_open;
+	PicoMCDcloseTray = menu_loop_tray;
 }
 
 
@@ -528,8 +531,9 @@ int emu_ReadConfig(int game)
 	}
 	scaling_update();
 	// some sanity checks
-	if (currentConfig.CPUclock < 1 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;
+	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;
 	if (currentConfig.gamma < 10 || currentConfig.gamma > 300) currentConfig.gamma = 100;
+	if (currentConfig.volume < 0 || currentConfig.volume > 99) currentConfig.volume = 50;
 	// if volume keys are unbound, bind them to volume control
 	if (!currentConfig.KeyBinds[23] && !currentConfig.KeyBinds[22]) {
 		currentConfig.KeyBinds[23] = 1<<29; // vol up
@@ -603,7 +607,6 @@ void emu_Deinit(void)
 	free(framebuff);
 
 	PicoExit();
-//	fclose(logf);
 
 	// restore gamma
 	if (gp2x_old_gamma != 100)
@@ -824,6 +827,12 @@ static void emu_state_cb(const char *str)
 	blit("", str);
 }
 
+static void emu_msg_tray_open(void)
+{
+	strcpy(noticeMsg, "CD tray opened");
+	gettimeofday(&noticeMsgTime, 0);
+}
+
 static void RunEvents(unsigned int which)
 {
 	if(which & 0x1800) { // save or load (but not both)
@@ -974,7 +983,7 @@ static void updateKeys(void)
 	if(events & 0x6000) {
 		int vol = currentConfig.volume;
 		if (events & 0x2000) {
-			if (vol < 90) vol++;
+			if (vol < 99) vol++;
 		} else {
 			if (vol >  0) vol--;
 		}
@@ -1196,7 +1205,7 @@ void emu_Loop(void)
 				if (frames_shown > frames_done) frames_shown = frames_done;
 			}
 		}
-#if 1
+#if 0
 		sprintf(fpsbuff, "%05i", Pico.m.frame_count);
 #endif
 		lim_time = (frames_done+1) * target_frametime;

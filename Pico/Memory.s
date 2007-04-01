@@ -443,6 +443,7 @@ m_read16_rom4: @ 0x200000 - 0x27ffff, SRAM area (NBA Live 95)
     mov     r0, r0, lsr #8
     orr     r0, r0, r1, lsl #8
     bx      lr
+
 m_read16_nosram:
     ldr     r1, [r3, #4]    @ 1ci
     cmp     r0, r1
@@ -490,8 +491,6 @@ m_read16_misc:
     bic     r0, r0, #1
     mov     r1, #16
     b       OtherRead16
-@    ldr     r2, =OtherRead16
-@    bx      r2
 
 m_read16_vdp:
     tst     r0, #0x70000
@@ -499,8 +498,6 @@ m_read16_vdp:
     bxne    lr              @ invalid read
     bic     r0, r0, #1
     b       PicoVideoRead
-@    ldr     r1, =PicoVideoRead
-@    bx      r1
 
 m_read16_ram:
     ldr     r1, =Pico
@@ -513,8 +510,6 @@ m_read16_above_rom:
     bic     r0, r0, #1
     mov     r1, #16
     b       OtherRead16End
-@    ldr     r2, =OtherRead16End
-@    bx      r2
 
 .pool
 
@@ -573,6 +568,7 @@ m_read32_rom4: @ 0x200000 - 0x27ffff, SRAM area (does any game do long reads?)
     and     r1, r1, #0xff
     orr     r0, r0, r1, lsl #8
     bx      lr
+
 m_read32_nosram:
     ldr     r1, [r3, #4]    @ (1ci)
     cmp     r0, r1
@@ -682,8 +678,11 @@ PicoWriteRomHW_SSF2: @ u32 a, u32 d
 
     @ sram register
     ldr     r2, =(Pico+0x22211) @ Pico.m.sram_reg
+    ldrb    r0, [r2]
     and     r1, r1, #3
-    strb    r1, [r2]
+    bic     r0, r0, #3
+    orr     r0, r0, r1
+    strb    r0, [r2]
     bx      lr
 
 pwr_banking:
@@ -705,3 +704,4 @@ pwr_banking:
     str     r12, [r2, r0, lsl #2]
  
     bx      lr
+

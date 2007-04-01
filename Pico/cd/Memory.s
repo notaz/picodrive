@@ -390,7 +390,8 @@ m_m68k_read8_prgbank:
     orr     r3, r2, #0x002200
     ldr     r3, [r1, r3]
     ldr     r2, [r1, r2]
-    tst     r3, #0x00020000             @ have bus?
+    and     r3, r3, #0x00030000
+    cmp     r3,     #0x00010000         @ have bus or in reset state?
     moveq   r0, #0
     bxeq    lr
     and     r2, r2, #0xc0000000		@ r3 & 0xC0
@@ -596,7 +597,8 @@ m_m68k_read16_prgbank:
     orr     r3, r2, #0x002200
     ldr     r3, [r1, r3]
     ldr     r2, [r1, r2]
-    tst     r3, #0x00020000             @ have bus?
+    and     r3, r3, #0x00030000
+    cmp     r3,     #0x00010000         @ have bus or in reset state?
     moveq   r0, #0
     bxeq    lr
     and     r2, r2, #0xc0000000		@ r3 & 0xC0
@@ -766,7 +768,8 @@ m_m68k_read32_prgbank:
     orr     r3, r2, #0x002200
     ldr     r3, [r1, r3]
     ldr     r2, [r1, r2]
-    tst     r3, #0x00020000             @ have bus?
+    and     r3, r3, #0x00030000
+    cmp     r3,     #0x00010000         @ have bus or in reset state?
     moveq   r0, #0
     bxeq    lr
     and     r2, r2, #0xc0000000		@ r3 & 0xC0
@@ -924,7 +927,8 @@ m_m68k_write8_prgbank:
     orr     r3, r12, #0x002200
     ldr     r3, [r2, r3]
     ldr     r12,[r2, r12]
-    tst     r3, #0x00020000             @ have bus?
+    and     r3, r3, #0x00030000
+    cmp     r3,     #0x00010000         @ have bus or in reset state?
     bxeq    lr
     and     r12,r12,#0xc0000000		@ r3 & 0xC0
     add     r2, r2, r12, lsr #12
@@ -1027,7 +1031,8 @@ m_m68k_write16_prgbank:
     orr     r3, r12, #0x002200
     ldr     r3, [r2, r3]
     ldr     r12,[r2, r12]
-    tst     r3, #0x00020000             @ have bus?
+    and     r3, r3, #0x00030000
+    cmp     r3,     #0x00010000         @ have bus or in reset state?
     bxeq    lr
     and     r12,r12,#0xc0000000		@ r3 & 0xC0
     add     r2, r2, r12, lsr #12
@@ -1159,7 +1164,8 @@ m_m68k_write32_prgbank:
     orr     r3, r12, #0x002200
     ldr     r3, [r2, r3]
     ldr     r12,[r2, r12]
-    tst     r3, #0x00020000             @ have bus?
+    and     r3, r3, #0x00030000
+    cmp     r3,     #0x00010000         @ have bus or in reset state?
     bxeq    lr
     and     r12,r12,#0xc0000000		@ r3 & 0xC0
     add     r2, r2, r12, lsr #12
@@ -1687,6 +1693,18 @@ m_s68k_read32_regs_gfx:
 
 
 m_s68k_write8_prg:                      @ 0x000000 - 0x07ffff
+    ldr     r2, =(Pico+0x22200)
+    eor     r0, r0, #1
+    ldr     r2, [r2]
+    add     r3, r0, #0x020000           @ map to our address
+    add     r12,r2, #0x110000
+    ldr     r12,[r12]
+    and     r12,r12,#0x00ff0000         @ wp
+    cmp     r0, r12, lsr #8
+    strgeb  r1, [r2, r3]
+    bx      lr
+
+
 m_s68k_write8_wordram_2M:               @ 0x080000 - 0x0bffff
 m_s68k_write8_wordram_1M_b1:            @ 0x0c0000 - 0x0dffff, maps to 0x0e0000
     m_s68k_write8_ram 0x020000
@@ -1837,6 +1855,18 @@ m_s68k_write8_regs:
 
 
 m_s68k_write16_prg:                     @ 0x000000 - 0x07ffff
+    ldr     r2, =(Pico+0x22200)
+    bic     r0, r0, #1
+    ldr     r2, [r2]
+    add     r3, r0, #0x020000           @ map to our address
+    add     r12,r2, #0x110000
+    ldr     r12,[r12]
+    and     r12,r12,#0x00ff0000         @ wp
+    cmp     r0, r12, lsr #8
+    strgeh  r1, [r2, r3]
+    bx      lr
+
+
 m_s68k_write16_wordram_2M:              @ 0x080000 - 0x0bffff
 m_s68k_write16_wordram_1M_b1:           @ 0x0c0000 - 0x0dffff, maps to 0x0e0000
     m_s68k_write16_ram 0x020000
@@ -2010,6 +2040,21 @@ m_s68k_write16_regs_spec:               @ special case
 
 
 m_s68k_write32_prg:                     @ 0x000000 - 0x07ffff
+    ldr     r2, =(Pico+0x22200)
+    bic     r0, r0, #1
+    ldr     r2, [r2]
+    add     r3, r0, #0x020000           @ map to our address
+    add     r12,r2, #0x110000
+    ldr     r12,[r12]
+    and     r12,r12,#0x00ff0000         @ wp
+    cmp     r0, r12, lsr #8
+    bxlt    lr
+    mov     r0, r1, lsr #16
+    strh    r0, [r2, r3]!
+    strh    r1, [r2, #2]
+    bx      lr
+
+
 m_s68k_write32_wordram_2M:              @ 0x080000 - 0x0bffff
 m_s68k_write32_wordram_1M_b1:           @ 0x0c0000 - 0x0dffff, maps to 0x0e0000
     m_s68k_write32_ram 0x020000

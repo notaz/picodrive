@@ -26,12 +26,12 @@ typedef unsigned int   u32;
 //#define __debug_io
 //#define __debug_io2
 
-//#define rdprintf dprintf
-#define rdprintf(...)
+#define rdprintf dprintf
+//#define rdprintf(...)
 //#define wrdprintf dprintf
 #define wrdprintf(...)
-//#define plprintf dprintf
-#define plprintf(...)
+#define plprintf dprintf
+//#define plprintf(...)
 
 // -----------------------------------------------------------------
 
@@ -118,6 +118,7 @@ void m68k_reg_write8(u32 a, u32 d)
       Pico_mcd->m.busreq = d;
       return;
     case 2:
+      dprintf("m68k: prg wp=%02x", d);
       Pico_mcd->s68k_regs[2] = d; // really use s68k side register
       return;
     case 3: {
@@ -405,7 +406,7 @@ static void OtherWrite8End(u32 a, u32 d, int realsize)
 {
   if ((a&0xffffc0)==0xa12000) { m68k_reg_write8(a, d); return; }
 
-  dprintf("m68k FIXME: strange w%i: %06x, %08x @%06x", realsize, a&0xffffff, d, SekPc);
+  dprintf("m68k FIXME: strange w%i: [%06x], %08x @%06x", realsize, a&0xffffff, d, SekPc);
 }
 
 
@@ -433,7 +434,7 @@ static u8 PicoReadM68k8(u32 a)
   if (a < 0x20000) { d = *(u8 *)(Pico_mcd->bios+(a^1)); goto end; } // bios
 
   // prg RAM
-  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&2)) {
+  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
     d = *(prg_bank+((a^1)&0x1ffff));
     goto end;
@@ -490,7 +491,7 @@ static u16 PicoReadM68k16(u32 a)
   if (a < 0x20000) { d = *(u16 *)(Pico_mcd->bios+a); goto end; } // bios
 
   // prg RAM
-  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&2)) {
+  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
     wrdprintf("m68k_prgram r16: [%i,%06x] @%06x", Pico_mcd->s68k_regs[3]>>6, a, SekPc);
     d = *(u16 *)(prg_bank+(a&0x1fffe));
@@ -547,7 +548,7 @@ static u32 PicoReadM68k32(u32 a)
   if (a < 0x20000) { u16 *pm=(u16 *)(Pico_mcd->bios+a); d = (pm[0]<<16)|pm[1]; goto end; } // bios
 
   // prg RAM
-  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&2)) {
+  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
     u16 *pm=(u16 *)(prg_bank+(a&0x1fffe));
     d = (pm[0]<<16)|pm[1];
@@ -595,7 +596,6 @@ static u32 PicoReadM68k32(u32 a)
 
 
 // -----------------------------------------------------------------
-//                            Write Ram
 
 #ifdef _ASM_CD_MEMORY_C
 void PicoWriteM68k8(u32 a,u8 d);
@@ -617,7 +617,7 @@ static void PicoWriteM68k8(u32 a,u8 d)
   a&=0xffffff;
 
   // prg RAM
-  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&2)) {
+  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
     *(u8 *)(prg_bank+((a^1)&0x1ffff))=d;
     return;
@@ -668,7 +668,7 @@ static void PicoWriteM68k16(u32 a,u16 d)
   a&=0xfffffe;
 
   // prg RAM
-  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&2)) {
+  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
     wrdprintf("m68k_prgram w16: [%i,%06x] %04x @%06x", Pico_mcd->s68k_regs[3]>>6, a, d, SekPc);
     *(u16 *)(prg_bank+(a&0x1fffe))=d;
@@ -734,7 +734,7 @@ static void PicoWriteM68k32(u32 a,u32 d)
   a&=0xfffffe;
 
   // prg RAM
-  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&2)) {
+  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
     u16 *pm=(u16 *)(prg_bank+(a&0x1fffe));
     pm[0]=(u16)(d>>16); pm[1]=(u16)d;
@@ -777,6 +777,8 @@ static void PicoWriteM68k32(u32 a,u32 d)
 #endif
 
 
+// -----------------------------------------------------------------
+//                            S68k
 // -----------------------------------------------------------------
 
 #ifdef _ASM_CD_MEMORY_C
@@ -1139,7 +1141,7 @@ static void PicoWriteS68k8(u32 a,u8 d)
   // prg RAM
   if (a < 0x80000) {
     u8 *pm=(u8 *)(Pico_mcd->prg_ram+(a^1));
-    *pm=d;
+    if (a >= (Pico_mcd->s68k_regs[2]<<8)) *pm=d;
     return;
   }
 
@@ -1215,7 +1217,8 @@ static void PicoWriteS68k16(u32 a,u16 d)
   // prg RAM
   if (a < 0x80000) {
     wrdprintf("s68k_prgram w16: [%06x] %04x @%06x", a, d, SekPcS68k);
-    *(u16 *)(Pico_mcd->prg_ram+a)=d;
+    if (a >= (Pico_mcd->s68k_regs[2]<<8)) // needed for Dungeon Explorer
+      *(u16 *)(Pico_mcd->prg_ram+a)=d;
     return;
   }
 
@@ -1299,8 +1302,10 @@ static void PicoWriteS68k32(u32 a,u32 d)
 
   // prg RAM
   if (a < 0x80000) {
-    u16 *pm=(u16 *)(Pico_mcd->prg_ram+a);
-    pm[0]=(u16)(d>>16); pm[1]=(u16)d;
+    if (a >= (Pico_mcd->s68k_regs[2]<<8)) {
+      u16 *pm=(u16 *)(Pico_mcd->prg_ram+a);
+      pm[0]=(u16)(d>>16); pm[1]=(u16)d;
+    }
     return;
   }
 

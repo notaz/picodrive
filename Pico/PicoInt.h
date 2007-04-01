@@ -142,7 +142,7 @@ struct PicoMisc
   char dirtyPal; // Is the palette dirty (1 - change @ this frame, 2 - some time before)
   unsigned char hardware; // Hardware value for country
   unsigned char pal; // 1=PAL 0=NTSC
-  unsigned char sram_reg; // SRAM mode register. bit0: allow read? bit1: deny write? bit2: EEPROM?
+  unsigned char sram_reg; // SRAM mode register. bit0: allow read? bit1: deny write? bit2: EEPROM? bit4: detected? (header or by access)
   unsigned short z80_bank68k;
   unsigned short z80_lastaddr; // this is for Z80 faking
   unsigned char  z80_fakeval;
@@ -151,7 +151,7 @@ struct PicoMisc
   unsigned short sram_addr;  // EEPROM address register
   unsigned char sram_cycle;  // EEPROM SRAM cycle number
   unsigned char sram_slave;  // EEPROM slave word for X24C02 and better SRAMs
-  unsigned char prot_bytes[2]; // simple protection fakeing
+  unsigned char prot_bytes[2]; // simple protection faking
   unsigned short dma_bytes;  //
   unsigned char pad[2];
   unsigned int  frame_count; // mainly for movies

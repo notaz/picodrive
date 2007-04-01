@@ -15,6 +15,7 @@
 #include "menu.h"
 #include "fonts.h"
 #include "usbjoy.h"
+#include "asmutils.h"
 #include "version.h"
 
 #include <Pico/PicoInt.h>
@@ -170,14 +171,16 @@ static int inp_prevjoy = 0;
 static unsigned long wait_for_input(unsigned long interesting)
 {
 	unsigned long ret;
-	static int repeats = 0, wait = 300*1000;
+	static int repeats = 0, wait = 50*1000;
 	int release = 0, i;
 
-	if (repeats == 5 || repeats == 15 || repeats == 30) wait /= 2;
+	if (repeats == 2 || repeats == 4) wait /= 2;
+	if (repeats == 6) wait = 15 * 1000;
 
 	for (i = 0; i < 6 && inp_prev == gp2x_joystick_read(1); i++) {
-		if(i == 0) repeats++;
-		usleep(wait/6);
+		if (i == 0) repeats++;
+		if (wait >= 30*1000) usleep(wait); // usleep sleeps for ~30ms minimum
+		else spend_cycles(wait * currentConfig.CPUclock);
 	}
 
 	while ( !((ret = gp2x_joystick_read(1)) & interesting) ) {
@@ -187,7 +190,7 @@ static unsigned long wait_for_input(unsigned long interesting)
 
 	if (release || ret != inp_prev) {
 		repeats = 0;
-		wait = 300*1000;
+		wait = 50*1000;
 	}
 	inp_prev = ret;
 	inp_prevjoy = 0;
@@ -356,8 +359,10 @@ static char *romsel_loop(char *curr_path)
 		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_L|GP2X_R|GP2X_B|GP2X_X);
 		if(inp & GP2X_UP  )  { sel--;   if (sel < 0)   sel = n-2; }
 		if(inp & GP2X_DOWN)  { sel++;   if (sel > n-2) sel = 0; }
-		if(inp &(GP2X_LEFT|GP2X_L))  { sel-=10; if (sel < 0)   sel = 0; }
-		if(inp &(GP2X_RIGHT|GP2X_R)) { sel+=10; if (sel > n-2) sel = n-2; }
+		if(inp & GP2X_LEFT)  { sel-=10; if (sel < 0)   sel = 0; }
+		if(inp & GP2X_L)     { sel-=24; if (sel < 0)   sel = 0; }
+		if(inp & GP2X_RIGHT) { sel+=10; if (sel > n-2) sel = n-2; }
+		if(inp & GP2X_R)     { sel+=24; if (sel > n-2) sel = n-2; }
 		if(inp & GP2X_B)     { // enter dir/select
 			again:
 			if (namelist[sel+1]->d_type == DT_REG) {
@@ -872,7 +877,7 @@ static void draw_amenu_options(int menu_sel)
 	gp2x_text_out8(tl_x, (y+=10), "Emulate YM2612 (FM)        %s", (currentConfig.PicoOpt&0x001)?"ON":"OFF"); // 2
 	gp2x_text_out8(tl_x, (y+=10), "Emulate SN76496 (PSG)      %s", (currentConfig.PicoOpt&0x002)?"ON":"OFF"); // 3
 	gp2x_text_out8(tl_x, (y+=10), "gzip savestates            %s", (currentConfig.EmuOpt &0x008)?"ON":"OFF"); // 4
-	gp2x_text_out8(tl_x, (y+=10), "Don't save config on exit  %s", (currentConfig.EmuOpt &0x020)?"ON":"OFF"); // 5
+	gp2x_text_out8(tl_x, (y+=10), "Don't save last used ROM   %s", (currentConfig.EmuOpt &0x020)?"ON":"OFF"); // 5
 	gp2x_text_out8(tl_x, (y+=10), "needs restart:");
 	gp2x_text_out8(tl_x, (y+=10), "craigix's RAM timings      %s", (currentConfig.EmuOpt &0x100)?"ON":"OFF"); // 7
 	gp2x_text_out8(tl_x, (y+=10), "squidgehack (now %s %s",   mms, (currentConfig.EmuOpt &0x010)?"ON":"OFF"); // 8
@@ -1256,7 +1261,11 @@ static void menu_loop_root(void)
 		if(inp & GP2X_B   )  {
 			switch (menu_sel) {
 				case 0: // resume game
-					if (rom_data) { engineState = PGS_Running; return; }
+					if (rom_data) {
+						while (gp2x_joystick_read(1) & GP2X_B) usleep(50*1000);
+						engineState = PGS_Running;
+						return;
+					}
 					break;
 				case 1: // save state
 					if (rom_data) {
@@ -1355,3 +1364,85 @@ void menu_loop(void)
 
 	menuErrorMsg[0] = 0;
 }
+
+
+// --------- CD tray close menu ----------
+
+static void draw_menu_tray(int menu_sel)
+{
+	int tl_x = 70, tl_y = 90, y;
+	memset(gp2x_screen, 0xe0, 320*240);
+
+	gp2x_text_out8(tl_x, 20, "The unit is about to");
+	gp2x_text_out8(tl_x, 30, "close the CD tray.");
+
+	y = tl_y;
+	gp2x_text_out8(tl_x, y,       "Load new CD image");
+	gp2x_text_out8(tl_x, (y+=10), "Insert nothing");
+
+	// draw cursor
+	gp2x_text_out8(tl_x - 16, tl_y + menu_sel*10, ">");
+	// error
+	if (menuErrorMsg[0]) gp2x_text_out8(5, 226, menuErrorMsg);
+	gp2x_video_flip2();
+}
+
+
+int menu_loop_tray(void)
+{
+	int menu_sel = 0, menu_sel_max = 1;
+	unsigned long inp = 0;
+	char curr_path[PATH_MAX], *selfname;
+	FILE *tstf;
+
+	gp2x_memset_all_buffers(0, 0xe0, 320*240);
+	menu_gfx_prepare();
+
+	if ( (tstf = fopen(currentConfig.lastRomFile, "rb")) )
+	{
+		fclose(tstf);
+		strcpy(curr_path, currentConfig.lastRomFile);
+	}
+	else
+	{
+		getcwd(curr_path, PATH_MAX);
+	}
+
+	/* make sure action buttons are not pressed on entering menu */
+	draw_menu_tray(menu_sel);
+	while (gp2x_joystick_read(1) & GP2X_B) usleep(50*1000);
+
+	for (;;)
+	{
+		draw_menu_tray(menu_sel);
+		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_B);
+		if(inp & GP2X_UP  )  { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
+		if(inp & GP2X_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
+		if(inp & GP2X_B   )  {
+			switch (menu_sel) {
+				case 0: // select image
+					selfname = romsel_loop(curr_path);
+					if (selfname) {
+						int ret = -1, cd_type;
+						cd_type = emu_cd_check(NULL);
+						if (cd_type > 0)
+							ret = Insert_CD(romFileName, cd_type == 2);
+						if (ret != 0) {
+							sprintf(menuErrorMsg, "Load failed, invalid CD image?");
+							printf("%s\n", menuErrorMsg);
+							continue;
+						}
+						engineState = PGS_RestartRun;
+						return 1;
+					}
+					break;
+				case 1: // insert nothing
+					engineState = PGS_RestartRun;
+					return 0;
+			}
+		}
+		menuErrorMsg[0] = 0; // clear error msg
+	}
+}
+
+

@@ -45,7 +45,10 @@ extern int PicoPad[2]; // Joypads, format is MXYZ SACB RLDU
 extern void (*PicoWriteSound)(int len); // called once per frame at the best time to send sound buffer (PsndOut) to hardware
 extern void (*PicoMessage)(const char *msg); // callback to output text message from emu
 
+// cd/Pico.c
 int PicoFrameMCD(void);
+extern void (*PicoMCDopenTray)(void);
+extern int  (*PicoMCDcloseTray)(void);
 
 extern int PicoCDBuffers;
 

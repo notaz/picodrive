@@ -13,6 +13,7 @@ enum TPicoGameState {
 	PGS_KeyConfig,
 	PGS_ReloadRom,
 	PGS_Menu,
+	PGS_RestartRun,
 };
 
 typedef struct {
@@ -52,6 +53,7 @@ char *emu_GetSaveFName(int load, int is_sram, int slot);
 int  emu_check_save_file(int slot);
 void emu_set_save_cbs(int gz);
 void emu_forced_frame(void);
+int  emu_cd_check(char **bios_file);
 int  find_bios(int region, char **bios_file);
 void scaling_update(void);
 

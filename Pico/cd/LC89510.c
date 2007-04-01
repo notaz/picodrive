@@ -112,12 +112,12 @@ void Update_CDC_TRansfer(int which)
 
 			memcpy16bswap(dest, src, length);
 
-			{ // debug
+			/*{ // debug
 				unsigned char *b1 = Pico_mcd->word_ram1M[bank] + dep;
 				unsigned char *b2 = (unsigned char *)(dest+length) - 8;
 				dprintf("%02x %02x %02x %02x .. %02x %02x %02x %02x",
 					b1[0], b1[1], b1[4], b1[5], b2[0], b2[1], b2[4], b2[5]);
-			}
+			}*/
 		}
 		else
 		{
@@ -128,12 +128,12 @@ void Update_CDC_TRansfer(int which)
 
 			memcpy16bswap(dest, src, length);
 
-			{ // debug
+			/*{ // debug
 				unsigned char *b1 = Pico_mcd->word_ram2M + dep;
 				unsigned char *b2 = (unsigned char *)(dest+length) - 4;
 				dprintf("%02x %02x %02x %02x .. %02x %02x %02x %02x",
 					b1[0], b1[1], b1[2], b1[3], b2[0], b2[1], b2[2], b2[3]);
-			}
+			}*/
 		}
 	}
 	else if (which == 4) // PCM RAM (check: popful Mail)
@@ -156,12 +156,12 @@ void Update_CDC_TRansfer(int which)
 
 		memcpy16bswap(dest, src, length);
 
-		{ // debug
+		/*{ // debug
 			unsigned char *b1 = Pico_mcd->prg_ram + dep;
 			unsigned char *b2 = (unsigned char *)(dest+length) - 4;
 			dprintf("%02x %02x %02x %02x .. %02x %02x %02x %02x",
 				b1[0], b1[1], b1[2], b1[3], b2[0], b2[1], b2[2], b2[3]);
-		}
+		}*/
 	}
 
 	length <<= 1;
@@ -227,20 +227,6 @@ unsigned short Read_CDC_Host(int is_sub)
 		(Pico_mcd->cdc.Buffer[addr]<<8) | Pico_mcd->cdc.Buffer[addr+1], Pico_mcd->cdc.DAC.N, Pico_mcd->cdc.DBC.N);
 
 	return (Pico_mcd->cdc.Buffer[addr]<<8) | Pico_mcd->cdc.Buffer[addr+1];
-
-#if 0
-	__asm
-	{
-		mov esi, Pico_mcd->cdc.DAC.N
-		lea ebx, Pico_mcd->cdc.Buffer
-//				and esi, 0x3FFF
-		mov ax, [ebx + esi]
-		add esi, 2
-		rol ax, 8
-		mov Pico_mcd->cdc.DAC.N, esi
-		mov val, ax
-	}
-#endif
 }
 
 

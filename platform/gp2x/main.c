@@ -120,6 +120,9 @@ int main(int argc, char *argv[])
 				}
 				break;
 
+			case PGS_RestartRun:
+				engineState = PGS_Running;
+
 			case PGS_Running:
 				emu_Loop();
 				break;

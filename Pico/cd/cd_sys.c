@@ -209,7 +209,7 @@ void Reset_CD(void)
 	Pico_mcd->scd.Cur_Track = 0;
 	Pico_mcd->scd.Cur_LBA = -150;
 	Pico_mcd->scd.Status_CDC &= ~1;
-	Pico_mcd->scd.Status_CDD = READY;
+	Pico_mcd->scd.Status_CDD = CD_Present ? READY : NOCD;
 	Pico_mcd->scd.CDD_Complete = 0;
 	Pico_mcd->scd.File_Add_Delay = 0;
 }
@@ -223,12 +223,15 @@ int Insert_CD(char *iso_name, int is_bin)
 //	memset(CD_Audio_Buffer_R, 0, 4096 * 4);
 
 	CD_Present = 0;
+	Pico_mcd->scd.Status_CDD = NOCD;
 
 	if (iso_name != NULL)
 	{
 		ret = Load_ISO(iso_name, is_bin);
-		if (ret == 0)
+		if (ret == 0) {
 			CD_Present = 1;
+			Pico_mcd->scd.Status_CDD = READY;
+		}
 	}
 
 	return ret;
@@ -671,31 +674,23 @@ int Fast_Rewind_CDD_c9(void)
 
 int Close_Tray_CDD_cC(void)
 {
+	CD_Present = 0;
 	//Clear_Sound_Buffer();
 
 	Pico_mcd->scd.Status_CDC &= ~1;			// Stop CDC read
 
-	{
-#if 0 // TODO
-		char new_iso[1024];
+	printf("tray close\n");
 
-		memset(new_iso, 0, 1024);
+	if (PicoMCDcloseTray != NULL)
+		CD_Present = PicoMCDcloseTray();
 
-		while (!Change_File_L(new_iso, Rom_Dir, "Load SegaCD image file", "SegaCD image file\0*.bin;*.iso;*.raw\0All files\0*.*\0\0", ""));
-		Reload_SegaCD(new_iso);
+	Pico_mcd->scd.Status_CDD = CD_Present ? STOPPED : NOCD;
+	Pico_mcd->cdd.Status = 0x0000;
 
-		CD_Present = 1;
-#else
-		CD_Present = 0;
-#endif
-		Pico_mcd->scd.Status_CDD = STOPPED;
-		Pico_mcd->cdd.Status = 0x0000;
-
-		Pico_mcd->cdd.Minute = 0;
-		Pico_mcd->cdd.Seconde = 0;
-		Pico_mcd->cdd.Frame = 0;
-		Pico_mcd->cdd.Ext = 0;
-	}
+	Pico_mcd->cdd.Minute = 0;
+	Pico_mcd->cdd.Seconde = 0;
+	Pico_mcd->cdd.Frame = 0;
+	Pico_mcd->cdd.Ext = 0;
 
 	Pico_mcd->scd.CDD_Complete = 1;
 
@@ -709,8 +704,13 @@ int Open_Tray_CDD_cD(void)
 
 	Pico_mcd->scd.Status_CDC &= ~1;			// Stop CDC read
 
+	printf("tray open\n");
+
 	Unload_ISO();
 	CD_Present = 0;
+
+	if (PicoMCDopenTray != NULL)
+		PicoMCDopenTray();
 
 	Pico_mcd->scd.Status_CDD = TRAY_OPEN;
 	Pico_mcd->cdd.Status = 0x0E00;
@@ -759,194 +759,4 @@ int CDD_Def(void)
 	return 0;
 }
 
-
-
-
-/***************************
- *   Others CD functions   *
- **************************/
-
-
-// do we need them?
-#if 0
-void Write_CD_Audio(short *Buf, int rate, int channel, int lenght)
-{
-	unsigned int lenght_src, lenght_dst;
-	unsigned int pos_src, pas_src;
-
-	if (rate == 0) return;
-	if (Sound_Rate == 0) return;
-
-	if (CD_Audio_Starting)
-	{
-		CD_Audio_Starting = 0;
-		memset(CD_Audio_Buffer_L, 0, 4096 * 4);
-		memset(CD_Audio_Buffer_R, 0, 4096 * 4);
-		CD_Audio_Buffer_Write_Pos = (CD_Audio_Buffer_Read_Pos + 2000) & 0xFFF;
-	}
-
-	lenght_src = rate / 75;				// 75th of a second
-	lenght_dst = Sound_Rate / 75;		// 75th of a second
-
-	pas_src = (lenght_src << 16) / lenght_dst;
-	pos_src = 0;
-
-#ifdef DEBUG_CD
-	fprintf(debug_SCD_file, "\n*********  Write Pos = %d    ", CD_Audio_Buffer_Write_Pos);
-#endif
-
-	if (channel == 2)
-	{
-		__asm
-		{
-			mov edi, CD_Audio_Buffer_Write_Pos
-			mov ebx, Buf
-			xor esi, esi
-			mov ecx, lenght_dst
-			xor eax, eax
-			mov edx, pas_src
-			dec ecx
-			jmp short loop_stereo
-
-align 16
-
-loop_stereo:
-			movsx eax, word ptr [ebx + esi * 4]
-			mov CD_Audio_Buffer_L[edi * 4], eax
-			movsx eax, word ptr [ebx + esi * 4 + 2]
-			mov CD_Audio_Buffer_R[edi * 4], eax
-			mov esi, dword ptr pos_src
-			inc edi
-			add esi, edx
-			and edi, 0xFFF
-			mov dword ptr pos_src, esi
-			shr esi, 16
-			dec ecx
-			jns short loop_stereo
-
-			mov CD_Audio_Buffer_Write_Pos, edi
-		}
-	}
-	else
-	{
-		__asm
-		{
-			mov edi, CD_Audio_Buffer_Write_Pos
-			mov ebx, Buf
-			xor esi, esi
-			mov ecx, lenght_dst
-			xor eax, eax
-			mov edx, pas_src
-			dec ecx
-			jmp short loop_mono
-
-align 16
-
-loop_mono:
-			movsx eax, word ptr [ebx + esi * 2]
-			mov CD_Audio_Buffer_L[edi * 4], eax
-			mov CD_Audio_Buffer_R[edi * 4], eax
-			mov esi, dword ptr pos_src
-			inc edi
-			add esi, edx
-			and edi, 0xFFF
-			mov dword ptr pos_src, esi
-			shr esi, 16
-			dec ecx
-			jns short loop_mono
-
-			mov CD_Audio_Buffer_Write_Pos, edi
-		}
-	}
-
-#ifdef DEBUG_CD
-	fprintf(debug_SCD_file, "Write Pos 2 = %d\n\n", CD_Audio_Buffer_Write_Pos);
-#endif
-}
-
-
-void Update_CD_Audio(int **buf, int lenght)
-{
-	int *Buf_L, *Buf_R;
-	int diff;
-
-	Buf_L = buf[0];
-	Buf_R = buf[1];
-
-	if (Pico_mcd->s68k_regs[0x36] & 0x01) return;
-	if (!(Pico_mcd->scd.Status_CDC & 1))  return;
-	if (CD_Audio_Starting) return;
-
-#ifdef DEBUG_CD
-	fprintf(debug_SCD_file, "\n*********  Read Pos Normal = %d     ", CD_Audio_Buffer_Read_Pos);
-#endif
-
-	if (CD_Audio_Buffer_Write_Pos < CD_Audio_Buffer_Read_Pos)
-	{
-		diff = CD_Audio_Buffer_Write_Pos + (4096) - CD_Audio_Buffer_Read_Pos;
-	}
-	else
-	{
-		diff = CD_Audio_Buffer_Write_Pos - CD_Audio_Buffer_Read_Pos;
-	}
-
-	if (diff < 500) CD_Audio_Buffer_Read_Pos -= 2000;
-	else if (diff > 3500) CD_Audio_Buffer_Read_Pos += 2000;
-
-#ifdef DEBUG_CD
-	else fprintf(debug_SCD_file, " pas de modifs   ");
-#endif
-
-	CD_Audio_Buffer_Read_Pos &= 0xFFF;
-
-#ifdef DEBUG_CD
-	fprintf(debug_SCD_file, "Read Pos = %d   ", CD_Audio_Buffer_Read_Pos);
-#endif
-
-	if (CDDA_Enable)
-	{
-		__asm
-		{
-			mov ecx, lenght
-			mov esi, CD_Audio_Buffer_Read_Pos
-			mov edi, Buf_L
-			dec ecx
-
-loop_L:
-			mov eax, CD_Audio_Buffer_L[esi * 4]
-			add [edi], eax
-			inc esi
-			add edi, 4
-			and esi, 0xFFF
-			dec ecx
-			jns short loop_L
-
-			mov ecx, lenght
-			mov esi, CD_Audio_Buffer_Read_Pos
-			mov edi, Buf_R
-			dec ecx
-
-loop_R:
-			mov eax, CD_Audio_Buffer_R[esi * 4]
-			add [edi], eax
-			inc esi
-			add edi, 4
-			and esi, 0xFFF
-			dec ecx
-			jns short loop_R
-
-			mov CD_Audio_Buffer_Read_Pos, esi
-		}
-	}
-	else
-	{
-		CD_Audio_Buffer_Read_Pos += lenght;
-		CD_Audio_Buffer_Read_Pos &= 0xFFF;
-	}
-
-#ifdef DEBUG_CD
-	fprintf(debug_SCD_file, "Read Pos 2 = %d\n\n", CD_Audio_Buffer_Read_Pos);
-#endif
-}
-#endif
 

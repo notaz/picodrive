@@ -9,6 +9,7 @@ void gp2x_text_out8  (int x, int y, const char *texto, ...);
 void gp2x_text_out15 (int x, int y, const char *text);
 void gp2x_text_out8_2(int x, int y, const char *texto, int color);
 void menu_loop(void);
+int  menu_loop_tray(void);
 
 #define CONFIGURABLE_KEYS \
 	(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_A|GP2X_B|GP2X_X|GP2X_Y| \
