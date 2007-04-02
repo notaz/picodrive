@@ -216,13 +216,15 @@ static __inline void update_chips(void)
 	// delayed setting of DMNA bit (needed for Silpheed)
 	if (Pico_mcd->m.state_flags & 2) {
 		Pico_mcd->m.state_flags &= ~2;
-		Pico_mcd->s68k_regs[3] |=  2;
-		Pico_mcd->s68k_regs[3] &= ~1;
+		if (!(Pico_mcd->s68k_regs[3] & 4)) {
+			Pico_mcd->s68k_regs[3] |=  2;
+			Pico_mcd->s68k_regs[3] &= ~1;
 #ifdef USE_POLL_DETECT
-		if ((s68k_poll_adclk&0xfe) == 2) {
-			SekSetStopS68k(0); s68k_poll_adclk = 0;
-		}
+			if ((s68k_poll_adclk&0xfe) == 2) {
+				SekSetStopS68k(0); s68k_poll_adclk = 0;
+			}
 #endif
+		}
 	}
 }
 

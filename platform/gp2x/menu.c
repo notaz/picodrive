@@ -956,7 +956,7 @@ static const char *region_name(unsigned int code)
 static void draw_menu_options(int menu_sel)
 {
 	int tl_x = 25, tl_y = 32, y;
-	char monostereo[8], strframeskip[8], *strrend, *strscaling;
+	char monostereo[8], strframeskip[8], *strrend, *strscaling, *strssconfirm;
 
 	strcpy(monostereo, (currentConfig.PicoOpt&0x08)?"stereo":"mono");
 	if (currentConfig.Frameskip < 0)
@@ -975,6 +975,12 @@ static void draw_menu_options(int menu_sel)
 		case 2:  strscaling = "hw horiz. + vert."; break;
 		case 3:  strscaling = "sw horizontal";     break;
 	}
+	switch ((currentConfig.EmuOpt >> 9) & 5) {
+		default: strssconfirm = "OFF";    break;
+		case 1:  strssconfirm = "writes"; break;
+		case 4:  strssconfirm = "loads";  break;
+		case 5:  strssconfirm = "both";   break;
+	}
 
 	y = tl_y;
 	//memset(gp2x_screen, 0, 320*240);
@@ -992,7 +998,7 @@ static void draw_menu_options(int menu_sel)
 	gp2x_text_out8(tl_x, (y+=10), "6 button pad               %s", (currentConfig.PicoOpt&0x020)?"ON":"OFF"); // 9
 	gp2x_text_out8(tl_x, (y+=10), "Genesis Region:      %s",       region_name(currentConfig.PicoRegion));
 	gp2x_text_out8(tl_x, (y+=10), "Use SRAM/BRAM savestates   %s", (currentConfig.EmuOpt &0x001)?"ON":"OFF"); // 11
-	gp2x_text_out8(tl_x, (y+=10), "Confirm save overwrites    %s", (currentConfig.EmuOpt &0x200)?"ON":"OFF"); // 12
+	gp2x_text_out8(tl_x, (y+=10), "Confirm savestate          %s", strssconfirm); // 12
 	gp2x_text_out8(tl_x, (y+=10), "Save slot                  %i", state_slot); // 13
 	gp2x_text_out8(tl_x, (y+=10), "GP2X CPU clocks            %iMhz", currentConfig.CPUclock);
 	gp2x_text_out8(tl_x, (y+=10), "[Sega/Mega CD options]");
@@ -1083,7 +1089,6 @@ static int menu_loop_options(void)
 				case  8: currentConfig.PicoOpt^=0x200; break;
 				case  9: currentConfig.PicoOpt^=0x020; break;
 				case 11: currentConfig.EmuOpt ^=0x001; break;
-				case 12: currentConfig.EmuOpt ^=0x200; break;
 				case 15: cd_menu_loop_options();
 					if (engineState == PGS_ReloadRom)
 						return 0; // test BIOS
@@ -1138,6 +1143,15 @@ static int menu_loop_options(void)
 				case 10:
 					region_prevnext(inp & GP2X_RIGHT);
 					break;
+				case 12: {
+					int n = ((currentConfig.EmuOpt>>9)&1) | ((currentConfig.EmuOpt>>10)&2);
+					n += (inp & GP2X_LEFT) ? -1 : 1;
+					if (n < 0) n = 0; else if (n > 3) n = 3;
+					n |= n << 1; n &= ~2;
+					currentConfig.EmuOpt &= ~0xa00;
+					currentConfig.EmuOpt |= n << 9;
+					break;
+				}
 				case 13:
 					if (inp & GP2X_RIGHT) {
 						state_slot++; if (state_slot > 9) state_slot = 0;

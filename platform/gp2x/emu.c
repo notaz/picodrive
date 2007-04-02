@@ -272,6 +272,9 @@ int emu_ReloadRom(void)
 		get_ext(romFileName, ext);
 	}
 
+	if ((PicoMCD & 1) && Pico_mcd != NULL)
+		Stop_CD();
+
 	// check for MegaCD image
 	cd_state = emu_cd_check(&used_rom_name);
 	if (cd_state > 0) {
@@ -837,9 +840,11 @@ static void RunEvents(unsigned int which)
 {
 	if(which & 0x1800) { // save or load (but not both)
 		int do_it = 1;
-		if (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200) && emu_check_save_file(state_slot)) {
+		if ( emu_check_save_file(state_slot) &&
+				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) ||   // load
+				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) { // save
 			unsigned long keys;
-			blit("", "OVERWRITE SAVE? (Y=yes, X=no)");
+			blit("", (which & 0x1000) ? "LOAD STATE? (Y=yes, X=no)" : "OVERWRITE SAVE? (Y=yes, X=no)");
 			while( !((keys = gp2x_joystick_read(1)) & (GP2X_X|GP2X_Y)) )
 				usleep(50*1024);
 			if (keys & GP2X_X) do_it = 0;

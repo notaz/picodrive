@@ -227,6 +227,9 @@ Changelog
   * Improved z80 timing, should fix some sound problems.
   * Fixed a bug with sram register (fixes Phantasy Star 4).
   * Added code for PRG ram write protection register (Dungeon Explorer).
+  * The memory mode register change in 1.31 was unsafe and caused some glitches in
+    AH-3 Thunderstrike. Fixed.
+  * Fixed a file descriptor leak.
 
 1.31
   * Changed the way memory mode register is read (fixes Lunar 2, broken in 1.30).

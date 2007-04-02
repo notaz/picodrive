@@ -402,7 +402,7 @@ int mmuunhack(void)
 /* misc */
 void spend_cycles(int c)
 {
-	usleep(c/*/200*/);
+	usleep(c/200);
 }
 
 
