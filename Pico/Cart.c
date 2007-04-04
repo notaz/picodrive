@@ -1,7 +1,7 @@
 // This is part of Pico Library
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2006-2007, Grazvydas "notaz" Ignotas
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.

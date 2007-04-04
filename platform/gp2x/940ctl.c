@@ -1,3 +1,6 @@
+// Code for communication with ARM940 and control of it.
+// (c) Copyright 2007, Grazvydas "notaz" Ignotas
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -285,7 +288,7 @@ static void wait_busy_940(int job)
 		gp2x_memregs[0x3b46>>1], gp2x_memregl[0x4500>>2], gp2x_memregl[0x4510>>2]);
 	printf("last lr: %08x, lastjob: %i\n", shared_ctl->last_lr, shared_ctl->lastjob);
 
-	strcpy(menuErrorMsg, "940 crashed.");
+	strcpy(menuErrorMsg, "940 crashed, too much overclock?");
 	engineState = PGS_Menu;
 	crashed_940 = 1;
 }

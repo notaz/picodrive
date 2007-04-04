@@ -1,3 +1,5 @@
+@ vim:filetype=armasm
+
 @ .equiv START_ROW, 	1
 @ .equiv END_ROW, 		27
 @ one row means 8 pixels. If above example was used, (27-1)*8=208 lines would be rendered.

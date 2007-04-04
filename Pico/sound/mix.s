@@ -1,5 +1,8 @@
 @ vim:filetype=armasm
 
+@ Generic routines for mixing audio samples
+@ (c) Copyright 2007, Grazvydas "notaz" Ignotas
+
 
 @ this assumes src is word aligned
 .global mix_16h_to_32 @ int *dest, short *src, int count

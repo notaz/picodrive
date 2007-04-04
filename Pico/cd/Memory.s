@@ -1,8 +1,7 @@
 @ vim:filetype=armasm
 
-@ Memory i/o handlers for Sega/Mega CD emulation
+@ Memory I/O handlers for Sega/Mega CD emulation
 @ (c) Copyright 2007, Grazvydas "notaz" Ignotas
-@ All Rights Reserved
 
 
 
@@ -27,14 +26,17 @@
     .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @ 0x280000 - 0x2fffff
     .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @ 0x300000
     .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @          - 0x3fffff
-    .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @ 0x400000
+    .long   m_m68k_&\on&\sz&_bcram_size     @ 0x400000
+    .long   m_&\on&_null, m_&\on&_null, m_&\on&_null               @ 0x420000
     .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @          - 0x4fffff
     .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @ 0x500000
     .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @          - 0x5fffff
-    .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @ 0x600000
+    .long   m_m68k_&\on&\sz&_bcram          @ 0x600000
+    .long   m_&\on&_null, m_&\on&_null, m_&\on&_null               @ 0x620000
     .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @          - 0x6fffff
     .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @ 0x700000
-    .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @          - 0x7fffff
+    .long   m_&\on&_null, m_&\on&_null, m_&\on&_null               @          - 0x7dffff
+    .long   m_m68k_&\on&\sz&_bcram_reg                             @ 0x7e0000
     .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @ 0x800000
     .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @          - 0x8fffff
     .long   m_&\on&_null, m_&\on&_null, m_&\on&_null, m_&\on&_null @ 0x900000
@@ -364,6 +366,25 @@ PicoWriteS68k32: @ u32 a, u32 d
     streq   r1, [r2, r0]
 .endm
 
+@
+.macro bcram_reg_rw is_read addr_check
+    rsb     r0, r0, #0x800000
+    ldr     r2, =(Pico+0x22200)
+    cmp     r0, #(0x800000-\addr_check)
+    ldreq   r2, [r2]
+.if \is_read
+    movne   r0, #0
+.endif
+    bxne    lr
+    add     r2, r2, #0x110000
+    add     r2, r2, #0x002200
+.if \is_read
+    ldrb    r0, [r2, #0x18]
+.else
+    strb    r1, [r2, #0x18]
+.endif
+    bx      lr
+.endm
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
@@ -446,6 +467,35 @@ m_m68k_read8_wordram1_1M_b1:            @ 0x220000 - 0x23ffff, cell arranged
     eor     r0, r0, #1
     ldrb    r0, [r1, r0]
     bx      lr
+
+
+m_m68k_read8_bcram_size:                @ 0x400000
+    sub     r0, r0, #1
+    cmp     r0, #0x400000
+    ldreq   r1, =SRam
+    mov     r0, #0
+    ldreq   r1, [r1]
+    bxne    lr
+    tst     r1, r1
+    movne   r0, #3                      @ pretend to be a 64k cart (8<<3)
+    bx      lr
+
+
+m_m68k_read8_bcram:                     @ 0x600000 - 0x61ffff
+    ldr     r1, =SRam
+    bic     r0, r0, #0xfe0000
+    ldr     r1, [r1]
+    mov     r0, r0, lsr #1
+    tst     r1, r1
+    moveq   r0, #0
+    bxeq    lr
+    add     r1, r1, #0x2000
+    ldrb    r0, [r1, r0]
+    bx      lr
+
+
+m_m68k_read8_bcram_reg:                 @ 0x7fffff
+    bcram_reg_rw 1, 0x7fffff
 
 
 m_m68k_read8_system_io:
@@ -656,6 +706,25 @@ m_m68k_read16_wordram1_1M_b1:           @ 0x220000 - 0x23ffff, cell arranged
     bx      lr
 
 
+m_m68k_read16_bcram_size:               @ 0x400000
+    cmp     r0, #0x400000
+    ldreq   r1, =SRam
+    mov     r0, #0
+    ldreq   r1, [r1]
+    bxne    lr
+    tst     r1, r1
+    movne   r0, #3                      @ pretend to be a 64k cart
+    bx      lr
+
+
+@ m_m68k_read16_bcram:                  @ 0x600000 - 0x61ffff
+.equiv m_m68k_read16_bcram, m_m68k_read8_bcram
+
+
+m_m68k_read16_bcram_reg:                @ 0x7fffff
+    bcram_reg_rw 1, 0x7ffffe
+
+
 m_m68k_read16_system_io:
     bic     r1, r0, #0xfe0000
     bic     r1, r1, #0x3f
@@ -851,6 +920,33 @@ m_m68k_read32_wordram1_1M_b1_unal:
     bx      r12
 
 
+m_m68k_read32_bcram_size:               @ 0x400000
+    cmp     r0, #0x400000
+    ldreq   r1, =SRam
+    mov     r0, #0
+    ldreq   r1, [r1]
+    bxne    lr
+    tst     r1, r1
+    movne   r0, #0x30000                @ pretend to be a 64k cart
+    bx      lr
+
+
+m_m68k_read32_bcram:                    @ 0x600000 - 0x61ffff, not likely to be called
+    mov     r12,lr
+    add     r3, r0, #2
+    bl      m_m68k_read8_bcram
+    mov     r1, r0
+    mov     r0, r3
+    mov     r3, r1
+    bl      m_m68k_read8_bcram
+    orr     r0, r0, r3, lsl #16
+    bx      r12
+
+
+m_m68k_read32_bcram_reg:                @ 0x7fffff
+    bcram_reg_rw 1, 0x7ffffc
+
+
 @ it is not very practical to use long access on hw registers, so I assume it is not used too much.
 m_m68k_read32_system_io:
     bic     r1, r0, #0xfe0000
@@ -916,6 +1012,7 @@ m_m68k_read32_ram:
 
 m_write_null:
 m_m68k_write8_bios:
+m_m68k_write8_bcram_size:               @ 0x400000
     bx      lr
 
 
@@ -986,6 +1083,33 @@ m_m68k_write8_wordram1_1M_b1:           @ 0x220000 - 0x23ffff, cell arranged
     bx      lr
 
 
+m_m68k_write8_bcram:                    @ 0x600000 - 0x61ffff
+    @ can't use r3 or r12, because of write32
+    ldr     r2, =SRam
+    bic     r0, r0, #0xfe0000
+    ldr     r2, [r2]
+    tst     r2, r2
+    bxeq    lr
+    add     r0, r2, r0, lsr #1
+    ldr     r2, =(Pico+0x22200)
+    ldr     r2, [r2]
+    add     r0, r0, #0x2000
+    add     r2, r2, #0x110000
+    add     r2, r2, #0x002200
+    ldr     r2, [r2, #0x18]
+    tst     r2, #1                      @ check bcram reg
+    bxeq    lr
+    strb    r1, [r0]
+    ldr     r2, =SRam
+    mov     r0, #1
+    strb    r0, [r2, #0x0e]             @ SRam.changed = 1
+    bx      lr
+
+
+m_m68k_write8_bcram_reg:                @ 0x7fffff
+    bcram_reg_rw 0, 0x7fffff
+
+
 m_m68k_write8_system_io:
     bic     r2, r0, #0xfe0000
     bic     r2, r2, #0x3f
@@ -1020,6 +1144,7 @@ m_m68k_write8_ram:
 
 
 m_m68k_write16_bios:
+m_m68k_write16_bcram_size:              @ 0x400000
     bx      lr
 
 
@@ -1091,6 +1216,14 @@ m_m68k_write16_wordram1_1M_b1:           @ 0x220000 - 0x23ffff, cell arranged
     bx      lr
 
 
+@ m_m68k_write16_bcram:                  @ 0x600000 - 0x61ffff
+.equiv m_m68k_write16_bcram, m_m68k_write8_bcram
+
+
+m_m68k_write16_bcram_reg:                @ 0x7fffff
+    bcram_reg_rw 0, 0x7ffffe
+
+
 m_m68k_write16_system_io:
     bic     r0, r0, #1
     bic     r2, r0, #0xfe0000
@@ -1098,7 +1231,7 @@ m_m68k_write16_system_io:
     cmp     r2, #0x012000
     bne     OtherWrite16
 
-m_m68k_write16_m68k_regs:
+m_m68k_write16_regs:
     and     r0, r0, #0x3e
     cmp     r0, #0x0e
     beq     m_m68k_write16_regs_spec
@@ -1153,6 +1286,7 @@ m_m68k_write16_ram:
 
 
 m_m68k_write32_bios:
+m_m68k_write32_bcram_size:              @ 0x400000
     bx      lr
 
 
@@ -1248,6 +1382,22 @@ m_m68k_write32_wordram1_1M_b1_unal:
     b       m_m68k_write16_wordram1_1M_b1
 
 
+m_m68k_write32_bcram:                   @ 0x600000 - 0x61ffff, not likely to be called
+    mov     r12,lr
+    add     r3, r0, #2
+    mov     r1, r1, ror #16
+    bl      m_m68k_write8_bcram
+    mov     r0, r3
+    mov     r1, r1, ror #16
+    bl      m_m68k_write8_bcram
+    bx      r12
+
+
+m_m68k_write32_bcram_reg:               @ 0x7fffff
+    bcram_reg_rw 0, 0x7ffffc
+
+
+
 @ it is not very practical to use long access on hw registers, so I assume it is not used too much.
 m_m68k_write32_system_io:
     bic     r2, r0, #0xfe0000
@@ -1255,26 +1405,13 @@ m_m68k_write32_system_io:
     cmp     r2, #0x012000
     bne     m_m68k_write32_misc
     and     r2, r0, #0x3e
-    cmp     r2, #0x10
-    blt     m_m68k_write32_regs
     cmp     r2, #0x20
     bxge    lr
-    @ Handle the 0x10-0x1f range
-    ldr     r0, =(Pico+0x22200)
-    mov     r3, #0xff
-    ldr     r0, [r0]
-    orr     r3, r3, r3, lsl #16
-    add     r0, r0, #0x110000
-    and     r12,r3, r1, ror #16       @ data is big-endian to be written as little, have to byteswap
-    and     r1, r3, r1, ror #24
-    orr     r1, r1, r12,lsl #8        @ end of byteswap
-    strh    r1, [r2, r0]!
-    cmp     r2, #0x1e
-    movne   r1, r1, lsr #16
-    strneh  r1, [r2, #2]
-    bx      lr
+    cmp     r2, #0x10
+    bge     m_m68k_write32_regs_comm
+    cmp     r2, #0x0c
+    bge     m_m68k_write32_regs_spec  @ hits the nasty comm reg qiurk
 
-m_m68k_write32_regs:
     bic     r0, r0, #1
     stmfd   sp!,{r0,r1,lr}
     mov     r1, r1, lsr #24
@@ -1293,6 +1430,29 @@ m_m68k_write32_regs:
     add     r0, r0, #3
     b       m68k_reg_write8
 
+m_m68k_write32_regs_comm:             @ Handle the 0x10-0x1f range
+    ldr     r0, =(Pico+0x22200)
+    mov     r3, #0xff
+    ldr     r0, [r0]
+    orr     r3, r3, r3, lsl #16
+    add     r0, r0, #0x110000
+    and     r12,r3, r1, ror #16       @ data is big-endian to be written as little, have to byteswap
+    and     r1, r3, r1, ror #24
+    orr     r1, r1, r12,lsl #8        @ end of byteswap
+    cmp     r2, #0x1e
+    strh    r1, [r2, r0]!
+    ldr     r3, =s68k_poll_adclk
+    ldr     r0, [r3]
+    movne   r1, r1, lsr #16
+    strneh  r1, [r2, #2]
+    cmp     r0, #0x10
+    bxlt    lr
+    ldr     r0, =PicoCpuS68k          @ remove poll detected state for s68k
+    mov     r1, #0
+    str     r1, [r0, #0x58]
+    str     r1, [r3]
+    bx      lr
+
 m_m68k_write32_misc:
     bic     r0, r0, #1
     stmfd   sp!,{r0,r1,lr}
@@ -1301,6 +1461,15 @@ m_m68k_write32_misc:
     ldmfd   sp!,{r0,r1,lr}
     add     r0, r0, #2
     b       OtherWrite16
+
+m_m68k_write32_regs_spec:
+    bic     r0, r0, #1
+    stmfd   sp!,{r0,r1,lr}
+    mov     r1, r1, lsr #16
+    bl      m_m68k_write16_regs
+    ldmfd   sp!,{r0,r1,lr}
+    add     r0, r0, #2
+    b       m_m68k_write16_regs
 
 
 m_m68k_write32_vdp:
@@ -2123,12 +2292,11 @@ m_s68k_write32_pcm_ram:
 
 m_s68k_write32_pcm_reg:
     mov     r0, r0, lsr #1
-    add     r2, r0, #1
-    mov     r3, r1
-    stmfd   sp!,{r2,r3,lr}
+    stmfd   sp!,{r0,r1,lr}
     mov     r1, r1, lsr #16
     bl      pcm_write
     ldmfd   sp!,{r0,r1,lr}
+    add     r0, r0, #1
     b       pcm_write
 
 
@@ -2137,11 +2305,16 @@ m_s68k_write32_regs:
     bic     r0, r0, #0x008000
     bic     r0, r0, #1
     tst     r0, #0x7e00
-    movne   r0, #0
     bxne    lr
     sub     r2, r0, #0x58
     cmp     r2, #0x10
     blo     m_s68k_write32_regs_gfx
+    and     r2, r0, #0x1fc
+    cmp     r2, #0x0c
+    beq     m_s68k_write32_regs_spec   @ hits 0x0f
+    and     r2, r0, #0x1f0
+    cmp     r2, #0x20
+    beq     m_s68k_write32_regs_comm
 
     stmfd   sp!,{r0,r1,lr}
     mov     r1, r1, lsr #24
@@ -2161,11 +2334,34 @@ m_s68k_write32_regs:
     b       s68k_reg_write8
 
 m_s68k_write32_regs_gfx:
-    mov     r3, r1
-    add     r2, r0, #2
-    stmfd   sp!,{r2,r3,lr}
+    stmfd   sp!,{r0,r1,lr}
     mov     r1, r1, lsr #16
     bl      gfx_cd_write16
     ldmfd   sp!,{r0,r1,lr}
+    add     r0, r0, #2
     b       gfx_cd_write16
+
+m_s68k_write32_regs_comm:             @ Handle the 0x20-0x2f range
+    ldr     r2, =(Pico+0x22200)
+    mov     r3, #0xff
+    ldr     r2, [r2]
+    orr     r3, r3, r3, lsl #16
+    add     r2, r2, #0x110000
+    and     r12,r3, r1, ror #16       @ data is big-endian to be written as little, have to byteswap
+    and     r1, r3, r1, ror #24
+    orr     r1, r1, r12,lsl #8        @ end of byteswap
+    cmp     r0, #0x2e
+    strh    r1, [r0, r2]!
+    movne   r1, r1, lsr #16
+    strneh  r1, [r0, #2]
+    bx      lr
+
+m_s68k_write32_regs_spec:
+    stmfd   sp!,{r0,r1,lr}
+    mov     r1, r1, lsr #16
+    bl      m_s68k_write16_regs
+    ldmfd   sp!,{r0,r1,lr}
+    add     r0, r0, #2
+    b       m_s68k_write16_regs
+
 

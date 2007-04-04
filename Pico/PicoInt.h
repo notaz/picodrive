@@ -1,7 +1,7 @@
 // Pico Library - Header File
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2006,2007 Grazvydas "notaz" Ignotas, all rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -217,10 +217,13 @@ struct mcd_misc
 	unsigned int   counter75hz;
 	unsigned short audio_offset;	// 0c: for savestates: play pointer offset (0-1023)
 	unsigned char  audio_track;	// playing audio track # (zero based)
-	char pad1;
+	char           pad1;
 	int            timer_int3;	// 10
 	unsigned int   timer_stopwatch;
-	int pad[10];
+	unsigned char  bcram_reg;	// 18: battery-backed RAM cart register
+	unsigned char  pad2;
+	unsigned short pad3;
+	int pad[9];
 };
 
 typedef struct
@@ -333,7 +336,7 @@ unsigned int SRAMReadEEPROM();
 void SRAMUpdPending(unsigned int a, unsigned int d);
 void memcpy16(unsigned short *dest, unsigned short *src, int count);
 void memcpy16bswap(unsigned short *dest, void *src, int count);
-void memcpy32(int *dest, int *src, int count);
+void memcpy32(int *dest, int *src, int count); // 32bit word count
 void memset32(int *dest, int c, int count);
 
 // cd/Misc.c

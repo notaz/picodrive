@@ -3,7 +3,7 @@
 @ assembly "optimized" version of some funtions from draw.c
 @ this is highly specialized, be careful if changing related C code!
 
-@ (c) Copyright 2006, notaz
+@ (c) Copyright 2007, Grazvydas "notaz" Ignotas
 @ All Rights Reserved
 
 

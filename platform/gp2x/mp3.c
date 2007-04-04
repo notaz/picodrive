@@ -1,3 +1,6 @@
+// Some mp3 related code for Sega/Mega CD
+// (c) Copyright 2007, Grazvydas "notaz" Ignotas
+
 #include <stdio.h>
 #include <string.h>
 

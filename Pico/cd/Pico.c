@@ -1,10 +1,4 @@
-// This is part of Pico Library
-
-// (c) Copyright 2004 Dave, All rights reserved.
 // (c) Copyright 2007 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
 
 
 #include "../PicoInt.h"
@@ -80,6 +74,12 @@ int PicoResetMCD(int hard)
   PicoMemResetCD(1);
   //PicoMemResetCDdecode(1); // don't have to call this in 2M mode
 #endif
+
+  // use SRam.data for RAM cart
+  if (SRam.data) free(SRam.data);
+  SRam.data = NULL;
+  if (PicoOpt&0x8000)
+    SRam.data = calloc(1, 0x12000);
 
   return 0;
 }

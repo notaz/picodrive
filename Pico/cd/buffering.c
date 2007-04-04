@@ -1,3 +1,6 @@
+// Buffering handling
+// (c) Copyright 2007, Grazvydas "notaz" Ignotas
+
 #include "../PicoInt.h"
 
 //#include <stdlib.h>

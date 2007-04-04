@@ -18,67 +18,79 @@ mid-frame image changes (raster effects), so it is useful only with some games.
 Other two are accurate line-based renderers. The 8bit is faster but does not
 run well with some games like Street Racer.
 
-2. "Accurate timing"
+2. "Scaling"
+"hw" means GP2X hardware scaler, which causes no performance loss, but scaled
+image looks a bit blocky. "sw" means software scaling, which uses pixel
+averaging and may look a bit nicer, but blurry. Horizontal scaling is only for
+games which use so called "32 column mode" (256x224 or 256x240), and scales
+image width to 320 pixels. Vertical scales height to 240 for games which use
+height 224 (most of them).
+
+3. "Accurate timing"
 This adds some more emulation precision, but slows the emulation down. Without
 this option some games do not boot (Red Zone for example), others have sound
 problems. This options has no effect for Sega/Mega CD emulation.
 
-3. "Accurate sprites"
+4. "Accurate sprites"
 This option improves emulation of sprite priorities, it also enables emulation
 of sprite collision bit. If you see one sprite being drawn incorrectly above
 the other (often seen in Sonic 3D Blast), you can enable this to fix the problem.
-This only works with the default renderer (see first option).
+This only works with the accurate renderers (see first option).
 
-4. "Show FPS"
+5. "Show FPS"
 Self-explanatory. Format is XX/YY, where XX is the number of rendered frames and
 YY is the number of emulated frames per second.
 
-5. "Frameskip"
+6. "Frameskip"
 How many frames to skip rendering before displaying another.
 "Auto" is recommended.
 
-6. "Enable sound"
+7. "Enable sound"
 Does what it says. You must enable at least YM2612 or SN76496 (in advanced options,
 see below) for this to make sense.
 
-7. "Sound Quality"
+8. "Sound Quality"
 Sound rate and stereo mode. If you want 44100Hz sound, it is recommended to enable
 the second core (next option).
 
-8. "Use ARM940 core for sound"
+9. "Use ARM940 core for sound"
 This option causes PicoDrive to use ARM940T core (GP2X's second CPU) for sound 
 (i.e. to generate YM2612 samples) to improve performance noticeably.
 
-9. "6 button pad"
+10. "6 button pad"
 If you enable this, games will think that 6 button gamepad is connected. If you
 go and reconfigure your keys, you will be able to bind X,Y,Z and mode actions.
 
-10. "Genesis Region"
+11. "Region"
 This option lets you force the game to think it is running on machine from the
 specified region, or just to set autodetection order. Also affects Sega/Mega CD.
 
-11. "Use SRAM/BRAM savestates"
+12. "Use SRAM/BRAM savestates"
 This will automatically read/write SRAM (or BRAM for Sega/Mega CD) savestates for
 games which are using them. SRAM is saved whenever you pause your game or exit the
 emulator.
 
-12. "GP2X CPU clocks"
+13. "Confirm savestate"
+Allows to enable confirmation on savestate saving (to prevent savestate overwrites),
+on loading (to prevent destroying current game progress), and on both or none.
+
+14. "GP2X CPU clocks"
 Here you can change clocks of both GP2X's CPUs. Larger values increase performance.
 There is no separate option for the second CPU because both CPUs use the same clock
 source. Setting this option to 200 will cause PicoDrive NOT to change GP2X's clocks
 at all (this is if you use external program to set clock).
 
-13. "[Sega/Mega CD options]"
+15. "[Sega/Mega CD options]"
 Enters Sega/Mega CD options menu (see below).
 
-14. "[advanced options]"
+16. "[advanced options]"
 Enters advanced options menu (see below).
 
-15. "Save cfg as default"
+17. "Save cfg as default"
 If you save your config here it will be loaded on next ROM load, but only if there
 is no game specific config saved (which will be loaded in that case).
 
-16. "Save cfg for current game only"
+18. "Save cfg for current game only"
 Whenever you load current ROM again these settings will be loaded (squidgehack and
 RAM settings will not take effect until emulator is restarted).
 
@@ -88,45 +100,41 @@ Advanced configuration
 
 Enter [advanced options] in config menu to see these options.
 
-1. "Scale 32 column mode"
-This enables hardware scaling for lower-res genesis mode (where width is
-32 8-pixel tiles, instead of 40 in other mode).
-
-2. "Gamma correction"
+1. "Gamma correction"
 Alters image gamma through GP2X hardware. Larger values make image to look brighter,
 lower - darker (default is 1.0).
 
-3. "Emulate Z80"
+2. "Emulate Z80"
 Enables emulation of Z80 chip, which was mostly used to drive the other sound chips.
 Some games do complex sync with it, so you must enable it even if you don't use
 sound to be able to play them.
 
-4. "Emulate YM2612 (FM)"
+3. "Emulate YM2612 (FM)"
 This enables emulation of six-channel FM sound synthesizer chip, which was used to
 produce sound effects and music.
 
-5. "Emulate SN76496 (PSG)"
+4. "Emulate SN76496 (PSG)"
 This enables emulation of additional sound chip for additional effects.
 
 Note: if you change sound settings AFTER loading a ROM, you may need to reset
 game to get sound. This is because most games initialize sound chips on
 startup, and this data is lost when sound chips are being enabled/disabled.
 
-6. "gzip savestates"
+5. "gzip savestates"
 This will always apply gzip compression on your savestates, allowing you to
 save some space and load/save time.
 
-7. "Don't save config on exit"
-This will disable config autowrite on exit (which might cause SD card corruption
-according to DaveC).
+6. "Don't save last used ROM"
+This will disable writing last used ROM to config on exit (what might cause SD
+card corruption according to DaveC).
 
-8. "craigix's RAM timings"
+7. "craigix's RAM timings"
 This overclocks the GP2X RAM chips, but may cause instability. Recommended if you
 use the second core for sound. Needs emulator restart to take effect.
 See this thread:
 http://www.gp32x.com/board/index.php?showtopic=32319
 
-9. "squidgehack"
+8. "squidgehack"
 Well known way to improve the GP2X performance. You must restart the emulator
 for the change of this option to take effect.
 
@@ -135,32 +143,35 @@ Sega/Mega CD options
 --------------------
 
 1,2,3. "USA/EUR/JAP BIOS"
-These options just shows if your BIOS files were correctly detected be the
-emulator (it shows the filename it is using). If so, you can press Start to test
-your BIOS.
+These options just show if your BIOS files were correctly detected by the
+emulator (it shows the filename it is using). If so, you can press Start to
+test your BIOS.
 
 4. "CD LEDs"
 The Sega/Mega CD unit had two blinking LEDs (red and green) on it. This option
-will display them on left-top corner of the screen.
+will display them on top-left corner of the screen.
 
 5. "CDDA audio (using mp3s)"
 This option enables CD audio playback.
 
 6. "PCM audio"
 This enables 8 channel PCM sound source. It is required for some games to run,
-because they monitor state of the audio chip.
+because they monitor state of this audio chip.
 
 7. "ReadAhead buffer"
 This option is for dealing with slow SD card access in GP2X, which makes FMV
 games unplayable. It will allow emulator not to access SD card for longer periods
 of time, but it will take more time to fill the buffer.
 
-8. "Scale/Rot. fx"
+8. "Save RAM cart"
+Here you can enable 64K RAM cart. Format it in BIOS if you do.
+
+9. "Scale/Rot. fx"
 The Sega/Mega CD had scaling/rotation chip, which allows effects similar to
 "Mode 7" effects in SNES. Unfortunately emulating it is slow, and very few games
-used it, so it's better to disable this option.
+used it, so it's better to disable this option, unless game really needs it.
 
-9. "Better sync"
+10. "Better sync"
 This option is similar to "Perfect synchro" in Gens. Some games require it to run,
 for example most (all?) Wolfteam games, and some other ones. Don't use it for
 games which don't need it, it will just slow them down.

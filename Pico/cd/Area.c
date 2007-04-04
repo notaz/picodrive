@@ -1,9 +1,5 @@
-// This is part of Pico Library
-
-// (c) Copyright 2007 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
+// Savestate handling for emulated Sega/Mega CD machine.
+// (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
 
 #include "../PicoInt.h"

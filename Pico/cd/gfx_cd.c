@@ -1,3 +1,9 @@
+// This is a direct rewrite of gfx_cd.asm (x86 asm to C).
+// You can even find some x86 register names :)
+// Original code (c) 2002 by Stéphane Dallongeville
+
+// (c) Copyright 2007, Grazvydas "notaz" Ignotas
+
 
 #include "../PicoInt.h"
 

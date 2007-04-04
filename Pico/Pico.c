@@ -149,7 +149,6 @@ int PicoReset(int hard)
 
   if (PicoMCD & 1) {
     PicoResetMCD(hard);
-    SRam.data = 0;
     return 0;
   }
 

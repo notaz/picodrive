@@ -22,8 +22,8 @@ Copy PicoDrive.gpe, code940.bin and mmuhack.o to any place in your filesystem
 Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
 
 If you have any problems (game does not boot, sound is glitchy, broken graphics),
-make sure you enable "Accurate timing", "Emulate Z80" and then disable
-"Fast renderer". This way you will get the best compatibility this emulator can
+make sure you enable "Accurate timing", "Emulate Z80" and use "16bit accurate
+renderer". This way you will get the best compatibility this emulator can
 provide.
 
 
@@ -63,6 +63,13 @@ SonicCD_02.mp3          audio track 1 (CD track 2)
 SonicCD_03.mp3
 ...
 
+Notes:
+If the game hangs after Sega logo, you may need to enable "better sync"
+and/or "Scale/Rot. fx" options, found in "Sega/Mega CD options" submenu, and
+then reset the game.
+If FMV game performance is poor, try adjusting "ReadAhead buffer" to something
+like 2048K.
+
 
 Configuration
 -------------
@@ -76,12 +83,14 @@ Other important stuff
 * When you use both GP2X CPUs, keep in mind that you can't overclock as high as
   when using ARM920 only. For example my GP2X when run singlecore can reach
   280MHz, but with both cores it's about 250MHz. When overclocked too much,
-  it may start hanging and producing random noise.
+  it may start hanging and producing random noise, or causing ARM940 crashes
+  ("940 crashed" message displayed).
 * PicoDrive is not a mp3 player, so all mp3s MUST be encoded at 44.1kHz stereo.
-  Otherwise mp3s will play too fast or too slow.
+  Badly encoded mp3s can cause various kind of problems, like noises, incorrect
+  playback speeds, not repeating music or even prevent game from starting.
+* Use lower bitrate for better performance (96 or 128kbps CBRs recommended).
 * Due to internal implementation mp3s must not be larger that ~15MB
   (15548416 bytes). Larger mp3s will not be fully loaded.
-* Use lower bitrate for better performance (96 or 128kbps CBRs recommended).
 * RAM timings option is good for dualcore operation (it is disabled by
   default because it doesn't work on every GP2X, so enable it in advanced
   options).
@@ -137,7 +146,7 @@ SN76489 PSG: yes, MAME core
 
 Sega/Mega CD:
 another 68k @ 12.5MHz: yes, Cyclone too
-gfx scaling/rotation chip (custom ASIC): not yet (faked only)
+gfx scaling/rotation chip (custom ASIC): yes
 PCM sound source: yes
 CD-ROM controller: yes (mostly)
 bram (internal backup RAM): yes
@@ -201,6 +210,7 @@ GP2X:
 * GnoStiC & Puck2099 for USB joystick support.
 * Hermes PS2R, god_at_hell for the CpuCtrl library.
 * craigix for supplying the GP2X hardware and making this port possible.
+* Alex for the icon.
 
 Symbian:
 * Peter van Sebille for his various open-source Symbian projects to learn from.
@@ -216,8 +226,9 @@ Changelog
 ---------
 1.32
   + Added some new scaling options.
-  + Added ability to reaload CD images while game is running (needed for games
+  + Added ability to reload CD images while game is running (needed for games
     with multiple CDs, like Night Trap).
+  + Added RAM cart emulation.
   * Fixed DMA timing emulation (caused lock-ups for some genesis games).
   * Idle loop detection was picking up wrong code and causing glitches, fixed.
   * The ym2612 code on 940 now can handle multiple updates per frame
@@ -226,10 +237,12 @@ Changelog
     Popful Mail, Silpheed).
   * Improved z80 timing, should fix some sound problems.
   * Fixed a bug with sram register (fixes Phantasy Star 4).
+  * ROM loader was incorrectly identifying some ROMs as invalid. Fixed.
   * Added code for PRG ram write protection register (Dungeon Explorer).
   * The memory mode register change in 1.31 was unsafe and caused some glitches in
     AH-3 Thunderstrike. Fixed.
   * Fixed a file descriptor leak.
+  * Updated documentation, added Gmenu2x manual.
 
 1.31
   * Changed the way memory mode register is read (fixes Lunar 2, broken in 1.30).

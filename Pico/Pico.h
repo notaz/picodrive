@@ -4,7 +4,7 @@
 // Pico Library - Header File
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2006-2007 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -30,8 +30,8 @@ void mp3_update(int *buffer, int length, int stereo);
 // PicoOpt bits LSb->MSb:
 // enable_ym2612&dac, enable_sn76496, enable_z80, stereo_sound,
 // alt_renderer, 6button_gamepad, accurate_timing, accurate_sprites,
-// draw_no_32col_border, external_ym2612, enable_pcm, enable cdda
-// enable_cdgfx, cd_perfect_sync, soft_32col_scaling
+// draw_no_32col_border, external_ym2612, enable_cd_pcm, enable_cd_cdda
+// enable_cd_gfx, cd_perfect_sync, soft_32col_scaling, enable_cd_ramcart
 extern int PicoOpt;
 extern int PicoVer;
 extern int PicoSkipFrame; // skip rendering frame, but still do sound (if enabled) and emulation stuff

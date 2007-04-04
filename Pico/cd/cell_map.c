@@ -1,3 +1,5 @@
+// Convert "cell arrange" address to normal address.
+// (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
 // 64 x32 x16 x8 x4 x4
 static unsigned int cell_map(int celln)

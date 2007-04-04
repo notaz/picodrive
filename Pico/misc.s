@@ -1,5 +1,7 @@
-
 @ vim:filetype=armasm
+
+@ Generic memory routines.
+@ (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
 
 .global memcpy16 @ unsigned short *dest, unsigned short *src, int count

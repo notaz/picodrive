@@ -1,3 +1,6 @@
+// The top-level functions for the ARM940
+// (c) Copyright 2006-2007, Grazvydas "notaz" Ignotas
+
 #include "940shared.h"
 
 static _940_data_t *shared_data = (_940_data_t *)   0x00100000;

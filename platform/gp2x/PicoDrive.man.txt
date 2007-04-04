@@ -1,0 +1,285 @@
+[About]
+This is yet another Megadrive / Genesis / Sega CD / Mega CD emulator, which was written having ARM-based handheld devices in mind (such as PDAs, smartphones and handheld consoles like GP2X of course). The critical parts (renderer, 68K and Z80 cpu interpreters) and some other random code is written in ARM asm, other code is C. The base code originates from Dave's (fdave, finalburn) PicoDrive 0.30 for Pocket PC. The Sega/Mega CD code is roughly based on Stephane Dallongeville's Gens.
+
+
+For help / comments / questions visit GP32X boards at:
+http://www.gp32x.com/board/
+
+
+[How to make it run]
+Copy PicoDrive.gpe, code940.bin and mmuhack.o to any place in your filesystem (all 3 files must be in the same directory) and run PicoDrive.gpe. Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
+
+If you have any problems (game does not boot, sound is glitchy, broken graphics), make sure you enable "Accurate timing", "Emulate Z80" and use "16bit accurate renderer". This way you will get the best compatibility this emulator can provide.
+
+
+[How to run Sega/Mega CD games]
+To play any game, you need BIOS files. These files must be copied to the same directory as PicoDrive.gpe. Files can be named as follows:
+US: us_scd1_9210.bin us_scd2_9306.bin SegaCDBIOS9303.bin
+EU: eu_mcd1_9210.bin eu_mcd2_9303.bin eu_mcd2_9306.bin
+JP: jp_mcd1_9112.bin jp_mcd1_9111.bin
+these files can also be zipped.
+
+The game must be dumped to ISO format, but BIN can be used too. If you want CD music, you must use ISO+mp3 files. Audio from BIN files won't be read at all due to SD access issues. Also BIN files are usually larger, so it's better to use ISO. ISO+mp3 files can be named similarly as for other emus.
+Here are some examples:
+
+SonicCD.iso
+SonicCD_02.mp3
+SonicCD_03.mp3
+...
+
+Sonic the Hedgehog CD (US) - Track 01.iso
+Sonic the Hedgehog CD (US) - Track 02.mp3
+Sonic the Hedgehog CD (US) - Track 03.mp3
+...
+
+ISO files can also be zipped (but not mp3 files, as they are already compressed). Note that this can cause very long loading times, which may take up to several minutes. File naming is similar as with uncompressed ISOs.
+Example:
+
+SonicCD.zip
+SonicCD_02.mp3
+SonicCD_03.mp3
+...
+
+Notes:
+If the game hangs after Sega logo, you may need to enable "better sync" and/or "Scale/Rot. fx" options, found in "Sega/Mega CD options" submenu, and then reset the game.
+If FMV game performance is poor, try adjusting "ReadAhead buffer" to something like 2048K.
+
+
+[Configuration]
+1. "Renderer"
+8bit fast:
+This enables alternative heavily optimized tile-based renderer, which renders pixels not line-by-line (this is what accurate renderers do), but in 8x8 tiles, which is much faster. But because of the way it works it can't render any mid-frame image changes (raster effects), so it is useful only with some games.
+
+Other two are accurate line-based renderers. The 8bit is faster but does not run well with some games like Street Racer.
+
+2. "Scaling"
+"hw" means GP2X hardware scaler, which causes no performance loss, but scaled image looks a bit blocky. "sw" means software scaling, which uses pixel averaging and may look a bit nicer, but blurry. Horizontal scaling is only for games which use so called "32 column mode" (256x224 or 256x240), and scales image width to 320 pixels. Vertical scales height to 240 for games which use height 224 (most of them).
+
+3. "Accurate timing"
+This adds some more emulation precision, but slows the emulation down. Without this option some games do not boot (Red Zone for example), others have sound problems. This options has no effect for Sega/Mega CD emulation.
+
+4. "Accurate sprites"
+This option improves emulation of sprite priorities, it also enables emulation of sprite collision bit. If you see one sprite being drawn incorrectly above the other (often seen in Sonic 3D Blast), you can enable this to fix the problem. This only works with the accurate renderers (see first option).
+
+5. "Show FPS"
+Self-explanatory. Format is XX/YY, where XX is the number of rendered frames and YY is the number of emulated frames per second.
+
+6. "Frameskip"
+How many frames to skip rendering before displaying another. "Auto" is recommended.
+
+7. "Enable sound"
+Does what it says. You must enable at least YM2612 or SN76496 (in advanced options, see below) for this to make sense.
+
+8. "Sound Quality"
+Sound rate and stereo mode. If you want 44100Hz sound, it is recommended to enable the second core (next option).
+
+9. "Use ARM940 core for sound"
+This option causes PicoDrive to use ARM940T core (GP2X's second CPU) for sound (i.e. to generate YM2612 samples) to improve performance noticeably.
+
+10. "6 button pad"
+If you enable this, games will think that 6 button gamepad is connected. If you go and reconfigure your keys, you will be able to bind X,Y,Z and mode actions.
+
+11. "Region"
+This option lets you force the game to think it is running on machine from the specified region, or just to set autodetection order. Also affects Sega/Mega CD.
+
+12. "Use SRAM/BRAM savestates"
+This will automatically read/write SRAM (or BRAM for Sega/Mega CD) savestates for games which are using them. SRAM is saved whenever you pause your game or exit the emulator.
+
+13. "Confirm savestate"
+Allows to enable confirmation on savestate saving (to prevent savestate overwrites), on loading (to prevent destroying current game progress), and on both or none.
+
+14. "GP2X CPU clocks"
+Here you can change clocks of both GP2X's CPUs. Larger values increase performance. There is no separate option for the second CPU because both CPUs use the same clock source. Setting this option to 200 will cause PicoDrive NOT to change GP2X's clocks at all (this is if you use external program to set clock).
+
+15. "[Sega/Mega CD options]"
+Enters Sega/Mega CD options menu (see below).
+
+16. "[advanced options]"
+Enters advanced options menu (see below).
+
+17. "Save cfg as default"
+If you save your config here it will be loaded on next ROM load, but only if there is no game specific config saved (which will be loaded in that case).
+
+18. "Save cfg for current game only"
+Whenever you load current ROM again these settings will be loaded (squidgehack and RAM settings will not take effect until emulator is restarted).
+
+
+Advanced configuration
+----------------------
+
+Enter [advanced options] in config menu to see these options.
+
+1. "Gamma correction"
+Alters image gamma through GP2X hardware. Larger values make image to look brighter, lower - darker (default is 1.0).
+
+2. "Emulate Z80"
+Enables emulation of Z80 chip, which was mostly used to drive the other sound chips. Some games do complex sync with it, so you must enable it even if you don't use sound to be able to play them.
+
+3. "Emulate YM2612 (FM)"
+This enables emulation of six-channel FM sound synthesizer chip, which was used to produce sound effects and music.
+
+4. "Emulate SN76496 (PSG)"
+This enables emulation of additional sound chip for additional effects.
+
+Note: if you change sound settings AFTER loading a ROM, you may need to reset game to get sound. This is because most games initialize sound chips on startup, and this data is lost when sound chips are being enabled/disabled.
+
+5. "gzip savestates"
+This will always apply gzip compression on your savestates, allowing you to save some space and load/save time.
+
+6. "Don't save last used ROM"
+This will disable writing last used ROM to config on exit (what might cause SD card corruption according to DaveC).
+
+7. "craigix's RAM timings"
+This overclocks the GP2X RAM chips, but may cause instability. Recommended if you use the second core for sound. Needs emulator restart to take effect.
+See this thread:
+http://www.gp32x.com/board/index.php?showtopic=32319
+
+8. "squidgehack"
+Well known way to improve the GP2X performance. You must restart the emulator for the change of this option to take effect.
+
+
+Sega/Mega CD options 
+--------------------
+
+1,2,3. "USA/EUR/JAP BIOS"
+These options just show if your BIOS files were correctly detected by the emulator (it shows the filename it is using). If so, you can press Start to test your BIOS.
+
+4. "CD LEDs"
+The Sega/Mega CD unit had two blinking LEDs (red and green) on it. This option will display them on top-left corner of the screen.
+
+5. "CDDA audio (using mp3s)"
+This option enables CD audio playback.
+
+6. "PCM audio"
+This enables 8 channel PCM sound source. It is required for some games to run, because they monitor state of this audio chip.
+
+7. "ReadAhead buffer"
+This option is for dealing with slow SD card access in GP2X, which makes FMV games unplayable. It will allow emulator not to access SD card for longer periods of time, but it will take more time to fill the buffer.
+
+8. "Save RAM cart"
+Here you can enable 64K RAM cart. Format it in BIOS if you do.
+
+9. "Scale/Rot. fx"
+The Sega/Mega CD had scaling/rotation chip, which allows effects similar to "Mode 7" effects in SNES. Unfortunately emulating it is slow, and very few games used it, so it's better to disable this option, unless game really needs it.
+
+10. "Better sync"
+This option is similar to "Perfect synchro" in Gens. Some games require it to run, for example most (all?) Wolfteam games, and some other ones. Don't use it for games which don't need it, it will just slow them down.
+
+
+Key configuration
+-----------------
+
+When you select "Configure controls" from the menu, you enter a key configuration mode, where you use SELECT to change an action, and then press a key you like to bind to that action. You can press the same key again to unbind. Select "DONE" action and press any key to finish.
+
+
+[Other important stuff]
+When you use both GP2X CPUs, keep in mind that you can't overclock as high as when using ARM920 only. For example my GP2X when run singlecore can reach 280MHz, but with both cores it's about 250MHz. When overclocked too much, it may start hanging and producing random noise, or causing ARM940 crashes ("940 crashed" message displayed).
+
+PicoDrive is not a mp3 player, so all mp3s MUST be encoded at 44.1kHz stereo. Badly encoded mp3s can cause various kind of problems, like noises, incorrect playback speeds, not repeating music or even prevent game from starting. Use lower bitrate for better performance (96 or 128kbps CBRs recommended). Due to internal implementation mp3s must not be larger that ~15MB (15548416 bytes). Larger mp3s will not be fully loaded.
+
+RAM timings option is good for dualcore operation (it is disabled by default because it doesn't work on every GP2X, so enable it in advanced options).
+
+
+[Cheat support]
+To use GG/patch codes, you must type them into your favorite text editor, one per line. Comments may follow code after a whitespace. Only GameGenie and Genecyst patch formats are supported.
+Examples:
+
+Genecyst patch (this example is for Sonic):
+
+00334A:0005 Start with five lives
+012D24:0001 Keep invincibility until end of stage
+009C76:5478 each ring worth 2
+009C76:5678 each ring worth 3
+...
+
+Game Genie patch (for Sonic 2):
+
+ACLA-ATD4 Hidden palace instead of death egg in level select
+...
+
+Both GG and patch codes can be mixed in one file.
+
+When the file is ready, name it just like your ROM file, but with additional .pat extension, making sure that case matches.
+
+Examples:
+
+ROM: Sonic.zip
+PATCH FILE: Sonic.zip.pat
+
+ROM: Sonic 2.bin
+PATCH FILE: Sonic 2.bin.pat
+
+Put the file into your ROMs directory. Then load the .pat file as you would a ROM. Then Cheat Menu Option should appear in main menu.
+
+
+[What is emulated?]
+Genesis/MegaDrive:
+main 68k @ 7.6MHz: yes, Cyclone core
+z80 @ 3.6MHz: yes, DrZ80 core
+VDP: yes, except some quirks not used by games
+YM2612 FM: yes, optimized MAME core
+SN76489 PSG: yes, MAME core
+
+Sega/Mega CD:
+another 68k @ 12.5MHz: yes, Cyclone too
+gfx scaling/rotation chip (custom ASIC): yes
+PCM sound source: yes
+CD-ROM controller: yes (mostly)
+bram (internal backup RAM): yes
+RAM cartridge: yes
+
+
+[Problems / limitations]
+* 32x and SVP are not emulated.
+* Various VDP quirks (window bug, scroll size 2, etc.) are not emulated, as very few games use this (if any at all).
+* Some games don't work or have glitches because of inaccurate timing and sync between the emulated chips.
+
+
+[Credits]
+This emulator uses code from these people/projects:
+
+Dave
+Cyclone 68000 core, Pico emulation library
+Homepage: http://www.finalburn.com/
+
+notaz
+GP2X port, Cyclone 68000 hacks, lots of additional coding (see changelog).
+
+Reesy & FluBBa
+DrZ80, the Z80 emulator written in ARM assembly.
+Homepage: http://reesy.gp32x.de/
+
+Tatsuyuki Satoh, Jarek Burczynski, MultiArcadeMachineEmulator development software implementation of Yamaha FM sound generator
+
+MultiArcadeMachineEmulator (MAME) development
+Texas Instruments SN76489 / SN76496 programmable tone /noise generator
+Homepage: http://www.mame.net/
+
+Stephane Dallongeville
+Gens, MD/Mega CD/32X emulator. Most Sega CD code is based on this emu.
+
+Helix community
+Helix mp3 decoder
+
+
+[Additional thanks]
+* Charles MacDonald (http://cgfm2.emuviews.com/) for old but still very useful info about genesis hardware.
+* Steve Snake for all that he has done for Genesis emulation scene.
+* Bart Trzynadlowski for his SSFII and 68000 docs.
+* Haze for his research (http://haze.mameworld.info).
+* Mark and Jean-loup for zlib library.
+* rlyeh and all the other people behind the minimal library.
+* Squidge for his famous squidgehack(tm).
+* Dzz for his ARM940 sample code.
+* GnoStiC & Puck2099 for USB joystick support.
+* Hermes PS2R, god_at_hell for the CpuCtrl library.
+* craigix for supplying the GP2X hardware and making this port possible.
+* Alex for the icon.
+* Anyone else I forgot. You know who you are.
+
+
+[Disclaimer]
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+
+SEGA/Genesis/MegaDrive/SEGA-CD/Mega-CD/32X are trademarks of Sega Enterprises Ltd.
+

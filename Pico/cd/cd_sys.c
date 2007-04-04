@@ -1,3 +1,12 @@
+/***********************************************************
+ *                                                         *
+ * This source was taken from the Gens project             *
+ * Written by Stéphane Dallongeville                       *
+ * Copyright (c) 2002 by Stéphane Dallongeville            *
+ * Modified/adapted for PicoDrive by notaz, 2007           *
+ *                                                         *
+ ***********************************************************/
+
 #include <stdio.h>
 #include "cd_sys.h"
 #include "cd_file.h"
@@ -17,19 +26,7 @@
 #define PLAYING		0x0100		// PLAYING audio track CDD status
 
 
-/*
-int CDDA_Enable;
-
-int CD_Audio_Buffer_L[8192];
-int CD_Audio_Buffer_R[8192];
-int CD_Audio_Buffer_Read_Pos = 0;
-int CD_Audio_Buffer_Write_Pos = 2000;
-int CD_Audio_Starting;
-*/
-
 static int CD_Present = 0;
-// int CD_Timer_Counter = 0; // TODO: check refs
-
 
 
 #define CHECK_TRAY_OPEN				\
@@ -64,20 +61,6 @@ if (!CD_Present)					\
 	return 3;						\
 }
 
-
-#if 0
-static void MSB2DWORD(unsigned int *d, unsigned char *b)
-{
-	unsigned int  retVal;
-
-	retVal = (unsigned int )b[0];
-	retVal = (retVal<<8) + (unsigned int )b[1];
-	retVal = (retVal<<8) + (unsigned int )b[2];
-	retVal = (retVal<<8) + (unsigned int )b[3];
-
-	*d = retVal;
-}
-#endif
 
 static int MSF_to_LBA(_msf *MSF)
 {

@@ -1,4 +1,4 @@
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2006-2007 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -310,7 +310,7 @@ int emu_ReloadRom(void)
 
 	// detect wrong files (Pico crashes on very small files), also see if ROM EP is good
 	if(rom_size <= 0x200 || strncmp((char *)rom_data, "Pico", 4) == 0 ||
-	  ((*(unsigned short *)(rom_data+4)<<16)|(*(unsigned short *)(rom_data+6))) >= (int)rom_size) {
+	  ((*(unsigned char *)(rom_data+4)<<16)|(*(unsigned short *)(rom_data+6))) >= (int)rom_size) {
 		if (rom_data) free(rom_data);
 		rom_data = 0;
 		sprintf(menuErrorMsg, "Not a ROM selected.");
@@ -482,8 +482,8 @@ int emu_ReadConfig(int game)
 		// set default config
 		memset(&currentConfig, 0, sizeof(currentConfig));
 		currentConfig.lastRomFile[0] = 0;
-		currentConfig.EmuOpt  = 0x1f | 0x400; // | cd_leds
-		currentConfig.PicoOpt = 0x0f | 0xe00; // | use_940 | cd_pcm | cd_cdda
+		currentConfig.EmuOpt  = 0x1f | 0x600; // | confirm_save, cd_leds
+		currentConfig.PicoOpt = 0x0f | 0xe00; // | use_940, cd_pcm, cd_cdda
 		currentConfig.PsndRate = 22050; // 44100;
 		currentConfig.PicoRegion = 0; // auto
 		currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
@@ -1328,7 +1328,7 @@ if (Pico.m.frame_count == 31563) {
 
 	// save SRAM
 	if((currentConfig.EmuOpt & 1) && SRam.changed) {
-		osd_text(4, 232, "Writing SRAM/BRAM..");
+		emu_state_cb("Writing SRAM/BRAM..");
 		emu_SaveLoadGame(0, 1);
 		SRam.changed = 0;
 	}
@@ -1459,29 +1459,40 @@ int emu_SaveLoadGame(int load, int sram)
 		FILE *sramFile;
 		int sram_size;
 		unsigned char *sram_data;
+		int truncate = 1;
 		if (PicoMCD&1) {
-			sram_size = 0x2000;
-			sram_data = Pico_mcd->bram;
+			if (PicoOpt&0x8000) { // MCD RAM cart?
+				sram_size = 0x12000;
+				sram_data = SRam.data;
+				if (sram_data)
+					memcpy32((int *)sram_data, (int *)Pico_mcd->bram, 0x2000/4);
+			} else {
+				sram_size = 0x2000;
+				sram_data = Pico_mcd->bram;
+				truncate  = 0; // the .brm may contain RAM cart data after normal brm
+			}
 		} else {
 			sram_size = SRam.end-SRam.start+1;
 			if(SRam.reg_back & 4) sram_size=0x2000;
 			sram_data = SRam.data;
 		}
-		if(!sram_data) return 0; // SRam forcefully disabled for this game
+		if (!sram_data) return 0; // SRam forcefully disabled for this game
 
-		if(load) {
+		if (load) {
 			sramFile = fopen(saveFname, "rb");
 			if(!sramFile) return -1;
 			fread(sram_data, 1, sram_size, sramFile);
 			fclose(sramFile);
+			if ((PicoMCD&1) && (PicoOpt&0x8000))
+				memcpy32((int *)Pico_mcd->bram, (int *)sram_data, 0x2000/4);
 		} else {
 			// sram save needs some special processing
 			// see if we have anything to save
-			for(; sram_size > 0; sram_size--)
-				if(sram_data[sram_size-1]) break;
+			for (; sram_size > 0; sram_size--)
+				if (sram_data[sram_size-1]) break;
 
-			if(sram_size) {
-				sramFile = fopen(saveFname, "wb");
+			if (sram_size) {
+				sramFile = fopen(saveFname, truncate ? "wb" : "r+b");
 				ret = fwrite(sram_data, 1, sram_size, sramFile);
 				ret = (ret != sram_size) ? -1 : 0;
 				fclose(sramFile);

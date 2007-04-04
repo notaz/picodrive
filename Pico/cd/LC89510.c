@@ -1,9 +1,9 @@
 /***********************************************************
  *                                                         *
- * This source is taken from the Gens project              *
+ * This source was taken from the Gens project             *
  * Written by Stéphane Dallongeville                       *
  * Copyright (c) 2002 by Stéphane Dallongeville            *
- * Modified/adapted for Picodrive by notaz, 2007           *
+ * Modified/adapted for PicoDrive by notaz, 2007           *
  *                                                         *
  ***********************************************************/
 

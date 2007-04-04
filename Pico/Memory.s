@@ -3,7 +3,7 @@
 @ memory handlers with banking support for SSF II - The New Challengers
 @ mostly based on Gens code
 
-@ (c) Copyright 2006, notaz
+@ (c) Copyright 2006-2007, Grazvydas "notaz" Ignotas
 @ All Rights Reserved
 
 

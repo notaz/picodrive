@@ -1,4 +1,5 @@
-/* common code for Memory.c and cd/Memory.c */
+// common code for Memory.c and cd/Memory.c
+// (c) Copyright 2006-2007, Grazvydas "notaz" Ignotas
 
 static int PadRead(int i)
 {

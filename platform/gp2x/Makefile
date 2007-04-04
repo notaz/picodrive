@@ -62,6 +62,7 @@ endif
 ifeq "$(asm_misc)" "1"
 DEFINC += -D_ASM_MISC_C
 OBJS += ../../Pico/misc_asm.o
+OBJS += ../../Pico/cd/misc_asm.o
 endif
 ifeq "$(asm_cdpico)" "1"
 DEFINC += -D_ASM_CD_PICO_C
@@ -154,6 +155,9 @@ testrefr.gpe : test.o gp2x.o asmutils.o
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 ../../Pico/cd/memory_asm.o : ../../Pico/cd/Memory.s
+	@echo $<
+	@$(AS) $(ASOPT) $< -o $@
+../../Pico/cd/misc_asm.o : ../../Pico/cd/misc.s
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 

@@ -1,3 +1,5 @@
+// Some misc stuff
+// (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
 
 unsigned char formatted_bram[4*0x10] =
@@ -21,6 +23,7 @@ unsigned char formatted_bram[4*0x10] =
 // 128K |  bit ] | bank0  |
 // 256K | unused | bank1  |
 
+#ifndef _ASM_MISC_C
 void wram_2M_to_1M(unsigned char *m)
 {
 	unsigned short *m1M_b0, *m1M_b1;
@@ -53,4 +56,5 @@ void wram_1M_to_2M(unsigned char *m)
 		*m2M++ = tmp;
 	}
 }
+#endif
 

@@ -1,3 +1,4 @@
+@ vim:filetype=armasm
 @ some color conversion and blitting routines
 
 @ (c) Copyright 2006, notaz

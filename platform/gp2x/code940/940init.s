@@ -1,5 +1,8 @@
 @ vim:filetype=armasm:
 
+@ ARM940 initialization.
+@ Based on ogg940 code by Dzz.
+@ (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
 .equ mmsp2_regs, (0xc0000000-0x02000000) @ assume we live @ 0x2000000 bank
 .equ shared_ctl,  0x00200000             @ this is where shared_ctl struncture is located

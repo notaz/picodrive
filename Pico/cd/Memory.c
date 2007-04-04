@@ -1,10 +1,6 @@
-// This is part of Pico Library
-
-// (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2007 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
+// Memory I/O handlers for Sega/Mega CD.
+// Loosely based on Gens code.
+// (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
 // A68K no longer supported here
 
@@ -698,7 +694,7 @@ static void PicoWriteM68k16(u32 a,u16 d)
       Pico_mcd->s68k_regs[0xe] = d >> 8;
 #ifdef USE_POLL_DETECT
       if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
-        SekSetStopS68k(0); s68k_poll_adclk = -1;
+        SekSetStopS68k(0); s68k_poll_adclk = 0;
         plprintf("s68k poll release, a=%02x\n", a);
       }
 #endif
