@@ -1493,6 +1493,8 @@ int emu_SaveLoadGame(int load, int sram)
 
 			if (sram_size) {
 				sramFile = fopen(saveFname, truncate ? "wb" : "r+b");
+				if (!sramFile) sramFile = fopen(saveFname, "wb"); // retry
+				if (!sramFile) return -1;
 				ret = fwrite(sram_data, 1, sram_size, sramFile);
 				ret = (ret != sram_size) ? -1 : 0;
 				fclose(sramFile);
