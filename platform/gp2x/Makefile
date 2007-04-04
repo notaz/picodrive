@@ -190,7 +190,7 @@ $(error need VER)
 endif
 endif
 
-rel: PicoDrive.gpe code940/code940.bin ../readme.txt config.txt
+rel: PicoDrive.gpe code940/code940.bin ../readme.txt config.txt PicoDrive.man.txt PicoDrive.png
 	zip -9 -j ../../PicoDrive_$(VER).zip $^ mmuhack.o
 
 code940/code940.bin:
@@ -198,15 +198,15 @@ code940/code940.bin:
 
 
 # test
-usbjoy.o : usbjoy.c
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@
-
-../../Pico/Cart.o : ../../Pico/Cart.c
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@
-
-../../zlib/trees.o : ../../zlib/trees.c
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@
+#usbjoy.o : usbjoy.c
+#	@echo $<
+#	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@
+#
+#../../Pico/Cart.o : ../../Pico/Cart.c
+#	@echo $<
+#	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@
+#
+#../../zlib/trees.o : ../../zlib/trees.c
+#	@echo $<
+#	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@
 
