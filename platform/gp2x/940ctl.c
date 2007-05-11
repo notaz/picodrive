@@ -313,6 +313,12 @@ void YM2612PicoStateLoad_940(void)
 {
 	int i, old_A1 = addr_A1;
 
+	/* make sure JOB940_PICOSTATELOAD gets done before next JOB940_YM2612UPDATEONE */
+	add_job_940(JOB940_PICOSTATELOAD);
+	if (CHECK_BUSY(JOB940_PICOSTATELOAD)) wait_busy_940(JOB940_PICOSTATELOAD);
+
+	writebuff_ptr = 0;
+
 	// feed all the registers and update internal state
 	for(i = 0; i < 0x100; i++) {
 		YM2612Write_940(0, i);
@@ -324,8 +330,6 @@ void YM2612PicoStateLoad_940(void)
 	}
 
 	addr_A1 = old_A1;
-
-//	add_job_940(JOB940_PICOSTATELOAD);
 }
 
 

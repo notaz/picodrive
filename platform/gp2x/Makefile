@@ -116,7 +116,7 @@ ifeq "$(up)" "1"
 endif
 
 up: PicoDrive.gpe
-	@cp -v PicoDrive.gpe /mnt/gp2x/mnt/sd/games/PicoDrive/
+	@cp -v PicoDrive.gpe /mnt/gp2x/mnt/sd/emus/PicoDrive/
 
 #	@cmd //C copy PicoDrive.gpe \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
 

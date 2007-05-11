@@ -65,7 +65,7 @@ misc.o : ../../../Pico/misc.s
 
 
 up: code940.bin
-	@cp -v code940.bin /mnt/gp2x/mnt/sd/games/PicoDrive/
+	@cp -v code940.bin /mnt/gp2x/mnt/sd/emus/PicoDrive/
 
 
 # cleanup
