@@ -89,8 +89,8 @@ Other important stuff
   Badly encoded mp3s can cause various kind of problems, like noises, incorrect
   playback speeds, not repeating music or even prevent game from starting.
 * Use lower bitrate for better performance (96 or 128kbps CBRs recommended).
-* Due to internal implementation mp3s must not be larger that ~15MB
-  (15548416 bytes). Larger mp3s will not be fully loaded.
+* Due to internal implementation mp3s must not be larger that 12MB
+  (12582912 bytes). Larger mp3s will not be fully loaded.
 * RAM timings option is good for dualcore operation (it is disabled by
   default because it doesn't work on every GP2X, so enable it in advanced
   options).
@@ -224,6 +224,13 @@ Symbian:
 
 Changelog
 ---------
+1.321
+  * Sometimes stray sounds were played after loading a savestate. Fixed.
+  * Fixed a problem where >6MB mp3s were corrupted in memory (sound glitches in
+    Snatcher).
+  * PD no longer overwrites video player code in memory, video player now can be
+    used after PicoDrive.
+
 1.32
   + Added some new scaling options.
   + Added ability to reload CD images while game is running (needed for games

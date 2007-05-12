@@ -87,19 +87,25 @@ code940:
     mcr p15, 0, r0, c6, c3, 0
     mcr p15, 0, r0, c6, c3, 1
 
-    @ set up region 4: 16M 0x01000000-0x02000000 (mp3 area)
-    mov r0, #(0x17<<1)|1
-    orr r0, r0, #0x01000000
+    @ region 4: 4K 0x00000000-0x00001000 (boot code protection region)
+    mov r0, #(0x0b<<1)|1
     mcr p15, 0, r0, c6, c4, 0
     mcr p15, 0, r0, c6, c4, 1
 
-    @ region 5: 4K 0x00000000-0x00001000 (boot code protection region)
-    mov r0, #(0x0b<<1)|1
+    @ region 5: 4M 0x00400000-0x00800000 (mp3 area part1)
+    mov r0, #(0x15<<1)|1
+    orr r0, r0, #0x00400000
     mcr p15, 0, r0, c6, c5, 0
     mcr p15, 0, r0, c6, c5, 1
 
-    @ set regions 1, 4 and 5 to be cacheable (so the first 2M and mp3 area will be cacheable)
-    mov r0, #(1<<1)|(1<<4)|(1<<5)
+    @ region 6: 8M 0x00800000-0x01000000 (mp3 area part2)
+    mov r0, #(0x16<<1)|1
+    orr r0, r0, #0x00800000
+    mcr p15, 0, r0, c6, c6, 0
+    mcr p15, 0, r0, c6, c6, 1
+
+    @ set regions 1, 4, 5 and 6 to be cacheable (so the first 2M and mp3 area will be cacheable)
+    mov r0, #(1<<1)|(1<<4)|(1<<5)|(1<<6)
     mcr p15, 0, r0, c2, c0, 0
     mcr p15, 0, r0, c2, c0, 1
 
@@ -108,12 +114,13 @@ code940:
     mcr p15, 0, r0, c3, c0, 0
 
     @ set access protection
-    @ data: [no, full, full, full, full, no access] for regions [5 4 3 2 1 0]
-    mov r0, #(0<<10)|(3<<8)|(3<<6)|(3<<4)|(3<<2)|(0)
+    @ data: [full, full, no, full, full, full, no access] for regions [6 5 4 3 2 1 0]
+    mov r0,     #       (3<<12)|(3<<10)|(0<<8)
+    orr r0, r0, #(3<<6)|(3<< 4)|(3<< 2)|(0<<0)
     mcr p15, 0, r0, c5, c0, 0
-    @ instructions: [full, no access, no, no, full, no]
-    mov r0,         #(0<< 6)|(0<<4)|(3<<2)|(0)
-    orr r0, r0,     #(3<<10)|(0<<8)
+    @ instructions: [no, no, full, no, no, full, no]
+    mov r0,     #       (0<<12)|(0<<10)|(3<<8)
+    orr r0, r0, #(0<<6)|(0<< 4)|(3<< 2)|(0<<0)
     mcr p15, 0, r0, c5, c0, 1
 
     mrc p15, 0, r0, c1, c0, 0   @ fetch current control reg

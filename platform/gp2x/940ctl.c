@@ -29,7 +29,7 @@ static _940_data_t *shared_data = 0;
 _940_ctl_t *shared_ctl = 0;
 unsigned char *mp3_mem = 0;
 
-#define MP3_SIZE_MAX (0x1000000 - 4*640*480)
+#define MP3_SIZE_MAX (0x400000 + 0x800000) // 12M
 
 int crashed_940 = 0;
 
@@ -360,7 +360,7 @@ void sharedmem_init(void)
 	shared_data = (_940_data_t *) (shared_mem+0x100000);
 	/* this area must not get buffered on either side */
 	shared_ctl =  (_940_ctl_t *)  (shared_mem+0x200000);
-	mp3_mem = (unsigned char *) mmap(0, MP3_SIZE_MAX, PROT_READ|PROT_WRITE, MAP_SHARED, memdev, 0x3000000);
+	mp3_mem = (unsigned char *) mmap(0, MP3_SIZE_MAX, PROT_READ|PROT_WRITE, MAP_SHARED, memdev, 0x2400000);
 	if (mp3_mem == MAP_FAILED)
 	{
 		printf("mmap(mp3_mem) failed with %i\n", errno);
@@ -599,7 +599,6 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 
 	if (loaded_mp3 != f)
 	{
-		// printf("loading mp3... "); fflush(stdout);
 		if (PicoMessage != NULL)
 		{
 			fseek(f, 0, SEEK_END);
@@ -608,8 +607,7 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 		}
 		fseek(f, 0, SEEK_SET);
 		fread(mp3_mem, 1, MP3_SIZE_MAX, f);
-		// if (feof(f)) printf("done.\n");
-		// else printf("done. mp3 too large, not all data loaded.\n");
+		if (!feof(f)) printf("Warning: mp3 was too large, not all data loaded.\n");
 		shared_ctl->mp3_len = ftell(f);
 		loaded_mp3 = f;
 
