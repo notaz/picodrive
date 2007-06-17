@@ -22,7 +22,7 @@ int OpArith(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=4;
+  OpStart(op, sea|tea); Cycles=4;
 
   EaCalc(10,0x0000, sea,size,1);
   EaRead(10,    10, sea,size,0,1);
@@ -94,7 +94,7 @@ int OpAddq(int op)
   if (num!=8) use|=0x0e00; // If num is not 8, use same handler
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,ea);
   Cycles=ea<8?4:8;
   if(type==0&&size==1) Cycles=ea<0x10?4:8;
   if(size>=2) Cycles=ea<0x10?8:12;
@@ -157,7 +157,7 @@ int OpArithReg(int op)
   use&=~0x0e00; // Use same opcode for Dn
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=4;
+  OpStart(op,ea); Cycles=4;
 
   ot(";@ Get r10=EA r11=EA value\n");
   EaCalc(10,0x003f, ea,size,1);
@@ -190,9 +190,9 @@ int OpArithReg(int op)
     if(size>=2) Cycles+=4;
   } else {
     if(size>=2) {
-	  Cycles+=2;
-	  if(ea<0x10||ea==0x3c) Cycles+=2;
-	}
+      Cycles+=2;
+      if(ea<0x10||ea==0x3c) Cycles+=2;
+    }
   }
 
   OpEnd();
@@ -219,7 +219,7 @@ int OpMul(int op)
   use&=~0x0e00; // Use same for all registers
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,ea);
   if(type) Cycles=54;
   else     Cycles=sign?158:140;
 
@@ -249,10 +249,10 @@ int OpMul(int op)
       ot("\n");
     }
     else
-	{
+    {
       ot("  mov r10,r10,lsl #16 ;@ use only 16 bits of divisor\n");
       ot("  mov r10,r10,lsr #16\n");
-	}
+    }
 
     ot(";@ Divide r2 by r10\n");
     ot("  mov r3,#0\n");
@@ -277,7 +277,7 @@ int OpMul(int op)
 
     if (sign)
     {
-	  // sign correction
+      // sign correction
       ot("  and r1,r11,#1\n");
       ot("  teq r1,r11,lsr #1\n");
       ot("  rsbne r3,r3,#0 ;@ negate if quotient is negative\n");
@@ -285,19 +285,19 @@ int OpMul(int op)
       ot("  rsbne r2,r2,#0 ;@ negate the remainder if divident was negative\n");
       ot("\n");
 
-	  // signed overflow check
-	  ot("  mov r1,r3,asl #16\n");
-	  ot("  cmp r3,r1,asr #16 ;@ signed overflow?\n");
+      // signed overflow check
+      ot("  mov r1,r3,asl #16\n");
+      ot("  cmp r3,r1,asr #16 ;@ signed overflow?\n");
       ot("  orrne r9,r9,#0x10000000 ;@ set overflow flag\n");
       ot("  bne endofop%.4x ;@ overflow!\n",op);
     }
-	else
-	{
-	  // overflow check
-	  ot("  movs r1,r3,lsr #16 ;@ check for overflow condition\n");
+    else
+    {
+      // overflow check
+      ot("  movs r1,r3,lsr #16 ;@ check for overflow condition\n");
       ot("  orrne r9,r9,#0x10000000 ;@ set overflow flag\n");
       ot("  bne endofop%.4x ;@ overflow!\n",op);
-	}
+    }
 
     ot("  mov r1,r3,lsl #16 ;@ Clip to 16-bits\n");
     ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
@@ -370,7 +370,7 @@ int OpAbcd(int op)
   if (sea==0x27||dea==0x27) use=op; // ..except -(a7)
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=6;
+  OpStart(op,sea|dea); Cycles=6;
 
   EaCalc( 0,0x0007, sea,0,1);
   EaRead( 0,    10, sea,0,0x0007,1);
@@ -384,7 +384,7 @@ int OpAbcd(int op)
     ot("  ldrb r0,[r7,#0x45] ;@ Get X bit\n");
     ot("  mov r3,#0x00f00000\n");
     ot("  and r2,r3,r1,lsr #4\n");
-	ot("  tst r0,#2\n");
+    ot("  tst r0,#2\n");
     ot("  and r0,r3,r10,lsr #4\n");
     ot("  add r0,r0,r2\n");
     ot("  addne r0,r0,#0x00100000\n");
@@ -398,20 +398,20 @@ int OpAbcd(int op)
     ot("  mov r2,r10,lsr #28\n");
     ot("  add r0,r0,r2,lsl #24\n");
     ot("  cmp r0,#0x09900000\n");
-	ot("  orrhi r9,r9,#0x20000000 ;@ C\n");
-	ot("  subhi r0,r0,#0x0a000000\n");
-//	ot("  and r3,r9,r0,lsr #3 ;@ Undefined V behavior part II\n");
-//	ot("  orr r9,r9,r3,lsl #4 ;@ V\n");
+    ot("  orrhi r9,r9,#0x20000000 ;@ C\n");
+    ot("  subhi r0,r0,#0x0a000000\n");
+//    ot("  and r3,r9,r0,lsr #3 ;@ Undefined V behavior part II\n");
+//    ot("  orr r9,r9,r3,lsl #4 ;@ V\n");
     ot("  movs r0,r0,lsl #4\n");
-	ot("  orrmi r9,r9,#0x90000000 ;@ Undefined N+V behavior\n"); // this is what Musashi really does
-	ot("  bicne r9,r9,#0x40000000 ;@ Z flag\n");
+    ot("  orrmi r9,r9,#0x90000000 ;@ Undefined N+V behavior\n"); // this is what Musashi really does
+    ot("  bicne r9,r9,#0x40000000 ;@ Z flag\n");
   }
   else
   {
     ot("  ldrb r0,[r7,#0x45] ;@ Get X bit\n");
     ot("  mov r3,#0x00f00000\n");
     ot("  and r2,r3,r10,lsr #4\n");
-	ot("  tst r0,#2\n");
+    ot("  tst r0,#2\n");
     ot("  and r0,r3,r1,lsr #4\n");
     ot("  sub r0,r0,r2\n");
     ot("  subne r0,r0,#0x00100000\n");
@@ -425,13 +425,13 @@ int OpAbcd(int op)
     ot("  mov r2,r10,lsr #28\n");
     ot("  sub r0,r0,r2,lsl #24\n");
     ot("  cmp r0,#0x09900000\n");
-	ot("  orrhi r9,r9,#0xa0000000 ;@ N and C\n");
-	ot("  addhi r0,r0,#0x0a000000\n");
-//	ot("  and r3,r9,r0,lsr #3 ;@ Undefined V behavior part II\n");
-//	ot("  orr r9,r9,r3,lsl #4 ;@ V\n");
+    ot("  orrhi r9,r9,#0xa0000000 ;@ N and C\n");
+    ot("  addhi r0,r0,#0x0a000000\n");
+//    ot("  and r3,r9,r0,lsr #3 ;@ Undefined V behavior part II\n");
+//    ot("  orr r9,r9,r3,lsl #4 ;@ V\n");
     ot("  movs r0,r0,lsl #4\n");
-//	ot("  orrmi r9,r9,#0x80000000 ;@ Undefined N behavior\n");
-	ot("  bicne r9,r9,#0x40000000 ;@ Z flag\n");
+//    ot("  orrmi r9,r9,#0x80000000 ;@ Undefined N behavior\n");
+    ot("  bicne r9,r9,#0x40000000 ;@ Z flag\n");
   }
 
   ot("  mov r2,r9,lsr #28\n");
@@ -456,7 +456,7 @@ int OpNbcd(int op)
   use=OpBase(op);
   if(op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=6;
+  OpStart(op,ea); Cycles=6;
   if(ea >= 8)  Cycles+=2;
 
   EaCalc(10,0x3f, ea,0,1);
@@ -519,7 +519,7 @@ int OpAritha(int op)
   use&=~0x0e00; // Use same opcode for An
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=(size==2)?6:8;
+  OpStart(op,sea); Cycles=(size==2)?6:8;
   if(size==2&&(sea<0x10||sea==0x3c)) Cycles+=2;
   if(type==1) Cycles=6;
 
@@ -566,7 +566,7 @@ int OpAddx(int op)
   if (size==0&&(sea==0x27||dea==0x27)) use=op; // ___x.b -(a7)
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);  Cycles=4;
+  OpStart(op,sea|dea); Cycles=4;
   if(size>=2)   Cycles+=4;
   if(sea>=0x10) Cycles+=2;
 
@@ -583,7 +583,7 @@ int OpAddx(int op)
   if (type==5 && size<2)
   {
     ot(";@ Make sure the carry bit will tip the balance:\n");
-	ot("  mvn r2,#0\n");
+    ot("  mvn r2,#0\n");
     ot("  orr r11,r11,r2,lsr #%i\n",(size==0)?8:16);
     ot("\n");
   }
@@ -631,7 +631,7 @@ int OpCmpEor(int op)
   use&=~0x0e00; // Use 1 handler for register d0-7
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=4;
+  OpStart(op,ea); Cycles=4;
   if(eor) {
     if(ea>8)     Cycles+=4;
     if(size>=2)  Cycles+=4;
@@ -678,7 +678,7 @@ int OpCmpm(int op)
   if (size==0&&(sea==0x1f||dea==0x1f)) use=op; // ..except (a7)+
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=4;
+  OpStart(op,sea); Cycles=4;
 
   ot(";@ Get src operand into r10:\n");
   EaCalc (0,0x000f, sea,size,1);
@@ -719,7 +719,7 @@ int OpChk(int op)
   use&=~0x0e00; // Use 1 handler for register d0-7
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=10;
+  OpStart(op,ea); Cycles=10;
 
   ot(";@ Get EA into r10 and value into r0:\n");
   EaCalc (10,0x003f,  ea,size,1);

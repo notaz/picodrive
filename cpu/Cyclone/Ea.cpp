@@ -72,17 +72,17 @@ int g_movem_cycle_table[8] =
 // add nonstandard EA
 int Ea_add_ns(int *tab, int ea)
 {
-	if(ea<0x10)			return 0;
-	if((ea&0x38)==0x10) return tab[0]; // (An) (ai)
-	if(ea<0x28)			return 0;
-	if(ea<0x30)			return tab[1]; // ($nn,An) (di)
-	if(ea<0x38)			return tab[2]; // ($nn,An,Rn) (ix)
-	if(ea==0x38)		return tab[3]; // (aw)
-	if(ea==0x39)		return tab[4]; // (al)
-	if(ea==0x3a)		return tab[5]; // ($nn,PC) (pcdi)
-	if(ea==0x3b)		return tab[6]; // ($nn,pc,Rn) (pcix)
-	if(ea==0x3c)		return tab[7]; // #$nnnn (i)
-	return 0;
+    if(ea<0x10)         return 0;
+    if((ea&0x38)==0x10) return tab[0]; // (An) (ai)
+    if(ea<0x28)         return 0;
+    if(ea<0x30)         return tab[1]; // ($nn,An) (di)
+    if(ea<0x38)         return tab[2]; // ($nn,An,Rn) (ix)
+    if(ea==0x38)        return tab[3]; // (aw)
+    if(ea==0x39)        return tab[4]; // (al)
+    if(ea==0x3a)        return tab[5]; // ($nn,PC) (pcdi)
+    if(ea==0x3b)        return tab[6]; // ($nn,pc,Rn) (pcix)
+    if(ea==0x3c)        return tab[7]; // #$nnnn (i)
+    return 0;
 }
 
 
@@ -147,28 +147,28 @@ int EaCalc(int a,int mask,int ea,int size,int top)
   if (ea<0x28)
   {
     int step=1<<size, strr=a;
-	int low=0,lsl,i;
+    int low=0,lsl,i;
 
     if ((ea&7)==7 && step<2) step=2; // move.b (a7)+ or -(a7) steps by 2 not 1
 
     EaCalcReg(2,ea,mask,0,0,1);
-	if(mask)
+    if(mask)
       for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
-	lsl=2-low; // Having a lsl #x here saves one opcode
+    lsl=2-low; // Having a lsl #x here saves one opcode
     if      (lsl>=0) ot("  ldr r%d,[r7,r2,lsl #%i]\n",a,lsl);
     else if (lsl<0)  ot("  ldr r%d,[r7,r2,lsr #%i]\n",a,-lsl);
 
     if ((ea&0x38)==0x18) // (An)+
-	{
+    {
       ot("  add r3,r%d,#%d ;@ Post-increment An\n",a,step);
-	  strr=3;
-	}
+      strr=3;
+    }
 
     if ((ea&0x38)==0x20) // -(An)
       ot("  sub r%d,r%d,#%d ;@ Pre-decrement An\n",a,a,step);
 
     if ((ea&0x38)==0x18||(ea&0x38)==0x20)
-	{
+    {
       if      (lsl>=0) ot("  str r%d,[r7,r2,lsl #%i]\n",strr,lsl);
       else if (lsl<0)  ot("  str r%d,[r7,r2,lsr #%i]\n",strr,-lsl);
     }
@@ -292,10 +292,10 @@ int EaRead(int a,int v,int ea,int size,int mask,int top)
   {
     int lsl=0,low=0,i;
     if (size>=2||(size==0&&top)) {
-	  if(mask)
+      if(mask)
         for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
-	  lsl=2-low; // Having a lsl #2 here saves one opcode
-	}
+      lsl=2-low; // Having a lsl #2 here saves one opcode
+    }
 
     ot(";@ EaRead : Read register[r%d] into r%d:\n",a,v);
 
@@ -369,10 +369,10 @@ int EaWrite(int a,int v,int ea,int size,int mask,int top)
   {
     int lsl=0,low=0,i;
     if (size>=2||(size==0&&top)) {
-	  if(mask)
+      if(mask)
         for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
-	  lsl=2-low; // Having a lsl #x here saves one opcode
-	}
+      lsl=2-low; // Having a lsl #x here saves one opcode
+    }
 
     ot(";@ EaWrite: r%d into register[r%d]:\n",v,a);
     if (shift)  ot("  mov r%d,r%d,asr #%d\n",v,v,shift);

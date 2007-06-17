@@ -15,10 +15,10 @@
  * Enable this option if you are going to use Cyclone to emulate Genesis /
  * Mega Drive system. As VDP chip in these systems had control of the bus,
  * several instructions were acting differently, for example TAS did'n have
- * the write-back phase. That will be emulated, if this option is enebled.
+ * the write-back phase. That will be emulated, if this option is enabled.
  * This option also alters timing slightly.
  */
-#define CYCLONE_FOR_GENESIS	      1
+#define CYCLONE_FOR_GENESIS       1
 
 /*
  * This option compresses Cyclone's jumptable. Because of this the executable
@@ -30,13 +30,22 @@
 #define COMPRESS_JUMPTABLE        1
 
 /*
+ * Address mask for memory hadlers. The bits set will be masked out of address
+ * parameter, which is passed to r/w memory handlers.
+ * Using 0xff000000 means that only 24 least significant bits should be used.
+ * Set to 0 if you want to mask unused address bits in the memory handlers yourself.
+ */
+#define MEMHANDLERS_ADDR_MASK     0xff000000
+
+/*
  * Cyclone keeps the 4 least significant bits of SR, PC+membase and it's cycle
  * count in ARM registers instead of the context for performance reasons. If you for
  * any reason need to access them in your memory handlers, enable the options below,
  * otherwise disable them to improve performance.
- * Warning: the PC value will not point to start of instruction (it will be middle or
- * end), also updating PC is dangerous, as Cyclone may internally increment the PC
- * before fetching the next instruction and continue executing at wrong location.
+ * PC value will point to start of instruction currently executed.
+ * Warning: updating PC in memhandlers is dangerous, as Cyclone may internally
+ * increment the PC before fetching the next instruction and continue executing
+ * at wrong location.
  */
 #define MEMHANDLERS_NEED_PC       0
 #define MEMHANDLERS_NEED_FLAGS    0
@@ -70,7 +79,7 @@
  * If enabled, UnrecognizedCallback is called if an invalid opcode is
  * encountered. All context members are valid and can be changed. The handler
  * should return zero if you want Cyclone to gererate "Illegal Instruction"
- * exception after this, or nonzero if not. In the later case you shuold change
+ * exception after this, or nonzero if not. In the later case you should change
  * the PC by yourself, or else Cyclone will keep executing that opcode all over
  * again.
  * If disabled, "Illegal Instruction" exception is generated and execution is

@@ -216,7 +216,7 @@ static void PrintFramework()
     ot("  ldr r1,[r0,#-4]\n");
     ot("  tst r1,r1\n");
     ot("  movne pc,lr ;@ already uncompressed\n");
-	ot("  add r3,r12,#0xa000*4 ;@ handler table pointer, r12=dest\n");
+    ot("  add r3,r12,#0xa000*4 ;@ handler table pointer, r12=dest\n");
     ot("unc_loop%s\n", ms?"":":");
     ot("  ldrh r1,[r0],#2\n");
     ot("  and r2,r1,#0xf\n");
@@ -382,17 +382,23 @@ int MemHandler(int type,int size)
   int func=0;
   func=0x68+type*0xc+(size<<2); // Find correct offset
 
-#if MEMHANDLERS_NEED_PC
-  ot("  str r4,[r7,#0x40] ;@ Save PC\n");
-#endif
 #if MEMHANDLERS_NEED_FLAGS
   ot("  mov r3,r9,lsr #28\n");
   ot("  strb r3,[r7,#0x46] ;@ Save Flags (NZCV)\n");
 #endif
-#if MEMHANDLERS_NEED_CYCLES
-  ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");
-#endif
 
+#if (MEMHANDLERS_ADDR_MASK & 0xff000000)
+  ot("  bic r0,r0,#0x%08x\n", MEMHANDLERS_ADDR_MASK & 0xff000000);
+#endif
+#if (MEMHANDLERS_ADDR_MASK & 0x00ff0000)
+  ot("  bic r0,r0,#0x%08x\n", MEMHANDLERS_ADDR_MASK & 0x00ff0000);
+#endif
+#if (MEMHANDLERS_ADDR_MASK & 0x0000ff00)
+  ot("  bic r0,r0,#0x%08x\n", MEMHANDLERS_ADDR_MASK & 0x0000ff00);
+#endif
+#if (MEMHANDLERS_ADDR_MASK & 0x000000ff)
+  ot("  bic r0,r0,#0x%08x\n", MEMHANDLERS_ADDR_MASK & 0x000000ff);
+#endif
   ot("  mov lr,pc\n");
   ot("  ldr pc,[r7,#0x%x] ;@ Call ",func);
 
@@ -541,84 +547,84 @@ static void PrintJumpTable()
 #if COMPRESS_JUMPTABLE
     int handlers=0,reps=0,*indexes,ip,u,out;
     // use some weird compression on the jump table
-	indexes=(int *)malloc(0x10000*4);
-	if(!indexes) { printf("ERROR: out of memory\n"); exit(1); }
-	len=0x10000;
+    indexes=(int *)malloc(0x10000*4);
+    if(!indexes) { printf("ERROR: out of memory\n"); exit(1); }
+    len=0x10000;
 
-	ot("CycloneJumpTab%s\n", ms?"":":");
-	if(ms) {
-	  for(i = 0; i < 0xa000/8; i++)
-	    ot("  dcd 0,0,0,0,0,0,0,0\n");
-	} else
-	  ot("  .rept 0x%x\n  .long 0,0,0,0,0,0,0,0\n  .endr\n", 0xa000/8);
+    ot("CycloneJumpTab%s\n", ms?"":":");
+    if(ms) {
+      for(i = 0; i < 0xa000/8; i++)
+        ot("  dcd 0,0,0,0,0,0,0,0\n");
+    } else
+      ot("  .rept 0x%x\n  .long 0,0,0,0,0,0,0,0\n  .endr\n", 0xa000/8);
 
     // hanlers live in "a-line" part of the table
-	// first output nop,a-line,f-line handlers
-	ot(ms?"  dcd Op____,Op__al,Op__fl,":"  .long Op____,Op__al,Op__fl,");
-	handlers=3;
+    // first output nop,a-line,f-line handlers
+    ot(ms?"  dcd Op____,Op__al,Op__fl,":"  .long Op____,Op__al,Op__fl,");
+    handlers=3;
 
-	for(i=0;i<len;i++)
+    for(i=0;i<len;i++)
     {
       op=CyJump[i];
 
-	  for(u=i-1; u>=0; u--) if(op == CyJump[u]) break; // already done with this op?
-	  if(u==-1 && op >= 0) {
-		ott("Op%.4x",op," ;@ %.4x\n",i,handlers,2);
-		indexes[op] = handlers;
-	    handlers++;
+      for(u=i-1; u>=0; u--) if(op == CyJump[u]) break; // already done with this op?
+      if(u==-1 && op >= 0) {
+        ott("Op%.4x",op," ;@ %.4x\n",i,handlers,2);
+        indexes[op] = handlers;
+        handlers++;
       }
-	}
-	if(handlers&7) {
-	  fseek(AsmFile, -1, SEEK_CUR); // remove last comma
-	  for(i = 8-(handlers&7); i > 0; i--)
-	    ot(",000000");
-	  ot("\n");
-	}
-	if(ms) {
-	  for(i = (0x4000-handlers)/8; i > 0; i--)
-	    ot("  dcd 0,0,0,0,0,0,0,0\n");
-	} else {
-	  ot(ms?"":"  .rept 0x%x\n  .long 0,0,0,0,0,0,0,0\n  .endr\n", (0x4000-handlers)/8);
-	}
-    printf("total distinct hanlers: %i\n",handlers);
-	// output data
-	for(i=0,ip=0; i < 0xf000; i++, ip++) {
-      op=CyJump[i];
-	  if(op == -2) {
-	    // it must skip a-line area, because we keep our data there
-	    ott("0x%.4x", handlers<<4, "\n",0,ip++,1);
-	    ott("0x%.4x", 0x1000, "\n",0,ip,1);
-		i+=0xfff;
-	    continue;
-	  }
-	  for(reps=1; i < 0xf000; i++, reps++) if(op != CyJump[i+1]) break;
-	  if(op>=0) out=indexes[op]<<4; else out=0; // unrecognised
-	  if(reps <= 0xe || reps==0x10) {
-	    if(reps!=0x10) out|=reps; else out|=0xf; // 0xf means 0x10 (0xf appeared to be unused anyway)
-	    ott("0x%.4x", out, "\n",0,ip,1);
-      } else {
-	    ott("0x%.4x", out, "\n",0,ip++,1);
-	    ott("0x%.4x", reps,"\n",0,ip,1);
-	  }
     }
-	if(ip&1) ott("0x%.4x", 0, "\n",0,ip++,1);
-	if(ip&7) fseek(AsmFile, -1, SEEK_CUR); // remove last comma
-	ot("\n");
-	if(ip&7) {
-	  for(i = 8-(ip&7); i > 0; i--)
-	    ot(",0x0000");
-	  ot("\n");
-	}
-	if(ms) {
-	  for(i = (0x2000-ip/2)/8+1; i > 0; i--)
-	    ot("  dcd 0,0,0,0,0,0,0,0\n");
-	} else {
-	  ot("  .rept 0x%x\n  .long 0,0,0,0,0,0,0,0\n  .endr\n", (0x2000-ip/2)/8+1);
-	}
-	ot("\n");
-	free(indexes);
+    if(handlers&7) {
+      fseek(AsmFile, -1, SEEK_CUR); // remove last comma
+      for(i = 8-(handlers&7); i > 0; i--)
+        ot(",000000");
+      ot("\n");
+    }
+    if(ms) {
+      for(i = (0x4000-handlers)/8; i > 0; i--)
+        ot("  dcd 0,0,0,0,0,0,0,0\n");
+    } else {
+      ot(ms?"":"  .rept 0x%x\n  .long 0,0,0,0,0,0,0,0\n  .endr\n", (0x4000-handlers)/8);
+    }
+    printf("total distinct hanlers: %i\n",handlers);
+    // output data
+    for(i=0,ip=0; i < 0xf000; i++, ip++) {
+      op=CyJump[i];
+      if(op == -2) {
+        // it must skip a-line area, because we keep our data there
+        ott("0x%.4x", handlers<<4, "\n",0,ip++,1);
+        ott("0x%.4x", 0x1000, "\n",0,ip,1);
+        i+=0xfff;
+        continue;
+      }
+      for(reps=1; i < 0xf000; i++, reps++) if(op != CyJump[i+1]) break;
+      if(op>=0) out=indexes[op]<<4; else out=0; // unrecognised
+      if(reps <= 0xe || reps==0x10) {
+        if(reps!=0x10) out|=reps; else out|=0xf; // 0xf means 0x10 (0xf appeared to be unused anyway)
+        ott("0x%.4x", out, "\n",0,ip,1);
+      } else {
+        ott("0x%.4x", out, "\n",0,ip++,1);
+        ott("0x%.4x", reps,"\n",0,ip,1);
+      }
+    }
+    if(ip&1) ott("0x%.4x", 0, "\n",0,ip++,1);
+    if(ip&7) fseek(AsmFile, -1, SEEK_CUR); // remove last comma
+    ot("\n");
+    if(ip&7) {
+      for(i = 8-(ip&7); i > 0; i--)
+        ot(",0x0000");
+      ot("\n");
+    }
+    if(ms) {
+      for(i = (0x2000-ip/2)/8+1; i > 0; i--)
+        ot("  dcd 0,0,0,0,0,0,0,0\n");
+    } else {
+      ot("  .rept 0x%x\n  .long 0,0,0,0,0,0,0,0\n  .endr\n", (0x2000-ip/2)/8+1);
+    }
+    ot("\n");
+    free(indexes);
 #else
-	ot("CycloneJumpTab%s\n", ms?"":":");
+    ot("CycloneJumpTab%s\n", ms?"":":");
     len=0xfffe; // Hmmm, armasm 2.50.8684 messes up with a 0x10000 long jump table
                 // notaz: same thing with GNU as 2.9-psion-98r2 (reloc overflow)
                 // this is due to COFF objects using only 2 bytes for reloc count
@@ -632,7 +638,7 @@ static void PrintJumpTable()
       else if(op==-3) ott("Op__fl",0, " ;@ %.4x\n",i-7,i,2);
       else            ott("Op____",0, " ;@ %.4x\n",i-7,i,2);
     }
-	if(i&7) fseek(AsmFile, -1, SEEK_CUR); // remove last comma
+    if(i&7) fseek(AsmFile, -1, SEEK_CUR); // remove last comma
 
     ot("\n");
     ot(";@ notaz: we don't want to crash if we run into those 2 missing opcodes\n");

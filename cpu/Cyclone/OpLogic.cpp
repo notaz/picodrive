@@ -27,7 +27,7 @@ int OpBtstReg(int op)
   use&=~0x0e00; // Use same handler for all registers
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,tea);
 
   if(type==1||type==3) {
     Cycles=8;
@@ -88,7 +88,7 @@ int OpBtstImm(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,sea|tea);
 
   ot("  mov r10,#1\n");
   ot("\n");
@@ -145,7 +145,7 @@ int OpNeg(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);   Cycles=size<2?4:6;
+  OpStart(op,ea);   Cycles=size<2?4:6;
   if(ea >= 0x10) {
     Cycles*=2;
 #ifdef CYCLONE_FOR_GENESIS
@@ -170,10 +170,10 @@ int OpNeg(int op)
     ot("  orr r3,r9,#0xb0000000 ;@ for old Z\n");
     OpGetFlags(1,1,0);
     if(size!=2) {
-	  ot("  movs r1,r1,asr #%i\n",size?16:24);
+      ot("  movs r1,r1,asr #%i\n",size?16:24);
       ot("  orreq r9,r9,#0x40000000 ;@ possily missed Z\n");
-	}
-	ot("  andeq r9,r9,r3 ;@ fix Z\n");
+    }
+    ot("  andeq r9,r9,r3 ;@ fix Z\n");
     ot("\n");
   }
 
@@ -254,7 +254,7 @@ int OpTst(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=4;
+  OpStart(op,sea); Cycles=4;
 
   EaCalc ( 0,0x003f,sea,size,1);
   EaRead ( 0,     0,sea,size,0x003f,1);
@@ -322,7 +322,7 @@ int OpSet(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=8;
+  OpStart(op,ea); Cycles=8;
   if (ea<8) Cycles=4;
 
   ot("  mov r1,#0\n");
@@ -429,9 +429,9 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
     if(count == 1) {
       if(dir==0) {
         if(size!=2) {
-		  ot("  orr r0,r0,r0,lsr #%i\n", size?16:24);
-		  ot("  bic r0,r0,#0x%x\n", 1<<(32-wide));
-		}
+          ot("  orr r0,r0,r0,lsr #%i\n", size?16:24);
+          ot("  bic r0,r0,#0x%x\n", 1<<(32-wide));
+        }
         GetXBit(0);
         ot("  movs r0,r0,rrx\n");
         OpGetFlags(0,1);
@@ -619,7 +619,7 @@ int OpAsrEa(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=6; // EmitAsr() will add 2
+  OpStart(op,ea); Cycles=6; // EmitAsr() will add 2
 
   EaCalc (10,0x003f,ea,size,1);
   EaRead (10,     0,ea,size,0x003f,1);
@@ -645,7 +645,7 @@ int OpTas(int op, int gen_special)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  if (!gen_special) OpStart(op);
+  if (!gen_special) OpStart(op,ea);
   else
     ot("Op%.4x_%s\n", op, ms?"":":");
 

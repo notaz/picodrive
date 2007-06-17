@@ -117,7 +117,7 @@ int OpMove(int op)
 
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=4;
+  OpStart(op,sea|tea); Cycles=4;
 
   EaCalc(0,0x003f,sea,size);
   EaRead(0,     1,sea,size,0x003f);
@@ -173,7 +173,7 @@ int OpLea(int op)
   use&=~0x0e00; // Also use 1 handler for target ?0-7
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,sea|tea);
 
   EaCalc (1,0x003f,sea,0); // Lea
   EaCalc (0,0x0e00,tea,2,1);
@@ -207,7 +207,7 @@ int OpMoveSr(int op)
     case 1:
       return 1; // no such op in 68000
 
-	case 2: case 3:
+    case 2: case 3:
       if (EaCanRead(ea,size)==0) return 1; // See if we can do this opcode:
       break;
   }
@@ -215,7 +215,7 @@ int OpMoveSr(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,ea);
   Cycles=12;
   if (type==0) Cycles=(ea>=8)?8:6;
 
@@ -234,9 +234,9 @@ int OpMoveSr(int op)
     EaRead(0,     0,ea,size,0x003f);
     OpRegToFlags(type==3);
     if (type==3) {
-	  SuperChange(op);
-	  CheckInterrupt(op);
-	}
+      SuperChange(op);
+      CheckInterrupt(op);
+    }
   }
 
   OpEnd();
@@ -260,7 +260,7 @@ int OpArithSr(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=16;
+  OpStart(op,ea); Cycles=16;
 
   if (size) SuperCheck(op);
 
@@ -273,7 +273,7 @@ int OpArithSr(int op)
   if (type==5) ot("  eor r0,r1,r10\n");
   OpRegToFlags(size);
   if (size) {
-	SuperChange(op);
+    SuperChange(op);
     CheckInterrupt(op);
   }
 
@@ -296,7 +296,7 @@ int OpPea(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,ea);
 
   ot("  ldr r10,[r7,#0x3c]\n");
   EaCalc (1,0x003f, ea,0);
@@ -339,7 +339,7 @@ int OpMovem(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,ea);
 
   ot("  stmdb sp!,{r9} ;@ Push r9\n"); // can't just use r12 or lr here, because memhandlers touch them
   ot("  ldrh r11,[r4],#2 ;@ r11=register mask\n");
@@ -397,7 +397,7 @@ int OpMovem(int op)
   if(dir) { // er
          if (ea==0x3a) Cycles=16; // ($nn,PC)
     else if (ea==0x3b) Cycles=18; // ($nn,pc,Rn)
-	else Cycles=12;
+    else Cycles=12;
   } else {
     Cycles=8;
   }
@@ -519,44 +519,44 @@ int OpMovep(int op)
   // Find size extension
   if(op&0x0040) size=2;
 
-  OpStart(op);
+  OpStart(op,ea);
   
   if(dir) { // reg to mem
     EaCalc(11,0x0e00,0,size);      // reg number -> r11
     EaRead(11,11,0,size,0x0e00);   // regval -> r11
     EaCalc(10,0x0007,ea,size);
-	if(size==2) { // if operand is long
-	  ot("  mov r1,r11,lsr #24 ;@ first byte\n");
-	  EaWrite(10,1,ea,0,0x0007); // store first byte
-	  ot("  add r10,r10,#2\n");
-	  ot("  mov r1,r11,lsr #16 ;@ second byte\n");
-	  EaWrite(10,1,ea,0,0x0007); // store second byte
-	  ot("  add r10,r10,#2\n");
-	}
-	ot("  mov r1,r11,lsr #8 ;@ first or third byte\n");
-	EaWrite(10,1,ea,0,0x0007);
-	ot("  add r10,r10,#2\n");
-	ot("  and r1,r11,#0xff\n");
-	EaWrite(10,1,ea,0,0x0007);
+    if(size==2) { // if operand is long
+      ot("  mov r1,r11,lsr #24 ;@ first byte\n");
+      EaWrite(10,1,ea,0,0x0007); // store first byte
+      ot("  add r10,r10,#2\n");
+      ot("  mov r1,r11,lsr #16 ;@ second byte\n");
+      EaWrite(10,1,ea,0,0x0007); // store second byte
+      ot("  add r10,r10,#2\n");
+    }
+    ot("  mov r1,r11,lsr #8 ;@ first or third byte\n");
+    EaWrite(10,1,ea,0,0x0007);
+    ot("  add r10,r10,#2\n");
+    ot("  and r1,r11,#0xff\n");
+    EaWrite(10,1,ea,0,0x0007);
   } else { // mem to reg
     EaCalc(10,0x0007,ea,size,1);
     EaRead(10,11,ea,0,0x0007,1); // read first byte
-	ot("  add r10,r10,#2\n");
+    ot("  add r10,r10,#2\n");
     EaRead(10,1,ea,0,0x0007,1); // read second byte
-	if(size==2) { // if operand is long
+    if(size==2) { // if operand is long
       ot("  orr r11,r11,r1,lsr #8 ;@ second byte\n");
-	  ot("  add r10,r10,#2\n");
-	  EaRead(10,1,ea,0,0x0007,1);
+      ot("  add r10,r10,#2\n");
+      EaRead(10,1,ea,0,0x0007,1);
       ot("  orr r11,r11,r1,lsr #16 ;@ third byte\n");
-	  ot("  add r10,r10,#2\n");
-	  EaRead(10,1,ea,0,0x0007,1);
+      ot("  add r10,r10,#2\n");
+      EaRead(10,1,ea,0,0x0007,1);
       ot("  orr r0,r11,r1,lsr #24 ;@ fourth byte\n");
-	} else {
+    } else {
       ot("  orr r0,r11,r1,lsr #8 ;@ second byte\n");
-	}
-	// store the result
+    }
+    // store the result
     EaCalc(11,0x0e00,0,size,1);      // reg number -> r11
-	EaWrite(11,0,0,size,0x0e00,1);
+    EaWrite(11,0,0,size,0x0e00,1);
   }
 
   Cycles=(size==2)?24:16;
@@ -580,15 +580,15 @@ int OpStopReset(int op)
     SuperChange(op);
     OpRegToFlags(1);
 
-	ot("\n");
+    ot("\n");
 
-	ot("  mov r0,#1\n");
-	ot("  str r0,[r7,#0x58] ;@ stopped\n");
-	ot("\n");
+    ot("  mov r0,#1\n");
+    ot("  str r0,[r7,#0x58] ;@ stopped\n");
+    ot("\n");
 
-	ot("  mov r5,#0 ;@ eat cycles\n");
+    ot("  mov r5,#0 ;@ eat cycles\n");
     Cycles = 4;
-	ot("\n");
+    ot("\n");
   }
   else
   {

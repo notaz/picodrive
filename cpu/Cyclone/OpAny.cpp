@@ -25,11 +25,23 @@ void OpUse(int op,int use)
   ot(";@ ---------- [%.4x] %s uses Op%.4x ----------\n",op,text,use);
 }
 
-void OpStart(int op)
+void OpStart(int op, int ea)
 {
   Cycles=0;
   OpUse(op,op); // This opcode obviously uses this handler
   ot("Op%.4x%s\n", op, ms?"":":");
+#if (MEMHANDLERS_NEED_PC || MEMHANDLERS_NEED_CYCLES)
+  if (ea >= 0x10) {
+#if MEMHANDLERS_NEED_PC
+    ot("  sub r0,r4,#2\n");
+    ot("  str r0,[r7,#0x40] ;@ Save PC\n");
+#endif
+#if MEMHANDLERS_NEED_CYCLES
+    ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");
+#endif
+    ot("\n");
+  }
+#endif
 }
 
 void OpEnd()

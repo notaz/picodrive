@@ -37,7 +37,7 @@ int MemHandler(int type,int size);
 // OpAny.cpp
 int OpGetFlags(int subtract,int xbit,int sprecialz=0);
 void OpUse(int op,int use);
-void OpStart(int op);
+void OpStart(int op,int ea=0);
 void OpEnd();
 int OpBase(int op,int sepa=0);
 void OpAny(int op);

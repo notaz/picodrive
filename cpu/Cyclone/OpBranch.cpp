@@ -58,7 +58,9 @@ static void PopPc()
   MemHandler(0,2);
   ot("  add r4,r0,r10 ;@ r4=Memory Base+PC\n");
   ot("\n");
+#if USE_CHECKPC_CALLBACK
   CheckPc();
+#endif
 }
 
 int OpTrap(int op)
@@ -68,7 +70,7 @@ int OpTrap(int op)
   use=op&~0xf;
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,0x10);
   ot("  and r0,r8,#0xf ;@ Get trap number\n");
   ot("  orr r0,r0,#0x20\n");
   ot("  mov r0,r0,asl #2\n");
@@ -90,7 +92,7 @@ int OpLink(int op)
   if (reg==7) use=op;
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,0x10);
 
   if(reg!=7) {
     ot(";@ Get An\n");
@@ -132,7 +134,7 @@ int OpUnlk(int op)
   use=op&~7;
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,0x10);
 
   ot(";@ Get An\n");
   EaCalc(10, 7, 8, 2, 1);
@@ -168,27 +170,27 @@ int Op4E70(int op)
     OpEnd();
     return 0;
 
-	case 3: // rte
-    OpStart(op); Cycles=20;
-	SuperCheck(op);
+    case 3: // rte
+    OpStart(op,0x10); Cycles=20;
+    SuperCheck(op);
     PopSr(1);
     ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
-	SuperChange(op);
+    SuperChange(op);
     CheckInterrupt(op);
     OpEnd();
-	SuperEnd(op);
+    SuperEnd(op);
     return 0;
 
     case 5: // rts
-    OpStart(op); Cycles=16;
+    OpStart(op,0x10); Cycles=16;
     ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
     OpEnd();
     return 0;
 
     case 6: // trapv
-    OpStart(op); Cycles=4;
+    OpStart(op,0x10); Cycles=4;
     ot("  tst r9,#0x10000000\n");
     ot("  subne r5,r5,#%i\n",30);
     ot("  movne r0,#0x1c ;@ TRAPV exception\n");
@@ -197,7 +199,7 @@ int Op4E70(int op)
     return 0;
 
     case 7: // rtr
-    OpStart(op); Cycles=20;
+    OpStart(op,0x10); Cycles=20;
     PopSr(0);
     ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
@@ -224,7 +226,7 @@ int OpJsr(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op);
+  OpStart(op,0x10);
 
   ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
   ot("\n");
@@ -352,7 +354,7 @@ int OpBranch(int op)
   else use=(op&0xff00)+1; // Use same opcode for all 8-bit branches
 
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
-  OpStart(op);
+  OpStart(op,size?0x10:0);
 
   ot(";@ Get Branch offset:\n");
   if (size) 
