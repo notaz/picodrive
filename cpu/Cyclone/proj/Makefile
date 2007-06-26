@@ -1,4 +1,4 @@
-CFLAGS = -Wall -DCYCLONE_FOR_PICODRIVE
+CFLAGS = -Wall
 
 all : cyclone.s
 

@@ -148,7 +148,7 @@ int OpNeg(int op)
   OpStart(op,ea);   Cycles=size<2?4:6;
   if(ea >= 0x10) {
     Cycles*=2;
-#ifdef CYCLONE_FOR_GENESIS
+#if CYCLONE_FOR_GENESIS
     // This is same as in Starscream core, CLR uses only 6 cycles for memory EAs.
     // May be this is similar case as with TAS opcode, but this time the dummy
     // read is ignored somehow? Without this hack Fatal Rewind hangs even in Gens.
@@ -672,7 +672,7 @@ int OpTas(int op, int gen_special)
 
   OpEnd();
 
-#if CYCLONE_FOR_GENESIS
+#if (CYCLONE_FOR_GENESIS == 2)
   if (!gen_special && ea >= 0x10) {
     OpTas(op, 1);
   }

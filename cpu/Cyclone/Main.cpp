@@ -32,7 +32,7 @@ void ltorg()
   else    ot("  .ltorg\n");
 }
 
-#if CYCLONE_FOR_GENESIS
+#if (CYCLONE_FOR_GENESIS == 2)
 // r12=ptr to tas in table, trashes r0,r1
 static void ChangeTAS(int norm)
 {
@@ -186,7 +186,7 @@ static void PrintFramework()
   ot("CycloneEnd%s\n", ms?"":":");
   ot("  sub r4,r4,#2\n");
   ot("CycloneEndNoBack%s\n", ms?"":":");
-#ifdef CYCLONE_FOR_PICODRIVE
+#if (CYCLONE_FOR_GENESIS == 2)
   ot("  ldr r1,[r7,#0x54]\n");
   ot("  mov r9,r9,lsr #28\n");
   ot("  tst r1,r1\n");
@@ -306,7 +306,7 @@ static void PrintFramework()
 
   if (ms) ot("CycloneSetRealTAS\n");
   else    ot("CycloneSetRealTAS:\n");
-#if CYCLONE_FOR_GENESIS
+#if (CYCLONE_FOR_GENESIS == 2)
   ot("  ldr r12,=CycloneJumpTab\n");
   ot("  tst r0,r0\n");
   ot("  add r12,r12,#0x4a00*4\n");
@@ -691,7 +691,7 @@ static int CycloneMake()
     ot("  .global CycloneGetSr\n");
     ot("  .global CycloneSetRealTAS\n");
     ot("  .global CycloneVer\n");
-#ifdef CYCLONE_FOR_PICODRIVE
+#if (CYCLONE_FOR_GENESIS == 2)
     ot("  .global CycloneDoInterrupt\n");
     ot("  .global CycloneJumpTab\n");
 #endif

@@ -18,7 +18,7 @@
  * the write-back phase. That will be emulated, if this option is enabled.
  * This option also alters timing slightly.
  */
-#define CYCLONE_FOR_GENESIS       1
+#define CYCLONE_FOR_GENESIS       2
 
 /*
  * This option compresses Cyclone's jumptable. Because of this the executable
@@ -35,7 +35,7 @@
  * Using 0xff000000 means that only 24 least significant bits should be used.
  * Set to 0 if you want to mask unused address bits in the memory handlers yourself.
  */
-#define MEMHANDLERS_ADDR_MASK     0xff000000
+#define MEMHANDLERS_ADDR_MASK     0
 
 /*
  * Cyclone keeps the 4 least significant bits of SR, PC+membase and it's cycle
