@@ -31,7 +31,7 @@ void OpStart(int op, int ea)
   OpUse(op,op); // This opcode obviously uses this handler
   ot("Op%.4x%s\n", op, ms?"":":");
 #if (MEMHANDLERS_NEED_PC || MEMHANDLERS_NEED_CYCLES)
-  if (ea >= 0x10) {
+  if (ea >= 0x10 && ea != 0x3c) {
 #if MEMHANDLERS_NEED_PC
     ot("  sub r0,r4,#2\n");
     ot("  str r0,[r7,#0x40] ;@ Save PC\n");

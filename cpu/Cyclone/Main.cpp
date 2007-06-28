@@ -689,9 +689,9 @@ static int CycloneMake()
     ot("  .global CycloneRun\n");
     ot("  .global CycloneSetSr\n");
     ot("  .global CycloneGetSr\n");
-    ot("  .global CycloneSetRealTAS\n");
     ot("  .global CycloneVer\n");
 #if (CYCLONE_FOR_GENESIS == 2)
+    ot("  .global CycloneSetRealTAS\n");
     ot("  .global CycloneDoInterrupt\n");
     ot("  .global CycloneJumpTab\n");
 #endif
