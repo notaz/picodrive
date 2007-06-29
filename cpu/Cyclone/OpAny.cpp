@@ -25,16 +25,16 @@ void OpUse(int op,int use)
   ot(";@ ---------- [%.4x] %s uses Op%.4x ----------\n",op,text,use);
 }
 
-void OpStart(int op, int ea)
+void OpStart(int op, int sea, int tea)
 {
   Cycles=0;
   OpUse(op,op); // This opcode obviously uses this handler
   ot("Op%.4x%s\n", op, ms?"":":");
-#if (MEMHANDLERS_NEED_PC || MEMHANDLERS_NEED_CYCLES)
-  if (ea >= 0x10 && ea != 0x3c) {
-#if MEMHANDLERS_NEED_PC
+#if (MEMHANDLERS_NEED_PREV_PC || MEMHANDLERS_NEED_CYCLES)
+  if ((sea >= 0x10 && sea != 0x3c) || (tea >= 0x10 && tea != 0x3c)) {
+#if MEMHANDLERS_NEED_PREV_PC
     ot("  sub r0,r4,#2\n");
-    ot("  str r0,[r7,#0x40] ;@ Save PC\n");
+    ot("  str r0,[r7,#0x50] ;@ Save prev PC\n");
 #endif
 #if MEMHANDLERS_NEED_CYCLES
     ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");
@@ -42,10 +42,15 @@ void OpStart(int op, int ea)
     ot("\n");
   }
 #endif
+  pc_dirty = 1;
 }
 
-void OpEnd()
+void OpEnd(int sea, int tea)
 {
+#if MEMHANDLERS_CHANGE_CYCLES
+  if ((sea >= 0x10 && sea != 0x3c) || (tea >= 0x10 && tea != 0x3c))
+    ot("  ldr r5,[r7,#0x5c] ;@ Load Cycles\n");
+#endif
   ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
   ot("  subs r5,r5,#%d ;@ Subtract cycles\n",Cycles);
   ot("  ldrge pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");

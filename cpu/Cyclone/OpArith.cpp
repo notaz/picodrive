@@ -22,12 +22,11 @@ int OpArith(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op, sea|tea); Cycles=4;
+  OpStart(op, sea, tea); Cycles=4;
 
   EaCalc(10,0x0000, sea,size,1);
-  EaRead(10,    10, sea,size,0,1);
-
   EaCalc(11,0x003f, tea,size,1);
+  EaRead(10,    10, sea,size,0,1);
   EaRead(11,     0, tea,size,0x003f,1);
 
   ot(";@ Do arithmetic:\n");
@@ -65,7 +64,7 @@ int OpArith(int op)
     if (type==1 && size>=2 && tea<8) Cycles-=2;
   }
 
-  OpEnd();
+  OpEnd(sea,tea);
 
   return 0;
 }
@@ -128,7 +127,7 @@ int OpAddq(int op)
 
   EaWrite(10,     1, ea,size,0x003f,1);
 
-  OpEnd();
+  OpEnd(ea);
 
   return 0;
 }
@@ -195,7 +194,7 @@ int OpArithReg(int op)
     }
   }
 
-  OpEnd();
+  OpEnd(ea);
 
   return 0;
 }
@@ -328,13 +327,13 @@ int OpMul(int op)
   EaWrite(0,     1,rea, 2,0x0e00,1);
 
   ot("endofop%.4x%s\n",op,ms?"":":");
-  OpEnd();
+  OpEnd(ea);
 
   ot("divzero%.4x%s\n",op,ms?"":":");
   ot("  mov r0,#0x14 ;@ Divide by zero\n");
   ot("  bl Exception\n");
   Cycles+=38;
-  OpEnd();
+  OpEnd(ea);
   ot("\n");
 
   return 0;
@@ -370,7 +369,7 @@ int OpAbcd(int op)
   if (sea==0x27||dea==0x27) use=op; // ..except -(a7)
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,sea|dea); Cycles=6;
+  OpStart(op,sea,dea); Cycles=6;
 
   EaCalc( 0,0x0007, sea,0,1);
   EaRead( 0,    10, sea,0,0x0007,1);
@@ -438,7 +437,7 @@ int OpAbcd(int op)
   ot("  strb r2,[r7,#0x45] ;@ Save X bit\n");
 
   EaWrite(11,     0, dea,0,0x0e00,1);
-  OpEnd();
+  OpEnd(sea,dea);
 
   return 0;
 }
@@ -493,7 +492,7 @@ int OpNbcd(int op)
   ot("  mov r2,r9,lsr #28\n");
   ot("  strb r2, [r7,#0x45]\n");
 
-  OpEnd();
+  OpEnd(ea);
 
   return 0;
 }
@@ -538,7 +537,7 @@ int OpAritha(int op)
   
   if (type!=1) EaWrite( 0,     1, dea,2,0x0e00,1);
 
-  OpEnd();
+  OpEnd(sea);
 
   return 0;
 }
@@ -566,7 +565,7 @@ int OpAddx(int op)
   if (size==0&&(sea==0x27||dea==0x27)) use=op; // ___x.b -(a7)
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,sea|dea); Cycles=4;
+  OpStart(op,sea,dea); Cycles=4;
   if(size>=2)   Cycles+=4;
   if(sea>=0x10) Cycles+=2;
 
@@ -602,7 +601,7 @@ int OpAddx(int op)
   ot(";@ Save result:\n");
   EaWrite( 0, 1, dea,size,0x0e00,1);
 
-  OpEnd();
+  OpEnd(sea,dea);
 
   return 0;
 }
@@ -660,7 +659,7 @@ int OpCmpEor(int op)
 
   if (eor) EaWrite(10, 1,ea,size,0x003f,1);
 
-  OpEnd();
+  OpEnd(ea);
   return 0;
 }
 
@@ -691,7 +690,7 @@ int OpCmpm(int op)
   ot("  cmp r0,r10\n");
   OpGetFlags(1,0); // Cmp like subtract
 
-  OpEnd();
+  OpEnd(sea);
   return 0;
 }
 
@@ -745,13 +744,13 @@ int OpChk(int op)
   ot(";@ old N remains\n");
   ot("  bic r9,r9,#0x80000000 ;@ N\n");
   ot("  orr r9,r9,r3\n");
-  OpEnd();
+  OpEnd(ea);
 
   ot("chktrap%.4x%s ;@ CHK exception:\n",op,ms?"":":");
   ot("  mov r0,#0x18\n");
   ot("  bl Exception\n");
   Cycles+=40;
-  OpEnd();
+  OpEnd(ea);
 
   return 0;
 }

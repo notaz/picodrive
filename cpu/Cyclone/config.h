@@ -42,12 +42,18 @@
  * count in ARM registers instead of the context for performance reasons. If you for
  * any reason need to access them in your memory handlers, enable the options below,
  * otherwise disable them to improve performance.
- * PC value will point to start of instruction currently executed.
+ * MEMHANDLERS_NEED_PC updates .pc context field with PC value effective at the time
+ * when memhandler was called (opcode address + unknown amount).
+ * MEMHANDLERS_NEED_PREV_PC updates .prev_pc context field to currently executed
+ * opcode address.
+ * Note that .pc and .prev_pc values are always real pointers to memory, so you must
+ * subtract .membase to get M68k PC value.
  * Warning: updating PC in memhandlers is dangerous, as Cyclone may internally
  * increment the PC before fetching the next instruction and continue executing
  * at wrong location.
  */
 #define MEMHANDLERS_NEED_PC       0
+#define MEMHANDLERS_NEED_PREV_PC  0
 #define MEMHANDLERS_NEED_FLAGS    0
 #define MEMHANDLERS_NEED_CYCLES   1
 #define MEMHANDLERS_CHANGE_PC     0

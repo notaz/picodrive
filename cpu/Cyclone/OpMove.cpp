@@ -56,7 +56,7 @@ void SuperEnd(int op)
   ot("  mov r0,#0x20 ;@ privilege violation\n");
   ot("  bl Exception\n");
   Cycles=34;
-  OpEnd();
+  OpEnd(0x10);
 }
 
 // does OSP and A7 swapping if needed
@@ -117,7 +117,7 @@ int OpMove(int op)
 
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,sea|tea); Cycles=4;
+  OpStart(op,sea,tea); Cycles=4;
 
   EaCalc(0,0x003f,sea,size);
   EaRead(0,     1,sea,size,0x003f);
@@ -153,7 +153,7 @@ int OpMove(int op)
 
   if((tea&0x38)==0x20) Cycles-=2; // less cycles when dest is -(An)
 
-  OpEnd();
+  OpEnd(sea,tea);
   return 0;
 }
 
@@ -173,7 +173,7 @@ int OpLea(int op)
   use&=~0x0e00; // Also use 1 handler for target ?0-7
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,sea|tea);
+  OpStart(op,sea,tea);
 
   EaCalc (1,0x003f,sea,0); // Lea
   EaCalc (0,0x0e00,tea,2,1);
@@ -181,7 +181,7 @@ int OpLea(int op)
 
   Cycles=Ea_add_ns(g_lea_cycle_table,sea);
 
-  OpEnd();
+  OpEnd(sea,tea);
 
   return 0;
 }
@@ -239,7 +239,7 @@ int OpMoveSr(int op)
     }
   }
 
-  OpEnd();
+  OpEnd(ea);
 
   if (type==3) SuperEnd(op);
 
@@ -277,7 +277,7 @@ int OpArithSr(int op)
     CheckInterrupt(op);
   }
 
-  OpEnd();
+  OpEnd(ea);
   if (size) SuperEnd(op);
 
   return 0;
@@ -309,7 +309,7 @@ int OpPea(int op)
 
   Cycles=6+Ea_add_ns(g_pea_cycle_table,ea);
 
-  OpEnd();
+  OpEnd(ea);
 
   return 0;
 }
@@ -404,7 +404,7 @@ int OpMovem(int op)
 
   Cycles+=Ea_add_ns(g_movem_cycle_table,ea);
 
-  OpEnd();
+  OpEnd(ea);
 
   return 0;
 }
@@ -560,7 +560,7 @@ int OpMovep(int op)
   }
 
   Cycles=(size==2)?24:16;
-  OpEnd();
+  OpEnd(ea);
 
   return 0;
 }
@@ -614,3 +614,4 @@ int OpStopReset(int op)
 
   return 0;
 }
+

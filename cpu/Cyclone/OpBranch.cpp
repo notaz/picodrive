@@ -1,17 +1,21 @@
 
 #include "app.h"
 
-#if USE_CHECKPC_CALLBACK
-static void CheckPc()
+static void CheckPc(int reg)
 {
+#if USE_CHECKPC_CALLBACK
   ot(";@ Check Memory Base+pc (r4)\n");
-  ot("  add lr,pc,#4\n");
-  ot("  mov r0,r4\n");
+  if (reg != 0)
+    ot("  mov r0,r%i\n", reg);
+  ot("  mov lr,pc\n");
   ot("  ldr pc,[r7,#0x64] ;@ Call checkpc()\n");
   ot("  mov r4,r0\n");
+#else
+  if (reg != 4)
+    ot("  mov r4,r%i\n", reg);
+#endif
   ot("\n");
 }
-#endif
 
 // Push 32-bit value in r1 - trashes r0-r3,r12,lr
 void OpPush32()
@@ -56,11 +60,9 @@ static void PopPc()
   ot("  add r1,r0,#4 ;@ Postincrement A7\n");
   ot("  str r1,[r7,#0x3c] ;@ Save A7\n");
   MemHandler(0,2);
-  ot("  add r4,r0,r10 ;@ r4=Memory Base+PC\n");
+  ot("  add r0,r0,r10 ;@ Memory Base+PC\n");
   ot("\n");
-#if USE_CHECKPC_CALLBACK
-  CheckPc();
-#endif
+  CheckPc(0);
 }
 
 int OpTrap(int op)
@@ -77,7 +79,7 @@ int OpTrap(int op)
   ot("  bl Exception\n");
   ot("\n");
 
-  Cycles=38; OpEnd();
+  Cycles=38; OpEnd(0x10);
 
   return 0;
 }
@@ -122,7 +124,7 @@ int OpLink(int op)
   ot("\n");
 
   Cycles=16;
-  OpEnd();
+  OpEnd(0x10);
   return 0;
 }
 
@@ -151,7 +153,7 @@ int OpUnlk(int op)
   EaWrite(10, 0, 8, 2, 7, 1);
   
   Cycles=12;
-  OpEnd();
+  OpEnd(0x10);
   return 0;
 }
 
@@ -178,7 +180,7 @@ int Op4E70(int op)
     PopPc();
     SuperChange(op);
     CheckInterrupt(op);
-    OpEnd();
+    OpEnd(0x10);
     SuperEnd(op);
     return 0;
 
@@ -186,7 +188,7 @@ int Op4E70(int op)
     OpStart(op,0x10); Cycles=16;
     ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
-    OpEnd();
+    OpEnd(0x10);
     return 0;
 
     case 6: // trapv
@@ -195,7 +197,7 @@ int Op4E70(int op)
     ot("  subne r5,r5,#%i\n",30);
     ot("  movne r0,#0x1c ;@ TRAPV exception\n");
     ot("  blne Exception\n");
-    OpEnd();
+    OpEnd(0x10);
     return 0;
 
     case 7: // rtr
@@ -203,7 +205,7 @@ int Op4E70(int op)
     PopSr(0);
     ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
-    OpEnd();
+    OpEnd(0x10);
     return 0;
 
     default:
@@ -226,24 +228,23 @@ int OpJsr(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,0x10);
+  OpStart(op,(op&0x40)?0:0x10);
 
   ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
   ot("\n");
-  EaCalc(0,0x003f,sea,0);
+  EaCalc(11,0x003f,sea,0);
 
   ot(";@ Jump - Get new PC from r0\n");
   if (op&0x40)
   {
     // Jmp - Get new PC from r0
-    ot("  add r4,r0,r10 ;@ r4 = Memory Base + New PC\n");
+    ot("  add r0,r11,r10 ;@ Memory Base + New PC\n");
     ot("\n");
   }
   else
   {
     ot(";@ Jsr - Push old PC first\n");
     ot("  sub r1,r4,r10 ;@ r1 = Old PC\n");
-    ot("  add r4,r0,r10 ;@ r4 = Memory Base + New PC\n");
     ot("  mov r1,r1,lsl #8\n");
     ot("  ldr r0,[r7,#0x3c]\n");
     ot("  mov r1,r1,asr #8\n");
@@ -251,17 +252,16 @@ int OpJsr(int op)
     ot("  sub r0,r0,#4 ;@ Predecrement A7\n");
     ot("  str r0,[r7,#0x3c] ;@ Save A7\n");
     MemHandler(1,2);
+    ot("  add r0,r11,r10 ;@ Memory Base + New PC\n");
     ot("\n");
   }
 
-#if USE_CHECKPC_CALLBACK
-  CheckPc();
-#endif
+  CheckPc(0);
 
   Cycles=(op&0x40) ? 4 : 12;
   Cycles+=Ea_add_ns((op&0x40) ? g_jmp_cycle_table : g_jsr_cycle_table, sea);
 
-  OpEnd();
+  OpEnd((op&0x40)?0:0x10);
 
   return 0;
 }
@@ -362,11 +362,11 @@ int OpBranch(int op)
     EaCalc(0,0,0x3c,size);
     EaRead(0,0,0x3c,size,0);
   }
+  else
+    ot("  mov r0,r8,asl #24 ;@ Shift 8-bit signed offset up...\n\n");
 
   // above code messes cycles
   Cycles=10; // Assume branch taken
-
-  if (size==0) ot("  mov r0,r8,asl #24 ;@ Shift 8-bit signed offset up...\n\n");
 
   if (cc==1) ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
 
@@ -377,16 +377,11 @@ int OpBranch(int op)
     ot("  msr cpsr_flg,r9 ;@ ARM flags = 68000 flags\n");
     if ((cc&~1)==2) ot("  eor r9,r9,#0x20000000\n");
 
-    if (size==0) ot("  mov r0,r0,asr #24 ;@ ...shift down\n\n");
-
     ot("  b%s DontBranch%.4x\n",Cond[cc^1],op);
-
     ot("\n");
   }
-  else
-  {
-    if (size==0) ot("  mov r0,r0,asr #24 ;@ ...shift down\n\n");
-  }
+
+  if (size==0) ot("  mov r0,r0,asr #24 ;@ ...shift down\n\n");
 
   ot(";@ Branch taken - Add on r0 to PC\n");
 
@@ -406,29 +401,36 @@ int OpBranch(int op)
     MemHandler(1,2);
     ot("\n");
     Cycles=18; // always 18
+    if (offset==0 || offset==-1)
+    {
+      ot(";@ Branch is quite far, so may be a good idea to check Memory Base+pc\n");
+      CheckPc(4);
+    }
   }
   else
   {
     if (size) ot("  sub r4,r4,#%d ;@ (Branch is relative to Opcode+2)\n",1<<size);
-    ot("  add r4,r4,r0 ;@ r4 = New PC\n");
-    ot("\n");
+    if (offset==0 || offset==-1)
+    {
+      ot("  add r0,r4,r0 ;@ r4 = New PC\n");
+      ot(";@ Branch is quite far, so may be a good idea to check Memory Base+pc\n");
+      CheckPc(0);
+    }
+    else
+    {
+      ot("  add r4,r4,r0 ;@ r4 = New PC\n");
+      ot("\n");
+    }
   }
 
-#if USE_CHECKPC_CALLBACK
-  if (offset==0 || offset==-1)
-  {
-    ot(";@ Branch is quite far, so may be a good idea to check Memory Base+pc\n");
-    CheckPc();
-  }
-#endif
 
-  OpEnd();
+  OpEnd(size?0x10:0);
 
   if (cc>=2)
   {
     ot("DontBranch%.4x%s\n", op, ms?"":":");
     Cycles+=(size==1)?  2 : -2; // Branch not taken
-    OpEnd();
+    OpEnd(size?0x10:0);
   }
 
   return 0;

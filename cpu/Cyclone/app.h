@@ -24,21 +24,23 @@ int EaCanWrite(int ea);
 int EaAn(int ea);
 
 // Main.cpp
-extern int *CyJump; // Jump table
-extern int ms; // If non-zero, output in Microsoft ARMASM format
+extern int *CyJump;   // Jump table
+extern int  ms;       // If non-zero, output in Microsoft ARMASM format
 extern char *Narm[4]; // Normal ARM Extensions for operand sizes 0,1,2
 extern char *Sarm[4]; // Sign-extend ARM Extensions for operand sizes 0,1,2
-extern int Cycles; // Current cycles for opcode
+extern int  Cycles;   // Current cycles for opcode
+extern int  pc_dirty; // something changed PC during processing
 void ot(const char *format, ...);
 void ltorg();
 void CheckInterrupt(int op);
-int MemHandler(int type,int size);
+int MemHandler(int type,int size,int addrreg=0);
+void FlushPC(void);
 
 // OpAny.cpp
 int OpGetFlags(int subtract,int xbit,int sprecialz=0);
 void OpUse(int op,int use);
-void OpStart(int op,int ea=0);
-void OpEnd();
+void OpStart(int op,int sea=0,int tea=0);
+void OpEnd(int sea=0,int tea=0);
 int OpBase(int op,int sepa=0);
 void OpAny(int op);
 

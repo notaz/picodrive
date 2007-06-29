@@ -59,7 +59,7 @@ int OpBtstReg(int op)
     ot("\n");
     EaWrite(11,   1,tea,size,0x003f);
   }
-  OpEnd();
+  OpEnd(tea);
 
   return 0;
 }
@@ -88,7 +88,7 @@ int OpBtstImm(int op)
   use=OpBase(op);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,sea|tea);
+  OpStart(op,sea,tea);
 
   ot("  mov r10,#1\n");
   ot("\n");
@@ -123,7 +123,7 @@ int OpBtstImm(int op)
     EaWrite(11,   1,tea,size,0x003f);
   }
 
-  OpEnd();
+  OpEnd(sea,tea);
 
   return 0;
 }
@@ -206,7 +206,7 @@ int OpNeg(int op)
 
   EaWrite(10,     1,ea,size,0x003f);
 
-  OpEnd();
+  OpEnd(ea);
 
   return 0;
 }
@@ -263,7 +263,7 @@ int OpTst(int op)
   ot("  mrs r9,cpsr ;@ r9=flags\n");
   ot("\n");
 
-  OpEnd();
+  OpEnd(sea);
   return 0;
 }
 
@@ -342,7 +342,7 @@ int OpSet(int op)
   EaCalc (0,0x003f, ea,size);
   EaWrite(0,     1, ea,size,0x003f);
 
-  OpEnd();
+  OpEnd(ea);
   return 0;
 }
 
@@ -628,7 +628,7 @@ int OpAsrEa(int op)
 
   EaWrite(10,     0,ea,size,0x003f,1);
 
-  OpEnd();
+  OpEnd(ea);
   return 0;
 }
 
@@ -670,7 +670,7 @@ int OpTas(int op, int gen_special)
   }
 #endif
 
-  OpEnd();
+  OpEnd(ea);
 
 #if (CYCLONE_FOR_GENESIS == 2)
   if (!gen_special && ea >= 0x10) {

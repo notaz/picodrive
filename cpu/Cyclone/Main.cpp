@@ -3,12 +3,13 @@
 
 static FILE *AsmFile=NULL;
 
-static int CycloneVer=0x0086; // Version number of library
+static int CycloneVer=0x0087; // Version number of library
 int *CyJump=NULL; // Jump table
 int ms=USE_MS_SYNTAX; // If non-zero, output in Microsoft ARMASM format
 char *Narm[4]={ "b", "h","",""}; // Normal ARM Extensions for operand sizes 0,1,2
 char *Sarm[4]={"sb","sh","",""}; // Sign-extend ARM Extensions for operand sizes 0,1,2
 int Cycles; // Current cycles for opcode
+int pc_dirty; // something changed PC during processing
 
 
 void ot(const char *format, ...)
@@ -140,6 +141,15 @@ void CheckInterrupt(int op)
   ot("  blgt CycloneDoInterrupt\n");
   ot("NoInts%x%s\n", op,ms?"":":");
   ot("\n");
+}
+
+void FlushPC(void)
+{
+#if MEMHANDLERS_NEED_PC
+  if (pc_dirty)
+    ot("  str r4,[r7,#0x40] ;@ Save PC\n");
+#endif
+  pc_dirty = 0;
 }
 
 static void PrintFramework()
@@ -367,7 +377,6 @@ static void PrintFramework()
   ot("\n");
   
   ot("Exception%s\n", ms?"":":");
-  ot("\n");
   ot("  stmdb sp!,{lr} ;@ Preserve ARM return address\n");
   PrintException(0);
   ot("  ldmia sp!,{pc} ;@ Return\n");
@@ -377,7 +386,7 @@ static void PrintFramework()
 // ---------------------------------------------------------------------------
 // Call Read(r0), Write(r0,r1) or Fetch(r0)
 // Trashes r0-r3,r12,lr
-int MemHandler(int type,int size)
+int MemHandler(int type,int size,int addrreg)
 {
   int func=0;
   func=0x68+type*0xc+(size<<2); // Find correct offset
@@ -386,19 +395,26 @@ int MemHandler(int type,int size)
   ot("  mov r3,r9,lsr #28\n");
   ot("  strb r3,[r7,#0x46] ;@ Save Flags (NZCV)\n");
 #endif
+  FlushPC();
 
 #if (MEMHANDLERS_ADDR_MASK & 0xff000000)
-  ot("  bic r0,r0,#0x%08x\n", MEMHANDLERS_ADDR_MASK & 0xff000000);
+  ot("  bic r0,r%i,#0x%08x\n", addrreg, MEMHANDLERS_ADDR_MASK & 0xff000000);
+  addrreg=0;
 #endif
 #if (MEMHANDLERS_ADDR_MASK & 0x00ff0000)
-  ot("  bic r0,r0,#0x%08x\n", MEMHANDLERS_ADDR_MASK & 0x00ff0000);
+  ot("  bic r0,r%i,#0x%08x\n", addrreg, MEMHANDLERS_ADDR_MASK & 0x00ff0000);
+  addrreg=0;
 #endif
 #if (MEMHANDLERS_ADDR_MASK & 0x0000ff00)
-  ot("  bic r0,r0,#0x%08x\n", MEMHANDLERS_ADDR_MASK & 0x0000ff00);
+  ot("  bic r0,r%i,#0x%08x\n", addrreg, MEMHANDLERS_ADDR_MASK & 0x0000ff00);
+  addrreg=0;
 #endif
 #if (MEMHANDLERS_ADDR_MASK & 0x000000ff)
-  ot("  bic r0,r0,#0x%08x\n", MEMHANDLERS_ADDR_MASK & 0x000000ff);
+  ot("  bic r0,r%i,#0x%08x\n", addrreg, MEMHANDLERS_ADDR_MASK & 0x000000ff);
+  addrreg=0;
 #endif
+  if (addrreg != 0)
+    ot("  mov r0,r%i\n", addrreg);
   ot("  mov lr,pc\n");
   ot("  ldr pc,[r7,#0x%x] ;@ Call ",func);
 
@@ -411,9 +427,6 @@ int MemHandler(int type,int size)
   else         ot("%d(r0)",   8<<size);
   ot(" handler\n");
 
-#if MEMHANDLERS_CHANGE_CYCLES
-  ot("  ldr r5,[r7,#0x5c] ;@ Load Cycles\n");
-#endif
 #if MEMHANDLERS_CHANGE_FLAGS
   ot("  ldrb r9,[r7,#0x46] ;@ r9 = Load Flags (NZCV)\n");
   ot("  mov r9,r9,lsl #28\n");

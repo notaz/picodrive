@@ -181,7 +181,7 @@ int EaCalc(int a,int mask,int ea,int size,int top)
   if (ea<0x30) // ($nn,An) (di)
   {
     EaCalcReg(2,8,mask,0,0);
-    ot("  ldrsh r0,[r4],#2 ;@ Fetch offset\n");
+    ot("  ldrsh r0,[r4],#2 ;@ Fetch offset\n"); pc_dirty=1;
     ot("  ldr r2,[r7,r2,lsl #2]\n");
     ot("  add r%d,r0,r2 ;@ Add on offset\n",a);
     Cycles+=size<2 ? 8:12; // Extra cycles
@@ -191,7 +191,7 @@ int EaCalc(int a,int mask,int ea,int size,int top)
   if (ea<0x38) // ($nn,An,Rn) (ix)
   {
     ot(";@ Get extension word into r3:\n");
-    ot("  ldrh r3,[r4],#2 ;@ ($Disp,PC,Rn)\n");
+    ot("  ldrh r3,[r4],#2 ;@ ($Disp,PC,Rn)\n"); pc_dirty=1;
     ot("  mov r2,r3,lsr #10\n");
     ot("  tst r3,#0x0800 ;@ Is Rn Word or Long\n");
     ot("  and r2,r2,#0x3c ;@ r2=Index of Rn\n");
@@ -209,7 +209,7 @@ int EaCalc(int a,int mask,int ea,int size,int top)
 
   if (ea==0x38) // (aw)
   {
-    ot("  ldrsh r%d,[r4],#2 ;@ Fetch Absolute Short address\n",a);
+    ot("  ldrsh r%d,[r4],#2 ;@ Fetch Absolute Short address\n",a); pc_dirty=1;
     Cycles+=size<2 ? 8:12; // Extra cycles
     return 0;
   }
@@ -217,7 +217,7 @@ int EaCalc(int a,int mask,int ea,int size,int top)
   if (ea==0x39) // (al)
   {
     ot("  ldrh r2,[r4],#2 ;@ Fetch Absolute Long address\n");
-    ot("  ldrh r0,[r4],#2\n");
+    ot("  ldrh r0,[r4],#2\n"); pc_dirty=1;
     ot("  orr r%d,r0,r2,lsl #16\n",a);
     Cycles+=size<2 ? 12:16; // Extra cycles
     return 0;
@@ -227,7 +227,7 @@ int EaCalc(int a,int mask,int ea,int size,int top)
   {
     ot("  ldr r0,[r7,#0x60] ;@ Get Memory base\n");
     ot("  sub r0,r4,r0 ;@ Real PC\n");
-    ot("  ldrsh r2,[r4],#2 ;@ Fetch extension\n");
+    ot("  ldrsh r2,[r4],#2 ;@ Fetch extension\n"); pc_dirty=1;
     ot("  mov r0,r0,lsl #8\n");
     ot("  add r%d,r2,r0,asr #8 ;@ ($nn,PC)\n",a);
     Cycles+=size<2 ? 8:12; // Extra cycles
@@ -239,7 +239,7 @@ int EaCalc(int a,int mask,int ea,int size,int top)
     ot("  ldr r0,[r7,#0x60] ;@ Get Memory base\n");
     ot("  ldrh r3,[r4] ;@ Get extension word\n");
     ot("  sub r0,r4,r0 ;@ r0=PC\n");
-    ot("  add r4,r4,#2\n");
+    ot("  add r4,r4,#2\n"); pc_dirty=1;
     ot("  mov r0,r0,asl #8 ;@ use only 24bits of PC\n");
     ot("  mov r2,r3,lsr #10\n");
     ot("  tst r3,#0x0800 ;@ Is Rn Word or Long\n");
@@ -257,13 +257,13 @@ int EaCalc(int a,int mask,int ea,int size,int top)
   {
     if (size<2)
     {
-      ot("  ldr%s r%d,[r4],#2 ;@ Fetch immediate value\n",Sarm[size&3],a);
+      ot("  ldr%s r%d,[r4],#2 ;@ Fetch immediate value\n",Sarm[size&3],a); pc_dirty=1;
       Cycles+=4; // Extra cycles
       return 0;
     }
 
     ot("  ldrh r2,[r4],#2 ;@ Fetch immediate value\n");
-    ot("  ldrh r0,[r4],#2\n");
+    ot("  ldrh r0,[r4],#2\n"); pc_dirty=1;
     ot("  orr r%d,r0,r2,lsl #16\n",a);
     Cycles+=8; // Extra cycles
     return 0;
@@ -320,10 +320,8 @@ int EaRead(int a,int v,int ea,int size,int mask,int top)
     ot("\n"); return 0;
   }
 
-  if (a!=0) ot("  mov r0,r%d\n",a);
-
-  if (ea>=0x3a && ea<=0x3b) MemHandler(2,size); // Fetch
-  else                      MemHandler(0,size); // Read
+  if (ea>=0x3a && ea<=0x3b) MemHandler(2,size,a); // Fetch
+  else                      MemHandler(0,size,a); // Read
 
   if (v!=0 || shift) {
     if (shift) ot("  mov r%d,r0,asl #%d\n",v,shift);
@@ -388,11 +386,9 @@ int EaWrite(int a,int v,int ea,int size,int mask,int top)
 
   if (ea==0x3c) { ot("Error! Write EA=0x%x\n\n",ea); return 1; }
 
-  if (a!=0 && v!=0)  ot("  mov r0,r%d\n",a);
   if (v!=1 || shift) ot("  mov r1,r%d,asr #%d\n",v,shift);
-  if (a!=0 && v==0)  ot("  mov r0,r%d\n",a);
 
-  MemHandler(1,size); // Call write handler
+  MemHandler(1,size,a); // Call write handler
 
   ot("\n"); return 0;
 }
