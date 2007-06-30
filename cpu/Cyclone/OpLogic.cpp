@@ -36,15 +36,19 @@ int OpBtstReg(int op)
     if(size>=2) Cycles+=2;
   }
 
-  EaCalc (0,0x0e00,sea,0);
-  EaRead (0,     0,sea,0,0x0e00);
+  EaCalc (10,0x0e00,sea,0,0,0);
+  EaRead (10,    10,sea,0,0x0e00,0,0);
+
+  EaCalc ( 0,0x003f,tea,size,0,0);
+  if (type>0)
+    ot("  mov r11,r0\n");
+  EaRead ( 0,     0,tea,size,0x003f,0,0);
+
   if (tea>=0x10)
-       ot("  and r10,r0,#7  ;@ mem - do mod 8\n");
-  else ot("  and r10,r0,#31 ;@ reg - do mod 32\n");
+       ot("  and r10,r10,#7  ;@ mem - do mod 8\n");  // size always 0
+  else ot("  and r10,r10,#31 ;@ reg - do mod 32\n"); // size always 2
   ot("\n");
 
-  EaCalc(11,0x003f,tea,size);
-  EaRead(11,     0,tea,size,0x003f);
   ot("  mov r1,#1\n");
   ot("  tst r0,r1,lsl r10 ;@ Do arithmetic\n");
   ot("  bicne r9,r9,#0x40000000\n");
@@ -57,7 +61,7 @@ int OpBtstReg(int op)
     if (type==2) ot("  bic r1,r0,r1,lsl r10 ;@ Clear bit\n");
     if (type==3) ot("  orr r1,r0,r1,lsl r10 ;@ Set bit\n");
     ot("\n");
-    EaWrite(11,   1,tea,size,0x003f);
+    EaWrite(11,   1,tea,size,0x003f,0,0);
   }
   OpEnd(tea);
 
@@ -90,14 +94,14 @@ int OpBtstImm(int op)
 
   OpStart(op,sea,tea);
 
-  ot("  mov r10,#1\n");
   ot("\n");
-  EaCalc ( 0,0x0000,sea,0);
-  EaRead ( 0,     0,sea,0,0);
+  EaCalc ( 0,0x0000,sea,0,0,0);
+  EaRead ( 0,     0,sea,0,0,0,0);
+  ot("  mov r10,#1\n");
   ot("  bic r9,r9,#0x40000000 ;@ Blank Z flag\n");
   if (tea>=0x10)
-       ot("  and r0,r0,#7 ;@ mem - do mod 8\n");
-  else ot("  and r0,r0,#0x1F ;@ reg - do mod 32\n");
+       ot("  and r0,r0,#7    ;@ mem - do mod 8\n");  // size always 0
+  else ot("  and r0,r0,#0x1F ;@ reg - do mod 32\n"); // size always 2
   ot("  mov r10,r10,lsl r0 ;@ Make bit mask\n");
   ot("\n");
 
@@ -108,8 +112,8 @@ int OpBtstImm(int op)
     if(size>=2) Cycles+=2;
   }
 
-  EaCalc (11,0x003f,tea,size);
-  EaRead (11,     0,tea,size,0x003f);
+  EaCalc (11,0x003f,tea,size,0,0);
+  EaRead (11,     0,tea,size,0x003f,0,0);
   ot("  tst r0,r10 ;@ Do arithmetic\n");
   ot("  orreq r9,r9,#0x40000000 ;@ Get Z flag\n");
   ot("\n");
@@ -120,7 +124,7 @@ int OpBtstImm(int op)
     if (type==2) ot("  bic r1,r0,r10 ;@ Clear bit\n");
     if (type==3) ot("  orr r1,r0,r10 ;@ Set bit\n");
     ot("\n");
-    EaWrite(11,   1,tea,size,0x003f);
+    EaWrite(11,   1,tea,size,0x003f,0,0);
   }
 
   OpEnd(sea,tea);
@@ -156,16 +160,16 @@ int OpNeg(int op)
 #endif
   }
 
-  EaCalc (10,0x003f,ea,size);
+  EaCalc (10,0x003f,ea,size,0,0);
 
-  if (type!=1) EaRead (10,0,ea,size,0x003f); // Don't need to read for 'clr'
+  if (type!=1) EaRead (10,0,ea,size,0x003f,0,0); // Don't need to read for 'clr' (or do we, for dummy read?)
   if (type==1) ot("\n");
 
   if (type==0)
   {
     ot(";@ Negx:\n");
     GetXBit(1);
-    if(size!=2) ot("  mov r0,r0,lsl #%i\n",size?16:24);
+    if(size!=2) ot("  mov r0,r0,asl #%i\n",size?16:24);
     ot("  rscs r1,r0,#0 ;@ do arithmetic\n");
     ot("  orr r3,r9,#0xb0000000 ;@ for old Z\n");
     OpGetFlags(1,1,0);
@@ -188,7 +192,7 @@ int OpNeg(int op)
   if (type==2)
   {
     ot(";@ Neg:\n");
-    if(size!=2) ot("  mov r0,r0,lsl #%i\n",size?16:24);
+    if(size!=2) ot("  mov r0,r0,asl #%i\n",size?16:24);
     ot("  rsbs r1,r0,#0\n");
     OpGetFlags(1,1);
     if(size!=2) ot("  mov r1,r1,asr #%i\n",size?16:24);
@@ -198,13 +202,18 @@ int OpNeg(int op)
   if (type==3)
   {
     ot(";@ Not:\n");
-    ot("  mvn r1,r0\n");
+    if(size!=2) {
+      ot("  mov r0,r0,asl #%i\n",size?16:24);
+      ot("  mvn r1,r0,asr #%i\n",size?16:24);
+    }
+    else
+      ot("  mvn r1,r0\n");
     ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
     OpGetFlags(0,0);
     ot("\n");
   }
 
-  EaWrite(10,     1,ea,size,0x003f);
+  EaWrite(10,     1,ea,size,0x003f,0,0);
 
   OpEnd(ea);
 
@@ -284,8 +293,8 @@ int OpExt(int op)
 
   OpStart(op); Cycles=4;
 
-  EaCalc (10,0x0007,ea,size+1);
-  EaRead (10,     0,ea,size+1,0x0007);
+  EaCalc (10,0x0007,ea,size+1,0,0);
+  EaRead (10,     0,ea,size+1,0x0007,0,0);
 
   ot("  mov r0,r0,asl #%d\n",shift);
   ot("  adds r0,r0,#0 ;@ Defines NZ, clears CV\n");
@@ -293,7 +302,7 @@ int OpExt(int op)
   ot("  mov r1,r0,asr #%d\n",shift);
   ot("\n");
 
-  EaWrite(10,     1,ea,size+1,0x0007);
+  EaWrite(10,     1,ea,size+1,0x0007,0,0);
 
   OpEnd();
   return 0;
@@ -325,22 +334,39 @@ int OpSet(int op)
   OpStart(op,ea); Cycles=8;
   if (ea<8) Cycles=4;
 
-  ot("  mov r1,#0\n");
+  if (cc)
+    ot("  mov r1,#0\n");
 
-  if (cc!=1)
+  switch (cc)
   {
-    ot(";@ Is the condition true?\n");
-    if ((cc&~1)==2) ot("  eor r9,r9,#0x20000000 ;@ Invert carry for hi/ls\n");
-    ot("  msr cpsr_flg,r9 ;@ ARM flags = 68000 flags\n");
-    if ((cc&~1)==2) ot("  eor r9,r9,#0x20000000 ;@ Invert carry for hi/ls\n");
-    ot("  mvn%s r1,r1\n",cond[cc]);
+    case 0: // T
+      ot("  mvn r1,#0\n");
+      if (ea<8) Cycles+=2;
+      break;
+    case 1: // F
+      break;
+    case 2: // hi
+      ot("  ands r0,r9,#0x60000000 ;@ hi: !C && !Z\n");
+      ot("  mvneq r1,r1\n");
+      if (ea<8) ot("  subeq r5,r5,#2 ;@ Extra cycles\n");
+      break;
+    case 3: // ls
+      ot("  tst r9,#0x60000000 ;@ ls: C || Z\n");
+      ot("  mvnne r1,r1\n");
+      if (ea<8) ot("  subne r5,r5,#2 ;@ Extra cycles\n");
+      break;
+    default:
+      ot(";@ Is the condition true?\n");
+      ot("  msr cpsr_flg,r9 ;@ ARM flags = 68000 flags\n");
+      ot("  mvn%s r1,r1\n",cond[cc]);
+      if (ea<8) ot("  sub%s r5,r5,#2 ;@ Extra cycles\n",cond[cc]);
+      break;
   }
 
-  if (cc!=1 && ea<8) ot("  sub%s r5,r5,#2 ;@ Extra cycles\n",cond[cc]);
   ot("\n");
 
-  EaCalc (0,0x003f, ea,size);
-  EaWrite(0,     1, ea,size,0x003f);
+  EaCalc (0,0x003f, ea,size,0,0);
+  EaWrite(0,     1, ea,size,0x003f,0,0);
 
   OpEnd(ea);
   return 0;

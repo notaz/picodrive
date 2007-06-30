@@ -123,7 +123,7 @@ static int EaCalcReg(int r,int ea,int mask,int forceor,int shift,int noshift=0)
 // EaCalc - ARM Register 'a' = Effective Address
 // Trashes r0,r2 and r3
 // size values 0, 1, 2 ~ byte, word, long
-int EaCalc(int a,int mask,int ea,int size,int top)
+int EaCalc(int a,int mask,int ea,int size,int top,int sign_extend)
 {
   char text[32]="";
   int func=0;
@@ -134,7 +134,7 @@ int EaCalc(int a,int mask,int ea,int size,int top)
   if (ea<0x10)
   {
     int noshift=0;
-    if (size>=2||(size==0&&top)) noshift=1; // Saves one opcode
+    if (size>=2||(size==0&&(top||!sign_extend))) noshift=1; // Saves one opcode
 
     ot(";@ EaCalc : Get register index into r%d:\n",a);
 
@@ -180,8 +180,8 @@ int EaCalc(int a,int mask,int ea,int size,int top)
 
   if (ea<0x30) // ($nn,An) (di)
   {
-    EaCalcReg(2,8,mask,0,0);
     ot("  ldrsh r0,[r4],#2 ;@ Fetch offset\n"); pc_dirty=1;
+    EaCalcReg(2,8,mask,0,0);
     ot("  ldr r2,[r7,r2,lsl #2]\n");
     ot("  add r%d,r0,r2 ;@ Add on offset\n",a);
     Cycles+=size<2 ? 8:12; // Extra cycles
@@ -277,9 +277,10 @@ int EaCalc(int a,int mask,int ea,int size,int top)
 // 'a' and 'v' can be anything but 0 is generally best (for both)
 // If (ea<0x10) nothing is trashed, else r0-r3 is trashed
 // If 'top' is given, the ARM register v shifted to the top, e.g. 0xc000 -> 0xc0000000
-// Otherwise the ARM register v is sign extended, e.g. 0xc000 -> 0xffffc000
+// If top is 0 and sign_extend is not, then ARM register v is sign extended,
+// e.g. 0xc000 -> 0xffffc000 (else it may or may not be sign extended)
 
-int EaRead(int a,int v,int ea,int size,int mask,int top)
+int EaRead(int a,int v,int ea,int size,int mask,int top,int sign_extend)
 {
   char text[32]="";
   int shift=0;
@@ -291,7 +292,7 @@ int EaRead(int a,int v,int ea,int size,int mask,int top)
   if (ea<0x10)
   {
     int lsl=0,low=0,i;
-    if (size>=2||(size==0&&top)) {
+    if (size>=2||(size==0&&(top||!sign_extend))) {
       if(mask)
         for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
       lsl=2-low; // Having a lsl #2 here saves one opcode
@@ -316,18 +317,35 @@ int EaRead(int a,int v,int ea,int size,int mask,int top)
 
     if (top) asl=shift;
 
-    if (v!=a || asl) ot("  mov r%d,r%d,asl #%d\n",v,a,asl);
+    if (asl) ot("  mov r%d,r%d,asl #%d\n",v,a,asl);
+    else if (v!=a) ot("  mov r%d,r%d\n",v,a);
     ot("\n"); return 0;
   }
 
   if (ea>=0x3a && ea<=0x3b) MemHandler(2,size,a); // Fetch
   else                      MemHandler(0,size,a); // Read
 
-  if (v!=0 || shift) {
-    if (shift) ot("  mov r%d,r0,asl #%d\n",v,shift);
-    else       ot("  mov r%d,r0\n",v);
+  if (sign_extend)
+  {
+    int d_reg=0;
+    if (shift) {
+      ot("  mov r%d,r%d,asl #%d\n",v,d_reg,shift);
+      d_reg=v;
+    }
+    if (!top && shift) {
+      ot("  mov r%d,r%d,asr #%d\n",v,d_reg,shift);
+      d_reg=v;
+    }
+    if (d_reg != v)
+      ot("  mov r%d,r%d\n",v,d_reg);
   }
-  if (top==0 && shift) ot("  mov r%d,r%d,asr #%d\n",v,v,shift);
+  else
+  {
+    if (top && shift)
+      ot("  mov r%d,r0,asl #%d\n",v,shift);
+    else if (v!=0)
+      ot("  mov r%d,r0\n",v);
+  }
 
   ot("\n"); return 0;
 }
@@ -352,7 +370,7 @@ int EaCanRead(int ea,int size)
 // Write effective address (ARM Register 'a') with ARM register 'v'
 // Trashes r0-r3,r12,lr; 'a' can be 0 or 2+, 'v' can be 1 or higher
 // If a==0 and v==1 it's faster though.
-int EaWrite(int a,int v,int ea,int size,int mask,int top)
+int EaWrite(int a,int v,int ea,int size,int mask,int top,int sign_extend_ea)
 {
   char text[32]="";
   int shift=0;
@@ -366,7 +384,7 @@ int EaWrite(int a,int v,int ea,int size,int mask,int top)
   if (ea<0x10)
   {
     int lsl=0,low=0,i;
-    if (size>=2||(size==0&&top)) {
+    if (size>=2||(size==0&&(top||!sign_extend_ea))) {
       if(mask)
         for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
       lsl=2-low; // Having a lsl #x here saves one opcode
@@ -386,7 +404,8 @@ int EaWrite(int a,int v,int ea,int size,int mask,int top)
 
   if (ea==0x3c) { ot("Error! Write EA=0x%x\n\n",ea); return 1; }
 
-  if (v!=1 || shift) ot("  mov r1,r%d,asr #%d\n",v,shift);
+  if (shift)     ot("  mov r1,r%d,asr #%d\n",v,shift);
+  else if (v!=1) ot("  mov r1,r%d\n",v);
 
   MemHandler(1,size,a); // Call write handler
 

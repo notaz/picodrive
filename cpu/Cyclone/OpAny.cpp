@@ -33,8 +33,7 @@ void OpStart(int op, int sea, int tea)
 #if (MEMHANDLERS_NEED_PREV_PC || MEMHANDLERS_NEED_CYCLES)
   if ((sea >= 0x10 && sea != 0x3c) || (tea >= 0x10 && tea != 0x3c)) {
 #if MEMHANDLERS_NEED_PREV_PC
-    ot("  sub r0,r4,#2\n");
-    ot("  str r0,[r7,#0x50] ;@ Save prev PC\n");
+    ot("  str r4,[r7,#0x50] ;@ Save prev PC + 2\n");
 #endif
 #if MEMHANDLERS_NEED_CYCLES
     ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");

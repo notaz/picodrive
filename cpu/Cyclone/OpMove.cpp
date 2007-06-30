@@ -130,19 +130,19 @@ int OpMove(int op)
 
   if (movea) size=2; // movea always expands to 32-bits
 
-  EaCalc (0,0x0e00,tea,size);
+  EaCalc (0,0x0e00,tea,size,0,0);
 #if SPLIT_MOVEL_PD
   if ((tea&0x38)==0x20 && size==2) { // -(An)
     ot("  mov r10,r0\n");
     ot("  mov r11,r1\n");
     ot("  add r0,r0,#2\n");
-    EaWrite(0,     1,tea,1,0x0e00);
+    EaWrite(0,     1,tea,1,0x0e00,0,0);
     EaWrite(10,   11,tea,1,0x0e00,1);
   } else {
-    EaWrite(0,     1,tea,size,0x0e00);
+    EaWrite(0,     1,tea,size,0x0e00,0,0);
   }
 #else
-  EaWrite(0,     1,tea,size,0x0e00);
+  EaWrite(0,     1,tea,size,0x0e00,0,0);
 #endif
 
 #if CYCLONE_FOR_GENESIS && !MEMHANDLERS_CHANGE_CYCLES
@@ -224,14 +224,14 @@ int OpMoveSr(int op)
   if (type==0 || type==1)
   {
     OpFlagsToReg(type==0);
-    EaCalc (0,0x003f,ea,size);
-    EaWrite(0,     1,ea,size,0x003f);
+    EaCalc (0,0x003f,ea,size,0,0);
+    EaWrite(0,     1,ea,size,0x003f,0,0);
   }
 
   if (type==2 || type==3)
   {
-    EaCalc(0,0x003f,ea,size);
-    EaRead(0,     0,ea,size,0x003f);
+    EaCalc(0,0x003f,ea,size,0,0);
+    EaRead(0,     0,ea,size,0x003f,0,0);
     OpRegToFlags(type==3);
     if (type==3) {
       SuperChange(op);
@@ -264,8 +264,8 @@ int OpArithSr(int op)
 
   if (size) SuperCheck(op);
 
-  EaCalc(0,0x003f,ea,size);
-  EaRead(0,    10,ea,size,0x003f);
+  EaCalc(10,0x003f,ea,size);
+  EaRead(10,    10,ea,size,0x003f);
 
   OpFlagsToReg(size);
   if (type==0) ot("  orr r0,r1,r10\n");
@@ -341,57 +341,58 @@ int OpMovem(int op)
 
   OpStart(op,ea);
 
-  ot("  stmdb sp!,{r9} ;@ Push r9\n"); // can't just use r12 or lr here, because memhandlers touch them
   ot("  ldrh r11,[r4],#2 ;@ r11=register mask\n");
 
-  ot("\n");
-  ot(";@ Get the address into r9:\n");
-  EaCalc(9,0x003f,cea,size);
-
   ot(";@ r10=Register Index*4:\n");
-  if (decr) ot("  mov r10,#0x3c ;@ order reversed for -(An)\n");
-  else      ot("  mov r10,#0\n");
+  if (decr) ot("  mov r10,#0x40 ;@ order reversed for -(An)\n");
+  else      ot("  mov r10,#-4\n");
   
   ot("\n");
-  ot("MoreReg%.4x%s\n",op, ms?"":":");
+  ot(";@ Get the address into r6:\n");
+  EaCalc(6,0x003f,cea,size);
 
-  ot("  tst r11,#1\n");
-  ot("  beq SkipReg%.4x\n",op);
+  ot("\n");
+  ot("  tst r11,r11\n");        // sanity check
+  ot("  beq NoRegs%.4x\n",op);
+
+  ot("\n");
+  ot("Movemloop%.4x%s\n",op, ms?"":":");
+  ot("  add r10,r10,#%d ;@ r10=Next Register\n",decr?-4:4);
+  ot("  movs r11,r11,lsr #1\n");
+  ot("  bcc Movemloop%.4x\n",op);
   ot("\n");
 
-  if (decr) ot("  sub r9,r9,#%d ;@ Pre-decrement address\n",1<<size);
+  if (decr) ot("  sub r6,r6,#%d ;@ Pre-decrement address\n",1<<size);
 
   if (dir)
   {
     ot("  ;@ Copy memory to register:\n",1<<size);
-    EaRead (9,0,ea,size,0x003f);
+    EaRead (6,0,ea,size,0x003f);
     ot("  str r0,[r7,r10] ;@ Save value into Dn/An\n");
   }
   else
   {
     ot("  ;@ Copy register to memory:\n",1<<size);
     ot("  ldr r1,[r7,r10] ;@ Load value from Dn/An\n");
-    EaWrite(9,1,ea,size,0x003f);
+    EaWrite(6,1,ea,size,0x003f);
   }
 
-  if (decr==0) ot("  add r9,r9,#%d ;@ Post-increment address\n",1<<size);
+  if (decr==0) ot("  add r6,r6,#%d ;@ Post-increment address\n",1<<size);
 
   ot("  sub r5,r5,#%d ;@ Take some cycles\n",2<<size);
-  ot("\n");
-  ot("SkipReg%.4x%s\n",op, ms?"":":");
-  ot("  movs r11,r11,lsr #1;@ Shift mask:\n");
-  ot("  add r10,r10,#%d ;@ r10=Next Register\n",decr?-4:4);
-  ot("  bne MoreReg%.4x\n",op);
+  ot("  tst r11,r11\n");
+  ot("  bne Movemloop%.4x\n",op);
   ot("\n");
 
   if (change)
   {
     ot(";@ Write back address:\n");
     EaCalc (0,0x0007,8|(ea&7),2);
-    EaWrite(0,     9,8|(ea&7),2,0x0007);
+    EaWrite(0,     6,8|(ea&7),2,0x0007);
   }
 
-  ot("  ldmia sp!,{r9} ;@ Pop r9\n");
+  ot("NoRegs%.4x%s\n",op, ms?"":":");
+  ot("  ldr r6,=CycloneJumpTab ;@ restore Opcode Jump table\n");
   ot("\n");
 
   if(dir) { // er
@@ -405,6 +406,8 @@ int OpMovem(int op)
   Cycles+=Ea_add_ns(g_movem_cycle_table,ea);
 
   OpEnd(ea);
+  ot("\n");
+  ltorg();
 
   return 0;
 }

@@ -45,7 +45,7 @@
  * MEMHANDLERS_NEED_PC updates .pc context field with PC value effective at the time
  * when memhandler was called (opcode address + unknown amount).
  * MEMHANDLERS_NEED_PREV_PC updates .prev_pc context field to currently executed
- * opcode address.
+ * opcode address + 2.
  * Note that .pc and .prev_pc values are always real pointers to memory, so you must
  * subtract .membase to get M68k PC value.
  * Warning: updating PC in memhandlers is dangerous, as Cyclone may internally

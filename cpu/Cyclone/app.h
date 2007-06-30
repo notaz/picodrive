@@ -16,10 +16,10 @@ extern int g_lea_cycle_table[];
 extern int g_pea_cycle_table[];
 extern int g_movem_cycle_table[];
 int Ea_add_ns(int *tab, int ea); // add nonstandard EA cycles
-int EaCalc(int a,int mask,int ea,int size,int top=0);
-int EaRead(int a,int v,int ea,int size,int mask,int top=0);
+int EaCalc(int a,int mask,int ea,int size,int top=0,int sign_extend=1); // 6
+int EaRead(int a,int v,int ea,int size,int mask,int top=0,int sign_extend=1); // 7
 int EaCanRead(int ea,int size);
-int EaWrite(int a,int v,int ea,int size,int mask,int top=0);
+int EaWrite(int a,int v,int ea,int size,int mask,int top=0,int sign_extend_ea=1);
 int EaCanWrite(int ea);
 int EaAn(int ea);
 

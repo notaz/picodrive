@@ -10,6 +10,7 @@ char *Narm[4]={ "b", "h","",""}; // Normal ARM Extensions for operand sizes 0,1,
 char *Sarm[4]={"sb","sh","",""}; // Sign-extend ARM Extensions for operand sizes 0,1,2
 int Cycles; // Current cycles for opcode
 int pc_dirty; // something changed PC during processing
+static int arm_op_count;
 
 
 void ot(const char *format, ...)
@@ -21,6 +22,9 @@ void ot(const char *format, ...)
   // and generating bad code
   for(i=0, len=strlen(format); i < len && format[i] != '\n'; i++);
   if(i < len-1 && format[len-1] != '\n') printf("\nWARNING: possible improper newline placement:\n%s\n", format);
+
+  if (format[0] == ' ' && format[1] == ' ' && format[2] != ' ' && format[2] != '.')
+    arm_op_count++;
 
   va_start(valist,format);
   if (AsmFile) vfprintf(AsmFile,format,valist);
@@ -441,7 +445,7 @@ int MemHandler(int type,int size,int addrreg)
 static void PrintOpcodes()
 {
   int op=0;
- 
+
   printf("Creating Opcodes: [");
 
   ot(";@ ---------------------------- Opcodes ---------------------------\n");
@@ -713,7 +717,9 @@ static int CycloneMake()
   ot("\n");
 
   PrintFramework();
+  arm_op_count = 0;
   PrintOpcodes();
+  printf("~%i ARM instructions used for opcode handlers\n", arm_op_count);
   PrintJumpTable();
 
   if (ms) ot("  END\n");

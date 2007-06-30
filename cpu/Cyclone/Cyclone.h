@@ -24,7 +24,7 @@ struct Cyclone
   unsigned char irq;   // [r7,#0x47] IRQ level
   unsigned int osp;    // [r7,#0x48] Other Stack Pointer (USP/SSP)
   unsigned int vector; // [r7,#0x4c] IRQ vector (temporary)
-  unsigned int prev_pc;// [r7,#0x50] set to start address of currently executed opcode (if enabled in config.h)
+  unsigned int prev_pc;// [r7,#0x50] set to start address of currently executed opcode + 2 (if enabled in config.h)
   unsigned int unused; // [r7,#0x54] Unused
   int stopped;         // [r7,#0x58] 1 == processor is in stopped state
   int cycles;          // [r7,#0x5c]

@@ -8,6 +8,7 @@ int OpArith(int op)
   int type=0,size=0;
   int sea=0,tea=0;
   int use=0;
+  char *shiftstr="";
 
   // Get source and target EA
   type=(op>>9)&7; if (type==4 || type>=7) return 1;
@@ -26,17 +27,20 @@ int OpArith(int op)
 
   EaCalc(10,0x0000, sea,size,1);
   EaCalc(11,0x003f, tea,size,1);
-  EaRead(10,    10, sea,size,0,1);
+  EaRead(10,    10, sea,size,0,0,0);
   EaRead(11,     0, tea,size,0x003f,1);
+
+  if (size==0) shiftstr=",asl #24";
+  else if (size==1) shiftstr=",asl #16";
 
   ot(";@ Do arithmetic:\n");
 
-  if (type==0) ot("  orr r1,r0,r10\n");
-  if (type==1) ot("  and r1,r0,r10\n");
-  if (type==2) ot("  subs r1,r0,r10 ;@ Defines NZCV\n");
-  if (type==3) ot("  adds r1,r0,r10 ;@ Defines NZCV\n");
-  if (type==5) ot("  eor r1,r0,r10\n");
-  if (type==6) ot("  cmp r0,r10 ;@ Defines NZCV\n");
+  if (type==0) ot("  orr r1,r0,r10%s\n",shiftstr);
+  if (type==1) ot("  and r1,r0,r10%s\n",shiftstr);
+  if (type==2) ot("  subs r1,r0,r10%s ;@ Defines NZCV\n",shiftstr);
+  if (type==3) ot("  adds r1,r0,r10%s ;@ Defines NZCV\n",shiftstr);
+  if (type==5) ot("  eor r1,r0,r10%s\n",shiftstr);
+  if (type==6) ot("  cmp r0,r10%s ;@ Defines NZCV\n",shiftstr);
 
   if (type<2 || type==5) ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n"); // 0,1,5
 
@@ -523,19 +527,20 @@ int OpAritha(int op)
   if(type==1) Cycles=6;
 
   
+  // must calculate reg EA first, because of situations like: suba.w (A0)+, A0
+  EaCalc (10,0x0e00, dea,2,1);
+  EaRead (10,    11, dea,2,0x0e00);
+
   EaCalc ( 0,0x003f, sea,size);
-  EaRead ( 0,    10, sea,size,0x003f);
+  EaRead ( 0,     0, sea,size,0x003f);
 
-  EaCalc ( 0,0x0e00, dea,2,1);
-  EaRead ( 0,     1, dea,2,0x0e00);
-
-  if (type==0) ot("  sub r1,r1,r10\n");
-  if (type==1) ot("  cmp r1,r10 ;@ Defines NZCV\n");
+  if (type==0) ot("  sub r11,r11,r0\n");
+  if (type==1) ot("  cmp r11,r0 ;@ Defines NZCV\n");
   if (type==1) OpGetFlags(1,0); // Get Cmp flags
-  if (type==2) ot("  add r1,r1,r10\n");
+  if (type==2) ot("  add r11,r11,r0\n");
   ot("\n");
   
-  if (type!=1) EaWrite( 0,     1, dea,2,0x0e00,1);
+  if (type!=1) EaWrite(10,    11, dea,2,0x0e00,1);
 
   OpEnd(sea);
 
