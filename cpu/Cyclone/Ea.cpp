@@ -284,27 +284,29 @@ int EaRead(int a,int v,int ea,int size,int mask,int top,int sign_extend)
 {
   char text[32]="";
   int shift=0;
-  
+ 
   shift=32-(8<<size);
 
   DisaPc=2; DisaGetEa(text,ea,size); // Get text version of the effective address
 
   if (ea<0x10)
   {
-    int lsl=0,low=0,i;
+    int lsl=0,low=0,nsarm=size&3,i;
     if (size>=2||(size==0&&(top||!sign_extend))) {
       if(mask)
         for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
       lsl=2-low; // Having a lsl #2 here saves one opcode
     }
 
+    if (top) nsarm=3;
+
     ot(";@ EaRead : Read register[r%d] into r%d:\n",a,v);
 
-    if      (lsl>0) ot("  ldr%s r%d,[r7,r%d,lsl #%i]\n",Narm[size&3],v,a,lsl);
-    else if (lsl<0) ot("  ldr%s r%d,[r7,r%d,lsr #%i]\n",Narm[size&3],v,a,-lsl);
-    else            ot("  ldr%s r%d,[r7,r%d]\n",Sarm[size&3],v,a);
+    if      (lsl>0) ot("  ldr%s r%d,[r7,r%d,lsl #%i]\n",Narm[nsarm],v,a,lsl);
+    else if (lsl<0) ot("  ldr%s r%d,[r7,r%d,lsr #%i]\n",Narm[nsarm],v,a,-lsl);
+    else            ot("  ldr%s r%d,[r7,r%d]\n",Sarm[nsarm],v,a);
 
-    if (top && shift) ot("  mov r%d,r%d,asl #%d\n",v,v,shift);
+    if (top&&shift) ot("  mov r%d,r%d,asl #%d\n",v,v,shift);
 
     ot("\n"); return 0;
   }

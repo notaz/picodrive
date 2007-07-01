@@ -406,8 +406,8 @@ int OpMovem(int op)
   Cycles+=Ea_add_ns(g_movem_cycle_table,ea);
 
   OpEnd(ea);
-  ot("\n");
   ltorg();
+  ot("\n");
 
   return 0;
 }

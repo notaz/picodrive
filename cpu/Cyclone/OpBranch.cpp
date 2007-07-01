@@ -287,50 +287,60 @@ int OpDbra(int op)
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
   OpStart(op);
 
-  if (cc>=2)
+  switch (cc)
   {
-    ot(";@ Is the condition true?\n");
-    if ((cc&~1)==2) ot("  eor r9,r9,#0x20000000 ;@ Invert carry for hi/ls\n");
-    ot("  msr cpsr_flg,r9 ;@ ARM flags = 68000 flags\n");
-    if ((cc&~1)==2) ot("  eor r9,r9,#0x20000000\n");
-    ot(";@ If so, don't dbra\n");
-    ot("  b%s DbraTrue%.4x\n",Cond[cc],op);
-    ot("\n");
+    case 0: // T
+    case 1: // F
+      break;
+    case 2: // hi
+      ot("  tst r9,#0x60000000 ;@ hi: !C && !Z\n");
+      ot("  beq DbraTrue%.4x\n\n",op);
+      break;
+    case 3: // ls
+      ot("  tst r9,#0x60000000 ;@ ls: C || Z\n");
+      ot("  bne DbraTrue%.4x\n\n",op);
+      break;
+    default:
+      ot(";@ Is the condition true?\n");
+      ot("  msr cpsr_flg,r9 ;@ ARM flags = 68000 flags\n");
+      ot(";@ If so, don't dbra\n");
+      ot("  b%s DbraTrue%.4x\n\n",Cond[cc],op);
+      break;
   }
 
-  ot(";@ Decrement Dn.w\n");
-  ot("  and r1,r8,#0x0007\n");
-  ot("  mov r1,r1,lsl #2\n");
-  ot("  ldrsh r0,[r7,r1]\n");
-  ot("  sub r0,r0,#1\n");
-  ot("  strh r0,[r7,r1]\n");
-  ot("\n");
+  if (cc!=0)
+  {
+    ot(";@ Decrement Dn.w\n");
+    ot("  and r1,r8,#0x0007\n");
+    ot("  mov r1,r1,lsl #2\n");
+    ot("  ldrsh r0,[r7,r1]\n");
+    ot("  sub r0,r0,#1\n");
+    ot("  strh r0,[r7,r1]\n");
+    ot("\n");
 
-  ot(";@ Check if Dn.w is -1\n");
-  ot("  cmps r0,#-1\n");
-  ot("  beq DbraMin1%.4x\n",op);
-  ot("\n");
+    ot(";@ Check if Dn.w is -1\n");
+    ot("  cmn r0,#1\n");
+    ot("\n");
 
-  ot(";@ Get Branch offset:\n");
-  ot("  ldrsh r0,[r4]\n");
-  ot("  add r4,r4,r0 ;@ r4 = New PC\n");
-  ot("\n");
-  Cycles=12-2;
-  OpEnd();
+    ot(";@ Get Branch offset:\n");
+    ot("  ldrnesh r0,[r4]\n");
+    ot("  addeq r4,r4,#2 ;@ Skip branch offset\n");
+    ot("  subeq r5,r5,#4 ;@ additional cycles\n");
+    ot("  addne r4,r4,r0 ;@ r4 = New PC\n");
+    ot("\n");
+    Cycles=12-2;
+    OpEnd();
+  }
   
-  ot(";@ Dn.w is -1:\n");
-  ot("DbraMin1%.4x%s\n", op, ms?"":":");
-  ot("  add r4,r4,#2 ;@ Skip branch offset\n");
-  ot("\n");
-  Cycles=12+2;
-  OpEnd();
-
-  ot(";@ condition true:\n");
-  ot("DbraTrue%.4x%s\n", op, ms?"":":");
-  ot("  add r4,r4,#2 ;@ Skip branch offset\n");
-  ot("\n");
-  Cycles=12;
-  OpEnd();
+  if (cc==0||cc>=2)
+  {
+    ot(";@ condition true:\n");
+    ot("DbraTrue%.4x%s\n", op, ms?"":":");
+    ot("  add r4,r4,#2 ;@ Skip branch offset\n");
+    ot("\n");
+    Cycles=12;
+    OpEnd();
+  }
 
   return 0;
 }

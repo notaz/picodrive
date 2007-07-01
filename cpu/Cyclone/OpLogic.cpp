@@ -346,7 +346,7 @@ int OpSet(int op)
     case 1: // F
       break;
     case 2: // hi
-      ot("  ands r0,r9,#0x60000000 ;@ hi: !C && !Z\n");
+      ot("  tst r9,#0x60000000 ;@ hi: !C && !Z\n");
       ot("  mvneq r1,r1\n");
       if (ea<8) ot("  subeq r5,r5,#2 ;@ Extra cycles\n");
       break;

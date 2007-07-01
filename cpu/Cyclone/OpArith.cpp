@@ -113,15 +113,17 @@ int OpAddq(int op)
   {
     int lsr=9-shift;
 
-    if (lsr>=0) ot("  mov r2,r8,lsr #%d ;@ Get quick value\n", lsr);
-    else        ot("  mov r2,r8,lsl #%d ;@ Get quick value\n",-lsr);
+    ot("  and r2,r8,#0x0e00 ;@ Get quick value\n");
 
-    ot("  and r2,r2,#0x%.4x\n",7<<shift);
+    if (lsr>=0) sprintf(count,"r2,lsr #%d",  lsr);
+    else        sprintf(count,"r2,lsl #%d", -lsr);
+
     ot("\n");
-    strcpy(count,"r2");
   }
-
-  if (num==8) sprintf(count,"#0x%.4x",8<<shift);
+  else
+  {
+    sprintf(count,"#0x%.4x",8<<shift);
+  }
 
   if (type==0) ot("  adds r1,r0,%s\n",count);
   if (type==1) ot("  subs r1,r0,%s\n",count);
