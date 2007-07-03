@@ -277,6 +277,7 @@ static void PrintFramework()
     ot("  bx lr\n");
     ot("\n");
 #endif
+  // 68k: XNZVC, ARM: NZCV
   if (ms) ot("CycloneSetSr\n");
   else    ot("CycloneSetSr:\n");
   ot("  mov r2,r1,lsr #8\n");
@@ -291,8 +292,8 @@ static void PrintFramework()
   ot("  str r3,[r0,#0x3C]\n");
   ot("  str r2,[r0,#0x48]\n");
   ot("setsr_noswap%s\n",ms?"":":");
-  ot("  mov r2,r1,lsr #3\n");
-  ot("  strb r2,[r0,#0x45] ;@ the X flag\n");
+  ot("  mov r2,r1,lsl #25\n");
+  ot("  str r2,[r0,#0x4c] ;@ the X flag\n");
   ot("  bic r2,r1,#0xf3\n");
   ot("  tst r1,#1\n");
   ot("  orrne r2,r2,#2\n");
@@ -310,8 +311,8 @@ static void PrintFramework()
   ot("  orrne r2,r2,#2\n");
   ot("  tst r1,#2\n");
   ot("  orrne r2,r2,#1\n");
-  ot("  ldrb r1,[r0,#0x45] ;@ the X flag\n");
-  ot("  tst r1,#2\n");
+  ot("  ldr r1,[r0,#0x4c] ;@ the X flag\n");
+  ot("  tst r1,#0x20000000\n");
   ot("  orrne r2,r2,#0x10\n");
   ot("  ldrb r1,[r0,#0x44] ;@ the SR high\n");
   ot("  orr r0,r2,r1,lsl #8\n");
@@ -418,8 +419,12 @@ int MemHandler(int type,int size,int addrreg)
   addrreg=0;
 #endif
   if (addrreg != 0)
+  {
+    ot("  add lr,pc,#4\n"); // helps to prevent interlocks
     ot("  mov r0,r%i\n", addrreg);
-  ot("  mov lr,pc\n");
+  }
+  else
+    ot("  mov lr,pc\n");
   ot("  ldr pc,[r7,#0x%x] ;@ Call ",func);
 
   // Document what we are calling:
@@ -473,6 +478,7 @@ static void PrintOpcodes()
   ot("  mov r0,#0x10\n");
   ot("  bl Exception\n");
 #endif
+  ot("\n");
   Cycles=34;
   OpEnd();
 
@@ -499,6 +505,7 @@ static void PrintOpcodes()
   ot("  mov r0,#0x28\n");
   ot("  bl Exception\n");
 #endif
+  ot("\n");
   Cycles=4;
   OpEnd();
 
@@ -524,6 +531,7 @@ static void PrintOpcodes()
   ot("  mov r0,#0x2c\n");
   ot("  bl Exception\n");
 #endif
+  ot("\n");
   Cycles=4;
   OpEnd();
 

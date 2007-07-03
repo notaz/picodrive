@@ -100,7 +100,7 @@ static int EaCalcReg(int r,int ea,int mask,int forceor,int shift,int noshift=0)
 
   if (ea>=8) needor=1; // Need to OR to access A0-7
 
-  if ((mask>>low)&8) if (ea&8) needor=0; // Ah - no we don't actually need to or, since the bit is high in r8
+  if (((mask&g_op)>>low)&8) needor=0; // Ah - no we don't actually need to or, since the bit is high in r8
 
   if (forceor) needor=1; // Special case for 0x30-0x38 EAs ;)
 
@@ -121,8 +121,9 @@ static int EaCalcReg(int r,int ea,int mask,int forceor,int shift,int noshift=0)
 }
 
 // EaCalc - ARM Register 'a' = Effective Address
-// Trashes r0,r2 and r3
+// If ea>=0x10, trashes r0,r2 and r3, else nothing
 // size values 0, 1, 2 ~ byte, word, long
+// mask shows usable bits in r8
 int EaCalc(int a,int mask,int ea,int size,int top,int sign_extend)
 {
   char text[32]="";
@@ -151,12 +152,19 @@ int EaCalc(int a,int mask,int ea,int size,int top,int sign_extend)
 
     if ((ea&7)==7 && step<2) step=2; // move.b (a7)+ or -(a7) steps by 2 not 1
 
-    EaCalcReg(2,ea,mask,0,0,1);
-    if(mask)
-      for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
-    lsl=2-low; // Having a lsl #x here saves one opcode
-    if      (lsl>=0) ot("  ldr r%d,[r7,r2,lsl #%i]\n",a,lsl);
-    else if (lsl<0)  ot("  ldr r%d,[r7,r2,lsr #%i]\n",a,-lsl);
+    if (ea==0x1f||ea==0x27) // A7 handlers are always separate
+    {
+      ot("  ldr r%d,[r7,#0x3c] ;@ A7\n",a);
+    }
+    else
+    {
+      EaCalcReg(2,ea,mask,0,0,1);
+      if(mask)
+        for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
+      lsl=2-low; // Having a lsl #x here saves one opcode
+      if      (lsl>=0) ot("  ldr r%d,[r7,r2,lsl #%i]\n",a,lsl);
+      else if (lsl<0)  ot("  ldr r%d,[r7,r2,lsr #%i]\n",a,-lsl);
+    }
 
     if ((ea&0x38)==0x18) // (An)+
     {
@@ -169,8 +177,15 @@ int EaCalc(int a,int mask,int ea,int size,int top,int sign_extend)
 
     if ((ea&0x38)==0x18||(ea&0x38)==0x20)
     {
-      if      (lsl>=0) ot("  str r%d,[r7,r2,lsl #%i]\n",strr,lsl);
-      else if (lsl<0)  ot("  str r%d,[r7,r2,lsr #%i]\n",strr,-lsl);
+      if (ea==0x1f||ea==0x27)
+      {
+        ot("  str r%d,[r7,#0x3c] ;@ A7\n",strr);
+      }
+      else
+      {
+        if      (lsl>=0) ot("  str r%d,[r7,r2,lsl #%i]\n",strr,lsl);
+        else if (lsl<0)  ot("  str r%d,[r7,r2,lsr #%i]\n",strr,-lsl);
+      }
     }
 
     if ((ea&0x38)==0x20) Cycles+=size<2 ? 6:10; // -(An) Extra cycles
@@ -263,8 +278,8 @@ int EaCalc(int a,int mask,int ea,int size,int top,int sign_extend)
     }
 
     ot("  ldrh r2,[r4],#2 ;@ Fetch immediate value\n");
-    ot("  ldrh r0,[r4],#2\n"); pc_dirty=1;
-    ot("  orr r%d,r0,r2,lsl #16\n",a);
+    ot("  ldrh r3,[r4],#2\n"); pc_dirty=1;
+    ot("  orr r%d,r3,r2,lsl #16\n",a);
     Cycles+=8; // Extra cycles
     return 0;
   }
@@ -298,7 +313,7 @@ int EaRead(int a,int v,int ea,int size,int mask,int top,int sign_extend)
       lsl=2-low; // Having a lsl #2 here saves one opcode
     }
 
-    if (top) nsarm=3;
+    if (top||!sign_extend) nsarm=3;
 
     ot(";@ EaRead : Read register[r%d] into r%d:\n",a,v);
 
@@ -350,6 +365,43 @@ int EaRead(int a,int v,int ea,int size,int mask,int top,int sign_extend)
   }
 
   ot("\n"); return 0;
+}
+
+// calculate EA and  read
+// if (ea  < 0x10) nothing is trashed
+// if (ea == 0x3c) r2 and r3 are trashed
+// else r0-r3 are trashed
+// size values 0, 1, 2 ~ byte, word, long
+// r_ea is reg to store ea in (-1 means ea is not needed), r is dst reg
+// if sign_extend is 0, non-32bit values will have MS bits undefined
+int EaCalcRead(int r_ea,int r,int ea,int size,int mask,int sign_extend)
+{
+  if (ea<0x10)
+  {
+    if (r_ea==-1)
+    {
+      r_ea=r;
+      if (!sign_extend) size=2;
+    }
+  }
+  else if (ea==0x3c) // #imm
+  {
+    r_ea=r;
+  }
+  else
+  {
+    if (r_ea==-1) r_ea=0;
+  }
+
+  EaCalc (r_ea,mask,ea,size,0,sign_extend);
+  EaRead (r_ea,   r,ea,size,mask,0,sign_extend);
+
+  return 0;
+}
+
+int EaCalcReadNoSE(int r_ea,int r,int ea,int size,int mask)
+{
+  return EaCalcRead(r_ea,r,ea,size,mask,0);
 }
 
 // Return 1 if we can read this ea

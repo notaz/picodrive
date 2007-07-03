@@ -39,7 +39,7 @@ int DisaGetEa(char *t,int ea,int size)
     // 110nnn - An + Disp + D/An
     int areg=0,ext=0,off=0,da=0,reg=0,wol=0,scale=0;
     ext=DisaWord(DisaPc)&0xffff;
-    
+
     areg=ea&7;
     off=ext&0xff;    da =ext&0x8000?'a':'d';
     reg=(ext>>12)&7; wol=ext&0x0800?'l':'w';
@@ -70,7 +70,7 @@ int DisaGetEa(char *t,int ea,int size)
     // 111011 - PC Relative + D/An
     int ext=0,off=0,da=0,reg=0,wol=0,scale=0;
     ext=DisaWord(DisaPc)&0xffff;
-    
+
     off=ext&0xff;    da =ext&0x8000?'a':'d';
     reg=(ext>>12)&7; wol=ext&0x0800?'l':'w';
     scale=1<<((ext>>9)&3);
@@ -225,7 +225,7 @@ static int DisaMove(int op)
 
   sea = op&0x003f;
   DisaGetEa(seat,sea,size);
-  
+
   dea =(op&0x01c0)>>3;
   dea|=(op&0x0e00)>>9;
   DisaGetEa(deat,dea,size);
@@ -272,6 +272,21 @@ static int DisaMoveSr(int op)
   return 0;
 }
 
+static int OpChk(op)
+{
+  int sea=0,dea=0;
+  char seat[64]="",deat[64]="";
+
+  sea=op&0x003f;
+  DisaGetEa(seat,sea,0);
+
+  dea=(op>>9)&7; dea|=8;
+  DisaGetEa(deat,dea,2);
+
+  sprintf(DisaText,"chk %s, %s",seat,deat);
+  return 0;
+}
+
 // ================ Opcodes 0x41c0+ ================
 static int DisaLea(int op)
 {
@@ -300,7 +315,7 @@ static int MakeRegList(char *list,int mask,int ea)
   for (i=0;i<17;i++)
   {
     int bit=0;
-    
+
     // Mask off bit i:
     if (reverse) bit=0x8000>>i; else bit=1<<i;
     bit&=mask;
@@ -322,7 +337,21 @@ static int MakeRegList(char *list,int mask,int ea)
 
   // Knock off trailing '/'
   len=strlen(list);
-  if (len>0) if (list[len-1]=='/') list[len-1]=0; 
+  if (len>0) if (list[len-1]=='/') list[len-1]=0;
+  return 0;
+}
+
+// ================ Opcodes 0x4800+ ================
+static int DisaNbcd(int op)
+{
+  // Nbcd 01001000 00eeeeee  (eeeeee=ea)
+  int ea=0;
+  char eat[64]="";
+
+  ea=op&0x003f;
+  DisaGetEa(eat,ea,0);
+
+  sprintf(DisaText,"nbcd %s",eat);
   return 0;
 }
 
@@ -337,7 +366,7 @@ static int DisaSwap(int op)
 // ================ Opcodes 0x4850+ ================
 static int DisaPea(int op)
 {
-  // Pea 01001000 01eeeeee  (eeeeee=ea)  pea 
+  // Pea 01001000 01eeeeee  (eeeeee=ea)  pea
   int ea=0;
   char eat[64]="";
 
@@ -445,7 +474,7 @@ static int Disa4E70(int op)
   sprintf(DisaText,"%s",inst[n]);
 
   //todo - 'stop' with 16 bit data
-  
+
   return 0;
 }
 
@@ -462,6 +491,19 @@ static int DisaTst(int op)
   size=(op>>6)&3; if (size>=3) return 1;
 
   sprintf(DisaText,"tst.%c %s",Tasm[size],eat);
+  return 0;
+}
+
+static int DisaTas(int op)
+{
+  // Tas 01001010 11eeeeee  (eeeeee=ea)
+  int ea=0;
+  char eat[64]="";
+
+  ea=op&0x003f;
+  DisaGetEa(eat,ea,0);
+
+  sprintf(DisaText,"tas %s",eat);
   return 0;
 }
 
@@ -684,6 +726,23 @@ static int DisaCmpEor(int op)
   return 0;
 }
 
+static int DisaCmpm(int op)
+{
+  char seat[64]="",deat[64]="";
+  int type=0,size=0,sea,dea;
+
+  type=(op>>8)&1;
+  size=(op>>6)&3; if (size>=3) return 1;
+  sea=(op&7)|0x18;
+  dea=(op>>9)&0x3f;
+  DisaGetEa(seat,sea,size);
+  DisaGetEa(deat,dea,size);
+
+  sprintf(DisaText,"cmpm.%c %s, %s",Tasm[size],seat,deat);
+  return 0;
+}
+
+
 // ================ Opcodes 0xc140+ ================
 // 1100ttt1 01000sss  exg ds,dt
 // 1100ttt1 01001sss  exg as,at
@@ -708,14 +767,16 @@ static int DisaExg(int op)
 static int DisaAddx(int op)
 {
   // 1t01ddd1 xx000sss addx
-  int type=0,size=0,dea=0,sea=0;
+  int type=0,size=0,dea=0,sea=0,mem;
   char deat[64]="",seat[64]="";
   char *opcode[6]={"","subx","","","","addx"};
 
   type=(op>>12)&5;
   dea =(op>> 9)&7;
   size=(op>> 6)&3; if (size>=3) return 1;
-  sea  = op&0x3f;
+  sea = op&7;
+  mem = op&8;
+  if(mem) { sea+=0x20; dea+=0x20; }
 
   DisaGetEa(deat,dea,size);
   DisaGetEa(seat,sea,size);
@@ -749,7 +810,7 @@ static int DisaAsr(int op)
 
 static int DisaAsrEa(int op)
 {
-  // Asr/l/Ror/l etc EA - 11100ttd 11eeeeee 
+  // Asr/l/Ror/l etc EA - 11100ttd 11eeeeee
   int type=0,dir=0,size=1;
   char eat[64]="";
 
@@ -772,13 +833,16 @@ static int TryOp(int op)
   if ((op&0xff00)==0x0800) DisaBtstImm(op); // Btst/Bchg/Bclr/Bset
   if ((op&0xc000)==0x0000) DisaMove(op);
   if ((op&0xf900)==0x4000) DisaNeg(op); // Negx/Clr/Neg/Not
+  if ((op&0xf140)==0x4100) OpChk(op);
   if ((op&0xf1c0)==0x41c0) DisaLea(op);
   if ((op&0xf9c0)==0x40c0) DisaMoveSr(op);
+  if ((op&0xffc0)==0x4800) DisaNbcd(op);
   if ((op&0xfff8)==0x4840) DisaSwap(op);
   if ((op&0xffc0)==0x4840) DisaPea(op);
   if ((op&0xffb8)==0x4880) DisaExt(op);
   if ((op&0xfb80)==0x4880) DisaMovem(op);
   if ((op&0xff00)==0x4a00) DisaTst(op);
+  if ((op&0xffc0)==0x4ac0) DisaTas(op);
   if ((op&0xfff0)==0x4e40) DisaTrap(op);
   if ((op&0xfff8)==0x4e50) DisaLink(op);
   if ((op&0xfff8)==0x4e58) DisaUnlk(op);
@@ -796,6 +860,7 @@ static int TryOp(int op)
   if ((op&0xf100)==0x7000) DisaMoveq(op);
   if ((op&0x90c0)==0x90c0) DisaAritha(op);
   if ((op&0xf000)==0xb000) DisaCmpEor(op);
+  if ((op&0xf138)==0xb108) DisaCmpm(op);
   if ((op&0xf130)==0xc100) DisaExg(op);
   if ((op&0xf000)==0xe000) DisaAsr(op);
   if ((op&0xf8c0)==0xe0c0) DisaAsrEa(op);

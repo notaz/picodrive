@@ -139,8 +139,8 @@ int OpUnlk(int op)
   OpStart(op,0x10);
 
   ot(";@ Get An\n");
-  EaCalc(10, 7, 8, 2, 1);
-  EaRead(10, 0, 8, 2, 7, 1);
+  EaCalc(10, 0xf, 8, 2,   1);
+  EaRead(10,   0, 8, 2, 0xf, 1);
 
   ot("  add r11,r0,#4 ;@ A7+=4\n");
   ot("\n");
@@ -151,7 +151,7 @@ int OpUnlk(int op)
   ot("\n");
   ot(";@ An = value from stack:\n");
   EaWrite(10, 0, 8, 2, 7, 1);
-  
+
   Cycles=12;
   OpEnd(0x10);
   return 0;
@@ -181,7 +181,6 @@ int Op4E70(int op)
     SuperChange(op);
     CheckInterrupt(op);
     OpEnd(0x10);
-    SuperEnd(op);
     return 0;
 
     case 5: // rts
@@ -225,7 +224,7 @@ int OpJsr(int op)
   // See if we can do this opcode:
   if (EaCanRead(sea,-1)==0) return 1;
 
-  use=OpBase(op);
+  use=OpBase(op,0);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,(op&0x40)?0:0x10);
@@ -294,17 +293,17 @@ int OpDbra(int op)
       break;
     case 2: // hi
       ot("  tst r9,#0x60000000 ;@ hi: !C && !Z\n");
-      ot("  beq DbraTrue%.4x\n\n",op);
+      ot("  beq DbraTrue\n\n");
       break;
     case 3: // ls
       ot("  tst r9,#0x60000000 ;@ ls: C || Z\n");
-      ot("  bne DbraTrue%.4x\n\n",op);
+      ot("  bne DbraTrue\n\n");
       break;
     default:
       ot(";@ Is the condition true?\n");
       ot("  msr cpsr_flg,r9 ;@ ARM flags = 68000 flags\n");
       ot(";@ If so, don't dbra\n");
-      ot("  b%s DbraTrue%.4x\n\n",Cond[cc],op);
+      ot("  b%s DbraTrue\n\n",Cond[cc]);
       break;
   }
 
@@ -332,10 +331,11 @@ int OpDbra(int op)
     OpEnd();
   }
   
-  if (cc==0||cc>=2)
+  //if (cc==0||cc>=2)
+  if (op==0x50c8)
   {
     ot(";@ condition true:\n");
-    ot("DbraTrue%.4x%s\n", op, ms?"":":");
+    ot("DbraTrue%s\n", ms?"":":");
     ot("  add r4,r4,#2 ;@ Skip branch offset\n");
     ot("\n");
     Cycles=12;
@@ -352,6 +352,7 @@ int OpBranch(int op)
   int size=0,use=0;
   int offset=0;
   int cc=0;
+  char *asr_r11="";
 
   offset=(char)(op&0xff);
   cc=(op>>8)&15;
@@ -365,33 +366,48 @@ int OpBranch(int op)
 
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
   OpStart(op,size?0x10:0);
-
-  ot(";@ Get Branch offset:\n");
-  if (size) 
-  {
-    EaCalc(0,0,0x3c,size);
-    EaRead(0,0,0x3c,size,0);
-  }
-  else
-    ot("  mov r0,r8,asl #24 ;@ Shift 8-bit signed offset up...\n\n");
-
-  // above code messes cycles
   Cycles=10; // Assume branch taken
 
   if (cc==1) ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
 
-  if (cc>=2)
+  switch (cc)
   {
-    ot(";@ Is the condition true?\n");
-    if ((cc&~1)==2) ot("  eor r9,r9,#0x20000000 ;@ Invert carry for hi/ls\n");
-    ot("  msr cpsr_flg,r9 ;@ ARM flags = 68000 flags\n");
-    if ((cc&~1)==2) ot("  eor r9,r9,#0x20000000\n");
-
-    ot("  b%s DontBranch%.4x\n",Cond[cc^1],op);
-    ot("\n");
+    case 0: // T
+    case 1: // F
+      break;
+    case 2: // hi
+      ot("  tst r9,#0x60000000 ;@ hi: !C && !Z\n");
+      ot("  bne BccDontBranch%i\n\n",8<<size);
+      break;
+    case 3: // ls
+      ot("  tst r9,#0x60000000 ;@ ls: C || Z\n");
+      ot("  beq BccDontBranch%i\n\n",8<<size);
+      break;
+    default:
+      ot(";@ Is the condition true?\n");
+      ot("  msr cpsr_flg,r9 ;@ ARM flags = 68000 flags\n");
+      ot("  b%s BccDontBranch%i\n\n",Cond[cc^1],8<<size);
+      break;
   }
 
-  if (size==0) ot("  mov r0,r0,asr #24 ;@ ...shift down\n\n");
+  if (size) 
+  {
+    if (size<2)
+    {
+      ot("  ldrsh r11,[r4] ;@ Fetch Branch offset\n");
+    }
+    else
+    {
+      ot("  ldrh r2,[r4] ;@ Fetch Branch offset\n");
+      ot("  ldrh r11,[r4,#2]\n");
+      ot("  orr r11,r11,r2,lsl #16\n");
+    }
+  }
+  else
+  {
+    ot("  mov r11,r8,asl #24 ;@ Shift 8-bit signed offset up...\n\n");
+    asr_r11=",asr #24";
+  }
 
   ot(";@ Branch taken - Add on r0 to PC\n");
 
@@ -399,12 +415,11 @@ int OpBranch(int op)
   {
     ot(";@ Bsr - remember old PC\n");
     ot("  sub r1,r4,r10 ;@ r1 = Old PC\n");
+    if (size) ot("  add r1,r1,#%d\n",1<<size);
     ot("  mov r1,r1, lsl #8\n");
+    ot("  ldr r2,[r7,#0x3c]\n");
     ot("  mov r1,r1, asr #8\n");
     ot("\n");
-    if (size) ot("  sub r4,r4,#%d ;@ (Branch is relative to Opcode+2)\n",1<<size);
-    ot("  ldr r2,[r7,#0x3c]\n");
-    ot("  add r4,r4,r0 ;@ r4 = New PC\n");
     ot(";@ Push r1 onto stack\n");
     ot("  sub r0,r2,#4 ;@ Predecrement A7\n");
     ot("  str r0,[r7,#0x3c] ;@ Save A7\n");
@@ -414,33 +429,36 @@ int OpBranch(int op)
     if (offset==0 || offset==-1)
     {
       ot(";@ Branch is quite far, so may be a good idea to check Memory Base+pc\n");
-      CheckPc(4);
+      ot("  add r0,r4,r11%s ;@ r4 = New PC\n",asr_r11);
+      CheckPc(0);
     }
+    else
+      ot("  add r4,r4,r11%s ;@ r4 = New PC\n",asr_r11);
   }
   else
   {
-    if (size) ot("  sub r4,r4,#%d ;@ (Branch is relative to Opcode+2)\n",1<<size);
     if (offset==0 || offset==-1)
     {
-      ot("  add r0,r4,r0 ;@ r4 = New PC\n");
+      ot("  add r0,r4,r11%s ;@ r4 = New PC\n",asr_r11);
       ot(";@ Branch is quite far, so may be a good idea to check Memory Base+pc\n");
       CheckPc(0);
     }
     else
     {
-      ot("  add r4,r4,r0 ;@ r4 = New PC\n");
+      ot("  add r4,r4,r11%s ;@ r4 = New PC\n",asr_r11);
       ot("\n");
     }
   }
 
-
   OpEnd(size?0x10:0);
 
-  if (cc>=2)
+  // since all "DontBranch" code is same for every size, output only once
+  if (cc>=2&&(op&0xff00)==0x6200)
   {
-    ot("DontBranch%.4x%s\n", op, ms?"":":");
-    Cycles+=(size==1)?  2 : -2; // Branch not taken
-    OpEnd(size?0x10:0);
+    ot("BccDontBranch%i%s\n", 8<<size, ms?"":":");
+    if (size) ot("  add r4,r4,#%d\n",8<<size);
+    Cycles+=(size==1) ? 2 : -2; // Branch not taken
+    OpEnd(0);
   }
 
   return 0;

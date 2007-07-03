@@ -23,7 +23,7 @@ int OpBtstReg(int op)
     if (EaCanWrite(tea)==0) return 1;
   }
 
-  use=OpBase(op);
+  use=OpBase(op,size);
   use&=~0x0e00; // Use same handler for all registers
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
@@ -36,13 +36,9 @@ int OpBtstReg(int op)
     if(size>=2) Cycles+=2;
   }
 
-  EaCalc (10,0x0e00,sea,0,0,0);
-  EaRead (10,    10,sea,0,0x0e00,0,0);
+  EaCalcReadNoSE(-1,10,sea,0,0x0e00);
 
-  EaCalc ( 0,0x003f,tea,size,0,0);
-  if (type>0)
-    ot("  mov r11,r0\n");
-  EaRead ( 0,     0,tea,size,0x003f,0,0);
+  EaCalcReadNoSE((type>0)?11:-1,0,tea,size,0x003f);
 
   if (tea>=0x10)
        ot("  and r10,r10,#7  ;@ mem - do mod 8\n");  // size always 0
@@ -89,14 +85,13 @@ int OpBtstImm(int op)
     if (EaCanWrite(tea)==0) return 1;
   }
 
-  use=OpBase(op);
+  use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,sea,tea);
 
   ot("\n");
-  EaCalc ( 0,0x0000,sea,0,0,0);
-  EaRead ( 0,     0,sea,0,0,0,0);
+  EaCalcReadNoSE(-1,0,sea,0,0);
   ot("  mov r10,#1\n");
   ot("  bic r9,r9,#0x40000000 ;@ Blank Z flag\n");
   if (tea>=0x10)
@@ -112,8 +107,7 @@ int OpBtstImm(int op)
     if(size>=2) Cycles+=2;
   }
 
-  EaCalc (11,0x003f,tea,size,0,0);
-  EaRead (11,     0,tea,size,0x003f,0,0);
+  EaCalcReadNoSE((type>0)?11:-1,0,tea,size,0x003f);
   ot("  tst r0,r10 ;@ Do arithmetic\n");
   ot("  orreq r9,r9,#0x40000000 ;@ Get Z flag\n");
   ot("\n");
@@ -146,7 +140,7 @@ int OpNeg(int op)
   if (EaCanRead (ea,size)==0||EaAn(ea)) return 1;
   if (EaCanWrite(ea     )==0) return 1;
 
-  use=OpBase(op);
+  use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,ea);   Cycles=size<2?4:6;
@@ -162,7 +156,7 @@ int OpNeg(int op)
 
   EaCalc (10,0x003f,ea,size,0,0);
 
-  if (type!=1) EaRead (10,0,ea,size,0x003f,0,0); // Don't need to read for 'clr' (or do we, for dummy read?)
+  if (type!=1) EaRead (10,0,ea,size,0x003f,0,0); // Don't need to read for 'clr' (or do we, for a dummy read?)
   if (type==1) ot("\n");
 
   if (type==0)
@@ -260,7 +254,7 @@ int OpTst(int op)
   // See if we can do this opcode:
   if (EaCanWrite(sea)==0||EaAn(sea)) return 1;
 
-  use=OpBase(op);
+  use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,sea); Cycles=4;
@@ -288,7 +282,7 @@ int OpExt(int op)
   size=(op>>6)&1;
   shift=32-(8<<size);
 
-  use=OpBase(op);
+  use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op); Cycles=4;
@@ -328,7 +322,7 @@ int OpSet(int op)
   // See if we can do this opcode:
   if (EaCanWrite(ea)==0) return 1;
 
-  use=OpBase(op);
+  use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,ea); Cycles=8;
@@ -383,7 +377,7 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
   if (usereg)
   {
     ot(";@ Use Dn for count:\n");
-    ot("  and r2,r8,#7<<9\n");
+    ot("  and r2,r8,#0x0e00\n");
     ot("  ldr r2,[r7,r2,lsr #7]\n");
     ot("  and r2,r2,#63\n");
     ot("\n");
@@ -426,12 +420,10 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
     if (usereg) { // store X only if count is not 0
       ot("  cmp %s,#0 ;@ shifting by 0?\n",pct);
       ot("  biceq r9,r9,#0x20000000 ;@ if so, clear carry\n");
-      ot("  movne r1,r9,lsr #28\n");
-      ot("  strneb r1,[r7,#0x45] ;@ else Save X bit\n");
+      ot("  strne r9,[r7,#0x4c] ;@ else Save X bit\n");
     } else {
       // count will never be 0 if we use immediate
-      ot("  mov r1,r9,lsr #28\n");
-      ot("  strb r1,[r7,#0x45] ;@ Save X bit\n");
+      ot("  str r9,[r7,#0x4c] ;@ Save X bit\n");
     }
 
     if (type==0 && dir) {
@@ -462,10 +454,10 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
         ot("  movs r0,r0,rrx\n");
         OpGetFlags(0,1);
       } else {
-        ot("  ldrb r3,[r7,#0x45]\n");
+        ot("  ldr r3,[r7,#0x4c]\n");
         ot("  movs r0,r0,lsl #1\n");
         OpGetFlags(0,1);
-        ot("  tst r3,#2\n");
+        ot("  tst r3,#0x20000000\n");
         ot("  orrne r0,r0,#0x%x\n", 1<<(32-wide));
         ot("  bicne r9,r9,#0x40000000 ;@ clear Z in case it got there\n");
       }
@@ -503,10 +495,10 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
     ot("  orr r0,r3,r0 ;@ r0=Rotated value\n");
 
     ot(";@ Insert X bit into r2-1:\n");
-    ot("  ldrb r3,[r7,#0x45]\n");
+    ot("  ldr r3,[r7,#0x4c]\n");
     ot("  sub r2,r2,#1\n");
-    ot("  and r3,r3,#2\n");
-    ot("  mov r3,r3,lsr #1\n");
+    ot("  and r3,r3,#0x20000000\n");
+    ot("  mov r3,r3,lsr #29\n");
     ot("  orr r0,r0,r3,lsl r2\n");
     ot("\n");
 
@@ -517,15 +509,14 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
       ot("  bicne r9,r9,#0x40000000 ;@ make sure we didn't mess Z\n");
     }
     if (usereg) { // store X only if count is not 0
-      ot("  mov r2,r9,lsr #28\n");
-      ot("  strb r2,[r7,#0x45] ;@ if not 0, Save X bit\n");
+      ot("  str r9,[r7,#0x4c] ;@ if not 0, Save X bit\n");
       ot("  b nozerox%.4x\n",op);
       ot("norotx%.4x%s\n",op,ms?"":":");
-      ot("  ldrb r2,[r7,#0x45]\n");
+      ot("  ldr r2,[r7,#0x4c]\n");
       ot("  adds r0,r0,#0 ;@ Defines NZ, clears CV\n");
       OpGetFlags(0,0);
-      ot("  and r2,r2,#2\n");
-      ot("  orr r9,r9,r2,lsl #28 ;@ C = old_X\n");
+      ot("  and r2,r2,#0x20000000\n");
+      ot("  orr r9,r9,r2 ;@ C = old_X\n");
       ot("nozerox%.4x%s\n",op,ms?"":":");
     }
 
@@ -642,7 +633,7 @@ int OpAsrEa(int op)
   if (EaCanRead(ea,0)==0) return 1;
   if (EaCanWrite(ea)==0) return 1;
 
-  use=OpBase(op);
+  use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,ea); Cycles=6; // EmitAsr() will add 2
@@ -668,7 +659,7 @@ int OpTas(int op, int gen_special)
   // See if we can do this opcode:
   if (EaCanWrite(ea)==0 || EaAn(ea)) return 1;
 
-  use=OpBase(op);
+  use=OpBase(op,0);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   if (!gen_special) OpStart(op,ea);

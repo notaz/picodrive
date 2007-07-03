@@ -6,15 +6,15 @@
 // trashes r0,r2
 void OpFlagsToReg(int high)
 {
-  ot("  ldrb r0,[r7,#0x45]  ;@ X bit\n");
+  ot("  ldr r0,[r7,#0x4c]   ;@ X bit\n");
   ot("  mov r1,r9,lsr #28   ;@ ____NZCV\n");
   ot("  eor r2,r1,r1,ror #1 ;@ Bit 0=C^V\n");
   ot("  tst r2,#1           ;@ 1 if C!=V\n");
   ot("  eorne r1,r1,#3      ;@ ____NZVC\n");
   ot("\n");
   if (high) ot("  ldrb r2,[r7,#0x44]  ;@ Include SR high\n");
-  ot("  and r0,r0,#0x02\n");
-  ot("  orr r1,r1,r0,lsl #3 ;@ ___XNZVC\n");
+  ot("  and r0,r0,#0x20000000\n");
+  ot("  orr r1,r1,r0,lsr #25 ;@ ___XNZVC\n");
   if (high) ot("  orr r1,r1,r2,lsl #8\n");
   ot("\n");
 }
@@ -24,10 +24,10 @@ void OpFlagsToReg(int high)
 void OpRegToFlags(int high)
 {
   ot("  eor r1,r0,r0,ror #1 ;@ Bit 0=C^V\n");
-  ot("  mov r2,r0,lsr #3    ;@ r2=___XN\n");
+  ot("  mov r2,r0,lsl #25\n");
   ot("  tst r1,#1           ;@ 1 if C!=V\n");
   ot("  eorne r0,r0,#3      ;@ ___XNZCV\n");
-  ot("  strb r2,[r7,#0x45]  ;@ Store X bit\n");
+  ot("  str r2,[r7,#0x4c]   ;@ Store X bit\n");
   ot("  mov r9,r0,lsl #28   ;@ r9=NZCV...\n");
 
   if (high)
@@ -45,14 +45,16 @@ void SuperCheck(int op)
 {
   ot("  ldr r11,[r7,#0x44] ;@ Get SR high\n");
   ot("  tst r11,#0x20 ;@ Check we are in supervisor mode\n");
-  ot("  beq WrongMode%.4x ;@ No\n",op);
+  ot("  beq WrongPrivilegeMode ;@ No\n");
   ot("\n");
 }
 
-void SuperEnd(int op)
+void SuperEnd(void)
 {
-  ot("WrongMode%.4x%s\n",op,ms?"":":");
-  ot("  sub r4,r4,#2 ;@ this opcode wasn't executed - go back\n");
+  ot(";@ ----------\n");
+  ot(";@ tried execute privileged instruction in user mode\n");
+  ot("WrongPrivilegeMode%s\n",ms?"":":");
+  ot("  sub r4,r4,#2 ;@ last opcode wasn't executed - go back\n");
   ot("  mov r0,#0x20 ;@ privilege violation\n");
   ot("  bl Exception\n");
   Cycles=34;
@@ -61,20 +63,20 @@ void SuperEnd(int op)
 
 // does OSP and A7 swapping if needed
 // new or old SR (not the one already in [r7,#0x44]) should be passed in r11
-// trashes r1,r11
-void SuperChange(int op)
+// trashes r0,r11
+void SuperChange(int op,int load_srh)
 {
   ot(";@ A7 <-> OSP?\n");
-  ot("  ldr r1,[r7,#0x44] ;@ Get other SR high\n");
-  ot("  and r11,r11,#0x20\n");
-  ot("  and r1,r1,#0x20\n");
-  ot("  teq r11,r1 ;@ r11 xor r1\n");
+  if (load_srh)
+    ot("  ldr r0,[r7,#0x44] ;@ Get other SR high\n");
+  ot("  eor r0,r0,r11\n");
+  ot("  tst r0,#0x20\n");
   ot("  beq no_sp_swap%.4x\n",op);
   ot(" ;@ swap OSP and A7:\n");
   ot("  ldr r11,[r7,#0x3C] ;@ Get A7\n");
-  ot("  ldr r1, [r7,#0x48] ;@ Get OSP\n");
+  ot("  ldr r0, [r7,#0x48] ;@ Get OSP\n");
   ot("  str r11,[r7,#0x48]\n");
-  ot("  str r1, [r7,#0x3C]\n");
+  ot("  str r0, [r7,#0x3C]\n");
   ot("no_sp_swap%.4x%s\n", op, ms?"":":");
 }
 
@@ -110,19 +112,19 @@ int OpMove(int op)
   if (EaCanRead (sea,size)==0) return 1;
   if (EaCanWrite(tea     )==0) return 1;
 
-  use=OpBase(op);
+  use=OpBase(op,size);
   if (tea<0x38) use&=~0x0e00; // Use same handler for register ?0-7
   
-  if (tea>=0x18 && tea<0x28 && (tea&7)==7) use|=0x0e00; // Specific handler for (a7)+ and -(a7)
+  if (tea==0x1f || tea==0x27) use|=0x0e00; // Specific handler for (a7)+ and -(a7)
 
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,sea,tea); Cycles=4;
 
-  EaCalc(0,0x003f,sea,size);
-  EaRead(0,     1,sea,size,0x003f);
+  EaCalcRead(-1,1,sea,size,0x003f);
 
-  if (movea==0) {
+  if (movea==0)
+  {
     ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
     ot("  mrs r9,cpsr ;@ r9=NZCV flags\n");
     ot("\n");
@@ -130,19 +132,19 @@ int OpMove(int op)
 
   if (movea) size=2; // movea always expands to 32-bits
 
-  EaCalc (0,0x0e00,tea,size,0,0);
 #if SPLIT_MOVEL_PD
+  EaCalc (10,0x1e00,tea,size,0,0);
   if ((tea&0x38)==0x20 && size==2) { // -(An)
-    ot("  mov r10,r0\n");
     ot("  mov r11,r1\n");
-    ot("  add r0,r0,#2\n");
-    EaWrite(0,     1,tea,1,0x0e00,0,0);
-    EaWrite(10,   11,tea,1,0x0e00,1);
+    ot("  add r0,r10,#2\n");
+    EaWrite(0,     1,tea,1,0x1e00,0,0);
+    EaWrite(10,   11,tea,1,0x1e00,1);
   } else {
-    EaWrite(0,     1,tea,size,0x0e00,0,0);
+    EaWrite(0,     1,tea,size,0x1e00,0,0);
   }
 #else
-  EaWrite(0,     1,tea,size,0x0e00,0,0);
+  EaCalc (0,0x1e00,tea,size,0,0);
+  EaWrite(0,     1,tea,size,0x1e00,0,0);
 #endif
 
 #if CYCLONE_FOR_GENESIS && !MEMHANDLERS_CHANGE_CYCLES
@@ -169,15 +171,15 @@ int OpLea(int op)
 
   if (EaCanRead(sea,-1)==0) return 1; // See if we can do this opcode
 
-  use=OpBase(op);
+  use=OpBase(op,0);
   use&=~0x0e00; // Also use 1 handler for target ?0-7
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,sea,tea);
 
   EaCalc (1,0x003f,sea,0); // Lea
-  EaCalc (0,0x0e00,tea,2,1);
-  EaWrite(0,     1,tea,2,0x0e00,1);
+  EaCalc (0,0x1e00,tea,2);
+  EaWrite(0,     1,tea,2,0x1e00);
 
   Cycles=Ea_add_ns(g_lea_cycle_table,sea);
 
@@ -212,7 +214,7 @@ int OpMoveSr(int op)
       break;
   }
 
-  use=OpBase(op);
+  use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,ea);
@@ -230,18 +232,15 @@ int OpMoveSr(int op)
 
   if (type==2 || type==3)
   {
-    EaCalc(0,0x003f,ea,size,0,0);
-    EaRead(0,     0,ea,size,0x003f,0,0);
+    EaCalcReadNoSE(-1,0,ea,size,0x003f);
     OpRegToFlags(type==3);
     if (type==3) {
-      SuperChange(op);
+      SuperChange(op,0);
       CheckInterrupt(op);
     }
   }
 
   OpEnd(ea);
-
-  if (type==3) SuperEnd(op);
 
   return 0;
 }
@@ -257,7 +256,7 @@ int OpArithSr(int op)
   size=(op>>6)&1; // ccr or sr?
   ea=0x3c;
 
-  use=OpBase(op);
+  use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,ea); Cycles=16;
@@ -273,12 +272,11 @@ int OpArithSr(int op)
   if (type==5) ot("  eor r0,r1,r10\n");
   OpRegToFlags(size);
   if (size) {
-    SuperChange(op);
+    SuperChange(op,0);
     CheckInterrupt(op);
   }
 
   OpEnd(ea);
-  if (size) SuperEnd(op);
 
   return 0;
 }
@@ -293,7 +291,7 @@ int OpPea(int op)
   ea=op&0x003f; if (ea<0x10) return 1; // Swap opcode
   if (EaCanRead(ea,-1)==0) return 1; // See if we can do this opcode:
 
-  use=OpBase(op);
+  use=OpBase(op,0);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,ea);
@@ -336,7 +334,7 @@ int OpMovem(int op)
 
   cea=ea; if (change) cea=0x10;
 
-  use=OpBase(op);
+  use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,ea);
@@ -430,19 +428,17 @@ int OpMoveUsp(int op)
   if (dir)
   {
     ot("  ldr r1,[r7,#0x48] ;@ Get from USP\n\n");
-    EaCalc (0,0x0007,8,2,1);
-    EaWrite(0,     1,8,2,0x0007,1);
+    EaCalc (0,0x000f,8,2,1);
+    EaWrite(0,     1,8,2,0x000f,1);
   }
   else
   {
-    EaCalc (0,0x0007,8,2,1);
-    EaRead (0,     0,8,2,0x0007,1);
+    EaCalc (0,0x000f,8,2,1);
+    EaRead (0,     0,8,2,0x000f,1);
     ot("  str r0,[r7,#0x48] ;@ Put in USP\n\n");
   }
     
   OpEnd();
-
-  SuperEnd(op);
 
   return 0;
 }
@@ -509,14 +505,15 @@ int OpExg(int op)
 // 0000sss1 1z001ddd (to mem)
 int OpMovep(int op)
 {
-  int ea=0;
-  int size=1,use=0,dir;
+  int ea=0,rea=0;
+  int size=1,use=0,dir,aadd=0;
 
   use=op&0xf1f8;
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler (for all dests, srcs)
 
   // Get EA
   ea = (op&0x0007)|0x28;
+  rea=  op&0x0e00;
   dir = (op>>7)&1;
 
   // Find size extension
@@ -525,41 +522,43 @@ int OpMovep(int op)
   OpStart(op,ea);
   
   if(dir) { // reg to mem
-    EaCalc(11,0x0e00,0,size);      // reg number -> r11
-    EaRead(11,11,0,size,0x0e00);   // regval -> r11
-    EaCalc(10,0x0007,ea,size);
+    EaCalcReadNoSE(-1,11,rea,size,0x1e00);
+
+    EaCalc(10,0x000f,ea,size);
     if(size==2) { // if operand is long
       ot("  mov r1,r11,lsr #24 ;@ first byte\n");
-      EaWrite(10,1,ea,0,0x0007); // store first byte
-      ot("  add r10,r10,#2\n");
+      EaWrite(10,1,ea,0,0x000f); // store first byte
+      ot("  add r0,r10,#%i\n",(aadd+=2));
       ot("  mov r1,r11,lsr #16 ;@ second byte\n");
-      EaWrite(10,1,ea,0,0x0007); // store second byte
-      ot("  add r10,r10,#2\n");
+      EaWrite(0,1,ea,0,0x000f); // store second byte
+      ot("  add r0,r10,#%i\n",(aadd+=2));
+    } else {
+      ot("  mov r0,r10\n");
     }
     ot("  mov r1,r11,lsr #8 ;@ first or third byte\n");
-    EaWrite(10,1,ea,0,0x0007);
-    ot("  add r10,r10,#2\n");
+    EaWrite(0,1,ea,0,0x000f);
+    ot("  add r0,r10,#%i\n",(aadd+=2));
     ot("  and r1,r11,#0xff\n");
-    EaWrite(10,1,ea,0,0x0007);
+    EaWrite(0,1,ea,0,0x000f);
   } else { // mem to reg
-    EaCalc(10,0x0007,ea,size,1);
-    EaRead(10,11,ea,0,0x0007,1); // read first byte
-    ot("  add r10,r10,#2\n");
-    EaRead(10,1,ea,0,0x0007,1); // read second byte
+    EaCalc(10,0x000f,ea,size,1);
+    EaRead(10,11,ea,0,0x000f,1); // read first byte
+    ot("  add r0,r10,#2\n");
+    EaRead(0,1,ea,0,0x000f,1); // read second byte
     if(size==2) { // if operand is long
       ot("  orr r11,r11,r1,lsr #8 ;@ second byte\n");
-      ot("  add r10,r10,#2\n");
-      EaRead(10,1,ea,0,0x0007,1);
+      ot("  add r0,r10,#4\n");
+      EaRead(0,1,ea,0,0x000f,1);
       ot("  orr r11,r11,r1,lsr #16 ;@ third byte\n");
-      ot("  add r10,r10,#2\n");
-      EaRead(10,1,ea,0,0x0007,1);
-      ot("  orr r0,r11,r1,lsr #24 ;@ fourth byte\n");
+      ot("  add r0,r10,#6\n");
+      EaRead(0,1,ea,0,0x000f,1);
+      ot("  orr r1,r11,r1,lsr #24 ;@ fourth byte\n");
     } else {
-      ot("  orr r0,r11,r1,lsr #8 ;@ second byte\n");
+      ot("  orr r1,r11,r1,lsr #8 ;@ second byte\n");
     }
     // store the result
-    EaCalc(11,0x0e00,0,size,1);      // reg number -> r11
-    EaWrite(11,0,0,size,0x0e00,1);
+    EaCalc(11,0x0e00,rea,size,1);      // reg number -> r11
+    EaWrite(11,1,rea,size,0x0e00,1);
   }
 
   Cycles=(size==2)?24:16;
@@ -571,7 +570,7 @@ int OpMovep(int op)
 // Emit a Stop/Reset opcodes, 01001110 011100t0 imm
 int OpStopReset(int op)
 {
-  int type=(op>>1)&1; // reset/stop
+  int type=(op>>1)&1; // stop/reset
 
   OpStart(op);
 
@@ -580,8 +579,8 @@ int OpStopReset(int op)
   if(type) {
     // copy immediate to SR, stop the CPU and eat all remaining cycles.
     ot("  ldrh r0,[r4],#2 ;@ Fetch the immediate\n");
-    SuperChange(op);
     OpRegToFlags(1);
+    SuperChange(op,0);
 
     ot("\n");
 
@@ -604,16 +603,16 @@ int OpStopReset(int op)
     ot("  ldr r11,[r7,#0x90] ;@ ResetCallback\n");
     ot("  tst r11,r11\n");
     ot("  movne lr,pc\n");
-    ot("  movne pc,r11 ;@ call ResetCallback if it is defined\n");
+    ot("  bxne r11 ;@ call ResetCallback if it is defined\n");
     ot("  ldrb r9,[r7,#0x46] ;@ r9 = Load Flags (NZCV)\n");
     ot("  ldr r5,[r7,#0x5c] ;@ Load Cycles\n");
     ot("  ldr r4,[r7,#0x40] ;@ Load PC\n");
     ot("  mov r9,r9,lsl #28\n");
+    ot("\n");
 #endif
   }
 
   OpEnd();
-  SuperEnd(op);
 
   return 0;
 }

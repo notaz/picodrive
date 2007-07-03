@@ -15,20 +15,20 @@ extern int CycloneVer; // Version number of library
 
 struct Cyclone
 {
-  unsigned int d[8];   // [r7,#0x00]
-  unsigned int a[8];   // [r7,#0x20]
-  unsigned int pc;     // [r7,#0x40] Memory Base+PC
-  unsigned char srh;   // [r7,#0x44] Status Register high (T_S__III)
-  unsigned char xc;    // [r7,#0x45] Extend flag (____??X?)
-  unsigned char flags; // [r7,#0x46] Flags (ARM order: ____NZCV) [68k order is XNZVC]
-  unsigned char irq;   // [r7,#0x47] IRQ level
-  unsigned int osp;    // [r7,#0x48] Other Stack Pointer (USP/SSP)
-  unsigned int vector; // [r7,#0x4c] IRQ vector (temporary)
-  unsigned int prev_pc;// [r7,#0x50] set to start address of currently executed opcode + 2 (if enabled in config.h)
-  unsigned int unused; // [r7,#0x54] Unused
-  int stopped;         // [r7,#0x58] 1 == processor is in stopped state
-  int cycles;          // [r7,#0x5c]
-  int membase;         // [r7,#0x60] Memory Base (ARM address minus 68000 address)
+  unsigned int d[8];    // [r7,#0x00]
+  unsigned int a[8];    // [r7,#0x20]
+  unsigned int pc;      // [r7,#0x40] Memory Base+PC
+  unsigned char srh;    // [r7,#0x44] Status Register high (T_S__III)
+  unsigned char unused; // [r7,#0x45] Unused
+  unsigned char flags;  // [r7,#0x46] Flags (ARM order: ____NZCV) [68k order is XNZVC]
+  unsigned char irq;    // [r7,#0x47] IRQ level
+  unsigned int osp;     // [r7,#0x48] Other Stack Pointer (USP/SSP)
+  unsigned int xc;      // [r7,#0x4c] Extend flag (bit29: ??X? _)
+  unsigned int prev_pc; // [r7,#0x50] set to start address of currently executed opcode + 2 (if enabled in config.h)
+  unsigned int unused1; // [r7,#0x54] Unused
+  int stopped;          // [r7,#0x58] 1 == processor is in stopped state
+  int cycles;           // [r7,#0x5c]
+  int membase;          // [r7,#0x60] Memory Base (ARM address minus 68000 address)
   unsigned int   (*checkpc)(unsigned int pc); // [r7,#0x64] - Called to recalc Memory Base+pc
   unsigned char  (*read8  )(unsigned int a);  // [r7,#0x68]
   unsigned short (*read16 )(unsigned int a);  // [r7,#0x6c]

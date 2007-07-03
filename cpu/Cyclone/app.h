@@ -18,6 +18,8 @@ extern int g_movem_cycle_table[];
 int Ea_add_ns(int *tab, int ea); // add nonstandard EA cycles
 int EaCalc(int a,int mask,int ea,int size,int top=0,int sign_extend=1); // 6
 int EaRead(int a,int v,int ea,int size,int mask,int top=0,int sign_extend=1); // 7
+int EaCalcRead(int r_ea,int r,int ea,int size,int mask,int sign_extend=1); // 6
+int EaCalcReadNoSE(int r_ea,int r,int ea,int size,int mask);
 int EaCanRead(int ea,int size);
 int EaWrite(int a,int v,int ea,int size,int mask,int top=0,int sign_extend_ea=1);
 int EaCanWrite(int ea);
@@ -37,11 +39,12 @@ int MemHandler(int type,int size,int addrreg=0);
 void FlushPC(void);
 
 // OpAny.cpp
+extern int g_op;
 int OpGetFlags(int subtract,int xbit,int sprecialz=0);
 void OpUse(int op,int use);
 void OpStart(int op,int sea=0,int tea=0);
 void OpEnd(int sea=0,int tea=0);
-int OpBase(int op,int sepa=0);
+int OpBase(int op,int size,int sepa=0);
 void OpAny(int op);
 
 //----------------------
@@ -95,8 +98,9 @@ int OpMovem(int op);
 int OpMoveq(int op);
 int OpMoveUsp(int op);
 int OpExg(int op);
-int OpMovep(int op); // notaz
+int OpMovep(int op);
 int OpStopReset(int op);
 void SuperCheck(int op);
-void SuperEnd(int op);
-void SuperChange(int op);
+void SuperEnd(void);
+void SuperChange(int op,int load_srh=1);
+
