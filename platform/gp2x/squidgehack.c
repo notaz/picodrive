@@ -12,25 +12,29 @@ extern char **g_argv;
 int mmuhack(void)
 {
 	char kocmd[1024];
-	int i, mmufd = open("/dev/mmuhack", O_RDWR);
+	int i, mmufd;
 
-	if(mmufd < 0) {
-		strcpy(kocmd, "/sbin/insmod ");
-		strncpy(kocmd+13, g_argv[0], 1023-13);
-		kocmd[1023] = 0;
-		for (i = strlen(kocmd); i > 0; i--)
-			if (kocmd[i] == '/') { kocmd[i] = 0; break; }
-		strcat(kocmd, "/mmuhack.o");
+	/* some programs like some versions of gpSP use some weird version of mmuhack.o
+	 * which doesn't seem to work. What's even worse they leave their mmuhack loaded on exit.
+	 * So we must remove whatever may be left and always reload _our_ mmuhack.o */
+	system("/sbin/rmmod mmuhack");
 
-		printf("Installing NK's kernel module for Squidge MMU Hack (%s)...\n", kocmd);
-		system(kocmd);
-		mmufd = open("/dev/mmuhack", O_RDWR);
-	}
+	strcpy(kocmd, "/sbin/insmod ");
+	strncpy(kocmd+13, g_argv[0], 1023-13);
+	kocmd[1023] = 0;
+	for (i = strlen(kocmd); i > 0; i--)
+		if (kocmd[i] == '/') { kocmd[i] = 0; break; }
+	strcat(kocmd, "/mmuhack.o");
+
+	printf("Installing NK's kernel module for Squidge MMU Hack (%s)...\n", kocmd);
+	system(kocmd);
+	mmufd = open("/dev/mmuhack", O_RDWR);
+
 	if(mmufd < 0) return 0;
-	 
+
 	close(mmufd);
 	return 1;
-}       
+}
 
 
 /* Unload MMU Hack kernel module after closing all memory devices*/
