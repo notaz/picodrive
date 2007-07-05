@@ -23,7 +23,7 @@
 #ifndef USBJOY_H
 #define USBJOY_H
 
-/* notaz: my Logitech has different button layout, and I want it to match gptx's */
+/* notaz: my Logitech has different button layout, and I want it to match gp2x's */
 typedef enum {
 	JOY_TYPE_GENERIC,
 	JOY_TYPE_LOGITECH
@@ -72,6 +72,7 @@ struct usbjoy {
   int numhats;
   int statebuttons[32];
   int stateaxes[4];
+  int axevals[2];
   joy_type type;
 };
 

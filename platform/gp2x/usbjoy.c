@@ -34,6 +34,8 @@
 
 #include "usbjoy.h"
 
+/* This is a try to support analog joys. Untested. */
+#define DEAD_ZONE (8*1024)
 
 /*
   Function: joy_open
@@ -210,14 +212,16 @@ int joy_update (struct usbjoy * joy) {
 	switch (events[i].type & ~JS_EVENT_INIT) {
 	case JS_EVENT_AXIS:
 	  if (events[i].number == 0) {
-	    if (events[i].value == 0) joy->stateaxes[JOYLEFT] = joy->stateaxes[JOYRIGHT] = 0;
-	    else if (events[i].value < 0) joy->stateaxes[JOYLEFT] = 1;
-	    else joy->stateaxes[JOYRIGHT] = 1;
+	    joy->stateaxes[JOYLEFT] = joy->stateaxes[JOYRIGHT] = 0;
+	    if      (events[i].value < -DEAD_ZONE) joy->stateaxes[JOYLEFT] = 1;
+	    else if (events[i].value >  DEAD_ZONE) joy->stateaxes[JOYRIGHT] = 1;
+	    joy->axevals[0] = events[i].value;
 	  }
 	  else if (events[i].number == 1) {
-	    if (events[i].value == 0) joy->stateaxes[JOYUP] = joy->stateaxes[JOYDOWN] = 0;
-	    else if (events[i].value < 0) joy->stateaxes[JOYUP] = 1;
-	    else joy->stateaxes[JOYDOWN] = 1;
+	    joy->stateaxes[JOYUP] = joy->stateaxes[JOYDOWN] = 0;
+	    if      (events[i].value < -DEAD_ZONE) joy->stateaxes[JOYUP] = 1;
+	    else if (events[i].value >  DEAD_ZONE) joy->stateaxes[JOYDOWN] = 1;
+	    joy->axevals[1] = events[i].value;
 	  }
 	  event = 1;
 	  break;
@@ -418,6 +422,7 @@ void gp2x_usbjoy_deinit (void) {
 	int i;
 	for (i=0; i<num_of_joys; i++) {
 		joy_close (joys[i]);
+		joys[i] = NULL;
 	}
 	num_of_joys = 0;
 }
