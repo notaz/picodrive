@@ -1955,7 +1955,10 @@ void m68ki_exception_interrupt(uint int_level)
 
 	/* If we are halted, don't do anything */
 	if(CPU_STOPPED)
+	{
+		printf("mu stopped! (%x)\n", CPU_STOPPED);
 		return;
+	}
 
 	/* Acknowledge the interrupt */
 	vector = m68ki_int_ack(int_level);
@@ -2012,6 +2015,7 @@ void m68ki_exception_interrupt(uint int_level)
 /* ASG: Check for interrupts */
 INLINE void m68ki_check_interrupts(void)
 {
+	//printf("mu level, mask: %04x %04x\n", CPU_INT_LEVEL, FLAG_INT_MASK);
 	if(CPU_INT_LEVEL > FLAG_INT_MASK)
 		m68ki_exception_interrupt(CPU_INT_LEVEL>>8);
 }

@@ -8701,6 +8701,7 @@ M68KMAKE_OP(rol, 32, r, .)
 		*r_dst = res;
 
 		FLAG_C = (src >> (32 - shift)) << 8;
+		if (shift == 0) FLAG_C = src << 8; // notaz
 		FLAG_N = NFLAG_32(res);
 		FLAG_Z = res;
 		FLAG_V = VFLAG_CLEAR;
