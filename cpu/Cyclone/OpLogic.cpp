@@ -409,13 +409,6 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
     if (type==0) ot("  movs r0,r0,%s %s\n",dir?"asl":"asr",pct);
     if (type==1) ot("  movs r0,r0,%s %s\n",dir?"lsl":"lsr",pct);
 
-    if (dir==0 && size<2)
-    {
-      ot(";@ restore after right shift:\n");
-      ot("  mov r0,r0,lsl #%d\n",32-(8<<size));
-      ot("\n");
-    }
-
     OpGetFlags(0,0);
     if (usereg) { // store X only if count is not 0
       ot("  cmp %s,#0 ;@ shifting by 0?\n",pct);
@@ -425,6 +418,16 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
       // count will never be 0 if we use immediate
       ot("  str r9,[r7,#0x4c] ;@ Save X bit\n");
     }
+    ot("\n");
+
+    if (dir==0 && size<2)
+    {
+      ot(";@ restore after right shift:\n");
+      ot("  movs r0,r0,lsl #%d\n",32-(8<<size));
+      if (type)
+        ot("  orrmi r9,r9,#0x80000000 ;@ Potentially missed N flag\n");
+      ot("\n");
+    }
 
     if (type==0 && dir) {
       ot(";@ calculate V flag (set if sign bit changes at anytime):\n");
@@ -433,9 +436,8 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
       ot("  cmpne r3,r1,asr %s\n", pct);
       ot("  biceq r9,r9,#0x10000000\n");
       ot("  orrne r9,r9,#0x10000000\n");
+      ot("\n");
     }
-
-    ot("\n");
   }
 
   // --------------------------------------
@@ -467,12 +469,20 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
 
     if (usereg)
     {
-      ot(";@ Reduce r2 until <0:\n");
-      ot("Reduce_%.4x%s\n",op,ms?"":":");
-      ot("  subs r2,r2,#%d\n",wide+1);
-      ot("  bpl Reduce_%.4x\n",op);
-      ot("  adds r2,r2,#%d ;@ Now r2=0-%d\n",wide+1,wide);
-      ot("  beq norotx%.4x\n",op);
+      if (size==2)
+      {
+        ot("  subs r2,r2,#33\n");
+        ot("  addmis r2,r2,#33 ;@ Now r2=0-%d\n",wide);
+      }
+      else
+      {
+        ot(";@ Reduce r2 until <0:\n");
+        ot("Reduce_%.4x%s\n",op,ms?"":":");
+        ot("  subs r2,r2,#%d\n",wide+1);
+        ot("  bpl Reduce_%.4x\n",op);
+        ot("  adds r2,r2,#%d ;@ Now r2=0-%d\n",wide+1,wide);
+      }
+      ot("  beq norotx_%.4x\n",op);
       ot("\n");
     }
 
@@ -488,30 +498,26 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
 
     if (shift) ot("  mov r0,r0,lsr #%d ;@ Shift down\n",shift);
 
-    ot(";@ Rotate bits:\n");
-    ot("  mov r3,r0,lsr r2 ;@ Get right part\n");
-    ot("  rsbs r2,r2,#%d ;@ should also clear ARM V\n",wide+1);
-    ot("  movs r0,r0,lsl r2 ;@ Get left part\n");
-    ot("  orr r0,r3,r0 ;@ r0=Rotated value\n");
-
-    ot(";@ Insert X bit into r2-1:\n");
+    ot("\n");
+    ot(";@ First get X bit (middle):\n");
     ot("  ldr r3,[r7,#0x4c]\n");
-    ot("  sub r2,r2,#1\n");
+    ot("  rsb r1,r2,#%d\n",wide);
     ot("  and r3,r3,#0x20000000\n");
     ot("  mov r3,r3,lsr #29\n");
-    ot("  orr r0,r0,r3,lsl r2\n");
+    ot("  mov r3,r3,lsl r1\n");
+
+    ot(";@ Rotate bits:\n");
+    ot("  orr r3,r3,r0,lsr r2 ;@ Orr right part\n");
+    ot("  rsbs r2,r2,#%d ;@ should also clear ARM V\n",wide+1);
+    ot("  orrs r0,r3,r0,lsl r2 ;@ Orr left part, set flags\n");
     ot("\n");
 
     if (shift) ot("  movs r0,r0,lsl #%d ;@ Shift up and get correct NC flags\n",shift);
     OpGetFlags(0,!usereg);
-    if (!shift) {
-      ot("  tst r0,r0\n");
-      ot("  bicne r9,r9,#0x40000000 ;@ make sure we didn't mess Z\n");
-    }
     if (usereg) { // store X only if count is not 0
       ot("  str r9,[r7,#0x4c] ;@ if not 0, Save X bit\n");
       ot("  b nozerox%.4x\n",op);
-      ot("norotx%.4x%s\n",op,ms?"":":");
+      ot("norotx_%.4x%s\n",op,ms?"":":");
       ot("  ldr r2,[r7,#0x4c]\n");
       ot("  adds r0,r0,#0 ;@ Defines NZ, clears CV\n");
       OpGetFlags(0,0);
@@ -536,9 +542,10 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
     }
 
     ot(";@ Rotate register:\n");
+    if (!dir) ot("  adds r0,r0,#0 ;@ first clear V and C\n"); // ARM does not clear C if rot count is 0
     if (count<0)
     {
-      if (dir) ot("  rsbs %s,%s,#32\n",pct,pct);
+      if (dir) ot("  rsb %s,%s,#32\n",pct,pct);
       ot("  movs r0,r0,ror %s\n",pct);
     }
     else
@@ -549,9 +556,9 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
     }
 
     OpGetFlags(0,0);
-    if (!dir) ot("  bic r9,r9,#0x10000000 ;@ make suve V is clear\n");
     if (dir)
     {
+      ot("  bic r9,r9,#0x30000000 ;@ clear CV\n");
       ot(";@ Get carry bit from bit 0:\n");
       if (usereg)
       {
@@ -561,14 +568,6 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
       else
         ot("  tst r0,#1\n");
       ot("  orrne r9,r9,#0x20000000\n");
-      ot("  biceq r9,r9,#0x20000000\n");
-    }
-    else if (usereg)
-    {
-      // if we rotate something by 0, ARM doesn't clear C
-      // so we need to detect that
-      ot("  cmp %s,#0\n",pct);
-      ot("  biceq r9,r9,#0x20000000\n");
     }
     ot("\n");
 
@@ -599,7 +598,7 @@ int OpAsr(int op)
   // Use the same opcode for target registers:
   use=op&~0x0007;
 
-  // As long as count is not 8, use the same opcode for all shift counts::
+  // As long as count is not 8, use the same opcode for all shift counts:
   if (usereg==0 && count!=8 && !(count==1&&type==2)) { use|=0x0e00; count=-1; }
   if (usereg) { use&=~0x0e00; count=-1; } // Use same opcode for all Dn
 

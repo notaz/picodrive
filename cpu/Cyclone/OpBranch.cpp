@@ -158,11 +158,12 @@ int OpUnlk(int op)
 }
 
 // --------------------- Opcodes 0x4e70+ ---------------------
+// 01001110 01110ttt
 int Op4E70(int op)
 {
   int type=0;
 
-  type=op&7; // 01001110 01110ttt, reset/nop/stop/rte/rtd/rts/trapv/rtr
+  type=op&7; // reset/nop/stop/rte/rtd/rts/trapv/rtr
 
   switch (type)
   {
@@ -236,7 +237,7 @@ int OpJsr(int op)
   ot(";@ Jump - Get new PC from r0\n");
   if (op&0x40)
   {
-    // Jmp - Get new PC from r0
+    // Jmp - Get new PC from r11
     ot("  add r0,r11,r10 ;@ Memory Base + New PC\n");
     ot("\n");
   }
@@ -319,14 +320,24 @@ int OpDbra(int op)
 
     ot(";@ Check if Dn.w is -1\n");
     ot("  cmn r0,#1\n");
+
+#if USE_CHECKPC_CALLBACK && USE_CHECKPC_DBRA
+    ot("  beq DbraMin1\n");
     ot("\n");
 
+    ot(";@ Get Branch offset:\n");
+    ot("  ldrsh r0,[r4]\n");
+    ot("  add r0,r4,r0 ;@ r4 = New PC\n");
+    CheckPc(0);
+#else
+    ot("\n");
     ot(";@ Get Branch offset:\n");
     ot("  ldrnesh r0,[r4]\n");
     ot("  addeq r4,r4,#2 ;@ Skip branch offset\n");
     ot("  subeq r5,r5,#4 ;@ additional cycles\n");
     ot("  addne r4,r4,r0 ;@ r4 = New PC\n");
     ot("\n");
+#endif
     Cycles=12-2;
     OpEnd();
   }
@@ -342,6 +353,18 @@ int OpDbra(int op)
     OpEnd();
   }
 
+#if USE_CHECKPC_CALLBACK && USE_CHECKPC_DBRA
+  if (op==0x51c8)
+  {
+    ot(";@ Dn.w is -1:\n");
+    ot("DbraMin1%s\n", ms?"":":");
+    ot("  add r4,r4,#2 ;@ Skip branch offset\n");
+    ot("\n");
+    Cycles=12+2;
+    OpEnd();
+  }
+#endif
+
   return 0;
 }
 
@@ -349,7 +372,7 @@ int OpDbra(int op)
 // Emit a Branch opcode 0110cccc nn  (cccc=condition)
 int OpBranch(int op)
 {
-  int size=0,use=0;
+  int size=0,use=0,checkpc=0;
   int offset=0;
   int cc=0;
   char *asr_r11="";
@@ -426,28 +449,26 @@ int OpBranch(int op)
     MemHandler(1,2);
     ot("\n");
     Cycles=18; // always 18
-    if (offset==0 || offset==-1)
-    {
-      ot(";@ Branch is quite far, so may be a good idea to check Memory Base+pc\n");
-      ot("  add r0,r4,r11%s ;@ r4 = New PC\n",asr_r11);
-      CheckPc(0);
-    }
-    else
-      ot("  add r4,r4,r11%s ;@ r4 = New PC\n",asr_r11);
+  }
+
+#if USE_CHECKPC_CALLBACK && USE_CHECKPC_OFFSETBITS_8
+  if (offset!=0 && offset!=-1) checkpc=1;
+#endif
+#if USE_CHECKPC_CALLBACK && USE_CHECKPC_OFFSETBITS_16
+  if (offset==0)  checkpc=1;
+#endif
+#if USE_CHECKPC_CALLBACK
+  if (offset==-1) checkpc=1;
+#endif
+  if (checkpc)
+  {
+    ot("  add r0,r4,r11%s ;@ r4 = New PC\n",asr_r11);
+    CheckPc(0);
   }
   else
   {
-    if (offset==0 || offset==-1)
-    {
-      ot("  add r0,r4,r11%s ;@ r4 = New PC\n",asr_r11);
-      ot(";@ Branch is quite far, so may be a good idea to check Memory Base+pc\n");
-      CheckPc(0);
-    }
-    else
-    {
-      ot("  add r4,r4,r11%s ;@ r4 = New PC\n",asr_r11);
-      ot("\n");
-    }
+    ot("  add r4,r4,r11%s ;@ r4 = New PC\n",asr_r11);
+    ot("\n");
   }
 
   OpEnd(size?0x10:0);
@@ -456,7 +477,7 @@ int OpBranch(int op)
   if (cc>=2&&(op&0xff00)==0x6200)
   {
     ot("BccDontBranch%i%s\n", 8<<size, ms?"":":");
-    if (size) ot("  add r4,r4,#%d\n",8<<size);
+    if (size) ot("  add r4,r4,#%d\n",1<<size);
     Cycles+=(size==1) ? 2 : -2; // Branch not taken
     OpEnd(0);
   }

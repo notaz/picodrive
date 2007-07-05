@@ -14,11 +14,11 @@ ___________________________________________________________________________
   Cyclone 68000 (c) Copyright 2004 Dave.   Free for non-commercial use
 
   Homepage: http://www.finalburn.com/
-  Dave's e-mail: dev(atsymbol)finalburn.com
+  Dave's e-mail: emudave(atsymbol)googlemail.com
   Replace (atsymbol) with @
 
-  Additional coding and bugfixes done by notaz, 2005, 2006
-  Homepage: http://mif.vu.lt/~grig2790/Cyclone/
+  Additional coding and bugfixes done by notaz, 2005-2007
+  Homepage: http://mif.vu.lt/~grig2790/Cyclone/ , http://notaz.gp2x.de
   e-mail: notasas(atsymbol)gmail.com
 ___________________________________________________________________________
 
@@ -35,6 +35,17 @@ Flags are mapped onto ARM flags whenever possible, which speeds up the processin
 
 What's New
 ----------
+v0.0087 notaz
+  - Reduced amount of code in opcode handlers by ~23% by doing the following:
+    - Removed duplicate opcode handlers
+    - Optimized code to use less ARM instructions
+    - Merged some duplicate handler endings
+  + Cyclone now does better job avoiding pipeline interlocks.
+  + Replaced incorrect handler of DBT with proper one.
+  + Fixed "MOVEA (An)+ An" behaviour.
+  + Fixed flags for ROXR and LSR. Hopefully got them right now.
+  + Additional functionality added for MAME and other ports (see config.h).
+
 v0.0086 notaz
   + Cyclone now can be customized to better suit your project, see config.h .
   + Added an option to compress the jumptable at compile-time. Must call CycloneInit()

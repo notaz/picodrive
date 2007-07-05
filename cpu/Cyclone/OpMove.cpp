@@ -133,18 +133,18 @@ int OpMove(int op)
   if (movea) size=2; // movea always expands to 32-bits
 
 #if SPLIT_MOVEL_PD
-  EaCalc (10,0x1e00,tea,size,0,0);
+  EaCalc (10,0x0e00,tea,size,0,0);
   if ((tea&0x38)==0x20 && size==2) { // -(An)
     ot("  mov r11,r1\n");
     ot("  add r0,r10,#2\n");
-    EaWrite(0,     1,tea,1,0x1e00,0,0);
-    EaWrite(10,   11,tea,1,0x1e00,1);
+    EaWrite(0,     1,tea,1,0x0e00,0,0);
+    EaWrite(10,   11,tea,1,0x0e00,1);
   } else {
-    EaWrite(0,     1,tea,size,0x1e00,0,0);
+    EaWrite(0,     1,tea,size,0x0e00,0,0);
   }
 #else
-  EaCalc (0,0x1e00,tea,size,0,0);
-  EaWrite(0,     1,tea,size,0x1e00,0,0);
+  EaCalc (0,0x0e00,tea,size,0,0);
+  EaWrite(0,     1,tea,size,0x0e00,0,0);
 #endif
 
 #if CYCLONE_FOR_GENESIS && !MEMHANDLERS_CHANGE_CYCLES
@@ -178,8 +178,8 @@ int OpLea(int op)
   OpStart(op,sea,tea);
 
   EaCalc (1,0x003f,sea,0); // Lea
-  EaCalc (0,0x1e00,tea,2);
-  EaWrite(0,     1,tea,2,0x1e00);
+  EaCalc (0,0x0e00,tea,2);
+  EaWrite(0,     1,tea,2,0x0e00);
 
   Cycles=Ea_add_ns(g_lea_cycle_table,sea);
 
@@ -513,7 +513,7 @@ int OpMovep(int op)
 
   // Get EA
   ea = (op&0x0007)|0x28;
-  rea=  op&0x0e00;
+  rea= (op&0x0e00)>>9;
   dir = (op>>7)&1;
 
   // Find size extension
@@ -522,7 +522,7 @@ int OpMovep(int op)
   OpStart(op,ea);
   
   if(dir) { // reg to mem
-    EaCalcReadNoSE(-1,11,rea,size,0x1e00);
+    EaCalcReadNoSE(-1,11,rea,size,0x0e00);
 
     EaCalc(10,0x000f,ea,size);
     if(size==2) { // if operand is long

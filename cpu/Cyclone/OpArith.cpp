@@ -25,20 +25,21 @@ int OpArith(int op)
 
   OpStart(op, sea, tea); Cycles=4;
 
-  EaCalcReadNoSE((type!=6)?11:-1,0,tea,size,0x003f);
+  // imm must be read first
   EaCalcReadNoSE(-1,10,sea,size,0);
+  EaCalcReadNoSE((type!=6)?11:-1,0,tea,size,0x003f);
 
   if (size<2) shiftstr=(char *)(size?",asl #16":",asl #24");
-  if (size<2) ot("  mov r0,r0,asl %i\n",size?16:24);
+  if (size<2) ot("  mov r10,r10,asl #%i\n",size?16:24);
 
   ot(";@ Do arithmetic:\n");
 
-  if (type==0) ot("  orr r1,r0,r10%s\n",shiftstr);
-  if (type==1) ot("  and r1,r0,r10%s\n",shiftstr);
-  if (type==2) ot("  subs r1,r0,r10%s ;@ Defines NZCV\n",shiftstr);
-  if (type==3) ot("  adds r1,r0,r10%s ;@ Defines NZCV\n",shiftstr);
-  if (type==5) ot("  eor r1,r0,r10%s\n",shiftstr);
-  if (type==6) ot("  cmp r0,r10%s ;@ Defines NZCV\n",shiftstr);
+  if (type==0) ot("  orr r1,r10,r0%s\n",shiftstr);
+  if (type==1) ot("  and r1,r10,r0%s\n",shiftstr);
+  if (type==2||type==6)
+               ot("  rsbs r1,r10,r0%s ;@ Defines NZCV\n",shiftstr);
+  if (type==3) ot("  adds r1,r10,r0%s ;@ Defines NZCV\n",shiftstr);
+  if (type==5) ot("  eor r1,r10,r0%s\n",shiftstr);
 
   if (type<2 || type==5) ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n"); // 0,1,5
 
@@ -384,7 +385,7 @@ int OpAbcd(int op)
     ot(";@ Get src/dest EA vals\n");
     EaCalc (0,0x000f, sea,0,1);
     EaRead (0,    10, sea,0,0x000f,1);
-    EaCalcReadNoSE(11,0,dea,0,0x1e00);
+    EaCalcReadNoSE(11,0,dea,0,0x0e00);
   }
   else
   {
@@ -540,13 +541,11 @@ int OpAritha(int op)
   if(size==2&&(sea<0x10||sea==0x3c)) Cycles+=2;
   if(type==1) Cycles=6;
 
-  // must calculate reg EA first, because of situations like: suba.w (A0)+, A0
-  EaCalc (10,0x1e00, dea,2,1);
-  EaRead (10,    11, dea,2,0x1e00);
+  // to handle suba.w (A0)+, A0 properly, must calc reg EA first
+  EaCalcReadNoSE(type!=1?10:-1,11,dea,2,0x0e00);
+  EaCalcReadNoSE(-1,0,sea,size,0x003f);
 
-  EaCalc ( 0,0x003f, sea,size,1);
-  EaRead ( 0,     0, sea,size,0x003f,1);
-
+  if (size<2) ot("  mov r0,r0,asl #%d\n\n",size?16:24);
   if (size<2) asr=(char *)(size?",asr #16":",asr #24");
 
   if (type==0) ot("  sub r11,r11,r0%s\n",asr);
@@ -555,7 +554,7 @@ int OpAritha(int op)
   if (type==2) ot("  add r11,r11,r0%s\n",asr);
   ot("\n");
   
-  if (type!=1) EaWrite(10,    11, dea,2,0x0e00,1);
+  if (type!=1) EaWrite(10,    11, dea,2,0x0e00);
 
   OpEnd(sea);
 
@@ -596,7 +595,7 @@ int OpAddx(int op)
     ot(";@ Get src/dest EA vals\n");
     EaCalc (0,0x000f, sea,size,1);
     EaRead (0,    11, sea,size,0x000f,1);
-    EaCalcReadNoSE(10,0,dea,size,0x1e00);
+    EaCalcReadNoSE(10,0,dea,size,0x0e00);
   }
   else
   {
@@ -716,11 +715,11 @@ int OpCmpm(int op)
   OpStart(op,sea); Cycles=4;
 
   ot(";@ Get src operand into r10:\n");
-  EaCalc (0,0x1e00, sea,size,1);
-  EaRead (0,    10, sea,size,0x000f,1);
+  EaCalc (0,0x0007, sea,size,1);
+  EaRead (0,    10, sea,size,0x0007,1);
 
   ot(";@ Get dst operand into r0:\n");
-  EaCalcReadNoSE(-1,0,dea,size,0x1e00);
+  EaCalcReadNoSE(-1,0,dea,size,0x0e00);
 
   if (size<2) asl=(char *)(size?",asl #16":",asl #24");
 

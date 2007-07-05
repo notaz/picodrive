@@ -27,7 +27,7 @@
  * Warning: if you enable this, you MUST call CycloneInit() before calling
  * CycloneRun(), or else it will crash.
  */
-#define COMPRESS_JUMPTABLE        1
+#define COMPRESS_JUMPTABLE        0
 
 /*
  * Address mask for memory hadlers. The bits set will be masked out of address
@@ -108,9 +108,22 @@
 #define USE_CHECKPC_CALLBACK      1
 
 /*
+ * This determines if checkpc() should be called after jumps when 8 and 16 bit
+ * displacement values were used.
+ */
+#define USE_CHECKPC_OFFSETBITS_16 1
+#define USE_CHECKPC_OFFSETBITS_8  0
+
+/*
+ * Call checkpc() after DBcc jumps (which use 16bit displacement). Cyclone prior to
+ * 0.0087 never did that.
+ */
+#define USE_CHECKPC_DBRA          0
+
+/*
  * When this option is enabled Cyclone will do two word writes instead of one
  * long write when handling MOVE.L with pre-decrementing destination, as described in
  * Bart Trzynadlowski's doc (http://www.trzy.org/files/68knotes.txt).
  * Enable this if you are emulating a 16 bit system.
  */
-#define SPLIT_MOVEL_PD            1
+#define SPLIT_MOVEL_PD            0

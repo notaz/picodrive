@@ -98,11 +98,12 @@ static int EaCalcReg(int r,int ea,int mask,int forceor,int shift,int noshift=0)
   for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
   mask&=0xf<<low; // This is the max we can do
 
-  if (ea>=8) needor=1; // Need to OR to access A0-7
-
-  if (((mask&g_op)>>low)&8) needor=0; // Ah - no we don't actually need to or, since the bit is high in r8
-
-  if (forceor) needor=1; // Special case for 0x30-0x38 EAs ;)
+  if (ea>=8)
+  {
+    needor=1; // Need to OR to access A0-7
+    if ((g_op>>low)&8) { needor=0; mask|=8<<low; } // Ah - no we don't actually need to or, since the bit is high in r8
+    if (forceor) needor=1; // Special case for 0x30-0x38 EAs ;)
+  }
 
   ot("  and r%d,r8,#0x%.4x\n",r,mask);
   if (needor) ot("  orr r%d,r%d,#0x%x ;@ A0-7\n",r,r,8<<low);
