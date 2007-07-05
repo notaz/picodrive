@@ -29,7 +29,7 @@ static int new_irq_level(int level)
 }
 
 #ifdef EMU_M68K
-static int SekIntAckS68k(int level)
+static int SekIntAckS68kM(int level)
 {
   int level_new = new_irq_level(level);
   dprintf("s68kACK %i -> %i", level, level_new);
@@ -82,7 +82,7 @@ int SekInitS68k()
     m68k_set_context(&PicoS68kCPU);
     m68k_set_cpu_type(M68K_CPU_TYPE_68000);
     m68k_init();
-    m68k_set_int_ack_callback(SekIntAckS68k);
+    m68k_set_int_ack_callback(SekIntAckS68kM);
 //  m68k_pulse_reset(); // not yet, memmap is not set up
     m68k_set_context(oldcontext);
   }
@@ -111,6 +111,8 @@ int SekResetS68k()
     void *oldcontext = m68ki_cpu_p;
 
     m68k_set_context(&PicoS68kCPU);
+    m68ki_cpu.sp[0]=0;
+    m68k_set_irq(0);
     m68k_pulse_reset();
     m68k_set_context(oldcontext);
   }

@@ -431,7 +431,7 @@ static int PicoFrameHints(void)
       getSamples(y);
 
     // Run scanline:
-    if (Pico.m.dma_bytes) SekCycleCnt+=CheckDMA();
+    if (Pico.m.dma_bytes) SekCyclesBurn(CheckDMA());
     SekRun(cycles_68k);
     if ((PicoOpt&4) && Pico.m.z80Run) {
       if (Pico.m.z80Run & 2) z80CycleAim+=cycles_z80;

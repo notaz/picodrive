@@ -72,6 +72,12 @@ static int SekUnrecognizedOpcode()
     PicoCpu.stopped = 1;
     return 1;
   }
+#ifdef EMU_M68K // debugging cyclone
+  {
+    extern int have_illegal;
+    have_illegal = 1;
+  }
+#endif
   //exit(1);
   return 0;
 }
@@ -144,6 +150,8 @@ int SekReset()
 #endif
 #ifdef EMU_M68K
   m68k_set_context(&PicoM68kCPU); // if we ever reset m68k, we always need it's context to be set
+  m68ki_cpu.sp[0]=0;
+  m68k_set_irq(0);
   m68k_pulse_reset();
 #endif
 

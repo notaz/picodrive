@@ -110,8 +110,17 @@ extern int SekCycleAimS68k;
 #define SekCyclesResetS68k() {SekCycleCntS68k=SekCycleAimS68k=0;}
 #define SekCyclesDoneS68k()  (SekCycleAimS68k-SekCyclesLeftS68k)
 
-// does not work as expected
-//extern int z80ExtraCycles; // extra z80 cycles, used when z80 is [en|dis]abled
+// debug cyclone
+#if defined(EMU_C68K) && defined(EMU_M68K)
+#undef SekSetCyclesLeftNoMCD
+#undef SekSetCyclesLeft
+#undef SekCyclesBurn
+#undef SekEndRun
+#define SekSetCyclesLeftNoMCD(c)
+#define SekSetCyclesLeft(c)
+#define SekCyclesBurn(c)
+#define SekEndRun(c)
+#endif
 
 extern int PicoMCD;
 

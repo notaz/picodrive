@@ -5,9 +5,8 @@ CROSS = arm-linux-
 #CROSS = $(devkit_path)bin/arm-linux-
 
 # settings
-dprint = 1
 #mz80 = 1
-#debug_cyclone = 1
+debug_cyclone = 0
 asm_memory = 1
 asm_render = 1
 asm_ym2612 = 1
@@ -18,8 +17,19 @@ asm_cdmemory = 1
 #use_musashi = 1
 #up = 1
 
+
+ifeq "$(debug_cyclone)" "1"
+use_cyclone = 1
+use_musashi = 1
+asm_memory = 0
+asm_cdmemory = 0
+endif
+ifneq "$(use_musashi)" "1"
+use_cyclone = 1
+endif
+
 DEFINC = -I../.. -I. -DARM -D__GP2X__ -D_UNZIP_SUPPORT # -DBENCHMARK
-COPT_COMMON = -static -O3 -ftracer -fstrength-reduce -Wall -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math # -s
+COPT_COMMON = -static -Wall -O3 -ftracer -fstrength-reduce -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math # -s
 ifeq "$(profile)" "1"
 COPT_COMMON += -fprofile-generate
 endif
@@ -82,12 +92,17 @@ OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/i
 OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
 # mp3
 OBJS += mp3.o
+# debug
+ifeq "$(debug_cyclone)" "1"
+OBJS += ../../Pico/_cyclone_debug.o ../../cpu/musashi/m68kdasm.o
+endif
 # CPU cores
 ifeq "$(use_musashi)" "1"
 DEFINC += -DEMU_M68K
 OBJS += ../../cpu/musashi/m68kcpu.o ../../cpu/musashi/m68kopac.o ../../cpu/musashi/m68kopdm.o
 OBJS += ../../cpu/musashi/m68kopnz.o ../../cpu/musashi/m68kops.o
-else
+endif
+ifeq "$(use_cyclone)" "1"
 DEFINC += -DEMU_C68K
 OBJS += ../../cpu/Cyclone/proj/Cyclone.o
 endif
