@@ -87,8 +87,6 @@ int main()
 		{
 			if ((op&0x00ff) == 0)
 				write_op(op, 6, 0, 0);
-			else if ((op&0x00ff) == 0xff)
-				write_op(op, 0, 6, 0);
 		}
 		else if ((op&0xf0f8)==0x50c8) // DBxx
 		{
@@ -96,7 +94,7 @@ int main()
 		}
 		else if ((op&0xff80)==0x4e80) // Jsr
 		{
-			int addr = 0x300 + i*8 + 8;
+			int addr = 0x300 + op*8 + 8;
 			if ((op&0x3f) == 0x39)
 				write_op(op, addr >> 16, addr & 0xffff, 0);
 		}
@@ -112,7 +110,8 @@ int main()
 	}
 
 	// jump to the beginning
-	write_op(0x4ef8, 0x300, 0, 0);
+	write_op(0x4ef8, 0x300, 0x4ef8, 0x300);
+	write_op(0x4ef8, 0x300, 0x4ef8, 0x300);
 
 	fclose(f);
 	return 0;

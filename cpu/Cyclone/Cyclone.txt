@@ -42,8 +42,9 @@ v0.0087 notaz
     - Merged some duplicate handler endings
   + Cyclone now does better job avoiding pipeline interlocks.
   + Replaced incorrect handler of DBT with proper one.
-  + Fixed "MOVEA (An)+ An" behaviour.
-  + Fixed flags for ROXR and LSR. Hopefully got them right now.
+  + Changed "MOVEA (An)+ An" behaviour.
+  + Fixed flag behaviour of ROXR, ASL, LSR and NBCD in certain situations.
+    Hopefully got them right now.
   + Additional functionality added for MAME and other ports (see config.h).
 
 v0.0086 notaz

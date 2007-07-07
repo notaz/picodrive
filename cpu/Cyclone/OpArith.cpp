@@ -237,7 +237,7 @@ int OpMul(int op)
   EaCalc(10,0x0e00,rea, 2);
   EaRead(10,     2,rea, 2,0x0e00);
 
-  ot("  movs r0,r0,asl #16\n");
+  ot("  movs r1,r0,asl #16\n");
 
   if (type==0) // div
   {
@@ -249,20 +249,25 @@ int OpMul(int op)
     if (sign)
     {
       ot("  mov r11,#0 ;@ r11 = 1 or 2 if the result is negative\n");
-      ot("  orrmi r11,r11,#1\n");
-      ot("  mov r0,r0,asr #16\n");
-      ot("  rsbmi r0,r0,#0 ;@ Make r0 positive\n");
-      ot("\n");
       ot("  tst r2,r2\n");
       ot("  orrmi r11,r11,#2\n");
       ot("  rsbmi r2,r2,#0 ;@ Make r2 positive\n");
       ot("\n");
+      ot("  movs r0,r1,asr #16\n");
+      ot("  orrmi r11,r11,#1\n");
+      ot("  rsbmi r0,r0,#0 ;@ Make r0 positive\n");
+      ot("\n");
+      ot(";@ detect the nasty 0x80000000 / -1 situation\n");
+      ot("  mov r3,r2,asr #31\n");
+      ot("  eors r3,r3,r1,asr #16\n");
+      ot("  beq wrendofop%.4x\n",op);
     }
     else
     {
-      ot("  mov r0,r0,lsr #16 ;@ use only 16 bits of divisor\n");
+      ot("  mov r0,r1,lsr #16 ;@ use only 16 bits of divisor\n");
     }
 
+    ot("\n");
     ot(";@ Divide r2 by r0\n");
     ot("  mov r3,#0\n");
     ot("  mov r1,r0\n");
@@ -299,6 +304,8 @@ int OpMul(int op)
       ot("  cmp r3,r1,asr #16 ;@ signed overflow?\n");
       ot("  orrne r9,r9,#0x10000000 ;@ set overflow flag\n");
       ot("  bne endofop%.4x ;@ overflow!\n",op);
+      ot("\n");
+      ot("wrendofop%.4x%s\n",op,ms?"":":");
     }
     else
     {
@@ -306,6 +313,7 @@ int OpMul(int op)
       ot("  movs r1,r3,lsr #16 ;@ check for overflow condition\n");
       ot("  orrne r9,r9,#0x10000000 ;@ set overflow flag\n");
       ot("  bne endofop%.4x ;@ overflow!\n",op);
+      ot("\n");
     }
 
     ot("  mov r1,r3,lsl #16 ;@ Clip to 16-bits\n");
@@ -319,7 +327,7 @@ int OpMul(int op)
   if (type==1)
   {
     ot(";@ Get 16-bit signs right:\n");
-    ot("  mov r0,r0,%s #16\n",sign?"asr":"lsr");
+    ot("  mov r0,r1,%s #16\n",sign?"asr":"lsr");
     ot("  mov r2,r2,lsl #16\n");
     ot("  mov r2,r2,%s #16\n",sign?"asr":"lsr");
     ot("\n");
@@ -486,29 +494,31 @@ int OpNbcd(int op)
   ot("  mov r0,r0,asl #24\n");
   ot("  and r2,r2,#0x20000000\n");
   ot("  add r2,r0,r2,lsr #5 ;@ add X\n");
-  ot("  rsbs r1,r2,#0x9a000000 ;@ do arithmetic\n");
+  ot("  rsb r11,r2,#0x9a000000 ;@ do arithmetic\n");
 
-  ot("  orrmi r9,r9,#0x80000000 ;@ N\n");
-  ot("  cmp r1,#0x9a000000\n");
+  ot("  cmp r11,#0x9a000000\n");
   ot("  beq finish%.4x\n",op);
   ot("\n");
 
-  ot("  mvn r3,r9,lsr #3 ;@ Undefined V behavior\n",op);
-  ot("  and r2,r1,#0x0f000000\n");
+  ot("  mvn r3,r11,lsr #31 ;@ Undefined V behavior\n",op);
+  ot("  and r2,r11,#0x0f000000\n");
   ot("  cmp r2,#0x0a000000\n");
-  ot("  andeq r1,r1,#0xf0000000\n");
-  ot("  addeq r1,r1,#0x10000000\n");
-  ot("  and r3,r3,r1,lsr #3 ;@ Undefined V behavior part II\n",op);
-  ot("  tst r1,r1\n");
-  ot("  orr r9,r9,r3 ;@ save V\n",op);
+  ot("  andeq r11,r11,#0xf0000000\n");
+  ot("  addeq r11,r11,#0x10000000\n");
+  ot("  and r3,r3,r11,lsr #31 ;@ Undefined V behavior part II\n",op);
+  ot("  movs r1,r11,asr #24\n");
   ot("  bicne r9,r9,#0x40000000 ;@ Z\n");
+  ot("  orr r9,r9,r3,lsl #28 ;@ save V\n",op);
   ot("  orr r9,r9,#0x20000000 ;@ C\n");
   ot("\n");
 
-  EaWrite(10,     1, ea,0,0x3f,1);
+  EaWrite(10,     1, ea,0,0x3f,0,0);
 
   ot("finish%.4x%s\n",op,ms?"":":");
+  ot("  tst r11,r11\n");
+  ot("  orrmi r9,r9,#0x80000000 ;@ N\n");
   ot("  str r9,[r7,#0x4c] ;@ Save X\n");
+  ot("\n");
 
   OpEnd(ea);
 
@@ -541,9 +551,19 @@ int OpAritha(int op)
   if(size==2&&(sea<0x10||sea==0x3c)) Cycles+=2;
   if(type==1) Cycles=6;
 
-  // to handle suba.w (A0)+, A0 properly, must calc reg EA first
-  EaCalcReadNoSE(type!=1?10:-1,11,dea,2,0x0e00);
-  EaCalcReadNoSE(-1,0,sea,size,0x003f);
+  // EA calculation order defines how situations like  suba.w (A0)+, A0 get handled.
+  // different emus act differently in this situation, I couldn't fugure which is right behaviour.
+  // This is Musashi's behaviour.
+  if (type == 1)
+  {
+    EaCalcReadNoSE(-1,0,sea,size,0x003f);
+    EaCalcReadNoSE(type!=1?10:-1,11,dea,2,0x0e00);
+  }
+  else
+  {
+    EaCalcReadNoSE(type!=1?10:-1,11,dea,2,0x0e00);
+    EaCalcReadNoSE(-1,0,sea,size,0x003f);
+  }
 
   if (size<2) ot("  mov r0,r0,asl #%d\n\n",size?16:24);
   if (size<2) asr=(char *)(size?",asr #16":",asr #24");

@@ -11,8 +11,7 @@ static void CheckPc(int reg)
   ot("  ldr pc,[r7,#0x64] ;@ Call checkpc()\n");
   ot("  mov r4,r0\n");
 #else
-  if (reg != 4)
-    ot("  mov r4,r%i\n", reg);
+  ot("  bic r4,r%d,#1\n",reg); // we do not emulate address errors
 #endif
   ot("\n");
 }
@@ -194,7 +193,7 @@ int Op4E70(int op)
     case 6: // trapv
     OpStart(op,0x10); Cycles=4;
     ot("  tst r9,#0x10000000\n");
-    ot("  subne r5,r5,#%i\n",30);
+    ot("  subne r5,r5,#%i\n",34);
     ot("  movne r0,#0x1c ;@ TRAPV exception\n");
     ot("  blne Exception\n");
     OpEnd(0x10);
@@ -336,6 +335,7 @@ int OpDbra(int op)
     ot("  addeq r4,r4,#2 ;@ Skip branch offset\n");
     ot("  subeq r5,r5,#4 ;@ additional cycles\n");
     ot("  addne r4,r4,r0 ;@ r4 = New PC\n");
+    ot("  bic r4,r4,#1\n"); // we do not emulate address errors
     ot("\n");
 #endif
     Cycles=12-2;
@@ -384,6 +384,7 @@ int OpBranch(int op)
   if (offset==0)  size=1;
   if (offset==-1) size=2;
 
+  if (size==2) size=0; // 000 model does not support long displacement
   if (size) use=op; // 16-bit or 32-bit
   else use=(op&0xff00)+1; // Use same opcode for all 8-bit branches
 
@@ -451,6 +452,8 @@ int OpBranch(int op)
     Cycles=18; // always 18
   }
 
+  ot("  add r0,r4,r11%s ;@ r4 = New PC\n",asr_r11);
+
 #if USE_CHECKPC_CALLBACK && USE_CHECKPC_OFFSETBITS_8
   if (offset!=0 && offset!=-1) checkpc=1;
 #endif
@@ -462,12 +465,11 @@ int OpBranch(int op)
 #endif
   if (checkpc)
   {
-    ot("  add r0,r4,r11%s ;@ r4 = New PC\n",asr_r11);
     CheckPc(0);
   }
   else
   {
-    ot("  add r4,r4,r11%s ;@ r4 = New PC\n",asr_r11);
+    ot("  bic r4,r0,#1\n"); // we do not emulate address errors
     ot("\n");
   }
 

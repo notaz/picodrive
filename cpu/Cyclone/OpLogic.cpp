@@ -403,7 +403,7 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
       ot("\n");
     }
 
-    if (type==0 && dir) ot("  mov r3,r0 ;@ save old value for V flag calculation\n");
+    if (type==0 && dir) ot("  adds r3,r0,#0 ;@ save old value for V flag calculation, also clear V\n");
 
     ot(";@ Shift register:\n");
     if (type==0) ot("  movs r0,r0,%s %s\n",dir?"asl":"asr",pct);
@@ -434,7 +434,8 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
       ot("  mov r1,#0x80000000\n");
       ot("  ands r3,r3,r1,asr %s\n", pct);
       ot("  cmpne r3,r1,asr %s\n", pct);
-      ot("  biceq r9,r9,#0x10000000\n");
+      ot("  eoreq r1,r0,r3\n"); // above check doesn't catch (-1)<<(32+), so we need this
+      ot("  tsteq r1,#0x80000000\n");
       ot("  orrne r9,r9,#0x10000000\n");
       ot("\n");
     }
