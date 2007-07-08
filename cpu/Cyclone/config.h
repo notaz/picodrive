@@ -27,7 +27,7 @@
  * Warning: if you enable this, you MUST call CycloneInit() before calling
  * CycloneRun(), or else it will crash.
  */
-#define COMPRESS_JUMPTABLE        0
+#define COMPRESS_JUMPTABLE        1
 
 /*
  * Address mask for memory hadlers. The bits set will be masked out of address
@@ -126,4 +126,4 @@
  * Bart Trzynadlowski's doc (http://www.trzy.org/files/68knotes.txt).
  * Enable this if you are emulating a 16 bit system.
  */
-#define SPLIT_MOVEL_PD            0
+#define SPLIT_MOVEL_PD            1

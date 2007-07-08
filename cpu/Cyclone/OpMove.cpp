@@ -133,19 +133,19 @@ int OpMove(int op)
   if (movea) size=2; // movea always expands to 32-bits
 
 #if SPLIT_MOVEL_PD
-  EaCalc (10,0x0e00,tea,size,0,0);
   if ((tea&0x38)==0x20 && size==2) { // -(An)
+    EaCalc (10,0x0e00,tea,size,0,0);
     ot("  mov r11,r1\n");
     ot("  add r0,r10,#2\n");
     EaWrite(0,     1,tea,1,0x0e00,0,0);
     EaWrite(10,   11,tea,1,0x0e00,1);
-  } else {
+  }
+  else
+#endif
+  {
+    EaCalc (0,0x0e00,tea,size,0,0);
     EaWrite(0,     1,tea,size,0x0e00,0,0);
   }
-#else
-  EaCalc (0,0x0e00,tea,size,0,0);
-  EaWrite(0,     1,tea,size,0x0e00,0,0);
-#endif
 
 #if CYCLONE_FOR_GENESIS && !MEMHANDLERS_CHANGE_CYCLES
   // this is a bit hacky
