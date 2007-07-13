@@ -504,7 +504,9 @@ static unsigned int  m68k_read_8 (unsigned int a, int do_fake) {
   a&=0xffffff;
   if(PicoMCD&1) return m68k_read_pcrelative_CD8(a);
   if(a<Pico.romsize)         return *(u8 *)(Pico.rom+(a^1)); // Rom
+#ifdef EMU_C68K
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
+#endif
   if((a&0xe00000)==0xe00000) return *(u8 *)(Pico.ram+((a^1)&0xffff)); // Ram
   return 0;
 }
@@ -512,7 +514,9 @@ static unsigned int  m68k_read_16(unsigned int a, int do_fake) {
   a&=0xffffff;
   if(PicoMCD&1) return m68k_read_pcrelative_CD16(a);
   if(a<Pico.romsize)         return *(u16 *)(Pico.rom+(a&~1)); // Rom
+#ifdef EMU_C68K
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
+#endif
   if((a&0xe00000)==0xe00000) return *(u16 *)(Pico.ram+(a&0xfffe)); // Ram
   return 0;
 }
@@ -520,7 +524,9 @@ static unsigned int  m68k_read_32(unsigned int a, int do_fake) {
   a&=0xffffff;
   if(PicoMCD&1) return m68k_read_pcrelative_CD32(a);
   if(a<Pico.romsize)         { u16 *pm=(u16 *)(Pico.rom+(a&~1));     return (pm[0]<<16)|pm[1]; }
+#ifdef EMU_C68K
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
+#endif
   if((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); return (pm[0]<<16)|pm[1]; } // Ram
   return 0;
 }

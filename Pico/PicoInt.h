@@ -118,7 +118,7 @@ extern int SekCycleAimS68k;
 #undef SekEndRun
 #define SekSetCyclesLeftNoMCD(c)
 #define SekSetCyclesLeft(c)
-#define SekCyclesBurn(c)
+#define SekCyclesBurn(c) c
 #define SekEndRun(c)
 #endif
 

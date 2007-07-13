@@ -21,10 +21,12 @@ asm_cdmemory = 1
 ifeq "$(debug_cyclone)" "1"
 use_cyclone = 1
 use_musashi = 1
+endif
+ifeq "$(use_musashi)" "1"
+asm_cdpico = 0
 asm_memory = 0
 asm_cdmemory = 0
-endif
-ifneq "$(use_musashi)" "1"
+else
 use_cyclone = 1
 endif
 
@@ -99,8 +101,7 @@ endif
 # CPU cores
 ifeq "$(use_musashi)" "1"
 DEFINC += -DEMU_M68K
-OBJS += ../../cpu/musashi/m68kcpu.o ../../cpu/musashi/m68kopac.o ../../cpu/musashi/m68kopdm.o
-OBJS += ../../cpu/musashi/m68kopnz.o ../../cpu/musashi/m68kops.o
+OBJS += ../../cpu/musashi/m68kops.o ../../cpu/musashi/m68kcpu.o
 endif
 ifeq "$(use_cyclone)" "1"
 DEFINC += -DEMU_C68K
@@ -179,7 +180,11 @@ testrefr.gpe : test.o gp2x.o asmutils.o
 # build Cyclone
 ../../cpu/Cyclone/proj/Cyclone.s :
 	@echo building Cyclone...
-	@make -C ../../cpu/Cyclone/proj -f Makefile.linux
+	@make -C ../../cpu/Cyclone/proj
+
+../../cpu/musashi/m68kops.c :
+	@make -C ../../cpu/musashi
+
 
 # build helix libs
 helix/helix_mp3.a:
