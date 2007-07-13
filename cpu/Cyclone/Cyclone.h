@@ -40,8 +40,8 @@ struct Cyclone
   unsigned short (*fetch16)(unsigned int a);  // [r7,#0x84]
   unsigned int   (*fetch32)(unsigned int a);  // [r7,#0x88]
   void (*IrqCallback)(int int_level);         // [r7,#0x8c] - optional irq callback function, see config.h
-  void (*ResetCallback)();                    // [r7,#0x90] - if enabled in config.h, calls this whenever RESET opcode is encountered.
-  int  (*UnrecognizedCallback)();             // [r7,#0x94] - if enabled in config.h, calls this whenever unrecognized opcode is encountered.
+  void (*ResetCallback)(void);                // [r7,#0x90] - if enabled in config.h, calls this whenever RESET opcode is encountered.
+  int  (*UnrecognizedCallback)(void);         // [r7,#0x94] - if enabled in config.h, calls this whenever unrecognized opcode is encountered.
 };
 
 // used only if Cyclone was compiled with compressed jumptable, see config.h

@@ -243,10 +243,10 @@ int OpJsr(int op)
   else
   {
     ot(";@ Jsr - Push old PC first\n");
-    ot("  sub r1,r4,r10 ;@ r1 = Old PC\n");
-    ot("  mov r1,r1,lsl #8\n");
     ot("  ldr r0,[r7,#0x3c]\n");
-    ot("  mov r1,r1,asr #8\n");
+    ot("  sub r1,r4,r10 ;@ r1 = Old PC\n");
+//    ot("  mov r1,r1,lsl #8\n");
+//    ot("  mov r1,r1,asr #8\n");
     ot(";@ Push r1 onto stack\n");
     ot("  sub r0,r0,#4 ;@ Predecrement A7\n");
     ot("  str r0,[r7,#0x3c] ;@ Save A7\n");
@@ -438,11 +438,11 @@ int OpBranch(int op)
   if (cc==1)
   {
     ot(";@ Bsr - remember old PC\n");
+    ot("  ldr r2,[r7,#0x3c]\n");
     ot("  sub r1,r4,r10 ;@ r1 = Old PC\n");
     if (size) ot("  add r1,r1,#%d\n",1<<size);
-    ot("  mov r1,r1, lsl #8\n");
-    ot("  ldr r2,[r7,#0x3c]\n");
-    ot("  mov r1,r1, asr #8\n");
+//    ot("  mov r1,r1, lsl #8\n");
+//    ot("  mov r1,r1, asr #8\n");
     ot("\n");
     ot(";@ Push r1 onto stack\n");
     ot("  sub r0,r2,#4 ;@ Predecrement A7\n");

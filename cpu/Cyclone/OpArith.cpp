@@ -553,8 +553,7 @@ int OpAritha(int op)
 
   // EA calculation order defines how situations like  suba.w (A0)+, A0 get handled.
   // different emus act differently in this situation, I couldn't fugure which is right behaviour.
-  // This is Musashi's behaviour.
-  if (type == 1)
+  if (/*type == */1)
   {
     EaCalcReadNoSE(-1,0,sea,size,0x003f);
     EaCalcReadNoSE(type!=1?10:-1,11,dea,2,0x0e00);

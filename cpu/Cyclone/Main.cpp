@@ -102,9 +102,10 @@ static void PrintException(int ints)
   ot("no_sp_swap%i%s\n",ints,ms?"":":");
 
   ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
-  ot("  mov r1,r4,lsl #8\n");
-  ot("  sub r1,r1,r10,lsl #8 ;@ r1 = Old PC\n");
-  ot("  mov r1,r1,asr #8 ;@ push sign extended\n");
+//  ot("  mov r1,r4,lsl #8\n");
+//  ot("  sub r1,r1,r10,lsl #8 ;@ r1 = Old PC\n");
+//  ot("  mov r1,r1,asr #8 ;@ push sign extended\n");
+  ot("  sub r1,r4,r10 ;@ r1 = Old PC\n");
   OpPush32();
   OpPushSr(1);
   ot("  mov r0,r11\n");
@@ -634,12 +635,11 @@ static void PrintJumpTable()
     }
     if(ip&1) ott("0x%.4x", 0, "\n",0,ip++,1);
     if(ip&7) fseek(AsmFile, -1, SEEK_CUR); // remove last comma
-    ot("\n");
     if(ip&7) {
       for(i = 8-(ip&7); i > 0; i--)
         ot(",0x0000");
-      ot("\n");
     }
+    ot("\n");
     if(ms) {
       for(i = (0x2000-ip/2)/8+1; i > 0; i--)
         ot("  dcd 0,0,0,0,0,0,0,0\n");
@@ -687,7 +687,7 @@ static int CycloneMake()
   ot("\n;@ Dave's Cyclone 68000 Emulator v%x.%.3x - Assembler Output\n\n",CycloneVer>>12,CycloneVer&0xfff);
 
   ot(";@ (c) Copyright 2003 Dave, All rights reserved.\n");
-  ot(";@ some code (c) Copyright 2005-2006 notaz, All rights reserved.\n");
+  ot(";@ some code (c) Copyright 2005-2007 notaz, All rights reserved.\n");
   ot(";@ Cyclone 68000 is free for non-commercial use.\n\n");
   ot(";@ For commercial use, separate licencing terms must be obtained.\n\n");
 
