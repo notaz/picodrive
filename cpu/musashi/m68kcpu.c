@@ -5,9 +5,9 @@
 #if 0
 static const char* copyright_notice =
 "MUSASHI\n"
-"Version 3.3 (2001-01-29)\n"
+"Version 3.31 (2007-07-09)\n"
 "A portable Motorola M680x0 processor emulation engine.\n"
-"Copyright 1998-2001 Karl Stenerud.  All rights reserved.\n"
+"Copyright 1998-2007 Karl Stenerud.  All rights reserved.\n"
 "\n"
 "This code may be freely used for non-commercial purpooses as long as this\n"
 "copyright notice remains unaltered in the source code and any binary files\n"
@@ -32,15 +32,19 @@ static const char* copyright_notice =
 /* ================================ INCLUDES ============================== */
 /* ======================================================================== */
 
+extern void m68040_fpu_op0(void);
+extern void m68040_fpu_op1(void);
+
 #include "m68kops.h"
 #include "m68kcpu.h"
+//#include "m68kfpu.c"
 
 /* ======================================================================== */
 /* ================================= DATA ================================= */
 /* ======================================================================== */
 
-// int  m68ki_initial_cycles; // moved to m68k_execute() stack
-// int  m68ki_remaining_cycles = 0;                     /* Number of clocks remaining */
+int  m68ki_initial_cycles;
+//int  m68ki_remaining_cycles = 0;                     /* Number of clocks remaining */
 uint m68ki_tracing = 0;
 uint m68ki_address_space;
 
@@ -68,8 +72,9 @@ const char* m68ki_cpu_names[] =
 #endif /* M68K_LOG_ENABLE */
 
 /* The CPU core */
-// m68ki_cpu_core m68ki_cpu = {0};
+// notaz
 m68ki_cpu_core *m68ki_cpu_p = NULL;
+//m68ki_cpu_core m68ki_cpu = {0};
 
 
 #if M68K_EMULATE_ADDRESS_ERROR
@@ -477,6 +482,12 @@ static void default_rte_instr_callback(void)
 {
 }
 
+/* Called when a tas instruction is executed */
+static int default_tas_instr_callback(void)
+{
+	return 1; // allow writeback
+}
+
 /* Called when the program counter changed by a large value */
 static unsigned int default_pc_changed_callback_data;
 static void default_pc_changed_callback(unsigned int new_pc)
@@ -647,6 +658,11 @@ void m68k_set_rte_instr_callback(void  (*callback)(void))
 	CALLBACK_RTE_INSTR = callback ? callback : default_rte_instr_callback;
 }
 
+void m68k_set_tas_instr_callback(int  (*callback)(void))
+{
+	CALLBACK_TAS_INSTR = callback ? callback : default_tas_instr_callback;
+}
+
 void m68k_set_pc_changed_callback(void  (*callback)(unsigned int new_pc))
 {
 	CALLBACK_PC_CHANGED = callback ? callback : default_pc_changed_callback;
@@ -771,8 +787,6 @@ void m68k_set_cpu_type(unsigned int cpu_type)
 /* ASG: removed per-instruction interrupt checks */
 int m68k_execute(int num_cycles)
 {
-	int  m68ki_initial_cycles;
-
 	/* Make sure we're not stopped */
 	if(!CPU_STOPPED)
 	{
@@ -788,7 +802,9 @@ int m68k_execute(int num_cycles)
 		m68ki_set_address_error_trap(); /* auto-disable (see m68kcpu.h) */
 
 		/* Main loop.  Keep going until we run out of clock cycles */
+		// notaz
 		while(GET_CYCLES() >= 0)
+//		do
 		{
 			/* Set tracing accodring to T1. (T0 is done inside instruction) */
 			m68ki_trace_t1(); /* auto-disable (see m68kcpu.h) */
@@ -809,7 +825,7 @@ int m68k_execute(int num_cycles)
 
 			/* Trace m68k_exception, if necessary */
 			m68ki_exception_if_trace(); /* auto-disable (see m68kcpu.h) */
-		}
+		} // while(GET_CYCLES() > 0); // notaz
 
 		/* set previous PC to current PC for the next entry into the loop */
 		REG_PPC = REG_PC;
@@ -829,19 +845,17 @@ int m68k_execute(int num_cycles)
 	return num_cycles;
 }
 
-#if 0
+
 int m68k_cycles_run(void)
 {
 	return m68ki_initial_cycles - GET_CYCLES();
 }
-#endif
 
 int m68k_cycles_remaining(void)
 {
 	return GET_CYCLES();
 }
 
-#if 0
 /* Change the timeslice */
 void m68k_modify_timeslice(int cycles)
 {
@@ -855,7 +869,7 @@ void m68k_end_timeslice(void)
 	m68ki_initial_cycles = GET_CYCLES();
 	SET_CYCLES(0);
 }
-#endif
+
 
 /* ASG: rewrote so that the int_level is a mask of the IPL0/IPL1/IPL2 bits */
 /* KS: Modified so that IPL* bits match with mask positions in the SR
@@ -890,6 +904,7 @@ void m68k_init(void)
 	m68k_set_reset_instr_callback(NULL);
 	m68k_set_cmpild_instr_callback(NULL);
 	m68k_set_rte_instr_callback(NULL);
+	m68k_set_tas_instr_callback(NULL);
 	m68k_set_pc_changed_callback(NULL);
 	m68k_set_fc_callback(NULL);
 	m68k_set_instr_hook_callback(NULL);
@@ -943,17 +958,17 @@ unsigned int m68k_context_size()
 	return sizeof(m68ki_cpu_core);
 }
 
-/*
 unsigned int m68k_get_context(void* dst)
 {
 	if(dst) *(m68ki_cpu_core*)dst = m68ki_cpu;
 	return sizeof(m68ki_cpu_core);
 }
-*/
 
 void m68k_set_context(void* src)
 {
+	// notaz
 	if(src) m68ki_cpu_p = src;
+//	if(src) m68ki_cpu = *(m68ki_cpu_core*)src;
 }
 
 
@@ -963,8 +978,6 @@ void m68k_set_context(void* src)
 /* ======================================================================== */
 
 #if M68K_COMPILE_FOR_MAME == OPT_ON
-
-#include "state.h"
 
 static struct {
 	UINT16 sr;

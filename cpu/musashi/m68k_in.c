@@ -8,10 +8,10 @@ must fix:
 /* ======================================================================== */
 /*
  *                                  MUSASHI
- *                                Version 3.3
+ *                                Version 3.31
  *
  * A portable Motorola M680x0 processor emulation engine.
- * Copyright 1998-2001 Karl Stenerud.  All rights reserved.
+ * Copyright 1998-2007 Karl Stenerud.  All rights reserved.
  *
  * This code may be freely used for non-commercial purposes as long as this
  * copyright notice remains unaltered in the source code and any binary files
@@ -259,6 +259,8 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 M68KMAKE_OPCODE_HANDLER_HEADER
 
 #include "m68kcpu.h"
+extern void m68040_fpu_op0(void);
+extern void m68040_fpu_op1(void);
 
 /* ======================================================================== */
 /* ========================= INSTRUCTION HANDLERS ========================= */
@@ -354,6 +356,8 @@ name    size  proc   ea   bit pattern       A+-DXWLdxI  0 1 2 4  000 010 020 040
 M68KMAKE_TABLE_START
 1010       0  .     .     1010............  ..........  U U U U   4   4   4   4
 1111       0  .     .     1111............  ..........  U U U U   4   4   4   4
+040fpu0   32  .     .     11110010........  ..........  . . . U   .   .   .   0
+040fpu1   32  .     .     11110011........  ..........  . . . U   .   .   .   0
 abcd       8  rr    .     1100...100000...  ..........  U U U U   6   6   4   4
 abcd       8  mm    ax7   1100111100001...  ..........  U U U U  18  18  16  16
 abcd       8  mm    ay7   1100...100001111  ..........  U U U U  18  18  16  16
@@ -494,7 +498,7 @@ chk2cmp2  32  .     .     0000010011......  A..DXWL...  . . U U   .   .  18  18
 clr        8  .     d     0100001000000...  ..........  U U U U   4   4   2   2
 clr        8  .     .     0100001000......  A+-DXWL...  U U U U   6   4   4   4  notaz hack: changed 000 cycles 8 -> 6 like in starscream for Fatal Rewind
 clr       16  .     d     0100001001000...  ..........  U U U U   4   4   2   2
-clr       16  .     .     0100001001......  A+-DXWL...  U U U U   6   4   4   4  ditto
+clr       16  .     .     0100001001......  A+-DXWL...  U U U U   6   4   4   4  notaz hack: ditto
 clr       32  .     d     0100001010000...  ..........  U U U U   6   6   2   2
 clr       32  .     .     0100001010......  A+-DXWL...  U U U U  12   6   4   4
 cmp        8  .     d     1011...000000...  ..........  U U U U   4   4   2   2
@@ -885,6 +889,29 @@ M68KMAKE_OP(1111, 0, ., .)
 }
 
 
+M68KMAKE_OP(040fpu0, 32, ., .)
+{
+	if(CPU_TYPE_IS_040_PLUS(CPU_TYPE))
+	{
+		m68040_fpu_op0();
+		return;
+	}
+	m68ki_exception_1111();
+}
+
+
+M68KMAKE_OP(040fpu1, 32, ., .)
+{
+	if(CPU_TYPE_IS_040_PLUS(CPU_TYPE))
+	{
+		m68040_fpu_op1();
+		return;
+	}
+	m68ki_exception_1111();
+}
+
+
+
 M68KMAKE_OP(abcd, 8, rr, .)
 {
 	uint* r_dst = &DX;
@@ -1210,8 +1237,9 @@ M68KMAKE_OP(adda, 16, ., a)
 M68KMAKE_OP(adda, 16, ., .)
 {
 	uint* r_dst = &AX;
+	uint src = MAKE_INT_16(M68KMAKE_GET_OPER_AY_16);
 
-	*r_dst = MASK_OUT_ABOVE_32(*r_dst + MAKE_INT_16(M68KMAKE_GET_OPER_AY_16));
+	*r_dst = MASK_OUT_ABOVE_32(*r_dst + src);
 }
 
 
@@ -3100,8 +3128,8 @@ M68KMAKE_OP(bra, 8, ., .)
 {
 	m68ki_trace_t0();				   /* auto-disable (see m68kcpu.h) */
 	m68ki_branch_8(MASK_OUT_ABOVE_8(REG_IR));
-//	if(REG_PC == REG_PPC)
-//		USE_ALL_CYCLES();
+	if(REG_PC == REG_PPC)
+		USE_ALL_CYCLES();
 }
 
 
@@ -3111,8 +3139,8 @@ M68KMAKE_OP(bra, 16, ., .)
 	REG_PC -= 2;
 	m68ki_trace_t0();			   /* auto-disable (see m68kcpu.h) */
 	m68ki_branch_16(offset);
-//	if(REG_PC == REG_PPC)
-//		USE_ALL_CYCLES();
+	if(REG_PC == REG_PPC)
+		USE_ALL_CYCLES();
 }
 
 
@@ -3132,8 +3160,8 @@ M68KMAKE_OP(bra, 32, ., .)
 	{
 		m68ki_trace_t0();				   /* auto-disable (see m68kcpu.h) */
 		m68ki_branch_8(MASK_OUT_ABOVE_8(REG_IR));
-//		if(REG_PC == REG_PPC)
-//			USE_ALL_CYCLES();
+		if(REG_PC == REG_PPC)
+			USE_ALL_CYCLES();
 	}
 }
 
@@ -5258,7 +5286,7 @@ M68KMAKE_OP(jsr, 32, ., .)
 {
 	uint ea = M68KMAKE_GET_EA_AY_32;
 	m68ki_trace_t0();				   /* auto-disable (see m68kcpu.h) */
-	m68ki_push_32(MAKE_INT_24(REG_PC)); // notaz: Cyclone can't handle 32bit PC and I neet to debug it
+	m68ki_push_32(REG_PC);
 	m68ki_jump(ea);
 }
 
@@ -6426,7 +6454,8 @@ M68KMAKE_OP(move, 32, pd, d)
 	uint res = DY;
 	uint ea = EA_AX_PD_32();
 
-	m68ki_write_32(ea, res);
+	m68ki_write_16(ea+2, res & 0xFFFF );
+	m68ki_write_16(ea, (res >> 16) & 0xFFFF );
 
 	FLAG_N = NFLAG_32(res);
 	FLAG_Z = res;
@@ -6440,7 +6469,8 @@ M68KMAKE_OP(move, 32, pd, a)
 	uint res = AY;
 	uint ea = EA_AX_PD_32();
 
-	m68ki_write_32(ea, res);
+	m68ki_write_16(ea+2, res & 0xFFFF );
+	m68ki_write_16(ea, (res >> 16) & 0xFFFF );
 
 	FLAG_N = NFLAG_32(res);
 	FLAG_Z = res;
@@ -6454,7 +6484,8 @@ M68KMAKE_OP(move, 32, pd, .)
 	uint res = M68KMAKE_GET_OPER_AY_32;
 	uint ea = EA_AX_PD_32();
 
-	m68ki_write_32(ea, res);
+	m68ki_write_16(ea+2, res & 0xFFFF );
+	m68ki_write_16(ea, (res >> 16) & 0xFFFF );
 
 	FLAG_N = NFLAG_32(res);
 	FLAG_Z = res;
@@ -6921,7 +6952,15 @@ M68KMAKE_OP(movec, 32, rc, .)
 			case 0x002:			   /* CACR */
 				if(CPU_TYPE_IS_EC020_PLUS(CPU_TYPE))
 				{
-					REG_CACR = REG_DA[(word2 >> 12) & 15];
+					if (CPU_TYPE_IS_040_PLUS(CPU_TYPE))
+					{
+						REG_CACR = REG_DA[(word2 >> 12) & 15];
+					}
+					else
+					{
+						/* non 68040 can only set the lower 4 bits (C,CE,F,E) */
+						REG_CACR = REG_DA[(word2 >> 12) & 15] & 0x0f;
+					}
 					return;
 				}
 				m68ki_exception_illegal();
@@ -7093,7 +7132,8 @@ M68KMAKE_OP(movem, 32, re, pd)
 		if(register_list & (1 << i))
 		{
 			ea -= 4;
-			m68ki_write_32(ea, REG_DA[15-i]);
+			m68ki_write_16(ea+2, REG_DA[15-i] & 0xFFFF );
+			m68ki_write_16(ea, (REG_DA[15-i] >> 16) & 0xFFFF );
 			count++;
 		}
 	AY = ea;
@@ -8700,8 +8740,7 @@ M68KMAKE_OP(rol, 32, r, .)
 
 		*r_dst = res;
 
-		FLAG_C = (src >> (32 - shift)) << 8;
-		if (shift == 0) FLAG_C = src << 8; // notaz
+		FLAG_C = (src >> ((32 - shift) & 0x1f)) << 8;
 		FLAG_N = NFLAG_32(res);
 		FLAG_Z = res;
 		FLAG_V = VFLAG_CLEAR;
@@ -9721,8 +9760,9 @@ M68KMAKE_OP(suba, 16, ., a)
 M68KMAKE_OP(suba, 16, ., .)
 {
 	uint* r_dst = &AX;
+	uint src = MAKE_INT_16(M68KMAKE_GET_OPER_AY_16);
 
-	*r_dst = MASK_OUT_ABOVE_32(*r_dst - MAKE_INT_16(M68KMAKE_GET_OPER_AY_16));
+	*r_dst = MASK_OUT_ABOVE_32(*r_dst - src);
 }
 
 
@@ -10150,12 +10190,20 @@ M68KMAKE_OP(tas, 8, ., .)
 {
 	uint ea = M68KMAKE_GET_EA_AY_8;
 	uint dst = m68ki_read_8(ea);
+	uint allow_writeback;
 
 	FLAG_Z = dst;
 	FLAG_N = NFLAG_8(dst);
 	FLAG_V = VFLAG_CLEAR;
 	FLAG_C = CFLAG_CLEAR;
-//	m68ki_write_8(ea, dst | 0x80); // notaz: genesis, but only to mem
+
+	/* The Genesis/Megadrive games Gargoyles and Ex-Mutants need the TAS writeback
+       disabled in order to function properly.  Some Amiga software may also rely
+       on this, but only when accessing specific addresses so additional functionality
+       will be needed. */
+	allow_writeback = m68ki_tas_callback();
+
+	if (allow_writeback==1) m68ki_write_8(ea, dst | 0x80);
 }
 
 

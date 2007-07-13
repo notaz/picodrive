@@ -126,6 +126,13 @@
 #define M68K_RTE_CALLBACK()         your_rte_handler_function()
 
 
+/* If ON, CPU will call the callback when it encounters a tas
+ * instruction.
+ */
+#define M68K_TAS_HAS_CALLBACK       OPT_ON
+#define M68K_TAS_CALLBACK()         your_tas_handler_function()
+
+
 /* If ON, CPU will call the set fc callback on every memory access to
  * differentiate between user/supervisor, program/data access like a real
  * 68000 would.  This should be enabled and the callback should be set if you

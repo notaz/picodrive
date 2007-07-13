@@ -4,10 +4,10 @@
 /* ======================================================================== */
 /*
  *                                  MUSASHI
- *                                Version 3.3
+ *                                Version 3.31
  *
  * A portable Motorola M680x0 processor emulation engine.
- * Copyright 1998-2001 Karl Stenerud.  All rights reserved.
+ * Copyright 1998-2007 Karl Stenerud.  All rights reserved.
  *
  * This code may be freely used for non-commercial purposes as long as this
  * copyright notice remains unaltered in the source code and any binary files
@@ -28,6 +28,7 @@
 
 // notaz: something's missing this
 #ifndef UINT16
+#define UINT64 unsigned long long
 #define UINT32 unsigned int
 #define UINT16 unsigned short
 #define UINT8  unsigned char
@@ -65,10 +66,10 @@
 
 #define sint8  signed   char			/* ASG: changed from char to signed char */
 #define sint16 signed   short
-#define sint32 signed   long
+#define sint32 signed   int			/* AWJ: changed from long to int */
 #define uint8  unsigned char
 #define uint16 unsigned short
-#define uint32 unsigned long
+#define uint32 unsigned int			/* AWJ: changed from long to int */
 
 /* signed and unsigned int must be at least 32 bits wide */
 #define sint   signed   int
@@ -116,7 +117,7 @@
 
 
 /* Allow for architectures that don't have 32-bit sizes */
-#if ULONG_MAX == 0xffffffff
+#if UINT_MAX == 0xffffffff
 	#define MAKE_INT_32(A) (sint32)(A)
 #else
 	#undef  sint32
@@ -127,13 +128,8 @@
 	{
 		return (value & 0x80000000) ? value | ~0xffffffff : value & 0xffffffff;
 	}
-#endif /* ULONG_MAX == 0xffffffff */
+#endif /* UINT_MAX == 0xffffffff */
 
-// notaz
-INLINE sint32 MAKE_INT_24(uint value)
-{
-	return (value & 0x800000) ? value | ~0xffffff : value & 0xffffff;
-}
 
 
 
@@ -328,6 +324,11 @@ INLINE sint32 MAKE_INT_24(uint value)
 #define REG_CAAR         m68ki_cpu.caar
 #define REG_IR           m68ki_cpu.ir
 
+#define REG_FP           m68ki_cpu.fpr
+#define REG_FPCR         m68ki_cpu.fpcr
+#define REG_FPSR         m68ki_cpu.fpsr
+#define REG_FPIAR        m68ki_cpu.fpiar
+
 #define FLAG_T1          m68ki_cpu.t1_flag
 #define FLAG_T0          m68ki_cpu.t0_flag
 #define FLAG_S           m68ki_cpu.s_flag
@@ -367,6 +368,7 @@ INLINE sint32 MAKE_INT_24(uint value)
 #define CALLBACK_RESET_INSTR  m68ki_cpu.reset_instr_callback
 #define CALLBACK_CMPILD_INSTR m68ki_cpu.cmpild_instr_callback
 #define CALLBACK_RTE_INSTR    m68ki_cpu.rte_instr_callback
+#define CALLBACK_TAS_INSTR    m68ki_cpu.tas_instr_callback
 #define CALLBACK_PC_CHANGED   m68ki_cpu.pc_changed_callback
 #define CALLBACK_SET_FC       m68ki_cpu.set_fc_callback
 #define CALLBACK_INSTR_HOOK   m68ki_cpu.instr_hook_callback
@@ -486,6 +488,17 @@ INLINE sint32 MAKE_INT_24(uint value)
 #else
 	#define m68ki_rte_callback()
 #endif /* M68K_RTE_HAS_CALLBACK */
+
+#if M68K_TAS_HAS_CALLBACK
+	#if M68K_TAS_HAS_CALLBACK == OPT_SPECIFY_HANDLER
+		#define m68ki_tas_callback() M68K_TAS_CALLBACK()
+	#else
+		#define m68ki_tas_callback() CALLBACK_TAS_INSTR()
+	#endif
+#else
+	#define m68ki_tas_callback()
+#endif /* M68K_TAS_HAS_CALLBACK */
+
 
 #if M68K_INSTRUCTION_HOOK
 	#if M68K_INSTRUCTION_HOOK == OPT_SPECIFY_HANDLER
@@ -835,6 +848,12 @@ INLINE sint32 MAKE_INT_24(uint value)
 /* =============================== PROTOTYPES ============================= */
 /* ======================================================================== */
 
+typedef union
+{
+	UINT64 i;
+	double f;
+} fp_reg;
+
 typedef struct
 {
 	uint cpu_type;     /* CPU Type: 68000, 68008, 68010, 68EC020, or 68020 */
@@ -848,6 +867,10 @@ typedef struct
 	uint cacr;         /* Cache Control Register (m68020, unemulated) */
 	uint caar;         /* Cache Address Register (m68020, unemulated) */
 	uint ir;           /* Instruction Register */
+    fp_reg fpr[8];     /* FPU Data Register (m68040) */
+	uint fpiar;        /* FPU Instruction Address Register (m68040) */
+	uint fpsr;         /* FPU Status Register (m68040) */
+	uint fpcr;         /* FPU Control Register (m68040) */
 	uint t1_flag;      /* Trace 1 */
 	uint t0_flag;      /* Trace 0 */
 	uint s_flag;       /* Supervisor */
@@ -887,20 +910,23 @@ typedef struct
 	void (*reset_instr_callback)(void);               /* Called when a RESET instruction is encountered */
 	void (*cmpild_instr_callback)(unsigned int, int); /* Called when a CMPI.L #v, Dn instruction is encountered */
 	void (*rte_instr_callback)(void);                 /* Called when a RTE instruction is encountered */
+	int  (*tas_instr_callback)(void);                 /* Called when a TAS instruction is encountered, allows / disallows writeback */
 	void (*pc_changed_callback)(unsigned int new_pc); /* Called when the PC changes by a large amount */
 	void (*set_fc_callback)(unsigned int new_fc);     /* Called when the CPU function code changes */
 	void (*instr_hook_callback)(void);                /* Called every instruction cycle prior to execution */
 
+	// notaz
 	sint cyc_remaining_cycles;
 } m68ki_cpu_core;
 
-
+// notaz
 extern m68ki_cpu_core *m68ki_cpu_p;
-#define m68ki_cpu (*m68ki_cpu_p) // test
-
-// extern sint           m68ki_remaining_cycles;
+#define m68ki_cpu (*m68ki_cpu_p)
 #define m68ki_remaining_cycles m68ki_cpu_p->cyc_remaining_cycles
 
+
+//extern m68ki_cpu_core m68ki_cpu;
+//extern sint           m68ki_remaining_cycles;
 extern uint           m68ki_tracing;
 extern uint8          m68ki_shift_8_table[];
 extern uint16         m68ki_shift_16_table[];
@@ -1936,6 +1962,7 @@ m68k_read_memory_8(0x00ffff01);
 	USE_CYCLES(CYC_EXCEPTION[EXCEPTION_ADDRESS_ERROR] - CYC_INSTRUCTION[REG_IR]);
 }
 
+
 /* Service an interrupt request and start exception processing */
 void m68ki_exception_interrupt(uint int_level)
 {
@@ -1955,10 +1982,7 @@ void m68ki_exception_interrupt(uint int_level)
 
 	/* If we are halted, don't do anything */
 	if(CPU_STOPPED)
-	{
-		printf("mu stopped! (%x)\n", CPU_STOPPED);
 		return;
-	}
 
 	/* Acknowledge the interrupt */
 	vector = m68ki_int_ack(int_level);
@@ -2015,7 +2039,6 @@ void m68ki_exception_interrupt(uint int_level)
 /* ASG: Check for interrupts */
 INLINE void m68ki_check_interrupts(void)
 {
-	//printf("mu level, mask: %04x %04x\n", CPU_INT_LEVEL, FLAG_INT_MASK);
 	if(CPU_INT_LEVEL > FLAG_INT_MASK)
 		m68ki_exception_interrupt(CPU_INT_LEVEL>>8);
 }
