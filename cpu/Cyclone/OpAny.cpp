@@ -25,35 +25,85 @@ void OpUse(int op,int use)
   ot(";@ ---------- [%.4x] %s uses Op%.4x ----------\n",op,text,use);
 }
 
-void OpStart(int op, int sea, int tea)
+void OpStart(int op, int sea, int tea, int op_changes_cycles, int supervisor_check)
 {
+  int last_op_count=arm_op_count;
+
   Cycles=0;
   OpUse(op,op); // This opcode obviously uses this handler
   ot("Op%.4x%s\n", op, ms?"":":");
-#if (MEMHANDLERS_NEED_PREV_PC || MEMHANDLERS_NEED_CYCLES)
-  if ((sea >= 0x10 && sea != 0x3c) || (tea >= 0x10 && tea != 0x3c)) {
+
+  if (supervisor_check)
+  {
+    // checks for supervisor bit, if not set, jumps to SuperEnd()
+    // also sets r11 to SR high value, SuperChange() uses this
+    ot("  ldr r11,[r7,#0x44] ;@ Get SR high\n");
+  }
+  if ((sea >= 0x10 && sea != 0x3c) || (tea >= 0x10 && tea != 0x3c))
+  {
 #if MEMHANDLERS_NEED_PREV_PC
     ot("  str r4,[r7,#0x50] ;@ Save prev PC + 2\n");
 #endif
 #if MEMHANDLERS_NEED_CYCLES
     ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");
 #endif
-    ot("\n");
   }
+  if (supervisor_check)
+  {
+    ot("  tst r11,#0x20 ;@ Check we are in supervisor mode\n");
+    ot("  beq WrongPrivilegeMode ;@ No\n");
+  }
+  if ((sea >= 0x10 && sea != 0x3c) || (tea >= 0x10 && tea != 0x3c)) {
+#if MEMHANDLERS_CHANGE_CYCLES
+    if (op_changes_cycles)
+      ot("  mov r5,#0\n");
 #endif
+  }
+  if (last_op_count!=arm_op_count)
+    ot("\n");
   pc_dirty = 1;
 }
 
-void OpEnd(int sea, int tea)
+void OpEnd(int sea, int tea, int op_changes_cycles, int check_interrupt)
 {
+  int did_fetch=0;
 #if MEMHANDLERS_CHANGE_CYCLES
   if ((sea >= 0x10 && sea != 0x3c) || (tea >= 0x10 && tea != 0x3c))
-    ot("  ldr r5,[r7,#0x5c] ;@ Load Cycles\n");
+  {
+    if (op_changes_cycles)
+    {
+      ot("  ldr r0,[r7,#0x5c] ;@ Load Cycles\n");
+      ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
+      ot("  add r5,r0,r5\n");
+      did_fetch=1;
+    }
+    else
+    {
+      ot("  ldr r5,[r7,#0x5c] ;@ Load Cycles\n");
+    }
+  }
 #endif
-  ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
+  if (!did_fetch)
+    ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
   ot("  subs r5,r5,#%d ;@ Subtract cycles\n",Cycles);
-  ot("  ldrge pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
-  ot("  b CycloneEnd\n");
+  if (check_interrupt)
+  {
+    ot("  blt CycloneEnd\n");
+    ot(";@ CheckInterrupt:\n");
+    ot("  ldr r1,[r7,#0x44] ;@ Get SR high T_S__III and irq level\n");
+    ot("  movs r0,r1,lsr #24 ;@ Get IRQ level\n"); // same as  ldrb r0,[r7,#0x47]
+    ot("  ldreq pc,[r6,r8,asl #2] ;@ Jump to next opcode handler\n");
+    ot("  cmp r0,#6 ;@ irq>6 ?\n");
+    ot("  andle r1,r1,#7 ;@ Get interrupt mask\n");
+    ot("  cmple r0,r1 ;@ irq<=6: Is irq<=mask ?\n");
+    ot("  ldrle pc,[r6,r8,asl #2] ;@ Jump to next opcode handler\n");
+    ot("  b CycloneDoInterruptGoBack\n");
+  }
+  else
+  {
+    ot("  ldrge pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
+    ot("  b CycloneEnd\n");
+  }
   ot("\n");
 }
 

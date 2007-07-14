@@ -10,7 +10,7 @@ char *Narm[4]={ "b", "h","",""}; // Normal ARM Extensions for operand sizes 0,1,
 char *Sarm[4]={"sb","sh","",""}; // Sign-extend ARM Extensions for operand sizes 0,1,2
 int Cycles; // Current cycles for opcode
 int pc_dirty; // something changed PC during processing
-static int arm_op_count;
+int arm_op_count;
 
 
 void ot(const char *format, ...)
@@ -90,24 +90,22 @@ static void PrintException(int ints)
     ot("  mov r11,r0\n");
   }
 
-  ot(";@ swap OSP <-> A7?\n");
   ot("  ldr r0,[r7,#0x44] ;@ Get SR high\n");
-  ot("  tst r0,#0x20\n");
-  ot("  bne no_sp_swap%i\n",ints);
-  ot(";@ swap OSP and A7:\n");
-  ot("  ldr r0,[r7,#0x3C] ;@ Get A7\n");
-  ot("  ldr r1,[r7,#0x48] ;@ Get OSP\n");
-  ot("  str r0,[r7,#0x48]\n");
-  ot("  str r1,[r7,#0x3C]\n");
-  ot("no_sp_swap%i%s\n",ints,ms?"":":");
-
   ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
-//  ot("  mov r1,r4,lsl #8\n");
-//  ot("  sub r1,r1,r10,lsl #8 ;@ r1 = Old PC\n");
-//  ot("  mov r1,r1,asr #8 ;@ push sign extended\n");
+  ot("  tst r0,#0x20\n");
+  ot(";@ get our SP:\n");
+  ot("  ldr r0,[r7,#0x3c] ;@ Get A7\n");
+  ot("  ldreq r1,[r7,#0x48] ;@ ...or OSP as our stack pointer\n");
+  ot("  streq r0,[r7,#0x48]\n");
+  ot("  moveq r0,r1\n");
+
   ot("  sub r1,r4,r10 ;@ r1 = Old PC\n");
-  OpPush32();
+  ot(";@ Push r1 onto stack\n");
+  ot("  sub r0,r0,#4 ;@ Predecrement A7\n");
+  ot("  str r0,[r7,#0x3c] ;@ Save A7\n");
+  MemHandler(1,2);
   OpPushSr(1);
+
   ot("  mov r0,r11\n");
   ot(";@ Read IRQ Vector:\n");
   MemHandler(0,2);
@@ -122,6 +120,8 @@ static void PrintException(int ints)
   ot("  mov lr,pc\n");
   ot("  ldr pc,[r7,#0x64] ;@ Call checkpc()\n");
   ot("  mov r4,r0\n");
+#else
+  ot("  add r4,r0,r10 ;@ r4 = Memory Base + New PC\n");
 #endif
   ot("\n");
 
@@ -131,21 +131,6 @@ static void PrintException(int ints)
     ot("  orr r0,r0,#0x20 ;@ set supervisor mode\n");
     ot("  strb r0,[r7,#0x44]\n");
   }
-}
-
-// Trashes r0,r1
-void CheckInterrupt(int op)
-{
-  ot(";@ CheckInterrupt:\n");
-  ot("  ldr r1,[r7,#0x44] ;@ Get SR high T_S__III and irq level\n");
-  ot("  movs r0,r1,lsr #24 ;@ Get IRQ level\n"); // same as  ldrb r0,[r7,#0x47]
-  ot("  beq NoInts%x\n",op);
-  ot("  cmp r0,#6 ;@ irq>6 ?\n");
-  ot("  andle r1,r1,#7 ;@ Get interrupt mask\n");
-  ot("  cmple r0,r1 ;@ irq<=6: Is irq<=mask ?\n");
-  ot("  blgt CycloneDoInterrupt\n");
-  ot("NoInts%x%s\n", op,ms?"":":");
-  ot("\n");
 }
 
 void FlushPC(void)
@@ -182,10 +167,7 @@ static void PrintFramework()
   ot("  cmp r0,#6 ;@ irq>6 ?\n");
   ot("  andle r1,r1,#7 ;@ Get interrupt mask\n");
   ot("  cmple r0,r1 ;@ irq<=6: Is irq<=mask ?\n");
-  ot("  blgt CycloneDoInterrupt\n");
-  ot(";@ Check if interrupt used up all the cycles:\n");
-  ot("  subs r5,r5,#0\n");
-  ot("  blt CycloneEndNoBack\n");
+  ot("  bgt CycloneDoInterrupt\n");
   ot("NoInts0%s\n", ms?"":":");
   ot("\n");
   ot(";@ Check if our processor is in stopped state and jump to opcode handler if not\n");
@@ -341,9 +323,9 @@ static void PrintFramework()
 #endif
 
   ot(";@ DoInterrupt - r0=IRQ number\n");
+  ot("CycloneDoInterruptGoBack%s\n", ms?"":":");
+  ot("  sub r4,r4,#2\n");
   ot("CycloneDoInterrupt%s\n", ms?"":":");
-  ot("  stmdb sp!,{lr} ;@ Push ARM return address\n");
-
   ot(";@ Get IRQ Vector address:\n");
   ot("  mov r0,r0,asl #2\n");
   ot("  add r11,r0,#0x60\n");
@@ -356,7 +338,6 @@ static void PrintFramework()
 
   ot(";@ Clear stopped states:\n");
   ot("  str r2,[r7,#0x58]\n");
-  ot("  sub r5,r5,#%d ;@ Subtract cycles\n",44);
   ot("\n");
 #if USE_INT_ACK_CALLBACK
 #if INT_ACK_NEEDS_STUFF
@@ -375,11 +356,14 @@ static void PrintFramework()
   ot("  mov r9,r9,lsl #28\n");
   ot("  ldr r4,[r7,#0x40] ;@ Load PC\n");
 #endif
-#else // not USE_INT_ACK_CALLBACK
+#else // !USE_INT_ACK_CALLBACK
   ot(";@ Clear irq:\n");
-  ot("  strb r1,[r7,#0x47]\n");
+  ot("  strb r2,[r7,#0x47]\n");
 #endif
-  ot("  ldmia sp!,{pc} ;@ Return\n");
+  ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
+  ot("  subs r5,r5,#44 ;@ Subtract cycles\n");
+  ot("  ldrge pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
+  ot("  b CycloneEnd\n");
   ot("\n");
   
   ot("Exception%s\n", ms?"":":");

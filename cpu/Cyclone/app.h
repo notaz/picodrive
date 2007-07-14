@@ -32,9 +32,9 @@ extern char *Narm[4]; // Normal ARM Extensions for operand sizes 0,1,2
 extern char *Sarm[4]; // Sign-extend ARM Extensions for operand sizes 0,1,2
 extern int  Cycles;   // Current cycles for opcode
 extern int  pc_dirty; // something changed PC during processing
+extern int  arm_op_count; // for stats
 void ot(const char *format, ...);
 void ltorg();
-void CheckInterrupt(int op);
 int MemHandler(int type,int size,int addrreg=0);
 void FlushPC(void);
 
@@ -42,8 +42,8 @@ void FlushPC(void);
 extern int g_op;
 int OpGetFlags(int subtract,int xbit,int sprecialz=0);
 void OpUse(int op,int use);
-void OpStart(int op,int sea=0,int tea=0);
-void OpEnd(int sea=0,int tea=0);
+void OpStart(int op,int sea=0,int tea=0,int op_changes_cycles=0,int supervisor_check=0);
+void OpEnd(int sea=0,int tea=0,int op_changes_cycles=0,int check_interrupt=0);
 int OpBase(int op,int size,int sepa=0);
 void OpAny(int op);
 
@@ -100,7 +100,6 @@ int OpMoveUsp(int op);
 int OpExg(int op);
 int OpMovep(int op);
 int OpStopReset(int op);
-void SuperCheck(int op);
 void SuperEnd(void);
 void SuperChange(int op,int load_srh=1);
 

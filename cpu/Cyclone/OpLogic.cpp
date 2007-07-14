@@ -307,7 +307,7 @@ int OpExt(int op)
 int OpSet(int op)
 {
   int cc=0,ea=0;
-  int size=0,use=0;
+  int size=0,use=0,changed_cycles=0;
   char *cond[16]=
   {
     "al","", "hi","ls","cc","cs","ne","eq",
@@ -325,7 +325,8 @@ int OpSet(int op)
   use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,ea); Cycles=8;
+  changed_cycles=ea<8 && cc>=2;
+  OpStart(op,ea,0,changed_cycles); Cycles=8;
   if (ea<8) Cycles=4;
 
   if (cc)
@@ -362,7 +363,7 @@ int OpSet(int op)
   EaCalc (0,0x003f, ea,size,0,0);
   EaWrite(0,     1, ea,size,0x003f,0,0);
 
-  OpEnd(ea);
+  OpEnd(ea,0,changed_cycles);
   return 0;
 }
 
@@ -586,7 +587,6 @@ int OpAsr(int op)
   int count=0,dir=0;
   int size=0,usereg=0,type=0;
 
-  ea=0;
   count =(op>>9)&7;
   dir   =(op>>8)&1;
   size  =(op>>6)&3;
@@ -605,7 +605,7 @@ int OpAsr(int op)
 
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=size<2?6:8;
+  OpStart(op,ea,0,count<0); Cycles=size<2?6:8;
 
   EaCalc(10,0x0007, ea,size,1);
   EaRead(10,     0, ea,size,0x0007,1);
@@ -614,7 +614,7 @@ int OpAsr(int op)
 
   EaWrite(10,    0, ea,size,0x0007,1);
 
-  OpEnd();
+  OpEnd(ea,0,count<0);
 
   return 0;
 }

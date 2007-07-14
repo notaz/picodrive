@@ -45,6 +45,8 @@ v0.0087 notaz
   + Changed "MOVEA (An)+ An" behaviour.
   + Fixed flag behaviour of ROXR, ASL, LSR and NBCD in certain situations.
     Hopefully got them right now.
+  + Cyclone no longer sets most significant bits while pushing PC to stack.
+    Amiga Kickstart depends on this.
   + Additional functionality added for MAME and other ports (see config.h).
 
 v0.0086 notaz

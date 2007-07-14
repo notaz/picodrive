@@ -4,7 +4,7 @@
 static void CheckPc(int reg)
 {
 #if USE_CHECKPC_CALLBACK
-  ot(";@ Check Memory Base+pc (r4)\n");
+  ot(";@ Check Memory Base+pc (r%i)\n",reg);
   if (reg != 0)
     ot("  mov r0,r%i\n", reg);
   ot("  mov lr,pc\n");
@@ -173,14 +173,12 @@ int Op4E70(int op)
     return 0;
 
     case 3: // rte
-    OpStart(op,0x10); Cycles=20;
-    SuperCheck(op);
+    OpStart(op,0x10,0,0,1); Cycles=20;
     PopSr(1);
     ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
     SuperChange(op);
-    CheckInterrupt(op);
-    OpEnd(0x10);
+    OpEnd(0x10,0,0,1);
     return 0;
 
     case 5: // rts
@@ -191,12 +189,12 @@ int Op4E70(int op)
     return 0;
 
     case 6: // trapv
-    OpStart(op,0x10); Cycles=4;
+    OpStart(op,0x10,0,1); Cycles=4;
     ot("  tst r9,#0x10000000\n");
     ot("  subne r5,r5,#%i\n",34);
     ot("  movne r0,#0x1c ;@ TRAPV exception\n");
     ot("  blne Exception\n");
-    OpEnd(0x10);
+    OpEnd(0x10,0,1);
     return 0;
 
     case 7: // rtr
@@ -233,27 +231,19 @@ int OpJsr(int op)
   ot("\n");
   EaCalc(11,0x003f,sea,0);
 
-  ot(";@ Jump - Get new PC from r0\n");
-  if (op&0x40)
-  {
-    // Jmp - Get new PC from r11
-    ot("  add r0,r11,r10 ;@ Memory Base + New PC\n");
-    ot("\n");
-  }
-  else
+  if (!(op&0x40))
   {
     ot(";@ Jsr - Push old PC first\n");
     ot("  ldr r0,[r7,#0x3c]\n");
     ot("  sub r1,r4,r10 ;@ r1 = Old PC\n");
-//    ot("  mov r1,r1,lsl #8\n");
-//    ot("  mov r1,r1,asr #8\n");
     ot(";@ Push r1 onto stack\n");
     ot("  sub r0,r0,#4 ;@ Predecrement A7\n");
     ot("  str r0,[r7,#0x3c] ;@ Save A7\n");
     MemHandler(1,2);
-    ot("  add r0,r11,r10 ;@ Memory Base + New PC\n");
-    ot("\n");
   }
+  ot(";@ Jump - Get new PC from r11\n");
+  ot("  add r0,r11,r10 ;@ Memory Base + New PC\n");
+  ot("\n");
 
   CheckPc(0);
 
@@ -441,8 +431,6 @@ int OpBranch(int op)
     ot("  ldr r2,[r7,#0x3c]\n");
     ot("  sub r1,r4,r10 ;@ r1 = Old PC\n");
     if (size) ot("  add r1,r1,#%d\n",1<<size);
-//    ot("  mov r1,r1, lsl #8\n");
-//    ot("  mov r1,r1, asr #8\n");
     ot("\n");
     ot(";@ Push r1 onto stack\n");
     ot("  sub r0,r2,#4 ;@ Predecrement A7\n");

@@ -39,16 +39,6 @@ void OpRegToFlags(int high)
   ot("\n");
 }
 
-// checks for supervisor bit, if not set, jumps to SuperEnd()
-// also sets r11 to SR high value, SuperChange() uses this
-void SuperCheck(int op)
-{
-  ot("  ldr r11,[r7,#0x44] ;@ Get SR high\n");
-  ot("  tst r11,#0x20 ;@ Check we are in supervisor mode\n");
-  ot("  beq WrongPrivilegeMode ;@ No\n");
-  ot("\n");
-}
-
 void SuperEnd(void)
 {
   ot(";@ ----------\n");
@@ -58,7 +48,7 @@ void SuperEnd(void)
   ot("  mov r0,#0x20 ;@ privilege violation\n");
   ot("  bl Exception\n");
   Cycles=34;
-  OpEnd(0x10);
+  OpEnd(0);
 }
 
 // does OSP and A7 swapping if needed
@@ -217,11 +207,10 @@ int OpMoveSr(int op)
   use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,ea);
+  // 68000 model allows reading whole SR in user mode (but newer models don't)
+  OpStart(op,ea,0,0,type==3);
   Cycles=12;
   if (type==0) Cycles=(ea>=8)?8:6;
-
-  if (type==3) SuperCheck(op); // 68000 model allows reading whole SR in user mode (but newer models don't)
 
   if (type==0 || type==1)
   {
@@ -236,11 +225,10 @@ int OpMoveSr(int op)
     OpRegToFlags(type==3);
     if (type==3) {
       SuperChange(op,0);
-      CheckInterrupt(op);
     }
   }
 
-  OpEnd(ea);
+  OpEnd(ea,0,0,type==3);
 
   return 0;
 }
@@ -259,9 +247,7 @@ int OpArithSr(int op)
   use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,ea); Cycles=16;
-
-  if (size) SuperCheck(op);
+  OpStart(op,ea,0,0,size!=0); Cycles=16;
 
   EaCalc(10,0x003f,ea,size);
   EaRead(10,    10,ea,size,0x003f);
@@ -271,12 +257,11 @@ int OpArithSr(int op)
   if (type==1) ot("  and r0,r1,r10\n");
   if (type==5) ot("  eor r0,r1,r10\n");
   OpRegToFlags(size);
-  if (size) {
+  if (size && type!=0) { // we can't enter supervisor mode, nor unmask irqs just by using OR
     SuperChange(op,0);
-    CheckInterrupt(op);
   }
 
-  OpEnd(ea);
+  OpEnd(ea,0,0,size!=0 && type!=0);
 
   return 0;
 }
@@ -337,7 +322,7 @@ int OpMovem(int op)
   use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,ea);
+  OpStart(op,ea,0,1);
 
   ot("  ldrh r11,[r4],#2 ;@ r11=register mask\n");
 
@@ -370,6 +355,9 @@ int OpMovem(int op)
   }
   else
   {
+    // if (size == 2 && decr && SPLIT_MOVEL_PD) we should do 2xWrite16 here
+    // (same as in movel.l ?, -(An)), but as this is not likely to be needed and
+    // we do not want the performance hit, we do single Write32 instead.
     ot("  ;@ Copy register to memory:\n",1<<size);
     ot("  ldr r1,[r7,r10] ;@ Load value from Dn/An\n");
     EaWrite(6,1,ea,size,0x003f);
@@ -403,7 +391,7 @@ int OpMovem(int op)
 
   Cycles+=Ea_add_ns(g_movem_cycle_table,ea);
 
-  OpEnd(ea);
+  OpEnd(ea,0,1);
   ltorg();
   ot("\n");
 
@@ -421,9 +409,7 @@ int OpMoveUsp(int op)
 
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op); Cycles=4;
-
-  SuperCheck(op);
+  OpStart(op,0,0,0,1); Cycles=4;
 
   if (dir)
   {
@@ -572,9 +558,7 @@ int OpStopReset(int op)
 {
   int type=(op>>1)&1; // stop/reset
 
-  OpStart(op);
-
-  SuperCheck(op);
+  OpStart(op,0,0,0,1);
 
   if(type) {
     // copy immediate to SR, stop the CPU and eat all remaining cycles.

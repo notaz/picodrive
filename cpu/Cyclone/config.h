@@ -18,7 +18,7 @@
  * the write-back phase. That will be emulated, if this option is enabled.
  * This option also alters timing slightly.
  */
-#define CYCLONE_FOR_GENESIS       2
+#define CYCLONE_FOR_GENESIS       0
 
 /*
  * This option compresses Cyclone's jumptable. Because of this the executable
@@ -52,13 +52,13 @@
  * increment the PC before fetching the next instruction and continue executing
  * at wrong location.
  */
-#define MEMHANDLERS_NEED_PC       0
+#define MEMHANDLERS_NEED_PC       1
 #define MEMHANDLERS_NEED_PREV_PC  0
 #define MEMHANDLERS_NEED_FLAGS    0
 #define MEMHANDLERS_NEED_CYCLES   1
 #define MEMHANDLERS_CHANGE_PC     0
 #define MEMHANDLERS_CHANGE_FLAGS  0
-#define MEMHANDLERS_CHANGE_CYCLES 0
+#define MEMHANDLERS_CHANGE_CYCLES 1
 
 /*
  * If enabled, Cyclone will call IrqCallback routine from it's context whenever it
@@ -79,7 +79,7 @@
  * encountered. All context members are valid and can be changed.
  * If disabled, RESET opcode acts as an NOP.
  */
-#define USE_RESET_CALLBACK        1
+#define USE_RESET_CALLBACK        0
 
 /*
  * If enabled, UnrecognizedCallback is called if an invalid opcode is
