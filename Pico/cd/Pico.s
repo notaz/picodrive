@@ -36,8 +36,8 @@ SekRunPS:
     ldr     lr, =PicoCpuS68k
     ldr     r2, =CycloneEnd_M68k
     ldr     r3, =CycloneEnd_S68k
-    str     r2, [r7,#0x54]
-    str     r3, [lr,#0x54]
+    str     r2, [r7,#0x98]
+    str     r3, [lr,#0x98]
 
     @ update aims
     ldr     r8, =SekCycleAim
@@ -132,12 +132,11 @@ SekRunPS_end:
     ldr     r7, =PicoCpu
     ldr     lr, =PicoCpuS68k
     mov     r0, #0
-    str     r0, [r7,#0x54]            @ remove CycloneEnd handler
-    str     r0, [lr,#0x54]
+    str     r0, [r7,#0x98]            @ remove CycloneEnd handler
+    str     r0, [lr,#0x98]
     @ return
     add     sp, sp, #2*4
     ldmfd   sp!, {r4-r11,pc}
-
 
 
 
@@ -159,20 +158,23 @@ CycloneRunLocal:
   cmp r0,#6 ;@ irq>6 ?
   andle r1,r1,#7 ;@ Get interrupt mask
   cmple r0,r1 ;@ irq<=6: Is irq<=mask ?
-  ldrgt lr,[r7,#0x54]      @ Interrupt will definitely use more cycles than our step,
-  bgt CycloneDoInterrupt   @ so make this function return directly to CycloneEnd_*
+  bgt CycloneDoInterrupt
 NoIntsLocal:
 
-  ;@ Check if our processor is in stopped state and jump to opcode handler if not
-  ldr r0,[r7,#0x58]
+;@ Check if our processor is in special state
+;@ and jump to opcode handler if not
+  ldr r0,[r7,#0x58] ;@ state_flags
   ldrh r8,[r4],#2 ;@ Fetch first opcode
-  tst r0,r0 ;@ stopped?
+  tst r0,#0x03 ;@ special state?
   andeq r9,r9,#0xf0000000
   ldreq pc,[r6,r8,asl #2] ;@ Jump to opcode handler
 
-  @ stopped
+CycloneSpecial2:
+  tst r0,#2 ;@ tracing?
+  bne CycloneDoTrace
+;@ stopped or halted
   sub r4,r4,#2
-  ldr r1,[r7,#0x54]
+  ldr r1,[r7,#0x98]
   mov r5,#0
   bx r1
 

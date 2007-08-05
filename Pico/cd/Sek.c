@@ -39,13 +39,14 @@ static int SekIntAckS68kM(int level)
 #endif
 
 #ifdef EMU_C68K
-// interrupt acknowledgment
-static void SekIntAckS68k(int level)
+// interrupt acknowledgement
+static int SekIntAckS68k(int level)
 {
   int level_new = new_irq_level(level);
 
   dprintf("s68kACK %i -> %i", level, level_new);
   PicoCpuS68k.irq = level_new;
+  return CYCLONE_INT_ACK_AUTOVECTOR;
 }
 
 static void SekResetAck()
@@ -97,7 +98,7 @@ int SekResetS68k()
   if (Pico.rom==NULL) return 1;
 
 #ifdef EMU_C68K
-  PicoCpuS68k.stopped=0;
+  PicoCpuS68k.state_flags=0;
   PicoCpuS68k.osp=0;
   PicoCpuS68k.srh =0x27; // Supervisor mode
   PicoCpuS68k.flags=4;   // Z set

@@ -109,13 +109,14 @@ static void dac_recalculate()
 
 void sound_reset()
 {
-  extern int z80stopCycle;
   void *ym2612_regs;
 
   // also clear the internal registers+addr line
   ym2612_regs = YM2612GetRegs();
   memset(ym2612_regs, 0, 0x200+4);
-  z80stopCycle = 0;
+  // setting these to 0 might confuse timing code,
+  // so better set to something like this instead
+  z80startCycle = z80stopCycle = 0x01000000;
 
   sound_rerate(0);
 }
@@ -462,11 +463,11 @@ void z80_exit()
 #endif
 }
 
-#if defined(__DEBUG_PRINT) || defined(WIN32)
+#if defined(__DEBUG_PRINT) || defined(__GP2X__)
 void z80_debug(char *dstr)
 {
 #if defined(_USE_DRZ80)
-  sprintf(dstr, "%sZ80 state: PC: %04x SP: %04x\n", dstr, drZ80.Z80PC-drZ80.Z80PC_BASE, drZ80.Z80SP-drZ80.Z80SP_BASE);
+  sprintf(dstr, "Z80 state: PC: %04x SP: %04x\n", drZ80.Z80PC-drZ80.Z80PC_BASE, drZ80.Z80SP-drZ80.Z80SP_BASE);
 #endif
 }
 #endif

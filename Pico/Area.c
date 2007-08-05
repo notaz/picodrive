@@ -63,7 +63,7 @@ int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
   *(unsigned int *)(cpu+0x44)=CycloneGetSr(context);
   *(unsigned int *)(cpu+0x48)=context->osp;
   cpu[0x4c] = context->irq;
-  cpu[0x4d] = context->stopped;
+  cpu[0x4d] = context->state_flags & 1;
 #endif
 
 #ifdef EMU_M68K
@@ -102,7 +102,9 @@ int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
   context->membase=0;
   context->pc = context->checkpc(*(unsigned int *)(cpu+0x40)); // Base pc
   context->irq = cpu[0x4c];
-  context->stopped = cpu[0x4d];
+  context->state_flags = 0;
+  if (cpu[0x4d])
+    context->state_flags |= 1;
 #endif
 
 #ifdef EMU_M68K

@@ -102,7 +102,6 @@ u32 OtherRead16(u32 a, int realsize)
 #if 1
     if (!d) {
       // needed by buggy Terminator (Sega CD)
-      extern int z80stopCycle;
       int stop_before = SekCyclesDone() - z80stopCycle;
       dprintf("stop before: %i", stop_before);
       if (stop_before > 0 && stop_before <= 32) // Gens uses 16 here

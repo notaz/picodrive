@@ -21,7 +21,7 @@ int emustatus = 0;
 void (*PicoWriteSound)(int len) = 0; // called once per frame at the best time to send sound buffer (PsndOut) to hardware
 
 struct PicoSRAM SRam;
-int z80startCycle = 0, z80stopCycle = 0; // in 68k cycles
+int z80startCycle, z80stopCycle; // in 68k cycles
 //int z80ExtraCycles = 0;
 int PicoPad[2];  // Joypads, format is SACB RLDU
 int PicoMCD = 0; // mega CD status: scd_started, reset_pending
@@ -463,13 +463,13 @@ static void PicoRunZ80Simple(int line_from, int line_to)
 
   if(!(PicoOpt&4) || Pico.m.z80Run == 0) { line_from_r = line_to_r; line_to_r = 0; }
 
-  if(z80startCycle != 0) {
+  if(z80startCycle != 0x01000000) {
     line_from_r = vcounts[z80startCycle>>8]+1;
-    z80startCycle = 0;
+    z80startCycle = 0x01000000;
   }
-  if(z80stopCycle != 0) {
+  if(z80stopCycle != 0x01000000) {
     line_to_r = vcounts[z80stopCycle>>8]+1;
-    z80stopCycle = 0;
+    z80stopCycle = 0x01000000;
   }
 
   if(PicoOpt&1) {
@@ -656,33 +656,47 @@ int PicoFrame(void)
 // callback to output message from emu
 void (*PicoMessage)(const char *msg)=NULL;
 
-#if defined(__DEBUG_PRINT) || defined(WIN32)
+#if defined(__DEBUG_PRINT) || defined(__GP2X__)
 // tmp debug: dump some stuff
 #define bit(r, x) ((r>>x)&1)
 void z80_debug(char *dstr);
-char *debugString()
+char *debugString(void)
 {
 #if 1
   static char dstr[1024];
-  unsigned char *reg=Pico.video.reg, r;
+  struct PicoVideo *pv=&Pico.video;
+  unsigned char *reg=pv->reg, r;
+  char *dstrp;
 
-  // dump some info
-  sprintf(dstr, "mode set 1: %02x\n", (r=reg[0]));
-  sprintf(dstr, "%sdisplay_disable: %i, M3: %i, palette: %i, ?, hints: %i\n\n", dstr, bit(r,0), bit(r,1), bit(r,2), bit(r,4));
-  sprintf(dstr, "%smode set 2: %02x\n",  dstr,  (r=reg[1]));
-  sprintf(dstr, "%sSMS/genesis: %i, pal: %i, dma: %i, vints: %i, disp: %i, TMS9918: %i\n\n",dstr, bit(r,2), bit(r,3), bit(r,4), bit(r,5), bit(r,6), bit(r,7));
-  sprintf(dstr, "%smode set 3: %02x\n",  dstr,  (r=reg[0xB]));
-  sprintf(dstr, "%sLSCR: %i, HSCR: %i, 2cell vscroll: %i, IE2: %i\n\n", dstr, bit(r,0), bit(r,1), bit(r,2), bit(r,3));
-  sprintf(dstr, "%smode set 4: %02x\n",  dstr,  (r=reg[0xC]));
-  sprintf(dstr, "%sinterlace: %i%i; cells: %i; shadow: %i\n\n", dstr, bit(r,2), bit(r,1), (r&0x80) ? 40 : 32,  bit(r,3));
-  sprintf(dstr, "%sscroll size: w: %i; h: %i\n\n",  dstr, reg[0x10]&3, (reg[0x10]&0x30)>>4);
-  sprintf(dstr, "%sSRAM: det: %i; eeprom: %i\n",  dstr, bit(Pico.m.sram_reg, 4), bit(Pico.m.sram_reg, 2));
-  sprintf(dstr, "%sCPU state: PC: %06x cycles: %i\n", dstr, SekPc, SekCyclesDoneT());
+  dstrp = dstr;
+  sprintf(dstrp, "mode set 1: %02x\n", (r=reg[0])); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "display_disable: %i, M3: %i, palette: %i, ?, hints: %i\n", bit(r,0), bit(r,1), bit(r,2), bit(r,4));
+  dstrp+=strlen(dstrp);
+  sprintf(dstrp, "mode set 2: %02x\n", (r=reg[1])); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "SMS/gen: %i, pal: %i, dma: %i, vints: %i, disp: %i, TMS: %i\n", bit(r,2), bit(r,3), bit(r,4),
+  	bit(r,5), bit(r,6), bit(r,7)); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "mode set 3: %02x\n", (r=reg[0xB])); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "LSCR: %i, HSCR: %i, 2cell vscroll: %i, IE2: %i\n", bit(r,0), bit(r,1), bit(r,2), bit(r,3)); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "mode set 4: %02x\n", (r=reg[0xC])); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "interlace: %i%i, cells: %i, shadow: %i\n", bit(r,2), bit(r,1), (r&0x80) ? 40 : 32,  bit(r,3));
+  dstrp+=strlen(dstrp);
+  sprintf(dstrp, "scroll size: w: %i, h: %i  SRAM: %i; eeprom: %i\n", reg[0x10]&3, (reg[0x10]&0x30)>>4,
+  	bit(Pico.m.sram_reg, 4), bit(Pico.m.sram_reg, 2)); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status);
+  dstrp+=strlen(dstrp);
 #ifdef EMU_C68K
-  for(r=0; r < 8; r++)
-    sprintf(dstr, "%sd%i=%08x, a%i=%08x\n", dstr, r, PicoCpu.d[r], r, PicoCpu.a[r]);
+  sprintf(dstrp, "M68k: PC: %06x, st_flg: %x, cycles: %u\n", SekPc, PicoCpu.state_flags, SekCyclesDoneT());
+  dstrp+=strlen(dstrp);
+  sprintf(dstrp, "d0=%08x, a0=%08x, osp=%08x, irql=%i\n", PicoCpu.d[0], PicoCpu.a[0], PicoCpu.osp, PicoCpu.irq); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "d1=%08x, a1=%08x,  sr=%04x\n", PicoCpu.d[1], PicoCpu.a[1], CycloneGetSr(&PicoCpu)); dstrp+=strlen(dstrp);
+  for(r=2; r < 8; r++) {
+    sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, PicoCpu.d[r], r, PicoCpu.a[r]); dstrp+=strlen(dstrp);
+  }
 #endif
-  z80_debug(dstr);
+  sprintf(dstrp, "z80Run: %i, pal: %i, frame#: %i\n", Pico.m.z80Run, Pico.m.pal, Pico.m.frame_count); dstrp+=strlen(dstrp);
+  z80_debug(dstrp); dstrp+=strlen(dstrp);
+  if (strlen(dstr) > sizeof(dstr))
+    printf("warning: debug buffer overflow (%i/%i)\n", strlen(dstr), sizeof(dstr));
 
 #else
   struct PicoVideo *pvid=&Pico.video;

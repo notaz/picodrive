@@ -419,6 +419,36 @@ static char *romsel_loop(char *curr_path)
 	return ret;
 }
 
+// ------------ debug menu ------------
+
+char *debugString(void);
+
+static void draw_debug(void)
+{
+	char *p, *str = debugString();
+	int len, line;
+
+	gp2x_pd_clone_buffer2();
+
+	p = str;
+	for (line = 0; line < 24; line++)
+	{
+		while (*p && *p != '\n') p++;
+		len = p - str;
+		if (len > 55) len = 55;
+		gp2x_smalltext8_lim(1, line*10, str, len);
+		if (*p == 0) break;
+		p++; str = p;
+	}
+	gp2x_video_flip2();
+}
+
+static void debug_menu_loop(void)
+{
+	draw_debug();
+	wait_for_input(GP2X_B|GP2X_X);
+}
+
 // ------------ patch/gg menu ------------
 
 static void draw_patchlist(int sel)
@@ -444,7 +474,7 @@ static void draw_patchlist(int sel)
 }
 
 
-void patches_menu_loop(void)
+static void patches_menu_loop(void)
 {
 	int menu_sel = 0;
 	unsigned long inp = 0;
@@ -1239,7 +1269,8 @@ static void draw_menu_root(int menu_sel)
 
 static void menu_loop_root(void)
 {
-	int ret, menu_sel = 4, menu_sel_max = 8, menu_sel_min = 4;
+	static int menu_sel = 4;
+	int ret, menu_sel_max = 8, menu_sel_min = 4;
 	unsigned long inp = 0;
 	char curr_path[PATH_MAX], *selfname;
 	FILE *tstf;
@@ -1254,7 +1285,7 @@ static void menu_loop_root(void)
 		getcwd(curr_path, PATH_MAX);
 	}
 
-	if (rom_data) menu_sel = menu_sel_min = 0;
+	if (rom_data) menu_sel_min = 0;
 	if (PicoPatches) menu_sel_max = 9;
 
 	/* make sure action buttons are not pressed on entering menu */
@@ -1264,9 +1295,10 @@ static void menu_loop_root(void)
 	for (;;)
 	{
 		draw_menu_root(menu_sel);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_B|GP2X_X|GP2X_SELECT);
+		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_B|GP2X_X|GP2X_SELECT|GP2X_L|GP2X_R);
 		if(inp & GP2X_UP  )  { menu_sel--; if (menu_sel < menu_sel_min) menu_sel = menu_sel_max; }
 		if(inp & GP2X_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = menu_sel_min; }
+		if((inp & (GP2X_L|GP2X_R)) == (GP2X_L|GP2X_R)) debug_menu_loop();
 		if(inp &(GP2X_SELECT|GP2X_X)){
 			if (rom_data) {
 				while (gp2x_joystick_read(1) & (GP2X_SELECT|GP2X_X)) usleep(50*1000); // wait until select is released

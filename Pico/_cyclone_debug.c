@@ -7,7 +7,7 @@ typedef unsigned char  u8;
 static unsigned int pppc, ops=0;
 extern unsigned int lastread_a, lastread_d[16], lastwrite_cyc_d[16], lastwrite_mus_d[16];
 extern int lrp_cyc, lrp_mus, lwp_cyc, lwp_mus;
-unsigned int old_regs[16], old_sr, ppop, have_illegal = 0;
+unsigned int old_regs[16], old_sr, ppop, have_illegal = 0, dbg_irq_level = 0;
 
 #undef dprintf
 #define dprintf(f,...) printf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__)
@@ -59,15 +59,22 @@ int CM_compareRun(int cyc)
     memcpy(old_regs, PicoCpu.d, 4*16);
     old_sr = CycloneGetSr(&PicoCpu);
 
-    /*
-    dprintf("---");
+#if 0
     {
       char buff[128];
       dprintf("---");
       m68k_disassemble(buff, pppc, M68K_CPU_TYPE_68000);
       dprintf("PC: %06x: %04x: %s", pppc, ppop, buff);
+      //dprintf("A7: %08x", PicoCpu.a[7]);
     }
-    */
+#endif
+
+    if (dbg_irq_level)
+    {
+      PicoCpu.irq=dbg_irq_level;
+      m68k_set_irq(dbg_irq_level);
+      dbg_irq_level=0;
+    }
 
     PicoCpu.cycles=1;
     CycloneRun(&PicoCpu);
@@ -99,8 +106,8 @@ int CM_compareRun(int cyc)
 
     // compare PC
     m68ki_cpu.pc&=~1;
-    if( SekPc != (m68ki_cpu.pc&0xffffff) ) {
-      dprintf("PC: %06x vs %06x", SekPc, m68ki_cpu.pc&0xffffff);
+    if( SekPc != (m68ki_cpu.pc/*&0xffffff*/) ) {
+      dprintf("PC: %06x vs %06x", SekPc, m68ki_cpu.pc/*&0xffffff*/);
       err=1;
     }
 
@@ -139,19 +146,25 @@ int CM_compareRun(int cyc)
     }
 
     // stopped
-    if((PicoCpu.stopped && !m68ki_cpu.stopped) || (!PicoCpu.stopped && m68ki_cpu.stopped)) {
-      dprintf("stopped: %i vs %i", PicoCpu.stopped, m68ki_cpu.stopped);
+    if(((PicoCpu.state_flags&1) && !m68ki_cpu.stopped) || (!(PicoCpu.state_flags&1) && m68ki_cpu.stopped)) {
+      dprintf("stopped: %i vs %i", PicoCpu.state_flags&1, m68ki_cpu.stopped);
+      err=1;
+    }
+
+    // tracing
+    if(((PicoCpu.state_flags&2) && !m68ki_tracing) || (!(PicoCpu.state_flags&2) && m68ki_tracing)) {
+      dprintf("tracing: %i vs %i", PicoCpu.state_flags&2, m68ki_tracing);
       err=1;
     }
 
     if(err) dumpPCandExit();
 
-/*
+#if 0
     if (PicoCpu.a[7] < 0x00ff0000 || PicoCpu.a[7] >= 0x01000000)
     {
       PicoCpu.a[7] = m68ki_cpu.dar[15] = 0xff8000;
     }
-*/
+#endif
 #if 0
     m68k_set_reg(M68K_REG_SR, ((mu_sr-1)&~0x2000)|(mu_sr&0x2000)); // broken
     CycloneSetSr(&PicoCpu, ((mu_sr-1)&~0x2000)|(mu_sr&0x2000));

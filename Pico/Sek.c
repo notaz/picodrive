@@ -43,12 +43,13 @@ static int (*ResetCallback)()=DoReset;
 
 #ifdef EMU_C68K
 // interrupt acknowledgment
-static void SekIntAck(int level)
+static int SekIntAck(int level)
 {
   // try to emulate VDP's reaction to 68000 int ack
   if     (level == 4) Pico.video.pending_ints  =  0;
   else if(level == 6) Pico.video.pending_ints &= ~0x20;
   PicoCpu.irq = 0;
+  return CYCLONE_INT_ACK_AUTOVECTOR;
 }
 
 static void SekResetAck()
@@ -69,7 +70,7 @@ static int SekUnrecognizedOpcode()
   // see if we are not executing trash
   if (pc < 0x200 || (pc > Pico.romsize+4 && (pc&0xe00000)!=0xe00000)) {
     PicoCpu.cycles = 0;
-    PicoCpu.stopped = 1;
+    PicoCpu.state_flags |= 1;
     return 1;
   }
 #ifdef EMU_M68K // debugging cyclone
@@ -91,6 +92,11 @@ static int SekIntAckM68K(int level)
   else if(level == 6) { Pico.video.pending_ints &= ~0x20; dprintf("vack: [%i|%i]", Pico.m.scanline, SekCyclesDone()); }
   CPU_INT_LEVEL = 0;
   return M68K_INT_ACK_AUTOVECTOR;
+}
+
+static int SekTasCallback(void)
+{
+  return 0; // no writeback
 }
 #endif
 
@@ -118,6 +124,7 @@ int SekInit()
     m68k_set_cpu_type(M68K_CPU_TYPE_68000);
     m68k_init();
     m68k_set_int_ack_callback(SekIntAckM68K);
+    m68k_set_tas_instr_callback(SekTasCallback);
     m68k_pulse_reset(); // Init cpu emulator
     m68k_set_context(oldcontext);
   }
@@ -132,7 +139,7 @@ int SekReset()
   if (Pico.rom==NULL) return 1;
 
 #ifdef EMU_C68K
-  PicoCpu.stopped=0;
+  PicoCpu.state_flags=0;
   PicoCpu.osp=0;
   PicoCpu.srh =0x27; // Supervisor mode
   PicoCpu.flags=4;   // Z set
@@ -161,6 +168,13 @@ int SekReset()
 
 int SekInterrupt(int irq)
 {
+#if defined(EMU_C68K) && defined(EMU_M68K)
+  {
+    extern unsigned int dbg_irq_level;
+    dbg_irq_level=irq;
+    return 0;
+  }
+#endif
 #ifdef EMU_C68K
   PicoCpu.irq=irq;
 #endif

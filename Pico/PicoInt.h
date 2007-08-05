@@ -38,8 +38,8 @@ extern struct Cyclone PicoCpu, PicoCpuS68k;
 }
 #define SekPc (PicoCpu.pc-PicoCpu.membase)
 #define SekPcS68k (PicoCpuS68k.pc-PicoCpuS68k.membase)
-#define SekSetStop(x) { PicoCpu.stopped=x; if (x) PicoCpu.cycles=0; }
-#define SekSetStopS68k(x) { PicoCpuS68k.stopped=x; if (x) PicoCpuS68k.cycles=0; }
+#define SekSetStop(x) { PicoCpu.state_flags&=~1; if (x) { PicoCpu.state_flags|=1; PicoCpu.cycles=0; } }
+#define SekSetStopS68k(x) { PicoCpuS68k.state_flags&=~1; if (x) { PicoCpuS68k.state_flags|=1; PicoCpuS68k.cycles=0; } }
 #endif
 
 #ifdef EMU_A68K

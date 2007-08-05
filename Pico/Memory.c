@@ -22,8 +22,8 @@ typedef unsigned int   u32;
 extern unsigned int lastSSRamWrite; // used by serial SRAM code
 
 #ifdef _ASM_MEMORY_C
-u8   PicoRead8(u32 a);
-u16  PicoRead16(u32 a);
+u32  PicoRead8(u32 a);
+u32  PicoRead16(u32 a);
 void PicoWriteRomHW_SSF2(u32 a,u32 d);
 void PicoWriteRomHW_in1 (u32 a,u32 d);
 #endif
@@ -69,11 +69,13 @@ static u32 CPU_CALL PicoCheckPc(u32 pc)
   u32 ret=0;
 #if defined(EMU_C68K)
   pc-=PicoCpu.membase; // Get real pc
-  pc&=0xfffffe;
-  if (pc == 0)
+//  pc&=0xfffffe;
+  pc&=~1;
+  if ((pc<<8) == 0)
     return (int)Pico.rom + Pico.romsize; // common crash condition, can happen if acc timing is off
 
-  PicoCpu.membase=PicoMemBase(pc);
+  PicoCpu.membase=PicoMemBase(pc&0x00ffffff);
+  PicoCpu.membase-=pc&0xff000000;
 
   ret = PicoCpu.membase+pc;
 #elif defined(EMU_A68K)
@@ -264,7 +266,7 @@ static void OtherWrite8End(u32 a,u32 d,int realsize)
 //                     Read Rom and read Ram
 
 #ifndef _ASM_MEMORY_C
-u8 CPU_CALL PicoRead8(u32 a)
+u32 CPU_CALL PicoRead8(u32 a)
 {
   u32 d=0;
 
@@ -312,12 +314,12 @@ u8 CPU_CALL PicoRead8(u32 a)
     lastread_d[lrp_cyc++&15] = (u8)d;
   }
 #endif
-  return (u8)d;
+  return d;
 }
 
-u16 CPU_CALL PicoRead16(u32 a)
+u32 CPU_CALL PicoRead16(u32 a)
 {
-  u16 d=0;
+  u32 d=0;
 
   if ((a&0xe00000)==0xe00000) { d=*(u16 *)(Pico.ram+(a&0xfffe)); goto end; } // Ram
 
@@ -326,14 +328,14 @@ u16 CPU_CALL PicoRead16(u32 a)
 #if !(defined(EMU_C68K) && defined(EMU_M68K))
   // sram
   if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg & 1)) {
-    d = (u16) SRAMRead(a);
+    d = SRAMRead(a);
     goto end;
   }
 #endif
 
   if (a<Pico.romsize) { d = *(u16 *)(Pico.rom+a); goto end; } // Rom
 
-  d = (u16)OtherRead16(a, 16);
+  d = OtherRead16(a, 16);
 
   end:
   //if ((a&0xe0ffff)==0xe0AF0E+0x69c||(a&0xe0ffff)==0xe0A9A8+0x69c||(a&0xe0ffff)==0xe0A9AA+0x69c||(a&0xe0ffff)==0xe0A9AC+0x69c)

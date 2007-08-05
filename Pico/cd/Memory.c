@@ -417,9 +417,9 @@ static void OtherWrite8End(u32 a, u32 d, int realsize)
 
 //u8 PicoReadM68k8_(u32 a);
 #ifdef _ASM_CD_MEMORY_C
-u8 PicoReadM68k8(u32 a);
+u32 PicoReadM68k8(u32 a);
 #else
-static u8 PicoReadM68k8(u32 a)
+static u32 PicoReadM68k8(u32 a)
 {
   u32 d=0;
 
@@ -468,17 +468,17 @@ static u8 PicoReadM68k8(u32 a)
 #ifdef __debug_io
   dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
 #endif
-  return (u8)d;
+  return d;
 }
 #endif
 
 
 #ifdef _ASM_CD_MEMORY_C
-u16 PicoReadM68k16(u32 a);
+u32 PicoReadM68k16(u32 a);
 #else
-static u16 PicoReadM68k16(u32 a)
+static u32 PicoReadM68k16(u32 a)
 {
-  u16 d=0;
+  u32 d=0;
 
   if ((a&0xe00000)==0xe00000) { d=*(u16 *)(Pico.ram+(a&0xfffe)); goto end; } // Ram
 
@@ -515,7 +515,7 @@ static u16 PicoReadM68k16(u32 a)
   if ((a&0xffffc0)==0xa12000)
     rdprintf("m68k_regs r16: [%02x] @%06x", a&0x3f, SekPc);
 
-  d = (u16)OtherRead16(a, 16);
+  d = OtherRead16(a, 16);
 
   if ((a&0xffffc0)==0xa12000)
     rdprintf("ret = %04x", d);
@@ -778,9 +778,9 @@ static void PicoWriteM68k32(u32 a,u32 d)
 // -----------------------------------------------------------------
 
 #ifdef _ASM_CD_MEMORY_C
-u8 PicoReadS68k8(u32 a);
+u32 PicoReadS68k8(u32 a);
 #else
-static u8 PicoReadS68k8(u32 a)
+static u32 PicoReadS68k8(u32 a)
 {
   u32 d=0;
 
@@ -868,16 +868,15 @@ static u8 PicoReadS68k8(u32 a)
 #ifdef __debug_io2
   dprintf("s68k r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPcS68k);
 #endif
-  return (u8)d;
+  return d;
 }
 #endif
 
 
-//u16 PicoReadS68k16_(u32 a);
 #ifdef _ASM_CD_MEMORY_C
-u16 PicoReadS68k16(u32 a);
+u32 PicoReadS68k16(u32 a);
 #else
-static u16 PicoReadS68k16(u32 a)
+static u32 PicoReadS68k16(u32 a)
 {
   u32 d=0;
 

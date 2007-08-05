@@ -6,7 +6,7 @@ CROSS = arm-linux-
 
 # settings
 #mz80 = 1
-debug_cyclone = 0
+#debug_cyclone = 1
 asm_memory = 1
 asm_render = 1
 asm_ym2612 = 1
@@ -180,7 +180,7 @@ testrefr.gpe : test.o gp2x.o asmutils.o
 # build Cyclone
 ../../cpu/Cyclone/proj/Cyclone.s :
 	@echo building Cyclone...
-	@make -C ../../cpu/Cyclone/proj
+	@make -C ../../cpu/Cyclone/proj CONFIG_FILE=config_pico.h
 
 ../../cpu/musashi/m68kops.c :
 	@make -C ../../cpu/musashi
