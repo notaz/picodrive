@@ -207,6 +207,7 @@ int OpNeg(int op)
     ot("\n");
   }
 
+  if (type==1) eawrite_check_addrerr=1;
   EaWrite(10,     1,ea,size,0x003f,0,0);
 
   OpEnd(ea);
@@ -360,10 +361,12 @@ int OpSet(int op)
 
   ot("\n");
 
+  eawrite_check_addrerr=1;
   EaCalc (0,0x003f, ea,size,0,0);
   EaWrite(0,     1, ea,size,0x003f,0,0);
 
-  OpEnd(ea,0,changed_cycles);
+  opend_op_changes_cycles=changed_cycles;
+  OpEnd(ea,0);
   return 0;
 }
 
@@ -614,7 +617,8 @@ int OpAsr(int op)
 
   EaWrite(10,    0, ea,size,0x0007,1);
 
-  OpEnd(ea,0,count<0);
+  opend_op_changes_cycles = (count<0);
+  OpEnd(ea,0);
 
   return 0;
 }

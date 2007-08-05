@@ -346,7 +346,7 @@ int OpMul(int op)
   if (type==0) // div
   {
     ot("divzero%.4x%s\n",op,ms?"":":");
-    ot("  mov r0,#0x14 ;@ Divide by zero\n");
+    ot("  mov r0,#5 ;@ Divide by zero\n");
     ot("  bl Exception\n");
     Cycles+=38;
     OpEnd(ea);
@@ -553,16 +553,18 @@ int OpAritha(int op)
 
   // EA calculation order defines how situations like  suba.w (A0)+, A0 get handled.
   // different emus act differently in this situation, I couldn't fugure which is right behaviour.
-  if (/*type == */1)
+  //if (type == 1)
   {
     EaCalcReadNoSE(-1,0,sea,size,0x003f);
     EaCalcReadNoSE(type!=1?10:-1,11,dea,2,0x0e00);
   }
+#if 0
   else
   {
     EaCalcReadNoSE(type!=1?10:-1,11,dea,2,0x0e00);
     EaCalcReadNoSE(-1,0,sea,size,0x003f);
   }
+#endif
 
   if (size<2) ot("  mov r0,r0,asl #%d\n\n",size?16:24);
   if (size<2) asr=(char *)(size?",asr #16":",asr #24");
@@ -803,7 +805,7 @@ int OpChk(int op)
   OpEnd(ea);
 
   ot("chktrap%.4x%s ;@ CHK exception:\n",op,ms?"":":");
-  ot("  mov r0,#0x18\n");
+  ot("  mov r0,#6\n");
   ot("  bl Exception\n");
   Cycles+=40;
   OpEnd(ea);

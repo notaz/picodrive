@@ -4,12 +4,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "config.h"
+#ifndef CONFIG_FILE
+#define CONFIG_FILE "config.h"
+#endif
+#include CONFIG_FILE
 
 // Disa.c
 #include "Disa/Disa.h"
 
 // Ea.cpp
+extern int earead_check_addrerr;
+extern int eawrite_check_addrerr;
 extern int g_jmp_cycle_table[];
 extern int g_jsr_cycle_table[];
 extern int g_lea_cycle_table[];
@@ -35,15 +40,16 @@ extern int  pc_dirty; // something changed PC during processing
 extern int  arm_op_count; // for stats
 void ot(const char *format, ...);
 void ltorg();
-int MemHandler(int type,int size,int addrreg=0);
+int MemHandler(int type,int size,int addrreg=0,int need_addrerr_check=1);
 void FlushPC(void);
 
 // OpAny.cpp
 extern int g_op;
+extern int opend_op_changes_cycles, opend_check_interrupt, opend_check_trace;
 int OpGetFlags(int subtract,int xbit,int sprecialz=0);
 void OpUse(int op,int use);
 void OpStart(int op,int sea=0,int tea=0,int op_changes_cycles=0,int supervisor_check=0);
-void OpEnd(int sea=0,int tea=0,int op_changes_cycles=0,int check_interrupt=0);
+void OpEnd(int sea=0,int tea=0);
 int OpBase(int op,int size,int sepa=0);
 void OpAny(int op);
 
@@ -90,7 +96,7 @@ int OpTas(int op, int gen_special=0);
 int OpMove(int op);
 int OpLea(int op);
 void OpFlagsToReg(int high);
-void OpRegToFlags(int high);
+void OpRegToFlags(int high,int srh_reg=0);
 int OpMoveSr(int op);
 int OpArithSr(int op);
 int OpPea(int op);
@@ -101,5 +107,5 @@ int OpExg(int op);
 int OpMovep(int op);
 int OpStopReset(int op);
 void SuperEnd(void);
-void SuperChange(int op,int load_srh=1);
+void SuperChange(int op,int srh_reg=-1);
 

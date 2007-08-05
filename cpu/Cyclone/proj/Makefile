@@ -1,4 +1,7 @@
 CFLAGS = -Wall
+ifdef CONFIG_FILE
+CFLAGS += -DCONFIG_FILE=\"$(CONFIG_FILE)\"
+endif
 
 all : cyclone.s
 

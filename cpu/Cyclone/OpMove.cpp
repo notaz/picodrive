@@ -21,7 +21,7 @@ void OpFlagsToReg(int high)
 
 // Convert SR/CRR register in r0 to our flags
 // trashes r0,r1
-void OpRegToFlags(int high)
+void OpRegToFlags(int high, int srh_reg)
 {
   ot("  eor r1,r0,r0,ror #1 ;@ Bit 0=C^V\n");
   ot("  mov r2,r0,lsl #25\n");
@@ -32,9 +32,10 @@ void OpRegToFlags(int high)
 
   if (high)
   {
-    ot("  mov r0,r0,ror #8\n");
-    ot("  and r0,r0,#0xa7 ;@ only take defined bits\n");
-    ot("  strb r0,[r7,#0x44] ;@ Store SR high\n");
+    int mask=EMULATE_TRACE?0xa7:0x27;
+    ot("  mov r%i,r0,ror #8\n",srh_reg);
+    ot("  and r%i,r%i,#0x%02x ;@ only take defined bits\n",srh_reg,srh_reg,mask);
+    ot("  strb r%i,[r7,#0x44] ;@ Store SR high\n",srh_reg);
   }
   ot("\n");
 }
@@ -44,8 +45,15 @@ void SuperEnd(void)
   ot(";@ ----------\n");
   ot(";@ tried execute privileged instruction in user mode\n");
   ot("WrongPrivilegeMode%s\n",ms?"":":");
+#if EMULATE_ADDRESS_ERRORS_JUMP || EMULATE_ADDRESS_ERRORS_IO
+  ot("  ldr r1,[r7,#0x58]\n");
   ot("  sub r4,r4,#2 ;@ last opcode wasn't executed - go back\n");
-  ot("  mov r0,#0x20 ;@ privilege violation\n");
+  ot("  orr r1,r1,#4 ;@ set activity bit: 'not processing instruction'\n");
+  ot("  str r1,[r7,#0x58]\n");
+#else
+  ot("  sub r4,r4,#2 ;@ last opcode wasn't executed - go back\n");
+#endif
+  ot("  mov r0,#8 ;@ privilege violation\n");
   ot("  bl Exception\n");
   Cycles=34;
   OpEnd(0);
@@ -53,13 +61,15 @@ void SuperEnd(void)
 
 // does OSP and A7 swapping if needed
 // new or old SR (not the one already in [r7,#0x44]) should be passed in r11
-// trashes r0,r11
-void SuperChange(int op,int load_srh)
+// uses srh from srh_reg (loads if < 0), trashes r0,r11
+void SuperChange(int op,int srh_reg)
 {
   ot(";@ A7 <-> OSP?\n");
-  if (load_srh)
+  if (srh_reg < 0) {
     ot("  ldr r0,[r7,#0x44] ;@ Get other SR high\n");
-  ot("  eor r0,r0,r11\n");
+    srh_reg=0;
+  }
+  ot("  eor r0,r%i,r11\n",srh_reg);
   ot("  tst r0,#0x20\n");
   ot("  beq no_sp_swap%.4x\n",op);
   ot(" ;@ swap OSP and A7:\n");
@@ -122,6 +132,7 @@ int OpMove(int op)
 
   if (movea) size=2; // movea always expands to 32-bits
 
+  eawrite_check_addrerr=1;
 #if SPLIT_MOVEL_PD
   if ((tea&0x38)==0x20 && size==2) { // -(An)
     EaCalc (10,0x0e00,tea,size,0,0);
@@ -167,6 +178,7 @@ int OpLea(int op)
 
   OpStart(op,sea,tea);
 
+  eawrite_check_addrerr=1;
   EaCalc (1,0x003f,sea,0); // Lea
   EaCalc (0,0x0e00,tea,2);
   EaWrite(0,     1,tea,2,0x0e00);
@@ -214,6 +226,7 @@ int OpMoveSr(int op)
 
   if (type==0 || type==1)
   {
+    eawrite_check_addrerr=1;
     OpFlagsToReg(type==0);
     EaCalc (0,0x003f,ea,size,0,0);
     EaWrite(0,     1,ea,size,0x003f,0,0);
@@ -222,13 +235,17 @@ int OpMoveSr(int op)
   if (type==2 || type==3)
   {
     EaCalcReadNoSE(-1,0,ea,size,0x003f);
-    OpRegToFlags(type==3);
+    OpRegToFlags(type==3,1);
     if (type==3) {
-      SuperChange(op,0);
+      SuperChange(op,1);
+      opend_check_interrupt = 1;
+      opend_check_trace = 1;
+      OpEnd(ea);
+      return 0;
     }
   }
 
-  OpEnd(ea,0,0,type==3);
+  OpEnd(ea);
 
   return 0;
 }
@@ -239,6 +256,7 @@ int OpArithSr(int op)
 {
   int type=0,ea=0;
   int use=0,size=0;
+  int sr_mask=EMULATE_TRACE?0xa7:0x27;
 
   type=(op>>9)&5; if (type==4) return 1;
   size=(op>>6)&1; // ccr or sr?
@@ -249,19 +267,53 @@ int OpArithSr(int op)
 
   OpStart(op,ea,0,0,size!=0); Cycles=16;
 
-  EaCalc(10,0x003f,ea,size);
-  EaRead(10,    10,ea,size,0x003f);
+  EaCalcRead(-1,0,ea,size,0x003f);
 
-  OpFlagsToReg(size);
-  if (type==0) ot("  orr r0,r1,r10\n");
-  if (type==1) ot("  and r0,r1,r10\n");
-  if (type==5) ot("  eor r0,r1,r10\n");
-  OpRegToFlags(size);
-  if (size && type!=0) { // we can't enter supervisor mode, nor unmask irqs just by using OR
-    SuperChange(op,0);
+  ot("  eor r1,r0,r0,ror #1 ;@ Bit 0=C^V\n");
+  ot("  tst r1,#1           ;@ 1 if C!=V\n");
+  ot("  eorne r0,r0,#3      ;@ ___XNZCV\n");
+  ot("  ldr r2,[r7,#0x4c]   ;@ Load old X bit\n");
+
+  // note: old srh is already in r11 (done by OpStart)
+  if (type==0) {
+    ot("  orr r9,r9,r0,lsl #28\n");
+    ot("  orr r2,r2,r0,lsl #25 ;@ X bit\n");
+    if (size!=0) {
+      ot("  orr r1,r11,r0,lsr #8\n");
+      ot("  and r1,r1,#0x%02x ;@ mask-out unused bits\n",sr_mask);
+    }
+  }
+  if (type==1) {
+    ot("  and r9,r9,r0,lsl #28\n");
+    ot("  and r2,r2,r0,lsl #25 ;@ X bit\n");
+    if (size!=0)
+      ot("  and r1,r11,r0,lsr #8\n");
+  }
+  if (type==5) {
+    ot("  eor r9,r9,r0,lsl #28\n");
+    ot("  eor r2,r2,r0,lsl #25 ;@ X bit\n");
+    if (size!=0) {
+      ot("  eor r1,r11,r0,lsr #8\n");
+      ot("  and r1,r1,#0x%02x ;@ mask-out unused bits\n",sr_mask);
+    }
   }
 
-  OpEnd(ea,0,0,size!=0 && type!=0);
+  ot("  str r2,[r7,#0x4c]   ;@ Save X bit\n");
+  if (size!=0)
+    ot("  strb r1,[r7,#0x44]\n");
+  ot("\n");
+
+  // we can't enter supervisor mode, nor unmask irqs just by using OR
+  if (size!=0 && type!=0) {
+    SuperChange(op,1);
+    ot("\n");
+    opend_check_interrupt = 1;
+  }
+  // also can't set trace bit with AND
+  if (size!=0 && type!=1)
+    opend_check_trace = 1;
+
+  OpEnd(ea);
 
   return 0;
 }
@@ -338,6 +390,13 @@ int OpMovem(int op)
   ot("  tst r11,r11\n");        // sanity check
   ot("  beq NoRegs%.4x\n",op);
 
+#if EMULATE_ADDRESS_ERRORS_IO
+  ot("\n");
+  ot("  tst r6,#1 ;@ address error?\n");
+  ot("  movne r0,r6\n");
+  ot("  bne ExceptionAddressError_%c_data\n",dir?'r':'w');
+#endif
+
   ot("\n");
   ot("Movemloop%.4x%s\n",op, ms?"":":");
   ot("  add r10,r10,#%d ;@ r10=Next Register\n",decr?-4:4);
@@ -350,6 +409,7 @@ int OpMovem(int op)
   if (dir)
   {
     ot("  ;@ Copy memory to register:\n",1<<size);
+    earead_check_addrerr=0; // already checked
     EaRead (6,0,ea,size,0x003f);
     ot("  str r0,[r7,r10] ;@ Save value into Dn/An\n");
   }
@@ -391,7 +451,8 @@ int OpMovem(int op)
 
   Cycles+=Ea_add_ns(g_movem_cycle_table,ea);
 
-  OpEnd(ea,0,1);
+  opend_op_changes_cycles = 1;
+  OpEnd(ea);
   ltorg();
   ot("\n");
 
@@ -413,6 +474,7 @@ int OpMoveUsp(int op)
 
   if (dir)
   {
+    eawrite_check_addrerr=1;
     ot("  ldr r1,[r7,#0x48] ;@ Get from USP\n\n");
     EaCalc (0,0x000f,8,2,1);
     EaWrite(0,     1,8,2,0x000f,1);
@@ -568,11 +630,12 @@ int OpStopReset(int op)
 
     ot("\n");
 
-    ot("  mov r0,#1\n");
-    ot("  str r0,[r7,#0x58] ;@ stopped\n");
+    ot("  ldr r0,[r7,#0x58]\n");
+    ot("  mov r5,#0 ;@ eat cycles\n");
+    ot("  orr r0,r0,#1 ;@ stopped\n");
+    ot("  str r0,[r7,#0x58]\n");
     ot("\n");
 
-    ot("  mov r5,#0 ;@ eat cycles\n");
     Cycles = 4;
     ot("\n");
   }

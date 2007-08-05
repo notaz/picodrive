@@ -1,6 +1,8 @@
 
 #include "app.h"
 
+int opend_op_changes_cycles, opend_check_interrupt, opend_check_trace;
+
 static unsigned char OpData[16]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 static unsigned short CPU_CALL OpRead16(unsigned int a)
@@ -62,15 +64,17 @@ void OpStart(int op, int sea, int tea, int op_changes_cycles, int supervisor_che
   if (last_op_count!=arm_op_count)
     ot("\n");
   pc_dirty = 1;
+  opend_op_changes_cycles = opend_check_interrupt = opend_check_trace = 0;
 }
 
-void OpEnd(int sea, int tea, int op_changes_cycles, int check_interrupt)
+void OpEnd(int sea, int tea)
 {
   int did_fetch=0;
+  opend_check_trace = opend_check_trace && EMULATE_TRACE;
 #if MEMHANDLERS_CHANGE_CYCLES
   if ((sea >= 0x10 && sea != 0x3c) || (tea >= 0x10 && tea != 0x3c))
   {
-    if (op_changes_cycles)
+    if (opend_op_changes_cycles)
     {
       ot("  ldr r0,[r7,#0x5c] ;@ Load Cycles\n");
       ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
@@ -85,12 +89,22 @@ void OpEnd(int sea, int tea, int op_changes_cycles, int check_interrupt)
 #endif
   if (!did_fetch)
     ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
+  if (opend_check_trace)
+    ot("  ldr r1,[r7,#0x44]\n");
   ot("  subs r5,r5,#%d ;@ Subtract cycles\n",Cycles);
-  if (check_interrupt)
+  if (opend_check_trace)
+  {
+    ot(";@ CheckTrace:\n");
+    ot("  tst r1,#0x80\n");
+    ot("  bne CycloneDoTraceWithChecks\n");
+    ot("  cmp r5,#0\n");
+  }
+  if (opend_check_interrupt)
   {
     ot("  blt CycloneEnd\n");
     ot(";@ CheckInterrupt:\n");
-    ot("  ldr r1,[r7,#0x44] ;@ Get SR high T_S__III and irq level\n");
+    if (!opend_check_trace)
+      ot("  ldr r1,[r7,#0x44]\n");
     ot("  movs r0,r1,lsr #24 ;@ Get IRQ level\n"); // same as  ldrb r0,[r7,#0x47]
     ot("  ldreq pc,[r6,r8,asl #2] ;@ Jump to next opcode handler\n");
     ot("  cmp r0,#6 ;@ irq>6 ?\n");

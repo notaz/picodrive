@@ -1,6 +1,8 @@
 
 #include "app.h"
 
+int earead_check_addrerr = 1, eawrite_check_addrerr = 0;
+
 // some ops use non-standard cycle counts for EAs, so are listed here.
 // all constants borrowed from the MUSASHI core by Karl Stenerud.
 
@@ -149,7 +151,7 @@ int EaCalc(int a,int mask,int ea,int size,int top,int sign_extend)
   if (ea<0x28)
   {
     int step=1<<size, strr=a;
-    int low=0,lsl,i;
+    int low=0,lsl=0,i;
 
     if ((ea&7)==7 && step<2) step=2; // move.b (a7)+ or -(a7) steps by 2 not 1
 
@@ -340,8 +342,11 @@ int EaRead(int a,int v,int ea,int size,int mask,int top,int sign_extend)
     ot("\n"); return 0;
   }
 
-  if (ea>=0x3a && ea<=0x3b) MemHandler(2,size,a); // Fetch
-  else                      MemHandler(0,size,a); // Read
+  if (ea>=0x3a && ea<=0x3b) MemHandler(2,size,a,earead_check_addrerr); // Fetch
+  else                      MemHandler(0,size,a,earead_check_addrerr); // Read
+
+  // defaults to 1, as most things begins with a read
+  earead_check_addrerr=1;
 
   if (sign_extend)
   {
@@ -462,7 +467,11 @@ int EaWrite(int a,int v,int ea,int size,int mask,int top,int sign_extend_ea)
   if (shift)     ot("  mov r1,r%d,asr #%d\n",v,shift);
   else if (v!=1) ot("  mov r1,r%d\n",v);
 
-  MemHandler(1,size,a); // Call write handler
+  MemHandler(1,size,a,eawrite_check_addrerr); // Call write handler
+
+  // not check by default, because most cases are rmw and
+  // address was already checked before reading
+  eawrite_check_addrerr = 0;
 
   ot("\n"); return 0;
 }

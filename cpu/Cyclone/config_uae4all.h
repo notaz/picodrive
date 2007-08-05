@@ -58,13 +58,13 @@
  * MEMHANDLERS_NEED_CYCLES, or else Cyclone will keep reloading the same cycle
  * count and this will screw timing (if not cause a deadlock).
  */
-#define MEMHANDLERS_NEED_PC         0
+#define MEMHANDLERS_NEED_PC         1
 #define MEMHANDLERS_NEED_PREV_PC    0
 #define MEMHANDLERS_NEED_FLAGS      0
-#define MEMHANDLERS_NEED_CYCLES     0
+#define MEMHANDLERS_NEED_CYCLES     1
 #define MEMHANDLERS_CHANGE_PC       0
 #define MEMHANDLERS_CHANGE_FLAGS    0
-#define MEMHANDLERS_CHANGE_CYCLES   0
+#define MEMHANDLERS_CHANGE_CYCLES   1
 
 /*
  * If enabled, Cyclone will call .IrqCallback routine from it's context whenever it
@@ -76,7 +76,7 @@
  * If disabled, it simply uses appropriate autovector, clears the IRQ level and
  * continues execution.
  */
-#define USE_INT_ACK_CALLBACK        0
+#define USE_INT_ACK_CALLBACK        1
 
 /*
  * Enable this if you need old PC, flags or cycles;
@@ -102,14 +102,14 @@
  * If disabled, "Illegal Instruction" exception is generated and execution is
  * continued.
  */
-#define USE_UNRECOGNIZED_CALLBACK   0
+#define USE_UNRECOGNIZED_CALLBACK   1
 
 /*
  * This option will also call UnrecognizedCallback for a-line and f-line
  * (0xa*** and 0xf***) opcodes the same way as described above, only appropriate
  * exceptions will be generated.
  */
-#define USE_AFLINE_CALLBACK         0
+#define USE_AFLINE_CALLBACK         1
 
 /*
  * This makes Cyclone to call checkpc from it's context whenever it changes the PC
@@ -159,7 +159,7 @@
  * access a word or longword at an odd address. The performance cost is also 2 ARM
  * instructions per access (for address error checks).
  */
-#define EMULATE_ADDRESS_ERRORS_IO   0
+#define EMULATE_ADDRESS_ERRORS_IO   1
 
 /*
  * If an address error happens during another address error processing,

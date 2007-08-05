@@ -1,7 +1,7 @@
 # Makefile for MS Visual C
 
 CPP=cl.exe
-CPP_PROJ=/nologo /ML /W4 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" $(RC_FLAGS) /YX /FD /c 
+CPP_PROJ=/nologo /W4 /O2 /D "_CRT_SECURE_NO_WARNINGS" /c 
 
 LINK32=link.exe
 LINK32_FLAGS=user32.lib /nologo /subsystem:console /machine:I386 /out:Cyclone.exe
@@ -37,7 +37,7 @@ OpMove.obj : ..\OpMove.cpp ..\app.h
 	$(CPP) $(CPP_PROJ) ..\OpMove.cpp
 
 Disa.obj : ..\disa\Disa.c ..\disa\Disa.h
-	$(CPP) /nologo /ML /W4 /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /c ..\disa\Disa.c
+	$(CPP) $(CPP_PROJ) ..\disa\Disa.c
 
 ..\app.h : ..\config.h
 
@@ -56,5 +56,4 @@ CLEAN :
 	-@erase "Cyclone.exe"
 	-@erase "Cyclone.asm"
 	-@erase "Cyclone.s"
-	-@erase "Cyclone.o"
 

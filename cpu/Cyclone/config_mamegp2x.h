@@ -35,7 +35,7 @@
  * Using 0xff000000 means that only 24 least significant bits should be used.
  * Set to 0 if you want to mask unused address bits in the memory handlers yourself.
  */
-#define MEMHANDLERS_ADDR_MASK       0
+#define MEMHANDLERS_ADDR_MASK       0xff000000
 
 /*
  * Cyclone keeps the 4 least significant bits of SR, PC+membase and it's cycle
@@ -58,13 +58,13 @@
  * MEMHANDLERS_NEED_CYCLES, or else Cyclone will keep reloading the same cycle
  * count and this will screw timing (if not cause a deadlock).
  */
-#define MEMHANDLERS_NEED_PC         0
-#define MEMHANDLERS_NEED_PREV_PC    0
+#define MEMHANDLERS_NEED_PC         1
+#define MEMHANDLERS_NEED_PREV_PC    1
 #define MEMHANDLERS_NEED_FLAGS      0
-#define MEMHANDLERS_NEED_CYCLES     0
+#define MEMHANDLERS_NEED_CYCLES     1
 #define MEMHANDLERS_CHANGE_PC       0
 #define MEMHANDLERS_CHANGE_FLAGS    0
-#define MEMHANDLERS_CHANGE_CYCLES   0
+#define MEMHANDLERS_CHANGE_CYCLES   1
 
 /*
  * If enabled, Cyclone will call .IrqCallback routine from it's context whenever it
@@ -76,7 +76,7 @@
  * If disabled, it simply uses appropriate autovector, clears the IRQ level and
  * continues execution.
  */
-#define USE_INT_ACK_CALLBACK        0
+#define USE_INT_ACK_CALLBACK        1
 
 /*
  * Enable this if you need old PC, flags or cycles;

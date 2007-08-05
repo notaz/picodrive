@@ -272,7 +272,7 @@ static int DisaMoveSr(int op)
   return 0;
 }
 
-static int OpChk(op)
+static int OpChk(int op)
 {
   int sea=0,dea=0;
   char seat[64]="",deat[64]="";
