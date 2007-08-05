@@ -790,6 +790,9 @@ int m68k_execute(int num_cycles)
 	/* Make sure we're not stopped */
 	if(!CPU_STOPPED)
 	{
+		// notaz
+		m68ki_check_interrupts();
+
 		/* Set our pool of clock cycles available */
 		SET_CYCLES(num_cycles);
 		m68ki_initial_cycles = num_cycles;
@@ -803,11 +806,13 @@ int m68k_execute(int num_cycles)
 
 		/* Main loop.  Keep going until we run out of clock cycles */
 		// notaz
+		m68ki_trace_t1();
+
 		while(GET_CYCLES() >= 0)
 //		do
 		{
 			/* Set tracing accodring to T1. (T0 is done inside instruction) */
-			m68ki_trace_t1(); /* auto-disable (see m68kcpu.h) */
+			//m68ki_trace_t1(); /* auto-disable (see m68kcpu.h) */
 
 			/* Set the address space for reads */
 			m68ki_use_data_space(); /* auto-disable (see m68kcpu.h) */
@@ -820,11 +825,13 @@ int m68k_execute(int num_cycles)
 
 			/* Read an instruction and call its handler */
 			REG_IR = m68ki_read_imm_16();
+			USE_CYCLES(CYC_INSTRUCTION[REG_IR]); // notaz
 			m68ki_instruction_jump_table[REG_IR]();
-			USE_CYCLES(CYC_INSTRUCTION[REG_IR]);
 
 			/* Trace m68k_exception, if necessary */
 			m68ki_exception_if_trace(); /* auto-disable (see m68kcpu.h) */
+
+			m68ki_trace_t1(); /* notaz */
 		} // while(GET_CYCLES() > 0); // notaz
 
 		/* set previous PC to current PC for the next entry into the loop */

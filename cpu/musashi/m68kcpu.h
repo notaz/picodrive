@@ -1534,7 +1534,8 @@ INLINE void m68ki_set_sr_noint_nosp(uint value)
 INLINE void m68ki_set_sr(uint value)
 {
 	m68ki_set_sr_noint(value);
-	m68ki_check_interrupts();
+	if (GET_CYCLES() >= 0) // notaz
+		m68ki_check_interrupts();
 }
 
 

@@ -1262,8 +1262,9 @@ M68KMAKE_OP(adda, 32, ., a)
 M68KMAKE_OP(adda, 32, ., .)
 {
 	uint* r_dst = &AX;
+	uint src = M68KMAKE_GET_OPER_AY_32; // notaz
 
-	*r_dst = MASK_OUT_ABOVE_32(*r_dst + M68KMAKE_GET_OPER_AY_32);
+	*r_dst = MASK_OUT_ABOVE_32(*r_dst + src);
 }
 
 
@@ -7132,8 +7133,9 @@ M68KMAKE_OP(movem, 32, re, pd)
 		if(register_list & (1 << i))
 		{
 			ea -= 4;
-			m68ki_write_16(ea+2, REG_DA[15-i] & 0xFFFF );
-			m68ki_write_16(ea, (REG_DA[15-i] >> 16) & 0xFFFF );
+			m68ki_write_16(ea, REG_DA[15-i] ); // notaz Cyclone hack
+			//m68ki_write_16(ea+2, REG_DA[15-i] & 0xFFFF );
+			//m68ki_write_16(ea, (REG_DA[15-i] >> 16) & 0xFFFF );
 			count++;
 		}
 	AY = ea;
@@ -9785,8 +9787,9 @@ M68KMAKE_OP(suba, 32, ., a)
 M68KMAKE_OP(suba, 32, ., .)
 {
 	uint* r_dst = &AX;
+	uint src = M68KMAKE_GET_OPER_AY_32; // notaz
 
-	*r_dst = MASK_OUT_ABOVE_32(*r_dst - M68KMAKE_GET_OPER_AY_32);
+	*r_dst = MASK_OUT_ABOVE_32(*r_dst - src);
 }
 
 
