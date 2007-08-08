@@ -34,6 +34,7 @@
 
 #include "gp2x.h"
 #include "usbjoy.h"
+#include "asmutils.h"
 
 volatile unsigned short *gp2x_memregs;
 //static
@@ -149,11 +150,10 @@ void gp2x_video_RGB_setscaling(int ln_offs, int W, int H)
 }
 
 
-/* LCD updates @ 80Hz? */
 void gp2x_video_wait_vsync(void)
 {
-	gp2x_memregs[0x2846>>1] = 0x20|2; //(gp2x_memregs[0x2846>>1] | 0x20) & ~2;
-	while(!(gp2x_memregs[0x2846>>1] & 2));// usleep(1);
+	unsigned short v = gp2x_memregs[0x1182>>1];
+	while (!((v ^ gp2x_memregs[0x1182>>1]) & 0x10)) spend_cycles(1024);
 }
 
 

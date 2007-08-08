@@ -1063,11 +1063,11 @@ static void simpleWait(int thissec, int lim_time)
 void emu_Loop(void)
 {
 	static int gp2x_old_clock = 200;
-	static int PsndRate_old = 0, PicoOpt_old = 0, PsndLen_real = 0, pal_old = 0;
+	static int PsndRate_old = 0, PicoOpt_old = 0, EmuOpt_old = 0, PsndLen_real = 0, pal_old = 0;
 	char fpsbuff[24]; // fps count c string
 	struct timeval tval; // timing
 	int thissec = 0, frames_done = 0, frames_shown = 0, oldmodes = 0;
-	int target_fps, target_frametime, lim_time, i;
+	int target_fps, target_frametime, lim_time, vsync_offset, i;
 	char *notice = 0;
 
 	printf("entered emu_Loop()\n");
@@ -1085,6 +1085,13 @@ void emu_Loop(void)
 		printf("updated gamma to %i\n", currentConfig.gamma);
 	}
 
+	if ((EmuOpt_old&0x2000) != (currentConfig.EmuOpt&0x2000)) {
+		if (currentConfig.EmuOpt&0x2000)
+		     set_LCD_custom_rate(Pico.m.pal ? LCDR_100 : LCDR_120);
+		else unset_LCD_custom_rate();
+	}
+
+	EmuOpt_old = currentConfig.EmuOpt;
 	fpsbuff[0] = 0;
 
 	// make sure we are in correct mode
@@ -1127,6 +1134,19 @@ void emu_Loop(void)
 
 	// prepare CD buffer
 	if (PicoMCD & 1) PicoCDBufferInit();
+
+	// calc vsync offset to sync timing code with vsync
+	if (currentConfig.EmuOpt&0x2000) {
+		gettimeofday(&tval, 0);
+		gp2x_video_wait_vsync();
+		gettimeofday(&tval, 0);
+		vsync_offset = tval.tv_usec;
+		while (vsync_offset >= target_frametime)
+			vsync_offset -= target_frametime;
+		if (!vsync_offset) vsync_offset++;
+		printf("vsync_offset: %i\n", vsync_offset);
+	} else
+		vsync_offset = 0;
 
 	// loop?
 	while (engineState == PGS_Running)
@@ -1210,10 +1230,8 @@ void emu_Loop(void)
 				if (frames_shown > frames_done) frames_shown = frames_done;
 			}
 		}
-#if 0
-		sprintf(fpsbuff, "%05i", Pico.m.frame_count);
-#endif
-		lim_time = (frames_done+1) * target_frametime;
+
+		lim_time = (frames_done+1) * target_frametime + vsync_offset;
 		if(currentConfig.Frameskip >= 0) { // frameskip enabled
 			for(i = 0; i < currentConfig.Frameskip; i++) {
 				updateKeys();
@@ -1309,12 +1327,18 @@ if (Pico.m.frame_count == 31563) {
 			reset_timing = 1;
 		else if (PsndOut != NULL || currentConfig.Frameskip < 0)
 		{
-			// sleep if we are still too fast
+			// sleep or vsync if we are still too fast
 			// usleep sleeps for ~20ms minimum, so it is not a solution here
 			if(tval.tv_usec < lim_time)
 			{
 				// we are too fast
-				simpleWait(thissec, lim_time);
+				if (vsync_offset) {
+					if (lim_time - tval.tv_usec > target_frametime/2)
+						simpleWait(thissec, lim_time - target_frametime/4);
+					gp2x_video_wait_vsync();
+				} else {
+					simpleWait(thissec, lim_time);
+				}
 			}
 		}
 

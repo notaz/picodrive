@@ -597,7 +597,8 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 
 static int savestate_menu_loop(int is_loading)
 {
-	int menu_sel = 10, menu_sel_max = 10;
+	static int menu_sel = 10;
+	int menu_sel_max = 10;
 	unsigned long inp = 0;
 
 	state_check_slots();
@@ -820,7 +821,8 @@ static void draw_cd_menu_options(int menu_sel, char *b_us, char *b_eu, char *b_j
 
 static void cd_menu_loop_options(void)
 {
-	int menu_sel = 0, menu_sel_max = 10;
+	static int menu_sel = 0;
+	int menu_sel_max = 10;
 	unsigned long inp = 0;
 	char bios_us[32], bios_eu[32], bios_jp[32], *bios, *p;
 
@@ -897,7 +899,7 @@ static void cd_menu_loop_options(void)
 
 static void draw_amenu_options(int menu_sel)
 {
-	int tl_x = 25, tl_y = 60, y;
+	int tl_x = 25, tl_y = 50, y;
 	char *mms = mmuhack_status ? "active)  " : "inactive)";
 
 	y = tl_y;
@@ -905,14 +907,16 @@ static void draw_amenu_options(int menu_sel)
 	gp2x_pd_clone_buffer2();
 
 	gp2x_text_out8(tl_x, y,       "Gamma correction           %i.%02i", currentConfig.gamma / 100, currentConfig.gamma%100); // 0
-	gp2x_text_out8(tl_x, (y+=10), "Emulate Z80                %s", (currentConfig.PicoOpt&0x004)?"ON":"OFF"); // 1
-	gp2x_text_out8(tl_x, (y+=10), "Emulate YM2612 (FM)        %s", (currentConfig.PicoOpt&0x001)?"ON":"OFF"); // 2
-	gp2x_text_out8(tl_x, (y+=10), "Emulate SN76496 (PSG)      %s", (currentConfig.PicoOpt&0x002)?"ON":"OFF"); // 3
-	gp2x_text_out8(tl_x, (y+=10), "gzip savestates            %s", (currentConfig.EmuOpt &0x008)?"ON":"OFF"); // 4
-	gp2x_text_out8(tl_x, (y+=10), "Don't save last used ROM   %s", (currentConfig.EmuOpt &0x020)?"ON":"OFF"); // 5
+	gp2x_text_out8(tl_x, (y+=10), "A_SN's gamma curve         %s", (currentConfig.EmuOpt &0x1000)?"ON":"OFF");
+	gp2x_text_out8(tl_x, (y+=10), "Perfecf vsync              %s", (currentConfig.EmuOpt &0x2000)?"ON":"OFF");
+	gp2x_text_out8(tl_x, (y+=10), "Emulate Z80                %s", (currentConfig.PicoOpt&0x0004)?"ON":"OFF");
+	gp2x_text_out8(tl_x, (y+=10), "Emulate YM2612 (FM)        %s", (currentConfig.PicoOpt&0x0001)?"ON":"OFF");
+	gp2x_text_out8(tl_x, (y+=10), "Emulate SN76496 (PSG)      %s", (currentConfig.PicoOpt&0x0002)?"ON":"OFF"); // 5
+	gp2x_text_out8(tl_x, (y+=10), "gzip savestates            %s", (currentConfig.EmuOpt &0x0008)?"ON":"OFF");
+	gp2x_text_out8(tl_x, (y+=10), "Don't save last used ROM   %s", (currentConfig.EmuOpt &0x0020)?"ON":"OFF");
 	gp2x_text_out8(tl_x, (y+=10), "needs restart:");
-	gp2x_text_out8(tl_x, (y+=10), "craigix's RAM timings      %s", (currentConfig.EmuOpt &0x100)?"ON":"OFF"); // 7
-	gp2x_text_out8(tl_x, (y+=10), "squidgehack (now %s %s",   mms, (currentConfig.EmuOpt &0x010)?"ON":"OFF"); // 8
+	gp2x_text_out8(tl_x, (y+=10), "craigix's RAM timings      %s", (currentConfig.EmuOpt &0x0100)?"ON":"OFF");
+	gp2x_text_out8(tl_x, (y+=10), "squidgehack (now %s %s",   mms, (currentConfig.EmuOpt &0x0010)?"ON":"OFF"); // 10
 	gp2x_text_out8(tl_x, (y+=10), "Done");
 
 	// draw cursor
@@ -923,7 +927,8 @@ static void draw_amenu_options(int menu_sel)
 
 static void amenu_loop_options(void)
 {
-	int menu_sel = 0, menu_sel_max = 9;
+	static int menu_sel = 0;
+	int menu_sel_max = 11;
 	unsigned long inp = 0;
 
 	for(;;)
@@ -934,14 +939,16 @@ static void amenu_loop_options(void)
 		if(inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if((inp& GP2X_B)||(inp&GP2X_LEFT)||(inp&GP2X_RIGHT)) { // toggleable options
 			switch (menu_sel) {
-				case  1: currentConfig.PicoOpt^=0x004; break;
-				case  2: currentConfig.PicoOpt^=0x001; break;
-				case  3: currentConfig.PicoOpt^=0x002; break;
-				case  4: currentConfig.EmuOpt ^=0x008; break;
-				case  5: currentConfig.EmuOpt ^=0x020; break;
-				case  7: currentConfig.EmuOpt ^=0x100; break;
-				case  8: currentConfig.EmuOpt ^=0x010; break;
-				case  9: return;
+				case  1: currentConfig.EmuOpt ^=0x1000; break;
+				case  2: currentConfig.EmuOpt ^=0x2000; break;
+				case  3: currentConfig.PicoOpt^=0x0004; break;
+				case  4: currentConfig.PicoOpt^=0x0001; break;
+				case  5: currentConfig.PicoOpt^=0x0002; break;
+				case  6: currentConfig.EmuOpt ^=0x0008; break;
+				case  7: currentConfig.EmuOpt ^=0x0020; break;
+				case  9: currentConfig.EmuOpt ^=0x0100; break;
+				case 10: currentConfig.EmuOpt ^=0x0010; break;
+				case 11: return;
 			}
 		}
 		if(inp & (GP2X_X|GP2X_A)) return;
@@ -1098,7 +1105,8 @@ static void menu_options_save(void)
 
 static int menu_loop_options(void)
 {
-	int menu_sel = 0, menu_sel_max = 17;
+	static int menu_sel = 0;
+	int menu_sel_max = 17;
 	unsigned long inp = 0;
 
 	if (rom_data) menu_sel_max++;
