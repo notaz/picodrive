@@ -21,7 +21,7 @@ m_read8_def_table:
     .long   m_read8_rom5    @ 0x280000 - 0x2FFFFF
     .long   m_read8_rom6    @ 0x300000 - 0x37FFFF
     .long   m_read8_rom7    @ 0x380000 - 0x3FFFFF
-    .long   m_read8_rom8    @ 0x400000 - 0x47FFFF
+    .long   m_read8_rom8    @ 0x400000 - 0x47FFFF - for all those large ROM hacks
     .long   m_read8_rom9    @ 0x480000 - 0x4FFFFF
     .long   m_read8_romA    @ 0x500000 - 0x57FFFF
     .long   m_read8_romB    @ 0x580000 - 0x5FFFFF
@@ -29,10 +29,10 @@ m_read8_def_table:
     .long   m_read8_romD    @ 0x680000 - 0x6FFFFF
     .long   m_read8_romE    @ 0x700000 - 0x77FFFF
     .long   m_read8_romF    @ 0x780000 - 0x7FFFFF
-    .long   m_read_null     @ 0x800000 - 0x87FFFF
-    .long   m_read_null     @ 0x880000 - 0x8FFFFF
-    .long   m_read_null     @ 0x900000 - 0x97FFFF
-    .long   m_read_null     @ 0x980000 - 0x9FFFFF
+    .long   m_read8_rom10   @ 0x800000 - 0x87FFFF
+    .long   m_read8_rom11   @ 0x880000 - 0x8FFFFF
+    .long   m_read8_rom12   @ 0x900000 - 0x97FFFF
+    .long   m_read8_rom13   @ 0x980000 - 0x9FFFFF
     .long   m_read8_misc    @ 0xA00000 - 0xA7FFFF
     .long   m_read_null     @ 0xA80000 - 0xAFFFFF
     .long   m_read_null     @ 0xB00000 - 0xB7FFFF
@@ -63,10 +63,10 @@ m_read16_def_table:
     .long   m_read16_romD    @ 0x680000 - 0x6FFFFF
     .long   m_read16_romE    @ 0x700000 - 0x77FFFF
     .long   m_read16_romF    @ 0x780000 - 0x7FFFFF
-    .long   m_read_null      @ 0x800000 - 0x87FFFF
-    .long   m_read_null      @ 0x880000 - 0x8FFFFF
-    .long   m_read_null      @ 0x900000 - 0x97FFFF
-    .long   m_read_null      @ 0x980000 - 0x9FFFFF
+    .long   m_read16_rom10   @ 0x800000 - 0x87FFFF
+    .long   m_read16_rom11   @ 0x880000 - 0x8FFFFF
+    .long   m_read16_rom12   @ 0x900000 - 0x97FFFF
+    .long   m_read16_rom13   @ 0x980000 - 0x9FFFFF
     .long   m_read16_misc    @ 0xA00000 - 0xA7FFFF
     .long   m_read_null      @ 0xA80000 - 0xAFFFFF
     .long   m_read_null      @ 0xB00000 - 0xB7FFFF
@@ -97,10 +97,10 @@ m_read32_def_table:
     .long   m_read32_romD    @ 0x680000 - 0x6FFFFF
     .long   m_read32_romE    @ 0x700000 - 0x77FFFF
     .long   m_read32_romF    @ 0x780000 - 0x7FFFFF
-    .long   m_read_null      @ 0x800000 - 0x87FFFF
-    .long   m_read_null      @ 0x880000 - 0x8FFFFF
-    .long   m_read_null      @ 0x900000 - 0x97FFFF
-    .long   m_read_null      @ 0x980000 - 0x9FFFFF
+    .long   m_read32_rom10   @ 0x800000 - 0x87FFFF
+    .long   m_read32_rom11   @ 0x880000 - 0x8FFFFF
+    .long   m_read32_rom12   @ 0x900000 - 0x97FFFF
+    .long   m_read32_rom13   @ 0x980000 - 0x9FFFFF
     .long   m_read32_misc    @ 0xA00000 - 0xA7FFFF
     .long   m_read_null      @ 0xA80000 - 0xAFFFFF
     .long   m_read_null      @ 0xB00000 - 0xB7FFFF
@@ -329,7 +329,6 @@ m_read8_rom8: @ 0x400000 - 0x47ffff
 m_read8_rom9: @ 0x480000 - 0x4fffff
     m_read8_rom 9
 
-@ is any ROM using that much?
 m_read8_romA: @ 0x500000 - 0x57ffff
     m_read8_rom 0xA
 
@@ -347,6 +346,18 @@ m_read8_romE: @ 0x700000 - 0x77ffff
 
 m_read8_romF: @ 0x780000 - 0x7fffff
     m_read8_rom 0xF
+
+m_read8_rom10: @ 0x800000 - 0x87ffff
+    m_read8_rom 0x10
+
+m_read8_rom11: @ 0x880000 - 0x8fffff
+    m_read8_rom 0x11
+
+m_read8_rom12: @ 0x900000 - 0x97ffff
+    m_read8_rom 0x12
+
+m_read8_rom13: @ 0x980000 - 0x9fffff
+    m_read8_rom 0x13
 
 m_read8_misc:
     bic     r2, r0, #0x00ff
@@ -468,7 +479,6 @@ m_read16_rom8: @ 0x400000 - 0x47ffff
 m_read16_rom9: @ 0x480000 - 0x4fffff
     m_read16_rom 9
 
-@ is any ROM using that much?
 m_read16_romA: @ 0x500000 - 0x57ffff
     m_read16_rom 0xA
 
@@ -486,6 +496,18 @@ m_read16_romE: @ 0x700000 - 0x77ffff
 
 m_read16_romF: @ 0x780000 - 0x7fffff
     m_read16_rom 0xF
+
+m_read16_rom10: @ 0x800000 - 0x87ffff
+    m_read16_rom 0x10
+
+m_read16_rom11: @ 0x880000 - 0x8fffff
+    m_read16_rom 0x11
+
+m_read16_rom12: @ 0x900000 - 0x97ffff
+    m_read16_rom 0x12
+
+m_read16_rom13: @ 0x980000 - 0x9fffff
+    m_read16_rom 0x13
 
 m_read16_misc:
     bic     r0, r0, #1
@@ -595,7 +617,6 @@ m_read32_rom8: @ 0x400000 - 0x47ffff
 m_read32_rom9: @ 0x480000 - 0x4fffff
     m_read32_rom 9
 
-@ is any ROM using that much?
 m_read32_romA: @ 0x500000 - 0x57ffff
     m_read32_rom 0xA
 
@@ -613,6 +634,18 @@ m_read32_romE: @ 0x700000 - 0x77ffff
 
 m_read32_romF: @ 0x780000 - 0x7fffff
     m_read32_rom 0xF
+
+m_read32_rom10: @ 0x800000 - 0x87ffff
+    m_read32_rom 0x10
+
+m_read32_rom11: @ 0x880000 - 0x8fffff
+    m_read32_rom 0x11
+
+m_read32_rom12: @ 0x900000 - 0x97ffff
+    m_read32_rom 0x12
+
+m_read32_rom13: @ 0x980000 - 0x9fffff
+    m_read32_rom 0x13
 
 m_read32_misc:
     bic     r0, r0, #1
