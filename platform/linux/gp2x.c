@@ -381,7 +381,7 @@ void set_RAM_Timings(int tRC, int tRAS, int tWR, int tMRD, int tRFC, int tRP, in
 {
 }
 
-void set_gamma(int g100)
+void set_gamma(int g100, int A_SNs_curve)
 {
 }
 

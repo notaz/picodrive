@@ -613,7 +613,7 @@ void emu_Deinit(void)
 
 	// restore gamma
 	if (gp2x_old_gamma != 100)
-		set_gamma(100);
+		set_gamma(100, 0);
 }
 
 
@@ -1079,10 +1079,10 @@ void emu_Loop(void)
 		printf(" done\n");
 	}
 
-	if (gp2x_old_gamma != currentConfig.gamma) {
-		set_gamma(currentConfig.gamma);
+	if (gp2x_old_gamma != currentConfig.gamma || (EmuOpt_old&0x1000) != (currentConfig.EmuOpt&0x1000)) {
+		set_gamma(currentConfig.gamma, !!(currentConfig.EmuOpt&0x1000));
 		gp2x_old_gamma = currentConfig.gamma;
-		printf("updated gamma to %i\n", currentConfig.gamma);
+		printf("updated gamma to %i, A_SN's curve: %i\n", currentConfig.gamma, !!(currentConfig.EmuOpt&0x1000));
 	}
 
 	if ((EmuOpt_old&0x2000) != (currentConfig.EmuOpt&0x2000)) {

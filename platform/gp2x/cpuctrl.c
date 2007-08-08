@@ -255,25 +255,46 @@ void set_RAM_Timings(int tRC, int tRAS, int tWR, int tMRD, int tRFC, int tRP, in
 }
 
 
-void set_gamma(int g100)
+void set_gamma(int g100, int A_SNs_curve)
 {
 	float gamma = (float) g100 / 100;
 	int i;
-	//printf ("set gamma = %f\r\n",gamma);
 	gamma = 1/gamma;
 
-    //enable gamma
-    MEM_REG[0x2880>>1]&=~(1<<12);
+	//enable gamma
+	MEM_REG[0x2880>>1]&=~(1<<12);
 
-    MEM_REG[0x295C>>1]=0;
-    for(i=0; i<256; i++)
-    {
+	MEM_REG[0x295C>>1]=0;
+	for(i=0; i<256; i++)
+	{
 		unsigned char g;
-        unsigned short s;
-        g =(unsigned char)(255.0*pow(i/255.0,gamma));
-        s = (g<<8) | g;
+		unsigned short s;
+		const unsigned short grey50=143, grey75=177, grey25=97;
+		float blah;
+
+		if (A_SNs_curve)
+		{
+			// The next formula is all about gaussian interpolation
+			blah = ((  -128 * exp(-powf((float) i/64.0f + 2.0f , 2.0f))) +
+				(   -64 * exp(-powf((float) i/64.0f + 1.0f , 2.0f))) +
+				(grey25 * exp(-powf((float) i/64.0f - 1.0f , 2.0f))) +
+				(grey50 * exp(-powf((float) i/64.0f - 2.0f , 2.0f))) +
+				(grey75 * exp(-powf((float) i/64.0f - 3.0f , 2.0f))) +
+				(   256 * exp(-powf((float) i/64.0f - 4.0f , 2.0f))) +
+				(   320 * exp(-powf((float) i/64.0f - 5.0f , 2.0f))) +
+				(   384 * exp(-powf((float) i/64.0f - 6.0f , 2.0f)))) / (1.772637f);
+			blah += 0.5f;
+		}
+		else
+		{
+			blah = i;
+		}
+
+		g = (unsigned char)(255.0*pow(blah/255.0,gamma));
+		//printf("%d : %d\n", i, g);
+		s = (g<<8) | g;
 		MEM_REG[0x295E>>1]= s;
-        MEM_REG[0x295E>>1]= g;
-    }
+		MEM_REG[0x295E>>1]= g;
+	}
 }
 

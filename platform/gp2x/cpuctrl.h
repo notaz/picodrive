@@ -11,7 +11,7 @@ extern void set_DCLK_Div(unsigned short div); /* 0 to 7 divider (freq=FCLK/(1+di
 //extern void Disable_940(void); /* 940t down */
 
 extern void set_RAM_Timings(int tRC, int tRAS, int tWR, int tMRD, int tRFC, int tRP, int tRCD);
-extern void set_gamma(int g100);
+extern void set_gamma(int g100, int A_SNs_curve);
 
 typedef enum
 {
