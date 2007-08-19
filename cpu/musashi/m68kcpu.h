@@ -27,8 +27,10 @@
 #define M68KCPU__HEADER
 
 // notaz: something's missing this
-#ifndef UINT16
+#ifndef UINT64
 #define UINT64 unsigned long long
+#endif
+#ifndef UINT16
 #define UINT32 unsigned int
 #define UINT16 unsigned short
 #define UINT8  unsigned char

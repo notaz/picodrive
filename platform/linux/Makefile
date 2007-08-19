@@ -44,8 +44,7 @@ OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
 OBJS += ../gp2x/mp3.o
 # CPU cores
 DEFINC += -DEMU_M68K
-OBJS += ../../cpu/musashi/m68kcpu.o  ../../cpu/musashi/m68kopac.o ../../cpu/musashi/m68kopdm.o \
-	../../cpu/musashi/m68kopnz.o ../../cpu/musashi/m68kops.o
+OBJS += ../../cpu/musashi/m68kops.o ../../cpu/musashi/m68kcpu.o
 # mz80
 DEFINC += -D_USE_MZ80
 OBJS += ../../cpu/mz80/mz80.o

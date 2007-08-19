@@ -62,6 +62,7 @@ static int movie_size = 0;
 unsigned char *framebuff = 0;  // temporary buffer for alt renderer
 int state_slot = 0;
 int reset_timing = 0;
+int config_slot = 0, config_slot_current = 0;
 
 
 // utilities
@@ -474,7 +475,7 @@ void scaling_update(void)
 int emu_ReadConfig(int game)
 {
 	FILE *f;
-	char cfg[512];
+	char cfg[512], extbuf[16];
 	int bread = 0;
 
 	if (!game)
@@ -507,9 +508,19 @@ int emu_ReadConfig(int game)
 		currentConfig.PicoCDBuffers = 64;
 		currentConfig.scaling = 0;
 		strncpy(cfg, PicoConfigFile, 511);
+		if (config_slot != 0)
+		{
+			char *p = strrchr(cfg, '.');
+			if (p == NULL) p = cfg + strlen(cfg);
+			sprintf(extbuf, ".%i.pbcfg", config_slot);
+			strncpy(p, extbuf, 511 - (p - cfg));
+		}
 		cfg[511] = 0;
 	} else {
-		romfname_ext(cfg, "cfg/", ".pbcfg");
+		if (config_slot != 0)
+		     sprintf(extbuf, ".%i.pbcfg", config_slot);
+		else strcpy(extbuf, ".pbcfg");
+		romfname_ext(cfg, "cfg/", extbuf);
 		f = fopen(cfg, "rb");
 		if (!f) romfname_ext(cfg, NULL, ".pbcfg");
 		else fclose(f);
@@ -543,6 +554,7 @@ int emu_ReadConfig(int game)
 		currentConfig.KeyBinds[22] = 1<<30; // vol down
 	}
 
+	if (bread > 0) config_slot_current = config_slot;
 	return (bread > 0); // == sizeof(currentConfig));
 }
 
@@ -550,15 +562,25 @@ int emu_ReadConfig(int game)
 int emu_WriteConfig(int game)
 {
 	FILE *f;
-	char cfg[512];
+	char cfg[512], extbuf[16];
 	int bwrite = 0;
 
 	if (!game)
 	{
 		strncpy(cfg, PicoConfigFile, 511);
+		if (config_slot != 0)
+		{
+			char *p = strrchr(cfg, '.');
+			if (p == NULL) p = cfg + strlen(cfg);
+			sprintf(extbuf, ".%i.pbcfg", config_slot);
+			strncpy(p, extbuf, 511 - (p - cfg));
+		}
 		cfg[511] = 0;
 	} else {
-		romfname_ext(cfg, "cfg/", ".pbcfg");
+		if (config_slot != 0)
+		     sprintf(extbuf, ".%i.pbcfg", config_slot);
+		else strcpy(extbuf, ".pbcfg");
+		romfname_ext(cfg, "cfg/", extbuf);
 	}
 
 	printf("emu_WriteConfig: %s ", cfg);
@@ -578,6 +600,7 @@ int emu_WriteConfig(int game)
 	}
 	printf((bwrite == sizeof(currentConfig)) ? "(ok)\n" : "(failed)\n");
 
+	if (bwrite == sizeof(currentConfig)) config_slot_current = config_slot;
 	return (bwrite == sizeof(currentConfig));
 }
 

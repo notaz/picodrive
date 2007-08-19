@@ -385,6 +385,13 @@ void set_gamma(int g100, int A_SNs_curve)
 {
 }
 
+void set_LCD_custom_rate(int rate)
+{
+}
+
+void unset_LCD_custom_rate(void)
+{
+}
 
 /* squidgehack.c */
 int mmuhack(void)

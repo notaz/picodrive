@@ -224,12 +224,22 @@ Symbian:
 
 Changelog
 ---------
-1.321
+1.33
+  * Updated Cyclone core to 0.0088.
+  + Added A r k's usbjoy fix.
+  + Added "perfect vsync" option, which adjusts GP2X LCD refresh rate and syncs
+    emulation to it to eliminate tearing and ensure smoothest scrolling possible.
+  + Added an option to use A_SN's camma curve for gamma correction (improves dark
+    and bright color display for mk2s).
   * Sometimes stray sounds were played after loading a savestate. Fixed.
   * Fixed a problem where >6MB mp3s were corrupted in memory (sound glitches in
     Snatcher).
   * PD no longer overwrites video player code in memory, video player now can be
-    used after PicoDrive.
+    used after exitting PicoDrive.
+  * Fixed a bug which was causing Sonic 3 code to deadlock in some rare conditions
+    if "accurate timing" was not enabled.
+  * Fixed support for large hacked ROMs like "Ultimate Mortal Kombat Trilogy".
+    Upto 10MB hacked ROMs are supported now.
 
 1.32
   + Added some new scaling options.
