@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 {
 	g_argv = argv;
 
-	emu_ReadConfig(0);
+	emu_ReadConfig(0, 0);
 	gp2x_init();
 	if (currentConfig.EmuOpt&0x10) {
 		int ret = mmuhack();

@@ -47,7 +47,7 @@ void emu_Deinit(void);
 int  emu_SaveLoadGame(int load, int sram);
 void emu_Loop(void);
 void emu_ResetGame(void);
-int  emu_ReadConfig(int game);
+int  emu_ReadConfig(int game, int no_defaults);
 int  emu_WriteConfig(int game);
 char *emu_GetSaveFName(int load, int is_sram, int slot);
 int  emu_check_save_file(int slot);

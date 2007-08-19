@@ -32,14 +32,6 @@
 #define OSD_FPS_X 260
 #endif
 
-// PicoPad[] format: SACB RLDU
-char *actionNames[] = {
-	"UP", "DOWN", "LEFT", "RIGHT", "B", "C", "A", "START",
-	0, 0, 0, 0, 0, 0, 0, 0, // Z, Y, X, MODE (enabled only when needed), ?, ?, ?, ?
-	0, 0, 0, 0, 0, 0, 0, "ENTER MENU", // player2_flag, ?, ?, ?, ?, ?, ?, menu
-	"NEXT SAVE SLOT", "PREV SAVE SLOT", "SWITCH RENDERER", "SAVE STATE",
-	"LOAD STATE", "VOLUME UP", "VOLUME DOWN", "DONE"
-};
 
 int engineState;
 int select_exits = 0;
@@ -319,9 +311,9 @@ int emu_ReloadRom(void)
 	}
 
 	// load config for this ROM (do this before insert to get correct region)
-	ret = emu_ReadConfig(1);
+	ret = emu_ReadConfig(1, 1);
 	if (!ret)
-		emu_ReadConfig(0);
+		emu_ReadConfig(0, 1);
 
 	printf("PicoCartInsert(%p, %d);\n", rom_data, rom_size);
 	if(PicoCartInsert(rom_data, rom_size)) {
@@ -472,7 +464,7 @@ void scaling_update(void)
 }
 
 
-int emu_ReadConfig(int game)
+int emu_ReadConfig(int game, int no_defaults)
 {
 	FILE *f;
 	char cfg[512], extbuf[16];
@@ -480,33 +472,36 @@ int emu_ReadConfig(int game)
 
 	if (!game)
 	{
-		// set default config
-		memset(&currentConfig, 0, sizeof(currentConfig));
-		currentConfig.lastRomFile[0] = 0;
-		currentConfig.EmuOpt  = 0x1f | 0x600; // | confirm_save, cd_leds
-		currentConfig.PicoOpt = 0x0f | 0xe00; // | use_940, cd_pcm, cd_cdda
-		currentConfig.PsndRate = 22050; // 44100;
-		currentConfig.PicoRegion = 0; // auto
-		currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
-		currentConfig.Frameskip = -1; // auto
-		currentConfig.CPUclock = 200;
-		currentConfig.volume = 50;
-		currentConfig.KeyBinds[ 0] = 1<<0; // SACB RLDU
-		currentConfig.KeyBinds[ 4] = 1<<1;
-		currentConfig.KeyBinds[ 2] = 1<<2;
-		currentConfig.KeyBinds[ 6] = 1<<3;
-		currentConfig.KeyBinds[14] = 1<<4;
-		currentConfig.KeyBinds[13] = 1<<5;
-		currentConfig.KeyBinds[12] = 1<<6;
-		currentConfig.KeyBinds[ 8] = 1<<7;
-		currentConfig.KeyBinds[15] = 1<<26; // switch rend
-		currentConfig.KeyBinds[10] = 1<<27; // save state
-		currentConfig.KeyBinds[11] = 1<<28; // load state
-		currentConfig.KeyBinds[23] = 1<<29; // vol up
-		currentConfig.KeyBinds[22] = 1<<30; // vol down
-		currentConfig.gamma = 100;
-		currentConfig.PicoCDBuffers = 64;
-		currentConfig.scaling = 0;
+		if (!no_defaults)
+		{
+			// set default config
+			memset(&currentConfig, 0, sizeof(currentConfig));
+			currentConfig.lastRomFile[0] = 0;
+			currentConfig.EmuOpt  = 0x1f | 0x600; // | confirm_save, cd_leds
+			currentConfig.PicoOpt = 0x0f | 0xe00; // | use_940, cd_pcm, cd_cdda
+			currentConfig.PsndRate = 22050; // 44100;
+			currentConfig.PicoRegion = 0; // auto
+			currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
+			currentConfig.Frameskip = -1; // auto
+			currentConfig.CPUclock = 200;
+			currentConfig.volume = 50;
+			currentConfig.KeyBinds[ 0] = 1<<0; // SACB RLDU
+			currentConfig.KeyBinds[ 4] = 1<<1;
+			currentConfig.KeyBinds[ 2] = 1<<2;
+			currentConfig.KeyBinds[ 6] = 1<<3;
+			currentConfig.KeyBinds[14] = 1<<4;
+			currentConfig.KeyBinds[13] = 1<<5;
+			currentConfig.KeyBinds[12] = 1<<6;
+			currentConfig.KeyBinds[ 8] = 1<<7;
+			currentConfig.KeyBinds[15] = 1<<26; // switch rend
+			currentConfig.KeyBinds[10] = 1<<27; // save state
+			currentConfig.KeyBinds[11] = 1<<28; // load state
+			currentConfig.KeyBinds[23] = 1<<29; // vol up
+			currentConfig.KeyBinds[22] = 1<<30; // vol down
+			currentConfig.gamma = 100;
+			currentConfig.PicoCDBuffers = 64;
+			currentConfig.scaling = 0;
+		}
 		strncpy(cfg, PicoConfigFile, 511);
 		if (config_slot != 0)
 		{
@@ -539,10 +534,6 @@ int emu_ReadConfig(int game)
 	PicoRegionOverride = currentConfig.PicoRegion;
 	PicoAutoRgnOrder = currentConfig.PicoAutoRgnOrder;
 	PicoCDBuffers = currentConfig.PicoCDBuffers;
-	if (PicoOpt & 0x20) {
-		actionNames[ 8] = "Z"; actionNames[ 9] = "Y";
-		actionNames[10] = "X"; actionNames[11] = "MODE";
-	}
 	scaling_update();
 	// some sanity checks
 	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;

@@ -1,4 +1,4 @@
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2006,2007 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -26,7 +26,6 @@
 #error "need d_type for file browser
 #endif
 
-extern char *actionNames[];
 extern char romFileName[PATH_MAX];
 extern char *rom_data;
 extern int  mmuhack_status;
@@ -817,17 +816,17 @@ static char *usb_joy_key_name(int joy, int num)
 	return name;
 }
 
-static void draw_key_config(int curr_act, int is_p2)
+static char *action_binds(int player_idx, int action_mask)
 {
-	char strkeys[32*5];
+	static char strkeys[32*5];
 	int joy, i;
 
 	strkeys[0] = 0;
-	for (i = 0; i < 32; i++)
+	for (i = 0; i < 32; i++) // i is key index
 	{
-		if (currentConfig.KeyBinds[i] & (1 << curr_act))
+		if (currentConfig.KeyBinds[i] & action_mask)
 		{
-			if (curr_act < 16 && (currentConfig.KeyBinds[i] & (1 << 16)) != (is_p2 << 16)) continue;
+			if (player_idx >= 0 && ((currentConfig.KeyBinds[i] >> 16) & 3) != player_idx) continue;
 			if (strkeys[0]) { strcat(strkeys, " + "); strcat(strkeys, gp2xKeyNames[i]); break; }
 			else strcpy(strkeys, gp2xKeyNames[i]);
 		}
@@ -836,9 +835,9 @@ static void draw_key_config(int curr_act, int is_p2)
 	{
 		for (i = 0; i < 32; i++)
 		{
-			if (currentConfig.JoyBinds[joy][i] & (1 << curr_act))
+			if (currentConfig.JoyBinds[joy][i] & action_mask)
 			{
-				if (curr_act < 16 && (currentConfig.JoyBinds[joy][i] & (1 << 16)) != (is_p2 << 16)) continue;
+				if (player_idx >= 0 && ((currentConfig.JoyBinds[joy][i] >> 16) & 3) != player_idx) continue;
 				if (strkeys[0]) {
 					strcat(strkeys, ", "); strcat(strkeys, usb_joy_key_name(joy + 1, i));
 					break;
@@ -848,51 +847,122 @@ static void draw_key_config(int curr_act, int is_p2)
 		}
 	}
 
-	//memset(gp2x_screen, 0, 320*240);
-	gp2x_pd_clone_buffer2();
-	gp2x_text_out8(60, 40, "Action: %s", actionNames[curr_act]);
-	gp2x_text_out8(60, 60, "Keys: %s", strkeys);
+	return strkeys;
+}
 
-	gp2x_text_out8(30, 180, "Use SELECT to change action");
-	gp2x_text_out8(30, 190, "Press a key to bind/unbind");
-	gp2x_text_out8(30, 200, "Select \"Done\" action and");
-	gp2x_text_out8(30, 210, "  press any key to finish");
+static void unbind_action(int action)
+{
+	int i, u;
+
+	for (i = 0; i < 32; i++)
+		currentConfig.KeyBinds[i] &= ~action;
+	for (u = 0; u < 4; u++)
+		for (i = 0; i < 32; i++)
+			currentConfig.JoyBinds[u][i] &= ~action;
+}
+
+static int count_bound_keys(int action, int joy)
+{
+	int i, keys = 0;
+
+	if (joy)
+	{
+		for (i = 0; i < 32; i++)
+			if (currentConfig.JoyBinds[joy-1][i] & action) keys++;
+	}
+	else
+	{
+		for (i = 0; i < 32; i++)
+			if (currentConfig.KeyBinds[i] & action) keys++;
+	}
+	return keys;
+}
+
+typedef struct { char *name; int mask; } bind_action_t;
+
+static void draw_key_config(const bind_action_t *opts, int opt_cnt, int player_idx, int sel)
+{
+	int x, y, tl_y = 40, i;
+
+	gp2x_pd_clone_buffer2();
+	if (player_idx >= 0) {
+		gp2x_text_out8(80, 20, "Player %i controls", player_idx + 1);
+		x = 100;
+	} else {
+		gp2x_text_out8(80, 20, "Emulator controls");
+		x = 40;
+	}
+
+	y = tl_y;
+	for (i = 0; i < opt_cnt; i++, y+=10)
+		gp2x_text_out8(x, y, "%s : %s", opts[i].name, action_binds(player_idx, opts[i].mask));
+
+	gp2x_text_out8(x, y, "Done");
+
+	// draw cursor
+	gp2x_text_out8(x - 16, tl_y + sel*10, ">");
+
+	if (sel < opt_cnt) {
+		gp2x_text_out8(30, 190, "Press a button to bind/unbind");
+		gp2x_text_out8(30, 200, "Use SELECT to clear");
+		gp2x_text_out8(30, 210, "To bind UP/DOWN, hold SELECT");
+		gp2x_text_out8(30, 220, "Select \"Done\" to exit");
+	} else {
+		gp2x_text_out8(30, 200, "Use Options -> Save cfg");
+		gp2x_text_out8(30, 210, "to save controls");
+		gp2x_text_out8(30, 220, "Press B or X to exit");
+	}
 	gp2x_video_flip2();
 }
 
-static void key_config_loop(int is_p2)
+static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_idx)
 {
-	int curr_act = 0, joy = 0, i;
+	int joy = 0, sel = 0, menu_sel_max = opt_cnt, prev_select = 0, i;
 	unsigned long inp = 0;
 
 	for (;;)
 	{
-		draw_key_config(curr_act, is_p2);
+		draw_key_config(opts, opt_cnt, player_idx, sel);
 		inp = wait_for_input_usbjoy(CONFIGURABLE_KEYS, &joy);
 		// printf("got %08lX from joy %i\n", inp, joy);
 		if (joy == 0) {
-			if (inp & GP2X_SELECT) {
-				curr_act++;
-				while (!actionNames[curr_act] && curr_act < 32) curr_act++;
-				if (curr_act > 31) curr_act = 0;
+			if (!(inp & GP2X_SELECT)) {
+				prev_select = 0;
+				if(inp & GP2X_UP  ) { sel--; if (sel < 0) sel = menu_sel_max; continue; }
+				if(inp & GP2X_DOWN) { sel++; if (sel > menu_sel_max) sel = 0; continue; }
 			}
+			if (sel >= opt_cnt) {
+				if (inp & (GP2X_B|GP2X_X)) break;
+				else continue;
+			}
+			// if we are here, we want to bind/unbind something
+			if ((inp & GP2X_SELECT) && !prev_select)
+				unbind_action(opts[sel].mask);
+			prev_select = inp & GP2X_SELECT;
 			inp &= CONFIGURABLE_KEYS;
 			inp &= ~GP2X_SELECT;
-		}
-		if (curr_act == 31 && inp) break;
-		if (joy == 0) {
 			for (i = 0; i < 32; i++)
 				if (inp & (1 << i)) {
-					currentConfig.KeyBinds[i] ^= (1 << curr_act);
-					if (is_p2) currentConfig.KeyBinds[i] |=  (1 << 16); // player 2 flag
-					else       currentConfig.KeyBinds[i] &= ~(1 << 16);
+					if (count_bound_keys(opts[sel].mask, 0) >= 2)
+					     currentConfig.KeyBinds[i] &= ~opts[sel].mask; // allow to unbind only
+					else currentConfig.KeyBinds[i] ^=  opts[sel].mask;
+					if (player_idx >= 0) {
+						currentConfig.KeyBinds[i] &= ~(3 << 16);
+						currentConfig.KeyBinds[i] |= player_idx << 16;
+					}
 				}
-		} else {
+		}
+		else if (sel < opt_cnt)
+		{
 			for (i = 0; i < 32; i++)
 				if (inp & (1 << i)) {
-					currentConfig.JoyBinds[joy-1][i] ^= (1 << curr_act);
-					if (is_p2) currentConfig.JoyBinds[joy-1][i] |=  (1 << 16);
-					else       currentConfig.JoyBinds[joy-1][i] &= ~(1 << 16);
+					if (count_bound_keys(opts[sel].mask, joy) >= 1) // disallow combos for usbjoy
+					     currentConfig.JoyBinds[joy-1][i] &= ~opts[sel].mask;
+					else currentConfig.JoyBinds[joy-1][i] ^=  opts[sel].mask;
+					if (player_idx >= 0) {
+						currentConfig.JoyBinds[joy-1][i] &= ~(3 << 16);
+						currentConfig.JoyBinds[joy-1][i] |= player_idx << 16;
+					}
 				}
 		}
 	}
@@ -904,10 +974,10 @@ static void draw_kc_sel(int menu_sel)
 	char joyname[36];
 
 	y = tl_y;
-	//memset(gp2x_screen, 0, 320*240);
 	gp2x_pd_clone_buffer2();
 	gp2x_text_out8(tl_x, y,       "Player 1");
 	gp2x_text_out8(tl_x, (y+=10), "Player 2");
+	gp2x_text_out8(tl_x, (y+=10), "Emulator controls");
 	gp2x_text_out8(tl_x, (y+=10), "Done");
 
 	// draw cursor
@@ -924,32 +994,67 @@ static void draw_kc_sel(int menu_sel)
 		gp2x_text_out8(tl_x, (y+=10), "none");
 	}
 
-
 	gp2x_video_flip2();
 }
 
+
+// PicoPad[] format: MXYZ SACB RLDU
+static bind_action_t ctrl_actions[] =
+{
+	{ "UP     ", 0x001 },
+	{ "DOWN   ", 0x002 },
+	{ "LEFT   ", 0x004 },
+	{ "RIGHT  ", 0x008 },
+	{ "A      ", 0x040 },
+	{ "B      ", 0x010 },
+	{ "C      ", 0x020 },
+	{ "START  ", 0x080 },
+	{ "MODE   ", 0x800 },
+	{ "X      ", 0x400 },
+	{ "Y      ", 0x200 },
+	{ "Z      ", 0x100 },
+};
+
+// player2_flag, ?, ?, ?, ?, ?, ?, menu
+// "NEXT SAVE SLOT", "PREV SAVE SLOT", "SWITCH RENDERER", "SAVE STATE",
+// "LOAD STATE", "VOLUME UP", "VOLUME DOWN", "DONE"
+static bind_action_t emuctrl_actions[] =
+{
+	{ "Volume Down    ", 1<<30 },
+	{ "Volume Up      ", 1<<29 },
+	{ "Load State     ", 1<<28 },
+	{ "Save State     ", 1<<27 },
+	{ "Switch Renderer", 1<<26 },
+	{ "Prev Save Slot ", 1<<25 },
+	{ "Next Save Slot ", 1<<24 },
+	{ "Enter Menu     ", 1<<23 },
+};
+
 static void kc_sel_loop(void)
 {
-	int menu_sel = 2, menu_sel_max = 2;
+	int menu_sel = 3, menu_sel_max = 3;
 	unsigned long inp = 0;
+	int is_6button = currentConfig.PicoOpt & 0x020;
 
-	for(;;)
+	while (1)
 	{
 		draw_kc_sel(menu_sel);
 		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_B|GP2X_X);
-		if(inp & GP2X_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
-		if(inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
-		if(inp & GP2X_B) {
+		if (inp & GP2X_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
+		if (inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
+		if (inp & GP2X_B) {
 			switch (menu_sel) {
-				case 0: key_config_loop(0); return;
-				case 1: key_config_loop(1); return;
+				case 0: key_config_loop(ctrl_actions, is_6button ? 12 : 8, 0); return;
+				case 1: key_config_loop(ctrl_actions, is_6button ? 12 : 8, 1); return;
+				case 2: key_config_loop(emuctrl_actions,
+						sizeof(emuctrl_actions)/sizeof(emuctrl_actions[0]), -1); return;
+				case 3: if (rom_data == NULL) emu_WriteConfig(0); return;
 				default: return;
 			}
 		}
-		if(inp & GP2X_X) return;
+		if (inp & GP2X_X) return;
 	}
 }
-
 
 
 // --------- sega/mega cd options ----------
@@ -1359,11 +1464,9 @@ static void menu_options_save(void)
 	PicoOpt = currentConfig.PicoOpt;
 	PsndRate = currentConfig.PsndRate;
 	PicoRegionOverride = currentConfig.PicoRegion;
-	if (PicoOpt & 0x20) {
-		actionNames[ 8] = "Z"; actionNames[ 9] = "Y";
-		actionNames[10] = "X"; actionNames[11] = "MODE";
-	} else {
-		actionNames[8] = actionNames[9] = actionNames[10] = actionNames[11] = 0;
+	if (!(PicoOpt & 0x20)) {
+		// unbind XYZ MODE, just in case
+		unbind_action(0xf00);
 	}
 	scaling_update();
 }
@@ -1382,6 +1485,7 @@ static int menu_loop_options(void)
 	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_SAVECFG_GAME, rom_data != NULL);
 	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_LOADCFG, config_slot != config_slot_current);
 	menu_sel_max = me_count_enabled(opt_entries, OPT_ENTRY_COUNT) - 1;
+	if (menu_sel > menu_sel_max) menu_sel = menu_sel_max;
 
 	while (1)
 	{
@@ -1477,9 +1581,9 @@ static int menu_loop_options(void)
 						else strcpy(menuErrorMsg, "failed to write config");
 						return 1;
 					case MA_OPT_LOADCFG:
-						ret = emu_ReadConfig(1);
-						if (!ret) ret = emu_ReadConfig(0);
-						if (!ret) strcpy(menuErrorMsg, "config loaded");
+						ret = emu_ReadConfig(1, 1);
+						if (!ret) ret = emu_ReadConfig(0, 1);
+						if (ret)  strcpy(menuErrorMsg, "config loaded");
 						else      strcpy(menuErrorMsg, "failed to load config");
 						return 1;
 					default:
@@ -1585,6 +1689,7 @@ static void menu_loop_root(void)
 	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_PATCHES,     PicoPatches != NULL);
 
 	menu_sel_max = me_count_enabled(main_entries, MAIN_ENTRY_COUNT) - 1;
+	if (menu_sel > menu_sel_max) menu_sel = menu_sel_max;
 
 	/* make sure action buttons are not pressed on entering menu */
 	draw_menu_root(menu_sel);

@@ -18,7 +18,9 @@ AS = $(CROSS)as
 LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
-all: code940.bin
+BIN = pico940.bin
+
+all: $(BIN)
 
 
 .c.o:
@@ -41,7 +43,7 @@ OBJS940 += uClibc/memset.o uClibc/s_floor.o uClibc/e_pow.o uClibc/e_sqrt.o uClib
 OBJS940 += uClibc/s_scalbn.o uClibc/s_copysign.o uClibc/k_sin.o uClibc/k_cos.o uClibc/s_sin.o
 OBJS940 += uClibc/e_rem_pio2.o uClibc/k_rem_pio2.o uClibc/e_log.o uClibc/wrappers.o
 
-code940.bin : code940.gpe
+$(BIN) : code940.gpe
 	@echo $@
 	@$(OBJCOPY) -O binary $< $@
 
@@ -64,8 +66,8 @@ misc.o : ../../../Pico/misc.s
 	@make -C ../helix/
 
 
-up: code940.bin
-	@cp -v code940.bin /mnt/gp2x/mnt/sd/emus/PicoDrive/
+up: $(BIN)
+	@cp -v $< /mnt/gp2x/mnt/sd/emus/PicoDrive/
 
 
 # cleanup

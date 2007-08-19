@@ -30,6 +30,7 @@ _940_ctl_t *shared_ctl = 0;
 unsigned char *mp3_mem = 0;
 
 #define MP3_SIZE_MAX (0x400000 + 0x800000) // 12M
+#define CODE940_FILE "pico940.bin"
 
 int crashed_940 = 0;
 
@@ -409,14 +410,14 @@ void YM2612Init_940(int baseclock, int rate)
 		binpath[1023] = 0;
 		for (i = strlen(binpath); i > 0; i--)
 			if (binpath[i] == '/') { binpath[i] = 0; break; }
-		strcat(binpath, "/code940.bin");
+		strcat(binpath, "/" CODE940_FILE);
 
 		fp = fopen(binpath, "rb");
 		if(!fp)
 		{
 			memset(gp2x_screen, 0, 320*240);
 			gp2x_text_out8(10, 100, "failed to open required file:");
-			gp2x_text_out8(10, 110, "code940.bin");
+			gp2x_text_out8(10, 110, CODE940_FILE);
 			gp2x_video_flip();
 			printf("failed to open %s\n", binpath);
 			exit(1);

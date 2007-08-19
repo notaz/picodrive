@@ -240,6 +240,9 @@ Changelog
     if "accurate timing" was not enabled.
   * Fixed support for large hacked ROMs like "Ultimate Mortal Kombat Trilogy".
     Upto 10MB hacked ROMs are supported now.
+  + Config profiles added (press left/right when saving config).
+  * Changed key configuration behaviour to the one from gpfce (should be more
+    intuitive).
 
 1.32
   + Added some new scaling options.
