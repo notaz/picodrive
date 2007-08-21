@@ -34,7 +34,7 @@ static int SpriteBlocks;
 struct TileStrip
 {
   int nametab; // Position in VRAM of name table (for this tile line)
-  int line;    // Line number in pixels 0x000-0x3ff within the virtual tilemap 
+  int line;    // Line number in pixels 0x000-0x3ff within the virtual tilemap
   int hscroll; // Horizontal scroll value in pixels for the line
   int xmask;   // X-Mask (0x1f - 0x7f) for horizontal wraparound in the tilemap
   int *hc;     // cache for high tile codes and their positions
@@ -317,12 +317,8 @@ static void DrawStrip(struct TileStrip *ts, int sh)
   // terminate the cache list
   *ts->hc = 0;
 }
-#endif
 
 // this is messy
-#ifndef _ASM_DRAW_C
-static
-#endif
 void DrawStripVSRam(struct TileStrip *ts, int plane)
 {
   int tilex=0,dx=0,ty=0,code=0,addr=0,cell=0,nametabadd=0;
@@ -386,6 +382,7 @@ void DrawStripVSRam(struct TileStrip *ts, int plane)
   // terminate the cache list
   *ts->hc = 0;
 }
+#endif
 
 #ifndef _ASM_DRAW_C
 static
@@ -921,13 +918,13 @@ static void PrepareSprites(int full)
       height = (hv&3)+1;
 
       if(sy > 240 || sy + (height<<3) <= 0) skip|=1<<22;
-      
+
       width  = (hv>>2)+1;
       code2 = sprite[1];
       sx = (code2>>16)&0x1ff;
       sx -= 0x78; // Get X coordinate + 8
       sx_min = 8-(width<<3);
-    
+
       if((sx <= sx_min && sx >= -0x76) || sx >= 328) skip|=1<<23;
       else if (sx > sx_min && !skip) {
         int sbl = (2<<height)-1;
@@ -935,10 +932,10 @@ static void PrepareSprites(int full)
         if(shi < 0) shi=0; // negative sy
         sblocks |= sbl<<shi;
       }
-    
+
       *pd++ = (width<<28)|(height<<24)|skip|(hv<<16)|((unsigned short)sy);
       *pd++ = (sx<<16)|((unsigned short)code2);
-    
+
       // Find next sprite
       link=(code>>16)&0x7f;
       if(!link) break; // End of sprites
@@ -1205,7 +1202,7 @@ static int DrawDisplay(int sh)
   if (win&0x80) { if (Scanline>=edge) hvwind=1; }
   else          { if (Scanline< edge) hvwind=1; }
 
-  if(!hvwind) { // we might have a vertical window here 
+  if(!hvwind) { // we might have a vertical window here
     win=pvid->reg[0x11];
     edge=win&0x1f;
     if(win&0x80) {

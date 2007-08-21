@@ -14,7 +14,6 @@
 .extern HighSprZ
 .extern rendstatus
 .extern DrawLineDest
-.extern DrawStripVSRam
 .extern DrawStripInterlace
 
 
@@ -293,7 +292,6 @@ DrawLayer:
     add     r12, r12, r4, lsl r10  @ nametab+=(ts.line>>3)<<shift[width];
 
     @ ldmia   r0, {r1,r2,r3,r5,r6,r9} @ r2=line, r3=ts->hscroll, r5=ts->xmask, r6=ts->hc, r9=ts->cells
-@    mov     r12,r1,  lsl #1 @ r12=(ts->nametab<<1) (halfword compliant)
 
     and     r10,r2,  #7
     mov     r10,r10, lsl #1 @ r10=ty=(ts->line&7)<<1;
@@ -422,31 +420,159 @@ DrawLayer:
     ldmfd   sp!, {r4-r11,lr}
     bx      lr
 
+@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 .DrawStrip_vsscroll:
-    @ shit, we have 2-cell column based vscroll
-    @ let the c code handle this (for now)
+    rsb     r8, r3, #0
+    mov     r8, r8, lsr #3        @ r8=tilex=(-ts->hscroll)>>3
+    bic     r8, r8, #0xff000000
+    orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|tilex[15:0])
 
-    @   int nametab; // 0x00
-    @   int line;    // 0x04
-    @   int hscroll; // 0x08
-    @   int xmask;   // 0x0C
-    @   int *hc;     // 0x10 (pointer to cache buffer)
-    @   int cells;   // 0x14
+    ldr     r4, =Scanline
+    orr     r5, r1, r10, lsl #24
+    ldr     r4, [r4]
+    sub     r1, r3, #1
+    orr     r5, r5, r4, lsl #16   @ r5=(shift_width[31:24]|scanline[23:16]|ymask[15:0])
+    and     r1, r1, #7
+    add     r7, r1, #1            @ r7=dx=((ts->hscroll-1)&7)+1
 
-    sub     sp, sp, #6*4
-    orr     r2, r1, r10, lsl #24 @ ts.line=ymask|(shift[width]<<24); // save some stuff instead of line
-    mov     r1, r0               @ plane
-    mov     r0, r12, lsr #1      @ halfwords
-    and     r9, r9, #0xff
-    stmia   sp, {r0,r2,r3,r5,r6,r9}
+    mov     r10,r9, lsl #16
+    tst     r0, r0
+    orrne   r10,r10, #0x8000
+    tst     r9, #1<<31
+    mov     r3, #0
+    orr     r10,r10, #0xff000000 @ will be adjusted on entering loop
+    orrne   r10,r10, #1<<23 @ r10=(cells[31:24]|sh[23]|hi_not_empty[22]|cells_max[21:16]|plane[15]|ty[14:0])
+    movne   r3, #0x40       @ default to shadowed pal on sh mode
 
-    mov     r0, sp
-    bl      DrawStripVSRam @ struct TileStrip *ts, int plane
+    mvn     r9, #0          @ r9=prevcode=-1
 
-    add     sp, sp, #6*4
-    ldmfd   sp!, {r4-r11,lr}
-    bx      lr
+    @ cache some stuff to avoid mem access
+    ldr     r11,=HighCol
+    mov     r0, #0xf
+    add     r1, r11, r7         @ r1=pdest
+
+    cmp     r7, #8
+    subne   r10,r10, #0x01000000 @ have hscroll, start with negative cell
+
+
+    @ r4 & r7 are scratch in this loop
+.dsloop_vs_subr1:
+    sub     r1, r1, #8
+.dsloop_vs: @ 40-41 times
+    add     r10,r10, #0x01000000
+    and     r4, r10, #0x003f0000
+    cmp     r4, r10, asr #8
+    ble     .dsloop_exit
+
+    @ calc offset and read tileline code to r7, also calc ty
+    add     r7, lr, #0x012000
+    add     r7, r7, #0x000180     @ r7=Pico.vsram (Pico+0x22180)
+    add     r7, r7, r10,asr #23   @ vsram + ((cell&~1)<<1)
+    bic     r7, r7, #3
+    tst     r10,#0x8000           @ plane1?
+    addne   r7, r7, #2
+    ldrh    r7, [r7]              @ r7=vscroll
+
+    bic     r10,r10,#0xff         @ clear old ty
+    and     r4, r5, #0xff0000
+    add     r4, r4, r7, lsl #16
+    and     r4, r4, r5, lsl #16   @ r4=line<<16
+    and     r7, r4, #0x70000
+    orr     r10,r10,r7, lsr #15   @ new ty
+
+    mov     r4, r4, lsr #19
+    mov     r7, r5, lsr #24
+    mov     r4, r4, lsl r7        @ nametabadd
+
+    and     r7, r8, r8, lsr #25
+    add     r7, lr, r7, lsl #1    @ Pico.vram+((tilex&ts->xmask) as halfwords)
+    add     r7, r7, r4, lsl #1
+    ldrh    r7, [r7, r12]         @ r7=code (int, but from unsigned, no sign extend)
+
+    add     r1, r1, #8
+    add     r8, r8, #1
+
+    tst     r7, #0x8000
+    bne     .DrawStrip_vs_hiprio
+
+    cmp     r7, r9
+    beq     .DrawStrip_vs_samecode @ we know stuff about this tile already
+
+    mov     r9, r7          @ remember code
+
+    movs    r2, r9, lsl #20 @ if (code&0x1000)
+    mov     r2, r2, lsl #1
+    add     r2, r2, r10, lsl #17
+    mov     r2, r2, lsr #17
+    eorcs   r2, r2, #0x0e   @ if (code&0x1000) addr^=0xe;
+
+    ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
+
+    bic     r7, r3, #0x3f
+    and     r3, r9, #0x6000
+    add     r3, r7, r3, lsr #9 @ r3=pal=((code&0x6000)>>9);
+
+.DrawStrip_vs_samecode:
+    tst     r2, r2
+    beq     .dsloop_vs              @ tileline blank
+
+    cmp     r2, r2, ror #4
+    beq     .DrawStrip_vs_SingleColor @ tileline singlecolor 
+
+    tst     r9, #0x0800
+    beq     .DrawStrip_vs_TileNorm
+
+    @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r0: helper pattern
+    TileFlip r0
+    b       .dsloop_vs
+
+.DrawStrip_vs_TileNorm:
+    TileNorm r0
+    b       .dsloop_vs
+
+.DrawStrip_vs_SingleColor:
+    and     r4, r2, #0xf
+    orr     r4, r3, r4
+    orr     r4, r4, r4, lsl #8
+    tst     r1, #1             @ not aligned?
+    strneb  r4, [r1], #1
+    streqh  r4, [r1], #2
+    strh    r4, [r1], #2
+    strh    r4, [r1], #2
+    strh    r4, [r1], #2
+    strneb  r4, [r1], #1       @ have a remaining unaligned pixel?
+    b       .dsloop_vs_subr1
+
+.DrawStrip_vs_hiprio:
+    tst     r10, #0x00c00000
+    beq     .DrawStrip_vs_hiprio_maybempt
+    sub     r0, r1, r11
+    orr     r7, r7, r0,  lsl #16
+    orr     r7, r7, r10, lsl #25 @ (ty<<25)
+    tst     r7, #0x1000
+    eorne   r7, r7, #7<<26  @ if(code&0x1000) cval^=7<<26;
+    str     r7, [r6], #4    @ cache hi priority tile
+    mov     r0, #0xf
+    b       .dsloop_vs
+
+.DrawStrip_vs_hiprio_maybempt:
+    cmp     r7, r9
+    beq     .dsloop_vs         @ must've been empty, otherwise we wouldn't get here
+    movs    r2, r7, lsl #20 @ if (code&0x1000)
+    mov     r2, r2, lsl #1
+    add     r2, r2, r10, lsl #17
+    mov     r2, r2, lsr #17
+    eorcs   r2, r2, #0x0e   @ if (code&0x1000) addr^=0xe;
+    ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
+    mov     r9, r7          @ remember code
+    tst     r2, r2
+    orrne   r10, r10, #1<<22
+    bne     .DrawStrip_vs_hiprio
+    b       .dsloop_vs
+
+
+@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 @ interlace mode 2? Sonic 2?
 .DrawStrip_interlace:
