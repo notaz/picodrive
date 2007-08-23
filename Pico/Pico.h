@@ -92,6 +92,7 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize);
 void Byteswap(unsigned char *data,int len);
 // anotherguest
 int PicoUnloadCart(unsigned char* romdata);
+extern void (*PicoCartLoadProgressCB)(int percent);
 
 // Draw.c
 void PicoDrawSetColorFormat(int which); // 0=BGR444, 1=RGB555, 2=8bit(HighPal pal)

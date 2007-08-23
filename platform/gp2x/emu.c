@@ -287,6 +287,8 @@ int emu_ReloadRom(void)
 		return 0;
 	}
 
+	menu_romload_prepare(used_rom_name);
+
 	if(rom_data) {
 		free(rom_data);
 		rom_data = 0;
@@ -297,9 +299,11 @@ int emu_ReloadRom(void)
 		sprintf(menuErrorMsg, "PicoCartLoad() failed.");
 		printf("%s\n", menuErrorMsg);
 		pm_close(rom);
+		menu_romload_end();
 		return 0;
 	}
 	pm_close(rom);
+	menu_romload_end();
 
 	// detect wrong files (Pico crashes on very small files), also see if ROM EP is good
 	if(rom_size <= 0x200 || strncmp((char *)rom_data, "Pico", 4) == 0 ||

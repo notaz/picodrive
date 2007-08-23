@@ -420,6 +420,39 @@ static unsigned long wait_for_input_usbjoy(unsigned long interesting, int *joy)
 
 
 
+// --------- loading ROM screen ----------
+
+static void load_progress_cb(int percent)
+{
+	int ln, len = percent * 320 / 100;
+	unsigned char *dst = (unsigned char *)gp2x_screen + 320*20;
+
+	if (len > 320) len = 320;
+	for (ln = 10; ln > 0; ln--, dst += 320)
+		memset(dst, 0xf0, len);
+	gp2x_video_flip2();
+}
+
+void menu_romload_prepare(const char *rom_name)
+{
+	const char *p = rom_name + strlen(rom_name);
+	while (p > rom_name && *p != '/') p--;
+
+	gp2x_pd_clone_buffer2();
+	gp2x_smalltext8(1, 1, "Loading");
+	gp2x_smalltext8_lim(1, 10, p, 53);
+	gp2x_memcpy_buffers(3, gp2x_screen, 0, 320*240);
+	gp2x_video_flip2();
+	PicoCartLoadProgressCB = load_progress_cb;
+}
+
+void menu_romload_end(void)
+{
+	PicoCartLoadProgressCB = NULL;
+	gp2x_smalltext8(1, 30, "Starting emulation...");
+	gp2x_video_flip2();
+}
+
 // -------------- ROM selector --------------
 
 static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
@@ -429,7 +462,6 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 	start = 12 - sel;
 	n--; // exclude current dir (".")
 
-	//memset(gp2x_screen, 0, 320*240);
 	gp2x_pd_clone_buffer2();
 
 	if(start - 2 >= 0)

@@ -15,6 +15,8 @@
 
 static char *rom_exts[] = { "bin", "gen", "smd", "iso" };
 
+void (*PicoCartLoadProgressCB)(int percent) = NULL;
+
 
 pm_file *pm_open(const char *path)
 {
@@ -244,7 +246,7 @@ static unsigned char *PicoCartAlloc(int filesize)
 
 int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
 {
-  unsigned char *rom=NULL; int size;
+  unsigned char *rom=NULL; int size, bytes_read;
   if (f==NULL) return 1;
 
   size=f->size;
@@ -258,7 +260,30 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
     return 1;
   }
 
-  pm_read(rom,size,f); // Load up the rom
+  if (PicoCartLoadProgressCB != NULL)
+  {
+    // read ROM in blocks, just for fun
+    int ret;
+    unsigned char *p = rom;
+    bytes_read=0;
+    do
+    {
+      int todo = size - bytes_read;
+      if (todo > 256*1024) todo = 256*1024;
+      ret = pm_read(p,todo,f);
+      bytes_read += ret;
+      p += ret;
+      PicoCartLoadProgressCB(bytes_read * 100 / size);
+    }
+    while (ret > 0);
+  }
+  else
+    bytes_read = pm_read(rom,size,f); // Load up the rom
+  if (bytes_read <= 0) {
+    printf("read failed\n");
+    free(rom);
+    return 1;
+  }
 
   // maybe we are loading MegaCD BIOS?
   if (!(PicoMCD&1) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) || !strncmp((char *)rom+0x128, "BOOT", 4))) {

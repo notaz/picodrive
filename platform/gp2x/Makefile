@@ -210,7 +210,7 @@ $(error need VER)
 endif
 endif
 
-rel: PicoDrive.gpe code940/code940.bin ../readme.txt config.txt PicoDrive.man.txt PicoDrive.png
+rel: PicoDrive.gpe code940/pico940.bin ../readme.txt config.txt PicoDrive.man.txt PicoDrive.png
 	zip -9 -j ../../PicoDrive_$(VER).zip $^ mmuhack.o
 
 code940/code940.bin:
