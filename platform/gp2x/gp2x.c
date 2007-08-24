@@ -157,6 +157,15 @@ void gp2x_video_wait_vsync(void)
 }
 
 
+void gp2x_video_flush_cache(void)
+{
+	// since we are using the mmu hack, we must flush the cache first
+	// (the params are most likely wrong, but they seem to work somehow)
+	//flushcache(addr, addr + 320*240*2, 0);
+	flushcache(gp2x_screen, (char *)gp2x_screen + 320*240*2, 0);
+}
+
+
 void gp2x_memcpy_buffers(int buffers, void *data, int offset, int len)
 {
 	char *dst;
@@ -184,9 +193,7 @@ void gp2x_memset_all_buffers(int offset, int byte, int len)
 
 void gp2x_pd_clone_buffer2(void)
 {
-	memcpy(gp2x_screen, gp2x_screens[2], 320*240);
-	memset(gp2x_screen, 0xe0, 320*8);
-	memset(gp2x_screen + 320*232, 0xe0, 320*8);
+	memcpy(gp2x_screen, gp2x_screens[2], 320*240*2);
 }
 
 

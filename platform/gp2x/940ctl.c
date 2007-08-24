@@ -415,10 +415,10 @@ void YM2612Init_940(int baseclock, int rate)
 		fp = fopen(binpath, "rb");
 		if(!fp)
 		{
-			memset(gp2x_screen, 0, 320*240);
-			gp2x_text_out8(10, 100, "failed to open required file:");
-			gp2x_text_out8(10, 110, CODE940_FILE);
-			gp2x_video_flip();
+			memset(gp2x_screen, 0, 320*240*2);
+			text_out16(10, 100, "failed to open required file:");
+			text_out16(10, 110, CODE940_FILE);
+			gp2x_video_flip2();
 			printf("failed to open %s\n", binpath);
 			exit(1);
 		}

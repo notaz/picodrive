@@ -243,6 +243,8 @@ Changelog
   + Config profiles added (press left/right when saving config).
   * Changed key configuration behaviour to the one from gpfce (should be more
     intuitive).
+  + Added some skinning capabilities to the menu system with default skin by
+    ketch. Delete skin directory if you want old behaviour.
 
 1.32
   + Added some new scaling options.

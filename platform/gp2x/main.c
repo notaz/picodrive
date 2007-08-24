@@ -97,6 +97,7 @@ int main(int argc, char *argv[])
 	}
 	sharedmem_init();
 	emu_Init();
+	menu_init();
 
 	engineState = PGS_Menu;
 

@@ -1,13 +1,12 @@
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2006,2007 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
 
 extern char menuErrorMsg[40];
 
-void gp2x_text_out8  (int x, int y, const char *texto, ...);
-void gp2x_text_out15 (int x, int y, const char *text);
-void gp2x_text_out8_2(int x, int y, const char *texto, int color);
+void menu_init(void);
+void text_out16(int x, int y, const char *texto, ...);
 void menu_loop(void);
 int  menu_loop_tray(void);
 void menu_romload_prepare(const char *rom_name);

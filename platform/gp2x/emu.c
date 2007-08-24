@@ -20,6 +20,7 @@
 #include "menu.h"
 #include "asmutils.h"
 #include "cpuctrl.h"
+#include "fonts.h"
 
 #include <Pico/PicoInt.h>
 #include <Pico/Patch.h>
@@ -634,6 +635,53 @@ void emu_Deinit(void)
 		set_gamma(100, 0);
 }
 
+static void text_out8_builtin(int x, int y, const char *text)
+{
+	int i,l,len=strlen(text);
+	unsigned char *screen = (unsigned char *)gp2x_screen + x + y*320;
+
+	/* always using built-in font */
+	for (i = 0; i < len; i++)
+	{
+		for (l=0;l<8;l++)
+		{
+			unsigned char fd = fontdata8x8[((text[i])*8)+l];
+			if (fd&0x80) screen[l*320+0]=0xf0;
+			if (fd&0x40) screen[l*320+1]=0xf0;
+			if (fd&0x20) screen[l*320+2]=0xf0;
+			if (fd&0x10) screen[l*320+3]=0xf0;
+			if (fd&0x08) screen[l*320+4]=0xf0;
+			if (fd&0x04) screen[l*320+5]=0xf0;
+			if (fd&0x02) screen[l*320+6]=0xf0;
+			if (fd&0x01) screen[l*320+7]=0xf0;
+		}
+		screen += 8;
+	}
+}
+
+static void text_out16_builtin(int x, int y, const char *text)
+{
+	int i,l,len=strlen(text);
+	unsigned short *screen = (unsigned short *)gp2x_screen + x + y*320;
+
+	for (i = 0; i < len; i++)
+	{
+		for (l=0;l<8;l++)
+		{
+			unsigned char fd = fontdata8x8[((text[i])*8)+l];
+			if(fd&0x80) screen[l*320+0]=0xffff;
+			if(fd&0x40) screen[l*320+1]=0xffff;
+			if(fd&0x20) screen[l*320+2]=0xffff;
+			if(fd&0x10) screen[l*320+3]=0xffff;
+			if(fd&0x08) screen[l*320+4]=0xffff;
+			if(fd&0x04) screen[l*320+5]=0xffff;
+			if(fd&0x02) screen[l*320+6]=0xffff;
+			if(fd&0x01) screen[l*320+7]=0xffff;
+		}
+		screen += 8;
+	}
+}
+
 
 void osd_text(int x, int y, const char *text)
 {
@@ -647,7 +695,7 @@ void osd_text(int x, int y, const char *text)
 			p = (int *) ((unsigned char *) gp2x_screen+x+320*(y+h));
 			for (i = len; i; i--, p++) *p = 0xe0e0e0e0;
 		}
-		gp2x_text_out8_2(x, y, text, 0xf0);
+		text_out8_builtin(x, y, text);
 	} else {
 		int *p, i, h;
 		x &= ~1; // align x
@@ -656,7 +704,7 @@ void osd_text(int x, int y, const char *text)
 			p = (int *) ((unsigned short *) gp2x_screen+x+320*(y+h));
 			for (i = len; i; i--, p++) *p = (*p>>2)&0x39e7;
 		}
-		gp2x_text_out15(x, y, text);
+		text_out16_builtin(x, y, text);
 	}
 }
 
@@ -794,7 +842,7 @@ static void vidResetMode(void)
 	if (PicoOpt&0x10) {
 		gp2x_video_changemode(8);
 	} else if (currentConfig.EmuOpt&0x80) {
-		gp2x_video_changemode(15);
+		gp2x_video_changemode(16);
 		PicoDrawSetColorFormat(1);
 		PicoScan = EmuScan16;
 		PicoScan(0, 0);
@@ -1045,10 +1093,20 @@ static void SkipFrame(int do_audio)
 void emu_forced_frame(void)
 {
 	int po_old = PicoOpt;
+	int eo_old = currentConfig.EmuOpt;
 
-	PicoOpt |= 0x10;
-	PicoFrameFull();
+	PicoOpt &= ~0x0010;
+	PicoOpt |=  0x4080; // soft_scale | acc_sprites
+	currentConfig.EmuOpt |= 0x80;
 
+	//vidResetMode();
+	PicoDrawSetColorFormat(1);
+	PicoScan = EmuScan16;
+	PicoScan(0, 0);
+	Pico.m.dirtyPal = 1;
+	PicoFrameDrawOnly();
+
+/*
 	if (!(Pico.video.reg[12]&1)) {
 		vidCpyM2 = vidCpyM2_32col;
 		clearArea(1);
@@ -1057,8 +1115,9 @@ void emu_forced_frame(void)
 	vidCpyM2((unsigned char *)gp2x_screen+320*8, framebuff+328*8);
 	vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 	gp2x_video_setpalette(localPal, 0x40);
-
+*/
 	PicoOpt = po_old;
+	currentConfig.EmuOpt = eo_old;
 }
 
 static void simpleWait(int thissec, int lim_time)
@@ -1375,12 +1434,9 @@ if (Pico.m.frame_count == 31563) {
 		SRam.changed = 0;
 	}
 
-	// if in 16bit mode, generate 8it image for menu background
-	if (!(PicoOpt&0x10) && (currentConfig.EmuOpt&0x80))
+	// if in 8bit mode, generate 16bit image for menu background
+	if ((PicoOpt&0x10) || !(currentConfig.EmuOpt&0x80))
 		emu_forced_frame();
-
-	// for menu bg
-	gp2x_memcpy_buffers((1<<2), gp2x_screen, 0, 320*240*2);
 }
 
 

@@ -653,6 +653,13 @@ int PicoFrame(void)
   return 0;
 }
 
+void PicoFrameDrawOnly(void)
+{
+  int y;
+  PicoFrameStart();
+  for (y=0;y<224;y++) PicoLine(y);
+}
+
 // callback to output message from emu
 void (*PicoMessage)(const char *msg)=NULL;
 

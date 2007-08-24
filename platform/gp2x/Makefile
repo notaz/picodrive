@@ -47,7 +47,7 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += main.o menu.o fonts.o gp2x.o usbjoy.o emu.o squidgehack.o asmutils.o cpuctrl.o
+OBJS += main.o menu.o fonts.o gp2x.o usbjoy.o emu.o squidgehack.o asmutils.o cpuctrl.o readpng.o
 # 940 core control
 OBJS += 940ctl.o
 # Pico
@@ -121,7 +121,7 @@ all: PicoDrive.gpe
 
 PicoDrive.gpe : $(OBJS) helix/helix_mp3.a
 	@echo $@
-	@$(GCC) -o $@ $(COPT) $^ -lm -Wl,-Map=PicoDrive.map
+	@$(GCC) -o $@ $(COPT) $^ -lm -lpng -Wl,-Map=PicoDrive.map
 ifeq ($(DEBUG),)
 	@$(STRIP) $@
 endif
@@ -212,6 +212,7 @@ endif
 
 rel: PicoDrive.gpe code940/pico940.bin ../readme.txt config.txt PicoDrive.man.txt PicoDrive.png
 	zip -9 -j ../../PicoDrive_$(VER).zip $^ mmuhack.o
+	zip -9 PicoDrive_$(VER).zip skin
 
 code940/code940.bin:
 	make -C code940/

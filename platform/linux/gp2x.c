@@ -257,13 +257,18 @@ void gp2x_video_setpalette(int *pal, int len)
 	memcpy(current_pal, pal, len*4);
 }
 
+void gp2x_video_flush_cache(void)
+{
+}
+
 void gp2x_video_RGB_setscaling(int v_offs, int W, int H)
 {
 }
 
 void gp2x_memcpy_buffers(int buffers, void *data, int offset, int len)
 {
-	memcpy((char *)gp2x_screen + offset, data, len);
+	if ((char *)gp2x_screen + offset != data)
+		memcpy((char *)gp2x_screen + offset, data, len);
 }
 
 void gp2x_memcpy_all_buffers(void *data, int offset, int len)
@@ -279,7 +284,7 @@ void gp2x_memset_all_buffers(int offset, int byte, int len)
 
 void gp2x_pd_clone_buffer2(void)
 {
-	memset(gp2x_screen, 0, 320*240);
+	memset(gp2x_screen, 0, 320*240*2);
 }
 
 /* sound */

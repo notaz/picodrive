@@ -211,7 +211,6 @@ spend_cycles:
     bx      lr
 
 
-@ test
 .global flushcache
 
 flushcache:
