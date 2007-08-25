@@ -8,7 +8,6 @@
 
 
 #include "PicoInt.h"
-#include "sound/sound.h"
 #include "sound/ym2612.h"
 
 int PicoVer=0x0110;
@@ -218,8 +217,8 @@ static int dma_bsycles[] = {
 (488<<8)/9,   (488<<8)/18,  (488<<8)/17,  (488<<8)/9
 };
 
-//static
-int CheckDMA(void)
+
+PICO_INTERNAL int CheckDMA(void)
 {
   int burn = 0, bytes_can = 0, dma_op = Pico.video.reg[0x17]>>6; // see gens for 00 and 01 modes
   int bytes = Pico.m.dma_bytes;

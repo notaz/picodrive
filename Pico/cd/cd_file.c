@@ -8,22 +8,16 @@
  ***********************************************************/
 
 #include <sys/stat.h>
-#include "cd_file.h"
 
 #include "../PicoInt.h"
+#include "cd_file.h"
 
 #define cdprintf dprintf
 //#define cdprintf(x...)
 #define DEBUG_CD
 
 
-void FILE_End(void)
-{
-	Unload_ISO();
-}
-
-
-int Load_ISO(const char *iso_name, int is_bin)
+PICO_INTERNAL int Load_ISO(const char *iso_name, int is_bin)
 {
 	int i, j, num_track, Cur_LBA, index, ret, iso_name_len;
 	_scd_track *Tracks = Pico_mcd->TOC.Tracks;
@@ -134,7 +128,7 @@ int Load_ISO(const char *iso_name, int is_bin)
 }
 
 
-void Unload_ISO(void)
+PICO_INTERNAL void Unload_ISO(void)
 {
 	int i;
 
@@ -150,10 +144,7 @@ void Unload_ISO(void)
 }
 
 
-void PicoCDBufferRead(void *dest, int lba);
-
-
-int FILE_Read_One_LBA_CDC(void)
+PICO_INTERNAL int FILE_Read_One_LBA_CDC(void)
 {
 //	static char cp_buf[2560];
 
@@ -281,7 +272,7 @@ int FILE_Read_One_LBA_CDC(void)
 }
 
 
-int FILE_Play_CD_LBA(void)
+PICO_INTERNAL int FILE_Play_CD_LBA(void)
 {
 	int index = Pico_mcd->scd.Cur_Track - 1;
 	Pico_mcd->m.audio_track = index;

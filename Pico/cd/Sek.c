@@ -49,12 +49,12 @@ static int SekIntAckS68k(int level)
   return CYCLONE_INT_ACK_AUTOVECTOR;
 }
 
-static void SekResetAck()
+static void SekResetAckS68k(void)
 {
   dprintf("s68k: Reset encountered @ %06x", SekPcS68k);
 }
 
-static int SekUnrecognizedOpcode()
+static int SekUnrecognizedOpcodeS68k(void)
 {
   unsigned int pc, op;
   pc = SekPcS68k;
@@ -67,14 +67,14 @@ static int SekUnrecognizedOpcode()
 
 
 
-int SekInitS68k()
+PICO_INTERNAL int SekInitS68k()
 {
 #ifdef EMU_C68K
 //  CycloneInit();
   memset(&PicoCpuS68k,0,sizeof(PicoCpuS68k));
   PicoCpuS68k.IrqCallback=SekIntAckS68k;
-  PicoCpuS68k.ResetCallback=SekResetAck;
-  PicoCpuS68k.UnrecognizedCallback=SekUnrecognizedOpcode;
+  PicoCpuS68k.ResetCallback=SekResetAckS68k;
+  PicoCpuS68k.UnrecognizedCallback=SekUnrecognizedOpcodeS68k;
 #endif
 #ifdef EMU_M68K
   {
@@ -93,7 +93,7 @@ int SekInitS68k()
 }
 
 // Reset the 68000:
-int SekResetS68k()
+PICO_INTERNAL int SekResetS68k()
 {
   if (Pico.rom==NULL) return 1;
 
@@ -122,7 +122,7 @@ int SekResetS68k()
   return 0;
 }
 
-int SekInterruptS68k(int irq)
+PICO_INTERNAL int SekInterruptS68k(int irq)
 {
   int irqs, real_irq = 1;
   Pico_mcd->m.s68k_pend_ints |= 1 << irq;

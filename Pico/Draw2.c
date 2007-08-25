@@ -10,10 +10,6 @@
 
 
 #include "PicoInt.h"
-#include <assert.h>
-#ifndef __GNUC__
-#pragma warning (disable:4706) // Disable assignment within conditional
-#endif
 
 // port_config.h include must define these 2 defines:
 // #define START_ROW  1 // which row of tiles to start rendering at?
@@ -28,8 +24,8 @@
 extern unsigned char *framebuff; // in format (8+320)x(8+224+8) (eights for borders)
 int currpri = 0;
 
-static int HighCacheA[41*(TILE_ROWS+1)+1+1]; // caches for high layers
-static int HighCacheB[41*(TILE_ROWS+1)+1+1];
+static int HighCache2A[41*(TILE_ROWS+1)+1+1]; // caches for high layers
+static int HighCache2B[41*(TILE_ROWS+1)+1+1];
 
 unsigned short *PicoCramHigh=Pico.cram; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 void (*PicoPrepareCram)()=0;            // prepares PicoCramHigh for renderer to use
@@ -235,9 +231,9 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend)
 	height=(width>>4)&3; width&=3;
 
 	xmask=(1<<shift[width ])-1; // X Mask in tiles
-    ymask=(height<<5)|0x1f;     // Y Mask in tiles
-    if(width == 1)   ymask&=0x3f;
-    else if(width>1) ymask =0x1f;
+	ymask=(height<<5)|0x1f;     // Y Mask in tiles
+	if(width == 1)   ymask&=0x3f;
+	else if(width>1) ymask =0x1f;
 
 	// Find name table:
 	if (plane==0) nametab=(pvid->reg[2]&0x38)<< 9; // A
@@ -563,17 +559,17 @@ static void DrawDisplayFull()
 	if(hvwin==1) { winend|=maxcolc<<16; planeend|=maxcolc<<16; }
 
 	currpri = 0;
-	DrawLayerFull(1, HighCacheB, START_ROW, (maxcolc<<16)|END_ROW);
+	DrawLayerFull(1, HighCache2B, START_ROW, (maxcolc<<16)|END_ROW);
 	switch(hvwin) {
 		case 4:
 		// fullscreen window
 		DrawWindowFull(START_ROW, (maxcolc<<16)|END_ROW, 0);
-		HighCacheA[1] = 0;
+		HighCache2A[1] = 0;
 		break;
 
 		case 3:
 		// we have plane A and both v and h windows
-		DrawLayerFull(0, HighCacheA, planestart, planeend);
+		DrawLayerFull(0, HighCache2A, planestart, planeend);
 		DrawWindowFull( winstart&~0xff0000, (winend&~0xff0000)|(maxcolc<<16), 0); // h
 		DrawWindowFull((winstart&~0xff)|START_ROW, (winend&~0xff)|END_ROW, 0);    // v
 		break;
@@ -581,20 +577,20 @@ static void DrawDisplayFull()
 		case 2:
 		case 1:
 		// both window and plane A visible, window is vertical XOR horizontal
-		DrawLayerFull(0, HighCacheA, planestart, planeend);
+		DrawLayerFull(0, HighCache2A, planestart, planeend);
 		DrawWindowFull(winstart, winend, 0);
 		break;
 
 		default:
 		// fullscreen plane A
-		DrawLayerFull(0, HighCacheA, START_ROW, (maxcolc<<16)|END_ROW);
+		DrawLayerFull(0, HighCache2A, START_ROW, (maxcolc<<16)|END_ROW);
 		break;
 	}
 	DrawAllSpritesFull(0, maxw);
 
 #ifdef USE_CACHE
-	if(HighCacheB[1]) DrawTilesFromCacheF(HighCacheB);
-	if(HighCacheA[1]) DrawTilesFromCacheF(HighCacheA);
+	if(HighCache2B[1]) DrawTilesFromCacheF(HighCache2B);
+	if(HighCache2A[1]) DrawTilesFromCacheF(HighCache2A);
 	switch(hvwin) {
 		case 4:
 		// fullscreen window
@@ -621,7 +617,7 @@ static void DrawDisplayFull()
 }
 
 
-void PicoFrameFull()
+PICO_INTERNAL void PicoFrameFull()
 {
 	// prepare cram?
 	if(PicoPrepareCram) PicoPrepareCram();

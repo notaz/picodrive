@@ -1,4 +1,4 @@
-// Pico Library - Header File
+// Pico Library - Internal Header File
 
 // (c) Copyright 2004 Dave, All rights reserved.
 // (c) Copyright 2006,2007 Grazvydas "notaz" Ignotas, all rights reserved.
@@ -6,6 +6,8 @@
 
 // For commercial use, separate licencing terms must be obtained.
 
+#ifndef PICO_INTERNAL_INCLUDED
+#define PICO_INTERNAL_INCLUDED
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +17,12 @@
 //
 #define USE_POLL_DETECT
 
+#ifndef PICO_INTERNAL
+#define PICO_INTERNAL
+#endif
+#ifndef PICO_INTERNAL_ASM
+#define PICO_INTERNAL_ASM
+#endif
 
 // to select core, define EMU_C68K, EMU_M68K or EMU_A68K in your makefile or project
 
@@ -270,89 +278,102 @@ typedef struct
 #define Pico_mcd ((mcd_state *)Pico.rom)
 
 // Area.c
-int PicoAreaPackCpu(unsigned char *cpu, int is_sub);
-int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub);
+PICO_INTERNAL int PicoAreaPackCpu(unsigned char *cpu, int is_sub);
+PICO_INTERNAL int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub);
 
 // cd/Area.c
-int PicoCdSaveState(void *file);
-int PicoCdLoadState(void *file);
-int PicoCdLoadStateGfx(void *file);
+PICO_INTERNAL int PicoCdSaveState(void *file);
+PICO_INTERNAL int PicoCdLoadState(void *file);
 
 // Draw.c
-int PicoLine(int scan);
-void PicoFrameStart();
+PICO_INTERNAL int PicoLine(int scan);
+PICO_INTERNAL void PicoFrameStart(void);
 
 // Draw2.c
-void PicoFrameFull();
+PICO_INTERNAL void PicoFrameFull();
 
 // Memory.c
-int PicoInitPc(unsigned int pc);
-unsigned int CPU_CALL PicoRead32(unsigned int a);
-void PicoMemSetup();
-void PicoMemReset();
-//void PicoDasm(int start,int len);
-unsigned char z80_read(unsigned short a);
-unsigned short z80_read16(unsigned short a);
-void z80_write(unsigned char data, unsigned short a);
-void z80_write16(unsigned short data, unsigned short a);
+PICO_INTERNAL int PicoInitPc(unsigned int pc);
+PICO_INTERNAL_ASM unsigned int CPU_CALL PicoRead32(unsigned int a);
+PICO_INTERNAL void PicoMemSetup(void);
+PICO_INTERNAL_ASM void PicoMemReset(void);
+PICO_INTERNAL unsigned char z80_read(unsigned short a);
+PICO_INTERNAL unsigned short z80_read16(unsigned short a);
+PICO_INTERNAL_ASM void z80_write(unsigned char data, unsigned short a);
+PICO_INTERNAL void z80_write16(unsigned short data, unsigned short a);
 
 // cd/Memory.c
-void PicoMemSetupCD(void);
-void PicoMemResetCD(int r3);
-void PicoMemResetCDdecode(int r3);
-unsigned char  PicoReadCD8 (unsigned int a);
-unsigned short PicoReadCD16(unsigned int a);
-unsigned int   PicoReadCD32(unsigned int a);
-void PicoWriteCD8 (unsigned int a, unsigned char d);
-void PicoWriteCD16(unsigned int a, unsigned short d);
-void PicoWriteCD32(unsigned int a, unsigned int d);
+PICO_INTERNAL void PicoMemSetupCD(void);
+PICO_INTERNAL_ASM void PicoMemResetCD(int r3);
+PICO_INTERNAL_ASM void PicoMemResetCDdecode(int r3);
 
 // Pico.c
 extern struct Pico Pico;
 extern struct PicoSRAM SRam;
 extern int emustatus;
 extern int z80startCycle, z80stopCycle; // in 68k cycles
-int CheckDMA(void);
+PICO_INTERNAL int CheckDMA(void);
 
 // cd/Pico.c
-int  PicoInitMCD(void);
-void PicoExitMCD(void);
-int  PicoResetMCD(int hard);
+PICO_INTERNAL int PicoInitMCD(void);
+PICO_INTERNAL int PicoResetMCD(int hard);
+PICO_INTERNAL int PicoFrameMCD(void);
 
 // Sek.c
-int SekInit(void);
-int SekReset(void);
-int SekInterrupt(int irq);
-void SekState(unsigned char *data);
-void SekSetRealTAS(int use_real);
+PICO_INTERNAL int SekInit(void);
+PICO_INTERNAL int SekReset(void);
+PICO_INTERNAL int SekInterrupt(int irq);
+PICO_INTERNAL void SekState(unsigned char *data);
+PICO_INTERNAL void SekSetRealTAS(int use_real);
 
 // cd/Sek.c
-int SekInitS68k(void);
-int SekResetS68k(void);
-int SekInterruptS68k(int irq);
+PICO_INTERNAL int SekInitS68k(void);
+PICO_INTERNAL int SekResetS68k(void);
+PICO_INTERNAL int SekInterruptS68k(int irq);
 
 // sound/sound.c
 extern int PsndLen_exc_cnt;
 extern int PsndLen_exc_add;
 
 // VideoPort.c
-void PicoVideoWrite(unsigned int a,unsigned short d);
-unsigned int PicoVideoRead(unsigned int a);
+PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
+PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
 
 // Misc.c
-void SRAMWriteEEPROM(unsigned int d);
-unsigned int SRAMReadEEPROM();
-void SRAMUpdPending(unsigned int a, unsigned int d);
-void memcpy16(unsigned short *dest, unsigned short *src, int count);
-void memcpy16bswap(unsigned short *dest, void *src, int count);
-void memcpy32(int *dest, int *src, int count); // 32bit word count
-void memset32(int *dest, int c, int count);
+PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d);
+PICO_INTERNAL void SRAMUpdPending(unsigned int a, unsigned int d);
+PICO_INTERNAL_ASM unsigned int SRAMReadEEPROM(void);
+PICO_INTERNAL_ASM void memcpy16(unsigned short *dest, unsigned short *src, int count);
+PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);
+PICO_INTERNAL_ASM void memcpy32(int *dest, int *src, int count); // 32bit word count
+PICO_INTERNAL_ASM void memset32(int *dest, int c, int count);
 
 // cd/Misc.c
-void wram_2M_to_1M(unsigned char *m);
-void wram_1M_to_2M(unsigned char *m);
+PICO_INTERNAL_ASM void wram_2M_to_1M(unsigned char *m);
+PICO_INTERNAL_ASM void wram_1M_to_2M(unsigned char *m);
+
+// cd/buffering.c
+PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba);
+
+// sound/sound.c
+PICO_INTERNAL void sound_reset(void);
+PICO_INTERNAL void sound_timers_and_dac(int raster);
+PICO_INTERNAL int  sound_render(int offset, int length);
+PICO_INTERNAL void sound_clear(void);
+// z80 functionality wrappers
+PICO_INTERNAL void z80_init(void);
+PICO_INTERNAL void z80_resetCycles(void);
+PICO_INTERNAL void z80_int(void);
+PICO_INTERNAL int  z80_run(int cycles);
+PICO_INTERNAL void z80_pack(unsigned char *data);
+PICO_INTERNAL void z80_unpack(unsigned char *data);
+PICO_INTERNAL void z80_reset(void);
+PICO_INTERNAL void z80_exit(void);
 
 
 #ifdef __cplusplus
 } // End of extern "C"
 #endif
+
+#endif // PICO_INTERNAL_INCLUDED
+

@@ -88,7 +88,7 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 	if (PicoStateProgressCB) PicoStateProgressCB(chunk_names[name]); \
 	if (!write_chunk(name, sizeof(buff), &buff, file)) return 1;
 
-int PicoCdSaveState(void *file)
+PICO_INTERNAL int PicoCdSaveState(void *file)
 {
 	unsigned char buff[0x60];
 	void *ym2612_regs = YM2612GetRegs();
@@ -168,7 +168,7 @@ static int g_read_offs = 0;
 
 #define CHECKED_READ_BUFF(buff) CHECKED_READ2(sizeof(buff), &buff);
 
-int PicoCdLoadState(void *file)
+PICO_INTERNAL int PicoCdLoadState(void *file)
 {
 	unsigned char buff[0x60];
 	int ver, len;

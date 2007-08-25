@@ -8,10 +8,10 @@
  ***********************************************************/
 
 #include <stdio.h>
-#include "cd_sys.h"
-#include "cd_file.h"
 
 #include "../PicoInt.h"
+#include "cd_sys.h"
+#include "cd_file.h"
 
 #define cdprintf dprintf
 //#define cdprintf(x...)
@@ -68,7 +68,7 @@ static int MSF_to_LBA(_msf *MSF)
 }
 
 
-void LBA_to_MSF(int lba, _msf *MSF)
+PICO_INTERNAL void LBA_to_MSF(int lba, _msf *MSF)
 {
 	if (lba < -150) lba = 0;
 	else lba += 150;
@@ -122,7 +122,7 @@ static void Track_to_MSF(int track, _msf *MSF)
 }
 
 
-int Track_to_LBA(int track)
+PICO_INTERNAL int Track_to_LBA(int track)
 {
 	_msf MSF;
 
@@ -131,7 +131,7 @@ int Track_to_LBA(int track)
 }
 
 
-void Check_CD_Command(void)
+PICO_INTERNAL void Check_CD_Command(void)
 {
 	cdprintf("CHECK CD COMMAND");
 
@@ -175,19 +175,19 @@ void Check_CD_Command(void)
 }
 
 
-int Init_CD_Driver(void)
+PICO_INTERNAL int Init_CD_Driver(void)
 {
 	return 0;
 }
 
 
-void End_CD_Driver(void)
+PICO_INTERNAL void End_CD_Driver(void)
 {
-	FILE_End();
+	Unload_ISO();
 }
 
 
-void Reset_CD(void)
+PICO_INTERNAL void Reset_CD(void)
 {
 	Pico_mcd->scd.Cur_Track = 0;
 	Pico_mcd->scd.Cur_LBA = -150;
@@ -201,9 +201,6 @@ void Reset_CD(void)
 int Insert_CD(char *iso_name, int is_bin)
 {
 	int ret = 0;
-
-//	memset(CD_Audio_Buffer_L, 0, 4096 * 4);
-//	memset(CD_Audio_Buffer_R, 0, 4096 * 4);
 
 	CD_Present = 0;
 	Pico_mcd->scd.Status_CDD = NOCD;
@@ -228,14 +225,15 @@ void Stop_CD(void)
 }
 
 
-void Change_CD(void)
+/*
+PICO_INTERNAL void Change_CD(void)
 {
 	if (Pico_mcd->scd.Status_CDD == TRAY_OPEN) Close_Tray_CDD_cC();
 	else Open_Tray_CDD_cD();
 }
+*/
 
-
-int Get_Status_CDD_c0(void)
+PICO_INTERNAL int Get_Status_CDD_c0(void)
 {
 	cdprintf("Status command : Cur LBA = %d", Pico_mcd->scd.Cur_LBA);
 
@@ -253,7 +251,7 @@ int Get_Status_CDD_c0(void)
 }
 
 
-int Stop_CDD_c1(void)
+PICO_INTERNAL int Stop_CDD_c1(void)
 {
 	CHECK_TRAY_OPEN
 
@@ -276,7 +274,7 @@ int Stop_CDD_c1(void)
 }
 
 
-int Get_Pos_CDD_c20(void)
+PICO_INTERNAL int Get_Pos_CDD_c20(void)
 {
 	_msf MSF;
 
@@ -308,7 +306,7 @@ int Get_Pos_CDD_c20(void)
 }
 
 
-int Get_Track_Pos_CDD_c21(void)
+PICO_INTERNAL int Get_Track_Pos_CDD_c21(void)
 {
 	int elapsed_time;
 	_msf MSF;
@@ -342,7 +340,7 @@ int Get_Track_Pos_CDD_c21(void)
 }
 
 
-int Get_Current_Track_CDD_c22(void)
+PICO_INTERNAL int Get_Current_Track_CDD_c22(void)
 {
 	cdprintf("Status CDD = %.4X  Status = %.4X", Pico_mcd->scd.Status_CDD, Pico_mcd->cdd.Status);
 
@@ -371,7 +369,7 @@ int Get_Current_Track_CDD_c22(void)
 }
 
 
-int Get_Total_Lenght_CDD_c23(void)
+PICO_INTERNAL int Get_Total_Lenght_CDD_c23(void)
 {
 	CHECK_TRAY_OPEN
 
@@ -395,7 +393,7 @@ int Get_Total_Lenght_CDD_c23(void)
 }
 
 
-int Get_First_Last_Track_CDD_c24(void)
+PICO_INTERNAL int Get_First_Last_Track_CDD_c24(void)
 {
 	CHECK_TRAY_OPEN
 
@@ -418,7 +416,7 @@ int Get_First_Last_Track_CDD_c24(void)
 }
 
 
-int Get_Track_Adr_CDD_c25(void)
+PICO_INTERNAL int Get_Track_Adr_CDD_c25(void)
 {
 	int track_number;
 
@@ -452,7 +450,7 @@ int Get_Track_Adr_CDD_c25(void)
 }
 
 
-int Play_CDD_c3(void)
+PICO_INTERNAL int Play_CDD_c3(void)
 {
 	_msf MSF;
 	int delay, new_lba;
@@ -510,7 +508,7 @@ int Play_CDD_c3(void)
 }
 
 
-int Seek_CDD_c4(void)
+PICO_INTERNAL int Seek_CDD_c4(void)
 {
 	_msf MSF;
 
@@ -548,7 +546,7 @@ int Seek_CDD_c4(void)
 }
 
 
-int Pause_CDD_c6(void)
+PICO_INTERNAL int Pause_CDD_c6(void)
 {
 	CHECK_TRAY_OPEN
 	CHECK_CD_PRESENT
@@ -571,7 +569,7 @@ int Pause_CDD_c6(void)
 }
 
 
-int Resume_CDD_c7(void)
+PICO_INTERNAL int Resume_CDD_c7(void)
 {
 	CHECK_TRAY_OPEN
 	CHECK_CD_PRESENT
@@ -613,7 +611,7 @@ int Resume_CDD_c7(void)
 }
 
 
-int Fast_Foward_CDD_c8(void)
+PICO_INTERNAL int Fast_Foward_CDD_c8(void)
 {
 	CHECK_TRAY_OPEN
 	CHECK_CD_PRESENT
@@ -634,7 +632,7 @@ int Fast_Foward_CDD_c8(void)
 }
 
 
-int Fast_Rewind_CDD_c9(void)
+PICO_INTERNAL int Fast_Rewind_CDD_c9(void)
 {
 	CHECK_TRAY_OPEN
 	CHECK_CD_PRESENT
@@ -655,7 +653,7 @@ int Fast_Rewind_CDD_c9(void)
 }
 
 
-int Close_Tray_CDD_cC(void)
+PICO_INTERNAL int Close_Tray_CDD_cC(void)
 {
 	CD_Present = 0;
 	//Clear_Sound_Buffer();
@@ -681,7 +679,7 @@ int Close_Tray_CDD_cC(void)
 }
 
 
-int Open_Tray_CDD_cD(void)
+PICO_INTERNAL int Open_Tray_CDD_cD(void)
 {
 	CHECK_TRAY_OPEN
 
@@ -709,7 +707,7 @@ int Open_Tray_CDD_cD(void)
 }
 
 
-int CDD_cA(void)
+PICO_INTERNAL int CDD_cA(void)
 {
 	CHECK_TRAY_OPEN
 	CHECK_CD_PRESENT
@@ -730,7 +728,7 @@ int CDD_cA(void)
 }
 
 
-int CDD_Def(void)
+PICO_INTERNAL int CDD_Def(void)
 {
 	Pico_mcd->cdd.Status = Pico_mcd->scd.Status_CDD;
 

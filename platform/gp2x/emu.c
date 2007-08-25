@@ -278,7 +278,7 @@ int emu_ReloadRom(void)
 		// bios_help() ?
 		return 0;
 	} else {
-		if (PicoMCD & 1) PicoExitMCD();
+		if (PicoMCD & 1) Stop_CD();
 		PicoMCD &= ~1;
 	}
 

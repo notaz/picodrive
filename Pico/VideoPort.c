@@ -15,8 +15,12 @@ extern const unsigned char  hcounts_40[];
 extern const unsigned short vcounts[];
 extern int rendstatus;
 
+#ifndef UTYPES_DEFINED
 typedef unsigned char  u8;
 typedef unsigned short u16;
+typedef unsigned int   u32;
+#define UTYPES_DEFINED
+#endif
 
 
 static __inline void AutoIncrement()
@@ -308,7 +312,7 @@ static void CommandChange()
   if (cmd&0x80) CommandDma();
 }
 
-void PicoVideoWrite(unsigned int a,unsigned short d)
+PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
 {
   struct PicoVideo *pvid=&Pico.video;
 
@@ -390,7 +394,7 @@ void PicoVideoWrite(unsigned int a,unsigned short d)
   }
 }
 
-unsigned int PicoVideoRead(unsigned int a)
+PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
 {
   unsigned int d=0;
 

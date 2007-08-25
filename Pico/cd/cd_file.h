@@ -12,11 +12,10 @@ extern "C" {
 
 
 
-void FILE_End(void);
-int Load_ISO(const char *iso_name, int is_bin);
-void Unload_ISO(void);
-int FILE_Read_One_LBA_CDC(void);
-int FILE_Play_CD_LBA(void);
+PICO_INTERNAL int  Load_ISO(const char *iso_name, int is_bin);
+PICO_INTERNAL void Unload_ISO(void);
+PICO_INTERNAL int  FILE_Read_One_LBA_CDC(void);
+PICO_INTERNAL int  FILE_Play_CD_LBA(void);
 
 
 #ifdef __cplusplus

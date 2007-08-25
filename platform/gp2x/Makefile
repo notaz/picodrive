@@ -13,6 +13,7 @@ asm_ym2612 = 1
 asm_misc = 1
 asm_cdpico = 1
 asm_cdmemory = 1
+amalgamate = 1
 #profile = 1
 #use_musashi = 1
 #up = 1
@@ -50,14 +51,20 @@ OBJCOPY = $(CROSS)objcopy
 OBJS += main.o menu.o fonts.o gp2x.o usbjoy.o emu.o squidgehack.o asmutils.o cpuctrl.o readpng.o
 # 940 core control
 OBJS += 940ctl.o
+
 # Pico
-OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Utils.o ../../Pico/Memory.o ../../Pico/Misc.o \
+ifeq "$(amalgamate)" "1"
+OBJS += ../../PicoAll.o
+else
+OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Memory.o ../../Pico/Misc.o \
 		../../Pico/Pico.o ../../Pico/Sek.o ../../Pico/VideoPort.o ../../Pico/Draw2.o ../../Pico/Draw.o \
 		../../Pico/Patch.o
 # Pico - CD
 OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
 		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o \
 		../../Pico/cd/Area.o ../../Pico/cd/Misc.o ../../Pico/cd/pcm.o ../../Pico/cd/buffering.o
+endif
+
 # asm stuff
 ifeq "$(asm_render)" "1"
 DEFINC += -D_ASM_DRAW_C
@@ -84,9 +91,13 @@ ifeq "$(asm_cdmemory)" "1"
 DEFINC += -D_ASM_CD_MEMORY_C
 OBJS += ../../Pico/cd/memory_asm.o
 endif
+
 # Pico - sound
+ifneq "$(amalgamate)" "1"
+OBJS += ../../Pico/sound/sound.o
+endif
 OBJS += ../../Pico/sound/mix_asm.o
-OBJS += ../../Pico/sound/sound.o ../../Pico/sound/sn76496.o ../../Pico/sound/ym2612.o
+OBJS += ../../Pico/sound/sn76496.o ../../Pico/sound/ym2612.o
 # zlib
 OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/inftrees.o ../../zlib/trees.o \
 	../../zlib/deflate.o ../../zlib/crc32.o ../../zlib/adler32.o ../../zlib/zutil.o ../../zlib/compress.o
@@ -216,18 +227,4 @@ rel: PicoDrive.gpe code940/pico940.bin ../readme.txt config.txt PicoDrive.man.tx
 
 code940/code940.bin:
 	make -C code940/
-
-
-# test
-#usbjoy.o : usbjoy.c
-#	@echo $<
-#	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@
-#
-#../../Pico/Cart.o : ../../Pico/Cart.c
-#	@echo $<
-#	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@
-#
-#../../zlib/trees.o : ../../zlib/trees.c
-#	@echo $<
-#	@$(GCC) $(COPT) $(DEFINC) -fno-profile-generate -c $< -o $@
 

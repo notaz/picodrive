@@ -7,7 +7,7 @@
 
 #include "../PicoInt.h"
 
-#define rot_comp Pico_mcd->rot_comp
+#define _rot_comp Pico_mcd->rot_comp
 
 static const int Table_Rot_Time[] =
 {
@@ -37,35 +37,35 @@ static void gfx_cd_start(void)
 {
 	int upd_len;
 
-	// rot_comp.XD_Mul = ((rot_comp.Reg_5C & 0x1f) + 1) * 4; // unused
-	rot_comp.Function = (rot_comp.Reg_58 & 7) | (Pico_mcd->s68k_regs[3] & 0x18);	// Jmp_Adr
-	// rot_comp.Buffer_Adr = (rot_comp.Reg_5E & 0xfff8) << 2; // unused?
-	rot_comp.YD = (rot_comp.Reg_60 >> 3) & 7;
-	rot_comp.Vector_Adr = (rot_comp.Reg_66 & 0xfffe) << 2;
+	// _rot_comp.XD_Mul = ((_rot_comp.Reg_5C & 0x1f) + 1) * 4; // unused
+	_rot_comp.Function = (_rot_comp.Reg_58 & 7) | (Pico_mcd->s68k_regs[3] & 0x18);	// Jmp_Adr
+	// _rot_comp.Buffer_Adr = (_rot_comp.Reg_5E & 0xfff8) << 2; // unused?
+	_rot_comp.YD = (_rot_comp.Reg_60 >> 3) & 7;
+	_rot_comp.Vector_Adr = (_rot_comp.Reg_66 & 0xfffe) << 2;
 
-	upd_len = (rot_comp.Reg_62 >> 3) & 0x3f;
+	upd_len = (_rot_comp.Reg_62 >> 3) & 0x3f;
 	upd_len = Table_Rot_Time[upd_len];
-	rot_comp.Draw_Speed = rot_comp.Float_Part = upd_len;
+	_rot_comp.Draw_Speed = _rot_comp.Float_Part = upd_len;
 
-	rot_comp.Reg_58 |= 0x8000;	// Stamp_Size,  we start a new GFX operation
+	_rot_comp.Reg_58 |= 0x8000;	// Stamp_Size,  we start a new GFX operation
 
-	switch (rot_comp.Reg_58 & 6)	// Scr_16?
+	switch (_rot_comp.Reg_58 & 6)	// Scr_16?
 	{
 		case 0:	// ?
-			rot_comp.Stamp_Map_Adr = (rot_comp.Reg_5A & 0xff80) << 2;
+			_rot_comp.Stamp_Map_Adr = (_rot_comp.Reg_5A & 0xff80) << 2;
 			break;
 		case 2: // .Dot_32
-			rot_comp.Stamp_Map_Adr = (rot_comp.Reg_5A & 0xffe0) << 2;
+			_rot_comp.Stamp_Map_Adr = (_rot_comp.Reg_5A & 0xffe0) << 2;
 			break;
 		case 4: // .Scr_16
-			rot_comp.Stamp_Map_Adr = 0x20000;
+			_rot_comp.Stamp_Map_Adr = 0x20000;
 			break;
 		case 6: // .Scr_16_Dot_32
-			rot_comp.Stamp_Map_Adr = (rot_comp.Reg_5A & 0xe000) << 2;
+			_rot_comp.Stamp_Map_Adr = (_rot_comp.Reg_5A & 0xe000) << 2;
 			break;
 	}
 
-	dprintf("gfx_cd_start, stamp_map_addr=%06x", rot_comp.Stamp_Map_Adr);
+	dprintf("gfx_cd_start, stamp_map_addr=%06x", _rot_comp.Stamp_Map_Adr);
 
 	gfx_cd_update();
 }
@@ -73,8 +73,8 @@ static void gfx_cd_start(void)
 
 static void gfx_completed(void)
 {
-	rot_comp.Reg_58 &= 0x7fff;	// Stamp_Size
-	rot_comp.Reg_64  = 0;
+	_rot_comp.Reg_58 &= 0x7fff;	// Stamp_Size
+	_rot_comp.Reg_64  = 0;
 	if (Pico_mcd->s68k_regs[0x33] & (1<<1))
 	{
 		dprintf("gfx_cd irq 1");
@@ -89,14 +89,14 @@ static void gfx_do(unsigned int func, unsigned short *stamp_base, unsigned int H
 	unsigned int XD, Buffer_Adr;
 	int DYXS;
 
-	XD = rot_comp.Reg_60 & 7;
-	Buffer_Adr = ((rot_comp.Reg_5E & 0xfff8) + rot_comp.YD) << 2;
-	ecx = *(unsigned int *)(Pico_mcd->word_ram2M + rot_comp.Vector_Adr);
+	XD = _rot_comp.Reg_60 & 7;
+	Buffer_Adr = ((_rot_comp.Reg_5E & 0xfff8) + _rot_comp.YD) << 2;
+	ecx = *(unsigned int *)(Pico_mcd->word_ram2M + _rot_comp.Vector_Adr);
 	edx = ecx >> 16;
 	ecx = (ecx & 0xffff) << 8;
 	edx <<= 8;
-	DYXS = *(int *)(Pico_mcd->word_ram2M + rot_comp.Vector_Adr + 4);
-	rot_comp.Vector_Adr += 8;
+	DYXS = *(int *)(Pico_mcd->word_ram2M + _rot_comp.Vector_Adr + 4);
+	_rot_comp.Vector_Adr += 8;
 
 	// MAKE_IMAGE_LINE
 	while (H_Dot)
@@ -269,12 +269,12 @@ Pixel_Out:
 
 
 Next_Pixel:
-		ecx += (DYXS << 16) >> 16;	// rot_comp.DXS;
-		edx +=  DYXS >> 16;		// rot_comp.DYS;
+		ecx += (DYXS << 16) >> 16;	// _rot_comp.DXS;
+		edx +=  DYXS >> 16;		// _rot_comp.DYS;
 		XD++;
 		if (XD >= 8)
 		{
-			Buffer_Adr += ((rot_comp.Reg_5C & 0x1f) + 1) << 5;
+			Buffer_Adr += ((_rot_comp.Reg_5C & 0x1f) + 1) << 5;
 			XD = 0;
 		}
 		H_Dot--;
@@ -283,17 +283,17 @@ Next_Pixel:
 
 
 // nothing_to_draw:
-	rot_comp.YD++;
-	// rot_comp.V_Dot--; // will be done by caller
+	_rot_comp.YD++;
+	// _rot_comp.V_Dot--; // will be done by caller
 }
 
 
-void gfx_cd_update(void)
+PICO_INTERNAL void gfx_cd_update(void)
 {
-	int V_Dot = rot_comp.Reg_64 & 0xff;
+	int V_Dot = _rot_comp.Reg_64 & 0xff;
 	int jobs;
 
-	dprintf("gfx_cd_update, Reg_64 = %04x", rot_comp.Reg_64);
+	dprintf("gfx_cd_update, Reg_64 = %04x", _rot_comp.Reg_64);
 
 	if (!V_Dot)
 	{
@@ -301,22 +301,22 @@ void gfx_cd_update(void)
 		return;
 	}
 
-	jobs = rot_comp.Float_Part >> 16;
+	jobs = _rot_comp.Float_Part >> 16;
 
 	if (!jobs)
 	{
-		rot_comp.Float_Part += rot_comp.Draw_Speed;
+		_rot_comp.Float_Part += _rot_comp.Draw_Speed;
 		return;
 	}
 
-	rot_comp.Float_Part &= 0xffff;
-	rot_comp.Float_Part += rot_comp.Draw_Speed;
+	_rot_comp.Float_Part &= 0xffff;
+	_rot_comp.Float_Part += _rot_comp.Draw_Speed;
 
 	if (PicoOpt & 0x1000)			// scale/rot enabled
 	{
-		unsigned int func = rot_comp.Function;
-		unsigned int H_Dot = rot_comp.Reg_62 & 0x1ff;
-		unsigned short *stamp_base = (unsigned short *) (Pico_mcd->word_ram2M + rot_comp.Stamp_Map_Adr);
+		unsigned int func = _rot_comp.Function;
+		unsigned int H_Dot = _rot_comp.Reg_62 & 0x1ff;
+		unsigned short *stamp_base = (unsigned short *) (Pico_mcd->word_ram2M + _rot_comp.Stamp_Map_Adr);
 
 		while (jobs--)
 		{
@@ -341,22 +341,22 @@ void gfx_cd_update(void)
 		V_Dot -= jobs;
 	}
 
-	rot_comp.Reg_64 = V_Dot;
+	_rot_comp.Reg_64 = V_Dot;
 }
 
 
-unsigned int gfx_cd_read(unsigned int a)
+PICO_INTERNAL_ASM unsigned int gfx_cd_read(unsigned int a)
 {
 	unsigned int d = 0;
 
 	switch (a) {
-		case 0x58: d = rot_comp.Reg_58; break;
-		case 0x5A: d = rot_comp.Reg_5A; break;
-		case 0x5C: d = rot_comp.Reg_5C; break;
-		case 0x5E: d = rot_comp.Reg_5E; break;
-		case 0x60: d = rot_comp.Reg_60; break;
-		case 0x62: d = rot_comp.Reg_62; break;
-		case 0x64: d = rot_comp.Reg_64; break;
+		case 0x58: d = _rot_comp.Reg_58; break;
+		case 0x5A: d = _rot_comp.Reg_5A; break;
+		case 0x5C: d = _rot_comp.Reg_5C; break;
+		case 0x5E: d = _rot_comp.Reg_5E; break;
+		case 0x60: d = _rot_comp.Reg_60; break;
+		case 0x62: d = _rot_comp.Reg_62; break;
+		case 0x64: d = _rot_comp.Reg_64; break;
 		case 0x66: break;
 		default: dprintf("gfx_cd_read FIXME: unexpected address: %02x", a); break;
 	}
@@ -366,41 +366,41 @@ unsigned int gfx_cd_read(unsigned int a)
 	return d;
 }
 
-void gfx_cd_write16(unsigned int a, unsigned int d)
+PICO_INTERNAL_ASM void gfx_cd_write16(unsigned int a, unsigned int d)
 {
 	dprintf("gfx_cd_write16(%x, %04x)", a, d);
 
 	switch (a) {
 		case 0x58: // .Reg_Stamp_Size
-			rot_comp.Reg_58 = d & 7;
+			_rot_comp.Reg_58 = d & 7;
 			return;
 
 		case 0x5A: // .Reg_Stamp_Adr
-			rot_comp.Reg_5A = d & 0xffe0;
+			_rot_comp.Reg_5A = d & 0xffe0;
 			return;
 
 		case 0x5C: // .Reg_IM_VCell_Size
-			rot_comp.Reg_5C = d & 0x1f;
+			_rot_comp.Reg_5C = d & 0x1f;
 			return;
 
 		case 0x5E: // .Reg_IM_Adr
-			rot_comp.Reg_5E = d & 0xFFF8;
+			_rot_comp.Reg_5E = d & 0xFFF8;
 			return;
 
 		case 0x60: // .Reg_IM_Offset
-			rot_comp.Reg_60 = d & 0x3f;
+			_rot_comp.Reg_60 = d & 0x3f;
 			return;
 
 		case 0x62: // .Reg_IM_HDot_Size
-			rot_comp.Reg_62 = d & 0x1ff;
+			_rot_comp.Reg_62 = d & 0x1ff;
 			return;
 
 		case 0x64: // .Reg_IM_VDot_Size
-			rot_comp.Reg_64 = d & 0xff;	// V_Dot, must be 32bit?
+			_rot_comp.Reg_64 = d & 0xff;	// V_Dot, must be 32bit?
 			return;
 
 		case 0x66: // .Reg_Vector_Adr
-			rot_comp.Reg_66 = d & 0xfffe;
+			_rot_comp.Reg_66 = d & 0xfffe;
 			if (Pico_mcd->s68k_regs[3]&4) return; // can't do tanformations in 1M mode
 			gfx_cd_start();
 			return;
@@ -410,9 +410,9 @@ void gfx_cd_write16(unsigned int a, unsigned int d)
 }
 
 
-void gfx_cd_reset(void)
+PICO_INTERNAL void gfx_cd_reset(void)
 {
-	memset(&rot_comp.Reg_58, 0, sizeof(rot_comp));
+	memset(&_rot_comp.Reg_58, 0, sizeof(_rot_comp));
 }
 
 
@@ -420,10 +420,12 @@ void gfx_cd_reset(void)
 
 #include "cell_map.c"
 
+#ifndef UTYPES_DEFINED
 typedef unsigned short u16;
+#endif
 
 // check: Heart of the alien, jaguar xj 220
-void DmaSlowCell(unsigned int source, unsigned int a, int len, unsigned char inc)
+PICO_INTERNAL void DmaSlowCell(unsigned int source, unsigned int a, int len, unsigned char inc)
 {
   unsigned char *base;
   unsigned int asrc, a2;

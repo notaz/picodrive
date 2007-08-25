@@ -50,7 +50,7 @@ void PicoCDBufferFree(void)
 
 
 /* this is a try to fight slow SD access of GP2X */
-void PicoCDBufferRead(void *dest, int lba)
+PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba)
 {
 	int is_bin, offs, read_len, moved = 0;
 	reads++;

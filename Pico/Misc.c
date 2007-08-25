@@ -141,7 +141,7 @@ unsigned int lastSSRamWrite = 0xffff0000;
 
 // sram_reg: LAtd sela (L=pending SCL, A=pending SDA, t=type(1==uses 0x200000 for SCL and 2K bytes),
 //                      d=SRAM was detected (header or by access), s=started, e=save is EEPROM, l=old SCL, a=old SDA)
-void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
+PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
 {
   unsigned int sreg = Pico.m.sram_reg, saddr = Pico.m.sram_addr, scyc = Pico.m.sram_cycle, ssa = Pico.m.sram_slave;
 
@@ -247,7 +247,7 @@ void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
   Pico.m.sram_slave= (unsigned char)  ssa;
 }
 
-unsigned int SRAMReadEEPROM()
+PICO_INTERNAL_ASM unsigned int SRAMReadEEPROM(void)
 {
   unsigned int shift, d=0;
   unsigned int sreg, saddr, scyc, ssa;
@@ -282,7 +282,7 @@ unsigned int SRAMReadEEPROM()
   return d;
 }
 
-void SRAMUpdPending(unsigned int a, unsigned int d)
+PICO_INTERNAL void SRAMUpdPending(unsigned int a, unsigned int d)
 {
   unsigned int sreg = Pico.m.sram_reg;
 
@@ -306,14 +306,14 @@ void SRAMUpdPending(unsigned int a, unsigned int d)
 
 
 #ifndef _ASM_MISC_C
-void memcpy16(unsigned short *dest, unsigned short *src, int count)
+PICO_INTERNAL_ASM void memcpy16(unsigned short *dest, unsigned short *src, int count)
 {
 	while (count--)
 		*dest++ = *src++;
 }
 
 
-void memcpy16bswap(unsigned short *dest, void *src, int count)
+PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count)
 {
 	unsigned char *src_ = src;
 
@@ -322,14 +322,14 @@ void memcpy16bswap(unsigned short *dest, void *src, int count)
 }
 
 
-void memcpy32(int *dest, int *src, int count)
+PICO_INTERNAL_ASM void memcpy32(int *dest, int *src, int count)
 {
 	while (count--)
 		*dest++ = *src++;
 }
 
 
-void memset32(int *dest, int c, int count)
+PICO_INTERNAL_ASM void memset32(int *dest, int c, int count)
 {
 	while (count--)
 		*dest++ = c;

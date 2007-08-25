@@ -12,6 +12,8 @@
 #ifndef PICO_H
 #define PICO_H
 
+#include <stdio.h>
+
 // port-specific compile-time settings
 #include <port_config.h>
 
@@ -47,10 +49,8 @@ extern void (*PicoWriteSound)(int len); // called once per frame at the best tim
 extern void (*PicoMessage)(const char *msg); // callback to output text message from emu
 
 // cd/Pico.c
-int PicoFrameMCD(void);
 extern void (*PicoMCDopenTray)(void);
 extern int  (*PicoMCDcloseTray)(void);
-
 extern int PicoCDBuffers;
 
 // Area.c
@@ -67,9 +67,16 @@ extern areaseek *areaSeek;
 extern areaclose *areaClose;
 extern void (*PicoStateProgressCB)(const char *str);
 
+// cd/Area.c
+int PicoCdLoadStateGfx(void *file);
+
 // cd/buffering.c
 void PicoCDBufferInit(void);
 void PicoCDBufferFree(void);
+
+// cd/cd_sys.c
+int Insert_CD(char *iso_name, int is_bin);
+void Stop_CD(void); // releases all resources taken when CD game was started.
 
 // Cart.c
 typedef enum
@@ -117,11 +124,7 @@ extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to us
 // sound.c
 extern int PsndRate,PsndLen;
 extern short *PsndOut;
-void sound_reset();
 void sound_rerate(int preserve_state);
-void z80_pack(unsigned char *data);
-void z80_unpack(unsigned char *data);
-void z80_reset();
 
 // Utils.c
 extern int PicuAnd;

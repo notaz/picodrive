@@ -1,6 +1,20 @@
 // common code for Memory.c and cd/Memory.c
 // (c) Copyright 2006-2007, Grazvydas "notaz" Ignotas
 
+#ifndef UTYPES_DEFINED
+typedef unsigned char  u8;
+typedef unsigned short u16;
+typedef unsigned int   u32;
+#define UTYPES_DEFINED
+#endif
+
+#ifdef _ASM_MEMORY_C
+u32 OtherRead16End(u32 a, int realsize);
+#endif
+#ifdef _ASM_CD_MEMORY_C
+static void OtherWrite8End(u32 a,u32 d,int realsize);
+#endif
+
 static int PadRead(int i)
 {
   int pad=0,value=0,TH;

@@ -56,7 +56,7 @@ static void CDC_Reset(void)
 }
 
 
-void LC89510_Reset(void)
+PICO_INTERNAL void LC89510_Reset(void)
 {
 	CDD_Reset();
 	CDC_Reset();
@@ -66,7 +66,7 @@ void LC89510_Reset(void)
 }
 
 
-void Update_CDC_TRansfer(int which)
+PICO_INTERNAL void Update_CDC_TRansfer(int which)
 {
 	unsigned int DMA_Adr, dep, length;
 	unsigned short *dest;
@@ -178,7 +178,7 @@ void Update_CDC_TRansfer(int which)
 }
 
 
-unsigned short Read_CDC_Host(int is_sub)
+PICO_INTERNAL_ASM unsigned short Read_CDC_Host(int is_sub)
 {
 	int addr;
 
@@ -230,7 +230,7 @@ unsigned short Read_CDC_Host(int is_sub)
 }
 
 
-void CDC_Update_Header(void)
+PICO_INTERNAL void CDC_Update_Header(void)
 {
 	if (Pico_mcd->cdc.CTRL.B.B1 & 0x01)		// Sub-Header wanted ?
 	{
@@ -253,7 +253,7 @@ void CDC_Update_Header(void)
 }
 
 
-unsigned char CDC_Read_Reg(void)
+PICO_INTERNAL unsigned char CDC_Read_Reg(void)
 {
 	unsigned char ret;
 
@@ -376,7 +376,7 @@ unsigned char CDC_Read_Reg(void)
 }
 
 
-void CDC_Write_Reg(unsigned char Data)
+PICO_INTERNAL void CDC_Write_Reg(unsigned char Data)
 {
 	cdprintf("CDC write reg%02d = %.2X", Pico_mcd->s68k_regs[5] & 0xF, Data);
 
@@ -494,7 +494,7 @@ static int bswapwrite(int a, unsigned short d)
 	return d + (d >> 8);
 }
 
-void CDD_Export_Status(void)
+PICO_INTERNAL void CDD_Export_Status(void)
 {
 	unsigned int csum;
 
@@ -524,7 +524,7 @@ void CDD_Export_Status(void)
 }
 
 
-void CDD_Import_Command(void)
+PICO_INTERNAL void CDD_Import_Command(void)
 {
 //	cdprintf("CDD importing command\n");
 	cdprintf("in:  Command=%.4X, Minute=%.4X, Second=%.4X, Frame=%.4X  Checksum=%.4X",

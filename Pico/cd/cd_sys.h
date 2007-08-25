@@ -68,38 +68,38 @@ typedef struct {
 } _scd;
 
 
-void LBA_to_MSF(int lba, _msf *MSF);
-int Track_to_LBA(int track);
+PICO_INTERNAL void LBA_to_MSF(int lba, _msf *MSF);
+PICO_INTERNAL int  Track_to_LBA(int track);
 
+// moved to Pico.h
+// int  Insert_CD(char *iso_name, int is_bin);
+// void Stop_CD(void);
 
-void Check_CD_Command(void);
+PICO_INTERNAL void Check_CD_Command(void);
 
-int  Init_CD_Driver(void);
-void End_CD_Driver(void);
-int  Insert_CD(char *iso_name, int is_bin);
-void Stop_CD(void);
-void Change_CD(void);
-void Reset_CD(void);
+PICO_INTERNAL int  Init_CD_Driver(void);
+PICO_INTERNAL void End_CD_Driver(void);
+PICO_INTERNAL void Reset_CD(void);
 
-int Get_Status_CDD_c0(void);
-int Stop_CDD_c1(void);
-int Get_Pos_CDD_c20(void);
-int Get_Track_Pos_CDD_c21(void);
-int Get_Current_Track_CDD_c22(void);
-int Get_Total_Lenght_CDD_c23(void);
-int Get_First_Last_Track_CDD_c24(void);
-int Get_Track_Adr_CDD_c25(void);
-int Play_CDD_c3(void);
-int Seek_CDD_c4(void);
-int Pause_CDD_c6(void);
-int Resume_CDD_c7(void);
-int Fast_Foward_CDD_c8(void);
-int Fast_Rewind_CDD_c9(void);
-int CDD_cA(void);
-int Close_Tray_CDD_cC(void);
-int Open_Tray_CDD_cD(void);
+PICO_INTERNAL int Get_Status_CDD_c0(void);
+PICO_INTERNAL int Stop_CDD_c1(void);
+PICO_INTERNAL int Get_Pos_CDD_c20(void);
+PICO_INTERNAL int Get_Track_Pos_CDD_c21(void);
+PICO_INTERNAL int Get_Current_Track_CDD_c22(void);
+PICO_INTERNAL int Get_Total_Lenght_CDD_c23(void);
+PICO_INTERNAL int Get_First_Last_Track_CDD_c24(void);
+PICO_INTERNAL int Get_Track_Adr_CDD_c25(void);
+PICO_INTERNAL int Play_CDD_c3(void);
+PICO_INTERNAL int Seek_CDD_c4(void);
+PICO_INTERNAL int Pause_CDD_c6(void);
+PICO_INTERNAL int Resume_CDD_c7(void);
+PICO_INTERNAL int Fast_Foward_CDD_c8(void);
+PICO_INTERNAL int Fast_Rewind_CDD_c9(void);
+PICO_INTERNAL int CDD_cA(void);
+PICO_INTERNAL int Close_Tray_CDD_cC(void);
+PICO_INTERNAL int Open_Tray_CDD_cD(void);
 
-int CDD_Def(void);
+PICO_INTERNAL int CDD_Def(void);
 
 
 #ifdef __cplusplus

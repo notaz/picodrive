@@ -8,13 +8,8 @@
 
 
 #include <string.h>
-#include "sound.h"
 #include "ym2612.h"
 #include "sn76496.h"
-
-#ifndef __GNUC__
-#pragma warning (disable:4244)
-#endif
 
 #if defined(_USE_MZ80)
 #include "../../cpu/mz80/mz80.h"
@@ -29,11 +24,8 @@
 // master int buffer to mix to
 static int PsndBuffer[2*44100/50];
 
-//int z80CycleAim = 0;
-
 // dac
-short *dac_out;
-unsigned short dac_info[312]; // pppppppp ppppllll, p - pos in buff, l - length to write for this sample
+static unsigned short dac_info[312]; // pppppppp ppppllll, p - pos in buff, l - length to write for this sample
 
 // for Pico
 int PsndRate=0;
@@ -51,7 +43,7 @@ void YM2612TimerHandler(int c,int cnt);
 extern int *sn76496_regs;
 
 
-static void dac_recalculate()
+static void dac_recalculate(void)
 {
   int i, dac_cnt, pos, len, lines = Pico.m.pal ? 312 : 262, mid = Pico.m.pal ? 68 : 93;
 
@@ -107,7 +99,7 @@ static void dac_recalculate()
 }
 
 
-void sound_reset()
+PICO_INTERNAL void sound_reset(void)
 {
   void *ym2612_regs;
 
@@ -169,7 +161,7 @@ void sound_rerate(int preserve_state)
 
 
 // This is called once per raster (aka line), but not necessarily for every line
-void sound_timers_and_dac(int raster)
+PICO_INTERNAL void sound_timers_and_dac(int raster)
 {
   int pos, len;
   int do_dac = PsndOut && (PicoOpt&1) && *ym2612_dacen;
@@ -217,7 +209,7 @@ void sound_timers_and_dac(int raster)
 }
 
 
-void sound_clear(void)
+PICO_INTERNAL void sound_clear(void)
 {
   int len = PsndLen;
   if (PsndLen_exc_add) len++;
@@ -226,7 +218,7 @@ void sound_clear(void)
 }
 
 
-int sound_render(int offset, int length)
+PICO_INTERNAL int sound_render(int offset, int length)
 {
   int  buf32_updated = 0;
   int *buf32 = PsndBuffer+offset;
@@ -333,7 +325,7 @@ static void DrZ80_irq_callback()
 #endif
 
 // z80 functionality wrappers
-void z80_init()
+PICO_INTERNAL void z80_init(void)
 {
 #if defined(_USE_MZ80)
   struct mz80context z80;
@@ -367,7 +359,7 @@ void z80_init()
 #endif
 }
 
-void z80_reset()
+PICO_INTERNAL void z80_reset(void)
 {
 #if defined(_USE_MZ80)
   mz80reset();
@@ -384,14 +376,14 @@ void z80_reset()
   Pico.m.z80_fakeval = 0; // for faking when Z80 is disabled
 }
 
-void z80_resetCycles()
+PICO_INTERNAL void z80_resetCycles(void)
 {
 #if defined(_USE_MZ80)
   mz80GetElapsedTicks(1);
 #endif
 }
 
-void z80_int()
+PICO_INTERNAL void z80_int(void)
 {
 #if defined(_USE_MZ80)
   mz80int(0);
@@ -402,7 +394,7 @@ void z80_int()
 }
 
 // returns number of cycles actually executed
-int z80_run(int cycles)
+PICO_INTERNAL int z80_run(int cycles)
 {
 #if defined(_USE_MZ80)
   int ticks_pre = mz80GetElapsedTicks(0);
@@ -415,7 +407,7 @@ int z80_run(int cycles)
 #endif
 }
 
-void z80_pack(unsigned char *data)
+PICO_INTERNAL void z80_pack(unsigned char *data)
 {
 #if defined(_USE_MZ80)
   struct mz80context mz80;
@@ -430,7 +422,7 @@ void z80_pack(unsigned char *data)
 #endif
 }
 
-void z80_unpack(unsigned char *data)
+PICO_INTERNAL void z80_unpack(unsigned char *data)
 {
 #if defined(_USE_MZ80)
   if(*(int *)data == 0x00005A6D) { // "mZ" save?
@@ -456,7 +448,7 @@ void z80_unpack(unsigned char *data)
 #endif
 }
 
-void z80_exit()
+PICO_INTERNAL void z80_exit(void)
 {
 #if defined(_USE_MZ80)
   mz80shutdown();
@@ -464,7 +456,7 @@ void z80_exit()
 }
 
 #if defined(__DEBUG_PRINT) || defined(__GP2X__)
-void z80_debug(char *dstr)
+PICO_INTERNAL void z80_debug(char *dstr)
 {
 #if defined(_USE_DRZ80)
   sprintf(dstr, "Z80 state: PC: %04x SP: %04x\n", drZ80.Z80PC-drZ80.Z80PC_BASE, drZ80.Z80SP-drZ80.Z80SP_BASE);

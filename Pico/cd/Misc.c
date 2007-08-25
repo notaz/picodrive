@@ -24,7 +24,7 @@ unsigned char formatted_bram[4*0x10] =
 // 256K | unused | bank1  |
 
 #ifndef _ASM_MISC_C
-void wram_2M_to_1M(unsigned char *m)
+PICO_INTERNAL_ASM void wram_2M_to_1M(unsigned char *m)
 {
 	unsigned short *m1M_b0, *m1M_b1;
 	unsigned int i, tmp, *m2M;
@@ -41,7 +41,7 @@ void wram_2M_to_1M(unsigned char *m)
 	}
 }
 
-void wram_1M_to_2M(unsigned char *m)
+PICO_INTERNAL_ASM void wram_1M_to_2M(unsigned char *m)
 {
 	unsigned short *m1M_b0, *m1M_b1;
 	unsigned int i, tmp, *m2M;

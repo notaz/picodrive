@@ -213,7 +213,7 @@ bad_code:
 
 
 
-unsigned short PicoRead16(unsigned int a);
+unsigned int PicoRead16(unsigned int a);
 void PicoWrite16(unsigned int a, unsigned short d);
 
 

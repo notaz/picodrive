@@ -24,14 +24,14 @@ typedef struct
 } Rot_Comp;
 
 
-void gfx_cd_update(void);
+PICO_INTERNAL void gfx_cd_update(void);
 
-unsigned int gfx_cd_read(unsigned int a);
-void gfx_cd_write16(unsigned int a, unsigned int d);
+PICO_INTERNAL_ASM unsigned int gfx_cd_read(unsigned int a);
+PICO_INTERNAL_ASM void gfx_cd_write16(unsigned int a, unsigned int d);
 
-void gfx_cd_reset(void);
+PICO_INTERNAL void gfx_cd_reset(void);
 
-void DmaSlowCell(unsigned int source, unsigned int a, int len, unsigned char inc);
+PICO_INTERNAL void DmaSlowCell(unsigned int source, unsigned int a, int len, unsigned char inc);
 
 #endif // _GFX_CD_H
 

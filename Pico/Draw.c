@@ -1242,7 +1242,7 @@ static int DrawDisplay(int sh)
 
 static int Skip=0;
 
-void PicoFrameStart()
+PICO_INTERNAL void PicoFrameStart(void)
 {
   // prepare to do this frame
   rendstatus = (PicoOpt&0x80)>>5;    // accurate sprites
@@ -1256,7 +1256,7 @@ void PicoFrameStart()
   Skip=0;
 }
 
-int PicoLine(int scan)
+PICO_INTERNAL int PicoLine(int scan)
 {
   int sh;
   if (Skip>0) { Skip--; return 0; } // Skip rendering lines

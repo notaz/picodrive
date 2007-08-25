@@ -102,7 +102,7 @@ static int SekTasCallback(void)
 
 
 
-int SekInit()
+PICO_INTERNAL int SekInit()
 {
 #ifdef EMU_C68K
   CycloneInit();
@@ -134,7 +134,7 @@ int SekInit()
 }
 
 // Reset the 68000:
-int SekReset()
+PICO_INTERNAL int SekReset()
 {
   if (Pico.rom==NULL) return 1;
 
@@ -166,7 +166,7 @@ int SekReset()
 }
 
 
-int SekInterrupt(int irq)
+PICO_INTERNAL int SekInterrupt(int irq)
 {
 #if defined(EMU_C68K) && defined(EMU_M68K)
   {
@@ -196,7 +196,7 @@ int SekInterrupt(int irq)
 //int SekPc() { return M68000_regs.pc; }
 //int SekPc() { return m68k_get_reg(NULL, M68K_REG_PC); }
 
-void SekState(unsigned char *data)
+PICO_INTERNAL void SekState(unsigned char *data)
 {
 #ifdef EMU_C68K
   memcpy(data,PicoCpu.d,0x44);
@@ -209,7 +209,7 @@ void SekState(unsigned char *data)
 #endif
 }
 
-void SekSetRealTAS(int use_real)
+PICO_INTERNAL void SekSetRealTAS(int use_real)
 {
 #ifdef EMU_C68K
   CycloneSetRealTAS(use_real);

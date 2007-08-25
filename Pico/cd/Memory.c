@@ -8,16 +8,18 @@
 
 #include "../PicoInt.h"
 
-#include "../sound/sound.h"
 #include "../sound/ym2612.h"
 #include "../sound/sn76496.h"
 
 #include "gfx_cd.h"
 #include "pcm.h"
 
+#ifndef UTYPES_DEFINED
 typedef unsigned char  u8;
 typedef unsigned short u16;
 typedef unsigned int   u32;
+#define UTYPES_DEFINED
+#endif
 
 //#define __debug_io
 //#define __debug_io2
@@ -1454,7 +1456,7 @@ static u32 PicoCheckPcS68k(u32 pc)
 #endif
 
 
-void PicoMemSetupCD()
+PICO_INTERNAL void PicoMemSetupCD(void)
 {
   dprintf("PicoMemSetupCD()");
 #ifdef EMU_C68K

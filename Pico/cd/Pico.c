@@ -2,7 +2,6 @@
 
 
 #include "../PicoInt.h"
-#include "../sound/sound.h"
 
 
 extern unsigned char formatted_bram[4*0x10];
@@ -32,7 +31,7 @@ int  (*PicoMCDcloseTray)(void) = NULL;
 }
 
 
-int PicoInitMCD(void)
+PICO_INTERNAL int PicoInitMCD(void)
 {
   SekInitS68k();
   Init_CD_Driver();
@@ -41,7 +40,7 @@ int PicoInitMCD(void)
 }
 
 
-void PicoExitMCD(void)
+PICO_INTERNAL void PicoExitMCD(void)
 {
   End_CD_Driver();
 
@@ -49,7 +48,7 @@ void PicoExitMCD(void)
   //dump_ram(Pico.ram, "ram.bin");
 }
 
-int PicoResetMCD(int hard)
+PICO_INTERNAL int PicoResetMCD(int hard)
 {
   if (hard) {
     int fmt_size = sizeof(formatted_bram);
@@ -84,7 +83,7 @@ int PicoResetMCD(int hard)
   return 0;
 }
 
-static __inline void SekRun(int cyc)
+static __inline void SekRunM68k(int cyc)
 {
   int cyc_do;
   SekCycleAim+=cyc;
@@ -291,7 +290,7 @@ static int PicoFrameHintsMCD(void)
     {
       //dprintf("vint: @ %06x [%i|%i]", SekPc, y, SekCycleCnt);
       pv->status|=0x88; // V-Int happened, go into vblank
-      SekRun(128); SekCycleAim-=128; // there must be a gap between H and V ints, also after vblank bit set (Mazin Saga, Bram Stoker's Dracula)
+      SekRunM68k(128); SekCycleAim-=128; // there must be a gap between H and V ints, also after vblank bit set (Mazin Saga, Bram Stoker's Dracula)
       /*if(Pico.m.z80Run && (PicoOpt&4)) {
         z80CycleAim+=cycles_z80/2;
         total_z80+=z80_run(z80CycleAim-total_z80);
@@ -329,7 +328,7 @@ static int PicoFrameHintsMCD(void)
     if ((PicoOpt & 0x2000) && (Pico_mcd->m.busreq&3) == 1) {
       SekRunPS(cycles_68k, cycles_s68k); // "better/perfect sync"
     } else {
-      SekRun(cycles_68k);
+      SekRunM68k(cycles_68k);
       if ((Pico_mcd->m.busreq&3) == 1) // no busreq/no reset
         SekRunS68k(cycles_s68k);
     }
@@ -358,7 +357,7 @@ static int PicoFrameHintsMCD(void)
 }
 
 
-int PicoFrameMCD(void)
+PICO_INTERNAL int PicoFrameMCD(void)
 {
   if(!(PicoOpt&0x10))
     PicoFrameStart();

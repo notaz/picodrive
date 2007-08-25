@@ -11,13 +11,15 @@
 
 #include "PicoInt.h"
 
-#include "sound/sound.h"
 #include "sound/ym2612.h"
 #include "sound/sn76496.h"
 
+#ifndef UTYPES_DEFINED
 typedef unsigned char  u8;
 typedef unsigned short u16;
 typedef unsigned int   u32;
+#define UTYPES_DEFINED
+#endif
 
 extern unsigned int lastSSRamWrite; // used by serial SRAM code
 
@@ -88,14 +90,14 @@ static u32 CPU_CALL PicoCheckPc(u32 pc)
 }
 
 
-int PicoInitPc(u32 pc)
+PICO_INTERNAL int PicoInitPc(u32 pc)
 {
   PicoCheckPc(pc);
   return 0;
 }
 
 #ifndef _ASM_MEMORY_C
-void PicoMemReset()
+PICO_INTERNAL_ASM void PicoMemReset(void)
 {
 }
 #endif
@@ -266,7 +268,7 @@ static void OtherWrite8End(u32 a,u32 d,int realsize)
 //                     Read Rom and read Ram
 
 #ifndef _ASM_MEMORY_C
-u32 CPU_CALL PicoRead8(u32 a)
+PICO_INTERNAL_ASM u32 CPU_CALL PicoRead8(u32 a)
 {
   u32 d=0;
 
@@ -317,7 +319,7 @@ u32 CPU_CALL PicoRead8(u32 a)
   return d;
 }
 
-u32 CPU_CALL PicoRead16(u32 a)
+PICO_INTERNAL_ASM u32 CPU_CALL PicoRead16(u32 a)
 {
   u32 d=0;
 
@@ -353,7 +355,7 @@ u32 CPU_CALL PicoRead16(u32 a)
   return d;
 }
 
-u32 CPU_CALL PicoRead32(u32 a)
+PICO_INTERNAL_ASM u32 CPU_CALL PicoRead32(u32 a)
 {
   u32 d=0;
 
@@ -446,7 +448,7 @@ static void CPU_CALL PicoWrite32(u32 a,u32 d)
 
 
 // -----------------------------------------------------------------
-void PicoMemSetup()
+PICO_INTERNAL void PicoMemSetup(void)
 {
 #ifdef EMU_C68K
   // Setup memory callbacks:
@@ -623,7 +625,7 @@ void m68k_write_memory_32(unsigned int address, unsigned int value)
 // -----------------------------------------------------------------
 //                        z80 memhandlers
 
-unsigned char z80_read(unsigned short a)
+PICO_INTERNAL unsigned char z80_read(unsigned short a)
 {
   u8 ret = 0;
 
@@ -651,14 +653,14 @@ end:
   return ret;
 }
 
-unsigned short z80_read16(unsigned short a)
+PICO_INTERNAL unsigned short z80_read16(unsigned short a)
 {
   //dprintf("z80_read16");
 
   return (u16) ( (u16)z80_read(a) | ((u16)z80_read((u16)(a+1))<<8) );
 }
 
-void z80_write(unsigned char data, unsigned short a)
+PICO_INTERNAL_ASM void z80_write(unsigned char data, unsigned short a)
 {
   //if (a<0x4000)
   //  dprintf("z80 w8 : %06x,   %02x @%04x", a, data, mz80GetRegisterValue(NULL, 0));
@@ -697,7 +699,7 @@ void z80_write(unsigned char data, unsigned short a)
   if (a<0x4000) { Pico.zram[a&0x1fff]=data; return; }
 }
 
-void z80_write16(unsigned short data, unsigned short a)
+PICO_INTERNAL void z80_write16(unsigned short data, unsigned short a)
 {
   //dprintf("z80_write16");
 

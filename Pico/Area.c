@@ -42,7 +42,7 @@ static int ScanVar(void *data,int len,char *name,void *PmovFile,int PmovAction)
 #define SCANP(x)      ScanVar(&Pico.x,sizeof(Pico.x),#x,PmovFile,PmovAction);
 
 // Pack the cpu into a common format:
-int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
+PICO_INTERNAL int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
 {
   unsigned int pc=0;
 
@@ -82,7 +82,7 @@ int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
   return 0;
 }
 
-int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
+PICO_INTERNAL int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
 {
 #ifdef EMU_A68K
   memcpy(M68000_regs.d,cpu,0x40);
