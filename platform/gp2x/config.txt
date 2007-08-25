@@ -74,23 +74,28 @@ emulator.
 Allows to enable confirmation on savestate saving (to prevent savestate overwrites),
 on loading (to prevent destroying current game progress), and on both or none.
 
-14. "GP2X CPU clocks"
+14. "Save slot"
+This is a slot number to use for savestates. This can also be configured to be
+changed with a button (see "key configuration").
+
+15. "GP2X CPU clocks"
 Here you can change clocks of both GP2X's CPUs. Larger values increase performance.
 There is no separate option for the second CPU because both CPUs use the same clock
 source. Setting this option to 200 will cause PicoDrive NOT to change GP2X's clocks
 at all (this is if you use external program to set clock).
 
-15. "[Sega/Mega CD options]"
+16. "[Sega/Mega CD options]"
 Enters Sega/Mega CD options menu (see below).
 
-16. "[advanced options]"
+17. "[advanced options]"
 Enters advanced options menu (see below).
 
-17. "Save cfg as default"
+18. "Save cfg as default"
 If you save your config here it will be loaded on next ROM load, but only if there
 is no game specific config saved (which will be loaded in that case).
+You can press left/right to switch to a different config profile.
 
-18. "Save cfg for current game only"
+19. "Save cfg for current game only"
 Whenever you load current ROM again these settings will be loaded (squidgehack and
 RAM settings will not take effect until emulator is restarted).
 
@@ -104,37 +109,45 @@ Enter [advanced options] in config menu to see these options.
 Alters image gamma through GP2X hardware. Larger values make image to look brighter,
 lower - darker (default is 1.0).
 
-2. "Emulate Z80"
+2. "A_SN's gamma curve"
+If this is enabled, different gamma adjustment method will be used (suggested by A_SN
+from gp32x boards). Basically it makes difference for dark and bright colors.
+
+3. "Perfect vsync"
+This one adjusts the LCD refresh rate to better match game's refresh rate and starts
+synchronizing rendering with it. Should make scrolling smoother and eliminate tearing.
+
+4. "Emulate Z80"
 Enables emulation of Z80 chip, which was mostly used to drive the other sound chips.
 Some games do complex sync with it, so you must enable it even if you don't use
 sound to be able to play them.
 
-3. "Emulate YM2612 (FM)"
+5. "Emulate YM2612 (FM)"
 This enables emulation of six-channel FM sound synthesizer chip, which was used to
 produce sound effects and music.
 
-4. "Emulate SN76496 (PSG)"
+6. "Emulate SN76496 (PSG)"
 This enables emulation of additional sound chip for additional effects.
 
 Note: if you change sound settings AFTER loading a ROM, you may need to reset
 game to get sound. This is because most games initialize sound chips on
 startup, and this data is lost when sound chips are being enabled/disabled.
 
-5. "gzip savestates"
+7. "gzip savestates"
 This will always apply gzip compression on your savestates, allowing you to
 save some space and load/save time.
 
-6. "Don't save last used ROM"
+8. "Don't save last used ROM"
 This will disable writing last used ROM to config on exit (what might cause SD
 card corruption according to DaveC).
 
-7. "craigix's RAM timings"
+9. "craigix's RAM timings"
 This overclocks the GP2X RAM chips, but may cause instability. Recommended if you
 use the second core for sound. Needs emulator restart to take effect.
 See this thread:
 http://www.gp32x.com/board/index.php?showtopic=32319
 
-8. "squidgehack"
+10. "squidgehack"
 Well known way to improve the GP2X performance. You must restart the emulator
 for the change of this option to take effect.
 
@@ -180,9 +193,9 @@ games which don't need it, it will just slow them down.
 Key configuration
 -----------------
 
-When you select "Configure controls" from the menu, you enter a key configuration
-mode, where you use SELECT to change an action, and then press a key you like to
-bind to that action. You can press the same key again to unbind. Select "DONE"
-action and press any key to finish.
-
+Select "Configure controls" from the main menu. Then select "Player 1" and you will
+see two columns. The left column lists names of Genesis/MD controller buttons, and
+the right GP2X ones, which are assigned to them. If you bind 2 different GP2X buttons
+to the same action, you will get a combo (which means that you will have to press
+both buttons for that action to happen.
 

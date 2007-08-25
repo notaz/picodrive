@@ -238,16 +238,17 @@ Changelog
   * Fixed a problem where >6MB mp3s were corrupted in memory (sound glitches in
     Snatcher).
   * PD no longer overwrites video player code in memory, video player now can be
-    used after exitting PicoDrive.
+    used after exiting PicoDrive.
   * Fixed a bug which was causing Sonic 3 code to deadlock in some rare conditions
     if "accurate timing" was not enabled.
   * Fixed support for large hacked ROMs like "Ultimate Mortal Kombat Trilogy".
     Upto 10MB hacked ROMs are supported now.
   + Config profiles added (press left/right when saving config).
-  * Changed key configuration behaviour to the one from gpfce (should be more
+  * Changed key configuration behavior to the one from gpfce (should be more
     intuitive).
   + Added some skinning capabilities to the menu system with default skin by
     ketchupgun. Delete skin directory if you want old behaviour.
+  * Some other little tweaks I forgot about.
 
 1.32
   + Added some new scaling options.
