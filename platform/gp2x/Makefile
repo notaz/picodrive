@@ -13,7 +13,7 @@ asm_ym2612 = 1
 asm_misc = 1
 asm_cdpico = 1
 asm_cdmemory = 1
-amalgamate = 1
+amalgamate = 0
 #profile = 1
 #use_musashi = 1
 #up = 1
@@ -32,7 +32,7 @@ use_cyclone = 1
 endif
 
 DEFINC = -I../.. -I. -DARM -D__GP2X__ -D_UNZIP_SUPPORT # -DBENCHMARK
-COPT_COMMON = -static -Wall -O3 -ftracer -fstrength-reduce -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math # -s
+COPT_COMMON = -static -Wall -O2 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
 ifeq "$(profile)" "1"
 COPT_COMMON += -fprofile-generate
 endif
