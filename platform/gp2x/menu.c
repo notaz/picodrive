@@ -45,7 +45,7 @@ static int menu_sel_color = -1; // disabled
 
 char menuErrorMsg[40] = {0, };
 
-static void menu_darken_bg(void *dst, int pixels);
+static void menu_darken_bg(void *dst, int pixels, int darker);
 static void menu_prepare_bg(int use_game_bg);
 
 // draws text to current bbp16 screen
@@ -562,14 +562,13 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 	start = 12 - sel;
 	n--; // exclude current dir (".")
 
-	if (rom_data)
-		gp2x_pd_clone_buffer2();
-	else {
-		memset(gp2x_screen, 0, 320*240*2);
-		memset((char *)gp2x_screen + 320*120*2, 0xff, 320*8*2);
+	gp2x_pd_clone_buffer2();
+
+	if (rom_data == NULL) {
+		menu_darken_bg(gp2x_screen, 320*240, 0);
 	}
 
-	menu_darken_bg((char *)gp2x_screen + 320*120*2, 320*8);
+	menu_darken_bg((char *)gp2x_screen + 320*120*2, 320*8, 0);
 
 	if(start - 2 >= 0)
 		smalltext_out16_lim(14, (start - 2)*10, curdir, 0xffff, 53-2);
@@ -1754,7 +1753,7 @@ static void draw_menu_credits(void)
 	text_out16(tl_x, (y+=10), "Dzz: ARM940 sample");
 	text_out16(tl_x, (y+=10), "GnoStiC / Puck2099: USB joystick");
 	text_out16(tl_x, (y+=10), "craigix: GP2X hardware");
-	text_out16(tl_x, (y+=10), "ketch: skin design");
+	text_out16(tl_x, (y+=10), "ketchupgun: skin design");
 
 	menu_flip();
 }
@@ -1918,15 +1917,25 @@ static void menu_loop_root(void)
 	}
 }
 
-static void menu_darken_bg(void *dst, int pixels)
+static void menu_darken_bg(void *dst, int pixels, int darker)
 {
 	unsigned int *screen = dst;
 	pixels /= 2;
-	while (pixels--)
+	if (darker)
 	{
-		unsigned int p = *screen;
-		*screen = ((p&0xf79ef79e)>>1) - ((p&0xc618c618)>>3);
-		screen++;
+		while (pixels--)
+		{
+			unsigned int p = *screen;
+			*screen++ = ((p&0xf79ef79e)>>1) - ((p&0xc618c618)>>3);
+		}
+	}
+	else
+	{
+		while (pixels--)
+		{
+			unsigned int p = *screen;
+			*screen++ = (p&0xf79ef79e)>>1;
+		}
 	}
 }
 
@@ -1936,7 +1945,7 @@ static void menu_prepare_bg(int use_game_bg)
 	{
 		// darken the active framebuffer
 		memset(gp2x_screen, 0, 320*8*2);
-		menu_darken_bg((char *)gp2x_screen + 320*8*2, 320*224);
+		menu_darken_bg((char *)gp2x_screen + 320*8*2, 320*224, 1);
 		memset((char *)gp2x_screen + 320*232*2, 0, 320*8*2);
 	}
 	else

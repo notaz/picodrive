@@ -212,7 +212,7 @@ endif
 
 rel: PicoDrive.gpe code940/pico940.bin ../readme.txt config.txt PicoDrive.man.txt PicoDrive.png
 	zip -9 -j ../../PicoDrive_$(VER).zip $^ mmuhack.o
-	zip -9 PicoDrive_$(VER).zip skin
+	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt
 
 code940/code940.bin:
 	make -C code940/

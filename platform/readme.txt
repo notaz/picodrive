@@ -209,8 +209,11 @@ GP2X:
 * Dzz for his ARM940 sample code.
 * GnoStiC & Puck2099 for USB joystick support.
 * Hermes PS2R, god_at_hell for the CpuCtrl library.
+* A_SN for his gamma code.
 * craigix for supplying the GP2X hardware and making this port possible.
 * Alex for the icon.
+* ketchupgun for the skin.
+* All the people from gp32x boards for their support.
 
 Symbian:
 * Peter van Sebille for his various open-source Symbian projects to learn from.
@@ -244,7 +247,7 @@ Changelog
   * Changed key configuration behaviour to the one from gpfce (should be more
     intuitive).
   + Added some skinning capabilities to the menu system with default skin by
-    ketch. Delete skin directory if you want old behaviour.
+    ketchupgun. Delete skin directory if you want old behaviour.
 
 1.32
   + Added some new scaling options.
