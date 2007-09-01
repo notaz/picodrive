@@ -18,6 +18,8 @@
 #include "../gp2x/usbjoy.h"
 #include "../gp2x/version.h"
 
+#include "log_io.h"
+
 void *gp2x_screen;
 static int current_bpp = 8;
 static int current_pal[256];
@@ -65,6 +67,8 @@ static gint key_press_event (GtkWidget *widget, GdkEventKey *event)
 		case 0x29: current_keys |= GP2X_PUSH;  break; // f
 		case 0x18: current_keys |= GP2X_VOL_DOWN;break; // q
 		case 0x19: current_keys |= GP2X_VOL_UP;break; // w
+		case 0x2d: log_io_clear(); break; // k
+		case 0x2e: log_io_dump();  break; // l
 	}
 
 	return 0;

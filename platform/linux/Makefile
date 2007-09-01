@@ -4,7 +4,7 @@ dprint = 1
 # profile = 1
 
 
-DEFINC = -I../.. -I. -D__GP2X__ -D_UNZIP_SUPPORT # -DBENCHMARK
+DEFINC = -I../.. -I. -D__GP2X__ -D_UNZIP_SUPPORT -DIO_STATS # -DBENCHMARK
 GCC = gcc
 STRIP = strip
 AS = gcc
@@ -25,7 +25,7 @@ LDFLAGS += `pkg-config --libs gthread-2.0`
 
 # frontend
 OBJS += ../gp2x/main.o ../gp2x/menu.o ../gp2x/emu.o ../gp2x/usbjoy.o blit.o \
-		gp2x.o 940ctl_ym2612.o
+		gp2x.o 940ctl_ym2612.o log_io.o
 
 # common
 OBJS += ../common/menu.o ../common/fonts.o ../common/readpng.o

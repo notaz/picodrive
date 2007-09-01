@@ -38,6 +38,12 @@ int lrp_cyc=0, lrp_mus=0, lwp_cyc=0, lwp_mus=0;
 extern unsigned int ppop;
 #endif
 
+#ifdef IO_STATS
+void log_io(unsigned int addr, int bits, int rw);
+#else
+#define log_io(...)
+#endif
+
 #if defined(EMU_C68K) || defined(EMU_A68K)
 static __inline int PicoMemBase(u32 pc)
 {
@@ -294,6 +300,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead8(u32 a)
 #endif
 
   if (a<Pico.romsize) { d = *(u8 *)(Pico.rom+(a^1)); goto end; } // Rom
+  log_io(a, 8, 0);
   if ((a&0xff4000)==0xa00000) { d=z80Read8(a); goto end; } // Z80 Ram
 
   d=OtherRead16(a&~1, 8); if ((a&1)==0) d>>=8;
@@ -336,6 +343,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead16(u32 a)
 #endif
 
   if (a<Pico.romsize) { d = *(u16 *)(Pico.rom+a); goto end; } // Rom
+  log_io(a, 16, 0);
 
   d = OtherRead16(a, 16);
 
@@ -370,6 +378,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead32(u32 a)
   }
 
   if (a<Pico.romsize) { u16 *pm=(u16 *)(Pico.rom+a); d = (pm[0]<<16)|pm[1]; goto end; } // Rom
+  log_io(a, 32, 0);
 
   d = (OtherRead16(a, 32)<<16)|OtherRead16(a+2, 32);
 
@@ -402,6 +411,7 @@ static void CPU_CALL PicoWrite8(u32 a,u8 d)
   //  dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 
   if ((a&0xe00000)==0xe00000) { *(u8 *)(Pico.ram+((a^1)&0xffff))=d; return; } // Ram
+  log_io(a, 8, 1);
 
   a&=0xffffff;
   OtherWrite8(a,d,8);
@@ -419,6 +429,7 @@ void CPU_CALL PicoWrite16(u32 a,u16 d)
   //  dprintf("w16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
 
   if ((a&0xe00000)==0xe00000) { *(u16 *)(Pico.ram+(a&0xfffe))=d; return; } // Ram
+  log_io(a, 16, 1);
 
   a&=0xfffffe;
   OtherWrite16(a,d);
@@ -440,6 +451,7 @@ static void CPU_CALL PicoWrite32(u32 a,u32 d)
     pm[0]=(u16)(d>>16); pm[1]=(u16)d;
     return;
   }
+  log_io(a, 32, 1);
 
   a&=0xfffffe;
   OtherWrite16(a,  (u16)(d>>16));
