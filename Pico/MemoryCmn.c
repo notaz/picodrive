@@ -15,38 +15,6 @@ u32 OtherRead16End(u32 a, int realsize);
 static void OtherWrite8End(u32 a,u32 d,int realsize);
 #endif
 
-static int PadRead(int i)
-{
-  int pad=0,value=0,TH;
-  pad=~PicoPad[i]; // Get inverse of pad MXYZ SACB RLDU
-  TH=Pico.ioports[i+1]&0x40;
-
-  if(PicoOpt & 0x20) { // 6 button gamepad enabled
-    int phase = Pico.m.padTHPhase[i];
-
-    if(phase == 2 && !TH) {
-      value=(pad&0xc0)>>2;              // ?0SA 0000
-      goto end;
-    } else if(phase == 3 && TH) {
-      value=(pad&0x30)|((pad>>8)&0xf);  // ?1CB MXYZ
-      goto end;
-    } else if(phase == 3 && !TH) {
-      value=((pad&0xc0)>>2)|0x0f;       // ?0SA 1111
-      goto end;
-    }
-  }
-
-  if(TH) value=(pad&0x3f);              // ?1CB RLDU
-  else   value=((pad&0xc0)>>2)|(pad&3); // ?0SA 00DU
-
-  end:
-
-  // orr the bits, which are set as output
-  value |= Pico.ioports[i+1]&Pico.ioports[i+4];
-
-  return value; // will mirror later
-}
-
 
 #ifndef _ASM_MEMORY_C
 static
@@ -78,6 +46,50 @@ u8 z80Read8(u32 a)
   return Pico.zram[a];
 }
 
+#ifndef _ASM_MEMORY_C
+static
+#endif
+u32 z80ReadBusReq(void)
+{
+  u32 d=Pico.m.z80Run&1;
+  if (!d) {
+    // needed by buggy Terminator (Sega CD)
+    int stop_before = SekCyclesDone() - z80stopCycle;
+    dprintf("stop before: %i", stop_before);
+    if (stop_before > 0 && stop_before <= 32) // Gens uses 16 here
+      d = 1; // bus not yet available
+  }
+  // |=0x80 for Shadow of the Beast & Super Offroad
+  return d|0x80;
+}
+
+#ifndef _ASM_MEMORY_C
+static
+#endif
+void z80WriteBusReq(u32 d)
+{
+  d&=1; d^=1;
+  if(!d) {
+    // this is for a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
+    if (Pico.m.z80Run) {
+      int lineCycles;
+      z80stopCycle = SekCyclesDone();
+      if (Pico.m.z80Run&2)
+           lineCycles=(488-SekCyclesLeft)&0x1ff;
+      else lineCycles=z80stopCycle-z80startCycle; // z80 was started at current line
+      if (lineCycles > 0 && lineCycles <= 488) {
+        dprintf("zrun: %i/%i cycles", lineCycles, (lineCycles>>1)-(lineCycles>>5));
+        lineCycles=(lineCycles>>1)-(lineCycles>>5);
+        z80_run(lineCycles);
+      }
+    }
+  } else {
+    z80startCycle = SekCyclesDone();
+    //if(Pico.m.scanline != -1)
+  }
+  dprintf("set_zrun: %02x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), /*mz80GetRegisterValue(NULL, 0),*/ SekPc);
+  Pico.m.z80Run=(u8)d;
+}
 
 #ifndef _ASM_MEMORY_C
 static
@@ -85,6 +97,25 @@ static
 u32 OtherRead16(u32 a, int realsize)
 {
   u32 d=0;
+
+  if ((a&0xffffe0)==0xa10000) { // I/O ports
+    a=(a>>1)&0xf;
+    switch(a) {
+      case 0:  d=Pico.m.hardware; break; // Hardware value (Version register)
+      case 1:  d=PadRead(0); break;
+      case 2:  d=PadRead(1); break;
+      default: d=Pico.ioports[a]; break; // IO ports can be used as RAM
+    }
+    d|=d<<8;
+    goto end;
+  }
+
+  // |=0x80 for Shadow of the Beast & Super Offroad; rotate fakes next fetched instruction for Time Killers
+  if (a==0xa11100) { // z80 busreq
+    d=(z80ReadBusReq()<<8)|Pico.m.rotate++;
+    dprintf("get_zrun: %04x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), SekPc);
+    goto end;
+  }
 
   if ((a&0xff0000)==0xa00000) {
     if ((a&0x4000)==0x0000) { d=z80Read8(a); d|=d<<8; goto end; } // Z80 ram (not byteswaped)
@@ -98,35 +129,6 @@ u32 OtherRead16(u32 a, int realsize)
     goto end;
   }
 
-  if ((a&0xffffe0)==0xa10000) { // I/O ports
-    a=(a>>1)&0xf;
-    switch(a) {
-      case 0:  d=Pico.m.hardware; break; // Hardware value (Version register)
-      case 1:  d=PadRead(0); d|=Pico.ioports[1]&0x80; break;
-      case 2:  d=PadRead(1); d|=Pico.ioports[2]&0x80; break;
-      default: d=Pico.ioports[a]; break; // IO ports can be used as RAM
-    }
-    d|=d<<8;
-    goto end;
-  }
-
-  // |=0x80 for Shadow of the Beast & Super Offroad; rotate fakes next fetched instruction for Time Killers
-  if (a==0xa11100) { // z80 busreq
-    d=Pico.m.z80Run&1;
-#if 1
-    if (!d) {
-      // needed by buggy Terminator (Sega CD)
-      int stop_before = SekCyclesDone() - z80stopCycle;
-      dprintf("stop before: %i", stop_before);
-      if (stop_before > 0 && stop_before <= 32) // Gens uses 16 here
-        d = 1; // bus not yet available
-    }
-#endif
-    d=(d<<8)|0x8000|Pico.m.rotate++;
-    dprintf("get_zrun: %04x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), SekPc);
-    goto end;
-  }
-
 #ifndef _ASM_MEMORY_C
   if ((a&0xe700e0)==0xc00000) { d=PicoVideoRead(a); goto end; }
 #endif
@@ -137,63 +139,41 @@ end:
   return d;
 }
 
-
-//extern UINT32 mz80GetRegisterValue(void *, UINT32);
+static void IoWrite8(u32 a, u32 d)
+{
+  a=(a>>1)&0xf;
+  // 6 button gamepad: if TH went from 0 to 1, gamepad changes state
+  if(PicoOpt&0x20) {
+    if(a==1) {
+      Pico.m.padDelay[0] = 0;
+      if(!(Pico.ioports[1]&0x40) && (d&0x40)) Pico.m.padTHPhase[0]++;
+    }
+    else if(a==2) {
+      Pico.m.padDelay[1] = 0;
+      if(!(Pico.ioports[2]&0x40) && (d&0x40)) Pico.m.padTHPhase[1]++;
+    }
+  }
+  Pico.ioports[a]=(u8)d; // IO ports can be used as RAM
+}
 
 #ifndef _ASM_CD_MEMORY_C
 static
 #endif
-void OtherWrite8(u32 a,u32 d,int realsize)
+void OtherWrite8(u32 a,u32 d)
 {
+#ifndef _ASM_MEMORY_C
   if ((a&0xe700f9)==0xc00011||(a&0xff7ff9)==0xa07f11) { if(PicoOpt&2) SN76496Write(d); return; } // PSG Sound
   if ((a&0xff4000)==0xa00000)  { if(!(Pico.m.z80Run&1)) Pico.zram[a&0x1fff]=(u8)d; return; } // Z80 ram
   if ((a&0xff6000)==0xa04000)  { if(PicoOpt&1) emustatus|=YM2612Write(a&3, d); return; } // FM Sound
-  if ((a&0xffffe0)==0xa10000)  { // I/O ports
-    a=(a>>1)&0xf;
-    // 6 button gamepad: if TH went from 0 to 1, gamepad changes state
-    if(PicoOpt&0x20) {
-      if(a==1) {
-        Pico.m.padDelay[0] = 0;
-        if(!(Pico.ioports[1]&0x40) && (d&0x40)) Pico.m.padTHPhase[0]++;
-      }
-      else if(a==2) {
-        Pico.m.padDelay[1] = 0;
-        if(!(Pico.ioports[2]&0x40) && (d&0x40)) Pico.m.padTHPhase[1]++;
-      }
-    }
-    Pico.ioports[a]=(u8)d; // IO ports can be used as RAM
-    return;
-  }
-  if (a==0xa11100) {
-    //int lineCycles=(488-SekCyclesLeft)&0x1ff;
-    d&=1; d^=1;
-    if(!d) {
-      // this is for a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
-      if (Pico.m.z80Run) {
-        int lineCycles;
-        z80stopCycle = SekCyclesDone();
-        if (Pico.m.z80Run&2)
-             lineCycles=(488-SekCyclesLeft)&0x1ff;
-        else lineCycles=z80stopCycle-z80startCycle; // z80 was started at current line
-        if (lineCycles > 0 && lineCycles <= 488) {
-          dprintf("zrun: %i/%i cycles", lineCycles, (lineCycles>>1)-(lineCycles>>5));
-          lineCycles=(lineCycles>>1)-(lineCycles>>5);
-          z80_run(lineCycles);
-        }
-      }
-    } else {
-      z80startCycle = SekCyclesDone();
-      //if(Pico.m.scanline != -1)
-    }
-    dprintf("set_zrun: %02x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), /*mz80GetRegisterValue(NULL, 0),*/ SekPc);
-    Pico.m.z80Run=(u8)d; return;
-  }
+  if ((a&0xffffe0)==0xa10000)  { IoWrite8(a, d); return; } // I/O ports
+#endif
+  if (a==0xa11100)             { z80WriteBusReq(d); return; }
   if (a==0xa11200) {
     dprintf("write z80Reset: %02x", d);
     if(!(d&1)) z80_reset();
     return;
   }
-
+#ifndef _ASM_MEMORY_C
   if ((a&0xff7f00)==0xa06000) // Z80 BANK register
   {
     Pico.m.z80_bank68k>>=1;
@@ -201,13 +181,13 @@ void OtherWrite8(u32 a,u32 d,int realsize)
     Pico.m.z80_bank68k&=0x1ff; // 9 bits and filled in the new top one
     return;
   }
-
+#endif
   if ((a&0xe700e0)==0xc00000) {
     PicoVideoWrite(a,(u16)(d|(d<<8))); // Byte access gets mirrored
     return;
   }
 
-  OtherWrite8End(a, d, realsize);
+  OtherWrite8End(a, d, 8);
 }
 
 
@@ -217,29 +197,22 @@ static
 void OtherWrite16(u32 a,u32 d)
 {
   if ((a&0xe700e0)==0xc00000) { PicoVideoWrite(a,(u16)d); return; }
+  if (a==0xa11100)            { z80WriteBusReq(d>>8); return; }
+  if (a==0xa11200)            { dprintf("write z80reset: %04x", d); if(!(d&0x100)) z80_reset(); return; }
+  if ((a&0xffffe0)==0xa10000) { IoWrite8(a, d); return; } // I/O ports
   if ((a&0xff4000)==0xa00000) { if(!(Pico.m.z80Run&1)) Pico.zram[a&0x1fff]=(u8)(d>>8); return; } // Z80 ram (MSB only)
-
-  if ((a&0xffffe0)==0xa10000) { // I/O ports
-    a=(a>>1)&0xf;
-    // 6 button gamepad: if TH went from 0 to 1, gamepad changes state
-    if(PicoOpt&0x20) {
-      if(a==1) {
-        Pico.m.padDelay[0] = 0;
-        if(!(Pico.ioports[1]&0x40) && (d&0x40)) Pico.m.padTHPhase[0]++;
-      }
-      else if(a==2) {
-        Pico.m.padDelay[1] = 0;
-        if(!(Pico.ioports[2]&0x40) && (d&0x40)) Pico.m.padTHPhase[1]++;
-      }
-    }
-    Pico.ioports[a]=(u8)d; // IO ports can be used as RAM
+  if ((a&0xe700f8)==0xc00010||(a&0xff7ff8)==0xa07f10) { if(PicoOpt&2) SN76496Write(d); return; } // PSG Sound
+  if ((a&0xff6000)==0xa04000)  { if(PicoOpt&1) emustatus|=YM2612Write(a&3, d); return; } // FM Sound (??)
+  if ((a&0xff7f00)==0xa06000) // Z80 BANK register
+  {
+    Pico.m.z80_bank68k>>=1;
+    Pico.m.z80_bank68k|=(d&1)<<8;
+    Pico.m.z80_bank68k&=0x1ff; // 9 bits and filled in the new top one
     return;
   }
-  if (a==0xa11100) { OtherWrite8(a, d>>8, 16); return; }
-  if (a==0xa11200) { dprintf("write z80reset: %04x", d); if(!(d&0x100)) z80_reset(); return; }
 
-  OtherWrite8(a,  d>>8, 16);
-  OtherWrite8(a+1,d&0xff, 16);
+  OtherWrite8End(a,  d>>8, 16);
+  OtherWrite8End(a+1,d&0xff, 16);
 }
 
 

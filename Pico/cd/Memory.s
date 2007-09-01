@@ -139,6 +139,8 @@ m_s68k_decode_write_table:
 .extern PicoCpuS68k
 .extern s68k_poll_detect
 .extern SN76496Write
+.extern m_m68k_read8_misc
+.extern m_m68k_write8_misc
 
 
 @ r0=reg3, r1-r3=temp
@@ -502,7 +504,7 @@ m_m68k_read8_system_io:
     bic     r2, r0, #0xfe0000
     bic     r2, r2, #0x3f
     cmp     r2, #0x012000
-    bne     m_m68k_read8_misc
+    bne     m_m68k_read8_misc         @ now from Pico/Memory.s
 
     ldr     r1, =(Pico+0x22200)
     and     r0, r0, #0x3f
@@ -588,7 +590,7 @@ m_m68k_read8_hi:
     ldrb    r0, [r1, r0]
     bx      lr
 
-
+/*
 m_m68k_read8_misc:
     bic     r2, r0, #0x00ff
     bic     r2, r2, #0xbf00
@@ -604,7 +606,7 @@ m_m68k_read8_misc:
     tst     r1, #1
     moveq   r0, r0, lsr #8
     bx      lr
-
+*/
 
 m_m68k_read8_vdp:
     tst     r0, #0x70000
@@ -1116,7 +1118,8 @@ m_m68k_write8_system_io:
     cmp     r2, #0x012000
     beq     m68k_reg_write8
     mov     r2, #8
-    b       OtherWrite8
+@    b       OtherWrite8
+    b       m_m68k_write8_misc
 
 
 m_m68k_write8_vdp:

@@ -154,17 +154,17 @@ struct PicoMisc
 {
   unsigned char rotate;
   unsigned char z80Run;
-  unsigned char padTHPhase[2]; // phase of gamepad TH switches
-  short scanline; // 0 to 261||311; -1 in fast mode
-  char dirtyPal; // Is the palette dirty (1 - change @ this frame, 2 - some time before)
-  unsigned char hardware; // Hardware value for country
-  unsigned char pal; // 1=PAL 0=NTSC
-  unsigned char sram_reg; // SRAM mode register. bit0: allow read? bit1: deny write? bit2: EEPROM? bit4: detected? (header or by access)
-  unsigned short z80_bank68k;
+  unsigned char padTHPhase[2]; // 02 phase of gamepad TH switches
+  short scanline;              // 04 0 to 261||311; -1 in fast mode
+  char dirtyPal;               // 06 Is the palette dirty (1 - change @ this frame, 2 - some time before)
+  unsigned char hardware;      // 07 Hardware value for country
+  unsigned char pal;           // 08 1=PAL 0=NTSC
+  unsigned char sram_reg;      // SRAM mode register. bit0: allow read? bit1: deny write? bit2: EEPROM? bit4: detected? (header or by access)
+  unsigned short z80_bank68k;  // 0a
   unsigned short z80_lastaddr; // this is for Z80 faking
   unsigned char  z80_fakeval;
   unsigned char  pad0;
-  unsigned char  padDelay[2];  // gamepad phase time outs, so we count a delay
+  unsigned char  padDelay[2];  // 10 gamepad phase time outs, so we count a delay
   unsigned short sram_addr;  // EEPROM address register
   unsigned char sram_cycle;  // EEPROM SRAM cycle number
   unsigned char sram_slave;  // EEPROM slave word for X24C02 and better SRAMs
@@ -297,6 +297,7 @@ PICO_INTERNAL int PicoInitPc(unsigned int pc);
 PICO_INTERNAL_ASM unsigned int CPU_CALL PicoRead32(unsigned int a);
 PICO_INTERNAL void PicoMemSetup(void);
 PICO_INTERNAL_ASM void PicoMemReset(void);
+PICO_INTERNAL int PadRead(int i);
 PICO_INTERNAL unsigned char z80_read(unsigned short a);
 PICO_INTERNAL unsigned short z80_read16(unsigned short a);
 PICO_INTERNAL_ASM void z80_write(unsigned char data, unsigned short a);

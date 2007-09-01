@@ -7,6 +7,7 @@
 @ All Rights Reserved
 
 
+.include "port_config.s"
 
 .text
 
@@ -140,7 +141,10 @@ m_read32_table:
 .global PicoRead8
 .global PicoRead16
 .global PicoRead32
+.global PicoWrite8
 .global PicoWriteRomHW_SSF2
+.global m_m68k_read8_misc
+.global m_m68k_write8_misc
 
 
 PicoMemReset:
@@ -359,12 +363,70 @@ m_read8_rom12: @ 0x900000 - 0x97ffff
 m_read8_rom13: @ 0x980000 - 0x9fffff
     m_read8_rom 0x13
 
+
+m_m68k_read8_misc:
 m_read8_misc:
-    bic     r2, r0, #0x00ff
-    bic     r2, r2, #0xbf00
-    cmp     r2, #0xa00000  @ Z80 RAM?
-    ldreq   r2, =z80Read8
+    bic     r2, r0, #0x001f @ most commonly we get i/o port read,
+    cmp     r2, #0xa10000   @ so check for it first
+    bne     m_read8_misc2
+m_read8_misc_io:
+    ands    r0, r0, #0x1e
+    beq     m_read8_misc_hwreg
+    cmp     r0, #4
+    ldrle   r2, =PadRead
+    movlt   r0, #0
+    moveq   r0, #1
+    bxle    r2
+    ldr     r3, =(Pico+0x22000)
+    mov     r0, r0, lsr #1  @ other IO ports (Pico.ioports[a])
+    ldrb    r0, [r3, r0]
+    bx      lr
+
+m_read8_misc_hwreg:
+    ldr     r3, =(Pico+0x22200)
+    ldrb    r0, [r3, #0x0f] @ Pico.m.hardware
+    bx      lr
+
+m_read8_misc2:
+    mov     r2,     #0xa10000 @ games also like to poll busreq,
+    orr     r2, r2, #0x001100 @ so we'll try it now
+    cmp     r0, r2
+    ldreq   r2, =z80ReadBusReq
     bxeq    r2
+
+    and     r2, r0, #0xff0000 @ finally it might be
+    cmp     r2,     #0xa00000 @ z80 area
+    bne     m_read8_misc3
+    tst     r0, #0x4000
+    ldreq   r2, =z80Read8     @ z80 RAM
+    bxeq    r2
+    and     r2, r0, #0x6000
+    cmp     r2, #0x4000
+    mvnne   r0, #0
+    bxne    lr                @ invalid
+.if EXTERNAL_YM2612
+    ldr     r1, =PicoOpt
+    ldr     r1, [r1]
+    tst     r1, #1
+    beq     m_read8_fake_ym2612
+    tst     r1, #0x200
+    ldreq   r2, =YM2612Read_
+    ldrne   r2, =YM2612Read_940
+.else
+    ldr     r2, =YM2612Read_
+.endif
+    bx      r2                @ ym2612
+
+m_read8_fake_ym2612:
+    ldr     r3, =(Pico+0x22200)
+    ldrb    r0, [r3, #8]      @ Pico.m.rotate
+    add     r1, r0, #1
+    strb    r1, [r3, #8]
+    and     r0, r0, #3
+    bx      lr
+
+m_read8_misc3:
+    @ if everything else fails, use generic handler
     stmfd   sp!,{r0,lr}
     bic     r0, r0, #1
     mov     r1, #8
@@ -373,6 +435,7 @@ m_read8_misc:
     tst     r1, #1
     moveq   r0, r0, lsr #8
     bx      lr
+
 
 m_read8_vdp:
     tst     r0, #0x70000
@@ -737,4 +800,139 @@ pwr_banking:
     str     r12, [r2, r0, lsl #2]
  
     bx      lr
+
+@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@ Here we only handle most often used locations,
+@ everything else is passed to generic handlers
+
+PicoWrite8: @ u32 a, u8 d
+    bic     r0, r0, #0xff000000
+    and     r2, r0, #0x00e00000
+    cmp     r2,     #0x00e00000 @ RAM?
+    ldr     r3, =Pico
+    biceq   r0, r0, #0x00ff0000
+    eoreq   r0, r0, #1
+    streqb  r1, [r3, r0]
+    bxeq    lr
+
+m_m68k_write8_misc:
+    bic     r2, r0, #0x1f    @ most commonly we get i/o port write,
+    cmp     r2, #0xa10000    @ so check for it first
+    bne     m_write8_misc2
+m_write8_io:
+    ldr     r2, =PicoOpt
+    and     r0, r0, #0x1e
+    ldr     r2, [r2]
+    ldr     r3, =(Pico+0x22000) @ Pico.ioports
+    tst     r2, #0x20        @ 6 button pad?
+    streqb  r1, [r3, r0, lsr #1]
+    bxeq    lr
+    cmp     r0, #2
+    cmpne   r0, #4
+    bne     m_write8_io_done @ not likely to happen
+    add     r2, r3, #0x200   @ Pico+0x22200
+    mov     r12,#0
+    cmp     r0, #2
+    streqb  r12,[r2,#0x18]
+    strneb  r12,[r2,#0x19]   @ Pico.m.padDelay[i] = 0
+    tst     r1, #0x40        @ TH
+    beq     m_write8_io_done
+    ldrb    r12,[r3, r0, lsr #1]
+    tst     r12,#0x40
+    bne     m_write8_io_done
+    cmp     r0, #2
+    ldreqb  r12,[r2,#0x0a]
+    ldrneb  r12,[r2,#0x0b]   @ Pico.m.padTHPhase
+    add     r12,r12,#1
+    streqb  r12,[r2,#0x0a]
+    strneb  r12,[r2,#0x0b]   @ Pico.m.padTHPhase
+m_write8_io_done:
+    strb    r1, [r3, r0, lsr #1]
+    bx      lr
+
+
+m_write8_misc2:
+    and     r2, r0, #0xff0000
+    cmp     r2,     #0xa00000 @ z80 area?
+    bne     m_write8_not_z80
+    tst     r0, #0x4000
+    bne     m_write8_z80_not_ram
+    ldr     r3, =(Pico+0x20000) @ Pico.zram
+    add     r2, r3, #0x02200 @ Pico+0x22200
+    ldrb    r2, [r2, #9]     @ Pico.m.z80Run
+    bic     r0, r0, #0xff0000
+    bic     r0, r0, #0x00e000
+    tst     r2, #1
+    streqb  r1, [r3, r0]     @ zram
+    bx      lr
+
+m_write8_z80_not_ram:
+    and     r2, r0, #0x6000
+    cmp     r2,     #0x4000
+    bne     m_write8_z80_not_ym2612
+    ldr     r2, =PicoOpt
+    and     r0, r0, #3
+    ldr     r2, [r2]
+    tst     r2, #1
+    bxeq    lr
+    stmfd   sp!,{lr}
+.if EXTERNAL_YM2612
+    tst     r2, #0x200
+    ldreq   r2, =YM2612Write_
+    ldrne   r2, =YM2612Write_940
+    mov     lr, pc
+    bx      r2
+.else
+    bl      YM2612Write_
+.endif
+    ldr     r2, =emustatus
+    ldmfd   sp!,{lr}
+    ldr     r1, [r2]
+    orr     r1, r0, r2
+    str     r1, [r2]         @ emustatus|=YM2612Write(a&3, d);
+    bx      lr
+
+m_write8_z80_not_ym2612:     @ not too likely
+    mov     r2, r0, lsl #17
+    bic     r2, r2, #6<<17
+    mov     r3,     #0x7f00
+    orr     r3, r3, #0x0011
+    cmp     r3, r2, lsr #17  @ psg @ z80 area?
+    beq     m_write8_psg
+    and     r2, r0, #0x7f00
+    cmp     r2,     #0x6000  @ bank register?
+    bxne    lr               @ invalid write
+
+m_write8_z80_bank_reg:
+    ldr     r3, =(Pico+0x22208) @ Pico.m
+    ldrh    r2, [r3, #0x0a]
+    mov     r1, r1, lsr #8
+    orr     r2, r1, r2, lsr #1
+    bic     r2, r2, #0xfe00
+    strh    r2, [r3, #0x0a]
+    bx      lr
+
+
+m_write8_not_z80:
+    and     r2, r0, #0xe70000
+    cmp     r2, #0xc00000    @ VDP area?
+    bne     m_write8_misc4
+    and     r2, r0, #0xf9
+    cmp     r2, #0x11
+    bne     m_write8_misc4
+m_write8_psg:
+    ldr     r2, =PicoOpt
+    mov     r0, r1
+    ldr     r2, [r2]
+    tst     r2, #2
+    bxeq    lr
+    ldr     r2, =SN76496Write
+    bx      r2
+    
+
+m_write8_misc4:
+    @ passthrough
+    ldr     r2, =OtherWrite8
+    bx      r2
 

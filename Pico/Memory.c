@@ -26,6 +26,7 @@ extern unsigned int lastSSRamWrite; // used by serial SRAM code
 #ifdef _ASM_MEMORY_C
 u32  PicoRead8(u32 a);
 u32  PicoRead16(u32 a);
+void PicoWrite8(u32 a,u8 d);
 void PicoWriteRomHW_SSF2(u32 a,u32 d);
 void PicoWriteRomHW_in1 (u32 a,u32 d);
 #endif
@@ -109,6 +110,38 @@ PICO_INTERNAL_ASM void PicoMemReset(void)
 #endif
 
 // -----------------------------------------------------------------
+
+int PadRead(int i)
+{
+  int pad,value,data_reg;
+  pad=~PicoPad[i]; // Get inverse of pad MXYZ SACB RLDU
+  data_reg=Pico.ioports[i+1];
+
+  // orr the bits, which are set as output
+  value = data_reg&(Pico.ioports[i+4]|0x80);
+
+  if(PicoOpt & 0x20) { // 6 button gamepad enabled
+    int phase = Pico.m.padTHPhase[i];
+
+    if(phase == 2 && !(data_reg&0x40)) { // TH
+      value|=(pad&0xc0)>>2;              // ?0SA 0000
+      return value;
+    } else if(phase == 3) {
+      if(data_reg&0x40)
+        value|=(pad&0x30)|((pad>>8)&0xf);  // ?1CB MXYZ
+      else
+        value|=((pad&0xc0)>>2)|0x0f;       // ?0SA 1111
+      return value;
+    }
+  }
+
+  if(data_reg&0x40) // TH
+       value|=(pad&0x3f);              // ?1CB RLDU
+  else value|=((pad&0xc0)>>2)|(pad&3); // ?0SA 00DU
+
+  return value; // will mirror later
+}
+
 
 #ifndef _ASM_MEMORY_C
 // address must already be checked
@@ -399,7 +432,8 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead32(u32 a)
 // -----------------------------------------------------------------
 //                            Write Ram
 
-static void CPU_CALL PicoWrite8(u32 a,u8 d)
+#ifndef _ASM_MEMORY_C
+PICO_INTERNAL_ASM void CPU_CALL PicoWrite8(u32 a,u8 d)
 {
 #ifdef __debug_io
   dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
@@ -416,6 +450,7 @@ static void CPU_CALL PicoWrite8(u32 a,u8 d)
   a&=0xffffff;
   OtherWrite8(a,d,8);
 }
+#endif
 
 void CPU_CALL PicoWrite16(u32 a,u16 d)
 {

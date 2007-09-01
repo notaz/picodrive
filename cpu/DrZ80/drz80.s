@@ -111,40 +111,37 @@ DrZ80Ver: .long 0x0001
 .if DRZ80_FOR_PICODRIVE
 
 .macro YM2612Read_and_ret8
-	stmfd sp!,{r3,r12,lr}
+    stmfd sp!,{r3,r12,lr}
 .if EXTERNAL_YM2612
     ldr r1,=PicoOpt
     ldr r1,[r1]
     tst r1,#0x200
-    bne 10f
-    bl YM2612Read_
-	ldmfd sp!,{r3,r12,pc}
-10:
-    bl YM2612Read_940
+    ldrne r2, =YM2612Read_940
+    ldreq r2, =YM2612Read_
+    mov lr,pc
+    bx r2
 .else
     bl YM2612Read_
 .endif
-	ldmfd sp!,{r3,r12,pc}
+    ldmfd sp!,{r3,r12,pc}
 .endm
 
 .macro YM2612Read_and_ret16
-	stmfd sp!,{r3,r12,lr}
+    stmfd sp!,{r3,r12,lr}
 .if EXTERNAL_YM2612
     ldr r0,=PicoOpt
     ldr r0,[r0]
     tst r0,#0x200
-    bne 10f
-    bl YM2612Read_
-    orr r0,r0,r0,lsl #8
-	ldmfd sp!,{r3,r12,pc}
-10:
-    bl YM2612Read_940
+    ldrne r2, =YM2612Read_940
+    ldreq r2, =YM2612Read_
+    mov lr,pc
+    bx r2
     orr r0,r0,r0,lsl #8
 .else
     bl YM2612Read_
     orr r0,r0,r0,lsl #8
 .endif
-	ldmfd sp!,{r3,r12,pc}
+    ldmfd sp!,{r3,r12,pc}
 .endm
 
 pico_z80_read8: @ addr
@@ -173,7 +170,7 @@ pico_z80_read8: @ addr
     cmp r1,#2              @ YM2612 (0x4000-0x5fff)
     bne 0f
     and r0,r0,#3
-	YM2612Read_and_ret8
+    YM2612Read_and_ret8
 0:
     cmp r0,#0x4000
     movge r0,#0xff

@@ -74,6 +74,9 @@ PicoDrive : $(OBJS) ../gp2x/helix/helix_mp3_x86.a
 	@$(GCC) $(COPT) $^ $(LDFLAGS) -lm -lpng -Wl,-Map=PicoDrive.map -o $@
 
 
+../../cpu/musashi/m68kops.c :
+	@make -C ../../cpu/musashi
+
 ../../cpu/mz80/mz80.o : ../../cpu/mz80/mz80.asm
 	@echo $@
 	@nasm -f elf $< -o $@
