@@ -2,6 +2,7 @@
 #include <string.h>
 #include <png.h>
 #include "readpng.h"
+#include "lprintf.h"
 
 void readpng(void *dest, const char *fname, readpng_what what)
 {
@@ -18,14 +19,14 @@ void readpng(void *dest, const char *fname, readpng_what what)
 	fp = fopen(fname, "rb");
 	if (fp == NULL)
 	{
-		printf(__FILE__ ": failed to open: %s\n", fname);
+		lprintf(__FILE__ ": failed to open: %s\n", fname);
 		return;
 	}
 
 	png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
 	if (!png_ptr)
 	{
-		printf(__FILE__ ": png_create_read_struct() failed\n");
+		lprintf(__FILE__ ": png_create_read_struct() failed\n");
 		fclose(fp);
 		return;
 	}
@@ -33,7 +34,7 @@ void readpng(void *dest, const char *fname, readpng_what what)
 	info_ptr = png_create_info_struct(png_ptr);
 	if (!info_ptr)
 	{
-		printf(__FILE__ ": png_create_info_struct() failed\n");
+		lprintf(__FILE__ ": png_create_info_struct() failed\n");
 		goto done;
 	}
 
@@ -43,11 +44,11 @@ void readpng(void *dest, const char *fname, readpng_what what)
 	row_ptr = png_get_rows(png_ptr, info_ptr);
 	if (row_ptr == NULL)
 	{
-		printf(__FILE__ ": png_get_rows() failed\n");
+		lprintf(__FILE__ ": png_get_rows() failed\n");
 		goto done;
 	}
 
-	// printf("%s: %ix%i @ %ibpp\n", fname, (int)info_ptr->width, (int)info_ptr->height, info_ptr->pixel_depth);
+	// lprintf("%s: %ix%i @ %ibpp\n", fname, (int)info_ptr->width, (int)info_ptr->height, info_ptr->pixel_depth);
 
 	switch (what)
 	{
@@ -57,7 +58,7 @@ void readpng(void *dest, const char *fname, readpng_what what)
 			unsigned short *dst = dest;
 			if (info_ptr->pixel_depth != 24)
 			{
-				printf(__FILE__ ": bg image uses %ibpp, needed 24bpp\n", info_ptr->pixel_depth);
+				lprintf(__FILE__ ": bg image uses %ibpp, needed 24bpp\n", info_ptr->pixel_depth);
 				break;
 			}
 			height = info_ptr->height;
@@ -85,13 +86,13 @@ void readpng(void *dest, const char *fname, readpng_what what)
 			unsigned char *dst = dest;
 			if (info_ptr->width != 128 || info_ptr->height != 160)
 			{
-				printf(__FILE__ ": unexpected font image size %ix%i, needed 128x160\n",
+				lprintf(__FILE__ ": unexpected font image size %ix%i, needed 128x160\n",
 					(int)info_ptr->width, (int)info_ptr->height);
 				break;
 			}
 			if (info_ptr->pixel_depth != 8)
 			{
-				printf(__FILE__ ": font image uses %ibpp, needed 8bpp\n", info_ptr->pixel_depth);
+				lprintf(__FILE__ ": font image uses %ibpp, needed 8bpp\n", info_ptr->pixel_depth);
 				break;
 			}
 			for (y = 0; y < 16; y++)
@@ -115,13 +116,13 @@ void readpng(void *dest, const char *fname, readpng_what what)
 			unsigned char *dst = dest;
 			if (info_ptr->width != 8 || info_ptr->height != 10)
 			{
-				printf(__FILE__ ": unexpected selector image size %ix%i, needed 8x10\n",
+				lprintf(__FILE__ ": unexpected selector image size %ix%i, needed 8x10\n",
 					(int)info_ptr->width, (int)info_ptr->height);
 				break;
 			}
 			if (info_ptr->pixel_depth != 8)
 			{
-				printf(__FILE__ ": selector image uses %ibpp, needed 8bpp\n", info_ptr->pixel_depth);
+				lprintf(__FILE__ ": selector image uses %ibpp, needed 8bpp\n", info_ptr->pixel_depth);
 				break;
 			}
 			for (y1 = 0; y1 < 10; y1++)

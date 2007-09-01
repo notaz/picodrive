@@ -21,7 +21,6 @@
 #define USE_CACHE
 
 
-extern unsigned char *framebuff; // in format (8+320)x(8+224+8) (eights for borders)
 int currpri = 0;
 
 static int HighCache2A[41*(TILE_ROWS+1)+1+1]; // caches for high layers
@@ -139,7 +138,7 @@ static void DrawWindowFull(int start, int end, int prio)
 {
 	struct PicoVideo *pvid=&Pico.video;
 	int nametab, nametab_step, trow, tilex, blank=-1, code;
-	unsigned char *scrpos = framebuff;
+	unsigned char *scrpos = PicoDraw2FB;
 	int tile_start, tile_end; // in cells
 
 	// parse ranges
@@ -239,7 +238,7 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend)
 	if (plane==0) nametab=(pvid->reg[2]&0x38)<< 9; // A
 	else          nametab=(pvid->reg[4]&0x07)<<12; // B
 
-	scrpos = framebuff;
+	scrpos = PicoDraw2FB;
 	scrpos+=8*328*(planestart-START_ROW);
 
 	// Get vertical scroll value:
@@ -317,7 +316,7 @@ static void DrawTilesFromCacheF(int *hc)
 //	unsigned short *pal;
 	unsigned char pal;
 	short blank=-1; // The tile we know is blank
-	unsigned char *scrpos = framebuff, *pd = 0;
+	unsigned char *scrpos = PicoDraw2FB, *pd = 0;
 
 	// *hcache++ = code|(dx<<16)|(trow<<27); // cache it
 	scrpos+=(*hc++)*328 - START_ROW*328*8;
@@ -380,7 +379,7 @@ static void DrawSpriteFull(unsigned int *sprite)
 	// goto first vertically visible tile
 	while(sy <= START_ROW*8) { sy+=8; tile+=tdeltay; height--; }
 
-	scrpos = framebuff;
+	scrpos = PicoDraw2FB;
 	scrpos+=(sy-START_ROW*8)*328;
 
 	for (; height > 0; height--, sy+=8, tile+=tdeltay)
@@ -481,7 +480,7 @@ static void DrawAllSpritesFull(int prio, int maxwidth)
 static void BackFillFull(int reg7)
 {
 	unsigned int back, i;
-	unsigned int *p=(unsigned int *)framebuff;
+	unsigned int *p=(unsigned int *)PicoDraw2FB;
 
 	// Start with a background color:
 //	back=PicoCramHigh[reg7&0x3f];

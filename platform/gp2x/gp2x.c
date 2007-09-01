@@ -34,7 +34,7 @@
 
 #include "gp2x.h"
 #include "usbjoy.h"
-#include "asmutils.h"
+#include "../common/arm_utils.h"
 
 volatile unsigned short *gp2x_memregs;
 //static

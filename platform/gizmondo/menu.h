@@ -5,12 +5,15 @@
 
 extern char menuErrorMsg[40];
 
+void menu_init(void);
+void text_out16(int x, int y, const char *texto, ...);
 void menu_loop(void);
 int  menu_loop_tray(void);
 void menu_romload_prepare(const char *rom_name);
 void menu_romload_end(void);
 
+// TODO: add more?
 #define CONFIGURABLE_KEYS \
-	(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_A|GP2X_B|GP2X_X|GP2X_Y| \
-		GP2X_START|GP2X_SELECT|GP2X_L|GP2X_R|GP2X_PUSH|GP2X_VOL_UP|GP2X_VOL_DOWN)
+	(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_STOP|BTN_PLAY|BTN_FWD|BTN_REW| \
+		BTN_L|BTN_R)
 

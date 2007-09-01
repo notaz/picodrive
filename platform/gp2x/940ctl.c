@@ -14,8 +14,9 @@
 #include "gp2x.h"
 #include "emu.h"
 #include "menu.h"
-#include "asmutils.h"
 #include "mp3.h"
+#include "../common/arm_utils.h"
+#include "../common/menu.h"
 #include "../../Pico/PicoInt.h"
 #include "../../Pico/sound/mix.h"
 

@@ -118,6 +118,7 @@ void *blockcpy(void *dst, const void *src, size_t n);
 
 // Draw2.c
 // stuff below is optional
+extern unsigned char  *PicoDraw2FB;  // buffer for fasr renderer in format (8+320)x(8+224+8) (eights for borders)
 extern unsigned short *PicoCramHigh; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to use
 

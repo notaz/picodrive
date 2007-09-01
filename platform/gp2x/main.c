@@ -11,6 +11,7 @@
 
 #include "gp2x.h"
 #include "menu.h"
+#include "../common/menu.h"
 #include "emu.h"
 #include "940ctl.h"
 #include "version.h"

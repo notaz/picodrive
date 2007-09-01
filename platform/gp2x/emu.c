@@ -18,9 +18,9 @@
 #include "gp2x.h"
 #include "usbjoy.h"
 #include "menu.h"
-#include "asmutils.h"
+#include "../common/arm_utils.h"
+#include "../common/fonts.h"
 #include "cpuctrl.h"
-#include "fonts.h"
 
 #include <Pico/PicoInt.h>
 #include <Pico/Patch.h>
@@ -52,7 +52,7 @@ static int combo_keys = 0, combo_acts = 0;	// keys and actions which need button
 static int gp2x_old_gamma = 100;
 static unsigned char *movie_data = NULL;
 static int movie_size = 0;
-unsigned char *framebuff = 0;  // temporary buffer for alt renderer
+unsigned char *PicoDraw2FB = NULL;  // temporary buffer for alt renderer
 int state_slot = 0;
 int reset_timing = 0;
 int config_slot = 0, config_slot_current = 0;
@@ -389,10 +389,10 @@ static void emu_msg_tray_open(void);
 void emu_Init(void)
 {
 	// make temp buffer for alt renderer
-	framebuff = malloc((8+320)*(8+240+8));
-	if (!framebuff)
+	PicoDraw2FB = malloc((8+320)*(8+240+8));
+	if (!PicoDraw2FB)
 	{
-		printf("framebuff == 0\n");
+		printf("PicoDraw2FB == 0\n");
 	}
 
 	// make dirs for saves, cfgs, etc.
@@ -626,7 +626,7 @@ void emu_Deinit(void)
 		}
 	}
 
-	free(framebuff);
+	free(PicoDraw2FB);
 
 	PicoExit();
 
@@ -768,7 +768,7 @@ static void blit(const char *fps, const char *notice)
 			// feed new palette to our device
 			gp2x_video_setpalette(localPal, 0x40);
 		}
-		vidCpyM2((unsigned char *)gp2x_screen+320*8, framebuff+328*8);
+		vidCpyM2((unsigned char *)gp2x_screen+320*8, PicoDraw2FB+328*8);
 	} else if (!(emu_opt&0x80)) {
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal) {
@@ -1112,7 +1112,7 @@ void emu_forced_frame(void)
 		clearArea(1);
 	} else	vidCpyM2 = vidCpyM2_40col;
 
-	vidCpyM2((unsigned char *)gp2x_screen+320*8, framebuff+328*8);
+	vidCpyM2((unsigned char *)gp2x_screen+320*8, PicoDraw2FB+328*8);
 	vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 	gp2x_video_setpalette(localPal, 0x40);
 */

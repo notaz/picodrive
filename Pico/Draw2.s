@@ -8,7 +8,7 @@
 
 
 .extern Pico
-.extern framebuff
+.extern PicoDraw2FB
 
 @ define these constants in your include file:
 @ .equiv START_ROW, 		1
@@ -22,7 +22,7 @@
 BackFillFull:
     stmfd   sp!, {r4-r9,lr}
 
-    ldr     lr, =framebuff      @ lr=framebuff
+    ldr     lr, =PicoDraw2FB      @ lr=PicoDraw2FB
     ldr     lr, [lr]
     add     lr, lr, #328*8
 
@@ -394,7 +394,7 @@ DrawLayerFull:
     and     r4, r4, #7
     orr     lr, lr, r4, lsl #13   @ lr|=nametab_bits{3}<<13
 
-    ldr     r11, =framebuff       @ r11=framebuff
+    ldr     r11, =PicoDraw2FB     @ r11=PicoDraw2FB
     ldr     r11, [r11]
     sub     r4, r9, #(START_ROW<<24)
     mov     r4, r4, asr #24
@@ -572,7 +572,7 @@ DrawTilesFromCacheF:
     mov     r9, #0xff000000 @ r9=prevcode=-1
     mvn     r6, #0          @ r6=prevy=-1
 
-    ldr     r4, =framebuff  @ r4=framebuff
+    ldr     r4, =PicoDraw2FB  @ r4=PicoDraw2FB
     ldr     r4, [r4]
     ldr     r1, [r0], #4    @ read y offset
     mov     r7, #328
@@ -696,7 +696,7 @@ DrawWindowFull:
 
     mov     r9, #0xff000000       @ r9=prevcode=-1
 
-    ldr     r11, =framebuff       @ r11=scrpos
+    ldr     r11, =PicoDraw2FB     @ r11=scrpos
     ldr     r11, [r11]
     add     r11, r11, #328*8
     add     r11, r11, #8
@@ -896,7 +896,7 @@ DrawSpriteFull:
 
     ldr     r10, =(Pico+0x10000)  @ r10=Pico.vram
 
-    ldr     r11, =framebuff       @ r11=scrpos
+    ldr     r11, =PicoDraw2FB     @ r11=scrpos
     ldr     r11, [r11]
     sub     r1, r12, #(START_ROW*8)
     mov     r0, #328

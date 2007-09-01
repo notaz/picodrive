@@ -11,18 +11,21 @@
       .global DrZ80Run
       .global DrZ80Ver
 
-	  .equiv INTERRUPT_MODE,		0		;@0 = Use internal int handler, 1 = Use Mames int handler
-	  .equiv FAST_Z80SP,			1		;@0 = Use mem functions for stack pointer, 1 = Use direct mem pointer
-	  .equiv UPDATE_CONTEXT,	    0
-	  .equiv DRZ80_FOR_PICODRIVE,   1
+      .equiv INTERRUPT_MODE,        0	;@0 = Use internal int handler, 1 = Use Mames int handler
+      .equiv FAST_Z80SP,            1	;@0 = Use mem functions for stack pointer, 1 = Use direct mem pointer
+      .equiv UPDATE_CONTEXT,        0
+      .equiv DRZ80_FOR_PICODRIVE,   1
 
 .if INTERRUPT_MODE
-	  .extern Interrupt
+      .extern Interrupt
 .endif
 
 .if DRZ80_FOR_PICODRIVE
-	  .extern YM2612Read_
-	  .extern YM2612Read_940
+.include "port_config.s"
+      .extern YM2612Read_
+.if EXTERNAL_YM2612
+      .extern YM2612Read_940
+.endif
       .extern PicoRead8
       .extern Pico
       .extern z80_write
@@ -106,7 +109,6 @@ DrZ80Ver: .long 0x0001
 .text
 
 .if DRZ80_FOR_PICODRIVE
-.include "port_config.s"
 
 .macro YM2612Read_and_ret8
 	stmfd sp!,{r3,r12,lr}
