@@ -298,8 +298,7 @@ m_read8_rom4: @ 0x200000 - 0x27ffff, SRAM area
     strneb  r1, [r3, #0x11]
 m_read8_detected:
     tst     r1, #4          @ EEPROM read?
-    ldrne   r0, =SRAMReadEEPROM @ (1ci if ne)
-    bxne    r0
+    bne     SRAMReadEEPROM
 m_read8_noteeprom:
     tst     r1, #1
     beq     m_read8_nosram
@@ -373,10 +372,9 @@ m_read8_misc_io:
     ands    r0, r0, #0x1e
     beq     m_read8_misc_hwreg
     cmp     r0, #4
-    ldrle   r2, =PadRead
     movlt   r0, #0
     moveq   r0, #1
-    bxle    r2
+    ble     PadRead
     ldr     r3, =(Pico+0x22000)
     mov     r0, r0, lsr #1  @ other IO ports (Pico.ioports[a])
     ldrb    r0, [r3, r0]
@@ -391,15 +389,13 @@ m_read8_misc2:
     mov     r2,     #0xa10000 @ games also like to poll busreq,
     orr     r2, r2, #0x001100 @ so we'll try it now
     cmp     r0, r2
-    ldreq   r2, =z80ReadBusReq
-    bxeq    r2
+    beq     z80ReadBusReq
 
     and     r2, r0, #0xff0000 @ finally it might be
     cmp     r2,     #0xa00000 @ z80 area
     bne     m_read8_misc3
     tst     r0, #0x4000
-    ldreq   r2, =z80Read8     @ z80 RAM
-    bxeq    r2
+    beq     z80Read8          @ z80 RAM
     and     r2, r0, #0x6000
     cmp     r2, #0x4000
     mvnne   r0, #0
@@ -410,12 +406,11 @@ m_read8_misc2:
     tst     r1, #1
     beq     m_read8_fake_ym2612
     tst     r1, #0x200
-    ldreq   r2, =YM2612Read_
-    ldrne   r2, =YM2612Read_940
+    beq     YM2612Read_
+    b       YM2612Read_940
 .else
-    ldr     r2, =YM2612Read_
+    b       YM2612Read_
 .endif
-    bx      r2                @ ym2612
 
 m_read8_fake_ym2612:
     ldr     r3, =(Pico+0x22200)
@@ -917,22 +912,15 @@ m_write8_z80_bank_reg:
 m_write8_not_z80:
     and     r2, r0, #0xe70000
     cmp     r2, #0xc00000    @ VDP area?
-    bne     m_write8_misc4
+    bne     OtherWrite8      @ passthrough
     and     r2, r0, #0xf9
     cmp     r2, #0x11
-    bne     m_write8_misc4
+    bne     OtherWrite8
 m_write8_psg:
     ldr     r2, =PicoOpt
     mov     r0, r1
     ldr     r2, [r2]
     tst     r2, #2
     bxeq    lr
-    ldr     r2, =SN76496Write
-    bx      r2
-    
-
-m_write8_misc4:
-    @ passthrough
-    ldr     r2, =OtherWrite8
-    bx      r2
+    b       SN76496Write
 
