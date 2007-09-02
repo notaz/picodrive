@@ -40,8 +40,8 @@ m_read8_def_table:
     .long   m_read_null     @ 0xB80000 - 0xBFFFFF
     .long   m_read8_vdp     @ 0xC00000 - 0xC7FFFF
     .long   m_read8_vdp     @ 0xC80000 - 0xCFFFFF
-    .long   m_read_null     @ 0xD00000 - 0xD7FFFF
-    .long   m_read_null     @ 0xD80000 - 0xDFFFFF
+    .long   m_read8_vdp     @ 0xD00000 - 0xD7FFFF
+    .long   m_read8_vdp     @ 0xD80000 - 0xDFFFFF
     .long   m_read8_ram     @ 0xE00000 - 0xE7FFFF
     .long   m_read8_ram     @ 0xE80000 - 0xEFFFFF
     .long   m_read8_ram     @ 0xF00000 - 0xF7FFFF
@@ -73,9 +73,9 @@ m_read16_def_table:
     .long   m_read_null      @ 0xB00000 - 0xB7FFFF
     .long   m_read_null      @ 0xB80000 - 0xBFFFFF
     .long   m_read16_vdp     @ 0xC00000 - 0xC7FFFF
-    .long   m_read_null      @ 0xC80000 - 0xCFFFFF
-    .long   m_read_null      @ 0xD00000 - 0xD7FFFF
-    .long   m_read_null      @ 0xD80000 - 0xDFFFFF
+    .long   m_read16_vdp     @ 0xC80000 - 0xCFFFFF
+    .long   m_read16_vdp     @ 0xD00000 - 0xD7FFFF
+    .long   m_read16_vdp     @ 0xD80000 - 0xDFFFFF
     .long   m_read16_ram     @ 0xE00000 - 0xE7FFFF
     .long   m_read16_ram     @ 0xE80000 - 0xEFFFFF
     .long   m_read16_ram     @ 0xF00000 - 0xF7FFFF
@@ -107,9 +107,9 @@ m_read32_def_table:
     .long   m_read_null      @ 0xB00000 - 0xB7FFFF
     .long   m_read_null      @ 0xB80000 - 0xBFFFFF
     .long   m_read32_vdp     @ 0xC00000 - 0xC7FFFF
-    .long   m_read_null      @ 0xC80000 - 0xCFFFFF
-    .long   m_read_null      @ 0xD00000 - 0xD7FFFF
-    .long   m_read_null      @ 0xD80000 - 0xDFFFFF
+    .long   m_read32_vdp     @ 0xC80000 - 0xCFFFFF
+    .long   m_read32_vdp     @ 0xD00000 - 0xD7FFFF
+    .long   m_read32_vdp     @ 0xD80000 - 0xDFFFFF
     .long   m_read32_ram     @ 0xE00000 - 0xE7FFFF
     .long   m_read32_ram     @ 0xE80000 - 0xEFFFFF
     .long   m_read32_ram     @ 0xF00000 - 0xF7FFFF
@@ -284,31 +284,14 @@ m_read8_rom4: @ 0x200000 - 0x27ffff, SRAM area
     orr     r0, r0, #0x200000
     cmp     r0, r1
     bgt     m_read8_nosram
-    ldr     r1, [r2, #4]    @ SRam.start (1ci)
+    ldr     r1, [r2, #4]    @ SRam.start
     cmp     r0, r1
     blt     m_read8_nosram
-    ldrb    r1, [r3, #0x11] @ Pico.m.sram_reg (1ci)
-    sub     r12,r0, #0x200000
-    tst     r1, #0x10
-    bne     m_read8_detected
-    cmp     r12,#1
-    ble     m_read8_detected
-    tst     r1, #1
-    orrne   r1, r1, #0x10
-    strneb  r1, [r3, #0x11]
-m_read8_detected:
-    tst     r1, #4          @ EEPROM read?
-    bne     SRAMReadEEPROM
-m_read8_noteeprom:
-    tst     r1, #1
-    beq     m_read8_nosram
-    ldr     r3, [r2]        @ SRam.data
-    ldr     r2, [r2, #4]    @ SRam.start (1ci)
-    sub     r3, r3, r2
-    ldrb    r0, [r3, r0]
-    bx      lr
+    ldrb    r1, [r3, #0x11] @ Pico.m.sram_reg
+    tst     r1, #5
+    bne     SRAMRead
 m_read8_nosram:
-    ldr     r1, [r3, #4]    @ 1ci
+    ldr     r1, [r3, #4]    @ romsize
     cmp     r0, r1
     movgt   r0, #0
     bxgt    lr              @ bad location
@@ -499,22 +482,18 @@ m_read16_rom4: @ 0x200000 - 0x27ffff, SRAM area (NBA Live 95)
     orr     r0, r0, #0x200000
     cmp     r0, r1
     bgt     m_read16_nosram
-    ldrb    r1, [r3, #0x11] @ Pico.m.sram_reg (2ci)
-    tst     r1, #1
-    beq     m_read16_nosram
-    ldr     r1, [r2, #4]    @ SRam.start (1ci)
+    ldr     r1, [r2, #4]    @ SRam.start
     cmp     r0, r1
     blt     m_read16_nosram
-    ldr     r2, [r2]        @ SRam.data (1ci)
-    sub     r2, r2, r1
-    ldrh    r0, [r2, r0]    @ 2ci
-    and     r1, r0, #0xff
-    mov     r0, r0, lsr #8
-    orr     r0, r0, r1, lsl #8
-    bx      lr
-
+    ldrb    r1, [r3, #0x11] @ Pico.m.sram_reg
+    tst     r1, #5
+    beq     m_read16_nosram
+    stmfd   sp!,{lr}
+    bl      SRAMRead
+    orr     r0, r0, r0, lsl #8
+    ldmfd   sp!,{pc}
 m_read16_nosram:
-    ldr     r1, [r3, #4]    @ 1ci
+    ldr     r1, [r3, #4]    @ romsize
     cmp     r0, r1
     movgt   r0, #0
     bxgt    lr              @ bad location
@@ -573,7 +552,7 @@ m_read16_misc:
     b       OtherRead16
 
 m_read16_vdp:
-    tst     r0, #0x70000
+    tst     r0, #0x70000    @ if ((a&0xe700e0)==0xc00000)
     tsteq   r0, #0x000e0
     bxne    lr              @ invalid read
     bic     r0, r0, #1
@@ -631,26 +610,24 @@ m_read32_rom4: @ 0x200000 - 0x27ffff, SRAM area (does any game do long reads?)
     orr     r0, r0, #0x200000
     cmp     r0, r1
     bgt     m_read32_nosram
-    ldrb    r1, [r3, #0x11] @ Pico.m.sram_reg (2ci)
-    tst     r1, #1
-    beq     m_read32_nosram
-    ldr     r1, [r2, #4]    @ SRam.start (1ci)
+    ldr     r1, [r2, #4]    @ SRam.start
     cmp     r0, r1
     blt     m_read32_nosram
-    ldr     r2, [r2]        @ SRam.data (1ci)
-    sub     r2, r2, r1
-    ldrh    r0, [r2, r0]!   @ (1ci)
-    ldrh    r1, [r2, #2]
-    orr     r0, r0, r0, lsl #16
-    mov     r0, r0, ror #8
-    mov     r0, r0, lsl #16
-    orr     r0, r0, r1, lsr #8
-    and     r1, r1, #0xff
-    orr     r0, r0, r1, lsl #8
+    ldrb    r1, [r3, #0x11] @ Pico.m.sram_reg
+    tst     r1, #5
+    beq     m_read32_nosram
+    stmfd   sp!,{r0,lr}
+    bl      SRAMRead
+    ldmfd   sp!,{r1,lr}
+    stmfd   sp!,{r0,lr}
+    add     r0, r1, #2
+    bl      SRAMRead
+    ldmfd   sp!,{r1,lr}
+    orr     r0, r1, r0, lsl #16
+    orr     r0, r0, r0, lsl #8
     bx      lr
-
 m_read32_nosram:
-    ldr     r1, [r3, #4]    @ (1ci)
+    ldr     r1, [r3, #4]    @ romsize
     cmp     r0, r1
     movgt   r0, #0
     bxgt    lr              @ bad location

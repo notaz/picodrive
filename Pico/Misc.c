@@ -145,7 +145,7 @@ PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
 {
   unsigned int sreg = Pico.m.sram_reg, saddr = Pico.m.sram_addr, scyc = Pico.m.sram_cycle, ssa = Pico.m.sram_slave;
 
-  //dprintf("[%02x]", d);
+  //printf("EEPROM write %i\n", d&3);
   sreg |= saddr&0xc000; // we store word count in add reg: dw?a aaaa ...  (d=word count detected, w=words(0==use 2 words, else 1))
   saddr&=0x1fff;
 
@@ -154,11 +154,11 @@ PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
     if((sreg & 1) && !(d&1)) {
       // ..and SDA went low, means it's a start command, so clear internal addr reg and clock counter
       //dprintf("-start-");
-	  if(!(sreg&0x8000) && scyc >= 9) {
-	    if(scyc != 28) sreg |= 0x4000; // 1 word
+      if(!(sreg&0x8000) && scyc >= 9) {
+        if(scyc != 28) sreg |= 0x4000; // 1 word
         //dprintf("detected word count: %i", scyc==28 ? 2 : 1);
-		sreg |= 0x8000;
-	  }
+        sreg |= 0x8000;
+      }
       //saddr = 0;
       scyc = 0;
       sreg |= 8;
@@ -171,30 +171,30 @@ PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
   else if((sreg & 8) && !(sreg & 2) && (d&2)) {
     // we are started and SCL went high - next cycle
     scyc++; // pre-increment
-	if(sreg & 0x20) {
+    if(sreg & 0x20) {
       // X24C02+
-	  if((ssa&1) && scyc == 18) {
-	    scyc = 9;
-		saddr++; // next address in read mode
-		if(sreg&0x4000) saddr&=0xff; else saddr&=0x1fff; // mask
-	  }
-	  else if((sreg&0x4000) && scyc == 27) scyc = 18;
-	  else if(scyc == 36) scyc = 27;
-	} else {
-	  // X24C01
+      if((ssa&1) && scyc == 18) {
+        scyc = 9;
+        saddr++; // next address in read mode
+        if(sreg&0x4000) saddr&=0xff; else saddr&=0x1fff; // mask
+      }
+      else if((sreg&0x4000) && scyc == 27) scyc = 18;
+      else if(scyc == 36) scyc = 27;
+    } else {
+      // X24C01
       if(scyc == 18) {
         scyc = 9;  // wrap
         if(saddr&1) { saddr+=2; saddr&=0xff; } // next addr in read mode
-	  }
-	}
-	//dprintf("scyc: %i", scyc);
+      }
+    }
+    //dprintf("scyc: %i", scyc);
   }
   else if((sreg & 8) && (sreg & 2) && !(d&2)) {
     // we are started and SCL went low (falling edge)
     if(sreg & 0x20) {
-	  // X24C02+
-	  if(scyc == 9 || scyc == 18 || scyc == 27); // ACK cycles
-	  else if( (!(sreg&0x4000) && scyc > 27) || ((sreg&0x4000) && scyc > 18) ) {
+      // X24C02+
+      if(scyc == 9 || scyc == 18 || scyc == 27); // ACK cycles
+      else if( (!(sreg&0x4000) && scyc > 27) || ((sreg&0x4000) && scyc > 18) ) {
         if(!(ssa&1)) {
           // data write
           unsigned char *pm=SRam.data+saddr;
@@ -208,18 +208,18 @@ PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
       } else if(scyc > 9) {
         if(!(ssa&1)) {
           // we latch another addr bit
-		  saddr<<=1;
-		  if(sreg&0x4000) saddr&=0xff; else saddr&=0x1fff; // mask
-		  saddr|=d&1;
+          saddr<<=1;
+          if(sreg&0x4000) saddr&=0xff; else saddr&=0x1fff; // mask
+          saddr|=d&1;
           //if(scyc==17||scyc==26) dprintf("addr reg done: %x", saddr);
-		}
+        }
       } else {
-	    // slave address
-		ssa<<=1; ssa|=d&1;
+        // slave address
+        ssa<<=1; ssa|=d&1;
         //if(scyc==8) dprintf("slave done: %x", ssa);
       }
-	} else {
-	  // X24C01
+    } else {
+      // X24C01
       if(scyc == 9); // ACK cycle, do nothing
       else if(scyc > 9) {
         if(!(saddr&1)) {
@@ -237,7 +237,7 @@ PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
         saddr<<=1; saddr|=d&1; saddr&=0xff;
         //if(scyc==8) dprintf("addr done: %x", saddr>>1);
       }
-	}
+    }
   }
 
   sreg &= ~3; sreg |= d&3; // remember SCL and SDA
@@ -265,17 +265,17 @@ PICO_INTERNAL_ASM unsigned int SRAMReadEEPROM(void)
     // started and first command word received
     shift = 17-scyc;
     if(sreg & 0x20) {
-	  // X24C02+
+      // X24C02+
       if(ssa&1) {
         //dprintf("read: addr %02x, cycle %i, reg %02x", saddr, scyc, sreg);
-	    d = (SRam.data[saddr]>>shift)&1;
-	  }
-	} else {
-	  // X24C01
+        d = (SRam.data[saddr]>>shift)&1;
+      }
+    } else {
+      // X24C01
       if(saddr&1) {
-		d = (SRam.data[saddr>>1]>>shift)&1;
-	  }
-	}
+        d = (SRam.data[saddr>>1]>>shift)&1;
+      }
+    }
   }
   //else dprintf("r ack");
 

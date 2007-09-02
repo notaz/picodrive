@@ -214,8 +214,19 @@ void OtherWrite16(u32 a,u32 d)
     return;
   }
 
-  OtherWrite8End(a,  d>>8, 16);
-  OtherWrite8End(a+1,d&0xff, 16);
+  if (a >= SRam.start && a <= SRam.end) {
+    if ((a&0x16)==0x10) { // detected, not EEPROM, write not disabled
+      u8 *pm=(u8 *)(SRam.data-SRam.start+a);
+      *pm++=d>>8;
+      *pm++=d;
+      SRam.changed = 1;
+    }
+    else
+      SRAMWrite(a, d); // ??
+    return;
+  }
+  //OtherWrite8End(a,  d>>8, 16);
+  //OtherWrite8End(a+1,d&0xff, 16);
 }
 
 

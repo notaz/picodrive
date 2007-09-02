@@ -144,14 +144,49 @@ int PadRead(int i)
 
 
 #ifndef _ASM_MEMORY_C
-// address must already be checked
-static int SRAMRead(u32 a)
-{
-  u8 *d = SRam.data-SRam.start+a;
-  return (d[0]<<8)|d[1];
-}
+static
 #endif
+u32 SRAMRead(u32 a)
+{
+  unsigned int sreg = Pico.m.sram_reg;
+  if(!(sreg & 0x10) && (sreg & 1) && a > 0x200001) { // not yet detected SRAM
+    Pico.m.sram_reg|=0x10; // should be normal SRAM
+  }
+  if(sreg & 4) // EEPROM read
+    return SRAMReadEEPROM();
+  else // if(sreg & 1) // (sreg&5) is one of prerequisites
+    return *(u8 *)(SRam.data-SRam.start+a);
+}
 
+static void SRAMWrite(u32 a, u32 d)
+{
+  dprintf("sram_w: %06x, %08x @%06x", a&0xffffff, d, SekPc);
+  unsigned int sreg = Pico.m.sram_reg;
+  if(!(sreg & 0x10)) {
+    // not detected SRAM
+    if((a&~1)==0x200000) {
+      Pico.m.sram_reg|=4; // this should be a game with EEPROM (like NBA Jam)
+      SRam.start=0x200000; SRam.end=SRam.start+1;
+    }
+    Pico.m.sram_reg|=0x10;
+  }
+  if(sreg & 4) { // EEPROM write
+    if(SekCyclesDoneT()-lastSSRamWrite < 46) {
+      // just update pending state
+      SRAMUpdPending(a, d);
+    } else {
+      SRAMWriteEEPROM(sreg>>6); // execute pending
+      SRAMUpdPending(a, d);
+      lastSSRamWrite = SekCyclesDoneT();
+    }
+  } else if(!(sreg & 2)) {
+    u8 *pm=(u8 *)(SRam.data-SRam.start+a);
+    if(*pm != (u8)d) {
+      SRam.changed = 1;
+      *pm=(u8)d;
+    }
+  }
+}
 
 // for nonstandard reads
 #ifndef _ASM_MEMORY_C
@@ -237,32 +272,7 @@ static void OtherWrite8End(u32 a,u32 d,int realsize)
   //if(a==0x200000) dprintf("cc : %02x @ %06x [%i|%i]", d, SekPc, SekCyclesDoneT(), SekCyclesDone());
   //if(a==0x200001) dprintf("w8 : %02x @ %06x [%i]", d, SekPc, SekCyclesDoneT());
   if(a >= SRam.start && a <= SRam.end) {
-    dprintf("sram w%i: %06x, %08x @%06x", realsize, a&0xffffff, d, SekPc);
-    unsigned int sreg = Pico.m.sram_reg;
-    if(!(sreg & 0x10)) {
-      // not detected SRAM
-      if((a&~1)==0x200000) {
-        Pico.m.sram_reg|=4; // this should be a game with EEPROM (like NBA Jam)
-        SRam.start=0x200000; SRam.end=SRam.start+1;
-      }
-      Pico.m.sram_reg|=0x10;
-    }
-    if(sreg & 4) { // EEPROM write
-      if(SekCyclesDoneT()-lastSSRamWrite < 46) {
-        // just update pending state
-        SRAMUpdPending(a, d);
-      } else {
-        SRAMWriteEEPROM(sreg>>6); // execute pending
-        SRAMUpdPending(a, d);
-        lastSSRamWrite = SekCyclesDoneT();
-      }
-    } else if(!(sreg & 2)) {
-      u8 *pm=(u8 *)(SRam.data-SRam.start+a);
-      if(*pm != (u8)d) {
-        SRam.changed = 1;
-        *pm=(u8)d;
-      }
-    }
+    SRAMWrite(a, d);
     return;
   }
 
@@ -317,18 +327,9 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead8(u32 a)
 
 #if !(defined(EMU_C68K) && defined(EMU_M68K))
   // sram
-  if(a >= SRam.start && a <= SRam.end) {
-    unsigned int sreg = Pico.m.sram_reg;
-    if(!(sreg & 0x10) && (sreg & 1) && a > 0x200001) { // not yet detected SRAM
-      Pico.m.sram_reg|=0x10; // should be normal SRAM
-    }
-    if(sreg & 4) { // EEPROM read
-      d = SRAMReadEEPROM();
-      goto end;
-    } else if(sreg & 1) {
-      d = *(u8 *)(SRam.data-SRam.start+a);
-      goto end;
-    }
+  if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
+    d = SRAMRead(a);
+    goto end;
   }
 #endif
 
@@ -345,7 +346,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead8(u32 a)
   //if ((a&0xe0ffff)==0xe0a9ba+0x69c)
   //  dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 
-  //if(a==0x200001) dprintf("r8 : %02x @ %06x [%i]", d, SekPc, SekCyclesDoneT());
+  //if(a==0x200001||a==0x200000) printf("r8 : %02x [%06x] @ %06x [%i]\n", d, a, SekPc, SekCyclesDoneT());
   //dprintf("r8 : %06x,   %02x @%06x [%03i]", a&0xffffff, (u8)d, SekPc, Pico.m.scanline);
 #ifdef __debug_io
   dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
@@ -369,8 +370,9 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead16(u32 a)
 
 #if !(defined(EMU_C68K) && defined(EMU_M68K))
   // sram
-  if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg & 1)) {
+  if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
     d = SRAMRead(a);
+    d |= d<<8;
     goto end;
   }
 #endif
@@ -383,6 +385,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead16(u32 a)
   end:
   //if ((a&0xe0ffff)==0xe0AF0E+0x69c||(a&0xe0ffff)==0xe0A9A8+0x69c||(a&0xe0ffff)==0xe0A9AA+0x69c||(a&0xe0ffff)==0xe0A9AC+0x69c)
   //  dprintf("r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
+  //if(a==0x200000) printf("r16: %04x @ %06x [%i]\n", d, SekPc, SekCyclesDoneT());
 
 #ifdef __debug_io
   dprintf("r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
@@ -405,8 +408,9 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead32(u32 a)
   a&=0xfffffe;
 
   // sram
-  if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg & 1)) {
+  if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
     d = (SRAMRead(a)<<16)|SRAMRead(a+2);
+    d |= d<<8;
     goto end;
   }
 
@@ -416,6 +420,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead32(u32 a)
   d = (OtherRead16(a, 32)<<16)|OtherRead16(a+2, 32);
 
   end:
+  //if(a==0x200000) printf("r32: %08x @ %06x [%i]\n", d, SekPc, SekCyclesDoneT());
 #ifdef __debug_io
   dprintf("r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
 #endif
@@ -442,6 +447,7 @@ PICO_INTERNAL_ASM void CPU_CALL PicoWrite8(u32 a,u8 d)
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
   //if ((a&0xe0ffff)==0xe0a9ba+0x69c)
+  //if(a==0x200000||a==0x200001) printf("w8 : %02x [%06x] @ %06x [%i]\n", d, a, SekPc, SekCyclesDoneT());
   //  dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 
   if ((a&0xe00000)==0xe00000) { *(u8 *)(Pico.ram+((a^1)&0xffff))=d; return; } // Ram
@@ -462,6 +468,7 @@ void CPU_CALL PicoWrite16(u32 a,u16 d)
 #endif
   //if ((a&0xe0ffff)==0xe0AF0E+0x69c||(a&0xe0ffff)==0xe0A9A8+0x69c||(a&0xe0ffff)==0xe0A9AA+0x69c||(a&0xe0ffff)==0xe0A9AC+0x69c)
   //  dprintf("w16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
+  //if(a==0x200000) printf("w16: %04x @ %06x [%i]\n", d, SekPc, SekCyclesDoneT());
 
   if ((a&0xe00000)==0xe00000) { *(u16 *)(Pico.ram+(a&0xfffe))=d; return; } // Ram
   log_io(a, 16, 1);
@@ -478,6 +485,7 @@ static void CPU_CALL PicoWrite32(u32 a,u32 d)
 #if defined(EMU_C68K) && defined(EMU_M68K)
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
+  //if(a==0x200000) printf("w32: %08x @ %06x [%i]\n", d, SekPc, SekCyclesDoneT());
 
   if ((a&0xe00000)==0xe00000)
   {

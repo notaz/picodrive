@@ -678,6 +678,7 @@ char *debugString(void)
   dstrp+=strlen(dstrp);
   sprintf(dstrp, "scroll size: w: %i, h: %i  SRAM: %i; eeprom: %i\n", reg[0x10]&3, (reg[0x10]&0x30)>>4,
   	bit(Pico.m.sram_reg, 4), bit(Pico.m.sram_reg, 2)); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); dstrp+=strlen(dstrp);
   sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status);
   dstrp+=strlen(dstrp);
 #ifdef EMU_C68K
