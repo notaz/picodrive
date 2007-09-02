@@ -448,7 +448,7 @@ PICO_INTERNAL_ASM void CPU_CALL PicoWrite8(u32 a,u8 d)
   log_io(a, 8, 1);
 
   a&=0xffffff;
-  OtherWrite8(a,d,8);
+  OtherWrite8(a,d);
 }
 #endif
 

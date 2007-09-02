@@ -122,7 +122,7 @@ void SekRunPS(int cyc_m68k, int cyc_s68k);
 static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
 {
   int cycn, cycn_s68k, cyc_do;
-  int d_cm = 0, d_cs = 0, ex;
+  int ex;
   SekCycleAim+=cyc_m68k;
   SekCycleAimS68k+=cyc_s68k;
 
@@ -134,7 +134,6 @@ static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
   {
     ex = 0;
     cycn_s68k = (cycn + cycn/2 + cycn/8) >> 16;
-//fprintf(stderr, "%3i/%3i:  ", cycn>>16, cycn_s68k);
     if ((cyc_do = SekCycleAim-SekCycleCnt-(cycn>>16)) > 0) {
 #if defined(EMU_C68K)
       PicoCpu.cycles = cyc_do;
@@ -145,7 +144,6 @@ static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
       SekCycleCnt += (ex = m68k_execute(cyc_do));
 #endif
     }
-//fprintf(stderr, "%3i ", ex); d_cm += ex; ex = 0;
     if ((cyc_do = SekCycleAimS68k-SekCycleCntS68k-cycn_s68k) > 0) {
 #if defined(EMU_C68K)
       PicoCpuS68k.cycles = cyc_do;
@@ -156,10 +154,7 @@ static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
       SekCycleCntS68k += (ex = m68k_execute(cyc_do));
 #endif
     }
-//fprintf(stderr, "%3i\n", ex); d_cs += ex;
   }
-
-//fprintf(stderr, "==    end %3i/%3i    ==\n", d_cm, d_cs);
 }
 #endif
 

@@ -56,9 +56,7 @@ OBJS += ../../cpu/mz80/mz80.o
 
 # faked asm
 #DEFINC += -D_ASM_DRAW_C
-#DEFINC += -D_ASM_MEMORY_C
-#DEFINC += -D_ASM_YM2612_C
-OBJS += fakedasm.o
+#OBJS += fakedasm.o
 
 
 all: PicoDrive
@@ -100,7 +98,7 @@ PicoDrive : $(OBJS) ../gp2x/helix/helix_mp3_x86.a
 	@$(GCC) $(COPT_COMMON) $(DEFINC) -c $< -o $@ # -mtune=arm940t -DEXTERNAL_YM2612
 
 # faked asm
-../../Pico/Draw.o : ../../Pico/Draw.c
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -D_ASM_DRAW_C -c $< -o $@
+#../../Pico/Draw.o : ../../Pico/Draw.c
+#	@echo $<
+#	@$(GCC) $(COPT) $(DEFINC) -D_ASM_DRAW_C -c $< -o $@
 

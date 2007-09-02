@@ -23,7 +23,7 @@ extern int Scanline; // Scanline
 struct TileStrip
 {
   int nametab; // Position in VRAM of name table (for this tile line)
-  int line;    // Line number in pixels 0x000-0x3ff within the virtual tilemap 
+  int line;    // Line number in pixels 0x000-0x3ff within the virtual tilemap
   int hscroll; // Horizontal scroll value in pixels for the line
   int xmask;   // X-Mask (0x1f - 0x7f) for horizontal wraparound in the tilemap
   int *hc;     // cache for high tile codes and their positions
@@ -166,7 +166,7 @@ static void DrawStrip(struct TileStrip *ts, int sh)
       *ts->hc++ = cval; // cache it
       continue;
     }
-
+continue;
     if (code!=oldcode) {
       oldcode = code;
       // Get tile address/2:

@@ -643,7 +643,7 @@ static void PicoWriteM68k8(u32 a,u8 d)
     return;
   }
 
-  OtherWrite8(a,d,8);
+  OtherWrite8(a,d);
 }
 #endif
 
