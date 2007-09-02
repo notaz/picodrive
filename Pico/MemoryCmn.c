@@ -52,7 +52,7 @@ static
 u32 z80ReadBusReq(void)
 {
   u32 d=Pico.m.z80Run&1;
-  if (!d) {
+  if (!d && Pico.m.scanline != -1) {
     // needed by buggy Terminator (Sega CD)
     int stop_before = SekCyclesDone() - z80stopCycle;
     dprintf("stop before: %i", stop_before);
@@ -69,23 +69,25 @@ static
 void z80WriteBusReq(u32 d)
 {
   d&=1; d^=1;
-  if(!d) {
-    // this is for a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
-    if (Pico.m.z80Run) {
-      int lineCycles;
-      z80stopCycle = SekCyclesDone();
-      if (Pico.m.z80Run&2)
-           lineCycles=(488-SekCyclesLeft)&0x1ff;
-      else lineCycles=z80stopCycle-z80startCycle; // z80 was started at current line
-      if (lineCycles > 0 && lineCycles <= 488) {
-        dprintf("zrun: %i/%i cycles", lineCycles, (lineCycles>>1)-(lineCycles>>5));
-        lineCycles=(lineCycles>>1)-(lineCycles>>5);
-        z80_run(lineCycles);
+  if(Pico.m.scanline != -1)
+  {
+    if(!d) {
+      // this is for a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
+      if (Pico.m.z80Run) {
+        int lineCycles;
+        z80stopCycle = SekCyclesDone();
+        if (Pico.m.z80Run&2)
+             lineCycles=(488-SekCyclesLeft)&0x1ff;
+        else lineCycles=z80stopCycle-z80startCycle; // z80 was started at current line
+        if (lineCycles > 0 && lineCycles <= 488) {
+          dprintf("zrun: %i/%i cycles", lineCycles, (lineCycles>>1)-(lineCycles>>5));
+          lineCycles=(lineCycles>>1)-(lineCycles>>5);
+          z80_run(lineCycles);
+        }
       }
+    } else {
+      z80startCycle = SekCyclesDone();
     }
-  } else {
-    z80startCycle = SekCyclesDone();
-    //if(Pico.m.scanline != -1)
   }
   dprintf("set_zrun: %02x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), /*mz80GetRegisterValue(NULL, 0),*/ SekPc);
   Pico.m.z80Run=(u8)d;
@@ -110,7 +112,7 @@ u32 OtherRead16(u32 a, int realsize)
     goto end;
   }
 
-  // |=0x80 for Shadow of the Beast & Super Offroad; rotate fakes next fetched instruction for Time Killers
+  // rotate fakes next fetched instruction for Time Killers
   if (a==0xa11100) { // z80 busreq
     d=(z80ReadBusReq()<<8)|Pico.m.rotate++;
     dprintf("get_zrun: %04x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), SekPc);
@@ -183,6 +185,7 @@ void OtherWrite8(u32 a,u32 d)
   }
 #endif
   if ((a&0xe700e0)==0xc00000) {
+    d&=0xff;
     PicoVideoWrite(a,(u16)(d|(d<<8))); // Byte access gets mirrored
     return;
   }

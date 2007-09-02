@@ -458,18 +458,8 @@ static void PicoRunZ80Simple(int line_from, int line_to)
 {
   int line_from_r=line_from, line_to_r=line_to, line = line_from;
   int line_sample = Pico.m.pal ? 68 : 93;
-  extern const unsigned short vcounts[];
 
   if(!(PicoOpt&4) || Pico.m.z80Run == 0) { line_from_r = line_to_r; line_to_r = 0; }
-
-  if(z80startCycle != 0x01000000) {
-    line_from_r = vcounts[z80startCycle>>8]+1;
-    z80startCycle = 0x01000000;
-  }
-  if(z80stopCycle != 0x01000000) {
-    line_to_r = vcounts[z80stopCycle>>8]+1;
-    z80stopCycle = 0x01000000;
-  }
 
   if(PicoOpt&1) {
     // we have ym2612 enabled, so we have to run Z80 in lines, so we could update DAC and timers
