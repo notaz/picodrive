@@ -306,7 +306,7 @@ DrawLayer:
 
     tst     r9, #1<<31
     mov     r3, #0
-    orrne   r10,r10, #1<<23 @ r10=(cells<<24|sh<<23|hi_not_empty<<22|ty)
+    orrne   r10,r10, #1<<23 @ r10=(cells<<24|sh<<23|hi_not_empty<<22|had_output<<21|ty)
     movne   r3, #0x40       @ default to shadowed pal on sh mode
 
     mvn     r9, #0          @ r9=prevcode=-1
@@ -342,6 +342,7 @@ DrawLayer:
     beq     .DrawStrip_samecode @ we know stuff about this tile already
 
     mov     r9, r7          @ remember code
+    orr     r10, r10, #1<<21 @ seen non hi-prio tile
 
     movs    r2, r9, lsl #20 @ if (code&0x1000)
     mov     r2, r2, lsl #1
@@ -386,6 +387,20 @@ DrawLayer:
     strneb  r4, [r1], #1       @ have a remaining unaligned pixel?
     b       .dsloop_subr1
 
+.DrawStrip_hiprio_maybempt:
+    cmp     r7, r9
+    beq     .dsloop         @ must've been empty, otherwise we wouldn't get here
+    movs    r2, r7, lsl #20 @ if (code&0x1000)
+    mov     r2, r2, lsl #1
+    add     r2, r2, r10, lsl #17
+    mov     r2, r2, lsr #17
+    eorcs   r2, r2, #0x0e   @ if (code&0x1000) addr^=0xe;
+    ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
+    mov     r9, r7          @ remember code
+    tst     r2, r2
+    beq     .dsloop
+    orr     r10, r10, #1<<22
+
 .DrawStrip_hiprio:
     tst     r10, #0x00c00000
     beq     .DrawStrip_hiprio_maybempt
@@ -398,24 +413,14 @@ DrawLayer:
     mov     r0, #0xf
     b       .dsloop
 
-.DrawStrip_hiprio_maybempt:
-    cmp     r7, r9
-    beq     .dsloop         @ must've been empty, otherwise we wouldn't get here
-    movs    r2, r7, lsl #20 @ if (code&0x1000)
-    mov     r2, r2, lsl #1
-    add     r2, r2, r10, lsl #17
-    mov     r2, r2, lsr #17
-    eorcs   r2, r2, #0x0e   @ if (code&0x1000) addr^=0xe;
-    ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
-    mov     r9, r7          @ remember code
-    tst     r2, r2
-    orrne   r10, r10, #1<<22
-    bne     .DrawStrip_hiprio
-    b       .dsloop
-
 .dsloop_exit:
+    tst     r10, #1<<21 @ seen non hi-prio tile
+    ldreq   r1, =rendstatus
     mov     r0, #0
+    ldreq   r2, [r1]
     str     r0, [r6]    @ terminate the cache list
+    orreq   r2, r2, #0x40 @ had a layer with all hi-prio tiles
+    streq   r2, [r1]
 
     ldmfd   sp!, {r4-r11,lr}
     bx      lr
@@ -426,7 +431,7 @@ DrawLayer:
     rsb     r8, r3, #0
     mov     r8, r8, lsr #3        @ r8=tilex=(-ts->hscroll)>>3
     bic     r8, r8, #0xff000000
-    orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|tilex[15:0])
+    orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|had_output[24]|tilex[15:0])
 
     ldr     r4, =Scanline
     orr     r5, r1, r10, lsl #24
@@ -463,7 +468,7 @@ DrawLayer:
     add     r10,r10, #0x01000000
     and     r4, r10, #0x003f0000
     cmp     r4, r10, asr #8
-    ble     .dsloop_exit
+    ble     .dsloop_vs_exit
 
     @ calc offset and read tileline code to r7, also calc ty
     add     r7, lr, #0x012000
@@ -500,6 +505,7 @@ DrawLayer:
     beq     .DrawStrip_vs_samecode @ we know stuff about this tile already
 
     mov     r9, r7          @ remember code
+    orr     r8, r8, #1<<24  @ seen non hi-prio tile
 
     movs    r2, r9, lsl #20 @ if (code&0x1000)
     mov     r2, r2, lsl #1
@@ -570,6 +576,18 @@ DrawLayer:
     orrne   r10, r10, #1<<22
     bne     .DrawStrip_vs_hiprio
     b       .dsloop_vs
+
+.dsloop_vs_exit:
+    tst     r8, #1<<24 @ seen non hi-prio tile
+    ldreq   r1, =rendstatus
+    mov     r0, #0
+    ldreq   r2, [r1]
+    str     r0, [r6]    @ terminate the cache list
+    orreq   r2, r2, #0x40 @ had a layer with all hi-prio tiles
+    streq   r2, [r1]
+
+    ldmfd   sp!, {r4-r11,lr}
+    bx      lr
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -650,13 +668,14 @@ BackFill:
 DrawTilesFromCache:
     stmfd   sp!, {r4-r8,r11,lr}
 
-    mvn     r5, #0         @ r5=prevcode=-1
-    mov     r8, r1
-
     @ cache some stuff to avoid mem access
     ldr     r11,=HighCol
     ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
     mov     r12,#0xf
+
+    mvn     r5, #0         @ r5=prevcode=-1
+    movs    r8, r1
+    bne     .dtfc_check_rendflags
 
     @ scratch: r4, r7
 .dtfc_loop:
@@ -768,6 +787,45 @@ DrawTilesFromCache:
     streqb  r12,[r1,#7]
     mov     r12, #0xf
     b       .dtfc_loop
+
+@ check if we have detected layer covered with hi-prio tiles:
+.dtfc_check_rendflags:
+    ldr     r1, =rendstatus
+    ldr     r2, [r1]
+    tst     r2, #0xc0
+    beq     .dtfc_loop
+    mov     r8, #0          @ sh/hi mode off
+    tst     r2, #0x80
+    bne     .dtfc_loop      @ already processed
+    orr     r2, r2, #0x80
+    str     r2, [r1]
+
+    add     r1, r11,#8
+    mov     r3, #320/4
+    mov     r7, #0x80
+    orr     r7, r7, r7, lsl #8
+    orr     r7, r7, r7, lsl #16
+    mov     r6, #0x3f
+    orr     r6, r6, r6, lsl #8
+    orr     r6, r6, r6, lsl #16
+.dtfc_loop_shprep:
+    subs    r3, r3, #1
+    bmi     .dtfc_loop      @ done
+    ldr     r2, [r1]
+    tst     r2, r7
+    andeq   r2, r2, r6
+    streq   r2, [r1], #4
+    beq     .dtfc_loop_shprep
+    tst     r2,     #0x80000000
+    biceq   r2, r2, #0xc0000000
+    tst     r2,     #0x00800000
+    biceq   r2, r2, #0x00c00000
+    tst     r2,     #0x00008000
+    biceq   r2, r2, #0x0000c000
+    tst     r2,     #0x00000080
+    biceq   r2, r2, #0x000000c0
+    str     r2, [r1], #4
+    b       .dtfc_loop_shprep
 
 .pool
 

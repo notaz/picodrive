@@ -22,8 +22,8 @@ static int  HighCacheS[80+1];   // and sprites
 static int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
 char HighSprZ[320+8+8]; // Z-buffer for accurate sprites and shadow/hilight mode
                         // (if bit 7 == 0, sh caused by tile; if bit 6 == 0 pixel must be shadowed, else hilighted, if bit5 == 1)
-// lsb->msb: moved sprites, all window tiles don't use same priority, accurate sprites (copied from PicoOpt), interlace
-//           dirty sprites, sonic mode
+// lsb->msb: moved sprites, not all window tiles use same priority, accurate sprites (copied from PicoOpt), interlace
+//           dirty sprites, sonic mode, have layer with all hi prio tiles (mk3), layer sh/hi already processed
 int rendstatus;
 void *DrawLineDest=DefOutBuff; // pointer to dest buffer where to draw this line to
 int Scanline=0; // Scanline
@@ -316,6 +316,8 @@ static void DrawStrip(struct TileStrip *ts, int sh)
 
   // terminate the cache list
   *ts->hc = 0;
+  // if oldcode wasn't changed, it means all layer is hi priority
+  if (oldcode == -1) rendstatus|=0x40;
 }
 
 // this is messy
@@ -381,6 +383,7 @@ void DrawStripVSRam(struct TileStrip *ts, int plane)
 
   // terminate the cache list
   *ts->hc = 0;
+  if (oldcode == -1) rendstatus|=0x40;
 }
 #endif
 
@@ -578,33 +581,72 @@ static void DrawWindow(int tstart, int tend, int prio, int sh) // int *hcache
 
 static void DrawTilesFromCache(int *hc, int sh)
 {
-  int code, addr, zero, dx;
+  int code, addr, dx;
   int pal;
-  short blank=-1; // The tile we know is blank
 
   // *ts->hc++ = code | (dx<<16) | (ty<<25); // cache it
 
-  while((code=*hc++)) {
-    if(!sh && (short)code == blank) continue;
-
-    // Get tile address/2:
-    addr=(code&0x7ff)<<4;
-    addr+=(unsigned int)code>>25; // y offset into tile
-    dx=(code>>16)&0x1ff;
-    if(sh) {
-      unsigned char *zb = HighCol+dx;
-      if(!(*zb&0x80)) *zb&=0x3f; zb++; if(!(*zb&0x80)) *zb&=0x3f; zb++;
-      if(!(*zb&0x80)) *zb&=0x3f; zb++; if(!(*zb&0x80)) *zb&=0x3f; zb++;
-      if(!(*zb&0x80)) *zb&=0x3f; zb++; if(!(*zb&0x80)) *zb&=0x3f; zb++;
-      if(!(*zb&0x80)) *zb&=0x3f; zb++; if(!(*zb&0x80)) *zb&=0x3f; zb++;
+  if (sh && (rendstatus&0xc0))
+  {
+    if (!(rendstatus&0x80))
+    {
+      // as some layer has covered whole line with hi priority tiles,
+      // we can process whole line and then act as if sh/hi mode was off.
+      rendstatus|=0x80;
+      int c = 320/4, *zb = (int *)(HighCol+8);
+      while (c--)
+      {
+        int tmp = *zb;
+        if (!(tmp & 0x80808080)) *zb=tmp&0x3f3f3f3f;
+        else {
+          if(!(tmp&0x00000080)) tmp&=~0x000000c0; if(!(tmp&0x00008000)) tmp&=~0x0000c000;
+          if(!(tmp&0x00800000)) tmp&=~0x00c00000; if(!(tmp&0x80000000)) tmp&=~0xc0000000;
+          *zb=tmp;
+        }
+        zb++;
+      }
     }
+    sh = 0;
+  }
 
-    pal=((code>>9)&0x30);
+  if (sh)
+  {
+    while((code=*hc++)) {
+      unsigned char *zb;
+      // Get tile address/2:
+      addr=(code&0x7ff)<<4;
+      addr+=(unsigned int)code>>25; // y offset into tile
+      dx=(code>>16)&0x1ff;
+      zb = HighCol+dx;
+      if(!(*zb&0x80)) *zb&=0x3f; zb++; if(!(*zb&0x80)) *zb&=0x3f; zb++;
+      if(!(*zb&0x80)) *zb&=0x3f; zb++; if(!(*zb&0x80)) *zb&=0x3f; zb++;
+      if(!(*zb&0x80)) *zb&=0x3f; zb++; if(!(*zb&0x80)) *zb&=0x3f; zb++;
+      if(!(*zb&0x80)) *zb&=0x3f; zb++; if(!(*zb&0x80)) *zb&=0x3f; zb++;
 
-    if (code&0x0800) zero=TileFlip(dx,addr,pal);
-    else             zero=TileNorm(dx,addr,pal);
+      pal=((code>>9)&0x30);
 
-    if(zero) blank=(short)code;
+      if (code&0x0800) TileFlip(dx,addr,pal);
+      else             TileNorm(dx,addr,pal);
+    }
+  }
+  else
+  {
+    short blank=-1; // The tile we know is blank
+    while((code=*hc++)) {
+      int zero;
+      if((short)code == blank) continue;
+      // Get tile address/2:
+      addr=(code&0x7ff)<<4;
+      addr+=(unsigned int)code>>25; // y offset into tile
+      dx=(code>>16)&0x1ff;
+
+      pal=((code>>9)&0x30);
+
+      if (code&0x0800) zero=TileFlip(dx,addr,pal);
+      else             zero=TileNorm(dx,addr,pal);
+
+      if(zero) blank=(short)code;
+    }
   }
 }
 
@@ -1189,6 +1231,8 @@ static int DrawDisplay(int sh)
   int win=0,edge=0,hvwind=0;
   int maxw, maxcells;
 
+  rendstatus&=~0xc0;
+
   if(pvid->reg[12]&1) {
     maxw = 328; maxcells = 40;
   } else {
@@ -1235,6 +1279,15 @@ static int DrawDisplay(int sh)
   } else
     if(HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh);
   DrawAllSprites(HighCacheS, maxw, 1, sh);
+
+#if 0
+  {
+    int *c, a, b;
+    for (a = 0, c = HighCacheA; *c; c++, a++);
+    for (b = 0, c = HighCacheB; *c; c++, b++);
+    printf("%i:%03i: a=%i, b=%i\n", Pico.m.frame_count, Scanline, a, b);
+  }
+#endif
 
   return 0;
 }
