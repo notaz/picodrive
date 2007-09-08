@@ -58,7 +58,7 @@
  * MEMHANDLERS_NEED_CYCLES, or else Cyclone will keep reloading the same cycle
  * count and this will screw timing (if not cause a deadlock).
  */
-#define MEMHANDLERS_NEED_PC         0
+#define MEMHANDLERS_NEED_PC         1
 #define MEMHANDLERS_NEED_PREV_PC    0
 #define MEMHANDLERS_NEED_FLAGS      0
 #define MEMHANDLERS_NEED_CYCLES     1
@@ -133,8 +133,8 @@
 
 /*
  * When this option is enabled Cyclone will do two word writes instead of one
- * long write when handling MOVE.L with pre-decrementing destination, as described in
- * Bart Trzynadlowski's doc (http://www.trzy.org/files/68knotes.txt).
+ * long write when handling MOVE.L or MOVEM.L with pre-decrementing destination,
+ * as described in Bart Trzynadlowski's doc (http://www.trzy.org/files/68knotes.txt).
  * Enable this if you are emulating a 16 bit system.
  */
 #define SPLIT_MOVEL_PD              1

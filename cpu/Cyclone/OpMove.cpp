@@ -415,12 +415,21 @@ int OpMovem(int op)
   }
   else
   {
-    // if (size == 2 && decr && SPLIT_MOVEL_PD) we should do 2xWrite16 here
-    // (same as in movel.l ?, -(An)), but as this is not likely to be needed and
-    // we do not want the performance hit, we do single Write32 instead.
     ot("  ;@ Copy register to memory:\n",1<<size);
     ot("  ldr r1,[r7,r10] ;@ Load value from Dn/An\n");
-    EaWrite(6,1,ea,size,0x003f);
+#if SPLIT_MOVEL_PD
+    if (decr && size==2) { // -(An)
+      ot("  add r0,r6,#2\n");
+      EaWrite(0,1,ea,1,0x003f,0,0);
+      ot("  ldr r1,[r7,r10] ;@ Load value from Dn/An\n");
+      ot("  mov r0,r6\n");
+      EaWrite(0,1,ea,1,0x003f,1);
+    }
+    else
+#endif
+    {
+      EaWrite(6,1,ea,size,0x003f);
+    }
   }
 
   if (decr==0) ot("  add r6,r6,#%d ;@ Post-increment address\n",1<<size);

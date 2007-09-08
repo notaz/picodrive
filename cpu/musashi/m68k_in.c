@@ -7133,9 +7133,12 @@ M68KMAKE_OP(movem, 32, re, pd)
 		if(register_list & (1 << i))
 		{
 			ea -= 4;
+#if 0
 			m68ki_write_32(ea, REG_DA[15-i] ); // notaz Cyclone hack
-			//m68ki_write_16(ea+2, REG_DA[15-i] & 0xFFFF );
-			//m68ki_write_16(ea, (REG_DA[15-i] >> 16) & 0xFFFF );
+#else
+			m68ki_write_16(ea+2, REG_DA[15-i] & 0xFFFF );
+			m68ki_write_16(ea, (REG_DA[15-i] >> 16) & 0xFFFF );
+#endif
 			count++;
 		}
 	AY = ea;
