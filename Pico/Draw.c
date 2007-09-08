@@ -46,7 +46,7 @@ struct TileStrip
 void DrawWindow(int tstart, int tend, int prio, int sh);
 void BackFill(int reg7, int sh);
 void DrawSprite(int *sprite, int **hc, int sh);
-void DrawTilesFromCache(int *hc, int sh);
+void DrawTilesFromCache(int *hc, int sh, int rlim);
 void DrawSpritesFromCache(int *hc, int sh);
 void DrawLayer(int plane, int *hcache, int maxcells, int sh);
 void FinalizeLineBGR444(int sh);
@@ -579,7 +579,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh) // int *hcache
 
 // --------------------------------------------
 
-static void DrawTilesFromCache(int *hc, int sh)
+static void DrawTilesFromCache(int *hc, int sh, int rlim)
 {
   int code, addr, dx;
   int pal;
@@ -611,7 +611,7 @@ static void DrawTilesFromCache(int *hc, int sh)
 
   if (sh)
   {
-    while((code=*hc++)) {
+    while ((code=*hc++)) {
       unsigned char *zb;
       // Get tile address/2:
       addr=(code&0x7ff)<<4;
@@ -624,6 +624,7 @@ static void DrawTilesFromCache(int *hc, int sh)
       if(!(*zb&0x80)) *zb&=0x3f; zb++; if(!(*zb&0x80)) *zb&=0x3f; zb++;
 
       pal=((code>>9)&0x30);
+      if (rlim-dx < 0) goto last_cut_tile;
 
       if (code&0x0800) TileFlip(dx,addr,pal);
       else             TileNorm(dx,addr,pal);
@@ -632,7 +633,7 @@ static void DrawTilesFromCache(int *hc, int sh)
   else
   {
     short blank=-1; // The tile we know is blank
-    while((code=*hc++)) {
+    while ((code=*hc++)) {
       int zero;
       if((short)code == blank) continue;
       // Get tile address/2:
@@ -641,11 +642,48 @@ static void DrawTilesFromCache(int *hc, int sh)
       dx=(code>>16)&0x1ff;
 
       pal=((code>>9)&0x30);
+      if (rlim-dx < 0) goto last_cut_tile;
 
       if (code&0x0800) zero=TileFlip(dx,addr,pal);
       else             zero=TileNorm(dx,addr,pal);
 
-      if(zero) blank=(short)code;
+      if (zero) blank=(short)code;
+    }
+  }
+  return;
+
+last_cut_tile:
+  {
+    unsigned int t, pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
+    unsigned char *pd = HighCol+dx;
+    if (!pack) return;
+    if (code&0x0800)
+    {
+      switch (rlim-dx+8)
+      {
+        case 7: t=pack&0x00000f00; if (t) pd[6]=(unsigned char)(pal|(t>> 8)); // "break" is left out intentionally
+        case 6: t=pack&0x000000f0; if (t) pd[5]=(unsigned char)(pal|(t>> 4));
+        case 5: t=pack&0x0000000f; if (t) pd[4]=(unsigned char)(pal|(t    ));
+        case 4: t=pack&0xf0000000; if (t) pd[3]=(unsigned char)(pal|(t>>28));
+        case 3: t=pack&0x0f000000; if (t) pd[2]=(unsigned char)(pal|(t>>24));
+        case 2: t=pack&0x00f00000; if (t) pd[1]=(unsigned char)(pal|(t>>20));
+        case 1: t=pack&0x000f0000; if (t) pd[0]=(unsigned char)(pal|(t>>16));
+        default: break;
+      }
+    }
+    else
+    {
+      switch (rlim-dx+8)
+      {
+        case 7: t=pack&0x00f00000; if (t) pd[6]=(unsigned char)(pal|(t>>20));
+	case 6: t=pack&0x0f000000; if (t) pd[5]=(unsigned char)(pal|(t>>24));
+	case 5: t=pack&0xf0000000; if (t) pd[4]=(unsigned char)(pal|(t>>28));
+	case 4: t=pack&0x0000000f; if (t) pd[3]=(unsigned char)(pal|(t    ));
+	case 3: t=pack&0x000000f0; if (t) pd[2]=(unsigned char)(pal|(t>> 4));
+	case 2: t=pack&0x00000f00; if (t) pd[1]=(unsigned char)(pal|(t>> 8));
+	case 1: t=pack&0x0000f000; if (t) pd[0]=(unsigned char)(pal|(t>>12));
+	default: break;
+      }
     }
   }
 }
@@ -1246,23 +1284,23 @@ static int DrawDisplay(int sh)
   if (win&0x80) { if (Scanline>=edge) hvwind=1; }
   else          { if (Scanline< edge) hvwind=1; }
 
-  if(!hvwind) { // we might have a vertical window here
+  if (!hvwind) { // we might have a vertical window here
     win=pvid->reg[0x11];
     edge=win&0x1f;
-    if(win&0x80) {
-      if(!edge) hvwind=1;
+    if (win&0x80) {
+      if (!edge) hvwind=1;
       else if(edge < (maxcells>>1)) hvwind=2;
     } else {
-      if(!edge);
+      if (!edge);
       else if(edge < (maxcells>>1)) hvwind=2;
       else hvwind=1;
     }
   }
 
   DrawLayer(1, HighCacheB, maxcells, sh);
-  if(hvwind == 1)
+  if (hvwind == 1)
     DrawWindow(0, maxcells>>1, 0, sh); // HighCacheAW
-  else if(hvwind == 2) {
+  else if (hvwind == 2) {
     // ahh, we have vertical window
     DrawLayer(0, HighCacheA, (win&0x80) ? edge<<1 : maxcells, sh);
     DrawWindow((win&0x80) ? edge : 0, (win&0x80) ? maxcells>>1 : edge, 0, sh); // HighCacheW
@@ -1270,14 +1308,14 @@ static int DrawDisplay(int sh)
     DrawLayer(0, HighCacheA, maxcells, sh);
   DrawAllSprites(HighCacheS, maxw, 0, sh);
 
-  if(HighCacheB[0])  DrawTilesFromCache(HighCacheB, sh);
-  if(hvwind == 1)
+  if (HighCacheB[0]) DrawTilesFromCache(HighCacheB, sh, 328);
+  if (hvwind == 1)
     DrawWindow(0, maxcells>>1, 1, sh);
-  else if(hvwind == 2) {
-    if(HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh);
+  else if (hvwind == 2) {
+    if(HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, (win&0x80) ? edge<<4 : 0);
     DrawWindow((win&0x80) ? edge : 0, (win&0x80) ? maxcells>>1 : edge, 1, sh);
   } else
-    if(HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh);
+    if (HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, 328);
   DrawAllSprites(HighCacheS, maxw, 1, sh);
 
 #if 0

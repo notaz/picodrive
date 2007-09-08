@@ -69,7 +69,7 @@
     streqb  r4, [r1,#\offs]
 .endm
 
-@ TileNorm (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: register with helper pattern 0xf, touches r3 high bits
+@ TileNormShHP (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: register with helper pattern 0xf, touches r3 high bits
 .macro TileNormShHP
     TilePixelShHP 12, 0         @ #0x0000f000
     TilePixelShHP  8, 1         @ #0x00000f00
@@ -81,7 +81,7 @@
     TilePixelShHP 16, 7         @ #0x000f0000
 .endm
 
-@ TileFlip (r1=pdest, r2=pixels8, r3=pal) r4: scratch, pat: register with helper pattern 0xf
+@ TileFlipShHP (r1=pdest, r2=pixels8, r3=pal) r4: scratch, pat: register with helper pattern 0xf
 .macro TileFlipShHP
     TilePixelShHP 16, 0         @ #0x000f0000
     TilePixelShHP 20, 1         @ #0x00f00000
@@ -364,14 +364,15 @@ DrawLayer:
     beq     .DrawStrip_SingleColor @ tileline singlecolor 
 
     tst     r9, #0x0800
-    beq     .DrawStrip_TileNorm
+    bne     .DrawStrip_TileFlip
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r0: helper pattern
-    TileFlip r0
-    b       .dsloop
-
 .DrawStrip_TileNorm:
     TileNorm r0
+    b       .dsloop
+
+.DrawStrip_TileFlip:
+    TileFlip r0
     b       .dsloop
 
 .DrawStrip_SingleColor:
@@ -527,14 +528,15 @@ DrawLayer:
     beq     .DrawStrip_vs_SingleColor @ tileline singlecolor 
 
     tst     r9, #0x0800
-    beq     .DrawStrip_vs_TileNorm
+    bne     .DrawStrip_vs_TileFlip
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r0: helper pattern
-    TileFlip r0
-    b       .dsloop_vs
-
 .DrawStrip_vs_TileNorm:
     TileNorm r0
+    b       .dsloop_vs
+
+.DrawStrip_vs_TileFlip:
+    TileFlip r0
     b       .dsloop_vs
 
 .DrawStrip_vs_SingleColor:
@@ -663,7 +665,7 @@ BackFill:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-.global DrawTilesFromCache @ int *hc, int sh
+.global DrawTilesFromCache @ int *hc, int sh, int rlim
 
 DrawTilesFromCache:
     stmfd   sp!, {r4-r8,r11,lr}
@@ -674,7 +676,8 @@ DrawTilesFromCache:
     mov     r12,#0xf
 
     mvn     r5, #0         @ r5=prevcode=-1
-    movs    r8, r1
+    ands    r8, r1, #1
+    orr     r8, r8, r2, lsl #1
     bne     .dtfc_check_rendflags
 
     @ scratch: r4, r7
@@ -682,8 +685,8 @@ DrawTilesFromCache:
     ldr     r6, [r0], #4    @ read code
     movs    r1, r6, lsr #16 @ r1=dx;
     ldmeqfd sp!, {r4-r8,r11,pc} @ dx is never zero, this must be a terminator, return
-    bic     r1, r1, #0xfe00
-    add     r1, r11, r1     @ r1=pdest
+    bic     r4, r1, #0xfe00
+    add     r1, r11, r4     @ r1=pdest
 
     mov     r7, r6, lsl #16
     cmp     r5, r7, lsr #16
@@ -701,7 +704,10 @@ DrawTilesFromCache:
     ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
 
 .dtfc_samecode:
-    tst     r8, r8
+    rsbs    r4, r4, r8, lsr #1
+    bmi     .dtfc_cut_tile
+
+    tst     r8, #1
     bne     .dtfc_shadow
 
     tst     r2, r2
@@ -711,14 +717,15 @@ DrawTilesFromCache:
     beq     .dtfc_SingleColor @ tileline singlecolor 
 
     tst     r5, #0x0800
-    beq     .dtfc_TileNorm
+    bne     .dtfc_TileFlip
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
-    TileFlip r12
-    b       .dtfc_loop
-
 .dtfc_TileNorm:
     TileNorm r12
+    b       .dtfc_loop
+
+.dtfc_TileFlip:
+    TileFlip r12
     b       .dtfc_loop
 
 .dtfc_SingleColor:
@@ -742,14 +749,15 @@ DrawTilesFromCache:
     beq     .dtfc_SingleColor @ tileline singlecolor 
 
     tst     r5, #0x0800
-    beq     .dtfc_TileNormShHP
+    bne     .dtfc_TileFlipShHP
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
-    TileFlipShHP
-    b       .dtfc_loop
-
 .dtfc_TileNormShHP:
     TileNormShHP
+    b       .dtfc_loop
+
+.dtfc_TileFlipShHP:
+    TileFlipShHP
     b       .dtfc_loop
 
 .dtfc_shadow_blank:
@@ -788,13 +796,32 @@ DrawTilesFromCache:
     mov     r12, #0xf
     b       .dtfc_loop
 
+.dtfc_cut_tile:
+    add     r4, r4, #7      @ 0-6
+    mov     r4, r4, lsl #2
+    mov     r12,#0xf<<28
+    mov     r12,r12,asr r4
+    mov     r2, r2, ror #16
+    tst     r5, #0x0800     @ flipped?
+    mvnne   r12,r12
+    and     r2, r2, r12
+    mov     r2, r2, ror #16
+    mov     r12,#0xf
+    tst     r8, #1
+    bne     .dtfc_shadow
+    tst     r2, r2
+    beq     .dtfc_loop
+    tst     r5, #0x0800
+    beq     .dtfc_TileNorm
+    b       .dtfc_TileFlip
+
 @ check if we have detected layer covered with hi-prio tiles:
 .dtfc_check_rendflags:
     ldr     r1, =rendstatus
     ldr     r2, [r1]
     tst     r2, #0xc0
     beq     .dtfc_loop
-    mov     r8, #0          @ sh/hi mode off
+    bic     r8, r8, #1      @ sh/hi mode off
     tst     r2, #0x80
     bne     .dtfc_loop      @ already processed
     orr     r2, r2, #0x80
@@ -903,14 +930,15 @@ DrawSpritesFromCache:
     beq     .dsfc_SingleColor @ tileline singlecolor 
 
     tst     r9, #0x10000
-    beq     .dsfc_TileNorm
+    bne     .dsfc_TileFlip
 
     @ TileFlip (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
-    TileFlip r12
-    b       .dsfc_inloop
-
 .dsfc_TileNorm:
     TileNorm r12
+    b       .dsfc_inloop
+
+.dsfc_TileFlip:
+    TileFlip r12
     b       .dsfc_inloop
 
 .dsfc_SingleColor:
@@ -931,14 +959,15 @@ DrawSpritesFromCache:
     beq     .dsfc_singlec_sh
 
     tst     r9, #0x10000
-    beq     .dsfc_TileNorm_sh
+    bne     .dsfc_TileFlip_sh
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
-    TileFlipSh
-    b       .dsfc_inloop
-
 .dsfc_TileNorm_sh:
     TileNormSh
+    b       .dsfc_inloop
+
+.dsfc_TileFlip_sh:
+    TileFlipSh
     b       .dsfc_inloop
 
 .dsfc_singlec_sh:
@@ -1047,15 +1076,16 @@ DrawSprite:
     beq     .dspr_SingleColor @ tileline singlecolor 
 
     tst     r9, #0x0800
-    beq     .dspr_TileNorm
+    bne     .dspr_TileFlip
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
-    TileFlip r12
-    b       .dspr_loop
-
 @ scratch: r4, r7
 .dspr_TileNorm:
     TileNorm r12
+    b       .dspr_loop
+
+.dspr_TileFlip:
+    TileFlip r12
     b       .dspr_loop
 
 .dspr_SingleColor:
@@ -1076,14 +1106,15 @@ DrawSprite:
     beq     .dspr_singlec_sh
 
     tst     r9, #0x0800
-    beq     .dspr_TileNorm_sh
+    bne     .dspr_TileFlip_sh
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
-    TileFlipSh
-    b       .dspr_loop
-
 .dspr_TileNorm_sh:
     TileNormSh
+    b       .dspr_loop
+
+.dspr_TileFlip_sh:
+    TileFlipSh
     b       .dspr_loop
 
 .dspr_singlec_sh:
@@ -1213,14 +1244,15 @@ DrawWindow:
     beq     .dw_SingleColor @ tileline singlecolor 
 
     tst     r9, #0x0800
-    beq     .dw_TileNorm
+    bne     .dw_TileFlip
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r0: helper pattern
-    TileFlip r0
-    b       .dwloop
-
 .dw_TileNorm:
     TileNorm r0
+    b       .dwloop
+
+.dw_TileFlip:
+    TileFlip r0
     b       .dwloop
 
 .dw_SingleColor:
