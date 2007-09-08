@@ -16,7 +16,6 @@
  * Mega Drive system. As VDP chip in these systems had control of the bus,
  * several instructions were acting differently, for example TAS did'n have
  * the write-back phase. That will be emulated, if this option is enabled.
- * This option also alters timing slightly.
  */
 #define CYCLONE_FOR_GENESIS         0
 

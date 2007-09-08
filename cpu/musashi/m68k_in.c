@@ -496,9 +496,9 @@ chk2cmp2  32  .     pcdi  0000010011111010  ..........  . . U U   .   .  23  23
 chk2cmp2  32  .     pcix  0000010011111011  ..........  . . U U   .   .  23  23
 chk2cmp2  32  .     .     0000010011......  A..DXWL...  . . U U   .   .  18  18
 clr        8  .     d     0100001000000...  ..........  U U U U   4   4   2   2
-clr        8  .     .     0100001000......  A+-DXWL...  U U U U   6   4   4   4  notaz hack: changed 000 cycles 8 -> 6 like in starscream for Fatal Rewind
+clr        8  .     .     0100001000......  A+-DXWL...  U U U U   8   4   4   4
 clr       16  .     d     0100001001000...  ..........  U U U U   4   4   2   2
-clr       16  .     .     0100001001......  A+-DXWL...  U U U U   6   4   4   4  notaz hack: ditto
+clr       16  .     .     0100001001......  A+-DXWL...  U U U U   8   4   4   4
 clr       32  .     d     0100001010000...  ..........  U U U U   6   6   2   2
 clr       32  .     .     0100001010......  A+-DXWL...  U U U U  12   6   4   4
 cmp        8  .     d     1011...000000...  ..........  U U U U   4   4   2   2

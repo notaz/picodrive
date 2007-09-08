@@ -16,7 +16,6 @@
  * Mega Drive system. As VDP chip in these systems had control of the bus,
  * several instructions were acting differently, for example TAS did'n have
  * the write-back phase. That will be emulated, if this option is enabled.
- * This option also alters timing slightly.
  */
 #define CYCLONE_FOR_GENESIS         2
 
@@ -58,7 +57,7 @@
  * MEMHANDLERS_NEED_CYCLES, or else Cyclone will keep reloading the same cycle
  * count and this will screw timing (if not cause a deadlock).
  */
-#define MEMHANDLERS_NEED_PC         1
+#define MEMHANDLERS_NEED_PC         0
 #define MEMHANDLERS_NEED_PREV_PC    0
 #define MEMHANDLERS_NEED_FLAGS      0
 #define MEMHANDLERS_NEED_CYCLES     1
