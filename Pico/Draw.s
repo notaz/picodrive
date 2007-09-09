@@ -211,9 +211,9 @@
 @   int cells;   // 0x14
 @ };
 
-@ int DrawLayer(int plane, int *hcache, int maxcells, int sh)
+@ void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
 
-.global DrawLayer @ int plane, int *hcache, int maxcells, int sh
+.global DrawLayer
 
 DrawLayer:
     stmfd   sp!, {r4-r11,lr}
@@ -221,10 +221,11 @@ DrawLayer:
     ldr     r11, =(Pico+0x22228)  @ Pico.video
     mov     r8, #1
 
-    ldrb    r7, [r11, #16]        @ ??hh??ww
+    ldrb    r7, [r11, #16]        @ ??vv??hh
 
     mov     r6, r1                @ hcache
-    orr     r9, r2, r3, lsl #31   @ r9=maxcells|(sh<<31)
+    orr     r9, r3, r0, lsl #30
+    orr     r9, r9, r2, lsl #8    @ r9=sh[31]|cellskip[15:8]|maxcells[7:0]  (tmp)
 
     mov     r1, r7, lsl #4
     orr     r1, r1, #0x00ff
@@ -244,7 +245,7 @@ DrawLayer:
     sub     r5, r5, #1            @ r5=xmask
 
     @ Find name table:
-    tst     r0,  r0
+    ands    r0,  r0, #1
     ldreqb  r12, [r11, #2]
     ldrneb  r12, [r11, #4]
 
@@ -309,10 +310,14 @@ DrawLayer:
     orrne   r10,r10, #1<<23 @ r10=(cells<<24|sh<<23|hi_not_empty<<22|had_output<<21|ty)
     movne   r3, #0x40       @ default to shadowed pal on sh mode
 
-    mvn     r9, #0          @ r9=prevcode=-1
-
     cmp     r7, #8
     addne   r10,r10, #0x01000000 @ we will loop cells+1 times if there is scroll
+
+    and     r9, r9, #0xff00
+    add     r8, r8, r9, lsr #8   @ tilex+=cellskip
+    add     r7, r7, r9, lsr #5   @ dx+=cellskip<<3;
+    sub     r10,r10,r9, lsl #16  @ cells-=cellskip
+    mvn     r9, #0               @ r9=prevcode=-1
 
     @ cache some stuff to avoid mem access
     ldr     r11,=HighCol
@@ -432,7 +437,7 @@ DrawLayer:
     rsb     r8, r3, #0
     mov     r8, r8, lsr #3        @ r8=tilex=(-ts->hscroll)>>3
     bic     r8, r8, #0xff000000
-    orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|had_output[24]|tilex[15:0])
+    orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|had_output[24]|tilex[23:0])
 
     ldr     r4, =Scanline
     orr     r5, r1, r10, lsl #24
@@ -443,23 +448,27 @@ DrawLayer:
     add     r7, r1, #1            @ r7=dx=((ts->hscroll-1)&7)+1
 
     mov     r10,r9, lsl #16
-    tst     r0, r0
+    tst     r0, #1
     orrne   r10,r10, #0x8000
     tst     r9, #1<<31
     mov     r3, #0
     orr     r10,r10, #0xff000000 @ will be adjusted on entering loop
-    orrne   r10,r10, #1<<23 @ r10=(cells[31:24]|sh[23]|hi_not_empty[22]|cells_max[21:16]|plane[15]|ty[14:0])
+    orrne   r10,r10, #1<<23 @ r10=(cell[31:24]|sh[23]|hi_not_empty[22]|cells_max[21:16]|plane[15]|ty[14:0])
     movne   r3, #0x40       @ default to shadowed pal on sh mode
 
-    mvn     r9, #0          @ r9=prevcode=-1
+    cmp     r7, #8
+    subne   r10,r10, #0x01000000 @ have hscroll, start with negative cell
+
+    and     r9, r9, #0xff00
+    add     r8, r8, r9, lsr #8   @ tilex+=cellskip
+    add     r7, r7, r9, lsr #5   @ dx+=cellskip<<3;
+    add     r10,r10,r9, lsl #16  @ cell+=cellskip
+    mvn     r9, #0               @ r9=prevcode=-1
 
     @ cache some stuff to avoid mem access
     ldr     r11,=HighCol
     mov     r0, #0xf
     add     r1, r11, r7         @ r1=pdest
-
-    cmp     r7, #8
-    subne   r10,r10, #0x01000000 @ have hscroll, start with negative cell
 
 
     @ r4 & r7 are scratch in this loop

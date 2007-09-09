@@ -48,7 +48,7 @@ void BackFill(int reg7, int sh);
 void DrawSprite(int *sprite, int **hc, int sh);
 void DrawTilesFromCache(int *hc, int sh, int rlim);
 void DrawSpritesFromCache(int *hc, int sh);
-void DrawLayer(int plane, int *hcache, int maxcells, int sh);
+void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
 void FinalizeLineBGR444(int sh);
 void FinalizeLineRGB555(int sh);
 void blockcpy_or(void *dst, void *src, size_t n, int pat);
@@ -271,20 +271,22 @@ static int TileFlipZSH(int sx,int addr,int pal,int zval)
 // --------------------------------------------
 
 #ifndef _ASM_DRAW_C
-static void DrawStrip(struct TileStrip *ts, int sh)
+static void DrawStrip(struct TileStrip *ts, int plane_sh, int cellskip)
 {
-  int tilex=0,dx=0,ty=0,code=0,addr=0,cells;
+  int tilex,dx,ty,code=0,addr=0,cells;
   int oldcode=-1,blank=-1; // The tile we know is blank
-  int pal=0;
+  int pal=0,sh;
 
   // Draw tiles across screen:
-  tilex=(-ts->hscroll)>>3;
+  sh=(plane_sh<<5)&0x40;
+  tilex=((-ts->hscroll)>>3)+cellskip;
   ty=(ts->line&7)<<1; // Y-Offset into tile
   dx=((ts->hscroll-1)&7)+1;
-  cells = ts->cells;
+  cells = ts->cells - cellskip;
   if(dx != 8) cells++; // have hscroll, need to draw 1 cell more
+  dx+=cellskip<<3;
 
-  for (; cells; dx+=8,tilex++,cells--)
+  for (; cells > 0; dx+=8,tilex++,cells--)
   {
     int zero=0;
 
@@ -304,8 +306,7 @@ static void DrawStrip(struct TileStrip *ts, int sh)
       addr+=ty;
       if (code&0x1000) addr^=0xe; // Y-flip
 
-//      pal=Pico.cram+((code>>9)&0x30);
-      pal=((code>>9)&0x30)|(sh<<6);
+      pal=((code>>9)&0x30)|sh;
     }
 
     if (code&0x0800) zero=TileFlip(dx,addr,pal);
@@ -321,34 +322,28 @@ static void DrawStrip(struct TileStrip *ts, int sh)
 }
 
 // this is messy
-void DrawStripVSRam(struct TileStrip *ts, int plane)
+void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
 {
-  int tilex=0,dx=0,ty=0,code=0,addr=0,cell=0,nametabadd=0;
+  int tilex,dx,code=0,addr=0,cell=0;
   int oldcode=-1,blank=-1; // The tile we know is blank
   int pal=0,scan=Scanline;
 
   // Draw tiles across screen:
   tilex=(-ts->hscroll)>>3;
   dx=((ts->hscroll-1)&7)+1;
-  if(dx != 8) {
-    int vscroll, line;
-    cell--; // have hscroll, start with negative cell
-    // also calculate intial VS stuff
-    vscroll=Pico.vsram[plane];
-
-    // Find the line in the name table
-    line=(vscroll+scan)&ts->line&0xffff; // ts->line is really ymask ..
-    nametabadd=(line>>3)<<(ts->line>>24);    // .. and shift[width]
-    ty=(line&7)<<1; // Y-Offset into tile
-  }
+  if(dx != 8) cell--; // have hscroll, start with negative cell
+  cell+=cellskip;
+  tilex+=cellskip;
+  dx+=cellskip<<3;
 
   for (; cell < ts->cells; dx+=8,tilex++,cell++)
   {
-    int zero=0;
+    int zero=0,nametabadd,ty;
 
-    if((cell&1)==0) {
+    //if((cell&1)==0)
+    {
       int line,vscroll;
-      vscroll=Pico.vsram[plane+(cell&~1)];
+      vscroll=Pico.vsram[(plane_sh&1)+(cell&~1)];
 
       // Find the line in the name table
       line=(vscroll+scan)&ts->line&0xffff; // ts->line is really ymask ..
@@ -371,8 +366,7 @@ void DrawStripVSRam(struct TileStrip *ts, int plane)
       addr=(code&0x7ff)<<4;
       if (code&0x1000) addr+=14-ty; else addr+=ty; // Y-flip
 
-//      pal=Pico.cram+((code>>9)&0x30);
-      pal=((code>>9)&0x30);
+      pal=((code>>9)&0x30)|((plane_sh<<5)&0x40);
     }
 
     if (code&0x0800) zero=TileFlip(dx,addr,pal);
@@ -440,7 +434,7 @@ void DrawStripInterlace(struct TileStrip *ts)
 // --------------------------------------------
 
 #ifndef _ASM_DRAW_C
-static void DrawLayer(int plane, int *hcache, int maxcells, int sh)
+static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells)
 {
   struct PicoVideo *pvid=&Pico.video;
   const char shift[4]={5,6,5,7}; // 32,64 or 128 sized tilemaps (2 is invalid)
@@ -463,20 +457,20 @@ static void DrawLayer(int plane, int *hcache, int maxcells, int sh)
   else if(width>1) ymask =0x0ff;
 
   // Find name table:
-  if (plane==0) ts.nametab=(pvid->reg[2]&0x38)<< 9; // A
-  else          ts.nametab=(pvid->reg[4]&0x07)<<12; // B
+  if (plane_sh&1) ts.nametab=(pvid->reg[4]&0x07)<<12; // B
+  else            ts.nametab=(pvid->reg[2]&0x38)<< 9; // A
 
   htab=pvid->reg[13]<<9; // Horizontal scroll table address
   if ( pvid->reg[11]&2)     htab+=Scanline<<1; // Offset by line
   if ((pvid->reg[11]&1)==0) htab&=~0xf; // Offset by tile
-  htab+=plane; // A or B
+  htab+=plane_sh&1; // A or B
 
   // Get horizontal scroll value, will be masked later
   ts.hscroll=Pico.vram[htab&0x7fff];
 
   if((pvid->reg[12]&6) == 6) {
     // interlace mode 2
-    vscroll=Pico.vsram[plane]; // Get vertical scroll value
+    vscroll=Pico.vsram[plane_sh&1]; // Get vertical scroll value
 
     // Find the line in the name table
     ts.line=(vscroll+(Scanline<<1))&((ymask<<1)|1);
@@ -487,15 +481,15 @@ static void DrawLayer(int plane, int *hcache, int maxcells, int sh)
     // shit, we have 2-cell column based vscroll
     // luckily this doesn't happen too often
     ts.line=ymask|(shift[width]<<24); // save some stuff instead of line
-    DrawStripVSRam(&ts, plane);
+    DrawStripVSRam(&ts, plane_sh, cellskip);
   } else {
-    vscroll=Pico.vsram[plane]; // Get vertical scroll value
+    vscroll=Pico.vsram[plane_sh&1]; // Get vertical scroll value
 
     // Find the line in the name table
     ts.line=(vscroll+Scanline)&ymask;
     ts.nametab+=(ts.line>>3)<<shift[width];
 
-    DrawStrip(&ts, sh);
+    DrawStrip(&ts, plane_sh, cellskip);
   }
 }
 
@@ -1297,22 +1291,22 @@ static int DrawDisplay(int sh)
     }
   }
 
-  DrawLayer(1, HighCacheB, maxcells, sh);
+  DrawLayer(1|(sh<<1), HighCacheB, 0, maxcells);
   if (hvwind == 1)
-    DrawWindow(0, maxcells>>1, 0, sh); // HighCacheAW
+    DrawWindow(0, maxcells>>1, 0, sh);
   else if (hvwind == 2) {
     // ahh, we have vertical window
-    DrawLayer(0, HighCacheA, (win&0x80) ? edge<<1 : maxcells, sh);
-    DrawWindow((win&0x80) ? edge : 0, (win&0x80) ? maxcells>>1 : edge, 0, sh); // HighCacheW
+    DrawLayer(0|(sh<<1), HighCacheA, (win&0x80) ?    0 : edge<<1, (win&0x80) ?     edge<<1 : maxcells);
+    DrawWindow(                      (win&0x80) ? edge :       0, (win&0x80) ? maxcells>>1 : edge, 0, sh);
   } else
-    DrawLayer(0, HighCacheA, maxcells, sh);
+    DrawLayer(0|(sh<<1), HighCacheA, 0, maxcells);
   DrawAllSprites(HighCacheS, maxw, 0, sh);
 
   if (HighCacheB[0]) DrawTilesFromCache(HighCacheB, sh, 328);
   if (hvwind == 1)
     DrawWindow(0, maxcells>>1, 1, sh);
   else if (hvwind == 2) {
-    if(HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, (win&0x80) ? edge<<4 : 0);
+    if(HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, (win&0x80) ? edge<<4 : 328);
     DrawWindow((win&0x80) ? edge : 0, (win&0x80) ? maxcells>>1 : edge, 1, sh);
   } else
     if (HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, 328);
