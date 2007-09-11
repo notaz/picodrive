@@ -194,7 +194,7 @@ static __inline void update_chips(void)
 		Pico_mcd->m.timer_int3 -= counter_timer;
 		if (Pico_mcd->m.timer_int3 < 0) {
 			if (Pico_mcd->s68k_regs[0x33] & (1<<3)) {
-				dprintf("s68k: timer irq 3");
+				elprintf(EL_INTS, "s68k: timer irq 3");
 				SekInterruptS68k(3);
 				Pico_mcd->m.timer_int3 += int3_set << 16;
 			}
@@ -319,7 +319,7 @@ static int PicoFrameHintsMCD(void)
 
     // Run scanline:
       //dprintf("m68k starting exec @ %06x", SekPc);
-    if (Pico.m.dma_bytes) SekCycleCnt+=CheckDMA();
+    if (Pico.m.dma_xfers) SekCycleCnt+=CheckDMA();
     if ((PicoOpt & 0x2000) && (Pico_mcd->m.busreq&3) == 1) {
       SekRunPS(cycles_68k, cycles_s68k); // "better/perfect sync"
     } else {

@@ -150,7 +150,7 @@ int OpMove(int op)
 
 #if CYCLONE_FOR_GENESIS && !MEMHANDLERS_CHANGE_CYCLES
   // this is a bit hacky
-  if ((tea==0x39||(tea&0x38)==0x10)&&size>=1)
+  if ((tea==0x39||(tea>=0x10&&tea<0x30))&&size>=1)
     ot("  ldr r5,[r7,#0x5c] ;@ Load Cycles\n");
 #endif
 

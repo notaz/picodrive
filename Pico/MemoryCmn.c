@@ -55,11 +55,14 @@ u32 z80ReadBusReq(void)
   if (!d && Pico.m.scanline != -1) {
     // needed by buggy Terminator (Sega CD)
     int stop_before = SekCyclesDone() - z80stopCycle;
-    dprintf("stop before: %i", stop_before);
-    if (stop_before > 0 && stop_before <= 32) // Gens uses 16 here
+    //elprintf(EL_BUSREQ, "get_zrun: stop before: %i", stop_before);
+    // note: if we use 20 or more here, Barkley Shut Up and Jam! will purposedly crash itself.
+    // TODO: CD Terminator
+    if (stop_before > 0 && stop_before < 20) // Gens uses 16 here
       d = 1; // bus not yet available
   }
   // |=0x80 for Shadow of the Beast & Super Offroad
+  elprintf(EL_BUSREQ, "get_zrun: %02x [%i] @%06x", d|0x80, SekCyclesDone(), SekPc);
   return d|0x80;
 }
 
@@ -69,7 +72,7 @@ static
 void z80WriteBusReq(u32 d)
 {
   d&=1; d^=1;
-  if(Pico.m.scanline != -1)
+  if (Pico.m.scanline != -1)
   {
     if(!d) {
       // this is for a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
@@ -80,16 +83,19 @@ void z80WriteBusReq(u32 d)
              lineCycles=(488-SekCyclesLeft)&0x1ff;
         else lineCycles=z80stopCycle-z80startCycle; // z80 was started at current line
         if (lineCycles > 0 && lineCycles <= 488) {
-          dprintf("zrun: %i/%i cycles", lineCycles, (lineCycles>>1)-(lineCycles>>5));
+          //dprintf("zrun: %i/%i cycles", lineCycles, (lineCycles>>1)-(lineCycles>>5));
           lineCycles=(lineCycles>>1)-(lineCycles>>5);
           z80_run(lineCycles);
         }
       }
     } else {
-      z80startCycle = SekCyclesDone();
+      if (!Pico.m.z80Run)
+        z80startCycle = SekCyclesDone();
+      else
+        d|=Pico.m.z80Run;
     }
   }
-  dprintf("set_zrun: %02x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), /*mz80GetRegisterValue(NULL, 0),*/ SekPc);
+  elprintf(EL_BUSREQ, "set_zrun: %i->%i [%i] @%06x", Pico.m.z80Run, d, SekCyclesDone(), SekPc);
   Pico.m.z80Run=(u8)d;
 }
 
@@ -115,7 +121,6 @@ u32 OtherRead16(u32 a, int realsize)
   // rotate fakes next fetched instruction for Time Killers
   if (a==0xa11100) { // z80 busreq
     d=(z80ReadBusReq()<<8)|Pico.m.rotate++;
-    dprintf("get_zrun: %04x [%i|%i] @%06x", d, Pico.m.scanline, SekCyclesDone(), SekPc);
     goto end;
   }
 
@@ -124,7 +129,7 @@ u32 OtherRead16(u32 a, int realsize)
     if ((a&0x6000)==0x4000) { // 0x4000-0x5fff, Fudge if disabled
       if(PicoOpt&1) d=YM2612Read();
       else d=Pico.m.rotate++&3;
-      dprintf("read ym2612: %04x", d);
+      elprintf(EL_YM2612R, "read ym2612: %02x", d);
       goto end;
     }
     d=0xffff;
@@ -214,6 +219,7 @@ void OtherWrite16(u32 a,u32 d)
     return;
   }
 
+#ifndef _CD_MEMORY_C
   if (a >= SRam.start && a <= SRam.end) {
     if ((a&0x16)==0x10) { // detected, not EEPROM, write not disabled
       u8 *pm=(u8 *)(SRam.data-SRam.start+a);
@@ -225,8 +231,10 @@ void OtherWrite16(u32 a,u32 d)
       SRAMWrite(a, d); // ??
     return;
   }
-  //OtherWrite8End(a,  d>>8, 16);
-  //OtherWrite8End(a+1,d&0xff, 16);
+#else
+  OtherWrite8End(a,  d>>8, 16);
+  OtherWrite8End(a+1,d&0xff, 16);
+#endif
 }
 
 

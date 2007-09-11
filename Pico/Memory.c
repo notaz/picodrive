@@ -81,7 +81,10 @@ static u32 CPU_CALL PicoCheckPc(u32 pc)
 //  pc&=0xfffffe;
   pc&=~1;
   if ((pc<<8) == 0)
+  {
+    printf("%i:%03i: game crash detected @ %06x\n", Pico.m.frame_count, Pico.m.scanline, SekPc);
     return (int)Pico.rom + Pico.romsize; // common crash condition, can happen if acc timing is off
+  }
 
   PicoCpu.membase=PicoMemBase(pc&0x00ffffff);
   PicoCpu.membase-=pc&0xff000000;
@@ -697,12 +700,14 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
     addr68k+=a&0x7fff;
 
     ret = (u8) PicoRead8(addr68k);
-    //dprintf("z80->68k w8 : %06x,   %02x", addr68k, ret);
+    elprintf(EL_Z80BNK, "z80->68k r8 [%06x] %02x", addr68k, ret);
     goto end;
   }
 
   // should not be needed || dprintf("z80_read RAM");
   if (a<0x4000) { ret = (u8) Pico.zram[a&0x1fff]; goto end; }
+
+  elprintf(EL_ANOMALY, "z80 invalid r8 [%06x] %02x", a, ret);
 
 end:
   return ret;
@@ -745,13 +750,15 @@ PICO_INTERNAL_ASM void z80_write(unsigned char data, unsigned short a)
     u32 addr68k;
     addr68k=Pico.m.z80_bank68k<<15;
     addr68k+=a&0x7fff;
+    elprintf(EL_Z80BNK, "z80->68k w8 [%06x] %02x", addr68k, data);
     PicoWrite8(addr68k, data);
-    //dprintf("z80->68k w8 : %06x,   %02x", addr68k, data);
     return;
   }
 
   // should not be needed, drZ80 knows how to access RAM itself || dprintf("z80_write RAM @ %08x", lr);
   if (a<0x4000) { Pico.zram[a&0x1fff]=data; return; }
+
+  elprintf(EL_ANOMALY, "z80 invalid w8 [%06x] %02x", a, data);
 }
 
 PICO_INTERNAL void z80_write16(unsigned short data, unsigned short a)

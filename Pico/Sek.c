@@ -46,17 +46,15 @@ static int (*ResetCallback)()=DoReset;
 static int SekIntAck(int level)
 {
   // try to emulate VDP's reaction to 68000 int ack
-  if     (level == 4) Pico.video.pending_ints  =  0;
-  else if(level == 6) Pico.video.pending_ints &= ~0x20;
+  if     (level == 4) { Pico.video.pending_ints  =  0;    elprintf(EL_INTS, "hack: @ %06x [%i]", SekPc, SekCycleCnt); }
+  else if(level == 6) { Pico.video.pending_ints &= ~0x20; elprintf(EL_INTS, "vack: @ %06x [%i]", SekPc, SekCycleCnt); }
   PicoCpu.irq = 0;
   return CYCLONE_INT_ACK_AUTOVECTOR;
 }
 
-static void SekResetAck()
+static void SekResetAck(void)
 {
-#if defined(__DEBUG_PRINT) || defined(WIN32)
-  dprintf("Reset encountered @ %06x", SekPc);
-#endif
+  elprintf(EL_ANOMALY, "Reset encountered @ %06x", SekPc);
 }
 
 static int SekUnrecognizedOpcode()
@@ -64,9 +62,7 @@ static int SekUnrecognizedOpcode()
   unsigned int pc, op;
   pc = SekPc;
   op = PicoCpu.read16(pc);
-#if defined(__DEBUG_PRINT) || defined(WIN32)
-  dprintf("Unrecognized Opcode %04x @ %06x", op, pc);
-#endif
+  elprintf(EL_ANOMALY, "Unrecognized Opcode %04x @ %06x", op, pc);
   // see if we are not executing trash
   if (pc < 0x200 || (pc > Pico.romsize+4 && (pc&0xe00000)!=0xe00000)) {
     PicoCpu.cycles = 0;
@@ -88,8 +84,8 @@ static int SekUnrecognizedOpcode()
 #ifdef EMU_M68K
 static int SekIntAckM68K(int level)
 {
-  if     (level == 4) { Pico.video.pending_ints  =  0;    dprintf("hack: [%i|%i]", Pico.m.scanline, SekCyclesDone()); }
-  else if(level == 6) { Pico.video.pending_ints &= ~0x20; dprintf("vack: [%i|%i]", Pico.m.scanline, SekCyclesDone()); }
+  if     (level == 4) { Pico.video.pending_ints  =  0;    elprintf(EL_INTS, "hack: @ %06x [%i]", SekPc, SekCycleCnt); }
+  else if(level == 6) { Pico.video.pending_ints &= ~0x20; elprintf(EL_INTS, "vack: @ %06x [%i]", SekPc, SekCycleCnt); }
   CPU_INT_LEVEL = 0;
   return M68K_INT_ACK_AUTOVECTOR;
 }

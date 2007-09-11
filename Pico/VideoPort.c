@@ -23,7 +23,7 @@ typedef unsigned int   u32;
 #endif
 
 
-static __inline void AutoIncrement()
+static __inline void AutoIncrement(void)
 {
   Pico.video.addr=(unsigned short)(Pico.video.addr+Pico.video.reg[0xf]);
 }
@@ -38,16 +38,16 @@ static void VideoWrite(u16 d)
             Pico.vram [(a>>1)&0x7fff]=d;
             rendstatus|=0x10; break;
     case 3: Pico.m.dirtyPal = 1;
-            //dprintf("w[%i] @ %04x, inc=%i [%i|%i]", Pico.video.type, a, Pico.video.reg[0xf], Pico.m.scanline, SekCyclesDone());
             Pico.cram [(a>>1)&0x003f]=d; break; // wraps (Desert Strike)
     case 5: Pico.vsram[(a>>1)&0x003f]=d; break;
+    default:elprintf(EL_ANOMALY, "VDP write %04x with bad type %i", d, Pico.video.type); break;
   }
 
   //dprintf("w[%i] @ %04x, inc=%i [%i|%i]", Pico.video.type, a, Pico.video.reg[0xf], Pico.m.scanline, SekCyclesDone());
   AutoIncrement();
 }
 
-static unsigned int VideoRead()
+static unsigned int VideoRead(void)
 {
   unsigned int a=0,d=0;
 
@@ -58,13 +58,14 @@ static unsigned int VideoRead()
     case 0: d=Pico.vram [a&0x7fff]; break;
     case 8: d=Pico.cram [a&0x003f]; break;
     case 4: d=Pico.vsram[a&0x003f]; break;
+    default:elprintf(EL_ANOMALY, "VDP read with bad type %i", Pico.video.type); break;
   }
 
   AutoIncrement();
   return d;
 }
 
-static int GetDmaLength()
+static int GetDmaLength(void)
 {
   struct PicoVideo *pvid=&Pico.video;
   int len=0;
@@ -87,12 +88,12 @@ static void DmaSlow(int len)
   source|=Pico.video.reg[0x16]<<9;
   source|=Pico.video.reg[0x17]<<17;
 
-  dprintf("DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%i|%i] @ %x",
+  elprintf(EL_VDPDMA, "DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%i] @ %06x",
     Pico.video.type, source, a, len, inc, (Pico.video.status&8)||!(Pico.video.reg[1]&0x40),
-    Pico.m.scanline, SekCyclesDone(), SekPc);
+    SekCyclesDone(), SekPc);
 
   if(Pico.m.scanline != -1) {
-    Pico.m.dma_bytes += len;
+    Pico.m.dma_xfers += len;
     if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCyclesBurn(CheckDMA());
     else SekSetCyclesLeftNoMCD(SekCyclesLeftNoMCD - CheckDMA());
   } else {
@@ -104,7 +105,7 @@ static void DmaSlow(int len)
     pd=(u16 *)(Pico.ram+(source&0xfffe));
     pdend=(u16 *)(Pico.ram+0x10000);
   } else if(PicoMCD & 1) {
-    dprintf("DmaSlow CD, r3=%02x", Pico_mcd->s68k_regs[3]);
+    elprintf(EL_VDPDMA, "DmaSlow CD, r3=%02x", Pico_mcd->s68k_regs[3]);
     if(source<0x20000) { // Bios area
       pd=(u16 *)(Pico_mcd->bios+(source&~1));
       pdend=(u16 *)(Pico_mcd->bios+0x20000);
@@ -118,17 +119,17 @@ static void DmaSlow(int len)
           int bank = Pico_mcd->s68k_regs[3]&1;
           pd=(u16 *)(Pico_mcd->word_ram1M[bank]+(source&0x1fffe));
           pdend=(u16 *)(Pico_mcd->word_ram1M[bank]+0x20000);
-	} else {
+        } else {
           DmaSlowCell(source, a, len, inc);
           return;
-	}
+        }
       }
     } else if ((source&0xfe0000)==0x020000) { // Prg Ram
       u8 *prg_ram = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
       pd=(u16 *)(prg_ram+(source&0x1fffe));
       pdend=(u16 *)(prg_ram+0x20000);
     } else {
-      dprintf("DmaSlow FIXME: unsupported src");
+      elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow FIXME: unsupported src");
       return;
     }
   } else {
@@ -136,7 +137,7 @@ static void DmaSlow(int len)
       pd=(u16 *)(Pico.rom+(source&~1));
       pdend=(u16 *)(Pico.rom+Pico.romsize);
     } else {
-      dprintf("DmaSlow: invalid dma src");
+      elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow: invalid dma src");
       return;
     }
   }
@@ -144,7 +145,7 @@ static void DmaSlow(int len)
   // overflow protection, might break something..
   if (len > pdend - pd) {
     len = pdend - pd;
-    dprintf("DmaSlow overflow");
+    elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow overflow");
   }
 
   switch (Pico.video.type)
@@ -203,6 +204,10 @@ static void DmaSlow(int len)
       }
       a=(a&0xff00)|a2;
       break;
+
+    default:
+      elprintf(EL_VDPDMA|EL_ANOMALY, "DMA with bad type %i", Pico.video.type);
+      break;
   }
   // remember addr
   Pico.video.addr=(u16)a;
@@ -215,9 +220,9 @@ static void DmaCopy(int len)
   unsigned char *vrs;
   unsigned char inc=Pico.video.reg[0xf];
   int source;
-  dprintf("DmaCopy len %i [%i|%i]", len, Pico.m.scanline, SekCyclesDone());
+  elprintf(EL_VDPDMA, "DmaCopy len %i [%i]", len, SekCyclesDone());
 
-  Pico.m.dma_bytes += len;
+  Pico.m.dma_xfers += len;
   if(Pico.m.scanline != -1)
     Pico.video.status|=2; // dma busy
 
@@ -249,9 +254,9 @@ static void DmaFill(int data)
   unsigned char inc=Pico.video.reg[0xf];
 
   len=GetDmaLength();
-  dprintf("DmaFill len %i inc %i [%i|%i]", len, inc, Pico.m.scanline, SekCyclesDone());
+  elprintf(EL_VDPDMA, "DmaFill len %i inc %i [%i]", len, inc, SekCyclesDone());
 
-  Pico.m.dma_bytes += len;
+  Pico.m.dma_xfers += len;
   if(Pico.m.scanline != -1)
     Pico.video.status|=2; // dma busy (in accurate mode)
 
@@ -278,7 +283,7 @@ static void DmaFill(int data)
   rendstatus|=0x10;
 }
 
-static void CommandDma()
+static void CommandDma(void)
 {
   struct PicoVideo *pvid=&Pico.video;
   int len=0,method=0;
@@ -292,7 +297,7 @@ static void CommandDma()
   if (method==3) DmaCopy(len); // VRAM Copy
 }
 
-static void CommandChange()
+static void CommandChange(void)
 {
   struct PicoVideo *pvid=&Pico.video;
   unsigned int cmd=0,addr=0;
@@ -306,7 +311,6 @@ static void CommandChange()
   addr =(cmd>>16)&0x3fff;
   addr|=(cmd<<14)&0xc000;
   pvid->addr=(unsigned short)addr;
-  //dprintf("addr set: %04x", addr);
 
   // Check for dma:
   if (cmd&0x80) CommandDma();
@@ -320,8 +324,10 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
 
   if (a==0x00) // Data port 0 or 2
   {
-    if (pvid->pending) CommandChange();
-    pvid->pending=0;
+    if (pvid->pending) {
+      CommandChange();
+      pvid->pending=0;
+    }
 
     // If a DMA fill has been set up, do it
     if ((pvid->command&0x80) && (pvid->reg[1]&0x10) && (pvid->reg[0x17]>>6)==2)
@@ -330,6 +336,18 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
     }
     else
     {
+      // preliminary FIFO emulation for Chaos Engine, The (E)
+      if(!(pvid->status&8) && (pvid->reg[1]&0x40) && Pico.m.scanline!=-1) // active display, accurate mode?
+      {
+        pvid->status&=~0x200; // FIFO no longer empty
+        pvid->lwrite_cnt++;
+        if (pvid->lwrite_cnt >= 4) pvid->status|=0x100; // FIFO full
+        if (pvid->lwrite_cnt >  4) {
+          SekCyclesBurn(32); // penalty // 488/12-8
+          if (SekCycleCnt>=SekCycleAim) SekEndRun(0);
+        }
+        elprintf(EL_ASVDP, "VDP data write: %04x {%i} #%i @ %06x", d, Pico.video.type, pvid->lwrite_cnt, SekPc);
+      }
       VideoWrite(d);
     }
     return;
@@ -337,7 +355,6 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
 
   if (a==0x04) // Control (command) port 4 or 6
   {
-    //dprintf("vdp cw(%04x), p=%i @ %06x [%i]", d, pvid->pending, SekPc, SekCyclesDone());
     if(pvid->pending)
     {
       // Low word of command:
@@ -350,16 +367,18 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
       {
         // Register write:
         int num=(d>>8)&0x1f;
-        if(num==00) dprintf("hint_onoff: %i->%i [%i|%i] pend=%i @ %06x", (pvid->reg[0]&0x10)>>4, (d&0x10)>>4, Pico.m.scanline, SekCyclesDone(), (pvid->pending_ints&0x10)>>4, SekPc);
-        if(num==01) dprintf("vint_onoff: %i->%i [%i|%i] pend=%i @ %06x", (pvid->reg[1]&0x20)>>5, (d&0x20)>>5, Pico.m.scanline, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
+        if(num==00) elprintf(EL_INTSW, "hint_onoff: %i->%i [%i] pend=%i @ %06x", (pvid->reg[0]&0x10)>>4,
+                        (d&0x10)>>4, SekCyclesDone(), (pvid->pending_ints&0x10)>>4, SekPc);
+        if(num==01) elprintf(EL_INTSW, "vint_onoff: %i->%i [%i] pend=%i @ %06x", (pvid->reg[1]&0x20)>>5,
+                        (d&0x20)>>5, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
         //if(num==01) dprintf("set_blank: %i @ %06x [%i|%i]", !((d&0x40)>>6), SekPc, Pico.m.scanline, SekCyclesDone());
-        //if(num==05) dprintf("spr_set: %i @ %06x [%i|%i]", (unsigned char)d, SekPc, Pico.m.scanline, SekCyclesDone());
         //if(num==10) dprintf("hint_set: %i @ %06x [%i|%i]", (unsigned char)d, SekPc, Pico.m.scanline, SekCyclesDone());
         pvid->reg[num]=(unsigned char)d;
 #if !(defined(EMU_C68K) && defined(EMU_M68K)) // not debugging Cyclone
         // update IRQ level (Lemmings, Wiz 'n' Liz intro, ... )
         // may break if done improperly:
-        // International Superstar Soccer Deluxe (crash), Street Racer (logos), Burning Force (gfx), Fatal Rewind (hang), Sesame Street Counting Cafe
+        // International Superstar Soccer Deluxe (crash), Street Racer (logos), Burning Force (gfx),
+        // Fatal Rewind (hang), Sesame Street Counting Cafe
         if(num < 2) {
 #ifdef EMU_C68K
           // hack: make sure we do not touch the irq line if Cyclone is just about to take the IRQ
@@ -400,6 +419,7 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
 
   a&=0x1c;
 
+
   if (a==0x00) // data port
   {
     d=VideoRead();
@@ -408,15 +428,18 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
 
   if (a==0x04) // control port
   {
-    d=Pico.video.status;
-    if(PicoOpt&0x10) d|=0x0020; // sprite collision (Shadow of the Beast)
-    if(Pico.m.rotate++&8) d|=0x0100; else d|=0x0200; // Toggle fifo full empty (who uses that stuff?)
-    if(!(Pico.video.reg[1]&0x40)) d|=0x0008; // set V-Blank if display is disabled
-    if(SekCyclesLeft < 84+4)      d|=0x0004; // H-Blank (Sonic3 vs)
-    // dprintf("sr_read %04x @ %06x [%i|%i]", d, SekPc, Pico.m.scanline, SekCyclesDone());
+    struct PicoVideo *pv=&Pico.video;
+    d=pv->status;
+    if (PicoOpt&0x10)         d|=0x0020; // sprite collision (Shadow of the Beast)
+    if (!(pv->reg[1]&0x40))   d|=0x0008; // set V-Blank if display is disabled
+    if (SekCyclesLeft < 84+4) d|=0x0004; // H-Blank (Sonic3 vs)
 
-    Pico.video.pending=0; // ctrl port reads clear write-pending flag (Charles MacDonald)
+    d|=(pv->pending_ints&0x20)<<2; // V-int pending?
+    if (d&0x100) pv->status&=~0x100; // FIFO no longer full
 
+    pv->pending=0; // ctrl port reads clear write-pending flag (Charles MacDonald)
+
+    elprintf(EL_SR, "SR read: %04x @ %06x", d, SekPc);
     goto end;
   }
 
@@ -466,7 +489,7 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
       if (d&0xf00) d|= 1;
     }
 
-    dprintf("hv: %02x %02x (%i) @ %06x", hc, d, SekCyclesDone(), SekPc);
+    elprintf(EL_HVCNT, "hv: %02x %02x (%i) @ %06x", hc, d, SekCyclesDone(), SekPc);
     d&=0xff; d<<=8;
     d|=hc;
     goto end;

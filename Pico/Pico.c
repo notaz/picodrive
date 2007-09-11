@@ -10,7 +10,7 @@
 #include "PicoInt.h"
 #include "sound/ym2612.h"
 
-int PicoVer=0x0110;
+int PicoVer=0x0133;
 struct Pico Pico;
 int PicoOpt=0; // disable everything by default
 int PicoSkipFrame=0; // skip rendering frame?
@@ -38,7 +38,6 @@ int PicoInit(void)
 
   PicoInitMCD();
 
-  // notaz: sram
   SRam.data=0;
   SRam.resize=1;
 
@@ -52,7 +51,6 @@ void PicoExit(void)
     PicoExitMCD();
   z80_exit();
 
-  // notaz: sram
   if(SRam.data) free(SRam.data); SRam.data=0;
 }
 
@@ -151,8 +149,6 @@ int PicoReset(int hard)
     return 0;
   }
 
-
-  // notaz: sram
   if(SRam.resize) {
     int sram_size = 0;
     if(SRam.data) free(SRam.data); SRam.data=0;
@@ -160,7 +156,7 @@ int PicoReset(int hard)
 
     if(*(Pico.rom+0x1B1) == 'R' && *(Pico.rom+0x1B0) == 'A') {
       if(*(Pico.rom+0x1B2) & 0x40) {
-        // EEPROM SRAM
+        // EEPROM
         // what kind of EEPROMs are actually used? X24C02? X24C04? (X24C01 has only 128), but we will support up to 8K
         SRam.start = PicoRead32(0x1B4) & ~1; // zero address is used for clock by some games
         SRam.end   = PicoRead32(0x1B8);
@@ -193,7 +189,7 @@ int PicoReset(int hard)
     // Dino Dini's Soccer malfunctions if SRAM is not filled with 0xff
     if (strncmp((char *)Pico.rom+0x150, "IDOND NI'I", 10) == 0)
       memset(SRam.data, 0xff, sram_size);
-    dprintf("sram: det: %i; eeprom: %i; start: %06x; end: %06x\n",
+    elprintf(EL_STATUS, "sram: det: %i; eeprom: %i; start: %06x; end: %06x",
       (Pico.m.sram_reg>>4)&1, (Pico.m.sram_reg>>2)&1, SRam.start, SRam.end);
   }
 
@@ -203,48 +199,45 @@ int PicoReset(int hard)
   return 0;
 }
 
-static int dma_timings[] = {
+// dma2vram settings are just hacks to unglitch Legend of Galahad (needs <= 104 to work)
+// same for Outrunners (92-121, when active is set to 24)
+static const int dma_timings[] = {
 83,  167, 166,  83, // vblank: 32cell: dma2vram dma2[vs|c]ram vram_fill vram_copy
 102, 205, 204, 102, // vblank: 40cell:
-8,    16,  15,   8, // active: 32cell:
-9,    18,  17,   9  // ...
+16,   16,  15,   8, // active: 32cell:
+24,   18,  17,   9  // ...
 };
 
-static int dma_bsycles[] = {
-(488<<8)/83,  (488<<8)/167, (488<<8)/166, (488<<8)/83,
+static const int dma_bsycles[] = {
+(488<<8)/82,  (488<<8)/167, (488<<8)/166, (488<<8)/83,
 (488<<8)/102, (488<<8)/205, (488<<8)/204, (488<<8)/102,
-(488<<8)/8,   (488<<8)/16,  (488<<8)/15,  (488<<8)/8,
-(488<<8)/9,   (488<<8)/18,  (488<<8)/17,  (488<<8)/9
+(488<<8)/16,  (488<<8)/16,  (488<<8)/15,  (488<<8)/8,
+(488<<8)/24,  (488<<8)/18,  (488<<8)/17,  (488<<8)/9
 };
-
 
 PICO_INTERNAL int CheckDMA(void)
 {
-  int burn = 0, bytes_can = 0, dma_op = Pico.video.reg[0x17]>>6; // see gens for 00 and 01 modes
-  int bytes = Pico.m.dma_bytes;
+  int burn = 0, xfers_can, dma_op = Pico.video.reg[0x17]>>6; // see gens for 00 and 01 modes
+  int xfers = Pico.m.dma_xfers;
   int dma_op1;
 
   if(!(dma_op&2)) dma_op = (Pico.video.type==1) ? 0 : 1; // setting dma_timings offset here according to Gens
   dma_op1 = dma_op;
   if(Pico.video.reg[12] & 1) dma_op |= 4; // 40 cell mode?
   if(!(Pico.video.status&8)&&(Pico.video.reg[1]&0x40)) dma_op|=8; // active display?
-  bytes_can = dma_timings[dma_op];
-
-  if(bytes <= bytes_can) {
+  xfers_can = dma_timings[dma_op];
+  if(xfers <= xfers_can) {
     if(dma_op&2) Pico.video.status&=~2; // dma no longer busy
     else {
-      burn = bytes * dma_bsycles[dma_op] >> 8; // have to be approximate because can't afford division..
-      //SekCycleCnt-=Pico.m.dma_endcycles;
-      //Pico.m.dma_endcycles = 0;
+      burn = xfers * dma_bsycles[dma_op] >> 8; // have to be approximate because can't afford division..
     }
-    Pico.m.dma_bytes = 0;
+    Pico.m.dma_xfers = 0;
   } else {
     if(!(dma_op&2)) burn = 488;
-    Pico.m.dma_bytes -= bytes_can;
+    Pico.m.dma_xfers -= xfers_can;
   }
 
-  //SekCycleCnt+=burn;
-  dprintf("~Dma %i op=%i can=%i burn=%i [%i|%i]", Pico.m.dma_bytes, dma_op1, bytes_can, burn, Pico.m.scanline, SekCyclesDone());
+  elprintf(EL_VDPDMA, "~Dma %i op=%i can=%i burn=%i [%i]", Pico.m.dma_xfers, dma_op1, xfers_can, burn, SekCyclesDone());
   //dprintf("~aim: %i, cnt: %i", SekCycleAim, SekCycleCnt);
   return burn;
 }
@@ -253,9 +246,9 @@ static __inline void SekRun(int cyc)
 {
   int cyc_do;
   SekCycleAim+=cyc;
-  //dprintf("aim: %i, cnt: %i", SekCycleAim, SekCycleCnt);
+  //printf("aim: %i, cnt: %i\n", SekCycleAim, SekCycleCnt);
   if((cyc_do=SekCycleAim-SekCycleCnt) <= 0) return;
-  //dprintf("cyc_do: %i", cyc_do);
+  //printf("cyc_do: %i\n", cyc_do);
 #if   defined(EMU_C68K) && defined(EMU_M68K)
   // this means we do run-compare Cyclone vs Musashi
   SekCycleCnt+=CM_compareRun(cyc_do);
@@ -321,7 +314,6 @@ static __inline void getSamples(int y)
   static int curr_pos = 0;
 
   if(y == 224) {
-    //dprintf("sta%i: %i [%i]", (emustatus & 2), emustatus, y);
     if(emustatus & 2)
          curr_pos += sound_render(curr_pos, PsndLen-PsndLen/2);
     else curr_pos  = sound_render(0, PsndLen);
@@ -337,7 +329,9 @@ static __inline void getSamples(int y)
   }
 }
 
-//extern UINT32 mz80GetRegisterValue(void *, UINT32);
+
+#if 1*0
+int vint_delay = 205/*68*/, as_delay = 18/*148*/;
 
 // Accurate but slower frame which does hints
 static int PicoFrameHints(void)
@@ -373,9 +367,18 @@ static int PicoFrameHints(void)
   hint=pv->reg[10]; // Load H-Int counter
   //dprintf("-hint: %i", hint);
 
+  //SekRun(as_delay);
+  SekRun(148);
+
   for (y=0;y<lines;y++)
   {
     Pico.m.scanline=(short)y;
+
+    // VDP FIFO
+    pv->lwrite_cnt -= 12;
+    if (pv->lwrite_cnt <  0) pv->lwrite_cnt=0;
+    if (pv->lwrite_cnt == 0)
+      Pico.video.status|=0x200;
 
     // pad delay (for 6 button pads)
     if(PicoOpt&0x20) {
@@ -389,24 +392,30 @@ static int PicoFrameHints(void)
       //dprintf("rhint:old @ %06x", SekPc);
       hint=pv->reg[10]; // Reload H-Int counter
       pv->pending_ints|=0x10;
-      if (pv->reg[0]&0x10) SekInterrupt(4);
-      //dprintf("rhint: %i @ %06x [%i|%i]", hint, SekPc, y, SekCycleCnt);
+      if (pv->reg[0]&0x10) {
+        elprintf(EL_INTS, "hint: @ %06x [%i]", SekPc, SekCycleCnt);
+        SekInterrupt(4);
+      }
       //dprintf("hint_routine: %x", (*(unsigned short*)(Pico.ram+0x0B84)<<16)|*(unsigned short*)(Pico.ram+0x0B86));
     }
 
     // V-Interrupt:
     if (y == lines_vis)
     {
-      dprintf("vint: @ %06x [%i|%i], aim=%i cnt=%i", SekPc, y, SekCycleCnt, SekCycleAim, SekCycleCnt);
       pv->status|=0x08; // go into vblank
-      if(!Pico.m.dma_bytes||(Pico.video.reg[0x17]&0x80)) {
+      //pv->status|=0x80; // V-Int happened
+      //if(!Pico.m.dma_bytes||(Pico.video.reg[0x17]&0x80)) {
         // there must be a gap between H and V ints, also after vblank bit set (Mazin Saga, Bram Stoker's Dracula)
-        SekRun(128); SekCycleAim-=128; // 128; ?
-      }
-      dprintf("[%i|%i], aim=%i cnt=%i @ %x", y, SekCycleCnt, SekCycleAim, SekCycleCnt, SekPc);
-      pv->status|=0x80; // V-Int happened
+        SekRun(68); SekCycleAim-=68; // 128; ?
+        SekCycleAim-=148;
+//       SekRun(vint_delay); SekCycleAim-=vint_delay; // 128; ?
+//	SekCycleAim-=as_delay;
+      //}
       pv->pending_ints|=0x20;
-      if(pv->reg[1]&0x20) SekInterrupt(6);
+      if(pv->reg[1]&0x20) {
+        elprintf(EL_INTS, "vint: @ %06x [%i]", SekPc, SekCycleCnt);
+        SekInterrupt(6);
+      }
       if(Pico.m.z80Run && (PicoOpt&4)) // ?
         z80_int();
       //dprintf("zint: [%i|%i] zPC=%04x", Pico.m.scanline, SekCyclesDone(), mz80GetRegisterValue(NULL, 0));
@@ -430,7 +439,7 @@ static int PicoFrameHints(void)
       getSamples(y);
 
     // Run scanline:
-    if (Pico.m.dma_bytes) SekCyclesBurn(CheckDMA());
+    if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
     SekRun(cycles_68k);
     if ((PicoOpt&4) && Pico.m.z80Run) {
       if (Pico.m.z80Run & 2) z80CycleAim+=cycles_z80;
@@ -452,6 +461,9 @@ static int PicoFrameHints(void)
 
   return 0;
 }
+#else
+#include "PicoFrameHints.c"
+#endif
 
 // helper z80 runner
 static void PicoRunZ80Simple(int line_from, int line_to)
@@ -483,12 +495,6 @@ static int PicoFrameSimple(void)
   int y=0,line=0,lines=0,lines_step=0,sects;
   int cycles_68k_vblock,cycles_68k_block;
 
-  // we don't emulate DMA timing in this mode
-  if (Pico.m.dma_bytes) {
-    Pico.m.dma_bytes=0;
-    Pico.video.status&=~2;
-  }
-
   if (Pico.m.pal) {
     // M68k cycles/frame: 152009.78
     if(pv->reg[1]&8) { // 240 lines
@@ -507,18 +513,25 @@ static int PicoFrameSimple(void)
     lines_step = 14;
   }
 
+  // we don't emulate DMA timing in this mode
+  if (Pico.m.dma_xfers) {
+    Pico.m.dma_xfers=0;
+    Pico.video.status&=~2;
+  }
+
+  // VDP FIFO too
+  pv->lwrite_cnt = 0;
+  Pico.video.status|=0x200;
+
   Pico.m.scanline=-1;
 
   SekCyclesReset();
-
-  if(PicoOpt&4)
-    z80_resetCycles();
 
   // 6 button pad: let's just say it timed out now
   Pico.m.padTHPhase[0]=Pico.m.padTHPhase[1]=0;
 
   // ---- Active Scan ----
-  pv->status&=~88; // clear V-Int, come out of vblank
+  pv->status&=~0x88; // clear V-Int, come out of vblank
 
   // Run in sections:
   for(sects=16; sects; sects--)
@@ -588,7 +601,7 @@ static int PicoFrameSimple(void)
   //dprintf("vint: @ %06x [%i]", SekPc, SekCycleCnt);
   pv->pending_ints|=0x20;
   if (pv->reg[1]&0x20) SekInterrupt(6); // Set IRQ
-  pv->status|=0x88; // V-Int happened / go into vblank
+  pv->status|=8; // go into vblank
   if(Pico.m.z80Run && (PicoOpt&4)) // ?
     z80_int();
 
@@ -724,7 +737,7 @@ char *debugString(void)
     code2 = sprite[1];
     sx = (code2>>16)&0x1ff;
 
-    dprintf("#%02i x: %03i y: %03i %ix%i", u, sx, sy, ((code>>26)&3)+1, height);
+    printf("#%02i x: %03i y: %03i %ix%i\n", u, sx, sy, ((code>>26)&3)+1, height);
 
     link=(code>>16)&0x7f;
     if(!link) break; // End of sprites

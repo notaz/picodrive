@@ -407,7 +407,7 @@ static void OtherWrite8End(u32 a, u32 d, int realsize)
   dprintf("m68k FIXME: strange w%i: [%06x], %08x @%06x", realsize, a&0xffffff, d, SekPc);
 }
 
-
+#define _CD_MEMORY_C
 #undef _ASM_MEMORY_C
 #include "../MemoryCmn.c"
 #include "cell_map.c"

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <gtk/gtk.h>
 
 #include <unistd.h>
@@ -98,22 +99,12 @@ static gint key_release_event (GtkWidget *widget, GdkEventKey *event)
 	return 0;
 }
 
-static void *gtk_threadf(void *none)
-{
-	gtk_main();
-
-	printf("linux: gtk thread finishing\n");
-	engineState = PGS_Quit;
-
-	return NULL;
-}
-
-static void gtk_initf(void)
+static void *gtk_threadf(void *targ)
 {
 	int argc = 0;
 	char *argv[] = { "" };
 	GtkWidget *box;
-	pthread_t gtk_thread;
+	sem_t *sem = targ;
 
 	g_thread_init (NULL);
 	gdk_threads_init ();
@@ -149,11 +140,27 @@ static void gtk_initf(void)
 
 	gtk_widget_show  (gtk_items.window);
 
-	// pthread_mutex_init (&thr_mutex, NULL);
-	// pthread_mutex_lock (&thr_mutex);
-	// pthread_mutex_init (&scanner_muttex, NULL);
+	sem_post(sem);
 
-	pthread_create(&gtk_thread, NULL, gtk_threadf, NULL);
+	gtk_main();
+
+	printf("linux: gtk thread finishing\n");
+	exit(1);
+
+	return NULL;
+}
+
+static void gtk_initf(void)
+{
+	pthread_t gtk_thread;
+	sem_t sem;
+	sem_init(&sem, 0, 0);
+
+	pthread_create(&gtk_thread, NULL, gtk_threadf, &sem);
+	pthread_detach(gtk_thread);
+
+	sem_wait(&sem);
+	sem_close(&sem);
 }
 
 void finalize_image(guchar *pixels, gpointer data)

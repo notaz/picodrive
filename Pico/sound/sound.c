@@ -310,11 +310,13 @@ static unsigned int DrZ80_rebaseSP(unsigned short a)
 
 static unsigned char DrZ80_in(unsigned short p)
 {
+  elprintf(EL_ANOMALY, "Z80 port %04x read", p);
   return 0xff;
 }
 
 static void DrZ80_out(unsigned short p,unsigned char d)
 {
+  elprintf(EL_ANOMALY, "Z80 port %04x write %02x", p, d);
 }
 
 static void DrZ80_irq_callback()
