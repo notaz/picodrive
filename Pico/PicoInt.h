@@ -101,7 +101,11 @@ extern int SekCycleCnt; // cycles done in this frame
 extern int SekCycleAim; // cycle aim
 extern unsigned int SekCycleCntT; // total cycle counter, updated once per frame
 
-#define SekCyclesReset() {SekCycleCntT+=SekCycleCnt;SekCycleCnt=SekCycleAim=0;}
+#define SekCyclesReset() { \
+	SekCycleCntT+=SekCycleAim; \
+	SekCycleCnt-=SekCycleAim; \
+	SekCycleAim=0; \
+}
 #define SekCyclesBurn(c)  SekCycleCnt+=c
 #define SekCyclesDone()  (SekCycleAim-SekCyclesLeft)    // nuber of cycles done in this frame (can be checked anywhere)
 #define SekCyclesDoneT() (SekCycleCntT+SekCyclesDone()) // total nuber of cycles done for this rom
@@ -136,18 +140,20 @@ extern int PicoMCD;
 
 // main oscillator clock which controls timing
 #define OSC_NTSC 53693100
-#define OSC_PAL  53203424 // not accurate
+// seems to be accurate, see scans from http://www.hot.ee/tmeeco/
+#define OSC_PAL  53203424
 
 struct PicoVideo
 {
   unsigned char reg[0x20];
-  unsigned int command; // 32-bit Command
-  unsigned char pending; // 1 if waiting for second half of 32-bit command
-  unsigned char type; // Command type (v/c/vsram read/write)
-  unsigned short addr; // Read/Write address
-  int status; // Status bits
+  unsigned int command;       // 32-bit Command
+  unsigned char pending;      // 1 if waiting for second half of 32-bit command
+  unsigned char type;         // Command type (v/c/vsram read/write)
+  unsigned short addr;        // Read/Write address
+  int status;                 // Status bits
   unsigned char pending_ints; // pending interrupts: ??VH????
-  unsigned char pad[0x13];
+  signed char lwrite_cnt;     // VDP write count during active display line
+  unsigned char pad[0x12];
 };
 
 struct PicoMisc
@@ -169,7 +175,7 @@ struct PicoMisc
   unsigned char sram_cycle;  // EEPROM SRAM cycle number
   unsigned char sram_slave;  // EEPROM slave word for X24C02 and better SRAMs
   unsigned char prot_bytes[2]; // simple protection faking
-  unsigned short dma_bytes;  //
+  unsigned short dma_xfers;
   unsigned char pad[2];
   unsigned int  frame_count; // mainly for movies
 };
@@ -375,6 +381,34 @@ PICO_INTERNAL void z80_exit(void);
 
 #ifdef __cplusplus
 } // End of extern "C"
+#endif
+
+// emulation event logging
+#ifndef EL_LOGMASK
+#define EL_LOGMASK 0
+#endif
+
+#define EL_HVCNT   0x0001 /* hv counter reads */
+#define EL_SR      0x0002 /* SR reads */
+#define EL_INTS    0x0004 /* ints and acks */
+#define EL_YM2612R 0x0008 /* 68k ym2612 reads */
+#define EL_INTSW   0x0010 /* log irq switching on/off */
+#define EL_ASVDP   0x0020 /* VDP accesses during active scan */
+#define EL_VDPDMA  0x0040 /* VDP DMA transfers and their timing */
+#define EL_BUSREQ  0x0080 /* z80 busreq r/w */
+#define EL_Z80BNK  0x0100 /* z80 i/o through bank area */
+
+#define EL_STATUS  0x4000 /* status messages */
+#define EL_ANOMALY 0x8000 /* some unexpected conditions */
+
+#if EL_LOGMASK
+#define elprintf(w,f,...) \
+{ \
+	if ((w) & EL_LOGMASK) \
+		printf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__); \
+}
+#else
+#define elprintf(w,f,...)
 #endif
 
 #endif // PICO_INTERNAL_INCLUDED
