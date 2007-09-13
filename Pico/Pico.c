@@ -495,21 +495,21 @@ static int PicoFrameSimple(void)
   int y=0,line=0,lines=0,lines_step=0,sects;
   int cycles_68k_vblock,cycles_68k_block;
 
-  if (Pico.m.pal) {
-    // M68k cycles/frame: 152009.78
+  // split to 16 run calls for active scan, for vblank split to 2 (ntsc), 3 (pal 240), 4 (pal 224)
+  if (Pico.m.pal && (pv->reg[1]&8)) { // 240 lines
     if(pv->reg[1]&8) { // 240 lines
-      cycles_68k_block  = (int) ((double) OSC_PAL  /  7 / 50 / 312 * 15 + 0.4); // 16 sects, 16*15=240, 7308
-      cycles_68k_vblock = (int) ((double) OSC_PAL  /  7 / 50 / 312 * 24 + 0.4); // 3 sects, 3*24=72, 35163?
+      cycles_68k_block  = 7329;  // (488*240+148)/16.0, -4
+      cycles_68k_vblock = 11640; // (72*488-148-68)/3.0, 0
       lines_step = 15;
     } else {
-      cycles_68k_block  = (int) ((double) OSC_PAL  /  7 / 50 / 312 * 14 + 0.4); // 16*14=224
-      cycles_68k_vblock = (int) ((double) OSC_PAL  /  7 / 50 / 312 * 22 + 0.4); // 4 sects, 4*22=88
+      cycles_68k_block  = 6841;  // (488*224+148)/16.0, -4
+      cycles_68k_vblock = 10682; // (88*488-148-68)/4.0, 0
       lines_step = 14;
     }
   } else {
     // M68k cycles/frame: 127840.71
-    cycles_68k_block  = (int) ((double) OSC_NTSC /  7 / 60 / 262 * 14 + 0.4); // 16*14=224, 6831
-    cycles_68k_vblock = (int) ((double) OSC_NTSC /  7 / 60 / 262 * 19 + 0.4); // 2 sects, 2*19=38, 18544
+    cycles_68k_block  = 6841; // (488*224+148)/16.0, -4
+    cycles_68k_vblock = 9164; // (38*488-148-68)/2.0, 0
     lines_step = 14;
   }
 
@@ -557,19 +557,20 @@ static int PicoFrameSimple(void)
   }
 
   // here we render sound if ym2612 is disabled
-  if(!(PicoOpt&1) && PsndOut) {
+  if (!(PicoOpt&1) && PsndOut) {
     int len = sound_render(0, PsndLen);
-    if(PicoWriteSound) PicoWriteSound(len);
+    if (PicoWriteSound) PicoWriteSound(len);
     // clear sound buffer
     sound_clear();
   }
 
   // render screen
-  if(!PicoSkipFrame) {
-    if(!(PicoOpt&0x10))
+  if (!PicoSkipFrame)
+  {
+    if (!(PicoOpt&0x10))
       // Draw the screen
 #if CAN_HANDLE_240_LINES
-      if(pv->reg[1]&8) {
+      if (pv->reg[1]&8) {
         for (y=0;y<240;y++) PicoLine(y);
       } else {
         for (y=0;y<224;y++) PicoLine(y);
@@ -579,6 +580,11 @@ static int PicoFrameSimple(void)
 #endif
     else PicoFrameFull();
   }
+
+  // a gap between flags set and vint
+  pv->pending_ints|=0x20;
+  pv->status|=8; // go into vblank
+  SekRun(68+4);
 
   // ---- V-Blanking period ----
   // fix line counts
@@ -598,14 +604,11 @@ static int PicoFrameSimple(void)
     lines_step = 19;
   }
 
-  //dprintf("vint: @ %06x [%i]", SekPc, SekCycleCnt);
-  pv->pending_ints|=0x20;
   if (pv->reg[1]&0x20) SekInterrupt(6); // Set IRQ
-  pv->status|=8; // go into vblank
-  if(Pico.m.z80Run && (PicoOpt&4)) // ?
+  if (Pico.m.z80Run && (PicoOpt&4))
     z80_int();
 
-  while(sects) {
+  while (sects) {
     lines += lines_step;
 
     SekRun(cycles_68k_vblock);
@@ -614,11 +617,11 @@ static int PicoFrameSimple(void)
     line=lines;
 
     sects--;
-    if(sects && CheckIdle()) break;
+    if (sects && CheckIdle()) break;
   }
 
   // run Z80 for remaining sections
-  if(sects) {
+  if (sects) {
     lines += sects*lines_step;
     PicoRunZ80Simple(line, lines);
   }

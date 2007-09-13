@@ -227,6 +227,13 @@ Symbian:
 
 Changelog
 ---------
+1.332
+  + Some new optimizations in memory handlers, and for shadow/hilight mode.
+  + Added some hacks to make more games work without enabling "accurate timing".
+  * Fixed hang of NBA Jam (ingame saves do not work though).
+  * Adjusted timing for "accurate timing" mode and added preliminary VDP FIFO
+    emulation. Fixes Double Dragon 2, tearing in Chaos Engine and some other games.
+
 1.33
   * Updated Cyclone core to 0.0088.
   + Added A r k's usbjoy fix.
