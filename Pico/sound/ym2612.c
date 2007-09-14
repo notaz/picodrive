@@ -1637,8 +1637,7 @@ void YM2612Init_(int clock, int rate)
 	ym2612_dacen = &ym2612.dacen;
 	ym2612_dacout = &ym2612.dacout;
 
-	/* clear everything but the regs */
-	memset(ym2612.CH, 0, sizeof(ym2612)-sizeof(ym2612.REGS)-4);
+	memset(&ym2612, 0, sizeof(ym2612));
 	init_tables();
 
 	ym2612.OPN.ST.clock = clock;
@@ -1654,8 +1653,11 @@ void YM2612ResetChip_(void)
 {
 	int i;
 
+	memset(ym2612.REGS, 0, sizeof(ym2612.REGS));
+
 	OPNSetPres( 6*24 );
 	set_timers( 0x30 ); /* mode 0 , timer reset */
+	ym2612.REGS[0x27] = 0x30;
 
 	ym2612.OPN.eg_timer = 0;
 	ym2612.OPN.eg_cnt   = 0;
@@ -1666,6 +1668,8 @@ void YM2612ResetChip_(void)
 	{
 		OPNWriteReg(i      ,0xc0);
 		OPNWriteReg(i|0x100,0xc0);
+		ym2612.REGS[i      ] = 0xc0;
+		ym2612.REGS[i|0x100] = 0xc0;
 	}
 	for(i = 0xb2 ; i >= 0x30 ; i-- )
 	{
@@ -1675,6 +1679,7 @@ void YM2612ResetChip_(void)
 	for(i = 0x26 ; i >= 0x20 ; i-- ) OPNWriteReg(i,0);
 	/* DAC mode clear */
 	ym2612.dacen = 0;
+	ym2612.addr_A1 = 0;
 }
 
 
@@ -1852,7 +1857,7 @@ int YM2612PicoTick_(int n)
 void YM2612PicoStateLoad_(void)
 {
 #ifndef EXTERNAL_YM2612
-	int i, old_A1 = ym2612.addr_A1;
+	int i, real_A1 = ym2612.addr_A1;
 
 	reset_channels( &ym2612.CH[0], 6 );
 
@@ -1861,12 +1866,13 @@ void YM2612PicoStateLoad_(void)
 		YM2612Write_(0, i);
 		YM2612Write_(1, ym2612.REGS[i]);
 	}
+
 	for(i = 0; i < 0x100; i++) {
 		YM2612Write_(2, i);
 		YM2612Write_(3, ym2612.REGS[i|0x100]);
 	}
 
-	ym2612.addr_A1 = old_A1;
+	ym2612.addr_A1 = real_A1;
 #else
 	reset_channels( &ym2612.CH[0], 6 );
 #endif

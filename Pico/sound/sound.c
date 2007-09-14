@@ -117,7 +117,7 @@ PICO_INTERNAL void sound_reset(void)
 // to be called after changing sound rate or chips
 void sound_rerate(int preserve_state)
 {
-  unsigned int state[28];
+  void *state = NULL;
   int target_fps = Pico.m.pal ? 50 : 60;
 
   // not all rates are supported in MCD mode due to mp3 decoder limitations
@@ -127,12 +127,16 @@ void sound_rerate(int preserve_state)
   }
 
   if (preserve_state) {
+    state = malloc(0x200);
+    if (state == NULL) return;
+    memcpy(state, YM2612GetRegs(), 0x200);
     if ((PicoMCD & 1) && Pico_mcd->m.audio_track)
       Pico_mcd->m.audio_offset = mp3_get_offset();
   }
   YM2612Init(Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7, PsndRate);
   if (preserve_state) {
     // feed it back it's own registers, just like after loading state
+    memcpy(YM2612GetRegs(), state, 0x200);
     YM2612PicoStateLoad();
     if ((PicoMCD & 1) && Pico_mcd->m.audio_track)
       mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
@@ -141,6 +145,9 @@ void sound_rerate(int preserve_state)
   if (preserve_state) memcpy(state, sn76496_regs, 28*4); // remember old state
   SN76496_init(Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15, PsndRate);
   if (preserve_state) memcpy(sn76496_regs, state, 28*4); // restore old state
+
+  if (state)
+    free(state);
 
   // calculate PsndLen
   PsndLen=PsndRate / target_fps;

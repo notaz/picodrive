@@ -18,6 +18,7 @@
 #include "../common/arm_utils.h"
 #include "../common/menu.h"
 #include "../../Pico/PicoInt.h"
+#include "../../Pico/sound/ym2612.h"
 #include "../../Pico/sound/mix.h"
 
 /* we will need some gp2x internals here */
@@ -51,11 +52,10 @@ static FILE *loaded_mp3 = 0;
 /* these will be managed locally on our side */
 extern int   *ym2612_dacen;
 extern INT32 *ym2612_dacout;
-extern void  *ym2612_regs;
-
 static UINT8 *REGS = 0;		/* we will also keep local copy of regs for savestates and such */
-static INT32 addr_A1;		/* address line A1      */
-static int	 dacen;
+static INT32 *addr_A1;		/* address line A1      */
+
+static int   dacen;
 static INT32 dacout;
 static UINT8 ST_address;	/* address register     */
 static UINT8 ST_status;		/* status flag          */
@@ -113,19 +113,19 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 
 	switch( a ) {
 	case 0:	/* address port 0 */
-		if (!addr_A1 && ST_address == v)
+		if (!*addr_A1 && ST_address == v)
 			return 0;	/* address already selected, don't send this command to 940 */
 		ST_address = v;
 		/* don't send DAC or timer related address changes to 940 */
-		if (!addr_A1 && (v & 0xf0) == 0x20 &&
+		if (!*addr_A1 && (v & 0xf0) == 0x20 &&
 			(v == 0x24 || v == 0x25 || v == 0x26 || v == 0x2a))
 				return 0;
-		addr_A1 = 0;
+		*addr_A1 = 0;
 		upd = 0;
 		break;
 
 	case 1:	/* data port 0    */
-		if (addr_A1 != 0) {
+		if (*addr_A1 != 0) {
 			return 0;	/* verified on real YM2608 */
 		}
 
@@ -184,15 +184,15 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 		break;
 
 	case 2:	/* address port 1 */
-		if (addr_A1 && ST_address == v)
+		if (*addr_A1 && ST_address == v)
 			return 0;
 		ST_address = v;
-		addr_A1 = 1;
+		*addr_A1 = 1;
 		upd = 0;
 		break;
 
 	case 3:	/* data port 1    */
-		if (addr_A1 != 1) {
+		if (*addr_A1 != 1) {
 			return 0;	/* verified on real YM2608 */
 		}
 
@@ -313,7 +313,7 @@ static void add_job_940(int job)
 
 void YM2612PicoStateLoad_940(void)
 {
-	int i, old_A1 = addr_A1;
+	int i, old_A1 = *addr_A1;
 
 	/* make sure JOB940_PICOSTATELOAD gets done before next JOB940_YM2612UPDATEONE */
 	add_job_940(JOB940_PICOSTATELOAD);
@@ -331,7 +331,7 @@ void YM2612PicoStateLoad_940(void)
 		YM2612Write_940(3, REGS[i|0x100]);
 	}
 
-	addr_A1 = old_A1;
+	*addr_A1 = old_A1;
 }
 
 
@@ -344,7 +344,9 @@ static void internal_reset(void)
 	ST_TAC    = 0;
 	ST_TB     = 0;
 	ST_TBC    = 0;
-	dacen = 0;
+	dacen     = 0;
+	dacout    = 0;
+	ST_address= 0;
 }
 
 
@@ -439,7 +441,11 @@ void YM2612Init_940(int baseclock, int rate)
 	memset(shared_data, 0, sizeof(*shared_data));
 	memset(shared_ctl,  0, sizeof(*shared_ctl));
 
+	/* cause local ym2612 to init REGS */
+	YM2612Init_(baseclock, rate);
+
 	REGS = YM2612GetRegs();
+	addr_A1 = (INT32 *) (REGS + 0x200);
 
 	ym2612_dacen  = &dacen;
 	ym2612_dacout = &dacout;

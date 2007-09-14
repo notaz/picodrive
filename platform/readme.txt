@@ -233,6 +233,7 @@ Changelog
   * Fixed hang of NBA Jam (ingame saves do not work though).
   * Adjusted timing for "accurate timing" mode and added preliminary VDP FIFO
     emulation. Fixes Double Dragon 2, tearing in Chaos Engine and some other games.
+  * Fixed a few games not having sound at startup.
 
 1.33
   * Updated Cyclone core to 0.0088.
