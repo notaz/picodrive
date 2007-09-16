@@ -199,7 +199,7 @@ PICO_INTERNAL int CheckDMA(void)
   return burn;
 }
 
-static __inline void SekRun(int cyc)
+static __inline void SekRunM68k(int cyc)
 {
   int cyc_do;
   SekCycleAim+=cyc;
@@ -496,7 +496,7 @@ static int PicoFrameSimple(void)
     if (CheckIdle()) break;
 
     lines += lines_step;
-    SekRun(cycles_68k_block);
+    SekRunM68k(cycles_68k_block);
 
     PicoRunZ80Simple(line, lines);
     line=lines;
@@ -541,7 +541,7 @@ static int PicoFrameSimple(void)
   // a gap between flags set and vint
   pv->pending_ints|=0x20;
   pv->status|=8; // go into vblank
-  SekRun(68+4);
+  SekRunM68k(68+4);
 
   // ---- V-Blanking period ----
   // fix line counts
@@ -568,7 +568,7 @@ static int PicoFrameSimple(void)
   while (sects) {
     lines += lines_step;
 
-    SekRun(cycles_68k_vblock);
+    SekRunM68k(cycles_68k_vblock);
 
     PicoRunZ80Simple(line, lines);
     line=lines;

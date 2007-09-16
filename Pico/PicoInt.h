@@ -119,7 +119,10 @@ extern unsigned int SekCycleCntT; // total cycle counter, updated once per frame
 extern int SekCycleCntS68k;
 extern int SekCycleAimS68k;
 
-#define SekCyclesResetS68k() {SekCycleCntS68k=SekCycleAimS68k=0;}
+#define SekCyclesResetS68k() { \
+	SekCycleCntS68k-=SekCycleAimS68k; \
+	SekCycleAimS68k=0; \
+}
 #define SekCyclesDoneS68k()  (SekCycleAimS68k-SekCyclesLeftS68k)
 
 // debug cyclone

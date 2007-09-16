@@ -151,7 +151,7 @@ int find_bios(int region, char **bios_file)
 
 /* checks if romFileName points to valid MegaCD image
  * if so, checks for suitable BIOS */
-int emu_cd_check(char **bios_file)
+int emu_cd_check(int *pregion)
 {
 	unsigned char buf[32];
 	pm_file *cd_f;
@@ -183,17 +183,9 @@ int emu_cd_check(char **bios_file)
 	printf("detected %s Sega/Mega CD image with %s region\n",
 		type == 2 ? "BIN" : "ISO", region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
 
-	if (PicoRegionOverride) {
-		region = PicoRegionOverride;
-		printf("overrided region to %s\n", region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
-	}
+	if (pregion != NULL) *pregion = region;
 
-	if (bios_file == NULL) return type;
-
-	if (find_bios(region, bios_file))
-		 return type;	// CD and BIOS detected
-
-	return -1;     		// CD detected but load failed
+	return type;
 }
 
 int emu_ReloadRom(void)
@@ -202,7 +194,7 @@ int emu_ReloadRom(void)
 	char *used_rom_name = romFileName;
 	char ext[5];
 	pm_file *rom;
-	int ret, cd_state;
+	int ret, cd_state, cd_region, cfg_loaded = 0;
 
 	printf("emu_ReloadRom(%s)\n", romFileName);
 
@@ -271,14 +263,30 @@ int emu_ReloadRom(void)
 		Stop_CD();
 
 	// check for MegaCD image
-	cd_state = emu_cd_check(&used_rom_name);
-	if (cd_state > 0) {
+	cd_state = emu_cd_check(&cd_region);
+	if (cd_state > 0)
+	{
+		// valid CD image, check for BIOS..
+
+		// we need to have config loaded at this point
+		ret = emu_ReadConfig(1, 1);
+		if (!ret) emu_ReadConfig(0, 1);
+		cfg_loaded = 1;
+
+		if (PicoRegionOverride) {
+			cd_region = PicoRegionOverride;
+			printf("overrided region to %s\n", cd_region != 4 ? (cd_region == 8 ? "EU" : "JAP") : "USA");
+		}
+		if (!find_bios(cd_region, &used_rom_name)) {
+			// bios_help() ?
+			return 0;
+		}
+
 		PicoMCD |= 1;
 		get_ext(used_rom_name, ext);
-	} else if (cd_state == -1) {
-		// bios_help() ?
-		return 0;
-	} else {
+	}
+	else
+	{
 		if (PicoMCD & 1) Stop_CD();
 		PicoMCD &= ~1;
 	}
@@ -317,9 +325,10 @@ int emu_ReloadRom(void)
 	}
 
 	// load config for this ROM (do this before insert to get correct region)
-	ret = emu_ReadConfig(1, 1);
-	if (!ret)
-		emu_ReadConfig(0, 1);
+	if (!cfg_loaded) {
+		ret = emu_ReadConfig(1, 1);
+		if (!ret) emu_ReadConfig(0, 1);
+	}
 
 	printf("PicoCartInsert(%p, %d);\n", rom_data, rom_size);
 	if(PicoCartInsert(rom_data, rom_size)) {

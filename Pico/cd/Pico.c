@@ -223,133 +223,17 @@ static __inline void update_chips(void)
 }
 
 
-static int PicoFrameHintsMCD(void)
+static __inline void getSamples(int y)
 {
-  struct PicoVideo *pv=&Pico.video;
-  int total_z80=0,lines,y,lines_vis = 224,z80CycleAim = 0,line_sample;
-  const int cycles_68k=488,cycles_z80=228,cycles_s68k=795; // both PAL and NTSC compile to same values
-  int skip=PicoSkipFrame || (PicoOpt&0x10);
-  int hint; // Hint counter
-
-  if(Pico.m.pal) { //
-    //cycles_68k = (int) ((double) OSC_PAL  /  7 / 50 / 312 + 0.4); // should compile to a constant (488)
-    //cycles_z80 = (int) ((double) OSC_PAL  / 15 / 50 / 312 + 0.4); // 228
-    lines  = 312;    // Steve Snake says there are 313 lines, but this seems to also work well
-    line_sample = 68;
-    if(pv->reg[1]&8) lines_vis = 240;
-  } else {
-    //cycles_68k = (int) ((double) OSC_NTSC /  7 / 60 / 262 + 0.4); // 488
-    //cycles_z80 = (int) ((double) OSC_NTSC / 15 / 60 / 262 + 0.4); // 228
-    lines  = 262;
-    line_sample = 93;
-  }
-
-  SekCyclesReset();
-  SekCyclesResetS68k();
-  //z80ExtraCycles = 0;
-
-  if(PicoOpt&4)
-    z80CycleAim = 0;
-//    z80_resetCycles();
-
-  pv->status&=~0x88; // clear V-Int, come out of vblank
-
-  hint=pv->reg[10]; // Load H-Int counter
-  //dprintf("-hint: %i", hint);
-
-  for (y=0;y<lines;y++)
-  {
-    Pico.m.scanline=(short)y;
-
-    // pad delay (for 6 button pads)
-    if(PicoOpt&0x20) {
-      if(Pico.m.padDelay[0]++ > 25) Pico.m.padTHPhase[0]=0;
-      if(Pico.m.padDelay[1]++ > 25) Pico.m.padTHPhase[1]=0;
-    }
-
-    check_cd_dma();
-
-    // H-Interrupts:
-    if(y <= lines_vis && --hint < 0) // y <= lines_vis: Comix Zone, Golden Axe
-    {
-      //dprintf("rhint:old @ %06x", SekPc);
-      hint=pv->reg[10]; // Reload H-Int counter
-      pv->pending_ints|=0x10;
-      if (pv->reg[0]&0x10) SekInterrupt(4);
-      //dprintf("rhint: %i @ %06x [%i|%i]", hint, SekPc, y, SekCycleCnt);
-      //dprintf("hint_routine: %x", (*(unsigned short*)(Pico.ram+0x0B84)<<16)|*(unsigned short*)(Pico.ram+0x0B86));
-    }
-
-    // V-Interrupt:
-    if (y == lines_vis)
-    {
-      //dprintf("vint: @ %06x [%i|%i]", SekPc, y, SekCycleCnt);
-      pv->status|=0x88; // V-Int happened, go into vblank
-      SekRunM68k(128); SekCycleAim-=128; // there must be a gap between H and V ints, also after vblank bit set (Mazin Saga, Bram Stoker's Dracula)
-      /*if(Pico.m.z80Run && (PicoOpt&4)) {
-        z80CycleAim+=cycles_z80/2;
-        total_z80+=z80_run(z80CycleAim-total_z80);
-        z80CycleAim-=cycles_z80/2;
-      }*/
-      pv->pending_ints|=0x20;
-      if(pv->reg[1]&0x20) SekInterrupt(6);
-      if(Pico.m.z80Run && (PicoOpt&4)) // ?
-        z80_int();
-      //dprintf("zint: [%i|%i] zPC=%04x", Pico.m.scanline, SekCyclesDone(), mz80GetRegisterValue(NULL, 0));
-    }
-
-    // decide if we draw this line
-#if CAN_HANDLE_240_LINES
-    if(!skip && ((!(pv->reg[1]&8) && y<224) || ((pv->reg[1]&8) && y<240)) )
-#else
-    if(!skip && y<224)
-#endif
-      PicoLine(y);
-
-    if(PicoOpt&1)
-      sound_timers_and_dac(y);
-
-    // get samples from sound chips
-    if (y == 224 && PsndOut) {
-      int len = sound_render(0, PsndLen);
-      if (PicoWriteSound) PicoWriteSound(len);
-      // clear sound buffer
-      sound_clear();
-    }
-
-    // Run scanline:
-      //dprintf("m68k starting exec @ %06x", SekPc);
-    if (Pico.m.dma_xfers) SekCycleCnt+=CheckDMA();
-    if ((PicoOpt & 0x2000) && (Pico_mcd->m.busreq&3) == 1) {
-      SekRunPS(cycles_68k, cycles_s68k); // "better/perfect sync"
-    } else {
-      SekRunM68k(cycles_68k);
-      if ((Pico_mcd->m.busreq&3) == 1) // no busreq/no reset
-        SekRunS68k(cycles_s68k);
-    }
-
-    if ((PicoOpt&4) && Pico.m.z80Run) {
-      if (Pico.m.z80Run & 2) z80CycleAim+=cycles_z80;
-      else {
-        int cnt = SekCyclesDone() - z80startCycle;
-        cnt = (cnt>>1)-(cnt>>5);
-        //if (cnt > cycles_z80) printf("FIXME: z80 cycles: %i\n", cnt);
-        if (cnt > cycles_z80) cnt = cycles_z80;
-        Pico.m.z80Run |= 2;
-        z80CycleAim+=cnt;
-      }
-      total_z80+=z80_run(z80CycleAim-total_z80);
-    }
-
-    update_chips();
-  }
-
-  // draw a frame just after vblank in alternative render mode
-  if (!PicoSkipFrame && (PicoOpt&0x10))
-    PicoFrameFull();
-
-  return 0;
+  int len = sound_render(0, PsndLen);
+  if (PicoWriteSound) PicoWriteSound(len);
+  // clear sound buffer
+  sound_clear();
 }
+
+
+#define PICO_CD
+#include "../PicoFrameHints.c"
 
 
 PICO_INTERNAL int PicoFrameMCD(void)
@@ -357,7 +241,7 @@ PICO_INTERNAL int PicoFrameMCD(void)
   if(!(PicoOpt&0x10))
     PicoFrameStart();
 
-  PicoFrameHintsMCD();
+  PicoFrameHints();
 
   return 0;
 }

@@ -3,6 +3,8 @@
 #define CYCLES_M68K_ASD      148
 #define CYCLES_Z80_LINE      228
 #define CYCLES_Z80_ASD        69
+#define CYCLES_S68K_LINE     795
+#define CYCLES_S68K_ASD      241
 
 // pad delay (for 6 button pads)
 #define PAD_DELAY \
@@ -27,6 +29,25 @@
   } \
 }
 
+// CPUS_RUN
+#ifndef PICO_CD
+#define CPUS_RUN(m68k_cycles,z80_cycles,s68k_cycles) \
+    SekRunM68k(m68k_cycles); \
+    Z80_RUN(z80_cycles);
+#else
+#define CPUS_RUN(m68k_cycles,z80_cycles,s68k_cycles) \
+{ \
+    if ((PicoOpt & 0x2000) && (Pico_mcd->m.busreq&3) == 1) { \
+      SekRunPS(m68k_cycles, s68k_cycles); /* "better/perfect sync" */ \
+    } else { \
+      SekRunM68k(m68k_cycles); \
+      if ((Pico_mcd->m.busreq&3) == 1) /* no busreq/no reset */ \
+        SekRunS68k(s68k_cycles); \
+    } \
+    Z80_RUN(z80_cycles); \
+}
+#endif
+
 // Accurate but slower frame which does hints
 static int PicoFrameHints(void)
 {
@@ -47,6 +68,9 @@ static int PicoFrameHints(void)
   }
 
   SekCyclesReset();
+#ifdef PICO_CD
+  SekCyclesResetS68k();
+#endif
 
   pv->status&=~0x88; // clear V-Int, come out of vblank
 
@@ -54,8 +78,7 @@ static int PicoFrameHints(void)
   //dprintf("-hint: %i", hint);
 
   // This is to make active scan longer (needed for Double Dragon 2, mainly)
-  SekRun(CYCLES_M68K_ASD);
-  Z80_RUN(CYCLES_Z80_ASD);
+  CPUS_RUN(CYCLES_M68K_ASD, CYCLES_Z80_ASD, CYCLES_S68K_ASD);
 
   for (y=0;y<lines_vis;y++)
   {
@@ -69,6 +92,9 @@ static int PicoFrameHints(void)
     }
 
     PAD_DELAY
+#ifdef PICO_CD
+    check_cd_dma();
+#endif
 
     // H-Interrupts:
     if (--hint < 0) // y <= lines_vis: Comix Zone, Golden Axe
@@ -92,16 +118,21 @@ static int PicoFrameHints(void)
     if(PicoOpt&1)
       sound_timers_and_dac(y);
 
+#ifndef PICO_CD
     // get samples from sound chips
     if(y == 32 && PsndOut)
       emustatus &= ~1;
     else if((y == 224 || y == line_sample) && PsndOut)
       getSamples(y);
+#endif
 
     // Run scanline:
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
-    SekRun(CYCLES_M68K_LINE);
-    Z80_RUN(CYCLES_Z80_LINE);
+    CPUS_RUN(CYCLES_M68K_LINE, CYCLES_Z80_LINE, CYCLES_S68K_LINE);
+
+#ifdef PICO_CD
+    update_chips();
+#endif
   }
 
   // V-int line (224 or 240)
@@ -112,6 +143,9 @@ static int PicoFrameHints(void)
   Pico.video.status|=0x200;
 
   PAD_DELAY
+#ifdef PICO_CD
+  check_cd_dma();
+#endif
 
   // Last H-Int:
   if (--hint < 0)
@@ -130,7 +164,7 @@ static int PicoFrameHints(void)
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
-  SekRun(CYCLES_M68K_VINT_LAG);
+  SekRunM68k(CYCLES_M68K_VINT_LAG);
   if (pv->reg[1]&0x20) {
     elprintf(EL_INTS, "vint: @ %06x [%i]", SekPc, SekCycleCnt);
     SekInterrupt(6);
@@ -142,13 +176,20 @@ static int PicoFrameHints(void)
     sound_timers_and_dac(y);
 
   // get samples from sound chips
-  if ((y == 224) && PsndOut)
-    getSamples(y);
+#ifndef PICO_CD
+  if (y == 224)
+#endif
+    if (PsndOut)
+      getSamples(y);
 
   // Run scanline:
   if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
-  SekRun(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG - CYCLES_M68K_ASD);
-  Z80_RUN(CYCLES_Z80_LINE - CYCLES_Z80_ASD);
+  CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG - CYCLES_M68K_ASD,
+    CYCLES_Z80_LINE - CYCLES_Z80_ASD, CYCLES_S68K_LINE - CYCLES_S68K_ASD);
+
+#ifdef PICO_CD
+    update_chips();
+#endif
 
   // PAL line count might actually be 313 according to Steve Snake, but that would complicate things.
   lines = Pico.m.pal ? 312 : 262;
@@ -158,14 +199,20 @@ static int PicoFrameHints(void)
     Pico.m.scanline=(short)y;
 
     PAD_DELAY
+#ifdef PICO_CD
+    check_cd_dma();
+#endif
 
     if(PicoOpt&1)
       sound_timers_and_dac(y);
 
     // Run scanline:
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
-    SekRun(CYCLES_M68K_LINE);
-    Z80_RUN(CYCLES_Z80_LINE);
+    CPUS_RUN(CYCLES_M68K_LINE, CYCLES_Z80_LINE, CYCLES_S68K_LINE);
+
+#ifdef PICO_CD
+    update_chips();
+#endif
   }
 
   // draw a frame just after vblank in alternative render mode
@@ -177,4 +224,5 @@ static int PicoFrameHints(void)
 
 #undef PAD_DELAY
 #undef Z80_RUN
+#undef CPUS_RUN
 
