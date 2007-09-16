@@ -620,30 +620,38 @@ static char *action_binds(int player_idx, int action_mask)
 	return strkeys;
 }
 
-static void unbind_action(int action)
+static void unbind_action(int action, int pl_idx)
 {
 	int i, u;
 
-	for (i = 0; i < 32; i++)
+	for (i = 0; i < 32; i++) {
+		if (pl_idx >= 0 && (currentConfig.KeyBinds[i]&0x30000) != (pl_idx<<16)) continue;
 		currentConfig.KeyBinds[i] &= ~action;
+	}
 	for (u = 0; u < 4; u++)
-		for (i = 0; i < 32; i++)
+		for (i = 0; i < 32; i++) {
+			if (pl_idx >= 0 && (currentConfig.JoyBinds[u][i]&0x30000) != (pl_idx<<16)) continue;
 			currentConfig.JoyBinds[u][i] &= ~action;
+		}
 }
 
-static int count_bound_keys(int action, int joy)
+static int count_bound_keys(int action, int pl_idx, int joy)
 {
 	int i, keys = 0;
 
 	if (joy)
 	{
-		for (i = 0; i < 32; i++)
+		for (i = 0; i < 32; i++) {
+			if (pl_idx >= 0 && (currentConfig.JoyBinds[joy-1][i]&0x30000) != (pl_idx<<16)) continue;
 			if (currentConfig.JoyBinds[joy-1][i] & action) keys++;
+		}
 	}
 	else
 	{
-		for (i = 0; i < 32; i++)
+		for (i = 0; i < 32; i++) {
+			if (pl_idx >= 0 && (currentConfig.KeyBinds[i]&0x30000) != (pl_idx<<16)) continue;
 			if (currentConfig.KeyBinds[i] & action) keys++;
+		}
 	}
 	return keys;
 }
@@ -657,7 +665,7 @@ static void draw_key_config(const bind_action_t *opts, int opt_cnt, int player_i
 	gp2x_pd_clone_buffer2();
 	if (player_idx >= 0) {
 		text_out16(80, 20, "Player %i controls", player_idx + 1);
-		x = 100;
+		x = 80;
 	} else {
 		text_out16(80, 20, "Emulator controls");
 		x = 40;
@@ -706,16 +714,16 @@ static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_i
 			}
 			// if we are here, we want to bind/unbind something
 			if ((inp & GP2X_SELECT) && !prev_select)
-				unbind_action(opts[sel].mask);
+				unbind_action(opts[sel].mask, player_idx);
 			prev_select = inp & GP2X_SELECT;
 			inp &= CONFIGURABLE_KEYS;
 			inp &= ~GP2X_SELECT;
 			for (i = 0; i < 32; i++)
 				if (inp & (1 << i)) {
-					if (count_bound_keys(opts[sel].mask, 0) >= 2)
+					if (count_bound_keys(opts[sel].mask, player_idx, 0) >= 2)
 					     currentConfig.KeyBinds[i] &= ~opts[sel].mask; // allow to unbind only
 					else currentConfig.KeyBinds[i] ^=  opts[sel].mask;
-					if (player_idx >= 0) {
+					if (player_idx >= 0 && currentConfig.KeyBinds[i] & opts[sel].mask) {
 						currentConfig.KeyBinds[i] &= ~(3 << 16);
 						currentConfig.KeyBinds[i] |= player_idx << 16;
 					}
@@ -725,10 +733,10 @@ static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_i
 		{
 			for (i = 0; i < 32; i++)
 				if (inp & (1 << i)) {
-					if (count_bound_keys(opts[sel].mask, joy) >= 1) // disallow combos for usbjoy
+					if (count_bound_keys(opts[sel].mask, player_idx, joy) >= 1) // disallow combos for usbjoy
 					     currentConfig.JoyBinds[joy-1][i] &= ~opts[sel].mask;
 					else currentConfig.JoyBinds[joy-1][i] ^=  opts[sel].mask;
-					if (player_idx >= 0) {
+					if (player_idx >= 0 && currentConfig.JoyBinds[joy-1][i] & opts[sel].mask) {
 						currentConfig.JoyBinds[joy-1][i] &= ~(3 << 16);
 						currentConfig.JoyBinds[joy-1][i] |= player_idx << 16;
 					}
@@ -1231,7 +1239,7 @@ static void menu_options_save(void)
 	PicoRegionOverride = currentConfig.PicoRegion;
 	if (!(PicoOpt & 0x20)) {
 		// unbind XYZ MODE, just in case
-		unbind_action(0xf00);
+		unbind_action(0xf00, -1);
 	}
 	scaling_update();
 }
