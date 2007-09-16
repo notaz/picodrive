@@ -825,8 +825,8 @@ int m68k_execute(int num_cycles)
 
 			/* Read an instruction and call its handler */
 			REG_IR = m68ki_read_imm_16();
-			USE_CYCLES(CYC_INSTRUCTION[REG_IR]); // notaz
 			m68ki_instruction_jump_table[REG_IR]();
+			USE_CYCLES(CYC_INSTRUCTION[REG_IR]); // moving this up may cause a deadlock
 
 			/* Trace m68k_exception, if necessary */
 			m68ki_exception_if_trace(); /* auto-disable (see m68kcpu.h) */
