@@ -32,7 +32,12 @@ use_cyclone = 1
 endif
 
 DEFINC = -I../.. -I. -DARM -D__GP2X__ -D_UNZIP_SUPPORT # -DBENCHMARK
-COPT_COMMON = -static -Wall -O2 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math -Winline
+COPT_COMMON = -static -Wall -Winline
+ifeq ($(DEBUG),)
+COPT_COMMON += -O2 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
+else
+COPT_COMMON += -ggdb
+endif
 ifeq "$(profile)" "1"
 COPT_COMMON += -fprofile-generate
 endif

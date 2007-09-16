@@ -310,9 +310,17 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   if(rom != NULL)
     *(unsigned long *)(rom+romsize) = 0xFFFE4EFA; // 4EFA FFFE byteswapped
 
-  SRam.resize=1;
   Pico.rom=rom;
   Pico.romsize=romsize;
+
+  // setup correct memory map for loaded ROM
+  if (PicoMCD & 1)
+       PicoMemSetupCD();
+  else PicoMemSetup();
+  PicoMemReset();
+
+  if (!(PicoMCD & 1))
+    PicoCartDetect();
 
   return PicoReset(1);
 }
@@ -321,5 +329,117 @@ int PicoUnloadCart(unsigned char* romdata)
 {
   free(romdata);
   return 0;
+}
+
+static int name_cmp(const char *name)
+{
+  int i, len = strlen(name);
+  const char *name_rom = (const char *)Pico.rom+0x150;
+  for (i = 0; i < len; i++)
+    if (name[i] != name_rom[i^1])
+      return 1;
+  return 0;
+}
+
+/* various cart-specific things, which can't be handled by generic code */
+void PicoCartDetect(void)
+{
+  int sram_size = 0, csum;
+  if(SRam.data) free(SRam.data); SRam.data=0;
+  Pico.m.sram_reg = 0;
+
+  csum = PicoRead32(0x18c) & 0xffff;
+
+  if (Pico.rom[0x1B1] == 'R' && Pico.rom[0x1B0] == 'A')
+  {
+    if (Pico.rom[0x1B2] & 0x40)
+    {
+      // EEPROM
+      SRam.start = PicoRead32(0x1B4) & ~1; // zero address is used for clock by some games
+      SRam.end   = PicoRead32(0x1B8);
+      sram_size  = 0x2000;
+      Pico.m.sram_reg |= 4;
+    } else {
+      // normal SRAM
+      SRam.start = PicoRead32(0x1B4) & 0xFFFF00;
+      SRam.end   = PicoRead32(0x1B8) | 1;
+      sram_size  = SRam.end - SRam.start + 1;
+    }
+    Pico.m.sram_reg |= 0x10; // SRAM was detected
+  }
+  if (sram_size <= 0)
+  {
+    // some games may have bad headers, like S&K and Sonic3
+    // note: majority games use 0x200000 as starting address, but there are some which
+    // use something else (0x300000 by HardBall '95). Luckily they have good headers.
+    SRam.start = 0x200000;
+    SRam.end   = 0x203FFF;
+    sram_size  = 0x004000;
+  }
+
+  if (sram_size)
+  {
+    SRam.data = (unsigned char *) calloc(sram_size, 1);
+    if(!SRam.data) return;
+  }
+  SRam.changed = 0;
+
+  // set EEPROM defaults, in case it gets detected
+  SRam.eeprom_type   = 0; // 7bit (24C01)
+  SRam.eeprom_abits  = 3; // eeprom access must be odd addr for: bit0 ~ cl, bit1 ~ in
+  SRam.eeprom_bit_cl = 1;
+  SRam.eeprom_bit_in = 0;
+  SRam.eeprom_bit_out= 0;
+
+  // some known EEPROM data (thanks to EkeEke)
+  if (name_cmp("COLLEGE SLAM") == 0 ||
+      name_cmp("FRANK THOMAS BIGHURT BASEBAL") == 0)
+  {
+    SRam.eeprom_type = 3;
+    SRam.eeprom_abits = 2;
+    SRam.eeprom_bit_cl = 0;
+  }
+  else if (name_cmp("NBA JAM TOURNAMENT EDITION") == 0 ||
+           name_cmp("NFL QUARTERBACK CLUB") == 0)
+  {
+    SRam.eeprom_type = 2;
+    SRam.eeprom_abits = 2;
+    SRam.eeprom_bit_cl = 0;
+  }
+  else if (name_cmp("NBA JAM") == 0)
+  {
+    SRam.eeprom_type = 2;
+    SRam.eeprom_bit_out = 1;
+    SRam.eeprom_abits = 0;
+  }
+  else if (name_cmp("NHLPA HOCKEY '93") == 0 ||
+           name_cmp("NHLPA Hockey '93") == 0 ||
+           name_cmp("RINGS OF POWER") == 0)
+  {
+    SRam.start = SRam.end = 0x200000;
+    Pico.m.sram_reg = 0x14;
+    SRam.eeprom_abits = 0;
+    SRam.eeprom_bit_cl = 6;
+    SRam.eeprom_bit_in = 7;
+    SRam.eeprom_bit_out= 7;
+  }
+  else if ( name_cmp("MICRO MACHINES II") == 0 ||
+           (name_cmp("        ") == 0 && // Micro Machines {Turbo Tournament '96, Military - It's a Blast!}
+	    (csum == 0x165e || csum == 0x168b || csum == 0xCEE0 || csum == 0x2C41)))
+  {
+    SRam.start = 0x300000;
+    SRam.end   = 0x380001;
+    Pico.m.sram_reg = 0x14;
+    SRam.eeprom_type = 2;
+    SRam.eeprom_abits = 0;
+    SRam.eeprom_bit_cl = 1;
+    SRam.eeprom_bit_in = 0;
+    SRam.eeprom_bit_out= 7;
+  }
+
+  // Some games malfunction if SRAM is not filled with 0xff
+  if (name_cmp("DINO DINI'S SOCCER") == 0 ||
+      name_cmp("MICRO MACHINES II") == 0)
+    memset(SRam.data, 0xff, sram_size);
 }
 

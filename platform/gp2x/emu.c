@@ -26,6 +26,7 @@
 #include <Pico/Patch.h>
 #include <zlib/zlib.h>
 
+//#define PFRAMES
 
 #ifdef BENCHMARK
 #define OSD_FPS_X 220
@@ -348,11 +349,11 @@ int emu_ReloadRom(void)
 	}
 
 	// additional movie stuff
-	if(movie_data) {
+	if (movie_data) {
 		if(movie_data[0x14] == '6')
 		     PicoOpt |=  0x20; // 6 button pad
 		else PicoOpt &= ~0x20;
-		PicoOpt |= 0x40; // accurate timing
+		PicoOpt |= 0x10040; // accurate timing, no VDP fifo timing
 		if(movie_data[0xF] >= 'A') {
 			if(movie_data[0x16] & 0x80) {
 				PicoRegionOverride = 8;
@@ -367,6 +368,7 @@ int emu_ReloadRom(void)
 	}
 	else
 	{
+		PicoOpt &= ~0x10000;
 		if(Pico.m.pal) {
 			strcpy(noticeMsg, "PAL SYSTEM / 50 FPS");
 		} else {
@@ -1185,17 +1187,18 @@ void emu_Loop(void)
 	// prepare sound stuff
 	if(currentConfig.EmuOpt & 4) {
 		int snd_excess_add;
-		if(PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old || crashed_940) {
+		if (PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old ||
+				((PicoOpt&0x200) && crashed_940)) {
 			/* if 940 is turned off, we need it to be put back to sleep */
 			if (!(PicoOpt&0x200) && ((PicoOpt^PicoOpt_old)&0x200)) {
 				Reset940(1, 2);
 				Pause940(1);
 			}
-			sound_rerate(1);
+			sound_rerate(Pico.m.frame_count ? 1 : 0);
 		}
-		//excess_samples = PsndRate - PsndLen*target_fps;
 		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
-		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n", PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
+		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
+			PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
 		gp2x_start_sound(PsndRate, 16, (PicoOpt&8)>>3);
 		gp2x_sound_volume(currentConfig.volume, currentConfig.volume);
 		PicoWriteSound = updateSound;
@@ -1307,6 +1310,9 @@ void emu_Loop(void)
 				if (frames_shown > frames_done) frames_shown = frames_done;
 			}
 		}
+#ifdef PFRAMES
+		sprintf(fpsbuff, "%i", Pico.m.frame_count);
+#endif
 
 		lim_time = (frames_done+1) * target_frametime + vsync_offset;
 		if(currentConfig.Frameskip >= 0) { // frameskip enabled
@@ -1571,7 +1577,7 @@ int emu_SaveLoadGame(int load, int sram)
 			}
 		} else {
 			sram_size = SRam.end-SRam.start+1;
-			if(SRam.reg_back & 4) sram_size=0x2000;
+			if(Pico.m.sram_reg & 4) sram_size=0x2000;
 			sram_data = SRam.data;
 		}
 		if (!sram_data) return 0; // SRam forcefully disabled for this game

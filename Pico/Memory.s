@@ -435,6 +435,19 @@ m_read8_ram:
     bx      lr
 
 m_read8_above_rom:
+    @ might still be SRam (Micro Machines, HardBall '95)
+    ldr     r2, =(SRam)
+    ldr     r3, =(Pico+0x22200)
+    ldr     r1, [r2, #8]    @ SRam.end
+    cmp     r0, r1
+    bgt     m_read8_ar_nosram
+    ldr     r1, [r2, #4]    @ SRam.start
+    cmp     r0, r1
+    blt     m_read8_ar_nosram
+    ldrb    r1, [r3, #0x11] @ Pico.m.sram_reg
+    tst     r1, #5
+    bne     SRAMRead
+m_read8_ar_nosram:
     stmfd   sp!,{r0,lr}
     bic     r0, r0, #1
     mov     r1, #8
@@ -566,7 +579,24 @@ m_read16_ram:
     bx      lr
 
 m_read16_above_rom:
+    @ might still be SRam
+    ldr     r2, =(SRam)
+    ldr     r3, =(Pico+0x22200)
+    ldr     r1, [r2, #8]    @ SRam.end
     bic     r0, r0, #1
+    cmp     r0, r1
+    bgt     m_read16_ar_nosram
+    ldr     r1, [r2, #4]    @ SRam.start
+    cmp     r0, r1
+    blt     m_read16_ar_nosram
+    ldrb    r1, [r3, #0x11] @ Pico.m.sram_reg
+    tst     r1, #5
+    beq     m_read16_ar_nosram
+    stmfd   sp!,{lr}
+    bl      SRAMRead
+    orr     r0, r0, r0, lsl #8
+    ldmfd   sp!,{pc}
+m_read16_ar_nosram:
     mov     r1, #16
     b       OtherRead16End
 

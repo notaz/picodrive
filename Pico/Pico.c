@@ -19,7 +19,7 @@ int PicoAutoRgnOrder = 0;
 int emustatus = 0;
 void (*PicoWriteSound)(int len) = 0; // called once per frame at the best time to send sound buffer (PsndOut) to hardware
 
-struct PicoSRAM SRam;
+struct PicoSRAM SRam = {0,};
 int z80startCycle, z80stopCycle; // in 68k cycles
 //int z80ExtraCycles = 0;
 int PicoPad[2];  // Joypads, format is SACB RLDU
@@ -39,7 +39,6 @@ int PicoInit(void)
   PicoInitMCD();
 
   SRam.data=0;
-  SRam.resize=1;
 
   return 0;
 }
@@ -59,13 +58,10 @@ int PicoReset(int hard)
   unsigned int region=0;
   int support=0,hw=0,i=0;
   unsigned char pal=0;
+  unsigned char sram_reg=Pico.m.sram_reg; // must be preserved
 
   if (Pico.romsize<=0) return 1;
 
-  // setup correct memory map
-  if (PicoMCD & 1)
-       PicoMemSetupCD();
-  else PicoMemSetup();
   PicoMemReset();
   SekReset();
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
@@ -149,55 +145,16 @@ int PicoReset(int hard)
     return 0;
   }
 
-  if(SRam.resize) {
-    int sram_size = 0;
-    if(SRam.data) free(SRam.data); SRam.data=0;
-    Pico.m.sram_reg = 0;
+  // reset sram state; enable sram access by default if it doesn't overlap with ROM
+  Pico.m.sram_reg=sram_reg&0x14;
+  if (!(Pico.m.sram_reg&4) && Pico.romsize <= SRam.start) Pico.m.sram_reg |= 1;
 
-    if(*(Pico.rom+0x1B1) == 'R' && *(Pico.rom+0x1B0) == 'A') {
-      if(*(Pico.rom+0x1B2) & 0x40) {
-        // EEPROM
-        // what kind of EEPROMs are actually used? X24C02? X24C04? (X24C01 has only 128), but we will support up to 8K
-        SRam.start = PicoRead32(0x1B4) & ~1; // zero address is used for clock by some games
-        SRam.end   = PicoRead32(0x1B8);
-        sram_size  = 0x2000;
-        Pico.m.sram_reg = 4;
-      } else {
-        // normal SRAM
-        SRam.start = PicoRead32(0x1B4) & 0xFFFF00;
-        SRam.end   = PicoRead32(0x1B8) | 1;
-        sram_size  = SRam.end - SRam.start + 1;
-      }
-      Pico.m.sram_reg |= 0x10; // SRAM was detected
-    }
-    if(sram_size <= 0) {
-      // some games may have bad headers, like S&K and Sonic3
-      SRam.start = 0x200000;
-      SRam.end   = 0x203FFF;
-      sram_size  = 0x004000;
-    }
-
-    // enable sram access by default if it doesn't overlap with ROM
-    if(Pico.romsize <= SRam.start) Pico.m.sram_reg |= 1;
-    SRam.reg_back = Pico.m.sram_reg;
-
-    if(sram_size) {
-      SRam.data = (unsigned char *) calloc(sram_size, 1);
-      if(!SRam.data) return 1;
-    }
-    SRam.resize=0;
-    // Dino Dini's Soccer malfunctions if SRAM is not filled with 0xff
-    if (strncmp((char *)Pico.rom+0x150, "IDOND NI'I", 10) == 0)
-      memset(SRam.data, 0xff, sram_size);
-    elprintf(EL_STATUS, "sram: det: %i; eeprom: %i; start: %06x; end: %06x",
-      (Pico.m.sram_reg>>4)&1, (Pico.m.sram_reg>>2)&1, SRam.start, SRam.end);
-  }
-
-  Pico.m.sram_reg = SRam.reg_back; // restore sram_reg
-  SRam.changed = 0;
+  elprintf(EL_STATUS, "sram: det: %i; eeprom: %i; start: %06x; end: %06x",
+    (Pico.m.sram_reg>>4)&1, (Pico.m.sram_reg>>2)&1, SRam.start, SRam.end);
 
   return 0;
 }
+
 
 // dma2vram settings are just hacks to unglitch Legend of Galahad (needs <= 104 to work)
 // same for Outrunners (92-121, when active is set to 24)
@@ -692,8 +649,8 @@ char *debugString(void)
   sprintf(dstrp, "mode set 4: %02x\n", (r=reg[0xC])); dstrp+=strlen(dstrp);
   sprintf(dstrp, "interlace: %i%i, cells: %i, shadow: %i\n", bit(r,2), bit(r,1), (r&0x80) ? 40 : 32,  bit(r,3));
   dstrp+=strlen(dstrp);
-  sprintf(dstrp, "scroll size: w: %i, h: %i  SRAM: %i; eeprom: %i\n", reg[0x10]&3, (reg[0x10]&0x30)>>4,
-  	bit(Pico.m.sram_reg, 4), bit(Pico.m.sram_reg, 2)); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "scroll size: w: %i, h: %i  SRAM: %i; eeprom: %i (%i)\n", reg[0x10]&3, (reg[0x10]&0x30)>>4,
+  	bit(Pico.m.sram_reg, 4), bit(Pico.m.sram_reg, 2), SRam.eeprom_type); dstrp+=strlen(dstrp);
   sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); dstrp+=strlen(dstrp);
   sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status);
   dstrp+=strlen(dstrp);

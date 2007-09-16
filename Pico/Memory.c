@@ -153,6 +153,7 @@ u32 SRAMRead(u32 a)
 {
   unsigned int sreg = Pico.m.sram_reg;
   if(!(sreg & 0x10) && (sreg & 1) && a > 0x200001) { // not yet detected SRAM
+    elprintf(EL_SRAMIO, "normal sram detected.");
     Pico.m.sram_reg|=0x10; // should be normal SRAM
   }
   if(sreg & 4) // EEPROM read
@@ -163,24 +164,30 @@ u32 SRAMRead(u32 a)
 
 static void SRAMWrite(u32 a, u32 d)
 {
-  dprintf("sram_w: %06x, %08x @%06x", a&0xffffff, d, SekPc);
   unsigned int sreg = Pico.m.sram_reg;
   if(!(sreg & 0x10)) {
     // not detected SRAM
     if((a&~1)==0x200000) {
-      Pico.m.sram_reg|=4; // this should be a game with EEPROM (like NBA Jam)
+      elprintf(EL_SRAMIO, "eeprom detected.");
+      sreg|=4; // this should be a game with EEPROM (like NBA Jam)
       SRam.start=0x200000; SRam.end=SRam.start+1;
-    }
-    Pico.m.sram_reg|=0x10;
+    } else
+      elprintf(EL_SRAMIO, "normal sram detected.");
+    sreg|=0x10;
+    Pico.m.sram_reg=sreg;
   }
   if(sreg & 4) { // EEPROM write
-    if(SekCyclesDoneT()-lastSSRamWrite < 46) {
+    // this diff must be at most 16 for NBA Jam to work
+    if(SekCyclesDoneT()-lastSSRamWrite < 16) {
       // just update pending state
+      elprintf(EL_EEPROM, "eeprom: skip because cycles=%i", SekCyclesDoneT()-lastSSRamWrite);
       SRAMUpdPending(a, d);
     } else {
+      int old=sreg;
       SRAMWriteEEPROM(sreg>>6); // execute pending
       SRAMUpdPending(a, d);
-      lastSSRamWrite = SekCyclesDoneT();
+      if ((old^Pico.m.sram_reg)&0xc0) // update time only if SDA/SCL changed
+        lastSSRamWrite = SekCyclesDoneT();
     }
   } else if(!(sreg & 2)) {
     u8 *pm=(u8 *)(SRam.data-SRam.start+a);
@@ -198,8 +205,6 @@ static
 u32 OtherRead16End(u32 a, int realsize)
 {
   u32 d=0;
-
-  dprintf("strange r%i: %06x @%06x", realsize, a&0xffffff, SekPc);
 
   // for games with simple protection devices, discovered by Haze
   // some dumb detection is used, but that should be enough to make things work
@@ -262,7 +267,7 @@ u32 OtherRead16End(u32 a, int realsize)
   }
 
 end:
-  dprintf("ret = %04x", d);
+  elprintf(EL_UIO, "strange r%i: [%06x] %04x @%06x", realsize, a&0xffffff, d, SekPc);
   return d;
 }
 
@@ -272,9 +277,8 @@ end:
 static void OtherWrite8End(u32 a,u32 d,int realsize)
 {
   // sram
-  //if(a==0x200000) dprintf("cc : %02x @ %06x [%i|%i]", d, SekPc, SekCyclesDoneT(), SekCyclesDone());
-  //if(a==0x200001) dprintf("w8 : %02x @ %06x [%i]", d, SekPc, SekCyclesDoneT());
   if(a >= SRam.start && a <= SRam.end) {
+    elprintf(EL_SRAMIO, "sram w8  [%06x] %02x @ %06x", a, d, SekPc);
     SRAMWrite(a, d);
     return;
   }
@@ -288,13 +292,13 @@ static void OtherWrite8End(u32 a,u32 d,int realsize)
 #else
   // sram access register
   if(a == 0xA130F1) {
-    dprintf("sram reg=%02x", d);
+    elprintf(EL_SRAMIO, "sram reg=%02x", d);
     Pico.m.sram_reg &= ~3;
     Pico.m.sram_reg |= (u8)(d&3);
     return;
   }
 #endif
-  dprintf("strange w%i: %06x, %08x @%06x", realsize, a&0xffffff, d, SekPc);
+  elprintf(EL_UIO, "strange w%i: %06x, %08x @%06x", realsize, a&0xffffff, d, SekPc);
 
   if(a >= 0xA13004 && a < 0xA13040) {
     // dumb 12-in-1 or 4-in-1 banking support
@@ -332,6 +336,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead8(u32 a)
   // sram
   if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
     d = SRAMRead(a);
+    elprintf(EL_SRAMIO, "sram r8 [%06x] %02x @ %06x", a, d, SekPc);
     goto end;
   }
 #endif
@@ -342,15 +347,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead8(u32 a)
 
   d=OtherRead16(a&~1, 8); if ((a&1)==0) d>>=8;
 
-  end:
-
-  //if ((a&0xe0ffff)==0xe0AE57+0x69c)
-  //  dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
-  //if ((a&0xe0ffff)==0xe0a9ba+0x69c)
-  //  dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
-
-  //if(a==0x200001||a==0x200000) printf("r8 : %02x [%06x] @ %06x [%i]\n", d, a, SekPc, SekCyclesDoneT());
-  //dprintf("r8 : %06x,   %02x @%06x [%03i]", a&0xffffff, (u8)d, SekPc, Pico.m.scanline);
+end:
 #ifdef __debug_io
   dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
 #endif
@@ -376,6 +373,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead16(u32 a)
   if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
     d = SRAMRead(a);
     d |= d<<8;
+    elprintf(EL_SRAMIO, "sram r16 [%06x] %04x @ %06x", a, d, SekPc);
     goto end;
   }
 #endif
@@ -385,11 +383,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead16(u32 a)
 
   d = OtherRead16(a, 16);
 
-  end:
-  //if ((a&0xe0ffff)==0xe0AF0E+0x69c||(a&0xe0ffff)==0xe0A9A8+0x69c||(a&0xe0ffff)==0xe0A9AA+0x69c||(a&0xe0ffff)==0xe0A9AC+0x69c)
-  //  dprintf("r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
-  //if(a==0x200000) printf("r16: %04x @ %06x [%i]\n", d, SekPc, SekCyclesDoneT());
-
+end:
 #ifdef __debug_io
   dprintf("r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
 #endif
@@ -414,6 +408,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead32(u32 a)
   if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
     d = (SRAMRead(a)<<16)|SRAMRead(a+2);
     d |= d<<8;
+    elprintf(EL_SRAMIO, "sram r32 [%06x] %08x @ %06x", a, d, SekPc);
     goto end;
   }
 
@@ -422,8 +417,7 @@ PICO_INTERNAL_ASM u32 CPU_CALL PicoRead32(u32 a)
 
   d = (OtherRead16(a, 32)<<16)|OtherRead16(a+2, 32);
 
-  end:
-  //if(a==0x200000) printf("r32: %08x @ %06x [%i]\n", d, SekPc, SekCyclesDoneT());
+end:
 #ifdef __debug_io
   dprintf("r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
 #endif
@@ -469,9 +463,6 @@ void CPU_CALL PicoWrite16(u32 a,u16 d)
 #if defined(EMU_C68K) && defined(EMU_M68K)
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
-  //if ((a&0xe0ffff)==0xe0AF0E+0x69c||(a&0xe0ffff)==0xe0A9A8+0x69c||(a&0xe0ffff)==0xe0A9AA+0x69c||(a&0xe0ffff)==0xe0A9AC+0x69c)
-  //  dprintf("w16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
-  //if(a==0x200000) printf("w16: %04x @ %06x [%i]\n", d, SekPc, SekCyclesDoneT());
 
   if ((a&0xe00000)==0xe00000) { *(u16 *)(Pico.ram+(a&0xfffe))=d; return; } // Ram
   log_io(a, 16, 1);
@@ -488,7 +479,6 @@ static void CPU_CALL PicoWrite32(u32 a,u32 d)
 #if defined(EMU_C68K) && defined(EMU_M68K)
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
-  //if(a==0x200000) printf("w32: %08x @ %06x [%i]\n", d, SekPc, SekCyclesDoneT());
 
   if ((a&0xe00000)==0xe00000)
   {
@@ -647,14 +637,17 @@ void PicoWriteCD8w (unsigned int a, unsigned char d);
 void PicoWriteCD16w(unsigned int a, unsigned short d);
 void PicoWriteCD32w(unsigned int a, unsigned int d);
 
+/* it appears that Musashi doesn't always mask the unused bits */
 unsigned int  m68k_read_memory_8(unsigned int address)
 {
-    return (PicoMCD&1) ? PicoReadCD8w(address)  : PicoRead8(address);
+    unsigned int d = (PicoMCD&1) ? PicoReadCD8w(address) : PicoRead8(address);
+    return d&0xff;
 }
 
 unsigned int  m68k_read_memory_16(unsigned int address)
 {
-    return (PicoMCD&1) ? PicoReadCD16w(address) : PicoRead16(address);
+    unsigned int d = (PicoMCD&1) ? PicoReadCD16w(address) : PicoRead16(address);
+    return d&0xffff;
 }
 
 unsigned int  m68k_read_memory_32(unsigned int address)

@@ -171,9 +171,9 @@ struct PicoMisc
   unsigned char  z80_fakeval;
   unsigned char  pad0;
   unsigned char  padDelay[2];  // 10 gamepad phase time outs, so we count a delay
-  unsigned short sram_addr;  // EEPROM address register
-  unsigned char sram_cycle;  // EEPROM SRAM cycle number
-  unsigned char sram_slave;  // EEPROM slave word for X24C02 and better SRAMs
+  unsigned short eeprom_addr;  // EEPROM address register
+  unsigned char  eeprom_cycle; // EEPROM SRAM cycle number
+  unsigned char  eeprom_slave; // EEPROM slave word for X24C02 and better SRAMs
   unsigned char prot_bytes[2]; // simple protection faking
   unsigned short dma_xfers;
   unsigned char pad[2];
@@ -204,10 +204,14 @@ struct PicoSRAM
   unsigned char *data;		// actual data
   unsigned int start;		// start address in 68k address space
   unsigned int end;
-  unsigned char resize;		// 0c: 1=SRAM size changed and needs to be reallocated on PicoReset
-  unsigned char reg_back;	// copy of Pico.m.sram_reg to set after reset
+  unsigned char unused1;	// 0c: unused
+  unsigned char unused2;
   unsigned char changed;
-  unsigned char pad;
+  unsigned char eeprom_type;    // eeprom type: 0: 7bit (24C01), 2: device with 2 addr words (X24C02+), 3: dev with 3 addr words
+  unsigned char eeprom_abits;	// eeprom access must be odd addr for: bit0 ~ cl, bit1 ~ out
+  unsigned char eeprom_bit_cl;	// bit number for cl
+  unsigned char eeprom_bit_in;  // bit number for in
+  unsigned char eeprom_bit_out; // bit number for out
 };
 
 // MCD
@@ -290,6 +294,9 @@ PICO_INTERNAL int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub);
 // cd/Area.c
 PICO_INTERNAL int PicoCdSaveState(void *file);
 PICO_INTERNAL int PicoCdLoadState(void *file);
+
+// Cart.c
+PICO_INTERNAL void PicoCartDetect(void);
 
 // Draw.c
 PICO_INTERNAL int PicoLine(int scan);
@@ -397,6 +404,10 @@ PICO_INTERNAL void z80_exit(void);
 #define EL_VDPDMA  0x0040 /* VDP DMA transfers and their timing */
 #define EL_BUSREQ  0x0080 /* z80 busreq r/w */
 #define EL_Z80BNK  0x0100 /* z80 i/o through bank area */
+#define EL_SRAMIO  0x0200 /* sram i/o */
+#define EL_EEPROM  0x0400 /* eeprom debug */
+#define EL_UIO     0x0800 /* unmapped i/o */
+#define EL_IO      0x1000 /* all i/o */
 
 #define EL_STATUS  0x4000 /* status messages */
 #define EL_ANOMALY 0x8000 /* some unexpected conditions */

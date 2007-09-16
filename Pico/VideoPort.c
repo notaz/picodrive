@@ -337,7 +337,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
     else
     {
       // preliminary FIFO emulation for Chaos Engine, The (E)
-      if(!(pvid->status&8) && (pvid->reg[1]&0x40) && Pico.m.scanline!=-1) // active display, accurate mode?
+      if(!(pvid->status&8) && (pvid->reg[1]&0x40) && Pico.m.scanline!=-1 && !(PicoOpt&0x10000)) // active display, accurate mode?
       {
         pvid->status&=~0x200; // FIFO no longer empty
         pvid->lwrite_cnt++;

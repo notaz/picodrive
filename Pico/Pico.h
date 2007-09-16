@@ -34,6 +34,7 @@ void mp3_update(int *buffer, int length, int stereo);
 // alt_renderer, 6button_gamepad, accurate_timing, accurate_sprites,
 // draw_no_32col_border, external_ym2612, enable_cd_pcm, enable_cd_cdda
 // enable_cd_gfx, cd_perfect_sync, soft_32col_scaling, enable_cd_ramcart
+// disable_vdp_fifo
 extern int PicoOpt;
 extern int PicoVer;
 extern int PicoSkipFrame; // skip rendering frame, but still do sound (if enabled) and emulation stuff

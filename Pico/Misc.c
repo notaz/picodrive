@@ -131,54 +131,48 @@ const unsigned short vcounts[] = {
 // rarely used EEPROM SRAM code
 // known games which use this:
 // Wonder Boy in Monster World, Megaman - The Wily Wars (X24C01, 128 bytes)
-// NFL Quarterback Club*, Frank Thomas Big Hurt Baseball (X24C04?)
-// College Slam, Blockbuster World Video Game Championship II, NBA Jam (X24C04?)
-// HardBall '95
 
-// the above sports games use addr 0x200000 for SCL line (handled in Memory.c)
+// (see Genesis Plus for Wii/GC code and docs for info,
+//  full game list and better code).
 
 unsigned int lastSSRamWrite = 0xffff0000;
 
-// sram_reg: LAtd sela (L=pending SCL, A=pending SDA, t=type(1==uses 0x200000 for SCL and 2K bytes),
+// sram_reg: LAtd sela (L=pending SCL, A=pending SDA, t=(unused),
 //                      d=SRAM was detected (header or by access), s=started, e=save is EEPROM, l=old SCL, a=old SDA)
 PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
 {
-  unsigned int sreg = Pico.m.sram_reg, saddr = Pico.m.sram_addr, scyc = Pico.m.sram_cycle, ssa = Pico.m.sram_slave;
+  unsigned int sreg = Pico.m.sram_reg, saddr = Pico.m.eeprom_addr, scyc = Pico.m.eeprom_cycle, ssa = Pico.m.eeprom_slave;
 
-  //printf("EEPROM write %i\n", d&3);
-  sreg |= saddr&0xc000; // we store word count in add reg: dw?a aaaa ...  (d=word count detected, w=words(0==use 2 words, else 1))
+  elprintf(EL_EEPROM, "eeprom: scl/sda: %i/%i -> %i/%i, newtime=%i", (sreg&2)>>1, sreg&1,
+    (d&2)>>1, d&1, SekCyclesDoneT()-lastSSRamWrite);
   saddr&=0x1fff;
 
   if(sreg & d & 2) {
     // SCL was and is still high..
     if((sreg & 1) && !(d&1)) {
       // ..and SDA went low, means it's a start command, so clear internal addr reg and clock counter
-      //dprintf("-start-");
-      if(!(sreg&0x8000) && scyc >= 9) {
-        if(scyc != 28) sreg |= 0x4000; // 1 word
-        //dprintf("detected word count: %i", scyc==28 ? 2 : 1);
-        sreg |= 0x8000;
-      }
+      elprintf(EL_EEPROM, "eeprom: -start-");
       //saddr = 0;
       scyc = 0;
       sreg |= 8;
     } else if(!(sreg & 1) && (d&1)) {
       // SDA went high == stop command
-      //dprintf("-stop-");
+      elprintf(EL_EEPROM, "eeprom: -stop-");
       sreg &= ~8;
     }
   }
-  else if((sreg & 8) && !(sreg & 2) && (d&2)) {
+  else if((sreg & 8) && !(sreg & 2) && (d&2))
+  {
     // we are started and SCL went high - next cycle
     scyc++; // pre-increment
-    if(sreg & 0x20) {
+    if(SRam.eeprom_type) {
       // X24C02+
       if((ssa&1) && scyc == 18) {
         scyc = 9;
         saddr++; // next address in read mode
-        if(sreg&0x4000) saddr&=0xff; else saddr&=0x1fff; // mask
+        /*if(SRam.eeprom_type==2) saddr&=0xff; else*/ saddr&=0x1fff; // mask
       }
-      else if((sreg&0x4000) && scyc == 27) scyc = 18;
+      else if(SRam.eeprom_type == 2 && scyc == 27) scyc = 18;
       else if(scyc == 36) scyc = 27;
     } else {
       // X24C01
@@ -187,21 +181,22 @@ PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
         if(saddr&1) { saddr+=2; saddr&=0xff; } // next addr in read mode
       }
     }
-    //dprintf("scyc: %i", scyc);
+    elprintf(EL_EEPROM, "eeprom: scyc: %i", scyc);
   }
-  else if((sreg & 8) && (sreg & 2) && !(d&2)) {
+  else if((sreg & 8) && (sreg & 2) && !(d&2))
+  {
     // we are started and SCL went low (falling edge)
-    if(sreg & 0x20) {
+    if(SRam.eeprom_type) {
       // X24C02+
       if(scyc == 9 || scyc == 18 || scyc == 27); // ACK cycles
-      else if( (!(sreg&0x4000) && scyc > 27) || ((sreg&0x4000) && scyc > 18) ) {
+      else if( (SRam.eeprom_type == 3 && scyc > 27) || (SRam.eeprom_type == 2 && scyc > 18) ) {
         if(!(ssa&1)) {
           // data write
           unsigned char *pm=SRam.data+saddr;
           *pm <<= 1; *pm |= d&1;
           if(scyc == 26 || scyc == 35) {
             saddr=(saddr&~0xf)|((saddr+1)&0xf); // only 4 (?) lowest bits are incremented
-            //dprintf("w done: %02x; addr inc: %x", *pm, saddr);
+            elprintf(EL_EEPROM, "eeprom: write done, addr inc to: %x, last byte=%02x", saddr, *pm);
           }
           SRam.changed = 1;
         }
@@ -209,14 +204,17 @@ PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
         if(!(ssa&1)) {
           // we latch another addr bit
           saddr<<=1;
-          if(sreg&0x4000) saddr&=0xff; else saddr&=0x1fff; // mask
+          if(SRam.eeprom_type == 2) saddr&=0xff; else saddr&=0x1fff; // mask
           saddr|=d&1;
-          //if(scyc==17||scyc==26) dprintf("addr reg done: %x", saddr);
+          if(scyc==17||scyc==26) {
+            elprintf(EL_EEPROM, "eeprom: addr reg done: %x", saddr);
+            if(scyc==17&&SRam.eeprom_type==2) { saddr&=0xff; saddr|=(ssa<<7)&0x700; } // add device bits too
+          }
         }
       } else {
         // slave address
         ssa<<=1; ssa|=d&1;
-        //if(scyc==8) dprintf("slave done: %x", ssa);
+        if(scyc==8) elprintf(EL_EEPROM, "eeprom: slave done: %x", ssa);
       }
     } else {
       // X24C01
@@ -228,77 +226,89 @@ PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
           *pm <<= 1; *pm |= d&1;
           if(scyc == 17) {
             saddr=(saddr&0xf9)|((saddr+2)&6); // only 2 lowest bits are incremented
-            //dprintf("addr inc: %x", saddr>>1);
+            elprintf(EL_EEPROM, "eeprom: write done, addr inc to: %x, last byte=%02x", saddr>>1, *pm);
           }
           SRam.changed = 1;
         }
       } else {
         // we latch another addr bit
         saddr<<=1; saddr|=d&1; saddr&=0xff;
-        //if(scyc==8) dprintf("addr done: %x", saddr>>1);
+        if(scyc==8) elprintf(EL_EEPROM, "eeprom: addr done: %x", saddr>>1);
       }
     }
   }
 
   sreg &= ~3; sreg |= d&3; // remember SCL and SDA
-  Pico.m.sram_reg  = (unsigned char)  sreg;
-  Pico.m.sram_addr = (unsigned short)(saddr|(sreg&0xc000));
-  Pico.m.sram_cycle= (unsigned char)  scyc;
-  Pico.m.sram_slave= (unsigned char)  ssa;
+  Pico.m.sram_reg    = (unsigned char) sreg;
+  Pico.m.eeprom_cycle= (unsigned char) scyc;
+  Pico.m.eeprom_slave= (unsigned char) ssa;
+  Pico.m.eeprom_addr = (unsigned short)saddr;
 }
 
 PICO_INTERNAL_ASM unsigned int SRAMReadEEPROM(void)
 {
-  unsigned int shift, d=0;
-  unsigned int sreg, saddr, scyc, ssa;
+  unsigned int shift, d;
+  unsigned int sreg, saddr, scyc, ssa, interval;
 
   // flush last pending write
   SRAMWriteEEPROM(Pico.m.sram_reg>>6);
 
-  sreg = Pico.m.sram_reg; saddr = Pico.m.sram_addr&0x1fff; scyc = Pico.m.sram_cycle; ssa = Pico.m.sram_slave;
-//  if(!(sreg & 2) && (sreg&0x80)) scyc++; // take care of raising edge now to compensate lag
+  sreg = Pico.m.sram_reg; saddr = Pico.m.eeprom_addr&0x1fff; scyc = Pico.m.eeprom_cycle; ssa = Pico.m.eeprom_slave;
+  interval = SekCyclesDoneT()-lastSSRamWrite;
+  d = (sreg>>6)&1; // use SDA as "open bus"
 
-  if(SekCyclesDoneT()-lastSSRamWrite < 46) {
-    // data was just written, there was no time to respond (used by sports games)
-    d = (sreg>>6)&1;
-  } else if((sreg & 8) && scyc > 9 && scyc != 18 && scyc != 27) {
+  // NBA Jam is nasty enough to read <before> raising the SCL and starting the new cycle.
+  // this is probably valid because data changes occur while SCL is low and data can be read
+  // before it's actual cycle begins.
+  if (!(sreg&0x80) && interval >= 24) {
+    elprintf(EL_EEPROM, "eeprom: early read, cycles=%i", interval);
+    scyc++;
+  }
+
+  if (!(sreg & 8)); // not started, use open bus
+  else if (scyc == 9 || scyc == 18 || scyc == 27) {
+    elprintf(EL_EEPROM, "eeprom: r ack");
+    d = 0;
+  } else if (scyc > 9 && scyc < 18) {
     // started and first command word received
     shift = 17-scyc;
-    if(sreg & 0x20) {
+    if (SRam.eeprom_type) {
       // X24C02+
-      if(ssa&1) {
-        //dprintf("read: addr %02x, cycle %i, reg %02x", saddr, scyc, sreg);
+      if (ssa&1) {
+        elprintf(EL_EEPROM, "eeprom: read: addr %02x, cycle %i, reg %02x", saddr, scyc, sreg);
+	if (shift==0) elprintf(EL_EEPROM, "eeprom: read done, byte %02x", SRam.data[saddr]);
         d = (SRam.data[saddr]>>shift)&1;
       }
     } else {
       // X24C01
-      if(saddr&1) {
+      if (saddr&1) {
+        elprintf(EL_EEPROM, "eeprom: read: addr %02x, cycle %i, reg %02x", saddr>>1, scyc, sreg);
+	if (shift==0) elprintf(EL_EEPROM, "eeprom: read done, byte %02x", SRam.data[saddr>>1]);
         d = (SRam.data[saddr>>1]>>shift)&1;
       }
     }
   }
-  //else dprintf("r ack");
 
-  return d;
+  return (d << SRam.eeprom_bit_out);
 }
 
 PICO_INTERNAL void SRAMUpdPending(unsigned int a, unsigned int d)
 {
-  unsigned int sreg = Pico.m.sram_reg;
+  unsigned int d1, sreg = Pico.m.sram_reg;
 
-  if(!(a&1)) sreg|=0x20;
-
-  if(sreg&0x20) { // address through 0x200000
-    if(!(a&1)) {
-      sreg&=~0x80;
-      sreg|=d<<7;
-    } else {
-      sreg&=~0x40;
-      sreg|=(d<<6)&0x40;
-    }
-  } else {
-    sreg&=~0xc0;
-    sreg|=d<<6;
+  if (!((SRam.eeprom_abits^a)&1))
+  {
+    // SCL
+    sreg &= ~0x80;
+    d1 = (d >> SRam.eeprom_bit_cl) & 1;
+    sreg |= d1<<7;
+  }
+  if (!(((SRam.eeprom_abits>>1)^a)&1))
+  {
+    // SDA in
+    sreg &= ~0x40;
+    d1 = (d >> SRam.eeprom_bit_in) & 1;
+    sreg |= d1<<6;
   }
 
   Pico.m.sram_reg = (unsigned char) sreg;

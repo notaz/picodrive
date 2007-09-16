@@ -221,6 +221,7 @@ void OtherWrite16(u32 a,u32 d)
 
 #ifndef _CD_MEMORY_C
   if (a >= SRam.start && a <= SRam.end) {
+    elprintf(EL_SRAMIO, "sram w16 [%06x] %04x @ %06x", a, d, SekPc);
     if ((a&0x16)==0x10) { // detected, not EEPROM, write not disabled
       u8 *pm=(u8 *)(SRam.data-SRam.start+a);
       *pm++=d>>8;
@@ -228,7 +229,7 @@ void OtherWrite16(u32 a,u32 d)
       SRam.changed = 1;
     }
     else
-      SRAMWrite(a, d); // ??
+      SRAMWrite(a, d);
     return;
   }
 #else
