@@ -617,22 +617,38 @@ static char *action_binds(int player_idx, int action_mask)
 		}
 	}
 
+	// limit..
+	strkeys[20] = 0;
+
 	return strkeys;
 }
 
-static void unbind_action(int action, int pl_idx)
+static void unbind_action(int action, int pl_idx, int joy)
 {
 	int i, u;
 
-	for (i = 0; i < 32; i++) {
-		if (pl_idx >= 0 && (currentConfig.KeyBinds[i]&0x30000) != (pl_idx<<16)) continue;
-		currentConfig.KeyBinds[i] &= ~action;
-	}
-	for (u = 0; u < 4; u++)
+	if (joy <= 0)
+	{
 		for (i = 0; i < 32; i++) {
-			if (pl_idx >= 0 && (currentConfig.JoyBinds[u][i]&0x30000) != (pl_idx<<16)) continue;
-			currentConfig.JoyBinds[u][i] &= ~action;
+			if (pl_idx >= 0 && (currentConfig.KeyBinds[i]&0x30000) != (pl_idx<<16)) continue;
+			currentConfig.KeyBinds[i] &= ~action;
 		}
+	}
+	if (joy < 0)
+	{
+		for (u = 0; u < 4; u++)
+			for (i = 0; i < 32; i++) {
+				if (pl_idx >= 0 && (currentConfig.JoyBinds[u][i]&0x30000) != (pl_idx<<16)) continue;
+				currentConfig.JoyBinds[u][i] &= ~action;
+			}
+	}
+	else if (joy > 0)
+	{
+		for (i = 0; i < 32; i++) {
+			if (pl_idx >= 0 && (currentConfig.JoyBinds[joy-1][i]&0x30000) != (pl_idx<<16)) continue;
+			currentConfig.JoyBinds[joy-1][i] &= ~action;
+		}
+	}
 }
 
 static int count_bound_keys(int action, int pl_idx, int joy)
@@ -714,7 +730,7 @@ static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_i
 			}
 			// if we are here, we want to bind/unbind something
 			if ((inp & GP2X_SELECT) && !prev_select)
-				unbind_action(opts[sel].mask, player_idx);
+				unbind_action(opts[sel].mask, player_idx, -1);
 			prev_select = inp & GP2X_SELECT;
 			inp &= CONFIGURABLE_KEYS;
 			inp &= ~GP2X_SELECT;
@@ -733,12 +749,14 @@ static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_i
 		{
 			for (i = 0; i < 32; i++)
 				if (inp & (1 << i)) {
-					if (count_bound_keys(opts[sel].mask, player_idx, joy) >= 1) // disallow combos for usbjoy
-					     currentConfig.JoyBinds[joy-1][i] &= ~opts[sel].mask;
-					else currentConfig.JoyBinds[joy-1][i] ^=  opts[sel].mask;
-					if (player_idx >= 0 && currentConfig.JoyBinds[joy-1][i] & opts[sel].mask) {
-						currentConfig.JoyBinds[joy-1][i] &= ~(3 << 16);
-						currentConfig.JoyBinds[joy-1][i] |= player_idx << 16;
+					int *bind = &currentConfig.JoyBinds[joy-1][i];
+					if ((*bind & opts[sel].mask) && (player_idx < 0 || player_idx == ((*bind>>16)&3)))
+						currentConfig.JoyBinds[joy-1][i] &= ~opts[sel].mask;
+					else {
+						// override
+						unbind_action(opts[sel].mask, player_idx, joy);
+						*bind = opts[sel].mask;
+						if (player_idx >= 0) *bind |= player_idx << 16;
 					}
 				}
 		}
@@ -1239,7 +1257,7 @@ static void menu_options_save(void)
 	PicoRegionOverride = currentConfig.PicoRegion;
 	if (!(PicoOpt & 0x20)) {
 		// unbind XYZ MODE, just in case
-		unbind_action(0xf00, -1);
+		unbind_action(0xf00, -1, -1);
 	}
 	scaling_update();
 }

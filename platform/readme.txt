@@ -236,6 +236,7 @@ Changelog
   * Updated serial EEPROM code to support more games. Thanks to EkeEke for
     providing info about additional EEPROM types and game mappers.
   * The above change fixed hang of NBA Jam.
+  * Minor adjustments to control configurator.
 
 1.33
   * Updated Cyclone core to 0.0088.
