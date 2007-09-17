@@ -6669,11 +6669,14 @@ opcode_DD_NF:
 ;@	mov r0,#0xFD00
 ;@	orr r0,r0,r1
 ;@	b end_loop
+
 opcode_DD_NF2:
-	mov r0,#0xDD0000
-	orr r0,r0,#0xCB00
-	orr r0,r0,r1
-	b end_loop
+	fetch 15
+;@ notaz: we don't want to deadlock here
+;@	mov r0,#0xDD0000
+;@	orr r0,r0,#0xCB00
+;@	orr r0,r0,r1
+;@	b end_loop
 
 ;@ADD IX,BC
 opcode_DD_09:
@@ -8068,8 +8071,8 @@ opcode_ED_BB:
 ;@from the DD location but the address of the IY reg is passed instead
 ;@of IX
 
-end_loop:
-     b end_loop
+;@end_loop:
+;@     b end_loop
 
 
 
