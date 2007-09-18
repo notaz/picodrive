@@ -405,12 +405,12 @@ PICO_INTERNAL void z80_exit(void);
 #define EL_INTSW   0x0010 /* log irq switching on/off */
 #define EL_ASVDP   0x0020 /* VDP accesses during active scan */
 #define EL_VDPDMA  0x0040 /* VDP DMA transfers and their timing */
-#define EL_BUSREQ  0x0080 /* z80 busreq r/w */
+#define EL_BUSREQ  0x0080 /* z80 busreq r/w or reset w */
 #define EL_Z80BNK  0x0100 /* z80 i/o through bank area */
 #define EL_SRAMIO  0x0200 /* sram i/o */
 #define EL_EEPROM  0x0400 /* eeprom debug */
 #define EL_UIO     0x0800 /* unmapped i/o */
-#define EL_IO      0x1000 /* all i/o */
+#define EL_IO      0x1000 /* all i/o (TODO) */
 
 #define EL_STATUS  0x4000 /* status messages */
 #define EL_ANOMALY 0x8000 /* some unexpected conditions */

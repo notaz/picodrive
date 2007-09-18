@@ -17,15 +17,17 @@
 { \
   if ((PicoOpt&4) && Pico.m.z80Run) \
   { \
+    int cnt; \
     if (Pico.m.z80Run & 2) z80CycleAim += z80_cycles; \
     else { \
-      int cnt = SekCyclesDone() - z80startCycle; \
+      cnt = SekCyclesDone() - z80startCycle; \
       cnt = (cnt>>1)-(cnt>>5); \
       if (cnt > (z80_cycles)) cnt = z80_cycles; \
       Pico.m.z80Run |= 2; \
       z80CycleAim+=cnt; \
     } \
-    total_z80+=z80_run(z80CycleAim-total_z80); \
+    cnt=z80CycleAim-total_z80; \
+    if (cnt > 0) total_z80+=z80_run(cnt); \
   } \
 }
 
@@ -52,7 +54,7 @@
 static int PicoFrameHints(void)
 {
   struct PicoVideo *pv=&Pico.video;
-  int total_z80=0,lines,y,lines_vis = 224,z80CycleAim = 0,line_sample;
+  int lines,y,lines_vis = 224,total_z80 = 0,z80CycleAim = 0,line_sample;
   int skip=PicoSkipFrame || (PicoOpt&0x10);
   int hint; // Hint counter
 
@@ -78,7 +80,9 @@ static int PicoFrameHints(void)
   //dprintf("-hint: %i", hint);
 
   // This is to make active scan longer (needed for Double Dragon 2, mainly)
-  CPUS_RUN(CYCLES_M68K_ASD, CYCLES_Z80_ASD, CYCLES_S68K_ASD);
+  // also trying to adjust for z80 overclock here (due to int line cycle counts)
+  z80CycleAim = Pico.m.pal ? -40 : 7;
+  CPUS_RUN(CYCLES_M68K_ASD, 0, CYCLES_S68K_ASD);
 
   for (y=0;y<lines_vis;y++)
   {

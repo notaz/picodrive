@@ -57,7 +57,7 @@ u32 z80ReadBusReq(void)
     int stop_before = SekCyclesDone() - z80stopCycle;
     //elprintf(EL_BUSREQ, "get_zrun: stop before: %i", stop_before);
     // note: if we use 20 or more here, Barkley Shut Up and Jam! will purposedly crash itself.
-    // TODO: CD Terminator
+    // but CD Terminator needs at least 32, so it only works because next frame cycle wrap.
     if (stop_before > 0 && stop_before < 20) // Gens uses 16 here
       d = 1; // bus not yet available
   }
@@ -176,7 +176,7 @@ void OtherWrite8(u32 a,u32 d)
 #endif
   if (a==0xa11100)             { z80WriteBusReq(d); return; }
   if (a==0xa11200) {
-    dprintf("write z80Reset: %02x", d);
+    elprintf(EL_BUSREQ, "write z80Reset: %02x", d);
     if(!(d&1)) z80_reset();
     return;
   }
