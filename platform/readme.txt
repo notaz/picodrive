@@ -17,7 +17,7 @@ roughly based on Stephane Dallongeville's Gens.
 How to make it run
 ------------------
 
-Copy PicoDrive.gpe, code940.bin and mmuhack.o to any place in your filesystem
+Copy PicoDrive.gpe, pico940.bin and mmuhack.o to any place in your filesystem
 (all 3 files must be in the same directory) and run PicoDrive.gpe.
 Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
 
