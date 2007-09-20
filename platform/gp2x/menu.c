@@ -739,7 +739,7 @@ static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_i
 					if (count_bound_keys(opts[sel].mask, player_idx, 0) >= 2)
 					     currentConfig.KeyBinds[i] &= ~opts[sel].mask; // allow to unbind only
 					else currentConfig.KeyBinds[i] ^=  opts[sel].mask;
-					if (player_idx >= 0 && currentConfig.KeyBinds[i] & opts[sel].mask) {
+					if (player_idx >= 0 && (currentConfig.KeyBinds[i] & opts[sel].mask)) {
 						currentConfig.KeyBinds[i] &= ~(3 << 16);
 						currentConfig.KeyBinds[i] |= player_idx << 16;
 					}

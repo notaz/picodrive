@@ -9,7 +9,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <wchar.h>
 #include <unistd.h> // for getcwd cegcc implementation
+#include <dirent.h> // for opendir
 #include <windows.h>
 
 #include "giz.h"
@@ -40,6 +42,7 @@ static const char * const gizKeyNames[] = {
 };
 
 static unsigned char bg_buffer[321*240*2];
+unsigned char menu_screen[321*240*2]; /* draw here and blit later, to avoid flicker */
 char menuErrorMsg[40] = {0, };
 
 static void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
@@ -86,21 +89,21 @@ static unsigned long wait_for_input(unsigned int interesting)
 
 static void menu_draw_begin(int use_bgbuff)
 {
-	if (giz_screen == NULL)
-	{
-		Framework2D_WaitVSync();
-		giz_screen = Framework2D_LockBuffer();
-	}
-	else
-	{
-		lprintf("%s: screen was not NULL\n", __FUNCTION__);
-	}
-	memcpy32(giz_screen, (int *)bg_buffer, 321*240*2/4);
+	if (use_bgbuff)
+		memcpy32((int *)menu_screen, (int *)bg_buffer, 321*240*2/4);
 }
 
 
 static void menu_draw_end(void)
 {
+	Framework2D_WaitVSync();
+	giz_screen = Framework2D_LockBuffer();
+	if (giz_screen == NULL)
+	{
+		lprintf_al("%s: Framework2D_LockBuffer() returned NULL\n", __FUNCTION__);
+		return;
+	}
+	memcpy32(giz_screen, (int *)menu_screen, 321*240*2/4);
 	Framework2D_UnlockBuffer();
 	giz_screen = NULL;
 }
@@ -114,7 +117,7 @@ static void load_progress_cb(int percent)
 	unsigned short *dst;
 
 	menu_draw_begin(0);
-	dst = (unsigned short *)giz_screen + 321*20;
+	dst = (unsigned short *)menu_screen + 321*20;
 
 	if (len > 320) len = 320;
 	for (ln = 10; ln > 0; ln--, dst += 320)
@@ -128,7 +131,7 @@ void menu_romload_prepare(const char *rom_name)
 	while (p > rom_name && *p != '/') p--;
 
 	if (rom_data == NULL)
-		memset(giz_screen, 0, 321*240*2);
+		memset(menu_screen, 0, 321*240*2);
 	menu_draw_begin(1);
 
 	smalltext_out16(1, 1, "Loading", 0xffff);
@@ -147,8 +150,17 @@ void menu_romload_end(void)
 
 // -------------- ROM selector --------------
 
+#define DT_DIR 1
+#define DT_REG 2
+
+struct my_dirent
+{
+	unsigned char d_type;
+	char d_name[0];
+};
+
 // rrrr rggg gggb bbbb
-#if 0
+#if 1
 static unsigned short file2color(const char *fname)
 {
 	const char *ext = fname + strlen(fname) - 3;
@@ -164,7 +176,7 @@ static unsigned short file2color(const char *fname)
 	return 0xffff;
 }
 
-static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
+static void draw_dirlist(char *curdir, struct my_dirent **namelist, int n, int sel)
 {
 	int start, i, pos;
 
@@ -174,10 +186,10 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 	menu_draw_begin(1);
 
 	if (rom_data == NULL) {
-		menu_darken_bg(giz_screen, giz_screen, 321*240, 0);
+		menu_darken_bg(menu_screen, menu_screen, 321*240, 0);
 	}
 
-	menu_darken_bg((char *)giz_screen + 321*120*2, (char *)giz_screen + 321*120*2, 321*8, 0);
+	menu_darken_bg((char *)menu_screen + 321*120*2, (char *)menu_screen + 321*120*2, 321*8, 0);
 
 	if(start - 2 >= 0)
 		smalltext_out16_lim(14, (start - 2)*10, curdir, 0xffff, 53-2);
@@ -199,19 +211,19 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 
 static int scandir_cmp(const void *p1, const void *p2)
 {
-	struct dirent **d1 = (struct dirent **)p1, **d2 = (struct dirent **)p2;
-	if ((*d1)->d_type == (*d2)->d_type) return alphasort(d1, d2);
+	struct my_dirent **d1 = (struct my_dirent **)p1, **d2 = (struct my_dirent **)p2;
+	if ((*d1)->d_type == (*d2)->d_type) return strcasecmp((*d1)->d_name, (*d2)->d_name);
 	if ((*d1)->d_type == DT_DIR) return -1; // put before
 	if ((*d2)->d_type == DT_DIR) return  1;
-	return alphasort(d1, d2);
+	return strcasecmp((*d1)->d_name, (*d2)->d_name);
 }
 
 static char *filter_exts[] = {
-	".mp3", ".MP3", ".srm", ".brm", "s.gz", ".mds",	"bcfg", ".txt", ".htm", "html",
-	".jpg", ".gpe", ".cue"
+	".mp3", ".srm", ".brm", "s.gz", ".mds", "bcfg", ".txt", ".htm", "html",
+	".jpg", ".cue", ".exe", ".dll"
 };
 
-static int scandir_filter(const struct dirent *ent)
+static int scandir_filter(const struct my_dirent *ent)
 {
 	const char *p;
 	int i;
@@ -223,15 +235,119 @@ static int scandir_filter(const struct dirent *ent)
 
 	for (i = 0; i < sizeof(filter_exts)/sizeof(filter_exts[0]); i++)
 	{
-		if (strcmp(p, filter_exts[i]) == 0) return 0;
+		if (strcasecmp(p, filter_exts[i]) == 0) return 0;
 	}
 
 	return 1;
 }
 
+static int cstr2wstr(wchar_t *dst, const char *src)
+{
+	int i, len;
+	for (i = len = strlen(src); i >= 0; i--)
+		dst[i] = src[i];
+	return len;
+}
+
+static void wstr2cstr(char *dst, const wchar_t *src)
+{
+	int i;
+	for (i = wcslen(src); i >= 0; i--)
+		dst[i] = src[i];
+}
+
+static int my_scandir(const char *dir, struct my_dirent ***namelist_out,
+		int(*filter)(const struct my_dirent *),
+		int(*compar)(const void *, const void *))
+{
+	wchar_t *wdir;
+	int i, len, ret = -1, name_alloc = 4, name_count = 0;
+	struct my_dirent **namelist = NULL, *ent;
+	WIN32_FIND_DATA finddata;
+	HANDLE fh = INVALID_HANDLE_VALUE;
+	BOOL bRet;
+
+	wdir = malloc(sizeof(wdir[0]) * MAX_PATH);
+	if (wdir == NULL) { lprintf_al("%s:%s: OOM\n", __FILE__, __LINE__); goto fail; }
+
+	namelist = malloc(sizeof(*namelist) * name_alloc);
+	if (namelist == NULL) { lprintf_al("%s:%s: OOM\n", __FILE__, __LINE__); goto fail; }
+
+	// try to read first..
+	len = cstr2wstr(wdir, dir);
+	for (i = 0; i < len; i++)
+		if (wdir[i] == '/') wdir[i] = '\\';
+	if (wdir[len-1] != '\\') wdir[len++] = '\\';
+	wdir[len++] = '*';
+	wdir[len++] = 0;
+	/*if (wdir[len-1] == '\\') wdir[len-1] = 0;*/
+
+	bRet = 1;
+	fh = FindFirstFile(wdir, &finddata);
+	if (fh == INVALID_HANDLE_VALUE)
+	{
+		if (GetLastError() != ERROR_NO_MORE_FILES)
+		{
+			lprintf("FindFirstFile(\"%s\") failed with %lu\n", dir, GetLastError());
+			goto fail;
+		}
+		bRet = 0;
+	}
+
+	// add "." and ".."
+	ent = malloc(sizeof(*ent) + 3);
+	ent->d_type = DT_DIR; strcpy(ent->d_name, ".");
+	namelist[name_count++] = ent;
+	ent = malloc(sizeof(*ent) + 3);
+	ent->d_type = DT_DIR; strcpy(ent->d_name, "..");
+	namelist[name_count++] = ent;
+
+	while (bRet)
+	{
+		ent = malloc(sizeof(*ent) + wcslen(finddata.cFileName) + 1);
+		ent->d_type = (finddata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? DT_DIR : DT_REG;
+		wstr2cstr(ent->d_name, finddata.cFileName);
+		if (filter == NULL || filter(ent))
+		     namelist[name_count++] = ent;
+		else free(ent);
+
+		if (name_count >= name_alloc)
+		{
+			void *tmp;
+			name_alloc *= 2;
+			tmp = realloc(namelist, sizeof(*namelist) * name_alloc);
+			if (tmp == NULL) { lprintf_al("%s:%s: OOM\n", __FILE__, __LINE__); goto fail; }
+			namelist = tmp;
+		}
+
+		bRet = FindNextFile(fh, &finddata);
+	}
+
+	// sort
+	if (compar != NULL && name_count > 3) qsort(&namelist[2], name_count - 2, sizeof(namelist[0]), compar);
+
+	// all done.
+	ret = name_count;
+	*namelist_out = namelist;
+	goto end;
+
+fail:
+	if (namelist != NULL)
+	{
+		while (name_count--)
+			free(namelist[name_count]);
+		free(namelist);
+	}
+end:
+	if (fh != INVALID_HANDLE_VALUE) FindClose(fh);
+	if (wdir != NULL) free(wdir);
+	return ret;
+}
+
+
 static char *romsel_loop(char *curr_path)
 {
-	struct dirent **namelist;
+	struct my_dirent **namelist;
 	DIR *dir;
 	int n, sel = 0;
 	unsigned long inp = 0;
@@ -247,14 +363,13 @@ static char *romsel_loop(char *curr_path)
 		fname = p+1;
 	}
 
-	n = scandir(curr_path, &namelist, scandir_filter, scandir_cmp);
+	n = my_scandir(curr_path, &namelist, scandir_filter, scandir_cmp);
 	if (n < 0) {
-		// try root
-		n = scandir("/", &namelist, scandir_filter, scandir_cmp);
+		// try root..
+		n = my_scandir("/", &namelist, scandir_filter, scandir_cmp);
 		if (n < 0) {
 			// oops, we failed
-			lprintf("dir: "); lprintf(curr_path); lprintf("\n");
-			perror("scandir");
+			lprintf("scandir failed, dir: "); lprintf(curr_path); lprintf("\n");
 			return NULL;
 		}
 	}
@@ -281,7 +396,6 @@ static char *romsel_loop(char *curr_path)
 		if(inp & BTN_RIGHT) { sel+=10; if (sel > n-2) sel = n-2; }
 		if(inp & BTN_R)     { sel+=24; if (sel > n-2) sel = n-2; }
 		if(inp & BTN_PLAY)     { // enter dir/select
-			again:
 			if (namelist[sel+1]->d_type == DT_REG) {
 				strcpy(romFileName, curr_path);
 				strcat(romFileName, "/");
@@ -308,21 +422,6 @@ static char *romsel_loop(char *curr_path)
 				ret = romsel_loop(newdir);
 				free(newdir);
 				break;
-			} else {
-				// unknown file type, happens on NTFS mounts. Try to guess.
-				FILE *tstf; int tmp;
-				strcpy(romFileName, curr_path);
-				strcat(romFileName, "/");
-				strcat(romFileName, namelist[sel+1]->d_name);
-				tstf = fopen(romFileName, "rb");
-				if (tstf != NULL)
-				{
-					if (fread(&tmp, 1, 1, tstf) > 0 || ferror(tstf) == 0)
-						namelist[sel+1]->d_type = DT_REG;
-					else	namelist[sel+1]->d_type = DT_DIR;
-					fclose(tstf);
-					goto again;
-				}
 			}
 		}
 		if(inp & BTN_STOP) break; // cancel
@@ -335,11 +434,12 @@ static char *romsel_loop(char *curr_path)
 
 	return ret;
 }
-#endif
+#else
 static char *romsel_loop(char *curr_path)
 {
 	return NULL;
 }
+#endif
 
 // ------------ patch/gg menu ------------
 
@@ -549,12 +649,15 @@ static void unbind_action(int action)
 		currentConfig.KeyBinds[i] &= ~action;
 }
 
-static int count_bound_keys(int action)
+static int count_bound_keys(int action, int pl_idx)
 {
 	int i, keys = 0;
 
 	for (i = 0; i < 32; i++)
+	{
+		if (pl_idx >= 0 && (currentConfig.KeyBinds[i]&0x30000) != (pl_idx<<16)) continue;
 		if (currentConfig.KeyBinds[i] & action) keys++;
+	}
 
 	return keys;
 }
@@ -568,7 +671,7 @@ static void draw_key_config(const bind_action_t *opts, int opt_cnt, int player_i
 	menu_draw_begin(1);
 	if (player_idx >= 0) {
 		text_out16(80, 20, "Player %i controls", player_idx + 1);
-		x = 100;
+		x = 80;
 	} else {
 		text_out16(80, 20, "Emulator controls");
 		x = 40;
@@ -621,10 +724,10 @@ static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_i
 		inp &= ~BTN_HOME;
 		for (i = 0; i < 32; i++)
 			if (inp & (1 << i)) {
-				if (count_bound_keys(opts[sel].mask) >= 2)
-					currentConfig.KeyBinds[i] &= ~opts[sel].mask; // allow to unbind only
+				if (count_bound_keys(opts[sel].mask, player_idx) >= 2)
+				     currentConfig.KeyBinds[i] &= ~opts[sel].mask; // allow to unbind only
 				else currentConfig.KeyBinds[i] ^=  opts[sel].mask;
-				if (player_idx >= 0) {
+				if (player_idx >= 0 && (currentConfig.KeyBinds[i] & opts[sel].mask)) {
 					currentConfig.KeyBinds[i] &= ~(3 << 16);
 					currentConfig.KeyBinds[i] |= player_idx << 16;
 				}
@@ -1266,7 +1369,7 @@ static void draw_menu_root(int menu_sel)
 
 	// error
 	if (menuErrorMsg[0]) {
-		memset((char *)giz_screen + 321*224*2, 0, 321*16*2);
+		memset((char *)menu_screen + 321*224*2, 0, 321*16*2);
 		text_out16(5, 226, menuErrorMsg);
 	}
 	menu_draw_end();
@@ -1290,6 +1393,7 @@ static void menu_loop_root(void)
 
 	/* make sure action buttons are not pressed on entering menu */
 	draw_menu_root(menu_sel);
+
 	while (Framework_PollGetButtons(1) & (BTN_PLAY|BTN_STOP|BTN_HOME)) Sleep(50);
 
 	for (;;)
@@ -1420,14 +1524,19 @@ static void menu_prepare_bg(int use_game_bg)
 	if (use_game_bg)
 	{
 		// darken the active framebuffer
+		// TODO: take from somewhere else, not giz_screen
 		memset(bg_buffer, 0, 321*8*2);
 		menu_darken_bg(bg_buffer + 321*8*2, (char *)giz_screen + 321*8*2, 321*224, 1);
 		memset(bg_buffer + 321*232*2, 0, 321*8*2);
 	}
 	else
 	{
+		int i;
 		// should really only happen once, on startup..
 		readpng(bg_buffer, "skin/background.png", READPNG_BG);
+		// adjust 320 width to 321
+		for (i = 239; i > 0; i--)
+			memmove(bg_buffer + 321*2*i, bg_buffer + 320*2*i, 320*2);
 	}
 }
 

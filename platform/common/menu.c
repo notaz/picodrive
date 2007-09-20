@@ -20,7 +20,8 @@
 #elif defined(__GIZ__)
 #include "../gizmondo/giz.h"
 #define SCREEN_WIDTH 321
-#define SCREEN_BUFFER giz_screen
+#define SCREEN_BUFFER menu_screen
+extern unsigned char menu_screen[321*240*2];
 #endif
 
 static unsigned char menu_font_data[10240];
