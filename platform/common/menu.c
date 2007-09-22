@@ -14,15 +14,17 @@
 #include "lprintf.h"
 
 #if   defined(__GP2X__)
-#include "../gp2x/gp2x.h"
-#define SCREEN_WIDTH 320
-#define SCREEN_BUFFER gp2x_screen
+ #include "../gp2x/gp2x.h"
+ #define SCREEN_WIDTH 320
+ #define SCREEN_BUFFER gp2x_screen
 #elif defined(__GIZ__)
-#include "../gizmondo/giz.h"
-#define SCREEN_WIDTH 321
-#define SCREEN_BUFFER menu_screen
-extern unsigned char menu_screen[321*240*2];
+ //#include "../gizmondo/giz.h"
+ #define SCREEN_WIDTH 321
+ #define SCREEN_BUFFER menu_screen
+ extern unsigned char *menu_screen;
 #endif
+
+char menuErrorMsg[64] = { 0, };
 
 static unsigned char menu_font_data[10240];
 static int menu_text_color = 0xffff; // default to white

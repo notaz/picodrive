@@ -58,7 +58,7 @@ OBJS += main.o menu.o gp2x.o usbjoy.o emu.o squidgehack.o cpuctrl.o
 OBJS += 940ctl.o
 
 # common
-OBJS += ../common/menu.o ../common/fonts.o ../common/arm_utils.o ../common/readpng.o
+OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/arm_utils.o ../common/readpng.o
 
 # Pico
 ifeq "$(amalgamate)" "1"
@@ -183,7 +183,7 @@ testrefr.gpe : test.o gp2x.o
 ../../Pico/sound/mix_asm.o : ../../Pico/sound/mix.s
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
-../../Pico/misc_asm.o : ../../Pico/misc.s
+../../Pico/misc_asm.o : ../../Pico/Misc.s
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 ../../Pico/cd/pico_asm.o : ../../Pico/cd/Pico.s
@@ -192,7 +192,7 @@ testrefr.gpe : test.o gp2x.o
 ../../Pico/cd/memory_asm.o : ../../Pico/cd/Memory.s
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
-../../Pico/cd/misc_asm.o : ../../Pico/cd/misc.s
+../../Pico/cd/misc_asm.o : ../../Pico/cd/Misc.s
 	@echo $<
 	@$(AS) $(ASOPT) $< -o $@
 

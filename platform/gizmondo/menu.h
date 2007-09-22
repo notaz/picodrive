@@ -3,8 +3,6 @@
 
 // For commercial use, separate licencing terms must be obtained.
 
-extern char menuErrorMsg[40];
-
 void menu_init(void);
 void text_out16(int x, int y, const char *texto, ...);
 void menu_loop(void);

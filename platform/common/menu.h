@@ -7,6 +7,7 @@ void smalltext_out16(int x, int y, const char *texto, int color);
 void smalltext_out16_lim(int x, int y, const char *texto, int color, int max);
 void menu_draw_selection(int x, int y, int w);
 
+extern char menuErrorMsg[64];
 
 
 typedef enum

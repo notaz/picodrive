@@ -106,6 +106,9 @@ extern void (*PicoCartLoadProgressCB)(int percent);
 // Draw.c
 void PicoDrawSetColorFormat(int which); // 0=BGR444, 1=RGB555, 2=8bit(HighPal pal)
 extern void *DrawLineDest;
+#if OVERRIDE_HIGHCOL
+extern unsigned char *HighCol;
+#endif
 extern int (*PicoScan)(unsigned int num, void *data);
 // internals
 extern unsigned short HighPal[0x100];
@@ -113,6 +116,7 @@ extern int rendstatus;
 // utility
 #ifdef _ASM_DRAW_C
 void *blockcpy(void *dst, const void *src, size_t n);
+void vidConvCpyRGB565(void *to, void *from, int pixels);
 #else
 #define blockcpy memcpy
 #endif

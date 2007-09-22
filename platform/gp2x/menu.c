@@ -14,8 +14,9 @@
 #include "emu.h"
 #include "menu.h"
 #include "usbjoy.h"
-#include "../common/arm_utils.h"
+#include "../common/emu.h"
 #include "../common/menu.h"
+#include "../common/arm_utils.h"
 #include "../common/readpng.h"
 #include "version.h"
 
@@ -27,11 +28,7 @@
 #error "need d_type for file browser
 #endif
 
-extern char romFileName[PATH_MAX];
-extern char *rom_data;
 extern int  mmuhack_status;
-extern int  state_slot;
-extern int  config_slot, config_slot_current;
 
 static const char *gp2xKeyNames[] = {
 	"UP",    "???",    "LEFT", "???",  "DOWN", "???", "RIGHT",    "???",
@@ -39,8 +36,6 @@ static const char *gp2xKeyNames[] = {
 	"???",   "???",    "???",  "???",  "???",  "???", "VOL DOWN", "VOL UP",
 	"???",   "???",    "???",  "PUSH", "???",  "???", "???",      "???"
 };
-
-char menuErrorMsg[40] = {0, };
 
 static void menu_darken_bg(void *dst, int pixels, int darker);
 static void menu_prepare_bg(int use_game_bg);
@@ -452,7 +447,7 @@ static void state_check_slots(void)
 
 	for (slot = 0; slot < 10; slot++)
 	{
-		if (emu_check_save_file(slot))
+		if (emu_checkSaveFile(slot))
 		{
 			state_slot_flags |= 1 << slot;
 		}
@@ -480,10 +475,10 @@ static void draw_savestate_bg(int slot)
 
 	if (strcmp(fname + strlen(fname) - 3, ".gz") == 0) {
 		file = gzopen(fname, "rb");
-		emu_set_save_cbs(1);
+		emu_setSaveStateCbs(1);
 	} else {
 		file = fopen(fname, "rb");
-		emu_set_save_cbs(0);
+		emu_setSaveStateCbs(0);
 	}
 
 	if (file) {
@@ -501,7 +496,7 @@ static void draw_savestate_bg(int slot)
 		areaClose(file);
 	}
 
-	emu_forced_frame();
+	emu_forcedFrame();
 	menu_prepare_bg(1);
 
 	memcpy(Pico.vram, tmp_vram, sizeof(Pico.vram));
@@ -928,17 +923,17 @@ static void cd_menu_loop_options(void)
 	menu_id selected_id;
 	char *bios, *p;
 
-	if (find_bios(4, &bios)) { // US
+	if (emu_findBios(4, &bios)) { // US
 		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--); p++;
 		strncpy(bios_names.us, p, sizeof(bios_names.us)); bios_names.us[sizeof(bios_names.us)-1] = 0;
 	} else	strcpy(bios_names.us, "NOT FOUND");
 
-	if (find_bios(8, &bios)) { // EU
+	if (emu_findBios(8, &bios)) { // EU
 		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--); p++;
 		strncpy(bios_names.eu, p, sizeof(bios_names.eu)); bios_names.eu[sizeof(bios_names.eu)-1] = 0;
 	} else	strcpy(bios_names.eu, "NOT FOUND");
 
-	if (find_bios(1, &bios)) { // JP
+	if (emu_findBios(1, &bios)) { // JP
 		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--); p++;
 		strncpy(bios_names.jp, p, sizeof(bios_names.jp)); bios_names.jp[sizeof(bios_names.jp)-1] = 0;
 	} else	strcpy(bios_names.jp, "NOT FOUND");
@@ -972,21 +967,21 @@ static void cd_menu_loop_options(void)
 		if (inp & GP2X_START) { // BIOS testers
 			switch (selected_id) {
 				case MA_CDOPT_TESTBIOS_USA:
-					if (find_bios(4, &bios)) { // test US
+					if (emu_findBios(4, &bios)) { // test US
 						strcpy(romFileName, bios);
 						engineState = PGS_ReloadRom;
 						return;
 					}
 					break;
 				case MA_CDOPT_TESTBIOS_EUR:
-					if (find_bios(8, &bios)) { // test EU
+					if (emu_findBios(8, &bios)) { // test EU
 						strcpy(romFileName, bios);
 						engineState = PGS_ReloadRom;
 						return;
 					}
 					break;
 				case MA_CDOPT_TESTBIOS_JAP:
-					if (find_bios(1, &bios)) { // test JP
+					if (emu_findBios(1, &bios)) { // test JP
 						strcpy(romFileName, bios);
 						engineState = PGS_ReloadRom;
 						return;
@@ -1259,7 +1254,6 @@ static void menu_options_save(void)
 		// unbind XYZ MODE, just in case
 		unbind_action(0xf00, -1, -1);
 	}
-	scaling_update();
 }
 
 static int menu_loop_options(void)
@@ -1697,7 +1691,7 @@ int menu_loop_tray(void)
 					selfname = romsel_loop(curr_path);
 					if (selfname) {
 						int ret = -1, cd_type;
-						cd_type = emu_cd_check(NULL);
+						cd_type = emu_cdCheck(NULL);
 						if (cd_type > 0)
 							ret = Insert_CD(romFileName, cd_type == 2);
 						if (ret != 0) {

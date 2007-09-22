@@ -17,6 +17,7 @@
 #include "mp3.h"
 #include "../common/arm_utils.h"
 #include "../common/menu.h"
+#include "../common/emu.h"
 #include "../../Pico/PicoInt.h"
 #include "../../Pico/sound/ym2612.h"
 #include "../../Pico/sound/mix.h"

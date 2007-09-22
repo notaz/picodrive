@@ -7,8 +7,9 @@
 
 #include "giz.h"
 #include "menu.h"
-#include "../common/menu.h"
 #include "emu.h"
+#include "../common/menu.h"
+#include "../common/emu.h"
 #include "version.h"
 
 

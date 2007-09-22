@@ -43,8 +43,6 @@ void giz_init(HINSTANCE hInstance, HINSTANCE hPrevInstance)
 {
 	int ret;
 
-	giz_screen = NULL;
-
 	lprintf("PicoDrive v" VERSION " (c) notaz, 2006,2007\n");
 	lprintf("%s %s\n\n", __DATE__, __TIME__);
 
@@ -60,6 +58,17 @@ void giz_init(HINSTANCE hInstance, HINSTANCE hPrevInstance)
 		lprintf_al("Framework2D_Init() failed\n");
 		exit(1);
 	}
+
+	// test screen
+	giz_screen = Framework2D_LockBuffer();
+	if (giz_screen == NULL)
+	{
+		lprintf_al("Framework2D_LockBuffer() failed\n");
+		exit(1);
+	}
+	lprintf("Framework2D_LockBuffer returned %p\n", giz_screen);
+	Framework2D_UnlockBuffer();
+	giz_screen = NULL;
 }
 
 void giz_deinit(void)

@@ -14,8 +14,13 @@ amalgamate = 0
 
 
 
-DEFINC = -I../.. -I. -D__GIZ__ -D_UNZIP_SUPPORT
-COPT_COMMON = -static -Wall -O2 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
+DEFINC = -I../.. -I. -D__GIZ__ -D_UNZIP_SUPPORT -DNO_SYNC
+COPT_COMMON = -static -Wall -Winline
+ifeq ($(DEBUG),)
+COPT_COMMON += -O2 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
+else
+COPT_COMMON += -ggdb
+endif
 ifeq "$(profile)" "1"
 COPT_COMMON += -fprofile-generate
 endif
@@ -30,10 +35,10 @@ AS = $(CROSS)as
 LD = $(CROSS)ld
 
 # frontend
-OBJS += main.o menu.o giz.o emu.o
+OBJS += main.o emu.o menu.o giz.o asm_utils.o
 
 # common
-OBJS += ../common/menu.o ../common/fonts.o ../common/arm_utils.o ../common/readpng.o
+OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/arm_utils.o ../common/readpng.o
 
 # Pico
 ifeq "$(amalgamate)" "1"
@@ -129,7 +134,7 @@ endif
 ../../Pico/sound/mix_asm.o : ../../Pico/sound/mix.s
 	@echo $<
 	@$(AS) $(ASFLAGS) $< -o $@
-../../Pico/misc_asm.o : ../../Pico/misc.s
+../../Pico/misc_asm.o : ../../Pico/Misc.s
 	@echo $<
 	@$(AS) $(ASFLAGS) $< -o $@
 ../../Pico/cd/pico_asm.o : ../../Pico/cd/Pico.s
@@ -138,7 +143,7 @@ endif
 ../../Pico/cd/memory_asm.o : ../../Pico/cd/Memory.s
 	@echo $<
 	@$(AS) $(ASFLAGS) $< -o $@
-../../Pico/cd/misc_asm.o : ../../Pico/cd/misc.s
+../../Pico/cd/misc_asm.o : ../../Pico/cd/Misc.s
 	@echo $<
 	@$(AS) $(ASFLAGS) $< -o $@
 
@@ -159,6 +164,15 @@ tidy:
 clean_prof:
 	find ../.. -name '*.gcno' -delete
 	find ../.. -name '*.gcda' -delete
+
+up: PicoDrive.exe
+	synce-pcp -d 3 PicoDrive.exe ":/SD Card/emus/PicoDrive/PicoDrive.exe"
+
+run: up
+	synce-prun "/SD Card/emus/PicoDrive/PicoDrive.exe"
+
+run_only:
+	synce-prun "/SD Card/emus/PicoDrive/PicoDrive.exe"
 
 # ----------- release -----------
 ifneq ($(findstring rel,$(MAKECMDGOALS)),)

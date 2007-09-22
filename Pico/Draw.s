@@ -6,6 +6,7 @@
 @ (c) Copyright 2007, Grazvydas "notaz" Ignotas
 @ All Rights Reserved
 
+.include "port_config.s"
 
 .extern Pico
 .extern PicoOpt
@@ -317,11 +318,18 @@ DrawLayer:
     add     r8, r8, r9, lsr #8   @ tilex+=cellskip
     add     r7, r7, r9, lsr #5   @ dx+=cellskip<<3;
     sub     r10,r10,r9, lsl #16  @ cells-=cellskip
-    mvn     r9, #0               @ r9=prevcode=-1
 
     @ cache some stuff to avoid mem access
+.if OVERRIDE_HIGHCOL
     ldr     r11,=HighCol
     mov     r0, #0xf
+    ldr     r11,[r11]
+.else
+    ldr     r11,=HighCol
+    mov     r0, #0xf
+.endif
+
+    mvn     r9, #0               @ r9=prevcode=-1
     add     r1, r11, r7         @ r1=pdest
 
 
@@ -463,13 +471,19 @@ DrawLayer:
     add     r8, r8, r9, lsr #8   @ tilex+=cellskip
     add     r7, r7, r9, lsr #5   @ dx+=cellskip<<3;
     add     r10,r10,r9, lsl #16  @ cell+=cellskip
-    mvn     r9, #0               @ r9=prevcode=-1
 
     @ cache some stuff to avoid mem access
+.if OVERRIDE_HIGHCOL
     ldr     r11,=HighCol
     mov     r0, #0xf
-    add     r1, r11, r7         @ r1=pdest
+    ldr     r11,[r11]
+.else
+    ldr     r11,=HighCol
+    mov     r0, #0xf
+.endif
 
+    mvn     r9, #0               @ r9=prevcode=-1
+    add     r1, r11, r7          @ r1=pdest
 
     @ r4 & r7 are scratch in this loop
 .dsloop_vs_subr1:
@@ -639,10 +653,18 @@ DrawLayer:
 BackFill:
     stmfd   sp!, {r4-r9,lr}
 
+.if OVERRIDE_HIGHCOL
+    ldr     lr, =HighCol
+    mov     r0, r0, lsl #26
+    ldr     lr, [lr]
+    mov     r0, r0, lsr #26
+    add     lr, lr, #8
+.else
     ldr     lr, =(HighCol+8)
-
     mov     r0, r0, lsl #26
     mov     r0, r0, lsr #26
+.endif
+
     orr     r0, r0, r1, lsl #6
     orr     r0, r0, r0, lsl #8
     orr     r0, r0, r0, lsl #16
@@ -680,9 +702,15 @@ DrawTilesFromCache:
     stmfd   sp!, {r4-r8,r11,lr}
 
     @ cache some stuff to avoid mem access
+.if OVERRIDE_HIGHCOL
     ldr     r11,=HighCol
-    ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
     mov     r12,#0xf
+    ldr     r11,[r11]
+.else
+    ldr     r11,=HighCol
+    mov     r12,#0xf
+.endif
+    ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
 
     mvn     r5, #0         @ r5=prevcode=-1
     ands    r8, r1, #1
@@ -874,11 +902,17 @@ DrawSpritesFromCache:
     stmfd   sp!, {r4-r11,lr}
 
     @ cache some stuff to avoid mem access
+.if OVERRIDE_HIGHCOL
     ldr     r11,=HighCol
+    mov     r12,#0xf
+    ldr     r11,[r11]
+.else
+    ldr     r11,=HighCol
+    mov     r12,#0xf
+.endif
     ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
     mov     r6, r1, lsl #31
     orr     r6, r6, #1<<30
-    mov     r12,#0xf
 
     mov     r10, r0
 
@@ -1042,9 +1076,15 @@ DrawSprite:
     bne     .dspr_cache       @ if(code&0x8000) // high priority - cache it
 
     @ cache some stuff to avoid mem access
+.if OVERRIDE_HIGHCOL
     ldr     r11,=HighCol
-    ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
     mov     r12,#0xf
+    ldr     r11,[r11]
+.else
+    ldr     r11,=HighCol
+    mov     r12,#0xf
+.endif
+    ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
 
     mov     r5, r5, lsl #4     @ delta<<=4; // Delta of address
     and     r4, r9, #0x6000
@@ -1202,12 +1242,19 @@ DrawWindow:
     orr     r6, r6, r3, lsl #8    @ shadow mode
 
     sub     r8, r1, r0
-    mov     r8, r8, lsl #1        @ cells
-
-    mvn     r9, #0                @ r9=prevcode=-1
 
     @ cache some stuff to avoid mem access
+.if OVERRIDE_HIGHCOL
+    ldr     r11,=HighCol
+    mov     r8, r8, lsl #1        @ cells
+    ldr     r11,[r11]
+    mvn     r9, #0                @ r9=prevcode=-1
+    add     r11,r11,#8
+.else
     ldr     r11,=(HighCol+8)
+    mov     r8, r8, lsl #1        @ cells
+    mvn     r9, #0                @ r9=prevcode=-1
+.endif
     add     r1, r11, r0, lsl #4 @ r1=pdest
     mov     r0, #0xf
     b       .dwloop_enter
@@ -1408,9 +1455,17 @@ FinalizeLineBGR444:
 
 
 .fl_noshBGR444:
+.if OVERRIDE_HIGHCOL
+    ldr     r1, =HighCol
+    mov     lr, #0xff
+    ldr     r1, [r1]
+    mov     lr, lr, lsl #1
+    add     r1, r1, #8
+.else
     ldr     r1, =(HighCol+8)
     mov     lr, #0xff
     mov     lr, lr, lsl #1
+.endif
 
 .fl_loopBGR444:
 
@@ -1479,6 +1534,8 @@ FinalizeLineBGR444:
     orr     \reg, \reg, r2,  lsl #11 @ add red back
     orr     \reg, \reg, r3           @ add blue back
 .endm
+
+.global vidConvCpyRGB565
 
 vidConvCpyRGB565: @ void *to, void *from, int pixels
     stmfd   sp!, {r4-r9,lr}
@@ -1562,9 +1619,17 @@ FinalizeLineRGB555:
     sub     r3, r3, #0x40*2
 
 .fl_noshRGB555:
+.if OVERRIDE_HIGHCOL
+    ldr     r1, =HighCol
+    ldr     r0, =DrawLineDest
+    ldr     r1, [r1]
+    ldr     r0, [r0]
+    add     r1, r1, #8
+.else
     ldr     r0, =DrawLineDest
     ldr     r1, =(HighCol+8)
     ldr     r0, [r0]
+.endif
 
     ldrb    r12, [r8, #12]
     mov     lr, #0xff

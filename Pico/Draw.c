@@ -8,14 +8,18 @@
 
 
 #include "PicoInt.h"
-#ifndef __GNUC__
-#pragma warning (disable:4706) // Disable assignment within conditional
-#endif
 
 int (*PicoScan)(unsigned int num, void *data)=NULL;
 
-unsigned short DefOutBuff[320*2];
+#if OVERRIDE_HIGHCOL
+static unsigned char DefHighCol[8+320+8];
+unsigned char *HighCol=DefHighCol;
+#else
 unsigned char  HighCol[8+320+8];
+#endif
+unsigned short DefOutBuff[320*2];
+void *DrawLineDest=DefOutBuff; // pointer to dest buffer where to draw this line to
+
 static int  HighCacheA[41+1];   // caches for high layers
 static int  HighCacheB[41+1];
 static int  HighCacheS[80+1];   // and sprites
@@ -25,7 +29,6 @@ char HighSprZ[320+8+8]; // Z-buffer for accurate sprites and shadow/hilight mode
 // lsb->msb: moved sprites, not all window tiles use same priority, accurate sprites (copied from PicoOpt), interlace
 //           dirty sprites, sonic mode, have layer with all hi prio tiles (mk3), layer sh/hi already processed
 int rendstatus;
-void *DrawLineDest=DefOutBuff; // pointer to dest buffer where to draw this line to
 int Scanline=0; // Scanline
 
 static int SpriteBlocks;
@@ -1253,7 +1256,7 @@ static void FinalizeLine8bit(int sh)
   }
 }
 
-void (*FinalizeLine)(int sh) = FinalizeLineBGR444;
+static void (*FinalizeLine)(int sh) = FinalizeLineBGR444;
 
 // --------------------------------------------
 
@@ -1354,8 +1357,8 @@ PICO_INTERNAL int PicoLine(int scan)
   if (Pico.video.reg[1]&0x40)
     DrawDisplay(sh);
 
-  FinalizeLine(sh);
-  //if (SpriteBlocks & (1<<(scan>>3))) for (sh=0; sh < 30; sh++) DrawLineDest[sh] = 0xf;
+  if (FinalizeLine != NULL)
+    FinalizeLine(sh);
 
   Skip=PicoScan(Scanline,DrawLineDest);
 
@@ -1365,9 +1368,12 @@ PICO_INTERNAL int PicoLine(int scan)
 
 void PicoDrawSetColorFormat(int which)
 {
-    if (which == 2)
-         FinalizeLine = FinalizeLine8bit;
-    else if (which == 1)
-         FinalizeLine = FinalizeLineRGB555;
-    else FinalizeLine = FinalizeLineBGR444;
+  switch (which)
+  {
+    case 2: FinalizeLine = FinalizeLine8bit;   break;
+    case 1: FinalizeLine = FinalizeLineRGB555; break;
+    case 0: FinalizeLine = FinalizeLineBGR444; break;
+    default:FinalizeLine = NULL; break;
+  }
 }
+

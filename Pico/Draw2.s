@@ -23,11 +23,11 @@ BackFillFull:
     stmfd   sp!, {r4-r9,lr}
 
     ldr     lr, =PicoDraw2FB      @ lr=PicoDraw2FB
+    mov     r0, r0, lsl #26
     ldr     lr, [lr]
+    mov     r0, r0, lsr #26
     add     lr, lr, #328*8
 
-    mov     r0, r0, lsl #26
-    mov     r0, r0, lsr #26
     orr     r0, r0, r0, lsl #8
     orr     r0, r0, r0, lsl #16
 
@@ -344,25 +344,25 @@ DrawLayerFull:
 
     mov     r6, r1        @ hcache
 
+    ldr     r11, =(Pico+0x22228)  @ Pico.video
+    ldr     r10, =(Pico+0x10000)  @ r10=Pico.vram
+    ldrb    r5, [r11, #13]        @ pvid->reg[13]
+    ldrb    r7, [r11, #11]
+
     sub     lr, r3, r2
     and     lr, lr, #0x00ff0000   @ lr=cells
 
-    ldr     r10, =(Pico+0x10000)  @ r10=Pico.vram
-
-    ldr     r11, =(Pico+0x22228)  @ Pico.video
-    ldrb    r5, [r11, #13]        @ pvid->reg[13]
     mov     r5, r5, lsl #10       @ htab=pvid->reg[13]<<9; (halfwords)
     add     r5, r5, r0, lsl #1    @ htab+=plane
     bic     r5, r5, #0x00ff0000   @ just in case
 
-    ldrb    r7, [r11, #11]
     tst     r7, #3                @ full screen scroll? (if ==0)
+    ldrb    r7, [r11, #16]        @ ??hh??ww
     ldreqh  r5, [r10, r5]
     biceq   r5, r5, #0x0000fc00   @ r5=hscroll (0-0x3ff)
     movne   r5, r5, lsr #1
     orrne   r5, r5, #0x8000       @ this marks that we have htab pointer, not hscroll here
 
-    ldrb    r7, [r11, #16]        @ ??hh??ww
     and     r8, r7, #3
 
     orr     r5, r5, r7, lsl #1+24
@@ -386,7 +386,7 @@ DrawLayerFull:
     mov     r8, r8, lsl #24+5
     orr     r8, r8, #0x1f000000
 
-	@ Find name table:
+    @ Find name table:
     tst     r0, r0
     ldreqb  r4, [r11, #2]
     moveq   r4, r4, lsr #3
@@ -395,13 +395,13 @@ DrawLayerFull:
     orr     lr, lr, r4, lsl #13   @ lr|=nametab_bits{3}<<13
 
     ldr     r11, =PicoDraw2FB     @ r11=PicoDraw2FB
-    ldr     r11, [r11]
     sub     r4, r9, #(START_ROW<<24)
+    ldr     r11, [r11]
     mov     r4, r4, asr #24
     mov     r7, #328*8
     mla     r11, r4, r7, r11      @ scrpos+=8*328*(planestart-START_ROW);
 
-	@ Get vertical scroll value:
+    @ Get vertical scroll value:
     add     r7, r10, #0x012000
     add     r7, r7,  #0x000180    @ r7=Pico.vsram (Pico+0x22180)
     ldr     r7, [r7]
@@ -454,10 +454,10 @@ DrawLayerFull:
     ldrh    r7, [r10, r7]
 
 .rtr_hscroll_done:
+    and     r8, r8, #0xff000000
     rsb     r4, r7, #0          @ r4=tilex=(-ts->hscroll)>>3
     mov     r4, r4, asr #3
     and     r4, r4, #0xff
-    and     r8, r8, #0xff000000
     orr     r8, r8, r4          @ r8=(xmask<<24)|tilex
 
     sub     r7, r7, #1
@@ -573,8 +573,8 @@ DrawTilesFromCacheF:
     mvn     r6, #0          @ r6=prevy=-1
 
     ldr     r4, =PicoDraw2FB  @ r4=PicoDraw2FB
-    ldr     r4, [r4]
     ldr     r1, [r0], #4    @ read y offset
+    ldr     r4, [r4]
     mov     r7, #328
     mla     r1, r7, r1, r4
     sub     r12, r1, #(328*8*START_ROW) @ r12=scrpos
@@ -591,7 +591,7 @@ DrawTilesFromCacheF:
     movs    r1, r7, lsr #16 @ r1=dx;
     ldmeqfd sp!, {r4-r10,pc} @ dx is never zero, this must be a terminator, return
 
-    @ trow changed?
+    @ row changed?
     cmp     r6, r7, lsr #27
     movne   r6, r7, lsr #27
     movne   r4, #328*8
@@ -697,12 +697,12 @@ DrawWindowFull:
     mov     r9, #0xff000000       @ r9=prevcode=-1
 
     ldr     r11, =PicoDraw2FB     @ r11=scrpos
+    and     r4, r0, #0xff
     ldr     r11, [r11]
+    sub     r4, r4, #START_ROW
     add     r11, r11, #328*8
     add     r11, r11, #8
 
-    and     r4, r0, #0xff
-    sub     r4, r4, #START_ROW
     mov     r7, #328*8
     mla     r11, r7, r4, r11      @ scrpos+=8*328*(start-START_ROW);
     mov     r0, #0xf
@@ -881,9 +881,9 @@ DrawSpriteFull:
 
     mov     r12, r3,  lsl #23
     mov     r12, r12, lsr #23
-    sub     r12, r12, #0x78 @ r12=sy
 
     ldr     lr, [r0, #4]    @ lr=code
+    sub     r12, r12, #0x78 @ r12=sy
     mov     r8, lr, lsl #7
     mov     r8, r8, lsr #23
     sub     r8, r8, #0x78   @ r8=sx
@@ -894,9 +894,8 @@ DrawSpriteFull:
     and     r3, lr, #0x6000
     mov     r3, r3, lsr #9  @ r3=pal=((code>>9)&0x30);
 
-    ldr     r10, =(Pico+0x10000)  @ r10=Pico.vram
-
     ldr     r11, =PicoDraw2FB     @ r11=scrpos
+    ldr     r10, =(Pico+0x10000)  @ r10=Pico.vram
     ldr     r11, [r11]
     sub     r1, r12, #(START_ROW*8)
     mov     r0, #328
