@@ -8,8 +8,10 @@ vidCpy8to16_40:
 
     mov     r3, r3, lsr #1
     orr     r3, r3, r3, lsl #8
-    add     r1, r1, #8
     orr     r3, r3, #(320/8-1)<<24
+    add     r1, r1, #8
+    mov     lr, #0xff
+    mov     lr, lr, lsl #1
 
     @ even lines
 vcloop_40_aligned:
@@ -63,10 +65,6 @@ vcloop_40_aligned:
     mul     r4, r5, r6
     sub     r1, r1, r4
 
- @ FIXME FIXME FIXME
- ldmfd   sp!, {r4-r9,lr}
- bx      lr
-
 vcloop_40_unaligned:
     ldr     r12, [r1], #4
     ldr     r7,  [r1], #4
@@ -75,7 +73,7 @@ vcloop_40_unaligned:
     ldrh    r4, [r2, r4]
     and     r5, lr, r12, lsr #7
     ldrh    r5, [r2, r5]
-   strh    r4, [r0]!
+   strh    r4, [r0], #2
     and     r6, lr, r12, lsr #15
     ldrh    r6, [r2, r6]
 
@@ -94,12 +92,12 @@ vcloop_40_unaligned:
     ldrh    r12,[r2, r12]
 
     and     r4, lr, r7, lsr #23
-    ldrh    r4, [r2, r6]
+    ldrh    r4, [r2, r4]
      orr     r12,r6, r12,lsl #16
     subs    r3, r3, #1<<24
 
     stmia   r0!, {r5,r8,r12}
-   strh    r4, [r0]!
+   strh    r4, [r0], #2
     bpl     vcloop_40_unaligned
 
     add     r1, r1, #336             @ skip a line and 1 col

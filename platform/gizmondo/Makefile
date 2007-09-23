@@ -15,9 +15,9 @@ amalgamate = 0
 
 
 DEFINC = -I../.. -I. -D__GIZ__ -D_UNZIP_SUPPORT -DNO_SYNC
-COPT_COMMON = -static -Wall -Winline
+COPT_COMMON = -Wall -Winline
 ifeq ($(DEBUG),)
-COPT_COMMON += -O2 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
+COPT_COMMON += -O2 -ftracer -fomit-frame-pointer -fstrict-aliasing -ffast-math
 else
 COPT_COMMON += -ggdb
 endif
@@ -105,16 +105,16 @@ OBJS += ../../cpu/DrZ80/drz80.o
 all: PicoDrive.exe
 
 PicoDrive.exe : $(OBJS)
-	@echo $@
-	@$(GCC) -o $@ $(COPT) $^ -lm -lpng -Lkgsdk/ -lKGSDK -Wl,-Map=PicoDrive.map
+	@echo ">>>" $@
+	$(GCC) -o $@ -static $(COPT) $^ -lm -lpng -Lkgsdk/ -lKGSDK -Wl,-Map=PicoDrive.map
 ifeq ($(DEBUG),)
-	@$(STRIP) $@
+	$(STRIP) $@
 endif
 
 
 .c.o:
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -c $< -o $@
+	@echo ">>>" $<
+	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
 #.s.o:
 #	@echo $<
 #	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
@@ -181,7 +181,9 @@ $(error need VER)
 endif
 endif
 
-rel: PicoDrive.exe kgsdk/ARMV4IRel/KGSDK.dll ../readme.txt config.txt
+rel: PicoDrive.exe kgsdk/ARMV4IRel/KGSDK.dll # ../readme.txt config.txt
 	zip -9 -j ../../PicoDrive_$(VER).zip $^
+	ln -s ../gp2x/skin skin
 	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt
+	rm skin
 

@@ -116,7 +116,7 @@ static void load_progress_cb(int percent)
 	dst = (unsigned short *)menu_screen + 321*20;
 
 	if (len > 320) len = 320;
-	for (ln = 10; ln > 0; ln--, dst += 320)
+	for (ln = 10; ln > 0; ln--, dst += 321)
 		memset(dst, 0xff, len*2);
 	menu_draw_end();
 }
@@ -1002,7 +1002,7 @@ static void amenu_loop_options(void)
 		if (inp & (BTN_LEFT|BTN_RIGHT)) { // multi choise
 			if (!me_process(opt2_entries, OPT2_ENTRY_COUNT, selected_id, (inp&BTN_RIGHT) ? 1 : 0) &&
 			    selected_id == MA_OPT2_GAMMA) {
-				while ((inp = Framework_PollGetButtons(1)) & (BTN_LEFT|BTN_RIGHT)) {
+				while ((inp = Framework_PollGetButtons()) & (BTN_LEFT|BTN_RIGHT)) {
 					currentConfig.gamma += (inp & BTN_LEFT) ? -1 : 1;
 					if (currentConfig.gamma <   1) currentConfig.gamma =   1;
 					if (currentConfig.gamma > 300) currentConfig.gamma = 300;
@@ -1314,6 +1314,7 @@ static void draw_menu_credits(void)
 	menu_draw_begin(1);
 
 	text_out16(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006,2007");
+text_out16(tl_x, 30, "alpha1");
 	y = tl_y;
 	text_out16(tl_x, y, "Credits:");
 	text_out16(tl_x, (y+=10), "Dave: Cyclone 68000 core,");
@@ -1324,8 +1325,8 @@ static void draw_menu_credits(void)
 	text_out16(tl_x, (y+=10), "Stephane Dallongeville:");
 	text_out16(tl_x, (y+=10), "      opensource Gens");
 	text_out16(tl_x, (y+=10), "Haze: Genesis hw info");
-	text_out16(tl_x, (y+=10), "Reesy: TODO");
-	text_out16(tl_x, (y+=10), "TODO: gizmondo hardware");
+	text_out16(tl_x, (y+=10), "Reesy: kgsdk wrapper, sound code");
+	text_out16(tl_x, (y+=10), "jens.l: gizmondo hardware");
 	text_out16(tl_x, (y+=10), "ketchupgun: skin design");
 
 	menu_draw_end();
@@ -1389,7 +1390,7 @@ static void menu_loop_root(void)
 	/* make sure action buttons are not pressed on entering menu */
 	draw_menu_root(menu_sel);
 
-	while (Framework_PollGetButtons(1) & (BTN_PLAY|BTN_STOP|BTN_HOME)) Sleep(50);
+	while (Framework_PollGetButtons() & (BTN_PLAY|BTN_STOP|BTN_HOME)) Sleep(50);
 
 	for (;;)
 	{
@@ -1399,7 +1400,7 @@ static void menu_loop_root(void)
 		if(inp & BTN_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if(inp &(BTN_HOME|BTN_STOP)){
 			if (rom_data) {
-				while (Framework_PollGetButtons(1) & (BTN_HOME|BTN_STOP)) Sleep(50); // wait until select is released
+				while (Framework_PollGetButtons() & (BTN_HOME|BTN_STOP)) Sleep(50); // wait until released
 				engineState = PGS_Running;
 				break;
 			}
@@ -1409,7 +1410,7 @@ static void menu_loop_root(void)
 			{
 				case MA_MAIN_RESUME_GAME:
 					if (rom_data) {
-						while (Framework_PollGetButtons(1) & BTN_PLAY) Sleep(50);
+						while (Framework_PollGetButtons() & BTN_PLAY) Sleep(50);
 						engineState = PGS_Running;
 						return;
 					}
@@ -1519,10 +1520,13 @@ static void menu_prepare_bg(int use_game_bg)
 	if (use_game_bg)
 	{
 		// darken the active framebuffer
-		// TODO: take from somewhere else, not giz_screen
+		if (giz_screen == NULL)
+			giz_screen = Framework2D_LockBuffer();
 		memset(bg_buffer, 0, 321*8*2);
 		menu_darken_bg(bg_buffer + 321*8*2, (char *)giz_screen + 321*8*2, 321*224, 1);
 		memset(bg_buffer + 321*232*2, 0, 321*8*2);
+		Framework2D_UnlockBuffer();
+		giz_screen = NULL;
 	}
 	else
 	{
@@ -1598,7 +1602,7 @@ int menu_loop_tray(void)
 
 	/* make sure action buttons are not pressed on entering menu */
 	draw_menu_tray(menu_sel);
-	while (Framework_PollGetButtons(1) & BTN_PLAY) Sleep(50);
+	while (Framework_PollGetButtons() & BTN_PLAY) Sleep(50);
 
 	for (;;)
 	{

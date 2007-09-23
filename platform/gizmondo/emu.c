@@ -1,6 +1,10 @@
 #include <windows.h>
 #include <string.h>
 
+#include <sys/stat.h>  // mkdir
+#include <sys/types.h>
+
+#include "kgsdk/Framework.h"
 #include "kgsdk/Framework2D.h"
 #include "kgsdk/FrameworkAudio.h"
 #include "../common/emu.h"
@@ -73,10 +77,10 @@ static void emu_msg_tray_open(void)
 void emu_Init(void)
 {
 	// make dirs for saves, cfgs, etc.
-	CreateDirectory(L"mds", NULL);
-	CreateDirectory(L"srm", NULL);
-	CreateDirectory(L"brm", NULL);
-	CreateDirectory(L"cfg", NULL);
+	mkdir("mds", 0777);
+	mkdir("srm", 0777);
+	mkdir("brm", 0777);
+	mkdir("cfg", 0777);
 
 	PicoInit();
 	PicoMessage = emu_msg_cb;
@@ -127,8 +131,7 @@ void emu_setDefaultConfig(void)
 	currentConfig.KeyBinds[ 5] = 1<<4;
 	currentConfig.KeyBinds[ 6] = 1<<5;
 	currentConfig.KeyBinds[ 7] = 1<<6;
-	currentConfig.KeyBinds[ 8] = 1<<7;
-	currentConfig.KeyBinds[ 4] = 1<<26; // switch rend
+	currentConfig.KeyBinds[ 4] = 1<<7;
 	currentConfig.KeyBinds[ 8] = 1<<27; // save state
 	currentConfig.KeyBinds[ 9] = 1<<28; // load state
 	currentConfig.KeyBinds[12] = 1<<29; // vol up
@@ -150,7 +153,7 @@ static int EmuScan8(unsigned int num, void *sdata)
 {
 	// draw like the fast renderer
 	if (!(Pico.video.reg[1]&8)) num += 8;
-	HighCol = gfx_buffer + 328*8 + 328*(num+1);
+	HighCol = gfx_buffer + 328*(num+1);
 
 	return 0;
 }
@@ -172,12 +175,6 @@ static void osd_text(int x, int y, const char *text)
 short localPal[0x100];
 static void (*vidCpy8to16)(void *dest, void *src, short *pal, int lines) = NULL;
 
-// FIXME: rm
-static void vidCpy8to16_(void *dest, void *src, short *pal, int lines)
-{
-	vidCpy8to16(dest, src, pal, lines);
-}
-
 static void blit(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
@@ -188,16 +185,16 @@ static void blit(const char *fps, const char *notice)
 			Pico.m.dirtyPal = 0;
 			vidConvCpyRGB565(localPal, Pico.cram, 0x40);
 		}
-		vidCpy8to16_((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, 224);
+		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, 224);
 	} else if (!(emu_opt&0x80)) {
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal) {
 			Pico.m.dirtyPal = 0;
 			vidConvCpyRGB565(localPal, Pico.cram, 0x40);
-			if(Pico.video.reg[0xC]&8) { // shadow/hilight mode
+			if (Pico.video.reg[0xC]&8) { // shadow/hilight mode
 				//vidConvCpyRGB32sh(localPal+0x40, Pico.cram, 0x40);
 				//vidConvCpyRGB32hi(localPal+0x80, Pico.cram, 0x40); // TODO
-				blockcpy(localPal+0xc0, localPal+0x40, 0x40*4);
+				blockcpy(localPal+0xc0, localPal+0x40, 0x40*2);
 				localPal[0xc0] = 0x0600;
 				localPal[0xd0] = 0xc000;
 				localPal[0xe0] = 0x0000; // reserved pixels for OSD
@@ -211,7 +208,7 @@ static void blit(const char *fps, const char *notice)
 		}
 		// TODO...
 		//lprintf("vidCpy8to16 %p %p\n", (unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8);
-		vidCpy8to16_((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, 224);
+		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, 224);
 		//lprintf("after vidCpy8to16\n");
 	}
 
@@ -289,6 +286,68 @@ void emu_forcedFrame(void)
 
 static void updateKeys(void)
 {
+	unsigned int keys, allActions[2] = { 0, 0 }, events;
+	static unsigned int prevEvents = 0;
+	int i;
+
+	keys = Framework_PollGetButtons();
+	if (keys & BTN_HOME) {
+		engineState = PGS_Menu;
+		// wait until select is released, so menu would not resume game
+		while (Framework_PollGetButtons() & BTN_HOME) Sleep(50);
+	}
+
+	keys &= CONFIGURABLE_KEYS;
+
+	for (i = 0; i < 32; i++)
+	{
+		if (keys & (1 << i)) {
+			int pl, acts = currentConfig.KeyBinds[i];
+			if (!acts) continue;
+			pl = (acts >> 16) & 1;
+			/* TODO if (combo_keys & (1 << i)) {
+				int u = i+1, acts_c = acts & combo_acts;
+				// let's try to find the other one
+				if (acts_c)
+					for (; u < 32; u++)
+						if ( (currentConfig.KeyBinds[u] & acts_c) && (keys & (1 << u)) ) {
+							allActions[pl] |= acts_c;
+							keys &= ~((1 << i) | (1 << u));
+							break;
+						}
+				// add non-combo actions if combo ones were not found
+				if (!acts_c || u == 32)
+					allActions[pl] |= acts & ~combo_acts;
+			} else */ {
+				allActions[pl] |= acts;
+			}
+		}
+	}
+
+	PicoPad[0] = (unsigned short) allActions[0];
+	PicoPad[1] = (unsigned short) allActions[1];
+
+	events = (allActions[0] | allActions[1]) >> 16;
+
+	// volume is treated in special way and triggered every frame
+	if (events & 0x6000) {
+		int vol = currentConfig.volume;
+		if (events & 0x2000) {
+			if (vol < 100) vol++;
+		} else {
+			if (vol >   0) vol--;
+		}
+		//gp2x_sound_volume(vol, vol);
+		sprintf(noticeMsg, "VOL: %02i", vol);
+		noticeMsgTime = GetTickCount();
+		currentConfig.volume = vol;
+	}
+
+	events &= ~prevEvents;
+	//if (events) RunEvents(events); // TODO
+	if (movie_data) emu_updateMovie();
+
+	prevEvents = (allActions[0] | allActions[1]) >> 16;
 }
 
 static void simpleWait(DWORD until)

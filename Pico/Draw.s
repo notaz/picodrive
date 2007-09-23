@@ -1540,11 +1540,11 @@ FinalizeLineBGR444:
 vidConvCpyRGB565: @ void *to, void *from, int pixels
     stmfd   sp!, {r4-r9,lr}
 
-    mov     r12, r2, lsr #3 @ repeats
+    mov     r12, r2, lsr #3  @ repeats
     mov     lr, #0x001c0000
     orr     lr, lr,  #0x01c  @ lr == pattern 0x001c001c
     mov     r8, #0x00030000
-    orr     r8, r8,  #0x003  @ lr == pattern 0x001c001c
+    orr     r8, r8,  #0x003
 
 .loopRGB565:
     ldmia   r1!, {r4-r7}
