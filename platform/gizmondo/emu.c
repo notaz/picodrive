@@ -118,7 +118,7 @@ void emu_setDefaultConfig(void)
 	currentConfig.PsndRate = 22050;
 	currentConfig.PicoRegion = 0; // auto
 	currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
-	currentConfig.Frameskip = -1; // auto
+	currentConfig.Frameskip = 0;//-1; // auto
 	currentConfig.volume = 50;
 	currentConfig.KeyBinds[ 2] = 1<<0; // SACB RLDU
 	currentConfig.KeyBinds[ 3] = 1<<1;
@@ -172,6 +172,12 @@ static void osd_text(int x, int y, const char *text)
 short localPal[0x100];
 static void (*vidCpy8to16)(void *dest, void *src, short *pal, int lines) = NULL;
 
+// FIXME: rm
+static void vidCpy8to16_(void *dest, void *src, short *pal, int lines)
+{
+	vidCpy8to16(dest, src, pal, lines);
+}
+
 static void blit(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
@@ -182,7 +188,7 @@ static void blit(const char *fps, const char *notice)
 			Pico.m.dirtyPal = 0;
 			vidConvCpyRGB565(localPal, Pico.cram, 0x40);
 		}
-		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, 224);
+		vidCpy8to16_((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, 224);
 	} else if (!(emu_opt&0x80)) {
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal) {
@@ -204,7 +210,9 @@ static void blit(const char *fps, const char *notice)
 			} */
 		}
 		// TODO...
-		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, 224);
+		//lprintf("vidCpy8to16 %p %p\n", (unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8);
+		vidCpy8to16_((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, 224);
+		//lprintf("after vidCpy8to16\n");
 	}
 
 	if (notice || (emu_opt & 2)) {
@@ -463,6 +471,7 @@ void emu_Loop(void)
 			Framework2D_UnlockBuffer();
 			giz_screen = NULL;
 		}
+		//lprintf("after unlock\n");
 
 		// check time
 		tval = GetTickCount();

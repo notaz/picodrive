@@ -54,14 +54,18 @@ vcloop_40_aligned:
     and     r4, r3, #0xff00
     orr     r3, r3, r4, lsr #8
     mov     r4, r4, lsr #7
-    sub     r4, r4, #1
+    sub     r6, r4, #1
     mov     r5, #320*2
     add     r5, r5, #2
-    mul     r4, r5, r4
+    mul     r4, r5, r6
     sub     r0, r0, r4
     mov     r5, #328
-    mul     r4, r5, r4
+    mul     r4, r5, r6
     sub     r1, r1, r4
+
+ @ FIXME FIXME FIXME
+ ldmfd   sp!, {r4-r9,lr}
+ bx      lr
 
 vcloop_40_unaligned:
     ldr     r12, [r1], #4
@@ -92,11 +96,11 @@ vcloop_40_unaligned:
     and     r4, lr, r7, lsr #23
     ldrh    r4, [r2, r6]
      orr     r12,r6, r12,lsl #16
-    subs    r3, r3, #1
+    subs    r3, r3, #1<<24
 
     stmia   r0!, {r5,r8,r12}
    strh    r4, [r0]!
-    bne     vcloop_40_unaligned
+    bpl     vcloop_40_unaligned
 
     add     r1, r1, #336             @ skip a line and 1 col
     add     r0, r0, #320*2+2*2
