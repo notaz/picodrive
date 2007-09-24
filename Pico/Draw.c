@@ -1375,5 +1375,8 @@ void PicoDrawSetColorFormat(int which)
     case 0: FinalizeLine = FinalizeLineBGR444; break;
     default:FinalizeLine = NULL; break;
   }
+#if OVERRIDE_HIGHCOL
+  if (which) HighCol=DefHighCol;
+#endif
 }
 

@@ -65,7 +65,7 @@ vcloop_40_aligned:
     mul     r4, r5, r6
     sub     r1, r1, r4
 
-vcloop_40_unaligned:
+vcloop_40_unaligned_outer:
     ldr     r12, [r1], #4
     ldr     r7,  [r1], #4
 
@@ -73,42 +73,55 @@ vcloop_40_unaligned:
     ldrh    r4, [r2, r4]
     and     r5, lr, r12, lsr #7
     ldrh    r5, [r2, r5]
-   strh    r4, [r0], #2
+    strh    r4, [r0], #2
+    b       vcloop_40_unaligned_enter
+
+vcloop_40_unaligned:
+    ldr     r12, [r1], #4
+    ldr     r7,  [r1], #4
+
+    and     r6, lr, r12, lsl #1
+    ldrh    r6, [r2, r6]
+    and     r5, lr, r12, lsr #7
+    ldrh    r5, [r2, r5]
+    orr     r4, r4, r6, lsl #16
+    str     r4, [r0], #4
+
+vcloop_40_unaligned_enter:
     and     r6, lr, r12, lsr #15
     ldrh    r6, [r2, r6]
 
     and     r4, lr, r12, lsr #23
     ldrh    r4, [r2, r4]
-     orr     r5, r5, r6, lsl #16
+    orr     r5, r5, r6, lsl #16
 
     and     r8, lr, r7, lsl #1
     ldrh    r8, [r2, r8]
-
     and     r6, lr, r7, lsr #7
     ldrh    r6, [r2, r6]
-     orr     r8, r4, r8, lsl #16
+    orr     r8, r4, r8, lsl #16
 
     and     r12,lr, r7, lsr #15
     ldrh    r12,[r2, r12]
 
     and     r4, lr, r7, lsr #23
     ldrh    r4, [r2, r4]
-     orr     r12,r6, r12,lsl #16
+    orr     r12,r6, r12,lsl #16
     subs    r3, r3, #1<<24
 
     stmia   r0!, {r5,r8,r12}
-   strh    r4, [r0], #2
     bpl     vcloop_40_unaligned
+
+    strh    r4, [r0], #2
 
     add     r1, r1, #336             @ skip a line and 1 col
     add     r0, r0, #320*2+2*2
     add     r3, r3, #(320/8)<<24
     sub     r3, r3, #1
     tst     r3, #0xff
-    bne     vcloop_40_unaligned
+    bne     vcloop_40_unaligned_outer
 
     ldmfd   sp!, {r4-r9,lr}
     bx      lr
-
 
 

@@ -160,17 +160,22 @@ static int EmuScan8(unsigned int num, void *sdata)
 
 static void osd_text(int x, int y, const char *text)
 {
-	int len = strlen(text) * 8;
-	int *p, i, h;
-	len = (len+1) >> 1;
+	int len = strlen(text) * 8 / 2;
+	int *p, h;
 	for (h = 0; h < 8; h++) {
 		p = (int *) ((unsigned short *) giz_screen+x+321*(y+h));
 		p = (int *) ((int)p & ~3); // align
-		for (i = len; i; i--, p++) *p = 0;
+		memset32(p, 0, len);
 	}
 	emu_textOut16(x, y, text);
 }
 
+/*
+void log1(void *p1, void *p2)
+{
+	lprintf("%p %p %p\n", p1, p2, DrawLineDest);
+}
+*/
 
 short localPal[0x100];
 static void (*vidCpy8to16)(void *dest, void *src, short *pal, int lines) = NULL;
@@ -207,9 +212,7 @@ static void blit(const char *fps, const char *notice)
 			} */
 		}
 		// TODO...
-		//lprintf("vidCpy8to16 %p %p\n", (unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8);
 		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, 224);
-		//lprintf("after vidCpy8to16\n");
 	}
 
 	if (notice || (emu_opt & 2)) {
@@ -220,21 +223,6 @@ static void blit(const char *fps, const char *notice)
 //	if ((emu_opt & 0x400) && (PicoMCD & 1))
 //		cd_leds();
 
-	//gp2x_video_wait_vsync();
-
-	if (!(PicoOpt&0x10)) {
-		if (Pico.video.reg[1] & 8) {
-			if (currentConfig.EmuOpt&0x80)
-				DrawLineDest = (unsigned short *) giz_screen;
-			else
-				HighCol = gfx_buffer;
-		} else {
-			if (currentConfig.EmuOpt&0x80)
-				DrawLineDest = (unsigned short *) giz_screen + 320*8;
-			else
-				HighCol = gfx_buffer + 328*8;
-		}
-	}
 }
 
 // clears whole screen or just the notice area (in all buffers)
@@ -243,21 +231,22 @@ static void clearArea(int full)
 	if (giz_screen == NULL)
 		giz_screen = Framework2D_LockBuffer();
 	if (full) memset32(giz_screen, 0, 320*240*2/4);
-	else      memset32((int *)((char *)giz_screen + 320*232*2), 0, 320*8*2/4);
+	else      memset32((int *)((char *)giz_screen + 321*232*2), 0, 321*8*2/4);
 }
 
 static void vidResetMode(void)
 {
-	void *screen;
+	giz_screen = Framework2D_LockBuffer();
+
 	if (PicoOpt&0x10) {
 	} else if (currentConfig.EmuOpt&0x80) {
 		PicoDrawSetColorFormat(1);
 		PicoScan = EmuScan16;
 	} else {
-		PicoDrawSetColorFormat(0);
+		PicoDrawSetColorFormat(-1);
 		PicoScan = EmuScan8;
 	}
-	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
+	if ((PicoOpt&0x10) || !(currentConfig.EmuOpt&0x80)) {
 		// setup pal for 8-bit modes
 		localPal[0xc0] = 0x0600;
 		localPal[0xd0] = 0xc000;
@@ -265,8 +254,8 @@ static void vidResetMode(void)
 		localPal[0xf0] = 0xffff;
 	}
 	Pico.m.dirtyPal = 1;
-	screen = Framework2D_LockBuffer();
-	memset32(screen, 0, 320*240*2/4);
+
+	memset32(giz_screen, 0, 321*240*2/4);
 	Framework2D_UnlockBuffer();
 	giz_screen = NULL;
 }
@@ -520,10 +509,16 @@ void emu_Loop(void)
 
 		updateKeys();
 
+		if (giz_screen == NULL && (currentConfig.EmuOpt&0x80))
+			giz_screen = Framework2D_LockBuffer();
+		if (!(PicoOpt&0x10))
+			PicoScan((unsigned) -1, NULL);
+
+		PicoFrame();
+
 		if (giz_screen == NULL)
 			giz_screen = Framework2D_LockBuffer();
 
-		PicoFrame();
 		blit(fpsbuff, notice);
 
 		if (giz_screen != NULL) {

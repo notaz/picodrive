@@ -106,7 +106,8 @@ all: PicoDrive.exe
 
 PicoDrive.exe : $(OBJS)
 	@echo ">>>" $@
-	$(GCC) -o $@ -static $(COPT) $^ -lm -lpng -Lkgsdk/ -lKGSDK -Wl,-Map=PicoDrive.map
+	$(GCC) -o $@ -static $(COPT) $^ -lm -lpng -Lkgsdk/ -lKGSDK -Wl,-Map=PicoDrive.map 2>&1 | \
+		grep -v ".idata$$4" # | grep -v "supports interworking, whereas"
 ifeq ($(DEBUG),)
 	$(STRIP) $@
 endif
