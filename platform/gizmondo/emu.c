@@ -32,7 +32,6 @@ unsigned char *PicoDraw2FB = gfx_buffer;  // temporary buffer for alt renderer (
 int reset_timing = 0;
 
 static DWORD noticeMsgTime = 0;
-static int osd_fps_x;
 
 
 static void blit(const char *fps, const char *notice);
@@ -63,8 +62,14 @@ static void emu_msg_cb(const char *msg)
 
 static void emu_state_cb(const char *str)
 {
+	if (giz_screen == NULL)
+		giz_screen = Framework2D_LockBuffer();
+
 	clearArea(0);
 	blit("", str);
+
+	Framework2D_UnlockBuffer();
+	giz_screen = NULL;
 }
 
 static void emu_msg_tray_open(void)
@@ -117,7 +122,7 @@ void emu_setDefaultConfig(void)
 {
 	memset(&currentConfig, 0, sizeof(currentConfig));
 	currentConfig.lastRomFile[0] = 0;
-	currentConfig.EmuOpt  = 0x1f | 0x600; // | confirm_save, cd_leds
+	currentConfig.EmuOpt  = 0x1f | 0x680; // | confirm_save, cd_leds, 16bit rend
 	currentConfig.PicoOpt = 0x0f | 0xc00; // | cd_pcm, cd_cdda
 	currentConfig.PsndRate = 22050;
 	currentConfig.PicoRegion = 0; // auto
@@ -132,6 +137,7 @@ void emu_setDefaultConfig(void)
 	currentConfig.KeyBinds[ 6] = 1<<5;
 	currentConfig.KeyBinds[ 7] = 1<<6;
 	currentConfig.KeyBinds[ 4] = 1<<7;
+	currentConfig.KeyBinds[13] = 1<<26; // switch rend
 	currentConfig.KeyBinds[ 8] = 1<<27; // save state
 	currentConfig.KeyBinds[ 9] = 1<<28; // load state
 	currentConfig.KeyBinds[12] = 1<<29; // vol up
@@ -177,28 +183,50 @@ void log1(void *p1, void *p2)
 }
 */
 
-short localPal[0x100];
-static void (*vidCpy8to16)(void *dest, void *src, short *pal, int lines) = NULL;
+static void cd_leds(void)
+{
+	static int old_reg = 0;
+	unsigned int col_g, col_r, *p;
+
+	if (!((Pico_mcd->s68k_regs[0] ^ old_reg) & 3)) return; // no change
+	old_reg = Pico_mcd->s68k_regs[0];
+
+	p = (unsigned int *)((short *)giz_screen + 321*2+4+2);
+	col_g = (old_reg & 2) ? 0x06000600 : 0;
+	col_r = (old_reg & 1) ? 0xc000c000 : 0;
+	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 321/2 - 12/2 + 1;
+	*p++ = col_g; p+=3; *p++ = col_r; p += 321/2 - 10/2;
+	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
+}
+
+
+static short localPal[0x100];
 
 static void blit(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
-	if (PicoOpt&0x10) {
+	if (PicoOpt&0x10)
+	{
+		int lines_flags = 224;
 		// 8bit fast renderer
 		if (Pico.m.dirtyPal) {
 			Pico.m.dirtyPal = 0;
 			vidConvCpyRGB565(localPal, Pico.cram, 0x40);
 		}
-		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, 224);
-	} else if (!(emu_opt&0x80)) {
+		if (!(Pico.video.reg[12]&1)) lines_flags|=0x100;
+		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, lines_flags);
+	}
+	else if (!(emu_opt&0x80))
+	{
+		int lines_flags;
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal) {
 			Pico.m.dirtyPal = 0;
 			vidConvCpyRGB565(localPal, Pico.cram, 0x40);
 			if (Pico.video.reg[0xC]&8) { // shadow/hilight mode
 				//vidConvCpyRGB32sh(localPal+0x40, Pico.cram, 0x40);
-				//vidConvCpyRGB32hi(localPal+0x80, Pico.cram, 0x40); // TODO
+				//vidConvCpyRGB32hi(localPal+0x80, Pico.cram, 0x40); // TODO?
 				blockcpy(localPal+0xc0, localPal+0x40, 0x40*2);
 				localPal[0xc0] = 0x0600;
 				localPal[0xd0] = 0xc000;
@@ -211,18 +239,19 @@ static void blit(const char *fps, const char *notice)
 				vidConvCpyRGB565(localPal+0x80, HighPal+0x40, 0x40);
 			} */
 		}
-		// TODO...
-		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, 224);
+		lines_flags = (Pico.video.reg[1]&8) ? 240 : 224;
+		if (!(Pico.video.reg[12]&1)) lines_flags|=0x100;
+		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, lines_flags);
 	}
 
 	if (notice || (emu_opt & 2)) {
 		int h = 232;
 		if (notice)      osd_text(4, h, notice);
-		if (emu_opt & 2) osd_text(osd_fps_x, h, fps);
+		if (emu_opt & 2) osd_text(OSD_FPS_X, h, fps);
 	}
-//	if ((emu_opt & 0x400) && (PicoMCD & 1))
-//		cd_leds();
 
+	if ((emu_opt & 0x400) && (PicoMCD & 1))
+		cd_leds();
 }
 
 // clears whole screen or just the notice area (in all buffers)
@@ -271,6 +300,59 @@ static void SkipFrame(int do_audio)
 void emu_forcedFrame(void)
 {
 	// TODO
+}
+
+static void RunEvents(unsigned int which)
+{
+	if (which & 0x1800) { // save or load (but not both)
+		int do_it = 1;
+		if ( emu_checkSaveFile(state_slot) &&
+				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) ||   // load
+				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) { // save
+			int keys;
+			blit("", (which & 0x1000) ? "LOAD STATE? (PLAY=yes, STOP=no)" : "OVERWRITE SAVE? (PLAY=yes, STOP=no)");
+			while( !((keys = Framework_PollGetButtons()) & (BTN_PLAY|BTN_STOP)) )
+				Sleep(50);
+			if (keys & BTN_STOP) do_it = 0;
+			clearArea(0);
+		}
+		if (do_it) {
+			osd_text(4, 232, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
+			PicoStateProgressCB = emu_state_cb;
+			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
+			PicoStateProgressCB = NULL;
+		}
+
+		reset_timing = 1;
+	}
+	if (which & 0x0400) { // switch renderer
+		if      (  PicoOpt&0x10)             { PicoOpt&=~0x10; currentConfig.EmuOpt |= 0x80; }
+		else if (!(currentConfig.EmuOpt&0x80)) PicoOpt|= 0x10;
+		else   currentConfig.EmuOpt &= ~0x80;
+
+		vidResetMode();
+
+		if (PicoOpt&0x10) {
+			strcpy(noticeMsg, " 8bit fast renderer");
+		} else if (currentConfig.EmuOpt&0x80) {
+			strcpy(noticeMsg, "16bit accurate renderer");
+		} else {
+			strcpy(noticeMsg, " 8bit accurate renderer");
+		}
+
+		noticeMsgTime = GetTickCount();
+	}
+	if (which & 0x0300) {
+		if(which&0x0200) {
+			state_slot -= 1;
+			if(state_slot < 0) state_slot = 9;
+		} else {
+			state_slot += 1;
+			if(state_slot > 9) state_slot = 0;
+		}
+		sprintf(noticeMsg, "SAVE SLOT %i [%s]", state_slot, emu_checkSaveFile(state_slot) ? "USED" : "FREE");
+		noticeMsgTime = GetTickCount();
+	}
 }
 
 static void updateKeys(void)
@@ -333,7 +415,7 @@ static void updateKeys(void)
 	}
 
 	events &= ~prevEvents;
-	//if (events) RunEvents(events); // TODO
+	if (events) RunEvents(events);
 	if (movie_data) emu_updateMovie();
 
 	prevEvents = (allActions[0] | allActions[1]) >> 16;
@@ -341,6 +423,16 @@ static void updateKeys(void)
 
 static void simpleWait(DWORD until)
 {
+	DWORD tval;
+	int diff;
+
+	tval = GetTickCount();
+	diff = (int)until - (int)tval;
+	if (diff >= 2)
+		Sleep(diff - 1);
+
+	while ((tval = GetTickCount()) < until && until - tval < 512) // some simple overflow detection
+		spend_cycles(1024*2);
 }
 
 void emu_Loop(void)
@@ -423,11 +515,6 @@ void emu_Loop(void)
 		// check for mode changes
 		modes = ((Pico.video.reg[12]&1)<<2)|(Pico.video.reg[1]&8);
 		if (modes != oldmodes) {
-			osd_fps_x = OSD_FPS_X;
-			//if (modes & 4)
-				vidCpy8to16 = vidCpy8to16_40;
-			//else
-			//	vidCpy8to16 = vidCpy8to16_32col;
 			oldmodes = modes;
 			clearArea(1);
 		}
@@ -525,7 +612,6 @@ void emu_Loop(void)
 			Framework2D_UnlockBuffer();
 			giz_screen = NULL;
 		}
-		//lprintf("after unlock\n");
 
 		// check time
 		tval = GetTickCount();

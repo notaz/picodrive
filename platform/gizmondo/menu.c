@@ -33,7 +33,7 @@
 #define gizKeyUnkn "???"
 static const char * const gizKeyNames[] = {
 	"LEFT",          "RIGHT",          "UP",       "DOWN",     "STOP",       "PLAY",   "FORWARD",  "REWIND",
-	"LEFT_SHOULDER", "RIGHT_SHOULDER", "HOME",     "VOLUME",   "BRIGHTNESS", "ALARM",  "POWER",    gizKeyUnkn,
+	"L",             "R",              "HOME",     "VOLUME",   "BRIGHTNESS", "ALARM",  "POWER",    gizKeyUnkn,
 	gizKeyUnkn,      gizKeyUnkn,       gizKeyUnkn, gizKeyUnkn, gizKeyUnkn, gizKeyUnkn, gizKeyUnkn, gizKeyUnkn,
 	gizKeyUnkn,      gizKeyUnkn,       gizKeyUnkn, gizKeyUnkn, gizKeyUnkn, gizKeyUnkn, gizKeyUnkn, gizKeyUnkn
 };
@@ -683,13 +683,13 @@ static void draw_key_config(const bind_action_t *opts, int opt_cnt, int player_i
 
 	if (sel < opt_cnt) {
 		text_out16(30, 180, "Press a button to bind/unbind");
-		text_out16(30, 190, "Use SELECT to clear");
-		text_out16(30, 200, "To bind UP/DOWN, hold SELECT");
+		text_out16(30, 190, "Use HOME to clear");
+		text_out16(30, 200, "To bind UP/DOWN, hold HOME");
 		text_out16(30, 210, "Select \"Done\" to exit");
 	} else {
 		text_out16(30, 190, "Use Options -> Save cfg");
 		text_out16(30, 200, "to save controls");
-		text_out16(30, 210, "Press B or X to exit");
+		text_out16(30, 210, "Press PLAY or STOP to exit");
 	}
 	menu_draw_end();
 }
@@ -702,7 +702,7 @@ static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_i
 	for (;;)
 	{
 		draw_key_config(opts, opt_cnt, player_idx, sel);
-		inp = wait_for_input(CONFIGURABLE_KEYS);
+		inp = wait_for_input(CONFIGURABLE_KEYS|BTN_HOME);
 		if (!(inp & BTN_HOME)) {
 			prev_select = 0;
 			if(inp & BTN_UP  ) { sel--; if (sel < 0) sel = menu_sel_max; continue; }
@@ -777,7 +777,6 @@ static bind_action_t emuctrl_actions[] =
 	{ "Switch Renderer", 1<<26 },
 	{ "Volume Down    ", 1<<30 },
 	{ "Volume Up      ", 1<<29 },
-	{ "Enter Menu     ", 1<<23 },
 };
 
 static void kc_sel_loop(void)

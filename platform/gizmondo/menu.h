@@ -10,8 +10,8 @@ int  menu_loop_tray(void);
 void menu_romload_prepare(const char *rom_name);
 void menu_romload_end(void);
 
-// TODO: add more?
+
 #define CONFIGURABLE_KEYS \
 	(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_STOP|BTN_PLAY|BTN_FWD|BTN_REW| \
-		BTN_L|BTN_R)
+		BTN_L|BTN_R|BTN_VOLUME|BTN_BRIGHTNESS|BTN_ALARM)
 

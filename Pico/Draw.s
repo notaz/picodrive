@@ -1758,51 +1758,43 @@ FinalizeLineRGB555:
 
 .if UNALIGNED_DRAWLINEDEST
     @ unaligned versions of loops
+    @ warning: starts drawing 2bytes before dst
 
 .fl_RGB555u:
-    ldr     r12, [r1], #4
-    ldr     r7,  [r1], #4
-
-    and     r4, lr, r12, lsl #1
-    ldrh    r4, [r3, r4]
-    and     r5, lr, r12, lsr #7
-    ldrh    r5, [r3, r5]
-    strh    r4, [r0], #2
-    b       .fl_loopRGB555u_enter
+    sub     r0, r0, #2              @ initial adjustment
+    mov     r8, #0
 
 .fl_loopRGB555u:
     ldr     r12, [r1], #4
     ldr     r7,  [r1], #4
 
-    and     r4, lr, r12, lsl #1
-    ldrh    r4, [r3, r4]
-    and     r5, lr, r12, lsr #7
-    ldrh    r5, [r3, r5]
-
-    orr     r4, r8, r4, lsl #16
-    str     r4, [r0], #4
-
-.fl_loopRGB555u_enter:
-    and     r6, lr, r12, lsr #15
+    and     r6, lr, r12,lsl #1
     ldrh    r6, [r3, r6]
-    and     r8, lr, r12, lsr #23
+    and     r5, lr, r12,lsr #7
+    ldrh    r5, [r3, r5]
+    orr     r4, r8, r6, lsl #16
+
+    and     r6, lr, r12,lsr #15
+    ldrh    r6, [r3, r6]
+    and     r8, lr, r12,lsr #23
     ldrh    r8, [r3, r8]
-    orr     r4, r5, r6, lsl #16
+    orr     r5, r5, r6, lsl #16
 
-    and     r5, lr, r7, lsl #1
-    ldrh    r5, [r3, r5]
-    and     r6, lr, r7, lsr #7
+    and     r6, lr, r7, lsl #1
     ldrh    r6, [r3, r6]
-    orr     r5, r8, r5, lsl #16
-
-    and     r12,lr, r7, lsr #15
+    and     r12,lr, r7, lsr #7
     ldrh    r12,[r3, r12]
-    and     r8, lr, r7, lsr #23
+    orr     r6, r8, r6, lsl #16
+
+    and     r8, lr, r7, lsr #15
     ldrh    r8, [r3, r8]
-    orr     r6, r6, r12,lsl #16
+    and     r7, lr, r7, lsr #23
 
     subs    r2, r2, #1
-    stmia   r0!, {r4,r5,r6}
+    orr     r12,r12,r8, lsl #16
+    ldrh    r8, [r3, r7]
+
+    stmia   r0!, {r4,r5,r6,r12}
     bne     .fl_loopRGB555u
 
     strh    r8, [r0], #2
@@ -1812,69 +1804,66 @@ FinalizeLineRGB555:
 
 
 .fl_32scale_RGB555u:
+    sub     r0, r0, #2              @ initial adjustment
+    mov     r4, #0
 
     @ r9  f800 07e0 001f | e000 0780 001c | 3800 01e0 0007
 .fl_loop32scale_RGB555u:
     ldr     r12, [r1], #4
     ldr     r7,  [r1], #4
 
-    and     r4, lr, r12,lsl #1
-    ldrh    r4, [r3, r4]
+    and     r6, lr, r12,lsl #1
+    ldrh    r6, [r3, r6]
     and     r5, lr, r12,lsr #7
     ldrh    r5, [r3, r5]
-    and     r4, r4, r9, lsl #2
-@    orr     r4, rx, r4, lsl #16
-    str     r4, [r0], #4              @ pix_d -1, 0
-
-.fl_loop32scale_RGB555u_enter:
-    and     r4, r9, r4, lsr #2        @ r4=1/4 pix_s 0
+    and     r6, r6, r9, lsl #2
+    orr     r4, r4, r6, lsl #16       @ r4 = pix_d -1, 0
 
     and     r5, r5, r9, lsl #2
-    sub     r6, r5, r5, lsr #2        @ r6 = 3/4 pix_s 1
-    add     r4, r6, r4, lsr #2        @ r4=(1/4 pix_s 0) + (3/4 pix_s 1)
-    orr     r4, r4, r5, lsl #15
+    sub     r8, r5, r5, lsr #2        @ r8 = 3/4 pix_s 1
+    add     r6, r8, r6, lsr #2        @ r6 = (1/4 pix_s 0) + (3/4 pix_s 1)
+    orr     r5, r6, r5, lsl #15
 
     and     r6, lr, r12,lsr #15
     ldrh    r6, [r3, r6]
     and     r12,lr, r12,lsr #23
     ldrh    r12,[r3, r12]
     and     r6, r6, r9, lsl #2
-    add     r4, r4, r6, lsl #15       @ pix_d 1, 2
+    add     r5, r5, r6, lsl #15       @ r5 = pix_d 1, 2
 
-@@ TODO...
-
-    mov     r5, r5, lsr #1
-    sub     r6, r6, r6, lsr #2        @ r6 = 3/4 pix_s 2
-    orr     r5, r5, r6, lsl #16
-
-    and     r6, lr, r7, lsl #1
-    ldrh    r6, [r3, r6]
-    and     r12,r12,r9, lsl #2
-    add     r5, r5, r12,lsl #14       @ pix_d 2, 3
-    and     r6, r6, r9, lsl #2
-    orr     r6, r12,r6, lsl #16       @ pix_d 4, 5
-
-    and     r12,lr, r7, lsr #7
-    ldrh    r12,[r3, r12]
-    and     r10,lr, r7, lsr #15
+    and     r8, lr, r7, lsl #1
+    ldrh    r8, [r3, r8]
+    and     r10,lr, r7, lsr #7
     ldrh    r10,[r3, r10]
     and     r12,r12,r9, lsl #2
-    sub     r8, r12,r12,lsr #2        @ r8 = 3/4 pix_s 1
-    add     r8, r8, r6, lsr #18
+    sub     r6, r6, r6, lsr #2        @ r6 = 3/4 pix_s 2
+    add     r6, r6, r12,lsr #2
+    orr     r6, r6, r12,lsl #16       @ r6 = pix_d 3, 4
+
+    and     r8, r8, r9, lsl #2
+    and     r10,r10,r9, lsl #2
+    sub     r12,r10,r10,lsr #2        @ r12 = 3/4 pix_s 5
+    orr     r8, r8, r8, lsl #14
+    add     r8, r8, r12,lsl #16       @ r8 = pix_d 5, 6
+    and     r12,lr, r7, lsr #15
+    ldrh    r12,[r3, r12]
     and     r7, lr, r7, lsr #23
     ldrh    r7, [r3, r7]
-    and     r10,r10,r9, lsl #2
-    orr     r8, r8, r10,lsl #15
-    add     r8, r8, r12,lsl #15       @ pix_d 6, 7
-    sub     r10,r10,r10,lsr #2        @ r10= 3/4 pix_s 2
+    and     r12,r12,r9, lsl #2
+    add     r10,r10,r12
+    mov     r10,r10,    lsr #1
+    sub     r12,r12,r12,lsr #2        @ r12 = 3/4 pix_s 6
+    orr     r10,r10,r12,lsl #16
     and     r7, r7, r9, lsl #2
-    add     r10,r10,r7, lsr #2        @ += 1/4 pix_s 3
-    orr     r10,r10,r7, lsl #16       @ pix_d 8, 9
+    add     r10,r10,r7, lsl #14       @ r10 = pix_d 7, 8
 
     subs    r2, r2, #1
 
     stmia   r0!, {r4,r5,r6,r8,r10}
+    mov     r4, r7
     bne     .fl_loop32scale_RGB555u
+
+    strh    r4, [r0], #2
 
     ldmfd   sp!, {r9,r10}
     ldmfd   sp!, {r4-r8,lr}

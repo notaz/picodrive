@@ -229,10 +229,9 @@ void osd_text(int x, int y, const char *text)
 
 static void cd_leds(void)
 {
-	// mmu problems?
 //	static
 	int old_reg;
-//	if (!((Pico_mcd->s68k_regs[0] ^ old_reg) & 3)) return; // no change
+//	if (!((Pico_mcd->s68k_regs[0] ^ old_reg) & 3)) return; // no change // mmu hack problems?
 	old_reg = Pico_mcd->s68k_regs[0];
 
 	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
@@ -252,7 +251,7 @@ static void cd_leds(void)
 		unsigned int col_r = (old_reg & 1) ? 0xc000c000 : 0;
 		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 320/2 - 12/2;
 		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 320/2 - 12/2;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 320/2 - 12/2;
+		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
 	}
 }
 

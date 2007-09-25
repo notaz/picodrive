@@ -446,12 +446,13 @@ int emu_ReadConfig(int game, int no_defaults)
 	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;
 	if (currentConfig.gamma < 10 || currentConfig.gamma > 300) currentConfig.gamma = 100;
 	if (currentConfig.volume < 0 || currentConfig.volume > 99) currentConfig.volume = 50;
+#ifdef __GP2X__
 	// if volume keys are unbound, bind them to volume control
 	if (!currentConfig.KeyBinds[23] && !currentConfig.KeyBinds[22]) {
 		currentConfig.KeyBinds[23] = 1<<29; // vol up
 		currentConfig.KeyBinds[22] = 1<<30; // vol down
 	}
-
+#endif
 	if (bread > 0) config_slot_current = config_slot;
 	return (bread > 0); // == sizeof(currentConfig));
 }
