@@ -891,7 +891,8 @@ m_write8_z80_not_ram:
     ldr     r2, =emustatus
     ldmfd   sp!,{lr}
     ldr     r1, [r2]
-    orr     r1, r0, r2
+    and     r0, r0, #1
+    orr     r1, r0, r1
     str     r1, [r2]         @ emustatus|=YM2612Write(a&3, d);
     bx      lr
 
