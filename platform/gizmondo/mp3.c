@@ -1,8 +1,8 @@
 #include <stdio.h>
 
-int  mp3_get_bitrate(FILE *f, int size){}
+int  mp3_get_bitrate(FILE *f, int size){ return 1; }
 void mp3_start_play(FILE *f, int pos){}
-int  mp3_get_offset(void){} // 0-1023
+int  mp3_get_offset(void){ return 0; } // 0-1023
 void mp3_update(int *buffer, int length, int stereo){}
 
 

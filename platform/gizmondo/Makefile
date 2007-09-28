@@ -121,31 +121,31 @@ endif
 #	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
 
 ../../Pico/draw_asm.o : ../../Pico/Draw.s
-	@echo $<
+	@echo ">>>" $@
 	@$(AS) $(ASFLAGS) $< -o $@
 ../../Pico/draw2_asm.o : ../../Pico/Draw2.s
-	@echo $<
+	@echo ">>>" $@
 	@$(AS) $(ASFLAGS) $< -o $@
 ../../Pico/memory_asm.o : ../../Pico/Memory.s
-	@echo $<
+	@echo ">>>" $@
 	@$(AS) $(ASFLAGS) $< -o $@
 ../../Pico/sound/ym2612_asm.o : ../../Pico/sound/ym2612.s
-	@echo $<
+	@echo ">>>" $@
 	@$(AS) $(ASFLAGS) $< -o $@
 ../../Pico/sound/mix_asm.o : ../../Pico/sound/mix.s
-	@echo $<
+	@echo ">>>" $@
 	@$(AS) $(ASFLAGS) $< -o $@
 ../../Pico/misc_asm.o : ../../Pico/Misc.s
-	@echo $<
+	@echo ">>>" $@
 	@$(AS) $(ASFLAGS) $< -o $@
 ../../Pico/cd/pico_asm.o : ../../Pico/cd/Pico.s
-	@echo $<
+	@echo ">>>" $@
 	@$(AS) $(ASFLAGS) $< -o $@
 ../../Pico/cd/memory_asm.o : ../../Pico/cd/Memory.s
-	@echo $<
+	@echo ">>>" $@
 	@$(AS) $(ASFLAGS) $< -o $@
 ../../Pico/cd/misc_asm.o : ../../Pico/cd/Misc.s
-	@echo $<
+	@echo ">>>" $@
 	@$(AS) $(ASFLAGS) $< -o $@
 
 # build Cyclone

@@ -720,7 +720,7 @@ PICO_INTERNAL_ASM void z80_write(unsigned char data, unsigned short a)
 
   if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
   {
-    if(PicoOpt&1) emustatus|=YM2612Write(a, data);
+    if(PicoOpt&1) emustatus|=YM2612Write(a, data) & 1;
     return;
   }
 

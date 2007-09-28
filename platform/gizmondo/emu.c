@@ -31,7 +31,10 @@ int engineState;
 unsigned char *PicoDraw2FB = gfx_buffer;  // temporary buffer for alt renderer ( (8+320)*(8+240+8) )
 int reset_timing = 0;
 
+static int combo_keys = 0, combo_acts = 0; // keys and actions which need button combos
 static DWORD noticeMsgTime = 0;
+static short *snd_cbuff = NULL;
+static int snd_cbuf_samples = 0, snd_all_samples = 0;
 
 
 static void blit(const char *fps, const char *notice);
@@ -123,11 +126,11 @@ void emu_setDefaultConfig(void)
 	memset(&currentConfig, 0, sizeof(currentConfig));
 	currentConfig.lastRomFile[0] = 0;
 	currentConfig.EmuOpt  = 0x1f | 0x680; // | confirm_save, cd_leds, 16bit rend
-	currentConfig.PicoOpt = 0x0f | 0xc00; // | cd_pcm, cd_cdda
+	currentConfig.PicoOpt = 0x07 | 0xc00; // | cd_pcm, cd_cdda
 	currentConfig.PsndRate = 22050;
 	currentConfig.PicoRegion = 0; // auto
 	currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
-	currentConfig.Frameskip = 0;//-1; // auto
+	currentConfig.Frameskip = -1; // auto
 	currentConfig.volume = 50;
 	currentConfig.KeyBinds[ 2] = 1<<0; // SACB RLDU
 	currentConfig.KeyBinds[ 3] = 1<<1;
@@ -137,12 +140,11 @@ void emu_setDefaultConfig(void)
 	currentConfig.KeyBinds[ 6] = 1<<5;
 	currentConfig.KeyBinds[ 7] = 1<<6;
 	currentConfig.KeyBinds[ 4] = 1<<7;
-	currentConfig.KeyBinds[13] = 1<<26; // switch rend
 	currentConfig.KeyBinds[ 8] = 1<<27; // save state
 	currentConfig.KeyBinds[ 9] = 1<<28; // load state
 	currentConfig.KeyBinds[12] = 1<<29; // vol up
 	currentConfig.KeyBinds[11] = 1<<30; // vol down
-	currentConfig.PicoCDBuffers = 64;
+	currentConfig.PicoCDBuffers = 0;
 	currentConfig.scaling = 0;
 }
 
@@ -290,17 +292,68 @@ static void vidResetMode(void)
 }
 
 
-static void SkipFrame(int do_audio)
+#include <stdarg.h>
+static void stdbg(const char *fmt, ...)
 {
-	PicoSkipFrame=do_audio ? 1 : 2;
+	static int cnt = 0;
+	va_list vl;
+
+	sprintf(noticeMsg, "%x ", cnt++);
+	va_start(vl, fmt);
+	vsnprintf(noticeMsg+strlen(noticeMsg), sizeof(noticeMsg)-strlen(noticeMsg), fmt, vl);
+	va_end(vl);
+
+	noticeMsgTime = GetTickCount();
+}
+
+
+static void updateSound(int len)
+{
+	if (PicoOpt&8) len<<=1;
+
+	snd_all_samples += len;
+	PsndOut += len;
+	if (PsndOut - snd_cbuff >= snd_cbuf_samples)
+	{
+		if (PsndOut - snd_cbuff != snd_cbuf_samples)
+			stdbg("snd diff is %i, not %i", PsndOut - snd_cbuff, snd_cbuf_samples);
+		PsndOut = snd_cbuff;
+	}
+}
+
+
+static void SkipFrame(void)
+{
+	PicoSkipFrame=1;
 	PicoFrame();
 	PicoSkipFrame=0;
 }
 
 void emu_forcedFrame(void)
 {
-	// TODO
+	int po_old = PicoOpt;
+	int eo_old = currentConfig.EmuOpt;
+
+	PicoOpt &= ~0x0010;
+	PicoOpt |=  0x4080; // soft_scale | acc_sprites
+	currentConfig.EmuOpt |= 0x80;
+
+	if (giz_screen == NULL)
+		giz_screen = Framework2D_LockBuffer();
+
+	PicoDrawSetColorFormat(1);
+	PicoScan = EmuScan16;
+	PicoScan((unsigned) -1, NULL);
+	Pico.m.dirtyPal = 1;
+	PicoFrameDrawOnly();
+
+	Framework2D_UnlockBuffer();
+	giz_screen = NULL;
+
+	PicoOpt = po_old;
+	currentConfig.EmuOpt = eo_old;
 }
+
 
 static void RunEvents(unsigned int which)
 {
@@ -362,21 +415,20 @@ static void updateKeys(void)
 	int i;
 
 	keys = Framework_PollGetButtons();
-	if (keys & BTN_HOME) {
+	if (keys & BTN_HOME)
 		engineState = PGS_Menu;
-		// wait until select is released, so menu would not resume game
-		while (Framework_PollGetButtons() & BTN_HOME) Sleep(50);
-	}
 
 	keys &= CONFIGURABLE_KEYS;
 
 	for (i = 0; i < 32; i++)
 	{
-		if (keys & (1 << i)) {
+		if (keys & (1 << i))
+		{
 			int pl, acts = currentConfig.KeyBinds[i];
 			if (!acts) continue;
 			pl = (acts >> 16) & 1;
-			/* TODO if (combo_keys & (1 << i)) {
+			if (combo_keys & (1 << i))
+			{
 				int u = i+1, acts_c = acts & combo_acts;
 				// let's try to find the other one
 				if (acts_c)
@@ -389,7 +441,7 @@ static void updateKeys(void)
 				// add non-combo actions if combo ones were not found
 				if (!acts_c || u == 32)
 					allActions[pl] |= acts & ~combo_acts;
-			} else */ {
+			} else {
 				allActions[pl] |= acts;
 			}
 		}
@@ -401,14 +453,15 @@ static void updateKeys(void)
 	events = (allActions[0] | allActions[1]) >> 16;
 
 	// volume is treated in special way and triggered every frame
-	if (events & 0x6000) {
+	if ((events & 0x6000) && PsndOut != NULL)
+	{
 		int vol = currentConfig.volume;
 		if (events & 0x2000) {
 			if (vol < 100) vol++;
 		} else {
 			if (vol >   0) vol--;
 		}
-		//gp2x_sound_volume(vol, vol);
+		FrameworkAudio_SetVolume(vol, vol);
 		sprintf(noticeMsg, "VOL: %02i", vol);
 		noticeMsgTime = GetTickCount();
 		currentConfig.volume = vol;
@@ -420,6 +473,35 @@ static void updateKeys(void)
 
 	prevEvents = (allActions[0] | allActions[1]) >> 16;
 }
+
+static void find_combos(void)
+{
+	int act, u;
+
+	// find out which keys and actions are combos
+	combo_keys = combo_acts = 0;
+	for (act = 0; act < 32; act++)
+	{
+		int keyc = 0;
+		if (act == 16 || act == 17) continue; // player2 flag
+		for (u = 0; u < 32; u++)
+		{
+			if (currentConfig.KeyBinds[u] & (1 << act)) keyc++;
+		}
+		if (keyc > 1)
+		{
+			// loop again and mark those keys and actions as combo
+			for (u = 0; u < 32; u++)
+			{
+				if (currentConfig.KeyBinds[u] & (1 << act)) {
+					combo_keys |= 1 << u;
+					combo_acts |= 1 << act;
+				}
+			}
+		}
+	}
+}
+
 
 static void simpleWait(DWORD until)
 {
@@ -437,10 +519,10 @@ static void simpleWait(DWORD until)
 
 void emu_Loop(void)
 {
-	//static int PsndRate_old = 0, PicoOpt_old = 0, PsndLen_real = 0, pal_old = 0;
+	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 	char fpsbuff[24]; // fps count c string
 	DWORD tval, tval_prev = 0, tval_thissec = 0; // timing
-	int frames_done = 0, frames_shown = 0, oldmodes = 0;
+	int frames_done = 0, frames_shown = 0, oldmodes = 0, sec_ms = 1000;
 	int target_fps, target_frametime, lim_time, tval_diff, i;
 	char *notice = NULL;
 
@@ -454,37 +536,45 @@ void emu_Loop(void)
 	else PicoOpt&=~0x4000;
 	Pico.m.dirtyPal = 1;
 	oldmodes = ((Pico.video.reg[12]&1)<<2) ^ 0xc;
-	//find_combos(); // TODO
+	find_combos();
 
 	// pal/ntsc might have changed, reset related stuff
 	target_fps = Pico.m.pal ? 50 : 60;
-	target_frametime = (1000<<8)/target_fps;
+	target_frametime = Pico.m.pal ? (1000<<8)/50 : (1000<<8)/60+1;
 	reset_timing = 1;
 
+	// prepare CD buffer
+	if (PicoMCD & 1) PicoCDBufferInit();
+
 	// prepare sound stuff
-/*	if (currentConfig.EmuOpt & 4) {
-		int snd_excess_add;
+	PsndOut = NULL;
+	if (currentConfig.EmuOpt & 4)
+	{
+		int ret, snd_excess_add, stereo=(PicoOpt&8)>>3;
 		if (PsndRate != PsndRate_old || (PicoOpt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
 			sound_rerate(Pico.m.frame_count ? 1 : 0);
 		}
 		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
+		snd_cbuf_samples = (PsndRate<<stereo) * 16 / target_fps;
 		lprintf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
 			PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
-		gp2x_start_sound(PsndRate, 16, (PicoOpt&8)>>3);
-		gp2x_sound_volume(currentConfig.volume, currentConfig.volume);
-		PicoWriteSound = updateSound;
-		memset(sndBuffer, 0, sizeof(sndBuffer));
-		PsndOut = sndBuffer;
-		PsndRate_old = PsndRate;
-		PsndLen_real = PsndLen;
-		PicoOpt_old  = PicoOpt;
-		pal_old = Pico.m.pal;
-	} else*/ {
-		PsndOut = 0;
+		ret = FrameworkAudio_Init(PsndRate, snd_cbuf_samples, stereo);
+		if (ret != 0) {
+			lprintf("FrameworkAudio_Init() failed: %i\n", ret);
+			sprintf(noticeMsg, "sound init failed (%i), snd disabled", ret);
+			noticeMsgTime = GetTickCount();
+			currentConfig.EmuOpt &= ~4;
+		} else {
+			FrameworkAudio_SetVolume(currentConfig.volume, currentConfig.volume);
+			PicoWriteSound = updateSound;
+			snd_cbuff = FrameworkAudio_56448Buffer();
+			PsndOut = snd_cbuff + snd_cbuf_samples / 2; // start writing at the middle
+			snd_all_samples = 0;
+			PsndRate_old = PsndRate;
+			PicoOpt_old  = PicoOpt;
+			pal_old = Pico.m.pal;
+		}
 	}
-
-	// prepare CD buffer
-	if (PicoMCD & 1) PicoCDBufferInit();
 
 	// loop?
 	while (engineState == PGS_Running)
@@ -493,6 +583,7 @@ void emu_Loop(void)
 
 		tval = GetTickCount();
 		if (reset_timing || tval < tval_prev) {
+			stdbg("timing reset");
 			reset_timing = 0;
 			tval_thissec = tval;
 			frames_shown = frames_done = 0;
@@ -520,7 +611,7 @@ void emu_Loop(void)
 		}
 
 		// second passed?
-		if (tval - tval_thissec >= 1000)
+		if (tval - tval_thissec >= sec_ms)
 		{
 #ifdef BENCHMARK
 			static int bench = 0, bench_fps = 0, bench_fps_s = 0, bfp = 0, bf[4];
@@ -536,21 +627,27 @@ void emu_Loop(void)
 			if(currentConfig.EmuOpt & 2)
 				sprintf(fpsbuff, "%02i/%02i", frames_shown, frames_done);
 #endif
-			tval_thissec = tval;
+			//tval_thissec += 1000;
+			tval_thissec += sec_ms;
 
-			if (PsndOut == 0 && currentConfig.Frameskip >= 0) {
+			if (PsndOut != NULL)
+			{
+				int audio_skew, adj;
+				audio_skew = snd_all_samples*2 - FrameworkAudio_BufferPos();
+				if (audio_skew < 0)
+				     adj = -((-audio_skew) >> 10);
+				else adj = audio_skew >> 10;
+				target_frametime += adj;
+				sec_ms = (target_frametime * target_fps) >> 8;
+				stdbg("%i %i %i", audio_skew, adj, sec_ms);
 				frames_done = frames_shown = 0;
-			} else {
-				// it is quite common for this implementation to leave 1 fame unfinished
-				// when second changes, but we don't want buffer to starve.
-				if (PsndOut && frames_done < target_fps && frames_done > target_fps-5) {
-					updateKeys();
-					SkipFrame(1); frames_done++;
-				}
-
+			}
+			else if (currentConfig.Frameskip < 0) {
 				frames_done  -= target_fps; if (frames_done  < 0) frames_done  = 0;
 				frames_shown -= target_fps; if (frames_shown < 0) frames_shown = 0;
 				if (frames_shown > frames_done) frames_shown = frames_done;
+			} else {
+				frames_done = frames_shown = 0;
 			}
 		}
 #ifdef PFRAMES
@@ -563,7 +660,7 @@ void emu_Loop(void)
 		{
 			for (i = 0; i < currentConfig.Frameskip; i++) {
 				updateKeys();
-				SkipFrame(1); frames_done++;
+				SkipFrame(); frames_done++;
 				if (PsndOut) { // do framelimitting if sound is enabled
 					int tval_diff;
 					tval = GetTickCount();
@@ -589,7 +686,7 @@ void emu_Loop(void)
 					continue;
 				}
 				updateKeys();
-				SkipFrame(tval_diff < lim_time+target_frametime*2); frames_done++;
+				SkipFrame(); frames_done++;
 				continue;
 			}
 		}
@@ -634,6 +731,11 @@ void emu_Loop(void)
 
 
 	if (PicoMCD & 1) PicoCDBufferFree();
+
+	if (PsndOut != NULL) {
+		PsndOut = snd_cbuff = NULL;
+		FrameworkAudio_Close();
+	}
 
 	// save SRAM
 	if ((currentConfig.EmuOpt & 1) && SRam.changed) {

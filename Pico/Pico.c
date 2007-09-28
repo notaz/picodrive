@@ -16,14 +16,13 @@ int PicoOpt=0; // disable everything by default
 int PicoSkipFrame=0; // skip rendering frame?
 int PicoRegionOverride = 0; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 int PicoAutoRgnOrder = 0;
-int emustatus = 0;
+int emustatus = 0; // rapid_ym2612, multi_ym_updates
 void (*PicoWriteSound)(int len) = 0; // called once per frame at the best time to send sound buffer (PsndOut) to hardware
 
 struct PicoSRAM SRam = {0,};
 int z80startCycle, z80stopCycle; // in 68k cycles
-//int z80ExtraCycles = 0;
 int PicoPad[2];  // Joypads, format is SACB RLDU
-int PicoMCD = 0; // mega CD status: scd_started, reset_pending
+int PicoMCD = 0; // mega CD status: scd_started
 
 // to be called once on emu init
 int PicoInit(void)
@@ -264,6 +263,8 @@ static int CheckIdle(void)
 
   return 0;
 }
+
+void lprintf_al(const char *fmt, ...);
 
 // to be called on 224 or line_sample scanlines only
 static __inline void getSamples(int y)
@@ -625,7 +626,7 @@ void PicoFrameDrawOnly(void)
 // callback to output message from emu
 void (*PicoMessage)(const char *msg)=NULL;
 
-#if defined(__DEBUG_PRINT) || defined(__GP2X__)
+#if defined(__DEBUG_PRINT) || defined(__GP2X__) || defined(__GIZ__)
 // tmp debug: dump some stuff
 #define bit(r, x) ((r>>x)&1)
 void z80_debug(char *dstr);

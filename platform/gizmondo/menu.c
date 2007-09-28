@@ -437,6 +437,36 @@ static char *romsel_loop(char *curr_path)
 }
 #endif
 
+// ------------ debug menu ------------
+
+char *debugString(void);
+
+static void draw_debug(void)
+{
+	char *p, *str = debugString();
+	int len, line;
+
+	menu_draw_begin(1);
+
+	p = str;
+	for (line = 0; line < 24; line++)
+	{
+		while (*p && *p != '\n') p++;
+		len = p - str;
+		if (len > 55) len = 55;
+		smalltext_out16_lim(1, line*10, str, 0xffff, len);
+		if (*p == 0) break;
+		p++; str = p;
+	}
+	menu_draw_end();
+}
+
+static void debug_menu_loop(void)
+{
+	draw_debug();
+	wait_for_input(BTN_PLAY|BTN_STOP);
+}
+
 // ------------ patch/gg menu ------------
 
 static void draw_patchlist(int sel)
@@ -1139,14 +1169,14 @@ static void draw_menu_options(int menu_sel)
 
 static int sndrate_prevnext(int rate, int dir)
 {
-	int i, rates[] = { 8000, 11025, 16000, 22050, 44100 };
+	int i, rates[] = { 11025, 22050, 44100 };
 
 	for (i = 0; i < 5; i++)
 		if (rates[i] == rate) break;
 
 	i += dir ? 1 : -1;
 	if (i > 4) return dir ? 44100 : 22050;
-	if (i < 0) return dir ? 11025 : 8000;
+	if (i < 0) return dir ? 22050 : 11025;
 	return rates[i];
 }
 
@@ -1224,8 +1254,8 @@ static int menu_loop_options(void)
 						break;
 					case MA_OPT_SOUND_QUALITY:
 						if ((inp & BTN_RIGHT) && currentConfig.PsndRate == 44100 && !(currentConfig.PicoOpt&0x08)) {
-							currentConfig.PsndRate = 8000;  currentConfig.PicoOpt|= 0x08;
-						} else if ((inp & BTN_LEFT) && currentConfig.PsndRate == 8000 && (currentConfig.PicoOpt&0x08)) {
+							currentConfig.PsndRate = 11025;  currentConfig.PicoOpt|= 0x08;
+						} else if ((inp & BTN_LEFT) && currentConfig.PsndRate == 11025 && (currentConfig.PicoOpt&0x08)) {
 							currentConfig.PsndRate = 44100; currentConfig.PicoOpt&=~0x08;
 						} else currentConfig.PsndRate = sndrate_prevnext(currentConfig.PsndRate, inp & BTN_RIGHT);
 						break;
@@ -1313,7 +1343,7 @@ static void draw_menu_credits(void)
 	menu_draw_begin(1);
 
 	text_out16(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006,2007");
-text_out16(tl_x, 30, "alpha1");
+text_out16(tl_x, 30, "beta1");
 	y = tl_y;
 	text_out16(tl_x, y, "Credits:");
 	text_out16(tl_x, (y+=10), "Dave: Cyclone 68000 core,");
@@ -1397,7 +1427,8 @@ static void menu_loop_root(void)
 		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_PLAY|BTN_STOP|BTN_HOME|BTN_L|BTN_R);
 		if(inp & BTN_UP  )  { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if(inp & BTN_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
-		if(inp &(BTN_HOME|BTN_STOP)){
+		if((inp & (BTN_L|BTN_R)) == (BTN_L|BTN_R)) debug_menu_loop();
+		if( inp & (BTN_HOME|BTN_STOP)) {
 			if (rom_data) {
 				while (Framework_PollGetButtons() & (BTN_HOME|BTN_STOP)) Sleep(50); // wait until released
 				engineState = PGS_Running;

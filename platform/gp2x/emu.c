@@ -105,7 +105,7 @@ static void find_combos(void)
 	for (act = 0; act < 32; act++)
 	{
 		int keyc = 0;
-		if (act == 16) continue; // player2 flag
+		if (act == 16 || act == 17) continue; // player2 flag
 		for (u = 0; u < 32; u++)
 		{
 			if (currentConfig.KeyBinds[u] & (1 << act)) keyc++;
@@ -629,7 +629,7 @@ static void simpleWait(int thissec, int lim_time)
 void emu_Loop(void)
 {
 	static int gp2x_old_clock = 200;
-	static int PsndRate_old = 0, PicoOpt_old = 0, EmuOpt_old = 0, PsndLen_real = 0, pal_old = 0;
+	static int PsndRate_old = 0, PicoOpt_old = 0, EmuOpt_old = 0, pal_old = 0;
 	char fpsbuff[24]; // fps count c string
 	struct timeval tval; // timing
 	int thissec = 0, frames_done = 0, frames_shown = 0, oldmodes = 0;
@@ -693,7 +693,6 @@ void emu_Loop(void)
 		memset(sndBuffer, 0, sizeof(sndBuffer));
 		PsndOut = sndBuffer;
 		PsndRate_old = PsndRate;
-		PsndLen_real = PsndLen;
 		PicoOpt_old  = PicoOpt;
 		pal_old = Pico.m.pal;
 	} else {

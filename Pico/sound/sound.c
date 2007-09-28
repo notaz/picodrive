@@ -464,7 +464,7 @@ PICO_INTERNAL void z80_exit(void)
 #endif
 }
 
-#if defined(__DEBUG_PRINT) || defined(__GP2X__)
+#if defined(__DEBUG_PRINT) || defined(__GP2X__) || defined(__GIZ__)
 PICO_INTERNAL void z80_debug(char *dstr)
 {
 #if defined(_USE_DRZ80)
