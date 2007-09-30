@@ -557,7 +557,7 @@ void emu_Loop(void)
 		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
 		snd_cbuf_samples = (PsndRate<<stereo) * 16 / target_fps;
 		lprintf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
+			PsndRate, PsndLen, snd_excess_add, stereo, Pico.m.pal);
 		ret = FrameworkAudio_Init(PsndRate, snd_cbuf_samples, stereo);
 		if (ret != 0) {
 			lprintf("FrameworkAudio_Init() failed: %i\n", ret);
@@ -632,11 +632,27 @@ void emu_Loop(void)
 
 			if (PsndOut != NULL)
 			{
-				int audio_skew, adj;
+				/* some code which tries to sync things to audio clock, the dirty way */
+				static int audio_skew_prev = 0;
+				int audio_skew, adj, co = 9, shift = 7;
 				audio_skew = snd_all_samples*2 - FrameworkAudio_BufferPos();
-				if (audio_skew < 0)
-				     adj = -((-audio_skew) >> 10);
-				else adj = audio_skew >> 10;
+				if (PsndRate == 22050) co = 10;
+				if (PsndRate  > 22050) co = 11;
+				if (PicoOpt&8) shift++;
+				if (audio_skew < 0) {
+					adj = -((-audio_skew) >> shift);
+					if (audio_skew > -(6<<co)) adj>>=1;
+					if (audio_skew > -(4<<co)) adj>>=1;
+					if (audio_skew > -(2<<co)) adj>>=1;
+					if (audio_skew > audio_skew_prev) adj>>=2; // going up already
+				} else {
+					adj = audio_skew >> shift;
+					if (audio_skew < (6<<co)) adj>>=1;
+					if (audio_skew < (4<<co)) adj>>=1;
+					if (audio_skew < (2<<co)) adj>>=1;
+					if (audio_skew < audio_skew_prev) adj>>=2;
+				}
+				audio_skew_prev = audio_skew;
 				target_frametime += adj;
 				sec_ms = (target_frametime * target_fps) >> 8;
 				stdbg("%i %i %i", audio_skew, adj, sec_ms);

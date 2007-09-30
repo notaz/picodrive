@@ -1175,7 +1175,7 @@ static int sndrate_prevnext(int rate, int dir)
 		if (rates[i] == rate) break;
 
 	i += dir ? 1 : -1;
-	if (i > 4) return dir ? 44100 : 22050;
+	if (i > 2) return dir ? 44100 : 22050;
 	if (i < 0) return dir ? 22050 : 11025;
 	return rates[i];
 }
