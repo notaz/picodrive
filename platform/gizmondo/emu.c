@@ -140,6 +140,7 @@ void emu_setDefaultConfig(void)
 	currentConfig.KeyBinds[ 6] = 1<<5;
 	currentConfig.KeyBinds[ 7] = 1<<6;
 	currentConfig.KeyBinds[ 4] = 1<<7;
+	currentConfig.KeyBinds[13] = 1<<26; // switch rend
 	currentConfig.KeyBinds[ 8] = 1<<27; // save state
 	currentConfig.KeyBinds[ 9] = 1<<28; // load state
 	currentConfig.KeyBinds[12] = 1<<29; // vol up
@@ -153,6 +154,9 @@ static int EmuScan16(unsigned int num, void *sdata)
 {
 	if (!(Pico.video.reg[1]&8)) num += 8;
 	DrawLineDest = (unsigned short *) giz_screen + 321*(num+1);
+
+	if ((currentConfig.EmuOpt&0x4000) && (num&1) == (Pico.m.frame_count&1))
+		return 1; // skip next line
 
 	return 0;
 }
@@ -216,7 +220,9 @@ static void blit(const char *fps, const char *notice)
 			Pico.m.dirtyPal = 0;
 			vidConvCpyRGB565(localPal, Pico.cram, 0x40);
 		}
-		if (!(Pico.video.reg[12]&1)) lines_flags|=0x100;
+		if (!(Pico.video.reg[12]&1)) lines_flags|=0x10000;
+		if (currentConfig.EmuOpt&0x4000)
+			lines_flags|=(Pico.m.frame_count&1)?0x20000:0x40000;
 		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, lines_flags);
 	}
 	else if (!(emu_opt&0x80))
@@ -242,7 +248,9 @@ static void blit(const char *fps, const char *notice)
 			} */
 		}
 		lines_flags = (Pico.video.reg[1]&8) ? 240 : 224;
-		if (!(Pico.video.reg[12]&1)) lines_flags|=0x100;
+		if (!(Pico.video.reg[12]&1)) lines_flags|=0x10000;
+		if (currentConfig.EmuOpt&0x4000)
+			lines_flags|=(Pico.m.frame_count&1)?0x20000:0x40000;
 		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, lines_flags);
 	}
 
@@ -360,9 +368,12 @@ static void RunEvents(unsigned int which)
 	if (which & 0x1800) { // save or load (but not both)
 		int do_it = 1;
 		if ( emu_checkSaveFile(state_slot) &&
-				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) ||   // load
-				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) { // save
+				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) || // load
+				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) // save
+		{
 			int keys;
+			if (giz_screen == NULL)
+				giz_screen = Framework2D_LockBuffer();
 			blit("", (which & 0x1000) ? "LOAD STATE? (PLAY=yes, STOP=no)" : "OVERWRITE SAVE? (PLAY=yes, STOP=no)");
 			while( !((keys = Framework_PollGetButtons()) & (BTN_PLAY|BTN_STOP)) )
 				Sleep(50);
@@ -379,9 +390,8 @@ static void RunEvents(unsigned int which)
 		reset_timing = 1;
 	}
 	if (which & 0x0400) { // switch renderer
-		if      (  PicoOpt&0x10)             { PicoOpt&=~0x10; currentConfig.EmuOpt |= 0x80; }
-		else if (!(currentConfig.EmuOpt&0x80)) PicoOpt|= 0x10;
-		else   currentConfig.EmuOpt &= ~0x80;
+		if (PicoOpt&0x10) { PicoOpt&=~0x10; currentConfig.EmuOpt |=  0x80; }
+		else              { PicoOpt|= 0x10; currentConfig.EmuOpt &= ~0x80; }
 
 		vidResetMode();
 
@@ -715,6 +725,9 @@ void emu_Loop(void)
 			PicoScan((unsigned) -1, NULL);
 
 		PicoFrame();
+
+		if (currentConfig.EmuOpt&0x2000)
+			Framework2D_WaitVSync();
 
 		if (giz_screen == NULL)
 			giz_screen = Framework2D_LockBuffer();

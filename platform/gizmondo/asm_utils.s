@@ -1,22 +1,30 @@
 @ vim:filetype=armasm
 
 
-.global vidCpy8to16 @ void *dest, void *src, short *pal, int lines|(is32col<<8)
+.global vidCpy8to16 @ void *dest, void *src, short *pal, int lines|(flags<<16),
+                    @ flags=is32col[0], no_even_lines[1], no_odd_lines[2]
 
 vidCpy8to16:
     stmfd   sp!, {r4-r8,lr}
 
-    tst     r3, #0x100
+    and     r4, r3, #0xff0000
     and     r3, r3, #0xff
+    tst     r4, #0x10000
     mov     r3, r3, lsr #1
     orr     r3, r3, r3, lsl #8
     orreq   r3, r3, #(320/8-1)<<24 @ 40 col mode
     orrne   r3, r3, #(256/8-1)<<24 @ 32 col mode
-    orrne   r3, r3, #0x10000
     addne   r0, r0, #32*2
+    orr     r3, r3, r4
     add     r1, r1, #8
     mov     lr, #0xff
     mov     lr, lr, lsl #1
+
+    @ no even lines?
+    tst     r3, #0x20000
+    addne   r0, r0, #320*2
+    addne   r1, r1, #328
+    bne     vcloop_odd
 
     @ even lines first
 vcloop_aligned:
@@ -62,6 +70,10 @@ vcloop_aligned:
     tst     r3, #0xff
     bne     vcloop_aligned
 
+    @ no odd lines?
+    tst     r3, #0x40000
+    ldmnefd sp!, {r4-r8,pc}
+
     and     r4, r3, #0xff00
     orr     r3, r3, r4, lsr #8
     mov     r4, r4, lsr #7
@@ -75,6 +87,7 @@ vcloop_aligned:
     sub     r1, r1, r4
 
     sub     r0, r0, #2
+vcloop_odd:
     mov     r8, #0
 
 vcloop_unaligned:
