@@ -1,7 +1,7 @@
 
 # you may or may not need to change this
 #devkit_path = x:/stuff/dev/devkitgp2x/
-CROSS = arm-linux-
+export CROSS = arm-linux-
 #CROSS = $(devkit_path)bin/arm-linux-
 
 # settings
@@ -58,7 +58,8 @@ OBJS += main.o menu.o gp2x.o usbjoy.o emu.o squidgehack.o cpuctrl.o
 OBJS += 940ctl.o
 
 # common
-OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/arm_utils.o ../common/readpng.o
+OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/arm_utils.o \
+	../common/readpng.o ../common/mp3_helix.o
 
 # Pico
 ifeq "$(amalgamate)" "1"
@@ -111,8 +112,6 @@ OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/i
 	../../zlib/deflate.o ../../zlib/crc32.o ../../zlib/adler32.o ../../zlib/zutil.o ../../zlib/compress.o
 # unzip
 OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
-# mp3
-OBJS += mp3.o
 # debug
 ifeq "$(debug_cyclone)" "1"
 OBJS += ../../Pico/_cyclone_debug.o ../../cpu/musashi/m68kdasm.o
@@ -138,7 +137,7 @@ endif
 
 all: PicoDrive.gpe
 
-PicoDrive.gpe : $(OBJS) helix/helix_mp3.a
+PicoDrive.gpe : $(OBJS) ../common/helix/helix_mp3.a
 	@echo $@
 	@$(GCC) -o $@ $(COPT) $^ -lm -lpng -Wl,-Map=PicoDrive.map
 ifeq ($(DEBUG),)
@@ -206,8 +205,8 @@ testrefr.gpe : test.o gp2x.o
 
 
 # build helix libs
-helix/helix_mp3.a:
-	make -C helix
+../common/helix/helix_mp3.a:
+	make -C ../common/helix
 
 
 # cleanup

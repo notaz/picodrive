@@ -42,6 +42,7 @@ typedef enum {
 
 
 static char *chunk_names[] = {
+	"INVALID!",
 	"Saving.. M68K state",
 	"Saving.. RAM",
 	"Saving.. VRAM",

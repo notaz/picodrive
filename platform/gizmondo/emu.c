@@ -73,6 +73,8 @@ static void emu_state_cb(const char *str)
 
 	Framework2D_UnlockBuffer();
 	giz_screen = NULL;
+
+	Sleep(0); /* yield the CPU, the system may need it */
 }
 
 static void emu_msg_tray_open(void)
@@ -299,7 +301,7 @@ static void vidResetMode(void)
 	giz_screen = NULL;
 }
 
-
+/*
 #include <stdarg.h>
 static void stdbg(const char *fmt, ...)
 {
@@ -313,7 +315,7 @@ static void stdbg(const char *fmt, ...)
 
 	noticeMsgTime = GetTickCount();
 }
-
+*/
 
 static void updateSound(int len)
 {
@@ -323,8 +325,8 @@ static void updateSound(int len)
 	PsndOut += len;
 	if (PsndOut - snd_cbuff >= snd_cbuf_samples)
 	{
-		if (PsndOut - snd_cbuff != snd_cbuf_samples)
-			stdbg("snd diff is %i, not %i", PsndOut - snd_cbuff, snd_cbuf_samples);
+		//if (PsndOut - snd_cbuff != snd_cbuf_samples)
+		//	stdbg("snd diff is %i, not %i", PsndOut - snd_cbuff, snd_cbuf_samples);
 		PsndOut = snd_cbuff;
 	}
 }
@@ -365,31 +367,43 @@ void emu_forcedFrame(void)
 
 static void RunEvents(unsigned int which)
 {
-	if (which & 0x1800) { // save or load (but not both)
+	if (which & 0x1800) // save or load (but not both)
+	{
 		int do_it = 1;
+
+		if (PsndOut != NULL)
+			FrameworkAudio_SetPause(1);
+		if (giz_screen == NULL)
+			giz_screen = Framework2D_LockBuffer();
 		if ( emu_checkSaveFile(state_slot) &&
 				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) || // load
 				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) // save
 		{
 			int keys;
-			if (giz_screen == NULL)
-				giz_screen = Framework2D_LockBuffer();
 			blit("", (which & 0x1000) ? "LOAD STATE? (PLAY=yes, STOP=no)" : "OVERWRITE SAVE? (PLAY=yes, STOP=no)");
 			while( !((keys = Framework_PollGetButtons()) & (BTN_PLAY|BTN_STOP)) )
 				Sleep(50);
 			if (keys & BTN_STOP) do_it = 0;
+			while(  ((keys = Framework_PollGetButtons()) & (BTN_PLAY|BTN_STOP)) ) // wait for release
+				Sleep(50);
 			clearArea(0);
 		}
-		if (do_it) {
+
+		if (do_it)
+		{
 			osd_text(4, 232, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
 			PicoStateProgressCB = emu_state_cb;
 			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
 			PicoStateProgressCB = NULL;
+			Sleep(0);
 		}
 
+		if (PsndOut != NULL)
+			FrameworkAudio_SetPause(0);
 		reset_timing = 1;
 	}
-	if (which & 0x0400) { // switch renderer
+	if (which & 0x0400) // switch renderer
+	{
 		if (PicoOpt&0x10) { PicoOpt&=~0x10; currentConfig.EmuOpt |=  0x80; }
 		else              { PicoOpt|= 0x10; currentConfig.EmuOpt &= ~0x80; }
 
@@ -405,7 +419,8 @@ static void RunEvents(unsigned int which)
 
 		noticeMsgTime = GetTickCount();
 	}
-	if (which & 0x0300) {
+	if (which & 0x0300)
+	{
 		if(which&0x0200) {
 			state_slot -= 1;
 			if(state_slot < 0) state_slot = 9;
@@ -560,10 +575,11 @@ void emu_Loop(void)
 	PsndOut = NULL;
 	if (currentConfig.EmuOpt & 4)
 	{
-		int ret, snd_excess_add, stereo=(PicoOpt&8)>>3;
+		int ret, snd_excess_add, stereo;
 		if (PsndRate != PsndRate_old || (PicoOpt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
 			sound_rerate(Pico.m.frame_count ? 1 : 0);
 		}
+		stereo=(PicoOpt&8)>>3;
 		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
 		snd_cbuf_samples = (PsndRate<<stereo) * 16 / target_fps;
 		lprintf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
@@ -593,7 +609,7 @@ void emu_Loop(void)
 
 		tval = GetTickCount();
 		if (reset_timing || tval < tval_prev) {
-			stdbg("timing reset");
+			//stdbg("timing reset");
 			reset_timing = 0;
 			tval_thissec = tval;
 			frames_shown = frames_done = 0;
@@ -665,7 +681,7 @@ void emu_Loop(void)
 				audio_skew_prev = audio_skew;
 				target_frametime += adj;
 				sec_ms = (target_frametime * target_fps) >> 8;
-				stdbg("%i %i %i", audio_skew, adj, sec_ms);
+				//stdbg("%i %i %i", audio_skew, adj, sec_ms);
 				frames_done = frames_shown = 0;
 			}
 			else if (currentConfig.Frameskip < 0) {

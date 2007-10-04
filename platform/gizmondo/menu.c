@@ -1257,11 +1257,18 @@ static int menu_loop_options(void)
 						}
 						break;
 					case MA_OPT_SOUND_QUALITY:
-						if ((inp & BTN_RIGHT) && currentConfig.PsndRate == 44100 && !(currentConfig.PicoOpt&0x08)) {
-							currentConfig.PsndRate = 11025; currentConfig.PicoOpt|= 0x08;
-						} else if ((inp & BTN_LEFT) && currentConfig.PsndRate == 11025 && (currentConfig.PicoOpt&0x08)) {
-							currentConfig.PsndRate = 44100; currentConfig.PicoOpt&=~0x08;
-						} else currentConfig.PsndRate = sndrate_prevnext(currentConfig.PsndRate, inp & BTN_RIGHT);
+						if ((inp & BTN_RIGHT) && currentConfig.PsndRate == 44100 &&
+								!(currentConfig.PicoOpt&0x08))
+						{
+							currentConfig.PsndRate =  11025;
+							currentConfig.PicoOpt |=  8;
+						} else if ((inp & BTN_LEFT) && currentConfig.PsndRate == 11025 &&
+								(currentConfig.PicoOpt&0x08) && !(PicoMCD&1))
+						{
+							currentConfig.PsndRate =  44100;
+							currentConfig.PicoOpt &= ~8;
+						} else
+							currentConfig.PsndRate = sndrate_prevnext(currentConfig.PsndRate, inp & BTN_RIGHT);
 						break;
 					case MA_OPT_REGION:
 						region_prevnext(inp & BTN_RIGHT);
@@ -1347,7 +1354,7 @@ static void draw_menu_credits(void)
 	menu_draw_begin(1);
 
 	text_out16(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006,2007");
-text_out16(tl_x, 30, "beta1");
+text_out16(tl_x, 30, "rc1");
 	y = tl_y;
 	text_out16(tl_x, y, "Credits:");
 	text_out16(tl_x, (y+=10), "Dave: Cyclone 68000 core,");

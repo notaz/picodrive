@@ -1,5 +1,5 @@
 #include "../../../Pico/sound/ym2612.h"
-#include "../helix/pub/mp3dec.h"
+#include "../../common/helix/pub/mp3dec.h"
 
 // max 16 jobs
 enum _940_job_t {

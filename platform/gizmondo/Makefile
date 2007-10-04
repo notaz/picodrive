@@ -1,6 +1,6 @@
 
 # you may or may not need to change this
-CROSS = /opt/cegcc/arm-wince-cegcc/bin/
+export CROSS = /opt/cegcc/arm-wince-cegcc/bin/
 
 # settings
 asm_memory = 1
@@ -38,7 +38,8 @@ LD = $(CROSS)ld
 OBJS += main.o emu.o menu.o giz.o asm_utils.o
 
 # common
-OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/arm_utils.o ../common/readpng.o
+OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/arm_utils.o \
+	../common/readpng.o ../common/mp3_helix.o
 
 # Pico
 ifeq "$(amalgamate)" "1"
@@ -91,8 +92,6 @@ OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/i
 	../../zlib/deflate.o ../../zlib/crc32.o ../../zlib/adler32.o ../../zlib/zutil.o ../../zlib/compress.o
 # unzip
 OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
-# mp3
-OBJS += mp3.o
 # CPU cores
 # Cyclone
 DEFINC += -DEMU_C68K
@@ -104,7 +103,7 @@ OBJS += ../../cpu/DrZ80/drz80.o
 
 all: PicoDrive.exe
 
-PicoDrive.exe : $(OBJS)
+PicoDrive.exe : $(OBJS) ../common/helix/helix_mp3.a
 	@echo ">>>" $@
 	$(GCC) -o $@ -static $(COPT) $^ -lm -lpng -Lkgsdk/ -lKGSDK -Wl,-Map=PicoDrive.map 2>&1 | \
 		grep -v ".idata$$4" # | grep -v "supports interworking, whereas"
@@ -153,6 +152,9 @@ endif
 	@echo building Cyclone...
 	@make -C ../../cpu/Cyclone/proj CONFIG_FILE=config_pico.h
 
+# build helix libs
+../common/helix/helix_mp3.a:
+	make -C ../common/helix
 
 
 # cleanup

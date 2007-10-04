@@ -14,7 +14,7 @@
 #include "gp2x.h"
 #include "emu.h"
 #include "menu.h"
-#include "mp3.h"
+#include "../common/mp3.h"
 #include "../common/arm_utils.h"
 #include "../common/menu.h"
 #include "../common/emu.h"
@@ -533,9 +533,8 @@ void mp3_update(int *buffer, int length, int stereo)
 	int length_mp3;
 	int cdda_on;
 
-	// not data track, CDC is reading, playback was started, track not ended
-	cdda_on = !(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1) &&
-			loaded_mp3 && shared_ctl->mp3_offs < shared_ctl->mp3_len;
+	// playback was started, track not ended
+	cdda_on = loaded_mp3 && shared_ctl->mp3_offs < shared_ctl->mp3_len;
 
 	if (!cdda_on) return;
 
@@ -649,7 +648,7 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 
 int mp3_get_offset(void)
 {
-	int offs1024 = 0;
+	unsigned int offs1024 = 0;
 	int cdda_on;
 
 	cdda_on = (PicoMCD & 1) && (PicoOpt&0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
@@ -657,10 +656,9 @@ int mp3_get_offset(void)
 
 	if (cdda_on) {
 		offs1024  = shared_ctl->mp3_offs << 7;
-		offs1024 /= shared_ctl->mp3_len;
-		offs1024 <<= 3;
+		offs1024 /= shared_ctl->mp3_len  >> 3;
 	}
-	printf("offs1024=%i (%i/%i)\n", offs1024, shared_ctl->mp3_offs, shared_ctl->mp3_len);
+	printf("offs1024=%u (%i/%i)\n", offs1024, shared_ctl->mp3_offs, shared_ctl->mp3_len);
 
 	return offs1024;
 }

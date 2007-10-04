@@ -262,7 +262,8 @@ PICO_INTERNAL int sound_render(int offset, int length)
   }
 
   // CD: CDDA audio
-  if ((PicoMCD & 1) && (PicoOpt & 0x800))
+  // CD mode, cdda enabled, not data track, CDC is reading
+  if ((PicoMCD & 1) && (PicoOpt & 0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
     mp3_update(buf32, length, stereo);
 
   // convert + limit to normal 16bit output

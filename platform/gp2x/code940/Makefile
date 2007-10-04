@@ -3,7 +3,7 @@
 #devkit_path = x:/stuff/dev/devkitgp2x/
 devkit_path = /usr/local/devkitPro/devkitGP2X/
 lgcc_path = $(devkit_path)lib/gcc/arm-linux/4.0.3/
-CROSS = arm-linux-
+export CROSS = arm-linux-
 #CROSS = $(devkit_path)bin/arm-linux-
 
 # settings
@@ -47,7 +47,7 @@ $(BIN) : code940.gpe
 	@echo $@
 	@$(OBJCOPY) -O binary $< $@
 
-code940.gpe : $(OBJS940) ../helix/helix_mp3.a
+code940.gpe : $(OBJS940) ../../common/helix/helix_mp3.a
 	@echo $@
 	@$(LD) -static -e code940 -Ttext 0x0 $^ -L$(lgcc_path) -lgcc -o $@ -Map code940.map
 
@@ -58,12 +58,12 @@ code940.gpe : $(OBJS940) ../helix/helix_mp3.a
 mix.o : ../../../Pico/sound/mix.s
 	@echo $@
 	@$(GCC) $(COPT) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
-misc.o : ../../../Pico/misc.s
+misc.o : ../../../Pico/Misc.s
 	@echo $@
 	@$(GCC) $(COPT) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
 
-../helix/helix_mp3.a:
-	@make -C ../helix/
+../../common/helix/helix_mp3.a:
+	@make -C ../../common/helix/
 
 
 up: $(BIN)

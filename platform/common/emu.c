@@ -687,7 +687,8 @@ int emu_SaveLoadGame(int load, int sram)
 
 	lprintf("saveLoad (%i, %i): %s\n", load, sram, saveFname);
 
-	if(sram) {
+	if (sram)
+	{
 		FILE *sramFile;
 		int sram_size;
 		unsigned char *sram_data;
@@ -740,10 +741,11 @@ int emu_SaveLoadGame(int load, int sram)
 	else
 	{
 		void *PmovFile = NULL;
-		if (strcmp(saveFname + strlen(saveFname) - 3, ".gz") == 0) {
+		if (strcmp(saveFname + strlen(saveFname) - 3, ".gz") == 0)
+		{
 			if( (PmovFile = gzopen(saveFname, load ? "rb" : "wb")) ) {
 				emu_setSaveStateCbs(1);
-				if(!load) gzsetparams(PmovFile, 9, Z_DEFAULT_STRATEGY);
+				if (!load) gzsetparams(PmovFile, 9, Z_DEFAULT_STRATEGY);
 			}
 		}
 		else
