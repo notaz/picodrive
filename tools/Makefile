@@ -1,10 +1,10 @@
 CFLAGS = -Wall -ggdb
 
-TARGET = amalgamate
-OBJS = amalgamate.o
+TARGETS = amalgamate textfilter
+OBJS = $(addsuffix .o,$(TARGETS))
 
-all: $(TARGET)
+all: $(TARGETS)
 
 clean:
-	$(RM) $(TARGET) $(OBJS)
+	$(RM) $(TARGETS) $(OBJS)
 

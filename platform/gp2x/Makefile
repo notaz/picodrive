@@ -208,6 +208,12 @@ testrefr.gpe : test.o gp2x.o
 ../common/helix/helix_mp3.a:
 	make -C ../common/helix
 
+readme.txt: ../../tools/textfilter ../base_readme.txt
+	../../tools/textfilter ../base_readme.txt $@ GP2X
+
+../../tools/textfilter: ../../tools/textfilter.c
+	make -C ../../tools/ textfilter
+
 
 # cleanup
 clean: tidy
@@ -228,7 +234,7 @@ $(error need VER)
 endif
 endif
 
-rel: PicoDrive.gpe code940/pico940.bin ../readme.txt config.txt PicoDrive.man.txt PicoDrive.png
+rel: PicoDrive.gpe code940/pico940.bin readme.txt PicoDrive.man.txt PicoDrive.png
 	zip -9 -j ../../PicoDrive_$(VER).zip $^ mmuhack.o
 	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt
 

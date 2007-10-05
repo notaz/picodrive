@@ -101,7 +101,7 @@ DEFINC += -D_USE_DRZ80
 OBJS += ../../cpu/DrZ80/drz80.o
 
 
-all: PicoDrive.exe
+all: PicoDrive.exe readme.txt
 
 PicoDrive.exe : $(OBJS) ../common/helix/helix_mp3.a
 	@echo ">>>" $@
@@ -148,13 +148,19 @@ endif
 	@$(AS) $(ASFLAGS) $< -o $@
 
 # build Cyclone
-../../cpu/Cyclone/proj/Cyclone.s :
+../../cpu/Cyclone/proj/Cyclone.s:
 	@echo building Cyclone...
 	@make -C ../../cpu/Cyclone/proj CONFIG_FILE=config_pico.h
 
 # build helix libs
 ../common/helix/helix_mp3.a:
 	make -C ../common/helix
+
+readme.txt: ../../tools/textfilter ../base_readme.txt
+	../../tools/textfilter ../base_readme.txt $@ GIZ
+
+../../tools/textfilter: ../../tools/textfilter.c
+	make -C ../../tools/ textfilter
 
 
 # cleanup
@@ -184,7 +190,7 @@ $(error need VER)
 endif
 endif
 
-rel: PicoDrive.exe kgsdk/ARMV4IRel/KGSDK.dll # ../readme.txt config.txt
+rel: PicoDrive.exe kgsdk/ARMV4IRel/KGSDK.dll readme.txt
 	zip -9 -j ../../PicoDrive_$(VER).zip $^
 	ln -s ../gp2x/skin skin
 	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt

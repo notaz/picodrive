@@ -1,26 +1,39 @@
+#ifdef GP2X
 For help / comments / questions visit GP32X boards at:
 http://www.gp32x.com/board/
 
+#endif
 
 About
 -----
 
 This is yet another Megadrive / Genesis / Sega CD / Mega CD emulator, which
 was written having ARM-based handheld devices in mind (such as PDAs,
-smartphones and handheld consoles like GP2X of course). The critical parts
-(renderer, 68K and Z80 cpu interpreters) and some other random code is
-written in ARM asm, other code is C. The base code originates from Dave's
-(fdave, finalburn) PicoDrive 0.30 for Pocket PC. The Sega/Mega CD code is
-roughly based on Stephane Dallongeville's Gens.
+smartphones and handheld consoles like GP2X and Gizmondo of course).
+The critical parts (renderer, 68K and Z80 cpu interpreters) and some other
+random code is written in ARM asm, other code is C. The base code originates
+from Dave's (fdave, finalburn) PicoDrive 0.30 for Pocket PC. The Sega/Mega CD
+code is roughly based on Stephane Dallongeville's Gens.
 
 
 How to make it run
 ------------------
 
+#ifdef GP2X
 Copy PicoDrive.gpe, pico940.bin and mmuhack.o to any place in your filesystem
 (all 3 files must be in the same directory) and run PicoDrive.gpe.
 Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
 
+#endif
+#ifdef GIZ
+First make sure you have homebrew-enabled Service Pack installed. Then copy
+PicoDrive.exe and KGSDK.dll to any place in your filesystem (both files must
+be in the same directory) and run PicoDrive.exe using the launcher of your choice
+(some of them might require renaming PicoDrive.exe to Autorun.exe, placing it in
+the root of SD, etc). Then load a ROM and enjoy! ROMs can be placed anywhere, can
+be in .smd or .bin format and can be zipped (one ROM per zip).
+
+#endif
 If you have any problems (game does not boot, sound is glitchy, broken graphics),
 make sure you enable "Accurate timing", "Emulate Z80" and use "16bit accurate
 renderer". This way you will get the best compatibility this emulator can
@@ -31,7 +44,8 @@ How to run Sega/Mega CD games
 -----------------------------
 
 To play any game, you need BIOS files. These files must be copied to the same
-directory as PicoDrive.gpe. Files can be named as follows:
+directory as PicoDrive. Files can be named as follows:
+
 US: us_scd1_9210.bin us_scd2_9306.bin SegaCDBIOS9303.bin
 EU: eu_mcd1_9210.bin eu_mcd2_9303.bin eu_mcd2_9306.bin
 JP: jp_mcd1_9112.bin jp_mcd1_9111.bin
@@ -39,8 +53,8 @@ these files can also be zipped.
 
 The game must be dumped to ISO format, but BIN can be used too. If you want
 CD music, you must use ISO+mp3 files. Audio from BIN files won't be read at
-all due to SD access issues. Also BIN files are usually larger, so it's better
-to use ISO. ISO+mp3 files can be named similarly as for other emus.
+all. Also BIN files are usually larger, so it's better to use ISO. ISO+mp3
+files can be named similarly as for other emus.
 Here are some examples:
 
 SonicCD.iso             data track
@@ -63,37 +77,280 @@ SonicCD_02.mp3          audio track 1 (CD track 2)
 SonicCD_03.mp3
 ...
 
-Notes:
-If the game hangs after Sega logo, you may need to enable "better sync"
-and/or "Scale/Rot. fx" options, found in "Sega/Mega CD options" submenu, and
-then reset the game.
-If FMV game performance is poor, try adjusting "ReadAhead buffer" to something
-like 2048K.
-
-
-Configuration
--------------
-
-See config.txt file.
-
 
 Other important stuff
 ---------------------
 
+* If your Genesis/MD game hangs or has glitches, this is most likely because
+  "Accurate timing" option is not enabled, or 8bit fast renderer is used
+  (try the 16 bit one), or Z80 is disabled in "advanced options".
+* Sega/Mega CD: If the game hangs after Sega logo, you may need to enable
+  "better sync" and/or "Scale/Rot. fx" options, found in "Sega/Mega CD options"
+  submenu, and then reset the game. Some other games may also require
+  "CDDA audio" and "PCM audio" to work.
+#ifdef GP2X
+* Sega/Mega CD: if FMV game performance is poor, try adjusting
+  "ReadAhead buffer" to something like 2048K.
 * When you use both GP2X CPUs, keep in mind that you can't overclock as high as
   when using ARM920 only. For example my GP2X when run singlecore can reach
   280MHz, but with both cores it's about 250MHz. When overclocked too much,
   it may start hanging and producing random noise, or causing ARM940 crashes
   ("940 crashed" message displayed).
+#endif
 * PicoDrive is not a mp3 player, so all mp3s MUST be encoded at 44.1kHz stereo.
   Badly encoded mp3s can cause various kind of problems, like noises, incorrect
   playback speeds, not repeating music or even prevent game from starting.
 * Use lower bitrate for better performance (96 or 128kbps CBRs recommended).
+#ifdef GP2X
 * Due to internal implementation mp3s must not be larger that 12MB
   (12582912 bytes). Larger mp3s will not be fully loaded.
 * RAM timings option is good for dualcore operation (it is disabled by
   default because it doesn't work on every GP2X, so enable it in advanced
   options).
+#endif
+
+
+Configuration
+-------------
+
+@@0. "Renderer"
+#ifdef GP2X
+8bit fast:
+This enables alternative heavily optimized tile-based renderer, which renders
+pixels not line-by-line (this is what accurate renderers do), but in 8x8 tiles,
+which is much faster. But because of the way it works it can't render any
+mid-frame image changes (raster effects), so it is useful only with some games.
+
+Other two are accurate line-based renderers. The 8bit is faster but does not
+run well with some games like Street Racer.
+#endif
+#ifdef GIZ
+This option allows to switch between 16bit and 8bit renderers. The 8bit one is
+a bit faster for some games, but not much, because colors still need to be
+converted to 16bit, as this is what Gizmondo requires. It also introduces
+graphics problems for some games, so it's best to use 16bit one.
+#endif
+
+#ifdef GIZ
+@@0. "Interlaced rendering"
+This option was designed to work around slow framebuffer access (the Gizmondo's
+main bottleneck) by drawing every other line (odd numbered lines during odd
+numbered frames and even numbered lines during even frames). This improves
+performance greatly, but introduces artifacts for fast scrolling games.
+
+#endif
+#ifdef GP2X
+@@0. "Scaling"
+"hw" means GP2X hardware scaler, which causes no performance loss, but scaled
+image looks a bit blocky. "sw" means software scaling, which uses pixel
+averaging and may look a bit nicer, but blurry. Horizontal scaling is only for
+games which use so called "32 column mode" (256x224 or 256x240), and scales
+image width to 320 pixels. Vertical scales height to 240 for games which use
+height 224 (most of them).
+#endif
+#ifdef GIZ
+@@0. "Scale low res mode"
+The Genesis/Megadrive had several graphics modes, some of which were only 256
+pixels wide. This option scales their width to 320 by using simple
+pixel averaging scaling. Works only when 16bit renderer is enabled.
+#endif
+
+@@0. "Accurate timing"
+This adds some more emulation precision, but slows the emulation down. Without
+this option some games do not boot (Red Zone for example), others have sound
+problems. This options has no effect for Sega/Mega CD emulation.
+
+@@0. "Accurate sprites"
+This option improves emulation of sprite priorities, it also enables emulation
+of sprite collision bit. If you see one sprite being drawn incorrectly above
+the other (often seen in Sonic 3D Blast), you can enable this to fix the problem.
+This only works with the accurate renderers (see first option).
+
+@@0. "Show FPS"
+Self-explanatory. Format is XX/YY, where XX is the number of rendered frames and
+YY is the number of emulated frames per second.
+
+@@0. "Frameskip"
+How many frames to skip rendering before displaying another.
+"Auto" is recommended.
+
+@@0. "Enable sound"
+Does what it says. You must enable at least YM2612 or SN76496 (in advanced options,
+see below) for this to make sense (already done by default).
+
+@@0. "Sound Quality"
+Sound rate and stereo mode. Mono is not available in Sega/Mega CD mode.
+#ifdef GP2X
+If you want 44100Hz sound, it is recommended to enable the second core (next option).
+
+@@0. "Use ARM940 core for sound"
+This option causes PicoDrive to use ARM940T core (GP2X's second CPU) for sound 
+(i.e. to generate YM2612 samples) to improve performance noticeably.
+#endif
+
+@@0. "6 button pad"
+If you enable this, games will think that 6 button gamepad is connected. If you
+go and reconfigure your keys, you will be able to bind X,Y,Z and mode actions.
+
+@@0. "Region"
+This option lets you force the game to think it is running on machine from the
+specified region, or just to set autodetection order. Also affects Sega/Mega CD.
+
+@@0. "Use SRAM/BRAM savestates"
+This will automatically read/write SRAM (or BRAM for Sega/Mega CD) savestates for
+games which are using them. SRAM is saved whenever you pause your game or exit the
+emulator.
+
+@@0. "Confirm savestate"
+Allows to enable confirmation on savestate saving (to prevent savestate overwrites),
+on loading (to prevent destroying current game progress), and on both or none, when
+using shortcut buttons (not menu) for saving/loading.
+
+@@0. "Save slot"
+This is a slot number to use for savestates. This can also be configured to be
+changed with a button (see "key configuration").
+
+#ifdef GP2X
+@@0. "GP2X CPU clocks"
+Here you can change clocks of both GP2X's CPUs. Larger values increase performance.
+There is no separate option for the second CPU because both CPUs use the same clock
+source. Setting this option to 200 will cause PicoDrive NOT to change GP2X's clocks
+at all (this is if you use external program to set clock).
+
+#endif
+@@0. "[Sega/Mega CD options]"
+Enters Sega/Mega CD options menu (see below).
+
+@@0. "[advanced options]"
+Enters advanced options menu (see below).
+
+@@0. "Save cfg as default"
+If you save your config here it will be loaded on next ROM load, but only if there
+is no game specific config saved (which will be loaded in that case).
+You can press left/right to switch to a different config profile.
+
+@@0. "Save cfg for current game only"
+Whenever you load current ROM again these settings will be loaded
+#ifdef GP2X
+(squidgehack and RAM settings will not take effect until emulator is restarted).
+#endif
+
+
+Advanced configuration
+----------------------
+
+Enter [advanced options] in config menu to see these options.
+
+#ifdef GP2X
+@@1. "Gamma correction"
+Alters image gamma through GP2X hardware. Larger values make image to look brighter,
+lower - darker (default is 1.0).
+
+@@1. "A_SN's gamma curve"
+If this is enabled, different gamma adjustment method will be used (suggested by A_SN
+from gp32x boards). Basically it makes difference for dark and bright colors.
+
+@@1. "Perfect vsync"
+This one adjusts the LCD refresh rate to better match game's refresh rate and starts
+synchronizing rendering with it. Should make scrolling smoother and eliminate tearing.
+
+#endif
+@@1. "Emulate Z80"
+Enables emulation of Z80 chip, which was mostly used to drive the other sound chips.
+Some games do complex sync with it, so you must enable it even if you don't use
+sound to be able to play them.
+
+@@1. "Emulate YM2612 (FM)"
+This enables emulation of six-channel FM sound synthesizer chip, which was used to
+produce sound effects and music.
+
+@@1. "Emulate SN76496 (PSG)"
+This enables emulation of additional sound chip for additional effects.
+
+Note: if you change sound settings AFTER loading a ROM, you may need to reset
+game to get sound. This is because most games initialize sound chips on
+startup, and this data is lost when sound chips are being enabled/disabled.
+
+#ifdef GIZ
+@@1. "Wait for V-sync"
+Waits for vertical sync before drawing. This option doesn't eliminate tearing
+problems, because full framebuffer update takes much more time then the blanking
+period lasts on Gizmondo..
+
+#endif
+@@1. "gzip savestates"
+This will always apply gzip compression on your savestates, allowing you to
+save some space and load/save time.
+
+@@1. "Don't save last used ROM"
+This will disable writing last used ROM to config on exit (what might cause SD
+card corruption according to DaveC).
+
+#ifdef GP2X
+@@1. "craigix's RAM timings"
+This overclocks the GP2X RAM chips, but may cause instability. Recommended if you
+use the second core for sound. Needs emulator restart to take effect.
+See this thread:
+http://www.gp32x.com/board/index.php?showtopic=32319
+
+@@1. "squidgehack"
+Well known way to improve the GP2X performance. You must restart the emulator
+for the change of this option to take effect.
+
+#endif
+
+Sega/Mega CD options 
+--------------------
+
+@@2,@@2,@@2. "USA/EUR/JAP BIOS"
+These options just show if your BIOS files were correctly detected by the
+emulator (it shows the filename it is using). If so, you can press Start to
+test your BIOS.
+
+@@2. "CD LEDs"
+The Sega/Mega CD unit had two blinking LEDs (red and green) on it. This option
+will display them on top-left corner of the screen.
+
+@@2. "CDDA audio (using mp3s)"
+This option enables CD audio playback.
+
+@@2. "PCM audio"
+This enables 8 channel PCM sound source. It is required for some games to run,
+because they monitor state of this audio chip.
+
+@@2. "ReadAhead buffer"
+#ifdef GP2X
+This option is for dealing with slow SD card access in GP2X, which makes FMV
+games unplayable. It will allow emulator not to access SD card for longer periods
+of time, but it will take more time to fill the buffer.
+#endif
+#ifdef GIZ
+This option can prefetch more data from the CD then read by the game - not really
+useful for Gizmondo (this is a workaround for SD access problems on GP2X port).
+#endif
+
+@@2. "Save RAM cart"
+Here you can enable 64K RAM cart. Format it in BIOS if you do.
+
+@@2. "Scale/Rot. fx"
+The Sega/Mega CD had scaling/rotation chip, which allows effects similar to
+"Mode 7" effects in SNES. Unfortunately emulating it is slow, and very few games
+used it, so it's better to disable this option, unless game really needs it.
+
+@@2. "Better sync"
+This option is similar to "Perfect synchro" in Gens. Some games require it to run,
+for example most (all?) Wolfteam games, and some other ones. Don't use it for
+games which don't need it, it will just slow them down.
+
+
+Key configuration
+-----------------
+
+Select "Configure controls" from the main menu. Then select "Player 1" and you will
+see two columns. The left column lists names of Genesis/MD controller buttons, and
+the right GP2X ones, which are assigned to them. If you bind 2 different GP2X buttons
+to the same action, you will get a combo (which means that you will have to press
+both buttons for that action to happen.
 
 
 Cheat support
@@ -167,12 +424,14 @@ Credits
 
 This emulator uses code from these people/projects:
 
+notaz
+GP2X, UIQ, Gizmondo ports, Cyclone 68000 hacks,
+lots of additional coding (see changelog).
+Homepage: http://notaz.gp2x.de/
+
 Dave
 Cyclone 68000 core, Pico emulation library
 Homepage: http://www.finalburn.com/
-
-notaz
-GP2X port, Cyclone 68000 hacks, lots of additional coding (see changelog).
 
 Reesy & FluBBa
 DrZ80, the Z80 emulator written in ARM assembly.
@@ -201,9 +460,8 @@ Additional thanks
 * Bart Trzynadlowski for his SSFII and 68000 docs.
 * Haze for his research (http://haze.mameworld.info).
 * Mark and Jean-loup for zlib library.
-* Anyone else I forgot. You know who you are.
-
-GP2X:
+* ketchupgun for the skin.
+#ifdef GP2X
 * rlyeh and all the other people behind the minimal library.
 * Squidge for his famous squidgehack(tm).
 * Dzz for his ARM940 sample code.
@@ -212,10 +470,13 @@ GP2X:
 * A_SN for his gamma code.
 * craigix for supplying the GP2X hardware and making this port possible.
 * Alex for the icon.
-* ketchupgun for the skin.
 * All the people from gp32x boards for their support.
-
-Symbian:
+#endif
+#ifdef GIZ
+* Kingcdr's for the SDK and Reesy for the DLL and sound code.
+* jens.l for supplying the Gizmondo hardware and making this port possible.
+#endif
+#ifdef UIQ
 * Peter van Sebille for his various open-source Symbian projects to learn from.
 * Steve Fischer for his open-source Motorola projects.
 * The development team behind "Symbian GCC Improvement Project"
@@ -223,11 +484,14 @@ Symbian:
   compile tools.
 * AnotherGuest for all his Symbian stuff and support.
 * Inder for the icons.
+#endif
+* Anyone else I forgot. You know who you are.
 
 
 Changelog
 ---------
 1.34
+  + Gizmondo port added.
   + Some new optimizations in memory handlers, and for shadow/hilight mode.
   + Added some hacks to make more games work without enabling "accurate timing".
   * Adjusted timing for "accurate timing" mode and added preliminary VDP FIFO
