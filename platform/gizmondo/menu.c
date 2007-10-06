@@ -1356,7 +1356,7 @@ static void draw_menu_credits(void)
 	menu_draw_begin(1);
 
 	text_out16(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006,2007");
-text_out16(tl_x, 30, "rc1");
+
 	y = tl_y;
 	text_out16(tl_x, y, "Credits:");
 	text_out16(tl_x, (y+=10), "Dave: Cyclone 68000 core,");

@@ -112,6 +112,7 @@ typedef struct
 	unsigned short Seconde;
 	unsigned short Frame;
 	unsigned char  Ext;
+	unsigned char  pad[3];
 } CDD;
 
 

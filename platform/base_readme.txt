@@ -44,7 +44,7 @@ How to run Sega/Mega CD games
 -----------------------------
 
 To play any game, you need BIOS files. These files must be copied to the same
-directory as PicoDrive. Files can be named as follows:
+directory as mentioned PicoDrive files. Files can be named as follows:
 
 US: us_scd1_9210.bin us_scd2_9306.bin SegaCDBIOS9303.bin
 EU: eu_mcd1_9210.bin eu_mcd2_9303.bin eu_mcd2_9306.bin
@@ -351,7 +351,12 @@ Key configuration
 
 Select "Configure controls" from the main menu. Then select "Player 1" and you will
 see two columns. The left column lists names of Genesis/MD controller buttons, and
+#ifdef GP2X
 the right GP2X ones, which are assigned to them. If you bind 2 different GP2X buttons
+#endif
+#ifdef GIZ
+the right Giz ones, which are assigned to them. If you bind 2 different Giz buttons
+#endif
 to the same action, you will get a combo (which means that you will have to press
 both buttons for that action to happen.
 
