@@ -72,17 +72,17 @@ static
 void z80WriteBusReq(u32 d)
 {
   d&=1; d^=1;
-  if (Pico.m.scanline != -1)
+  //if (Pico.m.scanline != -1)
   {
     if(!d) {
       // this is for a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
       if (Pico.m.z80Run) {
         int lineCycles;
         z80stopCycle = SekCyclesDone();
-        if (Pico.m.z80Run&2)
+        if ((Pico.m.z80Run&2) && Pico.m.scanline != -1)
              lineCycles=(488-SekCyclesLeft)&0x1ff;
         else lineCycles=z80stopCycle-z80startCycle; // z80 was started at current line
-        if (lineCycles > 0 && lineCycles <= 488) {
+        if (lineCycles > 0) { // && lineCycles <= 488) {
           //dprintf("zrun: %i/%i cycles", lineCycles, (lineCycles>>1)-(lineCycles>>5));
           lineCycles=(lineCycles>>1)-(lineCycles>>5);
           z80_run(lineCycles);

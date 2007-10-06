@@ -106,9 +106,7 @@ PICO_INTERNAL void sound_reset(void)
   // also clear the internal registers+addr line
   ym2612_regs = YM2612GetRegs();
   memset(ym2612_regs, 0, 0x200+4);
-  // setting these to 0 might confuse timing code,
-  // so better set to something like this instead
-  z80startCycle = z80stopCycle = 0x01000000;
+  z80startCycle = z80stopCycle = 0;
 
   sound_rerate(0);
 }

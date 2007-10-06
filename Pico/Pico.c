@@ -423,24 +423,34 @@ static int PicoFrameHints(void)
 #include "PicoFrameHints.c"
 #endif
 
-// helper z80 runner
+// helper z80 runner. Runs only if z80 is enabled at this point
+// (z80WriteBusReq will handle the rest)
 static void PicoRunZ80Simple(int line_from, int line_to)
 {
-  int line_from_r=line_from, line_to_r=line_to, line = line_from;
+  int line_from_r=line_from, line_to_r=line_to, line=0;
   int line_sample = Pico.m.pal ? 68 : 93;
 
-  if(!(PicoOpt&4) || Pico.m.z80Run == 0) { line_from_r = line_to_r; line_to_r = 0; }
+  if (!(PicoOpt&4) || Pico.m.z80Run == 0) line_to_r = 0;
+  else {
+    extern const unsigned short vcounts[];
+    if (z80startCycle) {
+      line = vcounts[z80startCycle>>8];
+      if (line > line_from)
+        line_from_r = line;
+    }
+    z80startCycle = SekCyclesDone();
+  }
 
-  if(PicoOpt&1) {
+  if (PicoOpt&1) {
     // we have ym2612 enabled, so we have to run Z80 in lines, so we could update DAC and timers
-    for(; line < line_to; line++) {
+    for (line = line_from; line < line_to; line++) {
       sound_timers_and_dac(line);
-      if((line == 224 || line == line_sample) && PsndOut) getSamples(line);
-      if(line == 32 && PsndOut) emustatus &= ~1;
-      if(line >= line_from_r && line < line_to_r)
+      if ((line == 224 || line == line_sample) && PsndOut) getSamples(line);
+      if (line == 32 && PsndOut) emustatus &= ~1;
+      if (line >= line_from_r && line < line_to_r)
         z80_run(228);
     }
-  } else if(line_to_r-line_from_r > 0) {
+  } else if (line_to_r-line_from_r > 0) {
     z80_run(228*(line_to_r-line_from_r));
     // samples will be taken by caller
   }
@@ -482,6 +492,7 @@ static int PicoFrameSimple(void)
   Pico.video.status|=0x200;
 
   Pico.m.scanline=-1;
+  z80startCycle=0;
 
   SekCyclesReset();
 
@@ -507,11 +518,12 @@ static int PicoFrameSimple(void)
   if(sects) {
     int c = sects*cycles_68k_block;
 
-    lines += sects*lines_step;
-    PicoRunZ80Simple(line, lines);
-    // this is for approriate line counter, etc
+    // this "run" is for approriate line counter, etc
     SekCycleCnt += c;
     SekCycleAim += c;
+
+    lines += sects*lines_step;
+    PicoRunZ80Simple(line, lines);
   }
 
   // here we render sound if ym2612 is disabled

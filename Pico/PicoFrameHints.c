@@ -22,7 +22,7 @@
     else { \
       cnt = SekCyclesDone() - z80startCycle; \
       cnt = (cnt>>1)-(cnt>>5); \
-      if (cnt > (z80_cycles)) cnt = z80_cycles; \
+      if (cnt < 0 || cnt > (z80_cycles)) cnt = z80_cycles; \
       Pico.m.z80Run |= 2; \
       z80CycleAim+=cnt; \
     } \
