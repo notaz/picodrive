@@ -132,11 +132,10 @@ graphics problems for some games, so it's best to use 16bit one.
 #endif
 
 #ifdef GIZ
-@@0. "Interlaced rendering"
+@@0. "Scanline mode"
 This option was designed to work around slow framebuffer access (the Gizmondo's
-main bottleneck) by drawing every other line (odd numbered lines during odd
-numbered frames and even numbered lines during even frames). This improves
-performance greatly, but introduces artifacts for fast scrolling games.
+main bottleneck) by drawing every other line (even nummbered lines only).
+This improves performance greatly, but looses detail.
 
 #endif
 #ifdef GP2X
@@ -272,10 +271,14 @@ game to get sound. This is because most games initialize sound chips on
 startup, and this data is lost when sound chips are being enabled/disabled.
 
 #ifdef GIZ
+@@1. "Double buffering"
+Draws the display to offscreen buffer, and flips it with visible one when done.
+Unfortunately this causes serious tearing, unless v-sync is used (next option).
+
 @@1. "Wait for V-sync"
-Waits for vertical sync before drawing. This option doesn't eliminate tearing
-problems, because full framebuffer update takes much more time then the blanking
-period lasts on Gizmondo..
+Waits for vertical sync before drawing (or flipping buffers, if previous option
+is enabled). Emulation is stopped while waiting, so this causes large performance
+hit.
 
 #endif
 @@1. "gzip savestates"

@@ -92,8 +92,7 @@ static void menu_draw_begin(int use_bgbuff)
 
 static void menu_draw_end(void)
 {
-	Framework2D_WaitVSync();
-	giz_screen = Framework2D_LockBuffer();
+	giz_screen = Framework2D_LockBuffer(0);
 	if (giz_screen == NULL)
 	{
 		lprintf_al("%s: Framework2D_LockBuffer() returned NULL\n", __FUNCTION__);
@@ -102,6 +101,7 @@ static void menu_draw_end(void)
 	memcpy32(giz_screen, (int *)menu_screen, 321*240*2/4);
 	Framework2D_UnlockBuffer();
 	giz_screen = NULL;
+	Framework2D_Flip(1);
 }
 
 
@@ -635,6 +635,7 @@ static int savestate_menu_loop(int is_loading)
 		if(inp & BTN_PLAY) { // save/load
 			if (menu_sel < 10) {
 				state_slot = menu_sel;
+				PicoStateProgressCB = emu_stateCb; /* also suitable for menu */
 				if (emu_SaveLoadGame(is_loading, 0)) {
 					strcpy(menuErrorMsg, is_loading ? "Load failed" : "Save failed");
 					return 1;
@@ -991,6 +992,7 @@ menu_entry opt2_entries[] =
 	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &currentConfig.PicoOpt,0x0004, 0, 0, 1 },
 	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &currentConfig.PicoOpt,0x0001, 0, 0, 1 },
 	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&currentConfig.PicoOpt,0x0002, 0, 0, 1 },
+	{ "Double buffering",          MB_ONOFF, MA_OPT2_DBLBUFF,       &currentConfig.EmuOpt, 0x8000, 0, 0, 1 },
 	{ "Wait for V-sync (slow)",    MB_ONOFF, MA_OPT2_VSYNC,         &currentConfig.EmuOpt, 0x2000, 0, 0, 1 },
 	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,   &currentConfig.EmuOpt, 0x0008, 0, 0, 1 },
 	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,   &currentConfig.EmuOpt, 0x0020, 0, 0, 1 },
@@ -1057,7 +1059,7 @@ static void amenu_loop_options(void)
 menu_entry opt_entries[] =
 {
 	{ NULL,                        MB_NONE,  MA_OPT_RENDERER,      NULL, 0, 0, 0, 1 },
-	{ "Interlaced rend. (faster)", MB_ONOFF, MA_OPT_INTERLACED,    &currentConfig.EmuOpt,  0x4000, 0, 0, 1 },
+	{ "Scanline mode (faster)",    MB_ONOFF, MA_OPT_INTERLACED,    &currentConfig.EmuOpt,  0x4000, 0, 0, 1 },
 	{ "Scale low res mode",        MB_ONOFF, MA_OPT_SCALING,       &currentConfig.scaling, 0x0001, 0, 3, 1 },
 	{ "Accurate timing (slower)",  MB_ONOFF, MA_OPT_ACC_TIMING,    &currentConfig.PicoOpt, 0x0040, 0, 0, 1 },
 	{ "Accurate sprites (slower)", MB_ONOFF, MA_OPT_ACC_SPRITES,   &currentConfig.PicoOpt, 0x0080, 0, 0, 1 },
@@ -1562,7 +1564,7 @@ static void menu_prepare_bg(int use_game_bg)
 	{
 		// darken the active framebuffer
 		if (giz_screen == NULL)
-			giz_screen = Framework2D_LockBuffer();
+			giz_screen = Framework2D_LockBuffer(1);
 		memset(bg_buffer, 0, 321*8*2);
 		menu_darken_bg(bg_buffer + 321*8*2, (char *)giz_screen + 321*8*2, 321*224, 1);
 		memset(bg_buffer + 321*232*2, 0, 321*8*2);

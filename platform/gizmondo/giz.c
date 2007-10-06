@@ -60,7 +60,7 @@ void giz_init(HINSTANCE hInstance, HINSTANCE hPrevInstance)
 	}
 
 	// test screen
-	giz_screen = Framework2D_LockBuffer();
+	giz_screen = Framework2D_LockBuffer(1);
 	if (giz_screen == NULL)
 	{
 		lprintf_al("Framework2D_LockBuffer() failed\n");

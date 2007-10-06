@@ -52,8 +52,8 @@ void emu_getMainDir(char *dst, int len)
 
 static void emu_msg_cb(const char *msg)
 {
-	if (giz_screen == NULL)
-		giz_screen = Framework2D_LockBuffer();
+	if (giz_screen != NULL) Framework2D_UnlockBuffer();
+	giz_screen = Framework2D_LockBuffer(1);
 
 	memset32((int *)((char *)giz_screen + 321*232*2), 0, 321*8*2/4);
 	emu_textOut16(4, 232, msg);
@@ -61,12 +61,15 @@ static void emu_msg_cb(const char *msg)
 
 	/* assumption: emu_msg_cb gets called only when something slow is about to happen */
 	reset_timing = 1;
+
+	Framework2D_UnlockBuffer();
+	giz_screen = Framework2D_LockBuffer((currentConfig.EmuOpt&0x8000) ? 0 : 1);
 }
 
-static void emu_state_cb(const char *str)
+void emu_stateCb(const char *str)
 {
-	if (giz_screen == NULL)
-		giz_screen = Framework2D_LockBuffer();
+	if (giz_screen != NULL) Framework2D_UnlockBuffer();
+	giz_screen = Framework2D_LockBuffer(1);
 
 	clearArea(0);
 	blit("", str);
@@ -157,7 +160,7 @@ static int EmuScan16(unsigned int num, void *sdata)
 	if (!(Pico.video.reg[1]&8)) num += 8;
 	DrawLineDest = (unsigned short *) giz_screen + 321*(num+1);
 
-	if ((currentConfig.EmuOpt&0x4000) && (num&1) == (Pico.m.frame_count&1))
+	if ((currentConfig.EmuOpt&0x4000) && (num&1) == 0) // (Pico.m.frame_count&1))
 		return 1; // skip next line
 
 	return 0;
@@ -224,7 +227,7 @@ static void blit(const char *fps, const char *notice)
 		}
 		if (!(Pico.video.reg[12]&1)) lines_flags|=0x10000;
 		if (currentConfig.EmuOpt&0x4000)
-			lines_flags|=(Pico.m.frame_count&1)?0x20000:0x40000;
+			lines_flags|=0x40000; // (Pico.m.frame_count&1)?0x20000:0x40000;
 		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, lines_flags);
 	}
 	else if (!(emu_opt&0x80))
@@ -252,7 +255,7 @@ static void blit(const char *fps, const char *notice)
 		lines_flags = (Pico.video.reg[1]&8) ? 240 : 224;
 		if (!(Pico.video.reg[12]&1)) lines_flags|=0x10000;
 		if (currentConfig.EmuOpt&0x4000)
-			lines_flags|=(Pico.m.frame_count&1)?0x20000:0x40000;
+			lines_flags|=0x40000; // (Pico.m.frame_count&1)?0x20000:0x40000;
 		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, lines_flags);
 	}
 
@@ -270,14 +273,21 @@ static void blit(const char *fps, const char *notice)
 static void clearArea(int full)
 {
 	if (giz_screen == NULL)
-		giz_screen = Framework2D_LockBuffer();
+		giz_screen = Framework2D_LockBuffer(1);
 	if (full) memset32(giz_screen, 0, 320*240*2/4);
 	else      memset32((int *)((char *)giz_screen + 321*232*2), 0, 321*8*2/4);
+
+	if (currentConfig.EmuOpt&0x8000) {
+		Framework2D_UnlockBuffer();
+		giz_screen = Framework2D_LockBuffer(0);
+		if (full) memset32(giz_screen, 0, 320*240*2/4);
+		else      memset32((int *)((char *)giz_screen + 321*232*2), 0, 321*8*2/4);
+	}
 }
 
 static void vidResetMode(void)
 {
-	giz_screen = Framework2D_LockBuffer();
+	giz_screen = Framework2D_LockBuffer(1);
 
 	if (PicoOpt&0x10) {
 	} else if (currentConfig.EmuOpt&0x80) {
@@ -297,6 +307,11 @@ static void vidResetMode(void)
 	Pico.m.dirtyPal = 1;
 
 	memset32(giz_screen, 0, 321*240*2/4);
+	if (currentConfig.EmuOpt&0x8000) {
+		Framework2D_UnlockBuffer();
+		giz_screen = Framework2D_LockBuffer(0);
+		memset32(giz_screen, 0, 321*240*2/4);
+	}
 	Framework2D_UnlockBuffer();
 	giz_screen = NULL;
 }
@@ -339,6 +354,7 @@ static void SkipFrame(void)
 	PicoSkipFrame=0;
 }
 
+/* forced frame to front buffer */
 void emu_forcedFrame(void)
 {
 	int po_old = PicoOpt;
@@ -349,7 +365,7 @@ void emu_forcedFrame(void)
 	currentConfig.EmuOpt |= 0x80;
 
 	if (giz_screen == NULL)
-		giz_screen = Framework2D_LockBuffer();
+		giz_screen = Framework2D_LockBuffer(1);
 
 	PicoDrawSetColorFormat(1);
 	PicoScan = EmuScan16;
@@ -374,7 +390,7 @@ static void RunEvents(unsigned int which)
 		if (PsndOut != NULL)
 			FrameworkAudio_SetPause(1);
 		if (giz_screen == NULL)
-			giz_screen = Framework2D_LockBuffer();
+			giz_screen = Framework2D_LockBuffer(1);
 		if ( emu_checkSaveFile(state_slot) &&
 				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) || // load
 				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) // save
@@ -392,7 +408,7 @@ static void RunEvents(unsigned int which)
 		if (do_it)
 		{
 			osd_text(4, 232, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
-			PicoStateProgressCB = emu_state_cb;
+			PicoStateProgressCB = emu_stateCb;
 			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
 			PicoStateProgressCB = NULL;
 			Sleep(0);
@@ -487,7 +503,7 @@ static void updateKeys(void)
 			if (vol >   0) vol--;
 		}
 		FrameworkAudio_SetVolume(vol, vol);
-		sprintf(noticeMsg, "VOL: %02i", vol);
+		sprintf(noticeMsg, "VOL: %02i ", vol);
 		noticeMsgTime = GetTickCount();
 		currentConfig.volume = vol;
 	}
@@ -735,18 +751,17 @@ void emu_Loop(void)
 
 		updateKeys();
 
-		if (giz_screen == NULL && (currentConfig.EmuOpt&0x80))
-			giz_screen = Framework2D_LockBuffer();
+		if (currentConfig.EmuOpt&0x80)
+			/* be sure correct framebuffer is locked */
+			giz_screen = Framework2D_LockBuffer((currentConfig.EmuOpt&0x8000) ? 0 : 1);
+
 		if (!(PicoOpt&0x10))
 			PicoScan((unsigned) -1, NULL);
 
 		PicoFrame();
 
-		if (currentConfig.EmuOpt&0x2000)
-			Framework2D_WaitVSync();
-
 		if (giz_screen == NULL)
-			giz_screen = Framework2D_LockBuffer();
+			giz_screen = Framework2D_LockBuffer((currentConfig.EmuOpt&0x8000) ? 0 : 1);
 
 		blit(fpsbuff, notice);
 
@@ -754,6 +769,12 @@ void emu_Loop(void)
 			Framework2D_UnlockBuffer();
 			giz_screen = NULL;
 		}
+
+		if (currentConfig.EmuOpt&0x2000)
+			Framework2D_WaitVSync();
+
+		if (currentConfig.EmuOpt&0x8000)
+			Framework2D_Flip();
 
 		// check time
 		tval = GetTickCount();
@@ -784,7 +805,7 @@ void emu_Loop(void)
 
 	// save SRAM
 	if ((currentConfig.EmuOpt & 1) && SRam.changed) {
-		emu_state_cb("Writing SRAM/BRAM..");
+		emu_stateCb("Writing SRAM/BRAM..");
 		emu_SaveLoadGame(0, 1);
 		SRam.changed = 0;
 	}
