@@ -45,7 +45,6 @@ static void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
 static void menu_prepare_bg(int use_game_bg);
 
 static unsigned int inp_prev = 0;
-static int inp_prevjoy = 0;
 
 static unsigned long wait_for_input(unsigned int interesting)
 {
@@ -71,7 +70,6 @@ static unsigned long wait_for_input(unsigned int interesting)
 		wait = 50;
 	}
 	inp_prev = ret;
-	inp_prevjoy = 0;
 
 	// we don't need diagonals in menus
 	if ((ret&BTN_UP)   && (ret&BTN_LEFT))  ret &= ~BTN_LEFT;
@@ -264,10 +262,10 @@ static int my_scandir(const char *dir, struct my_dirent ***namelist_out,
 	BOOL bRet;
 
 	wdir = malloc(sizeof(wdir[0]) * MAX_PATH);
-	if (wdir == NULL) { lprintf_al("%s:%s: OOM\n", __FILE__, __LINE__); goto fail; }
+	if (wdir == NULL) { lprintf_al("%s:%i: OOM\n", __FILE__, __LINE__); goto fail; }
 
 	namelist = malloc(sizeof(*namelist) * name_alloc);
-	if (namelist == NULL) { lprintf_al("%s:%s: OOM\n", __FILE__, __LINE__); goto fail; }
+	if (namelist == NULL) { lprintf_al("%s:%i: OOM\n", __FILE__, __LINE__); goto fail; }
 
 	// try to read first..
 	len = cstr2wstr(wdir, dir);
@@ -312,7 +310,7 @@ static int my_scandir(const char *dir, struct my_dirent ***namelist_out,
 			void *tmp;
 			name_alloc *= 2;
 			tmp = realloc(namelist, sizeof(*namelist) * name_alloc);
-			if (tmp == NULL) { lprintf_al("%s:%s: OOM\n", __FILE__, __LINE__); goto fail; }
+			if (tmp == NULL) { lprintf_al("%s:%i: OOM\n", __FILE__, __LINE__); goto fail; }
 			namelist = tmp;
 		}
 

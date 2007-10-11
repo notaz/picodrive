@@ -3,8 +3,6 @@
 
 // For commercial use, separate licencing terms must be obtained.
 
-void menu_init(void);
-void text_out16(int x, int y, const char *texto, ...);
 void menu_loop(void);
 int  menu_loop_tray(void);
 void menu_romload_prepare(const char *rom_name);

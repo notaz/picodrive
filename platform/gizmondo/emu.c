@@ -104,7 +104,7 @@ void emu_Init(void)
 void emu_Deinit(void)
 {
 	// save SRAM
-	if((currentConfig.EmuOpt & 1) && SRam.changed) {
+	if ((currentConfig.EmuOpt & 1) && SRam.changed) {
 		emu_SaveLoadGame(0, 1);
 		SRam.changed = 0;
 	}
