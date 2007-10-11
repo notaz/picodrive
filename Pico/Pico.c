@@ -638,7 +638,7 @@ void PicoFrameDrawOnly(void)
 // callback to output message from emu
 void (*PicoMessage)(const char *msg)=NULL;
 
-#if defined(__DEBUG_PRINT) || defined(__GP2X__) || defined(__GIZ__)
+#if 1 // defined(__DEBUG_PRINT)
 // tmp debug: dump some stuff
 #define bit(r, x) ((r>>x)&1)
 void z80_debug(char *dstr);

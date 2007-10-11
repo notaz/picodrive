@@ -4,6 +4,14 @@
 #include "readpng.h"
 #include "lprintf.h"
 
+#ifdef PSP
+#define BG_WIDTH  480
+#define BG_HEIGHT 272
+#else
+#define BG_WIDTH  320
+#define BG_HEIGHT 240
+#endif
+
 void readpng(void *dest, const char *fname, readpng_what what)
 {
 	FILE *fp;
@@ -62,9 +70,9 @@ void readpng(void *dest, const char *fname, readpng_what what)
 				break;
 			}
 			height = info_ptr->height;
-			if (height > 240) height = 240;
+			if (height > BG_HEIGHT) height = BG_HEIGHT;
 			width = info_ptr->width;
-			if (width > 320) width = 320;
+			if (width > BG_WIDTH) width = BG_WIDTH;
 
 			for (h = 0; h < height; h++)
 			{
@@ -75,7 +83,7 @@ void readpng(void *dest, const char *fname, readpng_what what)
 					*dst++ = ((src[0]&0xf8)<<8) | ((src[1]&0xf8)<<3) | (src[2] >> 3);
 					src += 3;
 				}
-				dst += 320 - width;
+				dst += BG_WIDTH - width;
 			}
 			break;
 		}

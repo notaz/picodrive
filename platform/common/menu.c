@@ -22,6 +22,10 @@
  #define SCREEN_WIDTH 321
  #define SCREEN_BUFFER menu_screen
  extern unsigned char *menu_screen;
+#elif defined(PSP)
+ #include "../psp/psp.h"
+ #define SCREEN_WIDTH 512
+ #define SCREEN_BUFFER psp_screen
 #endif
 
 char menuErrorMsg[64] = { 0, };
@@ -216,6 +220,7 @@ void menu_init(void)
 				int tmp = parse_hex_color(buff+16);
 				if (tmp >= 0) menu_sel_color = tmp;
 				else lprintf("skin.txt: parse error for selection_color\n");
+				lprintf("sel color: %04x\n", menu_sel_color);
 			}
 			else
 				lprintf("skin.txt: parse error: %s\n", buff);

@@ -26,7 +26,11 @@
 #elif defined(__GIZ__)
  #include "../gizmondo/giz.h"
  #define SCREEN_WIDTH 321
- #define SCREEN_BUFFER giz_screen // ?
+ #define SCREEN_BUFFER giz_screen
+#elif defined(PSP)
+ #include "../psp/psp.h"
+ #define SCREEN_WIDTH 512
+ #define SCREEN_BUFFER psp_screen
 #endif
 
 char *PicoConfigFile = "picoconfig.bin";
