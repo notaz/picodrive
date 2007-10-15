@@ -13,7 +13,7 @@
 #include "../gp2x/emu.h"
 #include "../gp2x/menu.h"
 #include "../gp2x/code940/940shared.h"
-#include "../gp2x/helix/pub/mp3dec.h"
+#include "../common/helix/pub/mp3dec.h"
 #include "../../Pico/PicoInt.h"
 
 

@@ -8,11 +8,12 @@ void psp_msleep(int ms);
 #define PSP_VRAM_BASE0 ((void *) 0x44000000)
 #define PSP_VRAM_BASE1 ((void *) 0x44044000)
 
-void psp_video_switch_to_single(void);
-void psp_video_flip(void);
+void *psp_video_get_active_fb(void);
+void  psp_video_switch_to_single(void);
+void  psp_video_flip(int wait_vsync);
 extern void *psp_screen;
 
-unsigned int psp_pad_read(void);
+unsigned int psp_pad_read(int blocking);
 
 
 /* shorter btn names */

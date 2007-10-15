@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <wchar.h>
 #include <unistd.h>
-#include <dirent.h> // for opendir
 #include <sys/syslimits.h> // PATH_MAX
 
 #include <pspdisplay.h>
@@ -60,12 +59,12 @@ static unsigned long wait_for_input(unsigned int interesting)
 	if (repeats == 2 || repeats == 4) wait /= 2;
 	if (repeats == 6) wait = 15;
 
-	for (i = 0; i < 6 && inp_prev == psp_pad_read(); i++) {
+	for (i = 0; i < 6 && inp_prev == psp_pad_read(1); i++) {
 		if (i == 0) repeats++;
 		psp_msleep(wait);
 	}
 
-	while ( !((ret = psp_pad_read()) & interesting) ) {
+	while ( !((ret = psp_pad_read(1)) & interesting) ) {
 		psp_msleep(50);
 		release = 1;
 	}
@@ -102,8 +101,7 @@ static void menu_draw_begin(void)
 
 static void menu_draw_end(void)
 {
-	sceDisplayWaitVblankStart();
-	psp_video_flip();
+	psp_video_flip(1);
 }
 
 
@@ -154,7 +152,7 @@ struct my_dirent
 	char d_name[255];
 };
 
-// rrrr rggg gggb bbbb
+// bbbb bggg gggr rrrr
 static unsigned short file2color(const char *fname)
 {
 	const char *ext = fname + strlen(fname) - 3;
@@ -164,7 +162,7 @@ static unsigned short file2color(const char *fname)
 
 	if (ext < fname) ext = fname;
 	for (i = 0; i < sizeof(rom_exts)/sizeof(rom_exts[0]); i++)
-		if (strcasecmp(ext, rom_exts[i]) == 0) return 0xbdff;
+		if (strcasecmp(ext, rom_exts[i]) == 0) return 0xfdf7;
 	for (i = 0; i < sizeof(other_exts)/sizeof(other_exts[0]); i++)
 		if (strcasecmp(ext, other_exts[i]) == 0) return 0xaff5;
 	return 0xffff;
@@ -192,8 +190,8 @@ static void draw_dirlist(char *curdir, struct my_dirent **namelist, int n, int s
 		if (pos < 0)  continue;
 		if (pos > 26) break;
 		if (namelist[i+1]->d_type & DT_DIR) {
-			smalltext_out16_lim(14,   pos*10, "/", 0xfff6, 1);
-			smalltext_out16_lim(14+6, pos*10, namelist[i+1]->d_name, 0xfff6, 53-3);
+			smalltext_out16_lim(14,   pos*10, "/", 0xd7ff, 1);
+			smalltext_out16_lim(14+6, pos*10, namelist[i+1]->d_name, 0xd7ff, 53-3);
 		} else {
 			unsigned short color = file2color(namelist[i+1]->d_name);
 			smalltext_out16_lim(14,   pos*10, namelist[i+1]->d_name, color, 53-2);
@@ -250,6 +248,9 @@ static int my_scandir(const char *dir, struct my_dirent ***namelist_out,
 	dir_uid = sceIoDopen(dir);
 	if (dir_uid >= 0)
 	{
+		/* it is very important to clear SceIoDirent to be passed to sceIoDread(), */
+		/* or else it may crash, probably misinterpreting something in it. */
+		memset(&sce_ent, 0, sizeof(sce_ent));
 		ret = sceIoDread(dir_uid, &sce_ent);
 		if (ret < 0)
 		{
@@ -266,7 +267,7 @@ static int my_scandir(const char *dir, struct my_dirent ***namelist_out,
 		if (ent == NULL) { lprintf("%s:%i: OOM\n", __FILE__, __LINE__); goto fail; }
 		ent->d_type = sce_ent.d_stat.st_attr;
 		strncpy(ent->d_name, sce_ent.d_name, sizeof(ent->d_name));
-		ent->d_name[sizeof(ent->d_name)] = 0;
+		ent->d_name[sizeof(ent->d_name)-1] = 0;
 		if (filter == NULL || filter(ent))
 		     namelist[name_count++] = ent;
 		else free(ent);
@@ -280,6 +281,7 @@ static int my_scandir(const char *dir, struct my_dirent ***namelist_out,
 			namelist = tmp;
 		}
 
+		memset(&sce_ent, 0, sizeof(sce_ent));
 		ret = sceIoDread(dir_uid, &sce_ent);
 	}
 
@@ -307,25 +309,27 @@ end:
 static char *romsel_loop(char *curr_path)
 {
 	struct my_dirent **namelist;
-	DIR *dir;
-	int n, sel = 0;
+	int n, iret, sel = 0;
 	unsigned long inp = 0;
 	char *ret = NULL, *fname = NULL;
+	SceIoStat cpstat;
 
 	// is this a dir or a full path?
-	if ((dir = opendir(curr_path))) {
-		closedir(dir);
-	} else {
+	memset(&cpstat, 0, sizeof(cpstat));
+	iret = sceIoGetstat(curr_path, &cpstat);
+	if (iret >= 0 && (cpstat.st_attr & FIO_SO_IFREG)) { // file
 		char *p;
 		for (p = curr_path + strlen(curr_path) - 1; p > curr_path && *p != '/'; p--);
 		*p = 0;
 		fname = p+1;
 	}
+	else if (iret >= 0 && (cpstat.st_attr & FIO_SO_IFDIR)); // dir
+	else strcpy(curr_path, "ms0:/"); // something else
 
 	n = my_scandir(curr_path, &namelist, scandir_filter, scandir_cmp);
 	if (n < 0) {
 		// try root..
-		n = my_scandir("/", &namelist, scandir_filter, scandir_cmp);
+		n = my_scandir("ms0:/", &namelist, scandir_filter, scandir_cmp);
 		if (n < 0) {
 			// oops, we failed
 			lprintf("scandir failed, dir: "); lprintf(curr_path); lprintf("\n");
@@ -368,8 +372,8 @@ static char *romsel_loop(char *curr_path)
 					char *start = curr_path;
 					p = start + strlen(start) - 1;
 					while (*p == '/' && p > start) p--;
-					while (*p != '/' && p > start) p--;
-					if (p <= start) strcpy(newdir, "/");
+					while (*p != '/' && *p != ':' && p > start) p--;
+					if (p <= start || *p == ':' || p[-1] == ':') strcpy(newdir, "ms0:/");
 					else { strncpy(newdir, start, p-start); newdir[p-start] = 0; }
 				} else {
 					strcpy(newdir, curr_path);
@@ -949,8 +953,8 @@ menu_entry opt2_entries[] =
 	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &currentConfig.PicoOpt,0x0004, 0, 0, 1 },
 	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &currentConfig.PicoOpt,0x0001, 0, 0, 1 },
 	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&currentConfig.PicoOpt,0x0002, 0, 0, 1 },
-	{ "Double buffering",          MB_ONOFF, MA_OPT2_DBLBUFF,       &currentConfig.EmuOpt, 0x8000, 0, 0, 1 },
-	{ "Wait for V-sync (slow)",    MB_ONOFF, MA_OPT2_VSYNC,         &currentConfig.EmuOpt, 0x2000, 0, 0, 1 },
+//	{ "Double buffering",          MB_ONOFF, MA_OPT2_DBLBUFF,       &currentConfig.EmuOpt, 0x8000, 0, 0, 1 },
+//	{ "Wait for V-sync (slow)",    MB_ONOFF, MA_OPT2_VSYNC,         &currentConfig.EmuOpt, 0x2000, 0, 0, 1 },
 	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,   &currentConfig.EmuOpt, 0x0008, 0, 0, 1 },
 	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,   &currentConfig.EmuOpt, 0x0020, 0, 0, 1 },
 	{ "done",                      MB_NONE,  MA_OPT2_DONE,          NULL, 0, 0, 0, 1 },
@@ -991,7 +995,7 @@ static void amenu_loop_options(void)
 		if (inp & (BTN_LEFT|BTN_RIGHT)) { // multi choise
 			if (!me_process(opt2_entries, OPT2_ENTRY_COUNT, selected_id, (inp&BTN_RIGHT) ? 1 : 0) &&
 			    selected_id == MA_OPT2_GAMMA) {
-				while ((inp = psp_pad_read()) & (BTN_LEFT|BTN_RIGHT)) {
+				while ((inp = psp_pad_read(1)) & (BTN_LEFT|BTN_RIGHT)) {
 					currentConfig.gamma += (inp & BTN_LEFT) ? -1 : 1;
 					if (currentConfig.gamma <   1) currentConfig.gamma =   1;
 					if (currentConfig.gamma > 300) currentConfig.gamma = 300;
@@ -1016,7 +1020,6 @@ static void amenu_loop_options(void)
 menu_entry opt_entries[] =
 {
 	{ NULL,                        MB_NONE,  MA_OPT_RENDERER,      NULL, 0, 0, 0, 1 },
-	{ "Scanline mode (faster)",    MB_ONOFF, MA_OPT_INTERLACED,    &currentConfig.EmuOpt,  0x4000, 0, 0, 1 },
 	{ "Scale low res mode",        MB_ONOFF, MA_OPT_SCALING,       &currentConfig.scaling, 0x0001, 0, 3, 1 },
 	{ "Accurate timing (slower)",  MB_ONOFF, MA_OPT_ACC_TIMING,    &currentConfig.PicoOpt, 0x0040, 0, 0, 1 },
 	{ "Accurate sprites (slower)", MB_ONOFF, MA_OPT_ACC_SPRITES,   &currentConfig.PicoOpt, 0x0080, 0, 0, 1 },
@@ -1385,7 +1388,7 @@ static void menu_loop_root(void)
 	/* make sure action buttons are not pressed on entering menu */
 	draw_menu_root(menu_sel);
 
-	while (psp_pad_read() & (BTN_X|BTN_CIRCLE|BTN_SELECT)) psp_msleep(50);
+	while (psp_pad_read(1) & (BTN_X|BTN_CIRCLE|BTN_SELECT)) psp_msleep(50);
 
 	for (;;)
 	{
@@ -1396,7 +1399,7 @@ static void menu_loop_root(void)
 		if((inp & (BTN_L|BTN_R)) == (BTN_L|BTN_R)) debug_menu_loop();
 		if( inp & (BTN_SELECT|BTN_CIRCLE)) {
 			if (rom_data) {
-				while (psp_pad_read() & (BTN_SELECT|BTN_CIRCLE)) psp_msleep(50); // wait until released
+				while (psp_pad_read(1) & (BTN_SELECT|BTN_CIRCLE)) psp_msleep(50); // wait until released
 				engineState = PGS_Running;
 				break;
 			}
@@ -1406,7 +1409,7 @@ static void menu_loop_root(void)
 			{
 				case MA_MAIN_RESUME_GAME:
 					if (rom_data) {
-						while (psp_pad_read() & BTN_X) psp_msleep(50);
+						while (psp_pad_read(1) & BTN_X) psp_msleep(50);
 						engineState = PGS_Running;
 						return;
 					}
@@ -1594,7 +1597,7 @@ int menu_loop_tray(void)
 
 	/* make sure action buttons are not pressed on entering menu */
 	draw_menu_tray(menu_sel);
-	while (psp_pad_read() & BTN_X) psp_msleep(50);
+	while (psp_pad_read(1) & BTN_X) psp_msleep(50);
 
 	for (;;)
 	{

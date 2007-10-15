@@ -667,7 +667,7 @@ char *debugString(void)
   sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); dstrp+=strlen(dstrp);
   sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status);
   dstrp+=strlen(dstrp);
-#ifdef EMU_C68K
+#if defined(EMU_C68K)
   sprintf(dstrp, "M68k: PC: %06x, st_flg: %x, cycles: %u\n", SekPc, PicoCpu.state_flags, SekCyclesDoneT());
   dstrp+=strlen(dstrp);
   sprintf(dstrp, "d0=%08x, a0=%08x, osp=%08x, irql=%i\n", PicoCpu.d[0], PicoCpu.a[0], PicoCpu.osp, PicoCpu.irq); dstrp+=strlen(dstrp);
@@ -675,6 +675,8 @@ char *debugString(void)
   for(r=2; r < 8; r++) {
     sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, PicoCpu.d[r], r, PicoCpu.a[r]); dstrp+=strlen(dstrp);
   }
+#elif defined(EMU_M68K)
+  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoM68kCPU.int_level>>8); dstrp+=strlen(dstrp);
 #endif
   sprintf(dstrp, "z80Run: %i, pal: %i, frame#: %i\n", Pico.m.z80Run, Pico.m.pal, Pico.m.frame_count); dstrp+=strlen(dstrp);
   z80_debug(dstrp); dstrp+=strlen(dstrp);

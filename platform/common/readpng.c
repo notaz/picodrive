@@ -80,7 +80,11 @@ void readpng(void *dest, const char *fname, readpng_what what)
 				int len = width;
 				while (len--)
 				{
-					*dst++ = ((src[0]&0xf8)<<8) | ((src[1]&0xf8)<<3) | (src[2] >> 3);
+#ifdef PSP
+					*dst++ = ((src[2]&0xf8)<<8) | ((src[1]&0xf8)<<3) | (src[0] >> 3); // BGR
+#else
+					*dst++ = ((src[0]&0xf8)<<8) | ((src[1]&0xf8)<<3) | (src[2] >> 3); // RGB
+#endif
 					src += 3;
 				}
 				dst += BG_WIDTH - width;
