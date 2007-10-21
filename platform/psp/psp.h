@@ -5,8 +5,25 @@ void psp_finish(void);
 
 void psp_msleep(int ms);
 
-#define PSP_VRAM_BASE0 ((void *) 0x44000000)
-#define PSP_VRAM_BASE1 ((void *) 0x44044000)
+// vram usage map:
+// 000000-044000 fb0
+// 044000-088000 fb1
+// 088000-0cc000 depth (?)
+// 0cc000-0??000 stuff
+
+#define VRAMOFFS_FB0    ((void *) 0x00000000)
+#define VRAMOFFS_FB1    ((void *) 0x00044000)
+#define VRAMOFFS_DEPTH  ((void *) 0x00088000)
+
+#define VRAM_FB0        ((void *) 0x44000000)
+#define VRAM_FB1        ((void *) 0x44044000)
+#define VRAM_STUFF      ((void *) 0x440cc000)
+
+#define VRAM_CACHED_STUFF   ((void *) 0x040cc000)
+
+#define GU_CMDLIST_SIZE (16*1024) // TODO: adjust
+
+extern unsigned int guCmdList[GU_CMDLIST_SIZE];
 
 void *psp_video_get_active_fb(void);
 void  psp_video_switch_to_single(void);

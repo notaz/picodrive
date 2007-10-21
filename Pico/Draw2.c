@@ -20,6 +20,12 @@
 
 #define USE_CACHE
 
+// note: this is not implemented in ARM asm
+#if defined(DRAW2_OVERRIDE_LINE_WIDTH)
+#define LINE_WIDTH DRAW2_OVERRIDE_LINE_WIDTH
+#else
+#define LINE_WIDTH 328
+#endif
 
 int currpri = 0;
 
@@ -45,7 +51,7 @@ static int TileXnormYnorm(unsigned char *pd,int addr,unsigned char pal)
 	unsigned int pack=0; unsigned int t=0, blank = 1;
 	int i;
 
-	for(i=8; i; i--, addr+=2, pd += 320+8) {
+	for(i=8; i; i--, addr+=2, pd += LINE_WIDTH) {
 		pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
@@ -68,7 +74,7 @@ static int TileXflipYnorm(unsigned char *pd,int addr,unsigned char pal)
 	unsigned int pack=0; unsigned int t=0, blank = 1;
 	int i;
 
-	for(i=8; i; i--, addr+=2, pd += 320+8) {
+	for(i=8; i; i--, addr+=2, pd += LINE_WIDTH) {
 		pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
@@ -91,7 +97,7 @@ static int TileXnormYflip(unsigned char *pd,int addr,unsigned char pal)
 	int i;
 
 	addr+=14;
-	for(i=8; i; i--, addr-=2, pd += 320+8) {
+	for(i=8; i; i--, addr-=2, pd += LINE_WIDTH) {
 		pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
@@ -115,7 +121,7 @@ static int TileXflipYflip(unsigned char *pd,int addr,unsigned char pal)
 	int i;
 
 	addr+=14;
-	for(i=8; i; i--, addr-=2, pd += 320+8) {
+	for(i=8; i; i--, addr-=2, pd += LINE_WIDTH) {
 		pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
@@ -164,8 +170,8 @@ static void DrawWindowFull(int start, int end, int prio)
 	code=Pico.vram[nametab+tile_start];
 	if ((code>>15) != prio) return; // hack: just assume that whole window uses same priority
 
-	scrpos+=8*328+8;
-	scrpos+=8*328*(start-START_ROW);
+	scrpos+=8*LINE_WIDTH+8;
+	scrpos+=8*LINE_WIDTH*(start-START_ROW);
 
 	// do a window until we reach planestart row
 	for(trow = start; trow < end; trow++, nametab+=nametab_step) { // current tile row
@@ -193,7 +199,7 @@ static void DrawWindowFull(int start, int end, int prio)
 			if(zero) blank=code; // We know this tile is blank now
 		}
 
-		scrpos += 328*8;
+		scrpos += LINE_WIDTH*8;
 	}
 }
 
@@ -239,11 +245,11 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend)
 	else          nametab=(pvid->reg[4]&0x07)<<12; // B
 
 	scrpos = PicoDraw2FB;
-	scrpos+=8*328*(planestart-START_ROW);
+	scrpos+=8*LINE_WIDTH*(planestart-START_ROW);
 
 	// Get vertical scroll value:
 	vscroll=Pico.vsram[plane]&0x1ff;
-	scrpos+=(8-(vscroll&7))*328;
+	scrpos+=(8-(vscroll&7))*LINE_WIDTH;
 	if(vscroll&7) planeend++; // we have vertically clipped tiles due to vscroll, so we need 1 more row
 
 	*hcache++ = 8-(vscroll&7); // push y-offset to tilecache
@@ -302,7 +308,7 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend)
 			if(zero) blank=code; // We know this tile is blank now
 		}
 
-		scrpos += 328*8;
+		scrpos += LINE_WIDTH*8;
 	}
 
 	*hcache = 0; // terminate cache
@@ -319,7 +325,7 @@ static void DrawTilesFromCacheF(int *hc)
 	unsigned char *scrpos = PicoDraw2FB, *pd = 0;
 
 	// *hcache++ = code|(dx<<16)|(trow<<27); // cache it
-	scrpos+=(*hc++)*328 - START_ROW*328*8;
+	scrpos+=(*hc++)*LINE_WIDTH - START_ROW*LINE_WIDTH*8;
 
 	while((code=*hc++)) {
 		if((short)code == blank) continue;
@@ -327,7 +333,7 @@ static void DrawTilesFromCacheF(int *hc)
 		// y pos
 		if(((unsigned)code>>27) != prevy) {
 			prevy = (unsigned)code>>27;
-			pd = scrpos + prevy*328*8;
+			pd = scrpos + prevy*LINE_WIDTH*8;
 		}
 
 		// Get tile address/2:
@@ -380,7 +386,7 @@ static void DrawSpriteFull(unsigned int *sprite)
 	while(sy <= START_ROW*8) { sy+=8; tile+=tdeltay; height--; }
 
 	scrpos = PicoDraw2FB;
-	scrpos+=(sy-START_ROW*8)*328;
+	scrpos+=(sy-START_ROW*8)*LINE_WIDTH;
 
 	for (; height > 0; height--, sy+=8, tile+=tdeltay)
 	{
@@ -402,7 +408,7 @@ static void DrawSpriteFull(unsigned int *sprite)
 			}
 		}
 
-		scrpos+=8*328;
+		scrpos+=8*LINE_WIDTH;
 	}
 }
 #endif
@@ -488,7 +494,7 @@ static void BackFillFull(int reg7)
 	back|=back<<8;
 	back|=back<<16;
 
-	for(i = (8+320)*(8+(END_ROW-START_ROW)*8)/16; i; i--) {
+	for(i = LINE_WIDTH*(8+(END_ROW-START_ROW)*8)/16; i; i--) {
 		*p++ = back; // do 16 pixels per iteration
 		*p++ = back;
 		*p++ = back;

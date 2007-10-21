@@ -523,7 +523,7 @@ static u32 flag_I;
 #endif
 
 
-static void init_jump_table(void);
+static int init_jump_table(void);
 
 /* Custom function handler */
 typedef void (*icust_handler_func)(u32 vector);
@@ -939,8 +939,12 @@ int m68k_emulate(s32 cycles)
 {
 	if (!initialised)
 	{
+#ifdef FAMEC_NO_GOTOS
 		init_jump_table();
 		return 0;
+#else
+		goto init_jump_table;
+#endif
 	}
 
 	/* Comprobar si la CPU esta detenida debido a un doble error de bus */
@@ -965,8 +969,8 @@ int m68k_emulate(s32 cycles)
 	// Cache SR
 	SET_SR(m68kcontext.sr)
 
-		// Cache PPL
-		flag_I = M68K_PPL;
+	// Cache PPL
+	flag_I = M68K_PPL;
 
 	// Fijar PC
 	SET_PC(m68kcontext.pc)
@@ -1078,12 +1082,16 @@ famec_Exec:
 #endif
 
 	return cycles - m68kcontext.io_cycle_counter;
+
+#ifdef FAMEC_NO_GOTOS
 }
 
-
-
-static void init_jump_table(void)
+static int init_jump_table(void)
+{{
+#else
+init_jump_table:
 {
+#endif
 	u32 i, j;
 
 	for(i = 0x0000; i <= 0xFFFF; i += 0x0001)
@@ -5090,6 +5098,7 @@ static void init_jump_table(void)
 		JumpTable[0xF000 + i] = CAST_OP(0xF000);
 
 	initialised = 1;
-}
+	return 0;
+}}
 
 

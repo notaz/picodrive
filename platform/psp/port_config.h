@@ -7,11 +7,12 @@
 
 // draw.c
 #define USE_BGR555 1
-#define OVERRIDE_HIGHCOL 0
+#define OVERRIDE_HIGHCOL 1
 
 // draw2.c
 #define START_ROW  0 // which row of tiles to start rendering at?
 #define END_ROW   28 // ..end
+#define DRAW2_OVERRIDE_LINE_WIDTH 512
 
 // pico.c
 #define CAN_HANDLE_240_LINES	1

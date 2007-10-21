@@ -27595,7 +27595,7 @@ OPCODE(0x81C0)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81C0;
 #endif
 		RET(10)
 	}
@@ -27607,7 +27607,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81C0;
 #endif
 	RET(50)
 	}
@@ -27621,7 +27621,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81C0;
 #endif
 	RET(80)
 		}
@@ -27633,7 +27633,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81C0: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(108)
 }
@@ -27651,7 +27651,7 @@ OPCODE(0x81D0)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81D0;
 #endif
 		RET(14)
 	}
@@ -27663,7 +27663,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81D0;
 #endif
 	RET(54)
 	}
@@ -27677,7 +27677,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81D0;
 #endif
 	RET(84)
 		}
@@ -27689,7 +27689,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81D0: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(112)
 }
@@ -27708,7 +27708,7 @@ OPCODE(0x81D8)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81D8;
 #endif
 		RET(14)
 	}
@@ -27720,7 +27720,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81D8;
 #endif
 	RET(54)
 	}
@@ -27734,7 +27734,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81D8;
 #endif
 	RET(84)
 		}
@@ -27746,7 +27746,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81D8: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(112)
 }
@@ -27765,7 +27765,7 @@ OPCODE(0x81E0)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81E0;
 #endif
 		RET(16)
 	}
@@ -27777,7 +27777,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81E0;
 #endif
 	RET(56)
 	}
@@ -27791,7 +27791,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81E0;
 #endif
 	RET(86)
 		}
@@ -27803,7 +27803,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81E0: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(114)
 }
@@ -27822,7 +27822,7 @@ OPCODE(0x81E8)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81E8;
 #endif
 		RET(18)
 	}
@@ -27834,7 +27834,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81E8;
 #endif
 	RET(58)
 	}
@@ -27848,7 +27848,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81E8;
 #endif
 	RET(88)
 		}
@@ -27860,7 +27860,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81E8: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(116)
 }
@@ -27879,7 +27879,7 @@ OPCODE(0x81F0)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81F0;
 #endif
 		RET(20)
 	}
@@ -27891,7 +27891,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81F0;
 #endif
 	RET(60)
 	}
@@ -27905,7 +27905,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81F0;
 #endif
 	RET(90)
 		}
@@ -27917,7 +27917,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81F0: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(118)
 }
@@ -27935,7 +27935,7 @@ OPCODE(0x81F8)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81F8;
 #endif
 		RET(18)
 	}
@@ -27947,7 +27947,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81F8;
 #endif
 	RET(58)
 	}
@@ -27961,7 +27961,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81F8;
 #endif
 	RET(88)
 		}
@@ -27973,7 +27973,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81F8: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(116)
 }
@@ -27991,7 +27991,7 @@ OPCODE(0x81F9)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81F9;
 #endif
 		RET(22)
 	}
@@ -28003,7 +28003,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81F9;
 #endif
 	RET(62)
 	}
@@ -28017,7 +28017,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81F9;
 #endif
 	RET(92)
 		}
@@ -28029,7 +28029,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81F9: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(120)
 }
@@ -28048,7 +28048,7 @@ OPCODE(0x81FA)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81FA;
 #endif
 		RET(18)
 	}
@@ -28060,7 +28060,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81FA;
 #endif
 	RET(58)
 	}
@@ -28074,7 +28074,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81FA;
 #endif
 	RET(88)
 		}
@@ -28086,7 +28086,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81FA: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(116)
 }
@@ -28105,7 +28105,7 @@ OPCODE(0x81FB)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81FB;
 #endif
 		RET(20)
 	}
@@ -28117,7 +28117,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81FB;
 #endif
 	RET(60)
 	}
@@ -28131,7 +28131,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81FB;
 #endif
 	RET(90)
 		}
@@ -28143,7 +28143,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81FB: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(118)
 }
@@ -28159,7 +28159,7 @@ OPCODE(0x81FC)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81FC;
 #endif
 		RET(14)
 	}
@@ -28171,7 +28171,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81FC;
 #endif
 	RET(54)
 	}
@@ -28185,7 +28185,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81FC;
 #endif
 	RET(84)
 		}
@@ -28197,7 +28197,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81FC: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(112)
 }
@@ -28216,7 +28216,7 @@ OPCODE(0x81DF)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81DF;
 #endif
 		RET(14)
 	}
@@ -28228,7 +28228,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81DF;
 #endif
 	RET(54)
 	}
@@ -28242,7 +28242,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81DF;
 #endif
 	RET(84)
 		}
@@ -28254,7 +28254,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81DF: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(112)
 }
@@ -28273,7 +28273,7 @@ OPCODE(0x81E7)
 	{
 		execute_exception(M68K_ZERO_DIVIDE_EX);
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81E7;
 #endif
 		RET(16)
 	}
@@ -28285,7 +28285,7 @@ goto end;
 		res = 0;
 	DREGu32((Opcode >> 9) & 7) = res;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81E7;
 #endif
 	RET(56)
 	}
@@ -28299,7 +28299,7 @@ goto end;
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-goto end;
+goto end81E7;
 #endif
 	RET(86)
 		}
@@ -28311,7 +28311,7 @@ goto end;
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-end:	m68kcontext.io_cycle_counter -= 50;
+end81E7: m68kcontext.io_cycle_counter -= 50;
 #endif
 RET(114)
 }

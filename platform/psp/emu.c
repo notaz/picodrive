@@ -4,6 +4,8 @@
 
 #include <pspthreadman.h>
 #include <pspdisplay.h>
+#include <psputils.h>
+#include <pspgu.h>
 
 #include "psp.h"
 #include "menu.h"
@@ -18,15 +20,8 @@
 #define OSD_FPS_X 260
 #endif
 
-// vram usage map:
-// 000000-044000 fb0
-// 044000-088000 fb1
-// 088000-0ae000 texture0
-// 0ae000-0d4000 texture1
-
 char romFileName[PATH_MAX];
-static unsigned char picoD2FB[(8+320)*(8+240+8)];
-unsigned char *PicoDraw2FB = picoD2FB;  // temporary buffer for alt renderer ( (8+320)*(8+240+8) )
+unsigned char *PicoDraw2FB = (unsigned char *)VRAM_CACHED_STUFF + 8; // +8 to be able to skip border with 1 quadword..
 int engineState;
 
 static int combo_keys = 0, combo_acts = 0; // keys and actions which need button combos
@@ -139,13 +134,116 @@ void emu_setDefaultConfig(void)
 }
 
 
+static unsigned short __attribute__((aligned(16))) localPal[0x100];
+
+struct Vertex
+{
+	short u,v;
+	short x,y,z;
+};
+
+static void EmuScanPrepare(void)
+{
+	HighCol = VRAM_STUFF;
+
+#if 0
+	sceGuSync(0,0); // sync with prev
+	sceGuStart(GU_DIRECT, guCmdList);
+//	sceGuDispBuffer(480, 272, psp_screen == VRAM_FB0 ? VRAMOFFS_FB1 : VRAMOFFS_FB0, 512);
+	sceGuDrawBuffer(GU_PSM_5650, psp_screen == VRAM_FB0 ? VRAMOFFS_FB0 : VRAMOFFS_FB1, 512); // point to back fb?
+	sceGuFinish();
+#endif
+}
+
 static int EmuScan16(unsigned int num, void *sdata)
 {
-	if (!(Pico.video.reg[1]&8)) num += 8;
-	DrawLineDest = (unsigned short *) psp_screen + 512*(num+1);
+//	struct Vertex* vertices;
 
+	if (!(Pico.video.reg[1]&8)) num += 8;
+	//DrawLineDest = (unsigned short *) psp_screen + 512*(num+1);
+	HighCol = (unsigned char *)psp_screen + num*512;
+
+#if 0
+	sceGuSync(0,0); // sync with prev
+	sceGuStart(GU_DIRECT, guCmdList);
+
+	if (Pico.m.dirtyPal) {
+		int i, *dpal = (void *)localPal, *spal = (int *)Pico.cram;
+		Pico.m.dirtyPal = 0;
+		for (i = 0x3f/2; i >= 0; i--)
+			dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
+
+		sceGuClutLoad((256/8), localPal); // upload 32*8 entries (256)
+	}
+
+	// setup CLUT texture
+
+//	sceGuClutMode(GU_PSM_5650,0,0xff,0);
+//	sceGuClutLoad((256/8), localPal); // upload 32*8 entries (256)
+//	sceGuTexMode(GU_PSM_T8,0,0,0); // 8-bit image
+//	sceGuTexImage(0,512,1/*512*/,512,VRAM_STUFF);
+//	sceGuTexFunc(GU_TFX_REPLACE,GU_TCC_RGB);
+//	sceGuTexFilter(GU_LINEAR,GU_LINEAR);
+//	sceGuTexScale(1.0f,1.0f);
+//	sceGuTexOffset(0.0f,0.0f);
+//	sceGuAmbientColor(0xffffffff);
+
+	// render sprite
+
+//	sceGuColor(0xffffffff);
+	vertices = (struct Vertex*)sceGuGetMemory(2 * sizeof(struct Vertex));
+	vertices[0].u = 0; vertices[0].v = 0;
+	vertices[0].x = 0; vertices[0].y = num; vertices[0].z = 0;
+	vertices[1].u = 320; vertices[1].v = 512;
+	vertices[1].x = 320; vertices[1].y = num+1; vertices[1].z = 0;
+	//sceGuDrawArray(GU_SPRITES,GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D,2,0,vertices);
+
+	sceGuFinish();
+#endif
 	return 0;
 }
+
+
+static void draw2_clut(void)
+{
+	struct Vertex* vertices;
+	int x;
+
+	sceKernelDcacheWritebackAll(); // for PicoDraw2FB
+
+	sceGuSync(0,0); // sync with prev
+	sceGuStart(GU_DIRECT, guCmdList);
+//	sceGuDispBuffer(480, 272, psp_screen == VRAM_FB0 ? VRAMOFFS_FB1 : VRAMOFFS_FB0, 512);
+	sceGuDrawBuffer(GU_PSM_5650, psp_screen == VRAM_FB0 ? VRAMOFFS_FB0 : VRAMOFFS_FB1, 512); // point to back fb?
+
+	if (Pico.m.dirtyPal) {
+		int i, *dpal = (void *)localPal, *spal = (int *)Pico.cram;
+		Pico.m.dirtyPal = 0;
+		for (i = 0x3f/2; i >= 0; i--)
+			dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
+
+		sceGuClutLoad((256/8), localPal); // upload 32*8 entries (256)
+	}
+
+	#define SLICE_WIDTH 32
+
+	for (x = 0; x < 320; x += SLICE_WIDTH)
+	{
+		// render sprite
+		vertices = (struct Vertex*)sceGuGetMemory(2 * sizeof(struct Vertex));
+		vertices[0].u = vertices[0].x = x;
+		vertices[0].v = vertices[0].y = 0;
+		vertices[0].z = 0;
+		vertices[1].u = vertices[1].x = x + SLICE_WIDTH;
+		vertices[1].v = vertices[1].y = 224;
+		vertices[1].z = 0;
+		sceGuDrawArray(GU_SPRITES,GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D,2,0,vertices);
+	}
+
+	sceGuFinish();
+}
+
+
 
 static int EmuScan8(unsigned int num, void *sdata)
 {
@@ -187,26 +285,36 @@ static void cd_leds(void)
 }
 
 
-static short localPal[0x100];
-
 static void blit(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
-#if 0
 	if (PicoOpt&0x10)
 	{
-		int lines_flags = 224;
+#if 1
+		draw2_clut();
+#else
+		extern void amips_clut(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
+		int i; // , lines_flags = 224;
+		unsigned short *pd = psp_screen;
+		unsigned char  *ps = PicoDraw2FB+328*8+8;
 		// 8bit fast renderer
 		if (Pico.m.dirtyPal) {
+			int *dpal = (void *)localPal;
+			int *spal = (int *)Pico.cram;
 			Pico.m.dirtyPal = 0;
-			vidConvCpyRGB565(localPal, Pico.cram, 0x40);
+			for (i = 0x3f/2; i >= 0; i--)
+				dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
 		}
-		if (!(Pico.video.reg[12]&1)) lines_flags|=0x10000;
-		if (currentConfig.EmuOpt&0x4000)
-			lines_flags|=0x40000; // (Pico.m.frame_count&1)?0x20000:0x40000;
-		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, lines_flags);
+		// if (!(Pico.video.reg[12]&1)) lines_flags|=0x10000;
+		// if (currentConfig.EmuOpt&0x4000)
+		//	lines_flags|=0x40000; // (Pico.m.frame_count&1)?0x20000:0x40000;
+		//vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, lines_flags);
+		for (i = 224; i > 0; i--, pd+=512, ps+=328)
+			amips_clut(pd, ps, localPal, 320);
+#endif
 	}
+#if 0
 	else if (!(emu_opt&0x80))
 	{
 		int lines_flags;
@@ -245,6 +353,7 @@ static void blit(const char *fps, const char *notice)
 	if ((emu_opt & 0x400) && (PicoMCD & 1))
 		cd_leds();
 
+	sceGuSync(0,0);
 	psp_video_flip(0);
 }
 
@@ -264,10 +373,30 @@ static void clearArea(int full)
 
 static void vidResetMode(void)
 {
+	// setup GU
+	sceGuSync(0,0); // sync with prev
+	sceGuStart(GU_DIRECT, guCmdList);
+
+	sceGuClutMode(GU_PSM_5650,0,0xff,0);
+	//sceGuClutLoad((256/8), localPal); // upload 32*8 entries (256)
+	sceGuTexMode(GU_PSM_T8,0,0,0); // 8-bit image
+	sceGuTexFunc(GU_TFX_REPLACE,GU_TCC_RGB);
+	sceGuTexFilter(GU_LINEAR,GU_LINEAR);
+	sceGuTexScale(1.0f,1.0f);
+	sceGuTexOffset(0.0f,0.0f);
+	sceGuAmbientColor(0xffffffff);
+	sceGuColor(0xffffffff);
+
+
 	if (PicoOpt&0x10) {
+		sceGuTexImage(0,512,512,512,(char *)VRAM_STUFF + 8*512+16);
+
 	} else if (currentConfig.EmuOpt&0x80) {
-		PicoDrawSetColorFormat(1);
+		PicoDrawSetColorFormat(/*1*/-1);
 		PicoScan = EmuScan16;
+
+		sceGuTexImage(0,512,1/*512*/,512,VRAM_STUFF);
+
 	} else {
 		PicoDrawSetColorFormat(-1);
 		PicoScan = EmuScan8;
@@ -281,16 +410,19 @@ static void vidResetMode(void)
 	}
 	Pico.m.dirtyPal = 1;
 
+	sceGuFinish();
+	sceGuSync(0,0);
+
 	clearArea(1);
 }
-
+/*
 static void updateSound(int len)
 {
 	if (PicoOpt&8) len<<=1;
 
 	// TODO..
 }
-
+*/
 
 static void SkipFrame(void)
 {
@@ -310,7 +442,7 @@ void emu_forcedFrame(void)
 
 	PicoDrawSetColorFormat(1);
 	PicoScan = EmuScan16;
-	PicoScan((unsigned) -1, NULL);
+	EmuScanPrepare();
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 
@@ -662,7 +794,7 @@ void emu_Loop(void)
 		updateKeys();
 
 		if (!(PicoOpt&0x10))
-			PicoScan((unsigned) -1, NULL);
+			EmuScanPrepare();
 
 		PicoFrame();
 

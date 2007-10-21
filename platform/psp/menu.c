@@ -39,8 +39,6 @@ static const char * const pspKeyNames[] = {
 	pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn
 };
 
-unsigned int __attribute__((aligned(16))) guCmdList[1024]; // TODO: adjust, mv
-
 static unsigned char bg_buffer[480*272*2] __attribute__((aligned(16))); // TODO: move to vram?
 #define menu_screen psp_screen
 
@@ -92,10 +90,11 @@ static void menu_draw_begin(void)
 	// for (i = 272; i >= 0; i--, dst += 512, src += 480)
 	//	memcpy32((int *)dst, (int *)src, 480*2/4);
 
+	sceGuSync(0,0); // sync with prev
 	sceGuStart(GU_DIRECT, guCmdList);
 	sceGuCopyImage(GU_PSM_5650, 0, 0, 480, 272, 480, bg_buffer, 0, 0, 512, menu_screen);
 	sceGuFinish();
-	sceGuSync(0, GU_SYNC_FINISH);
+	sceGuSync(0,0);
 }
 
 

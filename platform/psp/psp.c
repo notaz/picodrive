@@ -13,7 +13,9 @@
 
 PSP_MODULE_INFO("PicoDrive", 0, 1, 34);
 
-void *psp_screen = PSP_VRAM_BASE0;
+unsigned int __attribute__((aligned(16))) guCmdList[GU_CMDLIST_SIZE];
+
+void *psp_screen = VRAM_FB0;
 static int current_screen = 0; /* front bufer */
 
 static SceUID logfd = -1;
@@ -54,12 +56,48 @@ void psp_init(void)
 
 	/* video */
 	sceDisplaySetMode(0, 480, 272);
-	sceDisplaySetFrameBuf(PSP_VRAM_BASE1, 512, PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
+	sceDisplaySetFrameBuf(VRAM_FB1, 512, PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
 	current_screen = 1;
-	psp_screen = PSP_VRAM_BASE0;
+	psp_screen = VRAM_FB0;
 
 	/* gu */
 	sceGuInit();
+
+	sceGuStart(GU_DIRECT, guCmdList);
+	sceGuDrawBuffer(GU_PSM_5650, VRAMOFFS_FB0, 512); // point to back fb?
+	sceGuDispBuffer(480, 272, VRAMOFFS_FB1, 512);
+	sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
+	sceGuDepthBuffer(VRAMOFFS_DEPTH, 512);
+	sceGuOffset(2048 - (480 / 2), 2048 - (272 / 2));
+	sceGuViewport(2048, 2048, 480, 272);
+	sceGuDepthRange(0xc350, 0x2710);
+	sceGuScissor(0, 0, 480, 272);
+	sceGuEnable(GU_SCISSOR_TEST);
+//	sceGuAlphaFunc(GU_GREATER, 0, 0xff);
+//	sceGuEnable(GU_ALPHA_TEST);
+//	sceGuDepthFunc(GU_ALWAYS); // GU_GEQUAL);
+//	sceGuEnable(GU_DEPTH_TEST);
+
+	sceGuDepthMask(0xffff);
+	sceGuDisable(GU_DEPTH_TEST);
+
+	sceGuFrontFace(GU_CW);
+//	sceGuShadeModel(GU_SMOOTH);
+//	sceGuEnable(GU_CULL_FACE);
+	sceGuEnable(GU_TEXTURE_2D);
+//	sceGuEnable(GU_CLIP_PLANES);
+	sceGuTexMode(GU_PSM_5650, 0, 0, 0);
+	sceGuTexFunc(GU_TFX_REPLACE, GU_TCC_RGB);
+	sceGuTexFilter(GU_NEAREST, GU_NEAREST);
+//	sceGuAmbientColor(0xffffffff);
+//	sceGuEnable(GU_BLEND);
+//	sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+	sceGuFinish();
+	sceGuSync(0, 0);
+
+	sceDisplayWaitVblankStart();
+	sceGuDisplay(GU_TRUE);
+
 
 	/* input */
 	sceCtrlSetSamplingCycle(0);
@@ -80,17 +118,17 @@ void psp_video_flip(int wait_vsync)
 	sceDisplaySetFrameBuf(psp_screen, 512, PSP_DISPLAY_PIXEL_FORMAT_565,
 		wait_vsync ? PSP_DISPLAY_SETBUF_IMMEDIATE : PSP_DISPLAY_SETBUF_NEXTFRAME);
 	current_screen ^= 1;
-	psp_screen = current_screen ? PSP_VRAM_BASE0 : PSP_VRAM_BASE1;
+	psp_screen = current_screen ? VRAM_FB0 : VRAM_FB1;
 }
 
 void *psp_video_get_active_fb(void)
 {
-	return current_screen ? PSP_VRAM_BASE1 : PSP_VRAM_BASE0;
+	return current_screen ? VRAM_FB1 : VRAM_FB0;
 }
 
 void psp_video_switch_to_single(void)
 {
-	psp_screen = PSP_VRAM_BASE0;
+	psp_screen = VRAM_FB0;
 	sceDisplaySetFrameBuf(psp_screen, 512, PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
 	current_screen = 0;
 }

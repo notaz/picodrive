@@ -225,7 +225,6 @@ void menu_init(void)
 				int tmp = parse_hex_color(buff+16);
 				if (tmp >= 0) menu_sel_color = tmp;
 				else lprintf("skin.txt: parse error for selection_color\n");
-				lprintf("sel color: %04x\n", menu_sel_color);
 			}
 			else
 				lprintf("skin.txt: parse error: %s\n", buff);
