@@ -5,6 +5,7 @@
 #include <pspkernel.h>
 #include <pspiofilemgr.h>
 #include <pspdisplay.h>
+#include <psppower.h>
 #include <pspgu.h>
 
 #include "psp.h"
@@ -76,7 +77,8 @@ void psp_finish(void)
 void psp_video_flip(int wait_vsync)
 {
 	if (wait_vsync) sceDisplayWaitVblankStart();
-	sceDisplaySetFrameBuf(psp_screen, 512, PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
+	sceDisplaySetFrameBuf(psp_screen, 512, PSP_DISPLAY_PIXEL_FORMAT_565,
+		wait_vsync ? PSP_DISPLAY_SETBUF_IMMEDIATE : PSP_DISPLAY_SETBUF_NEXTFRAME);
 	current_screen ^= 1;
 	psp_screen = current_screen ? PSP_VRAM_BASE0 : PSP_VRAM_BASE1;
 }
@@ -106,6 +108,19 @@ unsigned int psp_pad_read(int blocking)
 	else sceCtrlPeekBufferPositive(&pad, 1);
 
 	return pad.Buttons;
+}
+
+int psp_get_cpu_clock(void)
+{
+	return scePowerGetCpuClockFrequencyInt();
+}
+
+int psp_set_cpu_clock(int clock)
+{
+	int ret = scePowerSetClockFrequency(clock, clock, clock/2);
+	if (ret != 0) lprintf("failed to set clock: %i\n", ret);
+
+	return ret;
 }
 
 /* alt logging */

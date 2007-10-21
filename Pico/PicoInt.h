@@ -24,7 +24,7 @@
 #define PICO_INTERNAL_ASM
 #endif
 
-// to select core, define EMU_C68K, EMU_M68K or EMU_A68K in your makefile or project
+// to select core, define EMU_C68K, EMU_M68K or EMU_F68K in your makefile or project
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,24 +50,28 @@ extern struct Cyclone PicoCpu, PicoCpuS68k;
 #define SekSetStopS68k(x) { PicoCpuS68k.state_flags&=~1; if (x) { PicoCpuS68k.state_flags|=1; PicoCpuS68k.cycles=0; } }
 #endif
 
-#ifdef EMU_A68K
-void __cdecl M68000_RUN();
-// The format of the data in a68k.asm (at the _M68000_regs location)
-struct A68KContext
-{
-  unsigned int d[8],a[8];
-  unsigned int isp,srh,ccr,xc,pc,irq,sr;
-  int (*IrqCallback) (int nIrq);
-  unsigned int ppc;
-  void *pResetCallback;
-  unsigned int sfc,dfc,usp,vbr;
-  unsigned int AsmBank,CpuVersion;
-};
-struct A68KContext M68000_regs;
-extern int m68k_ICount;
-#define SekCyclesLeft m68k_ICount
-#define SekSetCyclesLeft(c) m68k_ICount=c
-#define SekPc M68000_regs.pc
+#ifdef EMU_F68K
+#include "../cpu/fame/fame.h"
+M68K_CONTEXT PicoCpuM68k, PicoCpuS68k;
+#define SekCyclesLeftNoMCD PicoCpuM68k.io_cycle_counter
+#define SekCyclesLeft \
+	(((PicoMCD&1) && (PicoOpt & 0x2000)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
+#define SekCyclesLeftS68k \
+	((PicoOpt & 0x2000) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuS68k.io_cycle_counter)
+#define SekSetCyclesLeftNoMCD(c) PicoCpuM68k.io_cycle_counter=c
+#define SekSetCyclesLeft(c) { \
+	if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCycleCnt=SekCycleAim-(c); else SekSetCyclesLeftNoMCD(c); \
+}
+#define SekPc     m68k_get_pc(&PicoCpuM68k)
+#define SekPcS68k m68k_get_pc(&PicoCpuS68k)
+#define SekSetStop(x) { \
+	PicoCpuM68k.execinfo &= ~M68K_HALTED; \
+	if (x) { PicoCpuM68k.execinfo |= M68K_HALTED; PicoCpuM68k.io_cycle_counter = 0; } \
+}
+#define SekSetStopS68k(x) { \
+	PicoCpuS68k.execinfo &= ~M68K_HALTED; \
+	if (x) { PicoCpuS68k.execinfo |= M68K_HALTED; PicoCpuS68k.io_cycle_counter = 0; } \
+}
 #endif
 
 #ifdef EMU_M68K
@@ -137,9 +141,9 @@ extern int SekCycleAimS68k;
 #define SekEndRun(c)
 #endif
 
-extern int PicoMCD;
-
 // ---------------------------------------------------------
+
+extern int PicoMCD;
 
 // main oscillator clock which controls timing
 #define OSC_NTSC 53693100

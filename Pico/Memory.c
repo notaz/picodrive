@@ -45,7 +45,7 @@ void log_io(unsigned int addr, int bits, int rw);
 #define log_io(...)
 #endif
 
-#if defined(EMU_C68K) || defined(EMU_A68K)
+#if defined(EMU_C68K)
 static __inline int PicoMemBase(u32 pc)
 {
   int membase=0;
@@ -69,10 +69,6 @@ static __inline int PicoMemBase(u32 pc)
 #endif
 
 
-#ifdef EMU_A68K
-extern u8 *OP_ROM=NULL,*OP_RAM=NULL;
-#endif
-
 static u32 CPU_CALL PicoCheckPc(u32 pc)
 {
   u32 ret=0;
@@ -90,11 +86,6 @@ static u32 CPU_CALL PicoCheckPc(u32 pc)
   PicoCpu.membase-=pc&0xff000000;
 
   ret = PicoCpu.membase+pc;
-#elif defined(EMU_A68K)
-  OP_ROM=(u8 *)PicoMemBase(pc);
-
-  // don't bother calling us back unless it's outside the 64k segment
-  M68000_regs.AsmBank=(pc>>16);
 #endif
   return ret;
 }
@@ -498,8 +489,8 @@ static void CPU_CALL PicoWrite32(u32 a,u32 d)
 // -----------------------------------------------------------------
 PICO_INTERNAL void PicoMemSetup(void)
 {
-#ifdef EMU_C68K
   // Setup memory callbacks:
+#ifdef EMU_C68K
   PicoCpu.checkpc=PicoCheckPc;
   PicoCpu.fetch8 =PicoCpu.read8 =PicoRead8;
   PicoCpu.fetch16=PicoCpu.read16=PicoRead16;
@@ -508,43 +499,16 @@ PICO_INTERNAL void PicoMemSetup(void)
   PicoCpu.write16=PicoWrite16;
   PicoCpu.write32=PicoWrite32;
 #endif
+#ifdef EMU_F68K
+  PicoCpuM68k.read_byte =PicoRead8;
+  PicoCpuM68k.read_word =PicoRead16;
+  PicoCpuM68k.read_long =PicoRead32;
+  PicoCpuM68k.write_byte=PicoWrite8;
+  PicoCpuM68k.write_word=PicoWrite16;
+  PicoCpuM68k.write_long=PicoWrite32;
+#endif
 }
 
-#ifdef EMU_A68K
-struct A68KInter
-{
-  u32 unknown;
-  u8  (__fastcall *Read8) (u32 a);
-  u16 (__fastcall *Read16)(u32 a);
-  u32 (__fastcall *Read32)(u32 a);
-  void (__fastcall *Write8)  (u32 a,u8 d);
-  void (__fastcall *Write16) (u32 a,u16 d);
-  void (__fastcall *Write32) (u32 a,u32 d);
-  void (__fastcall *ChangePc)(u32 a);
-  u8  (__fastcall *PcRel8) (u32 a);
-  u16 (__fastcall *PcRel16)(u32 a);
-  u32 (__fastcall *PcRel32)(u32 a);
-  u16 (__fastcall *Dir16)(u32 a);
-  u32 (__fastcall *Dir32)(u32 a);
-};
-
-struct A68KInter a68k_memory_intf=
-{
-  0,
-  PicoRead8,
-  PicoRead16,
-  PicoRead32,
-  PicoWrite8,
-  PicoWrite16,
-  PicoWrite32,
-  PicoCheckPc,
-  PicoRead8,
-  PicoRead16,
-  PicoRead32,
-  PicoRead16, // unused
-  PicoRead32, // unused
-};
-#endif
 
 #ifdef EMU_M68K
 unsigned int  m68k_read_pcrelative_CD8 (unsigned int a);

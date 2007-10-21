@@ -6,6 +6,7 @@
 #define CPU_CALL
 
 // draw.c
+#define USE_BGR555 1
 #define OVERRIDE_HIGHCOL 0
 
 // draw2.c

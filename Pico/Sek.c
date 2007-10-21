@@ -14,33 +14,23 @@ int SekCycleCnt=0; // cycles done in this frame
 int SekCycleAim=0; // cycle aim
 unsigned int SekCycleCntT=0;
 
+
+/* context */
+// Cyclone 68000
 #ifdef EMU_C68K
-// ---------------------- Cyclone 68000 ----------------------
 struct Cyclone PicoCpu;
 #endif
-
+// MUSASHI 68000
 #ifdef EMU_M68K
-// ---------------------- MUSASHI 68000 ----------------------
-m68ki_cpu_core PicoM68kCPU; // MD's CPU
+m68ki_cpu_core PicoM68kCPU;
 #endif
-
-#ifdef EMU_A68K
-// ---------------------- A68K ----------------------
-
-void __cdecl M68000_RESET();
-int m68k_ICount=0;
-unsigned int mem_amask=0xffffff; // 24-bit bus
-unsigned int mame_debug=0,cur_mrhard=0,m68k_illegal_opcode=0,illegal_op=0,illegal_pc=0,opcode_entry=0; // filler
-
-static int IrqCallback(int i) { i; return -1; }
-static int DoReset() { return 0; }
-static int (*ResetCallback)()=DoReset;
-
-#pragma warning (disable:4152)
+// FAME 68000
+#ifdef EMU_F68K
+M68K_CONTEXT PicoCpuM68k;
 #endif
 
 
-
+/* callbacks */
 #ifdef EMU_C68K
 // interrupt acknowledgment
 static int SekIntAck(int level)
@@ -75,7 +65,6 @@ static int SekUnrecognizedOpcode()
     have_illegal = 1;
   }
 #endif
-  //exit(1);
   return 0;
 }
 #endif
@@ -97,6 +86,35 @@ static int SekTasCallback(void)
 #endif
 
 
+#ifdef EMU_F68K
+static void setup_fame_fetchmap(void)
+{
+  int i;
+
+  // be default, point everything to fitst 64k of ROM
+  for (i = 0; i < M68K_FETCHBANK1; i++)
+    PicoCpuM68k.Fetch[i] = (unsigned int)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
+  // now real ROM
+  for (i = 0; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < Pico.romsize; i++)
+    PicoCpuM68k.Fetch[i] = (unsigned int)Pico.rom;
+  elprintf(EL_ANOMALY, "ROM end @ #%i %06x", i, (i<<(24-FAMEC_FETCHBITS)));
+  // .. and RAM (TODO)
+  for (i = M68K_FETCHBANK1*14/16; i < M68K_FETCHBANK1; i++)
+    PicoCpuM68k.Fetch[i] = (unsigned int)Pico.ram - (i<<(24-FAMEC_FETCHBITS));
+
+  elprintf(EL_ANOMALY, "rom = %p, ram = %p", Pico.rom, Pico.ram);
+  for (i = 0; i < M68K_FETCHBANK1; i++)
+    elprintf(EL_ANOMALY, "Fetch[%i] = %p", i, PicoCpuM68k.Fetch[i]);
+}
+
+void SekIntAckF68K(unsigned level)
+{
+  if     (level == 4) { Pico.video.pending_ints  =  0;    elprintf(EL_INTS, "hack: @ %06x [%i]", SekPc, SekCycleCnt); }
+  else if(level == 6) { Pico.video.pending_ints &= ~0x20; elprintf(EL_INTS, "vack: @ %06x [%i]", SekPc, SekCycleCnt); }
+  PicoCpuM68k.interrupts[0] = 0;
+}
+#endif
+
 
 PICO_INTERNAL int SekInit()
 {
@@ -106,12 +124,6 @@ PICO_INTERNAL int SekInit()
   PicoCpu.IrqCallback=SekIntAck;
   PicoCpu.ResetCallback=SekResetAck;
   PicoCpu.UnrecognizedCallback=SekUnrecognizedOpcode;
-#endif
-#ifdef EMU_A68K
-  memset(&M68000_regs,0,sizeof(M68000_regs));
-  M68000_regs.IrqCallback=IrqCallback;
-  M68000_regs.pResetCallback=ResetCallback;
-  M68000_RESET(); // Init cpu emulator
 #endif
 #ifdef EMU_M68K
   {
@@ -125,9 +137,20 @@ PICO_INTERNAL int SekInit()
     m68k_set_context(oldcontext);
   }
 #endif
+#ifdef EMU_F68K
+  {
+    void *oldcontext = g_m68kcontext;
+    g_m68kcontext = &PicoCpuM68k;
+    memset(&PicoCpuM68k, 0, sizeof(PicoCpuM68k));
+    m68k_init();
+    PicoCpuM68k.iack_handler = SekIntAckF68K;
+    g_m68kcontext = oldcontext;
+  }
+#endif
 
   return 0;
 }
+
 
 // Reset the 68000:
 PICO_INTERNAL int SekReset()
@@ -144,18 +167,20 @@ PICO_INTERNAL int SekReset()
   PicoCpu.membase=0;
   PicoCpu.pc=PicoCpu.checkpc(PicoCpu.read32(4)); // Program Counter
 #endif
-#ifdef EMU_A68K
-  // Reset CPU: fetch SP and PC
-  M68000_regs.srh=0x27; // Supervisor mode
-  M68000_regs.a[7]=PicoRead32(0);
-  M68000_regs.pc  =PicoRead32(4);
-  PicoInitPc(M68000_regs.pc);
-#endif
 #ifdef EMU_M68K
   m68k_set_context(&PicoM68kCPU); // if we ever reset m68k, we always need it's context to be set
   m68ki_cpu.sp[0]=0;
   m68k_set_irq(0);
   m68k_pulse_reset();
+#endif
+#ifdef EMU_F68K
+  {
+    unsigned ret;
+    g_m68kcontext = &PicoCpuM68k;
+    setup_fame_fetchmap();
+    ret = m68k_reset();
+    /*if (ret)*/ elprintf(EL_ANOMALY, "m68k_reset returned %u", ret);
+  }
 #endif
 
   return 0;
@@ -174,9 +199,6 @@ PICO_INTERNAL int SekInterrupt(int irq)
 #ifdef EMU_C68K
   PicoCpu.irq=irq;
 #endif
-#ifdef EMU_A68K
-  M68000_regs.irq=irq; // raise irq (gets lowered after taken)
-#endif
 #ifdef EMU_M68K
   {
     void *oldcontext = m68ki_cpu_p;
@@ -185,23 +207,23 @@ PICO_INTERNAL int SekInterrupt(int irq)
     m68k_set_context(oldcontext);
   }
 #endif
+#ifdef EMU_F68K
+  PicoCpuM68k.interrupts[0]=irq;
+#endif
+
   return 0;
 }
-
-//int SekPc() { return PicoCpu.pc-PicoCpu.membase; }
-//int SekPc() { return M68000_regs.pc; }
-//int SekPc() { return m68k_get_reg(NULL, M68K_REG_PC); }
 
 PICO_INTERNAL void SekState(unsigned char *data)
 {
 #ifdef EMU_C68K
   memcpy(data,PicoCpu.d,0x44);
-#elif defined(EMU_A68K)
-  memcpy(data,      M68000_regs.d, 0x40);
-  memcpy(data+0x40,&M68000_regs.pc,0x04);
 #elif defined(EMU_M68K)
-  memcpy(data,      PicoM68kCPU.dar,0x40);
-  memcpy(data+0x40,&PicoM68kCPU.pc, 0x04);
+  memcpy(data, PicoM68kCPU.dar, 0x40);
+  *(int *)(data+0x40) = PicoM68kCPU.pc;
+#elif defined(EMU_F68K)
+  memcpy(data, PicoCpuM68k.dreg, 0x40);
+  *(int *)(data+0x40) = PicoCpuM68k.pc;
 #endif
 }
 
@@ -209,6 +231,9 @@ PICO_INTERNAL void SekSetRealTAS(int use_real)
 {
 #ifdef EMU_C68K
   CycloneSetRealTAS(use_real);
+#endif
+#ifdef EMU_F68K
+  // TODO
 #endif
 }
 

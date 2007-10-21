@@ -212,12 +212,10 @@ static __inline void SekRunM68k(int cyc)
   PicoCpu.cycles=cyc_do;
   CycloneRun(&PicoCpu);
   SekCycleCnt+=cyc_do-PicoCpu.cycles;
-#elif defined(EMU_A68K)
-  m68k_ICount=cyc_do;
-  M68000_RUN();
-  SekCycleCnt+=cyc_do-m68k_ICount;
 #elif defined(EMU_M68K)
   SekCycleCnt+=m68k_execute(cyc_do);
+#elif defined(EMU_F68K)
+  SekCycleCnt+=m68k_emulate(cyc_do);
 #endif
 }
 
@@ -232,12 +230,10 @@ static __inline void SekStep(void)
   PicoCpu.cycles=1;
   CycloneRun(&PicoCpu);
   SekCycleCnt+=1-PicoCpu.cycles;
-#elif defined(EMU_A68K)
-  m68k_ICount=1;
-  M68000_RUN();
-  SekCycleCnt+=1-m68k_ICount;
 #elif defined(EMU_M68K)
   SekCycleCnt+=m68k_execute(1);
+#elif defined(EMU_F68K)
+  SekCycleCnt+=m68k_emulate(1);
 #endif
   SekCycleAim=realaim;
 }
@@ -677,6 +673,8 @@ char *debugString(void)
   }
 #elif defined(EMU_M68K)
   sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoM68kCPU.int_level>>8); dstrp+=strlen(dstrp);
+#elif defined(EMU_F68K)
+  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuM68k.interrupts[0]); dstrp+=strlen(dstrp);
 #endif
   sprintf(dstrp, "z80Run: %i, pal: %i, frame#: %i\n", Pico.m.z80Run, Pico.m.pal, Pico.m.frame_count); dstrp+=strlen(dstrp);
   z80_debug(dstrp); dstrp+=strlen(dstrp);

@@ -1032,6 +1032,7 @@ menu_entry opt_entries[] =
 	{ "Use SRAM/BRAM savestates",  MB_ONOFF, MA_OPT_SRAM_STATES,   &currentConfig.EmuOpt,  0x0001, 0, 0, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT_CONFIRM_STATES,NULL, 0, 0, 0, 1 },
 	{ "Save slot",                 MB_RANGE, MA_OPT_SAVE_SLOT,     &state_slot, 0, 0, 9, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT_CPU_CLOCKS,    NULL, 0, 0, 0, 1 },
 	{ "[Sega/Mega CD options]",    MB_NONE,  MA_OPT_SCD_OPTS,      NULL, 0, 0, 0, 1 },
 	{ "[advanced options]",        MB_NONE,  MA_OPT_ADV_OPTS,      NULL, 0, 0, 0, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT_SAVECFG,       NULL, 0, 0, 0, 1 },
@@ -1101,6 +1102,9 @@ static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *para
 				case 5:  str = "both";   break;
 			}
 			text_out16(x, y, "Confirm savestate          %s", str);
+			break;
+		case MA_OPT_CPU_CLOCKS:
+			text_out16(x, y, "CPU/bus clock       %3i/%3iMHz", currentConfig.CPUclock, currentConfig.CPUclock/2);
 			break;
 		case MA_OPT_SAVECFG:
 			str24[0] = 0;
@@ -1248,6 +1252,14 @@ static int menu_loop_options(void)
 						 if (inp & BTN_RIGHT) {
 							 state_slot++; if (state_slot > 9) state_slot = 0;
 						 } else {state_slot--; if (state_slot < 0) state_slot = 9;
+						 }
+						 break;
+					case MA_OPT_CPU_CLOCKS:
+						 while ((inp = psp_pad_read(0)) & (BTN_LEFT|BTN_RIGHT)) {
+							 currentConfig.CPUclock += (inp & BTN_LEFT) ? -1 : 1;
+							 if (currentConfig.CPUclock <  19) currentConfig.CPUclock = 19;
+							 if (currentConfig.CPUclock > 333) currentConfig.CPUclock = 333;
+							 draw_menu_options(menu_sel); // will wait vsync
 						 }
 						 break;
 					case MA_OPT_SAVECFG:

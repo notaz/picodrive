@@ -1186,35 +1186,49 @@ static void FinalizeLineRGB555(int sh)
   unsigned short *pal=HighPal;
   int len, i, t, dirtyPal = Pico.m.dirtyPal;
 
-  if(dirtyPal) {
-    unsigned short *ppal=Pico.cram;
-    for(i = 0x3f; i >= 0; i--)
-      pal[i] = (unsigned short) (((ppal[i]&0x00f)<<12)|((ppal[i]&0x0f0)<<3)|((ppal[i]&0xf00)>>7));
+  if (dirtyPal)
+  {
+    unsigned int *spal=(void *)Pico.cram;
+    unsigned int *dpal=(void *)HighPal;
+    for (i = 0x3f/2; i >= 0; i--)
+#ifdef USE_BGR555
+      dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
+#else
+      dpal[i] = ((spal[i]&0x000f000f)<<12)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)>>7);
+#endif
     Pico.m.dirtyPal = 0;
   }
 
-  if (Pico.video.reg[12]&1) {
-    len = 320;
-  } else {
-    if(!(PicoOpt&0x100)) pd+=32;
-    len = 256;
-  }
-
-  if(sh) {
-    if(dirtyPal) {
+  if (sh)
+  {
+    if (dirtyPal) {
       // shadowed pixels
-      for(i = 0x3f; i >= 0; i--)
+      for (i = 0x3f; i >= 0; i--)
         pal[0x40|i] = pal[0xc0|i] = (unsigned short)((pal[i]>>1)&0x738e);
       // hilighted pixels
-      for(i = 0x3f; i >= 0; i--) {
+      for (i = 0x3f; i >= 0; i--) {
         t=pal[i]&0xe71c;t+=0x4208;if(t&0x20)t|=0x1c;if(t&0x800)t|=0x700;if(t&0x10000)t|=0xe000;t&=0xe71c;
         pal[0x80|i]=(unsigned short)t;
       }
     }
   }
 
-  for(i = 0; i < len; i++)
+  if (Pico.video.reg[12]&1) {
+    len = 320;
+  } else {
+    if (!(PicoOpt&0x100)) pd+=32;
+    len = 256;
+  }
+
+#ifndef PSP
+  for (i = 0; i < len; i++)
     pd[i] = pal[ps[i]];
+#else
+  {
+    extern void amips_clut(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
+    amips_clut(pd, ps, pal, len);
+  }
+#endif
 }
 #endif
 

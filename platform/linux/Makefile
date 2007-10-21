@@ -1,6 +1,7 @@
 
 # settings
-dprint = 1
+use_fame = 1
+
 # profile = 1
 
 
@@ -46,8 +47,13 @@ OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/i
 # unzip
 OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
 # CPU cores
+ifeq "$(use_fame)" "1"
+DEFINC += -DEMU_F68K
+OBJS += ../../cpu/fame/famec.o
+else
 DEFINC += -DEMU_M68K
 OBJS += ../../cpu/musashi/m68kops.o ../../cpu/musashi/m68kcpu.o
+endif
 # mz80
 DEFINC += -D_USE_MZ80
 OBJS += ../../cpu/mz80/mz80.o
@@ -94,4 +100,8 @@ PicoDrive : $(OBJS) ../common/helix/helix_mp3_x86.a
 ../../Pico/sound/ym2612.o : ../../Pico/sound/ym2612.c
 	@echo $@
 	@$(GCC) $(COPT_COMMON) $(DEFINC) -c $< -o $@ # -mtune=arm940t -DEXTERNAL_YM2612
+
+../../cpu/fame/famec.o : ../../cpu/fame/famec.c
+	@echo $<
+	@$(GCC) $(COPT) $(DEFINC) -Wno-unused -c $< -o $@
 

@@ -3,7 +3,7 @@
 PSPSDK = $(shell psp-config --pspsdk-path)
 
 # settings
-use_musashi = 1
+#use_musashi = 1
 use_mz80 = 1
 amalgamate = 0
 #profile = 1
@@ -13,7 +13,7 @@ amalgamate = 0
 CFLAGS += -I../.. -I. -D_UNZIP_SUPPORT -DNO_SYNC # -DBENCHMARK
 CFLAGS += -Wall -Winline
 ifeq ($(DEBUG),)
-CFLAGS += -O2 -G0 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
+CFLAGS += -O2 -G0 -ftracer -fstrength-reduce -ffast-math
 else
 CFLAGS += -ggdb
 endif
@@ -37,7 +37,7 @@ OBJS += ../../PicoAll.o
 else
 OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Memory.o ../../Pico/Misc.o \
 		../../Pico/Pico.o ../../Pico/Sek.o ../../Pico/VideoPort.o ../../Pico/Draw2.o ../../Pico/Draw.o \
-		../../Pico/Patch.o
+		../../Pico/Patch.o ../../Pico/Draw_amips.o
 # Pico - CD
 OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
 		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o \
@@ -59,6 +59,9 @@ OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
 ifeq "$(use_musashi)" "1"
 CFLAGS += -DEMU_M68K
 OBJS += ../../cpu/musashi/m68kops.o ../../cpu/musashi/m68kcpu.o
+else
+CFLAGS += -DEMU_F68K
+OBJS += ../../cpu/fame/famec.o
 endif
 # z80
 ifeq "$(use_mz80)" "1"
@@ -69,7 +72,7 @@ $(error nothing here!)
 endif
 
 
-LIBS += -lpng -lm -lpspgu # -lpspaudio -lpspgu -lpsppower -lpsphprm -lz -lm -lstdc++
+LIBS += -lpng -lm -lpspgu -lpsppower -Wl,-Map=PicoDrive.map # -lpspaudio -lpsphprm
 
 # target
 TARGET = PicoDrive
@@ -82,11 +85,16 @@ CUSTOM_CLEAN = myclean
 
 include $(PSPSDK)/lib/build.mak
 
-
 # some additional rules
 .c.o:
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -c $< -o $@
+
+AS := psp-as
+
+.s.o:
+	@echo ">>>" $<
+	$(AS) -march=allegrex -mtune=allegrex $< -o $@
 
 ../../cpu/musashi/m68kops.c :
 	make -C ../../cpu/musashi
@@ -97,6 +105,9 @@ readme.txt: ../../tools/textfilter ../base_readme.txt
 ../../tools/textfilter: ../../tools/textfilter.c
 	make -C ../../tools/ textfilter
 
+../../cpu/fame/famec.o : ../../cpu/fame/famec.c
+	@echo ">>>" $<
+	$(CC) $(CFLAGS) -Wno-unused -c $< -o $@
 
 # ?
 up: EBOOT.PBP

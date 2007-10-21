@@ -15,6 +15,8 @@ extern void *psp_screen;
 
 unsigned int psp_pad_read(int blocking);
 
+int psp_get_cpu_clock(void);
+int psp_set_cpu_clock(int clock);
 
 /* shorter btn names */
 #define BTN_UP       PSP_CTRL_UP

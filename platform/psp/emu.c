@@ -3,6 +3,7 @@
 #include <sys/syslimits.h> // PATH_MAX
 
 #include <pspthreadman.h>
+#include <pspdisplay.h>
 
 #include "psp.h"
 #include "menu.h"
@@ -121,6 +122,7 @@ void emu_setDefaultConfig(void)
 	currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
 	currentConfig.Frameskip = -1; // auto
 	currentConfig.volume = 50;
+	currentConfig.CPUclock = 222;
 	currentConfig.KeyBinds[ 4] = 1<<0; // SACB RLDU
 	currentConfig.KeyBinds[ 6] = 1<<1;
 	currentConfig.KeyBinds[ 7] = 1<<2;
@@ -386,6 +388,9 @@ static void updateKeys(void)
 	int i;
 
 	keys = psp_pad_read(0);
+	if (keys & PSP_CTRL_HOME)
+		sceDisplayWaitVblankStart();
+
 	if (keys & BTN_SELECT)
 		engineState = PGS_Menu;
 
@@ -497,6 +502,13 @@ void emu_Loop(void)
 	lprintf("entered emu_Loop()\n");
 
 	fpsbuff[0] = 0;
+
+	if (currentConfig.CPUclock != psp_get_cpu_clock()) {
+		lprintf("setting cpu clock to %iMHz... ", currentConfig.CPUclock);
+		i = psp_set_cpu_clock(currentConfig.CPUclock);
+		lprintf(i ? "failed\n" : "done\n");
+		currentConfig.CPUclock = psp_get_cpu_clock();
+	}
 
 	// make sure we are in correct mode
 	vidResetMode();
