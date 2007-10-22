@@ -293,9 +293,7 @@ void s68k_reg_write8(u32 a, u32 d)
       if (d&4) {
         if ((d ^ dold) & 5) {
           d &= ~2; // in case of mode or bank change we clear DMNA (m68k req) bit
-#ifdef _ASM_CD_MEMORY_C
           PicoMemResetCD(d);
-#endif
         }
 #ifdef _ASM_CD_MEMORY_C
         if ((d ^ dold) & 0x1d)
@@ -313,9 +311,7 @@ void s68k_reg_write8(u32 a, u32 d)
             d |= (dold&1) ? 2 : 1; // then give it to the one which had bank0 in 1M mode
           }
           wram_1M_to_2M(Pico_mcd->word_ram2M);
-#ifdef _ASM_CD_MEMORY_C
           PicoMemResetCD(d);
-#endif
         }
         else
           d |= dold&1;
@@ -817,7 +813,7 @@ static u32 PicoReadS68k8(u32 a)
     // test: batman returns
     wrdprintf("s68k_wram2M r8: [%06x] @%06x", a, SekPcS68k);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
-      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      int bank = (Pico_mcd->s68k_regs[3]&1)^1;
       d = Pico_mcd->word_ram1M[bank][((a>>1)^1)&0x1ffff];
       if (a&1) d &= 0x0f;
       else d >>= 4;
@@ -836,7 +832,7 @@ static u32 PicoReadS68k8(u32 a)
     wrdprintf("s68k_wram1M r8: [%06x] @%06x", a, SekPcS68k);
 //    if (!(Pico_mcd->s68k_regs[3]&4))
 //      dprintf("s68k_wram1M FIXME: wrong mode");
-    bank = !(Pico_mcd->s68k_regs[3]&1);
+    bank = (Pico_mcd->s68k_regs[3]&1)^1;
     d = Pico_mcd->word_ram1M[bank][(a^1)&0x1ffff];
     wrdprintf("ret = %02x", (u8)d);
     goto end;
@@ -907,7 +903,7 @@ static u32 PicoReadS68k16(u32 a)
   if ((a&0xfc0000)==0x080000) { // 080000-0bffff
     wrdprintf("s68k_wram2M r16: [%06x] @%06x", a, SekPcS68k);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
-      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      int bank = (Pico_mcd->s68k_regs[3]&1)^1;
       d = Pico_mcd->word_ram1M[bank][((a>>1)^1)&0x1ffff];
       d |= d << 4; d &= ~0xf0;
       dprintf("FIXME: decode");
@@ -925,7 +921,7 @@ static u32 PicoReadS68k16(u32 a)
     wrdprintf("s68k_wram1M r16: [%06x] @%06x", a, SekPcS68k);
 //    if (!(Pico_mcd->s68k_regs[3]&4))
 //      dprintf("s68k_wram1M FIXME: wrong mode");
-    bank = !(Pico_mcd->s68k_regs[3]&1);
+    bank = (Pico_mcd->s68k_regs[3]&1)^1;
     d = *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
     wrdprintf("ret = %04x", d);
     goto end;
@@ -999,7 +995,7 @@ static u32 PicoReadS68k32(u32 a)
   if ((a&0xfc0000)==0x080000) { // 080000-0bffff
     wrdprintf("s68k_wram2M r32: [%06x] @%06x", a, SekPcS68k);
     if (Pico_mcd->s68k_regs[3]&4) { // 1M decode mode?
-      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      int bank = (Pico_mcd->s68k_regs[3]&1)^1;
       a >>= 1;
       d  = Pico_mcd->word_ram1M[bank][((a+0)^1)&0x1ffff] << 16;
       d |= Pico_mcd->word_ram1M[bank][((a+1)^1)&0x1ffff];
@@ -1018,7 +1014,7 @@ static u32 PicoReadS68k32(u32 a)
     wrdprintf("s68k_wram1M r32: [%06x] @%06x", a, SekPcS68k);
 //    if (!(Pico_mcd->s68k_regs[3]&4))
 //      dprintf("s68k_wram1M FIXME: wrong mode");
-    bank = !(Pico_mcd->s68k_regs[3]&1);
+    bank = (Pico_mcd->s68k_regs[3]&1)^1;
     u16 *pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe)); d = (pm[0]<<16)|pm[1];
     wrdprintf("ret = %08x", d);
     goto end;
@@ -1075,7 +1071,7 @@ static u32 PicoReadS68k32(u32 a)
 /* check: jaguar xj 220 (draws entire world using decode) */
 static void decode_write8(u32 a, u8 d, int r3)
 {
-  u8 *pd = Pico_mcd->word_ram1M[!(r3 & 1)] + (((a>>1)^1)&0x1ffff);
+  u8 *pd = Pico_mcd->word_ram1M[(r3 & 1)^1] + (((a>>1)^1)&0x1ffff);
   u8 oldmask = (a&1) ? 0xf0 : 0x0f;
 
   r3 &= 0x18;
@@ -1098,7 +1094,7 @@ do_it:
 
 static void decode_write16(u32 a, u16 d, int r3)
 {
-  u8 *pd = Pico_mcd->word_ram1M[!(r3 & 1)] + (((a>>1)^1)&0x1ffff);
+  u8 *pd = Pico_mcd->word_ram1M[(r3 & 1)^1] + (((a>>1)^1)&0x1ffff);
 
   //if ((a & 0x3ffff) < 0x28000) return;
 
@@ -1173,7 +1169,7 @@ static void PicoWriteS68k8(u32 a,u8 d)
       wrdprintf("s68k_wram1M w8: [%06x] %02x @%06x", a, d, SekPcS68k);
 //    if (!(Pico_mcd->s68k_regs[3]&4))
 //      dprintf("s68k_wram1M FIXME: wrong mode");
-    bank = !(Pico_mcd->s68k_regs[3]&1);
+    bank = (Pico_mcd->s68k_regs[3]&1)^1;
     *(u8 *)(Pico_mcd->word_ram1M[bank]+((a^1)&0x1ffff))=d;
     return;
   }
@@ -1256,7 +1252,7 @@ static void PicoWriteS68k16(u32 a,u16 d)
       wrdprintf("s68k_wram1M w16: [%06x] %04x @%06x", a, d, SekPcS68k);
 //    if (!(Pico_mcd->s68k_regs[3]&4))
 //      dprintf("s68k_wram1M FIXME: wrong mode");
-    bank = !(Pico_mcd->s68k_regs[3]&1);
+    bank = (Pico_mcd->s68k_regs[3]&1)^1;
     *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe))=d;
     return;
   }
@@ -1346,7 +1342,7 @@ static void PicoWriteS68k32(u32 a,u32 d)
       wrdprintf("s68k_wram1M w32: [%06x] %08x @%06x", a, d, SekPcS68k);
 //    if (!(Pico_mcd->s68k_regs[3]&4))
 //      dprintf("s68k_wram1M FIXME: wrong mode");
-    bank = !(Pico_mcd->s68k_regs[3]&1);
+    bank = (Pico_mcd->s68k_regs[3]&1)^1;
     pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
     pm[0]=(u16)(d>>16); pm[1]=(u16)d;
     return;
@@ -1387,7 +1383,7 @@ static void PicoWriteS68k32(u32 a,u32 d)
 // -----------------------------------------------------------------
 
 
-#if defined(EMU_C68K)
+#ifdef EMU_C68K
 static __inline int PicoMemBaseM68k(u32 pc)
 {
   if ((pc&0xe00000)==0xe00000)
@@ -1401,7 +1397,7 @@ static __inline int PicoMemBaseM68k(u32 pc)
     if (!(Pico_mcd->s68k_regs[3]&4))
       return (int)Pico_mcd->word_ram2M - 0x200000; // Program Counter in Word Ram
     if (pc < 0x220000) {
-      int bank = (Pico_mcd->s68k_regs[3]&1);
+      int bank = Pico_mcd->s68k_regs[3]&1;
       return (int)Pico_mcd->word_ram1M[bank] - 0x200000;
     }
   }
@@ -1415,12 +1411,12 @@ static __inline int PicoMemBaseM68k(u32 pc)
 
 static u32 PicoCheckPcM68k(u32 pc)
 {
-  pc-=PicoCpu.membase; // Get real pc
+  pc-=PicoCpuCM68k.membase; // Get real pc
   pc&=0xfffffe;
 
-  PicoCpu.membase=PicoMemBaseM68k(pc);
+  PicoCpuCM68k.membase=PicoMemBaseM68k(pc);
 
-  return PicoCpu.membase+pc;
+  return PicoCpuCM68k.membase+pc;
 }
 
 
@@ -1433,7 +1429,7 @@ static __inline int PicoMemBaseS68k(u32 pc)
     return (int)Pico_mcd->word_ram2M - 0x080000;
 
   if ((pc&0xfe0000)==0x0c0000) {        // word RAM 1M area
-    int bank = !(Pico_mcd->s68k_regs[3]&1);
+    int bank = (Pico_mcd->s68k_regs[3]&1)^1;
     return (int)Pico_mcd->word_ram1M[bank] - 0x0c0000;
   }
 
@@ -1446,37 +1442,101 @@ static __inline int PicoMemBaseS68k(u32 pc)
 
 static u32 PicoCheckPcS68k(u32 pc)
 {
-  pc-=PicoCpuS68k.membase; // Get real pc
+  pc-=PicoCpuCS68k.membase; // Get real pc
   pc&=0xfffffe;
 
-  PicoCpuS68k.membase=PicoMemBaseS68k(pc);
+  PicoCpuCS68k.membase=PicoMemBaseS68k(pc);
 
-  return PicoCpuS68k.membase+pc;
+  return PicoCpuCS68k.membase+pc;
 }
 #endif
 
+#ifndef _ASM_CD_MEMORY_C
+void PicoMemResetCD(int r3)
+{
+#ifdef EMU_F68K
+  // update fetchmap..
+  int i;
+  if (!(r3 & 4))
+  {
+    for (i = M68K_FETCHBANK1*2/16; (i<<(24-FAMEC_FETCHBITS)) < 0x240000; i++)
+      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico_mcd->word_ram2M - 0x200000;
+  }
+  else
+  {
+    for (i = M68K_FETCHBANK1*2/16; (i<<(24-FAMEC_FETCHBITS)) < 0x220000; i++)
+      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico_mcd->word_ram1M[r3 & 1] - 0x200000;
+    for (i = M68K_FETCHBANK1*0x0c/0x100; (i<<(24-FAMEC_FETCHBITS)) < 0x0e0000; i++)
+      PicoCpuFS68k.Fetch[i] = (unsigned int)Pico_mcd->word_ram1M[(r3&1)^1] - 0x0c0000;
+  }
+#endif
+}
+#endif
 
 PICO_INTERNAL void PicoMemSetupCD(void)
 {
   dprintf("PicoMemSetupCD()");
 #ifdef EMU_C68K
   // Setup m68k memory callbacks:
-  PicoCpu.checkpc=PicoCheckPcM68k;
-  PicoCpu.fetch8 =PicoCpu.read8 =PicoReadM68k8;
-  PicoCpu.fetch16=PicoCpu.read16=PicoReadM68k16;
-  PicoCpu.fetch32=PicoCpu.read32=PicoReadM68k32;
-  PicoCpu.write8 =PicoWriteM68k8;
-  PicoCpu.write16=PicoWriteM68k16;
-  PicoCpu.write32=PicoWriteM68k32;
+  PicoCpuCM68k.checkpc=PicoCheckPcM68k;
+  PicoCpuCM68k.fetch8 =PicoCpuCM68k.read8 =PicoReadM68k8;
+  PicoCpuCM68k.fetch16=PicoCpuCM68k.read16=PicoReadM68k16;
+  PicoCpuCM68k.fetch32=PicoCpuCM68k.read32=PicoReadM68k32;
+  PicoCpuCM68k.write8 =PicoWriteM68k8;
+  PicoCpuCM68k.write16=PicoWriteM68k16;
+  PicoCpuCM68k.write32=PicoWriteM68k32;
   // s68k
-  PicoCpuS68k.checkpc=PicoCheckPcS68k;
-  PicoCpuS68k.fetch8 =PicoCpuS68k.read8 =PicoReadS68k8;
-  PicoCpuS68k.fetch16=PicoCpuS68k.read16=PicoReadS68k16;
-  PicoCpuS68k.fetch32=PicoCpuS68k.read32=PicoReadS68k32;
-  PicoCpuS68k.write8 =PicoWriteS68k8;
-  PicoCpuS68k.write16=PicoWriteS68k16;
-  PicoCpuS68k.write32=PicoWriteS68k32;
+  PicoCpuCS68k.checkpc=PicoCheckPcS68k;
+  PicoCpuCS68k.fetch8 =PicoCpuCS68k.read8 =PicoReadS68k8;
+  PicoCpuCS68k.fetch16=PicoCpuCS68k.read16=PicoReadS68k16;
+  PicoCpuCS68k.fetch32=PicoCpuCS68k.read32=PicoReadS68k32;
+  PicoCpuCS68k.write8 =PicoWriteS68k8;
+  PicoCpuCS68k.write16=PicoWriteS68k16;
+  PicoCpuCS68k.write32=PicoWriteS68k32;
 #endif
+#ifdef EMU_F68K
+  // m68k
+  PicoCpuFM68k.read_byte =PicoReadM68k8;
+  PicoCpuFM68k.read_word =PicoReadM68k16;
+  PicoCpuFM68k.read_long =PicoReadM68k32;
+  PicoCpuFM68k.write_byte=PicoWriteM68k8;
+  PicoCpuFM68k.write_word=PicoWriteM68k16;
+  PicoCpuFM68k.write_long=PicoWriteM68k32;
+  // s68k
+  PicoCpuFS68k.read_byte =PicoReadS68k8;
+  PicoCpuFS68k.read_word =PicoReadS68k16;
+  PicoCpuFS68k.read_long =PicoReadS68k32;
+  PicoCpuFS68k.write_byte=PicoWriteS68k8;
+  PicoCpuFS68k.write_word=PicoWriteS68k16;
+  PicoCpuFS68k.write_long=PicoWriteS68k32;
+
+  // setup FAME fetchmap
+  {
+    int i;
+    // M68k
+    // by default, point everything to fitst 64k of ROM (BIOS)
+    for (i = 0; i < M68K_FETCHBANK1; i++)
+      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
+    // now real ROM (BIOS)
+    for (i = 0; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < Pico.romsize; i++)
+      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico.rom;
+    // .. and RAM
+    for (i = M68K_FETCHBANK1*14/16; i < M68K_FETCHBANK1; i++)
+      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico.ram - (i<<(24-FAMEC_FETCHBITS));
+    // S68k
+    // PRG RAM is default
+    for (i = 0; i < M68K_FETCHBANK1; i++)
+      PicoCpuFS68k.Fetch[i] = (unsigned int)Pico_mcd->prg_ram - (i<<(24-FAMEC_FETCHBITS));
+    // real PRG RAM
+    for (i = 0; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < 0x80000; i++)
+      PicoCpuFS68k.Fetch[i] = (unsigned int)Pico_mcd->prg_ram;
+    // WORD RAM 2M area
+    for (i = M68K_FETCHBANK1*0x08/0x100; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < 0xc0000; i++)
+      PicoCpuFS68k.Fetch[i] = (unsigned int)Pico_mcd->word_ram2M - 0x80000;
+    // PicoMemResetCD() will setup word ram for both
+  }
+#endif
+
   // m68k_poll_addr = m68k_poll_cnt = 0;
   s68k_poll_adclk = s68k_poll_cnt = 0;
 }
@@ -1484,33 +1544,33 @@ PICO_INTERNAL void PicoMemSetupCD(void)
 
 #ifdef EMU_M68K
 unsigned char  PicoReadCD8w (unsigned int a) {
-	return m68ki_cpu_p == &PicoS68kCPU ? PicoReadS68k8(a) : PicoReadM68k8(a);
+	return m68ki_cpu_p == &PicoCpuMS68k ? PicoReadS68k8(a) : PicoReadM68k8(a);
 }
 unsigned short PicoReadCD16w(unsigned int a) {
-	return m68ki_cpu_p == &PicoS68kCPU ? PicoReadS68k16(a) : PicoReadM68k16(a);
+	return m68ki_cpu_p == &PicoCpuMS68k ? PicoReadS68k16(a) : PicoReadM68k16(a);
 }
 unsigned int   PicoReadCD32w(unsigned int a) {
-	return m68ki_cpu_p == &PicoS68kCPU ? PicoReadS68k32(a) : PicoReadM68k32(a);
+	return m68ki_cpu_p == &PicoCpuMS68k ? PicoReadS68k32(a) : PicoReadM68k32(a);
 }
 void PicoWriteCD8w (unsigned int a, unsigned char d) {
-	if (m68ki_cpu_p == &PicoS68kCPU) PicoWriteS68k8(a, d); else PicoWriteM68k8(a, d);
+	if (m68ki_cpu_p == &PicoCpuMS68k) PicoWriteS68k8(a, d); else PicoWriteM68k8(a, d);
 }
 void PicoWriteCD16w(unsigned int a, unsigned short d) {
-	if (m68ki_cpu_p == &PicoS68kCPU) PicoWriteS68k16(a, d); else PicoWriteM68k16(a, d);
+	if (m68ki_cpu_p == &PicoCpuMS68k) PicoWriteS68k16(a, d); else PicoWriteM68k16(a, d);
 }
 void PicoWriteCD32w(unsigned int a, unsigned int d) {
-	if (m68ki_cpu_p == &PicoS68kCPU) PicoWriteS68k32(a, d); else PicoWriteM68k32(a, d);
+	if (m68ki_cpu_p == &PicoCpuMS68k) PicoWriteS68k32(a, d); else PicoWriteM68k32(a, d);
 }
 
 // these are allowed to access RAM
 unsigned int  m68k_read_pcrelative_CD8 (unsigned int a) {
   a&=0xffffff;
-  if(m68ki_cpu_p == &PicoS68kCPU) {
+  if(m68ki_cpu_p == &PicoCpuMS68k) {
     if (a < 0x80000) return *(u8 *)(Pico_mcd->prg_ram+(a^1)); // PRG Ram
     if ((a&0xfc0000)==0x080000 && !(Pico_mcd->s68k_regs[3]&4)) // word RAM (2M area: 080000-0bffff)
       return *(u8 *)(Pico_mcd->word_ram2M+((a^1)&0x3ffff));
     if ((a&0xfe0000)==0x0c0000 &&  (Pico_mcd->s68k_regs[3]&4)) { // word RAM (1M area: 0c0000-0dffff)
-      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      int bank = (Pico_mcd->s68k_regs[3]&1)^1;
       return *(u8 *)(Pico_mcd->word_ram1M[bank]+((a^1)&0x1ffff));
     }
     dprintf("s68k_read_pcrelative_CD8 FIXME: can't handle %06x", a);
@@ -1531,12 +1591,12 @@ unsigned int  m68k_read_pcrelative_CD8 (unsigned int a) {
 }
 unsigned int  m68k_read_pcrelative_CD16(unsigned int a) {
   a&=0xffffff;
-  if(m68ki_cpu_p == &PicoS68kCPU) {
+  if(m68ki_cpu_p == &PicoCpuMS68k) {
     if (a < 0x80000) return *(u16 *)(Pico_mcd->prg_ram+(a&~1)); // PRG Ram
     if ((a&0xfc0000)==0x080000 && !(Pico_mcd->s68k_regs[3]&4)) // word RAM (2M area: 080000-0bffff)
       return *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
     if ((a&0xfe0000)==0x0c0000 &&  (Pico_mcd->s68k_regs[3]&4)) { // word RAM (1M area: 0c0000-0dffff)
-      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      int bank = (Pico_mcd->s68k_regs[3]&1)^1;
       return *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
     }
     dprintf("s68k_read_pcrelative_CD16 FIXME: can't handle %06x", a);
@@ -1558,12 +1618,12 @@ unsigned int  m68k_read_pcrelative_CD16(unsigned int a) {
 unsigned int  m68k_read_pcrelative_CD32(unsigned int a) {
   u16 *pm;
   a&=0xffffff;
-  if(m68ki_cpu_p == &PicoS68kCPU) {
+  if(m68ki_cpu_p == &PicoCpuMS68k) {
     if (a < 0x80000) { u16 *pm=(u16 *)(Pico_mcd->prg_ram+(a&~1)); return (pm[0]<<16)|pm[1]; } // PRG Ram
     if ((a&0xfc0000)==0x080000 && !(Pico_mcd->s68k_regs[3]&4)) // word RAM (2M area: 080000-0bffff)
       { pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe)); return (pm[0]<<16)|pm[1]; }
     if ((a&0xfe0000)==0x0c0000 &&  (Pico_mcd->s68k_regs[3]&4)) { // word RAM (1M area: 0c0000-0dffff)
-      int bank = !(Pico_mcd->s68k_regs[3]&1);
+      int bank = (Pico_mcd->s68k_regs[3]&1)^1;
       pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
       return (pm[0]<<16)|pm[1];
     }

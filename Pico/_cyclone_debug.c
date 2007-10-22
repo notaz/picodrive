@@ -22,8 +22,8 @@ void dumpPCandExit()
   dprintf("PC: %06x: %04x: %s", pppc, ppop, buff);
   dprintf("                    this | prev");
   for(i=0; i < 8; i++)
-    dprintf("d%i=%08x, a%i=%08x | d%i=%08x, a%i=%08x", i, PicoCpu.d[i], i, PicoCpu.a[i], i, old_regs[i], i, old_regs[i+8]);
-  dprintf("SR:                 %04x | %04x (??s? 0iii 000x nzvc)", CycloneGetSr(&PicoCpu), old_sr);
+    dprintf("d%i=%08x, a%i=%08x | d%i=%08x, a%i=%08x", i, PicoCpuCM68k.d[i], i, PicoCpuCM68k.a[i], i, old_regs[i], i, old_regs[i+8]);
+  dprintf("SR:                 %04x | %04x (??s? 0iii 000x nzvc)", CycloneGetSr(&PicoCpuCM68k), old_sr);
   dprintf("last_read: %08x @ %06x", lastread_d[--lrp_cyc&15], lastread_a);
   dprintf("ops done: %i", ops);
   exit(1);
@@ -43,7 +43,7 @@ int CM_compareRun(int cyc)
     {
       have_illegal = 0;
       m68ki_cpu.pc += 2;
-      PicoCpu.pc=PicoCpu.checkpc(PicoCpu.pc + 2);
+      PicoCpuCM68k.pc=PicoCpuCM68k.checkpc(PicoCpuCM68k.pc + 2);
     }
     // hacks for test_misc2
     if (m68ki_cpu.pc == 0x0002e0 && m68k_read_disassembler_16(m68ki_cpu.pc) == 0x4e73)
@@ -51,13 +51,13 @@ int CM_compareRun(int cyc)
       // get out of "priviledge violation" loop
       have_illegal = 1;
       //m68ki_cpu.s_flag = SFLAG_SET;
-      //PicoCpu.srh|=0x20;
+      //PicoCpuCM68k.srh|=0x20;
     }
 
     pppc = SekPc;
     ppop = m68k_read_disassembler_16(pppc);
-    memcpy(old_regs, PicoCpu.d, 4*16);
-    old_sr = CycloneGetSr(&PicoCpu);
+    memcpy(old_regs, PicoCpuCM68k.d, 4*16);
+    old_sr = CycloneGetSr(&PicoCpuCM68k);
 
 #if 0
     {
@@ -65,20 +65,20 @@ int CM_compareRun(int cyc)
       dprintf("---");
       m68k_disassemble(buff, pppc, M68K_CPU_TYPE_68000);
       dprintf("PC: %06x: %04x: %s", pppc, ppop, buff);
-      //dprintf("A7: %08x", PicoCpu.a[7]);
+      //dprintf("A7: %08x", PicoCpuCM68k.a[7]);
     }
 #endif
 
     if (dbg_irq_level)
     {
-      PicoCpu.irq=dbg_irq_level;
+      PicoCpuCM68k.irq=dbg_irq_level;
       m68k_set_irq(dbg_irq_level);
       dbg_irq_level=0;
     }
 
-    PicoCpu.cycles=1;
-    CycloneRun(&PicoCpu);
-    cyc_cyclone=1-PicoCpu.cycles;
+    PicoCpuCM68k.cycles=1;
+    CycloneRun(&PicoCpuCM68k);
+    cyc_cyclone=1-PicoCpuCM68k.cycles;
     cyc_musashi=m68k_execute(1);
 
     if(cyc_cyclone != cyc_musashi) {
@@ -120,57 +120,57 @@ int CM_compareRun(int cyc)
 
     // compare regs
     for(i=0; i < 16; i++) {
-      if(PicoCpu.d[i] != m68ki_cpu.dar[i]) {
+      if(PicoCpuCM68k.d[i] != m68ki_cpu.dar[i]) {
         str = (i < 8) ? "d" : "a";
-        dprintf("reg: %s%i: %08x vs %08x", str, i&7, PicoCpu.d[i], m68ki_cpu.dar[i]);
+        dprintf("reg: %s%i: %08x vs %08x", str, i&7, PicoCpuCM68k.d[i], m68ki_cpu.dar[i]);
         err=1;
       }
     }
 
     // SR
-    if((CycloneGetSr(&PicoCpu)) != (mu_sr = m68k_get_reg(NULL, M68K_REG_SR))) {
-      dprintf("SR: %04x vs %04x (??s? 0iii 000x nzvc)", CycloneGetSr(&PicoCpu), mu_sr);
+    if((CycloneGetSr(&PicoCpuCM68k)) != (mu_sr = m68k_get_reg(NULL, M68K_REG_SR))) {
+      dprintf("SR: %04x vs %04x (??s? 0iii 000x nzvc)", CycloneGetSr(&PicoCpuCM68k), mu_sr);
       err=1;
     }
 
     // IRQl
-    if(PicoCpu.irq != (m68ki_cpu.int_level>>8)) {
-      dprintf("IRQ: %i vs %i", PicoCpu.irq, (m68ki_cpu.int_level>>8));
+    if(PicoCpuCM68k.irq != (m68ki_cpu.int_level>>8)) {
+      dprintf("IRQ: %i vs %i", PicoCpuCM68k.irq, (m68ki_cpu.int_level>>8));
       err=1;
     }
 
     // OSP/USP
-    if(PicoCpu.osp != m68ki_cpu.sp[((mu_sr>>11)&4)^4]) {
-      dprintf("OSP: %06x vs %06x", PicoCpu.osp, m68ki_cpu.sp[((mu_sr>>11)&4)^4]);
+    if(PicoCpuCM68k.osp != m68ki_cpu.sp[((mu_sr>>11)&4)^4]) {
+      dprintf("OSP: %06x vs %06x", PicoCpuCM68k.osp, m68ki_cpu.sp[((mu_sr>>11)&4)^4]);
       err=1;
     }
 
     // stopped
-    if(((PicoCpu.state_flags&1) && !m68ki_cpu.stopped) || (!(PicoCpu.state_flags&1) && m68ki_cpu.stopped)) {
-      dprintf("stopped: %i vs %i", PicoCpu.state_flags&1, m68ki_cpu.stopped);
+    if(((PicoCpuCM68k.state_flags&1) && !m68ki_cpu.stopped) || (!(PicoCpuCM68k.state_flags&1) && m68ki_cpu.stopped)) {
+      dprintf("stopped: %i vs %i", PicoCpuCM68k.state_flags&1, m68ki_cpu.stopped);
       err=1;
     }
 
     // tracing
-    if(((PicoCpu.state_flags&2) && !m68ki_tracing) || (!(PicoCpu.state_flags&2) && m68ki_tracing)) {
-      dprintf("tracing: %i vs %i", PicoCpu.state_flags&2, m68ki_tracing);
+    if(((PicoCpuCM68k.state_flags&2) && !m68ki_tracing) || (!(PicoCpuCM68k.state_flags&2) && m68ki_tracing)) {
+      dprintf("tracing: %i vs %i", PicoCpuCM68k.state_flags&2, m68ki_tracing);
       err=1;
     }
 
     if(err) dumpPCandExit();
 
 #if 0
-    if (PicoCpu.a[7] < 0x00ff0000 || PicoCpu.a[7] >= 0x01000000)
+    if (PicoCpuCM68k.a[7] < 0x00ff0000 || PicoCpuCM68k.a[7] >= 0x01000000)
     {
-      PicoCpu.a[7] = m68ki_cpu.dar[15] = 0xff8000;
+      PicoCpuCM68k.a[7] = m68ki_cpu.dar[15] = 0xff8000;
     }
 #endif
 #if 0
     m68k_set_reg(M68K_REG_SR, ((mu_sr-1)&~0x2000)|(mu_sr&0x2000)); // broken
-    CycloneSetSr(&PicoCpu, ((mu_sr-1)&~0x2000)|(mu_sr&0x2000));
-    PicoCpu.stopped = m68ki_cpu.stopped = 0;
-    if(SekPc > 0x400 && (PicoCpu.a[7] < 0xff0000 || PicoCpu.a[7] > 0xffffff))
-    PicoCpu.a[7] = m68ki_cpu.dar[15] = 0xff8000;
+    CycloneSetSr(&PicoCpuCM68k, ((mu_sr-1)&~0x2000)|(mu_sr&0x2000));
+    PicoCpuCM68k.stopped = m68ki_cpu.stopped = 0;
+    if(SekPc > 0x400 && (PicoCpuCM68k.a[7] < 0xff0000 || PicoCpuCM68k.a[7] > 0xffffff))
+    PicoCpuCM68k.a[7] = m68ki_cpu.dar[15] = 0xff8000;
 #endif
 
     cyc_done += cyc_cyclone;

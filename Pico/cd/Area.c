@@ -240,8 +240,8 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 	/* after load events */
 	if (Pico_mcd->s68k_regs[3]&4) // 1M mode?
 		wram_2M_to_1M(Pico_mcd->word_ram2M);
-#ifdef _ASM_CD_MEMORY_C
 	PicoMemResetCD(Pico_mcd->s68k_regs[3]);
+#ifdef _ASM_CD_MEMORY_C
 	if (Pico_mcd->s68k_regs[3]&4)
 		PicoMemResetCDdecode(Pico_mcd->s68k_regs[3]);
 #endif

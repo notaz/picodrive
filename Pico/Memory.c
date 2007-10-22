@@ -73,7 +73,7 @@ static u32 CPU_CALL PicoCheckPc(u32 pc)
 {
   u32 ret=0;
 #if defined(EMU_C68K)
-  pc-=PicoCpu.membase; // Get real pc
+  pc-=PicoCpuCM68k.membase; // Get real pc
 //  pc&=0xfffffe;
   pc&=~1;
   if ((pc<<8) == 0)
@@ -82,10 +82,10 @@ static u32 CPU_CALL PicoCheckPc(u32 pc)
     return (int)Pico.rom + Pico.romsize; // common crash condition, can happen if acc timing is off
   }
 
-  PicoCpu.membase=PicoMemBase(pc&0x00ffffff);
-  PicoCpu.membase-=pc&0xff000000;
+  PicoCpuCM68k.membase=PicoMemBase(pc&0x00ffffff);
+  PicoCpuCM68k.membase-=pc&0xff000000;
 
-  ret = PicoCpu.membase+pc;
+  ret = PicoCpuCM68k.membase+pc;
 #endif
   return ret;
 }
@@ -491,21 +491,35 @@ PICO_INTERNAL void PicoMemSetup(void)
 {
   // Setup memory callbacks:
 #ifdef EMU_C68K
-  PicoCpu.checkpc=PicoCheckPc;
-  PicoCpu.fetch8 =PicoCpu.read8 =PicoRead8;
-  PicoCpu.fetch16=PicoCpu.read16=PicoRead16;
-  PicoCpu.fetch32=PicoCpu.read32=PicoRead32;
-  PicoCpu.write8 =PicoWrite8;
-  PicoCpu.write16=PicoWrite16;
-  PicoCpu.write32=PicoWrite32;
+  PicoCpuCM68k.checkpc=PicoCheckPc;
+  PicoCpuCM68k.fetch8 =PicoCpuCM68k.read8 =PicoRead8;
+  PicoCpuCM68k.fetch16=PicoCpuCM68k.read16=PicoRead16;
+  PicoCpuCM68k.fetch32=PicoCpuCM68k.read32=PicoRead32;
+  PicoCpuCM68k.write8 =PicoWrite8;
+  PicoCpuCM68k.write16=PicoWrite16;
+  PicoCpuCM68k.write32=PicoWrite32;
 #endif
 #ifdef EMU_F68K
-  PicoCpuM68k.read_byte =PicoRead8;
-  PicoCpuM68k.read_word =PicoRead16;
-  PicoCpuM68k.read_long =PicoRead32;
-  PicoCpuM68k.write_byte=PicoWrite8;
-  PicoCpuM68k.write_word=PicoWrite16;
-  PicoCpuM68k.write_long=PicoWrite32;
+  PicoCpuFM68k.read_byte =PicoRead8;
+  PicoCpuFM68k.read_word =PicoRead16;
+  PicoCpuFM68k.read_long =PicoRead32;
+  PicoCpuFM68k.write_byte=PicoWrite8;
+  PicoCpuFM68k.write_word=PicoWrite16;
+  PicoCpuFM68k.write_long=PicoWrite32;
+
+  // setup FAME fetchmap
+  {
+    int i;
+    // by default, point everything to fitst 64k of ROM
+    for (i = 0; i < M68K_FETCHBANK1; i++)
+      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
+    // now real ROM
+    for (i = 0; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < Pico.romsize; i++)
+      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico.rom;
+    // .. and RAM
+    for (i = M68K_FETCHBANK1*14/16; i < M68K_FETCHBANK1; i++)
+      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico.ram - (i<<(24-FAMEC_FETCHBITS));
+  }
 #endif
 }
 

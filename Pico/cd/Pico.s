@@ -1,6 +1,6 @@
 @ vim:filetype=armasm
 
-@ SekRunPS runs PicoCpu and PicoCpuS68k interleaved in steps of PS_STEP_M68K
+@ SekRunPS runs PicoCpuCM68k and PicoCpuCS68k interleaved in steps of PS_STEP_M68K
 @ cycles. This is done without calling CycloneRun and jumping directly to
 @ Cyclone code to avoid pushing/popping all the registers every time.
 
@@ -13,8 +13,8 @@
 @ .extern is ignored by gas, we add these here just to see what we depend on.
 .extern CycloneJumpTab
 .extern CycloneDoInterrupt
-.extern PicoCpu
-.extern PicoCpuS68k
+.extern PicoCpuCM68k
+.extern PicoCpuCS68k
 .extern SekCycleAim
 .extern SekCycleCnt
 .extern SekCycleAimS68k
@@ -32,8 +32,8 @@ SekRunPS:
     sub     sp, sp, #2*4          @ sp[0] = main_cycle_cnt, sp[4] = run_cycle_cnt
 
     @ override CycloneEnd for both contexts
-    ldr     r7, =PicoCpu
-    ldr     lr, =PicoCpuS68k
+    ldr     r7, =PicoCpuCM68k
+    ldr     lr, =PicoCpuCS68k
     ldr     r2, =CycloneEnd_M68k
     ldr     r3, =CycloneEnd_S68k
     str     r2, [r7,#0x98]
@@ -90,7 +90,7 @@ schedule_s68k:
     subs    r5, r0, r3, asr #16
     ble     schedule_m68k             @ s68k has not enough cycles
 
-    ldr     r7, =PicoCpuS68k
+    ldr     r7, =PicoCpuCS68k
     str     r5, [sp,#4]               @ run_cycle_cnt
     b       CycloneRunLocal
 
@@ -122,15 +122,15 @@ schedule_m68k:
     subs    r5, r0, r3, asr #16
     ble     schedule_s68k             @ m68k has not enough cycles
 
-    ldr     r7, =PicoCpu
+    ldr     r7, =PicoCpuCM68k
     str     r5, [sp,#4]               @ run_cycle_cnt
     b       CycloneRunLocal
 
 
 
 SekRunPS_end:
-    ldr     r7, =PicoCpu
-    ldr     lr, =PicoCpuS68k
+    ldr     r7, =PicoCpuCM68k
+    ldr     lr, =PicoCpuCS68k
     mov     r0, #0
     str     r0, [r7,#0x98]            @ remove CycloneEnd handler
     str     r0, [lr,#0x98]

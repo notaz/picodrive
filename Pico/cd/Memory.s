@@ -136,7 +136,7 @@ m_s68k_decode_write_table:
 .extern gfx_cd_write16
 .extern s68k_reg_write8
 .extern s68k_poll_adclk
-.extern PicoCpuS68k
+.extern PicoCpuMS68k
 .extern s68k_poll_detect
 .extern SN76496Write
 .extern m_m68k_read8_misc
@@ -1259,7 +1259,7 @@ m_m68k_write16_regs_spec:               @ special case
     and     r2, r2, #0xfe
     cmp     r2, #0x0e
     bxne    lr
-    ldr     r0, =PicoCpuS68k
+    ldr     r0, =PicoCpuCS68k
     str     r1, [r0, #0x58]             @ push s68k out of stopped state
     str     r1, [r3]
     bx      lr
@@ -1450,7 +1450,7 @@ m_m68k_write32_regs_comm:             @ Handle the 0x10-0x1f range
     strneh  r1, [r2, #2]
     cmp     r0, #0x10
     bxlt    lr
-    ldr     r0, =PicoCpuS68k          @ remove poll detected state for s68k
+    ldr     r0, =PicoCpuCS68k         @ remove poll detected state for s68k
     mov     r1, #0
     str     r1, [r0, #0x58]
     str     r1, [r3]

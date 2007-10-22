@@ -382,7 +382,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
         if(num < 2) {
 #ifdef EMU_C68K
           // hack: make sure we do not touch the irq line if Cyclone is just about to take the IRQ
-          if (PicoCpu.irq <= (PicoCpu.srh&7)) {
+          if (PicoCpuCM68k.irq <= (PicoCpuCM68k.srh&7)) {
 #endif
             int lines, pints;
             lines = (pvid->reg[1] & 0x20) | (pvid->reg[0] & 0x10);
@@ -392,7 +392,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
             else SekInterrupt(0);
 #ifdef EMU_C68K
             // adjust cycles for Cyclone so it would take the int "in time"
-            if(PicoCpu.irq) {
+            if(PicoCpuCM68k.irq) {
               SekEndRun(24);
             }
           }

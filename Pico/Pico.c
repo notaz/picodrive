@@ -209,9 +209,9 @@ static __inline void SekRunM68k(int cyc)
   // this means we do run-compare Cyclone vs Musashi
   SekCycleCnt+=CM_compareRun(cyc_do);
 #elif defined(EMU_C68K)
-  PicoCpu.cycles=cyc_do;
-  CycloneRun(&PicoCpu);
-  SekCycleCnt+=cyc_do-PicoCpu.cycles;
+  PicoCpuCM68k.cycles=cyc_do;
+  CycloneRun(&PicoCpuCM68k);
+  SekCycleCnt+=cyc_do-PicoCpuCM68k.cycles;
 #elif defined(EMU_M68K)
   SekCycleCnt+=m68k_execute(cyc_do);
 #elif defined(EMU_F68K)
@@ -227,9 +227,9 @@ static __inline void SekStep(void)
   // this means we do run-compare Cyclone vs Musashi
   SekCycleCnt+=CM_compareRun(1);
 #elif defined(EMU_C68K)
-  PicoCpu.cycles=1;
-  CycloneRun(&PicoCpu);
-  SekCycleCnt+=1-PicoCpu.cycles;
+  PicoCpuCM68k.cycles=1;
+  CycloneRun(&PicoCpuCM68k);
+  SekCycleCnt+=1-PicoCpuCM68k.cycles;
 #elif defined(EMU_M68K)
   SekCycleCnt+=m68k_execute(1);
 #elif defined(EMU_F68K)
@@ -240,27 +240,16 @@ static __inline void SekStep(void)
 
 static int CheckIdle(void)
 {
-#if 1
-  unsigned char state[0x88];
-
-  memset(state,0,sizeof(state));
+  int i, state[0x22];
 
   // See if the state is the same after 2 steps:
-  SekState(state); SekStep(); SekStep(); SekState(state+0x44);
-  if (memcmp(state,state+0x44,0x44)==0) return 1;
-#else
-  unsigned char state[0x44];
-  static unsigned char oldstate[0x44];
+  SekState(state); SekStep(); SekStep(); SekState(state+0x11);
+  for (i = 0x10; i >= 0; i--)
+    if (state[i] != state[i+0x11]) return 0;
 
-  SekState(state);
-  if(memcmp(state,oldstate,0x40)==0) return 1;
-  memcpy(oldstate, state, 0x40);
-#endif
-
-  return 0;
+  return 1;
 }
 
-void lprintf_al(const char *fmt, ...);
 
 // to be called on 224 or line_sample scanlines only
 static __inline void getSamples(int y)
@@ -284,140 +273,7 @@ static __inline void getSamples(int y)
 }
 
 
-#if 1*0
-int vint_delay = 205/*68*/, as_delay = 18/*148*/;
-
-// Accurate but slower frame which does hints
-static int PicoFrameHints(void)
-{
-  struct PicoVideo *pv=&Pico.video;
-  int total_z80=0,lines,y,lines_vis = 224,z80CycleAim = 0,line_sample;
-  const int cycles_68k=488,cycles_z80=228; // both PAL and NTSC compile to same values
-  int skip=PicoSkipFrame || (PicoOpt&0x10);
-  int hint; // Hint counter
-
-  if(Pico.m.pal) { //
-    //cycles_68k = (int) ((double) OSC_PAL  /  7 / 50 / 312 + 0.4); // should compile to a constant (488)
-    //cycles_z80 = (int) ((double) OSC_PAL  / 15 / 50 / 312 + 0.4); // 228
-    lines  = 312;    // Steve Snake says there are 313 lines, but this seems to also work well
-    line_sample = 68;
-    if(pv->reg[1]&8) lines_vis = 240;
-  } else {
-    //cycles_68k = (int) ((double) OSC_NTSC /  7 / 60 / 262 + 0.4); // 488
-    //cycles_z80 = (int) ((double) OSC_NTSC / 15 / 60 / 262 + 0.4); // 228
-    lines  = 262;
-    line_sample = 93;
-  }
-
-  SekCyclesReset();
-  //z80ExtraCycles = 0;
-
-  if(PicoOpt&4)
-    z80CycleAim = 0;
-//    z80_resetCycles();
-
-  pv->status&=~0x88; // clear V-Int, come out of vblank
-
-  hint=pv->reg[10]; // Load H-Int counter
-  //dprintf("-hint: %i", hint);
-
-  //SekRun(as_delay);
-  SekRun(148);
-
-  for (y=0;y<lines;y++)
-  {
-    Pico.m.scanline=(short)y;
-
-    // VDP FIFO
-    pv->lwrite_cnt -= 12;
-    if (pv->lwrite_cnt <  0) pv->lwrite_cnt=0;
-    if (pv->lwrite_cnt == 0)
-      Pico.video.status|=0x200;
-
-    // pad delay (for 6 button pads)
-    if(PicoOpt&0x20) {
-      if(Pico.m.padDelay[0]++ > 25) Pico.m.padTHPhase[0]=0;
-      if(Pico.m.padDelay[1]++ > 25) Pico.m.padTHPhase[1]=0;
-    }
-
-    // H-Interrupts:
-    if(y <= lines_vis && --hint < 0) // y <= lines_vis: Comix Zone, Golden Axe
-    {
-      //dprintf("rhint:old @ %06x", SekPc);
-      hint=pv->reg[10]; // Reload H-Int counter
-      pv->pending_ints|=0x10;
-      if (pv->reg[0]&0x10) {
-        elprintf(EL_INTS, "hint: @ %06x [%i]", SekPc, SekCycleCnt);
-        SekInterrupt(4);
-      }
-      //dprintf("hint_routine: %x", (*(unsigned short*)(Pico.ram+0x0B84)<<16)|*(unsigned short*)(Pico.ram+0x0B86));
-    }
-
-    // V-Interrupt:
-    if (y == lines_vis)
-    {
-      pv->status|=0x08; // go into vblank
-      //pv->status|=0x80; // V-Int happened
-      //if(!Pico.m.dma_bytes||(Pico.video.reg[0x17]&0x80)) {
-        // there must be a gap between H and V ints, also after vblank bit set (Mazin Saga, Bram Stoker's Dracula)
-        SekRun(68); SekCycleAim-=68; // 128; ?
-        SekCycleAim-=148;
-//       SekRun(vint_delay); SekCycleAim-=vint_delay; // 128; ?
-//	SekCycleAim-=as_delay;
-      //}
-      pv->pending_ints|=0x20;
-      if(pv->reg[1]&0x20) {
-        elprintf(EL_INTS, "vint: @ %06x [%i]", SekPc, SekCycleCnt);
-        SekInterrupt(6);
-      }
-      if(Pico.m.z80Run && (PicoOpt&4)) // ?
-        z80_int();
-      //dprintf("zint: [%i|%i] zPC=%04x", Pico.m.scanline, SekCyclesDone(), mz80GetRegisterValue(NULL, 0));
-    }
-
-    // decide if we draw this line
-#if CAN_HANDLE_240_LINES
-    if(!skip && ((!(pv->reg[1]&8) && y<224) || ((pv->reg[1]&8) && y<240)) )
-#else
-    if(!skip && y<224)
-#endif
-      PicoLine(y);
-
-    if(PicoOpt&1)
-      sound_timers_and_dac(y);
-
-    // get samples from sound chips
-    if(y == 32 && PsndOut)
-      emustatus &= ~1;
-    else if((y == 224 || y == line_sample) && PsndOut)
-      getSamples(y);
-
-    // Run scanline:
-    if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
-    SekRun(cycles_68k);
-    if ((PicoOpt&4) && Pico.m.z80Run) {
-      if (Pico.m.z80Run & 2) z80CycleAim+=cycles_z80;
-      else {
-        int cnt = SekCyclesDone() - z80startCycle;
-        cnt = (cnt>>1)-(cnt>>5);
-        //if (cnt > cycles_z80) printf("FIXME: z80 cycles: %i\n", cnt);
-        if (cnt > cycles_z80) cnt = cycles_z80;
-        Pico.m.z80Run |= 2;
-        z80CycleAim+=cnt;
-      }
-      total_z80+=z80_run(z80CycleAim-total_z80);
-    }
-  }
-
-  // draw a frame just after vblank in alternative render mode
-  if(!PicoSkipFrame && (PicoOpt&0x10))
-    PicoFrameFull();
-
-  return 0;
-}
-#else
 #include "PicoFrameHints.c"
-#endif
 
 // helper z80 runner. Runs only if z80 is enabled at this point
 // (z80WriteBusReq will handle the rest)
@@ -664,17 +520,17 @@ char *debugString(void)
   sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status);
   dstrp+=strlen(dstrp);
 #if defined(EMU_C68K)
-  sprintf(dstrp, "M68k: PC: %06x, st_flg: %x, cycles: %u\n", SekPc, PicoCpu.state_flags, SekCyclesDoneT());
+  sprintf(dstrp, "M68k: PC: %06x, st_flg: %x, cycles: %u\n", SekPc, PicoCpuCM68k.state_flags, SekCyclesDoneT());
   dstrp+=strlen(dstrp);
-  sprintf(dstrp, "d0=%08x, a0=%08x, osp=%08x, irql=%i\n", PicoCpu.d[0], PicoCpu.a[0], PicoCpu.osp, PicoCpu.irq); dstrp+=strlen(dstrp);
-  sprintf(dstrp, "d1=%08x, a1=%08x,  sr=%04x\n", PicoCpu.d[1], PicoCpu.a[1], CycloneGetSr(&PicoCpu)); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "d0=%08x, a0=%08x, osp=%08x, irql=%i\n", PicoCpuCM68k.d[0], PicoCpuCM68k.a[0], PicoCpuCM68k.osp, PicoCpuCM68k.irq); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "d1=%08x, a1=%08x,  sr=%04x\n", PicoCpuCM68k.d[1], PicoCpuCM68k.a[1], CycloneGetSr(&PicoCpuCM68k)); dstrp+=strlen(dstrp);
   for(r=2; r < 8; r++) {
-    sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, PicoCpu.d[r], r, PicoCpu.a[r]); dstrp+=strlen(dstrp);
+    sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, PicoCpuCM68k.d[r], r, PicoCpuCM68k.a[r]); dstrp+=strlen(dstrp);
   }
 #elif defined(EMU_M68K)
-  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoM68kCPU.int_level>>8); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuMM68k.int_level>>8); dstrp+=strlen(dstrp);
 #elif defined(EMU_F68K)
-  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuM68k.interrupts[0]); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuFM68k.interrupts[0]); dstrp+=strlen(dstrp);
 #endif
   sprintf(dstrp, "z80Run: %i, pal: %i, frame#: %i\n", Pico.m.z80Run, Pico.m.pal, Pico.m.frame_count); dstrp+=strlen(dstrp);
   z80_debug(dstrp); dstrp+=strlen(dstrp);

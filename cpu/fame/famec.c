@@ -626,35 +626,6 @@ static const s32 exception_cycle_table[256] =
 };
 
 
-/********************/
-/* helper functions */
-/********************/
-
-
-#if 0
-static void famec_SetFetch(u32 low_adr, u32 high_adr, u32 fetch_adr)
-{
-    u32 i, j;
-
-	i = (low_adr >> M68K_FETCHSFT) & M68K_FETCHMASK;
-	j = (high_adr >> M68K_FETCHSFT) & M68K_FETCHMASK;
-
-	while (i <= j)
-		g_m68kcontext->Fetch[i++] = fetch_adr;
-}
-
-static void famec_SetBanks(void)
-{
-	u32 i=0;
-	while(m68kcontext.fetch[i].low_addr != (u32)-1)
-	{
-		famec_SetFetch(m68kcontext.fetch[i].low_addr,m68kcontext.fetch[i].high_addr,m68kcontext.fetch[i].offset);
-		i++;
-	}
-}
-#endif
-
-
 /***********************/
 /* core main functions */
 /***********************/

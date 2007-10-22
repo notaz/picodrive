@@ -125,21 +125,6 @@ typedef union
 	signed int SD;
 } famec_union32;
 
-/* The memory blocks must be in native (Motorola) format */
-struct M68K_PROGRAM {
-	unsigned low_addr;
-	unsigned high_addr;
-	unsigned offset;
-};
-
-/* The memory blocks must be in native (Motorola) format */
-struct M68K_DATA {
-	unsigned low_addr;
-	unsigned high_addr;
-	void    *mem_handler;
-	void    *data;
-};
-
 /* M68K CPU CONTEXT */
 typedef struct
 {
