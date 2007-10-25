@@ -38,6 +38,7 @@ If you have any problems (game does not boot, sound is glitchy, broken graphics)
 make sure you enable "Accurate timing", "Emulate Z80" and use "16bit accurate
 renderer". This way you will get the best compatibility this emulator can
 provide.
+For possible Sega/Mega CD problems, see "Other important stuff" section below.
 
 
 How to run Sega/Mega CD games

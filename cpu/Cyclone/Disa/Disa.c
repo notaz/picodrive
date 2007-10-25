@@ -11,7 +11,7 @@ unsigned int DisaPc=0;
 char *DisaText=NULL; // Text buffer to write in
 static char Tasm[]="bwl?";
 static char Comment[64]="";
-unsigned short (CPU_CALL *DisaWord)(unsigned int a)=NULL;
+unsigned short (*DisaWord)(unsigned int a)=NULL;
 
 static unsigned int DisaLong(unsigned int a)
 {

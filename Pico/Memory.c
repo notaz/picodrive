@@ -69,7 +69,7 @@ static __inline int PicoMemBase(u32 pc)
 #endif
 
 
-static u32 CPU_CALL PicoCheckPc(u32 pc)
+static u32 PicoCheckPc(u32 pc)
 {
   u32 ret=0;
 #if defined(EMU_C68K)
@@ -315,7 +315,7 @@ static void OtherWrite8End(u32 a,u32 d,int realsize)
 //                     Read Rom and read Ram
 
 #ifndef _ASM_MEMORY_C
-PICO_INTERNAL_ASM u32 CPU_CALL PicoRead8(u32 a)
+PICO_INTERNAL_ASM u32 PicoRead8(u32 a)
 {
   u32 d=0;
 
@@ -351,7 +351,7 @@ end:
   return d;
 }
 
-PICO_INTERNAL_ASM u32 CPU_CALL PicoRead16(u32 a)
+PICO_INTERNAL_ASM u32 PicoRead16(u32 a)
 {
   u32 d=0;
 
@@ -387,7 +387,7 @@ end:
   return d;
 }
 
-PICO_INTERNAL_ASM u32 CPU_CALL PicoRead32(u32 a)
+PICO_INTERNAL_ASM u32 PicoRead32(u32 a)
 {
   u32 d=0;
 
@@ -426,7 +426,7 @@ end:
 //                            Write Ram
 
 #ifndef _ASM_MEMORY_C
-PICO_INTERNAL_ASM void CPU_CALL PicoWrite8(u32 a,u8 d)
+PICO_INTERNAL_ASM void PicoWrite8(u32 a,u8 d)
 {
 #ifdef __debug_io
   dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
@@ -446,7 +446,7 @@ PICO_INTERNAL_ASM void CPU_CALL PicoWrite8(u32 a,u8 d)
 }
 #endif
 
-void CPU_CALL PicoWrite16(u32 a,u16 d)
+void PicoWrite16(u32 a,u16 d)
 {
 #ifdef __debug_io
   dprintf("w16: %06x, %04x", a&0xffffff, d);
@@ -462,7 +462,7 @@ void CPU_CALL PicoWrite16(u32 a,u16 d)
   OtherWrite16(a,d);
 }
 
-static void CPU_CALL PicoWrite32(u32 a,u32 d)
+static void PicoWrite32(u32 a,u32 d)
 {
 #ifdef __debug_io
   dprintf("w32: %06x, %08x", a&0xffffff, d);

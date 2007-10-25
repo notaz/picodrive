@@ -3,7 +3,6 @@
 #ifndef PORT_CONFIG_H
 #define PORT_CONFIG_H
 
-#define CPU_CALL
 #define NO_SYNC
 
 // draw2.c

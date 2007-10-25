@@ -3,8 +3,6 @@
 #ifndef PORT_CONFIG_H
 #define PORT_CONFIG_H
 
-#define CPU_CALL
-
 // draw2.c
 #define START_ROW  1 // which row of tiles to start rendering at?
 #define END_ROW   27 // ..end

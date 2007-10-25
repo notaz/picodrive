@@ -5,7 +5,7 @@ int opend_op_changes_cycles, opend_check_interrupt, opend_check_trace;
 
 static unsigned char OpData[16]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
-static unsigned short CPU_CALL OpRead16(unsigned int a)
+static unsigned short OpRead16(unsigned int a)
 {
   return (unsigned short)( (OpData[a&15]<<8) | OpData[(a+1)&15] );
 }

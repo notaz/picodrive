@@ -64,34 +64,24 @@ void psp_init(void)
 	sceGuInit();
 
 	sceGuStart(GU_DIRECT, guCmdList);
-	sceGuDrawBuffer(GU_PSM_5650, VRAMOFFS_FB0, 512); // point to back fb?
-	sceGuDispBuffer(480, 272, VRAMOFFS_FB1, 512);
+	sceGuDrawBuffer(GU_PSM_5650, (void *)VRAMOFFS_FB0, 512);
+	sceGuDispBuffer(480, 272, (void *)VRAMOFFS_FB1, 512); // don't care
 	sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
-	sceGuDepthBuffer(VRAMOFFS_DEPTH, 512);
+	sceGuDepthBuffer((void *)VRAMOFFS_DEPTH, 512);
 	sceGuOffset(2048 - (480 / 2), 2048 - (272 / 2));
 	sceGuViewport(2048, 2048, 480, 272);
 	sceGuDepthRange(0xc350, 0x2710);
 	sceGuScissor(0, 0, 480, 272);
 	sceGuEnable(GU_SCISSOR_TEST);
-//	sceGuAlphaFunc(GU_GREATER, 0, 0xff);
-//	sceGuEnable(GU_ALPHA_TEST);
-//	sceGuDepthFunc(GU_ALWAYS); // GU_GEQUAL);
-//	sceGuEnable(GU_DEPTH_TEST);
 
 	sceGuDepthMask(0xffff);
 	sceGuDisable(GU_DEPTH_TEST);
 
 	sceGuFrontFace(GU_CW);
-//	sceGuShadeModel(GU_SMOOTH);
-//	sceGuEnable(GU_CULL_FACE);
 	sceGuEnable(GU_TEXTURE_2D);
-//	sceGuEnable(GU_CLIP_PLANES);
-	sceGuTexMode(GU_PSM_5650, 0, 0, 0);
 	sceGuTexFunc(GU_TFX_REPLACE, GU_TCC_RGB);
-	sceGuTexFilter(GU_NEAREST, GU_NEAREST);
-//	sceGuAmbientColor(0xffffffff);
-//	sceGuEnable(GU_BLEND);
-//	sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+	sceGuAmbientColor(0xffffffff);
+	sceGuColor(0xffffffff);
 	sceGuFinish();
 	sceGuSync(0, 0);
 

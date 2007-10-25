@@ -316,7 +316,7 @@ static int PicoFrameSimple(void)
   int cycles_68k_vblock,cycles_68k_block;
 
   // split to 16 run calls for active scan, for vblank split to 2 (ntsc), 3 (pal 240), 4 (pal 224)
-  if (Pico.m.pal && (pv->reg[1]&8)) { // 240 lines
+  if (Pico.m.pal && (pv->reg[1]&8)) {
     if(pv->reg[1]&8) { // 240 lines
       cycles_68k_block  = 7329;  // (488*240+148)/16.0, -4
       cycles_68k_vblock = 11640; // (72*488-148-68)/3.0, 0
@@ -378,14 +378,6 @@ static int PicoFrameSimple(void)
     PicoRunZ80Simple(line, lines);
   }
 
-  // here we render sound if ym2612 is disabled
-  if (!(PicoOpt&1) && PsndOut) {
-    int len = sound_render(0, PsndLen);
-    if (PicoWriteSound) PicoWriteSound(len);
-    // clear sound buffer
-    sound_clear();
-  }
-
   // render screen
   if (!PicoSkipFrame)
   {
@@ -401,6 +393,17 @@ static int PicoFrameSimple(void)
       for (y=0;y<224;y++) PicoLine(y);
 #endif
     else PicoFrameFull();
+#ifdef DRAW_FINISH_FUNC
+    DRAW_FINISH_FUNC();
+#endif
+  }
+
+  // here we render sound if ym2612 is disabled
+  if (!(PicoOpt&1) && PsndOut) {
+    int len = sound_render(0, PsndLen);
+    if (PicoWriteSound) PicoWriteSound(len);
+    // clear sound buffer
+    sound_clear();
   }
 
   // a gap between flags set and vint

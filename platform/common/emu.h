@@ -20,7 +20,9 @@ typedef struct {
 	int JoyBinds[4][32];
 	int PicoAutoRgnOrder;
 	int PicoCDBuffers;
-	int scaling; // 0=center, 1=hscale, 2=hvscale, 3=hsoftscale
+	int scaling; // gp2x: 0=center, 1=hscale, 2=hvscale, 3=hsoftscale; psp: bilinear filtering
+	float scale; // psp: screen scale
+	float hscale32, hscale40; // psp: horizontal scale
 } currentConfig_t;
 
 

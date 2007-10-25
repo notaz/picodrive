@@ -3,8 +3,6 @@
 #ifndef PORT_CONFIG_H
 #define PORT_CONFIG_H
 
-#define CPU_CALL
-
 // draw.c
 #define OVERRIDE_HIGHCOL 0
 

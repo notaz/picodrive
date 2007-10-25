@@ -11,9 +11,9 @@ amalgamate = 0
 
 
 CFLAGS += -I../.. -I. -D_UNZIP_SUPPORT -DNO_SYNC # -DBENCHMARK
-CFLAGS += -Wall -Winline
+CFLAGS += -Wall -Winline -G0
 ifeq ($(DEBUG),)
-CFLAGS += -O2 -G0 -ftracer -fstrength-reduce -ffast-math
+CFLAGS += -O2 -ftracer -fstrength-reduce -ffast-math
 else
 CFLAGS += -ggdb
 endif
@@ -52,7 +52,8 @@ OBJS += ../../Pico/sound/mix.o
 OBJS += ../../Pico/sound/sn76496.o ../../Pico/sound/ym2612.o
 # zlib (hacked)
 OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/inftrees.o ../../zlib/trees.o \
-	../../zlib/deflate.o ../../zlib/crc32.o ../../zlib/adler32.o ../../zlib/zutil.o ../../zlib/compress.o
+	../../zlib/deflate.o ../../zlib/crc32.o ../../zlib/adler32.o ../../zlib/zutil.o ../../zlib/compress.o \
+	../../zlib/uncompr.o
 # unzip
 OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
 # CPU cores
@@ -70,6 +71,8 @@ OBJS += ../../cpu/mz80/mz80.o
 else
 $(error nothing here!)
 endif
+# bg images
+OBJS += data/bg32.o data/bg40.o
 
 
 LIBS += -lpng -lm -lpspgu -lpsppower -Wl,-Map=PicoDrive.map # -lpspaudio -lpsphprm
@@ -109,7 +112,13 @@ readme.txt: ../../tools/textfilter ../base_readme.txt
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -Wno-unused -c $< -o $@
 
-# ?
+data/bg32.o: data/bg32.bin
+	bin2o -i $< $@ bgdatac32
+
+data/bg40.o: data/bg40.bin
+	bin2o -i $< $@ bgdatac40
+
+#
 up: EBOOT.PBP
 	@cp -v $^ /media/disk/PSP/GAME/PicoDrive/
 

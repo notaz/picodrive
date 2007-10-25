@@ -3,8 +3,6 @@
 #ifndef PORT_CONFIG_H
 #define PORT_CONFIG_H
 
-#define CPU_CALL
-
 // draw.c
 #define USE_BGR555 1
 #define OVERRIDE_HIGHCOL 1
@@ -15,6 +13,8 @@
 #define DRAW2_OVERRIDE_LINE_WIDTH 512
 
 // pico.c
+extern void blit1(void);
+#define DRAW_FINISH_FUNC blit1
 #define CAN_HANDLE_240_LINES	1
 
 // logging emu events

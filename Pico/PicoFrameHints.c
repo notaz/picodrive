@@ -139,6 +139,10 @@ static int PicoFrameHints(void)
 #endif
   }
 
+#ifdef DRAW_FINISH_FUNC
+  DRAW_FINISH_FUNC();
+#endif
+
   // V-int line (224 or 240)
   Pico.m.scanline=(short)y;
 

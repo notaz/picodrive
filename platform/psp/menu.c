@@ -6,7 +6,6 @@
 // don't like to use loads of #ifdefs, so duplicating GP2X code
 // horribly instead
 
-//#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <wchar.h>
@@ -16,6 +15,7 @@
 #include <pspdisplay.h>
 #include <pspgu.h>
 #include <pspiofilemgr.h>
+#include <psputils.h>
 
 #include "psp.h"
 #include "emu.h"
@@ -39,11 +39,11 @@ static const char * const pspKeyNames[] = {
 	pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn
 };
 
-static unsigned char bg_buffer[480*272*2] __attribute__((aligned(16))); // TODO: move to vram?
+static unsigned short bg_buffer[480*272] __attribute__((aligned(16)));
 #define menu_screen psp_screen
 
 static void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
-static void menu_prepare_bg(int use_game_bg);
+static void menu_prepare_bg(int use_game_bg, int use_back_buff);
 
 
 static unsigned int inp_prev = 0;
@@ -495,24 +495,38 @@ static void state_check_slots(void)
 	}
 }
 
+static void *get_oldstate_for_preview(void)
+{
+	unsigned char *ptr = malloc(sizeof(Pico.vram) + sizeof(Pico.cram) + sizeof(Pico.vsram) + sizeof(Pico.video));
+	if (ptr == NULL) return NULL;
+
+	memcpy(ptr, Pico.vram, sizeof(Pico.vram));
+	memcpy(ptr + sizeof(Pico.vram), Pico.cram, sizeof(Pico.cram));
+	memcpy(ptr + sizeof(Pico.vram) + sizeof(Pico.cram), Pico.vsram, sizeof(Pico.vsram));
+	memcpy(ptr + sizeof(Pico.vram) + sizeof(Pico.cram) + sizeof(Pico.vsram), &Pico.video, sizeof(Pico.video));
+	return ptr;
+}
+
+static void restore_oldstate(void *ptrx)
+{
+	unsigned char *ptr = ptrx;
+	memcpy(Pico.vram,  ptr,  sizeof(Pico.vram));
+	memcpy(Pico.cram,  ptr + sizeof(Pico.vram), sizeof(Pico.cram));
+	memcpy(Pico.vsram, ptr + sizeof(Pico.vram) + sizeof(Pico.cram), sizeof(Pico.vsram));
+	memcpy(&Pico.video,ptr + sizeof(Pico.vram) + sizeof(Pico.cram) + sizeof(Pico.vsram), sizeof(Pico.video));
+	free(ptrx);
+}
+
 static void draw_savestate_bg(int slot)
 {
-	struct PicoVideo tmp_pv;
-	unsigned short tmp_cram[0x40];
-	unsigned short tmp_vsram[0x40];
-	void *tmp_vram, *file;
+	void *file, *oldstate;
 	char *fname;
 
 	fname = emu_GetSaveFName(1, 0, slot);
 	if (!fname) return;
 
-	tmp_vram = malloc(sizeof(Pico.vram));
-	if (tmp_vram == NULL) return;
-
-	memcpy(tmp_vram, Pico.vram, sizeof(Pico.vram));
-	memcpy(tmp_cram, Pico.cram, sizeof(Pico.cram));
-	memcpy(tmp_vsram, Pico.vsram, sizeof(Pico.vsram));
-	memcpy(&tmp_pv, &Pico.video, sizeof(Pico.video));
+	oldstate = get_oldstate_for_preview();
+	if (oldstate == NULL) return;
 
 	if (strcmp(fname + strlen(fname) - 3, ".gz") == 0) {
 		file = gzopen(fname, "rb");
@@ -538,13 +552,9 @@ static void draw_savestate_bg(int slot)
 	}
 
 	emu_forcedFrame();
-	menu_prepare_bg(1);
+	menu_prepare_bg(1, 1);
 
-	memcpy(Pico.vram, tmp_vram, sizeof(Pico.vram));
-	memcpy(Pico.cram, tmp_cram, sizeof(Pico.cram));
-	memcpy(Pico.vsram, tmp_vsram, sizeof(Pico.vsram));
-	memcpy(&Pico.video, &tmp_pv,  sizeof(Pico.video));
-	free(tmp_vram);
+	restore_oldstate(oldstate);
 }
 
 static void draw_savestate_menu(int menu_sel, int is_loading)
@@ -595,7 +605,7 @@ static int savestate_menu_loop(int is_loading)
 		if(inp & BTN_X) { // save/load
 			if (menu_sel < 10) {
 				state_slot = menu_sel;
-				PicoStateProgressCB = emu_stateCb; /* also suitable for menu */
+				PicoStateProgressCB = emu_msg_cb; /* also suitable for menu */
 				if (emu_SaveLoadGame(is_loading, 0)) {
 					strcpy(menuErrorMsg, is_loading ? "Load failed" : "Save failed");
 					return 1;
@@ -944,6 +954,150 @@ static void cd_menu_loop_options(void)
 	}
 }
 
+// --------- display options ----------
+
+menu_entry opt3_entries[] =
+{
+	{ NULL,                        MB_NONE,  MA_OPT3_SCALE,         NULL, 0, 0, 0, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT3_HSCALE32,      NULL, 0, 0, 0, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT3_HSCALE40,      NULL, 0, 0, 0, 1 },
+	{ NULL,                        MB_ONOFF, MA_OPT3_FILTERING,     &currentConfig.scaling, 1, 0, 0, 1 },
+	{ "Set to unscaled centered",  MB_NONE,  MA_OPT3_PRES_NOSCALE,  NULL, 0, 0, 0, 1 },
+	{ "Set to fullscreen",         MB_NONE,  MA_OPT3_PRES_FULLSCR,  NULL, 0, 0, 0, 1 },
+	{ "done",                      MB_NONE,  MA_OPT3_DONE,          NULL, 0, 0, 0, 1 },
+};
+
+#define OPT3_ENTRY_COUNT (sizeof(opt3_entries) / sizeof(opt3_entries[0]))
+
+
+static void menu_opt3_cust_draw(const menu_entry *entry, int x, int y, void *param)
+{
+	switch (entry->id)
+	{
+		case MA_OPT3_SCALE:
+			text_out16(x, y, "Scale factor:                      %.2f", currentConfig.scale);
+			break;
+		case MA_OPT3_HSCALE32:
+			text_out16(x, y, "Hor. scale (for low res. games):   %.2f", currentConfig.hscale32);
+			break;
+		case MA_OPT3_HSCALE40:
+			text_out16(x, y, "Hor. scale (for hi res. games):    %.2f", currentConfig.hscale40);
+			break;
+		case MA_OPT3_FILTERING:
+			text_out16(x, y, "Bilinear filtering                 %s", currentConfig.scaling?"ON":"OFF");
+			break;
+		default: break;
+	}
+}
+
+static void menu_opt3_preview(int is_32col)
+{
+	void *oldstate = NULL;
+
+	if (rom_data == NULL || ((Pico.video.reg[12]&1)^1) != is_32col)
+	{
+		extern char bgdatac32_start[], bgdatac40_start[];
+		extern int bgdatac32_size, bgdatac40_size;
+		void *bgdata = is_32col ? bgdatac32_start : bgdatac40_start;
+		unsigned long insize = is_32col ? bgdatac32_size : bgdatac40_size, outsize = 65856;
+		int ret;
+		lprintf("%p %p %i %i (n %p)\n", bgdatac32_start, bgdatac40_start, bgdatac32_size, bgdatac40_size, &engineState);
+		ret = uncompress((Bytef *)bg_buffer, &outsize, bgdata, insize);
+		if (ret == 0)
+		{
+			if (rom_data != NULL) oldstate = get_oldstate_for_preview();
+			memcpy(Pico.vram,  bg_buffer, sizeof(Pico.vram));
+			memcpy(Pico.cram,  (char *)bg_buffer + 0x10000, 0x40*2);
+			memcpy(Pico.vsram, (char *)bg_buffer + 0x10080, 0x40*2);
+			memcpy(&Pico.video,(char *)bg_buffer + 0x10100, 0x40);
+		}
+		else
+			lprintf("uncompress returned %i\n", ret);
+	}
+
+	memset32(psp_screen, 0, 512*272*2/4);
+	emu_forcedFrame();
+	menu_prepare_bg(1, 1);
+
+	if (oldstate) restore_oldstate(oldstate);
+}
+
+static void draw_dispmenu_options(int menu_sel)
+{
+	int tl_x = 80+25, tl_y = 16+50;
+
+	menu_draw_begin();
+
+	menu_draw_selection(tl_x - 16, tl_y + menu_sel*10, 252);
+
+	me_draw(opt3_entries, OPT3_ENTRY_COUNT, tl_x, tl_y, menu_opt3_cust_draw, NULL);
+
+	menu_draw_end();
+}
+
+static void dispmenu_loop_options(void)
+{
+	static int menu_sel = 0;
+	int menu_sel_max, is_32col = 0;
+	unsigned long inp = 0;
+	menu_id selected_id;
+
+	menu_sel_max = me_count_enabled(opt3_entries, OPT3_ENTRY_COUNT) - 1;
+
+	for(;;)
+	{
+		draw_dispmenu_options(menu_sel);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE);
+		if (inp & BTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
+		if (inp & BTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
+		selected_id = me_index2id(opt3_entries, OPT3_ENTRY_COUNT, menu_sel);
+		if (selected_id == MA_OPT3_HSCALE40 &&  is_32col) { is_32col = 0; menu_opt3_preview(is_32col); }
+		if (selected_id == MA_OPT3_HSCALE32 && !is_32col) { is_32col = 1; menu_opt3_preview(is_32col); }
+
+		if (inp & (BTN_LEFT|BTN_RIGHT)) // multi choise
+		{
+			float *setting = NULL;
+			me_process(opt3_entries, OPT3_ENTRY_COUNT, selected_id, (inp&BTN_RIGHT) ? 1 : 0);
+			switch (selected_id) {
+				case MA_OPT3_SCALE:    setting = &currentConfig.scale; break;
+				case MA_OPT3_HSCALE40: setting = &currentConfig.hscale40; is_32col = 0; break;
+				case MA_OPT3_HSCALE32: setting = &currentConfig.hscale32; is_32col = 1; break;
+				case MA_OPT3_FILTERING:menu_opt3_preview(is_32col); break;
+				default: break;
+			}
+			if (setting != NULL) {
+				while ((inp = psp_pad_read(0)) & (BTN_LEFT|BTN_RIGHT)) {
+					*setting += (inp & BTN_LEFT) ? -0.01 : 0.01;
+					menu_opt3_preview(is_32col);
+					draw_dispmenu_options(menu_sel); // will wait vsync
+				}
+			}
+		}
+		if (inp & BTN_X) { // toggleable options
+			me_process(opt3_entries, OPT3_ENTRY_COUNT, selected_id, 1);
+			switch (selected_id) {
+				case MA_OPT3_DONE:
+					return;
+				case MA_OPT3_PRES_NOSCALE:
+					currentConfig.scale = currentConfig.hscale40 = currentConfig.hscale32 = 1.0;
+					menu_opt3_preview(is_32col);
+					break;
+				case MA_OPT3_PRES_FULLSCR:
+					currentConfig.scale = 1.20;
+					currentConfig.hscale40 = 1.25;
+					currentConfig.hscale32 = 1.56;
+					menu_opt3_preview(is_32col);
+					break;
+				case MA_OPT3_FILTERING:
+					menu_opt3_preview(is_32col);
+					break;
+				default: break;
+			}
+		}
+		if (inp & BTN_CIRCLE) return;
+	}
+}
+
 
 // --------- advanced options ----------
 
@@ -952,8 +1106,6 @@ menu_entry opt2_entries[] =
 	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &currentConfig.PicoOpt,0x0004, 0, 0, 1 },
 	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &currentConfig.PicoOpt,0x0001, 0, 0, 1 },
 	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&currentConfig.PicoOpt,0x0002, 0, 0, 1 },
-//	{ "Double buffering",          MB_ONOFF, MA_OPT2_DBLBUFF,       &currentConfig.EmuOpt, 0x8000, 0, 0, 1 },
-//	{ "Wait for V-sync (slow)",    MB_ONOFF, MA_OPT2_VSYNC,         &currentConfig.EmuOpt, 0x2000, 0, 0, 1 },
 	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,   &currentConfig.EmuOpt, 0x0008, 0, 0, 1 },
 	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,   &currentConfig.EmuOpt, 0x0020, 0, 0, 1 },
 	{ "done",                      MB_NONE,  MA_OPT2_DONE,          NULL, 0, 0, 0, 1 },
@@ -994,13 +1146,7 @@ static void amenu_loop_options(void)
 		if (inp & (BTN_LEFT|BTN_RIGHT)) { // multi choise
 			if (!me_process(opt2_entries, OPT2_ENTRY_COUNT, selected_id, (inp&BTN_RIGHT) ? 1 : 0) &&
 			    selected_id == MA_OPT2_GAMMA) {
-				while ((inp = psp_pad_read(1)) & (BTN_LEFT|BTN_RIGHT)) {
-					currentConfig.gamma += (inp & BTN_LEFT) ? -1 : 1;
-					if (currentConfig.gamma <   1) currentConfig.gamma =   1;
-					if (currentConfig.gamma > 300) currentConfig.gamma = 300;
-					draw_amenu_options(menu_sel);
-					psp_msleep(18);
-				}
+				// TODO?
 			}
 		}
 		if (inp & BTN_X) { // toggleable options
@@ -1032,8 +1178,9 @@ menu_entry opt_entries[] =
 	{ NULL,                        MB_NONE,  MA_OPT_CONFIRM_STATES,NULL, 0, 0, 0, 1 },
 	{ "Save slot",                 MB_RANGE, MA_OPT_SAVE_SLOT,     &state_slot, 0, 0, 9, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT_CPU_CLOCKS,    NULL, 0, 0, 0, 1 },
+	{ "[Display options]",         MB_NONE,  MA_OPT_DISP_OPTS,     NULL, 0, 0, 0, 1 },
 	{ "[Sega/Mega CD options]",    MB_NONE,  MA_OPT_SCD_OPTS,      NULL, 0, 0, 0, 1 },
-	{ "[advanced options]",        MB_NONE,  MA_OPT_ADV_OPTS,      NULL, 0, 0, 0, 1 },
+	{ "[Advanced options]",        MB_NONE,  MA_OPT_ADV_OPTS,      NULL, 0, 0, 0, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT_SAVECFG,       NULL, 0, 0, 0, 1 },
 	{ "Save cfg for current game only",MB_NONE,MA_OPT_SAVECFG_GAME,NULL, 0, 0, 0, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT_LOADCFG,       NULL, 0, 0, 0, 1 },
@@ -1118,7 +1265,6 @@ static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *para
 			break;
 	}
 }
-
 
 
 static void draw_menu_options(int menu_sel)
@@ -1282,6 +1428,9 @@ static int menu_loop_options(void)
 			{
 				switch (selected_id)
 				{
+					case MA_OPT_DISP_OPTS:
+						dispmenu_loop_options();
+						break;
 					case MA_OPT_SCD_OPTS:
 						cd_menu_loop_options();
 						if (engineState == PGS_ReloadRom)
@@ -1373,10 +1522,8 @@ static void draw_menu_root(int menu_sel)
 	me_draw(main_entries, MAIN_ENTRY_COUNT, tl_x, tl_y, NULL, NULL);
 
 	// error
-	if (menuErrorMsg[0]) {
-		// memset((char *)menu_screen + 321*224*2, 0, 321*16*2);
-		text_out16(5, 258, menuErrorMsg);
-	}
+	if (menuErrorMsg[0])
+		text_out16(10, 252, menuErrorMsg);
 	menu_draw_end();
 }
 
@@ -1525,29 +1672,30 @@ static void menu_darken_bg(void *dst, const void *src, int pixels, int darker)
 	}
 }
 
-static void menu_prepare_bg(int use_game_bg)
+static void menu_prepare_bg(int use_game_bg, int use_back_buff)
 {
-	memset(bg_buffer, 0, sizeof(bg_buffer));
-
 	if (use_game_bg)
 	{
 		// darken the active framebuffer
-		/*
-		memset(bg_buffer, 0, 321*8*2);
-		menu_darken_bg(bg_buffer + 321*8*2, (char *)giz_screen + 321*8*2, 321*224, 1);
-		memset(bg_buffer + 321*232*2, 0, 321*8*2);
-		*/
+		unsigned short *dst = bg_buffer;
+		unsigned short *src = use_back_buff ? psp_screen : psp_video_get_active_fb();
+		int i;
+		for (i = 272; i > 0; i--, dst += 480, src += 512)
+			menu_darken_bg(dst, src, 480, 1);
+		//memset32((int *)(bg_buffer + 480*264), 0, 480*8*2/4);
 	}
 	else
 	{
 		// should really only happen once, on startup..
+		memset32((int *)(void *)bg_buffer, 0, sizeof(bg_buffer)/4);
 		readpng(bg_buffer, "skin/background.png", READPNG_BG);
 	}
+	sceKernelDcacheWritebackAll();
 }
 
 static void menu_gfx_prepare(void)
 {
-	menu_prepare_bg(rom_data != NULL);
+	menu_prepare_bg(rom_data != NULL, 0);
 
 	menu_draw_begin();
 	menu_draw_end();
