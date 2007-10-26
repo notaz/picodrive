@@ -4,7 +4,7 @@ PSPSDK = $(shell psp-config --pspsdk-path)
 
 # settings
 #use_musashi = 1
-use_mz80 = 1
+#use_mz80 = 1
 amalgamate = 0
 #profile = 1
 #up = 1
@@ -69,13 +69,14 @@ ifeq "$(use_mz80)" "1"
 CFLAGS += -D_USE_MZ80
 OBJS += ../../cpu/mz80/mz80.o
 else
-$(error nothing here!)
+CFLAGS += -D_USE_CZ80
+OBJS += ../../cpu/cz80/cz80.o
 endif
 # bg images
 OBJS += data/bg32.o data/bg40.o
 
 
-LIBS += -lpng -lm -lpspgu -lpsppower -Wl,-Map=PicoDrive.map # -lpspaudio -lpsphprm
+LIBS += -lpng -lm -lpspgu -lpsppower -Wl,-Map=PicoDrive.map -lpspaudio
 
 # target
 TARGET = PicoDrive

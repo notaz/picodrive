@@ -15,6 +15,8 @@
 #include "../../cpu/mz80/mz80.h"
 #elif defined(_USE_DRZ80)
 #include "../../cpu/DrZ80/drz80.h"
+#elif defined(_USE_CZ80)
+#include "../../cpu/cz80/cz80.h"
 #endif
 
 #include "../PicoInt.h"
@@ -329,7 +331,6 @@ static void DrZ80_irq_callback()
 {
   drZ80.Z80_IRQ = 0; // lower irq when accepted
 }
-
 #endif
 
 // z80 functionality wrappers
@@ -353,7 +354,6 @@ PICO_INTERNAL void z80_init(void)
   mz80SetContext(&z80);
 
 #elif defined(_USE_DRZ80)
-
   memset(&drZ80, 0, sizeof(struct DrZ80));
   drZ80.z80_rebasePC=DrZ80_rebasePC;
   drZ80.z80_rebaseSP=DrZ80_rebaseSP;
@@ -364,6 +364,14 @@ PICO_INTERNAL void z80_init(void)
   drZ80.z80_in      =DrZ80_in;
   drZ80.z80_out     =DrZ80_out;
   drZ80.z80_irq_callback=DrZ80_irq_callback;
+
+#elif defined(_USE_CZ80)
+  memset(&CZ80, 0, sizeof(CZ80));
+  Cz80_Init(&CZ80);
+  Cz80_Set_Fetch(&CZ80, 0x0000, 0x1fff, (UINT32)Pico.zram); // main RAM
+  Cz80_Set_Fetch(&CZ80, 0x2000, 0x3fff, (UINT32)Pico.zram - 0x2000); // mirror
+  Cz80_Set_ReadB(&CZ80, (UINT8 (*)(UINT32 address))z80_read);
+  Cz80_Set_WriteB(&CZ80, z80_write);
 #endif
 }
 
@@ -380,6 +388,8 @@ PICO_INTERNAL void z80_reset(void)
   drZ80.Z80IM = 0; // 1?
   drZ80.Z80PC = drZ80.z80_rebasePC(0);
   drZ80.Z80SP = drZ80.z80_rebaseSP(0x2000); // 0xf000 ?
+#elif defined(_USE_CZ80)
+  Cz80_Reset(&CZ80);
 #endif
   Pico.m.z80_fakeval = 0; // for faking when Z80 is disabled
 }
@@ -398,6 +408,8 @@ PICO_INTERNAL void z80_int(void)
 #elif defined(_USE_DRZ80)
   drZ80.z80irqvector = 0xFF; // default IRQ vector RST opcode
   drZ80.Z80_IRQ = 1;
+#elif defined(_USE_CZ80)
+  Cz80_Set_IRQ(&CZ80, 0, HOLD_LINE);
 #endif
 }
 
@@ -410,6 +422,8 @@ PICO_INTERNAL int z80_run(int cycles)
   return mz80GetElapsedTicks(0) - ticks_pre;
 #elif defined(_USE_DRZ80)
   return cycles - DrZ80Run(&drZ80, cycles);
+#elif defined(_USE_CZ80)
+  return Cz80_Exec(&CZ80, cycles);
 #else
   return cycles;
 #endif
@@ -427,13 +441,17 @@ PICO_INTERNAL void z80_pack(unsigned char *data)
   drZ80.Z80PC = drZ80.z80_rebasePC(drZ80.Z80PC-drZ80.Z80PC_BASE);
   drZ80.Z80SP = drZ80.z80_rebaseSP(drZ80.Z80SP-drZ80.Z80SP_BASE);
   memcpy(data+4, &drZ80, 0x54);
+#elif defined(_USE_CZ80)
+  *(int *)data = 0x00007a43; // "Cz"
+  memcpy(data+4, &CZ80, (INT32)&CZ80.BasePC - (INT32)&CZ80);
+  printf("size: %i (%x)\n", (INT32)&CZ80.BasePC - (INT32)&CZ80, (INT32)&CZ80.BasePC - (INT32)&CZ80); // FIXME rm
 #endif
 }
 
 PICO_INTERNAL void z80_unpack(unsigned char *data)
 {
 #if defined(_USE_MZ80)
-  if(*(int *)data == 0x00005A6D) { // "mZ" save?
+  if (*(int *)data == 0x00005A6D) { // "mZ" save?
     struct mz80context mz80;
     mz80GetContext(&mz80);
     memcpy(&mz80.z80clockticks, data+4, sizeof(mz80)-5*4);
@@ -443,7 +461,7 @@ PICO_INTERNAL void z80_unpack(unsigned char *data)
     z80_int();
   }
 #elif defined(_USE_DRZ80)
-  if(*(int *)data == 0x015A7244) { // "DrZ" v1 save?
+  if (*(int *)data == 0x015A7244) { // "DrZ" v1 save?
     memcpy(&drZ80, data+4, 0x54);
     // update bases
     drZ80.Z80PC = drZ80.z80_rebasePC(drZ80.Z80PC-drZ80.Z80PC_BASE);
@@ -452,6 +470,13 @@ PICO_INTERNAL void z80_unpack(unsigned char *data)
     z80_reset();
     drZ80.Z80IM = 1;
     z80_int(); // try to goto int handler, maybe we won't execute trash there?
+  }
+#elif defined(_USE_CZ80)
+  if (*(int *)data == 0x00007a43) // "Cz" save?
+    memcpy(&CZ80, data+4, (INT32)&CZ80.BasePC - (INT32)&CZ80);
+  else {
+    z80_reset();
+    z80_int();
   }
 #endif
 }
@@ -468,6 +493,8 @@ PICO_INTERNAL void z80_debug(char *dstr)
 {
 #if defined(_USE_DRZ80)
   sprintf(dstr, "Z80 state: PC: %04x SP: %04x\n", drZ80.Z80PC-drZ80.Z80PC_BASE, drZ80.Z80SP-drZ80.Z80SP_BASE);
+#elif defined(_USE_CZ80)
+  sprintf(dstr, "Z80 state: PC: %04x SP: %04x\n", CZ80.PC - CZ80.BasePC, CZ80.SP.W);
 #endif
 }
 #endif

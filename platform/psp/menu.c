@@ -43,7 +43,7 @@ static unsigned short bg_buffer[480*272] __attribute__((aligned(16)));
 #define menu_screen psp_screen
 
 static void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
-static void menu_prepare_bg(int use_game_bg, int use_back_buff);
+static void menu_prepare_bg(int use_game_bg);
 
 
 static unsigned int inp_prev = 0;
@@ -552,7 +552,7 @@ static void draw_savestate_bg(int slot)
 	}
 
 	emu_forcedFrame();
-	menu_prepare_bg(1, 1);
+	menu_prepare_bg(1);
 
 	restore_oldstate(oldstate);
 }
@@ -1001,7 +1001,6 @@ static void menu_opt3_preview(int is_32col)
 		void *bgdata = is_32col ? bgdatac32_start : bgdatac40_start;
 		unsigned long insize = is_32col ? bgdatac32_size : bgdatac40_size, outsize = 65856;
 		int ret;
-		lprintf("%p %p %i %i (n %p)\n", bgdatac32_start, bgdatac40_start, bgdatac32_size, bgdatac40_size, &engineState);
 		ret = uncompress((Bytef *)bg_buffer, &outsize, bgdata, insize);
 		if (ret == 0)
 		{
@@ -1017,7 +1016,7 @@ static void menu_opt3_preview(int is_32col)
 
 	memset32(psp_screen, 0, 512*272*2/4);
 	emu_forcedFrame();
-	menu_prepare_bg(1, 1);
+	menu_prepare_bg(1);
 
 	if (oldstate) restore_oldstate(oldstate);
 }
@@ -1165,7 +1164,6 @@ static void amenu_loop_options(void)
 menu_entry opt_entries[] =
 {
 	{ NULL,                        MB_NONE,  MA_OPT_RENDERER,      NULL, 0, 0, 0, 1 },
-	{ "Scale low res mode",        MB_ONOFF, MA_OPT_SCALING,       &currentConfig.scaling, 0x0001, 0, 3, 1 },
 	{ "Accurate timing (slower)",  MB_ONOFF, MA_OPT_ACC_TIMING,    &currentConfig.PicoOpt, 0x0040, 0, 0, 1 },
 	{ "Accurate sprites (slower)", MB_ONOFF, MA_OPT_ACC_SPRITES,   &currentConfig.PicoOpt, 0x0080, 0, 0, 1 },
 	{ "Show FPS",                  MB_ONOFF, MA_OPT_SHOW_FPS,      &currentConfig.EmuOpt,  0x0002, 0, 0, 1 },
@@ -1672,13 +1670,13 @@ static void menu_darken_bg(void *dst, const void *src, int pixels, int darker)
 	}
 }
 
-static void menu_prepare_bg(int use_game_bg, int use_back_buff)
+static void menu_prepare_bg(int use_game_bg)
 {
 	if (use_game_bg)
 	{
 		// darken the active framebuffer
 		unsigned short *dst = bg_buffer;
-		unsigned short *src = use_back_buff ? psp_screen : psp_video_get_active_fb();
+		unsigned short *src = psp_screen;
 		int i;
 		for (i = 272; i > 0; i--, dst += 480, src += 512)
 			menu_darken_bg(dst, src, 480, 1);
@@ -1695,7 +1693,7 @@ static void menu_prepare_bg(int use_game_bg, int use_back_buff)
 
 static void menu_gfx_prepare(void)
 {
-	menu_prepare_bg(rom_data != NULL, 0);
+	menu_prepare_bg(rom_data != NULL);
 
 	menu_draw_begin();
 	menu_draw_end();

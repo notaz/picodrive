@@ -318,9 +318,13 @@ PICO_INTERNAL void PicoMemSetup(void);
 PICO_INTERNAL_ASM void PicoMemReset(void);
 PICO_INTERNAL int PadRead(int i);
 PICO_INTERNAL unsigned char z80_read(unsigned short a);
-PICO_INTERNAL unsigned short z80_read16(unsigned short a);
+#ifndef _USE_CZ80
 PICO_INTERNAL_ASM void z80_write(unsigned char data, unsigned short a);
 PICO_INTERNAL void z80_write16(unsigned short data, unsigned short a);
+PICO_INTERNAL unsigned short z80_read16(unsigned short a);
+#else
+PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data);
+#endif
 
 // cd/Memory.c
 PICO_INTERNAL void PicoMemSetupCD(void);

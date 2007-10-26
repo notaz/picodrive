@@ -6,6 +6,7 @@
 #include <pspdisplay.h>
 #include <psputils.h>
 #include <pspgu.h>
+#include <pspaudio.h>
 
 #include "psp.h"
 #include "menu.h"
@@ -20,6 +21,13 @@
 #define OSD_FPS_X 420
 #endif
 
+// additional pspaudio imports, credits to crazyc
+int sceAudio_38553111(unsigned short samples, unsigned short freq, char unknown);  // play with conversion?
+int sceAudio_5C37C0AE(void);				// end play?
+int sceAudio_E0727056(int volume, void *buffer);	// blocking output
+int sceAudioOutput2GetRestSample();
+
+
 char romFileName[PATH_MAX];
 unsigned char *PicoDraw2FB = (unsigned char *)VRAM_CACHED_STUFF + 8; // +8 to be able to skip border with 1 quadword..
 int engineState;
@@ -29,6 +37,8 @@ static unsigned int noticeMsgTime = 0;
 int reset_timing = 0; // do we need this?
 
 
+static void sound_init(void);
+static void sound_deinit(void);
 static void blit2(const char *fps, const char *notice);
 static void clearArea(int full);
 
@@ -82,6 +92,8 @@ void emu_Init(void)
 	mkdir("brm", 0777);
 	mkdir("cfg", 0777);
 
+	sound_init();
+
 	PicoInit();
 	PicoMessage = emu_msg_cb;
 	PicoMCDopenTray = emu_msg_tray_open;
@@ -111,6 +123,7 @@ void emu_Deinit(void)
 	}
 
 	PicoExit();
+	sound_deinit();
 }
 
 void emu_setDefaultConfig(void)
@@ -462,14 +475,147 @@ static void vidResetMode(void)
 	sceGuSync(0,0);
 }
 
-/*
-static void updateSound(int len)
+
+/* sound stuff */
+#define SOUND_DEF_BLOCK_SIZE 1024 // 1152 // 1024
+#define SOUND_BLOCK_COUNT    4
+
+static short __attribute__((aligned(4))) sndBuffer[SOUND_DEF_BLOCK_SIZE*SOUND_BLOCK_COUNT*2 + 44100/50*2];
+static short *snd_playptr = NULL;
+static int samples_made = 0, samples_done = 0, samples_block = SOUND_DEF_BLOCK_SIZE;
+static int sound_thread_exit = 0;
+static SceUID sound_sem = -1;
+
+static void writeSound(int len);
+
+static int sound_thread(SceSize args, void *argp)
 {
+	short *endptr = &sndBuffer[SOUND_DEF_BLOCK_SIZE*SOUND_BLOCK_COUNT*2];
+	int ret;
+
+	lprintf("sound_thread: started, priority %i\n", sceKernelGetThreadCurrentPriority());
+
+	while (!sound_thread_exit)
+	{
+		if (samples_made - samples_done < samples_block) {
+			// wait for data...
+			//lprintf("sthr: wait... (%i/%i)\n", samples_done, samples_made);
+			ret = sceKernelWaitSema(sound_sem, 1, 0);
+			//lprintf("sthr: sceKernelWaitSema: %i\n", ret);
+			continue;
+		}
+
+		//lprintf("sthr: got data: %i\n", samples_made - samples_done);
+
+		ret = sceAudio_E0727056(PSP_AUDIO_VOLUME_MAX, snd_playptr);
+
+		samples_done += samples_block;
+		snd_playptr  += samples_block;
+		if (snd_playptr >= endptr)
+			snd_playptr = sndBuffer;
+		if (ret)
+			lprintf("sthr: outf: %i; pos %i/%i\n", ret, samples_done, samples_made);
+	}
+
+	lprintf("sthr: exit\n");
+	sceKernelExitDeleteThread(0);
+	return 0;
+}
+
+static void sound_init(void)
+{
+	SceUID thid;
+
+	sound_sem = sceKernelCreateSema("sndsem", 0, 0, 1, NULL);
+	if (sound_sem < 0) lprintf("sceKernelCreateSema() failed: %i\n", sound_sem);
+
+	sound_thread_exit = 0;
+	thid = sceKernelCreateThread("sndthread", sound_thread, 0x12, 0x10000, 0, NULL);
+	if (thid >= 0)
+	{
+		sceKernelStartThread(thid, 0, 0);
+	}
+	else
+		lprintf("sceKernelCreateThread failed: %i\n", thid);
+}
+
+static void sound_prepare(void)
+{
+	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
+	int ret, stereo;
+
+	samples_made = samples_done = 0;
+
+	if (PsndRate != PsndRate_old || (PicoOpt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
+		sound_rerate(Pico.m.frame_count ? 1 : 0);
+	}
+	stereo=(PicoOpt&8)>>3;
+	samples_block = SOUND_DEF_BLOCK_SIZE;
+	if (PsndRate < 44100) samples_block = SOUND_DEF_BLOCK_SIZE / 2;
+	if (PsndRate < 22050) samples_block = SOUND_DEF_BLOCK_SIZE / 4;
+
+	lprintf("starting audio: %i, len: %i, stereo: %i, pal: %i, block samples: %i\n",
+			PsndRate, PsndLen, stereo, Pico.m.pal, samples_block);
+
+	while (sceAudioOutput2GetRestSample() > 0) psp_msleep(100);
+	sceAudio_5C37C0AE();
+	ret = sceAudio_38553111(samples_block/2, PsndRate, 2/*stereo ? 2 : 1*/);
+		lprintf("sceAudio_38553111() ret: %i\n", ret);
+	if (ret < 0) {
+		lprintf("sceAudio_38553111() failed: %i\n", ret);
+		sprintf(noticeMsg, "sound init failed (%i), snd disabled", ret);
+		noticeMsgTime = sceKernelGetSystemTimeLow();
+		currentConfig.EmuOpt &= ~4;
+	} else {
+//		int ret = sceAudioSetChannelDataLen(ret, PsndLen); // a try..
+//		lprintf("sceAudioSetChannelDataLen: %i\n", ret);
+		PicoWriteSound = writeSound;
+		memset32((int *)(void *)sndBuffer, 0, sizeof(sndBuffer)/4);
+		snd_playptr = sndBuffer;
+		PsndOut = sndBuffer;
+		PsndRate_old = PsndRate;
+		PicoOpt_old  = PicoOpt;
+		pal_old = Pico.m.pal;
+	}
+}
+
+static void sound_end(void)
+{
+	int ret;
+	while (sceAudioOutput2GetRestSample() > 0) psp_msleep(100);
+	ret = sceAudio_5C37C0AE();
+	lprintf("sound_end: sceAudio_5C37C0AE ret %i\n", ret);
+}
+
+static void sound_deinit(void)
+{
+	sound_thread_exit = 1;
+	sceKernelSignalSema(sound_sem, 1);
+}
+
+static void writeSound(int len)
+{
+	int ret;
+	short *endptr = &sndBuffer[SOUND_DEF_BLOCK_SIZE*SOUND_BLOCK_COUNT*2];
 	if (PicoOpt&8) len<<=1;
 
-	// TODO..
+	PsndOut += len;
+	if (PsndOut > endptr) {
+		memcpy32((int *)(void *)sndBuffer, (int *)endptr, (PsndOut - endptr + 1) / 2);
+		PsndOut = &sndBuffer[PsndOut - endptr];
+	}
+	else if (PsndOut == endptr)
+		PsndOut = sndBuffer; // happy case
+
+	// signal the snd thread
+	samples_made += len;
+	if (samples_made - samples_done >= samples_block) {
+		if (!Pico.m.scanline) lprintf("signal, %i/%i\n", samples_done, samples_made);
+		ret = sceKernelSignalSema(sound_sem, 1);
+		if (!Pico.m.scanline) lprintf("signal ret %i\n", ret);
+	}
 }
-*/
+
 
 static void SkipFrame(void)
 {
@@ -490,6 +636,7 @@ void emu_forcedFrame(void)
 	vidResetMode();
 	memset32(VRAM_CACHED_STUFF, 0xe0e0e0e0, 512*8/4); // borders
 	memset32((int *)VRAM_CACHED_STUFF + 512*232/4, 0xe0e0e0e0, 512*8/4);
+	memset32((int *)psp_screen + 512*264*2/4, 0, 512*8*2/4);
 
 	PicoDrawSetColorFormat(-1);
 	PicoScan = EmuScanSlow;
@@ -676,7 +823,6 @@ static void simpleWait(unsigned int until)
 
 void emu_Loop(void)
 {
-	//static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 	char fpsbuff[24]; // fps count c string
 	unsigned int tval, tval_prev = 0, tval_thissec = 0; // timing
 	int frames_done = 0, frames_shown = 0, oldmodes = 0;
@@ -711,36 +857,10 @@ void emu_Loop(void)
 
 	// prepare sound stuff
 	PsndOut = NULL;
-#if 0 // TODO
 	if (currentConfig.EmuOpt & 4)
 	{
-		int ret, snd_excess_add, stereo;
-		if (PsndRate != PsndRate_old || (PicoOpt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
-			sound_rerate(Pico.m.frame_count ? 1 : 0);
-		}
-		stereo=(PicoOpt&8)>>3;
-		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
-		snd_cbuf_samples = (PsndRate<<stereo) * 16 / target_fps;
-		lprintf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, snd_excess_add, stereo, Pico.m.pal);
-		ret = FrameworkAudio_Init(PsndRate, snd_cbuf_samples, stereo);
-		if (ret != 0) {
-			lprintf("FrameworkAudio_Init() failed: %i\n", ret);
-			sprintf(noticeMsg, "sound init failed (%i), snd disabled", ret);
-			noticeMsgTime = sceKernelGetSystemTimeLow();
-			currentConfig.EmuOpt &= ~4;
-		} else {
-			FrameworkAudio_SetVolume(currentConfig.volume, currentConfig.volume);
-			PicoWriteSound = updateSound;
-			snd_cbuff = FrameworkAudio_56448Buffer();
-			PsndOut = snd_cbuff + snd_cbuf_samples / 2; // start writing at the middle
-			snd_all_samples = 0;
-			PsndRate_old = PsndRate;
-			PicoOpt_old  = PicoOpt;
-			pal_old = Pico.m.pal;
-		}
+		sound_prepare();
 	}
-#endif
 
 	// loop?
 	while (engineState == PGS_Running)
@@ -875,18 +995,21 @@ void emu_Loop(void)
 
 
 	if (PicoMCD & 1) PicoCDBufferFree();
-/*
+
 	if (PsndOut != NULL) {
-		PsndOut = snd_cbuff = NULL;
-		FrameworkAudio_Close();
+		PsndOut = NULL;
+		sound_end();
 	}
-*/
+
 	// save SRAM
 	if ((currentConfig.EmuOpt & 1) && SRam.changed) {
 		emu_msg_cb("Writing SRAM/BRAM..");
 		emu_SaveLoadGame(0, 1);
 		SRam.changed = 0;
 	}
+
+	// draw a frame for bg..
+	emu_forcedFrame();
 }
 
 
