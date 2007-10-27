@@ -1218,12 +1218,12 @@ static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *para
 	{
 		case MA_OPT_RENDERER:
 			if (currentConfig.PicoOpt&0x10)
-				str = " 8bit fast";
+				str = "fast";
 			else if (currentConfig.EmuOpt&0x80)
-				str = "16bit accurate";
+				str = "accurate";
 			else
-				str = " 8bit accurate";
-			text_out16(x, y, "Renderer:            %s", str);
+				str = " 8bit accurate"; // n/a
+			text_out16(x, y, "Renderer:                  %s", str);
 			break;
 		case MA_OPT_FRAMESKIP:
 			if (currentConfig.Frameskip < 0)
@@ -1353,31 +1353,16 @@ static int menu_loop_options(void)
 			if (!me_process(opt_entries, OPT_ENTRY_COUNT, selected_id, (inp&BTN_RIGHT) ? 1 : 0)) {
 				switch (selected_id) {
 					case MA_OPT_RENDERER:
-						if (inp & BTN_LEFT) {
-							if ((currentConfig.PicoOpt&0x10) || !(currentConfig.EmuOpt &0x80)) {
-								currentConfig.PicoOpt&= ~0x10;
-								currentConfig.EmuOpt |=  0x80;
-							}
+						if ((currentConfig.PicoOpt&0x10) || !(currentConfig.EmuOpt &0x80)) {
+							currentConfig.PicoOpt&= ~0x10;
+							currentConfig.EmuOpt |=  0x80;
 						} else {
-							if (!(currentConfig.PicoOpt&0x10) || (currentConfig.EmuOpt &0x80)) {
-								currentConfig.PicoOpt|=  0x10;
-								currentConfig.EmuOpt &= ~0x80;
-							}
+							currentConfig.PicoOpt|=  0x10;
+							currentConfig.EmuOpt &= ~0x80;
 						}
 						break;
 					case MA_OPT_SOUND_QUALITY:
-						if ((inp & BTN_RIGHT) && currentConfig.PsndRate == 44100 &&
-								!(currentConfig.PicoOpt&0x08))
-						{
-							currentConfig.PsndRate =  11025;
-							currentConfig.PicoOpt |=  8;
-						} else if ((inp & BTN_LEFT) && currentConfig.PsndRate == 11025 &&
-								(currentConfig.PicoOpt&0x08) && !(PicoMCD&1))
-						{
-							currentConfig.PsndRate =  44100;
-							currentConfig.PicoOpt &= ~8;
-						} else
-							currentConfig.PsndRate = sndrate_prevnext(currentConfig.PsndRate, inp & BTN_RIGHT);
+						currentConfig.PsndRate = sndrate_prevnext(currentConfig.PsndRate, inp & BTN_RIGHT);
 						break;
 					case MA_OPT_REGION:
 						region_prevnext(inp & BTN_RIGHT);

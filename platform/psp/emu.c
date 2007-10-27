@@ -15,11 +15,7 @@
 #include "../common/lprintf.h"
 #include "../../Pico/PicoInt.h"
 
-#ifdef BENCHMARK
-#define OSD_FPS_X 380
-#else
 #define OSD_FPS_X 420
-#endif
 
 // additional pspaudio imports, credits to crazyc
 int sceAudio_38553111(unsigned short samples, unsigned short freq, char unknown);  // play with conversion?
@@ -131,7 +127,7 @@ void emu_setDefaultConfig(void)
 	memset(&currentConfig, 0, sizeof(currentConfig));
 	currentConfig.lastRomFile[0] = 0;
 	currentConfig.EmuOpt  = 0x1f | 0x680; // | confirm_save, cd_leds, 16bit rend
-	currentConfig.PicoOpt = 0x07 | 0xc00; // | cd_pcm, cd_cdda
+	currentConfig.PicoOpt = 0x0f | 0xc00; // | cd_pcm, cd_cdda
 	currentConfig.PsndRate = 22050;
 	currentConfig.PicoRegion = 0; // auto
 	currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
@@ -477,12 +473,13 @@ static void vidResetMode(void)
 
 
 /* sound stuff */
-#define SOUND_DEF_BLOCK_SIZE 1024 // 1152 // 1024
+#define SOUND_BLOCK_SIZE_NTSC (2940*2) // 1024 // 1152
+#define SOUND_BLOCK_SIZE_PAL  (3528*2)
 #define SOUND_BLOCK_COUNT    4
 
-static short __attribute__((aligned(4))) sndBuffer[SOUND_DEF_BLOCK_SIZE*SOUND_BLOCK_COUNT*2 + 44100/50*2];
-static short *snd_playptr = NULL;
-static int samples_made = 0, samples_done = 0, samples_block = SOUND_DEF_BLOCK_SIZE;
+static short __attribute__((aligned(4))) sndBuffer[SOUND_BLOCK_SIZE_PAL*SOUND_BLOCK_COUNT + 44100/50*2];
+static short *snd_playptr = NULL, *sndBuffer_endptr = NULL;
+static int samples_made = 0, samples_done = 0, samples_block = 0;
 static int sound_thread_exit = 0;
 static SceUID sound_sem = -1;
 
@@ -490,7 +487,6 @@ static void writeSound(int len);
 
 static int sound_thread(SceSize args, void *argp)
 {
-	short *endptr = &sndBuffer[SOUND_DEF_BLOCK_SIZE*SOUND_BLOCK_COUNT*2];
 	int ret;
 
 	lprintf("sound_thread: started, priority %i\n", sceKernelGetThreadCurrentPriority());
@@ -511,7 +507,7 @@ static int sound_thread(SceSize args, void *argp)
 
 		samples_done += samples_block;
 		snd_playptr  += samples_block;
-		if (snd_playptr >= endptr)
+		if (snd_playptr >= sndBuffer_endptr)
 			snd_playptr = sndBuffer;
 		if (ret)
 			lprintf("sthr: outf: %i; pos %i/%i\n", ret, samples_done, samples_made);
@@ -550,28 +546,28 @@ static void sound_prepare(void)
 		sound_rerate(Pico.m.frame_count ? 1 : 0);
 	}
 	stereo=(PicoOpt&8)>>3;
-	samples_block = SOUND_DEF_BLOCK_SIZE;
-	if (PsndRate < 44100) samples_block = SOUND_DEF_BLOCK_SIZE / 2;
-	if (PsndRate < 22050) samples_block = SOUND_DEF_BLOCK_SIZE / 4;
+
+	samples_block = Pico.m.pal ? SOUND_BLOCK_SIZE_PAL : SOUND_BLOCK_SIZE_NTSC;
+	if (PsndRate == 22050) samples_block /= 2;
+	else if (PsndRate == 11025) samples_block /= 4;
+	sndBuffer_endptr = &sndBuffer[samples_block*SOUND_BLOCK_COUNT];
 
 	lprintf("starting audio: %i, len: %i, stereo: %i, pal: %i, block samples: %i\n",
 			PsndRate, PsndLen, stereo, Pico.m.pal, samples_block);
 
 	while (sceAudioOutput2GetRestSample() > 0) psp_msleep(100);
 	sceAudio_5C37C0AE();
-	ret = sceAudio_38553111(samples_block/2, PsndRate, 2/*stereo ? 2 : 1*/);
-		lprintf("sceAudio_38553111() ret: %i\n", ret);
+	ret = sceAudio_38553111(samples_block/2, PsndRate, 2); // seems to not need that stupid 64byte alignment
 	if (ret < 0) {
 		lprintf("sceAudio_38553111() failed: %i\n", ret);
 		sprintf(noticeMsg, "sound init failed (%i), snd disabled", ret);
 		noticeMsgTime = sceKernelGetSystemTimeLow();
 		currentConfig.EmuOpt &= ~4;
 	} else {
-//		int ret = sceAudioSetChannelDataLen(ret, PsndLen); // a try..
-//		lprintf("sceAudioSetChannelDataLen: %i\n", ret);
 		PicoWriteSound = writeSound;
 		memset32((int *)(void *)sndBuffer, 0, sizeof(sndBuffer)/4);
-		snd_playptr = sndBuffer;
+		snd_playptr = sndBuffer_endptr - samples_block;
+		samples_made = samples_block; // send 1 empty block first..
 		PsndOut = sndBuffer;
 		PsndRate_old = PsndRate;
 		PicoOpt_old  = PicoOpt;
@@ -581,10 +577,9 @@ static void sound_prepare(void)
 
 static void sound_end(void)
 {
-	int ret;
-	while (sceAudioOutput2GetRestSample() > 0) psp_msleep(100);
-	ret = sceAudio_5C37C0AE();
-	lprintf("sound_end: sceAudio_5C37C0AE ret %i\n", ret);
+	while (samples_made - samples_done >= samples_block || sceAudioOutput2GetRestSample() > 0)
+		psp_msleep(100);
+	sceAudio_5C37C0AE();
 }
 
 static void sound_deinit(void)
@@ -596,23 +591,24 @@ static void sound_deinit(void)
 static void writeSound(int len)
 {
 	int ret;
-	short *endptr = &sndBuffer[SOUND_DEF_BLOCK_SIZE*SOUND_BLOCK_COUNT*2];
 	if (PicoOpt&8) len<<=1;
 
 	PsndOut += len;
-	if (PsndOut > endptr) {
+	/*if (PsndOut > sndBuffer_endptr) {
 		memcpy32((int *)(void *)sndBuffer, (int *)endptr, (PsndOut - endptr + 1) / 2);
 		PsndOut = &sndBuffer[PsndOut - endptr];
+		lprintf("mov\n");
 	}
-	else if (PsndOut == endptr)
-		PsndOut = sndBuffer; // happy case
+	else*/
+	if (PsndOut >= sndBuffer_endptr)
+		PsndOut = sndBuffer;
 
 	// signal the snd thread
 	samples_made += len;
 	if (samples_made - samples_done >= samples_block) {
-		if (!Pico.m.scanline) lprintf("signal, %i/%i\n", samples_done, samples_made);
+		// lprintf("signal, %i/%i\n", samples_done, samples_made);
 		ret = sceKernelSignalSema(sound_sem, 1);
-		if (!Pico.m.scanline) lprintf("signal ret %i\n", ret);
+		// lprintf("signal ret %i\n", ret);
 	}
 }
 
@@ -900,20 +896,14 @@ void emu_Loop(void)
 		// second passed?
 		if (tval - tval_thissec >= 1000000)
 		{
-#ifdef BENCHMARK
-			static int bench = 0, bench_fps = 0, bench_fps_s = 0, bfp = 0, bf[4];
-			if(++bench == 10) {
-				bench = 0;
-				bench_fps_s = bench_fps;
-				bf[bfp++ & 3] = bench_fps;
-				bench_fps = 0;
+			// missing 1 frame?
+			if (currentConfig.Frameskip < 0 && frames_done < target_fps) {
+				SkipFrame(); frames_done++;
 			}
-			bench_fps += frames_shown;
-			sprintf(fpsbuff, "%02i/%02i/%02i", frames_shown, bench_fps_s, (bf[0]+bf[1]+bf[2]+bf[3])>>2);
-#else
-			if(currentConfig.EmuOpt & 2)
-				sprintf(fpsbuff, "%02i/%02i", frames_shown, frames_done);
-#endif
+
+			if (currentConfig.EmuOpt & 2)
+				sprintf(fpsbuff, "%02i/%02i  ", frames_shown, frames_done);
+
 			tval_thissec += 1000000;
 
 			if (currentConfig.Frameskip < 0) {
