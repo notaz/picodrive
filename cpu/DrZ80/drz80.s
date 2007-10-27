@@ -1459,7 +1459,6 @@ DoInterrupt:
     bne DoInterrupt_mode1
     tst r1,#2
     bne DoInterrupt_mode2
-    b   DoInterrupt_mode0
 
 DoInterrupt_mode0:
 	;@ get 3 byte vector

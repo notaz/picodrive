@@ -1,6 +1,7 @@
 
 # settings
-use_fame = 1
+#use_musashi = 1
+#use_mz80 = 1
 
 # profile = 1
 
@@ -47,16 +48,21 @@ OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/i
 # unzip
 OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
 # CPU cores
-ifeq "$(use_fame)" "1"
-DEFINC += -DEMU_F68K
-OBJS += ../../cpu/fame/famec.o
-else
+ifeq "$(use_musashi)" "1"
 DEFINC += -DEMU_M68K
 OBJS += ../../cpu/musashi/m68kops.o ../../cpu/musashi/m68kcpu.o
+else
+DEFINC += -DEMU_F68K
+OBJS += ../../cpu/fame/famec.o
 endif
-# mz80
-DEFINC += -D_USE_MZ80
+# z80
+ifeq "$(use_mz80)" "1"
+CFLAGS += -D_USE_MZ80
 OBJS += ../../cpu/mz80/mz80.o
+else
+CFLAGS += -D_USE_CZ80
+OBJS += ../../cpu/cz80/cz80.o
+endif
 
 # faked asm
 #DEFINC += -D_ASM_DRAW_C

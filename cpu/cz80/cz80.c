@@ -248,7 +248,10 @@ Cz80_Exec:
 		{
 			afterEI = 0;
 Cz80_Check_Interrupt:
-			CHECK_INT
+			if (CPU->IRQState != CLEAR_LINE)
+			{
+				CHECK_INT
+			}
 			goto Cz80_Exec;
 		}
 	}

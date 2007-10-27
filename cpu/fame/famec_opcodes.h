@@ -8167,7 +8167,7 @@ OPCODE(0x2100)
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
 	PRE_IO
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(12)
 }
@@ -8350,7 +8350,7 @@ OPCODE(0x2108)
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
 	PRE_IO
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(12)
 }
@@ -8539,7 +8539,7 @@ OPCODE(0x2110)
 	flag_N = res >> 24;
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(20)
 }
@@ -8738,7 +8738,7 @@ OPCODE(0x2118)
 	flag_N = res >> 24;
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(20)
 }
@@ -8943,7 +8943,7 @@ OPCODE(0x2120)
 	flag_N = res >> 24;
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(22)
 }
@@ -9148,7 +9148,7 @@ OPCODE(0x2128)
 	flag_N = res >> 24;
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(24)
 }
@@ -9353,7 +9353,7 @@ OPCODE(0x2130)
 	flag_N = res >> 24;
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(26)
 }
@@ -9554,7 +9554,7 @@ OPCODE(0x2138)
 	flag_N = res >> 24;
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(24)
 }
@@ -9749,7 +9749,7 @@ OPCODE(0x2139)
 	flag_N = res >> 24;
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(28)
 }
@@ -9948,7 +9948,7 @@ OPCODE(0x213A)
 	flag_N = res >> 24;
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(24)
 }
@@ -10153,7 +10153,7 @@ OPCODE(0x213B)
 	flag_N = res >> 24;
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(26)
 }
@@ -10348,7 +10348,7 @@ OPCODE(0x213C)
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
 	PRE_IO
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(20)
 }
@@ -10541,7 +10541,7 @@ OPCODE(0x211F)
 	flag_N = res >> 24;
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(20)
 }
@@ -10746,7 +10746,7 @@ OPCODE(0x2127)
 	flag_N = res >> 24;
 	adr = AREG((Opcode >> 9) & 7) - 4;
 	AREG((Opcode >> 9) & 7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(22)
 }

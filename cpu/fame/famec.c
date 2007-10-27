@@ -306,43 +306,37 @@ static u32 flag_I;
 #define POST_IO                 \
 //    CCnt = io_cycle_counter;
 
+#define READ_BYTE_F(A, D)           \
+	D = m68kcontext.read_byte(A) & 0xFF;
+
+#define READ_WORD_F(A, D)           \
+	D = m68kcontext.read_word(A) & 0xFFFF;
+
+#define READ_LONG_F(A, D)           \
+	D = m68kcontext.read_long(A);
+
+#define READSX_LONG_F READ_LONG_F
+
+#define WRITE_LONG_F(A, D)          \
+	m68kcontext.write_long(A, D);
+
+#define WRITE_LONG_DEC_F(A, D)          \
+	m68kcontext.write_word((A) + 2, (D) & 0xFFFF);    \
+	m68kcontext.write_word((A), (D) >> 16);
+
+#define PUSH_32_F(D)                        \
+	AREG(7) -= 4;                               \
+	m68kcontext.write_long(AREG(7), D);
+
+#define POP_32_F(D)                         \
+	D = m68kcontext.read_long(AREG(7));         \
+	AREG(7) += 4;
+
 #ifndef FAME_BIG_ENDIAN
-
-	#define READ_BYTE_F(A, D)           \
-		D = m68kcontext.read_byte(A) & 0xFF;
-
-	#define READ_WORD_F(A, D)           \
-		D = m68kcontext.read_word(A) & 0xFFFF;
-
-	#define READ_LONG_F(A, D)               \
-		D = m68kcontext.read_word((A)) << 16;          \
-		D |= m68kcontext.read_word((A) + 2) & 0xFFFF;
-
-	#define READSX_LONG_F(A, D)             \
-		D = m68kcontext.read_word((A)) << 16;          \
-		D |= m68kcontext.read_word((A) + 2) & 0xFFFF;
-
-	#define WRITE_LONG_F(A, D)              \
-		m68kcontext.write_word((A), (D) >> 16);        \
-		m68kcontext.write_word((A) + 2, (D) & 0xFFFF);
-
-	#define WRITE_LONG_DEC_F(A, D)          \
-		m68kcontext.write_word((A), (D) >> 16); \
-		m68kcontext.write_word((A) + 2, (D) & 0xFFFF);
 
 	#define FETCH_LONG(A)               \
 		(A) = PC[1] | (PC[0] << 16);    \
 		PC += 2;
-
-    #define PUSH_32_F(D)                            \
-    	AREG(7) -= 4;                                   \
-    	m68kcontext.write_word(AREG(7), (D) >> 16); 	\
-    	m68kcontext.write_word(AREG(7) + 2, (D) & 0xFFFF);
-
-    #define POP_32_F(D)                         \
-    	D = m68kcontext.read_word(AREG(7)) << 16;          \
-    	D |= m68kcontext.read_word(AREG(7) + 2) & 0xFFFF;  \
-    	AREG(7) += 4;
 
 	#define GET_SWORD           \
 		(s16)(*PC)
@@ -372,36 +366,9 @@ static u32 flag_I;
 
 #else
 
-	#define READ_BYTE_F(A, D)           \
-		D = m68kcontext.read_byte(A) & 0xFF;
-
-	#define READ_WORD_F(A, D)           \
-		D = m68kcontext.read_word(A) & 0xFFFF;
-
-	#define READ_LONG_F(A, D)           \
-		D = m68kcontext.read_long(A);
-
-	#define READSX_LONG_F(A, D)         \
-		D = m68kcontext.read_long(A);
-
-	#define WRITE_LONG_F(A, D)          \
-		m68kcontext.write_long(A, D);
-
-	#define WRITE_LONG_DEC_F(A, D)          \
-		m68kcontext.write_word((A) + 2, (D) >> 16);    \
-		m68kcontext.write_word((A), (D) & 0xFFFF);
-
 	#define FETCH_LONG(A)               \
 		(A) = PC[0] | (PC[1] << 16);    \
 		PC += 2;
-
-	#define PUSH_32_F(D)                        \
-		AREG(7) -= 4;                               \
-		m68kcontext.write_long(AREG(7), D);
-
-	#define POP_32_F(D)                         \
-		D = m68kcontext.read_long(AREG(7));         \
-		AREG(7) += 4;
 
 	#define GET_SWORD                           \
 		((s16)(((*PC & 0xFF) << 8) | (*PC >> 8)))

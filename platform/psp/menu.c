@@ -43,7 +43,7 @@ static unsigned short bg_buffer[480*272] __attribute__((aligned(16)));
 #define menu_screen psp_screen
 
 static void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
-static void menu_prepare_bg(int use_game_bg);
+static void menu_prepare_bg(int use_game_bg, int use_fg);
 
 
 static unsigned int inp_prev = 0;
@@ -190,10 +190,10 @@ static void draw_dirlist(char *curdir, struct my_dirent **namelist, int n, int s
 		if (pos > 26) break;
 		if (namelist[i+1]->d_type & DT_DIR) {
 			smalltext_out16_lim(14,   pos*10, "/", 0xd7ff, 1);
-			smalltext_out16_lim(14+6, pos*10, namelist[i+1]->d_name, 0xd7ff, 53-3);
+			smalltext_out16_lim(14+6, pos*10, namelist[i+1]->d_name, 0xd7ff, 80-3);
 		} else {
 			unsigned short color = file2color(namelist[i+1]->d_name);
-			smalltext_out16_lim(14,   pos*10, namelist[i+1]->d_name, color, 53-2);
+			smalltext_out16_lim(14,   pos*10, namelist[i+1]->d_name, color, 80-2);
 		}
 	}
 	text_out16(5, 130, ">");
@@ -552,7 +552,7 @@ static void draw_savestate_bg(int slot)
 	}
 
 	emu_forcedFrame();
-	menu_prepare_bg(1);
+	menu_prepare_bg(1, 0);
 
 	restore_oldstate(oldstate);
 }
@@ -1016,7 +1016,7 @@ static void menu_opt3_preview(int is_32col)
 
 	memset32(psp_screen, 0, 512*272*2/4);
 	emu_forcedFrame();
-	menu_prepare_bg(1);
+	menu_prepare_bg(1, 0);
 
 	if (oldstate) restore_oldstate(oldstate);
 }
@@ -1655,13 +1655,13 @@ static void menu_darken_bg(void *dst, const void *src, int pixels, int darker)
 	}
 }
 
-static void menu_prepare_bg(int use_game_bg)
+static void menu_prepare_bg(int use_game_bg, int use_fg)
 {
 	if (use_game_bg)
 	{
 		// darken the active framebuffer
 		unsigned short *dst = bg_buffer;
-		unsigned short *src = psp_screen;
+		unsigned short *src = use_fg ? psp_video_get_active_fb() : psp_screen;
 		int i;
 		for (i = 272; i > 0; i--, dst += 480, src += 512)
 			menu_darken_bg(dst, src, 480, 1);
@@ -1678,7 +1678,7 @@ static void menu_prepare_bg(int use_game_bg)
 
 static void menu_gfx_prepare(void)
 {
-	menu_prepare_bg(rom_data != NULL);
+	menu_prepare_bg(rom_data != NULL, 1);
 
 	menu_draw_begin();
 	menu_draw_end();

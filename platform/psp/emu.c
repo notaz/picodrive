@@ -206,13 +206,15 @@ static void set_scaling_params(void)
 	if (fbimg_yoffs < 0) fbimg_yoffs = 0;
 	fbimg_offs = (fbimg_yoffs*512 + fbimg_xoffs) * 2; // dst is always 16bit
 
+	/*
 	lprintf("set_scaling_params:\n");
 	lprintf("offs: %i, %i\n", fbimg_xoffs, fbimg_yoffs);
 	lprintf("xy0, xy1: %i, %i; %i, %i\n", g_vertices[0].x, g_vertices[0].y, g_vertices[1].x, g_vertices[1].y);
 	lprintf("uv0, uv1: %i, %i; %i, %i\n", g_vertices[0].u, g_vertices[0].v, g_vertices[1].u, g_vertices[1].v);
+	*/
 }
 
-static void do_slowmode_pal(void)
+static void do_pal_update(int allow_sh)
 {
 	unsigned int *spal=(void *)Pico.cram;
 	unsigned int *dpal=(void *)localPal;
@@ -221,11 +223,11 @@ static void do_slowmode_pal(void)
 	for (i = 0x3f/2; i >= 0; i--)
 		dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
 
-	if (Pico.video.reg[0xC]&8) // shadow/hilight?
+	if (allow_sh && (Pico.video.reg[0xC]&8)) // shadow/hilight?
 	{
 		// shadowed pixels
 		for (i = 0x3f/2; i >= 0; i--)
-			dpal[0x20|i] = dpal[0x60|i] = (spal[i]>>1)&0x738e738e;
+			dpal[0x20|i] = dpal[0x60|i] = (dpal[i]>>1)&0x738e738e;
 		// hilighted pixels
 		for (i = 0x3f; i >= 0; i--) {
 			int t=localPal[i]&0xe71c;t+=0x4208;
@@ -259,7 +261,7 @@ static void EmuScanPrepare(void)
 
 	dynamic_palette = 0;
 	if (Pico.m.dirtyPal)
-		do_slowmode_pal();
+		do_pal_update(1);
 }
 
 static int EmuScanSlow(unsigned int num, void *sdata)
@@ -271,7 +273,7 @@ static int EmuScanSlow(unsigned int num, void *sdata)
 			do_slowmode_lines(num);
 			dynamic_palette = 1;
 		}
-		do_slowmode_pal();
+		do_pal_update(1);
 	}
 
 	if (dynamic_palette) {
@@ -288,8 +290,6 @@ static void blitscreen_clut(void)
 {
 	int offs = fbimg_offs;
 	offs += (psp_screen == VRAM_FB0) ? VRAMOFFS_FB0 : VRAMOFFS_FB1;
-
-	sceKernelDcacheWritebackAll();
 
 	sceGuSync(0,0); // sync with prev
 	sceGuStart(GU_DIRECT, guCmdList);
@@ -314,14 +314,9 @@ static void blitscreen_clut(void)
 		}
 
 		if ((PicoOpt&0x10) && Pico.m.dirtyPal)
-		{
-			int i, *dpal = (void *)localPal, *spal = (int *)Pico.cram;
-			for (i = 0x3f/2; i >= 0; i--)
-				dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
-			localPal[0xe0] = 0;
-			Pico.m.dirtyPal = 0;
-			need_pal_upload = 1;
-		}
+			do_pal_update(0);
+
+		sceKernelDcacheWritebackAll();
 
 		if (need_pal_upload) {
 			need_pal_upload = 0;
@@ -577,7 +572,8 @@ static void sound_prepare(void)
 
 static void sound_end(void)
 {
-	while (samples_made - samples_done >= samples_block || sceAudioOutput2GetRestSample() > 0)
+	samples_made = samples_done = 0;
+	while (sceAudioOutput2GetRestSample() > 0)
 		psp_msleep(100);
 	sceAudio_5C37C0AE();
 }
@@ -586,6 +582,8 @@ static void sound_deinit(void)
 {
 	sound_thread_exit = 1;
 	sceKernelSignalSema(sound_sem, 1);
+	sceKernelDeleteSema(sound_sem);
+	sound_sem = -1;
 }
 
 static void writeSound(int len)
@@ -998,8 +996,8 @@ void emu_Loop(void)
 		SRam.changed = 0;
 	}
 
-	// draw a frame for bg..
-	emu_forcedFrame();
+	// clear fps counters and stuff
+	memset32((int *)psp_video_get_active_fb() + 512*264*2/4, 0, 512*8*2/4);
 }
 
 
