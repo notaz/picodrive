@@ -1953,7 +1953,7 @@ OPCODE(0x0A7C)
 		u32 newPC = (u32)(PC) - BasePC;
 		SET_PC(newPC-2);
 		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
-		RET(4)
+		RET(0)
 	}
 RET(20)
 }
@@ -5213,7 +5213,11 @@ OPCODE(0x0108)
 	READ_BYTE_F(adr + 2, src)
 	DREGu16((Opcode >> 9) & 7) = (res << 8) | src;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(16)
+#else
 RET(24)
+#endif
 }
 
 // MOVEPLaD
@@ -5237,7 +5241,11 @@ OPCODE(0x0148)
 	READ_BYTE_F(adr, src)
 	DREG((Opcode >> 9) & 7) = res | src;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(24)
+#else
 RET(32)
+#endif
 }
 
 // MOVEPWDa
@@ -5253,7 +5261,11 @@ OPCODE(0x0188)
 	WRITE_BYTE_F(adr + 0, res >> 8)
 	WRITE_BYTE_F(adr + 2, res >> 0)
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(16)
+#else
 RET(24)
+#endif
 }
 
 // MOVEPLDa
@@ -5274,7 +5286,11 @@ OPCODE(0x01C8)
 	adr += 2;
 	WRITE_BYTE_F(adr, res >> 0)
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(24)
+#else
 RET(32)
+#endif
 }
 
 // MOVEB
@@ -5460,6 +5476,7 @@ OPCODE(0x1F00)
 RET(8)
 }
 
+#if 0
 // MOVEB
 OPCODE(0x1008)
 {
@@ -5692,6 +5709,7 @@ OPCODE(0x1F08)
 */
 RET(8)
 }
+#endif
 
 // MOVEB
 OPCODE(0x1010)
@@ -8279,7 +8297,7 @@ OPCODE(0x2F00)
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
 	PRE_IO
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(12)
 }
@@ -8462,7 +8480,7 @@ OPCODE(0x2F08)
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
 	PRE_IO
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(12)
 }
@@ -8657,7 +8675,7 @@ OPCODE(0x2F10)
 	flag_N = res >> 24;
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(20)
 }
@@ -8862,7 +8880,7 @@ OPCODE(0x2F18)
 	flag_N = res >> 24;
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(20)
 }
@@ -9067,7 +9085,7 @@ OPCODE(0x2F20)
 	flag_N = res >> 24;
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(22)
 }
@@ -9272,7 +9290,7 @@ OPCODE(0x2F28)
 	flag_N = res >> 24;
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(24)
 }
@@ -9477,7 +9495,7 @@ OPCODE(0x2F30)
 	flag_N = res >> 24;
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(26)
 }
@@ -9672,7 +9690,7 @@ OPCODE(0x2F38)
 	flag_N = res >> 24;
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(24)
 }
@@ -9867,7 +9885,7 @@ OPCODE(0x2F39)
 	flag_N = res >> 24;
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(28)
 }
@@ -10072,7 +10090,7 @@ OPCODE(0x2F3A)
 	flag_N = res >> 24;
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(24)
 }
@@ -10277,7 +10295,7 @@ OPCODE(0x2F3B)
 	flag_N = res >> 24;
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(26)
 }
@@ -10460,7 +10478,7 @@ OPCODE(0x2F3C)
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
 	PRE_IO
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(20)
 }
@@ -10665,7 +10683,7 @@ OPCODE(0x2F1F)
 	flag_N = res >> 24;
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(20)
 }
@@ -10870,7 +10888,7 @@ OPCODE(0x2F27)
 	flag_N = res >> 24;
 	adr = AREG(7) - 4;
 	AREG(7) = adr;
-	WRITE_LONG_F(adr, res)
+	WRITE_LONG_DEC_F(adr, res)
 	POST_IO
 RET(22)
 }
@@ -18458,7 +18476,7 @@ OPCODE(0x4AFC)
 	u32 oldPC=GET_PC;
 	SET_PC(oldPC-2)
 	execute_exception(M68K_ILLEGAL_INSTRUCTION_EX);
-RET(4)
+RET(0)
 }
 
 // ILLEGAL A000-AFFF
@@ -18467,7 +18485,7 @@ OPCODE(0xA000)
 	u32 oldPC=GET_PC;
 	SET_PC(oldPC-2)
 	execute_exception(M68K_1010_EX);
-RET(4)
+RET(0)
 }
 
 // ILLEGAL F000-FFFF
@@ -18476,7 +18494,7 @@ OPCODE(0xF000)
 	u32 oldPC=GET_PC;
 	SET_PC(oldPC-2)
 	execute_exception(M68K_1111_EX);
-RET(4)
+RET(0) // 4 already taken by exc. handler
 }
 
 // MOVEMaR
@@ -19183,7 +19201,7 @@ OPCODE(0x4E72)
 		AREG(7) = ASP;
 		ASP = res;
 	}
-	m68kcontext.execinfo |= M68K_HALTED;
+	m68kcontext.execinfo |= FM68K_HALTED;
 	m68kcontext.io_cycle_counter = 0;
 RET(4)
 }
@@ -19213,7 +19231,7 @@ OPCODE(0x4E73)
 		ASP = res;
 	}
 	POST_IO
-	m68kcontext.execinfo &= ~(M68K_EMULATE_GROUP_0|M68K_EMULATE_TRACE|M68K_DO_TRACE);
+	m68kcontext.execinfo &= ~(FM68K_EMULATE_GROUP_0|FM68K_EMULATE_TRACE|FM68K_DO_TRACE);
 	CHECK_INT_TO_JUMP(20)
 RET(20)
 }
@@ -23892,7 +23910,7 @@ OPCODE(0x5048)
 	dst = AREGu32((Opcode >> 0) & 7);
 	res = dst + src;
 	AREG((Opcode >> 0) & 7) = res;
-#ifdef USE_CYCLONE_TIMING_ // breaks Project-X
+#ifdef USE_CYCLONE_TIMING
 RET(4)
 #else
 RET(8)
@@ -28333,6 +28351,7 @@ RET(4)
 }
 
 // SUBaD
+#if 0
 OPCODE(0x9008)
 {
 	u32 adr, res;
@@ -28352,6 +28371,7 @@ OPCODE(0x9008)
 */
 RET(4)
 }
+#endif
 
 // SUBaD
 OPCODE(0x9010)
@@ -30461,6 +30481,7 @@ RET(4)
 }
 
 // CMP
+#if 0
 OPCODE(0xB008)
 {
 	u32 adr, res;
@@ -30479,6 +30500,7 @@ OPCODE(0xB008)
 */
 RET(4)
 }
+#endif
 
 // CMP
 OPCODE(0xB010)
@@ -34756,6 +34778,7 @@ RET(4)
 }
 
 // ADDaD
+#if 0
 OPCODE(0xD008)
 {
 	u32 adr, res;
@@ -34775,6 +34798,7 @@ OPCODE(0xD008)
 */
 RET(4)
 }
+#endif
 
 // ADDaD
 OPCODE(0xD010)
@@ -36449,7 +36473,11 @@ OPCODE(0xD0D0)
 	res = dst + src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(12)
+#else
 RET(10)
+#endif
 }
 
 // ADDA
@@ -36466,7 +36494,11 @@ OPCODE(0xD0D8)
 	res = dst + src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(12)
+#else
 RET(10)
+#endif
 }
 
 // ADDA
@@ -36483,7 +36515,11 @@ OPCODE(0xD0E0)
 	res = dst + src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(14)
+#else
 RET(12)
+#endif
 }
 
 // ADDA
@@ -36500,7 +36536,11 @@ OPCODE(0xD0E8)
 	res = dst + src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(16)
+#else
 RET(14)
+#endif
 }
 
 // ADDA
@@ -36517,7 +36557,11 @@ OPCODE(0xD0F0)
 	res = dst + src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(18)
+#else
 RET(16)
+#endif
 }
 
 // ADDA
@@ -36533,7 +36577,11 @@ OPCODE(0xD0F8)
 	res = dst + src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(16)
+#else
 RET(14)
+#endif
 }
 
 // ADDA
@@ -36549,7 +36597,11 @@ OPCODE(0xD0F9)
 	res = dst + src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(20)
+#else
 RET(18)
+#endif
 }
 
 // ADDA
@@ -36566,7 +36618,11 @@ OPCODE(0xD0FA)
 	res = dst + src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(16)
+#else
 RET(14)
+#endif
 }
 
 // ADDA
@@ -36583,7 +36639,11 @@ OPCODE(0xD0FB)
 	res = dst + src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(18)
+#else
 RET(16)
+#endif
 }
 
 // ADDA
@@ -36613,7 +36673,11 @@ OPCODE(0xD0DF)
 	res = dst + src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(12)
+#else
 RET(10)
+#endif
 }
 
 // ADDA
@@ -36630,7 +36694,11 @@ OPCODE(0xD0E7)
 	res = dst + src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(14)
+#else
 RET(12)
+#endif
 }
 
 // ADDA

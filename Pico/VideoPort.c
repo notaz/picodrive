@@ -129,7 +129,7 @@ static void DmaSlow(int len)
       pd=(u16 *)(prg_ram+(source&0x1fffe));
       pdend=(u16 *)(prg_ram+0x20000);
     } else {
-      elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow FIXME: unsupported src");
+      elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: FIXME: unsupported src", Pico.video.type, source, a);
       return;
     }
   } else {
@@ -137,7 +137,7 @@ static void DmaSlow(int len)
       pd=(u16 *)(Pico.rom+(source&~1));
       pdend=(u16 *)(Pico.rom+Pico.romsize);
     } else {
-      elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow: invalid dma src");
+      elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: invalid src", Pico.video.type, source, a);
       return;
     }
   }
@@ -374,29 +374,24 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
         //if(num==01) dprintf("set_blank: %i @ %06x [%i|%i]", !((d&0x40)>>6), SekPc, Pico.m.scanline, SekCyclesDone());
         //if(num==10) dprintf("hint_set: %i @ %06x [%i|%i]", (unsigned char)d, SekPc, Pico.m.scanline, SekCyclesDone());
         pvid->reg[num]=(unsigned char)d;
-#if !(defined(EMU_C68K) && defined(EMU_M68K)) // not debugging Cyclone
+#ifndef EMU_CORE_DEBUG
         // update IRQ level (Lemmings, Wiz 'n' Liz intro, ... )
         // may break if done improperly:
         // International Superstar Soccer Deluxe (crash), Street Racer (logos), Burning Force (gfx),
-        // Fatal Rewind (hang), Sesame Street Counting Cafe
-        if(num < 2) {
-#ifdef EMU_C68K
-          // hack: make sure we do not touch the irq line if Cyclone is just about to take the IRQ
-          if (PicoCpuCM68k.irq <= (PicoCpuCM68k.srh&7)) {
-#endif
-            int lines, pints;
+        // Fatal Rewind (crash), Sesame Street Counting Cafe
+        if (num < 2)
+        {
+          if (!SekShouldInterrupt) // hack
+          {
+            int lines, pints, irq=0;
             lines = (pvid->reg[1] & 0x20) | (pvid->reg[0] & 0x10);
             pints = (pvid->pending_ints&lines);
-                 if(pints & 0x20) SekInterrupt(6);
-            else if(pints & 0x10) SekInterrupt(4);
-            else SekInterrupt(0);
-#ifdef EMU_C68K
-            // adjust cycles for Cyclone so it would take the int "in time"
-            if(PicoCpuCM68k.irq) {
-              SekEndRun(24);
-            }
+                 if(pints & 0x20) irq = 6;
+            else if(pints & 0x10) irq = 4;
+            SekInterrupt(irq); // update line
+
+            if (irq) SekEndRun(24); // make it delayed
           }
-#endif
         }
         else
 #endif

@@ -1,4 +1,4 @@
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2007 notaz, All rights reserved.
 
 
 #include "../PicoInt.h"
@@ -107,7 +107,7 @@ PICO_INTERNAL int SekInitS68k()
     void *oldcontext = g_m68kcontext;
     g_m68kcontext = &PicoCpuFS68k;
     memset(&PicoCpuFS68k, 0, sizeof(PicoCpuFS68k));
-    m68k_init();
+    fm68k_init();
     PicoCpuFS68k.iack_handler = SekIntAckFS68k;
     g_m68kcontext = oldcontext;
   }
@@ -146,7 +146,7 @@ PICO_INTERNAL int SekResetS68k()
   {
     void *oldcontext = g_m68kcontext;
     g_m68kcontext = &PicoCpuFS68k;
-    m68k_reset();
+    fm68k_reset();
     g_m68kcontext = oldcontext;
   }
 #endif

@@ -481,7 +481,7 @@ static u32 flag_I;
 	if ((_PC_)&1) \
 	{ \
 		u32 pr_PC=GET_PC; \
-		m68kcontext.execinfo |= M68K_EMULATE_GROUP_0; \
+		m68kcontext.execinfo |= FM68K_EMULATE_GROUP_0; \
 		execute_exception_group_0(M68K_ADDRESS_ERROR_EX, 0, pr_PC, 0x12 ); \
 		CHECK_BRANCH_EXCEPTION_GOTO_END \
 	}
@@ -602,14 +602,14 @@ static const s32 exception_cycle_table[256] =
 /* Debe ser llamado para inicializar la tabla de saltos de instruccion     */
 /* No recibe parametros y no devuelve nada                                 */
 /***************************************************************************/
-void m68k_init(void)
+void fm68k_init(void)
 {
 #ifdef FAMEC_DEBUG
 	puts("Initializing FAME...");
 #endif
 
     if (!initialised)
-	    m68k_emulate(0);
+	    fm68k_emulate(0);
 
 #ifdef FAMEC_DEBUG
 	puts("FAME initialized.");
@@ -625,17 +625,17 @@ void m68k_init(void)
 /*     M68K_NO_SUP_ADDR_SPACE (2):  No se puede resetear porque no hay mapa   */
 /*             de memoria supervisor de extraccion de opcodes                 */
 /******************************************************************************/
-int m68k_reset(void)
+int fm68k_reset(void)
 {
 	if (!initialised)
-		m68k_emulate(0);
+		fm68k_emulate(0);
 
 	// Si la CPU esta en ejecucion, salir con M68K_RUNNING
 	if (m68kcontext.execinfo & M68K_RUNNING)
 		return M68K_RUNNING;
 
 	// Resetear registros
-	memset(&m68kcontext.dreg[0], 0, 16*4);
+	//memset(&m68kcontext.dreg[0], 0, 16*4);
 
 	// Resetear interrupts, execinfo y ASP
 	m68kcontext.interrupts[0] = 0;
@@ -643,7 +643,7 @@ int m68k_reset(void)
 	ASP = 0;
 
 	// Fijar registro de estado
-	m68kcontext.sr = 0x2700;
+	m68kcontext.sr = (m68kcontext.sr & 0xff) | 0x2700;
 
 	// Obtener puntero de pila inicial y PC
 	AREG(7) = m68kcontext.read_long(0);
@@ -663,135 +663,9 @@ int m68k_reset(void)
 /* No recibe parametros                                                     */
 /* Retorna 68k PC                                                           */
 /****************************************************************************/
-u32 m68k_get_pc(M68K_CONTEXT *context)
+u32 fm68k_get_pc(M68K_CONTEXT *context)
 {
 	return (context->execinfo & M68K_RUNNING)?(u32)PC-BasePC:context->pc;
-}
-
-
-/***************************************************************************/
-/*  m68k_get_register(register)                                            */
-/*  Parametro: Registro a obtener valor (indice)                           */
-/*  Retorno: Valor del registro requerido                                  */
-/*  Observacion: En caso de que el indice no sea correcto                  */
-/*               la funcion devolvera -1                                   */
-/***************************************************************************/
-u32 m68k_get_register(M68K_CONTEXT *context, m68k_register reg)
-{
-	M68K_CONTEXT *oldcontext = g_m68kcontext;
-	s32 ret;
-
-	g_m68kcontext = context;
-
-	switch (reg)
-	{
-		case M68K_REG_D0:
-		case M68K_REG_D1:
-		case M68K_REG_D2:
-		case M68K_REG_D3:
-		case M68K_REG_D4:
-		case M68K_REG_D5:
-		case M68K_REG_D6:
-		case M68K_REG_D7:
-			ret = DREG(reg - M68K_REG_D0);
-			break;
-
-		case M68K_REG_A0:
-		case M68K_REG_A1:
-		case M68K_REG_A2:
-		case M68K_REG_A3:
-		case M68K_REG_A4:
-		case M68K_REG_A5:
-		case M68K_REG_A6:
-		case M68K_REG_A7:
-			ret = AREG(reg - M68K_REG_A0);
-			break;
-
-		case M68K_REG_ASP:
-			ret = ASP;
-			break;
-
-		case M68K_REG_PC:
-			ret = m68k_get_pc(context);
-			break;
-
-		case M68K_REG_SR:
-			ret = m68kcontext.sr;
-			break;
-
-		default:
-			ret = M68K_INV_REG;
-			break;
-	}
-
-	g_m68kcontext = oldcontext;
-	return ret;
-}
-
-/***********************************************************************/
-/*  m68k_set_register(register,value)                                  */
-/*  Parametros: Registro (indice) y valor a asignar                    */
-/*  Retorno: Exito de la operacion                                     */
-/*           0  La operacion se ha realizado satisfactoriamente        */
-/*           1  El indice del registro no es valido (fuera de limites) */
-/***********************************************************************/
-u32 m68k_set_register(M68K_CONTEXT *context, m68k_register reg, u32 value)
-{
-	M68K_CONTEXT *oldcontext = g_m68kcontext;
-	s32 ret = M68K_OK;
-
-	g_m68kcontext = context;
-
-	switch (reg)
-	{
-		case M68K_REG_D0:
-		case M68K_REG_D1:
-		case M68K_REG_D2:
-		case M68K_REG_D3:
-		case M68K_REG_D4:
-		case M68K_REG_D5:
-		case M68K_REG_D6:
-		case M68K_REG_D7:
-			DREG(reg - M68K_REG_D0) = value;
-			break;
-
-		case M68K_REG_A0:
-		case M68K_REG_A1:
-		case M68K_REG_A2:
-		case M68K_REG_A3:
-		case M68K_REG_A4:
-		case M68K_REG_A5:
-		case M68K_REG_A6:
-		case M68K_REG_A7:
-			AREG(reg - M68K_REG_A0) = value;
-			break;
-
-		case M68K_REG_ASP:
-			ASP = value;
-			break;
-
-		case M68K_REG_PC:
-			if (m68kcontext.execinfo & M68K_RUNNING)
-			{
-				SET_PC(value & M68K_ADR_MASK);
-			}
-			else
-			{
-				m68kcontext.pc = value;
-			}
-			break;
-
-		case M68K_REG_SR:
-			m68kcontext.sr = value & 0xFFFF;
-			break;
-
-		default:
-			ret = M68K_INV_REG;
-			break;
-	}
-
-	g_m68kcontext = oldcontext;
-	return ret;
 }
 
 
@@ -805,6 +679,10 @@ static FAMEC_EXTRA_INLINE s32 interrupt_chk__(void)
 	return 0;
 }
 
+int fm68k_would_interrupt(void)
+{
+	return interrupt_chk__();
+}
 
 static FAMEC_EXTRA_INLINE void execute_exception(s32 vect)
 {
@@ -839,7 +717,7 @@ static FAMEC_EXTRA_INLINE void execute_exception(s32 vect)
 		/* adjust SR */
 		flag_S = M68K_SR_S;
 
-		newPC&=M68K_ADR_MASK;
+		newPC&=M68K_ADR_MASK&~1; // don't crash on games with bad vector tables
 
 		SET_PC(newPC)
 
@@ -873,7 +751,7 @@ static u32 Opcode;
 // main exec function
 //////////////////////
 
-int m68k_emulate(s32 cycles)
+int fm68k_emulate(s32 cycles)
 {
 	if (!initialised)
 	{
@@ -885,16 +763,16 @@ int m68k_emulate(s32 cycles)
 #endif
 	}
 
-	/* Comprobar si la CPU esta detenida debido a un doble error de bus */
-	if (m68kcontext.execinfo & M68K_FAULTED) return -1;
+	// won't emulate double fault
+	// if (m68kcontext.execinfo & M68K_FAULTED) return -1;
 
-	if (m68kcontext.execinfo & M68K_HALTED)
+	if (m68kcontext.execinfo & FM68K_HALTED)
 	{
 		if (interrupt_chk__() <= 0)
 		{
 			return cycles;
 		}
-		m68kcontext.execinfo &= ~M68K_HALTED;
+		m68kcontext.execinfo &= ~FM68K_HALTED;
 	}
 
 #ifdef FAMEC_DEBUG
@@ -923,7 +801,7 @@ int m68k_emulate(s32 cycles)
 	cycles_needed = 0;
 
 #ifdef FAMEC_EMULATE_TRACE
-	if (!(m68kcontext.execinfo & M68K_EMULATE_TRACE))
+	if (!(m68kcontext.execinfo & FM68K_EMULATE_TRACE))
 #endif
 	{
 		s32 line=interrupt_chk__();
@@ -937,12 +815,13 @@ int m68k_emulate(s32 cycles)
 
 			execute_exception(line + 0x18);
 			flag_I = (u32)line;
+			if (m68kcontext.io_cycle_counter <= 0) goto famec_End;
 		}
 #ifdef FAMEC_EMULATE_TRACE
 		else
 			if  (flag_T)
 			{
-				m68kcontext.execinfo |= M68K_EMULATE_TRACE;
+				m68kcontext.execinfo |= FM68K_EMULATE_TRACE;
 				cycles_needed= m68kcontext.io_cycle_counter;
 				m68kcontext.io_cycle_counter=0;
 			}
@@ -950,9 +829,9 @@ int m68k_emulate(s32 cycles)
 	}
 
 
-#ifndef FAMEC_NO_GOTOS
+//#ifndef FAMEC_NO_GOTOS
 famec_Exec:
-#endif
+//#endif
 
 #ifdef FAMEC_DEBUG
 	printf("Antes de NEXT... PC = %p\n", PC);
@@ -970,11 +849,11 @@ famec_Exec:
 #endif
 
 #ifdef FAMEC_EMULATE_TRACE
-	if (m68kcontext.execinfo & M68K_EMULATE_TRACE)
+	if (m68kcontext.execinfo & FM68K_EMULATE_TRACE)
 	{
 		m68kcontext.io_cycle_counter= cycles_needed;
-		m68kcontext.execinfo &= ~M68K_EMULATE_TRACE;
-		m68kcontext.execinfo |= M68K_DO_TRACE;
+		m68kcontext.execinfo &= ~FM68K_EMULATE_TRACE;
+		m68kcontext.execinfo |= FM68K_DO_TRACE;
 		execute_exception(M68K_TRACE_EX);
 		flag_T=0;
 		if (m68kcontext.io_cycle_counter > 0)
@@ -984,7 +863,7 @@ famec_Exec:
 	}
 	else
 #endif
-		if (cycles_needed>0)
+		if (cycles_needed != 0)
 		{
 			s32 line=interrupt_chk__();
 			m68kcontext.io_cycle_counter= cycles_needed;
@@ -1003,10 +882,12 @@ famec_Exec:
 #endif
 			if (m68kcontext.io_cycle_counter > 0)
 			{
-				NEXT
+				//NEXT
+				goto famec_Exec;
 			}
 		}
 
+famec_End:
 	m68kcontext.sr = GET_SR;
 	m68kcontext.pc = GET_PC;
 
@@ -1031,6 +912,8 @@ init_jump_table:
 {
 #endif
 	u32 i, j;
+
+	m68kcontext.sr = 0x2704; // Z flag
 
 	for(i = 0x0000; i <= 0xFFFF; i += 0x0001)
 		JumpTable[0x0000 + i] = CAST_OP(0x4AFC);
@@ -1542,6 +1425,7 @@ init_jump_table:
 		JumpTable[0x1EC0 + i] = CAST_OP(0x1EC0);
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		JumpTable[0x1F00 + i] = CAST_OP(0x1F00);
+#if 0
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		for(j = 0x0000; j <= 0x0E00; j += 0x0200)
 			JumpTable[0x1008 + i + j] = CAST_OP(0x1008);
@@ -1568,6 +1452,7 @@ init_jump_table:
 		JumpTable[0x1EC8 + i] = CAST_OP(0x1EC8);
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		JumpTable[0x1F08 + i] = CAST_OP(0x1F08);
+#endif
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		for(j = 0x0000; j <= 0x0E00; j += 0x0200)
 			JumpTable[0x1010 + i + j] = CAST_OP(0x1010);
@@ -3697,9 +3582,11 @@ init_jump_table:
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		for(j = 0x0000; j <= 0x0E00; j += 0x0200)
 			JumpTable[0x9000 + i + j] = CAST_OP(0x9000);
+#if 0
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		for(j = 0x0000; j <= 0x0E00; j += 0x0200)
 			JumpTable[0x9008 + i + j] = CAST_OP(0x9008);
+#endif
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		for(j = 0x0000; j <= 0x0E00; j += 0x0200)
 			JumpTable[0x9010 + i + j] = CAST_OP(0x9010);
@@ -3976,9 +3863,11 @@ init_jump_table:
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		for(j = 0x0000; j <= 0x0E00; j += 0x0200)
 			JumpTable[0xB000 + i + j] = CAST_OP(0xB000);
+#if 0
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		for(j = 0x0000; j <= 0x0E00; j += 0x0200)
 			JumpTable[0xB008 + i + j] = CAST_OP(0xB008);
+#endif
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		for(j = 0x0000; j <= 0x0E00; j += 0x0200)
 			JumpTable[0xB010 + i + j] = CAST_OP(0xB010);
@@ -4502,9 +4391,11 @@ init_jump_table:
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		for(j = 0x0000; j <= 0x0E00; j += 0x0200)
 			JumpTable[0xD000 + i + j] = CAST_OP(0xD000);
+#if 0
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		for(j = 0x0000; j <= 0x0E00; j += 0x0200)
 			JumpTable[0xD008 + i + j] = CAST_OP(0xD008);
+#endif
 	for(i = 0x0000; i <= 0x0007; i += 0x0001)
 		for(j = 0x0000; j <= 0x0E00; j += 0x0200)
 			JumpTable[0xD010 + i + j] = CAST_OP(0xD010);

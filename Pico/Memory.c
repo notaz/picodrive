@@ -32,8 +32,7 @@ void PicoWriteRomHW_in1 (u32 a,u32 d);
 #endif
 
 
-#if defined(EMU_C68K) && defined(EMU_M68K)
-// cyclone debug mode
+#ifdef EMU_CORE_DEBUG
 u32 lastread_a, lastread_d[16]={0,}, lastwrite_cyc_d[16]={0,}, lastwrite_mus_d[16]={0,};
 int lrp_cyc=0, lrp_mus=0, lwp_cyc=0, lwp_mus=0;
 extern unsigned int ppop;
@@ -323,7 +322,7 @@ PICO_INTERNAL_ASM u32 PicoRead8(u32 a)
 
   a&=0xffffff;
 
-#if !(defined(EMU_C68K) && defined(EMU_M68K))
+#ifndef EMU_CORE_DEBUG
   // sram
   if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
     d = SRAMRead(a);
@@ -342,7 +341,7 @@ end:
 #ifdef __debug_io
   dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
 #endif
-#if defined(EMU_C68K) && defined(EMU_M68K)
+#ifdef EMU_CORE_DEBUG
   if(a>=Pico.romsize/*&&(ppop&0x3f)!=0x3a&&(ppop&0x3f)!=0x3b*/) {
     lastread_a = a;
     lastread_d[lrp_cyc++&15] = (u8)d;
@@ -359,7 +358,7 @@ PICO_INTERNAL_ASM u32 PicoRead16(u32 a)
 
   a&=0xfffffe;
 
-#if !(defined(EMU_C68K) && defined(EMU_M68K))
+#ifndef EMU_CORE_DEBUG
   // sram
   if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
     d = SRAMRead(a);
@@ -378,7 +377,7 @@ end:
 #ifdef __debug_io
   dprintf("r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
 #endif
-#if defined(EMU_C68K) && defined(EMU_M68K)
+#ifdef EMU_CORE_DEBUG
   if(a>=Pico.romsize/*&&(ppop&0x3f)!=0x3a&&(ppop&0x3f)!=0x3b*/) {
     lastread_a = a;
     lastread_d[lrp_cyc++&15] = d;
@@ -412,7 +411,7 @@ end:
 #ifdef __debug_io
   dprintf("r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
 #endif
-#if defined(EMU_C68K) && defined(EMU_M68K)
+#ifdef EMU_CORE_DEBUG
   if(a>=Pico.romsize/*&&(ppop&0x3f)!=0x3a&&(ppop&0x3f)!=0x3b*/) {
     lastread_a = a;
     lastread_d[lrp_cyc++&15] = d;
@@ -431,12 +430,9 @@ PICO_INTERNAL_ASM void PicoWrite8(u32 a,u8 d)
 #ifdef __debug_io
   dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 #endif
-#if defined(EMU_C68K) && defined(EMU_M68K)
+#ifdef EMU_CORE_DEBUG
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
-  //if ((a&0xe0ffff)==0xe0a9ba+0x69c)
-  //if(a==0x200000||a==0x200001) printf("w8 : %02x [%06x] @ %06x [%i]\n", d, a, SekPc, SekCyclesDoneT());
-  //  dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 
   if ((a&0xe00000)==0xe00000) { *(u8 *)(Pico.ram+((a^1)&0xffff))=d; return; } // Ram
   log_io(a, 8, 1);
@@ -451,7 +447,7 @@ void PicoWrite16(u32 a,u16 d)
 #ifdef __debug_io
   dprintf("w16: %06x, %04x", a&0xffffff, d);
 #endif
-#if defined(EMU_C68K) && defined(EMU_M68K)
+#ifdef EMU_CORE_DEBUG
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
 
@@ -467,7 +463,7 @@ static void PicoWrite32(u32 a,u32 d)
 #ifdef __debug_io
   dprintf("w32: %06x, %08x", a&0xffffff, d);
 #endif
-#if defined(EMU_C68K) && defined(EMU_M68K)
+#ifdef EMU_CORE_DEBUG
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
 
@@ -534,7 +530,7 @@ static unsigned int  m68k_read_8 (unsigned int a, int do_fake) {
   a&=0xffffff;
   if(PicoMCD&1) return m68k_read_pcrelative_CD8(a);
   if(a<Pico.romsize)         return *(u8 *)(Pico.rom+(a^1)); // Rom
-#ifdef EMU_C68K
+#ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
   if((a&0xe00000)==0xe00000) return *(u8 *)(Pico.ram+((a^1)&0xffff)); // Ram
@@ -544,7 +540,7 @@ static unsigned int  m68k_read_16(unsigned int a, int do_fake) {
   a&=0xffffff;
   if(PicoMCD&1) return m68k_read_pcrelative_CD16(a);
   if(a<Pico.romsize)         return *(u16 *)(Pico.rom+(a&~1)); // Rom
-#ifdef EMU_C68K
+#ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
   if((a&0xe00000)==0xe00000) return *(u16 *)(Pico.ram+(a&0xfffe)); // Ram
@@ -554,7 +550,7 @@ static unsigned int  m68k_read_32(unsigned int a, int do_fake) {
   a&=0xffffff;
   if(PicoMCD&1) return m68k_read_pcrelative_CD32(a);
   if(a<Pico.romsize)         { u16 *pm=(u16 *)(Pico.rom+(a&~1));     return (pm[0]<<16)|pm[1]; }
-#ifdef EMU_C68K
+#ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
   if((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); return (pm[0]<<16)|pm[1]; } // Ram
@@ -570,7 +566,7 @@ unsigned int m68k_read_disassembler_8 (unsigned int a) { return m68k_read_8 (a, 
 unsigned int m68k_read_disassembler_16(unsigned int a) { return m68k_read_16(a, 0); }
 unsigned int m68k_read_disassembler_32(unsigned int a) { return m68k_read_32(a, 0); }
 
-#ifdef EMU_C68K
+#ifdef EMU_CORE_DEBUG
 // ROM only
 unsigned int m68k_read_memory_8(unsigned int a)
 {
@@ -658,10 +654,14 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
 {
   u8 ret = 0;
 
+#ifndef _USE_DRZ80
+  if (a<0x4000) return Pico.zram[a&0x1fff];
+#endif
+
   if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
   {
-    if(PicoOpt&1) ret = (u8) YM2612Read();
-    goto end;
+    if (PicoOpt&1) ret = (u8) YM2612Read();
+    return ret;
   }
 
   if (a>=0x8000)
@@ -672,15 +672,15 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
 
     ret = (u8) PicoRead8(addr68k);
     elprintf(EL_Z80BNK, "z80->68k r8 [%06x] %02x", addr68k, ret);
-    goto end;
+    return ret;
   }
 
+#ifdef _USE_DRZ80
   // should not be needed || dprintf("z80_read RAM");
-  if (a<0x4000) { ret = (u8) Pico.zram[a&0x1fff]; goto end; }
+  if (a<0x4000) return Pico.zram[a&0x1fff];
+#endif
 
   elprintf(EL_ANOMALY, "z80 invalid r8 [%06x] %02x", a, ret);
-
-end:
   return ret;
 }
 
@@ -690,8 +690,9 @@ PICO_INTERNAL_ASM void z80_write(unsigned char data, unsigned short a)
 PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data)
 #endif
 {
-  //if (a<0x4000)
-  //  dprintf("z80 w8 : %06x,   %02x @%04x", a, data, mz80GetRegisterValue(NULL, 0));
+#ifndef _USE_DRZ80
+  if (a<0x4000) { Pico.zram[a&0x1fff]=data; return; }
+#endif
 
   if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
   {
@@ -723,8 +724,10 @@ PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data)
     return;
   }
 
+#ifdef _USE_DRZ80
   // should not be needed, drZ80 knows how to access RAM itself || dprintf("z80_write RAM @ %08x", lr);
   if (a<0x4000) { Pico.zram[a&0x1fff]=data; return; }
+#endif
 
   elprintf(EL_ANOMALY, "z80 invalid w8 [%06x] %02x", a, data);
 }
@@ -732,15 +735,11 @@ PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data)
 #ifndef _USE_CZ80
 PICO_INTERNAL unsigned short z80_read16(unsigned short a)
 {
-  //dprintf("z80_read16");
-
   return (u16) ( (u16)z80_read(a) | ((u16)z80_read((u16)(a+1))<<8) );
 }
 
 PICO_INTERNAL void z80_write16(unsigned short data, unsigned short a)
 {
-  //dprintf("z80_write16");
-
   z80_write((unsigned char) data,a);
   z80_write((unsigned char)(data>>8),(u16)(a+1));
 }

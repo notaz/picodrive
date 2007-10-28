@@ -54,9 +54,19 @@
 static int PicoFrameHints(void)
 {
   struct PicoVideo *pv=&Pico.video;
-  int lines,y,lines_vis = 224,total_z80 = 0,z80CycleAim = 0,line_sample;
-  int skip=PicoSkipFrame || (PicoOpt&0x10);
+  int lines, y, lines_vis = 224, total_z80 = 0, z80CycleAim = 0, line_sample, skip;
   int hint; // Hint counter
+
+  if ((PicoOpt&0x10) && !PicoSkipFrame) {
+    // draw a frame just after vblank in alternative render mode
+    // yes, this will cause 1 frame lag, but this is inaccurate mode anyway.
+    PicoFrameFull();
+#ifdef DRAW_FINISH_FUNC
+    DRAW_FINISH_FUNC();
+#endif
+    skip = 1;
+  }
+  else skip=PicoSkipFrame;
 
   if (Pico.m.pal) {
     //cycles_68k = (int) ((double) OSC_PAL  /  7 / 50 / 312 + 0.4); // should compile to a constant (488)
@@ -140,7 +150,8 @@ static int PicoFrameHints(void)
   }
 
 #ifdef DRAW_FINISH_FUNC
-  DRAW_FINISH_FUNC();
+  if (!skip)
+    DRAW_FINISH_FUNC();
 #endif
 
   // V-int line (224 or 240)
@@ -222,10 +233,6 @@ static int PicoFrameHints(void)
     update_chips();
 #endif
   }
-
-  // draw a frame just after vblank in alternative render mode
-  if (!PicoSkipFrame && (PicoOpt&0x10))
-    PicoFrameFull();
 
   return 0;
 }

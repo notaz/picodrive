@@ -71,7 +71,7 @@ PICO_INTERNAL int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
   *(unsigned int  *)(cpu+0x44)=context->sr;
   *(unsigned int  *)(cpu+0x48)=context->asp;
   cpu[0x4c] = context->interrupts[0];
-  cpu[0x4d] = (context->execinfo & M68K_HALTED) ? 1 : 0;
+  cpu[0x4d] = (context->execinfo & FM68K_HALTED) ? 1 : 0;
 #endif
 
   *(unsigned int *)(cpu+0x40)=pc;
@@ -108,8 +108,8 @@ PICO_INTERNAL int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
   context->sr =*(unsigned int *)(cpu+0x44);
   context->asp=*(unsigned int *)(cpu+0x48);
   context->interrupts[0] = cpu[0x4c];
-  context->execinfo &= ~M68K_HALTED;
-  if (cpu[0x4d]&1) context->execinfo |= M68K_HALTED;
+  context->execinfo &= ~FM68K_HALTED;
+  if (cpu[0x4d]&1) context->execinfo |= FM68K_HALTED;
 #endif
   return 0;
 }

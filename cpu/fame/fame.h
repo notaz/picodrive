@@ -18,13 +18,13 @@ extern "C" {
 #define M68K_FETCHBANK1 (1 << FAMEC_FETCHBITS)
 
 //#define M68K_RUNNING    0x01
-#define M68K_HALTED     0x80
-#define M68K_WAITING    0x04
-#define M68K_DISABLE    0x20
-#define M68K_FAULTED    0x40
-#define M68K_EMULATE_GROUP_0  0x02
-#define M68K_EMULATE_TRACE    0x08
-#define M68K_DO_TRACE    0x10
+#define FM68K_HALTED     0x80
+//#define M68K_WAITING    0x04
+//#define M68K_DISABLE    0x20
+//#define M68K_FAULTED    0x40
+#define FM68K_EMULATE_GROUP_0  0x02
+#define FM68K_EMULATE_TRACE    0x08
+#define FM68K_DO_TRACE    0x10
 
 
 /************************************/
@@ -92,29 +92,6 @@ extern "C" {
 /* Data definition */
 /*******************/
 
-/* M68K registers */
-typedef enum {
-      M68K_REG_D0=0,
-      M68K_REG_D1,
-      M68K_REG_D2,
-      M68K_REG_D3,
-      M68K_REG_D4,
-      M68K_REG_D5,
-      M68K_REG_D6,
-      M68K_REG_D7,
-      M68K_REG_A0,
-      M68K_REG_A1,
-      M68K_REG_A2,
-      M68K_REG_A3,
-      M68K_REG_A4,
-      M68K_REG_A5,
-      M68K_REG_A6,
-      M68K_REG_A7,
-      M68K_REG_ASP,
-      M68K_REG_PC,
-      M68K_REG_SR
-} m68k_register;
-
 typedef union
 {
 	unsigned char B;
@@ -155,13 +132,12 @@ extern M68K_CONTEXT *g_m68kcontext;
 /************************/
 
 /* General purpose functions */
-void m68k_init(void);
-int  m68k_reset(void);
-int  m68k_emulate(int n);
+void fm68k_init(void);
+int  fm68k_reset(void);
+int  fm68k_emulate(int n);
+int  fm68k_would_interrupt(void); // to be called from fm68k_emulate()
 
-unsigned m68k_get_pc(M68K_CONTEXT *context);
-unsigned m68k_get_register(M68K_CONTEXT *context, m68k_register reg);
-unsigned m68k_set_register(M68K_CONTEXT *context, m68k_register reg, unsigned value);
+unsigned fm68k_get_pc(M68K_CONTEXT *context);
 
 
 #ifdef __cplusplus

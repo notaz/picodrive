@@ -48,6 +48,10 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekPcS68k (PicoCpuCS68k.pc-PicoCpuCS68k.membase)
 #define SekSetStop(x) { PicoCpuCM68k.state_flags&=~1; if (x) { PicoCpuCM68k.state_flags|=1; PicoCpuCM68k.cycles=0; } }
 #define SekSetStopS68k(x) { PicoCpuCS68k.state_flags&=~1; if (x) { PicoCpuCS68k.state_flags|=1; PicoCpuCS68k.cycles=0; } }
+#define SekShouldInterrupt (PicoCpuCM68k.irq > (PicoCpuCM68k.srh&7))
+#ifdef EMU_M68K
+#define EMU_CORE_DEBUG
+#endif
 #endif
 
 #ifdef EMU_F68K
@@ -62,16 +66,20 @@ M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #define SekSetCyclesLeft(c) { \
 	if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCycleCnt=SekCycleAim-(c); else SekSetCyclesLeftNoMCD(c); \
 }
-#define SekPc     m68k_get_pc(&PicoCpuFM68k)
-#define SekPcS68k m68k_get_pc(&PicoCpuFS68k)
+#define SekPc     fm68k_get_pc(&PicoCpuFM68k)
+#define SekPcS68k fm68k_get_pc(&PicoCpuFS68k)
 #define SekSetStop(x) { \
-	PicoCpuFM68k.execinfo &= ~M68K_HALTED; \
-	if (x) { PicoCpuFM68k.execinfo |= M68K_HALTED; PicoCpuFM68k.io_cycle_counter = 0; } \
+	PicoCpuFM68k.execinfo &= ~FM68K_HALTED; \
+	if (x) { PicoCpuFM68k.execinfo |= FM68K_HALTED; PicoCpuFM68k.io_cycle_counter = 0; } \
 }
 #define SekSetStopS68k(x) { \
-	PicoCpuFS68k.execinfo &= ~M68K_HALTED; \
-	if (x) { PicoCpuFS68k.execinfo |= M68K_HALTED; PicoCpuFS68k.io_cycle_counter = 0; } \
+	PicoCpuFS68k.execinfo &= ~FM68K_HALTED; \
+	if (x) { PicoCpuFS68k.execinfo |= FM68K_HALTED; PicoCpuFS68k.io_cycle_counter = 0; } \
 }
+#define SekShouldInterrupt fm68k_would_interrupt()
+#ifdef EMU_M68K
+#define EMU_CORE_DEBUG
+#endif
 #endif
 
 #ifdef EMU_M68K
@@ -97,6 +105,7 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 	if(x) { SET_CYCLES(0); PicoCpuMS68k.stopped=STOP_LEVEL_STOP; } \
 	else PicoCpuMS68k.stopped=0; \
 }
+#define SekShouldInterrupt (CPU_INT_LEVEL > FLAG_INT_MASK)
 #endif
 #endif
 
@@ -128,8 +137,7 @@ extern int SekCycleAimS68k;
 }
 #define SekCyclesDoneS68k()  (SekCycleAimS68k-SekCyclesLeftS68k)
 
-// debug cyclone
-#if defined(EMU_C68K) && defined(EMU_M68K)
+#ifdef EMU_CORE_DEBUG
 #undef SekSetCyclesLeftNoMCD
 #undef SekSetCyclesLeft
 #undef SekCyclesBurn
@@ -303,6 +311,9 @@ PICO_INTERNAL int PicoCdLoadState(void *file);
 
 // Cart.c
 PICO_INTERNAL void PicoCartDetect(void);
+
+// Debug.c
+int CM_compareRun(int cyc);
 
 // Draw.c
 PICO_INTERNAL int PicoLine(int scan);

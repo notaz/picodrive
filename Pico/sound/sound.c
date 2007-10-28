@@ -444,7 +444,6 @@ PICO_INTERNAL void z80_pack(unsigned char *data)
 #elif defined(_USE_CZ80)
   *(int *)data = 0x00007a43; // "Cz"
   memcpy(data+4, &CZ80, (INT32)&CZ80.BasePC - (INT32)&CZ80);
-  printf("size: %i (%x)\n", (INT32)&CZ80.BasePC - (INT32)&CZ80, (INT32)&CZ80.BasePC - (INT32)&CZ80); // FIXME rm
 #endif
 }
 

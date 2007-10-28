@@ -1,6 +1,7 @@
 
 # settings
 #use_musashi = 1
+use_fame = 1
 #use_mz80 = 1
 
 # profile = 1
@@ -51,22 +52,26 @@ OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
 ifeq "$(use_musashi)" "1"
 DEFINC += -DEMU_M68K
 OBJS += ../../cpu/musashi/m68kops.o ../../cpu/musashi/m68kcpu.o
-else
+endif
+ifeq "$(use_fame)" "1"
 DEFINC += -DEMU_F68K
 OBJS += ../../cpu/fame/famec.o
 endif
 # z80
 ifeq "$(use_mz80)" "1"
-CFLAGS += -D_USE_MZ80
+DEFINC += -D_USE_MZ80
 OBJS += ../../cpu/mz80/mz80.o
 else
-CFLAGS += -D_USE_CZ80
+DEFINC += -D_USE_CZ80
 OBJS += ../../cpu/cz80/cz80.o
 endif
-
-# faked asm
-#DEFINC += -D_ASM_DRAW_C
-#OBJS += fakedasm.o
+# misc
+ifeq "$(use_fame)" "1"
+ifeq "$(use_musashi)" "1"
+OBJS += ../../Pico/Debug.o
+OBJS += ../../cpu/musashi/m68kdasm.o
+endif
+endif
 
 
 all: PicoDrive
@@ -78,8 +83,8 @@ tidy:
 	@make -C ../common/helix/ X86=1 clean
 
 PicoDrive : $(OBJS) ../common/helix/helix_mp3_x86.a
-	@echo $@
-	@$(GCC) $(COPT) $^ $(LDFLAGS) -lm -lpng -Wl,-Map=PicoDrive.map -o $@
+	@echo ">>>" $@
+	$(GCC) $(COPT) $^ $(LDFLAGS) -lm -lpng -Wl,-Map=PicoDrive.map -o $@
 
 
 ../../cpu/musashi/m68kops.c :
@@ -96,18 +101,19 @@ PicoDrive : $(OBJS) ../common/helix/helix_mp3_x86.a
 	@make -C ../common/helix/ X86=1 clean all
 
 .c.o:
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -c $< -o $@
+	@echo ">>>" $<
+	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
 .s.o:
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -c $< -o $@
+	@echo ">>>" $<
+	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
 
 
 ../../Pico/sound/ym2612.o : ../../Pico/sound/ym2612.c
-	@echo $@
-	@$(GCC) $(COPT_COMMON) $(DEFINC) -c $< -o $@ # -mtune=arm940t -DEXTERNAL_YM2612
+	@echo ">>>" $@
+	$(GCC) $(COPT_COMMON) $(DEFINC) -c $< -o $@
 
-../../cpu/fame/famec.o : ../../cpu/fame/famec.c
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -Wno-unused -c $< -o $@
+../../cpu/fame/famec.o : ../../cpu/fame/famec.c ../../cpu/fame/famec_opcodes.h
+	@echo ">>>" $<
+	$(GCC) $(COPT) $(DEFINC) -Wno-unused -c $< -o $@
+
 

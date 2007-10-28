@@ -104,6 +104,7 @@ PICO_INTERNAL int SekInit()
   PicoCpuCM68k.IrqCallback=SekIntAck;
   PicoCpuCM68k.ResetCallback=SekResetAck;
   PicoCpuCM68k.UnrecognizedCallback=SekUnrecognizedOpcode;
+  PicoCpuCM68k.flags=4;   // Z set
 #endif
 #ifdef EMU_M68K
   {
@@ -122,7 +123,7 @@ PICO_INTERNAL int SekInit()
     void *oldcontext = g_m68kcontext;
     g_m68kcontext = &PicoCpuFM68k;
     memset(&PicoCpuFM68k, 0, sizeof(PicoCpuFM68k));
-    m68k_init();
+    fm68k_init();
     PicoCpuFM68k.iack_handler = SekIntAckF68K;
     g_m68kcontext = oldcontext;
   }
@@ -141,7 +142,6 @@ PICO_INTERNAL int SekReset()
   PicoCpuCM68k.state_flags=0;
   PicoCpuCM68k.osp=0;
   PicoCpuCM68k.srh =0x27; // Supervisor mode
-  PicoCpuCM68k.flags=4;   // Z set
   PicoCpuCM68k.irq=0;
   PicoCpuCM68k.a[7]=PicoCpuCM68k.read32(0); // Stack Pointer
   PicoCpuCM68k.membase=0;
@@ -156,7 +156,7 @@ PICO_INTERNAL int SekReset()
 #ifdef EMU_F68K
   {
     g_m68kcontext = &PicoCpuFM68k;
-    m68k_reset();
+    fm68k_reset();
   }
 #endif
 
@@ -166,7 +166,7 @@ PICO_INTERNAL int SekReset()
 
 PICO_INTERNAL int SekInterrupt(int irq)
 {
-#if defined(EMU_C68K) && defined(EMU_M68K)
+#ifdef EMU_CORE_DEBUG
   {
     extern unsigned int dbg_irq_level;
     dbg_irq_level=irq;
@@ -195,9 +195,9 @@ PICO_INTERNAL int SekInterrupt(int irq)
 PICO_INTERNAL void SekState(int *data)
 {
 #ifdef EMU_C68K
-  memcpy32(data,PicoCpuCM68k.d,0x44/4);
+  memcpy32(data,(int *)PicoCpuCM68k.d,0x44/4);
 #elif defined(EMU_M68K)
-  memcpy32(data, PicoCpuMM68k.dar, 0x40/4);
+  memcpy32(data, (int *)PicoCpuMM68k.dar, 0x40/4);
   data[0x10] = PicoCpuMM68k.pc;
 #elif defined(EMU_F68K)
   memcpy32(data, (int *)PicoCpuFM68k.dreg, 0x40/4);
