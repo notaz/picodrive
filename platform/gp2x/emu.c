@@ -682,7 +682,7 @@ void emu_Loop(void)
 				Reset940(1, 2);
 				Pause940(1);
 			}
-			sound_rerate(Pico.m.frame_count ? 1 : 0);
+			PsndRerate(Pico.m.frame_count ? 1 : 0);
 		}
 		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
 		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",

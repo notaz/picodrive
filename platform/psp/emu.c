@@ -142,6 +142,7 @@ void emu_setDefaultConfig(void)
 	currentConfig.KeyBinds[13] = 1<<5;
 	currentConfig.KeyBinds[15] = 1<<6;
 	currentConfig.KeyBinds[ 3] = 1<<7;
+	currentConfig.KeyBinds[12] = 1<<26; // switch rnd
 	currentConfig.KeyBinds[ 8] = 1<<27; // save state
 	currentConfig.KeyBinds[ 9] = 1<<28; // load state
 	currentConfig.PicoCDBuffers = 0;
@@ -538,7 +539,7 @@ static void sound_prepare(void)
 	samples_made = samples_done = 0;
 
 	if (PsndRate != PsndRate_old || (PicoOpt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
-		sound_rerate(Pico.m.frame_count ? 1 : 0);
+		PsndRerate(Pico.m.frame_count ? 1 : 0);
 	}
 	stereo=(PicoOpt&8)>>3;
 

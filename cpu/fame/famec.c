@@ -26,6 +26,7 @@
 #define FAMEC_ADR_BITS  24
 // #define FAMEC_FETCHBITS 8
 #define FAMEC_DATABITS  8
+#define FAMEC_32BIT_PC
 
 #define USE_CYCLONE_TIMING
 #define USE_CYCLONE_TIMING_DIV
@@ -289,15 +290,22 @@ static u32 flag_I;
 #define GET_PC                  \
 	(u32)PC - BasePC;
 
+
+#ifndef FAMEC_32BIT_PC
+
 #define SET_PC(A)               \
     BasePC = g_m68kcontext->Fetch[((A) >> M68K_FETCHSFT) & M68K_FETCHMASK];    \
    /*  BasePC -= (A) & 0xFF000000; */   \
     PC = (u16*)(((A) & M68K_ADR_MASK) + BasePC);
 
-#define SET_PC_BASE(P,B,A)               \
-    (B) = g_m68kcontext->Fetch[((A) >> M68K_FETCHSFT) & M68K_FETCHMASK];    \
-   /* (B) -= (A) & 0xFF000000; */ \
-    (P) = (u16*)(((A) & M68K_ADR_MASK) + (B));
+#else
+
+#define SET_PC(A)               \
+    BasePC = g_m68kcontext->Fetch[((A) >> M68K_FETCHSFT) & M68K_FETCHMASK];    \
+    BasePC -= (A) & 0xFF000000;    \
+    PC = (u16*)((A) + BasePC);
+
+#endif
 
 
 #define PRE_IO                  \
@@ -717,7 +725,10 @@ static FAMEC_EXTRA_INLINE void execute_exception(s32 vect)
 		/* adjust SR */
 		flag_S = M68K_SR_S;
 
-		newPC&=M68K_ADR_MASK&~1; // don't crash on games with bad vector tables
+#ifndef FAMEC_32BIT_PC
+		newPC&=M68K_ADR_MASK
+#endif
+		newPC&=~1; // don't crash on games with bad vector tables
 
 		SET_PC(newPC)
 

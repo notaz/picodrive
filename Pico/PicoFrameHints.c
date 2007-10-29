@@ -130,7 +130,7 @@ static int PicoFrameHints(void)
       PicoLine(y);
 
     if(PicoOpt&1)
-      sound_timers_and_dac(y);
+      Psnd_timers_and_dac(y);
 
 #ifndef PICO_CD
     // get samples from sound chips
@@ -192,7 +192,7 @@ static int PicoFrameHints(void)
     z80_int();
 
   if (PicoOpt&1)
-    sound_timers_and_dac(y);
+    Psnd_timers_and_dac(y);
 
   // get samples from sound chips
 #ifndef PICO_CD
@@ -223,7 +223,7 @@ static int PicoFrameHints(void)
 #endif
 
     if(PicoOpt&1)
-      sound_timers_and_dac(y);
+      Psnd_timers_and_dac(y);
 
     // Run scanline:
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());

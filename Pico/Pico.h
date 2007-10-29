@@ -130,7 +130,7 @@ extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to us
 // sound.c
 extern int PsndRate,PsndLen;
 extern short *PsndOut;
-void sound_rerate(int preserve_state);
+void PsndRerate(int preserve_state);
 
 // Utils.c
 extern int PicuAnd;

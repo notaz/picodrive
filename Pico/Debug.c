@@ -137,8 +137,8 @@ int CM_compareRun(int cyc)
 
     // compare PC
     m68ki_cpu.pc&=~1;
-    if ( SekPc != (m68ki_cpu.pc&0xffffff) ) {
-      dprintf("PC: %06x vs %06x", SekPc, m68ki_cpu.pc&0xffffff);
+    if (SekPc != m68ki_cpu.pc) {
+      dprintf("PC: %06x vs %06x", SekPc, m68ki_cpu.pc);
       err=1;
     }
 

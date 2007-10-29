@@ -593,7 +593,7 @@ void emu_Loop(void)
 	{
 		int ret, snd_excess_add, stereo;
 		if (PsndRate != PsndRate_old || (PicoOpt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
-			sound_rerate(Pico.m.frame_count ? 1 : 0);
+			PsndRerate(Pico.m.frame_count ? 1 : 0);
 		}
 		stereo=(PicoOpt&8)>>3;
 		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;

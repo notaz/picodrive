@@ -137,7 +137,7 @@ int PicoReset(int hard)
   Pico.m.pal=pal;
   Pico.video.status = 0x3408 | pal; // always set bits | vblank | pal
 
-  sound_reset(); // pal must be known here
+  PsndReset(); // pal must be known here
 
   if (PicoMCD & 1) {
     PicoResetMCD(hard);
@@ -255,17 +255,17 @@ static __inline void getSamples(int y)
 
   if(y == 224) {
     if(emustatus & 2)
-         curr_pos += sound_render(curr_pos, PsndLen-PsndLen/2);
-    else curr_pos  = sound_render(0, PsndLen);
+         curr_pos += PsndRender(curr_pos, PsndLen-PsndLen/2);
+    else curr_pos  = PsndRender(0, PsndLen);
     if (emustatus&1) emustatus|=2; else emustatus&=~2;
     if (PicoWriteSound) PicoWriteSound(curr_pos);
     // clear sound buffer
-    sound_clear();
+    PsndClear();
   }
   else if(emustatus & 3) {
     emustatus|= 2;
     emustatus&=~1;
-    curr_pos = sound_render(0, PsndLen/2);
+    curr_pos = PsndRender(0, PsndLen/2);
   }
 }
 
@@ -293,7 +293,7 @@ static void PicoRunZ80Simple(int line_from, int line_to)
   if (PicoOpt&1) {
     // we have ym2612 enabled, so we have to run Z80 in lines, so we could update DAC and timers
     for (line = line_from; line < line_to; line++) {
-      sound_timers_and_dac(line);
+      Psnd_timers_and_dac(line);
       if ((line == 224 || line == line_sample) && PsndOut) getSamples(line);
       if (line == 32 && PsndOut) emustatus &= ~1;
       if (line >= line_from_r && line < line_to_r)
@@ -397,10 +397,10 @@ static int PicoFrameSimple(void)
 
   // here we render sound if ym2612 is disabled
   if (!(PicoOpt&1) && PsndOut) {
-    int len = sound_render(0, PsndLen);
+    int len = PsndRender(0, PsndLen);
     if (PicoWriteSound) PicoWriteSound(len);
     // clear sound buffer
-    sound_clear();
+    PsndClear();
   }
 
   // a gap between flags set and vint

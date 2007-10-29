@@ -101,7 +101,7 @@ static void dac_recalculate(void)
 }
 
 
-PICO_INTERNAL void sound_reset(void)
+PICO_INTERNAL void PsndReset(void)
 {
   void *ym2612_regs;
 
@@ -110,12 +110,12 @@ PICO_INTERNAL void sound_reset(void)
   memset(ym2612_regs, 0, 0x200+4);
   z80startCycle = z80stopCycle = 0;
 
-  sound_rerate(0);
+  PsndRerate(0);
 }
 
 
 // to be called after changing sound rate or chips
-void sound_rerate(int preserve_state)
+void PsndRerate(int preserve_state)
 {
   void *state = NULL;
   int target_fps = Pico.m.pal ? 50 : 60;
@@ -163,12 +163,12 @@ void sound_rerate(int preserve_state)
   // clear all buffers
   memset32(PsndBuffer, 0, sizeof(PsndBuffer)/4);
   if (PsndOut)
-    sound_clear();
+    PsndClear();
 }
 
 
 // This is called once per raster (aka line), but not necessarily for every line
-PICO_INTERNAL void sound_timers_and_dac(int raster)
+PICO_INTERNAL void Psnd_timers_and_dac(int raster)
 {
   int pos, len;
   int do_dac = PsndOut && (PicoOpt&1) && *ym2612_dacen;
@@ -216,7 +216,7 @@ PICO_INTERNAL void sound_timers_and_dac(int raster)
 }
 
 
-PICO_INTERNAL void sound_clear(void)
+PICO_INTERNAL void PsndClear(void)
 {
   int len = PsndLen;
   if (PsndLen_exc_add) len++;
@@ -225,7 +225,7 @@ PICO_INTERNAL void sound_clear(void)
 }
 
 
-PICO_INTERNAL int sound_render(int offset, int length)
+PICO_INTERNAL int PsndRender(int offset, int length)
 {
   int  buf32_updated = 0;
   int *buf32 = PsndBuffer+offset;
@@ -316,22 +316,25 @@ static unsigned int DrZ80_rebaseSP(unsigned short a)
   return drZ80.Z80SP_BASE + a;
 }
 
-static unsigned char DrZ80_in(unsigned short p)
-{
-  elprintf(EL_ANOMALY, "Z80 port %04x read", p);
-  return 0xff;
-}
-
-static void DrZ80_out(unsigned short p,unsigned char d)
-{
-  elprintf(EL_ANOMALY, "Z80 port %04x write %02x", p, d);
-}
-
 static void DrZ80_irq_callback()
 {
   drZ80.Z80_IRQ = 0; // lower irq when accepted
 }
 #endif
+
+#if defined(_USE_DRZ80) || defined(_USE_CZ80)
+static unsigned char z80_in(unsigned short p)
+{
+  elprintf(EL_ANOMALY, "Z80 port %04x read", p);
+  return 0xff;
+}
+
+static void z80_out(unsigned short p,unsigned char d)
+{
+  elprintf(EL_ANOMALY, "Z80 port %04x write %02x", p, d);
+}
+#endif
+
 
 // z80 functionality wrappers
 PICO_INTERNAL void z80_init(void)
@@ -361,8 +364,8 @@ PICO_INTERNAL void z80_init(void)
   drZ80.z80_read16  =z80_read16;
   drZ80.z80_write8  =z80_write;
   drZ80.z80_write16 =z80_write16;
-  drZ80.z80_in      =DrZ80_in;
-  drZ80.z80_out     =DrZ80_out;
+  drZ80.z80_in      =z80_in;
+  drZ80.z80_out     =z80_out;
   drZ80.z80_irq_callback=DrZ80_irq_callback;
 
 #elif defined(_USE_CZ80)
@@ -372,6 +375,8 @@ PICO_INTERNAL void z80_init(void)
   Cz80_Set_Fetch(&CZ80, 0x2000, 0x3fff, (UINT32)Pico.zram - 0x2000); // mirror
   Cz80_Set_ReadB(&CZ80, (UINT8 (*)(UINT32 address))z80_read);
   Cz80_Set_WriteB(&CZ80, z80_write);
+  Cz80_Set_INPort(&CZ80, z80_in);
+  Cz80_Set_OUTPort(&CZ80, z80_out);
 #endif
 }
 

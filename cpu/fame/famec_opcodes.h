@@ -30046,7 +30046,11 @@ OPCODE(0x90D0)
 	res = dst - src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(12)
+#else
 RET(10)
+#endif
 }
 
 // SUBA
@@ -30063,7 +30067,11 @@ OPCODE(0x90D8)
 	res = dst - src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(12)
+#else
 RET(10)
+#endif
 }
 
 // SUBA
@@ -30080,7 +30088,11 @@ OPCODE(0x90E0)
 	res = dst - src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(14)
+#else
 RET(12)
+#endif
 }
 
 // SUBA
@@ -30097,7 +30109,11 @@ OPCODE(0x90E8)
 	res = dst - src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(16)
+#else
 RET(14)
+#endif
 }
 
 // SUBA
@@ -30114,7 +30130,11 @@ OPCODE(0x90F0)
 	res = dst - src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(18)
+#else
 RET(16)
+#endif
 }
 
 // SUBA
@@ -30130,7 +30150,11 @@ OPCODE(0x90F8)
 	res = dst - src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(16)
+#else
 RET(14)
+#endif
 }
 
 // SUBA
@@ -30146,7 +30170,11 @@ OPCODE(0x90F9)
 	res = dst - src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(20)
+#else
 RET(18)
+#endif
 }
 
 // SUBA
@@ -30163,7 +30191,11 @@ OPCODE(0x90FA)
 	res = dst - src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(16)
+#else
 RET(14)
+#endif
 }
 
 // SUBA
@@ -30180,7 +30212,11 @@ OPCODE(0x90FB)
 	res = dst - src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(18)
+#else
 RET(16)
+#endif
 }
 
 // SUBA
@@ -30210,7 +30246,11 @@ OPCODE(0x90DF)
 	res = dst - src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(12)
+#else
 RET(10)
+#endif
 }
 
 // SUBA
@@ -30227,7 +30267,11 @@ OPCODE(0x90E7)
 	res = dst - src;
 	AREG((Opcode >> 9) & 7) = res;
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(14)
+#else
 RET(12)
+#endif
 }
 
 // SUBA

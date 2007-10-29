@@ -392,10 +392,10 @@ PICO_INTERNAL_ASM void wram_1M_to_2M(unsigned char *m);
 PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba);
 
 // sound/sound.c
-PICO_INTERNAL void sound_reset(void);
-PICO_INTERNAL void sound_timers_and_dac(int raster);
-PICO_INTERNAL int  sound_render(int offset, int length);
-PICO_INTERNAL void sound_clear(void);
+PICO_INTERNAL void PsndReset(void);
+PICO_INTERNAL void Psnd_timers_and_dac(int raster);
+PICO_INTERNAL int  PsndRender(int offset, int length);
+PICO_INTERNAL void PsndClear(void);
 // z80 functionality wrappers
 PICO_INTERNAL void z80_init(void);
 PICO_INTERNAL void z80_resetCycles(void);
