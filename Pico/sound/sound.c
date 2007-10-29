@@ -448,7 +448,8 @@ PICO_INTERNAL void z80_pack(unsigned char *data)
   memcpy(data+4, &drZ80, 0x54);
 #elif defined(_USE_CZ80)
   *(int *)data = 0x00007a43; // "Cz"
-  memcpy(data+4, &CZ80, (INT32)&CZ80.BasePC - (INT32)&CZ80);
+  *(int *)(data+4) = Cz80_Get_Reg(&CZ80, CZ80_PC);
+  memcpy(data+8, &CZ80, (INT32)&CZ80.BasePC - (INT32)&CZ80);
 #endif
 }
 
@@ -476,9 +477,10 @@ PICO_INTERNAL void z80_unpack(unsigned char *data)
     z80_int(); // try to goto int handler, maybe we won't execute trash there?
   }
 #elif defined(_USE_CZ80)
-  if (*(int *)data == 0x00007a43) // "Cz" save?
-    memcpy(&CZ80, data+4, (INT32)&CZ80.BasePC - (INT32)&CZ80);
-  else {
+  if (*(int *)data == 0x00007a43) { // "Cz" save?
+    memcpy(&CZ80, data+8, (INT32)&CZ80.BasePC - (INT32)&CZ80);
+    Cz80_Set_Reg(&CZ80, CZ80_PC, *(int *)(data+4));
+  } else {
     z80_reset();
     z80_int();
   }
