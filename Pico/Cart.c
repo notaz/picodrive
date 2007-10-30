@@ -48,7 +48,7 @@ pm_file *pm_open(const char *path)
 
         ext = zipentry->name+strlen(zipentry->name)-3;
         for (i = 0; i < sizeof(rom_exts)/sizeof(rom_exts[0]); i++)
-          if (!strcasecmp(ext, rom_exts[i]) == 0) goto found_rom_zip;
+          if (strcasecmp(ext, rom_exts[i]) == 0) goto found_rom_zip;
       }
 
       /* zipfile given, but nothing found suitable for us inside */

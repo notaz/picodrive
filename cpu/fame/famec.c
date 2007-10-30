@@ -17,12 +17,10 @@
 // Options //
 #define FAMEC_ROLL_INLINE
 #define FAMEC_EMULATE_TRACE
-#define FAMEC_IRQ_CYCLES
 #define FAMEC_CHECK_BRANCHES
-// #define FAMEC_USE_DATA_BANKS
-// #define FAMEC_EXTRA_INLINE
+#define FAMEC_EXTRA_INLINE
 // #define FAMEC_DEBUG
-#define FAMEC_NO_GOTOS
+//#define FAMEC_NO_GOTOS
 #define FAMEC_ADR_BITS  24
 // #define FAMEC_FETCHBITS 8
 #define FAMEC_DATABITS  8
@@ -41,6 +39,7 @@
 #ifndef FAMEC_EXTRA_INLINE
 #define FAMEC_EXTRA_INLINE
 #else
+#undef FAMEC_EXTRA_INLINE
 #define FAMEC_EXTRA_INLINE INLINE
 #endif
 
@@ -83,17 +82,6 @@ typedef signed short	s16;
 typedef unsigned int	u32;
 typedef signed int	s32;
 */
-
-#ifdef FAMEC_EMULATE_TRACE
-static u32 flag_T;
-#endif
-static u32 flag_C;
-static u32 flag_V;
-static u32 flag_NotZ;
-static u32 flag_N;
-static u32 flag_X;         // 16 bytes aligned
-static u32 flag_S;
-static u32 flag_I;
 
 #ifndef M68K_OK
     #define M68K_OK 0
@@ -288,22 +276,27 @@ static u32 flag_I;
 #define M68K_PPL (m68kcontext.sr >> 8) & 7
 
 #define GET_PC                  \
-	(u32)PC - BasePC;
+	((u32)PC - BasePC)
 
 
 #ifndef FAMEC_32BIT_PC
 
 #define SET_PC(A)               \
-    BasePC = g_m68kcontext->Fetch[((A) >> M68K_FETCHSFT) & M68K_FETCHMASK];    \
-   /*  BasePC -= (A) & 0xFF000000; */   \
-    PC = (u16*)(((A) & M68K_ADR_MASK) + BasePC);
+{ \
+    u32 pc = A; \
+    BasePC = m68kcontext.Fetch[(pc >> M68K_FETCHSFT) & M68K_FETCHMASK];    \
+    PC = (u16*)((pc & M68K_ADR_MASK) + BasePC);	\
+}
 
 #else
 
 #define SET_PC(A)               \
-    BasePC = g_m68kcontext->Fetch[((A) >> M68K_FETCHSFT) & M68K_FETCHMASK];    \
-    BasePC -= (A) & 0xFF000000;    \
-    PC = (u16*)((A) + BasePC);
+{ \
+    u32 pc = A; \
+    BasePC = m68kcontext.Fetch[(pc >> M68K_FETCHSFT) & M68K_FETCHMASK];    \
+    BasePC -= pc & 0xFF000000;    \
+    PC = (u16*)(pc + BasePC); \
+}
 
 #endif
 
@@ -473,7 +466,7 @@ static u32 flag_I;
 	if (interrupt_chk__()) \
 	{ \
 		cycles_needed=m68kcontext.io_cycle_counter-(CLK); \
-		m68kcontext.io_cycle_counter= (CLK);  \
+		m68kcontext.io_cycle_counter=(CLK);  \
 	}
 
 
@@ -488,9 +481,10 @@ static u32 flag_I;
 #define CHECK_BRANCH_EXCEPTION(_PC_) \
 	if ((_PC_)&1) \
 	{ \
-		u32 pr_PC=GET_PC; \
+		u32 new_PC, pr_PC=GET_PC; \
 		m68kcontext.execinfo |= FM68K_EMULATE_GROUP_0; \
-		execute_exception_group_0(M68K_ADDRESS_ERROR_EX, 0, pr_PC, 0x12 ); \
+		new_PC = execute_exception_group_0(M68K_ADDRESS_ERROR_EX, 0, pr_PC, 0x12 ); \
+		SET_PC(new_PC); \
 		CHECK_BRANCH_EXCEPTION_GOTO_END \
 	}
 #else
@@ -500,9 +494,6 @@ static u32 flag_I;
 
 static int init_jump_table(void);
 
-/* Custom function handler */
-typedef void (*icust_handler_func)(u32 vector);
-
 // global variable
 ///////////////////
 
@@ -510,19 +501,29 @@ typedef void (*icust_handler_func)(u32 vector);
 M68K_CONTEXT *g_m68kcontext;
 #define m68kcontext (*g_m68kcontext)
 
-/* static s32 io_cycle_counter; */
-static s32 cycles_needed=0;
+#ifdef FAMEC_NO_GOTOS
+static u32 Opcode;
+static s32 cycles_needed;
 static u16 *PC;
 static u32 BasePC;
-// static u32 Fetch[M68K_FETCHBANK];
+static u32 flag_V;
+static u32 flag_NotZ;
+static u32 flag_N;
+static u32 flag_X;
+#endif
+
+#ifdef FAMEC_EMULATE_TRACE
+static u32 flag_T;
+#endif
+static u32 flag_S;
+static u32 flag_I;
+
+static u32 initialised = 0;
 
 /* Custom function handler */
 typedef void (*opcode_func)(void);
 
 static opcode_func JumpTable[0x10000];
-
-
-static u32 initialised = 0;
 
 // exception cycle table (taken from musashi core)
 static const s32 exception_cycle_table[256] =
@@ -673,7 +674,11 @@ int fm68k_reset(void)
 /****************************************************************************/
 u32 fm68k_get_pc(M68K_CONTEXT *context)
 {
+#ifdef FAMEC_NO_GOTOS
 	return (context->execinfo & M68K_RUNNING)?(u32)PC-BasePC:context->pc;
+#else
+	return context->pc; // approximate PC in this mode
+#endif
 }
 
 
@@ -692,64 +697,62 @@ int fm68k_would_interrupt(void)
 	return interrupt_chk__();
 }
 
-static FAMEC_EXTRA_INLINE void execute_exception(s32 vect)
+static FAMEC_EXTRA_INLINE u32 execute_exception(s32 vect, u32 oldPC, u32 oldSR)
 {
-	extern u32 flag_S;
-#ifndef FAMEC_IRQ_CYCLES
-	if ((vect<24)||(vect>31))
-#endif
+	u32 newPC;
+	//u32 oldSR = GET_SR;
+
         m68kcontext.io_cycle_counter -= exception_cycle_table[vect];
+
+	PRE_IO
+
+	READ_LONG_F(vect * 4, newPC)
+
+	/* swap A7 and USP */
+	if (!flag_S)
 	{
-		u32 newPC;
-		u32 oldPC;
-		u32 oldSR = GET_SR;
+		u32 tmpSP;
 
-		PRE_IO
+		tmpSP = ASP;
+		ASP = AREG(7);
+		AREG(7) = tmpSP;
+	}
 
-		READ_LONG_F(vect * 4, newPC)
+	//oldPC = GET_PC;
+	PUSH_32_F(oldPC)
+	PUSH_16_F(oldSR)
 
-		/* swap A7 and USP */
-		if (!flag_S)
-		{
-			u32 tmpSP;
-
-			tmpSP = ASP;
-			ASP = AREG(7);
-			AREG(7) = tmpSP;
-		}
-
-		oldPC = (u32)(PC) - BasePC;
-		PUSH_32_F(oldPC)
-		PUSH_16_F(oldSR)
-
-		/* adjust SR */
-		flag_S = M68K_SR_S;
+	/* adjust SR */
+	flag_S = M68K_SR_S;
 
 #ifndef FAMEC_32BIT_PC
-		newPC&=M68K_ADR_MASK
+	newPC&=M68K_ADR_MASK
 #endif
-		newPC&=~1; // don't crash on games with bad vector tables
+	newPC&=~1; // don't crash on games with bad vector tables
 
-		SET_PC(newPC)
+	// SET_PC(newPC)
 
-		POST_IO
-	}
+	POST_IO
+
+	return newPC;
 }
 
-static FAMEC_EXTRA_INLINE void execute_exception_group_0(s32 vect, u16 inst_reg, s32 addr, u16 spec_info)
+static FAMEC_EXTRA_INLINE u32 execute_exception_group_0(s32 vect, s32 addr, u16 spec_info, u32 oldSR)
 {
-	execute_exception(vect);
+	u32 newPC;
+	u16 inst_reg = 0;
+	newPC = execute_exception(vect, addr, oldSR);
 	//if (!(m68kcontext.icust_handler && m68kcontext.icust_handler[vect]))
 	{
 		PUSH_16_F(inst_reg);
 		PUSH_32_F(addr);
 		PUSH_16_F(spec_info);
 	}
+	return newPC;
 }
 
 
 static void setup_jumptable(void);
-static u32 Opcode;
 
 #ifdef FAMEC_NO_GOTOS
 
@@ -764,6 +767,18 @@ static u32 Opcode;
 
 int fm68k_emulate(s32 cycles)
 {
+#ifndef FAMEC_NO_GOTOS
+	u32 Opcode;
+	s32 cycles_needed;
+	u16 *PC;
+	u32 BasePC;
+	u32 flag_C;
+	u32 flag_V;
+	u32 flag_NotZ;
+	u32 flag_N;
+	u32 flag_X;
+#endif
+
 	if (!initialised)
 	{
 #ifdef FAMEC_NO_GOTOS
@@ -824,7 +839,7 @@ int fm68k_emulate(s32 cycles)
 			else
 				m68kcontext.interrupts[0] = 0;
 
-			execute_exception(line + 0x18);
+			SET_PC(execute_exception(line + 0x18, GET_PC, GET_SR));
 			flag_I = (u32)line;
 			if (m68kcontext.io_cycle_counter <= 0) goto famec_End;
 		}
@@ -833,7 +848,7 @@ int fm68k_emulate(s32 cycles)
 			if  (flag_T)
 			{
 				m68kcontext.execinfo |= FM68K_EMULATE_TRACE;
-				cycles_needed= m68kcontext.io_cycle_counter;
+				cycles_needed = m68kcontext.io_cycle_counter;
 				m68kcontext.io_cycle_counter=0;
 			}
 #endif
@@ -862,22 +877,25 @@ famec_Exec:
 #ifdef FAMEC_EMULATE_TRACE
 	if (m68kcontext.execinfo & FM68K_EMULATE_TRACE)
 	{
-		m68kcontext.io_cycle_counter= cycles_needed;
+		m68kcontext.io_cycle_counter = cycles_needed;
+		cycles_needed = 0;
 		m68kcontext.execinfo &= ~FM68K_EMULATE_TRACE;
 		m68kcontext.execinfo |= FM68K_DO_TRACE;
-		execute_exception(M68K_TRACE_EX);
+		SET_PC(execute_exception(M68K_TRACE_EX, GET_PC, GET_SR));
 		flag_T=0;
 		if (m68kcontext.io_cycle_counter > 0)
 		{
-			NEXT
+			//NEXT
+			goto famec_Exec;
 		}
 	}
 	else
 #endif
 		if (cycles_needed != 0)
 		{
+			m68kcontext.io_cycle_counter = cycles_needed;
+			cycles_needed = 0;
 			s32 line=interrupt_chk__();
-			m68kcontext.io_cycle_counter= cycles_needed;
 			if (line>0)
 			{
 				if (m68kcontext.iack_handler != NULL)
@@ -885,11 +903,11 @@ famec_Exec:
 				else
 					m68kcontext.interrupts[0] = 0;
 
-				execute_exception(line + 0x18);
+				SET_PC(execute_exception(line + 0x18, GET_PC, GET_SR));
 				flag_I = (u32)line;
 			}
 #ifdef FAMEC_EMULATE_TRACE
-			else if (!(flag_T))
+			if (!(flag_T))
 #endif
 			if (m68kcontext.io_cycle_counter > 0)
 			{

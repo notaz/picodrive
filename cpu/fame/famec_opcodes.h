@@ -638,9 +638,7 @@ OPCODE(0x007C)
 	}
 	else
 	{
-		u32 newPC = (u32)(PC) - BasePC;
-		SET_PC(newPC-2);
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 #ifdef USE_CYCLONE_TIMING
 		RET(0)
 #else
@@ -1298,9 +1296,7 @@ OPCODE(0x027C)
 	}
 	else
 	{
-		u32 newPC = (u32)(PC) - BasePC;
-		SET_PC(newPC-2);
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(20)
@@ -1950,9 +1946,7 @@ OPCODE(0x0A7C)
 	}
 	else
 	{
-		u32 newPC = (u32)(PC) - BasePC;
-		SET_PC(newPC-2);
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(0)
 	}
 RET(20)
@@ -16570,9 +16564,7 @@ OPCODE(0x46C0)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(12)
@@ -16601,9 +16593,7 @@ OPCODE(0x46D0)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(16)
@@ -16633,9 +16623,7 @@ OPCODE(0x46D8)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(16)
@@ -16665,9 +16653,7 @@ OPCODE(0x46E0)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(18)
@@ -16697,9 +16683,7 @@ OPCODE(0x46E8)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(20)
@@ -16729,9 +16713,7 @@ OPCODE(0x46F0)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(22)
@@ -16761,9 +16743,7 @@ OPCODE(0x46F8)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(20)
@@ -16792,9 +16772,7 @@ OPCODE(0x46F9)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(24)
@@ -16820,13 +16798,11 @@ OPCODE(0x46FA)
 			ASP = res;
 		}
 		POST_IO
-		CHECK_INT_TO_JUMP(24)
+		CHECK_INT_TO_JUMP(20)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(20)
@@ -16856,9 +16832,7 @@ OPCODE(0x46FB)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(22)
@@ -16884,9 +16858,7 @@ OPCODE(0x46FC)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(16)
@@ -16916,9 +16888,7 @@ OPCODE(0x46DF)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(16)
@@ -16948,9 +16918,7 @@ OPCODE(0x46E7)
 	}
 	else
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 RET(18)
@@ -18473,27 +18441,21 @@ RET(10)
 // ILLEGAL
 OPCODE(0x4AFC)
 {
-	u32 oldPC=GET_PC;
-	SET_PC(oldPC-2)
-	execute_exception(M68K_ILLEGAL_INSTRUCTION_EX);
+	SET_PC(execute_exception(M68K_ILLEGAL_INSTRUCTION_EX, GET_PC-2, GET_SR));
 RET(0)
 }
 
 // ILLEGAL A000-AFFF
 OPCODE(0xA000)
 {
-	u32 oldPC=GET_PC;
-	SET_PC(oldPC-2)
-	execute_exception(M68K_1010_EX);
+	SET_PC(execute_exception(M68K_1010_EX, GET_PC-2, GET_SR));
 RET(0)
 }
 
 // ILLEGAL F000-FFFF
 OPCODE(0xF000)
 {
-	u32 oldPC=GET_PC;
-	SET_PC(oldPC-2)
-	execute_exception(M68K_1111_EX);
+	SET_PC(execute_exception(M68K_1111_EX, GET_PC-2, GET_SR));
 RET(0) // 4 already taken by exc. handler
 }
 
@@ -19054,7 +19016,7 @@ RET(12)
 // TRAP
 OPCODE(0x4E40)
 {
-	execute_exception(M68K_TRAP_BASE_EX + (Opcode & 0xF));
+	SET_PC(execute_exception(M68K_TRAP_BASE_EX + (Opcode & 0xF), GET_PC, GET_SR));
 RET(4)
 }
 
@@ -19125,9 +19087,7 @@ OPCODE(0x4E60)
 
 	if (!flag_S)
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 	res = AREGu32((Opcode >> 0) & 7);
@@ -19143,9 +19103,7 @@ OPCODE(0x4E68)
 
 	if (!flag_S)
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 	res = ASP;
@@ -19161,9 +19119,7 @@ OPCODE(0x4E70)
 
 	if (!flag_S)
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 	PRE_IO
@@ -19187,9 +19143,7 @@ OPCODE(0x4E72)
 
 	if (!flag_S)
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 	FETCH_WORD(res);
@@ -19214,9 +19168,7 @@ OPCODE(0x4E73)
 
 	if (!flag_S)
 	{
-		u32 oldPC=GET_PC;
-		SET_PC(oldPC-2)
-		execute_exception(M68K_PRIVILEGE_VIOLATION_EX);
+		SET_PC(execute_exception(M68K_PRIVILEGE_VIOLATION_EX, GET_PC-2, GET_SR));
 		RET(4)
 	}
 	PRE_IO
@@ -19254,7 +19206,7 @@ RET(16)
 OPCODE(0x4E76)
 {
 	if (flag_V & 0x80)
-		execute_exception(M68K_TRAPV_EX);
+		SET_PC(execute_exception(M68K_TRAPV_EX, GET_PC, GET_SR));
 RET(4)
 }
 
@@ -19517,7 +19469,7 @@ OPCODE(0x4180)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 RET(10)
 }
@@ -19535,7 +19487,7 @@ OPCODE(0x4190)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(14)
@@ -19555,7 +19507,7 @@ OPCODE(0x4198)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(14)
@@ -19575,7 +19527,7 @@ OPCODE(0x41A0)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(16)
@@ -19595,7 +19547,7 @@ OPCODE(0x41A8)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(18)
@@ -19615,7 +19567,7 @@ OPCODE(0x41B0)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(20)
@@ -19634,7 +19586,7 @@ OPCODE(0x41B8)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(18)
@@ -19653,7 +19605,7 @@ OPCODE(0x41B9)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(22)
@@ -19673,7 +19625,7 @@ OPCODE(0x41BA)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(18)
@@ -19693,7 +19645,7 @@ OPCODE(0x41BB)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(20)
@@ -19710,7 +19662,7 @@ OPCODE(0x41BC)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(14)
@@ -19730,7 +19682,7 @@ OPCODE(0x419F)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(14)
@@ -19750,7 +19702,7 @@ OPCODE(0x41A7)
 	if (((s32)res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
-		execute_exception(M68K_CHK_EX);
+		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
 	}
 	POST_IO
 RET(16)
@@ -26983,7 +26935,7 @@ OPCODE(0x80C0)
 	src = DREGu16((Opcode >> 0) & 7);
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(140)
 #else
@@ -27031,7 +26983,7 @@ OPCODE(0x80D0)
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(144)
 #else
@@ -27080,7 +27032,7 @@ OPCODE(0x80D8)
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(144)
 #else
@@ -27129,7 +27081,7 @@ OPCODE(0x80E0)
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(146)
 #else
@@ -27178,7 +27130,7 @@ OPCODE(0x80E8)
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(148)
 #else
@@ -27227,7 +27179,7 @@ OPCODE(0x80F0)
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(150)
 #else
@@ -27275,7 +27227,7 @@ OPCODE(0x80F8)
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(148)
 #else
@@ -27323,7 +27275,7 @@ OPCODE(0x80F9)
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(162)
 #else
@@ -27372,7 +27324,7 @@ OPCODE(0x80FA)
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(148)
 #else
@@ -27421,7 +27373,7 @@ OPCODE(0x80FB)
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(160)
 #else
@@ -27467,7 +27419,7 @@ OPCODE(0x80FC)
 	FETCH_WORD(src);
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(144)
 #else
@@ -27516,7 +27468,7 @@ OPCODE(0x80DF)
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(144)
 #else
@@ -27565,7 +27517,7 @@ OPCODE(0x80E7)
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 RET(146)
 #else
@@ -27611,7 +27563,7 @@ OPCODE(0x81C0)
 	src = (s32)DREGs16((Opcode >> 0) & 7);
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81C0;
 #endif
@@ -27667,7 +27619,7 @@ OPCODE(0x81D0)
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81D0;
 #endif
@@ -27724,7 +27676,7 @@ OPCODE(0x81D8)
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81D8;
 #endif
@@ -27781,7 +27733,7 @@ OPCODE(0x81E0)
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81E0;
 #endif
@@ -27838,7 +27790,7 @@ OPCODE(0x81E8)
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81E8;
 #endif
@@ -27895,7 +27847,7 @@ OPCODE(0x81F0)
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81F0;
 #endif
@@ -27951,7 +27903,7 @@ OPCODE(0x81F8)
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81F8;
 #endif
@@ -28007,7 +27959,7 @@ OPCODE(0x81F9)
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81F9;
 #endif
@@ -28064,7 +28016,7 @@ OPCODE(0x81FA)
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81FA;
 #endif
@@ -28121,7 +28073,7 @@ OPCODE(0x81FB)
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81FB;
 #endif
@@ -28175,7 +28127,7 @@ OPCODE(0x81FC)
 	FETCH_SWORD(src);
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81FC;
 #endif
@@ -28232,7 +28184,7 @@ OPCODE(0x81DF)
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81DF;
 #endif
@@ -28289,7 +28241,7 @@ OPCODE(0x81E7)
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
-		execute_exception(M68K_ZERO_DIVIDE_EX);
+		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
 goto end81E7;
 #endif
