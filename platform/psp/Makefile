@@ -10,7 +10,7 @@ amalgamate = 0
 #up = 1
 
 
-CFLAGS += -I../.. -I. -D_UNZIP_SUPPORT -DNO_SYNC # -DBENCHMARK
+CFLAGS += -I../.. -I. -D_UNZIP_SUPPORT -DNO_SYNC -D_ASM_DRAW_C_MIPS # -DBENCHMARK
 CFLAGS += -Wall -Winline -G0
 ifeq ($(DEBUG),)
 CFLAGS += -O2 -ftracer -fstrength-reduce -ffast-math

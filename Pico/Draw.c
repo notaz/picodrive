@@ -66,6 +66,10 @@ void blockcpy_or(void *dst, void *src, size_t n, int pat)
 #endif
 
 
+#ifdef _ASM_DRAW_C_MIPS
+int TileNorm(int sx,int addr,int pal);
+int TileFlip(int sx,int addr,int pal);
+#else
 static int TileNorm(int sx,int addr,int pal)
 {
   unsigned char *pd = HighCol+sx;
@@ -108,7 +112,7 @@ static int TileFlip(int sx,int addr,int pal)
   }
   return 1; // Tile blank
 }
-
+#endif
 
 // tile renderers for hacky operator sprite support
 #define sh_pix(x) \
