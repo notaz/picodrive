@@ -14,7 +14,7 @@ amalgamate = 0
 
 
 
-DEFINC = -I../.. -I. -D__GIZ__ -D_UNZIP_SUPPORT -DNO_SYNC
+DEFINC = -I../.. -I. -D__GIZ__ -DNO_SYNC
 COPT_COMMON = -Wall -Winline
 ifeq ($(DEBUG),)
 COPT_COMMON += -O2 -ftracer -fomit-frame-pointer -fstrict-aliasing -ffast-math

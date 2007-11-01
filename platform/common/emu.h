@@ -9,6 +9,7 @@ typedef struct {
 					// squidgehack, no_save_cfg_on_exit, <unused>, 16_bit_mode
 					// craigix_ram, confirm_save, show_cd_leds, confirm_load
 					// A_SNs_gamma, perfect_vsync, giz_scanlines, giz_dblbuff
+					// vsync_mode
 	int PicoOpt;  // used for config saving only, see Pico.h
 	int PsndRate; // ditto
 	int PicoRegion; // ditto

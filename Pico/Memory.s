@@ -10,6 +10,7 @@
 .include "port_config.s"
 
 .text
+.align 4
 
 @ default jump tables
 
@@ -119,6 +120,7 @@ m_read32_def_table:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 .bss
+.align 4
 @.section .bss, "brw"
 @.data
 
@@ -136,6 +138,7 @@ m_read32_table:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 .text
+.align 4
 
 .global PicoMemReset
 .global PicoRead8
@@ -184,7 +187,7 @@ PicoMemReset:
     @ update memhandlers according to ROM size
     ldr     r1, =m_read8_above_rom
     ldr     r0, =m_read8_table
-    mov     r2, #16
+    mov     r2, #20
 1:
     sub     r2, r2, #1
     cmp     r2, r12
@@ -196,7 +199,7 @@ PicoMemReset:
 2:
     ldr     r1, =m_read16_above_rom
     ldr     r0, =m_read16_table
-    mov     r2, #16
+    mov     r2, #20
 1:
     sub     r2, r2, #1
     cmp     r2, r12
@@ -208,7 +211,7 @@ PicoMemReset:
 2:
     ldr     r1, =m_read32_above_rom
     ldr     r0, =m_read32_table
-    mov     r2, #16
+    mov     r2, #20
 1:
     sub     r2, r2, #1
     cmp     r2, r12
@@ -653,7 +656,7 @@ m_read32_rom4: @ 0x200000 - 0x27ffff, SRAM area (does any game do long reads?)
     add     r0, r1, #2
     bl      SRAMRead
     ldmfd   sp!,{r1,lr}
-    orr     r0, r1, r0, lsl #16
+    orr     r0, r0, r1, lsl #16
     orr     r0, r0, r0, lsl #8
     bx      lr
 m_read32_nosram:

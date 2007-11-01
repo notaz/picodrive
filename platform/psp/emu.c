@@ -15,7 +15,7 @@
 #include "../common/lprintf.h"
 #include "../../Pico/PicoInt.h"
 
-#define OSD_FPS_X 420
+#define OSD_FPS_X 424
 
 // additional pspaudio imports, credits to crazyc
 int sceAudio_38553111(unsigned short samples, unsigned short freq, char unknown);  // play with conversion?
@@ -35,7 +35,7 @@ int reset_timing = 0; // do we need this?
 
 static void sound_init(void);
 static void sound_deinit(void);
-static void blit2(const char *fps, const char *notice);
+static void blit2(const char *fps, const char *notice, int lagging_behind);
 static void clearArea(int full);
 
 void emu_noticeMsgUpdated(void)
@@ -133,7 +133,7 @@ void emu_setDefaultConfig(void)
 	currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
 	currentConfig.Frameskip = -1; // auto
 	currentConfig.volume = 50;
-	currentConfig.CPUclock = 222;
+	currentConfig.CPUclock = 333;
 	currentConfig.KeyBinds[ 4] = 1<<0; // SACB RLDU
 	currentConfig.KeyBinds[ 6] = 1<<1;
 	currentConfig.KeyBinds[ 7] = 1<<2;
@@ -361,7 +361,7 @@ static void cd_leds(void)
 
 	p = (unsigned int *)((short *)psp_screen + 512*2+4+2);
 	col_g = (old_reg & 2) ? 0x06000600 : 0;
-	col_r = (old_reg & 1) ? 0xc000c000 : 0;
+	col_r = (old_reg & 1) ? 0x00180018 : 0;
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
@@ -402,11 +402,9 @@ void blit1(void)
 }
 
 
-static void blit2(const char *fps, const char *notice)
+static void blit2(const char *fps, const char *notice, int lagging_behind)
 {
-	int emu_opt = currentConfig.EmuOpt;
-
-	sceGuSync(0,0);
+	int vsync = 0, emu_opt = currentConfig.EmuOpt;
 
 	if (notice || (emu_opt & 2)) {
 		if (notice)      osd_text(4, notice, 0);
@@ -418,7 +416,11 @@ static void blit2(const char *fps, const char *notice)
 	if ((emu_opt & 0x400) && (PicoMCD & 1))
 		cd_leds();
 
-	psp_video_flip(0);
+	if (currentConfig.EmuOpt & 0x2000) { // want vsync
+		if (!(currentConfig.EmuOpt & 0x10000) || !lagging_behind) vsync = 1;
+	}
+
+	psp_video_flip(vsync);
 }
 
 // clears whole screen or just the notice area (in all buffers)
@@ -666,7 +668,8 @@ static void RunEvents(unsigned int which)
 				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) // save
 		{
 			int keys;
-			blit2("", (which & 0x1000) ? "LOAD STATE? (X=yes, O=no)" : "OVERWRITE SAVE? (X=yes, O=no)");
+			sceGuSync(0,0);
+			blit2("", (which & 0x1000) ? "LOAD STATE? (X=yes, O=no)" : "OVERWRITE SAVE? (X=yes, O=no)", 0);
 			while( !((keys = psp_pad_read(1)) & (BTN_X|BTN_CIRCLE)) )
 				psp_msleep(50);
 			if (keys & BTN_CIRCLE) do_it = 0;
@@ -966,11 +969,13 @@ void emu_Loop(void)
 
 		PicoFrame();
 
-		blit2(fpsbuff, notice);
+		sceGuSync(0,0);
 
 		// check time
 		tval = sceKernelGetSystemTimeLow();
 		tval_diff = (int)(tval - tval_thissec) << 8;
+
+		blit2(fpsbuff, notice, tval_diff > lim_time);
 
 		if (currentConfig.Frameskip < 0 && tval_diff - lim_time >= (300000<<8)) // slowdown detection
 			reset_timing = 1;

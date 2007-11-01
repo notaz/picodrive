@@ -1357,7 +1357,7 @@ static void draw_menu_credits(void)
 
 	y = tl_y;
 	text_out16(tl_x, y, "Credits:");
-	text_out16(tl_x, (y+=10), "Dave: Cyclone 68000 core,");
+	text_out16(tl_x, (y+=10), "fDave: Cyclone 68000 core,");
 	text_out16(tl_x, (y+=10), "      base code of PicoDrive");
 	text_out16(tl_x, (y+=10), "Reesy & FluBBa: DrZ80 core");
 	text_out16(tl_x, (y+=10), "MAME devs: YM2612 and SN76496 cores");

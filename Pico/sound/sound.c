@@ -254,9 +254,9 @@ PICO_INTERNAL int PsndRender(int offset, int length)
     SN76496Update(PsndOut+offset, length, stereo);
 
   // Add in the stereo FM buffer
-  if (PicoOpt & 1)
+  if (PicoOpt & 1) {
     buf32_updated = YM2612UpdateOne(buf32, length, stereo, 1);
-  else
+  } else
     memset32(buf32, 0, length<<stereo);
 
 //printf("active_chs: %02x\n", buf32_updated);

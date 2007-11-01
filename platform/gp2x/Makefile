@@ -31,7 +31,7 @@ else
 use_cyclone = 1
 endif
 
-DEFINC = -I../.. -I. -DARM -D__GP2X__ -D_UNZIP_SUPPORT # -DBENCHMARK
+DEFINC = -I../.. -I. -DARM -D__GP2X__ # -DBENCHMARK
 COPT_COMMON = -static -Wall -Winline
 ifeq ($(DEBUG),)
 COPT_COMMON += -O2 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math

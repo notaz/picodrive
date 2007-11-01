@@ -962,6 +962,7 @@ menu_entry opt3_entries[] =
 	{ NULL,                        MB_NONE,  MA_OPT3_HSCALE32,      NULL, 0, 0, 0, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT3_HSCALE40,      NULL, 0, 0, 0, 1 },
 	{ NULL,                        MB_ONOFF, MA_OPT3_FILTERING,     &currentConfig.scaling, 1, 0, 0, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT3_VSYNC,         NULL, 0, 0, 0, 1 },
 	{ "Set to unscaled centered",  MB_NONE,  MA_OPT3_PRES_NOSCALE,  NULL, 0, 0, 0, 1 },
 	{ "Set to fullscreen",         MB_NONE,  MA_OPT3_PRES_FULLSCR,  NULL, 0, 0, 0, 1 },
 	{ "done",                      MB_NONE,  MA_OPT3_DONE,          NULL, 0, 0, 0, 1 },
@@ -986,6 +987,13 @@ static void menu_opt3_cust_draw(const menu_entry *entry, int x, int y, void *par
 		case MA_OPT3_FILTERING:
 			text_out16(x, y, "Bilinear filtering                 %s", currentConfig.scaling?"ON":"OFF");
 			break;
+		case MA_OPT3_VSYNC: {
+			char *val = "    never";
+			if (currentConfig.EmuOpt & 0x2000)
+				val = (currentConfig.EmuOpt & 0x10000) ? "sometimes" : "   always";
+			text_out16(x, y, "Wait for vsync                %s", val);
+			break;
+		}
 		default: break;
 	}
 }
@@ -1023,11 +1031,11 @@ static void menu_opt3_preview(int is_32col)
 
 static void draw_dispmenu_options(int menu_sel)
 {
-	int tl_x = 80+25, tl_y = 16+50;
+	int tl_x = 80, tl_y = 16+50;
 
 	menu_draw_begin();
 
-	menu_draw_selection(tl_x - 16, tl_y + menu_sel*10, 252);
+	menu_draw_selection(tl_x - 16, tl_y + menu_sel*10, 316);
 
 	me_draw(opt3_entries, OPT3_ENTRY_COUNT, tl_x, tl_y, menu_opt3_cust_draw, NULL);
 
@@ -1043,7 +1051,7 @@ static void dispmenu_loop_options(void)
 
 	menu_sel_max = me_count_enabled(opt3_entries, OPT3_ENTRY_COUNT) - 1;
 
-	for(;;)
+	for (;;)
 	{
 		draw_dispmenu_options(menu_sel);
 		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE);
@@ -1056,12 +1064,19 @@ static void dispmenu_loop_options(void)
 		if (inp & (BTN_LEFT|BTN_RIGHT)) // multi choise
 		{
 			float *setting = NULL;
+			int tmp;
 			me_process(opt3_entries, OPT3_ENTRY_COUNT, selected_id, (inp&BTN_RIGHT) ? 1 : 0);
 			switch (selected_id) {
 				case MA_OPT3_SCALE:    setting = &currentConfig.scale; break;
 				case MA_OPT3_HSCALE40: setting = &currentConfig.hscale40; is_32col = 0; break;
 				case MA_OPT3_HSCALE32: setting = &currentConfig.hscale32; is_32col = 1; break;
 				case MA_OPT3_FILTERING:menu_opt3_preview(is_32col); break;
+				case MA_OPT3_VSYNC:    tmp = ((currentConfig.EmuOpt>>13)&1) | ((currentConfig.EmuOpt>>15)&2);
+					tmp = (inp & BTN_LEFT) ? (tmp>>1) : ((tmp<<1)|1);
+					if (tmp > 3) tmp = 3;
+					currentConfig.EmuOpt &= ~0x12000;
+					currentConfig.EmuOpt |= ((tmp&2)<<15) | ((tmp&1)<<13);
+					break;
 				default: break;
 			}
 			if (setting != NULL) {
@@ -1462,12 +1477,15 @@ static void draw_menu_credits(void)
 
 	y = tl_y;
 	text_out16(tl_x, y, "Credits:");
-	text_out16(tl_x, (y+=10), "Dave: base code of PicoDrive");
+	text_out16(tl_x, (y+=10), "fDave: base code of PicoDrive");
+	text_out16(tl_x, (y+=10), "Chui: Fame/C");
+	text_out16(tl_x, (y+=10), "NJ: CZ80");
 	text_out16(tl_x, (y+=10), "MAME devs: YM2612 and SN76496 cores");
-	text_out16(tl_x, (y+=10), "Charles MacDonald: Genesis hw docs");
 	text_out16(tl_x, (y+=10), "Stephane Dallongeville:");
-	text_out16(tl_x, (y+=10), "      opensource Gens");
+	text_out16(tl_x, (y+=10), "    Gens code, base of Fame/C, CZ80");
+	text_out16(tl_x, (y+=10), "Charles MacDonald: Genesis hw docs");
 	text_out16(tl_x, (y+=10), "Haze: Genesis hw info");
+	text_out16(tl_x, (y+=10), "ps2dev.org people: PSP SDK/code");
 	text_out16(tl_x, (y+=10), "ketchupgun: skin design");
 
 	menu_draw_end();

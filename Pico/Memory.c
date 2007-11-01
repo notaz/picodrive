@@ -28,7 +28,6 @@ u32  PicoRead8(u32 a);
 u32  PicoRead16(u32 a);
 void PicoWrite8(u32 a,u8 d);
 void PicoWriteRomHW_SSF2(u32 a,u32 d);
-void PicoWriteRomHW_in1 (u32 a,u32 d);
 #endif
 
 
@@ -424,7 +423,7 @@ end:
 // -----------------------------------------------------------------
 //                            Write Ram
 
-#ifndef _ASM_MEMORY_C
+#if !defined(_ASM_MEMORY_C) || defined(_ASM_MEMORY_C_AMIPS)
 PICO_INTERNAL_ASM void PicoWrite8(u32 a,u8 d)
 {
 #ifdef __debug_io

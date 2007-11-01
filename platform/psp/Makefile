@@ -10,7 +10,7 @@ amalgamate = 0
 #up = 1
 
 
-CFLAGS += -I../.. -I. -D_UNZIP_SUPPORT -DNO_SYNC -D_ASM_DRAW_C_MIPS # -DBENCHMARK
+CFLAGS += -I../.. -I. -DNO_SYNC
 CFLAGS += -Wall -Winline -G0
 ifeq ($(DEBUG),)
 CFLAGS += -O2 -ftracer -fstrength-reduce -ffast-math
@@ -37,7 +37,7 @@ OBJS += ../../PicoAll.o
 else
 OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Memory.o ../../Pico/Misc.o \
 		../../Pico/Pico.o ../../Pico/Sek.o ../../Pico/VideoPort.o ../../Pico/Draw2.o ../../Pico/Draw.o \
-		../../Pico/Patch.o ../../Pico/Draw_amips.o
+		../../Pico/Patch.o ../../Pico/Draw_amips.o ../../Pico/Memory_amips.o
 # Pico - CD
 OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
 		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o \
@@ -82,7 +82,7 @@ LIBS += -lpng -lm -lpspgu -lpsppower -Wl,-Map=PicoDrive.map -lpspaudio
 TARGET = PicoDrive
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = PICODRIVE
-#PSP_EBOOT_ICON = .png
+PSP_EBOOT_ICON = data/icon.png
 #PSP_EBOOT_PIC1 = .png
 
 CUSTOM_CLEAN = myclean
@@ -103,15 +103,23 @@ AS := psp-as
 ../../cpu/musashi/m68kops.c :
 	make -C ../../cpu/musashi
 
+../../cpu/fame/famec.o : ../../cpu/fame/famec.c
+	@echo ">>>" $<
+	$(CC) $(CFLAGS) -Wno-unused -c $< -o $@
+
+../../Pico/Memory.o : ../../Pico/Memory.c
+	@echo ">>>" $<
+	$(CC) $(CFLAGS) -c $< -o $@ -D_ASM_MEMORY_C -D_ASM_MEMORY_C_AMIPS
+
+../../Pico/Draw.o : ../../Pico/Draw.c
+	@echo ">>>" $<
+	$(CC) $(CFLAGS) -c $< -o $@ -D_ASM_DRAW_C_MIPS
+
 readme.txt: ../../tools/textfilter ../base_readme.txt
 	../../tools/textfilter ../base_readme.txt $@ PSP
 
 ../../tools/textfilter: ../../tools/textfilter.c
 	make -C ../../tools/ textfilter
-
-../../cpu/fame/famec.o : ../../cpu/fame/famec.c
-	@echo ">>>" $<
-	$(CC) $(CFLAGS) -Wno-unused -c $< -o $@
 
 data/bg32.o: data/bg32.bin
 	bin2o -i $< $@ bgdatac32
