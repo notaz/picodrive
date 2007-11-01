@@ -331,14 +331,19 @@ int PicoUnloadCart(unsigned char* romdata)
   return 0;
 }
 
-static int name_cmp(const char *name)
+static int rom_strcmp(int rom_offset, const char *s1)
 {
-  int i, len = strlen(name);
-  const char *name_rom = (const char *)Pico.rom+0x150;
+  int i, len = strlen(s1);
+  const char *s_rom = (const char *)Pico.rom + rom_offset;
   for (i = 0; i < len; i++)
-    if (name[i] != name_rom[i^1])
+    if (s1[i] != s_rom[i^1])
       return 1;
   return 0;
+}
+
+static int name_cmp(const char *name)
+{
+  return rom_strcmp(0x150, name);
 }
 
 /* various cart-specific things, which can't be handled by generic code */
@@ -441,5 +446,9 @@ void PicoCartDetect(void)
   if (name_cmp("DINO DINI'S SOCCER") == 0 ||
       name_cmp("MICRO MACHINES II") == 0)
     memset(SRam.data, 0xff, sram_size);
+
+  // Unusual region 'code'
+  if (rom_strcmp(0x1f0, "EUROPE") == 0)
+    *(int *) (Pico.rom+0x1f0) = 0x20204520;
 }
 

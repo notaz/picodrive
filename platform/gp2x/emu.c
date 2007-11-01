@@ -104,11 +104,22 @@ static void find_combos(void)
 	combo_keys = combo_acts = 0;
 	for (act = 0; act < 32; act++)
 	{
-		int keyc = 0;
+		int keyc = 0, keyc2 = 0;
 		if (act == 16 || act == 17) continue; // player2 flag
-		for (u = 0; u < 32; u++)
+		if (act > 17)
 		{
-			if (currentConfig.KeyBinds[u] & (1 << act)) keyc++;
+			for (u = 0; u < 32; u++)
+				if (currentConfig.KeyBinds[u] & (1 << act)) keyc++;
+		}
+		else
+		{
+			for (u = 0; u < 32; u++)
+				if ((currentConfig.KeyBinds[u] & 0x30000) == 0 && // pl. 1
+					(currentConfig.KeyBinds[u] & (1 << act))) keyc++;
+			for (u = 0; u < 32; u++)
+				if ((currentConfig.KeyBinds[u] & 0x30000) == 1 && // pl. 2
+					(currentConfig.KeyBinds[u] & (1 << act))) keyc2++;
+			if (keyc2 > keyc) keyc = keyc2;
 		}
 		if (keyc > 1)
 		{
@@ -122,6 +133,7 @@ static void find_combos(void)
 			}
 		}
 	}
+
 	// printf("combo keys/acts: %08x %08x\n", combo_keys, combo_acts);
 }
 

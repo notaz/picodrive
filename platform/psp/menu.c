@@ -991,7 +991,7 @@ static void menu_opt3_cust_draw(const menu_entry *entry, int x, int y, void *par
 			char *val = "    never";
 			if (currentConfig.EmuOpt & 0x2000)
 				val = (currentConfig.EmuOpt & 0x10000) ? "sometimes" : "   always";
-			text_out16(x, y, "Wait for vsync                %s", val);
+			text_out16(x, y, "Wait for vsync (slow)         %s", val);
 			break;
 		}
 		default: break;
@@ -1045,7 +1045,7 @@ static void draw_dispmenu_options(int menu_sel)
 static void dispmenu_loop_options(void)
 {
 	static int menu_sel = 0;
-	int menu_sel_max, is_32col = 0;
+	int menu_sel_max, is_32col = (Pico.video.reg[12]&1)^1;
 	unsigned long inp = 0;
 	menu_id selected_id;
 
