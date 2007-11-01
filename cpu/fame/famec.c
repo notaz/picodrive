@@ -20,7 +20,7 @@
 #define FAMEC_CHECK_BRANCHES
 #define FAMEC_EXTRA_INLINE
 // #define FAMEC_DEBUG
-//#define FAMEC_NO_GOTOS
+#define FAMEC_NO_GOTOS
 #define FAMEC_ADR_BITS  24
 // #define FAMEC_FETCHBITS 8
 #define FAMEC_DATABITS  8
@@ -506,6 +506,7 @@ static u32 Opcode;
 static s32 cycles_needed;
 static u16 *PC;
 static u32 BasePC;
+static u32 flag_C;
 static u32 flag_V;
 static u32 flag_NotZ;
 static u32 flag_N;

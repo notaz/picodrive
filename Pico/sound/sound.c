@@ -220,8 +220,14 @@ PICO_INTERNAL void PsndClear(void)
 {
   int len = PsndLen;
   if (PsndLen_exc_add) len++;
-  if (PicoOpt & 8) memset32((int *) PsndOut, 0, len); // clear both channels at once
-  else memset(PsndOut, 0, len<<1);
+  if (PicoOpt & 8)
+    memset32((int *) PsndOut, 0, len); // assume PsndOut to be aligned
+  else {
+    short *out = PsndOut;
+    if ((int)out & 2) { *out++ = 0; len--; }
+    memset32((int *) out, 0, len/2);
+    if (len & 1) out[len-1] = 0;
+  }
 }
 
 
@@ -248,9 +254,9 @@ PICO_INTERNAL int PsndRender(int offset, int length)
     SN76496Update(PsndOut+offset, length, stereo);
 
   // Add in the stereo FM buffer
-  if (PicoOpt & 1) {
+  if (PicoOpt & 1)
     buf32_updated = YM2612UpdateOne(buf32, length, stereo, 1);
-  } else
+  else
     memset32(buf32, 0, length<<stereo);
 
 //printf("active_chs: %02x\n", buf32_updated);

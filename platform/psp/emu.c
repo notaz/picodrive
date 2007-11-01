@@ -469,8 +469,8 @@ static void vidResetMode(void)
 
 
 /* sound stuff */
-#define SOUND_BLOCK_SIZE_NTSC (2940*2) // 1024 // 1152
-#define SOUND_BLOCK_SIZE_PAL  (3528*2)
+#define SOUND_BLOCK_SIZE_NTSC (1470*2) // 1024 // 1152
+#define SOUND_BLOCK_SIZE_PAL  (1764*2)
 #define SOUND_BLOCK_COUNT    4
 
 static short __attribute__((aligned(4))) sndBuffer[SOUND_BLOCK_SIZE_PAL*SOUND_BLOCK_COUNT + 44100/50*2];
@@ -490,9 +490,10 @@ static int sound_thread(SceSize args, void *argp)
 	while (!sound_thread_exit)
 	{
 		if (samples_made - samples_done < samples_block) {
-			// wait for data...
-			//lprintf("sthr: wait... (%i/%i)\n", samples_done, samples_made);
-			ret = sceKernelWaitSema(sound_sem, 1, 0);
+			// wait for data (use at least 2 blocks)
+			//lprintf("sthr: wait... (%i)\n", samples_made - samples_done);
+			while (samples_made - samples_done <= samples_block*2 && !sound_thread_exit)
+				ret = sceKernelWaitSema(sound_sem, 1, 0);
 			//lprintf("sthr: sceKernelWaitSema: %i\n", ret);
 			continue;
 		}
@@ -507,6 +508,14 @@ static int sound_thread(SceSize args, void *argp)
 			snd_playptr = sndBuffer;
 		if (ret)
 			lprintf("sthr: outf: %i; pos %i/%i\n", ret, samples_done, samples_made);
+
+		// shouln't happen, but just in case
+		if (samples_made - samples_done >= samples_block*3) {
+			//lprintf("block skip (%i)\n", samples_made - samples_done);
+			samples_done += samples_block; // skip
+			snd_playptr  += samples_block;
+		}
+
 	}
 
 	lprintf("sthr: exit\n");
@@ -546,8 +555,7 @@ static void sound_prepare(void)
 	stereo=(PicoOpt&8)>>3;
 
 	samples_block = Pico.m.pal ? SOUND_BLOCK_SIZE_PAL : SOUND_BLOCK_SIZE_NTSC;
-	if (PsndRate == 22050) samples_block /= 2;
-	else if (PsndRate == 11025) samples_block /= 4;
+	if (PsndRate <= 22050) samples_block /= 2;
 	sndBuffer_endptr = &sndBuffer[samples_block*SOUND_BLOCK_COUNT];
 
 	lprintf("starting audio: %i, len: %i, stereo: %i, pal: %i, block samples: %i\n",
@@ -606,7 +614,7 @@ static void writeSound(int len)
 
 	// signal the snd thread
 	samples_made += len;
-	if (samples_made - samples_done >= samples_block) {
+	if (samples_made - samples_done > samples_block*2) {
 		// lprintf("signal, %i/%i\n", samples_done, samples_made);
 		ret = sceKernelSignalSema(sound_sem, 1);
 		// lprintf("signal ret %i\n", ret);
@@ -938,12 +946,10 @@ void emu_Loop(void)
 			int tval_diff;
 			tval = sceKernelGetSystemTimeLow();
 			tval_diff = (int)(tval - tval_thissec) << 8;
-			if (tval_diff > lim_time)
+			if (tval_diff > lim_time && (frames_done/16 < frames_shown))
 			{
 				// no time left for this frame - skip
 				if (tval_diff - lim_time >= (300000<<8)) {
-					/* something caused a slowdown for us (disk access? cache flush?)
-					 * try to recover by resetting timing... */
 					reset_timing = 1;
 					continue;
 				}
