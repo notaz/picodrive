@@ -6,6 +6,7 @@
 #include <pspiofilemgr.h>
 #include <pspdisplay.h>
 #include <psppower.h>
+#include <psprtc.h>
 #include <pspgu.h>
 
 #include "psp.h"
@@ -18,7 +19,7 @@ unsigned int __attribute__((aligned(16))) guCmdList[GU_CMDLIST_SIZE];
 void *psp_screen = VRAM_FB0;
 static int current_screen = 0; /* front bufer */
 
-static SceUID logfd = -1;
+#define ANALOG_DEADZONE 80
 
 /* Exit callback */
 static int exit_callback(int arg1, int arg2, void *common)
@@ -47,6 +48,7 @@ void psp_init(void)
 {
 	SceUID thid;
 
+	lprintf("running in %08x kernel\n", sceKernelDevkitVersion()),
 	lprintf("entered psp_init, threadId %i, priority %i\n", sceKernelGetThreadId(),
 		sceKernelGetThreadCurrentPriority());
 
@@ -93,7 +95,7 @@ void psp_init(void)
 
 	/* input */
 	sceCtrlSetSamplingCycle(0);
-	sceCtrlSetSamplingMode(0);
+	sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
 }
 
 void psp_finish(void)
@@ -132,12 +134,21 @@ void psp_msleep(int ms)
 
 unsigned int psp_pad_read(int blocking)
 {
+	unsigned int buttons;
 	SceCtrlData pad;
 	if (blocking)
 	     sceCtrlReadBufferPositive(&pad, 1);
 	else sceCtrlPeekBufferPositive(&pad, 1);
+	buttons = pad.Buttons;
 
-	return pad.Buttons;
+	// analog..
+	buttons &= ~(BTN_NUB_UP|BTN_NUB_DOWN|BTN_NUB_LEFT|BTN_NUB_RIGHT);
+	if (pad.Lx < 128 - ANALOG_DEADZONE) buttons |= BTN_NUB_LEFT;
+	if (pad.Lx > 128 + ANALOG_DEADZONE) buttons |= BTN_NUB_RIGHT;
+	if (pad.Ly < 128 - ANALOG_DEADZONE) buttons |= BTN_NUB_UP;
+	if (pad.Ly > 128 + ANALOG_DEADZONE) buttons |= BTN_NUB_DOWN;
+
+	return buttons;
 }
 
 int psp_get_cpu_clock(void)
@@ -153,19 +164,42 @@ int psp_set_cpu_clock(int clock)
 	return ret;
 }
 
+char *psp_get_status_line(void)
+{
+	static char buff[64];
+	int ret, bat_percent, bat_time;
+	pspTime time;
+
+	ret = sceRtcGetCurrentClockLocalTime(&time);
+	bat_percent = scePowerGetBatteryLifePercent();
+	bat_time = scePowerGetBatteryLifeTime();
+	if (ret < 0 || bat_percent < 0 || bat_time < 0) return NULL;
+
+	snprintf(buff, sizeof(buff), "%02i:%02i  bat: %3i%%", time.hour, time.minutes, bat_percent);
+	if (!scePowerIsPowerOnline())
+		snprintf(buff+strlen(buff), sizeof(buff)-strlen(buff), " (%i:%02i)", bat_time/60, bat_time%60);
+	return buff;
+}
+
 /* alt logging */
 #define LOG_FILE "log.log"
+
+static SceUID logfd = -1;
 
 void lprintf_f(const char *fmt, ...)
 {
 	va_list vl;
 	char buff[256];
 
+	if (logfd == -2) return; // disabled
+
 	if (logfd < 0)
 	{
 		logfd = sceIoOpen(LOG_FILE, PSP_O_WRONLY|PSP_O_APPEND, 0777);
-		if (logfd < 0)
+		if (logfd < 0) {
+			logfd = -2;
 			return;
+		}
 	}
 
 	va_start(vl, fmt);
@@ -173,9 +207,10 @@ void lprintf_f(const char *fmt, ...)
 	va_end(vl);
 
 	sceIoWrite(logfd, buff, strlen(buff));
-//sceKernelDelayThread(200 * 1000);
-sceIoClose(logfd);
-logfd = -1;
+
+	// make sure it gets flushed
+	sceIoClose(logfd);
+	logfd = -1;
 }
 
 

@@ -4,9 +4,11 @@
 #include "../common/menu.h"
 #include "../common/emu.h"
 #include "../common/lprintf.h"
+#include "version.h"
 
 int main()
 {
+	lprintf("\nPicoDrive v" VERSION " " __DATE__ " " __TIME__ "\n");
 	psp_init();
 
 	emu_ReadConfig(0, 0);

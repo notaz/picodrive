@@ -36,6 +36,8 @@ unsigned int psp_pad_read(int blocking);
 int psp_get_cpu_clock(void);
 int psp_set_cpu_clock(int clock);
 
+char *psp_get_status_line(void);
+
 /* shorter btn names */
 #define BTN_UP       PSP_CTRL_UP
 #define BTN_LEFT     PSP_CTRL_LEFT
@@ -50,4 +52,10 @@ int psp_set_cpu_clock(int clock);
 #define BTN_SELECT   PSP_CTRL_SELECT
 #define BTN_START    PSP_CTRL_START
 #define BTN_NOTE     PSP_CTRL_NOTE // doesn't seem to work?
+
+/* fake 'nub' btns */
+#define BTN_NUB_UP    (1 << 28)
+#define BTN_NUB_RIGHT (1 << 29)
+#define BTN_NUB_DOWN  (1 << 30)
+#define BTN_NUB_LEFT  (1 << 31)
 

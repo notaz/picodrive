@@ -10,7 +10,7 @@ amalgamate = 0
 #up = 1
 
 
-CFLAGS += -I../.. -I. -DNO_SYNC
+CFLAGS += -I../.. -I. -DNO_SYNC -DLPRINTF_STDIO
 CFLAGS += -Wall -Winline -G0
 ifeq ($(DEBUG),)
 CFLAGS += -O2 -ftracer -fstrength-reduce -ffast-math
@@ -76,12 +76,12 @@ endif
 OBJS += data/bg32.o data/bg40.o
 
 
-LIBS += -lpng -lm -lpspgu -lpsppower -Wl,-Map=PicoDrive.map -lpspaudio
+LIBS += -lpng -lm -lpspgu -lpsppower -lpspaudio -lpsprtc -Wl,-Map=PicoDrive.map
 
 # target
 TARGET = PicoDrive
 EXTRA_TARGETS = EBOOT.PBP
-PSP_EBOOT_TITLE = PICODRIVE
+PSP_EBOOT_TITLE = PicoDrive
 PSP_EBOOT_ICON = data/icon.png
 #PSP_EBOOT_PIC1 = .png
 

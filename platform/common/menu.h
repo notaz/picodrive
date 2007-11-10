@@ -63,6 +63,7 @@ typedef enum
 	MA_OPT2_NO_LAST_ROM,
 	MA_OPT2_RAMTIMINGS,	/* gp2x */
 	MA_OPT2_SQUIDGEHACK,	/* gp2x */
+	MA_OPT2_STATUS_LINE,	/* psp */
 	MA_OPT2_DONE,
 	MA_OPT3_SCALE,		/* psp (all OPT3) */
 	MA_OPT3_HSCALE32,

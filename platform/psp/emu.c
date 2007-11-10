@@ -145,9 +145,15 @@ void emu_setDefaultConfig(void)
 	currentConfig.KeyBinds[12] = 1<<26; // switch rnd
 	currentConfig.KeyBinds[ 8] = 1<<27; // save state
 	currentConfig.KeyBinds[ 9] = 1<<28; // load state
+	currentConfig.KeyBinds[28] = 1<<0; // num "buttons"
+	currentConfig.KeyBinds[30] = 1<<1;
+	currentConfig.KeyBinds[31] = 1<<2;
+	currentConfig.KeyBinds[29] = 1<<3;
 	currentConfig.PicoCDBuffers = 0;
-	currentConfig.scaling = 1; // bilinear filtering for psp
-	currentConfig.scale = currentConfig.hscale32 = currentConfig.hscale40 = 1.0;
+	currentConfig.scaling = 1;     // bilinear filtering for psp
+	currentConfig.scale = 1.20;    // fullscreen
+	currentConfig.hscale40 = 1.25;
+	currentConfig.hscale32 = 1.56;
 }
 
 
@@ -353,15 +359,13 @@ static void blitscreen_clut(void)
 
 static void cd_leds(void)
 {
-	static int old_reg = 0;
-	unsigned int col_g, col_r, *p;
+	unsigned int reg, col_g, col_r, *p;
 
-	if (!((Pico_mcd->s68k_regs[0] ^ old_reg) & 3)) return; // no change
-	old_reg = Pico_mcd->s68k_regs[0];
+	reg = Pico_mcd->s68k_regs[0];
 
 	p = (unsigned int *)((short *)psp_screen + 512*2+4+2);
-	col_g = (old_reg & 2) ? 0x06000600 : 0;
-	col_r = (old_reg & 1) ? 0x00180018 : 0;
+	col_g = (reg & 2) ? 0x06000600 : 0;
+	col_r = (reg & 1) ? 0x00180018 : 0;
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
@@ -798,23 +802,22 @@ static void find_combos(void)
 		if (act == 16 || act == 17) continue; // player2 flag
 		if (act > 17)
 		{
-			for (u = 0; u < 32; u++)
+			for (u = 0; u < 28; u++) // 28 because nub can't produce combos
 				if (currentConfig.KeyBinds[u] & (1 << act)) keyc++;
 		}
 		else
 		{
-			for (u = 0; u < 32; u++)
+			for (u = 0; u < 28; u++)
 				if ((currentConfig.KeyBinds[u] & 0x30000) == 0 && // pl. 1
 					(currentConfig.KeyBinds[u] & (1 << act))) keyc++;
-			for (u = 0; u < 32; u++)
+			for (u = 0; u < 28; u++)
 				if ((currentConfig.KeyBinds[u] & 0x30000) == 1 && // pl. 2
 					(currentConfig.KeyBinds[u] & (1 << act))) keyc2++;
-			if (keyc2 > keyc) keyc = keyc2;
 		}
-		if (keyc > 1)
+		if (keyc > 1 || keyc2 > 1)
 		{
 			// loop again and mark those keys and actions as combo
-			for (u = 0; u < 32; u++)
+			for (u = 0; u < 28; u++)
 			{
 				if (currentConfig.KeyBinds[u] & (1 << act)) {
 					combo_keys |= 1 << u;

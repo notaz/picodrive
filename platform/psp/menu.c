@@ -33,10 +33,10 @@
 
 #define pspKeyUnkn "???"
 static const char * const pspKeyNames[] = {
-	"SELECT",   pspKeyUnkn, pspKeyUnkn, "START",    "UP",       "RIGHT",    "DOWN",     "LEFT",
-	"L",        "R",        pspKeyUnkn, pspKeyUnkn, "TRIANGLE", "CIRCLE",   "X",        "SQUARE",
-	"HOME",     "HOLD",     "WLAN_UP",  "REMOTE",   "VOLUP",    "VOLDOWN",  "SCREEN",   "NOTE",
-	pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn
+	"SELECT",   pspKeyUnkn, pspKeyUnkn, "START",    "UP",       "RIGHT",     "DOWN",     "LEFT",
+	"L",        "R",        pspKeyUnkn, pspKeyUnkn, "TRIANGLE", "CIRCLE",    "X",        "SQUARE",
+	"HOME",     "HOLD",     "WLAN_UP",  "REMOTE",   "VOLUP",    "VOLDOWN",   "SCREEN",   "NOTE",
+	pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, pspKeyUnkn, "NUB UP",   "NUB RIGHT", "NUB DOWN", "NUB LEFT" // fake
 };
 
 static unsigned short bg_buffer[480*272] __attribute__((aligned(16)));
@@ -48,11 +48,14 @@ static void menu_prepare_bg(int use_game_bg, int use_fg);
 
 static unsigned int inp_prev = 0;
 
-static unsigned long wait_for_input(unsigned int interesting)
+static unsigned long wait_for_input(unsigned int interesting, int is_key_config)
 {
 	unsigned int ret;
 	static int repeats = 0, wait = 50;
-	int release = 0, i;
+	int release = 0, count, i;
+
+	if (!is_key_config)
+		interesting |= (interesting & 0xf0) << 24; // also use analog
 
 	if (repeats == 2 || repeats == 4) wait /= 2;
 	if (repeats == 6) wait = 15;
@@ -62,7 +65,7 @@ static unsigned long wait_for_input(unsigned int interesting)
 		psp_msleep(wait);
 	}
 
-	while ( !((ret = psp_pad_read(1)) & interesting) ) {
+	for (count = 0; !((ret = psp_pad_read(1)) & interesting) && count < 100; count++) {
 		psp_msleep(50);
 		release = 1;
 	}
@@ -72,6 +75,9 @@ static unsigned long wait_for_input(unsigned int interesting)
 		wait = 50;
 	}
 	inp_prev = ret;
+
+	if (!is_key_config)
+		ret |= (ret & 0xf0000000) >> 24; // use analog as d-pad
 
 	// we don't need diagonals in menus
 	if ((ret&BTN_UP)   && (ret&BTN_LEFT))  ret &= ~BTN_LEFT;
@@ -350,14 +356,14 @@ static char *romsel_loop(char *curr_path)
 	for (;;)
 	{
 		draw_dirlist(curr_path, namelist, n, sel);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_L|BTN_R|BTN_X|BTN_CIRCLE);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_L|BTN_R|BTN_X|BTN_CIRCLE, 0);
 		if(inp & BTN_UP  )  { sel--;   if (sel < 0)   sel = n-2; }
 		if(inp & BTN_DOWN)  { sel++;   if (sel > n-2) sel = 0; }
 		if(inp & BTN_LEFT)  { sel-=10; if (sel < 0)   sel = 0; }
 		if(inp & BTN_L)     { sel-=24; if (sel < 0)   sel = 0; }
 		if(inp & BTN_RIGHT) { sel+=10; if (sel > n-2) sel = n-2; }
 		if(inp & BTN_R)     { sel+=24; if (sel > n-2) sel = n-2; }
-		if(inp & BTN_X)     { // enter dir/select
+		if(inp & BTN_CIRCLE) { // enter dir/select
 			if (namelist[sel+1]->d_type & DT_REG) {
 				strcpy(romFileName, curr_path);
 				strcat(romFileName, "/");
@@ -386,7 +392,7 @@ static char *romsel_loop(char *curr_path)
 				break;
 			}
 		}
-		if(inp & BTN_CIRCLE) break; // cancel
+		if(inp & BTN_X) break; // cancel
 	}
 
 	if (n > 0) {
@@ -424,7 +430,7 @@ static void draw_debug(void)
 static void debug_menu_loop(void)
 {
 	draw_debug();
-	wait_for_input(BTN_X|BTN_CIRCLE);
+	wait_for_input(BTN_X|BTN_CIRCLE, 0);
 }
 
 // ------------ patch/gg menu ------------
@@ -461,17 +467,17 @@ static void patches_menu_loop(void)
 	for(;;)
 	{
 		draw_patchlist(menu_sel);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_L|BTN_R|BTN_X|BTN_CIRCLE);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_L|BTN_R|BTN_X|BTN_CIRCLE, 0);
 		if(inp & BTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = PicoPatchCount; }
 		if(inp & BTN_DOWN) { menu_sel++; if (menu_sel > PicoPatchCount) menu_sel = 0; }
 		if(inp &(BTN_LEFT|BTN_L))  { menu_sel-=10; if (menu_sel < 0) menu_sel = 0; }
 		if(inp &(BTN_RIGHT|BTN_R)) { menu_sel+=10; if (menu_sel > PicoPatchCount) menu_sel = PicoPatchCount; }
-		if(inp & BTN_X) { // action
+		if(inp & BTN_CIRCLE) { // action
 			if (menu_sel < PicoPatchCount)
 				PicoPatches[menu_sel].active = !PicoPatches[menu_sel].active;
 			else 	return;
 		}
-		if(inp & BTN_CIRCLE) return;
+		if(inp & BTN_X) return;
 	}
 
 }
@@ -591,7 +597,7 @@ static int savestate_menu_loop(int is_loading)
 	for(;;)
 	{
 		draw_savestate_menu(menu_sel, is_loading);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_X|BTN_CIRCLE);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_X|BTN_CIRCLE, 0);
 		if(inp & BTN_UP  ) {
 			do {
 				menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max;
@@ -602,7 +608,7 @@ static int savestate_menu_loop(int is_loading)
 				menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0;
 			} while (!(state_slot_flags & (1 << menu_sel)) && menu_sel != menu_sel_max && is_loading);
 		}
-		if(inp & BTN_X) { // save/load
+		if(inp & BTN_CIRCLE) { // save/load
 			if (menu_sel < 10) {
 				state_slot = menu_sel;
 				PicoStateProgressCB = emu_msg_cb; /* also suitable for menu */
@@ -613,7 +619,7 @@ static int savestate_menu_loop(int is_loading)
 				return 0;
 			} else	return 1;
 		}
-		if(inp & BTN_CIRCLE) return 1;
+		if(inp & BTN_X) return 1;
 	}
 }
 
@@ -630,7 +636,11 @@ static char *action_binds(int player_idx, int action_mask)
 		if (currentConfig.KeyBinds[i] & action_mask)
 		{
 			if (player_idx >= 0 && ((currentConfig.KeyBinds[i] >> 16) & 3) != player_idx) continue;
-			if (strkeys[0]) { strcat(strkeys, " + "); strcat(strkeys, pspKeyNames[i]); break; }
+			if (strkeys[0]) {
+				strcat(strkeys, i >= 28 ? ", " : " + "); // nub "buttons" don't create combos
+				strcat(strkeys, pspKeyNames[i]);
+				break;
+			}
 			else strcpy(strkeys, pspKeyNames[i]);
 		}
 	}
@@ -683,14 +693,14 @@ static void draw_key_config(const bind_action_t *opts, int opt_cnt, int player_i
 	text_out16(x, y, "Done");
 
 	if (sel < opt_cnt) {
-		text_out16(80+30, 180, "Press a button to bind/unbind");
-		text_out16(80+30, 190, "Use SELECT to clear");
-		text_out16(80+30, 200, "To bind UP/DOWN, hold SELECT");
-		text_out16(80+30, 210, "Select \"Done\" to exit");
+		text_out16(80+30, 220, "Press a button to bind/unbind");
+		text_out16(80+30, 230, "Use SELECT to clear");
+		text_out16(80+30, 240, "To bind UP/DOWN, hold SELECT");
+		text_out16(80+30, 250, "Select \"Done\" to exit");
 	} else {
-		text_out16(80+30, 190, "Use Options -> Save cfg");
-		text_out16(80+30, 200, "to save controls");
-		text_out16(80+30, 210, "Press X or O to exit");
+		text_out16(80+30, 230, "Use Options -> Save cfg");
+		text_out16(80+30, 240, "to save controls");
+		text_out16(80+30, 250, "Press X or O to exit");
 	}
 	menu_draw_end();
 }
@@ -703,7 +713,7 @@ static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_i
 	for (;;)
 	{
 		draw_key_config(opts, opt_cnt, player_idx, sel);
-		inp = wait_for_input(CONFIGURABLE_KEYS|BTN_SELECT);
+		inp = wait_for_input(CONFIGURABLE_KEYS|BTN_SELECT, 1);
 		if (!(inp & BTN_SELECT)) {
 			prev_select = 0;
 			if(inp & BTN_UP  ) { sel--; if (sel < 0) sel = menu_sel_max; continue; }
@@ -776,8 +786,6 @@ static bind_action_t emuctrl_actions[] =
 	{ "Prev Save Slot ", 1<<25 },
 	{ "Next Save Slot ", 1<<24 },
 	{ "Switch Renderer", 1<<26 },
-	{ "Volume Down    ", 1<<30 },
-	{ "Volume Up      ", 1<<29 },
 };
 
 static void kc_sel_loop(void)
@@ -789,10 +797,10 @@ static void kc_sel_loop(void)
 	while (1)
 	{
 		draw_kc_sel(menu_sel);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_X|BTN_CIRCLE);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_X|BTN_CIRCLE, 0);
 		if (inp & BTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if (inp & BTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
-		if (inp & BTN_X) {
+		if (inp & BTN_CIRCLE) {
 			switch (menu_sel) {
 				case 0: key_config_loop(ctrl_actions, is_6button ? 12 : 8, 0); return;
 				case 1: key_config_loop(ctrl_actions, is_6button ? 12 : 8, 1); return;
@@ -802,7 +810,7 @@ static void kc_sel_loop(void)
 				default: return;
 			}
 		}
-		if (inp & BTN_CIRCLE) return;
+		if (inp & BTN_X) return;
 	}
 }
 
@@ -870,7 +878,7 @@ static void draw_cd_menu_options(int menu_sel, struct bios_names_t *bios_names)
 	if ((selected_id == MA_CDOPT_TESTBIOS_USA && strcmp(bios_names->us, "NOT FOUND")) ||
 		(selected_id == MA_CDOPT_TESTBIOS_EUR && strcmp(bios_names->eu, "NOT FOUND")) ||
 		(selected_id == MA_CDOPT_TESTBIOS_JAP && strcmp(bios_names->jp, "NOT FOUND")))
-			text_out16(tl_x, 210, "Press start to test selected BIOS");
+			text_out16(tl_x, 250, "Press start to test selected BIOS");
 
 	menu_draw_end();
 }
@@ -902,7 +910,7 @@ static void cd_menu_loop_options(void)
 	for(;;)
 	{
 		draw_cd_menu_options(menu_sel, &bios_names);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE, 0);
 		if (inp & BTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if (inp & BTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		selected_id = me_index2id(cdopt_entries, CDOPT_ENTRY_COUNT, menu_sel);
@@ -919,7 +927,7 @@ static void cd_menu_loop_options(void)
 				}
 			}
 		}
-		if (inp & BTN_X) { // toggleable options
+		if (inp & BTN_CIRCLE) { // toggleable options
 			if (!me_process(cdopt_entries, CDOPT_ENTRY_COUNT, selected_id, 1) &&
 			    selected_id == MA_CDOPT_DONE) {
 				return;
@@ -950,7 +958,7 @@ static void cd_menu_loop_options(void)
 					break;
 			}
 		}
-		if (inp & BTN_CIRCLE) return;
+		if (inp & BTN_X) return;
 	}
 }
 
@@ -1054,7 +1062,7 @@ static void dispmenu_loop_options(void)
 	for (;;)
 	{
 		draw_dispmenu_options(menu_sel);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE, 0);
 		if (inp & BTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if (inp & BTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		selected_id = me_index2id(opt3_entries, OPT3_ENTRY_COUNT, menu_sel);
@@ -1087,7 +1095,7 @@ static void dispmenu_loop_options(void)
 				}
 			}
 		}
-		if (inp & BTN_X) { // toggleable options
+		if (inp & BTN_CIRCLE) { // toggleable options
 			me_process(opt3_entries, OPT3_ENTRY_COUNT, selected_id, 1);
 			switch (selected_id) {
 				case MA_OPT3_DONE:
@@ -1108,7 +1116,7 @@ static void dispmenu_loop_options(void)
 				default: break;
 			}
 		}
-		if (inp & BTN_CIRCLE) return;
+		if (inp & BTN_X) return;
 	}
 }
 
@@ -1117,11 +1125,12 @@ static void dispmenu_loop_options(void)
 
 menu_entry opt2_entries[] =
 {
-	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &currentConfig.PicoOpt,0x0004, 0, 0, 1 },
-	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &currentConfig.PicoOpt,0x0001, 0, 0, 1 },
-	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&currentConfig.PicoOpt,0x0002, 0, 0, 1 },
-	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,   &currentConfig.EmuOpt, 0x0008, 0, 0, 1 },
-	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,   &currentConfig.EmuOpt, 0x0020, 0, 0, 1 },
+	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &currentConfig.PicoOpt,0x00004, 0, 0, 1 },
+	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &currentConfig.PicoOpt,0x00001, 0, 0, 1 },
+	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&currentConfig.PicoOpt,0x00002, 0, 0, 1 },
+	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,   &currentConfig.EmuOpt, 0x00008, 0, 0, 1 },
+	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,   &currentConfig.EmuOpt, 0x00020, 0, 0, 1 },
+	{ "Status line in main menu",  MB_ONOFF, MA_OPT2_STATUS_LINE,   &currentConfig.EmuOpt, 0x20000, 0, 0, 1 },
 	{ "done",                      MB_NONE,  MA_OPT2_DONE,          NULL, 0, 0, 0, 1 },
 };
 
@@ -1153,7 +1162,7 @@ static void amenu_loop_options(void)
 	for(;;)
 	{
 		draw_amenu_options(menu_sel);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE, 0);
 		if (inp & BTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if (inp & BTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		selected_id = me_index2id(opt2_entries, OPT2_ENTRY_COUNT, menu_sel);
@@ -1163,13 +1172,13 @@ static void amenu_loop_options(void)
 				// TODO?
 			}
 		}
-		if (inp & BTN_X) { // toggleable options
+		if (inp & BTN_CIRCLE) { // toggleable options
 			if (!me_process(opt2_entries, OPT2_ENTRY_COUNT, selected_id, 1) &&
 			    selected_id == MA_OPT2_DONE) {
 				return;
 			}
 		}
-		if (inp & BTN_CIRCLE) return;
+		if (inp & BTN_X) return;
 	}
 }
 
@@ -1360,7 +1369,7 @@ static int menu_loop_options(void)
 	while (1)
 	{
 		draw_menu_options(menu_sel);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE, 0);
 		if (inp & BTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if (inp & BTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		selected_id = me_index2id(opt_entries, OPT_ENTRY_COUNT, menu_sel);
@@ -1421,7 +1430,7 @@ static int menu_loop_options(void)
 				}
 			}
 		}
-		if (inp & BTN_X) {
+		if (inp & BTN_CIRCLE) {
 			if (!me_process(opt_entries, OPT_ENTRY_COUNT, selected_id, 1))
 			{
 				switch (selected_id)
@@ -1459,7 +1468,7 @@ static int menu_loop_options(void)
 				}
 			}
 		}
-		if(inp & BTN_CIRCLE) {
+		if(inp & BTN_X) {
 			menu_options_save();
 			return 0;  // done (update, no write)
 		}
@@ -1512,11 +1521,15 @@ menu_entry main_entries[] =
 
 static void draw_menu_root(int menu_sel)
 {
-	const int tl_x = 80+70, tl_y = 16+70;
+	const int tl_x = 86+70, tl_y = 16+70;
+	char *stat = NULL;
 
 	menu_draw_begin();
 
-	text_out16(tl_x, 16+20, "PicoDrive v" VERSION);
+	if ((currentConfig.EmuOpt&0x20000) && (stat = psp_get_status_line()))
+		text_out16(287, 12, "%s", stat);
+
+	text_out16(tl_x, 48, "PicoDrive v" VERSION);
 
 	menu_draw_selection(tl_x - 16, tl_y + menu_sel*10, 146);
 
@@ -1552,23 +1565,23 @@ static void menu_loop_root(void)
 	for (;;)
 	{
 		draw_menu_root(menu_sel);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_X|BTN_CIRCLE|BTN_SELECT|BTN_L|BTN_R);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_X|BTN_CIRCLE|BTN_SELECT|BTN_L|BTN_R, 0);
 		if(inp & BTN_UP  )  { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if(inp & BTN_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if((inp & (BTN_L|BTN_R)) == (BTN_L|BTN_R)) debug_menu_loop();
-		if( inp & (BTN_SELECT|BTN_CIRCLE)) {
+		if( inp & (BTN_SELECT|BTN_X)) {
 			if (rom_data) {
-				while (psp_pad_read(1) & (BTN_SELECT|BTN_CIRCLE)) psp_msleep(50); // wait until released
+				while (psp_pad_read(1) & (BTN_SELECT|BTN_X)) psp_msleep(50); // wait until released
 				engineState = PGS_Running;
 				break;
 			}
 		}
-		if(inp & BTN_X)  {
+		if(inp & BTN_CIRCLE)  {
 			switch (me_index2id(main_entries, MAIN_ENTRY_COUNT, menu_sel))
 			{
 				case MA_MAIN_RESUME_GAME:
 					if (rom_data) {
-						while (psp_pad_read(1) & BTN_X) psp_msleep(50);
+						while (psp_pad_read(1) & BTN_CIRCLE) psp_msleep(50);
 						engineState = PGS_Running;
 						return;
 					}
@@ -1627,7 +1640,9 @@ static void menu_loop_root(void)
 				case MA_MAIN_CREDITS:
 					draw_menu_credits();
 					psp_msleep(500);
-					inp = wait_for_input(BTN_X|BTN_CIRCLE);
+					inp = 0;
+					while (!(inp & (BTN_X|BTN_CIRCLE)))
+						inp = wait_for_input(BTN_X|BTN_CIRCLE, 0);
 					break;
 				case MA_MAIN_EXIT:
 					engineState = PGS_Quit;
@@ -1757,15 +1772,15 @@ int menu_loop_tray(void)
 
 	/* make sure action buttons are not pressed on entering menu */
 	draw_menu_tray(menu_sel);
-	while (psp_pad_read(1) & BTN_X) psp_msleep(50);
+	while (psp_pad_read(1) & BTN_CIRCLE) psp_msleep(50);
 
 	for (;;)
 	{
 		draw_menu_tray(menu_sel);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_X);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_X, 0);
 		if(inp & BTN_UP  )  { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if(inp & BTN_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
-		if(inp & BTN_X   )  {
+		if(inp & BTN_CIRCLE)  {
 			switch (menu_sel) {
 				case 0: // select image
 					selfname = romsel_loop(curr_path);

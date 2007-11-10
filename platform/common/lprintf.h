@@ -2,7 +2,7 @@
  #include <stdio.h>
  #define lprintf printf
 #elif defined(PSP)
- #if 1
+ #ifdef LPRINTF_STDIO
   #include <stdio.h>
   #define lprintf printf
  #else
