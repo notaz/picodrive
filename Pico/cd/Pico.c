@@ -88,7 +88,9 @@ static __inline void SekRunM68k(int cyc)
   int cyc_do;
   SekCycleAim+=cyc;
   if ((cyc_do=SekCycleAim-SekCycleCnt) <= 0) return;
-#if defined(EMU_C68K)
+#if defined(EMU_CORE_DEBUG)
+  SekCycleCnt+=CM_compareRun(cyc_do, 0);
+#elif defined(EMU_C68K)
   PicoCpuCM68k.cycles=cyc_do;
   CycloneRun(&PicoCpuCM68k);
   SekCycleCnt+=cyc_do-PicoCpuCM68k.cycles;
@@ -106,7 +108,9 @@ static __inline void SekRunS68k(int cyc)
   int cyc_do;
   SekCycleAimS68k+=cyc;
   if ((cyc_do=SekCycleAimS68k-SekCycleCntS68k) <= 0) return;
-#if defined(EMU_C68K)
+#if defined(EMU_CORE_DEBUG)
+  SekCycleCntS68k+=CM_compareRun(cyc_do, 1);
+#elif defined(EMU_C68K)
   PicoCpuCS68k.cycles=cyc_do;
   CycloneRun(&PicoCpuCS68k);
   SekCycleCntS68k+=cyc_do-PicoCpuCS68k.cycles;

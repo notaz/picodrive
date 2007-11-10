@@ -2,7 +2,6 @@
 // Loosely based on Gens code.
 // (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
-// A68K no longer supported here
 
 //#define __debug_io
 
@@ -24,17 +23,22 @@ typedef unsigned int   u32;
 //#define __debug_io
 //#define __debug_io2
 
-#define rdprintf dprintf
-//#define rdprintf(...)
+//#define rdprintf dprintf
+#define rdprintf(...)
 //#define wrdprintf dprintf
 #define wrdprintf(...)
 #define plprintf dprintf
 //#define plprintf(...)
 
+#ifdef EMU_CORE_DEBUG
+extern u32 lastread_a, lastread_d[16], lastwrite_cyc_d[16];
+extern int lrp_cyc, lwp_cyc;
+#undef USE_POLL_DETECT
+#endif
+
 // -----------------------------------------------------------------
 
 // poller detection
-//#undef USE_POLL_DETECT
 #define POLL_LIMIT 16
 #define POLL_CYCLES 124
 // int m68k_poll_addr, m68k_poll_cnt;
@@ -280,7 +284,6 @@ void s68k_reg_write8(u32 a, u32 d)
 {
   //dprintf("s68k_regs w%2i: [%02x] %02x @ %06x", realsize, a, d, SekPcS68k);
 
-  // TODO: review against Gens
   // Warning: d might have upper bits set
   switch (a) {
     case 2:
@@ -413,7 +416,6 @@ static void OtherWrite8End(u32 a, u32 d, int realsize)
 // -----------------------------------------------------------------
 //                     Read Rom and read Ram
 
-//u8 PicoReadM68k8_(u32 a);
 #ifdef _ASM_CD_MEMORY_C
 u32 PicoReadM68k8(u32 a);
 #else
@@ -465,6 +467,12 @@ static u32 PicoReadM68k8(u32 a)
 
 #ifdef __debug_io
   dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
+#endif
+#ifdef EMU_CORE_DEBUG
+  if (a>=Pico.romsize) {
+    lastread_a = a;
+    lastread_d[lrp_cyc++&15] = d;
+  }
 #endif
   return d;
 }
@@ -522,6 +530,12 @@ static u32 PicoReadM68k16(u32 a)
 
 #ifdef __debug_io
   dprintf("r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
+#endif
+#ifdef EMU_CORE_DEBUG
+  if (a>=Pico.romsize) {
+    lastread_a = a;
+    lastread_d[lrp_cyc++&15] = d;
+  }
 #endif
   return d;
 }
@@ -584,6 +598,12 @@ static u32 PicoReadM68k32(u32 a)
 #ifdef __debug_io
   dprintf("r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
 #endif
+#ifdef EMU_CORE_DEBUG
+  if (a>=Pico.romsize) {
+    lastread_a = a;
+    lastread_d[lrp_cyc++&15] = d;
+  }
+#endif
   return d;
 }
 #endif
@@ -599,9 +619,9 @@ static void PicoWriteM68k8(u32 a,u8 d)
 #ifdef __debug_io
   dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 #endif
-  //if ((a&0xe0ffff)==0xe0a9ba+0x69c)
-  //  dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
-
+#ifdef EMU_CORE_DEBUG
+  lastwrite_cyc_d[lwp_cyc++&15] = d;
+#endif
 
   if ((a&0xe00000)==0xe00000) { // Ram
     *(u8 *)(Pico.ram+((a^1)&0xffff)) = d;
@@ -652,7 +672,9 @@ static void PicoWriteM68k16(u32 a,u16 d)
 #ifdef __debug_io
   dprintf("w16: %06x, %04x", a&0xffffff, d);
 #endif
-  //  dprintf("w16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
+#ifdef EMU_CORE_DEBUG
+  lastwrite_cyc_d[lwp_cyc++&15] = d;
+#endif
 
   if ((a&0xe00000)==0xe00000) { // Ram
     *(u16 *)(Pico.ram+(a&0xfffe))=d;
@@ -715,6 +737,9 @@ static void PicoWriteM68k32(u32 a,u32 d)
 {
 #ifdef __debug_io
   dprintf("w32: %06x, %08x", a&0xffffff, d);
+#endif
+#ifdef EMU_CORE_DEBUG
+  lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
 
   if ((a&0xe00000)==0xe00000)
@@ -782,6 +807,9 @@ static u32 PicoReadS68k8(u32 a)
 {
   u32 d=0;
 
+#ifdef EMU_CORE_DEBUG
+  u32 ab=a&0xfffffe;
+#endif
   a&=0xffffff;
 
   // prg RAM
@@ -866,6 +894,10 @@ static u32 PicoReadS68k8(u32 a)
 #ifdef __debug_io2
   dprintf("s68k r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPcS68k);
 #endif
+#ifdef EMU_CORE_DEBUG
+  lastread_a = ab;
+  lastread_d[lrp_cyc++&15] = d;
+#endif
   return d;
 }
 #endif
@@ -878,6 +910,9 @@ static u32 PicoReadS68k16(u32 a)
 {
   u32 d=0;
 
+#ifdef EMU_CORE_DEBUG
+  u32 ab=a&0xfffffe;
+#endif
   a&=0xfffffe;
 
   // prg RAM
@@ -959,6 +994,10 @@ static u32 PicoReadS68k16(u32 a)
 #ifdef __debug_io2
   dprintf("s68k r16: %06x, %04x  @%06x", a&0xffffff, d, SekPcS68k);
 #endif
+#ifdef EMU_CORE_DEBUG
+  lastread_a = ab;
+  lastread_d[lrp_cyc++&15] = d;
+#endif
   return d;
 }
 #endif
@@ -971,6 +1010,9 @@ static u32 PicoReadS68k32(u32 a)
 {
   u32 d=0;
 
+#ifdef EMU_CORE_DEBUG
+  u32 ab=a&0xfffffe;
+#endif
   a&=0xfffffe;
 
   // prg RAM
@@ -1062,6 +1104,12 @@ static u32 PicoReadS68k32(u32 a)
 #ifdef __debug_io2
   dprintf("s68k r32: %06x, %08x @%06x", a&0xffffff, d, SekPcS68k);
 #endif
+#ifdef EMU_CORE_DEBUG
+  if (ab > 0x78) { // not vectors and stuff
+    lastread_a = ab;
+    lastread_d[lrp_cyc++&15] = d;
+  }
+#endif
   return d;
 }
 #endif
@@ -1130,6 +1178,10 @@ static void PicoWriteS68k8(u32 a,u8 d)
 #endif
 
   a&=0xffffff;
+
+#ifdef EMU_CORE_DEBUG
+  lastwrite_cyc_d[lwp_cyc++&15] = d;
+#endif
 
   // prg RAM
   if (a < 0x80000) {
@@ -1206,6 +1258,10 @@ static void PicoWriteS68k16(u32 a,u16 d)
 #endif
 
   a&=0xfffffe;
+
+#ifdef EMU_CORE_DEBUG
+  lastwrite_cyc_d[lwp_cyc++&15] = d;
+#endif
 
   // prg RAM
   if (a < 0x80000) {
@@ -1292,6 +1348,10 @@ static void PicoWriteS68k32(u32 a,u32 d)
 #endif
 
   a&=0xfffffe;
+
+#ifdef EMU_CORE_DEBUG
+  lastwrite_cyc_d[lwp_cyc++&15] = d;
+#endif
 
   // prg RAM
   if (a < 0x80000) {
@@ -1563,7 +1623,8 @@ void PicoWriteCD32w(unsigned int a, unsigned int d) {
 }
 
 // these are allowed to access RAM
-unsigned int  m68k_read_pcrelative_CD8 (unsigned int a) {
+unsigned int  m68k_read_pcrelative_CD8 (unsigned int a)
+{
   a&=0xffffff;
   if(m68ki_cpu_p == &PicoCpuMS68k) {
     if (a < 0x80000) return *(u8 *)(Pico_mcd->prg_ram+(a^1)); // PRG Ram
@@ -1589,7 +1650,8 @@ unsigned int  m68k_read_pcrelative_CD8 (unsigned int a) {
   }
   return 0;//(u8)  lastread_d;
 }
-unsigned int  m68k_read_pcrelative_CD16(unsigned int a) {
+unsigned int  m68k_read_pcrelative_CD16(unsigned int a)
+{
   a&=0xffffff;
   if(m68ki_cpu_p == &PicoCpuMS68k) {
     if (a < 0x80000) return *(u16 *)(Pico_mcd->prg_ram+(a&~1)); // PRG Ram
@@ -1615,7 +1677,8 @@ unsigned int  m68k_read_pcrelative_CD16(unsigned int a) {
   }
   return 0;
 }
-unsigned int  m68k_read_pcrelative_CD32(unsigned int a) {
+unsigned int  m68k_read_pcrelative_CD32(unsigned int a)
+{
   u16 *pm;
   a&=0xffffff;
   if(m68ki_cpu_p == &PicoCpuMS68k) {

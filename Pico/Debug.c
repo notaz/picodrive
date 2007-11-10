@@ -7,7 +7,8 @@ typedef unsigned char  u8;
 static unsigned int pppc, ops=0;
 extern unsigned int lastread_a, lastread_d[16], lastwrite_cyc_d[16], lastwrite_mus_d[16];
 extern int lrp_cyc, lrp_mus, lwp_cyc, lwp_mus;
-unsigned int old_regs[16], old_sr, ppop, have_illegal = 0, dbg_irq_level = 0;
+unsigned int old_regs[16], old_sr, ppop, have_illegal = 0;
+int dbg_irq_level = 0, dbg_irq_level_sub = 0;
 
 #undef dprintf
 #define dprintf(f,...) printf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__)
@@ -21,13 +22,14 @@ unsigned int old_regs[16], old_sr, ppop, have_illegal = 0, dbg_irq_level = 0;
 #define other_is_stopped()  (PicoCpuCM68k.state_flags&1)
 #define other_is_tracing() ((PicoCpuCM68k.state_flags&2)?1:0)
 #elif defined(EMU_F68K)
-#define other_get_sr()     PicoCpuFM68k.sr
-#define other_dar(i)       ((unsigned int*)PicoCpuFM68k.dreg)[i]
-#define other_osp          PicoCpuFM68k.asp
-#define other_get_irq()    PicoCpuFM68k.interrupts[0]
-#define other_set_irq(irq) PicoCpuFM68k.interrupts[0]=irq
-#define other_is_stopped() ((PicoCpuFM68k.execinfo&FM68K_HALTED)?1:0)
-#define other_is_tracing() ((PicoCpuFM68k.execinfo&FM68K_EMULATE_TRACE)?1:0)
+#define other_set_sub(s)   g_m68kcontext=(s)?&PicoCpuFS68k:&PicoCpuFM68k;
+#define other_get_sr()     g_m68kcontext->sr
+#define other_dar(i)       ((unsigned int*)g_m68kcontext->dreg)[i]
+#define other_osp          g_m68kcontext->asp
+#define other_get_irq()    g_m68kcontext->interrupts[0]
+#define other_set_irq(irq) g_m68kcontext->interrupts[0]=irq
+#define other_is_stopped() ((g_m68kcontext->execinfo&FM68K_HALTED)?1:0)
+#define other_is_tracing() ((g_m68kcontext->execinfo&FM68K_EMULATE_TRACE)?1:0)
 #else
 #error other core missing, don't compile this file
 #endif
@@ -44,7 +46,7 @@ static int otherRun(void)
 }
 
 //static
-void dumpPCandExit()
+void dumpPCandExit(int is_sub)
 {
   char buff[128];
   int i;
@@ -56,19 +58,21 @@ void dumpPCandExit()
     dprintf("d%i=%08x, a%i=%08x | d%i=%08x, a%i=%08x", i, other_dar(i), i, other_dar(i+8), i, old_regs[i], i, old_regs[i+8]);
   dprintf("SR:                 %04x | %04x (??s? 0iii 000x nzvc)", other_get_sr(), old_sr);
   dprintf("last_read: %08x @ %06x", lastread_d[--lrp_cyc&15], lastread_a);
-  dprintf("ops done: %i", ops);
+  dprintf("ops done: %i, is_sub: %i", ops, is_sub);
   exit(1);
 }
 
-int CM_compareRun(int cyc)
+int CM_compareRun(int cyc, int is_sub)
 {
   char *str;
-  int cyc_done=0, cyc_other, cyc_musashi, err=0;
-  unsigned int i, mu_sr;
+  int cyc_done=0, cyc_other, cyc_musashi, *irq_level, err=0;
+  unsigned int i, pc, mu_sr;
 
+  m68ki_cpu_p=is_sub?&PicoCpuMS68k:&PicoCpuMM68k;
+  other_set_sub(is_sub);
   lrp_cyc = lrp_mus = 0;
 
-  while(cyc > cyc_done)
+  while (cyc_done < cyc)
   {
     if (have_illegal && m68k_read_disassembler_16(m68ki_cpu.pc) != 0x4e73) // not rte
     {
@@ -87,7 +91,7 @@ int CM_compareRun(int cyc)
       //PicoCpuCM68k.srh|=0x20;
     }
 
-    pppc = SekPc;
+    pppc = is_sub ? SekPcS68k : SekPc;
     ppop = m68k_read_disassembler_16(pppc);
     memcpy(old_regs, &other_dar(0), 4*16);
     old_sr = other_get_sr();
@@ -102,11 +106,12 @@ int CM_compareRun(int cyc)
     }
 #endif
 
-    if (dbg_irq_level)
+    irq_level = is_sub ? &dbg_irq_level_sub : &dbg_irq_level;
+    if (*irq_level)
     {
-      other_set_irq(dbg_irq_level);
-      m68k_set_irq(dbg_irq_level);
-      dbg_irq_level=0;
+      other_set_irq(*irq_level);
+      m68k_set_irq(*irq_level);
+      *irq_level=0;
     }
 
     cyc_other=otherRun();
@@ -136,9 +141,10 @@ int CM_compareRun(int cyc)
     }
 
     // compare PC
+    pc = is_sub ? SekPcS68k : SekPc;
     m68ki_cpu.pc&=~1;
-    if (SekPc != m68ki_cpu.pc) {
-      dprintf("PC: %06x vs %06x", SekPc, m68ki_cpu.pc);
+    if (pc != m68ki_cpu.pc) {
+      dprintf("PC: %06x vs %06x", pc, m68ki_cpu.pc);
       err=1;
     }
 
@@ -188,7 +194,7 @@ int CM_compareRun(int cyc)
       err=1;
     }
 
-    if(err) dumpPCandExit();
+    if(err) dumpPCandExit(is_sub);
 
 #if 0
     if (PicoCpuCM68k.a[7] < 0x00ff0000 || PicoCpuCM68k.a[7] >= 0x01000000)

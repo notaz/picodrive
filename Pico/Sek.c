@@ -125,6 +125,7 @@ PICO_INTERNAL int SekInit()
     memset(&PicoCpuFM68k, 0, sizeof(PicoCpuFM68k));
     fm68k_init();
     PicoCpuFM68k.iack_handler = SekIntAckF68K;
+    PicoCpuFM68k.sr = 0x2704; // Z flag
     g_m68kcontext = oldcontext;
   }
 #endif
@@ -168,7 +169,7 @@ PICO_INTERNAL int SekInterrupt(int irq)
 {
 #ifdef EMU_CORE_DEBUG
   {
-    extern unsigned int dbg_irq_level;
+    extern int dbg_irq_level;
     dbg_irq_level=irq;
     return 0;
   }

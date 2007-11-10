@@ -18292,8 +18292,19 @@ OPCODE(0x4AD0)
 	flag_V = 0;
 	flag_NotZ = res;
 	flag_N = res;
+#ifdef PICODRIVE_HACK
+	if (g_m68kcontext == &PicoCpuFS68k) {
+		res |= 0x80;
+		WRITE_BYTE_F(adr, res);
+	}
+#endif
+
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(18)
+#else
 RET(8)
+#endif
 }
 
 // TAS
@@ -18310,8 +18321,20 @@ OPCODE(0x4AD8)
 	flag_V = 0;
 	flag_NotZ = res;
 	flag_N = res;
+
+#ifdef PICODRIVE_HACK
+	if (g_m68kcontext == &PicoCpuFS68k) {
+		res |= 0x80;
+		WRITE_BYTE_F(adr, res);
+	}
+#endif
+
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(18)
+#else
 RET(8)
+#endif
 }
 
 // TAS
@@ -18328,8 +18351,20 @@ OPCODE(0x4AE0)
 	flag_V = 0;
 	flag_NotZ = res;
 	flag_N = res;
+
+#ifdef PICODRIVE_HACK
+	if (g_m68kcontext == &PicoCpuFS68k) {
+		res |= 0x80;
+		WRITE_BYTE_F(adr, res);
+	}
+#endif
+
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(20)
+#else
 RET(10)
+#endif
 }
 
 // TAS
@@ -18346,8 +18381,20 @@ OPCODE(0x4AE8)
 	flag_V = 0;
 	flag_NotZ = res;
 	flag_N = res;
+
+#ifdef PICODRIVE_HACK
+	if (g_m68kcontext == &PicoCpuFS68k) {
+		res |= 0x80;
+		WRITE_BYTE_F(adr, res);
+	}
+#endif
+
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(22)
+#else
 RET(12)
+#endif
 }
 
 // TAS
@@ -18364,8 +18411,20 @@ OPCODE(0x4AF0)
 	flag_V = 0;
 	flag_NotZ = res;
 	flag_N = res;
+
+#ifdef PICODRIVE_HACK
+	if (g_m68kcontext == &PicoCpuFS68k) {
+		res |= 0x80;
+		WRITE_BYTE_F(adr, res);
+	}
+#endif
+
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(24)
+#else
 RET(14)
+#endif
 }
 
 // TAS
@@ -18381,8 +18440,20 @@ OPCODE(0x4AF8)
 	flag_V = 0;
 	flag_NotZ = res;
 	flag_N = res;
+
+#ifdef PICODRIVE_HACK
+	if (g_m68kcontext == &PicoCpuFS68k) {
+		res |= 0x80;
+		WRITE_BYTE_F(adr, res);
+	}
+#endif
+
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(22)
+#else
 RET(12)
+#endif
 }
 
 // TAS
@@ -18398,8 +18469,20 @@ OPCODE(0x4AF9)
 	flag_V = 0;
 	flag_NotZ = res;
 	flag_N = res;
+
+#ifdef PICODRIVE_HACK
+	if (g_m68kcontext == &PicoCpuFS68k) {
+		res |= 0x80;
+		WRITE_BYTE_F(adr, res);
+	}
+#endif
+
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(26)
+#else
 RET(16)
+#endif
 }
 
 // TAS
@@ -18416,8 +18499,20 @@ OPCODE(0x4ADF)
 	flag_V = 0;
 	flag_NotZ = res;
 	flag_N = res;
+
+#ifdef PICODRIVE_HACK
+	if (g_m68kcontext == &PicoCpuFS68k) {
+		res |= 0x80;
+		WRITE_BYTE_F(adr, res);
+	}
+#endif
+
 	POST_IO
+#ifdef USE_CYCLONE_TIMING
+RET(18)
+#else
 RET(8)
+#endif
 }
 
 // TAS
@@ -18434,8 +18529,20 @@ OPCODE(0x4AE7)
 	flag_V = 0;
 	flag_NotZ = res;
 	flag_N = res;
+
+#ifdef PICODRIVE_HACK
+	if (g_m68kcontext == &PicoCpuFS68k) {
+		res |= 0x80;
+		WRITE_BYTE_F(adr, res);
+	}
+#endif
+
 	POST_IO
-RET(10)
+#ifdef USE_CYCLONE_TIMING
+RET(20)
+#else
+RET(8)
+#endif
 }
 
 // ILLEGAL

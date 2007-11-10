@@ -64,9 +64,13 @@ static int SekUnrecognizedOpcodeS68k(void)
 #ifdef EMU_M68K
 static int SekIntAckMS68k(int level)
 {
+#ifndef EMU_CORE_DEBUG
   int level_new = new_irq_level(level);
   dprintf("s68kACK %i -> %i", level, level_new);
   CPU_INT_LEVEL = level_new << 8;
+#else
+  CPU_INT_LEVEL = 0;
+#endif
   return M68K_INT_ACK_AUTOVECTOR;
 }
 #endif
@@ -76,7 +80,15 @@ static void SekIntAckFS68k(unsigned level)
 {
   int level_new = new_irq_level(level);
   dprintf("s68kACK %i -> %i", level, level_new);
+#ifndef EMU_CORE_DEBUG
   PicoCpuFS68k.interrupts[0] = level_new;
+#else
+  {
+    extern int dbg_irq_level_sub;
+    dbg_irq_level_sub = level_new;
+    PicoCpuFS68k.interrupts[0] = 0;
+  }
+#endif
 }
 #endif
 
@@ -109,6 +121,7 @@ PICO_INTERNAL int SekInitS68k()
     memset(&PicoCpuFS68k, 0, sizeof(PicoCpuFS68k));
     fm68k_init();
     PicoCpuFS68k.iack_handler = SekIntAckFS68k;
+    PicoCpuFS68k.sr = 0x2704; // Z flag
     g_m68kcontext = oldcontext;
   }
 #endif
@@ -161,6 +174,14 @@ PICO_INTERNAL int SekInterruptS68k(int irq)
   irqs = Pico_mcd->m.s68k_pend_ints >> 1;
   while ((irqs >>= 1)) real_irq++;
 
+#ifdef EMU_CORE_DEBUG
+  {
+    extern int dbg_irq_level_sub;
+    dbg_irq_level_sub=real_irq;
+    elprintf(EL_ANOMALY, "s68k irq %i", real_irq);
+    return 0;
+  }
+#endif
 #ifdef EMU_C68K
   PicoCpuCS68k.irq=real_irq;
 #endif

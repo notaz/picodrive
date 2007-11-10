@@ -28,6 +28,7 @@
 
 #define USE_CYCLONE_TIMING
 #define USE_CYCLONE_TIMING_DIV
+#define PICODRIVE_HACK
 // Options //
 
 
@@ -521,6 +522,10 @@ static u32 flag_I;
 
 static u32 initialised = 0;
 
+#ifdef PICODRIVE_HACK
+extern M68K_CONTEXT PicoCpuFS68k;
+#endif
+
 /* Custom function handler */
 typedef void (*opcode_func)(void);
 
@@ -793,6 +798,9 @@ int fm68k_emulate(s32 cycles)
 	// won't emulate double fault
 	// if (m68kcontext.execinfo & M68K_FAULTED) return -1;
 
+	// Cache PPL
+	flag_I = M68K_PPL;
+
 	if (m68kcontext.execinfo & FM68K_HALTED)
 	{
 		if (interrupt_chk__() <= 0)
@@ -811,9 +819,6 @@ int fm68k_emulate(s32 cycles)
 
 	// Cache SR
 	SET_SR(m68kcontext.sr)
-
-	// Cache PPL
-	flag_I = M68K_PPL;
 
 	// Fijar PC
 	SET_PC(m68kcontext.pc)
@@ -942,8 +947,6 @@ init_jump_table:
 {
 #endif
 	u32 i, j;
-
-	m68kcontext.sr = 0x2704; // Z flag
 
 	for(i = 0x0000; i <= 0xFFFF; i += 0x0001)
 		JumpTable[0x0000 + i] = CAST_OP(0x4AFC);

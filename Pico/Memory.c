@@ -7,7 +7,7 @@
 // For commercial use, separate licencing terms must be obtained.
 
 
-#define __debug_io
+//#define __debug_io
 
 #include "PicoInt.h"
 
@@ -323,7 +323,7 @@ PICO_INTERNAL_ASM u32 PicoRead8(u32 a)
 
 #ifndef EMU_CORE_DEBUG
   // sram
-  if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
+  if (a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
     d = SRAMRead(a);
     elprintf(EL_SRAMIO, "sram r8 [%06x] %02x @ %06x", a, d, SekPc);
     goto end;
@@ -341,7 +341,7 @@ end:
   dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
 #endif
 #ifdef EMU_CORE_DEBUG
-  if(a>=Pico.romsize/*&&(ppop&0x3f)!=0x3a&&(ppop&0x3f)!=0x3b*/) {
+  if (a>=Pico.romsize) {
     lastread_a = a;
     lastread_d[lrp_cyc++&15] = (u8)d;
   }
@@ -359,7 +359,7 @@ PICO_INTERNAL_ASM u32 PicoRead16(u32 a)
 
 #ifndef EMU_CORE_DEBUG
   // sram
-  if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
+  if (a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
     d = SRAMRead(a);
     d |= d<<8;
     elprintf(EL_SRAMIO, "sram r16 [%06x] %04x @ %06x", a, d, SekPc);
@@ -377,7 +377,7 @@ end:
   dprintf("r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
 #endif
 #ifdef EMU_CORE_DEBUG
-  if(a>=Pico.romsize/*&&(ppop&0x3f)!=0x3a&&(ppop&0x3f)!=0x3b*/) {
+  if (a>=Pico.romsize) {
     lastread_a = a;
     lastread_d[lrp_cyc++&15] = d;
   }
@@ -411,7 +411,7 @@ end:
   dprintf("r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
 #endif
 #ifdef EMU_CORE_DEBUG
-  if(a>=Pico.romsize/*&&(ppop&0x3f)!=0x3a&&(ppop&0x3f)!=0x3b*/) {
+  if (a>=Pico.romsize) {
     lastread_a = a;
     lastread_d[lrp_cyc++&15] = d;
   }
@@ -525,33 +525,36 @@ unsigned int  m68k_read_pcrelative_CD16(unsigned int a);
 unsigned int  m68k_read_pcrelative_CD32(unsigned int a);
 
 // these are allowed to access RAM
-static unsigned int  m68k_read_8 (unsigned int a, int do_fake) {
+static unsigned int  m68k_read_8 (unsigned int a, int do_fake)
+{
   a&=0xffffff;
-  if(PicoMCD&1) return m68k_read_pcrelative_CD8(a);
-  if(a<Pico.romsize)         return *(u8 *)(Pico.rom+(a^1)); // Rom
+  if(a<Pico.romsize && m68ki_cpu_p==&PicoCpuMM68k)    return *(u8 *)(Pico.rom+(a^1)); // Rom
 #ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
+  if(PicoMCD&1) return m68k_read_pcrelative_CD8(a);
   if((a&0xe00000)==0xe00000) return *(u8 *)(Pico.ram+((a^1)&0xffff)); // Ram
   return 0;
 }
-static unsigned int  m68k_read_16(unsigned int a, int do_fake) {
+static unsigned int  m68k_read_16(unsigned int a, int do_fake)
+{
   a&=0xffffff;
-  if(PicoMCD&1) return m68k_read_pcrelative_CD16(a);
-  if(a<Pico.romsize)         return *(u16 *)(Pico.rom+(a&~1)); // Rom
+  if(a<Pico.romsize && m68ki_cpu_p==&PicoCpuMM68k)    return *(u16 *)(Pico.rom+(a&~1)); // Rom
 #ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
+  if(PicoMCD&1) return m68k_read_pcrelative_CD16(a);
   if((a&0xe00000)==0xe00000) return *(u16 *)(Pico.ram+(a&0xfffe)); // Ram
   return 0;
 }
-static unsigned int  m68k_read_32(unsigned int a, int do_fake) {
+static unsigned int  m68k_read_32(unsigned int a, int do_fake)
+{
   a&=0xffffff;
-  if(PicoMCD&1) return m68k_read_pcrelative_CD32(a);
-  if(a<Pico.romsize)         { u16 *pm=(u16 *)(Pico.rom+(a&~1));     return (pm[0]<<16)|pm[1]; }
+  if(a<Pico.romsize && m68ki_cpu_p==&PicoCpuMM68k) { u16 *pm=(u16 *)(Pico.rom+(a&~1)); return (pm[0]<<16)|pm[1]; }
 #ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
+  if(PicoMCD&1) return m68k_read_pcrelative_CD32(a);
   if((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); return (pm[0]<<16)|pm[1]; } // Ram
   return 0;
 }
@@ -570,7 +573,8 @@ unsigned int m68k_read_disassembler_32(unsigned int a) { return m68k_read_32(a, 
 unsigned int m68k_read_memory_8(unsigned int a)
 {
   u8 d;
-  if(a<Pico.romsize) d = *(u8 *) (Pico.rom+(a^1));
+  if (a<Pico.romsize && m68ki_cpu_p==&PicoCpuMM68k)
+       d = *(u8 *) (Pico.rom+(a^1));
   else d = (u8) lastread_d[lrp_mus++&15];
 #ifdef __debug_io
   dprintf("r8_mu : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
@@ -580,7 +584,8 @@ unsigned int m68k_read_memory_8(unsigned int a)
 unsigned int m68k_read_memory_16(unsigned int a)
 {
   u16 d;
-  if(a<Pico.romsize) d = *(u16 *)(Pico.rom+(a&~1));
+  if (a<Pico.romsize && m68ki_cpu_p==&PicoCpuMM68k)
+       d = *(u16 *)(Pico.rom+(a&~1));
   else d = (u16) lastread_d[lrp_mus++&15];
 #ifdef __debug_io
   dprintf("r16_mu: %06x, %04x @%06x", a&0xffffff, d, SekPc);
@@ -590,7 +595,9 @@ unsigned int m68k_read_memory_16(unsigned int a)
 unsigned int m68k_read_memory_32(unsigned int a)
 {
   u32 d;
-  if(a<Pico.romsize) {u16 *pm=(u16 *)(Pico.rom+(a&~1));d=(pm[0]<<16)|pm[1];}
+  if (a<Pico.romsize && m68ki_cpu_p==&PicoCpuMM68k)
+       { u16 *pm=(u16 *)(Pico.rom+(a&~1));d=(pm[0]<<16)|pm[1]; }
+  else if (a <= 0x78) d = m68k_read_32(a, 0);
   else d = lastread_d[lrp_mus++&15];
 #ifdef __debug_io
   dprintf("r32_mu: %06x, %08x @%06x", a&0xffffff, d, SekPc);

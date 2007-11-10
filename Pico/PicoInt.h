@@ -313,7 +313,7 @@ PICO_INTERNAL int PicoCdLoadState(void *file);
 PICO_INTERNAL void PicoCartDetect(void);
 
 // Debug.c
-int CM_compareRun(int cyc);
+int CM_compareRun(int cyc, int is_sub);
 
 // Draw.c
 PICO_INTERNAL int PicoLine(int scan);
