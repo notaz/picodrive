@@ -20,6 +20,7 @@
 #include "psp.h"
 #include "emu.h"
 #include "menu.h"
+#include "mp3.h"
 #include "../common/menu.h"
 #include "../common/emu.h"
 #include "../common/readpng.h"
@@ -112,17 +113,37 @@ static void menu_draw_end(void)
 
 // --------- loading ROM screen ----------
 
+static int lcdr_line = 0;
+
 static void load_progress_cb(int percent)
 {
 	int ln, len = percent * 480 / 100;
 	unsigned short *dst;
 
-	sceDisplayWaitVblankStart();
+	//sceDisplayWaitVblankStart();
 
-	dst = (unsigned short *)menu_screen + 512*20;
+	dst = (unsigned short *)menu_screen + 512*10*lcdr_line;
 
 	if (len > 480) len = 480;
-	for (ln = 10; ln > 0; ln--, dst += 512)
+	for (ln = 8; ln > 0; ln--, dst += 512)
+		memset(dst, 0xff, len*2);
+}
+
+static void cdload_progress_cb(int percent)
+{
+	int ln, len = percent * 480 / 100;
+	unsigned short *dst;
+
+	if (lcdr_line <= 2) {
+		lcdr_line++;
+		smalltext_out16(1, lcdr_line++ * 10, "Processing CD image / MP3s", 0xffff);
+		smalltext_out16_lim(1, lcdr_line++ * 10, romFileName, 0xffff, 80);
+	}
+
+	dst = (unsigned short *)menu_screen + 512*10*lcdr_line;
+
+	if (len > 480) len = 480;
+	for (ln = 8; ln > 0; ln--, dst += 512)
 		memset(dst, 0xff, len*2);
 }
 
@@ -132,17 +153,20 @@ void menu_romload_prepare(const char *rom_name)
 	while (p > rom_name && *p != '/') p--;
 
 	psp_video_switch_to_single();
-	menu_draw_begin();
+	if (rom_data) menu_draw_begin();
+	else memset32(psp_screen, 0, 512*272*2/4);
 
 	smalltext_out16(1, 1, "Loading", 0xffff);
 	smalltext_out16_lim(1, 10, p, 0xffff, 80);
 	PicoCartLoadProgressCB = load_progress_cb;
+	PicoCDLoadProgressCB = cdload_progress_cb;
+	lcdr_line = 2;
 }
 
 void menu_romload_end(void)
 {
-	PicoCartLoadProgressCB = NULL;
-	smalltext_out16(1, 30, "Starting emulation...", 0xffff);
+	PicoCartLoadProgressCB = PicoCDLoadProgressCB = NULL;
+	smalltext_out16(1, ++lcdr_line*10, "Starting emulation...", 0xffff);
 }
 
 // -------------- ROM selector --------------
@@ -907,7 +931,9 @@ static void cd_menu_loop_options(void)
 		strncpy(bios_names.jp, p, sizeof(bios_names.jp)); bios_names.jp[sizeof(bios_names.jp)-1] = 0;
 	} else	strcpy(bios_names.jp, "NOT FOUND");
 
-	for(;;)
+	menuErrorMsg[0] = 0;
+
+	for (;;)
 	{
 		draw_cd_menu_options(menu_sel, &bios_names);
 		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE, 0);
@@ -1557,6 +1583,14 @@ static void menu_loop_root(void)
 	menu_sel_max = me_count_enabled(main_entries, MAIN_ENTRY_COUNT) - 1;
 	if (menu_sel > menu_sel_max) menu_sel = menu_sel_max;
 
+	// mp3 errors?
+	if (mp3_last_error != 0) {
+		if (mp3_last_error == -1)
+		     sprintf(menuErrorMsg, "Unsupported mp3 format, use 44kHz stereo");
+		else sprintf(menuErrorMsg, "mp3 init failed, code %08x", mp3_last_error);
+		mp3_last_error = 0;
+	}
+
 	/* make sure action buttons are not pressed on entering menu */
 	draw_menu_root(menu_sel);
 
@@ -1577,6 +1611,7 @@ static void menu_loop_root(void)
 			}
 		}
 		if(inp & BTN_CIRCLE)  {
+			menuErrorMsg[0] = 0; // clear error msg
 			switch (me_index2id(main_entries, MAIN_ENTRY_COUNT, menu_sel))
 			{
 				case MA_MAIN_RESUME_GAME:
@@ -1660,7 +1695,6 @@ static void menu_loop_root(void)
 					break;
 			}
 		}
-		menuErrorMsg[0] = 0; // clear error msg
 	}
 }
 

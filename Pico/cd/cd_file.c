@@ -7,15 +7,13 @@
  *                                                         *
  ***********************************************************/
 
-#include <sys/stat.h>
-
 #include "../PicoInt.h"
 #include "cd_file.h"
 
 #define cdprintf dprintf
 //#define cdprintf(x...)
+//#define cdprintf(f,...) printf(f "\n",##__VA_ARGS__) // tmp
 #define DEBUG_CD
-
 
 PICO_INTERNAL int Load_ISO(const char *iso_name, int is_bin)
 {
@@ -26,10 +24,12 @@ PICO_INTERNAL int Load_ISO(const char *iso_name, int is_bin)
 	static char *exts[] = {
 		"%02d.mp3", " %02d.mp3", "-%02d.mp3", "_%02d.mp3", " - %02d.mp3",
 		"%d.mp3", " %d.mp3", "-%d.mp3", "_%d.mp3", " - %d.mp3",
+#if CASE_SENSITIVE_FS
 		"%02d.MP3", " %02d.MP3", "-%02d.MP3", "_%02d.MP3", " - %02d.MP3",
-		/* "%02d.wav", " %02d.wav", "-%02d.wav", "_%02d.wav", " - %02d.wav",
-		"%d.wav", " %d.wav", "-%d.wav", "_%d.wav", " - %2d.wav" */
+#endif
 	};
+
+	if (PicoCDLoadProgressCB != NULL) PicoCDLoadProgressCB(1);
 
 	Unload_ISO();
 
@@ -56,10 +56,14 @@ PICO_INTERNAL int Load_ISO(const char *iso_name, int is_bin)
 	Cur_LBA = Tracks[0].Length;				// Size in sectors
 
 	iso_name_len = strlen(iso_name);
+	if (iso_name_len >= sizeof(tmp_name))
+		iso_name_len = sizeof(tmp_name) - 1;
 
 	for (num_track = 2, i = 0; i < 100; i++)
 	{
-		for(j = 0; j < sizeof(exts)/sizeof(char *); j++)
+		if (PicoCDLoadProgressCB != NULL && i > 1) PicoCDLoadProgressCB(i);
+
+		for (j = 0; j < sizeof(exts)/sizeof(char *); j++)
 		{
 			int ext_len;
 			FILE *tmp_file;
@@ -80,18 +84,28 @@ PICO_INTERNAL int Load_ISO(const char *iso_name, int is_bin)
 			if (tmp_file)
 			{
 				int fs;
-				struct stat file_stat;
 				index = num_track - 1;
 
-				ret = stat(tmp_name, &file_stat);
-				fs = file_stat.st_size;				// used to calculate lenght
+				ret = fseek(tmp_file, 0, SEEK_END);
+				fs = ftell(tmp_file);				// used to calculate lenght
+				fseek(tmp_file, 0, SEEK_SET);
 
+#if DONT_OPEN_MANY_FILES
+				// some systems (like PSP) can't have many open files at a time,
+				// so we work with their names instead.
+				fclose(tmp_file);
+				tmp_file = (void *) strdup(tmp_name);
+#endif
 				Tracks[index].KBtps = (short) mp3_get_bitrate(tmp_file, fs);
 				Tracks[index].KBtps >>= 3;
 				if (ret != 0 || Tracks[index].KBtps <= 0)
 				{
-					cdprintf("Error track %i: stat %i, rate %i", index, ret, Tracks[index].KBtps);
+					cdprintf("Error track %i: rate %i", index, Tracks[index].KBtps);
+#if !DONT_OPEN_MANY_FILES
 					fclose(tmp_file);
+#else
+					free(tmp_file);
+#endif
 					continue;
 				}
 
@@ -124,6 +138,8 @@ PICO_INTERNAL int Load_ISO(const char *iso_name, int is_bin)
 	cdprintf("End CD - %02d:%02d:%02d\n\n", Tracks[index].MSF.M,
 		Tracks[index].MSF.S, Tracks[index].MSF.F);
 
+	if (PicoCDLoadProgressCB != NULL) PicoCDLoadProgressCB(100);
+
 	return 0;
 }
 
@@ -138,7 +154,12 @@ PICO_INTERNAL void Unload_ISO(void)
 
 	for(i = 1; i < 100; i++)
 	{
-		if (Pico_mcd->TOC.Tracks[i].F) fclose(Pico_mcd->TOC.Tracks[i].F);
+		if (Pico_mcd->TOC.Tracks[i].F != NULL)
+#if !DONT_OPEN_MANY_FILES
+			fclose(Pico_mcd->TOC.Tracks[i].F);
+#else
+			free(Pico_mcd->TOC.Tracks[i].F);
+#endif
 	}
 	memset(Pico_mcd->TOC.Tracks, 0, sizeof(Pico_mcd->TOC.Tracks));
 }

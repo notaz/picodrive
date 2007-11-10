@@ -477,7 +477,7 @@ static void vidResetMode(void)
 /* sound stuff */
 #define SOUND_BLOCK_SIZE_NTSC (1470*2) // 1024 // 1152
 #define SOUND_BLOCK_SIZE_PAL  (1764*2)
-#define SOUND_BLOCK_COUNT    4
+#define SOUND_BLOCK_COUNT    8
 
 static short __attribute__((aligned(4))) sndBuffer[SOUND_BLOCK_SIZE_PAL*SOUND_BLOCK_COUNT + 44100/50*2];
 static short *snd_playptr = NULL, *sndBuffer_endptr = NULL;
@@ -489,7 +489,7 @@ static void writeSound(int len);
 
 static int sound_thread(SceSize args, void *argp)
 {
-	int ret;
+	int ret = 0;
 
 	lprintf("sthr: started, priority %i\n", sceKernelGetThreadCurrentPriority());
 
@@ -497,14 +497,14 @@ static int sound_thread(SceSize args, void *argp)
 	{
 		if (samples_made - samples_done < samples_block) {
 			// wait for data (use at least 2 blocks)
-			//lprintf("sthr: wait... (%i)\n", samples_made - samples_done);
+			lprintf("sthr: wait... (%i)\n", samples_made - samples_done);
 			while (samples_made - samples_done <= samples_block*2 && !sound_thread_exit)
 				ret = sceKernelWaitSema(sound_sem, 1, 0);
-			//lprintf("sthr: sceKernelWaitSema: %i\n", ret);
+			if (ret < 0) lprintf("sthr: sceKernelWaitSema: %i\n", ret);
 			continue;
 		}
 
-		//lprintf("sthr: got data: %i\n", samples_made - samples_done);
+		// lprintf("sthr: got data: %i\n", samples_made - samples_done);
 
 		ret = sceAudio_E0727056(PSP_AUDIO_VOLUME_MAX, snd_playptr);
 
@@ -517,7 +517,7 @@ static int sound_thread(SceSize args, void *argp)
 
 		// shouln't happen, but just in case
 		if (samples_made - samples_done >= samples_block*3) {
-			//lprintf("block skip (%i)\n", samples_made - samples_done);
+			lprintf("sthr: block skip (%i)\n", samples_made - samples_done);
 			samples_done += samples_block; // skip
 			snd_playptr  += samples_block;
 		}
@@ -615,6 +615,7 @@ static void writeSound(int len)
 		lprintf("mov\n");
 	}
 	else*/
+	if (PsndOut > sndBuffer_endptr) lprintf("snd oflow %i!\n", PsndOut - sndBuffer_endptr);
 	if (PsndOut >= sndBuffer_endptr)
 		PsndOut = sndBuffer;
 
@@ -623,7 +624,7 @@ static void writeSound(int len)
 	if (samples_made - samples_done > samples_block*2) {
 		// lprintf("signal, %i/%i\n", samples_done, samples_made);
 		ret = sceKernelSignalSema(sound_sem, 1);
-		// lprintf("signal ret %i\n", ret);
+		//if (ret < 0) lprintf("snd signal ret %08x\n", ret);
 	}
 }
 

@@ -39,16 +39,33 @@ void mix_32_to_16_mono(short *dest, int *src, int count)
 }
 
 
-/* unimplemented... */
 void mix_16h_to_32(int *dest_buf, short *mp3_buf, int count)
 {
+	while (count--)
+	{
+		*dest_buf++ += *mp3_buf++ >> 1;
+	}
 }
 
 void mix_16h_to_32_s1(int *dest_buf, short *mp3_buf, int count)
 {
+	count >>= 1;
+	while (count--)
+	{
+		*dest_buf++ += *mp3_buf++ >> 1;
+		*dest_buf++ += *mp3_buf++ >> 1;
+		mp3_buf += 1*2;
+	}
 }
 
 void mix_16h_to_32_s2(int *dest_buf, short *mp3_buf, int count)
 {
+	count >>= 1;
+	while (count--)
+	{
+		*dest_buf++ += *mp3_buf++ >> 1;
+		*dest_buf++ += *mp3_buf++ >> 1;
+		mp3_buf += 3*2;
+	}
 }
 

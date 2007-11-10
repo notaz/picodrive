@@ -76,7 +76,8 @@ endif
 OBJS += data/bg32.o data/bg40.o
 
 
-LIBS += -lpng -lm -lpspgu -lpsppower -lpspaudio -lpsprtc -Wl,-Map=PicoDrive.map
+LIBS += -lpng -lm -lpspgu -lpsppower -lpspaudio -lpsprtc -lpspaudiocodec
+LDFLAGS += -Wl,-Map=PicoDrive.map
 
 # target
 TARGET = PicoDrive

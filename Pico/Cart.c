@@ -16,6 +16,7 @@
 static char *rom_exts[] = { "bin", "gen", "smd", "iso" };
 
 void (*PicoCartLoadProgressCB)(int percent) = NULL;
+void (*PicoCDLoadProgressCB)(int percent) = NULL; // handled in Pico/cd/cd_file.c
 
 
 pm_file *pm_open(const char *path)

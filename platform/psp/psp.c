@@ -33,7 +33,7 @@ static int callback_thread(SceSize args, void *argp)
 {
 	int cbid;
 
-	lprintf("callback_thread started with id %i, priority %i\n",
+	lprintf("callback_thread started with id %08x, priority %i\n",
 		sceKernelGetThreadId(), sceKernelGetThreadCurrentPriority());
 
 	cbid = sceKernelCreateCallback("Exit Callback", exit_callback, NULL);
@@ -49,7 +49,7 @@ void psp_init(void)
 	SceUID thid;
 
 	lprintf("running in %08x kernel\n", sceKernelDevkitVersion()),
-	lprintf("entered psp_init, threadId %i, priority %i\n", sceKernelGetThreadId(),
+	lprintf("entered psp_init, threadId %08x, priority %i\n", sceKernelGetThreadId(),
 		sceKernelGetThreadCurrentPriority());
 
 	thid = sceKernelCreateThread("update_thread", callback_thread, 0x11, 0xFA0, 0, 0);

@@ -285,7 +285,7 @@ int emu_ReloadRom(void)
 		return 0;
 	}
 
-	menu_romload_prepare(used_rom_name);
+	menu_romload_prepare(used_rom_name); // also CD load
 
 	if(rom_data) {
 		free(rom_data);
@@ -301,7 +301,6 @@ int emu_ReloadRom(void)
 		return 0;
 	}
 	pm_close(rom);
-	menu_romload_end();
 
 	// detect wrong files (Pico crashes on very small files), also see if ROM EP is good
 	if(rom_size <= 0x200 || strncmp((char *)rom_data, "Pico", 4) == 0 ||
@@ -309,6 +308,7 @@ int emu_ReloadRom(void)
 		if (rom_data) free(rom_data);
 		rom_data = 0;
 		sprintf(menuErrorMsg, "Not a ROM selected.");
+		menu_romload_end();
 		return 0;
 	}
 
@@ -321,6 +321,7 @@ int emu_ReloadRom(void)
 	lprintf("PicoCartInsert(%p, %d);\n", rom_data, rom_size);
 	if(PicoCartInsert(rom_data, rom_size)) {
 		sprintf(menuErrorMsg, "Failed to load ROM.");
+		menu_romload_end();
 		return 0;
 	}
 
@@ -332,9 +333,12 @@ int emu_ReloadRom(void)
 		if (ret != 0) {
 			sprintf(menuErrorMsg, "Insert_CD() failed, invalid CD image?");
 			lprintf("%s\n", menuErrorMsg);
+			menu_romload_end();
 			return 0;
 		}
 	}
+
+	menu_romload_end();
 
 	// emu_ReadConfig() might have messed currentConfig.lastRomFile
 	strncpy(currentConfig.lastRomFile, romFileName, sizeof(currentConfig.lastRomFile)-1);

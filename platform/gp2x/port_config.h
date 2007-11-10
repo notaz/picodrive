@@ -3,6 +3,9 @@
 #ifndef PORT_CONFIG_H
 #define PORT_CONFIG_H
 
+#define CASE_SENSITIVE_FS 1 // CS filesystem
+#define DONT_OPEN_MANY_FILES 0
+
 // draw.c
 #define OVERRIDE_HIGHCOL 0
 
