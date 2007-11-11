@@ -213,7 +213,7 @@ static __inline void SekRunM68k(int cyc)
 #elif defined(EMU_M68K)
   SekCycleCnt+=m68k_execute(cyc_do);
 #elif defined(EMU_F68K)
-  SekCycleCnt+=fm68k_emulate(cyc_do+1);
+  SekCycleCnt+=fm68k_emulate(cyc_do+1, 0);
 #endif
 }
 
@@ -230,7 +230,7 @@ static __inline void SekStep(void)
 #elif defined(EMU_M68K)
   SekCycleCnt+=m68k_execute(1);
 #elif defined(EMU_F68K)
-  SekCycleCnt+=fm68k_emulate(1);
+  SekCycleCnt+=fm68k_emulate(1, 0);
 #endif
   SekCycleAim=realaim;
 }

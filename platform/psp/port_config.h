@@ -4,7 +4,8 @@
 #define PORT_CONFIG_H
 
 #define CASE_SENSITIVE_FS 0
-#define DONT_OPEN_MANY_FILES 1 // work around the stupid PSP 10 open file limit
+#define DONT_OPEN_MANY_FILES 1 // work around the stupid PSP ~10 open file limit
+#define REDUCE_IO_CALLS 1      // another workaround
 
 // draw.c
 #define USE_BGR555 1

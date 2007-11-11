@@ -48,10 +48,10 @@ void emu_getMainDir(char *dst, int len)
 	if (len > 0) *dst = 0;
 }
 
-static void osd_text(int x, const char *text, int is_active)
+static void osd_text(int x, const char *text, int is_active, int clear_all)
 {
 	unsigned short *screen = is_active ? psp_video_get_active_fb() : psp_screen;
-	int len = strlen(text) * 8 / 2;
+	int len = clear_all ? (480 / 2) : (strlen(text) * 8 / 2);
 	int *p, h;
 	void *tmp;
 	for (h = 0; h < 8; h++) {
@@ -66,7 +66,7 @@ static void osd_text(int x, const char *text, int is_active)
 
 void emu_msg_cb(const char *msg)
 {
-	osd_text(4, msg, 1);
+	osd_text(4, msg, 1, 1);
 	noticeMsgTime = sceKernelGetSystemTimeLow() - 2000000;
 
 	/* assumption: emu_msg_cb gets called only when something slow is about to happen */
@@ -149,7 +149,7 @@ void emu_setDefaultConfig(void)
 	currentConfig.KeyBinds[30] = 1<<1;
 	currentConfig.KeyBinds[31] = 1<<2;
 	currentConfig.KeyBinds[29] = 1<<3;
-	currentConfig.PicoCDBuffers = 0;
+	currentConfig.PicoCDBuffers = 64;
 	currentConfig.scaling = 1;     // bilinear filtering for psp
 	currentConfig.scale = 1.20;    // fullscreen
 	currentConfig.hscale40 = 1.25;
@@ -411,8 +411,8 @@ static void blit2(const char *fps, const char *notice, int lagging_behind)
 	int vsync = 0, emu_opt = currentConfig.EmuOpt;
 
 	if (notice || (emu_opt & 2)) {
-		if (notice)      osd_text(4, notice, 0);
-		if (emu_opt & 2) osd_text(OSD_FPS_X, fps, 0);
+		if (notice)      osd_text(4, notice, 0, 0);
+		if (emu_opt & 2) osd_text(OSD_FPS_X, fps, 0, 0);
 	}
 
 	dbg_text();
@@ -567,8 +567,8 @@ static void sound_prepare(void)
 	lprintf("starting audio: %i, len: %i, stereo: %i, pal: %i, block samples: %i\n",
 			PsndRate, PsndLen, stereo, Pico.m.pal, samples_block);
 
-	while (sceAudioOutput2GetRestSample() > 0) psp_msleep(100);
-	sceAudio_5C37C0AE();
+	// while (sceAudioOutput2GetRestSample() > 0) psp_msleep(100);
+	// sceAudio_5C37C0AE();
 	ret = sceAudio_38553111(samples_block/2, PsndRate, 2); // seems to not need that stupid 64byte alignment
 	if (ret < 0) {
 		lprintf("sceAudio_38553111() failed: %i\n", ret);
@@ -589,8 +589,19 @@ static void sound_prepare(void)
 
 static void sound_end(void)
 {
+	int i;
+	if (samples_done == 0)
+	{
+		// if no data is written between sceAudio_38553111 and sceAudio_5C37C0AE calls,
+		// we get a deadlock on next sceAudio_38553111 call
+		// so this is yet another workaround:
+		memset32((int *)(void *)sndBuffer, 0, samples_block*4/4);
+		samples_made = samples_block * 3;
+		sceKernelSignalSema(sound_sem, 1);
+	}
+	sceKernelDelayThread(100*1000);
 	samples_made = samples_done = 0;
-	while (sceAudioOutput2GetRestSample() > 0)
+	for (i = 0; sceAudioOutput2GetRestSample() > 0 && i < 16; i++)
 		psp_msleep(100);
 	sceAudio_5C37C0AE();
 }
@@ -685,7 +696,7 @@ static void RunEvents(unsigned int which)
 
 		if (do_it)
 		{
-			osd_text(4, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME", 1);
+			osd_text(4, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME", 1, 0);
 			PicoStateProgressCB = emu_msg_cb;
 			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
 			PicoStateProgressCB = NULL;

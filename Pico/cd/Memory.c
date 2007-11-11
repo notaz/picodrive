@@ -392,6 +392,24 @@ static u32 OtherRead16End(u32 a, int realsize)
     goto end;
   }
 
+  if (a==0x400000) {
+    if (SRam.data != NULL) d=3; // 64k cart
+    goto end;
+  }
+
+  if ((a&0xfe0000)==0x600000) {
+    if (SRam.data != NULL) {
+      d=SRam.data[((a>>1)&0xffff)+0x2000];
+      if (realsize == 8) d|=d<<8;
+    }
+    goto end;
+  }
+
+  if (a==0x7ffffe) {
+    d=Pico_mcd->m.bcram_reg;
+    goto end;
+  }
+
   dprintf("m68k FIXME: unusual r%i: %06x @%06x", realsize&~1, (a&0xfffffe)+(realsize&1), SekPc);
 
 end:
@@ -402,6 +420,19 @@ end:
 static void OtherWrite8End(u32 a, u32 d, int realsize)
 {
   if ((a&0xffffc0)==0xa12000) { m68k_reg_write8(a, d); return; }
+
+  if ((a&0xfe0000)==0x600000) {
+    if (SRam.data != NULL && (Pico_mcd->m.bcram_reg&1)) {
+      SRam.data[((a>>1)&0xffff)+0x2000]=d;
+      SRam.changed = 1;
+    }
+    return;
+  }
+
+  if (a==0x7fffff) {
+    Pico_mcd->m.bcram_reg=d;
+    return;
+  }
 
   dprintf("m68k FIXME: strange w%i: [%06x], %08x @%06x", realsize, a&0xffffff, d, SekPc);
 }

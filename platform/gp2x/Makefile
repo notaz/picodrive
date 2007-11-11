@@ -217,9 +217,9 @@ readme.txt: ../../tools/textfilter ../base_readme.txt
 
 # cleanup
 clean: tidy
-	@$(RM) PicoDrive.gpe
+	$(RM) PicoDrive.gpe
 tidy:
-	@$(RM) $(OBJS)
+	$(RM) $(OBJS)
 #	@make -C ../../cpu/Cyclone/proj -f Makefile.linux clean
 
 

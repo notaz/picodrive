@@ -99,7 +99,7 @@ static __inline void SekRunM68k(int cyc)
   SekCycleCnt+=m68k_execute(cyc_do);
 #elif defined(EMU_F68K)
   g_m68kcontext=&PicoCpuFM68k;
-  SekCycleCnt+=fm68k_emulate(cyc_do);
+  SekCycleCnt+=fm68k_emulate(cyc_do, 0);
 #endif
 }
 
@@ -119,15 +119,22 @@ static __inline void SekRunS68k(int cyc)
   SekCycleCntS68k+=m68k_execute(cyc_do);
 #elif defined(EMU_F68K)
   g_m68kcontext=&PicoCpuFS68k;
-  SekCycleCntS68k+=fm68k_emulate(cyc_do);
+  SekCycleCntS68k+=fm68k_emulate(cyc_do, 0);
 #endif
 }
 
 #define PS_STEP_M68K ((488<<16)/20) // ~24
 //#define PS_STEP_S68K 13
 
-#ifdef _ASM_CD_PICO_C
-void SekRunPS(int cyc_m68k, int cyc_s68k);
+#if defined(_ASM_CD_PICO_C)
+extern void SekRunPS(int cyc_m68k, int cyc_s68k);
+#elif defined(EMU_F68K)
+static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
+{
+  SekCycleAim+=cyc_m68k;
+  SekCycleAimS68k+=cyc_s68k;
+  fm68k_emulate(0, 1);
+}
 #else
 static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
 {
@@ -152,7 +159,7 @@ static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
       SekCycleCnt += m68k_execute(cyc_do);
 #elif defined(EMU_F68K)
       g_m68kcontext = &PicoCpuFM68k;
-      SekCycleCnt += fm68k_emulate(cyc_do);
+      SekCycleCnt += fm68k_emulate(cyc_do, 0);
 #endif
     }
     if ((cyc_do = SekCycleAimS68k-SekCycleCntS68k-cycn_s68k) > 0) {
@@ -165,7 +172,7 @@ static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
       SekCycleCntS68k += m68k_execute(cyc_do);
 #elif defined(EMU_F68K)
       g_m68kcontext = &PicoCpuFS68k;
-      SekCycleCntS68k += fm68k_emulate(cyc_do);
+      SekCycleCntS68k += fm68k_emulate(cyc_do, 0);
 #endif
     }
   }

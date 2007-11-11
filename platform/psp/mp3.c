@@ -104,7 +104,7 @@ static int read_next_frame(int which_buffer)
 		}
 
 		if (frame_offset) {
-			lprintf("unaligned, foffs=%i, offs=%i\n", mp3_src_pos - bytes_read, frame_offset);
+			//lprintf("unaligned, foffs=%i, offs=%i\n", mp3_src_pos - bytes_read, frame_offset);
 			memmove(mp3_src_buffer[which_buffer], mp3_src_buffer[which_buffer] + frame_offset, frame_size);
 		}
 
@@ -327,7 +327,7 @@ void mp3_start_play(FILE *f, int pos)
 	lprintf("mp3_start_play(%s) @ %i\n", fname, pos);
 	psp_sem_lock(thread_busy_sem);
 
-	if (mp3_fname != fname)
+	if (mp3_fname != fname || mp3_handle < 0)
 	{
 		if (mp3_handle >= 0) sceIoClose(mp3_handle);
 		mp3_handle = sceIoOpen(fname, PSP_O_RDONLY, 0777);

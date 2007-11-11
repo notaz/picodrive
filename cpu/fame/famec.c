@@ -20,7 +20,7 @@
 #define FAMEC_CHECK_BRANCHES
 #define FAMEC_EXTRA_INLINE
 // #define FAMEC_DEBUG
-#define FAMEC_NO_GOTOS
+//#define FAMEC_NO_GOTOS
 #define FAMEC_ADR_BITS  24
 // #define FAMEC_FETCHBITS 8
 #define FAMEC_DATABITS  8
@@ -523,7 +523,7 @@ static u32 flag_I;
 static u32 initialised = 0;
 
 #ifdef PICODRIVE_HACK
-extern M68K_CONTEXT PicoCpuFS68k;
+extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #endif
 
 /* Custom function handler */
@@ -624,7 +624,7 @@ void fm68k_init(void)
 #endif
 
     if (!initialised)
-	    fm68k_emulate(0);
+	    fm68k_emulate(0, 0);
 
 #ifdef FAMEC_DEBUG
 	puts("FAME initialized.");
@@ -643,7 +643,7 @@ void fm68k_init(void)
 int fm68k_reset(void)
 {
 	if (!initialised)
-		fm68k_emulate(0);
+		fm68k_emulate(0, 0);
 
 	// Si la CPU esta en ejecucion, salir con M68K_RUNNING
 	if (m68kcontext.execinfo & M68K_RUNNING)
@@ -771,7 +771,7 @@ static void setup_jumptable(void);
 // main exec function
 //////////////////////
 
-int fm68k_emulate(s32 cycles)
+int fm68k_emulate(s32 cycles, int dualcore)
 {
 #ifndef FAMEC_NO_GOTOS
 	u32 Opcode;
@@ -794,6 +794,11 @@ int fm68k_emulate(s32 cycles)
 		goto init_jump_table;
 #endif
 	}
+
+#ifdef PICODRIVE_HACK
+	if (dualcore) goto dualcore_mode;
+famec_restart:
+#endif
 
 	// won't emulate double fault
 	// if (m68kcontext.execinfo & M68K_FAULTED) return -1;
@@ -935,7 +940,60 @@ famec_End:
 	printf("pc: 0x%08x\n",m68kcontext.pc);
 #endif
 
-	return cycles - m68kcontext.io_cycle_counter;
+#ifdef PICODRIVE_HACK
+	if (!dualcore)
+#endif
+		return cycles - m68kcontext.io_cycle_counter;
+
+#ifdef PICODRIVE_HACK
+dualcore_mode:
+
+	{
+		extern int SekCycleAim, SekCycleCnt, SekCycleAimS68k, SekCycleCntS68k;
+		#define PS_STEP_M68K ((488<<16)/20) // ~24
+		if (dualcore == 1)
+		{
+			dualcore = (488<<16); // ~ cycn in Pico.c
+			// adjust for first iteration
+			g_m68kcontext = &PicoCpuFS68k;
+			cycles = m68kcontext.io_cycle_counter = 0;
+		}
+		if (g_m68kcontext == &PicoCpuFS68k)
+		{
+			SekCycleCntS68k += cycles - m68kcontext.io_cycle_counter;
+			// end?
+			dualcore -= PS_STEP_M68K;
+			if (dualcore < 0) return 0;
+			// become main 68k
+			g_m68kcontext = &PicoCpuFM68k;
+			if ((cycles = SekCycleAim-SekCycleCnt-(dualcore>>16)) > 0)
+			{
+				if ((m68kcontext.execinfo & FM68K_HALTED) && m68kcontext.interrupts[0] <= (M68K_PPL))
+				     SekCycleCnt += cycles; // halted
+				else goto famec_restart;
+				//else { printf("go main %i\n", cycles); goto famec_restart; }
+			}
+			cycles = m68kcontext.io_cycle_counter = 0;
+		}
+		if (g_m68kcontext == &PicoCpuFM68k)
+		{
+			int cycn_s68k = (dualcore + dualcore/2 + dualcore/8) >> 16;
+			SekCycleCnt += cycles - m68kcontext.io_cycle_counter;
+			// become sub 68k
+			g_m68kcontext = &PicoCpuFS68k;
+			if ((cycles = SekCycleAimS68k-SekCycleCntS68k-cycn_s68k) > 0)
+			{
+				if ((m68kcontext.execinfo & FM68K_HALTED) && m68kcontext.interrupts[0] <= (M68K_PPL))
+				     SekCycleCntS68k += cycles; // halted
+				else goto famec_restart;
+			}
+			cycles = m68kcontext.io_cycle_counter = 0;
+		}
+		goto dualcore_mode;
+	}
+#endif
+
+
 
 #ifdef FAMEC_NO_GOTOS
 }

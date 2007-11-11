@@ -917,17 +917,20 @@ static void cd_menu_loop_options(void)
 	char *bios, *p;
 
 	if (emu_findBios(4, &bios)) { // US
-		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--); p++;
+		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--);
+		if (*p == '/') p++;
 		strncpy(bios_names.us, p, sizeof(bios_names.us)); bios_names.us[sizeof(bios_names.us)-1] = 0;
 	} else	strcpy(bios_names.us, "NOT FOUND");
 
 	if (emu_findBios(8, &bios)) { // EU
-		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--); p++;
+		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--);
+		if (*p == '/') p++;
 		strncpy(bios_names.eu, p, sizeof(bios_names.eu)); bios_names.eu[sizeof(bios_names.eu)-1] = 0;
 	} else	strcpy(bios_names.eu, "NOT FOUND");
 
 	if (emu_findBios(1, &bios)) { // JP
-		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--); p++;
+		for (p = bios+strlen(bios)-1; p > bios && *p != '/'; p--);
+		if (*p == '/') p++;
 		strncpy(bios_names.jp, p, sizeof(bios_names.jp)); bios_names.jp[sizeof(bios_names.jp)-1] = 0;
 	} else	strcpy(bios_names.jp, "NOT FOUND");
 

@@ -41,7 +41,7 @@ static int otherRun(void)
   CycloneRun(&PicoCpuCM68k);
   return 1-PicoCpuCM68k.cycles;
 #elif defined(EMU_F68K)
-  return fm68k_emulate(1);
+  return fm68k_emulate(1, 0);
 #endif
 }
 

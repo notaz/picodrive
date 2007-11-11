@@ -5,6 +5,7 @@
 
 #define CASE_SENSITIVE_FS 1 // CS filesystem
 #define DONT_OPEN_MANY_FILES 0
+#define REDUCE_IO_CALLS 0
 
 // draw.c
 #define OVERRIDE_HIGHCOL 0

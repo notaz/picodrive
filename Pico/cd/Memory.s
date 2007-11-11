@@ -381,7 +381,7 @@ PicoWriteS68k32: @ u32 a, u32 d
     add     r2, r2, #0x110000
     add     r2, r2, #0x002200
 .if \is_read
-    ldrb    r0, [r2, #0x18]
+    ldrb    r0, [r2, #0x18]      @ Pico_mcd->m.bcram_reg
 .else
     strb    r1, [r2, #0x18]
 .endif

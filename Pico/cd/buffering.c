@@ -3,8 +3,6 @@
 
 #include "../PicoInt.h"
 
-//#include <stdlib.h>
-
 int PicoCDBuffers = 0;
 static unsigned char *cd_buffer = NULL;
 static int prev_lba = 0x80000000;
@@ -27,7 +25,7 @@ void PicoCDBufferInit(void)
 	/* try alloc'ing until we succeed */
 	while (PicoCDBuffers > 0)
 	{
-		tmp = realloc(cd_buffer, PicoCDBuffers * 2048);
+		tmp = realloc(cd_buffer, PicoCDBuffers * 2048 + 304);
 		if (tmp != NULL) break;
 		PicoCDBuffers >>= 1;
 	}
@@ -104,11 +102,18 @@ PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba)
 
 	if (is_bin)
 	{
-		int i;
-		for (i = 0; i < read_len; i++)
+		int i = 0;
+#if REDUCE_IO_CALLS
+		int bufs = (read_len*2048+304) / (2048+304);
+		pm_read(cd_buffer, bufs*(2048+304), Pico_mcd->TOC.Tracks[0].F);
+		for (i = 1; i < bufs; i++)
+			// should really use memmove here, but my memcpy32 implementation is also suitable here
+			memcpy32((int *)(cd_buffer + i*2048), (int *)(cd_buffer + i*(2048+304)), 2048/4);
+#endif
+		for (; i < read_len; i++)
 		{
-			pm_read(cd_buffer + i*2048, 2048, Pico_mcd->TOC.Tracks[0].F);
-			pm_seek(Pico_mcd->TOC.Tracks[0].F, 304, SEEK_CUR);
+			pm_read(cd_buffer + i*2048, 2048 + 304, Pico_mcd->TOC.Tracks[0].F);
+			// pm_seek(Pico_mcd->TOC.Tracks[0].F, 304, SEEK_CUR); // seeking is slower, in PSP case even more
 		}
 	}
 	else
