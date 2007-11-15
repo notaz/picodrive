@@ -454,47 +454,72 @@ static u32 PicoReadM68k8(u32 a)
 {
   u32 d=0;
 
-  if ((a&0xe00000)==0xe00000) { d = *(u8 *)(Pico.ram+((a^1)&0xffff)); goto end; } // Ram
-
   a&=0xffffff;
 
-  if (a < 0x20000) { d = *(u8 *)(Pico_mcd->bios+(a^1)); goto end; } // bios
+  switch (a >> 17)
+  {
+    case 0x00>>1: // BIOS: 000000 - 020000
+      d = *(u8 *)(Pico_mcd->bios+(a^1));
+      break;
+    case 0x02>>1: // prg RAM
+      if ((Pico_mcd->m.busreq&3)!=1) {
+        u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
+        d = *(prg_bank+((a^1)&0x1ffff));
+      }
+      break;
+    case 0x20>>1: // word RAM: 200000 - 220000
+      wrdprintf("m68k_wram r8: [%06x] @%06x", a, SekPc);
+      a &= 0x1ffff;
+      if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
+        int bank = Pico_mcd->s68k_regs[3]&1;
+        d = Pico_mcd->word_ram1M[bank][a^1];
+      } else {
+        // allow access in any mode, like Gens does
+        d = Pico_mcd->word_ram2M[a^1];
+      }
+      wrdprintf("ret = %02x", (u8)d);
+      break;
+    case 0x22>>1: // word RAM: 220000 - 240000
+      wrdprintf("m68k_wram r8: [%06x] @%06x", a, SekPc);
+      if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
+        int bank = Pico_mcd->s68k_regs[3]&1;
+        a = (a&3) | (cell_map(a >> 2) << 2); // cell arranged
+        d = Pico_mcd->word_ram1M[bank][a^1];
+      } else {
+        // allow access in any mode, like Gens does
+        d = Pico_mcd->word_ram2M[(a^1)&0x3ffff];
+      }
+      wrdprintf("ret = %02x", (u8)d);
+      break;
+    case 0xc0>>1: case 0xc2>>1: case 0xc4>>1: case 0xc6>>1:
+    case 0xc8>>1: case 0xca>>1: case 0xcc>>1: case 0xce>>1:
+    case 0xd0>>1: case 0xd2>>1: case 0xd4>>1: case 0xd6>>1:
+    case 0xd8>>1: case 0xda>>1: case 0xdc>>1: case 0xde>>1:
+      // VDP
+      if ((a&0xe700e0)==0xc00000) {
+        d=PicoVideoRead(a);
+        if ((a&1)==0) d>>=8;
+      }
+      break;
+    case 0xe0>>1: case 0xe2>>1: case 0xe4>>1: case 0xe6>>1:
+    case 0xe8>>1: case 0xea>>1: case 0xec>>1: case 0xee>>1:
+    case 0xf0>>1: case 0xf2>>1: case 0xf4>>1: case 0xf6>>1:
+    case 0xf8>>1: case 0xfa>>1: case 0xfc>>1: case 0xfe>>1:
+      // RAM:
+      d = *(u8 *)(Pico.ram+((a^1)&0xffff));
+      break;
+    default:
+      if ((a&0xff4000)==0xa00000) { d=z80Read8(a); break; } // Z80 Ram
+      if ((a&0xffffc0)==0xa12000)
+        rdprintf("m68k_regs r8: [%02x] @%06x", a&0x3f, SekPc);
 
-  // prg RAM
-  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
-    u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
-    d = *(prg_bank+((a^1)&0x1ffff));
-    goto end;
+      d=OtherRead16(a&~1, 8|(a&1)); if ((a&1)==0) d>>=8;
+
+      if ((a&0xffffc0)==0xa12000)
+        rdprintf("ret = %02x", (u8)d);
+      break;
   }
 
-  // word RAM
-  if ((a&0xfc0000)==0x200000) {
-    wrdprintf("m68k_wram r8: [%06x] @%06x", a, SekPc);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      int bank = Pico_mcd->s68k_regs[3]&1;
-      if (a >= 0x220000)
-           a = (a&3) | (cell_map(a >> 2) << 2); // cell arranged
-      else a &= 0x1ffff;
-      d = Pico_mcd->word_ram1M[bank][a^1];
-    } else {
-      // allow access in any mode, like Gens does
-      d = Pico_mcd->word_ram2M[(a^1)&0x3ffff];
-    }
-    wrdprintf("ret = %02x", (u8)d);
-    goto end;
-  }
-
-  if ((a&0xff4000)==0xa00000) { d=z80Read8(a); goto end; } // Z80 Ram
-
-  if ((a&0xffffc0)==0xa12000)
-    rdprintf("m68k_regs r8: [%02x] @%06x", a&0x3f, SekPc);
-
-  d=OtherRead16(a&~1, 8|(a&1)); if ((a&1)==0) d>>=8;
-
-  if ((a&0xffffc0)==0xa12000)
-    rdprintf("ret = %02x", (u8)d);
-
-  end:
 
 #ifdef __debug_io
   dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
@@ -517,47 +542,71 @@ static u32 PicoReadM68k16(u32 a)
 {
   u32 d=0;
 
-  if ((a&0xe00000)==0xe00000) { d=*(u16 *)(Pico.ram+(a&0xfffe)); goto end; } // Ram
-
   a&=0xfffffe;
 
-  if (a < 0x20000) { d = *(u16 *)(Pico_mcd->bios+a); goto end; } // bios
+  switch (a >> 17)
+  {
+    case 0x00>>1: // BIOS: 000000 - 020000
+      d = *(u16 *)(Pico_mcd->bios+a);
+      break;
+    case 0x02>>1: // prg RAM
+      if ((Pico_mcd->m.busreq&3)!=1) {
+        u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
+        wrdprintf("m68k_prgram r16: [%i,%06x] @%06x", Pico_mcd->s68k_regs[3]>>6, a, SekPc);
+        d = *(u16 *)(prg_bank+(a&0x1fffe));
+        wrdprintf("ret = %04x", d);
+      }
+      break;
+    case 0x20>>1: // word RAM: 200000 - 220000
+      wrdprintf("m68k_wram r16: [%06x] @%06x", a, SekPc);
+      a &= 0x1fffe;
+      if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
+        int bank = Pico_mcd->s68k_regs[3]&1;
+        d = *(u16 *)(Pico_mcd->word_ram1M[bank]+a);
+      } else {
+        // allow access in any mode, like Gens does
+        d = *(u16 *)(Pico_mcd->word_ram2M+a);
+      }
+      wrdprintf("ret = %04x", d);
+      break;
+    case 0x22>>1: // word RAM: 220000 - 240000
+      wrdprintf("m68k_wram r16: [%06x] @%06x", a, SekPc);
+      if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
+        int bank = Pico_mcd->s68k_regs[3]&1;
+        a = (a&2) | (cell_map(a >> 2) << 2); // cell arranged
+        d = *(u16 *)(Pico_mcd->word_ram1M[bank]+a);
+      } else {
+        // allow access in any mode, like Gens does
+        d = *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
+      }
+      wrdprintf("ret = %04x", d);
+      break;
+    case 0xc0>>1: case 0xc2>>1: case 0xc4>>1: case 0xc6>>1:
+    case 0xc8>>1: case 0xca>>1: case 0xcc>>1: case 0xce>>1:
+    case 0xd0>>1: case 0xd2>>1: case 0xd4>>1: case 0xd6>>1:
+    case 0xd8>>1: case 0xda>>1: case 0xdc>>1: case 0xde>>1:
+      // VDP
+      if ((a&0xe700e0)==0xc00000)
+        d=PicoVideoRead(a);
+      break;
+    case 0xe0>>1: case 0xe2>>1: case 0xe4>>1: case 0xe6>>1:
+    case 0xe8>>1: case 0xea>>1: case 0xec>>1: case 0xee>>1:
+    case 0xf0>>1: case 0xf2>>1: case 0xf4>>1: case 0xf6>>1:
+    case 0xf8>>1: case 0xfa>>1: case 0xfc>>1: case 0xfe>>1:
+      // RAM:
+      d=*(u16 *)(Pico.ram+(a&0xfffe));
+      break;
+    default:
+      if ((a&0xffffc0)==0xa12000)
+        rdprintf("m68k_regs r16: [%02x] @%06x", a&0x3f, SekPc);
 
-  // prg RAM
-  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
-    u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
-    wrdprintf("m68k_prgram r16: [%i,%06x] @%06x", Pico_mcd->s68k_regs[3]>>6, a, SekPc);
-    d = *(u16 *)(prg_bank+(a&0x1fffe));
-    wrdprintf("ret = %04x", d);
-    goto end;
+      d = OtherRead16(a, 16);
+
+      if ((a&0xffffc0)==0xa12000)
+        rdprintf("ret = %04x", d);
+      break;
   }
 
-  // word RAM
-  if ((a&0xfc0000)==0x200000) {
-    wrdprintf("m68k_wram r16: [%06x] @%06x", a, SekPc);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      int bank = Pico_mcd->s68k_regs[3]&1;
-      if (a >= 0x220000)
-           a = (a&2) | (cell_map(a >> 2) << 2); // cell arranged
-      else a &= 0x1fffe;
-      d = *(u16 *)(Pico_mcd->word_ram1M[bank]+a);
-    } else {
-      // allow access in any mode, like Gens does
-      d = *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
-    }
-    wrdprintf("ret = %04x", d);
-    goto end;
-  }
-
-  if ((a&0xffffc0)==0xa12000)
-    rdprintf("m68k_regs r16: [%02x] @%06x", a&0x3f, SekPc);
-
-  d = OtherRead16(a, 16);
-
-  if ((a&0xffffc0)==0xa12000)
-    rdprintf("ret = %04x", d);
-
-  end:
 
 #ifdef __debug_io
   dprintf("r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
@@ -580,52 +629,81 @@ static u32 PicoReadM68k32(u32 a)
 {
   u32 d=0;
 
-  if ((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); d = (pm[0]<<16)|pm[1]; goto end; } // Ram
-
   a&=0xfffffe;
 
-  if (a < 0x20000) { u16 *pm=(u16 *)(Pico_mcd->bios+a); d = (pm[0]<<16)|pm[1]; goto end; } // bios
-
-  // prg RAM
-  if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
-    u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
-    u16 *pm=(u16 *)(prg_bank+(a&0x1fffe));
-    d = (pm[0]<<16)|pm[1];
-    goto end;
-  }
-
-  // word RAM
-  if ((a&0xfc0000)==0x200000) {
-    wrdprintf("m68k_wram r32: [%06x] @%06x", a, SekPc);
-    if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
-      int bank = Pico_mcd->s68k_regs[3]&1;
-      if (a >= 0x220000) { // cell arranged
+  switch (a >> 17)
+  {
+    case 0x00>>1: { // BIOS: 000000 - 020000
+      u16 *pm=(u16 *)(Pico_mcd->bios+a);
+      d = (pm[0]<<16)|pm[1];
+      break;
+    }
+    case 0x02>>1: // prg RAM
+      if ((Pico_mcd->m.busreq&3)!=1) {
+        u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
+        u16 *pm=(u16 *)(prg_bank+(a&0x1fffe));
+        d = (pm[0]<<16)|pm[1];
+      }
+      break;
+    case 0x20>>1: // word RAM: 200000 - 220000
+      wrdprintf("m68k_wram r32: [%06x] @%06x", a, SekPc);
+      a&=0x1fffe;
+      if (Pico_mcd->s68k_regs[3]&4) { // 1M mode?
+        int bank = Pico_mcd->s68k_regs[3]&1;
+        u16 *pm=(u16 *)(Pico_mcd->word_ram1M[bank]+a);
+	d = (pm[0]<<16)|pm[1];
+      } else {
+        // allow access in any mode, like Gens does
+        u16 *pm=(u16 *)(Pico_mcd->word_ram2M+a);
+	d = (pm[0]<<16)|pm[1];
+      }
+      wrdprintf("ret = %08x", d);
+      break;
+    case 0x22>>1: // word RAM: 220000 - 240000
+      wrdprintf("m68k_wram r32: [%06x] @%06x", a, SekPc);
+      if (Pico_mcd->s68k_regs[3]&4) { // 1M mode, cell arranged?
         u32 a1, a2;
+        int bank = Pico_mcd->s68k_regs[3]&1;
         a1 = (a&2) | (cell_map(a >> 2) << 2);
         if (a&2) a2 = cell_map((a+2) >> 2) << 2;
         else     a2 = a1 + 2;
         d  = *(u16 *)(Pico_mcd->word_ram1M[bank]+a1) << 16;
         d |= *(u16 *)(Pico_mcd->word_ram1M[bank]+a2);
       } else {
-        u16 *pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe)); d = (pm[0]<<16)|pm[1];
+        // allow access in any mode, like Gens does
+        u16 *pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
+	d = (pm[0]<<16)|pm[1];
       }
-    } else {
-      // allow access in any mode, like Gens does
-      u16 *pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe)); d = (pm[0]<<16)|pm[1];
+      wrdprintf("ret = %08x", d);
+      break;
+    case 0xc0>>1: case 0xc2>>1: case 0xc4>>1: case 0xc6>>1:
+    case 0xc8>>1: case 0xca>>1: case 0xcc>>1: case 0xce>>1:
+    case 0xd0>>1: case 0xd2>>1: case 0xd4>>1: case 0xd6>>1:
+    case 0xd8>>1: case 0xda>>1: case 0xdc>>1: case 0xde>>1:
+      // VDP
+      d = (PicoVideoRead(a)<<16)|PicoVideoRead(a+2);
+      break;
+    case 0xe0>>1: case 0xe2>>1: case 0xe4>>1: case 0xe6>>1:
+    case 0xe8>>1: case 0xea>>1: case 0xec>>1: case 0xee>>1:
+    case 0xf0>>1: case 0xf2>>1: case 0xf4>>1: case 0xf6>>1:
+    case 0xf8>>1: case 0xfa>>1: case 0xfc>>1: case 0xfe>>1: {
+      // RAM:
+      u16 *pm=(u16 *)(Pico.ram+(a&0xfffe));
+      d = (pm[0]<<16)|pm[1];
+      break;
     }
-    wrdprintf("ret = %08x", d);
-    goto end;
+    default:
+      if ((a&0xffffc0)==0xa12000)
+        rdprintf("m68k_regs r32: [%02x] @%06x", a&0x3f, SekPc);
+
+      d = (OtherRead16(a, 32)<<16)|OtherRead16(a+2, 32);
+
+      if ((a&0xffffc0)==0xa12000)
+        rdprintf("ret = %08x", d);
+      break;
   }
 
-  if ((a&0xffffc0)==0xa12000)
-    rdprintf("m68k_regs r32: [%02x] @%06x", a&0x3f, SekPc);
 
-  d = (OtherRead16(a, 32)<<16)|OtherRead16(a+2, 32);
-
-  if ((a&0xffffc0)==0xa12000)
-    rdprintf("ret = %08x", d);
-
-  end:
 #ifdef __debug_io
   dprintf("r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
 #endif
@@ -659,14 +737,14 @@ static void PicoWriteM68k8(u32 a,u8 d)
     return;
   }
 
-  a&=0xffffff;
-
   // prg RAM
   if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
     *(u8 *)(prg_bank+((a^1)&0x1ffff))=d;
     return;
   }
+
+  a&=0xffffff;
 
   // word RAM
   if ((a&0xfc0000)==0x200000) {
@@ -712,8 +790,6 @@ static void PicoWriteM68k16(u32 a,u16 d)
     return;
   }
 
-  a&=0xfffffe;
-
   // prg RAM
   if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
@@ -721,6 +797,8 @@ static void PicoWriteM68k16(u32 a,u16 d)
     *(u16 *)(prg_bank+(a&0x1fffe))=d;
     return;
   }
+
+  a&=0xfffffe;
 
   // word RAM
   if ((a&0xfc0000)==0x200000) {
@@ -756,6 +834,12 @@ static void PicoWriteM68k16(u32 a,u16 d)
     return;
   }
 
+  // VDP
+  if ((a&0xe700e0)==0xc00000) {
+    PicoVideoWrite(a,(u16)d);
+    return;
+  }
+
   OtherWrite16(a,d);
 }
 #endif
@@ -781,8 +865,6 @@ static void PicoWriteM68k32(u32 a,u32 d)
     return;
   }
 
-  a&=0xfffffe;
-
   // prg RAM
   if ((a&0xfe0000)==0x020000 && (Pico_mcd->m.busreq&3)!=1) {
     u8 *prg_bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
@@ -790,6 +872,8 @@ static void PicoWriteM68k32(u32 a,u32 d)
     pm[0]=(u16)(d>>16); pm[1]=(u16)d;
     return;
   }
+
+  a&=0xfffffe;
 
   // word RAM
   if ((a&0xfc0000)==0x200000) {
@@ -819,6 +903,14 @@ static void PicoWriteM68k32(u32 a,u32 d)
   if ((a&0xffffc0)==0xa12000) {
     rdprintf("m68k_regs w32: [%02x] %08x @%06x", a&0x3f, d, SekPc);
     if ((a&0x3e) == 0xe) dprintf("m68k FIXME: w32 [%02x]", a&0x3f);
+  }
+
+  // VDP
+  if ((a&0xe700e0)==0xc00000)
+  {
+    PicoVideoWrite(a,  (u16)(d>>16));
+    PicoVideoWrite(a+2,(u16)d);
+    return;
   }
 
   OtherWrite16(a,  (u16)(d>>16));

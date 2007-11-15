@@ -386,17 +386,14 @@ m_read8_misc2:
     cmp     r2, #0x4000
     mvnne   r0, #0
     bxne    lr                @ invalid
-.if EXTERNAL_YM2612
     ldr     r1, =PicoOpt
     ldr     r1, [r1]
     tst     r1, #1
-    beq     m_read8_fake_ym2612
-    tst     r1, #0x200
-    beq     YM2612Read_
-    b       YM2612Read_940
-.else
-    b       YM2612Read_
-.endif
+
+    ldrne   r1, =ym2612_st
+    ldrne   r1, [r1]
+    ldrneb  r0, [r1, #0x11]   @ ym2612_st->status
+    bxne    lr
 
 m_read8_fake_ym2612:
     ldr     r3, =(Pico+0x22200)

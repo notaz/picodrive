@@ -13,6 +13,10 @@
 #include <string.h>
 #include "cz80.h"
 
+#if PICODRIVE_HACKS
+#include <Pico/PicoInt.h>
+#endif
+
 #ifndef ALIGN_DATA
 #define ALIGN_DATA      __attribute__((aligned(4)))
 #endif
@@ -203,6 +207,13 @@ void Cz80_Reset(cz80_struc *CPU)
 	Cz80_Set_Reg(CPU, CZ80_PC, 0);
 }
 
+/* */
+#if PICODRIVE_HACKS
+static inline unsigned char picodrive_read(unsigned short a)
+{
+	return (a < 0x4000) ? Pico.zram[a&0x1fff] : z80_read(a);
+}
+#endif
 
 /*--------------------------------------------------------
 	CPUŽÀs

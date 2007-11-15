@@ -11,6 +11,7 @@
 #include "psp.h"
 #include "menu.h"
 #include "emu.h"
+#include "mp3.h"
 #include "../common/emu.h"
 #include "../common/lprintf.h"
 #include "../../Pico/PicoInt.h"
@@ -57,7 +58,7 @@ static void osd_text(int x, const char *text, int is_active, int clear_all)
 	for (h = 0; h < 8; h++) {
 		p = (int *) (screen+x+512*(264+h));
 		p = (int *) ((int)p & ~3); // align
-		memset32(p, 0, len);
+		memset32_uncached(p, 0, len);
 	}
 	if (is_active) { tmp = psp_screen; psp_screen = screen; } // nasty pointer tricks
 	emu_textOut16(x, 264, text);
@@ -126,8 +127,8 @@ void emu_setDefaultConfig(void)
 {
 	memset(&currentConfig, 0, sizeof(currentConfig));
 	currentConfig.lastRomFile[0] = 0;
-	currentConfig.EmuOpt  = 0x1f | 0x680; // | confirm_save, cd_leds, 16bit rend
-	currentConfig.PicoOpt = 0x0f | 0xc00; // | cd_pcm, cd_cdda
+	currentConfig.EmuOpt  = 0x1d | 0x680;  // | confirm_save, cd_leds, acc rend
+	currentConfig.PicoOpt = 0x0f | 0x1c00; // | gfx_cd, cd_pcm, cd_cdda
 	currentConfig.PsndRate = 22050;
 	currentConfig.PicoRegion = 0; // auto
 	currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
@@ -172,7 +173,7 @@ static int fbimg_offs = 0;
 
 static void set_scaling_params(void)
 {
-	int src_width, fbimg_width, fbimg_height, fbimg_xoffs, fbimg_yoffs;
+	int src_width, fbimg_width, fbimg_height, fbimg_xoffs, fbimg_yoffs, border_hack = 0;
 	g_vertices[0].x = g_vertices[0].y =
 	g_vertices[0].z = g_vertices[1].z = 0;
 
@@ -185,9 +186,13 @@ static void set_scaling_params(void)
 		src_width = 256;
 	}
 
+	if (fbimg_width  & 1) fbimg_width++;  // make even
+	if (fbimg_height & 1) fbimg_height++;
+
 	if (fbimg_width >= 480) {
 		g_vertices[0].u = (fbimg_width-480)/2;
-		g_vertices[1].u = src_width - (fbimg_width-480)/2;
+		g_vertices[1].u = src_width - (fbimg_width-480)/2 - 1;
+		if (fbimg_width == 480) border_hack = 1;
 		fbimg_width = 480;
 		fbimg_xoffs = 0;
 	} else {
@@ -211,6 +216,12 @@ static void set_scaling_params(void)
 	g_vertices[1].y = fbimg_height;
 	if (fbimg_xoffs < 0) fbimg_xoffs = 0;
 	if (fbimg_yoffs < 0) fbimg_yoffs = 0;
+	if (border_hack) {
+		g_vertices[0].u++;
+		g_vertices[0].x++;
+		g_vertices[1].u--;
+		g_vertices[1].x--;
+	}
 	fbimg_offs = (fbimg_yoffs*512 + fbimg_xoffs) * 2; // dst is always 16bit
 
 	/*
@@ -371,7 +382,7 @@ static void cd_leds(void)
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
 }
 
-
+#if 0
 static void dbg_text(void)
 {
 	int *p, h, len;
@@ -382,11 +393,11 @@ static void dbg_text(void)
 	for (h = 0; h < 8; h++) {
 		p = (int *) ((unsigned short *) psp_screen+2+512*(256+h));
 		p = (int *) ((int)p & ~3); // align
-		memset32(p, 0, len);
+		memset32_uncached(p, 0, len);
 	}
 	emu_textOut16(2, 256, text);
 }
-
+#endif
 
 /* called after rendering is done, but frame emulation is not finished */
 void blit1(void)
@@ -415,7 +426,7 @@ static void blit2(const char *fps, const char *notice, int lagging_behind)
 		if (emu_opt & 2) osd_text(OSD_FPS_X, fps, 0, 0);
 	}
 
-	dbg_text();
+	//dbg_text();
 
 	if ((emu_opt & 0x400) && (PicoMCD & 1))
 		cd_leds();
@@ -431,15 +442,15 @@ static void blit2(const char *fps, const char *notice, int lagging_behind)
 static void clearArea(int full)
 {
 	if (full) {
-		memset32(psp_screen, 0, 512*272*2/4);
+		memset32_uncached(psp_screen, 0, 512*272*2/4);
 		psp_video_flip(0);
-		memset32(psp_screen, 0, 512*272*2/4);
+		memset32_uncached(psp_screen, 0, 512*272*2/4);
 		memset32(VRAM_CACHED_STUFF, 0xe0e0e0e0, 512*240/4);
 		memset32((int *)VRAM_CACHED_STUFF+512*240/4, 0, 512*240*2/4);
 	} else {
 		void *fb = psp_video_get_active_fb();
-		memset32((int *)((char *)psp_screen + 512*264*2), 0, 512*8*2/4);
-		memset32((int *)((char *)fb         + 512*264*2), 0, 512*8*2/4);
+		memset32_uncached((int *)((char *)psp_screen + 512*264*2), 0, 512*8*2/4);
+		memset32_uncached((int *)((char *)fb         + 512*264*2), 0, 512*8*2/4);
 	}
 }
 
@@ -659,7 +670,7 @@ void emu_forcedFrame(void)
 	vidResetMode();
 	memset32(VRAM_CACHED_STUFF, 0xe0e0e0e0, 512*8/4); // borders
 	memset32((int *)VRAM_CACHED_STUFF + 512*232/4, 0xe0e0e0e0, 512*8/4);
-	memset32((int *)psp_screen + 512*264*2/4, 0, 512*8*2/4);
+	memset32_uncached((int *)psp_screen + 512*264*2/4, 0, 512*8*2/4);
 
 	PicoDrawSetColorFormat(-1);
 	PicoScan = EmuScanSlow;
@@ -1036,7 +1047,7 @@ void emu_Loop(void)
 	}
 
 	// clear fps counters and stuff
-	memset32((int *)psp_video_get_active_fb() + 512*264*2/4, 0, 512*8*2/4);
+	memset32_uncached((int *)psp_video_get_active_fb() + 512*264*2/4, 0, 512*8*2/4);
 }
 
 

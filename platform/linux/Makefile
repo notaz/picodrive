@@ -13,8 +13,8 @@ STRIP = strip
 AS = gcc
 
 ifeq "$(profile)" "1"
-COPT_COMMON = -s -O3 -ftracer -fstrength-reduce -Wall -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math -fprofile-generate # -static
-COPT = $(COPT_COMMON) # -mtune=arm920t
+COPT_COMMON = -s -O3 -ftracer -fstrength-reduce -Wall -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math -fprofile-generate
+COPT = $(COPT_COMMON)
 else
 COPT = -ggdb -Wall -fno-strict-aliasing # -pg -O3  -ftracer -fstrength-reduce -funroll-loops -fomit-frame-pointer -ffast-math
 COPT_COMMON = $(COPT)

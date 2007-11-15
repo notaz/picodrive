@@ -10,6 +10,7 @@
 #include <pspgu.h>
 
 #include "psp.h"
+#include "emu.h"
 #include "../common/lprintf.h"
 
 PSP_MODULE_INFO("PicoDrive", 0, 1, 34);
@@ -28,6 +29,19 @@ static int exit_callback(int arg1, int arg2, void *common)
 	return 0;
 }
 
+/* Power Callback */
+static int power_callback(int unknown, int pwrflags, void *common)
+{
+	/* check for power switch and suspending as one is manual and the other automatic */
+	if (pwrflags & PSP_POWER_CB_POWER_SWITCH || pwrflags & PSP_POWER_CB_SUSPENDING)
+	{
+		lprintf("power_callback: flags: 0x%08X: suspending\n", pwrflags);
+		engineState = PGS_Menu;
+	}
+	sceDisplayWaitVblankStart();
+	return 0;
+}
+
 /* Callback thread */
 static int callback_thread(SceSize args, void *argp)
 {
@@ -38,6 +52,8 @@ static int callback_thread(SceSize args, void *argp)
 
 	cbid = sceKernelCreateCallback("Exit Callback", exit_callback, NULL);
 	sceKernelRegisterExitCallback(cbid);
+	cbid = sceKernelCreateCallback("Power Callback", power_callback, NULL);
+	scePowerRegisterCallback(0, cbid);
 
 	sceKernelSleepThreadCB();
 

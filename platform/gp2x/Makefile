@@ -138,15 +138,10 @@ endif
 all: PicoDrive.gpe
 
 PicoDrive.gpe : $(OBJS) ../common/helix/helix_mp3.a
-	@echo $@
-	@$(GCC) -o $@ $(COPT) $^ -lm -lpng -Wl,-Map=PicoDrive.map
+	@echo ">>>" $@
+	$(GCC) -o $@ $(COPT) $^ -lm -lpng -Wl,-Map=PicoDrive.map
 ifeq ($(DEBUG),)
-	@$(STRIP) $@
-endif
-#	@$(GCC) $(COPT) $(OBJS) -lm -o PicoDrive_.gpe
-#	@gpecomp PicoDrive_.gpe $@
-ifeq "$(up)" "1"
-	@cmd //C copy $@ \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
+	$(STRIP) $@
 endif
 
 up: PicoDrive.gpe
@@ -155,45 +150,40 @@ up: PicoDrive.gpe
 #	@cmd //C copy PicoDrive.gpe \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
 
 
-testrefr.gpe : test.o gp2x.o
-	@echo $@
-	@$(GCC) $(COPT) $^ -o $@
-	@$(STRIP) $@
-
 .c.o:
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -c $< -o $@
+	@echo ">>>" $<
+	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
 .s.o:
-	@echo $<
-	@$(GCC) $(COPT) $(DEFINC) -c $< -o $@
+	@echo ">>>" $<
+	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
 
 ../../Pico/draw_asm.o : ../../Pico/Draw.s
-	@echo $<
-	@$(AS) $(ASOPT) $< -o $@
+	@echo ">>>" $<
+	$(AS) $(ASOPT) $< -o $@
 ../../Pico/draw2_asm.o : ../../Pico/Draw2.s
-	@echo $<
-	@$(AS) $(ASOPT) $< -o $@
+	@echo ">>>" $<
+	$(AS) $(ASOPT) $< -o $@
 ../../Pico/memory_asm.o : ../../Pico/Memory.s
-	@echo $<
-	@$(AS) $(ASOPT) $< -o $@
+	@echo ">>>" $<
+	$(AS) $(ASOPT) $< -o $@
 ../../Pico/sound/ym2612_asm.o : ../../Pico/sound/ym2612.s
-	@echo $<
-	@$(AS) $(ASOPT) $< -o $@
+	@echo ">>>" $<
+	$(AS) $(ASOPT) $< -o $@
 ../../Pico/sound/mix_asm.o : ../../Pico/sound/mix.s
-	@echo $<
-	@$(AS) $(ASOPT) $< -o $@
+	@echo ">>>" $<
+	$(AS) $(ASOPT) $< -o $@
 ../../Pico/misc_asm.o : ../../Pico/Misc.s
-	@echo $<
-	@$(AS) $(ASOPT) $< -o $@
+	@echo ">>>" $<
+	$(AS) $(ASOPT) $< -o $@
 ../../Pico/cd/pico_asm.o : ../../Pico/cd/Pico.s
-	@echo $<
-	@$(AS) $(ASOPT) $< -o $@
+	@echo ">>>" $<
+	$(AS) $(ASOPT) $< -o $@
 ../../Pico/cd/memory_asm.o : ../../Pico/cd/Memory.s
-	@echo $<
-	@$(AS) $(ASOPT) $< -o $@
+	@echo ">>>" $<
+	$(AS) $(ASOPT) $< -o $@
 ../../Pico/cd/misc_asm.o : ../../Pico/cd/Misc.s
-	@echo $<
-	@$(AS) $(ASOPT) $< -o $@
+	@echo ">>>" $<
+	$(AS) $(ASOPT) $< -o $@
 
 # build Cyclone
 ../../cpu/Cyclone/proj/Cyclone.s :

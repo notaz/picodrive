@@ -80,6 +80,7 @@ PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba)
 		dprintf("CD buffer seek %i -> %i\n", prev_lba, lba);
 		pm_seek(Pico_mcd->TOC.Tracks[0].F, where_seek, SEEK_SET);
 	}
+else if (prev_lba == 0x80000000) printf("wtf?\n");
 
 	dprintf("CD buffer miss %i -> %i\n", prev_lba, lba);
 
@@ -89,6 +90,7 @@ PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba)
 		dprintf("CD buffer move=%i, read_len=%i", PicoCDBuffers - read_len, read_len);
 		memmove(cd_buffer + read_len*2048, cd_buffer, (PicoCDBuffers - read_len)*2048);
 		moved = 1;
+if (prev_lba == 0x80000000) printf("wtf?\n");
 	}
 	else
 	{
@@ -104,17 +106,20 @@ PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba)
 	{
 		int i = 0;
 #if REDUCE_IO_CALLS
-		int bufs = (read_len*2048+304) / (2048+304);
+		int bufs = (read_len*2048) / (2048+304);
 		pm_read(cd_buffer, bufs*(2048+304), Pico_mcd->TOC.Tracks[0].F);
 		for (i = 1; i < bufs; i++)
 			// should really use memmove here, but my memcpy32 implementation is also suitable here
 			memcpy32((int *)(cd_buffer + i*2048), (int *)(cd_buffer + i*(2048+304)), 2048/4);
 #endif
-		for (; i < read_len; i++)
+		for (; i < read_len - 1; i++)
 		{
 			pm_read(cd_buffer + i*2048, 2048 + 304, Pico_mcd->TOC.Tracks[0].F);
 			// pm_seek(Pico_mcd->TOC.Tracks[0].F, 304, SEEK_CUR); // seeking is slower, in PSP case even more
 		}
+		// further data might be moved, do not overwrite
+		pm_read(cd_buffer + i*2048, 2048, Pico_mcd->TOC.Tracks[0].F);
+		pm_seek(Pico_mcd->TOC.Tracks[0].F, 304, SEEK_CUR);
 	}
 	else
 	{

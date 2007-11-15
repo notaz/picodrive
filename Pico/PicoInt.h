@@ -49,6 +49,9 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekSetStop(x) { PicoCpuCM68k.state_flags&=~1; if (x) { PicoCpuCM68k.state_flags|=1; PicoCpuCM68k.cycles=0; } }
 #define SekSetStopS68k(x) { PicoCpuCS68k.state_flags&=~1; if (x) { PicoCpuCS68k.state_flags|=1; PicoCpuCS68k.cycles=0; } }
 #define SekShouldInterrupt (PicoCpuCM68k.irq > (PicoCpuCM68k.srh&7))
+
+#define SekInterrupt(i) PicoCpuCM68k.irq=i
+
 #ifdef EMU_M68K
 #define EMU_CORE_DEBUG
 #endif
@@ -56,7 +59,7 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 
 #ifdef EMU_F68K
 #include "../cpu/fame/fame.h"
-M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
+extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #define SekCyclesLeftNoMCD PicoCpuFM68k.io_cycle_counter
 #define SekCyclesLeft \
 	(((PicoMCD&1) && (PicoOpt & 0x2000)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
@@ -77,6 +80,9 @@ M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 	if (x) { PicoCpuFS68k.execinfo |= FM68K_HALTED; PicoCpuFS68k.io_cycle_counter = 0; } \
 }
 #define SekShouldInterrupt fm68k_would_interrupt()
+
+#define SekInterrupt(irq) PicoCpuFM68k.interrupts[0]=irq
+
 #ifdef EMU_M68K
 #define EMU_CORE_DEBUG
 #endif
@@ -106,6 +112,14 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 	else PicoCpuMS68k.stopped=0; \
 }
 #define SekShouldInterrupt (CPU_INT_LEVEL > FLAG_INT_MASK)
+
+#define SekInterrupt(irq) {
+	void *oldcontext = m68ki_cpu_p; \
+	m68k_set_context(&PicoCpuMM68k); \
+	m68k_set_irq(irq); \
+	m68k_set_context(oldcontext); \
+}
+
 #endif
 #endif
 
@@ -146,6 +160,46 @@ extern int SekCycleAimS68k;
 #define SekSetCyclesLeft(c)
 #define SekCyclesBurn(c) c
 #define SekEndRun(c)
+#endif
+
+// ----------------------- Z80 CPU -----------------------
+
+#if defined(_USE_MZ80)
+#include "../../cpu/mz80/mz80.h"
+
+#define z80_run(cycles)    mz80_run(cycles)
+#define z80_run_nr(cycles) mz80_run(cycles)
+#define z80_int()          mz80int(0)
+#define z80_resetCycles()  mz80GetElapsedTicks(1)
+
+#elif defined(_USE_DRZ80)
+#include "../../cpu/DrZ80/drz80.h"
+
+extern struct DrZ80 drZ80;
+
+#define z80_run(cycles)    ((cycles) - DrZ80Run(&drZ80, cycles))
+#define z80_run_nr(cycles) DrZ80Run(&drZ80, cycles)
+#define z80_int() { \
+  drZ80.z80irqvector = 0xFF; /* default IRQ vector RST opcode */ \
+  drZ80.Z80_IRQ = 1; \
+}
+#define z80_resetCycles()
+
+#elif defined(_USE_CZ80)
+#include "../../cpu/cz80/cz80.h"
+
+#define z80_run(cycles)    Cz80_Exec(&CZ80, cycles)
+#define z80_run_nr(cycles) Cz80_Exec(&CZ80, cycles)
+#define z80_int()          Cz80_Set_IRQ(&CZ80, 0, HOLD_LINE)
+#define z80_resetCycles()
+
+#else
+
+#define z80_run(cycles)    (cycles)
+#define z80_run_nr(cycles)
+#define z80_int()
+#define z80_resetCycles()
+
 #endif
 
 // ---------------------------------------------------------
@@ -358,7 +412,6 @@ PICO_INTERNAL int PicoFrameMCD(void);
 // Sek.c
 PICO_INTERNAL int SekInit(void);
 PICO_INTERNAL int SekReset(void);
-PICO_INTERNAL int SekInterrupt(int irq);
 PICO_INTERNAL void SekState(int *data);
 PICO_INTERNAL void SekSetRealTAS(int use_real);
 
@@ -398,9 +451,6 @@ PICO_INTERNAL int  PsndRender(int offset, int length);
 PICO_INTERNAL void PsndClear(void);
 // z80 functionality wrappers
 PICO_INTERNAL void z80_init(void);
-PICO_INTERNAL void z80_resetCycles(void);
-PICO_INTERNAL void z80_int(void);
-PICO_INTERNAL int  z80_run(int cycles);
 PICO_INTERNAL void z80_pack(unsigned char *data);
 PICO_INTERNAL void z80_unpack(unsigned char *data);
 PICO_INTERNAL void z80_reset(void);

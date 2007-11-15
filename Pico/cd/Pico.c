@@ -79,6 +79,7 @@ PICO_INTERNAL int PicoResetMCD(int hard)
   SRam.data = NULL;
   if (PicoOpt&0x8000)
     SRam.data = calloc(1, 0x12000);
+  SRam.start = SRam.end = 0; // unused
 
   return 0;
 }

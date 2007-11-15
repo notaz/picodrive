@@ -485,8 +485,7 @@ static void DrawAllSpritesFull(int prio, int maxwidth)
 #ifndef _ASM_DRAW_C
 static void BackFillFull(int reg7)
 {
-	unsigned int back, i;
-	unsigned int *p=(unsigned int *)PicoDraw2FB;
+	unsigned int back;
 
 	// Start with a background color:
 //	back=PicoCramHigh[reg7&0x3f];
@@ -494,12 +493,7 @@ static void BackFillFull(int reg7)
 	back|=back<<8;
 	back|=back<<16;
 
-	for(i = LINE_WIDTH*(8+(END_ROW-START_ROW)*8)/16; i; i--) {
-		*p++ = back; // do 16 pixels per iteration
-		*p++ = back;
-		*p++ = back;
-		*p++ = back;
-	}
+	memset32((int *)PicoDraw2FB, back, LINE_WIDTH*(8+(END_ROW-START_ROW)*8)/4);
 }
 #endif
 

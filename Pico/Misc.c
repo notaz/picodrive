@@ -353,7 +353,7 @@ PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count)
 		*dest++ = (src_[0] << 8) | src_[1];
 }
 
-
+#ifndef _ASM_MISC_C_AMIPS
 PICO_INTERNAL_ASM void memcpy32(int *dest, int *src, int count)
 {
 	intblock *bd = (intblock *) dest, *bs = (intblock *) src;
@@ -376,5 +376,7 @@ PICO_INTERNAL_ASM void memset32(int *dest, int c, int count)
 	while (count--)
 		*dest++ = c;
 }
+void memset32_uncached(int *dest, int c, int count) { memset32(dest, c, count); }
+#endif
 #endif
 

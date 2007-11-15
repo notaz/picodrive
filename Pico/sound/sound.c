@@ -1,7 +1,7 @@
 // This is part of Pico Library
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2006,2007 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -10,14 +10,6 @@
 #include <string.h>
 #include "ym2612.h"
 #include "sn76496.h"
-
-#if defined(_USE_MZ80)
-#include "../../cpu/mz80/mz80.h"
-#elif defined(_USE_DRZ80)
-#include "../../cpu/DrZ80/drz80.h"
-#elif defined(_USE_CZ80)
-#include "../../cpu/cz80/cz80.h"
-#endif
 
 #include "../PicoInt.h"
 #include "../cd/pcm.h"
@@ -35,11 +27,6 @@ int PsndLen=0; // number of mono samples, multiply by 2 for stereo
 int PsndLen_exc_add=0; // this is for non-integer sample counts per line, eg. 22050/60
 int PsndLen_exc_cnt=0;
 short *PsndOut=NULL; // PCM data buffer
-
-// from ym2612.c
-extern int   *ym2612_dacen;
-extern INT32 *ym2612_dacout;
-void YM2612TimerHandler(int c,int cnt);
 
 // sn76496
 extern int *sn76496_regs;
@@ -306,9 +293,16 @@ static struct z80PortWrite mz80_io_write[]={
   {(UINT16) -1,(UINT16) -1,NULL}
 };
 
+int mz80_run(int cycles)
+{
+  int ticks_pre = mz80GetElapsedTicks(0);
+  mz80exec(cycles);
+  return mz80GetElapsedTicks(0) - ticks_pre;
+}
+
 #elif defined(_USE_DRZ80)
 
-static struct DrZ80 drZ80;
+struct DrZ80 drZ80;
 
 static unsigned int DrZ80_rebasePC(unsigned short a)
 {
@@ -379,7 +373,7 @@ PICO_INTERNAL void z80_init(void)
   Cz80_Init(&CZ80);
   Cz80_Set_Fetch(&CZ80, 0x0000, 0x1fff, (UINT32)Pico.zram); // main RAM
   Cz80_Set_Fetch(&CZ80, 0x2000, 0x3fff, (UINT32)Pico.zram - 0x2000); // mirror
-  Cz80_Set_ReadB(&CZ80, (UINT8 (*)(UINT32 address))z80_read);
+  Cz80_Set_ReadB(&CZ80, (UINT8 (*)(UINT32 address))z80_read); // unused (hacked in)
   Cz80_Set_WriteB(&CZ80, z80_write);
   Cz80_Set_INPort(&CZ80, z80_in);
   Cz80_Set_OUTPort(&CZ80, z80_out);
@@ -405,40 +399,6 @@ PICO_INTERNAL void z80_reset(void)
   Pico.m.z80_fakeval = 0; // for faking when Z80 is disabled
 }
 
-PICO_INTERNAL void z80_resetCycles(void)
-{
-#if defined(_USE_MZ80)
-  mz80GetElapsedTicks(1);
-#endif
-}
-
-PICO_INTERNAL void z80_int(void)
-{
-#if defined(_USE_MZ80)
-  mz80int(0);
-#elif defined(_USE_DRZ80)
-  drZ80.z80irqvector = 0xFF; // default IRQ vector RST opcode
-  drZ80.Z80_IRQ = 1;
-#elif defined(_USE_CZ80)
-  Cz80_Set_IRQ(&CZ80, 0, HOLD_LINE);
-#endif
-}
-
-// returns number of cycles actually executed
-PICO_INTERNAL int z80_run(int cycles)
-{
-#if defined(_USE_MZ80)
-  int ticks_pre = mz80GetElapsedTicks(0);
-  mz80exec(cycles);
-  return mz80GetElapsedTicks(0) - ticks_pre;
-#elif defined(_USE_DRZ80)
-  return cycles - DrZ80Run(&drZ80, cycles);
-#elif defined(_USE_CZ80)
-  return Cz80_Exec(&CZ80, cycles);
-#else
-  return cycles;
-#endif
-}
 
 PICO_INTERNAL void z80_pack(unsigned char *data)
 {

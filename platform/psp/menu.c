@@ -154,7 +154,7 @@ void menu_romload_prepare(const char *rom_name)
 
 	psp_video_switch_to_single();
 	if (rom_data) menu_draw_begin();
-	else memset32(psp_screen, 0, 512*272*2/4);
+	else memset32_uncached(psp_screen, 0, 512*272*2/4);
 
 	smalltext_out16(1, 1, "Loading", 0xffff);
 	smalltext_out16_lim(1, 10, p, 0xffff, 80);
@@ -453,8 +453,10 @@ static void draw_debug(void)
 
 static void debug_menu_loop(void)
 {
+	int ret = 0;
 	draw_debug();
-	wait_for_input(BTN_X|BTN_CIRCLE, 0);
+	while (!(ret & (BTN_X|BTN_CIRCLE)))
+		ret = wait_for_input(BTN_X|BTN_CIRCLE, 0);
 }
 
 // ------------ patch/gg menu ------------
@@ -1059,7 +1061,7 @@ static void menu_opt3_preview(int is_32col)
 			lprintf("uncompress returned %i\n", ret);
 	}
 
-	memset32(psp_screen, 0, 512*272*2/4);
+	memset32_uncached(psp_screen, 0, 512*272*2/4);
 	emu_forcedFrame();
 	menu_prepare_bg(1, 0);
 
@@ -1119,6 +1121,7 @@ static void dispmenu_loop_options(void)
 			if (setting != NULL) {
 				while ((inp = psp_pad_read(0)) & (BTN_LEFT|BTN_RIGHT)) {
 					*setting += (inp & BTN_LEFT) ? -0.01 : 0.01;
+					if (*setting <= 0) *setting = 0.01;
 					menu_opt3_preview(is_32col);
 					draw_dispmenu_options(menu_sel); // will wait vsync
 				}
@@ -1735,12 +1738,12 @@ static void menu_prepare_bg(int use_game_bg, int use_fg)
 		int i;
 		for (i = 272; i > 0; i--, dst += 480, src += 512)
 			menu_darken_bg(dst, src, 480, 1);
-		//memset32((int *)(bg_buffer + 480*264), 0, 480*8*2/4);
+		//memset32_uncached((int *)(bg_buffer + 480*264), 0, 480*8*2/4);
 	}
 	else
 	{
 		// should really only happen once, on startup..
-		memset32((int *)(void *)bg_buffer, 0, sizeof(bg_buffer)/4);
+		memset32_uncached((int *)(void *)bg_buffer, 0, sizeof(bg_buffer)/4);
 		readpng(bg_buffer, "skin/background.png", READPNG_BG);
 	}
 	sceKernelDcacheWritebackAll();
@@ -1814,7 +1817,7 @@ int menu_loop_tray(void)
 	for (;;)
 	{
 		draw_menu_tray(menu_sel);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_X, 0);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_CIRCLE, 0);
 		if(inp & BTN_UP  )  { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if(inp & BTN_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if(inp & BTN_CIRCLE)  {

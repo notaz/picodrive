@@ -181,8 +181,6 @@ int mp3_init(void)
 		goto fail2;
 	}
 
-	lprintf("thread_busy_sem: %08x, thread_job_sem: %08x\n", thread_busy_sem, thread_job_sem);
-
 	thread_exit = 0;
 	thid = sceKernelCreateThread("mp3decode_thread", decode_thread, 30, 0x2000, 0, 0); /* use slightly higher prio then main */
 	if (thid < 0) {
@@ -273,7 +271,7 @@ static int decode_thread(SceSize args, void *argp)
 
 int mp3_get_bitrate(FILE *f, int size)
 {
-	int ret = -1, sample_rate, bitrate;
+	int ret, retval = -1, sample_rate, bitrate;
 	// filenames are stored instead handles in PSP, due to stupid max open file limit
 	char *fname = (char *)f;
 
@@ -307,14 +305,14 @@ int mp3_get_bitrate(FILE *f, int size)
 	}
 
 	/* looking good.. */
-	ret = bitrate;
+	retval = bitrate;
 end:
 	if (mp3_handle >= 0) sceIoClose(mp3_handle);
 	mp3_handle = -1;
 	mp3_fname = NULL;
 	psp_sem_unlock(thread_busy_sem);
-	if (ret < 0) mp3_last_error = -1; // remember we had a problem..
-	return ret;
+	if (retval < 0) mp3_last_error = -1; // remember we had a problem..
+	return retval;
 }
 
 

@@ -164,8 +164,12 @@ static int g_read_offs = 0;
 	g_read_offs += len;
 
 #define CHECKED_READ2(len2,data) \
-	if (len2 != len) R_ERROR_RETURN("unexpected len, wanted " #len2); \
-	CHECKED_READ(len2, data)
+	if (len2 != len) { \
+		printf("unexpected len %i, wanted %i (%s)", len, len2, #len2); \
+		if (len > len2) R_ERROR_RETURN("failed."); \
+		/* else read anyway and hope for the best.. */ \
+	} \
+	CHECKED_READ(len, data)
 
 #define CHECKED_READ_BUFF(buff) CHECKED_READ2(sizeof(buff), &buff);
 

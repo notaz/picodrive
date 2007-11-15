@@ -16,8 +16,8 @@
 
 // Options //
 #define FAMEC_ROLL_INLINE
-#define FAMEC_EMULATE_TRACE
-#define FAMEC_CHECK_BRANCHES
+//#define FAMEC_EMULATE_TRACE
+//#define FAMEC_CHECK_BRANCHES
 #define FAMEC_EXTRA_INLINE
 // #define FAMEC_DEBUG
 //#define FAMEC_NO_GOTOS
@@ -280,11 +280,18 @@ typedef signed int	s32;
 	((u32)PC - BasePC)
 
 
+#ifdef FAMEC_CHECK_BRANCHES
+#define FORCE_ALIGNMENT(pc)
+#else
+#define FORCE_ALIGNMENT(pc) pc&=~1;
+#endif
+
 #ifndef FAMEC_32BIT_PC
 
 #define SET_PC(A)               \
 { \
     u32 pc = A; \
+    FORCE_ALIGNMENT(pc); \
     BasePC = m68kcontext.Fetch[(pc >> M68K_FETCHSFT) & M68K_FETCHMASK];    \
     PC = (u16*)((pc & M68K_ADR_MASK) + BasePC);	\
 }
@@ -294,6 +301,7 @@ typedef signed int	s32;
 #define SET_PC(A)               \
 { \
     u32 pc = A; \
+    FORCE_ALIGNMENT(pc); \
     BasePC = m68kcontext.Fetch[(pc >> M68K_FETCHSFT) & M68K_FETCHMASK];    \
     BasePC -= pc & 0xFF000000;    \
     PC = (u16*)(pc + BasePC); \
@@ -734,7 +742,9 @@ static FAMEC_EXTRA_INLINE u32 execute_exception(s32 vect, u32 oldPC, u32 oldSR)
 #ifndef FAMEC_32BIT_PC
 	newPC&=M68K_ADR_MASK
 #endif
+#ifdef FAMEC_CHECK_BRANCHES
 	newPC&=~1; // don't crash on games with bad vector tables
+#endif
 
 	// SET_PC(newPC)
 
@@ -948,6 +958,7 @@ famec_End:
 #ifdef PICODRIVE_HACK
 dualcore_mode:
 
+	while (1)
 	{
 		extern int SekCycleAim, SekCycleCnt, SekCycleAimS68k, SekCycleCntS68k;
 		#define PS_STEP_M68K ((488<<16)/20) // ~24
@@ -989,7 +1000,6 @@ dualcore_mode:
 			}
 			cycles = m68kcontext.io_cycle_counter = 0;
 		}
-		goto dualcore_mode;
 	}
 #endif
 

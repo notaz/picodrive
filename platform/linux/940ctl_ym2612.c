@@ -40,19 +40,6 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 	return 0; // cause the engine to do updates once per frame only
 }
 
-UINT8 YM2612Read_940(void)
-{
-	return YM2612Read_();
-}
-
-
-int YM2612PicoTick_940(int n)
-{
-	YM2612PicoTick_(n);
-
-	return 0;
-}
-
 
 void YM2612PicoStateLoad_940(void)
 {

@@ -297,10 +297,10 @@ static void PicoRunZ80Simple(int line_from, int line_to)
       if ((line == 224 || line == line_sample) && PsndOut) getSamples(line);
       if (line == 32 && PsndOut) emustatus &= ~1;
       if (line >= line_from_r && line < line_to_r)
-        z80_run(228);
+        z80_run_nr(228);
     }
   } else if (line_to_r-line_from_r > 0) {
-    z80_run(228*(line_to_r-line_from_r));
+    z80_run_nr(228*(line_to_r-line_from_r));
     // samples will be taken by caller
   }
 }

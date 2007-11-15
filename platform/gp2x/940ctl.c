@@ -51,22 +51,12 @@ static FILE *loaded_mp3 = 0;
 }
 
 /* these will be managed locally on our side */
-extern int   *ym2612_dacen;
-extern INT32 *ym2612_dacout;
 static UINT8 *REGS = 0;		/* we will also keep local copy of regs for savestates and such */
 static INT32 *addr_A1;		/* address line A1      */
 
 static int   dacen;
 static INT32 dacout;
 static UINT8 ST_address;	/* address register     */
-static UINT8 ST_status;		/* status flag          */
-static UINT8 ST_mode;		/* mode  CSM / 3SLOT    */
-static int   ST_TA;			/* timer a              */
-static int   ST_TAC;		/* timer a maxval       */
-static int   ST_TAT;		/* timer a ticker       */
-static UINT8 ST_TB;			/* timer b              */
-static int   ST_TBC;		/* timer b maxval       */
-static int   ST_TBT;		/* timer b ticker       */
 
 static int   writebuff_ptr = 0;
 
@@ -84,16 +74,16 @@ static int set_timers( int v )
 	/* b2 = timer enable a */
 	/* b1 = load b */
 	/* b0 = load a */
-	change = (ST_mode ^ v) & 0xc0;
-	ST_mode = v;
+	change = (ym2612_st->mode ^ v) & 0xc0;
+	ym2612_st->mode = v;
 
 	/* reset Timer b flag */
 	if( v & 0x20 )
-		ST_status &= ~2;
+		ym2612_st->status &= ~2;
 
 	/* reset Timer a flag */
 	if( v & 0x10 )
-		ST_status &= ~1;
+		ym2612_st->status &= ~1;
 
 	return change;
 }
@@ -139,30 +129,30 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 			switch( addr )
 			{
 			case 0x24: { // timer A High 8
-					int TAnew = (ST_TA & 0x03)|(((int)v)<<2);
-					if(ST_TA != TAnew) {
+					int TAnew = (ym2612_st->TA & 0x03)|(((int)v)<<2);
+					if (ym2612_st->TA != TAnew) {
 						// we should reset ticker only if new value is written. Outrun requires this.
-						ST_TA = TAnew;
-						ST_TAC = (1024-TAnew)*18;
-						ST_TAT = 0;
+						ym2612_st->TA = TAnew;
+						ym2612_st->TAC = (1024-TAnew)*18;
+						ym2612_st->TAT = 0;
 					}
 					return 0;
 				}
 			case 0x25: { // timer A Low 2
-					int TAnew = (ST_TA & 0x3fc)|(v&3);
-					if(ST_TA != TAnew) {
-						ST_TA = TAnew;
-						ST_TAC = (1024-TAnew)*18;
-						ST_TAT = 0;
+					int TAnew = (ym2612_st->TA & 0x3fc)|(v&3);
+					if (ym2612_st->TA != TAnew) {
+						ym2612_st->TA = TAnew;
+						ym2612_st->TAC = (1024-TAnew)*18;
+						ym2612_st->TAT = 0;
 					}
 					return 0;
 				}
 			case 0x26: // timer B
-				if(ST_TB != v) {
-					ST_TB = v;
-					ST_TBC  = (256-v)<<4;
-					ST_TBC *= 18;
-					ST_TBT  = 0;
+				if (ym2612_st->TB != v) {
+					ym2612_st->TB = v;
+					ym2612_st->TBC  = (256-v)<<4;
+					ym2612_st->TBC *= 18;
+					ym2612_st->TBT  = 0;
 				}
 				return 0;
 			case 0x27:	/* mode, timer control */
@@ -227,38 +217,6 @@ int YM2612Write_940(unsigned int a, unsigned int v)
 	}
 
 	return 0; // cause the engine to do updates once per frame only
-}
-
-UINT8 YM2612Read_940(void)
-{
-	return ST_status;
-}
-
-
-int YM2612PicoTick_940(int n)
-{
-	//int ret = 0;
-
-	// timer A
-	if(ST_mode & 0x01 && (ST_TAT+=64*n) >= ST_TAC) {
-		ST_TAT -= ST_TAC;
-		if(ST_mode & 0x04) ST_status |= 1;
-		// CSM mode total level latch and auto key on
-/*		FIXME
-		if(ST_mode & 0x80) {
-			CSMKeyControll( &(ym2612_940->CH[2]) ); // Vectorman2, etc.
-			ret = 1;
-		}
-*/
-	}
-
-	// timer B
-	if(ST_mode & 0x02 && (ST_TBT+=64*n) >= ST_TBC) {
-		ST_TBT -= ST_TBC;
-		if(ST_mode & 0x08) ST_status |= 2;
-	}
-
-	return 0;
 }
 
 
@@ -339,12 +297,14 @@ void YM2612PicoStateLoad_940(void)
 static void internal_reset(void)
 {
 	writebuff_ptr = 0;
-	ST_mode   = 0;
-	ST_status = 0;	/* normal mode */
-	ST_TA     = 0;
-	ST_TAC    = 0;
-	ST_TB     = 0;
-	ST_TBC    = 0;
+	ym2612_st->mode   = 0;
+	ym2612_st->status = 0;	/* normal mode */
+	ym2612_st->TA     = 0;
+	ym2612_st->TAC    = 0;
+	ym2612_st->TAT    = 0;
+	ym2612_st->TB     = 0;
+	ym2612_st->TBC    = 0;
+	ym2612_st->TBT    = 0;
 	dacen     = 0;
 	dacout    = 0;
 	ST_address= 0;

@@ -76,15 +76,16 @@ typedef struct
 {
 	int		clock;		/* master clock  (Hz)   */
 	int		rate;		/* sampling rate (Hz)   */
-	double	freqbase;	/* frequency base       */
-	UINT8	address;	/* address register     */
-	UINT8	status;		/* status flag          */
+	double	freqbase;	/* 08 frequency base       */
+	UINT8	address;	/* 10 address register     */
+	UINT8	status;		/* 11 status flag          */
 	UINT8	mode;		/* mode  CSM / 3SLOT    */
 	UINT8	fn_h;		/* freq latch           */
 	int		TA;			/* timer a              */
 	int		TAC;		/* timer a maxval       */
 	int		TAT;		/* timer a ticker       */
 	UINT8	TB;			/* timer b              */
+	UINT8	pad[3];
 	int		TBC;		/* timer b maxval       */
 	int		TBT;		/* timer b ticker       */
 	/* local time tables */
@@ -135,9 +136,32 @@ typedef struct
 	INT32		dacout;
 
 	FM_OPN		OPN;				/* OPN state            */
+
+	UINT32		slot_mask;			/* active slot mask (performance hack) */
 } YM2612;
 #endif
 
+extern int   *ym2612_dacen;
+extern INT32 *ym2612_dacout;
+extern FM_ST *ym2612_st;
+
+
+#define YM2612Read() ym2612_st->status
+
+#define YM2612PicoTick(n) \
+{ \
+	/* timer A */ \
+	if(ym2612_st->mode & 0x01 && (ym2612_st->TAT+=64*n) >= ym2612_st->TAC) { \
+		ym2612_st->TAT -= ym2612_st->TAC; \
+		if(ym2612_st->mode & 0x04) ym2612_st->status |= 1; \
+	} \
+ \
+	/* timer B */ \
+	if(ym2612_st->mode & 0x02 && (ym2612_st->TBT+=64*n) >= ym2612_st->TBC) { \
+		ym2612_st->TBT -= ym2612_st->TBC; \
+		if(ym2612_st->mode & 0x08) ym2612_st->status |= 2; \
+	} \
+}
 
 
 void YM2612Init_(int baseclock, int rate);
@@ -157,8 +181,6 @@ void *YM2612GetRegs(void);
 #define YM2612ResetChip     YM2612ResetChip_
 #define YM2612UpdateOne     YM2612UpdateOne_
 #define YM2612Write         YM2612Write_
-#define YM2612Read          YM2612Read_
-#define YM2612PicoTick      YM2612PicoTick_
 #define YM2612PicoStateLoad YM2612PicoStateLoad_
 #else
 /* GP2X specific */
@@ -177,10 +199,6 @@ extern int PicoOpt;
 				YM2612UpdateOne_(buffer, length, stereo, is_buf_empty);
 #define YM2612Write(a,v) \
 	(PicoOpt&0x200) ?  YM2612Write_940(a, v) : YM2612Write_(a, v)
-#define YM2612Read() \
-	(PicoOpt&0x200) ?  YM2612Read_940()      : YM2612Read_()
-#define YM2612PicoTick(n) \
-	(PicoOpt&0x200) ?  YM2612PicoTick_940(n) : YM2612PicoTick_(n)
 #define YM2612PicoStateLoad() { \
 	if (PicoOpt&0x200) YM2612PicoStateLoad_940(); \
 	else               YM2612PicoStateLoad_(); \

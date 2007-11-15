@@ -334,9 +334,12 @@ PICO_INTERNAL_ASM u32 PicoRead8(u32 a)
   log_io(a, 8, 0);
   if ((a&0xff4000)==0xa00000) { d=z80Read8(a); goto end; } // Z80 Ram
 
-  d=OtherRead16(a&~1, 8); if ((a&1)==0) d>>=8;
+  if ((a&0xe700e0)==0xc00000) // VDP
+       d=PicoVideoRead(a);
+  else d=OtherRead16(a&~1, 8);
+  if ((a&1)==0) d>>=8;
 
-end:
+
 #ifdef __debug_io
   dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
 #endif
@@ -370,7 +373,9 @@ PICO_INTERNAL_ASM u32 PicoRead16(u32 a)
   if (a<Pico.romsize) { d = *(u16 *)(Pico.rom+a); goto end; } // Rom
   log_io(a, 16, 0);
 
-  d = OtherRead16(a, 16);
+  if ((a&0xe700e0)==0xc00000)
+       d = PicoVideoRead(a);
+  else d = OtherRead16(a, 16);
 
 end:
 #ifdef __debug_io
@@ -404,7 +409,9 @@ PICO_INTERNAL_ASM u32 PicoRead32(u32 a)
   if (a<Pico.romsize) { u16 *pm=(u16 *)(Pico.rom+a); d = (pm[0]<<16)|pm[1]; goto end; } // Rom
   log_io(a, 32, 0);
 
-  d = (OtherRead16(a, 32)<<16)|OtherRead16(a+2, 32);
+  if ((a&0xe700e0)==0xc00000)
+       d = (PicoVideoRead(a)<<16)|PicoVideoRead(a+2);
+  else d = (OtherRead16(a, 32)<<16)|OtherRead16(a+2, 32);
 
 end:
 #ifdef __debug_io
@@ -454,6 +461,7 @@ void PicoWrite16(u32 a,u16 d)
   log_io(a, 16, 1);
 
   a&=0xfffffe;
+  if ((a&0xe700e0)==0xc00000) { PicoVideoWrite(a,(u16)d); return; } // VDP
   OtherWrite16(a,d);
 }
 
@@ -476,6 +484,14 @@ static void PicoWrite32(u32 a,u32 d)
   log_io(a, 32, 1);
 
   a&=0xfffffe;
+  if ((a&0xe700e0)==0xc00000)
+  {
+    // VDP:
+    PicoVideoWrite(a,  (u16)(d>>16));
+    PicoVideoWrite(a+2,(u16)d);
+    return;
+  }
+
   OtherWrite16(a,  (u16)(d>>16));
   OtherWrite16(a+2,(u16)d);
 }
@@ -660,10 +676,6 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
 {
   u8 ret = 0;
 
-#ifndef _USE_DRZ80
-  if (a<0x4000) return Pico.zram[a&0x1fff];
-#endif
-
   if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
   {
     if (PicoOpt&1) ret = (u8) YM2612Read();
@@ -681,10 +693,8 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
     return ret;
   }
 
-#ifdef _USE_DRZ80
-  // should not be needed || dprintf("z80_read RAM");
+  // should not be needed, cores should be able to access RAM themselves
   if (a<0x4000) return Pico.zram[a&0x1fff];
-#endif
 
   elprintf(EL_ANOMALY, "z80 invalid r8 [%06x] %02x", a, ret);
   return ret;
@@ -696,10 +706,6 @@ PICO_INTERNAL_ASM void z80_write(unsigned char data, unsigned short a)
 PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data)
 #endif
 {
-#ifndef _USE_DRZ80
-  if (a<0x4000) { Pico.zram[a&0x1fff]=data; return; }
-#endif
-
   if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
   {
     if(PicoOpt&1) emustatus|=YM2612Write(a, data) & 1;
@@ -730,10 +736,8 @@ PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data)
     return;
   }
 
-#ifdef _USE_DRZ80
-  // should not be needed, drZ80 knows how to access RAM itself || dprintf("z80_write RAM @ %08x", lr);
+  // should not be needed
   if (a<0x4000) { Pico.zram[a&0x1fff]=data; return; }
-#endif
 
   elprintf(EL_ANOMALY, "z80 invalid w8 [%06x] %02x", a, data);
 }

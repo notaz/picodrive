@@ -66,7 +66,7 @@ void blockcpy_or(void *dst, void *src, size_t n, int pat)
 #endif
 
 
-#ifdef _ASM_DRAW_C_MIPS
+#ifdef _ASM_DRAW_C_AMIPS
 int TileNorm(int sx,int addr,int pal);
 int TileFlip(int sx,int addr,int pal);
 #else
@@ -1127,8 +1127,7 @@ static void DrawAllSprites(int *hcache, int maxwidth, int prio, int sh)
 #ifndef _ASM_DRAW_C
 static void BackFill(int reg7, int sh)
 {
-  unsigned int back=0;
-  unsigned int *pd=NULL,*end=NULL;
+  unsigned int back;
 
   // Start with a blank scanline (background colour):
   back=reg7&0x3f;
@@ -1136,10 +1135,7 @@ static void BackFill(int reg7, int sh)
   back|=back<<8;
   back|=back<<16;
 
-  pd= (unsigned int *)(HighCol+8);
-  end=(unsigned int *)(HighCol+8+320);
-
-  do { pd[0]=pd[1]=pd[2]=pd[3]=back; pd+=4; } while (pd<end);
+  memset32((int *)(HighCol+8), back, 320/4);
 }
 #endif
 

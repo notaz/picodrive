@@ -72,9 +72,9 @@ static
 void z80WriteBusReq(u32 d)
 {
   d&=1; d^=1;
-  //if (Pico.m.scanline != -1)
   {
-    if(!d) {
+    if (!d)
+    {
       // this is for a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
       if (Pico.m.z80Run) {
         int lineCycles;
@@ -85,7 +85,7 @@ void z80WriteBusReq(u32 d)
         if (lineCycles > 0) { // && lineCycles <= 488) {
           //dprintf("zrun: %i/%i cycles", lineCycles, (lineCycles>>1)-(lineCycles>>5));
           lineCycles=(lineCycles>>1)-(lineCycles>>5);
-          z80_run(lineCycles);
+          z80_run_nr(lineCycles);
         }
       }
     } else {
@@ -135,10 +135,6 @@ u32 OtherRead16(u32 a, int realsize)
     d=0xffff;
     goto end;
   }
-
-#ifndef _ASM_MEMORY_C
-  if ((a&0xe700e0)==0xc00000) { d=PicoVideoRead(a); goto end; }
-#endif
 
   d = OtherRead16End(a, realsize);
 
@@ -204,7 +200,6 @@ static
 #endif
 void OtherWrite16(u32 a,u32 d)
 {
-  if ((a&0xe700e0)==0xc00000) { PicoVideoWrite(a,(u16)d); return; }
   if (a==0xa11100)            { z80WriteBusReq(d>>8); return; }
   if (a==0xa11200)            { dprintf("write z80reset: %04x", d); if(!(d&0x100)) z80_reset(); return; }
   if ((a&0xffffe0)==0xa10000) { IoWrite8(a, d); return; } // I/O ports

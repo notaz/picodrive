@@ -165,33 +165,6 @@ PICO_INTERNAL int SekReset()
 }
 
 
-PICO_INTERNAL int SekInterrupt(int irq)
-{
-#ifdef EMU_CORE_DEBUG
-  {
-    extern int dbg_irq_level;
-    dbg_irq_level=irq;
-    return 0;
-  }
-#endif
-#ifdef EMU_C68K
-  PicoCpuCM68k.irq=irq;
-#endif
-#ifdef EMU_M68K
-  {
-    void *oldcontext = m68ki_cpu_p;
-    m68k_set_context(&PicoCpuMM68k);
-    m68k_set_irq(irq); // raise irq (gets lowered after taken or must be done in ack)
-    m68k_set_context(oldcontext);
-  }
-#endif
-#ifdef EMU_F68K
-  PicoCpuFM68k.interrupts[0]=irq;
-#endif
-
-  return 0;
-}
-
 // data must be word aligned
 PICO_INTERNAL void SekState(int *data)
 {

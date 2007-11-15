@@ -57,7 +57,11 @@
 //#ifndef BUILD_CPS1PSP
 //#define READ_MEM8(A)		memory_region_cpu2[(A)]
 //#else
+#if PICODRIVE_HACKS
+#define READ_MEM8(A)		picodrive_read(A)
+#else
 #define READ_MEM8(A)		CPU->Read_Byte(A)
+#endif
 //#endif
 #if CZ80_LITTLE_ENDIAN
 #define READ_MEM16(A)		(READ_MEM8(A) | (READ_MEM8((A) + 1) << 8))
@@ -65,7 +69,16 @@
 #define READ_MEM16(A)		((READ_MEM8(A) << 8) | READ_MEM8((A) + 1))
 #endif
 
+#if PICODRIVE_HACKS
+#define WRITE_MEM8(A, D) { \
+	unsigned short a = A; \
+	unsigned char d = D; \
+	if (a < 0x4000) Pico.zram[a&0x1fff] = d; \
+	else z80_write(a, d); \
+}
+#else
 #define WRITE_MEM8(A, D)	CPU->Write_Byte(A, D);
+#endif
 #if CZ80_LITTLE_ENDIAN
 #define WRITE_MEM16(A, D)	{ WRITE_MEM8(A, D); WRITE_MEM8((A) + 1, (D) >> 8); }
 #else

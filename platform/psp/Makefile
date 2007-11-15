@@ -6,22 +6,18 @@ PSPSDK = $(shell psp-config --pspsdk-path)
 #use_musashi = 1
 #use_mz80 = 1
 amalgamate = 0
-#profile = 1
-#up = 1
 
 
 CFLAGS += -I../.. -I. -DNO_SYNC -DLPRINTF_STDIO
 CFLAGS += -Wall -Winline -G0
+CFLAGS += -DLPRINTF_STDIO
+#CFLAGS += -fprofile-generate
+#CFLAGS += -fprofile-use
+#CFLAGS += -pg
 ifeq ($(DEBUG),)
 CFLAGS += -O2 -ftracer -fstrength-reduce -ffast-math
 else
 CFLAGS += -ggdb
-endif
-ifeq "$(profile)" "1"
-CFLAGS += -fprofile-generate
-endif
-ifeq "$(profile)" "2"
-CFLAGS += -fprofile-use
 endif
 
 
@@ -37,7 +33,7 @@ OBJS += ../../PicoAll.o
 else
 OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Memory.o ../../Pico/Misc.o \
 		../../Pico/Pico.o ../../Pico/Sek.o ../../Pico/VideoPort.o ../../Pico/Draw2.o ../../Pico/Draw.o \
-		../../Pico/Patch.o ../../Pico/Draw_amips.o ../../Pico/Memory_amips.o
+		../../Pico/Patch.o ../../Pico/Draw_amips.o ../../Pico/Memory_amips.o ../../Pico/Misc_amips.o
 # Pico - CD
 OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
 		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o \
@@ -77,7 +73,9 @@ OBJS += data/bg32.o data/bg40.o
 
 
 LIBS += -lpng -lm -lpspgu -lpsppower -lpspaudio -lpsprtc -lpspaudiocodec
+#LIBS += -lpspprof
 LDFLAGS += -Wl,-Map=PicoDrive.map
+
 
 # target
 TARGET = PicoDrive
@@ -114,7 +112,11 @@ AS := psp-as
 
 ../../Pico/Draw.o : ../../Pico/Draw.c
 	@echo ">>>" $<
-	$(CC) $(CFLAGS) -c $< -o $@ -D_ASM_DRAW_C_MIPS
+	$(CC) $(CFLAGS) -c $< -o $@ -D_ASM_DRAW_C_AMIPS
+
+../../Pico/Misc.o : ../../Pico/Misc.c
+	@echo ">>>" $<
+	$(CC) $(CFLAGS) -c $< -o $@ -D_ASM_MISC_C_AMIPS
 
 readme.txt: ../../tools/textfilter ../base_readme.txt
 	../../tools/textfilter ../base_readme.txt $@ PSP
@@ -152,6 +154,5 @@ endif
 
 # ?
 rel: EBOOT.PBP readme.txt
-	zip -9 -j ../../PicoDrive_$(VER).zip $^
-#	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt
+	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt
 
