@@ -1,10 +1,11 @@
 # vim:filetype=mips
 
-# only CLUT for now..
 
 .set noreorder # don't reorder any instructions
 .set noat      # don't use $at
 
+.text
+.align 4
 
 # void amips_clut(unsigned short *dst, unsigned char *src, unsigned short *pal, int count)
 
@@ -1670,6 +1671,9 @@ tile00000001:
     or      $t0, $t0, $a2
     jr      $ra
     sb      $t0, 0($a0)
+
+.data
+.align 4
 
 TileTable:
   .long 000000000000, tile00000001, tile00000010, tile00000011, tile00000100, tile00000101, tile00000110, tile00000111

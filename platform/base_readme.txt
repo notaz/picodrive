@@ -7,6 +7,15 @@ http://www.gp32x.com/board/
 About
 -----
 
+#ifdef PSP
+This is yet another Megadrive / Genesis emulator for PSP, but with
+Sega CD / Mega CD support. Although it has been originally written having
+ARM CPU based devices in mind, it has now been ported to PSP too, by
+replacing ARM specific parts with portable C code.
+The base code originates from Dave's (fdave, finalburn) PicoDrive 0.30 for
+Pocket PC. The Sega/Mega CD code is roughly based on Stephane Dallongeville's
+Gens.
+#else
 This is yet another Megadrive / Genesis / Sega CD / Mega CD emulator, which
 was written having ARM-based handheld devices in mind (such as PDAs,
 smartphones and handheld consoles like GP2X and Gizmondo of course).
@@ -14,6 +23,7 @@ The critical parts (renderer, 68K and Z80 cpu interpreters) and some other
 random code is written in ARM asm, other code is C. The base code originates
 from Dave's (fdave, finalburn) PicoDrive 0.30 for Pocket PC. The Sega/Mega CD
 code is roughly based on Stephane Dallongeville's Gens.
+#endif
 
 
 How to make it run
@@ -34,10 +44,28 @@ the root of SD, etc). Then load a ROM and enjoy! ROMs can be placed anywhere, ca
 be in .smd or .bin format and can be zipped (one ROM per zip).
 
 #endif
-If you have any problems (game does not boot, sound is glitchy, broken graphics),
-make sure you enable "Accurate timing", "Emulate Z80" and use "16bit accurate
-renderer". This way you will get the best compatibility this emulator can
-provide.
+#ifdef PSP
+If you are running a custom firmware, just copy the whole PicoDrive directory to
+/PSP/GAME or /PSP/GAMEXXX directory in your memory stick (it shouldn't matter
+which one GAME* directory to use).
+
+If you are on 1.5, you will have to use KXploit tool to create the needed files
+and directories, and then copy them to /PSP/GAME. I assume 1.5 users know how to
+do this, if not, just google for KXploit.
+
+#endif
+Note that this emulator may require some tweaking of configuration settings to run
+some games well. For Genesis/MegaDrive, if you have any problems (game does not
+boot, sound is glitchy, broken graphics), try to:
+  * enable "Accurate timing" (options menu)
+#ifdef PSP
+  * enable "accurate renderer"
+#else
+  * enable "16bit accurate renderer"
+#endif
+  * make sure Z80 is not disabled (in "advanced options" submenu in options).
+Some games may need to be reset after adjusting settings.
+
 For possible Sega/Mega CD problems, see "Other important stuff" section below.
 
 
@@ -68,6 +96,11 @@ Sonic the Hedgehog CD (US) - Track 02.mp3
 Sonic the Hedgehog CD (US) - Track 03.mp3
 ...
 
+It is very important to have the MP3s encoded at 44kHz sample rate and they
+must be stereo, or else they will play too fast/slow or won't play at all.
+Be sure NOT to use anything but classic mp3 format (don't use things like
+mp3pro).
+
 ISO files can also be zipped (but not mp3 files, as they are already
 compressed). Note that this can cause very long loading times, which may
 take up to several minutes. File naming is similar as with uncompressed ISOs.
@@ -83,12 +116,24 @@ Other important stuff
 ---------------------
 
 * If your Genesis/MD game hangs or has glitches, this is most likely because
-  "Accurate timing" option is not enabled, or 8bit fast renderer is used
-  (try the 16 bit one), or Z80 is disabled in "advanced options".
+  "Accurate timing" option is not enabled, or fast renderer is used
+  (try the accurate one), or Z80 is disabled in "advanced options".
 * Sega/Mega CD: If the game hangs after Sega logo, you may need to enable
   "better sync" and/or "Scale/Rot. fx" options, found in "Sega/Mega CD options"
   submenu, and then reset the game. Some other games may also require
-  "CDDA audio" and "PCM audio" to work.
+  "CDDA audio" and "PCM audio" to be enabled to work (enabled by default).
+  Incorrectly named/missing mp3s may also be the cause.
+* Sega/Mega CD: If the background music is missing, you might have named your
+  MP3s incorrectly. Read "How to run Sega/Mega CD games" section again.
+* Sega/Mega CD: If the game music plays too fast or too slow, you have encoded
+  your MP3s incorrectly. You will have to re-encode and/or resample them.
+  PicoDrive is not a mp3 player, so all mp3s MUST be encoded at 44.1kHz stereo.
+  Badly encoded mp3s can cause various kind of problems, like noises, incorrect
+  playback speeds, not repeating music or even prevent game from starting.
+* Sega/Mega CD: If your games hangs at the BIOS screen (with planets shown),
+  you may be using a bad BIOS dump. Try another from a different source.
+* Some Sega/Mega CD games don't use Z80 for anything, but they leave it active,
+  so disabling Z80 manually (in advanced options) improves performance.
 #ifdef GP2X
 * Sega/Mega CD: if FMV game performance is poor, try adjusting
   "ReadAhead buffer" to something like 2048K.
@@ -98,9 +143,6 @@ Other important stuff
   it may start hanging and producing random noise, or causing ARM940 crashes
   ("940 crashed" message displayed).
 #endif
-* PicoDrive is not a mp3 player, so all mp3s MUST be encoded at 44.1kHz stereo.
-  Badly encoded mp3s can cause various kind of problems, like noises, incorrect
-  playback speeds, not repeating music or even prevent game from starting.
 * Use lower bitrate for better performance (96 or 128kbps CBRs recommended).
 #ifdef GP2X
 * Due to internal implementation mp3s must not be larger that 12MB
@@ -131,11 +173,18 @@ a bit faster for some games, but not much, because colors still need to be
 converted to 16bit, as this is what Gizmondo requires. It also introduces
 graphics problems for some games, so it's best to use 16bit one.
 #endif
+#ifdef PSP
+This option allows to switch between fast and accurate renderers. The fast one
+is much faster, because it draws the whole frame at a time, instead of doing it
+line by line, like the accurate one does. But because of the way it works it
+can't render any mid-frame image changes (raster effects), so it is useful only
+for some games.
+#endif
 
 #ifdef GIZ
 @@0. "Scanline mode"
 This option was designed to work around slow framebuffer access (the Gizmondo's
-main bottleneck) by drawing every other line (even nummbered lines only).
+main bottleneck) by drawing every other line (even numbered lines only).
 This improves performance greatly, but looses detail.
 
 #endif
@@ -179,7 +228,12 @@ Does what it says. You must enable at least YM2612 or SN76496 (in advanced optio
 see below) for this to make sense (already done by default).
 
 @@0. "Sound Quality"
-Sound rate and stereo mode. Mono is not available in Sega/Mega CD mode.
+#ifdef PSP
+Sound sample rate, affects sound quality and emulation performance.
+22050Hz setting is the recommended one.
+#else
+Sound sample rate and stereo mode. Mono is not available in Sega/Mega CD mode.
+#endif
 #ifdef GP2X
 If you want 44100Hz sound, it is recommended to enable the second core (next option).
 
@@ -198,7 +252,7 @@ specified region, or just to set autodetection order. Also affects Sega/Mega CD.
 
 @@0. "Use SRAM/BRAM savestates"
 This will automatically read/write SRAM (or BRAM for Sega/Mega CD) savestates for
-games which are using them. SRAM is saved whenever you pause your game or exit the
+games which are using them. SRAM is saved whenever you enter the menu or exit the
 emulator.
 
 @@0. "Confirm savestate"
@@ -216,6 +270,14 @@ Here you can change clocks of both GP2X's CPUs. Larger values increase performan
 There is no separate option for the second CPU because both CPUs use the same clock
 source. Setting this option to 200 will cause PicoDrive NOT to change GP2X's clocks
 at all (this is if you use external program to set clock).
+
+#endif
+#ifdef PSP
+@@0. "CPU/bus clock"
+This allows to change CPU and bus clocks for PSP. 333MHz is recommended.
+
+@@0. "[Display options]"
+Enters Display options menu (see below).
 
 #endif
 @@0. "[Sega/Mega CD options]"
@@ -347,6 +409,43 @@ for example most (all?) Wolfteam games, and some other ones. Don't use it for
 games which don't need it, it will just slow them down.
 
 
+#ifdef PSP
+Display options
+---------------
+
+@@3. "Scale factor"
+This allows to resize the displayed image by using the PSP's hardware. The number is
+used to multiply width and height of the game image to get the size of image to be
+displayed. If you just want to make it fullscreen, just use "Set to fullscreen"
+setting below.
+
+@@3. "Hor. scale (for low res. games)"
+This one works similarly as the previous setting, but can be used to apply additional
+scaling horizontally, and is used for games which use lower (256 pixel wide) Gen/MD
+resolution.
+
+@@3. "Hor. scale (for hi res. games)"
+Same as above, only for higher (320 pixel wide) resolution using games.
+
+@@3. "Bilinear filtering"
+If this is enabled, PSP hardware will apply bilinear filtering on the resulting image,
+making it smoother, but blurry.
+
+@@3. "Wait for vsync"
+Wait for the screen to finish updating before switching to next frame, to avoid tearing.
+There are 3 options:
+* never: don't wait for vsync.
+* sometimes: wait only if emulator is running fast enough.
+* always: always wait (causes emulation slowdown).
+
+@@3. "Set to unscaled centered"
+Adjust the resizing options to set game image to it's original size.
+
+@@3. "Set to fullscreen"
+Adjust the resizing options to make the game image fullscreen.
+
+
+#endif
 Key configuration
 -----------------
 
@@ -357,6 +456,9 @@ the right GP2X ones, which are assigned to them. If you bind 2 different GP2X bu
 #endif
 #ifdef GIZ
 the right Giz ones, which are assigned to them. If you bind 2 different Giz buttons
+#endif
+#ifdef PSP
+the right PSP ones, which are assigned to them. If you bind 2 different PSP buttons
 #endif
 to the same action, you will get a combo (which means that you will have to press
 both buttons for that action to happen.
@@ -404,14 +506,23 @@ What is emulated?
 -----------------
 
 Genesis/MegaDrive:
+#ifdef PSP
+main 68k @ 7.6MHz: yes, FAME/C core
+z80 @ 3.6MHz: yes, CZ80 core
+#else
 main 68k @ 7.6MHz: yes, Cyclone core
 z80 @ 3.6MHz: yes, DrZ80 core
+#endif
 VDP: yes, except some quirks not used by games
 YM2612 FM: yes, optimized MAME core
 SN76489 PSG: yes, MAME core
 
 Sega/Mega CD:
+#ifdef PSP
+another 68k @ 12.5MHz: yes, FAME/C too
+#else
 another 68k @ 12.5MHz: yes, Cyclone too
+#endif
 gfx scaling/rotation chip (custom ASIC): yes
 PCM sound source: yes
 CD-ROM controller: yes (mostly)
@@ -434,7 +545,7 @@ Credits
 This emulator uses code from these people/projects:
 
 notaz
-GP2X, UIQ, Gizmondo ports, Cyclone 68000 hacks,
+GP2X, UIQ, PSP, Gizmondo ports, CPU core hacks,
 lots of additional coding (see changelog).
 Homepage: http://notaz.gp2x.de/
 
@@ -442,22 +553,39 @@ Dave
 Cyclone 68000 core, Pico emulation library
 Homepage: http://www.finalburn.com/
 
+#ifdef PSP
+Chui
+FAME/C 68k interpreter core
+(based on C68K by Stephane Dallongeville)
+
+Stephane Dallongeville (written), NJ (optimized)
+CZ80 Z80 interpreter core
+
+#else
 Reesy & FluBBa
-DrZ80, the Z80 emulator written in ARM assembly.
+DrZ80, the Z80 interpreter written in ARM assembly.
 Homepage: http://reesy.gp32x.de/
 
-Tatsuyuki Satoh, Jarek Burczynski, MultiArcadeMachineEmulator development
+#endif
+Tatsuyuki Satoh, Jarek Burczynski, MAME development
 software implementation of Yamaha FM sound generator
 
-MultiArcadeMachineEmulator (MAME) development
-Texas Instruments SN76489 / SN76496 programmable tone /noise generator
+MAME development
+Texas Instruments SN76489 / SN76496 programmable tone/noise generator
 Homepage: http://www.mame.net/
 
 Stephane Dallongeville
 Gens, MD/Mega CD/32X emulator. Most Sega CD code is based on this emu.
+#ifdef PSP
+
+people @ ps2dev.org forums / PSPSDK crew
+libaudiocodec code (by cooleyes)
+other sample code
+#else
 
 Helix community
 Helix mp3 decoder
+#endif
 
 
 Additional thanks
@@ -499,6 +627,13 @@ Additional thanks
 
 Changelog
 ---------
+1.35
+  + PSP port added. Lots of new code for it. Integrated modified FAME/C, CZ80 cores.
+  + Some minor generic optimizations.
+  * Patched some code which was crashing under PSP, but was working in GP2X/Giz
+    (although it should have crashed there too).
+  * Readme updated.
+
 1.34
   + Gizmondo port added.
   + Some new optimizations in memory handlers, and for shadow/hilight mode.

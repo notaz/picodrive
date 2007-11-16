@@ -535,22 +535,49 @@ static void DrawWindow(int tstart, int tend, int prio, int sh) // int *hcache
   }
 
   // Draw tiles across screen:
-  for (; tilex < tend; tilex++)
+  if (!sh)
   {
-    int addr=0,zero=0;
-    int pal;
+    for (; tilex < tend; tilex++)
+    {
+      int addr=0,zero=0;
+      int pal;
 
-    code=Pico.vram[nametab+tilex];
-    if(code==blank) continue;
-    if((code>>15) != prio) {
-      rendstatus|=2;
-      continue;
+      code=Pico.vram[nametab+tilex];
+      if(code==blank) continue;
+      if((code>>15) != prio) {
+        rendstatus|=2;
+        continue;
+      }
+
+      pal=((code>>9)&0x30);
+
+      // Get tile address/2:
+      addr=(code&0x7ff)<<4;
+      if (code&0x1000) addr+=14-ty; else addr+=ty; // Y-flip
+
+      if (code&0x0800) zero=TileFlip(8+(tilex<<3),addr,pal);
+      else             zero=TileNorm(8+(tilex<<3),addr,pal);
+
+      if (zero) blank=code; // We know this tile is blank now
     }
+  }
+  else
+  {
+    for (; tilex < tend; tilex++)
+    {
+      int addr=0,zero=0;
+      int pal, tmp, *zb;
 
-    pal=((code>>9)&0x30);
+      code=Pico.vram[nametab+tilex];
+      if(code==blank) continue;
+      if((code>>15) != prio) {
+        rendstatus|=2;
+        continue;
+      }
 
-    if(sh) {
-      int tmp, *zb = (int *)(HighCol+8+(tilex<<3));
+      pal=((code>>9)&0x30);
+
+      zb = (int *)(HighCol+8+(tilex<<3));
       if(prio) {
         tmp = *zb;
         if(!(tmp&0x00000080)) tmp&=~0x000000c0; if(!(tmp&0x00008000)) tmp&=~0x0000c000;
@@ -562,23 +589,42 @@ static void DrawWindow(int tstart, int tend, int prio, int sh) // int *hcache
       } else {
         pal |= 0x40;
       }
+
+      // Get tile address/2:
+      addr=(code&0x7ff)<<4;
+      if (code&0x1000) addr+=14-ty; else addr+=ty; // Y-flip
+
+      if (code&0x0800) zero=TileFlip(8+(tilex<<3),addr,pal);
+      else             zero=TileNorm(8+(tilex<<3),addr,pal);
+
+      if (zero) blank=code; // We know this tile is blank now
     }
-
-    // Get tile address/2:
-    addr=(code&0x7ff)<<4;
-    if (code&0x1000) addr+=14-ty; else addr+=ty; // Y-flip
-
-    if (code&0x0800) zero=TileFlip(8+(tilex<<3),addr,pal);
-    else             zero=TileNorm(8+(tilex<<3),addr,pal);
-
-    if (zero) blank=code; // We know this tile is blank now
   }
-
-  // terminate the cache list
-  //*hcache = 0;
 }
 
 // --------------------------------------------
+
+static void DrawTilesFromCacheShPrep(void)
+{
+  if (!(rendstatus&0x80))
+  {
+    // as some layer has covered whole line with hi priority tiles,
+    // we can process whole line and then act as if sh/hi mode was off.
+    rendstatus|=0x80;
+    int c = 320/4, *zb = (int *)(HighCol+8);
+    while (c--)
+    {
+      int tmp = *zb;
+      if (!(tmp & 0x80808080)) *zb=tmp&0x3f3f3f3f;
+      else {
+        if(!(tmp&0x00000080)) tmp&=~0x000000c0; if(!(tmp&0x00008000)) tmp&=~0x0000c000;
+        if(!(tmp&0x00800000)) tmp&=~0x00c00000; if(!(tmp&0x80000000)) tmp&=~0xc0000000;
+        *zb=tmp;
+      }
+      zb++;
+    }
+  }
+}
 
 static void DrawTilesFromCache(int *hc, int sh, int rlim)
 {
@@ -589,28 +635,31 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim)
 
   if (sh && (rendstatus&0xc0))
   {
-    if (!(rendstatus&0x80))
-    {
-      // as some layer has covered whole line with hi priority tiles,
-      // we can process whole line and then act as if sh/hi mode was off.
-      rendstatus|=0x80;
-      int c = 320/4, *zb = (int *)(HighCol+8);
-      while (c--)
-      {
-        int tmp = *zb;
-        if (!(tmp & 0x80808080)) *zb=tmp&0x3f3f3f3f;
-        else {
-          if(!(tmp&0x00000080)) tmp&=~0x000000c0; if(!(tmp&0x00008000)) tmp&=~0x0000c000;
-          if(!(tmp&0x00800000)) tmp&=~0x00c00000; if(!(tmp&0x80000000)) tmp&=~0xc0000000;
-          *zb=tmp;
-        }
-        zb++;
-      }
-    }
+    DrawTilesFromCacheShPrep();
     sh = 0;
   }
 
-  if (sh)
+  if (!sh)
+  {
+    short blank=-1; // The tile we know is blank
+    while ((code=*hc++)) {
+      int zero;
+      if((short)code == blank) continue;
+      // Get tile address/2:
+      addr=(code&0x7ff)<<4;
+      addr+=(unsigned int)code>>25; // y offset into tile
+      dx=(code>>16)&0x1ff;
+
+      pal=((code>>9)&0x30);
+      if (rlim-dx < 0) goto last_cut_tile;
+
+      if (code&0x0800) zero=TileFlip(dx,addr,pal);
+      else             zero=TileNorm(dx,addr,pal);
+
+      if (zero) blank=(short)code;
+    }
+  }
+  else
   {
     while ((code=*hc++)) {
       unsigned char *zb;
@@ -629,26 +678,6 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim)
 
       if (code&0x0800) TileFlip(dx,addr,pal);
       else             TileNorm(dx,addr,pal);
-    }
-  }
-  else
-  {
-    short blank=-1; // The tile we know is blank
-    while ((code=*hc++)) {
-      int zero;
-      if((short)code == blank) continue;
-      // Get tile address/2:
-      addr=(code&0x7ff)<<4;
-      addr+=(unsigned int)code>>25; // y offset into tile
-      dx=(code>>16)&0x1ff;
-
-      pal=((code>>9)&0x30);
-      if (rlim-dx < 0) goto last_cut_tile;
-
-      if (code&0x0800) zero=TileFlip(dx,addr,pal);
-      else             zero=TileNorm(dx,addr,pal);
-
-      if (zero) blank=(short)code;
     }
   }
   return;

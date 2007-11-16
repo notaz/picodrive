@@ -4,7 +4,7 @@
 /* Autor: Oscar Orallo Pelaez                                               */
 /* Fecha de comienzo: 03-10-2006                                            */
 /* Ultima actualizacion: 08-10-2006                                         */
-/* Based on the excellent FAMEC emulator by Stèphane Dallongueville          */
+/* Based on the excellent C68K emulator by Stèphane Dallongueville          */
 /****************************************************************************/
 
 #include <stdio.h>

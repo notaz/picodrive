@@ -339,7 +339,7 @@ PICO_INTERNAL_ASM u32 PicoRead8(u32 a)
   else d=OtherRead16(a&~1, 8);
   if ((a&1)==0) d>>=8;
 
-
+end:
 #ifdef __debug_io
   dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
 #endif
@@ -684,11 +684,14 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
 
   if (a>=0x8000)
   {
+    extern u32 PicoReadM68k8(u32 a);
     u32 addr68k;
     addr68k=Pico.m.z80_bank68k<<15;
     addr68k+=a&0x7fff;
 
-    ret = (u8) PicoRead8(addr68k);
+    if (PicoMCD & 1)
+         ret = PicoReadM68k8(addr68k);
+    else ret = PicoRead8(addr68k);
     elprintf(EL_Z80BNK, "z80->68k r8 [%06x] %02x", addr68k, ret);
     return ret;
   }
@@ -728,11 +731,14 @@ PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data)
 
   if (a>=0x8000)
   {
+    extern void PicoWriteM68k8(u32 a,u8 d);
     u32 addr68k;
     addr68k=Pico.m.z80_bank68k<<15;
     addr68k+=a&0x7fff;
     elprintf(EL_Z80BNK, "z80->68k w8 [%06x] %02x", addr68k, data);
-    PicoWrite8(addr68k, data);
+    if (PicoMCD & 1)
+         PicoWriteM68k8(addr68k, data);
+    else PicoWrite8(addr68k, data);
     return;
   }
 

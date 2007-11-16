@@ -85,6 +85,10 @@ int main(int argc, char *argv[])
 				if ( check_defines((void *) &argv[3], argc-3, buff + 7)) skip_mode = 1;
 				ifdef_level++;
 			}
+			else if (strncmp(buff, "#else", 5) == 0)
+			{
+				skip_mode ^= 1;
+			}
 			else if (strncmp(buff, "#endif", 6) == 0)
 			{
 				ifdef_level--;

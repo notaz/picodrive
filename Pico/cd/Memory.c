@@ -450,7 +450,7 @@ static void OtherWrite8End(u32 a, u32 d, int realsize)
 #ifdef _ASM_CD_MEMORY_C
 u32 PicoReadM68k8(u32 a);
 #else
-static u32 PicoReadM68k8(u32 a)
+u32 PicoReadM68k8(u32 a)
 {
   u32 d=0;
 
@@ -723,7 +723,7 @@ static u32 PicoReadM68k32(u32 a)
 #ifdef _ASM_CD_MEMORY_C
 void PicoWriteM68k8(u32 a,u8 d);
 #else
-static void PicoWriteM68k8(u32 a,u8 d)
+void PicoWriteM68k8(u32 a,u8 d)
 {
 #ifdef __debug_io
   dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
