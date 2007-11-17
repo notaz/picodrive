@@ -11,8 +11,6 @@ amalgamate = 0
 CFLAGS += -I../.. -I. -DNO_SYNC
 CFLAGS += -Wall -Winline -G0
 #CFLAGS += -DLPRINTF_STDIO
-#CFLAGS += -fprofile-generate
-#CFLAGS += -fprofile-use
 #CFLAGS += -pg
 ifeq ($(DEBUG),)
 CFLAGS += -O2 -ftracer -fstrength-reduce -ffast-math
@@ -109,7 +107,11 @@ AS := psp-as
 
 ../../Pico/Memory.o : ../../Pico/Memory.c
 	@echo ">>>" $<
-	$(CC) $(CFLAGS) -c $< -o $@ -D_ASM_MEMORY_C -D_ASM_MEMORY_C_AMIPS
+	$(CC) $(CFLAGS) -O2 -c $< -o $@ -D_ASM_MEMORY_C -D_ASM_MEMORY_C_AMIPS
+
+../../Pico/cd/Memory.o : ../../Pico/cd/Memory.c
+	@echo ">>>" $<
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
 
 ../../Pico/Draw.o : ../../Pico/Draw.c
 	@echo ">>>" $<
@@ -118,6 +120,10 @@ AS := psp-as
 ../../Pico/Misc.o : ../../Pico/Misc.c
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -c $< -o $@ -D_ASM_MISC_C_AMIPS
+
+../../Pico/cd/gfx_cd.o : ../../Pico/cd/gfx_cd.c
+	@echo ">>>" $<
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
 
 readme.txt: ../../tools/textfilter ../base_readme.txt
 	../../tools/textfilter ../base_readme.txt $@ PSP
@@ -142,6 +148,7 @@ up: EBOOT.PBP
 # cleanup
 
 myclean:
+	$(RM) PicoDrive.map
 	make -C ../../cpu/musashi clean
 
 
@@ -158,5 +165,9 @@ endif
 
 # ?
 rel: EBOOT.PBP readme.txt
-	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt
+	mkdir -p PicoDrive/skin/
+	cp $^ PicoDrive/
+	cp skin/* PicoDrive/skin/
+	zip -9 -r ../../PicoDrive_$(VER).zip PicoDrive
+	rm -rf PicoDrive
 

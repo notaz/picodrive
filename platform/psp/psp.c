@@ -1,3 +1,8 @@
+// (c) Copyright 2007 notaz, All rights reserved.
+// Free for non-commercial use.
+
+// For commercial use, separate licencing terms must be obtained.
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>

@@ -1,5 +1,9 @@
 # vim:filetype=mips
 
+# Some misc routines for Allegrex MIPS
+# (c) Copyright 2007, Grazvydas "notaz" Ignotas
+# All Rights Reserved
+
 .set noreorder
 .set noat
 

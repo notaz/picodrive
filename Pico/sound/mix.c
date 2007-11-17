@@ -1,3 +1,6 @@
+// some code for sample mixing
+// (c) Copyright 2006-2007, Grazvydas "notaz" Ignotas
+
 #define MAXOUT		(+32767)
 #define MINOUT		(-32768)
 

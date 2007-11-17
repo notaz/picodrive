@@ -1,3 +1,6 @@
+// common code for Pico.c and cd/Pico.c
+// (c) Copyright 2007, Grazvydas "notaz" Ignotas
+
 #define CYCLES_M68K_LINE     488 // suitable for both PAL/NTSC
 #define CYCLES_M68K_VINT_LAG  68
 #define CYCLES_M68K_ASD      148

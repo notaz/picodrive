@@ -1,6 +1,6 @@
 /***********************************************************
  *                                                         *
- * This source was taken from the Gens project             *
+ * This source file was taken from the Gens project        *
  * Written by Stéphane Dallongeville                       *
  * Copyright (c) 2002 by Stéphane Dallongeville            *
  * Modified/adapted for PicoDrive by notaz, 2007           *

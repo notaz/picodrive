@@ -1,4 +1,4 @@
-// (c) Copyright 2006,2007 notaz, All rights reserved.
+// (c) Copyright 2007 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.

@@ -1,3 +1,8 @@
+// (c) Copyright 2007 notaz, All rights reserved.
+// Free for non-commercial use.
+
+// For commercial use, separate licencing terms must be obtained.
+
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/syslimits.h> // PATH_MAX

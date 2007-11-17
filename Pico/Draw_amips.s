@@ -1,5 +1,8 @@
 # vim:filetype=mips
 
+# several drawing related functions for Allegrex MIPS
+# (c) Copyright 2007, Grazvydas "notaz" Ignotas
+# All Rights Reserved
 
 .set noreorder # don't reorder any instructions
 .set noat      # don't use $at
