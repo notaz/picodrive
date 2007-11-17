@@ -1,3 +1,4 @@
+#include <string.h>
 #include "psp.h"
 #include "emu.h"
 #include "menu.h"
@@ -7,17 +8,34 @@
 #include "../common/lprintf.h"
 #include "version.h"
 
+#define GPROF 0
+#define GCOV 0
+
+#if GPROF
+#include <pspprof.h>
+#endif
+
+#if GCOV
+#include <stdio.h>
+#include <stdlib.h>
+
+void dummy(void)
+{
+	engineState = atoi(romFileName);
+	setbuf(NULL, NULL);
+	getenv(NULL);
+}
+#endif
+
 int main()
 {
-	int mp3_ret;
-
 	lprintf("\nPicoDrive v" VERSION " " __DATE__ " " __TIME__ "\n");
 	psp_init();
-
 	emu_ReadConfig(0, 0);
 	emu_Init();
 	menu_init();
-	mp3_ret = mp3_init();
+	// moved to emu_Loop(), after CPU clock change..
+	//mp3_init();
 
 	engineState = PGS_Menu;
 
@@ -26,7 +44,12 @@ int main()
 		switch (engineState)
 		{
 			case PGS_Menu:
+#if !GPROF
 				menu_loop();
+#else
+				strcpy(romFileName, currentConfig.lastRomFile);
+				engineState = PGS_ReloadRom;
+#endif
 				break;
 
 			case PGS_ReloadRom:
@@ -45,6 +68,9 @@ int main()
 
 			case PGS_Running:
 				emu_Loop();
+#if GPROF
+				goto endloop;
+#endif
 				break;
 
 			case PGS_Quit:
@@ -58,9 +84,14 @@ int main()
 
 	endloop:
 
-	if (mp3_ret == 0) mp3_deinit();
+	mp3_deinit();
 	emu_Deinit();
+#if GPROF
+	gprof_cleanup();
+#endif
+#if !GCOV
 	psp_finish();
+#endif
 
 	return 0;
 }

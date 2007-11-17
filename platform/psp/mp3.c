@@ -11,6 +11,7 @@
 
 int mp3_last_error = 0;
 
+static int initialized = 0;
 static SceUID thread_job_sem = -1;
 static SceUID thread_busy_sem = -1;
 static int thread_exit = 0;
@@ -96,9 +97,14 @@ static int read_next_frame(int which_buffer)
 			continue; // bad frame
 		}
 
-		if (bytes_read - frame_offset < frame_size) {
+		if (bytes_read - frame_offset < frame_size)
+		{
 			lprintf("unfit, foffs=%i\n", mp3_src_pos - bytes_read);
 			mp3_src_pos -= bytes_read - frame_offset;
+			if (mp3_src_size - mp3_src_pos < frame_size) {
+				mp3_src_pos = mp3_src_size;
+				return 0; // EOF
+			}
 			sceIoLseek32(mp3_handle, mp3_src_pos, PSP_SEEK_SET);
 			continue; // didn't fit, re-read..
 		}
@@ -195,6 +201,7 @@ int mp3_init(void)
 	}
 
 	mp3_last_error = 0;
+	initialized = 1;
 	return 0;
 
 fail3:
@@ -207,12 +214,15 @@ fail1:
 	sceAudiocodecReleaseEDRAM(mp3_codec_struct);
 fail:
 	mp3_last_error = ret;
+	initialized = 0;
 	return 1;
 }
 
 void mp3_deinit(void)
 {
-	lprintf("deinit\n");
+	lprintf("mp3_deinit, initialized=%i\n", initialized);
+
+	if (!initialized) return;
 	thread_exit = 1;
 	psp_sem_lock(thread_busy_sem);
 	psp_sem_unlock(thread_busy_sem);
@@ -229,6 +239,7 @@ void mp3_deinit(void)
 	sceKernelDeleteSema(thread_job_sem);
 	thread_job_sem = -1;
 	sceAudiocodecReleaseEDRAM(mp3_codec_struct);
+	initialized = 0;
 }
 
 // may overflow stack?
@@ -269,6 +280,7 @@ static int decode_thread(SceSize args, void *argp)
 }
 
 
+// might be called before initialization
 int mp3_get_bitrate(FILE *f, int size)
 {
 	int ret, retval = -1, sample_rate, bitrate;
@@ -276,7 +288,8 @@ int mp3_get_bitrate(FILE *f, int size)
 	char *fname = (char *)f;
 
 	/* make sure thread is not busy.. */
-	psp_sem_lock(thread_busy_sem);
+	if (thread_busy_sem >= 0)
+		psp_sem_lock(thread_busy_sem);
 
 	if (mp3_handle >= 0) sceIoClose(mp3_handle);
 	mp3_handle = sceIoOpen(fname, PSP_O_RDONLY, 0777);
@@ -288,19 +301,19 @@ int mp3_get_bitrate(FILE *f, int size)
 	mp3_src_pos = 0;
 	ret = read_next_frame(0);
 	if (ret <= 0) {
-		lprintf("read_next_frame() failed\n");
+		lprintf("read_next_frame() failed (%s)\n", fname);
 		goto end;
 	}
 	sample_rate = (mp3_src_buffer[0][2] & 0x0c) >> 2;
 	bitrate = mp3_src_buffer[0][2] >> 4;
 
 	if (sample_rate != 0) {
-		lprintf("unsupported samplerate\n");
+		lprintf("unsupported samplerate (%s)\n", fname);
 		goto end; // only 44kHz supported..
 	}
 	bitrate = bitrates[bitrate];
 	if (bitrate == 0) {
-		lprintf("unsupported bitrate\n");
+		lprintf("unsupported bitrate (%s)\n", fname);
 		goto end;
 	}
 
@@ -310,7 +323,8 @@ end:
 	if (mp3_handle >= 0) sceIoClose(mp3_handle);
 	mp3_handle = -1;
 	mp3_fname = NULL;
-	psp_sem_unlock(thread_busy_sem);
+	if (thread_busy_sem >= 0)
+		psp_sem_unlock(thread_busy_sem);
 	if (retval < 0) mp3_last_error = -1; // remember we had a problem..
 	return retval;
 }
@@ -321,6 +335,8 @@ static int mp3_job_started = 0, mp3_samples_ready = 0, mp3_buffer_offs = 0, mp3_
 void mp3_start_play(FILE *f, int pos)
 {
 	char *fname = (char *)f;
+
+	if (!initialized) return;
 
 	lprintf("mp3_start_play(%s) @ %i\n", fname, pos);
 	psp_sem_lock(thread_busy_sem);

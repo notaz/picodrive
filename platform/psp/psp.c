@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 
@@ -14,11 +15,14 @@
 #include "../common/lprintf.h"
 
 PSP_MODULE_INFO("PicoDrive", 0, 1, 34);
+PSP_HEAP_SIZE_MAX();
 
 unsigned int __attribute__((aligned(16))) guCmdList[GU_CMDLIST_SIZE];
 
 void *psp_screen = VRAM_FB0;
 static int current_screen = 0; /* front bufer */
+
+static SceUID main_thread_id = -1;
 
 #define ANALOG_DEADZONE 80
 
@@ -64,8 +68,10 @@ void psp_init(void)
 {
 	SceUID thid;
 
-	lprintf("running in %08x kernel\n", sceKernelDevkitVersion()),
-	lprintf("entered psp_init, threadId %08x, priority %i\n", sceKernelGetThreadId(),
+	main_thread_id = sceKernelGetThreadId();
+
+	lprintf("running on %08x kernel\n", sceKernelDevkitVersion()),
+	lprintf("entered psp_init, threadId %08x, priority %i\n", main_thread_id,
 		sceKernelGetThreadCurrentPriority());
 
 	thid = sceKernelCreateThread("update_thread", callback_thread, 0x11, 0xFA0, 0, 0);
@@ -198,35 +204,75 @@ char *psp_get_status_line(void)
 }
 
 /* alt logging */
-#define LOG_FILE "log.log"
+#define LOG_FILE "log.txt"
 
-static SceUID logfd = -1;
+typedef struct _log_entry
+{
+	char buff[256];
+	struct _log_entry *next;
+} log_entry;
+
+static log_entry *le_root = NULL;
 
 void lprintf_f(const char *fmt, ...)
 {
 	va_list vl;
+
+#ifdef LPRINTF_STDIO
+	va_start(vl, fmt);
+	vprintf(fmt, vl);
+	va_end(vl);
+#else
+	static SceUID logfd = -1;
 	char buff[256];
+	log_entry *le, *le1;
 
 	if (logfd == -2) return; // disabled
-
-	if (logfd < 0)
-	{
-		logfd = sceIoOpen(LOG_FILE, PSP_O_WRONLY|PSP_O_APPEND, 0777);
-		if (logfd < 0) {
-			logfd = -2;
-			return;
-		}
-	}
 
 	va_start(vl, fmt);
 	vsnprintf(buff, sizeof(buff), fmt, vl);
 	va_end(vl);
+
+	// note: this is still unsafe code
+	if (main_thread_id != sceKernelGetThreadId())
+	{
+		le = malloc(sizeof(*le));
+		if (le == NULL) return;
+		le->next = NULL;
+		strcpy(le->buff, buff);
+		if (le_root == NULL) le_root = le;
+		else {
+			for (le1 = le_root; le1->next != NULL; le1 = le1->next);
+			le1->next = le;
+		}
+		return;
+	}
+
+	logfd = sceIoOpen(LOG_FILE, PSP_O_WRONLY|PSP_O_APPEND, 0777);
+	if (logfd < 0) {
+		logfd = -2;
+		return;
+	}
+
+	if (le_root != NULL)
+	{
+		le1 = le_root;
+		le_root = NULL;
+		sceKernelDelayThread(1000);
+		while (le1 != NULL) {
+			le = le1;
+			le1 = le->next;
+			sceIoWrite(logfd, le->buff, strlen(le->buff));
+			free(le);
+		}
+	}
 
 	sceIoWrite(logfd, buff, strlen(buff));
 
 	// make sure it gets flushed
 	sceIoClose(logfd);
 	logfd = -1;
+#endif
 }
 
 

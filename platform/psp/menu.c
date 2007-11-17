@@ -941,7 +941,7 @@ static void cd_menu_loop_options(void)
 	for (;;)
 	{
 		draw_cd_menu_options(menu_sel, &bios_names);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE, 0);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE|BTN_START, 0);
 		if (inp & BTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if (inp & BTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		selected_id = me_index2id(cdopt_entries, CDOPT_ENTRY_COUNT, menu_sel);
@@ -958,11 +958,12 @@ static void cd_menu_loop_options(void)
 				}
 			}
 		}
-		if (inp & BTN_CIRCLE) { // toggleable options
+		if (inp & BTN_CIRCLE) // toggleable options
 			if (!me_process(cdopt_entries, CDOPT_ENTRY_COUNT, selected_id, 1) &&
 			    selected_id == MA_CDOPT_DONE) {
 				return;
 			}
+		if (inp & BTN_START) {
 			switch (selected_id) { // BIOS testers
 				case MA_CDOPT_TESTBIOS_USA:
 					if (emu_findBios(4, &bios)) { // test US

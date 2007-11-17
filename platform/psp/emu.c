@@ -508,7 +508,7 @@ static int sound_thread(SceSize args, void *argp)
 	{
 		if (samples_made - samples_done < samples_block) {
 			// wait for data (use at least 2 blocks)
-			lprintf("sthr: wait... (%i)\n", samples_made - samples_done);
+			//lprintf("sthr: wait... (%i)\n", samples_made - samples_done);
 			while (samples_made - samples_done <= samples_block*2 && !sound_thread_exit)
 				ret = sceKernelWaitSema(sound_sem, 1, 0);
 			if (ret < 0) lprintf("sthr: sceKernelWaitSema: %i\n", ret);
@@ -523,8 +523,9 @@ static int sound_thread(SceSize args, void *argp)
 		snd_playptr  += samples_block;
 		if (snd_playptr >= sndBuffer_endptr)
 			snd_playptr = sndBuffer;
-		if (ret)
-			lprintf("sthr: outf: %i; pos %i/%i\n", ret, samples_done, samples_made);
+		// 1.5 kernel returns 0, newer ones return # of samples queued
+		if (ret < 0)
+			lprintf("sthr: sceAudio_E0727056: %08x; pos %i/%i\n", ret, samples_done, samples_made);
 
 		// shouln't happen, but just in case
 		if (samples_made - samples_done >= samples_block*3) {
@@ -543,6 +544,7 @@ static int sound_thread(SceSize args, void *argp)
 static void sound_init(void)
 {
 	SceUID thid;
+	int ret;
 
 	sound_sem = sceKernelCreateSema("sndsem", 0, 0, 1, NULL);
 	if (sound_sem < 0) lprintf("sceKernelCreateSema() failed: %i\n", sound_sem);
@@ -553,7 +555,8 @@ static void sound_init(void)
 	thid = sceKernelCreateThread("sndthread", sound_thread, 0x12, 0x10000, 0, NULL);
 	if (thid >= 0)
 	{
-		sceKernelStartThread(thid, 0, 0);
+		ret = sceKernelStartThread(thid, 0, 0);
+		if (ret < 0) lprintf("sound_init: sceKernelStartThread returned %08x\n", ret);
 	}
 	else
 		lprintf("sceKernelCreateThread failed: %i\n", thid);
@@ -865,6 +868,7 @@ static void simpleWait(unsigned int until)
 
 void emu_Loop(void)
 {
+	static int mp3_init_done = 0;
 	char fpsbuff[24]; // fps count c string
 	unsigned int tval, tval_prev = 0, tval_thissec = 0; // timing
 	int frames_done = 0, frames_shown = 0, oldmodes = 0;
@@ -894,8 +898,16 @@ void emu_Loop(void)
 	target_frametime = Pico.m.pal ? (1000000<<8)/50 : (1000000<<8)/60+1;
 	reset_timing = 1;
 
-	// prepare CD buffer
-	if (PicoMCD & 1) PicoCDBufferInit();
+	if (PicoMCD & 1) {
+		// prepare CD buffer
+		PicoCDBufferInit();
+		// mp3...
+		if (!mp3_init_done) {
+			i = mp3_init();
+			mp3_init_done = 1;
+			if (i) { engineState = PGS_Menu; return; }
+		}
+	}
 
 	// prepare sound stuff
 	PsndOut = NULL;

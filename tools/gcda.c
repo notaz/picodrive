@@ -35,6 +35,7 @@ static int is_good_path(char *path)
 		fclose(f);
 		return 1;
 	}
+	printf("not good path: %s\n", path);
 	return 0;
 }
 
@@ -68,7 +69,7 @@ readnext:
 		{
 			pos1 = search_gcda(buff + pos, l - pos);
 			if (pos1 < 0) {
-				fseek(f, -5, SEEK_CUR);
+				fseek(f, -6, SEEK_CUR);
 				goto readnext;
 			}
 			pos += pos1;
@@ -76,7 +77,7 @@ readnext:
 			while (pos > 0 && is_good_char(buff[pos-1])) pos--;
 
 			if (pos == 0) {
-				fseek(f, -16, SEEK_CUR);
+				fseek(f, -(sizeof(buff) + 16), SEEK_CUR);
 				goto readnext;
 			}
 

@@ -2,13 +2,8 @@
  #include <stdio.h>
  #define lprintf printf
 #elif defined(PSP)
- #ifdef LPRINTF_STDIO
-  #include <stdio.h>
-  #define lprintf printf
- #else
-  extern void lprintf_f(const char *fmt, ...);
-  #define lprintf lprintf_f
- #endif
+ extern void lprintf_f(const char *fmt, ...);
+ #define lprintf lprintf_f
 #else
  #include "giz.h"
 #endif

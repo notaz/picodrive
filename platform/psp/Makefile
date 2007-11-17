@@ -8,9 +8,9 @@ PSPSDK = $(shell psp-config --pspsdk-path)
 amalgamate = 0
 
 
-CFLAGS += -I../.. -I. -DNO_SYNC -DLPRINTF_STDIO
+CFLAGS += -I../.. -I. -DNO_SYNC
 CFLAGS += -Wall -Winline -G0
-CFLAGS += -DLPRINTF_STDIO
+#CFLAGS += -DLPRINTF_STDIO
 #CFLAGS += -fprofile-generate
 #CFLAGS += -fprofile-use
 #CFLAGS += -pg
@@ -83,6 +83,7 @@ EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = PicoDrive
 PSP_EBOOT_ICON = data/icon.png
 #PSP_EBOOT_PIC1 = .png
+BUILD_PRX = 1
 
 CUSTOM_CLEAN = myclean
 
@@ -131,8 +132,11 @@ data/bg40.o: data/bg40.bin
 	bin2o -i $< $@ bgdatac40
 
 #
+ifndef UPDIR
+UPDIR = /media/disk/PSP/GAME/PicoDrive/
+endif
 up: EBOOT.PBP
-	@cp -v $^ /media/disk/PSP/GAME/PicoDrive/
+	@cp -v $^ $(UPDIR)
 
 
 # cleanup

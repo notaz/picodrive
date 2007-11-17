@@ -542,7 +542,7 @@ Problems / limitations
 Credits
 -------
 
-This emulator uses code from these people/projects:
+This emulator is made of the code from following people/projects:
 
 notaz
 GP2X, UIQ, PSP, Gizmondo ports, CPU core hacks,
