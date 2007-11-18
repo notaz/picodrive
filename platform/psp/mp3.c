@@ -9,6 +9,7 @@
 #include <pspkernel.h>
 #include <pspsdk.h>
 #include <pspaudiocodec.h>
+#include <kubridge.h>
 
 #include "../../Pico/PicoInt.h"
 #include "../../Pico/sound/mix.h"
@@ -132,9 +133,20 @@ static int read_next_frame(int which_buffer)
 
 static SceUID load_start_module(const char *prxname)
 {
-	SceUID mod = pspSdkLoadStartModule(prxname, PSP_MEMORY_PARTITION_KERNEL);
-	if (mod < 0)
-		lprintf("failed to load %s: %08x\n", prxname, mod);
+	SceUID mod, mod1;
+	int status, ret;
+
+	mod = pspSdkLoadStartModule(prxname, PSP_MEMORY_PARTITION_KERNEL);
+	if (mod < 0) {
+		lprintf("failed to load %s (%08x), trying kuKernelLoadModule\n", prxname, mod);
+		mod1 = kuKernelLoadModule(prxname, 0, NULL);
+		if (mod1 < 0) lprintf("kuKernelLoadModule failed with %08x\n", mod1);
+		else {
+			ret = sceKernelStartModule(mod1, 0, NULL, &status, 0);
+			if (ret < 0) lprintf("sceKernelStartModule failed with %08x\n", ret);
+			else mod = mod1;
+		}
+	}
 	return mod;
 }
 

@@ -166,12 +166,14 @@ mid-frame image changes (raster effects), so it is useful only with some games.
 
 Other two are accurate line-based renderers. The 8bit is faster but does not
 run well with some games like Street Racer.
+
 #endif
 #ifdef GIZ
 This option allows to switch between 16bit and 8bit renderers. The 8bit one is
 a bit faster for some games, but not much, because colors still need to be
 converted to 16bit, as this is what Gizmondo requires. It also introduces
 graphics problems for some games, so it's best to use 16bit one.
+
 #endif
 #ifdef PSP
 This option allows to switch between fast and accurate renderers. The fast one
@@ -179,8 +181,8 @@ is much faster, because it draws the whole frame at a time, instead of doing it
 line by line, like the accurate one does. But because of the way it works it
 can't render any mid-frame image changes (raster effects), so it is useful only
 for some games.
-#endif
 
+#endif
 #ifdef GIZ
 @@0. "Scanline mode"
 This option was designed to work around slow framebuffer access (the Gizmondo's
@@ -196,14 +198,15 @@ averaging and may look a bit nicer, but blurry. Horizontal scaling is only for
 games which use so called "32 column mode" (256x224 or 256x240), and scales
 image width to 320 pixels. Vertical scales height to 240 for games which use
 height 224 (most of them).
+
 #endif
 #ifdef GIZ
 @@0. "Scale low res mode"
 The Genesis/Megadrive had several graphics modes, some of which were only 256
 pixels wide. This option scales their width to 320 by using simple
 pixel averaging scaling. Works only when 16bit renderer is enabled.
-#endif
 
+#endif
 @@0. "Accurate timing"
 This adds some more emulation precision, but slows the emulation down. Without
 this option some games do not boot (Red Zone for example), others have sound

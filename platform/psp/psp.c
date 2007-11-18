@@ -127,6 +127,7 @@ void psp_init(void)
 
 void psp_finish(void)
 {
+	lprintf("psp_finish..\n");
 	sceGuTerm();
 
 	//sceKernelSleepThread();
