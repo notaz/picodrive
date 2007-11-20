@@ -660,7 +660,7 @@ PICO_INTERNAL int Close_Tray_CDD_cC(void)
 
 	Pico_mcd->scd.Status_CDC &= ~1;			// Stop CDC read
 
-	printf("tray close\n");
+	elprintf(EL_STATUS, "tray close\n");
 
 	if (PicoMCDcloseTray != NULL)
 		CD_Present = PicoMCDcloseTray();
@@ -685,7 +685,7 @@ PICO_INTERNAL int Open_Tray_CDD_cD(void)
 
 	Pico_mcd->scd.Status_CDC &= ~1;			// Stop CDC read
 
-	printf("tray open\n");
+	elprintf(EL_STATUS, "tray open\n");
 
 	Unload_ISO();
 	CD_Present = 0;

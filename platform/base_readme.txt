@@ -49,9 +49,7 @@ If you are running a custom firmware, just copy the whole PicoDrive directory to
 /PSP/GAME or /PSP/GAMEXXX directory in your memory stick (it shouldn't matter
 which one GAME* directory to use).
 
-If you are on 1.5, you will have to use KXploit tool to create the needed files
-and directories, and then copy them to /PSP/GAME. I assume 1.5 users know how to
-do this, if not, just google for KXploit.
+If you are on 1.5, there is a separate KXploited version for it.
 
 #endif
 Note that this emulator may require some tweaking of configuration settings to run
@@ -630,6 +628,13 @@ Additional thanks
 
 Changelog
 ---------
+1.35a
+  * PSP: fixed a bug which prevented to load any ROMs after testing the BIOS.
+  * PSP: fixed incorrect CZ80 memory map setup, which caused Z80 crashes and
+    graphics corruption in EU Mega CD model1 BIOS menus.
+  + PSP: added additional "set to 4:3 scaled" display option for convenience.
+  + Added an option to disable frame limitter (works only with non-auto frameskip).
+
 1.35
   + PSP port added. Lots of new code for it. Integrated modified FAME/C, CZ80 cores.
   + Some minor generic optimizations.

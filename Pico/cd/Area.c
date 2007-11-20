@@ -150,7 +150,7 @@ static int g_read_offs = 0;
 
 #define R_ERROR_RETURN(error) \
 { \
-	printf("PicoCdLoadState @ %x: " error "\n", g_read_offs); \
+	elprintf(EL_STATUS, "PicoCdLoadState @ %x: " error "\n", g_read_offs); \
 	return 1; \
 }
 
@@ -165,7 +165,7 @@ static int g_read_offs = 0;
 
 #define CHECKED_READ2(len2,data) \
 	if (len2 != len) { \
-		printf("unexpected len %i, wanted %i (%s)", len, len2, #len2); \
+		elprintf(EL_STATUS, "unexpected len %i, wanted %i (%s)", len, len2, #len2); \
 		if (len > len2) R_ERROR_RETURN("failed."); \
 		/* else read anyway and hope for the best.. */ \
 	} \
@@ -235,7 +235,7 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 			case CHUNK_MISC_CD:	CHECKED_READ_BUFF(Pico_mcd->m); break;
 
 			default:
-				printf("PicoCdLoadState: skipping unknown chunk %i of size %i\n", buff[0], len);
+				elprintf(EL_STATUS, "PicoCdLoadState: skipping unknown chunk %i of size %i\n", buff[0], len);
 				areaSeek(file, len, SEEK_CUR);
 				break;
 		}

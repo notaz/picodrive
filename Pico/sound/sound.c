@@ -372,7 +372,7 @@ PICO_INTERNAL void z80_init(void)
   memset(&CZ80, 0, sizeof(CZ80));
   Cz80_Init(&CZ80);
   Cz80_Set_Fetch(&CZ80, 0x0000, 0x1fff, (UINT32)Pico.zram); // main RAM
-  Cz80_Set_Fetch(&CZ80, 0x2000, 0x3fff, (UINT32)Pico.zram - 0x2000); // mirror
+  Cz80_Set_Fetch(&CZ80, 0x2000, 0x3fff, (UINT32)Pico.zram); // mirror
   Cz80_Set_ReadB(&CZ80, (UINT8 (*)(UINT32 address))z80_read); // unused (hacked in)
   Cz80_Set_WriteB(&CZ80, z80_write);
   Cz80_Set_INPort(&CZ80, z80_in);
@@ -395,6 +395,9 @@ PICO_INTERNAL void z80_reset(void)
   drZ80.Z80SP = drZ80.z80_rebaseSP(0x2000); // 0xf000 ?
 #elif defined(_USE_CZ80)
   Cz80_Reset(&CZ80);
+  Cz80_Set_Reg(&CZ80, CZ80_IX, 0xffff);
+  Cz80_Set_Reg(&CZ80, CZ80_IY, 0xffff);
+  Cz80_Set_Reg(&CZ80, CZ80_SP, 0x2000);
 #endif
   Pico.m.z80_fakeval = 0; // for faking when Z80 is disabled
 }

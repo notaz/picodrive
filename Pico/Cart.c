@@ -257,7 +257,7 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
   // Allocate space for the rom plus padding
   rom=PicoCartAlloc(size);
   if (rom==NULL) {
-    printf("out of memory (wanted %i)\n", size);
+    elprintf(EL_STATUS, "out of memory (wanted %i)", size);
     return 1;
   }
 
@@ -281,7 +281,7 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
   else
     bytes_read = pm_read(rom,size,f); // Load up the rom
   if (bytes_read <= 0) {
-    printf("read failed\n");
+    elprintf(EL_STATUS, "read failed");
     free(rom);
     return 1;
   }

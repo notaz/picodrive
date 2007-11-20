@@ -335,13 +335,14 @@ end:
 }
 
 
+static SceIoStat cpstat;
+
 static char *romsel_loop(char *curr_path)
 {
 	struct my_dirent **namelist;
 	int n, iret, sel = 0;
 	unsigned long inp = 0;
 	char *ret = NULL, *fname = NULL;
-	SceIoStat cpstat;
 
 	// is this a dir or a full path?
 	memset(&cpstat, 0, sizeof(cpstat));
@@ -349,8 +350,11 @@ static char *romsel_loop(char *curr_path)
 	if (iret >= 0 && (cpstat.st_attr & FIO_SO_IFREG)) { // file
 		char *p;
 		for (p = curr_path + strlen(curr_path) - 1; p > curr_path && *p != '/'; p--);
-		*p = 0;
-		fname = p+1;
+		if (p > curr_path) {
+			*p = 0;
+			fname = p+1;
+		}
+		else strcpy(curr_path, "ms0:/");
 	}
 	else if (iret >= 0 && (cpstat.st_attr & FIO_SO_IFDIR)); // dir
 	else strcpy(curr_path, "ms0:/"); // something else
@@ -402,7 +406,7 @@ static char *romsel_loop(char *curr_path)
 					p = start + strlen(start) - 1;
 					while (*p == '/' && p > start) p--;
 					while (*p != '/' && *p != ':' && p > start) p--;
-					if (p <= start || *p == ':' || p[-1] == ':') strcpy(newdir, "ms0:/");
+					if (p <= start || *p == ':') strcpy(newdir, "ms0:/");
 					else { strncpy(newdir, start, p-start); newdir[p-start] = 0; }
 				} else {
 					strcpy(newdir, curr_path);
@@ -1004,6 +1008,7 @@ menu_entry opt3_entries[] =
 	{ NULL,                        MB_ONOFF, MA_OPT3_FILTERING,     &currentConfig.scaling, 1, 0, 0, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT3_VSYNC,         NULL, 0, 0, 0, 1 },
 	{ "Set to unscaled centered",  MB_NONE,  MA_OPT3_PRES_NOSCALE,  NULL, 0, 0, 0, 1 },
+	{ "Set to 4:3 scaled",         MB_NONE,  MA_OPT3_PRES_SCALE43,  NULL, 0, 0, 0, 1 },
 	{ "Set to fullscreen",         MB_NONE,  MA_OPT3_PRES_FULLSCR,  NULL, 0, 0, 0, 1 },
 	{ "done",                      MB_NONE,  MA_OPT3_DONE,          NULL, 0, 0, 0, 1 },
 };
@@ -1137,6 +1142,12 @@ static void dispmenu_loop_options(void)
 					currentConfig.scale = currentConfig.hscale40 = currentConfig.hscale32 = 1.0;
 					menu_opt3_preview(is_32col);
 					break;
+				case MA_OPT3_PRES_SCALE43:
+					currentConfig.scale = 1.20;
+					currentConfig.hscale40 = 1.00;
+					currentConfig.hscale32 = 1.25;
+					menu_opt3_preview(is_32col);
+					break;
 				case MA_OPT3_PRES_FULLSCR:
 					currentConfig.scale = 1.20;
 					currentConfig.hscale40 = 1.25;
@@ -1158,13 +1169,14 @@ static void dispmenu_loop_options(void)
 
 menu_entry opt2_entries[] =
 {
-	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &currentConfig.PicoOpt,0x00004, 0, 0, 1 },
-	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &currentConfig.PicoOpt,0x00001, 0, 0, 1 },
-	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&currentConfig.PicoOpt,0x00002, 0, 0, 1 },
-	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,   &currentConfig.EmuOpt, 0x00008, 0, 0, 1 },
-	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,   &currentConfig.EmuOpt, 0x00020, 0, 0, 1 },
-	{ "Status line in main menu",  MB_ONOFF, MA_OPT2_STATUS_LINE,   &currentConfig.EmuOpt, 0x20000, 0, 0, 1 },
-	{ "done",                      MB_NONE,  MA_OPT2_DONE,          NULL, 0, 0, 0, 1 },
+	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,     &currentConfig.PicoOpt,0x00004, 0, 0, 1 },
+	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612,  &currentConfig.PicoOpt,0x00001, 0, 0, 1 },
+	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496, &currentConfig.PicoOpt,0x00002, 0, 0, 1 },
+	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,    &currentConfig.EmuOpt, 0x00008, 0, 0, 1 },
+	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,    &currentConfig.EmuOpt, 0x00020, 0, 0, 1 },
+	{ "Status line in main menu",  MB_ONOFF, MA_OPT2_STATUS_LINE,    &currentConfig.EmuOpt, 0x20000, 0, 0, 1 },
+	{ "Disable frame limitter",    MB_ONOFF, MA_OPT2_NO_FRAME_LIMIT, &currentConfig.EmuOpt, 0x40000, 0, 0, 1 },
+	{ "done",                      MB_NONE,  MA_OPT2_DONE,           NULL, 0, 0, 0, 1 },
 };
 
 #define OPT2_ENTRY_COUNT (sizeof(opt2_entries) / sizeof(opt2_entries[0]))

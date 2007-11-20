@@ -212,6 +212,7 @@ char *psp_get_status_line(void)
 /* alt logging */
 #define LOG_FILE "log.txt"
 
+#ifndef LPRINTF_STDIO
 typedef struct _log_entry
 {
 	char buff[256];
@@ -219,6 +220,7 @@ typedef struct _log_entry
 } log_entry;
 
 static log_entry *le_root = NULL;
+#endif
 
 void lprintf_f(const char *fmt, ...)
 {

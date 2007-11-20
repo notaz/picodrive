@@ -56,7 +56,7 @@ PICO_INTERNAL void pcm_set_rate(int rate)
 	step *= 256*256/4;
 	g_rate = (unsigned int) step;
 	if (step - (float) g_rate >= 0.5) g_rate++;
-	printf("g_rate: %f %08x\n", (double)step, g_rate);
+	elprintf(EL_STATUS, "g_rate: %f %08x\n", (double)step, g_rate);
 }
 
 

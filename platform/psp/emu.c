@@ -197,7 +197,6 @@ static void set_scaling_params(void)
 	if (fbimg_width >= 480) {
 		g_vertices[0].u = (fbimg_width-480)/2;
 		g_vertices[1].u = src_width - (fbimg_width-480)/2 - 1;
-		if (fbimg_width == 480) border_hack = 1;
 		fbimg_width = 480;
 		fbimg_xoffs = 0;
 	} else {
@@ -205,6 +204,7 @@ static void set_scaling_params(void)
 		g_vertices[1].u = src_width;
 		fbimg_xoffs = 240 - fbimg_width/2;
 	}
+	if (fbimg_width > 320 && fbimg_width <= 480) border_hack = 1;
 
 	if (fbimg_height >= 272) {
 		g_vertices[0].v = (fbimg_height-272)/2;
@@ -990,7 +990,7 @@ void emu_Loop(void)
 			for (i = 0; i < currentConfig.Frameskip; i++) {
 				updateKeys();
 				SkipFrame(); frames_done++;
-				if (PsndOut) { // do framelimitting if sound is enabled
+				if (!(currentConfig.EmuOpt&0x40000)) { // do framelimitting if needed
 					int tval_diff;
 					tval = sceKernelGetSystemTimeLow();
 					tval_diff = (int)(tval - tval_thissec) << 8;
@@ -1035,7 +1035,7 @@ void emu_Loop(void)
 
 		if (currentConfig.Frameskip < 0 && tval_diff - lim_time >= (300000<<8)) // slowdown detection
 			reset_timing = 1;
-		else if (PsndOut != NULL || currentConfig.Frameskip < 0)
+		else if (!(currentConfig.EmuOpt&0x40000) || currentConfig.Frameskip < 0)
 		{
 			// sleep if we are still too fast
 			if (tval_diff < lim_time)

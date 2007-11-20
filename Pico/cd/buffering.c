@@ -43,7 +43,7 @@ void PicoCDBufferFree(void)
 		cd_buffer = NULL;
 	}
 	if (reads)
-		printf("CD buffer hits: %i/%i (%i%%)\n", hits, reads, hits * 100 / reads);
+		elprintf(EL_STATUS, "CD buffer hits: %i/%i (%i%%)\n", hits, reads, hits * 100 / reads);
 }
 
 
@@ -80,7 +80,6 @@ PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba)
 		dprintf("CD buffer seek %i -> %i\n", prev_lba, lba);
 		pm_seek(Pico_mcd->TOC.Tracks[0].F, where_seek, SEEK_SET);
 	}
-else if (prev_lba == 0x80000000) printf("wtf?\n");
 
 	dprintf("CD buffer miss %i -> %i\n", prev_lba, lba);
 
@@ -90,7 +89,6 @@ else if (prev_lba == 0x80000000) printf("wtf?\n");
 		dprintf("CD buffer move=%i, read_len=%i", PicoCDBuffers - read_len, read_len);
 		memmove(cd_buffer + read_len*2048, cd_buffer, (PicoCDBuffers - read_len)*2048);
 		moved = 1;
-if (prev_lba == 0x80000000) printf("wtf?\n");
 	}
 	else
 	{
