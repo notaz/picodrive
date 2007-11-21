@@ -502,8 +502,7 @@ m_read16_rom4: @ 0x200000 - 0x27ffff, SRAM area (NBA Live 95)
     tst     r1, #5
     beq     m_read16_nosram
     stmfd   sp!,{lr}
-    bl      SRAMRead
-    orr     r0, r0, r0, lsl #8
+    bl      SRAMRead16
     ldmfd   sp!,{pc}
 m_read16_nosram:
     ldr     r1, [r3, #4]    @ romsize
@@ -593,8 +592,7 @@ m_read16_above_rom:
     tst     r1, #5
     beq     m_read16_ar_nosram
     stmfd   sp!,{lr}
-    bl      SRAMRead
-    orr     r0, r0, r0, lsl #8
+    bl      SRAMRead16
     ldmfd   sp!,{pc}
 m_read16_ar_nosram:
     mov     r1, #16
@@ -647,14 +645,13 @@ m_read32_rom4: @ 0x200000 - 0x27ffff, SRAM area (does any game do long reads?)
     tst     r1, #5
     beq     m_read32_nosram
     stmfd   sp!,{r0,lr}
-    bl      SRAMRead
+    bl      SRAMRead16
     ldmfd   sp!,{r1,lr}
     stmfd   sp!,{r0,lr}
     add     r0, r1, #2
-    bl      SRAMRead
+    bl      SRAMRead16
     ldmfd   sp!,{r1,lr}
     orr     r0, r0, r1, lsl #16
-    orr     r0, r0, r0, lsl #8
     bx      lr
 m_read32_nosram:
     ldr     r1, [r3, #4]    @ romsize

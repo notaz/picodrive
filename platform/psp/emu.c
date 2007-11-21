@@ -21,7 +21,7 @@
 #include "../common/lprintf.h"
 #include "../../Pico/PicoInt.h"
 
-#define OSD_FPS_X 424
+#define OSD_FPS_X 432
 
 // additional pspaudio imports, credits to crazyc
 int sceAudio_38553111(unsigned short samples, unsigned short freq, char unknown);  // play with conversion?

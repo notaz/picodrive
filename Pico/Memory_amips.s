@@ -260,29 +260,27 @@ m_read_neg1:
     j       SRAMRead
     nop
 .elseif \size == 16
+    sw      $ra, -4($sp)
+    jal     SRAMRead16
     addiu   $sp, -4
-    jal     SRAMRead
-    sw      $ra, 0($sp)
     lw      $ra, 0($sp)
-    addiu   $sp, 4
     jr      $ra
-    ins     $v0, $v0, 8, 8
+    addiu   $sp, 4
 .else
     addiu   $sp, -8
-    sw      $a0, 4($sp)
-    jal     SRAMRead
     sw      $ra, 0($sp)
+    sw      $a0, 4($sp)
+    jal     SRAMRead16
+    nop
     lw      $a0, 4($sp)
     sw      $v0, 4($sp)
-    jal     SRAMRead
+    jal     SRAMRead16
     addiu   $a0, 2
     lw      $v1, 4($sp)
     lw      $ra, 0($sp)
     addiu   $sp, 8
-    ins     $v0, $v1, 16, 16
-    sll     $t0, $v0, 8
     jr      $ra
-    or      $v0, $t0
+    ins     $v0, $v1, 16, 16
 .endif
 # m_read_nosram:
 1:

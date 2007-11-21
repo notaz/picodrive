@@ -141,14 +141,31 @@ static
 u32 SRAMRead(u32 a)
 {
   unsigned int sreg = Pico.m.sram_reg;
-  if(!(sreg & 0x10) && (sreg & 1) && a > 0x200001) { // not yet detected SRAM
+  if (!(sreg & 0x10) && (sreg & 1) && a > 0x200001) { // not yet detected SRAM
     elprintf(EL_SRAMIO, "normal sram detected.");
     Pico.m.sram_reg|=0x10; // should be normal SRAM
   }
-  if(sreg & 4) // EEPROM read
+  if (sreg & 4) // EEPROM read
     return SRAMReadEEPROM();
   else // if(sreg & 1) // (sreg&5) is one of prerequisites
     return *(u8 *)(SRam.data-SRam.start+a);
+}
+
+#ifndef _ASM_MEMORY_C
+static
+#endif
+u32 SRAMRead16(u32 a)
+{
+  u32 d;
+  if (Pico.m.sram_reg & 4) {
+    d = SRAMReadEEPROM();
+    d |= d << 8;
+  } else {
+    u8 *pm=(u8 *)(SRam.data-SRam.start+a);
+    d =*pm++ << 8;
+    d|=*pm++;
+  }
+  return d;
 }
 
 static void SRAMWrite(u32 a, u32 d)
@@ -363,8 +380,7 @@ PICO_INTERNAL_ASM u32 PicoRead16(u32 a)
 #ifndef EMU_CORE_DEBUG
   // sram
   if (a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
-    d = SRAMRead(a);
-    d |= d<<8;
+    d = SRAMRead16(a);
     elprintf(EL_SRAMIO, "sram r16 [%06x] %04x @ %06x", a, d, SekPc);
     goto end;
   }
@@ -400,8 +416,7 @@ PICO_INTERNAL_ASM u32 PicoRead32(u32 a)
 
   // sram
   if(a >= SRam.start && a <= SRam.end && (Pico.m.sram_reg&5)) {
-    d = (SRAMRead(a)<<16)|SRAMRead(a+2);
-    d |= d<<8;
+    d = (SRAMRead16(a)<<16)|SRAMRead16(a+2);
     elprintf(EL_SRAMIO, "sram r32 [%06x] %08x @ %06x", a, d, SekPc);
     goto end;
   }
