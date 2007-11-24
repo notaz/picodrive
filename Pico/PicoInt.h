@@ -113,7 +113,7 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 }
 #define SekShouldInterrupt (CPU_INT_LEVEL > FLAG_INT_MASK)
 
-#define SekInterrupt(irq) {
+#define SekInterrupt(irq) { \
 	void *oldcontext = m68ki_cpu_p; \
 	m68k_set_context(&PicoCpuMM68k); \
 	m68k_set_irq(irq); \
@@ -481,7 +481,7 @@ PICO_INTERNAL void z80_exit(void);
 #define EL_IO      0x1000 /* all i/o (TODO) */
 
 #define EL_STATUS  0x4000 /* status messages */
-#define EL_ANOMALY 0x8000 /* some unexpected conditions */
+#define EL_ANOMALY 0x8000 /* some unexpected conditions (during emulation) */
 
 #if EL_LOGMASK
 #define elprintf(w,f,...) \

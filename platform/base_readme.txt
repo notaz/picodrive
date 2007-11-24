@@ -99,12 +99,14 @@ must be stereo, or else they will play too fast/slow or won't play at all.
 Be sure NOT to use anything but classic mp3 format (don't use things like
 mp3pro).
 
-ISO files can also be zipped (but not mp3 files, as they are already
-compressed). Note that this can cause very long loading times, which may
-take up to several minutes. File naming is similar as with uncompressed ISOs.
+ISO files can also be .cso compressed or zipped (but not mp3 files, as they
+are already compressed). CSO will cause slightly longer loading times, and
+is not very good for FMV games. Zipping ISOs is not recommened, as it will
+cause very long (several minute) loading times, and make some games
+unplayable. File naming is similar as with uncompressed ISOs.
 Example:
 
-SonicCD.zip             data track
+SonicCD.cso             data track
 SonicCD_02.mp3          audio track 1 (CD track 2)
 SonicCD_03.mp3
 ...
@@ -123,11 +125,14 @@ Other important stuff
   Incorrectly named/missing mp3s may also be the cause.
 * Sega/Mega CD: If the background music is missing, you might have named your
   MP3s incorrectly. Read "How to run Sega/Mega CD games" section again.
-* Sega/Mega CD: If the game music plays too fast or too slow, you have encoded
-  your MP3s incorrectly. You will have to re-encode and/or resample them.
+* Sega/Mega CD: If the game music plays too fast/too slow/out of sync, you have
+  encoded your MP3s incorrectly. You will have to re-encode and/or resample them.
   PicoDrive is not a mp3 player, so all mp3s MUST be encoded at 44.1kHz stereo.
   Badly encoded mp3s can cause various kind of problems, like noises, incorrect
   playback speeds, not repeating music or even prevent game from starting.
+  Some games (like Snatcher) may hang in certain scenes because of this.
+  Some mp3 rippers/encoders remove silence and beginning/end of audio tracks,
+  what causes audio desyncs and/or mentioned problems.
 * Sega/Mega CD: If your games hangs at the BIOS screen (with planets shown),
   you may be using a bad BIOS dump. Try another from a different source.
 * Some Sega/Mega CD games don't use Z80 for anything, but they leave it active,
@@ -631,6 +636,7 @@ Changelog
 1.35b
   * PSP: mp3 code should no longer fail on 1.5 firmware.
   + PSP: added gamma adjustment option.
+  + Added .cso format support. Useful for non-FMV games.
   * Fixed a sram bug in memhandlers (fixes Shining in the Darkness saves).
   * PSP: fixed another bug in memhanlers, which crashed the emu for some games
     (like NBA Jam).

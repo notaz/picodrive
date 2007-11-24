@@ -18,6 +18,54 @@ static char *rom_exts[] = { "bin", "gen", "smd", "iso" };
 void (*PicoCartLoadProgressCB)(int percent) = NULL;
 void (*PicoCDLoadProgressCB)(int percent) = NULL; // handled in Pico/cd/cd_file.c
 
+/* cso struct */
+typedef struct _cso_struct
+{
+  unsigned char in_buff[2*2048];
+  unsigned char out_buff[2048];
+  struct {
+    char          magic[4];
+    unsigned int  unused;
+    unsigned int  total_bytes;
+    unsigned int  total_bytes_high; // ignored here
+    unsigned int  block_size;  // 10h
+    unsigned char ver;
+    unsigned char align;
+    unsigned char reserved[2];
+  } header;
+  unsigned int  fpos_in;  // input file read pointer
+  unsigned int  fpos_out; // pos in virtual decompressed file
+  int block_in_buff;      // block which we have read in in_buff
+  int pad;
+  int index[0];
+}
+cso_struct;
+
+static int uncompress2(void *dest, int destLen, void *source, int sourceLen)
+{
+    z_stream stream;
+    int err;
+
+    stream.next_in = (Bytef*)source;
+    stream.avail_in = (uInt)sourceLen;
+    stream.next_out = dest;
+    stream.avail_out = (uInt)destLen;
+
+    stream.zalloc = NULL;
+    stream.zfree = NULL;
+
+    err = inflateInit2(&stream, -15);
+    if (err != Z_OK) return err;
+
+    err = inflate(&stream, Z_FINISH);
+    if (err != Z_STREAM_END) {
+        inflateEnd(&stream);
+        return err;
+    }
+    //*destLen = stream.total_out;
+
+    return inflateEnd(&stream);
+}
 
 pm_file *pm_open(const char *path)
 {
@@ -77,6 +125,61 @@ zip_failed:
       return NULL;
     }
   }
+  else if (ext && strcasecmp(ext, "cso") == 0)
+  {
+    cso_struct *cso = NULL, *tmp = NULL;
+    int size;
+    f = fopen(path, "rb");
+    if (f == NULL)
+      goto cso_failed;
+
+    cso = malloc(sizeof(*cso));
+    if (cso == NULL)
+      goto cso_failed;
+
+    if (fread(&cso->header, 1, sizeof(cso->header), f) != sizeof(cso->header))
+      goto cso_failed;
+
+    if (strncmp(cso->header.magic, "CISO", 4) != 0) {
+      elprintf(EL_STATUS, "cso: bad header");
+      goto cso_failed;
+    }
+
+    if (cso->header.block_size != 2048) {
+      elprintf(EL_STATUS, "cso: bad block size (%u)", cso->header.block_size);
+      goto cso_failed;
+    }
+
+    size = ((cso->header.total_bytes >> 11) + 1)*4 + sizeof(*cso);
+    tmp = realloc(cso, size);
+    if (tmp == NULL)
+      goto cso_failed;
+    cso = tmp;
+    elprintf(EL_STATUS, "allocated %i bytes for CSO struct", size);
+
+    size -= sizeof(*cso); // index size
+    if (fread(cso->index, 1, size, f) != size) {
+      elprintf(EL_STATUS, "cso: premature EOF");
+      goto cso_failed;
+    }
+
+    // all ok
+    cso->fpos_in = ftell(f);
+    cso->fpos_out = 0;
+    cso->block_in_buff = -1;
+    file = malloc(sizeof(*file));
+    if (file == NULL) goto cso_failed;
+    file->file  = f;
+    file->param = cso;
+    file->size  = cso->header.total_bytes;
+    file->type  = PMT_CSO;
+    return file;
+
+cso_failed:
+    if (cso != NULL) free(cso);
+    if (f != NULL) fclose(f);
+    return NULL;
+  }
 
   /* not a zip, treat as uncompressed file */
   f = fopen(path, "rb");
@@ -117,6 +220,68 @@ size_t pm_read(void *ptr, size_t bytes, pm_file *stream)
       /* we must reset stream pointer or else next seek/read fails */
       gzrewind(gf);
   }
+  else if (stream->type == PMT_CSO)
+  {
+    cso_struct *cso = stream->param;
+    int read_pos, read_len, out_offs, rret;
+    int block = cso->fpos_out >> 11;
+    int index = cso->index[block];
+    int index_end = cso->index[block+1];
+    unsigned char *out = ptr, *tmp_dst;
+
+    ret = 0;
+    while (bytes != 0)
+    {
+      out_offs = cso->fpos_out&0x7ff;
+      if (out_offs == 0 && bytes >= 2048)
+           tmp_dst = out;
+      else tmp_dst = cso->out_buff;
+
+      read_pos = (index&0x7fffffff) << cso->header.align;
+
+      if (index < 0) {
+        if (read_pos != cso->fpos_in)
+          fseek(stream->file, read_pos, SEEK_SET);
+        rret = fread(tmp_dst, 1, 2048, stream->file);
+        cso->fpos_in = read_pos + rret;
+        if (rret != 2048) break;
+      } else {
+        read_len = (((index_end&0x7fffffff) << cso->header.align) - read_pos) & 0xfff;
+        if (block != cso->block_in_buff)
+        {
+          if (read_pos != cso->fpos_in)
+            { fseek(stream->file, read_pos, SEEK_SET); printf("seek %i\n", read_pos); }
+          rret = fread(cso->in_buff, 1, read_len, stream->file);
+          cso->fpos_in = read_pos + rret;
+          if (rret != read_len) {
+            elprintf(EL_STATUS, "cso: read failed @ %08x", read_pos);
+            break;
+          }
+          cso->block_in_buff = block;
+        }
+        rret = uncompress2(tmp_dst, 2048, cso->in_buff, read_len);
+        if (rret != 0) {
+          elprintf(EL_STATUS, "cso: uncompress failed @ %08x with %i", read_pos, rret);
+          break;
+        }
+      }
+
+      rret = 2048;
+      if (out_offs != 0 || bytes < 2048) {
+        //elprintf(EL_STATUS, "cso: unaligned/nonfull @ %08x, offs=%i, len=%u", cso->fpos_out, out_offs, bytes);
+        if (bytes < rret) rret = bytes;
+        if (2048 - out_offs < rret) rret = 2048 - out_offs;
+        memcpy(out, tmp_dst + out_offs, rret);
+      }
+      ret += rret;
+      out += rret;
+      cso->fpos_out += rret;
+      bytes -= rret;
+      block++;
+      index = index_end;
+      index_end = cso->index[block+1];
+    }
+  }
   else
     ret = 0;
 
@@ -139,6 +304,17 @@ int pm_seek(pm_file *stream, long offset, int whence)
     }
     return gzseek((gzFile) stream->param, offset, whence);
   }
+  else if (stream->type == PMT_CSO)
+  {
+    cso_struct *cso = stream->param;
+    switch (whence)
+    {
+      case SEEK_CUR: cso->fpos_out += offset; break;
+      case SEEK_SET: cso->fpos_out  = offset; break;
+      case SEEK_END: cso->fpos_out  = cso->header.total_bytes - offset; break;
+    }
+    return cso->fpos_out;
+  }
   else
     return -1;
 }
@@ -159,6 +335,11 @@ int pm_close(pm_file *fp)
     gzclose((gzFile) fp->param);
     zipfile->fp = NULL; // gzclose() closed it
     closezip(zipfile);
+  }
+  else if (fp->type == PMT_CSO)
+  {
+    free(fp->param);
+    fclose(fp->file);
   }
   else
     ret = EOF;
@@ -431,7 +612,7 @@ void PicoCartDetect(void)
   }
   else if ( name_cmp("MICRO MACHINES II") == 0 ||
            (name_cmp("        ") == 0 && // Micro Machines {Turbo Tournament '96, Military - It's a Blast!}
-	    (csum == 0x165e || csum == 0x168b || csum == 0xCEE0 || csum == 0x2C41)))
+           (csum == 0x165e || csum == 0x168b || csum == 0xCEE0 || csum == 0x2C41)))
   {
     SRam.start = 0x300000;
     SRam.end   = 0x380001;

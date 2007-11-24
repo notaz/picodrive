@@ -83,7 +83,8 @@ void Stop_CD(void); // releases all resources taken when CD game was started.
 typedef enum
 {
 	PMT_UNCOMPRESSED = 0,
-	PMT_ZIP
+	PMT_ZIP,
+	PMT_CSO
 } pm_type;
 typedef struct
 {

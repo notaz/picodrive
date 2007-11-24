@@ -535,7 +535,7 @@ static int sound_thread(SceSize args, void *argp)
 
 		// shouln't happen, but just in case
 		if (samples_made - samples_done >= samples_block*3) {
-			lprintf("sthr: block skip (%i)\n", samples_made - samples_done);
+			//lprintf("sthr: block skip (%i)\n", samples_made - samples_done);
 			samples_done += samples_block; // skip
 			snd_playptr  += samples_block;
 		}

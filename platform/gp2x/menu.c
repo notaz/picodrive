@@ -172,7 +172,7 @@ void menu_romload_end(void)
 static unsigned short file2color(const char *fname)
 {
 	const char *ext = fname + strlen(fname) - 3;
-	static const char *rom_exts[]   = { "zip", "bin", "smd", "gen", "iso" };
+	static const char *rom_exts[]   = { "zip", "bin", "smd", "gen", "iso", "cso" };
 	static const char *other_exts[] = { "gmv", "pat" };
 	int i;
 

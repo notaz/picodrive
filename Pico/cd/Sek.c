@@ -178,7 +178,6 @@ PICO_INTERNAL int SekInterruptS68k(int irq)
   {
     extern int dbg_irq_level_sub;
     dbg_irq_level_sub=real_irq;
-    elprintf(EL_ANOMALY, "s68k irq %i", real_irq);
     return 0;
   }
 #endif
