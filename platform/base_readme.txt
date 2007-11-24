@@ -628,6 +628,13 @@ Additional thanks
 
 Changelog
 ---------
+1.35b
+  * PSP: mp3 code should no longer fail on 1.5 firmware.
+  + PSP: added gamma adjustment option.
+  * Fixed a sram bug in memhandlers (fixes Shining in the Darkness saves).
+  * PSP: fixed another bug in memhanlers, which crashed the emu for some games
+    (like NBA Jam).
+
 1.35a
   * PSP: fixed a bug which prevented to load any ROMs after testing the BIOS.
   * PSP: fixed incorrect CZ80 memory map setup, which caused Z80 crashes and

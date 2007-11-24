@@ -14,13 +14,42 @@
 #include <psppower.h>
 #include <psprtc.h>
 #include <pspgu.h>
+#include <pspsdk.h>
 
 #include "psp.h"
 #include "emu.h"
 #include "../common/lprintf.h"
 
-PSP_MODULE_INFO("PicoDrive", 0, 1, 34);
+extern int pico_main(void);
+
+#ifndef FW15
+
+PSP_MODULE_INFO("PicoDrive", 0, 1, 35);
 PSP_HEAP_SIZE_MAX();
+
+int main() { return pico_main(); }	/* just a wrapper */
+
+#else
+
+PSP_MODULE_INFO("PicoDrive", 0x1000, 1, 35);
+PSP_MAIN_THREAD_ATTR(0);
+
+int main()
+{
+	SceUID thid;
+
+	/* this is the thing we need the kernel mode for */
+	pspSdkInstallNoDeviceCheckPatch();
+
+	thid = sceKernelCreateThread("pico_main", (SceKernelThreadEntry) pico_main, 32, 0x2000, PSP_THREAD_ATTR_USER, NULL);
+	if (thid >= 0)
+		sceKernelStartThread(thid, 0, 0);
+	sceKernelExitDeleteThread(0);
+
+	return 0;
+}
+
+#endif
 
 unsigned int __attribute__((aligned(16))) guCmdList[GU_CMDLIST_SIZE];
 
@@ -47,7 +76,7 @@ static int power_callback(int unknown, int pwrflags, void *common)
 		lprintf("power_callback: flags: 0x%08X: suspending\n", pwrflags);
 		engineState = PGS_Menu;
 	}
-	sceDisplayWaitVblankStart();
+	//sceDisplayWaitVblankStart();
 	return 0;
 }
 
@@ -79,7 +108,7 @@ void psp_init(void)
 	lprintf("entered psp_init, threadId %08x, priority %i\n", main_thread_id,
 		sceKernelGetThreadCurrentPriority());
 
-	thid = sceKernelCreateThread("update_thread", callback_thread, 0x11, 0xFA0, 0, 0);
+	thid = sceKernelCreateThread("update_thread", callback_thread, 0x11, 0xFA0, 0, NULL);
 	if (thid >= 0)
 	{
 		sceKernelStartThread(thid, 0, 0);

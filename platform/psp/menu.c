@@ -1005,7 +1005,8 @@ menu_entry opt3_entries[] =
 	{ NULL,                        MB_NONE,  MA_OPT3_SCALE,         NULL, 0, 0, 0, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT3_HSCALE32,      NULL, 0, 0, 0, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT3_HSCALE40,      NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_ONOFF, MA_OPT3_FILTERING,     &currentConfig.scaling, 1, 0, 0, 1 },
+	{ NULL,                        MB_ONOFF, MA_OPT3_FILTERING,     &currentConfig.scaling, 1,  0,  0, 1 },
+	{ NULL,                        MB_RANGE, MA_OPT3_GAMMAA,        &currentConfig.gamma,   0, -4, 16, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT3_VSYNC,         NULL, 0, 0, 0, 1 },
 	{ "Set to unscaled centered",  MB_NONE,  MA_OPT3_PRES_NOSCALE,  NULL, 0, 0, 0, 1 },
 	{ "Set to 4:3 scaled",         MB_NONE,  MA_OPT3_PRES_SCALE43,  NULL, 0, 0, 0, 1 },
@@ -1031,6 +1032,9 @@ static void menu_opt3_cust_draw(const menu_entry *entry, int x, int y, void *par
 			break;
 		case MA_OPT3_FILTERING:
 			text_out16(x, y, "Bilinear filtering                 %s", currentConfig.scaling?"ON":"OFF");
+			break;
+		case MA_OPT3_GAMMAA:
+			text_out16(x, y, "Gamma adjustment                  %2i", currentConfig.gamma);
 			break;
 		case MA_OPT3_VSYNC: {
 			char *val = "    never";
@@ -1112,10 +1116,11 @@ static void dispmenu_loop_options(void)
 			int tmp;
 			me_process(opt3_entries, OPT3_ENTRY_COUNT, selected_id, (inp&BTN_RIGHT) ? 1 : 0);
 			switch (selected_id) {
-				case MA_OPT3_SCALE:    setting = &currentConfig.scale; break;
-				case MA_OPT3_HSCALE40: setting = &currentConfig.hscale40; is_32col = 0; break;
-				case MA_OPT3_HSCALE32: setting = &currentConfig.hscale32; is_32col = 1; break;
-				case MA_OPT3_FILTERING:menu_opt3_preview(is_32col); break;
+				case MA_OPT3_SCALE:	setting = &currentConfig.scale; break;
+				case MA_OPT3_HSCALE40:	setting = &currentConfig.hscale40; is_32col = 0; break;
+				case MA_OPT3_HSCALE32:	setting = &currentConfig.hscale32; is_32col = 1; break;
+				case MA_OPT3_FILTERING:
+				case MA_OPT3_GAMMAA:	menu_opt3_preview(is_32col); break;
 				case MA_OPT3_VSYNC:    tmp = ((currentConfig.EmuOpt>>13)&1) | ((currentConfig.EmuOpt>>15)&2);
 					tmp = (inp & BTN_LEFT) ? (tmp>>1) : ((tmp<<1)|1);
 					if (tmp > 3) tmp = 3;

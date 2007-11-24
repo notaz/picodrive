@@ -6,6 +6,7 @@ PSPSDK = $(shell psp-config --pspsdk-path)
 #use_musashi = 1
 #use_mz80 = 1
 amalgamate = 0
+for_15fw = 1
 
 
 CFLAGS += -I../.. -I. -DNO_SYNC
@@ -17,10 +18,13 @@ CFLAGS += -O2 -ftracer -fstrength-reduce -ffast-math
 else
 CFLAGS += -ggdb
 endif
+ifeq "$(for_15fw)" "1"
+CFLAGS += -DFW15
+endif
 
 
-# frontend
-OBJS += main.o emu.o mp3.o menu.o psp.o
+# frontend and stuff
+OBJS += main.o emu.o mp3.o menu.o psp.o asm_utils.o
 
 # common
 OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/readpng.o
@@ -81,7 +85,9 @@ EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = PicoDrive
 PSP_EBOOT_ICON = data/icon.png
 #PSP_EBOOT_PIC1 = .png
+ifneq "$(for_15fw)" "1"
 BUILD_PRX = 1
+endif
 
 CUSTOM_CLEAN = myclean
 

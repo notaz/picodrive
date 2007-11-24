@@ -468,7 +468,11 @@ int emu_ReadConfig(int game, int no_defaults)
 	//scaling_update();
 	// some sanity checks
 	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;
+#ifdef PSP
+	if (currentConfig.gamma < -4 || currentConfig.gamma >  16) currentConfig.gamma = 0;
+#else
 	if (currentConfig.gamma < 10 || currentConfig.gamma > 300) currentConfig.gamma = 100;
+#endif
 	if (currentConfig.volume < 0 || currentConfig.volume > 99) currentConfig.volume = 50;
 #ifdef __GP2X__
 	// if volume keys are unbound, bind them to volume control

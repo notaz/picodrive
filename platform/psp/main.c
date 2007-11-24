@@ -13,14 +13,11 @@
 #include "../common/lprintf.h"
 #include "version.h"
 
-#define GPROF 0
-#define GCOV 0
-
-#if GPROF
+#ifdef GPROF
 #include <pspprof.h>
 #endif
 
-#if GCOV
+#ifdef GCOV
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -32,7 +29,7 @@ void dummy(void)
 }
 #endif
 
-int main()
+int pico_main(void)
 {
 	lprintf("\nPicoDrive v" VERSION " " __DATE__ " " __TIME__ "\n");
 	psp_init();
@@ -49,7 +46,7 @@ int main()
 		switch (engineState)
 		{
 			case PGS_Menu:
-#if !GPROF
+#ifndef GPROF
 				menu_loop();
 #else
 				strcpy(romFileName, currentConfig.lastRomFile);
@@ -73,7 +70,7 @@ int main()
 
 			case PGS_Running:
 				emu_Loop();
-#if GPROF
+#ifdef GPROF
 				goto endloop;
 #endif
 				break;
@@ -91,10 +88,10 @@ int main()
 
 	mp3_deinit();
 	emu_Deinit();
-#if GPROF
+#ifdef GPROF
 	gprof_cleanup();
 #endif
-#if !GCOV
+#ifndef GCOV
 	psp_finish();
 #endif
 

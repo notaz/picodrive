@@ -165,7 +165,8 @@ int mp3_init(void)
 	     mod = load_start_module("flash0:/kd/audiocodec.prx");
 	else mod = load_start_module("flash0:/kd/avcodec.prx");
 	if (mod < 0) {
-		ret = mod = load_start_module("flash0:/kd/audiocodec_260.prx"); // last chance..
+		ret = mod;
+		mod = load_start_module("flash0:/kd/audiocodec_260.prx"); // last chance..
 		if (mod < 0) goto fail;
 	}
 
@@ -204,8 +205,9 @@ int mp3_init(void)
 		goto fail2;
 	}
 
+	/* use slightly higher prio then main */
 	thread_exit = 0;
-	thid = sceKernelCreateThread("mp3decode_thread", decode_thread, 30, 0x2000, 0, 0); /* use slightly higher prio then main */
+	thid = sceKernelCreateThread("mp3decode_thread", decode_thread, 30, 0x2000, 0, NULL);
 	if (thid < 0) {
 		lprintf("failed to create decode thread: %08x\n", thid);
 		ret = thid;

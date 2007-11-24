@@ -17,6 +17,7 @@
 #include "menu.h"
 #include "emu.h"
 #include "mp3.h"
+#include "asm_utils.h"
 #include "../common/emu.h"
 #include "../common/lprintf.h"
 #include "../../Pico/PicoInt.h"
@@ -239,25 +240,25 @@ static void set_scaling_params(void)
 
 static void do_pal_update(int allow_sh)
 {
-	unsigned int *spal=(void *)Pico.cram;
 	unsigned int *dpal=(void *)localPal;
 	int i;
 
-	for (i = 0x3f/2; i >= 0; i--)
-		dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
+	//for (i = 0x3f/2; i >= 0; i--)
+	//	dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
+	do_pal_convert(localPal, Pico.cram, currentConfig.gamma);
 
 	if (allow_sh && (Pico.video.reg[0xC]&8)) // shadow/hilight?
 	{
 		// shadowed pixels
 		for (i = 0x3f/2; i >= 0; i--)
-			dpal[0x20|i] = dpal[0x60|i] = (dpal[i]>>1)&0x738e738e;
+			dpal[0x20|i] = dpal[0x60|i] = (dpal[i]>>1)&0x7bcf7bcf;
 		// hilighted pixels
 		for (i = 0x3f; i >= 0; i--) {
-			int t=localPal[i]&0xe71c;t+=0x4208;
-			if (t&0x20) t|=0x1c;
-			if (t&0x800) t|=0x700;
-			if (t&0x10000) t|=0xe000;
-			t&=0xe71c;
+			int t=localPal[i]&0xf79e;t+=0x4208;
+			if (t&0x20) t|=0x1e;
+			if (t&0x800) t|=0x780;
+			if (t&0x10000) t|=0xf000;
+			t&=0xf79e;
 			localPal[0x80|i]=(unsigned short)t;
 		}
 		localPal[0xe0] = 0;
