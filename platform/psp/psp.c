@@ -44,7 +44,12 @@ int main()
 	thid = sceKernelCreateThread("pico_main", (SceKernelThreadEntry) pico_main, 32, 0x2000, PSP_THREAD_ATTR_USER, NULL);
 	if (thid >= 0)
 		sceKernelStartThread(thid, 0, 0);
+#ifndef GCOV
 	sceKernelExitDeleteThread(0);
+#else
+	while (engineState != PGS_Quit)
+		sceKernelDelayThread(1024 * 1024);
+#endif
 
 	return 0;
 }

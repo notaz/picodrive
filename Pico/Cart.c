@@ -250,7 +250,7 @@ size_t pm_read(void *ptr, size_t bytes, pm_file *stream)
         if (block != cso->block_in_buff)
         {
           if (read_pos != cso->fpos_in)
-            { fseek(stream->file, read_pos, SEEK_SET); printf("seek %i\n", read_pos); }
+            fseek(stream->file, read_pos, SEEK_SET);
           rret = fread(cso->in_buff, 1, read_len, stream->file);
           cso->fpos_in = read_pos + rret;
           if (rret != read_len) {

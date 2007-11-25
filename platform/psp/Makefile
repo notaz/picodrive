@@ -174,6 +174,13 @@ rel: EBOOT.PBP readme.txt
 	mkdir -p PicoDrive/skin/
 	cp $^ PicoDrive/
 	cp skin/* PicoDrive/skin/
-	zip -9 -r ../../PicoDrive_$(VER).zip PicoDrive
+	zip -9 -r ../../PicoDrive_psp_$(VER).zip PicoDrive
 	rm -rf PicoDrive
+
+rel_kxploit: readme.txt
+	mkdir -p PicoDrive/skin/
+	cp $^ PicoDrive/
+	cp skin/* PicoDrive/skin/
+	zip -9 -r ../../PicoDrive_psp_$(VER)_kxploit.zip PicoDrive
+	zip -9 -r ../../PicoDrive_psp_$(VER)_kxploit.zip PicoDrive%
 

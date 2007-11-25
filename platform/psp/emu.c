@@ -33,7 +33,7 @@ int sceAudioOutput2GetRestSample();
 
 char romFileName[PATH_MAX];
 unsigned char *PicoDraw2FB = (unsigned char *)VRAM_CACHED_STUFF + 8; // +8 to be able to skip border with 1 quadword..
-int engineState;
+int engineState = PGS_Menu;
 
 static int combo_keys = 0, combo_acts = 0; // keys and actions which need button combos
 static unsigned int noticeMsgTime = 0;
