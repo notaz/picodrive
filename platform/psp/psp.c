@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <pspkernel.h>
 #include <pspiofilemgr.h>
@@ -59,6 +60,8 @@ int main()
 unsigned int __attribute__((aligned(16))) guCmdList[GU_CMDLIST_SIZE];
 
 void *psp_screen = VRAM_FB0;
+int psp_unhandled_suspend = 0;
+
 static int current_screen = 0; /* front bufer */
 
 static SceUID main_thread_id = -1;
@@ -88,7 +91,10 @@ static int power_callback(int unknown, int pwrflags, void *common)
 		}
 	}
 	else if (pwrflags & PSP_POWER_CB_RESUME_COMPLETE)
+	{
 		engineState = old_state;
+		psp_unhandled_suspend = 1;
+	}
 
 	//sceDisplayWaitVblankStart();
 	return 0;
@@ -115,6 +121,11 @@ static int callback_thread(SceSize args, void *argp)
 void psp_init(void)
 {
 	SceUID thid;
+	char buff[128], *r;
+
+	/* fw 1.5 sometimes returns 8002032c, although getcwd works */
+	r = getcwd(buff, sizeof(buff));
+	if (r) sceIoChdir(buff);
 
 	main_thread_id = sceKernelGetThreadId();
 
@@ -258,6 +269,25 @@ void psp_wait_suspend(void)
 	sceDisplayWaitVblankStart();
 }
 
+void psp_resume_suspend(void)
+{
+	// for some reason file IO doesn't seem to work
+	// after resume for some period of time, at least on 1.5
+	SceUID fd;
+	int i;
+	for (i = 0; i < 30; i++) {
+		fd = sceIoOpen("dummy.txt", PSP_O_WRONLY|PSP_O_APPEND, 0777);
+		if (fd != 0x80010013) break; // device not available
+		sceKernelDelayThread(32 * 1024);
+	}
+	if (fd >= 0) sceIoClose(fd);
+	sceDisplayWaitVblankStart();
+	psp_unhandled_suspend = 0;
+	if (i < 30)
+	     lprintf("io resumed after %i tries\n", i);
+	else lprintf("io resume failed\n");
+}
+
 /* alt logging */
 #define LOG_FILE "log.txt"
 
@@ -281,6 +311,7 @@ void lprintf(const char *fmt, ...)
 	va_end(vl);
 #else
 	static SceUID logfd = -1;
+	static int msg_count = 0;
 	char buff[256];
 	log_entry *le, *le1;
 
@@ -307,7 +338,7 @@ void lprintf(const char *fmt, ...)
 
 	logfd = sceIoOpen(LOG_FILE, PSP_O_WRONLY|PSP_O_APPEND, 0777);
 	if (logfd < 0) {
-		logfd = -2;
+		if (msg_count == 0) logfd = -2;
 		return;
 	}
 
@@ -321,10 +352,12 @@ void lprintf(const char *fmt, ...)
 			le1 = le->next;
 			sceIoWrite(logfd, le->buff, strlen(le->buff));
 			free(le);
+			msg_count++;
 		}
 	}
 
 	sceIoWrite(logfd, buff, strlen(buff));
+	msg_count++;
 
 	// make sure it gets flushed
 	sceIoClose(logfd);

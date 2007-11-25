@@ -133,15 +133,34 @@ static void menu_flip(void)
 
 // --------- loading ROM screen ----------
 
+static int cdload_called = 0;
+
 static void load_progress_cb(int percent)
 {
 	int ln, len = percent * 320 / 100;
 	unsigned short *dst = (unsigned short *)gp2x_screen + 320*20;
 
 	if (len > 320) len = 320;
-	for (ln = 10; ln > 0; ln--, dst += 320)
+	for (ln = 8; ln > 0; ln--, dst += 320)
 		memset(dst, 0xff, len*2);
 	menu_flip();
+}
+
+static void cdload_progress_cb(int percent)
+{
+	int ln, len = percent * 320 / 100;
+	unsigned short *dst = (unsigned short *)gp2x_screen + 320*20;
+
+	memset(dst, 0xff, 320*2*8);
+
+	smalltext_out16(1, 3*10, "Processing CD image / MP3s", 0xffff);
+	smalltext_out16_lim(1, 4*10, romFileName, 0xffff, 80);
+	dst += 30;
+
+	if (len > 320) len = 320;
+	for (ln = 8; ln > 0; ln--, dst += 320)
+		memset(dst, 0xff, len*2);
+	cdload_called = 1;
 }
 
 void menu_romload_prepare(const char *rom_name)
@@ -157,12 +176,14 @@ void menu_romload_prepare(const char *rom_name)
 	gp2x_memcpy_buffers(3, gp2x_screen, 0, 320*240*2);
 	menu_flip();
 	PicoCartLoadProgressCB = load_progress_cb;
+	PicoCDLoadProgressCB = cdload_progress_cb;
+	cdload_called = 0;
 }
 
 void menu_romload_end(void)
 {
 	PicoCartLoadProgressCB = NULL;
-	smalltext_out16(1, 30, "Starting emulation...", 0xffff);
+	smalltext_out16(1, cdload_called ? 60 : 30, "Starting emulation...", 0xffff);
 	menu_flip();
 }
 

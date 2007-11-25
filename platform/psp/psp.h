@@ -30,6 +30,7 @@ void psp_msleep(int ms);
 #define GU_CMDLIST_SIZE (16*1024)
 
 extern unsigned int guCmdList[GU_CMDLIST_SIZE];
+extern int psp_unhandled_suspend;
 
 void *psp_video_get_active_fb(void);
 void  psp_video_switch_to_single(void);
@@ -44,6 +45,7 @@ int psp_set_cpu_clock(int clock);
 char *psp_get_status_line(void);
 
 void psp_wait_suspend(void);
+void psp_resume_suspend(void);
 
 /* shorter btn names */
 #define BTN_UP       PSP_CTRL_UP

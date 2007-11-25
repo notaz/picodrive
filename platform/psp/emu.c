@@ -1075,3 +1075,19 @@ void emu_ResetGame(void)
 	reset_timing = 1;
 }
 
+void emu_HandleResume(void)
+{
+	if (!(PicoMCD & 1)) return;
+
+	// reopen files..
+	if (Pico_mcd->TOC.Tracks[0].F != NULL)
+	{
+		lprintf("emu_HandleResume: reopen %s\n", romFileName);
+		pm_close(Pico_mcd->TOC.Tracks[0].F);
+		Pico_mcd->TOC.Tracks[0].F = pm_open(romFileName);
+		lprintf("reopen %s\n", Pico_mcd->TOC.Tracks[0].F != NULL ? "ok" : "failed");
+	}
+
+	mp3_reopen_file();
+}
+

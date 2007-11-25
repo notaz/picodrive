@@ -641,6 +641,7 @@ Changelog
   * Fixed a sram bug in memhandlers (fixes Shining in the Darkness saves).
   * PSP: fixed another bug in memhanlers, which crashed the emu for some games
     (like NBA Jam and NHL 9x).
+  * Added suspend/resume handling for Sega CD games.
   * Some other small tweaks I forgot about.
 
 1.35a

@@ -66,13 +66,18 @@ int pico_main(void)
 				break;
 
 			case PGS_Suspending:
-				psp_wait_suspend();
+				while (engineState == PGS_Suspending)
+					psp_wait_suspend();
 				break;
 
 			case PGS_RestartRun:
 				engineState = PGS_Running;
 
 			case PGS_Running:
+				if (psp_unhandled_suspend) {
+					psp_resume_suspend();
+					emu_HandleResume();
+				}
 				emu_Loop();
 #ifdef GPROF
 				goto endloop;

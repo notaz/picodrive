@@ -473,3 +473,17 @@ int mp3_get_offset(void) // 0-1023
 }
 
 
+void mp3_reopen_file(void)
+{
+	if (mp3_fname == NULL) return;
+	lprintf("mp3_reopen_file(%s)\n", mp3_fname);
+
+	// try closing, just in case
+	if (mp3_handle >= 0) sceIoClose(mp3_handle);
+
+	mp3_handle = sceIoOpen(mp3_fname, PSP_O_RDONLY, 0777);
+	if (mp3_handle >= 0)
+		sceIoLseek32(mp3_handle, mp3_src_pos, PSP_SEEK_SET);
+	lprintf("mp3_reopen_file %s\n", mp3_handle >= 0 ? "ok" : "failed");
+}
+
