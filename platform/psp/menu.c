@@ -1394,6 +1394,10 @@ static void menu_options_save(void)
 	PicoOpt = currentConfig.PicoOpt;
 	PsndRate = currentConfig.PsndRate;
 	PicoRegionOverride = currentConfig.PicoRegion;
+	if (PicoRegionOverride) {
+		// force setting possibly changed..
+		Pico.m.pal = (PicoRegionOverride == 2 || PicoRegionOverride == 8) ? 1 : 0;
+	}
 	if (!(PicoOpt & 0x20)) {
 		// unbind XYZ MODE, just in case
 		unbind_action(0xf00);

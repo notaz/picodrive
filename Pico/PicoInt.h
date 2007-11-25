@@ -484,10 +484,11 @@ PICO_INTERNAL void z80_exit(void);
 #define EL_ANOMALY 0x8000 /* some unexpected conditions (during emulation) */
 
 #if EL_LOGMASK
+extern void lprintf(const char *fmt, ...);
 #define elprintf(w,f,...) \
 { \
 	if ((w) & EL_LOGMASK) \
-		printf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__); \
+		lprintf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__); \
 }
 #else
 #define elprintf(w,f,...)

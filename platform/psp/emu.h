@@ -14,6 +14,7 @@ enum TPicoGameState {
 	PGS_ReloadRom,
 	PGS_Menu,
 	PGS_RestartRun,
+	PGS_Suspending,
 };
 
 extern char romFileName[];

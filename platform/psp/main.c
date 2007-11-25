@@ -65,6 +65,10 @@ int pico_main(void)
 				}
 				break;
 
+			case PGS_Suspending:
+				psp_wait_suspend();
+				break;
+
 			case PGS_RestartRun:
 				engineState = PGS_Running;
 

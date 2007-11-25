@@ -43,6 +43,8 @@ int psp_set_cpu_clock(int clock);
 
 char *psp_get_status_line(void);
 
+void psp_wait_suspend(void);
+
 /* shorter btn names */
 #define BTN_UP       PSP_CTRL_UP
 #define BTN_LEFT     PSP_CTRL_LEFT

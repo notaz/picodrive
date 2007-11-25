@@ -636,10 +636,12 @@ Changelog
 1.35b
   * PSP: mp3 code should no longer fail on 1.5 firmware.
   + PSP: added gamma adjustment option.
-  + Added .cso format support. Useful for non-FMV games.
+  + Added .cso ISO format support. Useful for non-FMV games.
+  * It is now possile to force a region after the ROM is loaded.
   * Fixed a sram bug in memhandlers (fixes Shining in the Darkness saves).
   * PSP: fixed another bug in memhanlers, which crashed the emu for some games
-    (like NBA Jam).
+    (like NBA Jam and NHL 9x).
+  * Some other small tweaks I forgot about.
 
 1.35a
   * PSP: fixed a bug which prevented to load any ROMs after testing the BIOS.

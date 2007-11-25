@@ -70,12 +70,21 @@ static int exit_callback(int arg1, int arg2, void *common)
 /* Power Callback */
 static int power_callback(int unknown, int pwrflags, void *common)
 {
+	static int old_state = PGS_Menu;
+
+	lprintf("power_callback: flags: 0x%08X\n", pwrflags);
+
 	/* check for power switch and suspending as one is manual and the other automatic */
-	if (pwrflags & PSP_POWER_CB_POWER_SWITCH || pwrflags & PSP_POWER_CB_SUSPENDING)
+	if (pwrflags & PSP_POWER_CB_POWER_SWITCH || pwrflags & PSP_POWER_CB_SUSPENDING || pwrflags & PSP_POWER_CB_STANDBY)
 	{
-		lprintf("power_callback: flags: 0x%08X: suspending\n", pwrflags);
-		engineState = PGS_Menu;
+		if (engineState != PGS_Suspending) {
+			old_state = engineState;
+			engineState = PGS_Suspending;
+		}
 	}
+	else if (pwrflags & PSP_POWER_CB_RESUME_COMPLETE)
+		engineState = old_state;
+
 	//sceDisplayWaitVblankStart();
 	return 0;
 }
@@ -238,6 +247,12 @@ char *psp_get_status_line(void)
 	return buff;
 }
 
+void psp_wait_suspend(void)
+{
+	// probably should do something smarter here?
+	sceDisplayWaitVblankStart();
+}
+
 /* alt logging */
 #define LOG_FILE "log.txt"
 
@@ -251,7 +266,7 @@ typedef struct _log_entry
 static log_entry *le_root = NULL;
 #endif
 
-void lprintf_f(const char *fmt, ...)
+void lprintf(const char *fmt, ...)
 {
 	va_list vl;
 
