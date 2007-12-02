@@ -201,7 +201,7 @@ static
 void OtherWrite16(u32 a,u32 d)
 {
   if (a==0xa11100)            { z80WriteBusReq(d>>8); return; }
-  if (a==0xa11200)            { dprintf("write z80reset: %04x", d); if(!(d&0x100)) z80_reset(); return; }
+  if (a==0xa11200)            { elprintf(EL_BUSREQ, "write z80reset: %04x", d); if(!(d&0x100)) z80_reset(); return; }
   if ((a&0xffffe0)==0xa10000) { IoWrite8(a, d); return; } // I/O ports
   if ((a&0xff4000)==0xa00000) { if(!(Pico.m.z80Run&1)) Pico.zram[a&0x1fff]=(u8)(d>>8); return; } // Z80 ram (MSB only)
   if ((a&0xe700f8)==0xc00010||(a&0xff7ff8)==0xa07f10) { if(PicoOpt&2) SN76496Write(d); return; } // PSG Sound

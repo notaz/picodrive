@@ -1,13 +1,11 @@
 // This is part of Pico Library
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2006,2007 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
 
-
-//#define __debug_io
 
 #include "PicoInt.h"
 
@@ -357,9 +355,7 @@ PICO_INTERNAL_ASM u32 PicoRead8(u32 a)
   if ((a&1)==0) d>>=8;
 
 end:
-#ifdef __debug_io
-  dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
-#endif
+  elprintf(EL_IO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
 #ifdef EMU_CORE_DEBUG
   if (a>=Pico.romsize) {
     lastread_a = a;
@@ -394,9 +390,7 @@ PICO_INTERNAL_ASM u32 PicoRead16(u32 a)
   else d = OtherRead16(a, 16);
 
 end:
-#ifdef __debug_io
-  dprintf("r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
-#endif
+  elprintf(EL_IO, "r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
 #ifdef EMU_CORE_DEBUG
   if (a>=Pico.romsize) {
     lastread_a = a;
@@ -429,9 +423,7 @@ PICO_INTERNAL_ASM u32 PicoRead32(u32 a)
   else d = (OtherRead16(a, 32)<<16)|OtherRead16(a+2, 32);
 
 end:
-#ifdef __debug_io
-  dprintf("r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
-#endif
+  elprintf(EL_IO, "r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
 #ifdef EMU_CORE_DEBUG
   if (a>=Pico.romsize) {
     lastread_a = a;
@@ -448,9 +440,7 @@ end:
 #if !defined(_ASM_MEMORY_C) || defined(_ASM_MEMORY_C_AMIPS)
 PICO_INTERNAL_ASM void PicoWrite8(u32 a,u8 d)
 {
-#ifdef __debug_io
-  dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
-#endif
+  elprintf(EL_IO, "w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 #ifdef EMU_CORE_DEBUG
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
@@ -465,9 +455,7 @@ PICO_INTERNAL_ASM void PicoWrite8(u32 a,u8 d)
 
 void PicoWrite16(u32 a,u16 d)
 {
-#ifdef __debug_io
-  dprintf("w16: %06x, %04x", a&0xffffff, d);
-#endif
+  elprintf(EL_IO, "w16: %06x, %04x", a&0xffffff, d);
 #ifdef EMU_CORE_DEBUG
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
@@ -482,9 +470,7 @@ void PicoWrite16(u32 a,u16 d)
 
 static void PicoWrite32(u32 a,u32 d)
 {
-#ifdef __debug_io
-  dprintf("w32: %06x, %08x", a&0xffffff, d);
-#endif
+  elprintf(EL_IO, "w32: %06x, %08x", a&0xffffff, d);
 #ifdef EMU_CORE_DEBUG
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
@@ -607,9 +593,7 @@ unsigned int m68k_read_memory_8(unsigned int a)
   if (a<Pico.romsize && m68ki_cpu_p==&PicoCpuMM68k)
        d = *(u8 *) (Pico.rom+(a^1));
   else d = (u8) lastread_d[lrp_mus++&15];
-#ifdef __debug_io
-  dprintf("r8_mu : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
-#endif
+  elprintf(EL_IO, "r8_mu : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
   return d;
 }
 unsigned int m68k_read_memory_16(unsigned int a)
@@ -618,9 +602,7 @@ unsigned int m68k_read_memory_16(unsigned int a)
   if (a<Pico.romsize && m68ki_cpu_p==&PicoCpuMM68k)
        d = *(u16 *)(Pico.rom+(a&~1));
   else d = (u16) lastread_d[lrp_mus++&15];
-#ifdef __debug_io
-  dprintf("r16_mu: %06x, %04x @%06x", a&0xffffff, d, SekPc);
-#endif
+  elprintf(EL_IO, "r16_mu: %06x, %04x @%06x", a&0xffffff, d, SekPc);
   return d;
 }
 unsigned int m68k_read_memory_32(unsigned int a)
@@ -630,9 +612,7 @@ unsigned int m68k_read_memory_32(unsigned int a)
        { u16 *pm=(u16 *)(Pico.rom+(a&~1));d=(pm[0]<<16)|pm[1]; }
   else if (a <= 0x78) d = m68k_read_32(a, 0);
   else d = lastread_d[lrp_mus++&15];
-#ifdef __debug_io
-  dprintf("r32_mu: %06x, %08x @%06x", a&0xffffff, d, SekPc);
-#endif
+  elprintf(EL_IO, "r32_mu: %06x, %08x @%06x", a&0xffffff, d, SekPc);
   return d;
 }
 

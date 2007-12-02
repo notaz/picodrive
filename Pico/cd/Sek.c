@@ -40,14 +40,14 @@ static int SekIntAckS68k(int level)
 {
   int level_new = new_irq_level(level);
 
-  dprintf("s68kACK %i -> %i", level, level_new);
+  elprintf(EL_INTS, "s68kACK %i -> %i", level, level_new);
   PicoCpuCS68k.irq = level_new;
   return CYCLONE_INT_ACK_AUTOVECTOR;
 }
 
 static void SekResetAckS68k(void)
 {
-  dprintf("s68k: Reset encountered @ %06x", SekPcS68k);
+  elprintf(EL_ANOMALY, "s68k: Reset encountered @ %06x", SekPcS68k);
 }
 
 static int SekUnrecognizedOpcodeS68k(void)
@@ -55,7 +55,7 @@ static int SekUnrecognizedOpcodeS68k(void)
   unsigned int pc, op;
   pc = SekPcS68k;
   op = PicoCpuCS68k.read16(pc);
-  dprintf("Unrecognized Opcode %04x @ %06x", op, pc);
+  elprintf(EL_ANOMALY, "Unrecognized Opcode %04x @ %06x", op, pc);
   //exit(1);
   return 0;
 }
@@ -66,7 +66,7 @@ static int SekIntAckMS68k(int level)
 {
 #ifndef EMU_CORE_DEBUG
   int level_new = new_irq_level(level);
-  dprintf("s68kACK %i -> %i", level, level_new);
+  elprintf(EL_INTS, "s68kACK %i -> %i", level, level_new);
   CPU_INT_LEVEL = level_new << 8;
 #else
   CPU_INT_LEVEL = 0;
@@ -79,7 +79,7 @@ static int SekIntAckMS68k(int level)
 static void SekIntAckFS68k(unsigned level)
 {
   int level_new = new_irq_level(level);
-  dprintf("s68kACK %i -> %i", level, level_new);
+  elprintf(EL_INTS, "s68kACK %i -> %i", level, level_new);
 #ifndef EMU_CORE_DEBUG
   PicoCpuFS68k.interrupts[0] = level_new;
 #else

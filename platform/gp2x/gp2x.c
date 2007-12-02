@@ -22,6 +22,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/mman.h>
@@ -375,4 +376,13 @@ void gp2x_deinit(void)
 	}
 }
 
+/* lprintf */
+void lprintf(const char *fmt, ...)
+{
+	va_list vl;
+
+	va_start(vl, fmt);
+	vprintf(fmt, vl);
+	va_end(vl);
+}
 

@@ -400,7 +400,6 @@ static int DecodeSmd(unsigned char *data,int len)
 static unsigned char *cd_realloc(void *old, int filesize)
 {
   unsigned char *rom;
-  dprintf("sizeof(mcd_state): %i", sizeof(mcd_state));
   rom=realloc(old, sizeof(mcd_state));
   if (rom) memset(rom+0x20000, 0, sizeof(mcd_state)-0x20000);
   return rom;
@@ -418,7 +417,6 @@ static unsigned char *PicoCartAlloc(int filesize)
   alloc_size&=~0x7ffff; // use alloc size of multiples of 512K, so that memhandlers could be set up more efficiently
   if((filesize&0x3fff)==0x200) alloc_size+=0x200;
   else if(alloc_size-filesize < 4) alloc_size+=4; // padding for out-of-bound exec protection
-  //dprintf("alloc_size: %x\n",  alloc_size);
 
   // Allocate space for the rom plus padding
   rom=(unsigned char *)malloc(alloc_size);

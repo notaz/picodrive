@@ -3,8 +3,6 @@
 // (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
 
-//#define __debug_io
-
 #include "../PicoInt.h"
 
 #include "../sound/ym2612.h"
@@ -20,15 +18,10 @@ typedef unsigned int   u32;
 #define UTYPES_DEFINED
 #endif
 
-//#define __debug_io
-//#define __debug_io2
-
 //#define rdprintf dprintf
 #define rdprintf(...)
 //#define wrdprintf dprintf
 #define wrdprintf(...)
-#define plprintf dprintf
-//#define plprintf(...)
 
 #ifdef EMU_CORE_DEBUG
 extern u32 lastread_a, lastread_d[16], lastwrite_cyc_d[16];
@@ -71,7 +64,7 @@ static u32 m68k_reg_read16(u32 a)
       d = Read_CDC_Host(0);
       goto end;
     case 0xA:
-      dprintf("m68k FIXME: reserved read");
+      elprintf(EL_UIO, "m68k FIXME: reserved read");
       goto end;
     case 0xC:
       d = Pico_mcd->m.timer_stopwatch >> 16;
@@ -85,11 +78,10 @@ static u32 m68k_reg_read16(u32 a)
     goto end;
   }
 
-  dprintf("m68k_regs FIXME invalid read @ %02x", a);
+  elprintf(EL_UIO, "m68k_regs FIXME invalid read @ %02x", a);
 
 end:
 
-  // dprintf("ret = %04x", d);
   return d;
 }
 #endif
@@ -105,7 +97,7 @@ void m68k_reg_write8(u32 a, u32 d)
   switch (a) {
     case 0:
       d &= 1;
-      if ((d&1) && (Pico_mcd->s68k_regs[0x33]&(1<<2))) { dprintf("m68k: s68k irq 2"); SekInterruptS68k(2); }
+      if ((d&1) && (Pico_mcd->s68k_regs[0x33]&(1<<2))) { elprintf(EL_INTS, "m68k: s68k irq 2"); SekInterruptS68k(2); }
       return;
     case 1:
       d &= 3;
@@ -149,7 +141,7 @@ void m68k_reg_write8(u32 a, u32 d)
 #ifdef USE_POLL_DETECT
       if ((s68k_poll_adclk&0xfe) == 2 && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
-        plprintf("s68k poll release, a=%02x\n", a);
+        elprintf(EL_CDPOLL, "s68k poll release, a=%02x\n", a);
       }
 #endif
       return;
@@ -169,7 +161,7 @@ void m68k_reg_write8(u32 a, u32 d)
 #ifdef USE_POLL_DETECT
       if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
-        plprintf("s68k poll release, a=%02x\n", a);
+        elprintf(EL_CDPOLL, "s68k poll release, a=%02x\n", a);
       }
 #endif
       return;
@@ -180,13 +172,13 @@ void m68k_reg_write8(u32 a, u32 d)
 #ifdef USE_POLL_DETECT
       if ((a&0xfe) == (s68k_poll_adclk&0xfe) && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
-        plprintf("s68k poll release, a=%02x\n", a);
+        elprintf(EL_CDPOLL, "s68k poll release, a=%02x\n", a);
       }
 #endif
       return;
   }
 
-  dprintf("m68k FIXME: invalid write? [%02x] %02x", a, d);
+  elprintf(EL_UIO, "m68k FIXME: invalid write? [%02x] %02x", a, d);
 }
 
 #ifndef _ASM_CD_MEMORY_C
@@ -195,6 +187,8 @@ static
 u32 s68k_poll_detect(u32 a, u32 d)
 {
 #ifdef USE_POLL_DETECT
+  // needed mostly for Cyclone, which doesn't always check it's cycle counter
+  if (SekIsStoppedS68k()) return d;
   // polling detection
   if (a == (s68k_poll_adclk&0xff)) {
     unsigned int clkdiff = SekCyclesDoneS68k() - (s68k_poll_adclk>>8);
@@ -203,7 +197,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
       //printf("-- diff: %u, cnt = %i\n", clkdiff, s68k_poll_cnt);
       if (s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(1);
-        plprintf("s68k poll detected @ %06x, a=%02x\n", SekPcS68k, a);
+        elprintf(EL_CDPOLL, "s68k poll detected @ %06x, a=%02x\n", SekPcS68k, a);
       }
       s68k_poll_adclk = (SekCyclesDoneS68k() << 8) | a;
       return d;
@@ -374,7 +368,7 @@ void s68k_reg_write8(u32 a, u32 d)
 
   if ((a&0x1f0) == 0x10 || (a >= 0x38 && a < 0x42))
   {
-    dprintf("s68k FIXME: invalid write @ %02x?", a);
+    elprintf(EL_UIO, "s68k FIXME: invalid write @ %02x?", a);
     return;
   }
 
@@ -410,7 +404,7 @@ static u32 OtherRead16End(u32 a, int realsize)
     goto end;
   }
 
-  dprintf("m68k FIXME: unusual r%i: %06x @%06x", realsize&~1, (a&0xfffffe)+(realsize&1), SekPc);
+  elprintf(EL_UIO, "m68k FIXME: unusual r%i: %06x @%06x", realsize&~1, (a&0xfffffe)+(realsize&1), SekPc);
 
 end:
   return d;
@@ -434,7 +428,7 @@ static void OtherWrite8End(u32 a, u32 d, int realsize)
     return;
   }
 
-  dprintf("m68k FIXME: strange w%i: [%06x], %08x @%06x", realsize, a&0xffffff, d, SekPc);
+  elprintf(EL_UIO, "m68k FIXME: strange w%i: [%06x], %08x @%06x", realsize, a&0xffffff, d, SekPc);
 }
 
 #define _CD_MEMORY_C
@@ -521,9 +515,7 @@ u32 PicoReadM68k8(u32 a)
   }
 
 
-#ifdef __debug_io
-  dprintf("r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
-#endif
+  elprintf(EL_IO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
 #ifdef EMU_CORE_DEBUG
   if (a>=Pico.romsize) {
     lastread_a = a;
@@ -608,9 +600,7 @@ static u32 PicoReadM68k16(u32 a)
   }
 
 
-#ifdef __debug_io
-  dprintf("r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
-#endif
+  elprintf(EL_IO, "r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
 #ifdef EMU_CORE_DEBUG
   if (a>=Pico.romsize) {
     lastread_a = a;
@@ -704,9 +694,7 @@ static u32 PicoReadM68k32(u32 a)
   }
 
 
-#ifdef __debug_io
-  dprintf("r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
-#endif
+  elprintf(EL_IO, "r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
 #ifdef EMU_CORE_DEBUG
   if (a>=Pico.romsize) {
     lastread_a = a;
@@ -725,9 +713,7 @@ void PicoWriteM68k8(u32 a,u8 d);
 #else
 void PicoWriteM68k8(u32 a,u8 d)
 {
-#ifdef __debug_io
-  dprintf("w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
-#endif
+  elprintf(EL_IO, "w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 #ifdef EMU_CORE_DEBUG
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
@@ -778,9 +764,7 @@ void PicoWriteM68k16(u32 a,u16 d);
 #else
 static void PicoWriteM68k16(u32 a,u16 d)
 {
-#ifdef __debug_io
-  dprintf("w16: %06x, %04x", a&0xffffff, d);
-#endif
+  elprintf(EL_IO, "w16: %06x, %04x", a&0xffffff, d);
 #ifdef EMU_CORE_DEBUG
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
@@ -824,7 +808,7 @@ static void PicoWriteM68k16(u32 a,u16 d)
 #ifdef USE_POLL_DETECT
       if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
-        plprintf("s68k poll release, a=%02x\n", a);
+        elprintf(EL_CDPOLL, "s68k poll release, a=%02x\n", a);
       }
 #endif
       return;
@@ -850,9 +834,7 @@ void PicoWriteM68k32(u32 a,u32 d);
 #else
 static void PicoWriteM68k32(u32 a,u32 d)
 {
-#ifdef __debug_io
-  dprintf("w32: %06x, %08x", a&0xffffff, d);
-#endif
+  elprintf(EL_IO, "w32: %06x, %08x", a&0xffffff, d);
 #ifdef EMU_CORE_DEBUG
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif
@@ -968,7 +950,6 @@ static u32 PicoReadS68k8(u32 a)
       d = Pico_mcd->word_ram1M[bank][((a>>1)^1)&0x1ffff];
       if (a&1) d &= 0x0f;
       else d >>= 4;
-      dprintf("FIXME: decode");
     } else {
       // allow access in any mode, like Gens does
       d = Pico_mcd->word_ram2M[(a^1)&0x3ffff];
@@ -991,7 +972,7 @@ static u32 PicoReadS68k8(u32 a)
 
   // PCM
   if ((a&0xff8000)==0xff0000) {
-    dprintf("s68k_pcm r8: [%06x] @%06x", a, SekPcS68k);
+    elprintf(EL_IO, "s68k_pcm r8: [%06x] @%06x", a, SekPcS68k);
     a &= 0x7fff;
     if (a >= 0x2000)
       d = Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a>>1)&0xfff];
@@ -1000,7 +981,7 @@ static u32 PicoReadS68k8(u32 a)
       d = Pico_mcd->pcm.ch[a>>2].addr >> PCM_STEP_SHIFT;
       if (a & 2) d >>= 8;
     }
-    dprintf("ret = %02x", (u8)d);
+    elprintf(EL_IO, "ret = %02x", (u8)d);
     goto end;
   }
 
@@ -1010,13 +991,11 @@ static u32 PicoReadS68k8(u32 a)
     goto end;
   }
 
-  dprintf("s68k r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPcS68k);
+  elprintf(EL_UIO, "s68k r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPcS68k);
 
   end:
 
-#ifdef __debug_io2
-  dprintf("s68k r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPcS68k);
-#endif
+  elprintf(EL_IO, "s68k r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPcS68k);
 #ifdef EMU_CORE_DEBUG
   lastread_a = ab;
   lastread_d[lrp_cyc++&15] = d;
@@ -1064,7 +1043,6 @@ static u32 PicoReadS68k16(u32 a)
       int bank = (Pico_mcd->s68k_regs[3]&1)^1;
       d = Pico_mcd->word_ram1M[bank][((a>>1)^1)&0x1ffff];
       d |= d << 4; d &= ~0xf0;
-      dprintf("FIXME: decode");
     } else {
       // allow access in any mode, like Gens does
       d = *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
@@ -1110,13 +1088,11 @@ static u32 PicoReadS68k16(u32 a)
     goto end;
   }
 
-  dprintf("s68k r16: %06x, %04x  @%06x", a&0xffffff, d, SekPcS68k);
+  elprintf(EL_UIO, "s68k r16: %06x, %04x  @%06x", a&0xffffff, d, SekPcS68k);
 
   end:
 
-#ifdef __debug_io2
-  dprintf("s68k r16: %06x, %04x  @%06x", a&0xffffff, d, SekPcS68k);
-#endif
+  elprintf(EL_IO, "s68k r16: %06x, %04x  @%06x", a&0xffffff, d, SekPcS68k);
 #ifdef EMU_CORE_DEBUG
   lastread_a = ab;
   lastread_d[lrp_cyc++&15] = d;
@@ -1220,13 +1196,11 @@ static u32 PicoReadS68k32(u32 a)
     goto end;
   }
 
-  dprintf("s68k r32: %06x, %08x @%06x", a&0xffffff, d, SekPcS68k);
+  elprintf(EL_UIO, "s68k r32: %06x, %08x @%06x", a&0xffffff, d, SekPcS68k);
 
   end:
 
-#ifdef __debug_io2
-  dprintf("s68k r32: %06x, %08x @%06x", a&0xffffff, d, SekPcS68k);
-#endif
+  elprintf(EL_IO, "s68k r32: %06x, %08x @%06x", a&0xffffff, d, SekPcS68k);
 #ifdef EMU_CORE_DEBUG
   if (ab > 0x78) { // not vectors and stuff
     lastread_a = ab;
@@ -1296,9 +1270,7 @@ void PicoWriteS68k8(u32 a,u8 d);
 #else
 static void PicoWriteS68k8(u32 a,u8 d)
 {
-#ifdef __debug_io2
-  dprintf("s68k w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPcS68k);
-#endif
+  elprintf(EL_IO, "s68k w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPcS68k);
 
   a&=0xffffff;
 
@@ -1366,7 +1338,7 @@ static void PicoWriteS68k8(u32 a,u8 d)
     return;
   }
 
-  dprintf("s68k w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPcS68k);
+  elprintf(EL_UIO, "s68k w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPcS68k);
 }
 #endif
 
@@ -1376,9 +1348,7 @@ void PicoWriteS68k16(u32 a,u16 d);
 #else
 static void PicoWriteS68k16(u32 a,u16 d)
 {
-#ifdef __debug_io2
-  dprintf("s68k w16: %06x, %04x @%06x", a&0xffffff, d, SekPcS68k);
-#endif
+  elprintf(EL_IO, "s68k w16: %06x, %04x @%06x", a&0xffffff, d, SekPcS68k);
 
   a&=0xfffffe;
 
@@ -1456,7 +1426,7 @@ static void PicoWriteS68k16(u32 a,u16 d)
     return;
   }
 
-  dprintf("s68k w16: %06x, %04x @%06x", a&0xffffff, d, SekPcS68k);
+  elprintf(EL_UIO, "s68k w16: %06x, %04x @%06x", a&0xffffff, d, SekPcS68k);
 }
 #endif
 
@@ -1466,9 +1436,7 @@ void PicoWriteS68k32(u32 a,u32 d);
 #else
 static void PicoWriteS68k32(u32 a,u32 d)
 {
-#ifdef __debug_io2
-  dprintf("s68k w32: %06x, %08x @%06x", a&0xffffff, d, SekPcS68k);
-#endif
+  elprintf(EL_IO, "s68k w32: %06x, %08x @%06x", a&0xffffff, d, SekPcS68k);
 
   a&=0xfffffe;
 
@@ -1558,7 +1526,7 @@ static void PicoWriteS68k32(u32 a,u32 d)
     return;
   }
 
-  dprintf("s68k w32: %06x, %08x @%06x", a&0xffffff, d, SekPcS68k);
+  elprintf(EL_UIO, "s68k w32: %06x, %08x @%06x", a&0xffffff, d, SekPcS68k);
 }
 #endif
 
@@ -1586,7 +1554,7 @@ static __inline int PicoMemBaseM68k(u32 pc)
   }
 
   // Error - Program Counter is invalid
-  dprintf("m68k FIXME: unhandled jump to %06x", pc);
+  elprintf(EL_ANOMALY, "m68k FIXME: unhandled jump to %06x", pc);
 
   return (int)Pico_mcd->bios;
 }
@@ -1617,7 +1585,7 @@ static __inline int PicoMemBaseS68k(u32 pc)
   }
 
   // Error - Program Counter is invalid
-  dprintf("s68k FIXME: unhandled jump to %06x", pc);
+  elprintf(EL_ANOMALY, "s68k FIXME: unhandled jump to %06x", pc);
 
   return (int)Pico_mcd->prg_ram;
 }
@@ -1658,7 +1626,6 @@ void PicoMemResetCD(int r3)
 
 PICO_INTERNAL void PicoMemSetupCD(void)
 {
-  dprintf("PicoMemSetupCD()");
 #ifdef EMU_C68K
   // Setup m68k memory callbacks:
   PicoCpuCM68k.checkpc=PicoCheckPcM68k;
@@ -1757,7 +1724,7 @@ unsigned int  m68k_read_pcrelative_CD8 (unsigned int a)
       int bank = (Pico_mcd->s68k_regs[3]&1)^1;
       return *(u8 *)(Pico_mcd->word_ram1M[bank]+((a^1)&0x1ffff));
     }
-    dprintf("s68k_read_pcrelative_CD8 FIXME: can't handle %06x", a);
+    elprintf(EL_ANOMALY, "s68k_read_pcrelative_CD8 FIXME: can't handle %06x", a);
   } else {
     if((a&0xe00000)==0xe00000) return *(u8 *)(Pico.ram+((a^1)&0xffff)); // Ram
     if(a<0x20000)              return *(u8 *)(Pico.rom+(a^1)); // Bios
@@ -1769,7 +1736,7 @@ unsigned int  m68k_read_pcrelative_CD8 (unsigned int a)
         return *(u8 *)(Pico_mcd->word_ram1M[bank]+((a^1)&0x1ffff));
       }
     }
-    dprintf("m68k_read_pcrelative_CD8 FIXME: can't handle %06x", a);
+    elprintf(EL_ANOMALY, "m68k_read_pcrelative_CD8 FIXME: can't handle %06x", a);
   }
   return 0;//(u8)  lastread_d;
 }
@@ -1784,7 +1751,7 @@ unsigned int  m68k_read_pcrelative_CD16(unsigned int a)
       int bank = (Pico_mcd->s68k_regs[3]&1)^1;
       return *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
     }
-    dprintf("s68k_read_pcrelative_CD16 FIXME: can't handle %06x", a);
+    elprintf(EL_ANOMALY, "s68k_read_pcrelative_CD16 FIXME: can't handle %06x", a);
   } else {
     if((a&0xe00000)==0xe00000) return *(u16 *)(Pico.ram+(a&0xfffe)); // Ram
     if(a<0x20000)              return *(u16 *)(Pico.rom+(a&~1)); // Bios
@@ -1796,7 +1763,7 @@ unsigned int  m68k_read_pcrelative_CD16(unsigned int a)
         return *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
       }
     }
-    dprintf("m68k_read_pcrelative_CD16 FIXME: can't handle %06x", a);
+    elprintf(EL_ANOMALY, "m68k_read_pcrelative_CD16 FIXME: can't handle %06x", a);
   }
   return 0;
 }
@@ -1813,7 +1780,7 @@ unsigned int  m68k_read_pcrelative_CD32(unsigned int a)
       pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
       return (pm[0]<<16)|pm[1];
     }
-    dprintf("s68k_read_pcrelative_CD32 FIXME: can't handle %06x", a);
+    elprintf(EL_ANOMALY, "s68k_read_pcrelative_CD32 FIXME: can't handle %06x", a);
   } else {
     if((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); return (pm[0]<<16)|pm[1]; } // Ram
     if(a<0x20000)              { u16 *pm=(u16 *)(Pico.rom+(a&~1));     return (pm[0]<<16)|pm[1]; }
@@ -1826,7 +1793,7 @@ unsigned int  m68k_read_pcrelative_CD32(unsigned int a)
         return (pm[0]<<16)|pm[1];
       }
     }
-    dprintf("m68k_read_pcrelative_CD32 FIXME: can't handle %06x", a);
+    elprintf(EL_ANOMALY, "m68k_read_pcrelative_CD32 FIXME: can't handle %06x", a);
   }
   return 0;
 }

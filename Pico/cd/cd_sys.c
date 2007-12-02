@@ -13,8 +13,7 @@
 #include "cd_sys.h"
 #include "cd_file.h"
 
-#define cdprintf dprintf
-//#define cdprintf(x...)
+#define cdprintf(x...)
 #define DEBUG_CD
 
 #define TRAY_OPEN	0x0500		// TRAY OPEN CDD status

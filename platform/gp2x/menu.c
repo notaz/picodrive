@@ -155,11 +155,12 @@ static void cdload_progress_cb(int percent)
 
 	smalltext_out16(1, 3*10, "Processing CD image / MP3s", 0xffff);
 	smalltext_out16_lim(1, 4*10, romFileName, 0xffff, 80);
-	dst += 30;
+	dst += 320*30;
 
 	if (len > 320) len = 320;
 	for (ln = 8; ln > 0; ln--, dst += 320)
 		memset(dst, 0xff, len*2);
+	menu_flip();
 	cdload_called = 1;
 }
 
@@ -182,7 +183,7 @@ void menu_romload_prepare(const char *rom_name)
 
 void menu_romload_end(void)
 {
-	PicoCartLoadProgressCB = NULL;
+	PicoCartLoadProgressCB = PicoCDLoadProgressCB = NULL;
 	smalltext_out16(1, cdload_called ? 60 : 30, "Starting emulation...", 0xffff);
 	menu_flip();
 }

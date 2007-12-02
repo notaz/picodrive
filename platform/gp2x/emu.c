@@ -43,7 +43,7 @@ char romFileName[PATH_MAX];
 
 extern int crashed_940;
 
-static short sndBuffer[2*44100/50];
+static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 static struct timeval noticeMsgTime = { 0, 0 };	// when started showing
 static int osd_fps_x;
 static int combo_keys = 0, combo_acts = 0;	// keys and actions which need button combos

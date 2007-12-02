@@ -34,7 +34,7 @@ endif
 DEFINC = -I../.. -I. -DARM -D__GP2X__ # -DBENCHMARK
 COPT_COMMON = -static -Wall -Winline
 ifeq ($(DEBUG),)
-COPT_COMMON += -O2 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
+COPT_COMMON += -O3 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
 else
 COPT_COMMON += -ggdb
 endif

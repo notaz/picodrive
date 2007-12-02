@@ -77,7 +77,7 @@ static void gfx_completed(void)
 	_rot_comp.Reg_64  = 0;
 	if (Pico_mcd->s68k_regs[0x33] & (1<<1))
 	{
-		dprintf("gfx_cd irq 1");
+		elprintf(EL_INTS, "gfx_cd irq 1");
 		SekInterruptS68k(1);
 	}
 }

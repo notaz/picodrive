@@ -48,6 +48,7 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekPcS68k (PicoCpuCS68k.pc-PicoCpuCS68k.membase)
 #define SekSetStop(x) { PicoCpuCM68k.state_flags&=~1; if (x) { PicoCpuCM68k.state_flags|=1; PicoCpuCM68k.cycles=0; } }
 #define SekSetStopS68k(x) { PicoCpuCS68k.state_flags&=~1; if (x) { PicoCpuCS68k.state_flags|=1; PicoCpuCS68k.cycles=0; } }
+#define SekIsStoppedS68k() (PicoCpuCS68k.state_flags&1)
 #define SekShouldInterrupt (PicoCpuCM68k.irq > (PicoCpuCM68k.srh&7))
 
 #define SekInterrupt(i) PicoCpuCM68k.irq=i
@@ -79,6 +80,7 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 	PicoCpuFS68k.execinfo &= ~FM68K_HALTED; \
 	if (x) { PicoCpuFS68k.execinfo |= FM68K_HALTED; PicoCpuFS68k.io_cycle_counter = 0; } \
 }
+#define SekIsStoppedS68k() (PicoCpuFS68k.execinfo&FM68K_HALTED)
 #define SekShouldInterrupt fm68k_would_interrupt()
 
 #define SekInterrupt(irq) PicoCpuFM68k.interrupts[0]=irq
@@ -111,6 +113,7 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 	if(x) { SET_CYCLES(0); PicoCpuMS68k.stopped=STOP_LEVEL_STOP; } \
 	else PicoCpuMS68k.stopped=0; \
 }
+#define SekIsStoppedS68k() (PicoCpuMS68k.stopped==STOP_LEVEL_STOP)
 #define SekShouldInterrupt (CPU_INT_LEVEL > FLAG_INT_MASK)
 
 #define SekInterrupt(irq) { \
@@ -478,7 +481,8 @@ PICO_INTERNAL void z80_exit(void);
 #define EL_SRAMIO  0x0200 /* sram i/o */
 #define EL_EEPROM  0x0400 /* eeprom debug */
 #define EL_UIO     0x0800 /* unmapped i/o */
-#define EL_IO      0x1000 /* all i/o (TODO) */
+#define EL_IO      0x1000 /* all i/o */
+#define EL_CDPOLL  0x2000 /* MCD: log poll detection */
 
 #define EL_STATUS  0x4000 /* status messages */
 #define EL_ANOMALY 0x8000 /* some unexpected conditions (during emulation) */

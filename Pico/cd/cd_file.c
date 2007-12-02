@@ -10,8 +10,7 @@
 #include "../PicoInt.h"
 #include "cd_file.h"
 
-#define cdprintf dprintf
-//#define cdprintf(x...)
+#define cdprintf(x...)
 //#define cdprintf(f,...) printf(f "\n",##__VA_ARGS__) // tmp
 #define DEBUG_CD
 
@@ -279,7 +278,7 @@ PICO_INTERNAL int FILE_Read_One_LBA_CDC(void)
 		{
 			if (Pico_mcd->s68k_regs[0x33] & (1<<5))
 			{
-				dprintf("cdc dec irq 5");
+				elprintf(EL_INTS, "cdc dec irq 5");
 				SekInterruptS68k(5);
 			}
 

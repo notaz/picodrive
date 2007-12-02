@@ -428,5 +428,13 @@ void spend_cycles(int c)
 	usleep(c/200);
 }
 
+/* lprintf */
+void lprintf(const char *fmt, ...)
+{
+	va_list vl;
 
+	va_start(vl, fmt);
+	vprintf(fmt, vl);
+	va_end(vl);
+}
 

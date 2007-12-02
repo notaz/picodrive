@@ -9,8 +9,7 @@
 
 #include "../PicoInt.h"
 
-#define cdprintf dprintf
-//#define cdprintf(x...)
+#define cdprintf(x...)
 
 
 #define CDC_DMA_SPEED 256
@@ -86,7 +85,7 @@ PICO_INTERNAL void Update_CDC_TRansfer(int which)
 
 			if (Pico_mcd->s68k_regs[0x33] & (1<<5))
 			{
-				dprintf("cdc DTE irq 5");
+				elprintf(EL_INTS, "cdc DTE irq 5");
 				SekInterruptS68k(5);
 			}
 		}
@@ -139,7 +138,7 @@ PICO_INTERNAL void Update_CDC_TRansfer(int which)
 	else if (which == 4) // PCM RAM (check: popful Mail)
 	{
 		dep = (DMA_Adr & 0x03FF) << 2;
-		dprintf("CD DMA # %04x -> PCM[%i] # %04x, len=%i",
+		cdprintf("CD DMA # %04x -> PCM[%i] # %04x, len=%i",
 			Pico_mcd->cdc.DAC.N, Pico_mcd->pcm.bank, dep, length);
 		dest = (unsigned short *) (Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank] + dep);
 
@@ -212,7 +211,7 @@ PICO_INTERNAL_ASM unsigned short Read_CDC_Host(int is_sub)
 			Pico_mcd->cdc.IFSTAT &= ~0x40;
 
 			if (Pico_mcd->s68k_regs[0x33]&(1<<5)) {
-				dprintf("m68k: s68k irq 5");
+				elprintf(EL_INTS, "m68k: s68k irq 5");
 				SekInterruptS68k(5);
 			}
 
@@ -510,7 +509,7 @@ PICO_INTERNAL void CDD_Export_Status(void)
 
 	if (Pico_mcd->s68k_regs[0x33] & (1<<4))
 	{
-		dprintf("cdd export irq 4");
+		elprintf(EL_INTS, "cdd export irq 4");
 		SekInterruptS68k(4);
 	}
 
