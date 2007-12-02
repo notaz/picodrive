@@ -224,7 +224,7 @@ $(error need VER)
 endif
 endif
 
-rel: PicoDrive.gpe code940/pico940.bin readme.txt PicoDrive.man.txt PicoDrive.png
+rel: PicoDrive.gpe code940/pico940_v2.bin readme.txt PicoDrive.man.txt PicoDrive.png
 	zip -9 -j ../../PicoDrive_$(VER).zip $^ mmuhack.o
 	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt
 

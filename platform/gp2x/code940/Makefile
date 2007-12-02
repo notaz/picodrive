@@ -18,7 +18,7 @@ AS = $(CROSS)as
 LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
-BIN = pico940.bin
+BIN = pico940_v2.bin
 
 all: $(BIN)
 

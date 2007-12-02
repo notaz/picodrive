@@ -33,7 +33,7 @@ _940_ctl_t *shared_ctl = 0;
 unsigned char *mp3_mem = 0;
 
 #define MP3_SIZE_MAX (0x400000 + 0x800000) // 12M
-#define CODE940_FILE "pico940.bin"
+#define CODE940_FILE "pico940_v2.bin"
 
 int crashed_940 = 0;
 

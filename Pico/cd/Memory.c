@@ -141,7 +141,7 @@ void m68k_reg_write8(u32 a, u32 d)
 #ifdef USE_POLL_DETECT
       if ((s68k_poll_adclk&0xfe) == 2 && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
-        elprintf(EL_CDPOLL, "s68k poll release, a=%02x\n", a);
+        elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
       }
 #endif
       return;
@@ -161,7 +161,7 @@ void m68k_reg_write8(u32 a, u32 d)
 #ifdef USE_POLL_DETECT
       if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
-        elprintf(EL_CDPOLL, "s68k poll release, a=%02x\n", a);
+        elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
       }
 #endif
       return;
@@ -172,7 +172,7 @@ void m68k_reg_write8(u32 a, u32 d)
 #ifdef USE_POLL_DETECT
       if ((a&0xfe) == (s68k_poll_adclk&0xfe) && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
-        elprintf(EL_CDPOLL, "s68k poll release, a=%02x\n", a);
+        elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
       }
 #endif
       return;
@@ -197,7 +197,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
       //printf("-- diff: %u, cnt = %i\n", clkdiff, s68k_poll_cnt);
       if (s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(1);
-        elprintf(EL_CDPOLL, "s68k poll detected @ %06x, a=%02x\n", SekPcS68k, a);
+        elprintf(EL_CDPOLL, "s68k poll detected @ %06x, a=%02x", SekPcS68k, a);
       }
       s68k_poll_adclk = (SekCyclesDoneS68k() << 8) | a;
       return d;
@@ -808,7 +808,7 @@ static void PicoWriteM68k16(u32 a,u16 d)
 #ifdef USE_POLL_DETECT
       if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
-        elprintf(EL_CDPOLL, "s68k poll release, a=%02x\n", a);
+        elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
       }
 #endif
       return;
