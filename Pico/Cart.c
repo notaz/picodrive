@@ -546,10 +546,12 @@ void PicoCartDetect(void)
       Pico.m.sram_reg |= 4;
     } else {
       // normal SRAM
-      SRam.start = PicoRead32(0x1B4) & 0xFFFF00;
+      SRam.start = PicoRead32(0x1B4) & ~0xff;
       SRam.end   = PicoRead32(0x1B8) | 1;
       sram_size  = SRam.end - SRam.start + 1;
     }
+    SRam.start &= ~0xff000000;
+    SRam.end   &= ~0xff000000;
     Pico.m.sram_reg |= 0x10; // SRAM was detected
   }
   if (sram_size <= 0)
