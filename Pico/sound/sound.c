@@ -15,6 +15,8 @@
 #include "../cd/pcm.h"
 #include "mix.h"
 
+void (*PsndMix_32_to_16l)(short *dest, int *src, int count) = mix_32_to_16l_stereo;
+
 // master int buffer to mix to
 static int PsndBuffer[2*44100/50];
 
@@ -151,6 +153,9 @@ void PsndRerate(int preserve_state)
   memset32(PsndBuffer, 0, sizeof(PsndBuffer)/4);
   if (PsndOut)
     PsndClear();
+
+  // set mixer
+  PsndMix_32_to_16l = (PicoOpt & 8) ? mix_32_to_16l_stereo : mix_32_to_16_mono;
 }
 
 
@@ -260,9 +265,7 @@ PICO_INTERNAL int PsndRender(int offset, int length)
     mp3_update(buf32, length, stereo);
 
   // convert + limit to normal 16bit output
-  if (stereo)
-       mix_32_to_16l_stereo(PsndOut+offset, buf32, length);
-  else mix_32_to_16_mono   (PsndOut+offset, buf32, length);
+  PsndMix_32_to_16l(PsndOut+offset, buf32, length);
 
   return length;
 }

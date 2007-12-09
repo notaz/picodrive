@@ -131,6 +131,7 @@ extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to us
 // sound.c
 extern int PsndRate,PsndLen;
 extern short *PsndOut;
+extern void (*PsndMix_32_to_16l)(short *dest, int *src, int count);
 void PsndRerate(int preserve_state);
 
 // Utils.c

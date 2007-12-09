@@ -838,6 +838,7 @@ static bind_action_t emuctrl_actions[] =
 	{ "Switch Renderer", 1<<26 },
 	{ "Volume Down    ", 1<<30 },
 	{ "Volume Up      ", 1<<29 },
+	{ "Fast forward   ", 1<<22 },
 	{ "Enter Menu     ", 1<<23 },
 };
 

@@ -232,8 +232,8 @@ void gp2x_start_sound(int rate, int bits, int stereo)
 	if (sounddev == -1)
 		printf("open(\"/dev/dsp\") failed with %i\n", errno);
 
-	ioctl(sounddev, SNDCTL_DSP_SPEED,  &rate);
 	ioctl(sounddev, SNDCTL_DSP_SETFMT, &bits);
+	ioctl(sounddev, SNDCTL_DSP_SPEED,  &rate);
 	ioctl(sounddev, SNDCTL_DSP_STEREO, &stereo);
 	// calculate buffer size
 	buffers = 16;
@@ -242,11 +242,12 @@ void gp2x_start_sound(int rate, int bits, int stereo)
 	while ((bsize>>=1)) frag++;
 	frag |= buffers<<16; // 16 buffers
 	ioctl(sounddev, SNDCTL_DSP_SETFRAGMENT, &frag);
+	usleep(192*1024);
+
 	printf("gp2x_set_sound: %i/%ibit/%s, %i buffers of %i bytes\n",
 		rate, bits, stereo?"stereo":"mono", frag>>16, 1<<(frag&0xffff));
 
 	s_oldrate = rate; s_oldbits = bits; s_oldstereo = stereo;
-	usleep(100000);
 }
 
 

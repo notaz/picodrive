@@ -641,7 +641,11 @@ Changelog
   * Fixed a sram bug in memhandlers (fixes Shining in the Darkness saves).
   * PSP: fixed another bug in memhanlers, which crashed the emu for some games
     (like NBA Jam and NHL 9x).
-  * Added suspend/resume handling for Sega CD games.
+  + PSP: added suspend/resume handling for Sega CD games.
+  + GP2X: added additional low volume levels for my late-night gaming sessions
+    (in stereo mode only).
+  + GP2X: added "fast forward" action in key config. Not recommended to use for
+    Sega CD, may case problems there.
   * Some other small tweaks I forgot about.
 
 1.35a
@@ -649,7 +653,7 @@ Changelog
   * PSP: fixed incorrect CZ80 memory map setup, which caused Z80 crashes and
     graphics corruption in EU Mega CD model1 BIOS menus.
   + PSP: added additional "set to 4:3 scaled" display option for convenience.
-  + Added an option to disable frame limitter (works only with non-auto frameskip).
+  + PSP: Added an option to disable frame limitter (works only with non-auto frameskip).
 
 1.35
   + PSP port added. Lots of new code for it. Integrated modified FAME/C, CZ80 cores.

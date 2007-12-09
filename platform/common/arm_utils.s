@@ -1,10 +1,13 @@
 @ vim:filetype=armasm
 @ some color conversion and blitting routines
 
-@ (c) Copyright 2006, notaz
+@ (c) Copyright 2006, 2007 notaz
 @ All Rights Reserved
 
 @ vim:filetype=armasm
+
+.text
+.align 4
 
 @ Convert 0000bbb0 ggg0rrr0 0000bbb0 ggg0rrr0
 @ to      00000000 rrr00000 ggg00000 bbb00000 ...
@@ -216,4 +219,5 @@ spend_cycles:
 flushcache:
     swi #0x9f0002
     mov pc, lr
+
 

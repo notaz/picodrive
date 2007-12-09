@@ -4,6 +4,9 @@
 @ (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
 
+.text
+.align 4
+
 @ this assumes src is word aligned
 .global mix_16h_to_32 @ int *dest, short *src, int count
 
@@ -292,4 +295,73 @@ m32_16_mo_no_unal2:
 
     ldmfd   sp!, {r4-r8,lr}
     bx      lr
+
+
+
+.data
+.align 4
+
+.global mix_32_to_16l_level
+mix_32_to_16l_level:
+    .word   0
+
+.text
+.align 4
+
+@ same as mix_32_to_16l_stereo, but with additional shift
+.global mix_32_to_16l_stereo_lvl @ short *dest, int *src, int count
+
+mix_32_to_16l_stereo_lvl:
+    stmfd   sp!, {r4-r9,lr}
+
+    ldr     r9, =mix_32_to_16l_level
+    mov     lr, #1
+    ldr     r9, [r9]
+
+    mov     r2, r2, lsl #1
+    subs    r2, r2, #4
+    bmi     m32_16l_st_l_end
+
+m32_16l_st_l_loop:
+    ldmia   r0,  {r8,r12}
+    ldmia   r1!, {r4-r7}
+    mov     r8, r8, lsl #16
+    mov     r12,r12,lsl #16
+    add     r4, r4, r8, asr #16
+    add     r5, r5, r8, asr #16
+    add     r6, r6, r12,asr #16
+    add     r7, r7, r12,asr #16
+    mov     r4, r4, asr r9
+    mov     r5, r5, asr r9
+    mov     r6, r6, asr r9
+    mov     r7, r7, asr r9
+    Limitsh r4
+    Limitsh r5
+    Limitsh r6
+    Limitsh r7
+    subs    r2, r2, #4
+    orr     r4, r5, r4, lsr #16
+    orr     r5, r7, r6, lsr #16
+    stmia   r0!, {r4,r5}
+    bpl     m32_16l_st_l_loop
+
+m32_16l_st_l_end:
+    @ check for remaining bytes to convert
+    tst     r2, #2
+    beq     m32_16l_st_l_no_unal2
+    ldrsh   r6, [r0]
+    ldmia   r1!,{r4,r5}
+    add     r4, r4, r6
+    add     r5, r5, r6
+    mov     r4, r4, asr r9
+    mov     r5, r5, asr r9
+    Limitsh r4
+    Limitsh r5
+    orr     r4, r5, r4, lsr #16
+    str     r4, [r0], #4
+
+m32_16l_st_l_no_unal2:
+    ldmfd   sp!, {r4-r9,lr}
+    bx      lr
+
 

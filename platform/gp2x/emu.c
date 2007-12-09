@@ -25,6 +25,7 @@
 
 #include <Pico/PicoInt.h>
 #include <Pico/Patch.h>
+#include <Pico/sound/mix.h>
 #include <zlib/zlib.h>
 
 //#define PFRAMES
@@ -432,9 +433,69 @@ static void emu_msg_tray_open(void)
 	gettimeofday(&noticeMsgTime, 0);
 }
 
+static void update_volume(int has_changed, int is_up)
+{
+	static int prev_frame = 0, wait_frames = 0;
+	int vol = currentConfig.volume;
+
+	if (has_changed)
+	{
+		if (vol < 5 && (PicoOpt&8) && prev_frame == Pico.m.frame_count - 1 && wait_frames < 12)
+			wait_frames++;
+		else {
+			if (is_up) {
+				if (vol < 99) vol++;
+			} else {
+				if (vol >  0) vol--;
+			}
+			wait_frames = 0;
+			gp2x_sound_volume(vol, vol);
+			currentConfig.volume = vol;
+		}
+		sprintf(noticeMsg, "VOL: %02i", vol);
+		gettimeofday(&noticeMsgTime, 0);
+		prev_frame = Pico.m.frame_count;
+	}
+
+	// set the right mixer func
+	if (!(PicoOpt&8)) return; // just use defaults for mono
+	if (vol >= 5)
+		PsndMix_32_to_16l = mix_32_to_16l_stereo;
+	else {
+		mix_32_to_16l_level = 5 - vol;
+		PsndMix_32_to_16l = mix_32_to_16l_stereo_lvl;
+	}
+}
+
+static void change_fast_forward(int set_on)
+{
+	static void *set_PsndOut = NULL;
+	static int set_Frameskip, set_EmuOpt, is_on = 0;
+
+	if (set_on && !is_on) {
+		set_PsndOut = PsndOut;
+		set_Frameskip = currentConfig.Frameskip;
+		set_EmuOpt = currentConfig.EmuOpt;
+		PsndOut = NULL;
+		currentConfig.Frameskip = 8;
+		currentConfig.EmuOpt &= ~4;
+		is_on = 1;
+	}
+	else if (!set_on && is_on) {
+		PsndOut = set_PsndOut;
+		currentConfig.Frameskip = set_Frameskip;
+		currentConfig.EmuOpt = set_EmuOpt;
+		PsndRerate(1);
+		update_volume(0, 0);
+		reset_timing = 1;
+		is_on = 0;
+	}
+}
+
 static void RunEvents(unsigned int which)
 {
-	if(which & 0x1800) { // save or load (but not both)
+	if (which & 0x1800) // save or load (but not both)
+	{
 		int do_it = 1;
 		if ( emu_checkSaveFile(state_slot) &&
 				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) ||   // load
@@ -456,7 +517,8 @@ static void RunEvents(unsigned int which)
 
 		reset_timing = 1;
 	}
-	if(which & 0x0400) { // switch renderer
+	if (which & 0x0400) // switch renderer
+	{
 		if      (  PicoOpt&0x10)             { PicoOpt&=~0x10; currentConfig.EmuOpt |= 0x80; }
 		else if (!(currentConfig.EmuOpt&0x80)) PicoOpt|= 0x10;
 		else   currentConfig.EmuOpt &= ~0x80;
@@ -473,7 +535,8 @@ static void RunEvents(unsigned int which)
 
 		gettimeofday(&noticeMsgTime, 0);
 	}
-	if(which & 0x0300) {
+	if (which & 0x0300)
+	{
 		if(which&0x0200) {
 			state_slot -= 1;
 			if(state_slot < 0) state_slot = 9;
@@ -484,7 +547,7 @@ static void RunEvents(unsigned int which)
 		sprintf(noticeMsg, "SAVE SLOT %i [%s]", state_slot, emu_checkSaveFile(state_slot) ? "USED" : "FREE");
 		gettimeofday(&noticeMsgTime, 0);
 	}
-	if(which & 0x0080) {
+	if (which & 0x0080) {
 		engineState = PGS_Menu;
 	}
 }
@@ -552,18 +615,11 @@ static void updateKeys(void)
 	events = (allActions[0] | allActions[1]) >> 16;
 
 	// volume is treated in special way and triggered every frame
-	if(events & 0x6000) {
-		int vol = currentConfig.volume;
-		if (events & 0x2000) {
-			if (vol < 99) vol++;
-		} else {
-			if (vol >  0) vol--;
-		}
-		gp2x_sound_volume(vol, vol);
-		sprintf(noticeMsg, "VOL: %02i", vol);
-		gettimeofday(&noticeMsgTime, 0);
-		currentConfig.volume = vol;
-	}
+	if (events & 0x6000)
+		update_volume(1, events & 0x2000);
+
+	if ((events ^ prevEvents) & 0x40)
+		change_fast_forward(events & 0x40);
 
 	events &= ~prevEvents;
 	if (events) RunEvents(events);
@@ -685,15 +741,11 @@ void emu_Loop(void)
 	reset_timing = 1;
 
 	// prepare sound stuff
-	if(currentConfig.EmuOpt & 4) {
+	if (currentConfig.EmuOpt & 4)
+	{
 		int snd_excess_add;
 		if (PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old ||
 				((PicoOpt&0x200) && crashed_940)) {
-			/* if 940 is turned off, we need it to be put back to sleep */
-			if (!(PicoOpt&0x200) && ((PicoOpt^PicoOpt_old)&0x200)) {
-				Reset940(1, 2);
-				Pause940(1);
-			}
 			PsndRerate(Pico.m.frame_count ? 1 : 0);
 		}
 		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
@@ -702,13 +754,14 @@ void emu_Loop(void)
 		gp2x_start_sound(PsndRate, 16, (PicoOpt&8)>>3);
 		gp2x_sound_volume(currentConfig.volume, currentConfig.volume);
 		PicoWriteSound = updateSound;
+		update_volume(0, 0);
 		memset(sndBuffer, 0, sizeof(sndBuffer));
 		PsndOut = sndBuffer;
 		PsndRate_old = PsndRate;
 		PicoOpt_old  = PicoOpt;
 		pal_old = Pico.m.pal;
 	} else {
-		PsndOut = 0;
+		PsndOut = NULL;
 	}
 
 	// prepare CD buffer
@@ -733,14 +786,15 @@ void emu_Loop(void)
 		int modes;
 
 		gettimeofday(&tval, 0);
-		if(reset_timing) {
+		if (reset_timing) {
 			reset_timing = 0;
 			thissec = tval.tv_sec;
 			frames_shown = frames_done = tval.tv_usec/target_frametime;
 		}
 
 		// show notice message?
-		if(noticeMsgTime.tv_sec) {
+		if (noticeMsgTime.tv_sec)
+		{
 			static int noticeMsgSum;
 			if((tval.tv_sec*1000000+tval.tv_usec) - (noticeMsgTime.tv_sec*1000000+noticeMsgTime.tv_usec) > 2000000) { // > 2.0 sec
 				noticeMsgTime.tv_sec = noticeMsgTime.tv_usec = 0;
@@ -755,7 +809,8 @@ void emu_Loop(void)
 
 		// check for mode changes
 		modes = ((Pico.video.reg[12]&1)<<2)|(Pico.video.reg[1]&8);
-		if (modes != oldmodes) {
+		if (modes != oldmodes)
+		{
 			int scalex = 320;
 			osd_fps_x = OSD_FPS_X;
 			if (modes & 4) {
@@ -777,10 +832,11 @@ void emu_Loop(void)
 		}
 
 		// second changed?
-		if(thissec != tval.tv_sec) {
+		if (thissec != tval.tv_sec)
+		{
 #ifdef BENCHMARK
 			static int bench = 0, bench_fps = 0, bench_fps_s = 0, bfp = 0, bf[4];
-			if(++bench == 10) {
+			if (++bench == 10) {
 				bench = 0;
 				bench_fps_s = bench_fps;
 				bf[bfp++ & 3] = bench_fps;
@@ -789,12 +845,13 @@ void emu_Loop(void)
 			bench_fps += frames_shown;
 			sprintf(fpsbuff, "%02i/%02i/%02i", frames_shown, bench_fps_s, (bf[0]+bf[1]+bf[2]+bf[3])>>2);
 #else
-			if(currentConfig.EmuOpt & 2)
+			if (currentConfig.EmuOpt & 2)
 				sprintf(fpsbuff, "%02i/%02i", frames_shown, frames_done);
+			if (fpsbuff[5] == 0) { fpsbuff[5] = fpsbuff[6] = ' '; fpsbuff[7] = 0; }
 #endif
 			thissec = tval.tv_sec;
 
-			if(PsndOut == 0 && currentConfig.Frameskip >= 0) {
+			if (PsndOut == 0 && currentConfig.Frameskip >= 0) {
 				frames_done = frames_shown = 0;
 			} else {
 				// it is quite common for this implementation to leave 1 fame unfinished
@@ -818,7 +875,7 @@ void emu_Loop(void)
 			for(i = 0; i < currentConfig.Frameskip; i++) {
 				updateKeys();
 				SkipFrame(1); frames_done++;
-				if (PsndOut) { // do framelimitting if sound is enabled
+				if (PsndOut && !reset_timing) { // do framelimitting if sound is enabled
 					gettimeofday(&tval, 0);
 					if(thissec != tval.tv_sec) tval.tv_usec+=1000000;
 					if(tval.tv_usec < lim_time) { // we are too fast
@@ -911,7 +968,7 @@ if (Pico.m.frame_count == 31563) {
 		{
 			// sleep or vsync if we are still too fast
 			// usleep sleeps for ~20ms minimum, so it is not a solution here
-			if(tval.tv_usec < lim_time)
+			if (!reset_timing && tval.tv_usec < lim_time)
 			{
 				// we are too fast
 				if (vsync_offset) {
@@ -929,6 +986,7 @@ if (Pico.m.frame_count == 31563) {
 		frames_done++; frames_shown++;
 	}
 
+	change_fast_forward(0);
 
 	if (PicoMCD & 1) PicoCDBufferFree();
 
