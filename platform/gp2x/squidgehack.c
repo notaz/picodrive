@@ -22,14 +22,13 @@ int mmuhack(void)
 	strcpy(kocmd, "/sbin/insmod ");
 	strncpy(kocmd+13, g_argv[0], 1023-13);
 	kocmd[1023] = 0;
-	for (i = strlen(kocmd); i > 0; i--)
-		if (kocmd[i] == '/') { kocmd[i] = 0; break; }
-	strcat(kocmd, "/mmuhack.o");
+	for (i = strlen(kocmd); i > 13; i--)
+		if (kocmd[i] == '/') { i++; break; }
+	strcpy(kocmd+i, "mmuhack.o");
 
 	printf("Installing NK's kernel module for Squidge MMU Hack (%s)...\n", kocmd);
 	system(kocmd);
 	mmufd = open("/dev/mmuhack", O_RDWR);
-
 	if(mmufd < 0) return 0;
 
 	close(mmufd);
