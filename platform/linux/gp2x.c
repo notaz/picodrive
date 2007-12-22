@@ -30,6 +30,7 @@ static const char *verstring = "PicoDrive " VERSION;
 
 // dummies
 char *ext_menu = 0, *ext_state = 0;
+int mix_32_to_16l_level;
 
 /* gtk */
 struct gtk_global_struct

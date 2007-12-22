@@ -632,5 +632,13 @@ void PicoCartDetect(void)
   // Unusual region 'code'
   if (rom_strcmp(0x1f0, "EUROPE") == 0)
     *(int *) (Pico.rom+0x1f0) = 0x20204520;
+
+  // SVP detection
+  if (name_cmp("Virtua Racing") == 0)
+  {
+    PicoSVPInit();
+    PicoRead16Hook = PicoSVPRead16;
+    PicoWrite8Hook = PicoSVPWrite8;
+  }
 }
 

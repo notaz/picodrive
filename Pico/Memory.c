@@ -203,10 +203,7 @@ static void SRAMWrite(u32 a, u32 d)
 }
 
 // for nonstandard reads
-#ifndef _ASM_MEMORY_C
-static
-#endif
-u32 OtherRead16End(u32 a, int realsize)
+static u32 OtherRead16End(u32 a, int realsize)
 {
   u32 d=0;
 
@@ -499,8 +496,17 @@ static void PicoWrite32(u32 a,u32 d)
 
 
 // -----------------------------------------------------------------
+
+// TODO: asm code
+u32  (*PicoRead16Hook)(u32 a, int realsize) = OtherRead16End;
+void (*PicoWrite8Hook)(u32 a, u32 d, int realsize) = OtherWrite8End;
+
 PICO_INTERNAL void PicoMemSetup(void)
 {
+  // default unmapped/cart specific handlers
+  PicoRead16Hook = OtherRead16End;
+  PicoWrite8Hook = OtherWrite8End;
+
   // Setup memory callbacks:
 #ifdef EMU_C68K
   PicoCpuCM68k.checkpc=PicoCheckPc;

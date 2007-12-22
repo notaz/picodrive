@@ -43,6 +43,8 @@ OBJS += Pico/cd/Pico.o Pico/cd/Memory.o Pico/cd/Sek.o Pico/cd/LC89510.o \
 		Pico/cd/Area.o Pico/cd/Misc.o Pico/cd/pcm.o Pico/cd/buffering.o
 # Pico - sound
 OBJS += Pico/sound/sound.o Pico/sound/sn76496.o Pico/sound/ym2612.o Pico/sound/mix.o
+# Pico - carthw
+OBJS += Pico/carthw/svp/svp.o Pico/carthw/svp/Memory.o
 # zlib
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o zlib/uncompr.o
@@ -74,8 +76,8 @@ endif
 endif
 
 vpath %.c = ../..
-DIRS = platform platform/gp2x platform/common Pico Pico/cd Pico/sound zlib unzip \
-	cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80
+DIRS = platform platform/gp2x platform/common Pico Pico/cd Pico/sound Pico/carthw/svp \
+	zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80
 
 all: mkdirs PicoDrive
 clean: tidy

@@ -1626,6 +1626,10 @@ void PicoMemResetCD(int r3)
 
 PICO_INTERNAL void PicoMemSetupCD(void)
 {
+  // additional handlers for common code
+  PicoRead16Hook = OtherRead16End;
+  PicoWrite8Hook = OtherWrite8End;
+
 #ifdef EMU_C68K
   // Setup m68k memory callbacks:
   PicoCpuCM68k.checkpc=PicoCheckPcM68k;

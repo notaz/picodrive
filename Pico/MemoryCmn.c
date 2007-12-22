@@ -136,7 +136,7 @@ u32 OtherRead16(u32 a, int realsize)
     goto end;
   }
 
-  d = OtherRead16End(a, realsize);
+  d = PicoRead16Hook(a, realsize);
 
 end:
   return d;
@@ -191,7 +191,7 @@ void OtherWrite8(u32 a,u32 d)
     return;
   }
 
-  OtherWrite8End(a, d, 8);
+  PicoWrite8Hook(a, d, 8);
 }
 
 
@@ -227,10 +227,10 @@ void OtherWrite16(u32 a,u32 d)
       SRAMWrite(a, d);
     return;
   }
-#else
-  OtherWrite8End(a,  d>>8, 16);
-  OtherWrite8End(a+1,d&0xff, 16);
 #endif
+
+  PicoWrite8Hook(a,  d>>8, 16);
+  PicoWrite8Hook(a+1,d&0xff, 16);
 }
 
 

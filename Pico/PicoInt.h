@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "Pico.h"
+#include "carthw/carthw.h"
 
 //
 #define USE_POLL_DETECT
@@ -393,6 +394,8 @@ PICO_INTERNAL unsigned short z80_read16(unsigned short a);
 #else
 PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data);
 #endif
+extern unsigned int (*PicoRead16Hook)(unsigned int a, int realsize);
+extern void (*PicoWrite8Hook)(unsigned int a,unsigned int d,int realsize);
 
 // cd/Memory.c
 PICO_INTERNAL void PicoMemSetupCD(void);
