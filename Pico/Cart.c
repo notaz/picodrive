@@ -481,7 +481,7 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
   return 0;
 }
 
-// Insert/remove a cartridge:
+// Insert a cartridge:
 int PicoCartInsert(unsigned char *rom,unsigned int romsize)
 {
   // notaz: add a 68k "jump one op back" opcode to the end of ROM.
@@ -493,14 +493,18 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   Pico.rom=rom;
   Pico.romsize=romsize;
 
+  PicoMemResetHooks();
+  PicoDmaHook = NULL;
+  PicoResetHook = NULL;
+
+  if (!(PicoMCD & 1))
+    PicoCartDetect();
+
   // setup correct memory map for loaded ROM
   if (PicoMCD & 1)
        PicoMemSetupCD();
   else PicoMemSetup();
   PicoMemReset();
-
-  if (!(PicoMCD & 1))
-    PicoCartDetect();
 
   return PicoReset(1);
 }
@@ -637,8 +641,6 @@ void PicoCartDetect(void)
   if (name_cmp("Virtua Racing") == 0)
   {
     PicoSVPInit();
-    PicoRead16Hook = PicoSVPRead16;
-    PicoWrite8Hook = PicoSVPWrite8;
   }
 }
 

@@ -229,8 +229,6 @@ void OtherWrite16(u32 a,u32 d)
   }
 #endif
 
-  PicoWrite8Hook(a,  d>>8, 16);
-  PicoWrite8Hook(a+1,d&0xff, 16);
+  PicoWrite16Hook(a, d, 16);
 }
-
 

@@ -17,7 +17,8 @@ int PicoSkipFrame=0; // skip rendering frame?
 int PicoRegionOverride = 0; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 int PicoAutoRgnOrder = 0;
 int emustatus = 0; // rapid_ym2612, multi_ym_updates
-void (*PicoWriteSound)(int len) = 0; // called once per frame at the best time to send sound buffer (PsndOut) to hardware
+void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
+void (*PicoResetHook)(void) = NULL;
 
 struct PicoSRAM SRam = {0,};
 int z80startCycle, z80stopCycle; // in 68k cycles
@@ -138,6 +139,8 @@ int PicoReset(int hard)
   Pico.video.status = 0x3408 | pal; // always set bits | vblank | pal
 
   PsndReset(); // pal must be known here
+
+  if (PicoResetHook) PicoResetHook();
 
   if (PicoMCD & 1) {
     PicoResetMCD(hard);

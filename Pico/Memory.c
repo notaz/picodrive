@@ -317,7 +317,6 @@ static void OtherWrite8End(u32 a,u32 d,int realsize)
     Pico.m.prot_bytes[(a>>2)&1] = (u8)d;
 }
 
-
 #include "MemoryCmn.c"
 
 
@@ -498,15 +497,26 @@ static void PicoWrite32(u32 a,u32 d)
 // -----------------------------------------------------------------
 
 // TODO: asm code
-u32  (*PicoRead16Hook)(u32 a, int realsize) = OtherRead16End;
-void (*PicoWrite8Hook)(u32 a, u32 d, int realsize) = OtherWrite8End;
+static void OtherWrite16End(u32 a,u32 d,int realsize)
+{
+  PicoWrite8Hook(a,  d>>8, realsize);
+  PicoWrite8Hook(a+1,d&0xff, realsize);
+}
 
-PICO_INTERNAL void PicoMemSetup(void)
+u32  (*PicoRead16Hook) (u32 a, int realsize) = OtherRead16End;
+void (*PicoWrite8Hook) (u32 a, u32 d, int realsize) = OtherWrite8End;
+void (*PicoWrite16Hook)(u32 a, u32 d, int realsize) = OtherWrite16End;
+
+PICO_INTERNAL void PicoMemResetHooks(void)
 {
   // default unmapped/cart specific handlers
   PicoRead16Hook = OtherRead16End;
   PicoWrite8Hook = OtherWrite8End;
+  PicoWrite16Hook = OtherWrite16End;
+}
 
+PICO_INTERNAL void PicoMemSetup(void)
+{
   // Setup memory callbacks:
 #ifdef EMU_C68K
   PicoCpuCM68k.checkpc=PicoCheckPc;

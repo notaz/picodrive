@@ -385,6 +385,7 @@ PICO_INTERNAL int PicoInitPc(unsigned int pc);
 PICO_INTERNAL_ASM unsigned int PicoRead32(unsigned int a);
 PICO_INTERNAL void PicoMemSetup(void);
 PICO_INTERNAL_ASM void PicoMemReset(void);
+PICO_INTERNAL void PicoMemResetHooks(void);
 PICO_INTERNAL int PadRead(int i);
 PICO_INTERNAL unsigned char z80_read(unsigned short a);
 #ifndef _USE_CZ80
@@ -395,7 +396,8 @@ PICO_INTERNAL unsigned short z80_read16(unsigned short a);
 PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data);
 #endif
 extern unsigned int (*PicoRead16Hook)(unsigned int a, int realsize);
-extern void (*PicoWrite8Hook)(unsigned int a,unsigned int d,int realsize);
+extern void (*PicoWrite8Hook) (unsigned int a,unsigned int d,int realsize);
+extern void (*PicoWrite16Hook)(unsigned int a,unsigned int d,int realsize);
 
 // cd/Memory.c
 PICO_INTERNAL void PicoMemSetupCD(void);
@@ -407,6 +409,7 @@ extern struct Pico Pico;
 extern struct PicoSRAM SRam;
 extern int emustatus;
 extern int z80startCycle, z80stopCycle; // in 68k cycles
+extern void (*PicoResetHook)(void);
 PICO_INTERNAL int CheckDMA(void);
 
 // cd/Pico.c
@@ -433,6 +436,7 @@ extern int PsndLen_exc_add;
 // VideoPort.c
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
+extern int (*PicoDmaHook)(unsigned int source, unsigned short **srcp, unsigned short **limitp);
 
 // Misc.c
 PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d);

@@ -22,6 +22,7 @@ typedef unsigned int   u32;
 #define UTYPES_DEFINED
 #endif
 
+int (*PicoDmaHook)(unsigned int source, unsigned short **srcp, unsigned short **limitp) = NULL;
 
 static __inline void AutoIncrement(void)
 {
@@ -104,7 +105,7 @@ static void DmaSlow(int len)
   if ((source&0xe00000)==0xe00000) { // Ram
     pd=(u16 *)(Pico.ram+(source&0xfffe));
     pdend=(u16 *)(Pico.ram+0x10000);
-  } else if(PicoMCD & 1) {
+  } else if (PicoMCD & 1) {
     elprintf(EL_VDPDMA, "DmaSlow CD, r3=%02x", Pico_mcd->s68k_regs[3]);
     if(source<0x20000) { // Bios area
       pd=(u16 *)(Pico_mcd->bios+(source&~1));
@@ -133,10 +134,12 @@ static void DmaSlow(int len)
       return;
     }
   } else {
-    if(source<Pico.romsize) { // Rom
+    if (source<Pico.romsize) { // Rom
       pd=(u16 *)(Pico.rom+(source&~1));
       pdend=(u16 *)(Pico.rom+Pico.romsize);
-    } else {
+    }
+    else if (PicoDmaHook && PicoDmaHook(source, &pd, &pdend));
+    else {
       elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: invalid src", Pico.video.type, source, a);
       return;
     }
