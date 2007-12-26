@@ -34,13 +34,16 @@ typedef struct
 		};
 	};
 	unsigned short stack[6];
+	unsigned int pmac_read[6];	// read modes/addrs for PM0-PM5
+	unsigned int pmac_write[6];	// write ...
 	//
 	#define SSP_PMC_HAVE_ADDR 1	// address written to PMAC, waiting for mode
+	#define SSP_PMC_SET 2		// PMAC is set
 	unsigned int emu_status;
-	unsigned int pad[10];
+	unsigned int pad[30];
 } ssp1601_t;
 
 
 void ssp1601_reset(ssp1601_t *ssp);
-void ssp1601_run(ssp1601_t *ssp, int cycles);
+void ssp1601_run(int cycles);
 

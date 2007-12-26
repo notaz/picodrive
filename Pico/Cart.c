@@ -496,6 +496,7 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   PicoMemResetHooks();
   PicoDmaHook = NULL;
   PicoResetHook = NULL;
+  PicoLineHook = NULL;
 
   if (!(PicoMCD & 1))
     PicoCartDetect();

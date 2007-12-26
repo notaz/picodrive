@@ -19,6 +19,7 @@ int PicoAutoRgnOrder = 0;
 int emustatus = 0; // rapid_ym2612, multi_ym_updates
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
+void (*PicoLineHook)(void) = NULL;
 
 struct PicoSRAM SRam = {0,};
 int z80startCycle, z80stopCycle; // in 68k cycles

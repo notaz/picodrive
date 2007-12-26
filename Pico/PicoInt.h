@@ -410,6 +410,7 @@ extern struct PicoSRAM SRam;
 extern int emustatus;
 extern int z80startCycle, z80stopCycle; // in 68k cycles
 extern void (*PicoResetHook)(void);
+extern void (*PicoLineHook)(void);
 PICO_INTERNAL int CheckDMA(void);
 
 // cd/Pico.c
@@ -476,23 +477,24 @@ PICO_INTERNAL void z80_exit(void);
 #define EL_LOGMASK 0
 #endif
 
-#define EL_HVCNT   0x0001 /* hv counter reads */
-#define EL_SR      0x0002 /* SR reads */
-#define EL_INTS    0x0004 /* ints and acks */
-#define EL_YM2612R 0x0008 /* 68k ym2612 reads */
-#define EL_INTSW   0x0010 /* log irq switching on/off */
-#define EL_ASVDP   0x0020 /* VDP accesses during active scan */
-#define EL_VDPDMA  0x0040 /* VDP DMA transfers and their timing */
-#define EL_BUSREQ  0x0080 /* z80 busreq r/w or reset w */
-#define EL_Z80BNK  0x0100 /* z80 i/o through bank area */
-#define EL_SRAMIO  0x0200 /* sram i/o */
-#define EL_EEPROM  0x0400 /* eeprom debug */
-#define EL_UIO     0x0800 /* unmapped i/o */
-#define EL_IO      0x1000 /* all i/o */
-#define EL_CDPOLL  0x2000 /* MCD: log poll detection */
+#define EL_HVCNT   0x00000001 /* hv counter reads */
+#define EL_SR      0x00000002 /* SR reads */
+#define EL_INTS    0x00000004 /* ints and acks */
+#define EL_YM2612R 0x00000008 /* 68k ym2612 reads */
+#define EL_INTSW   0x00000010 /* log irq switching on/off */
+#define EL_ASVDP   0x00000020 /* VDP accesses during active scan */
+#define EL_VDPDMA  0x00000040 /* VDP DMA transfers and their timing */
+#define EL_BUSREQ  0x00000080 /* z80 busreq r/w or reset w */
+#define EL_Z80BNK  0x00000100 /* z80 i/o through bank area */
+#define EL_SRAMIO  0x00000200 /* sram i/o */
+#define EL_EEPROM  0x00000400 /* eeprom debug */
+#define EL_UIO     0x00000800 /* unmapped i/o */
+#define EL_IO      0x00001000 /* all i/o */
+#define EL_CDPOLL  0x00002000 /* MCD: log poll detection */
+#define EL_SVP     0x00004000 /* SVP stuff */
 
-#define EL_STATUS  0x4000 /* status messages */
-#define EL_ANOMALY 0x8000 /* some unexpected conditions (during emulation) */
+#define EL_STATUS  0x40000000 /* status messages */
+#define EL_ANOMALY 0x80000000 /* some unexpected conditions (during emulation) */
 
 #if EL_LOGMASK
 extern void lprintf(const char *fmt, ...);
