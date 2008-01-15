@@ -437,7 +437,7 @@ extern int PsndLen_exc_add;
 // VideoPort.c
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
-extern int (*PicoDmaHook)(unsigned int source, unsigned short **srcp, unsigned short **limitp);
+extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp);
 
 // Misc.c
 PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d);

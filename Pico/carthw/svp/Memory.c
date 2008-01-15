@@ -21,7 +21,7 @@ unsigned int PicoSVPRead16(unsigned int a, int realsize)
   unsigned int d = 0;
 
   if ((a & 0xfe0000) == 0x300000)
-    *(u16 *)(svp->ram + (a&0x1fffe)) = d;
+    d = *(u16 *)(svp->dram + (a&0x1fffe));
 
   elprintf(EL_UIO, "SVP r%i: [%06x] %04x @%06x", realsize, a&0xffffff, d, SekPc);
 
@@ -40,7 +40,7 @@ void PicoSVPWrite16(unsigned int a, unsigned int d, int realsize)
   static int clearing_ram = 0;
 
   if ((a & 0xfe0000) == 0x300000)
-    *(u16 *)(svp->ram + (a&0x1fffe)) = d;
+    *(u16 *)(svp->dram + (a&0x1fffe)) = d;
 
   // debug: detect RAM clears..
   CLEAR_DETECT(0x0221dc, 0x0221f0, "SVP RAM CLEAR (1)");
@@ -49,5 +49,9 @@ void PicoSVPWrite16(unsigned int a, unsigned int d, int realsize)
   clearing_ram = 0;
 
   elprintf(EL_UIO, "SVP w%i: [%06x], %04x @%06x", realsize, a&0xffffff, d, SekPc);
+
+  // just guessing here
+       if (a == 0xa15002) svp->ssp1601.gr[SSP_XST].h = d;
+  else if (a == 0xa15006) svp->ssp1601.gr[SSP_PM0].h = d;
 }
 

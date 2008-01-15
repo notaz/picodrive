@@ -22,7 +22,7 @@ typedef unsigned int   u32;
 #define UTYPES_DEFINED
 #endif
 
-int (*PicoDmaHook)(unsigned int source, unsigned short **srcp, unsigned short **limitp) = NULL;
+int (*PicoDmaHook)(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp) = NULL;
 
 static __inline void AutoIncrement(void)
 {
@@ -138,7 +138,7 @@ static void DmaSlow(int len)
       pd=(u16 *)(Pico.rom+(source&~1));
       pdend=(u16 *)(Pico.rom+Pico.romsize);
     }
-    else if (PicoDmaHook && PicoDmaHook(source, &pd, &pdend));
+    else if (PicoDmaHook && PicoDmaHook(source, len, &pd, &pdend));
     else {
       elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: invalid src", Pico.video.type, source, a);
       return;

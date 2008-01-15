@@ -6,6 +6,7 @@ static void PicoSVPReset(void)
 {
 	elprintf(EL_SVP, "SVP reset");
 
+	memcpy(svp->iram_rom + 0x800, Pico.rom + 0x800, 0x20000 - 0x800);
 	ssp1601_reset(&svp->ssp1601);
 }
 
@@ -16,18 +17,17 @@ static void PicoSVPLine(void)
 	// OSC_NTSC / 3.0 / 60.0 / 262.0 ~= 1139
 	// OSC_PAL  / 3.0 / 50.0 / 312.0 ~= 1137
 	ssp1601_run(100);
-	exit(1);
 }
 
 
-static int PicoSVPDma(unsigned int source, unsigned short **srcp, unsigned short **limitp)
+static int PicoSVPDma(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp)
 {
 	if ((source & 0xfe0000) == 0x300000)
 	{
-		elprintf(EL_VDPDMA|EL_SVP, "SVP DmaSlow from %06x", source);
+		elprintf(EL_VDPDMA|EL_SVP, "SVP DmaSlow from %06x, len=%i", source, len);
 		source &= 0x1fffe;
-		*srcp = (unsigned short *)(svp->ram + source);
-		*limitp = (unsigned short *)(svp->ram + sizeof(svp->ram));
+		*srcp = (unsigned short *)(svp->dram + source);
+		*limitp = (unsigned short *)(svp->dram + sizeof(svp->dram));
 		return 1;
 	}
 

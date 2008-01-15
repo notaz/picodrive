@@ -3,8 +3,8 @@
 #include "svp/ssp16.h"
 
 typedef struct {
-	unsigned char ram[0x20000];
-	// TODO: IRAM?
+	unsigned char iram_rom[0x20000]; // IRAM (0-0x7ff) and program ROM (0x800-0x1ffff)
+	unsigned char dram[0x20000];
 	ssp1601_t ssp1601;
 } svp_t;
 
