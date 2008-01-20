@@ -16,7 +16,7 @@ static void PicoSVPLine(void)
 	// ???
 	// OSC_NTSC / 3.0 / 60.0 / 262.0 ~= 1139
 	// OSC_PAL  / 3.0 / 50.0 / 312.0 ~= 1137
-	ssp1601_run(100);
+	ssp1601_run(800);
 }
 
 
@@ -26,6 +26,7 @@ static int PicoSVPDma(unsigned int source, int len, unsigned short **srcp, unsig
 	{
 		elprintf(EL_VDPDMA|EL_SVP, "SVP DmaSlow from %06x, len=%i", source, len);
 		source &= 0x1fffe;
+		source -= 2;
 		*srcp = (unsigned short *)(svp->dram + source);
 		*limitp = (unsigned short *)(svp->dram + sizeof(svp->dram));
 		return 1;

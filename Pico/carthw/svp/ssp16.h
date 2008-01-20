@@ -37,8 +37,10 @@ typedef struct
 	unsigned int pmac_read[6];	// read modes/addrs for PM0-PM5
 	unsigned int pmac_write[6];	// write ...
 	//
-	#define SSP_PMC_HAVE_ADDR 1	// address written to PMAC, waiting for mode
-	#define SSP_PMC_SET 2		// PMAC is set
+	#define SSP_PMC_HAVE_ADDR	0x0001	// address written to PMAC, waiting for mode
+	#define SSP_PMC_SET		0x0002	// PMAC is set
+	#define SSP_30FE06_WAIT		0x4000	// ssp tight loops on 30FE08 to become non-zero
+	#define SSP_30FE08_WAIT		0x8000	// same for 30FE06
 	unsigned int emu_status;
 	unsigned int pad[30];
 } ssp1601_t;
