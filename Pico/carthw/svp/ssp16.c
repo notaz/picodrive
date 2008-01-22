@@ -149,6 +149,8 @@
  * mod cond, op
  *   mod cond, shr  does arithmetic shift
  *
+ * 'ld -, AL' and probably 'ld AL, -' are for dummy assigns
+ *
  * memory map:
  * 000000 - 1fffff   ROM, accessable by both
  * 200000 - 2fffff   unused?
@@ -161,6 +163,12 @@
  * 30fe02 - 0 if SVP busy, 1 if done (set by SVP, checked and cleared by 68k)
  * 30fe06 - also sync related.
  * 30fe08 - job number [1-12] for SVP. 0 means no job. Set by 68k, read-cleared by SVP.
+ *
+ * TODO:
+ * + figure out if 'op A, P' is 32bit (nearly sure it is)
+ * * what exactly is AL?
+ * * does mld, mpya load their operands into X and Y?
+ * * OP simm
  *
  * misc:
  * pressing all buttons while resetting game will kick into test mode
@@ -225,6 +233,11 @@
 
 // it seems SVP code never checks for L and OV, so we leave them out.
 // rST |= (t>>4)&SSP_FLAG_L;
+#define UPD_LZVN \
+	rST &= ~(SSP_FLAG_L|SSP_FLAG_Z|SSP_FLAG_V|SSP_FLAG_N); \
+	if (!rA32) rST |= SSP_FLAG_Z; \
+	else rST |= (rA32>>16)&SSP_FLAG_N;
+
 #define UPD_t_LZVN \
 	rST &= ~(SSP_FLAG_L|SSP_FLAG_Z|SSP_FLAG_V|SSP_FLAG_N); \
 	if (!t) rST |= SSP_FLAG_Z; \
@@ -246,15 +259,30 @@
 #define OP_LDA(x) \
 	ssp->gr[SSP_A].h = x
 
+#define OP_LDA32(x) \
+	ssp->gr[SSP_A].v = x
+
 #define OP_SUBA(x) { \
 	u32 t = (ssp->gr[SSP_A].v >> 16) - (x); \
 	UPD_t_LZVN \
 	ssp->gr[SSP_A].h = t; \
 }
 
+#define OP_SUBA32(x) { \
+	ssp->gr[SSP_A].v -= (x); \
+	UPD_LZVN \
+}
+
 #define OP_CMPA(x) { \
 	u32 t = (ssp->gr[SSP_A].v >> 16) - (x); \
 	UPD_t_LZVN \
+}
+
+#define OP_CMPA32(x) { \
+	u32 t = ssp->gr[SSP_A].v - (x); \
+	rST &= ~(SSP_FLAG_L|SSP_FLAG_Z|SSP_FLAG_V|SSP_FLAG_N); \
+	if (!t) rST |= SSP_FLAG_Z; \
+	else    rST |= (t>>16)&SSP_FLAG_N; \
 }
 
 #define OP_ADDA(x) { \
@@ -263,17 +291,42 @@
 	ssp->gr[SSP_A].h = t; \
 }
 
+#define OP_ADDA32(x) { \
+	ssp->gr[SSP_A].v += (x); \
+	UPD_LZVN \
+}
+
 #define OP_ANDA(x) \
 	ssp->gr[SSP_A].v &= (x) << 16; \
+	UPD_ACC_ZN
+
+#define OP_ANDA32(x) \
+	ssp->gr[SSP_A].v &= (x); \
 	UPD_ACC_ZN
 
 #define OP_ORA(x) \
 	ssp->gr[SSP_A].v |= (x) << 16; \
 	UPD_ACC_ZN
 
+#define OP_ORA32(x) \
+	ssp->gr[SSP_A].v |= (x); \
+	UPD_ACC_ZN
+
 #define OP_EORA(x) \
 	ssp->gr[SSP_A].v ^= (x) << 16; \
 	UPD_ACC_ZN
+
+#define OP_EORA32(x) \
+	ssp->gr[SSP_A].v ^= (x); \
+	UPD_ACC_ZN
+
+
+#define OP_CHECK32(OP) \
+	if ((op & 0x0f) == SSP_P) { /* A <- P */ \
+	read_P(); /* update P */ \
+	OP(ssp->gr[SSP_P].v); \
+	break; \
+}
 
 
 static ssp1601_t *ssp = NULL;
@@ -374,7 +427,15 @@ static void debug_dump2file(const char *fname, void *mem, int len);
 
 static u32 pm_io(int reg, int write, u32 d)
 {
-	if (ssp->emu_status & SSP_PMC_SET) {
+	if (ssp->emu_status & SSP_PMC_SET)
+	{
+		// this MUST be blind r or w
+		if ((*(PC-1) & 0xff0f) && (*(PC-1) & 0xfff0)) {
+			elprintf(EL_SVP|EL_ANOMALY, "FIXME: tried to set PM%i (%c) with non-blind i/o %08x @ %04x",
+				reg, write ? 'w' : 'r', rPMC.v, GET_PPC_OFFS());
+			ssp->emu_status &= ~SSP_PMC_SET;
+			return 0;
+		}
 		elprintf(EL_SVP, "PM%i (%c) set to %08x @ %04x", reg, write ? 'w' : 'r', rPMC.v, GET_PPC_OFFS());
 		ssp->pmac_read[write ? reg + 6 : reg] = rPMC.v;
 		ssp->emu_status &= ~SSP_PMC_SET;
@@ -401,7 +462,11 @@ static u32 pm_io(int reg, int write, u32 d)
 	}
 
 	// just in case
-	ssp->emu_status &= ~SSP_PMC_HAVE_ADDR;
+	if (ssp->emu_status & SSP_PMC_HAVE_ADDR) {
+		elprintf(EL_SVP|EL_ANOMALY, "FIXME: PM%i (%c) with only addr set @ %04x",
+			reg, write ? 'w' : 'r', GET_PPC_OFFS());
+		ssp->emu_status &= ~SSP_PMC_HAVE_ADDR;
+	}
 
 //	if (ssp->pmac_read[reg] != 0)
 	if (reg == 4 || (rST & 0x60))
@@ -414,23 +479,23 @@ static u32 pm_io(int reg, int write, u32 d)
 			int mode = ssp->pmac_write[reg]&0xffff;
 			int addr = ssp->pmac_write[reg]>>16;
 			switch (mode) {
-				case 0x0018: elprintf(EL_SVP, "ssp DRAM w [%06x] %04x", CADDR, d);
+				case 0x0018: elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x", reg, CADDR, d);
 				             dram[addr] = d;
 					     break;
-				case 0x0418: elprintf(EL_SVP, "ssp DRAM w [%06x] %04x (overwr)", CADDR, d);
+				case 0x0418: elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (overwr)", reg, CADDR, d);
 				             overwite_write(dram[addr], d);
 					     break;
-				case 0x0818: elprintf(EL_SVP, "ssp DRAM w [%06x] %04x (inc 1)", CADDR, d);
+				case 0x0818: elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (inc 1)", reg, CADDR, d);
 				             dram[addr] = d;
 					     ssp->pmac_write[reg] += 1<<16;
 					     break;
 				case 0x081c: iram_write(addr, d, reg, 1); break; // checked: used by code @ 0902
 				case 0x101c: iram_write(addr, d, reg, 2); break; // checked: used by code @ 3b7c
-				case 0x4018: elprintf(EL_SVP, "ssp DRAM w [%06x] %04x (cell inc)", CADDR, d);
+				case 0x4018: elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (cell inc)", reg, CADDR, d);
 				             dram[addr] = d;
 					     ssp->pmac_write[reg] += (addr&1) ? (31<<16) : (1<<16);
 					     break;
-				case 0x4418: elprintf(EL_SVP, "ssp DRAM w [%06x] %04x (overwr, cell inc)", CADDR, d);
+				case 0x4418: elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (overwr, cell inc)", reg, CADDR, d);
 				             overwite_write(dram[addr], d);
 					     ssp->pmac_write[reg] += (addr&1) ? (31<<16) : (1<<16);
 					     break;
@@ -454,7 +519,7 @@ static u32 pm_io(int reg, int write, u32 d)
 				case 0x0018: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x", CADDR, dram[addr]);
 				             d = dram[addr]; // checked
 				             break;
-				case 0x0818: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (inc 1)", CADDR, dram[addr]);
+				case 0x0818: elprintf(EL_SVP, "ssp PM%i DRAM r [%06x] %04x (inc 1)", reg, CADDR, dram[addr]);
 				             ssp->pmac_read[reg] += 1<<16;
 				             d = dram[addr];
 				             break;
@@ -492,8 +557,7 @@ static u32 read_PM0(void)
 {
 	u32 d = pm_io(0, 0, 0);
 	if (d != (u32)-1) return d;
-	if (GET_PPC_OFFS() != 0x800 || rPM0 != 0) // debug
-		elprintf(EL_SVP, "PM0 raw r %04x @ %04x", rPM0, GET_PPC_OFFS());
+	elprintf(EL_SVP, "PM0 raw r %04x @ %04x", rPM0, GET_PPC_OFFS());
 	d = rPM0;
 	if (!(d & 2) && (GET_PPC_OFFS() == 0x800 || GET_PPC_OFFS() == 0x1851E)) {
 		ssp->emu_status |= SSP_WAIT_PM0; elprintf(EL_SVP, "det TIGHT loop: PM0");
@@ -598,15 +662,16 @@ static void write_PM4(u32 d)
 // 14
 static u32 read_PMC(void)
 {
-	elprintf(EL_SVP, "PMC r %08x @ %04x", rPMC.v, GET_PPC_OFFS());
 	if (ssp->emu_status & SSP_PMC_HAVE_ADDR) {
 		if (ssp->emu_status & SSP_PMC_SET)
 			elprintf(EL_ANOMALY|EL_SVP, "prev PMC not used @ %04x", GET_PPC_OFFS());
 		ssp->emu_status |= SSP_PMC_SET;
 		ssp->emu_status &= ~SSP_PMC_HAVE_ADDR;
+		elprintf(EL_SVP, "PMC r m %04x @ %04x", rPMC.l, GET_PPC_OFFS());
 		return rPMC.l;
 	} else {
 		ssp->emu_status |= SSP_PMC_HAVE_ADDR;
+		elprintf(EL_SVP, "PMC r a %04x @ %04x", rPMC.h, GET_PPC_OFFS());
 		return rPMC.h;
 	}
 }
@@ -619,9 +684,11 @@ static void write_PMC(u32 d)
 		ssp->emu_status |= SSP_PMC_SET;
 		ssp->emu_status &= ~SSP_PMC_HAVE_ADDR;
 		rPMC.l = d;
+		elprintf(EL_SVP, "PMC w m %04x @ %04x", rPMC.l, GET_PPC_OFFS());
 	} else {
 		ssp->emu_status |= SSP_PMC_HAVE_ADDR;
 		rPMC.h = d;
+		elprintf(EL_SVP, "PMC w a %04x @ %04x", rPMC.h, GET_PPC_OFFS());
 	}
 }
 
@@ -629,13 +696,18 @@ static void write_PMC(u32 d)
 static u32 read_AL(void)
 {
 	// TODO: figure out what's up with those blind reads..
-	if (*(PC-1) == 0x000f)
-		elprintf(EL_SVP|EL_ANOMALY, "ssp unhandled AL blind read..");
+	if (*(PC-1) == 0x000f) {
+		elprintf(EL_SVP|EL_ANOMALY, "ssp dummy PM assign %08x, ST=%04x @ %04x", rPMC.v, rST, GET_PPC_OFFS());
+		ssp->emu_status &= ~(SSP_PMC_SET|SSP_PMC_HAVE_ADDR); // ?
+	} else {
+		//elprintf(EL_SVP, "ssp AL read, ST=%04x @ %04x", rST, GET_PPC_OFFS());
+	}
 	return rAL;
 }
 
 static void write_AL(u32 d)
 {
+	//elprintf(EL_SVP, "ssp AL write %04x, ST=%04x @ %04x", d, rST, GET_PPC_OFFS());
 	rAL = d;
 }
 
@@ -1065,12 +1137,12 @@ void ssp1601_run(int cycles)
 				break;
 
 			// OP a, s
-			case 0x10: tmpv = REG_READ(op & 0x0f); OP_SUBA(tmpv); break;
-			case 0x30: tmpv = REG_READ(op & 0x0f); OP_CMPA(tmpv); break;
-			case 0x40: tmpv = REG_READ(op & 0x0f); OP_ADDA(tmpv); break;
-			case 0x50: tmpv = REG_READ(op & 0x0f); OP_ANDA(tmpv); break;
-			case 0x60: tmpv = REG_READ(op & 0x0f); OP_ORA (tmpv); break;
-			case 0x70: tmpv = REG_READ(op & 0x0f); OP_EORA(tmpv); break;
+			case 0x10: OP_CHECK32(OP_SUBA32); tmpv = REG_READ(op & 0x0f); OP_SUBA(tmpv); break;
+			case 0x30: OP_CHECK32(OP_CMPA32); tmpv = REG_READ(op & 0x0f); OP_CMPA(tmpv); break;
+			case 0x40: OP_CHECK32(OP_ADDA32); tmpv = REG_READ(op & 0x0f); OP_ADDA(tmpv); break;
+			case 0x50: OP_CHECK32(OP_ANDA32); tmpv = REG_READ(op & 0x0f); OP_ANDA(tmpv); break;
+			case 0x60: OP_CHECK32(OP_ORA32 ); tmpv = REG_READ(op & 0x0f); OP_ORA (tmpv); break;
+			case 0x70: OP_CHECK32(OP_EORA32); tmpv = REG_READ(op & 0x0f); OP_EORA(tmpv); break;
 
 			// OP a, (ri)
 			case 0x11: tmpv = ptr1_read(op); OP_SUBA(tmpv); break;
