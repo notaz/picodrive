@@ -66,7 +66,9 @@
  *   size: 16?
  *   desc: Programmable Memory access register.
  *         On reset, or when one (both?) GP0 bits are clear,
- *         acts as some additional status reg?
+ *         acts as status for XST, mapped at 015004 at 68k side:
+ *         bit0: ssp has written something to XST (cleared when 015004 is read)
+ *         bit1: 68k has written something through a1500{0|2} (cleared on PM0 read)
  *
  * 9. "PM1"
  *   size: 16?
@@ -80,8 +82,9 @@
  *
  * 11. "XST"
  *   size: 16?
- *   desc: eXternal STate. Mapped to a15000 at 68k side.
+ *   desc: eXternal STate. Mapped to a15000 and a15002 at 68k side.
  *         Can be programmed as PMAR? (only seen in test mode code)
+ *         Affects PM0 when written to?
  *
  * 12. "PM4"
  *   size: 16?
@@ -128,6 +131,8 @@
  *
  * Instruction notes
  *
+ * ld a, * doesn't affect flags! (e: A_LAW.SC, Div_c_dp.sc)
+ *
  * mld (rj), (ri) [, b]
  *   operation: A = 0; P = (rj) * (ri)
  *   notes: based on IIR_4B.SC sample. flags? what is b???
@@ -141,19 +146,24 @@
  *   name: multiply and subtract?
  *   notes: not used by VR code.
  *
- * ld a, * doesn't affect flags! (e: A_LAW.SC, Div_c_dp.sc)
+ * mod cond, op
+ *   mod cond, shr  does arithmetic shift
  *
  * memory map:
  * 000000 - 1fffff   ROM, accessable by both
  * 200000 - 2fffff   unused?
- * 300000 - 30ffff   DRAM, both
- * 310000 - 31ffff   cleared, but never(?) accessed?
+ * 300000 - 31ffff   DRAM, both
  * 320000 - 38ffff   unused?
  * 390000 - 3907ff   IRAM. can only be accessed by ssp?
+ * 390000 - 39ffff   similar mapping to "cell arrange" in Sega CD, 68k only?
+ * 3a0000 - 3affff   similar mapping to "cell arrange" in Sega CD, a bit different
  *
  * 30fe02 - 0 if SVP busy, 1 if done (set by SVP, checked and cleared by 68k)
  * 30fe06 - also sync related.
- * 30fe08 - job number [1-12] for SVP. 0 means nothing. Set by 68k, read-cleared by SVP.
+ * 30fe08 - job number [1-12] for SVP. 0 means no job. Set by 68k, read-cleared by SVP.
+ *
+ * misc:
+ * pressing all buttons while resetting game will kick into test mode
  *
  * Assumptions in this code
  *   P is not directly writeable
@@ -202,31 +212,31 @@
 }
 
 // flags
-#define FLAG_L (1<<0xc)
-#define FLAG_Z (1<<0xd)
-#define FLAG_V (1<<0xe)
-#define FLAG_N (1<<0xf)
+#define SSP_FLAG_L (1<<0xc)
+#define SSP_FLAG_Z (1<<0xd)
+#define SSP_FLAG_V (1<<0xe)
+#define SSP_FLAG_N (1<<0xf)
 
 // update ZN according to 32bit ACC.
 #define UPD_ACC_ZN \
-	rST &= ~(FLAG_Z|FLAG_N); \
-	if (!rA32) rST |= FLAG_Z; \
-	else rST |= (rA32>>16)&FLAG_N;
+	rST &= ~(SSP_FLAG_Z|SSP_FLAG_N); \
+	if (!rA32) rST |= SSP_FLAG_Z; \
+	else rST |= (rA32>>16)&SSP_FLAG_N;
 
 // it seems SVP code never checks for L and OV, so we leave them out.
-// rST |= (t>>4)&FLAG_L;
+// rST |= (t>>4)&SSP_FLAG_L;
 #define UPD_t_LZVN \
-	rST &= ~(FLAG_L|FLAG_Z|FLAG_V|FLAG_N); \
-	if (!t) rST |= FLAG_Z; \
-	else    rST |= t&FLAG_N; \
+	rST &= ~(SSP_FLAG_L|SSP_FLAG_Z|SSP_FLAG_V|SSP_FLAG_N); \
+	if (!t) rST |= SSP_FLAG_Z; \
+	else    rST |= t&SSP_FLAG_N; \
 
 // standard cond processing.
 // again, only Z and N is checked, as SVP doesn't seem to use any other conds.
 #define COND_CHECK \
 	switch (op&0xf0) { \
 		case 0x00: cond = 1; break; /* always true */ \
-		case 0x50: cond = !((rST ^ (op<<5)) & FLAG_Z); break; /* Z matches f(?) bit */ \
-		case 0x70: cond = !((rST ^ (op<<7)) & FLAG_N); break; /* N matches f(?) bit */ \
+		case 0x50: cond = !((rST ^ (op<<5)) & SSP_FLAG_Z); break; /* Z matches f(?) bit */ \
+		case 0x70: cond = !((rST ^ (op<<7)) & SSP_FLAG_N); break; /* N matches f(?) bit */ \
 		default:elprintf(EL_SVP, "unimplemented cond @ %04x", GET_PPC_OFFS()); break; \
 	}
 
@@ -354,6 +364,14 @@ int lil[32] = { 0, }, lilp = 0;
 
 static void debug_dump2file(const char *fname, void *mem, int len);
 
+#define overwite_write(dst, d) \
+{ \
+	if (d & 0xf000) { dst &= ~0xf000; dst |= d & 0xf000; } \
+	if (d & 0x0f00) { dst &= ~0x0f00; dst |= d & 0x0f00; } \
+	if (d & 0x00f0) { dst &= ~0x00f0; dst |= d & 0x00f0; } \
+	if (d & 0x000f) { dst &= ~0x000f; dst |= d & 0x000f; } \
+}
+
 static u32 pm_io(int reg, int write, u32 d)
 {
 	if (ssp->emu_status & SSP_PMC_SET) {
@@ -389,22 +407,31 @@ static u32 pm_io(int reg, int write, u32 d)
 	if (reg == 4 || (rST & 0x60))
 	{
 		#define CADDR ((((mode<<16)&0x7f0000)|addr)<<1)
+		unsigned short *dram = (unsigned short *)svp->dram;
 		if (write)
 		{
+			/* TODO: 0c18 mode? */
 			int mode = ssp->pmac_write[reg]&0xffff;
 			int addr = ssp->pmac_write[reg]>>16;
 			switch (mode) {
 				case 0x0018: elprintf(EL_SVP, "ssp DRAM w [%06x] %04x", CADDR, d);
-				             ((unsigned short *)svp->dram)[addr] = d;
+				             dram[addr] = d;
+					     break;
+				case 0x0418: elprintf(EL_SVP, "ssp DRAM w [%06x] %04x (overwr)", CADDR, d);
+				             overwite_write(dram[addr], d);
 					     break;
 				case 0x0818: elprintf(EL_SVP, "ssp DRAM w [%06x] %04x (inc 1)", CADDR, d);
-				             ((unsigned short *)svp->dram)[addr] = d;
+				             dram[addr] = d;
 					     ssp->pmac_write[reg] += 1<<16;
 					     break;
 				case 0x081c: iram_write(addr, d, reg, 1); break; // checked: used by code @ 0902
 				case 0x101c: iram_write(addr, d, reg, 2); break; // checked: used by code @ 3b7c
 				case 0x4018: elprintf(EL_SVP, "ssp DRAM w [%06x] %04x (cell inc)", CADDR, d);
-				             ((unsigned short *)svp->dram)[addr] = d;
+				             dram[addr] = d;
+					     ssp->pmac_write[reg] += (addr&1) ? (31<<16) : (1<<16);
+					     break;
+				case 0x4418: elprintf(EL_SVP, "ssp DRAM w [%06x] %04x (overwr, cell inc)", CADDR, d);
+				             overwite_write(dram[addr], d);
 					     ssp->pmac_write[reg] += (addr&1) ? (31<<16) : (1<<16);
 					     break;
 				default:     elprintf(EL_SVP|EL_ANOMALY, "ssp PM%i unhandled write mode %04x, [%06x] %04x @ %04x",
@@ -415,33 +442,33 @@ static u32 pm_io(int reg, int write, u32 d)
 		{
 			int mode = ssp->pmac_read[reg]&0xffff;
 			int addr = ssp->pmac_read[reg]>>16;
+			if ((mode & 0xfff0) == 0x0800) { // ROM, inc 1, verified to be correct
+				elprintf(EL_SVP, "ssp ROM  r [%06x] %04x", CADDR,
+					((unsigned short *)Pico.rom)[addr|((mode&0xf)<<16)]);
+				ssp->pmac_read[reg] += 1<<16;
+				d = ((unsigned short *)Pico.rom)[addr|((mode&0xf)<<16)];
+				goto ext_io_end;
+			}
+
 			switch (mode) {
-				case 0x0807:
-				case 0x0808:
-				case 0x0809: elprintf(EL_SVP, "ssp ROM  r [%06x] %04x", CADDR,
-							((unsigned short *)Pico.rom)[addr|((mode&0xf)<<16)]);
-				             // possibly correct, the first word read is some sort of counter, sane values in ROM
+				case 0x0018: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x", CADDR, dram[addr]);
+				             d = dram[addr]; // checked
+				             break;
+				case 0x0818: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (inc 1)", CADDR, dram[addr]);
 				             ssp->pmac_read[reg] += 1<<16;
-				             d = ((unsigned short *)Pico.rom)[addr|((mode&0xf)<<16)];
+				             d = dram[addr];
 				             break;
-				case 0x0018: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x", CADDR, ((unsigned short *)svp->dram)[addr]);
-				             d = ((unsigned short *)svp->dram)[addr]; // checked
-				             break;
-				case 0x0818: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (inc 1)", CADDR, ((unsigned short *)svp->dram)[addr]);
-				             ssp->pmac_read[reg] += 1<<16;
-				             d =  ((unsigned short *)svp->dram)[addr];
-				             break;
-				case 0x3018: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (inc 32)", CADDR, ((unsigned short *)svp->dram)[addr]);
+				case 0x3018: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (inc 32)", CADDR, dram[addr]);
 				             ssp->pmac_read[reg] += 32<<16;
-				             d = ((unsigned short *)svp->dram)[addr];
+				             d = dram[addr];
 				             break;
-				case 0xa818: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (dec 16)", CADDR, ((unsigned short *)svp->dram)[addr]);
+				case 0xa818: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (dec 16)", CADDR, dram[addr]);
 				             ssp->pmac_read[reg] -= 16<<16;
-				             d = ((unsigned short *)svp->dram)[addr];
+				             d = dram[addr];
 				             break;
-				case 0xb818: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (dec 128?)", CADDR, ((unsigned short *)svp->dram)[addr]);
+				case 0xb818: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (dec 128?)", CADDR, dram[addr]);
 				             ssp->pmac_read[reg] -= 128<<16;
-				             d = ((unsigned short *)svp->dram)[addr];
+				             d = dram[addr];
 				             break;
 				default:     elprintf(EL_SVP|EL_ANOMALY, "ssp PM%i unhandled read  mode %04x, [%06x] @ %04x",
 							reg, mode, CADDR, GET_PPC_OFFS());
@@ -450,6 +477,7 @@ static u32 pm_io(int reg, int write, u32 d)
 			}
 		}
 
+ext_io_end:
 		// PMC value corresponds to last PMR accessed (not sure).
 		rPMC.v = ssp->pmac_read[write ? reg + 6 : reg];
 
@@ -466,7 +494,12 @@ static u32 read_PM0(void)
 	if (d != (u32)-1) return d;
 	if (GET_PPC_OFFS() != 0x800 || rPM0 != 0) // debug
 		elprintf(EL_SVP, "PM0 raw r %04x @ %04x", rPM0, GET_PPC_OFFS());
-	return rPM0;
+	d = rPM0;
+	if (!(d & 2) && (GET_PPC_OFFS() == 0x800 || GET_PPC_OFFS() == 0x1851E)) {
+		ssp->emu_status |= SSP_WAIT_PM0; elprintf(EL_SVP, "det TIGHT loop: PM0");
+	}
+	rPM0 &= ~2; // ?
+	return d;
 }
 
 static void write_PM0(u32 d)
@@ -474,7 +507,7 @@ static void write_PM0(u32 d)
 	u32 r = pm_io(0, 1, d);
 	if (r != (u32)-1) return;
 	elprintf(EL_SVP, "PM0 raw w %04x @ %04x", d, GET_PPC_OFFS());
-	// rPM0 = d; // ignore
+	rPM0 = d;
 }
 
 // 9
@@ -533,6 +566,7 @@ static void write_XST(u32 d)
 	if (r != (u32)-1) return;
 
 	elprintf(EL_SVP, "XST raw w %04x @ %04x", d, GET_PPC_OFFS());
+	rPM0 |= 1;
 	rXST = d;
 }
 
@@ -542,8 +576,8 @@ static u32 read_PM4(void)
 	u32 d = pm_io(4, 0, 0);
 	if (d == 0) {
 		switch (GET_PPC_OFFS()) {
-			case 0x0854: ssp->emu_status |= SSP_30FE08_WAIT; elprintf(EL_SVP, "det TIGHT loop: [30fe08]"); break;
-			case 0x4f12: ssp->emu_status |= SSP_30FE06_WAIT; elprintf(EL_SVP, "det TIGHT loop: [30fe06]"); break;
+			case 0x0854: ssp->emu_status |= SSP_WAIT_30FE08; elprintf(EL_SVP, "det TIGHT loop: [30fe08]"); break;
+			case 0x4f12: ssp->emu_status |= SSP_WAIT_30FE06; elprintf(EL_SVP, "det TIGHT loop: [30fe06]"); break;
 		}
 	}
 	if (d != (u32)-1) return d;
@@ -595,6 +629,8 @@ static void write_PMC(u32 d)
 static u32 read_AL(void)
 {
 	// TODO: figure out what's up with those blind reads..
+	if (*(PC-1) == 0x000f)
+		elprintf(EL_SVP|EL_ANOMALY, "ssp unhandled AL blind read..");
 	return rAL;
 }
 
@@ -804,8 +840,8 @@ static void debug_dump(void)
 	printf("PC:    %04x  (%04x)                P: %08x\n", GET_PC(), GET_PC() << 1, ssp->gr[SSP_P].v);
 	printf("PM0:   %04x  PM1: %04x  PM2: %04x\n", rPM0, rPM1, rPM2);
 	printf("XST:   %04x  PM4: %04x  PMC: %08x\n", rXST, rPM4, ssp->gr[SSP_PMC].v);
-	printf(" ST:   %04x  %c%c%c%c,  GP0_0 %i,  GP0_1 %i\n", rST, rST&FLAG_N?'N':'n', rST&FLAG_V?'V':'v',
-		rST&FLAG_Z?'Z':'z', rST&FLAG_L?'L':'l', (rST>>5)&1, (rST>>6)&1);
+	printf(" ST:   %04x  %c%c%c%c,  GP0_0 %i,  GP0_1 %i\n", rST, rST&SSP_FLAG_N?'N':'n', rST&SSP_FLAG_V?'V':'v',
+		rST&SSP_FLAG_Z?'Z':'z', rST&SSP_FLAG_L?'L':'l', (rST>>5)&1, (rST>>6)&1);
 	printf("STACK: %i %04x %04x %04x %04x %04x %04x\n", rSTACK, ssp->stack[0], ssp->stack[1],
 		ssp->stack[2], ssp->stack[3], ssp->stack[4], ssp->stack[5]);
 	printf("r0-r2: %02x %02x %02x  r4-r6: %02x %02x %02x\n", rIJ[0], rIJ[1], rIJ[2], rIJ[4], rIJ[5], rIJ[6]);
@@ -900,9 +936,10 @@ void ssp1601_run(int cycles)
 {
 	SET_PC(rPC);
 	g_cycles = cycles;
-//running = 0;
 
-	while (g_cycles > 0 && !(ssp->emu_status&0xc000))
+//if (Pico.m.frame_count == 480) running = 0;
+
+	while (g_cycles > 0 && !(ssp->emu_status & SSP_WAIT_MASK))
 	{
 		int op;
 		u32 tmpv;
@@ -983,11 +1020,11 @@ void ssp1601_run(int cycles)
 				COND_CHECK
 				if (cond) {
 					switch (op & 7) {
-						case 2: rA32 >>= 1; break; // shr
+						case 2: rA32 = (signed int)rA32 >> 1; break; // shr (arithmetic)
 						case 3: rA32 <<= 1; break; // shl
-						case 6: rA32 = -(int)rA32; break; // neg
-						case 7: if ((int)rA32 < 0) rA32 = -(int)rA32; break; // abs
-						default: elprintf(EL_SVP, "ssp16: unhandled mod %i @ %04x", op&7, GET_PPC_OFFS());
+						case 6: rA32 = -(signed int)rA32; break; // neg
+						case 7: if ((int)rA32 < 0) rA32 = -(signed int)rA32; break; // abs
+						default: elprintf(EL_SVP, "ssp16: FIXME unhandled mod %i @ %04x", op&7, GET_PPC_OFFS());
 					}
 					UPD_ACC_ZN // ?
 				}
@@ -1012,7 +1049,7 @@ void ssp1601_run(int cycles)
 				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp16: FIXME: no b bit @ %04x", GET_PPC_OFFS());
 				read_P(); // update P
 				ssp->gr[SSP_A].v += ssp->gr[SSP_P].v; // maybe only upper word?
-//				UPD_ACC_ZN // ?
+				UPD_ACC_ZN // ?
 				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
 				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
 				break;
@@ -1086,7 +1123,7 @@ void ssp1601_run(int cycles)
 			case 0x7c: OP_EORA(op & 0xff); break;
 
 			default:
-				elprintf(EL_ANOMALY|EL_SVP, "ssp16: unhandled op %04x @ %04x", op, GET_PPC_OFFS());
+				elprintf(EL_ANOMALY|EL_SVP, "ssp16: FIXME unhandled op %04x @ %04x", op, GET_PPC_OFFS());
 				break;
 		}
 		g_cycles--;

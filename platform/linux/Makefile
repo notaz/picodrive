@@ -1,7 +1,7 @@
 
 # settings
-#use_musashi = 1
-use_fame = 1
+use_musashi = 1
+#use_fame = 1
 #use_mz80 = 1
 
 # profile = 1

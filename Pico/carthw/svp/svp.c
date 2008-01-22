@@ -17,6 +17,11 @@ static void PicoSVPLine(void)
 	// OSC_NTSC / 3.0 / 60.0 / 262.0 ~= 1139
 	// OSC_PAL  / 3.0 / 50.0 / 312.0 ~= 1137
 	ssp1601_run(800);
+
+	// test mode
+	//if (Pico.m.frame_count == 13) PicoPad[0] |= 0xff;
+	// pushing start
+	//if (Pico.m.frame_count & 4) PicoPad[0] |= 0x80;
 }
 
 
@@ -31,6 +36,8 @@ static int PicoSVPDma(unsigned int source, int len, unsigned short **srcp, unsig
 		*limitp = (unsigned short *)(svp->dram + sizeof(svp->dram));
 		return 1;
 	}
+	else
+		elprintf(EL_VDPDMA|EL_SVP|EL_ANOMALY, "SVP FIXME unhandled DmaSlow from %06x, len=%i", source, len);
 
 	return 0;
 }

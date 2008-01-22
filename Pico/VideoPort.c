@@ -41,7 +41,7 @@ static void VideoWrite(u16 d)
     case 3: Pico.m.dirtyPal = 1;
             Pico.cram [(a>>1)&0x003f]=d; break; // wraps (Desert Strike)
     case 5: Pico.vsram[(a>>1)&0x003f]=d; break;
-    default:elprintf(EL_ANOMALY, "VDP write %04x with bad type %i", d, Pico.video.type); break;
+    //default:elprintf(EL_ANOMALY, "VDP write %04x with bad type %i", d, Pico.video.type); break;
   }
 
   //dprintf("w[%i] @ %04x, inc=%i [%i|%i]", Pico.video.type, a, Pico.video.reg[0xf], Pico.m.scanline, SekCyclesDone());
