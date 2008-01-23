@@ -136,7 +136,6 @@
  * mld (rj), (ri) [, b]
  *   operation: A = 0; P = (rj) * (ri)
  *   notes: based on IIR_4B.SC sample. flags? what is b???
- *   TODO: figure out if (rj) and (ri) get loaded in X and Y
  *
  * mpya (rj), (ri) [, b]
  *   name: multiply and add?
@@ -238,11 +237,6 @@
 	if (!rA32) rST |= SSP_FLAG_Z; \
 	else rST |= (rA32>>16)&SSP_FLAG_N;
 
-#define UPD_t_LZVN \
-	rST &= ~(SSP_FLAG_L|SSP_FLAG_Z|SSP_FLAG_V|SSP_FLAG_N); \
-	if (!t) rST |= SSP_FLAG_Z; \
-	else    rST |= t&SSP_FLAG_N; \
-
 // standard cond processing.
 // again, only Z and N is checked, as SVP doesn't seem to use any other conds.
 #define COND_CHECK \
@@ -250,7 +244,7 @@
 		case 0x00: cond = 1; break; /* always true */ \
 		case 0x50: cond = !((rST ^ (op<<5)) & SSP_FLAG_Z); break; /* Z matches f(?) bit */ \
 		case 0x70: cond = !((rST ^ (op<<7)) & SSP_FLAG_N); break; /* N matches f(?) bit */ \
-		default:elprintf(EL_SVP, "unimplemented cond @ %04x", GET_PPC_OFFS()); break; \
+		default:elprintf(EL_SVP, "ssp FIXME: unimplemented cond @ %04x", GET_PPC_OFFS()); break; \
 	}
 
 // ops with accumulator.
@@ -260,64 +254,64 @@
 	ssp->gr[SSP_A].h = x
 
 #define OP_LDA32(x) \
-	ssp->gr[SSP_A].v = x
+	rA32 = x
 
 #define OP_SUBA(x) { \
-	u32 t = (ssp->gr[SSP_A].v >> 16) - (x); \
-	UPD_t_LZVN \
-	ssp->gr[SSP_A].h = t; \
+	rA32 -= (x) << 16; \
+	UPD_LZVN \
 }
 
 #define OP_SUBA32(x) { \
-	ssp->gr[SSP_A].v -= (x); \
+	rA32 -= (x); \
 	UPD_LZVN \
 }
 
 #define OP_CMPA(x) { \
-	u32 t = (ssp->gr[SSP_A].v >> 16) - (x); \
-	UPD_t_LZVN \
+	u32 t = rA32 - ((x) << 16); \
+	rST &= ~(SSP_FLAG_L|SSP_FLAG_Z|SSP_FLAG_V|SSP_FLAG_N); \
+	if (!t) rST |= SSP_FLAG_Z; \
+	else    rST |= (t>>16)&SSP_FLAG_N; \
 }
 
 #define OP_CMPA32(x) { \
-	u32 t = ssp->gr[SSP_A].v - (x); \
+	u32 t = rA32 - (x); \
 	rST &= ~(SSP_FLAG_L|SSP_FLAG_Z|SSP_FLAG_V|SSP_FLAG_N); \
 	if (!t) rST |= SSP_FLAG_Z; \
 	else    rST |= (t>>16)&SSP_FLAG_N; \
 }
 
 #define OP_ADDA(x) { \
-	u32 t = (ssp->gr[SSP_A].v >> 16) + (x); \
-	UPD_t_LZVN \
-	ssp->gr[SSP_A].h = t; \
+	rA32 += (x) << 16; \
+	UPD_LZVN \
 }
 
 #define OP_ADDA32(x) { \
-	ssp->gr[SSP_A].v += (x); \
+	rA32 += (x); \
 	UPD_LZVN \
 }
 
 #define OP_ANDA(x) \
-	ssp->gr[SSP_A].v &= (x) << 16; \
+	rA32 &= (x) << 16; \
 	UPD_ACC_ZN
 
 #define OP_ANDA32(x) \
-	ssp->gr[SSP_A].v &= (x); \
+	rA32 &= (x); \
 	UPD_ACC_ZN
 
 #define OP_ORA(x) \
-	ssp->gr[SSP_A].v |= (x) << 16; \
+	rA32 |= (x) << 16; \
 	UPD_ACC_ZN
 
 #define OP_ORA32(x) \
-	ssp->gr[SSP_A].v |= (x); \
+	rA32 |= (x); \
 	UPD_ACC_ZN
 
 #define OP_EORA(x) \
-	ssp->gr[SSP_A].v ^= (x) << 16; \
+	rA32 ^= (x) << 16; \
 	UPD_ACC_ZN
 
 #define OP_EORA32(x) \
-	ssp->gr[SSP_A].v ^= (x); \
+	rA32 ^= (x); \
 	UPD_ACC_ZN
 
 
@@ -1026,7 +1020,7 @@ void ssp1601_run(int cycles)
 				if (op == ((SSP_A<<4)|SSP_P)) { // A <- P
 					// not sure. MAME claims that only hi word is transfered.
 					read_P(); // update P
-					ssp->gr[SSP_A].v = ssp->gr[SSP_P].v;
+					rA32 = ssp->gr[SSP_P].v;
 				}
 				else
 				{
@@ -1109,8 +1103,8 @@ void ssp1601_run(int cycles)
 				// very uncertain about this one. What about b?
 				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp16: FIXME: no b bit @ %04x", GET_PPC_OFFS());
 				read_P(); // update P
-				ssp->gr[SSP_A].v -= ssp->gr[SSP_P].v; // maybe only upper word?
-//				UPD_ACC_ZN // I've seen code checking flags after this
+				rA32 -= ssp->gr[SSP_P].v; // maybe only upper word?
+				// UPD_ACC_ZN // I've seen code checking flags after this
 				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
 				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
 				break;
@@ -1120,7 +1114,7 @@ void ssp1601_run(int cycles)
 				// dunno if this is correct. What about b?
 				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp16: FIXME: no b bit @ %04x", GET_PPC_OFFS());
 				read_P(); // update P
-				ssp->gr[SSP_A].v += ssp->gr[SSP_P].v; // maybe only upper word?
+				rA32 += ssp->gr[SSP_P].v; // maybe only upper word?
 				UPD_ACC_ZN // ?
 				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
 				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
@@ -1130,8 +1124,8 @@ void ssp1601_run(int cycles)
 			case 0x5b:
 				// dunno if this is correct. What about b?
 				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp16: FIXME: no b bit @ %04x", GET_PPC_OFFS());
-				ssp->gr[SSP_A].v = 0; // maybe only upper word?
-				// UPD_t_LZVN // ?
+				rA32 = 0; // maybe only upper word?
+				rST &= 0x0fff; // ?
 				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
 				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
 				break;
@@ -1186,13 +1180,13 @@ void ssp1601_run(int cycles)
 			case 0x79: tmpv = rIJ[IJind]; OP_EORA(tmpv); break;
 
 			// OP simm
-			case 0x1c: OP_SUBA(op & 0xff); break;
-			case 0x3c: OP_CMPA(op & 0xff); break;
-			case 0x4c: OP_ADDA(op & 0xff); break;
+			case 0x1c: OP_SUBA(op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
+			case 0x3c: OP_CMPA(op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
+			case 0x4c: OP_ADDA(op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
 			// MAME code only does LSB of top word, but this looks wrong to me.
-			case 0x5c: OP_ANDA(op & 0xff); break;
-			case 0x6c: OP_ORA (op & 0xff); break;
-			case 0x7c: OP_EORA(op & 0xff); break;
+			case 0x5c: OP_ANDA(op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
+			case 0x6c: OP_ORA (op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
+			case 0x7c: OP_EORA(op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
 
 			default:
 				elprintf(EL_ANOMALY|EL_SVP, "ssp16: FIXME unhandled op %04x @ %04x", op, GET_PPC_OFFS());
