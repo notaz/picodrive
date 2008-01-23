@@ -348,10 +348,8 @@ static void write_unknown(u32 d)
 // 4
 static void write_ST(u32 d)
 {
-	if ((rST ^ d) & 7) {
-		elprintf(EL_SVP, "ssp16: RPL %i -> %i @ %04x", rST&7, d&7, GET_PPC_OFFS());
-//		running = 0;
-	}
+	if ((rST ^ d) & 0x0007) elprintf(EL_SVP, "ssp16: RPL %i -> %i @ %04x", rST&7, d&7, GET_PPC_OFFS());
+	if ((rST ^ d) & 0x0f98) elprintf(EL_SVP, "ssp16: FIXME ST %04x -> %04x @ %04x", rST, d, GET_PPC_OFFS());
 	rST = d;
 }
 
@@ -392,7 +390,9 @@ static void write_PC(u32 d)
 // 7
 static u32 read_P(void)
 {
-	rP.v = (u32)rX * rY * 2;
+	int m1 = (signed short)rX;
+	int m2 = (signed short)rY;
+	rP.v = (m1 * m2 * 2); // correct?
 	return rP.h;
 }
 
