@@ -97,7 +97,11 @@
  *   size: 32?
  *   desc: Programmable Memory access Control. Set using 2 16bit writes,
  *         first address, then mode word. After setting PMAC, PMAR sould
- *         be accessed to program it.
+ *         be blind accessed (ld -, PMx  or  ld PMx, -) to program it for
+ *         reading and writing respectively.
+ *         Reading the register also shifts it's state (from "waiting for
+ *         address" to "waiting for mode" and back). Reads always return
+ *         address related to last PMx register accressed.
  *
  * 15. "AL"
  *   size: 16
@@ -184,6 +188,8 @@
 #include "../../PicoInt.h"
 
 #define u32 unsigned int
+
+//#define USE_DEBUGGER
 
 // 0
 #define rX     ssp->gr[SSP_X].h
@@ -326,9 +332,11 @@
 static ssp1601_t *ssp = NULL;
 static unsigned short *PC;
 static int g_cycles;
-// debug
+
+#ifdef USE_DEBUGGER
 static int running = 0;
 static int last_iram = 0;
+#endif
 
 // -----------------------------------------------------
 // register i/o handlers
@@ -336,31 +344,30 @@ static int last_iram = 0;
 // 0-4, 13
 static u32 read_unknown(void)
 {
-	elprintf(EL_ANOMALY|EL_SVP, "ssp16: FIXME: unknown read @ %04x", GET_PPC_OFFS());
+	elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME: unknown read @ %04x", GET_PPC_OFFS());
 	return 0;
 }
 
 static void write_unknown(u32 d)
 {
-	elprintf(EL_ANOMALY|EL_SVP, "ssp16: FIXME: unknown write @ %04x", GET_PPC_OFFS());
+	elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME: unknown write @ %04x", GET_PPC_OFFS());
 }
 
 // 4
 static void write_ST(u32 d)
 {
-	if ((rST ^ d) & 0x0007) elprintf(EL_SVP, "ssp16: RPL %i -> %i @ %04x", rST&7, d&7, GET_PPC_OFFS());
-	if ((rST ^ d) & 0x0f98) elprintf(EL_SVP, "ssp16: FIXME ST %04x -> %04x @ %04x", rST, d, GET_PPC_OFFS());
+	//if ((rST ^ d) & 0x0007) elprintf(EL_SVP, "ssp RPL %i -> %i @ %04x", rST&7, d&7, GET_PPC_OFFS());
+	if ((rST ^ d) & 0x0f98) elprintf(EL_SVP, "ssp FIXME ST %04x -> %04x @ %04x", rST, d, GET_PPC_OFFS());
 	rST = d;
 }
 
 // 5
 static u32 read_STACK(void)
 {
-	//elprintf(EL_SVP, "pop  %i @ %04x", rSTACK, GET_PPC_OFFS());
 	--rSTACK;
 	if ((short)rSTACK < 0) {
 		rSTACK = 5;
-		elprintf(EL_ANOMALY|EL_SVP, "ssp16: FIXME: stack underflow! (%i) @ %04x", rSTACK, GET_PPC_OFFS());
+		elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME: stack underflow! (%i) @ %04x", rSTACK, GET_PPC_OFFS());
 	}
 	return ssp->stack[rSTACK];
 }
@@ -368,8 +375,7 @@ static u32 read_STACK(void)
 static void write_STACK(u32 d)
 {
 	if (rSTACK >= 6) {
-		running = 0;
-		elprintf(EL_ANOMALY|EL_SVP, "ssp16: FIXME: stack overflow! (%i) @ %04x", rSTACK, GET_PPC_OFFS());
+		elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME: stack overflow! (%i) @ %04x", rSTACK, GET_PPC_OFFS());
 		rSTACK = 0;
 	}
 	ssp->stack[rSTACK++] = d;
@@ -392,24 +398,22 @@ static u32 read_P(void)
 {
 	int m1 = (signed short)rX;
 	int m2 = (signed short)rY;
-	rP.v = (m1 * m2 * 2); // correct?
+	rP.v = (m1 * m2 * 2);
 	return rP.h;
 }
 
 // -----------------------------------------------------
 
-static void iram_write(int addr, u32 d, int reg, int inc)
+static int get_inc(int mode)
 {
-	if ((addr&0xfc00) != 0x8000)
-		elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: invalid IRAM addr: %04x", addr<<1);
-	elprintf(EL_SVP, "ssp IRAM w [%06x] %04x (inc %i)", (addr<<1)&0x7ff, d, inc);
-	((unsigned short *)svp->iram_rom)[addr&0x3ff] = d;
-	ssp->pmac_write[reg] += inc<<16;
+	int inc = (mode >> 11) & 7;
+	if (inc != 0) {
+		if (inc != 7) inc--;
+		inc = (1<<16) << inc; // 0 1 2 4 8 16 32 128
+		if (mode & 0x8000) inc = -inc; // decrement mode
+	}
+	return inc;
 }
-
-int lil[32] = { 0, }, lilp = 0;
-
-static void debug_dump2file(const char *fname, void *mem, int len);
 
 #define overwite_write(dst, d) \
 { \
@@ -425,7 +429,7 @@ static u32 pm_io(int reg, int write, u32 d)
 	{
 		// this MUST be blind r or w
 		if ((*(PC-1) & 0xff0f) && (*(PC-1) & 0xfff0)) {
-			elprintf(EL_SVP|EL_ANOMALY, "FIXME: tried to set PM%i (%c) with non-blind i/o %08x @ %04x",
+			elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: tried to set PM%i (%c) with non-blind i/o %08x @ %04x",
 				reg, write ? 'w' : 'r', rPMC.v, GET_PPC_OFFS());
 			ssp->emu_status &= ~SSP_PMC_SET;
 			return 0;
@@ -434,109 +438,91 @@ static u32 pm_io(int reg, int write, u32 d)
 		ssp->pmac_read[write ? reg + 6 : reg] = rPMC.v;
 		ssp->emu_status &= ~SSP_PMC_SET;
 		if ((rPMC.v & 0x7f) == 0x1c && (rPMC.v & 0x7fff0000) == 0) {
-			elprintf(EL_SVP, "IRAM copy from %06x", (ssp->RAM1[0]-1)<<1);
-/*
-			{
-				int i;
-				char buff[64];
-				for (i = 0; i < 32; i++) {
-					if (lil[i] == last_iram) break;
-					if (lil[i] == 0) {
-						lil[i] = last_iram;
-						sprintf(buff, "iramrom_%04x.bin", last_iram);
-						debug_dump2file(buff, svp->iram_rom, sizeof(svp->iram_rom));
-						break;
-					}
-				}
-			}
-*/
+			elprintf(EL_SVP, "ssp IRAM copy from %06x", (ssp->RAM1[0]-1)<<1);
+#ifdef USE_DEBUGGER
 			last_iram = (ssp->RAM1[0]-1)<<1;
+#endif
 		}
 		return 0;
 	}
 
 	// just in case
 	if (ssp->emu_status & SSP_PMC_HAVE_ADDR) {
-		elprintf(EL_SVP|EL_ANOMALY, "FIXME: PM%i (%c) with only addr set @ %04x",
+		elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: PM%i (%c) with only addr set @ %04x",
 			reg, write ? 'w' : 'r', GET_PPC_OFFS());
 		ssp->emu_status &= ~SSP_PMC_HAVE_ADDR;
 	}
 
-//	if (ssp->pmac_read[reg] != 0)
 	if (reg == 4 || (rST & 0x60))
 	{
 		#define CADDR ((((mode<<16)&0x7f0000)|addr)<<1)
 		unsigned short *dram = (unsigned short *)svp->dram;
 		if (write)
 		{
-			/* TODO: 0c18 mode? */
 			int mode = ssp->pmac_write[reg]&0xffff;
 			int addr = ssp->pmac_write[reg]>>16;
-			switch (mode) {
-				case 0x0018: elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x", reg, CADDR, d);
-				             dram[addr] = d;
-					     break;
-				case 0x0418: elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (overwr)", reg, CADDR, d);
-				             overwite_write(dram[addr], d);
-					     break;
-				case 0x0818: elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (inc 1)", reg, CADDR, d);
-				             dram[addr] = d;
-					     ssp->pmac_write[reg] += 1<<16;
-					     break;
-				case 0x081c: iram_write(addr, d, reg, 1); break; // checked: used by code @ 0902
-				case 0x101c: iram_write(addr, d, reg, 2); break; // checked: used by code @ 3b7c
-				case 0x4018: elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (cell inc)", reg, CADDR, d);
-				             dram[addr] = d;
-					     ssp->pmac_write[reg] += (addr&1) ? (31<<16) : (1<<16);
-					     break;
-				case 0x4418: elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (overwr, cell inc)", reg, CADDR, d);
-				             overwite_write(dram[addr], d);
-					     ssp->pmac_write[reg] += (addr&1) ? (31<<16) : (1<<16);
-					     break;
-				default:     elprintf(EL_SVP|EL_ANOMALY, "ssp PM%i unhandled write mode %04x, [%06x] %04x @ %04x",
-							reg, mode, CADDR, d, GET_PPC_OFFS()); break;
+			if      ((mode & 0xb800) == 0xb800)
+					elprintf(EL_SVP, "ssp FIXME: mode %04x", mode);
+			if      ((mode & 0x43ff) == 0x0018) // DRAM
+			{
+				int inc = get_inc(mode);
+				elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (inc %i, ovrw %i)",
+					reg, CADDR, d, inc >> 16, (mode>>10)&1);
+				if (mode & 0x0400) {
+				       overwite_write(dram[addr], d);
+				} else dram[addr] = d;
+				ssp->pmac_write[reg] += inc;
+			}
+			else if ((mode & 0xfbff) == 0x4018) // DRAM, cell inc
+			{
+				elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (cell inc, ovrw %i) @ %04x",
+					reg, CADDR, d, (mode>>10)&1, GET_PPC_OFFS());
+				if (mode & 0x0400) {
+				       overwite_write(dram[addr], d);
+				} else dram[addr] = d;
+				ssp->pmac_write[reg] += (addr&1) ? (31<<16) : (1<<16);
+			}
+			else if ((mode & 0x47ff) == 0x001c) // IRAM
+			{
+				int inc = get_inc(mode);
+				if ((addr&0xfc00) != 0x8000)
+					elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: invalid IRAM addr: %04x", addr<<1);
+				elprintf(EL_SVP, "ssp IRAM w [%06x] %04x (inc %i)", (addr<<1)&0x7ff, d, inc >> 16);
+				((unsigned short *)svp->iram_rom)[addr&0x3ff] = d;
+				ssp->pmac_write[reg] += inc;
+			}
+			else
+			{
+				elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: PM%i unhandled write mode %04x, [%06x] %04x @ %04x",
+						reg, mode, CADDR, d, GET_PPC_OFFS());
 			}
 		}
 		else
 		{
 			int mode = ssp->pmac_read[reg]&0xffff;
 			int addr = ssp->pmac_read[reg]>>16;
-			if ((mode & 0xfff0) == 0x0800) { // ROM, inc 1, verified to be correct
+			if      ((mode & 0xfff0) == 0x0800) // ROM, inc 1, verified to be correct
+			{
 				elprintf(EL_SVP, "ssp ROM  r [%06x] %04x", CADDR,
 					((unsigned short *)Pico.rom)[addr|((mode&0xf)<<16)]);
 				ssp->pmac_read[reg] += 1<<16;
 				d = ((unsigned short *)Pico.rom)[addr|((mode&0xf)<<16)];
-				goto ext_io_end;
 			}
-
-			switch (mode) {
-				case 0x0018: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x", CADDR, dram[addr]);
-				             d = dram[addr]; // checked
-				             break;
-				case 0x0818: elprintf(EL_SVP, "ssp PM%i DRAM r [%06x] %04x (inc 1)", reg, CADDR, dram[addr]);
-				             ssp->pmac_read[reg] += 1<<16;
-				             d = dram[addr];
-				             break;
-				case 0x3018: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (inc 32)", CADDR, dram[addr]);
-				             ssp->pmac_read[reg] += 32<<16;
-				             d = dram[addr];
-				             break;
-				case 0xa818: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (dec 16)", CADDR, dram[addr]);
-				             ssp->pmac_read[reg] -= 16<<16;
-				             d = dram[addr];
-				             break;
-				case 0xb818: elprintf(EL_SVP, "ssp DRAM r [%06x] %04x (dec 128?)", CADDR, dram[addr]);
-				             ssp->pmac_read[reg] -= 128<<16;
-				             d = dram[addr];
-				             break;
-				default:     elprintf(EL_SVP|EL_ANOMALY, "ssp PM%i unhandled read  mode %04x, [%06x] @ %04x",
-							reg, mode, CADDR, GET_PPC_OFFS());
-				             d = 0;
-				             break;
+			else if ((mode & 0x47ff) == 0x0018) // DRAM
+			{
+				int inc = get_inc(mode);
+				elprintf(EL_SVP, "ssp PM%i DRAM r [%06x] %04x (inc %i)", reg, CADDR, dram[addr], inc >> 16);
+				d = dram[addr];
+				ssp->pmac_read[reg] += inc;
+			}
+			else
+			{
+				elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: PM%i unhandled read  mode %04x, [%06x] @ %04x",
+						reg, mode, CADDR, GET_PPC_OFFS());
+				d = 0;
 			}
 		}
 
-ext_io_end:
 		// PMC value corresponds to last PMR accessed (not sure).
 		rPMC.v = ssp->pmac_read[write ? reg + 6 : reg];
 
@@ -656,25 +642,24 @@ static void write_PM4(u32 d)
 // 14
 static u32 read_PMC(void)
 {
+	elprintf(EL_SVP, "PMC r a %04x (st %c) @ %04x", rPMC.h,
+		(ssp->emu_status & SSP_PMC_HAVE_ADDR) ? 'm' : 'a', GET_PPC_OFFS());
 	if (ssp->emu_status & SSP_PMC_HAVE_ADDR) {
-		if (ssp->emu_status & SSP_PMC_SET)
-			elprintf(EL_ANOMALY|EL_SVP, "prev PMC not used @ %04x", GET_PPC_OFFS());
+		//if (ssp->emu_status & SSP_PMC_SET)
+		//	elprintf(EL_ANOMALY|EL_SVP, "prev PMC not used @ %04x", GET_PPC_OFFS());
 		ssp->emu_status |= SSP_PMC_SET;
 		ssp->emu_status &= ~SSP_PMC_HAVE_ADDR;
-		elprintf(EL_SVP, "PMC r m %04x @ %04x", rPMC.l, GET_PPC_OFFS());
-		return rPMC.l;
 	} else {
 		ssp->emu_status |= SSP_PMC_HAVE_ADDR;
-		elprintf(EL_SVP, "PMC r a %04x @ %04x", rPMC.h, GET_PPC_OFFS());
-		return rPMC.h;
 	}
+	return rPMC.h;
 }
 
 static void write_PMC(u32 d)
 {
 	if (ssp->emu_status & SSP_PMC_HAVE_ADDR) {
-		if (ssp->emu_status & SSP_PMC_SET)
-			elprintf(EL_ANOMALY|EL_SVP, "prev PMC not used @ %04x", GET_PPC_OFFS());
+		//if (ssp->emu_status & SSP_PMC_SET)
+		//	elprintf(EL_ANOMALY|EL_SVP, "prev PMC not used @ %04x", GET_PPC_OFFS());
 		ssp->emu_status |= SSP_PMC_SET;
 		ssp->emu_status &= ~SSP_PMC_HAVE_ADDR;
 		rPMC.l = d;
@@ -689,19 +674,15 @@ static void write_PMC(u32 d)
 // 15
 static u32 read_AL(void)
 {
-	// TODO: figure out what's up with those blind reads..
 	if (*(PC-1) == 0x000f) {
-		elprintf(EL_SVP|EL_ANOMALY, "ssp dummy PM assign %08x, ST=%04x @ %04x", rPMC.v, rST, GET_PPC_OFFS());
+		elprintf(EL_SVP|EL_ANOMALY, "ssp dummy PM assign %08x @ %04x", rPMC.v, GET_PPC_OFFS());
 		ssp->emu_status &= ~(SSP_PMC_SET|SSP_PMC_HAVE_ADDR); // ?
-	} else {
-		//elprintf(EL_SVP, "ssp AL read, ST=%04x @ %04x", rST, GET_PPC_OFFS());
 	}
 	return rAL;
 }
 
 static void write_AL(u32 d)
 {
-	//elprintf(EL_SVP, "ssp AL write %04x, ST=%04x @ %04x", d, rST, GET_PPC_OFFS());
 	rAL = d;
 }
 
@@ -900,6 +881,7 @@ void ssp1601_reset(ssp1601_t *l_ssp)
 }
 
 
+#ifdef USE_DEBUGGER
 static void debug_dump(void)
 {
 	printf("GR0:   %04x    X: %04x    Y: %04x  A: %08x\n", ssp->gr[SSP_GR0].h, rX, rY, ssp->gr[SSP_A].v);
@@ -997,13 +979,13 @@ static void debug(unsigned int pc, unsigned int op)
 		}
 	}
 }
+#endif // USE_DEBUGGER
+
 
 void ssp1601_run(int cycles)
 {
 	SET_PC(rPC);
 	g_cycles = cycles;
-
-//if (Pico.m.frame_count == 480) running = 0;
 
 	while (g_cycles > 0 && !(ssp->emu_status & SSP_WAIT_MASK))
 	{
@@ -1011,7 +993,9 @@ void ssp1601_run(int cycles)
 		u32 tmpv;
 
 		op = *PC++;
+#ifdef USE_DEBUGGER
 		debug(GET_PC()-1, op);
+#endif
 		switch (op >> 9)
 		{
 			// ld d, s
@@ -1090,31 +1074,32 @@ void ssp1601_run(int cycles)
 						case 3: rA32 <<= 1; break; // shl
 						case 6: rA32 = -(signed int)rA32; break; // neg
 						case 7: if ((int)rA32 < 0) rA32 = -(signed int)rA32; break; // abs
-						default: elprintf(EL_SVP, "ssp16: FIXME unhandled mod %i @ %04x", op&7, GET_PPC_OFFS());
+						default: elprintf(EL_SVP, "ssp FIXME: unhandled mod %i @ %04x", op&7, GET_PPC_OFFS());
 					}
 					UPD_ACC_ZN // ?
 				}
 				break;
 			}
 
-#if 1
-			// mpys?
+			// ???
 			case 0x1b:
+#if 0
 				// very uncertain about this one. What about b?
-				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp16: FIXME: no b bit @ %04x", GET_PPC_OFFS());
+				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: no b bit @ %04x", GET_PPC_OFFS());
 				read_P(); // update P
 				rA32 -= ssp->gr[SSP_P].v; // maybe only upper word?
 				// UPD_ACC_ZN // I've seen code checking flags after this
 				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
 				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
-				break;
 #endif
+				break;
+
 			// mpya (rj), (ri), b
 			case 0x4b:
 				// dunno if this is correct. What about b?
-				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp16: FIXME: no b bit @ %04x", GET_PPC_OFFS());
+				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: no b bit @ %04x", GET_PPC_OFFS());
 				read_P(); // update P
-				rA32 += ssp->gr[SSP_P].v; // maybe only upper word?
+				rA32 += ssp->gr[SSP_P].v; // confirmed to be 32bit
 				UPD_ACC_ZN // ?
 				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
 				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
@@ -1123,8 +1108,8 @@ void ssp1601_run(int cycles)
 			// mld (rj), (ri), b
 			case 0x5b:
 				// dunno if this is correct. What about b?
-				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp16: FIXME: no b bit @ %04x", GET_PPC_OFFS());
-				rA32 = 0; // maybe only upper word?
+				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: no b bit @ %04x", GET_PPC_OFFS());
+				rA32 = 0;
 				rST &= 0x0fff; // ?
 				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
 				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
@@ -1189,7 +1174,7 @@ void ssp1601_run(int cycles)
 			case 0x7c: OP_EORA(op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
 
 			default:
-				elprintf(EL_ANOMALY|EL_SVP, "ssp16: FIXME unhandled op %04x @ %04x", op, GET_PPC_OFFS());
+				elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME unhandled op %04x @ %04x", op, GET_PPC_OFFS());
 				break;
 		}
 		g_cycles--;
@@ -1199,6 +1184,6 @@ void ssp1601_run(int cycles)
 	rPC = GET_PC();
 
 	if (ssp->gr[SSP_GR0].v != 0xffff0000)
-		elprintf(EL_ANOMALY|EL_SVP, "ssp16: FIXME: REG 0 corruption! %08x", ssp->gr[SSP_GR0].v);
+		elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME: REG 0 corruption! %08x", ssp->gr[SSP_GR0].v);
 }
 
