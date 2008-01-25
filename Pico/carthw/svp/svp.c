@@ -20,8 +20,6 @@ static void PicoSVPLine(void)
 
 	// test mode
 	//if (Pico.m.frame_count == 13) PicoPad[0] |= 0xff;
-	// pushing start
-	//if (Pico.m.frame_count & 4) PicoPad[0] |= 0x80;
 }
 
 

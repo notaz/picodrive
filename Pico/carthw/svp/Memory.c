@@ -11,7 +11,7 @@ typedef unsigned int   u32;
   if (d == 0 && SekPc >= pc_start && SekPc < pc_end) \
   { \
     if (!clearing_ram) \
-      elprintf(EL_UIO, text); \
+      elprintf(EL_SVP, text); \
     clearing_ram = 1; \
     return; \
   }
@@ -57,10 +57,10 @@ unsigned int PicoSVPRead16(unsigned int a, int realsize)
     }
   }
   else
-    elprintf(EL_UIO|EL_ANOMALY, "SVP FIXME: unhandled r%i: [%06x] %04x @%06x", realsize, a&0xffffff, d, SekPc);
+    elprintf(EL_UIO|EL_SVP|EL_ANOMALY, "SVP FIXME: unhandled r%i: [%06x] %04x @%06x", realsize, a&0xffffff, d, SekPc);
 
   if (!a15004_looping)
-    elprintf(EL_UIO, "SVP r%i: [%06x] %04x @%06x", realsize, a&0xffffff, d, SekPc);
+    elprintf(EL_SVP, "SVP r%i: [%06x] %04x @%06x", realsize, a&0xffffff, d, SekPc);
 
   if (a == 0xa15004 && !(d&1)) {
     if (!a15004_looping)
@@ -69,14 +69,15 @@ unsigned int PicoSVPRead16(unsigned int a, int realsize)
   }
   else a15004_looping = 0;
 
-  // if (a == 0x30fe02) d = 1;
+  if (a == 0x30fe02 && d == 0)
+    elprintf(EL_ANOMALY, "SVP lag?");
 
   return d;
 }
 
 void PicoSVPWrite8(unsigned int a, unsigned int d, int realsize)
 {
-  elprintf(EL_UIO, "!!! SVP w%i: [%06x], %08x @%06x", realsize, a&0xffffff, d, SekPc);
+  elprintf(EL_UIO|EL_SVP|EL_ANOMALY, "!!! SVP w%i: [%06x], %08x @%06x", realsize, a&0xffffff, d, SekPc);
 }
 
 void PicoSVPWrite16(unsigned int a, unsigned int d, int realsize)
@@ -113,6 +114,6 @@ void PicoSVPWrite16(unsigned int a, unsigned int d, int realsize)
   CLEAR_DETECT(0x0220b0, 0x0220cc, "SVP RAM CLEAR 300000-31ffbf (2) @ 022096");
   clearing_ram = 0;
 
-  elprintf(EL_UIO, "SVP w%i: [%06x] %04x @%06x", realsize, a&0xffffff, d, SekPc);
+  elprintf(EL_SVP, "SVP w%i: [%06x] %04x @%06x", realsize, a&0xffffff, d, SekPc);
 }
 

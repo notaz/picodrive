@@ -102,6 +102,7 @@
  *         Reading the register also shifts it's state (from "waiting for
  *         address" to "waiting for mode" and back). Reads always return
  *         address related to last PMx register accressed.
+ *         (note: addresses do not wrap).
  *
  * 15. "AL"
  *   size: 16
@@ -250,7 +251,7 @@
 		case 0x00: cond = 1; break; /* always true */ \
 		case 0x50: cond = !((rST ^ (op<<5)) & SSP_FLAG_Z); break; /* Z matches f(?) bit */ \
 		case 0x70: cond = !((rST ^ (op<<7)) & SSP_FLAG_N); break; /* N matches f(?) bit */ \
-		default:elprintf(EL_SVP, "ssp FIXME: unimplemented cond @ %04x", GET_PPC_OFFS()); break; \
+		default:elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: unimplemented cond @ %04x", GET_PPC_OFFS()); break; \
 	}
 
 // ops with accumulator.
@@ -357,7 +358,7 @@ static void write_unknown(u32 d)
 static void write_ST(u32 d)
 {
 	//if ((rST ^ d) & 0x0007) elprintf(EL_SVP, "ssp RPL %i -> %i @ %04x", rST&7, d&7, GET_PPC_OFFS());
-	if ((rST ^ d) & 0x0f98) elprintf(EL_SVP, "ssp FIXME ST %04x -> %04x @ %04x", rST, d, GET_PPC_OFFS());
+	if ((rST ^ d) & 0x0f98) elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME ST %04x -> %04x @ %04x", rST, d, GET_PPC_OFFS());
 	rST = d;
 }
 
@@ -462,7 +463,7 @@ static u32 pm_io(int reg, int write, u32 d)
 			int mode = ssp->pmac_write[reg]&0xffff;
 			int addr = ssp->pmac_write[reg]>>16;
 			if      ((mode & 0xb800) == 0xb800)
-					elprintf(EL_SVP, "ssp FIXME: mode %04x", mode);
+					elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: mode %04x", mode);
 			if      ((mode & 0x43ff) == 0x0018) // DRAM
 			{
 				int inc = get_inc(mode);
@@ -505,6 +506,8 @@ static u32 pm_io(int reg, int write, u32 d)
 			{
 				elprintf(EL_SVP, "ssp ROM  r [%06x] %04x", CADDR,
 					((unsigned short *)Pico.rom)[addr|((mode&0xf)<<16)]);
+				if ((signed int)ssp->pmac_read[reg] >> 16 == -1)
+					ssp->pmac_read[reg]++;
 				ssp->pmac_read[reg] += 1<<16;
 				d = ((unsigned short *)Pico.rom)[addr|((mode&0xf)<<16)];
 			}
@@ -675,7 +678,7 @@ static void write_PMC(u32 d)
 static u32 read_AL(void)
 {
 	if (*(PC-1) == 0x000f) {
-		elprintf(EL_SVP|EL_ANOMALY, "ssp dummy PM assign %08x @ %04x", rPMC.v, GET_PPC_OFFS());
+		elprintf(EL_SVP, "ssp dummy PM assign %08x @ %04x", rPMC.v, GET_PPC_OFFS());
 		ssp->emu_status &= ~(SSP_PMC_SET|SSP_PMC_HAVE_ADDR); // ?
 	}
 	return rAL;
@@ -1074,29 +1077,26 @@ void ssp1601_run(int cycles)
 						case 3: rA32 <<= 1; break; // shl
 						case 6: rA32 = -(signed int)rA32; break; // neg
 						case 7: if ((int)rA32 < 0) rA32 = -(signed int)rA32; break; // abs
-						default: elprintf(EL_SVP, "ssp FIXME: unhandled mod %i @ %04x", op&7, GET_PPC_OFFS());
+						default: elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: unhandled mod %i @ %04x",
+								op&7, GET_PPC_OFFS());
 					}
 					UPD_ACC_ZN // ?
 				}
 				break;
 			}
 
-			// ???
+			// mpys?
 			case 0x1b:
-#if 0
-				// very uncertain about this one. What about b?
 				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: no b bit @ %04x", GET_PPC_OFFS());
 				read_P(); // update P
-				rA32 -= ssp->gr[SSP_P].v; // maybe only upper word?
-				// UPD_ACC_ZN // I've seen code checking flags after this
+				rA32 -= ssp->gr[SSP_P].v;	// maybe only upper word?
+				UPD_ACC_ZN			// there checking flags after this
 				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
 				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
-#endif
 				break;
 
 			// mpya (rj), (ri), b
 			case 0x4b:
-				// dunno if this is correct. What about b?
 				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: no b bit @ %04x", GET_PPC_OFFS());
 				read_P(); // update P
 				rA32 += ssp->gr[SSP_P].v; // confirmed to be 32bit
@@ -1107,7 +1107,6 @@ void ssp1601_run(int cycles)
 
 			// mld (rj), (ri), b
 			case 0x5b:
-				// dunno if this is correct. What about b?
 				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: no b bit @ %04x", GET_PPC_OFFS());
 				rA32 = 0;
 				rST &= 0x0fff; // ?
@@ -1165,13 +1164,13 @@ void ssp1601_run(int cycles)
 			case 0x79: tmpv = rIJ[IJind]; OP_EORA(tmpv); break;
 
 			// OP simm
-			case 0x1c: OP_SUBA(op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
-			case 0x3c: OP_CMPA(op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
-			case 0x4c: OP_ADDA(op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
+			case 0x1c: OP_SUBA(op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
+			case 0x3c: OP_CMPA(op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
+			case 0x4c: OP_ADDA(op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
 			// MAME code only does LSB of top word, but this looks wrong to me.
-			case 0x5c: OP_ANDA(op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
-			case 0x6c: OP_ORA (op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
-			case 0x7c: OP_EORA(op & 0xff); if (op&0x100) elprintf(EL_SVP, "FIXME: simm with upper bit set"); break;
+			case 0x5c: OP_ANDA(op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
+			case 0x6c: OP_ORA (op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
+			case 0x7c: OP_EORA(op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
 
 			default:
 				elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME unhandled op %04x @ %04x", op, GET_PPC_OFFS());

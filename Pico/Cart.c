@@ -639,7 +639,8 @@ void PicoCartDetect(void)
     *(int *) (Pico.rom+0x1f0) = 0x20204520;
 
   // SVP detection
-  if (name_cmp("Virtua Racing") == 0)
+  if (name_cmp("Virtua Racing") == 0 ||
+      name_cmp("VIRTUA RACING") == 0)
   {
     PicoSVPInit();
   }
