@@ -19,7 +19,7 @@ int PicoAutoRgnOrder = 0;
 int emustatus = 0; // rapid_ym2612, multi_ym_updates
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
-void (*PicoLineHook)(void) = NULL;
+void (*PicoLineHook)(int count) = NULL;
 
 struct PicoSRAM SRam = {0,};
 int z80startCycle, z80stopCycle; // in 68k cycles
@@ -364,6 +364,7 @@ static int PicoFrameSimple(void)
     SekRunM68k(cycles_68k_block);
 
     PicoRunZ80Simple(line, lines);
+    if (PicoLineHook) PicoLineHook(lines_step);
     line=lines;
   }
 
@@ -377,6 +378,7 @@ static int PicoFrameSimple(void)
 
     lines += sects*lines_step;
     PicoRunZ80Simple(line, lines);
+    if (PicoLineHook) PicoLineHook(sects*lines_step);
   }
 
   // render screen
@@ -440,6 +442,7 @@ static int PicoFrameSimple(void)
     SekRunM68k(cycles_68k_vblock);
 
     PicoRunZ80Simple(line, lines);
+    if (PicoLineHook) PicoLineHook(lines_step);
     line=lines;
 
     sects--;
@@ -450,6 +453,7 @@ static int PicoFrameSimple(void)
   if (sects) {
     lines += sects*lines_step;
     PicoRunZ80Simple(line, lines);
+    if (PicoLineHook) PicoLineHook(sects*lines_step);
   }
 
   return 0;
@@ -574,14 +578,6 @@ char *debugString(void)
 
     link=(code>>16)&0x7f;
     if(!link) break; // End of sprites
-  }
-#endif
-
-#if 0
-  {
-    FILE *f = fopen("zram", "wb");
-    fwrite(Pico.zram, 1, 0x2000, f);
-    fclose(f);
   }
 #endif
 

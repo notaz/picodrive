@@ -498,10 +498,13 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   PicoResetHook = NULL;
   PicoLineHook = NULL;
 
+  PicoMemReset();
+
   if (!(PicoMCD & 1))
     PicoCartDetect();
 
   // setup correct memory map for loaded ROM
+  // call PicoMemReset again due to possible memmap change
   if (PicoMCD & 1)
        PicoMemSetupCD();
   else PicoMemSetup();

@@ -128,7 +128,6 @@ m_s68k_decode_write_table:
 .extern PicoVideoRead
 .extern Read_CDC_Host
 .extern m68k_reg_write8
-.extern OtherWrite8
 .extern OtherWrite16
 .extern gfx_cd_read
 .extern s68k_reg_read16

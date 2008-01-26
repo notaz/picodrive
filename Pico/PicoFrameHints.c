@@ -150,7 +150,7 @@ static int PicoFrameHints(void)
 #ifdef PICO_CD
     update_chips();
 #else
-    if (PicoLineHook) PicoLineHook();
+    if (PicoLineHook) PicoLineHook(1);
 #endif
   }
 
@@ -214,7 +214,7 @@ static int PicoFrameHints(void)
 #ifdef PICO_CD
   update_chips();
 #else
-  if (PicoLineHook) PicoLineHook();
+  if (PicoLineHook) PicoLineHook(1);
 #endif
 
   // PAL line count might actually be 313 according to Steve Snake, but that would complicate things.
@@ -239,7 +239,7 @@ static int PicoFrameHints(void)
 #ifdef PICO_CD
     update_chips();
 #else
-    if (PicoLineHook) PicoLineHook();
+    if (PicoLineHook) PicoLineHook(1);
 #endif
   }
 

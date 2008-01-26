@@ -40,10 +40,11 @@ extern int PicoVer;
 extern int PicoSkipFrame; // skip rendering frame, but still do sound (if enabled) and emulation stuff
 extern int PicoRegionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 extern int PicoAutoRgnOrder; // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
-int PicoInit(void);
+extern int PicoSVPCycles;
+int  PicoInit(void);
 void PicoExit(void);
-int PicoReset(int hard);
-int PicoFrame(void);
+int  PicoReset(int hard);
+int  PicoFrame(void);
 void PicoFrameDrawOnly(void);
 extern int PicoPad[2]; // Joypads, format is MXYZ SACB RLDU
 extern void (*PicoWriteSound)(int len); // called once per frame at the best time to send sound buffer (PsndOut) to hardware

@@ -73,6 +73,8 @@ OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pi
 		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o \
 		../../Pico/cd/Area.o ../../Pico/cd/Misc.o ../../Pico/cd/pcm.o ../../Pico/cd/buffering.o
 endif
+# Pico - carthw
+OBJS += ../../Pico/carthw/svp/svp.o ../../Pico/carthw/svp/Memory.o ../../Pico/carthw/svp/ssp16.o
 
 # asm stuff
 ifeq "$(asm_render)" "1"

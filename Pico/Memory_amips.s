@@ -435,16 +435,28 @@ m_read8_fake_ym2612:
     sb      $t1, %lo(Pico+0x22208)($t0)
 
 # delay slot friendly
-.macro m_read8_call16 funcname
+.macro m_read8_call16 funcname is_func_ptr=0
+.if \is_func_ptr
+    lui     $t1, %hi(\funcname)
+    lw      $t1, %lo(\funcname)($t1)
+.endif
     andi    $t0, $a0, 1
     beqz    $t0, 1f
     li      $a1, 8      # not always needed, but shouln't cause problems
+.if \is_func_ptr
+    jr      $t1
+.else
     j       \funcname   # odd address
+.endif
     nop
 1:
     addiu   $sp, -4
     sw      $ra, 0($sp)
+.if \is_func_ptr
+    jalr    $t1
+.else
     jal     \funcname
+.endif
     xori    $a0, 1
     lw      $ra, 0($sp)
     addiu   $sp, 4
@@ -473,7 +485,7 @@ m_read8_ram:
 m_read8_above_rom:
     # might still be SRam (Micro Machines, HardBall '95)
     m_read_rom_try_sram 0 8
-    m_read8_call16 OtherRead16End
+    m_read8_call16 PicoRead16Hook 1
 
 # #############################################################################
 
@@ -584,7 +596,9 @@ m_read16_ram:
 m_read16_above_rom:
     # might still be SRam
     m_read_rom_try_sram 0 16
-    j       OtherRead16End
+    lui     $t1, %hi(PicoRead16Hook)
+    lw      $t1, %lo(PicoRead16Hook)($t1)
+    jr      $t1
     ins     $a0, $0, 0, 1
 
 # #############################################################################
@@ -725,7 +739,25 @@ m_read32_above_rom:
     # might still be SRam
     m_read_rom_try_sram 0 32
     ins     $a0, $0, 0, 1
-    m_read32_call16 OtherRead16End
+    lui     $t1, %hi(PicoRead16Hook)
+    lw      $t1, %lo(PicoRead16Hook)($t1)
+    addiu   $sp, -4*3
+    sw      $ra, 0($sp)
+    sw      $s0, 4($sp)
+    sw      $t1, 8($sp)
+    jalr    $t1
+    move    $s0, $a0
+
+    lw      $t1, 8($sp)
+    addu    $a0, $s0, 2
+    jalr    $t1
+    move    $s0, $v0
+
+    ins     $v0, $s0, 16, 16
+    lw      $ra, 0($sp)
+    lw      $s0, 4($sp)
+    jr      $ra
+    addiu   $sp, 4*3
 
 # #############################################################################
 

@@ -8,13 +8,6 @@ typedef unsigned int   u32;
 #define UTYPES_DEFINED
 #endif
 
-#ifdef _ASM_MEMORY_C
-u32 OtherRead16End(u32 a, int realsize);
-#endif
-#ifdef _ASM_CD_MEMORY_C
-static void OtherWrite8End(u32 a,u32 d,int realsize);
-#endif
-
 
 #ifndef _ASM_MEMORY_C
 static

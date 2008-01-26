@@ -376,11 +376,11 @@ void s68k_reg_write8(u32 a, u32 d)
 }
 
 
-#ifndef _ASM_CD_MEMORY_C
 static u32 OtherRead16End(u32 a, int realsize)
 {
   u32 d=0;
 
+#ifndef _ASM_CD_MEMORY_C
   if ((a&0xffffc0)==0xa12000) {
     d=m68k_reg_read16(a);
     goto end;
@@ -403,16 +403,20 @@ static u32 OtherRead16End(u32 a, int realsize)
     d=Pico_mcd->m.bcram_reg;
     goto end;
   }
+#endif
 
   elprintf(EL_UIO, "m68k FIXME: unusual r%i: %06x @%06x", realsize&~1, (a&0xfffffe)+(realsize&1), SekPc);
 
+#ifndef _ASM_CD_MEMORY_C
 end:
+#endif
   return d;
 }
 
 
 static void OtherWrite8End(u32 a, u32 d, int realsize)
 {
+#ifndef _ASM_CD_MEMORY_C
   if ((a&0xffffc0)==0xa12000) { m68k_reg_write8(a, d); return; }
 
   if ((a&0xfe0000)==0x600000) {
@@ -427,15 +431,17 @@ static void OtherWrite8End(u32 a, u32 d, int realsize)
     Pico_mcd->m.bcram_reg=d;
     return;
   }
+#endif
 
   elprintf(EL_UIO, "m68k FIXME: strange w%i: [%06x], %08x @%06x", realsize, a&0xffffff, d, SekPc);
 }
 
+#ifndef _ASM_CD_MEMORY_C
 #define _CD_MEMORY_C
 #undef _ASM_MEMORY_C
 #include "../MemoryCmn.c"
 #include "cell_map.c"
-#endif // !def _ASM_CD_MEMORY_C
+#endif
 
 
 // -----------------------------------------------------------------

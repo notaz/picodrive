@@ -448,10 +448,13 @@ m_read8_above_rom:
     tst     r1, #5
     bne     SRAMRead
 m_read8_ar_nosram:
+    ldr     r2, =PicoRead16Hook
     stmfd   sp!,{r0,lr}
+    ldr     r2, [r2]
     bic     r0, r0, #1
     mov     r1, #8
-    bl      OtherRead16End
+    mov     lr, pc
+    bx      r2
     ldmfd   sp!,{r1,lr}
     tst     r1, #1
     moveq   r0, r0, lsr #8
@@ -595,8 +598,10 @@ m_read16_above_rom:
     bl      SRAMRead16
     ldmfd   sp!,{pc}
 m_read16_ar_nosram:
+    ldr     r2, =PicoRead16Hook
+    ldr     r2, [r2]
     mov     r1, #16
-    b       OtherRead16End
+    bx      r2
 
 .pool
 
@@ -748,16 +753,20 @@ m_read32_ram:
     bx      lr
 
 m_read32_above_rom:
+    ldr     r2, =PicoRead16Hook
     bic     r0, r0, #1
-    stmfd   sp!,{r0,lr}
+    ldr     r2, [r2]
     mov     r1, #32
-    bl      OtherRead16End
+    stmfd   sp!,{r0,r2,lr}
+    mov     lr, pc
+    bx      r2
     mov     r1, r0
-    ldmfd   sp!,{r0}
+    ldmfd   sp!,{r0,r2}
     stmfd   sp!,{r1}
     add     r0, r0, #2
     mov     r1, #32
-    bl      OtherRead16End
+    mov     lr, pc
+    bx      r2
     ldmfd   sp!,{r1,lr}
     orr     r0, r0, r1, lsl #16
     bx      lr

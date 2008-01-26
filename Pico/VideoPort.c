@@ -370,19 +370,24 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
       {
         // Register write:
         int num=(d>>8)&0x1f;
-        if(num==00) elprintf(EL_INTSW, "hint_onoff: %i->%i [%i] pend=%i @ %06x", (pvid->reg[0]&0x10)>>4,
+        int dold=pvid->reg[num];
+        if (num > 0x0a && !(pvid->reg[1]&4)) {
+          elprintf(EL_ANOMALY, "%02x written to reg %02x in SMS mode @ %06x", d, num, SekPc);
+        } else
+	  pvid->reg[num]=(unsigned char)d;
+        if (num==00) elprintf(EL_INTSW, "hint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x10)>>4,
                         (d&0x10)>>4, SekCyclesDone(), (pvid->pending_ints&0x10)>>4, SekPc);
-        if(num==01) elprintf(EL_INTSW, "vint_onoff: %i->%i [%i] pend=%i @ %06x", (pvid->reg[1]&0x20)>>5,
+        if (num==01) elprintf(EL_INTSW, "vint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x20)>>5,
                         (d&0x20)>>5, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
-        //if(num==01) dprintf("set_blank: %i @ %06x [%i|%i]", !((d&0x40)>>6), SekPc, Pico.m.scanline, SekCyclesDone());
-        //if(num==10) dprintf("hint_set: %i @ %06x [%i|%i]", (unsigned char)d, SekPc, Pico.m.scanline, SekCyclesDone());
-        pvid->reg[num]=(unsigned char)d;
+        if      (num ==   5 && (d^dold)) rendstatus|=1;
+        // renderers should update their palettes if sh/hi mode is changed
+        else if (num == 0xc && ((d^dold)&8)) Pico.m.dirtyPal = 2;
 #ifndef EMU_CORE_DEBUG
         // update IRQ level (Lemmings, Wiz 'n' Liz intro, ... )
         // may break if done improperly:
         // International Superstar Soccer Deluxe (crash), Street Racer (logos), Burning Force (gfx),
         // Fatal Rewind (crash), Sesame Street Counting Cafe
-        if (num < 2)
+        else if (num < 2)
         {
           if (!SekShouldInterrupt) // hack
           {
@@ -396,10 +401,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
             if (irq) SekEndRun(24); // make it delayed
           }
         }
-        else
 #endif
-        if(num == 5) rendstatus|=1;
-        else if(num == 0xc) Pico.m.dirtyPal = 2; // renderers should update their palettes if sh/hi mode is changed
         pvid->type=0; // register writes clear command (else no Sega logo in Golden Axe II)
       } else {
         // High word of command:
