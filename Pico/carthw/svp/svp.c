@@ -26,7 +26,13 @@ static void PicoSVPLine(int count)
 
 static int PicoSVPDma(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp)
 {
-	if ((source & 0xfe0000) == 0x300000)
+	if (source < Pico.romsize) { // Rom
+		source -= 2;
+		*srcp = (unsigned short *)(Pico.rom + (source&~1));
+		*limitp = (unsigned short *)(Pico.rom + Pico.romsize);
+		return 1;
+	}
+	else if ((source & 0xfe0000) == 0x300000)
 	{
 		elprintf(EL_VDPDMA|EL_SVP, "SVP DmaSlow from %06x, len=%i", source, len);
 		source &= 0x1fffe;

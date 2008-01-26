@@ -134,11 +134,12 @@ static void DmaSlow(int len)
       return;
     }
   } else {
-    if (source<Pico.romsize) { // Rom
+    // if we have DmaHook, let it handle ROM because of possible DMA delay
+    if (PicoDmaHook && PicoDmaHook(source, len, &pd, &pdend));
+    else if (source<Pico.romsize) { // Rom
       pd=(u16 *)(Pico.rom+(source&~1));
       pdend=(u16 *)(Pico.rom+Pico.romsize);
     }
-    else if (PicoDmaHook && PicoDmaHook(source, len, &pd, &pdend));
     else {
       elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: invalid src", Pico.video.type, source, a);
       return;
