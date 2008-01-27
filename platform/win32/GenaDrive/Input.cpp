@@ -127,7 +127,7 @@ static int DeviceRead()
   }
   else if(!sblobked && GetAsyncKeyState(VK_ESCAPE)) {
 	DSoundMute();
-    FILE *rom = 0;
+    pm_file *rom = 0;
     OPENFILENAME of; ZeroMemory(&of, sizeof(OPENFILENAME));
 	of.lStructSize = sizeof(OPENFILENAME);
 	of.lpstrFilter = "ROMs\0*.smd;*.bin;*.gen\0";
@@ -135,27 +135,17 @@ static int DeviceRead()
 	of.nMaxFile = MAX_PATH;
 	of.Flags = OFN_FILEMUSTEXIST|OFN_HIDEREADONLY;
 	GetOpenFileName(&of);
-	rom = fopen(romname, "rb");
+	rom = pm_open(romname);
 	DSoundUnMute();
 	if(!rom) return 1;
     PicoCartLoad(rom, &rom_data, &rom_size);
     PicoCartInsert(rom_data, rom_size);
-	fclose(rom);
-	sblobked = 1;
-  }
-  else if(!sblobked && GetAsyncKeyState(VK_BACK)) {
-	if(frameStep) frameStep=0;
-	else fastForward^=1;
-	sblobked = 1;
-  }
-  else if(!sblobked && GetAsyncKeyState(VK_OEM_5)) {
-	frameStep=3;
+	pm_close(rom);
 	sblobked = 1;
   }
   else
     sblobked = GetAsyncKeyState(VK_F6) | GetAsyncKeyState(VK_F9) |
-		GetAsyncKeyState(VK_TAB)  | GetAsyncKeyState(VK_ESCAPE) |
-		GetAsyncKeyState(VK_BACK) | GetAsyncKeyState(VK_OEM_5);
+		GetAsyncKeyState(VK_TAB)  | GetAsyncKeyState(VK_ESCAPE);
   
   return 0;
 }

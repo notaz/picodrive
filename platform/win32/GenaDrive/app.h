@@ -13,7 +13,7 @@
 
 #include <d3dx8.h>
 
-#include "Pico.h"
+#include <Pico/Pico.h>
 
 #define PI 3.14159265f
 
@@ -53,19 +53,20 @@ int LightCalUpdate();
 int LightCalRender();
 
 // Loop.cpp
-void preLoopInit();
 extern char LoopQuit;
 extern int LoopMode;
 
 int LoopInit();
 void LoopExit();
 int LoopCode();
+//extern "C" int dprintf(char *format, ...);
+extern "C" int dprintf2(char *format, ...);
 
 // Main.cpp
 extern HWND FrameWnd;
 extern int MainWidth,MainHeight;
 extern char AppName[];
-extern "C" int dprintf(char *format, ...);
+extern void error(char *text);
 
 // Rom.cpp
 extern unsigned char *RomData;

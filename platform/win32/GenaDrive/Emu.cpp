@@ -1,38 +1,16 @@
 
 #include "app.h"
 
-extern "C" {
-struct Pico
-{
-  unsigned char ram[0x10000];  // 0x00000 scratch ram
-  unsigned short vram[0x8000]; // 0x10000
-  unsigned char zram[0x2000];  // 0x20000 Z80 ram
-  unsigned char ioports[0x10];
-  unsigned int pad[0x3c];      // unused
-  unsigned short cram[0x40];   // 0x22100
-  unsigned short vsram[0x40];  // 0x22180
-
-  unsigned char *rom;          // 0x22200
-  unsigned int romsize;        // 0x22204
-
-//  struct PicoMisc m;
-//  struct PicoVideo video;
-};
-  extern struct Pico Pico;
-}
-
 unsigned short *EmuScreen=NULL;
 extern "C" unsigned short *framebuff=NULL;
 int EmuWidth=0,EmuHeight=0;
 static int frame=0;
 static int EmuScan(unsigned int num, void *sdata);
+unsigned char *PicoDraw2FB = NULL;
 
 int EmuInit()
 {
   int len=0;
-
-//  PicoOpt=-1;
-//  PsndRate=44100; PsndLen=DSoundSeg;
 
   PicoInit();
 
@@ -43,6 +21,8 @@ int EmuInit()
   framebuff=(unsigned short *)malloc((8+320)*(8+224+8)*2);
   memset(EmuScreen,0,len);
 
+  PicoDraw2FB = (unsigned char *)framebuff;
+  PicoDrawSetColorFormat(1);
   PicoScan=EmuScan;
 
   return 0;
@@ -70,7 +50,7 @@ static int EmuScan(unsigned int num, void *sdata)
   pd=EmuScreen+(num<<8)+(num<<6); end=pd+320;
   ps=(unsigned short *)sdata;
 
-  do { *pd++=(unsigned short)PicoCram(*ps++); } while (pd<end);
+  do { *pd++=*ps++; } while (pd<end);
   
   return 0;
 }
@@ -92,21 +72,26 @@ int EmuFrame()
   frame++;
   PsndOut=(short *)DSoundNext; PicoFrame(); PsndOut=NULL;
 
-  // rendermode2
-  if(PicoOpt&0x10) {
-	unsigned short *pd=EmuScreen;
-	unsigned char  *ps=(unsigned char*)framebuff+328*8;
-
-	unsigned short palHigh[0x40];
-	for(int i = 0; i < 0x40; i++)
-	  palHigh[i]=(unsigned short)PicoCram(Pico.cram[i]);
-
-    for(int y=0; y < 224; y++) {
-	  ps+=8;
-	  for(int x=0; x < 320; x++)
-		*pd++=palHigh[*ps++];
-	}
-  }
-
   return 0;
 }
+
+
+
+int mp3_get_offset(void) // 0-1023
+{
+  return 0;
+}
+
+void mp3_update(int *buffer, int length, int stereo)
+{
+}
+
+void mp3_start_play(FILE *f, int pos)
+{
+}
+
+int mp3_get_bitrate(FILE *f, int size)
+{
+  return -1;
+}
+

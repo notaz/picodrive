@@ -1,19 +1,6 @@
 #include "app.h"
-#include "FileMenu.h"
+//#include "FileMenu.h"
 
-// sram
-struct PicoSRAM
-{
-  unsigned char *data; // actual data
-  unsigned int start;  // start address in 68k address space
-  unsigned int end;
-  unsigned char resize; // 1=SRAM size changed and needs to be reallocated on PicoReset
-  unsigned char reg_back; // copy of Pico.m.sram_reg to set after reset
-  unsigned char changed;
-  unsigned char pad;
-};
-
-extern "C" PicoSRAM SRam;
 extern char *romname;
 int fastForward=0;
 int frameStep=0;
@@ -21,7 +8,7 @@ int frameStep=0;
 char LoopQuit=0;
 static FILE *DebugFile=NULL;
 int LoopMode=0;
-static void UpdateSound();
+static void UpdateSound(int len);
 
 int LoopInit()
 {
@@ -35,31 +22,19 @@ int LoopInit()
   //PsndLen=PsndRate/60;   // calculated later by pico itself
 
   // Init Direct3D:
-  ret=DirectInit(); if (ret) return 1;
+  ret=DirectInit(); if (ret) { error("Direct3D init failed"); return 1; }
   InputInit();
 
   // Init DirectSound:
   //DSoundInit();
 
   ret=EmuInit(); if (ret) return 1;
-  FileMenu.init();
+  //FileMenu.init();
 
   LoopMode=8;
   PicoWriteSound = UpdateSound;
 
   return 0;
-}
-
-void preLoopInit()
-{
-  romname[strlen(romname)-3] = 0;
-  strcat(romname, "srm");
-  int sram_size = SRam.end-SRam.start+1;
-  if(SRam.reg_back & 4) sram_size=0x2000;
-  FILE *f = fopen(romname, "rb");
-  if(f && SRam.data)
-    fread(SRam.data, 1, sram_size, f);
-  if(f) fclose(f);
 }
 
 extern "C" char *debugString();
@@ -68,21 +43,7 @@ void LoopExit()
 {
   dprintf(debugString());
 
-  romname[strlen(romname)-3] = 0;
-  strcat(romname, "srm");
-  int sram_size = SRam.end-SRam.start+1;
-  if(SRam.reg_back & 4) sram_size=0x2000;
-  for(; sram_size > 0; sram_size--)
-	if(SRam.data[sram_size-1]) break;
-  if(sram_size) {
-    FILE *f = fopen(romname, "wb");
-    if(f) {
-      fwrite(SRam.data, 1, sram_size, f);
-      fclose(f);
-	}
-  }
-
-  FileMenu.exit();
+  //FileMenu.exit();
   EmuExit();
   DSoundExit(); PsndLen=0;
   InputExit();
@@ -113,6 +74,7 @@ static int DoGame()
 }
 // ----------------------------------------------------------------
 
+/*
 static int MenuUpdate()
 {
   int delta=0;
@@ -149,6 +111,7 @@ static int MenuRender()
 
   return 0;
 }
+*/
 
 // ----------------------------------------------------------------
 
@@ -161,9 +124,9 @@ static int ModeUpdate()
 
   if (DSoundNext) memset(DSoundNext,0,PsndLen<<2);
 
-  if (LoopMode==2) { FileMenu.scan(); LoopMode++; return 0; }
-  if (LoopMode==3) { MenuUpdate(); return 0; }
-  if (LoopMode==4) { LightCalUpdate(); return 0; }
+//  if (LoopMode==2) { FileMenu.scan(); LoopMode++; return 0; }
+//  if (LoopMode==3) { MenuUpdate(); return 0; }
+//  if (LoopMode==4) { LightCalUpdate(); return 0; }
 
   LoopMode=2; // Unknown mode, go to rom menu
   return 0;
@@ -173,13 +136,13 @@ static int ModeUpdate()
 static int ModeRender()
 {
   DirectScreen();
-  if (LoopMode==3) MenuRender();
-  if (LoopMode==4) LightCalRender();
+//  if (LoopMode==3) MenuRender();
+//  if (LoopMode==4) LightCalRender();
 
   return 0;
 }
 
-static void UpdateSound()
+static void UpdateSound(int len)
 {
   if(fastForward) return;
   while (DSoundUpdate()) { Sleep(1); }
@@ -206,6 +169,7 @@ int LoopCode()
 
 // -------------------------------------------------------------------------------------
 
+#if 0
 extern "C" int dprintf(char *format, ...)
 {
   char *name=NULL;
@@ -229,6 +193,7 @@ extern "C" int dprintf(char *format, ...)
   va_end(val);
   return 0;
 }
+#endif
 
 extern "C" int dprintf2(char *format, ...)
 {
@@ -242,3 +207,4 @@ extern "C" int dprintf2(char *format, ...)
 
   return 0;
 }
+

@@ -7,19 +7,12 @@
 #define START_ROW  0 // which row of tiles to start rendering at?
 #define END_ROW   28 // ..end
 
+#define mix_32_to_16l_stereo_lvl mix_32_to_16l_stereo
+
 // pico.c
 #define CAN_HANDLE_240_LINES	0
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// common debug
-int dprintf (char *format, ...);
-int dprintf2(char *format, ...);
-
-#ifdef __cplusplus
-} // End of extern "C"
-#endif
+#define dprintf
+#define strcasecmp stricmp
 
 #endif //PORT_CONFIG_H

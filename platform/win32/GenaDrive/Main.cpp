@@ -113,13 +113,16 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR cmdline,int)
   DWORD tid=0;
   HANDLE thread=NULL;
 
+  FrameInit();
+  ret=LoopInit(); if (ret) { LoopExit(); return 1; }
+
   // notaz: load rom
   static char rompath[MAX_PATH]; rompath[0] = 0;
   strcpy(rompath, cmdline + (cmdline[0] == '\"' ? 1 : 0));
   if(rompath[strlen(rompath)-1] == '\"') rompath[strlen(rompath)-1] = 0;
 
-  FILE *rom = 0;
-  if(strlen(rompath) > 4) rom = fopen(rompath, "rb");
+  pm_file *rom = 0;
+  if(strlen(rompath) > 4) rom = pm_open(rompath);
   if(!rom) {
     OPENFILENAME of; ZeroMemory(&of, sizeof(OPENFILENAME));
 	of.lStructSize = sizeof(OPENFILENAME);
@@ -128,7 +131,7 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR cmdline,int)
 	of.nMaxFile = MAX_PATH;
 	of.Flags = OFN_FILEMUSTEXIST|OFN_HIDEREADONLY;
 	if(!GetOpenFileName(&of)) return 1;
-	rom = fopen(rompath, "rb");
+	rom = pm_open(rompath);
 	if(!rom) return 1;
   }
   romname = rompath;
@@ -137,16 +140,12 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR cmdline,int)
 	//RDebug::Print(_L("PicoCartLoad() failed."));
 	//goto cleanup;
   }
-
-  FrameInit();
-  ret=LoopInit(); if (ret) { LoopExit(); return 1; }
+  pm_close(rom);
 
   PicoCartInsert(rom_data, rom_size);
 
   // only now we got the mode (pal/ntsc), so init sound now
   DSoundInit();
-
-  preLoopInit();
 
   // Make another thread to run LoopCode():
   LoopQuit=0;
@@ -173,6 +172,11 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR cmdline,int)
 
   _CrtDumpMemoryLeaks();
   return 0;
+}
+
+extern void error(char *text)
+{
+  MessageBox(FrameWnd, text, "Error", 0);
 }
 #endif
 

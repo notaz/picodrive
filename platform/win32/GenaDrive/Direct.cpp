@@ -75,7 +75,7 @@ int DirectInit()
 
   ret=TexScreenInit(); if (ret) return 1;
 
-  FontInit();
+  //FontInit();
 
   Device->SetRenderState(D3DRS_LIGHTING,0); // Turn off lighting
 
@@ -87,8 +87,8 @@ int DirectInit()
 
 void DirectExit()
 {
-  FontExit();
-  TexScreenExit();
+  //FontExit();
+  //TexScreenExit();
 
   RELEASE(VertexBuffer)
   RELEASE(DirectBack)
