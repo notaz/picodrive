@@ -37,6 +37,8 @@ extern unsigned int ppop;
 
 #ifdef IO_STATS
 void log_io(unsigned int addr, int bits, int rw);
+#elif defined(_MSC_VER)
+#define log_io
 #else
 #define log_io(...)
 #endif

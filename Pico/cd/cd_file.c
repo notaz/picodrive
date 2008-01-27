@@ -10,7 +10,6 @@
 #include "../PicoInt.h"
 #include "cd_file.h"
 
-#define cdprintf(x...)
 //#define cdprintf(f,...) printf(f "\n",##__VA_ARGS__) // tmp
 #define DEBUG_CD
 

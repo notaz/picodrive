@@ -18,10 +18,15 @@ typedef unsigned int   u32;
 #define UTYPES_DEFINED
 #endif
 
+#ifdef _MSC_VER
+#define rdprintf
+#define wrdprintf
+#else
 //#define rdprintf dprintf
 #define rdprintf(...)
 //#define wrdprintf dprintf
 #define wrdprintf(...)
+#endif
 
 #ifdef EMU_CORE_DEBUG
 extern u32 lastread_a, lastread_d[16], lastwrite_cyc_d[16];
@@ -1158,11 +1163,12 @@ static u32 PicoReadS68k32(u32 a)
   // word RAM (1M area)
   if ((a&0xfe0000)==0x0c0000 && (Pico_mcd->s68k_regs[3]&4)) { // 0c0000-0dffff
     int bank;
+    u16 *pm;
     wrdprintf("s68k_wram1M r32: [%06x] @%06x", a, SekPcS68k);
 //    if (!(Pico_mcd->s68k_regs[3]&4))
 //      dprintf("s68k_wram1M FIXME: wrong mode");
     bank = (Pico_mcd->s68k_regs[3]&1)^1;
-    u16 *pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe)); d = (pm[0]<<16)|pm[1];
+    pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe)); d = (pm[0]<<16)|pm[1];
     wrdprintf("ret = %08x", d);
     goto end;
   }

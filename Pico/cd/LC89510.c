@@ -9,9 +9,6 @@
 
 #include "../PicoInt.h"
 
-#define cdprintf(x...)
-
-
 #define CDC_DMA_SPEED 256
 
 

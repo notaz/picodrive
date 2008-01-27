@@ -1085,7 +1085,7 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 void chan_render_loop(chan_rend_context *ct, int *buffer, unsigned short length);
 #endif
 
-static chan_rend_context __attribute__((aligned(64))) crct;
+static chan_rend_context crct;
 
 static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: stereo, ?, disabled, ?, pan_r, pan_l
 {

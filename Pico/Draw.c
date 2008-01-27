@@ -610,8 +610,8 @@ static void DrawTilesFromCacheShPrep(void)
   {
     // as some layer has covered whole line with hi priority tiles,
     // we can process whole line and then act as if sh/hi mode was off.
-    rendstatus|=0x80;
     int c = 320/4, *zb = (int *)(HighCol+8);
+    rendstatus|=0x80;
     while (c--)
     {
       int tmp = *zb;

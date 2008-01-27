@@ -169,7 +169,7 @@ extern int SekCycleAimS68k;
 // ----------------------- Z80 CPU -----------------------
 
 #if defined(_USE_MZ80)
-#include "../../cpu/mz80/mz80.h"
+#include "../cpu/mz80/mz80.h"
 
 #define z80_run(cycles)    mz80_run(cycles)
 #define z80_run_nr(cycles) mz80_run(cycles)
@@ -177,7 +177,7 @@ extern int SekCycleAimS68k;
 #define z80_resetCycles()  mz80GetElapsedTicks(1)
 
 #elif defined(_USE_DRZ80)
-#include "../../cpu/DrZ80/drz80.h"
+#include "../cpu/DrZ80/drz80.h"
 
 extern struct DrZ80 drZ80;
 
@@ -190,7 +190,7 @@ extern struct DrZ80 drZ80;
 #define z80_resetCycles()
 
 #elif defined(_USE_CZ80)
-#include "../../cpu/cz80/cz80.h"
+#include "../cpu/cz80/cz80.h"
 
 #define z80_run(cycles)    Cz80_Exec(&CZ80, cycles)
 #define z80_run_nr(cycles) Cz80_Exec(&CZ80, cycles)
@@ -335,10 +335,10 @@ typedef struct
 	union {						// 0a0000: 256K
 		struct {
 			unsigned char word_ram2M[0x40000];
-			unsigned char unused[0x20000];
+			unsigned char unused0[0x20000];
 		};
 		struct {
-			unsigned char unused[0x20000];
+			unsigned char unused1[0x20000];
 			unsigned char word_ram1M[2][0x20000];
 		};
 	};
@@ -503,8 +503,16 @@ extern void lprintf(const char *fmt, ...);
 	if ((w) & EL_LOGMASK) \
 		lprintf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__); \
 }
+#elif defined(_MSC_VER)
+#define elprintf
 #else
 #define elprintf(w,f,...)
+#endif
+
+#ifdef _MSC_VER
+#define cdprintf
+#else
+#define cdprintf(x...)
 #endif
 
 #endif // PICO_INTERNAL_INCLUDED
