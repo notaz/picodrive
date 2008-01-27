@@ -14,11 +14,19 @@
 #include "cz80.h"
 
 #if PICODRIVE_HACKS
+#undef EMU_M68K
 #include <Pico/PicoInt.h>
 #endif
 
 #ifndef ALIGN_DATA
+#ifdef _MSC_VER
+#define ALIGN_DATA
+#define inline
+#undef  CZ80_USE_JUMPTABLE
+#define CZ80_USE_JUMPTABLE 0
+#else
 #define ALIGN_DATA      __attribute__((aligned(4)))
+#endif
 #endif
 
 #define CF					0x01

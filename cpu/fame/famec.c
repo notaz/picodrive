@@ -33,7 +33,9 @@
 
 
 #undef INLINE
-#ifndef INLINE
+#ifdef _MSC_VER
+#define INLINE
+#else
 #define INLINE __inline__
 #endif
 
@@ -914,9 +916,10 @@ famec_Exec:
 #endif
 		if (cycles_needed != 0)
 		{
+			u32 line;
 			m68kcontext.io_cycle_counter = cycles_needed;
 			cycles_needed = 0;
-			s32 line=interrupt_chk__();
+			line=interrupt_chk__();
 			if (line>0)
 			{
 				if (m68kcontext.iack_handler != NULL)
