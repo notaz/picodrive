@@ -1,3 +1,10 @@
+// basic, incomplete SSP160x (SSP1601?) interpreter
+
+// (c) Copyright 2008, Grazvydas "notaz" Ignotas
+// Free for non-commercial use.
+
+// For commercial use, separate licencing terms must be obtained.
+
 
 // register names
 enum {

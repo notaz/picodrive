@@ -1,8 +1,16 @@
 // basic, incomplete SSP160x (SSP1601?) interpreter
+// with SVP memory controller
+
+// (c) Copyright 2008, Grazvydas "notaz" Ignotas
+// Free for non-commercial use.
+
+// For commercial use, separate licencing terms must be obtained.
+
+
+#include "../../PicoInt.h"
 
 /*
  * Register info
- * most names taken from MAME code
  *
  * 0. "-"
  *   size: 16
@@ -10,11 +18,11 @@
  *
  * 1. "X"
  *   size: 16
- *   desc: Generic register. When set, updates P (P = X * Y * 2) ??
+ *   desc: Generic register. When set, updates P (P = X * Y * 2)
  *
  * 2. "Y"
  *   size: 16
- *   desc: Generic register. When set, updates P (P = X * Y * 2) ??
+ *   desc: Generic register. When set, updates P (P = X * Y * 2)
  *
  * 3. "A"
  *   size: 32
@@ -58,8 +66,7 @@
  *
  * 7. "P"
  *   size: 32
- *   desc: multiply result register. Updated after mp* instructions,
- *         or writes to X or Y (P = X * Y * 2) ??
+ *   desc: multiply result register. P = X * Y * 2
  *         probably affected by MACS bit in ST.
  *
  * 8. "PM0" (PM from PMAR name from Tasco's docs)
@@ -106,7 +113,7 @@
  *
  * 15. "AL"
  *   size: 16
- *   desc: Accumulator Low. 16 least significant bits of accumulator (not 100% sure)
+ *   desc: Accumulator Low. 16 least significant bits of accumulator.
  *         (normally reading acc (ld X, A) you get 16 most significant bits).
  *
  *
@@ -168,21 +175,15 @@
  * 30fe06 - also sync related.
  * 30fe08 - job number [1-12] for SVP. 0 means no job. Set by 68k, read-cleared by SVP.
  *
- * TODO:
  * + figure out if 'op A, P' is 32bit (nearly sure it is)
- * * what exactly is AL?
  * * does mld, mpya load their operands into X and Y?
  * * OP simm
- *
- * misc:
- * pressing all buttons while resetting game will kick into test mode
  *
  * Assumptions in this code
  *   P is not directly writeable
  *   flags correspond to full 32bit accumulator
  *   only Z and N status flags are emulated (others unused by SVP)
  *   modifiers for 'OP a, ri' are ignored (invalid?/not used by SVP)
- *   modifiers '+' and '+!' act the same (this is most likely wrong)
  *   'ld d, (a)' loads from program ROM
  */
 
@@ -563,7 +564,7 @@ static u32 read_PM1(void)
 	u32 d = pm_io(1, 0, 0);
 	if (d != (u32)-1) return d;
 	// can be removed?
-	elprintf(EL_SVP, "PM1 raw r %04x @ %04x", rPM1, GET_PPC_OFFS());
+	elprintf(EL_SVP|EL_ANOMALY, "PM1 raw r %04x @ %04x", rPM1, GET_PPC_OFFS());
 	return rPM1;
 }
 
@@ -572,7 +573,7 @@ static void write_PM1(u32 d)
 	u32 r = pm_io(1, 1, d);
 	if (r != (u32)-1) return;
 	// can be removed?
-	elprintf(EL_SVP, "PM1 raw w %04x @ %04x", d, GET_PPC_OFFS());
+	elprintf(EL_SVP|EL_ANOMALY, "PM1 raw w %04x @ %04x", d, GET_PPC_OFFS());
 	rPM1 = d;
 }
 
@@ -582,7 +583,7 @@ static u32 read_PM2(void)
 	u32 d = pm_io(2, 0, 0);
 	if (d != (u32)-1) return d;
 	// can be removed?
-	elprintf(EL_SVP, "PM2 raw r %04x @ %04x", rPM2, GET_PPC_OFFS());
+	elprintf(EL_SVP|EL_ANOMALY, "PM2 raw r %04x @ %04x", rPM2, GET_PPC_OFFS());
 	return rPM2;
 }
 
@@ -591,7 +592,7 @@ static void write_PM2(u32 d)
 	u32 r = pm_io(2, 1, d);
 	if (r != (u32)-1) return;
 	// can be removed?
-	elprintf(EL_SVP, "PM2 raw w %04x @ %04x", d, GET_PPC_OFFS());
+	elprintf(EL_SVP|EL_ANOMALY, "PM2 raw w %04x @ %04x", d, GET_PPC_OFFS());
 	rPM2 = d;
 }
 
@@ -629,7 +630,7 @@ static u32 read_PM4(void)
 	}
 	if (d != (u32)-1) return d;
 	// can be removed?
-	elprintf(EL_SVP, "PM4 raw r %04x @ %04x", rPM4, GET_PPC_OFFS());
+	elprintf(EL_SVP|EL_ANOMALY, "PM4 raw r %04x @ %04x", rPM4, GET_PPC_OFFS());
 	return rPM4;
 }
 
@@ -638,7 +639,7 @@ static void write_PM4(u32 d)
 	u32 r = pm_io(4, 1, d);
 	if (r != (u32)-1) return;
 	// can be removed?
-	elprintf(EL_SVP, "PM4 raw w %04x @ %04x", d, GET_PPC_OFFS());
+	elprintf(EL_SVP|EL_ANOMALY, "PM4 raw w %04x @ %04x", d, GET_PPC_OFFS());
 	rPM4 = d;
 }
 

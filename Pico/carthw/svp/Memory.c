@@ -1,3 +1,12 @@
+// The SVP chip emulator
+
+// (c) Copyright 2008, Grazvydas "notaz" Ignotas
+// Free for non-commercial use.
+
+// For commercial use, separate licencing terms must be obtained.
+
+
+#include "../../PicoInt.h"
 #include "../../PicoInt.h"
 
 #ifndef UTYPES_DEFINED

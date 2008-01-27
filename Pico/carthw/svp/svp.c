@@ -1,3 +1,11 @@
+// The SVP chip emulator
+
+// (c) Copyright 2008, Grazvydas "notaz" Ignotas
+// Free for non-commercial use.
+
+// For commercial use, separate licencing terms must be obtained.
+
+
 #include "../../PicoInt.h"
 
 svp_t *svp = NULL;
@@ -26,7 +34,8 @@ static void PicoSVPLine(int count)
 
 static int PicoSVPDma(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp)
 {
-	if (source < Pico.romsize) { // Rom
+	if (source < Pico.romsize) // Rom
+	{
 		source -= 2;
 		*srcp = (unsigned short *)(Pico.rom + (source&~1));
 		*limitp = (unsigned short *)(Pico.rom + Pico.romsize);
