@@ -21,7 +21,8 @@ int DirectInit()
 {
   D3DPRESENT_PARAMETERS d3dpp; 
   D3DDISPLAYMODE mode;
-  int i=0,ret=0;
+  D3DDEVTYPE dt = D3DDEVTYPE_HAL;
+  int i,u,ret=0;
 
   memset(&d3dpp,0,sizeof(d3dpp));
   memset(&mode,0,sizeof(mode));
@@ -44,25 +45,21 @@ int DirectInit()
 #endif
 
   // Try to create a device with hardware vertex processing:
-  for (i=0;i<4;i++)
+  for (u=0;u<2;u++)
   {
-    int behave=D3DCREATE_HARDWARE_VERTEXPROCESSING;
-
-#ifdef _XBOX
-    if (i==1)
+    for (i=0;i<4;i++)
     {
-      // If 60Hz didn't work, try PAL 50Hz instead:
-      d3dpp.FullScreen_RefreshRateInHz=0;
-      d3dpp.BackBufferHeight=MainHeight=576;
+      int behave=D3DCREATE_HARDWARE_VERTEXPROCESSING;
+
+      // Try software vertex processing:
+      if (i==1) behave=D3DCREATE_MIXED_VERTEXPROCESSING;
+      if (i==2) behave=D3DCREATE_SOFTWARE_VERTEXPROCESSING;
+
+      Direct3D->CreateDevice(D3DADAPTER_DEFAULT,dt,FrameWnd,behave,&d3dpp,&Device);
+      if (Device) break;
     }
-#endif
-
-    // Try software vertex processing:
-    if (i==2) behave=D3DCREATE_MIXED_VERTEXPROCESSING;
-    if (i==3) behave=D3DCREATE_SOFTWARE_VERTEXPROCESSING;
-
-    Direct3D->CreateDevice(D3DADAPTER_DEFAULT,D3DDEVTYPE_HAL,FrameWnd,behave,&d3dpp,&Device);
     if (Device) break;
+    dt = D3DDEVTYPE_REF;
   }
 
   if (Device==NULL) return 1;
@@ -184,12 +181,14 @@ static int SetupMatrices()
 int DirectScreen()
 {
   unsigned char *lock=NULL;
+  int ret;
 
   // Copy the screen to the screen texture:
 #ifdef _XBOX
   TexScreenSwizzle();
 #else
-  TexScreenLinear();
+  ret=TexScreenLinear();
+  if (ret) dprintf2("TexScreenLinear failed\n");
 #endif
 
   SetupMatrices();
@@ -197,14 +196,19 @@ int DirectScreen()
   MakeVertexList();
 
   // Copy vertices in:
-  VertexBuffer->Lock(0,sizeof(VertexList),&lock,0); if (lock==NULL) return 1;
+  VertexBuffer->Lock(0,sizeof(VertexList),&lock,0);
+  if (lock==NULL) { dprintf2("VertexBuffer->Lock failed\n"); return 1; }
   memcpy(lock,VertexList,sizeof(VertexList));
   VertexBuffer->Unlock();
 
-  Device->SetTexture(0,TexScreen);
-  Device->SetStreamSource(0,VertexBuffer,sizeof(CustomVertex));
-  Device->SetVertexShader(D3DFVF_CUSTOMVERTEX);
-  Device->DrawPrimitive(D3DPT_TRIANGLESTRIP,0,2);
-  
+  ret=Device->SetTexture(0,TexScreen);
+  if (ret) dprintf2("SetTexture failed\n");
+  ret=Device->SetStreamSource(0,VertexBuffer,sizeof(CustomVertex));
+  if (ret) dprintf2("SetStreamSource failed\n");
+  ret=Device->SetVertexShader(D3DFVF_CUSTOMVERTEX);
+  if (ret) dprintf2("SetVertexShader failed\n");
+  ret=Device->DrawPrimitive(D3DPT_TRIANGLESTRIP,0,2);
+  if (ret) dprintf2("DrawPrimitive failed\n");
+
   return 0;
 }

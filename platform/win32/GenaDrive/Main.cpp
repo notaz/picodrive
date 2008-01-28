@@ -1,5 +1,5 @@
-
 #include "app.h"
+#include "version.h"
 #include <crtdbg.h>
 #include <commdlg.h>
 
@@ -8,42 +8,6 @@ HWND FrameWnd=NULL;
 
 int MainWidth=720,MainHeight=480;
 
-char AppName[]="GenaDrive";
-
-#ifdef STARSCREAM
-  extern "C" int SekReset();
-#endif
-
-// ------------------------------------ XBox Main ------------------------------------------
-#ifdef _XBOX
-
-static int MainCode()
-{
-  int ret=0;
-
-  ret=LoopInit(); if (ret) { LoopExit(); return 1; }
-
-  LoopQuit=0; LoopCode();
-  LoopExit();
-
-  return 0;
-}
-
-int __cdecl main()
-{
-  LD_LAUNCH_DASHBOARD launch;
-
-  MainCode();
-
-  // Go back to dashboard:
-  memset(&launch,0,sizeof(launch));
-  launch.dwReason=XLD_LAUNCH_DASHBOARD_MAIN_MENU;
-  XLaunchNewImage(NULL,(LAUNCH_DATA *)&launch);
-}
-#endif
-
-// ----------------------------------- Windows Main ----------------------------------------
-#ifndef _XBOX
 // Window proc for the frame window:
 static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
 {
@@ -88,7 +52,7 @@ static int FrameInit()
   top-=height; top>>=1;
 
   // Create the window:
-  FrameWnd=CreateWindow(wc.lpszClassName,AppName,style|WS_VISIBLE,
+  FrameWnd=CreateWindow(wc.lpszClassName,"PicoDrive " VERSION,style|WS_VISIBLE,
     left,top,width,height,NULL,NULL,NULL,NULL);
 
   return 0;
@@ -102,19 +66,17 @@ static DWORD WINAPI ThreadCode(void *)
   return 0;
 }
 
-// starscream needs this
-unsigned char *rom_data = 0;
-unsigned int rom_size = 0;
-
 int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR cmdline,int)
 {
   MSG msg;
   int ret=0;
   DWORD tid=0;
   HANDLE thread=NULL;
+  unsigned char *rom_data = 0;
+  unsigned int rom_size = 0;
 
   FrameInit();
-  ret=LoopInit(); if (ret) { LoopExit(); return 1; }
+  ret=LoopInit(); if (ret) goto end0;
 
   // notaz: load rom
   static char rompath[MAX_PATH]; rompath[0] = 0;
@@ -125,27 +87,29 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR cmdline,int)
   if(strlen(rompath) > 4) rom = pm_open(rompath);
   if(!rom) {
     OPENFILENAME of; ZeroMemory(&of, sizeof(OPENFILENAME));
-	of.lStructSize = sizeof(OPENFILENAME);
-	of.lpstrFilter = "ROMs\0*.smd;*.bin;*.gen\0";
-	of.lpstrFile = rompath; rompath[0] = 0;
-	of.nMaxFile = MAX_PATH;
-	of.Flags = OFN_FILEMUSTEXIST|OFN_HIDEREADONLY;
-	if(!GetOpenFileName(&of)) return 1;
-	rom = pm_open(rompath);
-	if(!rom) return 1;
+    of.lStructSize = sizeof(OPENFILENAME);
+    of.lpstrFilter = "ROMs\0*.smd;*.bin;*.gen;*.zip\0";
+    of.lpstrFile = rompath; rompath[0] = 0;
+    of.nMaxFile = MAX_PATH;
+    of.Flags = OFN_FILEMUSTEXIST|OFN_HIDEREADONLY;
+    if(!GetOpenFileName(&of)) goto end0;
+    rom = pm_open(rompath);
+    if(!rom) goto end0;
   }
   romname = rompath;
 
-  if(PicoCartLoad(rom, &rom_data, &rom_size)) {
-	//RDebug::Print(_L("PicoCartLoad() failed."));
-	//goto cleanup;
-  }
+  ret=PicoCartLoad(rom, &rom_data, &rom_size);
   pm_close(rom);
+  if (ret) {
+    error("failed to load ROM");
+    goto end0;
+  }
 
   PicoCartInsert(rom_data, rom_size);
 
   // only now we got the mode (pal/ntsc), so init sound now
-  DSoundInit();
+  ret=DSoundInit();
+  if (ret) error("Failed to init DirectSound"); // warning
 
   // Make another thread to run LoopCode():
   LoopQuit=0;
@@ -165,6 +129,7 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR cmdline,int)
   LoopQuit=1; WaitForSingleObject(thread,5000);
   CloseHandle(thread); thread=NULL;
 
+end0:
   LoopExit();
   DestroyWindow(FrameWnd);
 
@@ -178,5 +143,4 @@ extern void error(char *text)
 {
   MessageBox(FrameWnd, text, "Error", 0);
 }
-#endif
 

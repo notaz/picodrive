@@ -86,7 +86,8 @@ int TexScreenLinear()
   int y=0,line=0;
   unsigned short *ps=NULL;
 
-  TexScreen->LockRect(0,&lock,NULL,0); if (lock.pBits==NULL) return 1;
+  TexScreen->LockRect(0,&lock,NULL,0);
+  if (lock.pBits==NULL) return 1;
 
   dest=(unsigned char *)lock.pBits;
   ps=EmuScreen;
@@ -98,7 +99,7 @@ int TexScreenLinear()
 
     for (x=0; x<EmuWidth; x++,addr+=2)
     {
-      *(unsigned int *)(dest+addr)=*ps++;
+      *(unsigned int *)(dest+addr)=0xf0f0f0f0;//*ps++;
     }
   }
 

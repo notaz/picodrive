@@ -1,15 +1,9 @@
 
 #include <stdio.h>
 
-#ifdef _XBOX
-#include <xtl.h>
-#endif
-
-#ifndef _XBOX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <d3d8.h>
-#endif
 
 #include <d3dx8.h>
 
@@ -19,11 +13,6 @@
 
 #define RELEASE(x) if (x) x->Release();  x=NULL;
 
-#ifdef _XBOX
-#define HOME "d:\\"
-#else
-#define HOME ".\\"
-#endif
 
 // Emu.cpp
 extern unsigned short *EmuScreen;
@@ -63,9 +52,9 @@ int LoopCode();
 extern "C" int dprintf2(char *format, ...);
 
 // Main.cpp
+extern char *romname;
 extern HWND FrameWnd;
 extern int MainWidth,MainHeight;
-extern char AppName[];
 extern void error(char *text);
 
 // Rom.cpp

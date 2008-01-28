@@ -2,9 +2,7 @@
 #include "app.h"
 
 unsigned short *EmuScreen=NULL;
-extern "C" unsigned short *framebuff=NULL;
 int EmuWidth=0,EmuHeight=0;
-static int frame=0;
 static int EmuScan(unsigned int num, void *sdata);
 unsigned char *PicoDraw2FB = NULL;
 
@@ -18,10 +16,9 @@ int EmuInit()
   EmuWidth=320; EmuHeight=224;
   len=EmuWidth*EmuHeight; len<<=1;
   EmuScreen=(unsigned short *)malloc(len); if (EmuScreen==NULL) return 1;
-  framebuff=(unsigned short *)malloc((8+320)*(8+224+8)*2);
+  PicoDraw2FB=(unsigned char *)malloc((8+320)*(8+224+8)*2);
   memset(EmuScreen,0,len);
 
-  PicoDraw2FB = (unsigned char *)framebuff;
   PicoDrawSetColorFormat(1);
   PicoScan=EmuScan;
 
@@ -32,7 +29,7 @@ void EmuExit()
 {
   //RomFree();
   free(EmuScreen); EmuScreen=NULL; // Deallocate screen
-  free(framebuff);
+  free(PicoDraw2FB);
   EmuWidth=EmuHeight=0;
 
   PicoExit();
@@ -50,7 +47,7 @@ static int EmuScan(unsigned int num, void *sdata)
   pd=EmuScreen+(num<<8)+(num<<6); end=pd+320;
   ps=(unsigned short *)sdata;
 
-  do { *pd++=*ps++; } while (pd<end);
+  do { *pd++=0xf800;/**ps++;*/ } while (pd<end);
   
   return 0;
 }
@@ -69,7 +66,6 @@ int EmuFrame()
 
   PicoPad[0]=input;
 
-  frame++;
   PsndOut=(short *)DSoundNext; PicoFrame(); PsndOut=NULL;
 
   return 0;

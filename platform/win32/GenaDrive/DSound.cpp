@@ -12,7 +12,6 @@ static IDirectSoundBuffer *LoopBuffer=NULL;
 static int LoopLen=0,LoopWrite=0; // Next position in loop to write
 
 short *DSoundNext=NULL; // Buffer for next sound data to put in loop
-//int DSoundSeg=0; // Seg length in samples
 
 static int LoopBlank()
 {
@@ -102,7 +101,7 @@ int DSoundUpdate()
   DWORD play=0;
   int pos=0;
 
-  if (LoopBuffer==NULL) return 1;
+  if (LoopBuffer==NULL) return -1;
 
   LoopBuffer->GetCurrentPosition(&play,NULL);
   pos=play>>((PicoOpt&8) ? 2 : 1);
@@ -121,10 +120,12 @@ int DSoundUpdate()
 
 void DSoundMute()
 {
+  if (LoopBuffer==NULL) return;
   LoopBuffer->Stop();
 }
 
 void DSoundUnMute()
 {
+  if (LoopBuffer==NULL) return;
   LoopBuffer->Play(0,0,DSBPLAY_LOOPING);
 }

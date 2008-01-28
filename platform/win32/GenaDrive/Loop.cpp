@@ -1,10 +1,6 @@
 #include "app.h"
 //#include "FileMenu.h"
 
-extern char *romname;
-int fastForward=0;
-int frameStep=0;
-
 char LoopQuit=0;
 static FILE *DebugFile=NULL;
 int LoopMode=0;
@@ -17,9 +13,8 @@ int LoopInit()
   // bits LSb->MSb:
   // enable_ym2612&dac, enable_sn76496, enable_z80, stereo_sound;
   // alt_renderer, 6button_gamepad, accurate_timing, accurate_sprites
-  PicoOpt=0x1f;
+  PicoOpt=0xbccf;
   PsndRate=44100;
-  //PsndLen=PsndRate/60;   // calculated later by pico itself
 
   // Init Direct3D:
   ret=DirectInit(); if (ret) { error("Direct3D init failed"); return 1; }
@@ -55,18 +50,9 @@ void LoopExit()
 
 // ----------------------------------------------------------------
 
-int emu_frame = 0;
-
 static int DoGame()
 {
-  if(fastForward) { PicoSkipFrame+=1; PicoSkipFrame&=7; }
-  else PicoSkipFrame=0;
-
-  if(frameStep==1)      return 0;
-  else if(frameStep==3) frameStep=1;
-
   EmuFrame();
-  emu_frame++;
 
   if (Inp.held[7]==1) LoopMode=2; // Right thumb = Toggle Menu
 
@@ -144,9 +130,8 @@ static int ModeRender()
 
 static void UpdateSound(int len)
 {
-  if(fastForward) return;
-  while (DSoundUpdate()) { Sleep(1); }
-  while (DSoundUpdate()==0) { }
+  while (DSoundUpdate() > 0) { Sleep(1); }
+  while (DSoundUpdate()== 0) { }
 }
 
 int LoopCode()

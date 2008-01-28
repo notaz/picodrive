@@ -2,13 +2,6 @@
 #include "app.h"
 #include <commdlg.h>
 
-extern char *romname;
-extern unsigned char *rom_data;
-extern unsigned int rom_size;
-extern int fastForward;
-extern int frameStep;
-extern int emu_frame;
-
 struct Input Inp;
 
 // --------------------- XBox Input -----------------------------
@@ -123,25 +116,27 @@ static int DeviceRead()
   else if(!sblobked && GetAsyncKeyState(VK_TAB)) {
 	PicoReset(0);
 	sblobked = 1;
-	emu_frame = 0;
   }
-  else if(!sblobked && GetAsyncKeyState(VK_ESCAPE)) {
-	DSoundMute();
+  else if(!sblobked && GetAsyncKeyState(VK_ESCAPE))
+  {
+    unsigned char *rom_data;
+    unsigned int rom_size;
+    DSoundMute();
     pm_file *rom = 0;
     OPENFILENAME of; ZeroMemory(&of, sizeof(OPENFILENAME));
-	of.lStructSize = sizeof(OPENFILENAME);
-	of.lpstrFilter = "ROMs\0*.smd;*.bin;*.gen\0";
-	of.lpstrFile = romname; romname[0] = 0;
-	of.nMaxFile = MAX_PATH;
-	of.Flags = OFN_FILEMUSTEXIST|OFN_HIDEREADONLY;
-	GetOpenFileName(&of);
-	rom = pm_open(romname);
-	DSoundUnMute();
-	if(!rom) return 1;
+    of.lStructSize = sizeof(OPENFILENAME);
+    of.lpstrFilter = "ROMs\0*.smd;*.bin;*.gen\0";
+    of.lpstrFile = romname; romname[0] = 0;
+    of.nMaxFile = MAX_PATH;
+    of.Flags = OFN_FILEMUSTEXIST|OFN_HIDEREADONLY;
+    GetOpenFileName(&of);
+    rom = pm_open(romname);
+    DSoundUnMute();
+    if(!rom) return 1;
     PicoCartLoad(rom, &rom_data, &rom_size);
     PicoCartInsert(rom_data, rom_size);
-	pm_close(rom);
-	sblobked = 1;
+    pm_close(rom);
+    sblobked = 1;
   }
   else
     sblobked = GetAsyncKeyState(VK_F6) | GetAsyncKeyState(VK_F9) |
