@@ -89,10 +89,9 @@ static int WriteSeg()
   // Lock the segment at 'LoopWrite' and copy the next segment in
   LoopBuffer->Lock(LoopWrite<<((PicoOpt&8) ? 2 : 1),PsndLen<<((PicoOpt&8) ? 2 : 1), &mema,&sizea, &memb,&sizeb, 0);
   
-  //dprintf2("lock %p, cpy %x\n", mema, sizea);
-
   if (mema) memcpy(mema,DSoundNext,sizea);
 //  if (memb) memcpy(memb,DSoundNext+sizea,sizeb);
+  if (sizeb != 0) dprintf2("sizeb is not 0! (%i)\n", sizeb);
 
   LoopBuffer->Unlock(mema,sizea, memb,0);
 
@@ -108,8 +107,6 @@ int DSoundUpdate()
 
   LoopBuffer->GetCurrentPosition(&play,NULL);
   pos=play>>((PicoOpt&8) ? 2 : 1);
-
-  //dprintf2("loop %i pos %i\n", LoopWrite, pos);
 
   // 'LoopWrite' is the next seg in the loop that we want to write
   // First check that the sound 'play' pointer has moved out of it:

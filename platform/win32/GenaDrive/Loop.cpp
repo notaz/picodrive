@@ -13,7 +13,7 @@ int LoopInit()
   // bits LSb->MSb:
   // enable_ym2612&dac, enable_sn76496, enable_z80, stereo_sound;
   // alt_renderer, 6button_gamepad, accurate_timing, accurate_sprites
-  PicoOpt=0xbcc7;
+  PicoOpt=0xbccf;
   PsndRate=44100;
 
   // Init Direct3D:

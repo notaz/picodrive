@@ -256,6 +256,7 @@ static int CheckIdle(void)
 static __inline void getSamples(int y)
 {
 #if SIMPLE_WRITE_SOUND
+  if (y != 224) return;
   PsndRender(0, PsndLen);
   if (PicoWriteSound) PicoWriteSound(PsndLen);
   PsndClear();
