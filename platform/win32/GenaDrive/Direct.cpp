@@ -1,4 +1,3 @@
-
 #include "app.h"
 
 // d3d
@@ -21,91 +20,141 @@ static CustomVertex VertexList[4];
 // ddraw
 #include <ddraw.h>
 
-LPDIRECTDRAW7        m_pDD;
-LPDIRECTDRAWSURFACE7 m_pddsFrontBuffer;
-LPDIRECTDRAWSURFACE7 m_pddsBackBuffer;
+LPDIRECTDRAW7        m_pDD = NULL;
+LPDIRECTDRAWSURFACE7 m_pddsFrontBuffer = NULL;
+LPDIRECTDRAWSURFACE7 m_pddsBackBuffer = NULL;
 
 // quick and dirty stuff..
+static void DirectExitDDraw()
+{
+  RELEASE(m_pddsBackBuffer);
+  RELEASE(m_pddsFrontBuffer);
+  RELEASE(m_pDD);
+}
+
 static int DirectDrawInit()
 {
   HRESULT ret;
+  LPDIRECTDRAWCLIPPER pcClipper = NULL;
+  DDSURFACEDESC2 ddsd;
 
   ret = DirectDrawCreateEx(NULL, (VOID**)&m_pDD, IID_IDirectDraw7, NULL);
   if (ret) { LOGFAIL(); return 1; }
 
   // Set cooperative level
   ret = m_pDD->SetCooperativeLevel( FrameWnd, DDSCL_NORMAL );
-  if (ret) { LOGFAIL(); return 1; }
+  if (ret) { LOGFAIL(); goto fail; }
 
   // Create the primary surface
-  DDSURFACEDESC2 ddsd;
   ZeroMemory( &ddsd, sizeof( ddsd ) );
   ddsd.dwSize         = sizeof( ddsd );
   ddsd.dwFlags        = DDSD_CAPS;
   ddsd.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE;
 
   ret = m_pDD->CreateSurface( &ddsd, &m_pddsFrontBuffer, NULL );
-  if (ret) { LOGFAIL(); return 1; }
+  if (ret) { LOGFAIL(); goto fail; }
 
   // Create the backbuffer surface
-  ddsd.dwFlags        = DDSD_CAPS | DDSD_WIDTH | DDSD_HEIGHT;    
+  ddsd.dwFlags        = DDSD_CAPS | DDSD_WIDTH | DDSD_HEIGHT;
   ddsd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN | DDSCAPS_3DDEVICE;
-  ddsd.dwWidth        = 320;
-  ddsd.dwHeight       = 240;
+  ddsd.dwWidth        = EmuWidth;
+  ddsd.dwHeight       = EmuHeight;
 
   ret = m_pDD->CreateSurface( &ddsd, &m_pddsBackBuffer, NULL );
-  if (ret) { LOGFAIL(); return 1; }
+  if (ret) { LOGFAIL(); goto fail; }
 
   // clipper
-  LPDIRECTDRAWCLIPPER pcClipper = NULL;
   ret = m_pDD->CreateClipper( 0, &pcClipper, NULL );
-  if (ret) { LOGFAIL(); return 1; }
+  if (ret) { LOGFAIL(); goto fail; }
 
   ret = pcClipper->SetHWnd( 0, FrameWnd );
-  if (ret) { LOGFAIL(); return 1; }
+  if (ret) { LOGFAIL(); goto fail; }
 
   ret = m_pddsFrontBuffer->SetClipper( pcClipper );
-  if (ret) { LOGFAIL(); return 1; }
+  if (ret) { LOGFAIL(); goto fail; }
 
   RELEASE(pcClipper);
+  return 0;
 
-#if 0
+fail:
+  RELEASE(pcClipper);
+  DirectExitDDraw();
+  return 1;
+}
+
+static int DirectScreenDDraw()
+{
   DDSURFACEDESC2 sd;
+  unsigned short *ps=EmuScreen;
+  int ret, x, y;
+
   memset(&sd, 0, sizeof(sd));
   sd.dwSize = sizeof(sd);
   ret = m_pddsBackBuffer->Lock(NULL, &sd, DDLOCK_SURFACEMEMORYPTR|DDLOCK_WAIT|DDLOCK_WRITEONLY, NULL);
   if (ret) { LOGFAIL(); return 1; }
 
-  memset(sd.lpSurface, 0xcc, 200*200);
+  //dprintf2("w: %i h: %i pi: %i pf: %i\n", sd.dwWidth, sd.dwHeight, sd.lPitch, sd.ddpfPixelFormat.dwRGBBitCount);
+
+  if (sd.ddpfPixelFormat.dwRGBBitCount == 32)
+  {
+    int *dst = (int *)sd.lpSurface;
+    for (y = 0; y < EmuHeight; y++)
+    {
+      for (x = 0; x < EmuWidth; x++)
+      {
+        int s = *ps++;
+        dst[x] = ((s&0xf800)<<8) | ((s&0x07e0)<<5) | ((s&0x001f)<<3);
+      }
+      dst = (int *)((char *)dst + sd.lPitch);
+    }
+  }
+  else if (sd.ddpfPixelFormat.dwRGBBitCount == 16)
+  {
+    unsigned short *dst = (unsigned short *)sd.lpSurface;
+    for (y = 0; y < EmuHeight; y++)
+    {
+      memcpy(dst, ps, EmuWidth*2);
+      ps += EmuWidth;
+      dst = (unsigned short *)((char *)dst + sd.lPitch);
+    }
+  }
+  else
+  {
+    LOGFAIL();
+  }
 
   ret = m_pddsBackBuffer->Unlock(NULL);
   if (ret) { LOGFAIL(); return 1; }
-#else
-    DDBLTFX ddbltfx;
-    ZeroMemory( &ddbltfx, sizeof(ddbltfx) );
-    ddbltfx.dwSize      = sizeof(ddbltfx);
-    ddbltfx.dwFillColor = 0xff00;
+  return 0;
+}
 
+static int DirectClearDDraw(unsigned int colour)
+{
+  int ret;
+  DDBLTFX ddbltfx;
+  ZeroMemory( &ddbltfx, sizeof(ddbltfx) );
+  ddbltfx.dwSize      = sizeof(ddbltfx);
+  ddbltfx.dwFillColor = colour;
+
+  if (m_pddsBackBuffer != NULL)
     ret = m_pddsBackBuffer->Blt( NULL, NULL, NULL, DDBLT_COLORFILL, &ddbltfx );
-#endif
+  if (ret) { LOGFAIL(); return 1; }
+  return 0;
+}
 
-  ret = m_pddsFrontBuffer->Blt(NULL, m_pddsBackBuffer, NULL, DDBLT_WAIT, NULL);
+static int DirectPresentDDraw()
+{
+  int ret = m_pddsFrontBuffer->Blt(&FrameRectMy, m_pddsBackBuffer, NULL, DDBLT_WAIT, NULL);
   if (ret) { LOGFAIL(); return 1; }
-Sleep(2000);
-/*   Sleep(500);
-  ret = m_pddsFrontBuffer->Blt(NULL, m_pddsBackBuffer, NULL, DDBLT_WAIT, NULL);
-  if (ret) { LOGFAIL(); return 1; }
-   Sleep(500);
-  ret = m_pddsFrontBuffer->Blt(NULL, m_pddsBackBuffer, NULL, DDBLT_WAIT, NULL);
-  if (ret) { LOGFAIL(); return 1; }
-*/
   return 0;
 }
 
 
+/* D3D */
+
 int DirectInit()
 {
-  D3DPRESENT_PARAMETERS d3dpp; 
+  D3DPRESENT_PARAMETERS d3dpp;
   D3DDISPLAYMODE mode;
   int i,u,ret=0;
 
@@ -119,6 +168,7 @@ int DirectInit()
   d3dpp.BackBufferHeight=MainHeight;
   d3dpp.BackBufferCount =1;
   d3dpp.SwapEffect=D3DSWAPEFFECT_DISCARD;
+  d3dpp.MultiSampleType =D3DMULTISAMPLE_NONE;
 
 #ifdef _XBOX
   d3dpp.BackBufferFormat=D3DFMT_X8R8G8B8;
@@ -127,6 +177,7 @@ int DirectInit()
   Direct3D->GetAdapterDisplayMode(D3DADAPTER_DEFAULT,&mode);
   d3dpp.BackBufferFormat=mode.Format;
   d3dpp.Windowed=1;
+  d3dpp.hDeviceWindow=FrameWnd;
 #endif
 
   // Try to create a device with hardware vertex processing:
@@ -201,10 +252,13 @@ void DirectExit()
   //FontExit();
   TexScreenExit();
 
+  // d3d
   RELEASE(VertexBuffer)
   RELEASE(DirectBack)
   RELEASE(Device)
   RELEASE(Direct3D)
+
+  DirectExitDDraw();
 }
 
 
@@ -251,12 +305,18 @@ static int MakeVertexList()
 
 int DirectClear(unsigned int colour)
 {
+  if (Device == NULL)
+    return DirectClearDDraw(colour);
+
   Device->Clear(0,NULL,D3DCLEAR_TARGET,colour,1.0f,0);
   return 0;
 }
 
 int DirectPresent()
 {
+  if (Device == NULL)
+    return DirectPresentDDraw();
+
   Device->Present(NULL,NULL,NULL,NULL);
   return 0;
 }
@@ -270,7 +330,7 @@ static int SetupMatrices()
   float nudgex=0.0f,nudgey=0.0f;
 
   memset(&mat,0,sizeof(mat));
-  
+
   mat.m[0][0]=mat.m[1][1]=mat.m[2][2]=mat.m[3][3]=1.0f;
   Device->SetTransform(D3DTS_WORLD,&mat);
 
@@ -297,6 +357,9 @@ int DirectScreen()
   unsigned char *lock=NULL;
   int ret;
 
+  if (Device == NULL)
+    return DirectScreenDDraw();
+
   // Copy the screen to the screen texture:
 #ifdef _XBOX
   TexScreenSwizzle();
@@ -315,18 +378,12 @@ int DirectScreen()
   memcpy(lock,VertexList,sizeof(VertexList));
   VertexBuffer->Unlock();
 
-  ret=Device->BeginScene();
-  if (ret) dprintf2("BeginScene failed\n");
-  ret=Device->SetTexture(0,TexScreen);
-  if (ret) dprintf2("SetTexture failed\n");
-  ret=Device->SetStreamSource(0,VertexBuffer,sizeof(CustomVertex));
-  if (ret) dprintf2("SetStreamSource failed\n");
-  ret=Device->SetVertexShader(D3DFVF_CUSTOMVERTEX);
-  if (ret) dprintf2("SetVertexShader failed\n");
-  ret=Device->DrawPrimitive(D3DPT_TRIANGLESTRIP,0,2);
-  if (ret) dprintf2("DrawPrimitive failed\n");
-  ret=Device->EndScene();
-  if (ret) dprintf2("EndScene failed\n");
+  Device->BeginScene();
+  Device->SetTexture(0,TexScreen);
+  Device->SetStreamSource(0,VertexBuffer,sizeof(CustomVertex));
+  Device->SetVertexShader(D3DFVF_CUSTOMVERTEX);
+  Device->DrawPrimitive(D3DPT_TRIANGLESTRIP,0,2);
+  Device->EndScene();
 
   return 0;
 }

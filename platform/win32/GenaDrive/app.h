@@ -13,6 +13,10 @@
 
 #define RELEASE(x) if (x) x->Release();  x=NULL;
 
+#ifndef __FUNCTION__
+#define __FUNCTION__ ""
+#endif
+
 #define LOGFAIL() dprintf2("fail: %s %s:%i\n", __FUNCTION__, __FILE__, __LINE__)
 
 
@@ -56,6 +60,7 @@ extern "C" int dprintf2(char *format, ...);
 // Main.cpp
 extern char *romname;
 extern HWND FrameWnd;
+extern RECT FrameRectMy;
 extern int MainWidth,MainHeight;
 extern void error(char *text);
 

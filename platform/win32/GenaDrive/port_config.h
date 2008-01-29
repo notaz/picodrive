@@ -7,6 +7,7 @@
 #define START_ROW  0 // which row of tiles to start rendering at?
 #define END_ROW   28 // ..end
 
+#define SIMPLE_WRITE_SOUND	1
 #define mix_32_to_16l_stereo_lvl mix_32_to_16l_stereo
 
 // pico.c

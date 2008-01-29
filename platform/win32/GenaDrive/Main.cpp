@@ -5,14 +5,21 @@
 
 char *romname;
 HWND FrameWnd=NULL;
+RECT FrameRectMy;
 
 int MainWidth=720,MainHeight=480;
 
 // Window proc for the frame window:
 static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
 {
-  if (msg==WM_CLOSE) { PostQuitMessage(0); return 0; }
-  if (msg==WM_DESTROY) FrameWnd=NULL; // Blank handle
+  switch (msg)
+  {
+    case WM_CLOSE:   PostQuitMessage(0); return 0;
+    case WM_DESTROY: FrameWnd=NULL; break; // Blank handle
+    case WM_SIZE:
+    case WM_MOVE:
+    case WM_SIZING:  GetWindowRect(hwnd, &FrameRectMy); break;
+  }
 
   return DefWindowProc(hwnd,msg,wparam,lparam);
 }
@@ -55,6 +62,10 @@ static int FrameInit()
   FrameWnd=CreateWindow(wc.lpszClassName,"PicoDrive " VERSION,style|WS_VISIBLE,
     left,top,width,height,NULL,NULL,NULL,NULL);
 
+  ShowWindow(FrameWnd, SW_NORMAL);
+  UpdateWindow(FrameWnd);
+  GetWindowRect(FrameWnd, &FrameRectMy);
+
   return 0;
 }
 
@@ -75,15 +86,16 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR cmdline,int)
   unsigned char *rom_data = 0;
   unsigned int rom_size = 0;
 
+  static char rompath[MAX_PATH] = { 0, };
+  pm_file *rom = NULL;
+
   FrameInit();
   ret=LoopInit(); if (ret) goto end0;
 
   // notaz: load rom
-  static char rompath[MAX_PATH]; rompath[0] = 0;
   strcpy(rompath, cmdline + (cmdline[0] == '\"' ? 1 : 0));
   if(rompath[strlen(rompath)-1] == '\"') rompath[strlen(rompath)-1] = 0;
 
-  pm_file *rom = 0;
   if(strlen(rompath) > 4) rom = pm_open(rompath);
   if(!rom) {
     OPENFILENAME of; ZeroMemory(&of, sizeof(OPENFILENAME));

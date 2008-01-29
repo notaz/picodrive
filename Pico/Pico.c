@@ -255,6 +255,11 @@ static int CheckIdle(void)
 // to be called on 224 or line_sample scanlines only
 static __inline void getSamples(int y)
 {
+#if SIMPLE_WRITE_SOUND
+  PsndRender(0, PsndLen);
+  if (PicoWriteSound) PicoWriteSound(PsndLen);
+  PsndClear();
+#else
   static int curr_pos = 0;
 
   if(y == 224) {
@@ -271,6 +276,7 @@ static __inline void getSamples(int y)
     emustatus&=~1;
     curr_pos = PsndRender(0, PsndLen/2);
   }
+#endif
 }
 
 

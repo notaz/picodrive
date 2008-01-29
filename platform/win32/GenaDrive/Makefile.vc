@@ -55,3 +55,13 @@ PicoDrive.exe : $(OBJ)
 
 clean:
 	-del $(OBJ) PicoDrive.exe
+
+
+test.exe : test.cpp
+	cl $(CFLAGS) test.cpp user32.lib d3dx8.lib d3d8.lib
+
+dxtut1.exe : dxtut1.cpp
+	cl $(CFLAGS) dxtut1.cpp user32.lib d3d8.lib
+
+# d3dx8.lib
+

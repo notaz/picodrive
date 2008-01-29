@@ -232,6 +232,7 @@ PICO_INTERNAL int PsndRender(int offset, int length)
   int do_pcm = (PicoMCD&1) && (PicoOpt&0x400) && (Pico_mcd->pcm.control & 0x80) && Pico_mcd->pcm.enabled;
   offset <<= stereo;
 
+#if !SIMPLE_WRITE_SOUND
   if (offset == 0) { // should happen once per frame
     // compensate for float part of PsndLen
     PsndLen_exc_cnt += PsndLen_exc_add;
@@ -240,6 +241,7 @@ PICO_INTERNAL int PsndRender(int offset, int length)
       length++;
     }
   }
+#endif
 
   // PSG
   if (PicoOpt & 2)

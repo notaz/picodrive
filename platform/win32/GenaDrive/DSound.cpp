@@ -45,7 +45,7 @@ int DSoundInit()
   wfx.nAvgBytesPerSec=wfx.nBlockAlign*wfx.nSamplesPerSec;
 
   // Make buffer for the next seg to put into the loop:
-  DSoundNext=(short *)malloc(PsndLen<<2); if (DSoundNext==NULL) return 1;
+  DSoundNext=(short *)malloc((PsndLen<<2)+64); if (DSoundNext==NULL) return 1;
   memset(DSoundNext,0,PsndLen<<2);
 
   // Create the DirectSound interface:
@@ -89,7 +89,10 @@ static int WriteSeg()
   // Lock the segment at 'LoopWrite' and copy the next segment in
   LoopBuffer->Lock(LoopWrite<<((PicoOpt&8) ? 2 : 1),PsndLen<<((PicoOpt&8) ? 2 : 1), &mema,&sizea, &memb,&sizeb, 0);
   
+  //dprintf2("lock %p, cpy %x\n", mema, sizea);
+
   if (mema) memcpy(mema,DSoundNext,sizea);
+//  if (memb) memcpy(memb,DSoundNext+sizea,sizeb);
 
   LoopBuffer->Unlock(mema,sizea, memb,0);
 
@@ -105,6 +108,8 @@ int DSoundUpdate()
 
   LoopBuffer->GetCurrentPosition(&play,NULL);
   pos=play>>((PicoOpt&8) ? 2 : 1);
+
+  //dprintf2("loop %i pos %i\n", LoopWrite, pos);
 
   // 'LoopWrite' is the next seg in the loop that we want to write
   // First check that the sound 'play' pointer has moved out of it:

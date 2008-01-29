@@ -13,11 +13,11 @@ int LoopInit()
   // bits LSb->MSb:
   // enable_ym2612&dac, enable_sn76496, enable_z80, stereo_sound;
   // alt_renderer, 6button_gamepad, accurate_timing, accurate_sprites
-  PicoOpt=0xbccf;
+  PicoOpt=0xbcc7;
   PsndRate=44100;
 
   // Init Direct3D:
-  ret=DirectInit(); if (ret) { error("Direct3D init failed"); return 1; }
+  ret=DirectInit(); if (ret) { error("DirectX video init failed"); return 1; }
   InputInit();
 
   // Init DirectSound:
@@ -108,7 +108,7 @@ static int ModeUpdate()
 
   if (LoopMode==8) { DoGame(); return 0; }
 
-  if (DSoundNext) memset(DSoundNext,0,PsndLen<<2);
+//  if (DSoundNext) memset(DSoundNext,0,PsndLen<<2);
 
 //  if (LoopMode==2) { FileMenu.scan(); LoopMode++; return 0; }
 //  if (LoopMode==3) { MenuUpdate(); return 0; }

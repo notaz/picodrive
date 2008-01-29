@@ -2,7 +2,7 @@
 #include "app.h"
 
 unsigned short *EmuScreen=NULL;
-int EmuWidth=0,EmuHeight=0;
+int EmuWidth=320,EmuHeight=224;
 static int EmuScan(unsigned int num, void *sdata);
 unsigned char *PicoDraw2FB = NULL;
 
@@ -66,7 +66,9 @@ int EmuFrame()
 
   PicoPad[0]=input;
 
-  PsndOut=(short *)DSoundNext; PicoFrame(); PsndOut=NULL;
+  PsndOut=(short *)DSoundNext;
+  PicoFrame();
+  //PsndOut=NULL;
 
   return 0;
 }
