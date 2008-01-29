@@ -1,6 +1,7 @@
 
 #include "app.h"
 
+// d3d
 static IDirect3D8 *Direct3D=NULL;
 IDirect3DDevice8 *Device=NULL;
 IDirect3DSurface8 *DirectBack=NULL; // Back Buffer
@@ -17,11 +18,95 @@ struct CustomVertex
 
 static CustomVertex VertexList[4];
 
+// ddraw
+#include <ddraw.h>
+
+LPDIRECTDRAW7        m_pDD;
+LPDIRECTDRAWSURFACE7 m_pddsFrontBuffer;
+LPDIRECTDRAWSURFACE7 m_pddsBackBuffer;
+
+// quick and dirty stuff..
+static int DirectDrawInit()
+{
+  HRESULT ret;
+
+  ret = DirectDrawCreateEx(NULL, (VOID**)&m_pDD, IID_IDirectDraw7, NULL);
+  if (ret) { LOGFAIL(); return 1; }
+
+  // Set cooperative level
+  ret = m_pDD->SetCooperativeLevel( FrameWnd, DDSCL_NORMAL );
+  if (ret) { LOGFAIL(); return 1; }
+
+  // Create the primary surface
+  DDSURFACEDESC2 ddsd;
+  ZeroMemory( &ddsd, sizeof( ddsd ) );
+  ddsd.dwSize         = sizeof( ddsd );
+  ddsd.dwFlags        = DDSD_CAPS;
+  ddsd.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE;
+
+  ret = m_pDD->CreateSurface( &ddsd, &m_pddsFrontBuffer, NULL );
+  if (ret) { LOGFAIL(); return 1; }
+
+  // Create the backbuffer surface
+  ddsd.dwFlags        = DDSD_CAPS | DDSD_WIDTH | DDSD_HEIGHT;    
+  ddsd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN | DDSCAPS_3DDEVICE;
+  ddsd.dwWidth        = 320;
+  ddsd.dwHeight       = 240;
+
+  ret = m_pDD->CreateSurface( &ddsd, &m_pddsBackBuffer, NULL );
+  if (ret) { LOGFAIL(); return 1; }
+
+  // clipper
+  LPDIRECTDRAWCLIPPER pcClipper = NULL;
+  ret = m_pDD->CreateClipper( 0, &pcClipper, NULL );
+  if (ret) { LOGFAIL(); return 1; }
+
+  ret = pcClipper->SetHWnd( 0, FrameWnd );
+  if (ret) { LOGFAIL(); return 1; }
+
+  ret = m_pddsFrontBuffer->SetClipper( pcClipper );
+  if (ret) { LOGFAIL(); return 1; }
+
+  RELEASE(pcClipper);
+
+#if 0
+  DDSURFACEDESC2 sd;
+  memset(&sd, 0, sizeof(sd));
+  sd.dwSize = sizeof(sd);
+  ret = m_pddsBackBuffer->Lock(NULL, &sd, DDLOCK_SURFACEMEMORYPTR|DDLOCK_WAIT|DDLOCK_WRITEONLY, NULL);
+  if (ret) { LOGFAIL(); return 1; }
+
+  memset(sd.lpSurface, 0xcc, 200*200);
+
+  ret = m_pddsBackBuffer->Unlock(NULL);
+  if (ret) { LOGFAIL(); return 1; }
+#else
+    DDBLTFX ddbltfx;
+    ZeroMemory( &ddbltfx, sizeof(ddbltfx) );
+    ddbltfx.dwSize      = sizeof(ddbltfx);
+    ddbltfx.dwFillColor = 0xff00;
+
+    ret = m_pddsBackBuffer->Blt( NULL, NULL, NULL, DDBLT_COLORFILL, &ddbltfx );
+#endif
+
+  ret = m_pddsFrontBuffer->Blt(NULL, m_pddsBackBuffer, NULL, DDBLT_WAIT, NULL);
+  if (ret) { LOGFAIL(); return 1; }
+Sleep(2000);
+/*   Sleep(500);
+  ret = m_pddsFrontBuffer->Blt(NULL, m_pddsBackBuffer, NULL, DDBLT_WAIT, NULL);
+  if (ret) { LOGFAIL(); return 1; }
+   Sleep(500);
+  ret = m_pddsFrontBuffer->Blt(NULL, m_pddsBackBuffer, NULL, DDBLT_WAIT, NULL);
+  if (ret) { LOGFAIL(); return 1; }
+*/
+  return 0;
+}
+
+
 int DirectInit()
 {
   D3DPRESENT_PARAMETERS d3dpp; 
   D3DDISPLAYMODE mode;
-  D3DDEVTYPE dt = D3DDEVTYPE_HAL;
   int i,u,ret=0;
 
   memset(&d3dpp,0,sizeof(d3dpp));
@@ -45,32 +130,46 @@ int DirectInit()
 #endif
 
   // Try to create a device with hardware vertex processing:
-  for (u=0;u<2;u++)
+  for (i=0;i<3;i++)
   {
-    for (i=0;i<4;i++)
-    {
-      int behave=D3DCREATE_HARDWARE_VERTEXPROCESSING;
+    int behave=D3DCREATE_HARDWARE_VERTEXPROCESSING;
 
-      // Try software vertex processing:
-      if (i==1) behave=D3DCREATE_MIXED_VERTEXPROCESSING;
-      if (i==2) behave=D3DCREATE_SOFTWARE_VERTEXPROCESSING;
+    // Try software vertex processing:
+    if (i==1) behave=D3DCREATE_MIXED_VERTEXPROCESSING;
+    if (i==2) behave=D3DCREATE_SOFTWARE_VERTEXPROCESSING;
 
-      Direct3D->CreateDevice(D3DADAPTER_DEFAULT,dt,FrameWnd,behave,&d3dpp,&Device);
-      if (Device) break;
-    }
+    Direct3D->CreateDevice(D3DADAPTER_DEFAULT,D3DDEVTYPE_HAL,FrameWnd,
+        behave|D3DCREATE_MULTITHREADED,&d3dpp,&Device);
     if (Device) break;
-    dt = D3DDEVTYPE_REF;
   }
 
-  if (Device==NULL) return 1;
+  if (Device==NULL)
+  {
+#if 0
+    // try ref
+    Direct3D->CreateDevice(D3DADAPTER_DEFAULT,D3DDEVTYPE_REF,FrameWnd,
+        D3DCREATE_SOFTWARE_VERTEXPROCESSING|D3DCREATE_MULTITHREADED,&d3dpp,&Device);
+    if (Device==NULL) goto fail0;
+    HMODULE test = LoadLibrary("d3d8d.dll");
+    if (test != NULL) FreeLibrary(test);
+    else {
+      error("Sorry, but this program requires Direct3D with hardware acceleration.\n\n"
+            "You can try using Direct3D software emulation, but you have to install "
+            "DirectX SDK for it to work\n(it seems to be missing now).");
+      goto fail1;
+    }
+#else
+    goto fail1;
+#endif
+  }
 
   Device->GetBackBuffer(0,D3DBACKBUFFER_TYPE_MONO,&DirectBack);
-  if (DirectBack==NULL) return 1;
+  if (DirectBack==NULL) goto fail1;
 
   Device->CreateVertexBuffer(sizeof(VertexList),0,D3DFVF_CUSTOMVERTEX,D3DPOOL_DEFAULT,&VertexBuffer);
-  if (VertexBuffer==NULL) return 1;
+  if (VertexBuffer==NULL) goto fail2;
 
-  ret=TexScreenInit(); if (ret) return 1;
+  ret=TexScreenInit(); if (ret) goto fail3;
 
   //FontInit();
 
@@ -79,13 +178,28 @@ int DirectInit()
   // Set up texture modes:
   Device->SetTextureStageState(0,D3DTSS_ADDRESSU,D3DTADDRESS_CLAMP);
   Device->SetTextureStageState(0,D3DTSS_ADDRESSV,D3DTADDRESS_CLAMP);
+
   return 0;
+
+fail3:
+  RELEASE(VertexBuffer)
+fail2:
+  RELEASE(DirectBack)
+fail1:
+  RELEASE(Device)
+fail0:
+  RELEASE(Direct3D)
+
+  // error("Failed to use Direct3D, trying DirectDraw..");
+
+  // try DirectDraw
+  return DirectDrawInit();
 }
 
 void DirectExit()
 {
   //FontExit();
-  //TexScreenExit();
+  TexScreenExit();
 
   RELEASE(VertexBuffer)
   RELEASE(DirectBack)
@@ -201,6 +315,8 @@ int DirectScreen()
   memcpy(lock,VertexList,sizeof(VertexList));
   VertexBuffer->Unlock();
 
+  ret=Device->BeginScene();
+  if (ret) dprintf2("BeginScene failed\n");
   ret=Device->SetTexture(0,TexScreen);
   if (ret) dprintf2("SetTexture failed\n");
   ret=Device->SetStreamSource(0,VertexBuffer,sizeof(CustomVertex));
@@ -209,6 +325,8 @@ int DirectScreen()
   if (ret) dprintf2("SetVertexShader failed\n");
   ret=Device->DrawPrimitive(D3DPT_TRIANGLESTRIP,0,2);
   if (ret) dprintf2("DrawPrimitive failed\n");
+  ret=Device->EndScene();
+  if (ret) dprintf2("EndScene failed\n");
 
   return 0;
 }

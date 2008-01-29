@@ -47,7 +47,7 @@ static int EmuScan(unsigned int num, void *sdata)
   pd=EmuScreen+(num<<8)+(num<<6); end=pd+320;
   ps=(unsigned short *)sdata;
 
-  do { *pd++=0xf800;/**ps++;*/ } while (pd<end);
+  do { *pd++=*ps++; } while (pd<end);
   
   return 0;
 }

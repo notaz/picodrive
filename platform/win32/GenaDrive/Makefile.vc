@@ -51,7 +51,7 @@ OBJ = $(OBJ) $(R)cpu\cz80\cz80.obj
 ALL : PicoDrive.exe
 
 PicoDrive.exe : $(OBJ)
-	link.exe $(LDFLAGS) $(OBJ) gdi32.lib user32.lib advapi32.lib d3d8.lib d3dx8.lib dsound.lib comdlg32.lib
+	link.exe $(LDFLAGS) $(OBJ) gdi32.lib user32.lib advapi32.lib d3d8.lib d3dx8.lib dsound.lib comdlg32.lib ddraw.lib dxguid.lib
 
 clean:
 	-del $(OBJ) PicoDrive.exe

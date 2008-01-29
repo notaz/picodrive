@@ -99,7 +99,7 @@ int TexScreenLinear()
 
     for (x=0; x<EmuWidth; x++,addr+=2)
     {
-      *(unsigned int *)(dest+addr)=0xf0f0f0f0;//*ps++;
+      *(unsigned int *)(dest+addr)=*ps++;
     }
   }
 

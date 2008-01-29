@@ -13,6 +13,8 @@
 
 #define RELEASE(x) if (x) x->Release();  x=NULL;
 
+#define LOGFAIL() dprintf2("fail: %s %s:%i\n", __FUNCTION__, __FILE__, __LINE__)
+
 
 // Emu.cpp
 extern unsigned short *EmuScreen;
