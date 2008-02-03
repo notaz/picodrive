@@ -502,6 +502,17 @@ void PicoFrameDrawOnly(void)
   for (y=0;y<224;y++) PicoLine(y);
 }
 
+int PicoGetStat(pstat_t which)
+{
+  switch (which)
+  {
+    case PS_PAL:       return Pico.m.pal;
+    case PS_40_CELL:   return Pico.video.reg[12]&1;
+    case PS_240_LINES: return Pico.m.pal && (Pico.video.reg[1]&8);
+  }
+  return 0;
+}
+
 // callback to output message from emu
 void (*PicoMessage)(const char *msg)=NULL;
 

@@ -49,6 +49,8 @@ void PicoFrameDrawOnly(void);
 extern int PicoPad[2]; // Joypads, format is MXYZ SACB RLDU
 extern void (*PicoWriteSound)(int len); // called once per frame at the best time to send sound buffer (PsndOut) to hardware
 extern void (*PicoMessage)(const char *msg); // callback to output text message from emu
+typedef enum { PS_PAL, PS_40_CELL, PS_240_LINES } pstat_t;
+int  PicoGetStat(pstat_t which);
 
 // cd/Pico.c
 extern void (*PicoMCDopenTray)(void);
@@ -125,7 +127,7 @@ void vidConvCpyRGB565(void *to, void *from, int pixels);
 
 // Draw2.c
 // stuff below is optional
-extern unsigned char  *PicoDraw2FB;  // buffer for fasr renderer in format (8+320)x(8+224+8) (eights for borders)
+extern unsigned char  *PicoDraw2FB;  // buffer for fast renderer in format (8+320)x(8+224+8) (eights for borders)
 extern unsigned short *PicoCramHigh; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to use
 
