@@ -10,10 +10,15 @@ CFLAGS=$(CFLAGS) /DEMU_F68K
 
 CFLAGS=$(CFLAGS) /D_USE_CZ80
 
-# emu
-OBJ = Emu.obj Input.obj Main.obj Direct.obj DSound.obj Loop.obj TexScreen.obj
+# debug
+#CFLAGS=$(CFLAGS) /Gi
 
-# not used: Rom.obj Font.obj FileMenu.obj LightCal.obj
+#LDFLAGS=$(LDFLAGS) /DEBUG
+
+# emu
+OBJ = Emu.obj Input.obj Main.obj Direct.obj DSound.obj Loop.obj
+
+# TexScreen.obj
 
 # common
 #OBJS += platform\common\emu.obj platform\common\menu.obj platform\common\fonts.obj 
@@ -51,7 +56,9 @@ OBJ = $(OBJ) $(R)cpu\cz80\cz80.obj
 ALL : PicoDrive.exe
 
 PicoDrive.exe : $(OBJ)
-	link.exe $(LDFLAGS) $(OBJ) gdi32.lib user32.lib advapi32.lib d3d8.lib d3dx8.lib dsound.lib comdlg32.lib ddraw.lib dxguid.lib
+	link.exe $(LDFLAGS) $(OBJ) gdi32.lib user32.lib advapi32.lib dsound.lib comdlg32.lib ddraw.lib dxguid.lib
+
+# d3d8.lib d3dx8.lib 
 
 clean:
 	-del $(OBJ) PicoDrive.exe

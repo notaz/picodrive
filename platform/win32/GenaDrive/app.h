@@ -23,6 +23,7 @@
 // Emu.cpp
 extern unsigned short *EmuScreen;
 extern int EmuWidth,EmuHeight;
+extern RECT EmuScreenRect;
 int EmuInit();
 void EmuExit();
 int EmuRomLoad(char *name);
@@ -42,13 +43,8 @@ void InputExit();
 int InputUpdate();
 int InputLightCal(int cx,int cy,int ux,int uy);
 
-// LightCal.cpp
-int LightCalReset();
-int LightCalUpdate();
-int LightCalRender();
-
 // Loop.cpp
-extern char LoopQuit;
+extern char LoopQuit,LoopWait,LoopWaiting;
 extern int LoopMode;
 
 int LoopInit();
@@ -62,14 +58,8 @@ extern char *romname;
 extern HWND FrameWnd;
 extern RECT FrameRectMy;
 extern int MainWidth,MainHeight;
+extern int lock_to_1_1;
 extern void error(char *text);
-
-// Rom.cpp
-extern unsigned char *RomData;
-extern int RomLen;
-extern char RomName[260];
-int RomLoad();
-void RomFree();
 
 // --------------------------------------------
 // Direct.cpp
@@ -86,15 +76,6 @@ int DSoundInit();
 void DSoundExit();
 int DSoundUpdate();
 extern short *DSoundNext; // Buffer for next sound data to put in loop
-//extern int DSoundSeg; // Seg length in samples
-void DSoundMute();
-void DSoundUnMute();
-
-// Font.cpp
-int FontInit();
-void FontExit();
-int FontSetColour(unsigned int colour);
-int FontText(WCHAR *,int,int);
 
 // TexScreen.cpp
 extern IDirect3DTexture8 *TexScreen;

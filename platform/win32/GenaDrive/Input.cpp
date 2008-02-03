@@ -91,56 +91,17 @@ static int DeviceRead()
   if (GetAsyncKeyState('F')) Inp.button[14]=0xff;
 
   static int sblobked = 0;
-  if(!sblobked && GetAsyncKeyState(VK_F6)) {
-	FILE *PmovFile;
-    romname[strlen(romname)-3] = 0;
-    strcat(romname, "mds");
-	PmovFile = fopen(romname, "wb");
-	if(PmovFile) {
-	  PmovState(5, PmovFile);
-	  fclose(PmovFile);
-	}
-	sblobked = 1;
+  if (!sblobked && GetAsyncKeyState(VK_TAB)) {
+    PicoReset(0);
+    sblobked = 1;
   }
-  else if(!sblobked && GetAsyncKeyState(VK_F9)) {
-	FILE *PmovFile;
-    romname[strlen(romname)-3] = 0;
-    strcat(romname, "mds");
-	PmovFile = fopen(romname, "rb");
-	if(PmovFile) {
-	  PmovState(6, PmovFile);
-	  fclose(PmovFile);
-	}
-	sblobked = 1;
-  }
-  else if(!sblobked && GetAsyncKeyState(VK_TAB)) {
-	PicoReset(0);
-	sblobked = 1;
-  }
-  else if(!sblobked && GetAsyncKeyState(VK_ESCAPE))
+  else if (!sblobked && GetAsyncKeyState(VK_ESCAPE))
   {
-    unsigned char *rom_data;
-    unsigned int rom_size;
-    DSoundMute();
-    pm_file *rom = 0;
-    OPENFILENAME of; ZeroMemory(&of, sizeof(OPENFILENAME));
-    of.lStructSize = sizeof(OPENFILENAME);
-    of.lpstrFilter = "ROMs\0*.smd;*.bin;*.gen\0";
-    of.lpstrFile = romname; romname[0] = 0;
-    of.nMaxFile = MAX_PATH;
-    of.Flags = OFN_FILEMUSTEXIST|OFN_HIDEREADONLY;
-    GetOpenFileName(&of);
-    rom = pm_open(romname);
-    DSoundUnMute();
-    if(!rom) return 1;
-    PicoCartLoad(rom, &rom_data, &rom_size);
-    PicoCartInsert(rom_data, rom_size);
-    pm_close(rom);
+    PostMessage(FrameWnd, WM_COMMAND, 0x20000 | 1000, 0);
     sblobked = 1;
   }
   else
-    sblobked = GetAsyncKeyState(VK_F6) | GetAsyncKeyState(VK_F9) |
-		GetAsyncKeyState(VK_TAB)  | GetAsyncKeyState(VK_ESCAPE);
+    sblobked = GetAsyncKeyState(VK_TAB)  | GetAsyncKeyState(VK_ESCAPE);
   
   return 0;
 }

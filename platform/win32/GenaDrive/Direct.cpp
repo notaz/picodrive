@@ -1,5 +1,6 @@
 #include "app.h"
 
+#ifdef USE_D3D
 // d3d
 static IDirect3D8 *Direct3D=NULL;
 IDirect3DDevice8 *Device=NULL;
@@ -16,6 +17,7 @@ struct CustomVertex
 #define D3DFVF_CUSTOMVERTEX (D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1)
 
 static CustomVertex VertexList[4];
+#endif
 
 // ddraw
 #include <ddraw.h>
@@ -144,7 +146,7 @@ static int DirectClearDDraw(unsigned int colour)
 
 static int DirectPresentDDraw()
 {
-  int ret = m_pddsFrontBuffer->Blt(&FrameRectMy, m_pddsBackBuffer, NULL, DDBLT_WAIT, NULL);
+  int ret = m_pddsFrontBuffer->Blt(&FrameRectMy, m_pddsBackBuffer, &EmuScreenRect, DDBLT_WAIT, NULL);
   if (ret) { LOGFAIL(); return 1; }
   return 0;
 }
@@ -154,6 +156,7 @@ static int DirectPresentDDraw()
 
 int DirectInit()
 {
+#if USE_D3D
   D3DPRESENT_PARAMETERS d3dpp;
   D3DDISPLAYMODE mode;
   int i,u,ret=0;
@@ -242,14 +245,14 @@ fail0:
   RELEASE(Direct3D)
 
   // error("Failed to use Direct3D, trying DirectDraw..");
-
+#endif
   // try DirectDraw
   return DirectDrawInit();
 }
 
 void DirectExit()
 {
-  //FontExit();
+#ifdef USE_D3D
   TexScreenExit();
 
   // d3d
@@ -257,11 +260,35 @@ void DirectExit()
   RELEASE(DirectBack)
   RELEASE(Device)
   RELEASE(Direct3D)
-
+#endif
   DirectExitDDraw();
 }
 
+int DirectClear(unsigned int colour)
+{
+#ifdef USE_D3D
+  if (Device != NULL) {
+    Device->Clear(0,NULL,D3DCLEAR_TARGET,colour,1.0f,0);
+    return 0;
+  }
+#endif
 
+  return DirectClearDDraw(colour);
+}
+
+int DirectPresent()
+{
+#ifdef USE_D3D
+  if (Device != NULL) {
+    Device->Present(NULL,NULL,NULL,NULL);
+    return 0;
+  }
+#endif
+
+  return DirectPresentDDraw();
+}
+
+#ifdef USE_D3D
 static int MakeVertexList()
 {
   struct CustomVertex *vert=NULL,*pv=NULL;
@@ -300,24 +327,6 @@ static int MakeVertexList()
   pv->u=0.0f;  pv->v=bottom; pv++;
   pv->u=right; pv->v=bottom; pv++;
 
-  return 0;
-}
-
-int DirectClear(unsigned int colour)
-{
-  if (Device == NULL)
-    return DirectClearDDraw(colour);
-
-  Device->Clear(0,NULL,D3DCLEAR_TARGET,colour,1.0f,0);
-  return 0;
-}
-
-int DirectPresent()
-{
-  if (Device == NULL)
-    return DirectPresentDDraw();
-
-  Device->Present(NULL,NULL,NULL,NULL);
   return 0;
 }
 
@@ -387,3 +396,10 @@ int DirectScreen()
 
   return 0;
 }
+#else
+int DirectScreen()
+{
+  return DirectScreenDDraw();
+}
+#endif
+

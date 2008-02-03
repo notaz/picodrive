@@ -18,7 +18,7 @@ static int LoopBlank()
   void *mema=NULL,*memb=NULL;
   DWORD sizea=0,sizeb=0;
 
-  LoopBuffer->Lock(0,LoopLen<<2, &mema,&sizea, &memb,&sizeb, 0);
+  LoopBuffer->Lock(0,LoopLen<<((PicoOpt&8) ? 2 : 1), &mema,&sizea, &memb,&sizeb, 0);
   
   if (mema) memset(mema,0,sizea);
 
@@ -47,6 +47,7 @@ int DSoundInit()
   // Make buffer for the next seg to put into the loop:
   DSoundNext=(short *)malloc((PsndLen<<2)+64); if (DSoundNext==NULL) return 1;
   memset(DSoundNext,0,PsndLen<<2);
+//  dprintf2("p %p\n", DSoundNext);
 
   // Create the DirectSound interface:
   DirectSoundCreate(NULL,&DSound,NULL);
@@ -78,23 +79,48 @@ void DSoundExit()
   if (LoopBuffer) LoopBuffer->Stop();
   RELEASE(LoopBuffer)
   RELEASE(DSound)
-  free(DSoundNext); DSoundNext=NULL;
+  DSound=0;
+  if (DSoundNext) free(DSoundNext); DSoundNext=NULL;
 }
 
 static int WriteSeg()
 {
   void *mema=NULL,*memb=NULL;
   DWORD sizea=0,sizeb=0;
+  int ret;
 
   // Lock the segment at 'LoopWrite' and copy the next segment in
-  LoopBuffer->Lock(LoopWrite<<((PicoOpt&8) ? 2 : 1),PsndLen<<((PicoOpt&8) ? 2 : 1), &mema,&sizea, &memb,&sizeb, 0);
-  
+  ret = LoopBuffer->Lock(LoopWrite<<((PicoOpt&8) ? 2 : 1),PsndLen<<((PicoOpt&8) ? 2 : 1), &mema,&sizea, &memb,&sizeb, 0);
+  if (ret) dprintf2("LoopBuffer->Lock() failed: %i\n", ret);
+
   if (mema) memcpy(mema,DSoundNext,sizea);
 //  if (memb) memcpy(memb,DSoundNext+sizea,sizeb);
   if (sizeb != 0) dprintf2("sizeb is not 0! (%i)\n", sizeb);
 
-  LoopBuffer->Unlock(mema,sizea, memb,0);
+  ret = LoopBuffer->Unlock(mema,sizea, memb,0);
+  if (ret) dprintf2("LoopBuffer->Unlock() failed: %i\n", ret);
 
+  return 0;
+}
+
+static int DSoundFake()
+{
+  static int ticks_old = 0;
+  int ticks = GetTickCount() * 1000;
+  int diff;
+
+  diff = ticks - ticks_old;
+  if (diff >= 0 && diff < 1000000/60)
+  {
+    while (diff >= 0 && diff < 1000000/60)
+    {
+      Sleep(1);
+      diff = GetTickCount()*1000 - ticks_old;
+    }
+    ticks_old = ticks + 1000000/60;
+  }
+  else
+    ticks_old = ticks;
   return 0;
 }
 
@@ -103,7 +129,7 @@ int DSoundUpdate()
   DWORD play=0;
   int pos=0;
 
-  if (LoopBuffer==NULL) return -1;
+  if (LoopBuffer==NULL) return DSoundFake();
 
   LoopBuffer->GetCurrentPosition(&play,NULL);
   pos=play>>((PicoOpt&8) ? 2 : 1);
@@ -120,14 +146,3 @@ int DSoundUpdate()
   return 0;
 }
 
-void DSoundMute()
-{
-  if (LoopBuffer==NULL) return;
-  LoopBuffer->Stop();
-}
-
-void DSoundUnMute()
-{
-  if (LoopBuffer==NULL) return;
-  LoopBuffer->Play(0,0,DSBPLAY_LOOPING);
-}

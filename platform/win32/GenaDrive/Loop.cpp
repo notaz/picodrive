@@ -1,7 +1,7 @@
 #include "app.h"
 //#include "FileMenu.h"
 
-char LoopQuit=0;
+char LoopQuit=0,LoopWait=0,LoopWaiting=0;
 static FILE *DebugFile=NULL;
 int LoopMode=0;
 static void UpdateSound(int len);
@@ -24,10 +24,10 @@ int LoopInit()
   //DSoundInit();
 
   ret=EmuInit(); if (ret) return 1;
-  //FileMenu.init();
 
   LoopMode=8;
   PicoWriteSound = UpdateSound;
+  PicoAutoRgnOrder = 0x184;
 
   return 0;
 }
@@ -38,9 +38,7 @@ void LoopExit()
 {
   dprintf(debugString());
 
-  //FileMenu.exit();
   EmuExit();
-  DSoundExit(); PsndLen=0;
   InputExit();
   DirectExit();
 
@@ -50,88 +48,28 @@ void LoopExit()
 
 // ----------------------------------------------------------------
 
-static int DoGame()
-{
-  EmuFrame();
-
-  if (Inp.held[7]==1) LoopMode=2; // Right thumb = Toggle Menu
-
-  return 0;
-}
-// ----------------------------------------------------------------
-
-/*
-static int MenuUpdate()
-{
-  int delta=0;
-
-  if (Inp.repeat[0]) delta-=0x100;
-  if (Inp.repeat[1]) delta+=0x100;
-
-  if (Inp.button[14]>30) delta-=Inp.button[14]-30;
-  if (Inp.button[15]>30) delta+=Inp.button[15]-30;
-
-  if (delta) FileMenu.scroll(delta);
-
-  if (Inp.held[8]==1 || Inp.held[10]==1 || Inp.held[4]==1) // A, X or Start
-  {
-    //RomFree();
-    //FileMenu.getFilePath(RomName);
-    //RomLoad();
-    //LoopMode=8; // Go to game
-  }
-
-  if (Inp.held[7]==1) LoopMode=8; // Right thumb = Toggle Menu
-
-  return 0;
-}
-
-static int MenuRender()
-{
-  WCHAR text[80]={0};
-  wsprintfW(text,L"%.40S v%x.%.3x",AppName,PicoVer>>12,PicoVer&0xfff);
-  FontSetColour(0x60c0ff);
-  FontText(text,64,48);
-
-  FileMenu.render();
-
-  return 0;
-}
-*/
-
-// ----------------------------------------------------------------
-
-static int ModeUpdate()
-{
-  if (Inp.held[14] && Inp.held[15] && Inp.held[12]==1) LoopQuit=1; // L+R+black to quit:
-  if (Inp.button[4]>30 && Inp.button[5]>30) LoopQuit=1; // Start and back to quit
-
-  if (LoopMode==8) { DoGame(); return 0; }
-
-//  if (DSoundNext) memset(DSoundNext,0,PsndLen<<2);
-
-//  if (LoopMode==2) { FileMenu.scan(); LoopMode++; return 0; }
-//  if (LoopMode==3) { MenuUpdate(); return 0; }
-//  if (LoopMode==4) { LightCalUpdate(); return 0; }
-
-  LoopMode=2; // Unknown mode, go to rom menu
-  return 0;
-}
-
-
-static int ModeRender()
-{
-  DirectScreen();
-//  if (LoopMode==3) MenuRender();
-//  if (LoopMode==4) LightCalRender();
-
-  return 0;
-}
-
 static void UpdateSound(int len)
 {
   while (DSoundUpdate() > 0) { Sleep(1); }
-  while (DSoundUpdate()== 0) { }
+  //while (DSoundUpdate()== 0) { }
+}
+
+static void PostProcess()
+{
+  static int lock_to_1_1_prev = 0, is_40_prev = 0;
+  int is_40 = PicoGetStat(PS_40_CELL);
+  if (lock_to_1_1)
+  {
+    if (is_40 != is_40_prev || !lock_to_1_1_prev)
+      PostMessage(FrameWnd, WM_COMMAND, 0x20000 | (is_40 ? 1100 : 1101), 0);
+  }
+  if (is_40 != is_40_prev)
+  {
+    EmuScreenRect.left  = is_40 ?   0 :  32;
+    EmuScreenRect.right = is_40 ? 320 : 256+32;
+  }
+  lock_to_1_1_prev = lock_to_1_1;
+  is_40_prev = is_40;
 }
 
 int LoopCode()
@@ -140,14 +78,23 @@ int LoopCode()
   // Main loop:
   while (!LoopQuit)
   {
+    if (LoopWait)
+    {
+      DSoundExit();
+      while (!LoopQuit && LoopWait) { LoopWaiting=1; Sleep(100); }
+      if (LoopQuit) break;
+      DSoundInit();
+    }
     InputUpdate();
 
     DirectClear(0);
-    ModeUpdate();
-    ModeRender();
+    EmuFrame();
+    PostProcess();
+    DirectScreen();
     DirectPresent();
 //      UpdateSound();
   }
+  DSoundExit();
 
   return 0;
 }
