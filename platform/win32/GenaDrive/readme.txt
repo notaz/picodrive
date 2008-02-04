@@ -37,8 +37,8 @@ The original PicoDrive was written by fDave from finalburn.com
 
 This PicoDrive version uses bits and pieces of from other projects:
 
-68k: FAME/C core, by Chui and Stephane Dallongeville (as C68K).
-z80: CZ80 by Stephane Dallongeville and modified by NJ.
+68k: FAME/C core, by Chui and Stéphane Dallongeville (as C68K).
+z80: CZ80 by Stéphane Dallongeville and modified by NJ.
 YM2612 and SN76496 cores: MAME devs.
 
 Greets to all the sceners and emu authors out there!
