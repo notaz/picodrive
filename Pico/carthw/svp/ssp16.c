@@ -1,5 +1,5 @@
 // basic, incomplete SSP160x (SSP1601?) interpreter
-// with SVP memory controller
+// with SVP memory controller emu
 
 // (c) Copyright 2008, Grazvydas "notaz" Ignotas
 // Free for non-commercial use.

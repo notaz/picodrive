@@ -78,8 +78,8 @@ unsigned int PicoSVPRead16(unsigned int a, int realsize)
   }
   else a15004_looping = 0;
 
-  if (a == 0x30fe02 && d == 0)
-    elprintf(EL_ANOMALY, "SVP lag?");
+  //if (a == 0x30fe02 && d == 0)
+  //  elprintf(EL_ANOMALY, "SVP lag?");
 
   return d;
 }

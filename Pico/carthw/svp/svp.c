@@ -9,7 +9,7 @@
 #include "../../PicoInt.h"
 
 svp_t *svp = NULL;
-int PicoSVPCycles = 800; // cycles/line
+int PicoSVPCycles = 1000; // cycles/line
 
 static void PicoSVPReset(void)
 {
@@ -23,8 +23,6 @@ static void PicoSVPReset(void)
 static void PicoSVPLine(int count)
 {
 	// ???
-	// OSC_NTSC / 3.0 / 60.0 / 262.0 ~= 1139
-	// OSC_PAL  / 3.0 / 50.0 / 312.0 ~= 1137
 	ssp1601_run(PicoSVPCycles * count);
 
 	// test mode
