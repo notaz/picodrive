@@ -58,7 +58,7 @@ static int DirectDrawInit()
 
   // Create the backbuffer surface
   ddsd.dwFlags        = DDSD_CAPS | DDSD_WIDTH | DDSD_HEIGHT;
-  ddsd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN | DDSCAPS_3DDEVICE;
+  ddsd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN | DDSCAPS_SYSTEMMEMORY;
   ddsd.dwWidth        = EmuWidth;
   ddsd.dwHeight       = EmuHeight;
 
@@ -108,6 +108,20 @@ static int DirectScreenDDraw()
         dst[x] = ((s&0xf800)<<8) | ((s&0x07e0)<<5) | ((s&0x001f)<<3);
       }
       dst = (int *)((char *)dst + sd.lPitch);
+    }
+  }
+  else if (sd.ddpfPixelFormat.dwRGBBitCount == 24) /* wine uses this for me */
+  {
+    void *dst = sd.lpSurface;
+    for (y = 0; y < EmuHeight; y++)
+    {
+      unsigned char *dst1 = (unsigned char *) dst;
+      for (x = 0; x < EmuWidth; x++, dst1 += 3)
+      {
+        int s = *ps++;
+	dst1[2] = (s&0xf800)>>8; dst1[1] = (s&0x07e0)>>3; dst1[0] = s<<3; // BGR
+      }
+      dst = (void *)((char *)dst + sd.lPitch);
     }
   }
   else if (sd.ddpfPixelFormat.dwRGBBitCount == 16)

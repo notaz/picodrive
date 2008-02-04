@@ -11,6 +11,7 @@ int lock_to_1_1 = 1;
 int MainWidth=720,MainHeight=480;
 
 static HMENU mdisplay = 0;
+static unsigned char *rom_data = NULL;
 
 static void UpdateRect()
 {
@@ -24,7 +25,6 @@ static void UpdateRect()
 static void LoadROM(const char *cmdpath)
 {
   static char rompath[MAX_PATH] = { 0, };
-  static unsigned char *rom_data = NULL;
   unsigned char *rom_data_new = NULL;
   unsigned int rom_size = 0;
   pm_file *rom = NULL;
@@ -106,7 +106,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
             lock_to_1_1=0;
             CheckMenuItem(mdisplay, 1104, MF_UNCHECKED);
           }
-          LoopWait=0;
+          if (rom_data != NULL) LoopWait=0;
           return 0;
         case 1104:
           lock_to_1_1=!lock_to_1_1;
@@ -181,7 +181,7 @@ static int FrameInit()
   InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, (UINT_PTR) mfile, "&File");
   InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, (UINT_PTR) mdisplay, "&Display");
 //  InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, 1200, "&Config");
-  InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, 1300, "&About");
+  InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING, 1300, "&About");
 
   // Create the window:
   FrameWnd=CreateWindow(wc.lpszClassName,"PicoDrive " VERSION,style|WS_VISIBLE,
