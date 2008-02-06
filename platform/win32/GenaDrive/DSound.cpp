@@ -110,14 +110,14 @@ static int DSoundFake()
   int diff;
 
   diff = ticks - ticks_old;
-  if (diff >= 0 && diff < 1000000/60)
+  if (diff >= 0 && diff < 1000000/60*4)
   {
     while (diff >= 0 && diff < 1000000/60)
     {
       Sleep(1);
       diff = GetTickCount()*1000 - ticks_old;
     }
-    ticks_old = ticks + 1000000/60;
+    ticks_old += 1000000/60;
   }
   else
     ticks_old = ticks;

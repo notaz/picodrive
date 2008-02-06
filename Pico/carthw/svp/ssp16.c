@@ -653,10 +653,11 @@ static u32 read_PMC(void)
 		//	elprintf(EL_ANOMALY|EL_SVP, "prev PMC not used @ %04x", GET_PPC_OFFS());
 		ssp->emu_status |= SSP_PMC_SET;
 		ssp->emu_status &= ~SSP_PMC_HAVE_ADDR;
+		return ((rPMC.h << 4) & 0xfff0) | ((rPMC.h >> 4) & 0xf);
 	} else {
 		ssp->emu_status |= SSP_PMC_HAVE_ADDR;
+		return rPMC.h;
 	}
-	return rPMC.h;
 }
 
 static void write_PMC(u32 d)
