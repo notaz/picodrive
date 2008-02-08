@@ -174,7 +174,7 @@ int PmovState(int PmovAction, void *PmovFile)
   int minimum=0;
   unsigned char head[32];
 
-  if (PicoMCD & 1)
+  if ((PicoMCD & 1) || carthw_chunks != NULL)
   {
     if (PmovAction&1) return PicoCdSaveState(PmovFile);
     if (PmovAction&2) return PicoCdLoadState(PmovFile);

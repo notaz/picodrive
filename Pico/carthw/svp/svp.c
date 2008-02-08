@@ -11,6 +11,22 @@
 svp_t *svp = NULL;
 int PicoSVPCycles = 1000; // cycles/line
 
+/* save state stuff */
+typedef enum {
+	CHUNK_IRAM = CHUNK_CARTHW,
+	CHUNK_DRAM,
+	CHUNK_SSP
+} chunk_name_e;
+
+static carthw_state_chunk svp_states[] =
+{
+	{ CHUNK_IRAM, 0x800,                 NULL },
+	{ CHUNK_DRAM, sizeof(svp->dram),     NULL },
+	{ CHUNK_SSP,  sizeof(svp->ssp1601),  NULL },
+	{ 0,          0,                     NULL }
+};
+
+
 static void PicoSVPReset(void)
 {
 	elprintf(EL_SVP, "SVP reset");
@@ -79,5 +95,11 @@ void PicoSVPInit(void)
 	PicoDmaHook = PicoSVPDma;
 	PicoResetHook = PicoSVPReset;
 	PicoLineHook = PicoSVPLine;
+
+	// save state stuff
+	svp_states[0].ptr = svp->iram_rom;
+	svp_states[1].ptr = svp->dram;
+	svp_states[2].ptr = &svp->ssp1601;
+	carthw_chunks = svp_states;
 }
 

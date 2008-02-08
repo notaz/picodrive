@@ -10,6 +10,7 @@
 // sn76496
 extern int *sn76496_regs;
 
+carthw_state_chunk *carthw_chunks;
 void (*PicoStateProgressCB)(const char *str) = 0;
 
 
@@ -38,6 +39,8 @@ typedef enum {
 	CHUNK_SCD,
 	CHUNK_RC,
 	CHUNK_MISC_CD,
+	CHUNK_DEFAULT_COUNT
+	// CHUNK_CARTHW = 64,	// defined in PicoInt
 } chunk_name_e;
 
 
@@ -81,13 +84,17 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 }
 
 
-#define CHECKED_WRITE(name,len,data) \
-	if (PicoStateProgressCB) PicoStateProgressCB(chunk_names[name]); \
-	if (!write_chunk(name, len, data, file)) return 1;
+#define CHECKED_WRITE(name,len,data) { \
+	if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT) \
+		PicoStateProgressCB(chunk_names[name]); \
+	if (!write_chunk(name, len, data, file)) return 1; \
+}
 
-#define CHECKED_WRITE_BUFF(name,buff) \
-	if (PicoStateProgressCB) PicoStateProgressCB(chunk_names[name]); \
-	if (!write_chunk(name, sizeof(buff), &buff, file)) return 1;
+#define CHECKED_WRITE_BUFF(name,buff) { \
+	if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT) \
+		PicoStateProgressCB(chunk_names[name]); \
+	if (!write_chunk(name, sizeof(buff), &buff, file)) return 1; \
+}
 
 PICO_INTERNAL int PicoCdSaveState(void *file)
 {
@@ -107,14 +114,14 @@ PICO_INTERNAL int PicoCdSaveState(void *file)
 	CHECKED_WRITE_BUFF(CHUNK_VSRAM, Pico.vsram);
 	CHECKED_WRITE_BUFF(CHUNK_MISC,  Pico.m);
 	CHECKED_WRITE_BUFF(CHUNK_VIDEO, Pico.video);
-	if(PicoOpt&7) {
+	if (PicoOpt&7) {
 		memset(buff, 0, sizeof(buff));
 		z80_pack(buff);
 		CHECKED_WRITE_BUFF(CHUNK_Z80, buff);
 	}
-	if(PicoOpt&3)
+	if (PicoOpt&3)
 		CHECKED_WRITE(CHUNK_PSG, 28*4, sn76496_regs);
-	if(PicoOpt&1)
+	if (PicoOpt&1)
 		CHECKED_WRITE(CHUNK_FM, 0x200+4, ym2612_regs);
 
 	if (PicoMCD & 1)
@@ -143,6 +150,13 @@ PICO_INTERNAL int PicoCdSaveState(void *file)
 			wram_2M_to_1M(Pico_mcd->word_ram2M);
 	}
 
+	if (carthw_chunks != NULL)
+	{
+		carthw_state_chunk *chwc;
+		for (chwc = carthw_chunks; chwc->ptr != NULL; chwc++)
+			CHECKED_WRITE(chwc->chunk, chwc->size, chwc->ptr);
+	}
+
 	return 0;
 }
 
@@ -150,7 +164,7 @@ static int g_read_offs = 0;
 
 #define R_ERROR_RETURN(error) \
 { \
-	elprintf(EL_STATUS, "PicoCdLoadState @ %x: " error "\n", g_read_offs); \
+	elprintf(EL_STATUS, "PicoCdLoadState @ %x: " error, g_read_offs); \
 	return 1; \
 }
 
@@ -189,7 +203,8 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 		CHECKED_READ(1, buff);
 		CHECKED_READ(4, &len);
 		if (len < 0 || len > 1024*512) R_ERROR_RETURN("bad length");
-		if (buff[0] > CHUNK_FM && !(PicoMCD & 1)) R_ERROR_RETURN("cd chunk in non CD state?");
+		if (buff[0] > CHUNK_FM && buff[0] <= CHUNK_MISC_CD && !(PicoMCD & 1))
+			R_ERROR_RETURN("cd chunk in non CD state?");
 
 		switch (buff[0])
 		{
@@ -235,24 +250,38 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 			case CHUNK_MISC_CD:	CHECKED_READ_BUFF(Pico_mcd->m); break;
 
 			default:
-				elprintf(EL_STATUS, "PicoCdLoadState: skipping unknown chunk %i of size %i\n", buff[0], len);
+				if (carthw_chunks != NULL)
+				{
+					carthw_state_chunk *chwc;
+					for (chwc = carthw_chunks; chwc->ptr != NULL; chwc++) {
+						if (chwc->chunk == buff[0]) {
+							CHECKED_READ2(chwc->size, chwc->ptr);
+							goto breakswitch;
+						}
+					}
+				}
+				elprintf(EL_STATUS, "PicoCdLoadState: skipping unknown chunk %i of size %i", buff[0], len);
 				areaSeek(file, len, SEEK_CUR);
 				break;
 		}
+		breakswitch:;
 	}
 
-	/* after load events */
-	if (Pico_mcd->s68k_regs[3]&4) // 1M mode?
-		wram_2M_to_1M(Pico_mcd->word_ram2M);
-	PicoMemResetCD(Pico_mcd->s68k_regs[3]);
+	if (PicoMCD & 1)
+	{
+		/* after load events */
+		if (Pico_mcd->s68k_regs[3]&4) // 1M mode?
+			wram_2M_to_1M(Pico_mcd->word_ram2M);
+		PicoMemResetCD(Pico_mcd->s68k_regs[3]);
 #ifdef _ASM_CD_MEMORY_C
-	if (Pico_mcd->s68k_regs[3]&4)
-		PicoMemResetCDdecode(Pico_mcd->s68k_regs[3]);
+		if (Pico_mcd->s68k_regs[3]&4)
+			PicoMemResetCDdecode(Pico_mcd->s68k_regs[3]);
 #endif
-	if (Pico_mcd->m.audio_track > 0 && Pico_mcd->m.audio_track < Pico_mcd->TOC.Last_Track)
-		mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
-	// restore hint vector
-        *(unsigned short *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
+		if (Pico_mcd->m.audio_track > 0 && Pico_mcd->m.audio_track < Pico_mcd->TOC.Last_Track)
+			mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
+		// restore hint vector
+        	*(unsigned short *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
+	}
 
 	return 0;
 }
@@ -273,7 +302,8 @@ int PicoCdLoadStateGfx(void *file)
 		CHECKED_READ(1, buff);
 		CHECKED_READ(4, &len);
 		if (len < 0 || len > 1024*512) R_ERROR_RETURN("bad length");
-		if (buff[0] > CHUNK_FM && !(PicoMCD & 1)) R_ERROR_RETURN("cd chunk in non CD state?");
+		if (buff[0] > CHUNK_FM && buff[0] <= CHUNK_MISC_CD && !(PicoMCD & 1))
+			R_ERROR_RETURN("cd chunk in non CD state?");
 
 		switch (buff[0])
 		{

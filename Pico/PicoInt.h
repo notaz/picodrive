@@ -367,6 +367,14 @@ PICO_INTERNAL int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub);
 PICO_INTERNAL int PicoCdSaveState(void *file);
 PICO_INTERNAL int PicoCdLoadState(void *file);
 
+typedef struct {
+	int chunk;
+	int size;
+	void *ptr;
+} carthw_state_chunk;
+extern carthw_state_chunk *carthw_chunks;
+#define CHUNK_CARTHW 64
+
 // Cart.c
 PICO_INTERNAL void PicoCartDetect(void);
 
