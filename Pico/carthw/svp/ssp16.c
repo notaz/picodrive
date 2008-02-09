@@ -207,7 +207,7 @@
 #define rXST   ssp->gr[SSP_XST].h
 #define rPM4   ssp->gr[SSP_PM4].h	// 12
 // 13
-#define rPMC   ssp->gr[SSP_PMC]		// will keep addr in .h, mode in .l
+#define rPMC   ssp->gr[SSP_PMC]		// will keep addr in .l, mode in .h
 #define rAL    ssp->gr[SSP_A].l
 
 #define rA32   ssp->gr[SSP_A].v
@@ -215,9 +215,11 @@
 
 #define IJind  (((op>>6)&4)|(op&3))
 
+#ifndef EMBED_INTERPRETER
 #define GET_PC() (PC - (unsigned short *)svp->iram_rom)
 #define GET_PPC_OFFS() ((unsigned int)PC - (unsigned int)svp->iram_rom - 2)
 #define SET_PC(d) PC = (unsigned short *)svp->iram_rom + d
+#endif
 
 #define REG_READ(r) (((r) <= 4) ? ssp->gr[r].h : read_handlers[r]())
 #define REG_WRITE(r,d) { \
@@ -326,7 +328,7 @@
 #define OP_CHECK32(OP) \
 	if ((op & 0x0f) == SSP_P) { /* A <- P */ \
 	read_P(); /* update P */ \
-	OP(ssp->gr[SSP_P].v); \
+	OP(rP.v); \
 	break; \
 }
 
@@ -411,7 +413,7 @@ static int get_inc(int mode)
 	int inc = (mode >> 11) & 7;
 	if (inc != 0) {
 		if (inc != 7) inc--;
-		inc = (1<<16) << inc; // 0 1 2 4 8 16 32 128
+		inc = 1 << inc; // 0 1 2 4 8 16 32 128
 		if (mode & 0x8000) inc = -inc; // decrement mode
 	}
 	return inc;
@@ -439,7 +441,7 @@ static u32 pm_io(int reg, int write, u32 d)
 		elprintf(EL_SVP, "PM%i (%c) set to %08x @ %04x", reg, write ? 'w' : 'r', rPMC.v, GET_PPC_OFFS());
 		ssp->pmac_read[write ? reg + 6 : reg] = rPMC.v;
 		ssp->emu_status &= ~SSP_PMC_SET;
-		if ((rPMC.v & 0x7f) == 0x1c && (rPMC.v & 0x7fff0000) == 0) {
+		if ((rPMC.h & 0x7f) == 0x1c && (rPMC.l & 0x7fff) == 0) {
 			elprintf(EL_SVP, "ssp IRAM copy from %06x", (ssp->RAM1[0]-1)<<1);
 #ifdef USE_DEBUGGER
 			last_iram = (ssp->RAM1[0]-1)<<1;
@@ -461,15 +463,15 @@ static u32 pm_io(int reg, int write, u32 d)
 		unsigned short *dram = (unsigned short *)svp->dram;
 		if (write)
 		{
-			int mode = ssp->pmac_write[reg]&0xffff;
-			int addr = ssp->pmac_write[reg]>>16;
+			int mode = ssp->pmac_write[reg]>>16;
+			int addr = ssp->pmac_write[reg]&0xffff;
 			if      ((mode & 0xb800) == 0xb800)
 					elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: mode %04x", mode);
 			if      ((mode & 0x43ff) == 0x0018) // DRAM
 			{
 				int inc = get_inc(mode);
 				elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (inc %i, ovrw %i)",
-					reg, CADDR, d, inc >> 16, (mode>>10)&1);
+					reg, CADDR, d, inc, (mode>>10)&1);
 				if (mode & 0x0400) {
 				       overwite_write(dram[addr], d);
 				} else dram[addr] = d;
@@ -482,14 +484,14 @@ static u32 pm_io(int reg, int write, u32 d)
 				if (mode & 0x0400) {
 				       overwite_write(dram[addr], d);
 				} else dram[addr] = d;
-				ssp->pmac_write[reg] += (addr&1) ? (31<<16) : (1<<16);
+				ssp->pmac_write[reg] += (addr&1) ? 31 : 1;
 			}
 			else if ((mode & 0x47ff) == 0x001c) // IRAM
 			{
 				int inc = get_inc(mode);
 				if ((addr&0xfc00) != 0x8000)
 					elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: invalid IRAM addr: %04x", addr<<1);
-				elprintf(EL_SVP, "ssp IRAM w [%06x] %04x (inc %i)", (addr<<1)&0x7ff, d, inc >> 16);
+				elprintf(EL_SVP, "ssp IRAM w [%06x] %04x (inc %i)", (addr<<1)&0x7ff, d, inc);
 				((unsigned short *)svp->iram_rom)[addr&0x3ff] = d;
 				ssp->pmac_write[reg] += inc;
 			}
@@ -501,21 +503,19 @@ static u32 pm_io(int reg, int write, u32 d)
 		}
 		else
 		{
-			int mode = ssp->pmac_read[reg]&0xffff;
-			int addr = ssp->pmac_read[reg]>>16;
+			int mode = ssp->pmac_read[reg]>>16;
+			int addr = ssp->pmac_read[reg]&0xffff;
 			if      ((mode & 0xfff0) == 0x0800) // ROM, inc 1, verified to be correct
 			{
 				elprintf(EL_SVP, "ssp ROM  r [%06x] %04x", CADDR,
 					((unsigned short *)Pico.rom)[addr|((mode&0xf)<<16)]);
-				if ((signed int)ssp->pmac_read[reg] >> 16 == -1)
-					ssp->pmac_read[reg]++;
-				ssp->pmac_read[reg] += 1<<16;
+				ssp->pmac_read[reg] += 1;
 				d = ((unsigned short *)Pico.rom)[addr|((mode&0xf)<<16)];
 			}
 			else if ((mode & 0x47ff) == 0x0018) // DRAM
 			{
 				int inc = get_inc(mode);
-				elprintf(EL_SVP, "ssp PM%i DRAM r [%06x] %04x (inc %i)", reg, CADDR, dram[addr], inc >> 16);
+				elprintf(EL_SVP, "ssp PM%i DRAM r [%06x] %04x (inc %i)", reg, CADDR, dram[addr]);
 				d = dram[addr];
 				ssp->pmac_read[reg] += inc;
 			}
@@ -646,17 +646,17 @@ static void write_PM4(u32 d)
 // 14
 static u32 read_PMC(void)
 {
-	elprintf(EL_SVP, "PMC r a %04x (st %c) @ %04x", rPMC.h,
+	elprintf(EL_SVP, "PMC r a %04x (st %c) @ %04x", rPMC.l,
 		(ssp->emu_status & SSP_PMC_HAVE_ADDR) ? 'm' : 'a', GET_PPC_OFFS());
 	if (ssp->emu_status & SSP_PMC_HAVE_ADDR) {
 		//if (ssp->emu_status & SSP_PMC_SET)
 		//	elprintf(EL_ANOMALY|EL_SVP, "prev PMC not used @ %04x", GET_PPC_OFFS());
 		ssp->emu_status |= SSP_PMC_SET;
 		ssp->emu_status &= ~SSP_PMC_HAVE_ADDR;
-		return ((rPMC.h << 4) & 0xfff0) | ((rPMC.h >> 4) & 0xf);
+		return ((rPMC.l << 4) & 0xfff0) | ((rPMC.l >> 4) & 0xf);
 	} else {
 		ssp->emu_status |= SSP_PMC_HAVE_ADDR;
-		return rPMC.h;
+		return rPMC.l;
 	}
 }
 
@@ -667,12 +667,12 @@ static void write_PMC(u32 d)
 		//	elprintf(EL_ANOMALY|EL_SVP, "prev PMC not used @ %04x", GET_PPC_OFFS());
 		ssp->emu_status |= SSP_PMC_SET;
 		ssp->emu_status &= ~SSP_PMC_HAVE_ADDR;
-		rPMC.l = d;
-		elprintf(EL_SVP, "PMC w m %04x @ %04x", rPMC.l, GET_PPC_OFFS());
+		rPMC.h = d;
+		elprintf(EL_SVP, "PMC w m %04x @ %04x", rPMC.h, GET_PPC_OFFS());
 	} else {
 		ssp->emu_status |= SSP_PMC_HAVE_ADDR;
-		rPMC.h = d;
-		elprintf(EL_SVP, "PMC w a %04x @ %04x", rPMC.h, GET_PPC_OFFS());
+		rPMC.l = d;
+		elprintf(EL_SVP, "PMC w a %04x @ %04x", rPMC.l, GET_PPC_OFFS());
 	}
 }
 
@@ -875,24 +875,13 @@ static u32 ptr2_read(int op)
 
 // -----------------------------------------------------
 
-void ssp1601_reset(ssp1601_t *l_ssp)
-{
-	ssp = l_ssp;
-	ssp->emu_status = 0;
-	ssp->gr[SSP_GR0].v = 0xffff0000;
-	rPC = 0x400;
-	rSTACK = 0; // ? using ascending stack
-	rST = 0;
-}
-
-
 #ifdef USE_DEBUGGER
 static void debug_dump(void)
 {
 	printf("GR0:   %04x    X: %04x    Y: %04x  A: %08x\n", ssp->gr[SSP_GR0].h, rX, rY, ssp->gr[SSP_A].v);
-	printf("PC:    %04x  (%04x)                P: %08x\n", GET_PC(), GET_PC() << 1, ssp->gr[SSP_P].v);
+	printf("PC:    %04x  (%04x)                P: %08x\n", GET_PC(), GET_PC() << 1, rP.v);
 	printf("PM0:   %04x  PM1: %04x  PM2: %04x\n", rPM0, rPM1, rPM2);
-	printf("XST:   %04x  PM4: %04x  PMC: %08x\n", rXST, rPM4, ssp->gr[SSP_PMC].v);
+	printf("XST:   %04x  PM4: %04x  PMC: %08x\n", rXST, rPM4, rPMC.v);
 	printf(" ST:   %04x  %c%c%c%c,  GP0_0 %i,  GP0_1 %i\n", rST, rST&SSP_FLAG_N?'N':'n', rST&SSP_FLAG_V?'V':'v',
 		rST&SSP_FLAG_Z?'Z':'z', rST&SSP_FLAG_L?'L':'l', (rST>>5)&1, (rST>>6)&1);
 	printf("STACK: %i %04x %04x %04x %04x %04x %04x\n", rSTACK, ssp->stack[0], ssp->stack[1],
@@ -987,6 +976,23 @@ static void debug(unsigned int pc, unsigned int op)
 #endif // USE_DEBUGGER
 
 
+#ifdef EMBED_INTERPRETER
+static
+#endif
+void ssp1601_reset(ssp1601_t *l_ssp)
+{
+	ssp = l_ssp;
+	ssp->emu_status = 0;
+	ssp->gr[SSP_GR0].v = 0xffff0000;
+	rPC = 0x400;
+	rSTACK = 0; // ? using ascending stack
+	rST = 0;
+}
+
+
+#ifdef EMBED_INTERPRETER
+static
+#endif
 void ssp1601_run(int cycles)
 {
 	SET_PC(rPC);
@@ -1009,7 +1015,7 @@ void ssp1601_run(int cycles)
 				if (op == ((SSP_A<<4)|SSP_P)) { // A <- P
 					// not sure. MAME claims that only hi word is transfered.
 					read_P(); // update P
-					rA32 = ssp->gr[SSP_P].v;
+					rA32 = rP.v;
 				}
 				else
 				{
@@ -1089,9 +1095,8 @@ void ssp1601_run(int cycles)
 
 			// mpys?
 			case 0x1b:
-				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: no b bit @ %04x", GET_PPC_OFFS());
 				read_P(); // update P
-				rA32 -= ssp->gr[SSP_P].v;	// maybe only upper word?
+				rA32 -= rP.v;			// maybe only upper word?
 				UPD_ACC_ZN			// there checking flags after this
 				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
 				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
@@ -1099,9 +1104,8 @@ void ssp1601_run(int cycles)
 
 			// mpya (rj), (ri), b
 			case 0x4b:
-				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: no b bit @ %04x", GET_PPC_OFFS());
 				read_P(); // update P
-				rA32 += ssp->gr[SSP_P].v; // confirmed to be 32bit
+				rA32 += rP.v; // confirmed to be 32bit
 				UPD_ACC_ZN // ?
 				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
 				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
@@ -1109,7 +1113,6 @@ void ssp1601_run(int cycles)
 
 			// mld (rj), (ri), b
 			case 0x5b:
-				if (!(op&0x100)) elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: no b bit @ %04x", GET_PPC_OFFS());
 				rA32 = 0;
 				rST &= 0x0fff; // ?
 				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
@@ -1166,13 +1169,13 @@ void ssp1601_run(int cycles)
 			case 0x79: tmpv = rIJ[IJind]; OP_EORA(tmpv); break;
 
 			// OP simm
-			case 0x1c: OP_SUBA(op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
-			case 0x3c: OP_CMPA(op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
-			case 0x4c: OP_ADDA(op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
+			case 0x1c: OP_SUBA(op & 0xff); break;
+			case 0x3c: OP_CMPA(op & 0xff); break;
+			case 0x4c: OP_ADDA(op & 0xff); break;
 			// MAME code only does LSB of top word, but this looks wrong to me.
-			case 0x5c: OP_ANDA(op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
-			case 0x6c: OP_ORA (op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
-			case 0x7c: OP_EORA(op & 0xff); if (op&0x100) elprintf(EL_SVP|EL_ANOMALY, "FIXME: simm with upper bit set"); break;
+			case 0x5c: OP_ANDA(op & 0xff); break;
+			case 0x6c: OP_ORA (op & 0xff); break;
+			case 0x7c: OP_EORA(op & 0xff); break;
 
 			default:
 				elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME unhandled op %04x @ %04x", op, GET_PPC_OFFS());
