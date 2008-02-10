@@ -227,6 +227,7 @@ void ssp1601_dyn_run(int cycles)
 				iram_crcs[i] = crc;
 				printf("%i IRAMs\n", i+1);
 			}
+			printf("CRC %08x %08x\n", crc, iram_id);
 		}
 	}
 //	debug_dump2file("tcache.bin", tcache, (tcache_ptr - tcache) << 1);

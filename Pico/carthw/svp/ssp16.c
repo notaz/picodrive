@@ -340,6 +340,9 @@ static int g_cycles;
 static int running = 0;
 static int last_iram = 0;
 #endif
+#ifdef EMBED_INTERPRETER
+static int iram_id = 0;
+#endif
 
 // -----------------------------------------------------
 // register i/o handlers
@@ -440,10 +443,13 @@ static u32 pm_io(int reg, int write, u32 d)
 		elprintf(EL_SVP, "PM%i (%c) set to %08x @ %04x", reg, write ? 'w' : 'r', rPMC.v, GET_PPC_OFFS());
 		ssp->pmac_read[write ? reg + 6 : reg] = rPMC.v;
 		ssp->emu_status &= ~SSP_PMC_SET;
-		if ((rPMC.h & 0x7f) == 0x1c && (rPMC.l & 0x7fff) == 0) {
+		if ((rPMC.v & 0x7fffff) == 0x1c8000 || (rPMC.v & 0x7fffff) == 0x1c8240) {
 			elprintf(EL_SVP, "ssp IRAM copy from %06x", (ssp->RAM1[0]-1)<<1);
 #ifdef USE_DEBUGGER
 			last_iram = (ssp->RAM1[0]-1)<<1;
+#endif
+#ifdef EMBED_INTERPRETER
+			iram_id = ssp->RAM1[0];
 #endif
 		}
 		return 0;
@@ -488,6 +494,12 @@ static u32 pm_io(int reg, int write, u32 d)
 			else if ((mode & 0x47ff) == 0x001c) // IRAM
 			{
 				int inc = get_inc(mode);
+#ifdef EMBED_INTERPRETER
+				if (addr == 0x8047) {
+					iram_id &= 0xffff;
+					iram_id |= d << 16;
+				}
+#endif
 				if ((addr&0xfc00) != 0x8000)
 					elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: invalid IRAM addr: %04x", addr<<1);
 				elprintf(EL_SVP, "ssp IRAM w [%06x] %04x (inc %i)", (addr<<1)&0x7ff, d, inc);
