@@ -33,13 +33,18 @@ static void PicoSVPReset(void)
 
 	memcpy(svp->iram_rom + 0x800, Pico.rom + 0x800, 0x20000 - 0x800);
 	ssp1601_reset(&svp->ssp1601);
+	if (!(PicoOpt&0x20000))
+		ssp1601_dyn_reset(&svp->ssp1601);
 }
 
 
 static void PicoSVPLine(int count)
 {
 	// ???
-	ssp1601_run(PicoSVPCycles * count);
+	if (PicoOpt&0x20000)
+		ssp1601_run(PicoSVPCycles * count);
+	else
+		ssp1601_dyn_run(PicoSVPCycles * count);
 
 	// test mode
 	//if (Pico.m.frame_count == 13) PicoPad[0] |= 0xff;
@@ -87,6 +92,11 @@ void PicoSVPInit(void)
 	Pico.rom = tmp;
 	svp = (void *) ((char *)tmp + 0x200000);
 	memset(svp, 0, sizeof(*svp));
+
+	// init SVP compiler
+	if (!(PicoOpt&0x20000)) {
+		if (ssp1601_dyn_init()) return;
+	}
 
 	// init ok, setup hooks..
 	PicoRead16Hook = PicoSVPRead16;

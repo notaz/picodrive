@@ -184,7 +184,6 @@
  *   flags correspond to full 32bit accumulator
  *   only Z and N status flags are emulated (others unused by SVP)
  *   modifiers for 'OP a, ri' are ignored (invalid?/not used by SVP)
- *   'ld d, (a)' loads from program ROM
  */
 
 #include "../../PicoInt.h"
@@ -543,9 +542,11 @@ static u32 read_PM0(void)
 	if (d != (u32)-1) return d;
 	elprintf(EL_SVP, "PM0 raw r %04x @ %04x", rPM0, GET_PPC_OFFS());
 	d = rPM0;
+#ifndef EMBED_INTERPRETER
 	if (!(d & 2) && (GET_PPC_OFFS() == 0x800 || GET_PPC_OFFS() == 0x1851E)) {
 		ssp->emu_status |= SSP_WAIT_PM0; elprintf(EL_SVP, "det TIGHT loop: PM0");
 	}
+#endif
 	rPM0 &= ~2; // ?
 	return d;
 }
@@ -622,12 +623,14 @@ static void write_XST(u32 d)
 static u32 read_PM4(void)
 {
 	u32 d = pm_io(4, 0, 0);
+#ifndef EMBED_INTERPRETER
 	if (d == 0) {
 		switch (GET_PPC_OFFS()) {
 			case 0x0854: ssp->emu_status |= SSP_WAIT_30FE08; elprintf(EL_SVP, "det TIGHT loop: [30fe08]"); break;
 			case 0x4f12: ssp->emu_status |= SSP_WAIT_30FE06; elprintf(EL_SVP, "det TIGHT loop: [30fe06]"); break;
 		}
 	}
+#endif
 	if (d != (u32)-1) return d;
 	// can be removed?
 	elprintf(EL_SVP|EL_ANOMALY, "PM4 raw r %04x @ %04x", rPM4, GET_PPC_OFFS());
@@ -875,6 +878,24 @@ static u32 ptr2_read(int op)
 
 // -----------------------------------------------------
 
+#if defined(USE_DEBUGGER) // || defined(EMBED_INTERPRETER)
+static void debug_dump2file(const char *fname, void *mem, int len)
+{
+	FILE *f = fopen(fname, "wb");
+	unsigned short *p = mem;
+	int i;
+	if (f) {
+		for (i = 0; i < len/2; i++) p[i] = (p[i]<<8) | (p[i]>>8);
+		fwrite(mem, 1, len, f);
+		fclose(f);
+		for (i = 0; i < len/2; i++) p[i] = (p[i]<<8) | (p[i]>>8);
+		printf("dumped to %s\n", fname);
+	}
+	else
+		printf("dump failed\n");
+}
+#endif
+
 #ifdef USE_DEBUGGER
 static void debug_dump(void)
 {
@@ -902,22 +923,6 @@ static void debug_dump_mem(void)
 			printf(" %04x", ssp->RAM[h*16+i]);
 		printf("\n");
 	}
-}
-
-static void debug_dump2file(const char *fname, void *mem, int len)
-{
-	FILE *f = fopen(fname, "wb");
-	unsigned short *p = mem;
-	int i;
-	if (f) {
-		for (i = 0; i < len/2; i++) p[i] = (p[i]<<8) | (p[i]>>8);
-		fwrite(mem, 1, len, f);
-		fclose(f);
-		for (i = 0; i < len/2; i++) p[i] = (p[i]<<8) | (p[i]>>8);
-		printf("dumped to %s\n", fname);
-	}
-	else
-		printf("dump failed\n");
 }
 
 static int bpts[10] = { 0, };
@@ -995,7 +1000,9 @@ static
 #endif
 void ssp1601_run(int cycles)
 {
+#ifndef EMBED_INTERPRETER
 	SET_PC(rPC);
+#endif
 	g_cycles = cycles;
 
 	while (g_cycles > 0 && !(ssp->emu_status & SSP_WAIT_MASK))
@@ -1177,6 +1184,9 @@ void ssp1601_run(int cycles)
 			case 0x6c: OP_ORA (op & 0xff); break;
 			case 0x7c: OP_EORA(op & 0xff); break;
 
+#ifdef EMBED_INTERPRETER
+			case 0x7f: goto interp_end; /* pseudo op */
+#endif
 			default:
 				elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME unhandled op %04x @ %04x", op, GET_PPC_OFFS());
 				break;
@@ -1184,8 +1194,11 @@ void ssp1601_run(int cycles)
 		g_cycles--;
 	}
 
-	read_P(); // update P
 	rPC = GET_PC();
+#ifdef EMBED_INTERPRETER
+interp_end:
+#endif
+	read_P(); // update P
 
 	if (ssp->gr[SSP_GR0].v != 0xffff0000)
 		elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME: REG 0 corruption! %08x", ssp->gr[SSP_GR0].v);

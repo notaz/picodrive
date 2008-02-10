@@ -58,3 +58,7 @@ typedef struct
 void ssp1601_reset(ssp1601_t *ssp);
 void ssp1601_run(int cycles);
 
+int  ssp1601_dyn_init(void);
+void ssp1601_dyn_reset(ssp1601_t *ssp);
+void ssp1601_dyn_run(int cycles);
+
