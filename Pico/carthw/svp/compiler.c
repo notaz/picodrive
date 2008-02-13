@@ -5,11 +5,13 @@
 
 #define TCACHE_SIZE (256*1024)
 static unsigned short *block_table[0x5090/2];
+static unsigned short *block_table_iram[15][0x800/2];
 static unsigned short *tcache = NULL;
 static unsigned short *tcache_ptr = NULL;
 
 static int had_jump = 0;
 static int nblocks = 0;
+static int iram_context = 0;
 
 #define EMBED_INTERPRETER
 #define ssp1601_reset ssp1601_reset_local
@@ -109,9 +111,58 @@ static u32 chksum_crc32 (unsigned char *block, unsigned int length)
    return (crc ^ 0xFFFFFFFF);
 }
 
-static int iram_crcs[32] = { 0, };
+//static int iram_crcs[32] = { 0, };
 
 // -----------------------------------------------------
+
+static unsigned char iram_context_map[] =
+{
+	 0, 0, 0, 0, 1, 0, 0, 0, // 04
+	 0, 0, 0, 0, 0, 0, 2, 0, // 0e
+	 0, 0, 0, 0, 0, 3, 0, 4, // 15 17
+	 5, 0, 0, 6, 0, 7, 0, 0, // 18 1b 1d
+	 8, 9, 0, 0, 0,10, 0, 0, // 20 21 25
+	 0, 0, 0, 0, 0, 0, 0, 0,
+	 0, 0,11, 0, 0,12, 0, 0, // 32 35
+	13,14, 0, 0, 0, 0, 0, 0  // 38 39
+};
+
+static unsigned int checksums[] =
+{
+	0,
+	0xfa9ddfb2,
+	0x229c80b6,
+	0x3af0c3d3,
+	0x98fc4552,
+	0x5ecacdbc,
+	0xa6931962,
+	0x53930b10,
+	0x69524552,
+	0xcb1ccdaf,
+	0x995068c7,
+	0x48b97f4d,
+	0xe8c61b74,
+	0xafa2e81a,
+	0x4e3e071a
+};
+
+
+static int get_iram_context(void)
+{
+	unsigned char *ir = (unsigned char *)svp->iram_rom;
+	int val1, val = ir[0x083^1] + ir[0x4FA^1] + ir[0x5F7^1] + ir[0x47B^1];
+	int crc = chksum_crc32(svp->iram_rom, 0x800);
+	val1 = iram_context_map[(val>>1)&0x3f];
+
+	if (crc != checksums[val1]) {
+		printf("val: %02x PC=%04x\n", (val>>1)&0x3f, rPC);
+		elprintf(EL_ANOMALY, "bad crc: %08x vs %08x", crc, checksums[val1]);
+		//debug_dump2file(name, svp->iram_rom, 0x800);
+		exit(1);
+	}
+	elprintf(EL_ANOMALY, "iram_context: %02i", val1);
+	return val1;
+}
 
 #define PROGRAM(x) ((unsigned short *)svp->iram_rom)[x]
 
@@ -123,19 +174,26 @@ static u32 interp_get_pc(void)
 	for (i = 0; i < 0x5090/2; i++)
 		if (block_table[i] == pc1) break;
 
-	if (i == 0x5090/2) {
-		printf("block not found!\n");
-		exit(1);
+	if (i == 0x5090/2)
+	{
+		for (i = 0; i < 0x800/2; i++)
+			if (block_table_iram[iram_context][i] == pc1) break;
+
+		if (i == 0x800/2) {
+			printf("block not found!\n");
+			exit(1);
+		}
 	}
 
 	return i + (PC - pc1);
 }
 
-static void translate_block(int pc)
+static void *translate_block(int pc)
 {
 	int tmp, op, op1, icount = 0;
+	void *ret;
 
-	block_table[pc] = tcache_ptr;
+	ret = tcache_ptr;
 
 	//printf("translate %04x -> %04x\n", pc<<1, (tcache_ptr-tcache)<<1);
 	for (;;)
@@ -166,7 +224,10 @@ static void translate_block(int pc)
 
 	// stats
 	nblocks++;
-	if (pc >= 0x400) printf("%i blocks, %i bytes\n", nblocks, (tcache_ptr - tcache)*2);
+	//if (pc >= 0x400)
+	printf("%i blocks, %i bytes\n", nblocks, (tcache_ptr - tcache)*2);
+
+	return ret;
 }
 
 
@@ -178,6 +239,7 @@ int ssp1601_dyn_init(void)
 	tcache = tcache_ptr = malloc(TCACHE_SIZE);
 	memset(tcache, 0, sizeof(TCACHE_SIZE));
 	memset(block_table, 0, sizeof(block_table));
+	memset(block_table_iram, 0, sizeof(block_table_iram));
 	*tcache_ptr++ = 0xfe01;
 
 	return 0;
@@ -195,10 +257,23 @@ void ssp1601_dyn_run(int cycles)
 	while (cycles > 0)
 	{
 		int pc_old = rPC;
-		if (block_table[rPC] == NULL)
-			translate_block(rPC);
+		if (rPC < 0x800/2)
+		{
+			if (iram_dirty) {
+				iram_context = get_iram_context();
+				iram_dirty = 0;
+			}
+			if (block_table_iram[iram_context][rPC] == NULL)
+				block_table_iram[iram_context][rPC] = translate_block(rPC);
+			PC = block_table_iram[iram_context][rPC];
+		}
+		else
+		{
+			if (block_table[rPC] == NULL)
+				block_table[rPC] = translate_block(rPC);
+			PC = block_table[rPC];
+		}
 
-		PC = block_table[rPC];
 		had_jump = 0;
 
 		//printf("enter @ %04x, PC=%04x\n", (PC - tcache)<<1, rPC<<1);
@@ -207,10 +282,13 @@ void ssp1601_dyn_run(int cycles)
 
 		if (!had_jump) {
 			// no jumps
-			rPC += (PC - block_table[pc_old]) - 1;
+			if (pc_old < 0x800/2)
+				rPC += (PC - block_table_iram[iram_context][pc_old]) - 1;
+			else
+				rPC += (PC - block_table[pc_old]) - 1;
 		}
 		//printf("end   @ %04x, PC=%04x\n", (PC - tcache)<<1, rPC<<1);
-
+/*
 		if (pc_old < 0x400) {
 			// flush IRAM cache
 			tcache_ptr = block_table[pc_old];
@@ -223,12 +301,16 @@ void ssp1601_dyn_run(int cycles)
 			for (i = 0; i < 32; i++)
 				if (iram_crcs[i] == crc) break;
 			if (i == 32) {
+				char name[32];
 				for (i = 0; i < 32 && iram_crcs[i]; i++);
 				iram_crcs[i] = crc;
 				printf("%i IRAMs\n", i+1);
+				sprintf(name, "ir%08x.bin", crc);
+				debug_dump2file(name, svp->iram_rom, 0x800);
 			}
 			printf("CRC %08x %08x\n", crc, iram_id);
 		}
+*/
 	}
 //	debug_dump2file("tcache.bin", tcache, (tcache_ptr - tcache) << 1);
 //	exit(1);

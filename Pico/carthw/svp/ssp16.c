@@ -341,7 +341,7 @@ static int running = 0;
 static int last_iram = 0;
 #endif
 #ifdef EMBED_INTERPRETER
-static int iram_id = 0;
+static int iram_dirty = 0;
 #endif
 
 // -----------------------------------------------------
@@ -449,7 +449,7 @@ static u32 pm_io(int reg, int write, u32 d)
 			last_iram = (ssp->RAM1[0]-1)<<1;
 #endif
 #ifdef EMBED_INTERPRETER
-			iram_id = ssp->RAM1[0];
+			iram_dirty = 1;
 #endif
 		}
 		return 0;
@@ -494,12 +494,6 @@ static u32 pm_io(int reg, int write, u32 d)
 			else if ((mode & 0x47ff) == 0x001c) // IRAM
 			{
 				int inc = get_inc(mode);
-#ifdef EMBED_INTERPRETER
-				if (addr == 0x8047) {
-					iram_id &= 0xffff;
-					iram_id |= d << 16;
-				}
-#endif
 				if ((addr&0xfc00) != 0x8000)
 					elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: invalid IRAM addr: %04x", addr<<1);
 				elprintf(EL_SVP, "ssp IRAM w [%06x] %04x (inc %i)", (addr<<1)&0x7ff, d, inc);
@@ -890,7 +884,7 @@ static u32 ptr2_read(int op)
 
 // -----------------------------------------------------
 
-#if defined(USE_DEBUGGER) // || defined(EMBED_INTERPRETER)
+#if defined(USE_DEBUGGER) //|| defined(EMBED_INTERPRETER)
 static void debug_dump2file(const char *fname, void *mem, int len)
 {
 	FILE *f = fopen(fname, "wb");
