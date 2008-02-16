@@ -448,9 +448,6 @@ static u32 pm_io(int reg, int write, u32 d)
 #ifdef USE_DEBUGGER
 			last_iram = (ssp->RAM1[0]-1)<<1;
 #endif
-#ifdef EMBED_INTERPRETER
-			iram_dirty = 1;
-#endif
 		}
 		return 0;
 	}
@@ -499,6 +496,9 @@ static u32 pm_io(int reg, int write, u32 d)
 				elprintf(EL_SVP, "ssp IRAM w [%06x] %04x (inc %i)", (addr<<1)&0x7ff, d, inc);
 				((unsigned short *)svp->iram_rom)[addr&0x3ff] = d;
 				ssp->pmac_write[reg] += inc;
+#ifdef EMBED_INTERPRETER
+				iram_dirty = 1;
+#endif
 			}
 			else
 			{
@@ -987,9 +987,6 @@ static void debug(unsigned int pc, unsigned int op)
 #endif // USE_DEBUGGER
 
 
-#ifdef EMBED_INTERPRETER
-static
-#endif
 void ssp1601_reset(ssp1601_t *l_ssp)
 {
 	ssp = l_ssp;
@@ -1001,9 +998,6 @@ void ssp1601_reset(ssp1601_t *l_ssp)
 }
 
 
-#ifdef EMBED_INTERPRETER
-static
-#endif
 void ssp1601_run(int cycles)
 {
 #ifndef EMBED_INTERPRETER
