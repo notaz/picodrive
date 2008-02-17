@@ -74,7 +74,8 @@ OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pi
 		../../Pico/cd/Area.o ../../Pico/cd/Misc.o ../../Pico/cd/pcm.o ../../Pico/cd/buffering.o
 endif
 # Pico - carthw
-OBJS += ../../Pico/carthw/svp/svp.o ../../Pico/carthw/svp/Memory.o ../../Pico/carthw/svp/ssp16.o
+OBJS += ../../Pico/carthw/svp/svp.o ../../Pico/carthw/svp/Memory.o ../../Pico/carthw/svp/ssp16.o \
+		../../Pico/carthw/svp/compiler.o ../../Pico/carthw/svp/stub_arm.o
 
 # asm stuff
 ifeq "$(asm_render)" "1"
@@ -158,6 +159,8 @@ up: PicoDrive.gpe
 .s.o:
 	@echo ">>>" $<
 	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
+
+../../Pico/carthw/svp/compiler.o : ../../Pico/carthw/svp/ssp16.o ../../Pico/carthw/svp/gen_arm.c
 
 ../../Pico/draw_asm.o : ../../Pico/Draw.s
 	@echo ">>>" $<

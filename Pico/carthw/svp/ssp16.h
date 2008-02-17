@@ -26,23 +26,23 @@ typedef union
 typedef struct
 {
 	union {
-		unsigned short RAM[256*2];	// 2 internal RAM banks
+		unsigned short RAM[256*2];	// 000 2 internal RAM banks
 		struct {
 			unsigned short RAM0[256];
 			unsigned short RAM1[256];
 		};
 	};
-	ssp_reg_t gr[16];	// general registers
+	ssp_reg_t gr[16];			// 400 general registers
 	union {
-		unsigned char r[8];	// BANK pointers
+		unsigned char r[8];		// 440 BANK pointers
 		struct {
 			unsigned char r0[4];
 			unsigned char r1[4];
 		};
 	};
-	unsigned short stack[6];
-	unsigned int pmac_read[6];	// read modes/addrs for PM0-PM5
-	unsigned int pmac_write[6];	// write ...
+	unsigned short stack[6];		// 448
+	unsigned int pmac_read[6];		// 454 read modes/addrs for PM0-PM5
+	unsigned int pmac_write[6];		// 46c write ...
 	//
 	#define SSP_PMC_HAVE_ADDR	0x0001	// address written to PMAC, waiting for mode
 	#define SSP_PMC_SET		0x0002	// PMAC is set
@@ -50,7 +50,7 @@ typedef struct
 	#define SSP_WAIT_30FE06		0x4000	// ssp tight loops on 30FE08 to become non-zero
 	#define SSP_WAIT_30FE08		0x8000	// same for 30FE06
 	#define SSP_WAIT_MASK		0xe000
-	unsigned int emu_status;
+	unsigned int emu_status;		// 484
 	unsigned int pad[30];
 } ssp1601_t;
 
