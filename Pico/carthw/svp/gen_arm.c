@@ -53,15 +53,30 @@
 #define EOP_BX(rm) EOP_C_BX(A_COND_AL,rm)
 
 
-static void emit_mov_const16(int d, unsigned int val)
+static void emit_mov_const(int d, unsigned int val)
 {
 	int need_or = 0;
-	if (val & 0xff00) {
-		EOP_MOV_IMM(0, d, 24/2, (val>>8)&0xff);
+	if (val & 0xff000000) {
+		EOP_MOV_IMM(0, d,  8/2, (val>>24)&0xff);
 		need_or = 1;
 	}
-	if ((val & 0xff) || !need_or)
-		EOP_C_DOP_IMM(A_COND_AL,need_or ? A_OP_ORR : A_OP_MOV, 0, d, d, 0, val&0xff);
+	if (val & 0x00ff0000) {
+		EOP_C_DOP_IMM(A_COND_AL,need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 16/2, (val>>16)&0xff);
+		need_or = 1;
+	}
+	if (val & 0x0000ff00) {
+		EOP_C_DOP_IMM(A_COND_AL,need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 24/2, (val>>8)&0xff);
+		need_or = 1;
+	}
+	if ((val &0x000000ff) || !need_or)
+		EOP_C_DOP_IMM(A_COND_AL,need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 0, val&0xff);
+}
+
+static void check_offset_12(unsigned int val)
+{
+	if (!(val & ~0xfff)) return;
+	printf("offset_12 overflow %04x\n", val);
+	exit(1);
 }
 
 static void emit_block_prologue(void)
@@ -74,8 +89,10 @@ static void emit_block_epilogue(unsigned int *block_start, int icount)
 {
 	int back = (tcache_ptr - block_start) + 2;
 	back += 3; // g_cycles
+	check_offset_12(back<<2);
+
 	EOP_LDR_NEGIMM(2,15,back<<2);		// ldr r2,[pc,#back]
-	emit_mov_const16(3, icount);
+	emit_mov_const(3, icount);
 	EOP_STR_SIMPLE(3,2);			// str r3,[r2]
 
 	EOP_LDMFD_ST(A_R14M);			// ldmfd r13!, {r14}
@@ -86,8 +103,10 @@ static void emit_pc_inc(unsigned int *block_start, int pc)
 {
 	int back = (tcache_ptr - block_start) + 2;
 	back += 2; // rPC ptr
+	check_offset_12(back<<2);
+
 	EOP_LDR_NEGIMM(2,15,back<<2);		// ldr r2,[pc,#back]
-	emit_mov_const16(3, pc);
+	emit_mov_const(3, pc<<16);
 	EOP_STR_SIMPLE(3,2);			// str r3,[r2]
 }
 
@@ -95,9 +114,21 @@ static void emit_call(unsigned int *block_start, unsigned int op1)
 {
 	int back = (tcache_ptr - block_start) + 2;
 	back += 1; // func table
+	check_offset_12(back<<2);
+
 	EOP_LDR_NEGIMM(2,15,back<<2);		// ldr r2,[pc,#back]
 	EOP_MOV_REG_SIMPLE(14,15);		// mov lr,pc
 	EOP_LDR_IMM(15,2,op1<<2);		// ldr pc,[r2,#op1]
+}
+
+static void handle_caches()
+{
+#ifdef ARM
+	extern void flush_inval_caches(const void *start_addr, const void *end_addr);
+	flush_inval_caches(tcache, tcache_ptr);
+#else
+#error wth
+#endif
 }
 
 

@@ -3,7 +3,7 @@
 
 #include "../../PicoInt.h"
 
-#define TCACHE_SIZE (256*1024)
+#define TCACHE_SIZE (1024*1024)
 static unsigned int *block_table[0x5090/2];
 static unsigned int *block_table_iram[15][0x800/2];
 static unsigned int *tcache = NULL;
@@ -33,7 +33,7 @@ static int iram_context = 0;
 static void op00(unsigned int op, unsigned int imm)
 {
 	unsigned int tmpv;
-	PC = ((unsigned short *)&op) + 1; /* FIXME: needed for interpreter */
+	PC = ((unsigned short *)(void *)&op) + 1; /* FIXME: needed for interpreter */
 	if (op == 0) return; // nop
 	if (op == ((SSP_A<<4)|SSP_P)) { // A <- P
 		// not sure. MAME claims that only hi word is transfered.
@@ -111,7 +111,7 @@ static void op24(unsigned int op, unsigned int imm)
 	int cond = 0;
 	do {
 		COND_CHECK
-		if (cond) { int new_PC = imm; write_STACK(GET_PC()); write_PC(new_PC); }
+		if (cond) { int new_PC = imm; write_STACK(GET_PC()); SET_PC(new_PC); }
 	}
 	while (0);
 }
@@ -130,9 +130,9 @@ static void op26(unsigned int op, unsigned int imm)
 	{
 		int cond = 0;
 		COND_CHECK
-		if (cond) write_PC(imm);
+		if (cond) SET_PC(imm);
 	}
-	while(0);
+	while (0);
 }
 
 // mod cond, op
@@ -527,22 +527,23 @@ static void *translate_block(int pc)
 	*tcache_ptr++ = (u32) &ssp->gr[SSP_PC].v;	// -2 ptr to rPC
 	*tcache_ptr++ = (u32) in_funcs;			// -1 func pool
 
+	printf("translate %04x -> %04x\n", pc<<1, (tcache_ptr-tcache)<<2);
 	block_start = tcache_ptr;
 
 	emit_block_prologue();
 
-	//printf("translate %04x -> %04x\n", pc<<1, (tcache_ptr-tcache)<<1);
-	for (;;)
+	for (; icount < 100;)
 	{
 		icount++;
+		//printf("  insn #%i\n", icount);
 		op = PROGRAM(pc++);
 		op1 = op >> 9;
 
-		emit_mov_const16(0, op);
+		emit_mov_const(0, op);
 
 		// need immediate?
 		if ((op1 & 0xf) == 4 || (op1 & 0xf) == 6) {
-			emit_mov_const16(1, PROGRAM(pc++)); // immediate
+			emit_mov_const(1, PROGRAM(pc++)); // immediate
 		}
 
 		// dump PC
@@ -575,6 +576,7 @@ static void *translate_block(int pc)
 	nblocks++;
 	//if (pc >= 0x400)
 	printf("%i blocks, %i bytes\n", nblocks, (tcache_ptr - tcache)*4);
+	//printf("%p %p\n", tcache_ptr, emit_block_epilogue);
 
 #if 0
 	{
@@ -584,6 +586,9 @@ static void *translate_block(int pc)
 	}
 	exit(0);
 #endif
+
+	handle_caches();
+
 	return block_start;
 }
 
@@ -612,18 +617,6 @@ void ssp1601_dyn_reset(ssp1601_t *ssp)
 	ssp1601_reset_local(ssp);
 }
 
-static void handle_caches()
-{
-#ifdef ARM
-	extern void flush_inval_dcache(const void *start_addr, const void *end_addr);
-	extern void flush_inval_icache(const void *start_addr, const void *end_addr);
-	flush_inval_dcache(tcache, tcache_ptr);
-	flush_inval_icache(tcache, tcache_ptr);
-#else
-#error wth
-#endif
-}
-
 void ssp1601_dyn_run(int cycles)
 {
 	while (cycles > 0)
@@ -650,8 +643,9 @@ void ssp1601_dyn_run(int cycles)
 
 		//printf("enter @ %04x, PC=%04x\n", (PC - tcache)<<1, rPC<<1);
 		g_cycles = 0;
-		handle_caches();
+		//printf("enter %04x\n", rPC);
 		trans_entry();
+		//printf("leave %04x\n", rPC);
 		cycles -= g_cycles;
 /*
 		if (!had_jump) {

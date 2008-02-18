@@ -10,19 +10,14 @@
 @ r9:  r4-r6
 @ r10: P
 
-.global flush_inval_dcache
-.global flush_inval_icache
+.global flush_inval_caches
 
 .text
 .align 4
 
-flush_inval_dcache:
-  mov r2, #0x0  @ ??
+flush_inval_caches:
+  mov r2, #0x0  @ must be 0
   swi 0x9f0002
   bx lr
 
-flush_inval_icache:
-  mov r2, #0x1
-  swi 0x9f0002
-  bx lr
 
