@@ -7,6 +7,10 @@
 
 
 #include "../../PicoInt.h"
+#include "compiler.h"
+#ifdef __GP2X__
+#include <sys/mman.h>
+#endif
 
 svp_t *svp = NULL;
 int PicoSVPCycles = 1000; // cycles/line
@@ -40,6 +44,10 @@ static void PicoSVPReset(void)
 
 static void PicoSVPLine(int count)
 {
+	static int inited = 0;
+	if (!(svp->ssp1601.gr[SSP_PM0].h & 2) && !inited) return;
+	inited = 1;
+
 	// ???
 	if (PicoOpt&0x20000)
 		ssp1601_run(PicoSVPCycles * count);
@@ -78,6 +86,25 @@ static int PicoSVPDma(unsigned int source, int len, unsigned short **srcp, unsig
 
 void PicoSVPInit(void)
 {
+#ifdef __GP2X__
+	int ret;
+	ret = munmap(tcache, TCACHE_SIZE);
+	printf("munmap tcache: %i\n", ret);
+#endif
+}
+
+
+static void PicoSVPShutdown(void)
+{
+#ifdef __GP2X__
+	// also unmap tcache
+	PicoSVPInit();
+#endif
+}
+
+
+void PicoSVPStartup(void)
+{
 	void *tmp;
 
 	elprintf(EL_SVP, "SVP init");
@@ -93,9 +120,14 @@ void PicoSVPInit(void)
 	svp = (void *) ((char *)tmp + 0x200000);
 	memset(svp, 0, sizeof(*svp));
 
+#ifdef __GP2X__
+	tmp = mmap(tcache, TCACHE_SIZE, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+	printf("mmap tcache: %p, asked %p\n", tmp, tcache);
+#endif
+
 	// init SVP compiler
 	if (!(PicoOpt&0x20000)) {
-		if (ssp1601_dyn_init()) return;
+		if (ssp1601_dyn_startup()) return;
 	}
 
 	// init ok, setup hooks..
@@ -105,6 +137,7 @@ void PicoSVPInit(void)
 	PicoDmaHook = PicoSVPDma;
 	PicoResetHook = PicoSVPReset;
 	PicoLineHook = PicoSVPLine;
+	PicoCartUnloadHook = PicoSVPShutdown;
 
 	// save state stuff
 	svp_states[0].ptr = svp->iram_rom;
@@ -112,4 +145,5 @@ void PicoSVPInit(void)
 	svp_states[2].ptr = &svp->ssp1601;
 	carthw_chunks = svp_states;
 }
+
 

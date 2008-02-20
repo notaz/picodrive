@@ -159,6 +159,9 @@ up: PicoDrive.gpe
 .s.o:
 	@echo ">>>" $<
 	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
+.S.o:
+	@echo ">>>" $<
+	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
 
 ../../Pico/carthw/svp/compiler.o : ../../Pico/carthw/svp/ssp16.o ../../Pico/carthw/svp/gen_arm.c
 

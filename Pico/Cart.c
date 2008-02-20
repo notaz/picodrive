@@ -15,6 +15,8 @@
 
 static char *rom_exts[] = { "bin", "gen", "smd", "iso" };
 
+void (*PicoCartUnloadHook)(void) = NULL;
+
 void (*PicoCartLoadProgressCB)(int percent) = NULL;
 void (*PicoCDLoadProgressCB)(int percent) = NULL; // handled in Pico/cd/cd_file.c
 
@@ -493,6 +495,11 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   Pico.rom=rom;
   Pico.romsize=romsize;
 
+  if (PicoCartUnloadHook != NULL) {
+    PicoCartUnloadHook();
+    PicoCartUnloadHook = NULL;
+  }
+
   PicoMemResetHooks();
   PicoDmaHook = NULL;
   PicoResetHook = NULL;
@@ -646,7 +653,7 @@ void PicoCartDetect(void)
   if (name_cmp("Virtua Racing") == 0 ||
       name_cmp("VIRTUA RACING") == 0)
   {
-    PicoSVPInit();
+    PicoSVPStartup();
   }
 }
 

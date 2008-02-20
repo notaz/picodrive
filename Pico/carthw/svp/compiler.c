@@ -2,11 +2,10 @@
 // 14 IRAM blocks
 
 #include "../../PicoInt.h"
+#include "compiler.h"
 
-#define TCACHE_SIZE (1024*1024)
 static unsigned int *block_table[0x5090/2];
 static unsigned int *block_table_iram[15][0x800/2];
-static unsigned int *tcache = NULL;
 static unsigned int *tcache_ptr = NULL;
 
 static int had_jump = 0;
@@ -517,44 +516,64 @@ static int get_iram_context(void)
 
 #define PROGRAM(x) ((unsigned short *)svp->iram_rom)[x]
 
+static int translate_op(unsigned int op, int *pc)
+{
+	switch (op >> 9)
+	{
+		// ld d, s
+		case 0x00: break;
+	}
+
+	return -1;
+}
+
 static void *translate_block(int pc)
 {
-	unsigned int op, op1, icount = 0;
+	unsigned int op, op1, imm, ccount = 0;
 	unsigned int *block_start;
+	int ret;
 
 	// create .pool
-	*tcache_ptr++ = (u32) &g_cycles;		// -3 g_cycles
-	*tcache_ptr++ = (u32) &ssp->gr[SSP_PC].v;	// -2 ptr to rPC
-	*tcache_ptr++ = (u32) in_funcs;			// -1 func pool
+	//*tcache_ptr++ = (u32) in_funcs;			// -1 func pool
 
 	printf("translate %04x -> %04x\n", pc<<1, (tcache_ptr-tcache)<<2);
 	block_start = tcache_ptr;
 
 	emit_block_prologue();
 
-	for (; icount < 100;)
+	for (; ccount < 100;)
 	{
-		icount++;
 		//printf("  insn #%i\n", icount);
 		op = PROGRAM(pc++);
 		op1 = op >> 9;
+		imm = (u32)-1;
 
-		emit_mov_const(0, op);
+		if ((op1 & 0xf) == 4 || (op1 & 0xf) == 6)
+			imm = PROGRAM(pc++); // immediate
 
-		// need immediate?
-		if ((op1 & 0xf) == 4 || (op1 & 0xf) == 6) {
-			emit_mov_const(1, PROGRAM(pc++)); // immediate
+		ret = translate_op(op, &pc);
+		if (ret <= 0)
+		{
+			emit_mov_const(0, op);
+
+			// need immediate?
+			if (imm != (u32)-1)
+				emit_mov_const(1, imm);
+
+			// dump PC
+			emit_pc_dump(pc);
+
+			emit_interpreter_call(in_funcs[op1]);
+
+			if (in_funcs[op1] == NULL) {
+				printf("NULL func! op=%08x (%02x)\n", op, op1);
+				exit(1);
+			}
+			ccount++;
 		}
+		else
+			ccount += ret;
 
-		// dump PC
-		emit_pc_inc(block_start, pc);
-
-		emit_call(block_start, op1);
-
-		if (in_funcs[op1] == NULL) {
-			printf("NULL func! op=%08x (%02x)\n", op, op1);
-			exit(1);
-		}
 		if (op1 == 0x24 || op1 == 0x26 || // call, bra
 			((op1 == 0 || op1 == 1 || op1 == 4 || op1 == 5 || op1 == 9 || op1 == 0x25) &&
 				(op & 0xf0) == 0x60)) { // ld PC
@@ -562,7 +581,7 @@ static void *translate_block(int pc)
 		}
 	}
 
-	emit_block_epilogue(block_start, icount + 1);
+	emit_block_epilogue(ccount + 1);
 	*tcache_ptr++ = 0xffffffff; // end of block
 	//printf("  %i inst\n", icount);
 
@@ -596,16 +615,12 @@ static void *translate_block(int pc)
 
 // -----------------------------------------------------
 
-int ssp1601_dyn_init(void)
+int ssp1601_dyn_startup(void)
 {
-	tcache = tcache_ptr = malloc(TCACHE_SIZE);
-	if (tcache == NULL) {
-		printf("oom\n");
-		exit(1);
-	}
-	memset(tcache, 0, sizeof(TCACHE_SIZE));
+	memset(tcache, 0, TCACHE_SIZE);
 	memset(block_table, 0, sizeof(block_table));
 	memset(block_table_iram, 0, sizeof(block_table_iram));
+	tcache_ptr = tcache;
 	*tcache_ptr++ = 0xffffffff;
 
 	return 0;
@@ -621,7 +636,7 @@ void ssp1601_dyn_run(int cycles)
 {
 	while (cycles > 0)
 	{
-		void (*trans_entry)(void);
+		int (*trans_entry)(void);
 		if (rPC < 0x800/2)
 		{
 			if (iram_dirty) {
@@ -641,45 +656,9 @@ void ssp1601_dyn_run(int cycles)
 
 		had_jump = 0;
 
-		//printf("enter @ %04x, PC=%04x\n", (PC - tcache)<<1, rPC<<1);
-		g_cycles = 0;
-		//printf("enter %04x\n", rPC);
-		trans_entry();
-		//printf("leave %04x\n", rPC);
-		cycles -= g_cycles;
-/*
-		if (!had_jump) {
-			// no jumps
-			if (pc_old < 0x800/2)
-				rPC += (PC - block_table_iram[iram_context][pc_old]) - 1;
-			else
-				rPC += (PC - block_table[pc_old]) - 1;
-		}
-*/
-		//printf("end   @ %04x, PC=%04x\n", (PC - tcache)<<1, rPC<<1);
-/*
-		if (pc_old < 0x400) {
-			// flush IRAM cache
-			tcache_ptr = block_table[pc_old];
-			block_table[pc_old] = NULL;
-			nblocks--;
-		}
-		if (pc_old >= 0x400 && rPC < 0x400)
-		{
-			int i, crc = chksum_crc32(svp->iram_rom, 0x800);
-			for (i = 0; i < 32; i++)
-				if (iram_crcs[i] == crc) break;
-			if (i == 32) {
-				char name[32];
-				for (i = 0; i < 32 && iram_crcs[i]; i++);
-				iram_crcs[i] = crc;
-				printf("%i IRAMs\n", i+1);
-				sprintf(name, "ir%08x.bin", crc);
-				debug_dump2file(name, svp->iram_rom, 0x800);
-			}
-			printf("CRC %08x %08x\n", crc, iram_id);
-		}
-*/
+		//printf("enter %04x\n", rPC<<1);
+		cycles -= trans_entry();
+		//printf("leave %04x\n", rPC<<1);
 	}
 //	debug_dump2file("tcache.bin", tcache, (tcache_ptr - tcache) << 1);
 //	exit(1);

@@ -38,6 +38,7 @@ int PicoInit(void)
   z80_init(); // init even if we aren't going to use it
 
   PicoInitMCD();
+  PicoSVPInit();
 
   SRam.data=0;
 

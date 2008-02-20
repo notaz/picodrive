@@ -1,5 +1,13 @@
 #define EMIT(x) *tcache_ptr++ = x
 
+#define A_R4M  (1 << 4)
+#define A_R5M  (1 << 5)
+#define A_R6M  (1 << 6)
+#define A_R7M  (1 << 7)
+#define A_R8M  (1 << 8)
+#define A_R9M  (1 << 9)
+#define A_R10M (1 << 10)
+#define A_R11M (1 << 11)
 #define A_R14M (1 << 14)
 
 #define A_COND_AL 0xe
@@ -37,6 +45,7 @@
 #define EOP_LDR_IMM(   rd,rn,offset_12) EOP_C_XXR_IMM(A_COND_AL,1,0,1,rn,rd,offset_12)
 #define EOP_LDR_NEGIMM(rd,rn,offset_12) EOP_C_XXR_IMM(A_COND_AL,0,0,1,rn,rd,offset_12)
 #define EOP_LDR_SIMPLE(rd,rn)           EOP_C_XXR_IMM(A_COND_AL,1,0,1,rn,rd,0)
+#define EOP_STR_IMM(   rd,rn,offset_12) EOP_C_XXR_IMM(A_COND_AL,1,0,0,rn,rd,offset_12)
 #define EOP_STR_SIMPLE(rd,rn)           EOP_C_XXR_IMM(A_COND_AL,1,0,0,rn,rd,0)
 
 /* ldm and stm */
@@ -51,6 +60,12 @@
 	EMIT(((cond)<<28) | 0x012fff10 | (rm))
 
 #define EOP_BX(rm) EOP_C_BX(A_COND_AL,rm)
+
+#define EOP_C_B(cond,l,signed_immed_24) \
+	EMIT(((cond)<<28) | 0x0a000000 | ((l)<<24) | (signed_immed_24))
+
+#define EOP_B( signed_immed_24) EOP_C_B(A_COND_AL,0,signed_immed_24)
+#define EOP_BL(signed_immed_24) EOP_C_B(A_COND_AL,1,signed_immed_24)
 
 
 static void emit_mov_const(int d, unsigned int val)
@@ -72,53 +87,56 @@ static void emit_mov_const(int d, unsigned int val)
 		EOP_C_DOP_IMM(A_COND_AL,need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 0, val&0xff);
 }
 
+/*
 static void check_offset_12(unsigned int val)
 {
 	if (!(val & ~0xfff)) return;
 	printf("offset_12 overflow %04x\n", val);
 	exit(1);
 }
+*/
+
+static void check_offset_24(int val)
+{
+	if (val >= (int)0xff000000 && val <= 0x00ffffff) return;
+	printf("offset_24 overflow %08x\n", val);
+	exit(1);
+}
+
+static void emit_call(void *target)
+{
+	int val = (unsigned int *)target - tcache_ptr - 2;
+	check_offset_24(val);
+
+	EOP_BL(val & 0xffffff);			// bl target
+}
 
 static void emit_block_prologue(void)
 {
-	// stack LR
-	EOP_STMFD_ST(A_R14M);			// stmfd r13!, {r14}
+	// stack regs
+	EOP_STMFD_ST(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R14M);	// stmfd r13!, {r4-r11,lr}
+	emit_call(regfile_load);
 }
 
-static void emit_block_epilogue(unsigned int *block_start, int icount)
+static void emit_block_epilogue(int icount)
 {
-	int back = (tcache_ptr - block_start) + 2;
-	back += 3; // g_cycles
-	check_offset_12(back<<2);
-
-	EOP_LDR_NEGIMM(2,15,back<<2);		// ldr r2,[pc,#back]
-	emit_mov_const(3, icount);
-	EOP_STR_SIMPLE(3,2);			// str r3,[r2]
-
-	EOP_LDMFD_ST(A_R14M);			// ldmfd r13!, {r14}
+	emit_call(regfile_store);
+	EOP_LDMFD_ST(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R14M);	// ldmfd r13!, {r4-r11,lr}
+	emit_mov_const(0, icount);
 	EOP_BX(14);				// bx r14
 }
 
-static void emit_pc_inc(unsigned int *block_start, int pc)
+static void emit_pc_dump(int pc)
 {
-	int back = (tcache_ptr - block_start) + 2;
-	back += 2; // rPC ptr
-	check_offset_12(back<<2);
-
-	EOP_LDR_NEGIMM(2,15,back<<2);		// ldr r2,[pc,#back]
 	emit_mov_const(3, pc<<16);
-	EOP_STR_SIMPLE(3,2);			// str r3,[r2]
+	EOP_STR_IMM(3,7,0x400+6*4);		// str r3, [r7, #(0x400+6*8)]
 }
 
-static void emit_call(unsigned int *block_start, unsigned int op1)
+static void emit_interpreter_call(void *target)
 {
-	int back = (tcache_ptr - block_start) + 2;
-	back += 1; // func table
-	check_offset_12(back<<2);
-
-	EOP_LDR_NEGIMM(2,15,back<<2);		// ldr r2,[pc,#back]
-	EOP_MOV_REG_SIMPLE(14,15);		// mov lr,pc
-	EOP_LDR_IMM(15,2,op1<<2);		// ldr pc,[r2,#op1]
+	emit_call(regfile_store);
+	emit_call(target);
+	emit_call(regfile_load);
 }
 
 static void handle_caches()

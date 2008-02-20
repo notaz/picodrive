@@ -332,7 +332,10 @@
 }
 
 
-static ssp1601_t *ssp = NULL;
+#ifndef EMBED_INTERPRETER
+static
+#endif
+ssp1601_t *ssp = NULL;
 static unsigned short *PC;
 static int g_cycles;
 
