@@ -521,7 +521,25 @@ static int translate_op(unsigned int op, int *pc)
 	switch (op >> 9)
 	{
 		// ld d, s
-		case 0x00: break;
+		case 0x00:
+			if (op == 0) return 1; // nop
+			break;
+
+		// ld a, adr
+		case 0x03:
+			EOP_ADD_IMM(0,7,1,30/2,(op&0x180)>>1);	// add r1, r7, ((op&0x180)<<1)
+			EOP_LDRH_IMM(0,1,(op&0x7f)<<1);		// ldr r0, [r1, (op&0x7f)<<1]
+			EOP_MOV_REG_LSL(5, 5, 16);		// mov r5, r5, lsl #16  @ A
+			EOP_ORR_REG_SIMPLE(5, 0);		// orr r5, r5, r0
+			EOP_MOV_REG_ROR(5,5,16);		// mov r5, r5, ror #16
+			return 1;
+
+		// ld adr, a
+		case 0x07:
+			EOP_ADD_IMM(0,7,1,30/2,(op&0x180)>>1);	// add r1, r7, ((op&0x180)<<1)
+			EOP_MOV_REG_LSR(0, 5, 16);		// mov r0, r5, lsr #16  @ A
+			EOP_STRH_IMM(0,1,(op&0x7f)<<1);		// str r0, [r1, (op&0x7f)<<1]
+			return 1;
 	}
 
 	return -1;
@@ -634,6 +652,7 @@ void ssp1601_dyn_reset(ssp1601_t *ssp)
 
 void ssp1601_dyn_run(int cycles)
 {
+	//rPC = 0x1272 >> 1;
 	while (cycles > 0)
 	{
 		int (*trans_entry)(void);

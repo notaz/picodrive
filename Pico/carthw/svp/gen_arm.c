@@ -22,6 +22,7 @@
 #define A_AM1_REG_XIMM(shift_imm,shift_op,rm) (((shift_imm)<<7) | ((shift_op)<<5) | (rm))
 
 /* data processing op */
+#define A_OP_ADD 0x4
 #define A_OP_ORR 0xc
 #define A_OP_MOV 0xd
 
@@ -33,20 +34,37 @@
 
 #define EOP_MOV_IMM(s,   rd,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_MOV,s, 0,rd,ror2,imm8)
 #define EOP_ORR_IMM(s,rn,rd,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ORR,s,rn,rd,ror2,imm8)
+#define EOP_ADD_IMM(s,rn,rd,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ADD,s,rn,rd,ror2,imm8)
 
 #define EOP_MOV_REG(s,   rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
+#define EOP_ORR_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_ORR,s,rn,rd,shift_imm,shift_op,rm)
 
-#define EOP_MOV_REG_SIMPLE(rd,rm) EOP_MOV_REG(0,rd,0,A_AM1_LSL,rm)
+#define EOP_MOV_REG_SIMPLE(rd,rm)        EOP_MOV_REG(0,rd,0,A_AM1_LSL,rm)
+#define EOP_MOV_REG_LSL(rd,rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_LSL,rm)
+#define EOP_MOV_REG_LSR(rd,rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_LSR,rm)
+#define EOP_MOV_REG_ASR(rd,rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_ASR,rm)
+#define EOP_MOV_REG_ROR(rd,rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_ROR,rm)
 
-/* ldr and str */
-#define EOP_C_XXR_IMM(cond,u,b,l,rn,rd,offset_12) \
+#define EOP_ORR_REG_SIMPLE(rd,rm)        EOP_ORR_REG(0,rd,rd,0,A_AM1_LSL,rm)
+
+/* addressing mode 2 */
+#define EOP_C_AM2_IMM(cond,u,b,l,rn,rd,offset_12) \
 	EMIT(((cond)<<28) | 0x05000000 | ((u)<<23) | ((b)<<22) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | (offset_12))
 
-#define EOP_LDR_IMM(   rd,rn,offset_12) EOP_C_XXR_IMM(A_COND_AL,1,0,1,rn,rd,offset_12)
-#define EOP_LDR_NEGIMM(rd,rn,offset_12) EOP_C_XXR_IMM(A_COND_AL,0,0,1,rn,rd,offset_12)
-#define EOP_LDR_SIMPLE(rd,rn)           EOP_C_XXR_IMM(A_COND_AL,1,0,1,rn,rd,0)
-#define EOP_STR_IMM(   rd,rn,offset_12) EOP_C_XXR_IMM(A_COND_AL,1,0,0,rn,rd,offset_12)
-#define EOP_STR_SIMPLE(rd,rn)           EOP_C_XXR_IMM(A_COND_AL,1,0,0,rn,rd,0)
+/* addressing mode 3 */
+#define EOP_C_AM3_IMM(cond,u,l,rn,rd,s,h,offset_8) \
+	EMIT(((cond)<<28) | 0x01400090 | ((u)<<23) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | (((offset_8)&0xf0)<<4) | \
+			((s)<<6) | ((h)<<5) | ((offset_8)&0xf))
+
+/* ldr and str */
+#define EOP_LDR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,1,0,1,rn,rd,offset_12)
+#define EOP_LDR_NEGIMM(rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,0,0,1,rn,rd,offset_12)
+#define EOP_LDR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,1,rn,rd,0)
+#define EOP_STR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,offset_12)
+#define EOP_STR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,0)
+
+#define EOP_LDRH_IMM(  rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,offset_8)
+#define EOP_STRH_IMM(  rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,0,rn,rd,0,1,offset_8)
 
 /* ldm and stm */
 #define EOP_XXM(cond,p,u,s,w,l,rn,list) \
