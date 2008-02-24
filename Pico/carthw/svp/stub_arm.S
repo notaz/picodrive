@@ -36,7 +36,7 @@ flush_inval_caches:
 @ register map:
 @ r4:  XXYY
 @ r5:  A
-@ r6:  STACK and emu flags
+@ r6:  STACK and emu flags: sss0 * .uu. .lll NZCV (NZCV is PSR bits from ARM)
 @ r7:  SSP context
 @ r8:  r0-r2 (.210)
 @ r9:  r4-r6 (.654)
@@ -54,8 +54,16 @@ regfile_load:
     mov     r3, r3, lsr #16
     mov     r3, r3, lsl #16
     orr     r4, r3, r4, lsr #16         @ XXYY
-    bic     r6, r6, #0xff
-    orr     r6, r6, r8, lsr #16         @ flags + STACK
+
+    and     r8, r8, #0x0f0000
+    mov     r8, r8, lsl #13             @ sss0 *
+    and     r9, r6, #0x670000
+    tst     r6,     #0x80000000
+    orrne   r8, r8, #0x8
+    tst     r6,     #0x20000000
+    orrne   r8, r8, #0x4                @ sss0 *           NZ..
+    orr     r6, r8, r9, lsr #12         @ sss0 * .uu. .lll ....
+
     ldr     r8, [r7, #0x440]            @ r0-r2
     ldr     r9, [r7, #0x444]            @ r4-r6
     ldr     r10,[r7, #(0x400+7*4)]      @ P
@@ -66,9 +74,16 @@ regfile_store:
     str     r10,[r7, #(0x400+7*4)]      @ P
     str     r8, [r7, #0x440]            @ r0-r2
     str     r9, [r7, #0x444]            @ r4-r6
-    mov     r9, r6, lsl #16
+
+    mov     r9, r6, lsr #13
     and     r9, r9, #(7<<16)            @ STACK
-    bic     r6, r6, #0xff               @ ST
+    mov     r3, r6, lsl #28
+    msr     cpsr_flg, r3                @ to to ARM PSR
+    and     r6, r6, #0x670
+    mov     r6, r6, lsl #12
+    orrmi   r6, r6, #0x80000000         @ N
+    orreq   r6, r6, #0x20000000         @ Z
+
     mov     r3, r4, lsl #16             @ Y
     mov     r2, r4, lsr #16
     mov     r2, r2, lsl #16             @ X

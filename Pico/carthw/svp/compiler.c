@@ -13,7 +13,7 @@ static int nblocks = 0;
 static int iram_context = 0;
 
 #ifndef ARM
-#define DUMP_BLOCK 0x40b0
+#define DUMP_BLOCK 0x84a
 unsigned int tcache[512*1024];
 void regfile_load(void){}
 void regfile_store(void){}
@@ -635,7 +635,7 @@ static void tr_bank_write(int addr)
 		}
 		breg = 1;
 	}
-	EOP_STRH_IMM(0,breg,(addr&0x7f)<<1);		// str  r0, [r1, (op&0x7f)<<1]
+	EOP_STRH_IMM(0,breg,(addr&0x7f)<<1);		// strh r0, [r1, (op&0x7f)<<1]
 }
 
 /* handle RAM bank pointer modifiers. Nothing is trashed. */
@@ -669,6 +669,89 @@ static void tr_ptrr_mod(int r, int mod, int need_modulo)
 	}
 }
 
+//	SSP_GR0, SSP_X,     SSP_Y,   SSP_A,
+//	SSP_ST,  SSP_STACK, SSP_PC,  SSP_P,
+//@ r4:  XXYY
+//@ r5:  A
+//@ r6:  STACK and emu flags
+//@ r7:  SSP context
+//@ r10: P
+
+// write r0 to general reg handlers. Trashes r1
+static void tr_r0_unhandled(void)
+{
+	printf("unhandled\n");
+	exit(1);
+}
+
+static void tr_r0_to_GR0(void)
+{
+	// do nothing
+}
+
+static void tr_r0_to_X(void)
+{
+	EOP_MOV_REG_LSL(4, 4, 16);		// mov  r4, r4, lsl #16
+	EOP_MOV_REG_LSR(4, 4, 16);		// mov  r4, r4, lsr #16
+	EOP_ORR_REG_LSL(4, 4, 0, 16);		// orr  r4, r4, r0, lsl #16
+}
+
+static void tr_r0_to_Y(void)
+{
+	EOP_MOV_REG_LSR(4, 4, 16);		// mov  r4, r4, lsr #16
+	EOP_ORR_REG_LSL(4, 4, 0, 16);		// orr  r4, r4, r0, lsl #16
+	EOP_MOV_REG_ROR(4, 4, 16);		// mov  r4, r4, ror #16
+}
+
+static void tr_r0_to_A(void)
+{
+	EOP_MOV_REG_LSL(5, 5, 16);		// mov  r5, r5, lsl #16
+	EOP_MOV_REG_LSR(5, 5, 16);		// mov  r5, r5, lsl #16  @ AL
+	EOP_ORR_REG_LSL(5, 5, 0, 16);		// orr  r5, r5, r0, lsl #16
+	hostreg_r[0] = 0x20000;
+}
+
+static void tr_r0_to_ST(void)
+{
+	// VR doesn't need much accuracy here..
+	EOP_AND_IMM(1, 0,   0, 0x67);		// and   r1, r0, #0x67
+	EOP_AND_IMM(6, 6, 8/2, 0xe0);		// and   r6, r6, #7<<29     @ preserve STACK
+	EOP_ORR_REG_LSL(6, 6, 1, 4);		// orr   r6, r6, r1, lsl #4
+	hostreg_r[1] = -1;
+}
+
+static void tr_r0_to_STACK(void)
+{
+	// 448
+	EOP_ADD_IMM(1, 7, 24/2, 0x04);		// add  r1, r7, 0x400
+	EOP_ADD_IMM(1, 1, 0, 0x48);		// add  r1, r1, 0x048
+	EOP_ADD_REG_LSR(1, 1, 6, 28);		// add  r1, r1, r6, lsr #26
+	EOP_STRH_SIMPLE(0, 1);			// strh r0, [r1]
+	EOP_ADD_IMM(6, 6, 24/2, 0x20);		// add  r6, r6, #1<<29
+	hostreg_r[1] = -1;
+}
+
+static void tr_r0_to_PC(void)
+{
+	EOP_MOV_REG_LSL(1, 0, 16);		// mov  r1, r0, lsl #16
+	EOP_STR_IMM(0,7,0x400+6*4);		// str r0, [r7, #(0x400+6*8)]
+	hostreg_r[1] = -1;
+}
+
+typedef void (tr_write_func)(void);
+
+static tr_write_func *tr_write_funcs[8] =
+{
+	tr_r0_to_GR0,
+	tr_r0_to_X,
+	tr_r0_to_Y,
+	tr_r0_to_A,
+	tr_r0_to_ST,
+	tr_r0_to_STACK,
+	tr_r0_to_PC,
+	tr_r0_unhandled
+};
+
 
 static int translate_op(unsigned int op, int *pc, int imm)
 {
@@ -685,16 +768,50 @@ static int translate_op(unsigned int op, int *pc, int imm)
 		// ld a, adr
 		case 0x03:
 			tr_bank_read(op&0x1ff);
-			EOP_MOV_REG_LSL(5, 5, 16);		// mov  r5, r5, lsl #16
-			EOP_MOV_REG_LSR(5, 5, 16);		// mov  r5, r5, lsl #16  @ AL
-			EOP_ORR_REG_LSL(5, 5, 0, 16);		// orr  r5, r5, r0, lsl #16
+			tr_r0_to_A();
 			const_regb &= ~CRREG_A;
 			hostreg_r[0] = 0x20000;
 			ret++; break;
 
+		// ldi d, imm
+		case 0x04:
+			tmpv = (op & 0xf0) >> 4;
+			if (tmpv < 8)
+			{
+				tr_mov16(0, imm);
+				tr_write_funcs[tmpv]();
+				const_regs.gr[tmpv].h = imm;
+				const_regb |= 1 << tmpv;
+				ret++; break;
+			}
+			else if (tmpv == 0xe && (PROGRAM(*pc) >> 9) == 4)
+			{
+				// programming PMC..
+				(*pc)++;
+				tmpv = imm | (PROGRAM((*pc)++) << 16);
+				emit_mov_const(0, tmpv);
+				EOP_LDR_IMM(1,7,0x484);		// ldr r0, [r7, #0x484] // emu_status
+				EOP_STR_IMM(0,7,0x400+14*4);	// PMC
+				// TODO: do this only on reads
+				if (tmpv == 0x187f04) { // fe08
+					EOP_LDR_IMM(0,7,0x490); // dram_ptr
+					EOP_ADD_IMM(0,0,24/2,0xfe);	// add  r0, r0, #0xfe00
+					EOP_LDRH_IMM(0,0,8);		// ldrh r0, [r0, #8]
+					EOP_TST_REG_SIMPLE(0,0);
+					EOP_C_DOP_IMM(A_COND_EQ,A_OP_ADD,0,11,11,22/2,1); // add r11, r11, #1024
+					EOP_C_DOP_IMM(A_COND_EQ,A_OP_ORR,0, 1, 1,24/2,SSP_WAIT_30FE08>>8); // orr r1, r1, #SSP_WAIT_30FE08
+				}
+				EOP_ORR_IMM(1,1,0,SSP_PMC_SET);		// orr r1, r1, #SSP_PMC_SET
+				EOP_STR_IMM(1,7,0x484);			// str r1, [r7, #0x484] // emu_status
+				hostreg_r[0] = hostreg_r[1] = -1;
+				ret += 2; break;
+			}
+			else
+				return -1;	/* TODO.. */
+
+
 		// ldi (ri), imm
 		case 0x06:
-			//tmpv = *PC++; ptr1_write(op, tmpv); break;
 			// int t = (op&3) | ((op>>6)&4) | ((op<<1)&0x18);
 			tr_mov16(0, imm);
 			if ((op&3) == 3)
@@ -860,10 +977,17 @@ int ssp1601_dyn_startup(void)
 void ssp1601_dyn_reset(ssp1601_t *ssp)
 {
 	ssp1601_reset_local(ssp);
+	ssp->rom_ptr  = (unsigned int) Pico.rom;
+	ssp->iram_ptr = (unsigned int) svp->iram_rom;
+	ssp->dram_ptr = (unsigned int) svp->dram;
 }
 
 void ssp1601_dyn_run(int cycles)
 {
+	if (ssp->emu_status & SSP_WAIT_MASK) return;
+	//{ printf("%i wait\n", Pico.m.frame_count); return; }
+	//printf("%i  %04x\n", Pico.m.frame_count, rPC<<1);
+
 #ifdef DUMP_BLOCK
 	rPC = DUMP_BLOCK >> 1;
 #endif

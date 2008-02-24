@@ -11,6 +11,7 @@
 #define A_R14M (1 << 14)
 
 #define A_COND_AL 0xe
+#define A_COND_EQ 0x0
 
 /* addressing mode 1 */
 #define A_AM1_LSL 0
@@ -25,6 +26,7 @@
 #define A_OP_AND 0x0
 #define A_OP_SUB 0x2
 #define A_OP_ADD 0x4
+#define A_OP_TST 0x8
 #define A_OP_ORR 0xc
 #define A_OP_MOV 0xd
 #define A_OP_BIC 0xe
@@ -44,6 +46,7 @@
 #define EOP_MOV_REG(s,   rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
 #define EOP_ORR_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_ORR,s,rn,rd,shift_imm,shift_op,rm)
 #define EOP_ADD_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_ADD,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_TST_REG(  rn,   shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_TST,1,rn, 0,shift_imm,shift_op,rm)
 
 #define EOP_MOV_REG_SIMPLE(rd,rm)           EOP_MOV_REG(0,rd,0,A_AM1_LSL,rm)
 #define EOP_MOV_REG_LSL(rd,   rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_LSL,rm)
@@ -60,6 +63,8 @@
 #define EOP_ADD_REG_SIMPLE(rd,rm)           EOP_ADD_REG(0,rd,rd,0,A_AM1_LSL,rm)
 #define EOP_ADD_REG_LSL(rd,rn,rm,shift_imm) EOP_ADD_REG(0,rn,rd,shift_imm,A_AM1_LSL,rm)
 #define EOP_ADD_REG_LSR(rd,rn,rm,shift_imm) EOP_ADD_REG(0,rn,rd,shift_imm,A_AM1_LSR,rm)
+
+#define EOP_TST_REG_SIMPLE(rn,rm)           EOP_TST_REG(  rn,   0,A_AM1_LSL,rm)
 
 /* addressing mode 2 */
 #define EOP_C_AM2_IMM(cond,u,b,l,rn,rd,offset_12) \
@@ -150,13 +155,15 @@ static void emit_block_prologue(void)
 	// stack regs
 	EOP_STMFD_ST(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R14M);	// stmfd r13!, {r4-r11,lr}
 	emit_call(regfile_load);
+	EOP_MOV_IMM(11, 0, 0);			// mov r11, #0
 }
 
 static void emit_block_epilogue(int icount)
 {
+	if (icount > 0xff) { printf("large icount: %i\n", icount); icount = 0xff; }
 	emit_call(regfile_store);
+	EOP_ADD_IMM(0,11,0,icount);		// add r0, r11, #icount
 	EOP_LDMFD_ST(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R14M);	// ldmfd r13!, {r4-r11,lr}
-	emit_mov_const(0, icount);
 	EOP_BX(14);				// bx r14
 }
 
