@@ -12,6 +12,13 @@ static int had_jump = 0;
 static int nblocks = 0;
 static int iram_context = 0;
 
+#ifndef ARM
+#define DUMP_BLOCK 0x40b0
+unsigned int tcache[512*1024];
+void regfile_load(void){}
+void regfile_store(void){}
+#endif
+
 #define EMBED_INTERPRETER
 #define ssp1601_reset ssp1601_reset_local
 #define ssp1601_run ssp1601_run_local
@@ -513,36 +520,235 @@ static int get_iram_context(void)
 	return val1;
 }
 
+// -----------------------------------------------------
+/*
+enum {
+	SSP_GR0, SSP_X,     SSP_Y,   SSP_A,
+	SSP_ST,  SSP_STACK, SSP_PC,  SSP_P,
+	SSP_PM0, SSP_PM1,   SSP_PM2, SSP_XST,
+	SSP_PM4, SSP_gr13,  SSP_PMC, SSP_AL
+};
+*/
+/* regs with known values */
+static struct
+{
+	ssp_reg_t gr[8];
+	unsigned char r[8];
+} const_regs;
+
+#define CRREG_X     (1 << SSP_X)
+#define CRREG_Y     (1 << SSP_Y)
+#define CRREG_A     (1 << SSP_A)	/* AH only */
+#define CRREG_ST    (1 << SSP_ST)
+#define CRREG_STACK (1 << SSP_STACK)
+#define CRREG_PC    (1 << SSP_PC)
+#define CRREG_P     (1 << SSP_P)
+#define CRREG_PR0   (1 << 8)
+#define CRREG_PR4   (1 << 12)
+#define CRREG_AL    (1 << 16)
+
+static u32 const_regb = 0;		/* bitfield of known register values */
+static u32 dirty_regb = 0;		/* known vals, which need to be flushed (only r0-r7) */
+
+/* known values of host regs.
+ * -1          - unknown
+ * 00000-0ffff - 16bit value
+ * 10000-1ffff - base reg (r7) + 16bit val
+ * 20000       - means reg (low) eq AH
+ */
+static int hostreg_r[4];
+
+static void hostreg_clear(void)
+{
+	int i;
+	for (i = 0; i < 4; i++)
+		hostreg_r[i] = -1;
+}
+
+/*static*/ void hostreg_ah_changed(void)
+{
+	int i;
+	for (i = 0; i < 4; i++)
+		if (hostreg_r[i] == 0x20000) hostreg_r[i] = -1;
+}
+
 
 #define PROGRAM(x) ((unsigned short *)svp->iram_rom)[x]
 
-static int translate_op(unsigned int op, int *pc)
+/* load 16bit val into host reg r0-r3. Nothing is trashed */
+static void tr_mov16(int r, int val)
 {
+	if (hostreg_r[r] != val) {
+		emit_mov_const(r, val);
+		hostreg_r[r] = val;
+	}
+}
+
+/* write dirty r0-r7 to host regs. Nothing is trashed */
+static void tr_flush_dirty(void)
+{
+	int i, ror = 0, reg;
+	dirty_regb >>= 8;
+	/* r0-r7 */
+	for (i = 0; dirty_regb && i < 8; i++, dirty_regb >>= 1)
+	{
+		if (!(dirty_regb&1)) continue;
+		switch (i&3) {
+			case 0: ror =    0; break;
+			case 1: ror = 24/2; break;
+			case 2: ror = 16/2; break;
+		}
+		reg = (i < 4) ? 8 : 9;
+		EOP_BIC_IMM(reg,reg,ror,0xff);
+		if (const_regs.r[i] != 0)
+			EOP_ORR_IMM(reg,reg,ror,const_regs.r[i]);
+	}
+}
+
+/* read bank word to r0 (MSW may contain trash). Thrashes r1. */
+static void tr_bank_read(int addr) /* word addr 0-0x1ff */
+{
+	if (addr&1) {
+		int breg = 7;
+		if (addr > 0x7f) {
+			if (hostreg_r[1] != (0x10000|((addr&0x180)<<1))) {
+				EOP_ADD_IMM(1,7,30/2,(addr&0x180)>>1);	// add  r1, r7, ((op&0x180)<<1)
+				hostreg_r[1] = 0x10000|((addr&0x180)<<1);
+			}
+			breg = 1;
+		}
+		EOP_LDRH_IMM(0,breg,(addr&0x7f)<<1);	// ldrh r0, [r1, (op&0x7f)<<1]
+	} else {
+		EOP_LDR_IMM(0,7,(addr&0x1ff)<<1);	// ldr  r0, [r1, (op&0x1ff)<<1]
+	}
+	hostreg_r[0] = -1;
+}
+
+/* write r0 to bank. Trashes r1. */
+static void tr_bank_write(int addr)
+{
+	int breg = 7;
+	if (addr > 0x7f) {
+		if (hostreg_r[1] != (0x10000|((addr&0x180)<<1))) {
+			EOP_ADD_IMM(1,7,30/2,(addr&0x180)>>1);	// add  r1, r7, ((op&0x180)<<1)
+			hostreg_r[1] = 0x10000|((addr&0x180)<<1);
+		}
+		breg = 1;
+	}
+	EOP_STRH_IMM(0,breg,(addr&0x7f)<<1);		// str  r0, [r1, (op&0x7f)<<1]
+}
+
+/* handle RAM bank pointer modifiers. Nothing is trashed. */
+static void tr_ptrr_mod(int r, int mod, int need_modulo)
+{
+	int modulo = -1, modulo_shift = -1;	/* unknown */
+
+	if (mod == 0) return;
+
+	if (!need_modulo || mod == 1) // +!
+		modulo_shift = 8;
+	else if (need_modulo && (const_regb & CRREG_ST)) {
+		modulo_shift = const_regs.gr[SSP_ST].h & 7;
+		if (modulo_shift == 0) modulo_shift = 8;
+	}
+
+	if (mod > 1 && modulo_shift == -1) { printf("need var modulo\n"); exit(1); }
+	modulo = (1 << modulo_shift) - 1;
+
+	if (const_regb & (1 << (r + 8))) {
+		if (mod == 2)
+		     const_regs.r[r] = (const_regs.r[r] & ~modulo) | ((const_regs.r[r] - 1) & modulo);
+		else const_regs.r[r] = (const_regs.r[r] & ~modulo) | ((const_regs.r[r] + 1) & modulo);
+	} else {
+		int reg = (r < 4) ? 8 : 9;
+		int ror = ((r&3) + 1)*8 - (8 - modulo_shift);
+		EOP_MOV_REG_ROR(reg,reg,ror);
+		// {add|sub} reg, reg, #1<<shift
+		EOP_C_DOP_IMM(A_COND_AL,(mod==2)?A_OP_SUB:A_OP_ADD,0,reg,reg, 8/2, 1<<(8 - modulo_shift));
+		EOP_MOV_REG_ROR(reg,reg,32-ror);
+	}
+}
+
+
+static int translate_op(unsigned int op, int *pc, int imm)
+{
+	u32 tmpv;
+	int ret = 0;
+
 	switch (op >> 9)
 	{
 		// ld d, s
 		case 0x00:
-			if (op == 0) return 1; // nop
+			if (op == 0) { ret++; break; } // nop
 			break;
 
 		// ld a, adr
 		case 0x03:
-			EOP_ADD_IMM(0,7,1,30/2,(op&0x180)>>1);	// add r1, r7, ((op&0x180)<<1)
-			EOP_LDRH_IMM(0,1,(op&0x7f)<<1);		// ldr r0, [r1, (op&0x7f)<<1]
-			EOP_MOV_REG_LSL(5, 5, 16);		// mov r5, r5, lsl #16  @ A
-			EOP_ORR_REG_SIMPLE(5, 0);		// orr r5, r5, r0
-			EOP_MOV_REG_ROR(5,5,16);		// mov r5, r5, ror #16
-			return 1;
+			tr_bank_read(op&0x1ff);
+			EOP_MOV_REG_LSL(5, 5, 16);		// mov  r5, r5, lsl #16
+			EOP_MOV_REG_LSR(5, 5, 16);		// mov  r5, r5, lsl #16  @ AL
+			EOP_ORR_REG_LSL(5, 5, 0, 16);		// orr  r5, r5, r0, lsl #16
+			const_regb &= ~CRREG_A;
+			hostreg_r[0] = 0x20000;
+			ret++; break;
+
+		// ldi (ri), imm
+		case 0x06:
+			//tmpv = *PC++; ptr1_write(op, tmpv); break;
+			// int t = (op&3) | ((op>>6)&4) | ((op<<1)&0x18);
+			tr_mov16(0, imm);
+			if ((op&3) == 3)
+			{
+				tmpv = (op>>2) & 3; // direct addressing
+				if (op & 0x100) {
+					if (hostreg_r[1] != 0x10200) {
+						EOP_ADD_IMM(1,7,30/2,0x200>>2);	// add  r1, r7, 0x200
+						hostreg_r[1] = 0x10200;
+					}
+					EOP_STRH_IMM(0,1,tmpv<<1);	// str  r0, [r1, {0,2,4,6}]
+				} else {
+					EOP_STRH_IMM(0,7,tmpv<<1);	// str  r0, [r7, {0,2,4,6}]
+				}
+			}
+			else
+			{
+				int r = (op&3) | ((op>>6)&4);
+				if (const_regb & (1 << (r + 8))) {
+					tr_bank_write(const_regs.r[r] | ((r < 4) ? 0 : 0x100));
+				} else {
+					int reg = (r < 4) ? 8 : 9;
+					int ror = ((4 - (r&3))*8) & 0x1f;
+					EOP_AND_IMM(1,reg,ror/2,0xff);			// and r1, r{7,8}, <mask>
+					if (r >= 4)
+						EOP_ORR_IMM(1,1,((ror-8)&0x1f)/2,1);		// orr r1, r1, 1<<shift
+					if (r&3) EOP_ADD_REG_LSR(1,7,1, (r&3)*8-1);	// add r1, r7, r1, lsr #lsr
+					else     EOP_ADD_REG_LSL(1,7,1,1);
+					EOP_STRH_SIMPLE(0,1);				// strh r0, [r1]
+					hostreg_r[1] = -1;
+				}
+				tr_ptrr_mod(r, (op>>2) & 3, 0);
+			}
+			ret++; break;
 
 		// ld adr, a
 		case 0x07:
-			EOP_ADD_IMM(0,7,1,30/2,(op&0x180)>>1);	// add r1, r7, ((op&0x180)<<1)
-			EOP_MOV_REG_LSR(0, 5, 16);		// mov r0, r5, lsr #16  @ A
-			EOP_STRH_IMM(0,1,(op&0x7f)<<1);		// str r0, [r1, (op&0x7f)<<1]
-			return 1;
+			if (hostreg_r[0] != 0x20000) {
+				EOP_MOV_REG_LSR(0, 5, 16);		// mov  r0, r5, lsr #16  @ A
+				hostreg_r[0] = 0x20000;
+			}
+			tr_bank_write(op&0x1ff);
+			ret++; break;
+
+		// ldi ri, simm
+		case 0x0c ... 0x0f:
+			tmpv = (op>>8)&7;
+			const_regs.r[tmpv] = op;
+			const_regb |= 1 << (tmpv + 8);
+			dirty_regb |= 1 << (tmpv + 8);
+			ret++; break;
 	}
 
-	return -1;
+	return ret;
 }
 
 static void *translate_block(int pc)
@@ -556,6 +762,8 @@ static void *translate_block(int pc)
 
 	printf("translate %04x -> %04x\n", pc<<1, (tcache_ptr-tcache)<<2);
 	block_start = tcache_ptr;
+	const_regb = dirty_regb = 0;
+	hostreg_clear();
 
 	emit_block_prologue();
 
@@ -569,9 +777,11 @@ static void *translate_block(int pc)
 		if ((op1 & 0xf) == 4 || (op1 & 0xf) == 6)
 			imm = PROGRAM(pc++); // immediate
 
-		ret = translate_op(op, &pc);
+		ret = translate_op(op, &pc, imm);
 		if (ret <= 0)
 		{
+			tr_flush_dirty();
+
 			emit_mov_const(0, op);
 
 			// need immediate?
@@ -588,6 +798,7 @@ static void *translate_block(int pc)
 				exit(1);
 			}
 			ccount++;
+			hostreg_clear();
 		}
 		else
 			ccount += ret;
@@ -599,6 +810,7 @@ static void *translate_block(int pc)
 		}
 	}
 
+	tr_flush_dirty();
 	emit_block_epilogue(ccount + 1);
 	*tcache_ptr++ = 0xffffffff; // end of block
 	//printf("  %i inst\n", icount);
@@ -615,7 +827,7 @@ static void *translate_block(int pc)
 	printf("%i blocks, %i bytes\n", nblocks, (tcache_ptr - tcache)*4);
 	//printf("%p %p\n", tcache_ptr, emit_block_epilogue);
 
-#if 0
+#ifdef DUMP_BLOCK
 	{
 		FILE *f = fopen("tcache.bin", "wb");
 		fwrite(tcache, 1, (tcache_ptr - tcache)*4, f);
@@ -652,7 +864,9 @@ void ssp1601_dyn_reset(ssp1601_t *ssp)
 
 void ssp1601_dyn_run(int cycles)
 {
-	//rPC = 0x1272 >> 1;
+#ifdef DUMP_BLOCK
+	rPC = DUMP_BLOCK >> 1;
+#endif
 	while (cycles > 0)
 	{
 		int (*trans_entry)(void);

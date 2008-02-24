@@ -22,9 +22,12 @@
 #define A_AM1_REG_XIMM(shift_imm,shift_op,rm) (((shift_imm)<<7) | ((shift_op)<<5) | (rm))
 
 /* data processing op */
+#define A_OP_AND 0x0
+#define A_OP_SUB 0x2
 #define A_OP_ADD 0x4
 #define A_OP_ORR 0xc
 #define A_OP_MOV 0xd
+#define A_OP_BIC 0xe
 
 #define EOP_C_DOP_X(cond,op,s,rn,rd,shifter_op) \
 	EMIT(((cond)<<28) | ((op)<< 21) | ((s)<<20) | ((rn)<<16) | ((rd)<<12) | (shifter_op))
@@ -32,20 +35,31 @@
 #define EOP_C_DOP_IMM(cond,op,s,rn,rd,ror2,imm8)             EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_IMM(ror2,imm8))
 #define EOP_C_DOP_REG(cond,op,s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_REG_XIMM(shift_imm,shift_op,rm))
 
-#define EOP_MOV_IMM(s,   rd,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_MOV,s, 0,rd,ror2,imm8)
-#define EOP_ORR_IMM(s,rn,rd,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ORR,s,rn,rd,ror2,imm8)
-#define EOP_ADD_IMM(s,rn,rd,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ADD,s,rn,rd,ror2,imm8)
+#define EOP_MOV_IMM(rd,   ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_MOV,0, 0,rd,ror2,imm8)
+#define EOP_ORR_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ORR,0,rn,rd,ror2,imm8)
+#define EOP_ADD_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ADD,0,rn,rd,ror2,imm8)
+#define EOP_BIC_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_BIC,0,rn,rd,ror2,imm8)
+#define EOP_AND_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_AND,0,rn,rd,ror2,imm8)
 
 #define EOP_MOV_REG(s,   rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
 #define EOP_ORR_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_ORR,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_ADD_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_ADD,s,rn,rd,shift_imm,shift_op,rm)
 
-#define EOP_MOV_REG_SIMPLE(rd,rm)        EOP_MOV_REG(0,rd,0,A_AM1_LSL,rm)
-#define EOP_MOV_REG_LSL(rd,rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_LSL,rm)
-#define EOP_MOV_REG_LSR(rd,rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_LSR,rm)
-#define EOP_MOV_REG_ASR(rd,rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_ASR,rm)
-#define EOP_MOV_REG_ROR(rd,rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_ROR,rm)
+#define EOP_MOV_REG_SIMPLE(rd,rm)           EOP_MOV_REG(0,rd,0,A_AM1_LSL,rm)
+#define EOP_MOV_REG_LSL(rd,   rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_LSL,rm)
+#define EOP_MOV_REG_LSR(rd,   rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_LSR,rm)
+#define EOP_MOV_REG_ASR(rd,   rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_ASR,rm)
+#define EOP_MOV_REG_ROR(rd,   rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_ROR,rm)
 
-#define EOP_ORR_REG_SIMPLE(rd,rm)        EOP_ORR_REG(0,rd,rd,0,A_AM1_LSL,rm)
+#define EOP_ORR_REG_SIMPLE(rd,rm)           EOP_ORR_REG(0,rd,rd,0,A_AM1_LSL,rm)
+#define EOP_ORR_REG_LSL(rd,rn,rm,shift_imm) EOP_ORR_REG(0,rn,rd,shift_imm,A_AM1_LSL,rm)
+#define EOP_ORR_REG_LSR(rd,rn,rm,shift_imm) EOP_ORR_REG(0,rn,rd,shift_imm,A_AM1_LSR,rm)
+#define EOP_ORR_REG_ASR(rd,rn,rm,shift_imm) EOP_ORR_REG(0,rn,rd,shift_imm,A_AM1_ASR,rm)
+#define EOP_ORR_REG_ROR(rd,rn,rm,shift_imm) EOP_ORR_REG(0,rn,rd,shift_imm,A_AM1_ROR,rm)
+
+#define EOP_ADD_REG_SIMPLE(rd,rm)           EOP_ADD_REG(0,rd,rd,0,A_AM1_LSL,rm)
+#define EOP_ADD_REG_LSL(rd,rn,rm,shift_imm) EOP_ADD_REG(0,rn,rd,shift_imm,A_AM1_LSL,rm)
+#define EOP_ADD_REG_LSR(rd,rn,rm,shift_imm) EOP_ADD_REG(0,rn,rd,shift_imm,A_AM1_LSR,rm)
 
 /* addressing mode 2 */
 #define EOP_C_AM2_IMM(cond,u,b,l,rn,rd,offset_12) \
@@ -63,8 +77,10 @@
 #define EOP_STR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,offset_12)
 #define EOP_STR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,0)
 
-#define EOP_LDRH_IMM(  rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,offset_8)
-#define EOP_STRH_IMM(  rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,0,rn,rd,0,1,offset_8)
+#define EOP_LDRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,offset_8)
+#define EOP_LDRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,0)
+#define EOP_STRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,0,rn,rd,0,1,offset_8)
+#define EOP_STRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,0,rn,rd,0,1,0)
 
 /* ldm and stm */
 #define EOP_XXM(cond,p,u,s,w,l,rn,list) \
@@ -90,7 +106,7 @@ static void emit_mov_const(int d, unsigned int val)
 {
 	int need_or = 0;
 	if (val & 0xff000000) {
-		EOP_MOV_IMM(0, d,  8/2, (val>>24)&0xff);
+		EOP_MOV_IMM(d,  8/2, (val>>24)&0xff);
 		need_or = 1;
 	}
 	if (val & 0x00ff0000) {
@@ -162,8 +178,6 @@ static void handle_caches()
 #ifdef ARM
 	extern void flush_inval_caches(const void *start_addr, const void *end_addr);
 	flush_inval_caches(tcache, tcache_ptr);
-#else
-#error wth
 #endif
 }
 

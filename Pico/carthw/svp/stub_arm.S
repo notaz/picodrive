@@ -38,8 +38,8 @@ flush_inval_caches:
 @ r5:  A
 @ r6:  STACK and emu flags
 @ r7:  SSP context
-@ r8:  r0-r2
-@ r9:  r4-r6
+@ r8:  r0-r2 (.210)
+@ r9:  r4-r6 (.654)
 @ r10: P
 @ r11: cycles
 
