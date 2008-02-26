@@ -42,6 +42,7 @@
 #define EOP_ADD_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ADD,0,rn,rd,ror2,imm8)
 #define EOP_BIC_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_BIC,0,rn,rd,ror2,imm8)
 #define EOP_AND_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_AND,0,rn,rd,ror2,imm8)
+#define EOP_SUB_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_SUB,0,rn,rd,ror2,imm8)
 
 #define EOP_MOV_REG(s,   rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
 #define EOP_ORR_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_ORR,s,rn,rd,shift_imm,shift_op,rm)
@@ -105,6 +106,12 @@
 
 #define EOP_B( signed_immed_24) EOP_C_B(A_COND_AL,0,signed_immed_24)
 #define EOP_BL(signed_immed_24) EOP_C_B(A_COND_AL,1,signed_immed_24)
+
+/* misc */
+#define EOP_C_MUL(cond,s,rd,rs,rm) \
+	EMIT(((cond)<<28) | ((s)<<20) | ((rd)<<16) | ((rs)<<8) | 0x90 | (rm))
+
+#define EOP_MUL(rd,rm,rs) EOP_C_MUL(A_COND_AL,0,rd,rs,rm) // note: rd != rm
 
 
 static void emit_mov_const(int d, unsigned int val)
@@ -171,13 +178,6 @@ static void emit_pc_dump(int pc)
 {
 	emit_mov_const(3, pc<<16);
 	EOP_STR_IMM(3,7,0x400+6*4);		// str r3, [r7, #(0x400+6*8)]
-}
-
-static void emit_interpreter_call(void *target)
-{
-	emit_call(regfile_store);
-	emit_call(target);
-	emit_call(regfile_load);
 }
 
 static void handle_caches()

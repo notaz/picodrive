@@ -51,9 +51,15 @@ typedef struct
 	#define SSP_WAIT_30FE08		0x8000	// same for 30FE08
 	#define SSP_WAIT_MASK		0xe000
 	unsigned int emu_status;		// 484
-	unsigned int rom_ptr;			// 488 recompiler convenience
-	unsigned int iram_ptr;			// 48c
-	unsigned int dram_ptr;			// 490
+	/* used by recompiler only: */
+	unsigned int ptr_rom;			// 488
+	unsigned int ptr_iram;			// 48c
+	unsigned int ptr_dram;			// 490
+/*
+unsigned int blocktab;
+unsigned int blocktab_iram;
+unsigned int iram_context;
+*/
 	unsigned int pad[27];
 } ssp1601_t;
 
