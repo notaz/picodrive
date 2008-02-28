@@ -447,7 +447,7 @@ static u32 pm_io(int reg, int write, u32 d)
 		ssp->pmac_read[write ? reg + 6 : reg] = rPMC.v;
 		ssp->emu_status &= ~SSP_PMC_SET;
 		if ((rPMC.v & 0x7fffff) == 0x1c8000 || (rPMC.v & 0x7fffff) == 0x1c8240) {
-			elprintf(EL_SVP, "ssp IRAM copy from %06x", (ssp->RAM1[0]-1)<<1);
+			elprintf(EL_SVP, "ssp IRAM copy from %06x to %04x", (ssp->RAM1[0]-1)<<1, (rPMC.v&0x7fff)<<1);
 #ifdef USE_DEBUGGER
 			last_iram = (ssp->RAM1[0]-1)<<1;
 #endif

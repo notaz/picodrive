@@ -12,6 +12,9 @@
 
 #define A_COND_AL 0xe
 #define A_COND_EQ 0x0
+#define A_COND_NE 0x1
+#define A_COND_MI 0x4
+#define A_COND_PL 0x5
 
 /* addressing mode 1 */
 #define A_AM1_LSL 0
@@ -43,6 +46,7 @@
 #define EOP_BIC_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_BIC,0,rn,rd,ror2,imm8)
 #define EOP_AND_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_AND,0,rn,rd,ror2,imm8)
 #define EOP_SUB_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_SUB,0,rn,rd,ror2,imm8)
+#define EOP_TST_IMM(   rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_TST,1,rn, 0,ror2,imm8)
 
 #define EOP_MOV_REG(s,   rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
 #define EOP_ORR_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_ORR,s,rn,rd,shift_imm,shift_op,rm)
@@ -113,24 +117,30 @@
 
 #define EOP_MUL(rd,rm,rs) EOP_C_MUL(A_COND_AL,0,rd,rs,rm) // note: rd != rm
 
+#define EOP_C_MRS(cond,rd) \
+	EMIT(((cond)<<28) | 0x014f0000 | ((rd)<<12))
 
-static void emit_mov_const(int d, unsigned int val)
+#define EOP_MRS(rd) EOP_C_MRS(A_COND_AL,rd)
+
+
+static void emit_mov_const(int cond, int d, unsigned int val)
 {
 	int need_or = 0;
 	if (val & 0xff000000) {
 		EOP_MOV_IMM(d,  8/2, (val>>24)&0xff);
+		EOP_C_DOP_IMM(cond, A_OP_MOV, 0, 0, d, 8/2, (val>>24)&0xff);
 		need_or = 1;
 	}
 	if (val & 0x00ff0000) {
-		EOP_C_DOP_IMM(A_COND_AL,need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 16/2, (val>>16)&0xff);
+		EOP_C_DOP_IMM(cond, need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 16/2, (val>>16)&0xff);
 		need_or = 1;
 	}
 	if (val & 0x0000ff00) {
-		EOP_C_DOP_IMM(A_COND_AL,need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 24/2, (val>>8)&0xff);
+		EOP_C_DOP_IMM(cond, need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 24/2, (val>>8)&0xff);
 		need_or = 1;
 	}
 	if ((val &0x000000ff) || !need_or)
-		EOP_C_DOP_IMM(A_COND_AL,need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 0, val&0xff);
+		EOP_C_DOP_IMM(cond, need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 0, val&0xff);
 }
 
 /*
@@ -176,7 +186,7 @@ static void emit_block_epilogue(int icount)
 
 static void emit_pc_dump(int pc)
 {
-	emit_mov_const(3, pc<<16);
+	emit_mov_const(A_COND_AL, 3, pc<<16);
 	EOP_STR_IMM(3,7,0x400+6*4);		// str r3, [r7, #(0x400+6*8)]
 }
 

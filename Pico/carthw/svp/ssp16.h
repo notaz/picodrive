@@ -53,7 +53,7 @@ typedef struct
 	unsigned int emu_status;		// 484
 	/* used by recompiler only: */
 	unsigned int ptr_rom;			// 488
-	unsigned int ptr_iram;			// 48c
+	unsigned int ptr_iram_rom;		// 48c
 	unsigned int ptr_dram;			// 490
 /*
 unsigned int blocktab;
