@@ -162,15 +162,16 @@ int PicoReset(int hard)
 
 // dma2vram settings are just hacks to unglitch Legend of Galahad (needs <= 104 to work)
 // same for Outrunners (92-121, when active is set to 24)
+// 96 is VR hack
 static const int dma_timings[] = {
-83,  167, 166,  83, // vblank: 32cell: dma2vram dma2[vs|c]ram vram_fill vram_copy
+96,  167, 166,  83, // vblank: 32cell: dma2vram dma2[vs|c]ram vram_fill vram_copy
 102, 205, 204, 102, // vblank: 40cell:
 16,   16,  15,   8, // active: 32cell:
 24,   18,  17,   9  // ...
 };
 
 static const int dma_bsycles[] = {
-(488<<8)/82,  (488<<8)/167, (488<<8)/166, (488<<8)/83,
+(488<<8)/96,  (488<<8)/167, (488<<8)/166, (488<<8)/83,
 (488<<8)/102, (488<<8)/205, (488<<8)/204, (488<<8)/102,
 (488<<8)/16,  (488<<8)/16,  (488<<8)/15,  (488<<8)/8,
 (488<<8)/24,  (488<<8)/18,  (488<<8)/17,  (488<<8)/9
