@@ -109,6 +109,7 @@ void PicoSVPStartup(void)
 
 	elprintf(EL_SVP, "SVP init");
 
+PicoOpt |= 0x20000;
 	tmp = realloc(Pico.rom, 0x200000 + sizeof(*svp));
 	if (tmp == NULL)
 	{

@@ -7,6 +7,11 @@
 // For commercial use, separate licencing terms must be obtained.
 
 
+//#define USE_DEBUGGER
+/* detect ops with unimplemented/invalid fields.
+ * Useful for homebrew or if a new VR revision pops up. */
+//#define DO_CHECKS
+
 #include "../../PicoInt.h"
 
 /*
@@ -131,7 +136,7 @@
  * These are only used on 1st indirection level, so things like [ld a, ((r0+))] and [ld X, r6-]
  * ar probably invalid.
  *
- * r3 and r7 are special and can not be changed (at least Samsung samples and SVP code never do).
+ * r3 and r7 are special and can not be changed (at least Samsung samples and VR code never do).
  * They are fixed to the start of their RAM banks. (They are probably changeable for ssp1605+,
  * Samsung's old DSP page claims that).
  * 1 of these 4 modifiers must be used (short form direct addressing?):
@@ -173,24 +178,19 @@
  *
  * 30fe02 - 0 if SVP busy, 1 if done (set by SVP, checked and cleared by 68k)
  * 30fe06 - also sync related.
- * 30fe08 - job number [1-12] for SVP. 0 means no job. Set by 68k, read-cleared by SVP.
+ * 30fe08 - job number [1-12] for SVP. 0 means no job. Set by 68k, read-cleared by VR.
  *
- * + figure out if 'op A, P' is 32bit (nearly sure it is)
- * * does mld, mpya load their operands into X and Y?
- * * OP simm
- *
- * Assumptions in this code
- *   P is not directly writeable
- *   flags correspond to full 32bit accumulator
- *   only Z and N status flags are emulated (others unused by SVP)
- *   modifiers for 'OP a, ri' are ignored (invalid?/not used by SVP)
+ * Assumptions and limitations in this code
+ *   only Z and N status flags are emulated (others unused by VR)
+ *   so all condition checks except N and Z are ignored (not used by VR)
+ *   modifiers for 'OP a, ri' and ((ri)) are ignored (not used by VR)
+ *   loop repeat mode when (ri) is destination is ignored
+ *   ops not used by VR are not implemented
  */
 
 #include "../../PicoInt.h"
 
 #define u32 unsigned int
-
-//#define USE_DEBUGGER
 
 // 0
 #define rX     ssp->gr[SSP_X].h
@@ -247,7 +247,7 @@
 	else rST |= (rA32>>16)&SSP_FLAG_N;
 
 // standard cond processing.
-// again, only Z and N is checked, as SVP doesn't seem to use any other conds.
+// again, only Z and N is checked, as VR doesn't seem to use any other conds.
 #define COND_CHECK \
 	switch (op&0xf0) { \
 		case 0x00: cond = 1; break; /* always true */ \
@@ -324,13 +324,44 @@
 	UPD_ACC_ZN
 
 
-#define OP_CHECK32(OP) \
-	if ((op & 0x0f) == SSP_P) { /* A <- P */ \
-	read_P(); /* update P */ \
-	OP(rP.v); \
-	break; \
+#define OP_CHECK32(OP) { \
+	 if ((op & 0x0f) == SSP_P) { /* A <- P */ \
+		read_P(); /* update P */ \
+		OP(rP.v); \
+		break; \
+	} \
+ 	if ((op & 0x0f) == SSP_A) { /* A <- A */ \
+		OP(rA32); \
+		break; \
+	} \
 }
 
+
+#ifdef DO_CHECKS
+#define CHECK_IMM16()   if (op&0x1ff)    elprintf(EL_ANOMALY, "imm bits! %04x @ %04x", op,  GET_PPC_OFFS())
+#define CHECK_B_SET()   if (op&0x100)    elprintf(EL_ANOMALY, "b set!    %04x @ %04x", op,  GET_PPC_OFFS())
+#define CHECK_B_CLEAR() if (!(op&0x100)) elprintf(EL_ANOMALY, "b clear!  %04x @ %04x", op,  GET_PPC_OFFS())
+#define CHECK_MOD()     if (op&0x00c)    elprintf(EL_ANOMALY, "mod bits! %04x @ %04x", op,  GET_PPC_OFFS())
+#define CHECK_10f()     if (op&0x10f)    elprintf(EL_ANOMALY, "bits 10f! %04x @ %04x", op,  GET_PPC_OFFS())
+#define CHECK_008()     if (op&0x008)    elprintf(EL_ANOMALY, "bits 008! %04x @ %04x", op,  GET_PPC_OFFS())
+#define CHECK_00f()     if (op&0x00f)    elprintf(EL_ANOMALY, "bits 00f! %04x @ %04x", op,  GET_PPC_OFFS())
+#define CHECK_0f0()     if (op&0x0f0)    elprintf(EL_ANOMALY, "bits 0f0! %04x @ %04x", op,  GET_PPC_OFFS())
+#define CHECK_1f0()     if (op&0x1f0)    elprintf(EL_ANOMALY, "bits 1f0! %04x @ %04x", op,  GET_PPC_OFFS())
+#define CHECK_RPL()     if (rST&7)       elprintf(EL_ANOMALY, "unhandled RPL! %04x @ %04x", op,  GET_PPC_OFFS())
+#define CHECK_ST(d)     if((rST^d)&0xf98)elprintf(EL_ANOMALY, "ssp FIXME ST %04x -> %04x @ %04x", rST, d, GET_PPC_OFFS())
+#else
+#define CHECK_IMM16()
+#define CHECK_B_SET()
+#define CHECK_B_CLEAR()
+#define CHECK_MOD()
+#define CHECK_10f()
+#define CHECK_008()
+#define CHECK_00f()
+#define CHECK_0f0()
+#define CHECK_1f0()
+#define CHECK_RPL()
+#define CHECK_ST(d)
+#endif
 
 #ifndef EMBED_INTERPRETER
 static
@@ -365,8 +396,7 @@ static void write_unknown(u32 d)
 // 4
 static void write_ST(u32 d)
 {
-	//if ((rST ^ d) & 0x0007) elprintf(EL_SVP, "ssp RPL %i -> %i @ %04x", rST&7, d&7, GET_PPC_OFFS());
-	if ((rST ^ d) & 0x0f98) elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME ST %04x -> %04x @ %04x", rST, d, GET_PPC_OFFS());
+	CHECK_ST(d);
 	rST = d;
 }
 
@@ -826,30 +856,30 @@ static void ptr1_write(int op, u32 d)
 		// mod=1 (01), "+!"
 		// mod=3,      "+"
 		case 0x08:
-		case 0x18:
 		case 0x09:
-		case 0x19:
-		case 0x0a:
-		case 0x1a: ssp->RAM0[ssp->r0[t&3]++] = d; return;
+		case 0x0a: ssp->RAM0[ssp->r0[t&3]++] = d; return;
 		case 0x0b: ssp->RAM0[1] = d; return;
 		case 0x0c:
-		case 0x1c:
 		case 0x0d:
-		case 0x1d:
-		case 0x0e:
-		case 0x1e: ssp->RAM1[ssp->r1[t&3]++] = d; return;
+		case 0x0e: ssp->RAM1[ssp->r1[t&3]++] = d; return;
 		case 0x0f: ssp->RAM1[1] = d; return;
 		// mod=2 (10), "-"
 		case 0x10:
 		case 0x11:
-		case 0x12: ssp->RAM0[ssp->r0[t&3]--] = d; return;
+		case 0x12: ssp->RAM0[ssp->r0[t&3]--] = d; CHECK_RPL(); return;
 		case 0x13: ssp->RAM0[2] = d; return;
 		case 0x14:
 		case 0x15:
-		case 0x16: ssp->RAM1[ssp->r1[t&3]--] = d; return;
+		case 0x16: ssp->RAM1[ssp->r1[t&3]--] = d; CHECK_RPL(); return;
 		case 0x17: ssp->RAM1[2] = d; return;
-		// mod=3 (11)
+		// mod=3 (11), "+"
+		case 0x18:
+		case 0x19:
+		case 0x1a: ssp->RAM0[ssp->r0[t&3]++] = d; CHECK_RPL(); return;
 		case 0x1b: ssp->RAM0[3] = d; return;
+		case 0x1c:
+		case 0x1d:
+		case 0x1e: ssp->RAM1[ssp->r1[t&3]++] = d; CHECK_RPL(); return;
 		case 0x1f: ssp->RAM1[3] = d; return;
 	}
 }
@@ -1021,6 +1051,7 @@ void ssp1601_run(int cycles)
 		{
 			// ld d, s
 			case 0x00:
+				CHECK_B_SET();
 				if (op == 0) break; // nop
 				if (op == ((SSP_A<<4)|SSP_P)) { // A <- P
 					// not sure. MAME claims that only hi word is transfered.
@@ -1041,22 +1072,22 @@ void ssp1601_run(int cycles)
 			case 0x02: tmpv = REG_READ((op & 0xf0) >> 4); ptr1_write(op, tmpv); break;
 
 			// ldi d, imm
-			case 0x04: tmpv = *PC++; REG_WRITE((op & 0xf0) >> 4, tmpv); break;
+			case 0x04: CHECK_10f(); tmpv = *PC++; REG_WRITE((op & 0xf0) >> 4, tmpv); g_cycles--; break;
 
 			// ld d, ((ri))
-			case 0x05: tmpv = ptr2_read(op); REG_WRITE((op & 0xf0) >> 4, tmpv); break;
+			case 0x05: CHECK_MOD(); tmpv = ptr2_read(op); REG_WRITE((op & 0xf0) >> 4, tmpv); g_cycles -= 2; break;
 
 			// ldi (ri), imm
-			case 0x06: tmpv = *PC++; ptr1_write(op, tmpv); break;
+			case 0x06: tmpv = *PC++; ptr1_write(op, tmpv); g_cycles--; break;
 
 			// ld adr, a
 			case 0x07: ssp->RAM[op & 0x1ff] = rA; break;
 
 			// ld d, ri
-			case 0x09: tmpv = rIJ[(op&3)|((op>>6)&4)]; REG_WRITE((op & 0xf0) >> 4, tmpv); break;
+			case 0x09: CHECK_MOD(); tmpv = rIJ[(op&3)|((op>>6)&4)]; REG_WRITE((op & 0xf0) >> 4, tmpv); break;
 
 			// ld ri, s
-			case 0x0a: rIJ[(op&3)|((op>>6)&4)] = REG_READ((op & 0xf0) >> 4); break;
+			case 0x0a: CHECK_MOD(); rIJ[(op&3)|((op>>6)&4)] = REG_READ((op & 0xf0) >> 4); break;
 
 			// ldi ri, simm
 			case 0x0c:
@@ -1067,27 +1098,37 @@ void ssp1601_run(int cycles)
 			// call cond, addr
 			case 0x24: {
 				int cond = 0;
+				CHECK_00f();
 				COND_CHECK
-				if (cond) { int new_PC = *PC++; write_STACK(GET_PC()); write_PC(new_PC); }
+				if (cond) { int new_PC = *PC++; write_STACK(GET_PC()); SET_PC(new_PC); }
 				else PC++;
+				g_cycles--; // always 2 cycles
 				break;
 			}
 
 			// ld d, (a)
-			case 0x25: tmpv = ((unsigned short *)svp->iram_rom)[rA]; REG_WRITE((op & 0xf0) >> 4, tmpv); break;
+			case 0x25:
+				CHECK_10f();
+				tmpv = ((unsigned short *)svp->iram_rom)[rA];
+				REG_WRITE((op & 0xf0) >> 4, tmpv);
+				g_cycles -= 2; // 3 cycles total
+				break;
 
 			// bra cond, addr
 			case 0x26: {
 				int cond = 0;
+				CHECK_00f();
 				COND_CHECK
-				if (cond) { int new_PC = *PC++; write_PC(new_PC); }
+				if (cond) { int new_PC = *PC++; SET_PC(new_PC); }
 				else PC++;
+				g_cycles--;
 				break;
 			}
 
 			// mod cond, op
 			case 0x48: {
 				int cond = 0;
+				CHECK_008();
 				COND_CHECK
 				if (cond) {
 					switch (op & 7) {
@@ -1098,52 +1139,56 @@ void ssp1601_run(int cycles)
 						default: elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: unhandled mod %i @ %04x",
 								op&7, GET_PPC_OFFS());
 					}
-					UPD_ACC_ZN // ?
+					UPD_ACC_ZN
 				}
 				break;
 			}
 
 			// mpys?
 			case 0x1b:
+				CHECK_B_CLEAR();
 				read_P(); // update P
-				rA32 -= rP.v;			// maybe only upper word?
-				UPD_ACC_ZN			// there checking flags after this
-				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
-				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
+				rA32 -= rP.v;
+				UPD_ACC_ZN
+				rX = ptr1_read_(op&3, 0, (op<<1)&0x18);
+				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18);
 				break;
 
 			// mpya (rj), (ri), b
 			case 0x4b:
+				CHECK_B_CLEAR();
 				read_P(); // update P
-				rA32 += rP.v; // confirmed to be 32bit
-				UPD_ACC_ZN // ?
-				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
-				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
+				rA32 += rP.v;
+				UPD_ACC_ZN
+				rX = ptr1_read_(op&3, 0, (op<<1)&0x18);
+				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18);
 				break;
 
 			// mld (rj), (ri), b
 			case 0x5b:
+				CHECK_B_CLEAR();
 				rA32 = 0;
-				rST &= 0x0fff; // ?
-				rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
-				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
+				rST &= 0x0fff;
+				rST |= SSP_FLAG_Z;
+				rX = ptr1_read_(op&3, 0, (op<<1)&0x18);
+				rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18);
 				break;
 
 			// OP a, s
-			case 0x10: OP_CHECK32(OP_SUBA32); tmpv = REG_READ(op & 0x0f); OP_SUBA(tmpv); break;
-			case 0x30: OP_CHECK32(OP_CMPA32); tmpv = REG_READ(op & 0x0f); OP_CMPA(tmpv); break;
-			case 0x40: OP_CHECK32(OP_ADDA32); tmpv = REG_READ(op & 0x0f); OP_ADDA(tmpv); break;
-			case 0x50: OP_CHECK32(OP_ANDA32); tmpv = REG_READ(op & 0x0f); OP_ANDA(tmpv); break;
-			case 0x60: OP_CHECK32(OP_ORA32 ); tmpv = REG_READ(op & 0x0f); OP_ORA (tmpv); break;
-			case 0x70: OP_CHECK32(OP_EORA32); tmpv = REG_READ(op & 0x0f); OP_EORA(tmpv); break;
+			case 0x10: CHECK_1f0(); OP_CHECK32(OP_SUBA32); tmpv = REG_READ(op & 0x0f); OP_SUBA(tmpv); break;
+			case 0x30: CHECK_1f0(); OP_CHECK32(OP_CMPA32); tmpv = REG_READ(op & 0x0f); OP_CMPA(tmpv); break;
+			case 0x40: CHECK_1f0(); OP_CHECK32(OP_ADDA32); tmpv = REG_READ(op & 0x0f); OP_ADDA(tmpv); break;
+			case 0x50: CHECK_1f0(); OP_CHECK32(OP_ANDA32); tmpv = REG_READ(op & 0x0f); OP_ANDA(tmpv); break;
+			case 0x60: CHECK_1f0(); OP_CHECK32(OP_ORA32 ); tmpv = REG_READ(op & 0x0f); OP_ORA (tmpv); break;
+			case 0x70: CHECK_1f0(); OP_CHECK32(OP_EORA32); tmpv = REG_READ(op & 0x0f); OP_EORA(tmpv); break;
 
 			// OP a, (ri)
-			case 0x11: tmpv = ptr1_read(op); OP_SUBA(tmpv); break;
-			case 0x31: tmpv = ptr1_read(op); OP_CMPA(tmpv); break;
-			case 0x41: tmpv = ptr1_read(op); OP_ADDA(tmpv); break;
-			case 0x51: tmpv = ptr1_read(op); OP_ANDA(tmpv); break;
-			case 0x61: tmpv = ptr1_read(op); OP_ORA (tmpv); break;
-			case 0x71: tmpv = ptr1_read(op); OP_EORA(tmpv); break;
+			case 0x11: CHECK_0f0(); tmpv = ptr1_read(op); OP_SUBA(tmpv); break;
+			case 0x31: CHECK_0f0(); tmpv = ptr1_read(op); OP_CMPA(tmpv); break;
+			case 0x41: CHECK_0f0(); tmpv = ptr1_read(op); OP_ADDA(tmpv); break;
+			case 0x51: CHECK_0f0(); tmpv = ptr1_read(op); OP_ANDA(tmpv); break;
+			case 0x61: CHECK_0f0(); tmpv = ptr1_read(op); OP_ORA (tmpv); break;
+			case 0x71: CHECK_0f0(); tmpv = ptr1_read(op); OP_EORA(tmpv); break;
 
 			// OP a, adr
 			case 0x03: tmpv = ssp->RAM[op & 0x1ff]; OP_LDA (tmpv); break;
@@ -1155,41 +1200,37 @@ void ssp1601_run(int cycles)
 			case 0x73: tmpv = ssp->RAM[op & 0x1ff]; OP_EORA(tmpv); break;
 
 			// OP a, imm
-			case 0x14: tmpv = *PC++; OP_SUBA(tmpv); break;
-			case 0x34: tmpv = *PC++; OP_CMPA(tmpv); break;
-			case 0x44: tmpv = *PC++; OP_ADDA(tmpv); break;
-			case 0x54: tmpv = *PC++; OP_ANDA(tmpv); break;
-			case 0x64: tmpv = *PC++; OP_ORA (tmpv); break;
-			case 0x74: tmpv = *PC++; OP_EORA(tmpv); break;
+			case 0x14: CHECK_IMM16(); tmpv = *PC++; OP_SUBA(tmpv); g_cycles--; break;
+			case 0x34: CHECK_IMM16(); tmpv = *PC++; OP_CMPA(tmpv); g_cycles--; break;
+			case 0x44: CHECK_IMM16(); tmpv = *PC++; OP_ADDA(tmpv); g_cycles--; break;
+			case 0x54: CHECK_IMM16(); tmpv = *PC++; OP_ANDA(tmpv); g_cycles--; break;
+			case 0x64: CHECK_IMM16(); tmpv = *PC++; OP_ORA (tmpv); g_cycles--; break;
+			case 0x74: CHECK_IMM16(); tmpv = *PC++; OP_EORA(tmpv); g_cycles--; break;
 
 			// OP a, ((ri))
-			case 0x15: tmpv = ptr2_read(op); OP_SUBA(tmpv); break;
-			case 0x35: tmpv = ptr2_read(op); OP_CMPA(tmpv); break;
-			case 0x45: tmpv = ptr2_read(op); OP_ADDA(tmpv); break;
-			case 0x55: tmpv = ptr2_read(op); OP_ANDA(tmpv); break;
-			case 0x65: tmpv = ptr2_read(op); OP_ORA (tmpv); break;
-			case 0x75: tmpv = ptr2_read(op); OP_EORA(tmpv); break;
+			case 0x15: CHECK_MOD(); tmpv = ptr2_read(op); OP_SUBA(tmpv); g_cycles -= 2; break;
+			case 0x35: CHECK_MOD(); tmpv = ptr2_read(op); OP_CMPA(tmpv); g_cycles -= 2; break;
+			case 0x45: CHECK_MOD(); tmpv = ptr2_read(op); OP_ADDA(tmpv); g_cycles -= 2; break;
+			case 0x55: CHECK_MOD(); tmpv = ptr2_read(op); OP_ANDA(tmpv); g_cycles -= 2; break;
+			case 0x65: CHECK_MOD(); tmpv = ptr2_read(op); OP_ORA (tmpv); g_cycles -= 2; break;
+			case 0x75: CHECK_MOD(); tmpv = ptr2_read(op); OP_EORA(tmpv); g_cycles -= 2; break;
 
 			// OP a, ri
-			case 0x19: tmpv = rIJ[IJind]; OP_SUBA(tmpv); break;
-			case 0x39: tmpv = rIJ[IJind]; OP_CMPA(tmpv); break;
-			case 0x49: tmpv = rIJ[IJind]; OP_ADDA(tmpv); break;
-			case 0x59: tmpv = rIJ[IJind]; OP_ANDA(tmpv); break;
-			case 0x69: tmpv = rIJ[IJind]; OP_ORA (tmpv); break;
-			case 0x79: tmpv = rIJ[IJind]; OP_EORA(tmpv); break;
+			case 0x19: CHECK_MOD(); tmpv = rIJ[IJind]; OP_SUBA(tmpv); break;
+			case 0x39: CHECK_MOD(); tmpv = rIJ[IJind]; OP_CMPA(tmpv); break;
+			case 0x49: CHECK_MOD(); tmpv = rIJ[IJind]; OP_ADDA(tmpv); break;
+			case 0x59: CHECK_MOD(); tmpv = rIJ[IJind]; OP_ANDA(tmpv); break;
+			case 0x69: CHECK_MOD(); tmpv = rIJ[IJind]; OP_ORA (tmpv); break;
+			case 0x79: CHECK_MOD(); tmpv = rIJ[IJind]; OP_EORA(tmpv); break;
 
 			// OP simm
-			case 0x1c: OP_SUBA(op & 0xff); break;
-			case 0x3c: OP_CMPA(op & 0xff); break;
-			case 0x4c: OP_ADDA(op & 0xff); break;
-			// MAME code only does LSB of top word, but this looks wrong to me.
-			case 0x5c: OP_ANDA(op & 0xff); break;
-			case 0x6c: OP_ORA (op & 0xff); break;
-			case 0x7c: OP_EORA(op & 0xff); break;
+			case 0x1c: CHECK_B_SET(); OP_SUBA(op & 0xff); break;
+			case 0x3c: CHECK_B_SET(); OP_CMPA(op & 0xff); break;
+			case 0x4c: CHECK_B_SET(); OP_ADDA(op & 0xff); break;
+			case 0x5c: CHECK_B_SET(); OP_ANDA(op & 0xff); break;
+			case 0x6c: CHECK_B_SET(); OP_ORA (op & 0xff); break;
+			case 0x7c: CHECK_B_SET(); OP_EORA(op & 0xff); break;
 
-#ifdef EMBED_INTERPRETER
-			case 0x7f: goto interp_end; /* pseudo op */
-#endif
 			default:
 				elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME unhandled op %04x @ %04x", op, GET_PPC_OFFS());
 				break;
@@ -1198,12 +1239,6 @@ void ssp1601_run(int cycles)
 	}
 
 	rPC = GET_PC();
-#ifdef EMBED_INTERPRETER
-interp_end:
-#endif
 	read_P(); // update P
-
-	if (ssp->gr[SSP_GR0].v != 0xffff0000)
-		elprintf(EL_ANOMALY|EL_SVP, "ssp FIXME: REG 0 corruption! %08x", ssp->gr[SSP_GR0].v);
 }
 
