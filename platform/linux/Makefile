@@ -96,6 +96,8 @@ PicoDrive : $(OBJS) ../common/helix/helix_mp3_x86.a
 mkdirs:
 	mkdir -p $(DIRS)
 
+Pico/carthw/svp/compiler.o : Pico/carthw/svp/ssp16.o ../../Pico/carthw/svp/gen_arm.c
+
 ../../cpu/musashi/m68kops.c :
 	@make -C ../../cpu/musashi
 
