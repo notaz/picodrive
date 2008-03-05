@@ -640,20 +640,29 @@ void PicoCartDetect(void)
     SRam.eeprom_bit_out= 7;
   }
 
+  // SVP detection
+  else if (name_cmp("Virtua Racing") == 0 ||
+           name_cmp("VIRTUA RACING") == 0)
+  {
+    PicoSVPStartup();
+  }
+
+  // Detect 4-in-1 and 12-in-1
+  else if ((name_cmp("ROBOCOP 3") && Pico.romsize == 0x200000) ||
+    (rom_strcmp(0x160, "FLICKY") && Pico.romsize == 0x200000))
+  {
+    carthw_12in1_startup();
+  }
+
   // Some games malfunction if SRAM is not filled with 0xff
   if (name_cmp("DINO DINI'S SOCCER") == 0 ||
       name_cmp("MICRO MACHINES II") == 0)
+  {
     memset(SRam.data, 0xff, sram_size);
+  }
 
   // Unusual region 'code'
   if (rom_strcmp(0x1f0, "EUROPE") == 0)
     *(int *) (Pico.rom+0x1f0) = 0x20204520;
-
-  // SVP detection
-  if (name_cmp("Virtua Racing") == 0 ||
-      name_cmp("VIRTUA RACING") == 0)
-  {
-    PicoSVPStartup();
-  }
 }
 

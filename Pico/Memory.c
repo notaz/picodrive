@@ -303,19 +303,8 @@ static void OtherWrite8End(u32 a,u32 d,int realsize)
 #endif
   elprintf(EL_UIO, "strange w%i: %06x, %08x @%06x", realsize, a&0xffffff, d, SekPc);
 
-  if(a >= 0xA13004 && a < 0xA13040) {
-    // dumb 12-in-1 or 4-in-1 banking support
-    int len;
-    a &= 0x3f; a <<= 16;
-    len = Pico.romsize - a;
-    if (len <= 0) return; // invalid/missing bank
-    if (len > 0x200000) len = 0x200000; // 2 megs
-    memcpy(Pico.rom, Pico.rom+a, len); // code which does this is in RAM so this is safe.
-    return;
-  }
-
   // for games with simple protection devices, discovered by Haze
-  else if ((a>>22) == 1)
+  if ((a>>22) == 1)
     Pico.m.prot_bytes[(a>>2)&1] = (u8)d;
 }
 

@@ -122,7 +122,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
               "NJ: CZ80\n"
               "MAME devs: YM2612 and SN76496 cores\n"
               "Stéphane Dallongeville: Gens code, base of Fame/C (C68K), CZ80\n"
-              "Tasco Deluxe: SVP RE work\n",
+              "Tasco Deluxe: SVP RE work\n"
+              "Pierpaolo Prazzoli: info about SSP16 chips\n",
               "About", 0);
           return 0;
       }

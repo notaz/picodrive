@@ -14,6 +14,14 @@ and the likes, as this emu was not meant to compete with them.
 For more info, visit http://notaz.gp2x.de/svp.php
 
 
+Releases
+--------
+
+1.40  - first release.
+1.40a - Tasco Deluxe's dithering fix.
+1.40b - Perspective fix thanks to Pierpaolo Prazzoli's info.
+
+
 Controls
 --------
 
@@ -32,7 +40,9 @@ Credits
 -------
 
 A lot of work on making SVP emulation happen was done by Tasco Deluxe, my
-stuff is a continuation of his.
+stuff is a continuation of his. Pierpaolo Prazzoli's information and his
+SSP1610 disassebler in MAME code helped a lot too.
+
 The original PicoDrive was written by fDave from finalburn.com
 
 This PicoDrive version uses bits and pieces of from other projects:

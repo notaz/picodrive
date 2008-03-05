@@ -17,3 +17,6 @@ unsigned int PicoSVPRead16(unsigned int a, int realsize);
 void PicoSVPWrite8 (unsigned int a, unsigned int d, int realsize);
 void PicoSVPWrite16(unsigned int a, unsigned int d, int realsize);
 
+/* 12-in-1 */
+void carthw_12in1_startup(void);
+
