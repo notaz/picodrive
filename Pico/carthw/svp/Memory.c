@@ -108,6 +108,8 @@ void PicoSVPWrite16(unsigned int a, unsigned int d, int realsize)
     //else if (a == 0xa15006) svp->ssp1601.gr[SSP_PM0].h = d | (d << 1);
     // 0xa15006 probably has 'halt'
   }
+  else
+    elprintf(EL_UIO|EL_SVP|EL_ANOMALY, "SVP FIXME: unhandled w%i: [%06x] %04x @%06x", realsize, a&0xffffff, d, SekPc);
 
 
   if (a == 0x30fe06 && d != 0)

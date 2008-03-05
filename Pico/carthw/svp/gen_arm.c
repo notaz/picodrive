@@ -127,7 +127,6 @@ static void emit_mov_const(int cond, int d, unsigned int val)
 {
 	int need_or = 0;
 	if (val & 0xff000000) {
-		EOP_MOV_IMM(d,  8/2, (val>>24)&0xff);
 		EOP_C_DOP_IMM(cond, A_OP_MOV, 0, 0, d, 8/2, (val>>24)&0xff);
 		need_or = 1;
 	}

@@ -62,7 +62,7 @@ regfile_load:
     orrne   r8, r8, #0x8
     tst     r6,     #0x20000000
     orrne   r8, r8, #0x4                @ sss0 *           NZ..
-    orr     r6, r8, r9, lsr #12         @ sss0 * .uu. .lll ....
+    orr     r6, r8, r9, lsr #12         @ sss0 * .uu. .lll NZ..
 
     ldr     r8, [r7, #0x440]            @ r0-r2
     ldr     r9, [r7, #0x444]            @ r4-r6
