@@ -12,7 +12,7 @@ static int nblocks = 0;
 static int iram_context = 0;
 
 #ifndef ARM
-#define DUMP_BLOCK 0x240a
+#define DUMP_BLOCK 0x3516
 unsigned int tcache[512*1024];
 void regfile_load(void){}
 void regfile_store(void){}
@@ -552,6 +552,7 @@ static u32 known_regb = 0;
 /* known vals, which need to be flushed
  * (only ST, P, r0-r7)
  * ST means flags are being held in ARM PSR
+ * P means that it needs to be recalculated
  */
 static u32 dirty_regb = 0;
 
@@ -593,8 +594,27 @@ static void tr_flush_dirty_P(void)
 	dirty_regb &= ~KRREG_P;
 }
 
-/* write dirty r0-r7 to host regs. Nothing is trashed */
-static void tr_flush_dirty_pr(void)
+/* write dirty pr to host reg. Nothing is trashed */
+static void tr_flush_dirty_pr(int r)
+{
+	int ror = 0, reg;
+	
+	if (!(dirty_regb & (1 << (r+8)))) return;
+
+	switch (r&3) {
+		case 0: ror =    0; break;
+		case 1: ror = 24/2; break;
+		case 2: ror = 16/2; break;
+	}
+	reg = (r < 4) ? 8 : 9;
+	EOP_BIC_IMM(reg,reg,ror,0xff);
+	if (known_regs.r[r] != 0)
+		EOP_ORR_IMM(reg,reg,ror,known_regs.r[r]);
+	dirty_regb &= ~(1 << (r+8));
+}
+
+/* write all dirty pr0-pr7 to host regs. Nothing is trashed */
+static void tr_flush_dirty_prs(void)
 {
 	int i, ror = 0, reg;
 	int dirty = dirty_regb >> 8;
@@ -613,6 +633,13 @@ static void tr_flush_dirty_pr(void)
 			EOP_ORR_IMM(reg,reg,ror,known_regs.r[i]);
 	}
 	dirty_regb &= ~0xff00;
+}
+
+/* write dirty pr and "forget" it. Nothing is trashed. */
+static void tr_release_pr(int r)
+{
+	tr_flush_dirty_pr(r);
+	known_regb &= ~(1 << (r+8));
 }
 
 /* fush ARM PSR to r6. Trashes r0 */
@@ -670,8 +697,8 @@ static void tr_bank_write(int addr)
 	EOP_STRH_IMM(0,breg,(addr&0x7f)<<1);		// strh r0, [r1, (op&0x7f)<<1]
 }
 
-/* handle RAM bank pointer modifiers. Nothing is trashed. */
-static void tr_ptrr_mod(int r, int mod, int need_modulo)
+/* handle RAM bank pointer modifiers. if need_modulo, trash r1-r3, else nothing */
+static void tr_ptrr_mod(int r, int mod, int need_modulo, int count)
 {
 	int modulo_shift = -1;	/* unknown */
 
@@ -684,24 +711,32 @@ static void tr_ptrr_mod(int r, int mod, int need_modulo)
 		if (modulo_shift == 0) modulo_shift = 8;
 	}
 
-	if (mod > 1 && modulo_shift == -1) {
-/* TODO
+	if (modulo_shift == -1)
+	{
 		int reg = (r < 4) ? 8 : 9;
-		int ror = ((r&3) + 1)*8 - (8 - modulo_shift);
-		EOP_MOV_REG_ROR(reg,reg,ror);
-		// {add|sub} reg, reg, #1<<shift
-		EOP_C_DOP_IMM(A_COND_AL,(mod==2)?A_OP_SUB:A_OP_ADD,0,reg,reg, 8/2, 1<<(8 - modulo_shift));
-		EOP_MOV_REG_ROR(reg,reg,32-ror);
-*/
-
-		printf("need var modulo\n"); exit(1);
+		tr_release_pr(r);
+		tr_flush_dirty_ST();
+		EOP_C_DOP_IMM(A_COND_AL,A_OP_AND,1,6,1,0,0x70);	// ands  r1, r6, #0x70
+		EOP_C_DOP_IMM(A_COND_EQ,A_OP_MOV,0,0,1,0,0x80); // moveq r1, #0x80
+		EOP_MOV_REG_LSR(1, 1, 4);		// mov r1, r1, lsr #4
+		EOP_RSB_IMM(2, 1, 0, 8);		// rsb r1, r1, #8
+		EOP_MOV_IMM(3, 8/2, count);		// mov r3, #0x01000000
+		if (r&3)
+			EOP_ADD_IMM(1, 1, 0, (r&3)*8);	// add r1, r1, #(r&3)*8
+		EOP_MOV_REG2_ROR(reg,reg,1);		// mov reg, reg, ror r1
+		if (mod == 2)
+		     EOP_SUB_REG2_LSL(reg,reg,3,2);	// sub reg, reg, #0x01000000 << r2
+		else EOP_ADD_REG2_LSL(reg,reg,3,2);
+		EOP_RSB_IMM(1, 1, 0, 32);		// rsb r1, r1, #32
+		EOP_MOV_REG2_ROR(reg,reg,1);		// mov reg, reg, ror r1
+		hostreg_r[1] = hostreg_r[2] = hostreg_r[3] = -1;
 	}
 	else if (known_regb & (1 << (r + 8)))
 	{
 		int modulo = (1 << modulo_shift) - 1;
 		if (mod == 2)
-		     known_regs.r[r] = (known_regs.r[r] & ~modulo) | ((known_regs.r[r] - 1) & modulo);
-		else known_regs.r[r] = (known_regs.r[r] & ~modulo) | ((known_regs.r[r] + 1) & modulo);
+		     known_regs.r[r] = (known_regs.r[r] & ~modulo) | ((known_regs.r[r] - count) & modulo);
+		else known_regs.r[r] = (known_regs.r[r] & ~modulo) | ((known_regs.r[r] + count) & modulo);
 	}
 	else
 	{
@@ -709,7 +744,7 @@ static void tr_ptrr_mod(int r, int mod, int need_modulo)
 		int ror = ((r&3) + 1)*8 - (8 - modulo_shift);
 		EOP_MOV_REG_ROR(reg,reg,ror);
 		// {add|sub} reg, reg, #1<<shift
-		EOP_C_DOP_IMM(A_COND_AL,(mod==2)?A_OP_SUB:A_OP_ADD,0,reg,reg, 8/2, 1<<(8 - modulo_shift));
+		EOP_C_DOP_IMM(A_COND_AL,(mod==2)?A_OP_SUB:A_OP_ADD,0,reg,reg, 8/2, count << (8 - modulo_shift));
 		EOP_MOV_REG_ROR(reg,reg,32-ror);
 	}
 }
@@ -739,9 +774,36 @@ static void tr_rX_write1(int op)
 			EOP_STRH_SIMPLE(0,1);				// strh r0, [r1]
 			hostreg_r[1] = -1;
 		}
-		tr_ptrr_mod(r, (op>>2) & 3, 0);
+		tr_ptrr_mod(r, (op>>2) & 3, 0, 1);
 	}
 }
+
+/* read (rX) to r0. Trashes r1-r3. */
+static void tr_rX_read(int r, int mod)
+{
+	if ((r&3) == 3)
+	{
+		tr_bank_read(((r << 6) & 0x100) + mod); // direct addressing
+	}
+	else
+	{
+		if (known_regb & (1 << (r + 8))) {
+			tr_bank_write(((r << 6) & 0x100) | known_regs.r[r]);
+		} else {
+			int reg = (r < 4) ? 8 : 9;
+			int ror = ((4 - (r&3))*8) & 0x1f;
+			EOP_AND_IMM(1,reg,ror/2,0xff);			// and r1, r{7,8}, <mask>
+			if (r >= 4)
+				EOP_ORR_IMM(1,1,((ror-8)&0x1f)/2,1);		// orr r1, r1, 1<<shift
+			if (r&3) EOP_ADD_REG_LSR(1,7,1, (r&3)*8-1);	// add r1, r7, r1, lsr #lsr
+			else     EOP_ADD_REG_LSL(1,7,1,1);
+			EOP_LDRH_SIMPLE(0,1);				// ldrh r0, [r1]
+			hostreg_r[1] = -1;
+		}
+		tr_ptrr_mod(r, mod, 1, 1);
+	}
+}
+
 
 /* get ARM cond which would mean that SSP cond is satisfied. No trash. */
 static int tr_cond_check(int op)
@@ -972,7 +1034,20 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			ret++; break;
 
 		// ld d, (ri)
-		//case 0x01: tmpv = ptr1_read(op); REG_WRITE((op & 0xf0) >> 4, tmpv); break;
+		// TODO: test
+		case 0x01: {
+			// tmpv = ptr1_read(op); REG_WRITE((op & 0xf0) >> 4, tmpv); break;
+			int r = (op&3) | ((op>>6)&4);
+			int mod = (op>>2)&3;
+			tmpv = (op >> 4) & 0xf; // dst
+			if (tmpv >= 8) return -1; // TODO
+			if (tmpv != 0)
+			     tr_rX_read(r, mod);
+			else tr_ptrr_mod(r, mod, 1, 1);
+			tr_write_funcs[tmpv]();
+			known_regb &= ~(1 << tmpv);
+			ret++; break;
+		}
 
 		// ld (ri), s
 		case 0x02:
@@ -1177,6 +1252,28 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			tr_r0_to_PC();
 			ret += 2; break;
 
+		// mod cond, op
+		// TODO: test
+		case 0x48: {
+			// check for repeats of this op
+			tmpv = 1; // count
+			while (PROGRAM(*pc) == op && (op & 7) != 6) {
+				(*pc)++; tmpv++;
+			}
+			tmpv2 = tr_cond_check(op);
+			switch (op & 7) {
+				case 2: EOP_C_DOP_REG_XIMM(tmpv2,A_OP_MOV,1,0,5,tmpv,A_AM1_ASR,5); break; // shr (arithmetic)
+				case 3: EOP_C_DOP_REG_XIMM(tmpv2,A_OP_MOV,1,0,5,tmpv,A_AM1_LSL,5); break; // shl
+				case 6: EOP_C_DOP_IMM(tmpv2,A_OP_RSB,1,5,5,0,0); break; // neg
+				case 7: EOP_C_DOP_IMM(tmpv2,A_OP_EOR,0,5,1,A_AM1_ASR,5);	// eor  r1, r5, r5, asr #31
+					EOP_C_DOP_IMM(tmpv2,A_OP_ADD,1,1,5,A_AM1_LSR,5);	// adds r5, r1, r5, lsr #1
+					hostreg_r[1] = -1; break; // abs
+				default: tr_unhandled();
+			}
+			dirty_regb |= KRREG_ST;
+			ret += tmpv; break;
+		}
+
 
 /*
 		// mpys?
@@ -1242,7 +1339,8 @@ static void *translate_block(int pc)
 		ret = translate_op(op, &pc, imm);
 		if (ret <= 0)
 		{
-			tr_flush_dirty_pr();
+			tr_flush_dirty_prs();
+			tr_flush_dirty_ST();
 
 			emit_mov_const(A_COND_AL, 0, op);
 
@@ -1277,7 +1375,8 @@ static void *translate_block(int pc)
 		ret_prev = ret;
 	}
 
-	tr_flush_dirty_pr();
+	tr_flush_dirty_prs();
+	tr_flush_dirty_ST();
 	emit_block_epilogue(ccount + 1);
 	*tcache_ptr++ = 0xffffffff; // end of block
 	//printf("  %i inst\n", icount);

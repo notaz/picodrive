@@ -24,10 +24,13 @@
 
 #define A_AM1_IMM(ror2,imm8)                  (((ror2)<<8) | (imm8) | 0x02000000)
 #define A_AM1_REG_XIMM(shift_imm,shift_op,rm) (((shift_imm)<<7) | ((shift_op)<<5) | (rm))
+#define A_AM1_REG_XREG(rs,shift_op,rm)        (((rs)<<8) | ((shift_op)<<5) | 0x10 | (rm))
 
 /* data processing op */
 #define A_OP_AND 0x0
+#define A_OP_EOR 0x1
 #define A_OP_SUB 0x2
+#define A_OP_RSB 0x3
 #define A_OP_ADD 0x4
 #define A_OP_TST 0x8
 #define A_OP_ORR 0xc
@@ -37,8 +40,9 @@
 #define EOP_C_DOP_X(cond,op,s,rn,rd,shifter_op) \
 	EMIT(((cond)<<28) | ((op)<< 21) | ((s)<<20) | ((rn)<<16) | ((rd)<<12) | (shifter_op))
 
-#define EOP_C_DOP_IMM(cond,op,s,rn,rd,ror2,imm8)             EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_IMM(ror2,imm8))
-#define EOP_C_DOP_REG(cond,op,s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_REG_XIMM(shift_imm,shift_op,rm))
+#define EOP_C_DOP_IMM(     cond,op,s,rn,rd,ror2,imm8)             EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_IMM(ror2,imm8))
+#define EOP_C_DOP_REG_XIMM(cond,op,s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_REG_XIMM(shift_imm,shift_op,rm))
+#define EOP_C_DOP_REG_XREG(cond,op,s,rn,rd,rs,       shift_op,rm) EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_REG_XREG(rs,       shift_op,rm))
 
 #define EOP_MOV_IMM(rd,   ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_MOV,0, 0,rd,ror2,imm8)
 #define EOP_ORR_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ORR,0,rn,rd,ror2,imm8)
@@ -47,11 +51,16 @@
 #define EOP_AND_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_AND,0,rn,rd,ror2,imm8)
 #define EOP_SUB_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_SUB,0,rn,rd,ror2,imm8)
 #define EOP_TST_IMM(   rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_TST,1,rn, 0,ror2,imm8)
+#define EOP_RSB_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_RSB,0,rn,rd,ror2,imm8)
 
-#define EOP_MOV_REG(s,   rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
-#define EOP_ORR_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_ORR,s,rn,rd,shift_imm,shift_op,rm)
-#define EOP_ADD_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_ADD,s,rn,rd,shift_imm,shift_op,rm)
-#define EOP_TST_REG(  rn,   shift_imm,shift_op,rm) EOP_C_DOP_REG(A_COND_AL,A_OP_TST,1,rn, 0,shift_imm,shift_op,rm)
+#define EOP_MOV_REG(s,   rd,shift_imm,shift_op,rm) EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
+#define EOP_ORR_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_ORR,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_ADD_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_ADD,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_TST_REG(  rn,   shift_imm,shift_op,rm) EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_TST,1,rn, 0,shift_imm,shift_op,rm)
+
+#define EOP_MOV_REG2(s,   rd,rs,shift_op,rm) EOP_C_DOP_REG_XREG(A_COND_AL,A_OP_MOV,s, 0,rd,rs,shift_op,rm)
+#define EOP_ADD_REG2(s,rn,rd,rs,shift_op,rm) EOP_C_DOP_REG_XREG(A_COND_AL,A_OP_ADD,s,rn,rd,rs,shift_op,rm)
+#define EOP_SUB_REG2(s,rn,rd,rs,shift_op,rm) EOP_C_DOP_REG_XREG(A_COND_AL,A_OP_SUB,s,rn,rd,rs,shift_op,rm)
 
 #define EOP_MOV_REG_SIMPLE(rd,rm)           EOP_MOV_REG(0,rd,0,A_AM1_LSL,rm)
 #define EOP_MOV_REG_LSL(rd,   rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_LSL,rm)
@@ -70,6 +79,11 @@
 #define EOP_ADD_REG_LSR(rd,rn,rm,shift_imm) EOP_ADD_REG(0,rn,rd,shift_imm,A_AM1_LSR,rm)
 
 #define EOP_TST_REG_SIMPLE(rn,rm)           EOP_TST_REG(  rn,   0,A_AM1_LSL,rm)
+
+#define EOP_MOV_REG2_LSL(rd,   rm,rs)       EOP_MOV_REG2(0,   rd,rs,A_AM1_LSL,rm)
+#define EOP_MOV_REG2_ROR(rd,   rm,rs)       EOP_MOV_REG2(0,   rd,rs,A_AM1_ROR,rm)
+#define EOP_ADD_REG2_LSL(rd,rn,rm,rs)       EOP_ADD_REG2(0,rn,rd,rs,A_AM1_LSL,rm)
+#define EOP_SUB_REG2_LSL(rd,rn,rm,rs)       EOP_SUB_REG2(0,rn,rd,rs,A_AM1_LSL,rm)
 
 /* addressing mode 2 */
 #define EOP_C_AM2_IMM(cond,u,b,l,rn,rd,offset_12) \
@@ -118,7 +132,7 @@
 #define EOP_MUL(rd,rm,rs) EOP_C_MUL(A_COND_AL,0,rd,rs,rm) // note: rd != rm
 
 #define EOP_C_MRS(cond,rd) \
-	EMIT(((cond)<<28) | 0x014f0000 | ((rd)<<12))
+	EMIT(((cond)<<28) | 0x010f0000 | ((rd)<<12))
 
 #define EOP_MRS(rd) EOP_C_MRS(A_COND_AL,rd)
 
