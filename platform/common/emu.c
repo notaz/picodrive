@@ -35,7 +35,7 @@
 
 char *PicoConfigFile = "picoconfig.bin";
 currentConfig_t currentConfig;
-unsigned char *rom_data = NULL;
+int rom_loaded = 0;
 char noticeMsg[64];
 int state_slot = 0;
 int config_slot = 0, config_slot_current = 0;
@@ -193,6 +193,7 @@ int emu_ReloadRom(void)
 {
 	unsigned int rom_size = 0;
 	char *used_rom_name = romFileName;
+	unsigned char *rom_data = NULL;
 	char ext[5];
 	pm_file *rom;
 	int ret, cd_state, cd_region, cfg_loaded = 0;
@@ -202,7 +203,7 @@ int emu_ReloadRom(void)
 	get_ext(romFileName, ext);
 
 	// detect wrong extensions
-	if(!strcmp(ext, ".srm") || !strcmp(ext, "s.gz") || !strcmp(ext, ".mds")) { // s.gz ~ .mds.gz
+	if (!strcmp(ext, ".srm") || !strcmp(ext, "s.gz") || !strcmp(ext, ".mds")) { // s.gz ~ .mds.gz
 		sprintf(menuErrorMsg, "Not a ROM selected.");
 		return 0;
 	}
@@ -210,11 +211,11 @@ int emu_ReloadRom(void)
 	PicoPatchUnload();
 
 	// check for movie file
-	if(movie_data) {
+	if (movie_data) {
 		free(movie_data);
 		movie_data = 0;
 	}
-	if(!strcmp(ext, ".gmv")) {
+	if (!strcmp(ext, ".gmv")) {
 		// check for both gmv and rom
 		int dummy;
 		FILE *movie_file = fopen(romFileName, "rb");
@@ -293,20 +294,17 @@ int emu_ReloadRom(void)
 	}
 
 	rom = pm_open(used_rom_name);
-	if(!rom) {
+	if (!rom) {
 		sprintf(menuErrorMsg, "Failed to open rom.");
 		return 0;
 	}
 
 	menu_romload_prepare(used_rom_name); // also CD load
 
-	if(rom_data) {
-		free(rom_data);
-		rom_data = 0;
-		rom_size = 0;
-	}
+	PicoCartUnload();
+	rom_loaded = 0;
 
-	if( (ret = PicoCartLoad(rom, &rom_data, &rom_size)) ) {
+	if ( (ret = PicoCartLoad(rom, &rom_data, &rom_size)) ) {
 		sprintf(menuErrorMsg, "PicoCartLoad() failed.");
 		lprintf("%s\n", menuErrorMsg);
 		pm_close(rom);
@@ -316,10 +314,9 @@ int emu_ReloadRom(void)
 	pm_close(rom);
 
 	// detect wrong files (Pico crashes on very small files), also see if ROM EP is good
-	if(rom_size <= 0x200 || strncmp((char *)rom_data, "Pico", 4) == 0 ||
+	if (rom_size <= 0x200 || strncmp((char *)rom_data, "Pico", 4) == 0 ||
 	  ((*(unsigned char *)(rom_data+4)<<16)|(*(unsigned short *)(rom_data+6))) >= (int)rom_size) {
 		if (rom_data) free(rom_data);
-		rom_data = 0;
 		sprintf(menuErrorMsg, "Not a ROM selected.");
 		menu_romload_end();
 		return 0;
@@ -332,7 +329,7 @@ int emu_ReloadRom(void)
 	}
 
 	lprintf("PicoCartInsert(%p, %d);\n", rom_data, rom_size);
-	if(PicoCartInsert(rom_data, rom_size)) {
+	if (PicoCartInsert(rom_data, rom_size)) {
 		sprintf(menuErrorMsg, "Failed to load ROM.");
 		menu_romload_end();
 		return 0;
@@ -395,9 +392,10 @@ int emu_ReloadRom(void)
 	emu_noticeMsgUpdated();
 
 	// load SRAM for this ROM
-	if(currentConfig.EmuOpt & 1)
+	if (currentConfig.EmuOpt & 1)
 		emu_SaveLoadGame(1, 1);
 
+	rom_loaded = 1;
 	return 1;
 }
 

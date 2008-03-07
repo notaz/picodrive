@@ -153,7 +153,7 @@ void menu_romload_prepare(const char *rom_name)
 	while (p > rom_name && *p != '/') p--;
 
 	psp_video_switch_to_single();
-	if (rom_data) menu_draw_begin();
+	if (rom_loaded) menu_draw_begin();
 	else memset32_uncached(psp_screen, 0, 512*272*2/4);
 
 	smalltext_out16(1, 1, "Loading", 0xffff);
@@ -206,7 +206,7 @@ static void draw_dirlist(char *curdir, struct my_dirent **namelist, int n, int s
 
 	menu_draw_begin();
 
-	if (rom_data == NULL) {
+	if (!rom_loaded) {
 //		menu_darken_bg(menu_screen, menu_screen, 321*240, 0);
 	}
 
@@ -836,7 +836,7 @@ static void kc_sel_loop(void)
 				case 1: key_config_loop(ctrl_actions, is_6button ? 12 : 8, 1); return;
 				case 2: key_config_loop(emuctrl_actions,
 						sizeof(emuctrl_actions)/sizeof(emuctrl_actions[0]), -1); return;
-				case 3: if (rom_data == NULL) emu_WriteConfig(0); return;
+				case 3: if (!rom_loaded) emu_WriteConfig(0); return;
 				default: return;
 			}
 		}
@@ -1051,7 +1051,7 @@ static void menu_opt3_preview(int is_32col)
 {
 	void *oldstate = NULL;
 
-	if (rom_data == NULL || ((Pico.video.reg[12]&1)^1) != is_32col)
+	if (!rom_loaded || ((Pico.video.reg[12]&1)^1) != is_32col)
 	{
 		extern char bgdatac32_start[], bgdatac40_start[];
 		extern int bgdatac32_size, bgdatac40_size;
@@ -1061,7 +1061,7 @@ static void menu_opt3_preview(int is_32col)
 		ret = uncompress((Bytef *)bg_buffer, &outsize, bgdata, insize);
 		if (ret == 0)
 		{
-			if (rom_data != NULL) oldstate = get_oldstate_for_preview();
+			if (rom_loaded) oldstate = get_oldstate_for_preview();
 			memcpy(Pico.vram,  bg_buffer, sizeof(Pico.vram));
 			memcpy(Pico.cram,  (char *)bg_buffer + 0x10000, 0x40*2);
 			memcpy(Pico.vsram, (char *)bg_buffer + 0x10080, 0x40*2);
@@ -1415,7 +1415,7 @@ static int menu_loop_options(void)
 	currentConfig.PsndRate = PsndRate;
 	currentConfig.PicoRegion = PicoRegionOverride;
 
-	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_SAVECFG_GAME, rom_data != NULL);
+	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_SAVECFG_GAME, rom_loaded);
 	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_LOADCFG, config_slot != config_slot_current);
 	menu_sel_max = me_count_enabled(opt_entries, OPT_ENTRY_COUNT) - 1;
 	if (menu_sel > menu_sel_max) menu_sel = menu_sel_max;
@@ -1602,10 +1602,10 @@ static void menu_loop_root(void)
 	int ret, menu_sel_max;
 	unsigned long inp = 0;
 
-	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_RESUME_GAME, rom_data != NULL);
-	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_SAVE_STATE,  rom_data != NULL);
-	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_LOAD_STATE,  rom_data != NULL);
-	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_RESET_GAME,  rom_data != NULL);
+	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_RESUME_GAME, rom_loaded);
+	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_SAVE_STATE,  rom_loaded);
+	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_LOAD_STATE,  rom_loaded);
+	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_RESET_GAME,  rom_loaded);
 	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_PATCHES,     PicoPatches != NULL);
 
 	menu_sel_max = me_count_enabled(main_entries, MAIN_ENTRY_COUNT) - 1;
@@ -1632,7 +1632,7 @@ static void menu_loop_root(void)
 		if(inp & BTN_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if((inp & (BTN_L|BTN_R)) == (BTN_L|BTN_R)) debug_menu_loop();
 		if( inp & (BTN_SELECT|BTN_X)) {
-			if (rom_data) {
+			if (rom_loaded) {
 				while (psp_pad_read(1) & (BTN_SELECT|BTN_X)) psp_msleep(50); // wait until released
 				engineState = PGS_Running;
 				break;
@@ -1643,14 +1643,14 @@ static void menu_loop_root(void)
 			switch (me_index2id(main_entries, MAIN_ENTRY_COUNT, menu_sel))
 			{
 				case MA_MAIN_RESUME_GAME:
-					if (rom_data) {
+					if (rom_loaded) {
 						while (psp_pad_read(1) & BTN_CIRCLE) psp_msleep(50);
 						engineState = PGS_Running;
 						return;
 					}
 					break;
 				case MA_MAIN_SAVE_STATE:
-					if (rom_data) {
+					if (rom_loaded) {
 						if(savestate_menu_loop(0))
 							continue;
 						engineState = PGS_Running;
@@ -1658,7 +1658,7 @@ static void menu_loop_root(void)
 					}
 					break;
 				case MA_MAIN_LOAD_STATE:
-					if (rom_data) {
+					if (rom_loaded) {
 						if(savestate_menu_loop(1))
 							continue;
 						engineState = PGS_Running;
@@ -1666,7 +1666,7 @@ static void menu_loop_root(void)
 					}
 					break;
 				case MA_MAIN_RESET_GAME:
-					if (rom_data) {
+					if (rom_loaded) {
 						emu_ResetGame();
 						engineState = PGS_Running;
 						return;
@@ -1711,7 +1711,7 @@ static void menu_loop_root(void)
 					engineState = PGS_Quit;
 					return;
 				case MA_MAIN_PATCHES:
-					if (rom_data && PicoPatches) {
+					if (rom_loaded && PicoPatches) {
 						patches_menu_loop();
 						PicoPatchApply();
 						strcpy(menuErrorMsg, "Patches applied");
@@ -1773,7 +1773,7 @@ static void menu_prepare_bg(int use_game_bg, int use_fg)
 
 static void menu_gfx_prepare(void)
 {
-	menu_prepare_bg(rom_data != NULL, 1);
+	menu_prepare_bg(rom_loaded, 1);
 
 	menu_draw_begin();
 	menu_draw_end();

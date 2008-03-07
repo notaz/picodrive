@@ -11,7 +11,7 @@ int lock_to_1_1 = 1;
 int MainWidth=720,MainHeight=480;
 
 static HMENU mdisplay = 0;
-static unsigned char *rom_data = NULL;
+static int rom_loaded = 0;
 
 static void UpdateRect()
 {
@@ -63,10 +63,10 @@ static void LoadROM(const char *cmdpath)
   LoopWait=1;
   for (i = 0; LoopWaiting == 0 && i < 10; i++) Sleep(100);
 
+  PicoUnloadCart();
   PicoCartInsert(rom_data_new, rom_size);
 
-  if (rom_data) free(rom_data);
-  rom_data = rom_data_new;
+  rom_loaded = 1;
   romname = rompath;
   LoopWait=0;
 }
@@ -106,7 +106,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
             lock_to_1_1=0;
             CheckMenuItem(mdisplay, 1104, MF_UNCHECKED);
           }
-          if (rom_data != NULL) LoopWait=0;
+          if (rom_loaded) LoopWait=0;
           return 0;
         case 1104:
           lock_to_1_1=!lock_to_1_1;

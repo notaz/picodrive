@@ -124,7 +124,7 @@ void menu_romload_prepare(const char *rom_name)
 	const char *p = rom_name + strlen(rom_name);
 	while (p > rom_name && *p != '/') p--;
 
-	if (rom_data == NULL)
+	if (!rom_loaded)
 		memset(menu_screen, 0, 321*240*2);
 	menu_draw_begin(1);
 
@@ -179,7 +179,7 @@ static void draw_dirlist(char *curdir, struct my_dirent **namelist, int n, int s
 
 	menu_draw_begin(1);
 
-	if (rom_data == NULL) {
+	if (!rom_loaded) {
 		menu_darken_bg(menu_screen, menu_screen, 321*240, 0);
 	}
 
@@ -826,7 +826,7 @@ static void kc_sel_loop(void)
 				case 1: key_config_loop(ctrl_actions, is_6button ? 12 : 8, 1); return;
 				case 2: key_config_loop(emuctrl_actions,
 						sizeof(emuctrl_actions)/sizeof(emuctrl_actions[0]), -1); return;
-				case 3: if (rom_data == NULL) emu_WriteConfig(0); return;
+				case 3: if (!rom_loaded) emu_WriteConfig(0); return;
 				default: return;
 			}
 		}
@@ -1232,7 +1232,7 @@ static int menu_loop_options(void)
 	currentConfig.PsndRate = PsndRate;
 	currentConfig.PicoRegion = PicoRegionOverride;
 
-	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_SAVECFG_GAME, rom_data != NULL);
+	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_SAVECFG_GAME, rom_loaded);
 	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_LOADCFG, config_slot != config_slot_current);
 	menu_sel_max = me_count_enabled(opt_entries, OPT_ENTRY_COUNT) - 1;
 	if (menu_sel > menu_sel_max) menu_sel = menu_sel_max;
@@ -1422,10 +1422,10 @@ static void menu_loop_root(void)
 	int ret, menu_sel_max;
 	unsigned long inp = 0;
 
-	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_RESUME_GAME, rom_data != NULL);
-	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_SAVE_STATE,  rom_data != NULL);
-	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_LOAD_STATE,  rom_data != NULL);
-	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_RESET_GAME,  rom_data != NULL);
+	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_RESUME_GAME, rom_loaded);
+	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_SAVE_STATE,  rom_loaded);
+	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_LOAD_STATE,  rom_loaded);
+	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_RESET_GAME,  rom_loaded);
 	me_enable(main_entries, MAIN_ENTRY_COUNT, MA_MAIN_PATCHES,     PicoPatches != NULL);
 
 	menu_sel_max = me_count_enabled(main_entries, MAIN_ENTRY_COUNT) - 1;
@@ -1444,7 +1444,7 @@ static void menu_loop_root(void)
 		if(inp & BTN_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if((inp & (BTN_L|BTN_R)) == (BTN_L|BTN_R)) debug_menu_loop();
 		if( inp & (BTN_HOME|BTN_STOP)) {
-			if (rom_data) {
+			if (rom_loaded) {
 				while (Framework_PollGetButtons() & (BTN_HOME|BTN_STOP)) Sleep(50); // wait until released
 				engineState = PGS_Running;
 				break;
@@ -1454,14 +1454,14 @@ static void menu_loop_root(void)
 			switch (me_index2id(main_entries, MAIN_ENTRY_COUNT, menu_sel))
 			{
 				case MA_MAIN_RESUME_GAME:
-					if (rom_data) {
+					if (rom_loaded) {
 						while (Framework_PollGetButtons() & BTN_PLAY) Sleep(50);
 						engineState = PGS_Running;
 						return;
 					}
 					break;
 				case MA_MAIN_SAVE_STATE:
-					if (rom_data) {
+					if (rom_loaded) {
 						if(savestate_menu_loop(0))
 							continue;
 						engineState = PGS_Running;
@@ -1469,7 +1469,7 @@ static void menu_loop_root(void)
 					}
 					break;
 				case MA_MAIN_LOAD_STATE:
-					if (rom_data) {
+					if (rom_loaded) {
 						if(savestate_menu_loop(1))
 							continue;
 						engineState = PGS_Running;
@@ -1477,7 +1477,7 @@ static void menu_loop_root(void)
 					}
 					break;
 				case MA_MAIN_RESET_GAME:
-					if (rom_data) {
+					if (rom_loaded) {
 						emu_ResetGame();
 						engineState = PGS_Running;
 						return;
@@ -1520,7 +1520,7 @@ static void menu_loop_root(void)
 					engineState = PGS_Quit;
 					return;
 				case MA_MAIN_PATCHES:
-					if (rom_data && PicoPatches) {
+					if (rom_loaded && PicoPatches) {
 						patches_menu_loop();
 						PicoPatchApply();
 						strcpy(menuErrorMsg, "Patches applied");
@@ -1586,7 +1586,7 @@ static void menu_prepare_bg(int use_game_bg)
 
 static void menu_gfx_prepare(void)
 {
-	menu_prepare_bg(rom_data != NULL);
+	menu_prepare_bg(rom_loaded);
 
 	menu_draw_begin(1);
 	menu_draw_end();

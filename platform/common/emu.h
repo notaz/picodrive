@@ -29,7 +29,7 @@ typedef struct {
 
 extern currentConfig_t currentConfig;
 extern char *PicoConfigFile;
-extern unsigned char *rom_data;
+extern int rom_loaded;
 extern char noticeMsg[64];
 extern int state_slot;
 extern int config_slot, config_slot_current;
