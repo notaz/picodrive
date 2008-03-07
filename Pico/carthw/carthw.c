@@ -1,6 +1,12 @@
+/*
+ * should better do some pointer stuff here. But as none of these bankswitch
+ * while the game runs, memcpy will suffice.
+ */
+
 #include "../PicoInt.h"
 
-/* 12-in-1 */
+
+/* 12-in-1 and 4-in-1. Assuming 2MB ROMs here. */
 static unsigned int carthw_12in1_read16(unsigned int a, int realsize)
 {
 	// ??
@@ -13,7 +19,11 @@ static void carthw_12in1_write8(unsigned int a, unsigned int d, int realsize)
 	int len;
 
 	if (a < 0xA13000 || a >= 0xA13040) {
-		elprintf(EL_ANOMALY, "12-in-1: unexpected write [%06x] %02x @ %06x", a, d, SekPc);
+		/* 4-in-1 has Real Deal Boxing, which uses serial eeprom,
+		 * but I really doubt that pirate cart had it */
+		if (a != 0x200001)
+			elprintf(EL_ANOMALY, "12-in-1: unexpected write [%06x] %02x @ %06x", a, d, SekPc);
+		return;
 	}
 
 	a &= 0x3f; a <<= 16;
@@ -23,7 +33,7 @@ static void carthw_12in1_write8(unsigned int a, unsigned int d, int realsize)
 		return;
 	}
 
-	memcpy(Pico.rom, Pico.rom + 0x200000 + a, len);
+	memcpy(Pico.rom, Pico.rom + Pico.romsize + a, len);
 }
 
 static void carthw_12in1_reset(void)
@@ -37,16 +47,96 @@ void carthw_12in1_startup(void)
 
 	elprintf(EL_STATUS, "12-in-1 mapper detected");
 
-	tmp = realloc(Pico.rom, 0x200000 + 0x200000);
+	tmp = realloc(Pico.rom, Pico.romsize * 2);
 	if (tmp == NULL)
 	{
 		elprintf(EL_STATUS, "OOM");
 		return;
 	}
-	memcpy(Pico.rom + 0x200000, Pico.rom, 0x200000);
+	Pico.rom = tmp;
+	memcpy(Pico.rom + Pico.romsize, Pico.rom, Pico.romsize);
 
 	PicoRead16Hook = carthw_12in1_read16;
 	PicoWrite8Hook = carthw_12in1_write8;
 	PicoResetHook  = carthw_12in1_reset;
+}
+
+
+/* Realtec, based on TascoDLX doc
+ * http://www.sharemation.com/TascoDLX/REALTEC%20Cart%20Mapper%20-%20description%20v1.txt
+ */
+static int realtec_bank = 0x80000000, realtec_size = 0x80000000;
+static int realtec_romsize = 0;
+
+static void carthw_realtec_write8(unsigned int a, unsigned int d, int realsize)
+{
+	int i, bank_old = realtec_bank, size_old = realtec_size;
+
+	if (a == 0x400000)
+	{
+		realtec_bank &= 0x0e0000;
+		realtec_bank |= 0x300000 & (d << 19);
+		if (realtec_bank != bank_old)
+			elprintf(EL_ANOMALY, "write [%06x] %02x @ %06x", a, d, SekPc);
+	}
+	else if (a == 0x402000)
+	{
+		realtec_size = (d << 17) & 0x3e0000;
+		if (realtec_size != size_old)
+			elprintf(EL_ANOMALY, "write [%06x] %02x @ %06x", a, d, SekPc);
+	}
+	else if (a == 0x404000)
+	{
+		realtec_bank &= 0x300000;
+		realtec_bank |= 0x0e0000 & (d << 17);
+		if (realtec_bank != bank_old)
+			elprintf(EL_ANOMALY, "write [%06x] %02x @ %06x", a, d, SekPc);
+	}
+	else
+		elprintf(EL_ANOMALY, "realtec: unexpected write [%06x] %02x @ %06x", a, d, SekPc);
+	
+	if (realtec_bank >= 0 && realtec_size >= 0 &&
+		(realtec_bank != bank_old || realtec_size != size_old))
+	{
+		elprintf(EL_ANOMALY, "realtec: new bank %06x, size %06x", realtec_bank, realtec_size, SekPc);
+		if (realtec_size > realtec_romsize - realtec_bank || realtec_bank >= realtec_romsize)
+		{
+			elprintf(EL_ANOMALY, "realtec: bank too large / out of range?");
+			return;
+		}
+
+		for (i = 0; i < 0x400000; i += realtec_size)
+			memcpy(Pico.rom + i, Pico.rom + 0x400000 + realtec_bank, realtec_size);
+	}
+}
+
+void carthw_realtec_reset(void)
+{
+	int i;
+	/* map boot code */
+	for (i = 0; i < 0x400000; i += 0x2000)
+		memcpy(Pico.rom + i, Pico.rom + 0x400000 + realtec_romsize - 0x2000, 0x2000);
+	realtec_bank = realtec_size = 0x80000000;
+}
+
+void carthw_realtec_startup(void)
+{
+	void *tmp;
+
+	elprintf(EL_STATUS, "Realtec mapper detected");
+
+	realtec_romsize = Pico.romsize;
+	Pico.romsize = 0x400000;
+	tmp = realloc(Pico.rom, 0x400000 + realtec_romsize);
+	if (tmp == NULL)
+	{
+		elprintf(EL_STATUS, "OOM");
+		return;
+	}
+	Pico.rom = tmp;
+	memcpy(Pico.rom + 0x400000, Pico.rom, realtec_romsize);
+
+	PicoWrite8Hook = carthw_realtec_write8;
+	PicoResetHook = carthw_realtec_reset;
 }
 

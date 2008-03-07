@@ -64,6 +64,9 @@ int PicoReset(int hard)
 
   if (Pico.romsize<=0) return 1;
 
+  /* must call now, so that banking is reset, and correct vectors get fetched */
+  if (PicoResetHook) PicoResetHook();
+
   PicoMemReset();
   SekReset();
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
@@ -79,7 +82,7 @@ int PicoReset(int hard)
   Pico.video.pending_ints=0;
   emustatus = 0;
 
-  if(hard) {
+  if (hard) {
     // clear all memory of the emulated machine
     memset(&Pico.ram,0,(unsigned int)&Pico.rom-(unsigned int)&Pico.ram);
   }
@@ -141,8 +144,6 @@ int PicoReset(int hard)
   Pico.video.status = 0x3408 | pal; // always set bits | vblank | pal
 
   PsndReset(); // pal must be known here
-
-  if (PicoResetHook) PicoResetHook();
 
   if (PicoMCD & 1) {
     PicoResetMCD(hard);

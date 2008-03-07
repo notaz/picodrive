@@ -521,9 +521,12 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   return PicoReset(1);
 }
 
-int PicoUnloadCart(unsigned char* romdata)
+int PicoCartUnload(void)
 {
-  free(romdata);
+  if (Pico.rom != NULL) {
+    free(Pico.rom);
+    Pico.rom=NULL;
+  }
   return 0;
 }
 
@@ -542,7 +545,10 @@ static int name_cmp(const char *name)
   return rom_strcmp(0x150, name);
 }
 
-/* various cart-specific things, which can't be handled by generic code */
+/*
+ * various cart-specific things, which can't be handled by generic code
+ * (maybe I should start using CRC for this stuff?)
+ */
 void PicoCartDetect(void)
 {
   int sram_size = 0, csum;
@@ -647,11 +653,20 @@ void PicoCartDetect(void)
     PicoSVPStartup();
   }
 
-  // Detect 4-in-1 and 12-in-1
+  // Detect 12-in-1 mapper
   else if ((name_cmp("ROBOCOP 3") && Pico.romsize == 0x200000) ||
-    (rom_strcmp(0x160, "FLICKY") && Pico.romsize == 0x200000))
+    (rom_strcmp(0x160, "FLICKY") && Pico.romsize >= 0x200000))
   {
     carthw_12in1_startup();
+  }
+
+  // Realtec mapper
+  else if (Pico.romsize == 512*1024 && (
+    rom_strcmp(0x94, "THE EARTH DEFEND") ||
+    rom_strcmp(0xfe, "WISEGAME 11-03-1993") || // Funny World
+    rom_strcmp(0x95, "MALLET LEGEND "))) // Whac-A-Critter
+  {
+    carthw_realtec_startup();
   }
 
   // Some games malfunction if SRAM is not filled with 0xff
