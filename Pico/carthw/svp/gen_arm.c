@@ -33,6 +33,7 @@
 #define A_OP_RSB 0x3
 #define A_OP_ADD 0x4
 #define A_OP_TST 0x8
+#define A_OP_CMP 0xa
 #define A_OP_ORR 0xc
 #define A_OP_MOV 0xd
 #define A_OP_BIC 0xe

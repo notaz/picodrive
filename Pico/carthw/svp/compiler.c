@@ -12,7 +12,7 @@ static int nblocks = 0;
 static int iram_context = 0;
 
 #ifndef ARM
-#define DUMP_BLOCK 0x341e
+#define DUMP_BLOCK 0x08aa
 unsigned int tcache[512*1024];
 void regfile_load(void){}
 void regfile_store(void){}
@@ -590,16 +590,17 @@ static void tr_unhandled(void)
 	exit(1);
 }
 
-/* update P, if needed. Trashes r1 */
+/* update P, if needed. Trashes r0 */
 static void tr_flush_dirty_P(void)
 {
 	// TODO: const regs
 	if (!(dirty_regb & KRREG_P)) return;
 	EOP_MOV_REG_ASR(10, 4, 16);		// mov  r10, r4, asr #16
-	EOP_MOV_REG_LSL( 1, 4, 16);		// mov  r1,  r4, lsl #16
-	EOP_MOV_REG_ASR( 1, 1, 15);		// mov  r1,  r1, asr #15
-	EOP_MUL(10, 1, 10);			// mul  r10, r1, r10
+	EOP_MOV_REG_LSL( 0, 4, 16);		// mov  r0,  r4, lsl #16
+	EOP_MOV_REG_ASR( 0, 0, 15);		// mov  r0,  r0, asr #15
+	EOP_MUL(10, 0, 10);			// mul  r10, r0, r10
 	dirty_regb &= ~KRREG_P;
+	hostreg_r[0] = -1;
 }
 
 /* write dirty pr to host reg. Nothing is trashed */
@@ -693,7 +694,7 @@ static void tr_mov16_cond(int cond, int r, int val)
 	hostreg_r[r] = -1;
 }
 
-/* read bank word to r0. Thrashes r1. */
+/* read bank word to r0 (upper bits zero). Thrashes r1. */
 static void tr_bank_read(int addr) /* word addr 0-0x1ff */
 {
 	int breg = 7;
@@ -740,9 +741,16 @@ static void tr_ptrr_mod(int r, int mod, int need_modulo, int count)
 	{
 		int reg = (r < 4) ? 8 : 9;
 		tr_release_pr(r);
-		tr_flush_dirty_ST();
-		EOP_C_DOP_IMM(A_COND_AL,A_OP_AND,1,6,1,0,0x70);	// ands  r1, r6, #0x70
-		EOP_C_DOP_IMM(A_COND_EQ,A_OP_MOV,0,0,1,0,0x80); // moveq r1, #0x80
+		if (dirty_regb & KRREG_ST) {
+			// avoid flushing ARM flags
+			EOP_AND_IMM(1, 6, 0, 0x70);
+			EOP_SUB_IMM(1, 1, 0, 0x10);
+			EOP_AND_IMM(1, 1, 0, 0x70);
+			EOP_ADD_IMM(1, 1, 0, 0x10);
+		} else {
+			EOP_C_DOP_IMM(A_COND_AL,A_OP_AND,1,6,1,0,0x70);	// ands  r1, r6, #0x70
+			EOP_C_DOP_IMM(A_COND_EQ,A_OP_MOV,0,0,1,0,0x80); // moveq r1, #0x80
+		}
 		EOP_MOV_REG_LSR(1, 1, 4);		// mov r1, r1, lsr #4
 		EOP_RSB_IMM(2, 1, 0, 8);		// rsb r1, r1, #8
 		EOP_MOV_IMM(3, 8/2, count);		// mov r3, #0x01000000
@@ -776,7 +784,7 @@ static void tr_ptrr_mod(int r, int mod, int need_modulo, int count)
 
 /* handle writes r0 to (rX). Trashes r1.
  * fortunately we can ignore modulo increment modes for writes. */
-static void tr_rX_write1(int op)
+static void tr_rX_write(int op)
 {
 	if ((op&3) == 3)
 	{
@@ -823,12 +831,45 @@ static void tr_rX_read(int r, int mod)
 			if (r&3) EOP_ADD_REG_LSR(1,7,1, (r&3)*8-1);	// add r1, r7, r1, lsr #lsr
 			else     EOP_ADD_REG_LSL(1,7,1,1);
 			EOP_LDRH_SIMPLE(0,1);				// ldrh r0, [r1]
-			hostreg_r[1] = -1;
+			hostreg_r[0] = hostreg_r[1] = -1;
 		}
 		tr_ptrr_mod(r, mod, 1, 1);
 	}
 }
 
+/* read ((rX)) to r0. Trashes r1,r2. */
+static void tr_rX_read2(int op)
+{
+	int r = (op&3) | ((op>>6)&4); // src
+
+	if ((r&3) == 3) {
+		tr_bank_read((op&0x100) | ((op>>2)&3));
+	} else if (known_regb & (1 << (r+8))) {
+		tr_bank_read((op&0x100) | known_regs.r[r]);
+	} else {
+		int reg = (r < 4) ? 8 : 9;
+		int ror = ((4 - (r&3))*8) & 0x1f;
+		EOP_AND_IMM(1,reg,ror/2,0xff);			// and r1, r{7,8}, <mask>
+		if (r >= 4)
+			EOP_ORR_IMM(1,1,((ror-8)&0x1f)/2,1);		// orr r1, r1, 1<<shift
+		if (r&3) EOP_ADD_REG_LSR(1,7,1, (r&3)*8-1);	// add r1, r7, r1, lsr #lsr
+		else     EOP_ADD_REG_LSL(1,7,1,1);
+		EOP_LDRH_SIMPLE(0,1);				// ldrh r0, [r1]
+	}
+	EOP_LDR_IMM(2,7,0x48c);					// ptr_iram_rom
+	EOP_ADD_REG_LSL(2,2,0,1);				// add  r2, r2, r0, lsl #1
+	EOP_ADD_IMM(0,0,0,1);					// add  r0, r0, #1
+	if ((r&3) == 3) {
+		tr_bank_write((op&0x100) | ((op>>2)&3));
+	} else if (known_regb & (1 << (r+8))) {
+		tr_bank_write((op&0x100) | known_regs.r[r]);
+	} else {
+		EOP_STRH_SIMPLE(0,1);				// strh r0, [r1]
+		hostreg_r[1] = -1;
+	}
+	EOP_LDRH_SIMPLE(0,2);					// ldrh r0, [r2]
+	hostreg_r[0] = hostreg_r[2] = -1;
+}
 
 /* get ARM cond which would mean that SSP cond is satisfied. No trash. */
 static int tr_cond_check(int op)
@@ -1036,10 +1077,37 @@ static tr_write_func *tr_write_funcs[8] =
 	(tr_write_func *)tr_unhandled
 };
 
+static void tr_mac_load_XY(int op)
+{
+	tr_rX_read(op&3, (op>>2)&3); // X
+	EOP_MOV_REG_LSL(4, 0, 16);
+	tr_rX_read(((op>>4)&3)|4, (op>>6)&3); // Y
+	EOP_ORR_REG_SIMPLE(4, 0);
+	dirty_regb |= KRREG_P;
+	hostreg_sspreg_changed(SSP_X);
+	hostreg_sspreg_changed(SSP_Y);
+	known_regb &= ~KRREG_X;
+	known_regb &= ~KRREG_Y;
+}
+
+static int tr_aop_ssp2arm(int op)
+{
+	switch (op) {
+		case 1: return A_OP_SUB;
+		case 3: return A_OP_CMP;
+		case 4: return A_OP_ADD;
+		case 5: return A_OP_AND;
+		case 6: return A_OP_ORR;
+		case 7: return A_OP_EOR;
+	}
+
+	tr_unhandled();
+	return 0;
+}
 
 static int translate_op(unsigned int op, int *pc, int imm)
 {
-	u32 tmpv, tmpv2;
+	u32 tmpv, tmpv2, tmpv3;
 	int ret = 0;
 	known_regs.gr[SSP_PC].h = *pc;
 
@@ -1081,7 +1149,7 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			tmpv = (op >> 4) & 0xf; // src
 			if (tmpv >= 8) return -1; // TODO
 			tr_read_funcs[tmpv]();
-			tr_rX_write1(op);
+			tr_rX_write(op);
 			ret++; break;
 
 		// ld a, adr
@@ -1129,47 +1197,17 @@ static int translate_op(unsigned int op, int *pc, int imm)
 				return -1;	/* TODO.. */
 
 		// ld d, ((ri))
-		case 0x05: {
-			int r;
-			r = (op&3) | ((op>>6)&4); // src
+		case 0x05:
 			tmpv2 = (op >> 4) & 0xf;  // dst
 			if (tmpv2 >= 8) return -1; // TODO
-
-			if ((r&3) == 3) {
-				tr_bank_read((op&0x100) | ((op>>2)&3));
-			} else if (known_regb & (1 << (r+8))) {
-				tr_bank_read((op&0x100) | known_regs.r[r]);
-			} else {
-				int reg = (r < 4) ? 8 : 9;
-				int ror = ((4 - (r&3))*8) & 0x1f;
-				EOP_AND_IMM(1,reg,ror/2,0xff);			// and r1, r{7,8}, <mask>
-				if (r >= 4)
-					EOP_ORR_IMM(1,1,((ror-8)&0x1f)/2,1);		// orr r1, r1, 1<<shift
-				if (r&3) EOP_ADD_REG_LSR(1,7,1, (r&3)*8-1);	// add r1, r7, r1, lsr #lsr
-				else     EOP_ADD_REG_LSL(1,7,1,1);
-				EOP_LDRH_SIMPLE(0,1);				// ldrh r0, [r1]
-			}
-			EOP_LDR_IMM(2,7,0x48c);					// ptr_iram_rom
-			EOP_ADD_REG_LSL(2,2,0,1);				// add  r2, r2, r0, lsl #1
-			EOP_ADD_IMM(0,0,0,1);					// add  r0, r0, #1
-			if ((r&3) == 3) {
-				tr_bank_write((op&0x100) | ((op>>2)&3));
-			} else if (known_regb & (1 << (r+8))) {
-				tr_bank_write((op&0x100) | known_regs.r[r]);
-			} else {
-				EOP_STRH_SIMPLE(0,1);				// strh r0, [r1]
-				hostreg_r[1] = -1;
-			}
-			EOP_LDRH_SIMPLE(0,2);					// ldrh r0, [r2]
-			hostreg_r[0] = hostreg_r[2] = -1;
+			tr_rX_read2(op);
 			tr_write_funcs[tmpv2](-1);
-			ret += 3; break; /* should certainly take > 1 */
-		}
+			ret += 3; break;
 
 		// ldi (ri), imm
 		case 0x06:
 			tr_mov16(0, imm);
-			tr_rX_write1(op);
+			tr_rX_write(op);
 			ret += 2; break;
 
 		// ld adr, a
@@ -1307,35 +1345,171 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			known_regb &= ~(KRREG_A|KRREG_AL);
 			ret += tmpv; break;
 		}
-/*
+
 		// mpys?
 		case 0x1b:
-			read_P(); // update P
-			rA32 -= rP.v;			// maybe only upper word?
-			UPD_ACC_ZN			// there checking flags after this
-			rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
-			rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
-			break;
+			tr_flush_dirty_P();
+			tr_mac_load_XY(op);
+			tr_make_dirty_ST();
+			EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_SUB,1,5,5,0,A_AM1_LSL,10); // subs r5, r5, r10
+			hostreg_sspreg_changed(SSP_A);
+			known_regb &= ~(KRREG_A|KRREG_AL);
+			dirty_regb |= KRREG_ST;
+			ret++; break;
 
 		// mpya (rj), (ri), b
 		case 0x4b:
-			read_P(); // update P
-			rA32 += rP.v; // confirmed to be 32bit
-			UPD_ACC_ZN // ?
-			rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
-			rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
-			break;
+			tr_flush_dirty_P();
+			tr_mac_load_XY(op);
+			tr_make_dirty_ST();
+			EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_ADD,1,5,5,0,A_AM1_LSL,10); // adds r5, r5, r10
+			hostreg_sspreg_changed(SSP_A);
+			known_regb &= ~(KRREG_A|KRREG_AL);
+			dirty_regb |= KRREG_ST;
+			ret++; break;
 
 		// mld (rj), (ri), b
 		case 0x5b:
-			EOP_MOV_IMM(5, 0, 0);			// mov r5, #0
-			known_regs.r[SSP_A].v = 0;
+			EOP_C_DOP_IMM(A_COND_AL,A_OP_MOV,1,0,5,0,0); // movs r5, #0
+			hostreg_sspreg_changed(SSP_A);
+			known_regs.gr[SSP_A].v = 0;
 			known_regb |= (KRREG_A|KRREG_AL);
-			EOP_BIC_IMM(6, 6, 0, 0x0f);		// bic r6, r6, 0xf // flags
-			EOP_BIC_IMM(6, 6, 0, 0x04);		// bic r6, r6, 4 // set Z
-			// TODO
+			dirty_regb |= KRREG_ST;
+			tr_mac_load_XY(op);
 			ret++; break;
-*/
+
+		// OP a, s
+		case 0x10:
+		case 0x30:
+		case 0x40:
+		case 0x50:
+		case 0x60:
+		case 0x70:
+			tmpv = op & 0xf; // src
+			tmpv2 = tr_aop_ssp2arm(op>>13); // op
+			tmpv3 = (tmpv2 == A_OP_CMP) ? 0 : 5;
+			if (tmpv >= 8) return -1; // TODO
+			if (tmpv == SSP_P) {
+				tr_flush_dirty_P();
+				EOP_C_DOP_REG_XIMM(A_COND_AL,tmpv2,1,5,tmpv3, 0,A_AM1_LSL,10); // OPs r5, r5, r10
+			} else if (tmpv == SSP_A) {
+				EOP_C_DOP_REG_XIMM(A_COND_AL,tmpv2,1,5,tmpv3, 0,A_AM1_LSL, 5); // OPs r5, r5, r5
+			} else {
+				tr_read_funcs[tmpv]();
+				EOP_C_DOP_REG_XIMM(A_COND_AL,tmpv2,1,5,tmpv3,16,A_AM1_LSL, 0); // OPs r5, r5, r0, lsl #16
+			}
+			hostreg_sspreg_changed(SSP_A);
+			known_regb &= ~(KRREG_A|KRREG_AL|KRREG_ST);
+			dirty_regb |= KRREG_ST;
+			ret++; break;
+
+		// OP a, (ri)
+		case 0x11:
+		case 0x31:
+		case 0x41:
+		case 0x51:
+		case 0x61:
+		case 0x71:
+			tmpv2 = tr_aop_ssp2arm(op>>13); // op
+			tmpv3 = (tmpv2 == A_OP_CMP) ? 0 : 5;
+			tr_rX_read((op&3)|((op>>6)&4), (op>>2)&3);
+			EOP_C_DOP_REG_XIMM(A_COND_AL,tmpv2,1,5,tmpv3,16,A_AM1_LSL,0);	// OPs r5, r5, r0, lsl #16
+			hostreg_sspreg_changed(SSP_A);
+			known_regb &= ~(KRREG_A|KRREG_AL|KRREG_ST);
+			dirty_regb |= KRREG_ST;
+			ret++; break;
+
+		// OP a, adr
+		case 0x13:
+		case 0x33:
+		case 0x43:
+		case 0x53:
+		case 0x63:
+		case 0x73:
+			tmpv2 = tr_aop_ssp2arm(op>>13); // op
+			tmpv3 = (tmpv2 == A_OP_CMP) ? 0 : 5;
+			tr_bank_read(op&0x1ff);
+			EOP_C_DOP_REG_XIMM(A_COND_AL,tmpv2,1,5,tmpv3,16,A_AM1_LSL,0);	// OPs r5, r5, r0, lsl #16
+			hostreg_sspreg_changed(SSP_A);
+			known_regb &= ~(KRREG_A|KRREG_AL|KRREG_ST);
+			dirty_regb |= KRREG_ST;
+			ret++; break;
+
+		// OP a, imm
+		case 0x14:
+		case 0x34:
+		case 0x44:
+		case 0x54:
+		case 0x64:
+		case 0x74:
+			tmpv = (op & 0xf0) >> 4;
+			tmpv2 = tr_aop_ssp2arm(op>>13); // op
+			tmpv3 = (tmpv2 == A_OP_CMP) ? 0 : 5;
+			tr_mov16(0, imm);
+			EOP_C_DOP_REG_XIMM(A_COND_AL,tmpv2,1,5,tmpv3,16,A_AM1_LSL,0);	// OPs r5, r5, r0, lsl #16
+			hostreg_sspreg_changed(SSP_A);
+			known_regb &= ~(KRREG_A|KRREG_AL|KRREG_ST);
+			dirty_regb |= KRREG_ST;
+			ret += 2; break;
+
+		// OP a, ((ri))
+		case 0x15:
+		case 0x35:
+		case 0x45:
+		case 0x55:
+		case 0x65:
+		case 0x75:
+			tmpv2 = tr_aop_ssp2arm(op>>13); // op
+			tmpv3 = (tmpv2 == A_OP_CMP) ? 0 : 5;
+			tr_rX_read2(op);
+			EOP_C_DOP_REG_XIMM(A_COND_AL,tmpv2,1,5,tmpv3,16,A_AM1_LSL,0);	// OPs r5, r5, r0, lsl #16
+			hostreg_sspreg_changed(SSP_A);
+			known_regb &= ~(KRREG_A|KRREG_AL|KRREG_ST);
+			dirty_regb |= KRREG_ST;
+			ret += 3; break;
+
+		// OP a, ri
+		case 0x19:
+		case 0x39:
+		case 0x49:
+		case 0x59:
+		case 0x69:
+		case 0x79: {
+			int r;
+			tmpv2 = tr_aop_ssp2arm(op>>13); // op
+			tmpv3 = (tmpv2 == A_OP_CMP) ? 0 : 5;
+			r = (op&3) | ((op>>6)&4); // src
+			if ((r&3) == 3) tr_unhandled();
+
+			if (known_regb & (1 << (r+8))) {
+				EOP_C_DOP_IMM(A_COND_AL,tmpv2,1,5,tmpv3,16/2,known_regs.r[r]);	// OPs r5, r5, #val<<16
+			} else {
+				int reg = (r < 4) ? 8 : 9;
+				if (r&3) EOP_MOV_REG_LSR(0, reg, (r&3)*8);	// mov r0, r{7,8}, lsr #lsr
+				EOP_AND_IMM(0, (r&3)?0:reg, 0, 0xff);		// and r0, r{7,8}, <mask>
+				EOP_C_DOP_REG_XIMM(A_COND_AL,tmpv2,1,5,tmpv3,16,A_AM1_LSL,0);	// OPs r5, r5, r0, lsl #16
+				hostreg_r[0] = -1;
+			}
+			hostreg_sspreg_changed(SSP_A);
+			known_regb &= ~(KRREG_A|KRREG_AL|KRREG_ST);
+			dirty_regb |= KRREG_ST;
+			ret++; break;
+		}
+
+		// OP simm
+		case 0x1c:
+		case 0x3c:
+		case 0x4c:
+		case 0x5c:
+		case 0x6c:
+		case 0x7c:
+			tmpv2 = tr_aop_ssp2arm(op>>13); // op
+			tmpv3 = (tmpv2 == A_OP_CMP) ? 0 : 5;
+			EOP_C_DOP_IMM(A_COND_AL,tmpv2,1,5,tmpv3,16/2,op & 0xff);	// OPs r5, r5, #val<<16
+			hostreg_sspreg_changed(SSP_A);
+			known_regb &= ~(KRREG_A|KRREG_AL|KRREG_ST);
+			dirty_regb |= KRREG_ST;
+			ret++; break;
 	}
 
 	return ret;
