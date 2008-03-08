@@ -134,7 +134,15 @@
 #define EOP_C_MRS(cond,rd) \
 	EMIT(((cond)<<28) | 0x010f0000 | ((rd)<<12))
 
-#define EOP_MRS(rd) EOP_C_MRS(A_COND_AL,rd)
+#define EOP_C_MSR_IMM(cond,ror2,imm) \
+	EMIT(((cond)<<28) | 0x0328f000 | ((ror2)<<8) | (imm)) // cpsr_f
+
+#define EOP_C_MSR_REG(cond,rm) \
+	EMIT(((cond)<<28) | 0x0128f000 | (rm)) // cpsr_f
+
+#define EOP_MRS(rd)           EOP_C_MRS(A_COND_AL,rd)
+#define EOP_MSR_IMM(ror2,imm) EOP_C_MSR_IMM(A_COND_AL,ror2,imm)
+#define EOP_MSR_REG(rm)       EOP_C_MSR_REG(A_COND_AL,rm)
 
 
 static void emit_mov_const(int cond, int d, unsigned int val)

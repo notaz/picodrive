@@ -721,10 +721,9 @@ static void write_PMC(u32 d)
 // 15
 static u32 read_AL(void)
 {
-	if (*(PC-1) == 0x000f) {
+	if (*(PC-1) == 0x000f)
 		elprintf(EL_SVP, "ssp dummy PM assign %08x @ %04x", rPMC.v, GET_PPC_OFFS());
-		ssp->emu_status &= ~(SSP_PMC_SET|SSP_PMC_HAVE_ADDR); // ?
-	}
+	ssp->emu_status &= ~(SSP_PMC_SET|SSP_PMC_HAVE_ADDR); // ?
 	return rAL;
 }
 
