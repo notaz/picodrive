@@ -91,9 +91,13 @@
 	EMIT(((cond)<<28) | 0x05000000 | ((u)<<23) | ((b)<<22) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | (offset_12))
 
 /* addressing mode 3 */
-#define EOP_C_AM3_IMM(cond,u,l,rn,rd,s,h,offset_8) \
-	EMIT(((cond)<<28) | 0x01400090 | ((u)<<23) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | (((offset_8)&0xf0)<<4) | \
-			((s)<<6) | ((h)<<5) | ((offset_8)&0xf))
+#define EOP_C_AM3(cond,u,r,l,rn,rd,s,h,immed_reg) \
+	EMIT(((cond)<<28) | 0x01000090 | ((u)<<23) | ((r)<<22) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | \
+			((s)<<6) | ((h)<<5) | (immed_reg))
+
+#define EOP_C_AM3_IMM(cond,u,l,rn,rd,s,h,offset_8) EOP_C_AM3(cond,u,1,l,rn,rd,s,h,(((offset_8)&0xf0)<<4)|((offset_8)&0xf))
+
+#define EOP_C_AM3_REG(cond,u,l,rn,rd,s,h,rm)       EOP_C_AM3(cond,u,0,l,rn,rd,s,h,rm)
 
 /* ldr and str */
 #define EOP_LDR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,1,0,1,rn,rd,offset_12)
@@ -104,6 +108,7 @@
 
 #define EOP_LDRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,offset_8)
 #define EOP_LDRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,0)
+#define EOP_LDRH_REG(   rd,rn,rm)        EOP_C_AM3_REG(A_COND_AL,1,1,rn,rd,0,1,rm)
 #define EOP_STRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,0,rn,rd,0,1,offset_8)
 #define EOP_STRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,0,rn,rd,0,1,0)
 

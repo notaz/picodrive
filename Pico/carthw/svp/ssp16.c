@@ -454,7 +454,7 @@ static int get_inc(int mode)
 	return inc;
 }
 
-#define overwite_write(dst, d) \
+#define overwrite_write(dst, d) \
 { \
 	if (d & 0xf000) { dst &= ~0xf000; dst |= d & 0xf000; } \
 	if (d & 0x0f00) { dst &= ~0x0f00; dst |= d & 0x0f00; } \
@@ -508,7 +508,7 @@ static u32 pm_io(int reg, int write, u32 d)
 				elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (inc %i, ovrw %i)",
 					reg, CADDR, d, inc, (mode>>10)&1);
 				if (mode & 0x0400) {
-				       overwite_write(dram[addr], d);
+				       overwrite_write(dram[addr], d);
 				} else dram[addr] = d;
 				ssp->pmac_write[reg] += inc;
 			}
@@ -517,7 +517,7 @@ static u32 pm_io(int reg, int write, u32 d)
 				elprintf(EL_SVP, "ssp PM%i DRAM w [%06x] %04x (cell inc, ovrw %i) @ %04x",
 					reg, CADDR, d, (mode>>10)&1, GET_PPC_OFFS());
 				if (mode & 0x0400) {
-				       overwite_write(dram[addr], d);
+				       overwrite_write(dram[addr], d);
 				} else dram[addr] = d;
 				ssp->pmac_write[reg] += (addr&1) ? 31 : 1;
 			}

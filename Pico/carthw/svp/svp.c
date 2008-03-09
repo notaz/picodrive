@@ -44,11 +44,6 @@ static void PicoSVPReset(void)
 
 static void PicoSVPLine(int count)
 {
-	static int inited = 0;
-	if (!(svp->ssp1601.gr[SSP_PM0].h & 2) && !inited) return;
-	inited = 1;
-
-	// ???
 	if (PicoOpt&0x20000)
 		ssp1601_run(PicoSVPCycles * count);
 	else
