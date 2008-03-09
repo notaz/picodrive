@@ -1056,10 +1056,11 @@ static int tr_PM4_to_r0(void)
 	{
 		known_regs.pmac_read[reg] = known_regs.pmc;
 		known_regs.emu_status &= ~SSP_PMC_SET;
+		known_regb |= 1 << (20+reg);
 		return 0;
 	}
 
-	if (known_regb & (1 << (20+4)))
+	if (known_regb & (1 << (20+reg)))
 	{
 		int mode = known_regs.pmac_read[reg]>>16;
 		if      ((mode & 0xfff0) == 0x0800)
