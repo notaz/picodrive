@@ -9,6 +9,7 @@
 .global flush_inval_caches
 .global regfile_load
 .global regfile_store
+.global ssp_hle_800
 
 @ translation cache buffer
 .text
@@ -92,5 +93,35 @@ regfile_store:
     stmia   r8, {r2,r3,r5,r6,r9}
     bx      lr
 
+
+#define SSP_OFFS_GR    0x400
+#define SSP_OFFS_EMUST 0x484
+#define SSP_PM0            8
+#define SSP_PC             6
+#define SSP_WAIT_PM0  0x2000
+
+@ ld      A, PM0
+@ andi    2
+@ bra     z=1, gloc_0800
+ssp_hle_800:
+    @ block prologue
+    stmfd   sp!, {r4-r11, lr}
+    bl      regfile_load
+    mov     r11, #0
+    
+    ldr     r0, [r7, #(SSP_OFFS_GR+SSP_PM0*4)]
+    ldr     r1, [r7, #SSP_OFFS_EMUST]
+    tst     r0, #0x20000
+    orreq   r1, r1, #SSP_WAIT_PM0
+    addeq   r11,r11, #1024
+    streq   r1, [r7, #SSP_OFFS_EMUST]
+    movne   r0,     #0x04000000
+    orrne   r0, r0, #0x00040000
+    strne   r0, [r7, #(SSP_OFFS_GR+SSP_PC*4)]
+
+    bl      regfile_store
+    add     r0, r11, #3
+    ldmfd   sp!, {r4-r11, lr}
+    bx      lr
 
 

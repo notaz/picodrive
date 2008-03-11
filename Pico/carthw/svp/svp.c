@@ -111,6 +111,7 @@ void PicoSVPStartup(void)
 		return;
 	}
 
+	//PicoOpt |= 0x20000;
 	Pico.rom = tmp;
 	svp = (void *) ((char *)tmp + 0x200000);
 	memset(svp, 0, sizeof(*svp));
