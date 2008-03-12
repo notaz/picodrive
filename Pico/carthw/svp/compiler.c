@@ -1,5 +1,3 @@
-// 187 blocks, 12072 bytes
-// 14 IRAM blocks
 
 #include "../../PicoInt.h"
 #include "compiler.h"
@@ -12,7 +10,7 @@ static int nblocks = 0;
 static int iram_context = 0;
 
 #ifndef ARM
-#define DUMP_BLOCK 0x2018
+#define DUMP_BLOCK 0x0c9a
 unsigned int tcache[512*1024];
 void regfile_load(void){}
 void regfile_store(void){}
@@ -499,11 +497,9 @@ static u32 ssp_pm_read(int reg)
 	{
 		ssp->pmac_read[reg] = rPMC.v;
 		ssp->emu_status &= ~SSP_PMC_SET;
-		//elprintf("set PM%i %08x", ssp->pmac_read[reg]);
 		return 0;
 	}
 
-		//elprintf("rd  PM%i %08x", ssp->pmac_read[reg]);
 	// just in case
 	ssp->emu_status &= ~SSP_PMC_HAVE_ADDR;
 
@@ -574,6 +570,7 @@ static void ssp_pm_write(u32 d, int reg)
 
 // -----------------------------------------------------
 
+// 14 IRAM blocks
 static unsigned char iram_context_map[] =
 {
 	 0, 0, 0, 0, 1, 0, 0, 0, // 04
@@ -602,14 +599,7 @@ static int get_iram_context(void)
 }
 
 // -----------------------------------------------------
-/*
-enum {
-	SSP_GR0, SSP_X,     SSP_Y,   SSP_A,
-	SSP_ST,  SSP_STACK, SSP_PC,  SSP_P,
-	SSP_PM0, SSP_PM1,   SSP_PM2, SSP_XST,
-	SSP_PM4, SSP_gr13,  SSP_PMC, SSP_AL
-};
-*/
+
 /* regs with known values */
 static struct
 {
@@ -1058,8 +1048,6 @@ static int tr_aop_ssp2arm(int op)
 
 // -----------------------------------------------------
 
-//	SSP_GR0, SSP_X,     SSP_Y,   SSP_A,
-//	SSP_ST,  SSP_STACK, SSP_PC,  SSP_P,
 //@ r4:  XXYY
 //@ r5:  A
 //@ r6:  STACK and emu flags
@@ -1082,7 +1070,6 @@ static void tr_X_to_r0(int op)
 
 static void tr_Y_to_r0(int op)
 {
-	// TODO..
 	if (hostreg_r[0] != (SSP_Y<<16)) {
 		EOP_MOV_REG_SIMPLE(0, 4);	// mov  r0, r4
 		hostreg_r[0] = SSP_Y<<16;
@@ -1379,7 +1366,6 @@ static void tr_r0_to_AL(int const_val)
 
 static void tr_r0_to_PMX(int reg)
 {
-#if 1
 	if ((known_regb & KRREG_PMC) && (known_regs.emu_status & SSP_PMC_SET))
 	{
 		known_regs.pmac_write[reg] = known_regs.pmc.v;
@@ -1388,8 +1374,7 @@ static void tr_r0_to_PMX(int reg)
 		dirty_regb |= 1 << (25+reg);
 		return;
 	}
-#endif
-#if 1
+
 	if ((known_regb & KRREG_PMC) && (known_regb & (1 << (25+reg))))
 	{
 		int mode, addr;
@@ -1440,15 +1425,6 @@ static void tr_r0_to_PMX(int reg)
 	dirty_regb &= ~KRREG_PMC;
 	known_regb &= ~(1 << (25+reg));
 	dirty_regb &= ~(1 << (25+reg));
-#else
-tr_flush_dirty_pmcrs();
-hostreg_clear();
-known_regb &= ~KRREG_PMC;
-dirty_regb &= ~KRREG_PMC;
-known_regb &= ~(1 << (25+reg));
-dirty_regb &= ~(1 << (25+reg));
-#endif
-
 
 	// call the C code to handle this
 	tr_flush_dirty_ST();
@@ -1639,7 +1615,6 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			if (op == 0) { ret++; break; } // nop
 			tmpv  = op & 0xf; // src
 			tmpv2 = (op >> 4) & 0xf; // dst
-			//if (tmpv2 >= 8) return -1; // TODO
 			if (tmpv2 == SSP_A && tmpv == SSP_P) { // ld A, P
 				tr_flush_dirty_P();
 				EOP_MOV_REG_SIMPLE(5, 10);
@@ -1654,13 +1629,11 @@ static int translate_op(unsigned int op, int *pc, int imm)
 
 		// ld d, (ri)
 		case 0x01: {
-			// tmpv = ptr1_read(op); REG_WRITE((op & 0xf0) >> 4, tmpv); break;
 			int r = (op&3) | ((op>>6)&4);
 			int mod = (op>>2)&3;
 			tmpv = (op >> 4) & 0xf; // dst
 			ret = tr_detect_rotate(op, pc, imm);
 			if (ret > 0) break;
-			if (tmpv >= 8) return -1; // TODO
 			if (tmpv != 0)
 			     tr_rX_read(r, mod);
 			else tr_ptrr_mod(r, mod, 1, 1);
@@ -1687,21 +1660,16 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			tmpv = (op & 0xf0) >> 4; // dst
 			ret = tr_detect_pm0_block(op, pc, imm);
 			if (ret > 0) break;
-			if (tmpv < 8)
-			{
-				tr_mov16(0, imm);
-				tr_write_funcs[tmpv](imm);
-				ret += 2; break;
-			}
 			ret = tr_detect_set_pm(op, pc, imm);
 			if (ret > 0) break;
+			tr_mov16(0, imm);
+			tr_write_funcs[tmpv](imm);
 			if (tmpv == SSP_PC) ret |= 0x10000;
-			return -1;	/* TODO.. */
+			ret += 2; break;
 
 		// ld d, ((ri))
 		case 0x05:
 			tmpv2 = (op >> 4) & 0xf;  // dst
-			if (tmpv2 >= 8) return -1; // TODO
 			tr_rX_read2(op);
 			tr_write_funcs[tmpv2](-1);
 			if (tmpv2 == SSP_PC) ret |= 0x10000;
@@ -1724,7 +1692,6 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			int r;
 			r = (op&3) | ((op>>6)&4); // src
 			tmpv2 = (op >> 4) & 0xf;  // dst
-			if (tmpv2 >= 8) tr_unhandled();
 			if ((r&3) == 3) tr_unhandled();
 
 			if (known_regb & (1 << (r+8))) {
@@ -1801,8 +1768,6 @@ static int translate_op(unsigned int op, int *pc, int imm)
 		// ld d, (a)
 		case 0x25:
 			tmpv2 = (op >> 4) & 0xf;  // dst
-			if (tmpv2 >= 8) return -1; // TODO
-
 			tr_A_to_r0(op);
 			EOP_LDR_IMM(1,7,0x48c);					// ptr_iram_rom
 			EOP_ADD_REG_LSL(0,1,0,1);				// add  r0, r1, r0, lsl #1
@@ -2025,9 +1990,6 @@ static void *translate_block(int pc)
 	unsigned int *block_start;
 	int ret, ret_prev = -1, tpc;
 
-	// create .pool
-	//*tcache_ptr++ = (u32) in_funcs;			// -1 func pool
-
 	printf("translate %04x -> %04x\n", pc<<1, (tcache_ptr-tcache)<<2);
 	block_start = tcache_ptr;
 	known_regb = 0;
@@ -2039,7 +2001,6 @@ static void *translate_block(int pc)
 
 	for (; ccount < 100;)
 	{
-		//printf("  insn #%i\n", icount);
 		op = PROGRAM(pc++);
 		op1 = op >> 9;
 		imm = (u32)-1;
@@ -2087,12 +2048,14 @@ static void *translate_block(int pc)
 		ret_prev = ret;
 	}
 
+	if (ccount >= 100)
+		emit_pc_dump(pc);
+
 	tr_flush_dirty_prs();
 	tr_flush_dirty_ST();
 	tr_flush_dirty_pmcrs();
 	emit_block_epilogue(ccount + 1);
 	*tcache_ptr++ = 0xffffffff; // end of block
-	//printf("  %i inst\n", icount);
 
 	if (tcache_ptr - tcache > TCACHE_SIZE/4) {
 		printf("tcache overflow!\n");
@@ -2102,9 +2065,7 @@ static void *translate_block(int pc)
 
 	// stats
 	nblocks++;
-	//if (pc >= 0x400)
 	printf("%i blocks, %i bytes\n", nblocks, (tcache_ptr - tcache)*4);
-	//printf("%p %p\n", tcache_ptr, emit_block_epilogue);
 
 #ifdef DUMP_BLOCK
 	{
@@ -2158,8 +2119,6 @@ void ssp1601_dyn_reset(ssp1601_t *ssp)
 void ssp1601_dyn_run(int cycles)
 {
 	if (ssp->emu_status & SSP_WAIT_MASK) return;
-	//{ printf("%i wait\n", Pico.m.frame_count); return; }
-	//printf("%i  %04x\n", Pico.m.frame_count, rPC<<1);
 
 #ifdef DUMP_BLOCK
 	rPC = DUMP_BLOCK >> 1;
@@ -2184,11 +2143,7 @@ void ssp1601_dyn_run(int cycles)
 			trans_entry = (void *) block_table[rPC];
 		}
 
-		//printf("enter %04x\n", rPC<<1);
 		cycles -= trans_entry();
-		//printf("leave %04x\n", rPC<<1);
 	}
-//	debug_dump2file("tcache.bin", tcache, (tcache_ptr - tcache) << 1);
-//	exit(1);
 }
 
