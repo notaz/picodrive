@@ -214,11 +214,9 @@
 
 #define IJind  (((op>>6)&4)|(op&3))
 
-#ifndef EMBED_INTERPRETER
 #define GET_PC() (PC - (unsigned short *)svp->iram_rom)
 #define GET_PPC_OFFS() ((unsigned int)PC - (unsigned int)svp->iram_rom - 2)
 #define SET_PC(d) PC = (unsigned short *)svp->iram_rom + d
-#endif
 
 #define REG_READ(r) (((r) <= 4) ? ssp->gr[r].h : read_handlers[r]())
 #define REG_WRITE(r,d) { \
@@ -363,9 +361,6 @@
 #define CHECK_ST(d)
 #endif
 
-#ifndef EMBED_INTERPRETER
-static
-#endif
 ssp1601_t *ssp = NULL;
 static unsigned short *PC;
 static int g_cycles;
@@ -526,9 +521,6 @@ static u32 pm_io(int reg, int write, u32 d)
 				elprintf(EL_SVP, "ssp IRAM w [%06x] %04x (inc %i)", (addr<<1)&0x7ff, d, inc);
 				((unsigned short *)svp->iram_rom)[addr&0x3ff] = d;
 				ssp->pmac_write[reg] += inc;
-#ifdef EMBED_INTERPRETER
-				ssp->drc.iram_dirty = 1;
-#endif
 			}
 			else
 			{
@@ -578,11 +570,9 @@ static u32 read_PM0(void)
 	if (d != (u32)-1) return d;
 	elprintf(EL_SVP, "PM0 raw r %04x @ %04x", rPM0, GET_PPC_OFFS());
 	d = rPM0;
-#ifndef EMBED_INTERPRETER
 	if (!(d & 2) && (GET_PPC_OFFS() == 0x800 || GET_PPC_OFFS() == 0x1851E)) {
 		ssp->emu_status |= SSP_WAIT_PM0; elprintf(EL_SVP, "det TIGHT loop: PM0");
 	}
-#endif
 	rPM0 &= ~2; // ?
 	return d;
 }
@@ -659,14 +649,12 @@ static void write_XST(u32 d)
 static u32 read_PM4(void)
 {
 	u32 d = pm_io(4, 0, 0);
-#ifndef EMBED_INTERPRETER
 	if (d == 0) {
 		switch (GET_PPC_OFFS()) {
 			case 0x0854: ssp->emu_status |= SSP_WAIT_30FE08; elprintf(EL_SVP, "det TIGHT loop: [30fe08]"); break;
 			case 0x4f12: ssp->emu_status |= SSP_WAIT_30FE06; elprintf(EL_SVP, "det TIGHT loop: [30fe06]"); break;
 		}
 	}
-#endif
 	if (d != (u32)-1) return d;
 	// can be removed?
 	elprintf(EL_SVP|EL_ANOMALY, "PM4 raw r %04x @ %04x", rPM4, GET_PPC_OFFS());
@@ -913,7 +901,7 @@ static u32 ptr2_read(int op)
 
 // -----------------------------------------------------
 
-#if defined(USE_DEBUGGER) //|| defined(EMBED_INTERPRETER)
+#if defined(USE_DEBUGGER)
 static void debug_dump2file(const char *fname, void *mem, int len)
 {
 	FILE *f = fopen(fname, "wb");
@@ -1029,9 +1017,8 @@ void ssp1601_reset(ssp1601_t *l_ssp)
 
 void ssp1601_run(int cycles)
 {
-#ifndef EMBED_INTERPRETER
 	SET_PC(rPC);
-#endif
+
 	g_cycles = cycles;
 
 	while (g_cycles > 0 && !(ssp->emu_status & SSP_WAIT_MASK))
@@ -1050,7 +1037,6 @@ void ssp1601_run(int cycles)
 				CHECK_B_SET();
 				if (op == 0) break; // nop
 				if (op == ((SSP_A<<4)|SSP_P)) { // A <- P
-					// not sure. MAME claims that only hi word is transfered.
 					read_P(); // update P
 					rA32 = rP.v;
 				}

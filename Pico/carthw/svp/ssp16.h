@@ -57,6 +57,10 @@ typedef struct
 		unsigned int ptr_iram_rom;	// 48c
 		unsigned int ptr_dram;		// 490
 		unsigned int iram_dirty;	// 494
+		unsigned int iram_context;	// 498
+		unsigned int ptr_btable;	// 49c
+		unsigned int ptr_btable_iram;	// 4a0
+		unsigned int tmp0;		// 4a4
 	} drc;
 } ssp1601_t;
 

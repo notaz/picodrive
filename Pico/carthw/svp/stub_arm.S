@@ -7,8 +7,10 @@
 .global tcache
 
 .global flush_inval_caches
-.global regfile_load
-.global regfile_store
+.global ssp_regfile_load
+.global ssp_regfile_store
+.global ssp_drc_entry
+.global ssp_drc_next
 .global ssp_hle_800
 
 @ translation cache buffer
@@ -46,7 +48,7 @@ flush_inval_caches:
 
 @ trashes r2,r3
 
-regfile_load:
+ssp_regfile_load:
     ldr     r7, =ssp
     ldr     r7, [r7]
     add     r2, r7, #0x400
@@ -71,7 +73,7 @@ regfile_load:
     bx      lr
 
 
-regfile_store:
+ssp_regfile_store:
     str     r10,[r7, #(0x400+7*4)]      @ P
     str     r8, [r7, #0x440]            @ r0-r2
     str     r9, [r7, #0x444]            @ r4-r6
@@ -94,34 +96,100 @@ regfile_store:
     bx      lr
 
 
-#define SSP_OFFS_GR    0x400
-#define SSP_OFFS_EMUST 0x484
-#define SSP_PM0            8
-#define SSP_PC             6
-#define SSP_WAIT_PM0  0x2000
+#define SSP_OFFS_GR         0x400
+#define SSP_PM0                 8
+#define SSP_PC                  6
+#define SSP_OFFS_EMUSTAT    0x484 // emu_status
+#define SSP_OFFS_IRAM_DIRTY 0x494
+#define SSP_OFFS_IRAM_CTX   0x498 // iram_context
+#define SSP_OFFS_BLTAB      0x49c // block_table
+#define SSP_OFFS_BLTAB_IRAM 0x4a0
+#define SSP_OFFS_TMP0       0x4a4
+#define SSP_WAIT_PM0       0x2000
+
+
+ssp_drc_entry:
+    stmfd   sp!, {r4-r11, lr}
+    mov     r11, r0
+    bl      ssp_regfile_load
+
+ssp_drc_next:
+    cmp     r11, #0
+    bmi     ssp_drc_end
+
+    ldr     r0, [r7, #(SSP_OFFS_GR+SSP_PC*4)]
+    mov     r0, r0, lsr #16
+    str     r0, [r7, #SSP_OFFS_TMP0]
+    cmp     r0, #0x400
+    blt     ssp_de_iram
+
+    ldr     r1, [r7, #SSP_OFFS_BLTAB]
+    ldr     r1, [r1, r0, lsl #2]
+    tst     r1, r1
+    bxne    r1
+    bl      ssp_translate_block
+    ldr     r2, [r7, #SSP_OFFS_TMP0]		@ entry PC
+    ldr     r1, [r7, #SSP_OFFS_BLTAB]
+    str     r0, [r1, r2, lsl #2]
+    bx      r0
+
+ssp_de_iram:
+    ldr     r1, [r7, #SSP_OFFS_IRAM_DIRTY]
+    tst     r1, r1
+    ldreq   r1, [r7, #SSP_OFFS_IRAM_CTX]
+    beq     ssp_de_iram_ctx
+
+    bl      ssp_get_iram_context
+    mov     r1, #0
+    str     r1, [r7, #SSP_OFFS_IRAM_DIRTY]
+    mov     r1, r0
+    str     r1, [r7, #SSP_OFFS_IRAM_CTX]
+    ldr     r0, [r7, #SSP_OFFS_TMP0]		@ entry PC
+    
+ssp_de_iram_ctx:
+    ldr     r2, [r7, #SSP_OFFS_BLTAB_IRAM]
+    add     r2, r2, r1, lsl #12			@ block_tab_iram + iram_context * 0x800/2*4
+    add     r2, r2, r0, lsl #2
+    ldr     r1, [r2]
+    tst     r1, r1
+    bxne    r1
+    str     r2, [r7, #SSP_OFFS_TMP0]
+    bl      ssp_translate_block
+    ldr     r2, [r7, #SSP_OFFS_TMP0]		@ &block_table_iram[iram_context][rPC]
+    str     r0, [r2]
+    bx      r0
+
+ssp_drc_end:
+    bl      ssp_regfile_store
+    mov     r0, r11
+    ldmfd   sp!, {r4-r11, lr}
+    bx      lr
+
+
 
 @ ld      A, PM0
 @ andi    2
 @ bra     z=1, gloc_0800
 ssp_hle_800:
     @ block prologue
-    stmfd   sp!, {r4-r11, lr}
-    bl      regfile_load
-    mov     r11, #0
+@    stmfd   sp!, {r4-r11, lr}
+@    bl      regfile_load
+@    mov     r11, #0
     
     ldr     r0, [r7, #(SSP_OFFS_GR+SSP_PM0*4)]
-    ldr     r1, [r7, #SSP_OFFS_EMUST]
+    ldr     r1, [r7, #SSP_OFFS_EMUSTAT]
     tst     r0, #0x20000
     orreq   r1, r1, #SSP_WAIT_PM0
     addeq   r11,r11, #1024
-    streq   r1, [r7, #SSP_OFFS_EMUST]
+    streq   r1, [r7, #SSP_OFFS_EMUSTAT]
     movne   r0,     #0x04000000
     orrne   r0, r0, #0x00040000
     strne   r0, [r7, #(SSP_OFFS_GR+SSP_PC*4)]
 
-    bl      regfile_store
-    add     r0, r11, #3
-    ldmfd   sp!, {r4-r11, lr}
-    bx      lr
+    bl      ssp_drc_next
+@    bl      regfile_store
+@    add     r0, r11, #3
+@    ldmfd   sp!, {r4-r11, lr}
+@    bx      lr
 
 

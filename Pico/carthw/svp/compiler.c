@@ -2,14 +2,22 @@
 #include "../../PicoInt.h"
 #include "compiler.h"
 
-static unsigned int *block_table[0x5090/2];
-static unsigned int *block_table_iram[15][0x800/2];
-static unsigned int block_ref[0x5090/2];
-static unsigned int block_ref_iram[15][0x800/2];
-static unsigned int *tcache_ptr = NULL;
+#define u32 unsigned int
+
+static u32 *block_table[0x5090/2];
+static u32 *block_table_iram[15][0x800/2];
+static u32 *tcache_ptr = NULL;
 
 static int nblocks = 0;
-static int iram_context = 0;
+static int n_in_ops = 0;
+
+extern ssp1601_t *ssp;
+
+#define rPC    ssp->gr[SSP_PC].h
+#define rPMC   ssp->gr[SSP_PMC]
+
+#define SSP_FLAG_Z (1<<0xd)
+#define SSP_FLAG_N (1<<0xf)
 
 #ifndef ARM
 #define DUMP_BLOCK 0x0c9a
@@ -18,478 +26,20 @@ void regfile_load(void){}
 void regfile_store(void){}
 #endif
 
-#define EMBED_INTERPRETER
-#define ssp1601_reset ssp1601_reset_local
-#define ssp1601_run ssp1601_run_local
-
-#define GET_PC() rPC
-#define GET_PPC_OFFS() (GET_PC()*2 - 2)
-#define SET_PC(d) { rPC = d; }		/* must return to dispatcher after this */
-//#define GET_PC() (PC - (unsigned short *)svp->iram_rom)
-//#define GET_PPC_OFFS() ((unsigned int)PC - (unsigned int)svp->iram_rom - 2)
-//#define SET_PC(d) PC = (unsigned short *)svp->iram_rom + d
-
-#include "ssp16.c"
 #include "gen_arm.c"
 
 // -----------------------------------------------------
 
-// ld d, s
-static void op00(unsigned int op, unsigned int imm)
+static int get_inc(int mode)
 {
-	unsigned int tmpv;
-	PC = ((unsigned short *)(void *)&op) + 1; /* FIXME: needed for interpreter */
-	if (op == 0) return; // nop
-	if (op == ((SSP_A<<4)|SSP_P)) { // A <- P
-		// not sure. MAME claims that only hi word is transfered.
-		read_P(); // update P
-		rA32 = rP.v;
+	int inc = (mode >> 11) & 7;
+	if (inc != 0) {
+		if (inc != 7) inc--;
+		inc = 1 << inc; // 0 1 2 4 8 16 32 128
+		if (mode & 0x8000) inc = -inc; // decrement mode
 	}
-	else
-	{
-		tmpv = REG_READ(op & 0x0f);
-		REG_WRITE((op & 0xf0) >> 4, tmpv);
-	}
+	return inc;
 }
-
-// ld d, (ri)
-static void op01(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr1_read(op); REG_WRITE((op & 0xf0) >> 4, tmpv);
-}
-
-// ld (ri), s
-static void op02(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = REG_READ((op & 0xf0) >> 4); ptr1_write(op, tmpv);
-}
-
-// ldi d, imm
-static void op04(unsigned int op, unsigned int imm)
-{
-	REG_WRITE((op & 0xf0) >> 4, imm);
-}
-
-// ld d, ((ri))
-static void op05(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr2_read(op); REG_WRITE((op & 0xf0) >> 4, tmpv);
-}
-
-// ldi (ri), imm
-static void op06(unsigned int op, unsigned int imm)
-{
-	ptr1_write(op, imm);
-}
-
-// ld adr, a
-static void op07(unsigned int op, unsigned int imm)
-{
-	ssp->RAM[op & 0x1ff] = rA;
-}
-
-// ld d, ri
-static void op09(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = rIJ[(op&3)|((op>>6)&4)]; REG_WRITE((op & 0xf0) >> 4, tmpv);
-}
-
-// ld ri, s
-static void op0a(unsigned int op, unsigned int imm)
-{
-	rIJ[(op&3)|((op>>6)&4)] = REG_READ((op & 0xf0) >> 4);
-}
-
-// ldi ri, simm (also op0d op0e op0f)
-static void op0c(unsigned int op, unsigned int imm)
-{
-	rIJ[(op>>8)&7] = op;
-}
-
-// call cond, addr
-static void op24(unsigned int op, unsigned int imm)
-{
-	int cond = 0;
-	do {
-		COND_CHECK
-		if (cond) { int new_PC = imm; write_STACK(GET_PC()); SET_PC(new_PC); }
-	}
-	while (0);
-}
-
-// ld d, (a)
-static void op25(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ((unsigned short *)svp->iram_rom)[rA]; REG_WRITE((op & 0xf0) >> 4, tmpv);
-}
-
-// bra cond, addr
-static void op26(unsigned int op, unsigned int imm)
-{
-	do
-	{
-		int cond = 0;
-		COND_CHECK
-		if (cond) SET_PC(imm);
-	}
-	while (0);
-}
-
-// mod cond, op
-static void op48(unsigned int op, unsigned int imm)
-{
-	do
-	{
-		int cond = 0;
-		COND_CHECK
-		if (cond) {
-			switch (op & 7) {
-				case 2: rA32 = (signed int)rA32 >> 1; break; // shr (arithmetic)
-				case 3: rA32 <<= 1; break; // shl
-				case 6: rA32 = -(signed int)rA32; break; // neg
-				case 7: if ((int)rA32 < 0) rA32 = -(signed int)rA32; break; // abs
-				default: elprintf(EL_SVP|EL_ANOMALY, "ssp FIXME: unhandled mod %i @ %04x",
-							 op&7, GET_PPC_OFFS());
-			}
-			UPD_ACC_ZN // ?
-		}
-	}
-	while(0);
-}
-
-// mpys?
-static void op1b(unsigned int op, unsigned int imm)
-{
-	read_P(); // update P
-	rA32 -= rP.v;			// maybe only upper word?
-	UPD_ACC_ZN			// there checking flags after this
-	rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
-	rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
-}
-
-// mpya (rj), (ri), b
-static void op4b(unsigned int op, unsigned int imm)
-{
-	read_P(); // update P
-	rA32 += rP.v; // confirmed to be 32bit
-	UPD_ACC_ZN // ?
-	rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
-	rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
-}
-
-// mld (rj), (ri), b
-static void op5b(unsigned int op, unsigned int imm)
-{
-	rA32 = 0;
-	rST &= 0x0fff; // ?
-	rX = ptr1_read_(op&3, 0, (op<<1)&0x18); // ri (maybe rj?)
-	rY = ptr1_read_((op>>4)&3, 4, (op>>3)&0x18); // rj
-}
-
-// OP a, s
-static void op10(unsigned int op, unsigned int imm)
-{
-	do
-	{
-		unsigned int tmpv;
-		OP_CHECK32(OP_SUBA32); tmpv = REG_READ(op & 0x0f); OP_SUBA(tmpv);
-	}
-	while(0);
-}
-
-static void op30(unsigned int op, unsigned int imm)
-{
-	do
-	{
-		unsigned int tmpv;
-		OP_CHECK32(OP_CMPA32); tmpv = REG_READ(op & 0x0f); OP_CMPA(tmpv);
-	}
-	while(0);
-}
-
-static void op40(unsigned int op, unsigned int imm)
-{
-	do
-	{
-		unsigned int tmpv;
-		OP_CHECK32(OP_ADDA32); tmpv = REG_READ(op & 0x0f); OP_ADDA(tmpv);
-	}
-	while(0);
-}
-
-static void op50(unsigned int op, unsigned int imm)
-{
-	do
-	{
-		unsigned int tmpv;
-		OP_CHECK32(OP_ANDA32); tmpv = REG_READ(op & 0x0f); OP_ANDA(tmpv);
-	}
-	while(0);
-}
-
-static void op60(unsigned int op, unsigned int imm)
-{
-	do
-	{
-		unsigned int tmpv;
-		OP_CHECK32(OP_ORA32 ); tmpv = REG_READ(op & 0x0f); OP_ORA (tmpv);
-	}
-	while(0);
-}
-
-static void op70(unsigned int op, unsigned int imm)
-{
-	do
-	{
-		unsigned int tmpv;
-		OP_CHECK32(OP_EORA32); tmpv = REG_READ(op & 0x0f); OP_EORA(tmpv);
-	}
-	while(0);
-}
-
-// OP a, (ri)
-static void op11(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr1_read(op); OP_SUBA(tmpv);
-}
-
-static void op31(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr1_read(op); OP_CMPA(tmpv);
-}
-
-static void op41(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr1_read(op); OP_ADDA(tmpv);
-}
-
-static void op51(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr1_read(op); OP_ANDA(tmpv);
-}
-
-static void op61(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr1_read(op); OP_ORA (tmpv);
-}
-
-static void op71(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr1_read(op); OP_EORA(tmpv);
-}
-
-// OP a, adr
-static void op03(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ssp->RAM[op & 0x1ff]; OP_LDA (tmpv);
-}
-
-static void op13(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ssp->RAM[op & 0x1ff]; OP_SUBA(tmpv);
-}
-
-static void op33(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ssp->RAM[op & 0x1ff]; OP_CMPA(tmpv);
-}
-
-static void op43(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ssp->RAM[op & 0x1ff]; OP_ADDA(tmpv);
-}
-
-static void op53(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ssp->RAM[op & 0x1ff]; OP_ANDA(tmpv);
-}
-
-static void op63(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ssp->RAM[op & 0x1ff]; OP_ORA (tmpv);
-}
-
-static void op73(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ssp->RAM[op & 0x1ff]; OP_EORA(tmpv);
-}
-
-// OP a, imm
-static void op14(unsigned int op, unsigned int imm)
-{
-	OP_SUBA(imm);
-}
-
-static void op34(unsigned int op, unsigned int imm)
-{
-	OP_CMPA(imm);
-}
-
-static void op44(unsigned int op, unsigned int imm)
-{
-	OP_ADDA(imm);
-}
-
-static void op54(unsigned int op, unsigned int imm)
-{
-	OP_ANDA(imm);
-}
-
-static void op64(unsigned int op, unsigned int imm)
-{
-	OP_ORA (imm);
-}
-
-static void op74(unsigned int op, unsigned int imm)
-{
-	OP_EORA(imm);
-}
-
-// OP a, ((ri))
-static void op15(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr2_read(op); OP_SUBA(tmpv);
-}
-
-static void op35(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr2_read(op); OP_CMPA(tmpv);
-}
-
-static void op45(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr2_read(op); OP_ADDA(tmpv);
-}
-
-static void op55(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr2_read(op); OP_ANDA(tmpv);
-}
-
-static void op65(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr2_read(op); OP_ORA (tmpv);
-}
-
-static void op75(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = ptr2_read(op); OP_EORA(tmpv);
-}
-
-// OP a, ri
-static void op19(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = rIJ[IJind]; OP_SUBA(tmpv);
-}
-
-static void op39(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = rIJ[IJind]; OP_CMPA(tmpv);
-}
-
-static void op49(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = rIJ[IJind]; OP_ADDA(tmpv);
-}
-
-static void op59(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = rIJ[IJind]; OP_ANDA(tmpv);
-}
-
-static void op69(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = rIJ[IJind]; OP_ORA (tmpv);
-}
-
-static void op79(unsigned int op, unsigned int imm)
-{
-	unsigned int tmpv;
-	tmpv = rIJ[IJind]; OP_EORA(tmpv);
-}
-
-// OP simm
-static void op1c(unsigned int op, unsigned int imm)
-{
-	OP_SUBA(op & 0xff);
-}
-
-static void op3c(unsigned int op, unsigned int imm)
-{
-	OP_CMPA(op & 0xff);
-}
-
-static void op4c(unsigned int op, unsigned int imm)
-{
-	OP_ADDA(op & 0xff);
-}
-
-static void op5c(unsigned int op, unsigned int imm)
-{
-	OP_ANDA(op & 0xff);
-}
-
-static void op6c(unsigned int op, unsigned int imm)
-{
-	OP_ORA (op & 0xff);
-}
-
-static void op7c(unsigned int op, unsigned int imm)
-{
-	OP_EORA(op & 0xff);
-}
-
-typedef void (in_func)(unsigned int op, unsigned int imm);
-
-static in_func *in_funcs[0x80] =
-{
-	op00, op01, op02, op03, op04, op05, op06, op07,
-	NULL, op09, op0a, NULL, op0c, op0c, op0c, op0c,
-	op10, op11, NULL, op13, op14, op15, NULL, NULL,
-	NULL, op19, NULL, op1b, op1c, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL, op24, op25, op26, NULL,
-	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-	op30, op31, NULL, op33, op34, op35, NULL, NULL,
-	NULL, op39, NULL, NULL, op3c, NULL, NULL, NULL,
-	op40, op41, NULL, op43, op44, op45, NULL, NULL,
-	op48, op49, NULL, op4b, op4c, NULL, NULL, NULL,
-	op50, op51, NULL, op53, op54, op55, NULL, NULL,
-	NULL, op59, NULL, op5b, op5c, NULL, NULL, NULL,
-	op60, op61, NULL, op63, op64, op65, NULL, NULL,
-	NULL, op69, NULL, NULL, op6c, NULL, NULL, NULL,
-	op70, op71, NULL, op73, op74, op75, NULL, NULL,
-	NULL, op79, NULL, NULL, op7c, NULL, NULL, NULL,
-};
-
 
 static u32 ssp_pm_read(int reg)
 {
@@ -523,6 +73,14 @@ static u32 ssp_pm_read(int reg)
 	rPMC.v = ssp->pmac_read[reg];
 
 	return d;
+}
+
+#define overwrite_write(dst, d) \
+{ \
+	if (d & 0xf000) { dst &= ~0xf000; dst |= d & 0xf000; } \
+	if (d & 0x0f00) { dst &= ~0x0f00; dst |= d & 0x0f00; } \
+	if (d & 0x00f0) { dst &= ~0x00f0; dst |= d & 0x00f0; } \
+	if (d & 0x000f) { dst &= ~0x000f; dst |= d & 0x000f; } \
 }
 
 static void ssp_pm_write(u32 d, int reg)
@@ -585,7 +143,7 @@ static unsigned char iram_context_map[] =
 	13,14, 0, 0, 0, 0, 0, 0  // 38 39
 };
 
-static int get_iram_context(void)
+int ssp_get_iram_context(void)
 {
 	unsigned char *ir = (unsigned char *)svp->iram_rom;
 	int val1, val = ir[0x083^1] + ir[0x4FA^1] + ir[0x5F7^1] + ir[0x47B^1];
@@ -1171,7 +729,7 @@ static void tr_PMX_to_r0(int reg)
 				tr_flush_dirty_ST();
 				EOP_LDR_IMM(1,7,0x484);			// ldr r1, [r7, #0x484] // emu_status
 				EOP_TST_REG_SIMPLE(0,0);
-				EOP_C_DOP_IMM(A_COND_EQ,A_OP_ADD,0,11,11,22/2,1);	// addeq r11, r11, #1024
+				EOP_C_DOP_IMM(A_COND_EQ,A_OP_SUB,0,11,11,22/2,1);	// subeq r11, r11, #1024
 				EOP_C_DOP_IMM(A_COND_EQ,A_OP_ORR,0, 1, 1,24/2,flag>>8);	// orreq r1, r1, #SSP_WAIT_30FE08
 				EOP_STR_IMM(1,7,0x484);			// str r1, [r7, #0x484] // emu_status
 			}
@@ -1542,6 +1100,7 @@ static int tr_detect_set_pm(unsigned int op, int *pc, int imm)
 	known_regb |= KRREG_PMC;
 	dirty_regb |= KRREG_PMC;
 	known_regs.emu_status |= SSP_PMC_SET;
+	n_in_ops++;
 
 	// check for possible reg programming
 	tmpv = PROGRAM(*pc);
@@ -1556,6 +1115,7 @@ static int tr_detect_set_pm(unsigned int op, int *pc, int imm)
 		dirty_regb |= is_write ? (1 << (reg+25)) : (1 << (reg+20));
 		known_regs.emu_status &= ~SSP_PMC_SET;
 		(*pc)++;
+		n_in_ops++;
 		return 5;
 	}
 
@@ -1583,6 +1143,7 @@ static int tr_detect_pm0_block(unsigned int op, int *pc, int imm)
 	known_regb |= 1 << SSP_ST;
 	dirty_regb &= ~KRREG_ST;
 	(*pc) += 3*2;
+	n_in_ops += 3;
 	return 4*2;
 }
 
@@ -1599,6 +1160,7 @@ static int tr_detect_rotate(unsigned int op, int *pc, int imm)
 	EOP_ORR_REG_LSR(0, 0, 0, 16);
 	tr_bank_write(0);
 	(*pc) += 2;
+	n_in_ops += 2;
 	return 3;
 }
 
@@ -1796,6 +1358,7 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			tmpv = 1; // count
 			while (PROGRAM(*pc) == op && (op & 7) != 6) {
 				(*pc)++; tmpv++;
+				n_in_ops++;
 			}
 			if ((op&0xf0) != 0) // !always
 				tr_make_dirty_ST();
@@ -1983,10 +1546,12 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			ret++; break;
 	}
 
+	n_in_ops++;
+
 	return ret;
 }
 
-static void *translate_block(int pc)
+void *ssp_translate_block(int pc)
 {
 	unsigned int op, op1, imm, ccount = 0;
 	unsigned int *block_start;
@@ -2014,32 +1579,8 @@ static void *translate_block(int pc)
 		ret = translate_op(op, &pc, imm);
 		if (ret <= 0)
 		{
-			tr_flush_dirty_prs();
-			tr_flush_dirty_ST();
-			tr_flush_dirty_pmcrs();
-			known_regs.emu_status = 0;
-
-			emit_mov_const(A_COND_AL, 0, op);
-
-			// need immediate?
-			if (imm != (u32)-1)
-				emit_mov_const(A_COND_AL, 1, imm);
-
-			// dump PC
-			emit_pc_dump(pc);
-
-			if (ret_prev > 0) emit_call(regfile_store);
-			emit_call(in_funcs[op1]);
-			emit_call(regfile_load);
-
-			if (in_funcs[op1] == NULL) {
-				printf("NULL func! op=%08x (%02x)\n", op, op1);
-				exit(1);
-			}
-			ccount++;
-			hostreg_clear();
-			dirty_regb |= KRREG_P;
-			known_regb = 0;
+			printf("NULL func! op=%08x (%02x)\n", op, op1);
+			exit(1);
 		}
 		else
 		{
@@ -2067,7 +1608,8 @@ static void *translate_block(int pc)
 
 	// stats
 	nblocks++;
-	printf("%i blocks, %i bytes\n", nblocks, (tcache_ptr - tcache)*4);
+	printf("%i blocks, %i bytes, k=%.3f\n", nblocks, (tcache_ptr - tcache)*4,
+		(double)(tcache_ptr - tcache) / (double)n_in_ops);
 
 #ifdef DUMP_BLOCK
 	{
@@ -2092,82 +1634,36 @@ int ssp1601_dyn_startup(void)
 	memset(tcache, 0, TCACHE_SIZE);
 	memset(block_table, 0, sizeof(block_table));
 	memset(block_table_iram, 0, sizeof(block_table_iram));
-	memset(block_ref, 0, sizeof(block_ref));
-	memset(block_ref_iram, 0, sizeof(block_ref_iram));
 	tcache_ptr = tcache;
 	*tcache_ptr++ = 0xffffffff;
 
 #ifdef ARM
 	// hle'd blocks
 	block_table[0x400] = (void *) ssp_hle_800;
+	n_in_ops = 3; // # of hled ops
 #endif
 
-// TODO: rm
-{
-static unsigned short dummy = 0;
-PC = &dummy;
-}
 	return 0;
 }
 
 
 void ssp1601_dyn_reset(ssp1601_t *ssp)
 {
-	int i, u, total = 0;
-	for (i = 0; i < 0x5090/2; i++)
-		total += block_ref[i];
-	for (u = 1; u < 15; u++)
-		for (i = 0; i < 0x800/2; i++)
-			total += block_ref_iram[u][i];
-
-	printf("total: %i\n", total);
-	for (i = 0; i < 0x5090/2; i++)
-		if (block_ref[i])
-			printf("%07i %2.3f%% __:%04x\n", block_ref[i], (double)block_ref[i] / (double)total * 100.0, i<<1);
-	for (u = 1; u < 15; u++)
-		for (i = 0; i < 0x800/2; i++)
-			if (block_ref_iram[u][i])
-				printf("%07i %2.3f%% %02i:%04x\n", block_ref_iram[u][i],
-					(double)block_ref_iram[u][i] / (double)total * 100.0, u, i<<1);
-
-
-	ssp1601_reset_local(ssp);
-	ssp->drc.ptr_rom = (unsigned int) Pico.rom;
-	ssp->drc.ptr_iram_rom = (unsigned int) svp->iram_rom;
-	ssp->drc.ptr_dram = (unsigned int) svp->dram;
-	ssp->drc.iram_dirty = 0;
+	ssp1601_reset(ssp);
+	ssp->drc.iram_dirty = 1;
+	ssp->drc.iram_context = 0;
+	// must do this here because ssp is not available @ startup()
+	ssp->drc.ptr_rom = (u32) Pico.rom;
+	ssp->drc.ptr_iram_rom = (u32) svp->iram_rom;
+	ssp->drc.ptr_dram = (u32) svp->dram;
+	ssp->drc.ptr_btable = (u32) block_table;
+	ssp->drc.ptr_btable_iram = (u32) block_table_iram;
 }
 
 void ssp1601_dyn_run(int cycles)
 {
 	if (ssp->emu_status & SSP_WAIT_MASK) return;
 
-#ifdef DUMP_BLOCK
-	rPC = DUMP_BLOCK >> 1;
-#endif
-	while (cycles > 0)
-	{
-		int (*trans_entry)(void);
-		if (rPC < 0x800/2)
-		{
-			if (ssp->drc.iram_dirty) {
-				iram_context = get_iram_context();
-				ssp->drc.iram_dirty--;
-			}
-			if (block_table_iram[iram_context][rPC] == NULL)
-				block_table_iram[iram_context][rPC] = translate_block(rPC);
-			trans_entry = (void *) block_table_iram[iram_context][rPC];
-			block_ref_iram[iram_context][rPC]++;
-		}
-		else
-		{
-			if (block_table[rPC] == NULL)
-				block_table[rPC] = translate_block(rPC);
-			trans_entry = (void *) block_table[rPC];
-			block_ref[rPC]++;
-		}
-
-		cycles -= trans_entry();
-	}
+	ssp_drc_entry(cycles);
 }
 

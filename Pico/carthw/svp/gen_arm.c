@@ -197,19 +197,14 @@ static void emit_call(void *target)
 
 static void emit_block_prologue(void)
 {
-	// stack regs
-	EOP_STMFD_ST(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R14M);	// stmfd r13!, {r4-r11,lr}
-	emit_call(regfile_load);
-	EOP_MOV_IMM(11, 0, 0);			// mov r11, #0
+	// nothing
 }
 
-static void emit_block_epilogue(int icount)
+static void emit_block_epilogue(int cycles)
 {
-	if (icount > 0xff) { printf("large icount: %i\n", icount); icount = 0xff; }
-	emit_call(regfile_store);
-	EOP_ADD_IMM(0,11,0,icount);		// add r0, r11, #icount
-	EOP_LDMFD_ST(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R14M);	// ldmfd r13!, {r4-r11,lr}
-	EOP_BX(14);				// bx r14
+	if (cycles > 0xff) { printf("large cycle count: %i\n", cycles); cycles = 0xff; }
+	EOP_SUB_IMM(11,11,0,cycles);		// sub r11, r11, #cycles
+	emit_call(ssp_drc_next);
 }
 
 static void emit_pc_dump(int pc)
