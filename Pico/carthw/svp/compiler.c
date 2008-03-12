@@ -4,6 +4,8 @@
 
 static unsigned int *block_table[0x5090/2];
 static unsigned int *block_table_iram[15][0x800/2];
+static unsigned int block_ref[0x5090/2];
+static unsigned int block_ref_iram[15][0x800/2];
 static unsigned int *tcache_ptr = NULL;
 
 static int nblocks = 0;
@@ -2090,6 +2092,8 @@ int ssp1601_dyn_startup(void)
 	memset(tcache, 0, TCACHE_SIZE);
 	memset(block_table, 0, sizeof(block_table));
 	memset(block_table_iram, 0, sizeof(block_table_iram));
+	memset(block_ref, 0, sizeof(block_ref));
+	memset(block_ref_iram, 0, sizeof(block_ref_iram));
 	tcache_ptr = tcache;
 	*tcache_ptr++ = 0xffffffff;
 
@@ -2109,6 +2113,24 @@ PC = &dummy;
 
 void ssp1601_dyn_reset(ssp1601_t *ssp)
 {
+	int i, u, total = 0;
+	for (i = 0; i < 0x5090/2; i++)
+		total += block_ref[i];
+	for (u = 1; u < 15; u++)
+		for (i = 0; i < 0x800/2; i++)
+			total += block_ref_iram[u][i];
+
+	printf("total: %i\n", total);
+	for (i = 0; i < 0x5090/2; i++)
+		if (block_ref[i])
+			printf("%07i %2.3f%% __:%04x\n", block_ref[i], (double)block_ref[i] / (double)total * 100.0, i<<1);
+	for (u = 1; u < 15; u++)
+		for (i = 0; i < 0x800/2; i++)
+			if (block_ref_iram[u][i])
+				printf("%07i %2.3f%% %02i:%04x\n", block_ref_iram[u][i],
+					(double)block_ref_iram[u][i] / (double)total * 100.0, u, i<<1);
+
+
 	ssp1601_reset_local(ssp);
 	ssp->drc.ptr_rom = (unsigned int) Pico.rom;
 	ssp->drc.ptr_iram_rom = (unsigned int) svp->iram_rom;
@@ -2135,12 +2157,14 @@ void ssp1601_dyn_run(int cycles)
 			if (block_table_iram[iram_context][rPC] == NULL)
 				block_table_iram[iram_context][rPC] = translate_block(rPC);
 			trans_entry = (void *) block_table_iram[iram_context][rPC];
+			block_ref_iram[iram_context][rPC]++;
 		}
 		else
 		{
 			if (block_table[rPC] == NULL)
 				block_table[rPC] = translate_block(rPC);
 			trans_entry = (void *) block_table[rPC];
+			block_ref[rPC]++;
 		}
 
 		cycles -= trans_entry();
