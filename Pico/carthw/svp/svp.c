@@ -26,7 +26,7 @@ static carthw_state_chunk svp_states[] =
 {
 	{ CHUNK_IRAM, 0x800,                 NULL },
 	{ CHUNK_DRAM, sizeof(svp->dram),     NULL },
-	{ CHUNK_SSP,  sizeof(svp->ssp1601),  NULL },
+	{ CHUNK_SSP,  sizeof(svp->ssp1601) - sizeof(svp->ssp1601.drc),  NULL },
 	{ 0,          0,                     NULL }
 };
 

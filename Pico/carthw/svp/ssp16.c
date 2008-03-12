@@ -374,9 +374,6 @@ static int g_cycles;
 static int running = 0;
 static int last_iram = 0;
 #endif
-#ifdef EMBED_INTERPRETER
-static int iram_dirty = 0;
-#endif
 
 // -----------------------------------------------------
 // register i/o handlers
@@ -530,7 +527,7 @@ static u32 pm_io(int reg, int write, u32 d)
 				((unsigned short *)svp->iram_rom)[addr&0x3ff] = d;
 				ssp->pmac_write[reg] += inc;
 #ifdef EMBED_INTERPRETER
-				iram_dirty = 1;
+				ssp->drc.iram_dirty = 1;
 #endif
 			}
 			else

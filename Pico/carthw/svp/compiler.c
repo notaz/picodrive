@@ -12,7 +12,7 @@ static int nblocks = 0;
 static int iram_context = 0;
 
 #ifndef ARM
-#define DUMP_BLOCK 0x29d4
+#define DUMP_BLOCK 0x2018
 unsigned int tcache[512*1024];
 void regfile_load(void){}
 void regfile_store(void){}
@@ -565,6 +565,7 @@ static void ssp_pm_write(u32 d, int reg)
 		int inc = get_inc(mode);
 		((unsigned short *)svp->iram_rom)[addr&0x3ff] = d;
 		ssp->pmac_write[reg] += inc;
+		ssp->drc.iram_dirty = 1;
 	}
 
 	rPMC.v = ssp->pmac_write[reg];
@@ -800,8 +801,8 @@ static void tr_flush_dirty_pmcrs(void)
 
 	if (dirty_regb & KRREG_PMC) {
 		val = known_regs.pmc.v;
-		emit_mov_const(A_COND_AL, 0, val);
-		EOP_STR_IMM(0,7,0x400+SSP_PMC*4);
+		emit_mov_const(A_COND_AL, 1, val);
+		EOP_STR_IMM(1,7,0x400+SSP_PMC*4);
 
 		if (known_regs.emu_status & (SSP_PMC_SET|SSP_PMC_HAVE_ADDR)) {
 			printf("!! SSP_PMC_SET|SSP_PMC_HAVE_ADDR set on flush\n");
@@ -813,20 +814,20 @@ static void tr_flush_dirty_pmcrs(void)
 		if (dirty_regb & (1 << (20+i))) {
 			if (val != known_regs.pmac_read[i]) {
 				val = known_regs.pmac_read[i];
-				emit_mov_const(A_COND_AL, 0, val);
+				emit_mov_const(A_COND_AL, 1, val);
 			}
-			EOP_STR_IMM(0,7,0x454+i*4); // pmac_read
+			EOP_STR_IMM(1,7,0x454+i*4); // pmac_read
 		}
 		if (dirty_regb & (1 << (25+i))) {
 			if (val != known_regs.pmac_write[i]) {
 				val = known_regs.pmac_write[i];
-				emit_mov_const(A_COND_AL, 0, val);
+				emit_mov_const(A_COND_AL, 1, val);
 			}
-			EOP_STR_IMM(0,7,0x46c+i*4); // pmac_write
+			EOP_STR_IMM(1,7,0x46c+i*4); // pmac_write
 		}
 	}
 	dirty_regb &= ~0x3ff80000;
-	hostreg_r[0] = -1;
+	hostreg_r[1] = -1;
 }
 
 /* read bank word to r0 (upper bits zero). Thrashes r1. */
@@ -1378,7 +1379,7 @@ static void tr_r0_to_AL(int const_val)
 
 static void tr_r0_to_PMX(int reg)
 {
-#if 0
+#if 1
 	if ((known_regb & KRREG_PMC) && (known_regs.emu_status & SSP_PMC_SET))
 	{
 		known_regs.pmac_write[reg] = known_regs.pmc.v;
@@ -1388,7 +1389,7 @@ static void tr_r0_to_PMX(int reg)
 		return;
 	}
 #endif
-#if 0
+#if 1
 	if ((known_regb & KRREG_PMC) && (known_regb & (1 << (25+reg))))
 	{
 		int mode, addr;
@@ -1420,6 +1421,8 @@ static void tr_r0_to_PMX(int reg)
 			EOP_LDR_IMM(1,7,0x48c);		// iram_ptr
 			emit_mov_const(A_COND_AL, 2, (addr&0x3ff)<<1);
 			EOP_STRH_REG(0,1,2);		// strh r0, [r1, r2]
+			EOP_MOV_IMM(1,0,1);
+			EOP_STR_IMM(1,7,0x494);		// iram_dirty
 			known_regs.pmac_write[reg] += inc;
 		}
 		else
@@ -1430,21 +1433,21 @@ static void tr_r0_to_PMX(int reg)
 		dirty_regb |= KRREG_PMC;
 		dirty_regb |= 1 << (25+reg);
 		hostreg_r[1] = hostreg_r[2] = -1;
+		return;
 	}
 
 	known_regb &= ~KRREG_PMC;
 	dirty_regb &= ~KRREG_PMC;
 	known_regb &= ~(1 << (25+reg));
 	dirty_regb &= ~(1 << (25+reg));
-#endif
-EOP_MOV_REG_SIMPLE(3,0);
+#else
 tr_flush_dirty_pmcrs();
-EOP_MOV_REG_SIMPLE(0,3);
 hostreg_clear();
 known_regb &= ~KRREG_PMC;
 dirty_regb &= ~KRREG_PMC;
 known_regb &= ~(1 << (25+reg));
 dirty_regb &= ~(1 << (25+reg));
+#endif
 
 
 	// call the C code to handle this
@@ -1636,7 +1639,7 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			if (op == 0) { ret++; break; } // nop
 			tmpv  = op & 0xf; // src
 			tmpv2 = (op >> 4) & 0xf; // dst
-			if (tmpv2 >= 8) return -1; // TODO
+			//if (tmpv2 >= 8) return -1; // TODO
 			if (tmpv2 == SSP_A && tmpv == SSP_P) { // ld A, P
 				tr_flush_dirty_P();
 				EOP_MOV_REG_SIMPLE(5, 10);
@@ -2146,9 +2149,10 @@ PC = &dummy;
 void ssp1601_dyn_reset(ssp1601_t *ssp)
 {
 	ssp1601_reset_local(ssp);
-	ssp->ptr_rom = (unsigned int) Pico.rom;
-	ssp->ptr_iram_rom = (unsigned int) svp->iram_rom;
-	ssp->ptr_dram = (unsigned int) svp->dram;
+	ssp->drc.ptr_rom = (unsigned int) Pico.rom;
+	ssp->drc.ptr_iram_rom = (unsigned int) svp->iram_rom;
+	ssp->drc.ptr_dram = (unsigned int) svp->dram;
+	ssp->drc.iram_dirty = 0;
 }
 
 void ssp1601_dyn_run(int cycles)
@@ -2165,9 +2169,9 @@ void ssp1601_dyn_run(int cycles)
 		int (*trans_entry)(void);
 		if (rPC < 0x800/2)
 		{
-			if (iram_dirty) {
+			if (ssp->drc.iram_dirty) {
 				iram_context = get_iram_context();
-				iram_dirty--;
+				ssp->drc.iram_dirty--;
 			}
 			if (block_table_iram[iram_context][rPC] == NULL)
 				block_table_iram[iram_context][rPC] = translate_block(rPC);
