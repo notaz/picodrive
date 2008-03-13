@@ -1629,6 +1629,12 @@ void *ssp_translate_block(int pc)
 
 // -----------------------------------------------------
 
+static void ssp1601_state_load(void)
+{
+	ssp->drc.iram_dirty = 1;
+	ssp->drc.iram_context = 0;
+}
+
 int ssp1601_dyn_startup(void)
 {
 	memset(tcache, 0, TCACHE_SIZE);
@@ -1636,6 +1642,8 @@ int ssp1601_dyn_startup(void)
 	memset(block_table_iram, 0, sizeof(block_table_iram));
 	tcache_ptr = tcache;
 	*tcache_ptr++ = 0xffffffff;
+
+	PicoLoadStateHook = ssp1601_state_load;
 
 #ifdef ARM
 	// hle'd blocks
@@ -1664,6 +1672,11 @@ void ssp1601_dyn_run(int cycles)
 {
 	if (ssp->emu_status & SSP_WAIT_MASK) return;
 
+#ifdef DUMP_BLOCK
+	ssp_translate_block(DUMP_BLOCK >> 1);
+#endif
+#ifdef ARM
 	ssp_drc_entry(cycles);
+#endif
 }
 

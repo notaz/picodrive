@@ -399,7 +399,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
             else if(pints & 0x10) irq = 4;
             SekInterrupt(irq); // update line
 
-            if (irq) SekEndRun(24); // make it delayed
+            if (irq && Pico.m.scanline!=-1) SekEndRun(24); // make it delayed
           }
         }
 #endif

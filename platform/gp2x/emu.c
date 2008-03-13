@@ -291,7 +291,8 @@ static void blit(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
-	if (PicoOpt&0x10) {
+	if (PicoOpt&0x10)
+	{
 		// 8bit fast renderer
 		if (Pico.m.dirtyPal) {
 			Pico.m.dirtyPal = 0;
@@ -299,8 +300,14 @@ static void blit(const char *fps, const char *notice)
 			// feed new palette to our device
 			gp2x_video_setpalette(localPal, 0x40);
 		}
+		// a hack for VR
+		if (PicoRead16Hook == PicoSVPRead16)
+			memset32((int *)(PicoDraw2FB+328*8+328*223), 0xe0e0e0e0, 328);
+		// do actual copy
 		vidCpyM2((unsigned char *)gp2x_screen+320*8, PicoDraw2FB+328*8);
-	} else if (!(emu_opt&0x80)) {
+	}
+	else if (!(emu_opt&0x80))
+	{
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal) {
 			Pico.m.dirtyPal = 0;

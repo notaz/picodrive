@@ -170,12 +170,15 @@ PICO_INTERNAL void SekState(int *data)
 {
 #ifdef EMU_C68K
   memcpy32(data,(int *)PicoCpuCM68k.d,0x44/4);
+  data[0x11] = PicoCpuCM68k.flags;
 #elif defined(EMU_M68K)
   memcpy32(data, (int *)PicoCpuMM68k.dar, 0x40/4);
   data[0x10] = PicoCpuMM68k.pc;
+  data[0x11] = m68k_get_reg(&PicoCpuMM68k, M68K_REG_SR);
 #elif defined(EMU_F68K)
   memcpy32(data, (int *)PicoCpuFM68k.dreg, 0x40/4);
   data[0x10] = PicoCpuFM68k.pc;
+  data[0x11] = PicoCpuFM68k.sr;
 #endif
 }
 

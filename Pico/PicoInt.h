@@ -362,6 +362,7 @@ typedef struct
 // Area.c
 PICO_INTERNAL int PicoAreaPackCpu(unsigned char *cpu, int is_sub);
 PICO_INTERNAL int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub);
+extern void (*PicoLoadStateHook)(void);
 
 // cd/Area.c
 PICO_INTERNAL int PicoCdSaveState(void *file);

@@ -28,6 +28,8 @@ areaeof   *areaEof   = (areaeof *) 0;
 areaseek  *areaSeek  = (areaseek *) 0;
 areaclose *areaClose = (areaclose *) 0;
 
+void (*PicoLoadStateHook)(void) = NULL;
+
 
 // Scan one variable and callback
 static int ScanVar(void *data,int len,char *name,void *PmovFile,int PmovAction)
@@ -177,7 +179,11 @@ int PmovState(int PmovAction, void *PmovFile)
   if ((PicoMCD & 1) || carthw_chunks != NULL)
   {
     if (PmovAction&1) return PicoCdSaveState(PmovFile);
-    if (PmovAction&2) return PicoCdLoadState(PmovFile);
+    if (PmovAction&2) {
+      int ret = PicoCdLoadState(PmovFile);
+      if (PicoLoadStateHook) PicoLoadStateHook();
+      return ret;
+    }
   }
 
   memset(head,0,sizeof(head));
@@ -196,6 +202,8 @@ int PmovState(int PmovAction, void *PmovFile)
 
   // Scan memory areas:
   PicoAreaScan(PmovAction, *(unsigned int *)(head+0x8), PmovFile);
+
+  if ((PmovAction&2) && PicoLoadStateHook) PicoLoadStateHook();
 
   return 0;
 }

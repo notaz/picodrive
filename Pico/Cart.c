@@ -504,6 +504,7 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   PicoDmaHook = NULL;
   PicoResetHook = NULL;
   PicoLineHook = NULL;
+  PicoLoadStateHook = NULL;
   carthw_chunks = NULL;
 
   PicoMemReset();

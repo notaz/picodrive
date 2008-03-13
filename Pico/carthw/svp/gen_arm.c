@@ -204,7 +204,9 @@ static void emit_block_epilogue(int cycles)
 {
 	if (cycles > 0xff) { printf("large cycle count: %i\n", cycles); cycles = 0xff; }
 	EOP_SUB_IMM(11,11,0,cycles);		// sub r11, r11, #cycles
+#ifdef ARM
 	emit_call(ssp_drc_next);
+#endif
 }
 
 static void emit_pc_dump(int pc)

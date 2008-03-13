@@ -244,12 +244,12 @@ static __inline void SekStep(void)
 
 static int CheckIdle(void)
 {
-  int i, state[0x22];
+  int i, state[0x24];
 
   // See if the state is the same after 2 steps:
-  SekState(state); SekStep(); SekStep(); SekState(state+0x11);
-  for (i = 0x10; i >= 0; i--)
-    if (state[i] != state[i+0x11]) return 0;
+  SekState(state); SekStep(); SekStep(); SekState(state+0x12);
+  for (i = 0x11; i >= 0; i--)
+    if (state[i] != state[i+0x12]) return 0;
 
   return 1;
 }
@@ -344,6 +344,10 @@ static int PicoFrameSimple(void)
     lines_step = 14;
   }
 
+  // a hack for VR, to get it running in fast mode
+  if (PicoRead16Hook == PicoSVPRead16)
+    Pico.ram[0xd864^1] = 0x1a;
+
   // we don't emulate DMA timing in this mode
   if (Pico.m.dma_xfers) {
     Pico.m.dma_xfers=0;
@@ -391,10 +395,19 @@ static int PicoFrameSimple(void)
     if (PicoLineHook) PicoLineHook(sects*lines_step);
   }
 
+  // another hack for VR (it needs hints to work)
+  if (PicoRead16Hook == PicoSVPRead16) {
+    Pico.ram[0xd864^1] = 1;
+    pv->pending_ints|=0x10;
+    if (pv->reg[0]&0x10) SekInterrupt(4);
+    SekRunM68k(160);
+  }
+
   // render screen
   if (!PicoSkipFrame)
   {
     if (!(PicoOpt&0x10))
+    {
       // Draw the screen
 #if CAN_HANDLE_240_LINES
       if (pv->reg[1]&8) {
@@ -405,6 +418,7 @@ static int PicoFrameSimple(void)
 #else
       for (y=0;y<224;y++) PicoLine(y);
 #endif
+    }
     else PicoFrameFull();
 #ifdef DRAW_FINISH_FUNC
     DRAW_FINISH_FUNC();

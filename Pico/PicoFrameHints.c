@@ -1,5 +1,5 @@
 // common code for Pico.c and cd/Pico.c
-// (c) Copyright 2007, Grazvydas "notaz" Ignotas
+// (c) Copyright 2007,2008 Grazvydas "notaz" Ignotas
 
 #define CYCLES_M68K_LINE     488 // suitable for both PAL/NTSC
 #define CYCLES_M68K_VINT_LAG  68
@@ -60,7 +60,7 @@ static int PicoFrameHints(void)
   int lines, y, lines_vis = 224, total_z80 = 0, z80CycleAim = 0, line_sample, skip;
   int hint; // Hint counter
 
-  if ((PicoOpt&0x10) && !PicoSkipFrame) {
+  if ((PicoOpt&0x10) && !PicoSkipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
     // draw a frame just after vblank in alternative render mode
     // yes, this will cause 1 frame lag, but this is inaccurate mode anyway.
     PicoFrameFull();
@@ -125,21 +125,37 @@ static int PicoFrameHints(void)
     }
 
     // decide if we draw this line
-#if CAN_HANDLE_240_LINES
-    if(!skip && ((!(pv->reg[1]&8) && y<224) || (pv->reg[1]&8)) )
-#else
-    if(!skip && y<224)
+    if (!skip)
+    {
+      if (PicoOpt&0x10) {
+        // find the right moment for fast renderer, when display is no longer blanked
+        if ((pv->reg[1]&0x40) || y > 100) {
+          PicoFrameFull();
+#ifdef DRAW_FINISH_FUNC
+          DRAW_FINISH_FUNC();
 #endif
-      PicoLine(y);
+          skip = 1;
+        }
+      }
+      else
+      {
+#if CAN_HANDLE_240_LINES
+        if (((!(pv->reg[1]&8) && y < 224) || (pv->reg[1]&8)) )
+#else
+        if (y < 224)
+#endif
+          PicoLine(y);
+      }
+    }
 
-    if(PicoOpt&1)
+    if (PicoOpt&1)
       Psnd_timers_and_dac(y);
 
 #ifndef PICO_CD
     // get samples from sound chips
-    if(y == 32 && PsndOut)
+    if (y == 32 && PsndOut)
       emustatus &= ~1;
-    else if((y == 224 || y == line_sample) && PsndOut)
+    else if ((y == 224 || y == line_sample) && PsndOut)
       getSamples(y);
 #endif
 
