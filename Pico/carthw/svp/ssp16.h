@@ -61,6 +61,8 @@ typedef struct
 		unsigned int ptr_btable;	// 49c
 		unsigned int ptr_btable_iram;	// 4a0
 		unsigned int tmp0;		// 4a4
+		unsigned int tmp1;		// 4a8
+		unsigned int tmp2;		// 4ac
 	} drc;
 } ssp1601_t;
 

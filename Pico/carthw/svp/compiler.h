@@ -2,10 +2,10 @@
 
 extern unsigned int tcache[];
 
-void ssp_regfile_load(void);
-void ssp_regfile_store(void);
 int  ssp_drc_entry(int cycles);
 void ssp_drc_next(void);
+void ssp_drc_next_patch(void);
+void ssp_drc_end(void);
 
 void ssp_hle_800(void);
 

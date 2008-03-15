@@ -15,6 +15,7 @@
 #define A_COND_NE 0x1
 #define A_COND_MI 0x4
 #define A_COND_PL 0x5
+#define A_COND_LE 0xd
 
 /* addressing mode 1 */
 #define A_AM1_LSL 0
@@ -52,6 +53,7 @@
 #define EOP_AND_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_AND,0,rn,rd,ror2,imm8)
 #define EOP_SUB_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_SUB,0,rn,rd,ror2,imm8)
 #define EOP_TST_IMM(   rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_TST,1,rn, 0,ror2,imm8)
+#define EOP_CMP_IMM(   rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_CMP,1,rn, 0,ror2,imm8)
 #define EOP_RSB_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_RSB,0,rn,rd,ror2,imm8)
 
 #define EOP_MOV_REG(s,   rd,shift_imm,shift_op,rm) EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
@@ -171,15 +173,6 @@ static void emit_mov_const(int cond, int d, unsigned int val)
 		EOP_C_DOP_IMM(cond, need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 0, val&0xff);
 }
 
-/*
-static void check_offset_12(unsigned int val)
-{
-	if (!(val & ~0xfff)) return;
-	printf("offset_12 overflow %04x\n", val);
-	exit(1);
-}
-*/
-
 static void check_offset_24(int val)
 {
 	if (val >= (int)0xff000000 && val <= 0x00ffffff) return;
@@ -187,35 +180,23 @@ static void check_offset_24(int val)
 	exit(1);
 }
 
-static void emit_call(void *target)
+static void emit_call(int cond, void *target)
 {
 	int val = (unsigned int *)target - tcache_ptr - 2;
 	check_offset_24(val);
 
-	EOP_BL(val & 0xffffff);			// bl target
+	EOP_C_B(cond,1,val & 0xffffff);			// bl target
 }
 
-static void emit_block_prologue(void)
+static void emit_jump(int cond, void *target)
 {
-	// nothing
+	int val = (unsigned int *)target - tcache_ptr - 2;
+	check_offset_24(val);
+
+	EOP_C_B(cond,0,val & 0xffffff);			// b target
 }
 
-static void emit_block_epilogue(int cycles)
-{
-	if (cycles > 0xff) { printf("large cycle count: %i\n", cycles); cycles = 0xff; }
-	EOP_SUB_IMM(11,11,0,cycles);		// sub r11, r11, #cycles
-#ifdef ARM
-	emit_call(ssp_drc_next);
-#endif
-}
-
-static void emit_pc_dump(int pc)
-{
-	emit_mov_const(A_COND_AL, 3, pc<<16);
-	EOP_STR_IMM(3,7,0x400+6*4);		// str r3, [r7, #(0x400+6*8)]
-}
-
-static void handle_caches()
+static void handle_caches(void)
 {
 #ifdef ARM
 	extern void flush_inval_caches(const void *start_addr, const void *end_addr);

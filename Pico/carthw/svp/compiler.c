@@ -22,8 +22,9 @@ extern ssp1601_t *ssp;
 #ifndef ARM
 #define DUMP_BLOCK 0x0c9a
 unsigned int tcache[512*1024];
-void regfile_load(void){}
-void regfile_store(void){}
+void ssp_drc_next(void){}
+void ssp_drc_next_patch(void){}
+void ssp_drc_end(void){}
 #endif
 
 #include "gen_arm.c"
@@ -343,7 +344,7 @@ static void tr_mov16_cond(int cond, int r, int val)
 	hostreg_r[r] = -1;
 }
 
-/* trashes r0 */
+/* trashes r1 */
 static void tr_flush_dirty_pmcrs(void)
 {
 	u32 i, val = (u32)-1;
@@ -756,7 +757,7 @@ static void tr_PMX_to_r0(int reg)
 	tr_flush_dirty_ST();
 	//tr_flush_dirty_pmcrs();
 	tr_mov16(0, reg);
-	emit_call(ssp_pm_read);
+	emit_call(A_COND_AL, ssp_pm_read);
 	hostreg_clear();
 }
 
@@ -906,9 +907,12 @@ static void tr_r0_to_STACK(int const_val)
 
 static void tr_r0_to_PC(int const_val)
 {
+/*
+ * do nothing - dispatcher will take care of this
 	EOP_MOV_REG_LSL(1, 0, 16);		// mov  r1, r0, lsl #16
 	EOP_STR_IMM(1,7,0x400+6*4);		// str  r1, [r7, #(0x400+6*8)]
 	hostreg_r[1] = -1;
+*/
 }
 
 static void tr_r0_to_AL(int const_val)
@@ -990,7 +994,7 @@ static void tr_r0_to_PMX(int reg)
 	tr_flush_dirty_ST();
 	//tr_flush_dirty_pmcrs();
 	tr_mov16(1, reg);
-	emit_call(ssp_pm_write);
+	emit_call(A_COND_AL, ssp_pm_write);
 	hostreg_clear();
 }
 
@@ -1166,7 +1170,7 @@ static int tr_detect_rotate(unsigned int op, int *pc, int imm)
 
 // -----------------------------------------------------
 
-static int translate_op(unsigned int op, int *pc, int imm)
+static int translate_op(unsigned int op, int *pc, int imm, int *end_cond, int *jump_pc)
 {
 	u32 tmpv, tmpv2, tmpv3;
 	int ret = 0;
@@ -1188,7 +1192,10 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			}
 			tr_read_funcs[tmpv](op);
 			tr_write_funcs[tmpv2]((known_regb & (1 << tmpv)) ? known_regs.gr[tmpv].h : -1);
-			if (tmpv2 == SSP_PC) ret |= 0x10000;
+			if (tmpv2 == SSP_PC) {
+				ret |= 0x10000;
+				*end_cond = -A_COND_AL;
+			}
 			ret++; break;
 
 		// ld d, (ri)
@@ -1202,7 +1209,10 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			     tr_rX_read(r, mod);
 			else tr_ptrr_mod(r, mod, 1, 1);
 			tr_write_funcs[tmpv](-1);
-			if (tmpv == SSP_PC) ret |= 0x10000;
+			if (tmpv == SSP_PC) {
+				ret |= 0x10000;
+				*end_cond = -A_COND_AL;
+			}
 			ret++; break;
 		}
 
@@ -1228,7 +1238,10 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			if (ret > 0) break;
 			tr_mov16(0, imm);
 			tr_write_funcs[tmpv](imm);
-			if (tmpv == SSP_PC) ret |= 0x10000;
+			if (tmpv == SSP_PC) {
+				ret |= 0x10000;
+				*jump_pc = imm;
+			}
 			ret += 2; break;
 
 		// ld d, ((ri))
@@ -1236,7 +1249,10 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			tmpv2 = (op >> 4) & 0xf;  // dst
 			tr_rX_read2(op);
 			tr_write_funcs[tmpv2](-1);
-			if (tmpv2 == SSP_PC) ret |= 0x10000;
+			if (tmpv2 == SSP_PC) {
+				ret |= 0x10000;
+				*end_cond = -A_COND_AL;
+			}
 			ret += 3; break;
 
 		// ldi (ri), imm
@@ -1321,11 +1337,12 @@ static int translate_op(unsigned int op, int *pc, int imm)
 				tcache_ptr = real_ptr;
 			}
 			tr_mov16_cond(tmpv, 0, imm);
-			if (tmpv != A_COND_AL) {
+			if (tmpv != A_COND_AL)
 				tr_mov16_cond(tr_neg_cond(tmpv), 0, *pc);
-			}
 			tr_r0_to_PC(tmpv == A_COND_AL ? imm : -1);
 			ret |= 0x10000;
+			*end_cond = tmpv;
+			*jump_pc = imm;
 			ret += 2; break;
 		}
 
@@ -1338,18 +1355,22 @@ static int translate_op(unsigned int op, int *pc, int imm)
 			EOP_LDRH_SIMPLE(0,0);					// ldrh r0, [r0]
 			hostreg_r[0] = hostreg_r[1] = -1;
 			tr_write_funcs[tmpv2](-1);
-			if (tmpv2 == SSP_PC) ret |= 0x10000;
+			if (tmpv2 == SSP_PC) {
+				ret |= 0x10000;
+				*end_cond = -A_COND_AL;
+			}
 			ret += 3; break;
 
 		// bra cond, addr
 		case 0x26:
 			tmpv = tr_cond_check(op);
 			tr_mov16_cond(tmpv, 0, imm);
-			if (tmpv != A_COND_AL) {
+			if (tmpv != A_COND_AL)
 				tr_mov16_cond(tr_neg_cond(tmpv), 0, *pc);
-			}
 			tr_r0_to_PC(tmpv == A_COND_AL ? imm : -1);
 			ret |= 0x10000;
+			*end_cond = tmpv;
+			*jump_pc = imm;
 			ret += 2; break;
 
 		// mod cond, op
@@ -1551,11 +1572,54 @@ static int translate_op(unsigned int op, int *pc, int imm)
 	return ret;
 }
 
+static void emit_block_prologue(void)
+{
+	// check if there are enough cycles..
+	// note: r0 must contain PC of current block
+	EOP_CMP_IMM(11,0,0);			// cmp r11, #0
+	emit_call(A_COND_LE, ssp_drc_end);
+}
+
+/* cond:
+ * >0: direct (un)conditional jump
+ * <0: indirect jump
+ */
+static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
+{
+	if (cycles > 0xff) { printf("large cycle count: %i\n", cycles); cycles = 0xff; }
+	EOP_SUB_IMM(11,11,0,cycles);		// sub r11, r11, #cycles
+
+	if (cond < 0 || (end_pc >= 0x400 && pc < 0x400)) {
+		// indirect jump, or rom -> iram jump, must use dispatcher
+		emit_jump(A_COND_AL, ssp_drc_next);
+	}
+	else if (cond == A_COND_AL) {
+		u32 *target = (pc < 0x400) ? block_table_iram[ssp->drc.iram_context][pc] : block_table[pc];
+		if (target != NULL)
+			emit_jump(A_COND_AL, target);
+		else {
+			emit_jump(A_COND_AL, ssp_drc_next);
+			// cause the next block to be emitted over jump instrction
+			tcache_ptr--;
+		}
+	}
+	else {
+		u32 *target1 = (pc < 0x400) ? block_table_iram[ssp->drc.iram_context][pc] : block_table[pc];
+		u32 *target2 = (end_pc < 0x400) ? block_table_iram[ssp->drc.iram_context][end_pc] : block_table[end_pc];
+		if (target1 != NULL)
+		     emit_jump(cond, target1);
+		else emit_call(cond, ssp_drc_next_patch);
+		if (target2 != NULL)
+		     emit_jump(tr_neg_cond(cond), target2); // neg_cond, to be able to swap jumps if needed
+		else emit_call(tr_neg_cond(cond), ssp_drc_next_patch);
+	}
+}
+
 void *ssp_translate_block(int pc)
 {
 	unsigned int op, op1, imm, ccount = 0;
 	unsigned int *block_start;
-	int ret, ret_prev = -1, tpc;
+	int ret, end_cond = A_COND_AL, jump_pc = -1;
 
 	printf("translate %04x -> %04x\n", pc<<1, (tcache_ptr-tcache)<<2);
 	block_start = tcache_ptr;
@@ -1574,31 +1638,28 @@ void *ssp_translate_block(int pc)
 
 		if ((op1 & 0xf) == 4 || (op1 & 0xf) == 6)
 			imm = PROGRAM(pc++); // immediate
-		tpc = pc;
 
-		ret = translate_op(op, &pc, imm);
+		ret = translate_op(op, &pc, imm, &end_cond, &jump_pc);
 		if (ret <= 0)
 		{
 			printf("NULL func! op=%08x (%02x)\n", op, op1);
 			exit(1);
 		}
-		else
-		{
-			ccount += ret & 0xffff;
-			if (ret & 0x10000) break;
-		}
 
-		ret_prev = ret;
+		ccount += ret & 0xffff;
+		if (ret & 0x10000) break;
 	}
 
-	if (ccount >= 100)
-		emit_pc_dump(pc);
+	if (ccount >= 100) {
+		end_cond = A_COND_AL;
+		jump_pc = pc;
+		emit_mov_const(A_COND_AL, 0, pc);
+	}
 
 	tr_flush_dirty_prs();
 	tr_flush_dirty_ST();
 	tr_flush_dirty_pmcrs();
-	emit_block_epilogue(ccount + 1);
-	*tcache_ptr++ = 0xffffffff; // end of block
+	emit_block_epilogue(ccount, end_cond, jump_pc, pc);
 
 	if (tcache_ptr - tcache > TCACHE_SIZE/4) {
 		printf("tcache overflow!\n");
@@ -1641,7 +1702,6 @@ int ssp1601_dyn_startup(void)
 	memset(block_table, 0, sizeof(block_table));
 	memset(block_table_iram, 0, sizeof(block_table_iram));
 	tcache_ptr = tcache;
-	*tcache_ptr++ = 0xffffffff;
 
 	PicoLoadStateHook = ssp1601_state_load;
 
@@ -1657,6 +1717,22 @@ int ssp1601_dyn_startup(void)
 
 void ssp1601_dyn_reset(ssp1601_t *ssp)
 {
+	// debug
+	{
+		int i, u;
+		FILE *f = fopen("tcache.bin", "wb");
+		fwrite(tcache, 1, (tcache_ptr - tcache)*4, f);
+		fclose(f);
+
+		for (i = 0; i < 0x5090/2; i++)
+			if (block_table[i])
+				printf("%06x -> __:%04x\n", (block_table[i] - tcache)*4, i<<1);
+		for (u = 1; u < 15; u++)
+			for (i = 0; i < 0x800/2; i++)
+				if (block_table_iram[u][i])
+					printf("%06x -> %02i:%04x\n", (block_table_iram[u][i] - tcache)*4, u, i<<1);
+	}
+
 	ssp1601_reset(ssp);
 	ssp->drc.iram_dirty = 1;
 	ssp->drc.iram_context = 0;
@@ -1666,6 +1742,9 @@ void ssp1601_dyn_reset(ssp1601_t *ssp)
 	ssp->drc.ptr_dram = (u32) svp->dram;
 	ssp->drc.ptr_btable = (u32) block_table;
 	ssp->drc.ptr_btable_iram = (u32) block_table_iram;
+
+	// prevent new versions of IRAM from appearing
+	memset(svp->iram_rom, 0, 0x800);
 }
 
 void ssp1601_dyn_run(int cycles)
