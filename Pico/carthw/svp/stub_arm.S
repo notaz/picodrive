@@ -12,6 +12,7 @@
 .global ssp_drc_next_patch
 .global ssp_drc_end
 .global ssp_hle_800
+.global ssp_hle_902
 
 @ translation cache buffer
 .text
@@ -51,7 +52,10 @@ flush_inval_caches:
 #define SSP_PC                  6
 #define SSP_P                   7
 #define SSP_PM0                 8
+#define SSP_PMC                14
+#define SSP_OFFS_PM_WRITE   0x46c // pmac_write[]
 #define SSP_OFFS_EMUSTAT    0x484 // emu_status
+#define SSP_OFFS_IRAM_ROM   0x48c // ptr_iram_rom
 #define SSP_OFFS_IRAM_DIRTY 0x494
 #define SSP_OFFS_IRAM_CTX   0x498 // iram_context
 #define SSP_OFFS_BLTAB      0x49c // block_table
@@ -239,13 +243,71 @@ ssp_hle_800:
     ldr     r0, [r7, #(SSP_OFFS_GR+SSP_PM0*4)]
     ldr     r1, [r7, #SSP_OFFS_EMUSTAT]
     tst     r0, #0x20000
-    orreq   r1, r1, #SSP_WAIT_PM0
+    orreq   r1, r1,  #SSP_WAIT_PM0
     subeq   r11,r11, #1024
     streq   r1, [r7, #SSP_OFFS_EMUSTAT]
     mov     r0,     #0x400
     beq     ssp_drc_end
     orrne   r0, r0, #0x004
-
     b       ssp_drc_next
 
+
+ssp_hle_902:
+    cmp     r11, #0
+    ble     ssp_drc_end
+
+    add     r1, r7, #0x200
+    ldrh    r0, [r1]
+    ldr     r3, [r7, #SSP_OFFS_IRAM_ROM]
+    add     r2, r3, r0, lsl #1			@ (r7|00)
+    ldrh    r0, [r2], #2
+    mov     r5, r5, lsl #16
+    mov     r5, r5, lsr #16
+    bic     r0, r0, #0xfc00
+    add     r3, r3, r0, lsl #1 			@ IRAM dest
+    ldrh    r12,[r2], #2			@ length
+    bic     r3, r3, #3				@ always seen aligned
+@    orr     r5, r5, #0x08000000
+@    orr     r5, r5, #0x00880000
+@    sub     r5, r5, r12, lsl #16
+    bic     r6, r6, #0xf
+    add     r12,r12,#1
+    mov     r0, #1
+    str     r0, [r7, #SSP_OFFS_IRAM_DIRTY]
+    sub     r11,r11,r12,lsl #1
+    sub     r11,r11,r12				@ -= length*3
+
+ssp_hle_902_loop:
+    ldrh    r0, [r2], #2
+    ldrh    r1, [r2], #2
+    subs    r12,r12,#2
+    orr     r0, r0, r1, lsl #16
+    str     r0, [r3], #4
+    bgt     ssp_hle_902_loop
+
+    tst     r12, #1
+    ldrneh  r0, [r2], #2
+    strneh  r0, [r3], #2
+
+    ldr     r0, [r7, #SSP_OFFS_IRAM_ROM]
+    add     r1, r7, #0x200
+    sub     r2, r2, r0
+    mov     r2, r2, lsr #1
+    strh    r2, [r1]				@ (r7|00)
+
+    sub     r0, r3, r0
+    mov     r0, r0, lsr #1
+    orr     r0, r0, #0x08000000
+    orr     r0, r0, #0x001c8000
+    str     r0, [r7, #(SSP_OFFS_GR+SSP_PMC*4)]
+    str     r0, [r7, #(SSP_OFFS_PM_WRITE+4*4)]
+
+    sub     r6, r6, #0x20000000
+    add     r1, r7, #0x400
+    add     r1, r1, #0x048			@ stack
+    add     r1, r1, r6, lsr #28
+    ldrh    r0, [r1]
+    subs    r11,r11,#16				@ timeslice is likely to end
+    ble     ssp_drc_end
+    b       ssp_drc_next
 

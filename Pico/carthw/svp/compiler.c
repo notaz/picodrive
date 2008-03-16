@@ -1705,10 +1705,11 @@ int ssp1601_dyn_startup(void)
 
 	PicoLoadStateHook = ssp1601_state_load;
 
+	n_in_ops = 0;
 #ifdef ARM
 	// hle'd blocks
 	block_table[0x400] = (void *) ssp_hle_800;
-	n_in_ops = 3; // # of hled ops
+	block_table[0x902/2] = (void *) ssp_hle_902;
 #endif
 
 	return 0;
