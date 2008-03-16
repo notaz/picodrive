@@ -42,7 +42,7 @@ static int get_inc(int mode)
 	return inc;
 }
 
-static u32 ssp_pm_read(int reg)
+u32 ssp_pm_read(int reg)
 {
 	u32 d = 0, mode;
 
@@ -84,7 +84,7 @@ static u32 ssp_pm_read(int reg)
 	if (d & 0x000f) { dst &= ~0x000f; dst |= d & 0x000f; } \
 }
 
-static void ssp_pm_write(u32 d, int reg)
+void ssp_pm_write(u32 d, int reg)
 {
 	unsigned short *dram;
 	int mode, addr;
@@ -231,7 +231,7 @@ static void hostreg_sspreg_changed(int sspreg)
 #define PROGRAM(x)   ((unsigned short *)svp->iram_rom)[x]
 #define PROGRAM_P(x) ((unsigned short *)svp->iram_rom + (x))
 
-static void tr_unhandled(void)
+void tr_unhandled(void)
 {
 	FILE *f = fopen("tcache.bin", "wb");
 	fwrite(tcache, 1, (tcache_ptr - tcache)*4, f);
@@ -1708,8 +1708,14 @@ int ssp1601_dyn_startup(void)
 	n_in_ops = 0;
 #ifdef ARM
 	// hle'd blocks
-	block_table[0x400] = (void *) ssp_hle_800;
+	block_table[0x800/2] = (void *) ssp_hle_800;
 	block_table[0x902/2] = (void *) ssp_hle_902;
+//	block_table_iram[ 7][0x030/2] = (void *) ssp_hle_07_030;
+//	block_table_iram[ 7][0x036/2] = (void *) ssp_hle_07_036;
+	block_table_iram[ 7][0x6d6/2] = (void *) ssp_hle_07_6d6;
+	block_table_iram[11][0x12c/2] = (void *) ssp_hle_11_12c;
+	block_table_iram[11][0x384/2] = (void *) ssp_hle_11_384;
+	block_table_iram[11][0x38a/2] = (void *) ssp_hle_11_38a;
 #endif
 
 	return 0;

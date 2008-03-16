@@ -13,6 +13,12 @@
 .global ssp_drc_end
 .global ssp_hle_800
 .global ssp_hle_902
+.global ssp_hle_07_030
+.global ssp_hle_07_036
+.global ssp_hle_07_6d6
+.global ssp_hle_11_12c
+.global ssp_hle_11_384
+.global ssp_hle_11_38a
 
 @ translation cache buffer
 .text
@@ -56,6 +62,7 @@ flush_inval_caches:
 #define SSP_OFFS_PM_WRITE   0x46c // pmac_write[]
 #define SSP_OFFS_EMUSTAT    0x484 // emu_status
 #define SSP_OFFS_IRAM_ROM   0x48c // ptr_iram_rom
+#define SSP_OFFS_DRAM       0x490 // ptr_dram
 #define SSP_OFFS_IRAM_DIRTY 0x494
 #define SSP_OFFS_IRAM_CTX   0x498 // iram_context
 #define SSP_OFFS_BLTAB      0x49c // block_table
@@ -252,6 +259,20 @@ ssp_hle_800:
     b       ssp_drc_next
 
 
+.macro hle_flushflags
+    bic     r6, r6, #0xf
+    mrs     r1, cpsr
+    orr     r6, r6, r1, lsr #28 
+.endm
+
+.macro hle_popstack
+    sub     r6, r6, #0x20000000
+    add     r1, r7, #0x400
+    add     r1, r1, #0x048			@ stack
+    add     r1, r1, r6, lsr #28
+    ldrh    r0, [r1]
+.endm
+
 ssp_hle_902:
     cmp     r11, #0
     ble     ssp_drc_end
@@ -302,12 +323,265 @@ ssp_hle_902_loop:
     str     r0, [r7, #(SSP_OFFS_GR+SSP_PMC*4)]
     str     r0, [r7, #(SSP_OFFS_PM_WRITE+4*4)]
 
-    sub     r6, r6, #0x20000000
-    add     r1, r7, #0x400
-    add     r1, r1, #0x048			@ stack
-    add     r1, r1, r6, lsr #28
-    ldrh    r0, [r1]
+    hle_popstack
     subs    r11,r11,#16				@ timeslice is likely to end
     ble     ssp_drc_end
     b       ssp_drc_next
+
+
+@ this one is car rendering related
+.macro hle_11_12c_mla offs_in
+    ldrsh   r5, [r7, #(\offs_in+0)]
+    ldrsh   r0, [r7, #(\offs_in+2)]
+    ldrsh   r1, [r7, #(\offs_in+4)]
+    mul     r5, r2, r5
+    ldrsh   r12,[r7, #(\offs_in+6)]
+    mla     r5, r3, r0, r5
+    mla     r5, r4, r1, r5
+    add     r5, r5, r12,lsl #11
+
+    movs    r5, r5, lsr #13
+    add     r1, r7, r8, lsr #23
+    strh    r5, [r1]
+    add     r8, r8, #(1<<24)
+.endm
+
+ssp_hle_11_12c:
+    cmp     r11, #0
+    ble     ssp_drc_end
+
+    mov     r0, #0
+    bl      ssp_pm_read
+    mov     r4, r0
+
+    mov     r0, #0
+    bl      ssp_pm_read
+    mov     r5, r0
+
+    mov     r0, #0
+    bl      ssp_pm_read
+
+    mov     r2, r4, lsl #16
+    mov     r2, r2, asr #15			@ (r7|00) << 1
+    mov     r3, r5, lsl #16
+    mov     r3, r3, asr #15			@ (r7|01) << 1
+    mov     r4, r0, lsl #16
+    mov     r4, r4, asr #15			@ (r7|10) << 1
+
+    bic     r8, r8, #0xff
+    mov     r8, r8, ror #16
+
+    hle_11_12c_mla 0x20
+    hle_11_12c_mla 0x28
+    hle_11_12c_mla 0x30
+
+    mov     r8, r8, ror #16
+    orr     r8, r8, #0x1c
+@    hle_flushflags
+    hle_popstack
+    sub     r11,r11,#33
+    b       ssp_drc_next
+
+
+ssp_hle_11_384:
+    mov     r3, #2
+    b       ssp_hle_11_38x
+
+ssp_hle_11_38a:
+    mov     r3, #3		@ r5
+
+ssp_hle_11_38x:
+    cmp     r11, #0
+    ble     ssp_drc_end
+
+    mov     r2, #0		@ EFh, EEh
+    mov     r1, #1		@ r4
+    add     r0, r7, #0x1c0	@ r0 (based)
+
+ssp_hle_11_38x_loop:
+    ldrh    r5, [r0], #2
+    ldr     r12,[r7, #0x224]
+    mov     r5, r5, lsl #16
+    eor     r5, r5, r5, asr #31
+    add     r5, r5, r5, lsr #31	@ abs(r5)
+    cmp     r5, r12,lsl #16
+    orrpl   r2, r2, r1,lsl #16	@ EFh |= r4
+
+    ldrh    r5, [r0, #2]!
+    ldr     r12,[r7, #0x220]
+    cmp     r5, r12,lsr #16
+    orrpl   r2, r2, r1,lsl #16	@ EFh |= r4
+
+    ldr     r12,[r7, #0x1e8]
+    add     r0, r0, #2
+    mov     r12,r12,lsl #16
+    cmp     r5, r12,lsr #16
+    orrmi   r2, r2, r1
+
+    mov     r1, r1, lsl #1
+    subs    r3, r3, #1
+    bpl     ssp_hle_11_38x_loop
+
+    str     r2, [r7, #0x1dc]
+    sub     r0, r0, r7
+    bic     r8, r8, #0xff
+    orr     r8, r8, r0, lsr #1
+    bic     r9, r9, #0xff
+    orr     r9, r9, r1
+
+@    hle_flushflags
+    hle_popstack
+    sub     r11,r11,#(9+30*4)
+    b       ssp_drc_next
+
+
+ssp_hle_07_6d6:
+    cmp     r11, #0
+    ble     ssp_drc_end
+
+    ldr     r1, [r7, #0x20c]
+    and     r0, r8, #0xff	@ assuming alignment
+    add     r0, r7, r0, lsl #1
+    mov     r2, r1, lsr #16
+    mov     r1, r1, lsl #16	@ 106h << 16
+    mov     r2, r2, lsl #16	@ 107h << 16
+
+ssp_hle_07_6d6_loop:
+    ldr     r5, [r0], #4
+    tst     r5, r5
+    bmi     ssp_hle_07_6d6_end
+    mov     r5, r5, lsl #16
+    cmp     r5, r1
+    movmi   r1, r5
+    cmp     r5, r2
+    sub     r11,r11,#16
+    bmi     ssp_hle_07_6d6_loop
+    mov     r2, r5
+    b       ssp_hle_07_6d6_loop
+
+ssp_hle_07_6d6_end:
+    sub     r0, r0, r7
+    mov     r0, r0, lsr #1
+    bic     r8, r8, #0xff
+    orr     r8, r8, r0
+    orr     r1, r2, r1, lsr #16
+    str     r1, [r7, #0x20c]
+    hle_popstack
+    sub     r11,r11,#6
+    b       ssp_drc_next
+
+
+ssp_hle_07_030:
+    ldrh    r0, [r7]
+    mov     r0, r0, lsl #4
+    orr     r0, r0, r0, lsr #16
+    strh    r0, [r7]
+    sub     r11,r11,#3
+
+ssp_hle_07_036:
+    ldr     r1, [r7, #0x1e0]
+    rsb     r5, r1, r1, lsr #16
+    mov     r5, r5, lsl #16	@ ?
+    cmp     r5, #(4<<16)
+    sub     r11,r11,#5
+    bmi     hle_07_036_ending2
+    ldr     r1, [r7, #0x1dc]
+    cmp     r5, r1, lsl #16
+    bpl     hle_07_036_ret
+    mov     r0, r5, lsr #16	@ F5h
+    add     r1, r7, #0x100
+    strh    r0, [r1, #0xea]
+    ldr     r0, [r7, #0x1e0]
+    and     r0, r0, #3
+    strh    r0, [r1, #0xf0]
+    add     r2, r0, #0xc0
+    add     r2, r7, r2, lsl #1
+    ldrh    r2, [r2]
+    ldr     r0, [r7]
+    mov     r1, #4
+    and     r0, r0, r2
+    bl      ssp_pm_write
+    @ will handle PMC later
+    ldr     r0, [r7, #0x1e8]
+    ldr     r1, [r7, #0x1f0]
+    sub     r0, r0, #(3<<16)
+    add     r0, r0, r1, lsl #16
+    ldr     r1, [r7, #0x1d4]
+    sub     r0, r1, r0, lsr #18
+    and     r0, r0, #0x7f
+    rsbs    r0, r0, #0x78	@ length
+    ble     hle_07_036_ending1
+
+    ldr     r1, [r7, #(SSP_OFFS_GR+SSP_PMC*4)]
+    ldr     r2, [r7, #SSP_OFFS_DRAM]
+    mov     r1, r1, lsl #16
+    add     r1, r2, r1, lsr #15	@ addr (based)
+    ldrh    r2, [r7, #0]	@ pattern
+    ldrh    r3, [r7, #6]	@ mode
+
+    mov     r12,    #0x4000
+    orr     r12,r12,#0x0018
+    bic     r5, r3, #0x0400
+    cmp     r5, r12
+    bne     tr_unhandled
+
+    orr     r2, r2, r2, lsl #16
+    tst     r3, #0x400
+    bne     hle_07_036_ovrwr
+
+    tst     r1, #2
+    strne   r2, [r1], #0x62	@ align
+    subne   r0, r0, #1
+    cmp     r0, #4
+    blt     hle_07_036_l2
+
+hle_07_036_l1:
+    subs    r0, r0, #4
+    str     r2, [r1], #0x64
+    str     r2, [r1], #0x64
+    bgt     hle_07_036_l1
+
+hle_07_036_l2:
+    tst     r0, #2
+    strne   r2, [r1], #0x64
+    tst     r0, #1
+    strneh  r2, [r1], #2
+    b       hle_07_036_ending1
+
+hle_07_036_ovrwr:
+    @ TODO
+
+hle_07_036_ending1:
+    ldr     r0, [r7, #0x1e0]
+    add     r0, r0, #(1<<16)
+    and     r0, r0, #(3<<16)
+    add     r0, r0, #(0xc4<<16)
+    bic     r8, r8, #0xff0000
+    orr     r8, r8, r0
+    add     r0, r7, r0, lsl #1
+    ldrh    r0, [r0]
+    ldr     r2, [r7]
+    and     r5, r0, r2
+    movs    r5, r5, lsl #16
+
+    ldrh    r3, [r7, #4]	@ new mode
+    sub     r0, r1, r7          @ new addr
+    mov     r0, r0, lsr #1
+    orr     r0, r0, r3, lsl #16
+    str     r0, [r7, #(SSP_OFFS_PM_WRITE+4*4)]
+    mov     r0, r5, lsr #16
+    mov     r1, #4
+    bl      ssp_pm_write
+
+hle_07_036_ret:
+    hle_popstack
+    b       ssp_drc_next
+
+hle_07_036_ending2:
+    sub     r11,r11,#3
+    movs    r5, r5, lsl #1
+    bmi     hle_07_036_ret
+    mov     r0,     #0x100
+    orr     r0, r0, #0x00e
+    b       ssp_drc_next	@ let the dispatcher finish this
 
