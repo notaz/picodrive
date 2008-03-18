@@ -115,7 +115,7 @@ void ssp_pm_write(u32 d, int reg)
 		if (mode & 0x0400) {
 		       overwrite_write(dram[addr], d);
 		} else dram[addr] = d;
-		ssp->pmac_write[reg] += (addr&1) ? 31 : 1;
+		ssp->pmac_write[reg] += (addr&1) ? 0x1f : 1;
 	}
 	else if ((mode & 0x47ff) == 0x001c) // IRAM
 	{
@@ -1710,8 +1710,8 @@ int ssp1601_dyn_startup(void)
 	// hle'd blocks
 	block_table[0x800/2] = (void *) ssp_hle_800;
 	block_table[0x902/2] = (void *) ssp_hle_902;
-//	block_table_iram[ 7][0x030/2] = (void *) ssp_hle_07_030;
-//	block_table_iram[ 7][0x036/2] = (void *) ssp_hle_07_036;
+	block_table_iram[ 7][0x030/2] = (void *) ssp_hle_07_030;
+	block_table_iram[ 7][0x036/2] = (void *) ssp_hle_07_036;
 	block_table_iram[ 7][0x6d6/2] = (void *) ssp_hle_07_6d6;
 	block_table_iram[11][0x12c/2] = (void *) ssp_hle_11_12c;
 	block_table_iram[11][0x384/2] = (void *) ssp_hle_11_384;
