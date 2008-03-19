@@ -13,7 +13,7 @@
 #endif
 
 svp_t *svp = NULL;
-int PicoSVPCycles = 1000; // cycles/line
+int PicoSVPCycles = 820; // cycles/line, just a guess
 
 /* save state stuff */
 typedef enum {

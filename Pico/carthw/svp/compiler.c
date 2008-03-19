@@ -277,6 +277,14 @@ static void tr_flush_dirty_prs(void)
 {
 	int i, ror = 0, reg;
 	int dirty = dirty_regb >> 8;
+	if ((dirty&7) == 7) {
+		emit_mov_const(A_COND_AL, 8, known_regs.r[0]|(known_regs.r[1]<<8)|(known_regs.r[2]<<16));
+		dirty &= ~7;
+	}
+	if ((dirty&0x70) == 0x70) {
+		emit_mov_const(A_COND_AL, 9, known_regs.r[4]|(known_regs.r[5]<<8)|(known_regs.r[6]<<16));
+		dirty &= ~0x70;
+	}
 	/* r0-r7 */
 	for (i = 0; dirty && i < 8; i++, dirty >>= 1)
 	{
@@ -557,6 +565,69 @@ static void tr_rX_read2(int op)
 	EOP_LDRH_SIMPLE(0,2);					// ldrh r0, [r2]
 	hostreg_r[0] = hostreg_r[2] = -1;
 }
+
+// check if AL is going to be used later in block
+static int tr_predict_al_need(void)
+{
+	int tmpv, tmpv2, op, pc = known_regs.gr[SSP_PC].h;
+
+	while (1)
+	{
+		op = PROGRAM(pc);
+		switch (op >> 9)
+		{
+			// ld d, s
+			case 0x00:
+				tmpv2 = (op >> 4) & 0xf; // dst
+				tmpv  = op & 0xf; // src
+				if ((tmpv2 == SSP_A && tmpv == SSP_P) || tmpv2 == SSP_AL) // ld A, P; ld AL, *
+					return 0;
+				break;
+
+			// ld (ri), s
+			case 0x02:
+			// ld ri, s
+			case 0x0a:
+			// OP a, s
+			case 0x10: case 0x30: case 0x40: case 0x60: case 0x70:
+				tmpv  = op & 0xf; // src
+				if (tmpv == SSP_AL) // OP *, AL
+					return 1;
+				break;
+
+			case 0x04:
+			case 0x06:
+			case 0x14:
+			case 0x34:
+			case 0x44:
+			case 0x64:
+			case 0x74: pc++; break;
+
+			// call cond, addr
+			case 0x24:
+			// bra cond, addr
+			case 0x26:
+			// mod cond, op
+			case 0x48:
+			// mpys?
+			case 0x1b:
+			// mpya (rj), (ri), b
+			case 0x4b: return 1;
+
+			// mld (rj), (ri), b
+			case 0x5b: return 0; // cleared anyway
+
+			// and A, *
+			case 0x50:
+				tmpv  = op & 0xf; // src
+				if (tmpv == SSP_AL) return 1;
+			case 0x51: case 0x53: case 0x54: case 0x55: case 0x59: case 0x5c:
+				return 0;
+		}
+		pc++;
+	}
+}
+
 
 /* get ARM cond which would mean that SSP cond is satisfied. No trash. */
 static int tr_cond_check(int op)
@@ -877,9 +948,13 @@ static void tr_r0_to_Y(int const_val)
 
 static void tr_r0_to_A(int const_val)
 {
-	EOP_MOV_REG_LSL(5, 5, 16);		// mov  r5, r5, lsl #16
-	EOP_MOV_REG_LSR(5, 5, 16);		// mov  r5, r5, lsr #16  @ AL
-	EOP_ORR_REG_LSL(5, 5, 0, 16);		// orr  r5, r5, r0, lsl #16
+	if (tr_predict_al_need()) {
+		EOP_MOV_REG_LSL(5, 5, 16);	// mov  r5, r5, lsl #16
+		EOP_MOV_REG_LSR(5, 5, 16);	// mov  r5, r5, lsr #16  @ AL
+		EOP_ORR_REG_LSL(5, 5, 0, 16);	// orr  r5, r5, r0, lsl #16
+	}
+	else
+		EOP_MOV_REG_LSL(5, 0, 16);
 	TR_WRITE_R0_TO_REG(SSP_A);
 }
 
@@ -1206,8 +1281,15 @@ static int translate_op(unsigned int op, int *pc, int imm, int *end_cond, int *j
 			ret = tr_detect_rotate(op, pc, imm);
 			if (ret > 0) break;
 			if (tmpv != 0)
-			     tr_rX_read(r, mod);
-			else tr_ptrr_mod(r, mod, 1, 1);
+				tr_rX_read(r, mod);
+			else {
+				int cnt = 1;
+				while (PROGRAM(*pc) == op) {
+					(*pc)++; cnt++; ret++;
+					n_in_ops++;
+				}
+				tr_ptrr_mod(r, mod, 1, cnt); // skip
+			}
 			tr_write_funcs[tmpv](-1);
 			if (tmpv == SSP_PC) {
 				ret |= 0x10000;
