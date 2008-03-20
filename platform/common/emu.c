@@ -34,7 +34,7 @@
  #define SCREEN_BUFFER psp_screen
 #endif
 
-char *PicoConfigFile = "picoconfig.cfg";
+char *PicoConfigFile = "config.cfg";
 currentConfig_t currentConfig, defaultConfig;
 int rom_loaded = 0;
 char noticeMsg[64];
@@ -246,9 +246,9 @@ char *emu_makeRomId(void)
 	}
 	pos = 3;
 
-	pos += extract_text(id_string + pos, id_header + 0x80, 0x10, 1); // seral
+	pos += extract_text(id_string + pos, id_header + 0x80, 0x0e, 1); // serial
 	id_string[pos] = '|'; pos++;
-	pos += extract_text(id_string + pos, id_header + 0xf0, 0x10, 1); // region
+	pos += extract_text(id_string + pos, id_header + 0xf0, 0x03, 1); // region
 	id_string[pos] = '|'; pos++;
 	pos += extract_text(id_string + pos, id_header + 0x50, 0x30, 1); // overseas name
 	id_string[pos] = 0;
@@ -548,6 +548,7 @@ int emu_ReadConfig(int game, int no_defaults)
 		}
 		else
 		{
+			lprintf("loaded cf from game sect\n");
 		}
 	}
 

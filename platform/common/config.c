@@ -8,6 +8,7 @@
 #include "config.h"
 #include "menu.h"
 #include "emu.h"
+#include "lprintf.h"
 #include <Pico/Pico.h>
 
 extern menu_entry opt_entries[];
@@ -44,14 +45,14 @@ static int seek_sect(FILE *f, const char *section)
 }
 
 
-static void custom_write(FILE *f, const menu_entry *me)
+static void custom_write(FILE *f, const menu_entry *me, int no_def)
 {
 	char *str, str24[24];
 
 	switch (me->id)
 	{
 		case MA_OPT_RENDERER:
-			if (!((defaultConfig.s_PicoOpt^PicoOpt)&0x10) &&
+			if (no_def && !((defaultConfig.s_PicoOpt^PicoOpt)&0x10) &&
 				!((defaultConfig.EmuOpt^currentConfig.EmuOpt)&0x80)) return;
 			if (PicoOpt&0x10)
 				str = "8bit fast";
@@ -63,7 +64,7 @@ static void custom_write(FILE *f, const menu_entry *me)
 			break;
 
 		case MA_OPT_SCALING:
-			if (defaultConfig.scaling == currentConfig.scaling) return;
+			if (no_def && defaultConfig.scaling == currentConfig.scaling) return;
 			switch (currentConfig.scaling) {
 				default: str = "OFF"; break;
 				case 1:  str = "hw horizontal";     break;
@@ -73,25 +74,25 @@ static void custom_write(FILE *f, const menu_entry *me)
 			fprintf(f, "Scaling = %s", str);
 			break;
 		case MA_OPT_FRAMESKIP:
-			if (defaultConfig.Frameskip == currentConfig.Frameskip) return;
+			if (no_def && defaultConfig.Frameskip == currentConfig.Frameskip) return;
 			if (currentConfig.Frameskip < 0)
 			     strcpy(str24, "Auto");
 			else sprintf(str24, "%i", currentConfig.Frameskip);
 			fprintf(f, "Frameskip = %s", str24);
 			break;
 		case MA_OPT_SOUND_QUALITY:
-			if (!((defaultConfig.s_PicoOpt^PicoOpt)&8) && 
+			if (no_def && !((defaultConfig.s_PicoOpt^PicoOpt)&8) &&
 				defaultConfig.s_PsndRate == PsndRate) return;
 			str = (PicoOpt&0x08)?"stereo":"mono";
 			fprintf(f, "Sound Quality = %i %s", PsndRate, str);
 			break;
 		case MA_OPT_REGION:
-			if (defaultConfig.s_PicoRegion == PicoRegionOverride &&
+			if (no_def && defaultConfig.s_PicoRegion == PicoRegionOverride &&
 				defaultConfig.s_PicoAutoRgnOrder == PicoAutoRgnOrder) return;
 			fprintf(f, "Region = %s", me_region_name(PicoRegionOverride, PicoAutoRgnOrder));
 			break;
 		case MA_OPT_CONFIRM_STATES:
-			if (!((defaultConfig.EmuOpt^currentConfig.EmuOpt)&(5<<9))) return;
+			if (no_def && !((defaultConfig.EmuOpt^currentConfig.EmuOpt)&(5<<9))) return;
 			switch ((currentConfig.EmuOpt >> 9) & 5) {
 				default: str = "OFF";    break;
 				case 1:  str = "writes"; break;
@@ -101,40 +102,77 @@ static void custom_write(FILE *f, const menu_entry *me)
 			fprintf(f, "Confirm savestate = %s", str);
 			break;
 		case MA_OPT_CPU_CLOCKS:
-			if (defaultConfig.CPUclock == currentConfig.CPUclock) return;
+			if (no_def && defaultConfig.CPUclock == currentConfig.CPUclock) return;
 			fprintf(f, "GP2X CPU clocks = %i", currentConfig.CPUclock);
 			break;
 		case MA_OPT2_GAMMA:
-			if (defaultConfig.gamma == currentConfig.gamma) return;
+			if (no_def && defaultConfig.gamma == currentConfig.gamma) return;
 			fprintf(f, "Gamma correction = %.3f", (double)currentConfig.gamma / 100.0);
 			break;
 		case MA_OPT2_SQUIDGEHACK:
-			if (!((defaultConfig.EmuOpt^currentConfig.EmuOpt)&0x0010)) return;
+			if (no_def && !((defaultConfig.EmuOpt^currentConfig.EmuOpt)&0x0010)) return;
 			fprintf(f, "Squidgehack = %i", (currentConfig.EmuOpt&0x0010)>>4);
 			break;
 		case MA_CDOPT_READAHEAD:
-			if (defaultConfig.s_PicoCDBuffers == PicoCDBuffers) return;
+			if (no_def && defaultConfig.s_PicoCDBuffers == PicoCDBuffers) return;
 			sprintf(str24, "%i", PicoCDBuffers * 2);
 			fprintf(f, "ReadAhead buffer = %s", str24);
 			break;
 
 		default:
-			printf("unhandled custom_write: %i\n", me->id);
+			lprintf("unhandled custom_write: %i\n", me->id);
 			return;
 	}
 	fprintf(f, NL);
 }
 
+static int default_var(const menu_entry *me)
+{
+	switch (me->id)
+	{
+		case MA_OPT_ACC_TIMING:
+		case MA_OPT_ACC_SPRITES:
+		case MA_OPT_ARM940_SOUND:
+		case MA_OPT_6BUTTON_PAD:
+		case MA_OPT2_ENABLE_Z80:
+		case MA_OPT2_ENABLE_YM2612:
+		case MA_OPT2_ENABLE_SN76496:
+		case MA_CDOPT_CDDA:
+		case MA_CDOPT_PCM:
+		case MA_CDOPT_SAVERAM:
+		case MA_CDOPT_SCALEROT_CHIP:
+		case MA_CDOPT_BETTER_SYNC:
+			return defaultConfig.s_PicoOpt;
+
+		case MA_OPT_SHOW_FPS:
+		case MA_OPT_ENABLE_SOUND:
+		case MA_OPT_SRAM_STATES:
+		case MA_OPT2_A_SN_GAMMA:
+		case MA_OPT2_VSYNC:
+		case MA_OPT2_GZIP_STATES:
+		case MA_OPT2_NO_LAST_ROM:
+		case MA_OPT2_RAMTIMINGS:
+		case MA_CDOPT_LEDS:
+			return defaultConfig.EmuOpt;
+
+		case MA_OPT_SAVE_SLOT:
+		default:
+			return 0;
+	}
+}
 
 int config_writesect(const char *fname, const char *section)
 {
 	FILE *fo = NULL, *fn = NULL; // old and new
+	int no_defaults = 0; // avoid saving defaults
 	menu_entry *me;
 	int t, i, tlen, ret;
 	char line[128], *tmp;
 
 	if (section != NULL)
 	{
+		no_defaults = 1;
+
 		fo = fopen(fname, "r");
 		if (fo == NULL) {
 			fn = fopen(fname, "w");
@@ -205,11 +243,14 @@ write:
 		{
 			if (!me->need_to_save) continue;
 			if ((me->beh != MB_ONOFF && me->beh != MB_RANGE) || me->name == NULL)
-				custom_write(fn, me);
-			else if (me->beh == MB_ONOFF)
-				fprintf(fn, "%s = %i" NL, me->name, (*(int *)me->var & me->mask) ? 1 : 0);
-			else if (me->beh == MB_RANGE)
-				fprintf(fn, "%s = %i" NL, me->name, *(int *)me->var);
+				custom_write(fn, me, no_defaults);
+			else if (me->beh == MB_ONOFF) {
+				if (!no_defaults || ((*(int *)me->var ^ default_var(me)) & me->mask))
+					fprintf(fn, "%s = %i" NL, me->name, (*(int *)me->var & me->mask) ? 1 : 0);
+			} else if (me->beh == MB_RANGE) {
+				if (!no_defaults || ((*(int *)me->var ^ default_var(me)) & me->mask))
+					fprintf(fn, "%s = %i" NL, me->name, *(int *)me->var);
+			}
 		}
 	}
 	fprintf(fn, NL);
@@ -360,7 +401,9 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 				const char *p = val + 5, *end = val + strlen(val);
 				int i;
 				PicoRegionOverride = PicoAutoRgnOrder = 0;
-				for (i = 0; p < end && i < 3; p += 3, i++) {
+				for (i = 0; p < end && i < 3; i++)
+				{
+					while (*p == ' ') p++;
 					if        (p[0] == 'J' && p[1] == 'P') {
 						PicoAutoRgnOrder |= 1 << (i*4);
 					} else if (p[0] == 'U' && p[1] == 'S') {
@@ -368,6 +411,8 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 					} else if (p[0] == 'E' && p[1] == 'U') {
 						PicoAutoRgnOrder |= 8 << (i*4);
 					}
+					while (*p != ' ' && *p != 0) p++;
+					if (*p == 0) break;
 				}
 			}
 			else   if (strcasecmp(val, "Auto") == 0) {
@@ -430,7 +475,7 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 				currentConfig.lastRomFile[tmpi-1] = 0;
 				return 1;
 			}
-			printf("unhandled custom_read: %i\n", me->id);
+			lprintf("unhandled custom_read: %i\n", me->id);
 			return 0;
 	}
 }
@@ -466,7 +511,7 @@ static void parse(const char *var, const char *val)
 			ret = custom_read(me, var, val);
 		}
 	}
-	if (!ret) printf("config_readsect: unhandled var: %s\n", var);
+	if (!ret) lprintf("config_readsect: unhandled var: %s\n", var);
 }
 
 
@@ -482,7 +527,7 @@ int config_readsect(const char *fname, const char *section)
 	{
 		ret = seek_sect(f, section);
 		if (!ret) {
-			printf("config_readsect: %s: missing section [%s]\n", fname, section);
+			lprintf("config_readsect: %s: missing section [%s]\n", fname, section);
 			fclose(f);
 			return -1;
 		}
@@ -507,7 +552,7 @@ int config_readsect(const char *fname, const char *section)
 		for (i = 0; i < len; i++)
 			if (line[i] == '=') break;
 		if (i >= len || strchr(&line[i+1], '=') != NULL) {
-			printf("config_readsect: can't parse: %s\n", line);
+			lprintf("config_readsect: can't parse: %s\n", line);
 			continue;
 		}
 		line[i] = 0;
@@ -516,7 +561,7 @@ int config_readsect(const char *fname, const char *section)
 		mystrip(var);
 		mystrip(val);
 		if (strlen(var) == 0 || strlen(val) == 0) {
-			printf("config_readsect: something's empty: \"%s\" = \"%s\"\n", var, val);
+			lprintf("config_readsect: something's empty: \"%s\" = \"%s\"\n", var, val);
 			continue;
 		}
 
