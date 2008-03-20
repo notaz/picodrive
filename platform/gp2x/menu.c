@@ -846,7 +846,7 @@ static void kc_sel_loop(void)
 {
 	int menu_sel = 3, menu_sel_max = 3;
 	unsigned long inp = 0;
-	int is_6button = currentConfig.PicoOpt & 0x020;
+	int is_6button = PicoOpt & 0x020;
 
 	while (1)
 	{
@@ -873,19 +873,20 @@ static void kc_sel_loop(void)
 
 menu_entry cdopt_entries[] =
 {
-	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_USA, NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_EUR, NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_JAP, NULL, 0, 0, 0, 1 },
-	{ "CD LEDs",                   MB_ONOFF, MA_CDOPT_LEDS,         &currentConfig.EmuOpt,  0x0400, 0, 0, 1 },
-	{ "CDDA audio (using mp3s)",   MB_ONOFF, MA_CDOPT_CDDA,         &currentConfig.PicoOpt, 0x0800, 0, 0, 1 },
-	{ "PCM audio",                 MB_ONOFF, MA_CDOPT_PCM,          &currentConfig.PicoOpt, 0x0400, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_CDOPT_READAHEAD,    NULL, 0, 0, 0, 1 },
-	{ "SaveRAM cart",              MB_ONOFF, MA_CDOPT_SAVERAM,      &currentConfig.PicoOpt, 0x8000, 0, 0, 1 },
-	{ "Scale/Rot. fx (slow)",      MB_ONOFF, MA_CDOPT_SCALEROT_CHIP,&currentConfig.PicoOpt, 0x1000, 0, 0, 1 },
-	{ "Better sync (slow)",        MB_ONOFF, MA_CDOPT_BETTER_SYNC,  &currentConfig.PicoOpt, 0x2000, 0, 0, 1 },
-	{ "done",                      MB_NONE,  MA_CDOPT_DONE,         NULL, 0, 0, 0, 1 },
+	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_USA, NULL, 0, 0, 0, 1, 0 },
+	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_EUR, NULL, 0, 0, 0, 1, 0 },
+	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_JAP, NULL, 0, 0, 0, 1, 0 },
+	{ "CD LEDs",                   MB_ONOFF, MA_CDOPT_LEDS,         &currentConfig.EmuOpt, 0x0400, 0, 0, 1, 1 },
+	{ "CDDA audio (using mp3s)",   MB_ONOFF, MA_CDOPT_CDDA,         &PicoOpt, 0x0800, 0, 0, 1, 1 },
+	{ "PCM audio",                 MB_ONOFF, MA_CDOPT_PCM,          &PicoOpt, 0x0400, 0, 0, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_CDOPT_READAHEAD,    NULL, 0, 0, 0, 1, 1 },
+	{ "SaveRAM cart",              MB_ONOFF, MA_CDOPT_SAVERAM,      &PicoOpt, 0x8000, 0, 0, 1, 1 },
+	{ "Scale/Rot. fx (slow)",      MB_ONOFF, MA_CDOPT_SCALEROT_CHIP,&PicoOpt, 0x1000, 0, 0, 1, 1 },
+	{ "Better sync (slow)",        MB_ONOFF, MA_CDOPT_BETTER_SYNC,  &PicoOpt, 0x2000, 0, 0, 1, 1 },
+	{ "done",                      MB_NONE,  MA_CDOPT_DONE,         NULL, 0, 0, 0, 1, 0 },
 };
 
+const int cdopt_entry_count = (sizeof(cdopt_entries) / sizeof(cdopt_entries[0]));
 #define CDOPT_ENTRY_COUNT (sizeof(cdopt_entries) / sizeof(cdopt_entries[0]))
 
 
@@ -1023,28 +1024,29 @@ static void cd_menu_loop_options(void)
 
 menu_entry opt2_entries[] =
 {
-	{ NULL,                        MB_NONE,  MA_OPT2_GAMMA,         NULL, 0, 0, 0, 1 },
-	{ "A_SN's gamma curve",        MB_ONOFF, MA_OPT2_A_SN_GAMMA,    &currentConfig.EmuOpt, 0x1000, 0, 0, 1 },
-	{ "Perfect vsync",             MB_ONOFF, MA_OPT2_VSYNC,         &currentConfig.EmuOpt, 0x2000, 0, 0, 1 },
-	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &currentConfig.PicoOpt,0x0004, 0, 0, 1 },
-	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &currentConfig.PicoOpt,0x0001, 0, 0, 1 },
-	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&currentConfig.PicoOpt,0x0002, 0, 0, 1 },
-	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,   &currentConfig.EmuOpt, 0x0008, 0, 0, 1 },
-	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,   &currentConfig.EmuOpt, 0x0020, 0, 0, 1 },
-	{ "needs restart:",            MB_NONE,  MA_NONE,               NULL, 0, 0, 0, 1 },
-	{ "craigix's RAM timings",     MB_ONOFF, MA_OPT2_RAMTIMINGS,    &currentConfig.EmuOpt, 0x0100, 0, 0, 1 },
-	{ NULL,                        MB_ONOFF, MA_OPT2_SQUIDGEHACK,   &currentConfig.EmuOpt, 0x0010, 0, 0, 1 },
-	{ "done",                      MB_NONE,  MA_OPT2_DONE,          NULL, 0, 0, 0, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT2_GAMMA,         NULL, 0, 0, 0, 1, 1 },
+	{ "A_SN's gamma curve",        MB_ONOFF, MA_OPT2_A_SN_GAMMA,    &currentConfig.EmuOpt, 0x1000, 0, 0, 1, 1 },
+	{ "Perfect vsync",             MB_ONOFF, MA_OPT2_VSYNC,         &currentConfig.EmuOpt, 0x2000, 0, 0, 1, 1 },
+	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &PicoOpt, 0x0004, 0, 0, 1, 1 },
+	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &PicoOpt, 0x0001, 0, 0, 1, 1 },
+	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&PicoOpt, 0x0002, 0, 0, 1, 1 },
+	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,   &currentConfig.EmuOpt, 0x0008, 0, 0, 1, 1 },
+	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,   &currentConfig.EmuOpt, 0x0020, 0, 0, 1, 1 },
+	{ "needs restart:",            MB_NONE,  MA_NONE,               NULL, 0, 0, 0, 1, 0 },
+	{ "craigix's RAM timings",     MB_ONOFF, MA_OPT2_RAMTIMINGS,    &currentConfig.EmuOpt, 0x0100, 0, 0, 1, 1 },
+	{ NULL,                        MB_ONOFF, MA_OPT2_SQUIDGEHACK,   &currentConfig.EmuOpt, 0x0010, 0, 0, 1, 1 },
+	{ "done",                      MB_NONE,  MA_OPT2_DONE,          NULL, 0, 0, 0, 1, 0 },
 };
 
 #define OPT2_ENTRY_COUNT (sizeof(opt2_entries) / sizeof(opt2_entries[0]))
+const int opt2_entry_count = (sizeof(opt2_entries) / sizeof(opt2_entries[0]));
 
 static void menu_opt2_cust_draw(const menu_entry *entry, int x, int y, void *param)
 {
 	if (entry->id == MA_OPT2_GAMMA)
 		text_out16(x, y, "Gamma correction           %i.%02i", currentConfig.gamma / 100, currentConfig.gamma%100);
 	else if (entry->id == MA_OPT2_SQUIDGEHACK)
-		text_out16(x, y, "squidgehack (now %s %s", mmuhack_status ? "active)  " : "inactive)",
+		text_out16(x, y, "Squidgehack (now %s %s", mmuhack_status ? "active)  " : "inactive)",
 			(currentConfig.EmuOpt&0x0010)?"ON":"OFF");
 }
 
@@ -1105,52 +1107,30 @@ static void amenu_loop_options(void)
 
 menu_entry opt_entries[] =
 {
-	{ NULL,                        MB_NONE,  MA_OPT_RENDERER,      NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_RANGE, MA_OPT_SCALING,       &currentConfig.scaling, 0, 0, 3, 1 },
-	{ "Accurate timing (slower)",  MB_ONOFF, MA_OPT_ACC_TIMING,    &currentConfig.PicoOpt, 0x040, 0, 0, 1 },
-	{ "Accurate sprites (slower)", MB_ONOFF, MA_OPT_ACC_SPRITES,   &currentConfig.PicoOpt, 0x080, 0, 0, 1 },
-	{ "Show FPS",                  MB_ONOFF, MA_OPT_SHOW_FPS,      &currentConfig.EmuOpt,  0x002, 0, 0, 1 },
-	{ NULL,                        MB_RANGE, MA_OPT_FRAMESKIP,     &currentConfig.Frameskip, 0, -1, 16, 1 },
-	{ "Enable sound",              MB_ONOFF, MA_OPT_ENABLE_SOUND,  &currentConfig.EmuOpt,  0x004, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_SOUND_QUALITY, NULL, 0, 0, 0, 1 },
-	{ "Use ARM940 core for sound", MB_ONOFF, MA_OPT_ARM940_SOUND,  &currentConfig.PicoOpt, 0x200, 0, 0, 1 },
-	{ "6 button pad",              MB_ONOFF, MA_OPT_6BUTTON_PAD,   &currentConfig.PicoOpt, 0x020, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_REGION,        NULL, 0, 0, 0, 1 },
-	{ "Use SRAM/BRAM savestates",  MB_ONOFF, MA_OPT_SRAM_STATES,   &currentConfig.EmuOpt,  0x001, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_CONFIRM_STATES,NULL, 0, 0, 0, 1 },
-	{ "Save slot",                 MB_RANGE, MA_OPT_SAVE_SLOT,     &state_slot, 0, 0, 9, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_CPU_CLOCKS,    NULL, 0, 0, 0, 1 },
-	{ "[Sega/Mega CD options]",    MB_NONE,  MA_OPT_SCD_OPTS,      NULL, 0, 0, 0, 1 },
-	{ "[advanced options]",        MB_NONE,  MA_OPT_ADV_OPTS,      NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_SAVECFG,       NULL, 0, 0, 0, 1 },
-	{ "Save cfg for current game only",MB_NONE,MA_OPT_SAVECFG_GAME,NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_LOADCFG,       NULL, 0, 0, 0, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT_RENDERER,      NULL, 0, 0, 0, 1, 1 },
+	{ NULL,                        MB_RANGE, MA_OPT_SCALING,       &currentConfig.scaling, 0, 0, 3, 1, 1 },
+	{ "Accurate timing (slower)",  MB_ONOFF, MA_OPT_ACC_TIMING,    &PicoOpt, 0x040, 0, 0, 1, 1 },
+	{ "Accurate sprites (slower)", MB_ONOFF, MA_OPT_ACC_SPRITES,   &PicoOpt, 0x080, 0, 0, 1, 1 },
+	{ "Show FPS",                  MB_ONOFF, MA_OPT_SHOW_FPS,      &currentConfig.EmuOpt,  0x002, 0, 0, 1, 1 },
+	{ NULL,                        MB_RANGE, MA_OPT_FRAMESKIP,     &currentConfig.Frameskip, 0, -1, 16, 1, 1 },
+	{ "Enable sound",              MB_ONOFF, MA_OPT_ENABLE_SOUND,  &currentConfig.EmuOpt,  0x004, 0, 0, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT_SOUND_QUALITY, NULL, 0, 0, 0, 1, 1 },
+	{ "Use ARM940 core for sound", MB_ONOFF, MA_OPT_ARM940_SOUND,  &PicoOpt, 0x200, 0, 0, 1, 1 },
+	{ "6 button pad",              MB_ONOFF, MA_OPT_6BUTTON_PAD,   &PicoOpt, 0x020, 0, 0, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT_REGION,        NULL, 0, 0, 0, 1, 1 },
+	{ "Use SRAM/BRAM savestates",  MB_ONOFF, MA_OPT_SRAM_STATES,   &currentConfig.EmuOpt,  0x001, 0, 0, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT_CONFIRM_STATES,NULL, 0, 0, 0, 1, 1 },
+	{ "Save slot",                 MB_RANGE, MA_OPT_SAVE_SLOT,     &state_slot, 0, 0, 9, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT_CPU_CLOCKS,    NULL, 0, 0, 0, 1, 1 },
+	{ "[Sega/Mega CD options]",    MB_NONE,  MA_OPT_SCD_OPTS,      NULL, 0, 0, 0, 1, 0 },
+	{ "[advanced options]",        MB_NONE,  MA_OPT_ADV_OPTS,      NULL, 0, 0, 0, 1, 0 },
+	{ NULL,                        MB_NONE,  MA_OPT_SAVECFG,       NULL, 0, 0, 0, 1, 0 },
+	{ "Save cfg for current game only",MB_NONE,MA_OPT_SAVECFG_GAME,NULL, 0, 0, 0, 1, 0 },
+	{ NULL,                        MB_NONE,  MA_OPT_LOADCFG,       NULL, 0, 0, 0, 1, 0 },
 };
 
 #define OPT_ENTRY_COUNT (sizeof(opt_entries) / sizeof(opt_entries[0]))
-
-
-static const char *region_name(unsigned int code)
-{
-	static const char *names[] = { "Auto", "      Japan NTSC", "      Japan PAL", "      USA", "      Europe" };
-	static const char *names_short[] = { "", " JP", " JP", " US", " EU" };
-	int u, i = 0;
-	if (code) {
-		code <<= 1;
-		while((code >>= 1)) i++;
-		if (i > 4) return "unknown";
-		return names[i];
-	} else {
-		static char name[24];
-		strcpy(name, "Auto:");
-		for (u = 0; u < 3; u++) {
-			i = 0; code = ((PicoAutoRgnOrder >> u*4) & 0xf) << 1;
-			while((code >>= 1)) i++;
-			strcat(name, names_short[i]);
-		}
-		return name;
-	}
-}
+const int opt_entry_count = OPT_ENTRY_COUNT;
 
 
 static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *param)
@@ -1160,7 +1140,7 @@ static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *para
 	switch (entry->id)
 	{
 		case MA_OPT_RENDERER:
-			if (currentConfig.PicoOpt&0x10)
+			if (PicoOpt&0x10)
 				str = " 8bit fast";
 			else if (currentConfig.EmuOpt&0x80)
 				str = "16bit accurate";
@@ -1184,11 +1164,11 @@ static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *para
 			text_out16(x, y, "Frameskip                  %s", str24);
 			break;
 		case MA_OPT_SOUND_QUALITY:
-			str = (currentConfig.PicoOpt&0x08)?"stereo":"mono";
-			text_out16(x, y, "Sound Quality:     %5iHz %s", currentConfig.PsndRate, str);
+			str = (PicoOpt&0x08)?"stereo":"mono";
+			text_out16(x, y, "Sound Quality:     %5iHz %s", PsndRate, str);
 			break;
 		case MA_OPT_REGION:
-			text_out16(x, y, "Region:              %s", region_name(currentConfig.PicoRegion));
+			text_out16(x, y, "Region:              %s", me_region_name(PicoRegionOverride, PicoAutoRgnOrder));
 			break;
 		case MA_OPT_CONFIRM_STATES:
 			switch ((currentConfig.EmuOpt >> 9) & 5) {
@@ -1250,29 +1230,26 @@ static void region_prevnext(int right)
 	static int rgn_orders[] = { 0x148, 0x184, 0x814, 0x418, 0x841, 0x481 };
 	int i;
 	if (right) {
-		if (!currentConfig.PicoRegion) {
+		if (!PicoRegionOverride) {
 			for (i = 0; i < 6; i++)
 				if (rgn_orders[i] == PicoAutoRgnOrder) break;
 			if (i < 5) PicoAutoRgnOrder = rgn_orders[i+1];
-			else currentConfig.PicoRegion=1;
+			else PicoRegionOverride=1;
 		}
-		else currentConfig.PicoRegion<<=1;
-		if (currentConfig.PicoRegion > 8) currentConfig.PicoRegion = 8;
+		else PicoRegionOverride<<=1;
+		if (PicoRegionOverride > 8) PicoRegionOverride = 8;
 	} else {
-		if (!currentConfig.PicoRegion) {
+		if (!PicoRegionOverride) {
 			for (i = 0; i < 6; i++)
 				if (rgn_orders[i] == PicoAutoRgnOrder) break;
 			if (i > 0) PicoAutoRgnOrder = rgn_orders[i-1];
 		}
-		else currentConfig.PicoRegion>>=1;
+		else PicoRegionOverride>>=1;
 	}
 }
 
 static void menu_options_save(void)
 {
-	PicoOpt = currentConfig.PicoOpt;
-	PsndRate = currentConfig.PsndRate;
-	PicoRegionOverride = currentConfig.PicoRegion;
 	if (PicoRegionOverride) {
 		// force setting possibly changed..
 		Pico.m.pal = (PicoRegionOverride == 2 || PicoRegionOverride == 8) ? 1 : 0;
@@ -1290,10 +1267,6 @@ static int menu_loop_options(void)
 	unsigned long inp = 0;
 	menu_id selected_id;
 
-	currentConfig.PicoOpt = PicoOpt;
-	currentConfig.PsndRate = PsndRate;
-	currentConfig.PicoRegion = PicoRegionOverride;
-
 	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_SAVECFG_GAME, rom_loaded);
 	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_LOADCFG, config_slot != config_slot_current);
 	menu_sel_max = me_count_enabled(opt_entries, OPT_ENTRY_COUNT) - 1;
@@ -1306,26 +1279,26 @@ static int menu_loop_options(void)
 		if (inp & GP2X_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if (inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		selected_id = me_index2id(opt_entries, OPT_ENTRY_COUNT, menu_sel);
-		if (inp & (GP2X_LEFT|GP2X_RIGHT)) { // multi choise
+		if (inp & (GP2X_LEFT|GP2X_RIGHT)) { // multi choice
 			if (!me_process(opt_entries, OPT_ENTRY_COUNT, selected_id, (inp&GP2X_RIGHT) ? 1 : 0)) {
 				switch (selected_id) {
 					case MA_OPT_RENDERER:
 						if (inp & GP2X_LEFT) {
-							if      (  currentConfig.PicoOpt&0x10) currentConfig.PicoOpt&= ~0x10;
+							if      (PicoOpt&0x10) PicoOpt&= ~0x10;
 							else if (!(currentConfig.EmuOpt &0x80))currentConfig.EmuOpt |=  0x80;
 							else if (  currentConfig.EmuOpt &0x80) break;
 						} else {
-							if      (  currentConfig.PicoOpt&0x10) break;
-							else if (!(currentConfig.EmuOpt &0x80))currentConfig.PicoOpt|=  0x10;
+							if      (PicoOpt&0x10) break;
+							else if (!(currentConfig.EmuOpt &0x80))PicoOpt|=  0x10;
 							else if (  currentConfig.EmuOpt &0x80) currentConfig.EmuOpt &= ~0x80;
 						}
 						break;
 					case MA_OPT_SOUND_QUALITY:
-						if ((inp & GP2X_RIGHT) && currentConfig.PsndRate == 44100 && !(currentConfig.PicoOpt&0x08)) {
-							currentConfig.PsndRate = 8000;  currentConfig.PicoOpt|= 0x08;
-						} else if ((inp & GP2X_LEFT) && currentConfig.PsndRate == 8000 && (currentConfig.PicoOpt&0x08)) {
-							currentConfig.PsndRate = 44100; currentConfig.PicoOpt&=~0x08;
-						} else currentConfig.PsndRate = sndrate_prevnext(currentConfig.PsndRate, inp & GP2X_RIGHT);
+						if ((inp & GP2X_RIGHT) && PsndRate == 44100 && !(PicoOpt&0x08)) {
+							PsndRate = 8000; PicoOpt|= 0x08;
+						} else if ((inp & GP2X_LEFT) && PsndRate == 8000 && (PicoOpt&0x08)) {
+							PsndRate = 44100; PicoOpt&=~0x08;
+						} else  PsndRate = sndrate_prevnext(PsndRate, inp & GP2X_RIGHT);
 						break;
 					case MA_OPT_REGION:
 						region_prevnext(inp & GP2X_RIGHT);
@@ -1444,16 +1417,16 @@ static void draw_menu_credits(void)
 
 menu_entry main_entries[] =
 {
-	{ "Resume game",        MB_NONE, MA_MAIN_RESUME_GAME, NULL, 0, 0, 0, 0 },
-	{ "Save State",         MB_NONE, MA_MAIN_SAVE_STATE,  NULL, 0, 0, 0, 0 },
-	{ "Load State",         MB_NONE, MA_MAIN_LOAD_STATE,  NULL, 0, 0, 0, 0 },
-	{ "Reset game",         MB_NONE, MA_MAIN_RESET_GAME,  NULL, 0, 0, 0, 0 },
-	{ "Load new ROM/ISO",   MB_NONE, MA_MAIN_LOAD_ROM,    NULL, 0, 0, 0, 1 },
-	{ "Change options",     MB_NONE, MA_MAIN_OPTIONS,     NULL, 0, 0, 0, 1 },
-	{ "Configure controls", MB_NONE, MA_MAIN_CONTROLS,    NULL, 0, 0, 0, 1 },
-	{ "Credits",            MB_NONE, MA_MAIN_CREDITS,     NULL, 0, 0, 0, 1 },
-	{ "Patches / GameGenie",MB_NONE, MA_MAIN_PATCHES,     NULL, 0, 0, 0, 0 },
-	{ "Exit",               MB_NONE, MA_MAIN_EXIT,        NULL, 0, 0, 0, 1 }
+	{ "Resume game",        MB_NONE, MA_MAIN_RESUME_GAME, NULL, 0, 0, 0, 0, 0 },
+	{ "Save State",         MB_NONE, MA_MAIN_SAVE_STATE,  NULL, 0, 0, 0, 0, 0 },
+	{ "Load State",         MB_NONE, MA_MAIN_LOAD_STATE,  NULL, 0, 0, 0, 0, 0 },
+	{ "Reset game",         MB_NONE, MA_MAIN_RESET_GAME,  NULL, 0, 0, 0, 0, 0 },
+	{ "Load new ROM/ISO",   MB_NONE, MA_MAIN_LOAD_ROM,    NULL, 0, 0, 0, 1, 0 },
+	{ "Change options",     MB_NONE, MA_MAIN_OPTIONS,     NULL, 0, 0, 0, 1, 0 },
+	{ "Configure controls", MB_NONE, MA_MAIN_CONTROLS,    NULL, 0, 0, 0, 1, 0 },
+	{ "Credits",            MB_NONE, MA_MAIN_CREDITS,     NULL, 0, 0, 0, 1, 0 },
+	{ "Patches / GameGenie",MB_NONE, MA_MAIN_PATCHES,     NULL, 0, 0, 0, 0, 0 },
+	{ "Exit",               MB_NONE, MA_MAIN_EXIT,        NULL, 0, 0, 0, 1, 0 }
 };
 
 #define MAIN_ENTRY_COUNT (sizeof(main_entries) / sizeof(main_entries[0]))

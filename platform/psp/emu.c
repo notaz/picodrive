@@ -111,19 +111,8 @@ void emu_Deinit(void)
 		SRam.changed = 0;
 	}
 
-	if (!(currentConfig.EmuOpt & 0x20)) {
-		FILE *f = fopen(PicoConfigFile, "r+b");
-		if (!f) emu_WriteConfig(0);
-		else {
-			// if we already have config, reload it, except last ROM
-			fseek(f, sizeof(currentConfig.lastRomFile), SEEK_SET);
-			fread(&currentConfig.EmuOpt, 1, sizeof(currentConfig) - sizeof(currentConfig.lastRomFile), f);
-			fseek(f, 0, SEEK_SET);
-			fwrite(&currentConfig, 1, sizeof(currentConfig), f);
-			fflush(f);
-			fclose(f);
-		}
-	}
+	if (!(currentConfig.EmuOpt & 0x20))
+		config_writelrom(PicoConfigFile);
 
 	PicoExit();
 	sound_deinit();

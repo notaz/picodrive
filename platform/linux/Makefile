@@ -31,7 +31,7 @@ OBJS += platform/gp2x/main.o platform/gp2x/menu.o platform/gp2x/emu.o platform/g
 		gp2x.o 940ctl_ym2612.o log_io.o
 
 # common
-OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o \
+OBJS += platform/common/emu.o platform/common/menu.o platform/common/config.o platform/common/fonts.o \
 		platform/common/readpng.o platform/common/mp3_helix.o
 
 # Pico

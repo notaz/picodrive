@@ -99,6 +99,7 @@ typedef struct
 	signed char min;	/* for ranged integer settings, to be sign-extended */
 	signed char max;
 	char enabled;
+	char need_to_save;
 } menu_entry;
 
 
@@ -111,4 +112,5 @@ menu_id me_index2id(const menu_entry *entries, int count, int index);
 void    me_draw(const menu_entry *entries, int count, int x, int y, me_draw_custom_f *cust_draw, void *param);
 int     me_process(menu_entry *entries, int count, menu_id id, int is_next);
 
+const char *me_region_name(unsigned int code, int auto_order);
 

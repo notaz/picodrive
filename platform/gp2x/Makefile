@@ -58,7 +58,7 @@ OBJS += main.o menu.o gp2x.o usbjoy.o emu.o squidgehack.o cpuctrl.o
 OBJS += 940ctl.o
 
 # common
-OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/arm_utils.o \
+OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/config.o ../common/arm_utils.o \
 	../common/readpng.o ../common/mp3_helix.o
 
 # Pico

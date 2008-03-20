@@ -21,6 +21,7 @@
 #include "../common/arm_utils.h"
 #include "../common/fonts.h"
 #include "../common/emu.h"
+#include "../common/config.h"
 #include "cpuctrl.h"
 
 #include <Pico/PicoInt.h>
@@ -160,20 +161,10 @@ void emu_Deinit(void)
 	}
 
 	if (!(currentConfig.EmuOpt & 0x20)) {
-		FILE *f = fopen(PicoConfigFile, "r+b");
-		if (!f) emu_WriteConfig(0);
-		else {
-			// if we already have config, reload it, except last ROM
-			fseek(f, sizeof(currentConfig.lastRomFile), SEEK_SET);
-			fread(&currentConfig.EmuOpt, 1, sizeof(currentConfig) - sizeof(currentConfig.lastRomFile), f);
-			fseek(f, 0, SEEK_SET);
-			fwrite(&currentConfig, 1, sizeof(currentConfig), f);
-			fflush(f);
-			fclose(f);
+		config_writelrom(PicoConfigFile);
 #ifndef NO_SYNC
-			sync();
+		sync();
 #endif
-		}
 	}
 
 	free(PicoDraw2FB);
@@ -185,34 +176,44 @@ void emu_Deinit(void)
 		set_gamma(100, 0);
 }
 
+void emu_prepareDefaultConfig(void)
+{
+	memset(&defaultConfig, 0, sizeof(defaultConfig));
+	defaultConfig.lastRomFile[0] = 0;
+	defaultConfig.EmuOpt  = 0x1f | 0x600; // | confirm_save, cd_leds
+	defaultConfig.s_PicoOpt = 0x0f | 0xe00; // | use_940, cd_pcm, cd_cdda
+	defaultConfig.s_PsndRate = 44100;
+	defaultConfig.s_PicoRegion = 0; // auto
+	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
+	defaultConfig.s_PicoCDBuffers = 64;
+	defaultConfig.Frameskip = -1; // auto
+	defaultConfig.CPUclock = 200;
+	defaultConfig.volume = 50;
+	defaultConfig.KeyBinds[ 0] = 1<<0; // SACB RLDU
+	defaultConfig.KeyBinds[ 4] = 1<<1;
+	defaultConfig.KeyBinds[ 2] = 1<<2;
+	defaultConfig.KeyBinds[ 6] = 1<<3;
+	defaultConfig.KeyBinds[14] = 1<<4;
+	defaultConfig.KeyBinds[13] = 1<<5;
+	defaultConfig.KeyBinds[12] = 1<<6;
+	defaultConfig.KeyBinds[ 8] = 1<<7;
+	defaultConfig.KeyBinds[15] = 1<<26; // switch rend
+	defaultConfig.KeyBinds[10] = 1<<27; // save state
+	defaultConfig.KeyBinds[11] = 1<<28; // load state
+	defaultConfig.KeyBinds[23] = 1<<29; // vol up
+	defaultConfig.KeyBinds[22] = 1<<30; // vol down
+	defaultConfig.gamma = 100;
+	defaultConfig.scaling = 0;
+}
+
 void emu_setDefaultConfig(void)
 {
-	memset(&currentConfig, 0, sizeof(currentConfig));
-	currentConfig.lastRomFile[0] = 0;
-	currentConfig.EmuOpt  = 0x1f | 0x600; // | confirm_save, cd_leds
-	currentConfig.PicoOpt = 0x0f | 0xe00; // | use_940, cd_pcm, cd_cdda
-	currentConfig.PsndRate = 22050; // 44100;
-	currentConfig.PicoRegion = 0; // auto
-	currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
-	currentConfig.Frameskip = -1; // auto
-	currentConfig.CPUclock = 200;
-	currentConfig.volume = 50;
-	currentConfig.KeyBinds[ 0] = 1<<0; // SACB RLDU
-	currentConfig.KeyBinds[ 4] = 1<<1;
-	currentConfig.KeyBinds[ 2] = 1<<2;
-	currentConfig.KeyBinds[ 6] = 1<<3;
-	currentConfig.KeyBinds[14] = 1<<4;
-	currentConfig.KeyBinds[13] = 1<<5;
-	currentConfig.KeyBinds[12] = 1<<6;
-	currentConfig.KeyBinds[ 8] = 1<<7;
-	currentConfig.KeyBinds[15] = 1<<26; // switch rend
-	currentConfig.KeyBinds[10] = 1<<27; // save state
-	currentConfig.KeyBinds[11] = 1<<28; // load state
-	currentConfig.KeyBinds[23] = 1<<29; // vol up
-	currentConfig.KeyBinds[22] = 1<<30; // vol down
-	currentConfig.gamma = 100;
-	currentConfig.PicoCDBuffers = 64;
-	currentConfig.scaling = 0;
+	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
+	PicoOpt = currentConfig.s_PicoOpt;
+	PsndRate = currentConfig.s_PsndRate;
+	PicoRegionOverride = currentConfig.s_PicoRegion;
+	PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
+	PicoCDBuffers = currentConfig.s_PicoCDBuffers;
 }
 
 void osd_text(int x, int y, const char *text)

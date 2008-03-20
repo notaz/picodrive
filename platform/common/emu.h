@@ -10,24 +10,23 @@ typedef struct {
 					// craigix_ram, confirm_save, show_cd_leds, confirm_load
 					// A_SNs_gamma, perfect_vsync, giz_scanlines, giz_dblbuff
 					// vsync_mode, show_clock, no_frame_limitter
-	int PicoOpt;  // used for config saving only, see Pico.h
-	int PsndRate; // ditto
-	int PicoRegion; // ditto
+	int s_PicoOpt;		// for old cfg files only
+	int s_PsndRate;
+	int s_PicoRegion;
 	int Frameskip;
 	int CPUclock;
 	int KeyBinds[32];
 	int volume;
 	int gamma;
 	int JoyBinds[4][32];
-	int PicoAutoRgnOrder;
-	int PicoCDBuffers;
+	int s_PicoAutoRgnOrder;
+	int s_PicoCDBuffers;
 	int scaling; // gp2x: 0=center, 1=hscale, 2=hvscale, 3=hsoftscale; psp: bilinear filtering
 	float scale; // psp: screen scale
 	float hscale32, hscale40; // psp: horizontal scale
 } currentConfig_t;
 
-
-extern currentConfig_t currentConfig;
+extern currentConfig_t currentConfig, defaultConfig;
 extern char *PicoConfigFile;
 extern int rom_loaded;
 extern char noticeMsg[64];
@@ -48,4 +47,6 @@ int   emu_cdCheck(int *pregion);
 int   emu_findBios(int region, char **bios_file);
 void  emu_textOut8 (int x, int y, const char *text);
 void  emu_textOut16(int x, int y, const char *text);
+char *emu_makeRomId(void);
 
+void  emu_prepareDefaultConfig(void);

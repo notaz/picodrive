@@ -1261,29 +1261,6 @@ menu_entry opt_entries[] =
 #define OPT_ENTRY_COUNT (sizeof(opt_entries) / sizeof(opt_entries[0]))
 
 
-static const char *region_name(unsigned int code)
-{
-	static const char *names[] = { "Auto", "      Japan NTSC", "      Japan PAL", "      USA", "      Europe" };
-	static const char *names_short[] = { "", " JP", " JP", " US", " EU" };
-	int u, i = 0;
-	if (code) {
-		code <<= 1;
-		while((code >>= 1)) i++;
-		if (i > 4) return "unknown";
-		return names[i];
-	} else {
-		static char name[24];
-		strcpy(name, "Auto:");
-		for (u = 0; u < 3; u++) {
-			i = 0; code = ((PicoAutoRgnOrder >> u*4) & 0xf) << 1;
-			while((code >>= 1)) i++;
-			strcat(name, names_short[i]);
-		}
-		return name;
-	}
-}
-
-
 static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *param)
 {
 	char *str, str24[24];
@@ -1310,7 +1287,7 @@ static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *para
 			text_out16(x, y, "Sound Quality:     %5iHz %s", currentConfig.PsndRate, str);
 			break;
 		case MA_OPT_REGION:
-			text_out16(x, y, "Region:              %s", region_name(currentConfig.PicoRegion));
+			text_out16(x, y, "Region:              %s", me_region_name(PicoRegionOverride, PicoAutoRgnOrder));
 			break;
 		case MA_OPT_CONFIRM_STATES:
 			switch ((currentConfig.EmuOpt >> 9) & 5) {
@@ -1371,21 +1348,21 @@ static void region_prevnext(int right)
 	static int rgn_orders[] = { 0x148, 0x184, 0x814, 0x418, 0x841, 0x481 };
 	int i;
 	if (right) {
-		if (!currentConfig.PicoRegion) {
+		if (!PicoRegionOverride) {
 			for (i = 0; i < 6; i++)
 				if (rgn_orders[i] == PicoAutoRgnOrder) break;
 			if (i < 5) PicoAutoRgnOrder = rgn_orders[i+1];
-			else currentConfig.PicoRegion=1;
+			else PicoRegionOverride=1;
 		}
-		else currentConfig.PicoRegion<<=1;
-		if (currentConfig.PicoRegion > 8) currentConfig.PicoRegion = 8;
+		else PicoRegionOverride<<=1;
+		if (PicoRegionOverride > 8) PicoRegionOverride = 8;
 	} else {
-		if (!currentConfig.PicoRegion) {
+		if (!PicoRegionOverride) {
 			for (i = 0; i < 6; i++)
 				if (rgn_orders[i] == PicoAutoRgnOrder) break;
 			if (i > 0) PicoAutoRgnOrder = rgn_orders[i-1];
 		}
-		else currentConfig.PicoRegion>>=1;
+		else PicoRegionOverride>>=1;
 	}
 }
 
@@ -1393,7 +1370,6 @@ static void menu_options_save(void)
 {
 	PicoOpt = currentConfig.PicoOpt;
 	PsndRate = currentConfig.PsndRate;
-	PicoRegionOverride = currentConfig.PicoRegion;
 	if (PicoRegionOverride) {
 		// force setting possibly changed..
 		Pico.m.pal = (PicoRegionOverride == 2 || PicoRegionOverride == 8) ? 1 : 0;
@@ -1413,7 +1389,6 @@ static int menu_loop_options(void)
 
 	currentConfig.PicoOpt = PicoOpt;
 	currentConfig.PsndRate = PsndRate;
-	currentConfig.PicoRegion = PicoRegionOverride;
 
 	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_SAVECFG_GAME, rom_loaded);
 	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_LOADCFG, config_slot != config_slot_current);

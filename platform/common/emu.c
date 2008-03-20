@@ -14,6 +14,7 @@
 #include "menu.h"
 #include "fonts.h"
 #include "lprintf.h"
+#include "config.h"
 
 #include <Pico/PicoInt.h>
 #include <Pico/Patch.h>
@@ -33,8 +34,8 @@
  #define SCREEN_BUFFER psp_screen
 #endif
 
-char *PicoConfigFile = "picoconfig.bin";
-currentConfig_t currentConfig;
+char *PicoConfigFile = "picoconfig.cfg";
+currentConfig_t currentConfig, defaultConfig;
 int rom_loaded = 0;
 char noticeMsg[64];
 int state_slot = 0;
@@ -150,6 +151,8 @@ static int emu_isBios(const char *name)
 	return 0;
 }
 
+static unsigned char scd_id_header[0x100];
+
 /* checks if romFileName points to valid MegaCD image
  * if so, checks for suitable BIOS */
 int emu_cdCheck(int *pregion)
@@ -173,6 +176,9 @@ int emu_cdCheck(int *pregion)
 		return 0;
 	}
 
+	pm_seek(cd_f, (type == 1) ? 0x100 : 0x110, SEEK_SET);
+	pm_read(scd_id_header, sizeof(scd_id_header), cd_f);
+
 	/* it seems we have a CD image here. Try to detect region now.. */
 	pm_seek(cd_f, (type == 1) ? 0x100+0x10B : 0x110+0x10B, SEEK_SET);
 	pm_read(buf, 1, cd_f);
@@ -187,6 +193,68 @@ int emu_cdCheck(int *pregion)
 	if (pregion != NULL) *pregion = region;
 
 	return type;
+}
+
+static int extract_text(char *dest, unsigned char *src, int len, int swab)
+{
+	char *p = dest;
+	int i;
+
+	if (swab) swab = 1;
+
+	for (i = len - 1; i >= 0; i--)
+	{
+		if (src[i^swab] != ' ') break;
+	}
+	len = i + 1;
+
+	for (i = 0; i < len; i++)
+	{
+		unsigned char s = src[i^swab];
+		if (s >= 0x20 && s < 0x7f && s != '#' && s != '|' &&
+			s != '[' && s != ']' && s != '\\')
+		{
+			*p++ = s;
+		}
+		else
+		{
+			sprintf(p, "\\%02x", s);
+			p += 3;
+		}
+	}
+
+	return p - dest;
+}
+
+char *emu_makeRomId(void)
+{
+	static char id_string[3+0x11+0x11+0x30+16];
+	unsigned char *id_header;
+	int pos;
+
+	if (Pico.rom == NULL) {
+		id_string[0] = 0;
+		return id_string;
+	}
+
+	if (PicoMCD & 1) {
+		id_header = scd_id_header;
+		strcpy(id_string, "CD|");
+	} else {
+		id_header = Pico.rom + 0x100;
+		strcpy(id_string, "MD|");
+	}
+	pos = 3;
+
+	pos += extract_text(id_string + pos, id_header + 0x80, 0x10, 1); // seral
+	id_string[pos] = '|'; pos++;
+	pos += extract_text(id_string + pos, id_header + 0xf0, 0x10, 1); // region
+	id_string[pos] = '|'; pos++;
+	pos += extract_text(id_string + pos, id_header + 0x50, 0x30, 1); // overseas name
+	id_string[pos] = 0;
+
+	printf("id_string: %s\n", id_string);
+	return id_string;
 }
 
 int emu_ReloadRom(void)
@@ -421,49 +489,68 @@ static void romfname_ext(char *dst, const char *prefix, const char *ext)
 
 int emu_ReadConfig(int game, int no_defaults)
 {
+	char cfg[512];
 	FILE *f;
-	char cfg[512], extbuf[16];
-	int bread = 0;
+	int ret;
 
 	if (!game)
 	{
 		if (!no_defaults)
-		{
 			emu_setDefaultConfig();
-		}
 		strncpy(cfg, PicoConfigFile, 511);
 		if (config_slot != 0)
 		{
 			char *p = strrchr(cfg, '.');
 			if (p == NULL) p = cfg + strlen(cfg);
-			sprintf(extbuf, ".%i.pbcfg", config_slot);
-			strncpy(p, extbuf, 511 - (p - cfg));
+			sprintf(p, ".%i.cfg", config_slot);
 		}
 		cfg[511] = 0;
-	} else {
+		ret = config_readsect(cfg, NULL);
+	}
+	else
+	{
+		if (!no_defaults)
+			emu_setDefaultConfig();
+
+		// try new .cfg way
 		if (config_slot != 0)
-		     sprintf(extbuf, ".%i.pbcfg", config_slot);
-		else strcpy(extbuf, ".pbcfg");
-		romfname_ext(cfg, "cfg/", extbuf);
-		f = fopen(cfg, "rb");
-		if (!f) romfname_ext(cfg, NULL, ".pbcfg");
-		else fclose(f);
+		     sprintf(cfg, "game.%i.cfg", config_slot);
+		else strcpy(cfg,  "game.cfg");
+		ret = config_readsect(cfg, emu_makeRomId());
+
+		if (ret != 0)
+		{
+			// fall back to old
+			char extbuf[16];
+			if (config_slot != 0)
+				sprintf(extbuf, ".%i.pbcfg", config_slot);
+			else strcpy(extbuf, ".pbcfg");
+			romfname_ext(cfg, "cfg/", extbuf);
+			f = fopen(cfg, "rb");
+			if (!f) {
+				romfname_ext(cfg, NULL, ".pbcfg");
+				f = fopen(cfg, "rb");
+			}
+			if (f) {
+				int bread = fread(&currentConfig, 1, sizeof(currentConfig), f);
+				lprintf("emu_ReadConfig: %s %s\n", cfg, bread > 0 ? "(ok)" : "(failed)");
+				fclose(f);
+				ret = 0;
+			}
+
+			if (ret == 0) {
+				PicoOpt = currentConfig.s_PicoOpt;
+				PsndRate = currentConfig.s_PsndRate;
+				PicoRegionOverride = currentConfig.s_PicoRegion;
+				PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
+				PicoCDBuffers = currentConfig.s_PicoCDBuffers;
+			}
+		}
+		else
+		{
+		}
 	}
 
-	lprintf("emu_ReadConfig: %s ", cfg);
-	f = fopen(cfg, "rb");
-	if (f) {
-		bread = fread(&currentConfig, 1, sizeof(currentConfig), f);
-		fclose(f);
-	}
-	lprintf(bread > 0 ? "(ok)\n" : "(failed)\n");
-
-	PicoOpt = currentConfig.PicoOpt;
-	PsndRate = currentConfig.PsndRate;
-	PicoRegionOverride = currentConfig.PicoRegion;
-	PicoAutoRgnOrder = currentConfig.PicoAutoRgnOrder;
-	PicoCDBuffers = currentConfig.PicoCDBuffers;
-	//scaling_update();
 	// some sanity checks
 	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;
 #ifdef PSP
@@ -479,54 +566,43 @@ int emu_ReadConfig(int game, int no_defaults)
 		currentConfig.KeyBinds[22] = 1<<30; // vol down
 	}
 #endif
-	if (bread > 0) config_slot_current = config_slot;
-	return (bread > 0); // == sizeof(currentConfig));
+	if (ret == 0) config_slot_current = config_slot;
+	return (ret == 0);
 }
 
 
-int emu_WriteConfig(int game)
+int emu_WriteConfig(int is_game)
 {
-	FILE *f;
-	char cfg[512], extbuf[16];
-	int bwrite = 0;
+	char cfg[512], *game_sect = NULL;
+	int ret, write_lrom = 0;
 
-	if (!game)
+	if (!is_game)
 	{
 		strncpy(cfg, PicoConfigFile, 511);
 		if (config_slot != 0)
 		{
 			char *p = strrchr(cfg, '.');
 			if (p == NULL) p = cfg + strlen(cfg);
-			sprintf(extbuf, ".%i.pbcfg", config_slot);
-			strncpy(p, extbuf, 511 - (p - cfg));
+			sprintf(p, ".%i.cfg", config_slot);
 		}
 		cfg[511] = 0;
+		write_lrom = 1;
 	} else {
 		if (config_slot != 0)
-		     sprintf(extbuf, ".%i.pbcfg", config_slot);
-		else strcpy(extbuf, ".pbcfg");
-		romfname_ext(cfg, "cfg/", extbuf);
+		     sprintf(cfg, "game.%i.cfg", config_slot);
+		else strcpy(cfg,  "game.cfg");
+		game_sect = emu_makeRomId();
 	}
 
 	lprintf("emu_WriteConfig: %s ", cfg);
-	f = fopen(cfg, "wb");
-	if (f) {
-		currentConfig.PicoOpt = PicoOpt;
-		currentConfig.PsndRate = PsndRate;
-		currentConfig.PicoRegion = PicoRegionOverride;
-		currentConfig.PicoAutoRgnOrder = PicoAutoRgnOrder;
-		currentConfig.PicoCDBuffers = PicoCDBuffers;
-		bwrite = fwrite(&currentConfig, 1, sizeof(currentConfig), f);
-		fflush(f);
-		fclose(f);
+	ret = config_writesect(cfg, game_sect);
 #ifndef NO_SYNC
-		sync();
+	sync();
 #endif
-	}
-	lprintf((bwrite == sizeof(currentConfig)) ? "(ok)\n" : "(failed)\n");
+	lprintf((ret == 0) ? "(ok)\n" : "(failed)\n");
 
-	if (bwrite == sizeof(currentConfig)) config_slot_current = config_slot;
-	return (bwrite == sizeof(currentConfig));
+	if (ret == 0) config_slot_current = config_slot;
+	return ret == 0;
 }
 
 
