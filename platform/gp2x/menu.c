@@ -30,7 +30,7 @@
 
 extern int  mmuhack_status;
 
-static const char *gp2xKeyNames[] = {
+const char *keyNames[] = {
 	"UP",    "???",    "LEFT", "???",  "DOWN", "???", "RIGHT",    "???",
 	"START", "SELECT", "L",    "R",    "A",    "B",   "X",        "Y",
 	"???",   "???",    "???",  "???",  "???",  "???", "VOL DOWN", "VOL UP",
@@ -120,6 +120,10 @@ static unsigned long wait_for_input_usbjoy(unsigned long interesting, int *joy)
 
 	inp_prev = ret;
 	inp_prevjoy = *joy;
+
+	// handle only 1 event at a time
+	for (i = 1; i != 0; i <<= 1)
+		if (ret & i) { ret &= i; break; }
 
 	return ret;
 }
@@ -614,8 +618,8 @@ static char *action_binds(int player_idx, int action_mask)
 		if (currentConfig.KeyBinds[i] & action_mask)
 		{
 			if (player_idx >= 0 && ((currentConfig.KeyBinds[i] >> 16) & 3) != player_idx) continue;
-			if (strkeys[0]) { strcat(strkeys, " + "); strcat(strkeys, gp2xKeyNames[i]); break; }
-			else strcpy(strkeys, gp2xKeyNames[i]);
+			if (strkeys[0]) { strcat(strkeys, " + "); strcat(strkeys, keyNames[i]); break; }
+			else strcpy(strkeys, keyNames[i]);
 		}
 	}
 	for (joy = 0; joy < num_of_joys; joy++)
@@ -689,9 +693,7 @@ static int count_bound_keys(int action, int pl_idx, int joy)
 	return keys;
 }
 
-typedef struct { char *name; int mask; } bind_action_t;
-
-static void draw_key_config(const bind_action_t *opts, int opt_cnt, int player_idx, int sel)
+static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_idx, int sel)
 {
 	int x, y, tl_y = 40, i;
 
@@ -725,7 +727,7 @@ static void draw_key_config(const bind_action_t *opts, int opt_cnt, int player_i
 	menu_flip();
 }
 
-static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_idx)
+static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_idx)
 {
 	int joy = 0, sel = 0, menu_sel_max = opt_cnt, prev_select = 0, i;
 	unsigned long inp = 0;
@@ -768,12 +770,12 @@ static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_i
 				if (inp & (1 << i)) {
 					int *bind = &currentConfig.JoyBinds[joy-1][i];
 					if ((*bind & opts[sel].mask) && (player_idx < 0 || player_idx == ((*bind>>16)&3)))
-						currentConfig.JoyBinds[joy-1][i] &= ~opts[sel].mask;
+						*bind &= ~opts[sel].mask;
 					else {
 						// override
 						unbind_action(opts[sel].mask, player_idx, joy);
 						*bind = opts[sel].mask;
-						if (player_idx >= 0) *bind |= player_idx << 16;
+						if (player_idx > 0) *bind |= player_idx << 16;
 					}
 				}
 		}
@@ -809,27 +811,10 @@ static void draw_kc_sel(int menu_sel)
 }
 
 
-// PicoPad[] format: MXYZ SACB RLDU
-static bind_action_t ctrl_actions[] =
-{
-	{ "UP     ", 0x001 },
-	{ "DOWN   ", 0x002 },
-	{ "LEFT   ", 0x004 },
-	{ "RIGHT  ", 0x008 },
-	{ "A      ", 0x040 },
-	{ "B      ", 0x010 },
-	{ "C      ", 0x020 },
-	{ "START  ", 0x080 },
-	{ "MODE   ", 0x800 },
-	{ "X      ", 0x400 },
-	{ "Y      ", 0x200 },
-	{ "Z      ", 0x100 },
-};
-
 // player2_flag, ?, ?, ?, ?, ?, ?, menu
 // "NEXT SAVE SLOT", "PREV SAVE SLOT", "SWITCH RENDERER", "SAVE STATE",
 // "LOAD STATE", "VOLUME UP", "VOLUME DOWN", "DONE"
-static bind_action_t emuctrl_actions[] =
+me_bind_action emuctrl_actions[] =
 {
 	{ "Load State     ", 1<<28 },
 	{ "Save State     ", 1<<27 },
@@ -840,6 +825,7 @@ static bind_action_t emuctrl_actions[] =
 	{ "Volume Up      ", 1<<29 },
 	{ "Fast forward   ", 1<<22 },
 	{ "Enter Menu     ", 1<<23 },
+	{ NULL,              0     }
 };
 
 static void kc_sel_loop(void)
@@ -856,8 +842,8 @@ static void kc_sel_loop(void)
 		if (inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if (inp & GP2X_B) {
 			switch (menu_sel) {
-				case 0: key_config_loop(ctrl_actions, is_6button ? 12 : 8, 0); return;
-				case 1: key_config_loop(ctrl_actions, is_6button ? 12 : 8, 1); return;
+				case 0: key_config_loop(me_ctrl_actions, is_6button ? 12 : 8, 0); return;
+				case 1: key_config_loop(me_ctrl_actions, is_6button ? 12 : 8, 1); return;
 				case 2: key_config_loop(emuctrl_actions,
 						sizeof(emuctrl_actions)/sizeof(emuctrl_actions[0]), -1); return;
 				case 3: if (!rom_loaded) emu_WriteConfig(0); return;
@@ -1027,14 +1013,15 @@ menu_entry opt2_entries[] =
 	{ NULL,                        MB_NONE,  MA_OPT2_GAMMA,         NULL, 0, 0, 0, 1, 1 },
 	{ "A_SN's gamma curve",        MB_ONOFF, MA_OPT2_A_SN_GAMMA,    &currentConfig.EmuOpt, 0x1000, 0, 0, 1, 1 },
 	{ "Perfect vsync",             MB_ONOFF, MA_OPT2_VSYNC,         &currentConfig.EmuOpt, 0x2000, 0, 0, 1, 1 },
-	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &PicoOpt, 0x0004, 0, 0, 1, 1 },
-	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &PicoOpt, 0x0001, 0, 0, 1, 1 },
-	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&PicoOpt, 0x0002, 0, 0, 1, 1 },
+	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &PicoOpt, 0x00004, 0, 0, 1, 1 },
+	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &PicoOpt, 0x00001, 0, 0, 1, 1 },
+	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&PicoOpt, 0x00002, 0, 0, 1, 1 },
 	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,   &currentConfig.EmuOpt, 0x0008, 0, 0, 1, 1 },
 	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,   &currentConfig.EmuOpt, 0x0020, 0, 0, 1, 1 },
 	{ "needs restart:",            MB_NONE,  MA_NONE,               NULL, 0, 0, 0, 1, 0 },
 	{ "craigix's RAM timings",     MB_ONOFF, MA_OPT2_RAMTIMINGS,    &currentConfig.EmuOpt, 0x0100, 0, 0, 1, 1 },
 	{ NULL,                        MB_ONOFF, MA_OPT2_SQUIDGEHACK,   &currentConfig.EmuOpt, 0x0010, 0, 0, 1, 1 },
+	{ "SVP dynarec",               MB_ONOFF, MA_OPT2_SVP_DYNAREC,   &PicoOpt, 0x20000, 0, 0, 1, 1 },
 	{ "done",                      MB_NONE,  MA_OPT2_DONE,          NULL, 0, 0, 0, 1, 0 },
 };
 
@@ -1522,10 +1509,10 @@ static void menu_loop_root(void)
 				{
 					char curr_path[PATH_MAX], *selfname;
 					FILE *tstf;
-					if ( (tstf = fopen(currentConfig.lastRomFile, "rb")) )
+					if ( (tstf = fopen(lastRomFile, "rb")) )
 					{
 						fclose(tstf);
-						strcpy(curr_path, currentConfig.lastRomFile);
+						strcpy(curr_path, lastRomFile);
 					}
 					else
 						getcwd(curr_path, PATH_MAX);
@@ -1665,10 +1652,10 @@ int menu_loop_tray(void)
 	gp2x_memset_all_buffers(0, 0, 320*240*2);
 	menu_gfx_prepare();
 
-	if ( (tstf = fopen(currentConfig.lastRomFile, "rb")) )
+	if ( (tstf = fopen(lastRomFile, "rb")) )
 	{
 		fclose(tstf);
-		strcpy(curr_path, currentConfig.lastRomFile);
+		strcpy(curr_path, lastRomFile);
 	}
 	else
 	{

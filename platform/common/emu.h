@@ -4,7 +4,7 @@
 // For commercial use, separate licencing terms must be obtained.
 
 typedef struct {
-	char lastRomFile[512];
+	// char lastRomFile[512];
 	int EmuOpt;		// LSb->MSb: use_sram, show_fps, enable_sound, gzip_saves,
 					// squidgehack, no_save_cfg_on_exit, <unused>, 16_bit_mode
 					// craigix_ram, confirm_save, show_cd_leds, confirm_load
@@ -33,6 +33,7 @@ extern char noticeMsg[64];
 extern int state_slot;
 extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;
+extern char lastRomFile[512];
 
 
 int   emu_ReloadRom(void);
@@ -49,4 +50,5 @@ void  emu_textOut8 (int x, int y, const char *text);
 void  emu_textOut16(int x, int y, const char *text);
 char *emu_makeRomId(void);
 
+extern const char *keyNames[];
 void  emu_prepareDefaultConfig(void);

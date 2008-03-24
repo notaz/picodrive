@@ -30,6 +30,24 @@
 
 char menuErrorMsg[64] = { 0, };
 
+// PicoPad[] format: MXYZ SACB RLDU
+me_bind_action me_ctrl_actions[12] =
+{
+	{ "UP     ", 0x001 },
+	{ "DOWN   ", 0x002 },
+	{ "LEFT   ", 0x004 },
+	{ "RIGHT  ", 0x008 },
+	{ "A      ", 0x040 },
+	{ "B      ", 0x010 },
+	{ "C      ", 0x020 },
+	{ "START  ", 0x080 },
+	{ "MODE   ", 0x800 },
+	{ "X      ", 0x400 },
+	{ "Y      ", 0x200 },
+	{ "Z      ", 0x100 }
+};
+
+
 static unsigned char menu_font_data[10240];
 static int menu_text_color = 0xffff; // default to white
 static int menu_sel_color = -1; // disabled

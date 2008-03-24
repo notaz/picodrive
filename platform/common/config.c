@@ -24,6 +24,21 @@ static const int *cfg_opt_counts[] = { &opt_entry_count, &opt2_entry_count, &cdo
 #define NL "\n"
 
 
+static void mystrip(char *str)
+{
+	int i, len;
+
+	len = strlen(str);
+	for (i = 0; i < len; i++)
+		if (str[i] != ' ') break;
+	if (i > 0) memmove(str, str + i, len - i + 1);
+	len = strlen(str);
+	for (i = len - 1; i >= 0; i--)
+		if (str[i] != ' ') break;
+	str[i+1] = 0;
+}
+
+
 static int seek_sect(FILE *f, const char *section)
 {
 	char line[128], *tmp;
@@ -126,6 +141,52 @@ static void custom_write(FILE *f, const menu_entry *me, int no_def)
 	fprintf(f, NL);
 }
 
+
+static const char *joyKeyNames[32] =
+{
+	"UP", "DOWN", "LEFT", "RIGHT", "b1", "b2", "b3", "b4",
+	"b5",  "b6",  "b7",  "b8",  "b9",  "b10", "b11", "b12",
+	"b13", "b14", "b15", "b16", "b17", "b19", "b19", "b20",
+	"b21", "b22", "b23", "b24", "b25", "b26", "b27", "b28"
+};
+
+static void keys_write(FILE *fn, const char *bind_str, const int binds[32],
+		const int def_binds[32], const char *names[32], int no_defaults)
+{
+	int t, i;
+	char act[48];
+
+	for (t = 0; t < 32; t++)
+	{
+		act[0] = act[31] = 0;
+		if (no_defaults && binds[t] == def_binds[t])
+			continue;
+		if (strcmp(names[t], "???") == 0) continue;
+#ifdef __GP2X__
+		if (strcmp(names[t], "SELECT") == 0) continue;
+#endif
+		for (i = 0; i < sizeof(me_ctrl_actions) / sizeof(me_ctrl_actions[0]); i++) {
+			if (me_ctrl_actions[i].mask & binds[t]) {
+				sprintf(act, "player%i ", ((binds[t]>>16)&1)+1);
+				strncpy(act + 8, me_ctrl_actions[i].name, 31);
+				break;
+			}
+		}
+		if (act[0] == 0)
+		{
+			for (i = 0; emuctrl_actions[i].name != NULL; i++)
+				if (emuctrl_actions[i].mask & binds[t]) {
+					strncpy(act, emuctrl_actions[i].name, 31);
+					break;
+				}
+		}
+		mystrip(act);
+
+		fprintf(fn, "%s %s = %s" NL, bind_str, names[t], act);
+	}
+}
+
+
 static int default_var(const menu_entry *me)
 {
 	switch (me->id)
@@ -137,6 +198,7 @@ static int default_var(const menu_entry *me)
 		case MA_OPT2_ENABLE_Z80:
 		case MA_OPT2_ENABLE_YM2612:
 		case MA_OPT2_ENABLE_SN76496:
+		case MA_OPT2_SVP_DYNAREC:
 		case MA_CDOPT_CDDA:
 		case MA_CDOPT_PCM:
 		case MA_CDOPT_SAVERAM:
@@ -253,6 +315,14 @@ write:
 			}
 		}
 	}
+
+	// save key config
+	keys_write(fn, "bind", currentConfig.KeyBinds, defaultConfig.KeyBinds, keyNames, no_defaults);
+	keys_write(fn, "bind_joy0", currentConfig.JoyBinds[0], defaultConfig.JoyBinds[0], joyKeyNames, 1);
+	keys_write(fn, "bind_joy1", currentConfig.JoyBinds[1], defaultConfig.JoyBinds[1], joyKeyNames, 1);
+	keys_write(fn, "bind_joy2", currentConfig.JoyBinds[2], defaultConfig.JoyBinds[2], joyKeyNames, 1);
+	keys_write(fn, "bind_joy3", currentConfig.JoyBinds[3], defaultConfig.JoyBinds[3], joyKeyNames, 1);
+
 	fprintf(fn, NL);
 
 	if (fo != NULL)
@@ -274,21 +344,6 @@ write:
 }
 
 
-static void mystrip(char *str)
-{
-	int i, len;
-
-	len = strlen(str);
-	for (i = 0; i < len; i++)
-		if (str[i] != ' ') break;
-	if (i > 0) memmove(str, str + i, len - i + 1);
-	len = strlen(str);
-	for (i = len - 1; i >= 0; i--)
-		if (str[i] != ' ') break;
-	str[i+1] = 0;
-}
-
-
 int config_writelrom(const char *fname)
 {
 	char line[128], *tmp, *optr = NULL;
@@ -296,7 +351,7 @@ int config_writelrom(const char *fname)
 	int size;
 	FILE *f;
 
-	if (strlen(currentConfig.lastRomFile) == 0) return 0;
+	if (strlen(lastRomFile) == 0) return 0;
 
 	f = fopen(fname, "r");
 	if (f != NULL)
@@ -329,9 +384,45 @@ int config_writelrom(const char *fname)
 		fwrite(old_data, 1, optr - old_data, f);
 		free(old_data);
 	}
-	fprintf(f, "LastUsedROM = %s" NL, currentConfig.lastRomFile);
+	fprintf(f, "LastUsedROM = %s" NL, lastRomFile);
 	fclose(f);
 	return 0;
+}
+
+/* --------------------------------------------------------------------------*/
+
+int config_readlrom(const char *fname)
+{
+	char line[128], *tmp;
+	int i, len, ret = -1;
+	FILE *f;
+
+	f = fopen(fname, "r");
+	if (f == NULL) return -1;
+
+	// seek to the section needed
+	while (!feof(f))
+	{
+		tmp = fgets(line, sizeof(line), f);
+		if (tmp == NULL) break;
+
+		if (strncasecmp(line, "LastUsedROM", 11) != 0) continue;
+		len = strlen(line);
+		for (i = 0; i < len; i++)
+			if (line[i] == '#' || line[i] == '\r' || line[i] == '\n') { line[i] = 0; break; }
+		tmp = strchr(line, '=');
+		if (tmp == NULL) break;
+		tmp++;
+		mystrip(tmp);
+
+		len = sizeof(lastRomFile);
+		strncpy(lastRomFile, tmp, len);
+		lastRomFile[len-1] = 0;
+		ret = 0;
+		break;
+	}
+	fclose(f);
+	return ret;
 }
 
 
@@ -432,16 +523,16 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 		case MA_OPT_CONFIRM_STATES:
 			if (strcasecmp(var, "Confirm savestate") != 0) return 0;
 			if        (strcasecmp(val, "OFF") == 0) {
-				currentConfig.EmuOpt &= 5<<9;
+				currentConfig.EmuOpt &= ~(5<<9);
 			} else if (strcasecmp(val, "writes") == 0) {
-				currentConfig.EmuOpt &= 5<<9;
-				currentConfig.EmuOpt |= 1<<9;
+				currentConfig.EmuOpt &= ~(5<<9);
+				currentConfig.EmuOpt |=   1<<9;
 			} else if (strcasecmp(val, "loads") == 0) {
-				currentConfig.EmuOpt &= 5<<9;
-				currentConfig.EmuOpt |= 4<<9;
+				currentConfig.EmuOpt &= ~(5<<9);
+				currentConfig.EmuOpt |=   4<<9;
 			} else if (strcasecmp(val, "both") == 0) {
-				currentConfig.EmuOpt &= 5<<9;
-				currentConfig.EmuOpt |= 5<<9;
+				currentConfig.EmuOpt &= ~(5<<9);
+				currentConfig.EmuOpt |=   5<<9;
 			} else
 				return 0;
 			return 1;
@@ -469,22 +560,81 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			return 1;
 
 		default:
-			if (strcasecmp(var, "LastUsedROM") == 0) {
-				tmpi = sizeof(currentConfig.lastRomFile);
-				strncpy(currentConfig.lastRomFile, val, tmpi);
-				currentConfig.lastRomFile[tmpi-1] = 0;
-				return 1;
-			}
 			lprintf("unhandled custom_read: %i\n", me->id);
 			return 0;
 	}
 }
 
 
+static void keys_parse(const char *var, const char *val, int binds[32], const char *names[32])
+{
+	int t, i, keys_encountered = 0;
+	unsigned int player;
+
+	for (t = 0; t < 32; t++)
+	{
+		if (strcmp(names[t], var) == 0) break;
+	}
+	if (t == 32) {
+		lprintf("unhandled bind \"%s\"\n", var);
+		return;
+	}
+
+	if (!(keys_encountered & (1<<t))) {
+		binds[t] = 0;
+		keys_encountered |= 1<<t;
+	}
+	if (val[0] == 0)
+		return;
+	if (strncasecmp(val, "player", 6) == 0)
+	{
+		player = atoi(val + 6) - 1;
+		if (player > 1) goto fail;
+		for (i = 0; i < sizeof(me_ctrl_actions) / sizeof(me_ctrl_actions[0]); i++) {
+			if (strncasecmp(me_ctrl_actions[i].name, val + 8, strlen(val + 8)) == 0) {
+				binds[t] |= me_ctrl_actions[i].mask | (player<<16);
+				return;
+			}
+		}
+	}
+	for (i = 0; emuctrl_actions[i].name != NULL; i++) {
+		if (strncasecmp(emuctrl_actions[i].name, val, strlen(val)) == 0) {
+			binds[t] |= emuctrl_actions[i].mask;
+			return;
+		}
+	}
+
+fail:
+	lprintf("unhandled action \"%s\"\n", val);
+	return;
+
+}
+
+
+#define try_joy_parse(num) { \
+	if (strncasecmp(var, "bind_joy"#num " ", 10) == 0) { \
+		keys_parse(var + 10, val, currentConfig.JoyBinds[num], joyKeyNames); \
+		return; \
+	} \
+}
+
 static void parse(const char *var, const char *val)
 {
 	menu_entry *me;
 	int t, i, tlen, tmp, ret = 0;
+
+	if (strcasecmp(var, "LastUsedROM") == 0)
+		return; /* handled elsewhere */
+
+	// key binds
+	if (strncasecmp(var, "bind ", 5) == 0) {
+		keys_parse(var + 5, val, currentConfig.KeyBinds, keyNames);
+		return;
+	}
+	try_joy_parse(0)
+	try_joy_parse(1)
+	try_joy_parse(2)
+	try_joy_parse(3)
 
 	for (t = 0; t < sizeof(cfg_opts) / sizeof(cfg_opts[0]) && ret == 0; t++)
 	{
@@ -515,12 +665,27 @@ static void parse(const char *var, const char *val)
 }
 
 
+int config_havesect(const char *fname, const char *section)
+{
+	FILE *f;
+	int ret;
+
+	f = fopen(fname, "r");
+	if (f == NULL) return 0;
+
+	ret = seek_sect(f, section);
+	fclose(f);
+	return ret;
+}
+
+
 int config_readsect(const char *fname, const char *section)
 {
 	char line[128], *var, *val, *tmp;
-	FILE *f = fopen(fname, "r");
 	int len, i, ret;
+	FILE *f;
 
+	f = fopen(fname, "r");
 	if (f == NULL) return 0;
 
 	if (section != NULL)
@@ -560,7 +725,7 @@ int config_readsect(const char *fname, const char *section)
 		val = &line[i+1];
 		mystrip(var);
 		mystrip(val);
-		if (strlen(var) == 0 || strlen(val) == 0) {
+		if (strlen(var) == 0 || (strlen(val) == 0 && strncasecmp(var, "bind", 4) != 0)) {
 			lprintf("config_readsect: something's empty: \"%s\" = \"%s\"\n", var, val);
 			continue;
 		}

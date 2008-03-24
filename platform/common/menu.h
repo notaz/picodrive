@@ -1,4 +1,4 @@
-// (c) Copyright 2006,2007 notaz, All rights reserved.
+// (c) Copyright 2006-2008 notaz, All rights reserved.
 
 
 void menu_init(void);
@@ -8,7 +8,6 @@ void smalltext_out16_lim(int x, int y, const char *texto, int color, int max);
 void menu_draw_selection(int x, int y, int w);
 
 extern char menuErrorMsg[64];
-
 
 typedef enum
 {
@@ -65,6 +64,7 @@ typedef enum
 	MA_OPT2_SQUIDGEHACK,	/* gp2x */
 	MA_OPT2_STATUS_LINE,	/* psp */
 	MA_OPT2_NO_FRAME_LIMIT,	/* psp */
+	MA_OPT2_SVP_DYNAREC,
 	MA_OPT2_DONE,
 	MA_OPT3_SCALE,		/* psp (all OPT3) */
 	MA_OPT3_HSCALE32,
@@ -101,6 +101,15 @@ typedef struct
 	char enabled;
 	char need_to_save;
 } menu_entry;
+
+typedef struct
+{
+	char *name;
+	int mask;
+} me_bind_action;
+
+extern me_bind_action me_ctrl_actions[12];
+extern me_bind_action emuctrl_actions[];	// platform code
 
 
 typedef void (me_draw_custom_f)(const menu_entry *entry, int x, int y, void *param);

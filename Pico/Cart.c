@@ -655,17 +655,17 @@ void PicoCartDetect(void)
   }
 
   // Detect 12-in-1 mapper
-  else if ((name_cmp("ROBOCOP 3") && Pico.romsize == 0x200000) ||
-    (rom_strcmp(0x160, "FLICKY") && Pico.romsize >= 0x200000))
+  else if ((name_cmp("ROBOCOP 3") == 0 && Pico.romsize == 0x200000) ||
+    (rom_strcmp(0x160, "FLICKY") == 0 && Pico.romsize >= 0x200000))
   {
     carthw_12in1_startup();
   }
 
   // Realtec mapper
   else if (Pico.romsize == 512*1024 && (
-    rom_strcmp(0x94, "THE EARTH DEFEND") ||
-    rom_strcmp(0xfe, "WISEGAME 11-03-1993") || // Funny World
-    rom_strcmp(0x95, "MALLET LEGEND "))) // Whac-A-Critter
+    rom_strcmp(0x94, "THE EARTH DEFEND") == 0 ||
+    rom_strcmp(0xfe, "WISEGAME 11-03-1993") == 0 || // Funny World
+    rom_strcmp(0x95, "MALLET LEGEND ") == 0)) // Whac-A-Critter
   {
     carthw_realtec_startup();
   }

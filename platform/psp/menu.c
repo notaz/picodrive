@@ -699,8 +699,6 @@ static int count_bound_keys(int action, int pl_idx)
 	return keys;
 }
 
-typedef struct { char *name; int mask; } bind_action_t;
-
 static void draw_key_config(const bind_action_t *opts, int opt_cnt, int player_idx, int sel)
 {
 	int x, y, tl_y = 16+40, i;
@@ -789,33 +787,17 @@ static void draw_kc_sel(int menu_sel)
 }
 
 
-// PicoPad[] format: MXYZ SACB RLDU
-static bind_action_t ctrl_actions[] =
-{
-	{ "UP     ", 0x001 },
-	{ "DOWN   ", 0x002 },
-	{ "LEFT   ", 0x004 },
-	{ "RIGHT  ", 0x008 },
-	{ "A      ", 0x040 },
-	{ "B      ", 0x010 },
-	{ "C      ", 0x020 },
-	{ "START  ", 0x080 },
-	{ "MODE   ", 0x800 },
-	{ "X      ", 0x400 },
-	{ "Y      ", 0x200 },
-	{ "Z      ", 0x100 },
-};
-
 // player2_flag, ?, ?, ?, ?, ?, ?, menu
 // "NEXT SAVE SLOT", "PREV SAVE SLOT", "SWITCH RENDERER", "SAVE STATE",
 // "LOAD STATE", "VOLUME UP", "VOLUME DOWN", "DONE"
-static bind_action_t emuctrl_actions[] =
+me_bind_action emuctrl_actions[] =
 {
 	{ "Load State     ", 1<<28 },
 	{ "Save State     ", 1<<27 },
 	{ "Prev Save Slot ", 1<<25 },
 	{ "Next Save Slot ", 1<<24 },
 	{ "Switch Renderer", 1<<26 },
+	{ NULL,              0     }
 };
 
 static void kc_sel_loop(void)
@@ -832,8 +814,8 @@ static void kc_sel_loop(void)
 		if (inp & BTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if (inp & BTN_CIRCLE) {
 			switch (menu_sel) {
-				case 0: key_config_loop(ctrl_actions, is_6button ? 12 : 8, 0); return;
-				case 1: key_config_loop(ctrl_actions, is_6button ? 12 : 8, 1); return;
+				case 0: key_config_loop(me_ctrl_actions, is_6button ? 12 : 8, 0); return;
+				case 1: key_config_loop(me_ctrl_actions, is_6button ? 12 : 8, 1); return;
 				case 2: key_config_loop(emuctrl_actions,
 						sizeof(emuctrl_actions)/sizeof(emuctrl_actions[0]), -1); return;
 				case 3: if (!rom_loaded) emu_WriteConfig(0); return;

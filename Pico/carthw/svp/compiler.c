@@ -4,8 +4,6 @@
 
 #define u32 unsigned int
 
-static u32 *block_table[0x5090/2];
-static u32 *block_table_iram[15][0x800/2];
 static u32 *tcache_ptr = NULL;
 
 static int nblocks = 0;
@@ -21,7 +19,9 @@ extern ssp1601_t *ssp;
 
 #ifndef ARM
 #define DUMP_BLOCK 0x0c9a
-unsigned int tcache[512*1024];
+u32 *ssp_block_table[0x5090/2];
+u32 *ssp_block_table_iram[15][0x800/2];
+u32 tcache[SSP_TCACHE_SIZE/4];
 void ssp_drc_next(void){}
 void ssp_drc_next_patch(void){}
 void ssp_drc_end(void){}
@@ -1676,7 +1676,7 @@ static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 		emit_jump(A_COND_AL, ssp_drc_next);
 	}
 	else if (cond == A_COND_AL) {
-		u32 *target = (pc < 0x400) ? block_table_iram[ssp->drc.iram_context][pc] : block_table[pc];
+		u32 *target = (pc < 0x400) ? ssp_block_table_iram[ssp->drc.iram_context][pc] : ssp_block_table[pc];
 		if (target != NULL)
 			emit_jump(A_COND_AL, target);
 		else {
@@ -1686,8 +1686,8 @@ static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 		}
 	}
 	else {
-		u32 *target1 = (pc < 0x400) ? block_table_iram[ssp->drc.iram_context][pc] : block_table[pc];
-		u32 *target2 = (end_pc < 0x400) ? block_table_iram[ssp->drc.iram_context][end_pc] : block_table[end_pc];
+		u32 *target1 = (pc < 0x400) ? ssp_block_table_iram[ssp->drc.iram_context][pc] : ssp_block_table[pc];
+		u32 *target2 = (end_pc < 0x400) ? ssp_block_table_iram[ssp->drc.iram_context][end_pc] : ssp_block_table[end_pc];
 		if (target1 != NULL)
 		     emit_jump(cond, target1);
 		else emit_call(cond, ssp_drc_next_patch);
@@ -1743,7 +1743,7 @@ void *ssp_translate_block(int pc)
 	tr_flush_dirty_pmcrs();
 	emit_block_epilogue(ccount, end_cond, jump_pc, pc);
 
-	if (tcache_ptr - tcache > TCACHE_SIZE/4) {
+	if (tcache_ptr - tcache > SSP_TCACHE_SIZE/4) {
 		printf("tcache overflow!\n");
 		fflush(stdout);
 		exit(1);
@@ -1780,9 +1780,9 @@ static void ssp1601_state_load(void)
 
 int ssp1601_dyn_startup(void)
 {
-	memset(tcache, 0, TCACHE_SIZE);
-	memset(block_table, 0, sizeof(block_table));
-	memset(block_table_iram, 0, sizeof(block_table_iram));
+	memset(tcache, 0, SSP_TCACHE_SIZE);
+	memset(ssp_block_table, 0, sizeof(ssp_block_table));
+	memset(ssp_block_table_iram, 0, sizeof(ssp_block_table_iram));
 	tcache_ptr = tcache;
 
 	PicoLoadStateHook = ssp1601_state_load;
@@ -1790,14 +1790,14 @@ int ssp1601_dyn_startup(void)
 	n_in_ops = 0;
 #ifdef ARM
 	// hle'd blocks
-	block_table[0x800/2] = (void *) ssp_hle_800;
-	block_table[0x902/2] = (void *) ssp_hle_902;
-	block_table_iram[ 7][0x030/2] = (void *) ssp_hle_07_030;
-	block_table_iram[ 7][0x036/2] = (void *) ssp_hle_07_036;
-	block_table_iram[ 7][0x6d6/2] = (void *) ssp_hle_07_6d6;
-	block_table_iram[11][0x12c/2] = (void *) ssp_hle_11_12c;
-	block_table_iram[11][0x384/2] = (void *) ssp_hle_11_384;
-	block_table_iram[11][0x38a/2] = (void *) ssp_hle_11_38a;
+	ssp_block_table[0x800/2] = (void *) ssp_hle_800;
+	ssp_block_table[0x902/2] = (void *) ssp_hle_902;
+	ssp_block_table_iram[ 7][0x030/2] = (void *) ssp_hle_07_030;
+	ssp_block_table_iram[ 7][0x036/2] = (void *) ssp_hle_07_036;
+	ssp_block_table_iram[ 7][0x6d6/2] = (void *) ssp_hle_07_6d6;
+	ssp_block_table_iram[11][0x12c/2] = (void *) ssp_hle_11_12c;
+	ssp_block_table_iram[11][0x384/2] = (void *) ssp_hle_11_384;
+	ssp_block_table_iram[11][0x38a/2] = (void *) ssp_hle_11_38a;
 #endif
 
 	return 0;
@@ -1814,12 +1814,12 @@ void ssp1601_dyn_reset(ssp1601_t *ssp)
 		fclose(f);
 
 		for (i = 0; i < 0x5090/2; i++)
-			if (block_table[i])
-				printf("%06x -> __:%04x\n", (block_table[i] - tcache)*4, i<<1);
+			if (ssp_block_table[i])
+				printf("%06x -> __:%04x\n", (ssp_block_table[i] - tcache)*4, i<<1);
 		for (u = 1; u < 15; u++)
 			for (i = 0; i < 0x800/2; i++)
-				if (block_table_iram[u][i])
-					printf("%06x -> %02i:%04x\n", (block_table_iram[u][i] - tcache)*4, u, i<<1);
+				if (ssp_block_table_iram[u][i])
+					printf("%06x -> %02i:%04x\n", (ssp_block_table_iram[u][i] - tcache)*4, u, i<<1);
 	}
 
 	ssp1601_reset(ssp);
@@ -1829,8 +1829,8 @@ void ssp1601_dyn_reset(ssp1601_t *ssp)
 	ssp->drc.ptr_rom = (u32) Pico.rom;
 	ssp->drc.ptr_iram_rom = (u32) svp->iram_rom;
 	ssp->drc.ptr_dram = (u32) svp->dram;
-	ssp->drc.ptr_btable = (u32) block_table;
-	ssp->drc.ptr_btable_iram = (u32) block_table_iram;
+	ssp->drc.ptr_btable = (u32) ssp_block_table;
+	ssp->drc.ptr_btable_iram = (u32) ssp_block_table_iram;
 
 	// prevent new versions of IRAM from appearing
 	memset(svp->iram_rom, 0, 0x800);

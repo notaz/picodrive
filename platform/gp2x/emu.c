@@ -179,9 +179,8 @@ void emu_Deinit(void)
 void emu_prepareDefaultConfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
-	defaultConfig.lastRomFile[0] = 0;
-	defaultConfig.EmuOpt  = 0x1f | 0x600; // | confirm_save, cd_leds
-	defaultConfig.s_PicoOpt = 0x0f | 0xe00; // | use_940, cd_pcm, cd_cdda
+	defaultConfig.EmuOpt    = 0x1d | 0x00700; // | <- ram_tmng, confirm_save, cd_leds
+	defaultConfig.s_PicoOpt = 0x0f | 0x20e00; // | <- use_940, cd_pcm, cd_cdda, svp drc
 	defaultConfig.s_PsndRate = 44100;
 	defaultConfig.s_PicoRegion = 0; // auto
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP

@@ -14,6 +14,7 @@
 
 svp_t *svp = NULL;
 int PicoSVPCycles = 820; // cycles/line, just a guess
+static int svp_dyn_ready = 0;
 
 /* save state stuff */
 typedef enum {
@@ -37,17 +38,17 @@ static void PicoSVPReset(void)
 
 	memcpy(svp->iram_rom + 0x800, Pico.rom + 0x800, 0x20000 - 0x800);
 	ssp1601_reset(&svp->ssp1601);
-	if (!(PicoOpt&0x20000))
+	if ((PicoOpt&0x20000) && svp_dyn_ready)
 		ssp1601_dyn_reset(&svp->ssp1601);
 }
 
 
 static void PicoSVPLine(int count)
 {
-	if (PicoOpt&0x20000)
-		ssp1601_run(PicoSVPCycles * count);
-	else
+	if ((PicoOpt&0x20000) && svp_dyn_ready)
 		ssp1601_dyn_run(PicoSVPCycles * count);
+	else
+		ssp1601_run(PicoSVPCycles * count);
 
 	// test mode
 	//if (Pico.m.frame_count == 13) PicoPad[0] |= 0xff;
@@ -83,7 +84,7 @@ void PicoSVPInit(void)
 {
 #ifdef __GP2X__
 	int ret;
-	ret = munmap(tcache, TCACHE_SIZE);
+	ret = munmap(tcache, SSP_DRC_SIZE);
 	printf("munmap tcache: %i\n", ret);
 #endif
 }
@@ -111,19 +112,21 @@ void PicoSVPStartup(void)
 		return;
 	}
 
-	//PicoOpt |= 0x20000;
+	//PicoOpt &= ~0x20000;
 	Pico.rom = tmp;
 	svp = (void *) ((char *)tmp + 0x200000);
 	memset(svp, 0, sizeof(*svp));
 
 #ifdef __GP2X__
-	tmp = mmap(tcache, TCACHE_SIZE, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+	tmp = mmap(tcache, SSP_DRC_SIZE, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
 	printf("mmap tcache: %p, asked %p\n", tmp, tcache);
 #endif
 
 	// init SVP compiler
-	if (!(PicoOpt&0x20000)) {
+	svp_dyn_ready = 0;
+	if (PicoOpt&0x20000) {
 		if (ssp1601_dyn_startup()) return;
+		svp_dyn_ready = 1;
 	}
 
 	// init ok, setup hooks..

@@ -40,6 +40,7 @@ int rom_loaded = 0;
 char noticeMsg[64];
 int state_slot = 0;
 int config_slot = 0, config_slot_current = 0;
+char lastRomFile[512];
 
 unsigned char *movie_data = NULL;
 static int movie_size = 0;
@@ -139,6 +140,7 @@ int emu_findBios(int region, char **bios_file)
 }
 
 /* check if the name begins with BIOS name */
+/*
 static int emu_isBios(const char *name)
 {
 	int i;
@@ -150,8 +152,9 @@ static int emu_isBios(const char *name)
 		if (strstr(name, biosfiles_jp[i]) != NULL) return 1;
 	return 0;
 }
+*/
 
-static unsigned char scd_id_header[0x100];
+static unsigned char id_header[0x100];
 
 /* checks if romFileName points to valid MegaCD image
  * if so, checks for suitable BIOS */
@@ -177,7 +180,7 @@ int emu_cdCheck(int *pregion)
 	}
 
 	pm_seek(cd_f, (type == 1) ? 0x100 : 0x110, SEEK_SET);
-	pm_read(scd_id_header, sizeof(scd_id_header), cd_f);
+	pm_read(id_header, sizeof(id_header), cd_f);
 
 	/* it seems we have a CD image here. Try to detect region now.. */
 	pm_seek(cd_f, (type == 1) ? 0x100+0x10B : 0x110+0x10B, SEEK_SET);
@@ -229,21 +232,11 @@ static int extract_text(char *dest, unsigned char *src, int len, int swab)
 char *emu_makeRomId(void)
 {
 	static char id_string[3+0x11+0x11+0x30+16];
-	unsigned char *id_header;
 	int pos;
 
-	if (Pico.rom == NULL) {
-		id_string[0] = 0;
-		return id_string;
-	}
-
-	if (PicoMCD & 1) {
-		id_header = scd_id_header;
-		strcpy(id_string, "CD|");
-	} else {
-		id_header = Pico.rom + 0x100;
-		strcpy(id_string, "MD|");
-	}
+	if (PicoMCD & 1)
+	     strcpy(id_string, "CD|");
+	else strcpy(id_string, "MD|");
 	pos = 3;
 
 	pos += extract_text(id_string + pos, id_header + 0x80, 0x0e, 1); // serial
@@ -253,7 +246,6 @@ char *emu_makeRomId(void)
 	pos += extract_text(id_string + pos, id_header + 0x50, 0x30, 1); // overseas name
 	id_string[pos] = 0;
 
-	printf("id_string: %s\n", id_string);
 	return id_string;
 }
 
@@ -391,6 +383,8 @@ int emu_ReloadRom(void)
 	}
 
 	// load config for this ROM (do this before insert to get correct region)
+	if (!(PicoMCD&1))
+		memcpy(id_header, rom_data + 0x100, sizeof(id_header));
 	if (!cfg_loaded) {
 		ret = emu_ReadConfig(1, 1);
 		if (!ret) emu_ReadConfig(0, 1);
@@ -417,13 +411,6 @@ int emu_ReloadRom(void)
 	}
 
 	menu_romload_end();
-
-	if (!emu_isBios(romFileName))
-	{
-		// emu_ReadConfig() might have messed currentConfig.lastRomFile
-		strncpy(currentConfig.lastRomFile, romFileName, sizeof(currentConfig.lastRomFile)-1);
-		currentConfig.lastRomFile[sizeof(currentConfig.lastRomFile)-1] = 0;
-	}
 
 	if (PicoPatches) {
 		PicoPatchPrepare();
@@ -463,6 +450,8 @@ int emu_ReloadRom(void)
 	if (currentConfig.EmuOpt & 1)
 		emu_SaveLoadGame(1, 1);
 
+	strncpy(lastRomFile, romFileName, sizeof(lastRomFile)-1);
+	lastRomFile[sizeof(lastRomFile)-1] = 0;
 	rom_loaded = 1;
 	return 1;
 }
@@ -509,14 +498,18 @@ int emu_ReadConfig(int game, int no_defaults)
 	}
 	else
 	{
-		if (!no_defaults)
-			emu_setDefaultConfig();
+		char *sect = emu_makeRomId();
 
 		// try new .cfg way
 		if (config_slot != 0)
 		     sprintf(cfg, "game.%i.cfg", config_slot);
 		else strcpy(cfg,  "game.cfg");
-		ret = config_readsect(cfg, emu_makeRomId());
+
+		ret = -1;
+		if (config_havesect(cfg, sect)) {
+			emu_setDefaultConfig();
+			ret = config_readsect(cfg, sect);
+		}
 
 		if (ret != 0)
 		{
@@ -532,7 +525,9 @@ int emu_ReadConfig(int game, int no_defaults)
 				f = fopen(cfg, "rb");
 			}
 			if (f) {
-				int bread = fread(&currentConfig, 1, sizeof(currentConfig), f);
+				int bread;
+				fseek(f, 512, SEEK_SET); // skip unused lrom buffer
+				bread = fread(&currentConfig, 1, sizeof(currentConfig), f);
 				lprintf("emu_ReadConfig: %s %s\n", cfg, bread > 0 ? "(ok)" : "(failed)");
 				fclose(f);
 				ret = 0;
@@ -548,7 +543,7 @@ int emu_ReadConfig(int game, int no_defaults)
 		}
 		else
 		{
-			lprintf("loaded cf from game sect\n");
+			lprintf("loaded cfg from sect \"%s\"\n", sect);
 		}
 	}
 
@@ -593,10 +588,12 @@ int emu_WriteConfig(int is_game)
 		     sprintf(cfg, "game.%i.cfg", config_slot);
 		else strcpy(cfg,  "game.cfg");
 		game_sect = emu_makeRomId();
+		lprintf("emu_WriteConfig: sect \"%s\"\n", game_sect);
 	}
 
 	lprintf("emu_WriteConfig: %s ", cfg);
 	ret = config_writesect(cfg, game_sect);
+	if (write_lrom) config_writelrom(cfg);
 #ifndef NO_SYNC
 	sync();
 #endif
