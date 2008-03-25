@@ -119,10 +119,7 @@ extern unsigned short HighPal[0x100];
 extern int rendstatus;
 // utility
 #ifdef _ASM_DRAW_C
-void *blockcpy(void *dst, const void *src, size_t n);
 void vidConvCpyRGB565(void *to, void *from, int pixels);
-#else
-#define blockcpy memcpy
 #endif
 
 // Draw2.c

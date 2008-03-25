@@ -511,8 +511,10 @@ int emu_ReadConfig(int game, int no_defaults)
 
 		ret = -1;
 		if (config_havesect(cfg, sect)) {
+			int vol = currentConfig.volume;
 			emu_setDefaultConfig();
 			ret = config_readsect(cfg, sect);
+			currentConfig.volume = vol; // make vol global (bah)
 		}
 
 		if (ret != 0)

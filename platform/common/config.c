@@ -21,7 +21,7 @@ extern const int cdopt_entry_count;
 static menu_entry *cfg_opts[] = { opt_entries, opt2_entries, cdopt_entries };
 static const int *cfg_opt_counts[] = { &opt_entry_count, &opt2_entry_count, &cdopt_entry_count };
 
-#define NL "\n"
+#define NL "\r\n"
 
 
 static char *mystrip(char *str)
@@ -321,6 +321,9 @@ write:
 	keys_write(fn, "bind_joy1", currentConfig.JoyBinds[1], defaultConfig.JoyBinds[1], joyKeyNames, 1);
 	keys_write(fn, "bind_joy2", currentConfig.JoyBinds[2], defaultConfig.JoyBinds[2], joyKeyNames, 1);
 	keys_write(fn, "bind_joy3", currentConfig.JoyBinds[3], defaultConfig.JoyBinds[3], joyKeyNames, 1);
+
+	if (section == NULL)
+		fprintf(fn, "Sound Volume = %i" NL, currentConfig.volume);
 
 	fprintf(fn, NL);
 
@@ -625,6 +628,11 @@ static void parse(const char *var, const char *val)
 
 	if (strcasecmp(var, "LastUsedROM") == 0)
 		return; /* handled elsewhere */
+
+	if (strcasecmp(var, "Sound Volume") == 0) {
+		currentConfig.volume = atoi(val);
+		return;
+	}
 
 	// key binds
 	if (strncasecmp(var, "bind ", 5) == 0) {

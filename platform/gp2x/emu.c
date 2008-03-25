@@ -272,7 +272,7 @@ static void blit(const char *fps, const char *notice)
 				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 				vidConvCpyRGB32sh(localPal+0x40, Pico.cram, 0x40);
 				vidConvCpyRGB32hi(localPal+0x80, Pico.cram, 0x40);
-				blockcpy(localPal+0xc0, localPal+0x40, 0x40*4);
+				memcpy32(localPal+0xc0, localPal+0x40, 0x40);
 				localPal[0xc0] = 0x0000c000;
 				localPal[0xd0] = 0x00c00000;
 				localPal[0xe0] = 0x00000000; // reserved pixels for OSD

@@ -444,8 +444,8 @@ DrawLayer:
 .DrawStrip_vsscroll:
     rsb     r8, r3, #0
     mov     r8, r8, lsr #3        @ r8=tilex=(-ts->hscroll)>>3
-    bic     r8, r8, #0xff000000
-    orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|had_output[24]|tilex[23:0])
+    bic     r8, r8, #0x3fc00000
+    orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|had_output[24]|tilex[21:0])
 
     ldr     r4, =Scanline
     orr     r5, r1, r10, lsl #24
@@ -504,9 +504,9 @@ DrawLayer:
     ldrh    r7, [r7]              @ r7=vscroll
 
     bic     r10,r10,#0xff         @ clear old ty
-    and     r4, r5, #0xff0000
-    add     r4, r4, r7, lsl #16
-    and     r4, r4, r5, lsl #16   @ r4=line<<16
+    and     r4, r5, #0xff0000     @ scanline
+    add     r4, r4, r7, lsl #16   @ ... += vscroll
+    and     r4, r4, r5, lsl #16   @ ... &= ymask
     and     r7, r4, #0x70000
     orr     r10,r10,r7, lsr #15   @ new ty
 
@@ -529,7 +529,7 @@ DrawLayer:
     beq     .DrawStrip_vs_samecode @ we know stuff about this tile already
 
     mov     r9, r7          @ remember code
-    orr     r8, r8, #1<<24  @ seen non hi-prio tile
+    orr     r8, r8, #(1<<24)@ seen non hi-prio tile
 
     movs    r2, r9, lsl #20 @ if (code&0x1000)
     mov     r2, r2, lsl #1
@@ -603,7 +603,7 @@ DrawLayer:
     b       .dsloop_vs
 
 .dsloop_vs_exit:
-    tst     r8, #1<<24 @ seen non hi-prio tile
+    tst     r8, #(1<<24) @ seen non hi-prio tile
     ldreq   r1, =rendstatus
     mov     r0, #0
     ldreq   r2, [r1]

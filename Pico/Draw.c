@@ -54,6 +54,7 @@ void DrawSpritesFromCache(int *hc, int sh);
 void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
 void FinalizeLineBGR444(int sh);
 void FinalizeLineRGB555(int sh);
+void *blockcpy(void *dst, const void *src, size_t n);
 void blockcpy_or(void *dst, void *src, size_t n, int pat);
 #else
 // utility
@@ -63,6 +64,7 @@ void blockcpy_or(void *dst, void *src, size_t n, int pat)
   for (; n; n--)
     *pd++ = (unsigned char) (*ps++ | pat);
 }
+#define blockcpy memcpy
 #endif
 
 
