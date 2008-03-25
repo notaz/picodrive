@@ -153,6 +153,8 @@ PICO_INTERNAL int PicoCdSaveState(void *file)
 	if (carthw_chunks != NULL)
 	{
 		carthw_state_chunk *chwc;
+		if (PicoStateProgressCB)
+			PicoStateProgressCB("Saving.. cart hw state");
 		for (chwc = carthw_chunks; chwc->ptr != NULL; chwc++)
 			CHECKED_WRITE(chwc->chunk, chwc->size, chwc->ptr);
 	}

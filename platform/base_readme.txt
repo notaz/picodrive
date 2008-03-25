@@ -538,11 +538,13 @@ bram (internal backup RAM): yes
 Problems / limitations
 ----------------------
 
-* 32x and SVP are not emulated.
+* 32x is not emulated.
+#ifdef PSP
+* SVP is not emulated.
+#endif
 * Various VDP quirks (window bug, scroll size 2, etc.) are not emulated,
   as very few games use this (if any at all).
-* Some games don't work or have glitches because of inaccurate timing and sync
-  between the emulated chips.
+* The emulator is not 100% accurate, so some things may not work as expected.
 
 
 Credits
@@ -600,6 +602,7 @@ Additional thanks
 * Charles MacDonald (http://cgfm2.emuviews.com/) for old but still very useful
   info about genesis hardware.
 * Steve Snake for all that he has done for Genesis emulation scene.
+* Tasco Deluxe for his reverse engineering work on SVP and some mappers.
 * Bart Trzynadlowski for his SSFII and 68000 docs.
 * Haze for his research (http://haze.mameworld.info).
 * Mark and Jean-loup for zlib library.
@@ -633,6 +636,14 @@ Additional thanks
 
 Changelog
 ---------
+1.40
+  + Added support for SVP (Sega Virtua Processor) to emulate Virtua Racing,
+    wrote ARM recompiler and some HLE code for VR.
+  * Changed config file format, files are now human-readable. Game specific
+    configs are now held in single file (but old game config files are still
+    read).
+  * Fixed a bug where some key combos didn't work.
+
 1.35b
   * PSP: mp3 code should no longer fail on 1.5 firmware.
   + PSP: added gamma adjustment option.

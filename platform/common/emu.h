@@ -34,6 +34,7 @@ extern int state_slot;
 extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;
 extern char lastRomFile[512];
+extern int kb_combo_keys, kb_combo_acts;	// keys and actions which need button combos
 
 
 int   emu_ReloadRom(void);
@@ -49,6 +50,7 @@ int   emu_findBios(int region, char **bios_file);
 void  emu_textOut8 (int x, int y, const char *text);
 void  emu_textOut16(int x, int y, const char *text);
 char *emu_makeRomId(void);
+void  emu_findKeyBindCombos(void);
 
 extern const char *keyNames[];
 void  emu_prepareDefaultConfig(void);

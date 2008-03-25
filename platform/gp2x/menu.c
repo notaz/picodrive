@@ -845,7 +845,7 @@ static void kc_sel_loop(void)
 				case 0: key_config_loop(me_ctrl_actions, is_6button ? 12 : 8, 0); return;
 				case 1: key_config_loop(me_ctrl_actions, is_6button ? 12 : 8, 1); return;
 				case 2: key_config_loop(emuctrl_actions,
-						sizeof(emuctrl_actions)/sizeof(emuctrl_actions[0]), -1); return;
+						sizeof(emuctrl_actions)/sizeof(emuctrl_actions[0]) - 1, -1); return;
 				case 3: if (!rom_loaded) emu_WriteConfig(0); return;
 				default: return;
 			}

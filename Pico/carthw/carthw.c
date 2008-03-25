@@ -7,6 +7,14 @@
 
 
 /* 12-in-1 and 4-in-1. Assuming 2MB ROMs here. */
+static unsigned int carthw_12in1_baddr = 0;
+
+static carthw_state_chunk carthw_12in1_state[] =
+{
+	{ CHUNK_CARTHW, sizeof(carthw_12in1_baddr), &carthw_12in1_baddr },
+	{ 0,            0,                          NULL }
+};
+
 static unsigned int carthw_12in1_read16(unsigned int a, int realsize)
 {
 	// ??
@@ -26,6 +34,7 @@ static void carthw_12in1_write8(unsigned int a, unsigned int d, int realsize)
 		return;
 	}
 
+	carthw_12in1_baddr = a;
 	a &= 0x3f; a <<= 16;
 	len = Pico.romsize - a;
 	if (len <= 0) {
@@ -39,6 +48,11 @@ static void carthw_12in1_write8(unsigned int a, unsigned int d, int realsize)
 static void carthw_12in1_reset(void)
 {
 	carthw_12in1_write8(0xA13000, 0, 0);
+}
+
+static void carthw_12in1_statef(void)
+{
+	carthw_12in1_write8(carthw_12in1_baddr, 0, 0);
 }
 
 void carthw_12in1_startup(void)
@@ -59,6 +73,8 @@ void carthw_12in1_startup(void)
 	PicoRead16Hook = carthw_12in1_read16;
 	PicoWrite8Hook = carthw_12in1_write8;
 	PicoResetHook  = carthw_12in1_reset;
+	PicoLoadStateHook = carthw_12in1_statef;
+	carthw_chunks     = carthw_12in1_state;
 }
 
 

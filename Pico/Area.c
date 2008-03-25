@@ -138,7 +138,6 @@ static int PicoAreaScan(int PmovAction,unsigned int ver, void *PmovFile)
 
     // Pack, scan and unpack the cpu data:
     if((PmovAction&3)==1) PicoAreaPackCpu(cpu, 0);
-    //SekInit();     // notaz: do we really have to do this here?
     //PicoMemInit();
     SCAN_VAR(cpu,"cpu")
     if((PmovAction&3)==2) PicoAreaUnpackCpu(cpu, 0);

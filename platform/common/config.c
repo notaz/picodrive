@@ -24,7 +24,7 @@ static const int *cfg_opt_counts[] = { &opt_entry_count, &opt2_entry_count, &cdo
 #define NL "\n"
 
 
-static void mystrip(char *str)
+static char *mystrip(char *str)
 {
 	int i, len;
 
@@ -32,10 +32,13 @@ static void mystrip(char *str)
 	for (i = 0; i < len; i++)
 		if (str[i] != ' ') break;
 	if (i > 0) memmove(str, str + i, len - i + 1);
+
 	len = strlen(str);
 	for (i = len - 1; i >= 0; i--)
 		if (str[i] != ' ') break;
 	str[i+1] = 0;
+
+	return str;
 }
 
 
@@ -167,22 +170,18 @@ static void keys_write(FILE *fn, const char *bind_str, const int binds[32],
 #endif
 		for (i = 0; i < sizeof(me_ctrl_actions) / sizeof(me_ctrl_actions[0]); i++) {
 			if (me_ctrl_actions[i].mask & binds[t]) {
-				sprintf(act, "player%i ", ((binds[t]>>16)&1)+1);
-				strncpy(act + 8, me_ctrl_actions[i].name, 31);
-				break;
+				strncpy(act, me_ctrl_actions[i].name, 31);
+				fprintf(fn, "%s %s = player%i %s" NL, bind_str, names[t],
+					((binds[t]>>16)&1)+1, mystrip(act));
 			}
 		}
-		if (act[0] == 0)
-		{
-			for (i = 0; emuctrl_actions[i].name != NULL; i++)
-				if (emuctrl_actions[i].mask & binds[t]) {
-					strncpy(act, emuctrl_actions[i].name, 31);
-					break;
-				}
-		}
-		mystrip(act);
 
-		fprintf(fn, "%s %s = %s" NL, bind_str, names[t], act);
+		for (i = 0; emuctrl_actions[i].name != NULL; i++) {
+			if (emuctrl_actions[i].mask & binds[t]) {
+				strncpy(act, emuctrl_actions[i].name, 31);
+				fprintf(fn, "%s %s = %s" NL, bind_str, names[t], mystrip(act));
+			}
+		}
 	}
 }
 
@@ -566,9 +565,11 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 }
 
 
+static unsigned int keys_encountered = 0;
+
 static void keys_parse(const char *var, const char *val, int binds[32], const char *names[32])
 {
-	int t, i, keys_encountered = 0;
+	int t, i;
 	unsigned int player;
 
 	for (t = 0; t < 32; t++)
@@ -580,7 +581,7 @@ static void keys_parse(const char *var, const char *val, int binds[32], const ch
 		return;
 	}
 
-	if (!(keys_encountered & (1<<t))) {
+	if (binds == currentConfig.KeyBinds && !(keys_encountered & (1<<t))) { // hack
 		binds[t] = 0;
 		keys_encountered |= 1<<t;
 	}
@@ -607,7 +608,6 @@ static void keys_parse(const char *var, const char *val, int binds[32], const ch
 fail:
 	lprintf("unhandled action \"%s\"\n", val);
 	return;
-
 }
 
 
@@ -697,6 +697,8 @@ int config_readsect(const char *fname, const char *section)
 			return -1;
 		}
 	}
+
+	keys_encountered = 0;
 
 	while (!feof(f))
 	{

@@ -35,7 +35,6 @@ char romFileName[PATH_MAX];
 unsigned char *PicoDraw2FB = (unsigned char *)VRAM_CACHED_STUFF + 8; // +8 to be able to skip border with 1 quadword..
 int engineState = PGS_Menu;
 
-static int combo_keys = 0, combo_acts = 0; // keys and actions which need button combos
 static unsigned int noticeMsgTime = 0;
 int reset_timing = 0; // do we need this?
 
@@ -764,20 +763,21 @@ static void updateKeys(void)
 			int pl, acts = currentConfig.KeyBinds[i];
 			if (!acts) continue;
 			pl = (acts >> 16) & 1;
-			if (combo_keys & (1 << i))
+			if (kb_combo_keys & (1 << i))
 			{
-				int u = i+1, acts_c = acts & combo_acts;
+				int u, acts_c = acts & kb_combo_acts;
 				// let's try to find the other one
-				if (acts_c)
-					for (; u < 32; u++)
-						if ( (currentConfig.KeyBinds[u] & acts_c) && (keys & (1 << u)) ) {
-							allActions[pl] |= acts_c;
+				if (acts_c) {
+					for (u = i + 1; u < 32; u++)
+						if ( (keys & (1 << u)) && (currentConfig.KeyBinds[u] & acts_c) ) {
+							allActions[pl] |= acts_c & currentConfig.KeyBinds[u];
 							keys &= ~((1 << i) | (1 << u));
 							break;
 						}
+				}
 				// add non-combo actions if combo ones were not found
 				if (!acts_c || u == 32)
-					allActions[pl] |= acts & ~combo_acts;
+					allActions[pl] |= acts & ~kb_combo_acts;
 			} else {
 				allActions[pl] |= acts;
 			}
@@ -809,44 +809,6 @@ static void updateKeys(void)
 	if (movie_data) emu_updateMovie();
 
 	prevEvents = (allActions[0] | allActions[1]) >> 16;
-}
-
-static void find_combos(void)
-{
-	int act, u;
-
-	// find out which keys and actions are combos
-	combo_keys = combo_acts = 0;
-	for (act = 0; act < 32; act++)
-	{
-		int keyc = 0, keyc2 = 0;
-		if (act == 16 || act == 17) continue; // player2 flag
-		if (act > 17)
-		{
-			for (u = 0; u < 28; u++) // 28 because nub can't produce combos
-				if (currentConfig.KeyBinds[u] & (1 << act)) keyc++;
-		}
-		else
-		{
-			for (u = 0; u < 28; u++)
-				if ((currentConfig.KeyBinds[u] & 0x30000) == 0 && // pl. 1
-					(currentConfig.KeyBinds[u] & (1 << act))) keyc++;
-			for (u = 0; u < 28; u++)
-				if ((currentConfig.KeyBinds[u] & 0x30000) == 1 && // pl. 2
-					(currentConfig.KeyBinds[u] & (1 << act))) keyc2++;
-		}
-		if (keyc > 1 || keyc2 > 1)
-		{
-			// loop again and mark those keys and actions as combo
-			for (u = 0; u < 28; u++)
-			{
-				if (currentConfig.KeyBinds[u] & (1 << act)) {
-					combo_keys |= 1 << u;
-					combo_acts |= 1 << act;
-				}
-			}
-		}
-	}
 }
 
 
@@ -886,7 +848,7 @@ void emu_Loop(void)
 	clearArea(1);
 	Pico.m.dirtyPal = 1;
 	oldmodes = ((Pico.video.reg[12]&1)<<2) ^ 0xc;
-	find_combos();
+	emu_findKeyBindCombos();
 
 	// pal/ntsc might have changed, reset related stuff
 	target_fps = Pico.m.pal ? 50 : 60;

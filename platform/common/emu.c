@@ -41,6 +41,7 @@ char noticeMsg[64];
 int state_slot = 0;
 int config_slot = 0, config_slot_current = 0;
 char lastRomFile[512];
+int kb_combo_keys = 0, kb_combo_acts = 0;	// keys and actions which need button combos
 
 unsigned char *movie_data = NULL;
 static int movie_size = 0;
@@ -232,18 +233,20 @@ static int extract_text(char *dest, unsigned char *src, int len, int swab)
 char *emu_makeRomId(void)
 {
 	static char id_string[3+0x11+0x11+0x30+16];
-	int pos;
+	int pos, swab = 1;
 
-	if (PicoMCD & 1)
-	     strcpy(id_string, "CD|");
+	if (PicoMCD & 1) {
+		strcpy(id_string, "CD|");
+		swab = 0;
+	}
 	else strcpy(id_string, "MD|");
 	pos = 3;
 
-	pos += extract_text(id_string + pos, id_header + 0x80, 0x0e, 1); // serial
+	pos += extract_text(id_string + pos, id_header + 0x80, 0x0e, swab); // serial
 	id_string[pos] = '|'; pos++;
-	pos += extract_text(id_string + pos, id_header + 0xf0, 0x03, 1); // region
+	pos += extract_text(id_string + pos, id_header + 0xf0, 0x03, swab); // region
 	id_string[pos] = '|'; pos++;
-	pos += extract_text(id_string + pos, id_header + 0x50, 0x30, 1); // overseas name
+	pos += extract_text(id_string + pos, id_header + 0x50, 0x30, swab); // overseas name
 	id_string[pos] = 0;
 
 	return id_string;
@@ -328,6 +331,7 @@ int emu_ReloadRom(void)
 	cd_state = emu_cdCheck(&cd_region);
 	if (cd_state > 0)
 	{
+		PicoMCD |= 1;
 		// valid CD image, check for BIOS..
 
 		// we need to have config loaded at this point
@@ -341,10 +345,10 @@ int emu_ReloadRom(void)
 		}
 		if (!emu_findBios(cd_region, &used_rom_name)) {
 			// bios_help() ?
+			PicoMCD &= ~1;
 			return 0;
 		}
 
-		PicoMCD |= 1;
 		get_ext(used_rom_name, ext);
 	}
 	else
@@ -651,6 +655,47 @@ void emu_textOut16(int x, int y, const char *text)
 	}
 }
 
+void emu_findKeyBindCombos(void)
+{
+	int act, u;
+
+	// find out which keys and actions are combos
+	kb_combo_keys = kb_combo_acts = 0;
+	for (act = 0; act < 32; act++)
+	{
+		int keyc = 0, keyc2 = 0;
+		if (act == 16 || act == 17) continue; // player2 flag
+		if (act > 17)
+		{
+			for (u = 0; u < 32; u++)
+				if (currentConfig.KeyBinds[u] & (1 << act)) keyc++;
+		}
+		else
+		{
+			for (u = 0; u < 32; u++)
+				if ((currentConfig.KeyBinds[u] & 0x30000) == 0 && // pl. 1
+					(currentConfig.KeyBinds[u] & (1 << act))) keyc++;
+			for (u = 0; u < 32; u++)
+				if ((currentConfig.KeyBinds[u] & 0x30000) == 1 && // pl. 2
+					(currentConfig.KeyBinds[u] & (1 << act))) keyc2++;
+			if (keyc2 > keyc) keyc = keyc2;
+		}
+		if (keyc > 1)
+		{
+			// loop again and mark those keys and actions as combo
+			for (u = 0; u < 32; u++)
+			{
+				if (currentConfig.KeyBinds[u] & (1 << act)) {
+					kb_combo_keys |= 1 << u;
+					kb_combo_acts |= 1 << act;
+				}
+			}
+		}
+	}
+
+	// printf("combo keys/acts: %08x %08x\n", kb_combo_keys, kb_combo_acts);
+}
+
 
 void emu_updateMovie(void)
 {
@@ -876,3 +921,4 @@ int emu_SaveLoadGame(int load, int sram)
 		return ret;
 	}
 }
+
