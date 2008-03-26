@@ -643,6 +643,8 @@ Changelog
     configs are now held in single file (but old game config files are still
     read).
   * Fixed a bug where some key combos didn't work.
+  * Fixed a regression in renderer (rare graphic glitches).
+  * Adjusted fast rernderer to work with more games, including VR.
 
 1.35b
   * PSP: mp3 code should no longer fail on 1.5 firmware.

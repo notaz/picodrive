@@ -765,10 +765,10 @@ static void updateKeys(void)
 			pl = (acts >> 16) & 1;
 			if (kb_combo_keys & (1 << i))
 			{
-				int u, acts_c = acts & kb_combo_acts;
+				int u = i+1, acts_c = acts & kb_combo_acts;
 				// let's try to find the other one
 				if (acts_c) {
-					for (u = i + 1; u < 32; u++)
+					for (; u < 32; u++)
 						if ( (keys & (1 << u)) && (currentConfig.KeyBinds[u] & acts_c) ) {
 							allActions[pl] |= acts_c & currentConfig.KeyBinds[u];
 							keys &= ~((1 << i) | (1 << u));

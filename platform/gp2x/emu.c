@@ -11,6 +11,7 @@
 #include <linux/limits.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <sched.h>
 
 #include <stdarg.h>
 
@@ -541,10 +542,10 @@ static void updateKeys(void)
 			pl = (acts >> 16) & 1;
 			if (kb_combo_keys & (1 << i))
 			{
-				int u, acts_c = acts & kb_combo_acts;
+				int u = i+1, acts_c = acts & kb_combo_acts;
 				// let's try to find the other one
 				if (acts_c) {
-					for (u = i + 1; u < 32; u++)
+					for (; u < 32; u++)
 						if ( (keys & (1 << u)) && (currentConfig.KeyBinds[u] & acts_c) ) {
 							allActions[pl] |= acts_c & currentConfig.KeyBinds[u];
 							keys &= ~((1 << i) | (1 << u));
@@ -650,15 +651,67 @@ static void simpleWait(int thissec, int lim_time)
 
 	spend_cycles(1024);
 	gettimeofday(&tval, 0);
-	if(thissec != tval.tv_sec) tval.tv_usec+=1000000;
+	if (thissec != tval.tv_sec) tval.tv_usec+=1000000;
 
-	while(tval.tv_usec < lim_time)
+	if (tval.tv_usec < lim_time)
+		sched_yield();
+
+	while (tval.tv_usec < lim_time)
 	{
 		spend_cycles(1024);
 		gettimeofday(&tval, 0);
-		if(thissec != tval.tv_sec) tval.tv_usec+=1000000;
+		if (thissec != tval.tv_sec) tval.tv_usec+=1000000;
 	}
 }
+
+
+#if 0
+static void tga_dump(void)
+{
+#define BYTE unsigned char
+#define WORD unsigned short
+	struct
+	{
+		BYTE IDLength;        /* 00h  Size of Image ID field */
+		BYTE ColorMapType;    /* 01h  Color map type */
+		BYTE ImageType;       /* 02h  Image type code */
+		WORD CMapStart;       /* 03h  Color map origin */
+		WORD CMapLength;      /* 05h  Color map length */
+		BYTE CMapDepth;       /* 07h  Depth of color map entries */
+		WORD XOffset;         /* 08h  X origin of image */
+		WORD YOffset;         /* 0Ah  Y origin of image */
+		WORD Width;           /* 0Ch  Width of image */
+		WORD Height;          /* 0Eh  Height of image */
+		BYTE PixelDepth;      /* 10h  Image pixel size */
+		BYTE ImageDescriptor; /* 11h  Image descriptor byte */
+	} __attribute__((packed)) TGAHEAD;
+	static unsigned short oldscr[320*240];
+	FILE *f; char name[128]; int i;
+
+	memset(&TGAHEAD, 0, sizeof(TGAHEAD));
+	TGAHEAD.ImageType = 2;
+	TGAHEAD.Width = 320;
+	TGAHEAD.Height = 240;
+	TGAHEAD.PixelDepth = 16;
+	TGAHEAD.ImageDescriptor = 2<<4; // image starts at top-left
+
+#define CONV(X) (((X>>1)&0x7fe0)|(X&0x1f)) // 555?
+
+	for (i = 0; i < 320*240; i++)
+		if(oldscr[i] != CONV(((unsigned short *)gp2x_screen)[i])) break;
+	if (i < 320*240)
+	{
+		for (i = 0; i < 320*240; i++)
+			oldscr[i] = CONV(((unsigned short *)gp2x_screen)[i]);
+		sprintf(name, "%05i.tga", Pico.m.frame_count);
+		f = fopen(name, "wb");
+		if (!f) { printf("!f\n"); exit(1); }
+		fwrite(&TGAHEAD, 1, sizeof(TGAHEAD), f);
+		fwrite(oldscr, 1, 320*240*2, f);
+		fclose(f);
+	}
+}
+#endif
 
 
 void emu_Loop(void)
@@ -667,8 +720,9 @@ void emu_Loop(void)
 	static int PsndRate_old = 0, PicoOpt_old = 0, EmuOpt_old = 0, pal_old = 0;
 	char fpsbuff[24]; // fps count c string
 	struct timeval tval; // timing
-	int thissec = 0, frames_done = 0, frames_shown = 0, oldmodes = 0;
-	int target_fps, target_frametime, lim_time, vsync_offset, i;
+	int pframes_done, pframes_shown, pthissec; // "period" frames, used for sync
+	int  frames_done,  frames_shown,  thissec; // actual frames
+	int oldmodes = 0, target_fps, target_frametime, lim_time, vsync_offset, i;
 	char *notice = 0;
 
 	printf("entered emu_Loop()\n");
@@ -747,7 +801,10 @@ void emu_Loop(void)
 	} else
 		vsync_offset = 0;
 
-	// loop?
+	frames_done = frames_shown = thissec =
+	pframes_done = pframes_shown = pthissec = 0;
+
+	// loop
 	while (engineState == PGS_Running)
 	{
 		int modes;
@@ -755,8 +812,8 @@ void emu_Loop(void)
 		gettimeofday(&tval, 0);
 		if (reset_timing) {
 			reset_timing = 0;
-			thissec = tval.tv_sec;
-			frames_shown = frames_done = tval.tv_usec/target_frametime;
+			pthissec = tval.tv_sec;
+			pframes_shown = pframes_done = tval.tv_usec/target_frametime;
 		}
 
 		// show notice message?
@@ -816,42 +873,50 @@ void emu_Loop(void)
 				sprintf(fpsbuff, "%02i/%02i", frames_shown, frames_done);
 			if (fpsbuff[5] == 0) { fpsbuff[5] = fpsbuff[6] = ' '; fpsbuff[7] = 0; }
 #endif
+			frames_shown = frames_done = 0;
 			thissec = tval.tv_sec;
-
-			if (PsndOut == 0 && currentConfig.Frameskip >= 0) {
-				frames_done = frames_shown = 0;
-			} else {
-				// it is quite common for this implementation to leave 1 fame unfinished
-				// when second changes, but we don't want buffer to starve.
-				if(PsndOut && frames_done < target_fps && frames_done > target_fps-5) {
-					updateKeys();
-					SkipFrame(1); frames_done++;
-				}
-
-				frames_done  -= target_fps; if (frames_done  < 0) frames_done  = 0;
-				frames_shown -= target_fps; if (frames_shown < 0) frames_shown = 0;
-				if (frames_shown > frames_done) frames_shown = frames_done;
-			}
 		}
 #ifdef PFRAMES
 		sprintf(fpsbuff, "%i", Pico.m.frame_count);
 #endif
 
-		lim_time = (frames_done+1) * target_frametime + vsync_offset;
-		if(currentConfig.Frameskip >= 0) { // frameskip enabled
+		if (pthissec != tval.tv_sec)
+		{
+			if (PsndOut == 0 && currentConfig.Frameskip >= 0) {
+				pframes_done = pframes_shown = 0;
+			} else {
+				// it is quite common for this implementation to leave 1 fame unfinished
+				// when second changes, but we don't want buffer to starve.
+				if(PsndOut && pframes_done < target_fps && pframes_done > target_fps-5) {
+					updateKeys();
+					SkipFrame(1); pframes_done++;
+				}
+
+				pframes_done  -= target_fps; if (pframes_done  < 0) pframes_done  = 0;
+				pframes_shown -= target_fps; if (pframes_shown < 0) pframes_shown = 0;
+				if (pframes_shown > pframes_done) pframes_shown = pframes_done;
+			}
+			pthissec = tval.tv_sec;
+		}
+
+		lim_time = (pframes_done+1) * target_frametime + vsync_offset;
+		if (currentConfig.Frameskip >= 0) // frameskip enabled
+		{
 			for(i = 0; i < currentConfig.Frameskip; i++) {
 				updateKeys();
-				SkipFrame(1); frames_done++;
+				SkipFrame(1); pframes_done++; frames_done++;
 				if (PsndOut && !reset_timing) { // do framelimitting if sound is enabled
 					gettimeofday(&tval, 0);
-					if(thissec != tval.tv_sec) tval.tv_usec+=1000000;
-					if(tval.tv_usec < lim_time) { // we are too fast
-						simpleWait(thissec, lim_time);
+					if (pthissec != tval.tv_sec) tval.tv_usec+=1000000;
+					if (tval.tv_usec < lim_time) { // we are too fast
+						simpleWait(pthissec, lim_time);
 					}
 				}
 				lim_time += target_frametime;
 			}
-		} else if(tval.tv_usec > lim_time) { // auto frameskip
+		}
+		else if (tval.tv_usec > lim_time) // auto frameskip
+		{
 			// no time left for this frame - skip
 			if (tval.tv_usec - lim_time >= 300000) {
 				/* something caused a slowdown for us (disk access? cache flush?)
@@ -860,74 +925,16 @@ void emu_Loop(void)
 				continue;
 			}
 			updateKeys();
-			SkipFrame(tval.tv_usec < lim_time+target_frametime*2); frames_done++;
+			SkipFrame(tval.tv_usec < lim_time+target_frametime*2); pframes_done++; frames_done++;
 			continue;
 		}
 
 		updateKeys();
 		PicoFrame();
 
-#if 0
-if (Pico.m.frame_count == 31563) {
-	FILE *f;
-	f = fopen("ram_p.bin", "wb");
-	if (!f) { printf("!f\n"); exit(1); }
-	fwrite(Pico.ram, 1, 0x10000, f);
-	fclose(f);
-	exit(0);
-}
-#endif
-#if 0
-		// debug
-		{
-			#define BYTE unsigned char
-			#define WORD unsigned short
-			struct
-			{
-				BYTE IDLength;        /* 00h  Size of Image ID field */
-				BYTE ColorMapType;    /* 01h  Color map type */
-				BYTE ImageType;       /* 02h  Image type code */
-				WORD CMapStart;       /* 03h  Color map origin */
-				WORD CMapLength;      /* 05h  Color map length */
-				BYTE CMapDepth;       /* 07h  Depth of color map entries */
-				WORD XOffset;         /* 08h  X origin of image */
-				WORD YOffset;         /* 0Ah  Y origin of image */
-				WORD Width;           /* 0Ch  Width of image */
-				WORD Height;          /* 0Eh  Height of image */
-				BYTE PixelDepth;      /* 10h  Image pixel size */
-				BYTE ImageDescriptor; /* 11h  Image descriptor byte */
-			} __attribute__((packed)) TGAHEAD;
-			static unsigned short oldscr[320*240];
-			FILE *f; char name[128]; int i;
-
-			memset(&TGAHEAD, 0, sizeof(TGAHEAD));
-			TGAHEAD.ImageType = 2;
-			TGAHEAD.Width = 320;
-			TGAHEAD.Height = 240;
-			TGAHEAD.PixelDepth = 16;
-			TGAHEAD.ImageDescriptor = 2<<4; // image starts at top-left
-
-			#define CONV(X) (((X>>1)&0x7fe0)|(X&0x1f)) // 555?
-
-			for (i = 0; i < 320*240; i++)
-				if(oldscr[i] != CONV(((unsigned short *)gp2x_screen)[i])) break;
-			if (i < 320*240)
-			{
-				for (i = 0; i < 320*240; i++)
-					oldscr[i] = CONV(((unsigned short *)gp2x_screen)[i]);
-				sprintf(name, "%05i.tga", Pico.m.frame_count);
-				f = fopen(name, "wb");
-				if (!f) { printf("!f\n"); exit(1); }
-				fwrite(&TGAHEAD, 1, sizeof(TGAHEAD), f);
-				fwrite(oldscr, 1, 320*240*2, f);
-				fclose(f);
-			}
-		}
-#endif
-
 		// check time
 		gettimeofday(&tval, 0);
-		if (thissec != tval.tv_sec) tval.tv_usec+=1000000;
+		if (pthissec != tval.tv_sec) tval.tv_usec+=1000000;
 
 		if (currentConfig.Frameskip < 0 && tval.tv_usec - lim_time >= 300000) // slowdown detection
 			reset_timing = 1;
@@ -940,17 +947,18 @@ if (Pico.m.frame_count == 31563) {
 				// we are too fast
 				if (vsync_offset) {
 					if (lim_time - tval.tv_usec > target_frametime/2)
-						simpleWait(thissec, lim_time - target_frametime/4);
+						simpleWait(pthissec, lim_time - target_frametime/4);
 					gp2x_video_wait_vsync();
 				} else {
-					simpleWait(thissec, lim_time);
+					simpleWait(pthissec, lim_time);
 				}
 			}
 		}
 
 		blit(fpsbuff, notice);
 
-		frames_done++; frames_shown++;
+		pframes_done++; pframes_shown++;
+		 frames_done++;  frames_shown++;
 	}
 
 	change_fast_forward(0);
@@ -975,5 +983,4 @@ void emu_ResetGame(void)
 	PicoReset(0);
 	reset_timing = 1;
 }
-
 
