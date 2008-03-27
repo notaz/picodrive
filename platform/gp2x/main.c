@@ -66,7 +66,7 @@ void parse_cmd_line(int argc, char *argv[])
 	}
 
 	if (unrecognized) {
-		printf("\n\n\nPicoDrive v" VERSION " (c) notaz, 2006-2007\n");
+		printf("\n\n\nPicoDrive v" VERSION " (c) notaz, 2006-2008\n");
 		printf("usage: %s [options] [romfile]\n", argv[0]);
 		printf( "options:\n"
 				"-menu <menu_path> launch a custom program on exit instead of default gp2xmenu\n"

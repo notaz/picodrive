@@ -377,7 +377,6 @@ extern carthw_state_chunk *carthw_chunks;
 #define CHUNK_CARTHW 64
 
 // Cart.c
-PICO_INTERNAL void PicoCartDetect(void);
 extern void (*PicoCartUnloadHook)(void);
 
 // Debug.c

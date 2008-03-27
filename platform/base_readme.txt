@@ -642,9 +642,10 @@ Changelog
   * Changed config file format, files are now human-readable. Game specific
     configs are now held in single file (but old game config files are still
     read).
-  * Fixed a bug where some key combos didn't work.
-  * Fixed a regression in renderer (rare graphic glitches).
+  * Fixed a bug where some key combos didn't work as expected.
+  * Fixed a regression in renderer (some graphic glitches in rare cases).
   * Adjusted fast rernderer to work with more games, including VR.
+  * Fixed a problem where SegaCD RAM cart data was getting lost on reset.
 
 1.35b
   * PSP: mp3 code should no longer fail on 1.5 firmware.

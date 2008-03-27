@@ -11,7 +11,6 @@
 #include <linux/limits.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <sched.h>
 
 #include <stdarg.h>
 
@@ -652,9 +651,6 @@ static void simpleWait(int thissec, int lim_time)
 	spend_cycles(1024);
 	gettimeofday(&tval, 0);
 	if (thissec != tval.tv_sec) tval.tv_usec+=1000000;
-
-	if (tval.tv_usec < lim_time)
-		sched_yield();
 
 	while (tval.tv_usec < lim_time)
 	{

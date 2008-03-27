@@ -75,10 +75,14 @@ PICO_INTERNAL int PicoResetMCD(int hard)
 #endif
 
   // use SRam.data for RAM cart
-  if (SRam.data) free(SRam.data);
-  SRam.data = NULL;
-  if (PicoOpt&0x8000)
-    SRam.data = calloc(1, 0x12000);
+  if (PicoOpt&0x8000) {
+    if (SRam.data == NULL)
+      SRam.data = calloc(1, 0x12000);
+  }
+  else if (SRam.data != NULL) {
+    free(SRam.data);
+    SRam.data = NULL;
+  }
   SRam.start = SRam.end = 0; // unused
 
   return 0;

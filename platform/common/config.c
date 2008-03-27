@@ -353,7 +353,7 @@ int config_writelrom(const char *fname)
 	int size;
 	FILE *f;
 
-	if (strlen(lastRomFile) == 0) return 0;
+	if (strlen(lastRomFile) == 0) return -1;
 
 	f = fopen(fname, "r");
 	if (f != NULL)
@@ -694,7 +694,7 @@ int config_readsect(const char *fname, const char *section)
 	FILE *f;
 
 	f = fopen(fname, "r");
-	if (f == NULL) return 0;
+	if (f == NULL) return -1;
 
 	if (section != NULL)
 	{

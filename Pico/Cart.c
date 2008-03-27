@@ -20,6 +20,8 @@ void (*PicoCartUnloadHook)(void) = NULL;
 void (*PicoCartLoadProgressCB)(int percent) = NULL;
 void (*PicoCDLoadProgressCB)(int percent) = NULL; // handled in Pico/cd/cd_file.c
 
+static void PicoCartDetect(void);
+
 /* cso struct */
 typedef struct _cso_struct
 {
@@ -201,6 +203,7 @@ cso_failed:
   file->size  = ftell(f);
   file->type  = PMT_UNCOMPRESSED;
   fseek(f, 0, SEEK_SET);
+
   return file;
 }
 
@@ -489,11 +492,16 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   // notaz: add a 68k "jump one op back" opcode to the end of ROM.
   // This will hang the emu, but will prevent nasty crashes.
   // note: 4 bytes are padded to every ROM
-  if(rom != NULL)
+  if (rom != NULL)
     *(unsigned long *)(rom+romsize) = 0xFFFE4EFA; // 4EFA FFFE byteswapped
 
   Pico.rom=rom;
   Pico.romsize=romsize;
+
+  if (SRam.data) {
+    free(SRam.data);
+    SRam.data = NULL;
+  }
 
   if (PicoCartUnloadHook != NULL) {
     PicoCartUnloadHook();
@@ -550,10 +558,9 @@ static int name_cmp(const char *name)
  * various cart-specific things, which can't be handled by generic code
  * (maybe I should start using CRC for this stuff?)
  */
-void PicoCartDetect(void)
+static void PicoCartDetect(void)
 {
   int sram_size = 0, csum;
-  if(SRam.data) free(SRam.data); SRam.data=0;
   Pico.m.sram_reg = 0;
 
   csum = PicoRead32(0x18c) & 0xffff;
@@ -590,7 +597,7 @@ void PicoCartDetect(void)
   if (sram_size)
   {
     SRam.data = (unsigned char *) calloc(sram_size, 1);
-    if(!SRam.data) return;
+    if (SRam.data == NULL) return;
   }
   SRam.changed = 0;
 
