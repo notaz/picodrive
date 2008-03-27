@@ -284,6 +284,31 @@ void Reset940(int yes, int bank)
 	gp2x_memregs[0x3B48>>1] = ((yes&1) << 7) | (bank & 0x03);
 }
 
+static void proc_set(const char *path, const char *val)
+{
+	FILE *f;
+	char tmp[16];
+
+	f = fopen(path, "w");
+	if (f == NULL) {
+		printf("failed to open: %s\n", path);
+		return;
+	}
+
+	fprintf(f, "0\n");
+	fclose(f);
+
+	printf("\"%s\" is set to: ", path);
+	f = fopen(path, "r");
+	if (f == NULL) {
+		printf("(open failed)\n");
+		return;
+	}
+
+	fgets(tmp, sizeof(tmp), f);
+	printf("%s", tmp);
+	fclose(f);
+}
 
 
 /* common */
@@ -336,6 +361,10 @@ void gp2x_init(void)
 
 	/* init usb joys -GnoStiC */
 	gp2x_usbjoy_init();
+
+	/* disable Linux read-ahead */
+	proc_set("/proc/sys/vm/max-readahead", "0\n");
+	proc_set("/proc/sys/vm/min-readahead", "0\n");
 
 	printf("exitting init()\n"); fflush(stdout);
 }

@@ -391,14 +391,10 @@ This enables 8 channel PCM sound source. It is required for some games to run,
 because they monitor state of this audio chip.
 
 @@2. "ReadAhead buffer"
-#ifdef GP2X
-This option is for dealing with slow SD card access in GP2X, which makes FMV
-games unplayable. It will allow emulator not to access SD card for longer periods
-of time, but it will take more time to fill the buffer.
-#endif
-#ifdef GIZ
-This option can prefetch more data from the CD then read by the game - not really
-useful for Gizmondo (this is a workaround for SD access problems on GP2X port).
+This option can prefetch more data from the CD image then requested by game
+(to avoid accessing card later), what can improve performance in some cases.
+#ifndef PSP
+"OFF" is the recommended setting.
 #endif
 
 @@2. "Save RAM cart"
@@ -616,6 +612,7 @@ Additional thanks
 * A_SN for his gamma code.
 * craigix for supplying the GP2X hardware and making this port possible.
 * Alex for the icon.
+* Exophase and Rokas for various ideas.
 * All the people from gp32x boards for their support.
 #endif
 #ifdef GIZ
@@ -638,14 +635,21 @@ Changelog
 ---------
 1.40
   + Added support for SVP (Sega Virtua Processor) to emulate Virtua Racing,
-    wrote ARM recompiler and some HLE code for VR.
+    wrote ARM recompiler and some HLE code for VR. Credits to Exophase and
+    Rokas for various ideas.
   * Changed config file format, files are now human-readable. Game specific
     configs are now held in single file (but old game config files are still
-    read).
+    read when new one is missing).
   * Fixed a bug where some key combos didn't work as expected.
   * Fixed a regression in renderer (some graphic glitches in rare cases).
-  * Adjusted fast rernderer to work with more games, including VR.
+  * Adjusted fast renderer to work with more games, including VR.
   * Fixed a problem where SegaCD RAM cart data was getting lost on reset.
+  * Greatly reduced SegaCD FMV game slowdowns by disabling read-ahead in the
+    Linux kernel and C library (thanks to Rokas and Exophase for ideas again).
+    Be sure to keep "ReadAhead buffer" OFF to avoid slowdowns.
+  + PicoDrive now comes with a game config file for some games which need
+    special settings, so they should now work out-of-the-box. More games will
+    be added with later updates.
 
 1.35b
   * PSP: mp3 code should no longer fail on 1.5 firmware.

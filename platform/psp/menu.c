@@ -936,9 +936,9 @@ static void cd_menu_loop_options(void)
 			    selected_id == MA_CDOPT_READAHEAD) {
 				if (inp & BTN_LEFT) {
 					PicoCDBuffers >>= 1;
-					if (PicoCDBuffers < 64) PicoCDBuffers = 0;
+					if (PicoCDBuffers < 2) PicoCDBuffers = 0;
 				} else {
-					if (PicoCDBuffers < 64) PicoCDBuffers = 64;
+					if (PicoCDBuffers < 2) PicoCDBuffers = 2;
 					else PicoCDBuffers <<= 1;
 					if (PicoCDBuffers > 8*1024) PicoCDBuffers = 8*1024; // 16M
 				}

@@ -141,7 +141,7 @@ void emu_prepareDefaultConfig(void)
 	defaultConfig.s_PsndRate = 44100;
 	defaultConfig.s_PicoRegion = 0; // auto
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
-	defaultConfig.s_PicoCDBuffers = 64;
+	defaultConfig.s_PicoCDBuffers = 0;
 	defaultConfig.Frameskip = -1; // auto
 	defaultConfig.CPUclock = 200;
 	defaultConfig.volume = 50;

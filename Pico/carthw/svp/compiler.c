@@ -151,11 +151,10 @@ int ssp_get_iram_context(void)
 	val1 = iram_context_map[(val>>1)&0x3f];
 
 	if (val1 == 0) {
-		printf("val: %02x PC=%04x\n", (val>>1)&0x3f, rPC);
+		elprintf(EL_ANOMALY, "svp: iram ctx val: %02x PC=%04x\n", (val>>1)&0x3f, rPC);
 		//debug_dump2file(name, svp->iram_rom, 0x800);
-		exit(1);
+		//exit(1);
 	}
-//	elprintf(EL_ANOMALY, "iram_context: %02i", val1);
 	return val1;
 }
 
@@ -233,11 +232,11 @@ static void hostreg_sspreg_changed(int sspreg)
 
 void tr_unhandled(void)
 {
-	FILE *f = fopen("tcache.bin", "wb");
-	fwrite(tcache, 1, (tcache_ptr - tcache)*4, f);
-	fclose(f);
-	printf("unhandled @ %04x\n", known_regs.gr[SSP_PC].h<<1);
-	exit(1);
+	//FILE *f = fopen("tcache.bin", "wb");
+	//fwrite(tcache, 1, (tcache_ptr - tcache)*4, f);
+	//fclose(f);
+	elprintf(EL_ANOMALY, "unhandled @ %04x\n", known_regs.gr[SSP_PC].h<<1);
+	//exit(1);
 }
 
 /* update P, if needed. Trashes r0 */
@@ -364,7 +363,7 @@ static void tr_flush_dirty_pmcrs(void)
 		EOP_STR_IMM(1,7,0x400+SSP_PMC*4);
 
 		if (known_regs.emu_status & (SSP_PMC_SET|SSP_PMC_HAVE_ADDR)) {
-			printf("!! SSP_PMC_SET|SSP_PMC_HAVE_ADDR set on flush\n");
+			elprintf(EL_ANOMALY, "!! SSP_PMC_SET|SSP_PMC_HAVE_ADDR set on flush\n");
 			tr_unhandled();
 		}
 	}
@@ -644,7 +643,7 @@ static int tr_cond_check(int op)
 			EOP_TST_IMM(6, 0, 8);
 			return f ? A_COND_NE : A_COND_EQ;
 		default:
-			printf("unimplemented cond?\n");
+			elprintf(EL_ANOMALY, "unimplemented cond?\n");
 			tr_unhandled();
 			return 0;
 	}
@@ -653,12 +652,12 @@ static int tr_cond_check(int op)
 static int tr_neg_cond(int cond)
 {
 	switch (cond) {
-		case A_COND_AL: printf("neg for AL?\n"); exit(1);
+		case A_COND_AL: elprintf(EL_ANOMALY, "neg for AL?\n"); exit(1);
 		case A_COND_EQ: return A_COND_NE;
 		case A_COND_NE: return A_COND_EQ;
 		case A_COND_MI: return A_COND_PL;
 		case A_COND_PL: return A_COND_MI;
-		default:        printf("bad cond for neg\n"); exit(1);
+		default:        elprintf(EL_ANOMALY, "bad cond for neg\n"); exit(1);
 	}
 	return 0;
 }
@@ -1668,7 +1667,7 @@ static void emit_block_prologue(void)
  */
 static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 {
-	if (cycles > 0xff) { printf("large cycle count: %i\n", cycles); cycles = 0xff; }
+	if (cycles > 0xff) { elprintf(EL_ANOMALY, "large cycle count: %i\n", cycles); cycles = 0xff; }
 	EOP_SUB_IMM(11,11,0,cycles);		// sub r11, r11, #cycles
 
 	if (cond < 0 || (end_pc >= 0x400 && pc < 0x400)) {
@@ -1703,7 +1702,7 @@ void *ssp_translate_block(int pc)
 	unsigned int *block_start;
 	int ret, end_cond = A_COND_AL, jump_pc = -1;
 
-	printf("translate %04x -> %04x\n", pc<<1, (tcache_ptr-tcache)<<2);
+	//printf("translate %04x -> %04x\n", pc<<1, (tcache_ptr-tcache)<<2);
 	block_start = tcache_ptr;
 	known_regb = 0;
 	dirty_regb = KRREG_P;
@@ -1724,8 +1723,8 @@ void *ssp_translate_block(int pc)
 		ret = translate_op(op, &pc, imm, &end_cond, &jump_pc);
 		if (ret <= 0)
 		{
-			printf("NULL func! op=%08x (%02x)\n", op, op1);
-			exit(1);
+			elprintf(EL_ANOMALY, "NULL func! op=%08x (%02x)\n", op, op1);
+			//exit(1);
 		}
 
 		ccount += ret & 0xffff;
@@ -1744,15 +1743,15 @@ void *ssp_translate_block(int pc)
 	emit_block_epilogue(ccount, end_cond, jump_pc, pc);
 
 	if (tcache_ptr - tcache > SSP_TCACHE_SIZE/4) {
-		printf("tcache overflow!\n");
+		elprintf(EL_ANOMALY, "tcache overflow!\n");
 		fflush(stdout);
 		exit(1);
 	}
 
 	// stats
 	nblocks++;
-	printf("%i blocks, %i bytes, k=%.3f\n", nblocks, (tcache_ptr - tcache)*4,
-		(double)(tcache_ptr - tcache) / (double)n_in_ops);
+	//printf("%i blocks, %i bytes, k=%.3f\n", nblocks, (tcache_ptr - tcache)*4,
+	//	(double)(tcache_ptr - tcache) / (double)n_in_ops);
 
 #ifdef DUMP_BLOCK
 	{
@@ -1806,22 +1805,6 @@ int ssp1601_dyn_startup(void)
 
 void ssp1601_dyn_reset(ssp1601_t *ssp)
 {
-	// debug
-	{
-		int i, u;
-		FILE *f = fopen("tcache.bin", "wb");
-		fwrite(tcache, 1, (tcache_ptr - tcache)*4, f);
-		fclose(f);
-
-		for (i = 0; i < 0x5090/2; i++)
-			if (ssp_block_table[i])
-				printf("%06x -> __:%04x\n", (ssp_block_table[i] - tcache)*4, i<<1);
-		for (u = 1; u < 15; u++)
-			for (i = 0; i < 0x800/2; i++)
-				if (ssp_block_table_iram[u][i])
-					printf("%06x -> %02i:%04x\n", (ssp_block_table_iram[u][i] - tcache)*4, u, i<<1);
-	}
-
 	ssp1601_reset(ssp);
 	ssp->drc.iram_dirty = 1;
 	ssp->drc.iram_context = 0;

@@ -89,8 +89,8 @@ static void get_ext(char *file, char *ext)
 	strlwr_(ext);
 }
 
-char *biosfiles_us[] = { "us_scd2_9306", "SegaCDBIOS9303", "us_scd1_9210" };
-char *biosfiles_eu[] = { "eu_mcd2_9306", "eu_mcd2_9303",   "eu_mcd1_9210" };
+char *biosfiles_us[] = { "us_scd1_9210", "us_scd2_9306", "SegaCDBIOS9303" };
+char *biosfiles_eu[] = { "eu_mcd1_9210", "eu_mcd2_9306", "eu_mcd2_9303"   };
 char *biosfiles_jp[] = { "jp_mcd1_9112", "jp_mcd1_9111" };
 
 int emu_findBios(int region, char **bios_file)
@@ -278,7 +278,8 @@ int emu_ReloadRom(void)
 		free(movie_data);
 		movie_data = 0;
 	}
-	if (!strcmp(ext, ".gmv")) {
+	if (!strcmp(ext, ".gmv"))
+	{
 		// check for both gmv and rom
 		int dummy;
 		FILE *movie_file = fopen(romFileName, "rb");
@@ -544,7 +545,7 @@ int emu_ReadConfig(int game, int no_defaults)
 				PsndRate = currentConfig.s_PsndRate;
 				PicoRegionOverride = currentConfig.s_PicoRegion;
 				PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
-				PicoCDBuffers = currentConfig.s_PicoCDBuffers;
+				// PicoCDBuffers = currentConfig.s_PicoCDBuffers; // ignore in this case
 			}
 		}
 		else

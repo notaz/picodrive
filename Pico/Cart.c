@@ -137,6 +137,9 @@ zip_failed:
     if (f == NULL)
       goto cso_failed;
 
+    /* we use our own buffering */
+    setvbuf(f, NULL, _IONBF, 0);
+
     cso = malloc(sizeof(*cso));
     if (cso == NULL)
       goto cso_failed;
