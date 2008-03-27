@@ -9,125 +9,6 @@ static int prev_lba = 0x80000000;
 
 static int hits, reads;
 
-//#define THREADED_CD_IO
-
-/* threaded reader */
-#ifdef THREADED_CD_IO
-#include <pthread.h>
-#define tioprintf printf
-
-static pthread_t thr_thread = 0;
-static pthread_cond_t  thr_cond  = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t thr_mutex = PTHREAD_MUTEX_INITIALIZER;
-static unsigned char *thr_buffer[2][2048 + 304] __attribute__((aligned(4)));
-static int thr_lba_need;
-static int thr_lba_have[2];
-
-static void thr_read_lba(int slot, int lba)
-{
-	int is_bin = Pico_mcd->TOC.Tracks[0].ftype == TYPE_BIN;
-	int where_seek = is_bin ? (lba * 2352 + 16) : (lba << 11);
-
-	pm_seek(Pico_mcd->TOC.Tracks[0].F, where_seek, SEEK_SET);
-	pm_read(thr_buffer[slot], 2048, Pico_mcd->TOC.Tracks[0].F);
-	thr_lba_have[slot] = lba;
-}
-
-static void *buffering_thread(void *arg)
-{
-	int free_slot, lba;
-
-	elprintf(EL_STATUS, "CD I/O thread started.");
-
-	pthread_mutex_lock(&thr_mutex);
-
-	while (1)
-	{
-		if (thr_lba_need < 0) goto wait;
-
-		free_slot = -1;
-		if (thr_lba_have[0] == -1) free_slot = 0;
-		if (thr_lba_have[1] == -1) free_slot = 1;
-		if (free_slot == -1) goto wait;
-
-		lba = thr_lba_need;
-		if (lba != thr_lba_have[free_slot^1]) {
-			thr_read_lba(free_slot, lba);
-			tioprintf("t done %i %i\n", lba, free_slot);
-			continue;
-		}
-		lba++;
-		if (lba != thr_lba_have[free_slot^1]) {
-			thr_read_lba(free_slot, lba);
-			tioprintf("t done %i %i\n", lba, free_slot);
-			continue;
-		}
-
-wait:
-		pthread_cond_wait(&thr_cond, &thr_mutex);
-		tioprintf("t wake\n");
-	}
-
-	pthread_mutex_unlock(&thr_mutex);
-
-	return NULL;
-}
-
-static void threaded_read(void *dest, int lba)
-{
-	int i, have = -1;
-	tioprintf("\n");
-
-	if (lba == thr_lba_have[0]) have = 0;
-	if (lba == thr_lba_have[1]) have = 1;
-	if (have != -1)
-	{
-		tioprintf("r hit  %i %i\n", lba, have);
-		memcpy32(dest, (int *)thr_buffer[have], 2048/4);
-		if (lba != prev_lba) {
-			thr_lba_have[have] = -1; // make free slot
-			thr_lba_need = lba + 1;  // guess a sequential read..
-			pthread_cond_signal(&thr_cond);
-			sched_yield();
-			prev_lba = lba;
-		}
-		return;
-	}
-
-	tioprintf("r miss %i\n", lba);
-	thr_lba_need = lba;
-	pthread_mutex_lock(&thr_mutex);
-	pthread_mutex_unlock(&thr_mutex);
-	if (lba == thr_lba_have[0]) have = 0;
-	if (lba == thr_lba_have[1]) have = 1;
-	if (have == -1)
-	{
-		// try again..
-		thr_lba_have[0] = thr_lba_have[1] = -1;
-		for (i = 0; have == -1 && i < 10; i++)
-		{
-			tioprintf("r hard %i\n", lba);
-			pthread_cond_signal(&thr_cond);
-			sched_yield();
-			pthread_mutex_lock(&thr_mutex);
-			pthread_mutex_unlock(&thr_mutex);
-			if (lba == thr_lba_have[0]) have = 0;
-			if (lba == thr_lba_have[1]) have = 1;
-		}
-	}
-
-	// we MUST have the data at this point..
-	if (have == -1) { tioprintf("BUG!\n"); exit(1); }
-	tioprintf("r reco %i %i\n", lba, have);
-	memcpy32(dest, (int *)thr_buffer[have], 2048/4);
-	thr_lba_have[have] = -1;
-	pthread_cond_signal(&thr_cond);
-
-	prev_lba = lba;
-	return;
-}
-#endif
-
 
 void PicoCDBufferInit(void)
 {
@@ -135,11 +16,10 @@ void PicoCDBufferInit(void)
 
 	prev_lba = 0x80000000;
 	hits = reads = 0;
-	cd_buffer = NULL;
 
 	if (PicoCDBuffers <= 1) {
 		PicoCDBuffers = 0;
-		goto no_buffering; /* buffering off */
+		return; /* buffering off */
 	}
 
 	/* try alloc'ing until we succeed */
@@ -150,28 +30,14 @@ void PicoCDBufferInit(void)
 		PicoCDBuffers >>= 1;
 	}
 
-	if (PicoCDBuffers > 0) {
-		cd_buffer = tmp;
-		return;
-	}
+	if (PicoCDBuffers <= 0) return; /* buffering became off */
 
-no_buffering:;
-#ifdef THREADED_CD_IO
-	thr_lba_need = thr_lba_have[0] = thr_lba_have[1] = -1;
-	if (thr_thread == 0)
-	{
-		pthread_create(&thr_thread, NULL, buffering_thread, NULL);
-	}
-#endif
+	cd_buffer = tmp;
 }
 
 
 void PicoCDBufferFree(void)
 {
-#ifdef THREADED_CD_IO
-	pthread_mutex_lock(&thr_mutex);
-	pthread_mutex_unlock(&thr_mutex);
-#endif
 	if (cd_buffer) {
 		free(cd_buffer);
 		cd_buffer = NULL;
@@ -191,16 +57,11 @@ PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba)
 
 	if (PicoCDBuffers <= 0)
 	{
-#ifdef THREADED_CD_IO
-		threaded_read(dest, lba);
-		return;
-#else
 		/* no buffering */
 		int where_seek = is_bin ? (lba * 2352 + 16) : (lba << 11);
 		pm_seek(Pico_mcd->TOC.Tracks[0].F, where_seek, SEEK_SET);
 		pm_read(dest, 2048, Pico_mcd->TOC.Tracks[0].F);
 		return;
-#endif
 	}
 
 	/* hit? */
