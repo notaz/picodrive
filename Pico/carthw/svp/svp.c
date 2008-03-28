@@ -13,7 +13,7 @@
 #endif
 
 svp_t *svp = NULL;
-int PicoSVPCycles = 820; // cycles/line, just a guess
+int PicoSVPCycles = 850; // cycles/line, just a guess
 static int svp_dyn_ready = 0;
 
 /* save state stuff */
