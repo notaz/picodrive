@@ -865,9 +865,10 @@ void emu_Loop(void)
 			bench_fps += frames_shown;
 			sprintf(fpsbuff, "%02i/%02i/%02i", frames_shown, bench_fps_s, (bf[0]+bf[1]+bf[2]+bf[3])>>2);
 #else
-			if (currentConfig.EmuOpt & 2)
+			if (currentConfig.EmuOpt & 2) {
 				sprintf(fpsbuff, "%02i/%02i", frames_shown, frames_done);
-			if (fpsbuff[5] == 0) { fpsbuff[5] = fpsbuff[6] = ' '; fpsbuff[7] = 0; }
+				if (fpsbuff[5] == 0) { fpsbuff[5] = fpsbuff[6] = ' '; fpsbuff[7] = 0; }
+			}
 #endif
 			frames_shown = frames_done = 0;
 			thissec = tval.tv_sec;

@@ -275,6 +275,31 @@ static int scandir_filter(const struct dirent *ent)
 	return 1;
 }
 
+static void do_delete(const char *fpath, const char *fname)
+{
+	int len, inp;
+
+	gp2x_pd_clone_buffer2();
+
+	if (!rom_loaded)
+		menu_darken_bg(gp2x_screen, 320*240, 0);
+
+	len = strlen(fname);
+	if (len > 320/6) len = 320/6;
+
+	text_out16(320/2 - 15*8/2,  80, "About to delete");
+	smalltext_out16_lim(320/2 - len*6/2, 95, fname, 0xbdff, len);
+	text_out16(320/2 - 13*8/2, 110, "Are you sure?");
+	text_out16(320/2 - 25*8/2, 120, "(Y - confirm, X - cancel)");
+	menu_flip();
+
+
+	while (gp2x_joystick_read(1) & (GP2X_A|GP2X_SELECT)) usleep(50*1000);
+	inp = wait_for_input(GP2X_Y|GP2X_X);
+	if (inp & GP2X_Y)
+		remove(fpath);
+}
+
 static char *romsel_loop(char *curr_path)
 {
 	struct dirent **namelist;
@@ -283,6 +308,7 @@ static char *romsel_loop(char *curr_path)
 	unsigned long inp = 0;
 	char *ret = NULL, *fname = NULL;
 
+rescan:
 	// is this a dir or a full path?
 	if ((dir = opendir(curr_path))) {
 		closedir(dir);
@@ -319,24 +345,39 @@ static char *romsel_loop(char *curr_path)
 	for (;;)
 	{
 		draw_dirlist(curr_path, namelist, n, sel);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_L|GP2X_R|GP2X_B|GP2X_X);
+		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_L|GP2X_R|GP2X_A|GP2X_B|GP2X_X|GP2X_SELECT);
 		if(inp & GP2X_UP  )  { sel--;   if (sel < 0)   sel = n-2; }
 		if(inp & GP2X_DOWN)  { sel++;   if (sel > n-2) sel = 0; }
 		if(inp & GP2X_LEFT)  { sel-=10; if (sel < 0)   sel = 0; }
 		if(inp & GP2X_L)     { sel-=24; if (sel < 0)   sel = 0; }
 		if(inp & GP2X_RIGHT) { sel+=10; if (sel > n-2) sel = n-2; }
 		if(inp & GP2X_R)     { sel+=24; if (sel > n-2) sel = n-2; }
-		if(inp & GP2X_B)     { // enter dir/select
+		if ((inp & GP2X_B) || (inp & (GP2X_SELECT|GP2X_A)) == (GP2X_SELECT|GP2X_A)) // enter dir/select || delete
+		{
 			again:
-			if (namelist[sel+1]->d_type == DT_REG) {
+			if (namelist[sel+1]->d_type == DT_REG)
+			{
 				strcpy(romFileName, curr_path);
 				strcat(romFileName, "/");
 				strcat(romFileName, namelist[sel+1]->d_name);
-				ret = romFileName;
-				break;
-			} else if (namelist[sel+1]->d_type == DT_DIR) {
-				int newlen = strlen(curr_path) + strlen(namelist[sel+1]->d_name) + 2;
-				char *p, *newdir = malloc(newlen);
+				if (inp & GP2X_B) { // return sel
+					ret = romFileName;
+					break;
+				}
+				do_delete(romFileName, namelist[sel+1]->d_name);
+				if (n > 0) {
+					while (n--) free(namelist[n]);
+					free(namelist);
+				}
+				goto rescan;
+			}
+			else if (namelist[sel+1]->d_type == DT_DIR)
+			{
+				int newlen;
+				char *p, *newdir;
+				if (!(inp & GP2X_B)) continue;
+				newlen = strlen(curr_path) + strlen(namelist[sel+1]->d_name) + 2;
+				newdir = malloc(newlen);
 				if (strcmp(namelist[sel+1]->d_name, "..") == 0) {
 					char *start = curr_path;
 					p = start + strlen(start) - 1;
@@ -354,7 +395,9 @@ static char *romsel_loop(char *curr_path)
 				ret = romsel_loop(newdir);
 				free(newdir);
 				break;
-			} else {
+			}
+			else
+			{
 				// unknown file type, happens on NTFS mounts. Try to guess.
 				FILE *tstf; int tmp;
 				strcpy(romFileName, curr_path);
@@ -375,7 +418,7 @@ static char *romsel_loop(char *curr_path)
 	}
 
 	if (n > 0) {
-		while(n--) free(namelist[n]);
+		while (n--) free(namelist[n]);
 		free(namelist);
 	}
 

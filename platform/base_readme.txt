@@ -650,6 +650,7 @@ Changelog
   + PicoDrive now comes with a game config file for some games which need
     special settings, so they should now work out-of-the-box. More games will
     be added with later updates.
+  + Files now can be deleted by pressing A+SELECT in the file browser.
 
 1.35b
   * PSP: mp3 code should no longer fail on 1.5 firmware.

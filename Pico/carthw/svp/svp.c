@@ -47,8 +47,10 @@ static void PicoSVPLine(int count)
 {
 	if ((PicoOpt&0x20000) && svp_dyn_ready)
 		ssp1601_dyn_run(PicoSVPCycles * count);
-	else
+	else {
 		ssp1601_run(PicoSVPCycles * count);
+		svp_dyn_ready = 0; // just in case
+	}
 
 	// test mode
 	//if (Pico.m.frame_count == 13) PicoPad[0] |= 0xff;
