@@ -481,6 +481,18 @@ static void romfname_ext(char *dst, const char *prefix, const char *ext)
 }
 
 
+static void make_config_cfg(char *cfg)
+{
+	strncpy(cfg, PicoConfigFile, 511);
+	if (config_slot != 0)
+	{
+		char *p = strrchr(cfg, '.');
+		if (p == NULL) p = cfg + strlen(cfg);
+		sprintf(p, ".%i.cfg", config_slot);
+	}
+	cfg[511] = 0;
+}
+
 int emu_ReadConfig(int game, int no_defaults)
 {
 	char cfg[512];
@@ -491,14 +503,7 @@ int emu_ReadConfig(int game, int no_defaults)
 	{
 		if (!no_defaults)
 			emu_setDefaultConfig();
-		strncpy(cfg, PicoConfigFile, 511);
-		if (config_slot != 0)
-		{
-			char *p = strrchr(cfg, '.');
-			if (p == NULL) p = cfg + strlen(cfg);
-			sprintf(p, ".%i.cfg", config_slot);
-		}
-		cfg[511] = 0;
+		make_config_cfg(cfg);
 		ret = config_readsect(cfg, NULL);
 	}
 	else
@@ -511,18 +516,25 @@ int emu_ReadConfig(int game, int no_defaults)
 		else strcpy(cfg,  "game.cfg");
 
 		ret = -1;
-		if (config_havesect(cfg, sect)) {
+		if (config_havesect(cfg, sect))
+		{
+			// read user's config
 			int vol = currentConfig.volume;
 			emu_setDefaultConfig();
 			ret = config_readsect(cfg, sect);
 			currentConfig.volume = vol; // make vol global (bah)
 		}
 		else
-			config_readsect("game_def.cfg", sect);
+		{
+			// read global config, and apply game_def.cfg on top
+			make_config_cfg(cfg);
+			config_readsect(cfg, NULL);
+			ret = config_readsect("game_def.cfg", sect);
+		}
 
 		if (ret != 0)
 		{
-			// fall back to old
+			// fall back to old game specific cfg
 			char extbuf[16];
 			if (config_slot != 0)
 				sprintf(extbuf, ".%i.pbcfg", config_slot);
