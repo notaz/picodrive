@@ -1,3 +1,8 @@
+// Basic macros to emit ARM instructions and some utils
+
+// (c) Copyright 2008, Grazvydas "notaz" Ignotas
+// Free for non-commercial use.
+
 #define EMIT(x) *tcache_ptr++ = x
 
 #define A_R4M  (1 << 4)

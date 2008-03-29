@@ -1,3 +1,7 @@
+// SSP1601 to ARM recompiler
+
+// (c) Copyright 2008, Grazvydas "notaz" Ignotas
+// Free for non-commercial use.
 
 #include "../../PicoInt.h"
 #include "compiler.h"

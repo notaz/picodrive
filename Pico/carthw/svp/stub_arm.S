@@ -1,5 +1,10 @@
 @ vim:filetype=armasm
 
+@ Compiler helper functions and some SVP HLE code
+
+@ (c) Copyright 2008, Grazvydas "notaz" Ignotas
+@ Free for non-commercial use.
+
 .if 0
 #include "compiler.h"
 .endif

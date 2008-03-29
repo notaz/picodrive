@@ -1,12 +1,18 @@
 /*
- * should better do some pointer stuff here. But as none of these bankswitch
+ * Support for a few cart mappers.
+ *
+ * (c) Copyright 2008, Grazvydas "notaz" Ignotas
+ * Free for non-commercial use.
+ *
+ *
+ * I should better do some pointer stuff here. But as none of these bankswitch
  * while the game runs, memcpy will suffice.
  */
 
 #include "../PicoInt.h"
 
 
-/* 12-in-1 and 4-in-1. Assuming 2MB ROMs here. */
+/* 12-in-1 and 4-in-1. Assuming >= 2MB ROMs here. */
 static unsigned int carthw_12in1_baddr = 0;
 
 static carthw_state_chunk carthw_12in1_state[] =
@@ -110,7 +116,7 @@ static void carthw_realtec_write8(unsigned int a, unsigned int d, int realsize)
 	}
 	else
 		elprintf(EL_ANOMALY, "realtec: unexpected write [%06x] %02x @ %06x", a, d, SekPc);
-	
+
 	if (realtec_bank >= 0 && realtec_size >= 0 &&
 		(realtec_bank != bank_old || realtec_size != size_old))
 	{
