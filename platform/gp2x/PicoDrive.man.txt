@@ -1,6 +1,8 @@
 [About]
 This is yet another Megadrive / Genesis / Sega CD / Mega CD emulator, which was written having ARM-based handheld devices in mind (such as PDAs, smartphones and handheld consoles like GP2X of course). The critical parts (renderer, 68K and Z80 cpu interpreters) and some other random code is written in ARM asm, other code is C. The base code originates from Dave's (fdave, finalburn) PicoDrive 0.30 for Pocket PC. The Sega/Mega CD code is roughly based on Stephane Dallongeville's Gens.
 
+PicoDrive is the first emulator ever to properly emulate Virtua Racing and it's SVP chip.
+
 
 For help / comments / questions visit GP32X boards at:
 http://www.gp32x.com/board/
@@ -163,7 +165,8 @@ This option enables CD audio playback.
 This enables 8 channel PCM sound source. It is required for some games to run, because they monitor state of this audio chip.
 
 7. "ReadAhead buffer"
-This option is for dealing with slow SD card access in GP2X, which makes FMV games unplayable. It will allow emulator not to access SD card for longer periods of time, but it will take more time to fill the buffer.
+This option can prefetch more data from the CD image then requested by game (to avoid accessing card later), what can improve performance in some cases.
+"OFF" is the recommended setting.
 
 8. "Save RAM cart"
 Here you can enable 64K RAM cart. Format it in BIOS if you do.
@@ -228,6 +231,8 @@ z80 @ 3.6MHz: yes, DrZ80 core
 VDP: yes, except some quirks not used by games
 YM2612 FM: yes, optimized MAME core
 SN76489 PSG: yes, MAME core
+SVP chip: yes! This is first emu to ever do this.
+Some in-cart mappers are supported too.
 
 Sega/Mega CD:
 another 68k @ 12.5MHz: yes, Cyclone too
@@ -239,9 +244,9 @@ RAM cartridge: yes
 
 
 [Problems / limitations]
-* 32x and SVP are not emulated.
+* 32x is not emulated.
 * Various VDP quirks (window bug, scroll size 2, etc.) are not emulated, as very few games use this (if any at all).
-* Some games don't work or have glitches because of inaccurate timing and sync between the emulated chips.
+* The emulator is not 100% accurate, so some things may not work as expected.
 
 
 [Credits]
@@ -284,6 +289,7 @@ Helix mp3 decoder
 * Hermes PS2R, god_at_hell for the CpuCtrl library.
 * craigix for supplying the GP2X hardware and making this port possible.
 * Alex for the icon.
+* Exophase and Rokas for various ideas.
 * Anyone else I forgot. You know who you are.
 
 

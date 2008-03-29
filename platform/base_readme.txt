@@ -25,6 +25,9 @@ from Dave's (fdave, finalburn) PicoDrive 0.30 for Pocket PC. The Sega/Mega CD
 code is roughly based on Stephane Dallongeville's Gens.
 #endif
 
+PicoDrive is the first emulator ever to properly emulate Virtua Racing and
+it's SVP chip.
+
 
 How to make it run
 ------------------
@@ -138,8 +141,6 @@ Other important stuff
 * Some Sega/Mega CD games don't use Z80 for anything, but they leave it active,
   so disabling Z80 manually (in advanced options) improves performance.
 #ifdef GP2X
-* Sega/Mega CD: if FMV game performance is poor, try adjusting
-  "ReadAhead buffer" to something like 2048K.
 * When you use both GP2X CPUs, keep in mind that you can't overclock as high as
   when using ARM920 only. For example my GP2X when run singlecore can reach
   280MHz, but with both cores it's about 250MHz. When overclocked too much,
@@ -518,6 +519,8 @@ z80 @ 3.6MHz: yes, DrZ80 core
 VDP: yes, except some quirks not used by games
 YM2612 FM: yes, optimized MAME core
 SN76489 PSG: yes, MAME core
+SVP chip: yes! This is first emu to ever do this.
+Some in-cart mappers are supported too.
 
 Sega/Mega CD:
 #ifdef PSP
@@ -536,7 +539,7 @@ Problems / limitations
 
 * 32x is not emulated.
 #ifdef PSP
-* SVP is not emulated.
+* SVP emulation is terribly slow.
 #endif
 * Various VDP quirks (window bug, scroll size 2, etc.) are not emulated,
   as very few games use this (if any at all).
@@ -633,6 +636,10 @@ Additional thanks
 
 Changelog
 ---------
+1.40a
+  * Fixed a binding problem with up and down keys.
+  * Default game config no longer overrides global user config.
+
 1.40
   + Added support for SVP (Sega Virtua Processor) to emulate Virtua Racing,
     wrote ARM recompiler and some HLE code for VR. Credits to Exophase and

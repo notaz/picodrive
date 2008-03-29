@@ -124,6 +124,8 @@ static unsigned long wait_for_input_usbjoy(unsigned long interesting, int *joy)
 	// handle only 1 event at a time
 	for (i = 1; i != 0; i <<= 1)
 		if (ret & i) { ret &= i; break; }
+	// ... but allow select
+	ret |= inp_prev & GP2X_SELECT;
 
 	return ret;
 }
@@ -780,7 +782,8 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 		draw_key_config(opts, opt_cnt, player_idx, sel);
 		inp = wait_for_input_usbjoy(CONFIGURABLE_KEYS, &joy);
 		// printf("got %08lX from joy %i\n", inp, joy);
-		if (joy == 0) {
+		if (joy == 0)
+		{
 			if (!(inp & GP2X_SELECT)) {
 				prev_select = 0;
 				if(inp & GP2X_UP  ) { sel--; if (sel < 0) sel = menu_sel_max; continue; }
