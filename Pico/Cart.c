@@ -530,7 +530,8 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   else PicoMemSetup();
   PicoMemReset();
 
-  return PicoReset(1);
+  PicoPower();
+  return 0;
 }
 
 int PicoCartUnload(void)
@@ -595,6 +596,12 @@ static void PicoCartDetect(void)
     SRam.start = 0x200000;
     SRam.end   = 0x203FFF;
     sram_size  = 0x004000;
+  }
+
+  // this game actually doesn't have SRAM, but some weird protection
+  if (rom_strcmp(0x120, "PUGGSY") == 0)
+  {
+    SRam.start = SRam.end = sram_size = 0;
   }
 
   if (sram_size)

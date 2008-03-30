@@ -114,7 +114,7 @@ void CPicoServSession::DispatchMessageL(const RMessage &aMessage)
 
 		case PicoMsgReset: 
 			if(rom_data) {
-				PicoReset(0);
+				PicoReset();
 				pico_was_reset = 1;
 				gamestate = PGS_Running;
 			}

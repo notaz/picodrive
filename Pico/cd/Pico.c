@@ -48,16 +48,18 @@ PICO_INTERNAL void PicoExitMCD(void)
   //dump_ram(Pico.ram, "ram.bin");
 }
 
-PICO_INTERNAL int PicoResetMCD(int hard)
+PICO_INTERNAL void PicoPowerMCD(void)
 {
-  if (hard) {
-    int fmt_size = sizeof(formatted_bram);
-    memset(Pico_mcd->prg_ram,    0, sizeof(Pico_mcd->prg_ram));
-    memset(Pico_mcd->word_ram2M, 0, sizeof(Pico_mcd->word_ram2M));
-    memset(Pico_mcd->pcm_ram,    0, sizeof(Pico_mcd->pcm_ram));
-    memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
-    memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - fmt_size, formatted_bram, fmt_size);
-  }
+  int fmt_size = sizeof(formatted_bram);
+  memset(Pico_mcd->prg_ram,    0, sizeof(Pico_mcd->prg_ram));
+  memset(Pico_mcd->word_ram2M, 0, sizeof(Pico_mcd->word_ram2M));
+  memset(Pico_mcd->pcm_ram,    0, sizeof(Pico_mcd->pcm_ram));
+  memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
+  memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - fmt_size, formatted_bram, fmt_size);
+}
+
+PICO_INTERNAL int PicoResetMCD(void)
+{
   memset(Pico_mcd->s68k_regs, 0, sizeof(Pico_mcd->s68k_regs));
   memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));
   memset(&Pico_mcd->m, 0, sizeof(Pico_mcd->m));

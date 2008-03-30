@@ -775,7 +775,7 @@ void emu_Loop(void)
 
 void emu_ResetGame(void)
 {
-	PicoReset(0);
+	PicoReset();
 	reset_timing = 1;
 }
 

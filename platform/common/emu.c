@@ -434,7 +434,7 @@ int emu_ReloadRom(void)
 			} else {
 				PicoRegionOverride = 4;
 			}
-			PicoReset(0);
+			PicoReset();
 			// TODO: bits 6 & 5
 		}
 		movie_data[0x18+30] = 0;

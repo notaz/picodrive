@@ -92,7 +92,7 @@ static int DeviceRead()
 
   static int sblobked = 0;
   if (!sblobked && GetAsyncKeyState(VK_TAB)) {
-    PicoReset(0);
+    PicoReset();
     sblobked = 1;
   }
   else if (!sblobked && GetAsyncKeyState(VK_ESCAPE))

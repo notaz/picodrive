@@ -52,10 +52,32 @@ void PicoExit(void)
     PicoExitMCD();
   z80_exit();
 
-  if(SRam.data) free(SRam.data); SRam.data=0;
+  if (SRam.data) free(SRam.data); SRam.data=0;
 }
 
-int PicoReset(int hard)
+void PicoPower(void)
+{
+  // clear all memory of the emulated machine
+  memset(&Pico.ram,0,(unsigned int)&Pico.rom-(unsigned int)&Pico.ram);
+
+  memset(&Pico.video,0,sizeof(Pico.video));
+  memset(&Pico.m,0,sizeof(Pico.m));
+
+  Pico.video.pending_ints=0;
+  z80_reset();
+
+  // default VDP register values (based on Fusion)
+  Pico.video.reg[0] = Pico.video.reg[1] = 0x04;
+  Pico.video.reg[0xc] = 0x81;
+  Pico.video.reg[0xf] = 0x02;
+
+  if (PicoMCD & 1)
+    PicoPowerMCD();
+
+  PicoReset();
+}
+
+int PicoReset(void)
 {
   unsigned int region=0;
   int support=0,hw=0,i=0;
@@ -72,25 +94,12 @@ int PicoReset(int hard)
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
   SekSetRealTAS(PicoMCD & 1);
   SekCycleCntT=0;
-  z80_reset();
 
-  // reset VDP state, VRAM and PicoMisc
-  //memset(&Pico.video,0,sizeof(Pico.video));
-  //memset(&Pico.vram,0,sizeof(Pico.vram));
-  memset(Pico.ioports,0,sizeof(Pico.ioports)); // needed for MCD to reset properly
-  memset(&Pico.m,0,sizeof(Pico.m));
-  Pico.video.pending_ints=0;
+  if (PicoMCD & 1)
+    // needed for MCD to reset properly, probably some bug hides behind this..
+    memset(Pico.ioports,0,sizeof(Pico.ioports));
   emustatus = 0;
 
-  if (hard) {
-    // clear all memory of the emulated machine
-    memset(&Pico.ram,0,(unsigned int)&Pico.rom-(unsigned int)&Pico.ram);
-  }
-
-  // default VDP register values (based on Fusion)
-  Pico.video.reg[0] = Pico.video.reg[1] = 0x04;
-  Pico.video.reg[0xc] = 0x81;
-  Pico.video.reg[0xf] = 0x02;
   Pico.m.dirtyPal = 1;
 
   if(PicoRegionOverride)
@@ -141,12 +150,16 @@ int PicoReset(int hard)
 
   Pico.m.hardware=(unsigned char)(hw|0x20); // No disk attached
   Pico.m.pal=pal;
-  Pico.video.status = 0x3408 | pal; // always set bits | vblank | pal
+  Pico.video.status = 0x3408 | pal; // 'always set' bits | vblank | pal
 
   PsndReset(); // pal must be known here
 
+  // create an empty "dma" to cause 68k exec start at random frame location
+  if (Pico.m.dma_xfers == 0 && !(PicoOpt&0x10000))
+    Pico.m.dma_xfers = rand() & 0x1fff;
+
   if (PicoMCD & 1) {
-    PicoResetMCD(hard);
+    PicoResetMCD();
     return 0;
   }
 

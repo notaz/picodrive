@@ -425,7 +425,8 @@ PICO_INTERNAL int CheckDMA(void);
 // cd/Pico.c
 PICO_INTERNAL int  PicoInitMCD(void);
 PICO_INTERNAL void PicoExitMCD(void);
-PICO_INTERNAL int PicoResetMCD(int hard);
+PICO_INTERNAL void PicoPowerMCD(void);
+PICO_INTERNAL int PicoResetMCD(void);
 PICO_INTERNAL int PicoFrameMCD(void);
 
 // Sek.c

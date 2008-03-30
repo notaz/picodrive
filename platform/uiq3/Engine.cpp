@@ -63,7 +63,7 @@ TInt CPicoGameSession::Do(const TPicoServRqst what, TAny *param)
 
 		case PicoMsgReset: 
 			if(rom_data) {
-				PicoReset(0);
+				PicoReset();
 				pico_was_reset = 1;
 				return ChangeRunState(PGS_Running);
 			}

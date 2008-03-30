@@ -43,7 +43,8 @@ extern int PicoAutoRgnOrder; // packed priority list of regions, for example 0x1
 extern int PicoSVPCycles;
 int  PicoInit(void);
 void PicoExit(void);
-int  PicoReset(int hard);
+void PicoPower(void);
+int  PicoReset(void);
 int  PicoFrame(void);
 void PicoFrameDrawOnly(void);
 extern int PicoPad[2]; // Joypads, format is MXYZ SACB RLDU
