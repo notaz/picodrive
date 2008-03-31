@@ -1110,7 +1110,7 @@ static void DrawAllSprites(int *hcache, int maxwidth, int prio, int sh)
 
     // sprite limit
     ntiles += pack>>28;
-    if(ntiles > 40) break;
+    if(!(PicoOpt&0x40000) && ntiles > 40) break;
 
     if(pack & 0x00800000) continue;
 
