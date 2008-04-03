@@ -101,7 +101,7 @@ PICO_INTERNAL int PicoCdSaveState(void *file)
 	unsigned char buff[0x60];
 	void *ym2612_regs = YM2612GetRegs();
 
-	areaWrite("PicoSMCD", 1, 8, file);
+	areaWrite("PicoSEXT", 1, 8, file);
 	areaWrite(&PicoVer, 1, 4, file);
 
 	memset(buff, 0, sizeof(buff));
@@ -124,7 +124,7 @@ PICO_INTERNAL int PicoCdSaveState(void *file)
 	if (PicoOpt&1)
 		CHECKED_WRITE(CHUNK_FM, 0x200+4, ym2612_regs);
 
-	if (PicoMCD & 1)
+	if (PicoAHW & PAHW_MCD)
 	{
 		Pico_mcd->m.audio_offset = mp3_get_offset();
 		memset(buff, 0, sizeof(buff));
@@ -197,7 +197,8 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 
 	g_read_offs = 0;
 	CHECKED_READ(8, buff);
-	if (strncmp((char *)buff, "PicoSMCD", 8)) R_ERROR_RETURN("bad header");
+	if (strncmp((char *)buff, "PicoSMCD", 8) && strncmp((char *)buff, "PicoSEXT", 8))
+		R_ERROR_RETURN("bad header");
 	CHECKED_READ(4, &ver);
 
 	while (!areaEof(file))
@@ -205,7 +206,7 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 		CHECKED_READ(1, buff);
 		CHECKED_READ(4, &len);
 		if (len < 0 || len > 1024*512) R_ERROR_RETURN("bad length");
-		if (buff[0] > CHUNK_FM && buff[0] <= CHUNK_MISC_CD && !(PicoMCD & 1))
+		if (buff[0] > CHUNK_FM && buff[0] <= CHUNK_MISC_CD && !(PicoAHW & PAHW_MCD))
 			R_ERROR_RETURN("cd chunk in non CD state?");
 
 		switch (buff[0])
@@ -269,7 +270,7 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 		breakswitch:;
 	}
 
-	if (PicoMCD & 1)
+	if (PicoAHW & PAHW_MCD)
 	{
 		/* after load events */
 		if (Pico_mcd->s68k_regs[3]&4) // 1M mode?
@@ -296,7 +297,8 @@ int PicoCdLoadStateGfx(void *file)
 
 	g_read_offs = 0;
 	CHECKED_READ(8, buff);
-	if (strncmp(buff, "PicoSMCD", 8)) R_ERROR_RETURN("bad header");
+	if (strncmp((char *)buff, "PicoSMCD", 8) && strncmp((char *)buff, "PicoSEXT", 8))
+		R_ERROR_RETURN("bad header");
 	CHECKED_READ(4, &ver);
 
 	while (!areaEof(file) && found < 4)
@@ -304,7 +306,7 @@ int PicoCdLoadStateGfx(void *file)
 		CHECKED_READ(1, buff);
 		CHECKED_READ(4, &len);
 		if (len < 0 || len > 1024*512) R_ERROR_RETURN("bad length");
-		if (buff[0] > CHUNK_FM && buff[0] <= CHUNK_MISC_CD && !(PicoMCD & 1))
+		if (buff[0] > CHUNK_FM && buff[0] <= CHUNK_MISC_CD && !(PicoAHW & PAHW_MCD))
 			R_ERROR_RETURN("cd chunk in non CD state?");
 
 		switch (buff[0])

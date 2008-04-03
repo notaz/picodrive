@@ -276,7 +276,7 @@ static void EmuScanPrepare(void)
 		do_pal_update(1);
 }
 
-static int EmuScanSlow(unsigned int num, void *sdata)
+static int EmuScanSlow(unsigned int num)
 {
 	if (!(Pico.video.reg[1]&8)) num += 8;
 
@@ -422,7 +422,7 @@ static void blit2(const char *fps, const char *notice, int lagging_behind)
 
 	//dbg_text();
 
-	if ((emu_opt & 0x400) && (PicoMCD & 1))
+	if ((emu_opt & 0x400) && (PicoAHW & PAHW_MCD))
 		cd_leds();
 
 	if (currentConfig.EmuOpt & 0x2000) { // want vsync
@@ -467,7 +467,7 @@ static void vidResetMode(void)
 
 	// slow rend.
 	PicoDrawSetColorFormat(-1);
-	PicoScan = EmuScanSlow;
+	PicoScanEnd = EmuScanSlow;
 
 	localPal[0xe0] = 0;
 	Pico.m.dirtyPal = 1;
@@ -670,7 +670,7 @@ void emu_forcedFrame(void)
 	memset32_uncached((int *)psp_screen + 512*264*2/4, 0, 512*8*2/4);
 
 	PicoDrawSetColorFormat(-1);
-	PicoScan = EmuScanSlow;
+	PicoScanEnd = EmuScanSlow;
 	EmuScanPrepare();
 	PicoFrameDrawOnly();
 	blit1();
@@ -855,7 +855,7 @@ void emu_Loop(void)
 	target_frametime = Pico.m.pal ? (1000000<<8)/50 : (1000000<<8)/60+1;
 	reset_timing = 1;
 
-	if (PicoMCD & 1) {
+	if (PicoAHW & PAHW_MCD) {
 		// prepare CD buffer
 		PicoCDBufferInit();
 		// mp3...
@@ -1001,7 +1001,7 @@ void emu_Loop(void)
 	}
 
 
-	if (PicoMCD & 1) PicoCDBufferFree();
+	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
 
 	if (PsndOut != NULL) {
 		PsndOut = NULL;
@@ -1028,7 +1028,7 @@ void emu_ResetGame(void)
 
 void emu_HandleResume(void)
 {
-	if (!(PicoMCD & 1)) return;
+	if (!(PicoAHW & PAHW_MCD)) return;
 
 	// reopen files..
 	if (Pico_mcd->TOC.Tracks[0].F != NULL)

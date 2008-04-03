@@ -4,7 +4,7 @@
 // Pico Library - Header File
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006-2007 notaz, All rights reserved.
+// (c) Copyright 2006-2008 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -29,13 +29,25 @@ void mp3_update(int *buffer, int length, int stereo);
 
 
 // Pico.c
-// PicoOpt bits LSb->MSb:
-// 00 000x enable_ym2612&dac, enable_sn76496, enable_z80, stereo_sound,
-// 00 00x0 alt_renderer, 6button_gamepad, accurate_timing, accurate_sprites,
-// 00 0x00 draw_no_32col_border, external_ym2612, enable_cd_pcm, enable_cd_cdda
-// 00 x000 enable_cd_gfx, cd_perfect_sync, soft_32col_scaling, enable_cd_ramcart
-// 0x 0000 disable_vdp_fifo, no_svp_dynarec, no_sprite_limit
-extern int PicoOpt;
+#define POPT_EN_FM          (1<< 0) // 00 000x
+#define POPT_EN_PSG         (1<< 1)
+#define POPT_EN_Z80         (1<< 2)
+#define POPT_EN_STEREO      (1<< 3)
+#define POPT_ALT_RENDERER   (1<< 4) // 00 00x0
+#define POPT_6BTN_PAD       (1<< 5)
+#define POPT_ACC_TIMING     (1<< 6)
+#define POPT_ACC_SPRITES    (1<< 7)
+#define POPT_DIS_32C_BORDER (1<< 8) // 00 0x00
+#define POPT_EXT_FM         (1<< 9)
+#define POPT_EN_MCD_PCM     (1<<10)
+#define POPT_EN_MCD_CDDA    (1<<11)
+#define POPT_EN_MCD_GFX     (1<<12) // 00 x000
+#define POPT_EN_MCD_PSYNC   (1<<13)
+#define POPT_EN_SOFTSCALE   (1<<14)
+#define POPT_EN_MCD_RAMCART (1<<15)
+#define POPT_DIS_VDP_FIFO   (1<<16) // 0x 0000
+#define POPT_EN_SVP_DRC     (1<<17)
+extern int PicoOpt; // bitfield
 extern int PicoVer;
 extern int PicoSkipFrame; // skip rendering frame, but still do sound (if enabled) and emulation stuff
 extern int PicoRegionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
@@ -114,14 +126,24 @@ extern void *DrawLineDest;
 #if OVERRIDE_HIGHCOL
 extern unsigned char *HighCol;
 #endif
-extern int (*PicoScan)(unsigned int num, void *data);
-// internals
-extern unsigned short HighPal[0x100];
-extern int rendstatus;
+extern int (*PicoScanBegin)(unsigned int num);
+extern int (*PicoScanEnd)(unsigned int num);
 // utility
 #ifdef _ASM_DRAW_C
 void vidConvCpyRGB565(void *to, void *from, int pixels);
 #endif
+// internals
+#define PDRAW_SPRITES_MOVED (1<<0)
+#define PDRAW_WND_DIFF_PRIO (1<<1) // not all window tiles use same priority
+#define PDRAW_ACC_SPRITES   (1<<2) // accurate sprites (copied from PicoOpt)
+#define PDRAW_INTERLACE     (1<<3) // 
+#define PDRAW_DIRTY_SPRITES (1<<4)
+#define PDRAW_SONIC_MODE    (1<<5) // mid-frame palette changes for 8bit renderer
+#define PDRAW_PLANE_HI_PRIO (1<<6) // have layer with all hi prio tiles (mk3)
+#define PDRAW_SHHI_DONE     (1<<7) // layer sh/hi already processed
+#define PDRAW_EARLY_BLANK   (1<<8) // blanking enabled at the start of prev line
+extern int rendstatus;
+extern unsigned short HighPal[0x100];
 
 // Draw2.c
 // stuff below is optional

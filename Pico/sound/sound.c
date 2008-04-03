@@ -110,16 +110,16 @@ void PsndRerate(int preserve_state)
   int target_fps = Pico.m.pal ? 50 : 60;
 
   // not all rates are supported in MCD mode due to mp3 decoder limitations
-  if (PicoMCD & 1) {
+  if (PicoAHW & PAHW_MCD) {
     if (PsndRate != 11025 && PsndRate != 22050 && PsndRate != 44100) PsndRate = 22050;
-    PicoOpt |= 8; // force stereo
+    PicoOpt |= POPT_EN_STEREO; // force stereo
   }
 
   if (preserve_state) {
     state = malloc(0x200);
     if (state == NULL) return;
     memcpy(state, YM2612GetRegs(), 0x200);
-    if ((PicoMCD & 1) && Pico_mcd->m.audio_track)
+    if ((PicoAHW & PAHW_MCD) && Pico_mcd->m.audio_track)
       Pico_mcd->m.audio_offset = mp3_get_offset();
   }
   YM2612Init(Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7, PsndRate);
@@ -127,7 +127,7 @@ void PsndRerate(int preserve_state)
     // feed it back it's own registers, just like after loading state
     memcpy(YM2612GetRegs(), state, 0x200);
     YM2612PicoStateLoad();
-    if ((PicoMCD & 1) && Pico_mcd->m.audio_track)
+    if ((PicoAHW & PAHW_MCD) && Pico_mcd->m.audio_track)
       mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
   }
 
@@ -146,7 +146,7 @@ void PsndRerate(int preserve_state)
   // recalculate dac info
   dac_recalculate();
 
-  if (PicoMCD & 1)
+  if (PicoAHW & PAHW_MCD)
     pcm_set_rate(PsndRate);
 
   // clear all buffers
@@ -155,7 +155,7 @@ void PsndRerate(int preserve_state)
     PsndClear();
 
   // set mixer
-  PsndMix_32_to_16l = (PicoOpt & 8) ? mix_32_to_16l_stereo : mix_32_to_16_mono;
+  PsndMix_32_to_16l = (PicoOpt & POPT_EN_STEREO) ? mix_32_to_16l_stereo : mix_32_to_16_mono;
 }
 
 
@@ -163,8 +163,8 @@ void PsndRerate(int preserve_state)
 PICO_INTERNAL void Psnd_timers_and_dac(int raster)
 {
   int pos, len;
-  int do_dac = PsndOut && (PicoOpt&1) && *ym2612_dacen;
-//  int do_pcm = PsndOut && (PicoMCD&1) && (PicoOpt&0x400);
+  int do_dac = PsndOut && (PicoOpt&POPT_EN_FM) && *ym2612_dacen;
+//  int do_pcm = PsndOut && (PicoAHW&1) && (PicoOpt&0x400);
 
   // Our raster lasts 63.61323/64.102564 microseconds (NTSC/PAL)
   YM2612PicoTick(1);
@@ -176,10 +176,11 @@ PICO_INTERNAL void Psnd_timers_and_dac(int raster)
 
   pos>>=4;
 
-  if (do_dac) {
+  if (do_dac)
+  {
     short *d = PsndOut + pos*2;
     int dout = *ym2612_dacout;
-    if(PicoOpt&8) {
+    if(PicoOpt&POPT_EN_STEREO) {
       // some manual loop unrolling here :)
       d[0] = dout;
       if (len > 1) {
@@ -212,7 +213,7 @@ PICO_INTERNAL void PsndClear(void)
 {
   int len = PsndLen;
   if (PsndLen_exc_add) len++;
-  if (PicoOpt & 8)
+  if (PicoOpt & POPT_EN_STEREO)
     memset32((int *) PsndOut, 0, len); // assume PsndOut to be aligned
   else {
     short *out = PsndOut;
@@ -229,7 +230,8 @@ PICO_INTERNAL int PsndRender(int offset, int length)
   int *buf32 = PsndBuffer+offset;
   int stereo = (PicoOpt & 8) >> 3;
   // emulating CD && PCM option enabled && PCM chip on && have enabled channels
-  int do_pcm = (PicoMCD&1) && (PicoOpt&0x400) && (Pico_mcd->pcm.control & 0x80) && Pico_mcd->pcm.enabled;
+  int do_pcm = (PicoAHW & PAHW_MCD) && (PicoOpt&POPT_EN_MCD_PCM) &&
+		(Pico_mcd->pcm.control & 0x80) && Pico_mcd->pcm.enabled;
   offset <<= stereo;
 
 #if !SIMPLE_WRITE_SOUND
@@ -244,11 +246,11 @@ PICO_INTERNAL int PsndRender(int offset, int length)
 #endif
 
   // PSG
-  if (PicoOpt & 2)
+  if (PicoOpt & POPT_EN_PSG)
     SN76496Update(PsndOut+offset, length, stereo);
 
   // Add in the stereo FM buffer
-  if (PicoOpt & 1) {
+  if (PicoOpt & POPT_EN_FM) {
     buf32_updated = YM2612UpdateOne(buf32, length, stereo, 1);
   } else
     memset32(buf32, 0, length<<stereo);
@@ -263,7 +265,8 @@ PICO_INTERNAL int PsndRender(int offset, int length)
 
   // CD: CDDA audio
   // CD mode, cdda enabled, not data track, CDC is reading
-  if ((PicoMCD & 1) && (PicoOpt & 0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
+  if ((PicoAHW & PAHW_MCD) && (PicoOpt & POPT_EN_MCD_CDDA) &&
+		!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
     mp3_update(buf32, length, stereo);
 
   // convert + limit to normal 16bit output

@@ -13,7 +13,6 @@
 extern const unsigned char  hcounts_32[];
 extern const unsigned char  hcounts_40[];
 extern const unsigned short vcounts[];
-extern int rendstatus;
 
 #ifndef UTYPES_DEFINED
 typedef unsigned char  u8;
@@ -37,7 +36,7 @@ static void VideoWrite(u16 d)
   {
     case 1: if(a&1) d=(u16)((d<<8)|(d>>8)); // If address is odd, bytes are swapped (which game needs this?)
             Pico.vram [(a>>1)&0x7fff]=d;
-            rendstatus|=0x10; break;
+            rendstatus |= PDRAW_DIRTY_SPRITES; break;
     case 3: Pico.m.dirtyPal = 1;
             Pico.cram [(a>>1)&0x003f]=d; break; // wraps (Desert Strike)
     case 5: Pico.vsram[(a>>1)&0x003f]=d; break;
@@ -93,9 +92,9 @@ static void DmaSlow(int len)
     Pico.video.type, source, a, len, inc, (Pico.video.status&8)||!(Pico.video.reg[1]&0x40),
     SekCyclesDone(), SekPc);
 
-  if(Pico.m.scanline != -1) {
+  if (Pico.m.scanline != -1) {
     Pico.m.dma_xfers += len;
-    if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCyclesBurn(CheckDMA());
+    if ((PicoAHW & PAHW_MCD) && (PicoOpt & POPT_EN_MCD_PSYNC)) SekCyclesBurn(CheckDMA());
     else SekSetCyclesLeftNoMCD(SekCyclesLeftNoMCD - CheckDMA());
   } else {
     // be approximate in non-accurate mode
@@ -105,7 +104,9 @@ static void DmaSlow(int len)
   if ((source&0xe00000)==0xe00000) { // Ram
     pd=(u16 *)(Pico.ram+(source&0xfffe));
     pdend=(u16 *)(Pico.ram+0x10000);
-  } else if (PicoMCD & 1) {
+  }
+  else if (PicoAHW & PAHW_MCD)
+  {
     elprintf(EL_VDPDMA, "DmaSlow CD, r3=%02x", Pico_mcd->s68k_regs[3]);
     if(source<0x20000) { // Bios area
       pd=(u16 *)(Pico_mcd->bios+(source&~1));
@@ -133,7 +134,9 @@ static void DmaSlow(int len)
       elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: FIXME: unsupported src", Pico.video.type, source, a);
       return;
     }
-  } else {
+  }
+  else
+  {
     // if we have DmaHook, let it handle ROM because of possible DMA delay
     if (PicoDmaHook && PicoDmaHook(source, len, &pd, &pdend));
     else if (source<Pico.romsize) { // Rom
@@ -175,7 +178,7 @@ static void DmaSlow(int len)
           //if(pd >= pdend) pd-=0x8000; // should be good for RAM, bad for ROM
         }
       }
-      rendstatus|=0x10;
+      rendstatus |= PDRAW_DIRTY_SPRITES;
       break;
 
     case 3: // cram
@@ -244,7 +247,7 @@ static void DmaCopy(int len)
   }
   // remember addr
   Pico.video.addr=a;
-  rendstatus|=0x10;
+  rendstatus |= PDRAW_DIRTY_SPRITES;
 }
 
 // check: Contra, Megaman
@@ -284,7 +287,7 @@ static void DmaFill(int data)
   // update length
   Pico.video.reg[0x13] = Pico.video.reg[0x14] = 0; // Dino Dini's Soccer (E) (by Haze)
 
-  rendstatus|=0x10;
+  rendstatus |= PDRAW_DIRTY_SPRITES;
 }
 
 static void CommandDma(void)
@@ -341,7 +344,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
     else
     {
       // preliminary FIFO emulation for Chaos Engine, The (E)
-      if(!(pvid->status&8) && (pvid->reg[1]&0x40) && Pico.m.scanline!=-1 && !(PicoOpt&0x10000)) // active display, accurate mode?
+      if(!(pvid->status&8) && (pvid->reg[1]&0x40) && Pico.m.scanline!=-1 && !(PicoOpt&POPT_DIS_VDP_FIFO)) // active display, accurate mode?
       {
         pvid->status&=~0x200; // FIFO no longer empty
         pvid->lwrite_cnt++;
@@ -366,45 +369,63 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
       pvid->command|=d;
       pvid->pending=0;
       CommandChange();
-    } else {
-      if((d&0xc000)==0x8000)
+    }
+    else
+    {
+      if ((d&0xc000)==0x8000)
       {
         // Register write:
         int num=(d>>8)&0x1f;
         int dold=pvid->reg[num];
+        pvid->type=0; // register writes clear command (else no Sega logo in Golden Axe II)
         if (num > 0x0a && !(pvid->reg[1]&4)) {
           elprintf(EL_ANOMALY, "%02x written to reg %02x in SMS mode @ %06x", d, num, SekPc);
+          return;
         } else
-	  pvid->reg[num]=(unsigned char)d;
-        if (num==00) elprintf(EL_INTSW, "hint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x10)>>4,
-                        (d&0x10)>>4, SekCyclesDone(), (pvid->pending_ints&0x10)>>4, SekPc);
-        if (num==01) elprintf(EL_INTSW, "vint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x20)>>5,
-                        (d&0x20)>>5, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
-        if      (num ==   5 && (d^dold)) rendstatus|=1;
-        // renderers should update their palettes if sh/hi mode is changed
-        else if (num == 0xc && ((d^dold)&8)) Pico.m.dirtyPal = 2;
+          pvid->reg[num]=(unsigned char)d;
+
+        switch (num)
+        {
+          case 0x00:
+            elprintf(EL_INTSW, "hint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x10)>>4,
+                    (d&0x10)>>4, SekCyclesDone(), (pvid->pending_ints&0x10)>>4, SekPc);
+            goto update_irq;
+          case 0x01:
+            elprintf(EL_INTSW, "vint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x20)>>5,
+                    (d&0x20)>>5, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
+            if (!(d&0x40) && SekCyclesLeft > 420) { /*elprintf(EL_ANOMALY, "aa %i", SekCyclesLeft);*/ rendstatus |= PDRAW_EARLY_BLANK; }
+            goto update_irq;
+          case 0x05:
+            if (d^dold) rendstatus |= PDRAW_SPRITES_MOVED;
+            break;
+          case 0x0c:
+            // renderers should update their palettes if sh/hi mode is changed
+            if ((d^dold)&8) Pico.m.dirtyPal = 2;
+            break;
+        }
+        return;
+
+update_irq:
 #ifndef EMU_CORE_DEBUG
         // update IRQ level (Lemmings, Wiz 'n' Liz intro, ... )
         // may break if done improperly:
         // International Superstar Soccer Deluxe (crash), Street Racer (logos), Burning Force (gfx),
         // Fatal Rewind (crash), Sesame Street Counting Cafe
-        else if (num < 2)
+        if (!SekShouldInterrupt) // hack
         {
-          if (!SekShouldInterrupt) // hack
-          {
-            int lines, pints, irq=0;
-            lines = (pvid->reg[1] & 0x20) | (pvid->reg[0] & 0x10);
-            pints = (pvid->pending_ints&lines);
-                 if(pints & 0x20) irq = 6;
-            else if(pints & 0x10) irq = 4;
-            SekInterrupt(irq); // update line
+          int lines, pints, irq=0;
+          lines = (pvid->reg[1] & 0x20) | (pvid->reg[0] & 0x10);
+          pints = (pvid->pending_ints&lines);
+               if(pints & 0x20) irq = 6;
+          else if(pints & 0x10) irq = 4;
+          SekInterrupt(irq); // update line
 
-            if (irq && Pico.m.scanline!=-1) SekEndRun(24); // make it delayed
-          }
+          if (irq && Pico.m.scanline!=-1) SekEndRun(24); // make it delayed
         }
 #endif
-        pvid->type=0; // register writes clear command (else no Sega logo in Golden Axe II)
-      } else {
+      }
+      else
+      {
         // High word of command:
         pvid->command&=0x0000ffff;
         pvid->command|=d<<16;
@@ -431,9 +452,9 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
   {
     struct PicoVideo *pv=&Pico.video;
     d=pv->status;
-    if (PicoOpt&0x10)         d|=0x0020; // sprite collision (Shadow of the Beast)
-    if (!(pv->reg[1]&0x40))   d|=0x0008; // set V-Blank if display is disabled
-    if (SekCyclesLeft < 84+4) d|=0x0004; // H-Blank (Sonic3 vs)
+    if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
+    if (!(pv->reg[1]&0x40))        d|=0x0008; // set V-Blank if display is disabled
+    if (SekCyclesLeft < 84+4)      d|=0x0004; // H-Blank (Sonic3 vs)
 
     d|=(pv->pending_ints&0x20)<<2; // V-int pending?
     if (d&0x100) pv->status&=~0x100; // FIFO no longer full

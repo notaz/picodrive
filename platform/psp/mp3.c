@@ -460,7 +460,7 @@ int mp3_get_offset(void) // 0-1023
 	unsigned int offs1024 = 0;
 	int cdda_on;
 
-	cdda_on = (PicoMCD & 1) && (PicoOpt&0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
+	cdda_on = (PicoAHW & PAHW_MCD) && (PicoOpt&0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
 			(Pico_mcd->scd.Status_CDC & 1) && mp3_handle >= 0;
 
 	if (cdda_on) {

@@ -573,7 +573,7 @@ static void draw_savestate_bg(int slot)
 	}
 
 	if (file) {
-		if (PicoMCD & 1) {
+		if (PicoAHW & PAHW_MCD) {
 			PicoCdLoadStateGfx(file);
 		} else {
 			areaSeek(file, 0x10020, SEEK_SET);  // skip header and RAM in state file

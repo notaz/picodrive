@@ -12,19 +12,19 @@
 
 int PicoVer=0x0133;
 struct Pico Pico;
-int PicoOpt=0; // disable everything by default
-int PicoSkipFrame=0; // skip rendering frame?
+int PicoOpt = 0;
+int PicoSkipFrame = 0; // skip rendering frame?
+int emustatus = 0;     // rapid_ym2612, multi_ym_updates
+int PicoPad[2];        // Joypads, format is SACB RLDU
+int PicoAHW = 0;       // active addon hardware: scd_active, 32x_active, svp_active
 int PicoRegionOverride = 0; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 int PicoAutoRgnOrder = 0;
-int emustatus = 0; // rapid_ym2612, multi_ym_updates
+int z80startCycle, z80stopCycle; // in 68k cycles
+struct PicoSRAM SRam = {0,};
+
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
 void (*PicoLineHook)(int count) = NULL;
-
-struct PicoSRAM SRam = {0,};
-int z80startCycle, z80stopCycle; // in 68k cycles
-int PicoPad[2];  // Joypads, format is SACB RLDU
-int PicoMCD = 0; // mega CD status: scd_started
 
 // to be called once on emu init
 int PicoInit(void)
@@ -48,7 +48,7 @@ int PicoInit(void)
 // to be called once on emu exit
 void PicoExit(void)
 {
-  if (PicoMCD&1)
+  if (PicoAHW & PAHW_MCD)
     PicoExitMCD();
   z80_exit();
 
@@ -71,7 +71,7 @@ void PicoPower(void)
   Pico.video.reg[0xc] = 0x81;
   Pico.video.reg[0xf] = 0x02;
 
-  if (PicoMCD & 1)
+  if (PicoAHW & PAHW_MCD)
     PicoPowerMCD();
 
   PicoReset();
@@ -92,10 +92,10 @@ int PicoReset(void)
   PicoMemReset();
   SekReset();
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
-  SekSetRealTAS(PicoMCD & 1);
+  SekSetRealTAS(PicoAHW & PAHW_MCD);
   SekCycleCntT=0;
 
-  if (PicoMCD & 1)
+  if (PicoAHW & PAHW_MCD)
     // needed for MCD to reset properly, probably some bug hides behind this..
     memset(Pico.ioports,0,sizeof(Pico.ioports));
   emustatus = 0;
@@ -155,10 +155,10 @@ int PicoReset(void)
   PsndReset(); // pal must be known here
 
   // create an empty "dma" to cause 68k exec start at random frame location
-  if (Pico.m.dma_xfers == 0 && !(PicoOpt&0x10000))
+  if (Pico.m.dma_xfers == 0 && !(PicoOpt&POPT_DIS_VDP_FIFO))
     Pico.m.dma_xfers = rand() & 0x1fff;
 
-  if (PicoMCD & 1) {
+  if (PicoAHW & PAHW_MCD) {
     PicoResetMCD();
     return 0;
   }
@@ -306,7 +306,7 @@ static void PicoRunZ80Simple(int line_from, int line_to)
   int line_from_r=line_from, line_to_r=line_to, line=0;
   int line_sample = Pico.m.pal ? 68 : 93;
 
-  if (!(PicoOpt&4) || Pico.m.z80Run == 0) line_to_r = 0;
+  if (!(PicoOpt&POPT_EN_Z80) || Pico.m.z80Run == 0) line_to_r = 0;
   else {
     extern const unsigned short vcounts[];
     if (z80startCycle) {
@@ -317,7 +317,7 @@ static void PicoRunZ80Simple(int line_from, int line_to)
     z80startCycle = SekCyclesDone();
   }
 
-  if (PicoOpt&1) {
+  if (PicoOpt&POPT_EN_FM) {
     // we have ym2612 enabled, so we have to run Z80 in lines, so we could update DAC and timers
     for (line = line_from; line < line_to; line++) {
       Psnd_timers_and_dac(line);
@@ -358,7 +358,7 @@ static int PicoFrameSimple(void)
   }
 
   // a hack for VR, to get it running in fast mode
-  if (PicoRead16Hook == PicoSVPRead16)
+  if (PicoAHW & PAHW_SVP)
     Pico.ram[0xd864^1] = 0x1a;
 
   // we don't emulate DMA timing in this mode
@@ -409,7 +409,7 @@ static int PicoFrameSimple(void)
   }
 
   // another hack for VR (it needs hints to work)
-  if (PicoRead16Hook == PicoSVPRead16) {
+  if (PicoAHW & PAHW_SVP) {
     Pico.ram[0xd864^1] = 1;
     pv->pending_ints|=0x10;
     if (pv->reg[0]&0x10) SekInterrupt(4);
@@ -419,7 +419,7 @@ static int PicoFrameSimple(void)
   // render screen
   if (!PicoSkipFrame)
   {
-    if (!(PicoOpt&0x10))
+    if (!(PicoOpt&POPT_ALT_RENDERER))
     {
       // Draw the screen
 #if CAN_HANDLE_240_LINES
@@ -439,7 +439,7 @@ static int PicoFrameSimple(void)
   }
 
   // here we render sound if ym2612 is disabled
-  if (!(PicoOpt&1) && PsndOut) {
+  if (!(PicoOpt&POPT_EN_FM) && PsndOut) {
     int len = PsndRender(0, PsndLen);
     if (PicoWriteSound) PicoWriteSound(len);
     // clear sound buffer
@@ -470,10 +470,11 @@ static int PicoFrameSimple(void)
   }
 
   if (pv->reg[1]&0x20) SekInterrupt(6); // Set IRQ
-  if (Pico.m.z80Run && (PicoOpt&4))
+  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
     z80_int();
 
-  while (sects) {
+  while (sects)
+  {
     lines += lines_step;
 
     SekRunM68k(cycles_68k_vblock);
@@ -502,23 +503,23 @@ int PicoFrame(void)
 
   Pico.m.frame_count++;
 
-  if (PicoMCD & 1) {
+  if (PicoAHW & PAHW_MCD) {
     PicoFrameMCD();
     return 0;
   }
 
   // be accurate if we are asked for this
-  if(PicoOpt&0x40) acc=1;
+  if (PicoOpt&POPT_ACC_TIMING) acc=1;
   // don't be accurate in alternative render mode, as hint effects will not be rendered anyway
-  else if(PicoOpt&0x10) acc = 0;
+  else if (PicoOpt&POPT_ALT_RENDERER) acc = 0;
   else acc=Pico.video.reg[0]&0x10; // be accurate if hints are used
 
   //if(Pico.video.reg[12]&0x2) Pico.video.status ^= 0x10; // change odd bit in interlace mode
 
-  if(!(PicoOpt&0x10))
+  if (!(PicoOpt&POPT_ALT_RENDERER))
     PicoFrameStart();
 
-  if(acc)
+  if (acc)
        PicoFrameHints();
   else PicoFrameSimple();
 

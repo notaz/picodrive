@@ -561,7 +561,7 @@ static void draw_savestate_bg(int slot)
 	}
 
 	if (file) {
-		if (PicoMCD & 1) {
+		if (PicoAHW & 1) {
 			PicoCdLoadStateGfx(file);
 		} else {
 			areaSeek(file, 0x10020, SEEK_SET);  // skip header and RAM in state file
@@ -1224,7 +1224,7 @@ static int menu_loop_options(void)
 							currentConfig.PsndRate =  11025;
 							currentConfig.PicoOpt |=  8;
 						} else if ((inp & BTN_LEFT) && currentConfig.PsndRate == 11025 &&
-								(currentConfig.PicoOpt&0x08) && !(PicoMCD&1))
+								(currentConfig.PicoOpt&0x08) && !(PicoAHW&1))
 						{
 							currentConfig.PsndRate =  44100;
 							currentConfig.PicoOpt &= ~8;

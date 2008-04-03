@@ -225,18 +225,18 @@ static void cd_leds(void)
 	}
 }
 
-static int EmuScan16(unsigned int num, void *sdata)
+static int EmuScanBegin16(unsigned int num)
 {
 	if (!(Pico.video.reg[1]&8)) num += 8;
-	DrawLineDest = (unsigned short *) gp2x_screen + 320*(num+1);
+	DrawLineDest = (unsigned short *) gp2x_screen + 320 * num;
 
 	return 0;
 }
 
-static int EmuScan8(unsigned int num, void *sdata)
+static int EmuScanBegin8(unsigned int num)
 {
 	if (!(Pico.video.reg[1]&8)) num += 8;
-	DrawLineDest = (unsigned char *)  gp2x_screen + 320*(num+1);
+	DrawLineDest = (unsigned char *)  gp2x_screen + 320 * num;
 
 	return 0;
 }
@@ -266,7 +266,8 @@ static void blit(const char *fps, const char *notice)
 	else if (!(emu_opt&0x80))
 	{
 		// 8bit accurate renderer
-		if (Pico.m.dirtyPal) {
+		if (Pico.m.dirtyPal)
+		{
 			Pico.m.dirtyPal = 0;
 			if(Pico.video.reg[0xC]&8) { // shadow/hilight mode
 				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
@@ -278,7 +279,7 @@ static void blit(const char *fps, const char *notice)
 				localPal[0xe0] = 0x00000000; // reserved pixels for OSD
 				localPal[0xf0] = 0x00ffffff;
 				gp2x_video_setpalette(localPal, 0x100);
-			} else if (rendstatus & 0x20) { // mid-frame palette changes
+			} else if (rendstatus & PDRAW_SONIC_MODE) { // mid-frame palette changes
 				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 				vidConvCpyRGB32(localPal+0x40, HighPal, 0x40);
 				vidConvCpyRGB32(localPal+0x80, HighPal+0x40, 0x40);
@@ -297,7 +298,7 @@ static void blit(const char *fps, const char *notice)
 		if (emu_opt & 2)
 			osd_text(osd_fps_x, h, fps);
 	}
-	if ((emu_opt & 0x400) && (PicoMCD & 1))
+	if ((emu_opt & 0x400) && (PicoAHW & PAHW_MCD))
 		cd_leds();
 
 	//gp2x_video_wait_vsync();
@@ -339,13 +340,11 @@ static void vidResetMode(void)
 	} else if (currentConfig.EmuOpt&0x80) {
 		gp2x_video_changemode(16);
 		PicoDrawSetColorFormat(1);
-		PicoScan = EmuScan16;
-		PicoScan(0, 0);
+		PicoScanBegin = EmuScanBegin16;
 	} else {
 		gp2x_video_changemode(8);
 		PicoDrawSetColorFormat(2);
-		PicoScan = EmuScan8;
-		PicoScan(0, 0);
+		PicoScanBegin = EmuScanBegin8;
 	}
 	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
 		// setup pal for 8-bit modes
@@ -625,8 +624,7 @@ void emu_forcedFrame(void)
 
 	//vidResetMode();
 	PicoDrawSetColorFormat(1);
-	PicoScan = EmuScan16;
-	PicoScan(0, 0);
+	PicoScanBegin = EmuScanBegin16;
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 
@@ -782,7 +780,7 @@ void emu_Loop(void)
 	}
 
 	// prepare CD buffer
-	if (PicoMCD & 1) PicoCDBufferInit();
+	if (PicoAHW & PAHW_MCD) PicoCDBufferInit();
 
 	// calc vsync offset to sync timing code with vsync
 	if (currentConfig.EmuOpt&0x2000) {
@@ -960,7 +958,7 @@ void emu_Loop(void)
 
 	change_fast_forward(0);
 
-	if (PicoMCD & 1) PicoCDBufferFree();
+	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
 
 	// save SRAM
 	if((currentConfig.EmuOpt & 1) && SRam.changed) {

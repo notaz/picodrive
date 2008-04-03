@@ -18,7 +18,8 @@ u8 z80Read8(u32 a)
 
   a&=0x1fff;
 
-  if(!(PicoOpt&4)) {
+  if (!(PicoOpt&POPT_EN_Z80))
+  {
     // Z80 disabled, do some faking
     static u8 zerosent = 0;
     if(a == Pico.m.z80_lastaddr) { // probably polling something
@@ -120,7 +121,7 @@ u32 OtherRead16(u32 a, int realsize)
   if ((a&0xff0000)==0xa00000) {
     if ((a&0x4000)==0x0000) { d=z80Read8(a); d|=d<<8; goto end; } // Z80 ram (not byteswaped)
     if ((a&0x6000)==0x4000) { // 0x4000-0x5fff, Fudge if disabled
-      if(PicoOpt&1) d=YM2612Read();
+      if(PicoOpt&POPT_EN_FM) d=YM2612Read();
       else d=Pico.m.rotate++&3;
       elprintf(EL_YM2612R, "read ym2612: %02x", d);
       goto end;
@@ -139,12 +140,13 @@ static void IoWrite8(u32 a, u32 d)
 {
   a=(a>>1)&0xf;
   // 6 button gamepad: if TH went from 0 to 1, gamepad changes state
-  if(PicoOpt&0x20) {
-    if(a==1) {
+  if(PicoOpt&POPT_6BTN_PAD)
+  {
+    if (a==1) {
       Pico.m.padDelay[0] = 0;
       if(!(Pico.ioports[1]&0x40) && (d&0x40)) Pico.m.padTHPhase[0]++;
     }
-    else if(a==2) {
+    else if (a==2) {
       Pico.m.padDelay[1] = 0;
       if(!(Pico.ioports[2]&0x40) && (d&0x40)) Pico.m.padTHPhase[1]++;
     }

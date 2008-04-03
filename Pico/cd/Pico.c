@@ -77,7 +77,7 @@ PICO_INTERNAL int PicoResetMCD(void)
 #endif
 
   // use SRam.data for RAM cart
-  if (PicoOpt&0x8000) {
+  if (PicoOpt&POPT_EN_MCD_RAMCART) {
     if (SRam.data == NULL)
       SRam.data = calloc(1, 0x12000);
   }
@@ -266,7 +266,7 @@ static __inline void getSamples(int y)
 
 PICO_INTERNAL int PicoFrameMCD(void)
 {
-  if(!(PicoOpt&0x10))
+  if (!(PicoOpt&POPT_ALT_RENDERER))
     PicoFrameStart();
 
   PicoFrameHints();

@@ -418,7 +418,7 @@ static unsigned char *PicoCartAlloc(int filesize)
   int alloc_size;
   unsigned char *rom;
 
-  if (PicoMCD & 1) return cd_realloc(NULL, filesize);
+  if (PicoAHW & PAHW_MCD) return cd_realloc(NULL, filesize);
 
   alloc_size=filesize+0x7ffff;
   if((filesize&0x3fff)==0x200) alloc_size-=0x200;
@@ -474,8 +474,9 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
   }
 
   // maybe we are loading MegaCD BIOS?
-  if (!(PicoMCD&1) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) || !strncmp((char *)rom+0x128, "BOOT", 4))) {
-    PicoMCD |= 1;
+  if (!(PicoAHW & PAHW_MCD) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) ||
+       !strncmp((char *)rom+0x128, "BOOT", 4))) {
+    PicoAHW |= PAHW_MCD;
     rom = cd_realloc(rom, size);
   }
 
@@ -511,6 +512,8 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
     PicoCartUnloadHook = NULL;
   }
 
+  PicoAHW &= ~PAHW_SVP;
+
   PicoMemResetHooks();
   PicoDmaHook = NULL;
   PicoResetHook = NULL;
@@ -520,12 +523,12 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
 
   PicoMemReset();
 
-  if (!(PicoMCD & 1))
+  if (!(PicoAHW & PAHW_MCD))
     PicoCartDetect();
 
   // setup correct memory map for loaded ROM
   // call PicoMemReset again due to possible memmap change
-  if (PicoMCD & 1)
+  if (PicoAHW & PAHW_MCD)
        PicoMemSetupCD();
   else PicoMemSetup();
   PicoMemReset();

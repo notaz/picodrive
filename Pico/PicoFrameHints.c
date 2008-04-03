@@ -11,14 +11,14 @@
 
 // pad delay (for 6 button pads)
 #define PAD_DELAY \
-  if (PicoOpt&0x20) { \
+  if (PicoOpt&POPT_6BTN_PAD) { \
     if(Pico.m.padDelay[0]++ > 25) Pico.m.padTHPhase[0]=0; \
     if(Pico.m.padDelay[1]++ > 25) Pico.m.padTHPhase[1]=0; \
   }
 
 #define Z80_RUN(z80_cycles) \
 { \
-  if ((PicoOpt&4) && Pico.m.z80Run) \
+  if ((PicoOpt&POPT_EN_Z80) && Pico.m.z80Run) \
   { \
     int cnt; \
     if (Pico.m.z80Run & 2) z80CycleAim += z80_cycles; \
@@ -42,7 +42,7 @@
 #else
 #define CPUS_RUN(m68k_cycles,z80_cycles,s68k_cycles) \
 { \
-    if ((PicoOpt & 0x2000) && (Pico_mcd->m.busreq&3) == 1) { \
+    if ((PicoOpt&POPT_EN_MCD_PSYNC) && (Pico_mcd->m.busreq&3) == 1) { \
       SekRunPS(m68k_cycles, s68k_cycles); /* "better/perfect sync" */ \
     } else { \
       SekRunM68k(m68k_cycles); \
@@ -60,7 +60,7 @@ static int PicoFrameHints(void)
   int lines, y, lines_vis = 224, total_z80 = 0, z80CycleAim = 0, line_sample, skip;
   int hint; // Hint counter
 
-  if ((PicoOpt&0x10) && !PicoSkipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
+  if ((PicoOpt&POPT_ALT_RENDERER) && !PicoSkipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
     // draw a frame just after vblank in alternative render mode
     // yes, this will cause 1 frame lag, but this is inaccurate mode anyway.
     PicoFrameFull();
@@ -127,7 +127,7 @@ static int PicoFrameHints(void)
     // decide if we draw this line
     if (!skip)
     {
-      if (PicoOpt&0x10) {
+      if (PicoOpt&POPT_ALT_RENDERER) {
         // find the right moment for fast renderer, when display is no longer blanked
         if ((pv->reg[1]&0x40) || y > 100) {
           PicoFrameFull();
@@ -148,7 +148,7 @@ static int PicoFrameHints(void)
       }
     }
 
-    if (PicoOpt&1)
+    if (PicoOpt&POPT_EN_FM)
       Psnd_timers_and_dac(y);
 
 #ifndef PICO_CD
@@ -209,10 +209,10 @@ static int PicoFrameHints(void)
     elprintf(EL_INTS, "vint: @ %06x [%i]", SekPc, SekCycleCnt);
     SekInterrupt(6);
   }
-  if (Pico.m.z80Run && (PicoOpt&4))
+  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
     z80_int();
 
-  if (PicoOpt&1)
+  if (PicoOpt&POPT_EN_FM)
     Psnd_timers_and_dac(y);
 
   // get samples from sound chips
@@ -245,7 +245,7 @@ static int PicoFrameHints(void)
     check_cd_dma();
 #endif
 
-    if(PicoOpt&1)
+    if (PicoOpt&POPT_EN_FM)
       Psnd_timers_and_dac(y);
 
     // Run scanline:

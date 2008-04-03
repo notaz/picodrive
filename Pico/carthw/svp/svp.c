@@ -38,14 +38,14 @@ static void PicoSVPReset(void)
 
 	memcpy(svp->iram_rom + 0x800, Pico.rom + 0x800, 0x20000 - 0x800);
 	ssp1601_reset(&svp->ssp1601);
-	if ((PicoOpt&0x20000) && svp_dyn_ready)
+	if ((PicoOpt&POPT_EN_SVP_DRC) && svp_dyn_ready)
 		ssp1601_dyn_reset(&svp->ssp1601);
 }
 
 
 static void PicoSVPLine(int count)
 {
-	if ((PicoOpt&0x20000) && svp_dyn_ready)
+	if ((PicoOpt&POPT_EN_SVP_DRC) && svp_dyn_ready)
 		ssp1601_dyn_run(PicoSVPCycles * count);
 	else {
 		ssp1601_run(PicoSVPCycles * count);
@@ -126,7 +126,7 @@ void PicoSVPStartup(void)
 
 	// init SVP compiler
 	svp_dyn_ready = 0;
-	if (PicoOpt&0x20000) {
+	if (PicoOpt&POPT_EN_SVP_DRC) {
 		if (ssp1601_dyn_startup()) return;
 		svp_dyn_ready = 1;
 	}
@@ -145,6 +145,7 @@ void PicoSVPStartup(void)
 	svp_states[1].ptr = svp->dram;
 	svp_states[2].ptr = &svp->ssp1601;
 	carthw_chunks = svp_states;
+	PicoAHW |= PAHW_SVP;
 }
 
 

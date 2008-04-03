@@ -70,9 +70,9 @@ static void custom_write(FILE *f, const menu_entry *me, int no_def)
 	switch (me->id)
 	{
 		case MA_OPT_RENDERER:
-			if (no_def && !((defaultConfig.s_PicoOpt^PicoOpt)&0x10) &&
+			if (no_def && !((defaultConfig.s_PicoOpt^PicoOpt)&POPT_ALT_RENDERER) &&
 				!((defaultConfig.EmuOpt^currentConfig.EmuOpt)&0x80)) return;
-			if (PicoOpt&0x10)
+			if (PicoOpt&POPT_ALT_RENDERER)
 				str = "8bit fast";
 			else if (currentConfig.EmuOpt&0x80)
 				str = "16bit accurate";
@@ -99,9 +99,9 @@ static void custom_write(FILE *f, const menu_entry *me, int no_def)
 			fprintf(f, "Frameskip = %s", str24);
 			break;
 		case MA_OPT_SOUND_QUALITY:
-			if (no_def && !((defaultConfig.s_PicoOpt^PicoOpt)&8) &&
+			if (no_def && !((defaultConfig.s_PicoOpt^PicoOpt)&POPT_EN_STEREO) &&
 				defaultConfig.s_PsndRate == PsndRate) return;
-			str = (PicoOpt&0x08)?"stereo":"mono";
+			str = (PicoOpt&POPT_EN_STEREO)?"stereo":"mono";
 			fprintf(f, "Sound Quality = %i %s", PsndRate, str);
 			break;
 		case MA_OPT_REGION:
@@ -438,14 +438,14 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 		case MA_OPT_RENDERER:
 			if (strcasecmp(var, "Renderer") != 0) return 0;
 			if      (strcasecmp(val, "8bit fast") == 0) {
-				PicoOpt |=  0x10;
+				PicoOpt |=  POPT_ALT_RENDERER;
 			}
 			else if (strcasecmp(val, "16bit accurate") == 0) {
-				PicoOpt &= ~0x10;
+				PicoOpt &= ~POPT_ALT_RENDERER;
 				currentConfig.EmuOpt |=  0x80;
 			}
 			else if (strcasecmp(val, "8bit accurate") == 0) {
-				PicoOpt &= ~0x10;
+				PicoOpt &= ~POPT_ALT_RENDERER;
 				currentConfig.EmuOpt &= ~0x80;
 			}
 			else
@@ -480,9 +480,9 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 				PsndRate = 22050;
 			while (*tmp == ' ') tmp++;
 			if        (strcasecmp(tmp, "stereo") == 0) {
-				PicoOpt |=  8;
+				PicoOpt |=  POPT_EN_STEREO;
 			} else if (strcasecmp(tmp, "mono") == 0) {
-				PicoOpt &= ~8;
+				PicoOpt &= ~POPT_EN_STEREO;
 			} else
 				return 0;
 			return 1;

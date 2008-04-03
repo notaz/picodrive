@@ -38,12 +38,12 @@ extern "C" {
 extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekCyclesLeftNoMCD PicoCpuCM68k.cycles // cycles left for this run
 #define SekCyclesLeft \
-	(((PicoMCD&1) && (PicoOpt & 0x2000)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
+	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
 #define SekCyclesLeftS68k \
-	((PicoOpt & 0x2000) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuCS68k.cycles)
+	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuCS68k.cycles)
 #define SekSetCyclesLeftNoMCD(c) PicoCpuCM68k.cycles=c
 #define SekSetCyclesLeft(c) { \
-	if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCycleCnt=SekCycleAim-(c); else SekSetCyclesLeftNoMCD(c); \
+	if ((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) SekCycleCnt=SekCycleAim-(c); else SekSetCyclesLeftNoMCD(c); \
 }
 #define SekPc (PicoCpuCM68k.pc-PicoCpuCM68k.membase)
 #define SekPcS68k (PicoCpuCS68k.pc-PicoCpuCS68k.membase)
@@ -64,12 +64,12 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #define SekCyclesLeftNoMCD PicoCpuFM68k.io_cycle_counter
 #define SekCyclesLeft \
-	(((PicoMCD&1) && (PicoOpt & 0x2000)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
+	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
 #define SekCyclesLeftS68k \
-	((PicoOpt & 0x2000) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuFS68k.io_cycle_counter)
+	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuFS68k.io_cycle_counter)
 #define SekSetCyclesLeftNoMCD(c) PicoCpuFM68k.io_cycle_counter=c
 #define SekSetCyclesLeft(c) { \
-	if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCycleCnt=SekCycleAim-(c); else SekSetCyclesLeftNoMCD(c); \
+	if ((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) SekCycleCnt=SekCycleAim-(c); else SekSetCyclesLeftNoMCD(c); \
 }
 #define SekPc     fm68k_get_pc(&PicoCpuFM68k)
 #define SekPcS68k fm68k_get_pc(&PicoCpuFS68k)
@@ -97,12 +97,12 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #ifndef SekCyclesLeft
 #define SekCyclesLeftNoMCD PicoCpuMM68k.cyc_remaining_cycles
 #define SekCyclesLeft \
-	(((PicoMCD&1) && (PicoOpt & 0x2000)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
+	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
 #define SekCyclesLeftS68k \
-	((PicoOpt & 0x2000) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuMS68k.cyc_remaining_cycles)
+	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuMS68k.cyc_remaining_cycles)
 #define SekSetCyclesLeftNoMCD(c) SET_CYCLES(c)
 #define SekSetCyclesLeft(c) { \
-	if ((PicoMCD&1) && (PicoOpt & 0x2000)) SekCycleCnt=SekCycleAim-(c); else SET_CYCLES(c); \
+	if ((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) SekCycleCnt=SekCycleAim-(c); else SET_CYCLES(c); \
 }
 #define SekPc m68k_get_reg(&PicoCpuMM68k, M68K_REG_PC)
 #define SekPcS68k m68k_get_reg(&PicoCpuMS68k, M68K_REG_PC)
@@ -208,7 +208,11 @@ extern struct DrZ80 drZ80;
 
 // ---------------------------------------------------------
 
-extern int PicoMCD;
+// Pico active hw
+#define PAHW_MCD (1<<0)
+#define PAHW_32X (1<<1)
+#define PAHW_SVP (1<<2)
+extern int PicoAHW;
 
 // main oscillator clock which controls timing
 #define OSC_NTSC 53693100

@@ -312,7 +312,7 @@ PICO_INTERNAL void gfx_cd_update(void)
 	_rot_comp.Float_Part &= 0xffff;
 	_rot_comp.Float_Part += _rot_comp.Draw_Speed;
 
-	if (PicoOpt & 0x1000)			// scale/rot enabled
+	if (PicoOpt & POPT_EN_MCD_GFX)
 	{
 		unsigned int func = _rot_comp.Function;
 		unsigned int H_Dot = _rot_comp.Reg_62 & 0x1ff;
@@ -447,7 +447,7 @@ PICO_INTERNAL void DmaSlowCell(unsigned int source, unsigned int a, int len, uns
         // AutoIncrement
         a=(u16)(a+inc);
       }
-      rendstatus|=0x10;
+      rendstatus |= PDRAW_SPRITES_MOVED;
       break;
 
     case 3: // cram

@@ -235,7 +235,7 @@ char *emu_makeRomId(void)
 	static char id_string[3+0x11+0x11+0x30+16];
 	int pos, swab = 1;
 
-	if (PicoMCD & 1) {
+	if (PicoAHW & PAHW_MCD) {
 		strcpy(id_string, "CD|");
 		swab = 0;
 	}
@@ -325,14 +325,14 @@ int emu_ReloadRom(void)
 		get_ext(romFileName, ext);
 	}
 
-	if ((PicoMCD & 1) && Pico_mcd != NULL)
+	if ((PicoAHW & PAHW_MCD) && Pico_mcd != NULL)
 		Stop_CD();
 
 	// check for MegaCD image
 	cd_state = emu_cdCheck(&cd_region);
 	if (cd_state > 0)
 	{
-		PicoMCD |= 1;
+		PicoAHW |= PAHW_MCD;
 		// valid CD image, check for BIOS..
 
 		// we need to have config loaded at this point
@@ -346,7 +346,7 @@ int emu_ReloadRom(void)
 		}
 		if (!emu_findBios(cd_region, &used_rom_name)) {
 			// bios_help() ?
-			PicoMCD &= ~1;
+			PicoAHW &= ~PAHW_MCD;
 			return 0;
 		}
 
@@ -354,8 +354,8 @@ int emu_ReloadRom(void)
 	}
 	else
 	{
-		if (PicoMCD & 1) Stop_CD();
-		PicoMCD &= ~1;
+		if (PicoAHW & PAHW_MCD) Stop_CD();
+		PicoAHW &= ~PAHW_MCD;
 	}
 
 	rom = pm_open(used_rom_name);
@@ -388,7 +388,7 @@ int emu_ReloadRom(void)
 	}
 
 	// load config for this ROM (do this before insert to get correct region)
-	if (!(PicoMCD&1))
+	if (!(PicoAHW & PAHW_MCD))
 		memcpy(id_header, rom_data + 0x100, sizeof(id_header));
 	if (!cfg_loaded) {
 		ret = emu_ReadConfig(1, 1);
@@ -425,9 +425,9 @@ int emu_ReloadRom(void)
 	// additional movie stuff
 	if (movie_data) {
 		if(movie_data[0x14] == '6')
-		     PicoOpt |=  0x20; // 6 button pad
-		else PicoOpt &= ~0x20;
-		PicoOpt |= 0x10040; // accurate timing, no VDP fifo timing
+		     PicoOpt |=  POPT_6BTN_PAD; // 6 button pad
+		else PicoOpt &= ~POPT_6BTN_PAD;
+		PicoOpt |= POPT_DIS_VDP_FIFO|POPT_ACC_TIMING; // accurate timing, no VDP fifo timing
 		if(movie_data[0xF] >= 'A') {
 			if(movie_data[0x16] & 0x80) {
 				PicoRegionOverride = 8;
@@ -442,7 +442,7 @@ int emu_ReloadRom(void)
 	}
 	else
 	{
-		PicoOpt &= ~0x10000;
+		PicoOpt &= ~POPT_DIS_VDP_FIFO;
 		if(Pico.m.pal) {
 			strcpy(noticeMsg, "PAL SYSTEM / 50 FPS");
 		} else {
@@ -773,11 +773,11 @@ char *emu_GetSaveFName(int load, int is_sram, int slot)
 
 	if (is_sram)
 	{
-		romfname_ext(saveFname, (PicoMCD&1) ? "brm/" : "srm/", (PicoMCD&1) ? ".brm" : ".srm");
+		romfname_ext(saveFname, (PicoAHW&1) ? "brm/" : "srm/", (PicoAHW&1) ? ".brm" : ".srm");
 		if (load) {
 			if (try_ropen_file(saveFname)) return saveFname;
 			// try in current dir..
-			romfname_ext(saveFname, NULL, (PicoMCD&1) ? ".brm" : ".srm");
+			romfname_ext(saveFname, NULL, (PicoAHW & PAHW_MCD) ? ".brm" : ".srm");
 			if (try_ropen_file(saveFname)) return saveFname;
 			return NULL; // give up
 		}
@@ -855,8 +855,9 @@ int emu_SaveLoadGame(int load, int sram)
 		int sram_size;
 		unsigned char *sram_data;
 		int truncate = 1;
-		if (PicoMCD&1) {
-			if (PicoOpt&0x8000) { // MCD RAM cart?
+		if (PicoAHW & PAHW_MCD)
+		{
+			if (PicoOpt&POPT_EN_MCD_RAMCART) {
 				sram_size = 0x12000;
 				sram_data = SRam.data;
 				if (sram_data)
@@ -873,12 +874,13 @@ int emu_SaveLoadGame(int load, int sram)
 		}
 		if (!sram_data) return 0; // SRam forcefully disabled for this game
 
-		if (load) {
+		if (load)
+		{
 			sramFile = fopen(saveFname, "rb");
 			if(!sramFile) return -1;
 			fread(sram_data, 1, sram_size, sramFile);
 			fclose(sramFile);
-			if ((PicoMCD&1) && (PicoOpt&0x8000))
+			if ((PicoAHW & PAHW_MCD) && (PicoOpt&POPT_EN_MCD_RAMCART))
 				memcpy32((int *)Pico_mcd->bram, (int *)sram_data, 0x2000/4);
 		} else {
 			// sram save needs some special processing

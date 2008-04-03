@@ -112,7 +112,8 @@ int PadRead(int i)
   // orr the bits, which are set as output
   value = data_reg&(Pico.ioports[i+4]|0x80);
 
-  if(PicoOpt & 0x20) { // 6 button gamepad enabled
+  if (PicoOpt & POPT_6BTN_PAD)
+  {
     int phase = Pico.m.padTHPhase[i];
 
     if(phase == 2 && !(data_reg&0x40)) { // TH
@@ -556,7 +557,7 @@ static unsigned int  m68k_read_8 (unsigned int a, int do_fake)
 #ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
-  if(PicoMCD&1) return m68k_read_pcrelative_CD8(a);
+  if(PicoAHW&1) return m68k_read_pcrelative_CD8(a);
   if((a&0xe00000)==0xe00000) return *(u8 *)(Pico.ram+((a^1)&0xffff)); // Ram
   return 0;
 }
@@ -567,7 +568,7 @@ static unsigned int  m68k_read_16(unsigned int a, int do_fake)
 #ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
-  if(PicoMCD&1) return m68k_read_pcrelative_CD16(a);
+  if(PicoAHW&1) return m68k_read_pcrelative_CD16(a);
   if((a&0xe00000)==0xe00000) return *(u16 *)(Pico.ram+(a&0xfffe)); // Ram
   return 0;
 }
@@ -578,7 +579,7 @@ static unsigned int  m68k_read_32(unsigned int a, int do_fake)
 #ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
-  if(PicoMCD&1) return m68k_read_pcrelative_CD32(a);
+  if(PicoAHW&1) return m68k_read_pcrelative_CD32(a);
   if((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); return (pm[0]<<16)|pm[1]; } // Ram
   return 0;
 }
@@ -638,34 +639,34 @@ void PicoWriteCD32w(unsigned int a, unsigned int d);
 /* it appears that Musashi doesn't always mask the unused bits */
 unsigned int  m68k_read_memory_8(unsigned int address)
 {
-    unsigned int d = (PicoMCD&1) ? PicoReadCD8w(address) : PicoRead8(address);
+    unsigned int d = (PicoAHW&1) ? PicoReadCD8w(address) : PicoRead8(address);
     return d&0xff;
 }
 
 unsigned int  m68k_read_memory_16(unsigned int address)
 {
-    unsigned int d = (PicoMCD&1) ? PicoReadCD16w(address) : PicoRead16(address);
+    unsigned int d = (PicoAHW&1) ? PicoReadCD16w(address) : PicoRead16(address);
     return d&0xffff;
 }
 
 unsigned int  m68k_read_memory_32(unsigned int address)
 {
-    return (PicoMCD&1) ? PicoReadCD32w(address) : PicoRead32(address);
+    return (PicoAHW&1) ? PicoReadCD32w(address) : PicoRead32(address);
 }
 
 void m68k_write_memory_8(unsigned int address, unsigned int value)
 {
-    if (PicoMCD&1) PicoWriteCD8w(address, (u8)value); else PicoWrite8(address, (u8)value);
+    if (PicoAHW&1) PicoWriteCD8w(address, (u8)value); else PicoWrite8(address, (u8)value);
 }
 
 void m68k_write_memory_16(unsigned int address, unsigned int value)
 {
-    if (PicoMCD&1) PicoWriteCD16w(address,(u16)value); else PicoWrite16(address,(u16)value);
+    if (PicoAHW&1) PicoWriteCD16w(address,(u16)value); else PicoWrite16(address,(u16)value);
 }
 
 void m68k_write_memory_32(unsigned int address, unsigned int value)
 {
-    if (PicoMCD&1) PicoWriteCD32w(address, value); else PicoWrite32(address, value);
+    if (PicoAHW&1) PicoWriteCD32w(address, value); else PicoWrite32(address, value);
 }
 #endif
 #endif // EMU_M68K
@@ -680,7 +681,7 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
 
   if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
   {
-    if (PicoOpt&1) ret = (u8) YM2612Read();
+    if (PicoOpt&POPT_EN_FM) ret = (u8) YM2612Read();
     return ret;
   }
 
@@ -691,7 +692,7 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
     addr68k=Pico.m.z80_bank68k<<15;
     addr68k+=a&0x7fff;
 
-    if (PicoMCD & 1)
+    if (PicoAHW & PAHW_MCD)
          ret = PicoReadM68k8(addr68k);
     else ret = PicoRead8(addr68k);
     elprintf(EL_Z80BNK, "z80->68k r8 [%06x] %02x", addr68k, ret);
@@ -713,13 +714,13 @@ PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data)
 {
   if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
   {
-    if(PicoOpt&1) emustatus|=YM2612Write(a, data) & 1;
+    if(PicoOpt&POPT_EN_FM) emustatus|=YM2612Write(a, data) & 1;
     return;
   }
 
   if ((a&0xfff9)==0x7f11) // 7f11 7f13 7f15 7f17
   {
-    if(PicoOpt&2) SN76496Write(data);
+    if(PicoOpt&POPT_EN_PSG) SN76496Write(data);
     return;
   }
 
@@ -738,7 +739,7 @@ PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data)
     addr68k=Pico.m.z80_bank68k<<15;
     addr68k+=a&0x7fff;
     elprintf(EL_Z80BNK, "z80->68k w8 [%06x] %02x", addr68k, data);
-    if (PicoMCD & 1)
+    if (PicoAHW & PAHW_MCD)
          PicoWriteM68k8(addr68k, data);
     else PicoWrite8(addr68k, data);
     return;

@@ -553,7 +553,7 @@ static void draw_savestate_bg(int slot)
 	}
 
 	if (file) {
-		if (PicoMCD & 1) {
+		if (PicoAHW & PAHW_MCD) {
 			PicoCdLoadStateGfx(file);
 		} else {
 			areaSeek(file, 0x10020, SEEK_SET);  // skip header and RAM in state file
@@ -878,7 +878,7 @@ static void kc_sel_loop(void)
 {
 	int menu_sel = 3, menu_sel_max = 3;
 	unsigned long inp = 0;
-	int is_6button = PicoOpt & 0x020;
+	int is_6button = PicoOpt & POPT_6BTN_PAD;
 
 	while (1)
 	{
@@ -1174,7 +1174,7 @@ static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *para
 	switch (entry->id)
 	{
 		case MA_OPT_RENDERER:
-			if (PicoOpt&0x10)
+			if (PicoOpt & POPT_ALT_RENDERER)
 				str = " 8bit fast";
 			else if (currentConfig.EmuOpt&0x80)
 				str = "16bit accurate";
@@ -1198,7 +1198,7 @@ static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *para
 			text_out16(x, y, "Frameskip                  %s", str24);
 			break;
 		case MA_OPT_SOUND_QUALITY:
-			str = (PicoOpt&0x08)?"stereo":"mono";
+			str = (PicoOpt & POPT_EN_STEREO) ? "stereo" : "mono";
 			text_out16(x, y, "Sound Quality:     %5iHz %s", PsndRate, str);
 			break;
 		case MA_OPT_REGION:
@@ -1288,7 +1288,7 @@ static void menu_options_save(void)
 		// force setting possibly changed..
 		Pico.m.pal = (PicoRegionOverride == 2 || PicoRegionOverride == 8) ? 1 : 0;
 	}
-	if (!(PicoOpt & 0x20)) {
+	if (!(PicoOpt & POPT_6BTN_PAD)) {
 		// unbind XYZ MODE, just in case
 		unbind_action(0xf00, -1, -1);
 	}

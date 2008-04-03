@@ -180,7 +180,7 @@ void mp3_start_play(FILE *f, int pos)
 	mp3_current_file = NULL;
 	mp3_buffer_offs = 0;
 
-	if (!(PicoOpt&0x800) || f == NULL) // cdda disabled or no file?
+	if (!(PicoOpt&POPT_EN_MCD_CDDA) || f == NULL) // cdda disabled or no file?
 		return;
 
 	//lprintf("mp3_start_play %p %i\n", f, pos);
@@ -204,7 +204,7 @@ int mp3_get_offset(void)
 	unsigned int offs1024 = 0;
 	int cdda_on;
 
-	cdda_on = (PicoMCD & 1) && (PicoOpt&0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
+	cdda_on = (PicoAHW & PAHW_MCD) && (PicoOpt&POPT_EN_MCD_CDDA) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
 			(Pico_mcd->scd.Status_CDC & 1) && mp3_current_file != NULL;
 
 	if (cdda_on) {

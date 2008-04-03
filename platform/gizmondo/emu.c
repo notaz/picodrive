@@ -143,10 +143,10 @@ void emu_setDefaultConfig(void)
 }
 
 
-static int EmuScan16(unsigned int num, void *sdata)
+static int EmuScanBegin16(unsigned int num)
 {
 	if (!(Pico.video.reg[1]&8)) num += 8;
-	DrawLineDest = (unsigned short *) giz_screen + 321*(num+1);
+	DrawLineDest = (unsigned short *) giz_screen + 321 * num;
 
 	if ((currentConfig.EmuOpt&0x4000) && (num&1) == 0) // (Pico.m.frame_count&1))
 		return 1; // skip next line
@@ -154,11 +154,11 @@ static int EmuScan16(unsigned int num, void *sdata)
 	return 0;
 }
 
-static int EmuScan8(unsigned int num, void *sdata)
+static int EmuScanBegin8(unsigned int num)
 {
 	// draw like the fast renderer
 	if (!(Pico.video.reg[1]&8)) num += 8;
-	HighCol = gfx_buffer + 328*(num+1);
+	HighCol = gfx_buffer + 328 * num;
 
 	return 0;
 }
@@ -253,7 +253,7 @@ static void blit(const char *fps, const char *notice)
 		if (emu_opt & 2) osd_text(OSD_FPS_X, h, fps);
 	}
 
-	if ((emu_opt & 0x400) && (PicoMCD & 1))
+	if ((emu_opt & 0x400) && (PicoAHW & PAHW_MCD))
 		cd_leds();
 }
 
@@ -280,10 +280,10 @@ static void vidResetMode(void)
 	if (PicoOpt&0x10) {
 	} else if (currentConfig.EmuOpt&0x80) {
 		PicoDrawSetColorFormat(1);
-		PicoScan = EmuScan16;
+		PicoScanBegin = EmuScanBegin16;
 	} else {
 		PicoDrawSetColorFormat(-1);
-		PicoScan = EmuScan8;
+		PicoScanBegin = EmuScanBegin8;
 	}
 	if ((PicoOpt&0x10) || !(currentConfig.EmuOpt&0x80)) {
 		// setup pal for 8-bit modes
@@ -356,8 +356,7 @@ void emu_forcedFrame(void)
 		giz_screen = Framework2D_LockBuffer(1);
 
 	PicoDrawSetColorFormat(1);
-	PicoScan = EmuScan16;
-	PicoScan((unsigned) -1, NULL);
+	PicoScanBegin = EmuScanBegin16;
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 
@@ -546,7 +545,7 @@ void emu_Loop(void)
 	reset_timing = 1;
 
 	// prepare CD buffer
-	if (PicoMCD & 1) PicoCDBufferInit();
+	if (PicoAHW & PAHW_MCD) PicoCDBufferInit();
 
 	// prepare sound stuff
 	PsndOut = NULL;
@@ -716,9 +715,6 @@ void emu_Loop(void)
 			/* be sure correct framebuffer is locked */
 			giz_screen = Framework2D_LockBuffer((currentConfig.EmuOpt&0x8000) ? 0 : 1);
 
-		if (!(PicoOpt&0x10))
-			PicoScan((unsigned) -1, NULL);
-
 		PicoFrame();
 
 		if (giz_screen == NULL)
@@ -757,7 +753,7 @@ void emu_Loop(void)
 	}
 
 
-	if (PicoMCD & 1) PicoCDBufferFree();
+	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
 
 	if (PsndOut != NULL) {
 		PsndOut = snd_cbuff = NULL;
