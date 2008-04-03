@@ -393,7 +393,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
           case 0x01:
             elprintf(EL_INTSW, "vint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x20)>>5,
                     (d&0x20)>>5, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
-            if (!(d&0x40) && SekCyclesLeft > 420) { /*elprintf(EL_ANOMALY, "aa %i", SekCyclesLeft);*/ rendstatus |= PDRAW_EARLY_BLANK; }
+            if (!(d&0x40) && SekCyclesLeft > 390) rendstatus |= PDRAW_EARLY_BLANK;
             goto update_irq;
           case 0x05:
             if (d^dold) rendstatus |= PDRAW_SPRITES_MOVED;
