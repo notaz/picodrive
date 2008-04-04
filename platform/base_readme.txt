@@ -615,7 +615,7 @@ Additional thanks
 * A_SN for his gamma code.
 * craigix for supplying the GP2X hardware and making this port possible.
 * Alex for the icon.
-* Exophase and Rokas for various ideas.
+* Exophase, Rokas and Lordus for various ideas.
 * All the people from gp32x boards for their support.
 #endif
 #ifdef GIZ

@@ -47,6 +47,7 @@ void mp3_update(int *buffer, int length, int stereo);
 #define POPT_EN_MCD_RAMCART (1<<15)
 #define POPT_DIS_VDP_FIFO   (1<<16) // 0x 0000
 #define POPT_EN_SVP_DRC     (1<<17)
+#define POPT_DIS_SPRITE_LIM (1<<18)
 extern int PicoOpt; // bitfield
 extern int PicoVer;
 extern int PicoSkipFrame; // skip rendering frame, but still do sound (if enabled) and emulation stuff

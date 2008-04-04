@@ -1,7 +1,7 @@
 // This is part of Pico Library
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2006-2008 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -25,8 +25,9 @@ static int  HighCacheA[41+1];   // caches for high layers
 static int  HighCacheB[41+1];
 static int  HighCacheS[80+1];   // and sprites
 static int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
-char HighSprZ[320+8+8]; // Z-buffer for accurate sprites and shadow/hilight mode
-                        // (if bit 7 == 0, sh caused by tile; if bit 6 == 0 pixel must be shadowed, else hilighted, if bit5 == 1)
+
+static unsigned char HighSprZ[320+8+8]; // Z-buffer for accurate sprites
+
 int rendstatus = 0;
 int Scanline = 0; // Scanline
 
@@ -173,46 +174,46 @@ static int TileNormZ(int sx,int addr,int pal,int zval)
 {
   unsigned int pack=0; unsigned int t=0;
   unsigned char *pd = HighCol+sx;
-  char *zb = HighSprZ+sx;
-  int collision = 0, zb_s;
+  unsigned char *zb = HighSprZ+sx;
+  int collision = 0;
 
   pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
   if (pack)
   {
-    t=pack&0x0000f000; if(t) { zb_s=zb[0]; if(zb_s) collision=1; if(zval>zb_s) { pd[0]=(unsigned char)(pal|(t>>12)); zb[0]=(char)zval; } }
-    t=pack&0x00000f00; if(t) { zb_s=zb[1]; if(zb_s) collision=1; if(zval>zb_s) { pd[1]=(unsigned char)(pal|(t>> 8)); zb[1]=(char)zval; } }
-    t=pack&0x000000f0; if(t) { zb_s=zb[2]; if(zb_s) collision=1; if(zval>zb_s) { pd[2]=(unsigned char)(pal|(t>> 4)); zb[2]=(char)zval; } }
-    t=pack&0x0000000f; if(t) { zb_s=zb[3]; if(zb_s) collision=1; if(zval>zb_s) { pd[3]=(unsigned char)(pal|(t    )); zb[3]=(char)zval; } }
-    t=pack&0xf0000000; if(t) { zb_s=zb[4]; if(zb_s) collision=1; if(zval>zb_s) { pd[4]=(unsigned char)(pal|(t>>28)); zb[4]=(char)zval; } }
-    t=pack&0x0f000000; if(t) { zb_s=zb[5]; if(zb_s) collision=1; if(zval>zb_s) { pd[5]=(unsigned char)(pal|(t>>24)); zb[5]=(char)zval; } }
-    t=pack&0x00f00000; if(t) { zb_s=zb[6]; if(zb_s) collision=1; if(zval>zb_s) { pd[6]=(unsigned char)(pal|(t>>20)); zb[6]=(char)zval; } }
-    t=pack&0x000f0000; if(t) { zb_s=zb[7]; if(zb_s) collision=1; if(zval>zb_s) { pd[7]=(unsigned char)(pal|(t>>16)); zb[7]=(char)zval; } }
-    if(collision) Pico.video.status|=0x20;
+    t=pack&0x0000f000; if(t) { if(zb[0]) collision=1; if(zval>zb[0]) { pd[0]=(unsigned char)(pal|(t>>12)); zb[0]=(char)zval; } }
+    t=pack&0x00000f00; if(t) { if(zb[1]) collision=1; if(zval>zb[1]) { pd[1]=(unsigned char)(pal|(t>> 8)); zb[1]=(char)zval; } }
+    t=pack&0x000000f0; if(t) { if(zb[2]) collision=1; if(zval>zb[2]) { pd[2]=(unsigned char)(pal|(t>> 4)); zb[2]=(char)zval; } }
+    t=pack&0x0000000f; if(t) { if(zb[3]) collision=1; if(zval>zb[3]) { pd[3]=(unsigned char)(pal|(t    )); zb[3]=(char)zval; } }
+    t=pack&0xf0000000; if(t) { if(zb[4]) collision=1; if(zval>zb[4]) { pd[4]=(unsigned char)(pal|(t>>28)); zb[4]=(char)zval; } }
+    t=pack&0x0f000000; if(t) { if(zb[5]) collision=1; if(zval>zb[5]) { pd[5]=(unsigned char)(pal|(t>>24)); zb[5]=(char)zval; } }
+    t=pack&0x00f00000; if(t) { if(zb[6]) collision=1; if(zval>zb[6]) { pd[6]=(unsigned char)(pal|(t>>20)); zb[6]=(char)zval; } }
+    t=pack&0x000f0000; if(t) { if(zb[7]) collision=1; if(zval>zb[7]) { pd[7]=(unsigned char)(pal|(t>>16)); zb[7]=(char)zval; } }
+    if (collision) Pico.video.status|=0x20;
     return 0;
   }
 
   return 1; // Tile blank
 }
-
+                                              
 static int TileFlipZ(int sx,int addr,int pal,int zval)
 {
   unsigned int pack=0; unsigned int t=0;
   unsigned char *pd = HighCol+sx;
-  char *zb = HighSprZ+sx;
-  int collision = 0, zb_s;
+  unsigned char *zb = HighSprZ+sx;
+  int collision = 0;
 
   pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
   if (pack)
   {
-    t=pack&0x000f0000; if(t) { zb_s=zb[0]&0x1f; if(zb_s) collision=1; if(zval>zb_s) { pd[0]=(unsigned char)(pal|(t>>16)); zb[0]=(char)zval; } }
-    t=pack&0x00f00000; if(t) { zb_s=zb[1]&0x1f; if(zb_s) collision=1; if(zval>zb_s) { pd[1]=(unsigned char)(pal|(t>>20)); zb[1]=(char)zval; } }
-    t=pack&0x0f000000; if(t) { zb_s=zb[2]&0x1f; if(zb_s) collision=1; if(zval>zb_s) { pd[2]=(unsigned char)(pal|(t>>24)); zb[2]=(char)zval; } }
-    t=pack&0xf0000000; if(t) { zb_s=zb[3]&0x1f; if(zb_s) collision=1; if(zval>zb_s) { pd[3]=(unsigned char)(pal|(t>>28)); zb[3]=(char)zval; } }
-    t=pack&0x0000000f; if(t) { zb_s=zb[4]&0x1f; if(zb_s) collision=1; if(zval>zb_s) { pd[4]=(unsigned char)(pal|(t    )); zb[4]=(char)zval; } }
-    t=pack&0x000000f0; if(t) { zb_s=zb[5]&0x1f; if(zb_s) collision=1; if(zval>zb_s) { pd[5]=(unsigned char)(pal|(t>> 4)); zb[5]=(char)zval; } }
-    t=pack&0x00000f00; if(t) { zb_s=zb[6]&0x1f; if(zb_s) collision=1; if(zval>zb_s) { pd[6]=(unsigned char)(pal|(t>> 8)); zb[6]=(char)zval; } }
-    t=pack&0x0000f000; if(t) { zb_s=zb[7]&0x1f; if(zb_s) collision=1; if(zval>zb_s) { pd[7]=(unsigned char)(pal|(t>>12)); zb[7]=(char)zval; } }
-    if(collision) Pico.video.status|=0x20;
+    t=pack&0x000f0000; if(t) { if(zb[0]) collision=1; if(zval>zb[0]) { pd[0]=(unsigned char)(pal|(t>>16)); zb[0]=(char)zval; } }
+    t=pack&0x00f00000; if(t) { if(zb[1]) collision=1; if(zval>zb[1]) { pd[1]=(unsigned char)(pal|(t>>20)); zb[1]=(char)zval; } }
+    t=pack&0x0f000000; if(t) { if(zb[2]) collision=1; if(zval>zb[2]) { pd[2]=(unsigned char)(pal|(t>>24)); zb[2]=(char)zval; } }
+    t=pack&0xf0000000; if(t) { if(zb[3]) collision=1; if(zval>zb[3]) { pd[3]=(unsigned char)(pal|(t>>28)); zb[3]=(char)zval; } }
+    t=pack&0x0000000f; if(t) { if(zb[4]) collision=1; if(zval>zb[4]) { pd[4]=(unsigned char)(pal|(t    )); zb[4]=(char)zval; } }
+    t=pack&0x000000f0; if(t) { if(zb[5]) collision=1; if(zval>zb[5]) { pd[5]=(unsigned char)(pal|(t>> 4)); zb[5]=(char)zval; } }
+    t=pack&0x00000f00; if(t) { if(zb[6]) collision=1; if(zval>zb[6]) { pd[6]=(unsigned char)(pal|(t>> 8)); zb[6]=(char)zval; } }
+    t=pack&0x0000f000; if(t) { if(zb[7]) collision=1; if(zval>zb[7]) { pd[7]=(unsigned char)(pal|(t>>12)); zb[7]=(char)zval; } }
+    if (collision) Pico.video.status|=0x20;
     return 0;
   }
   return 1; // Tile blank
@@ -233,7 +234,7 @@ static int TileNormZSH(int sx,int addr,int pal,int zval)
 {
   unsigned int pack=0; unsigned int t=0;
   unsigned char *pd = HighCol+sx;
-  char *zb = HighSprZ+sx;
+  unsigned char *zb = HighSprZ+sx;
   int collision = 0;
 
   pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
@@ -258,7 +259,7 @@ static int TileFlipZSH(int sx,int addr,int pal,int zval)
 {
   unsigned int pack=0; unsigned int t=0;
   unsigned char *pd = HighCol+sx;
-  char *zb = HighSprZ+sx;
+  unsigned char *zb = HighSprZ+sx;
   int collision = 0;
 
   pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
@@ -1028,7 +1029,7 @@ static void PrepareSprites(int full)
       hv = (code>>24)&0xf;
       height = (hv&3)+1;
 
-      if(sy > 240 || sy + (height<<3) <= 0) skip|=1<<22;
+      if (sy > 240 || sy + (height<<3) <= 0) skip|=1<<22; // sprite offscreen (completely, y)
 
       width  = (hv>>2)+1;
       code2 = sprite[1];
@@ -1036,7 +1037,7 @@ static void PrepareSprites(int full)
       sx -= 0x78; // Get X coordinate + 8
       sx_min = 8-(width<<3);
 
-      if((sx <= sx_min && sx >= -0x76) || sx >= 328) skip|=1<<23;
+      if ((sx <= sx_min && sx >= -0x76) || sx >= 328) skip|=1<<23; // offscreen x
       else if (sx > sx_min && !skip) {
         int sbl = (2<<height)-1;
         int shi = sy>>3;
@@ -1059,10 +1060,11 @@ static void PrepareSprites(int full)
 static void DrawAllSprites(int *hcache, int maxwidth, int prio, int sh)
 {
   int i,u,n;
-  int sx1seen=0; // sprite with x coord 1 or 0 seen
+  int sx1seen = 0; // sprite with x coord 1 or 0 seen
   int ntiles = 0; // tile counter for sprite limit emulation
   int *sprites[40]; // Sprites to draw in fast mode
-  int *ps, pack, rs = rendstatus, scan=Scanline;
+  int max_line_sprites = 20; // 20 sprites, 40 tiles
+  int *ps, pack, rs = rendstatus, scan = Scanline;
 
   if(rs&8) {
     DrawAllSpritesInterlace(prio, maxwidth);
@@ -1082,16 +1084,21 @@ static void DrawAllSprites(int *hcache, int maxwidth, int prio, int sh)
     return;
   }
 
+  if (PicoOpt & POPT_DIS_SPRITE_LIM)
+    max_line_sprites = 80;
+
   ps = HighPreSpr;
 
   // Index + 0  :    hhhhvvvv ab--hhvv yyyyyyyy yyyyyyyy // a: offscreen h, b: offs. v, h: horiz. size
   // Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-  for(i=u=n=0; (pack = *ps) && n < 20; ps+=2, u++)
+  for (i=u=n=0; (pack = *ps) && n < max_line_sprites; ps+=2, u++)
   {
     int sx, sy, row, pack2;
 
-    if(pack & 0x00400000) continue;
+    elprintf(EL_ANOMALY, "x: %i y: %i %ix%i", pack2>>16, (pack<<16)>>16, (pack>>28)<<3, (pack>>21)&0x38);
+
+    if (pack & 0x00400000) continue;
 
     // get sprite info
     pack2 = *(ps+1);
@@ -1099,29 +1106,27 @@ static void DrawAllSprites(int *hcache, int maxwidth, int prio, int sh)
     sy = (pack <<16)>>16;
     row = scan-sy;
 
-    //dprintf("x: %i y: %i %ix%i", sx, sy, (pack>>28)<<3, (pack>>21)&0x38);
-
-    if(sx == -0x77) sx1seen|=1; // for masking mode 2
+    if (sx == -0x77) sx1seen|=1; // for masking mode 2
 
     // check if it is on this line
-    if(row < 0 || row >= ((pack>>21)&0x38)) continue; // no
-    n++; // number of sprites on this line (both visible and hidden, max is 20) [broken]
+    if (row < 0 || row >= ((pack>>21)&0x38)) continue; // no
+    n++; // number of sprites on this line (both visible and hidden, max is 20)
 
     // sprite limit
     ntiles += pack>>28;
-    if(!(PicoOpt&0x40000) && ntiles > 40) break;
+    if (ntiles > max_line_sprites*2) break;
 
-    if(pack & 0x00800000) continue;
+    if (pack & 0x00800000) continue;
 
     // masking sprite?
-    if(sx == -0x78) {
+    if (sx == -0x78) {
       if(!(sx1seen&1) || sx1seen==3) {
         break; // this sprite is not drawn and remaining sprites are masked
       }
       if((sx1seen>>8) == 0) sx1seen=(i+1)<<8;
       continue;
     }
-    else if(sx == -0x77) {
+    else if (sx == -0x77) {
       // masking mode2 (Outrun, Galaxy Force II, Shadow of the beast)
       if(sx1seen>>8) { i=(sx1seen>>8)-1; break; } // seen both 0 and 1
       sx1seen |= 2;
@@ -1133,7 +1138,7 @@ static void DrawAllSprites(int *hcache, int maxwidth, int prio, int sh)
     if (rs & PDRAW_ACC_SPRITES) {
       // might need to skip this sprite
       if ((pack2&0x8000) ^ (prio<<15)) continue;
-      DrawSpriteZ(pack,pack2,sh|(prio<<1),(char)(0x1f-n));
+      DrawSpriteZ(pack, pack2, sh|(prio<<1), n^0xff);
       continue;
     }
 
