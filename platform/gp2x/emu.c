@@ -465,9 +465,11 @@ static void RunEvents(unsigned int which)
 				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) { // save
 			unsigned long keys;
 			blit("", (which & 0x1000) ? "LOAD STATE? (Y=yes, X=no)" : "OVERWRITE SAVE? (Y=yes, X=no)");
-			while( !((keys = gp2x_joystick_read(1)) & (GP2X_X|GP2X_Y)) )
+			while ( !((keys = gp2x_joystick_read(1)) & (GP2X_X|GP2X_Y)) )
 				usleep(50*1024);
 			if (keys & GP2X_X) do_it = 0;
+			while ( gp2x_joystick_read(1) & (GP2X_X|GP2X_Y) ) // wait for release
+				usleep(50*1024);
 			clearArea(0);
 		}
 		if (do_it) {

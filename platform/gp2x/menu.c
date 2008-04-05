@@ -30,7 +30,7 @@
 
 extern int  mmuhack_status;
 
-const char *keyNames[] = {
+const char * const keyNames[] = {
 	"UP",    "???",    "LEFT", "???",  "DOWN", "???", "RIGHT",    "???",
 	"START", "SELECT", "L",    "R",    "A",    "B",   "X",        "Y",
 	"???",   "???",    "???",  "???",  "???",  "???", "VOL DOWN", "VOL UP",
@@ -918,8 +918,8 @@ menu_entry cdopt_entries[] =
 	{ "done",                      MB_NONE,  MA_CDOPT_DONE,         NULL, 0, 0, 0, 1, 0 },
 };
 
-const int cdopt_entry_count = (sizeof(cdopt_entries) / sizeof(cdopt_entries[0]));
 #define CDOPT_ENTRY_COUNT (sizeof(cdopt_entries) / sizeof(cdopt_entries[0]))
+const int cdopt_entry_count = CDOPT_ENTRY_COUNT;
 
 
 struct bios_names_t
@@ -1059,10 +1059,10 @@ menu_entry opt2_entries[] =
 	{ NULL,                        MB_NONE,  MA_OPT2_GAMMA,         NULL, 0, 0, 0, 1, 1 },
 	{ "A_SN's gamma curve",        MB_ONOFF, MA_OPT2_A_SN_GAMMA,    &currentConfig.EmuOpt, 0x1000, 0, 0, 1, 1 },
 	{ "Perfect vsync",             MB_ONOFF, MA_OPT2_VSYNC,         &currentConfig.EmuOpt, 0x2000, 0, 0, 1, 1 },
+	{ "Disable sprite limit",      MB_ONOFF, MA_OPT2_NO_SPRITE_LIM, &PicoOpt, 0x40000, 0, 0, 1, 1 },
 	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &PicoOpt, 0x00004, 0, 0, 1, 1 },
 	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &PicoOpt, 0x00001, 0, 0, 1, 1 },
 	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&PicoOpt, 0x00002, 0, 0, 1, 1 },
-	{ "Disable sprite limit",      MB_ONOFF, MA_OPT2_NO_SPRITE_LIM, &PicoOpt, 0x40000, 0, 0, 1, 1 },
 	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,   &currentConfig.EmuOpt, 0x0008, 0, 0, 1, 1 },
 	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,   &currentConfig.EmuOpt, 0x0020, 0, 0, 1, 1 },
 	{ "needs restart:",            MB_NONE,  MA_NONE,               NULL, 0, 0, 0, 1, 0 },
@@ -1073,7 +1073,7 @@ menu_entry opt2_entries[] =
 };
 
 #define OPT2_ENTRY_COUNT (sizeof(opt2_entries) / sizeof(opt2_entries[0]))
-const int opt2_entry_count = (sizeof(opt2_entries) / sizeof(opt2_entries[0]));
+const int opt2_entry_count = OPT2_ENTRY_COUNT;
 
 static void menu_opt2_cust_draw(const menu_entry *entry, int x, int y, void *param)
 {
@@ -1425,7 +1425,7 @@ static void draw_menu_credits(void)
 	int tl_x = 15, tl_y = 64, y;
 	gp2x_pd_clone_buffer2();
 
-	text_out16(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006,2007");
+	text_out16(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006-2008");
 	y = tl_y;
 	text_out16(tl_x, y, "Credits:");
 	text_out16(tl_x, (y+=10), "fDave: Cyclone 68000 core,");
