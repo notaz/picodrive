@@ -33,6 +33,7 @@ int pico_main(void)
 {
 	lprintf("\nPicoDrive v" VERSION " " __DATE__ " " __TIME__ "\n");
 	psp_init();
+	emu_prepareDefaultConfig();
 	emu_ReadConfig(0, 0);
 	emu_Init();
 	menu_init();
@@ -49,7 +50,7 @@ int pico_main(void)
 #ifndef GPROF
 				menu_loop();
 #else
-				strcpy(romFileName, currentConfig.lastRomFile);
+				strcpy(romFileName, lastRomFile);
 				engineState = PGS_ReloadRom;
 #endif
 				break;

@@ -38,16 +38,21 @@ static void PicoSVPReset(void)
 
 	memcpy(svp->iram_rom + 0x800, Pico.rom + 0x800, 0x20000 - 0x800);
 	ssp1601_reset(&svp->ssp1601);
+#ifndef PSP
 	if ((PicoOpt&POPT_EN_SVP_DRC) && svp_dyn_ready)
 		ssp1601_dyn_reset(&svp->ssp1601);
+#endif
 }
 
 
 static void PicoSVPLine(int count)
 {
+#ifndef PSP
 	if ((PicoOpt&POPT_EN_SVP_DRC) && svp_dyn_ready)
 		ssp1601_dyn_run(PicoSVPCycles * count);
-	else {
+	else
+#endif
+	{
 		ssp1601_run(PicoSVPCycles * count);
 		svp_dyn_ready = 0; // just in case
 	}
@@ -126,10 +131,12 @@ void PicoSVPStartup(void)
 
 	// init SVP compiler
 	svp_dyn_ready = 0;
+#ifndef PSP
 	if (PicoOpt&POPT_EN_SVP_DRC) {
 		if (ssp1601_dyn_startup()) return;
 		svp_dyn_ready = 1;
 	}
+#endif
 
 	// init ok, setup hooks..
 	PicoRead16Hook = PicoSVPRead16;

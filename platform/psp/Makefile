@@ -27,7 +27,7 @@ endif
 OBJS += main.o emu.o mp3.o menu.o psp.o asm_utils.o
 
 # common
-OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/readpng.o
+OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/config.o ../common/readpng.o
 
 # Pico
 ifeq "$(amalgamate)" "1"
@@ -40,6 +40,9 @@ OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Memory.o ../../Pico/Misc.
 OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
 		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o \
 		../../Pico/cd/Area.o ../../Pico/cd/Misc.o ../../Pico/cd/pcm.o ../../Pico/cd/buffering.o
+# Pico - carthw
+OBJS += ../../Pico/carthw/carthw.o ../../Pico/carthw/svp/svp.o ../../Pico/carthw/svp/Memory.o \
+		../../Pico/carthw/svp/ssp16.o
 endif
 
 # Pico - sound
@@ -170,14 +173,14 @@ endif
 endif
 
 # ?
-rel: EBOOT.PBP readme.txt
+rel: EBOOT.PBP readme.txt ../game_def.cfg
 	mkdir -p PicoDrive/skin/
 	cp $^ PicoDrive/
 	cp skin/* PicoDrive/skin/
 	zip -9 -r ../../PicoDrive_psp_$(VER).zip PicoDrive
 	rm -rf PicoDrive
 
-rel_kxploit: readme.txt
+rel_kxploit: readme.txt ../game_def.cfg
 	mkdir -p PicoDrive/skin/
 	cp $^ PicoDrive/
 	cp skin/* PicoDrive/skin/

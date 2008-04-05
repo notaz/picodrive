@@ -33,7 +33,7 @@
 
 
 #define pspKeyUnkn "???"
-static const char * const pspKeyNames[] = {
+const char * const keyNames[] = {
 	"SELECT",   pspKeyUnkn, pspKeyUnkn, "START",    "UP",       "RIGHT",     "DOWN",     "LEFT",
 	"L",        "R",        pspKeyUnkn, pspKeyUnkn, "TRIANGLE", "CIRCLE",    "X",        "SQUARE",
 	"HOME",     "HOLD",     "WLAN_UP",  "REMOTE",   "VOLUP",    "VOLDOWN",   "SCREEN",   "NOTE",
@@ -668,10 +668,10 @@ static char *action_binds(int player_idx, int action_mask)
 			if (player_idx >= 0 && ((currentConfig.KeyBinds[i] >> 16) & 3) != player_idx) continue;
 			if (strkeys[0]) {
 				strcat(strkeys, i >= 28 ? ", " : " + "); // nub "buttons" don't create combos
-				strcat(strkeys, pspKeyNames[i]);
+				strcat(strkeys, keyNames[i]);
 				break;
 			}
-			else strcpy(strkeys, pspKeyNames[i]);
+			else strcpy(strkeys, keyNames[i]);
 		}
 	}
 
@@ -699,7 +699,7 @@ static int count_bound_keys(int action, int pl_idx)
 	return keys;
 }
 
-static void draw_key_config(const bind_action_t *opts, int opt_cnt, int player_idx, int sel)
+static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_idx, int sel)
 {
 	int x, y, tl_y = 16+40, i;
 
@@ -733,7 +733,7 @@ static void draw_key_config(const bind_action_t *opts, int opt_cnt, int player_i
 	menu_draw_end();
 }
 
-static void key_config_loop(const bind_action_t *opts, int opt_cnt, int player_idx)
+static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_idx)
 {
 	int sel = 0, menu_sel_max = opt_cnt, prev_select = 0, i;
 	unsigned long inp = 0;
@@ -804,7 +804,7 @@ static void kc_sel_loop(void)
 {
 	int menu_sel = 3, menu_sel_max = 3;
 	unsigned long inp = 0;
-	int is_6button = currentConfig.PicoOpt & 0x020;
+	int is_6button = PicoOpt & POPT_6BTN_PAD;
 
 	while (1)
 	{
@@ -831,20 +831,21 @@ static void kc_sel_loop(void)
 
 menu_entry cdopt_entries[] =
 {
-	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_USA, NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_EUR, NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_JAP, NULL, 0, 0, 0, 1 },
-	{ "CD LEDs",                   MB_ONOFF, MA_CDOPT_LEDS,         &currentConfig.EmuOpt,  0x0400, 0, 0, 1 },
-	{ "CDDA audio (using mp3s)",   MB_ONOFF, MA_CDOPT_CDDA,         &currentConfig.PicoOpt, 0x0800, 0, 0, 1 },
-	{ "PCM audio",                 MB_ONOFF, MA_CDOPT_PCM,          &currentConfig.PicoOpt, 0x0400, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_CDOPT_READAHEAD,    NULL, 0, 0, 0, 1 },
-	{ "SaveRAM cart",              MB_ONOFF, MA_CDOPT_SAVERAM,      &currentConfig.PicoOpt, 0x8000, 0, 0, 1 },
-	{ "Scale/Rot. fx (slow)",      MB_ONOFF, MA_CDOPT_SCALEROT_CHIP,&currentConfig.PicoOpt, 0x1000, 0, 0, 1 },
-	{ "Better sync (slow)",        MB_ONOFF, MA_CDOPT_BETTER_SYNC,  &currentConfig.PicoOpt, 0x2000, 0, 0, 1 },
-	{ "done",                      MB_NONE,  MA_CDOPT_DONE,         NULL, 0, 0, 0, 1 },
+	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_USA, NULL, 0, 0, 0, 1, 0 },
+	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_EUR, NULL, 0, 0, 0, 1, 0 },
+	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_JAP, NULL, 0, 0, 0, 1, 0 },
+	{ "CD LEDs",                   MB_ONOFF, MA_CDOPT_LEDS,         &currentConfig.EmuOpt,  0x0400, 0, 0, 1, 1 },
+	{ "CDDA audio (using mp3s)",   MB_ONOFF, MA_CDOPT_CDDA,         &PicoOpt, 0x0800, 0, 0, 1, 1 },
+	{ "PCM audio",                 MB_ONOFF, MA_CDOPT_PCM,          &PicoOpt, 0x0400, 0, 0, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_CDOPT_READAHEAD,    NULL, 0, 0, 0, 1, 1 },
+	{ "SaveRAM cart",              MB_ONOFF, MA_CDOPT_SAVERAM,      &PicoOpt, 0x8000, 0, 0, 1, 1 },
+	{ "Scale/Rot. fx (slow)",      MB_ONOFF, MA_CDOPT_SCALEROT_CHIP,&PicoOpt, 0x1000, 0, 0, 1, 1 },
+	{ "Better sync (slow)",        MB_ONOFF, MA_CDOPT_BETTER_SYNC,  &PicoOpt, 0x2000, 0, 0, 1, 1 },
+	{ "done",                      MB_NONE,  MA_CDOPT_DONE,         NULL, 0, 0, 0, 1, 0 },
 };
 
 #define CDOPT_ENTRY_COUNT (sizeof(cdopt_entries) / sizeof(cdopt_entries[0]))
+const int cdopt_entry_count = CDOPT_ENTRY_COUNT;
 
 
 struct bios_names_t
@@ -984,19 +985,21 @@ static void cd_menu_loop_options(void)
 
 menu_entry opt3_entries[] =
 {
-	{ NULL,                        MB_NONE,  MA_OPT3_SCALE,         NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT3_HSCALE32,      NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT3_HSCALE40,      NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_ONOFF, MA_OPT3_FILTERING,     &currentConfig.scaling, 1,  0,  0, 1 },
-	{ NULL,                        MB_RANGE, MA_OPT3_GAMMAA,        &currentConfig.gamma,   0, -4, 16, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT3_VSYNC,         NULL, 0, 0, 0, 1 },
-	{ "Set to unscaled centered",  MB_NONE,  MA_OPT3_PRES_NOSCALE,  NULL, 0, 0, 0, 1 },
-	{ "Set to 4:3 scaled",         MB_NONE,  MA_OPT3_PRES_SCALE43,  NULL, 0, 0, 0, 1 },
-	{ "Set to fullscreen",         MB_NONE,  MA_OPT3_PRES_FULLSCR,  NULL, 0, 0, 0, 1 },
-	{ "done",                      MB_NONE,  MA_OPT3_DONE,          NULL, 0, 0, 0, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT3_SCALE,         NULL, 0, 0, 0, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT3_HSCALE32,      NULL, 0, 0, 0, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT3_HSCALE40,      NULL, 0, 0, 0, 1, 1 },
+	{ NULL,                        MB_ONOFF, MA_OPT3_FILTERING,     &currentConfig.scaling, 1,  0,  0, 1, 1 },
+	{ NULL,                        MB_RANGE, MA_OPT3_GAMMAA,        &currentConfig.gamma,   0, -4, 16, 1, 1 },
+	{ NULL,                        MB_RANGE, MA_OPT3_BLACKLVL,      &currentConfig.gamma2,  0,  0,  2, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT3_VSYNC,         NULL, 0, 0, 0, 1, 1 },
+	{ "Set to unscaled centered",  MB_NONE,  MA_OPT3_PRES_NOSCALE,  NULL, 0, 0, 0, 1, 0 },
+	{ "Set to 4:3 scaled",         MB_NONE,  MA_OPT3_PRES_SCALE43,  NULL, 0, 0, 0, 1, 0 },
+	{ "Set to fullscreen",         MB_NONE,  MA_OPT3_PRES_FULLSCR,  NULL, 0, 0, 0, 1, 0 },
+	{ "done",                      MB_NONE,  MA_OPT3_DONE,          NULL, 0, 0, 0, 1, 0 },
 };
 
 #define OPT3_ENTRY_COUNT (sizeof(opt3_entries) / sizeof(opt3_entries[0]))
+const int opt3_entry_count = OPT3_ENTRY_COUNT;
 
 
 static void menu_opt3_cust_draw(const menu_entry *entry, int x, int y, void *param)
@@ -1017,6 +1020,9 @@ static void menu_opt3_cust_draw(const menu_entry *entry, int x, int y, void *par
 			break;
 		case MA_OPT3_GAMMAA:
 			text_out16(x, y, "Gamma adjustment                  %2i", currentConfig.gamma);
+			break;
+		case MA_OPT3_BLACKLVL:
+			text_out16(x, y, "Black level                       %2i", currentConfig.gamma2);
 			break;
 		case MA_OPT3_VSYNC: {
 			char *val = "    never";
@@ -1102,8 +1108,10 @@ static void dispmenu_loop_options(void)
 				case MA_OPT3_HSCALE40:	setting = &currentConfig.hscale40; is_32col = 0; break;
 				case MA_OPT3_HSCALE32:	setting = &currentConfig.hscale32; is_32col = 1; break;
 				case MA_OPT3_FILTERING:
-				case MA_OPT3_GAMMAA:	menu_opt3_preview(is_32col); break;
-				case MA_OPT3_VSYNC:    tmp = ((currentConfig.EmuOpt>>13)&1) | ((currentConfig.EmuOpt>>15)&2);
+				case MA_OPT3_GAMMAA:
+				case MA_OPT3_BLACKLVL:	menu_opt3_preview(is_32col); break;
+				case MA_OPT3_VSYNC:
+					tmp = ((currentConfig.EmuOpt>>13)&1) | ((currentConfig.EmuOpt>>15)&2);
 					tmp = (inp & BTN_LEFT) ? (tmp>>1) : ((tmp<<1)|1);
 					if (tmp > 3) tmp = 3;
 					currentConfig.EmuOpt &= ~0x12000;
@@ -1156,17 +1164,19 @@ static void dispmenu_loop_options(void)
 
 menu_entry opt2_entries[] =
 {
-	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,     &currentConfig.PicoOpt,0x00004, 0, 0, 1 },
-	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612,  &currentConfig.PicoOpt,0x00001, 0, 0, 1 },
-	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496, &currentConfig.PicoOpt,0x00002, 0, 0, 1 },
-	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,    &currentConfig.EmuOpt, 0x00008, 0, 0, 1 },
-	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,    &currentConfig.EmuOpt, 0x00020, 0, 0, 1 },
-	{ "Status line in main menu",  MB_ONOFF, MA_OPT2_STATUS_LINE,    &currentConfig.EmuOpt, 0x20000, 0, 0, 1 },
-	{ "Disable frame limitter",    MB_ONOFF, MA_OPT2_NO_FRAME_LIMIT, &currentConfig.EmuOpt, 0x40000, 0, 0, 1 },
-	{ "done",                      MB_NONE,  MA_OPT2_DONE,           NULL, 0, 0, 0, 1 },
+	{ "Disable sprite limit",      MB_ONOFF, MA_OPT2_NO_SPRITE_LIM,  &PicoOpt, 0x40000, 0, 0, 1, 1 },
+	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,     &PicoOpt, 0x00004, 0, 0, 1, 1 },
+	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612,  &PicoOpt, 0x00001, 0, 0, 1, 1 },
+	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496, &PicoOpt, 0x00002, 0, 0, 1, 1 },
+	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,    &currentConfig.EmuOpt, 0x00008, 0, 0, 1, 1 },
+	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,    &currentConfig.EmuOpt, 0x00020, 0, 0, 1, 1 },
+	{ "Status line in main menu",  MB_ONOFF, MA_OPT2_STATUS_LINE,    &currentConfig.EmuOpt, 0x20000, 0, 0, 1, 1 },
+	{ "Disable frame limitter",    MB_ONOFF, MA_OPT2_NO_FRAME_LIMIT, &currentConfig.EmuOpt, 0x40000, 0, 0, 1, 1 },
+	{ "done",                      MB_NONE,  MA_OPT2_DONE,           NULL, 0, 0, 0, 1, 0 },
 };
 
 #define OPT2_ENTRY_COUNT (sizeof(opt2_entries) / sizeof(opt2_entries[0]))
+const int opt2_entry_count = OPT2_ENTRY_COUNT;
 
 
 static void draw_amenu_options(int menu_sel)
@@ -1219,28 +1229,29 @@ static void amenu_loop_options(void)
 
 menu_entry opt_entries[] =
 {
-	{ NULL,                        MB_NONE,  MA_OPT_RENDERER,      NULL, 0, 0, 0, 1 },
-	{ "Accurate timing (slower)",  MB_ONOFF, MA_OPT_ACC_TIMING,    &currentConfig.PicoOpt, 0x0040, 0, 0, 1 },
-	{ "Accurate sprites (slower)", MB_ONOFF, MA_OPT_ACC_SPRITES,   &currentConfig.PicoOpt, 0x0080, 0, 0, 1 },
-	{ "Show FPS",                  MB_ONOFF, MA_OPT_SHOW_FPS,      &currentConfig.EmuOpt,  0x0002, 0, 0, 1 },
-	{ NULL,                        MB_RANGE, MA_OPT_FRAMESKIP,     &currentConfig.Frameskip, 0, -1, 16, 1 },
-	{ "Enable sound",              MB_ONOFF, MA_OPT_ENABLE_SOUND,  &currentConfig.EmuOpt,  0x0004, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_SOUND_QUALITY, NULL, 0, 0, 0, 1 },
-	{ "6 button pad",              MB_ONOFF, MA_OPT_6BUTTON_PAD,   &currentConfig.PicoOpt, 0x0020, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_REGION,        NULL, 0, 0, 0, 1 },
-	{ "Use SRAM/BRAM savestates",  MB_ONOFF, MA_OPT_SRAM_STATES,   &currentConfig.EmuOpt,  0x0001, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_CONFIRM_STATES,NULL, 0, 0, 0, 1 },
-	{ "Save slot",                 MB_RANGE, MA_OPT_SAVE_SLOT,     &state_slot, 0, 0, 9, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_CPU_CLOCKS,    NULL, 0, 0, 0, 1 },
-	{ "[Display options]",         MB_NONE,  MA_OPT_DISP_OPTS,     NULL, 0, 0, 0, 1 },
-	{ "[Sega/Mega CD options]",    MB_NONE,  MA_OPT_SCD_OPTS,      NULL, 0, 0, 0, 1 },
-	{ "[Advanced options]",        MB_NONE,  MA_OPT_ADV_OPTS,      NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_SAVECFG,       NULL, 0, 0, 0, 1 },
-	{ "Save cfg for current game only",MB_NONE,MA_OPT_SAVECFG_GAME,NULL, 0, 0, 0, 1 },
-	{ NULL,                        MB_NONE,  MA_OPT_LOADCFG,       NULL, 0, 0, 0, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT_RENDERER,      NULL, 0, 0, 0, 1, 1 },
+	{ "Accurate timing (slower)",  MB_ONOFF, MA_OPT_ACC_TIMING,    &PicoOpt, 0x0040, 0, 0, 1, 1 },
+	{ "Accurate sprites (slower)", MB_ONOFF, MA_OPT_ACC_SPRITES,   &PicoOpt, 0x0080, 0, 0, 1, 1 },
+	{ "Show FPS",                  MB_ONOFF, MA_OPT_SHOW_FPS,      &currentConfig.EmuOpt,  0x0002,  0,  0, 1, 1 },
+	{ NULL,                        MB_RANGE, MA_OPT_FRAMESKIP,     &currentConfig.Frameskip,    0, -1, 16, 1, 1 },
+	{ "Enable sound",              MB_ONOFF, MA_OPT_ENABLE_SOUND,  &currentConfig.EmuOpt,  0x0004,  0,  0, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT_SOUND_QUALITY, NULL, 0, 0, 0, 1, 1 },
+	{ "6 button pad",              MB_ONOFF, MA_OPT_6BUTTON_PAD,   &PicoOpt, 0x0020, 0, 0, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT_REGION,        NULL, 0, 0, 0, 1, 1 },
+	{ "Use SRAM/BRAM savestates",  MB_ONOFF, MA_OPT_SRAM_STATES,   &currentConfig.EmuOpt,  0x0001, 0, 0, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT_CONFIRM_STATES,NULL, 0, 0, 0, 1, 1 },
+	{ "Save slot",                 MB_RANGE, MA_OPT_SAVE_SLOT,     &state_slot, 0, 0, 9, 1, 1 },
+	{ NULL,                        MB_NONE,  MA_OPT_CPU_CLOCKS,    NULL, 0, 0, 0, 1, 1 },
+	{ "[Display options]",         MB_NONE,  MA_OPT_DISP_OPTS,     NULL, 0, 0, 0, 1, 0 },
+	{ "[Sega/Mega CD options]",    MB_NONE,  MA_OPT_SCD_OPTS,      NULL, 0, 0, 0, 1, 0 },
+	{ "[Advanced options]",        MB_NONE,  MA_OPT_ADV_OPTS,      NULL, 0, 0, 0, 1, 0 },
+	{ NULL,                        MB_NONE,  MA_OPT_SAVECFG,       NULL, 0, 0, 0, 1, 0 },
+	{ "Save cfg for current game only",MB_NONE,MA_OPT_SAVECFG_GAME,NULL, 0, 0, 0, 1, 0 },
+	{ NULL,                        MB_NONE,  MA_OPT_LOADCFG,       NULL, 0, 0, 0, 1, 0 },
 };
 
 #define OPT_ENTRY_COUNT (sizeof(opt_entries) / sizeof(opt_entries[0]))
+const int opt_entry_count = OPT_ENTRY_COUNT;
 
 
 static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *param)
@@ -1250,9 +1261,9 @@ static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *para
 	switch (entry->id)
 	{
 		case MA_OPT_RENDERER:
-			if (currentConfig.PicoOpt&0x10)
+			if (PicoOpt & 0x10)
 				str = "fast";
-			else if (currentConfig.EmuOpt&0x80)
+			else if (currentConfig.EmuOpt & 0x80)
 				str = "accurate";
 			else
 				str = " 8bit accurate"; // n/a
@@ -1265,8 +1276,8 @@ static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *para
 			text_out16(x, y, "Frameskip                  %s", str24);
 			break;
 		case MA_OPT_SOUND_QUALITY:
-			str = (currentConfig.PicoOpt&0x08)?"stereo":"mono";
-			text_out16(x, y, "Sound Quality:     %5iHz %s", currentConfig.PsndRate, str);
+			str = (PicoOpt&0x08)?"stereo":"mono";
+			text_out16(x, y, "Sound Quality:     %5iHz %s", PsndRate, str);
 			break;
 		case MA_OPT_REGION:
 			text_out16(x, y, "Region:              %s", me_region_name(PicoRegionOverride, PicoAutoRgnOrder));
@@ -1350,13 +1361,11 @@ static void region_prevnext(int right)
 
 static void menu_options_save(void)
 {
-	PicoOpt = currentConfig.PicoOpt;
-	PsndRate = currentConfig.PsndRate;
 	if (PicoRegionOverride) {
 		// force setting possibly changed..
 		Pico.m.pal = (PicoRegionOverride == 2 || PicoRegionOverride == 8) ? 1 : 0;
 	}
-	if (!(PicoOpt & 0x20)) {
+	if (!(PicoOpt & POPT_6BTN_PAD)) {
 		// unbind XYZ MODE, just in case
 		unbind_action(0xf00);
 	}
@@ -1368,9 +1377,6 @@ static int menu_loop_options(void)
 	int menu_sel_max, ret;
 	unsigned long inp = 0;
 	menu_id selected_id;
-
-	currentConfig.PicoOpt = PicoOpt;
-	currentConfig.PsndRate = PsndRate;
 
 	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_SAVECFG_GAME, rom_loaded);
 	me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_LOADCFG, config_slot != config_slot_current);
@@ -1388,16 +1394,16 @@ static int menu_loop_options(void)
 			if (!me_process(opt_entries, OPT_ENTRY_COUNT, selected_id, (inp&BTN_RIGHT) ? 1 : 0)) {
 				switch (selected_id) {
 					case MA_OPT_RENDERER:
-						if ((currentConfig.PicoOpt&0x10) || !(currentConfig.EmuOpt &0x80)) {
-							currentConfig.PicoOpt&= ~0x10;
+						if ((PicoOpt & 0x10) || !(currentConfig.EmuOpt & 0x80)) {
+							PicoOpt &= ~0x10;
 							currentConfig.EmuOpt |=  0x80;
 						} else {
-							currentConfig.PicoOpt|=  0x10;
+							PicoOpt |=  0x10;
 							currentConfig.EmuOpt &= ~0x80;
 						}
 						break;
 					case MA_OPT_SOUND_QUALITY:
-						currentConfig.PsndRate = sndrate_prevnext(currentConfig.PsndRate, inp & BTN_RIGHT);
+						PsndRate = sndrate_prevnext(PsndRate, inp & BTN_RIGHT);
 						break;
 					case MA_OPT_REGION:
 						region_prevnext(inp & BTN_RIGHT);
@@ -1493,7 +1499,7 @@ static void draw_menu_credits(void)
 	int tl_x = 80+15, tl_y = 16+64, y;
 	menu_draw_begin();
 
-	text_out16(tl_x, 16+20, "PicoDrive v" VERSION " (c) notaz, 2006,2007");
+	text_out16(tl_x, 16+20, "PicoDrive v" VERSION " (c) notaz, 2006-2008");
 
 	y = tl_y;
 	text_out16(tl_x, y, "Credits:");
@@ -1633,10 +1639,10 @@ static void menu_loop_root(void)
 				{
 					char curr_path[PATH_MAX], *selfname;
 					FILE *tstf;
-					if ( (tstf = fopen(currentConfig.lastRomFile, "rb")) )
+					if ( (tstf = fopen(lastRomFile, "rb")) )
 					{
 						fclose(tstf);
-						strcpy(curr_path, currentConfig.lastRomFile);
+						strcpy(curr_path, lastRomFile);
 					}
 					else
 						getcwd(curr_path, PATH_MAX);
@@ -1779,10 +1785,10 @@ int menu_loop_tray(void)
 
 	menu_gfx_prepare();
 
-	if ( (tstf = fopen(currentConfig.lastRomFile, "rb")) )
+	if ( (tstf = fopen(lastRomFile, "rb")) )
 	{
 		fclose(tstf);
-		strcpy(curr_path, currentConfig.lastRomFile);
+		strcpy(curr_path, lastRomFile);
 	}
 	else
 	{

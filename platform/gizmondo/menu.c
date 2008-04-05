@@ -969,6 +969,7 @@ static void cd_menu_loop_options(void)
 
 menu_entry opt2_entries[] =
 {
+	{ "Disable sprite limit",      MB_ONOFF, MA_OPT2_NO_SPRITE_LIM, &PicoOpt, 0x40000, 0, 0, 1, 1 },
 	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &currentConfig.PicoOpt,0x0004, 0, 0, 1 },
 	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &currentConfig.PicoOpt,0x0001, 0, 0, 1 },
 	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&currentConfig.PicoOpt,0x0002, 0, 0, 1 },
@@ -1314,7 +1315,7 @@ static void draw_menu_credits(void)
 	int tl_x = 15, tl_y = 64, y;
 	menu_draw_begin(1);
 
-	text_out16(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006,2007");
+	text_out16(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006-2008");
 
 	y = tl_y;
 	text_out16(tl_x, y, "Credits:");

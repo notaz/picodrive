@@ -636,8 +636,16 @@ Additional thanks
 
 Changelog
 ---------
+1.40b
+  * Fixed sprite masking code. Thanks to Lordus for explaining how it works.
+  + Added "disable sprite limit" option.
+  + PSP: added black level adjustment to display options.
+  * Changed reset to act as 'soft' reset.
+  + Added detection for Puggsy (it doesn't really have sram).
+  * Some small timing adjustments.
+
 1.40a
-  * Fixed a binding problem with up and down keys.
+  * GP2X: Fixed a binding problem with up and down keys.
   * Default game config no longer overrides global user config.
 
 1.40
@@ -648,16 +656,17 @@ Changelog
     configs are now held in single file (but old game config files are still
     read when new one is missing).
   * Fixed a bug where some key combos didn't work as expected.
-  * Fixed a regression in renderer (some graphic glitches in rare cases).
+  * Fixed a regression in renderer (ARM ports only, some graphic glitches in
+    rare cases).
   * Adjusted fast renderer to work with more games, including VR.
   * Fixed a problem where SegaCD RAM cart data was getting lost on reset.
-  * Greatly reduced SegaCD FMV game slowdowns by disabling read-ahead in the
-    Linux kernel and C library (thanks to Rokas and Exophase for ideas again).
-    Be sure to keep "ReadAhead buffer" OFF to avoid slowdowns.
+  * GP2X: Greatly reduced SegaCD FMV game slowdowns by disabling read-ahead
+    in the Linux kernel and C library (thanks to Rokas and Exophase for ideas
+    again). Be sure to keep "ReadAhead buffer" OFF to avoid slowdowns.
   + PicoDrive now comes with a game config file for some games which need
     special settings, so they should now work out-of-the-box. More games will
     be added with later updates.
-  + Files now can be deleted by pressing A+SELECT in the file browser.
+  + GP2X: Files now can be deleted by pressing A+SELECT in the file browser.
 
 1.35b
   * PSP: mp3 code should no longer fail on 1.5 firmware.

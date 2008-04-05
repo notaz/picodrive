@@ -14,7 +14,7 @@
 .byte  0,  2,  7, 12, 16, 21, 26, 31 # -3
 .byte  0,  3,  7, 12, 17, 22, 26, 31 # -2
 .byte  0,  4,  8, 13, 17, 22, 26, 31 # -1
-gmtab:
+pal_gmtab:
 .byte  0,  5, 10, 15, 16, 21, 26, 31 #  0
 .byte  0,  6, 10, 15, 19, 23, 27, 31
 .byte  0,  7, 11, 15, 19, 23, 27, 31
@@ -38,11 +38,13 @@ gmtab:
 
 # bbbb bggg gggr rrrr
 
-.global do_pal_convert # dest, src, gammaa_val
+#.global pal_gmtab
+.global do_pal_convert # dest, src, gammaa_val, black_lvl
 
 do_pal_convert:
     bnez    $a2, dpc_gma
     li      $t0, 64/2
+    bnez    $a3, dpc_gma
     lui     $t2, 0x00e
     ori     $t2, 0x00e
     lui     $t3, 0x006
@@ -80,11 +82,22 @@ dpc_loop:
     jr      $ra
     nop
 
+# non-zero gamma
 dpc_gma:
+    slt     $t2, $a2, $0
     sll     $a2, 3
-    lui     $t1, %hi(gmtab)
-    addiu   $t1, %lo(gmtab)
+    lui     $t1, %hi(pal_gmtab)
+    addiu   $t1, %lo(pal_gmtab)
     addu    $a2, $t1
+    beqz    $a3, dpc_gma_loop
+    sb      $0,  0($a2)        # black level 0
+    bnez    $t2, dpc_gma_loop  # gamma < 0, keep black at 0
+    addiu   $a3, -2
+    slt     $t2, $a3, $0       # t2 = a3_orig == 1 ? 1 : 0
+    lb      $t1, 1($a2)
+    addiu   $t1, -2
+    srlv    $t1, $t1, $t2
+    sb      $t1, 0($a2)
 
 dpc_gma_loop:
     lw      $v0, 0($a1)

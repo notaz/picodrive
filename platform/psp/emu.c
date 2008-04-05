@@ -19,6 +19,7 @@
 #include "mp3.h"
 #include "asm_utils.h"
 #include "../common/emu.h"
+#include "../common/config.h"
 #include "../common/lprintf.h"
 #include "../../Pico/PicoInt.h"
 
@@ -117,38 +118,46 @@ void emu_Deinit(void)
 	sound_deinit();
 }
 
+void emu_prepareDefaultConfig(void)
+{
+	memset(&defaultConfig, 0, sizeof(defaultConfig));
+	defaultConfig.EmuOpt    = 0x1d | 0x680; // | <- confirm_save, cd_leds, acc rend
+	defaultConfig.s_PicoOpt = 0x0f | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX;
+	defaultConfig.s_PsndRate = 22050;
+	defaultConfig.s_PicoRegion = 0; // auto
+	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
+	defaultConfig.s_PicoCDBuffers = 64;
+	defaultConfig.Frameskip = -1; // auto
+	defaultConfig.CPUclock = 333;
+	defaultConfig.KeyBinds[ 4] = 1<<0; // SACB RLDU
+	defaultConfig.KeyBinds[ 6] = 1<<1;
+	defaultConfig.KeyBinds[ 7] = 1<<2;
+	defaultConfig.KeyBinds[ 5] = 1<<3;
+	defaultConfig.KeyBinds[14] = 1<<4;
+	defaultConfig.KeyBinds[13] = 1<<5;
+	defaultConfig.KeyBinds[15] = 1<<6;
+	defaultConfig.KeyBinds[ 3] = 1<<7;
+	defaultConfig.KeyBinds[12] = 1<<26; // switch rnd
+	defaultConfig.KeyBinds[ 8] = 1<<27; // save state
+	defaultConfig.KeyBinds[ 9] = 1<<28; // load state
+	defaultConfig.KeyBinds[28] = 1<<0; // num "buttons"
+	defaultConfig.KeyBinds[30] = 1<<1;
+	defaultConfig.KeyBinds[31] = 1<<2;
+	defaultConfig.KeyBinds[29] = 1<<3;
+	defaultConfig.scaling = 1;     // bilinear filtering for psp
+	defaultConfig.scale = 1.20;    // fullscreen
+	defaultConfig.hscale40 = 1.25;
+	defaultConfig.hscale32 = 1.56;
+}
+
 void emu_setDefaultConfig(void)
 {
-	memset(&currentConfig, 0, sizeof(currentConfig));
-	currentConfig.lastRomFile[0] = 0;
-	currentConfig.EmuOpt  = 0x1d | 0x680;  // | confirm_save, cd_leds, acc rend
-	currentConfig.PicoOpt = 0x0f | 0x1c00; // | gfx_cd, cd_pcm, cd_cdda
-	currentConfig.PsndRate = 22050;
-	currentConfig.PicoRegion = 0; // auto
-	currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
-	currentConfig.Frameskip = -1; // auto
-	currentConfig.volume = 50;
-	currentConfig.CPUclock = 333;
-	currentConfig.KeyBinds[ 4] = 1<<0; // SACB RLDU
-	currentConfig.KeyBinds[ 6] = 1<<1;
-	currentConfig.KeyBinds[ 7] = 1<<2;
-	currentConfig.KeyBinds[ 5] = 1<<3;
-	currentConfig.KeyBinds[14] = 1<<4;
-	currentConfig.KeyBinds[13] = 1<<5;
-	currentConfig.KeyBinds[15] = 1<<6;
-	currentConfig.KeyBinds[ 3] = 1<<7;
-	currentConfig.KeyBinds[12] = 1<<26; // switch rnd
-	currentConfig.KeyBinds[ 8] = 1<<27; // save state
-	currentConfig.KeyBinds[ 9] = 1<<28; // load state
-	currentConfig.KeyBinds[28] = 1<<0; // num "buttons"
-	currentConfig.KeyBinds[30] = 1<<1;
-	currentConfig.KeyBinds[31] = 1<<2;
-	currentConfig.KeyBinds[29] = 1<<3;
-	currentConfig.PicoCDBuffers = 64;
-	currentConfig.scaling = 1;     // bilinear filtering for psp
-	currentConfig.scale = 1.20;    // fullscreen
-	currentConfig.hscale40 = 1.25;
-	currentConfig.hscale32 = 1.56;
+	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
+	PicoOpt = currentConfig.s_PicoOpt;
+	PsndRate = currentConfig.s_PsndRate;
+	PicoRegionOverride = currentConfig.s_PicoRegion;
+	PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
+	PicoCDBuffers = currentConfig.s_PicoCDBuffers;
 }
 
 
@@ -233,7 +242,7 @@ static void do_pal_update(int allow_sh)
 
 	//for (i = 0x3f/2; i >= 0; i--)
 	//	dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
-	do_pal_convert(localPal, Pico.cram, currentConfig.gamma);
+	do_pal_convert(localPal, Pico.cram, currentConfig.gamma, currentConfig.gamma2);
 
 	if (allow_sh && (Pico.video.reg[0xC]&8)) // shadow/hilight?
 	{
@@ -276,7 +285,17 @@ static void EmuScanPrepare(void)
 		do_pal_update(1);
 }
 
-static int EmuScanSlow(unsigned int num)
+static int EmuScanSlowBegin(unsigned int num)
+{
+	if (!(Pico.video.reg[1]&8)) num += 8;
+
+	if (!dynamic_palette)
+		HighCol = (unsigned char *)VRAM_CACHED_STUFF + num * 512 + 8;
+
+	return 0;
+}
+
+static int EmuScanSlowEnd(unsigned int num)
 {
 	if (!(Pico.video.reg[1]&8)) num += 8;
 
@@ -292,8 +311,7 @@ static int EmuScanSlow(unsigned int num)
 		int line_len = (Pico.video.reg[12]&1) ? 320 : 256;
 		void *dst = (char *)VRAM_STUFF + 512*240 + 512*2*num;
 		amips_clut(dst, HighCol + 8, localPal, line_len);
-	} else
-		HighCol = (unsigned char *)VRAM_CACHED_STUFF + (num+1)*512 + 8;
+	}
 
 	return 0;
 }
@@ -467,7 +485,8 @@ static void vidResetMode(void)
 
 	// slow rend.
 	PicoDrawSetColorFormat(-1);
-	PicoScanEnd = EmuScanSlow;
+	PicoScanBegin = EmuScanSlowBegin;
+	PicoScanEnd = EmuScanSlowEnd;
 
 	localPal[0xe0] = 0;
 	Pico.m.dirtyPal = 1;
@@ -670,7 +689,8 @@ void emu_forcedFrame(void)
 	memset32_uncached((int *)psp_screen + 512*264*2/4, 0, 512*8*2/4);
 
 	PicoDrawSetColorFormat(-1);
-	PicoScanEnd = EmuScanSlow;
+	PicoScanBegin = EmuScanSlowBegin;
+	PicoScanEnd = EmuScanSlowEnd;
 	EmuScanPrepare();
 	PicoFrameDrawOnly();
 	blit1();
@@ -789,21 +809,6 @@ static void updateKeys(void)
 
 	events = (allActions[0] | allActions[1]) >> 16;
 
-	// volume is treated in special way and triggered every frame
-	if ((events & 0x6000) && PsndOut != NULL)
-	{
-		int vol = currentConfig.volume;
-		if (events & 0x2000) {
-			if (vol < 100) vol++;
-		} else {
-			if (vol >   0) vol--;
-		}
-		// FrameworkAudio_SetVolume(vol, vol); // TODO
-		sprintf(noticeMsg, "VOL: %02i ", vol);
-		noticeMsgTime = sceKernelGetSystemTimeLow();
-		currentConfig.volume = vol;
-	}
-
 	events &= ~prevEvents;
 	if (events) RunEvents(events);
 	if (movie_data) emu_updateMovie();
@@ -827,9 +832,10 @@ void emu_Loop(void)
 {
 	static int mp3_init_done = 0;
 	char fpsbuff[24]; // fps count c string
-	unsigned int tval, tval_prev = 0, tval_thissec = 0; // timing
-	int frames_done = 0, frames_shown = 0, oldmodes = 0;
-	int target_fps, target_frametime, lim_time, tval_diff, i;
+	unsigned int tval, tval_thissec = 0; // timing
+	int target_fps, target_frametime, lim_time, tval_diff, i, oldmodes = 0;
+	int pframes_done, pframes_shown; // "period" frames, used for sync
+	int  frames_done,  frames_shown, tval_fpsc = 0; // actual frames
 	char *notice = NULL;
 
 	lprintf("entered emu_Loop()\n");
@@ -874,6 +880,10 @@ void emu_Loop(void)
 	}
 
 	sceDisplayWaitVblankStart();
+	pframes_shown = pframes_done =
+	 frames_shown =  frames_done = 0;
+
+	tval_fpsc = sceKernelGetSystemTimeLow();
 
 	// loop?
 	while (engineState == PGS_Running)
@@ -881,11 +891,11 @@ void emu_Loop(void)
 		int modes;
 
 		tval = sceKernelGetSystemTimeLow();
-		if (reset_timing || tval < tval_prev) {
+		if (reset_timing || tval < tval_fpsc) {
 			//stdbg("timing reset");
 			reset_timing = 0;
 			tval_thissec = tval;
-			frames_shown = frames_done = 0;
+			pframes_shown = pframes_done = 0;
 		}
 
 		// show notice message?
@@ -911,37 +921,41 @@ void emu_Loop(void)
 		}
 
 		// second passed?
+		if (tval - tval_fpsc >= 1000000)
+		{
+			if (currentConfig.EmuOpt & 2)
+				sprintf(fpsbuff, "%02i/%02i  ", frames_shown, frames_done);
+			frames_done = frames_shown = 0;
+			tval_fpsc += 1000000;
+		}
+
 		if (tval - tval_thissec >= 1000000)
 		{
 			// missing 1 frame?
-			if (currentConfig.Frameskip < 0 && frames_done < target_fps) {
-				SkipFrame(); frames_done++;
+			if (currentConfig.Frameskip < 0 && pframes_done < target_fps) {
+				SkipFrame(); pframes_done++; frames_done++;
 			}
-
-			if (currentConfig.EmuOpt & 2)
-				sprintf(fpsbuff, "%02i/%02i  ", frames_shown, frames_done);
 
 			tval_thissec += 1000000;
 
 			if (currentConfig.Frameskip < 0) {
-				frames_done  -= target_fps; if (frames_done  < 0) frames_done  = 0;
-				frames_shown -= target_fps; if (frames_shown < 0) frames_shown = 0;
-				if (frames_shown > frames_done) frames_shown = frames_done;
+				pframes_done  -= target_fps; if (pframes_done  < 0) pframes_done  = 0;
+				pframes_shown -= target_fps; if (pframes_shown < 0) pframes_shown = 0;
+				if (pframes_shown > pframes_done) pframes_shown = pframes_done;
 			} else {
-				frames_done = frames_shown = 0;
+				pframes_done = pframes_shown = 0;
 			}
 		}
 #ifdef PFRAMES
 		sprintf(fpsbuff, "%i", Pico.m.frame_count);
 #endif
 
-		tval_prev = tval;
-		lim_time = (frames_done+1) * target_frametime;
+		lim_time = (pframes_done+1) * target_frametime;
 		if (currentConfig.Frameskip >= 0) // frameskip enabled
 		{
 			for (i = 0; i < currentConfig.Frameskip; i++) {
 				updateKeys();
-				SkipFrame(); frames_done++;
+				SkipFrame(); pframes_done++; frames_done++;
 				if (!(currentConfig.EmuOpt&0x40000)) { // do framelimitting if needed
 					int tval_diff;
 					tval = sceKernelGetSystemTimeLow();
@@ -957,7 +971,7 @@ void emu_Loop(void)
 			int tval_diff;
 			tval = sceKernelGetSystemTimeLow();
 			tval_diff = (int)(tval - tval_thissec) << 8;
-			if (tval_diff > lim_time && (frames_done/16 < frames_shown))
+			if (tval_diff > lim_time && (pframes_done/16 < pframes_shown))
 			{
 				// no time left for this frame - skip
 				if (tval_diff - lim_time >= (300000<<8)) {
@@ -965,7 +979,7 @@ void emu_Loop(void)
 					continue;
 				}
 				updateKeys();
-				SkipFrame(); frames_done++;
+				SkipFrame(); pframes_done++; frames_done++;
 				continue;
 			}
 		}
@@ -985,8 +999,9 @@ void emu_Loop(void)
 
 		blit2(fpsbuff, notice, tval_diff > lim_time);
 
-		if (currentConfig.Frameskip < 0 && tval_diff - lim_time >= (300000<<8)) // slowdown detection
+		if (currentConfig.Frameskip < 0 && tval_diff - lim_time >= (300000<<8)) { // slowdown detection
 			reset_timing = 1;
+		}
 		else if (!(currentConfig.EmuOpt&0x40000) || currentConfig.Frameskip < 0)
 		{
 			// sleep if we are still too fast
@@ -997,7 +1012,8 @@ void emu_Loop(void)
 			}
 		}
 
-		frames_done++; frames_shown++;
+		pframes_done++; pframes_shown++;
+		 frames_done++;  frames_shown++;
 	}
 
 

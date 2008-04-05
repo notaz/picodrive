@@ -572,6 +572,7 @@ int emu_ReadConfig(int game, int no_defaults)
 	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;
 #ifdef PSP
 	if (currentConfig.gamma < -4 || currentConfig.gamma >  16) currentConfig.gamma = 0;
+	if (currentConfig.gamma2 < 0 || currentConfig.gamma2 > 2)  currentConfig.gamma2 = 0;
 #else
 	if (currentConfig.gamma < 10 || currentConfig.gamma > 300) currentConfig.gamma = 100;
 #endif
@@ -672,6 +673,12 @@ void emu_textOut16(int x, int y, const char *text)
 	}
 }
 
+#ifdef PSP
+#define MAX_COMBO_KEY 23
+#else
+#define MAX_COMBO_KEY 31
+#endif
+
 void emu_findKeyBindCombos(void)
 {
 	int act, u;
@@ -684,15 +691,15 @@ void emu_findKeyBindCombos(void)
 		if (act == 16 || act == 17) continue; // player2 flag
 		if (act > 17)
 		{
-			for (u = 0; u < 32; u++)
+			for (u = 0; u <= MAX_COMBO_KEY; u++)
 				if (currentConfig.KeyBinds[u] & (1 << act)) keyc++;
 		}
 		else
 		{
-			for (u = 0; u < 32; u++)
+			for (u = 0; u <= MAX_COMBO_KEY; u++)
 				if ((currentConfig.KeyBinds[u] & 0x30000) == 0 && // pl. 1
 					(currentConfig.KeyBinds[u] & (1 << act))) keyc++;
-			for (u = 0; u < 32; u++)
+			for (u = 0; u <= MAX_COMBO_KEY; u++)
 				if ((currentConfig.KeyBinds[u] & 0x30000) == 1 && // pl. 2
 					(currentConfig.KeyBinds[u] & (1 << act))) keyc2++;
 			if (keyc2 > keyc) keyc = keyc2;
@@ -700,7 +707,7 @@ void emu_findKeyBindCombos(void)
 		if (keyc > 1)
 		{
 			// loop again and mark those keys and actions as combo
-			for (u = 0; u < 32; u++)
+			for (u = 0; u <= MAX_COMBO_KEY; u++)
 			{
 				if (currentConfig.KeyBinds[u] & (1 << act)) {
 					kb_combo_keys |= 1 << u;

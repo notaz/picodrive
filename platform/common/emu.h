@@ -24,6 +24,7 @@ typedef struct {
 	int scaling; // gp2x: 0=center, 1=hscale, 2=hvscale, 3=hsoftscale; psp: bilinear filtering
 	float scale; // psp: screen scale
 	float hscale32, hscale40; // psp: horizontal scale
+	int gamma2;  // psp: black level
 } currentConfig_t;
 
 extern currentConfig_t currentConfig, defaultConfig;
@@ -52,5 +53,5 @@ void  emu_textOut16(int x, int y, const char *text);
 char *emu_makeRomId(void);
 void  emu_findKeyBindCombos(void);
 
-extern const char *keyNames[];
+extern const char * const keyNames[];
 void  emu_prepareDefaultConfig(void);
