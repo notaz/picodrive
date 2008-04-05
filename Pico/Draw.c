@@ -194,7 +194,7 @@ static int TileNormZ(int sx,int addr,int pal,int zval)
 
   return 1; // Tile blank
 }
-                                              
+
 static int TileFlipZ(int sx,int addr,int pal,int zval)
 {
   unsigned int pack=0; unsigned int t=0;
@@ -1096,8 +1096,6 @@ static void DrawAllSprites(int *hcache, int maxwidth, int prio, int sh)
   {
     int sx, sy, row, pack2;
 
-    elprintf(EL_ANOMALY, "x: %i y: %i %ix%i", pack2>>16, (pack<<16)>>16, (pack>>28)<<3, (pack>>21)&0x38);
-
     if (pack & 0x00400000) continue;
 
     // get sprite info
@@ -1106,32 +1104,26 @@ static void DrawAllSprites(int *hcache, int maxwidth, int prio, int sh)
     sy = (pack <<16)>>16;
     row = scan-sy;
 
+    // elprintf(EL_ANOMALY, "x: %4i y: %4i p %i %ix%i", sx, sy, (pack2>>15)&1, (pack>>28)<<3, (pack>>21)&0x38);
+
     if (sx == -0x77) sx1seen|=1; // for masking mode 2
 
     // check if it is on this line
     if (row < 0 || row >= ((pack>>21)&0x38)) continue; // no
-    n++; // number of sprites on this line (both visible and hidden, max is 20)
+
+    // masking sprite?
+    if (sx == -0x78) {
+      if (n > 0) break; // masked
+      continue;
+    }
+
+    n++; // number of sprites on this line (both visible and hidden, except of x=0)
 
     // sprite limit
     ntiles += pack>>28;
     if (ntiles > max_line_sprites*2) break;
 
     if (pack & 0x00800000) continue;
-
-    // masking sprite?
-    if (sx == -0x78) {
-      if(!(sx1seen&1) || sx1seen==3) {
-        break; // this sprite is not drawn and remaining sprites are masked
-      }
-      if((sx1seen>>8) == 0) sx1seen=(i+1)<<8;
-      continue;
-    }
-    else if (sx == -0x77) {
-      // masking mode2 (Outrun, Galaxy Force II, Shadow of the beast)
-      if(sx1seen>>8) { i=(sx1seen>>8)-1; break; } // seen both 0 and 1
-      sx1seen |= 2;
-      continue;
-    }
 
     // accurate sprites
     //dprintf("P:%i",((sx>>15)&1));
