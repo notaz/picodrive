@@ -33,8 +33,11 @@ int pico_main(void)
 {
 	lprintf("\nPicoDrive v" VERSION " " __DATE__ " " __TIME__ "\n");
 	psp_init();
+
 	emu_prepareDefaultConfig();
 	emu_ReadConfig(0, 0);
+	config_readlrom(PicoConfigFile);
+
 	emu_Init();
 	menu_init();
 	// moved to emu_Loop(), after CPU clock change..

@@ -324,6 +324,12 @@ This one adjusts the LCD refresh rate to better match game's refresh rate and st
 synchronizing rendering with it. Should make scrolling smoother and eliminate tearing.
 
 #endif
+@@1. "Disable sprite limit"
+The MegaDrive/Genesis had a limit on how many sprites (usually smaller moving
+objects) can be displayed on single line. This option allows to disable that
+limit. Note that some games used this to hide unwanted things, so it is not
+always good to enable this option.
+
 @@1. "Emulate Z80"
 Enables emulation of Z80 chip, which was mostly used to drive the other sound chips.
 Some games do complex sync with it, so you must enable it even if you don't use
@@ -433,6 +439,13 @@ Same as above, only for higher (320 pixel wide) resolution using games.
 @@3. "Bilinear filtering"
 If this is enabled, PSP hardware will apply bilinear filtering on the resulting image,
 making it smoother, but blurry.
+
+@@3. "Gamma adjustment"
+Color gamma can be adjusted with this.
+
+@@3. "Black level"
+This can be used to reduce unwanted "ghosting" effect for dark games, by making
+black pixels brighter. Use in conjunction with "gamma adjustment" for more effect.
 
 @@3. "Wait for vsync"
 Wait for the screen to finish updating before switching to next frame, to avoid tearing.

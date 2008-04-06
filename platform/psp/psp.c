@@ -25,14 +25,14 @@ extern int pico_main(void);
 
 #ifndef FW15
 
-PSP_MODULE_INFO("PicoDrive", 0, 1, 35);
+PSP_MODULE_INFO("PicoDrive", 0, 1, 40);
 PSP_HEAP_SIZE_MAX();
 
 int main() { return pico_main(); }	/* just a wrapper */
 
 #else
 
-PSP_MODULE_INFO("PicoDrive", 0x1000, 1, 35);
+PSP_MODULE_INFO("PicoDrive", 0x1000, 1, 40);
 PSP_MAIN_THREAD_ATTR(0);
 
 int main()
