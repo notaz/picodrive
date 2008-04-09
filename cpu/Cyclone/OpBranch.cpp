@@ -47,7 +47,7 @@ static void PopSr(int high)
   OpRegToFlags(high);
 }
 
-// Pop PC - assumes r11=Memory Base - trashes r0-r3
+// Pop PC - trashes r0-r3
 static void PopPc()
 {
   ot(";@ Pop PC:\n");
@@ -55,7 +55,8 @@ static void PopPc()
   ot("  add r1,r0,#4 ;@ Postincrement A7\n");
   ot("  str r1,[r7,#0x3c] ;@ Save A7\n");
   MemHandler(0,2);
-  ot("  add r0,r0,r11 ;@ Memory Base+PC\n");
+  ot("  ldr r1,[r7,#0x60] ;@ Get Memory base\n");
+  ot("  add r0,r0,r1 ;@ Memory Base+PC\n");
   ot("\n");
   CheckPc();
 #if EMULATE_ADDRESS_ERRORS_JUMP
@@ -175,7 +176,6 @@ int Op4E70(int op)
     case 3: // rte
     OpStart(op,0x10,0,0,1); Cycles=20;
     PopSr(1);
-    ot("  ldr r11,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
     ot("  ldr r1,[r7,#0x44] ;@ reload SR high\n");
     SuperChange(op,1);
@@ -195,7 +195,6 @@ int Op4E70(int op)
 
     case 5: // rts
     OpStart(op,0x10); Cycles=16;
-    ot("  ldr r11,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
 #if EMULATE_ADDRESS_ERRORS_JUMP
     ot("  tst r4,#1 ;@ address error?\n");
@@ -217,7 +216,6 @@ int Op4E70(int op)
     case 7: // rtr
     OpStart(op,0x10); Cycles=20;
     PopSr(0);
-    ot("  ldr r11,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
 #if EMULATE_ADDRESS_ERRORS_JUMP
     ot("  tst r4,#1 ;@ address error?\n");

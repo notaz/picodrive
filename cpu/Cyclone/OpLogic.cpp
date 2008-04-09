@@ -40,7 +40,7 @@ int OpBtstReg(int op)
 
   EaCalcReadNoSE((type>0)?8:-1,0,tea,size,0x003f);
 
-  if (tea>=0x11)
+  if (tea>=0x10)
        ot("  and r11,r11,#7  ;@ mem - do mod 8\n");  // size always 0
   else ot("  and r11,r11,#31 ;@ reg - do mod 32\n"); // size always 2
   ot("\n");
@@ -94,7 +94,7 @@ int OpBtstImm(int op)
   EaCalcReadNoSE(-1,0,sea,0,0);
   ot("  mov r11,#1\n");
   ot("  bic r10,r10,#0x40000000 ;@ Blank Z flag\n");
-  if (tea>=0x11)
+  if (tea>=0x10)
        ot("  and r0,r0,#7    ;@ mem - do mod 8\n");  // size always 0
   else ot("  and r0,r0,#0x1F ;@ reg - do mod 32\n"); // size always 2
   ot("  mov r11,r11,lsl r0 ;@ Make bit mask\n");

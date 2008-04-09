@@ -376,23 +376,20 @@ int OpMovem(int op)
 
   OpStart(op,ea,0,1);
 
+  ot("  ldrh r11,[r4],#2 ;@ r11=register mask\n");
+  ot("\n");
+  ot(";@ Get the address into r6:\n");
+  EaCalc(6,0x003f,cea,size);
+
 #if !MEMHANDLERS_NEED_PREV_PC
   // must save PC, need a spare register
   ot("  str r4,[r7,#0x40] ;@ Save PC\n");
 #endif
-#if !MEMHANDLERS_NEED_CYCLES
-  ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");
-#endif
-  ot("  ldrh r11,[r4],#2 ;@ r11=register mask\n");
 
   ot(";@ r4=Register Index*4:\n");
   if (decr) ot("  mov r4,#0x40 ;@ order reversed for -(An)\n");
   else      ot("  mov r4,#-4\n");
   
-  ot("\n");
-  ot(";@ Get the address into r6:\n");
-  EaCalc(6,0x003f,cea,size);
-
   ot("\n");
   ot("  tst r11,r11\n");        // sanity check
   ot("  beq NoRegs%.4x\n",op);
