@@ -117,7 +117,7 @@ OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/i
 OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
 # debug
 ifeq "$(debug_cyclone)" "1"
-OBJS += ../../Pico/_cyclone_debug.o ../../cpu/musashi/m68kdasm.o
+OBJS += ../../Pico/Debug.o ../../cpu/musashi/m68kdasm.o
 endif
 # CPU cores
 ifeq "$(use_musashi)" "1"

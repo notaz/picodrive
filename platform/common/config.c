@@ -118,7 +118,6 @@ static void custom_write(FILE *f, const menu_entry *me, int no_def)
 				case 1:  str = "hw horizontal";     break;
 				case 2:  str = "hw horiz. + vert."; break;
 				case 3:  str = "sw horizontal";     break;
-				case 1:  str = "ON";  break;
 			}
 			fprintf(f, "Scaling = %s", str);
 #endif

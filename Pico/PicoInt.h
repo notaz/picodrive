@@ -156,14 +156,17 @@ extern int SekCycleAimS68k;
 #define SekCyclesDoneS68k()  (SekCycleAimS68k-SekCyclesLeftS68k)
 
 #ifdef EMU_CORE_DEBUG
+extern int dbg_irq_level;
 #undef SekSetCyclesLeftNoMCD
 #undef SekSetCyclesLeft
 #undef SekCyclesBurn
 #undef SekEndRun
+#undef SekInterrupt
 #define SekSetCyclesLeftNoMCD(c)
 #define SekSetCyclesLeft(c)
 #define SekCyclesBurn(c) c
 #define SekEndRun(c)
+#define SekInterrupt(irq) dbg_irq_level=irq
 #endif
 
 // ----------------------- Z80 CPU -----------------------

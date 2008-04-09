@@ -1,7 +1,5 @@
 #include "PicoInt.h"
 
-// note: set SPLIT_MOVEL_PD to 0
-
 typedef unsigned char  u8;
 
 static unsigned int pppc, ops=0;
@@ -14,13 +12,15 @@ int dbg_irq_level = 0, dbg_irq_level_sub = 0;
 #define dprintf(f,...) printf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__)
 
 #if defined(EMU_C68K)
-#define other_get_sr()     CycloneGetSr(&PicoCpuCM68k)
-#define other_dar(i)       PicoCpuCM68k.d[i]
-#define other_osp          PicoCpuCM68k.osp
-#define other_get_irq()    PicoCpuCM68k.irq
-#define other_set_irq(irq) PicoCpuCM68k.irq=irq
-#define other_is_stopped()  (PicoCpuCM68k.state_flags&1)
-#define other_is_tracing() ((PicoCpuCM68k.state_flags&2)?1:0)
+static struct Cyclone *currentC68k = NULL;
+#define other_set_sub(s)   currentC68k=(s)?&PicoCpuCS68k:&PicoCpuCM68k;
+#define other_get_sr()     CycloneGetSr(currentC68k)
+#define other_dar(i)       currentC68k->d[i]
+#define other_osp          currentC68k->osp
+#define other_get_irq()    currentC68k->irq
+#define other_set_irq(i)   currentC68k->irq=i
+#define other_is_stopped()  (currentC68k->state_flags&1)
+#define other_is_tracing() ((currentC68k->state_flags&2)?1:0)
 #elif defined(EMU_F68K)
 #define other_set_sub(s)   g_m68kcontext=(s)?&PicoCpuFS68k:&PicoCpuFM68k;
 #define other_get_sr()     g_m68kcontext->sr
@@ -37,9 +37,9 @@ int dbg_irq_level = 0, dbg_irq_level_sub = 0;
 static int otherRun(void)
 {
 #if defined(EMU_C68K)
-  PicoCpuCM68k.cycles=1;
-  CycloneRun(&PicoCpuCM68k);
-  return 1-PicoCpuCM68k.cycles;
+  currentC68k->cycles=1;
+  CycloneRun(currentC68k);
+  return 1-currentC68k->cycles;
 #elif defined(EMU_F68K)
   return fm68k_emulate(1, 0);
 #endif
@@ -79,7 +79,7 @@ int CM_compareRun(int cyc, int is_sub)
       have_illegal = 0;
       m68ki_cpu.pc += 2;
 #ifdef EMU_C68K
-      PicoCpuCM68k.pc=PicoCpuCM68k.checkpc(PicoCpuCM68k.pc + 2);
+      currentC68k->pc=currentC68k->checkpc(currentC68k->pc + 2);
 #endif
     }
     // hacks for test_misc2
@@ -88,7 +88,7 @@ int CM_compareRun(int cyc, int is_sub)
       // get out of "priviledge violation" loop
       have_illegal = 1;
       //m68ki_cpu.s_flag = SFLAG_SET;
-      //PicoCpuCM68k.srh|=0x20;
+      //currentC68k->srh|=0x20;
     }
 
     pppc = is_sub ? SekPcS68k : SekPc;
@@ -102,7 +102,7 @@ int CM_compareRun(int cyc, int is_sub)
       dprintf("---");
       m68k_disassemble(buff, pppc, M68K_CPU_TYPE_68000);
       dprintf("PC: %06x: %04x: %s", pppc, ppop, buff);
-      //dprintf("A7: %08x", PicoCpuCM68k.a[7]);
+      //dprintf("A7: %08x", currentC68k->a[7]);
     }
 #endif
 
@@ -115,6 +115,9 @@ int CM_compareRun(int cyc, int is_sub)
     }
 
     cyc_other=otherRun();
+    // Musashi takes irq even if it hasn't got cycles left, let othercpu do it too
+    if (other_get_irq() && other_get_irq() > ((other_get_sr()>>8)&7))
+      cyc_other+=otherRun();
     cyc_musashi=m68k_execute(1);
 
     if (cyc_other != cyc_musashi) {
@@ -197,17 +200,17 @@ int CM_compareRun(int cyc, int is_sub)
     if(err) dumpPCandExit(is_sub);
 
 #if 0
-    if (PicoCpuCM68k.a[7] < 0x00ff0000 || PicoCpuCM68k.a[7] >= 0x01000000)
+    if (m68ki_cpu.dar[15] < 0x00ff0000 || m68ki_cpu.dar[15] >= 0x01000000)
     {
-      PicoCpuCM68k.a[7] = m68ki_cpu.dar[15] = 0xff8000;
+      other_dar(15) = m68ki_cpu.dar[15] = 0xff8000;
     }
 #endif
 #if 0
     m68k_set_reg(M68K_REG_SR, ((mu_sr-1)&~0x2000)|(mu_sr&0x2000)); // broken
-    CycloneSetSr(&PicoCpuCM68k, ((mu_sr-1)&~0x2000)|(mu_sr&0x2000));
-    PicoCpuCM68k.stopped = m68ki_cpu.stopped = 0;
-    if(SekPc > 0x400 && (PicoCpuCM68k.a[7] < 0xff0000 || PicoCpuCM68k.a[7] > 0xffffff))
-    PicoCpuCM68k.a[7] = m68ki_cpu.dar[15] = 0xff8000;
+    CycloneSetSr(currentC68k, ((mu_sr-1)&~0x2000)|(mu_sr&0x2000));
+    currentC68k->stopped = m68ki_cpu.stopped = 0;
+    if(SekPc > 0x400 && (currentC68k->a[7] < 0xff0000 || currentC68k->a[7] > 0xffffff))
+    currentC68k->a[7] = m68ki_cpu.dar[15] = 0xff8000;
 #endif
 
     cyc_done += cyc_other;

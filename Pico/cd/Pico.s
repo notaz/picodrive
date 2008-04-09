@@ -41,13 +41,13 @@ SekRunPS:
 
     @ update aims
     ldr     r8, =SekCycleAim
-    ldr     r9, =SekCycleAimS68k
+    ldr     r10,=SekCycleAimS68k
     ldr     r2, [r8]
-    ldr     r3, [r9]
+    ldr     r3, [r10]
     add     r2, r2, r0
     add     r3, r3, r1
     str     r2, [r8]
-    str     r3, [r9]
+    str     r3, [r10]
 
     ldr     r1, =SekCycleCnt
     ldr     r0, =((488<<16)-PS_STEP_M68K)
@@ -70,19 +70,19 @@ CycloneEnd_M68k:
     ldr     r0, [sp,#4]               @ run_cycle_cnt
     ldr     r1, [r3]
     str     r4, [r7,#0x40]  ;@ Save Current PC + Memory Base
-    strb    r9, [r7,#0x46]  ;@ Save Flags (NZCV)
+    strb    r10,[r7,#0x46]  ;@ Save Flags (NZCV)
     sub     r0, r0, r5                @ subtract leftover cycles (which should be negative)
     add     r0, r0, r1
     str     r0, [r3]
 
 schedule_s68k:
     ldr     r8, =SekCycleCntS68k
-    ldr     r9, =SekCycleAimS68k
+    ldr     r10,=SekCycleAimS68k
     ldr     r3, [sp]
     ldr     r8, [r8]
-    ldr     r9, [r9]
+    ldr     r10,[r10]
 
-    sub     r0, r9, r8
+    sub     r0, r10, r8
     mov     r2, r3
     add     r3, r3, r2, asr #1
     add     r3, r3, r2, asr #3        @ cycn_s68k = (cycn + cycn/2 + cycn/8)
@@ -101,7 +101,7 @@ CycloneEnd_S68k:
     ldr     r0, [sp,#4]               @ run_cycle_cnt
     ldr     r1, [r3]
     str     r4, [r7,#0x40]  ;@ Save Current PC + Memory Base
-    strb    r9, [r7,#0x46]  ;@ Save Flags (NZCV)
+    strb    r10,[r7,#0x46]  ;@ Save Flags (NZCV)
     sub     r0, r0, r5                @ subtract leftover cycles (should be negative)
     add     r0, r0, r1
     str     r0, [r3]
@@ -110,14 +110,14 @@ schedule_m68k:
     ldr     r1, =PS_STEP_M68K
     ldr     r3, [sp]                  @ main_cycle_cnt
     ldr     r8, =SekCycleCnt
-    ldr     r9, =SekCycleAim
+    ldr     r10,=SekCycleAim
     subs    r3, r3, r1
     bmi     SekRunPS_end
 
     ldr     r8, [r8]
-    ldr     r9, [r9]
+    ldr     r10,[r10]
     str     r3, [sp]                  @ update main_cycle_cnt
-    sub     r0, r9, r8
+    sub     r0, r10, r8
 
     subs    r5, r0, r3, asr #16
     ble     schedule_s68k             @ m68k has not enough cycles
@@ -147,10 +147,9 @@ CycloneRunLocal:
                      ;@ r6 = Opcode Jump table
                      ;@ r7 = Pointer to Cpu Context
                      ;@ r8 = Current Opcode
-  ldrb r9,[r7,#0x46] ;@ r9 = Flags (NZCV)
+  ldrb r10,[r7,#0x46];@ r10 = Flags (NZCV)
   ldr r1,[r7,#0x44]  ;@ get SR high and IRQ level
-  orr r9,r9,r9,lsl #28 ;@ r9 = Flags 0xf0000000, cpsr format
-                     ;@ r10 = Source value / Memory Base
+  orr r10,r10,r10,lsl #28 ;@ r10 = Flags 0xf0000000, cpsr format
 
 ;@ CheckInterrupt:
   movs r0,r1,lsr #24 ;@ Get IRQ level
@@ -166,7 +165,7 @@ NoIntsLocal:
   ldr r0,[r7,#0x58] ;@ state_flags
   ldrh r8,[r4],#2 ;@ Fetch first opcode
   tst r0,#0x03 ;@ special state?
-  andeq r9,r9,#0xf0000000
+  andeq r10,r10,#0xf0000000
   ldreq pc,[r6,r8,asl #2] ;@ Jump to opcode handler
 
 CycloneSpecial2:

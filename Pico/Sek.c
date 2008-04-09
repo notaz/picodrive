@@ -153,6 +153,7 @@ PICO_INTERNAL int SekReset()
   m68ki_cpu.sp[0]=0;
   m68k_set_irq(0);
   m68k_pulse_reset();
+  REG_USP = 0; // ?
 #endif
 #ifdef EMU_F68K
   {

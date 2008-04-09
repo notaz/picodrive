@@ -405,7 +405,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
         }
         return;
 
-update_irq:
+update_irq:;
 #ifndef EMU_CORE_DEBUG
         // update IRQ level (Lemmings, Wiz 'n' Liz intro, ... )
         // may break if done improperly:
