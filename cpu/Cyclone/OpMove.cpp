@@ -7,7 +7,7 @@
 void OpFlagsToReg(int high)
 {
   ot("  ldr r0,[r7,#0x4c]   ;@ X bit\n");
-  ot("  mov r1,r9,lsr #28   ;@ ____NZCV\n");
+  ot("  mov r1,r10,lsr #28  ;@ ____NZCV\n");
   ot("  eor r2,r1,r1,ror #1 ;@ Bit 0=C^V\n");
   ot("  tst r2,#1           ;@ 1 if C!=V\n");
   ot("  eorne r1,r1,#3      ;@ ____NZVC\n");
@@ -28,7 +28,7 @@ void OpRegToFlags(int high, int srh_reg)
   ot("  tst r1,#1           ;@ 1 if C!=V\n");
   ot("  eorne r0,r0,#3      ;@ ___XNZCV\n");
   ot("  str r2,[r7,#0x4c]   ;@ Store X bit\n");
-  ot("  mov r9,r0,lsl #28   ;@ r9=NZCV...\n");
+  ot("  mov r10,r0,lsl #28  ;@ r10=NZCV...\n");
 
   if (high)
   {
@@ -126,7 +126,7 @@ int OpMove(int op)
   if (movea==0)
   {
     ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
-    ot("  mrs r9,cpsr ;@ r9=NZCV flags\n");
+    ot("  mrs r10,cpsr ;@ r10=NZCV flags\n");
     ot("\n");
   }
 
@@ -135,11 +135,11 @@ int OpMove(int op)
   eawrite_check_addrerr=1;
 #if SPLIT_MOVEL_PD
   if ((tea&0x38)==0x20 && size==2) { // -(An)
-    EaCalc (10,0x0e00,tea,size,0,0);
+    EaCalc (8,0x0e00,tea,size,0,0);
     ot("  mov r11,r1\n");
-    ot("  add r0,r10,#2\n");
+    ot("  add r0,r8,#2\n");
     EaWrite(0,     1,tea,1,0x0e00,0,0);
-    EaWrite(10,   11,tea,1,0x0e00,1);
+    EaWrite(8,    11,tea,1,0x0e00,1);
   }
   else
 #endif
@@ -276,7 +276,7 @@ int OpArithSr(int op)
 
   // note: old srh is already in r11 (done by OpStart)
   if (type==0) {
-    ot("  orr r9,r9,r0,lsl #28\n");
+    ot("  orr r10,r10,r0,lsl #28\n");
     ot("  orr r2,r2,r0,lsl #25 ;@ X bit\n");
     if (size!=0) {
       ot("  orr r1,r11,r0,lsr #8\n");
@@ -284,13 +284,13 @@ int OpArithSr(int op)
     }
   }
   if (type==1) {
-    ot("  and r9,r9,r0,lsl #28\n");
+    ot("  and r10,r10,r0,lsl #28\n");
     ot("  and r2,r2,r0,lsl #25 ;@ X bit\n");
     if (size!=0)
       ot("  and r1,r11,r0,lsr #8\n");
   }
   if (type==5) {
-    ot("  eor r9,r9,r0,lsl #28\n");
+    ot("  eor r10,r10,r0,lsl #28\n");
     ot("  eor r2,r2,r0,lsl #25 ;@ X bit\n");
     if (size!=0) {
       ot("  eor r1,r11,r0,lsr #8\n");
@@ -333,10 +333,10 @@ int OpPea(int op)
 
   OpStart(op,ea);
 
-  ot("  ldr r10,[r7,#0x3c]\n");
+  ot("  ldr r11,[r7,#0x3c]\n");
   EaCalc (1,0x003f, ea,0);
   ot("\n");
-  ot("  sub r0,r10,#4 ;@ Predecrement A7\n");
+  ot("  sub r0,r11,#4 ;@ Predecrement A7\n");
   ot("  str r0,[r7,#0x3c] ;@ Save A7\n");
   ot("\n");
   MemHandler(1,2); // Write 32-bit
@@ -376,11 +376,18 @@ int OpMovem(int op)
 
   OpStart(op,ea,0,1);
 
+#if !MEMHANDLERS_NEED_PREV_PC
+  // must save PC, need a spare register
+  ot("  str r4,[r7,#0x40] ;@ Save PC\n");
+#endif
+#if !MEMHANDLERS_NEED_CYCLES
+  ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");
+#endif
   ot("  ldrh r11,[r4],#2 ;@ r11=register mask\n");
 
-  ot(";@ r10=Register Index*4:\n");
-  if (decr) ot("  mov r10,#0x40 ;@ order reversed for -(An)\n");
-  else      ot("  mov r10,#-4\n");
+  ot(";@ r4=Register Index*4:\n");
+  if (decr) ot("  mov r4,#0x40 ;@ order reversed for -(An)\n");
+  else      ot("  mov r4,#-4\n");
   
   ot("\n");
   ot(";@ Get the address into r6:\n");
@@ -399,7 +406,7 @@ int OpMovem(int op)
 
   ot("\n");
   ot("Movemloop%.4x%s\n",op, ms?"":":");
-  ot("  add r10,r10,#%d ;@ r10=Next Register\n",decr?-4:4);
+  ot("  add r4,r4,#%d ;@ r4=Next Register\n",decr?-4:4);
   ot("  movs r11,r11,lsr #1\n");
   ot("  bcc Movemloop%.4x\n",op);
   ot("\n");
@@ -411,17 +418,17 @@ int OpMovem(int op)
     ot("  ;@ Copy memory to register:\n",1<<size);
     earead_check_addrerr=0; // already checked
     EaRead (6,0,ea,size,0x003f);
-    ot("  str r0,[r7,r10] ;@ Save value into Dn/An\n");
+    ot("  str r0,[r7,r4] ;@ Save value into Dn/An\n");
   }
   else
   {
     ot("  ;@ Copy register to memory:\n",1<<size);
-    ot("  ldr r1,[r7,r10] ;@ Load value from Dn/An\n");
+    ot("  ldr r1,[r7,r4] ;@ Load value from Dn/An\n");
 #if SPLIT_MOVEL_PD
     if (decr && size==2) { // -(An)
       ot("  add r0,r6,#2\n");
       EaWrite(0,1,ea,1,0x003f,0,0);
-      ot("  ldr r1,[r7,r10] ;@ Load value from Dn/An\n");
+      ot("  ldr r1,[r7,r4] ;@ Load value from Dn/An\n");
       ot("  mov r0,r6\n");
       EaWrite(0,1,ea,1,0x003f,1);
     }
@@ -447,7 +454,8 @@ int OpMovem(int op)
   }
 
   ot("NoRegs%.4x%s\n",op, ms?"":":");
-  ot("  ldr r6,=CycloneJumpTab ;@ restore Opcode Jump table\n");
+  ot("  ldr r4,[r7,#0x40]\n");
+  ot("  ldr r6,[r7,#0x54] ;@ restore Opcode Jump table\n");
   ot("\n");
 
   if(dir) { // er
@@ -462,7 +470,6 @@ int OpMovem(int op)
 
   opend_op_changes_cycles = 1;
   OpEnd(ea);
-  ltorg();
   ot("\n");
 
   return 0;
@@ -514,7 +521,7 @@ int OpMoveq(int op)
   ot("  movs r0,r8,asl #24\n");
   ot("  and r1,r8,#0x0e00\n");
   ot("  mov r0,r0,asr #24 ;@ Sign extended Quick value\n");
-  ot("  mrs r9,cpsr ;@ r9=NZ flags\n");
+  ot("  mrs r10,cpsr ;@ r10=NZ flags\n");
   ot("  str r0,[r7,r1,lsr #7] ;@ Store into Dn\n");
   ot("\n");
 
@@ -541,15 +548,15 @@ int OpExg(int op)
 
   OpStart(op); Cycles=6;
 
-  ot("  and r10,r8,#0x0e00 ;@ Find T register\n");
-  ot("  and r11,r8,#0x000f ;@ Find S register\n");
-  if (type==0x48) ot("  orr r10,r10,#0x1000 ;@ T is an address register\n");
+  ot("  and r2,r8,#0x0e00 ;@ Find T register\n");
+  ot("  and r3,r8,#0x000f ;@ Find S register\n");
+  if (type==0x48) ot("  orr r2,r2,#0x1000 ;@ T is an address register\n");
   ot("\n");
-  ot("  ldr r0,[r7,r10,lsr #7] ;@ Get T\n");
-  ot("  ldr r1,[r7,r11,lsl #2] ;@ Get S\n");
+  ot("  ldr r0,[r7,r2,lsr #7] ;@ Get T\n");
+  ot("  ldr r1,[r7,r3,lsl #2] ;@ Get S\n");
   ot("\n");
-  ot("  str r0,[r7,r11,lsl #2] ;@ T->S\n");
-  ot("  str r1,[r7,r10,lsr #7] ;@ S->T\n");  
+  ot("  str r0,[r7,r3,lsl #2] ;@ T->S\n");
+  ot("  str r1,[r7,r2,lsr #7] ;@ S->T\n");  
   ot("\n");
 
   OpEnd();
@@ -578,44 +585,48 @@ int OpMovep(int op)
 
   OpStart(op,ea);
   
-  if(dir) { // reg to mem
+  if(dir) // reg to mem
+  {
     EaCalcReadNoSE(-1,11,rea,size,0x0e00);
 
-    EaCalc(10,0x000f,ea,size);
+    EaCalc(8,0x000f,ea,size);
     if(size==2) { // if operand is long
       ot("  mov r1,r11,lsr #24 ;@ first byte\n");
-      EaWrite(10,1,ea,0,0x000f); // store first byte
-      ot("  add r0,r10,#%i\n",(aadd+=2));
+      EaWrite(8,1,ea,0,0x000f); // store first byte
+      ot("  add r0,r8,#%i\n",(aadd+=2));
       ot("  mov r1,r11,lsr #16 ;@ second byte\n");
       EaWrite(0,1,ea,0,0x000f); // store second byte
-      ot("  add r0,r10,#%i\n",(aadd+=2));
+      ot("  add r0,r8,#%i\n",(aadd+=2));
     } else {
-      ot("  mov r0,r10\n");
+      ot("  mov r0,r8\n");
     }
     ot("  mov r1,r11,lsr #8 ;@ first or third byte\n");
     EaWrite(0,1,ea,0,0x000f);
-    ot("  add r0,r10,#%i\n",(aadd+=2));
+    ot("  add r0,r8,#%i\n",(aadd+=2));
     ot("  and r1,r11,#0xff\n");
     EaWrite(0,1,ea,0,0x000f);
-  } else { // mem to reg
-    EaCalc(10,0x000f,ea,size,1);
-    EaRead(10,11,ea,0,0x000f,1); // read first byte
-    ot("  add r0,r10,#2\n");
+  }
+  else // mem to reg
+  {
+    EaCalc(6,0x000f,ea,size,1);
+    EaRead(6,11,ea,0,0x000f,1); // read first byte
+    ot("  add r0,r6,#2\n");
     EaRead(0,1,ea,0,0x000f,1); // read second byte
     if(size==2) { // if operand is long
       ot("  orr r11,r11,r1,lsr #8 ;@ second byte\n");
-      ot("  add r0,r10,#4\n");
+      ot("  add r0,r6,#4\n");
       EaRead(0,1,ea,0,0x000f,1);
       ot("  orr r11,r11,r1,lsr #16 ;@ third byte\n");
-      ot("  add r0,r10,#6\n");
+      ot("  add r0,r6,#6\n");
       EaRead(0,1,ea,0,0x000f,1);
       ot("  orr r1,r11,r1,lsr #24 ;@ fourth byte\n");
     } else {
       ot("  orr r1,r11,r1,lsr #8 ;@ second byte\n");
     }
     // store the result
-    EaCalc(11,0x0e00,rea,size,1);      // reg number -> r11
-    EaWrite(11,1,rea,size,0x0e00,1);
+    EaCalc(0,0x0e00,rea,size,1);
+    EaWrite(0,1,rea,size,0x0e00,1);
+    ot("  ldr r6,[r7,#0x54]\n");
   }
 
   Cycles=(size==2)?24:16;
@@ -653,17 +664,17 @@ int OpStopReset(int op)
     Cycles = 132;
 #if USE_RESET_CALLBACK
     ot("  str r4,[r7,#0x40] ;@ Save PC\n");
-    ot("  mov r1,r9,lsr #28\n");
+    ot("  mov r1,r10,lsr #28\n");
     ot("  strb r1,[r7,#0x46] ;@ Save Flags (NZCV)\n");
     ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");
     ot("  ldr r11,[r7,#0x90] ;@ ResetCallback\n");
     ot("  tst r11,r11\n");
     ot("  movne lr,pc\n");
     ot("  bxne r11 ;@ call ResetCallback if it is defined\n");
-    ot("  ldrb r9,[r7,#0x46] ;@ r9 = Load Flags (NZCV)\n");
+    ot("  ldrb r10,[r7,#0x46] ;@ r10 = Load Flags (NZCV)\n");
     ot("  ldr r5,[r7,#0x5c] ;@ Load Cycles\n");
     ot("  ldr r4,[r7,#0x40] ;@ Load PC\n");
-    ot("  mov r9,r9,lsl #28\n");
+    ot("  mov r10,r10,lsl #28\n");
     ot("\n");
 #endif
   }

@@ -456,11 +456,12 @@ See source code for up to date of register usage, however a summary is here:
   r6  : Pointer to Opcode Jump table
   r7  : Pointer to Cpu Context
   r8  : Current Opcode
-  r9  : Flags (NZCV) in highest four bits
- (r10 : Temporary source value or Memory Base)
+  r10 : Flags (NZCV) in highest four bits
  (r11 : Temporary register)
 
 Flags are mapped onto ARM flags whenever possible, which speeds up the processing of opcode.
+r9 is not used intentionally, because AAPCS defines it as "platform register", so it's
+reserved in some systems.
 
 
 Thanks to...
@@ -476,6 +477,10 @@ Thanks to...
 
 What's New
 ----------
+v0.0099 notaz
+  * Cyclone no longer uses r9, because AAPCS defines it as "platform register",
+    so it's reserved in some systems.
+
 v0.0088 notaz
   - Reduced amount of code in opcode handlers by ~23% by doing the following:
     - Removed duplicate opcode handlers

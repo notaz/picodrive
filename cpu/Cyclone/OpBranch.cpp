@@ -47,7 +47,7 @@ static void PopSr(int high)
   OpRegToFlags(high);
 }
 
-// Pop PC - assumes r10=Memory Base - trashes r0-r3
+// Pop PC - assumes r11=Memory Base - trashes r0-r3
 static void PopPc()
 {
   ot(";@ Pop PC:\n");
@@ -55,7 +55,7 @@ static void PopPc()
   ot("  add r1,r0,#4 ;@ Postincrement A7\n");
   ot("  str r1,[r7,#0x3c] ;@ Save A7\n");
   MemHandler(0,2);
-  ot("  add r0,r0,r10 ;@ Memory Base+PC\n");
+  ot("  add r0,r0,r11 ;@ Memory Base+PC\n");
   ot("\n");
   CheckPc();
 #if EMULATE_ADDRESS_ERRORS_JUMP
@@ -97,13 +97,13 @@ int OpLink(int op)
 
   if(reg!=7) {
     ot(";@ Get An\n");
-    EaCalc(10, 7, 8, 2, 1);
-    EaRead(10, 1, 8, 2, 7, 1);
+    EaCalc(11, 7, 8, 2, 1);
+    EaRead(11, 1, 8, 2, 7, 1);
   }
 
   ot("  ldr r0,[r7,#0x3c] ;@ Get A7\n");
   ot("  sub r0,r0,#4 ;@ A7-=4\n");
-  ot("  mov r11,r0\n");
+  ot("  mov r8,r0 ;@ abuse r8\n");
   if(reg==7) ot("  mov r1,r0\n");
   ot("\n");
   
@@ -112,14 +112,14 @@ int OpLink(int op)
 
   ot(";@ Save to An\n");
   if(reg!=7)
-    EaWrite(10,11, 8, 2, 7, 1);
+    EaWrite(11,8, 8, 2, 7, 1);
 
   ot(";@ Get offset:\n");
-  EaCalc(0,0,0x3c,1);
+  EaCalc(0,0,0x3c,1);    // abused r8 is ok because of imm EA
   EaRead(0,0,0x3c,1,0);
 
-  ot("  add r11,r11,r0 ;@ Add offset to A7\n");
-  ot("  str r11,[r7,#0x3c]\n");
+  ot("  add r8,r8,r0 ;@ Add offset to A7\n");
+  ot("  str r8,[r7,#0x3c]\n");
   ot("\n");
 
   Cycles=16;
@@ -138,18 +138,18 @@ int OpUnlk(int op)
   OpStart(op,0x10);
 
   ot(";@ Get An\n");
-  EaCalc(10, 0xf, 8, 2,   1);
-  EaRead(10,   0, 8, 2, 0xf, 1);
+  EaCalc(11, 0xf, 8, 2,   1);
+  EaRead(11,   0, 8, 2, 0xf, 1);
 
-  ot("  add r11,r0,#4 ;@ A7+=4\n");
+  ot("  add r8,r0,#4 ;@ A7+=4, abuse r8\n");
   ot("\n");
   ot(";@ Pop An from stack:\n");
   MemHandler(0,2);
   ot("\n");
-  ot("  str r11,[r7,#0x3c] ;@ Save A7\n");
+  ot("  str r8,[r7,#0x3c] ;@ Save A7\n");
   ot("\n");
   ot(";@ An = value from stack:\n");
-  EaWrite(10, 0, 8, 2, 7, 1);
+  EaWrite(11, 0, 8, 2, 7, 1);
 
   Cycles=12;
   OpEnd(0x10);
@@ -175,7 +175,7 @@ int Op4E70(int op)
     case 3: // rte
     OpStart(op,0x10,0,0,1); Cycles=20;
     PopSr(1);
-    ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
+    ot("  ldr r11,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
     ot("  ldr r1,[r7,#0x44] ;@ reload SR high\n");
     SuperChange(op,1);
@@ -195,7 +195,7 @@ int Op4E70(int op)
 
     case 5: // rts
     OpStart(op,0x10); Cycles=16;
-    ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
+    ot("  ldr r11,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
 #if EMULATE_ADDRESS_ERRORS_JUMP
     ot("  tst r4,#1 ;@ address error?\n");
@@ -206,7 +206,7 @@ int Op4E70(int op)
 
     case 6: // trapv
     OpStart(op,0x10,0,1); Cycles=4;
-    ot("  tst r9,#0x10000000\n");
+    ot("  tst r10,#0x10000000\n");
     ot("  subne r5,r5,#%i\n",34);
     ot("  movne r0,#7 ;@ TRAPV exception\n");
     ot("  blne Exception\n");
@@ -217,7 +217,7 @@ int Op4E70(int op)
     case 7: // rtr
     OpStart(op,0x10); Cycles=20;
     PopSr(0);
-    ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
+    ot("  ldr r11,[r7,#0x60] ;@ Get Memory base\n");
     PopPc();
 #if EMULATE_ADDRESS_ERRORS_JUMP
     ot("  tst r4,#1 ;@ address error?\n");
@@ -248,18 +248,18 @@ int OpJsr(int op)
 
   OpStart(op,(op&0x40)?0:0x10);
 
-  ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
+  ot("  ldr r11,[r7,#0x60] ;@ Get Memory base\n");
   ot("\n");
-  EaCalc(11,0x003f,sea,0);
+  EaCalc(12,0x003f,sea,0);
 
-  ot(";@ Jump - Get new PC from r11\n");
-  ot("  add r0,r11,r10 ;@ Memory Base + New PC\n");
+  ot(";@ Jump - Get new PC from r12\n");
+  ot("  add r0,r12,r11 ;@ Memory Base + New PC\n");
   ot("\n");
   CheckPc();
   if (!(op&0x40))
   {
     ot("  ldr r2,[r7,#0x3c]\n");
-    ot("  sub r1,r4,r10 ;@ r1 = Old PC\n");
+    ot("  sub r1,r4,r11 ;@ r1 = Old PC\n");
   }
 #if EMULATE_ADDRESS_ERRORS_JUMP
   // jsr prefetches next instruction before pushing old PC,
@@ -314,16 +314,16 @@ int OpDbra(int op)
     case 1: // F
       break;
     case 2: // hi
-      ot("  tst r9,#0x60000000 ;@ hi: !C && !Z\n");
+      ot("  tst r10,#0x60000000 ;@ hi: !C && !Z\n");
       ot("  beq DbraTrue\n\n");
       break;
     case 3: // ls
-      ot("  tst r9,#0x60000000 ;@ ls: C || Z\n");
+      ot("  tst r10,#0x60000000 ;@ ls: C || Z\n");
       ot("  bne DbraTrue\n\n");
       break;
     default:
       ot(";@ Is the condition true?\n");
-      ot("  msr cpsr_flg,r9 ;@ ARM flags = 68000 flags\n");
+      ot("  msr cpsr_flg,r10 ;@ ARM flags = 68000 flags\n");
       ot(";@ If so, don't dbra\n");
       ot("  b%s DbraTrue\n\n",Cond[cc]);
       break;
@@ -421,24 +421,22 @@ int OpBranch(int op)
   OpStart(op,size?0x10:0);
   Cycles=10; // Assume branch taken
 
-  if (cc==1) ot("  ldr r10,[r7,#0x60] ;@ Get Memory base\n");
-
   switch (cc)
   {
     case 0: // T
     case 1: // F
       break;
     case 2: // hi
-      ot("  tst r9,#0x60000000 ;@ hi: !C && !Z\n");
+      ot("  tst r10,#0x60000000 ;@ hi: !C && !Z\n");
       ot("  bne BccDontBranch%i\n\n",8<<size);
       break;
     case 3: // ls
-      ot("  tst r9,#0x60000000 ;@ ls: C || Z\n");
+      ot("  tst r10,#0x60000000 ;@ ls: C || Z\n");
       ot("  beq BccDontBranch%i\n\n",8<<size);
       break;
     default:
       ot(";@ Is the condition true?\n");
-      ot("  msr cpsr_flg,r9 ;@ ARM flags = 68000 flags\n");
+      ot("  msr cpsr_flg,r10 ;@ ARM flags = 68000 flags\n");
       ot("  b%s BccDontBranch%i\n\n",Cond[cc^1],8<<size);
       break;
   }
@@ -467,8 +465,9 @@ int OpBranch(int op)
   if (cc==1)
   {
     ot(";@ Bsr - remember old PC\n");
+    ot("  ldr r12,[r7,#0x60] ;@ Get Memory base\n");
     ot("  ldr r2,[r7,#0x3c]\n");
-    ot("  sub r1,r4,r10 ;@ r1 = Old PC\n");
+    ot("  sub r1,r4,r12 ;@ r1 = Old PC\n");
     if (size) ot("  add r1,r1,#%d\n",1<<size);
     ot("\n");
     ot(";@ Push r1 onto stack\n");

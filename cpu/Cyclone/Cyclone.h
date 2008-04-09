@@ -29,7 +29,7 @@ struct Cyclone
   unsigned int osp;     // [r7,#0x48] Other Stack Pointer (USP/SSP)
   unsigned int xc;      // [r7,#0x4c] Extend flag (bit29: ??X? _)
   unsigned int prev_pc; // [r7,#0x50] Set to start address of currently executed opcode + 2 (if enabled in config.h)
-  unsigned int reserved;// [r7,#0x54] Reserved for possible future use
+  unsigned int jumptab; // [r7,#0x54] Jump table pointer
   int state_flags;      // [r7,#0x58] bit: 0: stopped state, 1: trace state, 2: activity bit, 3: addr error, 4: fatal halt
   int cycles;           // [r7,#0x5c] Number of cycles to execute - 1. Updates to cycles left after CycloneRun()
   int membase;          // [r7,#0x60] Memory Base (ARM address minus 68000 address)

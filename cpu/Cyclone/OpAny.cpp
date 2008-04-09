@@ -133,17 +133,17 @@ int OpBase(int op,int size,int sepa)
 // Get flags, trashes r2
 int OpGetFlags(int subtract,int xbit,int specialz)
 {
-  if (specialz) ot("  orr r2,r9,#0xb0000000 ;@ for old Z\n");
+  if (specialz) ot("  orr r2,r10,#0xb0000000 ;@ for old Z\n");
 
-  ot("  mrs r9,cpsr ;@ r9=flags\n");
+  ot("  mrs r10,cpsr ;@ r10=flags\n");
 
-  if (specialz) ot("  andeq r9,r9,r2 ;@ fix Z\n");
+  if (specialz) ot("  andeq r10,r10,r2 ;@ fix Z\n");
 
-  if (subtract) ot("  eor r9,r9,#0x20000000 ;@ Invert carry\n");
+  if (subtract) ot("  eor r10,r10,#0x20000000 ;@ Invert carry\n");
 
   if (xbit)
   {
-    ot("  str r9,[r7,#0x4c] ;@ Save X bit\n");
+    ot("  str r10,[r7,#0x4c] ;@ Save X bit\n");
   }
   return 0;
 }
