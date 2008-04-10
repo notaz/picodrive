@@ -480,6 +480,7 @@ What's New
 v0.0099 notaz
   * Cyclone no longer uses r9, because AAPCS defines it as "platform register",
     so it's reserved in some systems.
+  * Made SPLIT_MOVEL_PD to affect MOVEM too.
 
 v0.0088 notaz
   - Reduced amount of code in opcode handlers by ~23% by doing the following:

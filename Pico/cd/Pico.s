@@ -28,7 +28,7 @@
 .global SekRunPS @ cyc_m68k, cyc_s68k
 
 SekRunPS:
-    stmfd   sp!, {r4-r11,lr}
+    stmfd   sp!, {r4-r8,r10,r11,lr}
     sub     sp, sp, #2*4          @ sp[0] = main_cycle_cnt, sp[4] = run_cycle_cnt
 
     @ override CycloneEnd for both contexts
@@ -136,7 +136,7 @@ SekRunPS_end:
     str     r0, [lr,#0x98]
     @ return
     add     sp, sp, #2*4
-    ldmfd   sp!, {r4-r11,pc}
+    ldmfd   sp!, {r4-r8,r10,r11,pc}
 
 
 
