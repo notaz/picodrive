@@ -248,7 +248,7 @@ struct PicoMisc
   unsigned short z80_bank68k;  // 0a
   unsigned short z80_lastaddr; // this is for Z80 faking
   unsigned char  z80_fakeval;
-  unsigned char  pad0;
+  unsigned char  z80_reset;    // z80 reset held
   unsigned char  padDelay[2];  // 10 gamepad phase time outs, so we count a delay
   unsigned short eeprom_addr;  // EEPROM address register
   unsigned char  eeprom_cycle; // EEPROM SRAM cycle number
