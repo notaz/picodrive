@@ -649,6 +649,10 @@ Additional thanks
 
 Changelog
 ---------
+1.40c
+  * Fixed a problem with sound in Marble Madness.
+  * GP2X: Fixed minor problem with key config.
+
 1.40b
   * Fixed sprite masking code. Thanks to Lordus for explaining how it works.
   + Added "disable sprite limit" option.
