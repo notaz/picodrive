@@ -434,7 +434,7 @@ void YM2612Init_940(int baseclock, int rate)
 
 void YM2612ResetChip_940(void)
 {
-	printf("YM2612ResetChip_940()\n");
+	//printf("YM2612ResetChip_940()\n");
 	if (shared_data == NULL) {
 		printf("YM2612ResetChip_940: reset before init?\n");
 		return;
