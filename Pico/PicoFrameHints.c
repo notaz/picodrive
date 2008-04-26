@@ -209,8 +209,10 @@ static int PicoFrameHints(void)
     elprintf(EL_INTS, "vint: @ %06x [%i]", SekPc, SekCycleCnt);
     SekInterrupt(6);
   }
-  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
+  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80)) {
+    elprintf(EL_INTS, "zint");
     z80_int();
+  }
 
   if (PicoOpt&POPT_EN_FM)
     Psnd_timers_and_dac(y);

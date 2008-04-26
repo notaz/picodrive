@@ -122,7 +122,7 @@ u32 OtherRead16(u32 a, int realsize)
   if ((a&0xff0000)==0xa00000)
   {
     if (Pico.m.z80Run&1)
-      elprintf(EL_ANOMALY, "68k z80 read with no bus! [%06x]", a);
+      elprintf(EL_ANOMALY, "68k z80 read with no bus! [%06x] @ %06x", a, SekPc);
     if ((a&0x4000)==0x0000) { d=z80Read8(a); d|=d<<8; goto end; } // Z80 ram (not byteswaped)
     if ((a&0x6000)==0x4000) { // 0x4000-0x5fff, Fudge if disabled
       if(PicoOpt&POPT_EN_FM) d=YM2612Read();
@@ -145,7 +145,7 @@ static void IoWrite8(u32 a, u32 d)
 {
   a=(a>>1)&0xf;
   // 6 button gamepad: if TH went from 0 to 1, gamepad changes state
-  if(PicoOpt&POPT_6BTN_PAD)
+  if (PicoOpt&POPT_6BTN_PAD)
   {
     if (a==1) {
       Pico.m.padDelay[0] = 0;
@@ -168,7 +168,10 @@ void OtherWrite8(u32 a,u32 d)
   if ((a&0xe700f9)==0xc00011||(a&0xff7ff9)==0xa07f11) { if(PicoOpt&2) SN76496Write(d); return; } // PSG Sound
   if ((a&0xff4000)==0xa00000) { // z80 RAM
     if (!(Pico.m.z80Run&1)) Pico.zram[a&0x1fff]=(u8)d;
-    else elprintf(EL_ANOMALY, "68k z80 write with no bus! [%06x] %02x", a, d);
+    else {
+      elprintf(EL_ANOMALY, "68k z80 write with no bus! [%06x] %02x @ %06x", a, d, SekPc);
+      SekCyclesBurn(4); // hack?
+    }
     return;
   }
   if ((a&0xff6000)==0xa04000)  { if(PicoOpt&1) emustatus|=YM2612Write(a&3, d)&1; return; } // FM Sound
@@ -216,7 +219,7 @@ void OtherWrite16(u32 a,u32 d)
   if ((a&0xff6000)==0xa04000) { if(PicoOpt&1) emustatus|=YM2612Write(a&3, d)&1; return; } // FM Sound (??)
   if ((a&0xff4000)==0xa00000) { // Z80 ram (MSB only)
     if (!(Pico.m.z80Run&1)) Pico.zram[a&0x1fff]=(u8)(d>>8);
-    else elprintf(EL_ANOMALY, "68k z80 write with no bus! [%06x] %02x", a, d);
+    else elprintf(EL_ANOMALY, "68k z80 write with no bus! [%06x] %02x @ %06x", a, d, SekPc);
     return;
   }
   if (a==0xa11200) {

@@ -57,6 +57,8 @@ void PicoExit(void)
 
 void PicoPower(void)
 {
+  unsigned char sram_reg=Pico.m.sram_reg; // must be preserved
+
   // clear all memory of the emulated machine
   memset(&Pico.ram,0,(unsigned int)&Pico.rom-(unsigned int)&Pico.ram);
 
@@ -74,6 +76,7 @@ void PicoPower(void)
   if (PicoAHW & PAHW_MCD)
     PicoPowerMCD();
 
+  Pico.m.sram_reg=sram_reg;
   PicoReset();
 }
 
