@@ -94,6 +94,7 @@ void PicoCDBufferFree(void);
 
 // cd/cd_sys.c
 int Insert_CD(char *iso_name, int is_bin);
+int Insert_CD(char *cdimg_name, int type);
 void Stop_CD(void); // releases all resources taken when CD game was started.
 
 // Cart.c
@@ -137,7 +138,7 @@ void vidConvCpyRGB565(void *to, void *from, int pixels);
 #define PDRAW_SPRITES_MOVED (1<<0)
 #define PDRAW_WND_DIFF_PRIO (1<<1) // not all window tiles use same priority
 #define PDRAW_ACC_SPRITES   (1<<2) // accurate sprites (copied from PicoOpt)
-#define PDRAW_INTERLACE     (1<<3) // 
+#define PDRAW_INTERLACE     (1<<3) //
 #define PDRAW_DIRTY_SPRITES (1<<4)
 #define PDRAW_SONIC_MODE    (1<<5) // mid-frame palette changes for 8bit renderer
 #define PDRAW_PLANE_HI_PRIO (1<<6) // have layer with all hi prio tiles (mk3)

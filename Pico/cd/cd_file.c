@@ -13,7 +13,7 @@
 //#define cdprintf(f,...) printf(f "\n",##__VA_ARGS__) // tmp
 #define DEBUG_CD
 
-PICO_INTERNAL int Load_ISO(const char *iso_name, int is_bin)
+PICO_INTERNAL int Load_CD_Image(const char *iso_name, cd_img_type type)
 {
 	int i, j, num_track, Cur_LBA, index, ret, iso_name_len;
 	_scd_track *Tracks = Pico_mcd->TOC.Tracks;
@@ -31,7 +31,7 @@ PICO_INTERNAL int Load_ISO(const char *iso_name, int is_bin)
 
 	Unload_ISO();
 
-	Tracks[0].ftype = is_bin ? TYPE_BIN : TYPE_ISO;
+	Tracks[0].ftype = type == CIT_BIN ? TYPE_BIN : TYPE_ISO;
 
 	Tracks[0].F = pmf = pm_open(iso_name);
 	if (Tracks[0].F == NULL)

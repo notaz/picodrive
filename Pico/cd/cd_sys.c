@@ -196,16 +196,16 @@ PICO_INTERNAL void Reset_CD(void)
 }
 
 
-int Insert_CD(char *iso_name, int is_bin)
+int Insert_CD(char *cdimg_name, int type)
 {
-	int ret = 0;
+	int ret = 1;
 
 	CD_Present = 0;
 	Pico_mcd->scd.Status_CDD = NOCD;
 
-	if (iso_name != NULL)
+	if (cdimg_name != NULL && type != CIT_NOT_CD)
 	{
-		ret = Load_ISO(iso_name, is_bin);
+		ret = Load_CD_Image(cdimg_name, type);
 		if (ret == 0) {
 			CD_Present = 1;
 			Pico_mcd->scd.Status_CDD = READY;

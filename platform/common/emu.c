@@ -164,6 +164,9 @@ int emu_cdCheck(int *pregion)
 	unsigned char buf[32];
 	pm_file *cd_f;
 	int type = 0, region = 4; // 1: Japan, 4: US, 8: Europe
+	char ext[5];
+
+	get_ext(romFileName, ext);
 
 	cd_f = pm_open(romFileName);
 	if (!cd_f) return 0; // let the upper level handle this
@@ -330,7 +333,7 @@ int emu_ReloadRom(void)
 
 	// check for MegaCD image
 	cd_state = emu_cdCheck(&cd_region);
-	if (cd_state > 0)
+	if (cd_state != CIT_NOT_CD)
 	{
 		PicoAHW |= PAHW_MCD;
 		// valid CD image, check for BIOS..
@@ -405,8 +408,8 @@ int emu_ReloadRom(void)
 	Pico.m.frame_count = 0;
 
 	// insert CD if it was detected
-	if (cd_state > 0) {
-		ret = Insert_CD(romFileName, cd_state == 2);
+	if (cd_state != CIT_NOT_CD) {
+		ret = Insert_CD(romFileName, cd_state);
 		if (ret != 0) {
 			sprintf(menuErrorMsg, "Insert_CD() failed, invalid CD image?");
 			lprintf("%s\n", menuErrorMsg);

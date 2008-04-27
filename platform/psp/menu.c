@@ -185,7 +185,7 @@ struct my_dirent
 static unsigned short file2color(const char *fname)
 {
 	const char *ext = fname + strlen(fname) - 3;
-	static const char *rom_exts[]   = { "zip", "bin", "smd", "gen", "iso", "cso" };
+	static const char *rom_exts[]   = { "zip", "bin", "smd", "gen", "iso", "cso", "cue" };
 	static const char *other_exts[] = { "gmv", "pat" };
 	int i;
 
@@ -241,7 +241,7 @@ static int scandir_cmp(const void *p1, const void *p2)
 
 static char *filter_exts[] = {
 	".mp3", ".srm", ".brm", "s.gz", ".mds", "bcfg", ".txt", ".htm", "html",
-	".jpg", ".cue", ".pbp"
+	".jpg", ".pbp"
 };
 
 static int scandir_filter(const struct my_dirent *ent)
@@ -1810,10 +1810,11 @@ int menu_loop_tray(void)
 				case 0: // select image
 					selfname = romsel_loop(curr_path);
 					if (selfname) {
-						int ret = -1, cd_type;
+						int ret = -1;
+						cd_img_type cd_type;
 						cd_type = emu_cdCheck(NULL);
-						if (cd_type > 0)
-							ret = Insert_CD(romFileName, cd_type == 2);
+						if (cd_type != CIT_NOT_CD)
+							ret = Insert_CD(romFileName, cd_type);
 						if (ret != 0) {
 							sprintf(menuErrorMsg, "Load failed, invalid CD image?");
 							lprintf("%s\n", menuErrorMsg);

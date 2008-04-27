@@ -1618,10 +1618,11 @@ int menu_loop_tray(void)
 				case 0: // select image
 					selfname = romsel_loop(curr_path);
 					if (selfname) {
-						int ret = -1, cd_type;
+						int ret = -1;
+						cd_img_type cd_type;
 						cd_type = emu_cdCheck(NULL);
-						if (cd_type > 0)
-							ret = Insert_CD(romFileName, cd_type == 2);
+						if (cd_type != CIT_NOT_CD)
+							ret = Insert_CD(romFileName, cd_type);
 						if (ret != 0) {
 							sprintf(menuErrorMsg, "Load failed, invalid CD image?");
 							lprintf("%s\n", menuErrorMsg);
