@@ -46,6 +46,7 @@ typedef struct
 	char ftype; // TYPE_ISO, TYPE_BIN, TYPE_MP3
 	void *F;
 	int Length;
+	int Offset;  // sector offset, when single file is used for multiple virtual tracks
 	short KBtps; // kbytes per sec for mp3s (bitrate / 1000 / 8)
 	short pad;
 } _scd_track;

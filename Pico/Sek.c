@@ -114,7 +114,7 @@ PICO_INTERNAL int SekInit()
     m68k_init();
     m68k_set_int_ack_callback(SekIntAckM68K);
     m68k_set_tas_instr_callback(SekTasCallback);
-    m68k_pulse_reset(); // Init cpu emulator
+    //m68k_pulse_reset();
     m68k_set_context(oldcontext);
   }
 #endif

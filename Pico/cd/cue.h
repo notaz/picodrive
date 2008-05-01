@@ -20,9 +20,9 @@ typedef struct
 {
 	int track_count;
 	cue_track tracks[0];
-} cue_data;
+} cue_data_t;
 
 
-cue_data *cue_parse(const char *fname);
-void      cue_destroy(cue_data *data);
+cue_data_t *cue_parse(const char *fname);
+void        cue_destroy(cue_data_t *data);
 

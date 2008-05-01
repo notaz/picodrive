@@ -528,9 +528,14 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
 
   // setup correct memory map for loaded ROM
   // call PicoMemReset again due to possible memmap change
-  if (PicoAHW & PAHW_MCD)
-       PicoMemSetupCD();
-  else PicoMemSetup();
+  switch (PicoAHW) {
+    default:
+      elprintf(EL_STATUS|EL_ANOMALY, "starting in unknown hw configuration: %x", PicoAHW);
+    case 0:
+    case PAHW_SVP:  PicoMemSetup(); break;
+    case PAHW_MCD:  PicoMemSetupCD(); break;
+    case PAHW_PICO: PicoMemSetupPico(); break;
+  }
   PicoMemReset();
 
   PicoPower();
@@ -672,6 +677,13 @@ static void PicoCartDetect(void)
            name_cmp("VIRTUA RACING") == 0)
   {
     PicoSVPStartup();
+  }
+
+  // Pico
+  else if (rom_strcmp(0x100, "SEGA PICO") == 0 ||
+           rom_strcmp(0x100, "IMA IKUNOUJYUKU") == 0) // what is that supposed to mean?
+  {
+    PicoInitPico();
   }
 
   // Detect 12-in-1 mapper

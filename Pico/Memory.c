@@ -210,6 +210,14 @@ static u32 OtherRead16End(u32 a, int realsize)
 {
   u32 d=0;
 
+  // 32x test
+/*
+  if      (a == 0xa130ec) { d = 0x4d41; goto end; } // MA
+  else if (a == 0xa130ee) { d = 0x5253; goto end; } // RS
+  else if (a == 0xa15100) { d = 0x0080; goto end; }
+  else
+*/
+
   // for games with simple protection devices, discovered by Haze
   // some dumb detection is used, but that should be enough to make things work
   if ((a>>22) == 1 && Pico.romsize >= 512*1024) {
@@ -488,7 +496,6 @@ static void PicoWrite32(u32 a,u32 d)
 
 // -----------------------------------------------------------------
 
-// TODO: asm code
 static void OtherWrite16End(u32 a,u32 d,int realsize)
 {
   PicoWrite8Hook(a,  d>>8, realsize);
@@ -506,6 +513,10 @@ PICO_INTERNAL void PicoMemResetHooks(void)
   PicoWrite8Hook = OtherWrite8End;
   PicoWrite16Hook = OtherWrite16End;
 }
+
+#ifdef EMU_M68K
+static void m68k_mem_setup(void);
+#endif
 
 PICO_INTERNAL void PicoMemSetup(void)
 {
@@ -530,7 +541,7 @@ PICO_INTERNAL void PicoMemSetup(void)
   // setup FAME fetchmap
   {
     int i;
-    // by default, point everything to fitst 64k of ROM
+    // by default, point everything to first 64k of ROM
     for (i = 0; i < M68K_FETCHBANK1; i++)
       PicoCpuFM68k.Fetch[i] = (unsigned int)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
     // now real ROM
@@ -541,15 +552,24 @@ PICO_INTERNAL void PicoMemSetup(void)
       PicoCpuFM68k.Fetch[i] = (unsigned int)Pico.ram - (i<<(24-FAMEC_FETCHBITS));
   }
 #endif
+#ifdef EMU_M68K
+  m68k_mem_setup();
+#endif
 }
 
-
+/* some nasty things below :( */
 #ifdef EMU_M68K
-unsigned int  m68k_read_pcrelative_CD8 (unsigned int a);
-unsigned int  m68k_read_pcrelative_CD16(unsigned int a);
-unsigned int  m68k_read_pcrelative_CD32(unsigned int a);
+unsigned int (*pm68k_read_memory_8) (unsigned int address) = NULL;
+unsigned int (*pm68k_read_memory_16)(unsigned int address) = NULL;
+unsigned int (*pm68k_read_memory_32)(unsigned int address) = NULL;
+void (*pm68k_write_memory_8) (unsigned int address, unsigned char  value) = NULL;
+void (*pm68k_write_memory_16)(unsigned int address, unsigned short value) = NULL;
+void (*pm68k_write_memory_32)(unsigned int address, unsigned int   value) = NULL;
+unsigned int (*pm68k_read_memory_pcr_8) (unsigned int address) = NULL;
+unsigned int (*pm68k_read_memory_pcr_16)(unsigned int address) = NULL;
+unsigned int (*pm68k_read_memory_pcr_32)(unsigned int address) = NULL;
 
-// these are allowed to access RAM
+// these are here for core debugging mode
 static unsigned int  m68k_read_8 (unsigned int a, int do_fake)
 {
   a&=0xffffff;
@@ -557,9 +577,7 @@ static unsigned int  m68k_read_8 (unsigned int a, int do_fake)
 #ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
-  if(PicoAHW&1) return m68k_read_pcrelative_CD8(a);
-  if((a&0xe00000)==0xe00000) return *(u8 *)(Pico.ram+((a^1)&0xffff)); // Ram
-  return 0;
+  return pm68k_read_memory_pcr_8(a);
 }
 static unsigned int  m68k_read_16(unsigned int a, int do_fake)
 {
@@ -568,9 +586,7 @@ static unsigned int  m68k_read_16(unsigned int a, int do_fake)
 #ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
-  if(PicoAHW&1) return m68k_read_pcrelative_CD16(a);
-  if((a&0xe00000)==0xe00000) return *(u16 *)(Pico.ram+(a&0xfffe)); // Ram
-  return 0;
+  return pm68k_read_memory_pcr_16(a);
 }
 static unsigned int  m68k_read_32(unsigned int a, int do_fake)
 {
@@ -579,9 +595,7 @@ static unsigned int  m68k_read_32(unsigned int a, int do_fake)
 #ifdef EMU_CORE_DEBUG
   if(do_fake&&((ppop&0x3f)==0x3a||(ppop&0x3f)==0x3b)) return lastread_d[lrp_mus++&15];
 #endif
-  if(PicoAHW&1) return m68k_read_pcrelative_CD32(a);
-  if((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); return (pm[0]<<16)|pm[1]; } // Ram
-  return 0;
+  return pm68k_read_memory_pcr_32(a);
 }
 
 unsigned int m68k_read_pcrelative_8 (unsigned int a)   { return m68k_read_8 (a, 1); }
@@ -592,6 +606,24 @@ unsigned int m68k_read_immediate_32(unsigned int a)    { return m68k_read_32(a, 
 unsigned int m68k_read_disassembler_8 (unsigned int a) { return m68k_read_8 (a, 0); }
 unsigned int m68k_read_disassembler_16(unsigned int a) { return m68k_read_16(a, 0); }
 unsigned int m68k_read_disassembler_32(unsigned int a) { return m68k_read_32(a, 0); }
+
+static unsigned int m68k_read_memory_pcr_8(unsigned int a)
+{
+  if((a&0xe00000)==0xe00000) return *(u8 *)(Pico.ram+((a^1)&0xffff)); // Ram
+  return 0;
+}
+
+static unsigned int m68k_read_memory_pcr_16(unsigned int a)
+{
+  if((a&0xe00000)==0xe00000) return *(u16 *)(Pico.ram+(a&0xfffe)); // Ram
+  return 0;
+}
+
+static unsigned int m68k_read_memory_pcr_32(unsigned int a)
+{
+  if((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); return (pm[0]<<16)|pm[1]; } // Ram
+  return 0;
+}
 
 #ifdef EMU_CORE_DEBUG
 // ROM only
@@ -628,47 +660,30 @@ unsigned int m68k_read_memory_32(unsigned int a)
 void m68k_write_memory_8(unsigned int address, unsigned int value)  { lastwrite_mus_d[lwp_mus++&15] = value; }
 void m68k_write_memory_16(unsigned int address, unsigned int value) { lastwrite_mus_d[lwp_mus++&15] = value; }
 void m68k_write_memory_32(unsigned int address, unsigned int value) { lastwrite_mus_d[lwp_mus++&15] = value; }
-#else
-unsigned char  PicoReadCD8w (unsigned int a);
-unsigned short PicoReadCD16w(unsigned int a);
-unsigned int   PicoReadCD32w(unsigned int a);
-void PicoWriteCD8w (unsigned int a, unsigned char d);
-void PicoWriteCD16w(unsigned int a, unsigned short d);
-void PicoWriteCD32w(unsigned int a, unsigned int d);
+
+#else // if !EMU_CORE_DEBUG
 
 /* it appears that Musashi doesn't always mask the unused bits */
-unsigned int  m68k_read_memory_8(unsigned int address)
-{
-    unsigned int d = (PicoAHW&1) ? PicoReadCD8w(address) : PicoRead8(address);
-    return d&0xff;
-}
+unsigned int m68k_read_memory_8 (unsigned int address) { return pm68k_read_memory_8 (address) & 0xff; }
+unsigned int m68k_read_memory_16(unsigned int address) { return pm68k_read_memory_16(address) & 0xffff; }
+unsigned int m68k_read_memory_32(unsigned int address) { return pm68k_read_memory_32(address); }
+void m68k_write_memory_8 (unsigned int address, unsigned int value) { pm68k_write_memory_8 (address, (u8)value); }
+void m68k_write_memory_16(unsigned int address, unsigned int value) { pm68k_write_memory_16(address,(u16)value); }
+void m68k_write_memory_32(unsigned int address, unsigned int value) { pm68k_write_memory_32(address, value); }
+#endif // !EMU_CORE_DEBUG
 
-unsigned int  m68k_read_memory_16(unsigned int address)
+static void m68k_mem_setup(void)
 {
-    unsigned int d = (PicoAHW&1) ? PicoReadCD16w(address) : PicoRead16(address);
-    return d&0xffff;
+  pm68k_read_memory_8  = PicoRead8;
+  pm68k_read_memory_16 = PicoRead16;
+  pm68k_read_memory_32 = PicoRead32;
+  pm68k_write_memory_8  = PicoWrite8;
+  pm68k_write_memory_16 = PicoWrite16;
+  pm68k_write_memory_32 = PicoWrite32;
+  pm68k_read_memory_pcr_8  = m68k_read_memory_pcr_8;
+  pm68k_read_memory_pcr_16 = m68k_read_memory_pcr_16;
+  pm68k_read_memory_pcr_32 = m68k_read_memory_pcr_32;
 }
-
-unsigned int  m68k_read_memory_32(unsigned int address)
-{
-    return (PicoAHW&1) ? PicoReadCD32w(address) : PicoRead32(address);
-}
-
-void m68k_write_memory_8(unsigned int address, unsigned int value)
-{
-    if (PicoAHW&1) PicoWriteCD8w(address, (u8)value); else PicoWrite8(address, (u8)value);
-}
-
-void m68k_write_memory_16(unsigned int address, unsigned int value)
-{
-    if (PicoAHW&1) PicoWriteCD16w(address,(u16)value); else PicoWrite16(address,(u16)value);
-}
-
-void m68k_write_memory_32(unsigned int address, unsigned int value)
-{
-    if (PicoAHW&1) PicoWriteCD32w(address, value); else PicoWrite32(address, value);
-}
-#endif
 #endif // EMU_M68K
 
 

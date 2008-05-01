@@ -18,6 +18,7 @@
 
 #include <Pico/PicoInt.h>
 #include <Pico/Patch.h>
+#include <Pico/cd/cue.h>
 #include <zlib/zlib.h>
 
 #if   defined(__GP2X__)
@@ -163,12 +164,24 @@ int emu_cdCheck(int *pregion)
 {
 	unsigned char buf[32];
 	pm_file *cd_f;
-	int type = 0, region = 4; // 1: Japan, 4: US, 8: Europe
-	char ext[5];
+	int region = 4; // 1: Japan, 4: US, 8: Europe
+	char ext[5], *fname = romFileName;
+	cue_track_type type = CT_UNKNOWN;
+	cue_data_t *cue_data = NULL;
 
 	get_ext(romFileName, ext);
+	if (strcasecmp(ext, ".cue") == 0) {
+		cue_data = cue_parse(romFileName);
+		if (cue_data != NULL) {
+			fname = cue_data->tracks[1].fname;
+			type  = cue_data->tracks[1].type;
+		}
+	}
 
-	cd_f = pm_open(romFileName);
+	cd_f = pm_open(fname);
+	if (cue_data != NULL)
+		cue_destroy(cue_data);
+
 	if (!cd_f) return 0; // let the upper level handle this
 
 	if (pm_read(buf, 32, cd_f) != 32) {
@@ -176,18 +189,27 @@ int emu_cdCheck(int *pregion)
 		return 0;
 	}
 
-	if (!strncasecmp("SEGADISCSYSTEM", (char *)buf+0x00, 14)) type = 1;       // Sega CD (ISO)
-	if (!strncasecmp("SEGADISCSYSTEM", (char *)buf+0x10, 14)) type = 2;       // Sega CD (BIN)
-	if (type == 0) {
+	if (!strncasecmp("SEGADISCSYSTEM", (char *)buf+0x00, 14)) {
+		if (type && type != CT_ISO)
+			elprintf(EL_STATUS, ".cue has wrong type: %i", type);
+		type = CT_ISO;       // Sega CD (ISO)
+	}
+	if (!strncasecmp("SEGADISCSYSTEM", (char *)buf+0x10, 14)) {
+		if (type && type != CT_BIN)
+			elprintf(EL_STATUS, ".cue has wrong type: %i", type);
+		type = CT_BIN;       // Sega CD (BIN)
+	}
+
+	if (type == CT_UNKNOWN) {
 		pm_close(cd_f);
 		return 0;
 	}
 
-	pm_seek(cd_f, (type == 1) ? 0x100 : 0x110, SEEK_SET);
+	pm_seek(cd_f, (type == CT_ISO) ? 0x100 : 0x110, SEEK_SET);
 	pm_read(id_header, sizeof(id_header), cd_f);
 
 	/* it seems we have a CD image here. Try to detect region now.. */
-	pm_seek(cd_f, (type == 1) ? 0x100+0x10B : 0x110+0x10B, SEEK_SET);
+	pm_seek(cd_f, (type == CT_ISO) ? 0x100+0x10B : 0x110+0x10B, SEEK_SET);
 	pm_read(buf, 1, cd_f);
 	pm_close(cd_f);
 
@@ -195,7 +217,7 @@ int emu_cdCheck(int *pregion)
 	if (buf[0] == 0xa1) region = 1; // JAP
 
 	lprintf("detected %s Sega/Mega CD image with %s region\n",
-		type == 2 ? "BIN" : "ISO", region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
+		type == CT_BIN ? "BIN" : "ISO", region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
 
 	if (pregion != NULL) *pregion = region;
 

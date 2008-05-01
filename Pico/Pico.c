@@ -16,7 +16,7 @@ int PicoOpt = 0;
 int PicoSkipFrame = 0; // skip rendering frame?
 int emustatus = 0;     // rapid_ym2612, multi_ym_updates
 int PicoPad[2];        // Joypads, format is SACB RLDU
-int PicoAHW = 0;       // active addon hardware: scd_active, 32x_active, svp_active
+int PicoAHW = 0;       // active addon hardware: scd_active, 32x_active, svp_active, pico_active
 int PicoRegionOverride = 0; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 int PicoAutoRgnOrder = 0;
 int z80startCycle, z80stopCycle; // in 68k cycles

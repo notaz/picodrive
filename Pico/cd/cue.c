@@ -3,8 +3,8 @@
 #include <string.h>
 #include "cue.h"
 
-//#include "../PicoInt.h"
-#define elprintf(w,f,...) printf(f "\n",##__VA_ARGS__);
+#include "../PicoInt.h"
+// #define elprintf(w,f,...) printf(f "\n",##__VA_ARGS__);
 
 static char *mystrip(char *str)
 {
@@ -42,7 +42,7 @@ static int get_token(const char *buff, char *dest, int len)
 		dest[d++] = *p++;
 	dest[d] = 0;
 
-	if (*p != sep)
+	if (sep == '\"' && *p != sep)
 		elprintf(EL_STATUS, "cue: bad token: \"%s\"", buff);
 
 	return d + skip;
@@ -51,19 +51,19 @@ static int get_token(const char *buff, char *dest, int len)
 static char *get_ext(char *fname)
 {
 	int len = strlen(fname);
-	return (len >= 3) ? (fname - 3) : (fname - len);
+	return (len >= 3) ? (fname + len - 3) : fname;
 }
 
 
 #define BEGINS(buff,str) (strncmp(buff,str,sizeof(str)-1) == 0)
 
 /* note: tracks[0] is not used */
-cue_data *cue_parse(const char *fname)
+cue_data_t *cue_parse(const char *fname)
 {
 	char buff[256], current_file[256], buff2[32];
 	FILE *f, *tmpf;
 	int ret, count = 0, count_alloc = 2;
-	cue_data *data;
+	cue_data_t *data;
 	void *tmp;
 
 	f = fopen(fname, "r");
@@ -92,6 +92,7 @@ cue_data *cue_parse(const char *fname)
 				count_alloc *= 2;
 				tmp = realloc(data, sizeof(*data) + count_alloc * sizeof(cue_track));
 				if (tmp == NULL) { count--; break; }
+				data = tmp;
 			}
 			memset(&data->tracks[count], 0, sizeof(data->tracks[0]));
 			if (count == 1 || strcmp(data->tracks[1].fname, current_file) != 0)
@@ -113,11 +114,11 @@ cue_data *cue_parse(const char *fname)
 					count, atoi(buff2));
 			// check type
 			get_token(buff+6+ret, buff2, sizeof(buff2));
-			if      (strcmp(buff2, "MODE1/2352"))
+			if      (strcmp(buff2, "MODE1/2352") == 0)
 				data->tracks[count].type = CT_BIN;
-			else if (strcmp(buff2, "MODE1/2048"))
+			else if (strcmp(buff2, "MODE1/2048") == 0)
 				data->tracks[count].type = CT_ISO;
-			else if (strcmp(buff2, "AUDIO"))
+			else if (strcmp(buff2, "AUDIO") == 0)
 			{
 				if (data->tracks[count].fname != NULL)
 				{
@@ -131,6 +132,11 @@ cue_data *cue_parse(const char *fname)
 						elprintf(EL_STATUS, "unhandled audio format: \"%s\"",
 							data->tracks[count].fname);
 					}
+				}
+				else
+				{
+					// propagate previous
+					data->tracks[count].type = data->tracks[count-1].type;
 				}
 			}
 			else {
@@ -149,18 +155,28 @@ cue_data *cue_parse(const char *fname)
 			}
 			// offset in file
 			get_token(buff+6+ret, buff2, sizeof(buff2));
-			ret = sscanf(buff2, "%i:%i:%i", &m, &s, &f);
+			ret = sscanf(buff2, "%d:%d:%d", &m, &s, &f);
 			if (ret != 3) {
 				elprintf(EL_STATUS, "cue: failed to parse: \"%s\"", buff);
 				count--; break;
 			}
 			data->tracks[count].sector_offset = m*60*75 + s*75 + f;
+			// some strange .cues may need this
+			if (data->tracks[count].fname != NULL && strcmp(data->tracks[count].fname, current_file) != 0)
+			{
+				free(data->tracks[count].fname);
+				data->tracks[count].fname = strdup(current_file);
+			}
+			if (data->tracks[count].fname == NULL && strcmp(data->tracks[1].fname, current_file) != 0)
+			{
+				data->tracks[count].fname = strdup(current_file);
+			}
 		}
 		else if (BEGINS(buff, "PREGAP "))
 		{
 			int m, s, f;
 			get_token(buff+7, buff2, sizeof(buff2));
-			ret = sscanf(buff2, "%i:%i:%i", &m, &s, &f);
+			ret = sscanf(buff2, "%d:%d:%d", &m, &s, &f);
 			if (ret != 3) {
 				elprintf(EL_STATUS, "cue: failed to parse: \"%s\"", buff);
 				continue;
@@ -169,7 +185,7 @@ cue_data *cue_parse(const char *fname)
 		}
 		else
 		{
-			elprintf(EL_STATUS, "cue: failed to parse: \"%s\"", buff);
+			elprintf(EL_STATUS, "cue: unhandled line: \"%s\"", buff);
 		}
 	}
 
@@ -187,7 +203,7 @@ cue_data *cue_parse(const char *fname)
 }
 
 
-void cue_destroy(cue_data *data)
+void cue_destroy(cue_data_t *data)
 {
 	int c;
 
@@ -200,19 +216,22 @@ void cue_destroy(cue_data *data)
 }
 
 
+#if 0
 int main(int argc, char *argv[])
 {
-	cue_data *data = cue_parse(argv[1]);
+	cue_data_t *data = cue_parse(argv[1]);
 	int c;
 
 	if (data == NULL) return 1;
 
 	for (c = 1; c <= data->track_count; c++)
-		printf("%2i: %i %9i %9i %s\n", c, data->tracks[c].type, data->tracks[c].sector_offset,
-			data->tracks[c].pregap, data->tracks[c].fname);
+		printf("%2i: %i %9i %02i:%02i:%02i %9i %s\n", c, data->tracks[c].type, data->tracks[c].sector_offset,
+			data->tracks[c].sector_offset / (75*60), data->tracks[c].sector_offset / 75 % 60,
+			data->tracks[c].sector_offset % 75, data->tracks[c].pregap, data->tracks[c].fname);
 
 	cue_destroy(data);
 
 	return 0;
 }
+#endif
 

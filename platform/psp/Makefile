@@ -38,7 +38,7 @@ OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Memory.o ../../Pico/Misc.
 		../../Pico/Patch.o ../../Pico/Draw_amips.o ../../Pico/Memory_amips.o ../../Pico/Misc_amips.o
 # Pico - CD
 OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
-		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/gfx_cd.o \
+		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/cue.o ../../Pico/cd/gfx_cd.o \
 		../../Pico/cd/Area.o ../../Pico/cd/Misc.o ../../Pico/cd/pcm.o ../../Pico/cd/buffering.o
 # Pico - carthw
 OBJS += ../../Pico/carthw/carthw.o ../../Pico/carthw/svp/svp.o ../../Pico/carthw/svp/Memory.o \

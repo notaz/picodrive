@@ -1636,6 +1636,10 @@ void PicoMemResetCD(int r3)
 }
 #endif
 
+#ifdef EMU_M68K
+static void m68k_mem_setup_cd(void);
+#endif
+
 PICO_INTERNAL void PicoMemSetupCD(void)
 {
   // additional handlers for common code
@@ -1702,6 +1706,9 @@ PICO_INTERNAL void PicoMemSetupCD(void)
     // PicoMemResetCD() will setup word ram for both
   }
 #endif
+#ifdef EMU_M68K
+  m68k_mem_setup_cd();
+#endif
 
   // m68k_poll_addr = m68k_poll_cnt = 0;
   s68k_poll_adclk = s68k_poll_cnt = 0;
@@ -1709,27 +1716,27 @@ PICO_INTERNAL void PicoMemSetupCD(void)
 
 
 #ifdef EMU_M68K
-unsigned char  PicoReadCD8w (unsigned int a) {
+static unsigned int PicoReadCD8w (unsigned int a) {
 	return m68ki_cpu_p == &PicoCpuMS68k ? PicoReadS68k8(a) : PicoReadM68k8(a);
 }
-unsigned short PicoReadCD16w(unsigned int a) {
+static unsigned int PicoReadCD16w(unsigned int a) {
 	return m68ki_cpu_p == &PicoCpuMS68k ? PicoReadS68k16(a) : PicoReadM68k16(a);
 }
-unsigned int   PicoReadCD32w(unsigned int a) {
+static unsigned int PicoReadCD32w(unsigned int a) {
 	return m68ki_cpu_p == &PicoCpuMS68k ? PicoReadS68k32(a) : PicoReadM68k32(a);
 }
-void PicoWriteCD8w (unsigned int a, unsigned char d) {
+static void PicoWriteCD8w (unsigned int a, unsigned char d) {
 	if (m68ki_cpu_p == &PicoCpuMS68k) PicoWriteS68k8(a, d); else PicoWriteM68k8(a, d);
 }
-void PicoWriteCD16w(unsigned int a, unsigned short d) {
+static void PicoWriteCD16w(unsigned int a, unsigned short d) {
 	if (m68ki_cpu_p == &PicoCpuMS68k) PicoWriteS68k16(a, d); else PicoWriteM68k16(a, d);
 }
-void PicoWriteCD32w(unsigned int a, unsigned int d) {
+static void PicoWriteCD32w(unsigned int a, unsigned int d) {
 	if (m68ki_cpu_p == &PicoCpuMS68k) PicoWriteS68k32(a, d); else PicoWriteM68k32(a, d);
 }
 
 // these are allowed to access RAM
-unsigned int  m68k_read_pcrelative_CD8 (unsigned int a)
+static unsigned int  m68k_read_pcrelative_CD8 (unsigned int a)
 {
   a&=0xffffff;
   if(m68ki_cpu_p == &PicoCpuMS68k) {
@@ -1756,7 +1763,7 @@ unsigned int  m68k_read_pcrelative_CD8 (unsigned int a)
   }
   return 0;//(u8)  lastread_d;
 }
-unsigned int  m68k_read_pcrelative_CD16(unsigned int a)
+static unsigned int  m68k_read_pcrelative_CD16(unsigned int a)
 {
   a&=0xffffff;
   if(m68ki_cpu_p == &PicoCpuMS68k) {
@@ -1783,7 +1790,7 @@ unsigned int  m68k_read_pcrelative_CD16(unsigned int a)
   }
   return 0;
 }
-unsigned int  m68k_read_pcrelative_CD32(unsigned int a)
+static unsigned int  m68k_read_pcrelative_CD32(unsigned int a)
 {
   u16 *pm;
   a&=0xffffff;
@@ -1812,6 +1819,29 @@ unsigned int  m68k_read_pcrelative_CD32(unsigned int a)
     elprintf(EL_ANOMALY, "m68k_read_pcrelative_CD32 FIXME: can't handle %06x", a);
   }
   return 0;
+}
+
+extern unsigned int (*pm68k_read_memory_8) (unsigned int address);
+extern unsigned int (*pm68k_read_memory_16)(unsigned int address);
+extern unsigned int (*pm68k_read_memory_32)(unsigned int address);
+extern void (*pm68k_write_memory_8) (unsigned int address, unsigned char  value);
+extern void (*pm68k_write_memory_16)(unsigned int address, unsigned short value);
+extern void (*pm68k_write_memory_32)(unsigned int address, unsigned int   value);
+extern unsigned int (*pm68k_read_memory_pcr_8) (unsigned int address);
+extern unsigned int (*pm68k_read_memory_pcr_16)(unsigned int address);
+extern unsigned int (*pm68k_read_memory_pcr_32)(unsigned int address);
+
+static void m68k_mem_setup_cd(void)
+{
+  pm68k_read_memory_8  = PicoReadCD8w;
+  pm68k_read_memory_16 = PicoReadCD16w;
+  pm68k_read_memory_32 = PicoReadCD32w;
+  pm68k_write_memory_8  = PicoWriteCD8w;
+  pm68k_write_memory_16 = PicoWriteCD16w;
+  pm68k_write_memory_32 = PicoWriteCD32w;
+  pm68k_read_memory_pcr_8  = m68k_read_pcrelative_CD8;
+  pm68k_read_memory_pcr_16 = m68k_read_pcrelative_CD16;
+  pm68k_read_memory_pcr_32 = m68k_read_pcrelative_CD32;
 }
 #endif // EMU_M68K
 

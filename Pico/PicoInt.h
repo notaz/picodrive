@@ -212,9 +212,10 @@ extern struct DrZ80 drZ80;
 // ---------------------------------------------------------
 
 // Pico active hw
-#define PAHW_MCD (1<<0)
-#define PAHW_32X (1<<1)
-#define PAHW_SVP (1<<2)
+#define PAHW_MCD  (1<<0)
+#define PAHW_32X  (1<<1)
+#define PAHW_SVP  (1<<2)
+#define PAHW_PICO (1<<3)
 extern int PicoAHW;
 
 // main oscillator clock which controls timing
@@ -420,6 +421,9 @@ PICO_INTERNAL void PicoMemSetupCD(void);
 PICO_INTERNAL_ASM void PicoMemResetCD(int r3);
 PICO_INTERNAL_ASM void PicoMemResetCDdecode(int r3);
 
+// Pico/Memory.c
+PICO_INTERNAL void PicoMemSetupPico(void);
+
 // Pico.c
 extern struct Pico Pico;
 extern struct PicoSRAM SRam;
@@ -435,6 +439,9 @@ PICO_INTERNAL void PicoExitMCD(void);
 PICO_INTERNAL void PicoPowerMCD(void);
 PICO_INTERNAL int PicoResetMCD(void);
 PICO_INTERNAL int PicoFrameMCD(void);
+
+// Pico/Pico.c
+PICO_INTERNAL int PicoInitPico(void);
 
 // Sek.c
 PICO_INTERNAL int SekInit(void);
