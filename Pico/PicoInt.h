@@ -322,9 +322,7 @@ struct mcd_misc
 	unsigned char  s68k_pend_ints;
 	unsigned int   state_flags;	// 04: emu state: reset_pending, dmna_pending
 	unsigned int   counter75hz;
-	unsigned short audio_offset;	// 0c: for savestates: play pointer offset (0-1023)
-	unsigned char  audio_track;	// playing audio track # (zero based)
-	char           pad1;
+	unsigned int   pad0;
 	int            timer_int3;	// 10
 	unsigned int   timer_stopwatch;
 	unsigned char  bcram_reg;	// 18: battery-backed RAM cart register
@@ -455,6 +453,8 @@ PICO_INTERNAL int SekResetS68k(void);
 PICO_INTERNAL int SekInterruptS68k(int irq);
 
 // sound/sound.c
+PICO_INTERNAL void cdda_start_play();
+extern short cdda_out_buffer[2*1152];
 extern int PsndLen_exc_cnt;
 extern int PsndLen_exc_add;
 

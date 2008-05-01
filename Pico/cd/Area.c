@@ -126,7 +126,6 @@ PICO_INTERNAL int PicoCdSaveState(void *file)
 
 	if (PicoAHW & PAHW_MCD)
 	{
-		Pico_mcd->m.audio_offset = mp3_get_offset();
 		memset(buff, 0, sizeof(buff));
 		PicoAreaPackCpu(buff, 1);
 		if (Pico_mcd->s68k_regs[3]&4) // 1M mode?
@@ -280,8 +279,8 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 		if (Pico_mcd->s68k_regs[3]&4)
 			PicoMemResetCDdecode(Pico_mcd->s68k_regs[3]);
 #endif
-		if (Pico_mcd->m.audio_track > 0 && Pico_mcd->m.audio_track < Pico_mcd->TOC.Last_Track)
-			mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
+		if (!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
+			cdda_start_play();
 		// restore hint vector
         	*(unsigned short *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
 	}

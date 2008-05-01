@@ -205,9 +205,3 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 }
 
 
-int mp3_get_offset(void)
-{
-	return 0;
-}
-
-

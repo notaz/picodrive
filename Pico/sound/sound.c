@@ -23,6 +23,9 @@ static int PsndBuffer[2*44100/50];
 // dac
 static unsigned short dac_info[312]; // pppppppp ppppllll, p - pos in buff, l - length to write for this sample
 
+// cdda output buffer
+short cdda_out_buffer[2*1152];
+
 // for Pico
 int PsndRate=0;
 int PsndLen=0; // number of mono samples, multiply by 2 for stereo
@@ -119,16 +122,14 @@ void PsndRerate(int preserve_state)
     state = malloc(0x200);
     if (state == NULL) return;
     memcpy(state, YM2612GetRegs(), 0x200);
-    if ((PicoAHW & PAHW_MCD) && Pico_mcd->m.audio_track)
-      Pico_mcd->m.audio_offset = mp3_get_offset();
   }
   YM2612Init(Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7, PsndRate);
   if (preserve_state) {
     // feed it back it's own registers, just like after loading state
     memcpy(YM2612GetRegs(), state, 0x200);
     YM2612PicoStateLoad();
-    if ((PicoAHW & PAHW_MCD) && Pico_mcd->m.audio_track)
-      mp3_start_play(Pico_mcd->TOC.Tracks[Pico_mcd->m.audio_track].F, Pico_mcd->m.audio_offset);
+    if ((PicoAHW & PAHW_MCD) && !(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
+      cdda_start_play();
   }
 
   if (preserve_state) memcpy(state, sn76496_regs, 28*4); // remember old state
@@ -151,6 +152,7 @@ void PsndRerate(int preserve_state)
 
   // clear all buffers
   memset32(PsndBuffer, 0, sizeof(PsndBuffer)/4);
+  memset(cdda_out_buffer, 0, sizeof(cdda_out_buffer));
   if (PsndOut)
     PsndClear();
 
@@ -206,6 +208,76 @@ PICO_INTERNAL void Psnd_timers_and_dac(int raster)
     pcm_update(d, len, 1);
   }
 #endif
+}
+
+// cdda
+static pm_file *cdda_stream = NULL;
+
+static void cdda_raw_update(int *buffer, int length)
+{
+  int ret, cdda_bytes;
+  if (cdda_stream == NULL) return;
+
+  cdda_bytes = length*4;
+  if (PsndRate <= 22050) cdda_bytes *= 2;
+  if (PsndRate <  22050) cdda_bytes *= 2;
+
+  ret = pm_read(cdda_out_buffer, cdda_bytes, cdda_stream);
+  if (ret < cdda_bytes) {
+    memset((char *)cdda_out_buffer + ret, 0, cdda_bytes - ret);
+    cdda_stream = NULL;
+    return;
+  }
+
+  // now mix
+  switch (PsndRate) {
+    case 44100: mix_16h_to_32(buffer, cdda_out_buffer, length*2); break;
+    case 22050: mix_16h_to_32_s1(buffer, cdda_out_buffer, length*2); break;
+    case 11025: mix_16h_to_32_s2(buffer, cdda_out_buffer, length*2); break;
+  }
+}
+
+PICO_INTERNAL void cdda_start_play(void)
+{
+  int lba_offset, index, lba_length, i;
+
+  elprintf(EL_STATUS, "cdda play track #%i", Pico_mcd->scd.Cur_Track);
+
+  index = Pico_mcd->scd.Cur_Track - 1;
+
+  lba_offset = Pico_mcd->scd.Cur_LBA - Track_to_LBA(index + 1);
+  if (lba_offset < 0) lba_offset = 0;
+  lba_offset += Pico_mcd->TOC.Tracks[index].Offset;
+
+  // find the actual file for this track
+  for (i = index; i >= 0; i--)
+    if (Pico_mcd->TOC.Tracks[i].F != NULL) break;
+
+  if (Pico_mcd->TOC.Tracks[i].F == NULL) {
+    elprintf(EL_STATUS|EL_ANOMALY, "no track?!");
+    return;
+  }
+
+  if (Pico_mcd->TOC.Tracks[i].ftype == TYPE_MP3)
+  {
+    int pos1024 = 0;
+
+    lba_length = Pico_mcd->TOC.Tracks[i].Length;
+    for (i++; i < Pico_mcd->TOC.Last_Track; i++) {
+      if (Pico_mcd->TOC.Tracks[i].F != NULL) break;
+      lba_length += Pico_mcd->TOC.Tracks[i].Length;
+    }
+
+    if (lba_offset)
+      pos1024 = lba_offset * 1024 / lba_length;
+
+    mp3_start_play(Pico_mcd->TOC.Tracks[index].F, pos1024);
+    return;
+  }
+
+  cdda_stream = Pico_mcd->TOC.Tracks[i].F;
+  PicoCDBufferFlush(); // buffering relies on fp not being touched
+  pm_seek(cdda_stream, lba_offset * 2352, SEEK_SET);
 }
 
 
@@ -267,7 +339,15 @@ PICO_INTERNAL int PsndRender(int offset, int length)
   // CD mode, cdda enabled, not data track, CDC is reading
   if ((PicoAHW & PAHW_MCD) && (PicoOpt & POPT_EN_MCD_CDDA) &&
 		!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
-    mp3_update(buf32, length, stereo);
+  {
+    // note: only 44, 22 and 11 kHz supported, with forced stereo
+    int index = Pico_mcd->scd.Cur_Track - 1;
+
+    if (Pico_mcd->TOC.Tracks[index].ftype == TYPE_MP3)
+      mp3_update(buf32, length, stereo);
+    else
+      cdda_raw_update(buf32, length);
+  }
 
   // convert + limit to normal 16bit output
   PsndMix_32_to_16l(PsndOut+offset, buf32, length);
@@ -275,6 +355,9 @@ PICO_INTERNAL int PsndRender(int offset, int length)
   return length;
 }
 
+
+// -----------------------------------------------------------------
+//                            z80 stuff
 
 
 #if defined(_USE_MZ80)

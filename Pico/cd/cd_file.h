@@ -8,7 +8,7 @@ extern "C" {
 #define TYPE_ISO 1
 #define TYPE_BIN 2
 #define TYPE_MP3 3
-//#define TYPE_WAV 4
+#define TYPE_WAV 4
 
 typedef enum
 {
@@ -23,7 +23,6 @@ cd_img_type;
 PICO_INTERNAL int  Load_CD_Image(const char *iso_name, cd_img_type type);
 PICO_INTERNAL void Unload_ISO(void);
 PICO_INTERNAL int  FILE_Read_One_LBA_CDC(void);
-PICO_INTERNAL int  FILE_Play_CD_LBA(void);
 
 
 #ifdef __cplusplus

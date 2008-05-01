@@ -115,8 +115,10 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 		if (cue_data->tracks[2].fname == NULL) { // NULL means track2 is in same file as track1
 			Cur_LBA = Tracks[0].Length = cue_data->tracks[2].sector_offset;
 		}
+		i = 100 / cue_data->track_count+1;
 		for (num_track = 2; num_track <= cue_data->track_count; num_track++)
 		{
+			if (PicoCDLoadProgressCB != NULL) PicoCDLoadProgressCB(i * num_track);
 			index = num_track - 1;
 			Cur_LBA += cue_data->tracks[num_track].pregap;
 			if (cue_data->tracks[num_track].type == CT_MP3) {
@@ -128,7 +130,7 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 				Tracks[index].ftype = cue_data->tracks[num_track].type;
 				if (cue_data->tracks[num_track].fname != NULL)
 				{
-					Tracks[index].F = fopen(cue_data->tracks[num_track].fname, "rb");
+					Tracks[index].F = pm_open(cue_data->tracks[num_track].fname);
 					elprintf(EL_STATUS, "track %2i (%s): can't determine length",
 						cue_data->tracks[num_track].fname);
 					Tracks[index].Length = 2*75;
@@ -154,7 +156,7 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 		goto finish;
 	}
 
-	/* track autosearch, Gens-like */
+	/* mp3 track autosearch, Gens-like */
 	iso_name_len = strlen(cd_img_name);
 	if (iso_name_len >= sizeof(tmp_name))
 		iso_name_len = sizeof(tmp_name) - 1;
@@ -194,7 +196,7 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 				break;
 			}
 		}
-		if (ret != 0) missed++;
+		if (ret != 0 && i > 1) missed++;
 	}
 
 finish:
@@ -225,12 +227,14 @@ PICO_INTERNAL void Unload_ISO(void)
 	{
 		if (Pico_mcd->TOC.Tracks[i].F != NULL)
 		{
+			if (Pico_mcd->TOC.Tracks[i].ftype == TYPE_MP3)
 #if DONT_OPEN_MANY_FILES
-			if (Pico_mcd->TOC.Tracks[i].type == TYPE_MP3)
 				free(Pico_mcd->TOC.Tracks[i].F);
-			else
-#endif
+#else
 				fclose(Pico_mcd->TOC.Tracks[i].F);
+#endif
+			else
+				pm_close(Pico_mcd->TOC.Tracks[i].F);
 		}
 	}
 	memset(Pico_mcd->TOC.Tracks, 0, sizeof(Pico_mcd->TOC.Tracks));
@@ -239,8 +243,6 @@ PICO_INTERNAL void Unload_ISO(void)
 
 PICO_INTERNAL int FILE_Read_One_LBA_CDC(void)
 {
-//	static char cp_buf[2560];
-
 	if (Pico_mcd->s68k_regs[0x36] & 1)					// DATA
 	{
 		if (Pico_mcd->TOC.Tracks[0].F == NULL) return -1;
@@ -253,15 +255,6 @@ PICO_INTERNAL int FILE_Read_One_LBA_CDC(void)
 	}
 	else									// AUDIO
 	{
-		// int rate, channel;
-
-		// if (Pico_mcd->TOC.Tracks[Pico_mcd->scd.Cur_Track - 1].ftype == TYPE_MP3)
-		{
-			// TODO
-			// MP3_Update(cp_buf, &rate, &channel, 0);
-			// Write_CD_Audio((short *) cp_buf, rate, channel, 588);
-		}
-
 		cdprintf("Read file CDC 1 audio sector :\n");
 	}
 
@@ -324,7 +317,8 @@ PICO_INTERNAL int FILE_Read_One_LBA_CDC(void)
 			{
 				// CAUTION : lookahead bit not implemented
 
-				//memcpy(&Pico_mcd->cdc.Buffer[Pico_mcd->cdc.PT.N], cp_buf, 2352);
+				// this is pretty rough, but oh well - not much depends on this anyway
+				memcpy(&Pico_mcd->cdc.Buffer[Pico_mcd->cdc.PT.N], cdda_out_buffer, 2352);
 			}
 		}
 	}
@@ -358,37 +352,6 @@ PICO_INTERNAL int FILE_Read_One_LBA_CDC(void)
 		}
 	}
 
-
-	return 0;
-}
-
-
-PICO_INTERNAL int FILE_Play_CD_LBA(void)
-{
-	int index = Pico_mcd->scd.Cur_Track - 1;
-	Pico_mcd->m.audio_track = index;
-
-	cdprintf("Play track #%i", Pico_mcd->scd.Cur_Track);
-
-	if (Pico_mcd->TOC.Tracks[index].F == NULL)
-	{
-		return 1;
-	}
-
-	if (Pico_mcd->TOC.Tracks[index].ftype == TYPE_MP3)
-	{
-		int pos1024 = 0;
-		int Track_LBA_Pos = Pico_mcd->scd.Cur_LBA - Track_to_LBA(Pico_mcd->scd.Cur_Track);
-		if (Track_LBA_Pos < 0) Track_LBA_Pos = 0;
-		if (Track_LBA_Pos)
-			pos1024 = Track_LBA_Pos * 1024 / Pico_mcd->TOC.Tracks[index].Length;
-
-		mp3_start_play(Pico_mcd->TOC.Tracks[index].F, pos1024);
-	}
-	else
-	{
-		return 3;
-	}
 
 	return 0;
 }

@@ -489,8 +489,7 @@ PICO_INTERNAL int Play_CDD_c3(void)
 	else
 	{
 		Pico_mcd->s68k_regs[0x36] &= ~0x01;				// AUDIO
-		//CD_Audio_Starting = 1;
-		FILE_Play_CD_LBA();
+		cdda_start_play();
 	}
 
 	if (Pico_mcd->scd.Cur_Track == 100) Pico_mcd->cdd.Minute = 0x0A02;
@@ -592,8 +591,7 @@ PICO_INTERNAL int Resume_CDD_c7(void)
 	else
 	{
 		Pico_mcd->s68k_regs[0x36] &= ~0x01;				// AUDIO
-		//CD_Audio_Starting = 1;
-		FILE_Play_CD_LBA();
+		cdda_start_play();
 	}
 
 	if (Pico_mcd->scd.Cur_Track == 100) Pico_mcd->cdd.Minute = 0x0A02;

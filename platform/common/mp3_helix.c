@@ -11,7 +11,6 @@
 #include "helix/pub/mp3dec.h"
 #include "lprintf.h"
 
-static short mp3_out_buffer[2*1152];
 static HMP3Decoder mp3dec = 0;
 static int mp3_buffer_offs = 0;
 
@@ -94,7 +93,7 @@ static int mp3_decode(void)
 	readPtr += offset;
 	bytesLeft -= offset;
 
-	err = MP3Decode(mp3dec, &readPtr, &bytesLeft, mp3_out_buffer, 0);
+	err = MP3Decode(mp3dec, &readPtr, &bytesLeft, cdda_out_buffer, 0);
 	if (err) {
 		if (err == ERR_MP3_INDATA_UNDERFLOW) {
 			shared_ctl->mp3_offs = shared_ctl->mp3_len; // EOF
@@ -119,7 +118,7 @@ void mp3_start_local(void)
 
 #define mp3_update mp3_update_local
 
-#else
+#else // !__GP2X__
 
 static FILE *mp3_current_file = NULL;
 static int mp3_file_len = 0, mp3_file_pos = 0;
@@ -148,7 +147,7 @@ static int mp3_decode(void)
 		readPtr = mp3_input_buffer + offset;
 		bytesLeft -= offset;
 
-		err = MP3Decode(mp3dec, &readPtr, &bytesLeft, mp3_out_buffer, 0);
+		err = MP3Decode(mp3dec, &readPtr, &bytesLeft, cdda_out_buffer, 0);
 		if (err) {
 			//lprintf("MP3Decode err (%i/%i) %i\n", mp3_file_pos, mp3_file_len, err);
 			if (err == ERR_MP3_INDATA_UNDERFLOW) {
@@ -232,17 +231,17 @@ void mp3_update(int *buffer, int length, int stereo)
 	else if (PsndRate == 11025) { mix_samples = mix_16h_to_32_s2; length_mp3 <<= 2; shr = 2; }
 
 	if (1152 - mp3_buffer_offs >= length_mp3) {
-		mix_samples(buffer, mp3_out_buffer + mp3_buffer_offs*2, length<<1);
+		mix_samples(buffer, cdda_out_buffer + mp3_buffer_offs*2, length<<1);
 
 		mp3_buffer_offs += length_mp3;
 	} else {
 		int ret, left = 1152 - mp3_buffer_offs;
 
-		mix_samples(buffer, mp3_out_buffer + mp3_buffer_offs*2, (left>>shr)<<1);
+		mix_samples(buffer, cdda_out_buffer + mp3_buffer_offs*2, (left>>shr)<<1);
 		ret = mp3_decode();
 		if (ret == 0) {
 			mp3_buffer_offs = length_mp3 - left;
-			mix_samples(buffer + ((left>>shr)<<1), mp3_out_buffer, (mp3_buffer_offs>>shr)<<1);
+			mix_samples(buffer + ((left>>shr)<<1), cdda_out_buffer, (mp3_buffer_offs>>shr)<<1);
 		} else
 			mp3_buffer_offs = 0;
 	}

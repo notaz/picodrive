@@ -60,17 +60,24 @@ static char *get_ext(char *fname)
 /* note: tracks[0] is not used */
 cue_data_t *cue_parse(const char *fname)
 {
-	char buff[256], current_file[256], buff2[32];
+	char buff[256], current_file[256], buff2[32], *current_filep;
 	FILE *f, *tmpf;
-	int ret, count = 0, count_alloc = 2;
+	int ret, count = 0, count_alloc = 2, pending_pregap = 0;
 	cue_data_t *data;
 	void *tmp;
 
 	f = fopen(fname, "r");
 	if (f == NULL) return NULL;
 
-	current_file[0] = 0;
+	snprintf(current_file, sizeof(current_file), "%s", fname);
+	for (current_filep = current_file + strlen(current_file); current_filep > current_file; current_filep--)
+		if (current_filep[-1] == '/' || current_filep[-1] == '\\') break;
+
 	data = calloc(1, sizeof(*data) + count_alloc * sizeof(cue_track));
+	if (data == NULL) {
+		fclose(f);
+		return NULL;
+	}
 
 	while (!feof(f))
 	{
@@ -79,11 +86,13 @@ cue_data_t *cue_parse(const char *fname)
 
 		mystrip(buff);
 		if (buff[0] == 0) continue;
-		if      (BEGINS(buff, "TITLE ") || BEGINS(buff, "PERFORMER "))
+		if      (BEGINS(buff, "REM"))
+			continue;
+		else if (BEGINS(buff, "TITLE ") || BEGINS(buff, "PERFORMER ") || BEGINS(buff, "SONGWRITER "))
 			continue;	/* who would put those here? Ignore! */
 		else if (BEGINS(buff, "FILE "))
 		{
-			get_token(buff+5, current_file, sizeof(current_file));
+			get_token(buff+5, current_filep, sizeof(current_file) - (current_filep - current_file));
 		}
 		else if (BEGINS(buff, "TRACK "))
 		{
@@ -107,6 +116,8 @@ cue_data_t *cue_parse(const char *fname)
 				}
 				fclose(tmpf);
 			}
+			data->tracks[count].pregap = pending_pregap;
+			pending_pregap = 0;
 			// track number
 			ret = get_token(buff+6, buff2, sizeof(buff2));
 			if (count != atoi(buff2))
@@ -172,7 +183,7 @@ cue_data_t *cue_parse(const char *fname)
 				data->tracks[count].fname = strdup(current_file);
 			}
 		}
-		else if (BEGINS(buff, "PREGAP "))
+		else if (BEGINS(buff, "PREGAP ") || BEGINS(buff, "POSTGAP "))
 		{
 			int m, s, f;
 			get_token(buff+7, buff2, sizeof(buff2));
@@ -181,7 +192,12 @@ cue_data_t *cue_parse(const char *fname)
 				elprintf(EL_STATUS, "cue: failed to parse: \"%s\"", buff);
 				continue;
 			}
-			data->tracks[count].pregap = m*60*75 + s*75 + f;
+			// pregap overrides previous postgap?
+			// by looking at some .cues produced by some programs I've decided that..
+			if (BEGINS(buff, "PREGAP "))
+				data->tracks[count].pregap = m*60*75 + s*75 + f;
+			else
+				pending_pregap = m*60*75 + s*75 + f;
 		}
 		else
 		{
