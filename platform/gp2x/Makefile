@@ -237,6 +237,10 @@ endif
 rel: PicoDrive.gpe code940/pico940_v2.bin readme.txt PicoDrive.man.txt PicoDrive.png ../game_def.cfg
 	zip -9 -j ../../PicoDrive_$(VER).zip $^ mmuhack.o
 	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt
+	mkdir bin_to_cso_mp3
+	cp ../../tools/bin_to_cso_mp3/* bin_to_cso_mp3/
+	zip -9 -r ../../PicoDrive_$(VER).zip bin_to_cso_mp3
+	rm -rf bin_to_cso_mp3
 
 code940/code940.bin:
 	make -C code940/
