@@ -278,6 +278,11 @@ PICO_INTERNAL void cdda_start_play(void)
   cdda_stream = Pico_mcd->TOC.Tracks[i].F;
   PicoCDBufferFlush(); // buffering relies on fp not being touched
   pm_seek(cdda_stream, lba_offset * 2352, SEEK_SET);
+  if (Pico_mcd->TOC.Tracks[i].ftype == TYPE_WAV)
+  {
+    // skip headers, assume it's 44kHz stereo uncompressed
+    pm_seek(cdda_stream, 44, SEEK_CUR);
+  }
 }
 
 

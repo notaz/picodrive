@@ -81,10 +81,14 @@ EU: eu_mcd1_9210.bin eu_mcd2_9303.bin eu_mcd2_9306.bin
 JP: jp_mcd1_9112.bin jp_mcd1_9111.bin
 these files can also be zipped.
 
-The game must be dumped to ISO format, but BIN can be used too. If you want
-CD music, you must use ISO+mp3 files. Audio from BIN files won't be read at
-all. Also BIN files are usually larger, so it's better to use ISO. ISO+mp3
-files can be named similarly as for other emus.
+The game must be dumped to ISO format, but CUE/BIN can be used too. When using
+CUE/BIN, you must load .cue file from the menu, or else the emu will not find
+audio tracks.
+CUE/BIN usually takes a lot of space, so it can be converted to cue/cso/mp3 by
+using bin_to_cso_mp3 tool, which is included with the emulator. See readme in
+the bin_to_cso_mp3/ directory for details.
+
+ISO+mp3 files can be named similarly as for other emus.
 Here are some examples:
 
 SonicCD.iso             data track
@@ -649,6 +653,11 @@ Additional thanks
 
 Changelog
 ---------
+1.4x
+  + Added proper support for cue/bin images, including cdda playback.
+    .cue sheets with iso/cso/mp3/wav files listed in them are also supported.
+  * Fixed a crash of games using eeprom (introduced in 1.40b).
+
 1.40c
   * Fixed a problem with sound in Marble Madness.
   * GP2X: Fixed minor problem with key config.

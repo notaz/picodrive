@@ -86,9 +86,7 @@ cue_data_t *cue_parse(const char *fname)
 
 		mystrip(buff);
 		if (buff[0] == 0) continue;
-		if      (BEGINS(buff, "REM"))
-			continue;
-		else if (BEGINS(buff, "TITLE ") || BEGINS(buff, "PERFORMER ") || BEGINS(buff, "SONGWRITER "))
+		if      (BEGINS(buff, "TITLE ") || BEGINS(buff, "PERFORMER ") || BEGINS(buff, "SONGWRITER "))
 			continue;	/* who would put those here? Ignore! */
 		else if (BEGINS(buff, "FILE "))
 		{
@@ -199,6 +197,16 @@ cue_data_t *cue_parse(const char *fname)
 			else
 				pending_pregap = m*60*75 + s*75 + f;
 		}
+		else if (BEGINS(buff, "REM LENGTH ")) // custom "extension"
+		{
+			int m, s, f;
+			get_token(buff+11, buff2, sizeof(buff2));
+			ret = sscanf(buff2, "%d:%d:%d", &m, &s, &f);
+			if (ret != 3) continue;
+			data->tracks[count].sector_xlength = m*60*75 + s*75 + f;
+		}
+		else if (BEGINS(buff, "REM"))
+			continue;
 		else
 		{
 			elprintf(EL_STATUS, "cue: unhandled line: \"%s\"", buff);

@@ -13,6 +13,7 @@ typedef struct
 	char *fname;
 	int pregap;		/* pregap for current track */
 	int sector_offset;	/* in current file */
+	int sector_xlength;
 	cue_track_type type;
 } cue_track;
 

@@ -105,7 +105,7 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 	Tracks[0].MSF.S = 2; // seconds
 	Tracks[0].MSF.F = 0; // frames
 
-	elprintf(EL_STATUS, "Track  0: %02d:%02d:%02d %9i DATA",
+	elprintf(EL_STATUS, "Track  1: %02d:%02d:%02d %9i DATA",
 		Tracks[0].MSF.M, Tracks[0].MSF.S, Tracks[0].MSF.F, Tracks[0].Length);
 
 	Cur_LBA = Tracks[0].Length = cd_img_sectors;
@@ -130,12 +130,24 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 				Tracks[index].ftype = cue_data->tracks[num_track].type;
 				if (cue_data->tracks[num_track].fname != NULL)
 				{
-					Tracks[index].F = pm_open(cue_data->tracks[num_track].fname);
-					elprintf(EL_STATUS, "track %2i (%s): can't determine length",
-						cue_data->tracks[num_track].fname);
-					Tracks[index].Length = 2*75;
-					Tracks[index].Offset = 0;
-				} else {
+					pm_file *pmfn = pm_open(cue_data->tracks[num_track].fname);
+					if (pmfn != NULL)
+					{
+						// addume raw, ignore header for wav..
+						Tracks[index].F = pmfn;
+						Tracks[index].Length = pmfn->size / 2352;
+						Tracks[index].Offset = cue_data->tracks[num_track].sector_offset;
+					}
+					else
+					{
+						elprintf(EL_STATUS, "track %2i (%s): can't determine length",
+							num_track, cue_data->tracks[num_track].fname);
+						Tracks[index].Length = 2*75;
+						Tracks[index].Offset = 0;
+					}
+				}
+				else
+				{
 					if (num_track < cue_data->track_count)
 						Tracks[index].Length = cue_data->tracks[num_track+1].sector_offset -
 							cue_data->tracks[num_track].sector_offset;
@@ -145,10 +157,14 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 				}
 			}
 
+			if (cue_data->tracks[num_track].sector_xlength != 0)
+				// overriden by custom cue command
+				Tracks[index].Length = cue_data->tracks[num_track].sector_xlength;
+
 			LBA_to_MSF(Cur_LBA, &Tracks[index].MSF);
 			Cur_LBA += Tracks[index].Length;
 
-			elprintf(EL_STATUS, "Track %2i: %02d:%02d:%02d %9i AUDIO - %s", index, Tracks[index].MSF.M,
+			elprintf(EL_STATUS, "Track %2i: %02d:%02d:%02d %9i AUDIO - %s", num_track, Tracks[index].MSF.M,
 				Tracks[index].MSF.S, Tracks[index].MSF.F, Tracks[index].Length,
 				cue_data->tracks[num_track].fname);
 		}
@@ -188,7 +204,7 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 				LBA_to_MSF(Cur_LBA, &Tracks[index].MSF);
 				Cur_LBA += Tracks[index].Length;
 
-				elprintf(EL_STATUS, "Track %2i: %02d:%02d:%02d %9i AUDIO - %s", index, Tracks[index].MSF.M,
+				elprintf(EL_STATUS, "Track %2i: %02d:%02d:%02d %9i AUDIO - %s", num_track, Tracks[index].MSF.M,
 					Tracks[index].MSF.S, Tracks[index].MSF.F, Tracks[index].Length, tmp_name);
 
 				num_track++;
