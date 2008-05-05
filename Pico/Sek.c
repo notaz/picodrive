@@ -193,3 +193,30 @@ PICO_INTERNAL void SekSetRealTAS(int use_real)
 #endif
 }
 
+#if defined(EMU_M68K) && M68K_INSTRUCTION_HOOK == OPT_SPECIFY_HANDLER
+static unsigned char op_flags[0x400000/2] = { 0, };
+static int atexit_set = 0;
+
+static void make_idc(void)
+{
+  FILE *f = fopen("idc.idc", "w");
+  int i;
+  if (!f) return;
+  fprintf(f, "#include <idc.idc>\nstatic main() {\n");
+  for (i = 0; i < 0x400000/2; i++)
+    if (op_flags[i] != 0)
+      fprintf(f, "  MakeCode(0x%06x);\n", i*2);
+  fprintf(f, "}\n");
+  fclose(f);
+}
+
+void instruction_hook(void)
+{
+  if (!atexit_set) {
+    atexit(make_idc);
+    atexit_set = 1;
+  }
+  if (REG_PC < 0x400000)
+    op_flags[REG_PC/2] = 1;
+}
+#endif

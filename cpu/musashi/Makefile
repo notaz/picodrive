@@ -1,3 +1,5 @@
+all : m68kops.c
+
 m68kops.c : m68kmake
 	./$<
 
