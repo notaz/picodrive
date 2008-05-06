@@ -53,6 +53,8 @@ char noticeMsg[64];			// notice msg to draw
 unsigned char *PicoDraw2FB = NULL;  // temporary buffer for alt renderer
 int reset_timing = 0;
 
+static int pico_pen_x = 0, pico_pen_y = 0, pico_inp_mode = 0;
+
 static void emu_msg_cb(const char *msg);
 static void emu_msg_tray_open(void);
 
@@ -396,6 +398,41 @@ static void emu_msg_tray_open(void)
 	gettimeofday(&noticeMsgTime, 0);
 }
 
+static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
+{
+	if (events & (1 << 3)) {
+		pico_inp_mode++;
+		if (pico_inp_mode > 2) pico_inp_mode = 0;
+		switch (pico_inp_mode) {
+			case 0: strcpy(noticeMsg, "Input: Joytick         "); break;
+			case 1: strcpy(noticeMsg, "Input: Pen on Storyware"); break;
+			case 2: strcpy(noticeMsg, "Input: Pen on Pad      "); break;
+		}
+		gettimeofday(&noticeMsgTime, 0);
+	}
+	if (events & (1 << 4)) {
+		PicoPicoPage--;
+		if (PicoPicoPage < 0) PicoPicoPage = 0;
+		sprintf(noticeMsg, "Page %i                 ", PicoPicoPage);
+		gettimeofday(&noticeMsgTime, 0);
+	}
+	if (events & (1 << 5)) {
+		PicoPicoPage++;
+		if (PicoPicoPage > 6) PicoPicoPage = 6;
+		sprintf(noticeMsg, "Page %i                 ", PicoPicoPage);
+		gettimeofday(&noticeMsgTime, 0);
+	}
+	if (pico_inp_mode != 0) {
+		PicoPad[0] &= ~0x0f; // release UDLR
+		if (gp2x_keys & GP2X_UP)   { pico_pen_y--; if (pico_pen_y <   0) pico_pen_y =   0; }
+		if (gp2x_keys & GP2X_DOWN) { pico_pen_y++; if (pico_pen_y > 251) pico_pen_y = 251; }
+		if (gp2x_keys & GP2X_LEFT) { pico_pen_x--; if (pico_pen_x <   0) pico_pen_x =   0; }
+		if (gp2x_keys & GP2X_RIGHT){ pico_pen_x++; if (pico_pen_x > 353) pico_pen_x = 353; }
+		PicoPicoPenPos[0] = 0x03c + pico_pen_x;
+		PicoPicoPenPos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
+	}
+}
+
 static void update_volume(int has_changed, int is_up)
 {
 	static int prev_frame = 0, wait_frames = 0;
@@ -520,8 +557,8 @@ static void RunEvents(unsigned int which)
 
 static void updateKeys(void)
 {
-	unsigned long keys, allActions[2] = { 0, 0 }, events;
-	static unsigned long prevEvents = 0;
+	unsigned int keys, keys2, allActions[2] = { 0, 0 }, events;
+	static unsigned int prevEvents = 0;
 	int joy, i;
 
 	keys = gp2x_joystick_read(0);
@@ -532,10 +569,11 @@ static void updateKeys(void)
 	}
 
 	keys &= CONFIGURABLE_KEYS;
+	keys2 = keys;
 
 	for (i = 0; i < 32; i++)
 	{
-		if (keys & (1 << i))
+		if (keys2 & (1 << i))
 		{
 			int pl, acts = currentConfig.KeyBinds[i];
 			if (!acts) continue;
@@ -546,9 +584,9 @@ static void updateKeys(void)
 				// let's try to find the other one
 				if (acts_c) {
 					for (; u < 32; u++)
-						if ( (keys & (1 << u)) && (currentConfig.KeyBinds[u] & acts_c) ) {
+						if ( (keys2 & (1 << u)) && (currentConfig.KeyBinds[u] & acts_c) ) {
 							allActions[pl] |= acts_c & currentConfig.KeyBinds[u];
-							keys &= ~((1 << i) | (1 << u));
+							keys2 &= ~((1 << i) | (1 << u));
 							break;
 						}
 				}
@@ -566,9 +604,9 @@ static void updateKeys(void)
 	{
 		gp2x_usbjoy_update();
 		for (joy = 0; joy < num_of_joys; joy++) {
-			int keys = gp2x_usbjoy_check2(joy);
+			int btns = gp2x_usbjoy_check2(joy);
 			for (i = 0; i < 32; i++) {
-				if (keys & (1 << i)) {
+				if (btns & (1 << i)) {
 					int acts = currentConfig.JoyBinds[joy][i];
 					int pl = (acts >> 16) & 1;
 					allActions[pl] |= acts;
@@ -590,6 +628,10 @@ static void updateKeys(void)
 		change_fast_forward(events & 0x40);
 
 	events &= ~prevEvents;
+
+	if (PicoAHW == PAHW_PICO)
+		RunEventsPico(events, keys);
+
 	if (events) RunEvents(events);
 	if (movie_data) emu_updateMovie();
 

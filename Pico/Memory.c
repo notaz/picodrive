@@ -67,7 +67,7 @@ static __inline int PicoMemBase(u32 pc)
 #endif
 
 
-static u32 PicoCheckPc(u32 pc)
+PICO_INTERNAL u32 PicoCheckPc(u32 pc)
 {
   u32 ret=0;
 #if defined(EMU_C68K)

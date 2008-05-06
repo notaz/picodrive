@@ -751,7 +751,7 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 		x = 40;
 	}
 
-	menu_draw_selection(x - 16, tl_y + sel*10, (player_idx >= 0) ? 66 : 130);
+	menu_draw_selection(x - 16, tl_y + sel*10, (player_idx >= 0) ? 66 : 140);
 
 	y = tl_y;
 	for (i = 0; i < opt_cnt; i++, y+=10)
@@ -857,21 +857,25 @@ static void draw_kc_sel(int menu_sel)
 }
 
 
-// player2_flag, ?, ?, ?, ?, ?, ?, menu
+// player2_flag, reserved, ?, ?,
+// ?, ?, fast forward, menu
 // "NEXT SAVE SLOT", "PREV SAVE SLOT", "SWITCH RENDERER", "SAVE STATE",
 // "LOAD STATE", "VOLUME UP", "VOLUME DOWN", "DONE"
 me_bind_action emuctrl_actions[] =
 {
-	{ "Load State     ", 1<<28 },
-	{ "Save State     ", 1<<27 },
-	{ "Prev Save Slot ", 1<<25 },
-	{ "Next Save Slot ", 1<<24 },
-	{ "Switch Renderer", 1<<26 },
-	{ "Volume Down    ", 1<<30 },
-	{ "Volume Up      ", 1<<29 },
-	{ "Fast forward   ", 1<<22 },
-	{ "Enter Menu     ", 1<<23 },
-	{ NULL,              0     }
+	{ "Load State       ", 1<<28 },
+	{ "Save State       ", 1<<27 },
+	{ "Prev Save Slot   ", 1<<25 },
+	{ "Next Save Slot   ", 1<<24 },
+	{ "Switch Renderer  ", 1<<26 },
+	{ "Volume Down      ", 1<<30 },
+	{ "Volume Up        ", 1<<29 },
+	{ "Fast forward     ", 1<<22 },
+	{ "Enter Menu       ", 1<<23 },
+	{ "Pico Next page   ", 1<<21 },
+	{ "Pico Prev page   ", 1<<20 },
+	{ "Pico Switch input", 1<<19 },
+	{ NULL,                0     }
 };
 
 static void kc_sel_loop(void)

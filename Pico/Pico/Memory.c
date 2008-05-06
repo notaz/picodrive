@@ -25,7 +25,30 @@ static u32 PicoReadPico8(u32 a)
     goto end;
   }
 
-  elprintf(EL_UIO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
+  if ((a&0xffffe0)==0x800000) // Pico I/O
+  {
+    switch (a & 0x1f)
+    {
+      case 0x03:
+        d  =  PicoPad[0]&0x0f; // d-pad
+        d |= (PicoPad[0]&0x20) >> 1; // red button -> C
+        d |= (PicoPad[0]&0x40) << 1; // pen tap -> A
+        d  = ~d;
+        break;
+
+      case 0x05: d = (PicoPicoPenPos[0] >> 8) & 3; break; // what is MS bit for? Games read it..
+      case 0x07: d =  PicoPicoPenPos[0] & 0xff;    break;
+      case 0x09: d = (PicoPicoPenPos[1] >> 8) & 3; break;
+      case 0x0b: d =  PicoPicoPenPos[1] & 0xff;    break;
+      case 0x0d: d = (1 << (PicoPicoPage & 7)) - 1;break;
+      case 0x12: d = 0x80; break;
+      default:
+        elprintf(EL_UIO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
+        break;
+    }
+  }
+
+//  elprintf(EL_UIO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
 
 end:
   elprintf(EL_IO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
@@ -47,10 +70,12 @@ static u32 PicoReadPico16(u32 a)
     goto end;
   }
 
-  elprintf(EL_UIO, "r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
+  if (a == 0x800010) d = 0x0f;
+
+  elprintf(EL_UIO, "r16: %06x, %04x @%06x", a&0xffffff, d, SekPc);
 
 end:
-  elprintf(EL_IO, "r16: %06x, %04x  @%06x", a&0xffffff, d, SekPc);
+  elprintf(EL_IO, "r16: %06x, %04x @%06x", a&0xffffff, d, SekPc);
   return d;
 }
 
@@ -79,6 +104,14 @@ end:
 // -----------------------------------------------------------------
 //                            Write Ram
 
+void dump(u16 w)
+{
+  FILE *f = fopen("dump.bin", "a");
+  fwrite(&w, 1, 2, f);
+  fclose(f);
+}
+
+
 static void PicoWritePico8(u32 a,u8 d)
 {
   elprintf(EL_IO, "w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
@@ -103,6 +136,8 @@ static void PicoWritePico16(u32 a,u16 d)
 
   a&=0xfffffe;
   if ((a&0xffffe0)==0xc00000) { PicoVideoWrite(a,(u16)d); return; } // VDP
+
+//  if (a == 0x800010) dump(d);
 
   elprintf(EL_UIO, "w16: %06x, %04x", a&0xffffff, d);
 }
@@ -164,6 +199,15 @@ static unsigned int m68k_read_memory_pcrp_32(unsigned int a)
 
 PICO_INTERNAL void PicoMemSetupPico(void)
 {
+#ifdef EMU_C68K
+  PicoCpuCM68k.checkpc=PicoCheckPc;
+  PicoCpuCM68k.fetch8 =PicoCpuCM68k.read8 =PicoReadPico8;
+  PicoCpuCM68k.fetch16=PicoCpuCM68k.read16=PicoReadPico16;
+  PicoCpuCM68k.fetch32=PicoCpuCM68k.read32=PicoReadPico32;
+  PicoCpuCM68k.write8 =PicoWritePico8;
+  PicoCpuCM68k.write16=PicoWritePico16;
+  PicoCpuCM68k.write32=PicoWritePico32;
+#endif
 #ifdef EMU_M68K
   pm68k_read_memory_8  = PicoReadPico8;
   pm68k_read_memory_16 = PicoReadPico16;

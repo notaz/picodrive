@@ -397,6 +397,7 @@ PICO_INTERNAL void PicoFrameFull();
 
 // Memory.c
 PICO_INTERNAL int PicoInitPc(unsigned int pc);
+PICO_INTERNAL unsigned int PicoCheckPc(unsigned int pc);
 PICO_INTERNAL_ASM unsigned int PicoRead32(unsigned int a);
 PICO_INTERNAL void PicoMemSetup(void);
 PICO_INTERNAL_ASM void PicoMemReset(void);
