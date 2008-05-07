@@ -78,6 +78,7 @@ typedef struct
 	// internal
 	int fifo_bytes;
 	int line_counter;
+	unsigned int r1, r12;
 } picohw_state;
 extern picohw_state PicoPicohw;
 

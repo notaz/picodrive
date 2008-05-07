@@ -80,39 +80,19 @@ void PicoPower(void)
   PicoReset();
 }
 
-int PicoReset(void)
+PICO_INTERNAL void PicoDetectRegion(void)
 {
-  unsigned int region=0;
-  int support=0,hw=0,i=0;
+  int support=0, hw=0, i;
   unsigned char pal=0;
-  unsigned char sram_reg=Pico.m.sram_reg; // must be preserved
 
-  if (Pico.romsize<=0) return 1;
-
-  /* must call now, so that banking is reset, and correct vectors get fetched */
-  if (PicoResetHook) PicoResetHook();
-
-  PicoMemReset();
-  SekReset();
-  // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
-  SekSetRealTAS(PicoAHW & PAHW_MCD);
-  SekCycleCntT=0;
-
-  if (PicoAHW & PAHW_MCD)
-    // needed for MCD to reset properly, probably some bug hides behind this..
-    memset(Pico.ioports,0,sizeof(Pico.ioports));
-  emustatus = 0;
-
-  Pico.m.dirtyPal = 1;
-
-  if(PicoRegionOverride)
+  if (PicoRegionOverride)
   {
     support = PicoRegionOverride;
   }
   else
   {
     // Read cartridge region data:
-    region=PicoRead32(0x1f0);
+    int region=PicoRead32(0x1f0);
 
     for (i=0;i<4;i++)
     {
@@ -153,7 +133,32 @@ int PicoReset(void)
 
   Pico.m.hardware=(unsigned char)(hw|0x20); // No disk attached
   Pico.m.pal=pal;
-  Pico.video.status = 0x3408 | pal; // 'always set' bits | vblank | pal
+}
+
+int PicoReset(void)
+{
+  unsigned char sram_reg=Pico.m.sram_reg; // must be preserved
+
+  if (Pico.romsize<=0) return 1;
+
+  /* must call now, so that banking is reset, and correct vectors get fetched */
+  if (PicoResetHook) PicoResetHook();
+
+  PicoMemReset();
+  SekReset();
+  // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
+  SekSetRealTAS(PicoAHW & PAHW_MCD);
+  SekCycleCntT=0;
+
+  if (PicoAHW & PAHW_MCD)
+    // needed for MCD to reset properly, probably some bug hides behind this..
+    memset(Pico.ioports,0,sizeof(Pico.ioports));
+  emustatus = 0;
+
+  Pico.m.dirtyPal = 1;
+
+  PicoDetectRegion();
+  Pico.video.status = 0x3408 | Pico.m.pal; // 'always set' bits | vblank | pal
 
   PsndReset(); // pal must be known here
 

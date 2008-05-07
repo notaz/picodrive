@@ -431,7 +431,8 @@ extern int emustatus;
 extern int z80startCycle, z80stopCycle; // in 68k cycles
 extern void (*PicoResetHook)(void);
 extern void (*PicoLineHook)(int count);
-PICO_INTERNAL int CheckDMA(void);
+PICO_INTERNAL int  CheckDMA(void);
+PICO_INTERNAL void PicoDetectRegion(void);
 
 // cd/Pico.c
 PICO_INTERNAL int  PicoInitMCD(void);

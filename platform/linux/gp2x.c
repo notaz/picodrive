@@ -71,6 +71,11 @@ static gint key_press_event (GtkWidget *widget, GdkEventKey *event)
 		case 0x19: current_keys |= GP2X_VOL_UP;break; // w
 		case 0x2d: log_io_clear(); break; // k
 		case 0x2e: log_io_dump();  break; // l
+		case 0x17: { // tab
+			extern int PicoReset(void);
+			PicoReset();
+			break;
+		}
 	}
 
 	return 0;

@@ -31,6 +31,7 @@ static u32 PicoReadPico8(u32 a)
   {
     switch (a & 0x1f)
     {
+      case 0x01: d = PicoPicohw.r1; break;
       case 0x03:
         d  =  PicoPad[0]&0x1f; // d-pad
         d |= (PicoPad[0]&0x20) << 2; // red button -> C
@@ -143,6 +144,7 @@ static void PicoWritePico16(u32 a,u16 d)
 
 //  if (a == 0x800010) dump(d);
   if (a == 0x800010) PicoPicohw.fifo_bytes += 2;
+  if (a == 0x800012) PicoPicohw.r12 = d;
 
   elprintf(EL_UIO, "w16: %06x, %04x", a&0xffffff, d);
 }
