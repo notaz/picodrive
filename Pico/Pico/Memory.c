@@ -1,4 +1,5 @@
 #include "../PicoInt.h"
+#include "../sound/sn76496.h"
 
 #ifndef UTYPES_DEFINED
 typedef unsigned char  u8;
@@ -6,6 +7,7 @@ typedef unsigned short u16;
 typedef unsigned int   u32;
 #define UTYPES_DEFINED
 #endif
+
 
 // -----------------------------------------------------------------
 //                     Read Rom and read Ram
@@ -19,7 +21,7 @@ static u32 PicoReadPico8(u32 a)
 
   a&=0xffffff;
 
-  if ((a&0xffffe0)==0xc00000) { // VDP
+  if ((a&0xfffff0)==0xc00000) { // VDP
     d=PicoVideoRead(a);
     if ((a&1)==0) d>>=8;
     goto end;
@@ -30,17 +32,16 @@ static u32 PicoReadPico8(u32 a)
     switch (a & 0x1f)
     {
       case 0x03:
-        d  =  PicoPad[0]&0x0f; // d-pad
-        d |= (PicoPad[0]&0x20) >> 1; // red button -> C
-        d |= (PicoPad[0]&0x40) << 1; // pen tap -> A
+        d  =  PicoPad[0]&0x1f; // d-pad
+        d |= (PicoPad[0]&0x20) << 2; // red button -> C
         d  = ~d;
         break;
 
-      case 0x05: d = (PicoPicoPenPos[0] >> 8) & 3; break; // what is MS bit for? Games read it..
-      case 0x07: d =  PicoPicoPenPos[0] & 0xff;    break;
-      case 0x09: d = (PicoPicoPenPos[1] >> 8) & 3; break;
-      case 0x0b: d =  PicoPicoPenPos[1] & 0xff;    break;
-      case 0x0d: d = (1 << (PicoPicoPage & 7)) - 1;break;
+      case 0x05: d = (PicoPicohw.pen_pos[0] >> 8) & 3; break; // what is MS bit for? Games read it..
+      case 0x07: d =  PicoPicohw.pen_pos[0] & 0xff;    break;
+      case 0x09: d = (PicoPicohw.pen_pos[1] >> 8) & 3; break;
+      case 0x0b: d =  PicoPicohw.pen_pos[1] & 0xff;    break;
+      case 0x0d: d = (1 << (PicoPicohw.page & 7)) - 1; break;
       case 0x12: d = 0x80; break;
       default:
         elprintf(EL_UIO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
@@ -65,12 +66,13 @@ static u32 PicoReadPico16(u32 a)
 
   if (a<Pico.romsize) { d = *(u16 *)(Pico.rom+a); goto end; } // Rom
 
-  if ((a&0xffffe0)==0xc00000) {
+  if ((a&0xfffff0)==0xc00000) {
     d = PicoVideoRead(a);
     goto end;
   }
 
-  if (a == 0x800010) d = 0x0f;
+  if (a == 0x800010)
+    d = (PicoPicohw.fifo_bytes > 0x3f) ? 0 : (0x3f - PicoPicohw.fifo_bytes);
 
   elprintf(EL_UIO, "r16: %06x, %04x @%06x", a&0xffffff, d, SekPc);
 
@@ -89,7 +91,7 @@ static u32 PicoReadPico32(u32 a)
 
   if (a<Pico.romsize) { u16 *pm=(u16 *)(Pico.rom+a); d = (pm[0]<<16)|pm[1]; goto end; } // Rom
 
-  if ((a&0xffffe0)==0xc00000) {
+  if ((a&0xfffff0)==0xc00000) {
     d = (PicoVideoRead(a)<<16)|PicoVideoRead(a+2);
     goto end;
   }
@@ -119,7 +121,9 @@ static void PicoWritePico8(u32 a,u8 d)
   if ((a&0xe00000)==0xe00000) { *(u8 *)(Pico.ram+((a^1)&0xffff))=d; return; } // Ram
 
   a&=0xffffff;
-  if ((a&0xffffe0)==0xc00000) { // VDP
+  if ((a&0xfffff9)==0xc00011) { if (PicoOpt&2) SN76496Write(d); return; } // PSG Sound
+
+  if ((a&0xfffff0)==0xc00000) { // VDP
     d&=0xff;
     PicoVideoWrite(a,(u16)(d|(d<<8))); // Byte access gets mirrored
     return;
@@ -135,9 +139,10 @@ static void PicoWritePico16(u32 a,u16 d)
   if ((a&0xe00000)==0xe00000) { *(u16 *)(Pico.ram+(a&0xfffe))=d; return; } // Ram
 
   a&=0xfffffe;
-  if ((a&0xffffe0)==0xc00000) { PicoVideoWrite(a,(u16)d); return; } // VDP
+  if ((a&0xfffff0)==0xc00000) { PicoVideoWrite(a,(u16)d); return; } // VDP
 
 //  if (a == 0x800010) dump(d);
+  if (a == 0x800010) PicoPicohw.fifo_bytes += 2;
 
   elprintf(EL_UIO, "w16: %06x, %04x", a&0xffffff, d);
 }
@@ -155,7 +160,7 @@ static void PicoWritePico32(u32 a,u32 d)
   }
 
   a&=0xfffffe;
-  if ((a&0xffffe0)==0xc00000)
+  if ((a&0xfffff0)==0xc00000)
   {
     // VDP:
     PicoVideoWrite(a,  (u16)(d>>16));

@@ -411,15 +411,15 @@ static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 		gettimeofday(&noticeMsgTime, 0);
 	}
 	if (events & (1 << 4)) {
-		PicoPicoPage--;
-		if (PicoPicoPage < 0) PicoPicoPage = 0;
-		sprintf(noticeMsg, "Page %i                 ", PicoPicoPage);
+		PicoPicohw.page--;
+		if (PicoPicohw.page < 0) PicoPicohw.page = 0;
+		sprintf(noticeMsg, "Page %i                 ", PicoPicohw.page);
 		gettimeofday(&noticeMsgTime, 0);
 	}
 	if (events & (1 << 5)) {
-		PicoPicoPage++;
-		if (PicoPicoPage > 6) PicoPicoPage = 6;
-		sprintf(noticeMsg, "Page %i                 ", PicoPicoPage);
+		PicoPicohw.page++;
+		if (PicoPicohw.page > 6) PicoPicohw.page = 6;
+		sprintf(noticeMsg, "Page %i                 ", PicoPicohw.page);
 		gettimeofday(&noticeMsgTime, 0);
 	}
 	if (pico_inp_mode != 0) {
@@ -428,8 +428,8 @@ static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 		if (gp2x_keys & GP2X_DOWN) { pico_pen_y++; if (pico_pen_y > 251) pico_pen_y = 251; }
 		if (gp2x_keys & GP2X_LEFT) { pico_pen_x--; if (pico_pen_x <   0) pico_pen_x =   0; }
 		if (gp2x_keys & GP2X_RIGHT){ pico_pen_x++; if (pico_pen_x > 353) pico_pen_x = 353; }
-		PicoPicoPenPos[0] = 0x03c + pico_pen_x;
-		PicoPicoPenPos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
+		PicoPicohw.pen_pos[0] = 0x03c + pico_pen_x;
+		PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
 	}
 }
 

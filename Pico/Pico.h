@@ -71,8 +71,15 @@ extern int  (*PicoMCDcloseTray)(void);
 extern int PicoCDBuffers;
 
 // Pico/Pico.c
-extern int PicoPicoPenPos[2]; // x: 0x03c-0x17d, y: 0x200-0x2d8
-extern int PicoPicoPage;
+typedef struct
+{
+	int pen_pos[2];
+	int page;
+	// internal
+	int fifo_bytes;
+	int line_counter;
+} picohw_state;
+extern picohw_state PicoPicohw;
 
 // Area.c
 typedef size_t (arearw)(void *p, size_t _size, size_t _n, void *file);
