@@ -6,8 +6,9 @@
 picohw_state PicoPicohw;
 
 static int prev_line_cnt_irq3 = 0, prev_line_cnt_irq5 = 0;
+static int fifo_bytes_line = (16000<<16)/60/262/2; // fifo bytes/line. FIXME: other rates, modes
 
-static void PicoLineHookPico(int count)
+static void PicoLinePico(int count)
 {
   PicoPicohw.line_counter += count;
 
@@ -29,11 +30,18 @@ static void PicoLineHookPico(int count)
   }
 #endif
 
-  if ((PicoPicohw.line_counter & 3) == 0 || count > 10)
+  if (PicoPicohw.fifo_bytes > 0)
   {
-    if (PicoPicohw.fifo_bytes > 0)
-      PicoPicohw.fifo_bytes--;
+    PicoPicohw.fifo_line_bytes += fifo_bytes_line * count;
+    if (PicoPicohw.fifo_line_bytes >= (1<<16)) {
+      PicoPicohw.fifo_bytes -= PicoPicohw.fifo_line_bytes >> 16;
+      PicoPicohw.fifo_line_bytes &= 0xffff;
+      if (PicoPicohw.fifo_bytes < 0)
+        PicoPicohw.fifo_bytes = 0;
+    }
   }
+  else
+    PicoPicohw.fifo_line_bytes = 0;
 
 #if 0
   if (PicoPicohw.line_counter - prev_line_cnt_irq5 > 512) {
@@ -44,20 +52,26 @@ static void PicoLineHookPico(int count)
 #endif
 }
 
+static void PicoResetPico(void)
+{
+  PicoPicoPCMReset();
+  PicoPicohw.xpcm_ptr = PicoPicohw.xpcm_buffer;
+}
+
 PICO_INTERNAL int PicoInitPico(void)
 {
   elprintf(EL_STATUS, "Pico detected");
-  PicoLineHook = PicoLineHookPico;
+  PicoLineHook = PicoLinePico;
+  PicoResetHook = PicoResetPico;
 
   PicoAHW = PAHW_PICO;
   memset(&PicoPicohw, 0, sizeof(PicoPicohw));
   PicoPicohw.pen_pos[0] = 0x03c + 352/2;
   PicoPicohw.pen_pos[1] = 0x200 + 252/2;
-  prev_line_cnt_irq3 = 0, prev_line_cnt_irq5 = 0;
+  prev_line_cnt_irq3 = prev_line_cnt_irq5 = 0;
 
   // map version register
   PicoDetectRegion();
-  elprintf(EL_STATUS, "a %x", Pico.m.hardware);
   switch (Pico.m.hardware >> 6) {
     case 0: PicoPicohw.r1 = 0x00; break;
     case 1: PicoPicohw.r1 = 0x00; break;

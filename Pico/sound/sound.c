@@ -326,6 +326,11 @@ PICO_INTERNAL int PsndRender(int offset, int length)
   if (PicoOpt & POPT_EN_PSG)
     SN76496Update(PsndOut+offset, length, stereo);
 
+  if (PicoAHW & PAHW_PICO) {
+    PicoPicoPCMUpdate(PsndOut+offset, length, stereo);
+    return length;
+  }
+
   // Add in the stereo FM buffer
   if (PicoOpt & POPT_EN_FM) {
     buf32_updated = YM2612UpdateOne(buf32, length, stereo, 1);

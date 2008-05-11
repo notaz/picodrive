@@ -42,7 +42,7 @@ OBJS += Pico/cd/Pico.o Pico/cd/Memory.o Pico/cd/Sek.o Pico/cd/LC89510.o \
 		Pico/cd/cd_sys.o Pico/cd/cd_file.o Pico/cd/cue.o Pico/cd/gfx_cd.o \
 		Pico/cd/Area.o Pico/cd/Misc.o Pico/cd/pcm.o Pico/cd/buffering.o
 # Pico - Pico
-OBJS += Pico/Pico/Pico.o Pico/Pico/Memory.o
+OBJS += Pico/Pico/Pico.o Pico/Pico/Memory.o Pico/Pico/xpcm.o
 # Pico - sound
 OBJS += Pico/sound/sound.o Pico/sound/sn76496.o Pico/sound/ym2612.o Pico/sound/mix.o
 # Pico - carthw

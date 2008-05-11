@@ -71,14 +71,18 @@ extern int  (*PicoMCDcloseTray)(void);
 extern int PicoCDBuffers;
 
 // Pico/Pico.c
+#define XPCM_BUFFER_SIZE (320+32)
 typedef struct
 {
 	int pen_pos[2];
 	int page;
 	// internal
-	int fifo_bytes;
+	int fifo_bytes;      // free bytes in FIFO
+	int fifo_line_bytes; // float part, << 16
 	int line_counter;
-	unsigned int r1, r12;
+	unsigned short r1, r12;
+	unsigned char xpcm_buffer[XPCM_BUFFER_SIZE+4];
+	unsigned char *xpcm_ptr;
 } picohw_state;
 extern picohw_state PicoPicohw;
 

@@ -143,8 +143,20 @@ static void PicoWritePico16(u32 a,u16 d)
   if ((a&0xfffff0)==0xc00000) { PicoVideoWrite(a,(u16)d); return; } // VDP
 
 //  if (a == 0x800010) dump(d);
-  if (a == 0x800010) PicoPicohw.fifo_bytes += 2;
-  if (a == 0x800012) PicoPicohw.r12 = d;
+  if (a == 0x800010)
+  {
+    PicoPicohw.fifo_bytes += 2;
+
+    if (PicoPicohw.xpcm_ptr < PicoPicohw.xpcm_buffer + XPCM_BUFFER_SIZE) {
+      *PicoPicohw.xpcm_ptr++ = d >> 8;
+      *PicoPicohw.xpcm_ptr++ = d;
+    }
+    else if (PicoPicohw.xpcm_ptr == PicoPicohw.xpcm_buffer + XPCM_BUFFER_SIZE) {
+      elprintf(EL_ANOMALY, "xpcm_buffer overflow!");
+      PicoPicohw.xpcm_ptr++;
+    }
+  }
+  else if (a == 0x800012) PicoPicohw.r12 = d;
 
   elprintf(EL_UIO, "w16: %06x, %04x", a&0xffffff, d);
 }

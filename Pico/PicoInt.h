@@ -444,6 +444,10 @@ PICO_INTERNAL int PicoFrameMCD(void);
 // Pico/Pico.c
 PICO_INTERNAL int PicoInitPico(void);
 
+// Pico/xpcm.c
+PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo);
+PICO_INTERNAL void PicoPicoPCMReset(void);
+
 // Sek.c
 PICO_INTERNAL int SekInit(void);
 PICO_INTERNAL int SekReset(void);
