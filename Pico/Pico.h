@@ -71,7 +71,7 @@ extern int  (*PicoMCDcloseTray)(void);
 extern int PicoCDBuffers;
 
 // Pico/Pico.c
-#define XPCM_BUFFER_SIZE (320+32)
+#define XPCM_BUFFER_SIZE (320+160)
 typedef struct
 {
 	int pen_pos[2];

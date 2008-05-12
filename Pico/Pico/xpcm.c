@@ -15,7 +15,7 @@
 	else if ( val < min ) val = min; \
 }
 
-const int TableQuant[8] =
+static const int TableQuant[8] =
 {
   ADFIX(0.8984375),
   ADFIX(0.8984375),
@@ -29,15 +29,22 @@ const int TableQuant[8] =
 
 // changed using trial and error..
 //const int quant_mul[16] = { 1, 3, 5, 7, 9, 11, 13, 15, -1, -3, -5, -7, -9, -11, -13, -15 };
-const int quant_mul[16]   = { 1, 3, 5, 7, 9, 11, 13, -1, -1, -3, -5, -7, -9, -11, -13, -15 };
+static const int quant_mul[16]   = { 1, 3, 5, 7, 9, 11, 13, -1, -1, -3, -5, -7, -9, -11, -13, -15 };
 
-static int sample = 0, quant = 0;
+static int sample = 0, quant = 0, sgn = 0;
+static int stepsamples = (44100<<10)/16000;
+
 
 PICO_INTERNAL void PicoPicoPCMReset(void)
 {
-  sample = 0;
+  sample = sgn = 0;
   quant = 0x7f;
   memset(PicoPicohw.xpcm_buffer, 0, sizeof(PicoPicohw.xpcm_buffer));
+}
+
+PICO_INTERNAL void PicoPicoPCMRerate(void)
+{
+  stepsamples = (PsndRate<<10)/16000;
 }
 
 #define XSHIFT 7
@@ -47,24 +54,16 @@ PICO_INTERNAL void PicoPicoPCMReset(void)
   sample += quant * quant_mul[srcval] >> XSHIFT; \
   quant = (quant * TableQuant[srcval&7]) >> ADPCMSHIFT; \
   Limit(quant, 0x6000, 0x7f); \
-  Limit(sample, 32767, -32768); \
+  Limit(sample, 32767/2, -32768/2); \
 }
 
 PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
 {
   unsigned char *src = PicoPicohw.xpcm_buffer;
   unsigned char *lim = PicoPicohw.xpcm_ptr;
-  int srcval, stepsamples = (44100<<10)/16000, needsamples = 0; // TODO: stepsamples
+  int srcval, needsamples = 0;
 
-  if (src == lim)
-  {
-    if (stereo)
-      // still must expand SN76496 to stereo
-      for (; length > 0; buffer+=2, length--)
-        buffer[1] = buffer[0];
-    sample = quant = 0;
-    return;
-  }
+  if (src == lim) goto end;
 
   for (; length > 0 && src < lim; src++)
   {
@@ -72,7 +71,7 @@ PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
     do_sample();
 
     for (needsamples += stepsamples; needsamples > (1<<10) && length > 0; needsamples -= (1<<10), length--) {
-      *buffer++ = sample;
+      *buffer++ += sample;
       if (stereo) { buffer[0] = buffer[-1]; buffer++; }
     }
 
@@ -80,9 +79,13 @@ PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
     do_sample();
 
     for (needsamples += stepsamples; needsamples > (1<<10) && length > 0; needsamples -= (1<<10), length--) {
-      *buffer++ = sample;
+      *buffer++ += sample;
       if (stereo) { buffer[0] = buffer[-1]; buffer++; }
     }
+
+    // lame normalization stuff, needed due to wrong adpcm algo
+    sgn += (sample < 0) ? -1 : 1;
+    if (sgn < -16 || sgn > 16) sample -= sample >> 5;
   }
 
   if (src < lim) {
@@ -90,11 +93,21 @@ PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
     memmove(PicoPicohw.xpcm_buffer, src, di);
     PicoPicohw.xpcm_ptr = PicoPicohw.xpcm_buffer + di;
     elprintf(EL_STATUS, "xpcm update: over %i", di);
+    // adjust fifo
+    PicoPicohw.fifo_bytes = di;
+    return;
   }
-  else
-  {
-    elprintf(EL_STATUS, "xpcm update: under %i", length);
-    PicoPicohw.xpcm_ptr = PicoPicohw.xpcm_buffer;
-  }
+
+  elprintf(EL_STATUS, "xpcm update: under %i", length);
+  PicoPicohw.xpcm_ptr = PicoPicohw.xpcm_buffer;
+
+end:
+  if (stereo)
+    // still must expand SN76496 to stereo
+    for (; length > 0; buffer+=2, length--)
+      buffer[1] = buffer[0];
+
+  sample = sgn = 0;
+  quant = 0x7f;
 }
 

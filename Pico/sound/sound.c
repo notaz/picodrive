@@ -158,6 +158,9 @@ void PsndRerate(int preserve_state)
 
   // set mixer
   PsndMix_32_to_16l = (PicoOpt & POPT_EN_STEREO) ? mix_32_to_16l_stereo : mix_32_to_16_mono;
+
+  if (PicoAHW & PAHW_PICO)
+    PicoReratePico();
 }
 
 
