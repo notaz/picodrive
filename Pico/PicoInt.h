@@ -448,7 +448,7 @@ PICO_INTERNAL void PicoReratePico(void);
 // Pico/xpcm.c
 PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo);
 PICO_INTERNAL void PicoPicoPCMReset(void);
-PICO_INTERNAL void PicoPicoPCMRerate(void);
+PICO_INTERNAL void PicoPicoPCMRerate(int xpcm_rate);
 
 // Sek.c
 PICO_INTERNAL int SekInit(void);

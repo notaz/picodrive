@@ -6,14 +6,15 @@
 picohw_state PicoPicohw;
 
 static int prev_line_cnt_irq3 = 0, prev_line_cnt_irq5 = 0;
-static int fifo_bytes_line = (16000<<16)/60/262/2; // fifo bytes/line. FIXME: other rates, modes
+static int fifo_bytes_line = (16000<<16)/60/262/2;
 
 PICO_INTERNAL void PicoReratePico(void)
 {
+  int rate = (PicoPicohw.r12 & 0xf) ? 16000 : 8000;
   if (Pico.m.pal)
-       fifo_bytes_line = (16000<<16)/50/312/2;
-  else fifo_bytes_line = (16000<<16)/60/262/2;
-  PicoPicoPCMRerate();
+       fifo_bytes_line = (rate<<16)/50/312/2;
+  else fifo_bytes_line = (rate<<16)/60/262/2;
+  PicoPicoPCMRerate(rate);
 }
 
 static void PicoLinePico(int count)
@@ -74,8 +75,8 @@ PICO_INTERNAL int PicoInitPico(void)
 
   PicoAHW = PAHW_PICO;
   memset(&PicoPicohw, 0, sizeof(PicoPicohw));
-  PicoPicohw.pen_pos[0] = 0x03c + 352/2;
-  PicoPicohw.pen_pos[1] = 0x200 + 252/2;
+  PicoPicohw.pen_pos[0] = 0x03c + 320/2;
+  PicoPicohw.pen_pos[1] = 0x200 + 240/2;
   prev_line_cnt_irq3 = prev_line_cnt_irq5 = 0;
 
   // map version register

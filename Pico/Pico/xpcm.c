@@ -28,7 +28,7 @@ static const int TableQuant[8] =
 };
 
 // changed using trial and error..
-//const int quant_mul[16] = { 1, 3, 5, 7, 9, 11, 13, 15, -1, -3, -5, -7, -9, -11, -13, -15 };
+//static const int quant_mul[16] = { 1, 3, 5, 7, 9, 11, 13, 15, -1, -3, -5, -7, -9, -11, -13, -15 };
 static const int quant_mul[16]   = { 1, 3, 5, 7, 9, 11, 13, -1, -1, -3, -5, -7, -9, -11, -13, -15 };
 
 static int sample = 0, quant = 0, sgn = 0;
@@ -42,19 +42,20 @@ PICO_INTERNAL void PicoPicoPCMReset(void)
   memset(PicoPicohw.xpcm_buffer, 0, sizeof(PicoPicohw.xpcm_buffer));
 }
 
-PICO_INTERNAL void PicoPicoPCMRerate(void)
+PICO_INTERNAL void PicoPicoPCMRerate(int xpcm_rate)
 {
-  stepsamples = (PsndRate<<10)/16000;
+  stepsamples = (PsndRate<<10)/xpcm_rate;
 }
 
-#define XSHIFT 7
+#define XSHIFT 6
 
 #define do_sample() \
 { \
-  sample += quant * quant_mul[srcval] >> XSHIFT; \
+  int delta = quant * quant_mul[srcval] >> XSHIFT; \
+  sample += delta - (delta >> 2); /* 3/4 */ \
   quant = (quant * TableQuant[srcval&7]) >> ADPCMSHIFT; \
   Limit(quant, 0x6000, 0x7f); \
-  Limit(sample, 32767/2, -32768/2); \
+  Limit(sample, 32767*3/4, -32768*3/4); \
 }
 
 PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)

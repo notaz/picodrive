@@ -38,12 +38,12 @@ static u32 PicoReadPico8(u32 a)
         d  = ~d;
         break;
 
-      case 0x05: d = (PicoPicohw.pen_pos[0] >> 8) & 3; break; // what is MS bit for? Games read it..
-      case 0x07: d =  PicoPicohw.pen_pos[0] & 0xff;    break;
-      case 0x09: d = (PicoPicohw.pen_pos[1] >> 8) & 3; break;
-      case 0x0b: d =  PicoPicohw.pen_pos[1] & 0xff;    break;
+      case 0x05: d = (PicoPicohw.pen_pos[0] >> 8);  break; // what is MS bit for? Games read it..
+      case 0x07: d =  PicoPicohw.pen_pos[0] & 0xff; break;
+      case 0x09: d = (PicoPicohw.pen_pos[1] >> 8);  break;
+      case 0x0b: d =  PicoPicohw.pen_pos[1] & 0xff; break;
       case 0x0d: d = (1 << (PicoPicohw.page & 7)) - 1; break;
-      case 0x12: d = 0x80; break;
+      case 0x12: d = PicoPicohw.fifo_bytes == 0 ? 0x80 : 0; break; // guess
       default:
         elprintf(EL_UIO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
         break;
@@ -72,8 +72,10 @@ static u32 PicoReadPico16(u32 a)
     goto end;
   }
 
-  if (a == 0x800010)
+  if      (a == 0x800010)
     d = (PicoPicohw.fifo_bytes > 0x3f) ? 0 : (0x3f - PicoPicohw.fifo_bytes);
+  else if (a == 0x800012)
+    d = PicoPicohw.fifo_bytes == 0 ? 0x8000 : 0; // guess
 
   elprintf(EL_UIO, "r16: %06x, %04x @%06x", a&0xffffff, d, SekPc);
 
@@ -156,7 +158,12 @@ static void PicoWritePico16(u32 a,u16 d)
       PicoPicohw.xpcm_ptr++;
     }
   }
-  else if (a == 0x800012) PicoPicohw.r12 = d;
+  else if (a == 0x800012) {
+    int r12_old = PicoPicohw.r12;
+    PicoPicohw.r12 = d;
+    if (r12_old != d)
+      PicoReratePico();
+  }
 
   elprintf(EL_UIO, "w16: %06x, %04x", a&0xffffff, d);
 }

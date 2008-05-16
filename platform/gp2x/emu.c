@@ -53,7 +53,9 @@ char noticeMsg[64];			// notice msg to draw
 unsigned char *PicoDraw2FB = NULL;  // temporary buffer for alt renderer
 int reset_timing = 0;
 
-static int pico_pen_x = 0, pico_pen_y = 0, pico_inp_mode = 0;
+#define PICO_PEN_ADJUST_X 4
+#define PICO_PEN_ADJUST_Y 2
+static int pico_pen_x = 320/2, pico_pen_y = 240/2, pico_inp_mode = 0;
 
 static void emu_msg_cb(const char *msg);
 static void emu_msg_tray_open(void);
@@ -199,7 +201,7 @@ void osd_text(int x, int y, const char *text)
 	}
 }
 
-static void cd_leds(void)
+static void draw_cd_leds(void)
 {
 //	static
 	int old_reg;
@@ -225,6 +227,25 @@ static void cd_leds(void)
 		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 320/2 - 12/2;
 		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
 	}
+}
+
+static void draw_pico_ptr(void)
+{
+	unsigned short *p = (unsigned short *)gp2x_screen;
+
+	// only if pen enabled and for 16bit modes
+	if (pico_inp_mode == 0 || (PicoOpt&0x10) || !(currentConfig.EmuOpt&0x80)) return;
+
+	if (!(Pico.video.reg[12]&1) && !(PicoOpt&POPT_DIS_32C_BORDER))
+		p += 32;
+
+	p += 320 * (pico_pen_y + PICO_PEN_ADJUST_Y);
+	p += pico_pen_x + PICO_PEN_ADJUST_X;
+	p[0]   ^= 0xffff;
+	p[319] ^= 0xffff;
+	p[320] ^= 0xffff;
+	p[321] ^= 0xffff;
+	p[640] ^= 0xffff;
 }
 
 static int EmuScanBegin16(unsigned int num)
@@ -301,7 +322,9 @@ static void blit(const char *fps, const char *notice)
 			osd_text(osd_fps_x, h, fps);
 	}
 	if ((emu_opt & 0x400) && (PicoAHW & PAHW_MCD))
-		cd_leds();
+		draw_cd_leds();
+	if (PicoAHW & PAHW_PICO)
+		draw_pico_ptr();
 
 	//gp2x_video_wait_vsync();
 	gp2x_video_flip();
@@ -404,9 +427,11 @@ static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 		pico_inp_mode++;
 		if (pico_inp_mode > 2) pico_inp_mode = 0;
 		switch (pico_inp_mode) {
-			case 0: strcpy(noticeMsg, "Input: Joytick         "); break;
-			case 1: strcpy(noticeMsg, "Input: Pen on Storyware"); break;
 			case 2: strcpy(noticeMsg, "Input: Pen on Pad      "); break;
+			case 1: strcpy(noticeMsg, "Input: Pen on Storyware"); break;
+			case 0: strcpy(noticeMsg, "Input: Joytick         ");
+				PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
+				break;
 		}
 		gettimeofday(&noticeMsgTime, 0);
 	}
@@ -424,11 +449,18 @@ static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 	}
 	if (pico_inp_mode != 0) {
 		PicoPad[0] &= ~0x0f; // release UDLR
-		if (gp2x_keys & GP2X_UP)   { pico_pen_y--; if (pico_pen_y <   0) pico_pen_y =   0; }
-		if (gp2x_keys & GP2X_DOWN) { pico_pen_y++; if (pico_pen_y > 251) pico_pen_y = 251; }
-		if (gp2x_keys & GP2X_LEFT) { pico_pen_x--; if (pico_pen_x <   0) pico_pen_x =   0; }
-		if (gp2x_keys & GP2X_RIGHT){ pico_pen_x++; if (pico_pen_x > 353) pico_pen_x = 353; }
-		PicoPicohw.pen_pos[0] = 0x03c + pico_pen_x;
+		if (gp2x_keys & GP2X_UP)   { pico_pen_y--; if (pico_pen_y < 0) pico_pen_y = 0; }
+		if (gp2x_keys & GP2X_DOWN) { pico_pen_y++; if (pico_pen_y > 239-PICO_PEN_ADJUST_Y) pico_pen_y = 239-PICO_PEN_ADJUST_Y; }
+		if (gp2x_keys & GP2X_LEFT) { pico_pen_x--; if (pico_pen_x < 0) pico_pen_x = 0; }
+		if (gp2x_keys & GP2X_RIGHT) {
+			int lim = (Pico.video.reg[12]&1) ? 319 : 255;
+			pico_pen_x++;
+			if (pico_pen_x > lim-PICO_PEN_ADJUST_X)
+				pico_pen_x = lim-PICO_PEN_ADJUST_X;
+		}
+		PicoPicohw.pen_pos[0] = pico_pen_x;
+		if (!(Pico.video.reg[12]&1)) PicoPicohw.pen_pos[0] += pico_pen_x/4;
+		PicoPicohw.pen_pos[0] += 0x3c;
 		PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
 	}
 }
@@ -553,7 +585,6 @@ static void RunEvents(unsigned int which)
 		engineState = PGS_Menu;
 	}
 }
-
 
 static void updateKeys(void)
 {
