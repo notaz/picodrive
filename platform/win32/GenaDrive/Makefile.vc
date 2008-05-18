@@ -30,11 +30,15 @@ OBJ = $(OBJ) $(R)Pico\Area.obj $(R)Pico\Cart.obj $(R)Pico\Memory.obj $(R)Pico\Mi
 # Pico - CD
 OBJ = $(OBJ) $(R)Pico\cd\Pico.obj $(R)Pico\cd\Memory.obj $(R)Pico\cd\Sek.obj $(R)Pico\cd\LC89510.obj \
 		$(R)Pico\cd\cd_sys.obj $(R)Pico\cd\cd_file.obj $(R)Pico\cd\gfx_cd.obj \
-		$(R)Pico\cd\Area.obj $(R)Pico\cd\Misc.obj $(R)Pico\cd\pcm.obj $(R)Pico\cd\buffering.obj
+		$(R)Pico\cd\Area.obj $(R)Pico\cd\Misc.obj $(R)Pico\cd\pcm.obj $(R)Pico\cd\buffering.obj \
+		$(R)Pico\cd\cue.obj
+# Pico - Pico
+OBJ = $(OBJ) $(R)Pico\Pico\Pico.obj $(R)Pico\Pico\Memory.obj $(R)Pico\Pico\xpcm.obj
 # Pico - sound
 OBJ = $(OBJ) $(R)Pico\sound\sound.obj $(R)Pico\sound\sn76496.obj $(R)Pico\sound\ym2612.obj $(R)Pico\sound\mix.obj
 # Pico - carthw
-OBJ = $(OBJ) $(R)Pico\carthw\svp\svp.obj $(R)Pico\carthw\svp\Memory.obj $(R)Pico\carthw\svp\ssp16.obj
+OBJ = $(OBJ) $(R)Pico\carthw\carthw.obj $(R)Pico\carthw\svp\svp.obj $(R)Pico\carthw\svp\Memory.obj \
+		$(R)Pico\carthw\svp\ssp16.obj $(R)Pico\carthw\svp\compiler.obj
 # zlib
 OBJ = $(OBJ) $(R)zlib\gzio.obj $(R)zlib\inffast.obj $(R)zlib\inflate.obj $(R)zlib\inftrees.obj $(R)zlib\trees.obj \
 	$(R)zlib\deflate.obj $(R)zlib\crc32.obj $(R)zlib\adler32.obj $(R)zlib\zutil.obj $(R)zlib\compress.obj $(R)zlib\uncompr.obj

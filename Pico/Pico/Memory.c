@@ -262,5 +262,15 @@ PICO_INTERNAL void PicoMemSetupPico(void)
   pm68k_read_memory_pcr_16 = m68k_read_memory_pcrp_16;
   pm68k_read_memory_pcr_32 = m68k_read_memory_pcrp_32;
 #endif
+#ifdef EMU_F68K
+  // use standard setup, only override handlers
+  PicoMemSetup();
+  PicoCpuFM68k.read_byte =PicoReadPico8;
+  PicoCpuFM68k.read_word =PicoReadPico16;
+  PicoCpuFM68k.read_long =PicoReadPico32;
+  PicoCpuFM68k.write_byte=PicoWritePico8;
+  PicoCpuFM68k.write_word=PicoWritePico16;
+  PicoCpuFM68k.write_long=PicoWritePico32;
+#endif
 }
 

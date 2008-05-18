@@ -7,10 +7,11 @@ char *romname=NULL;
 HWND FrameWnd=NULL;
 RECT FrameRectMy;
 int lock_to_1_1 = 1;
+static HWND PicoSwWnd=NULL, PicoPadWnd=NULL;
 
 int MainWidth=720,MainHeight=480;
 
-static HMENU mdisplay = 0;
+static HMENU mdisplay = 0, mpicohw = 0;
 static int rom_loaded = 0;
 
 static void UpdateRect()
@@ -63,7 +64,7 @@ static void LoadROM(const char *cmdpath)
   LoopWait=1;
   for (i = 0; LoopWaiting == 0 && i < 10; i++) Sleep(100);
 
-  PicoUnloadCart();
+  PicoCartUnload();
   PicoCartInsert(rom_data_new, rom_size);
 
   rom_loaded = 1;
@@ -89,7 +90,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
       switch (LOWORD(wparam))
       {
         case 1000: LoadROM(NULL); break;
-        case 1001: PostQuitMessage(0); return 0;
+        case 1001: PicoReset(); return 0;
+        case 1002: PostQuitMessage(0); return 0;
         case 1100:
         case 1101:
         case 1102:
@@ -112,10 +114,28 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
           lock_to_1_1=!lock_to_1_1;
           CheckMenuItem(mdisplay, 1104, lock_to_1_1 ? MF_CHECKED : MF_UNCHECKED);
           return 0;
-        case 1200: break;
+        case 1210:
+        case 1211:
+          i = IsWindowVisible((LOWORD(wparam)&1) ? PicoPadWnd : PicoSwWnd);
+          i = !i;
+          ShowWindow((LOWORD(wparam)&1) ? PicoPadWnd : PicoSwWnd, i ? SW_SHOWNA : SW_HIDE);
+          CheckMenuItem(mpicohw, LOWORD(wparam), i ? MF_CHECKED : MF_UNCHECKED);
+          return 0;
+        case 1220:
+        case 1221:
+        case 1222:
+        case 1223:
+        case 1224:
+        case 1225:
+        case 1226:
+          PicoPicohw.page = LOWORD(wparam) % 10;
+          for (i = 0; i < 7; i++)
+            CheckMenuItem(mpicohw, 1220 + i, MF_UNCHECKED);
+          CheckMenuItem(mpicohw, 1220 + PicoPicohw.page, MF_CHECKED);
+          return 0;
         case 1300:
           MessageBox(FrameWnd, "PicoDrive v" VERSION " (c) notaz, 2006-2008\n"
-              "SVP demo edition\n\n"
+              "SVP and Pico demo edition\n\n"
               "Credits:\n"
               "fDave: base code of PicoDrive, GenaDrive (the frontend)\n"
               "Chui: Fame/C\n"
@@ -133,6 +153,29 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
   return DefWindowProc(hwnd,msg,wparam,lparam);
 }
 
+static LRESULT CALLBACK PicoSwWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
+{
+  switch (msg)
+  {
+    case WM_CLOSE: return 0;
+    case WM_DESTROY: PicoSwWnd=NULL; break;
+  }
+
+  return DefWindowProc(hwnd,msg,wparam,lparam);
+}
+
+static LRESULT CALLBACK PicoPadWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
+{
+  switch (msg)
+  {
+    case WM_CLOSE: return 0;
+    case WM_DESTROY: PicoPadWnd=NULL; break;
+  }
+
+  return DefWindowProc(hwnd,msg,wparam,lparam);
+}
+
+
 static int FrameInit()
 {
   WNDCLASS wc;
@@ -148,7 +191,15 @@ static int FrameInit()
   wc.hInstance=GetModuleHandle(NULL);
   wc.hCursor=LoadCursor(NULL,IDC_ARROW);
   wc.hbrBackground=CreateSolidBrush(0);
-  wc.lpszClassName="MainFrame";
+  wc.lpszClassName="PicoMainFrame";
+  RegisterClass(&wc);
+
+  wc.lpszClassName="PicoSwWnd";
+  wc.lpfnWndProc=PicoSwWndProc;
+  RegisterClass(&wc);
+
+  wc.lpszClassName="PicoPadWnd";
+  wc.lpfnWndProc=PicoPadWndProc;
   RegisterClass(&wc);
 
   rect.right =320;//MainWidth;
@@ -171,27 +222,58 @@ static int FrameInit()
   // Create menu:
   mfile = CreateMenu();
   InsertMenu(mfile, -1, MF_BYPOSITION|MF_STRING, 1000, "&Load ROM");
-  InsertMenu(mfile, -1, MF_BYPOSITION|MF_STRING, 1001, "E&xit");
+  InsertMenu(mfile, -1, MF_BYPOSITION|MF_STRING, 1001, "&Reset");
+  InsertMenu(mfile, -1, MF_BYPOSITION|MF_STRING, 1002, "E&xit");
   mdisplay = CreateMenu();
   InsertMenu(mdisplay, -1, MF_BYPOSITION|MF_STRING, 1100, "320x224");
   InsertMenu(mdisplay, -1, MF_BYPOSITION|MF_STRING, 1101, "256x224");
   InsertMenu(mdisplay, -1, MF_BYPOSITION|MF_STRING, 1102, "640x448");
   InsertMenu(mdisplay, -1, MF_BYPOSITION|MF_STRING, 1103, "512x448");
   InsertMenu(mdisplay, -1, MF_BYPOSITION|MF_STRING, 1104, "Lock to 1:1");
+  mpicohw = CreateMenu();
+  InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1210, "Show &Storyware");
+  InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1211, "Show &Drawing pad");
+  InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_SEPARATOR, 0, NULL);
+  InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1220, "Title page (&0)");
+  InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1221, "Page &1");
+  InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1222, "Page &2");
+  InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1223, "Page &3");
+  InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1224, "Page &4");
+  InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1225, "Page &5");
+  InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1226, "Page &6");
   mmain = CreateMenu();
-  InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, (UINT_PTR) mfile, "&File");
+  InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, (UINT_PTR) mfile,    "&File");
   InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, (UINT_PTR) mdisplay, "&Display");
+  InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, (UINT_PTR) mpicohw,  "&Pico");
 //  InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, 1200, "&Config");
   InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING, 1300, "&About");
 
   // Create the window:
-  FrameWnd=CreateWindow(wc.lpszClassName,"PicoDrive " VERSION,style|WS_VISIBLE,
+  FrameWnd=CreateWindow("PicoMainFrame","PicoDrive " VERSION,style|WS_VISIBLE,
     left,top,width,height,NULL,mmain,NULL,NULL);
 
   CheckMenuItem(mdisplay, 1104, lock_to_1_1 ? MF_CHECKED : MF_UNCHECKED);
   ShowWindow(FrameWnd, SW_NORMAL);
   UpdateWindow(FrameWnd);
   UpdateRect();
+
+  // create Pico windows
+  style = WS_OVERLAPPED|WS_CAPTION|WS_BORDER;
+  rect.left=rect.top=0;
+  rect.right =320;
+  rect.bottom=224;
+
+  AdjustWindowRect(&rect,style,1);
+  width =rect.right-rect.left;
+  height=rect.bottom-rect.top;
+
+  left += 326;
+  PicoSwWnd=CreateWindow("PicoSwWnd","Storyware",style,
+    left,top,width,height,FrameWnd,NULL,NULL,NULL);
+
+  top += 266;
+  PicoPadWnd=CreateWindow("PicoPadWnd","Drawing Pad",style,
+    left,top,width,height,FrameWnd,NULL,NULL,NULL);
 
   return 0;
 }

@@ -1398,7 +1398,7 @@ static int translate_op(unsigned int op, int *pc, int imm, int *end_cond, int *j
 		}
 
 		// ldi ri, simm
-		case 0x0c ... 0x0f:
+		case 0x0c: case 0x0d: case 0x0e: case 0x0f:
 			tmpv = (op>>8)&7;
 			known_regs.r[tmpv] = op;
 			known_regb |= 1 << (tmpv + 8);

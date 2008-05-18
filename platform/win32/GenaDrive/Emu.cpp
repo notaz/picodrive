@@ -5,7 +5,7 @@ unsigned short *EmuScreen=NULL;
 int EmuWidth=320,EmuHeight=224;
 RECT EmuScreenRect = { 0, 0, 320, 224 };
 
-static int EmuScan(unsigned int num, void *sdata);
+static int EmuScan(unsigned int num);
 unsigned char *PicoDraw2FB = NULL;
 
 int EmuInit()
@@ -22,7 +22,7 @@ int EmuInit()
   memset(EmuScreen,0,len);
 
   PicoDrawSetColorFormat(1);
-  PicoScan=EmuScan;
+  PicoScanBegin=EmuScan;
 
   return 0;
 }
@@ -38,18 +38,9 @@ void EmuExit()
 }
 
 // Megadrive scanline callback:
-static int EmuScan(unsigned int num, void *sdata)
+static int EmuScan(unsigned int num)
 {
-  unsigned short *pd=NULL;
-  unsigned short *ps=NULL;
-
-  if (num>=(unsigned int)EmuHeight) return 0;
-
-  // Copy scanline to screen buffer:
-  pd=EmuScreen+(num<<8)+(num<<6);
-  ps=(unsigned short *)sdata;
-
-  memcpy(pd, ps, 320*2);
+  DrawLineDest=EmuScreen+(num<<8)+(num<<6);
   
   return 0;
 }

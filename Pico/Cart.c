@@ -512,7 +512,7 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
     PicoCartUnloadHook = NULL;
   }
 
-  PicoAHW &= ~PAHW_SVP;
+  PicoAHW &= PAHW_MCD;
 
   PicoMemResetHooks();
   PicoDmaHook = NULL;

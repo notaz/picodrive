@@ -6,6 +6,10 @@
 #include "../PicoInt.h"
 // #define elprintf(w,f,...) printf(f "\n",##__VA_ARGS__);
 
+#ifdef _MSC_VER
+#define snprintf _snprintf
+#endif
+
 static char *mystrip(char *str)
 {
 	int i, len;
