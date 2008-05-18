@@ -8,9 +8,13 @@ picohw_state PicoPicohw;
 static int prev_line_cnt_irq3 = 0, prev_line_cnt_irq5 = 0;
 static int fifo_bytes_line = (16000<<16)/60/262/2;
 
+static const int guessed_rates[] = { 8000, 14000, 12000, 14000, 16000, 18000, 16000, 16000 }; // ?
+
+#define PICOHW_FIFO_IRQ_THRESHOLD 12
+
 PICO_INTERNAL void PicoReratePico(void)
 {
-  int rate = (PicoPicohw.r12 & 0xf) ? 16000 : 8000;
+  int rate = guessed_rates[PicoPicohw.r12 & 7];
   if (Pico.m.pal)
        fifo_bytes_line = (rate<<16)/50/312/2;
   else fifo_bytes_line = (rate<<16)/60/262/2;
@@ -25,16 +29,8 @@ static void PicoLinePico(int count)
   if ((PicoPicohw.r12 & 0x4003) && PicoPicohw.line_counter - prev_line_cnt_irq3 > 200) {
     prev_line_cnt_irq3 = PicoPicohw.line_counter;
     // just a guess/hack, allows 101 Dalmantians to boot
-    elprintf(EL_ANOMALY, "irq3");
+    elprintf(EL_PICOHW, "irq3");
     SekInterrupt(3);
-    return;
-  }
-
-  if (PicoPicohw.fifo_bytes == 16) {
-    prev_line_cnt_irq3 = PicoPicohw.line_counter;
-    elprintf(EL_ANOMALY, "irq3, fb=%i", PicoPicohw.fifo_bytes);
-    SekInterrupt(3);
-    PicoPicohw.fifo_bytes--;
     return;
   }
 #endif
@@ -52,10 +48,20 @@ static void PicoLinePico(int count)
   else
     PicoPicohw.fifo_line_bytes = 0;
 
+#if 1
+  if (PicoPicohw.fifo_bytes_prev >= PICOHW_FIFO_IRQ_THRESHOLD &&
+      PicoPicohw.fifo_bytes < PICOHW_FIFO_IRQ_THRESHOLD) {
+    prev_line_cnt_irq3 = PicoPicohw.line_counter; // ?
+    elprintf(EL_PICOHW, "irq3, fb=%i", PicoPicohw.fifo_bytes);
+    SekInterrupt(3);
+  }
+  PicoPicohw.fifo_bytes_prev = PicoPicohw.fifo_bytes;
+#endif
+
 #if 0
   if (PicoPicohw.line_counter - prev_line_cnt_irq5 > 512) {
     prev_line_cnt_irq5 = PicoPicohw.line_counter;
-    elprintf(EL_ANOMALY, "irq5");
+    elprintf(EL_PICOHW, "irq5");
     SekInterrupt(5);
   }
 #endif

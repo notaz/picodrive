@@ -211,13 +211,6 @@ extern struct DrZ80 drZ80;
 
 // ---------------------------------------------------------
 
-// Pico active hw
-#define PAHW_MCD  (1<<0)
-#define PAHW_32X  (1<<1)
-#define PAHW_SVP  (1<<2)
-#define PAHW_PICO (1<<3)
-extern int PicoAHW;
-
 // main oscillator clock which controls timing
 #define OSC_NTSC 53693100
 // seems to be accurate, see scans from http://www.hot.ee/tmeeco/
@@ -525,6 +518,7 @@ PICO_INTERNAL void z80_exit(void);
 #define EL_IO      0x00001000 /* all i/o */
 #define EL_CDPOLL  0x00002000 /* MCD: log poll detection */
 #define EL_SVP     0x00004000 /* SVP stuff */
+#define EL_PICOHW  0x00008000 /* Pico stuff */
 
 #define EL_STATUS  0x40000000 /* status messages */
 #define EL_ANOMALY 0x80000000 /* some unexpected conditions (during emulation) */

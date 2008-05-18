@@ -93,13 +93,13 @@ PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo)
     int di = lim - src;
     memmove(PicoPicohw.xpcm_buffer, src, di);
     PicoPicohw.xpcm_ptr = PicoPicohw.xpcm_buffer + di;
-    elprintf(EL_STATUS, "xpcm update: over %i", di);
+    elprintf(EL_PICOHW, "xpcm update: over %i", di);
     // adjust fifo
     PicoPicohw.fifo_bytes = di;
     return;
   }
 
-  elprintf(EL_STATUS, "xpcm update: under %i", length);
+  elprintf(EL_PICOHW, "xpcm update: under %i", length);
   PicoPicohw.xpcm_ptr = PicoPicohw.xpcm_buffer;
 
 end:

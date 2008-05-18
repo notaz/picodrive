@@ -50,7 +50,7 @@ static u32 PicoReadPico8(u32 a)
     }
   }
 
-//  elprintf(EL_UIO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
+  //elprintf(EL_UIO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
 
 end:
   elprintf(EL_IO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
@@ -76,8 +76,10 @@ static u32 PicoReadPico16(u32 a)
     d = (PicoPicohw.fifo_bytes > 0x3f) ? 0 : (0x3f - PicoPicohw.fifo_bytes);
   else if (a == 0x800012)
     d = PicoPicohw.fifo_bytes == 0 ? 0x8000 : 0; // guess
+  else
+    elprintf(EL_UIO, "r16: %06x, %04x @%06x", a&0xffffff, d, SekPc);
 
-  elprintf(EL_UIO, "r16: %06x, %04x @%06x", a&0xffffff, d, SekPc);
+  //elprintf(EL_UIO, "r16: %06x, %04x @%06x", a&0xffffff, d, SekPc);
 
 end:
   elprintf(EL_IO, "r16: %06x, %04x @%06x", a&0xffffff, d, SekPc);
@@ -109,13 +111,20 @@ end:
 // -----------------------------------------------------------------
 //                            Write Ram
 
+/*
 void dump(u16 w)
 {
-  FILE *f = fopen("dump.bin", "a");
-  fwrite(&w, 1, 2, f);
-  fclose(f);
-}
+  static FILE *f[0x10] = { NULL, };
+  char fname[32];
+  int num = PicoPicohw.r12 & 0xf;
 
+  sprintf(fname, "ldump%i.bin", num);
+  if (f[num] == NULL)
+    f[num] = fopen(fname, "wb");
+  fwrite(&w, 1, 2, f[num]);
+  //fclose(f);
+}
+*/
 
 static void PicoWritePico8(u32 a,u8 d)
 {
@@ -132,7 +141,13 @@ static void PicoWritePico8(u32 a,u8 d)
     return;
   }
 
-  elprintf(EL_UIO, "w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
+  switch (a & 0x1f) {
+    case 0x19: case 0x1b: case 0x1d: case 0x1f: break; // 'S' 'E' 'G' 'A'
+    default:
+      elprintf(EL_UIO, "w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
+      break;
+  }
+  //elprintf(EL_UIO, "w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 }
 
 static void PicoWritePico16(u32 a,u16 d)
@@ -154,7 +169,7 @@ static void PicoWritePico16(u32 a,u16 d)
       *PicoPicohw.xpcm_ptr++ = d;
     }
     else if (PicoPicohw.xpcm_ptr == PicoPicohw.xpcm_buffer + XPCM_BUFFER_SIZE) {
-      elprintf(EL_ANOMALY, "xpcm_buffer overflow!");
+      elprintf(EL_ANOMALY|EL_PICOHW, "xpcm_buffer overflow!");
       PicoPicohw.xpcm_ptr++;
     }
   }
@@ -164,8 +179,10 @@ static void PicoWritePico16(u32 a,u16 d)
     if (r12_old != d)
       PicoReratePico();
   }
+  else
+    elprintf(EL_UIO, "w16: %06x, %04x", a&0xffffff, d);
 
-  elprintf(EL_UIO, "w16: %06x, %04x", a&0xffffff, d);
+  //elprintf(EL_UIO, "w16: %06x, %04x", a&0xffffff, d);
 }
 
 static void PicoWritePico32(u32 a,u32 d)

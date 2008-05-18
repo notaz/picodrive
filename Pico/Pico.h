@@ -48,10 +48,15 @@ void mp3_update(int *buffer, int length, int stereo);
 #define POPT_EN_SVP_DRC     (1<<17)
 #define POPT_DIS_SPRITE_LIM (1<<18)
 extern int PicoOpt; // bitfield
+#define PAHW_MCD  (1<<0)
+#define PAHW_32X  (1<<1)
+#define PAHW_SVP  (1<<2)
+#define PAHW_PICO (1<<3)
+extern int PicoAHW;            // Pico active hw
 extern int PicoVer;
-extern int PicoSkipFrame; // skip rendering frame, but still do sound (if enabled) and emulation stuff
+extern int PicoSkipFrame;      // skip rendering frame, but still do sound (if enabled) and emulation stuff
 extern int PicoRegionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
-extern int PicoAutoRgnOrder; // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
+extern int PicoAutoRgnOrder;   // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
 extern int PicoSVPCycles;
 int  PicoInit(void);
 void PicoExit(void);
@@ -77,7 +82,8 @@ typedef struct
 	int pen_pos[2];
 	int page;
 	// internal
-	int fifo_bytes;      // free bytes in FIFO
+	int fifo_bytes;      // bytes in FIFO
+	int fifo_bytes_prev;
 	int fifo_line_bytes; // float part, << 16
 	int line_counter;
 	unsigned short r1, r12;
