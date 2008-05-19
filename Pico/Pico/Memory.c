@@ -34,7 +34,7 @@ static u32 PicoReadPico8(u32 a)
       case 0x01: d = PicoPicohw.r1; break;
       case 0x03:
         d  =  PicoPad[0]&0x1f; // d-pad
-        d |= (PicoPad[0]&0x20) << 2; // red button -> C
+        d |= (PicoPad[0]&0x20) << 2; // pen push -> C
         d  = ~d;
         break;
 

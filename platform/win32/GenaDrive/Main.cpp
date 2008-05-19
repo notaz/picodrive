@@ -11,7 +11,7 @@ static HWND PicoSwWnd=NULL, PicoPadWnd=NULL;
 
 int MainWidth=720,MainHeight=480;
 
-static HMENU mdisplay = 0, mpicohw = 0;
+static HMENU mmain = 0, mdisplay = 0, mpicohw = 0;
 static int rom_loaded = 0;
 
 static void UpdateRect()
@@ -21,6 +21,22 @@ static void UpdateRect()
   wi.cbSize = sizeof(wi);
   GetWindowInfo(FrameWnd, &wi);
   FrameRectMy = wi.rcClient;
+}
+
+static void PrepareFroROM()
+{
+  int show = PicoAHW & PAHW_PICO;
+  EnableMenuItem(mmain, 2, MF_BYPOSITION|(show ? MF_ENABLED : MF_GRAYED));
+  ShowWindow(PicoPadWnd, show ? SW_SHOWNA : SW_HIDE);
+  ShowWindow(PicoSwWnd, show ? SW_SHOWNA : SW_HIDE);
+  CheckMenuItem(mpicohw, 1210, show ? MF_CHECKED : MF_UNCHECKED);
+  CheckMenuItem(mpicohw, 1211, show ? MF_CHECKED : MF_UNCHECKED);
+  PostMessage(FrameWnd, WM_COMMAND, 1220 + PicoPicohw.page, 0);
+  DrawMenuBar(FrameWnd);
+
+  PicoPicohw.pen_pos[0] =
+  PicoPicohw.pen_pos[1] = 0x8000;
+  picohw_pen_pressed = 0;
 }
 
 static void LoadROM(const char *cmdpath)
@@ -67,6 +83,8 @@ static void LoadROM(const char *cmdpath)
   PicoCartUnload();
   PicoCartInsert(rom_data_new, rom_size);
 
+  PrepareFroROM();
+
   rom_loaded = 1;
   romname = rompath;
   LoopWait=0;
@@ -78,6 +96,8 @@ static int rect_heights[4] = { 224, 224, 448, 448 };
 // Window proc for the frame window:
 static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
 {
+  POINT pt;
+  RECT rc;
   int i;
   switch (msg)
   {
@@ -148,6 +168,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
           return 0;
       }
       break;
+    case WM_TIMER:
+      GetCursorPos(&pt);
+      GetWindowRect(PicoSwWnd, &rc);
+      if (PtInRect(&rc, pt)) break;
+      GetWindowRect(PicoPadWnd, &rc);
+      if (PtInRect(&rc, pt)) break;
+      PicoPicohw.pen_pos[0] |= 0x8000;
+      PicoPicohw.pen_pos[1] |= 0x8000;
+      picohw_pen_pressed = 0;
+      break;
   }
 
   return DefWindowProc(hwnd,msg,wparam,lparam);
@@ -159,6 +189,13 @@ static LRESULT CALLBACK PicoSwWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lp
   {
     case WM_CLOSE: return 0;
     case WM_DESTROY: PicoSwWnd=NULL; break;
+    case WM_LBUTTONDOWN: picohw_pen_pressed = 1; return 0;
+    case WM_LBUTTONUP:   picohw_pen_pressed = 0; return 0;
+    case WM_MOUSEMOVE:
+      PicoPicohw.pen_pos[0] = 0x03c + LOWORD(lparam) * 2/3;
+      PicoPicohw.pen_pos[1] = 0x2f8 + HIWORD(lparam);
+      SetTimer(FrameWnd, 100, 1000, NULL);
+      break;
   }
 
   return DefWindowProc(hwnd,msg,wparam,lparam);
@@ -170,6 +207,13 @@ static LRESULT CALLBACK PicoPadWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM l
   {
     case WM_CLOSE: return 0;
     case WM_DESTROY: PicoPadWnd=NULL; break;
+    case WM_LBUTTONDOWN: picohw_pen_pressed = 1; return 0;
+    case WM_LBUTTONUP:   picohw_pen_pressed = 0; return 0;
+    case WM_MOUSEMOVE:
+      PicoPicohw.pen_pos[0] = 0x03c + LOWORD(lparam);
+      PicoPicohw.pen_pos[1] = 0x1fc + HIWORD(lparam);
+      SetTimer(FrameWnd, 100, 1000, NULL);
+      break;
   }
 
   return DefWindowProc(hwnd,msg,wparam,lparam);
@@ -180,7 +224,7 @@ static int FrameInit()
 {
   WNDCLASS wc;
   RECT rect={0,0,0,0};
-  HMENU mmain, mfile;
+  HMENU mfile;
   int style=0;
   int left=0,top=0,width=0,height=0;
 
@@ -245,6 +289,7 @@ static int FrameInit()
   InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, (UINT_PTR) mfile,    "&File");
   InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, (UINT_PTR) mdisplay, "&Display");
   InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, (UINT_PTR) mpicohw,  "&Pico");
+  EnableMenuItem(mmain, 2, MF_BYPOSITION|MF_GRAYED);
 //  InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING|MF_POPUP, 1200, "&Config");
   InsertMenu(mmain, -1, MF_BYPOSITION|MF_STRING, 1300, "&About");
 
@@ -269,7 +314,7 @@ static int FrameInit()
 
   left += 326;
   PicoSwWnd=CreateWindow("PicoSwWnd","Storyware",style,
-    left,top,width,height,FrameWnd,NULL,NULL,NULL);
+    left,top,width+160,height,FrameWnd,NULL,NULL,NULL);
 
   top += 266;
   PicoPadWnd=CreateWindow("PicoPadWnd","Drawing Pad",style,

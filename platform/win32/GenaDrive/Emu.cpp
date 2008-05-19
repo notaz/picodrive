@@ -4,6 +4,7 @@
 unsigned short *EmuScreen=NULL;
 int EmuWidth=320,EmuHeight=224;
 RECT EmuScreenRect = { 0, 0, 320, 224 };
+int picohw_pen_pressed = 0;
 
 static int EmuScan(unsigned int num);
 unsigned char *PicoDraw2FB = NULL;
@@ -58,6 +59,7 @@ int EmuFrame()
   }
 
   PicoPad[0]=input;
+  if (picohw_pen_pressed) PicoPad[0] |= 0x20;
 
   PsndOut=(short *)DSoundNext;
   PicoFrame();
