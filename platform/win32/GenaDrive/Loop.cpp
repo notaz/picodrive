@@ -127,7 +127,7 @@ extern "C" int dprintf(char *format, ...)
 }
 #endif
 
-extern "C" int dprintf2(char *format, ...)
+extern "C" int lprintf(char *format, ...)
 {
   char str[512];
   va_list val=NULL;

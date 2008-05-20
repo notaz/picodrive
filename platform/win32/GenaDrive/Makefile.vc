@@ -2,7 +2,7 @@
 
 R=..\..\..\ 
 
-CFLAGS=/nologo /W2 /O2 /D "_CRT_SECURE_NO_WARNINGS" -I. -I$(R)
+CFLAGS=/nologo /W2 /O2 /D "_CRT_SECURE_NO_WARNINGS" -I. -I$(R) -I$(R)zlib\
 
 LDFLAGS=/nologo /machine:I386 /opt:nowin98 /out:PicoDrive.exe
 
@@ -22,7 +22,8 @@ OBJ = Emu.obj Input.obj Main.obj Direct.obj DSound.obj Loop.obj
 
 # common
 #OBJS += platform\common\emu.obj platform\common\menu.obj platform\common\fonts.obj 
-#		platform\common\readpng.obj platform\common\mp3_helix.obj
+#		platform\common\mp3_helix.obj
+OBJ = $(OBJ) $(R)platform\common\readpng.obj
 
 # Pico
 OBJ = $(OBJ) $(R)Pico\Area.obj $(R)Pico\Cart.obj $(R)Pico\Memory.obj $(R)Pico\Misc.obj $(R)Pico\Pico.obj $(R)Pico\Sek.obj \
@@ -60,7 +61,7 @@ OBJ = $(OBJ) $(R)cpu\cz80\cz80.obj
 ALL : PicoDrive.exe
 
 PicoDrive.exe : $(OBJ)
-	link.exe $(LDFLAGS) $(OBJ) gdi32.lib user32.lib advapi32.lib dsound.lib comdlg32.lib ddraw.lib dxguid.lib
+	link.exe $(LDFLAGS) $(OBJ) libpng.lib gdi32.lib user32.lib advapi32.lib dsound.lib comdlg32.lib ddraw.lib dxguid.lib
 
 # d3d8.lib d3dx8.lib 
 

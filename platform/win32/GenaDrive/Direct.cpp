@@ -95,7 +95,7 @@ static int DirectScreenDDraw()
   ret = m_pddsBackBuffer->Lock(NULL, &sd, DDLOCK_SURFACEMEMORYPTR|DDLOCK_WAIT|DDLOCK_WRITEONLY, NULL);
   if (ret) { LOGFAIL(); return 1; }
 
-  //dprintf2("w: %i h: %i pi: %i pf: %i\n", sd.dwWidth, sd.dwHeight, sd.lPitch, sd.ddpfPixelFormat.dwRGBBitCount);
+  //lprintf("w: %i h: %i pi: %i pf: %i\n", sd.dwWidth, sd.dwHeight, sd.lPitch, sd.ddpfPixelFormat.dwRGBBitCount);
 
   if (sd.ddpfPixelFormat.dwRGBBitCount == 32)
   {
@@ -388,7 +388,7 @@ int DirectScreen()
   TexScreenSwizzle();
 #else
   ret=TexScreenLinear();
-  if (ret) dprintf2("TexScreenLinear failed\n");
+  if (ret) lprintf("TexScreenLinear failed\n");
 #endif
 
   SetupMatrices();
@@ -397,7 +397,7 @@ int DirectScreen()
 
   // Copy vertices in:
   VertexBuffer->Lock(0,sizeof(VertexList),&lock,0);
-  if (lock==NULL) { dprintf2("VertexBuffer->Lock failed\n"); return 1; }
+  if (lock==NULL) { lprintf("VertexBuffer->Lock failed\n"); return 1; }
   memcpy(lock,VertexList,sizeof(VertexList));
   VertexBuffer->Unlock();
 

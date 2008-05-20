@@ -17,7 +17,7 @@
 #define __FUNCTION__ ""
 #endif
 
-#define LOGFAIL() dprintf2("fail: %s %s:%i\n", __FUNCTION__, __FILE__, __LINE__)
+#define LOGFAIL() lprintf("fail: %s %s:%i\n", __FUNCTION__, __FILE__, __LINE__)
 
 
 // Emu.cpp
@@ -52,7 +52,7 @@ int LoopInit();
 void LoopExit();
 int LoopCode();
 //extern "C" int dprintf(char *format, ...);
-extern "C" int dprintf2(char *format, ...);
+extern "C" int lprintf(char *format, ...);
 
 // Main.cpp
 extern char *romname;

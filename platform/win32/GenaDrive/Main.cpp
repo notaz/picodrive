@@ -2,6 +2,7 @@
 #include "version.h"
 #include <crtdbg.h>
 #include <commdlg.h>
+#include "../../common/readpng.h"
 
 char *romname=NULL;
 HWND FrameWnd=NULL;
@@ -13,6 +14,9 @@ int MainWidth=720,MainHeight=480;
 
 static HMENU mmain = 0, mdisplay = 0, mpicohw = 0;
 static int rom_loaded = 0;
+static HBITMAP ppad_bmp = 0;
+static HBITMAP ppage_bmps[6] = { 0, };
+static char rom_name[0x20*3+1];
 
 static void UpdateRect()
 {
@@ -23,9 +27,71 @@ static void UpdateRect()
   FrameRectMy = wi.rcClient;
 }
 
-static void PrepareFroROM()
+static int extract_rom_name(char *dest, const unsigned char *src, int len)
 {
-  int show = PicoAHW & PAHW_PICO;
+	char *p = dest, s_old = 0;
+	int i;
+
+	for (i = len - 1; i >= 0; i--)
+	{
+		if (src[i^1] != ' ') break;
+	}
+	len = i + 1;
+
+	for (i = 0; i < len; i++)
+	{
+		unsigned char s = src[i^1];
+		if (s == 0x20 && s_old == 0x20) continue;
+		else if (s >= 0x20 && s < 0x7f && s != '%')
+		{
+			*p++ = s;
+		}
+		else
+		{
+			sprintf(p, "%%%02x", s);
+			p += 3;
+		}
+		s_old = s;
+	}
+	*p = 0;
+
+	return p - dest;
+}
+
+
+static HBITMAP png2hb(const char *fname, int is_480)
+{
+  BITMAPINFOHEADER bih;
+  HBITMAP bmp;
+  void *bmem;
+  int ret;
+
+  bmem = calloc(1, is_480 ? 480*240*3 : 320*240*3);
+  if (bmem == NULL) return NULL;
+  ret = readpng(bmem, fname, is_480 ? READPNG_480_24 : READPNG_320_24);
+  if (ret != 0) {
+    free(bmem);
+    return NULL;
+  }
+
+  memset(&bih, 0, sizeof(bih));
+  bih.biSize = sizeof(bih);
+  bih.biWidth = is_480 ? 480 : 320;
+  bih.biHeight = -240;
+  bih.biPlanes = 1;
+  bih.biBitCount = 24;
+  bih.biCompression = BI_RGB;
+  bmp = CreateDIBitmap(GetDC(FrameWnd), &bih, CBM_INIT, bmem, (BITMAPINFO *)&bih, 0);
+  if (bmp == NULL)
+    lprintf("CreateDIBitmap failed with %i", GetLastError());
+
+  free(bmem);
+  return bmp;
+}
+
+static void PrepareForROM(unsigned char *rom_data)
+{
+  int i, ret, show = PicoAHW & PAHW_PICO;
   EnableMenuItem(mmain, 2, MF_BYPOSITION|(show ? MF_ENABLED : MF_GRAYED));
   ShowWindow(PicoPadWnd, show ? SW_SHOWNA : SW_HIDE);
   ShowWindow(PicoSwWnd, show ? SW_SHOWNA : SW_HIDE);
@@ -33,10 +99,34 @@ static void PrepareFroROM()
   CheckMenuItem(mpicohw, 1211, show ? MF_CHECKED : MF_UNCHECKED);
   PostMessage(FrameWnd, WM_COMMAND, 1220 + PicoPicohw.page, 0);
   DrawMenuBar(FrameWnd);
+  InvalidateRect(PicoSwWnd, NULL, 1);
 
   PicoPicohw.pen_pos[0] =
   PicoPicohw.pen_pos[1] = 0x8000;
   picohw_pen_pressed = 0;
+
+  ret = extract_rom_name(rom_name, rom_data + 0x150, 0x20);
+  if (ret == 0)
+    extract_rom_name(rom_name, rom_data + 0x130, 0x20);
+
+  if (show)
+  {
+    char path[MAX_PATH], *p;
+    GetModuleFileName(NULL, path, sizeof(path) - 32);
+    p = strrchr(path, '\\');
+    if (p == NULL) p = path;
+    else p++;
+    if (ppad_bmp == NULL) {
+      strcpy(p, "pico\\pad.png");
+      ppad_bmp = png2hb(path, 0);
+    }
+
+    for (i = 0; i < 6; i++) {
+      if (ppage_bmps[i] != NULL) DeleteObject(ppage_bmps[i]);
+      sprintf(p, "pico\\%s_%i.png", rom_name, i);
+      ppage_bmps[i] = png2hb(path, 1);
+    }
+  }
 }
 
 static void LoadROM(const char *cmdpath)
@@ -83,7 +173,7 @@ static void LoadROM(const char *cmdpath)
   PicoCartUnload();
   PicoCartInsert(rom_data_new, rom_size);
 
-  PrepareFroROM();
+  PrepareForROM(rom_data_new);
 
   rom_loaded = 1;
   romname = rompath;
@@ -152,6 +242,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
           for (i = 0; i < 7; i++)
             CheckMenuItem(mpicohw, 1220 + i, MF_UNCHECKED);
           CheckMenuItem(mpicohw, 1220 + PicoPicohw.page, MF_CHECKED);
+          InvalidateRect(PicoSwWnd, NULL, 1);
           return 0;
         case 1300:
           MessageBox(FrameWnd, "PicoDrive v" VERSION " (c) notaz, 2006-2008\n"
@@ -185,6 +276,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
 
 static LRESULT CALLBACK PicoSwWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
 {
+  PAINTSTRUCT ps;
+  HDC hdc, hdc2;
+
   switch (msg)
   {
     case WM_CLOSE: return 0;
@@ -196,6 +290,25 @@ static LRESULT CALLBACK PicoSwWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lp
       PicoPicohw.pen_pos[1] = 0x2f8 + HIWORD(lparam);
       SetTimer(FrameWnd, 100, 1000, NULL);
       break;
+    case WM_PAINT:
+      hdc = BeginPaint(hwnd, &ps);
+      if (ppage_bmps[PicoPicohw.page] == NULL)
+      {
+        SelectObject(hdc, GetStockObject(DEFAULT_GUI_FONT));
+	SetTextColor(hdc, RGB(255, 255, 255));
+	SetBkColor(hdc, RGB(0, 0, 0));
+        TextOut(hdc, 2,  2, "missing PNGs for", 16);
+        TextOut(hdc, 2, 18, rom_name, strlen(rom_name));
+      }
+      else
+      {
+        hdc2 = CreateCompatibleDC(GetDC(FrameWnd));
+        SelectObject(hdc2, ppage_bmps[PicoPicohw.page]);
+        BitBlt(hdc, 0, 0, 480, 240, hdc2, 0, 0, SRCCOPY);
+        DeleteDC(hdc2);
+      }
+      EndPaint(hwnd, &ps);
+      return 0;
   }
 
   return DefWindowProc(hwnd,msg,wparam,lparam);
@@ -203,6 +316,9 @@ static LRESULT CALLBACK PicoSwWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lp
 
 static LRESULT CALLBACK PicoPadWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
 {
+  PAINTSTRUCT ps;
+  HDC hdc, hdc2;
+
   switch (msg)
   {
     case WM_CLOSE: return 0;
@@ -214,6 +330,15 @@ static LRESULT CALLBACK PicoPadWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM l
       PicoPicohw.pen_pos[1] = 0x1fc + HIWORD(lparam);
       SetTimer(FrameWnd, 100, 1000, NULL);
       break;
+    case WM_PAINT:
+      if (ppad_bmp == NULL) break;
+      hdc = BeginPaint(hwnd, &ps);
+      hdc2 = CreateCompatibleDC(GetDC(FrameWnd));
+      SelectObject(hdc2, ppad_bmp);
+      BitBlt(hdc, 0, 0, 320, 240, hdc2, 0, 0, SRCCOPY);
+      EndPaint(hwnd, &ps);
+      DeleteDC(hdc2);
+      return 0;
   }
 
   return DefWindowProc(hwnd,msg,wparam,lparam);

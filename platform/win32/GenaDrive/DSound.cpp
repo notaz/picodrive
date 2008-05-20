@@ -47,7 +47,7 @@ int DSoundInit()
   // Make buffer for the next seg to put into the loop:
   DSoundNext=(short *)malloc((PsndLen<<2)+64); if (DSoundNext==NULL) return 1;
   memset(DSoundNext,0,PsndLen<<2);
-//  dprintf2("p %p\n", DSoundNext);
+//  lprintf("p %p\n", DSoundNext);
 
   // Create the DirectSound interface:
   DirectSoundCreate(NULL,&DSound,NULL);
@@ -91,14 +91,14 @@ static int WriteSeg()
 
   // Lock the segment at 'LoopWrite' and copy the next segment in
   ret = LoopBuffer->Lock(LoopWrite<<((PicoOpt&8) ? 2 : 1),PsndLen<<((PicoOpt&8) ? 2 : 1), &mema,&sizea, &memb,&sizeb, 0);
-  if (ret) dprintf2("LoopBuffer->Lock() failed: %i\n", ret);
+  if (ret) lprintf("LoopBuffer->Lock() failed: %i\n", ret);
 
   if (mema) memcpy(mema,DSoundNext,sizea);
 //  if (memb) memcpy(memb,DSoundNext+sizea,sizeb);
-  if (sizeb != 0) dprintf2("sizeb is not 0! (%i)\n", sizeb);
+  if (sizeb != 0) lprintf("sizeb is not 0! (%i)\n", sizeb);
 
   ret = LoopBuffer->Unlock(mema,sizea, memb,0);
-  if (ret) dprintf2("LoopBuffer->Unlock() failed: %i\n", ret);
+  if (ret) lprintf("LoopBuffer->Unlock() failed: %i\n", ret);
 
   return 0;
 }
