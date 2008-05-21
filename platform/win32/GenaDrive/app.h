@@ -24,7 +24,7 @@
 extern unsigned short *EmuScreen;
 extern int EmuWidth,EmuHeight;
 extern RECT EmuScreenRect;
-extern int picohw_pen_pressed;
+extern int PicoPadAdd;
 int EmuInit();
 void EmuExit();
 int EmuRomLoad(char *name);

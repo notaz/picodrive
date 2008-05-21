@@ -160,7 +160,9 @@ static int DirectClearDDraw(unsigned int colour)
 
 static int DirectPresentDDraw()
 {
-  int ret = m_pddsFrontBuffer->Blt(&FrameRectMy, m_pddsBackBuffer, &EmuScreenRect, DDBLT_WAIT, NULL);
+  int ret = 0;
+  if (FrameRectMy.right - FrameRectMy.left > 0 && FrameRectMy.bottom - FrameRectMy.top > 0)
+    ret = m_pddsFrontBuffer->Blt(&FrameRectMy, m_pddsBackBuffer, &EmuScreenRect, DDBLT_WAIT, NULL);
   if (ret) { LOGFAIL(); return 1; }
   return 0;
 }

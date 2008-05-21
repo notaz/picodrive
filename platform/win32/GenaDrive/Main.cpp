@@ -15,7 +15,7 @@ int MainWidth=720,MainHeight=480;
 static HMENU mmain = 0, mdisplay = 0, mpicohw = 0;
 static int rom_loaded = 0;
 static HBITMAP ppad_bmp = 0;
-static HBITMAP ppage_bmps[6] = { 0, };
+static HBITMAP ppage_bmps[7] = { 0, };
 static char rom_name[0x20*3+1];
 
 static void UpdateRect()
@@ -103,7 +103,7 @@ static void PrepareForROM(unsigned char *rom_data)
 
   PicoPicohw.pen_pos[0] =
   PicoPicohw.pen_pos[1] = 0x8000;
-  picohw_pen_pressed = 0;
+  PicoPadAdd = 0;
 
   ret = extract_rom_name(rom_name, rom_data + 0x150, 0x20);
   if (ret == 0)
@@ -121,7 +121,7 @@ static void PrepareForROM(unsigned char *rom_data)
       ppad_bmp = png2hb(path, 0);
     }
 
-    for (i = 0; i < 6; i++) {
+    for (i = 0; i < 7; i++) {
       if (ppage_bmps[i] != NULL) DeleteObject(ppage_bmps[i]);
       sprintf(p, "pico\\%s_%i.png", rom_name, i);
       ppage_bmps[i] = png2hb(path, 1);
@@ -267,11 +267,33 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
       if (PtInRect(&rc, pt)) break;
       PicoPicohw.pen_pos[0] |= 0x8000;
       PicoPicohw.pen_pos[1] |= 0x8000;
-      picohw_pen_pressed = 0;
+      PicoPadAdd = 0;
       break;
   }
 
   return DefWindowProc(hwnd,msg,wparam,lparam);
+}
+
+static void key_down(WPARAM key)
+{
+  switch (key) {
+    case VK_LEFT:  PicoPadAdd |=    4; break;
+    case VK_RIGHT: PicoPadAdd |=    8; break;
+    case VK_UP:    PicoPadAdd |=    1; break;
+    case VK_DOWN:  PicoPadAdd |=    2; break;
+    case 'X':      PicoPadAdd |= 0x10; break;
+  }
+}
+
+static void key_up(WPARAM key)
+{
+  switch (key) {
+    case VK_LEFT:  PicoPadAdd &= ~0x04; break;
+    case VK_RIGHT: PicoPadAdd &= ~0x08; break;
+    case VK_UP:    PicoPadAdd &= ~0x01; break;
+    case VK_DOWN:  PicoPadAdd &= ~0x02; break;
+    case 'X':      PicoPadAdd &= ~0x10; break;
+  }
 }
 
 static LRESULT CALLBACK PicoSwWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
@@ -281,15 +303,17 @@ static LRESULT CALLBACK PicoSwWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lp
 
   switch (msg)
   {
-    case WM_CLOSE: return 0;
     case WM_DESTROY: PicoSwWnd=NULL; break;
-    case WM_LBUTTONDOWN: picohw_pen_pressed = 1; return 0;
-    case WM_LBUTTONUP:   picohw_pen_pressed = 0; return 0;
+    case WM_LBUTTONDOWN: PicoPadAdd |=  0x20; return 0;
+    case WM_LBUTTONUP:   PicoPadAdd &= ~0x20; return 0;
     case WM_MOUSEMOVE:
+      if (HIWORD(lparam) < 0x20) break;
       PicoPicohw.pen_pos[0] = 0x03c + LOWORD(lparam) * 2/3;
-      PicoPicohw.pen_pos[1] = 0x2f8 + HIWORD(lparam);
+      PicoPicohw.pen_pos[1] = 0x2f8 + HIWORD(lparam) - 0x20;
       SetTimer(FrameWnd, 100, 1000, NULL);
       break;
+    case WM_KEYDOWN: key_down(wparam); break;
+    case WM_KEYUP:   key_up(wparam);   break;
     case WM_PAINT:
       hdc = BeginPaint(hwnd, &ps);
       if (ppage_bmps[PicoPicohw.page] == NULL)
@@ -321,15 +345,16 @@ static LRESULT CALLBACK PicoPadWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM l
 
   switch (msg)
   {
-    case WM_CLOSE: return 0;
     case WM_DESTROY: PicoPadWnd=NULL; break;
-    case WM_LBUTTONDOWN: picohw_pen_pressed = 1; return 0;
-    case WM_LBUTTONUP:   picohw_pen_pressed = 0; return 0;
+    case WM_LBUTTONDOWN: PicoPadAdd |=  0x20; return 0;
+    case WM_LBUTTONUP:   PicoPadAdd &= ~0x20; return 0;
     case WM_MOUSEMOVE:
       PicoPicohw.pen_pos[0] = 0x03c + LOWORD(lparam);
       PicoPicohw.pen_pos[1] = 0x1fc + HIWORD(lparam);
       SetTimer(FrameWnd, 100, 1000, NULL);
       break;
+    case WM_KEYDOWN: key_down(wparam); break;
+    case WM_KEYUP:   key_up(wparam);   break;
     case WM_PAINT:
       if (ppad_bmp == NULL) break;
       hdc = BeginPaint(hwnd, &ps);
