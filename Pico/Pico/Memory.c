@@ -110,7 +110,6 @@ end:
 
 // -----------------------------------------------------------------
 //                            Write Ram
-
 /*
 void dump(u16 w)
 {
@@ -118,6 +117,7 @@ void dump(u16 w)
   char fname[32];
   int num = PicoPicohw.r12 & 0xf;
 
+  w = (w << 8) | (w >> 8);
   sprintf(fname, "ldump%i.bin", num);
   if (f[num] == NULL)
     f[num] = fopen(fname, "wb");
@@ -159,7 +159,7 @@ static void PicoWritePico16(u32 a,u16 d)
   a&=0xfffffe;
   if ((a&0xfffff0)==0xc00000) { PicoVideoWrite(a,(u16)d); return; } // VDP
 
-//  if (a == 0x800010) dump(d);
+  //if (a == 0x800010) dump(d);
   if (a == 0x800010)
   {
     PicoPicohw.fifo_bytes += 2;
