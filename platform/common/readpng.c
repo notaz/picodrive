@@ -12,23 +12,24 @@
 #define BG_HEIGHT 240
 #endif
 
-void readpng(void *dest, const char *fname, readpng_what what)
+int readpng(void *dest, const char *fname, readpng_what what)
 {
 	FILE *fp;
 	png_structp png_ptr = NULL;
 	png_infop info_ptr = NULL;
 	png_bytepp row_ptr = NULL;
+	int ret = -1;
 
 	if (dest == NULL || fname == NULL)
 	{
-		return;
+		return -1;
 	}
 
 	fp = fopen(fname, "rb");
 	if (fp == NULL)
 	{
 		lprintf(__FILE__ ": failed to open: %s\n", fname);
-		return;
+		return -1;
 	}
 
 	png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
@@ -36,7 +37,7 @@ void readpng(void *dest, const char *fname, readpng_what what)
 	{
 		lprintf(__FILE__ ": png_create_read_struct() failed\n");
 		fclose(fp);
-		return;
+		return -1;
 	}
 
 	info_ptr = png_create_info_struct(png_ptr);
@@ -145,12 +146,41 @@ void readpng(void *dest, const char *fname, readpng_what what)
 			}
 			break;
 		}
+
+		case READPNG_320_24:
+		case READPNG_480_24:
+		{
+			int height, width, h;
+			int needw = (what == READPNG_480_24) ? 480 : 320;
+			unsigned char *dst = dest;
+			if (info_ptr->pixel_depth != 24)
+			{
+				lprintf(__FILE__ ": image uses %ibpp, needed 24bpp\n", info_ptr->pixel_depth);
+				break;
+			}
+			height = info_ptr->height;
+			if (height > 240) height = 240;
+			width = info_ptr->width;
+			if (width > needw) width = needw;
+
+			for (h = 0; h < height; h++)
+			{
+				int len = width;
+				unsigned char *src = row_ptr[h];
+				dst += (needw - width) * 3;
+				for (len = width; len > 0; len--, dst+=3, src+=3)
+					dst[0] = src[2], dst[1] = src[1], dst[2] = src[0];
+			}
+			break;
+		}
 	}
 
 
+	ret = 0;
 done:
 	png_destroy_read_struct(&png_ptr, info_ptr ? &info_ptr : NULL, (png_infopp)NULL);
 	fclose(fp);
+	return ret;
 }
 
 

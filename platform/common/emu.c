@@ -224,7 +224,7 @@ int emu_cdCheck(int *pregion)
 	return type;
 }
 
-static int extract_text(char *dest, unsigned char *src, int len, int swab)
+static int extract_text(char *dest, const unsigned char *src, int len, int swab)
 {
 	char *p = dest;
 	int i;
