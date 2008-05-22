@@ -541,15 +541,15 @@ void PicoFrameDrawOnly(void)
   for (y=0;y<224;y++) PicoLine(y);
 }
 
-int PicoGetStat(pstat_t which)
+void PicoGetInternal(pint_t which, pint_ret_t *r)
 {
   switch (which)
   {
-    case PS_PAL:       return Pico.m.pal;
-    case PS_40_CELL:   return Pico.video.reg[12]&1;
-    case PS_240_LINES: return Pico.m.pal && (Pico.video.reg[1]&8);
+    case PI_ROM:         r->vptr = Pico.rom; break;
+    case PI_ISPAL:       r->vint = Pico.m.pal; break;
+    case PI_IS40_CELL:   r->vint = Pico.video.reg[12]&1; break;
+    case PI_IS240_LINES: r->vint = Pico.m.pal && (Pico.video.reg[1]&8); break;
   }
-  return 0;
 }
 
 // callback to output message from emu

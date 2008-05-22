@@ -3,6 +3,7 @@
 #include <crtdbg.h>
 #include <commdlg.h>
 #include "../../common/readpng.h"
+#include "../../common/config.h"
 
 char *romname=NULL;
 HWND FrameWnd=NULL;
@@ -17,6 +18,7 @@ static int rom_loaded = 0;
 static HBITMAP ppad_bmp = 0;
 static HBITMAP ppage_bmps[7] = { 0, };
 static char rom_name[0x20*3+1];
+static int main_wnd_as_pad = 0;
 
 static void UpdateRect()
 {
@@ -29,7 +31,7 @@ static void UpdateRect()
 
 static int extract_rom_name(char *dest, const unsigned char *src, int len)
 {
-	char *p = dest, s_old = 0;
+	char *p = dest, s_old = 0x20;
 	int i;
 
 	for (i = len - 1; i >= 0; i--)
@@ -58,6 +60,29 @@ static int extract_rom_name(char *dest, const unsigned char *src, int len)
 	return p - dest;
 }
 
+static void check_name_alias(const char *afname)
+{
+  char buff[256], *var, *val;
+  FILE *f;
+  int ret;
+
+  f = fopen(afname, "r");
+  if (f == NULL) return;
+
+  while (1)
+  {
+    ret = config_get_var_val(f, buff, sizeof(buff), &var, &val);
+    if (ret ==  0) break;
+    if (ret == -1) continue;
+
+    if (strcmp(rom_name, var) == 0) {
+      lprintf("rom aliased: \"%s\" -> \"%s\"\n", rom_name, val);
+      strncpy(rom_name, val, sizeof(rom_name));
+      break;
+    }
+  }
+  fclose(f);
+}
 
 static HBITMAP png2hb(const char *fname, int is_480)
 {
@@ -89,9 +114,12 @@ static HBITMAP png2hb(const char *fname, int is_480)
   return bmp;
 }
 
-static void PrepareForROM(unsigned char *rom_data)
+static void PrepareForROM(void)
 {
+  unsigned char *rom_data = NULL;
   int i, ret, show = PicoAHW & PAHW_PICO;
+  
+  PicoGetInternal(PI_ROM, (pint_ret_t *) &rom_data);
   EnableMenuItem(mmain, 2, MF_BYPOSITION|(show ? MF_ENABLED : MF_GRAYED));
   ShowWindow(PicoPadWnd, show ? SW_SHOWNA : SW_HIDE);
   ShowWindow(PicoSwWnd, show ? SW_SHOWNA : SW_HIDE);
@@ -121,10 +149,18 @@ static void PrepareForROM(unsigned char *rom_data)
       ppad_bmp = png2hb(path, 0);
     }
 
+    strcpy(p, "pico\\alias.txt");
+    check_name_alias(path);
+
     for (i = 0; i < 7; i++) {
       if (ppage_bmps[i] != NULL) DeleteObject(ppage_bmps[i]);
       sprintf(p, "pico\\%s_%i.png", rom_name, i);
       ppage_bmps[i] = png2hb(path, 1);
+    }
+    // games usually don't have page 6, so just duplicate page 5.
+    if (ppage_bmps[6] == NULL && ppage_bmps[5] != NULL) {
+      sprintf(p, "pico\\%s_5.png", rom_name);
+      ppage_bmps[6] = png2hb(path, 1);
     }
   }
 }
@@ -173,7 +209,7 @@ static void LoadROM(const char *cmdpath)
   PicoCartUnload();
   PicoCartInsert(rom_data_new, rom_size);
 
-  PrepareForROM(rom_data_new);
+  PrepareForROM();
 
   rom_loaded = 1;
   romname = rompath;
@@ -231,6 +267,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
           ShowWindow((LOWORD(wparam)&1) ? PicoPadWnd : PicoSwWnd, i ? SW_SHOWNA : SW_HIDE);
           CheckMenuItem(mpicohw, LOWORD(wparam), i ? MF_CHECKED : MF_UNCHECKED);
           return 0;
+        case 1212:
+          main_wnd_as_pad = !main_wnd_as_pad;
+          CheckMenuItem(mpicohw, 1212, main_wnd_as_pad ? MF_CHECKED : MF_UNCHECKED);
+          return 0;
         case 1220:
         case 1221:
         case 1222:
@@ -268,6 +308,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lparam)
       PicoPicohw.pen_pos[0] |= 0x8000;
       PicoPicohw.pen_pos[1] |= 0x8000;
       PicoPadAdd = 0;
+      break;
+    case WM_LBUTTONDOWN: PicoPadAdd |=  0x20; return 0;
+    case WM_LBUTTONUP:   PicoPadAdd &= ~0x20; return 0;
+    case WM_MOUSEMOVE:
+      if (!main_wnd_as_pad) break;
+      PicoPicohw.pen_pos[0] = 0x03c + (320 * LOWORD(lparam) / (FrameRectMy.right - FrameRectMy.left));
+      PicoPicohw.pen_pos[1] = 0x1fc + (232 * HIWORD(lparam) / (FrameRectMy.bottom - FrameRectMy.top));
+      SetTimer(FrameWnd, 100, 1000, NULL);
       break;
   }
 
@@ -319,8 +367,8 @@ static LRESULT CALLBACK PicoSwWndProc(HWND hwnd,UINT msg,WPARAM wparam,LPARAM lp
       if (ppage_bmps[PicoPicohw.page] == NULL)
       {
         SelectObject(hdc, GetStockObject(DEFAULT_GUI_FONT));
-	SetTextColor(hdc, RGB(255, 255, 255));
-	SetBkColor(hdc, RGB(0, 0, 0));
+        SetTextColor(hdc, RGB(255, 255, 255));
+        SetBkColor(hdc, RGB(0, 0, 0));
         TextOut(hdc, 2,  2, "missing PNGs for", 16);
         TextOut(hdc, 2, 18, rom_name, strlen(rom_name));
       }
@@ -427,6 +475,7 @@ static int FrameInit()
   mpicohw = CreateMenu();
   InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1210, "Show &Storyware");
   InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1211, "Show &Drawing pad");
+  InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1212, "&Main window as pad");
   InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_SEPARATOR, 0, NULL);
   InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1220, "Title page (&0)");
   InsertMenu(mpicohw, -1, MF_BYPOSITION|MF_STRING, 1221, "Page &1");

@@ -56,8 +56,9 @@ static void UpdateSound(int len)
 
 static void PostProcess()
 {
-  static int lock_to_1_1_prev = 0, is_40_prev = 0;
-  int is_40 = PicoGetStat(PS_40_CELL);
+  static int lock_to_1_1_prev = 0, is_40_prev = -1;
+  int is_40;
+  PicoGetInternal(PI_IS40_CELL, (pint_ret_t *)&is_40);
   if (lock_to_1_1)
   {
     if (is_40 != is_40_prev || !lock_to_1_1_prev)

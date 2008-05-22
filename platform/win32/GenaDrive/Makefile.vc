@@ -23,7 +23,7 @@ OBJ = Emu.obj Input.obj Main.obj Direct.obj DSound.obj Loop.obj
 # common
 #OBJS += platform\common\emu.obj platform\common\menu.obj platform\common\fonts.obj 
 #		platform\common\mp3_helix.obj
-OBJ = $(OBJ) $(R)platform\common\readpng.obj
+OBJ = $(OBJ) $(R)platform\common\readpng.obj $(R)platform\common\config.obj
 
 # Pico
 OBJ = $(OBJ) $(R)Pico\Area.obj $(R)Pico\Cart.obj $(R)Pico\Memory.obj $(R)Pico\Misc.obj $(R)Pico\Pico.obj $(R)Pico\Sek.obj \

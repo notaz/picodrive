@@ -3,12 +3,18 @@
  * (c)
  */
 
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "config.h"
+#include "lprintf.h"
+
+static char *mystrip(char *str);
+
+#ifndef _MSC_VER
+
 #include "menu.h"
 #include "emu.h"
-#include "lprintf.h"
 #include <Pico/Pico.h>
 
 extern menu_entry opt_entries[];
@@ -43,24 +49,6 @@ static const int *cfg_opt_counts[] =
 };
 
 #define NL "\r\n"
-
-
-static char *mystrip(char *str)
-{
-	int i, len;
-
-	len = strlen(str);
-	for (i = 0; i < len; i++)
-		if (str[i] != ' ') break;
-	if (i > 0) memmove(str, str + i, len - i + 1);
-
-	len = strlen(str);
-	for (i = len - 1; i >= 0; i--)
-		if (str[i] != ' ') break;
-	str[i+1] = 0;
-
-	return str;
-}
 
 
 static int seek_sect(FILE *f, const char *section)
@@ -807,12 +795,11 @@ int config_havesect(const char *fname, const char *section)
 	return ret;
 }
 
-
 int config_readsect(const char *fname, const char *section)
 {
-	char line[128], *var, *val, *tmp;
-	int len, i, ret;
+	char line[128], *var, *val;
 	FILE *f;
+	int ret;
 
 	f = fopen(fname, "r");
 	if (f == NULL) return -1;
@@ -831,40 +818,82 @@ int config_readsect(const char *fname, const char *section)
 
 	while (!feof(f))
 	{
-		tmp = fgets(line, sizeof(line), f);
-		if (tmp == NULL) break;
-
-		if (line[0] == '[') break; // other section
-
-		// strip comments, linefeed, spaces..
-		len = strlen(line);
-		for (i = 0; i < len; i++)
-			if (line[i] == '#' || line[i] == '\r' || line[i] == '\n') { line[i] = 0; break; }
-		mystrip(line);
-		len = strlen(line);
-		if (len <= 0) continue;
-
-		// get var and val
-		for (i = 0; i < len; i++)
-			if (line[i] == '=') break;
-		if (i >= len || strchr(&line[i+1], '=') != NULL) {
-			lprintf("config_readsect: can't parse: %s\n", line);
-			continue;
-		}
-		line[i] = 0;
-		var = line;
-		val = &line[i+1];
-		mystrip(var);
-		mystrip(val);
-		if (strlen(var) == 0 || (strlen(val) == 0 && strncasecmp(var, "bind", 4) != 0)) {
-			lprintf("config_readsect: something's empty: \"%s\" = \"%s\"\n", var, val);
-			continue;
-		}
+		ret = config_get_var_val(f, line, sizeof(line), &var, &val);
+		if (ret ==  0) break;
+		if (ret == -1) continue;
 
 		parse(var, val);
 	}
 
 	fclose(f);
 	return 0;
+}
+
+#endif // _MSC_VER
+
+static char *mystrip(char *str)
+{
+	int i, len;
+
+	len = strlen(str);
+	for (i = 0; i < len; i++)
+		if (str[i] != ' ') break;
+	if (i > 0) memmove(str, str + i, len - i + 1);
+
+	len = strlen(str);
+	for (i = len - 1; i >= 0; i--)
+		if (str[i] != ' ') break;
+	str[i+1] = 0;
+
+	return str;
+}
+
+/* returns:
+ *  0 - EOF, end
+ *  1 - parsed ok
+ * -1 - failed to parse line
+ */
+int config_get_var_val(void *file, char *line, int lsize, char **rvar, char **rval)
+{
+	char *var, *val, *tmp;
+	FILE *f = file;
+	int len, i;
+
+	tmp = fgets(line, lsize, f);
+	if (tmp == NULL) return 0;
+
+	if (line[0] == '[') return 0; // other section
+
+	// strip comments, linefeed, spaces..
+	len = strlen(line);
+	for (i = 0; i < len; i++)
+		if (line[i] == '#' || line[i] == '\r' || line[i] == '\n') { line[i] = 0; break; }
+	mystrip(line);
+	len = strlen(line);
+	if (len <= 0) return -1;;
+
+	// get var and val
+	for (i = 0; i < len; i++)
+		if (line[i] == '=') break;
+	if (i >= len || strchr(&line[i+1], '=') != NULL) {
+		lprintf("config_readsect: can't parse: %s\n", line);
+		return -1;
+	}
+	line[i] = 0;
+	var = line;
+	val = &line[i+1];
+	mystrip(var);
+	mystrip(val);
+
+#ifndef _MSC_VER
+	if (strlen(var) == 0 || (strlen(val) == 0 && strncasecmp(var, "bind", 4) != 0)) {
+		lprintf("config_readsect: something's empty: \"%s\" = \"%s\"\n", var, val);
+		return -1;;
+	}
+#endif
+
+	*rvar = var;
+	*rval = val;
+	return 1;
 }
 

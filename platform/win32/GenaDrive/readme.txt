@@ -21,6 +21,7 @@ Releases
 1.40a - Tasco Deluxe's dithering fix.
 1.40b - Perspective fix thanks to Pierpaolo Prazzoli's info.
 1.45  - Added preliminary Sega Pico emulation.
+1.45a - Few bugfixes and additions.
 
 
 Controls
