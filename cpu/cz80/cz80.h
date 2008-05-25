@@ -61,7 +61,7 @@ extern "C" {
 //#else
 #define CZ80_ENCRYPTED_ROM		0
 //#endif
-#define CZ80_EMULATE_R_EXACTLY	0
+#define CZ80_EMULATE_R_EXACTLY	1
 
 #define zR8(A)		(*CPU->pzR8[A])
 #define zR16(A)		(CPU->pzR16[A]->W)

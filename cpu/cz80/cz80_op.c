@@ -712,8 +712,10 @@ OP_EI:
 			if (CPU->IRQState)
 			{
 				afterEI = 1;
+				CPU->ExtraCycles += 1 - CPU->ICount;
+				CPU->ICount = 1;
 			}
-			if (CPU->ICount <= 0)
+			else if (CPU->ICount <= 0)
 			{
 				CPU->ICount = 1;
 			}

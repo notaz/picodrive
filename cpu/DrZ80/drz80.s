@@ -106,21 +106,6 @@ DrZ80Ver: .long 0x0001
 
 .if DRZ80_FOR_PICODRIVE
 
-.macro YM2612Read_and_ret8
-    ldr r0, =ym2612_st
-    ldr r0, [r0]
-    ldrb r0, [r0, #0x11]   ;@ ym2612_st->status
-    bx lr
-.endm
-
-.macro YM2612Read_and_ret16
-    ldr r0, =ym2612_st
-    ldr r0, [r0]
-    ldrb r0, [r0, #0x11]   ;@ ym2612_st->status
-    orr r0,r0,r0,lsl #8
-    bx lr
-.endm
-
 pico_z80_read8: @ addr
     cmp r0,#0x2000         @ Z80 RAM
     ldrlt r1,[cpucontext,#z80sp_base]
@@ -139,15 +124,18 @@ pico_z80_read8: @ addr
     eorlt r0,r0,#1         @ our ROM is byteswapped
     ldrltb r0,[r1,r0]
     bxlt lr
-	stmfd sp!,{r3,r12,lr}
+    stmfd sp!,{r3,r12,lr}
     bl PicoRead8
-	ldmfd sp!,{r3,r12,pc}
+    ldmfd sp!,{r3,r12,pc}
 1:
     mov r1,r0,lsr #13
     cmp r1,#2              @ YM2612 (0x4000-0x5fff)
     bne 0f
     and r0,r0,#3
-    YM2612Read_and_ret8
+    stmfd sp!,{r3,r12,lr}
+    str z80_icount,[cpucontext,#cycles_pointer]
+    bl ym2612_read_local_z80
+    ldmfd sp!,{r3,r12,pc}
 0:
     cmp r0,#0x4000
     movge r0,#0xff
@@ -197,7 +185,11 @@ pico_z80_read16: @ addr
     cmp r1,#2              @ YM2612 (0x4000-0x5fff)
     bne 0f
     and r0,r0,#3
-    YM2612Read_and_ret16
+    stmfd sp!,{r3,r12,lr}
+    str z80_icount,[cpucontext,#cycles_pointer]
+    bl ym2612_read_local_z80
+    orr r0,r0,r0,lsl #8
+    ldmfd sp!,{r3,r12,pc}
 0:
     cmp r0,#0x4000
     movge r0,#0xff
@@ -218,6 +210,7 @@ pico_z80_write8: @ data, addr
     bx lr
 1:
     stmfd sp!,{r3,r12,lr}
+    str z80_icount,[cpucontext,#cycles_pointer]
     bl z80_write
     ldmfd sp!,{r3,r12,pc}
 
@@ -231,14 +224,15 @@ pico_z80_write16: @ data, addr
     strb r0,[r2,#1]
     bx lr
 1:
-	stmfd sp!,{r3-r5,r12,lr}
+    stmfd sp!,{r3-r5,r12,lr}
+    str z80_icount,[cpucontext,#cycles_pointer]
     mov r4,r0
     mov r5,r1
-	bl z80_write
+    bl z80_write
     mov r0,r4,lsr #8
     add r1,r5,#1
-	bl z80_write
-	ldmfd sp!,{r3-r5,r12,pc}
+    bl z80_write
+    ldmfd sp!,{r3-r5,r12,pc}
 
     .pool
 .endif

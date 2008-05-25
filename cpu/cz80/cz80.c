@@ -270,6 +270,8 @@ Cz80_Check_Interrupt:
 			if (CPU->IRQState != CLEAR_LINE)
 			{
 				CHECK_INT
+				CPU->ICount -= CPU->ExtraCycles;
+				CPU->ExtraCycles = 0;
 			}
 			goto Cz80_Exec;
 		}
