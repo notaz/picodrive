@@ -74,7 +74,7 @@ OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pi
 		../../Pico/cd/Area.o ../../Pico/cd/Misc.o ../../Pico/cd/pcm.o ../../Pico/cd/buffering.o
 endif
 # Pico - Pico
-OBJS += ../../Pico/Pico/Pico.o ../../Pico/Pico/Memory.o
+OBJS += ../../Pico/Pico/Pico.o ../../Pico/Pico/Memory.o ../../Pico/Pico/xpcm.o
 # Pico - carthw
 OBJS += ../../Pico/carthw/carthw.o ../../Pico/carthw/svp/svp.o ../../Pico/carthw/svp/Memory.o \
 		../../Pico/carthw/svp/ssp16.o ../../Pico/carthw/svp/compiler.o ../../Pico/carthw/svp/stub_arm.o
@@ -203,6 +203,8 @@ up: PicoDrive.gpe
 ../../cpu/musashi/m68kops.c :
 	@make -C ../../cpu/musashi
 
+../../Pico/Pico.o : ../../Pico/PicoFrameHints.c ../../Pico/PicoInt.h
+../../Pico/Memory.o Pico/cd/Memory.o : ../../Pico/MemoryCmn.c ../../Pico/PicoInt.h
 
 # build helix libs
 ../common/helix/helix_mp3.a:

@@ -137,7 +137,7 @@ extern unsigned int SekCycleCntT; // total cycle counter, updated once per frame
 	SekCycleAim=0; \
 }
 #define SekCyclesBurn(c)  SekCycleCnt+=c
-#define SekCyclesDone()  (SekCycleAim-SekCyclesLeft)    // nuber of cycles done in this frame (can be checked anywhere)
+#define SekCyclesDone()  (SekCycleAim-SekCyclesLeft)    // number of cycles done in this frame (can be checked anywhere)
 #define SekCyclesDoneT() (SekCycleCntT+SekCyclesDone()) // total nuber of cycles done for this rom
 
 #define SekEndRun(after) { \
@@ -174,10 +174,9 @@ extern int dbg_irq_level;
 #if defined(_USE_MZ80)
 #include "../cpu/mz80/mz80.h"
 
-#define z80_run(cycles)    mz80_run(cycles)
+#define z80_run(cycles)    { mz80GetElapsedTicks(1); mz80_run(cycles) }
 #define z80_run_nr(cycles) mz80_run(cycles)
 #define z80_int()          mz80int(0)
-#define z80_resetCycles()  mz80GetElapsedTicks(1)
 
 #elif defined(_USE_DRZ80)
 #include "../cpu/DrZ80/drz80.h"
@@ -190,7 +189,8 @@ extern struct DrZ80 drZ80;
   drZ80.z80irqvector = 0xFF; /* default IRQ vector RST opcode */ \
   drZ80.Z80_IRQ = 1; \
 }
-#define z80_resetCycles()
+
+#define z80_cyclesLeft     drZ80.cycles
 
 #elif defined(_USE_CZ80)
 #include "../cpu/cz80/cz80.h"
@@ -198,16 +198,30 @@ extern struct DrZ80 drZ80;
 #define z80_run(cycles)    Cz80_Exec(&CZ80, cycles)
 #define z80_run_nr(cycles) Cz80_Exec(&CZ80, cycles)
 #define z80_int()          Cz80_Set_IRQ(&CZ80, 0, HOLD_LINE)
-#define z80_resetCycles()
+
+#define z80_cyclesLeft     (CZ80.ICount - CZ80.ExtraCycles)
 
 #else
 
 #define z80_run(cycles)    (cycles)
 #define z80_run_nr(cycles)
 #define z80_int()
-#define z80_resetCycles()
 
 #endif
+
+extern int z80stopCycle;         /* in 68k cycles */
+extern int z80_cycle_cnt;        /* 'done' z80 cycles before z80_run() */
+extern int z80_cycle_aim;
+extern int z80_scanline;
+extern int z80_scanline_cycles;  /* cycles done until z80_scanline */
+
+#define z80_resetCycles() \
+  z80_cycle_cnt = z80_cycle_aim = z80_scanline = z80_scanline_cycles = 0;
+
+#define z80_cyclesDone() \
+  (z80_cycle_aim - z80_cyclesLeft)
+
+#define cycles_68k_to_z80(x) ((x)*957 >> 11)
 
 // ---------------------------------------------------------
 
@@ -405,6 +419,7 @@ PICO_INTERNAL unsigned short z80_read16(unsigned short a);
 #else
 PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data);
 #endif
+PICO_INTERNAL int ym2612_write_local(unsigned int a, unsigned int d, int is_from_z80);
 extern unsigned int (*PicoRead16Hook)(unsigned int a, int realsize);
 extern void (*PicoWrite8Hook) (unsigned int a,unsigned int d,int realsize);
 extern void (*PicoWrite16Hook)(unsigned int a,unsigned int d,int realsize);
@@ -421,11 +436,11 @@ PICO_INTERNAL void PicoMemSetupPico(void);
 extern struct Pico Pico;
 extern struct PicoSRAM SRam;
 extern int emustatus;
-extern int z80startCycle, z80stopCycle; // in 68k cycles
 extern void (*PicoResetHook)(void);
 extern void (*PicoLineHook)(int count);
 PICO_INTERNAL int  CheckDMA(void);
 PICO_INTERNAL void PicoDetectRegion(void);
+PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done);
 
 // cd/Pico.c
 PICO_INTERNAL int  PicoInitMCD(void);
@@ -459,6 +474,13 @@ PICO_INTERNAL void cdda_start_play();
 extern short cdda_out_buffer[2*1152];
 extern int PsndLen_exc_cnt;
 extern int PsndLen_exc_add;
+extern int timer_a_next_oflow, timer_a_step; // in z80 cycles
+
+#define timers_cycle() \
+  if (timer_a_next_oflow > 0) timer_a_next_oflow -= Pico.m.pal ? 70938*256 : 59659*256
+
+#define timers_reset() \
+  timer_a_next_oflow = 0x80000000
 
 // VideoPort.c
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
@@ -483,7 +505,7 @@ PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba);
 
 // sound/sound.c
 PICO_INTERNAL void PsndReset(void);
-PICO_INTERNAL void Psnd_timers_and_dac(int raster);
+PICO_INTERNAL void PsndDoDAC(int line_to);
 PICO_INTERNAL int  PsndRender(int offset, int length);
 PICO_INTERNAL void PsndClear(void);
 // z80 functionality wrappers
@@ -492,7 +514,7 @@ PICO_INTERNAL void z80_pack(unsigned char *data);
 PICO_INTERNAL void z80_unpack(unsigned char *data);
 PICO_INTERNAL void z80_reset(void);
 PICO_INTERNAL void z80_exit(void);
-
+extern int PsndDacLine;
 
 #ifdef __cplusplus
 } // End of extern "C"

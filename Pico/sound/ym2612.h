@@ -141,10 +141,10 @@ typedef struct
 } YM2612;
 #endif
 
-extern int   *ym2612_dacen;
-extern INT32 *ym2612_dacout;
 extern FM_ST *ym2612_st;
-
+#ifndef EXTERNAL_YM2612
+extern YM2612 ym2612;
+#endif
 
 #define YM2612Read() ym2612_st->status
 
@@ -180,7 +180,6 @@ void *YM2612GetRegs(void);
 #define YM2612Init          YM2612Init_
 #define YM2612ResetChip     YM2612ResetChip_
 #define YM2612UpdateOne     YM2612UpdateOne_
-#define YM2612Write         YM2612Write_
 #define YM2612PicoStateLoad YM2612PicoStateLoad_
 #else
 /* GP2X specific */
@@ -197,8 +196,6 @@ extern int PicoOpt;
 #define YM2612UpdateOne(buffer,length,stereo,is_buf_empty) \
 	(PicoOpt&0x200) ? YM2612UpdateOne_940(buffer, length, stereo, is_buf_empty) : \
 				YM2612UpdateOne_(buffer, length, stereo, is_buf_empty);
-#define YM2612Write(a,v) \
-	(PicoOpt&0x200) ?  YM2612Write_940(a, v) : YM2612Write_(a, v)
 #define YM2612PicoStateLoad() { \
 	if (PicoOpt&0x200) YM2612PicoStateLoad_940(); \
 	else               YM2612PicoStateLoad_(); \

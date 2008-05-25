@@ -879,27 +879,21 @@ m_write8_z80_not_ram:
     and     r2, r0, #0x6000
     cmp     r2,     #0x4000
     bne     m_write8_z80_not_ym2612
-    ldr     r2, =PicoOpt
+    ldr     r3, =PicoOpt
     and     r0, r0, #3
-    ldr     r2, [r2]
-    tst     r2, #1
+    ldr     r3, [r3]
+    mov     r2, #0           @ is_from_z80 = 0
+    tst     r3, #1
     bxeq    lr
     stmfd   sp!,{lr}
-.if EXTERNAL_YM2612
-    tst     r2, #0x200
-    ldreq   r2, =YM2612Write_
-    ldrne   r2, =YM2612Write_940
-    mov     lr, pc
-    bx      r2
-.else
-    bl      YM2612Write_
-.endif
+    and     r1, r1, #0xff
+    bl      ym2612_write_local
     ldr     r2, =emustatus
     ldmfd   sp!,{lr}
     ldr     r1, [r2]
     and     r0, r0, #1
     orr     r1, r0, r1
-    str     r1, [r2]         @ emustatus|=YM2612Write(a&3, d);
+    str     r1, [r2]         @ emustatus|=ym2612_write_local(a&3, d);
     bx      lr
 
 m_write8_z80_not_ym2612:     @ not too likely
@@ -916,7 +910,7 @@ m_write8_z80_not_ym2612:     @ not too likely
 m_write8_z80_bank_reg:
     ldr     r3, =(Pico+0x22208) @ Pico.m
     ldrh    r2, [r3, #0x0a]
-    mov     r1, r1, lsr #8
+    mov     r1, r1, lsl #8
     orr     r2, r1, r2, lsr #1
     bic     r2, r2, #0xfe00
     strh    r2, [r3, #0x0a]
@@ -932,7 +926,7 @@ m_write8_not_z80:
     bne     OtherWrite8
 m_write8_psg:
     ldr     r2, =PicoOpt
-    mov     r0, r1
+    and     r0, r1, #0xff
     ldr     r2, [r2]
     tst     r2, #2
     bxeq    lr

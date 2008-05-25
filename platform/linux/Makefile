@@ -99,8 +99,8 @@ mkdirs:
 	mkdir -p $(DIRS)
 
 Pico/carthw/svp/compiler.o : ../../Pico/carthw/svp/gen_arm.c
-
-Pico/Pico.o : ../../Pico/PicoFrameHints.c
+Pico/Pico.o : ../../Pico/PicoFrameHints.c ../../Pico/PicoInt.h
+Pico/Memory.o Pico/cd/Memory.o : ../../Pico/MemoryCmn.c ../../Pico/PicoInt.h
 
 ../../cpu/musashi/m68kops.c :
 	@make -C ../../cpu/musashi

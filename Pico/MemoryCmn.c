@@ -69,25 +69,14 @@ void z80WriteBusReq(u32 d)
   {
     if (!d)
     {
-      // this is for a nasty situation where Z80 was enabled and disabled in the same 68k timeslice (Golden Axe III)
       if ((PicoOpt&POPT_EN_Z80) && Pico.m.z80Run)
       {
-        int lineCycles;
         z80stopCycle = SekCyclesDone();
-        if ((Pico.m.z80Run&2) && Pico.m.scanline != -1)
-             lineCycles=(488-SekCyclesLeft)&0x1ff;
-        else lineCycles=z80stopCycle-z80startCycle; // z80 was started at current line
-        if (lineCycles > 0) { // && lineCycles <= 488) {
-          //dprintf("zrun: %i/%i cycles", lineCycles, (lineCycles>>1)-(lineCycles>>5));
-          lineCycles=(lineCycles>>1)-(lineCycles>>5);
-          z80_run_nr(lineCycles);
-        }
+	PicoSyncZ80(z80stopCycle);
       }
     } else {
       if (!Pico.m.z80Run)
-        z80startCycle = SekCyclesDone();
-      else
-        d|=Pico.m.z80Run;
+        z80_cycle_cnt = cycles_68k_to_z80(SekCyclesDone());
     }
   }
   elprintf(EL_BUSREQ, "set_zrun: %i->%i [%i] @%06x", Pico.m.z80Run, d, SekCyclesDone(), SekPc);
@@ -169,12 +158,12 @@ void OtherWrite8(u32 a,u32 d)
   if ((a&0xff4000)==0xa00000) { // z80 RAM
     if (!(Pico.m.z80Run&1)) Pico.zram[a&0x1fff]=(u8)d;
     else {
-      elprintf(EL_ANOMALY, "68k z80 write with no bus! [%06x] %02x @ %06x", a, d, SekPc);
+      elprintf(EL_ANOMALY, "68k z80 write with no bus! [%06x] %02x @ %06x", a, d&0xff, SekPc);
       SekCyclesBurn(4); // hack?
     }
     return;
   }
-  if ((a&0xff6000)==0xa04000)  { if(PicoOpt&1) emustatus|=YM2612Write(a&3, d)&1; return; } // FM Sound
+  if ((a&0xff6000)==0xa04000)  { if(PicoOpt&1) emustatus|=ym2612_write_local(a&3, d&0xff, 0)&1; return; } // FM Sound
   if ((a&0xffffe0)==0xa10000)  { IoWrite8(a, d); return; } // I/O ports
 #endif
   if (a==0xa11100)             { z80WriteBusReq(d); return; }
@@ -185,6 +174,7 @@ void OtherWrite8(u32 a,u32 d)
       Pico.m.z80_reset = 0;
       YM2612ResetChip();
       z80_reset();
+      timers_reset();
     }
     return;
   }
@@ -204,7 +194,7 @@ void OtherWrite8(u32 a,u32 d)
     return;
   }
 
-  PicoWrite8Hook(a, d, 8);
+  PicoWrite8Hook(a, d&0xff, 8);
 }
 
 
@@ -216,10 +206,10 @@ void OtherWrite16(u32 a,u32 d)
   if (a==0xa11100)            { z80WriteBusReq(d>>8); return; }
   if ((a&0xffffe0)==0xa10000) { IoWrite8(a, d); return; } // I/O ports
   if ((a&0xe700f8)==0xc00010||(a&0xff7ff8)==0xa07f10) { if(PicoOpt&2) SN76496Write(d); return; } // PSG Sound
-  if ((a&0xff6000)==0xa04000) { if(PicoOpt&1) emustatus|=YM2612Write(a&3, d)&1; return; } // FM Sound (??)
+  if ((a&0xff6000)==0xa04000) { if(PicoOpt&1) emustatus|=ym2612_write_local(a&3, d&0xff, 0)&1; return; } // FM Sound
   if ((a&0xff4000)==0xa00000) { // Z80 ram (MSB only)
     if (!(Pico.m.z80Run&1)) Pico.zram[a&0x1fff]=(u8)(d>>8);
-    else elprintf(EL_ANOMALY, "68k z80 write with no bus! [%06x] %02x @ %06x", a, d, SekPc);
+    else elprintf(EL_ANOMALY, "68k z80 write with no bus! [%06x] %02x @ %06x", a, d&0xffff, SekPc);
     return;
   }
   if (a==0xa11200) {
@@ -229,6 +219,7 @@ void OtherWrite16(u32 a,u32 d)
       Pico.m.z80_reset = 0;
       YM2612ResetChip();
       z80_reset();
+      timers_reset();
     }
     return;
   }
@@ -256,6 +247,6 @@ void OtherWrite16(u32 a,u32 d)
   }
 #endif
 
-  PicoWrite16Hook(a, d, 16);
+  PicoWrite16Hook(a, d&0xffff, 16);
 }
 

@@ -19,7 +19,6 @@ int PicoPad[2];        // Joypads, format is SACB RLDU
 int PicoAHW = 0;       // active addon hardware: scd_active, 32x_active, svp_active, pico_active
 int PicoRegionOverride = 0; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 int PicoAutoRgnOrder = 0;
-int z80startCycle, z80stopCycle; // in 68k cycles
 struct PicoSRAM SRam = {0,};
 
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
@@ -307,62 +306,54 @@ static __inline void getSamples(int y)
 
 #include "PicoFrameHints.c"
 
-// helper z80 runner. Runs only if z80 is enabled at this point
-// (z80WriteBusReq will handle the rest)
-static void PicoRunZ80Simple(int line_from, int line_to)
+
+int z80stopCycle;
+int z80_cycle_cnt;        /* 'done' z80 cycles before z80_run() */
+int z80_cycle_aim;
+int z80_scanline;
+int z80_scanline_cycles;  /* cycles done until z80_scanline */
+
+/* sync z80 to 68k */
+PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done)
 {
-  int line_from_r=line_from, line_to_r=line_to, line=0;
-  int line_sample = Pico.m.pal ? 68 : 93;
+  int cnt;
+  z80_cycle_aim = cycles_68k_to_z80(m68k_cycles_done);
+  cnt = z80_cycle_aim - z80_cycle_cnt;
 
-  if (!(PicoOpt&POPT_EN_Z80) || Pico.m.z80Run == 0) line_to_r = 0;
-  else {
-    extern const unsigned short vcounts[];
-    if (z80startCycle) {
-      line = vcounts[z80startCycle>>8];
-      if (line > line_from)
-        line_from_r = line;
-    }
-    z80startCycle = SekCyclesDone();
-  }
+  elprintf(EL_ANOMALY, "z80 sync %i (%i|%i -> %i|%i)", cnt, z80_cycle_cnt, z80_cycle_cnt / 228,
+    z80_cycle_aim, z80_cycle_aim / 228);
 
-  if (PicoOpt&POPT_EN_FM) {
-    // we have ym2612 enabled, so we have to run Z80 in lines, so we could update DAC and timers
-    for (line = line_from; line < line_to; line++) {
-      Psnd_timers_and_dac(line);
-      if ((line == 224 || line == line_sample) && PsndOut) getSamples(line);
-      if (line == 32 && PsndOut) emustatus &= ~1;
-      if (line >= line_from_r && line < line_to_r)
-        z80_run_nr(228);
-    }
-  } else if (line_to_r-line_from_r > 0) {
-    z80_run_nr(228*(line_to_r-line_from_r));
-    // samples will be taken by caller
-  }
+  if (cnt > 0)
+    z80_cycle_cnt += z80_run(cnt);
 }
+
 
 // Simple frame without H-Ints
 static int PicoFrameSimple(void)
 {
   struct PicoVideo *pv=&Pico.video;
-  int y=0,line=0,lines=0,lines_step=0,sects;
+  int y=0,lines_step=0,sects,line_last;
   int cycles_68k_vblock,cycles_68k_block;
 
   // split to 16 run calls for active scan, for vblank split to 2 (ntsc), 3 (pal 240), 4 (pal 224)
-  if (Pico.m.pal && (pv->reg[1]&8)) {
+  if (Pico.m.pal)
+  {
     if(pv->reg[1]&8) { // 240 lines
-      cycles_68k_block  = 7329;  // (488*240+148)/16.0, -4
-      cycles_68k_vblock = 11640; // (72*488-148-68)/3.0, 0
+      cycles_68k_block  = 7308;
+      cycles_68k_vblock = 11694;
       lines_step = 15;
     } else {
-      cycles_68k_block  = 6841;  // (488*224+148)/16.0, -4
-      cycles_68k_vblock = 10682; // (88*488-148-68)/4.0, 0
+      cycles_68k_block  = 6821;
+      cycles_68k_vblock = 10719;
       lines_step = 14;
     }
+    line_last = 312-1;
   } else {
     // M68k cycles/frame: 127840.71
     cycles_68k_block  = 6841; // (488*224+148)/16.0, -4
     cycles_68k_vblock = 9164; // (38*488-148-68)/2.0, 0
     lines_step = 14;
+    line_last = 262-1;
   }
 
   // a hack for VR, to get it running in fast mode
@@ -380,9 +371,11 @@ static int PicoFrameSimple(void)
   Pico.video.status|=0x200;
 
   Pico.m.scanline=-1;
-  z80startCycle=0;
+  PsndDacLine = 0;
 
   SekCyclesReset();
+  z80_resetCycles();
+  timers_cycle();
 
   // 6 button pad: let's just say it timed out now
   Pico.m.padTHPhase[0]=Pico.m.padTHPhase[1]=0;
@@ -391,28 +384,19 @@ static int PicoFrameSimple(void)
   pv->status&=~0x88; // clear V-Int, come out of vblank
 
   // Run in sections:
-  for(sects=16; sects; sects--)
+  for (sects=16; sects; sects--)
   {
     if (CheckIdle()) break;
 
-    lines += lines_step;
     SekRunM68k(cycles_68k_block);
-
-    PicoRunZ80Simple(line, lines);
     if (PicoLineHook) PicoLineHook(lines_step);
-    line=lines;
   }
 
-  // run Z80 for remaining sections
-  if(sects) {
-    int c = sects*cycles_68k_block;
+  // do remaining sections without 68k
+  if (sects) {
+    SekCycleCnt += sects * cycles_68k_block;
+    SekCycleAim += sects * cycles_68k_block;
 
-    // this "run" is for approriate line counter, etc
-    SekCycleCnt += c;
-    SekCycleAim += c;
-
-    lines += sects*lines_step;
-    PicoRunZ80Simple(line, lines);
     if (PicoLineHook) PicoLineHook(sects*lines_step);
   }
 
@@ -446,33 +430,37 @@ static int PicoFrameSimple(void)
 #endif
   }
 
-  // here we render sound if ym2612 is disabled
-  if (!(PicoOpt&POPT_EN_FM) && PsndOut) {
-    int len = PsndRender(0, PsndLen);
-    if (PicoWriteSound) PicoWriteSound(len);
-    // clear sound buffer
-    PsndClear();
-  }
-
   // a gap between flags set and vint
   pv->pending_ints|=0x20;
   pv->status|=8; // go into vblank
   SekRunM68k(68+4);
 
+  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
+    PicoSyncZ80(SekCycleCnt);
+
+  // render sound
+  if (PsndOut)
+  {
+    int len;
+    if (ym2612.dacen && PsndDacLine <= lines_step*16)
+      PsndDoDAC(lines_step*16);
+    len = PsndRender(0, PsndLen);
+    if (PicoWriteSound) PicoWriteSound(len);
+    // clear sound buffer
+    PsndClear();
+  }
+
   // ---- V-Blanking period ----
   // fix line counts
   if(Pico.m.pal) {
     if(pv->reg[1]&8) { // 240 lines
-      lines = line = 240;
       sects = 3;
       lines_step = 24;
     } else {
-      lines = line = 224;
       sects = 4;
       lines_step = 22;
     }
   } else {
-    lines = line = 224;
     sects = 2;
     lines_step = 19;
   }
@@ -481,26 +469,27 @@ static int PicoFrameSimple(void)
   if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
     z80_int();
 
-  while (sects)
+  while (1)
   {
-    lines += lines_step;
-
     SekRunM68k(cycles_68k_vblock);
-
-    PicoRunZ80Simple(line, lines);
     if (PicoLineHook) PicoLineHook(lines_step);
-    line=lines;
 
     sects--;
-    if (sects && CheckIdle()) break;
+    if (sects == 0) break;
+    if (CheckIdle()) break;
   }
 
-  // run Z80 for remaining sections
   if (sects) {
-    lines += sects*lines_step;
-    PicoRunZ80Simple(line, lines);
+    SekCycleCnt += sects * cycles_68k_vblock;
+    SekCycleAim += sects * cycles_68k_vblock;
     if (PicoLineHook) PicoLineHook(sects*lines_step);
   }
+
+  // must sync z80 before return, and extend last DAC sample
+  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
+    PicoSyncZ80(SekCycleCnt);
+  if (PsndOut && ym2612.dacen && PsndDacLine <= line_last)
+    PsndDoDAC(line_last);
 
   return 0;
 }
@@ -556,7 +545,6 @@ void PicoGetInternal(pint_t which, pint_ret_t *r)
 void (*PicoMessage)(const char *msg)=NULL;
 
 #if 1 // defined(__DEBUG_PRINT)
-// tmp debug: dump some stuff
 #define bit(r, x) ((r>>x)&1)
 void z80_debug(char *dstr);
 char *debugString(void)

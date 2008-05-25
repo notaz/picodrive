@@ -21,7 +21,7 @@ void (*PsndMix_32_to_16l)(short *dest, int *src, int count) = mix_32_to_16l_ster
 static int PsndBuffer[2*44100/50];
 
 // dac
-static unsigned short dac_info[312]; // pppppppp ppppllll, p - pos in buff, l - length to write for this sample
+static unsigned short dac_info[312+4]; // pppppppp ppppllll, p - pos in buff, l - length to write for this sample
 
 // cdda output buffer
 short cdda_out_buffer[2*1152];
@@ -31,7 +31,12 @@ int PsndRate=0;
 int PsndLen=0; // number of mono samples, multiply by 2 for stereo
 int PsndLen_exc_add=0; // this is for non-integer sample counts per line, eg. 22050/60
 int PsndLen_exc_cnt=0;
+int PsndDacLine=0;
 short *PsndOut=NULL; // PCM data buffer
+
+// timers
+int timer_a_next_oflow, timer_a_step; // in z80 cycles
+//int
 
 // sn76496
 extern int *sn76496_regs;
@@ -83,6 +88,8 @@ static void dac_recalculate(void)
     if (PsndLen_exc_add) len++;
     dac_info[224] = (pos<<4)|len;
   }
+  for (i = lines; i < sizeof(dac_info) / sizeof(dac_info[0]); i++)
+    dac_info[i] = 0;
   //for(i=len=0; i < lines; i++) {
   //  printf("%03i : %03i : %i\n", i, dac_info[i]>>4, dac_info[i]&0xf);
   //  len+=dac_info[i]&0xf;
@@ -100,7 +107,7 @@ PICO_INTERNAL void PsndReset(void)
   // also clear the internal registers+addr line
   ym2612_regs = YM2612GetRegs();
   memset(ym2612_regs, 0, 0x200+4);
-  z80startCycle = z80stopCycle = 0;
+  timers_reset();
 
   PsndRerate(0);
 }
@@ -164,44 +171,25 @@ void PsndRerate(int preserve_state)
 }
 
 
-// This is called once per raster (aka line), but not necessarily for every line
-PICO_INTERNAL void Psnd_timers_and_dac(int raster)
+PICO_INTERNAL void PsndDoDAC(int line_to)
 {
-  int pos, len;
-  int do_dac = PsndOut && (PicoOpt&POPT_EN_FM) && *ym2612_dacen;
-//  int do_pcm = PsndOut && (PicoAHW&1) && (PicoOpt&0x400);
+  int pos, pos1, len;
+  int dout = ym2612.dacout;
+  int line_from = PsndDacLine;
 
-  // Our raster lasts 63.61323/64.102564 microseconds (NTSC/PAL)
-  YM2612PicoTick(1);
+  PsndDacLine = line_to + 1;
 
-  if (!do_dac /*&& !do_pcm*/) return;
-
-  pos=dac_info[raster], len=pos&0xf;
+  pos =dac_info[line_from]>>4;
+  pos1=dac_info[line_to];
+  len = ((pos1>>4)-pos) + (pos1&0xf);
   if (!len) return;
 
-  pos>>=4;
-
-  if (do_dac)
-  {
+  if (PicoOpt & POPT_EN_STEREO) {
     short *d = PsndOut + pos*2;
-    int dout = *ym2612_dacout;
-    if(PicoOpt&POPT_EN_STEREO) {
-      // some manual loop unrolling here :)
-      d[0] = dout;
-      if (len > 1) {
-        d[2] = dout;
-        if (len > 2)
-          d[4] = dout;
-      }
-    } else {
-      short *d = PsndOut + pos;
-      d[0] = dout;
-      if (len > 1) {
-        d[1] = dout;
-        if (len > 2)
-          d[2] = dout;
-      }
-    }
+    for (; len > 0; len--, d+=2) *d = dout;
+  } else {
+    short *d = PsndOut + pos;
+    for (; len > 0; len--, d++)  *d = dout;
   }
 
 #if 0

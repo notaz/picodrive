@@ -51,160 +51,64 @@ static FILE *loaded_mp3 = 0;
 }
 
 /* these will be managed locally on our side */
-static UINT8 *REGS = 0;		/* we will also keep local copy of regs for savestates and such */
-static INT32 *addr_A1;		/* address line A1      */
-
-static int   dacen;
-static INT32 dacout;
 static UINT8 ST_address;	/* address register     */
+static INT32 addr_A1;		/* address line A1      */
 
 static int   writebuff_ptr = 0;
 
-
-/* OPN Mode Register Write */
-static int set_timers( int v )
-{
-	int change;
-
-	/* b7 = CSM MODE */
-	/* b6 = 3 slot mode */
-	/* b5 = reset b */
-	/* b4 = reset a */
-	/* b3 = timer enable b */
-	/* b2 = timer enable a */
-	/* b1 = load b */
-	/* b0 = load a */
-	change = (ym2612_st->mode ^ v) & 0xc0;
-	ym2612_st->mode = v;
-
-	/* reset Timer b flag */
-	if( v & 0x20 )
-		ym2612_st->status &= ~2;
-
-	/* reset Timer a flag */
-	if( v & 0x10 )
-		ym2612_st->status &= ~1;
-
-	return change;
-}
 
 /* YM2612 write */
 /* a = address */
 /* v = value   */
 /* returns 1 if sample affecting state changed */
-int YM2612Write_940(unsigned int a, unsigned int v)
+int YM2612Write_940(unsigned int a, unsigned int v, int scanline)
 {
-	int addr;
 	int upd = 1;	/* the write affects sample generation */
 
-	v &= 0xff;	/* adjust to 8 bit bus */
 	a &= 3;
 
 	//printf("%05i:%03i: ym w ([%i] %02x)\n", Pico.m.frame_count, Pico.m.scanline, a, v);
 
-	switch( a ) {
-	case 0:	/* address port 0 */
-		if (!*addr_A1 && ST_address == v)
-			return 0;	/* address already selected, don't send this command to 940 */
-		ST_address = v;
-		/* don't send DAC or timer related address changes to 940 */
-		if (!*addr_A1 && (v & 0xf0) == 0x20 &&
-			(v == 0x24 || v == 0x25 || v == 0x26 || v == 0x2a))
+	switch (a) {
+		case 0:	/* address port 0 */
+			if (addr_A1 == 0 && ST_address == v)
+				return 0; /* address already selected, don't send this command to 940 */
+			ST_address = v;
+			addr_A1 = 0;
+			/* don't send DAC or timer related address changes to 940 */
+			if (v == 0x24 || v == 0x25 || v == 0x26 || v == 0x2a)
 				return 0;
-		*addr_A1 = 0;
-		upd = 0;
-		break;
-
-	case 1:	/* data port 0    */
-		if (*addr_A1 != 0) {
-			return 0;	/* verified on real YM2608 */
-		}
-
-		addr = ST_address;
-		REGS[addr] = v;
-
-		switch( addr & 0xf0 )
-		{
-		case 0x20:	/* 0x20-0x2f Mode */
-			switch( addr )
-			{
-			case 0x24: { // timer A High 8
-					int TAnew = (ym2612_st->TA & 0x03)|(((int)v)<<2);
-					if (ym2612_st->TA != TAnew) {
-						// we should reset ticker only if new value is written. Outrun requires this.
-						ym2612_st->TA = TAnew;
-						ym2612_st->TAC = (1024-TAnew)*18;
-						ym2612_st->TAT = 0;
-					}
-					return 0;
-				}
-			case 0x25: { // timer A Low 2
-					int TAnew = (ym2612_st->TA & 0x3fc)|(v&3);
-					if (ym2612_st->TA != TAnew) {
-						ym2612_st->TA = TAnew;
-						ym2612_st->TAC = (1024-TAnew)*18;
-						ym2612_st->TAT = 0;
-					}
-					return 0;
-				}
-			case 0x26: // timer B
-				if (ym2612_st->TB != v) {
-					ym2612_st->TB = v;
-					ym2612_st->TBC  = (256-v)<<4;
-					ym2612_st->TBC *= 18;
-					ym2612_st->TBT  = 0;
-				}
-				return 0;
-			case 0x27:	/* mode, timer control */
-				if (set_timers( v ))
-					break; // other side needs ST.mode for 3slot mode
-				return 0;
-			case 0x2a:	/* DAC data (YM2612) */
-				dacout = ((int)v - 0x80) << 6;	/* level unknown (notaz: 8 seems to be too much) */
-				return 0;
-			case 0x2b:	/* DAC Sel  (YM2612) */
-				/* b7 = dac enable */
-				dacen = v & 0x80;
-				upd = 0;
-				break; // other side has to know this
-			default:
-				break;
-			}
+			upd = 0;
 			break;
-		}
-		break;
 
-	case 2:	/* address port 1 */
-		if (*addr_A1 && ST_address == v)
-			return 0;
-		ST_address = v;
-		*addr_A1 = 1;
-		upd = 0;
-		break;
+		case 1:	/* data port 0    */
+			if (ST_address == 0x2b) upd = 0; /* DAC sel */
+			break;
 
-	case 3:	/* data port 1    */
-		if (*addr_A1 != 1) {
-			return 0;	/* verified on real YM2608 */
-		}
-
-		addr = ST_address | 0x100;
-		REGS[addr] = v;
-		break;
+		case 2:	/* address port 1 */
+			if (addr_A1 == 1 && ST_address == v)
+				return 0;
+			ST_address = v;
+			addr_A1 = 1;
+			upd = 0;
+			break;
 	}
 
 	//printf("ym pass\n");
 
-	if(currentConfig.EmuOpt & 4) {
+	if (currentConfig.EmuOpt & 4)
+	{
 		UINT16 *writebuff = shared_ctl->writebuffsel ? shared_ctl->writebuff0 : shared_ctl->writebuff1;
 
 		/* detect rapid ym updates */
-		if (upd && !(writebuff_ptr & 0x80000000) && Pico.m.scanline < 224) {
+		if (upd && !(writebuff_ptr & 0x80000000) && scanline < 224)
+		{
 			int mid = Pico.m.pal ? 68 : 93;
-			if (Pico.m.scanline > mid) {
-				//printf("%05i:%03i: rapid ym\n", Pico.m.frame_count, Pico.m.scanline);
+			if (scanline > mid) {
+				//printf("%05i:%03i: rapid ym\n", Pico.m.frame_count, scanline);
 				writebuff[writebuff_ptr++ & 0xffff] = 0xfffe;
 				writebuff_ptr |= 0x80000000;
-				//printf("%05i:%03i: ym w ([%02x] %02x, upd=%i)\n", Pico.m.frame_count, Pico.m.scanline, addr, v, upd);
+				//printf("%05i:%03i: ym w ([%02x] %02x, upd=%i)\n", Pico.m.frame_count, scanline, addr, v, upd);
 			}
 		}
 
@@ -272,7 +176,9 @@ static void add_job_940(int job)
 
 void YM2612PicoStateLoad_940(void)
 {
-	int i, old_A1 = *addr_A1;
+	UINT8 *REGS = YM2612GetRegs();
+
+	int i;
 
 	/* make sure JOB940_PICOSTATELOAD gets done before next JOB940_YM2612UPDATEONE */
 	add_job_940(JOB940_PICOSTATELOAD);
@@ -282,32 +188,22 @@ void YM2612PicoStateLoad_940(void)
 
 	// feed all the registers and update internal state
 	for(i = 0; i < 0x100; i++) {
-		YM2612Write_940(0, i);
-		YM2612Write_940(1, REGS[i]);
+		YM2612Write_940(0, i, -1);
+		YM2612Write_940(1, REGS[i], -1);
 	}
 	for(i = 0; i < 0x100; i++) {
-		YM2612Write_940(2, i);
-		YM2612Write_940(3, REGS[i|0x100]);
+		YM2612Write_940(2, i, -1);
+		YM2612Write_940(3, REGS[i|0x100], -1);
 	}
 
-	*addr_A1 = old_A1;
+	addr_A1 = *(INT32 *) (REGS + 0x200);
 }
 
 
 static void internal_reset(void)
 {
 	writebuff_ptr = 0;
-	ym2612_st->mode   = 0;
-	ym2612_st->status = 0;	/* normal mode */
-	ym2612_st->TA     = 0;
-	ym2612_st->TAC    = 0;
-	ym2612_st->TAT    = 0;
-	ym2612_st->TB     = 0;
-	ym2612_st->TBC    = 0;
-	ym2612_st->TBT    = 0;
-	dacen     = 0;
-	dacout    = 0;
-	ST_address= 0;
+	ST_address = addr_A1 = -1;
 }
 
 
@@ -405,12 +301,6 @@ void YM2612Init_940(int baseclock, int rate)
 	/* cause local ym2612 to init REGS */
 	YM2612Init_(baseclock, rate);
 
-	REGS = YM2612GetRegs();
-	addr_A1 = (INT32 *) (REGS + 0x200);
-
-	ym2612_dacen  = &dacen;
-	ym2612_dacout = &dacout;
-
 	internal_reset();
 
 	loaded_mp3 = 0;
@@ -440,6 +330,7 @@ void YM2612ResetChip_940(void)
 		return;
 	}
 
+	YM2612ResetChip_();
 	internal_reset();
 
 	add_job_940(JOB940_YM2612RESETCHIP);

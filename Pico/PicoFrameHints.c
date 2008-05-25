@@ -16,29 +16,10 @@
     if(Pico.m.padDelay[1]++ > 25) Pico.m.padTHPhase[1]=0; \
   }
 
-#define Z80_RUN(z80_cycles) \
-{ \
-  if ((PicoOpt&POPT_EN_Z80) && Pico.m.z80Run) \
-  { \
-    int cnt; \
-    if (Pico.m.z80Run & 2) z80CycleAim += z80_cycles; \
-    else { \
-      cnt = SekCyclesDone() - z80startCycle; \
-      cnt = (cnt>>1)-(cnt>>5); \
-      if (cnt < 0 || cnt > (z80_cycles)) cnt = z80_cycles; \
-      Pico.m.z80Run |= 2; \
-      z80CycleAim+=cnt; \
-    } \
-    cnt=z80CycleAim-total_z80; \
-    if (cnt > 0) total_z80+=z80_run(cnt); \
-  } \
-}
-
 // CPUS_RUN
 #ifndef PICO_CD
 #define CPUS_RUN(m68k_cycles,z80_cycles,s68k_cycles) \
-    SekRunM68k(m68k_cycles); \
-    Z80_RUN(z80_cycles);
+    SekRunM68k(m68k_cycles);
 #else
 #define CPUS_RUN(m68k_cycles,z80_cycles,s68k_cycles) \
 { \
@@ -49,7 +30,6 @@
       if ((Pico_mcd->m.busreq&3) == 1) /* no busreq/no reset */ \
         SekRunS68k(s68k_cycles); \
     } \
-    Z80_RUN(z80_cycles); \
 }
 #endif
 
@@ -57,7 +37,7 @@
 static int PicoFrameHints(void)
 {
   struct PicoVideo *pv=&Pico.video;
-  int lines, y, lines_vis = 224, total_z80 = 0, z80CycleAim = 0, line_sample, skip;
+  int lines, y, lines_vis = 224, line_sample, skip;
   int hint; // Hint counter
 
   if ((PicoOpt&POPT_ALT_RENDERER) && !PicoSkipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
@@ -72,20 +52,19 @@ static int PicoFrameHints(void)
   else skip=PicoSkipFrame;
 
   if (Pico.m.pal) {
-    //cycles_68k = (int) ((double) OSC_PAL  /  7 / 50 / 312 + 0.4); // should compile to a constant (488)
-    //cycles_z80 = (int) ((double) OSC_PAL  / 15 / 50 / 312 + 0.4); // 228
     line_sample = 68;
     if(pv->reg[1]&8) lines_vis = 240;
   } else {
-    //cycles_68k = (int) ((double) OSC_NTSC /  7 / 60 / 262 + 0.4); // 488
-    //cycles_z80 = (int) ((double) OSC_NTSC / 15 / 60 / 262 + 0.4); // 228
     line_sample = 93;
   }
 
   SekCyclesReset();
+  z80_resetCycles();
 #ifdef PICO_CD
   SekCyclesResetS68k();
 #endif
+  timers_cycle();
+  PsndDacLine = 0;
 
   pv->status&=~0x88; // clear V-Int, come out of vblank
 
@@ -93,8 +72,6 @@ static int PicoFrameHints(void)
   //dprintf("-hint: %i", hint);
 
   // This is to make active scan longer (needed for Double Dragon 2, mainly)
-  // also trying to adjust for z80 overclock here (due to int line cycle counts)
-  z80CycleAim = Pico.m.pal ? -40 : 7;
   CPUS_RUN(CYCLES_M68K_ASD, 0, CYCLES_S68K_ASD);
 
   for (y=0;y<lines_vis;y++)
@@ -148,15 +125,18 @@ static int PicoFrameHints(void)
       }
     }
 
-    if (PicoOpt&POPT_EN_FM)
-      Psnd_timers_and_dac(y);
-
 #ifndef PICO_CD
     // get samples from sound chips
     if (y == 32 && PsndOut)
       emustatus &= ~1;
     else if ((y == 224 || y == line_sample) && PsndOut)
+    {
+      if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
+        PicoSyncZ80(SekCycleCnt);
+      if (ym2612.dacen && PsndDacLine <= y)
+        PsndDoDAC(y);
       getSamples(y);
+    }
 #endif
 
     // Run scanline:
@@ -205,24 +185,27 @@ static int PicoFrameHints(void)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
   SekRunM68k(CYCLES_M68K_VINT_LAG);
+
   if (pv->reg[1]&0x20) {
     elprintf(EL_INTS, "vint: @ %06x [%i]", SekPc, SekCycleCnt);
     SekInterrupt(6);
   }
   if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80)) {
+    PicoSyncZ80(SekCycleCnt);
     elprintf(EL_INTS, "zint");
     z80_int();
   }
-
-  if (PicoOpt&POPT_EN_FM)
-    Psnd_timers_and_dac(y);
 
   // get samples from sound chips
 #ifndef PICO_CD
   if (y == 224)
 #endif
     if (PsndOut)
+    {
+      if (ym2612.dacen && PsndDacLine <= y)
+        PsndDoDAC(y);
       getSamples(y);
+    }
 
   // Run scanline:
   if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
@@ -247,9 +230,6 @@ static int PicoFrameHints(void)
     check_cd_dma();
 #endif
 
-    if (PicoOpt&POPT_EN_FM)
-      Psnd_timers_and_dac(y);
-
     // Run scanline:
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
     CPUS_RUN(CYCLES_M68K_LINE, CYCLES_Z80_LINE, CYCLES_S68K_LINE);
@@ -260,6 +240,12 @@ static int PicoFrameHints(void)
     if (PicoLineHook) PicoLineHook(1);
 #endif
   }
+
+  // sync z80
+  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
+    PicoSyncZ80(SekCycleCnt);
+  if (PsndOut && ym2612.dacen && PsndDacLine <= lines-1)
+    PsndDoDAC(lines-1);
 
   return 0;
 }

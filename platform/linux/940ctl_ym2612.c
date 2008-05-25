@@ -17,10 +17,6 @@
 #include "../../Pico/PicoInt.h"
 
 
-static YM2612 ym2612;
-
-YM2612 *ym2612_940 = &ym2612;
-
 // static _940_data_t  shared_data_;
 static _940_ctl_t   shared_ctl_;
 // static _940_data_t *shared_data = &shared_data_;
@@ -33,7 +29,7 @@ unsigned char *mp3_mem = 0;
 /***********************************************************/
 
 
-int YM2612Write_940(unsigned int a, unsigned int v)
+int YM2612Write_940(unsigned int a, unsigned int v, int scanline)
 {
 	YM2612Write_(a, v);
 

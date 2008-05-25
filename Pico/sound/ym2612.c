@@ -116,7 +116,7 @@
 #ifndef EXTERNAL_YM2612
 #include <stdlib.h>
 // let it be 1 global to simplify things
-static YM2612 ym2612;
+YM2612 ym2612;
 
 #else
 extern YM2612 *ym2612_940;
@@ -1584,10 +1584,7 @@ static int OPNWriteReg(int r, int v)
 /*      YM2612 local section                                                   */
 /*******************************************************************************/
 
-int   *ym2612_dacen;
-INT32 *ym2612_dacout;
 FM_ST *ym2612_st;
-
 
 /* Generate samples for YM2612 */
 int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
@@ -1654,8 +1651,6 @@ int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 void YM2612Init_(int clock, int rate)
 {
 	// notaz
-	ym2612_dacen = &ym2612.dacen;
-	ym2612_dacout = &ym2612.dacout;
 	ym2612_st = &ym2612.OPN.ST;
 
 	memset(&ym2612, 0, sizeof(ym2612));
@@ -1728,9 +1723,6 @@ int YM2612Write_(unsigned int a, unsigned int v)
 		}
 
 		addr = ym2612.OPN.ST.address;
-#ifndef EXTERNAL_YM2612
-		ym2612.REGS[addr] = v;
-#endif
 
 		switch( addr & 0xf0 )
 		{
@@ -1747,6 +1739,7 @@ int YM2612Write_(unsigned int a, unsigned int v)
 					ym2612.OPN.lfo_inc = 0;
 				}
 				break;
+#if 0 // handled elsewhere
 			case 0x24: { // timer A High 8
 					int TAnew = (ym2612.OPN.ST.TA & 0x03)|(((int)v)<<2);
 					if(ym2612.OPN.ST.TA != TAnew) {
@@ -1781,6 +1774,7 @@ int YM2612Write_(unsigned int a, unsigned int v)
 				set_timers( v );
 				ret=0;
 				break;
+#endif
 			case 0x28:	/* key on / off */
 				{
 					UINT8 c;
@@ -1794,6 +1788,7 @@ int YM2612Write_(unsigned int a, unsigned int v)
 					if(v&0x80) FM_KEYON(c,SLOT4); else FM_KEYOFF(c,SLOT4);
 					break;
 				}
+#if 0
 			case 0x2a:	/* DAC data (YM2612) */
 				ym2612.dacout = ((int)v - 0x80) << 6;	/* level unknown (notaz: 8 seems to be too much) */
 				ret=0;
@@ -1803,6 +1798,7 @@ int YM2612Write_(unsigned int a, unsigned int v)
 				ym2612.dacen = v & 0x80;
 				ret=0;
 				break;
+#endif
 			default:
 				break;
 			}
@@ -1826,9 +1822,6 @@ int YM2612Write_(unsigned int a, unsigned int v)
 		}
 
 		addr = ym2612.OPN.ST.address | 0x100;
-#ifndef EXTERNAL_YM2612
-		ym2612.REGS[addr] = v;
-#endif
 
 		ret = OPNWriteReg(addr, v);
 		break;

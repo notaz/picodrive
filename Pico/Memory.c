@@ -688,6 +688,168 @@ static void m68k_mem_setup(void)
 
 
 // -----------------------------------------------------------------
+
+extern const unsigned short vcounts[];
+
+static int get_scanline(int is_from_z80)
+{
+  if (is_from_z80) {
+    int cycles = z80_cyclesDone();
+    while (cycles - z80_scanline_cycles >= 228)
+      z80_scanline++, z80_scanline_cycles += 228;
+    return z80_scanline;
+  }
+
+  if (Pico.m.scanline != -1)
+    return Pico.m.scanline;
+
+  return vcounts[SekCyclesDone()>>8];
+}
+
+// ym2612 DAC and timer I/O handlers for z80
+int ym2612_write_local(u32 a, u32 d, int is_from_z80)
+{
+  int addr;
+
+  a &= 3;
+  if (a == 1 && ym2612.OPN.ST.address == 0x2a) /* DAC data */
+  {
+    int scanline = get_scanline(is_from_z80);
+    //elprintf(EL_STATUS, "%03i -> %03i dac w %08x z80 %i", PsndDacLine, scanline, d, is_from_z80);
+    ym2612.dacout = ((int)d - 0x80) << 6;
+    if (PsndOut && ym2612.dacen && scanline >= PsndDacLine)
+      PsndDoDAC(scanline);
+    return 0;
+  }
+
+  switch (a)
+  {
+    case 0: /* address port 0 */
+      ym2612.OPN.ST.address = d;
+      ym2612.addr_A1 = 0;
+#ifdef __GP2X__
+      if (PicoOpt & POPT_EXT_FM) YM2612Write_940(a, d, -1);
+#endif
+      return 0;
+
+    case 1: /* data port 0    */
+      if (ym2612.addr_A1 != 0)
+        return 0;
+
+      addr = ym2612.OPN.ST.address;
+      ym2612.REGS[addr] = d;
+
+      switch (addr)
+      {
+        case 0x24: // timer A High 8
+        case 0x25: { // timer A Low 2
+          int TAnew = (addr == 0x24) ? ((ym2612.OPN.ST.TA & 0x03)|(((int)d)<<2))
+                                     : ((ym2612.OPN.ST.TA & 0x3fc)|(d&3));
+          if (ym2612.OPN.ST.TA != TAnew)
+          {
+            //elprintf(EL_STATUS, "timer a set %i", TAnew);
+            ym2612.OPN.ST.TA = TAnew;
+            //ym2612.OPN.ST.TAC = (1024-TAnew)*18;
+            //ym2612.OPN.ST.TAT = 0;
+            //
+            timer_a_step = 16495 * (1024 - TAnew);
+            if ((ym2612.OPN.ST.mode & 5) == 5) {
+              int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
+              timer_a_next_oflow = (cycles << 8) + timer_a_step;
+              //elprintf(EL_STATUS, "set to %i @ %i", timer_a_next_oflow>>8, cycles);
+            }
+          }
+          return 0;
+        }
+        case 0x26: // timer B
+          if (ym2612.OPN.ST.TB != d) {
+            //elprintf(EL_STATUS, "timer b set %i", d);
+            ym2612.OPN.ST.TB = d;
+            //ym2612.OPN.ST.TBC  = (256-d)<<4;
+            //ym2612.OPN.ST.TBC *= 18;
+            //ym2612.OPN.ST.TBT  = 0;
+          }
+          return 0;
+        case 0x27: { /* mode, timer control */
+          int old_mode = ym2612.OPN.ST.mode;
+          int xcycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
+          xcycles <<= 8;
+
+          //elprintf(EL_STATUS, "st mode %02x", d);
+
+          if ((ym2612.OPN.ST.mode & 5) != 5 && (d & 5) == 5) {
+            timer_a_next_oflow = xcycles + timer_a_step;
+            //elprintf(EL_STATUS, "set to %i @ %i st", timer_a_next_oflow>>8, xcycles >> 8);
+          }
+
+          /* reset Timer b flag */
+          if (d & 0x20)
+            ym2612.OPN.ST.status &= ~2;
+
+          /* reset Timer a flag */
+          if (d & 0x10) {
+            if (ym2612.OPN.ST.status & 1)
+              while (xcycles > timer_a_next_oflow)
+                timer_a_next_oflow += timer_a_step;
+            ym2612.OPN.ST.status &= ~1;
+          }
+          if (!(d & 5)) timer_a_next_oflow = 0x80000000;
+          ym2612.OPN.ST.mode = d;
+#ifdef __GP2X__
+          if (PicoOpt & POPT_EXT_FM) YM2612Write_940(a, d, get_scanline(is_from_z80));
+#endif
+          return 0;
+        }
+        case 0x2b: { /* DAC Sel  (YM2612) */
+          int scanline = get_scanline(is_from_z80);
+          ym2612.dacen = d & 0x80;
+          if (d & 0x80) PsndDacLine = scanline;
+#ifdef __GP2X__
+          if (PicoOpt & POPT_EXT_FM) YM2612Write_940(a, d, scanline);
+#endif
+          return 0;
+        }
+      }
+      break;
+
+    case 2: /* address port 1 */
+      ym2612.OPN.ST.address = d;
+      ym2612.addr_A1 = 1;
+#ifdef __GP2X__
+      if (PicoOpt & POPT_EXT_FM) YM2612Write_940(a, d, -1);
+#endif
+      return 0;
+
+    case 3: /* data port 1    */
+      if (ym2612.addr_A1 != 1)
+        return 0;
+
+      addr = ym2612.OPN.ST.address | 0x100;
+      ym2612.REGS[addr] = d;
+      break;
+  }
+
+#ifdef __GP2X__
+  if (PicoOpt & POPT_EXT_FM)
+    return YM2612Write_940(a, d, get_scanline(is_from_z80));
+#endif
+  return YM2612Write_(a, d);
+}
+
+// TODO: timer b, 68k side + asm, savestates
+u32 ym2612_read_local_z80(void)
+{
+  int xcycles = z80_cyclesDone() << 8;
+  if (timer_a_next_oflow != 0x80000000 && xcycles >= timer_a_next_oflow) {
+    ym2612.OPN.ST.status |= 1;
+  }
+
+  //elprintf(EL_STATUS, "timer %i, sched %i, @ %i|%i", ym2612.OPN.ST.status, timer_a_next_oflow>>8,
+  //     xcycles >> 8, (xcycles >> 8) / 228);
+  return ym2612.OPN.ST.status;
+}
+
+// -----------------------------------------------------------------
 //                        z80 memhandlers
 
 PICO_INTERNAL unsigned char z80_read(unsigned short a)
@@ -696,7 +858,7 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
 
   if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
   {
-    if (PicoOpt&POPT_EN_FM) ret = (u8) YM2612Read();
+    if (PicoOpt&POPT_EN_FM) ret = ym2612_read_local_z80();
     return ret;
   }
 
@@ -710,7 +872,10 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
     if (PicoAHW & PAHW_MCD)
          ret = PicoReadM68k8(addr68k);
     else ret = PicoRead8(addr68k);
-    elprintf(EL_Z80BNK, "z80->68k r8 [%06x] %02x", addr68k, ret);
+    if (addr68k >= 0x400000) // not many games do this
+      { elprintf(EL_ANOMALY, "z80->68k upper read [%06x] %02x", addr68k, ret); }
+    else
+      { elprintf(EL_Z80BNK, "z80->68k r8 [%06x] %02x", addr68k, ret); }
     return ret;
   }
 
@@ -729,7 +894,7 @@ PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data)
 {
   if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
   {
-    if(PicoOpt&POPT_EN_FM) emustatus|=YM2612Write(a, data) & 1;
+    if(PicoOpt&POPT_EN_FM) emustatus|=ym2612_write_local(a, data, 1) & 1;
     return;
   }
 
