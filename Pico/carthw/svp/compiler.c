@@ -1763,6 +1763,7 @@ void *ssp_translate_block(int pc)
 		fwrite(tcache, 1, (tcache_ptr - tcache)*4, f);
 		fclose(f);
 	}
+	printf("dumped tcache.bin\n");
 	exit(0);
 #endif
 

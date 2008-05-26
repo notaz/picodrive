@@ -706,6 +706,53 @@ static int get_scanline(int is_from_z80)
   return vcounts[SekCyclesDone()>>8];
 }
 
+/* probably not should be in this file, but it's near related code here */
+void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new)
+{
+  int xcycles = z80_cycles << 8;
+
+  /* check for overflows */
+  if ((mode_old & 4) && xcycles > timer_a_next_oflow)
+    ym2612.OPN.ST.status |= 1;
+
+  if ((mode_old & 8) && xcycles > timer_b_next_oflow)
+    ym2612.OPN.ST.status |= 2;
+
+  /* update timer a */
+  if (mode_old & 1)
+    while (xcycles >= timer_a_next_oflow)
+      timer_a_next_oflow += timer_a_step;
+
+  if ((mode_old ^ mode_new) & 1) // turning on/off
+  {
+    if (mode_old & 1) {
+      timer_a_offset = timer_a_next_oflow - xcycles;
+      timer_a_next_oflow = 0x70000000;
+    }
+    else
+      timer_a_next_oflow = xcycles + timer_a_offset;
+  }
+  if (mode_new & 1)
+    elprintf(EL_YMTIMER, "timer a upd to %i @ %i", timer_a_next_oflow>>8, z80_cycles);
+
+  /* update timer b */
+  if (mode_old & 2)
+    while (xcycles >= timer_b_next_oflow)
+      timer_b_next_oflow += timer_b_step;
+
+  if ((mode_old ^ mode_new) & 2)
+  {
+    if (mode_old & 2) {
+      timer_b_offset = timer_b_next_oflow - xcycles;
+      timer_b_next_oflow = 0x70000000;
+    }
+    else
+      timer_b_next_oflow = xcycles + timer_b_offset;
+  }
+  if (mode_new & 2)
+    elprintf(EL_YMTIMER, "timer b upd to %i @ %i", timer_b_next_oflow>>8, z80_cycles);
+}
+
 // ym2612 DAC and timer I/O handlers for z80
 int ym2612_write_local(u32 a, u32 d, int is_from_z80)
 {
@@ -752,12 +799,12 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             //ym2612.OPN.ST.TAC = (1024-TAnew)*18;
             //ym2612.OPN.ST.TAT = 0;
             //
-            timer_a_step = 16495 * (1024 - TAnew);
-            if ((ym2612.OPN.ST.mode & 5) == 5) {
+            timer_a_step = timer_a_offset = 16495 * (1024 - TAnew);
+            if (ym2612.OPN.ST.mode & 1) {
               int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
               timer_a_next_oflow = (cycles << 8) + timer_a_step;
-              //elprintf(EL_STATUS, "set to %i @ %i", timer_a_next_oflow>>8, cycles);
             }
+            elprintf(EL_YMTIMER, "timer a set to %i, %i", 1024 - TAnew, timer_a_next_oflow>>8);
           }
           return 0;
         }
@@ -768,36 +815,36 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             //ym2612.OPN.ST.TBC  = (256-d)<<4;
             //ym2612.OPN.ST.TBC *= 18;
             //ym2612.OPN.ST.TBT  = 0;
+            timer_b_step = timer_b_offset = 263912 * (256 - d);
+            if (ym2612.OPN.ST.mode & 2) {
+              int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
+              timer_b_next_oflow = (cycles << 8) + timer_b_step;
+            }
+            elprintf(EL_YMTIMER, "timer b set to %i, %i", 256 - d, timer_b_next_oflow>>8);
           }
           return 0;
         case 0x27: { /* mode, timer control */
           int old_mode = ym2612.OPN.ST.mode;
-          int xcycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
-          xcycles <<= 8;
+          int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
+          ym2612.OPN.ST.mode = d;
 
-          //elprintf(EL_STATUS, "st mode %02x", d);
+          elprintf(EL_YMTIMER, "st mode %02x", d);
+          ym2612_sync_timers(cycles, old_mode, d);
 
-          if ((ym2612.OPN.ST.mode & 5) != 5 && (d & 5) == 5) {
-            timer_a_next_oflow = xcycles + timer_a_step;
-            //elprintf(EL_STATUS, "set to %i @ %i st", timer_a_next_oflow>>8, xcycles >> 8);
-          }
+          /* reset Timer a flag */
+          if (d & 0x10)
+            ym2612.OPN.ST.status &= ~1;
 
           /* reset Timer b flag */
           if (d & 0x20)
             ym2612.OPN.ST.status &= ~2;
 
-          /* reset Timer a flag */
-          if (d & 0x10) {
-            if (ym2612.OPN.ST.status & 1)
-              while (xcycles > timer_a_next_oflow)
-                timer_a_next_oflow += timer_a_step;
-            ym2612.OPN.ST.status &= ~1;
-          }
-          if (!(d & 5)) timer_a_next_oflow = 0x80000000;
-          ym2612.OPN.ST.mode = d;
+          if ((d ^ old_mode) & 0xc0) {
 #ifdef __GP2X__
-          if (PicoOpt & POPT_EXT_FM) YM2612Write_940(a, d, get_scanline(is_from_z80));
+            if (PicoOpt & POPT_EXT_FM) YM2612Write_940(a, d, get_scanline(is_from_z80));
 #endif
+            return 1;
+          }
           return 0;
         }
         case 0x2b: { /* DAC Sel  (YM2612) */
@@ -836,16 +883,33 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   return YM2612Write_(a, d);
 }
 
-// TODO: timer b, 68k side + asm, savestates
+// TODO: savestates
+#define ym2612_read_local() \
+  if (xcycles >= timer_a_next_oflow) \
+    ym2612.OPN.ST.status |= (ym2612.OPN.ST.mode >> 2) & 1; \
+  if (xcycles >= timer_b_next_oflow) \
+    ym2612.OPN.ST.status |= (ym2612.OPN.ST.mode >> 2) & 2
+
+
 u32 ym2612_read_local_z80(void)
 {
   int xcycles = z80_cyclesDone() << 8;
-  if (timer_a_next_oflow != 0x80000000 && xcycles >= timer_a_next_oflow) {
-    ym2612.OPN.ST.status |= 1;
-  }
 
-  //elprintf(EL_STATUS, "timer %i, sched %i, @ %i|%i", ym2612.OPN.ST.status, timer_a_next_oflow>>8,
-  //     xcycles >> 8, (xcycles >> 8) / 228);
+  ym2612_read_local();
+
+  elprintf(EL_YMTIMER, "timer z80 read %i, sched %i, %i @ %i|%i", ym2612.OPN.ST.status,
+      timer_a_next_oflow>>8, timer_b_next_oflow>>8, xcycles >> 8, (xcycles >> 8) / 228);
+  return ym2612.OPN.ST.status;
+}
+
+u32 ym2612_read_local_68k(void)
+{
+  int xcycles = cycles_68k_to_z80(SekCyclesDone()) << 8;
+
+  ym2612_read_local();
+
+  elprintf(EL_YMTIMER, "timer 68k read %i, sched %i, %i @ %i|%i", ym2612.OPN.ST.status,
+      timer_a_next_oflow>>8, timer_b_next_oflow>>8, xcycles >> 8, (xcycles >> 8) / 228);
   return ym2612.OPN.ST.status;
 }
 
@@ -869,13 +933,13 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
     addr68k=Pico.m.z80_bank68k<<15;
     addr68k+=a&0x7fff;
 
+    if (addr68k < Pico.romsize) { ret = Pico.rom[addr68k^1]; goto bnkend; }
+    elprintf(EL_ANOMALY, "z80->68k upper read [%06x] %02x", addr68k, ret);
     if (PicoAHW & PAHW_MCD)
          ret = PicoReadM68k8(addr68k);
     else ret = PicoRead8(addr68k);
-    if (addr68k >= 0x400000) // not many games do this
-      { elprintf(EL_ANOMALY, "z80->68k upper read [%06x] %02x", addr68k, ret); }
-    else
-      { elprintf(EL_Z80BNK, "z80->68k r8 [%06x] %02x", addr68k, ret); }
+bnkend:
+    elprintf(EL_Z80BNK, "z80->68k r8 [%06x] %02x", addr68k, ret);
     return ret;
   }
 

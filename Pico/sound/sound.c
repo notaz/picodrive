@@ -35,8 +35,8 @@ int PsndDacLine=0;
 short *PsndOut=NULL; // PCM data buffer
 
 // timers
-int timer_a_next_oflow, timer_a_step; // in z80 cycles
-//int
+int timer_a_next_oflow, timer_a_step, timer_a_offset; // in z80 cycles
+int timer_b_next_oflow, timer_b_step, timer_b_offset;
 
 // sn76496
 extern int *sn76496_regs;
@@ -46,13 +46,15 @@ static void dac_recalculate(void)
 {
   int i, dac_cnt, pos, len, lines = Pico.m.pal ? 312 : 262, mid = Pico.m.pal ? 68 : 93;
 
-  if(PsndLen <= lines) {
+  if (PsndLen <= lines)
+  {
     // shrinking algo
     dac_cnt = -PsndLen;
     len=1; pos=0;
     dac_info[225] = 1;
 
-    for(i=226; i != 225; i++) {
+    for(i=226; i != 225; i++)
+    {
       if (i >= lines) i = 0;
       len = 0;
       if(dac_cnt < 0) {
@@ -63,11 +65,14 @@ static void dac_recalculate(void)
       dac_cnt -= PsndLen;
       dac_info[i] = (pos<<4)|len;
     }
-  } else {
+  }
+  else
+  {
     // stretching
     dac_cnt = PsndLen;
     pos=0;
-    for(i = 225; i != 224; i++) {
+    for(i = 225; i != 224; i++)
+    {
       if (i >= lines) i = 0;
       len=0;
       while(dac_cnt >= 0) {

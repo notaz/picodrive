@@ -141,35 +141,16 @@ typedef struct
 } YM2612;
 #endif
 
-extern FM_ST *ym2612_st;
 #ifndef EXTERNAL_YM2612
 extern YM2612 ym2612;
 #endif
-
-#define YM2612Read() ym2612_st->status
-
-#define YM2612PicoTick(n) \
-{ \
-	/* timer A */ \
-	if(ym2612_st->mode & 0x01 && (ym2612_st->TAT+=64*n) >= ym2612_st->TAC) { \
-		ym2612_st->TAT -= ym2612_st->TAC; \
-		if(ym2612_st->mode & 0x04) ym2612_st->status |= 1; \
-	} \
- \
-	/* timer B */ \
-	if(ym2612_st->mode & 0x02 && (ym2612_st->TBT+=64*n) >= ym2612_st->TBC) { \
-		ym2612_st->TBT -= ym2612_st->TBC; \
-		if(ym2612_st->mode & 0x08) ym2612_st->status |= 2; \
-	} \
-}
-
 
 void YM2612Init_(int baseclock, int rate);
 void YM2612ResetChip_(void);
 int  YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty);
 
 int  YM2612Write_(unsigned int a, unsigned int v);
-unsigned char YM2612Read_(void);
+//unsigned char YM2612Read_(void);
 
 int  YM2612PicoTick_(int n);
 void YM2612PicoStateLoad_(void);

@@ -421,12 +421,8 @@ m_read8_z80_misc:
     lui     $t0, %hi(PicoOpt)
     lw      $t0, %lo(PicoOpt)($t0)
     andi    $t0, 1
-    beqz    $t0, m_read8_fake_ym2612
-    lui     $t0, %hi(Pico+0x22208)
-    lui     $t0, %hi(ym2612_st)
-    lw      $t0, %lo(ym2612_st)($t0)
-    jr      $ra
-    lb      $v0, 0x11($t0)
+    bnez    $t0, ym2612_read_local_68k
+    nop
 
 m_read8_fake_ym2612:
     lb      $v0, %lo(Pico+0x22208)($t0) # Pico.m.rotate

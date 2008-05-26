@@ -389,11 +389,7 @@ m_read8_misc2:
     ldr     r1, =PicoOpt
     ldr     r1, [r1]
     tst     r1, #1
-
-    ldrne   r1, =ym2612_st
-    ldrne   r1, [r1]
-    ldrneb  r0, [r1, #0x11]   @ ym2612_st->status
-    bxne    lr
+    bne     ym2612_read_local_68k
 
 m_read8_fake_ym2612:
     ldr     r3, =(Pico+0x22200)

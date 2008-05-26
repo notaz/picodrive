@@ -2,7 +2,7 @@
 
 
 #include "../PicoInt.h"
-
+#include "../sound/ym2612.h"
 
 extern unsigned char formatted_bram[4*0x10];
 extern unsigned int s68k_poll_adclk;

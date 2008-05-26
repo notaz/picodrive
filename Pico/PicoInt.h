@@ -431,6 +431,7 @@ PICO_INTERNAL_ASM void PicoMemResetCDdecode(int r3);
 
 // Pico/Memory.c
 PICO_INTERNAL void PicoMemSetupPico(void);
+PICO_INTERNAL unsigned int ym2612_read_local_68k(void);
 
 // Pico.c
 extern struct Pico Pico;
@@ -474,13 +475,23 @@ PICO_INTERNAL void cdda_start_play();
 extern short cdda_out_buffer[2*1152];
 extern int PsndLen_exc_cnt;
 extern int PsndLen_exc_add;
-extern int timer_a_next_oflow, timer_a_step; // in z80 cycles
+extern int timer_a_next_oflow, timer_a_step, timer_a_offset; // in z80 cycles
+extern int timer_b_next_oflow, timer_b_step, timer_b_offset;
+
+void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new);
 
 #define timers_cycle() \
-  if (timer_a_next_oflow > 0) timer_a_next_oflow -= Pico.m.pal ? 70938*256 : 59659*256
+  if (timer_a_next_oflow > 0 && timer_a_next_oflow < 0x70000000) \
+    timer_a_next_oflow -= Pico.m.pal ? 70938*256 : 59659*256; \
+  if (timer_b_next_oflow > 0 && timer_b_next_oflow < 0x70000000) \
+    timer_b_next_oflow -= Pico.m.pal ? 70938*256 : 59659*256; \
+  ym2612_sync_timers(0, ym2612.OPN.ST.mode, ym2612.OPN.ST.mode);
 
 #define timers_reset() \
-  timer_a_next_oflow = 0x80000000
+  timer_a_next_oflow = timer_b_next_oflow = 0x70000000; \
+  timer_a_step = timer_a_offset = 16495 * 1024; \
+  timer_b_step = timer_b_offset = 263912 * 256;
+
 
 // VideoPort.c
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
@@ -528,7 +539,7 @@ extern int PsndDacLine;
 #define EL_HVCNT   0x00000001 /* hv counter reads */
 #define EL_SR      0x00000002 /* SR reads */
 #define EL_INTS    0x00000004 /* ints and acks */
-#define EL_YM2612R 0x00000008 /* 68k ym2612 reads */
+#define EL_YMTIMER 0x00000008 /* ym2612 timer stuff */
 #define EL_INTSW   0x00000010 /* log irq switching on/off */
 #define EL_ASVDP   0x00000020 /* VDP accesses during active scan */
 #define EL_VDPDMA  0x00000040 /* VDP DMA transfers and their timing */

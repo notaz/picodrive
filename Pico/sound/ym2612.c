@@ -1584,8 +1584,6 @@ static int OPNWriteReg(int r, int v)
 /*      YM2612 local section                                                   */
 /*******************************************************************************/
 
-FM_ST *ym2612_st;
-
 /* Generate samples for YM2612 */
 int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 {
@@ -1650,9 +1648,6 @@ int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 /* initialize YM2612 emulator */
 void YM2612Init_(int clock, int rate)
 {
-	// notaz
-	ym2612_st = &ym2612.OPN.ST;
-
 	memset(&ym2612, 0, sizeof(ym2612));
 	init_tables();
 

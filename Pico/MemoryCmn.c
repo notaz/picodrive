@@ -114,9 +114,8 @@ u32 OtherRead16(u32 a, int realsize)
       elprintf(EL_ANOMALY, "68k z80 read with no bus! [%06x] @ %06x", a, SekPc);
     if ((a&0x4000)==0x0000) { d=z80Read8(a); d|=d<<8; goto end; } // Z80 ram (not byteswaped)
     if ((a&0x6000)==0x4000) { // 0x4000-0x5fff, Fudge if disabled
-      if(PicoOpt&POPT_EN_FM) d=YM2612Read();
+      if (PicoOpt&POPT_EN_FM) d=ym2612_read_local_68k();
       else d=Pico.m.rotate++&3;
-      elprintf(EL_YM2612R, "read ym2612: %02x", d);
       goto end;
     }
     elprintf(EL_ANOMALY, "68k bad read [%06x]", a);

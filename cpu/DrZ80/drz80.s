@@ -24,7 +24,7 @@
       .extern PicoRead8
       .extern Pico
       .extern z80_write
-      .extern ym2612_st
+      .extern ym2612_read_local_z80
 .endif
 
 DrZ80Ver: .long 0x0001
