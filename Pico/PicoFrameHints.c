@@ -116,9 +116,7 @@ static int PicoFrameHints(void)
       }
       else
       {
-#if CAN_HANDLE_240_LINES
-        if (((!(pv->reg[1]&8) && y < 224) || (pv->reg[1]&8)) )
-#else
+#if !CAN_HANDLE_240_LINES
         if (y < 224)
 #endif
           PicoLine(y);

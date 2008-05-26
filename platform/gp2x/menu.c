@@ -46,16 +46,16 @@ static int inp_prevjoy = 0;
 static unsigned long wait_for_input(unsigned long interesting)
 {
 	unsigned long ret;
-	static int repeats = 0, wait = 50*1000;
+	static int repeats = 0, wait = 6;
 	int release = 0, i;
 
-	if (repeats == 2 || repeats == 4) wait /= 2;
-	if (repeats == 6) wait = 15 * 1000;
+	if      (repeats == 2) wait = 3;
+	else if (repeats == 4) wait = 2;
+	else if (repeats == 6) wait = 1;
 
-	for (i = 0; i < 6 && inp_prev == gp2x_joystick_read(1); i++) {
+	for (i = 0; i < wait && inp_prev == gp2x_joystick_read(1); i++) {
 		if (i == 0) repeats++;
-		if (wait >= 30*1000) usleep(wait); // usleep sleeps for ~30ms minimum
-		else spend_cycles(wait * currentConfig.CPUclock);
+		usleep(30000);
 	}
 
 	while ( !((ret = gp2x_joystick_read(1)) & interesting) ) {
@@ -65,7 +65,7 @@ static unsigned long wait_for_input(unsigned long interesting)
 
 	if (release || ret != inp_prev) {
 		repeats = 0;
-		wait = 50*1000;
+		wait = 6;
 	}
 	inp_prev = ret;
 	inp_prevjoy = 0;
