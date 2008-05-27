@@ -883,13 +883,12 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   return YM2612Write_(a, d);
 }
 
-// TODO: savestates
+
 #define ym2612_read_local() \
   if (xcycles >= timer_a_next_oflow) \
     ym2612.OPN.ST.status |= (ym2612.OPN.ST.mode >> 2) & 1; \
   if (xcycles >= timer_b_next_oflow) \
     ym2612.OPN.ST.status |= (ym2612.OPN.ST.mode >> 2) & 2
-
 
 u32 ym2612_read_local_z80(void)
 {
@@ -911,6 +910,23 @@ u32 ym2612_read_local_68k(void)
   elprintf(EL_YMTIMER, "timer 68k read %i, sched %i, %i @ %i|%i", ym2612.OPN.ST.status,
       timer_a_next_oflow>>8, timer_b_next_oflow>>8, xcycles >> 8, (xcycles >> 8) / 228);
   return ym2612.OPN.ST.status;
+}
+
+// TODO: new ym2612 savestates
+void ym2612_unpack_state(void)
+{
+  int i;
+  YM2612PicoStateLoad();
+
+  // feed all the registers and update internal state
+  for (i = 0x20; i < 0xC0; i++) {
+    ym2612_write_local(0, i, 0);
+    ym2612_write_local(1, ym2612.REGS[i], 0);
+  }
+  for (i = 0x30; i < 0xC0; i++) {
+    ym2612_write_local(2, i, 0);
+    ym2612_write_local(3, ym2612.REGS[i|0x100], 0);
+  }
 }
 
 // -----------------------------------------------------------------

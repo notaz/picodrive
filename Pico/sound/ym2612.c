@@ -1863,26 +1863,7 @@ int YM2612PicoTick_(int n)
 
 void YM2612PicoStateLoad_(void)
 {
-#ifndef EXTERNAL_YM2612
-	int i, real_A1 = ym2612.addr_A1;
-
 	reset_channels( &ym2612.CH[0] );
-
-	// feed all the registers and update internal state
-	for(i = 0; i < 0x100; i++) {
-		YM2612Write_(0, i);
-		YM2612Write_(1, ym2612.REGS[i]);
-	}
-
-	for(i = 0; i < 0x100; i++) {
-		YM2612Write_(2, i);
-		YM2612Write_(3, ym2612.REGS[i|0x100]);
-	}
-
-	ym2612.addr_A1 = real_A1;
-#else
-	reset_channels( &ym2612.CH[0] );
-#endif
 }
 
 #ifndef EXTERNAL_YM2612

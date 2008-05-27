@@ -479,6 +479,7 @@ extern int timer_a_next_oflow, timer_a_step, timer_a_offset; // in z80 cycles
 extern int timer_b_next_oflow, timer_b_step, timer_b_offset;
 
 void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new);
+void ym2612_unpack_state(void);
 
 #define timers_cycle() \
   if (timer_a_next_oflow > 0 && timer_a_next_oflow < 0x70000000) \

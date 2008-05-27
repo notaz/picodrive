@@ -230,7 +230,7 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 			case CHUNK_PSG:   CHECKED_READ2(28*4, sn76496_regs); break;
 			case CHUNK_FM:
 				CHECKED_READ2(0x200+4, ym2612_regs);
-				YM2612PicoStateLoad();
+				ym2612_unpack_state();
 				break;
 
 			// cd stuff

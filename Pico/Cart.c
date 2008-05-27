@@ -712,7 +712,7 @@ static void PicoCartDetect(void)
   }
 
   // Unusual region 'code'
-  if (rom_strcmp(0x1f0, "EUROPE") == 0)
+  if (rom_strcmp(0x1f0, "EUROPE") == 0 || rom_strcmp(0x1f0, "Europe") == 0)
     *(int *) (Pico.rom+0x1f0) = 0x20204520;
 }
 

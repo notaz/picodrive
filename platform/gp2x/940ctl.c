@@ -178,24 +178,11 @@ void YM2612PicoStateLoad_940(void)
 {
 	UINT8 *REGS = YM2612GetRegs();
 
-	int i;
-
 	/* make sure JOB940_PICOSTATELOAD gets done before next JOB940_YM2612UPDATEONE */
 	add_job_940(JOB940_PICOSTATELOAD);
 	if (CHECK_BUSY(JOB940_PICOSTATELOAD)) wait_busy_940(JOB940_PICOSTATELOAD);
 
 	writebuff_ptr = 0;
-
-	// feed all the registers and update internal state
-	for(i = 0; i < 0x100; i++) {
-		YM2612Write_940(0, i, -1);
-		YM2612Write_940(1, REGS[i], -1);
-	}
-	for(i = 0; i < 0x100; i++) {
-		YM2612Write_940(2, i, -1);
-		YM2612Write_940(3, REGS[i|0x100], -1);
-	}
-
 	addr_A1 = *(INT32 *) (REGS + 0x200);
 }
 

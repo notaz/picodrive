@@ -159,7 +159,7 @@ static int PicoAreaScan(int PmovAction,unsigned int ver, void *PmovFile)
       ScanVar(sn76496_regs,28*4,"SN76496state", PmovFile, PmovAction); // regs and other stuff
     if(PicoOpt&1) {
       ScanVar(ym2612_regs, 0x200+4, "YM2612state", PmovFile, PmovAction); // regs + addr line
-      if((PmovAction&3)==2) YM2612PicoStateLoad(); // reload YM2612 state from it's regs
+      if((PmovAction&3)==2) ym2612_unpack_state(); // reload YM2612 state from it's regs
     }
   }
 

@@ -140,7 +140,7 @@ void PsndRerate(int preserve_state)
   if (preserve_state) {
     // feed it back it's own registers, just like after loading state
     memcpy(YM2612GetRegs(), state, 0x200);
-    YM2612PicoStateLoad();
+    ym2612_unpack_state();
     if ((PicoAHW & PAHW_MCD) && !(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
       cdda_start_play();
   }

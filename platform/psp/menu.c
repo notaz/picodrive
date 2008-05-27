@@ -52,18 +52,21 @@ static unsigned int inp_prev = 0;
 static unsigned long wait_for_input(unsigned int interesting, int is_key_config)
 {
 	unsigned int ret;
-	static int repeats = 0, wait = 50;
+	static int repeats = 0, wait = 6;
 	int release = 0, count, i;
 
 	if (!is_key_config)
 		interesting |= (interesting & 0xf0) << 24; // also use analog
 
-	if (repeats == 2 || repeats == 4) wait /= 2;
-	if (repeats == 6) wait = 15;
+	if      (repeats == 2) wait = 3;
+	else if (repeats == 4) wait = 2;
+	else if (repeats == 6) wait = 1;
 
-	for (i = 0; i < 6 && inp_prev == psp_pad_read(1); i++) {
+	for (i = 0; i < wait && inp_prev == gp2x_joystick_read(1); i++) {
+
+	for (i = 0; i < wait && inp_prev == psp_pad_read(1); i++) {
 		if (i == 0) repeats++;
-		psp_msleep(wait);
+		psp_msleep(30);
 	}
 
 	for (count = 0; !((ret = psp_pad_read(1)) & interesting) && count < 100; count++) {
@@ -73,7 +76,7 @@ static unsigned long wait_for_input(unsigned int interesting, int is_key_config)
 
 	if (release || ret != inp_prev) {
 		repeats = 0;
-		wait = 50;
+		wait = 6;
 	}
 	inp_prev = ret;
 
