@@ -4,8 +4,6 @@
 #define CYCLES_M68K_LINE     488 // suitable for both PAL/NTSC
 #define CYCLES_M68K_VINT_LAG  68
 #define CYCLES_M68K_ASD      148
-#define CYCLES_Z80_LINE      228
-#define CYCLES_Z80_ASD        69
 #define CYCLES_S68K_LINE     795
 #define CYCLES_S68K_ASD      241
 
@@ -18,10 +16,10 @@
 
 // CPUS_RUN
 #ifndef PICO_CD
-#define CPUS_RUN(m68k_cycles,z80_cycles,s68k_cycles) \
+#define CPUS_RUN(m68k_cycles,s68k_cycles) \
     SekRunM68k(m68k_cycles);
 #else
-#define CPUS_RUN(m68k_cycles,z80_cycles,s68k_cycles) \
+#define CPUS_RUN(m68k_cycles,s68k_cycles) \
 { \
     if ((PicoOpt&POPT_EN_MCD_PSYNC) && (Pico_mcd->m.busreq&3) == 1) { \
       SekRunPS(m68k_cycles, s68k_cycles); /* "better/perfect sync" */ \
@@ -39,6 +37,8 @@ static int PicoFrameHints(void)
   struct PicoVideo *pv=&Pico.video;
   int lines, y, lines_vis = 224, line_sample, skip;
   int hint; // Hint counter
+
+  Pico.m.scanline=0;
 
   if ((PicoOpt&POPT_ALT_RENDERER) && !PicoSkipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
     // draw a frame just after vblank in alternative render mode
@@ -72,7 +72,7 @@ static int PicoFrameHints(void)
   //dprintf("-hint: %i", hint);
 
   // This is to make active scan longer (needed for Double Dragon 2, mainly)
-  CPUS_RUN(CYCLES_M68K_ASD, 0, CYCLES_S68K_ASD);
+  CPUS_RUN(CYCLES_M68K_ASD, CYCLES_S68K_ASD);
 
   for (y=0;y<lines_vis;y++)
   {
@@ -139,7 +139,7 @@ static int PicoFrameHints(void)
 
     // Run scanline:
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
-    CPUS_RUN(CYCLES_M68K_LINE, CYCLES_Z80_LINE, CYCLES_S68K_LINE);
+    CPUS_RUN(CYCLES_M68K_LINE, CYCLES_S68K_LINE);
 
 #ifdef PICO_CD
     update_chips();
@@ -208,7 +208,7 @@ static int PicoFrameHints(void)
   // Run scanline:
   if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
   CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG - CYCLES_M68K_ASD,
-    CYCLES_Z80_LINE - CYCLES_Z80_ASD, CYCLES_S68K_LINE - CYCLES_S68K_ASD);
+    CYCLES_S68K_LINE - CYCLES_S68K_ASD);
 
 #ifdef PICO_CD
   update_chips();
@@ -230,7 +230,7 @@ static int PicoFrameHints(void)
 
     // Run scanline:
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
-    CPUS_RUN(CYCLES_M68K_LINE, CYCLES_Z80_LINE, CYCLES_S68K_LINE);
+    CPUS_RUN(CYCLES_M68K_LINE, CYCLES_S68K_LINE);
 
 #ifdef PICO_CD
     update_chips();

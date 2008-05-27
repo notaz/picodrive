@@ -93,8 +93,9 @@ static void dac_recalculate(void)
     if (PsndLen_exc_add) len++;
     dac_info[224] = (pos<<4)|len;
   }
+  mid = (dac_info[lines-1] & 0xfff0) + ((dac_info[lines-1] & 0xf) << 4);
   for (i = lines; i < sizeof(dac_info) / sizeof(dac_info[0]); i++)
-    dac_info[i] = 0;
+    dac_info[i] = mid;
   //for(i=len=0; i < lines; i++) {
   //  printf("%03i : %03i : %i\n", i, dac_info[i]>>4, dac_info[i]&0xf);
   //  len+=dac_info[i]&0xf;
