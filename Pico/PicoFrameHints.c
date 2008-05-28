@@ -241,7 +241,7 @@ static int PicoFrameHints(void)
 
   // sync z80
   if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
-    PicoSyncZ80(SekCycleCnt);
+    PicoSyncZ80(Pico.m.pal ? 151809 : 127671); // cycles adjusted for convertor
   if (PsndOut && ym2612.dacen && PsndDacLine <= lines-1)
     PsndDoDAC(lines-1);
 
@@ -249,6 +249,5 @@ static int PicoFrameHints(void)
 }
 
 #undef PAD_DELAY
-#undef Z80_RUN
 #undef CPUS_RUN
 

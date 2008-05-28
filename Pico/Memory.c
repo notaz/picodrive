@@ -799,7 +799,7 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             //ym2612.OPN.ST.TAC = (1024-TAnew)*18;
             //ym2612.OPN.ST.TAT = 0;
             //
-            timer_a_step = timer_a_offset = 16495 * (1024 - TAnew);
+            timer_a_step = timer_a_offset = 16466 * (1024 - TAnew);
             if (ym2612.OPN.ST.mode & 1) {
               int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
               timer_a_next_oflow = (cycles << 8) + timer_a_step;
@@ -815,7 +815,7 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             //ym2612.OPN.ST.TBC  = (256-d)<<4;
             //ym2612.OPN.ST.TBC *= 18;
             //ym2612.OPN.ST.TBT  = 0;
-            timer_b_step = timer_b_offset = 263912 * (256 - d);
+            timer_b_step = timer_b_offset = 262840 * (256 - d); // 262881
             if (ym2612.OPN.ST.mode & 2) {
               int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
               timer_b_next_oflow = (cycles << 8) + timer_b_step;
@@ -912,7 +912,7 @@ u32 ym2612_read_local_68k(void)
   return ym2612.OPN.ST.status;
 }
 
-// TODO: new ym2612 savestates
+// TODO: new ym2612 savestates, also save timers
 void ym2612_unpack_state(void)
 {
   int i;
