@@ -4568,7 +4568,7 @@ opcode_3_8:
 	tst z80f,#1<<CFlag
 	bne opcode_1_8
 	add z80pc,z80pc,#1
-	fetch 8
+	fetch 7
 ;@ADD HL,SP
 opcode_3_9:
 .if FAST_Z80SP
@@ -4586,7 +4586,7 @@ opcode_3_A:
 	orr r0,r0,r1, lsl #8
 	readmem8
 	mov z80a,r0, lsl #24
-	fetch 11
+	fetch 13
 ;@DEC SP
 opcode_3_B:
 	sub z80sp,z80sp,#1
@@ -4890,6 +4890,7 @@ opcode_7_6:
 	ldrb r0,[cpucontext,#z80if]
 	orr r0,r0,#Z80_HALT
 	strb r0,[cpucontext,#z80if]
+	mov z80_icount,#0
 	b z80_execute_end
 ;@LD (HL),A
 opcode_7_7:
@@ -5146,7 +5147,7 @@ opcode_B_F:
 ;@RET NZ
 opcode_C_0:
 	tst z80f,#1<<ZFlag
-	beq opcode_C_9		;@unconditional RET
+	beq opcode_C_9_cond		;@unconditional RET
 	fetch 5
 
 ;@POP BC
@@ -5189,8 +5190,11 @@ opcode_C_7:
 ;@RET Z
 opcode_C_8:
 	tst z80f,#1<<ZFlag
-	bne opcode_C_9		;@unconditional RET
+	bne opcode_C_9_cond		;@unconditional RET
 	fetch 5
+
+opcode_C_9_cond:
+	sub z80_icount,#1
 ;@RET
 opcode_C_9:
     opPOP
@@ -5271,7 +5275,7 @@ opcode_C_F:
 ;@RET NC
 opcode_D_0:
 	tst z80f,#1<<CFlag
-	beq opcode_C_9		;@unconditional RET
+	beq opcode_C_9_cond		;@unconditional RET
 	fetch 5
 ;@POP DE
 opcode_D_1:
@@ -5313,7 +5317,7 @@ opcode_D_7:
 ;@RET C
 opcode_D_8:
 	tst z80f,#1<<CFlag
-	bne opcode_C_9		;@unconditional RET
+	bne opcode_C_9_cond		;@unconditional RET
 	fetch 5
 ;@EXX
 opcode_D_9:
@@ -5399,7 +5403,7 @@ opcode_D_F:
 ;@RET PO
 opcode_E_0:
 	tst z80f,#1<<VFlag
-	beq opcode_C_9		;@unconditional RET
+	beq opcode_C_9_cond		;@unconditional RET
 	fetch 5
 ;@POP HL
 opcode_E_1:
@@ -5454,7 +5458,7 @@ opcode_E_7:
 ;@RET PE
 opcode_E_8:
 	tst z80f,#1<<VFlag
-	bne opcode_C_9		;@unconditional RET
+	bne opcode_C_9_cond		;@unconditional RET
 	fetch 5
 ;@JP (HL)
 opcode_E_9:
@@ -5530,7 +5534,7 @@ opcode_E_F:
 ;@RET P
 opcode_F_0:
 	tst z80f,#1<<SFlag
-	beq opcode_C_9		;@unconditional RET
+	beq opcode_C_9_cond		;@unconditional RET
 	fetch 5
 ;@POP AF
 opcode_F_1:
@@ -5588,7 +5592,7 @@ opcode_F_7:
 ;@RET M
 opcode_F_8:
 	tst z80f,#1<<SFlag
-	bne opcode_C_9		;@unconditional RET
+	bne opcode_C_9_cond		;@unconditional RET
 	fetch 5
 ;@LD SP,HL
 opcode_F_9:
@@ -5599,7 +5603,7 @@ opcode_F_9:
 .else
 	mov z80sp,z80hl, lsr #16
 .endif
-	fetch 4
+	fetch 6
 ;@JP M,$+3
 opcode_F_A:
 	tst z80f,#1<<SFlag
@@ -6641,7 +6645,7 @@ opcode_DD_NF:
 ;@	b end_loop
 
 opcode_DD_NF2:
-	fetch 15
+	fetch 23
 ;@ notaz: we don't want to deadlock here
 ;@	mov r0,#0xDD0000
 ;@	orr r0,r0,#0xCB00
