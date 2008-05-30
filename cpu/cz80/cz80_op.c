@@ -715,13 +715,9 @@ OP_EI:
 				CPU->ExtraCycles += 1 - CPU->ICount;
 				CPU->ICount = 1;
 			}
-			else if (CPU->ICount <= 0)
-			{
-				CPU->ICount = 1;
-			}
 		}
 		else zIFF2 = (1 << 2);
-		goto Cz80_Exec;
+		goto Cz80_Exec_nocheck;
 
 /*-----------------------------------------
  INC r16

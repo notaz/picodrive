@@ -242,6 +242,7 @@ INT32 Cz80_Exec(cz80_struc *CPU, INT32 cycles)
 	UINT32 res;
 	UINT32 val;
 	int afterEI = 0;
+	union16 *data;
 
 	PC = CPU->PC;
 #if CZ80_ENCRYPTED_ROM
@@ -255,7 +256,8 @@ INT32 Cz80_Exec(cz80_struc *CPU, INT32 cycles)
 Cz80_Exec:
 		if (CPU->ICount > 0)
 		{
-			union16 *data = pzHL;
+Cz80_Exec_nocheck:
+			data = pzHL;
 			Opcode = READ_OP();
 #if CZ80_EMULATE_R_EXACTLY
 			zR++;

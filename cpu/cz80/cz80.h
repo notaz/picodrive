@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 #ifndef INT8
-#define INT8	char
+#define INT8	signed char
 #endif
 
 #ifndef UINT16
@@ -32,7 +32,7 @@ extern "C" {
 #endif
 
 #ifndef INT16
-#define INT16	short
+#define INT16	signed short
 #endif
 
 #ifndef UINT32
@@ -40,7 +40,7 @@ extern "C" {
 #endif
 
 #ifndef INT32
-#define INT32	int
+#define INT32	signed int
 #endif
 
 /*************************************/
