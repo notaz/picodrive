@@ -1,7 +1,7 @@
 // Pico Library - Internal Header File
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006,2007 Grazvydas "notaz" Ignotas, all rights reserved.
+// (c) Copyright 2006-2008 Grazvydas "notaz" Ignotas, all rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -185,10 +185,7 @@ extern struct DrZ80 drZ80;
 
 #define z80_run(cycles)    ((cycles) - DrZ80Run(&drZ80, cycles))
 #define z80_run_nr(cycles) DrZ80Run(&drZ80, cycles)
-#define z80_int() { \
-  drZ80.z80irqvector = 0xFF; /* default IRQ vector RST opcode */ \
-  drZ80.Z80_IRQ = 1; \
-}
+#define z80_int()          drZ80.Z80_IRQ = 1
 
 #define z80_cyclesLeft     drZ80.cycles
 
