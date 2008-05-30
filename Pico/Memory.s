@@ -868,7 +868,11 @@ m_write8_misc2:
     bic     r0, r0, #0xff0000
     bic     r0, r0, #0x00e000
     tst     r2, #1
+    ldr     r2, =SekCycleCnt
     streqb  r1, [r3, r0]     @ zram
+    ldr     r0, [r2]
+    add     r0, r0, #2       @ hack?
+    str     r0, [r2]
     bx      lr
 
 m_write8_z80_not_ram:
