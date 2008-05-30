@@ -360,8 +360,8 @@ pico_z80_write16: @ data, addr
      str z80pc,[cpucontext,#z80pc_pointer]
 .endif
 .if DRZ80_FOR_PICODRIVE
-    bic r0,r0,#0xfe000
     ldr r1,[cpucontext,#z80pc_base]
+    bic r0,r0,#0xfe000
     add z80pc,r1,r0
 .else
     stmfd sp!,{r3,r12}
@@ -1372,30 +1372,32 @@ DrZ80Run:
 	mov z80_icount,r1						;@ setup number of Tstates to execute
 
 .if INTERRUPT_MODE == 0
-	ldrh r0,[cpucontext,#z80irq] @ 0x4C
+	ldrh r0,[cpucontext,#z80irq] @ 0x4C, irq and IFF bits
 .endif
 	ldmia cpucontext,{z80pc-z80sp}			;@ load Z80 registers
 
 .if INTERRUPT_MODE == 0
 	;@ check ints
-	tst r0,#1
-	movnes r0,r0,lsr #8
-    blne DoInterrupt
+	tst r0,#0xff
+	movne r0,r0,lsr #8
+	tstne r0,#1
+	blne DoInterrupt
 .endif
 
-	ldrb r0,[z80pc],#1    ;@ get first op code
 	ldr opcodes,MAIN_opcodes_POINTER2
-	ldr pc,[opcodes,r0, lsl #2]  ;@ execute op code
 
-MAIN_opcodes_POINTER2: .word MAIN_opcodes
+	cmp z80_icount,#0     ;@ irq might have used all cycles
+	ldrplb r0,[z80pc],#1
+	ldrpl pc,[opcodes,r0, lsl #2]
 
 
 z80_execute_end:
 	;@ save registers in CPU context
 	stmia cpucontext,{z80pc-z80sp}			;@ save Z80 registers
-    mov r0,z80_icount
+	mov r0,z80_icount
 	ldmia sp!,{r4-r12,pc}					;@ restore registers from stack and return to C code
 
+MAIN_opcodes_POINTER2: .word MAIN_opcodes
 .if INTERRUPT_MODE
 Interrupt_local: .word Interrupt
 .endif
@@ -1414,6 +1416,8 @@ DoInterrupt:
 	ldmia cpucontext,{z80pc-z80sp}			;@ load Z80 registers
 	mov pc,lr ;@ return
 .else
+
+	;@ r0 == z80if
 	stmfd sp!,{lr}
 
 	tst r0,#4 ;@ check halt
@@ -1426,10 +1430,9 @@ DoInterrupt:
 	strb r0,[cpucontext,#z80if]
 
 	;@ now check int mode
-    tst r1,#1
-    bne DoInterrupt_mode1
-    tst r1,#2
-    bne DoInterrupt_mode2
+	cmp r1,#1
+	beq DoInterrupt_mode1
+	bgt DoInterrupt_mode2
 
 DoInterrupt_mode0:
 	;@ get 3 byte vector
@@ -1459,6 +1462,7 @@ DoInterrupt_mode0:
 	;@ rebase new pc
 	rebasepc
 
+	eatcycles 13
 	b DoInterrupt_end
 
 1:
@@ -1473,6 +1477,7 @@ DoInterrupt_mode0:
 	;@ rebase new pc
 	rebasepc
 
+	eatcycles 13
 	b DoInterrupt_end
 
 DoInterrupt_mode1:
@@ -1482,6 +1487,7 @@ DoInterrupt_mode1:
 	mov r0,#0x38
 	rebasepc
 
+	eatcycles 13
 	b DoInterrupt_end
 
 DoInterrupt_mode2:
@@ -1518,18 +1524,19 @@ DoInterrupt_mode2:
 	ldmfd sp!,{r3,r12}
 	mov z80pc,r0	
 .endif
+	eatcycles 17
 
 DoInterrupt_end:
 	;@ interupt accepted so callback irq interface
 	ldr r0,[cpucontext, #z80irqcallback]
 	tst r0,r0
+	streqb r0,[cpucontext,#z80irq]       ;@ default handling
 	ldmeqfd sp!,{pc}
 	stmfd sp!,{r3,r12}
 	mov lr,pc
 	mov pc,r0    ;@ call callback function
 	ldmfd sp!,{r3,r12}
 	ldmfd sp!,{pc} ;@ return
-
 .endif
 
 .data
@@ -5194,7 +5201,7 @@ opcode_C_8:
 	fetch 5
 
 opcode_C_9_cond:
-	sub z80_icount,#1
+	eatcycles 1
 ;@RET
 opcode_C_9:
     opPOP
@@ -5615,13 +5622,12 @@ EI_DUMMY_opcodes_POINTER: .word EI_DUMMY_opcodes
 ;@EI
 opcode_F_B:
 	ldrb r1,[cpucontext,#z80if]
-	tst r1,#Z80_IF1
-	bne ei_return_exit
-
+	mov r2,opcodes
 	orr r1,r1,#(Z80_IF1)|(Z80_IF2)
 	strb r1,[cpucontext,#z80if]
 
-	mov r2,opcodes
+	ldrb r0,[z80pc],#1
+	eatcycles 4
 	ldr opcodes,EI_DUMMY_opcodes_POINTER
 	ldr pc,[r2,r0, lsl #2]
 
@@ -5629,16 +5635,17 @@ ei_return:
 	;@point that program returns from EI to check interupts
 	;@an interupt can not be taken directly after a EI opcode
 	;@ reset z80pc and opcode pointer
-	ldrh r0,[cpucontext,#z80irq] @ 0x4C
+	ldrh r0,[cpucontext,#z80irq] @ 0x4C, irq and IFF bits
 	sub z80pc,z80pc,#1
 	ldr opcodes,MAIN_opcodes_POINTER
 	;@ check ints
-	tst r0,#1
-	movnes r0,r0,lsr #8
-    blne DoInterrupt
+	tst r0,#0xff
+	movne r0,r0,lsr #8
+	tstne r0,#1
+	blne DoInterrupt
+
 	;@ continue
-ei_return_exit:
-	fetch 4
+	fetch 0
 
 ;@CALL M,NN
 opcode_F_C:
@@ -8048,5 +8055,5 @@ opcode_ED_BB:
 ;@end_loop:
 ;@     b end_loop
 
-
+;@ vim:filetype=armasm
 
