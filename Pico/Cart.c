@@ -481,7 +481,10 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
   }
 
   // Check for SMD:
-  if ((size&0x3fff)==0x200) { DecodeSmd(rom,size); size-=0x200; } // Decode and byteswap SMD
+  if (size >= 0x4200 && (size&0x3fff)==0x200 &&
+      ((rom[0x2280] == 'S' && rom[0x280] == 'E') || (rom[0x280] == 'S' && rom[0x2281] == 'E'))) {
+    DecodeSmd(rom,size); size-=0x200; // Decode and byteswap SMD
+  }
   else Byteswap(rom,size); // Just byteswap
 
   if (prom)  *prom=rom;
