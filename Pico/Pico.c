@@ -157,7 +157,7 @@ int PicoReset(void)
   Pico.m.dirtyPal = 1;
 
   PicoDetectRegion();
-  Pico.video.status = 0x3408 | Pico.m.pal; // 'always set' bits | vblank | pal
+  Pico.video.status = 0x3428 | Pico.m.pal; // 'always set' bits | vblank | collision | pal
 
   PsndReset(); // pal must be known here
 
@@ -320,7 +320,7 @@ PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done)
   z80_cycle_aim = cycles_68k_to_z80(m68k_cycles_done);
   cnt = z80_cycle_aim - z80_cycle_cnt;
 
-  elprintf(EL_ANOMALY, "z80 sync %i (%i|%i -> %i|%i)", cnt, z80_cycle_cnt, z80_cycle_cnt / 228,
+  elprintf(EL_BUSREQ, "z80 sync %i (%i|%i -> %i|%i)", cnt, z80_cycle_cnt, z80_cycle_cnt / 228,
     z80_cycle_aim, z80_cycle_aim / 228);
 
   if (cnt > 0)

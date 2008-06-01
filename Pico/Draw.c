@@ -6,6 +6,17 @@
 
 // For commercial use, separate licencing terms must be obtained.
 
+/*
+ * The renderer has 4 modes now:
+ * - normal
+ * - shadow/hilight (s/h)
+ * - "sonic mode" for midline palette changes
+ * - accurate sprites (AS)
+ *
+ * AS and s/h both use upper bits for both priority and shadow/hilight flags.
+ * "sonic mode" is autodetected, shadow/hilight is enabled by emulated game.
+ * AS is enabled by user and takes priority over "sonic mode".
+ */
 
 #include "PicoInt.h"
 
@@ -26,8 +37,6 @@ static int  HighCacheB[41+1];
 static int  HighCacheS[80+1];   // and sprites
 static int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
 
-static unsigned char HighSprZ[320+8+8]; // Z-buffer for accurate sprites
-
 int rendstatus = 0;
 int Scanline = 0; // Scanline
 
@@ -35,6 +44,9 @@ static int SpriteBlocks;
 static int skip_next_line=0;
 
 //unsigned short ppt[] = { 0x0f11, 0x0ff1, 0x01f1, 0x011f, 0x01ff, 0x0f1f, 0x0f0e, 0x0e7c };
+
+static void (*DrawAllSpritesLoPri)(int *hcache, int maxwidth, int prio, int sh) = NULL;
+static void (*DrawAllSpritesHiPri)(int *hcache, int maxwidth, int prio, int sh) = NULL;
 
 struct TileStrip
 {
@@ -50,9 +62,9 @@ struct TileStrip
 #ifdef _ASM_DRAW_C
 void DrawWindow(int tstart, int tend, int prio, int sh);
 void BackFill(int reg7, int sh);
-void DrawSprite(int *sprite, int **hc, int sh);
+void DrawSprite(int *sprite, int **hc, int sh, int as);
 void DrawTilesFromCache(int *hc, int sh, int rlim);
-void DrawSpritesFromCache(int *hc, int sh);
+void DrawSpritesFromCache(int *hc, int maxwidth, int prio, int sh);
 void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
 void FinalizeLineBGR444(int sh);
 void FinalizeLineRGB555(int sh);
@@ -122,7 +134,7 @@ static int TileFlip(int sx,int addr,int pal)
 #define sh_pix(x) \
   if(!t); \
   else if(t==0xe) pd[x]=(unsigned char)((pd[x]&0x3f)|0x80); /* hilight */ \
-  else if(t==0xf) pd[x]=(unsigned char)((pd[x]&0x3f)|0xc0); /* shadow  */ \
+  else if(t==0xf) pd[x]=(unsigned char)( pd[x]      |0xc0); /* shadow  */ \
   else pd[x]=(unsigned char)(pal|t)
 
 #ifndef _ASM_DRAW_C
@@ -170,114 +182,103 @@ static int TileFlipSH(int sx,int addr,int pal)
 }
 #endif
 
-static int TileNormZ(int sx,int addr,int pal,int zval)
+#define tilepixelAS(mask,index,shift) \
+  if (!(pd[index]&0xc0)) { t=pack&mask; if (t) pd[index]=(pal|(t>>shift)); }
+
+static int TileNormAS(int sx,int addr,int pal)
 {
-  unsigned int pack=0; unsigned int t=0;
   unsigned char *pd = HighCol+sx;
-  unsigned char *zb = HighSprZ+sx;
-  int collision = 0;
+  unsigned int pack=0; unsigned int t=0;
 
   pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
   if (pack)
   {
-    t=pack&0x0000f000; if(t) { if(zb[0]) collision=1; if(zval>zb[0]) { pd[0]=(unsigned char)(pal|(t>>12)); zb[0]=(char)zval; } }
-    t=pack&0x00000f00; if(t) { if(zb[1]) collision=1; if(zval>zb[1]) { pd[1]=(unsigned char)(pal|(t>> 8)); zb[1]=(char)zval; } }
-    t=pack&0x000000f0; if(t) { if(zb[2]) collision=1; if(zval>zb[2]) { pd[2]=(unsigned char)(pal|(t>> 4)); zb[2]=(char)zval; } }
-    t=pack&0x0000000f; if(t) { if(zb[3]) collision=1; if(zval>zb[3]) { pd[3]=(unsigned char)(pal|(t    )); zb[3]=(char)zval; } }
-    t=pack&0xf0000000; if(t) { if(zb[4]) collision=1; if(zval>zb[4]) { pd[4]=(unsigned char)(pal|(t>>28)); zb[4]=(char)zval; } }
-    t=pack&0x0f000000; if(t) { if(zb[5]) collision=1; if(zval>zb[5]) { pd[5]=(unsigned char)(pal|(t>>24)); zb[5]=(char)zval; } }
-    t=pack&0x00f00000; if(t) { if(zb[6]) collision=1; if(zval>zb[6]) { pd[6]=(unsigned char)(pal|(t>>20)); zb[6]=(char)zval; } }
-    t=pack&0x000f0000; if(t) { if(zb[7]) collision=1; if(zval>zb[7]) { pd[7]=(unsigned char)(pal|(t>>16)); zb[7]=(char)zval; } }
-    if (collision) Pico.video.status|=0x20;
+    tilepixelAS(0x0000f000, 0, 12);
+    tilepixelAS(0x00000f00, 1,  8);
+    tilepixelAS(0x000000f0, 2,  4);
+    tilepixelAS(0x0000000f, 3,  0);
+    tilepixelAS(0xf0000000, 4, 28);
+    tilepixelAS(0x0f000000, 5, 24);
+    tilepixelAS(0x00f00000, 6, 20);
+    tilepixelAS(0x000f0000, 7, 16);
     return 0;
   }
 
   return 1; // Tile blank
 }
 
-static int TileFlipZ(int sx,int addr,int pal,int zval)
+static int TileFlipAS(int sx,int addr,int pal)
 {
-  unsigned int pack=0; unsigned int t=0;
   unsigned char *pd = HighCol+sx;
-  unsigned char *zb = HighSprZ+sx;
-  int collision = 0;
+  unsigned int pack=0; unsigned int t=0;
 
   pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
   if (pack)
   {
-    t=pack&0x000f0000; if(t) { if(zb[0]) collision=1; if(zval>zb[0]) { pd[0]=(unsigned char)(pal|(t>>16)); zb[0]=(char)zval; } }
-    t=pack&0x00f00000; if(t) { if(zb[1]) collision=1; if(zval>zb[1]) { pd[1]=(unsigned char)(pal|(t>>20)); zb[1]=(char)zval; } }
-    t=pack&0x0f000000; if(t) { if(zb[2]) collision=1; if(zval>zb[2]) { pd[2]=(unsigned char)(pal|(t>>24)); zb[2]=(char)zval; } }
-    t=pack&0xf0000000; if(t) { if(zb[3]) collision=1; if(zval>zb[3]) { pd[3]=(unsigned char)(pal|(t>>28)); zb[3]=(char)zval; } }
-    t=pack&0x0000000f; if(t) { if(zb[4]) collision=1; if(zval>zb[4]) { pd[4]=(unsigned char)(pal|(t    )); zb[4]=(char)zval; } }
-    t=pack&0x000000f0; if(t) { if(zb[5]) collision=1; if(zval>zb[5]) { pd[5]=(unsigned char)(pal|(t>> 4)); zb[5]=(char)zval; } }
-    t=pack&0x00000f00; if(t) { if(zb[6]) collision=1; if(zval>zb[6]) { pd[6]=(unsigned char)(pal|(t>> 8)); zb[6]=(char)zval; } }
-    t=pack&0x0000f000; if(t) { if(zb[7]) collision=1; if(zval>zb[7]) { pd[7]=(unsigned char)(pal|(t>>12)); zb[7]=(char)zval; } }
-    if (collision) Pico.video.status|=0x20;
+    tilepixelAS(0x000f0000, 0, 16);
+    tilepixelAS(0x00f00000, 1, 20);
+    tilepixelAS(0x0f000000, 2, 24);
+    tilepixelAS(0xf0000000, 3, 28);
+    tilepixelAS(0x0000000f, 4,  0);
+    tilepixelAS(0x000000f0, 5,  4);
+    tilepixelAS(0x00000f00, 6,  8);
+    tilepixelAS(0x0000f000, 7, 12);
     return 0;
   }
   return 1; // Tile blank
 }
 
+// there is a problem with transparent hi pri tiles (on layer), it will clear high bits
+// and sprite tiles will be drawn needlessly. Hopefully that won't happen much..
+#define sh_pixAS(x) \
+  if(!t); \
+  else if(t==0xe) pd[x]=(unsigned char)((pd[x]&0x3f)|0x80); /* hilight */ \
+  else if(t==0xf) pd[x]=(unsigned char)( pd[x]      |0xc0); /* shadow  */ \
+  else if(!(pd[x]&0xc0)) pd[x]=(unsigned char)(pal|t)
 
-#define sh_pixZ(x) \
-  if(t) { \
-    if(zb[x]) collision=1; \
-    if(zval>zb[x]) { \
-      if     (t==0xe) { pd[x]=(unsigned char)((pd[x]&0x3f)|0x80); /* hilight */ } \
-      else if(t==0xf) { pd[x]=(unsigned char)((pd[x]&0x3f)|0xc0); /* shadow  */ } \
-      else            { zb[x]=(char)zval; pd[x]=(unsigned char)(pal|t); } \
-    } \
-  }
-
-static int TileNormZSH(int sx,int addr,int pal,int zval)
+static int TileNormSHAS(int sx,int addr,int pal)
 {
   unsigned int pack=0; unsigned int t=0;
   unsigned char *pd = HighCol+sx;
-  unsigned char *zb = HighSprZ+sx;
-  int collision = 0;
 
   pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
   if (pack)
   {
-    t=(pack&0x0000f000)>>12; sh_pixZ(0);
-    t=(pack&0x00000f00)>> 8; sh_pixZ(1);
-    t=(pack&0x000000f0)>> 4; sh_pixZ(2);
-    t=(pack&0x0000000f)    ; sh_pixZ(3);
-    t=(pack&0xf0000000)>>28; sh_pixZ(4);
-    t=(pack&0x0f000000)>>24; sh_pixZ(5);
-    t=(pack&0x00f00000)>>20; sh_pixZ(6);
-    t=(pack&0x000f0000)>>16; sh_pixZ(7);
-    if(collision) Pico.video.status|=0x20;
+    t=(pack&0x0000f000)>>12; sh_pixAS(0);
+    t=(pack&0x00000f00)>> 8; sh_pixAS(1);
+    t=(pack&0x000000f0)>> 4; sh_pixAS(2);
+    t=(pack&0x0000000f)    ; sh_pixAS(3);
+    t=(pack&0xf0000000)>>28; sh_pixAS(4);
+    t=(pack&0x0f000000)>>24; sh_pixAS(5);
+    t=(pack&0x00f00000)>>20; sh_pixAS(6);
+    t=(pack&0x000f0000)>>16; sh_pixAS(7);
     return 0;
   }
 
   return 1; // Tile blank
 }
 
-static int TileFlipZSH(int sx,int addr,int pal,int zval)
+static int TileFlipSHAS(int sx,int addr,int pal)
 {
   unsigned int pack=0; unsigned int t=0;
   unsigned char *pd = HighCol+sx;
-  unsigned char *zb = HighSprZ+sx;
-  int collision = 0;
 
   pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
   if (pack)
   {
-    t=(pack&0x000f0000)>>16; sh_pixZ(0);
-    t=(pack&0x00f00000)>>20; sh_pixZ(1);
-    t=(pack&0x0f000000)>>24; sh_pixZ(2);
-    t=(pack&0xf0000000)>>28; sh_pixZ(3);
-    t=(pack&0x0000000f)    ; sh_pixZ(4);
-    t=(pack&0x000000f0)>> 4; sh_pixZ(5);
-    t=(pack&0x00000f00)>> 8; sh_pixZ(6);
-    t=(pack&0x0000f000)>>12; sh_pixZ(7);
-    if(collision) Pico.video.status|=0x20;
+    t=(pack&0x000f0000)>>16; sh_pixAS(0);
+    t=(pack&0x00f00000)>>20; sh_pixAS(1);
+    t=(pack&0x0f000000)>>24; sh_pixAS(2);
+    t=(pack&0xf0000000)>>28; sh_pixAS(3);
+    t=(pack&0x0000000f)    ; sh_pixAS(4);
+    t=(pack&0x000000f0)>> 4; sh_pixAS(5);
+    t=(pack&0x00000f00)>> 8; sh_pixAS(6);
+    t=(pack&0x0000f000)>>12; sh_pixAS(7);
     return 0;
   }
   return 1; // Tile blank
 }
+
 
 // --------------------------------------------
 
@@ -725,7 +726,7 @@ last_cut_tile:
 // Index + 0  :    hhhhvvvv ab--hhvv yyyyyyyy yyyyyyyy // a: offscreen h, b: offs. v, h: horiz. size
 // Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-static void DrawSprite(int *sprite, int **hc, int sh)
+static void DrawSprite(int *sprite, int **hc, int sh, int as)
 {
   int width=0,height=0;
   int row=0,code=0;
@@ -753,74 +754,21 @@ static void DrawSprite(int *sprite, int **hc, int sh)
 
   tile<<=4; tile+=(row&7)<<1; // Tile address
 
-  if(code&0x8000) { // high priority - cache it
+  if (code&0x8000) { // high priority - cache it
     *(*hc)++ = (tile<<16)|((code&0x0800)<<5)|((sx<<6)&0x0000ffc0)|((code>>9)&0x30)|((sprite[0]>>16)&0xf);
-  } else {
-    delta<<=4; // Delta of address
-    pal=((code>>9)&0x30)|(sh<<6);
-
-    if(sh && (code&0x6000) == 0x6000) {
-      if(code&0x0800) fTileFunc=TileFlipSH;
-      else            fTileFunc=TileNormSH;
-    } else {
-      if(code&0x0800) fTileFunc=TileFlip;
-      else            fTileFunc=TileNorm;
-    }
-
-    for (; width; width--,sx+=8,tile+=delta)
-    {
-      if(sx<=0)   continue;
-      if(sx>=328) break; // Offscreen
-
-      tile&=0x7fff; // Clip tile address
-      fTileFunc(sx,tile,pal);
-    }
+    // we need all for accurate sprites, cached will be used to recover ones overwritten by high layer
+    if (!as) return;
   }
-}
-#endif
 
-
-// Index + 0  :    hhhhvvvv s---hhvv yyyyyyyy yyyyyyyy // s: skip flag, h: horiz. size
-// Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
-
-static void DrawSpriteZ(int pack, int pack2, int shpri, int sprio)
-{
-  int width=0,height=0;
-  int row=0;
-  int pal;
-  int tile=0,delta=0;
-  int sx, sy;
-  int (*fTileFunc)(int sx,int addr,int pal,int zval);
-
-  // parse the sprite data
-  sx=pack2>>16; // X
-  sy=(pack <<16)>>16; // Y
-  width=pack>>28;
-  height=(pack>>24)&7; // Width and height in tiles
-
-  row=Scanline-sy; // Row of the sprite we are on
-
-  if (pack2&0x1000) row=(height<<3)-1-row; // Flip Y
-
-  tile=pack2&0x7ff; // Tile number
-  tile+=row>>3; // Tile number increases going down
-  delta=height; // Delta to increase tile by going right
-  if (pack2&0x0800) { tile+=delta*(width-1); delta=-delta; } // Flip X
-
-  tile<<=4; tile+=(row&7)<<1; // Tile address
   delta<<=4; // Delta of address
-  pal=((pack2>>9)&0x30);
-  if((shpri&1)&&!(shpri&2)) pal|=0x40;
+  pal=((code>>9)&0x30)|((sh|as)<<6);
 
-  shpri&=1;
-  if((pack2&0x6000) != 0x6000) shpri = 0;
-  shpri |= (pack2&0x0800)>>10;
-  switch(shpri) {
-    default:
-    case 0: fTileFunc=TileNormZ;   break;
-    case 1: fTileFunc=TileNormZSH; break;
-    case 2: fTileFunc=TileFlipZ;   break;
-    case 3: fTileFunc=TileFlipZSH; break;
+  if (sh && (code&0x6000) == 0x6000) {
+    if(code&0x0800) fTileFunc=TileFlipSH;
+    else            fTileFunc=TileNormSH;
+  } else {
+    if(code&0x0800) fTileFunc=TileFlip;
+    else            fTileFunc=TileNorm;
   }
 
   for (; width; width--,sx+=8,tile+=delta)
@@ -829,9 +777,10 @@ static void DrawSpriteZ(int pack, int pack2, int shpri, int sprio)
     if(sx>=328) break; // Offscreen
 
     tile&=0x7fff; // Clip tile address
-    fTileFunc(sx,tile,pal,sprio);
+    fTileFunc(sx,tile,pal);
   }
 }
+#endif
 
 static void DrawSpriteInterlace(unsigned int *sprite)
 {
@@ -877,7 +826,7 @@ static void DrawSpriteInterlace(unsigned int *sprite)
 }
 
 
-static void DrawAllSpritesInterlace(int pri, int maxwidth)
+static void DrawAllSpritesInterlace(int *hcache, int maxwidth, int pri, int sh)
 {
   struct PicoVideo *pvid=&Pico.video;
   int i,u,table,link=0,sline=Scanline<<1;
@@ -925,7 +874,7 @@ static void DrawAllSpritesInterlace(int pri, int maxwidth)
 
 
 #ifndef _ASM_DRAW_C
-static void DrawSpritesFromCache(int *hc, int sh)
+static void DrawSpritesFromCache(int *hc, int maxwidth, int prio, int sh)
 {
   int code, tile, sx, delta, width;
   int pal;
@@ -962,6 +911,43 @@ static void DrawSpritesFromCache(int *hc, int sh)
   }
 }
 #endif
+
+static void DrawSpritesFromCacheAS(int *hc, int maxwidth, int prio, int sh)
+{
+  int code, tile, sx, delta, width;
+  int pal;
+  int (*fTileFunc)(int sx,int addr,int pal);
+
+  // *(*hc)++ = (tile<<16)|((code&0x0800)<<5)|((sx<<6)&0x0000ffc0)|((code>>9)&0x30)|((sprite[0]>>24)&0xf);
+
+  while((code=*hc++)) {
+    pal=(code&0x30);
+    delta=code&0xf;
+    width=delta>>2; delta&=3;
+    width++; delta++; // Width and height in tiles
+    if (code&0x10000) delta=-delta; // Flip X
+    delta<<=4;
+    tile=((unsigned int)code>>17)<<1;
+    sx=(code<<16)>>22; // sx can be negative (start offscreen), so sign extend
+
+    if(sh && pal == 0x30) { //
+      if(code&0x10000) fTileFunc=TileFlipSHAS;
+      else             fTileFunc=TileNormSHAS;
+    } else {
+      if(code&0x10000) fTileFunc=TileFlipAS;
+      else             fTileFunc=TileNormAS;
+    }
+
+    for (; width; width--,sx+=8,tile+=delta)
+    {
+      if(sx<=0)   continue;
+      if(sx>=328) break; // Offscreen
+
+      tile&=0x7fff; // Clip tile address
+      fTileFunc(sx,tile,pal);
+    }
+  }
+}
 
 
 // Index + 0  :    ----hhvv -lllllll -------y yyyyyyyy
@@ -1066,23 +1052,12 @@ static void DrawAllSprites(int *hcache, int maxwidth, int prio, int sh)
   int max_line_sprites = 20; // 20 sprites, 40 tiles
   int *ps, pack, rs = rendstatus, scan = Scanline;
 
-  if(rs&8) {
-    DrawAllSpritesInterlace(prio, maxwidth);
-    return;
-  }
   if (rs & (PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES)) {
     //dprintf("PrepareSprites(%i) [%i]", (rs>>4)&1, scan);
     PrepareSprites(rs & PDRAW_DIRTY_SPRITES);
     rendstatus = rs & ~(PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES);
   }
-  if (!(SpriteBlocks & (1<<(scan>>3)))) return;
-
-  if (((rs&PDRAW_ACC_SPRITES)||sh) && prio==0)
-    memset(HighSprZ, 0, 328);
-  if (!(rs&PDRAW_ACC_SPRITES)&&prio) {
-    if(hcache[0]) DrawSpritesFromCache(hcache, sh);
-    return;
-  }
+  if (!(SpriteBlocks & (1<<(scan>>3)))) { *hcache = 0; return; }
 
   if (PicoOpt & POPT_DIS_SPRITE_LIM)
     max_line_sprites = 80;
@@ -1125,27 +1100,18 @@ static void DrawAllSprites(int *hcache, int maxwidth, int prio, int sh)
 
     if (pack & 0x00800000) continue;
 
-    // accurate sprites
-    //dprintf("P:%i",((sx>>15)&1));
-    if (rs & PDRAW_ACC_SPRITES) {
-      // might need to skip this sprite
-      if ((pack2&0x8000) ^ (prio<<15)) continue;
-      DrawSpriteZ(pack, pack2, sh|(prio<<1), n^0xff);
-      continue;
-    }
-
     // sprite is good, save it's pointer
     sprites[i++]=ps;
   }
 
-  // Go through sprites backwards:
-  if (!(rs & PDRAW_ACC_SPRITES)) {
-    for (i--; i>=0; i--)
-      DrawSprite(sprites[i],&hcache,sh);
+  n = (rs & PDRAW_ACC_SPRITES) ? 1 : 0;
 
-    // terminate cache list
-    *hcache = 0;
-  }
+  // Go through sprites backwards:
+  for (i--; i>=0; i--)
+    DrawSprite(sprites[i],&hcache,sh,n);
+
+  // terminate cache list
+  *hcache = 0;
 }
 
 
@@ -1176,7 +1142,7 @@ static void FinalizeLineBGR444(int sh)
   unsigned short *pd=DrawLineDest;
   unsigned char  *ps=HighCol+8;
   unsigned short *pal=Pico.cram;
-  int len, i, t;
+  int len, i, t, mask=0xff;
 
   if (Pico.video.reg[12]&1) {
     len = 320;
@@ -1201,8 +1167,11 @@ static void FinalizeLineBGR444(int sh)
     }
   }
 
+  if (!sh && (rendstatus & PDRAW_ACC_SPRITES))
+    mask=0x3f; // accurate sprites
+
   for(i = 0; i < len; i++)
-    pd[i] = pal[ps[i]];
+    pd[i] = pal[ps[i] & mask];
 }
 
 
@@ -1247,15 +1216,22 @@ static void FinalizeLineRGB555(int sh)
     len = 256;
   }
 
-#ifndef PSP
-  for (i = 0; i < len; i++)
-    pd[i] = pal[ps[i]];
-#else
   {
+#ifndef PSP
+    int mask=0xff;
+    if (!sh && (rendstatus & PDRAW_ACC_SPRITES))
+      mask=0x3f; // accurate sprites, upper bits are priority stuff
+
+    for (i = 0; i < len; i++)
+      pd[i] = pal[ps[i] & mask];
+#else
     extern void amips_clut(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
-    amips_clut(pd, ps, pal, len);
-  }
+    extern void amips_clut_6bit(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
+    if (!sh && (rendstatus & PDRAW_ACC_SPRITES))
+         amips_clut_6bit(pd, ps, pal, len);
+    else amips_clut(pd, ps, pal, len);
 #endif
+  }
 }
 #endif
 
@@ -1265,7 +1241,7 @@ static void FinalizeLine8bit(int sh)
   int len, rs = rendstatus;
   static int dirty_count;
 
-  if (!sh && Pico.m.dirtyPal == 1 && Scanline < 222)
+  if (!sh && !(rs & PDRAW_ACC_SPRITES) && Pico.m.dirtyPal == 1 && Scanline < 222)
   {
     // a hack for mid-frame palette changes
     if (!(rs & PDRAW_SONIC_MODE))
@@ -1320,7 +1296,7 @@ static void handle_early_blank(int scanline, int sh)
 
 // --------------------------------------------
 
-static int DrawDisplay(int sh)
+static int DrawDisplay(int sh, int as)
 {
   struct PicoVideo *pvid=&Pico.video;
   int win=0,edge=0,hvwind=0;
@@ -1354,16 +1330,16 @@ static int DrawDisplay(int sh)
     }
   }
 
-  DrawLayer(1|(sh<<1), HighCacheB, 0, maxcells);
+  DrawLayer(1|((sh|as)<<1), HighCacheB, 0, maxcells);
   if (hvwind == 1)
-    DrawWindow(0, maxcells>>1, 0, sh);
+    DrawWindow(0, maxcells>>1, 0, sh|as);
   else if (hvwind == 2) {
     // ahh, we have vertical window
-    DrawLayer(0|(sh<<1), HighCacheA, (win&0x80) ?    0 : edge<<1, (win&0x80) ?     edge<<1 : maxcells);
-    DrawWindow(                      (win&0x80) ? edge :       0, (win&0x80) ? maxcells>>1 : edge, 0, sh);
+    DrawLayer(0|((sh|as)<<1), HighCacheA, (win&0x80) ?    0 : edge<<1, (win&0x80) ?     edge<<1 : maxcells);
+    DrawWindow(                           (win&0x80) ? edge :       0, (win&0x80) ? maxcells>>1 : edge, 0, sh|as);
   } else
-    DrawLayer(0|(sh<<1), HighCacheA, 0, maxcells);
-  DrawAllSprites(HighCacheS, maxw, 0, sh);
+    DrawLayer(0|((sh|as)<<1), HighCacheA, 0, maxcells);
+  DrawAllSpritesLoPri(HighCacheS, maxw, 0, sh);
 
   if (HighCacheB[0]) DrawTilesFromCache(HighCacheB, sh, 328);
   if (hvwind == 1)
@@ -1373,7 +1349,7 @@ static int DrawDisplay(int sh)
     DrawWindow((win&0x80) ? edge : 0, (win&0x80) ? maxcells>>1 : edge, 1, sh);
   } else
     if (HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, 328);
-  DrawAllSprites(HighCacheS, maxw, 1, sh);
+  DrawAllSpritesHiPri(HighCacheS, maxw, 1, sh);
 
 #if 0
   {
@@ -1392,10 +1368,17 @@ PICO_INTERNAL void PicoFrameStart(void)
 {
   // prepare to do this frame
   rendstatus = (PicoOpt&0x80)>>5;    // accurate sprites, clear everything else
-  if (rendstatus)
-       Pico.video.status &= ~0x0020;
-  else Pico.video.status |=  0x0020; // sprite collision
-  if ((Pico.video.reg[12]&6) == 6) rendstatus |= PDRAW_INTERLACE; // interlace mode
+  if ((Pico.video.reg[12]&6) == 6) {
+    rendstatus |= PDRAW_INTERLACE; // interlace mode
+    DrawAllSpritesLoPri = DrawAllSpritesInterlace;
+    DrawAllSpritesHiPri = DrawAllSpritesInterlace;
+  }
+  else
+  {
+    DrawAllSpritesLoPri = DrawAllSprites;
+    DrawAllSpritesHiPri = rendstatus ? DrawSpritesFromCacheAS : DrawSpritesFromCache;
+  }
+
   if (Pico.m.dirtyPal) Pico.m.dirtyPal = 2; // reset dirty if needed
 
   PrepareSprites(1);
@@ -1404,11 +1387,12 @@ PICO_INTERNAL void PicoFrameStart(void)
 
 PICO_INTERNAL int PicoLine(int scan)
 {
-  int sh;
+  int sh, as = 0;
   if (skip_next_line>0) { skip_next_line--; return 0; } // skip_next_line rendering lines
 
   Scanline=scan;
   sh=(Pico.video.reg[0xC]&8)>>3; // shadow/hilight?
+  if (rendstatus & PDRAW_ACC_SPRITES) as|=1; // accurate sprites
 
   if (rendstatus & PDRAW_EARLY_BLANK) {
     if (scan > 0) handle_early_blank(scan, sh);
@@ -1419,9 +1403,9 @@ PICO_INTERNAL int PicoLine(int scan)
     skip_next_line = PicoScanBegin(scan);
 
   // Draw screen:
-  BackFill(Pico.video.reg[7], sh);
+  BackFill(Pico.video.reg[7], sh|as);
   if (Pico.video.reg[1]&0x40)
-    DrawDisplay(sh);
+    DrawDisplay(sh, as);
 
   if (FinalizeLine != NULL)
     FinalizeLine(sh);

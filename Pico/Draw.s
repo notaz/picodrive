@@ -896,7 +896,7 @@ DrawTilesFromCache:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-.global DrawSpritesFromCache @ int *hc, int sh
+.global DrawSpritesFromCache @ int *hc, int maxwidth, int prio, int sh
 
 DrawSpritesFromCache:
     stmfd   sp!, {r4-r11,lr}
@@ -911,7 +911,7 @@ DrawSpritesFromCache:
     mov     r12,#0xf
 .endif
     ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
-    mov     r6, r1, lsl #31
+    mov     r6, r3, lsl #31
     orr     r6, r6, #1<<30
 
     mov     r10, r0
@@ -1032,11 +1032,12 @@ DrawSpritesFromCache:
 @ + 0  :    hhhhvvvv ab--hhvv yyyyyyyy yyyyyyyy // a: offscreen h, b: offs. v, h: horiz. size
 @ + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-.global DrawSprite @ unsigned int *sprite, int **hc, int sh
+.global DrawSprite @ unsigned int *sprite, int **hc, int sh, int acc_sprites
 
 DrawSprite:
     stmfd   sp!, {r4-r9,r11,lr}
 
+    orr     r8, r3, r2, lsl #4
     ldr     r3, [r0]        @ sprite[0]
     ldr     r7, =Scanline
     mov     r6, r3, lsr #28
@@ -1050,10 +1051,10 @@ DrawSprite:
     ldr     r9, [r0, #4]
     sub     r7, r7, r4, asr #16 @ r7=row=Scanline-sy
 
-    tst     r2, r2
     mov     r2, r9, asr #16 @ r2=sx
-    bic     r9, r9, #0xfe000000
-    orrne   r9, r9, #1<<31  @ r9=code|(sh<<31)
+    mov     r9, r9, lsl #16
+    mov     r9, r9, lsr #16
+    orr     r9, r9, r8, lsl #27 @ r9=code|sh[31]|as[27]
 
     tst     r9, #0x1000
     movne   r4, r5, lsl #3
@@ -1075,6 +1076,7 @@ DrawSprite:
     tst     r9, #0x8000
     bne     .dspr_cache       @ if(code&0x8000) // high priority - cache it
 
+.dspr_continue:
     @ cache some stuff to avoid mem access
 .if OVERRIDE_HIGHCOL
     ldr     r11,=HighCol
@@ -1089,11 +1091,10 @@ DrawSprite:
     mov     r5, r5, lsl #4     @ delta<<=4; // Delta of address
     and     r4, r9, #0x6000
     orr     r9, r9, r4, lsl #16
-    orr     r9, r9, #0x10000000 @ r9=scc1 ???? ... <code> (s=shadow/hilight, cc=pal)
+    orrs    r9, r9, #0x10000000 @ r9=scc1 a??? ... <code> (s=shadow/hilight, cc=pal, a=acc_spr)
 
-    tst     r9, #1<<31
     mov     r3, r4, lsr #9     @ r3=pal=((code>>9)&0x30);
-    orrne   r3, r3, #0x40      @ shadow by default
+    orrmi   r3, r3, #0x40      @ shadow by default
 
     add     r6, r6, #1         @ inc now
     adds    r0, r2, #0         @ mov sx to r0 and set ZV flags
@@ -1184,19 +1185,21 @@ DrawSprite:
     mov     r4, r8, lsl #16     @ tile
     tst     r9, #0x0800
     orrne   r4, r4, #0x10000    @ code&0x0800
-    mov     r2, r2, lsl #22
-    orr     r4, r4, r2, lsr #16 @ (sx<<6)&0x0000ffc0
-    and     r2, r9, #0x6000
-    orr     r4, r4, r2, lsr #9  @ (code>>9)&0x30
+    mov     r0, r2, lsl #22
+    orr     r4, r4, r0, lsr #16 @ (sx<<6)&0x0000ffc0
+    and     r0, r9, #0x6000
+    orr     r4, r4, r0, lsr #9  @ (code>>9)&0x30
     mov     r3, r3, lsl #12
-    ldr     r2, [r1]
+    ldr     r0, [r1]
     orr     r4, r4, r3, lsr #28 @ (sprite[0]>>24)&0xf
 
-    str     r4, [r2], #4
-    str     r2, [r1]
+    str     r4, [r0], #4
+    str     r0, [r1]
 
-    ldmfd   sp!, {r4-r9,r11,lr}
-    bx      lr
+    tst     r9, #(1<<27)
+    ldmeqfd sp!, {r4-r9,r11,lr}
+    bne     .dspr_continue      @ draw anyway if accurate sprites enabled
+    bxeq    lr
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
@@ -1452,23 +1455,29 @@ FinalizeLineBGR444:
     bne     .fl_loopcpBGR444_hi
 
     sub     r3, r4, #0x40*3*2
+    mov     r6, #1
 
 
 .fl_noshBGR444:
+    ldr     r12,=rendstatus
+    eors    r6, r6, #1          @ sh is 0
+    ldr     r12,[r12]
+    mov     lr, #0xff
+    tstne   r12,#(1<<2)         @ and PDRAW_ACC_SPRITES
+
 .if OVERRIDE_HIGHCOL
     ldr     r1, =HighCol
-    mov     lr, #0xff
+    movne   lr, #0x3f
     ldr     r1, [r1]
     mov     lr, lr, lsl #1
     add     r1, r1, #8
 .else
     ldr     r1, =(HighCol+8)
-    mov     lr, #0xff
+    movne   lr, #0x3f
     mov     lr, lr, lsl #1
 .endif
 
 .fl_loopBGR444:
-
     ldr     r12, [r1], #4
     subs    r2, r2, #1
 
@@ -1478,11 +1487,10 @@ FinalizeLineBGR444:
     ldrh    r5, [r3, r5]
     and     r6, lr, r12, lsr #15
     ldrh    r6, [r3, r6]
+    and     r12,lr, r12, lsr #23
+    ldrh    r12,[r3, r12]              @ 1c.i.
     orr     r4, r4, r5, lsl #16
-
-    and     r5, lr, r12, lsr #23
-    ldrh    r5, [r3, r5]              @ 2c.i.
-    orr     r5, r6, r5, lsl #16
+    orr     r5, r6, r12,lsl #16
 
     stmia   r0!, {r4,r5}
     bne     .fl_loopBGR444
@@ -1617,8 +1625,16 @@ FinalizeLineRGB555:
     bne     .fl_loopcpRGB555_hi
 
     sub     r3, r3, #0x40*2
+    mov     r6, #1
 
 .fl_noshRGB555:
+    ldr     r12,=rendstatus
+    eors    r6, r6, #1          @ sh is 0
+    ldr     r12,[r12]
+    mov     lr, #0xff
+    tstne   r12,#(1<<2)         @ and PDRAW_ACC_SPRITES
+    movne   lr, #0x3f
+
 .if OVERRIDE_HIGHCOL
     ldr     r1, =HighCol
     ldr     r0, =DrawLineDest
@@ -1632,7 +1648,6 @@ FinalizeLineRGB555:
 .endif
 
     ldrb    r12, [r8, #12]
-    mov     lr, #0xff
     mov     lr, lr, lsl #1
 
     tst     r12, #1

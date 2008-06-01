@@ -291,26 +291,39 @@ static void blit(const char *fps, const char *notice)
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal)
 		{
+			int pallen = 0x40;
 			Pico.m.dirtyPal = 0;
-			if(Pico.video.reg[0xC]&8) { // shadow/hilight mode
+			if (Pico.video.reg[0xC]&8) // shadow/hilight mode
+			{
 				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 				vidConvCpyRGB32sh(localPal+0x40, Pico.cram, 0x40);
 				vidConvCpyRGB32hi(localPal+0x80, Pico.cram, 0x40);
 				memcpy32(localPal+0xc0, localPal+0x40, 0x40);
+				pallen = 0x100;
+			}
+			else if (rendstatus & PDRAW_ACC_SPRITES) {
+				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
+				memcpy32(localPal+0x40, localPal, 0x40);
+				memcpy32(localPal+0x80, localPal, 0x40);
+				memcpy32(localPal+0xc0, localPal, 0x40);
+				pallen = 0x100;
+			}
+			else if (rendstatus & PDRAW_SONIC_MODE) { // mid-frame palette changes
+				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
+				vidConvCpyRGB32(localPal+0x40, HighPal, 0x40);
+				vidConvCpyRGB32(localPal+0x80, HighPal+0x40, 0x40);
+				pallen = 0xc0;
+			}
+			else {
+				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
+			}
+			if (pallen > 0xc0) {
 				localPal[0xc0] = 0x0000c000;
 				localPal[0xd0] = 0x00c00000;
 				localPal[0xe0] = 0x00000000; // reserved pixels for OSD
 				localPal[0xf0] = 0x00ffffff;
-				gp2x_video_setpalette(localPal, 0x100);
-			} else if (rendstatus & PDRAW_SONIC_MODE) { // mid-frame palette changes
-				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
-				vidConvCpyRGB32(localPal+0x40, HighPal, 0x40);
-				vidConvCpyRGB32(localPal+0x80, HighPal+0x40, 0x40);
-				gp2x_video_setpalette(localPal, 0xc0);
-			} else {
-				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
-				gp2x_video_setpalette(localPal, 0x40);
 			}
+			gp2x_video_setpalette(localPal, pallen);
 		}
 	}
 

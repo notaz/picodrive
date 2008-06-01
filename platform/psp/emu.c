@@ -162,6 +162,9 @@ void emu_setDefaultConfig(void)
 
 
 extern void amips_clut(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
+extern void amips_clut_6bit(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
+
+extern void (*amips_clut_f)(unsigned short *dst, unsigned char *src, unsigned short *pal, int count) = NULL;
 
 struct Vertex
 {
@@ -235,7 +238,7 @@ static void set_scaling_params(void)
 	*/
 }
 
-static void do_pal_update(int allow_sh)
+static void do_pal_update(int allow_sh, int allow_as)
 {
 	unsigned int *dpal=(void *)localPal;
 	int i;
@@ -243,6 +246,9 @@ static void do_pal_update(int allow_sh)
 	//for (i = 0x3f/2; i >= 0; i--)
 	//	dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
 	do_pal_convert(localPal, Pico.cram, currentConfig.gamma, currentConfig.gamma2);
+
+	Pico.m.dirtyPal = 0;
+	need_pal_upload = 1;
 
 	if (allow_sh && (Pico.video.reg[0xC]&8)) // shadow/hilight?
 	{
@@ -260,8 +266,12 @@ static void do_pal_update(int allow_sh)
 		}
 		localPal[0xe0] = 0;
 	}
-	Pico.m.dirtyPal = 0;
-	need_pal_upload = 1;
+	else if (allow_as && (rendstatus & PDRAW_ACC_SPRITES))
+	{
+		memcpy32(localPal+0x40, localPal, 0x40);
+		memcpy32(localPal+0x80, localPal, 0x40);
+		memcpy32(localPal+0xc0, localPal, 0x40);
+	}
 }
 
 static void do_slowmode_lines(int line_to)
@@ -272,7 +282,7 @@ static void do_slowmode_lines(int line_to)
 	if (!(Pico.video.reg[1]&8)) { line = 8; dst += 512*8; src += 512*8; }
 
 	for (; line < line_to; line++, dst+=512, src+=512)
-		amips_clut(dst, src, localPal, line_len);
+		amips_clut_f(dst, src, localPal, line_len);
 }
 
 static void EmuScanPrepare(void)
@@ -282,7 +292,10 @@ static void EmuScanPrepare(void)
 
 	dynamic_palette = 0;
 	if (Pico.m.dirtyPal)
-		do_pal_update(1);
+		do_pal_update(1, 1);
+	if ((rendstatus & PDRAW_ACC_SPRITES) && !(Pico.video.reg[0xC]&8))
+	     amips_clut_f = amips_clut_6bit;
+	else amips_clut_f = amips_clut;
 }
 
 static int EmuScanSlowBegin(unsigned int num)
@@ -304,13 +317,13 @@ static int EmuScanSlowEnd(unsigned int num)
 			do_slowmode_lines(num);
 			dynamic_palette = 1;
 		}
-		do_pal_update(1);
+		do_pal_update(1, 0);
 	}
 
 	if (dynamic_palette) {
 		int line_len = (Pico.video.reg[12]&1) ? 320 : 256;
 		void *dst = (char *)VRAM_STUFF + 512*240 + 512*2*num;
-		amips_clut(dst, HighCol + 8, localPal, line_len);
+		amips_clut_f(dst, HighCol + 8, localPal, line_len);
 	}
 
 	return 0;
@@ -344,7 +357,7 @@ static void blitscreen_clut(void)
 		}
 
 		if ((PicoOpt&0x10) && Pico.m.dirtyPal)
-			do_pal_update(0);
+			do_pal_update(0, 0);
 
 		sceKernelDcacheWritebackAll();
 
