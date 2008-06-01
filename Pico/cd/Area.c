@@ -121,8 +121,10 @@ PICO_INTERNAL int PicoCdSaveState(void *file)
 	}
 	if (PicoOpt&3)
 		CHECKED_WRITE(CHUNK_PSG, 28*4, sn76496_regs);
-	if (PicoOpt&1)
+	if (PicoOpt&1) {
+		ym2612_pack_state();
 		CHECKED_WRITE(CHUNK_FM, 0x200+4, ym2612_regs);
+	}
 
 	if (PicoAHW & PAHW_MCD)
 	{

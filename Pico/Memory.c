@@ -796,7 +796,7 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           {
             //elprintf(EL_STATUS, "timer a set %i", TAnew);
             ym2612.OPN.ST.TA = TAnew;
-            //ym2612.OPN.ST.TAC = (1024-TAnew)*18;
+            ym2612.OPN.ST.TAC = (1024-TAnew)*18;
             //ym2612.OPN.ST.TAT = 0;
             //
             timer_a_step = timer_a_offset = 16466 * (1024 - TAnew);
@@ -812,8 +812,7 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           if (ym2612.OPN.ST.TB != d) {
             //elprintf(EL_STATUS, "timer b set %i", d);
             ym2612.OPN.ST.TB = d;
-            //ym2612.OPN.ST.TBC  = (256-d)<<4;
-            //ym2612.OPN.ST.TBC *= 18;
+            ym2612.OPN.ST.TBC = (256-d) * 288;
             //ym2612.OPN.ST.TBT  = 0;
             timer_b_step = timer_b_offset = 262800 * (256 - d); // 262881
             if (ym2612.OPN.ST.mode & 2) {
@@ -912,21 +911,38 @@ u32 ym2612_read_local_68k(void)
   return ym2612.OPN.ST.status;
 }
 
-// TODO: new ym2612 savestates, also save timers
+void ym2612_pack_state(void)
+{
+  // TODO timers
+#ifdef __GP2X__
+  if (PicoOpt & POPT_EXT_FM)
+    /*YM2612PicoStateSave2_940(0, 0)*/;
+  else
+#endif
+    YM2612PicoStateSave2(0, 0);
+}
+
 void ym2612_unpack_state(void)
 {
-  int i;
+  int i, ret, tat, tbt;
   YM2612PicoStateLoad();
 
   // feed all the registers and update internal state
-  for (i = 0x20; i < 0xC0; i++) {
+  for (i = 0x20; i < 0xB8; i++) {
     ym2612_write_local(0, i, 0);
     ym2612_write_local(1, ym2612.REGS[i], 0);
   }
-  for (i = 0x30; i < 0xC0; i++) {
+  for (i = 0x30; i < 0xB8; i++) {
     ym2612_write_local(2, i, 0);
     ym2612_write_local(3, ym2612.REGS[i|0x100], 0);
   }
+
+#ifdef __GP2X__
+  if (PicoOpt & POPT_EXT_FM)
+    /*ret = YM2612PicoStateLoad2_940(&tat, &tbt)*/;
+  else
+#endif
+    ret = YM2612PicoStateLoad2(&tat, &tbt);
 }
 
 // -----------------------------------------------------------------

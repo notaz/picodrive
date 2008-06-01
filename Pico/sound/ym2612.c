@@ -1087,12 +1087,25 @@ void chan_render_loop(chan_rend_context *ct, int *buffer, unsigned short length)
 
 static chan_rend_context crct;
 
+static void chan_render_prep(void)
+{
+	crct.eg_timer_add = ym2612.OPN.eg_timer_add;
+	crct.lfo_inc = ym2612.OPN.lfo_inc;
+}
+
+static void chan_render_finish(void)
+{
+	ym2612.OPN.eg_cnt = crct.eg_cnt;
+	ym2612.OPN.eg_timer = crct.eg_timer;
+	g_lfo_ampm = crct.pack >> 16; // need_save
+	ym2612.OPN.lfo_cnt = crct.lfo_cnt;
+}
+
 static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: stereo, ?, disabled, ?, pan_r, pan_l
 {
 	crct.CH = &ym2612.CH[c];
 	crct.mem = crct.CH->mem_value;		/* one sample delay memory */
 	crct.lfo_cnt = ym2612.OPN.lfo_cnt;
-	crct.lfo_inc = ym2612.OPN.lfo_inc;
 
 	flags &= 0x35;
 
@@ -1109,7 +1122,6 @@ static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: s
 
 	crct.eg_cnt = ym2612.OPN.eg_cnt;			/* envelope generator counter */
 	crct.eg_timer = ym2612.OPN.eg_timer;
-	crct.eg_timer_add = ym2612.OPN.eg_timer_add;
 
 	/* precalculate phase modulation incr */
 	crct.phase1 = crct.CH->SLOT[SLOT1].phase;
@@ -1185,15 +1197,6 @@ static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: s
 	else
 		ym2612.slot_mask &= ~(0xf << (c*4));
 
-	// if this the last call, write back persistent stuff:
-	if ((ym2612.slot_mask >> ((c+1)*4)) == 0)
-	{
-		ym2612.OPN.eg_cnt = crct.eg_cnt;
-		ym2612.OPN.eg_timer = crct.eg_timer;
-		g_lfo_ampm = crct.pack >> 16;
-		ym2612.OPN.lfo_cnt = crct.lfo_cnt;
-	}
-
 	return (crct.algo & 8) >> 3; // had output
 }
 
@@ -1212,10 +1215,10 @@ INLINE void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
 		SLOT->ksr = ksr;
 
 		/* calculate envelope generator rates */
-		if ((SLOT->ar + SLOT->ksr) < 32+62)
+		if ((SLOT->ar + ksr) < 32+62)
 		{
-			eg_sh  = eg_rate_shift [SLOT->ar  + SLOT->ksr ];
-			eg_sel = eg_rate_select[SLOT->ar  + SLOT->ksr ];
+			eg_sh  = eg_rate_shift [SLOT->ar  + ksr ];
+			eg_sel = eg_rate_select[SLOT->ar  + ksr ];
 		}
 		else
 		{
@@ -1225,18 +1228,18 @@ INLINE void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
 
 		SLOT->eg_pack_ar = eg_inc_pack[eg_sel] | (eg_sh<<24);
 
-		eg_sh  = eg_rate_shift [SLOT->d1r + SLOT->ksr];
-		eg_sel = eg_rate_select[SLOT->d1r + SLOT->ksr];
+		eg_sh  = eg_rate_shift [SLOT->d1r + ksr];
+		eg_sel = eg_rate_select[SLOT->d1r + ksr];
 
 		SLOT->eg_pack_d1r = eg_inc_pack[eg_sel] | (eg_sh<<24);
 
-		eg_sh  = eg_rate_shift [SLOT->d2r + SLOT->ksr];
-		eg_sel = eg_rate_select[SLOT->d2r + SLOT->ksr];
+		eg_sh  = eg_rate_shift [SLOT->d2r + ksr];
+		eg_sel = eg_rate_select[SLOT->d2r + ksr];
 
 		SLOT->eg_pack_d2r = eg_inc_pack[eg_sel] | (eg_sh<<24);
 
-		eg_sh  = eg_rate_shift [SLOT->rr  + SLOT->ksr];
-		eg_sel = eg_rate_select[SLOT->rr  + SLOT->ksr];
+		eg_sh  = eg_rate_shift [SLOT->rr  + ksr];
+		eg_sel = eg_rate_select[SLOT->rr  + ksr];
 
 		SLOT->eg_pack_rr = eg_inc_pack[eg_sel] | (eg_sh<<24);
 	}
@@ -1634,12 +1637,14 @@ int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 
 	/* mix to 32bit dest */
 	// flags: stereo, ?, disabled, ?, pan_r, pan_l
+	chan_render_prep();
 	if (ym2612.slot_mask & 0x00000f) active_chs |= chan_render(buffer, length, 0, stereo|((pan&0x003)<<4)) << 0;
 	if (ym2612.slot_mask & 0x0000f0) active_chs |= chan_render(buffer, length, 1, stereo|((pan&0x00c)<<2)) << 1;
 	if (ym2612.slot_mask & 0x000f00) active_chs |= chan_render(buffer, length, 2, stereo|((pan&0x030)   )) << 2;
 	if (ym2612.slot_mask & 0x00f000) active_chs |= chan_render(buffer, length, 3, stereo|((pan&0x0c0)>>2)) << 3;
 	if (ym2612.slot_mask & 0x0f0000) active_chs |= chan_render(buffer, length, 4, stereo|((pan&0x300)>>4)) << 4;
 	if (ym2612.slot_mask & 0xf00000) active_chs |= chan_render(buffer, length, 5, stereo|((pan&0xc00)>>6)|(ym2612.dacen<<2)) << 5;
+	chan_render_finish();
 
 	return active_chs; // 1 if buffer updated
 }
@@ -1864,6 +1869,124 @@ int YM2612PicoTick_(int n)
 void YM2612PicoStateLoad_(void)
 {
 	reset_channels( &ym2612.CH[0] );
+	ym2612.slot_mask = 0xffffff;
+}
+
+typedef struct
+{
+	UINT32  state_phase;
+	INT16   volume;
+} ym_save_addon_slot;
+
+typedef struct
+{
+	UINT32  magic;
+	UINT8   address;
+	UINT8   status;
+	UINT8   addr_A1;
+	UINT8   unused;
+	int     TAT;
+	int     TBT;
+	UINT32  eg_cnt;
+	UINT32  eg_timer;
+	UINT32  lfo_cnt;
+	UINT16  lfo_ampm;
+	UINT16  unused2;
+} ym_save_addon;
+
+void YM2612PicoStateSave2(int tat, int tbt)
+{
+	ym_save_addon_slot ss;
+	ym_save_addon sa;
+	unsigned char *ptr;
+	int c, s;
+
+	// chans 1,2,3
+	ptr = &ym2612.REGS[0x0b8];
+	for (c = 0; c < 3; c++)
+	{
+		for (s = 0; s < 4; s++) {
+			ss.state_phase = (ym2612.CH[c].SLOT[s].state << 29) | (ym2612.CH[c].SLOT[s].phase >> 3);
+			ss.volume = ym2612.CH[c].SLOT[s].volume;
+			memcpy(ptr, &ss, 6);
+			ptr += 6;
+		}
+	}
+	// chans 4,5,6
+	ptr = &ym2612.REGS[0x1b8];
+	for (; c < 6; c++)
+	{
+		for (s = 0; s < 4; s++) {
+			ss.state_phase = (ym2612.CH[c].SLOT[s].state << 29) | (ym2612.CH[c].SLOT[s].phase >> 3);
+			ss.volume = ym2612.CH[c].SLOT[s].volume;
+			memcpy(ptr, &ss, 6);
+			ptr += 6;
+		}
+	}
+	// other things
+	ptr = &ym2612.REGS[0x100];
+	sa.magic = 0x41534d59; // 'YMSA'
+	sa.address = ym2612.OPN.ST.address;
+	sa.status  = ym2612.OPN.ST.status;
+	sa.addr_A1 = ym2612.addr_A1;
+	sa.unused  = 0;
+	sa.TAT     = tat;
+	sa.TBT     = tbt;
+	sa.eg_cnt  = ym2612.OPN.eg_cnt;
+	sa.eg_timer = ym2612.OPN.eg_timer;
+	sa.lfo_cnt  = ym2612.OPN.lfo_cnt;
+	sa.lfo_ampm = g_lfo_ampm;
+	sa.unused2  = 0;
+	memcpy(ptr, &sa, sizeof(sa)); // 0x30 max
+}
+
+int YM2612PicoStateLoad2(int *tat, int *tbt)
+{
+	ym_save_addon_slot ss;
+	ym_save_addon sa;
+	unsigned char *ptr;
+	int c, s;
+
+	ptr = &ym2612.REGS[0x100];
+	memcpy(&sa, ptr, sizeof(sa)); // 0x30 max
+	if (sa.magic != 0x41534d59) return -1;
+
+	ym2612.OPN.ST.address = sa.address;
+	ym2612.OPN.ST.status = sa.status;
+	ym2612.addr_A1 = sa.addr_A1;
+	ym2612.OPN.eg_cnt = sa.eg_cnt;
+	ym2612.OPN.eg_timer = sa.eg_timer;
+	ym2612.OPN.lfo_cnt = sa.lfo_cnt;
+	g_lfo_ampm = sa.lfo_ampm;
+	if (tat != NULL) *tat = sa.TAT;
+	if (tbt != NULL) *tbt = sa.TBT;
+
+	// chans 1,2,3
+	ptr = &ym2612.REGS[0x0b8];
+	for (c = 0; c < 3; c++)
+	{
+		for (s = 0; s < 4; s++) {
+			memcpy(&ss, ptr, 6);
+			ym2612.CH[c].SLOT[s].state = ss.state_phase >> 29;
+			ym2612.CH[c].SLOT[s].phase = ss.state_phase << 3;
+			ym2612.CH[c].SLOT[s].volume = ss.volume;
+			ptr += 6;
+		}
+	}
+	// chans 4,5,6
+	ptr = &ym2612.REGS[0x1b8];
+	for (; c < 6; c++)
+	{
+		for (s = 0; s < 4; s++) {
+			memcpy(&ss, ptr, 6);
+			ym2612.CH[c].SLOT[s].state = ss.state_phase >> 29;
+			ym2612.CH[c].SLOT[s].phase = ss.state_phase << 3;
+			ym2612.CH[c].SLOT[s].volume = ss.volume;
+			ptr += 6;
+		}
+	}
+
+	return 0;
 }
 
 #ifndef EXTERNAL_YM2612

@@ -145,8 +145,7 @@ static int PicoAreaScan(int PmovAction,unsigned int ver, void *PmovFile)
     SCAN_VAR(Pico.m    ,"misc")
     SCAN_VAR(Pico.video,"video")
 
-    // notaz: save/load z80, YM2612, sn76496 states instead of Pico.s (which is unused anyway)
-    if(PicoOpt&7) {
+    if (PicoOpt&7) {
       if((PmovAction&3)==1) z80_pack(cpu_z80);
       ret = SCAN_VAR(cpu_z80,"cpu_z80")
       // do not unpack if we fail to load z80 state
@@ -155,9 +154,10 @@ static int PicoAreaScan(int PmovAction,unsigned int ver, void *PmovFile)
         else    z80_unpack(cpu_z80);
       }
     }
-    if(PicoOpt&3)
+    if (PicoOpt&3)
       ScanVar(sn76496_regs,28*4,"SN76496state", PmovFile, PmovAction); // regs and other stuff
-    if(PicoOpt&1) {
+    if (PicoOpt&1) {
+      if((PmovAction&3)==1) ym2612_pack_state();
       ScanVar(ym2612_regs, 0x200+4, "YM2612state", PmovFile, PmovAction); // regs + addr line
       if((PmovAction&3)==2) ym2612_unpack_state(); // reload YM2612 state from it's regs
     }

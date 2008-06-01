@@ -22,15 +22,15 @@ typedef signed int		INT32;   /* signed 32bit   */
 typedef struct
 {
 	INT32	*DT;		/* #0x00 detune          :dt_tab[DT] */
-	UINT8	ar;			/* #0x04 attack rate  */
+	UINT8	ar;		/* #0x04 attack rate  */
 	UINT8	d1r;		/* #0x05 decay rate   */
 	UINT8	d2r;		/* #0x06 sustain rate */
-	UINT8	rr;			/* #0x07 release rate */
+	UINT8	rr;		/* #0x07 release rate */
 	UINT32	mul;		/* #0x08 multiple        :ML_TABLE[ML] */
 
 	/* Phase Generator */
-	UINT32	phase;		/* #0x0c phase counter */
-	UINT32	Incr;		/* #0x10 phase step */
+	UINT32	phase;		/* #0x0c phase counter | need_save */
+	UINT32	Incr;		/* #0x10 phase step | need_save */
 
 	UINT8	KSR;		/* #0x14 key scale rate  :3-KSR */
 	UINT8	ksr;		/* #0x15 key scale rate  :kcode>>(3-KSR) */
@@ -38,15 +38,15 @@ typedef struct
 	UINT8	key;		/* #0x16 0=last key was KEY OFF, 1=KEY ON */
 
 	/* Envelope Generator */
-	UINT8	state;		/* #0x17 phase type: EG_OFF=0, EG_REL, EG_SUS, EG_DEC, EG_ATT */
-	UINT16	tl;			/* #0x18 total level: TL << 3 */
-	INT16	volume;		/* #0x1a envelope counter */
-	UINT32	sl;			/* #0x1c sustain level:sl_table[SL] */
+	UINT8	state;		/* #0x17 phase type: EG_OFF=0, EG_REL, EG_SUS, EG_DEC, EG_ATT | need_save */
+	UINT16	tl;		/* #0x18 total level: TL << 3 */
+	INT16	volume;		/* #0x1a envelope counter | need_save */
+	UINT32	sl;		/* #0x1c sustain level:sl_table[SL] */
 
-	UINT32	eg_pack_ar;		/* #0x20 (attack state) */
+	UINT32	eg_pack_ar; 	/* #0x20 (attack state) */
 	UINT32	eg_pack_d1r;	/* #0x24 (decay state) */
 	UINT32	eg_pack_d2r;	/* #0x28 (sustain state) */
-	UINT32	eg_pack_rr;		/* #0x2c (release state) */
+	UINT32	eg_pack_rr; 	/* #0x2c (release state) */
 } FM_SLOT;
 
 
@@ -55,7 +55,7 @@ typedef struct
 	FM_SLOT	SLOT[4];	/* four SLOTs (operators) */
 
 	UINT8	ALGO;		/* algorithm */
-	UINT8	FB;			/* feedback shift */
+	UINT8	FB;		/* feedback shift */
 	INT32	op1_out;	/* op1 output for feedback */
 
 	INT32	mem_value;	/* delayed sample (MEM) value */
@@ -64,7 +64,7 @@ typedef struct
 	UINT8	ams;		/* channel AMS */
 
 	UINT8	kcode;		/* key code:                        */
-	UINT32	fc;			/* fnum,blk:adjusted to sample rate */
+	UINT32	fc;		/* fnum,blk:adjusted to sample rate */
 	UINT32	block_fnum;	/* current blk/fnum value for this slot (can be different betweeen slots of one channel in 3slot mode) */
 
 	/* LFO */
@@ -77,17 +77,17 @@ typedef struct
 	int		clock;		/* master clock  (Hz)   */
 	int		rate;		/* sampling rate (Hz)   */
 	double	freqbase;	/* 08 frequency base       */
-	UINT8	address;	/* 10 address register     */
-	UINT8	status;		/* 11 status flag          */
+	UINT8	address;	/* 10 address register | need_save     */
+	UINT8	status;		/* 11 status flag | need_save          */
 	UINT8	mode;		/* mode  CSM / 3SLOT    */
 	UINT8	fn_h;		/* freq latch           */
 	int		TA;			/* timer a              */
 	int		TAC;		/* timer a maxval       */
-	int		TAT;		/* timer a ticker       */
+	int		TAT;		/* timer a ticker | need_save */
 	UINT8	TB;			/* timer b              */
 	UINT8	pad[3];
 	int		TBC;		/* timer b maxval       */
-	int		TBT;		/* timer b ticker       */
+	int		TBT;		/* timer b ticker | need_save */
 	/* local time tables */
 	INT32	dt_tab[8][32];/* DeTune table       */
 } FM_ST;
@@ -112,12 +112,12 @@ typedef struct
 	FM_3SLOT SL3;			/* 3 slot mode state */
 	UINT32  pan;			/* fm channels output mask (bit 1 = enable) */
 
-	UINT32	eg_cnt;			/* #0xb38 global envelope generator counter */
-	UINT32	eg_timer;		/* #0xb3c global envelope generator counter works at frequency = chipclock/64/3 */
-	UINT32	eg_timer_add;	/* #0xb40 step of eg_timer */
+	UINT32	eg_cnt;			/* #0xb38 global envelope generator counter | need_save */
+	UINT32	eg_timer;		/* #0xb3c global envelope generator counter works at frequency = chipclock/64/3 | need_save */
+	UINT32	eg_timer_add;		/* #0xb40 step of eg_timer */
 
 	/* LFO */
-	UINT32	lfo_cnt;
+	UINT32	lfo_cnt;		/* need_save */
 	UINT32	lfo_inc;
 
 	UINT32	lfo_freq[8];	/* LFO FREQ table */
@@ -126,13 +126,13 @@ typedef struct
 /* here's the virtual YM2612 */
 typedef struct
 {
-	UINT8		REGS[0x200];		/* registers (for save states)       */
-	INT32		addr_A1;			/* address line A1      */
+	UINT8		REGS[0x200];			/* registers (for save states)       */
+	INT32		addr_A1;			/* address line A1 | need_save       */
 
 	FM_CH		CH[6];				/* channel state (0x168 bytes each)? */
 
 	/* dac output (YM2612) */
-	int			dacen;
+	int		dacen;
 	INT32		dacout;
 
 	FM_OPN		OPN;				/* OPN state            */
@@ -156,6 +156,8 @@ int  YM2612PicoTick_(int n);
 void YM2612PicoStateLoad_(void);
 
 void *YM2612GetRegs(void);
+void YM2612PicoStateSave2(int tat, int tbt);
+int  YM2612PicoStateLoad2(int *tat, int *tbt);
 
 #ifndef __GP2X__
 #define YM2612Init          YM2612Init_
