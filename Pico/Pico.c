@@ -156,6 +156,9 @@ int PicoReset(void)
 
   Pico.m.dirtyPal = 1;
 
+  Pico.m.z80_bank68k = 0;
+  memset(Pico.zram, 0, sizeof(Pico.zram)); // ??
+
   PicoDetectRegion();
   Pico.video.status = 0x3428 | Pico.m.pal; // 'always set' bits | vblank | collision | pal
 
