@@ -44,7 +44,7 @@ static void carthw_12in1_write8(unsigned int a, unsigned int d, int realsize)
 	a &= 0x3f; a <<= 16;
 	len = Pico.romsize - a;
 	if (len <= 0) {
-		elprintf(EL_ANOMALY, "12-in-1: missing bank @ %06x", a);
+		elprintf(EL_ANOMALY|EL_STATUS, "12-in-1: missing bank @ %06x", a);
 		return;
 	}
 
@@ -132,7 +132,7 @@ static void carthw_realtec_write8(unsigned int a, unsigned int d, int realsize)
 	}
 }
 
-void carthw_realtec_reset(void)
+static void carthw_realtec_reset(void)
 {
 	int i;
 	/* map boot code */
@@ -161,4 +161,65 @@ void carthw_realtec_startup(void)
 	PicoWrite8Hook = carthw_realtec_write8;
 	PicoResetHook = carthw_realtec_reset;
 }
+
+/* Radica mapper, based on DevSter's info
+ * http://devster.monkeeh.com/sega/radica/
+ */
+static unsigned int carthw_radica_baddr = 0;
+
+static carthw_state_chunk carthw_radica_state[] =
+{
+	{ CHUNK_CARTHW, sizeof(carthw_radica_baddr), &carthw_radica_baddr },
+	{ 0,            0,                           NULL }
+};
+
+static unsigned int carthw_radica_read16(unsigned int a, int realsize)
+{
+	if ((a & 0xffff80) != 0xa13000) {
+		elprintf(EL_UIO, "radica: r16 %06x", a);
+		return 0;
+	}
+
+	carthw_radica_baddr = a;
+	a = (a & 0x7e) << 15;
+	if (a >= Pico.romsize) {
+		elprintf(EL_ANOMALY|EL_STATUS, "radica: missing bank @ %06x", a);
+		return 0;
+	}
+	memcpy(Pico.rom, Pico.rom + Pico.romsize + a, Pico.romsize - a);
+
+	return 0;
+}
+
+static void carthw_radica_statef(void)
+{
+	carthw_radica_read16(carthw_radica_baddr, 0);
+}
+
+static void carthw_radica_reset(void)
+{
+	memcpy(Pico.rom, Pico.rom + Pico.romsize, Pico.romsize);
+}
+
+void carthw_radica_startup(void)
+{
+	void *tmp;
+
+	elprintf(EL_STATUS, "Radica mapper detected");
+
+	tmp = realloc(Pico.rom, Pico.romsize * 2);
+	if (tmp == NULL)
+	{
+		elprintf(EL_STATUS, "OOM");
+		return;
+	}
+	Pico.rom = tmp;
+	memcpy(Pico.rom + Pico.romsize, Pico.rom, Pico.romsize);
+
+	PicoRead16Hook = carthw_radica_read16;
+	PicoResetHook  = carthw_radica_reset;
+	PicoLoadStateHook = carthw_radica_statef;
+	carthw_chunks     = carthw_radica_state;
+}
+
 

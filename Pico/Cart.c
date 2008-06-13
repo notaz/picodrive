@@ -707,6 +707,12 @@ static void PicoCartDetect(void)
     carthw_realtec_startup();
   }
 
+  // Radica mapper
+  else if (name_cmp("KID CHAMELEON") == 0 && Pico.romsize > 0x100000)
+  {
+    carthw_radica_startup();
+  }
+
   // Some games malfunction if SRAM is not filled with 0xff
   if (name_cmp("DINO DINI'S SOCCER") == 0 ||
       name_cmp("MICRO MACHINES II") == 0)

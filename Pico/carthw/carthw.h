@@ -20,3 +20,4 @@ void PicoSVPWrite16(unsigned int a, unsigned int d, int realsize);
 /* misc */
 void carthw_12in1_startup(void);
 void carthw_realtec_startup(void);
+void carthw_radica_startup(void);
