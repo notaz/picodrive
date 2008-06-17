@@ -479,15 +479,17 @@ void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new);
 void ym2612_pack_state(void);
 void ym2612_unpack_state(void);
 
+#define TIMER_NO_OFLOW 0x70000000
+
 #define timers_cycle() \
-  if (timer_a_next_oflow > 0 && timer_a_next_oflow < 0x70000000) \
+  if (timer_a_next_oflow > 0 && timer_a_next_oflow < TIMER_NO_OFLOW) \
     timer_a_next_oflow -= Pico.m.pal ? 70938*256 : 59659*256; \
-  if (timer_b_next_oflow > 0 && timer_b_next_oflow < 0x70000000) \
+  if (timer_b_next_oflow > 0 && timer_b_next_oflow < TIMER_NO_OFLOW) \
     timer_b_next_oflow -= Pico.m.pal ? 70938*256 : 59659*256; \
   ym2612_sync_timers(0, ym2612.OPN.ST.mode, ym2612.OPN.ST.mode);
 
 #define timers_reset() \
-  timer_a_next_oflow = timer_b_next_oflow = 0x70000000; \
+  timer_a_next_oflow = timer_b_next_oflow = TIMER_NO_OFLOW; \
   timer_a_step = timer_a_offset = 16495 * 1024; \
   timer_b_step = timer_b_offset = 263912 * 256;
 

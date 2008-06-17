@@ -63,7 +63,6 @@ static int PicoFrameHints(void)
 #ifdef PICO_CD
   SekCyclesResetS68k();
 #endif
-  timers_cycle();
   PsndDacLine = 0;
 
   pv->status&=~0x88; // clear V-Int, come out of vblank
@@ -241,9 +240,11 @@ static int PicoFrameHints(void)
 
   // sync z80
   if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
-    PicoSyncZ80(Pico.m.pal ? 151809 : 127671); // cycles adjusted for convertor
+    PicoSyncZ80(Pico.m.pal ? 151809 : 127671); // cycles adjusted for converter
   if (PsndOut && ym2612.dacen && PsndDacLine <= lines-1)
     PsndDoDAC(lines-1);
+
+  timers_cycle();
 
   return 0;
 }

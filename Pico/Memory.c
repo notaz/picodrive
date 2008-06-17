@@ -720,14 +720,14 @@ void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new)
 
   /* update timer a */
   if (mode_old & 1)
-    while (xcycles >= timer_a_next_oflow)
+    while (xcycles > timer_a_next_oflow)
       timer_a_next_oflow += timer_a_step;
 
   if ((mode_old ^ mode_new) & 1) // turning on/off
   {
     if (mode_old & 1) {
       timer_a_offset = timer_a_next_oflow - xcycles;
-      timer_a_next_oflow = 0x70000000;
+      timer_a_next_oflow = TIMER_NO_OFLOW;
     }
     else
       timer_a_next_oflow = xcycles + timer_a_offset;
@@ -737,14 +737,14 @@ void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new)
 
   /* update timer b */
   if (mode_old & 2)
-    while (xcycles >= timer_b_next_oflow)
+    while (xcycles > timer_b_next_oflow)
       timer_b_next_oflow += timer_b_step;
 
   if ((mode_old ^ mode_new) & 2)
   {
     if (mode_old & 2) {
       timer_b_offset = timer_b_next_oflow - xcycles;
-      timer_b_next_oflow = 0x70000000;
+      timer_b_next_oflow = TIMER_NO_OFLOW;
     }
     else
       timer_b_next_oflow = xcycles + timer_b_offset;
@@ -796,9 +796,8 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           {
             //elprintf(EL_STATUS, "timer a set %i", TAnew);
             ym2612.OPN.ST.TA = TAnew;
-            ym2612.OPN.ST.TAC = (1024-TAnew)*18;
+            //ym2612.OPN.ST.TAC = (1024-TAnew)*18;
             //ym2612.OPN.ST.TAT = 0;
-            //
             timer_a_step = timer_a_offset = 16466 * (1024 - TAnew);
             if (ym2612.OPN.ST.mode & 1) {
               int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
@@ -812,7 +811,7 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           if (ym2612.OPN.ST.TB != d) {
             //elprintf(EL_STATUS, "timer b set %i", d);
             ym2612.OPN.ST.TB = d;
-            ym2612.OPN.ST.TBC = (256-d) * 288;
+            //ym2612.OPN.ST.TBC = (256-d) * 288;
             //ym2612.OPN.ST.TBT  = 0;
             timer_b_step = timer_b_offset = 262800 * (256 - d); // 262881
             if (ym2612.OPN.ST.mode & 2) {
@@ -913,18 +912,28 @@ u32 ym2612_read_local_68k(void)
 
 void ym2612_pack_state(void)
 {
-  // TODO timers
+  // timers are saved as tick counts, in 16.16 int format
+  int tac, tat = 0, tbc, tbt = 0;
+  tac = 1024 - ym2612.OPN.ST.TA;
+  tbc = 256  - ym2612.OPN.ST.TB;
+  if (timer_a_next_oflow != TIMER_NO_OFLOW)
+    tat = (int)((double)(timer_a_step - timer_a_next_oflow) / (double)timer_a_step * tac * 65536);
+  if (timer_b_next_oflow != TIMER_NO_OFLOW)
+    tbt = (int)((double)(timer_b_step - timer_b_next_oflow) / (double)timer_b_step * tbc * 65536);
+  elprintf(EL_YMTIMER, "save: timer a %i/%i", tat >> 16, tac);
+  elprintf(EL_YMTIMER, "save: timer b %i/%i", tbt >> 16, tbc);
+
 #ifdef __GP2X__
   if (PicoOpt & POPT_EXT_FM)
-    /*YM2612PicoStateSave2_940(0, 0)*/;
+    /*YM2612PicoStateSave2_940(tat, tbt)*/;
   else
 #endif
-    YM2612PicoStateSave2(0, 0);
+    YM2612PicoStateSave2(tat, tbt);
 }
 
 void ym2612_unpack_state(void)
 {
-  int i, ret, tat, tbt;
+  int i, ret, tac, tat, tbc, tbt;
   YM2612PicoStateLoad();
 
   // feed all the registers and update internal state
@@ -943,6 +952,20 @@ void ym2612_unpack_state(void)
   else
 #endif
     ret = YM2612PicoStateLoad2(&tat, &tbt);
+  if (ret != 0) return; // no saved timers
+
+  tac = (1024 - ym2612.OPN.ST.TA) << 16;
+  tbc = (256  - ym2612.OPN.ST.TB) << 16;
+  if (ym2612.OPN.ST.mode & 1)
+    timer_a_next_oflow = (double)(tac - tat) / (double)tac * timer_a_step;
+  else
+    timer_a_next_oflow = TIMER_NO_OFLOW;
+  if (ym2612.OPN.ST.mode & 2)
+    timer_b_next_oflow = (double)(tbc - tbt) / (double)tbc * timer_b_step;
+  else
+    timer_b_next_oflow = TIMER_NO_OFLOW;
+  elprintf(EL_YMTIMER, "load: %i/%i, timer_a_next_oflow %i", tat>>16, tac>>16, timer_a_next_oflow >> 8);
+  elprintf(EL_YMTIMER, "load: %i/%i, timer_b_next_oflow %i", tbt>>16, tbc>>16, timer_b_next_oflow >> 8);
 }
 
 // -----------------------------------------------------------------

@@ -378,7 +378,6 @@ static int PicoFrameSimple(void)
 
   SekCyclesReset();
   z80_resetCycles();
-  timers_cycle();
 
   // 6 button pad: let's just say it timed out now
   Pico.m.padTHPhase[0]=Pico.m.padTHPhase[1]=0;
@@ -493,6 +492,8 @@ static int PicoFrameSimple(void)
     PicoSyncZ80(SekCycleCnt);
   if (PsndOut && ym2612.dacen && PsndDacLine <= line_last)
     PsndDoDAC(line_last);
+
+  timers_cycle();
 
   return 0;
 }
