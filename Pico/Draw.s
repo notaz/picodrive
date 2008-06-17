@@ -1,9 +1,9 @@
 @ vim:filetype=armasm
 
-@ assembly "optimized" version of some funtions from draw.c
+@ ARM assembly versions of some funtions from draw.c
 @ this is highly specialized, be careful if changing related C code!
 
-@ (c) Copyright 2007, Grazvydas "notaz" Ignotas
+@ (c) Copyright 2007-2008, Grazvydas "notaz" Ignotas
 @ All Rights Reserved
 
 .include "port_config.s"
@@ -16,6 +16,7 @@
 .extern rendstatus
 .extern DrawLineDest
 .extern DrawStripInterlace
+.extern HighCacheS_ptr
 
 
 @ helper
@@ -64,10 +65,8 @@
 .endif
     ldreqb  r4, [r1,#\offs]
     orrne   r4, r3, r4
-    strneb  r4, [r1,#\offs]
-    tsteq   r4, #0x80
     andeq   r4, r4, #0x3f
-    streqb  r4, [r1,#\offs]
+    strb    r4, [r1,#\offs]
 .endm
 
 @ TileNormShHP (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: register with helper pattern 0xf, touches r3 high bits
@@ -155,24 +154,17 @@
 .else
     ands    r4, r12, r2
 .endif
-    beq     3f
+    beq     0f
     cmp     r4, #0xe
-    beq     2f
-    bgt     1f
-    orr     r4, r3, r4
+    ldrgeb  r4, [r1,#\ofs]
+    orrlt   r4, r3, r4            @ normal
+
+    biceq   r4, r4, #0xc0         @ hilight
+    orreq   r4, r4, #0x80
+    orrgt   r4, r4, #0xc0         @ shadow
+
     strb    r4, [r1,#\ofs]
-    b       3f
-1:
-    ldrb    r4, [r1,#\ofs]        @ 2ci
-    orr     r4, r4, #0xc0
-    strb    r4, [r1,#\ofs]
-    b       3f
-2:
-    ldrb    r4, [r1,#\ofs]        @ 2ci
-    bic     r4, r4, #0xc0
-    orr     r4, r4, #0x80
-    strb    r4, [r1,#\ofs]
-3:
+0:
 .endm
 
 @ TileFlipSh (r1=pdest, r2=pixels8, r3=pal) r4,r7: scratch, r0=sx, r12: register with helper pattern 0xf
@@ -197,6 +189,80 @@
     TileDoShGenPixel 24,  5 @ #0x0f000000
     TileDoShGenPixel 20,  6 @ #0x00f00000
     TileDoShGenPixel 16,  7 @ #0x000f0000
+.endm
+
+.macro TileDoShGenPixel_noop shift ofs
+.if \shift
+    and     r4, r12, r2, lsr #\shift
+.else
+    and     r4, r12, r2
+.endif
+    sub     r7, r4, #1
+    cmp     r7, #0xd
+    orrcc   r4, r3, r4           @ 0-0xc (was 1-0xd)
+    strccb  r4, [r1,#\ofs]
+.endm
+
+.macro TileFlipSh_noop
+    TileDoShGenPixel_noop 16,  0 @ #0x000f0000
+    TileDoShGenPixel_noop 20,  1 @ #0x00f00000
+    TileDoShGenPixel_noop 24,  2 @ #0x0f000000
+    TileDoShGenPixel_noop 28,  3 @ #0xf0000000
+    TileDoShGenPixel_noop  0,  4 @ #0x0000000f
+    TileDoShGenPixel_noop  4,  5 @ #0x000000f0
+    TileDoShGenPixel_noop  8,  6 @ #0x00000f00
+    TileDoShGenPixel_noop 12,  7 @ #0x0000f000
+.endm
+
+.macro TileNormSh_noop
+    TileDoShGenPixel_noop 12,  0 @ #0x0000f000
+    TileDoShGenPixel_noop  8,  1 @ #0x00000f00
+    TileDoShGenPixel_noop  4,  2 @ #0x000000f0
+    TileDoShGenPixel_noop  0,  3 @ #0x0000000f
+    TileDoShGenPixel_noop 28,  4 @ #0xf0000000
+    TileDoShGenPixel_noop 24,  5 @ #0x0f000000
+    TileDoShGenPixel_noop 20,  6 @ #0x00f00000
+    TileDoShGenPixel_noop 16,  7 @ #0x000f0000
+.endm
+
+.macro TileDoShGenPixel_onlyop_lp shift ofs
+.if \shift
+    ands    r7, r12, r2, lsr #\shift
+.else
+    ands    r7, r12, r2
+.endif
+    ldrneb  r4, [r1,#\ofs]
+    tstne   r4, #0x40
+    beq     0f
+
+    cmp     r7, #0xe
+    biceq   r4, r4, #0xc0         @ hilight
+    orreq   r4, r4, #0x80
+    orrgt   r4, r4, #0xc0         @ shadow
+    strgeb  r4, [r1,#\ofs]
+0:
+.endm
+
+.macro TileFlipSh_onlyop_lp
+    TileDoShGenPixel_onlyop_lp 16,  0 @ #0x000f0000
+    TileDoShGenPixel_onlyop_lp 20,  1 @ #0x00f00000
+    TileDoShGenPixel_onlyop_lp 24,  2 @ #0x0f000000
+    TileDoShGenPixel_onlyop_lp 28,  3 @ #0xf0000000
+    TileDoShGenPixel_onlyop_lp  0,  4 @ #0x0000000f
+    TileDoShGenPixel_onlyop_lp  4,  5 @ #0x000000f0
+    TileDoShGenPixel_onlyop_lp  8,  6 @ #0x00000f00
+    TileDoShGenPixel_onlyop_lp 12,  7 @ #0x0000f000
+.endm
+
+.macro TileNormSh_onlyop_lp
+    TileDoShGenPixel_onlyop_lp 12,  0 @ #0x0000f000
+    TileDoShGenPixel_onlyop_lp  8,  1 @ #0x00000f00
+    TileDoShGenPixel_onlyop_lp  4,  2 @ #0x000000f0
+    TileDoShGenPixel_onlyop_lp  0,  3 @ #0x0000000f
+    TileDoShGenPixel_onlyop_lp 28,  4 @ #0xf0000000
+    TileDoShGenPixel_onlyop_lp 24,  5 @ #0x0f000000
+    TileDoShGenPixel_onlyop_lp 20,  6 @ #0x00f00000
+    TileDoShGenPixel_onlyop_lp 16,  7 @ #0x000f0000
 .endm
 
 
@@ -798,39 +864,25 @@ DrawTilesFromCache:
     b       .dtfc_loop
 
 .dtfc_shadow_blank:
-    ldrb    r4, [r1]        @ 1ci
-    ldrb    r12,[r1,#1]
-    tst     r4, #0x80
-    andeq   r4, r4,#0x3f
-    streqb  r4, [r1]
-    tst     r12,#0x80
-    ldrb    r4, [r1,#2]
-    andeq   r12,r12,#0x3f
-    streqb  r12,[r1,#1]
-    tst     r4, #0x80
-    ldrb    r12,[r1,#3]
-    andeq   r4, r4,#0x3f
-    streqb  r4, [r1,#2]
-    tst     r12,#0x80
-    ldrb    r4, [r1,#4]
-    andeq   r12,r12,#0x3f
-    streqb  r12,[r1,#3]
-    tst     r4, #0x80
-    ldrb    r12,[r1,#5]
-    andeq   r4, r4,#0x3f
-    streqb  r4, [r1,#4]
-    tst     r12,#0x80
-    ldrb    r4, [r1,#6]
-    andeq   r12,r12,#0x3f
-    streqb  r12,[r1,#5]
-    tst     r4, #0x80
-    ldrb    r12,[r1,#7]
-    andeq   r4, r4,#0x3f
-    streqb  r4, [r1,#6]
-    tst     r12,#0x80
-    andeq   r12,r12,#0x3f
-    streqb  r12,[r1,#7]
-    mov     r12, #0xf
+    tst     r1, #1
+    ldrneb  r4, [r1]
+    mov     r6, #0x3f
+    and     r4, r4, #0x3f
+    strneb  r4, [r1], #1
+    ldrh    r4, [r1]
+    orr     r6, r6, r6, lsl #8
+    and     r4, r4, r6
+    strh    r4, [r1], #2
+    ldrh    r4, [r1]
+    and     r4, r4, r6
+    strh    r4, [r1], #2
+    ldrh    r4, [r1]
+    and     r4, r4, r6
+    strh    r4, [r1], #2
+    ldrh    r4, [r1]
+    and     r4, r4, r6
+    streqh  r4, [r1]
+    strneb  r4, [r1]
     b       .dtfc_loop
 
 .dtfc_cut_tile:
@@ -865,31 +917,22 @@ DrawTilesFromCache:
     str     r2, [r1]
 
     add     r1, r11,#8
-    mov     r3, #320/4
-    mov     r7, #0x80
-    orr     r7, r7, r7, lsl #8
-    orr     r7, r7, r7, lsl #16
+    mov     r3, #320/4/4
     mov     r6, #0x3f
     orr     r6, r6, r6, lsl #8
     orr     r6, r6, r6, lsl #16
 .dtfc_loop_shprep:
+    ldmia   r1, {r2,r4,r5,r7}
     subs    r3, r3, #1
-    bmi     .dtfc_loop      @ done
-    ldr     r2, [r1]
-    tst     r2, r7
-    andeq   r2, r2, r6
-    streq   r2, [r1], #4
-    beq     .dtfc_loop_shprep
-    tst     r2,     #0x80000000
-    biceq   r2, r2, #0xc0000000
-    tst     r2,     #0x00800000
-    biceq   r2, r2, #0x00c00000
-    tst     r2,     #0x00008000
-    biceq   r2, r2, #0x0000c000
-    tst     r2,     #0x00000080
-    biceq   r2, r2, #0x000000c0
-    str     r2, [r1], #4
-    b       .dtfc_loop_shprep
+    and     r2, r2, r6
+    and     r4, r4, r6
+    and     r5, r5, r6
+    and     r7, r7, r6
+    stmia   r1!,{r2,r4,r5,r7}
+    bne     .dtfc_loop_shprep
+
+    mvn     r5, #0         @ r5=prevcode=-1
+    b       .dtfc_loop
 
 .pool
 
@@ -998,6 +1041,9 @@ DrawSpritesFromCache:
     b       .dsfc_inloop
 
 .dsfc_shadow:
+    tst     r9, #0x80000000
+    beq     .dsfc_shadow_lowpri
+
     cmp     r2, r2, ror #4
     beq     .dsfc_singlec_sh
 
@@ -1025,6 +1071,18 @@ DrawSpritesFromCache:
     TileSingleSh
     b       .dsfc_inloop
 
+.dsfc_shadow_lowpri:
+    tst     r9, #0x10000
+    bne     .dsfc_TileFlip_sh_lp
+
+.dsfc_TileNorm_sh_lp:
+    TileNormSh_onlyop_lp
+    b       .dsfc_inloop
+
+.dsfc_TileFlip_sh_lp:
+    TileFlipSh_onlyop_lp
+    b       .dsfc_inloop
+
 .pool
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1032,12 +1090,12 @@ DrawSpritesFromCache:
 @ + 0  :    hhhhvvvv ab--hhvv yyyyyyyy yyyyyyyy // a: offscreen h, b: offs. v, h: horiz. size
 @ + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-.global DrawSprite @ unsigned int *sprite, int **hc, int sh, int acc_sprites
+.global DrawSprite @ unsigned int *sprite, int sh, int acc_sprites
 
 DrawSprite:
     stmfd   sp!, {r4-r9,r11,lr}
 
-    orr     r8, r3, r2, lsl #4
+    orr     r8, r2, r1, lsl #4
     ldr     r3, [r0]        @ sprite[0]
     ldr     r7, =Scanline
     mov     r6, r3, lsr #28
@@ -1061,20 +1119,23 @@ DrawSprite:
     subne   r4, r4, #1
     subne   r7, r4, r7      @ if (code&0x1000) row=(height<<3)-1-row; // Flip Y
 
-    mov     r8, r9, lsl #21
-    mov     r8, r8, lsr #21
-    add     r8, r8, r7, lsr #3 @ tile+=row>>3; // Tile number increases going down
-    
+    add     r8, r9, r7, lsr #3 @ tile+=row>>3; // Tile number increases going down
     tst     r9, #0x0800
     mlane   r8, r5, r6, r8  @ if (code&0x0800) { tile+=delta*(width-1);
     rsbne   r5, r5, #0      @ delta=-delta; } // r5=delta now
 
-    mov     r8, r8, lsl #4
+    mov     r8, r8, lsl #21
+    mov     r8, r8, lsr #17
     and     r7, r7, #7
     add     r8, r8, r7, lsl #1 @ tile+=(row&7)<<1; // Tile address
 
     tst     r9, #0x8000
-    bne     .dspr_cache       @ if(code&0x8000) // high priority - cache it
+    tsteq   r9, #(1<<27)
+    bne     .dspr_cache       @ if(code&0x8000) || as
+    tst     r6, #0x4000
+    tstne   r6, #0x2000
+    tstne   r9, #(1<<31)
+    bne     .dspr_cache       @ (sh && pal == 0x30)
 
 .dspr_continue:
     @ cache some stuff to avoid mem access
@@ -1138,6 +1199,10 @@ DrawSprite:
     TileFlip r12
     b       .dspr_loop
 
+.dspr_singlec_sh:
+    cmp     r2, #0xe0000000
+    bcs     .dspr_loop          @ operator tileline, ignore
+
 .dspr_SingleColor:
     and     r4, r2, #0xf
     orr     r4, r3, r4
@@ -1160,28 +1225,17 @@ DrawSprite:
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
 .dspr_TileNorm_sh:
-    TileNormSh
+    TileNormSh_noop
     b       .dspr_loop
 
 .dspr_TileFlip_sh:
-    TileFlipSh
-    b       .dspr_loop
-
-.dspr_singlec_sh:
-    cmp     r2, #0xe0000000
-    bcc     .dspr_SingleColor   @ normal tileline
-    tst     r2, #0x10000000
-    bne     .dspr_sh_sh
-    TileSingleHi
-    b       .dspr_loop
-
-.dspr_sh_sh:
-    TileSingleSh
+    TileFlipSh_noop
     b       .dspr_loop
 
 
 .dspr_cache:
-    @ *(*hc)++ = (tile<<16)|((code&0x0800)<<5)|((sx<<6)&0x0000ffc0)|((code>>9)&0x30)|((sprite[0]>>24)&0xf);
+    @ *HighCacheS_ptr++ = ((code&0x8000)<<16)|(tile<<16)|((code&0x0800)<<5)|((sx<<6)&0x0000ffc0)|pal|((sprite[0]>>16)&0xf);
+    ldr     r1, =HighCacheS_ptr
     mov     r4, r8, lsl #16     @ tile
     tst     r9, #0x0800
     orrne   r4, r4, #0x10000    @ code&0x0800
@@ -1190,16 +1244,19 @@ DrawSprite:
     and     r0, r9, #0x6000
     orr     r4, r4, r0, lsr #9  @ (code>>9)&0x30
     mov     r3, r3, lsl #12
-    ldr     r0, [r1]
     orr     r4, r4, r3, lsr #28 @ (sprite[0]>>24)&0xf
+
+    ldr     r0, [r1]
+    tst     r9, #0x8000
+    orrne   r4, r4, #0x80000000 @ prio
 
     str     r4, [r0], #4
     str     r0, [r1]
 
-    tst     r9, #(1<<27)
-    ldmeqfd sp!, {r4-r9,r11,lr}
-    bne     .dspr_continue      @ draw anyway if accurate sprites enabled
-    bxeq    lr
+    and     r0, r9, #(1<<27)    @ as
+    teqne   r0,     #(1<<27)    @ (code&0x8000) && !as
+    ldmnefd sp!, {r4-r9,r11,pc}
+    b       .dspr_continue      @ draw anyway if accurate sprites enabled
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
@@ -1229,19 +1286,17 @@ DrawWindow:
 
     ldr     r6, =rendstatus
     ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
-    ldrb    r6, [r6]
+    ldr     r6, [r6]
 
     @ fetch the first code now
     ldrh    r7, [lr, r12]
 
     ands    r6, r6, #2            @ we care about bit 1 only
     orr     r6, r6, r2
-    bne     .dw_no_sameprio
 
-    cmp     r2, r7, lsr #15
-    ldmnefd sp!, {r4-r11,pc}      @ assume that whole window uses same priority
+    teqne   r2, r7, lsr #15       @ do prio bits differ?
+    ldmnefd sp!, {r4-r11,pc}      @ yes, assume that whole window uses same priority
 
-.dw_no_sameprio:
     orr     r6, r6, r3, lsl #8    @ shadow mode
 
     sub     r8, r1, r0
@@ -1258,11 +1313,11 @@ DrawWindow:
     mov     r8, r8, lsl #1        @ cells
     mvn     r9, #0                @ r9=prevcode=-1
 .endif
-    add     r1, r11, r0, lsl #4 @ r1=pdest
+    add     r1, r11, r0, lsl #4   @ r1=pdest
     mov     r0, #0xf
     b       .dwloop_enter
 
-    @ r4,r5 & r7 are scratch in this loop
+    @ r4,r5 are scratch in this loop
 .dwloop:
     add     r1, r1, #8
 .dwloop_nor1:
@@ -1328,24 +1383,13 @@ DrawWindow:
     orreq   r3, r3, #0x40
     beq     .dw_shadow_done
     ldr     r4, [r1]
-    tst     r4, #0x00000080
-    biceq   r4, r4, #0x000000c0
-    tst     r4, #0x00008000
-    biceq   r4, r4, #0x0000c000
-    tst     r4, #0x00800000
-    biceq   r4, r4, #0x00c00000
-    tst     r4, #0x80000000
-    biceq   r4, r4, #0xc0000000
+    mov     r5, #0x3f
+    orr     r5, r5, r5, lsl #8
+    orr     r5, r5, r5, lsl #16
+    and     r4, r4, r5
     str     r4, [r1]
     ldr     r4, [r1,#4]
-    tst     r4, #0x00000080
-    biceq   r4, r4, #0x000000c0
-    tst     r4, #0x00008000
-    biceq   r4, r4, #0x0000c000
-    tst     r4, #0x00800000
-    biceq   r4, r4, #0x00c00000
-    tst     r4, #0x80000000
-    biceq   r4, r4, #0xc0000000
+    and     r4, r4, r5
     str     r4, [r1,#4]
     b       .dw_shadow_done
 
