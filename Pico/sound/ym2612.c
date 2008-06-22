@@ -1907,8 +1907,6 @@ typedef struct
 } ym_save_addon2;
 
 
-//static YM2612 check_ym;
-
 void YM2612PicoStateSave2(int tat, int tbt)
 {
 	ym_save_addon_slot ss;
@@ -1935,7 +1933,7 @@ void YM2612PicoStateSave2(int tat, int tbt)
 	refresh_fc_eg_chan( &ym2612.CH[5] );
 
 	memset(&sa, 0, sizeof(sa));
-//memcpy(&check_ym, &ym2612, sizeof(ym2612));
+	memset(&sa2, 0, sizeof(sa2));
 
 	// chans 1,2,3
 	ptr = &ym2612.REGS[0x0b8];
@@ -2028,7 +2026,6 @@ int YM2612PicoStateLoad2(int *tat, int *tbt)
 			ym2612.CH[c].SLOT[s].volume = ss.volume;
 			ym2612.CH[c].SLOT[s].key = (sa.keyon_field & (1 << (c*4 + s))) ? 1 : 0;
 			ym2612.CH[c].SLOT[s].ksr = (UINT8)-1;
-//ym2612.CH[c].SLOT[s].Incr = check_ym.CH[c].SLOT[s].Incr;
 			ptr += 6;
 		}
 		ym2612.CH[c].SLOT[SLOT1].Incr=-1;
@@ -2049,7 +2046,6 @@ int YM2612PicoStateLoad2(int *tat, int *tbt)
 			ym2612.CH[c].SLOT[s].volume = ss.volume;
 			ym2612.CH[c].SLOT[s].key = (sa.keyon_field & (1 << (c*4 + s))) ? 1 : 0;
 			ym2612.CH[c].SLOT[s].ksr = (UINT8)-1;
-//ym2612.CH[c].SLOT[s].Incr = check_ym.CH[c].SLOT[s].Incr;
 			ptr += 6;
 		}
 		ym2612.CH[c].SLOT[SLOT1].Incr=-1;
@@ -2067,64 +2063,6 @@ int YM2612PicoStateLoad2(int *tat, int *tbt)
 		ym2612.OPN.SL3.kcode[c]= (blk<<2) | opn_fktable[fn >> 7];
 		ym2612.OPN.SL3.fc[c] = fn_table[fn*2]>>(7-blk);
 	}
-
-#if 0
-	refresh_fc_eg_chan( &ym2612.CH[0] );
-	refresh_fc_eg_chan( &ym2612.CH[1] );
-	if( (ym2612.OPN.ST.mode & 0xc0) )
-	{
-		/* 3SLOT MODE */
-		if( ym2612.CH[2].SLOT[SLOT1].Incr==-1)
-		{
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT1], ym2612.OPN.SL3.fc[1], ym2612.OPN.SL3.kcode[1] );
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT2], ym2612.OPN.SL3.fc[2], ym2612.OPN.SL3.kcode[2] );
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT3], ym2612.OPN.SL3.fc[0], ym2612.OPN.SL3.kcode[0] );
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT4], ym2612.CH[2].fc , ym2612.CH[2].kcode );
-		}
-	} else refresh_fc_eg_chan( &ym2612.CH[2] );
-	refresh_fc_eg_chan( &ym2612.CH[3] );
-	refresh_fc_eg_chan( &ym2612.CH[4] );
-	refresh_fc_eg_chan( &ym2612.CH[5] );
-
-	for (c = 0; c < 6; c++)
-	{
-		for (s = 0; s < 4; s++)
-		{
-			int i;
-			unsigned char *chk = ((unsigned char *) &check_ym.CH[c].SLOT[s]);
-			unsigned char *res = ((unsigned char *) &ym2612.CH[c].SLOT[s]);
-
-			for (i = 0; i < sizeof(check_ym.CH[0].SLOT[0]); i++)
-			{
-				if (i != 0x0c && chk[i] != res[i])
-					printf("ch[%i].slot[%i].%03x: %02x vs %02x\n", c, s, i, chk[i], res[i]);
-			}
-		}
-
-		{
-			int i;
-			unsigned char *chk = ((unsigned char *) &check_ym.CH[c].ALGO);
-			unsigned char *res = ((unsigned char *) &ym2612.CH[c].ALGO);
-
-			for (i = 0; i < 8*4; i++)
-			{
-				if ((i < 4 || i > 0x0b) && chk[i] != res[i])
-					printf("ch[%i].%03x: %02x vs %02x\n", c, i, chk[i], res[i]);
-			}
-		}
-	}
-
-	for (c = 0; c < sizeof(ym2612.OPN); c++)
-	{
-		unsigned char *chk = ((unsigned char *) &check_ym.OPN);
-		unsigned char *res = ((unsigned char *) &ym2612.OPN);
-
-		if (chk[c] != res[c])
-		{
-			printf("OPN: %03x: %02x vs %02x\n", c, chk[c], res[c]);
-		}
-	}
-#endif
 
 	return 0;
 }
