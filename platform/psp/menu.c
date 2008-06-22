@@ -1627,6 +1627,7 @@ static void menu_loop_root(void)
 					if (rom_loaded) {
 						if(savestate_menu_loop(1))
 							continue;
+						while (psp_pad_read(1) & BTN_CIRCLE) psp_msleep(50);
 						engineState = PGS_Running;
 						return;
 					}
@@ -1634,6 +1635,7 @@ static void menu_loop_root(void)
 				case MA_MAIN_RESET_GAME:
 					if (rom_loaded) {
 						emu_ResetGame();
+						while (psp_pad_read(1) & BTN_CIRCLE) psp_msleep(50);
 						engineState = PGS_Running;
 						return;
 					}

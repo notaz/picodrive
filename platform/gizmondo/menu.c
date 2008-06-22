@@ -1430,6 +1430,7 @@ static void menu_loop_root(void)
 					if (rom_loaded) {
 						if(savestate_menu_loop(1))
 							continue;
+						while (Framework_PollGetButtons() & BTN_PLAY) Sleep(50);
 						engineState = PGS_Running;
 						return;
 					}
@@ -1437,6 +1438,7 @@ static void menu_loop_root(void)
 				case MA_MAIN_RESET_GAME:
 					if (rom_loaded) {
 						emu_ResetGame();
+						while (Framework_PollGetButtons() & BTN_PLAY) Sleep(50);
 						engineState = PGS_Running;
 						return;
 					}
