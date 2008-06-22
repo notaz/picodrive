@@ -30,7 +30,7 @@ typedef struct
 
 	/* Phase Generator */
 	UINT32	phase;		/* #0x0c phase counter | need_save */
-	UINT32	Incr;		/* #0x10 phase step | need_save */
+	UINT32	Incr;		/* #0x10 phase step */
 
 	UINT8	KSR;		/* #0x14 key scale rate  :3-KSR */
 	UINT8	ksr;		/* #0x15 key scale rate  :kcode>>(3-KSR) */
@@ -54,16 +54,16 @@ typedef struct
 {
 	FM_SLOT	SLOT[4];	/* four SLOTs (operators) */
 
-	UINT8	ALGO;		/* algorithm */
+	UINT8	ALGO;		/* +00 algorithm */
 	UINT8	FB;		/* feedback shift */
 	INT32	op1_out;	/* op1 output for feedback */
 
-	INT32	mem_value;	/* delayed sample (MEM) value */
+	INT32	mem_value;	/* +08 delayed sample (MEM) value */
 
 	INT32	pms;		/* channel PMS */
 	UINT8	ams;		/* channel AMS */
 
-	UINT8	kcode;		/* key code:                        */
+	UINT8	kcode;		/* +11 key code:                        */
 	UINT32	fc;		/* fnum,blk:adjusted to sample rate */
 	UINT32	block_fnum;	/* current blk/fnum value for this slot (can be different betweeen slots of one channel in 3slot mode) */
 

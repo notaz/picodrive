@@ -937,11 +937,23 @@ void ym2612_unpack_state(void)
   YM2612PicoStateLoad();
 
   // feed all the registers and update internal state
-  for (i = 0x20; i < 0xB8; i++) {
+  for (i = 0x20; i < 0xA0; i++) {
     ym2612_write_local(0, i, 0);
     ym2612_write_local(1, ym2612.REGS[i], 0);
   }
-  for (i = 0x30; i < 0xB8; i++) {
+  for (i = 0x30; i < 0xA0; i++) {
+    ym2612_write_local(2, i, 0);
+    ym2612_write_local(3, ym2612.REGS[i|0x100], 0);
+  }
+  for (i = 0xAF; i >= 0xA0; i--) { // must apply backwards
+    ym2612_write_local(2, i, 0);
+    ym2612_write_local(3, ym2612.REGS[i|0x100], 0);
+    ym2612_write_local(0, i, 0);
+    ym2612_write_local(1, ym2612.REGS[i], 0);
+  }
+  for (i = 0xB0; i < 0xB8; i++) {
+    ym2612_write_local(0, i, 0);
+    ym2612_write_local(1, ym2612.REGS[i], 0);
     ym2612_write_local(2, i, 0);
     ym2612_write_local(3, ym2612.REGS[i|0x100], 0);
   }
@@ -952,7 +964,10 @@ void ym2612_unpack_state(void)
   else
 #endif
     ret = YM2612PicoStateLoad2(&tat, &tbt);
-  if (ret != 0) return; // no saved timers
+  if (ret != 0) {
+    elprintf(EL_STATUS, "old ym2612 state");
+    return; // no saved timers
+  }
 
   tac = (1024 - ym2612.OPN.ST.TA) << 16;
   tbc = (256  - ym2612.OPN.ST.TB) << 16;

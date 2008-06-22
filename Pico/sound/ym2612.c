@@ -889,7 +889,7 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 		{
 			int out = 0;
 
-			if (ct->pack&0xf000) out = ((ct->op1_out>>16) + (ct->op1_out<<16>>16)) << ((ct->pack&0xf000)>>12); /* op1_out0 + op1_out1 */
+			if (ct->pack&0xf000) out = ((ct->op1_out>>16) + ((ct->op1_out<<16)>>16)) << ((ct->pack&0xf000)>>12); /* op1_out0 + op1_out1 */
 			ct->op1_out <<= 16;
 			ct->op1_out |= (unsigned short)op_calc1(ct->phase1, eg_out, out);
 		} else {
@@ -1293,6 +1293,7 @@ static void reset_channels(FM_CH *CH)
 			CH[c].SLOT[s].state= EG_OFF;
 			CH[c].SLOT[s].volume = MAX_ATT_INDEX;
 		}
+		CH[c].mem_value = CH[c].op1_out = 0;
 	}
 	ym2612.slot_mask = 0;
 }
@@ -1481,17 +1482,17 @@ static int OPNWriteReg(int r, int v)
 		set_ar_ksr(CH,SLOT,v);
 		break;
 
-	case 0x60:	/* bit7 = AM ENABLE, DR */
+	case 0x60:	/* bit7 = AM ENABLE, DR | depends on ksr */
 		set_dr(SLOT,v);
 		if(v&0x80) CH->AMmasks |=   1<<OPN_SLOT(r);
 		else       CH->AMmasks &= ~(1<<OPN_SLOT(r));
 		break;
 
-	case 0x70:	/*     SR */
+	case 0x70:	/*     SR | depends on ksr */
 		set_sr(SLOT,v);
 		break;
 
-	case 0x80:	/* SL, RR */
+	case 0x80:	/* SL, RR | depends on ksr */
 		set_sl_rr(SLOT,v);
 		break;
 
@@ -1502,7 +1503,7 @@ static int OPNWriteReg(int r, int v)
 
 	case 0xa0:
 		switch( OPN_SLOT(r) ){
-		case 0:		/* 0xa0-0xa2 : FNUM1 */
+		case 0:		/* 0xa0-0xa2 : FNUM1 | depends on fn_h (below) */
 			{
 				UINT32 fn = (((UINT32)( (ym2612.OPN.ST.fn_h)&7))<<8) + v;
 				UINT8 blk = ym2612.OPN.ST.fn_h>>3;
@@ -1530,7 +1531,7 @@ static int OPNWriteReg(int r, int v)
 				ym2612.OPN.SL3.kcode[c]= (blk<<2) | opn_fktable[fn >> 7];
 				/* phase increment counter */
 				ym2612.OPN.SL3.fc[c] = fn_table[fn*2]>>(7-blk);
-				ym2612.OPN.SL3.block_fnum[c] = fn;
+				ym2612.OPN.SL3.block_fnum[c] = (blk<<11) | fn;
 				ym2612.CH[2].SLOT[SLOT1].Incr=-1;
 			}
 			break;
@@ -1872,6 +1873,7 @@ void YM2612PicoStateLoad_(void)
 	ym2612.slot_mask = 0xffffff;
 }
 
+/* rather stupid design because I wanted to fit in unused register "space" */
 typedef struct
 {
 	UINT32  state_phase;
@@ -1887,19 +1889,53 @@ typedef struct
 	UINT8   unused;
 	int     TAT;
 	int     TBT;
-	UINT32  eg_cnt;
+	UINT32  eg_cnt;		// 10
 	UINT32  eg_timer;
 	UINT32  lfo_cnt;
 	UINT16  lfo_ampm;
-	UINT16  unused2;
+	UINT8   fn_h;
+	UINT8   fn_h_sl3;
+	UINT32  keyon_field;	// 20
+	UINT32  kcode_fc_sl3_3;
 } ym_save_addon;
+
+typedef struct
+{
+	UINT16  block_fnum[6];
+	UINT16  block_fnum_sl3[3];
+	UINT16  unused;
+} ym_save_addon2;
+
+
+//static YM2612 check_ym;
 
 void YM2612PicoStateSave2(int tat, int tbt)
 {
 	ym_save_addon_slot ss;
+	ym_save_addon2 sa2;
 	ym_save_addon sa;
 	unsigned char *ptr;
 	int c, s;
+
+	refresh_fc_eg_chan( &ym2612.CH[0] );
+	refresh_fc_eg_chan( &ym2612.CH[1] );
+	if( (ym2612.OPN.ST.mode & 0xc0) )
+	{
+		/* 3SLOT MODE */
+		if( ym2612.CH[2].SLOT[SLOT1].Incr==-1)
+		{
+			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT1], ym2612.OPN.SL3.fc[1], ym2612.OPN.SL3.kcode[1] );
+			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT2], ym2612.OPN.SL3.fc[2], ym2612.OPN.SL3.kcode[2] );
+			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT3], ym2612.OPN.SL3.fc[0], ym2612.OPN.SL3.kcode[0] );
+			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT4], ym2612.CH[2].fc , ym2612.CH[2].kcode );
+		}
+	} else refresh_fc_eg_chan( &ym2612.CH[2] );
+	refresh_fc_eg_chan( &ym2612.CH[3] );
+	refresh_fc_eg_chan( &ym2612.CH[4] );
+	refresh_fc_eg_chan( &ym2612.CH[5] );
+
+	memset(&sa, 0, sizeof(sa));
+//memcpy(&check_ym, &ym2612, sizeof(ym2612));
 
 	// chans 1,2,3
 	ptr = &ym2612.REGS[0x0b8];
@@ -1908,9 +1944,12 @@ void YM2612PicoStateSave2(int tat, int tbt)
 		for (s = 0; s < 4; s++) {
 			ss.state_phase = (ym2612.CH[c].SLOT[s].state << 29) | (ym2612.CH[c].SLOT[s].phase >> 3);
 			ss.volume = ym2612.CH[c].SLOT[s].volume;
+			if (ym2612.CH[c].SLOT[s].key)
+				sa.keyon_field |= 1 << (c*4 + s);
 			memcpy(ptr, &ss, 6);
 			ptr += 6;
 		}
+		sa2.block_fnum[c] = ym2612.CH[c].block_fnum;
 	}
 	// chans 4,5,6
 	ptr = &ym2612.REGS[0x1b8];
@@ -1919,10 +1958,20 @@ void YM2612PicoStateSave2(int tat, int tbt)
 		for (s = 0; s < 4; s++) {
 			ss.state_phase = (ym2612.CH[c].SLOT[s].state << 29) | (ym2612.CH[c].SLOT[s].phase >> 3);
 			ss.volume = ym2612.CH[c].SLOT[s].volume;
+			if (ym2612.CH[c].SLOT[s].key)
+				sa.keyon_field |= 1 << (c*4 + s);
 			memcpy(ptr, &ss, 6);
 			ptr += 6;
 		}
+		sa2.block_fnum[c] = ym2612.CH[c].block_fnum;
 	}
+	for (c = 0; c < 3; c++)
+	{
+		sa2.block_fnum_sl3[c] = ym2612.OPN.SL3.block_fnum[c];
+	}
+
+	memcpy(&ym2612.REGS[0], &sa2, sizeof(sa2)); // 0x20 max
+
 	// other things
 	ptr = &ym2612.REGS[0x100];
 	sa.magic = 0x41534d59; // 'YMSA'
@@ -1936,20 +1985,27 @@ void YM2612PicoStateSave2(int tat, int tbt)
 	sa.eg_timer = ym2612.OPN.eg_timer;
 	sa.lfo_cnt  = ym2612.OPN.lfo_cnt;
 	sa.lfo_ampm = g_lfo_ampm;
-	sa.unused2  = 0;
+	sa.fn_h     = ym2612.REGS[0xa4] = ym2612.OPN.ST.fn_h;
+	sa.fn_h_sl3 = ym2612.REGS[0xac] = ym2612.OPN.SL3.fn_h;
 	memcpy(ptr, &sa, sizeof(sa)); // 0x30 max
 }
 
 int YM2612PicoStateLoad2(int *tat, int *tbt)
 {
 	ym_save_addon_slot ss;
+	ym_save_addon2 sa2;
 	ym_save_addon sa;
 	unsigned char *ptr;
+	UINT32 fn;
+	UINT8 blk;
 	int c, s;
 
 	ptr = &ym2612.REGS[0x100];
 	memcpy(&sa, ptr, sizeof(sa)); // 0x30 max
 	if (sa.magic != 0x41534d59) return -1;
+
+	ptr = &ym2612.REGS[0];
+	memcpy(&sa2, ptr, sizeof(sa2));
 
 	ym2612.OPN.ST.address = sa.address;
 	ym2612.OPN.ST.status = sa.status;
@@ -1970,8 +2026,17 @@ int YM2612PicoStateLoad2(int *tat, int *tbt)
 			ym2612.CH[c].SLOT[s].state = ss.state_phase >> 29;
 			ym2612.CH[c].SLOT[s].phase = ss.state_phase << 3;
 			ym2612.CH[c].SLOT[s].volume = ss.volume;
+			ym2612.CH[c].SLOT[s].key = (sa.keyon_field & (1 << (c*4 + s))) ? 1 : 0;
+			ym2612.CH[c].SLOT[s].ksr = (UINT8)-1;
+//ym2612.CH[c].SLOT[s].Incr = check_ym.CH[c].SLOT[s].Incr;
 			ptr += 6;
 		}
+		ym2612.CH[c].SLOT[SLOT1].Incr=-1;
+		ym2612.CH[c].block_fnum = sa2.block_fnum[c];
+		fn = ym2612.CH[c].block_fnum & 0x7ff;
+		blk = ym2612.CH[c].block_fnum >> 11;
+		ym2612.CH[c].kcode= (blk<<2) | opn_fktable[fn >> 7];
+		ym2612.CH[c].fc = fn_table[fn*2]>>(7-blk);
 	}
 	// chans 4,5,6
 	ptr = &ym2612.REGS[0x1b8];
@@ -1982,9 +2047,84 @@ int YM2612PicoStateLoad2(int *tat, int *tbt)
 			ym2612.CH[c].SLOT[s].state = ss.state_phase >> 29;
 			ym2612.CH[c].SLOT[s].phase = ss.state_phase << 3;
 			ym2612.CH[c].SLOT[s].volume = ss.volume;
+			ym2612.CH[c].SLOT[s].key = (sa.keyon_field & (1 << (c*4 + s))) ? 1 : 0;
+			ym2612.CH[c].SLOT[s].ksr = (UINT8)-1;
+//ym2612.CH[c].SLOT[s].Incr = check_ym.CH[c].SLOT[s].Incr;
 			ptr += 6;
 		}
+		ym2612.CH[c].SLOT[SLOT1].Incr=-1;
+		ym2612.CH[c].block_fnum = sa2.block_fnum[c];
+		fn = ym2612.CH[c].block_fnum & 0x7ff;
+		blk = ym2612.CH[c].block_fnum >> 11;
+		ym2612.CH[c].kcode= (blk<<2) | opn_fktable[fn >> 7];
+		ym2612.CH[c].fc = fn_table[fn*2]>>(7-blk);
 	}
+	for (c = 0; c < 3; c++)
+	{
+		ym2612.OPN.SL3.block_fnum[c] = sa2.block_fnum_sl3[c];
+		fn = ym2612.OPN.SL3.block_fnum[c] & 0x7ff;
+		blk = ym2612.OPN.SL3.block_fnum[c] >> 11;
+		ym2612.OPN.SL3.kcode[c]= (blk<<2) | opn_fktable[fn >> 7];
+		ym2612.OPN.SL3.fc[c] = fn_table[fn*2]>>(7-blk);
+	}
+
+#if 0
+	refresh_fc_eg_chan( &ym2612.CH[0] );
+	refresh_fc_eg_chan( &ym2612.CH[1] );
+	if( (ym2612.OPN.ST.mode & 0xc0) )
+	{
+		/* 3SLOT MODE */
+		if( ym2612.CH[2].SLOT[SLOT1].Incr==-1)
+		{
+			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT1], ym2612.OPN.SL3.fc[1], ym2612.OPN.SL3.kcode[1] );
+			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT2], ym2612.OPN.SL3.fc[2], ym2612.OPN.SL3.kcode[2] );
+			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT3], ym2612.OPN.SL3.fc[0], ym2612.OPN.SL3.kcode[0] );
+			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT4], ym2612.CH[2].fc , ym2612.CH[2].kcode );
+		}
+	} else refresh_fc_eg_chan( &ym2612.CH[2] );
+	refresh_fc_eg_chan( &ym2612.CH[3] );
+	refresh_fc_eg_chan( &ym2612.CH[4] );
+	refresh_fc_eg_chan( &ym2612.CH[5] );
+
+	for (c = 0; c < 6; c++)
+	{
+		for (s = 0; s < 4; s++)
+		{
+			int i;
+			unsigned char *chk = ((unsigned char *) &check_ym.CH[c].SLOT[s]);
+			unsigned char *res = ((unsigned char *) &ym2612.CH[c].SLOT[s]);
+
+			for (i = 0; i < sizeof(check_ym.CH[0].SLOT[0]); i++)
+			{
+				if (i != 0x0c && chk[i] != res[i])
+					printf("ch[%i].slot[%i].%03x: %02x vs %02x\n", c, s, i, chk[i], res[i]);
+			}
+		}
+
+		{
+			int i;
+			unsigned char *chk = ((unsigned char *) &check_ym.CH[c].ALGO);
+			unsigned char *res = ((unsigned char *) &ym2612.CH[c].ALGO);
+
+			for (i = 0; i < 8*4; i++)
+			{
+				if ((i < 4 || i > 0x0b) && chk[i] != res[i])
+					printf("ch[%i].%03x: %02x vs %02x\n", c, i, chk[i], res[i]);
+			}
+		}
+	}
+
+	for (c = 0; c < sizeof(ym2612.OPN); c++)
+	{
+		unsigned char *chk = ((unsigned char *) &check_ym.OPN);
+		unsigned char *res = ((unsigned char *) &ym2612.OPN);
+
+		if (chk[c] != res[c])
+		{
+			printf("OPN: %03x: %02x vs %02x\n", c, chk[c], res[c]);
+		}
+	}
+#endif
 
 	return 0;
 }
