@@ -56,6 +56,7 @@ typedef struct
 
 	UINT8	ALGO;		/* +00 algorithm */
 	UINT8	FB;		/* feedback shift */
+	UINT8	pad[2];
 	INT32	op1_out;	/* op1 output for feedback */
 
 	INT32	mem_value;	/* +08 delayed sample (MEM) value */
@@ -64,12 +65,14 @@ typedef struct
 	UINT8	ams;		/* channel AMS */
 
 	UINT8	kcode;		/* +11 key code:                        */
+	UINT8   fn_h;		/* freq latch           */
+	UINT8	pad2;
 	UINT32	fc;		/* fnum,blk:adjusted to sample rate */
 	UINT32	block_fnum;	/* current blk/fnum value for this slot (can be different betweeen slots of one channel in 3slot mode) */
 
 	/* LFO */
 	UINT8	AMmasks;	/* AM enable flag */
-
+	UINT8	pad3[3];
 } FM_CH;
 
 typedef struct
@@ -80,12 +83,12 @@ typedef struct
 	UINT8	address;	/* 10 address register | need_save     */
 	UINT8	status;		/* 11 status flag | need_save          */
 	UINT8	mode;		/* mode  CSM / 3SLOT    */
-	UINT8	fn_h;		/* freq latch           */
+	UINT8	pad;
 	int		TA;			/* timer a              */
 	int		TAC;		/* timer a maxval       */
 	int		TAT;		/* timer a ticker | need_save */
 	UINT8	TB;			/* timer b              */
-	UINT8	pad[3];
+	UINT8	pad2[3];
 	int		TBC;		/* timer b maxval       */
 	int		TBT;		/* timer b ticker | need_save */
 	/* local time tables */
@@ -112,9 +115,9 @@ typedef struct
 	FM_3SLOT SL3;			/* 3 slot mode state */
 	UINT32  pan;			/* fm channels output mask (bit 1 = enable) */
 
-	UINT32	eg_cnt;			/* #0xb38 global envelope generator counter | need_save */
-	UINT32	eg_timer;		/* #0xb3c global envelope generator counter works at frequency = chipclock/64/3 | need_save */
-	UINT32	eg_timer_add;		/* #0xb40 step of eg_timer */
+	UINT32	eg_cnt;			/* global envelope generator counter | need_save */
+	UINT32	eg_timer;		/* global envelope generator counter works at frequency = chipclock/64/3 | need_save */
+	UINT32	eg_timer_add;		/* step of eg_timer */
 
 	/* LFO */
 	UINT32	lfo_cnt;		/* need_save */
@@ -129,7 +132,7 @@ typedef struct
 	UINT8		REGS[0x200];			/* registers (for save states)       */
 	INT32		addr_A1;			/* address line A1 | need_save       */
 
-	FM_CH		CH[6];				/* channel state (0x168 bytes each)? */
+	FM_CH		CH[6];				/* channel state */
 
 	/* dac output (YM2612) */
 	int		dacen;

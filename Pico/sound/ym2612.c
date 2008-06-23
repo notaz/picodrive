@@ -381,7 +381,7 @@ static const UINT8 dt_tab[4 * 32]={
 	5, 6, 6, 7, 8, 8, 9,10,11,12,13,14,16,16,16,16,
 /* FD=3 */
 	2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 6, 6, 7,
-	8 , 8, 9,10,11,12,13,14,16,17,19,20,22,22,22,22
+	8 ,8, 9,10,11,12,13,14,16,17,19,20,22,22,22,22
 };
 
 
@@ -1152,9 +1152,9 @@ static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: s
 			UINT32 fn;
 			int kc,fc;
 
+			blk = block_fnum >> 11;
 			block_fnum = block_fnum*2 + lfo_fn_table_index_offset;
 
-			blk = (block_fnum&0x7000) >> 12;
 			fn  = block_fnum & 0xfff;
 
 			/* keyscale code */
@@ -1203,10 +1203,14 @@ static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: s
 /* update phase increment and envelope generator */
 INLINE void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
 {
-	int ksr;
+	int ksr, fdt;
 
 	/* (frequency) phase increment counter */
-	SLOT->Incr = ((fc+SLOT->DT[kc])*SLOT->mul) >> 1;
+	fdt = fc+SLOT->DT[kc];
+	/* detect overflow */
+//	if (fdt < 0) fdt += fn_table[0x7ff*2] >> (7-blk-1);
+	if (fdt < 0) fdt += fn_table[0x7ff*2] >> 2;
+	SLOT->Incr = fdt*SLOT->mul >> 1;
 
 	ksr = kc >> SLOT->KSR;
 	if( SLOT->ksr != ksr )
@@ -1255,6 +1259,17 @@ INLINE void refresh_fc_eg_chan(FM_CH *CH)
 		refresh_fc_eg_slot(&CH->SLOT[SLOT2] , fc , kc );
 		refresh_fc_eg_slot(&CH->SLOT[SLOT3] , fc , kc );
 		refresh_fc_eg_slot(&CH->SLOT[SLOT4] , fc , kc );
+	}
+}
+
+INLINE void refresh_fc_eg_chan_sl3(void)
+{
+	if( ym2612.CH[2].SLOT[SLOT1].Incr==-1)
+	{
+		refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT1], ym2612.OPN.SL3.fc[1], ym2612.OPN.SL3.kcode[1] );
+		refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT2], ym2612.OPN.SL3.fc[2], ym2612.OPN.SL3.kcode[2] );
+		refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT3], ym2612.OPN.SL3.fc[0], ym2612.OPN.SL3.kcode[0] );
+		refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT4], ym2612.CH[2].fc , ym2612.CH[2].kcode );
 	}
 }
 
@@ -1428,7 +1443,6 @@ static void OPNSetPres(int pres)
 
 	ym2612.OPN.eg_timer_add  = (1<<EG_SH) * ym2612.OPN.ST.freqbase;
 
-
 	/* make time tables */
 	init_timetables( dt_tab );
 
@@ -1505,8 +1519,8 @@ static int OPNWriteReg(int r, int v)
 		switch( OPN_SLOT(r) ){
 		case 0:		/* 0xa0-0xa2 : FNUM1 | depends on fn_h (below) */
 			{
-				UINT32 fn = (((UINT32)( (ym2612.OPN.ST.fn_h)&7))<<8) + v;
-				UINT8 blk = ym2612.OPN.ST.fn_h>>3;
+				UINT32 fn = (((UINT32)( (CH->fn_h)&7))<<8) + v;
+				UINT8 blk = CH->fn_h>>3;
 				/* keyscale code */
 				CH->kcode = (blk<<2) | opn_fktable[fn >> 7];
 				/* phase increment counter */
@@ -1519,7 +1533,7 @@ static int OPNWriteReg(int r, int v)
 			}
 			break;
 		case 1:		/* 0xa4-0xa6 : FNUM2,BLK */
-			ym2612.OPN.ST.fn_h = v&0x3f;
+			CH->fn_h = v&0x3f;
 			ret = 0;
 			break;
 		case 2:		/* 0xa8-0xaa : 3CH FNUM1 */
@@ -1619,16 +1633,10 @@ int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 	refresh_fc_eg_chan( &ym2612.CH[0] );
 	refresh_fc_eg_chan( &ym2612.CH[1] );
 	if( (ym2612.OPN.ST.mode & 0xc0) )
-	{
 		/* 3SLOT MODE */
-		if( ym2612.CH[2].SLOT[SLOT1].Incr==-1)
-		{
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT1], ym2612.OPN.SL3.fc[1], ym2612.OPN.SL3.kcode[1] );
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT2], ym2612.OPN.SL3.fc[2], ym2612.OPN.SL3.kcode[2] );
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT3], ym2612.OPN.SL3.fc[0], ym2612.OPN.SL3.kcode[0] );
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT4], ym2612.CH[2].fc , ym2612.CH[2].kcode );
-		}
-	} else refresh_fc_eg_chan( &ym2612.CH[2] );
+		refresh_fc_eg_chan_sl3();
+	else
+		refresh_fc_eg_chan( &ym2612.CH[2] );
 	refresh_fc_eg_chan( &ym2612.CH[3] );
 	refresh_fc_eg_chan( &ym2612.CH[4] );
 	refresh_fc_eg_chan( &ym2612.CH[5] );
@@ -1893,8 +1901,7 @@ typedef struct
 	UINT32  eg_timer;
 	UINT32  lfo_cnt;
 	UINT16  lfo_ampm;
-	UINT8   fn_h;
-	UINT8   fn_h_sl3;
+	UINT16  unused2;
 	UINT32  keyon_field;	// 20
 	UINT32  kcode_fc_sl3_3;
 } ym_save_addon;
@@ -1914,23 +1921,6 @@ void YM2612PicoStateSave2(int tat, int tbt)
 	ym_save_addon sa;
 	unsigned char *ptr;
 	int c, s;
-
-	refresh_fc_eg_chan( &ym2612.CH[0] );
-	refresh_fc_eg_chan( &ym2612.CH[1] );
-	if( (ym2612.OPN.ST.mode & 0xc0) )
-	{
-		/* 3SLOT MODE */
-		if( ym2612.CH[2].SLOT[SLOT1].Incr==-1)
-		{
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT1], ym2612.OPN.SL3.fc[1], ym2612.OPN.SL3.kcode[1] );
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT2], ym2612.OPN.SL3.fc[2], ym2612.OPN.SL3.kcode[2] );
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT3], ym2612.OPN.SL3.fc[0], ym2612.OPN.SL3.kcode[0] );
-			refresh_fc_eg_slot(&ym2612.CH[2].SLOT[SLOT4], ym2612.CH[2].fc , ym2612.CH[2].kcode );
-		}
-	} else refresh_fc_eg_chan( &ym2612.CH[2] );
-	refresh_fc_eg_chan( &ym2612.CH[3] );
-	refresh_fc_eg_chan( &ym2612.CH[4] );
-	refresh_fc_eg_chan( &ym2612.CH[5] );
 
 	memset(&sa, 0, sizeof(sa));
 	memset(&sa2, 0, sizeof(sa2));
@@ -1976,15 +1966,12 @@ void YM2612PicoStateSave2(int tat, int tbt)
 	sa.address = ym2612.OPN.ST.address;
 	sa.status  = ym2612.OPN.ST.status;
 	sa.addr_A1 = ym2612.addr_A1;
-	sa.unused  = 0;
 	sa.TAT     = tat;
 	sa.TBT     = tbt;
 	sa.eg_cnt  = ym2612.OPN.eg_cnt;
 	sa.eg_timer = ym2612.OPN.eg_timer;
 	sa.lfo_cnt  = ym2612.OPN.lfo_cnt;
 	sa.lfo_ampm = g_lfo_ampm;
-	sa.fn_h     = ym2612.REGS[0xa4] = ym2612.OPN.ST.fn_h;
-	sa.fn_h_sl3 = ym2612.REGS[0xac] = ym2612.OPN.SL3.fn_h;
 	memcpy(ptr, &sa, sizeof(sa)); // 0x30 max
 }
 
