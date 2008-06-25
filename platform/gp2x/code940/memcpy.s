@@ -36,33 +36,23 @@
 * POSSIBILITY OF SUCH DAMAGE.
 */
 
-/* This was modified by Jay Monkman <jmonkman@smoothsmoothie.com> to
-*   save and restore r12. This is necessary for RTEMS.
-*/
 /* #include <machine/asm.h>*/
 
-#define ENTRY(_LABEL) \
- .global _LABEL; _LABEL:
-
 .globl memcpy
+.globl _memcpy
 memcpy:
 
-@ ENTRY(gp2x_memcpy)
-stmfd sp!, {r0, r12, lr}
-@ bl _gp2x_memcpy
+stmfd sp!, {r0, lr}
 bl _memcpy
-ldmfd sp!, {r0, r12, pc}
-
+ldmfd sp!, {r0, pc}
 
 
 .globl memmove
 memmove:
 
-@ ENTRY(gp2x_memmove)
-stmfd sp!, {r0, r12, lr}
-@ bl _gp2x_memcpy
+stmfd sp!, {r0, lr}
 bl _memcpy
-ldmfd sp!, {r0, r12, pc}
+ldmfd sp!, {r0, pc}
 
 
 
@@ -101,7 +91,6 @@ ldmfd sp!, {r0, r12, pc}
 
 _memcpy:
 
-@ ENTRY(_gp2x_memcpy)
 /* Determine copy direction */
 cmp r1, r0
 bcc Lmemcpy_backwards

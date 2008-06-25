@@ -9,3 +9,5 @@ int  YM2612Write_940(unsigned int a, unsigned int v, int scanline);
 
 int  YM2612PicoTick_940(int n);
 void YM2612PicoStateLoad_940(void);
+void YM2612PicoStateSave2_940(int tat, int tbt);
+int  YM2612PicoStateLoad2_940(int *tat, int *tbt);

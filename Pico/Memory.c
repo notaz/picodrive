@@ -925,7 +925,7 @@ void ym2612_pack_state(void)
 
 #ifdef __GP2X__
   if (PicoOpt & POPT_EXT_FM)
-    /*YM2612PicoStateSave2_940(tat, tbt)*/;
+    YM2612PicoStateSave2_940(tat, tbt);
   else
 #endif
     YM2612PicoStateSave2(tat, tbt);
@@ -960,7 +960,7 @@ void ym2612_unpack_state(void)
 
 #ifdef __GP2X__
   if (PicoOpt & POPT_EXT_FM)
-    /*ret = YM2612PicoStateLoad2_940(&tat, &tbt)*/;
+    ret = YM2612PicoStateLoad2_940(&tat, &tbt);
   else
 #endif
     ret = YM2612PicoStateLoad2(&tat, &tbt);

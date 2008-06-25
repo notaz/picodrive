@@ -1779,11 +1779,11 @@ int YM2612Write_(unsigned int a, unsigned int v)
 				}
 				ret=0;
 				break;
+#endif
 			case 0x27:	/* mode, timer control */
 				set_timers( v );
 				ret=0;
 				break;
-#endif
 			case 0x28:	/* key on / off */
 				{
 					UINT8 c;
@@ -1797,7 +1797,6 @@ int YM2612Write_(unsigned int a, unsigned int v)
 					if(v&0x80) FM_KEYON(c,SLOT4); else FM_KEYOFF(c,SLOT4);
 					break;
 				}
-#if 0
 			case 0x2a:	/* DAC data (YM2612) */
 				ym2612.dacout = ((int)v - 0x80) << 6;	/* level unknown (notaz: 8 seems to be too much) */
 				ret=0;
@@ -1807,7 +1806,6 @@ int YM2612Write_(unsigned int a, unsigned int v)
 				ym2612.dacen = v & 0x80;
 				ret=0;
 				break;
-#endif
 			default:
 				break;
 			}
@@ -1904,13 +1902,14 @@ typedef struct
 	UINT16  unused2;
 	UINT32  keyon_field;	// 20
 	UINT32  kcode_fc_sl3_3;
+	UINT32  reserved[2];
 } ym_save_addon;
 
 typedef struct
 {
 	UINT16  block_fnum[6];
 	UINT16  block_fnum_sl3[3];
-	UINT16  unused;
+	UINT16  reserved[7];
 } ym_save_addon2;
 
 

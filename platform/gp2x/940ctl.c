@@ -33,7 +33,7 @@ _940_ctl_t *shared_ctl = 0;
 unsigned char *mp3_mem = 0;
 
 #define MP3_SIZE_MAX (0x400000 + 0x800000) // 12M
-#define CODE940_FILE "pico940_v2.bin"
+#define CODE940_FILE "pico940_v3.bin"
 
 int crashed_940 = 0;
 
@@ -69,7 +69,8 @@ int YM2612Write_940(unsigned int a, unsigned int v, int scanline)
 
 	//printf("%05i:%03i: ym w ([%i] %02x)\n", Pico.m.frame_count, Pico.m.scanline, a, v);
 
-	switch (a) {
+	switch (a)
+	{
 		case 0:	/* address port 0 */
 			if (addr_A1 == 0 && ST_address == v)
 				return 0; /* address already selected, don't send this command to 940 */
@@ -186,6 +187,61 @@ void YM2612PicoStateLoad_940(void)
 	addr_A1 = *(INT32 *) (REGS + 0x200);
 }
 
+void YM2612PicoStateSave2_940(int tat, int tbt)
+{
+	UINT8 *ym_remote_regs, *ym_local_regs;
+	add_job_940(JOB940_PICOSTATESAVE2);
+	if (CHECK_BUSY(JOB940_PICOSTATESAVE2)) wait_busy_940(JOB940_PICOSTATESAVE2);
+
+	ym_remote_regs = (UINT8 *) shared_ctl->writebuff0;
+	ym_local_regs  = YM2612GetRegs();
+	if (*(UINT32 *)(ym_remote_regs + 0x100) != 0x41534d59) {
+		printf("code940 didn't return valid save data\n");
+		return;
+	}
+
+	/* copy addin data only */
+	memcpy(ym_local_regs,         ym_remote_regs,         0x20);
+	memcpy(ym_local_regs + 0x100, ym_remote_regs + 0x100, 0x30);
+	memcpy(ym_local_regs + 0x0b8, ym_remote_regs + 0x0b8, 0x48);
+	memcpy(ym_local_regs + 0x1b8, ym_remote_regs + 0x1b8, 0x48);
+	*(INT32 *)(ym_local_regs + 0x108) = tat;
+	*(INT32 *)(ym_local_regs + 0x10c) = tbt;
+}
+
+int YM2612PicoStateLoad2_940(int *tat, int *tbt)
+{
+	UINT8 *ym_remote_regs, *ym_local_regs;
+	ym_local_regs  = YM2612GetRegs();
+	ym_remote_regs = (UINT8 *) shared_ctl->writebuff0;
+
+	if (*(UINT32 *)(ym_local_regs + 0x100) != 0x41534d59)
+		return -1;
+
+	*tat = *(INT32 *)(ym_local_regs + 0x108);
+	*tbt = *(INT32 *)(ym_local_regs + 0x10c);
+
+	if (CHECK_BUSY(JOB940_YM2612UPDATEONE)) wait_busy_940(JOB940_YM2612UPDATEONE);
+
+	/* flush writes */
+	if (shared_ctl->writebuffsel == 1) {
+		shared_ctl->writebuff0[writebuff_ptr & 0xffff] = 0xffff;
+	} else {
+		shared_ctl->writebuff1[writebuff_ptr & 0xffff] = 0xffff;
+	}
+	shared_ctl->writebuffsel ^= 1;
+	writebuff_ptr = 0;
+	add_job_940(JOB940_PICOSTATELOAD2_PREP);
+	if (CHECK_BUSY(JOB940_PICOSTATELOAD2_PREP)) wait_busy_940(JOB940_PICOSTATELOAD2_PREP);
+
+	memcpy(ym_remote_regs, ym_local_regs, 0x200);
+
+	add_job_940(JOB940_PICOSTATELOAD2);
+	if (CHECK_BUSY(JOB940_PICOSTATELOAD2)) wait_busy_940(JOB940_PICOSTATELOAD2);
+
+	return 0;
+}
+
 
 static void internal_reset(void)
 {
@@ -200,7 +256,7 @@ void sharedmem_init(void)
 	if (shared_mem != NULL) return;
 
 	shared_mem = (unsigned char *) mmap(0, 0x210000, PROT_READ|PROT_WRITE, MAP_SHARED, memdev, 0x2000000);
-	if(shared_mem == MAP_FAILED)
+	if (shared_mem == MAP_FAILED)
 	{
 		printf("mmap(shared_data) failed with %i\n", errno);
 		exit(1);
@@ -230,7 +286,6 @@ void sharedmem_deinit(void)
 
 extern char **g_argv;
 
-/* none of the functions in this file should be called before this one */
 void YM2612Init_940(int baseclock, int rate)
 {
 	printf("YM2612Init_940()\n");

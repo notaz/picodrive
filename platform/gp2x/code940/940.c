@@ -18,6 +18,8 @@ void drain_wb(void);
 // is changed by other core just before we update it
 void set_if_not_changed(int *val, int oldval, int newval);
 
+void _memcpy(void *dst, const void *src, int count);
+
 //	asm volatile ("mov r0, #0" ::: "r0");
 //	asm volatile ("mcr p15, 0, r0, c7, c6,  0" ::: "r0"); /* flush dcache */
 //	asm volatile ("mcr p15, 0, r0, c7, c10, 4" ::: "r0"); /* drain write buffer */
@@ -58,6 +60,26 @@ static void mp3_decode(void)
 	set_if_not_changed(&shared_ctl->mp3_offs, mp3_offs, readPtr - mp3_data);
 }
 
+static void ym_flush_writes(void)
+{
+	UINT16 *wbuff;
+	int i;
+
+	if (shared_ctl->writebuffsel == 1) {
+		wbuff = shared_ctl->writebuff1;
+	} else {
+		wbuff = shared_ctl->writebuff0;
+	}
+
+	/* playback all writes */
+	for (i = 2048; i > 0; i--) {
+		UINT16 d = *wbuff++;
+		if (d == 0xffff) break;
+		if (d == 0xfffe) continue;
+		YM2612Write_(d >> 8, d);
+	}
+}
+
 static void ym_update(int *ym_buffer)
 {
 	int i, dw;
@@ -86,7 +108,8 @@ static void ym_update(int *ym_buffer)
 		YM2612Write_(d >> 8, d);
 	}
 
-	if (two_upds) {
+	if (two_upds)
+	{
 		int len1 = shared_ctl->length / 2;
 		shared_ctl->ym_active_chs =
 			YM2612UpdateOne_(ym_buffer, len1, shared_ctl->stereo, 1);
@@ -143,6 +166,20 @@ void Main940(void)
 
 			case JOB940_PICOSTATELOAD:
 				YM2612PicoStateLoad_();
+				break;
+
+			case JOB940_PICOSTATESAVE2:
+				YM2612PicoStateSave2(0, 0);
+				_memcpy(shared_ctl->writebuff0, ym2612_940->REGS, 0x200);
+				break;
+
+			case JOB940_PICOSTATELOAD2_PREP:
+				ym_flush_writes();
+				break;
+
+			case JOB940_PICOSTATELOAD2:
+				_memcpy(ym2612_940->REGS, shared_ctl->writebuff0, 0x200);
+				YM2612PicoStateLoad2(0, 0);
 				break;
 
 			case JOB940_YM2612UPDATEONE:

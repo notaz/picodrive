@@ -18,16 +18,16 @@ AS = $(CROSS)as
 LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
-BIN = pico940_v2.bin
+BIN = pico940_v3.bin
 
 all: $(BIN)
 
 
 .c.o:
-	@echo $<
+	@echo ">>>" $<
 	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
 .s.o:
-	@echo $<
+	@echo ">>>" $<
 	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
 
 
@@ -44,23 +44,23 @@ OBJS940 += uClibc/s_scalbn.o uClibc/s_copysign.o uClibc/k_sin.o uClibc/k_cos.o u
 OBJS940 += uClibc/e_rem_pio2.o uClibc/k_rem_pio2.o uClibc/e_log.o uClibc/wrappers.o
 
 $(BIN) : code940.gpe
-	@echo $@
-	@$(OBJCOPY) -O binary $< $@
+	@echo ">>>" $@
+	$(OBJCOPY) -O binary $< $@
 
 code940.gpe : $(OBJS940) ../../common/helix/helix_mp3.a
-	@echo $@
-	@$(LD) -static -e code940 -Ttext 0x0 $^ -L$(lgcc_path) -lgcc -o $@ -Map code940.map
+	@echo ">>>" $@
+	$(LD) -static -e code940 -Ttext 0x0 $^ -L$(lgcc_path) -lgcc -o $@ -Map code940.map
 
 940ym2612.o : ../../../Pico/sound/ym2612.c
-	@echo $@
-	@$(GCC) $(COPT) -Os $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
+	@echo ">>>" $@
+	$(GCC) $(COPT) -Os $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
 
 mix.o : ../../../Pico/sound/mix.s
-	@echo $@
-	@$(GCC) $(COPT) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
+	@echo ">>>" $@
+	$(GCC) $(COPT) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
 misc.o : ../../../Pico/Misc.s
-	@echo $@
-	@$(GCC) $(COPT) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
+	@echo ">>>" $@
+	$(GCC) $(COPT) $(DEFINC) -DEXTERNAL_YM2612 -c $< -o $@
 
 ../../common/helix/helix_mp3.a:
 	@make -C ../../common/helix/
