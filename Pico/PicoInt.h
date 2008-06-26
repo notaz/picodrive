@@ -480,6 +480,10 @@ void ym2612_pack_state(void);
 void ym2612_unpack_state(void);
 
 #define TIMER_NO_OFLOW 0x70000000
+// tA =   72 * (1024 - NA) / M
+#define TIMER_A_TICK_ZCYCLES  17203
+// tB = 1152 * (256 - NA) / M
+#define TIMER_B_TICK_ZCYCLES 262800 // 275251 broken, see Dai Makaimura
 
 #define timers_cycle() \
   if (timer_a_next_oflow > 0 && timer_a_next_oflow < TIMER_NO_OFLOW) \
@@ -490,8 +494,8 @@ void ym2612_unpack_state(void);
 
 #define timers_reset() \
   timer_a_next_oflow = timer_b_next_oflow = TIMER_NO_OFLOW; \
-  timer_a_step = timer_a_offset = 16495 * 1024; \
-  timer_b_step = timer_b_offset = 263912 * 256;
+  timer_a_step = timer_a_offset = TIMER_A_TICK_ZCYCLES * 1024; \
+  timer_b_step = timer_b_offset = TIMER_B_TICK_ZCYCLES * 256;
 
 
 // VideoPort.c

@@ -53,6 +53,16 @@ void YM2612PicoStateLoad_940(void)
 	}
 }
 
+void YM2612PicoStateSave2_940(int tat, int tbt)
+{
+	YM2612PicoStateSave2(tat, tbt);
+}
+
+int YM2612PicoStateLoad2_940(int *tat, int *tbt)
+{
+	return YM2612PicoStateLoad2(tat, tbt);
+}
+
 
 void sharedmem_init(void)
 {

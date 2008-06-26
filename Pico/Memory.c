@@ -798,7 +798,7 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             ym2612.OPN.ST.TA = TAnew;
             //ym2612.OPN.ST.TAC = (1024-TAnew)*18;
             //ym2612.OPN.ST.TAT = 0;
-            timer_a_step = timer_a_offset = 16466 * (1024 - TAnew);
+            timer_a_step = timer_a_offset = TIMER_A_TICK_ZCYCLES * (1024 - TAnew);
             if (ym2612.OPN.ST.mode & 1) {
               int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
               timer_a_next_oflow = (cycles << 8) + timer_a_step;
@@ -813,7 +813,7 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             ym2612.OPN.ST.TB = d;
             //ym2612.OPN.ST.TBC = (256-d) * 288;
             //ym2612.OPN.ST.TBT  = 0;
-            timer_b_step = timer_b_offset = 262800 * (256 - d); // 262881
+            timer_b_step = timer_b_offset = TIMER_B_TICK_ZCYCLES * (256 - d); // 262800
             if (ym2612.OPN.ST.mode & 2) {
               int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
               timer_b_next_oflow = (cycles << 8) + timer_b_step;
