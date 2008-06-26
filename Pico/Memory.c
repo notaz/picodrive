@@ -839,7 +839,7 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
 
           if ((d ^ old_mode) & 0xc0) {
 #ifdef __GP2X__
-            if (PicoOpt & POPT_EXT_FM) YM2612Write_940(a, d, get_scanline(is_from_z80));
+            if (PicoOpt & POPT_EXT_FM) return YM2612Write_940(a, d, get_scanline(is_from_z80));
 #endif
             return 1;
           }

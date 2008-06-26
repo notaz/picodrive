@@ -82,10 +82,6 @@ int YM2612Write_940(unsigned int a, unsigned int v, int scanline)
 			upd = 0;
 			break;
 
-		case 1:	/* data port 0    */
-			if (ST_address == 0x2b) upd = 0; /* DAC sel */
-			break;
-
 		case 2:	/* address port 1 */
 			if (addr_A1 == 1 && ST_address == v)
 				return 0;
@@ -403,8 +399,8 @@ int YM2612UpdateOne_940(int *buffer, int length, int stereo, int is_buf_empty)
 
 	/* predict sample counter for next frame */
 	if (PsndLen_exc_add) {
-		if (PsndLen_exc_cnt + PsndLen_exc_add >= 0x10000) length = PsndLen + 1;
-		else length = PsndLen;
+		length = PsndLen;
+		if (PsndLen_exc_cnt + PsndLen_exc_add >= 0x10000) length++;
 	}
 
 	/* give 940 ym job */
