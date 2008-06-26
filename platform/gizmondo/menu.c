@@ -48,16 +48,17 @@ static unsigned int inp_prev = 0;
 
 static unsigned long wait_for_input(unsigned int interesting)
 {
-	unsigned int ret;
-	static int repeats = 0, wait = 50;
+	unsigned long ret;
+	static int repeats = 0, wait = 20;
 	int release = 0, i;
 
-	if (repeats == 2 || repeats == 4) wait /= 2;
-	if (repeats == 6) wait = 15;
+	if      (repeats == 2) wait = 3;
+	else if (repeats == 4) wait = 2;
+	else if (repeats == 6) wait = 1;
 
-	for (i = 0; i < 6 && inp_prev == Framework_PollGetButtons(); i++) {
+	for (i = 0; i < wait && inp_prev == Framework_PollGetButtons(); i++) {
 		if (i == 0) repeats++;
-		Sleep(wait);
+		Sleep(30);
 	}
 
 	while ( !((ret = Framework_PollGetButtons()) & interesting) ) {
@@ -67,8 +68,10 @@ static unsigned long wait_for_input(unsigned int interesting)
 
 	if (release || ret != inp_prev) {
 		repeats = 0;
-		wait = 50;
+		wait = 20;
 	}
+	if (wait > 6 && (ret&(BTN_UP|BTN_LEFT|BTN_DOWN|BTN_RIGHT)))
+		wait = 6;
 	inp_prev = ret;
 
 	// we don't need diagonals in menus

@@ -52,7 +52,7 @@ static unsigned int inp_prev = 0;
 static unsigned long wait_for_input(unsigned int interesting, int is_key_config)
 {
 	unsigned int ret;
-	static int repeats = 0, wait = 6;
+	static int repeats = 0, wait = 20;
 	int release = 0, count, i;
 
 	if (!is_key_config)
@@ -76,12 +76,14 @@ static unsigned long wait_for_input(unsigned int interesting, int is_key_config)
 
 	if (release || ret != inp_prev) {
 		repeats = 0;
-		wait = 6;
+		wait = 20;
 	}
 	inp_prev = ret;
 
 	if (!is_key_config)
 		ret |= (ret & 0xf0000000) >> 24; // use analog as d-pad
+	if (wait > 6 && (ret&(BTN_UP|BTN_LEFT|BTN_DOWN|BTN_RIGHT)))
+		wait = 6;
 
 	// we don't need diagonals in menus
 	if ((ret&BTN_UP)   && (ret&BTN_LEFT))  ret &= ~BTN_LEFT;

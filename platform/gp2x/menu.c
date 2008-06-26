@@ -46,7 +46,7 @@ static int inp_prevjoy = 0;
 static unsigned long wait_for_input(unsigned long interesting)
 {
 	unsigned long ret;
-	static int repeats = 0, wait = 6;
+	static int repeats = 0, wait = 20;
 	int release = 0, i;
 
 	if      (repeats == 2) wait = 3;
@@ -65,8 +65,10 @@ static unsigned long wait_for_input(unsigned long interesting)
 
 	if (release || ret != inp_prev) {
 		repeats = 0;
-		wait = 6;
+		wait = 20;
 	}
+	if (wait > 6 && (ret&(GP2X_UP|GP2X_LEFT|GP2X_DOWN|GP2X_RIGHT)))
+		wait = 6;
 	inp_prev = ret;
 	inp_prevjoy = 0;
 
