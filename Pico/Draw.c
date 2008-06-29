@@ -772,6 +772,8 @@ static void DrawAllSpritesInterlace(int *hcache, int maxwidth, int pri, int sh)
   // Go through sprites backwards:
   for (i-- ;i>=0; i--)
     DrawSpriteInterlace(sprites[i]);
+
+  HighCacheS[0] = 1; // just to fool main code
 }
 
 

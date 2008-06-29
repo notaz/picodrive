@@ -1132,8 +1132,8 @@ DrawSprite:
     tst     r9, #0x8000
     tsteq   r9, #(1<<27)
     bne     .dspr_cache       @ if(code&0x8000) || as
-    tst     r6, #0x4000
-    tstne   r6, #0x2000
+    tst     r9, #0x4000
+    tstne   r9, #0x2000
     tstne   r9, #(1<<31)
     bne     .dspr_cache       @ (sh && pal == 0x30)
 
@@ -1294,8 +1294,9 @@ DrawWindow:
     ands    r6, r6, #2            @ we care about bit 1 only
     orr     r6, r6, r2
 
-    teqne   r2, r7, lsr #15       @ do prio bits differ?
-    ldmnefd sp!, {r4-r11,pc}      @ yes, assume that whole window uses same priority
+    eoreq   r8, r2, r7, lsr #15   @ do prio bits differ?
+    cmpeq   r8, #1
+    ldmeqfd sp!, {r4-r11,pc}      @ yes, assume that whole window uses same priority
 
     orr     r6, r6, r3, lsl #8    @ shadow mode
 
