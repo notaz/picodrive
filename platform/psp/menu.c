@@ -1515,7 +1515,7 @@ static void draw_menu_credits(void)
 	text_out16(tl_x, (y+=10), "ps2dev.org people: PSP SDK/code");
 	text_out16(tl_x, (y+=10), "ketchupgun: skin design");
 
-	text_out16(tl_x, (y+=20), "special thanks (for code, docs, ideas):");
+	text_out16(tl_x, (y+=20), "special thanks (for docs, ideas):");
 	text_out16(tl_x, (y+=10), " Charles MacDonald, Haze,");
 	text_out16(tl_x, (y+=10), " Stephane Dallongeville,");
 	text_out16(tl_x, (y+=10), " Lordus, Exophase, Rokas,");
