@@ -332,6 +332,8 @@ void gp2x_init(void)
 	}
 	gp2x_memregl = (unsigned long *) gp2x_memregs;
 
+	gp2x_memregs[0x2880>>1] &= ~0x383; // disable cursor, subpict, osd, video layers
+
   	gp2x_screens[0] = mmap(0, FRAMEBUFF_WHOLESIZE, PROT_WRITE, MAP_SHARED, memdev, FRAMEBUFF_ADDR0);
 	if(gp2x_screens[0] == MAP_FAILED)
 	{
