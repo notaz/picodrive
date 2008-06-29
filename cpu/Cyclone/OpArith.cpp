@@ -8,7 +8,7 @@ int OpArith(int op)
   int type=0,size=0;
   int sea=0,tea=0;
   int use=0;
-  char *shiftstr="";
+  const char *shiftstr="";
 
   // Get source and target EA
   type=(op>>9)&7; if (type==4 || type>=7) return 1;
@@ -144,8 +144,8 @@ int OpArithReg(int op)
 {
   int use=0;
   int type=0,size=0,dir=0,rea=0,ea=0;
-  char *asl="";
-  char *strop=0;
+  const char *asl="";
+  const char *strop=0;
 
   type=(op>>12)&5;
   rea =(op>> 9)&7;
@@ -534,7 +534,7 @@ int OpAritha(int op)
 {
   int use=0;
   int type=0,size=0,sea=0,dea=0;
-  char *asr="";
+  const char *asr="";
 
   // Suba/Cmpa/Adda/(invalid):
   type=(op>>13)&3; if (type>=3) return 1;
@@ -591,7 +591,7 @@ int OpAddx(int op)
 {
   int use=0;
   int type=0,size=0,dea=0,sea=0,mem=0;
-  char *asl="";
+  const char *asl="";
 
   type=(op>>14)&1;
   dea =(op>> 9)&7;
@@ -668,7 +668,7 @@ int OpCmpEor(int op)
 {
   int rea=0,eor=0;
   int size=0,ea=0,use=0;
-  char *asl="";
+  const char *asl="";
 
   // Get EA and register EA
   rea=(op>>9)&7;
@@ -725,7 +725,7 @@ int OpCmpEor(int op)
 int OpCmpm(int op)
 {
   int size=0,sea=0,dea=0,use=0;
-  char *asl="";
+  const char *asl="";
 
   // get size, get EAs
   size=(op>>6)&3; if (size>=3) return 1;

@@ -6,8 +6,8 @@ static FILE *AsmFile=NULL;
 static int CycloneVer=0x0099; // Version number of library
 int *CyJump=NULL; // Jump table
 int ms=USE_MS_SYNTAX; // If non-zero, output in Microsoft ARMASM format
-char *Narm[4]={ "b", "h","",""}; // Normal ARM Extensions for operand sizes 0,1,2
-char *Sarm[4]={"sb","sh","",""}; // Sign-extend ARM Extensions for operand sizes 0,1,2
+const char * const Narm[4]={ "b", "h","",""}; // Normal ARM Extensions for operand sizes 0,1,2
+const char * const Sarm[4]={"sb","sh","",""}; // Sign-extend ARM Extensions for operand sizes 0,1,2
 int Cycles; // Current cycles for opcode
 int pc_dirty; // something changed PC during processing
 int arm_op_count;
@@ -83,7 +83,7 @@ static void ChangeTAS(int norm)
 #endif
 
 #if EMULATE_ADDRESS_ERRORS_JUMP || EMULATE_ADDRESS_ERRORS_IO
-static void AddressErrorWrapper(char rw, char *dataprg, int iw)
+static void AddressErrorWrapper(char rw, const char *dataprg, int iw)
 {
   ot("ExceptionAddressError_%c_%s%s\n", rw, dataprg, ms?"":":");
   ot("  ldr r1,[r7,#0x44]\n");
@@ -1096,7 +1096,7 @@ static void PrintJumpTable()
 static int CycloneMake()
 {
   int i;
-  char *name="Cyclone.s";
+  const char *name="Cyclone.s";
   const char *globl=ms?"export":".global";
   
   // Open the assembly file
@@ -1131,6 +1131,10 @@ static int CycloneMake()
   ot("  %s CycloneDoInterrupt\n",globl);
   ot("  %s CycloneDoTrace\n",globl);
   ot("  %s CycloneJumpTab\n",globl);
+  ot("  %s Op____\n",globl);
+  ot("  %s Op6001\n",globl);
+  ot("  %s Op6601\n",globl);
+  ot("  %s Op6701\n",globl);
 #endif
   ot("\n");
   ot(ms?"CycloneVer dcd 0x":"CycloneVer: .long 0x");

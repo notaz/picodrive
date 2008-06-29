@@ -301,7 +301,7 @@ int OpSet(int op)
 {
   int cc=0,ea=0;
   int size=0,use=0,changed_cycles=0;
-  char *cond[16]=
+  static const char * const cond[16]=
   {
     "al","", "hi","ls","cc","cs","ne","eq",
     "vc","vs","pl","mi","ge","lt","gt","le"

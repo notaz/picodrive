@@ -33,8 +33,8 @@ int EaAn(int ea);
 // Main.cpp
 extern int *CyJump;   // Jump table
 extern int  ms;       // If non-zero, output in Microsoft ARMASM format
-extern char *Narm[4]; // Normal ARM Extensions for operand sizes 0,1,2
-extern char *Sarm[4]; // Sign-extend ARM Extensions for operand sizes 0,1,2
+extern const char * const Narm[4]; // Normal ARM Extensions for operand sizes 0,1,2
+extern const char * const Sarm[4]; // Sign-extend ARM Extensions for operand sizes 0,1,2
 extern int  Cycles;   // Current cycles for opcode
 extern int  pc_dirty; // something changed PC during processing
 extern int  arm_op_count; // for stats

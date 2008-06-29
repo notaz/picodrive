@@ -288,7 +288,7 @@ int OpJsr(int op)
 // --------------------- Opcodes 0x50c8+ ---------------------
 
 // ARM version of 68000 condition codes:
-static char *Cond[16]=
+static const char * const Cond[16]=
 {
   "",  "",  "hi","ls","cc","cs","ne","eq",
   "vc","vs","pl","mi","ge","lt","gt","le"
@@ -402,7 +402,7 @@ int OpBranch(int op)
   int size=0,use=0,checkpc=0;
   int offset=0;
   int cc=0;
-  char *asr_r11="";
+  const char *asr_r11="";
 
   offset=(char)(op&0xff);
   cc=(op>>8)&15;
