@@ -202,8 +202,6 @@ static int *idledet_addrs = NULL;
 static int idledet_count = 0, idledet_bads = 0;
 int idledet_start_frame = 0;
 
-static int jump_verify[0x10000];
-extern int CycloneJumpTab[];
 static unsigned char *rom_verify = NULL;
 
 void SekInitIdleDet(void)
@@ -218,7 +216,6 @@ void SekInitIdleDet(void)
   idledet_count = idledet_bads = 0;
   idledet_start_frame = Pico.m.frame_count + 360;
 
-  memcpy(jump_verify, CycloneJumpTab, 0x10000*4);
   rom_verify = realloc(rom_verify, Pico.romsize);
   memcpy(rom_verify, Pico.rom, Pico.romsize);
 #ifdef EMU_C68K
@@ -308,9 +305,6 @@ void SekFinishIdleDet(void)
   if (done_something)
   {
     int i;
-    for (i = 0; i < 0x10000; i++)
-      if (jump_verify[i] != CycloneJumpTab[i])
-        printf("jumptab corruption @ %04x!\n", i), exit(1);
     for (i = 0; i < Pico.romsize; i++)
       if (rom_verify[i] != Pico.rom[i])
         printf("ROM corruption @ %06x!\n", i), exit(1);
