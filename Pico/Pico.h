@@ -47,6 +47,7 @@ void mp3_update(int *buffer, int length, int stereo);
 #define POPT_DIS_VDP_FIFO   (1<<16) // 0x 0000
 #define POPT_EN_SVP_DRC     (1<<17)
 #define POPT_DIS_SPRITE_LIM (1<<18)
+#define POPT_DIS_IDLE_DET   (1<<19)
 extern int PicoOpt; // bitfield
 #define PAHW_MCD  (1<<0)
 #define PAHW_32X  (1<<1)

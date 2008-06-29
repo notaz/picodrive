@@ -259,9 +259,9 @@ struct PicoMisc
   unsigned char  eeprom_cycle; // EEPROM SRAM cycle number
   unsigned char  eeprom_slave; // EEPROM slave word for X24C02 and better SRAMs
   unsigned char prot_bytes[2]; // simple protection faking
-  unsigned short dma_xfers;
+  unsigned short dma_xfers;    // 18
   unsigned char pad[2];
-  unsigned int  frame_count; // mainly for movies
+  unsigned int  frame_count;   // 1c for movies and idle det
 };
 
 // some assembly stuff depend on these, do not touch!
@@ -461,6 +461,8 @@ PICO_INTERNAL int SekInit(void);
 PICO_INTERNAL int SekReset(void);
 PICO_INTERNAL void SekState(int *data);
 PICO_INTERNAL void SekSetRealTAS(int use_real);
+void SekInitIdleDet(void);
+void SekFinishIdleDet(void);
 
 // cd/Sek.c
 PICO_INTERNAL int SekInitS68k(void);
@@ -557,6 +559,7 @@ extern int PsndDacLine;
 #define EL_CDPOLL  0x00002000 /* MCD: log poll detection */
 #define EL_SVP     0x00004000 /* SVP stuff */
 #define EL_PICOHW  0x00008000 /* Pico stuff */
+#define EL_IDLE    0x00010000 /* idle loop det. */
 
 #define EL_STATUS  0x40000000 /* status messages */
 #define EL_ANOMALY 0x80000000 /* some unexpected conditions (during emulation) */

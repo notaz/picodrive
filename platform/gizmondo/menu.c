@@ -70,7 +70,7 @@ static unsigned long wait_for_input(unsigned int interesting)
 		repeats = 0;
 		wait = 20;
 	}
-	if (wait > 6 && (ret&(BTN_UP|BTN_LEFT|BTN_DOWN|BTN_RIGHT)))
+	if (wait > 6 && (ret&(BTN_UP|BTN_LEFT|BTN_DOWN|BTN_RIGHT|BTN_L|BTN_R)))
 		wait = 6;
 	inp_prev = ret;
 
@@ -1315,7 +1315,7 @@ static int menu_loop_options(void)
 
 static void draw_menu_credits(void)
 {
-	int tl_x = 15, tl_y = 64, y;
+	int tl_x = 15, tl_y = 56, y;
 	menu_draw_begin(1);
 
 	text_out16(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006-2008");
@@ -1326,13 +1326,15 @@ static void draw_menu_credits(void)
 	text_out16(tl_x, (y+=10), "      base code of PicoDrive");
 	text_out16(tl_x, (y+=10), "Reesy & FluBBa: DrZ80 core");
 	text_out16(tl_x, (y+=10), "MAME devs: YM2612 and SN76496 cores");
-	text_out16(tl_x, (y+=10), "Charles MacDonald: Genesis hw docs");
-	text_out16(tl_x, (y+=10), "Stephane Dallongeville:");
-	text_out16(tl_x, (y+=10), "      opensource Gens");
-	text_out16(tl_x, (y+=10), "Haze: Genesis hw info");
 	text_out16(tl_x, (y+=10), "Reesy: kgsdk wrapper, sound code");
 	text_out16(tl_x, (y+=10), "jens.l: gizmondo hardware");
 	text_out16(tl_x, (y+=10), "ketchupgun: skin design");
+
+	text_out16(tl_x, (y+=20), "special thanks (for code, docs, ideas)");
+	text_out16(tl_x, (y+=10), " Charles MacDonald, Haze,");
+	text_out16(tl_x, (y+=10), " Stephane Dallongeville,");
+	text_out16(tl_x, (y+=10), " Lordus, Exophase, Rokas,");
+	text_out16(tl_x, (y+=10), " Nemesis, Tasco Deluxe");
 
 	menu_draw_end();
 }

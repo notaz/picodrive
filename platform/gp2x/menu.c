@@ -25,7 +25,7 @@
 #include <zlib/zlib.h>
 
 #ifndef _DIRENT_HAVE_D_TYPE
-#error "need d_type for file browser
+#error "need d_type for file browser"
 #endif
 
 extern int  mmuhack_status;
@@ -67,7 +67,7 @@ static unsigned long wait_for_input(unsigned long interesting)
 		repeats = 0;
 		wait = 20;
 	}
-	if (wait > 6 && (ret&(GP2X_UP|GP2X_LEFT|GP2X_DOWN|GP2X_RIGHT)))
+	if (wait > 6 && (ret&(GP2X_UP|GP2X_LEFT|GP2X_DOWN|GP2X_RIGHT|GP2X_L|GP2X_R)))
 		wait = 6;
 	inp_prev = ret;
 	inp_prevjoy = 0;
@@ -1075,6 +1075,7 @@ menu_entry opt2_entries[] =
 	{ "craigix's RAM timings",     MB_ONOFF, MA_OPT2_RAMTIMINGS,    &currentConfig.EmuOpt, 0x0100, 0, 0, 1, 1 },
 	{ NULL,                        MB_ONOFF, MA_OPT2_SQUIDGEHACK,   &currentConfig.EmuOpt, 0x0010, 0, 0, 1, 1 },
 	{ "SVP dynarec",               MB_ONOFF, MA_OPT2_SVP_DYNAREC,   &PicoOpt, 0x20000, 0, 0, 1, 1 },
+	{ "Disable idle loop patching",MB_ONOFF, MA_OPT2_NO_IDLE_LOOPS, &PicoOpt, 0x80000, 0, 0, 1, 1 },
 	{ "done",                      MB_NONE,  MA_OPT2_DONE,          NULL, 0, 0, 0, 1, 0 },
 };
 
@@ -1428,7 +1429,7 @@ static int menu_loop_options(void)
 
 static void draw_menu_credits(void)
 {
-	int tl_x = 15, tl_y = 64, y;
+	int tl_x = 15, tl_y = 56, y;
 	gp2x_pd_clone_buffer2();
 
 	text_out16(tl_x, 20, "PicoDrive v" VERSION " (c) notaz, 2006-2008");
@@ -1438,16 +1439,18 @@ static void draw_menu_credits(void)
 	text_out16(tl_x, (y+=10), "      base code of PicoDrive");
 	text_out16(tl_x, (y+=10), "Reesy & FluBBa: DrZ80 core");
 	text_out16(tl_x, (y+=10), "MAME devs: YM2612 and SN76496 cores");
-	text_out16(tl_x, (y+=10), "Charles MacDonald: Genesis hw docs");
-	text_out16(tl_x, (y+=10), "Stephane Dallongeville:");
-	text_out16(tl_x, (y+=10), "      opensource Gens");
-	text_out16(tl_x, (y+=10), "Haze: Genesis hw info");
 	text_out16(tl_x, (y+=10), "rlyeh and others: minimal SDK");
 	text_out16(tl_x, (y+=10), "Squidge: squidgehack");
 	text_out16(tl_x, (y+=10), "Dzz: ARM940 sample");
-	text_out16(tl_x, (y+=10), "GnoStiC / Puck2099: USB joystick");
+	text_out16(tl_x, (y+=10), "GnoStiC / Puck2099: USB joy code");
 	text_out16(tl_x, (y+=10), "craigix: GP2X hardware");
 	text_out16(tl_x, (y+=10), "ketchupgun: skin design");
+
+	text_out16(tl_x, (y+=20), "special thanks (for code, docs, ideas)");
+	text_out16(tl_x, (y+=10), " Charles MacDonald, Haze,");
+	text_out16(tl_x, (y+=10), " Stephane Dallongeville,");
+	text_out16(tl_x, (y+=10), " Lordus, Exophase, Rokas,");
+	text_out16(tl_x, (y+=10), " Nemesis, Tasco Deluxe");
 
 	menu_flip();
 }

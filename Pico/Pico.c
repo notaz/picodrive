@@ -58,6 +58,8 @@ void PicoPower(void)
 {
   unsigned char sram_reg=Pico.m.sram_reg; // must be preserved
 
+  Pico.m.frame_count = 0;
+
   // clear all memory of the emulated machine
   memset(&Pico.ram,0,(unsigned int)&Pico.rom-(unsigned int)&Pico.ram);
 
@@ -172,6 +174,12 @@ int PicoReset(void)
     PicoResetMCD();
     return 0;
   }
+  else {
+    // reinit, so that checksum checks pass
+    SekFinishIdleDet();
+    if (!(PicoOpt & POPT_DIS_IDLE_DET))
+      SekInitIdleDet();
+  }
 
   // reset sram state; enable sram access by default if it doesn't overlap with ROM
   Pico.m.sram_reg=sram_reg&0x14;
@@ -188,17 +196,17 @@ int PicoReset(void)
 // same for Outrunners (92-121, when active is set to 24)
 // 96 is VR hack
 static const int dma_timings[] = {
-96,  167, 166,  83, // vblank: 32cell: dma2vram dma2[vs|c]ram vram_fill vram_copy
-102, 205, 204, 102, // vblank: 40cell:
-16,   16,  15,   8, // active: 32cell:
-24,   18,  17,   9  // ...
+  96,  167, 166,  83, // vblank: 32cell: dma2vram dma2[vs|c]ram vram_fill vram_copy
+  102, 205, 204, 102, // vblank: 40cell:
+  16,   16,  15,   8, // active: 32cell:
+  24,   18,  17,   9  // ...
 };
 
 static const int dma_bsycles[] = {
-(488<<8)/96,  (488<<8)/167, (488<<8)/166, (488<<8)/83,
-(488<<8)/102, (488<<8)/205, (488<<8)/204, (488<<8)/102,
-(488<<8)/16,  (488<<8)/16,  (488<<8)/15,  (488<<8)/8,
-(488<<8)/24,  (488<<8)/18,  (488<<8)/17,  (488<<8)/9
+  (488<<8)/96,  (488<<8)/167, (488<<8)/166, (488<<8)/83,
+  (488<<8)/102, (488<<8)/205, (488<<8)/204, (488<<8)/102,
+  (488<<8)/16,  (488<<8)/16,  (488<<8)/15,  (488<<8)/8,
+  (488<<8)/24,  (488<<8)/18,  (488<<8)/17,  (488<<8)/9
 };
 
 PICO_INTERNAL int CheckDMA(void)
@@ -232,7 +240,7 @@ static __inline void SekRunM68k(int cyc)
 {
   int cyc_do;
   SekCycleAim+=cyc;
-  if((cyc_do=SekCycleAim-SekCycleCnt) <= 0) return;
+  if ((cyc_do=SekCycleAim-SekCycleCnt) <= 0) return;
 #if defined(EMU_CORE_DEBUG)
   // this means we do run-compare
   SekCycleCnt+=CM_compareRun(cyc_do, 0);
@@ -498,9 +506,16 @@ static int PicoFrameSimple(void)
   return 0;
 }
 
+int idle_hit_counter = 0;
+
 int PicoFrame(void)
 {
   int acc;
+
+  if ((Pico.m.frame_count&0x3f) == 0) {
+    elprintf(EL_STATUS, "ihits: %i", idle_hit_counter);
+    idle_hit_counter = 0;
+  }
 
   Pico.m.frame_count++;
 

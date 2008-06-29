@@ -427,8 +427,6 @@ int emu_ReloadRom(void)
 		return 0;
 	}
 
-	Pico.m.frame_count = 0;
-
 	// insert CD if it was detected
 	if (cd_state != CIT_NOT_CD) {
 		ret = Insert_CD(romFileName, cd_state);

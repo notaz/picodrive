@@ -193,6 +193,131 @@ PICO_INTERNAL void SekSetRealTAS(int use_real)
 #endif
 }
 
+/* idle loop detection, not to be used in CD mode */
+#ifdef EMU_C68K
+#include "cpu/Cyclone/tools/idle.h"
+#endif
+
+static int *idledet_addrs = NULL;
+static int idledet_count = 0, idledet_bads = 0;
+int idledet_start_frame = 0;
+
+static int jump_verify[0x10000];
+extern int CycloneJumpTab[];
+static unsigned char *rom_verify = NULL;
+
+void SekInitIdleDet(void)
+{
+  void *tmp = realloc(idledet_addrs, 0x200*4);
+  if (tmp == NULL) {
+    free(idledet_addrs);
+    idledet_addrs = NULL;
+  }
+  else
+    idledet_addrs = tmp;
+  idledet_count = idledet_bads = 0;
+  idledet_start_frame = Pico.m.frame_count + 360;
+
+  memcpy(jump_verify, CycloneJumpTab, 0x10000*4);
+  rom_verify = realloc(rom_verify, Pico.romsize);
+  memcpy(rom_verify, Pico.rom, Pico.romsize);
+#ifdef EMU_C68K
+  CycloneInitIdle();
+#endif
+}
+
+int SekIsIdleCode(unsigned short *dst, int bytes)
+{
+  printf("SekIsIdleCode %04x %i\n", *dst, bytes);
+  switch (bytes)
+  {
+    case 4:
+      if (  (*dst & 0xfff8) == 0x4a10 || // tst.b ($aX)      // where should be no need to wait
+	    (*dst & 0xfff8) == 0x4a28 || // tst.b ($xxxx,a0) // for byte change anywhere
+            (*dst & 0xff3f) == 0x4a38 || // tst.x ($xxxx.w), tas ($xxxx.w)
+            (*dst & 0xc1ff) == 0x0038 || // move.x ($xxxx.w), dX
+            (*dst & 0xf13f) == 0xb038)   // cmp.x ($xxxx.w), dX
+        return 1;
+      break;
+    case 6:
+      if ( ((dst[1] & 0xe0) == 0xe0 && ( // RAM
+            *dst == 0x4a39 ||            // tst.b ($xxxxxxxx)
+            *dst == 0x4a79 ||            // tst.w ($xxxxxxxx)
+            *dst == 0x4ab9)) ||          // tst.l ($xxxxxxxx)
+	    *dst == 0x0838)              // btst $X, ($xxxx.w) [6 byte op]
+        return 1;
+      break;
+    case 8:
+      if ( (dst[2] & 0xe0) == 0xe0 && (  // RAM
+	    *dst == 0x0839 ||            // btst $X, ($xxxxxxxx.w) [8 byte op]
+            (*dst & 0xffbf) == 0x0c39))  // cmpi.{b,w} $X, ($xxxxxxxx)
+        return 1;
+      break;
+    case 12:
+       if ((*dst & 0xf1f8) == 0x3010 && // move.w (aX), dX
+	    (dst[1]&0xf100) == 0x0000 && // arithmetic
+	    (dst[3]&0xf100) == 0x0000)   // arithmetic
+        return 1;
+      break;
+  }
+
+  return 0;
+}
+
+int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop)
+{
+#ifdef EMU_C68K
+  pc -= PicoCpuCM68k.membase;
+#endif
+  pc &= ~0xff000000;
+  elprintf(EL_IDLE, "idle: patch %06x %04x %04x #%i", pc, oldop, newop, idledet_count);
+  if (pc > Pico.romsize) {
+    if (++idledet_bads > 128) return 2; // remove detector
+    return 1; // don't patch
+  }
+
+  if (idledet_count >= 0x200 && (idledet_count & 0x1ff) == 0) {
+    void *tmp = realloc(idledet_addrs, (idledet_count+0x200)*4);
+    if (tmp == NULL) return 1;
+    idledet_addrs = tmp;
+  }
+
+  idledet_addrs[idledet_count++] = pc;
+  return 0;
+}
+
+void SekFinishIdleDet(void)
+{
+	int done_something = idledet_count > 0;
+#ifdef EMU_C68K
+  CycloneFinishIdle();
+#endif
+  while (idledet_count > 0)
+  {
+    unsigned short *op = (unsigned short *)&Pico.rom[idledet_addrs[--idledet_count]];
+    if      ((*op & 0xfd00) == 0x7100)
+      *op &= 0xff, *op |= 0x6600;
+    else if ((*op & 0xfd00) == 0x7500)
+      *op &= 0xff, *op |= 0x6700;
+    else if ((*op & 0xfd00) == 0x7d00)
+      *op &= 0xff, *op |= 0x6000;
+    else
+      elprintf(EL_STATUS|EL_IDLE, "idle: don't know how to restore %04x", *op);
+  }
+
+  if (done_something)
+  {
+    int i;
+    for (i = 0; i < 0x10000; i++)
+      if (jump_verify[i] != CycloneJumpTab[i])
+        printf("jumptab corruption @ %04x!\n", i), exit(1);
+    for (i = 0; i < Pico.romsize; i++)
+      if (rom_verify[i] != Pico.rom[i])
+        printf("ROM corruption @ %06x!\n", i), exit(1);
+  }
+}
+
+
 #if defined(EMU_M68K) && M68K_INSTRUCTION_HOOK == OPT_SPECIFY_HANDLER
 static unsigned char op_flags[0x400000/2] = { 0, };
 static int atexit_set = 0;

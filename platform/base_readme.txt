@@ -621,6 +621,8 @@ Additional thanks
 * Tasco Deluxe for his reverse engineering work on SVP and some mappers.
 * Bart Trzynadlowski for his SSFII and 68000 docs.
 * Haze for his research (http://haze.mameworld.info).
+* Lordus, Exophase and Rokas for various ideas.
+* Nemesis for his YM2612 research.
 * Mark and Jean-loup for zlib library.
 * ketchupgun for the skin.
 #ifdef GP2X
@@ -632,7 +634,6 @@ Additional thanks
 * A_SN for his gamma code.
 * craigix for supplying the GP2X hardware and making this port possible.
 * Alex for the icon.
-* Exophase, Rokas and Lordus for various ideas.
 * All the people from gp32x boards for their support.
 #endif
 #ifdef GIZ

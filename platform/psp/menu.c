@@ -82,7 +82,7 @@ static unsigned long wait_for_input(unsigned int interesting, int is_key_config)
 
 	if (!is_key_config)
 		ret |= (ret & 0xf0000000) >> 24; // use analog as d-pad
-	if (wait > 6 && (ret&(BTN_UP|BTN_LEFT|BTN_DOWN|BTN_RIGHT)))
+	if (wait > 6 && (ret&(BTN_UP|BTN_LEFT|BTN_DOWN|BTN_RIGHT|BTN_L|BTN_R)))
 		wait = 6;
 
 	// we don't need diagonals in menus
@@ -1512,12 +1512,14 @@ static void draw_menu_credits(void)
 	text_out16(tl_x, (y+=10), "Chui: Fame/C");
 	text_out16(tl_x, (y+=10), "NJ: CZ80");
 	text_out16(tl_x, (y+=10), "MAME devs: YM2612 and SN76496 cores");
-	text_out16(tl_x, (y+=10), "Stephane Dallongeville:");
-	text_out16(tl_x, (y+=10), "    Gens code, base of Fame/C, CZ80");
-	text_out16(tl_x, (y+=10), "Charles MacDonald: Genesis hw docs");
-	text_out16(tl_x, (y+=10), "Haze: Genesis hw info");
 	text_out16(tl_x, (y+=10), "ps2dev.org people: PSP SDK/code");
 	text_out16(tl_x, (y+=10), "ketchupgun: skin design");
+
+	text_out16(tl_x, (y+=20), "special thanks (for code, docs, ideas):");
+	text_out16(tl_x, (y+=10), " Charles MacDonald, Haze,");
+	text_out16(tl_x, (y+=10), " Stephane Dallongeville,");
+	text_out16(tl_x, (y+=10), " Lordus, Exophase, Rokas,");
+	text_out16(tl_x, (y+=10), " Nemesis, Tasco Deluxe");
 
 	menu_draw_end();
 }

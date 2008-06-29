@@ -548,6 +548,7 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
 int PicoCartUnload(void)
 {
   if (Pico.rom != NULL) {
+    SekFinishIdleDet();
     free(Pico.rom);
     Pico.rom=NULL;
   }
