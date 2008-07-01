@@ -415,13 +415,7 @@ m_read8_vdp:
     tst     r0, #0x70000
     tsteq   r0, #0x000e0
     bxne    lr              @ invalid read
-    stmfd   sp!,{r0,lr}
-    bic     r0, r0, #1
-    bl      PicoVideoRead
-    ldmfd   sp!,{r1,lr}
-    tst     r1, #1
-    moveq   r0, r0, lsr #8
-    bx      lr
+    b       PicoVideoRead8
 
 m_read8_ram:
     ldr     r1, =Pico

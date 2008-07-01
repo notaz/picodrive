@@ -469,7 +469,9 @@ m_read8_vdp:
     andi    $t1, $a0, 0xe0
     or      $t0, $t1
     bnez    $t0, m_read_null # invalid address
-    m_read8_call16 PicoVideoRead
+    nop
+    j       PicoVideoRead8
+    nop
 
 m_read8_ram:
     lui     $t0, %hi(Pico)

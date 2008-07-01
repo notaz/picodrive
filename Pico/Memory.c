@@ -344,9 +344,9 @@ PICO_INTERNAL_ASM u32 PicoRead8(u32 a)
   log_io(a, 8, 0);
   if ((a&0xff4000)==0xa00000) { d=z80Read8(a); goto end; } // Z80 Ram
 
-  if ((a&0xe700e0)==0xc00000) // VDP
-       d=PicoVideoRead(a);
-  else d=OtherRead16(a&~1, 8);
+  if ((a&0xe700e0)==0xc00000) { d=PicoVideoRead8(a); goto end; } // VDP
+  
+  d=OtherRead16(a&~1, 8);
   if ((a&1)==0) d>>=8;
 
 end:

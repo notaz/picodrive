@@ -22,8 +22,7 @@ static u32 PicoReadPico8(u32 a)
   a&=0xffffff;
 
   if ((a&0xfffff0)==0xc00000) { // VDP
-    d=PicoVideoRead(a);
-    if ((a&1)==0) d>>=8;
+    d=PicoVideoRead8(a);
     goto end;
   }
 

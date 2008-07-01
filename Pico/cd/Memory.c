@@ -501,10 +501,8 @@ u32 PicoReadM68k8(u32 a)
     case 0xd0>>1: case 0xd2>>1: case 0xd4>>1: case 0xd6>>1:
     case 0xd8>>1: case 0xda>>1: case 0xdc>>1: case 0xde>>1:
       // VDP
-      if ((a&0xe700e0)==0xc00000) {
-        d=PicoVideoRead(a);
-        if ((a&1)==0) d>>=8;
-      }
+      if ((a&0xe700e0)==0xc00000)
+        d=PicoVideoRead8(a);
       break;
     case 0xe0>>1: case 0xe2>>1: case 0xe4>>1: case 0xe6>>1:
     case 0xe8>>1: case 0xea>>1: case 0xec>>1: case 0xee>>1:

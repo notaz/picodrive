@@ -449,24 +449,19 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
 {
   a&=0x1c;
 
-  if (a==0x00) // data port
-  {
-    return VideoRead();
-  }
-
   if (a==0x04) // control port
   {
     struct PicoVideo *pv=&Pico.video;
     unsigned int d;
     d=pv->status;
-    if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
-    if (!(pv->reg[1]&0x40))        d|=0x0008; // set V-Blank if display is disabled
+    //if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
     if (SekCyclesLeft < 84+4)      d|=0x0004; // H-Blank (Sonic3 vs)
 
-    d|=(pv->pending_ints&0x20)<<2; // V-int pending?
+    d |= ((pv->reg[1]&0x40)^0x40) >> 3;  // set V-Blank if display is disabled
+    d |= (pv->pending_ints&0x20)<<2;     // V-int pending?
     if (d&0x100) pv->status&=~0x100; // FIFO no longer full
 
-    pv->pending=0; // ctrl port reads clear write-pending flag (Charles MacDonald)
+    pv->pending = 0; // ctrl port reads clear write-pending flag (Charles MacDonald)
 
     elprintf(EL_SR, "SR read: %04x @ %06x", d, SekPc);
     return d;
@@ -489,32 +484,60 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
   // check: Sonic 3D Blast bonus, Cannon Fodder, Chase HQ II, 3 Ninjas kick back, Road Rash 3, Skitchin', Wheel of Fortune
   if ((a&0x1c)==0x08)
   {
-    unsigned int hc, d;
+    unsigned int d;
     int lineCycles;
     
     lineCycles = (488-SekCyclesLeft)&0x1ff;
-    d = Pico.m.scanline; // V-Counter
-
     if (Pico.video.reg[12]&1)
-         hc=hcounts_40[lineCycles];
-    else hc=hcounts_32[lineCycles];
+         d = hcounts_40[lineCycles];
+    else d = hcounts_32[lineCycles];
 
-    if (Pico.m.pal) {
-      if (d >= 0x103) d-=56; // based on Gens
-    } else {
-      if (d >= 0xEB)  d-=6;
-    }
+    elprintf(EL_HVCNT, "hv: %02x %02x (%i) @ %06x", d, Pico.video.v_counter, SekCyclesDone(), SekPc);
+    return d | (Pico.video.v_counter << 8);
+  }
 
-    if ((Pico.video.reg[12]&6) == 6) {
-      // interlace mode 2 (Combat Cars (UE) [!])
-      d <<= 1;
-      if (d&0xf00) d|= 1;
-    }
+  if (a==0x00) // data port
+  {
+    return VideoRead();
+  }
 
-    elprintf(EL_HVCNT, "hv: %02x %02x (%i) @ %06x", hc, d, SekCyclesDone(), SekPc);
-    d&=0xff; d<<=8;
-    d|=hc;
-    return d;
+  return 0;
+}
+
+unsigned int PicoVideoRead8(unsigned int a)
+{
+  unsigned int d;
+  a&=0x1d;
+
+  switch (a)
+  {
+    case 0: return VideoRead() >> 8;
+    case 1: return VideoRead() & 0xff;
+    case 4: // control port/status reg
+      d = Pico.video.status >> 8;
+      if (d&1) Pico.video.status&=~0x100; // FIFO no longer full
+      Pico.video.pending = 0;
+      elprintf(EL_SR, "SR read (h): %02x @ %06x", d, SekPc);
+      return d;
+    case 5:
+      d = Pico.video.status & 0xff;
+      //if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
+      d |= ((Pico.video.reg[1]&0x40)^0x40) >> 3;  // set V-Blank if display is disabled
+      d |= (Pico.video.pending_ints&0x20)<<2;     // V-int pending?
+      if (SekCyclesLeft < 84+4) d |= 4;    // H-Blank
+      Pico.video.pending = 0;
+      elprintf(EL_SR, "SR read (l): %02x @ %06x", d, SekPc);
+      return d;
+    case 8: // hv counter
+      elprintf(EL_HVCNT, "vcounter: %02x (%i) @ %06x", Pico.video.v_counter, SekCyclesDone(), SekPc);
+      return Pico.video.v_counter;
+    case 9:
+      d = (488-SekCyclesLeft)&0x1ff;
+      if (Pico.video.reg[12]&1)
+           d = hcounts_40[d];
+      else d = hcounts_32[d];
+      elprintf(EL_HVCNT, "hcounter: %02x (%i) @ %06x", d, SekCyclesDone(), SekPc);
+      return d;
   }
 
   return 0;

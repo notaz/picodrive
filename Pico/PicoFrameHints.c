@@ -35,10 +35,10 @@
 static int PicoFrameHints(void)
 {
   struct PicoVideo *pv=&Pico.video;
-  int lines, y, lines_vis = 224, line_sample, skip;
+  int lines, y, lines_vis = 224, line_sample, skip, vcnt_wrap;
   int hint; // Hint counter
 
-  Pico.m.scanline = 0;
+  pv->v_counter = Pico.m.scanline = 0;
 
   if ((PicoOpt&POPT_ALT_RENDERER) && !PicoSkipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
     // draw a frame just after vblank in alternative render mode
@@ -53,7 +53,7 @@ static int PicoFrameHints(void)
 
   if (Pico.m.pal) {
     line_sample = 68;
-    if(pv->reg[1]&8) lines_vis = 240;
+    if (pv->reg[1]&8) lines_vis = 240;
   } else {
     line_sample = 93;
   }
@@ -75,7 +75,12 @@ static int PicoFrameHints(void)
 
   for (y = 0; y < lines_vis; y++)
   {
-    Pico.m.scanline = y;
+    pv->v_counter = Pico.m.scanline = y;
+    if ((pv->reg[12]&6) == 6) { // interlace mode 2
+      pv->v_counter <<= 1;
+      pv->v_counter |= pv->v_counter >> 8;
+      pv->v_counter &= 0xff;
+    }
 
     // VDP FIFO
     pv->lwrite_cnt -= 12;
@@ -138,6 +143,11 @@ static int PicoFrameHints(void)
 #endif
   }
 
+  // V-int line (224 or 240)
+  Pico.m.scanline = y;
+  pv->v_counter = 0xe0; // bad for 240 mode
+  if ((pv->reg[12]&6) == 6) pv->v_counter = 0xc1;
+
   if (!skip)
   {
     if (DrawScanline < y)
@@ -146,9 +156,6 @@ static int PicoFrameHints(void)
     DRAW_FINISH_FUNC();
 #endif
   }
-
-  // V-int line (224 or 240)
-  Pico.m.scanline = y;
 
   // VDP FIFO
   pv->lwrite_cnt=0;
@@ -168,7 +175,6 @@ static int PicoFrameHints(void)
     if (pv->reg[0]&0x10) SekInterrupt(4);
   }
 
-  // V-Interrupt:
   pv->status|=0x08; // go into vblank
   pv->pending_ints|=0x20;
 
@@ -212,10 +218,16 @@ static int PicoFrameHints(void)
 
   // PAL line count might actually be 313 according to Steve Snake, but that would complicate things.
   lines = Pico.m.pal ? 312 : 262;
+  vcnt_wrap = Pico.m.pal ? 0x103 : 0xEB; // based on Gens
 
   for (y++; y < lines; y++)
   {
-    Pico.m.scanline = y;
+    pv->v_counter = Pico.m.scanline = y;
+    if (y >= vcnt_wrap)
+      pv->v_counter -= Pico.m.pal ? 56 : 6;
+    if ((pv->reg[12]&6) == 6)
+      pv->v_counter = (pv->v_counter << 1) | 1;
+    pv->v_counter &= 0xff;
 
     PAD_DELAY
 #ifdef PICO_CD

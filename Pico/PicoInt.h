@@ -237,7 +237,8 @@ struct PicoVideo
   int status;                 // Status bits
   unsigned char pending_ints; // pending interrupts: ??VH????
   signed char lwrite_cnt;     // VDP write count during active display line
-  unsigned char pad[0x12];
+  unsigned short v_counter;   // V-counter
+  unsigned char pad[0x10];
 };
 
 struct PicoMisc
@@ -504,6 +505,7 @@ void ym2612_unpack_state(void);
 // VideoPort.c
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
+PICO_INTERNAL_ASM unsigned int PicoVideoRead8(unsigned int a);
 extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp);
 
 // Misc.c

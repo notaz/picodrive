@@ -218,7 +218,8 @@ PICO_INTERNAL int CheckDMA(void)
   if(Pico.video.reg[12] & 1) dma_op |= 4; // 40 cell mode?
   if(!(Pico.video.status&8)&&(Pico.video.reg[1]&0x40)) dma_op|=8; // active display?
   xfers_can = dma_timings[dma_op];
-  if(xfers <= xfers_can) {
+  if(xfers <= xfers_can)
+  {
     if(dma_op&2) Pico.video.status&=~2; // dma no longer busy
     else {
       burn = xfers * dma_bsycles[dma_op] >> 8; // have to be approximate because can't afford division..

@@ -126,6 +126,7 @@ m_s68k_decode_write_table:
 .extern z80Read8
 .extern OtherRead16
 .extern PicoVideoRead
+.extern PicoVideoRead8
 .extern Read_CDC_Host
 .extern m68k_reg_write8
 .extern OtherWrite16
@@ -611,13 +612,7 @@ m_m68k_read8_vdp:
     tst     r0, #0x70000
     tsteq   r0, #0x000e0
     bxne    lr              @ invalid read
-    stmfd   sp!,{r0,lr}
-    bic     r0, r0, #1
-    bl      PicoVideoRead               @ TODO: implement it in asm
-    ldmfd   sp!,{r1,lr}
-    tst     r1, #1
-    moveq   r0, r0, lsr #8
-    bx      lr
+    b       PicoVideoRead8
 
 
 m_m68k_read8_ram:
