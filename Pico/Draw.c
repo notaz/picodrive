@@ -852,7 +852,6 @@ static void DrawSpritesFromCacheAS(int *hc, int maxwidth, int prio, int sh)
       {
         if(code&0x10000) fTileFunc=TileFlipAS_noop;
         else             fTileFunc=TileNormAS_noop;
-        *(--hco) = code; /* save for later */
       } else {
         if(code&0x10000) fTileFunc=TileFlipAS;
         else             fTileFunc=TileNormAS;
@@ -861,6 +860,8 @@ static void DrawSpritesFromCacheAS(int *hc, int maxwidth, int prio, int sh)
       if(code&0x10000) fTileFunc=TileFlipAS_onlymark;
       else             fTileFunc=TileNormAS_onlymark;
     }
+    if (sh && pal == 0x30)
+      *(--hco) = code; /* save for later */
 
     pal |= 0x80;
     for (; width; width--,sx+=8,tile+=delta)
