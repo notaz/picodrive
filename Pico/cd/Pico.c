@@ -31,12 +31,10 @@ int  (*PicoMCDcloseTray)(void) = NULL;
 }
 
 
-PICO_INTERNAL int PicoInitMCD(void)
+PICO_INTERNAL void PicoInitMCD(void)
 {
   SekInitS68k();
   Init_CD_Driver();
-
-  return 0;
 }
 
 
@@ -264,14 +262,12 @@ static __inline void getSamples(int y)
 #include "../PicoFrameHints.c"
 
 
-PICO_INTERNAL int PicoFrameMCD(void)
+PICO_INTERNAL void PicoFrameMCD(void)
 {
   if (!(PicoOpt&POPT_ALT_RENDERER))
     PicoFrameStart();
 
   PicoFrameHints();
-
-  return 0;
 }
 
 

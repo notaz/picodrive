@@ -44,7 +44,7 @@ static int ScanVar(void *data,int len,char *name,void *PmovFile,int PmovAction)
 #define SCANP(x)      ScanVar(&Pico.x,sizeof(Pico.x),#x,PmovFile,PmovAction);
 
 // Pack the cpu into a common format:
-PICO_INTERNAL int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
+PICO_INTERNAL void PicoAreaPackCpu(unsigned char *cpu, int is_sub)
 {
   unsigned int pc=0;
 
@@ -77,10 +77,9 @@ PICO_INTERNAL int PicoAreaPackCpu(unsigned char *cpu, int is_sub)
 #endif
 
   *(unsigned int *)(cpu+0x40)=pc;
-  return 0;
 }
 
-PICO_INTERNAL int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
+PICO_INTERNAL void PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
 {
 #if defined(EMU_C68K)
   struct Cyclone *context = is_sub ? &PicoCpuCS68k : &PicoCpuCM68k;
@@ -113,7 +112,6 @@ PICO_INTERNAL int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
   context->execinfo &= ~FM68K_HALTED;
   if (cpu[0x4d]&1) context->execinfo |= FM68K_HALTED;
 #endif
-  return 0;
 }
 
 // Scan the contents of the virtual machine's memory for saving or loading

@@ -73,7 +73,7 @@ static void PicoResetPico(void)
   PicoPicohw.xpcm_ptr = PicoPicohw.xpcm_buffer;
 }
 
-PICO_INTERNAL int PicoInitPico(void)
+PICO_INTERNAL void PicoInitPico(void)
 {
   elprintf(EL_STATUS, "Pico detected");
   PicoLineHook = PicoLinePico;
@@ -93,7 +93,5 @@ PICO_INTERNAL int PicoInitPico(void)
     case 2: PicoPicohw.r1 = 0x40; break;
     case 3: PicoPicohw.r1 = 0x20; break;
   }
-
-  return 0;
 }
 

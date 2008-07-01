@@ -46,7 +46,7 @@ static
 u32 z80ReadBusReq(void)
 {
   u32 d=Pico.m.z80Run&1;
-  if (!d && Pico.m.scanline != -1) {
+  if (!d) {
     // needed by buggy Terminator (Sega CD)
     int stop_before = SekCyclesDone() - z80stopCycle;
     //elprintf(EL_BUSREQ, "get_zrun: stop before: %i", stop_before);
@@ -55,7 +55,7 @@ u32 z80ReadBusReq(void)
     if (stop_before > 0 && stop_before < 20) // Gens uses 16 here
       d = 1; // bus not yet available
   }
-  // |=0x80 for Shadow of the Beast & Super Offroad
+
   elprintf(EL_BUSREQ, "get_zrun: %02x [%i] @%06x", d|0x80, SekCyclesDone(), SekPc);
   return d|0x80;
 }

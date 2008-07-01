@@ -545,14 +545,13 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   return 0;
 }
 
-int PicoCartUnload(void)
+void PicoCartUnload(void)
 {
   if (Pico.rom != NULL) {
     SekFinishIdleDet();
     free(Pico.rom);
     Pico.rom=NULL;
   }
-  return 0;
 }
 
 static int rom_strcmp(int rom_offset, const char *s1)

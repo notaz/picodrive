@@ -89,10 +89,9 @@ PICO_INTERNAL u32 PicoCheckPc(u32 pc)
 }
 
 
-PICO_INTERNAL int PicoInitPc(u32 pc)
+PICO_INTERNAL void PicoInitPc(u32 pc)
 {
   PicoCheckPc(pc);
-  return 0;
 }
 
 #ifndef _ASM_MEMORY_C
@@ -689,8 +688,6 @@ static void m68k_mem_setup(void)
 
 // -----------------------------------------------------------------
 
-extern const unsigned short vcounts[];
-
 static int get_scanline(int is_from_z80)
 {
   if (is_from_z80) {
@@ -700,10 +697,7 @@ static int get_scanline(int is_from_z80)
     return z80_scanline;
   }
 
-  if (Pico.m.scanline != -1)
-    return Pico.m.scanline;
-
-  return vcounts[SekCyclesDone()>>8];
+  return Pico.m.scanline;
 }
 
 /* probably not should be in this file, but it's near related code here */

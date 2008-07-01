@@ -93,7 +93,7 @@ static void SekIntAckFS68k(unsigned level)
 #endif
 
 
-PICO_INTERNAL int SekInitS68k()
+PICO_INTERNAL void SekInitS68k(void)
 {
 #ifdef EMU_C68K
 //  CycloneInit();
@@ -125,12 +125,10 @@ PICO_INTERNAL int SekInitS68k()
     g_m68kcontext = oldcontext;
   }
 #endif
-
-  return 0;
 }
 
 // Reset the 68000:
-PICO_INTERNAL int SekResetS68k()
+PICO_INTERNAL int SekResetS68k(void)
 {
   if (Pico.rom==NULL) return 1;
 

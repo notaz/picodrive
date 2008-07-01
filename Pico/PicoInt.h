@@ -245,7 +245,7 @@ struct PicoMisc
   unsigned char rotate;
   unsigned char z80Run;
   unsigned char padTHPhase[2]; // 02 phase of gamepad TH switches
-  short scanline;              // 04 0 to 261||311; -1 in fast mode
+  unsigned short scanline;     // 04 0 to 261||311
   char dirtyPal;               // 06 Is the palette dirty (1 - change @ this frame, 2 - some time before)
   unsigned char hardware;      // 07 Hardware value for country
   unsigned char pal;           // 08 1=PAL 0=NTSC
@@ -371,8 +371,8 @@ typedef struct
 
 
 // Area.c
-PICO_INTERNAL int PicoAreaPackCpu(unsigned char *cpu, int is_sub);
-PICO_INTERNAL int PicoAreaUnpackCpu(unsigned char *cpu, int is_sub);
+PICO_INTERNAL void PicoAreaPackCpu(unsigned char *cpu, int is_sub);
+PICO_INTERNAL void PicoAreaUnpackCpu(unsigned char *cpu, int is_sub);
 extern void (*PicoLoadStateHook)(void);
 
 // cd/Area.c
@@ -402,7 +402,7 @@ extern int DrawScanline;
 PICO_INTERNAL void PicoFrameFull();
 
 // Memory.c
-PICO_INTERNAL int PicoInitPc(unsigned int pc);
+PICO_INTERNAL void PicoInitPc(unsigned int pc);
 PICO_INTERNAL unsigned int PicoCheckPc(unsigned int pc);
 PICO_INTERNAL_ASM unsigned int PicoRead32(unsigned int a);
 PICO_INTERNAL void PicoMemSetup(void);
@@ -442,14 +442,14 @@ PICO_INTERNAL void PicoDetectRegion(void);
 PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done);
 
 // cd/Pico.c
-PICO_INTERNAL int  PicoInitMCD(void);
+PICO_INTERNAL void PicoInitMCD(void);
 PICO_INTERNAL void PicoExitMCD(void);
 PICO_INTERNAL void PicoPowerMCD(void);
-PICO_INTERNAL int PicoResetMCD(void);
-PICO_INTERNAL int PicoFrameMCD(void);
+PICO_INTERNAL int  PicoResetMCD(void);
+PICO_INTERNAL void PicoFrameMCD(void);
 
 // Pico/Pico.c
-PICO_INTERNAL int PicoInitPico(void);
+PICO_INTERNAL void PicoInitPico(void);
 PICO_INTERNAL void PicoReratePico(void);
 
 // Pico/xpcm.c
@@ -458,17 +458,17 @@ PICO_INTERNAL void PicoPicoPCMReset(void);
 PICO_INTERNAL void PicoPicoPCMRerate(int xpcm_rate);
 
 // Sek.c
-PICO_INTERNAL int SekInit(void);
-PICO_INTERNAL int SekReset(void);
+PICO_INTERNAL void SekInit(void);
+PICO_INTERNAL int  SekReset(void);
 PICO_INTERNAL void SekState(int *data);
 PICO_INTERNAL void SekSetRealTAS(int use_real);
 void SekInitIdleDet(void);
 void SekFinishIdleDet(void);
 
 // cd/Sek.c
-PICO_INTERNAL int SekInitS68k(void);
-PICO_INTERNAL int SekResetS68k(void);
-PICO_INTERNAL int SekInterruptS68k(int irq);
+PICO_INTERNAL void SekInitS68k(void);
+PICO_INTERNAL int  SekResetS68k(void);
+PICO_INTERNAL int  SekInterruptS68k(int irq);
 
 // sound/sound.c
 PICO_INTERNAL void cdda_start_play();

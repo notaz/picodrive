@@ -26,7 +26,7 @@ void (*PicoResetHook)(void) = NULL;
 void (*PicoLineHook)(int count) = NULL;
 
 // to be called once on emu init
-int PicoInit(void)
+void PicoInit(void)
 {
   // Blank space for state:
   memset(&Pico,0,sizeof(Pico));
@@ -40,8 +40,6 @@ int PicoInit(void)
   PicoSVPInit();
 
   SRam.data=0;
-
-  return 0;
 }
 
 // to be called once on emu exit
@@ -255,36 +253,6 @@ static __inline void SekRunM68k(int cyc)
 #endif
 }
 
-static __inline void SekStep(void)
-{
-  // this is required for timing sensitive stuff to work
-  int realaim=SekCycleAim; SekCycleAim=SekCycleCnt+1;
-#if defined(EMU_CORE_DEBUG)
-  SekCycleCnt+=CM_compareRun(1, 0);
-#elif defined(EMU_C68K)
-  PicoCpuCM68k.cycles=1;
-  CycloneRun(&PicoCpuCM68k);
-  SekCycleCnt+=1-PicoCpuCM68k.cycles;
-#elif defined(EMU_M68K)
-  SekCycleCnt+=m68k_execute(1);
-#elif defined(EMU_F68K)
-  SekCycleCnt+=fm68k_emulate(1, 0);
-#endif
-  SekCycleAim=realaim;
-}
-
-static int CheckIdle(void)
-{
-  int i, state[0x24];
-
-  // See if the state is the same after 2 steps:
-  SekState(state); SekStep(); SekStep(); SekState(state+0x12);
-  for (i = 0x11; i >= 0; i--)
-    if (state[i] != state[i+0x12]) return 0;
-
-  return 1;
-}
-
 
 // to be called on 224 or line_sample scanlines only
 static __inline void getSamples(int y)
@@ -339,216 +307,36 @@ PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done)
 }
 
 
-// Simple frame without H-Ints
-static int PicoFrameSimple(void)
-{
-  struct PicoVideo *pv=&Pico.video;
-  int y=0,lines_step=0,sects,line_last;
-  int cycles_68k_vblock,cycles_68k_block;
-
-  // split to 16 run calls for active scan, for vblank split to 2 (ntsc), 3 (pal 240), 4 (pal 224)
-  if (Pico.m.pal)
-  {
-    if(pv->reg[1]&8) { // 240 lines
-      cycles_68k_block  = 7308;
-      cycles_68k_vblock = 11694;
-      lines_step = 15;
-    } else {
-      cycles_68k_block  = 6821;
-      cycles_68k_vblock = 10719;
-      lines_step = 14;
-    }
-    line_last = 312-1;
-  } else {
-    // M68k cycles/frame: 127840.71
-    cycles_68k_block  = 6841; // (488*224+148)/16.0, -4
-    cycles_68k_vblock = 9164; // (38*488-148-68)/2.0, 0
-    lines_step = 14;
-    line_last = 262-1;
-  }
-
-  // a hack for VR, to get it running in fast mode
-  if (PicoAHW & PAHW_SVP)
-    Pico.ram[0xd864^1] = 0x1a;
-
-  // we don't emulate DMA timing in this mode
-  if (Pico.m.dma_xfers) {
-    Pico.m.dma_xfers=0;
-    Pico.video.status&=~2;
-  }
-
-  // VDP FIFO too
-  pv->lwrite_cnt = 0;
-  Pico.video.status|=0x200;
-
-  Pico.m.scanline=-1;
-  PsndDacLine = 0;
-
-  SekCyclesReset();
-  z80_resetCycles();
-
-  // 6 button pad: let's just say it timed out now
-  Pico.m.padTHPhase[0]=Pico.m.padTHPhase[1]=0;
-
-  // ---- Active Scan ----
-  pv->status&=~0x88; // clear V-Int, come out of vblank
-
-  // Run in sections:
-  for (sects=16; sects; sects--)
-  {
-    if (CheckIdle()) break;
-
-    SekRunM68k(cycles_68k_block);
-    if (PicoLineHook) PicoLineHook(lines_step);
-  }
-
-  // do remaining sections without 68k
-  if (sects) {
-    SekCycleCnt += sects * cycles_68k_block;
-    SekCycleAim += sects * cycles_68k_block;
-
-    if (PicoLineHook) PicoLineHook(sects*lines_step);
-  }
-
-  // another hack for VR (it needs hints to work)
-  if (PicoAHW & PAHW_SVP) {
-    Pico.ram[0xd864^1] = 1;
-    pv->pending_ints|=0x10;
-    if (pv->reg[0]&0x10) SekInterrupt(4);
-    SekRunM68k(160);
-  }
-
-  // render screen
-  if (!PicoSkipFrame)
-  {
-    if (!(PicoOpt&POPT_ALT_RENDERER))
-    {
-      // Draw the screen
-#if 0
-#if CAN_HANDLE_240_LINES
-      if (pv->reg[1]&8) {
-        for (y=0;y<240;y++) PicoLine(y);
-      } else {
-        for (y=0;y<224;y++) PicoLine(y);
-      }
-#else
-      for (y=0;y<224;y++) PicoLine(y);
-#endif
-#endif
-    }
-    else PicoFrameFull();
-#ifdef DRAW_FINISH_FUNC
-    DRAW_FINISH_FUNC();
-#endif
-  }
-
-  // a gap between flags set and vint
-  pv->pending_ints|=0x20;
-  pv->status|=8; // go into vblank
-  SekRunM68k(68+4);
-
-  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
-    PicoSyncZ80(SekCycleCnt);
-
-  // render sound
-  if (PsndOut)
-  {
-    int len;
-    if (ym2612.dacen && PsndDacLine <= lines_step*16)
-      PsndDoDAC(lines_step*16);
-    len = PsndRender(0, PsndLen);
-    if (PicoWriteSound) PicoWriteSound(len);
-    // clear sound buffer
-    PsndClear();
-  }
-
-  // ---- V-Blanking period ----
-  // fix line counts
-  if(Pico.m.pal) {
-    if(pv->reg[1]&8) { // 240 lines
-      sects = 3;
-      lines_step = 24;
-    } else {
-      sects = 4;
-      lines_step = 22;
-    }
-  } else {
-    sects = 2;
-    lines_step = 19;
-  }
-
-  if (pv->reg[1]&0x20) SekInterrupt(6); // Set IRQ
-  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
-    z80_int();
-
-  while (1)
-  {
-    SekRunM68k(cycles_68k_vblock);
-    if (PicoLineHook) PicoLineHook(lines_step);
-
-    sects--;
-    if (sects == 0) break;
-    if (CheckIdle()) break;
-  }
-
-  if (sects) {
-    SekCycleCnt += sects * cycles_68k_vblock;
-    SekCycleAim += sects * cycles_68k_vblock;
-    if (PicoLineHook) PicoLineHook(sects*lines_step);
-  }
-
-  // must sync z80 before return, and extend last DAC sample
-  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
-    PicoSyncZ80(SekCycleCnt);
-  if (PsndOut && ym2612.dacen && PsndDacLine <= line_last)
-    PsndDoDAC(line_last);
-
-  timers_cycle();
-
-  return 0;
-}
-
 int idle_hit_counter = 0;
 
-int PicoFrame(void)
+void PicoFrame(void)
 {
-  int acc;
-
+#if 0
   if ((Pico.m.frame_count&0x3f) == 0) {
     elprintf(EL_STATUS, "ihits: %i", idle_hit_counter);
     idle_hit_counter = 0;
   }
+#endif
 
   Pico.m.frame_count++;
 
   if (PicoAHW & PAHW_MCD) {
     PicoFrameMCD();
-    return 0;
+    return;
   }
-
-  // be accurate if we are asked for this
-  if (PicoOpt&POPT_ACC_TIMING) acc=1;
-  // don't be accurate in alternative render mode, as hint effects will not be rendered anyway
-  else if (PicoOpt&POPT_ALT_RENDERER) acc = 0;
-  else acc=Pico.video.reg[0]&0x10; // be accurate if hints are used
 
   //if(Pico.video.reg[12]&0x2) Pico.video.status ^= 0x10; // change odd bit in interlace mode
 
   if (!(PicoOpt&POPT_ALT_RENDERER))
     PicoFrameStart();
 
-  if (acc)
-       PicoFrameHints();
-  else PicoFrameSimple();
-
-  return 0;
+  PicoFrameHints();
 }
 
 void PicoFrameDrawOnly(void)
 {
-  int y;
   PicoFrameStart();
-  for (y=0;y<224;y++) PicoLine(y);
+  PicoDrawSync(223, 0);
 }
 
 void PicoGetInternal(pint_t which, pint_ret_t *r)

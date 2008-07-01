@@ -12,7 +12,6 @@
 
 extern const unsigned char  hcounts_32[];
 extern const unsigned char  hcounts_40[];
-extern const unsigned short vcounts[];
 
 #ifndef UTYPES_DEFINED
 typedef unsigned char  u8;
@@ -43,7 +42,6 @@ static void VideoWrite(u16 d)
     //default:elprintf(EL_ANOMALY, "VDP write %04x with bad type %i", d, Pico.video.type); break;
   }
 
-  //dprintf("w[%i] @ %04x, inc=%i [%i|%i]", Pico.video.type, a, Pico.video.reg[0xf], Pico.m.scanline, SekCyclesDone());
   AutoIncrement();
 }
 
@@ -92,14 +90,9 @@ static void DmaSlow(int len)
     Pico.video.type, source, a, len, inc, (Pico.video.status&8)||!(Pico.video.reg[1]&0x40),
     SekCyclesDone(), SekPc);
 
-  if (Pico.m.scanline != -1) {
-    Pico.m.dma_xfers += len;
-    if ((PicoAHW & PAHW_MCD) && (PicoOpt & POPT_EN_MCD_PSYNC)) SekCyclesBurn(CheckDMA());
-    else SekSetCyclesLeftNoMCD(SekCyclesLeftNoMCD - CheckDMA());
-  } else {
-    // be approximate in non-accurate mode
-    SekSetCyclesLeft(SekCyclesLeft - (len*(((488<<8)/167))>>8));
-  }
+  Pico.m.dma_xfers += len;
+  if ((PicoAHW & PAHW_MCD) && (PicoOpt & POPT_EN_MCD_PSYNC)) SekCyclesBurn(CheckDMA());
+  else SekSetCyclesLeftNoMCD(SekCyclesLeftNoMCD - CheckDMA());
 
   if ((source&0xe00000)==0xe00000) { // Ram
     pd=(u16 *)(Pico.ram+(source&0xfffe));
@@ -230,16 +223,15 @@ static void DmaCopy(int len)
   elprintf(EL_VDPDMA, "DmaCopy len %i [%i]", len, SekCyclesDone());
 
   Pico.m.dma_xfers += len;
-  if(Pico.m.scanline != -1)
-    Pico.video.status|=2; // dma busy
+  Pico.video.status |= 2; // dma busy
 
   source =Pico.video.reg[0x15];
   source|=Pico.video.reg[0x16]<<8;
   vrs=vr+source;
 
-  if(source+len > 0x10000) len=0x10000-source; // clip??
+  if (source+len > 0x10000) len=0x10000-source; // clip??
 
-  for(;len;len--)
+  for (; len; len--)
   {
     vr[a] = *vrs++;
     // AutoIncrement
@@ -264,17 +256,16 @@ static void DmaFill(int data)
   elprintf(EL_VDPDMA, "DmaFill len %i inc %i [%i]", len, inc, SekCyclesDone());
 
   Pico.m.dma_xfers += len;
-  if(Pico.m.scanline != -1)
-    Pico.video.status|=2; // dma busy (in accurate mode)
+  Pico.video.status |= 2; // dma busy
 
   // from Charles MacDonald's genvdp.txt:
   // Write lower byte to address specified
   vr[a] = (unsigned char) data;
   a=(u16)(a+inc);
 
-  if(!inc) len=1;
+  if (!inc) len=1;
 
-  for(;len;len--) {
+  for (; len; len--) {
     // Write upper byte to adjacent address
     // (here we are byteswapped, so address is already 'adjacent')
     vr[a] = high;
@@ -327,7 +318,7 @@ static __inline void DrawSync(int blank_on)
 {
   if (Pico.m.scanline < 224 && !(PicoOpt & POPT_ALT_RENDERER) &&
       !PicoSkipFrame && DrawScanline <= Pico.m.scanline) {
-    elprintf(EL_ANOMALY, "sync");
+    //elprintf(EL_ANOMALY, "sync");
     PicoDrawSync(Pico.m.scanline, blank_on);
   }
 }
@@ -336,8 +327,8 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
 {
   struct PicoVideo *pvid=&Pico.video;
 
-  if (Pico.m.scanline < 224)
-    elprintf(EL_STATUS, "PicoVideoWrite [%06x] %04x", a, d);
+  //if (Pico.m.scanline < 224)
+  //  elprintf(EL_STATUS, "PicoVideoWrite [%06x] %04x", a, d);
   a&=0x1c;
 
   if (a==0x00) // Data port 0 or 2
@@ -362,7 +353,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
     else
     {
       // preliminary FIFO emulation for Chaos Engine, The (E)
-      if (!(pvid->status&8) && (pvid->reg[1]&0x40) && Pico.m.scanline!=-1 && !(PicoOpt&POPT_DIS_VDP_FIFO)) // active display, accurate mode?
+      if (!(pvid->status&8) && (pvid->reg[1]&0x40) && !(PicoOpt&POPT_DIS_VDP_FIFO)) // active display?
       {
         pvid->status&=~0x200; // FIFO no longer empty
         pvid->lwrite_cnt++;
@@ -439,7 +430,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
           else if (pints & 0x10) irq = 4;
           SekInterrupt(irq); // update line
 
-          if (irq && Pico.m.scanline!=-1) SekEndRun(24); // make it delayed
+          if (irq) SekEndRun(24); // make it delayed
         }
 #endif
       }
@@ -499,30 +490,22 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
   if ((a&0x1c)==0x08)
   {
     unsigned int hc, d;
+    int lineCycles;
+    
+    lineCycles = (488-SekCyclesLeft)&0x1ff;
+    d = Pico.m.scanline; // V-Counter
 
-    if (Pico.m.scanline != -1)
-    {
-      int lineCycles=(488-SekCyclesLeft)&0x1ff;
-      d=Pico.m.scanline; // V-Counter
+    if (Pico.video.reg[12]&1)
+         hc=hcounts_40[lineCycles];
+    else hc=hcounts_32[lineCycles];
 
-      if(Pico.video.reg[12]&1)
-           hc=hcounts_40[lineCycles];
-      else hc=hcounts_32[lineCycles];
-
-      //if(lineCycles > 488-12) d++; // Wheel of Fortune
-    } else {
-      // get approximate V-Counter
-      d=vcounts[SekCyclesDone()>>8];
-      hc = Pico.m.rotate&0xff;
-    }
-
-    if(Pico.m.pal) {
+    if (Pico.m.pal) {
       if (d >= 0x103) d-=56; // based on Gens
     } else {
       if (d >= 0xEB)  d-=6;
     }
 
-    if((Pico.video.reg[12]&6) == 6) {
+    if ((Pico.video.reg[12]&6) == 6) {
       // interlace mode 2 (Combat Cars (UE) [!])
       d <<= 1;
       if (d&0xf00) d|= 1;

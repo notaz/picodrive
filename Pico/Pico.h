@@ -34,7 +34,7 @@ void mp3_update(int *buffer, int length, int stereo);
 #define POPT_EN_STEREO      (1<< 3)
 #define POPT_ALT_RENDERER   (1<< 4) // 00 00x0
 #define POPT_6BTN_PAD       (1<< 5)
-#define POPT_ACC_TIMING     (1<< 6)
+// unused                   (1<< 6)
 #define POPT_ACC_SPRITES    (1<< 7)
 #define POPT_DIS_32C_BORDER (1<< 8) // 00 0x00
 #define POPT_EXT_FM         (1<< 9)
@@ -59,11 +59,11 @@ extern int PicoSkipFrame;      // skip rendering frame, but still do sound (if e
 extern int PicoRegionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 extern int PicoAutoRgnOrder;   // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
 extern int PicoSVPCycles;
-int  PicoInit(void);
+void PicoInit(void);
 void PicoExit(void);
 void PicoPower(void);
 int  PicoReset(void);
-int  PicoFrame(void);
+void PicoFrame(void);
 void PicoFrameDrawOnly(void);
 extern int PicoPad[2]; // Joypads, format is MXYZ SACB RLDU
 extern void (*PicoWriteSound)(int len); // called once per frame at the best time to send sound buffer (PsndOut) to hardware
@@ -109,7 +109,7 @@ extern areaclose *areaClose;
 extern void (*PicoStateProgressCB)(const char *str);
 
 // cd/Area.c
-int PicoCdLoadStateGfx(void *file);
+int  PicoCdLoadStateGfx(void *file);
 
 // cd/buffering.c
 void PicoCDBufferInit(void);
@@ -117,7 +117,6 @@ void PicoCDBufferFree(void);
 void PicoCDBufferFlush(void);
 
 // cd/cd_sys.c
-int Insert_CD(char *iso_name, int is_bin);
 int Insert_CD(char *cdimg_name, int type);
 void Stop_CD(void); // releases all resources taken when CD game was started.
 
@@ -142,7 +141,7 @@ int      pm_close(pm_file *fp);
 int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize);
 int PicoCartInsert(unsigned char *rom,unsigned int romsize);
 void Byteswap(unsigned char *data,int len);
-int PicoCartUnload(void);
+void PicoCartUnload(void);
 extern void (*PicoCartLoadProgressCB)(int percent);
 extern void (*PicoCDLoadProgressCB)(int percent);
 

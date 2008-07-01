@@ -450,7 +450,7 @@ int emu_ReloadRom(void)
 		if(movie_data[0x14] == '6')
 		     PicoOpt |=  POPT_6BTN_PAD; // 6 button pad
 		else PicoOpt &= ~POPT_6BTN_PAD;
-		PicoOpt |= POPT_DIS_VDP_FIFO|POPT_ACC_TIMING; // accurate timing, no VDP fifo timing
+		PicoOpt |= POPT_DIS_VDP_FIFO; // no VDP fifo timing
 		if(movie_data[0xF] >= 'A') {
 			if(movie_data[0x16] & 0x80) {
 				PicoRegionOverride = 8;

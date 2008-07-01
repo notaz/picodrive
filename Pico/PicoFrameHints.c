@@ -38,7 +38,7 @@ static int PicoFrameHints(void)
   int lines, y, lines_vis = 224, line_sample, skip;
   int hint; // Hint counter
 
-  Pico.m.scanline=0;
+  Pico.m.scanline = 0;
 
   if ((PicoOpt&POPT_ALT_RENDERER) && !PicoSkipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
     // draw a frame just after vblank in alternative render mode
@@ -75,7 +75,7 @@ static int PicoFrameHints(void)
 
   for (y = 0; y < lines_vis; y++)
   {
-    Pico.m.scanline=(short)y;
+    Pico.m.scanline = y;
 
     // VDP FIFO
     pv->lwrite_cnt -= 12;
@@ -148,7 +148,7 @@ static int PicoFrameHints(void)
   }
 
   // V-int line (224 or 240)
-  Pico.m.scanline=(short)y;
+  Pico.m.scanline = y;
 
   // VDP FIFO
   pv->lwrite_cnt=0;
@@ -215,7 +215,7 @@ static int PicoFrameHints(void)
 
   for (y++; y < lines; y++)
   {
-    Pico.m.scanline=(short)y;
+    Pico.m.scanline = y;
 
     PAD_DELAY
 #ifdef PICO_CD
