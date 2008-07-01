@@ -394,8 +394,9 @@ extern void (*PicoCartUnloadHook)(void);
 int CM_compareRun(int cyc, int is_sub);
 
 // Draw.c
-PICO_INTERNAL int PicoLine(int scan);
 PICO_INTERNAL void PicoFrameStart(void);
+void PicoDrawSync(int to, int blank_last_line);
+extern int DrawScanline;
 
 // Draw2.c
 PICO_INTERNAL void PicoFrameFull();

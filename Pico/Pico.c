@@ -424,6 +424,7 @@ static int PicoFrameSimple(void)
     if (!(PicoOpt&POPT_ALT_RENDERER))
     {
       // Draw the screen
+#if 0
 #if CAN_HANDLE_240_LINES
       if (pv->reg[1]&8) {
         for (y=0;y<240;y++) PicoLine(y);
@@ -432,6 +433,7 @@ static int PicoFrameSimple(void)
       }
 #else
       for (y=0;y<224;y++) PicoLine(y);
+#endif
 #endif
     }
     else PicoFrameFull();

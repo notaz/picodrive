@@ -73,7 +73,7 @@ static int PicoFrameHints(void)
   // This is to make active scan longer (needed for Double Dragon 2, mainly)
   CPUS_RUN(CYCLES_M68K_ASD, CYCLES_S68K_ASD);
 
-  for (y=0;y<lines_vis;y++)
+  for (y = 0; y < lines_vis; y++)
   {
     Pico.m.scanline=(short)y;
 
@@ -101,24 +101,15 @@ static int PicoFrameHints(void)
     }
 
     // decide if we draw this line
-    if (!skip)
+    if (!skip && (PicoOpt & POPT_ALT_RENDERER))
     {
-      if (PicoOpt&POPT_ALT_RENDERER) {
-        // find the right moment for fast renderer, when display is no longer blanked
-        if ((pv->reg[1]&0x40) || y > 100) {
-          PicoFrameFull();
+      // find the right moment for frame renderer, when display is no longer blanked
+      if ((pv->reg[1]&0x40) || y > 100) {
+        PicoFrameFull();
 #ifdef DRAW_FINISH_FUNC
-          DRAW_FINISH_FUNC();
+        DRAW_FINISH_FUNC();
 #endif
-          skip = 1;
-        }
-      }
-      else
-      {
-#if !CAN_HANDLE_240_LINES
-        if (y < 224)
-#endif
-          PicoLine(y);
+        skip = 1;
       }
     }
 
@@ -147,10 +138,14 @@ static int PicoFrameHints(void)
 #endif
   }
 
-#ifdef DRAW_FINISH_FUNC
   if (!skip)
+  {
+    if (DrawScanline < y)
+      PicoDrawSync(y - 1, 0);
+#ifdef DRAW_FINISH_FUNC
     DRAW_FINISH_FUNC();
 #endif
+  }
 
   // V-int line (224 or 240)
   Pico.m.scanline=(short)y;
@@ -218,7 +213,7 @@ static int PicoFrameHints(void)
   // PAL line count might actually be 313 according to Steve Snake, but that would complicate things.
   lines = Pico.m.pal ? 312 : 262;
 
-  for (y++;y<lines;y++)
+  for (y++; y < lines; y++)
   {
     Pico.m.scanline=(short)y;
 

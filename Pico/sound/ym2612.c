@@ -1833,12 +1833,7 @@ int YM2612Write_(unsigned int a, unsigned int v)
 		ret = OPNWriteReg(addr, v);
 		break;
 	}
-/*
-	if(ret) {
-		extern int Scanline;
-		dprintf("ymw [%i]", Scanline);
-	}
-*/
+
 	return ret;
 }
 

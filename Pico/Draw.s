@@ -11,7 +11,7 @@
 .extern Pico
 .extern PicoOpt
 .extern HighCol
-.extern Scanline
+.extern DrawScanline
 .extern HighSprZ
 .extern rendstatus
 .extern DrawLineDest
@@ -316,7 +316,7 @@ DrawLayer:
     ldreqb  r12, [r11, #2]
     ldrneb  r12, [r11, #4]
 
-    ldr     r2, =Scanline         @ trying to make good use of pipeline here
+    ldr     r2, =DrawScanline     @ trying to make good use of pipeline here
     ldr     lr, =(Pico+0x10000)   @ lr=Pico.vram
 
     moveq   r12, r12, lsl #10
@@ -330,7 +330,7 @@ DrawLayer:
     mov     r4, r8, lsr #8        @ pvid->reg[13]
     mov     r4, r4, lsl #10       @ htab=pvid->reg[13]<<9; (halfwords)
     tst     r7, #2
-    addne   r4, r4, r2, lsl #2    @ htab+=Scanline<<1; // Offset by line
+    addne   r4, r4, r2, lsl #2    @ htab+=DrawScanline<<1; // Offset by line
     tst     r7, #1
     biceq   r4, r4, #0x1f         @ htab&=~0xf; // Offset by tile
     add     r4, r4, r0, lsl #1    @ htab+=plane
@@ -513,7 +513,7 @@ DrawLayer:
     bic     r8, r8, #0x3fc00000
     orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|had_output[24]|tilex[21:0])
 
-    ldr     r4, =Scanline
+    ldr     r4, =DrawScanline
     orr     r5, r1, r10, lsl #24
     ldr     r4, [r4]
     sub     r1, r3, #1
@@ -690,7 +690,7 @@ DrawLayer:
     movne   r7, r7, lsl #5
 
     @ Find the line in the name table
-    add     r2, r7, r2, lsl #22    @ r2=(vscroll+(Scanline<<1))<<21 (11 bits);
+    add     r2, r7, r2, lsl #22    @ r2=(vscroll+(DrawScanline<<1))<<21 (11 bits);
     orr     r1, r1, #0x80000000
     and     r2, r2, r1, ror #10    @ &((ymask<<1)|1)<<21;
     mov     r2, r2, lsr #21
@@ -1097,7 +1097,7 @@ DrawSprite:
 
     orr     r8, r2, r1, lsl #4
     ldr     r3, [r0]        @ sprite[0]
-    ldr     r7, =Scanline
+    ldr     r7, =DrawScanline
     mov     r6, r3, lsr #28
     sub     r6, r6, #1      @ r6=width-1 (inc later)
     mov     r5, r3, lsr #24
@@ -1107,7 +1107,7 @@ DrawSprite:
 
     ldr     r7, [r7]
     ldr     r9, [r0, #4]
-    sub     r7, r7, r4, asr #16 @ r7=row=Scanline-sy
+    sub     r7, r7, r4, asr #16 @ r7=row=DrawScanline-sy
 
     mov     r2, r9, asr #16 @ r2=sx
     mov     r9, r9, lsl #16
@@ -1266,7 +1266,7 @@ DrawWindow:
     stmfd   sp!, {r4-r11,lr}
 
     ldr     r11, =(Pico+0x22228)  @ Pico.video
-    ldr     r10, =Scanline
+    ldr     r10, =DrawScanline
     ldrb    r12, [r11, #3]        @ pvid->reg[3]
 
     ldr     r10, [r10]

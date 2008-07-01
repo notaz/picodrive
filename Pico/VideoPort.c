@@ -323,14 +323,32 @@ static void CommandChange(void)
   if (cmd&0x80) CommandDma();
 }
 
+static __inline void DrawSync(int blank_on)
+{
+  if (Pico.m.scanline < 224 && !(PicoOpt & POPT_ALT_RENDERER) &&
+      !PicoSkipFrame && DrawScanline <= Pico.m.scanline) {
+    elprintf(EL_ANOMALY, "sync");
+    PicoDrawSync(Pico.m.scanline, blank_on);
+  }
+}
+
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
 {
   struct PicoVideo *pvid=&Pico.video;
 
+  if (Pico.m.scanline < 224)
+    elprintf(EL_STATUS, "PicoVideoWrite [%06x] %04x", a, d);
   a&=0x1c;
 
   if (a==0x00) // Data port 0 or 2
   {
+    // try avoiding the sync..
+    if (Pico.m.scanline < 224 && (pvid->reg[1]&0x40) &&
+        !(!pvid->pending &&
+          ((pvid->command & 0xc00000f0) == 0x40000010 && Pico.vsram[pvid->addr>>1] == d))
+       )
+      DrawSync(0);
+
     if (pvid->pending) {
       CommandChange();
       pvid->pending=0;
@@ -344,7 +362,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
     else
     {
       // preliminary FIFO emulation for Chaos Engine, The (E)
-      if(!(pvid->status&8) && (pvid->reg[1]&0x40) && Pico.m.scanline!=-1 && !(PicoOpt&POPT_DIS_VDP_FIFO)) // active display, accurate mode?
+      if (!(pvid->status&8) && (pvid->reg[1]&0x40) && Pico.m.scanline!=-1 && !(PicoOpt&POPT_DIS_VDP_FIFO)) // active display, accurate mode?
       {
         pvid->status&=~0x200; // FIFO no longer empty
         pvid->lwrite_cnt++;
@@ -362,8 +380,9 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
 
   if (a==0x04) // Control (command) port 4 or 6
   {
-    if(pvid->pending)
+    if (pvid->pending)
     {
+      if (d & 0x80) DrawSync(0); // only need sync for DMA
       // Low word of command:
       pvid->command&=0xffff0000;
       pvid->command|=d;
@@ -377,24 +396,26 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
         // Register write:
         int num=(d>>8)&0x1f;
         int dold=pvid->reg[num];
+        int update_irq = 0, blank_on = 0;
         pvid->type=0; // register writes clear command (else no Sega logo in Golden Axe II)
         if (num > 0x0a && !(pvid->reg[1]&4)) {
           elprintf(EL_ANOMALY, "%02x written to reg %02x in SMS mode @ %06x", d, num, SekPc);
           return;
-        } else
-          pvid->reg[num]=(unsigned char)d;
+        }
 
         switch (num)
         {
           case 0x00:
             elprintf(EL_INTSW, "hint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x10)>>4,
                     (d&0x10)>>4, SekCyclesDone(), (pvid->pending_ints&0x10)>>4, SekPc);
-            goto update_irq;
+            update_irq = 1;
+            break;
           case 0x01:
             elprintf(EL_INTSW, "vint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x20)>>5,
                     (d&0x20)>>5, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
-            if (!(d&0x40) && SekCyclesLeft > 390) rendstatus |= PDRAW_EARLY_BLANK;
-            goto update_irq;
+            if (!(d&0x40) && SekCyclesLeft > 390) blank_on = 1;
+            update_irq = 1;
+            break;
           case 0x05:
             if (d^dold) rendstatus |= PDRAW_SPRITES_MOVED;
             break;
@@ -403,21 +424,19 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
             if ((d^dold)&8) Pico.m.dirtyPal = 2;
             break;
         }
-        return;
+        DrawSync(blank_on);
+        pvid->reg[num]=(unsigned char)d;
+        if (!update_irq) return;
 
-update_irq:;
 #ifndef EMU_CORE_DEBUG
-        // update IRQ level (Lemmings, Wiz 'n' Liz intro, ... )
-        // may break if done improperly:
-        // International Superstar Soccer Deluxe (crash), Street Racer (logos), Burning Force (gfx),
-        // Fatal Rewind (crash), Sesame Street Counting Cafe
+        // update IRQ level
         if (!SekShouldInterrupt) // hack
         {
           int lines, pints, irq=0;
           lines = (pvid->reg[1] & 0x20) | (pvid->reg[0] & 0x10);
           pints = (pvid->pending_ints&lines);
-               if(pints & 0x20) irq = 6;
-          else if(pints & 0x10) irq = 4;
+               if (pints & 0x20) irq = 6;
+          else if (pints & 0x10) irq = 4;
           SekInterrupt(irq); // update line
 
           if (irq && Pico.m.scanline!=-1) SekEndRun(24); // make it delayed
@@ -437,20 +456,17 @@ update_irq:;
 
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
 {
-  unsigned int d=0;
-
   a&=0x1c;
-
 
   if (a==0x00) // data port
   {
-    d=VideoRead();
-    goto end;
+    return VideoRead();
   }
 
   if (a==0x04) // control port
   {
     struct PicoVideo *pv=&Pico.video;
+    unsigned int d;
     d=pv->status;
     if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
     if (!(pv->reg[1]&0x40))        d|=0x0008; // set V-Blank if display is disabled
@@ -462,7 +478,7 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
     pv->pending=0; // ctrl port reads clear write-pending flag (Charles MacDonald)
 
     elprintf(EL_SR, "SR read: %04x @ %06x", d, SekPc);
-    goto end;
+    return d;
   }
 
   // H-counter info (based on Generator):
@@ -482,9 +498,10 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
   // check: Sonic 3D Blast bonus, Cannon Fodder, Chase HQ II, 3 Ninjas kick back, Road Rash 3, Skitchin', Wheel of Fortune
   if ((a&0x1c)==0x08)
   {
-    unsigned int hc;
+    unsigned int hc, d;
 
-    if(Pico.m.scanline != -1) {
+    if (Pico.m.scanline != -1)
+    {
       int lineCycles=(488-SekCyclesLeft)&0x1ff;
       d=Pico.m.scanline; // V-Counter
 
@@ -500,9 +517,9 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
     }
 
     if(Pico.m.pal) {
-      if(d >= 0x103) d-=56; // based on Gens
+      if (d >= 0x103) d-=56; // based on Gens
     } else {
-      if(d >= 0xEB)  d-=6;
+      if (d >= 0xEB)  d-=6;
     }
 
     if((Pico.video.reg[12]&6) == 6) {
@@ -514,10 +531,8 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
     elprintf(EL_HVCNT, "hv: %02x %02x (%i) @ %06x", hc, d, SekCyclesDone(), SekPc);
     d&=0xff; d<<=8;
     d|=hc;
-    goto end;
+    return d;
   }
 
-end:
-
-  return d;
+  return 0;
 }
