@@ -143,11 +143,6 @@ static int PicoFrameHints(void)
 #endif
   }
 
-  // V-int line (224 or 240)
-  Pico.m.scanline = y;
-  pv->v_counter = 0xe0; // bad for 240 mode
-  if ((pv->reg[12]&6) == 6) pv->v_counter = 0xc1;
-
   if (!skip)
   {
     if (DrawScanline < y)
@@ -156,6 +151,11 @@ static int PicoFrameHints(void)
     DRAW_FINISH_FUNC();
 #endif
   }
+
+  // V-int line (224 or 240)
+  Pico.m.scanline = y;
+  pv->v_counter = 0xe0; // bad for 240 mode
+  if ((pv->reg[12]&6) == 6) pv->v_counter = 0xc1;
 
   // VDP FIFO
   pv->lwrite_cnt=0;

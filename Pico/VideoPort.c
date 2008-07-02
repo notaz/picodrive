@@ -35,7 +35,9 @@ static void VideoWrite(u16 d)
   {
     case 1: if(a&1) d=(u16)((d<<8)|(d>>8)); // If address is odd, bytes are swapped (which game needs this?)
             Pico.vram [(a>>1)&0x7fff]=d;
-            rendstatus |= PDRAW_DIRTY_SPRITES; break;
+            if (a - ((unsigned)(Pico.video.reg[5]&0x7f) << 9) < 0x400)
+              rendstatus |= PDRAW_DIRTY_SPRITES;
+            break;
     case 3: Pico.m.dirtyPal = 1;
             Pico.cram [(a>>1)&0x003f]=d; break; // wraps (Desert Strike)
     case 5: Pico.vsram[(a>>1)&0x003f]=d; break;
@@ -486,7 +488,7 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
   {
     unsigned int d;
     int lineCycles;
-    
+
     lineCycles = (488-SekCyclesLeft)&0x1ff;
     if (Pico.video.reg[12]&1)
          d = hcounts_40[lineCycles];

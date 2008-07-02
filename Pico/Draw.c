@@ -48,8 +48,8 @@ static int skip_next_line=0;
 
 //unsigned short ppt[] = { 0x0f11, 0x0ff1, 0x01f1, 0x011f, 0x01ff, 0x0f1f, 0x0f0e, 0x0e7c };
 
-static void (*DrawAllSpritesLoPri)(int *hcache, int maxwidth, int prio, int sh) = NULL;
-static void (*DrawAllSpritesHiPri)(int *hcache, int maxwidth, int prio, int sh) = NULL;
+static void (*DrawAllSpritesLoPri)(int *hcache, int prio, int sh) = NULL;
+static void (*DrawAllSpritesHiPri)(int *hcache, int prio, int sh) = NULL;
 
 struct TileStrip
 {
@@ -67,7 +67,7 @@ void DrawWindow(int tstart, int tend, int prio, int sh);
 void BackFill(int reg7, int sh);
 void DrawSprite(int *sprite, int sh, int as);
 void DrawTilesFromCache(int *hc, int sh, int rlim);
-void DrawSpritesFromCache(int *hc, int maxwidth, int prio, int sh);
+void DrawSpritesFromCache(int *hc, int prio, int sh);
 void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
 void FinalizeLineBGR444(int sh);
 void FinalizeLineRGB555(int sh);
@@ -611,13 +611,13 @@ last_cut_tile:
       switch (rlim-dx+8)
       {
         case 7: t=pack&0x00f00000; if (t) pd[6]=(unsigned char)(pal|(t>>20));
-	case 6: t=pack&0x0f000000; if (t) pd[5]=(unsigned char)(pal|(t>>24));
-	case 5: t=pack&0xf0000000; if (t) pd[4]=(unsigned char)(pal|(t>>28));
-	case 4: t=pack&0x0000000f; if (t) pd[3]=(unsigned char)(pal|(t    ));
-	case 3: t=pack&0x000000f0; if (t) pd[2]=(unsigned char)(pal|(t>> 4));
-	case 2: t=pack&0x00000f00; if (t) pd[1]=(unsigned char)(pal|(t>> 8));
-	case 1: t=pack&0x0000f000; if (t) pd[0]=(unsigned char)(pal|(t>>12));
-	default: break;
+        case 6: t=pack&0x0f000000; if (t) pd[5]=(unsigned char)(pal|(t>>24));
+        case 5: t=pack&0xf0000000; if (t) pd[4]=(unsigned char)(pal|(t>>28));
+        case 4: t=pack&0x0000000f; if (t) pd[3]=(unsigned char)(pal|(t    ));
+        case 3: t=pack&0x000000f0; if (t) pd[2]=(unsigned char)(pal|(t>> 4));
+        case 2: t=pack&0x00000f00; if (t) pd[1]=(unsigned char)(pal|(t>> 8));
+        case 1: t=pack&0x0000f000; if (t) pd[0]=(unsigned char)(pal|(t>>12));
+        default: break;
       }
     }
   }
@@ -730,7 +730,7 @@ static void DrawSpriteInterlace(unsigned int *sprite)
 }
 
 
-static void DrawAllSpritesInterlace(int *hcache, int maxwidth, int pri, int sh)
+static void DrawAllSpritesInterlace(int *hcache, int pri, int sh)
 {
   struct PicoVideo *pvid=&Pico.video;
   int i,u,table,link=0,sline=DrawScanline<<1;
@@ -760,7 +760,7 @@ static void DrawAllSpritesInterlace(int *hcache, int maxwidth, int pri, int sh)
     // check if sprite is not hidden offscreen
     sx = (sx>>16)&0x1ff;
     sx -= 0x78; // Get X coordinate + 8
-    if(sx <= -8*3 || sx >= maxwidth) goto nextsprite;
+    if(sx <= -8*3 || sx >= 328) goto nextsprite;
 
     // sprite is good, save it's pointer
     sprites[i++]=sprite;
@@ -780,7 +780,7 @@ static void DrawAllSpritesInterlace(int *hcache, int maxwidth, int pri, int sh)
 
 
 #ifndef _ASM_DRAW_C
-static void DrawSpritesFromCache(int *hc, int maxwidth, int prio, int sh)
+static void DrawSpritesFromCache(int *hc, int prio, int sh)
 {
   int code, tile, sx, delta, width;
   int pal;
@@ -826,7 +826,7 @@ static void DrawSpritesFromCache(int *hc, int maxwidth, int prio, int sh)
 }
 #endif
 
-static void DrawSpritesFromCacheAS(int *hc, int maxwidth, int prio, int sh)
+static void DrawSpritesFromCacheAS(int *hc, int prio, int sh)
 {
   int code, tile, sx, delta, width;
   int pal, *hce, *hco;
@@ -935,11 +935,11 @@ static void PrepareSprites(int full)
   int u,link=0;
   int table=0;
   int *pd = HighPreSpr;
-  int max_lines = 224, max_sprites = 80;
+  int max_lines = 224, max_sprites = 80, max_width = 328;
   int max_line_sprites = 20; // 20 sprites, 40 tiles
 
   if (!(Pico.video.reg[12]&1))
-    max_sprites = 64, max_line_sprites = 16;
+    max_sprites = 64, max_line_sprites = 16, max_width = 264;
   if (PicoOpt & POPT_DIS_SPRITE_LIM)
     max_line_sprites = MAX_LINE_SPRITES;
 
@@ -965,18 +965,18 @@ static void PrepareSprites(int full)
       sx = (code2>>16)&0x1ff;
       sx -= 0x78; // Get X coordinate + 8
       sy = (pack << 16) >> 16;
-      height = pack >> 28;
+      height = (pack >> 24) & 0xf;
 
       if (sy < max_lines && sy + (height<<3) > DrawScanline && // sprite onscreen (y)?
-          (sx > -24 || sx < 328))                   // onscreen x
+          (sx > -24 || sx < max_width))                   // onscreen x
       {
         int y = (sy >= DrawScanline) ? sy : DrawScanline;
+        int offs = (pd - HighPreSpr) / 2;
         for (; y < sy + (height<<3) && y < max_lines; y++)
         {
-          int i, cnt, offs;
+          int i, cnt;
           cnt = HighLnSpr[y][0] & 0x7f;
           if (cnt >= max_line_sprites) continue;              // sprite limit?
-          offs = (pd - HighPreSpr) / 2;
 
           for (i = 0; i < cnt; i++)
             if (HighLnSpr[y][2+i] == offs) goto found;
@@ -1006,7 +1006,7 @@ found:;
     {
       unsigned int *sprite;
       int code, code2, sx, sy, hv, height, width;
-      int sx_min, offscr_x;
+      int sx_min;
 
       sprite=(unsigned int *)(Pico.vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
@@ -1022,8 +1022,6 @@ found:;
       sx -= 0x78; // Get X coordinate + 8
       sx_min = 8-(width<<3);
 
-      offscr_x = (sx <= sx_min) || sx >= 328;
-
       if (sy < max_lines && sy + (height<<3) > DrawScanline) // sprite onscreen (y)?
       {
         int y = (sy >= DrawScanline) ? sy : DrawScanline;
@@ -1032,19 +1030,19 @@ found:;
           int cnt = HighLnSpr[y][0];
           if (cnt >= max_line_sprites) continue;              // sprite limit?
 
-	  if (HighLnSpr[y][1] >= max_line_sprites*2) {        // tile limit?
+          if (HighLnSpr[y][1] >= max_line_sprites*2) {        // tile limit?
             HighLnSpr[y][0] |= 0x80;
-	    continue;
+            continue;
           }
           HighLnSpr[y][1] += width;
 
           if (sx == -0x78) {
             if (cnt > 0)
               HighLnSpr[y][0] |= 0x80; // masked, no more sprites for this line
-	    continue;
+            continue;
           }
           // must keep the first sprite even if it's offscreen, for masking
-          if (cnt > 0 && (sx <= sx_min || sx >= 328)) continue; // offscreen x
+          if (cnt > 0 && (sx <= sx_min || sx >= max_width)) continue; // offscreen x
 
           HighLnSpr[y][2+cnt] = ((pd - HighPreSpr) / 2); // | prio;
           HighLnSpr[y][0] = cnt + 1;
@@ -1073,7 +1071,7 @@ found:;
   }
 }
 
-static void DrawAllSprites(int *hcache, int maxwidth, int prio, int sh)
+static void DrawAllSprites(int *hcache, int prio, int sh)
 {
   int rs = rendstatus, scan = DrawScanline;
   unsigned char *p;
@@ -1328,17 +1326,17 @@ static int DrawDisplay(int sh, int as)
     DrawWindow(                           (win&0x80) ? edge :       0, (win&0x80) ? maxcells>>1 : edge, 0, sh|as);
   } else
     DrawLayer(0|((sh|as)<<1), HighCacheA, 0, maxcells);
-  DrawAllSpritesLoPri(HighCacheS, maxw, 0, sh);
+  DrawAllSpritesLoPri(HighCacheS, 0, sh);
 
-  if (HighCacheB[0]) DrawTilesFromCache(HighCacheB, sh, 328);
+  if (HighCacheB[0]) DrawTilesFromCache(HighCacheB, sh, maxw);
   if (hvwind == 1)
     DrawWindow(0, maxcells>>1, 1, sh);
   else if (hvwind == 2) {
-    if(HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, (win&0x80) ? edge<<4 : 328);
+    if(HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, (win&0x80) ? edge<<4 : maxw);
     DrawWindow((win&0x80) ? edge : 0, (win&0x80) ? maxcells>>1 : edge, 1, sh);
   } else
-    if (HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, 328);
-  if (HighCacheS[0]) DrawAllSpritesHiPri(HighCacheS, maxw, 1, sh);
+    if (HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, maxw);
+  if (HighCacheS[0]) DrawAllSpritesHiPri(HighCacheS, 1, sh);
 
 #if 0
   {

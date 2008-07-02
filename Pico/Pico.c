@@ -308,6 +308,7 @@ PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done)
 }
 
 
+// TODO: rm from asm too
 int idle_hit_counter = 0;
 
 void PicoFrame(void)
