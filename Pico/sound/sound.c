@@ -35,8 +35,8 @@ int PsndDacLine=0;
 short *PsndOut=NULL; // PCM data buffer
 
 // timers
-int timer_a_next_oflow, timer_a_step, timer_a_offset; // in z80 cycles
-int timer_b_next_oflow, timer_b_step, timer_b_offset;
+int timer_a_next_oflow, timer_a_step; // in z80 cycles
+int timer_b_next_oflow, timer_b_step;
 
 // sn76496
 extern int *sn76496_regs;

@@ -476,8 +476,8 @@ PICO_INTERNAL void cdda_start_play();
 extern short cdda_out_buffer[2*1152];
 extern int PsndLen_exc_cnt;
 extern int PsndLen_exc_add;
-extern int timer_a_next_oflow, timer_a_step, timer_a_offset; // in z80 cycles
-extern int timer_b_next_oflow, timer_b_step, timer_b_offset;
+extern int timer_a_next_oflow, timer_a_step; // in z80 cycles
+extern int timer_b_next_oflow, timer_b_step;
 
 void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new);
 void ym2612_pack_state(void);
@@ -498,8 +498,8 @@ void ym2612_unpack_state(void);
 
 #define timers_reset() \
   timer_a_next_oflow = timer_b_next_oflow = TIMER_NO_OFLOW; \
-  timer_a_step = timer_a_offset = TIMER_A_TICK_ZCYCLES * 1024; \
-  timer_b_step = timer_b_offset = TIMER_B_TICK_ZCYCLES * 256;
+  timer_a_step = TIMER_A_TICK_ZCYCLES * 1024; \
+  timer_b_step = TIMER_B_TICK_ZCYCLES * 256;
 
 
 // VideoPort.c

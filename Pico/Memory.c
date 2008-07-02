@@ -700,7 +700,7 @@ static int get_scanline(int is_from_z80)
   return Pico.m.scanline;
 }
 
-/* probably not should be in this file, but it's near related code here */
+/* probably should not be in this file, but it's near related code here */
 void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new)
 {
   int xcycles = z80_cycles << 8;
@@ -719,12 +719,10 @@ void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new)
 
   if ((mode_old ^ mode_new) & 1) // turning on/off
   {
-    if (mode_old & 1) {
-      timer_a_offset = timer_a_next_oflow - xcycles;
+    if (mode_old & 1)
       timer_a_next_oflow = TIMER_NO_OFLOW;
-    }
     else
-      timer_a_next_oflow = xcycles + timer_a_offset;
+      timer_a_next_oflow = xcycles + timer_a_step;
   }
   if (mode_new & 1)
     elprintf(EL_YMTIMER, "timer a upd to %i @ %i", timer_a_next_oflow>>8, z80_cycles);
@@ -736,12 +734,10 @@ void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new)
 
   if ((mode_old ^ mode_new) & 2)
   {
-    if (mode_old & 2) {
-      timer_b_offset = timer_b_next_oflow - xcycles;
+    if (mode_old & 2)
       timer_b_next_oflow = TIMER_NO_OFLOW;
-    }
     else
-      timer_b_next_oflow = xcycles + timer_b_offset;
+      timer_b_next_oflow = xcycles + timer_b_step;
   }
   if (mode_new & 2)
     elprintf(EL_YMTIMER, "timer b upd to %i @ %i", timer_b_next_oflow>>8, z80_cycles);
@@ -792,8 +788,9 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             ym2612.OPN.ST.TA = TAnew;
             //ym2612.OPN.ST.TAC = (1024-TAnew)*18;
             //ym2612.OPN.ST.TAT = 0;
-            timer_a_step = timer_a_offset = TIMER_A_TICK_ZCYCLES * (1024 - TAnew);
+            timer_a_step = TIMER_A_TICK_ZCYCLES * (1024 - TAnew);
             if (ym2612.OPN.ST.mode & 1) {
+              // this is not right, should really be done on overflow only
               int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
               timer_a_next_oflow = (cycles << 8) + timer_a_step;
             }
@@ -807,7 +804,7 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             ym2612.OPN.ST.TB = d;
             //ym2612.OPN.ST.TBC = (256-d) * 288;
             //ym2612.OPN.ST.TBT  = 0;
-            timer_b_step = timer_b_offset = TIMER_B_TICK_ZCYCLES * (256 - d); // 262800
+            timer_b_step = TIMER_B_TICK_ZCYCLES * (256 - d); // 262800
             if (ym2612.OPN.ST.mode & 2) {
               int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
               timer_b_next_oflow = (cycles << 8) + timer_b_step;
@@ -966,11 +963,11 @@ void ym2612_unpack_state(void)
   tac = (1024 - ym2612.OPN.ST.TA) << 16;
   tbc = (256  - ym2612.OPN.ST.TB) << 16;
   if (ym2612.OPN.ST.mode & 1)
-    timer_a_next_oflow = (double)(tac - tat) / (double)tac * timer_a_step;
+    timer_a_next_oflow = (int)((double)(tac - tat) / (double)tac * timer_a_step);
   else
     timer_a_next_oflow = TIMER_NO_OFLOW;
   if (ym2612.OPN.ST.mode & 2)
-    timer_b_next_oflow = (double)(tbc - tbt) / (double)tbc * timer_b_step;
+    timer_b_next_oflow = (int)((double)(tbc - tbt) / (double)tbc * timer_b_step);
   else
     timer_b_next_oflow = TIMER_NO_OFLOW;
   elprintf(EL_YMTIMER, "load: %i/%i, timer_a_next_oflow %i", tat>>16, tac>>16, timer_a_next_oflow >> 8);
