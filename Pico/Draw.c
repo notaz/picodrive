@@ -34,9 +34,7 @@ void *DrawLineDest=DefOutBuff; // pointer to dest buffer where to draw this line
 
 static int  HighCacheA[41+1];   // caches for high layers
 static int  HighCacheB[41+1];
-static int  HighCacheS[80+1];   // and sprites
 int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
-int *HighCacheS_ptr;
 
 #define MAX_LINE_SPRITES 30
 unsigned char HighLnSpr[240][2 + MAX_LINE_SPRITES]; // sprite_count, tile_count, [spritep]...
@@ -48,8 +46,8 @@ static int skip_next_line=0;
 
 //unsigned short ppt[] = { 0x0f11, 0x0ff1, 0x01f1, 0x011f, 0x01ff, 0x0f1f, 0x0f0e, 0x0e7c };
 
-static void (*DrawAllSpritesLoPri)(int *hcache, int prio, int sh) = NULL;
-static void (*DrawAllSpritesHiPri)(int *hcache, int prio, int sh) = NULL;
+static void (*DrawAllSpritesLoPri)(int prio, int sh) = NULL;
+static void (*DrawAllSpritesHiPri)(int prio, int sh) = NULL;
 
 struct TileStrip
 {
@@ -65,9 +63,9 @@ struct TileStrip
 #ifdef _ASM_DRAW_C
 void DrawWindow(int tstart, int tend, int prio, int sh);
 void BackFill(int reg7, int sh);
-void DrawAllSprites(int *hcache, int prio, int sh);
+void DrawAllSprites(int prio, int sh);
 void DrawTilesFromCache(int *hc, int sh, int rlim);
-void DrawSpritesFromCache(int *hc, int prio, int sh);
+void DrawSpritesSHi(int prio, int sh);
 void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
 void FinalizeLineBGR444(int sh);
 void FinalizeLineRGB555(int sh);
@@ -654,17 +652,9 @@ static void DrawSprite(int *sprite, int sh, int as)
   if (code&0x0800) { tile+=delta*(width-1); delta=-delta; } // Flip X
 
   tile &= 0x7ff; tile<<=4; tile+=(row&7)<<1; // Tile address
+  delta<<=4; // Delta of address
 
   pal=(code>>9)&0x30;
-
-  // assume there will be no sprites with both normal and operator pixels..
-  if ((code&0x8000) || (sh && pal == 0x30) || as) {
-    *HighCacheS_ptr++ = ((code&0x8000)<<16)|(tile<<16)|((code&0x0800)<<5)|((sx<<6)&0x0000ffc0)|pal|((sprite[0]>>16)&0xf);
-    // we need all for accurate sprites, cached will be used to do proper priorities
-    if (!as && (code&0x8000)) return;
-  }
-
-  delta<<=4; // Delta of address
   pal|=((sh|as)<<6);
 
   if (sh && (code&0x6000) == 0x6000) {
@@ -730,7 +720,7 @@ static void DrawSpriteInterlace(unsigned int *sprite)
 }
 
 
-static void DrawAllSpritesInterlace(int *hcache, int pri, int sh)
+static void DrawAllSpritesInterlace(int pri, int sh)
 {
   struct PicoVideo *pvid=&Pico.video;
   int i,u,table,link=0,sline=DrawScanline<<1;
@@ -774,45 +764,67 @@ static void DrawAllSpritesInterlace(int *hcache, int pri, int sh)
   // Go through sprites backwards:
   for (i-- ;i>=0; i--)
     DrawSpriteInterlace(sprites[i]);
-
-  HighCacheS[0] = 1; // just to fool main code
 }
 
 
 #ifndef _ASM_DRAW_C
-static void DrawSpritesFromCache(int *hc, int prio, int sh)
+// Index + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: vert./horiz. size
+// Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
+static void DrawSpritesSHi(int prio, int sh)
 {
-  int code, tile, sx, delta, width;
-  int pal;
   int (*fTileFunc)(int sx,int addr,int pal);
+  unsigned char *p;
+  int cnt;
 
-  // prio[31]:tile[30:17]:flipx[16]:sx[15:6]:pal[5:4]:delta_width[3:0]
+  cnt = HighLnSpr[DrawScanline][0] & 0x7f;
+  if (cnt == 0) return;
 
-  while ((code=*hc++))
+  p = &HighLnSpr[DrawScanline][2];
+
+  // Go through sprites backwards:
+  for (cnt--; cnt >= 0; cnt--)
   {
-    pal=(code&0x30);
-    delta=code&0xf;
-    width=delta>>2; delta&=3;
-    width++; delta++; // Width and height in tiles
-    if (code&0x10000) delta=-delta; // Flip X
-    delta<<=4;
-    tile=((unsigned int)code>>17)<<1; // also has prio
-    sx=(code<<16)>>22; // sx can be negative (start offscreen), so sign extend
+    int *sprite, code, pal, tile, sx, sy;
+    int offs, delta, width, height, row;
+
+    offs = (p[cnt] & 0x7f) * 2;
+    sprite = HighPreSpr + offs;
+    code = sprite[1];
+    pal = (code>>9)&0x30;
 
     if (sh && pal == 0x30)
     {
-      if (code & 0x80000000) // hi priority
+      if (code & 0x8000) // hi priority
       {
-        if(code&0x10000) fTileFunc=TileFlipSH;
-        else             fTileFunc=TileNormSH;
+        if (code&0x800) fTileFunc=TileFlipSH;
+        else            fTileFunc=TileNormSH;
       } else {
-        if(code&0x10000) fTileFunc=TileFlipSH_onlyop_lp;
-        else             fTileFunc=TileNormSH_onlyop_lp;
+        if (code&0x800) fTileFunc=TileFlipSH_onlyop_lp;
+        else            fTileFunc=TileNormSH_onlyop_lp;
       }
     } else {
-      if(code&0x10000) fTileFunc=TileFlip;
-      else             fTileFunc=TileNorm;
+      if (!(code & 0x8000)) continue; // non-operator low sprite, already drawn
+      if (code&0x800) fTileFunc=TileFlip;
+      else            fTileFunc=TileNorm;
     }
+
+    // parse remaining sprite data
+    sy=sprite[0];
+    sx=code>>16; // X
+    width=sy>>28;
+    height=(sy>>24)&7; // Width and height in tiles
+    sy=(sy<<16)>>16; // Y
+
+    row=DrawScanline-sy; // Row of the sprite we are on
+
+    if (code&0x1000) row=(height<<3)-1-row; // Flip Y
+
+    tile=code + (row>>3); // Tile number increases going down
+    delta=height; // Delta to increase tile by going right
+    if (code&0x0800) { tile+=delta*(width-1); delta=-delta; } // Flip X
+
+    tile &= 0x7ff; tile<<=4; tile+=(row&7)<<1; // Tile address
+    delta<<=4; // Delta of address
 
     for (; width; width--,sx+=8,tile+=delta)
     {
@@ -826,44 +838,62 @@ static void DrawSpritesFromCache(int *hc, int prio, int sh)
 }
 #endif
 
-static void DrawSpritesFromCacheAS(int *hc, int prio, int sh)
+static void DrawSpritesHiAS(int prio, int sh)
 {
-  int code, tile, sx, delta, width;
-  int pal, *hce, *hco;
   int (*fTileFunc)(int sx,int addr,int pal);
+  unsigned char *p;
+  int entry, cnt, sh_cnt = 0;
 
-  // prio[31]:tile[30:17]:flipx[16]:sx[15:6]:pal[5:4]:delta_width[3:0]
+  cnt = HighLnSpr[DrawScanline][0] & 0x7f;
+  if (cnt == 0) return;
 
-  /* walk the sprite cache backwards.. */
-  hco = hce = HighCacheS_ptr;
-  while (hce > hc)
+  p = &HighLnSpr[DrawScanline][2];
+
+  // Go through sprites:
+  for (entry = 0; entry < cnt; entry++)
   {
-    code=*(--hce);
-    pal=(code&0x30);
-    delta=code&0xf;
-    width=delta>>2; delta&=3;
-    width++; delta++; // Width and height in tiles
-    if (code&0x10000) delta=-delta; // Flip X
-    delta<<=4;
-    tile=((unsigned int)code>>17)<<1;
-    sx=(code<<16)>>22; // sx can be negative (start offscreen), so sign extend
+    int *sprite, code, pal, tile, sx, sy;
+    int offs, delta, width, height, row;
 
-    if (code & 0x80000000) // hi priority
+    offs = (p[entry] & 0x7f) * 2;
+    sprite = HighPreSpr + offs;
+    code = sprite[1];
+    pal = (code>>9)&0x30;
+
+    if (code & 0x8000) // hi priority
     {
       if (sh && pal == 0x30)
       {
-        if(code&0x10000) fTileFunc=TileFlipAS_noop;
-        else             fTileFunc=TileNormAS_noop;
+        if (code&0x800) fTileFunc=TileFlipAS_noop;
+        else            fTileFunc=TileNormAS_noop;
       } else {
-        if(code&0x10000) fTileFunc=TileFlipAS;
-        else             fTileFunc=TileNormAS;
+        if (code&0x800) fTileFunc=TileFlipAS;
+        else            fTileFunc=TileNormAS;
       }
     } else {
-      if(code&0x10000) fTileFunc=TileFlipAS_onlymark;
-      else             fTileFunc=TileNormAS_onlymark;
+      if (code&0x800) fTileFunc=TileFlipAS_onlymark;
+      else            fTileFunc=TileNormAS_onlymark;
     }
     if (sh && pal == 0x30)
-      *(--hco) = code; /* save for later */
+      p[sh_cnt++] = offs / 2; // re-save for sh/hi pass
+
+    // parse remaining sprite data
+    sy=sprite[0];
+    sx=code>>16; // X
+    width=sy>>28;
+    height=(sy>>24)&7; // Width and height in tiles
+    sy=(sy<<16)>>16; // Y
+
+    row=DrawScanline-sy; // Row of the sprite we are on
+
+    if (code&0x1000) row=(height<<3)-1-row; // Flip Y
+
+    tile=code + (row>>3); // Tile number increases going down
+    delta=height; // Delta to increase tile by going right
+    if (code&0x0800) { tile+=delta*(width-1); delta=-delta; } // Flip X
+
+    tile &= 0x7ff; tile<<=4; tile+=(row&7)<<1; // Tile address
+    delta<<=4; // Delta of address
 
     pal |= 0x80;
     for (; width; width--,sx+=8,tile+=delta)
@@ -887,40 +917,10 @@ static void DrawSpritesFromCacheAS(int *hc, int prio, int sh)
     }
   }
 
-  /* nasty 2: loop once more and do operator colors */
-  while ((code=*hco++))
-  {
-    pal=(code&0x30);
-    if (pal != 0x30) continue;
-    delta=code&0xf;
-    width=delta>>2; delta&=3;
-    width++; delta++;
-    if (code&0x10000) delta=-delta; // Flip X
-    delta<<=4;
-    tile=((unsigned int)code>>17)<<1;
-    sx=(code<<16)>>22;
-
-    if (code & 0x80000000)
-    {
-      if(code&0x10000) fTileFunc=TileFlipSH;
-      else             fTileFunc=TileNormSH;
-    } else {
-      if(code&0x10000) fTileFunc=TileFlipSH_onlyop_lp;
-      else             fTileFunc=TileNormSH_onlyop_lp;
-    }
-
-    pal |= 0x80;
-    for (; width; width--,sx+=8,tile+=delta)
-    {
-      if(sx<=0)   continue;
-      if(sx>=328) break; // Offscreen
-
-      tile&=0x7fff; // Clip tile address
-      fTileFunc(sx,tile,pal);
-    }
-  }
+  /* nasty 2: sh operator pass */
+  HighLnSpr[DrawScanline][0] = sh_cnt;
+  DrawSpritesSHi(1, 1);
 }
-
 
 
 // Index + 0  :    ----hhvv -lllllll -------y yyyyyyyy
@@ -971,7 +971,7 @@ void PrepareSprites(int full)
           (sx > -24 || sx < max_width))                   // onscreen x
       {
         int y = (sy >= DrawScanline) ? sy : DrawScanline;
-        int offs = (pd - HighPreSpr) / 2;
+        int entry = ((pd - HighPreSpr) / 2) | ((code2>>8)&0x80);
         for (; y < sy + (height<<3) && y < max_lines; y++)
         {
           int i, cnt;
@@ -979,10 +979,10 @@ void PrepareSprites(int full)
           if (cnt >= max_line_sprites) continue;              // sprite limit?
 
           for (i = 0; i < cnt; i++)
-            if (HighLnSpr[y][2+i] == offs) goto found;
+            if (((HighLnSpr[y][2+i] ^ entry) & 0x7f) == 0) goto found;
 
           // this sprite was previously missing
-          HighLnSpr[y][2+cnt] = offs;
+          HighLnSpr[y][2+cnt] = entry;
           HighLnSpr[y][0] = cnt + 1;
 found:;
         }
@@ -1025,6 +1025,7 @@ found:;
       if (sy < max_lines && sy + (height<<3) > DrawScanline) // sprite onscreen (y)?
       {
         int y = (sy >= DrawScanline) ? sy : DrawScanline;
+        int entry = ((pd - HighPreSpr) / 2) | ((code2>>8)&0x80);
         for (; y < sy + (height<<3) && y < max_lines; y++)
         {
           int cnt = HighLnSpr[y][0];
@@ -1044,8 +1045,11 @@ found:;
           // must keep the first sprite even if it's offscreen, for masking
           if (cnt > 0 && (sx <= sx_min || sx >= max_width)) continue; // offscreen x
 
-          HighLnSpr[y][2+cnt] = ((pd - HighPreSpr) / 2); // | prio;
+          HighLnSpr[y][2+cnt] = entry;
           HighLnSpr[y][0] = cnt + 1;
+          if (entry & 0x80)
+               rendstatus |= PDRAW_HAVE_HI_SPR;
+          else rendstatus |= PDRAW_HAVE_LO_SPR;
         }
       }
 
@@ -1072,7 +1076,7 @@ found:;
 }
 
 #ifndef _ASM_DRAW_C
-static void DrawAllSprites(int *hcache, int prio, int sh)
+static void DrawAllSprites(int prio, int sh)
 {
   int rs = rendstatus, scan = DrawScanline;
   unsigned char *p;
@@ -1084,24 +1088,20 @@ static void DrawAllSprites(int *hcache, int prio, int sh)
     rendstatus = rs & ~(PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES);
   }
 
-  HighCacheS_ptr = hcache;
   cnt = HighLnSpr[scan][0] & 0x7f;
+  if (cnt == 0) return;
 
-  if (cnt != 0)
+  p = &HighLnSpr[scan][2];
+  as = (rs & PDRAW_ACC_SPRITES) ? 1 : 0;
+
+  // Go through sprites backwards:
+  for (cnt--; cnt >= 0; cnt--)
   {
-    p = &HighLnSpr[scan][2];
-    as = (rs & PDRAW_ACC_SPRITES) ? 1 : 0;
-
-    // Go through sprites backwards:
-    for (cnt--; cnt >= 0; cnt--)
-    {
-      int offs = p[cnt] * 2;
-      //if ((p[cnt] & 0x80) && !as) continue;
-      DrawSprite(HighPreSpr + offs, sh, as);
-    }
+    int offs;
+    if ((p[cnt] >> 7) != prio && !as) continue;
+    offs = (p[cnt]&0x7f) * 2;
+    DrawSprite(HighPreSpr + offs, sh, as);
   }
-
-  *HighCacheS_ptr = 0;
 }
 
 
@@ -1326,7 +1326,8 @@ static int DrawDisplay(int sh, int as)
     DrawWindow(                           (win&0x80) ? edge :       0, (win&0x80) ? maxcells>>1 : edge, 0, sh|as);
   } else
     DrawLayer(0|((sh|as)<<1), HighCacheA, 0, maxcells);
-  DrawAllSpritesLoPri(HighCacheS, 0, sh);
+  if ((rendstatus & PDRAW_HAVE_LO_SPR) || as)
+    DrawAllSpritesLoPri(0, sh);
 
   if (HighCacheB[0]) DrawTilesFromCache(HighCacheB, sh, maxw);
   if (hvwind == 1)
@@ -1336,7 +1337,8 @@ static int DrawDisplay(int sh, int as)
     DrawWindow((win&0x80) ? edge : 0, (win&0x80) ? maxcells>>1 : edge, 1, sh);
   } else
     if (HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, maxw);
-  if (HighCacheS[0]) DrawAllSpritesHiPri(HighCacheS, 1, sh);
+  if ((rendstatus & PDRAW_HAVE_HI_SPR) || sh)
+    DrawAllSpritesHiPri(1, sh);
 
 #if 0
   {
@@ -1354,17 +1356,28 @@ static int DrawDisplay(int sh, int as)
 PICO_INTERNAL void PicoFrameStart(void)
 {
   // prepare to do this frame
-  rendstatus = (PicoOpt&0x80)>>5;    // accurate sprites, clear everything else
+  int sh = Pico.video.reg[0xC] & 8; // shadow/hilight?
+  rendstatus = 0;
+  if (PicoOpt & POPT_ACC_SPRITES)
+    rendstatus |= PDRAW_ACC_SPRITES;
+
   if ((Pico.video.reg[12]&6) == 6) {
     rendstatus |= PDRAW_INTERLACE; // interlace mode
-    DrawAllSpritesLoPri = DrawAllSpritesInterlace;
+    DrawAllSpritesLoPri =
     DrawAllSpritesHiPri = DrawAllSpritesInterlace;
+  }
+  else if (sh)
+  {
+    DrawAllSpritesLoPri = DrawAllSprites;
+    DrawAllSpritesHiPri = DrawSpritesSHi;
   }
   else
   {
-    DrawAllSpritesLoPri = DrawAllSprites;
-    DrawAllSpritesHiPri = rendstatus ? DrawSpritesFromCacheAS : DrawSpritesFromCache;
+    DrawAllSpritesLoPri =
+    DrawAllSpritesHiPri = DrawAllSprites;
   }
+  if (rendstatus & PDRAW_ACC_SPRITES)
+    DrawAllSpritesHiPri = DrawSpritesHiAS;
 
   if (Pico.m.dirtyPal) Pico.m.dirtyPal = 2; // reset dirty if needed
 

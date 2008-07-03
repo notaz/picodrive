@@ -364,10 +364,19 @@ char *debugString(void)
   static char dstr[1024];
   struct PicoVideo *pv=&Pico.video;
   unsigned char *reg=pv->reg, r;
+  extern int HighPreSpr[];
+  int i, sprites_lo, sprites_hi;
   char *dstrp;
 
+  sprites_lo = sprites_hi = 0;
+  for (i = 0; HighPreSpr[i] != 0; i+=2)
+    if (HighPreSpr[i+1] & 0x8000)
+         sprites_hi++;
+    else sprites_lo++;
+
   dstrp = dstr;
-  sprintf(dstrp, "mode set 1: %02x\n", (r=reg[0])); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "mode set 1: %02x       spr lo: %2i, spr hi: %2i\n", (r=reg[0]), sprites_lo, sprites_hi);
+  dstrp+=strlen(dstrp);
   sprintf(dstrp, "display_disable: %i, M3: %i, palette: %i, ?, hints: %i\n", bit(r,0), bit(r,1), bit(r,2), bit(r,4));
   dstrp+=strlen(dstrp);
   sprintf(dstrp, "mode set 2: %02x\n", (r=reg[1])); dstrp+=strlen(dstrp);

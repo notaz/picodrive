@@ -166,6 +166,8 @@ void vidConvCpyRGB565(void *to, void *from, int pixels);
 #define PDRAW_SONIC_MODE    (1<<5) // mid-frame palette changes for 8bit renderer
 #define PDRAW_PLANE_HI_PRIO (1<<6) // have layer with all hi prio tiles (mk3)
 #define PDRAW_SHHI_DONE     (1<<7) // layer sh/hi already processed
+#define PDRAW_HAVE_LO_SPR   (1<<8)
+#define PDRAW_HAVE_HI_SPR   (1<<9)
 extern int rendstatus;
 extern unsigned short HighPal[0x100];
 
