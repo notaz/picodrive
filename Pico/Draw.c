@@ -628,7 +628,7 @@ last_cut_tile:
 // Index + 0  :    hhhhvvvv ab--hhvv yyyyyyyy yyyyyyyy // a: offscreen h, b: offs. v, h: horiz. size
 // Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-static void DrawSprite(int *sprite, int sh, int as)
+static void DrawSprite(int *sprite, int sh)
 {
   int width=0,height=0;
   int row=0,code=0;
@@ -657,7 +657,7 @@ static void DrawSprite(int *sprite, int sh, int as)
   delta<<=4; // Delta of address
 
   pal=(code>>9)&0x30;
-  pal|=((sh|as)<<6);
+  pal|=sh<<6;
 
   if (sh && (code&0x6000) == 0x6000) {
     if(code&0x0800) fTileFunc=TileFlipSH_noop;
@@ -1085,7 +1085,7 @@ static void DrawAllSprites(int prio, int sh)
 {
   int rs = rendstatus, scan = DrawScanline;
   unsigned char *p;
-  int cnt, as;
+  int cnt;
 
   if (rs & (PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES)) {
     //elprintf(EL_STATUS, "PrepareSprites(%i)", (rs>>4)&1);
@@ -1097,15 +1097,14 @@ static void DrawAllSprites(int prio, int sh)
   if (cnt == 0) return;
 
   p = &HighLnSpr[scan][2];
-  as = (rs & PDRAW_ACC_SPRITES) ? 1 : 0;
 
   // Go through sprites backwards:
   for (cnt--; cnt >= 0; cnt--)
   {
     int offs;
-    if ((p[cnt] >> 7) != prio && !as) continue;
+    if ((p[cnt] >> 7) != prio) continue;
     offs = (p[cnt]&0x7f) * 2;
-    DrawSprite(HighPreSpr + offs, sh, as);
+    DrawSprite(HighPreSpr + offs, sh);
   }
 }
 
@@ -1331,7 +1330,7 @@ static int DrawDisplay(int sh, int as)
     DrawWindow(                           (win&0x80) ? edge :       0, (win&0x80) ? maxcells>>1 : edge, 0, sh|as);
   } else
     DrawLayer(0|((sh|as)<<1), HighCacheA, 0, maxcells);
-  if ((rendstatus & PDRAW_HAVE_LO_SPR) || as)
+  if (rendstatus & PDRAW_HAVE_LO_SPR)
     DrawAllSpritesLoPri(0, sh);
 
   if (HighCacheB[0]) DrawTilesFromCache(HighCacheB, sh, maxw);
@@ -1366,12 +1365,7 @@ PICO_INTERNAL void PicoFrameStart(void)
   if (PicoOpt & POPT_ACC_SPRITES)
     rendstatus |= PDRAW_ACC_SPRITES;
 
-  if ((Pico.video.reg[12]&6) == 6) {
-    rendstatus |= PDRAW_INTERLACE; // interlace mode
-    DrawAllSpritesLoPri =
-    DrawAllSpritesHiPri = DrawAllSpritesInterlace;
-  }
-  else if (sh)
+  if (sh)
   {
     DrawAllSpritesLoPri = DrawAllSprites;
     DrawAllSpritesHiPri = DrawSpritesSHi;
@@ -1383,6 +1377,11 @@ PICO_INTERNAL void PicoFrameStart(void)
   }
   if (rendstatus & PDRAW_ACC_SPRITES)
     DrawAllSpritesHiPri = DrawSpritesHiAS;
+  if ((Pico.video.reg[12]&6) == 6) {
+    rendstatus |= PDRAW_INTERLACE; // interlace mode
+    DrawAllSpritesLoPri =
+    DrawAllSpritesHiPri = DrawAllSpritesInterlace;
+  }
 
   if (Pico.m.dirtyPal) Pico.m.dirtyPal = 2; // reset dirty if needed
 

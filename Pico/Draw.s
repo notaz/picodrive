@@ -1163,17 +1163,12 @@ das_no_prep:
 
     @ time to do some real work
     stmfd   sp!, {r4-r11,lr}
-    ldr     r4, =rendstatus
     mov     r12,#0xff
-    ldr     r4, [r4]
     strb    r12,[r2,#1]     @ set end marker
     add     r10,r2, #2
     add     r10,r10,r3      @ r10=HighLnSpr end
 
-    mov     r8, r1, lsl #4
-    tst     r4, #PDRAW_ACC_SPRITES
-    orrne   r8, r8, #1
-    str     r8, [sp, #-4]   @ no calls after this point
+    str     r1, [sp, #-4]   @ no calls after this point
 
 .if OVERRIDE_HIGHCOL
     ldr     r11,=HighCol
@@ -1196,7 +1191,7 @@ DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
     mov     r2, r0, lsr #7
     cmp     r0, #0xff
     ldmeqfd sp!, {r4-r11,pc} @ end of list
-    cmp     r2, r8, lsr #5
+    cmp     r2, r8, lsr #1
     bne     DrawSprite      @ wrong priority
     and     r0, r0, #0x7f
     add     r0, r1, r0, lsl #3
@@ -1220,7 +1215,7 @@ DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
     mov     r2, r9, asr #16 @ r2=sx
     mov     r9, r9, lsl #16
     mov     r9, r9, lsr #16
-    orr     r9, r9, r8, lsl #27 @ r9=code|sh[31]|as[27]
+    orr     r9, r9, r8, lsl #31 @ r9=code|sh[31]
 
     tst     r9, #0x1000
     movne   r4, r5, lsl #3
@@ -1242,11 +1237,10 @@ DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
     mov     r5, r5, lsl #4     @ delta<<=4; // Delta of address
     and     r4, r9, #0x6000
     orr     r9, r9, r4, lsl #16
-    orr     r9, r9, #0x10000000 @ r9=scc1 a??? ... <code> (s=shadow/hilight, cc=pal, a=acc_spr)
+    orrs    r9, r9, #0x10000000 @ r9=scc1 ???? ... <code> (s=shadow/hilight, cc=pal)
 
-    orrs    r3, r9, r9, lsl #4
     mov     r3, r4, lsr #9     @ r3=pal=((code>>9)&0x30);
-    orrmi   r3, r3, #0x40      @ for shadow|as
+    orrmi   r3, r3, #0x40      @ for sh/hi
 
     add     r6, r6, #1         @ inc now
     adds    r0, r2, #0         @ mov sx to r0 and set ZV flags
