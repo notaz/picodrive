@@ -947,12 +947,26 @@ DrawTilesFromCache:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-.global DrawSpritesFromCache @ int *hc, int prio_unused, int sh
+.global DrawSpritesSHi @ int prio_unused, int sh
 
-DrawSpritesFromCache:
+DrawSpritesSHi:
+    ldr     r3, =DrawScanline
+    ldr     r2, =HighLnSpr
+    ldr     r12,[r3]
+    mov     r3, #(MAX_LINE_SPRITES+2)
+    mla     r2, r12, r3, r2
+    ldr     r3, [r2]
+    ands    r3, r3, #0x7f
+    bxeq    lr
+
     stmfd   sp!, {r4-r11,lr}
+    mov     r12,#0xff
+    strb    r12,[r2,#1]     @ set end marker
+    add     r10,r2, #2
+    add     r10,r10,r3      @ r10=HighLnSpr end
 
-    @ cache some stuff to avoid mem access
+    str     r1, [sp, #-4]   @ no calls after this point
+
 .if OVERRIDE_HIGHCOL
     ldr     r11,=HighCol
     mov     r12,#0xf
@@ -962,165 +976,189 @@ DrawSpritesFromCache:
     mov     r12,#0xf
 .endif
     ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
-    mov     r6, r2, lsl #31
-    orr     r6, r6, #1<<30
 
-    mov     r10, r0
 
-.dsfc_loop:
-    ldr     r9, [r10], #4    @ read code
-    bic     r6, r6, #7       @ using pipeline
-    tst     r9, r9
-    ldmeqfd sp!, {r4-r11,pc}
+DrawSpriteSHi:
+    @ draw next sprite
+    ldrb    r0, [r10,#-1]!
+    ldr     r1, =HighPreSpr
+    ldr     r8, [sp, #-4]
+    cmp     r0, #0xff
+    ldmeqfd sp!, {r4-r11,pc} @ end of list
+    and     r0, r0, #0x7f
+    add     r0, r1, r0, lsl #3
 
-    mov     r4, r9, lsl #28
-    orr     r6, r6, r4, lsr #30
-    add     r6, r6, #1       @ r6=s1cc???? ... ?????www (s=shadow/hilight, cc=pal, w=width)
+    ldr     r9, [r0, #4]    @ sprite[1]
+    mov     r2, r9, asr #16 @ r2=sx
 
-    and     r5, r9, #3
-    add     r5, r5, #1       @ r5=delta
-    tst     r9, #0x10000
-    rsbne   r5, r5, #0       @ Flip X
-    mov     r5, r5, lsl #4
+    mov     r9, r9, lsl #16
+    mov     r3, r9, lsr #31 @ priority
+    mov     r9, r9, lsr #16
+    orr     r9, r9, r8, lsl #31 @ r9=code|sh[31]
+    and     r4, r9, #0x6000
+    orr     r9, r9, r4, lsl #16
+    orr     r9, r9, #0x10000000 @ r9=scc1 ???? ... <code> (s=shadow/hilight, cc=pal)
+    cmp     r12,r9, lsr #28 @ sh/hi with pal3?
+    cmpne   r3, #1          @ if not, is hi prio
+    bne     DrawSpriteSHi   @ non-operator low sprite, already drawn
 
-    mov     r2, r9, lsr #17
-    mov     r8, r2, lsl #1   @ tile=((unsigned int)code>>17)<<1;
+    ldr     r3, [r0]        @ sprite[0]
+    ldr     r7, =DrawScanline
+    mov     r6, r3, lsr #28
+    sub     r6, r6, #1      @ r6=width-1 (inc later)
+    mov     r5, r3, lsr #24
+    and     r5, r5, #7      @ r5=height
 
-    and     r3, r9, #0x30    @ r3=pal=(code&0x30);
+    mov     r0, r3, lsl #16 @ r4=sy<<16 (tmp)
 
-    bic     r6, r6, #3<<28
-    orr     r6, r6, r3, lsl #24
+    ldr     r7, [r7]
+    sub     r7, r7, r0, asr #16 @ r7=row=DrawScanline-sy
 
-    mov     r0, r9, lsl #16
-    mov     r0, r0, asr #22  @ sx=(code<<16)>>22
-    adds    r0, r0, #0       @ set ZV
-    b       .dsfc_inloop_enter
+    tst     r9, #0x1000
+    movne   r0, r5, lsl #3
+    subne   r0, r0, #1
+    subne   r7, r0, r7      @ if (code&0x1000) row=(height<<3)-1-row; // Flip Y
 
-@ scratch: r4, r7
-.dsfc_inloop:
-    sub     r6, r6, #1
-    tst     r6, #7
-    beq     .dsfc_loop
-    adds    r0, r0, #8
-    add     r8, r8, r5
+    add     r8, r9, r7, lsr #3 @ tile+=row>>3; // Tile number increases going down
+    tst     r9, #0x0800
+    mlane   r8, r5, r6, r8  @ if (code&0x0800) { tile+=delta*(width-1);
+    rsbne   r5, r5, #0      @ delta=-delta; } // r5=delta now
 
-.dsfc_inloop_enter:
-    ble     .dsfc_inloop
+    mov     r8, r8, lsl #21
+    mov     r8, r8, lsr #17
+    and     r7, r7, #7
+    add     r8, r8, r7, lsl #1 @ tile+=(row&7)<<1; // Tile address
+
+    mov     r5, r5, lsl #4     @ delta<<=4; // Delta of address
+
+    orrs    r3, r9, r9, lsl #4
+    mov     r3, r4, lsr #9     @ r3=pal=((code>>9)&0x30);
+
+    add     r6, r6, #1         @ inc now
+    adds    r0, r2, #0         @ mov sx to r0 and set ZV flags
+    b       .dsprShi_loop_enter
+
+.dsprShi_loop:
+    subs    r6, r6, #1         @ width--
+    beq     DrawSpriteSHi
+    adds    r0, r0, #8         @ sx+=8
+    add     r8, r8, r5         @ tile+=delta
+
+.dsprShi_loop_enter:
+    ble     .dsprShi_loop     @ sx <= 0
     cmp     r0, #328
-    bge     .dsfc_loop
+    bge     DrawSpriteSHi
 
     mov     r8, r8, lsl #17
-    mov     r8, r8, lsr #17   @ tile&=0x7fff; // Clip tile address
+    mov     r8, r8, lsr #17    @ tile&=0x7fff; // Clip tile address
 
-    ldr     r2, [lr, r8, lsl #1] @ pack=*(unsigned int *)(Pico.vram+tile); // Get 8 pixels
-    add     r1, r11, r0       @ r1=pdest
+    ldr     r2, [lr, r8, lsl #1] @ pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
+    add     r1, r11, r0        @ r1=pdest
     tst     r2, r2
-    beq     .dsfc_inloop
+    beq     .dsprShi_loop
 
-    cmp     r12, r6, lsr #28
-    beq     .dsfc_shadow
+    cmp     r12, r9, lsr #28
+    beq     .dsprShi_shadow
 
     cmp     r2, r2, ror #4
-    beq     .dsfc_SingleColor @ tileline singlecolor 
+    beq     .dsprShi_SingleColor @ tileline singlecolor 
 
-    tst     r9, #0x10000
-    bne     .dsfc_TileFlip
+    tst     r9, #0x0800
+    bne     .dsprShi_TileFlip
 
-    @ TileFlip (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
-.dsfc_TileNorm:
+    @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
+@ scratch: r4, r7
+.dsprShi_TileNorm:
     TileNorm r12
-    b       .dsfc_inloop
+    b       .dsprShi_loop
 
-.dsfc_TileFlip:
+.dsprShi_TileFlip:
     TileFlip r12
-    b       .dsfc_inloop
+    b       .dsprShi_loop
 
-.dsfc_SingleColor:
-    tst     r0, #1              @ not aligned?
+.dsprShi_SingleColor:
     and     r4, r2, #0xf
     orr     r4, r3, r4
     orr     r4, r4, r4, lsl #8
+    tst     r0, #1              @ not aligned?
     strneb  r4, [r1], #1
     streqh  r4, [r1], #2
     strh    r4, [r1], #2
     strh    r4, [r1], #2
     strh    r4, [r1], #2
     strneb  r4, [r1], #1
-    b       .dsfc_inloop
+    b       .dsprShi_loop
 
-.dsfc_shadow:
-    tst     r9, #0x80000000
-    beq     .dsfc_shadow_lowpri
+.dsprShi_shadow:
+    tst     r9, #0x8000
+    beq     .dsprShi_shadow_lowpri
 
     cmp     r2, r2, ror #4
-    beq     .dsfc_singlec_sh
+    beq     .dsprShi_singlec_sh
 
-    tst     r9, #0x10000
-    bne     .dsfc_TileFlip_sh
+    tst     r9, #0x0800
+    bne     .dsprShi_TileFlip_sh
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
-.dsfc_TileNorm_sh:
+.dsprShi_TileNorm_sh:
     TileNormSh
-    b       .dsfc_inloop
+    b       .dsprShi_loop
 
-.dsfc_TileFlip_sh:
+.dsprShi_TileFlip_sh:
     TileFlipSh
-    b       .dsfc_inloop
+    b       .dsprShi_loop
 
-.dsfc_singlec_sh:
+.dsprShi_singlec_sh:
     cmp     r2, #0xe0000000
-    bcc     .dsfc_SingleColor   @ normal singlecolor tileline (carry inverted in ARM)
+    bcc     .dsprShi_SingleColor   @ normal singlecolor tileline (carry inverted in ARM)
     tst     r2, #0x10000000
-    bne     .dsfc_sh_sh
+    bne     .dsprShi_sh_sh
     TileSingleHi
-    b       .dsfc_inloop
+    b       .dsprShi_loop
 
-.dsfc_sh_sh:
+.dsprShi_sh_sh:
     TileSingleSh
-    b       .dsfc_inloop
+    b       .dsprShi_loop
 
-.dsfc_shadow_lowpri:
-    tst     r9, #0x10000
-    bne     .dsfc_TileFlip_sh_lp
+.dsprShi_shadow_lowpri:
+    tst     r9, #0x800
+    bne     .dsprShi_TileFlip_sh_lp
 
-.dsfc_TileNorm_sh_lp:
+.dsprShi_TileNorm_sh_lp:
     TileNormSh_onlyop_lp
-    b       .dsfc_inloop
+    b       .dsprShi_loop
 
-.dsfc_TileFlip_sh_lp:
+.dsprShi_TileFlip_sh_lp:
     TileFlipSh_onlyop_lp
-    b       .dsfc_inloop
+    b       .dsprShi_loop
 
 .pool
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-.global DrawAllSprites @ int *hcache, int prio, int sh
+.global DrawAllSprites @ int prio, int sh
 
 DrawAllSprites:
     ldr     r3, =rendstatus
+    orr     r1, r1, r0, lsl #1
     ldr     r12,[r3]
     tst     r12,#(PDRAW_ACC_SPRITES|PDRAW_SPRITES_MOVED)
     beq     das_no_prep
-    stmfd   sp!, {r0,r2,lr}
+    stmfd   sp!, {r1,lr}
     and     r0, r12,#PDRAW_DIRTY_SPRITES
     bic     r12,r12,#(PDRAW_ACC_SPRITES|PDRAW_SPRITES_MOVED)
     str     r12,[r3]
     bl      PrepareSprites
-    ldmfd   sp!, {r0,r2,lr}
+    ldmfd   sp!, {r1,lr}
 
 das_no_prep:
-    ldr     r12,=HighCacheS_ptr
     ldr     r3, =DrawScanline
-    ldr     r1, =HighLnSpr
-    str     r0, [r12]
+    ldr     r2, =HighLnSpr
     ldr     r12,[r3]
     mov     r3, #(MAX_LINE_SPRITES+2)
-    mla     r1, r12, r3, r1
-    mov     r12,#0
-    ldr     r3, [r1]
+    mla     r2, r12, r3, r2
+    ldr     r3, [r2]
     ands    r3, r3, #0x7f
-    streq   r12,[r0]
     bxeq    lr
 
     @ time to do some real work
@@ -1128,11 +1166,11 @@ das_no_prep:
     ldr     r4, =rendstatus
     mov     r12,#0xff
     ldr     r4, [r4]
-    strb    r12,[r1,#1]     @ end marker
-    add     r10,r1, #2
+    strb    r12,[r2,#1]     @ set end marker
+    add     r10,r2, #2
     add     r10,r10,r3      @ r10=HighLnSpr end
 
-    mov     r8, r2, lsl #4
+    mov     r8, r1, lsl #4
     tst     r4, #PDRAW_ACC_SPRITES
     orrne   r8, r8, #1
     str     r8, [sp, #-4]   @ no calls after this point
@@ -1154,13 +1192,12 @@ DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
     @ draw next sprite
     ldrb    r0, [r10,#-1]!
     ldr     r1, =HighPreSpr
-    mov     r8, #0
-    cmp     r0, #0xff
-    ldreq   r4, =HighCacheS_ptr
-    ldreq   r4, [r4]
-    streq   r8, [r4]
-    ldmeqfd sp!, {r4-r11,pc}
     ldr     r8, [sp, #-4]
+    mov     r2, r0, lsr #7
+    cmp     r0, #0xff
+    ldmeqfd sp!, {r4-r11,pc} @ end of list
+    cmp     r2, r8, lsr #5
+    bne     DrawSprite      @ wrong priority
     and     r0, r0, #0x7f
     add     r0, r1, r0, lsl #3
 
@@ -1200,23 +1237,16 @@ DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
     and     r7, r7, #7
     add     r8, r8, r7, lsl #1 @ tile+=(row&7)<<1; // Tile address
 
-    tst     r9, #0x8000
-    tsteq   r9, #(1<<27)
-    bne     .dspr_cache       @ if(code&0x8000) || as
-    tst     r9, #0x4000
-    tstne   r9, #0x2000
-    tstne   r9, #(1<<31)
-    bne     .dspr_cache       @ (sh && pal == 0x30)
-
 .dspr_continue:
     @ cache some stuff to avoid mem access
     mov     r5, r5, lsl #4     @ delta<<=4; // Delta of address
     and     r4, r9, #0x6000
     orr     r9, r9, r4, lsl #16
-    orrs    r9, r9, #0x10000000 @ r9=scc1 a??? ... <code> (s=shadow/hilight, cc=pal, a=acc_spr)
+    orr     r9, r9, #0x10000000 @ r9=scc1 a??? ... <code> (s=shadow/hilight, cc=pal, a=acc_spr)
 
+    orrs    r3, r9, r9, lsl #4
     mov     r3, r4, lsr #9     @ r3=pal=((code>>9)&0x30);
-    orrmi   r3, r3, #0x40      @ shadow by default
+    orrmi   r3, r3, #0x40      @ for shadow|as
 
     add     r6, r6, #1         @ inc now
     adds    r0, r2, #0         @ mov sx to r0 and set ZV flags
@@ -1293,31 +1323,6 @@ DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
     TileFlipSh_noop
     b       .dspr_loop
 
-
-.dspr_cache:
-    @ *HighCacheS_ptr++ = ((code&0x8000)<<16)|(tile<<16)|((code&0x0800)<<5)|((sx<<6)&0x0000ffc0)|pal|((sprite[0]>>16)&0xf);
-    ldr     r1, =HighCacheS_ptr
-    mov     r4, r8, lsl #16     @ tile
-    tst     r9, #0x0800
-    orrne   r4, r4, #0x10000    @ code&0x0800
-    mov     r0, r2, lsl #22
-    orr     r4, r4, r0, lsr #16 @ (sx<<6)&0x0000ffc0
-    and     r0, r9, #0x6000
-    orr     r4, r4, r0, lsr #9  @ (code>>9)&0x30
-    mov     r3, r3, lsl #12
-    orr     r4, r4, r3, lsr #28 @ (sprite[0]>>24)&0xf
-
-    ldr     r0, [r1]
-    tst     r9, #0x8000
-    orrne   r4, r4, #0x80000000 @ prio
-
-    str     r4, [r0], #4
-    str     r0, [r1]
-
-    and     r0, r9, #(1<<27)    @ as
-    teqne   r0,     #(1<<27)    @ (code&0x8000) && !as
-    bne     DrawSprite
-    b       .dspr_continue      @ draw anyway if accurate sprites enabled
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 

@@ -203,7 +203,7 @@ up: PicoDrive.gpe
 ../../cpu/musashi/m68kops.c :
 	@make -C ../../cpu/musashi
 
-../../Pico/Pico.o : ../../Pico/PicoFrameHints.c ../../Pico/PicoInt.h
+../../Pico/Pico.o ../../Pico/cd/Pico.o: ../../Pico/PicoFrameHints.c ../../Pico/PicoInt.h
 ../../Pico/Memory.o Pico/cd/Memory.o : ../../Pico/MemoryCmn.c ../../Pico/PicoInt.h
 
 # build helix libs

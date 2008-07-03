@@ -144,6 +144,8 @@ TileFlipMaker(TileFlip,pix_just_write)
 
 #endif
 
+#ifndef _ASM_DRAW_C
+
 // draw a sprite pixel, process operator colors
 #define pix_sh(x) \
   if (!t); \
@@ -154,7 +156,6 @@ TileFlipMaker(TileFlip,pix_just_write)
 TileNormMaker(TileNormSH, pix_sh)
 TileFlipMaker(TileFlipSH, pix_sh)
 
-#ifndef _ASM_DRAW_C
 // draw a sprite pixel ignoring operator colors
 #define pix_sh_noop(x) \
   if (t && t < 0xe) \
@@ -162,7 +163,6 @@ TileFlipMaker(TileFlipSH, pix_sh)
 
 TileNormMaker(TileNormSH_noop, pix_sh_noop)
 TileFlipMaker(TileFlipSH_noop, pix_sh_noop)
-#endif
 
 // process operator pixels only, apply only on low pri tiles
 #define pix_sh_onlyop(x) \
@@ -171,6 +171,8 @@ TileFlipMaker(TileFlipSH_noop, pix_sh_noop)
 
 TileNormMaker(TileNormSH_onlyop_lp, pix_sh_onlyop)
 TileFlipMaker(TileFlipSH_onlyop_lp, pix_sh_onlyop)
+
+#endif
 
 // draw a sprite pixel (AS)
 #define pix_as(x) \
@@ -985,6 +987,9 @@ void PrepareSprites(int full)
           HighLnSpr[y][2+cnt] = entry;
           HighLnSpr[y][0] = cnt + 1;
 found:;
+          if (entry & 0x80)
+               rendstatus |= PDRAW_HAVE_HI_SPR;
+          else rendstatus |= PDRAW_HAVE_LO_SPR;
         }
       }
 
