@@ -35,11 +35,11 @@ void *DrawLineDest=DefOutBuff; // pointer to dest buffer where to draw this line
 static int  HighCacheA[41+1];   // caches for high layers
 static int  HighCacheB[41+1];
 static int  HighCacheS[80+1];   // and sprites
-static int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
+int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
 int *HighCacheS_ptr;
 
 #define MAX_LINE_SPRITES 30
-static unsigned char HighLnSpr[240][2 + MAX_LINE_SPRITES]; // sprite_count, tile_count, [spritep]...
+unsigned char HighLnSpr[240][2 + MAX_LINE_SPRITES]; // sprite_count, tile_count, [spritep]...
 
 int rendstatus = 0;
 int DrawScanline = 0;
@@ -65,7 +65,7 @@ struct TileStrip
 #ifdef _ASM_DRAW_C
 void DrawWindow(int tstart, int tend, int prio, int sh);
 void BackFill(int reg7, int sh);
-void DrawSprite(int *sprite, int sh, int as);
+void DrawAllSprites(int *hcache, int prio, int sh);
 void DrawTilesFromCache(int *hc, int sh, int rlim);
 void DrawSpritesFromCache(int *hc, int prio, int sh);
 void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
@@ -929,7 +929,7 @@ static void DrawSpritesFromCacheAS(int *hc, int prio, int sh)
 // Index + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: vert./horiz. size
 // Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-static void PrepareSprites(int full)
+void PrepareSprites(int full)
 {
   struct PicoVideo *pvid=&Pico.video;
   int u,link=0;
@@ -1071,6 +1071,7 @@ found:;
   }
 }
 
+#ifndef _ASM_DRAW_C
 static void DrawAllSprites(int *hcache, int prio, int sh)
 {
   int rs = rendstatus, scan = DrawScanline;
@@ -1106,7 +1107,6 @@ static void DrawAllSprites(int *hcache, int prio, int sh)
 
 // --------------------------------------------
 
-#ifndef _ASM_DRAW_C
 static void BackFill(int reg7, int sh)
 {
   unsigned int back;

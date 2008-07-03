@@ -14,10 +14,18 @@
 .extern DrawScanline
 .extern HighSprZ
 .extern rendstatus
+.extern HighPreSpr
 .extern DrawLineDest
 .extern DrawStripInterlace
 .extern HighCacheS_ptr
 
+.equ PDRAW_SPRITES_MOVED, (1<<0)
+.equ PDRAW_WND_DIFF_PRIO, (1<<1)
+.equ PDRAW_ACC_SPRITES,   (1<<2)
+.equ PDRAW_DIRTY_SPRITES, (1<<4)
+.equ PDRAW_PLANE_HI_PRIO, (1<<6)
+.equ PDRAW_SHHI_DONE,     (1<<7)
+.equ MAX_LINE_SPRITES,    30
 
 @ helper
 .macro TilePixel pat lsrr offs
@@ -499,7 +507,7 @@ DrawLayer:
     mov     r0, #0
     ldreq   r2, [r1]
     str     r0, [r6]    @ terminate the cache list
-    orreq   r2, r2, #0x40 @ had a layer with all hi-prio tiles
+    orreq   r2, r2, #PDRAW_PLANE_HI_PRIO @ had a layer with all hi-prio tiles
     streq   r2, [r1]
 
     ldmfd   sp!, {r4-r11,lr}
@@ -674,7 +682,7 @@ DrawLayer:
     mov     r0, #0
     ldreq   r2, [r1]
     str     r0, [r6]    @ terminate the cache list
-    orreq   r2, r2, #0x40 @ had a layer with all hi-prio tiles
+    orreq   r2, r2, #PDRAW_PLANE_HI_PRIO @ had a layer with all hi-prio tiles
     streq   r2, [r1]
 
     ldmfd   sp!, {r4-r11,lr}
@@ -908,12 +916,12 @@ DrawTilesFromCache:
 .dtfc_check_rendflags:
     ldr     r1, =rendstatus
     ldr     r2, [r1]
-    tst     r2, #0xc0
+    tst     r2, #(PDRAW_PLANE_HI_PRIO|PDRAW_SHHI_DONE)
     beq     .dtfc_loop
     bic     r8, r8, #1      @ sh/hi mode off
-    tst     r2, #0x80
+    tst     r2, #PDRAW_SHHI_DONE
     bne     .dtfc_loop      @ already processed
-    orr     r2, r2, #0x80
+    orr     r2, r2, #PDRAW_SHHI_DONE
     str     r2, [r1]
 
     add     r1, r11,#8
@@ -939,7 +947,7 @@ DrawTilesFromCache:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-.global DrawSpritesFromCache @ int *hc, int maxwidth, int prio, int sh
+.global DrawSpritesFromCache @ int *hc, int prio_unused, int sh
 
 DrawSpritesFromCache:
     stmfd   sp!, {r4-r11,lr}
@@ -954,7 +962,7 @@ DrawSpritesFromCache:
     mov     r12,#0xf
 .endif
     ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
-    mov     r6, r3, lsl #31
+    mov     r6, r2, lsl #31
     orr     r6, r6, #1<<30
 
     mov     r10, r0
@@ -1087,15 +1095,78 @@ DrawSpritesFromCache:
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-@ + 0  :    hhhhvvvv ab--hhvv yyyyyyyy yyyyyyyy // a: offscreen h, b: offs. v, h: horiz. size
+.global DrawAllSprites @ int *hcache, int prio, int sh
+
+DrawAllSprites:
+    ldr     r3, =rendstatus
+    ldr     r12,[r3]
+    tst     r12,#(PDRAW_ACC_SPRITES|PDRAW_SPRITES_MOVED)
+    beq     das_no_prep
+    stmfd   sp!, {r0,r2,lr}
+    and     r0, r12,#PDRAW_DIRTY_SPRITES
+    bic     r12,r12,#(PDRAW_ACC_SPRITES|PDRAW_SPRITES_MOVED)
+    str     r12,[r3]
+    bl      PrepareSprites
+    ldmfd   sp!, {r0,r2,lr}
+
+das_no_prep:
+    ldr     r12,=HighCacheS_ptr
+    ldr     r3, =DrawScanline
+    ldr     r1, =HighLnSpr
+    str     r0, [r12]
+    ldr     r12,[r3]
+    mov     r3, #(MAX_LINE_SPRITES+2)
+    mla     r1, r12, r3, r1
+    mov     r12,#0
+    ldr     r3, [r1]
+    ands    r3, r3, #0x7f
+    streq   r12,[r0]
+    bxeq    lr
+
+    @ time to do some real work
+    stmfd   sp!, {r4-r11,lr}
+    ldr     r4, =rendstatus
+    mov     r12,#0xff
+    ldr     r4, [r4]
+    strb    r12,[r1,#1]     @ end marker
+    add     r10,r1, #2
+    add     r10,r10,r3      @ r10=HighLnSpr end
+
+    mov     r8, r2, lsl #4
+    tst     r4, #PDRAW_ACC_SPRITES
+    orrne   r8, r8, #1
+    str     r8, [sp, #-4]   @ no calls after this point
+
+.if OVERRIDE_HIGHCOL
+    ldr     r11,=HighCol
+    mov     r12,#0xf
+    ldr     r11,[r11]
+.else
+    ldr     r11,=HighCol
+    mov     r12,#0xf
+.endif
+    ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
+
+@ + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: horiz. size
 @ + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-.global DrawSprite @ unsigned int *sprite, int sh, int acc_sprites
+DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
+    @ draw next sprite
+    ldrb    r0, [r10,#-1]!
+    ldr     r1, =HighPreSpr
+    mov     r8, #0
+    cmp     r0, #0xff
+    ldreq   r4, =HighCacheS_ptr
+    ldreq   r4, [r4]
+    streq   r8, [r4]
+    ldmeqfd sp!, {r4-r11,pc}
+    ldr     r8, [sp, #-4]
+    and     r0, r0, #0x7f
+    add     r0, r1, r0, lsl #3
 
-DrawSprite:
-    stmfd   sp!, {r4-r9,r11,lr}
+@    stmfd   sp!, {r4-r9,r11,lr}
+@    orr     r8, r2, r1, lsl #4
 
-    orr     r8, r2, r1, lsl #4
     ldr     r3, [r0]        @ sprite[0]
     ldr     r7, =DrawScanline
     mov     r6, r3, lsr #28
@@ -1139,16 +1210,6 @@ DrawSprite:
 
 .dspr_continue:
     @ cache some stuff to avoid mem access
-.if OVERRIDE_HIGHCOL
-    ldr     r11,=HighCol
-    mov     r12,#0xf
-    ldr     r11,[r11]
-.else
-    ldr     r11,=HighCol
-    mov     r12,#0xf
-.endif
-    ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
-
     mov     r5, r5, lsl #4     @ delta<<=4; // Delta of address
     and     r4, r9, #0x6000
     orr     r9, r9, r4, lsl #16
@@ -1163,14 +1224,14 @@ DrawSprite:
 
 .dspr_loop:
     subs    r6, r6, #1         @ width--
-    ldmeqfd sp!, {r4-r9,r11,pc}@ return
+    beq     DrawSprite
     adds    r0, r0, #8         @ sx+=8
     add     r8, r8, r5         @ tile+=delta
 
 .dspr_loop_enter:
     ble     .dspr_loop         @ sx <= 0
     cmp     r0, #328
-    ldmgefd sp!, {r4-r9,r11,pc}@ return
+    bge     DrawSprite
 
     mov     r8, r8, lsl #17
     mov     r8, r8, lsr #17    @ tile&=0x7fff; // Clip tile address
@@ -1255,7 +1316,7 @@ DrawSprite:
 
     and     r0, r9, #(1<<27)    @ as
     teqne   r0,     #(1<<27)    @ (code&0x8000) && !as
-    ldmnefd sp!, {r4-r9,r11,pc}
+    bne     DrawSprite
     b       .dspr_continue      @ draw anyway if accurate sprites enabled
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1291,7 +1352,7 @@ DrawWindow:
     @ fetch the first code now
     ldrh    r7, [lr, r12]
 
-    ands    r6, r6, #2            @ we care about bit 1 only
+    ands    r6, r6, #PDRAW_WND_DIFF_PRIO
     orr     r6, r6, r2
 
     eoreq   r8, r2, r7, lsr #15   @ do prio bits differ?
@@ -1508,7 +1569,7 @@ FinalizeLineBGR444:
     eors    r6, r6, #1          @ sh is 0
     ldr     r12,[r12]
     mov     lr, #0xff
-    tstne   r12,#(1<<2)         @ and PDRAW_ACC_SPRITES
+    tstne   r12,#PDRAW_ACC_SPRITES
 
 .if OVERRIDE_HIGHCOL
     ldr     r1, =HighCol
@@ -1677,7 +1738,7 @@ FinalizeLineRGB555:
     eors    r6, r6, #1          @ sh is 0
     ldr     r12,[r12]
     mov     lr, #0xff
-    tstne   r12,#(1<<2)         @ and PDRAW_ACC_SPRITES
+    tstne   r12,#PDRAW_ACC_SPRITES
     movne   lr, #0x3f
 
 .if OVERRIDE_HIGHCOL
