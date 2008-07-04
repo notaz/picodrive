@@ -375,8 +375,7 @@ char *debugString(void)
     else sprites_lo++;
 
   dstrp = dstr;
-  sprintf(dstrp, "mode set 1: %02x       spr lo[%c]: %2i, spr hi[%c]: %2i\n", (r=reg[0]),
-    rendstatus&PDRAW_HAVE_LO_SPR?'y':'n', sprites_lo, rendstatus&PDRAW_HAVE_HI_SPR?'y':'n', sprites_hi);
+  sprintf(dstrp, "mode set 1: %02x       spr lo: %2i, spr hi: %2i\n", (r=reg[0]), sprites_lo, sprites_hi);
   dstrp+=strlen(dstrp);
   sprintf(dstrp, "display_disable: %i, M3: %i, palette: %i, ?, hints: %i\n", bit(r,0), bit(r,1), bit(r,2), bit(r,4));
   dstrp+=strlen(dstrp);

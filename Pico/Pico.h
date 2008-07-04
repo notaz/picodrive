@@ -157,6 +157,11 @@ extern int (*PicoScanEnd)(unsigned int num);
 #ifdef _ASM_DRAW_C
 void vidConvCpyRGB565(void *to, void *from, int pixels);
 #endif
+extern int PicoDrawMask;
+#define PDRAW_LAYERB_ON      (1<<2)
+#define PDRAW_LAYERA_ON      (1<<3)
+#define PDRAW_SPRITES_LOW_ON (1<<4)
+#define PDRAW_SPRITES_HI_ON  (1<<7)
 // internals
 #define PDRAW_SPRITES_MOVED (1<<0) // (asm)
 #define PDRAW_WND_DIFF_PRIO (1<<1) // not all window tiles use same priority
@@ -166,8 +171,6 @@ void vidConvCpyRGB565(void *to, void *from, int pixels);
 #define PDRAW_SONIC_MODE    (1<<5) // mid-frame palette changes for 8bit renderer
 #define PDRAW_PLANE_HI_PRIO (1<<6) // have layer with all hi prio tiles (mk3)
 #define PDRAW_SHHI_DONE     (1<<7) // layer sh/hi already processed
-#define PDRAW_HAVE_LO_SPR   (1<<8)
-#define PDRAW_HAVE_HI_SPR   (1<<9)
 extern int rendstatus;
 extern unsigned short HighPal[0x100];
 

@@ -25,7 +25,6 @@
 .equ PDRAW_DIRTY_SPRITES, (1<<4)
 .equ PDRAW_PLANE_HI_PRIO, (1<<6)
 .equ PDRAW_SHHI_DONE,     (1<<7)
-.equ MAX_LINE_SPRITES,    30
 
 @ helper
 .macro TilePixel pat lsrr offs
@@ -947,25 +946,18 @@ DrawTilesFromCache:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-.global DrawSpritesSHi @ int prio_unused, int sh
+.global DrawSpritesSHi @ unsigned char *sprited
 
 DrawSpritesSHi:
-    ldr     r3, =DrawScanline
-    ldr     r2, =HighLnSpr
-    ldr     r12,[r3]
-    mov     r3, #(MAX_LINE_SPRITES+2)
-    mla     r2, r12, r3, r2
-    ldr     r3, [r2]
+    ldr     r3, [r0]
+    mov     r12,#0xff
     ands    r3, r3, #0x7f
     bxeq    lr
 
     stmfd   sp!, {r4-r11,lr}
-    mov     r12,#0xff
-    strb    r12,[r2,#1]     @ set end marker
-    add     r10,r2, #2
+    strb    r12,[r0,#2]     @ set end marker
+    add     r10,r0, #3      @ r10=HighLnSpr end
     add     r10,r10,r3      @ r10=HighLnSpr end
-
-    str     r1, [sp, #-4]   @ no calls after this point
 
 .if OVERRIDE_HIGHCOL
     ldr     r11,=HighCol
@@ -982,7 +974,7 @@ DrawSpriteSHi:
     @ draw next sprite
     ldrb    r0, [r10,#-1]!
     ldr     r1, =HighPreSpr
-    ldr     r8, [sp, #-4]
+@    ldr     r8, [sp, #-4]
     cmp     r0, #0xff
     ldmeqfd sp!, {r4-r11,pc} @ end of list
     and     r0, r0, #0x7f
@@ -994,12 +986,12 @@ DrawSpriteSHi:
     mov     r9, r9, lsl #16
     mov     r3, r9, lsr #31 @ priority
     mov     r9, r9, lsr #16
-    orr     r9, r9, r8, lsl #31 @ r9=code|sh[31]
+@    orr     r9, r9, r8, lsl #31 @ r9=code|sh[31]   @@ sh is always on here now
     and     r4, r9, #0x6000
     orr     r9, r9, r4, lsl #16
-    orr     r9, r9, #0x10000000 @ r9=scc1 ???? ... <code> (s=shadow/hilight, cc=pal)
+    orr     r9, r9, #0x90000000 @ r9=scc1 ???? ... <code> (s=shadow/hilight, cc=pal)
     cmp     r12,r9, lsr #28 @ sh/hi with pal3?
-    cmpne   r3, #1          @ if not, is hi prio
+    cmpne   r3, #1          @ if not, is ir hi prio?
     bne     DrawSpriteSHi   @ non-operator low sprite, already drawn
 
     ldr     r3, [r0]        @ sprite[0]
@@ -1030,8 +1022,6 @@ DrawSpriteSHi:
     add     r8, r8, r7, lsl #1 @ tile+=(row&7)<<1; // Tile address
 
     mov     r5, r5, lsl #4     @ delta<<=4; // Delta of address
-
-    orrs    r3, r9, r9, lsl #4
     mov     r3, r4, lsr #9     @ r3=pal=((code>>9)&0x30);
 
     add     r6, r6, #1         @ inc now
@@ -1136,36 +1126,31 @@ DrawSpriteSHi:
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-.global DrawAllSprites @ int prio, int sh
+.global DrawAllSprites @ unsigned char *sprited, int prio, int sh
 
 DrawAllSprites:
     ldr     r3, =rendstatus
-    orr     r1, r1, r0, lsl #1
+    orr     r1, r2, r1, lsl #1
     ldr     r12,[r3]
     tst     r12,#(PDRAW_ACC_SPRITES|PDRAW_SPRITES_MOVED)
     beq     das_no_prep
-    stmfd   sp!, {r1,lr}
+    stmfd   sp!, {r0,r1,lr}
     and     r0, r12,#PDRAW_DIRTY_SPRITES
     bic     r12,r12,#(PDRAW_ACC_SPRITES|PDRAW_SPRITES_MOVED)
     str     r12,[r3]
     bl      PrepareSprites
-    ldmfd   sp!, {r1,lr}
+    ldmfd   sp!, {r0,r1,lr}
 
 das_no_prep:
-    ldr     r3, =DrawScanline
-    ldr     r2, =HighLnSpr
-    ldr     r12,[r3]
-    mov     r3, #(MAX_LINE_SPRITES+2)
-    mla     r2, r12, r3, r2
-    ldr     r3, [r2]
+    ldr     r3, [r0]
     ands    r3, r3, #0x7f
     bxeq    lr
 
     @ time to do some real work
     stmfd   sp!, {r4-r11,lr}
     mov     r12,#0xff
-    strb    r12,[r2,#1]     @ set end marker
-    add     r10,r2, #2
+    strb    r12,[r0,#2]     @ set end marker
+    add     r10,r0, #3
     add     r10,r10,r3      @ r10=HighLnSpr end
 
     str     r1, [sp, #-4]   @ no calls after this point
