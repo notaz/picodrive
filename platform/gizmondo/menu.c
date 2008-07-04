@@ -578,7 +578,7 @@ static void draw_savestate_bg(int slot)
 		areaClose(file);
 	}
 
-	emu_forcedFrame();
+	emu_forcedFrame(POPT_EN_SOFTSCALE);
 	menu_prepare_bg(1);
 
 	memcpy(Pico.vram, tmp_vram, sizeof(Pico.vram));

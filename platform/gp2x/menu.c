@@ -463,7 +463,7 @@ static void draw_frame_debug(void)
 	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)  memcpy(layer_str + 19, "spr_hi", 6);
 
 	memset(gp2x_screen, 0, 320*240*2);
-	emu_forcedFrame();
+	emu_forcedFrame(0);
 	smalltext_out16(4, 232, layer_str, 0xffff);
 }
 
@@ -605,7 +605,7 @@ static void draw_savestate_bg(int slot)
 		areaClose(file);
 	}
 
-	emu_forcedFrame();
+	emu_forcedFrame(POPT_EN_SOFTSCALE);
 	menu_prepare_bg(1);
 
 	memcpy(Pico.vram, tmp_vram, sizeof(Pico.vram));

@@ -65,9 +65,9 @@ struct TileStrip
 #ifdef _ASM_DRAW_C
 void DrawWindow(int tstart, int tend, int prio, int sh);
 void BackFill(int reg7, int sh);
-void DrawAllSprites(int prio, int sh);
+void DrawAllSprites(unsigned char *sprited, int prio, int sh);
 void DrawTilesFromCache(int *hc, int sh, int rlim);
-void DrawSpritesSHi(unsigned short *sprited);
+void DrawSpritesSHi(unsigned char *sprited);
 void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
 void FinalizeLineBGR444(int sh);
 void FinalizeLineRGB555(int sh);
@@ -1007,8 +1007,6 @@ found:;
   }
   else
   {
-    int old_prio = 0x8000, lo_above_hi = 0;
-
     for (u = 0; u < max_lines; u++)
       *((int *)&HighLnSpr[u][0]) = 0;
 
@@ -1039,37 +1037,34 @@ found:;
         if (sh && (code2 & 0x6000) == 0x6000)
           maybe_op = SPRL_MAY_HAVE_OP;
 
-        if (onscr_x && !old_prio && (code2 & 0x8000))
-          lo_above_hi = SPRL_LO_ABOVE_HI;
-        old_prio = code2 & 0x8000;
-
         entry = ((pd - HighPreSpr) / 2) | ((code2>>8)&0x80);
         y = (sy >= DrawScanline) ? sy : DrawScanline;
         for (; y < sy + (height<<3) && y < max_lines; y++)
         {
-          int cnt = HighLnSpr[y][0];
+	  unsigned char *p = &HighLnSpr[y][0];
+          int cnt = p[0];
           if (cnt >= max_line_sprites) continue;              // sprite limit?
 
-          if (HighLnSpr[y][2] >= max_line_sprites*2) {        // tile limit?
-            HighLnSpr[y][0] |= 0x80;
+          if (p[2] >= max_line_sprites*2) {        // tile limit?
+            p[0] |= 0x80;
             continue;
           }
-          HighLnSpr[y][2] += width;
+          p[2] += width;
 
           if (sx == -0x78) {
             if (cnt > 0)
-              HighLnSpr[y][0] |= 0x80; // masked, no more sprites for this line
+              p[0] |= 0x80; // masked, no more sprites for this line
             continue;
           }
           // must keep the first sprite even if it's offscreen, for masking
           if (cnt > 0 && !onscr_x) continue; // offscreen x
 
-          HighLnSpr[y][3+cnt] = entry;
-          HighLnSpr[y][0] = cnt + 1;
-          if (entry & 0x80)
-               HighLnSpr[y][1] |= SPRL_HAVE_HI;
-          else HighLnSpr[y][1] |= SPRL_HAVE_LO;
-          HighLnSpr[y][1] |= maybe_op|lo_above_hi; // there might be op sprites or priority mess on this line
+          p[3+cnt] = entry;
+          p[0] = cnt + 1;
+          p[1] |= (entry & 0x80) ? SPRL_HAVE_HI : SPRL_HAVE_LO;
+          p[1] |= maybe_op; // there might be op sprites on this line
+          if (cnt > 0 && (code2 & 0x8000) && !(p[3+cnt-1]&0x80))
+            p[1] |= SPRL_LO_ABOVE_HI;
         }
       }
 
@@ -1302,7 +1297,7 @@ static void DrawBlankedLine(void)
     PicoScanEnd(DrawScanline);
 }
 
-static int DrawDisplay(int sh, int as)
+static int DrawDisplay(int sh)
 {
   unsigned char *sprited = &HighLnSpr[DrawScanline][0];
   struct PicoVideo *pvid=&Pico.video;
@@ -1374,7 +1369,7 @@ static int DrawDisplay(int sh, int as)
   else if (rendstatus & PDRAW_INTERLACE)
     DrawAllSpritesInterlace(1, sh);
   // AS on and have both lo/hi sprites and lo before hi sprites?
-  else if (as && (sprited[1] & 0xd0) == 0xd0)
+  else if ((sprited[1] & 0xd0) == 0xd0 && (rendstatus & PDRAW_ACC_SPRITES))
     DrawSpritesHiAS(sprited, sh);
   else if (sh && (sprited[1] & SPRL_MAY_HAVE_OP))
     DrawSpritesSHi(sprited);
@@ -1412,19 +1407,18 @@ PICO_INTERNAL void PicoFrameStart(void)
 
 static void PicoLine(void)
 {
-  int sh, as = 0;
+  int sh;
   if (skip_next_line>0) { skip_next_line--; return; } // skip rendering lines
 
   sh=(Pico.video.reg[0xC]&8)>>3; // shadow/hilight?
-  if (rendstatus & PDRAW_ACC_SPRITES) as|=1; // accurate sprites
 
   if (PicoScanBegin != NULL)
     skip_next_line = PicoScanBegin(DrawScanline);
 
   // Draw screen:
-  BackFill(Pico.video.reg[7], sh|as);
+  BackFill(Pico.video.reg[7], sh);
   if (Pico.video.reg[1]&0x40)
-    DrawDisplay(sh, as);
+    DrawDisplay(sh);
 
   if (FinalizeLine != NULL)
     FinalizeLine(sh);
@@ -1534,7 +1528,7 @@ void PicoDrawShowPalette(unsigned short *screen)
     HighPal[0x40|i] = (unsigned short)((HighPal[i]>>1)&0x738e);
   for (i = 0x3f; i >= 0; i--) {
     int t=HighPal[i]&0xe71c;t+=0x4208;if(t&0x20)t|=0x1c;if(t&0x800)t|=0x700;if(t&0x10000)t|=0xe000;t&=0xe71c;
-    HighPal[0x80|i]=(unsigned short)t;
+    HighPal[0x80|i] = (unsigned short)t;
   }
 
   screen += 16*320+8;

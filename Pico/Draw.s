@@ -1132,11 +1132,11 @@ DrawAllSprites:
     ldr     r3, =rendstatus
     orr     r1, r2, r1, lsl #1
     ldr     r12,[r3]
-    tst     r12,#(PDRAW_ACC_SPRITES|PDRAW_SPRITES_MOVED)
+    tst     r12,#(PDRAW_DIRTY_SPRITES|PDRAW_SPRITES_MOVED)
     beq     das_no_prep
     stmfd   sp!, {r0,r1,lr}
     and     r0, r12,#PDRAW_DIRTY_SPRITES
-    bic     r12,r12,#(PDRAW_ACC_SPRITES|PDRAW_SPRITES_MOVED)
+    bic     r12,r12,#(PDRAW_DIRTY_SPRITES|PDRAW_SPRITES_MOVED)
     str     r12,[r3]
     bl      PrepareSprites
     ldmfd   sp!, {r0,r1,lr}
@@ -1330,7 +1330,7 @@ DrawWindow:
     add     r12, r12, r0, lsl #2  @ +starttile
 
     ldr     r6, =rendstatus
-    ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
+    ldr     lr, =(Pico+0x10000)   @ lr=Pico.vram
     ldr     r6, [r6]
 
     @ fetch the first code now
@@ -1442,7 +1442,7 @@ DrawWindow:
 .dwloop_end:
     ldr     r0, =rendstatus
     ldr     r1, [r0]
-    and     r6, r6, #2
+    and     r6, r6, #PDRAW_WND_DIFF_PRIO
     orr     r1, r1, r6
     str     r1, [r0]
 

@@ -24,7 +24,6 @@ void emu_Init(void);
 void emu_Deinit(void);
 void emu_Loop(void);
 void emu_ResetGame(void);
-void emu_forcedFrame(void);
 
 void osd_text(int x, int y, const char *text);
 

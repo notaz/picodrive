@@ -52,6 +52,7 @@ void  emu_textOut8 (int x, int y, const char *text);
 void  emu_textOut16(int x, int y, const char *text);
 char *emu_makeRomId(void);
 void  emu_findKeyBindCombos(void);
+void  emu_forcedFrame(int opts);
 
 extern const char * const keyNames[];
 void  emu_prepareDefaultConfig(void);
