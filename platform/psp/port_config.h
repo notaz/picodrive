@@ -23,7 +23,7 @@ extern void blit1(void);
 #define CAN_HANDLE_240_LINES	1
 
 // logging emu events
-#define EL_LOGMASK EL_STATUS // (EL_STATUS|EL_ANOMALY|EL_UIO|EL_SRAMIO) // xffff
+#define EL_LOGMASK (EL_STATUS|EL_IDLE) // (EL_STATUS|EL_ANOMALY|EL_UIO|EL_SRAMIO) // xffff
 
 //#define dprintf(f,...) printf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__)
 #define dprintf(x...)

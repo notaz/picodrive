@@ -43,6 +43,7 @@ int state_slot = 0;
 int config_slot = 0, config_slot_current = 0;
 char lastRomFile[512];
 int kb_combo_keys = 0, kb_combo_acts = 0;	// keys and actions which need button combos
+int pico_inp_mode = 0;
 
 unsigned char *movie_data = NULL;
 static int movie_size = 0;
@@ -970,4 +971,61 @@ int emu_SaveLoadGame(int load, int sram)
 		return ret;
 	}
 }
+
+void emu_changeFastForward(int set_on)
+{
+	static void *set_PsndOut = NULL;
+	static int set_Frameskip, set_EmuOpt, is_on = 0;
+
+	if (set_on && !is_on) {
+		set_PsndOut = PsndOut;
+		set_Frameskip = currentConfig.Frameskip;
+		set_EmuOpt = currentConfig.EmuOpt;
+		PsndOut = NULL;
+		currentConfig.Frameskip = 8;
+		currentConfig.EmuOpt &= ~4;
+		currentConfig.EmuOpt |= 0x40000;
+		is_on = 1;
+		strcpy(noticeMsg, "FAST FORWARD   ");
+		emu_noticeMsgUpdated();
+	}
+	else if (!set_on && is_on) {
+		PsndOut = set_PsndOut;
+		currentConfig.Frameskip = set_Frameskip;
+		currentConfig.EmuOpt = set_EmuOpt;
+		PsndRerate(1);
+		is_on = 0;
+	}
+}
+
+void emu_RunEventsPico(unsigned int events)
+{
+	if (events & (1 << 3)) {
+		pico_inp_mode++;
+		if (pico_inp_mode > 2) pico_inp_mode = 0;
+		switch (pico_inp_mode) {
+			case 2: strcpy(noticeMsg, "Input: Pen on Pad      "); break;
+			case 1: strcpy(noticeMsg, "Input: Pen on Storyware"); break;
+			case 0: strcpy(noticeMsg, "Input: Joytick         ");
+				PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
+				break;
+		}
+		emu_noticeMsgUpdated();
+	}
+	if (events & (1 << 4)) {
+		PicoPicohw.page--;
+		if (PicoPicohw.page < 0) PicoPicohw.page = 0;
+		sprintf(noticeMsg, "Page %i                 ", PicoPicohw.page);
+		emu_noticeMsgUpdated();
+	}
+	if (events & (1 << 5)) {
+		PicoPicohw.page++;
+		if (PicoPicohw.page > 6) PicoPicohw.page = 6;
+		sprintf(noticeMsg, "Page %i                 ", PicoPicohw.page);
+		emu_noticeMsgUpdated();
+	}
+}
+
+
+
 

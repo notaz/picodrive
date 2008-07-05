@@ -10,6 +10,7 @@
 #include "mp3.h"
 #include "../common/menu.h"
 #include "../common/emu.h"
+#include "../common/config.h"
 #include "../common/lprintf.h"
 #include "version.h"
 

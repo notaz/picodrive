@@ -62,8 +62,6 @@ static unsigned long wait_for_input(unsigned int interesting, int is_key_config)
 	else if (repeats == 4) wait = 2;
 	else if (repeats == 6) wait = 1;
 
-	for (i = 0; i < wait && inp_prev == gp2x_joystick_read(1); i++) {
-
 	for (i = 0; i < wait && inp_prev == psp_pad_read(1); i++) {
 		if (i == 0) repeats++;
 		psp_msleep(30);
@@ -439,8 +437,10 @@ static char *romsel_loop(char *curr_path)
 // ------------ debug menu ------------
 
 char *debugString(void);
+void PicoDrawShowSpriteStats(unsigned short *screen, int stride);
+void PicoDrawShowPalette(unsigned short *screen, int stride);
 
-static void draw_debug(void)
+static void draw_main_debug(void)
 {
 	char *p, *str = debugString();
 	int len, line;
@@ -457,15 +457,49 @@ static void draw_debug(void)
 		if (*p == 0) break;
 		p++; str = p;
 	}
-	menu_draw_end();
+}
+
+static void draw_frame_debug(void)
+{
+	char layer_str[48] = "layers:             ";
+	if (PicoDrawMask & PDRAW_LAYERB_ON)      memcpy(layer_str +  8, "B", 1);
+	if (PicoDrawMask & PDRAW_LAYERA_ON)      memcpy(layer_str + 10, "A", 1);
+	if (PicoDrawMask & PDRAW_SPRITES_LOW_ON) memcpy(layer_str + 12, "spr_lo", 6);
+	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)  memcpy(layer_str + 19, "spr_hi", 6);
+
+	memset(psp_screen, 0, 512*272*2);
+	emu_forcedFrame(0);
+	smalltext_out16(4, 264, layer_str, 0xffff);
 }
 
 static void debug_menu_loop(void)
 {
-	int ret = 0;
-	draw_debug();
-	while (!(ret & (BTN_X|BTN_CIRCLE)))
-		ret = wait_for_input(BTN_X|BTN_CIRCLE, 0);
+	int inp, mode = 0;
+
+	while (1)
+	{
+		switch (mode)
+		{
+			case 0: draw_main_debug(); break;
+			case 1: draw_frame_debug(); break;
+			case 2: menu_draw_begin();
+				PicoDrawShowSpriteStats((unsigned short *)psp_screen+512*16+80, 512); break;
+			case 3: memset(psp_screen, 0, 512*272*2);
+				PicoDrawShowPalette(psp_screen, 512); break;
+		}
+		menu_draw_end();
+
+		inp = wait_for_input(BTN_X|BTN_CIRCLE|BTN_L|BTN_R|BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT, 0);
+		if (inp & (BTN_X|BTN_CIRCLE)) return;
+		if (inp & BTN_L) { mode--; if (mode < 0) mode = 3; }
+		if (inp & BTN_R) { mode++; if (mode > 3) mode = 0; }
+		if (mode == 1) {
+			if (inp & BTN_LEFT)  PicoDrawMask ^= PDRAW_LAYERB_ON;
+			if (inp & BTN_RIGHT) PicoDrawMask ^= PDRAW_LAYERA_ON;
+			if (inp & BTN_DOWN)  PicoDrawMask ^= PDRAW_SPRITES_LOW_ON;
+			if (inp & BTN_UP)    PicoDrawMask ^= PDRAW_SPRITES_HI_ON;
+		}
+	}
 }
 
 // ------------ patch/gg menu ------------
@@ -592,7 +626,7 @@ static void draw_savestate_bg(int slot)
 		areaClose(file);
 	}
 
-	emu_forcedFrame();
+	emu_forcedFrame(0);
 	menu_prepare_bg(1, 0);
 
 	restore_oldstate(oldstate);
@@ -797,12 +831,16 @@ static void draw_kc_sel(int menu_sel)
 // "LOAD STATE", "VOLUME UP", "VOLUME DOWN", "DONE"
 me_bind_action emuctrl_actions[] =
 {
-	{ "Load State     ", 1<<28 },
-	{ "Save State     ", 1<<27 },
-	{ "Prev Save Slot ", 1<<25 },
-	{ "Next Save Slot ", 1<<24 },
-	{ "Switch Renderer", 1<<26 },
-	{ NULL,              0     }
+	{ "Load State       ", 1<<28 },
+	{ "Save State       ", 1<<27 },
+	{ "Prev Save Slot   ", 1<<25 },
+	{ "Next Save Slot   ", 1<<24 },
+	{ "Switch Renderer  ", 1<<26 },
+	{ "Fast forward     ", 1<<22 },
+	{ "Pico Next page   ", 1<<21 },
+	{ "Pico Prev page   ", 1<<20 },
+	{ "Pico Switch input", 1<<19 },
+	{ NULL,                0     }
 };
 
 static void kc_sel_loop(void)
@@ -1065,7 +1103,7 @@ static void menu_opt3_preview(int is_32col)
 	}
 
 	memset32_uncached(psp_screen, 0, 512*272*2/4);
-	emu_forcedFrame();
+	emu_forcedFrame(0);
 	menu_prepare_bg(1, 0);
 
 	if (oldstate) restore_oldstate(oldstate);
@@ -1176,7 +1214,7 @@ menu_entry opt2_entries[] =
 	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,    &currentConfig.EmuOpt, 0x00008, 0, 0, 1, 1 },
 	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,    &currentConfig.EmuOpt, 0x00020, 0, 0, 1, 1 },
 	{ "Status line in main menu",  MB_ONOFF, MA_OPT2_STATUS_LINE,    &currentConfig.EmuOpt, 0x20000, 0, 0, 1, 1 },
-	{ "Disable frame limitter",    MB_ONOFF, MA_OPT2_NO_FRAME_LIMIT, &currentConfig.EmuOpt, 0x40000, 0, 0, 1, 1 },
+	{ "Disable frame limiter",     MB_ONOFF, MA_OPT2_NO_FRAME_LIMIT, &currentConfig.EmuOpt, 0x40000, 0, 0, 1, 1 },
 	{ "done",                      MB_NONE,  MA_OPT2_DONE,           NULL, 0, 0, 0, 1, 0 },
 };
 
@@ -1235,7 +1273,7 @@ static void amenu_loop_options(void)
 menu_entry opt_entries[] =
 {
 	{ NULL,                        MB_NONE,  MA_OPT_RENDERER,      NULL, 0, 0, 0, 1, 1 },
-	{ "Accurate sprites (slower)", MB_ONOFF, MA_OPT_ACC_SPRITES,   &PicoOpt, 0x0080, 0, 0, 1, 1 },
+	{ "Accurate sprites",          MB_ONOFF, MA_OPT_ACC_SPRITES,   &PicoOpt, 0x0080, 0, 0, 0, 1 },
 	{ "Show FPS",                  MB_ONOFF, MA_OPT_SHOW_FPS,      &currentConfig.EmuOpt,  0x0002,  0,  0, 1, 1 },
 	{ NULL,                        MB_RANGE, MA_OPT_FRAMESKIP,     &currentConfig.Frameskip,    0, -1, 16, 1, 1 },
 	{ "Enable sound",              MB_ONOFF, MA_OPT_ENABLE_SOUND,  &currentConfig.EmuOpt,  0x0004,  0,  0, 1, 1 },

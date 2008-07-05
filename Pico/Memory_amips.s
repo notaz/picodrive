@@ -417,11 +417,8 @@ m_read8_misc3:
 m_read8_z80_misc:
     addiu   $t0, 0xc000       # expecting 0x4000 to get 0
     bnez    $t0, m_read_neg1  # invalid
-
-    lui     $t0, %hi(PicoOpt)
-    lw      $t0, %lo(PicoOpt)($t0)
-    andi    $t0, 1
-    bnez    $t0, ym2612_read_local_68k
+    nop
+    j       ym2612_read_local_68k
     nop
 
 m_read8_fake_ym2612:

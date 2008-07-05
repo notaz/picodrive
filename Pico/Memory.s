@@ -386,10 +386,7 @@ m_read8_misc2:
     cmp     r2, #0x4000
     mvnne   r0, #0
     bxne    lr                @ invalid
-    ldr     r1, =PicoOpt
-    ldr     r1, [r1]
-    tst     r1, #1
-    bne     ym2612_read_local_68k
+    b       ym2612_read_local_68k
 
 m_read8_fake_ym2612:
     ldr     r3, =(Pico+0x22200)

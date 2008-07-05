@@ -345,7 +345,7 @@ PICO_INTERNAL_ASM u32 PicoRead8(u32 a)
   if ((a&0xff4000)==0xa00000) { d=z80Read8(a); goto end; } // Z80 Ram
 
   if ((a&0xe700e0)==0xc00000) { d=PicoVideoRead8(a); goto end; } // VDP
-  
+
   d=OtherRead16(a&~1, 8);
   if ((a&1)==0) d>>=8;
 
@@ -983,8 +983,7 @@ PICO_INTERNAL unsigned char z80_read(unsigned short a)
 
   if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
   {
-    if (PicoOpt&POPT_EN_FM) ret = ym2612_read_local_z80();
-    return ret;
+    return ym2612_read_local_z80();
   }
 
   if (a>=0x8000)

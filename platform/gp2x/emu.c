@@ -55,7 +55,7 @@ int reset_timing = 0;
 
 #define PICO_PEN_ADJUST_X 4
 #define PICO_PEN_ADJUST_Y 2
-static int pico_pen_x = 320/2, pico_pen_y = 240/2, pico_inp_mode = 0;
+static int pico_pen_x = 320/2, pico_pen_y = 240/2;
 
 static void emu_msg_cb(const char *msg);
 static void emu_msg_tray_open(void);
@@ -436,31 +436,10 @@ static void emu_msg_tray_open(void)
 
 static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 {
-	if (events & (1 << 3)) {
-		pico_inp_mode++;
-		if (pico_inp_mode > 2) pico_inp_mode = 0;
-		switch (pico_inp_mode) {
-			case 2: strcpy(noticeMsg, "Input: Pen on Pad      "); break;
-			case 1: strcpy(noticeMsg, "Input: Pen on Storyware"); break;
-			case 0: strcpy(noticeMsg, "Input: Joytick         ");
-				PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
-				break;
-		}
-		gettimeofday(&noticeMsgTime, 0);
-	}
-	if (events & (1 << 4)) {
-		PicoPicohw.page--;
-		if (PicoPicohw.page < 0) PicoPicohw.page = 0;
-		sprintf(noticeMsg, "Page %i                 ", PicoPicohw.page);
-		gettimeofday(&noticeMsgTime, 0);
-	}
-	if (events & (1 << 5)) {
-		PicoPicohw.page++;
-		if (PicoPicohw.page > 6) PicoPicohw.page = 6;
-		sprintf(noticeMsg, "Page %i                 ", PicoPicohw.page);
-		gettimeofday(&noticeMsgTime, 0);
-	}
-	if (pico_inp_mode != 0) {
+	emu_RunEventsPico(events);
+
+	if (pico_inp_mode != 0)
+	{
 		PicoPad[0] &= ~0x0f; // release UDLR
 		if (gp2x_keys & GP2X_UP)   { pico_pen_y--; if (pico_pen_y < 0) pico_pen_y = 0; }
 		if (gp2x_keys & GP2X_DOWN) { pico_pen_y++; if (pico_pen_y > 239-PICO_PEN_ADJUST_Y) pico_pen_y = 239-PICO_PEN_ADJUST_Y; }
@@ -509,31 +488,6 @@ static void update_volume(int has_changed, int is_up)
 	else {
 		mix_32_to_16l_level = 5 - vol;
 		PsndMix_32_to_16l = mix_32_to_16l_stereo_lvl;
-	}
-}
-
-static void change_fast_forward(int set_on)
-{
-	static void *set_PsndOut = NULL;
-	static int set_Frameskip, set_EmuOpt, is_on = 0;
-
-	if (set_on && !is_on) {
-		set_PsndOut = PsndOut;
-		set_Frameskip = currentConfig.Frameskip;
-		set_EmuOpt = currentConfig.EmuOpt;
-		PsndOut = NULL;
-		currentConfig.Frameskip = 8;
-		currentConfig.EmuOpt &= ~4;
-		is_on = 1;
-	}
-	else if (!set_on && is_on) {
-		PsndOut = set_PsndOut;
-		currentConfig.Frameskip = set_Frameskip;
-		currentConfig.EmuOpt = set_EmuOpt;
-		PsndRerate(1);
-		update_volume(0, 0);
-		reset_timing = 1;
-		is_on = 0;
 	}
 }
 
@@ -668,14 +622,16 @@ static void updateKeys(void)
 	if (events & 0x6000)
 		update_volume(1, events & 0x2000);
 
-	if ((events ^ prevEvents) & 0x40)
-		change_fast_forward(events & 0x40);
+	if ((events ^ prevEvents) & 0x40) {
+		emu_changeFastForward(events & 0x40);
+		update_volume(0, 0);
+		reset_timing = 1;
+	}
 
 	events &= ~prevEvents;
 
 	if (PicoAHW == PAHW_PICO)
 		RunEventsPico(events, keys);
-
 	if (events) RunEvents(events);
 	if (movie_data) emu_updateMovie();
 
@@ -1044,7 +1000,7 @@ void emu_Loop(void)
 		 frames_done++;  frames_shown++;
 	}
 
-	change_fast_forward(0);
+	emu_changeFastForward(0);
 
 	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
 

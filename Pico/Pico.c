@@ -250,7 +250,7 @@ static __inline void SekRunM68k(int cyc)
 #elif defined(EMU_M68K)
   SekCycleCnt+=m68k_execute(cyc_do);
 #elif defined(EMU_F68K)
-  SekCycleCnt+=fm68k_emulate(cyc_do+1, 0);
+  SekCycleCnt+=fm68k_emulate(cyc_do+1, 0, 0);
 #endif
 }
 
@@ -313,7 +313,7 @@ int idle_hit_counter = 0;
 
 void PicoFrame(void)
 {
-#if 0
+#if 1
   if ((Pico.m.frame_count&0x3f) == 0) {
     elprintf(EL_STATUS, "ihits: %i", idle_hit_counter);
     idle_hit_counter = 0;

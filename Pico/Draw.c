@@ -1466,57 +1466,65 @@ void PicoDrawSetColorFormat(int which)
 }
 
 /* debug and fun */
+#define GREEN1  0x0700
+#ifdef USE_BGR555
+ #define YELLOW1 0x071c
+ #define BLUE1   0xf000
+ #define RED1    0x001e
+#else
+ #define YELLOW1 0xe700
+ #define BLUE1   0x001e
+ #define RED1    0xf000
+#endif
+
 static void set16(unsigned short *p, unsigned short d, int cnt)
 {
   while (cnt-- > 0)
     *p++ = d;
 }
 
-void PicoDrawShowSpriteStats(unsigned short *screen)
+void PicoDrawShowSpriteStats(unsigned short *screen, int stride)
 {
   int lines, i, u, step;
   unsigned short *dest;
   unsigned char *p;
 
-  memset(screen, 0, 320*240*2);
   step = (320-4*4-1) / MAX_LINE_SPRITES;
   lines = 240;
   if (!Pico.m.pal || !(Pico.video.reg[1]&8))
-    lines = 224, screen += 320*8;
+    lines = 224, screen += stride*8;
 
   for (i = 0; i < lines; i++)
   {
-    dest = screen + 320*i;
+    dest = screen + stride*i;
     p = &HighLnSpr[i][0];
 
     // sprite graphs
     for (u = 0; u < (p[0] & 0x7f); u++) {
-      set16(dest, (p[3+u] & 0x80) ? 0xe700 : 0x0700, step);
+      set16(dest, (p[3+u] & 0x80) ? YELLOW1 : GREEN1, step);
       dest += step;
     }
 
     // flags
-    dest = screen + 320*i + 320-4*4;
-    if (p[1] & SPRL_HAVE_LO)     set16(dest+4*0, 0x0700, 4);
-    if (p[1] & SPRL_HAVE_HI)     set16(dest+4*1, 0xe700, 4);
-    if (p[1] & SPRL_MAY_HAVE_OP) set16(dest+4*2, 0x001e, 4);
-    if (p[1] & SPRL_LO_ABOVE_HI) set16(dest+4*3, 0xf000, 4);
+    dest = screen + stride*i + 320-4*4;
+    if (p[1] & SPRL_HAVE_LO)     set16(dest+4*0, GREEN1,  4);
+    if (p[1] & SPRL_HAVE_HI)     set16(dest+4*1, YELLOW1, 4);
+    if (p[1] & SPRL_MAY_HAVE_OP) set16(dest+4*2, BLUE1,   4);
+    if (p[1] & SPRL_LO_ABOVE_HI) set16(dest+4*3, RED1,    4);
   }
 
   // draw grid
   for (i = step*5; i <= 320-4*4-1; i += step*5) {
     for (u = 0; u < lines; u++)
-      screen[i + u*320] = 0x182;
+      screen[i + u*stride] = 0x182;
   }
 }
 
-void PicoDrawShowPalette(unsigned short *screen)
+void PicoDrawShowPalette(unsigned short *screen, int stride)
 {
   unsigned int *spal=(void *)Pico.cram;
   unsigned int *dpal=(void *)HighPal;
   int x, y, i;
-
-  memset(screen, 0, 320*240*2);
 
   for (i = 0x3f/2; i >= 0; i--)
 #ifdef USE_BGR555
@@ -1531,20 +1539,20 @@ void PicoDrawShowPalette(unsigned short *screen)
     HighPal[0x80|i] = (unsigned short)t;
   }
 
-  screen += 16*320+8;
+  screen += 16*stride+8;
   for (y = 0; y < 8*4; y++)
     for (x = 0; x < 8*16; x++)
-      screen[x + y*320] = HighPal[x/8 + (y/8)*16];
+      screen[x + y*stride] = HighPal[x/8 + (y/8)*16];
 
   screen += 160;
   for (y = 0; y < 8*4; y++)
     for (x = 0; x < 8*16; x++)
-      screen[x + y*320] = HighPal[(x/8 + (y/8)*16) | 0x40];
+      screen[x + y*stride] = HighPal[(x/8 + (y/8)*16) | 0x40];
 
-  screen += 320*48;
+  screen += stride*48;
   for (y = 0; y < 8*4; y++)
     for (x = 0; x < 8*16; x++)
-      screen[x + y*320] = HighPal[(x/8 + (y/8)*16) | 0x80];
+      screen[x + y*stride] = HighPal[(x/8 + (y/8)*16) | 0x80];
 
   Pico.m.dirtyPal = 1;
 }

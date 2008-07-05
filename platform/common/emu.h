@@ -36,6 +36,7 @@ extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;
 extern char lastRomFile[512];
 extern int kb_combo_keys, kb_combo_acts;	// keys and actions which need button combos
+extern int pico_inp_mode;
 
 
 int   emu_ReloadRom(void);
@@ -53,6 +54,8 @@ void  emu_textOut16(int x, int y, const char *text);
 char *emu_makeRomId(void);
 void  emu_findKeyBindCombos(void);
 void  emu_forcedFrame(int opts);
+void  emu_changeFastForward(int set_on);
+void  emu_RunEventsPico(unsigned int events);
 
 extern const char * const keyNames[];
 void  emu_prepareDefaultConfig(void);

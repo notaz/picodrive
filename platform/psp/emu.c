@@ -39,6 +39,9 @@ int engineState = PGS_Menu;
 static unsigned int noticeMsgTime = 0;
 int reset_timing = 0; // do we need this?
 
+#define PICO_PEN_ADJUST_X 4
+#define PICO_PEN_ADJUST_Y 2
+static int pico_pen_x = 320/2, pico_pen_y = 240/2;
 
 static void sound_init(void);
 static void sound_deinit(void);
@@ -122,7 +125,7 @@ void emu_prepareDefaultConfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
 	defaultConfig.EmuOpt    = 0x1d | 0x680; // | <- confirm_save, cd_leds, acc rend
-	defaultConfig.s_PicoOpt = 0x0f | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX;
+	defaultConfig.s_PicoOpt = 0x0f | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX|POPT_ACC_SPRITES;
 	defaultConfig.s_PsndRate = 22050;
 	defaultConfig.s_PicoRegion = 0; // auto
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
@@ -164,7 +167,7 @@ void emu_setDefaultConfig(void)
 extern void amips_clut(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
 extern void amips_clut_6bit(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
 
-extern void (*amips_clut_f)(unsigned short *dst, unsigned char *src, unsigned short *pal, int count) = NULL;
+static void (*amips_clut_f)(unsigned short *dst, unsigned char *src, unsigned short *pal, int count) = NULL;
 
 struct Vertex
 {
@@ -265,12 +268,11 @@ static void do_pal_update(int allow_sh, int allow_as)
 			localPal[0x80|i]=(unsigned short)t;
 		}
 		localPal[0xe0] = 0;
+		localPal[0xf0] = 0x001f;
 	}
 	else if (allow_as && (rendstatus & PDRAW_ACC_SPRITES))
 	{
-		memcpy32(localPal+0x40, localPal, 0x40);
-		memcpy32(localPal+0x80, localPal, 0x40);
-		memcpy32(localPal+0xc0, localPal, 0x40);
+		memcpy32((int *)(void *)(localPal+0x80), (void *)localPal, 0x40/2);
 	}
 }
 
@@ -340,7 +342,7 @@ static void blitscreen_clut(void)
 
 	if (dynamic_palette)
 	{
-		if (!blit_16bit_mode) {
+		if (!blit_16bit_mode) { // the current mode is not 16bit
 			sceGuTexMode(GU_PSM_5650, 0, 0, 0);
 			sceGuTexImage(0,512,512,512,(char *)VRAM_STUFF + 512*240);
 
@@ -407,6 +409,21 @@ static void cd_leds(void)
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
 }
 
+static void draw_pico_ptr(void)
+{
+	unsigned char *p = (unsigned char *)VRAM_STUFF + 16;
+
+	// only if pen enabled and for 8bit mode
+	if (pico_inp_mode == 0 || blit_16bit_mode) return;
+
+	p += 512 * (pico_pen_y + PICO_PEN_ADJUST_Y);
+	p += pico_pen_x + PICO_PEN_ADJUST_X;
+	p[  -1] = 0xe0; p[   0] = 0xf0; p[   1] = 0xe0;
+	p[ 511] = 0xf0; p[ 512] = 0xf0; p[ 513] = 0xf0;
+	p[1023] = 0xe0; p[1024] = 0xf0; p[1025] = 0xe0;
+}
+
+
 #if 0
 static void dbg_text(void)
 {
@@ -437,6 +454,9 @@ void blit1(void)
 		for (pd = PicoDraw2FB+512*232+8, i = 8; i > 0; i--, pd += 512)
 			memset32((int *)pd, 0xe0e0e0e0, 320/4);
 	}
+
+	if (PicoAHW & PAHW_PICO)
+		draw_pico_ptr();
 
 	blitscreen_clut();
 }
@@ -502,6 +522,7 @@ static void vidResetMode(void)
 	PicoScanEnd = EmuScanSlowEnd;
 
 	localPal[0xe0] = 0;
+	localPal[0xf0] = 0x001f;
 	Pico.m.dirtyPal = 1;
 	blit_16bit_mode = dynamic_palette = 0;
 
@@ -693,7 +714,7 @@ void emu_forcedFrame(int opts)
 	int eo_old = currentConfig.EmuOpt;
 
 	PicoOpt &= ~0x10;
-	PicoOpt |= opts|POPT_ACC_SPRITES
+	PicoOpt |= opts|POPT_ACC_SPRITES;
 	currentConfig.EmuOpt |= 0x80;
 
 	vidResetMode();
@@ -713,6 +734,29 @@ void emu_forcedFrame(int opts)
 	currentConfig.EmuOpt = eo_old;
 }
 
+
+static void RunEventsPico(unsigned int events, unsigned int keys)
+{
+	emu_RunEventsPico(events);
+
+	if (pico_inp_mode != 0)
+	{
+		PicoPad[0] &= ~0x0f; // release UDLR
+		if (keys & BTN_UP)   { pico_pen_y--; if (pico_pen_y < 8) pico_pen_y = 8; }
+		if (keys & BTN_DOWN) { pico_pen_y++; if (pico_pen_y > 224-PICO_PEN_ADJUST_Y) pico_pen_y = 224-PICO_PEN_ADJUST_Y; }
+		if (keys & BTN_LEFT) { pico_pen_x--; if (pico_pen_x < 0) pico_pen_x = 0; }
+		if (keys & BTN_RIGHT) {
+			int lim = (Pico.video.reg[12]&1) ? 319 : 255;
+			pico_pen_x++;
+			if (pico_pen_x > lim-PICO_PEN_ADJUST_X)
+				pico_pen_x = lim-PICO_PEN_ADJUST_X;
+		}
+		PicoPicohw.pen_pos[0] = pico_pen_x;
+		if (!(Pico.video.reg[12]&1)) PicoPicohw.pen_pos[0] += pico_pen_x/4;
+		PicoPicohw.pen_pos[0] += 0x3c;
+		PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
+	}
+}
 
 static void RunEvents(unsigned int which)
 {
@@ -822,7 +866,15 @@ static void updateKeys(void)
 
 	events = (allActions[0] | allActions[1]) >> 16;
 
+	if ((events ^ prevEvents) & 0x40) {
+		emu_changeFastForward(events & 0x40);
+		reset_timing = 1;
+	}
+
 	events &= ~prevEvents;
+
+	if (PicoAHW == PAHW_PICO)
+		RunEventsPico(events, keys);
 	if (events) RunEvents(events);
 	if (movie_data) emu_updateMovie();
 
@@ -1029,6 +1081,8 @@ void emu_Loop(void)
 		 frames_done++;  frames_shown++;
 	}
 
+
+	emu_changeFastForward(0);
 
 	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
 

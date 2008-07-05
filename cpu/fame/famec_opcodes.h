@@ -39961,3 +39961,101 @@ OPCODE(0xE7E7)
 RET(14)
 }
 
+#ifdef PICODRIVE_HACK
+// BRA
+OPCODE(0x6001_idle)
+{
+#ifdef FAMEC_CHECK_BRANCHES
+	u32 newPC = (u32)(PC) - BasePC;
+	s8 offs=Opcode;
+	newPC += offs;
+	SET_PC(newPC);
+	CHECK_BRANCH_EXCEPTION(offs)
+#else
+	PC += ((s8)(Opcode & 0xFE)) >> 1;
+#endif
+	{
+		extern int idle_hit_counter;
+		idle_hit_counter++;
+	}
+	m68kcontext.io_cycle_counter = 10;
+RET(10)
+}
+
+// BCC
+OPCODE(0x6601_idle)
+{
+	if (flag_NotZ)
+	{
+		extern int idle_hit_counter;
+		idle_hit_counter++;
+		PC += ((s8)(Opcode & 0xFE)) >> 1;
+		m68kcontext.io_cycle_counter = 8;
+	}
+RET(8)
+}
+
+OPCODE(0x6701_idle)
+{
+	if (!flag_NotZ)
+	{
+		extern int idle_hit_counter;
+		idle_hit_counter++;
+		PC += ((s8)(Opcode & 0xFE)) >> 1;
+		m68kcontext.io_cycle_counter = 8;
+	}
+RET(8)
+}
+
+
+extern int SekIsIdleCode(unsigned short *dst, int bytes);
+extern int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop);
+
+OPCODE(idle_detector_bcc8)
+{
+	extern int idledet_start_frame;
+	extern char Pico[];
+	int frame_count, cond_true, bytes, ret, newop;
+	u16 *dest_pc;
+
+	dest_pc = PC + (((s8)(Opcode & 0xFE)) >> 1);
+
+	frame_count = *(int *)(Pico+0x22208+0x1c); // Pico.m.frame_count
+	if (frame_count < idledet_start_frame)
+		goto end;
+
+	bytes = 0 - (s8)(Opcode & 0xFE) - 2;
+	ret = SekIsIdleCode(dest_pc, bytes);
+	newop = (Opcode & 0xfe) | 0x7100;
+	if (!ret) newop |= 0x200;
+	if (Opcode & 0x0100) newop |= 0x400; // beq
+
+	ret = SekRegisterIdlePatch(GET_PC - 2, Opcode, newop);
+	switch (ret)
+	{
+		case 0: PC[-1] = newop; break;
+		case 1: break;
+		case 2: JumpTable[Opcode] = (Opcode & 0x0100) ? CAST_OP(0x6701) : CAST_OP(0x6601); break;
+	}
+
+end:
+	cond_true = (Opcode & 0x0100) ? !flag_NotZ : flag_NotZ; // beq?
+	if (cond_true)
+	{
+		PC = dest_pc;
+		m68kcontext.io_cycle_counter -= 2;
+	}
+RET(8)
+}
+
+OPCODE(idle_detector_dead)
+{
+	// patch without further questions
+	int newop = 0x7d00 | (Opcode & 0xff);
+	PC[-1] = newop;
+	SekRegisterIdlePatch(GET_PC - 2, Opcode, newop);
+
+	PC += ((s8)(Opcode & 0xFE)) >> 1;
+RET(10)
+}
+#endif // PICODRIVE_HACK

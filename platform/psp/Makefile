@@ -43,6 +43,8 @@ OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pi
 # Pico - carthw
 OBJS += ../../Pico/carthw/carthw.o ../../Pico/carthw/svp/svp.o ../../Pico/carthw/svp/Memory.o \
 		../../Pico/carthw/svp/ssp16.o
+# Pico - Pico
+OBJS += ../../Pico/Pico/Pico.o ../../Pico/Pico/Memory.o ../../Pico/Pico/xpcm.o
 endif
 
 # Pico - sound

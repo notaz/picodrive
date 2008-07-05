@@ -182,6 +182,7 @@ PICO_INTERNAL void SekSetRealTAS(int use_real)
 static int *idledet_addrs = NULL;
 static int idledet_count = 0, idledet_bads = 0;
 int idledet_start_frame = 0;
+int jumptab[0x10000];
 
 static unsigned char *rom_verify = NULL;
 
@@ -201,6 +202,10 @@ void SekInitIdleDet(void)
   memcpy(rom_verify, Pico.rom, Pico.romsize);
 #ifdef EMU_C68K
   CycloneInitIdle();
+#endif
+#ifdef EMU_F68K
+  { extern void *get_jumptab(void);  memcpy(jumptab, get_jumptab(), sizeof(jumptab)); }
+  fm68k_emulate(0, 0, 1);
 #endif
 }
 
@@ -276,6 +281,9 @@ void SekFinishIdleDet(void)
 #ifdef EMU_C68K
   CycloneFinishIdle();
 #endif
+#ifdef EMU_F68K
+  fm68k_emulate(0, 0, 2);
+#endif
   while (idledet_count > 0)
   {
     unsigned short *op = (unsigned short *)&Pico.rom[idledet_addrs[--idledet_count]];
@@ -291,10 +299,15 @@ void SekFinishIdleDet(void)
 
   if (done_something)
   {
-    int i;
+    int i, *jt;
+   extern void *get_jumptab(void);
     for (i = 0; i < Pico.romsize; i++)
       if (rom_verify[i] != Pico.rom[i])
         printf("ROM corruption @ %06x!\n", i), exit(1);
+
+    jt = get_jumptab();
+    for (i = 0; i < 0x10000; i++)
+      if (jumptab[i] != jt[i]) { printf("jumptab broken @ %04x\n", i); exit(1); }
   }
 }
 

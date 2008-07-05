@@ -503,8 +503,6 @@ typedef signed int	s32;
 #endif
 
 
-static int init_jump_table(void);
-
 // global variable
 ///////////////////
 
@@ -634,7 +632,7 @@ void fm68k_init(void)
 #endif
 
     if (!initialised)
-	    fm68k_emulate(0, 0);
+	    fm68k_emulate(0, 0, 0);
 
 #ifdef FAMEC_DEBUG
 	puts("FAME initialized.");
@@ -653,7 +651,7 @@ void fm68k_init(void)
 int fm68k_reset(void)
 {
 	if (!initialised)
-		fm68k_emulate(0, 0);
+		fm68k_emulate(0, 0, 0);
 
 	// Si la CPU esta en ejecucion, salir con M68K_RUNNING
 	if (m68kcontext.execinfo & M68K_RUNNING)
@@ -783,7 +781,7 @@ static void setup_jumptable(void);
 // main exec function
 //////////////////////
 
-int fm68k_emulate(s32 cycles, int dualcore)
+int fm68k_emulate(s32 cycles, int dualcore, int idle_mode)
 {
 #ifndef FAMEC_NO_GOTOS
 	u32 Opcode;
@@ -799,16 +797,13 @@ int fm68k_emulate(s32 cycles, int dualcore)
 
 	if (!initialised)
 	{
-#ifdef FAMEC_NO_GOTOS
-		init_jump_table();
-		return 0;
-#else
 		goto init_jump_table;
-#endif
 	}
 
 #ifdef PICODRIVE_HACK
 	if (dualcore) goto dualcore_mode;
+	if      (idle_mode == 1) goto idle_install;
+	else if (idle_mode == 2) goto idle_remove;
 famec_restart:
 #endif
 
@@ -1006,17 +1001,8 @@ dualcore_mode:
 	}
 #endif
 
-
-
-#ifdef FAMEC_NO_GOTOS
-}
-
-static int init_jump_table(void)
-{{
-#else
 init_jump_table:
 {
-#endif
 	u32 i, j;
 
 	for(i = 0x0000; i <= 0xFFFF; i += 0x0001)
@@ -5032,6 +5018,49 @@ init_jump_table:
 
 	initialised = 1;
 	return 0;
-}}
+}
 
+#ifdef PICODRIVE_HACK
+
+#define INSTALL_IDLE(fake_op_base,real_op,detector,idle_handler,normal_handler) \
+	JumpTable[fake_op_base] = CAST_OP(idle_handler); \
+	JumpTable[fake_op_base|0x0200] = CAST_OP(normal_handler); \
+	JumpTable[real_op] = CAST_OP(detector)
+
+#define UNDO_IDLE(fake_op_base,real_op,normal_handler) \
+	JumpTable[fake_op_base] = JumpTable[fake_op_base|0x0200] = CAST_OP(0x4AFC); \
+	JumpTable[real_op] = CAST_OP(normal_handler)
+
+idle_install:
+	printf("install..\n");
+	INSTALL_IDLE(0x71fa, 0x66fa, idle_detector_bcc8, 0x6601_idle, 0x6601);
+	INSTALL_IDLE(0x71f8, 0x66f8, idle_detector_bcc8, 0x6601_idle, 0x6601);
+	INSTALL_IDLE(0x71f6, 0x66f6, idle_detector_bcc8, 0x6601_idle, 0x6601);
+	INSTALL_IDLE(0x71f2, 0x66f2, idle_detector_bcc8, 0x6601_idle, 0x6601);
+	INSTALL_IDLE(0x75fa, 0x67fa, idle_detector_bcc8, 0x6701_idle, 0x6701);
+	INSTALL_IDLE(0x75f8, 0x67f8, idle_detector_bcc8, 0x6701_idle, 0x6701);
+	INSTALL_IDLE(0x75f6, 0x67f6, idle_detector_bcc8, 0x6701_idle, 0x6701);
+	INSTALL_IDLE(0x75f2, 0x67f2, idle_detector_bcc8, 0x6701_idle, 0x6701);
+	INSTALL_IDLE(0x7dfe, 0x60fe, idle_detector_dead, 0x6001_idle, 0x6001);
+	INSTALL_IDLE(0x7dfc, 0x60fc, idle_detector_dead, 0x6001_idle, 0x6001);
+	return 0;
+
+idle_remove:
+	printf("remove..\n");
+	UNDO_IDLE(0x71fa, 0x66fa, 0x6601);
+	UNDO_IDLE(0x71f8, 0x66f8, 0x6601);
+	UNDO_IDLE(0x71f6, 0x66f6, 0x6601);
+	UNDO_IDLE(0x71f2, 0x66f2, 0x6601);
+	UNDO_IDLE(0x75fa, 0x67fa, 0x6701);
+	UNDO_IDLE(0x75f8, 0x67f8, 0x6701);
+	UNDO_IDLE(0x75f6, 0x67f6, 0x6701);
+	UNDO_IDLE(0x75f2, 0x67f2, 0x6701);
+	UNDO_IDLE(0x7dfe, 0x60fe, 0x6001);
+	UNDO_IDLE(0x7dfc, 0x60fc, 0x6001);
+	return 0;
+
+#endif
+}
+
+void *get_jumptab(void) { return JumpTable; }
 

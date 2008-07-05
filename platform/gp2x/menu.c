@@ -432,8 +432,8 @@ rescan:
 // ------------ debug menu ------------
 
 char *debugString(void);
-void PicoDrawShowSpriteStats(unsigned short *screen);
-void PicoDrawShowPalette(unsigned short *screen);
+void PicoDrawShowSpriteStats(unsigned short *screen, int stride);
+void PicoDrawShowPalette(unsigned short *screen, int stride);
 
 static void draw_main_debug(void)
 {
@@ -477,8 +477,10 @@ static void debug_menu_loop(void)
 		{
 			case 0: draw_main_debug(); break;
 			case 1: draw_frame_debug(); break;
-			case 2: PicoDrawShowSpriteStats(gp2x_screen); break;
-			case 3: PicoDrawShowPalette(gp2x_screen); break;
+			case 2: gp2x_pd_clone_buffer2();
+				PicoDrawShowSpriteStats(gp2x_screen, 320); break;
+			case 3: memset(gp2x_screen, 0, 320*240*2);
+				PicoDrawShowPalette(gp2x_screen, 320); break;
 		}
 		menu_flip();
 
@@ -1186,7 +1188,7 @@ menu_entry opt_entries[] =
 {
 	{ NULL,                        MB_NONE,  MA_OPT_RENDERER,      NULL, 0, 0, 0, 1, 1 },
 	{ NULL,                        MB_RANGE, MA_OPT_SCALING,       &currentConfig.scaling, 0, 0, 3, 1, 1 },
-	{ "Accurate sprites (slower)", MB_ONOFF, MA_OPT_ACC_SPRITES,   &PicoOpt, 0x080, 0, 0, 0, 1 },
+	{ "Accurate sprites",          MB_ONOFF, MA_OPT_ACC_SPRITES,   &PicoOpt, 0x080, 0, 0, 0, 1 },
 	{ "Show FPS",                  MB_ONOFF, MA_OPT_SHOW_FPS,      &currentConfig.EmuOpt,  0x002, 0, 0, 1, 1 },
 	{ NULL,                        MB_RANGE, MA_OPT_FRAMESKIP,     &currentConfig.Frameskip, 0, -1, 16, 1, 1 },
 	{ "Enable sound",              MB_ONOFF, MA_OPT_ENABLE_SOUND,  &currentConfig.EmuOpt,  0x004, 0, 0, 1, 1 },

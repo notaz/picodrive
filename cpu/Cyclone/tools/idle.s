@@ -20,8 +20,8 @@ patch_desc_table:
   .word (0x71f2<<16) | 0x66f2, idle_detector_bcc8, idle_bne, Op6601  @ bne.s
   .word (0x75fa<<16) | 0x67fa, idle_detector_bcc8, idle_beq, Op6701  @ beq.s
   .word (0x75f8<<16) | 0x67f8, idle_detector_bcc8, idle_beq, Op6701  @ beq.s
-  .word (0x75f6<<16) | 0x67f6, idle_detector_bcc8, idle_beq, Op6701  @ bne.s
-  .word (0x75f2<<16) | 0x67f2, idle_detector_bcc8, idle_beq, Op6701  @ bne.s
+  .word (0x75f6<<16) | 0x67f6, idle_detector_bcc8, idle_beq, Op6701  @ beq.s
+  .word (0x75f2<<16) | 0x67f2, idle_detector_bcc8, idle_beq, Op6701  @ beq.s
   .word (0x7dfe<<16) | 0x60fe, idle_detector_dead, idle_bra, Op6001  @ bra.s
   .word (0x7dfc<<16) | 0x60fc, idle_detector_dead, idle_bra, Op6001  @ bra.s
 
@@ -132,6 +132,7 @@ idle_detector_bcc8:
     sub     r1, r1, r8, lsl #24
     mov     r1, r1, lsr #24
     sub     r1, r1, #2
+    bic     r1, r1, #1
 
     bl      SekIsIdleCode
     tst     r0, r0

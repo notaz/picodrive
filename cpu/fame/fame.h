@@ -134,7 +134,7 @@ extern M68K_CONTEXT *g_m68kcontext;
 /* General purpose functions */
 void fm68k_init(void);
 int  fm68k_reset(void);
-int  fm68k_emulate(int n, int dualcore);
+int  fm68k_emulate(int n, int dualcore, int idle_mode);
 int  fm68k_would_interrupt(void); // to be called from fm68k_emulate()
 
 unsigned fm68k_get_pc(M68K_CONTEXT *context);
