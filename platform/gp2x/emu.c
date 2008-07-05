@@ -140,7 +140,7 @@ void emu_Deinit(void)
 void emu_prepareDefaultConfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
-	defaultConfig.EmuOpt    = 0x1d | 0x00700; // | <- ram_tmng, confirm_save, cd_leds
+	defaultConfig.EmuOpt    = 0x9d | 0x00700; // | <- ram_tmng, confirm_save, cd_leds
 	defaultConfig.s_PicoOpt = 0x0f | POPT_EXT_FM|POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC|POPT_ACC_SPRITES;
 	defaultConfig.s_PsndRate = 44100;
 	defaultConfig.s_PicoRegion = 0; // auto
