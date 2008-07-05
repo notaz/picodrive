@@ -23,7 +23,7 @@ struct PicoSRAM SRam = {0,};
 
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
-void (*PicoLineHook)(int count) = NULL;
+void (*PicoLineHook)(void) = NULL;
 
 // to be called once on emu init
 void PicoInit(void)
@@ -308,7 +308,7 @@ PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done)
 }
 
 
-// TODO: rm from asm too
+// TODO: rm from Sek.c+asm too
 int idle_hit_counter = 0;
 
 void PicoFrame(void)
@@ -379,7 +379,7 @@ char *debugString(void)
   dstrp+=strlen(dstrp);
   sprintf(dstrp, "display_disable: %i, M3: %i, palette: %i, ?, hints: %i\n", bit(r,0), bit(r,1), bit(r,2), bit(r,4));
   dstrp+=strlen(dstrp);
-  sprintf(dstrp, "mode set 2: %02x\n", (r=reg[1])); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "mode set 2: %02x                            hcnt: %i\n", (r=reg[1]), pv->reg[10]); dstrp+=strlen(dstrp);
   sprintf(dstrp, "SMS/gen: %i, pal: %i, dma: %i, vints: %i, disp: %i, TMS: %i\n", bit(r,2), bit(r,3), bit(r,4),
   	bit(r,5), bit(r,6), bit(r,7)); dstrp+=strlen(dstrp);
   sprintf(dstrp, "mode set 3: %02x\n", (r=reg[0xB])); dstrp+=strlen(dstrp);

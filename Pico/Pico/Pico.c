@@ -21,9 +21,9 @@ PICO_INTERNAL void PicoReratePico(void)
   PicoPicoPCMRerate(rate);
 }
 
-static void PicoLinePico(int count)
+static void PicoLinePico(void)
 {
-  PicoPicohw.line_counter += count;
+  PicoPicohw.line_counter++;
 
 #if 1
   if ((PicoPicohw.r12 & 0x4003) && PicoPicohw.line_counter - prev_line_cnt_irq3 > 200) {
@@ -37,7 +37,7 @@ static void PicoLinePico(int count)
 
   if (PicoPicohw.fifo_bytes > 0)
   {
-    PicoPicohw.fifo_line_bytes += fifo_bytes_line * count;
+    PicoPicohw.fifo_line_bytes += fifo_bytes_line;
     if (PicoPicohw.fifo_line_bytes >= (1<<16)) {
       PicoPicohw.fifo_bytes -= PicoPicohw.fifo_line_bytes >> 16;
       PicoPicohw.fifo_line_bytes &= 0xffff;

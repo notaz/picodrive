@@ -210,31 +210,35 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
   switch (bytes)
   {
     case 4:
-      if (  (*dst & 0xfff8) == 0x4a10 || // tst.b ($aX)      // where should be no need to wait
-	    (*dst & 0xfff8) == 0x4a28 || // tst.b ($xxxx,a0) // for byte change anywhere
-            (*dst & 0xff3f) == 0x4a38 || // tst.x ($xxxx.w), tas ($xxxx.w)
+      if (  (*dst & 0xfff8) == 0x4a10 || // tst.b ($aX)      // there should be no need to wait
+            (*dst & 0xfff8) == 0x4a28 || // tst.b ($xxxx,a0) // for byte change anywhere
+            (*dst & 0xff3f) == 0x4a38 || // tst.x ($xxxx.w); tas ($xxxx.w)
             (*dst & 0xc1ff) == 0x0038 || // move.x ($xxxx.w), dX
             (*dst & 0xf13f) == 0xb038)   // cmp.x ($xxxx.w), dX
         return 1;
       break;
     case 6:
-      if ( ((dst[1] & 0xe0) == 0xe0 && ( // RAM
-            *dst == 0x4a39 ||            // tst.b ($xxxxxxxx)
-            *dst == 0x4a79 ||            // tst.w ($xxxxxxxx)
-            *dst == 0x4ab9)) ||          // tst.l ($xxxxxxxx)
-	    *dst == 0x0838)              // btst $X, ($xxxx.w) [6 byte op]
+      if ( ((dst[1] & 0xe0) == 0xe0 && ( // RAM and
+            *dst == 0x4a39 ||            //   tst.b ($xxxxxxxx)
+            *dst == 0x4a79 ||            //   tst.w ($xxxxxxxx)
+            *dst == 0x4ab9 ||            //   tst.l ($xxxxxxxx)
+            (*dst & 0xc1ff) == 0x0039 || //   move.x ($xxxxxxxx), dX
+            (*dst & 0xf13f) == 0xb039))||//   cmp.x ($xxxxxxxx), dX
+            *dst == 0x0838 ||            // btst $X, ($xxxx.w) [6 byte op]
+            (*dst & 0xffbf) == 0x0c38)   // cmpi.{b,w} $X, ($xxxx.w)
         return 1;
       break;
     case 8:
-      if ( (dst[2] & 0xe0) == 0xe0 && (  // RAM
-	    *dst == 0x0839 ||            // btst $X, ($xxxxxxxx.w) [8 byte op]
-            (*dst & 0xffbf) == 0x0c39))  // cmpi.{b,w} $X, ($xxxxxxxx)
+      if ( ((dst[2] & 0xe0) == 0xe0 && ( // RAM and
+            *dst == 0x0839 ||            //   btst $X, ($xxxxxxxx.w) [8 byte op]
+            (*dst & 0xffbf) == 0x0c39))||//   cmpi.{b,w} $X, ($xxxxxxxx)
+            *dst == 0x0cb8)              // cmpi.l $X, ($xxxx.w)
         return 1;
       break;
     case 12:
        if ((*dst & 0xf1f8) == 0x3010 && // move.w (aX), dX
-	    (dst[1]&0xf100) == 0x0000 && // arithmetic
-	    (dst[3]&0xf100) == 0x0000)   // arithmetic
+            (dst[1]&0xf100) == 0x0000 && // arithmetic
+            (dst[3]&0xf100) == 0x0000)   // arithmetic
         return 1;
       break;
   }
@@ -249,7 +253,7 @@ int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop)
 #endif
   pc &= ~0xff000000;
   elprintf(EL_IDLE, "idle: patch %06x %04x %04x #%i", pc, oldop, newop, idledet_count);
-  if (pc > Pico.romsize) {
+  if (pc > Pico.romsize && !(PicoAHW & PAHW_SVP)) {
     if (++idledet_bads > 128) return 2; // remove detector
     return 1; // don't patch
   }
@@ -260,7 +264,9 @@ int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop)
     idledet_addrs = tmp;
   }
 
-  idledet_addrs[idledet_count++] = pc;
+  if (pc < Pico.romsize)
+    idledet_addrs[idledet_count++] = pc;
+
   return 0;
 }
 

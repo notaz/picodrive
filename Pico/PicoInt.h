@@ -437,7 +437,7 @@ extern struct Pico Pico;
 extern struct PicoSRAM SRam;
 extern int emustatus;
 extern void (*PicoResetHook)(void);
-extern void (*PicoLineHook)(int count);
+extern void (*PicoLineHook)(void);
 PICO_INTERNAL int  CheckDMA(void);
 PICO_INTERNAL void PicoDetectRegion(void);
 PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done);
