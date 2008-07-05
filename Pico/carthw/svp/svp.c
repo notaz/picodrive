@@ -45,8 +45,19 @@ static void PicoSVPReset(void)
 }
 
 
-static void PicoSVPLine(int count)
+static void PicoSVPLine(void)
 {
+	int count = 1;
+#if defined(ARM) || defined(PSP)
+	// performance hack
+	static int delay_lines = 0;
+	delay_lines++;
+	if ((Pico.m.scanline&0xf) != 0xf && Pico.m.scanline != 261 && Pico.m.scanline != 311)
+		return;
+	count = delay_lines;
+	delay_lines = 0;
+#endif
+
 #ifndef PSP
 	if ((PicoOpt&POPT_EN_SVP_DRC) && svp_dyn_ready)
 		ssp1601_dyn_run(PicoSVPCycles * count);
