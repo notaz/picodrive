@@ -276,16 +276,19 @@ void psp_resume_suspend(void)
 	SceUID fd;
 	int i;
 	for (i = 0; i < 30; i++) {
-		fd = sceIoOpen("dummy.txt", PSP_O_WRONLY|PSP_O_APPEND, 0777);
-		if (fd != 0x80010013) break; // device not available
-		sceKernelDelayThread(32 * 1024);
+		fd = sceIoOpen("EBOOT.PBP", PSP_O_RDONLY, 0777);
+		if (fd >= 0) break;
+		sceKernelDelayThread(100 * 1024);
 	}
 	if (fd >= 0) sceIoClose(fd);
 	sceDisplayWaitVblankStart();
 	psp_unhandled_suspend = 0;
 	if (i < 30)
-	     lprintf("io resumed after %i tries\n", i);
-	else lprintf("io resume failed\n");
+		lprintf("io resumed after %i tries\n", i);
+	else {
+		lprintf("io resume failed with %08x\n", fd);
+		sceKernelDelayThread(500 * 1024);
+	}
 }
 
 /* alt logging */

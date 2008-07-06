@@ -960,10 +960,10 @@ int emu_SaveLoadGame(int load, int sram)
 		}
 		else	ret = -1;
 		if (!ret)
-			strcpy(noticeMsg, load ? "GAME LOADED  " : "GAME SAVED   ");
+			strcpy(noticeMsg, load ? "GAME LOADED  " : "GAME SAVED        ");
 		else
 		{
-			strcpy(noticeMsg, load ? "LOAD FAILED  " : "SAVE FAILED  ");
+			strcpy(noticeMsg, load ? "LOAD FAILED  " : "SAVE FAILED       ");
 			ret = -1;
 		}
 
