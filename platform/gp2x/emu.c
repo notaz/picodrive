@@ -436,13 +436,16 @@ static void emu_msg_tray_open(void)
 
 static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 {
+	int ret, px, py;
+	static int pdown_frames = 0;
+
 	emu_RunEventsPico(events);
 
 	if (pico_inp_mode != 0)
 	{
 		PicoPad[0] &= ~0x0f; // release UDLR
-		if (gp2x_keys & GP2X_UP)   { pico_pen_y--; if (pico_pen_y < 0) pico_pen_y = 0; }
-		if (gp2x_keys & GP2X_DOWN) { pico_pen_y++; if (pico_pen_y > 239-PICO_PEN_ADJUST_Y) pico_pen_y = 239-PICO_PEN_ADJUST_Y; }
+		if (gp2x_keys & GP2X_UP)   { pico_pen_y--; if (pico_pen_y < 8) pico_pen_y = 8; }
+		if (gp2x_keys & GP2X_DOWN) { pico_pen_y++; if (pico_pen_y > 224-PICO_PEN_ADJUST_Y) pico_pen_y = 224-PICO_PEN_ADJUST_Y; }
 		if (gp2x_keys & GP2X_LEFT) { pico_pen_x--; if (pico_pen_x < 0) pico_pen_x = 0; }
 		if (gp2x_keys & GP2X_RIGHT) {
 			int lim = (Pico.video.reg[12]&1) ? 319 : 255;
@@ -454,6 +457,29 @@ static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 		if (!(Pico.video.reg[12]&1)) PicoPicohw.pen_pos[0] += pico_pen_x/4;
 		PicoPicohw.pen_pos[0] += 0x3c;
 		PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
+	}
+
+	// for F200
+	ret = gp2x_touchpad_read(&px, &py);
+	if (ret >= 0) {
+		if (ret > 5000) {
+			if (pdown_frames++ > 5)
+				PicoPad[0] |= 0x20;
+
+			pico_pen_x = px;
+			pico_pen_y = py;
+			if (!(Pico.video.reg[12]&1)) {
+				pico_pen_x -= 32;
+				if (pico_pen_x <   0) pico_pen_x = 0;
+				if (pico_pen_x > 248) pico_pen_x = 248;
+			}
+			if (pico_pen_y > 224) pico_pen_y = 224;
+		}
+		else
+			pdown_frames= 0;
+
+		//if (ret == 0)
+		//	PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
 	}
 }
 

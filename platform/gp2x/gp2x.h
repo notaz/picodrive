@@ -25,8 +25,9 @@ void gp2x_start_sound(int rate, int bits, int stereo);
 void gp2x_sound_write(void *buff, int len);
 void gp2x_sound_volume(int l, int r);
 
-/* joy */
+/* input */
 unsigned long gp2x_joystick_read(int allow_usb_joy);
+int gp2x_touchpad_read(int *x, int *y);
 
 /* 940 core */
 void Pause940(int yes);

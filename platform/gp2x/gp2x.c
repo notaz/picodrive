@@ -44,7 +44,8 @@ static void *gp2x_screens[4];
 static int screensel = 0;
 //static
 int memdev = 0;
-static int sounddev = 0, mixerdev = 0;
+static int sounddev = -1, mixerdev = -1, touchdev = -1;
+static int touchcal[7] = { 6203, 0, -1501397, 0, -4200, 16132680, 65536 };
 
 void *gp2x_screen;
 
@@ -218,6 +219,36 @@ unsigned long gp2x_joystick_read(int allow_usb_joy)
 	return value;
 }
 
+typedef struct ucb1x00_ts_event
+{
+	unsigned short pressure;
+	unsigned short x;
+	unsigned short y;
+	unsigned short pad;
+	struct timeval stamp;
+} UCB1X00_TS_EVENT;
+
+int gp2x_touchpad_read(int *x, int *y)
+{
+	UCB1X00_TS_EVENT event;
+	int retval;
+
+	if (touchdev < 0) return -1;
+
+	retval = read(touchdev, &event, sizeof(event));
+	if (retval < 0) {
+		printf("touch read failed %i %i\n", retval, errno);
+		return -1;
+	}
+
+	if (x) *x = (event.x * touchcal[0] + touchcal[2]) >> 16;
+	if (y) *y = (event.y * touchcal[4] + touchcal[5]) >> 16;
+	// printf("read %i %i %i\n", event.pressure, *x, *y);
+
+	return event.pressure;
+}
+
+
 static int s_oldrate = 0, s_oldbits = 0, s_oldstereo = 0;
 
 void gp2x_start_sound(int rate, int bits, int stereo)
@@ -364,6 +395,18 @@ void gp2x_init(void)
 	/* init usb joys -GnoStiC */
 	gp2x_usbjoy_init();
 
+	// touchscreen
+	touchdev = open("/dev/touchscreen/wm97xx", O_RDONLY);
+	if (touchdev >= 0) {
+		FILE *pcf = fopen("/etc/pointercal", "r");
+		if (pcf) {
+			fscanf(pcf, "%d %d %d %d %d %d %d", &touchcal[0], &touchcal[1],
+				&touchcal[2], &touchcal[3], &touchcal[4], &touchcal[5], &touchcal[6]);
+			fclose(pcf);
+		}
+		printf("found touchscreen/wm97xx\n");
+	}
+
 	/* disable Linux read-ahead */
 	proc_set("/proc/sys/vm/max-readahead", "0\n");
 	proc_set("/proc/sys/vm/min-readahead", "0\n");
@@ -388,7 +431,8 @@ void gp2x_deinit(void)
 	munmap((void *)gp2x_memregs, 0x10000);
 	close(memdev);
 	close(mixerdev);
-	if (sounddev > 0) close(sounddev);
+	if (sounddev >= 0) close(sounddev);
+	if (touchdev >= 0) close(touchdev);
 
 	gp2x_usbjoy_deinit();
 

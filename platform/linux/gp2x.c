@@ -368,6 +368,11 @@ unsigned long gp2x_joystick_read(int allow_usb_joy)
 	return value;
 }
 
+int gp2x_touchpad_read(int *x, int *y)
+{
+	return -1;
+}
+
 /* 940 */
 int crashed_940 = 0;
 void Pause940(int yes)
