@@ -508,7 +508,7 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 		shared_ctl->mp3_len = ftell(f);
 		loaded_mp3 = f;
 
-		if (PicoOpt&0x200) {
+		if (PicoOpt & POPT_EXT_FM) {
 			// as we are going to change 940's cacheable area, we must invalidate it's cache..
 			if (CHECK_BUSY(JOB940_MP3DECODE)) wait_busy_940(JOB940_MP3DECODE);
 			add_job_940(JOB940_INVALIDATE_DCACHE);
@@ -522,7 +522,7 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 		byte_offs *= pos;
 		byte_offs >>= 6;
 	}
-	// printf("mp3 pos1024: %i, byte_offs %i/%i\n", pos, byte_offs, shared_ctl->mp3_len);
+	printf("  mp3 pos1024: %i, byte_offs %i/%i\n", pos, byte_offs, shared_ctl->mp3_len);
 
 	shared_ctl->mp3_offs = byte_offs;
 
@@ -531,7 +531,13 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 	mp3_job_started = 0;
 	shared_ctl->mp3_buffsel = 1; // will change to 0 on first decode
 
-	if (!(PicoOpt&0x200)) mp3_start_local();
+	if (PicoOpt & POPT_EXT_FM)
+	{
+		add_job_940(JOB940_MP3RESET);
+		if (CHECK_BUSY(JOB940_MP3RESET)) wait_busy_940(JOB940_MP3RESET);
+	}
+	else
+		mp3_start_local();
 }
 
 

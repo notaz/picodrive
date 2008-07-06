@@ -15,13 +15,40 @@ static HMP3Decoder mp3dec = 0;
 static int mp3_buffer_offs = 0;
 
 
+static int find_sync_word(unsigned char *buf, int nBytes)
+{
+	unsigned char *p, *pe;
+
+	/* find byte-aligned syncword - need 12 (MPEG 1,2) or 11 (MPEG 2.5) matching bits */
+	for (p = buf, pe = buf + nBytes - 4; p < pe; p++)
+	{
+		int pn;
+		if (p[0] != 0xff) continue;
+		pn = p[1];
+		if ((pn & 0xf8) != 0xf8 || // currently must be MPEG1
+		    (pn & 6) == 0) {       // invalid layer
+			p++; continue;
+		}
+		pn = p[2];
+		if ((pn & 0xf0) < 0x20 || (pn & 0xf0) == 0xf0 || // bitrates
+		    (pn & 0x0c) != 0) { // not 44kHz
+			continue;
+		}
+
+		return p - buf;
+	}
+
+	return -1;
+}
+
+
 static int try_get_header(unsigned char *buff, MP3FrameInfo *fi)
 {
 	int ret, offs1, offs = 0;
 
 	while (1)
 	{
-		offs1 = MP3FindSyncWord(buff + offs, 2048 - offs);
+		offs1 = find_sync_word(buff + offs, 2048 - offs);
 		if (offs1 < 0) return -2;
 		offs += offs1;
 		if (2048 - offs < 4) return -3;
@@ -44,7 +71,8 @@ int mp3_get_bitrate(FILE *f, int len)
 
 	memset(buff, 0, 2048);
 
-	if (!mp3dec) mp3dec = MP3InitDecoder();
+	if (mp3dec) MP3FreeDecoder(mp3dec);
+	mp3dec = MP3InitDecoder();
 
 	fseek(f, 0, SEEK_SET);
 	ret = fread(buff, 1, 2048, f);
@@ -81,11 +109,12 @@ static int mp3_decode(void)
 	unsigned char *readPtr = mp3_mem + mp3_offs;
 	int bytesLeft = shared_ctl->mp3_len - mp3_offs;
 	int offset; // frame offset from readPtr
-	int err;
+	int retries = 0, err;
 
 	if (bytesLeft <= 0) return 1; // EOF, nothing to do
 
-	offset = MP3FindSyncWord(readPtr, bytesLeft);
+retry:
+	offset = find_sync_word(readPtr, bytesLeft);
 	if (offset < 0) {
 		shared_ctl->mp3_offs = shared_ctl->mp3_len;
 		return 1; // EOF
@@ -102,6 +131,9 @@ static int mp3_decode(void)
 			// ERR_MP3_INVALID_FRAMEHEADER, ERR_MP3_INVALID_*
 			// just try to skip the offending frame..
 			readPtr++;
+			bytesLeft--;
+			if (retries++ < 2) goto retry;
+			else lprintf("mp3 decode failed with %i after %i retries\n", err, retries);
 		}
 		shared_ctl->mp3_errors++;
 		shared_ctl->mp3_lasterr = err;
@@ -112,6 +144,10 @@ static int mp3_decode(void)
 
 void mp3_start_local(void)
 {
+	// must re-init decoder for new track
+	if (mp3dec) MP3FreeDecoder(mp3dec);
+	mp3dec = MP3InitDecoder();
+
 	mp3_buffer_offs = 0;
 	mp3_decode();
 }
@@ -138,9 +174,9 @@ static int mp3_decode(void)
 		fseek(mp3_current_file, mp3_file_pos, SEEK_SET);
 		bytesLeft = fread(mp3_input_buffer, 1, sizeof(mp3_input_buffer), mp3_current_file);
 
-		offset = MP3FindSyncWord(mp3_input_buffer, bytesLeft);
+		offset = find_sync_word(mp3_input_buffer, bytesLeft);
 		if (offset < 0) {
-			//lprintf("MP3FindSyncWord (%i/%i) err %i\n", mp3_file_pos, mp3_file_len, offset);
+			//lprintf("find_sync_word (%i/%i) err %i\n", mp3_file_pos, mp3_file_len, offset);
 			mp3_file_pos = mp3_file_len;
 			return 1; // EOF
 		}
@@ -178,6 +214,10 @@ void mp3_start_play(FILE *f, int pos)
 	mp3_file_len = mp3_file_pos = 0;
 	mp3_current_file = NULL;
 	mp3_buffer_offs = 0;
+
+	// must re-init decoder for new track
+	if (mp3dec) MP3FreeDecoder(mp3dec);
+	mp3dec = MP3InitDecoder();
 
 	if (!(PicoOpt&POPT_EN_MCD_CDDA) || f == NULL) // cdda disabled or no file?
 		return;

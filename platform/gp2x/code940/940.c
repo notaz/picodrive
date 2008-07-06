@@ -25,17 +25,44 @@ void _memcpy(void *dst, const void *src, int count);
 //	asm volatile ("mcr p15, 0, r0, c7, c10, 4" ::: "r0"); /* drain write buffer */
 
 
+static int find_sync_word(unsigned char *buf, int nBytes)
+{
+	unsigned char *p, *pe;
+
+	/* find byte-aligned syncword - need 12 (MPEG 1,2) or 11 (MPEG 2.5) matching bits */
+	for (p = buf, pe = buf + nBytes - 4; p < pe; p++)
+	{
+		int pn;
+		if (p[0] != 0xff) continue;
+		pn = p[1];
+		if ((pn & 0xf8) != 0xf8 || // currently must be MPEG1
+		    (pn & 6) == 0) {       // invalid layer
+			p++; continue;
+		}
+		pn = p[2];
+		if ((pn & 0xf0) < 0x20 || (pn & 0xf0) == 0xf0 || // bitrates
+		    (pn & 0x0c) != 0) { // not 44kHz
+			continue;
+		}
+
+		return p - buf;
+	}
+
+	return -1;
+}
+
 static void mp3_decode(void)
 {
 	int mp3_offs = shared_ctl->mp3_offs;
 	unsigned char *readPtr = mp3_data + mp3_offs;
 	int bytesLeft = shared_ctl->mp3_len - mp3_offs;
 	int offset; // frame offset from readPtr
-	int err;
+	int retries = 0, err;
 
 	if (bytesLeft <= 0) return; // EOF, nothing to do
 
-	offset = MP3FindSyncWord(readPtr, bytesLeft);
+retry:
+	offset = find_sync_word(readPtr, bytesLeft);
 	if (offset < 0) {
 		set_if_not_changed(&shared_ctl->mp3_offs, mp3_offs, shared_ctl->mp3_len);
 		return; // EOF
@@ -53,6 +80,8 @@ static void mp3_decode(void)
 			// ERR_MP3_INVALID_FRAMEHEADER, ERR_MP3_INVALID_*
 			// just try to skip the offending frame..
 			readPtr++;
+			bytesLeft--;
+			if (retries++ < 2) goto retry;
 		}
 		shared_ctl->mp3_errors++;
 		shared_ctl->mp3_lasterr = err;
@@ -188,6 +217,11 @@ void Main940(void)
 
 			case JOB940_MP3DECODE:
 				mp3_decode();
+				break;
+
+			case JOB940_MP3RESET:
+				if (shared_data->mp3dec) MP3FreeDecoder(shared_data->mp3dec);
+				shared_data->mp3dec = MP3InitDecoder();
 				break;
 		}
 
