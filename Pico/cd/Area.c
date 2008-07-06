@@ -192,7 +192,7 @@ static int g_read_offs = 0;
 
 PICO_INTERNAL int PicoCdLoadState(void *file)
 {
-	unsigned char buff[0x60];
+	unsigned char buff[0x60], buff_m68k[0x60], buff_s68k[0x60];
 	int ver, len;
 	void *ym2612_regs = YM2612GetRegs();
 
@@ -213,8 +213,7 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 		switch (buff[0])
 		{
 			case CHUNK_M68K:
-				CHECKED_READ_BUFF(buff);
-				PicoAreaUnpackCpu(buff, 0);
+				CHECKED_READ_BUFF(buff_m68k);
 				break;
 
 			case CHUNK_Z80:
@@ -237,8 +236,7 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 
 			// cd stuff
 			case CHUNK_S68K:
-				CHECKED_READ_BUFF(buff);
-				PicoAreaUnpackCpu(buff, 1);
+				CHECKED_READ_BUFF(buff_s68k);
 				break;
 
 			case CHUNK_PRG_RAM:	CHECKED_READ_BUFF(Pico_mcd->prg_ram); break;
@@ -285,7 +283,11 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 			cdda_start_play();
 		// restore hint vector
         	*(unsigned short *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
+
+		// must unpack after other CD stuff is loaded
+		PicoAreaUnpackCpu(buff_s68k, 1);
 	}
+	PicoAreaUnpackCpu(buff_m68k, 0);
 
 	return 0;
 }

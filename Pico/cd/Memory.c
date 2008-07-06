@@ -289,7 +289,7 @@ void s68k_reg_write8(u32 a, u32 d)
       return; // only m68k can change WP
     case 3: {
       int dold = Pico_mcd->s68k_regs[3];
-      //printf("s68k_regs w3: %02x @%06x\n", (u8)d, SekPcS68k);
+      //elprintf(EL_STATUS, "s68k_regs w3: %02x s@%06x", (u8)d, SekPcS68k);
       d &= 0x1d;
       d |= dold&0xc2;
       if (d&4) {
