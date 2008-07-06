@@ -5032,7 +5032,7 @@ init_jump_table:
 	JumpTable[real_op] = CAST_OP(normal_handler)
 
 idle_install:
-	printf("install..\n");
+	// printf("install..\n");
 	INSTALL_IDLE(0x71fa, 0x66fa, idle_detector_bcc8, 0x6601_idle, 0x6601);
 	INSTALL_IDLE(0x71f8, 0x66f8, idle_detector_bcc8, 0x6601_idle, 0x6601);
 	INSTALL_IDLE(0x71f6, 0x66f6, idle_detector_bcc8, 0x6601_idle, 0x6601);
@@ -5046,7 +5046,7 @@ idle_install:
 	return 0;
 
 idle_remove:
-	printf("remove..\n");
+	// printf("remove..\n");
 	UNDO_IDLE(0x71fa, 0x66fa, 0x6601);
 	UNDO_IDLE(0x71f8, 0x66f8, 0x6601);
 	UNDO_IDLE(0x71f6, 0x66f6, 0x6601);
