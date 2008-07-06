@@ -39962,6 +39962,15 @@ RET(14)
 }
 
 #ifdef PICODRIVE_HACK
+#if 0
+#define UPDATE_IDLE_COUNT { \
+	extern int idle_hit_counter; \
+	idle_hit_counter++; \
+}
+#else
+#define UPDATE_IDLE_COUNT
+#endif
+
 // BRA
 OPCODE(0x6001_idle)
 {
@@ -39974,10 +39983,7 @@ OPCODE(0x6001_idle)
 #else
 	PC += ((s8)(Opcode & 0xFE)) >> 1;
 #endif
-	{
-		extern int idle_hit_counter;
-		idle_hit_counter++;
-	}
+	UPDATE_IDLE_COUNT
 	m68kcontext.io_cycle_counter = 10;
 RET(10)
 }
@@ -39987,8 +39993,7 @@ OPCODE(0x6601_idle)
 {
 	if (flag_NotZ)
 	{
-		extern int idle_hit_counter;
-		idle_hit_counter++;
+		UPDATE_IDLE_COUNT
 		PC += ((s8)(Opcode & 0xFE)) >> 1;
 		m68kcontext.io_cycle_counter = 8;
 	}
@@ -39999,8 +40004,7 @@ OPCODE(0x6701_idle)
 {
 	if (!flag_NotZ)
 	{
-		extern int idle_hit_counter;
-		idle_hit_counter++;
+		UPDATE_IDLE_COUNT
 		PC += ((s8)(Opcode & 0xFE)) >> 1;
 		m68kcontext.io_cycle_counter = 8;
 	}

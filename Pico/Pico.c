@@ -308,18 +308,8 @@ PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done)
 }
 
 
-// TODO: rm from Sek.c+asm too
-int idle_hit_counter = 0;
-
 void PicoFrame(void)
 {
-#if 1
-  if ((Pico.m.frame_count&0x3f) == 0) {
-    elprintf(EL_STATUS, "ihits: %i", idle_hit_counter);
-    idle_hit_counter = 0;
-  }
-#endif
-
   Pico.m.frame_count++;
 
   if (PicoAHW & PAHW_MCD) {

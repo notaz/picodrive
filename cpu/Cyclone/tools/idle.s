@@ -90,10 +90,10 @@ cfi_loop:
 
 
 .macro inc_counter cond
-    ldr     r0, =idle_hit_counter
-    ldr     r1, [r0]
-    add     r1, r1, #1
-    str\cond r1, [r0]
+@    ldr     r0, =idle_hit_counter
+@    ldr     r1, [r0]
+@    add     r1, r1, #1
+@    str\cond r1, [r0]
 .endm
 
 idle_bra:

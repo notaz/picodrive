@@ -27,56 +27,61 @@ endif
 OBJS += main.o emu.o mp3.o menu.o psp.o asm_utils.o
 
 # common
-OBJS += ../common/emu.o ../common/menu.o ../common/fonts.o ../common/config.o ../common/readpng.o
+OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o platform/common/readpng.o
 
 # Pico
 ifeq "$(amalgamate)" "1"
 OBJS += ../../PicoAll.o
 else
-OBJS += ../../Pico/Area.o ../../Pico/Cart.o ../../Pico/Memory.o ../../Pico/Misc.o \
-		../../Pico/Pico.o ../../Pico/Sek.o ../../Pico/VideoPort.o ../../Pico/Draw2.o ../../Pico/Draw.o \
-		../../Pico/Patch.o ../../Pico/Draw_amips.o ../../Pico/Memory_amips.o ../../Pico/Misc_amips.o
+OBJS += Pico/Area.o Pico/Cart.o Pico/Memory.o Pico/Misc.o \
+		Pico/Pico.o Pico/Sek.o Pico/VideoPort.o Pico/Draw2.o Pico/Draw.o \
+		Pico/Patch.o Pico/Draw_amips.o Pico/Memory_amips.o Pico/Misc_amips.o
 # Pico - CD
-OBJS += ../../Pico/cd/Pico.o ../../Pico/cd/Memory.o ../../Pico/cd/Sek.o ../../Pico/cd/LC89510.o \
-		../../Pico/cd/cd_sys.o ../../Pico/cd/cd_file.o ../../Pico/cd/cue.o ../../Pico/cd/gfx_cd.o \
-		../../Pico/cd/Area.o ../../Pico/cd/Misc.o ../../Pico/cd/pcm.o ../../Pico/cd/buffering.o
+OBJS += Pico/cd/Pico.o Pico/cd/Memory.o Pico/cd/Sek.o Pico/cd/LC89510.o \
+		Pico/cd/cd_sys.o Pico/cd/cd_file.o Pico/cd/cue.o Pico/cd/gfx_cd.o \
+		Pico/cd/Area.o Pico/cd/Misc.o Pico/cd/pcm.o Pico/cd/buffering.o
 # Pico - carthw
-OBJS += ../../Pico/carthw/carthw.o ../../Pico/carthw/svp/svp.o ../../Pico/carthw/svp/Memory.o \
-		../../Pico/carthw/svp/ssp16.o
+OBJS += Pico/carthw/carthw.o Pico/carthw/svp/svp.o Pico/carthw/svp/Memory.o \
+		Pico/carthw/svp/ssp16.o
 # Pico - Pico
-OBJS += ../../Pico/Pico/Pico.o ../../Pico/Pico/Memory.o ../../Pico/Pico/xpcm.o
+OBJS += Pico/Pico/Pico.o Pico/Pico/Memory.o Pico/Pico/xpcm.o
 endif
 
 # Pico - sound
 ifneq "$(amalgamate)" "1"
-OBJS += ../../Pico/sound/sound.o
+OBJS += Pico/sound/sound.o
 endif
-OBJS += ../../Pico/sound/mix.o
-OBJS += ../../Pico/sound/sn76496.o ../../Pico/sound/ym2612.o
+OBJS += Pico/sound/mix.o
+OBJS += Pico/sound/sn76496.o Pico/sound/ym2612.o
 # zlib (hacked)
-OBJS += ../../zlib/gzio.o ../../zlib/inffast.o ../../zlib/inflate.o ../../zlib/inftrees.o ../../zlib/trees.o \
-	../../zlib/deflate.o ../../zlib/crc32.o ../../zlib/adler32.o ../../zlib/zutil.o ../../zlib/compress.o \
-	../../zlib/uncompr.o
+OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
+	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o \
+	zlib/uncompr.o
 # unzip
-OBJS += ../../unzip/unzip.o ../../unzip/unzip_stream.o
+OBJS += unzip/unzip.o unzip/unzip_stream.o
 # CPU cores
 ifeq "$(use_musashi)" "1"
 CFLAGS += -DEMU_M68K
-OBJS += ../../cpu/musashi/m68kops.o ../../cpu/musashi/m68kcpu.o
+OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
 else
 CFLAGS += -DEMU_F68K
-OBJS += ../../cpu/fame/famec.o
+OBJS += cpu/fame/famec.o
 endif
 # z80
 ifeq "$(use_mz80)" "1"
 CFLAGS += -D_USE_MZ80
-OBJS += ../../cpu/mz80/mz80.o
+OBJS += cpu/mz80/mz80.o
 else
 CFLAGS += -D_USE_CZ80
-OBJS += ../../cpu/cz80/cz80.o
+OBJS += cpu/cz80/cz80.o
 endif
 # bg images
 OBJS += data/bg32.o data/bg40.o
+
+vpath %.c = ../..
+vpath %.s = ../..
+DIRS = platform platform/psp platform/common Pico Pico/cd Pico/Pico Pico/sound Pico/carthw/svp \
+	zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80
 
 
 LIBS += -lpng -lm -lpspgu -lpsppower -lpspaudio -lpsprtc -lpspaudiocodec -lpspkubridge
@@ -86,7 +91,7 @@ LDFLAGS += -Wl,-Map=PicoDrive.map
 
 # target
 TARGET = PicoDrive
-EXTRA_TARGETS = EBOOT.PBP
+EXTRA_TARGETS = mkdirs EBOOT.PBP
 PSP_EBOOT_TITLE = PicoDrive
 PSP_EBOOT_ICON = data/icon.png
 #PSP_EBOOT_PIC1 = .png
@@ -99,6 +104,9 @@ CUSTOM_CLEAN = myclean
 include $(PSPSDK)/lib/build.mak
 
 # some additional rules
+mkdirs:
+	mkdir -p $(DIRS)
+
 .c.o:
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -112,27 +120,27 @@ AS := psp-as
 ../../cpu/musashi/m68kops.c :
 	make -C ../../cpu/musashi
 
-../../cpu/fame/famec.o : ../../cpu/fame/famec.c
+cpu/fame/famec.o : ../../cpu/fame/famec.c
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -Wno-unused -c $< -o $@
 
-../../Pico/Memory.o : ../../Pico/Memory.c
+Pico/Memory.o : ../../Pico/Memory.c
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -O2 -c $< -o $@ -D_ASM_MEMORY_C -D_ASM_MEMORY_C_AMIPS
 
-../../Pico/cd/Memory.o : ../../Pico/cd/Memory.c
+Pico/cd/Memory.o : ../../Pico/cd/Memory.c
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -O2 -c $< -o $@
 
-../../Pico/Draw.o : ../../Pico/Draw.c
+Pico/Draw.o : ../../Pico/Draw.c
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -c $< -o $@ -D_ASM_DRAW_C_AMIPS
 
-../../Pico/Misc.o : ../../Pico/Misc.c
+Pico/Misc.o : ../../Pico/Misc.c
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -c $< -o $@ -D_ASM_MISC_C_AMIPS
 
-../../Pico/cd/gfx_cd.o : ../../Pico/cd/gfx_cd.c
+Pico/cd/gfx_cd.o : ../../Pico/cd/gfx_cd.c
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -O2 -c $< -o $@
 
@@ -159,6 +167,7 @@ up: EBOOT.PBP
 # cleanup
 
 myclean:
+	rm -rf $(DIRS)
 	$(RM) PicoDrive.map
 	make -C ../../cpu/musashi clean
 

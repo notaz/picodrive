@@ -182,9 +182,6 @@ PICO_INTERNAL void SekSetRealTAS(int use_real)
 static int *idledet_addrs = NULL;
 static int idledet_count = 0, idledet_bads = 0;
 int idledet_start_frame = 0;
-int jumptab[0x10000];
-
-static unsigned char *rom_verify = NULL;
 
 void SekInitIdleDet(void)
 {
@@ -198,20 +195,17 @@ void SekInitIdleDet(void)
   idledet_count = idledet_bads = 0;
   idledet_start_frame = Pico.m.frame_count + 360;
 
-  rom_verify = realloc(rom_verify, Pico.romsize);
-  memcpy(rom_verify, Pico.rom, Pico.romsize);
 #ifdef EMU_C68K
   CycloneInitIdle();
 #endif
 #ifdef EMU_F68K
-  { extern void *get_jumptab(void);  memcpy(jumptab, get_jumptab(), sizeof(jumptab)); }
   fm68k_emulate(0, 0, 1);
 #endif
 }
 
 int SekIsIdleCode(unsigned short *dst, int bytes)
 {
-  printf("SekIsIdleCode %04x %i\n", *dst, bytes);
+  // printf("SekIsIdleCode %04x %i\n", *dst, bytes);
   switch (bytes)
   {
     case 4:
@@ -277,7 +271,6 @@ int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop)
 
 void SekFinishIdleDet(void)
 {
-	int done_something = idledet_count > 0;
 #ifdef EMU_C68K
   CycloneFinishIdle();
 #endif
@@ -295,19 +288,6 @@ void SekFinishIdleDet(void)
       *op &= 0xff, *op |= 0x6000;
     else
       elprintf(EL_STATUS|EL_IDLE, "idle: don't know how to restore %04x", *op);
-  }
-
-  if (done_something)
-  {
-    int i, *jt;
-   extern void *get_jumptab(void);
-    for (i = 0; i < Pico.romsize; i++)
-      if (rom_verify[i] != Pico.rom[i])
-        printf("ROM corruption @ %06x!\n", i), exit(1);
-
-    jt = get_jumptab();
-    for (i = 0; i < 0x10000; i++)
-      if (jumptab[i] != jt[i]) { printf("jumptab broken @ %04x\n", i); exit(1); }
   }
 }
 
