@@ -33,7 +33,7 @@ How to make it run
 ------------------
 
 #ifdef GP2X
-Copy PicoDrive.gpe, pico940_v2.bin and mmuhack.o to any place in your filesystem
+Copy PicoDrive.gpe, pico940_v3.bin and mmuhack.o to any place in your filesystem
 (all 3 files must be in the same directory) and run PicoDrive.gpe.
 Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
 
@@ -107,7 +107,7 @@ mp3pro).
 
 ISO files can also be .cso compressed or zipped (but not mp3 files, as they
 are already compressed). CSO will cause slightly longer loading times, and
-is not very good for FMV games. Zipping ISOs is not recommened, as it will
+is not very good for FMV games. Zipping ISOs is not recommended, as it will
 cause very long (several minute) loading times, and make some games
 unplayable. File naming is similar as with uncompressed ISOs.
 Example:
@@ -650,6 +650,7 @@ Changelog
     supported too (but 44kHz restriction still applies).
   + Added bin_to_cso_mp3 tool, based on Exophase's bin_to_iso_ogg.
     The tool can convert .cue/.bin Sega CD images to .cso/.mp3.
+  * Greatly improved Sega CD load times.
   * Changed how scheduling between 68k and z80 is handled. Improves
     performance for some games. Credits to Lordus for the idea.
   * YM2612 state was not 100% saved, this should be better now.
@@ -661,9 +662,9 @@ Changelog
   + Implemented some sprite rendering improvements, as suggested by
     Exophase. Games with lots of sprites now perform better.
   + Added better idle loop detection, based on Lordus' idea again.
-  * "accurate timing" option removed, as disabling it no longer
+  - "accurate timing" option removed, as disabling it no longer
     improves performance.
-  * "accurate sprites" was removed too, the new sprite code can
+  - "accurate sprites" was removed too, the new sprite code can
     properly handle sprite priorities in all cases.
   * Timers adjusted again.
   * Improved .smd detection code.
