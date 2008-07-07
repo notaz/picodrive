@@ -58,7 +58,6 @@ If you are on 1.5, there is a separate KXploited version for it.
 Note that this emulator may require some tweaking of configuration settings to run
 some games well. For Genesis/MegaDrive, if you have any problems (game does not
 boot, sound is glitchy, broken graphics), try to:
-  * enable "Accurate timing" (options menu)
 #ifdef PSP
   * enable "accurate renderer"
 #else
@@ -122,9 +121,8 @@ SonicCD_03.mp3
 Other important stuff
 ---------------------
 
-* If your Genesis/MD game hangs or has glitches, this is most likely because
-  "Accurate timing" option is not enabled, or fast renderer is used
-  (try the accurate one), or Z80 is disabled in "advanced options".
+* If your Genesis/MD game has graphical glitches, this is most likely because
+  "accurate renderer" is not enabled (see options).
 * Sega/Mega CD: If the game hangs after Sega logo, you may need to enable
   "better sync" and/or "Scale/Rot. fx" options, found in "Sega/Mega CD options"
   submenu, and then reset the game. Some other games may also require
@@ -140,6 +138,8 @@ Other important stuff
   Some games (like Snatcher) may hang in certain scenes because of this.
   Some mp3 rippers/encoders remove silence and beginning/end of audio tracks,
   what causes audio desyncs and/or mentioned problems.
+  If you have cue/bin rip, you can use the bin_to_cso_mp3 tool (included with
+  the emulator) to make a proper iso/mp3 rip.
 * Sega/Mega CD: If your games hangs at the BIOS screen (with planets shown),
   you may be using a bad BIOS dump. Try another from a different source.
 * Some Sega/Mega CD games don't use Z80 for anything, but they leave it active,
@@ -215,17 +215,6 @@ pixels wide. This option scales their width to 320 by using simple
 pixel averaging scaling. Works only when 16bit renderer is enabled.
 
 #endif
-@@0. "Accurate timing"
-This adds some more emulation precision, but slows the emulation down. Without
-this option some games do not boot (Red Zone for example), others have sound
-problems. This options has no effect for Sega/Mega CD emulation.
-
-@@0. "Accurate sprites"
-This option improves emulation of sprite priorities, it also enables emulation
-of sprite collision bit. If you see one sprite being drawn incorrectly above
-the other (often seen in Sonic 3D Blast), you can enable this to fix the problem.
-This only works with the accurate renderers (see first option).
-
 @@0. "Show FPS"
 Self-explanatory. Format is XX/YY, where XX is the number of rendered frames and
 YY is the number of emulated frames per second.
@@ -654,9 +643,36 @@ Additional thanks
 
 Changelog
 ---------
-1.4x
+1.50
+  + Added some basic support for Sega Pico, a MegaDrive-based toy.
   + Added proper support for cue/bin images, including cdda playback.
-    .cue sheets with iso/cso/mp3/wav files listed in them are also supported.
+    .cue sheets with iso/cso/mp3/wav files listed in them are now
+    supported too (but 44kHz restriction still applies).
+  + Added bin_to_cso_mp3 tool, based on Exophase's bin_to_iso_ogg.
+    The tool can convert .cue/.bin Sega CD images to .cso/.mp3.
+  * Changed how scheduling between 68k and z80 is handled. Improves
+    performance for some games. Credits to Lordus for the idea.
+  * YM2612 state was not 100% saved, this should be better now.
+  * Improved renderer performance for shadow/hilight mode.
+  * Added a hack for YM2612 frequency overflow issue (bleep noises
+    in Shaq Fu, Spider-Man - The Animated Series (intro music), etc.)
+    Credits to Nemesis @ spritesmind forum. Works only sound rate
+    is set to 44kHz.
+  + Implemented some sprite rendering improvements, as suggested by
+    Exophase. Games with lots of sprites now perform better.
+  + Added better idle loop detection, based on Lordus' idea again.
+  * "accurate timing" option removed, as disabling it no longer
+    improves performance.
+  * "accurate sprites" was removed too, the new sprite code can
+    properly handle sprite priorities in all cases.
+  * Timers adjusted again.
+  * Improved .smd detection code.
+  * ARM: fixed a bug in DrZ80 core, which could cause problems in
+    some rare cases.
+  * ARM: fixed a problem of occasional clicks on MP3 music start.
+  * Minor general optimizations and menu improvements.
+  * Fixed a bug in Sega CD savestate loader, where the game would
+    sometimes crash after load.
   * Fixed a crash of games using eeprom (introduced in 1.40b).
 
 1.40c
