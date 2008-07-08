@@ -164,7 +164,7 @@ clean: tidy
 	$(RM) PicoDrive.gpe
 tidy:
 	$(RM) $(OBJS)
-	rm -rf $(DIRS)
+#	rm -rf $(DIRS) # don't clean, gcda may be there
 #	@make -C ../../cpu/Cyclone/proj -f Makefile.linux clean
 
 
@@ -245,7 +245,7 @@ $(error need VER)
 endif
 endif
 
-rel: PicoDrive.gpe code940/pico940_v2.bin readme.txt PicoDrive.man.txt PicoDrive.png ../game_def.cfg
+rel: PicoDrive.gpe code940/pico940_v3.bin readme.txt PicoDrive.man.txt PicoDrive.png ../game_def.cfg
 	zip -9 -j ../../PicoDrive_$(VER).zip $^ mmuhack.o
 	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt
 	mkdir bin_to_cso_mp3
