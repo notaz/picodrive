@@ -25,6 +25,12 @@ Easy/Windows usage
    pop up console window with some scrolling text, which should close by itself
    when done. After that you should see new directory with converted files.
 
+In case it complains about missing lame.exe even after you copied it, try
+copying lame.exe and ciso.exe somewhere in your PATH, i.e. Windows directory.
+
+If it crashes ("this program needs to close blabla"), you probably have bad
+.cue or missing .bin file.
+
 
 Advanced usage
 --------------
