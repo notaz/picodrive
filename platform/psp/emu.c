@@ -292,7 +292,8 @@ static void EmuScanPrepare(void)
 	HighCol = (unsigned char *)VRAM_CACHED_STUFF + 8;
 	if (!(Pico.video.reg[1]&8)) HighCol += 8*512;
 
-	dynamic_palette = 0;
+	if (dynamic_palette > 0)
+		dynamic_palette--;
 	if (Pico.m.dirtyPal)
 		do_pal_update(1, 1);
 	if ((rendstatus & PDRAW_ACC_SPRITES) && !(Pico.video.reg[0xC]&8))
@@ -317,7 +318,7 @@ static int EmuScanSlowEnd(unsigned int num)
 	if (Pico.m.dirtyPal) {
 		if (!dynamic_palette) {
 			do_slowmode_lines(num);
-			dynamic_palette = 1;
+			dynamic_palette = 3; // last for 2 more frames
 		}
 		do_pal_update(1, 0);
 	}
