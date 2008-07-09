@@ -657,7 +657,7 @@ Changelog
   * Improved renderer performance for shadow/hilight mode.
   * Added a hack for YM2612 frequency overflow issue (bleep noises
     in Shaq Fu, Spider-Man - The Animated Series (intro music), etc.)
-    Credits to Nemesis @ spritesmind forum. Works only sound rate
+    Credits to Nemesis @ spritesmind forum. Works only if sound rate
     is set to 44kHz.
   + Implemented some sprite rendering improvements, as suggested by
     Exophase. Games with lots of sprites now perform better.
@@ -675,6 +675,7 @@ Changelog
   * Fixed a bug in Sega CD savestate loader, where the game would
     sometimes crash after load.
   * Fixed a crash of games using eeprom (introduced in 1.40b).
+  * PSP: fixed suspend/resume (hopefully for real).
 
 1.40c
   * Fixed a problem with sound in Marble Madness.

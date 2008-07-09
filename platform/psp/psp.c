@@ -20,19 +20,20 @@
 #include "psp.h"
 #include "emu.h"
 #include "../common/lprintf.h"
+#include "version.h"
 
 extern int pico_main(void);
 
 #ifndef FW15
 
-PSP_MODULE_INFO("PicoDrive", 0, 1, 40);
+PSP_MODULE_INFO("PicoDrive", 0, 1, 50);
 PSP_HEAP_SIZE_MAX();
 
 int main() { return pico_main(); }	/* just a wrapper */
 
 #else
 
-PSP_MODULE_INFO("PicoDrive", 0x1000, 1, 40);
+PSP_MODULE_INFO("PicoDrive", 0x1000, 1, 50);
 PSP_MAIN_THREAD_ATTR(0);
 
 int main()
@@ -79,16 +80,20 @@ static int exit_callback(int arg1, int arg2, void *common)
 static int power_callback(int unknown, int pwrflags, void *common)
 {
 	static int old_state = PGS_Menu;
+	int i;
 
 	lprintf("power_callback: flags: 0x%08X\n", pwrflags);
 
 	/* check for power switch and suspending as one is manual and the other automatic */
 	if (pwrflags & PSP_POWER_CB_POWER_SWITCH || pwrflags & PSP_POWER_CB_SUSPENDING || pwrflags & PSP_POWER_CB_STANDBY)
 	{
-		if (engineState != PGS_Suspending) {
+		if (engineState != PGS_Suspending && engineState != PGS_SuspendAck) {
 			old_state = engineState;
 			engineState = PGS_Suspending;
 		}
+		for (i = 0; i < 10 && engineState != PGS_SuspendAck; i++)
+			sceKernelDelayThread(100*1024);
+
 	}
 	else if (pwrflags & PSP_POWER_CB_RESUME_COMPLETE)
 	{
@@ -129,6 +134,7 @@ void psp_init(void)
 
 	main_thread_id = sceKernelGetThreadId();
 
+	lprintf("\n%s\n", "PicoDrive v" VERSION " " __DATE__ " " __TIME__);
 	lprintf("running on %08x kernel\n", sceKernelDevkitVersion()),
 	lprintf("entered psp_init, threadId %08x, priority %i\n", main_thread_id,
 		sceKernelGetThreadCurrentPriority());
@@ -304,6 +310,8 @@ typedef struct _log_entry
 static log_entry *le_root = NULL;
 #endif
 
+/* strange: if this function leaks memory (before psp_init() call?),
+ * resume after suspend breaks on 3.90 */
 void lprintf(const char *fmt, ...)
 {
 	va_list vl;

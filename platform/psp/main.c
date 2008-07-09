@@ -12,7 +12,6 @@
 #include "../common/emu.h"
 #include "../common/config.h"
 #include "../common/lprintf.h"
-#include "version.h"
 
 #ifdef GPROF
 #include <pspprof.h>
@@ -32,7 +31,6 @@ void dummy(void)
 
 int pico_main(void)
 {
-	lprintf("\nPicoDrive v" VERSION " " __DATE__ " " __TIME__ "\n");
 	psp_init();
 
 	emu_prepareDefaultConfig();
@@ -71,8 +69,11 @@ int pico_main(void)
 				break;
 
 			case PGS_Suspending:
-				while (engineState == PGS_Suspending)
+				while (engineState == PGS_Suspending || engineState == PGS_SuspendAck) {
+					if (engineState == PGS_Suspending)
+						engineState = PGS_SuspendAck;
 					psp_wait_suspend();
+				}
 				break;
 
 			case PGS_RestartRun:
