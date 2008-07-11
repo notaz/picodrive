@@ -347,6 +347,7 @@ void (*PicoMessage)(const char *msg)=NULL;
 
 #if 1 // defined(__DEBUG_PRINT)
 #define bit(r, x) ((r>>x)&1)
+#define MVP dstrp+=strlen(dstrp)
 void z80_debug(char *dstr);
 char *debugString(void)
 {
@@ -365,38 +366,33 @@ char *debugString(void)
     else sprites_lo++;
 
   dstrp = dstr;
-  sprintf(dstrp, "mode set 1: %02x       spr lo: %2i, spr hi: %2i\n", (r=reg[0]), sprites_lo, sprites_hi);
-  dstrp+=strlen(dstrp);
-  sprintf(dstrp, "display_disable: %i, M3: %i, palette: %i, ?, hints: %i\n", bit(r,0), bit(r,1), bit(r,2), bit(r,4));
-  dstrp+=strlen(dstrp);
-  sprintf(dstrp, "mode set 2: %02x                            hcnt: %i\n", (r=reg[1]), pv->reg[10]); dstrp+=strlen(dstrp);
-  sprintf(dstrp, "SMS/gen: %i, pal: %i, dma: %i, vints: %i, disp: %i, TMS: %i\n", bit(r,2), bit(r,3), bit(r,4),
-  	bit(r,5), bit(r,6), bit(r,7)); dstrp+=strlen(dstrp);
-  sprintf(dstrp, "mode set 3: %02x\n", (r=reg[0xB])); dstrp+=strlen(dstrp);
-  sprintf(dstrp, "LSCR: %i, HSCR: %i, 2cell vscroll: %i, IE2: %i\n", bit(r,0), bit(r,1), bit(r,2), bit(r,3)); dstrp+=strlen(dstrp);
-  sprintf(dstrp, "mode set 4: %02x\n", (r=reg[0xC])); dstrp+=strlen(dstrp);
-  sprintf(dstrp, "interlace: %i%i, cells: %i, shadow: %i\n", bit(r,2), bit(r,1), (r&0x80) ? 40 : 32,  bit(r,3));
-  dstrp+=strlen(dstrp);
+  sprintf(dstrp, "mode set 1: %02x       spr lo: %2i, spr hi: %2i\n", (r=reg[0]), sprites_lo, sprites_hi); MVP;
+  sprintf(dstrp, "display_disable: %i, M3: %i, palette: %i, ?, hints: %i\n", bit(r,0), bit(r,1), bit(r,2), bit(r,4)); MVP;
+  sprintf(dstrp, "mode set 2: %02x                            hcnt: %i\n", (r=reg[1]), pv->reg[10]); MVP;
+  sprintf(dstrp, "SMS/gen: %i, pal: %i, dma: %i, vints: %i, disp: %i, TMS: %i\n",bit(r,2),bit(r,3),bit(r,4),bit(r,5),bit(r,6),bit(r,7)); MVP;
+  sprintf(dstrp, "mode set 3: %02x\n", (r=reg[0xB])); MVP;
+  sprintf(dstrp, "LSCR: %i, HSCR: %i, 2cell vscroll: %i, IE2: %i\n", bit(r,0), bit(r,1), bit(r,2), bit(r,3)); MVP;
+  sprintf(dstrp, "mode set 4: %02x\n", (r=reg[0xC])); MVP;
+  sprintf(dstrp, "interlace: %i%i, cells: %i, shadow: %i\n", bit(r,2), bit(r,1), (r&0x80) ? 40 : 32, bit(r,3)); MVP;
   sprintf(dstrp, "scroll size: w: %i, h: %i  SRAM: %i; eeprom: %i (%i)\n", reg[0x10]&3, (reg[0x10]&0x30)>>4,
-  	bit(Pico.m.sram_reg, 4), bit(Pico.m.sram_reg, 2), SRam.eeprom_type); dstrp+=strlen(dstrp);
-  sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); dstrp+=strlen(dstrp);
-  sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status);
-  dstrp+=strlen(dstrp);
+  	bit(Pico.m.sram_reg, 4), bit(Pico.m.sram_reg, 2), SRam.eeprom_type); MVP;
+  sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); MVP;
+  sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status); MVP;
+  sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count); MVP;
 #if defined(EMU_C68K)
-  sprintf(dstrp, "M68k: PC: %06x, st_flg: %x, cycles: %u\n", SekPc, PicoCpuCM68k.state_flags, SekCyclesDoneT());
-  dstrp+=strlen(dstrp);
-  sprintf(dstrp, "d0=%08x, a0=%08x, osp=%08x, irql=%i\n", PicoCpuCM68k.d[0], PicoCpuCM68k.a[0], PicoCpuCM68k.osp, PicoCpuCM68k.irq); dstrp+=strlen(dstrp);
-  sprintf(dstrp, "d1=%08x, a1=%08x,  sr=%04x\n", PicoCpuCM68k.d[1], PicoCpuCM68k.a[1], CycloneGetSr(&PicoCpuCM68k)); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "M68k: PC: %06x, st_flg: %x, cycles: %u\n", SekPc, PicoCpuCM68k.state_flags, SekCyclesDoneT()); MVP;
+  sprintf(dstrp, "d0=%08x, a0=%08x, osp=%08x, irql=%i\n", PicoCpuCM68k.d[0], PicoCpuCM68k.a[0], PicoCpuCM68k.osp, PicoCpuCM68k.irq); MVP;
+  sprintf(dstrp, "d1=%08x, a1=%08x,  sr=%04x\n", PicoCpuCM68k.d[1], PicoCpuCM68k.a[1], CycloneGetSr(&PicoCpuCM68k)); dstrp+=strlen(dstrp); MVP;
   for(r=2; r < 8; r++) {
-    sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, PicoCpuCM68k.d[r], r, PicoCpuCM68k.a[r]); dstrp+=strlen(dstrp);
+    sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, PicoCpuCM68k.d[r], r, PicoCpuCM68k.a[r]); MVP;
   }
 #elif defined(EMU_M68K)
-  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuMM68k.int_level>>8); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuMM68k.int_level>>8); MVP;
 #elif defined(EMU_F68K)
-  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuFM68k.interrupts[0]); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuFM68k.interrupts[0]); MVP;
 #endif
-  sprintf(dstrp, "z80Run: %i, pal: %i, frame#: %i\n", Pico.m.z80Run, Pico.m.pal, Pico.m.frame_count); dstrp+=strlen(dstrp);
-  z80_debug(dstrp); dstrp+=strlen(dstrp);
+  sprintf(dstrp, "z80Run: %i, z80_reset: %i, z80_bnk: %06x\n", Pico.m.z80Run, Pico.m.z80_reset, Pico.m.z80_bank68k<<15); MVP;
+  z80_debug(dstrp); MVP;
   if (strlen(dstr) > sizeof(dstr))
     printf("warning: debug buffer overflow (%i/%i)\n", strlen(dstr), sizeof(dstr));
 
