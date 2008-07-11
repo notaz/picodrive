@@ -2049,10 +2049,8 @@ int YM2612PicoStateLoad2(int *tat, int *tbt)
 	return 0;
 }
 
-#ifndef EXTERNAL_YM2612
 void *YM2612GetRegs(void)
 {
 	return ym2612.REGS;
 }
-#endif
 
