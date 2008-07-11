@@ -1668,6 +1668,8 @@ void YM2612Init_(int clock, int rate)
 	ym2612.OPN.ST.clock = clock;
 	ym2612.OPN.ST.rate = rate;
 
+	OPNSetPres( 6*24 );
+
 	/* Extend handler */
 	YM2612ResetChip_();
 }
@@ -1680,7 +1682,6 @@ void YM2612ResetChip_(void)
 
 	memset(ym2612.REGS, 0, sizeof(ym2612.REGS));
 
-	OPNSetPres( 6*24 );
 	set_timers( 0x30 ); /* mode 0 , timer reset */
 	ym2612.REGS[0x27] = 0x30;
 

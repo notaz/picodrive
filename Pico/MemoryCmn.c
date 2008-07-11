@@ -60,27 +60,46 @@ u32 z80ReadBusReq(void)
   return d|0x80;
 }
 
-#ifndef _ASM_MEMORY_C
-static
-#endif
-void z80WriteBusReq(u32 d)
+static void z80WriteBusReq(u32 d)
 {
   d&=1; d^=1;
+  elprintf(EL_BUSREQ, "set_zrun: %i->%i [%i] @%06x", Pico.m.z80Run, d, SekCyclesDone(), SekPc);
+  if (d ^ Pico.m.z80Run)
   {
-    if (!d)
+    if (d)
+    {
+      z80_cycle_cnt = cycles_68k_to_z80(SekCyclesDone());
+    }
+    else
+    {
+      z80stopCycle = SekCyclesDone();
+      if ((PicoOpt&POPT_EN_Z80) && !Pico.m.z80_reset)
+        PicoSyncZ80(z80stopCycle);
+    }
+    Pico.m.z80Run=d;
+  }
+}
+
+static void z80WriteReset(u32 d)
+{
+  d&=1; d^=1;
+  elprintf(EL_BUSREQ, "set_zreset: %i->%i [%i] @%06x", Pico.m.z80_reset, d, SekCyclesDone(), SekPc);
+  if (d ^ Pico.m.z80_reset)
+  {
+    if (d)
     {
       if ((PicoOpt&POPT_EN_Z80) && Pico.m.z80Run)
-      {
-        z80stopCycle = SekCyclesDone();
-	PicoSyncZ80(z80stopCycle);
-      }
-    } else {
-      if (!Pico.m.z80Run)
-        z80_cycle_cnt = cycles_68k_to_z80(SekCyclesDone());
+        PicoSyncZ80(SekCyclesDone());
     }
+    else
+    {
+      z80_cycle_cnt = cycles_68k_to_z80(SekCyclesDone());
+      z80_reset();
+    }
+    YM2612ResetChip();
+    timers_reset();
+    Pico.m.z80_reset=d;
   }
-  elprintf(EL_BUSREQ, "set_zrun: %i->%i [%i] @%06x", Pico.m.z80Run, d, SekCyclesDone(), SekPc);
-  Pico.m.z80Run=(u8)d;
 }
 
 #ifndef _ASM_MEMORY_C
@@ -161,17 +180,8 @@ void OtherWrite8(u32 a,u32 d)
   if ((a&0xffffe0)==0xa10000)  { IoWrite8(a, d); return; } // I/O ports
 #endif
   if (a==0xa11100)             { z80WriteBusReq(d); return; }
-  if (a==0xa11200) {
-    elprintf(EL_BUSREQ, "write z80Reset: %02x", d);
-    if (!(d&0x1)) { Pico.m.z80_reset = 1; Pico.m.z80Run = 0; YM2612ResetChip(); }
-    else if (Pico.m.z80_reset) {
-      Pico.m.z80_reset = 0;
-      YM2612ResetChip();
-      z80_reset();
-      timers_reset();
-    }
-    return;
-  }
+  if (a==0xa11200)             { z80WriteReset(d);  return; }
+
 #if !defined(_ASM_MEMORY_C) || defined(_ASM_MEMORY_C_AMIPS)
   if ((a&0xff7f00)==0xa06000) // Z80 BANK register
   {
@@ -206,17 +216,8 @@ void OtherWrite16(u32 a,u32 d)
     else elprintf(EL_ANOMALY, "68k z80 write with no bus or reset! [%06x] %04x @ %06x", a, d&0xffff, SekPc);
     return;
   }
-  if (a==0xa11200) {
-    elprintf(EL_BUSREQ, "write z80reset: %04x", d);
-    if (!(d&0x100)) { Pico.m.z80_reset = 1; Pico.m.z80Run = 0; YM2612ResetChip(); }
-    else if (Pico.m.z80_reset) {
-      Pico.m.z80_reset = 0;
-      YM2612ResetChip();
-      z80_reset();
-      timers_reset();
-    }
-    return;
-  }
+  if (a==0xa11200)             { z80WriteReset(d>>8); return; }
+
   if ((a&0xff7f00)==0xa06000) // Z80 BANK register
   {
     Pico.m.z80_bank68k>>=1;

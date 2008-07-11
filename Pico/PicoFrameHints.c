@@ -124,7 +124,7 @@ static int PicoFrameHints(void)
       emustatus &= ~1;
     else if ((y == 224 || y == line_sample) && PsndOut)
     {
-      if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
+      if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
         PicoSyncZ80(SekCycleCnt);
       if (ym2612.dacen && PsndDacLine <= y)
         PsndDoDAC(y);
@@ -188,7 +188,7 @@ static int PicoFrameHints(void)
     elprintf(EL_INTS, "vint: @ %06x [%i]", SekPc, SekCycleCnt);
     SekInterrupt(6);
   }
-  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80)) {
+  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80)) {
     PicoSyncZ80(SekCycleCnt);
     elprintf(EL_INTS, "zint");
     z80_int();
@@ -246,7 +246,7 @@ static int PicoFrameHints(void)
   }
 
   // sync z80
-  if (Pico.m.z80Run && (PicoOpt&POPT_EN_Z80))
+  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
     PicoSyncZ80(Pico.m.pal ? 151809 : 127671); // cycles adjusted for converter
   if (PsndOut && ym2612.dacen && PsndDacLine <= lines-1)
     PsndDoDAC(lines-1);
