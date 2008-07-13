@@ -105,7 +105,7 @@ PICO_INTERNAL_ASM void PicoMemReset(void)
 int PadRead(int i)
 {
   int pad,value,data_reg;
-  pad=~PicoPad[i]; // Get inverse of pad MXYZ SACB RLDU
+  pad=~PicoPadInt[i]; // Get inverse of pad MXYZ SACB RLDU
   data_reg=Pico.ioports[i+1];
 
   // orr the bits, which are set as output
@@ -465,7 +465,7 @@ void PicoWrite16(u32 a,u16 d)
 
 static void PicoWrite32(u32 a,u32 d)
 {
-  elprintf(EL_IO, "w32: %06x, %08x", a&0xffffff, d);
+  elprintf(EL_IO, "w32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
 #ifdef EMU_CORE_DEBUG
   lastwrite_cyc_d[lwp_cyc++&15] = d;
 #endif

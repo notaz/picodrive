@@ -435,6 +435,7 @@ PICO_INTERNAL unsigned int ym2612_read_local_68k(void);
 // Pico.c
 extern struct Pico Pico;
 extern struct PicoSRAM SRam;
+extern int PicoPadInt[2];
 extern int emustatus;
 extern void (*PicoResetHook)(void);
 extern void (*PicoLineHook)(void);
@@ -463,6 +464,7 @@ PICO_INTERNAL void SekInit(void);
 PICO_INTERNAL int  SekReset(void);
 PICO_INTERNAL void SekState(int *data);
 PICO_INTERNAL void SekSetRealTAS(int use_real);
+void SekStepM68k(void);
 void SekInitIdleDet(void);
 void SekFinishIdleDet(void);
 

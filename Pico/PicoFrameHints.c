@@ -161,6 +161,7 @@ static int PicoFrameHints(void)
   pv->lwrite_cnt=0;
   Pico.video.status|=0x200;
 
+  memcpy(PicoPadInt, PicoPad, sizeof(PicoPadInt));
   PAD_DELAY
 #ifdef PICO_CD
   check_cd_dma();

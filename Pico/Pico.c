@@ -16,6 +16,7 @@ int PicoOpt = 0;
 int PicoSkipFrame = 0; // skip rendering frame?
 int emustatus = 0;     // rapid_ym2612, multi_ym_updates
 int PicoPad[2];        // Joypads, format is SACB RLDU
+int PicoPadInt[2];     // internal copy
 int PicoAHW = 0;       // active addon hardware: scd_active, 32x_active, svp_active, pico_active
 int PicoRegionOverride = 0; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 int PicoAutoRgnOrder = 0;
@@ -31,6 +32,7 @@ void PicoInit(void)
   // Blank space for state:
   memset(&Pico,0,sizeof(Pico));
   memset(&PicoPad,0,sizeof(PicoPad));
+  memset(&PicoPadInt,0,sizeof(PicoPadInt));
 
   // Init CPUs:
   SekInit();
@@ -145,6 +147,7 @@ int PicoReset(void)
 
   PicoMemReset();
   SekReset();
+  memset(&PicoPadInt,0,sizeof(PicoPadInt));
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
   SekSetRealTAS(PicoAHW & PAHW_MCD);
   SekCycleCntT=0;

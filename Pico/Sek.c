@@ -163,6 +163,21 @@ PICO_INTERNAL int SekReset(void)
   return 0;
 }
 
+void SekStepM68k(void)
+{
+  SekCycleAim=SekCycleCnt+1;
+#if defined(EMU_CORE_DEBUG)
+  SekCycleCnt+=CM_compareRun(1, 0);
+#elif defined(EMU_C68K)
+  PicoCpuCM68k.cycles=1;
+  CycloneRun(&PicoCpuCM68k);
+  SekCycleCnt+=1-PicoCpuCM68k.cycles;
+#elif defined(EMU_M68K)
+  SekCycleCnt+=m68k_execute(1);
+#elif defined(EMU_F68K)
+  SekCycleCnt+=fm68k_emulate(1, 0);
+#endif
+}
 
 PICO_INTERNAL void SekSetRealTAS(int use_real)
 {
@@ -173,6 +188,7 @@ PICO_INTERNAL void SekSetRealTAS(int use_real)
   // TODO
 #endif
 }
+
 
 /* idle loop detection, not to be used in CD mode */
 #ifdef EMU_C68K
