@@ -7,6 +7,7 @@ PSPSDK = $(shell psp-config --pspsdk-path)
 #use_mz80 = 1
 amalgamate = 0
 for_15fw = 1
+# :!touch platform/psp/psp.c
 
 
 CFLAGS += -I../.. -I. -DNO_SYNC
@@ -33,9 +34,9 @@ OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o pla
 ifeq "$(amalgamate)" "1"
 OBJS += ../../PicoAll.o
 else
-OBJS += Pico/Area.o Pico/Cart.o Pico/Memory.o Pico/Misc.o \
-		Pico/Pico.o Pico/Sek.o Pico/VideoPort.o Pico/Draw2.o Pico/Draw.o \
-		Pico/Patch.o Pico/Draw_amips.o Pico/Memory_amips.o Pico/Misc_amips.o
+OBJS += Pico/Area.o Pico/Cart.o Pico/Memory.o Pico/Misc.o Pico/Pico.o Pico/Sek.o Pico/VideoPort.o \
+		Pico/Draw2.o Pico/Draw.o Pico/Patch.o Pico/Draw_amips.o Pico/Memory_amips.o \
+		Pico/Misc_amips.o Pico/Debug.o
 # Pico - CD
 OBJS += Pico/cd/Pico.o Pico/cd/Memory.o Pico/cd/Sek.o Pico/cd/LC89510.o \
 		Pico/cd/cd_sys.o Pico/cd/cd_file.o Pico/cd/cue.o Pico/cd/gfx_cd.o \
@@ -167,7 +168,7 @@ up: EBOOT.PBP
 # cleanup
 
 myclean:
-	rm -rf $(DIRS)
+	#rm -rf $(DIRS)
 	$(RM) PicoDrive.map
 	make -C ../../cpu/musashi clean
 

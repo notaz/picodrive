@@ -37,13 +37,13 @@ const char * const keyNames[] = {
 	"???",   "???",    "???",  "PUSH", "???",  "???", "???",      "???"
 };
 
-static void menu_darken_bg(void *dst, int pixels, int darker);
+void menu_darken_bg(void *dst, int pixels, int darker);
 static void menu_prepare_bg(int use_game_bg);
 
 static unsigned long inp_prev = 0;
 static int inp_prevjoy = 0;
 
-static unsigned long wait_for_input(unsigned long interesting)
+unsigned long wait_for_input(unsigned long interesting)
 {
 	unsigned long ret;
 	static int repeats = 0, wait = 20;
@@ -132,7 +132,7 @@ static unsigned long wait_for_input_usbjoy(unsigned long interesting, int *joy)
 	return ret;
 }
 
-static void menu_flip(void)
+void menu_flip(void)
 {
 	gp2x_video_flush_cache();
 	gp2x_video_flip2();
@@ -427,74 +427,6 @@ rescan:
 	}
 
 	return ret;
-}
-
-// ------------ debug menu ------------
-
-char *debugString(void);
-void PicoDrawShowSpriteStats(unsigned short *screen, int stride);
-void PicoDrawShowPalette(unsigned short *screen, int stride);
-
-static void draw_main_debug(void)
-{
-	char *p, *str = debugString();
-	int len, line;
-
-	gp2x_pd_clone_buffer2();
-
-	p = str;
-	for (line = 0; line < 24; line++)
-	{
-		while (*p && *p != '\n') p++;
-		len = p - str;
-		if (len > 55) len = 55;
-		smalltext_out16_lim(1, line*10, str, 0xffff, len);
-		if (*p == 0) break;
-		p++; str = p;
-	}
-}
-
-static void draw_frame_debug(void)
-{
-	char layer_str[48] = "layers:             ";
-	if (PicoDrawMask & PDRAW_LAYERB_ON)      memcpy(layer_str +  8, "B", 1);
-	if (PicoDrawMask & PDRAW_LAYERA_ON)      memcpy(layer_str + 10, "A", 1);
-	if (PicoDrawMask & PDRAW_SPRITES_LOW_ON) memcpy(layer_str + 12, "spr_lo", 6);
-	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)  memcpy(layer_str + 19, "spr_hi", 6);
-
-	memset(gp2x_screen, 0, 320*240*2);
-	emu_forcedFrame(0);
-	smalltext_out16(4, 232, layer_str, 0xffff);
-}
-
-static void debug_menu_loop(void)
-{
-	int inp, mode = 0;
-
-	while (1)
-	{
-		switch (mode)
-		{
-			case 0: draw_main_debug(); break;
-			case 1: draw_frame_debug(); break;
-			case 2: gp2x_pd_clone_buffer2();
-				PicoDrawShowSpriteStats(gp2x_screen, 320); break;
-			case 3: memset(gp2x_screen, 0, 320*240*2);
-				PicoDrawShowPalette(gp2x_screen, 320); break;
-		}
-		menu_flip();
-
-		inp = wait_for_input(GP2X_B|GP2X_X|GP2X_L|GP2X_R|GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT);
-		if (inp & (GP2X_B|GP2X_X)) return;
-		if (inp & GP2X_L) { mode--; if (mode < 0) mode = 3; }
-		if (inp & GP2X_R) { mode++; if (mode > 3) mode = 0; }
-		if (mode == 1) {
-			if (inp & GP2X_LEFT)  PicoDrawMask ^= PDRAW_LAYERB_ON;
-			if (inp & GP2X_RIGHT) PicoDrawMask ^= PDRAW_LAYERA_ON;
-			if (inp & GP2X_DOWN)  PicoDrawMask ^= PDRAW_SPRITES_LOW_ON;
-			if (inp & GP2X_UP)    PicoDrawMask ^= PDRAW_SPRITES_HI_ON;
-		}
-	}
 }
 
 // ------------ patch/gg menu ------------
@@ -1653,7 +1585,7 @@ static void menu_loop_root(void)
 	}
 }
 
-static void menu_darken_bg(void *dst, int pixels, int darker)
+void menu_darken_bg(void *dst, int pixels, int darker)
 {
 	unsigned int *screen = dst;
 	pixels /= 2;

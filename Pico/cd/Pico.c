@@ -10,26 +10,6 @@ extern unsigned int s68k_poll_adclk;
 void (*PicoMCDopenTray)(void) = NULL;
 int  (*PicoMCDcloseTray)(void) = NULL;
 
-#define dump_ram(ram,fname) \
-{ \
-  int i, d; \
-  FILE *f; \
-\
-  for (i = 0; i < sizeof(ram); i+=2) { \
-    d = (ram[i]<<8) | ram[i+1]; \
-    *(unsigned short *)(ram+i) = d; \
-  } \
-  f = fopen(fname, "wb"); \
-  if (f) { \
-    fwrite(ram, 1, sizeof(ram), f); \
-    fclose(f); \
-  } \
-  for (i = 0; i < sizeof(ram); i+=2) { \
-    d = (ram[i]<<8) | ram[i+1]; \
-    *(unsigned short *)(ram+i) = d; \
-  } \
-}
-
 
 PICO_INTERNAL void PicoInitMCD(void)
 {
@@ -37,13 +17,9 @@ PICO_INTERNAL void PicoInitMCD(void)
   Init_CD_Driver();
 }
 
-
 PICO_INTERNAL void PicoExitMCD(void)
 {
   End_CD_Driver();
-
-  //dump_ram(Pico_mcd->prg_ram, "prg.bin");
-  //dump_ram(Pico.ram, "ram.bin");
 }
 
 PICO_INTERNAL void PicoPowerMCD(void)

@@ -5,6 +5,14 @@
 
 #define NO_SYNC
 
+#define CASE_SENSITIVE_FS 1 // CS filesystem
+#define DONT_OPEN_MANY_FILES 0
+#define REDUCE_IO_CALLS 0
+#define SIMPLE_WRITE_SOUND 0
+
+// draw.c
+#define OVERRIDE_HIGHCOL 0
+
 // draw2.c
 #define START_ROW  0 // which row of tiles to start rendering at?
 #define END_ROW   28 // ..end

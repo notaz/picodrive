@@ -12,21 +12,9 @@
 #include "fonts.h"
 #include "readpng.h"
 #include "lprintf.h"
+#include "common.h"
+#include "emu.h"
 
-#if   defined(__GP2X__)
- #include "../gp2x/gp2x.h"
- #define SCREEN_WIDTH 320
- #define SCREEN_BUFFER gp2x_screen
-#elif defined(__GIZ__)
- //#include "../gizmondo/giz.h"
- #define SCREEN_WIDTH 321
- #define SCREEN_BUFFER menu_screen
- extern unsigned char *menu_screen;
-#elif defined(PSP)
- #include "../psp/psp.h"
- #define SCREEN_WIDTH 512
- #define SCREEN_BUFFER psp_screen
-#endif
 
 char menuErrorMsg[64] = { 0, };
 
@@ -361,4 +349,112 @@ const char *me_region_name(unsigned int code, int auto_order)
 		return name;
 	}
 }
+
+// ------------ debug menu ------------
+
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <Pico/Pico.h>
+#include <Pico/Debug.h>
+
+void SekStepM68k(void);
+
+static void draw_text_debug(const char *str, int skip, int from)
+{
+	const char *p;
+	int len, line;
+
+	p = str;
+	while (skip-- > 0)
+	{
+		while (*p && *p != '\n') p++;
+		if (*p == 0 || p[1] == 0) return;
+		p++;
+	}
+
+	str = p;
+	for (line = from; line < SCREEN_HEIGHT/10; line++)
+	{
+		while (*p && *p != '\n') p++;
+		len = p - str;
+		if (len > 55) len = 55;
+		smalltext_out16_lim(1, line*10, str, 0xffff, len);
+		if (*p == 0) break;
+		p++; str = p;
+	}
+}
+
+static void draw_frame_debug(void)
+{
+	char layer_str[48] = "layers:             ";
+	if (PicoDrawMask & PDRAW_LAYERB_ON)      memcpy(layer_str +  8, "B", 1);
+	if (PicoDrawMask & PDRAW_LAYERA_ON)      memcpy(layer_str + 10, "A", 1);
+	if (PicoDrawMask & PDRAW_SPRITES_LOW_ON) memcpy(layer_str + 12, "spr_lo", 6);
+	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)  memcpy(layer_str + 19, "spr_hi", 6);
+
+	clear_screen();
+	emu_forcedFrame(0);
+	smalltext_out16(4, SCREEN_HEIGHT-8, layer_str, 0xffff);
+}
+
+void debug_menu_loop(void)
+{
+	int inp, mode = 0;
+	int spr_offs = 0, dumped = 0;
+
+	while (1)
+	{
+		switch (mode)
+		{
+			case 0: menu_draw_begin();
+				draw_text_debug(PDebugMain(), 0, 0);
+				if (dumped) {
+					smalltext_out16(SCREEN_WIDTH-6*10, SCREEN_HEIGHT-8, "dumped", 0xffff);
+					dumped = 0;
+				}
+				break;
+			case 1: draw_frame_debug(); break;
+			case 2: clear_screen();
+				emu_forcedFrame(0);
+				darken_screen();
+				PDebugShowSpriteStats(SCREEN_BUFFER, SCREEN_WIDTH); break;
+			case 3: clear_screen();
+				PDebugShowPalette(SCREEN_BUFFER, SCREEN_WIDTH);
+				PDebugShowSprite((unsigned short *)SCREEN_BUFFER + SCREEN_WIDTH*120+SCREEN_WIDTH/2+16,
+					SCREEN_WIDTH, spr_offs);
+				draw_text_debug(PDebugSpriteList(), spr_offs, 6);
+				break;
+		}
+		menu_draw_end();
+
+		inp = read_buttons(BTN_EAST|BTN_SOUTH|BTN_WEST|BTN_L|BTN_R|BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT);
+		if (inp & BTN_SOUTH) return;
+		if (inp & BTN_L) { mode--; if (mode < 0) mode = 3; }
+		if (inp & BTN_R) { mode++; if (mode > 3) mode = 0; }
+		switch (mode)
+		{
+			case 0:
+				if (inp & BTN_EAST) SekStepM68k();
+				if ((inp & (BTN_WEST|BTN_LEFT)) == (BTN_WEST|BTN_LEFT)) {
+					mkdir("dumps", 0777);
+					PDebugDumpMem();
+					dumped = 1;
+				}
+				break;
+			case 1:
+				if (inp & BTN_LEFT)  PicoDrawMask ^= PDRAW_LAYERB_ON;
+				if (inp & BTN_RIGHT) PicoDrawMask ^= PDRAW_LAYERA_ON;
+				if (inp & BTN_DOWN)  PicoDrawMask ^= PDRAW_SPRITES_LOW_ON;
+				if (inp & BTN_UP)    PicoDrawMask ^= PDRAW_SPRITES_HI_ON;
+				break;
+			case 3:
+				if (inp & BTN_DOWN)  spr_offs++;
+				if (inp & BTN_UP)    spr_offs--;
+				if (spr_offs < 0) spr_offs = 0;
+				break;
+		}
+	}
+}
+
 

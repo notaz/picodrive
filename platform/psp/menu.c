@@ -43,13 +43,13 @@ const char * const keyNames[] = {
 static unsigned short bg_buffer[480*272] __attribute__((aligned(16)));
 #define menu_screen psp_screen
 
-static void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
+void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
 static void menu_prepare_bg(int use_game_bg, int use_fg);
 
 
 static unsigned int inp_prev = 0;
 
-static unsigned long wait_for_input(unsigned int interesting, int is_key_config)
+unsigned long wait_for_input(unsigned int interesting, int is_key_config)
 {
 	unsigned int ret;
 	static int repeats = 0, wait = 20;
@@ -92,7 +92,7 @@ static unsigned long wait_for_input(unsigned int interesting, int is_key_config)
 	return ret;
 }
 
-static void menu_draw_begin(void)
+void menu_draw_begin(void)
 {
 	// short *src = (short *)bg_buffer, *dst = (short *)menu_screen;
 	// int i;
@@ -108,7 +108,7 @@ static void menu_draw_begin(void)
 }
 
 
-static void menu_draw_end(void)
+void menu_draw_end(void)
 {
 	psp_video_flip(1);
 }
@@ -432,74 +432,6 @@ static char *romsel_loop(char *curr_path)
 	}
 
 	return ret;
-}
-
-// ------------ debug menu ------------
-
-char *debugString(void);
-void PicoDrawShowSpriteStats(unsigned short *screen, int stride);
-void PicoDrawShowPalette(unsigned short *screen, int stride);
-
-static void draw_main_debug(void)
-{
-	char *p, *str = debugString();
-	int len, line;
-
-	menu_draw_begin();
-
-	p = str;
-	for (line = 0; line < 24; line++)
-	{
-		while (*p && *p != '\n') p++;
-		len = p - str;
-		if (len > 55) len = 55;
-		smalltext_out16_lim(1, line*10, str, 0xffff, len);
-		if (*p == 0) break;
-		p++; str = p;
-	}
-}
-
-static void draw_frame_debug(void)
-{
-	char layer_str[48] = "layers:             ";
-	if (PicoDrawMask & PDRAW_LAYERB_ON)      memcpy(layer_str +  8, "B", 1);
-	if (PicoDrawMask & PDRAW_LAYERA_ON)      memcpy(layer_str + 10, "A", 1);
-	if (PicoDrawMask & PDRAW_SPRITES_LOW_ON) memcpy(layer_str + 12, "spr_lo", 6);
-	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)  memcpy(layer_str + 19, "spr_hi", 6);
-
-	memset(psp_screen, 0, 512*272*2);
-	emu_forcedFrame(0);
-	smalltext_out16(4, 264, layer_str, 0xffff);
-}
-
-static void debug_menu_loop(void)
-{
-	int inp, mode = 0;
-
-	while (1)
-	{
-		switch (mode)
-		{
-			case 0: draw_main_debug(); break;
-			case 1: draw_frame_debug(); break;
-			case 2: menu_draw_begin();
-				PicoDrawShowSpriteStats((unsigned short *)psp_screen+512*16+80, 512); break;
-			case 3: memset(psp_screen, 0, 512*272*2);
-				PicoDrawShowPalette(psp_screen, 512); break;
-		}
-		menu_draw_end();
-
-		inp = wait_for_input(BTN_X|BTN_CIRCLE|BTN_L|BTN_R|BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT, 0);
-		if (inp & (BTN_X|BTN_CIRCLE)) return;
-		if (inp & BTN_L) { mode--; if (mode < 0) mode = 3; }
-		if (inp & BTN_R) { mode++; if (mode > 3) mode = 0; }
-		if (mode == 1) {
-			if (inp & BTN_LEFT)  PicoDrawMask ^= PDRAW_LAYERB_ON;
-			if (inp & BTN_RIGHT) PicoDrawMask ^= PDRAW_LAYERA_ON;
-			if (inp & BTN_DOWN)  PicoDrawMask ^= PDRAW_SPRITES_LOW_ON;
-			if (inp & BTN_UP)    PicoDrawMask ^= PDRAW_SPRITES_HI_ON;
-		}
-	}
 }
 
 // ------------ patch/gg menu ------------
@@ -1735,8 +1667,7 @@ static void menu_loop_root(void)
 	}
 }
 
-// warning: alignment
-static void menu_darken_bg(void *dst, const void *src, int pixels, int darker)
+void menu_darken_bg(void *dst, const void *src, int pixels, int darker)
 {
 	unsigned int *dest = dst;
 	const unsigned int *srce = src;

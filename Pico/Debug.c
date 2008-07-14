@@ -1,221 +1,303 @@
+// some debug code, just for fun of it
+// (c) Copyright 2008 notaz, All rights reserved.
+
 #include "PicoInt.h"
+#include "Debug.h"
 
-typedef unsigned char  u8;
+#define bit(r, x) ((r>>x)&1)
+#define MVP dstrp+=strlen(dstrp)
+void z80_debug(char *dstr);
 
-static unsigned int pppc, ops=0;
-extern unsigned int lastread_a, lastread_d[16], lastwrite_cyc_d[16], lastwrite_mus_d[16];
-extern int lrp_cyc, lrp_mus, lwp_cyc, lwp_mus;
-unsigned int old_regs[16], old_sr, ppop, have_illegal = 0;
-int dbg_irq_level = 0, dbg_irq_level_sub = 0;
+static char dstr[1024*8];
 
-#undef dprintf
-#define dprintf(f,...) printf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__)
-
-#if defined(EMU_C68K)
-static struct Cyclone *currentC68k = NULL;
-#define other_set_sub(s)   currentC68k=(s)?&PicoCpuCS68k:&PicoCpuCM68k;
-#define other_get_sr()     CycloneGetSr(currentC68k)
-#define other_dar(i)       currentC68k->d[i]
-#define other_osp          currentC68k->osp
-#define other_get_irq()    currentC68k->irq
-#define other_set_irq(i)   currentC68k->irq=i
-#define other_is_stopped()  (currentC68k->state_flags&1)
-#define other_is_tracing() ((currentC68k->state_flags&2)?1:0)
-#elif defined(EMU_F68K)
-#define other_set_sub(s)   g_m68kcontext=(s)?&PicoCpuFS68k:&PicoCpuFM68k;
-#define other_get_sr()     g_m68kcontext->sr
-#define other_dar(i)       ((unsigned int*)g_m68kcontext->dreg)[i]
-#define other_osp          g_m68kcontext->asp
-#define other_get_irq()    g_m68kcontext->interrupts[0]
-#define other_set_irq(irq) g_m68kcontext->interrupts[0]=irq
-#define other_is_stopped() ((g_m68kcontext->execinfo&FM68K_HALTED)?1:0)
-#define other_is_tracing() ((g_m68kcontext->execinfo&FM68K_EMULATE_TRACE)?1:0)
-#else
-#error other core missing, don't compile this file
-#endif
-
-static int otherRun(void)
+char *PDebugMain(void)
 {
+  struct PicoVideo *pv=&Pico.video;
+  unsigned char *reg=pv->reg, r;
+  extern int HighPreSpr[];
+  int i, sprites_lo, sprites_hi;
+  char *dstrp;
+
+  sprites_lo = sprites_hi = 0;
+  for (i = 0; HighPreSpr[i] != 0; i+=2)
+    if (HighPreSpr[i+1] & 0x8000)
+         sprites_hi++;
+    else sprites_lo++;
+
+  dstrp = dstr;
+  sprintf(dstrp, "mode set 1: %02x       spr lo: %2i, spr hi: %2i\n", (r=reg[0]), sprites_lo, sprites_hi); MVP;
+  sprintf(dstrp, "display_disable: %i, M3: %i, palette: %i, ?, hints: %i\n", bit(r,0), bit(r,1), bit(r,2), bit(r,4)); MVP;
+  sprintf(dstrp, "mode set 2: %02x                            hcnt: %i\n", (r=reg[1]), pv->reg[10]); MVP;
+  sprintf(dstrp, "SMS/gen: %i, pal: %i, dma: %i, vints: %i, disp: %i, TMS: %i\n",bit(r,2),bit(r,3),bit(r,4),bit(r,5),bit(r,6),bit(r,7)); MVP;
+  sprintf(dstrp, "mode set 3: %02x\n", (r=reg[0xB])); MVP;
+  sprintf(dstrp, "LSCR: %i, HSCR: %i, 2cell vscroll: %i, IE2: %i\n", bit(r,0), bit(r,1), bit(r,2), bit(r,3)); MVP;
+  sprintf(dstrp, "mode set 4: %02x\n", (r=reg[0xC])); MVP;
+  sprintf(dstrp, "interlace: %i%i, cells: %i, shadow: %i\n", bit(r,2), bit(r,1), (r&0x80) ? 40 : 32, bit(r,3)); MVP;
+  sprintf(dstrp, "scroll size: w: %i, h: %i  SRAM: %i; eeprom: %i (%i)\n", reg[0x10]&3, (reg[0x10]&0x30)>>4,
+  	bit(Pico.m.sram_reg, 4), bit(Pico.m.sram_reg, 2), SRam.eeprom_type); MVP;
+  sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); MVP;
+  sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status); MVP;
+  sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count); MVP;
 #if defined(EMU_C68K)
-  currentC68k->cycles=1;
-  CycloneRun(currentC68k);
-  return 1-currentC68k->cycles;
+  sprintf(dstrp, "M68k: PC: %06x, st_flg: %x, cycles: %u\n", SekPc, PicoCpuCM68k.state_flags, SekCyclesDoneT()); MVP;
+  sprintf(dstrp, "d0=%08x, a0=%08x, osp=%08x, irql=%i\n", PicoCpuCM68k.d[0], PicoCpuCM68k.a[0], PicoCpuCM68k.osp, PicoCpuCM68k.irq); MVP;
+  sprintf(dstrp, "d1=%08x, a1=%08x,  sr=%04x\n", PicoCpuCM68k.d[1], PicoCpuCM68k.a[1], CycloneGetSr(&PicoCpuCM68k)); dstrp+=strlen(dstrp); MVP;
+  for(r=2; r < 8; r++) {
+    sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, PicoCpuCM68k.d[r], r, PicoCpuCM68k.a[r]); MVP;
+  }
+#elif defined(EMU_M68K)
+  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuMM68k.int_level>>8); MVP;
 #elif defined(EMU_F68K)
-  return fm68k_emulate(1, 0);
+  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuFM68k.interrupts[0]); MVP;
 #endif
+  sprintf(dstrp, "z80Run: %i, z80_reset: %i, z80_bnk: %06x\n", Pico.m.z80Run, Pico.m.z80_reset, Pico.m.z80_bank68k<<15); MVP;
+  z80_debug(dstrp); MVP;
+  if (strlen(dstr) > sizeof(dstr))
+    printf("warning: debug buffer overflow (%i/%i)\n", strlen(dstr), sizeof(dstr));
+
+  return dstr;
 }
 
-//static
-void dumpPCandExit(int is_sub)
+char *PDebugSpriteList(void)
 {
-  char buff[128];
-  int i;
+  struct PicoVideo *pvid=&Pico.video;
+  int table=0,u,link=0;
+  int max_sprites = 80;
+  char *dstrp;
 
-  m68k_disassemble(buff, pppc, M68K_CPU_TYPE_68000);
-  dprintf("PC: %06x: %04x: %s", pppc, ppop, buff);
-  dprintf("                    this | prev");
-  for(i=0; i < 8; i++)
-    dprintf("d%i=%08x, a%i=%08x | d%i=%08x, a%i=%08x", i, other_dar(i), i, other_dar(i+8), i, old_regs[i], i, old_regs[i+8]);
-  dprintf("SR:                 %04x | %04x (??s? 0iii 000x nzvc)", other_get_sr(), old_sr);
-  dprintf("last_read: %08x @ %06x", lastread_d[--lrp_cyc&15], lastread_a);
-  dprintf("ops done: %i, is_sub: %i", ops, is_sub);
-  exit(1);
-}
+  if (!(pvid->reg[12]&1))
+    max_sprites = 64;
 
-int CM_compareRun(int cyc, int is_sub)
-{
-  char *str;
-  int cyc_done=0, cyc_other, cyc_musashi, *irq_level, err=0;
-  unsigned int i, pc, mu_sr;
+  dstr[0] = 0;
+  dstrp = dstr;
 
-  m68ki_cpu_p=is_sub?&PicoCpuMS68k:&PicoCpuMM68k;
-  other_set_sub(is_sub);
-  lrp_cyc = lrp_mus = 0;
+  table=pvid->reg[5]&0x7f;
+  if (pvid->reg[12]&1) table&=0x7e; // Lowest bit 0 in 40-cell mode
+  table<<=8; // Get sprite table address/2
 
-  while (cyc_done < cyc)
+  for (u=0; u < max_sprites; u++)
   {
-    if (have_illegal && m68k_read_disassembler_16(m68ki_cpu.pc) != 0x4e73) // not rte
-    {
-      have_illegal = 0;
-      m68ki_cpu.pc += 2;
-#ifdef EMU_C68K
-      currentC68k->pc=currentC68k->checkpc(currentC68k->pc + 2);
-#endif
-    }
-    // hacks for test_misc2
-    if (m68ki_cpu.pc == 0x0002e0 && m68k_read_disassembler_16(m68ki_cpu.pc) == 0x4e73)
-    {
-      // get out of "priviledge violation" loop
-      have_illegal = 1;
-      //m68ki_cpu.s_flag = SFLAG_SET;
-      //currentC68k->srh|=0x20;
-    }
+    unsigned int *sprite;
+    int code, code2, sx, sy, height;
 
-    pppc = is_sub ? SekPcS68k : SekPc;
-    ppop = m68k_read_disassembler_16(pppc);
-    memcpy(old_regs, &other_dar(0), 4*16);
-    old_sr = other_get_sr();
+    sprite=(unsigned int *)(Pico.vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
-#if 0
-    {
-      char buff[128];
-      dprintf("---");
-      m68k_disassemble(buff, pppc, M68K_CPU_TYPE_68000);
-      dprintf("PC: %06x: %04x: %s", pppc, ppop, buff);
-      //dprintf("A7: %08x", currentC68k->a[7]);
-    }
-#endif
+    // get sprite info
+    code = sprite[0];
 
-    irq_level = is_sub ? &dbg_irq_level_sub : &dbg_irq_level;
-    if (*irq_level)
-    {
-      other_set_irq(*irq_level);
-      m68k_set_irq(*irq_level);
-      *irq_level=0;
-    }
+    // check if it is on this line
+    sy = (code&0x1ff)-0x80;
+    height = ((code>>24)&3)+1;
 
-    cyc_other=otherRun();
-    // Musashi takes irq even if it hasn't got cycles left, let othercpu do it too
-    if (other_get_irq() && other_get_irq() > ((other_get_sr()>>8)&7))
-      cyc_other+=otherRun();
-    cyc_musashi=m68k_execute(1);
+    // masking sprite?
+    code2 = sprite[1];
+    sx = ((code2>>16)&0x1ff)-0x80;
 
-    if (cyc_other != cyc_musashi) {
-      dprintf("cycles: %i vs %i", cyc_other, cyc_musashi);
-      err=1;
-    }
+    sprintf(dstrp, "#%02i x:%4i y:%4i %ix%i %s\n", u, sx, sy, ((code>>26)&3)+1, height,
+      (code2&0x8000)?"hi":"lo");
+    MVP;
 
-    if (lrp_cyc != lrp_mus) {
-      dprintf("lrp: %i vs %i", lrp_cyc&15, lrp_mus&15);
-      err=1;
-    }
-
-    if (lwp_cyc != lwp_mus) {
-      dprintf("lwp: %i vs %i", lwp_cyc&15, lwp_mus&15);
-      err=1;
-    }
-
-    for (i=0; i < 16; i++) {
-      if (lastwrite_cyc_d[i] != lastwrite_mus_d[i]) {
-        dprintf("lastwrite: [%i]= %08x vs %08x", i, lastwrite_cyc_d[i], lastwrite_mus_d[i]);
-        err=1;
-        break;
-      }
-    }
-
-    // compare PC
-    pc = is_sub ? SekPcS68k : SekPc;
-    m68ki_cpu.pc&=~1;
-    if (pc != m68ki_cpu.pc) {
-      dprintf("PC: %06x vs %06x", pc, m68ki_cpu.pc);
-      err=1;
-    }
-
-#if 0
-    if( SekPc > Pico.romsize || SekPc < 0x200 ) {
-      dprintf("PC out of bounds: %06x", SekPc);
-      err=1;
-    }
-#endif
-
-    // compare regs
-    for (i=0; i < 16; i++) {
-      if (other_dar(i) != m68ki_cpu.dar[i]) {
-        str = (i < 8) ? "d" : "a";
-        dprintf("reg: %s%i: %08x vs %08x", str, i&7, other_dar(i), m68ki_cpu.dar[i]);
-        err=1;
-      }
-    }
-
-    // SR
-    if (other_get_sr() != (mu_sr = m68k_get_reg(NULL, M68K_REG_SR))) {
-      dprintf("SR: %04x vs %04x (??s? 0iii 000x nzvc)", other_get_sr(), mu_sr);
-      err=1;
-    }
-
-    // IRQl
-    if (other_get_irq() != (m68ki_cpu.int_level>>8)) {
-      dprintf("IRQ: %i vs %i", other_get_irq(), (m68ki_cpu.int_level>>8));
-      err=1;
-    }
-
-    // OSP/USP
-    if (other_osp != m68ki_cpu.sp[((mu_sr>>11)&4)^4]) {
-      dprintf("OSP: %06x vs %06x", other_osp, m68ki_cpu.sp[((mu_sr>>11)&4)^4]);
-      err=1;
-    }
-
-    // stopped
-    if ((other_is_stopped() && !m68ki_cpu.stopped) || (!other_is_stopped() && m68ki_cpu.stopped)) {
-      dprintf("stopped: %i vs %i", other_is_stopped(), m68ki_cpu.stopped);
-      err=1;
-    }
-
-    // tracing
-    if((other_is_tracing() && !m68ki_tracing) || (!other_is_tracing() && m68ki_tracing)) {
-      dprintf("tracing: %i vs %i", other_is_tracing(), m68ki_tracing);
-      err=1;
-    }
-
-    if(err) dumpPCandExit(is_sub);
-
-#if 0
-    if (m68ki_cpu.dar[15] < 0x00ff0000 || m68ki_cpu.dar[15] >= 0x01000000)
-    {
-      other_dar(15) = m68ki_cpu.dar[15] = 0xff8000;
-    }
-#endif
-#if 0
-    m68k_set_reg(M68K_REG_SR, ((mu_sr-1)&~0x2000)|(mu_sr&0x2000)); // broken
-    CycloneSetSr(currentC68k, ((mu_sr-1)&~0x2000)|(mu_sr&0x2000));
-    currentC68k->stopped = m68ki_cpu.stopped = 0;
-    if(SekPc > 0x400 && (currentC68k->a[7] < 0xff0000 || currentC68k->a[7] > 0xffffff))
-    currentC68k->a[7] = m68ki_cpu.dar[15] = 0xff8000;
-#endif
-
-    cyc_done += cyc_other;
-    ops++;
+    link=(code>>16)&0x7f;
+    if(!link) break; // End of sprites
   }
 
-  return cyc_done;
+  return dstr;
 }
+
+#define GREEN1  0x0700
+#ifdef USE_BGR555
+ #define YELLOW1 0x071c
+ #define BLUE1   0xf000
+ #define RED1    0x001e
+#else
+ #define YELLOW1 0xe700
+ #define BLUE1   0x001e
+ #define RED1    0xf000
+#endif
+
+static void set16(unsigned short *p, unsigned short d, int cnt)
+{
+  while (cnt-- > 0)
+    *p++ = d;
+}
+
+void PDebugShowSpriteStats(unsigned short *screen, int stride)
+{
+  int lines, i, u, step;
+  unsigned short *dest;
+  unsigned char *p;
+
+  step = (320-4*4-1) / MAX_LINE_SPRITES;
+  lines = 240;
+  if (!Pico.m.pal || !(Pico.video.reg[1]&8))
+    lines = 224, screen += stride*8;
+
+  for (i = 0; i < lines; i++)
+  {
+    dest = screen + stride*i;
+    p = &HighLnSpr[i][0];
+
+    // sprite graphs
+    for (u = 0; u < (p[0] & 0x7f); u++) {
+      set16(dest, (p[3+u] & 0x80) ? YELLOW1 : GREEN1, step);
+      dest += step;
+    }
+
+    // flags
+    dest = screen + stride*i + 320-4*4;
+    if (p[1] & 0x40) set16(dest+4*0, GREEN1,  4);
+    if (p[1] & 0x80) set16(dest+4*1, YELLOW1, 4);
+    if (p[1] & 0x20) set16(dest+4*2, BLUE1,   4);
+    if (p[1] & 0x10) set16(dest+4*3, RED1,    4);
+  }
+
+  // draw grid
+  for (i = step*5; i <= 320-4*4-1; i += step*5) {
+    for (u = 0; u < lines; u++)
+      screen[i + u*stride] = 0x182;
+  }
+}
+
+void PDebugShowPalette(unsigned short *screen, int stride)
+{
+  unsigned int *spal=(void *)Pico.cram;
+  unsigned int *dpal=(void *)HighPal;
+  int x, y, i;
+
+  for (i = 0x3f/2; i >= 0; i--)
+#ifdef USE_BGR555
+    dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
+#else
+    dpal[i] = ((spal[i]&0x000f000f)<<12)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)>>7);
+#endif
+  for (i = 0x3f; i >= 0; i--)
+    HighPal[0x40|i] = (unsigned short)((HighPal[i]>>1)&0x738e);
+  for (i = 0x3f; i >= 0; i--) {
+    int t=HighPal[i]&0xe71c;t+=0x4208;if(t&0x20)t|=0x1c;if(t&0x800)t|=0x700;if(t&0x10000)t|=0xe000;t&=0xe71c;
+    HighPal[0x80|i] = (unsigned short)t;
+  }
+
+  screen += 16*stride+8;
+  for (y = 0; y < 8*4; y++)
+    for (x = 0; x < 8*16; x++)
+      screen[x + y*stride] = HighPal[x/8 + (y/8)*16];
+
+  screen += 160;
+  for (y = 0; y < 8*4; y++)
+    for (x = 0; x < 8*16; x++)
+      screen[x + y*stride] = HighPal[(x/8 + (y/8)*16) | 0x40];
+
+  screen += stride*48;
+  for (y = 0; y < 8*4; y++)
+    for (x = 0; x < 8*16; x++)
+      screen[x + y*stride] = HighPal[(x/8 + (y/8)*16) | 0x80];
+
+  Pico.m.dirtyPal = 1;
+}
+
+#if defined(DRAW2_OVERRIDE_LINE_WIDTH)
+#define DRAW2_LINE_WIDTH DRAW2_OVERRIDE_LINE_WIDTH
+#else
+#define DRAW2_LINE_WIDTH 328
+#endif
+
+void PDebugShowSprite(unsigned short *screen, int stride, int which)
+{
+  struct PicoVideo *pvid=&Pico.video;
+  int table=0,u,link=0,*sprite=0,*fsprite,oldsprite[2];
+  int x,y,max_sprites = 80, oldcol, oldreg;
+
+  if (!(pvid->reg[12]&1))
+    max_sprites = 64;
+
+  table=pvid->reg[5]&0x7f;
+  if (pvid->reg[12]&1) table&=0x7e; // Lowest bit 0 in 40-cell mode
+  table<<=8; // Get sprite table address/2
+
+  for (u=0; u < max_sprites && u <= which; u++)
+  {
+    sprite=(int *)(Pico.vram+((table+(link<<2))&0x7ffc)); // Find sprite
+
+    link=(sprite[0]>>16)&0x7f;
+    if(!link) return; // End of sprites
+  }
+  if (u == max_sprites) return;
+
+  fsprite = (int *)(Pico.vram+(table&0x7ffc));
+  oldsprite[0] = fsprite[0];
+  oldsprite[1] = fsprite[1];
+  fsprite[0] = (sprite[0] & ~0x007f01ff) | 0x000080;
+  fsprite[1] = (sprite[1] & ~0x01ff8000) | 0x800000;
+  oldreg = pvid->reg[7];
+  oldcol = Pico.cram[0];
+  pvid->reg[7] = 0;
+  Pico.cram[0] = 0;
+  PicoDrawMask = PDRAW_SPRITES_LOW_ON;
+
+  PicoFrameFull();
+  for (y = 0; y < 8*4; y++)
+  {
+    unsigned char *ps = PicoDraw2FB + DRAW2_LINE_WIDTH*y + 8;
+    for (x = 0; x < 8*4; x++)
+      if (ps[x]) screen[x] = HighPal[ps[x]];
+    screen += stride;
+  }
+
+  fsprite[0] = oldsprite[0];
+  fsprite[1] = oldsprite[1];
+  pvid->reg[7] = oldreg;
+  Pico.cram[0] = oldcol;
+  PicoDrawMask = -1;
+}
+
+#define dump_ram(ram,fname) \
+{ \
+  unsigned short *sram = (unsigned short *) ram; \
+  FILE *f; \
+  int i; \
+\
+  for (i = 0; i < sizeof(ram)/2; i++) \
+    sram[i] = (sram[i]<<8) | (sram[i]>>8); \
+  f = fopen(fname, "wb"); \
+  if (f) { \
+    fwrite(ram, 1, sizeof(ram), f); \
+    fclose(f); \
+  } \
+  for (i = 0; i < sizeof(ram)/2; i++) \
+    sram[i] = (sram[i]<<8) | (sram[i]>>8); \
+}
+
+#define dump_ram_noswab(ram,fname) \
+{ \
+  FILE *f; \
+  f = fopen(fname, "wb"); \
+  if (f) { \
+    fwrite(ram, 1, sizeof(ram), f); \
+    fclose(f); \
+  } \
+}
+
+void PDebugDumpMem(void)
+{
+  dump_ram(Pico.ram,  "dumps/ram.bin");
+  dump_ram_noswab(Pico.zram, "dumps/zram.bin");
+  dump_ram(Pico.vram, "dumps/vram.bin");
+  dump_ram(Pico.cram, "dumps/cram.bin");
+  dump_ram(Pico.vsram,"dumps/vsram.bin");
+
+  if (PicoAHW & PAHW_MCD)
+  {
+    dump_ram(Pico_mcd->prg_ram, "dumps/prg_ram.bin");
+    if (Pico_mcd->s68k_regs[3]&4) // 1M mode?
+      wram_1M_to_2M(Pico_mcd->word_ram2M);
+    dump_ram(Pico_mcd->word_ram2M, "dumps/word_ram_2M.bin");
+    wram_2M_to_1M(Pico_mcd->word_ram2M);
+    dump_ram(Pico_mcd->word_ram1M[0], "dumps/word_ram_1M_0.bin");
+    dump_ram(Pico_mcd->word_ram1M[1], "dumps/word_ram_1M_1.bin");
+    if (!(Pico_mcd->s68k_regs[3]&4)) // 2M mode?
+      wram_2M_to_1M(Pico_mcd->word_ram2M);
+    dump_ram_noswab(Pico_mcd->pcm_ram,"dumps/pcm_ram.bin");
+    dump_ram_noswab(Pico_mcd->bram,   "dumps/bram.bin");
+  }
+}
+

@@ -398,6 +398,8 @@ int CM_compareRun(int cyc, int is_sub);
 PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawSync(int to, int blank_last_line);
 extern int DrawScanline;
+#define MAX_LINE_SPRITES 29
+extern unsigned char HighLnSpr[240][3 + MAX_LINE_SPRITES];
 
 // Draw2.c
 PICO_INTERNAL void PicoFrameFull();

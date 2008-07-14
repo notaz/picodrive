@@ -66,7 +66,7 @@ ifeq "$(amalgamate)" "1"
 OBJS += ../../PicoAll.o
 else
 OBJS += Pico/Area.o Pico/Cart.o Pico/Memory.o Pico/Misc.o Pico/Pico.o Pico/Sek.o \
-		Pico/VideoPort.o Pico/Draw2.o Pico/Draw.o Pico/Patch.o
+		Pico/VideoPort.o Pico/Draw2.o Pico/Draw.o Pico/Patch.o Pico/Debug.o
 # Pico - CD
 OBJS += Pico/cd/Pico.o Pico/cd/Memory.o Pico/cd/Sek.o Pico/cd/LC89510.o \
 		Pico/cd/cd_sys.o Pico/cd/cd_file.o Pico/cd/cue.o Pico/cd/gfx_cd.o \
@@ -118,7 +118,7 @@ OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 OBJS += unzip/unzip.o unzip/unzip_stream.o
 # debug
 ifeq "$(debug_cyclone)" "1"
-OBJS += Pico/Debug.o cpu/musashi/m68kdasm.o
+OBJS += Pico/DebugCPU.o cpu/musashi/m68kdasm.o
 endif
 # CPU cores
 ifeq "$(use_musashi)" "1"

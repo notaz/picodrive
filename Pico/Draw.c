@@ -36,7 +36,6 @@ static int  HighCacheA[41+1];   // caches for high layers
 static int  HighCacheB[41+1];
 int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
 
-#define MAX_LINE_SPRITES 29
 #define SPRL_HAVE_HI     0x80 // have hi priority sprites
 #define SPRL_HAVE_LO     0x40 // *lo*
 #define SPRL_MAY_HAVE_OP 0x20 // may have operator sprites on the line
@@ -1463,97 +1462,5 @@ void PicoDrawSetColorFormat(int which)
 #if OVERRIDE_HIGHCOL
   if (which) HighCol=DefHighCol;
 #endif
-}
-
-/* debug and fun */
-#define GREEN1  0x0700
-#ifdef USE_BGR555
- #define YELLOW1 0x071c
- #define BLUE1   0xf000
- #define RED1    0x001e
-#else
- #define YELLOW1 0xe700
- #define BLUE1   0x001e
- #define RED1    0xf000
-#endif
-
-static void set16(unsigned short *p, unsigned short d, int cnt)
-{
-  while (cnt-- > 0)
-    *p++ = d;
-}
-
-void PicoDrawShowSpriteStats(unsigned short *screen, int stride)
-{
-  int lines, i, u, step;
-  unsigned short *dest;
-  unsigned char *p;
-
-  step = (320-4*4-1) / MAX_LINE_SPRITES;
-  lines = 240;
-  if (!Pico.m.pal || !(Pico.video.reg[1]&8))
-    lines = 224, screen += stride*8;
-
-  for (i = 0; i < lines; i++)
-  {
-    dest = screen + stride*i;
-    p = &HighLnSpr[i][0];
-
-    // sprite graphs
-    for (u = 0; u < (p[0] & 0x7f); u++) {
-      set16(dest, (p[3+u] & 0x80) ? YELLOW1 : GREEN1, step);
-      dest += step;
-    }
-
-    // flags
-    dest = screen + stride*i + 320-4*4;
-    if (p[1] & SPRL_HAVE_LO)     set16(dest+4*0, GREEN1,  4);
-    if (p[1] & SPRL_HAVE_HI)     set16(dest+4*1, YELLOW1, 4);
-    if (p[1] & SPRL_MAY_HAVE_OP) set16(dest+4*2, BLUE1,   4);
-    if (p[1] & SPRL_LO_ABOVE_HI) set16(dest+4*3, RED1,    4);
-  }
-
-  // draw grid
-  for (i = step*5; i <= 320-4*4-1; i += step*5) {
-    for (u = 0; u < lines; u++)
-      screen[i + u*stride] = 0x182;
-  }
-}
-
-void PicoDrawShowPalette(unsigned short *screen, int stride)
-{
-  unsigned int *spal=(void *)Pico.cram;
-  unsigned int *dpal=(void *)HighPal;
-  int x, y, i;
-
-  for (i = 0x3f/2; i >= 0; i--)
-#ifdef USE_BGR555
-    dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
-#else
-    dpal[i] = ((spal[i]&0x000f000f)<<12)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)>>7);
-#endif
-  for (i = 0x3f; i >= 0; i--)
-    HighPal[0x40|i] = (unsigned short)((HighPal[i]>>1)&0x738e);
-  for (i = 0x3f; i >= 0; i--) {
-    int t=HighPal[i]&0xe71c;t+=0x4208;if(t&0x20)t|=0x1c;if(t&0x800)t|=0x700;if(t&0x10000)t|=0xe000;t&=0xe71c;
-    HighPal[0x80|i] = (unsigned short)t;
-  }
-
-  screen += 16*stride+8;
-  for (y = 0; y < 8*4; y++)
-    for (x = 0; x < 8*16; x++)
-      screen[x + y*stride] = HighPal[x/8 + (y/8)*16];
-
-  screen += 160;
-  for (y = 0; y < 8*4; y++)
-    for (x = 0; x < 8*16; x++)
-      screen[x + y*stride] = HighPal[(x/8 + (y/8)*16) | 0x40];
-
-  screen += stride*48;
-  for (y = 0; y < 8*4; y++)
-    for (x = 0; x < 8*16; x++)
-      screen[x + y*stride] = HighPal[(x/8 + (y/8)*16) | 0x80];
-
-  Pico.m.dirtyPal = 1;
 }
 

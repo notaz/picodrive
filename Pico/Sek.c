@@ -175,7 +175,7 @@ void SekStepM68k(void)
 #elif defined(EMU_M68K)
   SekCycleCnt+=m68k_execute(1);
 #elif defined(EMU_F68K)
-  SekCycleCnt+=fm68k_emulate(1, 0);
+  SekCycleCnt+=fm68k_emulate(1, 0, 0);
 #endif
 }
 

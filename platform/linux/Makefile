@@ -36,7 +36,7 @@ OBJS += platform/common/emu.o platform/common/menu.o platform/common/config.o pl
 
 # Pico
 OBJS += Pico/Area.o Pico/Cart.o Pico/Memory.o Pico/Misc.o Pico/Pico.o Pico/Sek.o \
-		Pico/VideoPort.o Pico/Draw2.o Pico/Draw.o Pico/Patch.o
+		Pico/VideoPort.o Pico/Draw2.o Pico/Draw.o Pico/Patch.o Pico/Debug.o
 # Pico - CD
 OBJS += Pico/cd/Pico.o Pico/cd/Memory.o Pico/cd/Sek.o Pico/cd/LC89510.o \
 		Pico/cd/cd_sys.o Pico/cd/cd_file.o Pico/cd/cue.o Pico/cd/gfx_cd.o \
@@ -73,7 +73,7 @@ endif
 # misc
 ifeq "$(use_fame)" "1"
 ifeq "$(use_musashi)" "1"
-OBJS += Pico/Debug.o
+OBJS += Pico/DebugCPU.o
 OBJS += cpu/musashi/m68kdasm.o
 endif
 endif
