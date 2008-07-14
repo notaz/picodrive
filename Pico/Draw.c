@@ -958,7 +958,7 @@ void PrepareSprites(int full)
   {
     int pack;
     // updates: tilecode, sx
-    for (u=0; u < max_lines && (pack = *pd); u++, pd+=2)
+    for (u=0; u < max_sprites && (pack = *pd); u++, pd+=2)
     {
       unsigned int *sprite;
       int code2, sx, sy, height;
@@ -1010,7 +1010,7 @@ found:;
     for (u = 0; u < max_lines; u++)
       *((int *)&HighLnSpr[u][0]) = 0;
 
-    for (u = 0; u < max_lines; u++)
+    for (u = 0; u < max_sprites; u++)
     {
       unsigned int *sprite;
       int code, code2, sx, sy, hv, height, width;

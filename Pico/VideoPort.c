@@ -364,7 +364,8 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
           SekCyclesBurn(32); // penalty // 488/12-8
           if (SekCycleCnt>=SekCycleAim) SekEndRun(0);
         }
-        elprintf(EL_ASVDP, "VDP data write: %04x {%i} #%i @ %06x", d, Pico.video.type, pvid->lwrite_cnt, SekPc);
+        elprintf(EL_ASVDP, "VDP data write: %04x [%06x] {%i} #%i @ %06x", d, Pico.video.addr,
+                 Pico.video.type, pvid->lwrite_cnt, SekPc);
       }
       VideoWrite(d);
     }
@@ -410,6 +411,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
             update_irq = 1;
             break;
           case 0x05:
+            //elprintf(EL_STATUS, "spritep moved to %04x", (unsigned)(Pico.video.reg[5]&0x7f) << 9);
             if (d^dold) rendstatus |= PDRAW_SPRITES_MOVED;
             break;
           case 0x0c:
