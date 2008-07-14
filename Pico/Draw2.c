@@ -587,7 +587,7 @@ static void DrawDisplayFull(void)
 
 	if (HighCache2B[1]) DrawTilesFromCacheF(HighCache2B);
 	if (HighCache2A[1]) DrawTilesFromCacheF(HighCache2A);
-	switch (hvwin)
+	if (PicoDrawMask & PDRAW_LAYERA_ON) switch (hvwin)
 	{
 		case 4:
 		// fullscreen window

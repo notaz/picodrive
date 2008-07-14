@@ -219,9 +219,9 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
     sprite=(int *)(Pico.vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
     link=(sprite[0]>>16)&0x7f;
-    if(!link) return; // End of sprites
+    if (!link) break; // End of sprites
   }
-  if (u == max_sprites) return;
+  if (u >= max_sprites) return;
 
   fsprite = (int *)(Pico.vram+(table&0x7ffc));
   oldsprite[0] = fsprite[0];
@@ -239,7 +239,7 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
   {
     unsigned char *ps = PicoDraw2FB + DRAW2_LINE_WIDTH*y + 8;
     for (x = 0; x < 8*4; x++)
-      if (ps[x]) screen[x] = HighPal[ps[x]];
+      if (ps[x]) screen[x] = HighPal[ps[x]], ps[x] = 0;
     screen += stride;
   }
 
