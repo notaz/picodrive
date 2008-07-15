@@ -40013,7 +40013,7 @@ RET(8)
 
 
 extern int SekIsIdleCode(unsigned short *dst, int bytes);
-extern int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop);
+extern int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx);
 
 OPCODE(idle_detector_bcc8)
 {
@@ -40032,18 +40032,22 @@ OPCODE(idle_detector_bcc8)
 	ret = SekIsIdleCode(dest_pc, bytes);
 	newop = (Opcode & 0xfe) | 0x7100;
 	if (!ret) newop |= 0x200;
-	if (Opcode & 0x0100) newop |= 0x400; // beq
+	if (  Opcode & 0x0100)  newop |= 0x400; // beq
+	if (!(Opcode & 0x0f00)) newop |= 0xc00; // bra
 
-	ret = SekRegisterIdlePatch(GET_PC - 2, Opcode, newop);
+	ret = SekRegisterIdlePatch(GET_PC - 2, Opcode, newop, &m68kcontext);
 	switch (ret)
 	{
 		case 0: PC[-1] = newop; break;
 		case 1: break;
-		case 2: JumpTable[Opcode] = (Opcode & 0x0100) ? CAST_OP(0x6701) : CAST_OP(0x6601); break;
+		case 2: JumpTable[Opcode] = (Opcode & 0x0f00) ?
+				((Opcode & 0x0100) ? CAST_OP(0x6701) : CAST_OP(0x6601)) :
+				CAST_OP(0x6001); break;
 	}
 
 end:
-	cond_true = (Opcode & 0x0100) ? !flag_NotZ : flag_NotZ; // beq?
+	if ((Opcode & 0xff00) == 0x6000) cond_true = 1;
+	else cond_true = (Opcode & 0x0100) ? !flag_NotZ : flag_NotZ; // beq?
 	if (cond_true)
 	{
 		PC = dest_pc;
@@ -40052,14 +40056,4 @@ end:
 RET(8)
 }
 
-OPCODE(idle_detector_dead)
-{
-	// patch without further questions
-	int newop = 0x7d00 | (Opcode & 0xff);
-	PC[-1] = newop;
-	SekRegisterIdlePatch(GET_PC - 2, Opcode, newop);
-
-	PC += ((s8)(Opcode & 0xFE)) >> 1;
-RET(10)
-}
 #endif // PICODRIVE_HACK

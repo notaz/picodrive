@@ -199,6 +199,25 @@ static int *idledet_addrs = NULL;
 static int idledet_count = 0, idledet_bads = 0;
 int idledet_start_frame = 0;
 
+#if 0
+#define IDLE_STATS 1
+unsigned int idlehit_addrs[128], idlehit_counts[128];
+
+void SekRegisterIdleHit(unsigned int pc)
+{
+  int i;
+  for (i = 0; i < 127 && idlehit_addrs[i]; i++) {
+    if (idlehit_addrs[i] == pc) {
+      idlehit_counts[i]++;
+      return;
+    }
+  }
+  idlehit_addrs[i] = pc;
+  idlehit_counts[i] = 1;
+  idlehit_addrs[i+1] = 0;
+}
+#endif
+
 void SekInitIdleDet(void)
 {
   void *tmp = realloc(idledet_addrs, 0x200*4);
@@ -210,6 +229,9 @@ void SekInitIdleDet(void)
     idledet_addrs = tmp;
   idledet_count = idledet_bads = 0;
   idledet_start_frame = Pico.m.frame_count + 360;
+#ifdef IDLE_STATS
+  idlehit_addrs[0] = 0;
+#endif
 
 #ifdef EMU_C68K
   CycloneInitIdle();
@@ -224,6 +246,10 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
   // printf("SekIsIdleCode %04x %i\n", *dst, bytes);
   switch (bytes)
   {
+    case 2:
+      if ((*dst & 0xf000) != 0x6000)     // not another branch
+        return 1;
+      break;
     case 4:
       if (  (*dst & 0xfff8) == 0x4a10 || // tst.b ($aX)      // there should be no need to wait
             (*dst & 0xfff8) == 0x4a28 || // tst.b ($xxxx,a0) // for byte change anywhere
@@ -261,13 +287,20 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
   return 0;
 }
 
-int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop)
+int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx)
 {
-#ifdef EMU_C68K
-  pc -= PicoCpuCM68k.membase;
+  int is_main68k = 1;
+#if   defined(EMU_C68K)
+  struct Cyclone *cyc = ctx;
+  is_main68k = cyc == &PicoCpuCM68k;
+  pc -= cyc->membase;
+#elif defined(EMU_F68K)
+  is_main68k = ctx == &PicoCpuFM68k;
 #endif
   pc &= ~0xff000000;
-  elprintf(EL_IDLE, "idle: patch %06x %04x %04x #%i", pc, oldop, newop, idledet_count);
+  elprintf(EL_IDLE, "idle: patch %06x %04x %04x %c %c #%i", pc, oldop, newop,
+    (newop&0x200)?'n':'y', is_main68k?'m':'s', idledet_count);
+
   if (pc > Pico.romsize && !(PicoAHW & PAHW_SVP)) {
     if (++idledet_bads > 128) return 2; // remove detector
     return 1; // don't patch

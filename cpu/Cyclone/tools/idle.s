@@ -22,8 +22,8 @@ patch_desc_table:
   .word (0x75f8<<16) | 0x67f8, idle_detector_bcc8, idle_beq, Op6701  @ beq.s
   .word (0x75f6<<16) | 0x67f6, idle_detector_bcc8, idle_beq, Op6701  @ beq.s
   .word (0x75f2<<16) | 0x67f2, idle_detector_bcc8, idle_beq, Op6701  @ beq.s
-  .word (0x7dfe<<16) | 0x60fe, idle_detector_dead, idle_bra, Op6001  @ bra.s
-  .word (0x7dfc<<16) | 0x60fc, idle_detector_dead, idle_bra, Op6001  @ bra.s
+  .word (0x7dfe<<16) | 0x60fe, idle_detector_bcc8, idle_bra, Op6001  @ bra.s
+  .word (0x7dfc<<16) | 0x60fc, idle_detector_bcc8, idle_bra, Op6001  @ bra.s
 
 
 .text
@@ -90,10 +90,12 @@ cfi_loop:
 
 
 .macro inc_counter cond
-@    ldr     r0, =idle_hit_counter
-@    ldr     r1, [r0]
-@    add     r1, r1, #1
-@    str\cond r1, [r0]
+@    ldr\cond r0, [r7, #0x60]
+@    mov     r11,lr
+@    sub     r0, r4, r0
+@    sub     r0, r0, #2
+@    bl\cond SekRegisterIdleHit
+@    mov     lr, r11
 .endm
 
 idle_bra:
@@ -139,43 +141,36 @@ idle_detector_bcc8:
     and     r2, r8, #0x00ff
     orr     r2, r2, #0x7100
     orreq   r2, r2, #0x0200
-    tst     r8, #0x0100           @ 67xx (beq)?
-    orrne   r2, r2, #0x0400
+    mov     r0, r8, lsr #8
+    cmp     r0, #0x66
+    orrgt   r2, r2, #0x0400       @ 67xx (beq)
+    orrlt   r2, r2, #0x0c00       @ 60xx (bra)
 
     @ r2 = patch_opcode
     sub     r0, r4, #2
     ldrh    r1, [r0]
     mov     r11,r2
+    mov     r3, r7
     bl      SekRegisterIdlePatch
     cmp     r0, #1                @ 0 - ok to patch, 1 - no patch, 2 - remove detector
     strlth  r11,[r4, #-2]
     ble     exit_detector
 
     @ remove detector from Cyclone
-    tst     r8, #0x0100           @ 67xx (beq)?
+    mov     r0, r8, lsr #8
+    cmp     r0, #0x66
+    ldrlt   r1, =Op6001
     ldreq   r1, =Op6601
-    ldrne   r1, =Op6701
+    ldrgt   r1, =Op6701
 
     ldr     r3, =CycloneJumpTab
     str     r1, [r3, r8, lsl #2]
     bx      r1
 
 exit_detector:
-    tst     r8, #0x0100           @ 67xx (beq)?
+    mov     r0, r8, lsr #8
+    cmp     r0, #0x66
+    blt     Op6001
     beq     Op6601
     b       Op6701
-
-
-idle_detector_dead:
-    @ patch without further questions
-    and     r2, r8, #0x00ff
-    orr     r2, r2, #0x7d00
-    sub     r0, r4, #2
-    ldrh    r1, [r0]
-    mov     r11,r2
-    bl      SekRegisterIdlePatch
-    strh    r11,[r4, #-2]
-    b       Op6001
-
-.pool
 

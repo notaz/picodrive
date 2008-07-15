@@ -5041,8 +5041,8 @@ idle_install:
 	INSTALL_IDLE(0x75f8, 0x67f8, idle_detector_bcc8, 0x6701_idle, 0x6701);
 	INSTALL_IDLE(0x75f6, 0x67f6, idle_detector_bcc8, 0x6701_idle, 0x6701);
 	INSTALL_IDLE(0x75f2, 0x67f2, idle_detector_bcc8, 0x6701_idle, 0x6701);
-	INSTALL_IDLE(0x7dfe, 0x60fe, idle_detector_dead, 0x6001_idle, 0x6001);
-	INSTALL_IDLE(0x7dfc, 0x60fc, idle_detector_dead, 0x6001_idle, 0x6001);
+	INSTALL_IDLE(0x7dfe, 0x60fe, idle_detector_bcc8, 0x6001_idle, 0x6001);
+	INSTALL_IDLE(0x7dfc, 0x60fc, idle_detector_bcc8, 0x6001_idle, 0x6001);
 	return 0;
 
 idle_remove:

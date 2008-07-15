@@ -171,16 +171,16 @@ int PicoReset(void)
   if (Pico.m.dma_xfers == 0 && !(PicoOpt&POPT_DIS_VDP_FIFO))
     Pico.m.dma_xfers = rand() & 0x1fff;
 
+  SekFinishIdleDet();
+
   if (PicoAHW & PAHW_MCD) {
     PicoResetMCD();
     return 0;
   }
-  else {
-    // reinit, so that checksum checks pass
-    SekFinishIdleDet();
-    if (!(PicoOpt & POPT_DIS_IDLE_DET))
-      SekInitIdleDet();
-  }
+
+  // reinit, so that checksum checks pass
+  if (!(PicoOpt & POPT_DIS_IDLE_DET))
+    SekInitIdleDet();
 
   // reset sram state; enable sram access by default if it doesn't overlap with ROM
   Pico.m.sram_reg=sram_reg&0x14;
@@ -314,6 +314,21 @@ PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done)
 void PicoFrame(void)
 {
   Pico.m.frame_count++;
+
+#if 0
+  if ((Pico.m.frame_count & 0x3f) == 0)
+  {
+    extern int idlehit_addrs[], idlehit_counts[];
+    int i;
+    printf("--\n");
+    for (i = 0; i < 128 && idlehit_addrs[i] != 0; i++) {
+      if (idlehit_counts[i] != 0) {
+        printf("%06x %i %i\n", idlehit_addrs[i], idlehit_counts[i],  idlehit_counts[i] >> 6);
+        idlehit_counts[i] = 0;
+      }
+    }
+  }
+#endif
 
   if (PicoAHW & PAHW_MCD) {
     PicoFrameMCD();
