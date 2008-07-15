@@ -26,6 +26,8 @@ void menu_flip(void);
 
 #define read_buttons(which) \
 	wait_for_input(which)
+#define read_buttons_async(which) \
+	(gp2x_joystick_read(0) & (which))
 #define menu_draw_begin() \
 	gp2x_pd_clone_buffer2()
 #define clear_screen() \
@@ -67,6 +69,8 @@ void menu_draw_end(void);
 
 #define read_buttons(which) \
 	wait_for_input(which, 0)
+#define read_buttons_async(which) \
+	(psp_pad_read(0) & (which))
 #define clear_screen() \
 	memset(SCREEN_BUFFER, 0, SCREEN_WIDTH*SCREEN_HEIGHT*2)
 #define darken_screen() \

@@ -439,6 +439,7 @@ void debug_menu_loop(void)
 				if ((inp & (BTN_WEST|BTN_LEFT)) == (BTN_WEST|BTN_LEFT)) {
 					mkdir("dumps", 0777);
 					PDebugDumpMem();
+					while (inp & BTN_WEST) inp = read_buttons_async(BTN_WEST);
 					dumped = 1;
 				}
 				break;
@@ -447,6 +448,13 @@ void debug_menu_loop(void)
 				if (inp & BTN_RIGHT) PicoDrawMask ^= PDRAW_LAYERA_ON;
 				if (inp & BTN_DOWN)  PicoDrawMask ^= PDRAW_SPRITES_LOW_ON;
 				if (inp & BTN_UP)    PicoDrawMask ^= PDRAW_SPRITES_HI_ON;
+				if (inp & BTN_EAST) {
+					PsndOut = NULL; // just in case
+					PicoSkipFrame = 1;
+					PicoFrame();
+					PicoSkipFrame = 0;
+					while (inp & BTN_EAST) inp = read_buttons_async(BTN_EAST);
+				}
 				break;
 			case 3:
 				if (inp & BTN_DOWN)  spr_offs++;
