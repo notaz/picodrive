@@ -643,6 +643,14 @@ Additional thanks
 
 Changelog
 ---------
+1.50a
+  * Improved bin_to_cso_mp3 tool, it should no longer complain about
+    missing lame.exe even if it's in working dir.
+  * Fixed a regression from 1.50, which caused slowdowns in Final Fight.
+  * Fixed some regressions from 1.50 related to sprite limit and palette
+    handling (caused graphical glitches in some games).
+  * Some other minor adjustments.
+
 1.50
   + Added some basic support for Sega Pico, a MegaDrive-based toy.
   + Added proper support for cue/bin images, including cdda playback.
