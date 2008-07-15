@@ -390,26 +390,26 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
         // Register write:
         int num=(d>>8)&0x1f;
         int dold=pvid->reg[num];
-        int update_irq = 0, blank_on = 0;
+        int blank_on = 0;
         pvid->type=0; // register writes clear command (else no Sega logo in Golden Axe II)
         if (num > 0x0a && !(pvid->reg[1]&4)) {
           elprintf(EL_ANOMALY, "%02x written to reg %02x in SMS mode @ %06x", d, num, SekPc);
           return;
         }
 
+        if (num == 1 && !(d&0x40) && SekCyclesLeft > 390) blank_on = 1;
+        DrawSync(blank_on);
+        pvid->reg[num]=(unsigned char)d;
         switch (num)
         {
           case 0x00:
             elprintf(EL_INTSW, "hint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x10)>>4,
                     (d&0x10)>>4, SekCyclesDone(), (pvid->pending_ints&0x10)>>4, SekPc);
-            update_irq = 1;
-            break;
+            goto update_irq;
           case 0x01:
             elprintf(EL_INTSW, "vint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x20)>>5,
                     (d&0x20)>>5, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
-            if (!(d&0x40) && SekCyclesLeft > 390) blank_on = 1;
-            update_irq = 1;
-            break;
+            goto update_irq;
           case 0x05:
             //elprintf(EL_STATUS, "spritep moved to %04x", (unsigned)(Pico.video.reg[5]&0x7f) << 9);
             if (d^dold) rendstatus |= PDRAW_SPRITES_MOVED;
@@ -419,10 +419,9 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
             if ((d^dold)&8) Pico.m.dirtyPal = 2;
             break;
         }
-        DrawSync(blank_on);
-        pvid->reg[num]=(unsigned char)d;
-        if (!update_irq) return;
+        return;
 
+update_irq:
 #ifndef EMU_CORE_DEBUG
         // update IRQ level
         if (!SekShouldInterrupt) // hack
