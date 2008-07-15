@@ -80,7 +80,7 @@ EU: eu_mcd1_9210.bin eu_mcd2_9303.bin eu_mcd2_9306.bin
 JP: jp_mcd1_9112.bin jp_mcd1_9111.bin
 these files can also be zipped.
 
-The game must be dumped to ISO format, but CUE/BIN can be used too. When using
+The game must be dumped to ISO/MP3, CUE/CSO/MP3 or CUE/BIN format. When using
 CUE/BIN, you must load .cue file from the menu, or else the emu will not find
 audio tracks.
 CUE/BIN usually takes a lot of space, so it can be converted to cue/cso/mp3 by
@@ -99,6 +99,9 @@ Sonic the Hedgehog CD (US) - Track 01.iso
 Sonic the Hedgehog CD (US) - Track 02.mp3
 Sonic the Hedgehog CD (US) - Track 03.mp3
 ...
+
+In case there is a .cue file with properly specified files names in it,
+file naming doesn't matter. Just be sure to load .cue from the menu.
 
 It is very important to have the MP3s encoded at 44kHz sample rate and they
 must be stereo, or else they will play too fast/slow or won't play at all.

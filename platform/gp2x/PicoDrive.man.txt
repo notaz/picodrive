@@ -9,9 +9,9 @@ http://www.gp32x.com/board/
 
 
 [How to make it run]
-Copy PicoDrive.gpe, code940.bin and mmuhack.o to any place in your filesystem (all 3 files must be in the same directory) and run PicoDrive.gpe. Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
+Copy PicoDrive.gpe, pico940_v3.bin and mmuhack.o to any place in your filesystem (all 3 files must be in the same directory) and run PicoDrive.gpe. Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
 
-If you have any problems (game does not boot, sound is glitchy, broken graphics), make sure you enable "Accurate timing", "Emulate Z80" and use "16bit accurate renderer". This way you will get the best compatibility this emulator can provide.
+If the game has graphic problems, make sure you use "16bit accurate renderer" (press Y). If it still doesn't work, try clean copy of the emulator, as you may have config problems.
 
 
 [How to run Sega/Mega CD games]
@@ -57,55 +57,49 @@ Other two are accurate line-based renderers. The 8bit is faster but does not run
 2. "Scaling"
 "hw" means GP2X hardware scaler, which causes no performance loss, but scaled image looks a bit blocky. "sw" means software scaling, which uses pixel averaging and may look a bit nicer, but blurry. Horizontal scaling is only for games which use so called "32 column mode" (256x224 or 256x240), and scales image width to 320 pixels. Vertical scales height to 240 for games which use height 224 (most of them).
 
-3. "Accurate timing"
-This adds some more emulation precision, but slows the emulation down. Without this option some games do not boot (Red Zone for example), others have sound problems. This options has no effect for Sega/Mega CD emulation.
-
-4. "Accurate sprites"
-This option improves emulation of sprite priorities, it also enables emulation of sprite collision bit. If you see one sprite being drawn incorrectly above the other (often seen in Sonic 3D Blast), you can enable this to fix the problem. This only works with the accurate renderers (see first option).
-
-5. "Show FPS"
+3. "Show FPS"
 Self-explanatory. Format is XX/YY, where XX is the number of rendered frames and YY is the number of emulated frames per second.
 
-6. "Frameskip"
+4. "Frameskip"
 How many frames to skip rendering before displaying another. "Auto" is recommended.
 
-7. "Enable sound"
+5. "Enable sound"
 Does what it says. You must enable at least YM2612 or SN76496 (in advanced options, see below) for this to make sense.
 
-8. "Sound Quality"
+6. "Sound Quality"
 Sound rate and stereo mode. If you want 44100Hz sound, it is recommended to enable the second core (next option).
 
-9. "Use ARM940 core for sound"
+7. "Use ARM940 core for sound"
 This option causes PicoDrive to use ARM940T core (GP2X's second CPU) for sound (i.e. to generate YM2612 samples) to improve performance noticeably.
 
-10. "6 button pad"
+8. "6 button pad"
 If you enable this, games will think that 6 button gamepad is connected. If you go and reconfigure your keys, you will be able to bind X,Y,Z and mode actions.
 
-11. "Region"
+9. "Region"
 This option lets you force the game to think it is running on machine from the specified region, or just to set autodetection order. Also affects Sega/Mega CD.
 
-12. "Use SRAM/BRAM savestates"
+10. "Use SRAM/BRAM savestates"
 This will automatically read/write SRAM (or BRAM for Sega/Mega CD) savestates for games which are using them. SRAM is saved whenever you pause your game or exit the emulator.
 
-13. "Confirm savestate"
+11. "Confirm savestate"
 Allows to enable confirmation on savestate saving (to prevent savestate overwrites), on loading (to prevent destroying current game progress), and on both or none.
 
-14. "Save slot"
+12. "Save slot"
 This is a slot number to use for savestates. This can also be configured to be changed with a button (see "key configuration").
 
-15. "GP2X CPU clocks"
+13. "GP2X CPU clocks"
 Here you can change clocks of both GP2X's CPUs. Larger values increase performance. There is no separate option for the second CPU because both CPUs use the same clock source. Setting this option to 200 will cause PicoDrive NOT to change GP2X's clocks at all (this is if you use external program to set clock).
 
-16. "[Sega/Mega CD options]"
+14. "[Sega/Mega CD options]"
 Enters Sega/Mega CD options menu (see below).
 
-17. "[advanced options]"
+15. "[advanced options]"
 Enters advanced options menu (see below).
 
-18. "Save cfg as default"
+16. "Save cfg as default"
 If you save your config here it will be loaded on next ROM load, but only if there is no game specific config saved (which will be loaded in that case).
 
-19. "Save cfg for current game only"
+17. "Save cfg for current game only"
 Whenever you load current ROM again these settings will be loaded (squidgehack and RAM settings will not take effect until emulator is restarted).
 
 
@@ -250,23 +244,26 @@ RAM cartridge: yes
 
 
 [Credits]
-This emulator uses code from these people/projects:
+This emulator is made of the code from following people/projects:
+
+notaz
+GP2X, UIQ, PSP, Gizmondo ports, CPU core hacks,
+lots of additional coding (see changelog).
+Homepage: http://notaz.gp2x.de/
 
 Dave
 Cyclone 68000 core, Pico emulation library
 Homepage: http://www.finalburn.com/
 
-notaz
-GP2X port, Cyclone 68000 hacks, lots of additional coding (see changelog).
-
 Reesy & FluBBa
-DrZ80, the Z80 emulator written in ARM assembly.
+DrZ80, the Z80 interpreter written in ARM assembly.
 Homepage: http://reesy.gp32x.de/
 
-Tatsuyuki Satoh, Jarek Burczynski, MultiArcadeMachineEmulator development software implementation of Yamaha FM sound generator
+Tatsuyuki Satoh, Jarek Burczynski, MAME development
+software implementation of Yamaha FM sound generator
 
-MultiArcadeMachineEmulator (MAME) development
-Texas Instruments SN76489 / SN76496 programmable tone /noise generator
+MAME development
+Texas Instruments SN76489 / SN76496 programmable tone/noise generator
 Homepage: http://www.mame.net/
 
 Stephane Dallongeville
@@ -277,19 +274,25 @@ Helix mp3 decoder
 
 
 [Additional thanks]
-* Charles MacDonald (http://cgfm2.emuviews.com/) for old but still very useful info about genesis hardware.
+* Charles MacDonald (http://cgfm2.emuviews.com/) for old but still very useful
+  info about genesis hardware.
 * Steve Snake for all that he has done for Genesis emulation scene.
+* Tasco Deluxe for his reverse engineering work on SVP and some mappers.
 * Bart Trzynadlowski for his SSFII and 68000 docs.
 * Haze for his research (http://haze.mameworld.info).
+* Lordus, Exophase and Rokas for various ideas.
+* Nemesis for his YM2612 research.
 * Mark and Jean-loup for zlib library.
+* ketchupgun for the skin.
 * rlyeh and all the other people behind the minimal library.
 * Squidge for his famous squidgehack(tm).
 * Dzz for his ARM940 sample code.
 * GnoStiC & Puck2099 for USB joystick support.
 * Hermes PS2R, god_at_hell for the CpuCtrl library.
+* A_SN for his gamma code.
 * craigix for supplying the GP2X hardware and making this port possible.
 * Alex for the icon.
-* Exophase and Rokas for various ideas.
+* All the people from gp32x boards for their support.
 * Anyone else I forgot. You know who you are.
 
 
