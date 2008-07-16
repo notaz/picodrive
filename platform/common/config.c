@@ -20,9 +20,11 @@ static char *mystrip(char *str);
 extern menu_entry opt_entries[];
 extern menu_entry opt2_entries[];
 extern menu_entry cdopt_entries[];
+extern menu_entry ctrlopt_entries[];
 extern const int opt_entry_count;
 extern const int opt2_entry_count;
 extern const int cdopt_entry_count;
+extern const int ctrlopt_entry_count;
 #ifdef PSP
 extern menu_entry opt3_entries[];
 extern const int opt3_entry_count;
@@ -33,6 +35,7 @@ static menu_entry *cfg_opts[] =
 	opt_entries,
 	opt2_entries,
 	cdopt_entries,
+	ctrlopt_entries,
 #ifdef PSP
 	opt3_entries,
 #endif
@@ -43,6 +46,7 @@ static const int *cfg_opt_counts[] =
 	&opt_entry_count,
 	&opt2_entry_count,
 	&cdopt_entry_count,
+	&ctrlopt_entry_count,
 #ifdef PSP
 	&opt3_entry_count,
 #endif
@@ -277,6 +281,9 @@ static int default_var(const menu_entry *me)
 		case MA_CDOPT_LEDS:
 			return defaultConfig.EmuOpt;
 
+		case MA_CTRL_TURBO_RATE:
+			return defaultConfig.turbo_rate;
+
 		case MA_OPT_SAVE_SLOT:
 		default:
 			return 0;
@@ -370,7 +377,7 @@ write:
 				if (!no_defaults || ((*(int *)me->var ^ default_var(me)) & me->mask))
 					fprintf(fn, "%s = %i" NL, me->name, (*(int *)me->var & me->mask) ? 1 : 0);
 			} else if (me->beh == MB_RANGE) {
-				if (!no_defaults || ((*(int *)me->var ^ default_var(me)) & me->mask))
+				if (!no_defaults || (*(int *)me->var ^ default_var(me)))
 					fprintf(fn, "%s = %i" NL, me->name, *(int *)me->var);
 			}
 		}

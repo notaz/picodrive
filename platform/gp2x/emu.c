@@ -164,6 +164,7 @@ void emu_prepareDefaultConfig(void)
 	defaultConfig.KeyBinds[22] = 1<<30; // vol down
 	defaultConfig.gamma = 100;
 	defaultConfig.scaling = 0;
+	defaultConfig.turbo_rate = 15;
 }
 
 void emu_setDefaultConfig(void)
@@ -436,33 +437,19 @@ static void emu_msg_tray_open(void)
 
 static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 {
-	int ret, px, py;
+	int ret, px, py, lim_x;
 	static int pdown_frames = 0;
 
 	emu_RunEventsPico(events);
 
-	if (pico_inp_mode != 0)
-	{
-		PicoPad[0] &= ~0x0f; // release UDLR
-		if (gp2x_keys & GP2X_UP)   { pico_pen_y--; if (pico_pen_y < 8) pico_pen_y = 8; }
-		if (gp2x_keys & GP2X_DOWN) { pico_pen_y++; if (pico_pen_y > 224-PICO_PEN_ADJUST_Y) pico_pen_y = 224-PICO_PEN_ADJUST_Y; }
-		if (gp2x_keys & GP2X_LEFT) { pico_pen_x--; if (pico_pen_x < 0) pico_pen_x = 0; }
-		if (gp2x_keys & GP2X_RIGHT) {
-			int lim = (Pico.video.reg[12]&1) ? 319 : 255;
-			pico_pen_x++;
-			if (pico_pen_x > lim-PICO_PEN_ADJUST_X)
-				pico_pen_x = lim-PICO_PEN_ADJUST_X;
-		}
-		PicoPicohw.pen_pos[0] = pico_pen_x;
-		if (!(Pico.video.reg[12]&1)) PicoPicohw.pen_pos[0] += pico_pen_x/4;
-		PicoPicohw.pen_pos[0] += 0x3c;
-		PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
-	}
+	if (pico_inp_mode == 0) return;
 
 	// for F200
 	ret = gp2x_touchpad_read(&px, &py);
-	if (ret >= 0) {
-		if (ret > 5000) {
+	if (ret >= 0)
+	{
+		if (ret > 35000)
+		{
 			if (pdown_frames++ > 5)
 				PicoPad[0] |= 0x20;
 
@@ -476,11 +463,28 @@ static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 			if (pico_pen_y > 224) pico_pen_y = 224;
 		}
 		else
-			pdown_frames= 0;
+			pdown_frames = 0;
 
 		//if (ret == 0)
 		//	PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
 	}
+
+	PicoPad[0] &= ~0x0f; // release UDLR
+	if (gp2x_keys & GP2X_UP)    pico_pen_y--;
+	if (gp2x_keys & GP2X_DOWN)  pico_pen_y++;
+	if (gp2x_keys & GP2X_LEFT)  pico_pen_x--;
+	if (gp2x_keys & GP2X_RIGHT) pico_pen_x++;
+
+	lim_x = (Pico.video.reg[12]&1) ? 319 : 255;
+	if (pico_pen_y < 8) pico_pen_y = 8;
+	if (pico_pen_y > 224-PICO_PEN_ADJUST_Y) pico_pen_y = 224-PICO_PEN_ADJUST_Y;
+	if (pico_pen_x < 0) pico_pen_x = 0;
+	if (pico_pen_x > lim_x-PICO_PEN_ADJUST_X) pico_pen_x = lim_x-PICO_PEN_ADJUST_X;
+
+	PicoPicohw.pen_pos[0] = pico_pen_x;
+	if (!(Pico.video.reg[12]&1)) PicoPicohw.pen_pos[0] += pico_pen_x/4;
+	PicoPicohw.pen_pos[0] += 0x3c;
+	PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
 }
 
 static void update_volume(int has_changed, int is_up)
@@ -639,8 +643,11 @@ static void updateKeys(void)
 		}
 	}
 
-	PicoPad[0] = (unsigned short) allActions[0];
-	PicoPad[1] = (unsigned short) allActions[1];
+	PicoPad[0] = allActions[0] & 0xfff;
+	PicoPad[1] = allActions[1] & 0xfff;
+
+	if (allActions[0] & 0x7000) emu_DoTurbo(&PicoPad[0], allActions[0]);
+	if (allActions[1] & 0x7000) emu_DoTurbo(&PicoPad[1], allActions[1]);
 
 	events = (allActions[0] | allActions[1]) >> 16;
 

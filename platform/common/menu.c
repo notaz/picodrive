@@ -19,20 +19,23 @@
 char menuErrorMsg[64] = { 0, };
 
 // PicoPad[] format: MXYZ SACB RLDU
-me_bind_action me_ctrl_actions[12] =
+me_bind_action me_ctrl_actions[15] =
 {
-	{ "UP     ", 0x001 },
-	{ "DOWN   ", 0x002 },
-	{ "LEFT   ", 0x004 },
-	{ "RIGHT  ", 0x008 },
-	{ "A      ", 0x040 },
-	{ "B      ", 0x010 },
-	{ "C      ", 0x020 },
-	{ "START  ", 0x080 },
-	{ "MODE   ", 0x800 },
-	{ "X      ", 0x400 },
-	{ "Y      ", 0x200 },
-	{ "Z      ", 0x100 }
+	{ "UP     ", 0x0001 },
+	{ "DOWN   ", 0x0002 },
+	{ "LEFT   ", 0x0004 },
+	{ "RIGHT  ", 0x0008 },
+	{ "A      ", 0x0040 },
+	{ "B      ", 0x0010 },
+	{ "C      ", 0x0020 },
+	{ "A turbo", 0x4000 },
+	{ "B turbo", 0x1000 },
+	{ "C turbo", 0x2000 },
+	{ "START  ", 0x0080 },
+	{ "MODE   ", 0x0800 },
+	{ "X      ", 0x0400 },
+	{ "Y      ", 0x0200 },
+	{ "Z      ", 0x0100 }
 };
 
 

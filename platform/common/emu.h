@@ -25,6 +25,7 @@ typedef struct {
 	float scale; // psp: screen scale
 	float hscale32, hscale40; // psp: horizontal scale
 	int gamma2;  // psp: black level
+	int turbo_rate;
 } currentConfig_t;
 
 extern currentConfig_t currentConfig, defaultConfig;
@@ -56,6 +57,7 @@ void  emu_findKeyBindCombos(void);
 void  emu_forcedFrame(int opts);
 void  emu_changeFastForward(int set_on);
 void  emu_RunEventsPico(unsigned int events);
+void  emu_DoTurbo(int *pad, int acts);
 
 extern const char * const keyNames[];
 void  emu_prepareDefaultConfig(void);

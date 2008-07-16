@@ -91,6 +91,11 @@ typedef enum
 	MA_CDOPT_SCALEROT_CHIP,
 	MA_CDOPT_BETTER_SYNC,
 	MA_CDOPT_DONE,
+	MA_CTRL_PLAYER1,
+	MA_CTRL_PLAYER2,
+	MA_CTRL_EMU,
+	MA_CTRL_TURBO_RATE,
+	MA_CTRL_DONE,
 } menu_id;
 
 typedef struct
@@ -112,7 +117,7 @@ typedef struct
 	int mask;
 } me_bind_action;
 
-extern me_bind_action me_ctrl_actions[12];
+extern me_bind_action me_ctrl_actions[15];
 extern me_bind_action emuctrl_actions[];	// platform code
 
 

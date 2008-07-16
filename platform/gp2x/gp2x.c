@@ -231,6 +231,7 @@ typedef struct ucb1x00_ts_event
 int gp2x_touchpad_read(int *x, int *y)
 {
 	UCB1X00_TS_EVENT event;
+	static int zero_seen = 0;
 	int retval;
 
 	if (touchdev < 0) return -1;
@@ -240,12 +241,14 @@ int gp2x_touchpad_read(int *x, int *y)
 		printf("touch read failed %i %i\n", retval, errno);
 		return -1;
 	}
+	// this is to ignore the messed-up 4.1.x driver
+	if (retval == 0) zero_seen = 1;
 
 	if (x) *x = (event.x * touchcal[0] + touchcal[2]) >> 16;
 	if (y) *y = (event.y * touchcal[4] + touchcal[5]) >> 16;
 	// printf("read %i %i %i\n", event.pressure, *x, *y);
 
-	return event.pressure;
+	return zero_seen ? event.pressure : 0;
 }
 
 

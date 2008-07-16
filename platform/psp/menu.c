@@ -672,14 +672,14 @@ static int count_bound_keys(int action, int pl_idx)
 
 static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_idx, int sel)
 {
-	int x, y, tl_y = 16+40, i;
+	int x, y, tl_y = 16+20, i;
 
 	menu_draw_begin();
 	if (player_idx >= 0) {
-		text_out16(80+80, 16+20, "Player %i controls", player_idx + 1);
+		text_out16(80+80, 16, "Player %i controls", player_idx + 1);
 		x = 80+80;
 	} else {
-		text_out16(80+80, 16+20, "Emulator controls");
+		text_out16(80+80, 16, "Emulator controls");
 		x = 80+40;
 	}
 
@@ -692,14 +692,14 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 	text_out16(x, y, "Done");
 
 	if (sel < opt_cnt) {
-		text_out16(80+30, 220, "Press a button to bind/unbind");
-		text_out16(80+30, 230, "Use SELECT to clear");
-		text_out16(80+30, 240, "To bind UP/DOWN, hold SELECT");
-		text_out16(80+30, 250, "Select \"Done\" to exit");
+		text_out16(80+30, 225, "Press a button to bind/unbind");
+		text_out16(80+30, 235, "Use SELECT to clear");
+		text_out16(80+30, 245, "To bind UP/DOWN, hold SELECT");
+		text_out16(80+30, 255, "Select \"Done\" to exit");
 	} else {
-		text_out16(80+30, 230, "Use Options -> Save cfg");
-		text_out16(80+30, 240, "to save controls");
-		text_out16(80+30, 250, "Press X or O to exit");
+		text_out16(80+30, 235, "Use Options -> Save cfg");
+		text_out16(80+30, 245, "to save controls");
+		text_out16(80+30, 255, "Press X or O to exit");
 	}
 	menu_draw_end();
 }
@@ -741,6 +741,19 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 	}
 }
 
+menu_entry ctrlopt_entries[] =
+{
+	{ "Player 1",                  MB_NONE,  MA_CTRL_PLAYER1,       NULL, 0, 0, 0, 1, 0 },
+	{ "Player 2",                  MB_NONE,  MA_CTRL_PLAYER2,       NULL, 0, 0, 0, 1, 0 },
+	{ "Emulator controls",         MB_NONE,  MA_CTRL_EMU,           NULL, 0, 0, 0, 1, 0 },
+	{ "6 button pad",              MB_ONOFF, MA_OPT_6BUTTON_PAD,   &PicoOpt, 0x020, 0, 0, 1, 1 },
+	{ "Turbo rate",                MB_RANGE, MA_CTRL_TURBO_RATE,   &currentConfig.turbo_rate, 0, 1, 30, 1, 1 },
+	{ "Done",                      MB_NONE,  MA_CTRL_DONE,          NULL, 0, 0, 0, 1, 0 },
+};
+
+#define CTRLOPT_ENTRY_COUNT (sizeof(ctrlopt_entries) / sizeof(ctrlopt_entries[0]))
+const int ctrlopt_entry_count = CTRLOPT_ENTRY_COUNT;
+
 static void draw_kc_sel(int menu_sel)
 {
 	int tl_x = 80+25+40, tl_y = 16+60, y;
@@ -749,10 +762,7 @@ static void draw_kc_sel(int menu_sel)
 	menu_draw_begin();
 	menu_draw_selection(tl_x - 16, tl_y + menu_sel*10, 138);
 
-	text_out16(tl_x, y,       "Player 1");
-	text_out16(tl_x, (y+=10), "Player 2");
-	text_out16(tl_x, (y+=10), "Emulator controls");
-	text_out16(tl_x, (y+=10), "Done");
+	me_draw(ctrlopt_entries, ctrlopt_entry_count, tl_x, tl_y, NULL, NULL);
 
 	menu_draw_end();
 }
@@ -779,21 +789,25 @@ static void kc_sel_loop(void)
 {
 	int menu_sel = 3, menu_sel_max = 3;
 	unsigned long inp = 0;
-	int is_6button = PicoOpt & POPT_6BTN_PAD;
+	menu_id selected_id;
 
 	while (1)
 	{
 		draw_kc_sel(menu_sel);
-		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_X|BTN_CIRCLE, 0);
+		inp = wait_for_input(BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT|BTN_X|BTN_CIRCLE, 0);
+		selected_id = me_index2id(ctrlopt_entries, CTRLOPT_ENTRY_COUNT, menu_sel);
+		if (inp & (BTN_LEFT|BTN_RIGHT)) // multi choise
+			me_process(ctrlopt_entries, CTRLOPT_ENTRY_COUNT, selected_id, (inp&BTN_RIGHT) ? 1 : 0);
 		if (inp & BTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if (inp & BTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		if (inp & BTN_CIRCLE) {
-			switch (menu_sel) {
-				case 0: key_config_loop(me_ctrl_actions, is_6button ? 12 : 8, 0); return;
-				case 1: key_config_loop(me_ctrl_actions, is_6button ? 12 : 8, 1); return;
-				case 2: key_config_loop(emuctrl_actions,
-						sizeof(emuctrl_actions)/sizeof(emuctrl_actions[0]) - 1, -1); return;
-				case 3: if (!rom_loaded) emu_WriteConfig(0); return;
+			int is_6button = PicoOpt & POPT_6BTN_PAD;
+			switch (selected_id) {
+				case MA_CTRL_PLAYER1: key_config_loop(me_ctrl_actions, is_6button ? 15 : 11, 0); return;
+				case MA_CTRL_PLAYER2: key_config_loop(me_ctrl_actions, is_6button ? 15 : 11, 1); return;
+				case MA_CTRL_EMU:     key_config_loop(emuctrl_actions,
+							sizeof(emuctrl_actions)/sizeof(emuctrl_actions[0]) - 1, -1); return;
+				case MA_CTRL_DONE:    if (!rom_loaded) emu_WriteConfig(0); return;
 				default: return;
 			}
 		}
@@ -1205,12 +1219,11 @@ static void amenu_loop_options(void)
 menu_entry opt_entries[] =
 {
 	{ NULL,                        MB_NONE,  MA_OPT_RENDERER,      NULL, 0, 0, 0, 1, 1 },
-	{ "Accurate sprites",          MB_ONOFF, MA_OPT_ACC_SPRITES,   &PicoOpt, 0x0080, 0, 0, 0, 1 },
+	{ "Accurate sprites",          MB_ONOFF, MA_OPT_ACC_SPRITES,   &PicoOpt, 0x080, 0, 0, 0, 1 },
 	{ "Show FPS",                  MB_ONOFF, MA_OPT_SHOW_FPS,      &currentConfig.EmuOpt,  0x0002,  0,  0, 1, 1 },
 	{ NULL,                        MB_RANGE, MA_OPT_FRAMESKIP,     &currentConfig.Frameskip,    0, -1, 16, 1, 1 },
 	{ "Enable sound",              MB_ONOFF, MA_OPT_ENABLE_SOUND,  &currentConfig.EmuOpt,  0x0004,  0,  0, 1, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT_SOUND_QUALITY, NULL, 0, 0, 0, 1, 1 },
-	{ "6 button pad",              MB_ONOFF, MA_OPT_6BUTTON_PAD,   &PicoOpt, 0x0020, 0, 0, 1, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT_REGION,        NULL, 0, 0, 0, 1, 1 },
 	{ "Use SRAM/BRAM savestates",  MB_ONOFF, MA_OPT_SRAM_STATES,   &currentConfig.EmuOpt,  0x0001, 0, 0, 1, 1 },
 	{ NULL,                        MB_NONE,  MA_OPT_CONFIRM_STATES,NULL, 0, 0, 0, 1, 1 },

@@ -151,6 +151,7 @@ void emu_prepareDefaultConfig(void)
 	defaultConfig.scale = 1.20;    // fullscreen
 	defaultConfig.hscale40 = 1.25;
 	defaultConfig.hscale32 = 1.56;
+	defaultConfig.turbo_rate = 15;
 }
 
 void emu_setDefaultConfig(void)
@@ -862,8 +863,11 @@ static void updateKeys(void)
 		}
 	}
 
-	PicoPad[0] = (unsigned short) allActions[0];
-	PicoPad[1] = (unsigned short) allActions[1];
+	PicoPad[0] = allActions[0] & 0xfff;
+	PicoPad[1] = allActions[1] & 0xfff;
+
+	if (allActions[0] & 0x7000) emu_DoTurbo(&PicoPad[0], allActions[0]);
+	if (allActions[1] & 0x7000) emu_DoTurbo(&PicoPad[1], allActions[1]);
 
 	events = (allActions[0] | allActions[1]) >> 16;
 

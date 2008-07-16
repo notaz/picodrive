@@ -245,10 +245,6 @@ This option causes PicoDrive to use ARM940T core (GP2X's second CPU) for sound
 (i.e. to generate YM2612 samples) to improve performance noticeably.
 #endif
 
-@@0. "6 button pad"
-If you enable this, games will think that 6 button gamepad is connected. If you
-go and reconfigure your keys, you will be able to bind X,Y,Z and mode actions.
-
 @@0. "Region"
 This option lets you force the game to think it is running on machine from the
 specified region, or just to set autodetection order. Also affects Sega/Mega CD.
@@ -473,7 +469,10 @@ the right Giz ones, which are assigned to them. If you bind 2 different Giz butt
 the right PSP ones, which are assigned to them. If you bind 2 different PSP buttons
 #endif
 to the same action, you will get a combo (which means that you will have to press
-both buttons for that action to happen.
+both buttons for that action to happen).
+
+There is also option to enable 6 button pad (will allow you to configure XYZ
+keys), and an option to set turbo rate (in Hz) for turbo buttons.
 
 
 Cheat support
@@ -646,12 +645,13 @@ Additional thanks
 
 Changelog
 ---------
-1.50a
+1.51
   * Improved bin_to_cso_mp3 tool, it should no longer complain about
     missing lame.exe even if it's in working dir.
   * Fixed a regression from 1.50, which caused slowdowns in Final Fight.
   * Fixed some regressions from 1.50 related to sprite limit and palette
     handling (caused graphical glitches in some games).
+  + Added ABC turbo actions to key config.
   * Some other minor adjustments.
 
 1.50
