@@ -237,12 +237,12 @@ int gp2x_touchpad_read(int *x, int *y)
 	if (touchdev < 0) return -1;
 
 	retval = read(touchdev, &event, sizeof(event));
-	if (retval < 0) {
+	if (retval <= 0) {
 		printf("touch read failed %i %i\n", retval, errno);
 		return -1;
 	}
 	// this is to ignore the messed-up 4.1.x driver
-	if (retval == 0) zero_seen = 1;
+	if (event.pressure == 0) zero_seen = 1;
 
 	if (x) *x = (event.x * touchcal[0] + touchcal[2]) >> 16;
 	if (y) *y = (event.y * touchcal[4] + touchcal[5]) >> 16;

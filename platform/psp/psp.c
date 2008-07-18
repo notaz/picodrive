@@ -26,14 +26,14 @@ extern int pico_main(void);
 
 #ifndef FW15
 
-PSP_MODULE_INFO("PicoDrive", 0, 1, 50);
+PSP_MODULE_INFO("PicoDrive", 0, 1, 51);
 PSP_HEAP_SIZE_MAX();
 
 int main() { return pico_main(); }	/* just a wrapper */
 
 #else
 
-PSP_MODULE_INFO("PicoDrive", 0x1000, 1, 50);
+PSP_MODULE_INFO("PicoDrive", 0x1000, 1, 51);
 PSP_MAIN_THREAD_ATTR(0);
 
 int main()
@@ -58,10 +58,11 @@ int main()
 
 #endif
 
+int psp_unhandled_suspend = 0;
+
 unsigned int __attribute__((aligned(16))) guCmdList[GU_CMDLIST_SIZE];
 
 void *psp_screen = VRAM_FB0;
-int psp_unhandled_suspend = 0;
 
 static int current_screen = 0; /* front bufer */
 
@@ -79,26 +80,19 @@ static int exit_callback(int arg1, int arg2, void *common)
 /* Power Callback */
 static int power_callback(int unknown, int pwrflags, void *common)
 {
-	static int old_state = PGS_Menu;
-	int i;
-
 	lprintf("power_callback: flags: 0x%08X\n", pwrflags);
 
 	/* check for power switch and suspending as one is manual and the other automatic */
 	if (pwrflags & PSP_POWER_CB_POWER_SWITCH || pwrflags & PSP_POWER_CB_SUSPENDING || pwrflags & PSP_POWER_CB_STANDBY)
 	{
-		if (engineState != PGS_Suspending && engineState != PGS_SuspendAck) {
-			old_state = engineState;
-			engineState = PGS_Suspending;
-		}
-		for (i = 0; i < 10 && engineState != PGS_SuspendAck; i++)
-			sceKernelDelayThread(100*1024);
-
+		psp_unhandled_suspend = 1;
+		if (engineState != PGS_Suspending)
+			engineStateSuspend = engineState;
+		sceKernelDelayThread(100000); // ??
 	}
 	else if (pwrflags & PSP_POWER_CB_RESUME_COMPLETE)
 	{
-		engineState = old_state;
-		psp_unhandled_suspend = 1;
+		engineState = PGS_SuspendWake;
 	}
 
 	//sceDisplayWaitVblankStart();
@@ -288,7 +282,6 @@ void psp_resume_suspend(void)
 	}
 	if (fd >= 0) sceIoClose(fd);
 	sceDisplayWaitVblankStart();
-	psp_unhandled_suspend = 0;
 	if (i < 30)
 		lprintf("io resumed after %i tries\n", i);
 	else {

@@ -421,7 +421,8 @@ void debug_menu_loop(void)
 			case 2: clear_screen();
 				emu_forcedFrame(0);
 				darken_screen();
-				PDebugShowSpriteStats(SCREEN_BUFFER, SCREEN_WIDTH); break;
+				PDebugShowSpriteStats((unsigned short *)SCREEN_BUFFER + (SCREEN_HEIGHT/2 - 240/2)*SCREEN_WIDTH +
+					SCREEN_WIDTH/2 - 320/2, SCREEN_WIDTH); break;
 			case 3: clear_screen();
 				PDebugShowPalette(SCREEN_BUFFER, SCREEN_WIDTH);
 				PDebugShowSprite((unsigned short *)SCREEN_BUFFER + SCREEN_WIDTH*120+SCREEN_WIDTH/2+16,

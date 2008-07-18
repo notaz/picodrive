@@ -174,13 +174,9 @@ void menu_romload_end(void)
 
 // -------------- ROM selector --------------
 
-// SceIoDirent
-#define DT_DIR FIO_SO_IFDIR
-#define DT_REG FIO_SO_IFREG
-
 struct my_dirent
 {
-	unsigned char d_type;
+	unsigned int d_type;
 	char d_name[255];
 };
 
@@ -221,7 +217,7 @@ static void draw_dirlist(char *curdir, struct my_dirent **namelist, int n, int s
 		pos = start + i;
 		if (pos < 0)  continue;
 		if (pos > 26) break;
-		if (namelist[i+1]->d_type & DT_DIR) {
+		if (namelist[i+1]->d_type & FIO_S_IFDIR) {
 			smalltext_out16_lim(14,   pos*10, "/", 0xd7ff, 1);
 			smalltext_out16_lim(14+6, pos*10, namelist[i+1]->d_name, 0xd7ff, 80-3);
 		} else {
@@ -236,9 +232,10 @@ static void draw_dirlist(char *curdir, struct my_dirent **namelist, int n, int s
 static int scandir_cmp(const void *p1, const void *p2)
 {
 	struct my_dirent **d1 = (struct my_dirent **)p1, **d2 = (struct my_dirent **)p2;
-	if ((*d1)->d_type == (*d2)->d_type) return strcasecmp((*d1)->d_name, (*d2)->d_name);
-	if ((*d1)->d_type & DT_DIR) return -1; // put before
-	if ((*d2)->d_type & DT_DIR) return  1;
+	if ((*d1)->d_type & (*d2)->d_type & FIO_S_IFDIR)
+		return strcasecmp((*d1)->d_name, (*d2)->d_name);
+	if ((*d1)->d_type & FIO_S_IFDIR) return -1; // put before
+	if ((*d2)->d_type & FIO_S_IFDIR) return  1;
 	return strcasecmp((*d1)->d_name, (*d2)->d_name);
 }
 
@@ -297,7 +294,7 @@ static int my_scandir(const char *dir, struct my_dirent ***namelist_out,
 	{
 		ent = malloc(sizeof(*ent));
 		if (ent == NULL) { lprintf("%s:%i: OOM\n", __FILE__, __LINE__); goto fail; }
-		ent->d_type = sce_ent.d_stat.st_attr;
+		ent->d_type = sce_ent.d_stat.st_mode;
 		strncpy(ent->d_name, sce_ent.d_name, sizeof(ent->d_name));
 		ent->d_name[sizeof(ent->d_name)-1] = 0;
 		if (filter == NULL || filter(ent))
@@ -350,7 +347,8 @@ static char *romsel_loop(char *curr_path)
 	// is this a dir or a full path?
 	memset(&cpstat, 0, sizeof(cpstat));
 	iret = sceIoGetstat(curr_path, &cpstat);
-	if (iret >= 0 && (cpstat.st_attr & FIO_SO_IFREG)) { // file
+	if (iret >= 0 && (cpstat.st_mode & FIO_S_IFDIR)); // dir
+	else if (iret >= 0 && (cpstat.st_mode & FIO_S_IFREG)) { // file
 		char *p;
 		for (p = curr_path + strlen(curr_path) - 1; p > curr_path && *p != '/'; p--);
 		if (p > curr_path) {
@@ -359,7 +357,6 @@ static char *romsel_loop(char *curr_path)
 		}
 		else strcpy(curr_path, "ms0:/");
 	}
-	else if (iret >= 0 && (cpstat.st_attr & FIO_SO_IFDIR)); // dir
 	else strcpy(curr_path, "ms0:/"); // something else
 
 	n = my_scandir(curr_path, &namelist, scandir_filter, scandir_cmp);
@@ -394,14 +391,10 @@ static char *romsel_loop(char *curr_path)
 		if(inp & BTN_L)     { sel-=24; if (sel < 0)   sel = 0; }
 		if(inp & BTN_RIGHT) { sel+=10; if (sel > n-2) sel = n-2; }
 		if(inp & BTN_R)     { sel+=24; if (sel > n-2) sel = n-2; }
-		if(inp & BTN_CIRCLE) { // enter dir/select
-			if (namelist[sel+1]->d_type & DT_REG) {
-				strcpy(romFileName, curr_path);
-				strcat(romFileName, "/");
-				strcat(romFileName, namelist[sel+1]->d_name);
-				ret = romFileName;
-				break;
-			} else if (namelist[sel+1]->d_type & DT_DIR) {
+		if(inp & BTN_CIRCLE) // enter dir/select
+		{
+			if (namelist[sel+1]->d_type & FIO_S_IFDIR)
+			{
 				int newlen = strlen(curr_path) + strlen(namelist[sel+1]->d_name) + 2;
 				char *p, *newdir = malloc(newlen);
 				if (strcmp(namelist[sel+1]->d_name, "..") == 0) {
@@ -420,6 +413,14 @@ static char *romsel_loop(char *curr_path)
 				}
 				ret = romsel_loop(newdir);
 				free(newdir);
+				break;
+			}
+			else if (namelist[sel+1]->d_type & FIO_S_IFREG)
+			{
+				strcpy(romFileName, curr_path);
+				strcat(romFileName, "/");
+				strcat(romFileName, namelist[sel+1]->d_name);
+				ret = romFileName;
 				break;
 			}
 		}
@@ -692,14 +693,14 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 	text_out16(x, y, "Done");
 
 	if (sel < opt_cnt) {
-		text_out16(80+30, 225, "Press a button to bind/unbind");
-		text_out16(80+30, 235, "Use SELECT to clear");
-		text_out16(80+30, 245, "To bind UP/DOWN, hold SELECT");
-		text_out16(80+30, 255, "Select \"Done\" to exit");
+		text_out16(80+30, 220, "Press a button to bind/unbind");
+		text_out16(80+30, 230, "Use SELECT to clear");
+		text_out16(80+30, 240, "To bind UP/DOWN, hold SELECT");
+		text_out16(80+30, 250, "Select \"Done\" to exit");
 	} else {
-		text_out16(80+30, 235, "Use Options -> Save cfg");
-		text_out16(80+30, 245, "to save controls");
-		text_out16(80+30, 255, "Press X or O to exit");
+		text_out16(80+30, 230, "Use Options -> Save cfg");
+		text_out16(80+30, 240, "to save controls");
+		text_out16(80+30, 250, "Press X or O to exit");
 	}
 	menu_draw_end();
 }
@@ -787,7 +788,7 @@ me_bind_action emuctrl_actions[] =
 
 static void kc_sel_loop(void)
 {
-	int menu_sel = 3, menu_sel_max = 3;
+	int menu_sel = 5, menu_sel_max = 5;
 	unsigned long inp = 0;
 	menu_id selected_id;
 

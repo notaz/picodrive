@@ -15,11 +15,11 @@ enum TPicoGameState {
 	PGS_Menu,
 	PGS_RestartRun,
 	PGS_Suspending,
-	PGS_SuspendAck,
+	PGS_SuspendWake,
 };
 
 extern char romFileName[];
-extern int engineState;
+extern int engineState, engineStateSuspend;
 
 
 void emu_Init(void);

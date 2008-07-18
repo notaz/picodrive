@@ -22,6 +22,7 @@
 #include "../common/config.h"
 #include "../common/lprintf.h"
 #include "../../Pico/PicoInt.h"
+#include "../../Pico/cd/cue.h"
 
 #define OSD_FPS_X 432
 
@@ -34,7 +35,7 @@ int sceAudioOutput2GetRestSample();
 
 char romFileName[PATH_MAX];
 unsigned char *PicoDraw2FB = (unsigned char *)VRAM_CACHED_STUFF + 8; // +8 to be able to skip border with 1 quadword..
-int engineState = PGS_Menu;
+int engineState = PGS_Menu, engineStateSuspend;
 
 static unsigned int noticeMsgTime = 0;
 int reset_timing = 0; // do we need this?
@@ -1118,15 +1119,31 @@ void emu_HandleResume(void)
 {
 	if (!(PicoAHW & PAHW_MCD)) return;
 
-	// reopen files..
+	// reopen first CD track
 	if (Pico_mcd->TOC.Tracks[0].F != NULL)
 	{
-		lprintf("emu_HandleResume: reopen %s\n", romFileName);
+		char *fname = romFileName;
+		int len = strlen(romFileName);
+		cue_data_t *cue_data = NULL;
+
+		if (len > 4 && strcasecmp(fname + len - 4,  ".cue") == 0)
+		{
+			cue_data = cue_parse(romFileName);
+			if (cue_data != NULL)
+				fname = cue_data->tracks[1].fname;
+		}
+
+		lprintf("emu_HandleResume: reopen %s\n", fname);
 		pm_close(Pico_mcd->TOC.Tracks[0].F);
-		Pico_mcd->TOC.Tracks[0].F = pm_open(romFileName);
+		Pico_mcd->TOC.Tracks[0].F = pm_open(fname);
 		lprintf("reopen %s\n", Pico_mcd->TOC.Tracks[0].F != NULL ? "ok" : "failed");
+
+		if (cue_data != NULL) cue_destroy(cue_data);
 	}
 
 	mp3_reopen_file();
+
+	if (!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
+		cdda_start_play();
 }
 

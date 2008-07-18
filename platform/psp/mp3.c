@@ -373,6 +373,9 @@ void mp3_start_play(FILE *f, int pos)
 		mp3_fname = fname;
 	}
 
+	// clear decoder state
+	sceAudiocodecInit(mp3_codec_struct, 0x1002);
+
 	// seek..
 	mp3_src_pos = (int) (((float)pos / 1023.0f) * (float)mp3_src_size);
 	sceIoLseek32(mp3_handle, mp3_src_pos, PSP_SEEK_SET);
