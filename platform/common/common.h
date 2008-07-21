@@ -76,4 +76,46 @@ void menu_draw_end(void);
 #define darken_screen() \
 	menu_darken_bg(psp_screen, psp_screen, SCREEN_WIDTH*SCREEN_HEIGHT, 0)
 
+// ------------------------------------
+
+#elif defined(PANDORA)
+
+// TODO
+
+#include "../gp2x/gp2x.h"
+
+#define BTN_UP    0
+#define BTN_DOWN  0
+#define BTN_LEFT  0
+#define BTN_RIGHT 0
+
+#define BTN_NORTH 0
+#define BTN_SOUTH 0
+#define BTN_WEST  0
+#define BTN_EAST  0
+#define BTN_L     0
+#define BTN_R     0
+
+unsigned long wait_for_input(unsigned long interesting);
+void gp2x_pd_clone_buffer2(void);
+void menu_darken_bg(void *dst, int pixels, int darker);
+void menu_flip(void);
+
+#define SCREEN_WIDTH  320
+#define SCREEN_HEIGHT 240
+#define SCREEN_BUFFER gp2x_screen
+
+#define read_buttons(which) \
+	wait_for_input(which)
+#define read_buttons_async(which) \
+	(gp2x_joystick_read(0) & (which))
+#define menu_draw_begin() \
+	gp2x_pd_clone_buffer2()
+#define clear_screen() \
+	memset(gp2x_screen, 0, 320*240*2)
+#define darken_screen() \
+	menu_darken_bg(gp2x_screen, 320*240, 0)
+#define menu_draw_end() \
+	menu_flip()
+
 #endif
