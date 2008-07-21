@@ -21,11 +21,13 @@ typedef unsigned int   u32;
 #ifdef _MSC_VER
 #define rdprintf
 #define wrdprintf
+#define r3printf
 #else
 //#define rdprintf dprintf
 #define rdprintf(...)
 //#define wrdprintf dprintf
 #define wrdprintf(...)
+#define r3printf(...)
 #endif
 
 #ifdef EMU_CORE_DEBUG
@@ -57,7 +59,7 @@ static u32 m68k_reg_read16(u32 a)
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0xc7);
       // the DMNA delay must only be visible on s68k side (Lunar2, Silpheed)
       if (Pico_mcd->m.state_flags&2) { d &= ~1; d |= 2; }
-      //printf("m68k_regs r3: %02x @%06x\n", (u8)d, SekPc);
+      r3printf(EL_STATUS, "m68k_regs r3: %02x @%06x", (u8)d, SekPc);
       goto end;
     case 4:
       d = Pico_mcd->s68k_regs[4]<<8;
@@ -122,7 +124,7 @@ void m68k_reg_write8(u32 a, u32 d)
       return;
     case 3: {
       u32 dold = Pico_mcd->s68k_regs[3]&0x1f;
-      //printf("m68k_regs w3: %02x @%06x\n", (u8)d, SekPc);
+      r3printf(EL_STATUS, "m68k_regs w3: %02x @%06x", (u8)d, SekPc);
       d &= 0xc2;
       if ((dold>>6) != ((d>>6)&3))
         dprintf("m68k: prg bank: %i -> %i", (Pico_mcd->s68k_regs[a]>>6), ((d>>6)&3));
@@ -134,10 +136,12 @@ void m68k_reg_write8(u32 a, u32 d)
       } else {
         //dold &= ~2; // ??
 #if 1
-	if ((d & 2) && !(dold & 2)) {
+	if (d & (d ^ dold) & 2) { // DMNA is being set
           Pico_mcd->m.state_flags |= 2; // we must delay setting DMNA bit (needed for Silpheed)
           d &= ~2;
 	}
+        else
+          Pico_mcd->m.state_flags &= ~2;
 #else
         if (d & 2) dold &= ~1; // return word RAM to s68k in 2M mode
 #endif
@@ -239,7 +243,7 @@ u32 s68k_reg_read16(u32 a)
       return ((Pico_mcd->s68k_regs[0]&3)<<8) | 1; // ver = 0, not in reset state
     case 2:
       d = (Pico_mcd->s68k_regs[2]<<8) | (Pico_mcd->s68k_regs[3]&0x1f);
-      //printf("s68k_regs r3: %02x @%06x\n", (u8)d, SekPcS68k);
+      r3printf(EL_STATUS, "s68k_regs r3: %02x @%06x", (u8)d, SekPcS68k);
       return s68k_poll_detect(a, d);
     case 6:
       return CDC_Read_Reg();
@@ -289,10 +293,11 @@ void s68k_reg_write8(u32 a, u32 d)
       return; // only m68k can change WP
     case 3: {
       int dold = Pico_mcd->s68k_regs[3];
-      //elprintf(EL_STATUS, "s68k_regs w3: %02x s@%06x", (u8)d, SekPcS68k);
+      r3printf(EL_STATUS, "s68k_regs w3: %02x @%06x", (u8)d, SekPcS68k);
       d &= 0x1d;
       d |= dold&0xc2;
-      if (d&4) {
+      if (d&4)
+      {
         if ((d ^ dold) & 5) {
           d &= ~2; // in case of mode or bank change we clear DMNA (m68k req) bit
           PicoMemResetCD(d);
@@ -302,12 +307,14 @@ void s68k_reg_write8(u32 a, u32 d)
           PicoMemResetCDdecode(d);
 #endif
         if (!(dold & 4)) {
-          dprintf("wram mode 2M->1M");
+          r3printf(EL_STATUS, "wram mode 2M->1M");
           wram_2M_to_1M(Pico_mcd->word_ram2M);
         }
-      } else {
+      }
+      else
+      {
         if (dold & 4) {
-          dprintf("wram mode 1M->2M");
+          r3printf(EL_STATUS, "wram mode 1M->2M");
           if (!(d&1)) { // it didn't set the ret bit, which means it doesn't want to give WRAM to m68k
             d &= ~3;
             d |= (dold&1) ? 2 : 1; // then give it to the one which had bank0 in 1M mode
@@ -319,6 +326,7 @@ void s68k_reg_write8(u32 a, u32 d)
           d |= dold&1;
         if (d&1) d &= ~2; // return word RAM to m68k in 2M mode
       }
+      Pico_mcd->m.state_flags &= ~2;
       break;
     }
     case 4:
