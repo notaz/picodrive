@@ -177,17 +177,19 @@ int emu_cdCheck(int *pregion)
 			fname = cue_data->tracks[1].fname;
 			type  = cue_data->tracks[1].type;
 		}
+		else
+			return -1;
 	}
 
 	cd_f = pm_open(fname);
 	if (cue_data != NULL)
 		cue_destroy(cue_data);
 
-	if (!cd_f) return 0; // let the upper level handle this
+	if (cd_f == NULL) return 0; // let the upper level handle this
 
 	if (pm_read(buf, 32, cd_f) != 32) {
 		pm_close(cd_f);
-		return 0;
+		return -1;
 	}
 
 	if (!strncasecmp("SEGADISCSYSTEM", (char *)buf+0x00, 14)) {
@@ -284,7 +286,7 @@ int emu_ReloadRom(void)
 	char *used_rom_name = romFileName;
 	unsigned char *rom_data = NULL;
 	char ext[5];
-	pm_file *rom;
+	pm_file *rom = NULL;
 	int ret, cd_state, cd_region, cfg_loaded = 0;
 
 	lprintf("emu_ReloadRom(%s)\n", romFileName);
@@ -293,7 +295,7 @@ int emu_ReloadRom(void)
 
 	// detect wrong extensions
 	if (!strcmp(ext, ".srm") || !strcmp(ext, "s.gz") || !strcmp(ext, ".mds")) { // s.gz ~ .mds.gz
-		sprintf(menuErrorMsg, "Not a ROM selected.");
+		sprintf(menuErrorMsg, "Not a ROM/CD selected.");
 		return 0;
 	}
 
@@ -356,7 +358,7 @@ int emu_ReloadRom(void)
 
 	// check for MegaCD image
 	cd_state = emu_cdCheck(&cd_region);
-	if (cd_state != CIT_NOT_CD)
+	if (cd_state >= 0 && cd_state != CIT_NOT_CD)
 	{
 		PicoAHW |= PAHW_MCD;
 		// valid CD image, check for BIOS..
@@ -386,8 +388,13 @@ int emu_ReloadRom(void)
 
 	rom = pm_open(used_rom_name);
 	if (!rom) {
-		sprintf(menuErrorMsg, "Failed to open rom.");
-		return 0;
+		sprintf(menuErrorMsg, "Failed to open ROM/CD image");
+		goto fail;
+	}
+
+	if (cd_state < 0) {
+		sprintf(menuErrorMsg, "Invalid CD image");
+		goto fail;
 	}
 
 	menu_romload_prepare(used_rom_name); // also CD load
@@ -398,19 +405,17 @@ int emu_ReloadRom(void)
 	if ( (ret = PicoCartLoad(rom, &rom_data, &rom_size)) ) {
 		sprintf(menuErrorMsg, "PicoCartLoad() failed.");
 		lprintf("%s\n", menuErrorMsg);
-		pm_close(rom);
-		menu_romload_end();
-		return 0;
+		goto fail2;
 	}
 	pm_close(rom);
+	rom = NULL;
 
 	// detect wrong files (Pico crashes on very small files), also see if ROM EP is good
 	if (rom_size <= 0x200 || strncmp((char *)rom_data, "Pico", 4) == 0 ||
 	  ((*(unsigned char *)(rom_data+4)<<16)|(*(unsigned short *)(rom_data+6))) >= (int)rom_size) {
 		if (rom_data) free(rom_data);
 		sprintf(menuErrorMsg, "Not a ROM selected.");
-		menu_romload_end();
-		return 0;
+		goto fail2;
 	}
 
 	// load config for this ROM (do this before insert to get correct region)
@@ -424,8 +429,7 @@ int emu_ReloadRom(void)
 	lprintf("PicoCartInsert(%p, %d);\n", rom_data, rom_size);
 	if (PicoCartInsert(rom_data, rom_size)) {
 		sprintf(menuErrorMsg, "Failed to load ROM.");
-		menu_romload_end();
-		return 0;
+		goto fail2;
 	}
 
 	// insert CD if it was detected
@@ -434,8 +438,7 @@ int emu_ReloadRom(void)
 		if (ret != 0) {
 			sprintf(menuErrorMsg, "Insert_CD() failed, invalid CD image?");
 			lprintf("%s\n", menuErrorMsg);
-			menu_romload_end();
-			return 0;
+			goto fail2;
 		}
 	}
 
@@ -447,13 +450,14 @@ int emu_ReloadRom(void)
 	}
 
 	// additional movie stuff
-	if (movie_data) {
-		if(movie_data[0x14] == '6')
+	if (movie_data)
+	{
+		if (movie_data[0x14] == '6')
 		     PicoOpt |=  POPT_6BTN_PAD; // 6 button pad
 		else PicoOpt &= ~POPT_6BTN_PAD;
 		PicoOpt |= POPT_DIS_VDP_FIFO; // no VDP fifo timing
-		if(movie_data[0xF] >= 'A') {
-			if(movie_data[0x16] & 0x80) {
+		if (movie_data[0xF] >= 'A') {
+			if (movie_data[0x16] & 0x80) {
 				PicoRegionOverride = 8;
 			} else {
 				PicoRegionOverride = 4;
@@ -467,7 +471,7 @@ int emu_ReloadRom(void)
 	else
 	{
 		PicoOpt &= ~POPT_DIS_VDP_FIFO;
-		if(Pico.m.pal) {
+		if (Pico.m.pal) {
 			strcpy(noticeMsg, "PAL SYSTEM / 50 FPS");
 		} else {
 			strcpy(noticeMsg, "NTSC SYSTEM / 60 FPS");
@@ -483,6 +487,12 @@ int emu_ReloadRom(void)
 	lastRomFile[sizeof(lastRomFile)-1] = 0;
 	rom_loaded = 1;
 	return 1;
+
+fail2:
+	menu_romload_end();
+fail:
+	if (rom != NULL) pm_close(rom);
+	return 0;
 }
 
 

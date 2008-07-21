@@ -645,6 +645,10 @@ Additional thanks
 
 Changelog
 ---------
+1.51a
+  * Fixed a sync problem between main and sub 68k. Should fix the hanging
+    problem for some games.
+
 1.51
   * Improved bin_to_cso_mp3 tool, it should no longer complain about
     missing lame.exe even if it's in working dir.
