@@ -147,7 +147,7 @@ DIRS = platform platform/gp2x platform/common Pico Pico/cd Pico/Pico Pico/sound 
 
 all: mkdirs PicoDrive.gpe
 
-PicoDrive.gpe : $(OBJS) ../common/helix/helix_mp3.a
+PicoDrive.gpe : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
 	@echo ">>>" $@
 	$(GCC) -o $@ $(COPT) $^ -lm -lpng -Wl,-Map=PicoDrive.map
 ifeq ($(DEBUG),)
@@ -228,8 +228,8 @@ Pico/Pico.o Pico/cd/Pico.o: ../../Pico/PicoFrameHints.c ../../Pico/PicoInt.h
 Pico/Memory.o Pico/cd/Memory.o : ../../Pico/MemoryCmn.c ../../Pico/PicoInt.h
 
 # build helix libs
-../common/helix/helix_mp3.a:
-	make -C ../common/helix
+../common/helix/$(CROSS)helix-mp3.a:
+	make -C ../common/helix clean all
 
 readme.txt: ../../tools/textfilter ../base_readme.txt
 	../../tools/textfilter ../base_readme.txt $@ GP2X

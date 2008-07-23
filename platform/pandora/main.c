@@ -18,7 +18,6 @@
 #include "../gp2x/version.h"
 
 
-extern char *ext_menu, *ext_state;
 extern int select_exits;
 extern char *PicoConfigFile;
 int mmuhack_status = 0; // TODO rm
@@ -32,13 +31,7 @@ void parse_cmd_line(int argc, char *argv[])
 	{
 		if(argv[x][0] == '-')
 		{
-			if(strcasecmp(argv[x], "-menu") == 0) {
-				if(x+1 < argc) { ++x; ext_menu = argv[x]; } /* External Frontend: Program Name */
-			}
-			else if(strcasecmp(argv[x], "-state") == 0) {
-				if(x+1 < argc) { ++x; ext_state = argv[x]; } /* External Frontend: Arguments */
-			}
-			else if(strcasecmp(argv[x], "-config") == 0) {
+			if(strcasecmp(argv[x], "-config") == 0) {
 				if(x+1 < argc) { ++x; PicoConfigFile = argv[x]; }
 			}
 			else if(strcasecmp(argv[x], "-selectexit") == 0) {

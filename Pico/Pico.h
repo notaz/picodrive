@@ -150,6 +150,8 @@ void PicoDrawSetColorFormat(int which); // 0=BGR444, 1=RGB555, 2=8bit(HighPal pa
 extern void *DrawLineDest;
 #if OVERRIDE_HIGHCOL
 extern unsigned char *HighCol;
+#else
+extern unsigned char  HighCol[8+320+8];
 #endif
 extern int (*PicoScanBegin)(unsigned int num);
 extern int (*PicoScanEnd)(unsigned int num);
@@ -157,6 +159,7 @@ extern int (*PicoScanEnd)(unsigned int num);
 #ifdef _ASM_DRAW_C
 void vidConvCpyRGB565(void *to, void *from, int pixels);
 #endif
+void PicoDoHighPal555(int sh);
 extern int PicoDrawMask;
 #define PDRAW_LAYERB_ON      (1<<2)
 #define PDRAW_LAYERA_ON      (1<<3)

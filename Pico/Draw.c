@@ -1138,6 +1138,37 @@ static void BackFill(int reg7, int sh)
 
 unsigned short HighPal[0x100];
 
+void PicoDoHighPal555(int sh)
+{
+  unsigned short *pal=HighPal;
+  int i, t;
+
+  Pico.m.dirtyPal = 0;
+
+  {
+    unsigned int *spal=(void *)Pico.cram;
+    unsigned int *dpal=(void *)HighPal;
+    for (i = 0x3f/2; i >= 0; i--)
+#ifdef USE_BGR555
+      dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
+#else
+      dpal[i] = ((spal[i]&0x000f000f)<<12)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)>>7);
+#endif
+  }
+
+  if (sh)
+  {
+    // shadowed pixels
+    for (i = 0x3f; i >= 0; i--)
+      pal[0x40|i] = pal[0xc0|i] = (unsigned short)((pal[i]>>1)&0x738e);
+    // hilighted pixels
+    for (i = 0x3f; i >= 0; i--) {
+      t=pal[i]&0xe71c;t+=0x4208;if(t&0x20)t|=0x1c;if(t&0x800)t|=0x700;if(t&0x10000)t|=0xe000;t&=0xe71c;
+      pal[0x80|i]=(unsigned short)t;
+    }
+  }
+}
+
 #ifndef _ASM_DRAW_C
 static void FinalizeLineBGR444(int sh)
 {
@@ -1182,34 +1213,10 @@ static void FinalizeLineRGB555(int sh)
   unsigned short *pd=DrawLineDest;
   unsigned char  *ps=HighCol+8;
   unsigned short *pal=HighPal;
-  int len, i, t, dirtyPal = Pico.m.dirtyPal;
+  int len;
 
-  if (dirtyPal)
-  {
-    unsigned int *spal=(void *)Pico.cram;
-    unsigned int *dpal=(void *)HighPal;
-    for (i = 0x3f/2; i >= 0; i--)
-#ifdef USE_BGR555
-      dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
-#else
-      dpal[i] = ((spal[i]&0x000f000f)<<12)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)>>7);
-#endif
-    Pico.m.dirtyPal = 0;
-  }
-
-  if (sh)
-  {
-    if (dirtyPal) {
-      // shadowed pixels
-      for (i = 0x3f; i >= 0; i--)
-        pal[0x40|i] = pal[0xc0|i] = (unsigned short)((pal[i]>>1)&0x738e);
-      // hilighted pixels
-      for (i = 0x3f; i >= 0; i--) {
-        t=pal[i]&0xe71c;t+=0x4208;if(t&0x20)t|=0x1c;if(t&0x800)t|=0x700;if(t&0x10000)t|=0xe000;t&=0xe71c;
-        pal[0x80|i]=(unsigned short)t;
-      }
-    }
-  }
+  if (Pico.m.dirtyPal)
+    PicoDoHighPal555(sh);
 
   if (Pico.video.reg[12]&1) {
     len = 320;
@@ -1220,7 +1227,7 @@ static void FinalizeLineRGB555(int sh)
 
   {
 #ifndef PSP
-    int mask=0xff;
+    int i, mask=0xff;
     if (!sh && (rendstatus & PDRAW_ACC_SPRITES))
       mask=0x3f; // accurate sprites, upper bits are priority stuff
 

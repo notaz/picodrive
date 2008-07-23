@@ -101,8 +101,8 @@ void gp2x_pd_clone_buffer2(void);
 void menu_darken_bg(void *dst, int pixels, int darker);
 void menu_flip(void);
 
-#define SCREEN_WIDTH  320
-#define SCREEN_HEIGHT 240
+#define SCREEN_WIDTH  800
+#define SCREEN_HEIGHT 480
 #define SCREEN_BUFFER gp2x_screen
 
 #define read_buttons(which) \
@@ -112,9 +112,9 @@ void menu_flip(void);
 #define menu_draw_begin() \
 	gp2x_pd_clone_buffer2()
 #define clear_screen() \
-	memset(gp2x_screen, 0, 320*240*2)
+	memset(gp2x_screen, 0, 800*480*2)
 #define darken_screen() \
-	menu_darken_bg(gp2x_screen, 320*240, 0)
+	menu_darken_bg(gp2x_screen, 800*480, 0)
 #define menu_draw_end() \
 	menu_flip()
 

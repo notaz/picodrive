@@ -49,7 +49,7 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += pandora.o main.o platform/gp2x/menu.o platform/gp2x/usbjoy.o platform/gp2x/emu.o
+OBJS += pandora.o main.o emu.o platform/gp2x/menu.o platform/gp2x/usbjoy.o
 
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
@@ -141,7 +141,7 @@ DIRS = platform platform/gp2x platform/common Pico Pico/cd Pico/Pico Pico/sound 
 
 all: mkdirs PicoDrive
 
-PicoDrive : $(OBJS) ../common/helix/helix_mp3.a
+PicoDrive : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
 	@echo ">>>" $@
 	$(GCC) -o $@ $(COPT) $^ -lm -Wl,-Map=PicoDrive.map # -lpng
 ifeq ($(DEBUG),)
@@ -218,8 +218,8 @@ Pico/Pico.o Pico/cd/Pico.o: ../../Pico/PicoFrameHints.c ../../Pico/PicoInt.h
 Pico/Memory.o Pico/cd/Memory.o : ../../Pico/MemoryCmn.c ../../Pico/PicoInt.h
 
 # build helix libs
-../common/helix/helix_mp3.a:
-	make -C ../common/helix
+../common/helix/$(CROSS)helix-mp3.a:
+	make -C ../common/helix clean all
 
 readme.txt: ../../tools/textfilter ../base_readme.txt
 	../../tools/textfilter ../base_readme.txt $@ GP2X
