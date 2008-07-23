@@ -1138,6 +1138,7 @@ static void BackFill(int reg7, int sh)
 
 unsigned short HighPal[0x100];
 
+#ifndef _ASM_DRAW_C
 void PicoDoHighPal555(int sh)
 {
   unsigned short *pal=HighPal;
@@ -1169,7 +1170,6 @@ void PicoDoHighPal555(int sh)
   }
 }
 
-#ifndef _ASM_DRAW_C
 static void FinalizeLineBGR444(int sh)
 {
   unsigned short *pd=DrawLineDest;

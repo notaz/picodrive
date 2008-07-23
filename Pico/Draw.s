@@ -1633,18 +1633,15 @@ FinalizeLineBGR444:
     orr     \reg, \reg, r3           @ add blue back
 .endm
 
-.global vidConvCpyRGB565
-
-vidConvCpyRGB565: @ void *to, void *from, int pixels
-    stmfd   sp!, {r4-r9,lr}
-
+@ trashes: r2-r9,r12,lr; r0,r1 are advanced
+.macro vidConvCpyRGB565_local
     mov     r12, r2, lsr #3  @ repeats
     mov     lr, #0x001c0000
     orr     lr, lr,  #0x01c  @ lr == pattern 0x001c001c
     mov     r8, #0x00030000
     orr     r8, r8,  #0x003
 
-.loopRGB565:
+0:
     ldmia   r1!, {r4-r7}
     subs    r12, r12, #1
     convRGB565 r4
@@ -1656,44 +1653,51 @@ vidConvCpyRGB565: @ void *to, void *from, int pixels
     convRGB565 r7
     str     r7, [r0], #4
 
-    bgt     .loopRGB565
+    bgt     0b
+.endm
 
+
+.global vidConvCpyRGB565
+
+vidConvCpyRGB565: @ void *to, void *from, int pixels
+    stmfd   sp!, {r4-r9,lr}
+    vidConvCpyRGB565_local
     ldmfd   sp!, {r4-r9,lr}
     bx      lr
 
 
+.global PicoDoHighPal555 @ int sh
 
-.global FinalizeLineRGB555 @ int sh
-
-FinalizeLineRGB555:
-    stmfd   sp!, {r4-r8,lr}
-    ldr     r8, =(Pico+0x22228)  @ Pico.video
-    ldr     r4, =HighPal
-
-    ldrb    r7, [r8, #-0x1a]     @ 0x2220e ~ dirtyPal
-    mov     r6, r0
+PicoDoHighPal555:
+    stmfd   sp!, {r4-r9,lr}
     mov     r1, #0
-    tst     r7, r7
-    beq     .fl_noconvRGB555
-    strb    r1, [r8, #-0x1a]
-    sub     r1, r8, #0x128       @ r1=Pico.cram
-    mov     r0, r4
-    mov     r2, #0x40
-    bl      vidConvCpyRGB565
+    ldr     r8, =(Pico+0x22228)  @ Pico.video
 
-.fl_noconvRGB555:
-    mov     r3, r4
-    tst     r6, r6
-    beq     .fl_noshRGB555
-    tst     r7, r7
-    beq     .fl_noshRGB555
+PicoDoHighPal555_nopush:
+    str     r1, [sp, #-8]        @ is called from FinalizeLineRGB555?
+
+    str     r0, [sp, #-4]
+    ldr     r0, =HighPal
+
+    mov     r1, #0
+    strb    r1, [r8, #-0x1a]     @ 0x2220e ~ dirtyPal
+
+    sub     r1, r8, #0x128       @ r1=Pico.cram
+    mov     r2, #0x40
+    vidConvCpyRGB565_local
+
+    ldr     r0, [sp, #-4]
+    tst     r0, r0
+    beq     PicoDoHighPal555_end
+
+    ldr     r3, =HighPal
 
     @ shadowed pixels:
     mov     r12,    #0x008e
-    orr     r12,r12,#0x7300
-    orr     r12,r12,r12,lsl #16
     add     r4, r3, #0x40*2
+    orr     r12,r12,#0x7300
     add     r5, r3, #0xc0*2
+    orr     r12,r12,r12,lsl #16
     mov     lr, #0x40/4
 .fl_loopcpRGB555_sh:
     ldmia   r3!, {r1,r6}
@@ -1713,13 +1717,33 @@ FinalizeLineRGB555:
     str     r1, [r4], #4
     subs    lr, lr, #1
     bne     .fl_loopcpRGB555_hi
+    mov     r0, #1
 
-    sub     r3, r3, #0x40*2
-    mov     r6, #1
+PicoDoHighPal555_end:
+    ldr     r1, [sp, #-8]
+    tst     r1, r1
+    ldmeqfd sp!, {r4-r9,pc}
 
-.fl_noshRGB555:
+    ldr     r8, =(Pico+0x22228)  @ Pico.video
+    b       FinalizeLineRGB555_pal_done
+
+
+.global FinalizeLineRGB555 @ int sh
+
+FinalizeLineRGB555:
+    stmfd   sp!, {r4-r9,lr}
+    ldr     r8, =(Pico+0x22228)  @ Pico.video
+
+    ldrb    r2, [r8, #-0x1a]     @ 0x2220e ~ dirtyPal
+    mov     r1, #1
+    tst     r2, r2
+    bne     PicoDoHighPal555_nopush
+
+FinalizeLineRGB555_pal_done:
+    ldr     r3, =HighPal
+
     ldr     r12,=rendstatus
-    eors    r6, r6, #1          @ sh is 0
+    eors    r0, r0, #1           @ sh is 0
     ldr     r12,[r12]
     mov     lr, #0xff
     tstne   r12,#PDRAW_ACC_SPRITES
@@ -1791,12 +1815,12 @@ FinalizeLineRGB555:
     stmia   r0!, {r4,r5,r8,r12}
     bne     .fl_loopRGB555
 
-    ldmfd   sp!, {r4-r8,lr}
+    ldmfd   sp!, {r4-r9,lr}
     bx      lr
 
 
 .fl_32scale_RGB555:
-    stmfd   sp!, {r9,r10}
+    stmfd   sp!, {r10}
     mov     r9, #0x3900 @ f800 07e0 001f | e000 0780 001c | 3800 01e0 0007
     orr     r9, r9, #0x00e7
 
@@ -1857,8 +1881,8 @@ FinalizeLineRGB555:
     stmia   r0!, {r4,r5,r6,r8,r10}
     bne     .fl_loop32scale_RGB555
 
-    ldmfd   sp!, {r9,r10}
-    ldmfd   sp!, {r4-r8,lr}
+    ldmfd   sp!, {r10}
+    ldmfd   sp!, {r4-r9,lr}
     bx      lr
 
 .if UNALIGNED_DRAWLINEDEST
@@ -1904,7 +1928,7 @@ FinalizeLineRGB555:
 
     strh    r8, [r0], #2
 
-    ldmfd   sp!, {r4-r8,lr}
+    ldmfd   sp!, {r4-r9,lr}
     bx      lr
 
 
@@ -1970,8 +1994,8 @@ FinalizeLineRGB555:
 
     strh    r4, [r0], #2
 
-    ldmfd   sp!, {r9,r10}
-    ldmfd   sp!, {r4-r8,lr}
+    ldmfd   sp!, {r10}
+    ldmfd   sp!, {r4-r9,lr}
     bx      lr
 
 .endif @ UNALIGNED_DRAWLINEDEST
