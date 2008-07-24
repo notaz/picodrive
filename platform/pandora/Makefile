@@ -2,6 +2,7 @@ export CROSS = arm-none-linux-gnueabi-
 
 # settings
 #mz80 = 1
+#cz80 = 1
 #debug_cyclone = 1
 asm_memory = 1
 asm_render = 1
@@ -12,7 +13,7 @@ asm_cdmemory = 1
 amalgamate = 0
 #profile = 1
 #use_musashi = 1
-#up = 1
+#use_famec = 1
 
 
 ifeq "$(debug_cyclone)" "1"
@@ -28,9 +29,9 @@ use_cyclone = 1
 endif
 
 DEFINC = -I../.. -I. -DARM -DPANDORA
-COPT_COMMON = -static -Wall -Winline
+COPT_COMMON = -Wall -Winline -mcpu=cortex-a8 -mtune=cortex-a8 -march=armv7-a
 ifeq ($(DEBUG),)
-COPT_COMMON += -O3 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
+COPT_COMMON += -O2 # -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
 else
 COPT_COMMON += -ggdb
 endif
@@ -49,7 +50,7 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += pandora.o main.o emu.o platform/gp2x/menu.o platform/gp2x/usbjoy.o
+OBJS += pandora.o main.o emu.o asm_utils.o platform/gp2x/menu.o platform/gp2x/usbjoy.o
 
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
@@ -123,13 +124,22 @@ ifeq "$(use_cyclone)" "1"
 DEFINC += -DEMU_C68K
 OBJS += cpu/Cyclone/proj/Cyclone.o cpu/Cyclone/tools/idle.o
 endif
+ifeq "$(use_famec)" "1"
+DEFINC += -DEMU_F68K
+OBJS += cpu/fame/famec.o
+endif
 # drz80/mz80
 ifeq "$(mz80)" "1"
 DEFINC += -D_USE_MZ80
 OBJS += cpu/mz80/mz80.o
 else
+ifeq "$(cz80)" "1"
+DEFINC += -D_USE_CZ80
+OBJS += cpu/cz80/cz80.o
+else
 DEFINC += -D_USE_DRZ80
 OBJS += cpu/DrZ80/drz80.o
+endif
 endif
 
 vpath %.c = ../..

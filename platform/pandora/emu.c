@@ -1,4 +1,4 @@
-// (c) Copyright 2006-2007 notaz, All rights reserved.
+// (c) Copyright 2006-2008 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -22,6 +22,7 @@
 #include "../common/emu.h"
 #include "../common/config.h"
 #include "../common/common.h"
+#include "asm_utils.h"
 
 #include <Pico/PicoInt.h>
 #include <Pico/Patch.h>
@@ -29,6 +30,8 @@
 #include <zlib/zlib.h>
 
 //#define PFRAMES
+#define BENCHMARK
+//#define USE_320_SCREEN 1
 
 #ifdef BENCHMARK
 #define OSD_FPS_X (800-200)
@@ -133,12 +136,14 @@ void emu_prepareDefaultConfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
 	defaultConfig.EmuOpt    = 0x9f | 0x00700; // | <- ram_tmng, confirm_save, cd_leds
-	defaultConfig.s_PicoOpt = 0x0f | POPT_EXT_FM|POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC|POPT_ACC_SPRITES|POPT_EN_MCD_GFX;
+	defaultConfig.s_PicoOpt  = 0x0f | POPT_EXT_FM|POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC;
+	defaultConfig.s_PicoOpt |= POPT_ACC_SPRITES|POPT_EN_MCD_GFX;
+	defaultConfig.s_PicoOpt &= ~POPT_EN_SVP_DRC; // crashes :(
 	defaultConfig.s_PsndRate = 44100;
 	defaultConfig.s_PicoRegion = 0; // auto
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
 	defaultConfig.s_PicoCDBuffers = 0;
-	defaultConfig.Frameskip = 0; // auto
+	defaultConfig.Frameskip = 0;
 	defaultConfig.CPUclock = 200;
 	defaultConfig.volume = 50;
 	defaultConfig.scaling = 0;
@@ -162,18 +167,28 @@ static void textOut16(int x, int y, const char *text)
 
 	for (i = 0; i < len; i++)
 	{
-		for (l=0;l<16;l+=2)
+		for (l=0;l<16;)
 		{
 			unsigned char fd = fontdata8x8[((text[i])*8)+l/2];
-			int u = l+1;
-			if(fd&0x80) screen[l*SCREEN_WIDTH/2+0]=screen[u*SCREEN_WIDTH/2+0]=0xffffffff;
-			if(fd&0x40) screen[l*SCREEN_WIDTH/2+1]=screen[u*SCREEN_WIDTH/2+1]=0xffffffff;
-			if(fd&0x20) screen[l*SCREEN_WIDTH/2+2]=screen[u*SCREEN_WIDTH/2+2]=0xffffffff;
-			if(fd&0x10) screen[l*SCREEN_WIDTH/2+3]=screen[u*SCREEN_WIDTH/2+3]=0xffffffff;
-			if(fd&0x08) screen[l*SCREEN_WIDTH/2+4]=screen[u*SCREEN_WIDTH/2+4]=0xffffffff;
-			if(fd&0x04) screen[l*SCREEN_WIDTH/2+5]=screen[u*SCREEN_WIDTH/2+5]=0xffffffff;
-			if(fd&0x02) screen[l*SCREEN_WIDTH/2+6]=screen[u*SCREEN_WIDTH/2+6]=0xffffffff;
-			if(fd&0x01) screen[l*SCREEN_WIDTH/2+7]=screen[u*SCREEN_WIDTH/2+7]=0xffffffff;
+			unsigned int *d = &screen[l*SCREEN_WIDTH/2];
+			if (fd&0x80) d[0]=0xffffffff;
+			if (fd&0x40) d[1]=0xffffffff;
+			if (fd&0x20) d[2]=0xffffffff;
+			if (fd&0x10) d[3]=0xffffffff;
+			if (fd&0x08) d[4]=0xffffffff;
+			if (fd&0x04) d[5]=0xffffffff;
+			if (fd&0x02) d[6]=0xffffffff;
+			if (fd&0x01) d[7]=0xffffffff;
+			l++; d = &screen[l*SCREEN_WIDTH/2];
+			if (fd&0x80) d[0]=0xffffffff;
+			if (fd&0x40) d[1]=0xffffffff;
+			if (fd&0x20) d[2]=0xffffffff;
+			if (fd&0x10) d[3]=0xffffffff;
+			if (fd&0x08) d[4]=0xffffffff;
+			if (fd&0x04) d[5]=0xffffffff;
+			if (fd&0x02) d[6]=0xffffffff;
+			if (fd&0x01) d[7]=0xffffffff;
+			l++;
 		}
 		screen += 8;
 	}
@@ -199,7 +214,7 @@ void osd_text(int x, int y, const char *text)
 		len++;
 		for (h = 0; h < 16; h++) {
 			p = (int *) ((unsigned short *) gp2x_screen+x+SCREEN_WIDTH*(y+h));
-			for (i = len; i; i--, p++) *p = (*p>>2)&0x39e7;
+			for (i = len; i; i--, p++) *p = 0;//(*p>>2)&0x39e7;
 		}
 		textOut16(x, y, text);
 	}
@@ -252,6 +267,20 @@ static void draw_pico_ptr(void)
 	p[640] ^= 0xffff;
 }
 
+#ifdef USE_320_SCREEN
+
+static int EmuScanBegin16(unsigned int num)
+{
+	if (!(Pico.video.reg[1]&8)) num += 8;
+	DrawLineDest = (unsigned short *)gp2x_screen + num*800 + 800/2 - 320/2;
+	//int w = (Pico.video.reg[12]&1) ? 320 : 256;
+	//DrawLineDest = (unsigned short *)gp2x_screen + num*w;
+
+	return 0;
+}
+
+#else // USE_320_SCREEN
+
 static int EmuScanEnd16(unsigned int num)
 {
 	unsigned char  *ps=HighCol+8;
@@ -269,14 +298,16 @@ static int EmuScanEnd16(unsigned int num)
 	if (Pico.video.reg[12]&1) {
 		len = 320;
 	} else {
-		pd+=32;
+		pd += 32*2;
 		len = 256;
 	}
 
 	if (!sh && (rendstatus & PDRAW_ACC_SPRITES))
 		mask=0x3f; // accurate sprites, upper bits are priority stuff
 
-
+#if 1
+	clut_line(pd, ps, pal, (mask<<16) | len);
+#else
 	for (; len > 0; len--)
 	{
 		unsigned int p = pal[*ps++ & mask];
@@ -285,9 +316,12 @@ static int EmuScanEnd16(unsigned int num)
 		*(unsigned int *)(&pd[800]) = p;
 		pd += 2;
 	}
+#endif
 
 	return 0;
 }
+
+#endif // USE_320_SCREEN
 
 static int EmuScanBegin8(unsigned int num)
 {
@@ -365,7 +399,7 @@ static void blit(const char *fps, const char *notice)
 		if (currentConfig.scaling == 2 && !(Pico.video.reg[1]&8)) h -= 16;
 		if (notice) osd_text(4, h, notice);
 		if (emu_opt & 2)
-			osd_text(osd_fps_x+24*2, h-8, fps);
+			osd_text(osd_fps_x, h, fps);
 	}
 	if ((emu_opt & 0x400) && (PicoAHW & PAHW_MCD))
 		draw_cd_leds();
@@ -402,8 +436,13 @@ static void vidResetMode(void)
 		gp2x_video_changemode(8);
 	} else if (currentConfig.EmuOpt&0x80) {
 		gp2x_video_changemode(16);
+#ifdef USE_320_SCREEN
+		PicoDrawSetColorFormat(1);
+		PicoScanBegin = EmuScanBegin16;
+#else
 		PicoDrawSetColorFormat(-1);
 		PicoScanEnd = EmuScanEnd16;
+#endif
 	} else {
 		gp2x_video_changemode(8);
 		PicoDrawSetColorFormat(2);
@@ -726,8 +765,13 @@ void emu_forcedFrame(int opts)
 	currentConfig.EmuOpt |= 0x80;
 
 	//vidResetMode();
+#ifdef USE_320_SCREEN
+	PicoDrawSetColorFormat(1);
+	PicoScanBegin = EmuScanBegin16;
+#else
 	PicoDrawSetColorFormat(-1);
 	PicoScanEnd = EmuScanEnd16;
+#endif
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 
@@ -886,18 +930,17 @@ void emu_Loop(void)
 		{
 #ifdef BENCHMARK
 			static int bench = 0, bench_fps = 0, bench_fps_s = 0, bfp = 0, bf[4];
-			if (++bench == 10) {
+			if (++bench == 4) {
 				bench = 0;
-				bench_fps_s = bench_fps;
-				bf[bfp++ & 3] = bench_fps;
+				bench_fps_s = bench_fps / 4;
+				bf[bfp++ & 3] = bench_fps / 4;
 				bench_fps = 0;
 			}
 			bench_fps += frames_shown;
-			sprintf(fpsbuff, "%02i/%02i/%02i", frames_shown, bench_fps_s, (bf[0]+bf[1]+bf[2]+bf[3])>>2);
+			sprintf(fpsbuff, "%3i/%3i/%3i", frames_shown, bench_fps_s, (bf[0]+bf[1]+bf[2]+bf[3])>>2);
 #else
 			if (currentConfig.EmuOpt & 2) {
-				//sprintf(fpsbuff, "%02i/%02i", frames_shown, frames_done);
-				sprintf(fpsbuff, "%4i", frames_shown);
+				sprintf(fpsbuff, "%3i/%3i", frames_shown, frames_done);
 				if (fpsbuff[5] == 0) { fpsbuff[5] = fpsbuff[6] = ' '; fpsbuff[7] = 0; }
 			}
 #endif

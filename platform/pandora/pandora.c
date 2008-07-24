@@ -22,7 +22,8 @@ int memdev = 0;
 static int sounddev = -1, mixerdev = -1, touchdev = -1;
 static int touchcal[7] = { 6203, 0, -1501397, 0, -4200, 16132680, 65536 };
 
-#define SCREEN_MAP_SIZE (((800*(480+11)*2)+0xfff)&~0xfff)
+//#define SCREEN_MAP_SIZE (((800*(480+11)*2)+0xfff)&~0xfff)
+#define SCREEN_MAP_SIZE (800*480*2)
 static void *screen;
 void *gp2x_screen;
 
@@ -237,7 +238,8 @@ void gp2x_init(void)
 		exit(1);
 	}
 	printf("fbptr %p\n", screen);
-	gp2x_screen = (char *)screen + 800*10*2-64;
+//	gp2x_screen = (char *)screen + 800*10*2-64;
+	gp2x_screen = screen;
 
 
 	// snd
