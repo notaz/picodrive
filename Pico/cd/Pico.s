@@ -49,9 +49,11 @@ SekRunPS:
     str     r2, [r8]
     str     r3, [r10]
 
+    ldr     r6, =CycloneJumpTab
     ldr     r1, =SekCycleCnt
     ldr     r0, =((488<<16)-PS_STEP_M68K)
-    ldr     r6, =CycloneJumpTab
+    str     r6, [r7,#0x54]
+    str     r6, [lr,#0x54]            @ make copies to avoid literal pools
 
     @ schedule m68k for the first time..
     ldr     r1, [r1]

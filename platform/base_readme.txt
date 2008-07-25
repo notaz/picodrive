@@ -648,6 +648,7 @@ Changelog
 1.51a
   * Fixed a sync problem between main and sub 68k. Should fix the hanging
     problem for some games.
+  * ARM: fixed a crash when CD savestate is loaded just after loading ROM.
 
 1.51
   * Improved bin_to_cso_mp3 tool, it should no longer complain about
