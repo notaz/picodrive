@@ -174,7 +174,7 @@ static int g_read_offs = 0;
 // when is eof really set?
 #define CHECKED_READ(len,data) \
 	if (areaRead(data, 1, len, file) != len) { \
-		if (len == 1 && areaEof(file)) return 0; \
+		if (len == 1 && areaEof(file)) goto readend; \
 		R_ERROR_RETURN("areaRead: premature EOF\n"); \
 		return 1; \
 	} \
@@ -269,6 +269,7 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 		breakswitch:;
 	}
 
+readend:
 	if (PicoAHW & PAHW_MCD)
 	{
 		/* after load events */
@@ -324,6 +325,7 @@ int PicoCdLoadStateGfx(void *file)
 		}
 	}
 
+readend:
 	return 0;
 }
 

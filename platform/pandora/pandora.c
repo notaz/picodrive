@@ -217,6 +217,13 @@ void gp2x_init(void)
 		exit(1);
 	}
 */
+	fbdev = open("/dev/fb0", O_RDWR);
+	if (fbdev == -1)
+	{
+		printf("open(\"/dev/fb0\") failed with %i\n", errno);
+		exit(1);
+	}
+
 	ret = ioctl(fbdev, FBIOGET_FSCREENINFO, &fbfix);
 	if (ret == -1)
 	{
@@ -229,13 +236,6 @@ void gp2x_init(void)
 	{
 		gp2x_screen = malloc(800*640*2);
 		return;
-	}
-
-	fbdev = open("/dev/fb0", O_RDWR);
-	if (fbdev == -1)
-	{
-		printf("open(\"/dev/fb0\") failed with %i\n", errno);
-		exit(1);
 	}
 
 	screen = mmap(0, SCREEN_MAP_SIZE, PROT_WRITE|PROT_READ, MAP_SHARED, fbdev, 0);
