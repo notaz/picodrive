@@ -4,6 +4,7 @@
 // For commercial use, separate licencing terms must be obtained.
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <strings.h>
@@ -20,6 +21,7 @@
 
 extern int select_exits;
 extern char *PicoConfigFile;
+static int load_state_slot = -1;
 int mmuhack_status = 0; // TODO rm
 char **g_argv;
 
@@ -36,6 +38,9 @@ void parse_cmd_line(int argc, char *argv[])
 			}
 			else if(strcasecmp(argv[x], "-selectexit") == 0) {
 				select_exits = 1;
+			}
+			else if(strcasecmp(argv[x], "-loadstate") == 0) {
+				if(x+1 < argc) { ++x; load_state_slot = atoi(argv[x]); }
 			}
 			else {
 				unrecognized = 1;
@@ -62,7 +67,8 @@ void parse_cmd_line(int argc, char *argv[])
 				"-state <param>    pass '-state param' to the menu program\n"
 				"-config <file>    use specified config file instead of default 'picoconfig.bin'\n"
 				"                  see currentConfig_t structure in emu.h for the file format\n"
-				"-selectexit       pressing SELECT will exit the emu and start 'menu_path'\n");
+				"-selectexit       pressing SELECT will exit the emu and start 'menu_path'\n"
+				"-loadstate <num>  if ROM is specified, try loading slot <num>\n");
 	}
 }
 
@@ -83,6 +89,17 @@ int main(int argc, char *argv[])
 
 	if (argc > 1)
 		parse_cmd_line(argc, argv);
+
+	if (engineState == PGS_ReloadRom)
+	{
+		if (emu_ReloadRom()) {
+			engineState = PGS_Running;
+			if (load_state_slot >= 0) {
+				state_slot = load_state_slot;
+				emu_SaveLoadGame(1, 0);
+			}
+		}
+	}
 
 	for (;;)
 	{

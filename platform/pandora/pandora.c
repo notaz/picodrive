@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/soundcard.h>
+#include <linux/fb.h>
 #include <fcntl.h>
 #include <errno.h>
 
@@ -16,15 +17,15 @@
 #include "../gp2x/usbjoy.h"
 #include "../common/arm_utils.h"
 
-static volatile unsigned int *memregs;
+static volatile unsigned int *memregs = MAP_FAILED;
 //static
 int memdev = 0;
-static int sounddev = -1, mixerdev = -1, touchdev = -1;
+static int fbdev = -1, sounddev = -1, mixerdev = -1, touchdev = -1;
 static int touchcal[7] = { 6203, 0, -1501397, 0, -4200, 16132680, 65536 };
 
 //#define SCREEN_MAP_SIZE (((800*(480+11)*2)+0xfff)&~0xfff)
 #define SCREEN_MAP_SIZE (800*480*2)
-static void *screen;
+static void *screen = MAP_FAILED;
 void *gp2x_screen;
 
 
@@ -197,8 +198,8 @@ void gp2x_sound_volume(int l, int r)
 /* common */
 void gp2x_init(void)
 {
-//	struct fb_fix_screeninfo fbfix;
-	int fbdev;
+	struct fb_fix_screeninfo fbfix;
+	int ret;
 
 	printf("entering init()\n"); fflush(stdout);
 
@@ -208,12 +209,26 @@ void gp2x_init(void)
 		printf("open(\"/dev/mem\") failed with %i\n", errno);
 		exit(1);
 	}
-
+/*
 	memregs = mmap(0, 0x01000000, PROT_READ|PROT_WRITE, MAP_SHARED, memdev, 0x48000000);
 	if (memregs == MAP_FAILED)
 	{
 		printf("mmap(memregs) failed with %i\n", errno);
 		exit(1);
+	}
+*/
+	ret = ioctl(fbdev, FBIOGET_FSCREENINFO, &fbfix);
+	if (ret == -1)
+	{
+		printf("ioctl(fbdev) failed with %i\n", errno);
+		exit(1);
+	}
+
+	// squidge hack
+	if (fbfix.line_length != 800*2)
+	{
+		gp2x_screen = malloc(800*640*2);
+		return;
 	}
 
 	fbdev = open("/dev/fb0", O_RDWR);
@@ -223,14 +238,6 @@ void gp2x_init(void)
 		exit(1);
 	}
 
-/*
-	ret = ioctl(fbdev, FBIOGET_FSCREENINFO, &fbfix);
-	if (ret == -1)
-	{
-		printf("ioctl(fbdev) failed with %i\n", errno);
-		exit(1);
-	}
-*/
 	screen = mmap(0, SCREEN_MAP_SIZE, PROT_WRITE|PROT_READ, MAP_SHARED, fbdev, 0);
 	if (screen == MAP_FAILED)
 	{
@@ -269,9 +276,12 @@ void gp2x_deinit(void)
 {
 	//gp2x_video_changemode(15);
 
-	munmap(screen, SCREEN_MAP_SIZE);
-	munmap((void *)memregs, 0x10000);
+	if (screen != MAP_FAILED)
+		munmap(screen, SCREEN_MAP_SIZE);
+	if (memregs != MAP_FAILED)
+		munmap((void *)memregs, 0x10000);
 	close(memdev);
+	if (fbdev >= 0)    close(fbdev);
 	if (mixerdev >= 0) close(mixerdev);
 	if (sounddev >= 0) close(sounddev);
 	if (touchdev >= 0) close(touchdev);
