@@ -1161,6 +1161,7 @@ menu_entry opt2_entries[] =
 	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,    &currentConfig.EmuOpt, 0x00008, 0, 0, 1, 1 },
 	{ "Don't save last used ROM",  MB_ONOFF, MA_OPT2_NO_LAST_ROM,    &currentConfig.EmuOpt, 0x00020, 0, 0, 1, 1 },
 	{ "Status line in main menu",  MB_ONOFF, MA_OPT2_STATUS_LINE,    &currentConfig.EmuOpt, 0x20000, 0, 0, 1, 1 },
+	{ "Disable idle loop patching",MB_ONOFF, MA_OPT2_NO_IDLE_LOOPS,  &PicoOpt, 0x80000, 0, 0, 1, 1 },
 	{ "Disable frame limiter",     MB_ONOFF, MA_OPT2_NO_FRAME_LIMIT, &currentConfig.EmuOpt, 0x40000, 0, 0, 1, 1 },
 	{ "done",                      MB_NONE,  MA_OPT2_DONE,           NULL, 0, 0, 0, 1, 0 },
 };

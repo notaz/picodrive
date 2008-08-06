@@ -274,7 +274,7 @@ static void do_pal_update(int allow_sh, int allow_as)
 	}
 	else if (allow_as && (rendstatus & PDRAW_ACC_SPRITES))
 	{
-		memcpy32((int *)(void *)(localPal+0x80), (void *)localPal, 0x40/2);
+		memcpy32((int *)dpal+0x80/2, (void *)localPal, 0x40*2/4);
 	}
 }
 
@@ -296,6 +296,7 @@ static void EmuScanPrepare(void)
 
 	if (dynamic_palette > 0)
 		dynamic_palette--;
+
 	if (Pico.m.dirtyPal)
 		do_pal_update(1, 1);
 	if ((rendstatus & PDRAW_ACC_SPRITES) && !(Pico.video.reg[0xC]&8))
@@ -322,7 +323,7 @@ static int EmuScanSlowEnd(unsigned int num)
 			do_slowmode_lines(num);
 			dynamic_palette = 3; // last for 2 more frames
 		}
-		do_pal_update(1, 0);
+		do_pal_update(1, 1);
 	}
 
 	if (dynamic_palette) {
@@ -532,6 +533,11 @@ static void vidResetMode(void)
 	sceGuFinish();
 	set_scaling_params();
 	sceGuSync(0,0);
+}
+
+void emu_platformDebugCat(char *str)
+{
+	strcat(str, blit_16bit_mode ? "soft clut\n" : "hard clut\n");
 }
 
 

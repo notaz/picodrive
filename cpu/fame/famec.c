@@ -262,6 +262,10 @@ typedef signed int	s32;
     goto famec_Exec;
 #endif
 
+#define RET0() \
+    m68kcontext.io_cycle_counter = -6; \
+    goto famec_End;
+
 #else
 
 #define NEXT \
@@ -272,6 +276,10 @@ typedef signed int	s32;
 
 #define RET(A) \
     m68kcontext.io_cycle_counter -= (A);  \
+    return;
+
+#define RET0() \
+    m68kcontext.io_cycle_counter = -6; \
     return;
 
 #endif

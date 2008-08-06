@@ -405,13 +405,16 @@ void debug_menu_loop(void)
 {
 	int inp, mode = 0;
 	int spr_offs = 0, dumped = 0;
+	char *tmp;
 
 	while (1)
 	{
 		switch (mode)
 		{
 			case 0: menu_draw_begin();
-				draw_text_debug(PDebugMain(), 0, 0);
+				tmp = PDebugMain();
+				emu_platformDebugCat(tmp);
+				draw_text_debug(tmp, 0, 0);
 				if (dumped) {
 					smalltext_out16(SCREEN_WIDTH-6*10, SCREEN_HEIGHT-8, "dumped", 0xffff);
 					dumped = 0;

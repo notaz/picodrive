@@ -19263,8 +19263,7 @@ OPCODE(0x4E72)
 		ASP = res;
 	}
 	m68kcontext.execinfo |= FM68K_HALTED;
-	m68kcontext.io_cycle_counter = 0;
-RET(4)
+RET0()
 }
 
 // RTE
@@ -39984,8 +39983,7 @@ OPCODE(0x6001_idle)
 	PC += ((s8)(Opcode & 0xFE)) >> 1;
 #endif
 	UPDATE_IDLE_COUNT
-	m68kcontext.io_cycle_counter = 10;
-RET(10)
+RET0()
 }
 
 // BCC
@@ -39995,7 +39993,8 @@ OPCODE(0x6601_idle)
 	{
 		UPDATE_IDLE_COUNT
 		PC += ((s8)(Opcode & 0xFE)) >> 1;
-		m68kcontext.io_cycle_counter = 8;
+		//if (idle_hit)
+		RET0()
 	}
 RET(8)
 }
@@ -40006,7 +40005,8 @@ OPCODE(0x6701_idle)
 	{
 		UPDATE_IDLE_COUNT
 		PC += ((s8)(Opcode & 0xFE)) >> 1;
-		m68kcontext.io_cycle_counter = 8;
+		//if (idle_hit)
+		RET0()
 	}
 RET(8)
 }

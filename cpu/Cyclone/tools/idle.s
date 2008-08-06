@@ -99,19 +99,19 @@ cfi_loop:
 .endm
 
 idle_bra:
-    mov     r5, #4
+    mov     r5, #2
     inc_counter
     b       Op6001
 
 idle_bne:
-    msr     cpsr_flg, r10 ;@ ARM flags = 68000 flags
-    movne   r5, #4
+    msr     cpsr_flg, r10
+    movne   r5, #2                @ 2 is intentional due to strange timing issues
     inc_counter ne
     b       Op6601
 
 idle_beq:
     msr     cpsr_flg, r10 ;@ ARM flags = 68000 flags
-    moveq   r5, #4
+    moveq   r5, #2
     inc_counter eq
     b       Op6701
 

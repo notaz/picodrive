@@ -61,3 +61,4 @@ void  emu_DoTurbo(int *pad, int acts);
 
 extern const char * const keyNames[];
 void  emu_prepareDefaultConfig(void);
+void  emu_platformDebugCat(char *str);

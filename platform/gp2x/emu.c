@@ -719,6 +719,11 @@ void emu_forcedFrame(int opts)
 	currentConfig.EmuOpt = eo_old;
 }
 
+void emu_platformDebugCat(char *str)
+{
+	// nothing
+}
+
 static void simpleWait(int thissec, int lim_time)
 {
 	struct timeval tval;
