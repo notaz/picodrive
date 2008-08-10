@@ -13,7 +13,6 @@
 .global ssp_block_table
 .global ssp_block_table_iram
 
-.global flush_inval_caches
 .global ssp_drc_entry
 .global ssp_drc_next
 .global ssp_drc_next_patch
@@ -28,11 +27,11 @@
 .global ssp_hle_11_38a
 
 @ translation cache buffer + pointer table
-.text
+.data
 .align 12 @ 4096
-.size tcache, SSP_TCACHE_SIZE
-.size ssp_block_table, SSP_BLOCKTAB_SIZE
-.size ssp_block_table_iram, SSP_BLOCKTAB_IRAM_SIZE
+@.size tcache, SSP_TCACHE_SIZE
+@.size ssp_block_table, SSP_BLOCKTAB_SIZE
+@.size ssp_block_table_iram, SSP_BLOCKTAB_IRAM_SIZE
 tcache:
  .space SSP_TCACHE_SIZE
 ssp_block_table:
@@ -44,12 +43,6 @@ ssp_block_table_iram:
 
 .text
 .align 2
-
-
-flush_inval_caches:
-    mov     r2, #0x0  @ must be 0
-    swi     0x9f0002
-    bx      lr
 
 
 @       SSP_GR0, SSP_X,     SSP_Y,   SSP_A,
@@ -220,7 +213,7 @@ ssp_drc_dp_end:
     str     r2, [r7, #SSP_OFFS_TMP1]
     sub     r0, r1, #4
     add     r1, r1, #4
-    bl      flush_inval_caches
+    bl      cache_flush_d_inval_i
     ldr     r2, [r7, #SSP_OFFS_TMP1]
     ldr     r0, [r7, #SSP_OFFS_TMP0]
     bx      r2

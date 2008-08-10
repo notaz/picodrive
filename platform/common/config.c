@@ -785,7 +785,7 @@ static void parse(const char *var, const char *val)
 			ret = custom_read(me, var, val);
 		}
 	}
-	if (!ret) lprintf("config_readsect: unhandled var: %s\n", var);
+	if (!ret) lprintf("config_readsect: unhandled var: \"%s\"\n", var);
 }
 
 

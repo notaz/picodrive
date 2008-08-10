@@ -204,8 +204,8 @@ static void emit_jump(int cond, void *target)
 static void handle_caches(void)
 {
 #ifdef ARM
-	extern void flush_inval_caches(const void *start_addr, const void *end_addr);
-	flush_inval_caches(tcache, tcache_ptr);
+	extern void cache_flush_d_inval_i(const void *start_addr, const void *end_addr);
+	cache_flush_d_inval_i(tcache, tcache_ptr);
 #endif
 }
 

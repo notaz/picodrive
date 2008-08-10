@@ -10,12 +10,15 @@
 #include "emu.h"
 #include "../common/menu.h"
 #include "../common/emu.h"
+#include "../common/config.h"
 #include "version.h"
 
 
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
+	emu_prepareDefaultConfig();
 	emu_ReadConfig(0, 0);
+	config_readlrom(PicoConfigFile);
 	giz_init(hInstance, hPrevInstance);
 	emu_Init();
 	menu_init();

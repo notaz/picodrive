@@ -23,9 +23,10 @@ extern ssp1601_t *ssp;
 
 #ifndef ARM
 #define DUMP_BLOCK 0x0c9a
+u32 tcache[SSP_TCACHE_SIZE/4];
 u32 *ssp_block_table[0x5090/2];
 u32 *ssp_block_table_iram[15][0x800/2];
-u32 tcache[SSP_TCACHE_SIZE/4];
+char ssp_align[SSP_BLOCKTAB_ALIGN_SIZE];
 void ssp_drc_next(void){}
 void ssp_drc_next_patch(void){}
 void ssp_drc_end(void){}

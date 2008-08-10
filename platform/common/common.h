@@ -41,11 +41,33 @@ void menu_flip(void);
 
 #elif defined(__GIZ__)
 
-// TODO
-//#include "../gizmondo/giz.h"
-#define SCREEN_WIDTH 321
-#define SCREEN_BUFFER menu_screen
-extern unsigned char *menu_screen;
+#include "../gizmondo/giz.h"
+
+#define BTN_NORTH BTN_STOP
+#define BTN_SOUTH BTN_PLAY
+#define BTN_WEST  BTN_REW
+#define BTN_EAST  BTN_FWD
+
+unsigned long wait_for_input(unsigned int interesting);
+void menu_draw_begin(int use_bgbuff);
+void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
+void menu_draw_end(void);
+
+#define SCREEN_WIDTH  321
+#define SCREEN_HEIGHT 240
+#define SCREEN_BUFFER ((giz_screen != NULL) ? giz_screen : menu_screen)
+extern void *menu_screen;
+extern void *giz_screen;
+
+#define read_buttons(which) \
+	wait_for_input(which)
+#define read_buttons_async(which) 0
+#define menu_draw_begin() \
+	menu_draw_begin(1)
+#define clear_screen() \
+	memset(SCREEN_BUFFER, 0, SCREEN_WIDTH*SCREEN_HEIGHT*2)
+#define darken_screen() \
+	menu_darken_bg(menu_screen, menu_screen, SCREEN_WIDTH*SCREEN_HEIGHT, 0)
 
 // ------------------------------------
 

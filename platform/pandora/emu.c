@@ -135,12 +135,13 @@ void emu_Deinit(void)
 void emu_prepareDefaultConfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
-	defaultConfig.EmuOpt    = 0x9f | 0x00700; // | <- ram_tmng, confirm_save, cd_leds
+	defaultConfig.EmuOpt    = 0x8f | 0x00600; // | <- confirm_save, cd_leds
 	defaultConfig.s_PicoOpt  = 0x0f | POPT_EXT_FM|POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC;
 	defaultConfig.s_PicoOpt |= POPT_ACC_SPRITES|POPT_EN_MCD_GFX;
 	defaultConfig.s_PicoOpt &= ~POPT_EN_SVP_DRC; // crashes :(
+	defaultConfig.EmuOpt    &= ~8; // no save gzip
 	defaultConfig.s_PsndRate = 44100;
-	defaultConfig.s_PicoRegion = 0; // auto
+	defaultConfig.s_PicoRegion = 0;
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
 	defaultConfig.s_PicoCDBuffers = 0;
 	defaultConfig.Frameskip = 0;
@@ -938,6 +939,7 @@ void emu_Loop(void)
 			}
 			bench_fps += frames_shown;
 			sprintf(fpsbuff, "%3i/%3i/%3i", frames_shown, bench_fps_s, (bf[0]+bf[1]+bf[2]+bf[3])>>2);
+			printf("%s\n", fpsbuff);
 #else
 			if (currentConfig.EmuOpt & 2) {
 				sprintf(fpsbuff, "%3i/%3i", frames_shown, frames_done);

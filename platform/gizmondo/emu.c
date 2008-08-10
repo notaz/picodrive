@@ -10,6 +10,7 @@
 #include "../common/emu.h"
 #include "../common/lprintf.h"
 #include "../common/arm_utils.h"
+#include "../common/config.h"
 #include "emu.h"
 #include "menu.h"
 #include "giz.h"
@@ -51,8 +52,8 @@ void emu_getMainDir(char *dst, int len)
 
 static void emu_msg_cb(const char *msg)
 {
-	if (giz_screen != NULL) Framework2D_UnlockBuffer();
-	giz_screen = Framework2D_LockBuffer(1);
+	if (giz_screen != NULL) fb_unlock();
+	giz_screen = fb_lock(1);
 
 	memset32((int *)((char *)giz_screen + 321*232*2), 0, 321*8*2/4);
 	emu_textOut16(4, 232, msg);
@@ -61,19 +62,19 @@ static void emu_msg_cb(const char *msg)
 	/* assumption: emu_msg_cb gets called only when something slow is about to happen */
 	reset_timing = 1;
 
-	Framework2D_UnlockBuffer();
-	giz_screen = Framework2D_LockBuffer((currentConfig.EmuOpt&0x8000) ? 0 : 1);
+	fb_unlock();
+	giz_screen = fb_lock((currentConfig.EmuOpt&0x8000) ? 0 : 1);
 }
 
 void emu_stateCb(const char *str)
 {
-	if (giz_screen != NULL) Framework2D_UnlockBuffer();
-	giz_screen = Framework2D_LockBuffer(1);
+	if (giz_screen != NULL) fb_unlock();
+	giz_screen = fb_lock(1);
 
 	clearArea(0);
 	blit("", str);
 
-	Framework2D_UnlockBuffer();
+	fb_unlock();
 	giz_screen = NULL;
 
 	Sleep(0); /* yield the CPU, the system may need it */
@@ -114,33 +115,42 @@ void emu_Deinit(void)
 	PicoExit();
 }
 
+void emu_prepareDefaultConfig(void)
+{
+	memset(&defaultConfig, 0, sizeof(defaultConfig));
+	defaultConfig.EmuOpt    = 0x1d | 0x680; // | confirm_save, cd_leds, 16bit rend
+	defaultConfig.s_PicoOpt = 0x0f | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC|POPT_ACC_SPRITES;
+	defaultConfig.s_PsndRate = 22050;
+	defaultConfig.s_PicoRegion = 0; // auto
+	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
+	defaultConfig.s_PicoCDBuffers = 0;
+	defaultConfig.Frameskip = -1; // auto
+	defaultConfig.volume = 50;
+	defaultConfig.KeyBinds[ 2] = 1<<0; // SACB RLDU
+	defaultConfig.KeyBinds[ 3] = 1<<1;
+	defaultConfig.KeyBinds[ 0] = 1<<2;
+	defaultConfig.KeyBinds[ 1] = 1<<3;
+	defaultConfig.KeyBinds[ 5] = 1<<4;
+	defaultConfig.KeyBinds[ 6] = 1<<5;
+	defaultConfig.KeyBinds[ 7] = 1<<6;
+	defaultConfig.KeyBinds[ 4] = 1<<7;
+	defaultConfig.KeyBinds[13] = 1<<26; // switch rend
+	defaultConfig.KeyBinds[ 8] = 1<<27; // save state
+	defaultConfig.KeyBinds[ 9] = 1<<28; // load state
+	defaultConfig.KeyBinds[12] = 1<<29; // vol up
+	defaultConfig.KeyBinds[11] = 1<<30; // vol down
+	defaultConfig.scaling = 0;
+	defaultConfig.turbo_rate = 15;
+}
+
 void emu_setDefaultConfig(void)
 {
-	memset(&currentConfig, 0, sizeof(currentConfig));
-	currentConfig.lastRomFile[0] = 0;
-	currentConfig.EmuOpt  = 0x1f | 0x680; // | confirm_save, cd_leds, 16bit rend
-	currentConfig.PicoOpt = 0x07 | 0xc00; // | cd_pcm, cd_cdda
-	currentConfig.PsndRate = 22050;
-	currentConfig.PicoRegion = 0; // auto
-	currentConfig.PicoAutoRgnOrder = 0x184; // US, EU, JP
-	currentConfig.Frameskip = -1; // auto
-	currentConfig.volume = 50;
-	currentConfig.KeyBinds[ 2] = 1<<0; // SACB RLDU
-	currentConfig.KeyBinds[ 3] = 1<<1;
-	currentConfig.KeyBinds[ 0] = 1<<2;
-	currentConfig.KeyBinds[ 1] = 1<<3;
-	currentConfig.KeyBinds[ 5] = 1<<4;
-	currentConfig.KeyBinds[ 6] = 1<<5;
-	currentConfig.KeyBinds[ 7] = 1<<6;
-	currentConfig.KeyBinds[ 4] = 1<<7;
-	currentConfig.KeyBinds[13] = 1<<26; // switch rend
-	currentConfig.KeyBinds[ 8] = 1<<27; // save state
-	currentConfig.KeyBinds[ 9] = 1<<28; // load state
-	currentConfig.KeyBinds[12] = 1<<29; // vol up
-	currentConfig.KeyBinds[11] = 1<<30; // vol down
-	currentConfig.PicoCDBuffers = 0;
-	currentConfig.scaling = 0;
-	defaultConfig.turbo_rate = 15;
+	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
+	PicoOpt = currentConfig.s_PicoOpt;
+	PsndRate = currentConfig.s_PsndRate;
+	PicoRegionOverride = currentConfig.s_PicoRegion;
+	PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
+	PicoCDBuffers = currentConfig.s_PicoCDBuffers;
 }
 
 
@@ -214,6 +224,9 @@ static void blit(const char *fps, const char *notice)
 			Pico.m.dirtyPal = 0;
 			vidConvCpyRGB565(localPal, Pico.cram, 0x40);
 		}
+		// a hack for VR
+		if (PicoRead16Hook == PicoSVPRead16)
+			memset32((int *)(PicoDraw2FB+328*8+328*223), 0xe0e0e0e0, 328);
 		if (!(Pico.video.reg[12]&1)) lines_flags|=0x10000;
 		if (currentConfig.EmuOpt&0x4000)
 			lines_flags|=0x40000; // (Pico.m.frame_count&1)?0x20000:0x40000;
@@ -229,7 +242,7 @@ static void blit(const char *fps, const char *notice)
 			if (Pico.video.reg[0xC]&8) { // shadow/hilight mode
 				//vidConvCpyRGB32sh(localPal+0x40, Pico.cram, 0x40);
 				//vidConvCpyRGB32hi(localPal+0x80, Pico.cram, 0x40); // TODO?
-				blockcpy(localPal+0xc0, localPal+0x40, 0x40*2);
+				memcpy32((void *)(localPal+0xc0), (void *)(localPal+0x40), 0x40*2/4);
 				localPal[0xc0] = 0x0600;
 				localPal[0xd0] = 0xc000;
 				localPal[0xe0] = 0x0000; // reserved pixels for OSD
@@ -262,13 +275,13 @@ static void blit(const char *fps, const char *notice)
 static void clearArea(int full)
 {
 	if (giz_screen == NULL)
-		giz_screen = Framework2D_LockBuffer(1);
+		giz_screen = fb_lock(1);
 	if (full) memset32(giz_screen, 0, 320*240*2/4);
 	else      memset32((int *)((char *)giz_screen + 321*232*2), 0, 321*8*2/4);
 
 	if (currentConfig.EmuOpt&0x8000) {
-		Framework2D_UnlockBuffer();
-		giz_screen = Framework2D_LockBuffer(0);
+		fb_unlock();
+		giz_screen = fb_lock(0);
 		if (full) memset32(giz_screen, 0, 320*240*2/4);
 		else      memset32((int *)((char *)giz_screen + 321*232*2), 0, 321*8*2/4);
 	}
@@ -276,7 +289,7 @@ static void clearArea(int full)
 
 static void vidResetMode(void)
 {
-	giz_screen = Framework2D_LockBuffer(1);
+	giz_screen = fb_lock(1);
 
 	if (PicoOpt&0x10) {
 	} else if (currentConfig.EmuOpt&0x80) {
@@ -297,11 +310,11 @@ static void vidResetMode(void)
 
 	memset32(giz_screen, 0, 321*240*2/4);
 	if (currentConfig.EmuOpt&0x8000) {
-		Framework2D_UnlockBuffer();
-		giz_screen = Framework2D_LockBuffer(0);
+		fb_unlock();
+		giz_screen = fb_lock(0);
 		memset32(giz_screen, 0, 321*240*2/4);
 	}
-	Framework2D_UnlockBuffer();
+	fb_unlock();
 	giz_screen = NULL;
 }
 
@@ -354,14 +367,14 @@ void emu_forcedFrame(int opts)
 	currentConfig.EmuOpt |= 0x80;
 
 	if (giz_screen == NULL)
-		giz_screen = Framework2D_LockBuffer(1);
+		giz_screen = fb_lock(1);
 
 	PicoDrawSetColorFormat(1);
 	PicoScanBegin = EmuScanBegin16;
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 
-	Framework2D_UnlockBuffer();
+	fb_unlock();
 	giz_screen = NULL;
 
 	PicoOpt = po_old;
@@ -378,7 +391,7 @@ static void RunEvents(unsigned int which)
 		if (PsndOut != NULL)
 			FrameworkAudio_SetPause(1);
 		if (giz_screen == NULL)
-			giz_screen = Framework2D_LockBuffer(1);
+			giz_screen = fb_lock(1);
 		if ( emu_checkSaveFile(state_slot) &&
 				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) || // load
 				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) // save
@@ -507,6 +520,10 @@ static void updateKeys(void)
 	prevEvents = (allActions[0] | allActions[1]) >> 16;
 }
 
+void emu_platformDebugCat(char *str)
+{
+	// nothing
+}
 
 static void simpleWait(DWORD until)
 {
@@ -717,17 +734,17 @@ void emu_Loop(void)
 
 		if (currentConfig.EmuOpt&0x80)
 			/* be sure correct framebuffer is locked */
-			giz_screen = Framework2D_LockBuffer((currentConfig.EmuOpt&0x8000) ? 0 : 1);
+			giz_screen = fb_lock((currentConfig.EmuOpt&0x8000) ? 0 : 1);
 
 		PicoFrame();
 
 		if (giz_screen == NULL)
-			giz_screen = Framework2D_LockBuffer((currentConfig.EmuOpt&0x8000) ? 0 : 1);
+			giz_screen = fb_lock((currentConfig.EmuOpt&0x8000) ? 0 : 1);
 
 		blit(fpsbuff, notice);
 
 		if (giz_screen != NULL) {
-			Framework2D_UnlockBuffer();
+			fb_unlock();
 			giz_screen = NULL;
 		}
 
@@ -735,7 +752,7 @@ void emu_Loop(void)
 			Framework2D_WaitVSync();
 
 		if (currentConfig.EmuOpt&0x8000)
-			Framework2D_Flip();
+			fb_flip();
 
 		// check time
 		tval = GetTickCount();

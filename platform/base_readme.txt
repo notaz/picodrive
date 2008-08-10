@@ -369,6 +369,10 @@ Well known way to improve the GP2X performance. You must restart the emulator
 for the change of this option to take effect.
 
 #endif
+@@1. "Disable idle loop patching"
+Idle loop patching is used to improve performance, but may cause compatibility
+problems in some rare cases. Try disabling this if your game has problems.
+
 
 Sega/Mega CD options 
 --------------------
@@ -448,6 +452,9 @@ There are 3 options:
 
 @@3. "Set to unscaled centered"
 Adjust the resizing options to set game image to it's original size.
+
+@@3. "Set to 4:3 scaled"
+Scale the image up, but keep 4:3 aspect, by adding black borders.
 
 @@3. "Set to fullscreen"
 Adjust the resizing options to make the game image fullscreen.
@@ -645,6 +652,11 @@ Additional thanks
 
 Changelog
 ---------
+1.51b
+  * Fixed a crash when uncompressed savestate is loaded.
+  * Fixed an idle loop detection related hanging problem.
+  * PSP: fixed another palette related regression.
+
 1.51a
   * Fixed a sync problem between main and sub 68k. Should fix the hanging
     problem for some games.
