@@ -561,6 +561,7 @@ INLINE void FM_KEYON(int c , int s )
 		SLOT->key = 1;
 		SLOT->phase = 0;		/* restart Phase Generator */
 		SLOT->state = EG_ATT;	/* phase -> Attack */
+		SLOT->volume = MAX_ATT_INDEX;    /* fix Ecco 2 splash sound */
 		ym2612.slot_mask |= (1<<s) << (c*4);
 	}
 }
