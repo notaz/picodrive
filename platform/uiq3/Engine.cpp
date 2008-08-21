@@ -23,46 +23,48 @@
 #include <string.h>
 
 #include "version.h"
-#include "../../pico/picoInt.h"
+#include <Pico/PicoInt.h>
+#include "../common/emu.h"
 #include "engine/debug.h"
-#include "app.h"
+#include "App.h"
 
 // this is where we start to break a bunch of symbian rules
 extern TInt machineUid;
 extern int gamestate, gamestate_next;
-extern TPicoConfig *currentConfig;
+extern char *loadrom_fname;
+extern int   loadrom_result;
 extern const char *actionNames[];
-RSemaphore pauseSemaphore;
 RSemaphore initSemaphore;
-const char *RomFileName = 0;
+RSemaphore pauseSemaphore;
+RSemaphore loadWaitSemaphore;
 int pico_was_reset = 0;
-unsigned char *rom_data = 0;
 static CPicolAppView *appView = 0;
 
 
 TInt CPicoGameSession::Do(const TPicoServRqst what, TAny *param)
 {
-	switch (what) {
+	switch (what)
+	{
 		case PicoMsgLoadState: 
-			if(!rom_data) return -1; // no ROM
-			return saveLoadGame(1);
+			if(!rom_loaded) return -1; // no ROM
+			return emu_SaveLoadGame(1, 0);
 
 		case PicoMsgSaveState:
-			if(!rom_data) return -1;
-			return saveLoadGame(0);
+			if(!rom_loaded) return -1;
+			return emu_SaveLoadGame(0, 0);
 
 		case PicoMsgLoadROM:
 			return loadROM((TPtrC16 *)param);
 		
 		case PicoMsgResume:
-			DEBUGPRINT(_L("resume with rom %08x"), rom_data);
-			if(rom_data) {
+			DEBUGPRINT(_L("resume"));
+			if(rom_loaded) {
 				return ChangeRunState(PGS_Running);
 			}
 			return 1;
 
 		case PicoMsgReset: 
-			if(rom_data) {
+			if(rom_loaded) {
 				PicoReset();
 				pico_was_reset = 1;
 				return ChangeRunState(PGS_Running);
@@ -104,6 +106,8 @@ TInt CPicoGameSession::StartEmuThread()
 	initSemaphore.CreateLocal(0);
 	if (pauseSemaphore.Handle() <= 0)
 		pauseSemaphore.CreateLocal(0);
+	if (loadWaitSemaphore.Handle() <= 0)
+		loadWaitSemaphore.CreateLocal(0);
 
 	RThread thread;
 	if(iThreadWatcher && (res = thread.Open(iThreadWatcher->iTid)) == KErrNone) {
@@ -118,7 +122,6 @@ TInt CPicoGameSession::StartEmuThread()
 		thread.Close();
 	}
 
-	//semaphore.CreateLocal(0); // create a semaphore so we know when thread init is finished
 	res=thread.Create(_L("PicoEmuThread"),   // create new server thread
 		EmuThreadFunction, // thread's main function
 		KDefaultStackSize,
@@ -134,7 +137,7 @@ TInt CPicoGameSession::StartEmuThread()
 		iThreadWatcher = CThreadWatcher::NewL(thread.Id());
 		thread.Resume(); // start it going
 		DEBUGPRINT(_L("initSemaphore.Wait()"));
-		res = initSemaphore.Wait(1000*1000); // wait until it's initialized
+		res = initSemaphore.Wait(3*1000*1000); // wait until it's initialized
 		DEBUGPRINT(_L("initSemaphore resume, ExitReason() == %i"), thread.ExitReason());
 		res |= thread.ExitReason();
 		thread.Close(); // we're no longer interested in the other thread
@@ -164,96 +167,34 @@ TInt CPicoGameSession::ChangeRunState(TPicoGameState newstate, TPicoGameState ne
 
 TInt CPicoGameSession::loadROM(TPtrC16 *pptr)
 {
-	TInt res, i;
-	char buff[0x31];
+	TInt ret;
+	char buff[150];
 
-	if(rom_data) {
-		// save SRAM for previous ROM
-		if(currentConfig->iFlags & 1)
-			saveLoadGame(0, 1);
-	}
-
-	RomFileName = 0;
-	if(rom_data) {
-		free(rom_data);
-		rom_data = 0;
-	}
+	// make sure emu thread is ok
+	ret = ChangeRunState(PGS_Paused);
+	if(ret) return ret;
 
 	// read the contents of the client pointer into a TPtr.
 	static TBuf8<KMaxFileName> writeBuf;
 	writeBuf.Copy(*pptr);
 
-	// detect wrong extensions (.srm and .mds)
-	TBuf8<5> ext;
-	ext.Copy(writeBuf.Right(4));
-	ext.LowerCase();
-	if(!strcmp((char *)ext.PtrZ(), ".srm") || !strcmp((char *)ext.PtrZ(), "s.gz") || // .mds.gz
-	   !strcmp((char *)ext.PtrZ(), ".mds")) {
+	// push the emu thead to a load state. This is done so that it owns all file handles.
+	// If successful, in will enter PGS_Running state by itself.
+	loadrom_fname = (char *)writeBuf.PtrZ();
+	loadrom_result = 0;
+	ret = ChangeRunState(PGS_ReloadRom);
+	if(ret) return ret;
+
+	loadWaitSemaphore.Wait(20*1000*1000);
+
+	if (loadrom_result == 0)
 		return PicoErrNotRom;
-	}
 
-	FILE *rom = fopen((char *) writeBuf.PtrZ(), "rb");
-	if(!rom) {
-		DEBUGPRINT(_L("failed to open rom."));
-		return PicoErrRomOpenFailed;
-	}
-
-	// make sure emu thread is ok
-	res = ChangeRunState(PGS_Paused);
-	if(res) {
-		fclose(rom);
-		return res;
-	}
-
-	unsigned int rom_size = 0;
-	// zipfile support
-	if(!strcmp((char *)ext.PtrZ(), ".zip")) {
-		fclose(rom);
-		res = CartLoadZip((const char *) writeBuf.PtrZ(), &rom_data, &rom_size);
-		if(res) {
-			DEBUGPRINT(_L("CartLoadZip() failed (%i)"), res);
-			return res;
-		}
-	} else {
-		if( (res = PicoCartLoad(rom, &rom_data, &rom_size)) ) {
-			DEBUGPRINT(_L("PicoCartLoad() failed (%i)"), res);
-			fclose(rom);
-			return PicoErrOutOfMem;
-		}
-		fclose(rom);
-	}
-
-	// detect wrong files (Pico crashes on very small files), also see if ROM EP is good
-	if(rom_size <= 0x200 || strncmp((char *)rom_data, "Pico", 4) == 0 ||
-	  ((*(TUint16 *)(rom_data+4)<<16)|(*(TUint16 *)(rom_data+6))) >= (int)rom_size) {
-		free(rom_data);
-		rom_data = 0;
-		return PicoErrNotRom;
-	}
-
-	DEBUGPRINT(_L("PicoCartInsert(0x%08X, %d);"), rom_data, rom_size);
-	if(PicoCartInsert(rom_data, rom_size)) {
-		return PicoErrOutOfMem;
-	}
-
-	pico_was_reset = 1;
-
-	// global ROM file name for later use
-	RomFileName = (const char *) writeBuf.PtrZ();
-
-	// name from the ROM itself
-	for(i = 0; i < 0x30; i++)
-		buff[i] = rom_data[0x150 + (i^1)]; // unbyteswap
-	for(buff[i] = 0, i--; i >= 0; i--) {
-		if(buff[i] != ' ') break;
-		buff[i] = 0;
-	}
+	emu_getGameName(buff);
 	TPtrC8 buff8((TUint8*) buff);
 	iRomInternalName.Copy(buff8);
 
-	// load SRAM for this ROM
-	if(currentConfig->iFlags & 1)
-		saveLoadGame(1, 1);
+	DEBUGPRINT(_L("done waiting for ROM load"));
 
 	// debug
 	#ifdef __DEBUG_PRINT
@@ -262,8 +203,6 @@ TInt CPicoGameSession::loadROM(TPtrC16 *pptr)
 	User::AllocSize(mem);
 	DEBUGPRINT(_L("comm:   cels=%d, size=%d KB"), cells, mem/1024);
 	ChangeRunState(PGS_DebugHeap, PGS_Running);
-	#else
-	ChangeRunState(PGS_Running);
 	#endif
 
 	return 0;
@@ -272,23 +211,9 @@ TInt CPicoGameSession::loadROM(TPtrC16 *pptr)
 
 TInt CPicoGameSession::changeConfig(TPicoConfig *aConfig)
 {
-	DEBUGPRINT(_L("got new config."));
-
-	currentConfig = aConfig;
-
-	// set PicoOpt and rate
-	PicoRegionOverride = currentConfig->PicoRegion;
-	PicoOpt = currentConfig->iPicoOpt;
-	switch((currentConfig->iFlags>>3)&7) {
-		case 1:  PsndRate=11025; break;
-		case 2:  PsndRate=16000; break;
-		case 3:  PsndRate=22050; break;
-		case 4:  PsndRate=44100; break;
-		default: PsndRate= 8000; break;
-	}
-
 	// 6 button pad, enable XYZM config if needed
-	if(PicoOpt & 0x20) {
+	if (PicoOpt & POPT_6BTN_PAD)
+	{
 		actionNames[8]  = "Z";
 		actionNames[9]  = "Y";
 		actionNames[10] = "X";
@@ -298,16 +223,15 @@ TInt CPicoGameSession::changeConfig(TPicoConfig *aConfig)
 	}
 
 	// if we are in center 90||270 modes, we can bind renderer switcher
-	if(currentConfig->iScreenMode == TPicoConfig::PMFit &&
-		(currentConfig->iScreenRotation == TPicoConfig::PRot0 || currentConfig->iScreenRotation == TPicoConfig::PRot180))
-				 actionNames[25] = 0;
-			else actionNames[25] = "RENDERER";
+	if (currentConfig.scaling == TPicoConfig::PMFit &&
+		(currentConfig.rotation == TPicoConfig::PRot0 || currentConfig.rotation == TPicoConfig::PRot180))
+			 actionNames[25] = 0;
+	else actionNames[25] = "RENDERER";
 
 	return 0;
 }
 
 
-void MainOldCleanup(); // from main.cpp
 #ifdef __DEBUG_PRINT_FILE
 extern RMutex logMutex;
 #endif
@@ -346,7 +270,7 @@ void CPicoGameSession::freeResources()
 
 	}
 
-	if(iThreadWatcher != NULL)
+	if (iThreadWatcher != NULL)
 	{
 		DEBUGPRINT(_L("delete iThreadWatcher"));
 		delete iThreadWatcher;
@@ -354,12 +278,13 @@ void CPicoGameSession::freeResources()
 		iThreadWatcher = NULL;
 	}
 
-	MainOldCleanup();
-
 	if (initSemaphore.Handle() > 0)
 		initSemaphore.Close();
 	if (pauseSemaphore.Handle() > 0)
 		pauseSemaphore.Close();
+	if (loadWaitSemaphore.Handle() > 0)
+		loadWaitSemaphore.Close();
+	DEBUGPRINT(_L("freeResources() returning"));
 #ifdef __DEBUG_PRINT_FILE
 	if (logMutex.Handle() > 0)
 		logMutex.Close();
@@ -368,67 +293,7 @@ void CPicoGameSession::freeResources()
 
 TBool CPicoGameSession::iEmuRunning = EFalse;
 CThreadWatcher *CPicoGameSession::iThreadWatcher = 0;
-TBuf<0x30> CPicoGameSession::iRomInternalName;
-
-
-void TPicoConfig::SetDefaults()
-{
-	iLastROMFile.SetLength(0);
-	iScreenRotation = PRot270;
-	iScreenMode     = PMCenter;
-	iFlags          = 1; // use_sram
-	iPicoOpt        = 0; // all off
-	iFrameskip      = PFSkipAuto;
-
-	Mem::FillZ(iKeyBinds,  sizeof(iKeyBinds));
-	Mem::FillZ(iAreaBinds, sizeof(iAreaBinds));
-	iKeyBinds[0xd5] = 1<<26; // bind back
-}
-
-// load config
-void TPicoConfig::InternalizeL(RReadStream &aStream)
-{
-	TInt32 version, fname_len;
-	version = aStream.ReadInt32L();
-	fname_len       = aStream.ReadInt32L();
-
-	// not sure if this is safe
-	iLastROMFile.SetMax();
-	aStream.ReadL((TUint8 *) iLastROMFile.Ptr(), KMaxFileName*2);
-	iLastROMFile.SetLength(fname_len);
-
-	iScreenRotation = aStream.ReadInt32L();
-	iScreenMode     = aStream.ReadInt32L();
-	iFlags          = aStream.ReadUint32L();
-	iPicoOpt        = aStream.ReadInt32L();
-	iFrameskip      = aStream.ReadInt32L();
-
-	aStream.ReadL((TUint8 *)iKeyBinds,  sizeof(iKeyBinds));
-	aStream.ReadL((TUint8 *)iAreaBinds, sizeof(iAreaBinds));
-
-	PicoRegion      = aStream.ReadInt32L();
-}
-
-// save config
-void TPicoConfig::ExternalizeL(RWriteStream &aStream) const
-{
-	TInt version = (KPicoMajorVersionNumber<<24)+(KPicoMinorVersionNumber<<16);
-
-	aStream.WriteInt32L(version);
-	aStream.WriteInt32L(iLastROMFile.Length());
-	aStream.WriteL((const TUint8 *)iLastROMFile.Ptr(), KMaxFileName*2);
-
-	aStream.WriteInt32L(iScreenRotation);
-	aStream.WriteInt32L(iScreenMode);
-	aStream.WriteUint32L(iFlags);
-	aStream.WriteInt32L(iPicoOpt);
-	aStream.WriteInt32L(iFrameskip);
-
-	aStream.WriteL((const TUint8 *)iKeyBinds,  sizeof(iKeyBinds));
-	aStream.WriteL((const TUint8 *)iAreaBinds, sizeof(iAreaBinds));
-
-	aStream.WriteInt32L(PicoRegion);
-}
+TBuf<150> CPicoGameSession::iRomInternalName;
 
 
 // CThreadWatcher
@@ -482,3 +347,10 @@ void CThreadWatcher::DoCancel()
 		thread.Close();
 	}
 }
+
+extern "C" void cache_flush_d_inval_i(const void *start_addr, const void *end_addr)
+{
+	// TODO
+	User::IMB_Range((TAny *)start_addr, (TAny *)end_addr);
+}
+

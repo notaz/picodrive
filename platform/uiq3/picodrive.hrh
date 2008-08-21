@@ -31,6 +31,7 @@ enum TAppMenuCommands
 	// pages
 	ECtlOptPageMain,
 	ECtlOptPageSound,
+	ECtlOptPageMCD,
 	ECtlOptPageMisc,
 	// main page
 	ECtlOptRotationLabel,
@@ -45,8 +46,8 @@ enum TAppMenuCommands
 	ECtlOptScreenModeFit,
 	ECtlOptScreenModeFit2,
 	ECtlOptUseAltRend,
-	ECtlOptUseAccTiming,
-	ECtlOptUseAccSprites,
+//	ECtlOptUseAccTiming,
+//	ECtlOptUseAccSprites,
 	ECtlOptShowFPS,
 	// sound page
 	ECtlOptEnableSound,
@@ -56,6 +57,13 @@ enum TAppMenuCommands
 	ECtlOptEmulateSN76496,
 	ECtlOptSndQLabel,
 	ECtlOptSndQuality,
+	// MCD page
+	ECtlOptCDleds,
+	ECtlOptCDcdda,
+	ECtlOptCDpcm,
+	ECtlOptCDramcart,
+	ECtlOptCDscalerot,
+	ECtlOptCDbettersync,
 	// misc page
 	ECtlOpt6ButtonPad,
 	ECtlOptGzipStates,

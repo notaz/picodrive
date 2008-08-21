@@ -39,6 +39,8 @@ me_bind_action me_ctrl_actions[15] =
 };
 
 
+#ifndef UIQ3
+
 static unsigned char menu_font_data[10240];
 static int menu_text_color = 0xffff; // default to white
 static int menu_sel_color = -1; // disabled
@@ -331,28 +333,6 @@ int me_process(menu_entry *entries, int count, menu_id id, int is_next)
 	}
 }
 
-const char *me_region_name(unsigned int code, int auto_order)
-{
-	static const char *names[] = { "Auto", "      Japan NTSC", "      Japan PAL", "      USA", "      Europe" };
-	static const char *names_short[] = { "", " JP", " JP", " US", " EU" };
-	int u, i = 0;
-	if (code) {
-		code <<= 1;
-		while((code >>= 1)) i++;
-		if (i > 4) return "unknown";
-		return names[i];
-	} else {
-		static char name[24];
-		strcpy(name, "Auto:");
-		for (u = 0; u < 3; u++) {
-			i = 0; code = ((auto_order >> u*4) & 0xf) << 1;
-			while((code >>= 1)) i++;
-			strcat(name, names_short[i]);
-		}
-		return name;
-	}
-}
-
 // ------------ debug menu ------------
 
 #include <sys/stat.h>
@@ -469,6 +449,32 @@ void debug_menu_loop(void)
 				if (spr_offs < 0) spr_offs = 0;
 				break;
 		}
+	}
+}
+
+#endif // !UIQ3
+
+// ------------ util ------------
+
+const char *me_region_name(unsigned int code, int auto_order)
+{
+	static const char *names[] = { "Auto", "      Japan NTSC", "      Japan PAL", "      USA", "      Europe" };
+	static const char *names_short[] = { "", " JP", " JP", " US", " EU" };
+	int u, i = 0;
+	if (code) {
+		code <<= 1;
+		while((code >>= 1)) i++;
+		if (i > 4) return "unknown";
+		return names[i];
+	} else {
+		static char name[24];
+		strcpy(name, "Auto:");
+		for (u = 0; u < 3; u++) {
+			i = 0; code = ((auto_order >> u*4) & 0xf) << 1;
+			while((code >>= 1)) i++;
+			strcat(name, names_short[i]);
+		}
+		return name;
 	}
 }
 

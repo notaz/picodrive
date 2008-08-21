@@ -28,4 +28,10 @@ extern void blit1(void);
 //#define dprintf(f,...) printf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__)
 #define dprintf(x...)
 
+// platform
+#define PLAT_MAX_KEYS 32
+#define PLAT_HAVE_JOY 0
+#define PATH_SEP      "/"
+#define PATH_SEP_C    '/'
+
 #endif //PORT_CONFIG_H

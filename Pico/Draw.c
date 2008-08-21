@@ -1444,7 +1444,7 @@ void PicoDrawSync(int to, int blank_last_line)
   }
 
 #if !CAN_HANDLE_240_LINES
-  if (DrawScanline >= 224) DrawScanline = 240, return;
+  if (DrawScanline >= 224) { DrawScanline = 240; return; }
 #endif
 
   // last line

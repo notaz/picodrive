@@ -3,21 +3,32 @@
 #ifndef PORT_CONFIG_H
 #define PORT_CONFIG_H
 
+#define CASE_SENSITIVE_FS 0
+#define DONT_OPEN_MANY_FILES 0
+#define REDUCE_IO_CALLS 0
+#define SIMPLE_WRITE_SOUND 0
+
+// draw.c
+#define OVERRIDE_HIGHCOL 0
+
 // draw2.c
 #define START_ROW  0 // which row of tiles to start rendering at?
 #define END_ROW   28 // ..end
 
 // pico.c
-#define CAN_HANDLE_240_LINES	0 // fow now
+#define CAN_HANDLE_240_LINES	0 // for now
 
-//#define dprintf(f,...) printf(f"\n",##__VA_ARGS__)
-#ifdef __DEBUG_PRINT
-#ifdef __cplusplus
-extern "C"
-#endif
-void dprintf(char *format, ...);
-#else
+// logging emu events
+#define EL_LOGMASK (EL_STATUS|EL_IDLE) // (EL_STATUS|EL_ANOMALY|EL_UIO|EL_SRAMIO|EL_INTS|EL_CDPOLL) // xffff
+
+//extern void dprintf(char *format, ...);
+//#define dprintf(f,...) printf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__)
 #define dprintf(x...)
-#endif
 
-#endif //PORT_CONFIG_H
+// platform
+#define PLAT_MAX_KEYS (256+19)
+#define PLAT_HAVE_JOY 0
+#define PATH_SEP      "\\"
+#define PATH_SEP_C    '\\'
+
+#endif // PORT_CONFIG_H

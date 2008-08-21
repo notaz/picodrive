@@ -17,14 +17,16 @@
 #include "debug.h"
 #include "../Engine.h"
 
-#include "../../../pico/picoInt.h"
+#include <Pico/PicoInt.h>
+#include "../../common/emu.h"
+#include "../emu.h"
 #include "vid.h"
-#include "polledAS.h"
+#include "PolledAS.h"
 //#include "audio.h"
 #include "audio_mediaserver.h"
 
-#include <EZlib.h>
-#include "../../../zlib/gzio_symb.h"
+//#include <ezlib.h>
+#include <zlib/zlib.h>
 
 
 //#define BENCHMARK
@@ -78,21 +80,20 @@ const char *actionNames[] = {
 // globals are allowed, so why not to (ab)use them?
 //TInt machineUid = 0;
 int gamestate = PGS_Paused, gamestate_next = PGS_Paused;
-TPicoConfig *currentConfig = 0;
-static char noticeMsg[64];					// notice msg to draw
+char *loadrom_fname = NULL;
+int   loadrom_result = 0;
 static timeval noticeMsgTime = { 0, 0 };	// when started showing
 static CGameAudioMS *gameAudio = 0;			// the audio object itself
-static int reset_timing, pico_was_reset;
-static int state_slot = 0;
-extern const char *RomFileName;
+static int reset_timing;
+extern int pico_was_reset;
 extern RSemaphore initSemaphore;
 extern RSemaphore pauseSemaphore;
+extern RSemaphore loadWaitSemaphore;
 
 // some forward declarations
 static void MainInit();
 static void MainExit();
 static void DumpMemInfo();
-void MainOldCleanup();
 
 
 class TPicoDirectScreenAccess : public MDirectScreenAccess
@@ -128,24 +129,8 @@ public:
 };
 
 
-static int snd_excess_add = 0, snd_excess_cnt = 0; // hack
-
-static void updateSound(void)
+static void updateSound(int len)
 {
-	int len = PsndLen;
-
-	snd_excess_cnt += snd_excess_add;
-	if (snd_excess_cnt >= 0x10000) {
-		snd_excess_cnt -= 0x10000;
-		if (PicoOpt&8) {
-			PsndOut[len*2]   = PsndOut[len*2-2];
-			PsndOut[len*2+1] = PsndOut[len*2-1];
-		} else {
-			PsndOut[len]   = PsndOut[len-1];
-		}
-		len++;
-	}
-
 	PsndOut = gameAudio->NextFrameL(len);
 	if(!PsndOut) { // sound output problems?
 		strcpy(noticeMsg, "SOUND@OUTPUT@ERROR;@SOUND@DISABLED");
@@ -190,12 +175,16 @@ static void TargetEpocGameL()
 	MainInit();
 	buff[0] = 0;
 
+	PicoInit();
+
 	// just to keep the backlight on (works only on UIQ2)
 	//blevent.Set(TRawEvent::EActive);
 
 	// loop?
-	for(;;) {
-		if(gamestate == PGS_Running) {
+	for(;;)
+	{
+		if (gamestate == PGS_Running)
+		{
 			// switch context to other thread
 			User::After(50000);
 			// prepare window and stuff
@@ -217,15 +206,14 @@ static void TargetEpocGameL()
 			if(!noticeMsgTime.tv_sec && pico_was_reset)
 				gettimeofday(&noticeMsgTime, 0);
 
-			if (PsndOut) {
-				snd_excess_cnt = 0;
-				snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
-			}
+			// prepare CD buffer
+			if (PicoAHW & PAHW_MCD) PicoCDBufferInit();
 
 			pico_was_reset = 0;
 			reset_timing = 1;
 
-			while(gamestate == PGS_Running) {
+			while (gamestate == PGS_Running)
+			{
 				gettimeofday(&tval, 0);
 				if(reset_timing) {
 					reset_timing = 0;
@@ -242,7 +230,8 @@ static void TargetEpocGameL()
 				}
 
 				// second changed?
-				if(thissec != tval.tv_sec) {
+				if (thissec != tval.tv_sec)
+				{
 #ifdef BENCHMARK
 					static int bench = 0, bench_fps = 0, bench_fps_s = 0, bfp = 0, bf[4];
 					if(++bench == 10) {
@@ -254,14 +243,14 @@ static void TargetEpocGameL()
 					bench_fps += frames_shown;
 					sprintf(buff, "%02i/%02i/%02i", frames_shown, bench_fps_s, (bf[0]+bf[1]+bf[2]+bf[3])>>2);
 #else
-					if(currentConfig->iFlags & 2) 
+					if (currentConfig.EmuOpt & EOPT_SHOW_FPS) 
 						sprintf(buff, "%02i/%02i", frames_shown, frames_done);
 #endif
 
 
 					thissec = tval.tv_sec;
 
-					if(PsndOut == 0 && currentConfig->iFrameskip >= 0) {
+					if(PsndOut == 0 && currentConfig.Frameskip >= 0) {
 						frames_done = frames_shown = 0;
 					} else {
 						// it is quite common for this implementation to leave 1 fame unfinished
@@ -278,8 +267,10 @@ static void TargetEpocGameL()
 
 
 				lim_time = (frames_done+1) * target_frametime;
-				if(currentConfig->iFrameskip >= 0) { // frameskip enabled
-					for(i = 0; i < currentConfig->iFrameskip; i++) {
+				if (currentConfig.Frameskip >= 0) // frameskip enabled
+				{
+					for (i = 0; i < currentConfig.Frameskip && gamestate == PGS_Running; i++)
+					{
 						CGameWindow::DoKeys();
 						SkipFrame(); frames_done++;
 						if (PsndOut) { // do framelimitting if sound is enabled
@@ -291,12 +282,16 @@ static void TargetEpocGameL()
 						}
 						lim_time += target_frametime;
 					}
-				} else if(tval.tv_usec > lim_time) { // auto frameskip
+				}
+				else if(tval.tv_usec > lim_time) { // auto frameskip
 					// no time left for this frame - skip
 					CGameWindow::DoKeys();
 					SkipFrame(); frames_done++;
 					continue;
 				}
+
+				// we might have lost focus already
+				if (gamestate != PGS_Running) break;
 
 				CGameWindow::DoKeys();
 				PicoFrame();
@@ -306,7 +301,7 @@ static void TargetEpocGameL()
 				if(thissec != tval.tv_sec) tval.tv_usec+=1000000;
 
 				// sleep if we are still too fast
-				if(PsndOut != 0 || currentConfig->iFrameskip < 0)
+				if(PsndOut != 0 || currentConfig.Frameskip < 0)
 				{
 					// TODO: check if User::After() is accurate
 					gettimeofday(&tval, 0);
@@ -324,18 +319,36 @@ static void TargetEpocGameL()
 					vidDrawFrame(notice, buff, frames_shown);
 
 				frames_done++; frames_shown++;
-			}
+			} // while
+
+			if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
 
 			// save SRAM
-			if((currentConfig->iFlags & 1) && SRam.changed) {
-				saveLoadGame(0, 1);
+			if ((currentConfig.EmuOpt & EOPT_USE_SRAM) && SRam.changed) {
+				emu_SaveLoadGame(0, 1);
 				SRam.changed = 0;
 			}
+			CPolledActiveScheduler::Instance()->Schedule();
 			CGameWindow::FreeResources();
-		} else if(gamestate == PGS_Paused) {
+		}
+		else if(gamestate == PGS_ReloadRom)
+		{
+			loadrom_result = emu_ReloadRom(loadrom_fname);
+			pico_was_reset = 1;
+			if (loadrom_result)
+				gamestate = PGS_Running;
+			else
+				gamestate = PGS_Paused;
+			DEBUGPRINT(_L("done loading ROM, retval=%i"), loadrom_result);
+			loadWaitSemaphore.Signal();
+			User::After(50000);
+		}
+		else if(gamestate == PGS_Paused) {
 			DEBUGPRINT(_L("pausing.."));
 			pauseSemaphore.Wait();
-		} else if(gamestate == PGS_KeyConfig) {
+		}
+		else if(gamestate == PGS_KeyConfig)
+		{
 			// switch context to other thread
 			User::After(50000);
 			// prepare window and stuff
@@ -364,6 +377,10 @@ static void TargetEpocGameL()
 		}
 	}
 
+	// this thread has to close it's own handles,
+	// other one will crash trying to do that
+	PicoExit();
+
 	MainExit();
 }
 
@@ -373,9 +390,6 @@ static void MainInit()
 {
 	DEBUGPRINT(_L("\r\n\r\nstarting.."));
 
-	// our thread might have been crashed previously, so many other objects may be still floating around
-	MainOldCleanup();
-
 	DEBUGPRINT(_L("CPolledActiveScheduler::NewL()"));
 	CPolledActiveScheduler::NewL(); // create Polled AS for the sound engine
 
@@ -384,8 +398,7 @@ static void MainInit()
 	DumpMemInfo();
 
 	// try to start pico
-	DEBUGPRINT(_L("PicoInit();"));
-	PicoInit();
+	DEBUGPRINT(_L("PicoInit()"));
 	PicoDrawSetColorFormat(2);
 	PicoWriteSound = updateSound;
 
@@ -403,33 +416,12 @@ static void MainExit()
 
 	DEBUGPRINT(_L("%i: cleaning up.."), (TInt32) thisThread.Id());
 
-	// save SRAM
-	if((currentConfig->iFlags & 1) && SRam.changed) {
-		saveLoadGame(0, 1);
-		SRam.changed = 0;
-	}
-
-	PicoExit();
 //	pauseSemaphore.Close();
 
 	if(gameAudio) delete gameAudio;
 
 	// Polled AS
 	delete CPolledActiveScheduler::Instance();
-}
-
-void MainOldCleanup()
-{
-	DEBUGPRINT(_L("MainOldCleanup.."));
-
-	// There was previously a handle leak here, so thread stuff was not cleaned
-	// and I thought I would have to do it mself.
-
-	// clean any resources which might be left after a thread crash
-	//CGameWindow::FreeResources(ETrue);
-
-	//if(CPolledActiveScheduler::Instance())
-	//	delete CPolledActiveScheduler::Instance();
 }
 
 static void DumpMemInfo()
@@ -444,12 +436,20 @@ static void DumpMemInfo()
 }
 
 
+extern "C" TInt my_SetExceptionHandler(TInt, TExceptionHandler, TUint32);
+
 TInt EmuThreadFunction(TAny*)
 {
+	TInt ret;
 	const TUint32 exs = KExceptionAbort|KExceptionKill|KExceptionUserInterrupt|KExceptionFpe|KExceptionFault|KExceptionInteger|KExceptionDebug;
 	
-	DEBUGPRINT(_L("EmuThreadFunction()"));
-	User::SetExceptionHandler(ExceptionHandler, exs/*(TUint32) -1*/); // does not work?
+	DEBUGPRINT(_L("EmuThreadFunction(), def ExceptionHandler %08x, my %08x"),
+		User::ExceptionHandler(), ExceptionHandler);
+	User::SetJustInTime(1);
+	ret = User::SetExceptionHandler(ExceptionHandler, exs/*(TUint32) -1*/); // does not work :(
+	// my_SetExceptionHandler(KCurrentThreadHandle, ExceptionHandler, 0xffffffff);
+	DEBUGPRINT(_L("SetExceptionHandler %i, %08x"), ret, User::ExceptionHandler());
+	User::ModifyExceptionMask(0, exs);
 
 	//TInt pc, sp;
 	//asm volatile ("str pc, %0" : "=m" (pc) );
@@ -479,7 +479,7 @@ TInt EmuThreadFunction(TAny*)
 
 	TRAPD(error, TargetEpocGameL());
 
-	__ASSERT_ALWAYS(!error, User::Panic(_L("Picosmall"), error));
+	__ASSERT_ALWAYS(!error, User::Panic(_L("PicoDrive"), error));
 	delete cleanup;
 
 	DEBUGPRINT(_L("exitting.."));	
@@ -586,17 +586,19 @@ void CGameWindow::ConstructResourcesL()
 	// try to start the audio engine
 	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 
-	if(gamestate == PGS_Running && (currentConfig->iFlags & 4)) {
+	if (gamestate == PGS_Running && (currentConfig.EmuOpt & EOPT_EN_SOUND))
+	{
 		TInt err = 0;
 		if(PsndRate != PsndRate_old || (PicoOpt&11) != (PicoOpt_old&11) || Pico.m.pal != pal_old) {
 			// if rate changed, reset all enabled chips, else reset only those chips, which were recently enabled
 			//sound_reset(PsndRate != PsndRate_old ? PicoOpt : (PicoOpt&(PicoOpt^PicoOpt_old)));
-			sound_rerate();
+			PsndRerate(1);
 		}
 		if(!gameAudio || PsndRate != PsndRate_old || ((PicoOpt&8) ^ (PicoOpt_old&8)) || Pico.m.pal != pal_old) { // rate or stereo or pal/ntsc changed
 			if(gameAudio) delete gameAudio; gameAudio = 0;
 			DEBUGPRINT(_L("starting audio: %i len: %i stereo: %i, pal: %i"), PsndRate, PsndLen, PicoOpt&8, Pico.m.pal);
-			TRAP(err, gameAudio = CGameAudioMS::NewL(PsndRate, (PicoOpt&8) ? 1 : 0, Pico.m.pal ? 50 : 60));
+			TRAP(err, gameAudio = CGameAudioMS::NewL(PsndRate, (PicoOpt&8) ? 1 : 0,
+						Pico.m.pal ? 50 : 60, currentConfig.volume));
 		}
 		if( gameAudio) {
 			TRAP(err, PsndOut = gameAudio->ResumeL());
@@ -678,11 +680,6 @@ void CGameWindow::FreeResources()
 	}
 	
 	vidFree();
-
-	// emu might change renderer by itself, so we may need to sync config
-	if(currentConfig && currentConfig->iPicoOpt != PicoOpt) {
-		currentConfig->iFlags |= 0x80;
-	}
 }
 
 
@@ -708,7 +705,7 @@ void CGameWindow::DoKeys(void)
 				const TPicoAreaConfigEntry *e = areaConfig + 1;
 				for(i = 0; !e->rect.IsEmpty(); e++, i++)
 					if(e->rect.Contains(p)) {
-						areaActions = currentConfig->iAreaBinds[i];
+						areaActions = currentConfig.KeyBinds[i+256];
 						break;
 					}
 				//DEBUGPRINT(_L("pointer event: %i %i"), p.iX, p.iY);
@@ -767,7 +764,7 @@ void CGameWindow::DoKeys(void)
 		for(i = 9; i >= 0; i--) {
 			int scan = pressedKeys[i];
 			if(scan) {
-				if(keyFlags[scan] & 1) allActions |= currentConfig->iKeyBinds[scan];
+				if(keyFlags[scan] & 1) allActions |= currentConfig.KeyBinds[scan];
 				if((keyFlags[scan]& 3)==3) forceUpdate = 1;
 				if(keyFlags[scan] & 2) keyFlags[scan] &= ~1;
 			}
@@ -807,7 +804,7 @@ void CGameWindow::DoKeysConfig(TUint &which)
 					const TPicoAreaConfigEntry *e = areaConfig + 1;
 					for(i = 0; e->rect != TRect(0,0,0,0); e++, i++)
 						if(e->rect.Contains(p)) {
-							currentConfig->iAreaBinds[i] ^= currentActCode;
+							currentConfig.KeyBinds[i+256] ^= currentActCode;
 							break;
 						}
 				}
@@ -822,7 +819,7 @@ void CGameWindow::DoKeysConfig(TUint &which)
 				if(which == 31) {
 					gamestate = PGS_Paused;
 				} else if (scan < 256) {
-					if(!(keyFlags[scan]&0x40)) currentConfig->iKeyBinds[scan] ^= currentActCode;
+					if(!(keyFlags[scan]&0x40)) currentConfig.KeyBinds[scan] ^= currentActCode;
 				}
 			}
 
@@ -844,22 +841,22 @@ void CGameWindow::DoKeysConfig(TUint &which)
 
 void CGameWindow::RunEvents(TUint32 which)
 {
-	if(which & 0x4000) currentConfig->iFrameskip = -1;
-	if(which & 0x2000) currentConfig->iFrameskip =  8;
-	if(which & 0x1800) { // save or load (but not both)
+	if (which & 0x4000) currentConfig.Frameskip = -1;
+	if (which & 0x2000) currentConfig.Frameskip =  8;
+	if (which & 0x1800) { // save or load (but not both)
 		if(PsndOut) gameAudio->Pause(); // this may take a while, so we pause sound output
 
 		vidDrawNotice((which & 0x1000) ? "LOADING@GAME" : "SAVING@GAME");
-		saveLoadGame(which & 0x1000);
+		emu_SaveLoadGame(which & 0x1000, 0);
 
 		if(PsndOut) PsndOut = gameAudio->ResumeL();
 		reset_timing = 1;
 	}
-	if(which & 0x0400) gamestate = PGS_Paused;
-	if(which & 0x0200) { // switch renderer
-		if(!(currentConfig->iScreenMode == TPicoConfig::PMFit &&
-			(currentConfig->iScreenRotation == TPicoConfig::PRot0 || currentConfig->iScreenRotation == TPicoConfig::PRot180))) {
-
+	if (which & 0x0400) gamestate = PGS_Paused;
+	if (which & 0x0200) { // switch renderer
+		if (!(currentConfig.scaling == TPicoConfig::PMFit &&
+			(currentConfig.rotation == TPicoConfig::PRot0 || currentConfig.rotation == TPicoConfig::PRot180)))
+		{
 			PicoOpt^=0x10;
 			vidInit(0, 1);
 
@@ -878,111 +875,20 @@ void CGameWindow::RunEvents(TUint32 which)
 		sprintf(noticeMsg, "SAVE@SLOT@%i@SELECTED", state_slot);
 		gettimeofday(&noticeMsgTime, 0);
 	}
-	if(which & 0x0020) if(gameAudio) gameAudio->ChangeVolume(0);
-	if(which & 0x0010) if(gameAudio) gameAudio->ChangeVolume(1);
+	if(which & 0x0020) if(gameAudio) currentConfig.volume = gameAudio->ChangeVolume(0);
+	if(which & 0x0010) if(gameAudio) currentConfig.volume = gameAudio->ChangeVolume(1);
 }
 
 
-// must use wrappers, or else will run into some weird loader error (see pico/area.c)
-static size_t fRead2(void *p, size_t _s, size_t _n, void *file)
+extern "C" void emu_noticeMsgUpdated(void)
 {
-	return fread(p, _s, _n, (FILE *) file);
-}
-
-static size_t fWrite2(void *p, size_t _s, size_t _n, void *file)
-{
-	return fwrite(p, _s, _n, (FILE *) file);
-}
-
-static size_t gzRead2(void *p, size_t, size_t _n, void *file)
-{
-	return gzread(file, p, _n);
-}
-
-static size_t gzWrite2(void *p, size_t, size_t _n, void *file)
-{
-	return gzwrite(file, p, _n);
-}
-
-
-// this function is shared between both threads
-int saveLoadGame(int load, int sram)
-{
-	int res = 0;
-
-	if(!RomFileName) return -1;
-
-	// make save filename
-	char saveFname[KMaxFileName];
-	strcpy(saveFname, RomFileName);
-	saveFname[KMaxFileName-8] = 0;
-	if(saveFname[strlen(saveFname)-4] == '.') saveFname[strlen(saveFname)-4] = 0;
-	if(sram) strcat(saveFname, ".srm");
-	else {
-		if(state_slot > 0 && state_slot < 10) sprintf(saveFname, "%s.%i", saveFname, state_slot);
-		strcat(saveFname, ".mds");
+	char *p = noticeMsg;
+	while (*p) {
+		if (*p == ' ') *p = '@';
+		if (*p < '0' || *p > 'Z') { *p = 0; break; }
+		p++;
 	}
-
-	DEBUGPRINT(_L("saveLoad (%i, %i): %S"), load, sram, DO_CONV(saveFname));
-
-	if(sram) {
-		FILE *sramFile;
-		int sram_size = SRam.end-SRam.start+1;
-		if(SRam.reg_back & 4) sram_size=0x2000;
-		if(!SRam.data) return 0; // SRam forcefully disabled for this game
-		if(load) {
-			sramFile = fopen(saveFname, "rb");
-			if(!sramFile) return -1;
-			fread(SRam.data, 1, sram_size, sramFile);
-			fclose(sramFile);
-		} else {
-			// sram save needs some special processing
-			// see if we have anything to save
-			for(; sram_size > 0; sram_size--)
-				if(SRam.data[sram_size-1]) break;
-			
-			if(sram_size) {
-				sramFile = fopen(saveFname, "wb");
-				res = fwrite(SRam.data, 1, sram_size, sramFile);
-				res = (res != sram_size) ? -1 : 0;
-				fclose(sramFile);
-			}
-		}
-		return res;
-	} else {
-		void *PmovFile = NULL;
-		// try gzip first
-		if(currentConfig->iFlags & 0x80) {
-			strcat(saveFname, ".gz");
-			if( (PmovFile = gzopen(saveFname, load ? "rb" : "wb")) ) {
-				areaRead  = gzRead2;
-				areaWrite = gzWrite2;
-				if(!load) gzsetparams(PmovFile, 9, Z_DEFAULT_STRATEGY);
-			} else
-				saveFname[strlen(saveFname)-3] = 0;
-		}
-		if(!PmovFile) { // gzip failed or was disabled
-			if( (PmovFile = fopen(saveFname, load ? "rb" : "wb")) ) {
-				areaRead  = fRead2;
-				areaWrite = fWrite2;
-			}
-		}
-		if(PmovFile) {
-			PmovState(load ? 6 : 5, PmovFile); // load/save
-			strcpy(noticeMsg, load ? "GAME@LOADED" : "GAME@SAVED");
-			if(areaRead == gzRead2)
-				 gzclose(PmovFile);
-			else fclose ((FILE *) PmovFile);
-			PmovFile = 0;
-			if (load) Pico.m.dirtyPal=1;
-		} else {
-			strcpy(noticeMsg, load ? "LOAD@FAILED" : "SAVE@FAILED");
-			res = -1;
-		}
-
-		gettimeofday(&noticeMsgTime, 0);
-		return res;
-	}
+	gettimeofday(&noticeMsgTime, 0);
 }
 
 // static class members

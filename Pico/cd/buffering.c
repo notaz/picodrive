@@ -12,7 +12,7 @@ static int hits, reads;
 
 void PicoCDBufferInit(void)
 {
-	void *tmp;
+	void *tmp = NULL;
 
 	prev_lba = 0x80000000;
 	hits = reads = 0;

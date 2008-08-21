@@ -52,13 +52,13 @@ int pico_main(void)
 #ifndef GPROF
 				menu_loop();
 #else
-				strcpy(romFileName, lastRomFile);
+				strcpy(romFileName, loadedRomFName);
 				engineState = PGS_ReloadRom;
 #endif
 				break;
 
 			case PGS_ReloadRom:
-				if (emu_ReloadRom()) {
+				if (emu_ReloadRom(romFileName)) {
 					engineState = PGS_Running;
 					if (mp3_last_error != 0)
 						engineState = PGS_Menu; // send to menu to display mp3 error

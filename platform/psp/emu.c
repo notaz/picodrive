@@ -54,9 +54,10 @@ void emu_noticeMsgUpdated(void)
 	noticeMsgTime = sceKernelGetSystemTimeLow();
 }
 
-void emu_getMainDir(char *dst, int len)
+int emu_getMainDir(char *dst, int len)
 {
 	if (len > 0) *dst = 0;
+	return 0;
 }
 
 static void osd_text(int x, const char *text, int is_active, int clear_all)
@@ -153,16 +154,6 @@ void emu_prepareDefaultConfig(void)
 	defaultConfig.hscale40 = 1.25;
 	defaultConfig.hscale32 = 1.56;
 	defaultConfig.turbo_rate = 15;
-}
-
-void emu_setDefaultConfig(void)
-{
-	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
-	PicoOpt = currentConfig.s_PicoOpt;
-	PsndRate = currentConfig.s_PsndRate;
-	PicoRegionOverride = currentConfig.s_PicoRegion;
-	PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
-	PicoCDBuffers = currentConfig.s_PicoCDBuffers;
 }
 
 

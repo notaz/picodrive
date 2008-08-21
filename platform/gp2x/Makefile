@@ -44,16 +44,17 @@ endif
 ifeq "$(profile)" "2"
 COPT_COMMON += -fprofile-use
 endif
-COPT = $(COPT_COMMON) -mtune=arm920t
-ASOPT = -mcpu=arm920t -mfloat-abi=soft
-GCC = $(CROSS)gcc
+CFLAGS = $(COPT_COMMON) -mcpu=arm920t -mtune=arm920t
+SFLAGS = $(CFLAGS)
+ASFLAGS = -mcpu=arm920t -mfloat-abi=soft
+CC = $(CROSS)gcc
 STRIP = $(CROSS)strip
 AS = $(CROSS)as
 LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += main.o menu.o gp2x.o usbjoy.o emu.o squidgehack.o cpuctrl.o
+OBJS += main.o menu.o gp2x.o usbjoy.o emu.o squidgehack.o cpuctrl.o asm_utils.o
 # 940 core control
 OBJS += 940ctl.o
 
@@ -149,7 +150,7 @@ all: mkdirs PicoDrive.gpe
 
 PicoDrive.gpe : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
 	@echo ">>>" $@
-	$(GCC) -o $@ $(COPT) $^ -lm -lpng -Wl,-Map=PicoDrive.map
+	$(CC) -o $@ $(CFLAGS) $^ -lm -lpng -Wl,-Map=PicoDrive.map
 ifeq ($(DEBUG),)
 	$(STRIP) $@
 endif
@@ -168,75 +169,10 @@ tidy:
 #	@make -C ../../cpu/Cyclone/proj -f Makefile.linux clean
 
 
-clean_prof:
-	find ../.. -name '*.gcno' -delete
-	find ../.. -name '*.gcda' -delete
-
-
-mkdirs:
-	mkdir -p $(DIRS)
-
-.c.o:
-	@echo ">>>" $<
-	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
-.s.o:
-	@echo ">>>" $<
-	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
-.S.o:
-	@echo ">>>" $<
-	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
-
-Pico/carthw/svp/compiler.o : ../../Pico/carthw/svp/ssp16.o ../../Pico/carthw/svp/gen_arm.c
-
-Pico/draw_asm.o : ../../Pico/Draw.s
-	@echo ">>>" $<
-	$(AS) $(ASOPT) $< -o $@
-Pico/draw2_asm.o : ../../Pico/Draw2.s
-	@echo ">>>" $<
-	$(AS) $(ASOPT) $< -o $@
-Pico/memory_asm.o : ../../Pico/Memory.s
-	@echo ">>>" $<
-	$(AS) $(ASOPT) $< -o $@
-Pico/sound/ym2612_asm.o : ../../Pico/sound/ym2612.s
-	@echo ">>>" $<
-	$(AS) $(ASOPT) $< -o $@
-Pico/sound/mix_asm.o : ../../Pico/sound/mix.s
-	@echo ">>>" $<
-	$(AS) $(ASOPT) $< -o $@
-Pico/misc_asm.o : ../../Pico/Misc.s
-	@echo ">>>" $<
-	$(AS) $(ASOPT) $< -o $@
-Pico/cd/pico_asm.o : ../../Pico/cd/Pico.s
-	@echo ">>>" $<
-	$(AS) $(ASOPT) $< -o $@
-Pico/cd/memory_asm.o : ../../Pico/cd/Memory.s
-	@echo ">>>" $<
-	$(AS) $(ASOPT) $< -o $@
-Pico/cd/misc_asm.o : ../../Pico/cd/Misc.s
-	@echo ">>>" $<
-	$(AS) $(ASOPT) $< -o $@
-
-# build Cyclone
-../../cpu/Cyclone/proj/Cyclone.s :
-	@echo building Cyclone...
-	@make -C ../../cpu/Cyclone/proj CONFIG_FILE=config_pico.h
-
-../../cpu/musashi/m68kops.c :
-	@make -C ../../cpu/musashi
-
-Pico/Pico.o Pico/cd/Pico.o: ../../Pico/PicoFrameHints.c ../../Pico/PicoInt.h
-Pico/Memory.o Pico/cd/Memory.o : ../../Pico/MemoryCmn.c ../../Pico/PicoInt.h
-
-# build helix libs
-../common/helix/$(CROSS)helix-mp3.a:
-	make -C ../common/helix clean all
-
 readme.txt: ../../tools/textfilter ../base_readme.txt
 	../../tools/textfilter ../base_readme.txt $@ GP2X
 
-../../tools/textfilter: ../../tools/textfilter.c
-	make -C ../../tools/ textfilter
-
+include ../common/common_arm.mak
 
 # ----------- release -----------
 ifneq ($(findstring rel,$(MAKECMDGOALS)),)

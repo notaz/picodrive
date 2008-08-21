@@ -28,8 +28,9 @@ ifeq "$(profile)" "2"
 COPT_COMMON += -fprofile-use
 endif
 CFLAGS = $(COPT_COMMON) -mcpu=arm920t -mtune=arm920t
+SFLAGS = $(CFLAGS)
 ASFLAGS = -mcpu=arm920t -mfloat-abi=soft
-GCC = $(CROSS)gcc
+CC = $(CROSS)gcc
 STRIP = $(CROSS)strip
 AS = $(CROSS)as
 LD = $(CROSS)ld
@@ -115,7 +116,7 @@ all: mkdirs PicoDrive.exe readme.txt
 
 PicoDrive.exe : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
 	@echo ">>>" $@
-	$(GCC) -o $@ -static $(CFLAGS) $^ -lm -lpng -Lkgsdk/ -lKGSDK -Wl,-Map=PicoDrive.map \
+	$(CC) -o $@ -static $(CFLAGS) $^ -lm -lpng -Lkgsdk/ -lKGSDK -Wl,-Map=PicoDrive.map \
 		2>&1 | grep -v ".idata$$4" # | grep -v "supports interworking, whereas"
 ifeq ($(DEBUG),)
 	$(STRIP) $@
@@ -125,66 +126,10 @@ ifeq "$(profile)" "1"
 endif
 
 
-.c.o:
-	@echo ">>>" $<
-	$(GCC) $(CFLAGS) $(DEFINC) -c $< -o $@
-#.s.o:
-#	@echo $<
-#	$(GCC) $(CFLAGS) $(DEFINC) -c $< -o $@
-
-mkdirs:
-	mkdir -p $(DIRS)
-
-Pico/carthw/svp/compiler.o : ../../Pico/carthw/svp/ssp16.o ../../Pico/carthw/svp/gen_arm.c
-
-Pico/draw_asm.o : ../../Pico/Draw.s
-	@echo ">>>" $@
-	@$(AS) $(ASFLAGS) $< -o $@
-Pico/draw2_asm.o : ../../Pico/Draw2.s
-	@echo ">>>" $@
-	@$(AS) $(ASFLAGS) $< -o $@
-Pico/memory_asm.o : ../../Pico/Memory.s
-	@echo ">>>" $@
-	@$(AS) $(ASFLAGS) $< -o $@
-Pico/sound/ym2612_asm.o : ../../Pico/sound/ym2612.s
-	@echo ">>>" $@
-	@$(AS) $(ASFLAGS) $< -o $@
-Pico/sound/mix_asm.o : ../../Pico/sound/mix.s
-	@echo ">>>" $@
-	@$(AS) $(ASFLAGS) $< -o $@
-Pico/misc_asm.o : ../../Pico/Misc.s
-	@echo ">>>" $@
-	@$(AS) $(ASFLAGS) $< -o $@
-Pico/cd/pico_asm.o : ../../Pico/cd/Pico.s
-	@echo ">>>" $@
-	@$(AS) $(ASFLAGS) $< -o $@
-Pico/cd/memory_asm.o : ../../Pico/cd/Memory.s
-	@echo ">>>" $@
-	@$(AS) $(ASFLAGS) $< -o $@
-Pico/cd/misc_asm.o : ../../Pico/cd/Misc.s
-	@echo ">>>" $@
-	@$(AS) $(ASFLAGS) $< -o $@
-Pico/carthw/svp/stub_arm.o : ../../Pico/carthw/svp/stub_arm.S
-	@echo ">>>" $@
-	$(GCC) $(CFLAGS) $(DEFINC) -c $< -o $@
-
-# build Cyclone
-cpu/Cyclone/proj/Cyclone.s:
-	@echo building Cyclone...
-	@make -C ../../cpu/Cyclone/proj CONFIG_FILE=config_pico.h
-
-Pico/Pico.o Pico/cd/Pico.o: ../../Pico/PicoFrameHints.c ../../Pico/PicoInt.h
-Pico/Memory.o Pico/cd/Memory.o : ../../Pico/MemoryCmn.c ../../Pico/PicoInt.h
-
-# build helix libs
-../common/helix/$(CROSS)helix-mp3.a:
-	make -C ../common/helix clean all
-
 readme.txt: ../../tools/textfilter ../base_readme.txt
 	../../tools/textfilter ../base_readme.txt $@ GIZ
 
-../../tools/textfilter: ../../tools/textfilter.c
-	make -C ../../tools/ textfilter
+include ../common/common_arm.mak
 
 
 # cleanup
@@ -193,10 +138,6 @@ clean: tidy
 tidy:
 	@$(RM) $(OBJS)
 
-
-clean_prof:
-	find ../.. -name '*.gcno' -delete
-	find ../.. -name '*.gcda' -delete
 
 up: PicoDrive.exe
 	synce-pcp -d 3 PicoDrive.exe ":/SD Card/emus/PicoDrive/PicoDrive.exe"

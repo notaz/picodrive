@@ -3,7 +3,7 @@ NAME PCDR
 #include <eikon.rh>
 #include <eikon.rsg>
 #include <qikon.rh>
-#include <QikCommand.rh>
+#include <qikcommand.rh>
 #include "picodrive.hrh"
 
 
@@ -89,7 +89,7 @@ RESOURCE QIK_COMMAND_LIST r_app_commands
 		QIK_COMMAND { id=EEikCmdPicoSettings;      text="Settings";       type=EQikCommandTypeScreen; namedGroupId=EEikCmdPicoConfig; },
 		QIK_COMMAND { id=EEikCmdHelpAbout;         text="About";          type=EQikCommandTypeScreen; namedGroupId=EEikCmdPicoConfig; },
 
-		QIK_COMMAND { id=EEikCmdPicoLoadROM;       text="Load new ROM";   type=EQikCommandTypeScreen; groupId=EEikCmdPicoResume; },
+		QIK_COMMAND { id=EEikCmdPicoLoadROM;       text="Load new ROM/ISO";type=EQikCommandTypeScreen; groupId=EEikCmdPicoResume; },
 		QIK_COMMAND { id=EEikCmdPicoReset;         text="Reset game";     type=EQikCommandTypeScreen; groupId=EEikCmdPicoResume; },
 		QIK_COMMAND { id=EEikCmdPicoLoadState;     text="Load state";     type=EQikCommandTypeScreen; groupId=EEikCmdPicoResume; },
 		QIK_COMMAND { id=EEikCmdPicoSaveState;     text="Save state";     type=EQikCommandTypeScreen; groupId=EEikCmdPicoResume; },
@@ -138,6 +138,12 @@ RESOURCE ARRAY r_pico_config_pages
       },
       PAGE
       {
+         id    = ECtlOptPageMCD;
+         text  = "MegaCD";
+         lines = r_pico_config_page_mcd;
+      },
+      PAGE
+      {
          id    = ECtlOptPageMisc;
          text  = "Misc";
          lines = r_pico_config_page_misc;
@@ -151,7 +157,7 @@ RESOURCE ARRAY r_pico_config_page_main
    items = {
       DLG_LINE
       {
-	      id      = ECtlOptRotationLabel;
+          id      = ECtlOptRotationLabel;
           type    = EEikCtLabel;
           prompt  = "Screen Rotation";
           control = LABEL { horiz_align = EEikLabelAlignHLeft; };
@@ -167,7 +173,7 @@ RESOURCE ARRAY r_pico_config_page_main
       },
       DLG_LINE
       {
-	      id      = ECtlOptScreenModeLabel;
+          id      = ECtlOptScreenModeLabel;
           type    = EEikCtLabel;
           prompt  = "Screen Mode";
           control = LABEL { horiz_align = EEikLabelAlignHLeft; };
@@ -186,18 +192,6 @@ RESOURCE ARRAY r_pico_config_page_main
          id     = ECtlOptUseAltRend;
          type   = EEikCtCheckBox;
          prompt = "Fast renderer (inaccurate)";
-      },
-      DLG_LINE
-      {
-         id     = ECtlOptUseAccTiming;
-         type   = EEikCtCheckBox;
-         prompt = "Accurate timing (slower)";
-      },
-      DLG_LINE
-      {
-         id     = ECtlOptUseAccSprites;
-         type   = EEikCtCheckBox;
-         prompt = "Accurate sprites (slower)";
       },
       DLG_LINE
       {
@@ -220,7 +214,7 @@ RESOURCE ARRAY r_pico_config_page_sound
       },
       DLG_LINE
       {
-	     id      = ECtlOptChipSelLabel;
+         id      = ECtlOptChipSelLabel;
          type    = EEikCtLabel;
          prompt  = "Emulate these sound chips:";
          control = LABEL { horiz_align = EEikLabelAlignHLeft; };
@@ -245,7 +239,7 @@ RESOURCE ARRAY r_pico_config_page_sound
       },
       DLG_LINE
       {
-	     id      = ECtlOptSndQLabel;
+         id      = ECtlOptSndQLabel;
          type    = EEikCtLabel;
          prompt  = "Quality (lowest is fastest)";
          control = LABEL { horiz_align = EEikLabelAlignHLeft; };
@@ -257,6 +251,43 @@ RESOURCE ARRAY r_pico_config_page_sound
          prompt  = "";
          control = CHOICELIST { array_id = r_pico_config_snd_quality; };
          itemflags = EEikDlgItemNonFocusing;
+      }
+   };
+}
+
+
+RESOURCE ARRAY r_pico_config_page_mcd
+{
+   items = {
+      DLG_LINE
+      {
+         id     = ECtlOptCDcdda;
+         type   = EEikCtCheckBox;
+         prompt = "CDDA audio";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptCDpcm;
+         type   = EEikCtCheckBox;
+         prompt = "PCM audio";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptCDramcart;
+         type   = EEikCtCheckBox;
+         prompt = "SaveRAM cart";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptCDscalerot;
+         type   = EEikCtCheckBox;
+         prompt = "Scale/Rot. fx (slow)";
+      },
+      DLG_LINE
+      {
+         id     = ECtlOptCDbettersync;
+         type   = EEikCtCheckBox;
+         prompt = "Better sync (slow)";
       }
    };
 }
@@ -449,7 +480,7 @@ RESOURCE TBUF r_pico_text_about
 		"<p><s=6> <p><f=Corinna><s=12>Version %S, by notaz."\
 		"<p><s=5> <p><s=10>Port based on UIQ2 version, which is based on PicoDrive 0.030 for Pocket PC by Dave"\
 		"<p><s=5> <p><f=Corinna><s=11><u>Email</u>: notasas@gmail.com"\
-		"<p><f=Corinna><s=10><u>Web</u>: http://notaz.atspace.com"\
+		"<p><f=Corinna><s=10><u>Web</u>: http://notaz.gp2x.de"\
 		"<p><f=Corinna><s=10><u>Dave's Web</u>: http://www.finalburn.com";
 }
 
@@ -557,17 +588,22 @@ RESOURCE ARRAY r_pico_tbuf_credits
 	LBUF{txt="- DrZ80, the Z80 emulator written in ARM assembly.";},
 	LBUF{txt="Homepage: http://reesy.gp32x.de/";},
 	LBUF{txt="";},
-	LBUF{txt="Tatsuyuki Satoh, Jarek Burczynski, MultiArcadeMachineEmulator (MAME) development";},
+	LBUF{txt="MultiArcadeMachineEmulator (MAME) development";},
 	LBUF{txt="- software implementation of Yamaha FM sound generator and";},
 	LBUF{txt="Texas Instruments SN76489 / SN76496 programmable tone / noise generator";},
 	LBUF{txt="Homepage: http://www.mame.net/";},
+	LBUF{txt="";},
+	LBUF{txt="Helix community";},
+	LBUF{txt="Helix mp3 decoder";},
 	LBUF{txt="";},
 	LBUF{txt="Additional thanks:";},
 	LBUF{txt="- Charles MacDonald (http://cgfm2.emuviews.com/) for old but still very useful info about genesis hardware.";},
 	LBUF{txt="- Stéphane Dallongeville for creating Gens and making it open-source.";},
 	LBUF{txt="- Steve Snake for all that he has done for Genesis emulation scene.";},
+	LBUF{txt="- Tasco Deluxe for his reverse engineering work on SVP and some mappers.";},
 	LBUF{txt="- Bart Trzynadlowski for his SSFII and 68000 docs.";},
-	LBUF{txt="- Maze for his research (http://haze.mameworld.info).";},
+	LBUF{txt="- Haze for his research (http://haze.mameworld.info).";},
+	LBUF{txt="- Lordus, Exophase and Rokas for various ideas.";},
 	LBUF{txt="- Mark and Jean-loup for zlib library.";},
 	LBUF{txt="- Peter van Sebille for his various open-source Symbian projects to learn from.";},
 	LBUF{txt="- Steve Fischer for his open-source Motorola projects.";},

@@ -12,9 +12,9 @@
  *
  *******************************************************************/
 
-#include "app.h"
+#include "App.h"
 // #include "picodriven.mbg" // bitmap identifiers
-#include <PicoDrive.RSG> // resource include
+#include "rsc/picodrive.rsg" // resource include
 #include <eikenv.h>
 #include <qbtselectdlg.h>
 //#include <gulutil.h>
@@ -25,14 +25,15 @@
 #include <eikedwin.h>
 #include <s32strm.h>
 
-#include <QikAppUi.h>
-#include <QikEditCategoryObserver.h>
-#include <QikSelectFileDlg.h>
-#include <QikCommand.h>
+#include <qikappui.h>
+#include <qikeditcategoryobserver.h>
+#include <qikselectfiledlg.h>
+#include <qikcommand.h>
 
 #include "Dialogs.h"
 #include "engine/debug.h"
-
+#include "../common/emu.h"
+#include "emu.h"
 
 
 ////////////////////////////////////////////////////////////////
@@ -161,37 +162,37 @@ void CPicolAppView::HandleCommandL(CQikCommand& aCommand)
 			break;
 
 		case EEikCmdPicoFrameskipAuto:
-			iCurrentConfig.iFrameskip = TPicoConfig::PFSkipAuto;
-			iQikAppUi.Document()->SaveL();
+			currentConfig.Frameskip = -1;
+			emu_WriteConfig(0);
 			break;
 
 		case EEikCmdPicoFrameskip0:
-			iCurrentConfig.iFrameskip = 0;
-			iQikAppUi.Document()->SaveL();
+			currentConfig.Frameskip = 0;
+			emu_WriteConfig(0);
 			break;
 
 		case EEikCmdPicoFrameskip1:
-			iCurrentConfig.iFrameskip = 1;
-			iQikAppUi.Document()->SaveL();
+			currentConfig.Frameskip = 1;
+			emu_WriteConfig(0);
 			break;
 
 		case EEikCmdPicoFrameskip2:
-			iCurrentConfig.iFrameskip = 2;
-			iQikAppUi.Document()->SaveL();
+			currentConfig.Frameskip = 2;
+			emu_WriteConfig(0);
 			break;
 
 		case EEikCmdPicoFrameskip4:
-			iCurrentConfig.iFrameskip = 4;
-			iQikAppUi.Document()->SaveL();
+			currentConfig.Frameskip = 4;
+			emu_WriteConfig(0);
 			break;
 
 		case EEikCmdPicoFrameskip8:
-			iCurrentConfig.iFrameskip = 8;
-			iQikAppUi.Document()->SaveL();
+			currentConfig.Frameskip = 8;
+			emu_WriteConfig(0);
 			break;
 
 		case EEikCmdExit:
-			iQikAppUi.Document()->SaveL();
+			emu_Deinit();
 			CPicoGameSession::freeResources();
 			//break; // this is intentional
 
@@ -214,11 +215,14 @@ void CPicolAppView::DisplayOpenROMDialogL()
 	CleanupStack::PushL(fileArray);
 	_LIT16(KDlgTitle, "Select a ROM file");
 
+	TPtrC8 text8((TUint8*) loadedRomFName);
+	iCurrentConfig.iLastROMFile.Copy(text8);
+
 	if( CQikSelectFileDlg::RunDlgLD( *mimeArray, *fileArray, &KDlgTitle, &iCurrentConfig.iLastROMFile) )
 	{
 		CEikonEnv::Static()->BusyMsgL(_L("Loading ROM"));
 		TPtrC16 file = (*fileArray)[0];
-		iCurrentConfig.iLastROMFile.Copy(file);
+		//iCurrentConfig.iLastROMFile.Copy(file);
 
 		// push the config first
 		CPicoGameSession::Do(PicoMsgSetAppView, this);
@@ -271,7 +275,7 @@ void CPicolAppView::DisplayOpenROMDialogL()
 				CEikonEnv::Static()->InfoWinL(_L("Error"), _L("Failed to start soundsystem, disabled sound."));
 				break;
 		}
-		if(res == 6 || res == 7) iCurrentConfig.iFlags &= ~4;
+		if(res == 6 || res == 7) currentConfig.EmuOpt &= ~EOPT_EN_SOUND;
 
 		if(iROMLoaded) {
 			if(iTitleAdded)
@@ -287,11 +291,13 @@ void CPicolAppView::DisplayOpenROMDialogL()
 
 void CPicolAppView::DisplayConfigDialogL()
 {
-	CPicoConfigDialog* configDialog = new(ELeave)CPicoConfigDialog(iCurrentConfig);
+	CPicoConfigDialog* configDialog = new(ELeave)CPicoConfigDialog(currentConfig);
+	emu_packConfig();
 	configDialog->ExecuteLD(R_PICO_CONFIG);
+	emu_unpackConfig();
+	emu_WriteConfig(0);
 
-	CPicoGameSession::Do(PicoMsgConfigChange, &iCurrentConfig);
-	iQikAppUi.Document()->SaveL();
+	CPicoGameSession::Do(PicoMsgConfigChange, &currentConfig);
 }
 
 
@@ -311,13 +317,13 @@ void CPicolAppView::DisplayAboutDialogL()
 }
 
 #ifdef __DEBUG_PRINT
-extern "C" char *debugString();
+extern "C" char *PDebugMain();
 #endif
 
 void CPicolAppView::DisplayDebugDialogL()
 {
 #ifdef __DEBUG_PRINT
-	CDebugDialog* dialog = new (ELeave) CDebugDialog(debugString());
+	CDebugDialog* dialog = new (ELeave) CDebugDialog(PDebugMain());
 
 	dialog->PrepareLC(R_PICO_DEBUG);
 	dialog->RunLD();
@@ -348,7 +354,7 @@ void CPicolAppView::UpdateCommandList()
 	cmd_resume->SetDimmed(dimmed);
 
 	// frameskip
-	TInt fs_index = iCurrentConfig.iFrameskip + 1;
+	TInt fs_index = currentConfig.Frameskip + 1;
 	if (fs_index >= 0 && fs_index < 10 && cmd_fs[fs_index])
 	{
 		cmd_fs[fs_index]->SetChecked(ETrue);
@@ -384,7 +390,6 @@ void CPicolAppUi::ConstructL()
 CPicolDocument::CPicolDocument(CQikApplication& aApp)
 : CQikDocument(aApp)
 {
-	iCurrentConfig.SetDefaults();
 }
 
 CQikAppUi* CPicolDocument::CreateAppUiL()
@@ -397,6 +402,7 @@ Called by the framework when ::SaveL has been called.
 */
 void CPicolDocument::StoreL(CStreamStore& aStore, CStreamDictionary& aStreamDic) const
 {
+#if 0
 	RStoreWriteStream stream;
 
 	TStreamId preferenceId = stream.CreateLC(aStore);
@@ -408,7 +414,7 @@ void CPicolDocument::StoreL(CStreamStore& aStore, CStreamDictionary& aStreamDic)
 	// Ensures that any buffered data is written to aStore
 	stream.CommitL();
 	CleanupStack::PopAndDestroy(); // stream
-
+#endif
 /*
 	// tmp
 	TInt res;
@@ -427,6 +433,7 @@ Loads the application data from disk, i.e. domain data and preferences.
 */
 void CPicolDocument::RestoreL(const CStreamStore& aStore, const CStreamDictionary& aStreamDic)
 { 
+#if 0
 	// Find the stream ID of the model data from the stream dictionary:
 	TStreamId preferenceId(aStreamDic.At(KUidPicolStore));
 	RStoreReadStream stream;
@@ -438,7 +445,7 @@ void CPicolDocument::RestoreL(const CStreamStore& aStore, const CStreamDictionar
 	}
 
 	CleanupStack::PopAndDestroy(); // stream
-
+#endif
 
 	// tmp
 /*	TInt res;
@@ -475,9 +482,15 @@ TUid CPicolApplication::AppDllUid() const
 }
 
 
+extern "C" TInt my_SetExceptionHandler(TInt, TExceptionHandler, TUint32);
+
 GLDEF_C TInt E32Main()
 {
+	// doesn't work :(
 	User::SetExceptionHandler(ExceptionHandler, (TUint32) -1);
+//	my_SetExceptionHandler(KCurrentThreadHandle, ExceptionHandler, 0xffffffff);
+
+	emu_Init();
 
 	return EikStart::RunApplication(NewApplication);
 }

@@ -20,10 +20,10 @@
 #include <coemain.h>
 
 #include <qikappui.h>
-#include <QikApplication.h>
-#include <QikViewBase.h>
+#include <qikapplication.h>
+#include <qikviewbase.h>
 //#include <eikapp.h>
-#include <QikDocument.h>
+#include <qikdocument.h>
 
 #include "Engine.h"
 #include "picodrive.hrh"
@@ -41,11 +41,12 @@ const TUid KUidPicolStore    = { 0x00000011 }; // store stream UID
 //};
 
 
+extern "C" struct _currentConfig_t;
 
 class CPicolAppView : public CQikViewBase
 {
 public:
-	static CPicolAppView* NewLC(CQikAppUi& aAppUi, TPicoConfig& aCurrentConfig);
+	static CPicolAppView* NewLC(CQikAppUi& aAppUi, TPicoConfig &aCurrentConfig);
 	~CPicolAppView();
 
 	// from CQikViewBase
@@ -53,12 +54,12 @@ public:
 	void HandleCommandL(CQikCommand& aCommand);
 	void UpdateCommandList();
 
-protected: 
+protected:
 	// from CQikViewBase
 	void ViewConstructL();
-	
+
 private:
-	CPicolAppView(CQikAppUi& aAppUi, TPicoConfig& aCurrentConfig);
+	CPicolAppView(CQikAppUi& aAppUi, TPicoConfig &aCurrentConfig);
 	void ConstructL();
 
 protected:		// new stuf
@@ -71,7 +72,7 @@ protected:		// new stuf
 	void RunGameL();*/
 
 private:
-	TPicoConfig&		iCurrentConfig;
+	TPicoConfig			&iCurrentConfig;
 	TBool				iROMLoaded;
 	TBool				iTitleAdded;
 };
@@ -95,7 +96,7 @@ public:
 	void StoreL(CStreamStore& aStore, CStreamDictionary& aStreamDic) const;
 	void RestoreL(const CStreamStore& aStore, const CStreamDictionary& aStreamDic);
 
-	TPicoConfig			iCurrentConfig;
+	TPicoConfig                     iCurrentConfig;
 
 private: // from CQikDocument
 	CQikAppUi* CreateAppUiL();

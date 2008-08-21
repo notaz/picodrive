@@ -48,7 +48,6 @@ char romFileName[PATH_MAX];
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 static struct timeval noticeMsgTime = { 0, 0 };	// when started showing
 static int osd_fps_x;
-char noticeMsg[64];			// notice msg to draw
 unsigned char *PicoDraw2FB = NULL;  // temporary buffer for alt renderer
 int reset_timing = 0;
 
@@ -65,7 +64,7 @@ void emu_noticeMsgUpdated(void)
 	gettimeofday(&noticeMsgTime, 0);
 }
 
-void emu_getMainDir(char *dst, int len)
+int emu_getMainDir(char *dst, int len)
 {
 	extern char **g_argv;
 	int j;
@@ -76,6 +75,8 @@ void emu_getMainDir(char *dst, int len)
 	dst[len] = 0;
 	for (j = strlen(dst); j > 0; j--)
 		if (dst[j] == '/') { dst[j+1] = 0; break; }
+
+	return j + 1;
 }
 
 void emu_Init(void)
@@ -149,16 +150,6 @@ void emu_prepareDefaultConfig(void)
 	defaultConfig.volume = 50;
 	defaultConfig.scaling = 0;
 	defaultConfig.turbo_rate = 15;
-}
-
-void emu_setDefaultConfig(void)
-{
-	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
-	PicoOpt = currentConfig.s_PicoOpt;
-	PsndRate = currentConfig.s_PsndRate;
-	PicoRegionOverride = currentConfig.s_PicoRegion;
-	PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
-	PicoCDBuffers = currentConfig.s_PicoCDBuffers;
 }
 
 static void textOut16(int x, int y, const char *text)

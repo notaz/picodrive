@@ -5,11 +5,7 @@
 #include <ctype.h>
 #include <assert.h>
 
-#ifdef __SYMBIAN32__
-#include <ezlib.h>
-#else
 #include "zlib/zlib.h"
-#endif
 
 /* public globals */
 //int	gUnzipQuiet = 0;		/* flag controls error messages */

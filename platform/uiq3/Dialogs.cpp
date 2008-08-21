@@ -24,9 +24,10 @@
 #include <qikvertoptionbuttonlist.h> // CEikHorOptionButtonList
 #include <eikopbut.h>   // CEikOptionButton
 #include <eikedwin.h>   // CEikEdwin
-#include <QuartzKeys.h> // EQuartzKeyTwoWayDown
+#include <quartzkeys.h> // EQuartzKeyTwoWayDown
 
-#include <QikCommand.h>
+#include <qikcommand.h>
+#include "../common/emu.h"
 
 
 /************************************************
@@ -35,7 +36,7 @@
  *
  ************************************************/
 
-CPicoConfigDialog::CPicoConfigDialog(TPicoConfig &cfg) : config(cfg)
+CPicoConfigDialog::CPicoConfigDialog(_currentConfig_t &cfg) : config(cfg)
 {
 }
 
@@ -44,7 +45,7 @@ void CPicoConfigDialog::PostLayoutDynInitL()
 	CEikHorOptionButtonList *buttons_rot   = (CEikHorOptionButtonList*) Control( ECtlOptRotation );
 	CEikHorOptionButtonList *buttons_disp  = (CEikHorOptionButtonList*) Control( ECtlOptScreenMode );
 	CEikCheckBox            *chkbox_altrend= (CEikCheckBox*)            Control( ECtlOptUseAltRend );
-	CEikCheckBox            *chkbox_acctmng= (CEikCheckBox*)            Control( ECtlOptUseAccTiming );
+//	CEikCheckBox            *chkbox_acctmng= (CEikCheckBox*)            Control( ECtlOptUseAccTiming );
 	CEikCheckBox            *chkbox_sram   = (CEikCheckBox*)            Control( ECtlOptUseSRAM );
 	CEikCheckBox            *chkbox_fps    = (CEikCheckBox*)            Control( ECtlOptShowFPS );
 	CEikCheckBox            *chkbox_sound  = (CEikCheckBox*)            Control( ECtlOptEnableSound );
@@ -54,41 +55,59 @@ void CPicoConfigDialog::PostLayoutDynInitL()
 	CEikChoiceListBase      *combo_sndq    = (CEikChoiceListBase*)      Control( ECtlOptSndQuality );
 	CEikCheckBox            *chkbox_6bpad  = (CEikCheckBox*)            Control( ECtlOpt6ButtonPad );
 	CEikCheckBox            *chkbox_gzipst = (CEikCheckBox*)            Control( ECtlOptGzipStates );
-	CEikCheckBox            *chkbox_accsprt= (CEikCheckBox*)            Control( ECtlOptUseAccSprites );
+//	CEikCheckBox            *chkbox_accsprt= (CEikCheckBox*)            Control( ECtlOptUseAccSprites );
 	CEikChoiceListBase      *combo_region  = (CEikChoiceListBase*)      Control( ECtlOptRegion );
 	CEikOptionButton        *opt_fit2      = (CEikOptionButton*)        buttons_disp->ComponentControl( TPicoConfig::PMFit2 );
+	CEikCheckBox            *chkbox_cdda   = (CEikCheckBox*)            Control( ECtlOptCDcdda );
+	CEikCheckBox            *chkbox_pcm    = (CEikCheckBox*)            Control( ECtlOptCDpcm );
+	CEikCheckBox            *chkbox_ramcart= (CEikCheckBox*)            Control( ECtlOptCDramcart );
+	CEikCheckBox            *chkbox_sclrot = (CEikCheckBox*)            Control( ECtlOptCDscalerot );
+	CEikCheckBox            *chkbox_bsync  = (CEikCheckBox*)            Control( ECtlOptCDbettersync );
 
-	buttons_rot ->SetButtonById(ECtlOptRotation0 + config.iScreenRotation);
-	buttons_disp->SetButtonById(ECtlOptScreenModeCenter + config.iScreenMode);
-	chkbox_sram   ->SetState(config.iFlags & 1     ? CEikButtonBase::ESet : CEikButtonBase::EClear);
-	chkbox_fps    ->SetState(config.iFlags & 2     ? CEikButtonBase::ESet : CEikButtonBase::EClear);
-	chkbox_sound  ->SetState(config.iFlags & 4     ? CEikButtonBase::ESet : CEikButtonBase::EClear);
-	chkbox_gzipst ->SetState(config.iFlags & 0x80  ? CEikButtonBase::ESet : CEikButtonBase::EClear);
-	chkbox_z80    ->SetState(config.iPicoOpt & 4   ? CEikButtonBase::ESet : CEikButtonBase::EClear);
-	chkbox_ym2612 ->SetState(config.iPicoOpt & 1   ? CEikButtonBase::ESet : CEikButtonBase::EClear);
-	chkbox_sn76496->SetState(config.iPicoOpt & 2   ? CEikButtonBase::ESet : CEikButtonBase::EClear);
-	chkbox_altrend->SetState(config.iPicoOpt & 0x10? CEikButtonBase::ESet : CEikButtonBase::EClear);
-	chkbox_6bpad  ->SetState(config.iPicoOpt & 0x20? CEikButtonBase::ESet : CEikButtonBase::EClear);
-	chkbox_acctmng->SetState(config.iPicoOpt & 0x40? CEikButtonBase::ESet : CEikButtonBase::EClear);
-	chkbox_accsprt->SetState(config.iPicoOpt & 0x80? CEikButtonBase::ESet : CEikButtonBase::EClear);
+	buttons_rot ->SetButtonById(ECtlOptRotation0 + config.rotation);
+	buttons_disp->SetButtonById(ECtlOptScreenModeCenter + config.scaling);
+	chkbox_sram   ->SetState(config.EmuOpt & 1     ? CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_fps    ->SetState(config.EmuOpt & 2     ? CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_sound  ->SetState(config.EmuOpt & 4     ? CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_gzipst ->SetState(config.EmuOpt & 8     ? CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_z80    ->SetState(config.s_PicoOpt& 4   ? CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_ym2612 ->SetState(config.s_PicoOpt& 1   ? CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_sn76496->SetState(config.s_PicoOpt& 2   ? CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_altrend->SetState(config.s_PicoOpt& 0x10? CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_6bpad  ->SetState(config.s_PicoOpt& 0x20? CEikButtonBase::ESet : CEikButtonBase::EClear);
+//	chkbox_acctmng->SetState(config.s_PicoOpt& 0x40? CEikButtonBase::ESet : CEikButtonBase::EClear);
+//	chkbox_accsprt->SetState(config.s_PicoOpt& 0x80? CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_cdda   ->SetState(config.s_PicoOpt&0x0800?CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_pcm    ->SetState(config.s_PicoOpt&0x0400?CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_ramcart->SetState(config.s_PicoOpt&0x8000?CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_sclrot ->SetState(config.s_PicoOpt&0x1000?CEikButtonBase::ESet : CEikButtonBase::EClear);
+	chkbox_bsync  ->SetState(config.s_PicoOpt&0x2000?CEikButtonBase::ESet : CEikButtonBase::EClear);
 
 	// dim "fit2" if we are not in 0 or 180 mode
-	if(config.iScreenRotation != TPicoConfig::PRot0 && config.iScreenRotation != TPicoConfig::PRot180) opt_fit2->SetDimmed(ETrue);
+	if (config.rotation != TPicoConfig::PRot0 && config.rotation != TPicoConfig::PRot180)
+		opt_fit2->SetDimmed(ETrue);
 	// dim some stuff for alternative renderer
-	if(config.iPicoOpt & 0x10) {
+	if (config.s_PicoOpt & 0x10) {
 		// dim accurate sprites
-		chkbox_accsprt->SetState(CEikButtonBase::EClear);
-		chkbox_accsprt->SetDimmed(ETrue);
+		//chkbox_accsprt->SetState(CEikButtonBase::EClear);
+		//chkbox_accsprt->SetDimmed(ETrue);
 		// dim fit
 		if(buttons_rot->LabeledButtonId() == ECtlOptRotation0 || buttons_rot->LabeledButtonId() == ECtlOptRotation180)
 			((CEikOptionButton*)(buttons_disp->ComponentControl(TPicoConfig::PMFit)))->SetDimmed(ETrue);
 	}
 
-	TInt sel = (config.iPicoOpt&8) ? 5 : 0;
-	sel+= (config.iFlags>>3)&7;
+	TInt sel = 0;
+	switch (config.s_PsndRate) {
+		case 11025: sel = 1; break;
+		case 16000: sel = 2; break;
+		case 22050: sel = 3; break;
+		case 44100: sel = 4; break;
+	}
+	sel += (config.s_PicoOpt&8) ? 5 : 0;
 	if (sel >= 10) sel = 0;
 	combo_sndq->SetCurrentItem(sel);
-	switch(config.PicoRegion) {
+
+	switch(config.s_PicoRegion) {
 		case 1: sel = 4; break;
 		case 2: sel = 3; break;
 		case 4: sel = 2; break;
@@ -105,7 +124,7 @@ TBool CPicoConfigDialog::OkToExitL(TInt aButtonId)
 	CEikHorOptionButtonList *buttons_rot   = (CEikHorOptionButtonList*) Control( ECtlOptRotation );
 	CEikHorOptionButtonList *buttons_disp  = (CEikHorOptionButtonList*) Control( ECtlOptScreenMode );
 	CEikCheckBox            *chkbox_altrend= (CEikCheckBox*)            Control( ECtlOptUseAltRend );
-	CEikCheckBox            *chkbox_acctmng= (CEikCheckBox*)            Control( ECtlOptUseAccTiming );
+//	CEikCheckBox            *chkbox_acctmng= (CEikCheckBox*)            Control( ECtlOptUseAccTiming );
 	CEikCheckBox            *chkbox_sram   = (CEikCheckBox*)            Control( ECtlOptUseSRAM );
 	CEikCheckBox            *chkbox_fps    = (CEikCheckBox*)            Control( ECtlOptShowFPS );
 	CEikCheckBox            *chkbox_sound  = (CEikCheckBox*)            Control( ECtlOptEnableSound );
@@ -115,35 +134,50 @@ TBool CPicoConfigDialog::OkToExitL(TInt aButtonId)
 	CEikChoiceListBase      *combo_sndq    = (CEikChoiceListBase*)      Control( ECtlOptSndQuality );
 	CEikCheckBox            *chkbox_6bpad  = (CEikCheckBox*)            Control( ECtlOpt6ButtonPad );
 	CEikCheckBox            *chkbox_gzipst = (CEikCheckBox*)            Control( ECtlOptGzipStates );
-	CEikCheckBox            *chkbox_accsprt= (CEikCheckBox*)            Control( ECtlOptUseAccSprites );
+//	CEikCheckBox            *chkbox_accsprt= (CEikCheckBox*)            Control( ECtlOptUseAccSprites );
 	CEikChoiceListBase      *combo_region  = (CEikChoiceListBase*)      Control( ECtlOptRegion );
+	CEikCheckBox            *chkbox_cdda   = (CEikCheckBox*)            Control( ECtlOptCDcdda );
+	CEikCheckBox            *chkbox_pcm    = (CEikCheckBox*)            Control( ECtlOptCDpcm );
+	CEikCheckBox            *chkbox_ramcart= (CEikCheckBox*)            Control( ECtlOptCDramcart );
+	CEikCheckBox            *chkbox_sclrot = (CEikCheckBox*)            Control( ECtlOptCDscalerot );
+	CEikCheckBox            *chkbox_bsync  = (CEikCheckBox*)            Control( ECtlOptCDbettersync );
 
-	config.iScreenRotation = (TPicoConfig::TPicoScreenRotation) (buttons_rot->LabeledButtonId() - ECtlOptRotation0);
-	config.iScreenMode = (TPicoConfig::TPicoScreenMode) (buttons_disp->LabeledButtonId() - ECtlOptScreenModeCenter);
+	config.rotation = (TPicoConfig::TPicoScreenRotation) (buttons_rot->LabeledButtonId() - ECtlOptRotation0);
+	config.scaling  = (TPicoConfig::TPicoScreenMode) (buttons_disp->LabeledButtonId() - ECtlOptScreenModeCenter);
 
-	if(chkbox_sram   ->State() == CEikButtonBase::ESet) config.iFlags |= 1;     else config.iFlags   &= ~1;
-	if(chkbox_fps    ->State() == CEikButtonBase::ESet) config.iFlags |= 2;     else config.iFlags   &= ~2;
-	if(chkbox_sound  ->State() == CEikButtonBase::ESet) config.iFlags |= 4;     else config.iFlags   &= ~4;
-	if(chkbox_gzipst ->State() == CEikButtonBase::ESet) config.iFlags |= 0x80;  else config.iFlags   &= ~0x80;
-	if(chkbox_z80    ->State() == CEikButtonBase::ESet) config.iPicoOpt |= 4;   else config.iPicoOpt &= ~4;
-	if(chkbox_ym2612 ->State() == CEikButtonBase::ESet) config.iPicoOpt |= 1;   else config.iPicoOpt &= ~1;
-	if(chkbox_sn76496->State() == CEikButtonBase::ESet) config.iPicoOpt |= 2;   else config.iPicoOpt &= ~2;
-	if(chkbox_altrend->State() == CEikButtonBase::ESet) config.iPicoOpt |= 0x10;else config.iPicoOpt &= ~0x10;
-	if(chkbox_6bpad  ->State() == CEikButtonBase::ESet) config.iPicoOpt |= 0x20;else config.iPicoOpt &= ~0x20;
-	if(chkbox_acctmng->State() == CEikButtonBase::ESet) config.iPicoOpt |= 0x40;else config.iPicoOpt &= ~0x40;
-	if(chkbox_accsprt->State() == CEikButtonBase::ESet) config.iPicoOpt |= 0x80;else config.iPicoOpt &= ~0x80;
+	if(chkbox_sram   ->State() == CEikButtonBase::ESet) config.EmuOpt |= 1;     else config.EmuOpt   &= ~1;
+	if(chkbox_fps    ->State() == CEikButtonBase::ESet) config.EmuOpt |= 2;     else config.EmuOpt   &= ~2;
+	if(chkbox_sound  ->State() == CEikButtonBase::ESet) config.EmuOpt |= 4;     else config.EmuOpt   &= ~4;
+	if(chkbox_gzipst ->State() == CEikButtonBase::ESet) config.EmuOpt |= 8;     else config.EmuOpt   &= ~8;
+	if(chkbox_z80    ->State() == CEikButtonBase::ESet) config.s_PicoOpt|= 4;   else config.s_PicoOpt&= ~4;
+	if(chkbox_ym2612 ->State() == CEikButtonBase::ESet) config.s_PicoOpt|= 1;   else config.s_PicoOpt&= ~1;
+	if(chkbox_sn76496->State() == CEikButtonBase::ESet) config.s_PicoOpt|= 2;   else config.s_PicoOpt&= ~2;
+	if(chkbox_altrend->State() == CEikButtonBase::ESet) config.s_PicoOpt|= 0x10;else config.s_PicoOpt&= ~0x10;
+	if(chkbox_6bpad  ->State() == CEikButtonBase::ESet) config.s_PicoOpt|= 0x20;else config.s_PicoOpt&= ~0x20;
+//	if(chkbox_acctmng->State() == CEikButtonBase::ESet) config.s_PicoOpt|= 0x40;else config.s_PicoOpt&= ~0x40;
+//	if(chkbox_accsprt->State() == CEikButtonBase::ESet) config.s_PicoOpt|= 0x80;else config.s_PicoOpt&= ~0x80;
+	if(chkbox_cdda   ->State() == CEikButtonBase::ESet) config.s_PicoOpt |= 0x0800; else config.s_PicoOpt&= ~0x0800;
+	if(chkbox_pcm    ->State() == CEikButtonBase::ESet) config.s_PicoOpt |= 0x0400; else config.s_PicoOpt&= ~0x0400;
+	if(chkbox_ramcart->State() == CEikButtonBase::ESet) config.s_PicoOpt |= 0x8000; else config.s_PicoOpt&= ~0x8000;
+	if(chkbox_sclrot ->State() == CEikButtonBase::ESet) config.s_PicoOpt |= 0x1000; else config.s_PicoOpt&= ~0x1000;
+	if(chkbox_bsync  ->State() == CEikButtonBase::ESet) config.s_PicoOpt |= 0x2000; else config.s_PicoOpt&= ~0x2000;
 
 	TInt sel = combo_sndq->CurrentItem();
-	if(sel >= 5) { config.iPicoOpt |= 8; sel-=5; } else config.iPicoOpt &= ~8;
-	config.iFlags &= ~0x38;
-	config.iFlags |= (sel<<3)&0x38;
+	if(sel >= 5) { config.s_PicoOpt |= 8; sel-=5; } else config.s_PicoOpt &= ~8;
+	switch (sel) {
+		default:config.s_PsndRate =  8000; break;
+		case 1: config.s_PsndRate = 11025; break;
+		case 2: config.s_PsndRate = 16000; break;
+		case 3: config.s_PsndRate = 22050; break;
+		case 4: config.s_PsndRate = 44100; break;
+	}
 
-	switch(combo_region->CurrentItem()) {
-		case 4: config.PicoRegion = 1; break;
-		case 3: config.PicoRegion = 2; break;
-		case 2: config.PicoRegion = 4; break;
-		case 1: config.PicoRegion = 8; break;
-		default:config.PicoRegion = 0; // auto
+	switch (combo_region->CurrentItem()) {
+		case 4: config.s_PicoRegion = 1; break;
+		case 3: config.s_PicoRegion = 2; break;
+		case 2: config.s_PicoRegion = 4; break;
+		case 1: config.s_PicoRegion = 8; break;
+		default:config.s_PicoRegion = 0; // auto
 	}
 
 	return ETrue;
@@ -152,7 +186,8 @@ TBool CPicoConfigDialog::OkToExitL(TInt aButtonId)
 // simple GUI stuff needs lots of code
 void CPicoConfigDialog::HandleControlStateChangeL(TInt aControlId)
 {
-	if(aControlId == ECtlOptEnableSound) {
+	if (aControlId == ECtlOptEnableSound)
+	{
 		CEikCheckBox *chkbox_sound  = (CEikCheckBox*) Control( ECtlOptEnableSound );
 		CEikCheckBox *chkbox_z80    = (CEikCheckBox*) Control( ECtlOptEmulateZ80 );
 		CEikCheckBox *chkbox_ym2612 = (CEikCheckBox*) Control( ECtlOptEmulateYM2612 );
@@ -179,9 +214,11 @@ void CPicoConfigDialog::HandleControlStateChangeL(TInt aControlId)
 				chkbox_sn76496->DrawDeferred();
 			}
 		}
-	} else if(aControlId == ECtlOptUseAltRend || aControlId == ECtlOptRotation) {
+	}
+	else if(aControlId == ECtlOptUseAltRend || aControlId == ECtlOptRotation)
+	{
 		CEikCheckBox            *chkbox_altrend= (CEikCheckBox*)            Control( ECtlOptUseAltRend );
-		CEikCheckBox            *chkbox_accsprt= (CEikCheckBox*)            Control( ECtlOptUseAccSprites );
+//		CEikCheckBox            *chkbox_accsprt= (CEikCheckBox*)            Control( ECtlOptUseAccSprites );
 		CEikHorOptionButtonList *buttons_rot   = (CEikHorOptionButtonList*) Control( ECtlOptRotation );
 		CEikHorOptionButtonList *buttons_disp  = (CEikHorOptionButtonList*) Control( ECtlOptScreenMode );
 		CEikOptionButton        *opt_fit       = (CEikOptionButton*)        buttons_disp->ComponentControl( TPicoConfig::PMFit );
@@ -189,14 +226,14 @@ void CPicoConfigDialog::HandleControlStateChangeL(TInt aControlId)
 
 		TBool dimmed = chkbox_altrend->State() == CEikButtonBase::ESet;
 		// show/hide more stuff for alternative renderer
-		chkbox_accsprt->SetDimmed(dimmed);
+//		chkbox_accsprt->SetDimmed(dimmed);
 		if(buttons_rot->LabeledButtonId() == ECtlOptRotation0 || buttons_rot->LabeledButtonId() == ECtlOptRotation180) {
 			opt_fit->SetDimmed(dimmed);
 			if(dimmed && buttons_disp->LabeledButtonId() == ECtlOptScreenModeFit)
 				buttons_disp->SetButtonById(ECtlOptScreenModeFit2);
 		}
 		else opt_fit->SetDimmed(EFalse);
-		chkbox_accsprt->DrawDeferred();
+//		chkbox_accsprt->DrawDeferred();
 		buttons_disp->DrawDeferred();
 
 		if(buttons_rot->LabeledButtonId() == ECtlOptRotation0 || buttons_rot->LabeledButtonId() == ECtlOptRotation180) {

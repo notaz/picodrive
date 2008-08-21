@@ -49,6 +49,7 @@ void PicoExit(void)
 {
   if (PicoAHW & PAHW_MCD)
     PicoExitMCD();
+  PicoCartUnload();
   z80_exit();
 
   if (SRam.data) free(SRam.data); SRam.data=0;

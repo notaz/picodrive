@@ -26,10 +26,10 @@
 char *PicoConfigFile = "config.cfg";
 currentConfig_t currentConfig, defaultConfig;
 int rom_loaded = 0;
-char noticeMsg[64];
+char noticeMsg[64] = { 0, };
 int state_slot = 0;
 int config_slot = 0, config_slot_current = 0;
-char lastRomFile[512];
+char loadedRomFName[512] = { 0, };
 int kb_combo_keys = 0, kb_combo_acts = 0;	// keys and actions which need button combos
 int pico_inp_mode = 0;
 
@@ -37,10 +37,8 @@ unsigned char *movie_data = NULL;
 static int movie_size = 0;
 
 // provided by platform code:
-extern char romFileName[];
 extern void emu_noticeMsgUpdated(void);
-extern void emu_getMainDir(char *dst, int len);
-extern void emu_setDefaultConfig(void);
+extern int  emu_getMainDir(char *dst, int len);
 extern void menu_romload_prepare(const char *rom_name);
 extern void menu_romload_end(void);
 
@@ -51,17 +49,17 @@ static void strlwr_(char* string)
 	while ( (*string++ = (char)tolower(*string)) );
 }
 
-static int try_rfn_cut(void)
+static int try_rfn_cut(char *fname)
 {
 	FILE *tmp;
 	char *p;
 
-	p = romFileName + strlen(romFileName) - 1;
-	for (; p > romFileName; p--)
+	p = fname + strlen(fname) - 1;
+	for (; p > fname; p--)
 		if (*p == '.') break;
 	*p = 0;
 
-	if((tmp = fopen(romFileName, "rb"))) {
+	if((tmp = fopen(fname, "rb"))) {
 		fclose(tmp);
 		return 1;
 	}
@@ -147,20 +145,20 @@ static int emu_isBios(const char *name)
 
 static unsigned char id_header[0x100];
 
-/* checks if romFileName points to valid MegaCD image
+/* checks if fname points to valid MegaCD image
  * if so, checks for suitable BIOS */
-int emu_cdCheck(int *pregion)
+int emu_cdCheck(int *pregion, char *fname_in)
 {
 	unsigned char buf[32];
 	pm_file *cd_f;
 	int region = 4; // 1: Japan, 4: US, 8: Europe
-	char ext[5], *fname = romFileName;
+	char ext[5], *fname = fname_in;
 	cue_track_type type = CT_UNKNOWN;
 	cue_data_t *cue_data = NULL;
 
-	get_ext(romFileName, ext);
+	get_ext(fname_in, ext);
 	if (strcasecmp(ext, ".cue") == 0) {
-		cue_data = cue_parse(romFileName);
+		cue_data = cue_parse(fname_in);
 		if (cue_data != NULL) {
 			fname = cue_data->tracks[1].fname;
 			type  = cue_data->tracks[1].type;
@@ -248,7 +246,7 @@ static int extract_text(char *dest, const unsigned char *src, int len, int swab)
 
 char *emu_makeRomId(void)
 {
-	static char id_string[3+0x11+0x11+0x30+16];
+	static char id_string[3+0xe*3+0x3*3+0x30*3+3];
 	int pos, swab = 1;
 
 	if (PicoAHW & PAHW_MCD) {
@@ -268,18 +266,36 @@ char *emu_makeRomId(void)
 	return id_string;
 }
 
-int emu_ReloadRom(void)
+// buffer must be at least 150 byte long
+void emu_getGameName(char *str150)
+{
+	int ret, swab = (PicoAHW & PAHW_MCD) ? 0 : 1;
+	char *s, *d;
+
+	ret = extract_text(str150, id_header + 0x50, 0x30, swab); // overseas name
+
+	for (s = d = str150 + 1; s < str150+ret; s++)
+	{
+		if (*s == 0) break;
+		if (*s != ' ' || d[-1] != ' ')
+			*d++ = *s;
+	}
+	*d = 0;
+}
+
+// note: this function might mangle rom_fname
+int emu_ReloadRom(char *rom_fname)
 {
 	unsigned int rom_size = 0;
-	char *used_rom_name = romFileName;
+	char *used_rom_name = rom_fname;
 	unsigned char *rom_data = NULL;
 	char ext[5];
 	pm_file *rom = NULL;
 	int ret, cd_state, cd_region, cfg_loaded = 0;
 
-	lprintf("emu_ReloadRom(%s)\n", romFileName);
+	lprintf("emu_ReloadRom(%s)\n", rom_fname);
 
-	get_ext(romFileName, ext);
+	get_ext(rom_fname, ext);
 
 	// detect wrong extensions
 	if (!strcmp(ext, ".srm") || !strcmp(ext, "s.gz") || !strcmp(ext, ".mds")) { // s.gz ~ .mds.gz
@@ -298,7 +314,7 @@ int emu_ReloadRom(void)
 	{
 		// check for both gmv and rom
 		int dummy;
-		FILE *movie_file = fopen(romFileName, "rb");
+		FILE *movie_file = fopen(rom_fname, "rb");
 		if(!movie_file) {
 			sprintf(menuErrorMsg, "Failed to open movie.");
 			return 0;
@@ -323,29 +339,29 @@ int emu_ReloadRom(void)
 			sprintf(menuErrorMsg, "Invalid GMV file.");
 			return 0;
 		}
-		dummy = try_rfn_cut() || try_rfn_cut();
+		dummy = try_rfn_cut(rom_fname) || try_rfn_cut(rom_fname);
 		if (!dummy) {
 			sprintf(menuErrorMsg, "Could't find a ROM for movie.");
 			return 0;
 		}
-		get_ext(romFileName, ext);
+		get_ext(rom_fname, ext);
 	}
-	else if (!strcmp(ext, ".pat")) {
+	else if (!strcmp(ext, ".pat"))
+	{
 		int dummy;
-		PicoPatchLoad(romFileName);
-		dummy = try_rfn_cut() || try_rfn_cut();
+		PicoPatchLoad(rom_fname);
+		dummy = try_rfn_cut(rom_fname) || try_rfn_cut(rom_fname);
 		if (!dummy) {
 			sprintf(menuErrorMsg, "Could't find a ROM to patch.");
 			return 0;
 		}
-		get_ext(romFileName, ext);
+		get_ext(rom_fname, ext);
 	}
 
-	if ((PicoAHW & PAHW_MCD) && Pico_mcd != NULL)
-		Stop_CD();
+	emu_shutdownMCD();
 
 	// check for MegaCD image
-	cd_state = emu_cdCheck(&cd_region);
+	cd_state = emu_cdCheck(&cd_region, rom_fname);
 	if (cd_state >= 0 && cd_state != CIT_NOT_CD)
 	{
 		PicoAHW |= PAHW_MCD;
@@ -422,7 +438,7 @@ int emu_ReloadRom(void)
 
 	// insert CD if it was detected
 	if (cd_state != CIT_NOT_CD) {
-		ret = Insert_CD(romFileName, cd_state);
+		ret = Insert_CD(rom_fname, cd_state);
 		if (ret != 0) {
 			sprintf(menuErrorMsg, "Insert_CD() failed, invalid CD image?");
 			lprintf("%s\n", menuErrorMsg);
@@ -468,11 +484,11 @@ int emu_ReloadRom(void)
 	emu_noticeMsgUpdated();
 
 	// load SRAM for this ROM
-	if (currentConfig.EmuOpt & 1)
+	if (currentConfig.EmuOpt & EOPT_USE_SRAM)
 		emu_SaveLoadGame(1, 1);
 
-	strncpy(lastRomFile, romFileName, sizeof(lastRomFile)-1);
-	lastRomFile[sizeof(lastRomFile)-1] = 0;
+	strncpy(loadedRomFName, rom_fname, sizeof(loadedRomFName)-1);
+	loadedRomFName[sizeof(loadedRomFName)-1] = 0;
 	rom_loaded = 1;
 	return 1;
 
@@ -484,18 +500,30 @@ fail:
 }
 
 
+void emu_shutdownMCD(void)
+{
+	if ((PicoAHW & PAHW_MCD) && Pico_mcd != NULL)
+		Stop_CD();
+	PicoAHW &= ~PAHW_MCD;
+}
+
 static void romfname_ext(char *dst, const char *prefix, const char *ext)
 {
 	char *p;
 	int prefix_len = 0;
 
 	// make save filename
-	for (p = romFileName+strlen(romFileName)-1; p >= romFileName && *p != '/'; p--); p++;
+	p = loadedRomFName+strlen(loadedRomFName)-1;
+	for (; p >= loadedRomFName && *p != PATH_SEP_C; p--); p++;
 	*dst = 0;
 	if (prefix) {
-		strcpy(dst, prefix);
-		prefix_len = strlen(prefix);
+		int len = emu_getMainDir(dst, 512);
+		strcpy(dst + len, prefix);
+		prefix_len = len + strlen(prefix);
 	}
+#ifdef UIQ3
+	else p = loadedRomFName; // backward compatibility
+#endif
 	strncpy(dst + prefix_len, p, 511-prefix_len);
 	dst[511-8] = 0;
 	if (dst[strlen(dst)-4] == '.') dst[strlen(dst)-4] = 0;
@@ -505,7 +533,9 @@ static void romfname_ext(char *dst, const char *prefix, const char *ext)
 
 static void make_config_cfg(char *cfg)
 {
-	strncpy(cfg, PicoConfigFile, 511);
+	int len;
+	len = emu_getMainDir(cfg, 512);
+	strncpy(cfg + len, PicoConfigFile, 512-6-1-len);
 	if (config_slot != 0)
 	{
 		char *p = strrchr(cfg, '.');
@@ -515,10 +545,34 @@ static void make_config_cfg(char *cfg)
 	cfg[511] = 0;
 }
 
+void emu_packConfig(void)
+{
+	currentConfig.s_PicoOpt = PicoOpt;
+	currentConfig.s_PsndRate = PsndRate;
+	currentConfig.s_PicoRegion = PicoRegionOverride;
+	currentConfig.s_PicoAutoRgnOrder = PicoAutoRgnOrder;
+	currentConfig.s_PicoCDBuffers = PicoCDBuffers;
+}
+
+void emu_unpackConfig(void)
+{
+	PicoOpt = currentConfig.s_PicoOpt;
+	PsndRate = currentConfig.s_PsndRate;
+	PicoRegionOverride = currentConfig.s_PicoRegion;
+	PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
+	PicoCDBuffers = currentConfig.s_PicoCDBuffers;
+}
+
+static void emu_setDefaultConfig(void)
+{
+	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
+	emu_unpackConfig();
+}
+
+
 int emu_ReadConfig(int game, int no_defaults)
 {
 	char cfg[512];
-	FILE *f;
 	int ret;
 
 	if (!game)
@@ -554,37 +608,7 @@ int emu_ReadConfig(int game, int no_defaults)
 			ret = config_readsect("game_def.cfg", sect);
 		}
 
-		if (ret != 0)
-		{
-			// fall back to old game specific cfg
-			char extbuf[16];
-			if (config_slot != 0)
-				sprintf(extbuf, ".%i.pbcfg", config_slot);
-			else strcpy(extbuf, ".pbcfg");
-			romfname_ext(cfg, "cfg/", extbuf);
-			f = fopen(cfg, "rb");
-			if (!f) {
-				romfname_ext(cfg, NULL, ".pbcfg");
-				f = fopen(cfg, "rb");
-			}
-			if (f) {
-				int bread;
-				fseek(f, 512, SEEK_SET); // skip unused lrom buffer
-				bread = fread(&currentConfig, 1, sizeof(currentConfig), f);
-				lprintf("emu_ReadConfig: %s %s\n", cfg, bread > 0 ? "(ok)" : "(failed)");
-				fclose(f);
-				ret = 0;
-			}
-
-			if (ret == 0) {
-				PicoOpt = currentConfig.s_PicoOpt;
-				PsndRate = currentConfig.s_PsndRate;
-				PicoRegionOverride = currentConfig.s_PicoRegion;
-				PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
-				// PicoCDBuffers = currentConfig.s_PicoCDBuffers; // ignore in this case
-			}
-		}
-		else
+		if (ret == 0)
 		{
 			lprintf("loaded cfg from sect \"%s\"\n", sect);
 		}
@@ -618,14 +642,7 @@ int emu_WriteConfig(int is_game)
 
 	if (!is_game)
 	{
-		strncpy(cfg, PicoConfigFile, 511);
-		if (config_slot != 0)
-		{
-			char *p = strrchr(cfg, '.');
-			if (p == NULL) p = cfg + strlen(cfg);
-			sprintf(p, ".%i.cfg", config_slot);
-		}
-		cfg[511] = 0;
+		make_config_cfg(cfg);
 		write_lrom = 1;
 	} else {
 		if (config_slot != 0)
@@ -648,6 +665,7 @@ int emu_WriteConfig(int is_game)
 }
 
 
+#ifndef UIQ3
 void emu_textOut8(int x, int y, const char *text)
 {
 	int i,l,len=strlen(text);
@@ -694,6 +712,7 @@ void emu_textOut16(int x, int y, const char *text)
 		screen += 8;
 	}
 }
+#endif
 
 #ifdef PSP
 #define MAX_COMBO_KEY 23
@@ -802,7 +821,7 @@ char *emu_GetSaveFName(int load, int is_sram, int slot)
 
 	if (is_sram)
 	{
-		romfname_ext(saveFname, (PicoAHW&1) ? "brm/" : "srm/", (PicoAHW&1) ? ".brm" : ".srm");
+		romfname_ext(saveFname, (PicoAHW&1) ? "brm"PATH_SEP : "srm"PATH_SEP, (PicoAHW&1) ? ".brm" : ".srm");
 		if (load) {
 			if (try_ropen_file(saveFname)) return saveFname;
 			// try in current dir..
@@ -815,19 +834,21 @@ char *emu_GetSaveFName(int load, int is_sram, int slot)
 	{
 		ext[0] = 0;
 		if(slot > 0 && slot < 10) sprintf(ext, ".%i", slot);
-		strcat(ext, (currentConfig.EmuOpt & 8) ? ".mds.gz" : ".mds");
+		strcat(ext, (currentConfig.EmuOpt & EOPT_GZIP_SAVES) ? ".mds.gz" : ".mds");
 
-		romfname_ext(saveFname, "mds/", ext);
+		romfname_ext(saveFname, "mds" PATH_SEP, ext);
 		if (load) {
 			if (try_ropen_file(saveFname)) return saveFname;
 			romfname_ext(saveFname, NULL, ext);
 			if (try_ropen_file(saveFname)) return saveFname;
-			if (currentConfig.EmuOpt & 8) {
+			// no gzipped states, search for non-gzipped
+			if (currentConfig.EmuOpt & EOPT_GZIP_SAVES)
+			{
 				ext[0] = 0;
 				if(slot > 0 && slot < 10) sprintf(ext, ".%i", slot);
 				strcat(ext, ".mds");
 
-				romfname_ext(saveFname, "mds/", ext);
+				romfname_ext(saveFname, "mds"PATH_SEP, ext);
 				if (try_ropen_file(saveFname)) return saveFname;
 				romfname_ext(saveFname, NULL, ext);
 				if (try_ropen_file(saveFname)) return saveFname;

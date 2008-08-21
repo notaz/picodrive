@@ -9,6 +9,9 @@
 #ifdef _MSC_VER
 #define snprintf _snprintf
 #endif
+#ifdef UIQ3
+#define snprintf(b,s,...) sprintf(b,##__VA_ARGS__)
+#endif
 
 static char *mystrip(char *str)
 {

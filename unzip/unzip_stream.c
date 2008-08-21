@@ -6,11 +6,7 @@
 #include <string.h>
 #include <errno.h>
 
-#ifdef __SYMBIAN32__
-#include <ezlib.h>
-#else
 #include "zlib/zlib.h"
-#endif
 
 
 #define errormsg(str1,def,fname) printf("%s: " #def ": " str1 "\n", fname);

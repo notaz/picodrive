@@ -5,20 +5,20 @@
 
 #include "vid.h"
 #include "../Engine.h"
-#include "../../../pico/picoInt.h"
+#include <Pico/PicoInt.h>
+#include "../../common/emu.h"
 #include "blit.h"
 #include "debug.h"
 
 
 // global stuff
-extern TPicoConfig *currentConfig;
 extern TPicoAreaConfigEntry areaConfig[];
 extern const char *actionNames[];
 
 // main framebuffer
 static void *screenbuff = 0; // pointer to real device video memory
 //static
-extern "C" { unsigned char *framebuff = 0; }  // temporary buffer
+extern "C" { unsigned char *PicoDraw2FB = 0; }  // temporary buffer
 const int framebuffsize  = (8+320)*(8+240+8)*2+8*2; // actual framebuffer size (in bytes+to support new rendering mode)
 
 // drawer function pointers
@@ -88,34 +88,24 @@ static const unsigned long mask_numbers[] = {
 
 
 ////////////////////////////////
-// Cram functions
-
-static int EmuCramNull(int cram)
-{
-	User::Panic(_L("Cram called!!"), 0);
-	return cram;
-}
-
-
-////////////////////////////////
 // PicoScan functions
 
-static int EmuScan8(unsigned int num, void *sdata)
+static int EmuScanBegin8(unsigned int num)
 {
-	DrawLineDest = framebuff + 328*(num+1) + 328*8 + 8;
+	DrawLineDest = PicoDraw2FB + 328*num + 328*8 + 8;
 
 	return 0;
 }
 
 
-static int EmuScanFit0(unsigned int num, void *sdata)
+static int EmuScanEndFit0(unsigned int num)
 {
 	// 0.75, 168 lines
 
 	static int u = 0, num2 = 0;
 	if(!num) u = num2 = 0;
 
-	DrawLineDest = framebuff + 328*(++num2) + 328*8 + 8;
+	DrawLineDest = PicoDraw2FB + 328*(++num2) + 328*8 + 8;
 
 	u += 6666;
 
@@ -136,7 +126,7 @@ static int EmuScanFit0(unsigned int num, void *sdata)
 
 static void drawTextM2(int x, int y, const char *text)
 {
-	unsigned char *vidmem = framebuff + 328*8 + 8;
+	unsigned char *vidmem = PicoDraw2FB + 328*8 + 8;
 	int charmask, i, cx = x, cy;
 	unsigned char *l, *le;
 
@@ -164,7 +154,7 @@ static void drawTextM2(int x, int y, const char *text)
 
 static void drawTextM2Fat(int x, int y, const char *text)
 {
-	unsigned char *vidmem = framebuff + 328*8 + 8;
+	unsigned char *vidmem = PicoDraw2FB + 328*8 + 8;
 	int charmask, i, cx = x&~1, cy;
 	unsigned short *l, *le;
 
@@ -257,7 +247,7 @@ static void fillLocalPal(void)
 		vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 		vidConvCpyRGB32sh(localPal+0x40, Pico.cram, 0x40);
 		vidConvCpyRGB32hi(localPal+0x80, Pico.cram, 0x40);
-		blockcpy(localPal+0xc0, localPal+0x40, 0x40*4);
+		memcpy32(localPal+0xc0, localPal+0x40, 0x40);
 		localPal[0xe0] = 0x00000000; // reserved pixels for OSD
 		localPal[0xf0] = 0x00ee0000;
 	} else if (rendstatus & 0x20) { // mid-frame palette changes
@@ -273,7 +263,7 @@ static void fillLocalPal(void)
 // note: the internal 8 pixel border is taken care by asm code
 static void vidBlit_90(int full)
 {
-	unsigned char *ps = framebuff+328*8;
+	unsigned char *ps = PicoDraw2FB+328*8;
 	unsigned long *pd = (unsigned long *) screenbuff;
 
 	if (Pico.m.dirtyPal) fillLocalPal();
@@ -291,7 +281,7 @@ static void vidBlit_90(int full)
 
 static void vidBlit_270(int full)
 {
-	unsigned char *ps = framebuff+328*8;
+	unsigned char *ps = PicoDraw2FB+328*8;
 	unsigned long *pd = (unsigned long *) screenbuff;
 
 	if (Pico.m.dirtyPal) fillLocalPal();
@@ -310,7 +300,7 @@ static void vidBlit_270(int full)
 
 static void vidBlitCenter_0(int full)
 {
-	unsigned char *ps = framebuff+328*8+8;
+	unsigned char *ps = PicoDraw2FB+328*8+8;
 	unsigned long *pd = (unsigned long *) screenbuff;
 
 	if (Pico.m.dirtyPal) fillLocalPal();
@@ -323,7 +313,7 @@ static void vidBlitCenter_0(int full)
 
 static void vidBlitCenter_180(int full)
 {
-	unsigned char *ps = framebuff+328*8+8;
+	unsigned char *ps = PicoDraw2FB+328*8+8;
 	unsigned long *pd = (unsigned long *) screenbuff;
 
 	if (Pico.m.dirtyPal) fillLocalPal();
@@ -339,8 +329,8 @@ static void vidBlitFit_0(int full)
 	if (Pico.m.dirtyPal) fillLocalPal();
 
 	if(Pico.video.reg[12]&1)
-		 vidConvCpy_center2_40c_0(screenbuff, framebuff+328*8, localPal, 168);
-	else vidConvCpy_center2_32c_0(screenbuff, framebuff+328*8, localPal, 168);
+		 vidConvCpy_center2_40c_0(screenbuff, PicoDraw2FB+328*8, localPal, 168);
+	else vidConvCpy_center2_32c_0(screenbuff, PicoDraw2FB+328*8, localPal, 168);
 	if(full) vidClear((unsigned long *)screenbuff + 168*256, 320-168);
 }
 
@@ -350,8 +340,8 @@ static void vidBlitFit_180(int full)
 	if (Pico.m.dirtyPal) fillLocalPal();
 
 	if(Pico.video.reg[12]&1)
-	     vidConvCpy_center2_40c_180(screenbuff, framebuff+328*8, localPal, 168);
-	else vidConvCpy_center2_32c_180(screenbuff, framebuff+328*8-64, localPal, 168);
+	     vidConvCpy_center2_40c_180(screenbuff, PicoDraw2FB+328*8, localPal, 168);
+	else vidConvCpy_center2_32c_180(screenbuff, PicoDraw2FB+328*8-64, localPal, 168);
 	if(full) vidClear((unsigned long *)screenbuff + 168*256, 320-168);
 }
 
@@ -361,8 +351,8 @@ static void vidBlitFit2_0(int full)
 	if (Pico.m.dirtyPal) fillLocalPal();
 
 	if(Pico.video.reg[12]&1)
-	     vidConvCpy_center2_40c_0(screenbuff, framebuff+328*8, localPal, 224);
-	else vidConvCpy_center2_32c_0(screenbuff, framebuff+328*8, localPal, 224);
+	     vidConvCpy_center2_40c_0(screenbuff, PicoDraw2FB+328*8, localPal, 224);
+	else vidConvCpy_center2_32c_0(screenbuff, PicoDraw2FB+328*8, localPal, 224);
 	if(full) vidClear((unsigned long *)screenbuff + 224*256, 96);
 }
 
@@ -372,15 +362,15 @@ static void vidBlitFit2_180(int full)
 	if (Pico.m.dirtyPal) fillLocalPal();
 
 	if(Pico.video.reg[12]&1)
-	     vidConvCpy_center2_40c_180(screenbuff, framebuff+328*8, localPal, 224);
-	else vidConvCpy_center2_32c_180(screenbuff, framebuff+328*8-64, localPal, 224);
+	     vidConvCpy_center2_40c_180(screenbuff, PicoDraw2FB+328*8, localPal, 224);
+	else vidConvCpy_center2_32c_180(screenbuff, PicoDraw2FB+328*8-64, localPal, 224);
 	if(full) vidClear((unsigned long *)screenbuff + 224*256, 96);
 }
 
 
 static void vidBlitCfg(void)
 {
-	unsigned short *ps = (unsigned short *) framebuff;
+	unsigned short *ps = (unsigned short *) PicoDraw2FB;
 	unsigned long *pd = (unsigned long *) screenbuff;
 	int i;
 
@@ -402,20 +392,17 @@ int vidInit(void *vidmem, int reinit)
 	if(!reinit) {
 		// prepare framebuffer
 		screenbuff = vidmem;
-		framebuff = (unsigned char *) malloc(framebuffsize);
+		PicoDraw2FB = (unsigned char *) malloc(framebuffsize);
 
 		if(!screenbuff) return KErrNotSupported;
-		if(!framebuff)  return KErrNoMemory;
+		if(!PicoDraw2FB)  return KErrNoMemory;
 
-		memset(framebuff, 0, framebuffsize);
-
-		// Cram function: go and hack Pico so it never gets called
-		PicoCram = EmuCramNull;
+		memset(PicoDraw2FB, 0, framebuffsize);
 	}
 
 	// select suitable blitters
 	vidBlit = vidBlit_270;
-	PicoScan = EmuScan8;
+	PicoScanBegin = EmuScanBegin8;
 	drawTextFps = drawTextFps0;
 	drawTextNotice = drawTextNotice0;
 
@@ -424,12 +411,13 @@ int vidInit(void *vidmem, int reinit)
 	localPal[0xf0] = 0x00ee0000;
 
 	// setup all orientation related stuff
-	if(currentConfig->iScreenRotation == TPicoConfig::PRot0) {
-		if(currentConfig->iScreenMode == TPicoConfig::PMCenter) {
+	if (currentConfig.rotation == TPicoConfig::PRot0)
+	{
+		if (currentConfig.scaling == TPicoConfig::PMCenter) {
 			vidBlit = vidBlitCenter_0;
 			drawTextFps = drawTextFpsCenter0;
 			drawTextNotice = drawTextNoticeCenter0;
-		} else if(currentConfig->iScreenMode == TPicoConfig::PMFit2) {
+		} else if (currentConfig.scaling == TPicoConfig::PMFit2) {
 			vidBlit = vidBlitFit2_0;
 			drawTextFps = drawTextFpsFit2_0;
 			drawTextNotice = drawTextNoticeFit2_0;
@@ -437,16 +425,20 @@ int vidInit(void *vidmem, int reinit)
 			vidBlit = vidBlitFit_0;
 			drawTextFps = drawTextFpsFit0;
 			drawTextNotice = drawTextNoticeFit0;
-			PicoScan = EmuScanFit0;
+			PicoScanEnd = EmuScanEndFit0;
 		}
-	} else if(currentConfig->iScreenRotation == TPicoConfig::PRot90) {
+	} else if (currentConfig.rotation == TPicoConfig::PRot90) {
 		vidBlit = vidBlit_90;
-	} else if(currentConfig->iScreenRotation == TPicoConfig::PRot180) {
-		if(currentConfig->iScreenMode == TPicoConfig::PMCenter) {
+	}
+	else if (currentConfig.rotation == TPicoConfig::PRot180)
+	{
+		if (currentConfig.scaling == TPicoConfig::PMCenter)
+		{
 			vidBlit = vidBlitCenter_180;
 			drawTextFps = drawTextFpsCenter0;
 			drawTextNotice = drawTextNoticeCenter0;
-		} else if(currentConfig->iScreenMode == TPicoConfig::PMFit2) {
+		}
+		else if (currentConfig.scaling == TPicoConfig::PMFit2) {
 			vidBlit = vidBlitFit2_180;
 			drawTextFps = drawTextFpsFit2_0;
 			drawTextNotice = drawTextNoticeFit2_0;
@@ -454,9 +446,10 @@ int vidInit(void *vidmem, int reinit)
 			vidBlit = vidBlitFit_180;
 			drawTextFps = drawTextFpsFit0;
 			drawTextNotice = drawTextNoticeFit0;
-			PicoScan = EmuScanFit0;
+			PicoScanEnd = EmuScanEndFit0;
 		}
-	} else if(currentConfig->iScreenRotation == TPicoConfig::PRot270) {
+	}
+	else if (currentConfig.rotation == TPicoConfig::PRot270) {
 		vidBlit = vidBlit_270;
 	}
 
@@ -469,16 +462,16 @@ int vidInit(void *vidmem, int reinit)
 
 void vidFree()
 {
-	free(framebuff);
-	framebuff = 0;
+	free(PicoDraw2FB);
+	PicoDraw2FB = 0;
 }
 
 void vidDrawFrame(char *noticeStr, char *fpsStr, int num)
 {
-	DrawLineDest = framebuff + 328*8 + 8;
+	DrawLineDest = PicoDraw2FB + 328*8 + 8;
 
 //	PicoFrame(); // moved to main loop
-	if(currentConfig->iFlags & 2)
+	if (currentConfig.EmuOpt & EOPT_SHOW_FPS)
 		drawTextFps(fpsStr);
 	drawTextNotice(noticeStr);
 
@@ -489,7 +482,7 @@ void vidDrawFrame(char *noticeStr, char *fpsStr, int num)
 
 static void drawText0(int x, int y, const char *text, long color)
 {
-	unsigned short *vidmem=(unsigned short *)framebuff;
+	unsigned short *vidmem=(unsigned short *)PicoDraw2FB;
 	int charmask, i, cx = x, cy;
 	unsigned short *l, *le, dmask=0x0333;
 
@@ -519,7 +512,7 @@ static void drawText0(int x, int y, const char *text, long color)
 // draws rect with width - 1 and height - 1
 static void drawRect(const TRect &rc, unsigned short color)
 {
-	unsigned short *vidmem=(unsigned short *)framebuff;
+	unsigned short *vidmem=(unsigned short *)PicoDraw2FB;
 
 	if(rc.iTl.iX - rc.iBr.iX && rc.iTl.iY - rc.iBr.iY) {
 		int stepX = rc.iTl.iX < rc.iBr.iX ? 1 : -1;
@@ -540,7 +533,7 @@ static void drawRect(const TRect &rc, unsigned short color)
 // draws fullsize filled rect
 static void drawRectFilled(const TRect rc, unsigned short color)
 {
-	unsigned short *vidmem=(unsigned short *)framebuff;
+	unsigned short *vidmem=(unsigned short *)PicoDraw2FB;
 
 	if(rc.iTl.iX - rc.iBr.iX && rc.iTl.iY - rc.iBr.iY) {
 		int stepX = rc.iTl.iX < rc.iBr.iX ? 1 : -1;
@@ -559,7 +552,7 @@ static void drawRectFilled(const TRect rc, unsigned short color)
 // direction: -1 left, 1 right
 static void drawArrow0(TPoint p, int direction, unsigned short color)
 {
-	unsigned short *vidmem=(unsigned short *)framebuff;
+	unsigned short *vidmem=(unsigned short *)PicoDraw2FB;
 	int width = 15;
 	int x = p.iX;
 	int y = p.iY;
@@ -603,7 +596,7 @@ void vidKeyConfigFrame(const TUint whichAction)
 	int i;
 	char buttonNames[128];
 	buttonNames[0] = 0;
-	memset(framebuff, 0, framebuffsize);
+	memset(PicoDraw2FB, 0, framebuffsize);
 
 	unsigned long currentActCode = 1 << whichAction;
 
@@ -611,7 +604,7 @@ void vidKeyConfigFrame(const TUint whichAction)
 	const TPicoAreaConfigEntry *e = areaConfig + 1; i = 0;
 	while(e->rect != TRect(0,0,0,0)) { e++; i++; }
 	for(e--, i--; e->rect != TRect(0,0,0,0); e--, i--)
-		drawRect(e->rect, (currentConfig->iAreaBinds[i] & currentActCode) ? color_red : color_red_dim);
+		drawRect(e->rect, (currentConfig.KeyBinds[i+256] & currentActCode) ? color_red : color_red_dim);
 
 	// action name control
 	drawRectFilled(TRect(72, 2, 168, 20), color_grey); // 96x14
@@ -621,14 +614,14 @@ void vidKeyConfigFrame(const TUint whichAction)
 	drawText0(86, 9, actionNames[whichAction], color_red);
 
 	// draw active button names if there are any
-	for(i = 0; i < 256; i++) {
-		if(currentConfig->iKeyBinds[i] & currentActCode) {
+	for (i = 0; i < 256; i++) {
+		if (currentConfig.KeyBinds[i] & currentActCode) {
 			if(buttonNames[0]) strcat(buttonNames, ";@");
 			strcat(buttonNames, vidGetScanName(i));
 		}
 	}
 
-	if(buttonNames[0]) {
+	if (buttonNames[0]) {
 		buttonNames[61] = 0; // only 60 chars fit
 		drawText0(6, 48, buttonNames, color_blue);
 	}
@@ -638,7 +631,7 @@ void vidKeyConfigFrame(const TUint whichAction)
 
 void vidDrawNotice(const char *txt)
 {
-	if(framebuff) {
+	if(PicoDraw2FB) {
 		drawTextNotice(txt);
 		vidBlit(1);
 	}

@@ -901,7 +901,7 @@ menu_entry cdopt_entries[] =
 	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_EUR, NULL, 0, 0, 0, 1, 0 },
 	{ NULL,                        MB_NONE,  MA_CDOPT_TESTBIOS_JAP, NULL, 0, 0, 0, 1, 0 },
 	{ "CD LEDs",                   MB_ONOFF, MA_CDOPT_LEDS,         &currentConfig.EmuOpt, 0x0400, 0, 0, 1, 1 },
-	{ "CDDA audio (using mp3s)",   MB_ONOFF, MA_CDOPT_CDDA,         &PicoOpt, 0x0800, 0, 0, 1, 1 },
+	{ "CDDA audio",                MB_ONOFF, MA_CDOPT_CDDA,         &PicoOpt, 0x0800, 0, 0, 1, 1 },
 	{ "PCM audio",                 MB_ONOFF, MA_CDOPT_PCM,          &PicoOpt, 0x0400, 0, 0, 1, 1 },
 	{ NULL,                        MB_NONE,  MA_CDOPT_READAHEAD,    NULL, 0, 0, 0, 1, 1 },
 	{ "SaveRAM cart",              MB_ONOFF, MA_CDOPT_SAVERAM,      &PicoOpt, 0x8000, 0, 0, 1, 1 },
@@ -1551,10 +1551,10 @@ static void menu_loop_root(void)
 				{
 					char curr_path[PATH_MAX], *selfname;
 					FILE *tstf;
-					if ( (tstf = fopen(lastRomFile, "rb")) )
+					if ( (tstf = fopen(loadedRomFName, "rb")) )
 					{
 						fclose(tstf);
-						strcpy(curr_path, lastRomFile);
+						strcpy(curr_path, loadedRomFName);
 					}
 					else
 						getcwd(curr_path, PATH_MAX);
@@ -1694,10 +1694,10 @@ int menu_loop_tray(void)
 	gp2x_memset_all_buffers(0, 0, 320*240*2);
 	menu_gfx_prepare();
 
-	if ( (tstf = fopen(lastRomFile, "rb")) )
+	if ( (tstf = fopen(loadedRomFName, "rb")) )
 	{
 		fclose(tstf);
-		strcpy(curr_path, lastRomFile);
+		strcpy(curr_path, loadedRomFName);
 	}
 	else
 	{
@@ -1721,7 +1721,7 @@ int menu_loop_tray(void)
 					if (selfname) {
 						int ret = -1;
 						cd_img_type cd_type;
-						cd_type = emu_cdCheck(NULL);
+						cd_type = emu_cdCheck(NULL, romFileName);
 						if (cd_type != CIT_NOT_CD)
 							ret = Insert_CD(romFileName, cd_type);
 						if (ret != 0) {

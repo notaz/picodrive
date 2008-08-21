@@ -52,6 +52,7 @@ typedef enum
 	MA_OPT_SAVECFG_GAME,
 	MA_OPT_LOADCFG,
 	MA_OPT_INTERLACED,	/* giz */
+	MA_OPT_ROTATION,	/* uiq */
 	MA_OPT2_GAMMA,
 	MA_OPT2_A_SN_GAMMA,
 	MA_OPT2_DBLBUFF,	/* giz */

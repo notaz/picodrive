@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
 
 	if (engineState == PGS_ReloadRom)
 	{
-		if (emu_ReloadRom()) {
+		if (emu_ReloadRom(romFileName)) {
 			engineState = PGS_Running;
 			if (load_state_slot >= 0) {
 				state_slot = load_state_slot;
@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
 				break;
 
 			case PGS_ReloadRom:
-				if (emu_ReloadRom())
+				if (emu_ReloadRom(romFileName))
 					engineState = PGS_Running;
 				else {
 					printf("PGS_ReloadRom == 0\n");

@@ -1,11 +1,14 @@
 /*
  * Human-readable config file management for PicoDrive
- * (c)
+ * (c) notaz, 2008
  */
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#ifdef UIQ3
+#include <unistd.h>
+#endif
 #include "config.h"
 #include "lprintf.h"
 
@@ -205,6 +208,7 @@ static void custom_write(FILE *f, const menu_entry *me, int no_def)
 }
 
 
+#if PLAT_HAVE_JOY
 static const char *joyKeyNames[32] =
 {
 	"UP", "DOWN", "LEFT", "RIGHT", "b1", "b2", "b3", "b4",
@@ -212,31 +216,40 @@ static const char *joyKeyNames[32] =
 	"b13", "b14", "b15", "b16", "b17", "b19", "b19", "b20",
 	"b21", "b22", "b23", "b24", "b25", "b26", "b27", "b28"
 };
+#endif
 
 static void keys_write(FILE *fn, const char *bind_str, const int binds[32],
-		const int def_binds[32], const char * const names[32], int no_defaults)
+		const int def_binds[32], const char * const names[32], int key_count, int no_defaults)
 {
 	int t, i;
-	char act[48];
+	char act[48], name[32];
 
-	for (t = 0; t < 32; t++)
+	for (t = 0; t < key_count; t++)
 	{
 		act[0] = act[31] = 0;
 		if (no_defaults && binds[t] == def_binds[t])
 			continue;
-		if (strcmp(names[t], "???") == 0) continue;
 #ifdef __GP2X__
 		if (strcmp(names[t], "SELECT") == 0) continue;
 #endif
+		if (t >= 32 || names[t] == NULL || strcmp(names[t], "???") == 0) {
+			if ((t >= '0' && t <= '9') || (t >= 'a' && t <= 'z') || (t >= 'A' && t <= 'Z'))
+				sprintf(name, "%c", t);
+			else
+				sprintf(name, "\\x%02x", t);
+		}
+		else
+			strcpy(name, names[t]);
+
 		if (binds[t] == 0 && def_binds[t] != 0) {
-			fprintf(fn, "%s %s =" NL, bind_str, names[t]); // no binds
+			fprintf(fn, "%s %s =" NL, bind_str, name); // no binds
 			continue;
 		}
 
 		for (i = 0; i < sizeof(me_ctrl_actions) / sizeof(me_ctrl_actions[0]); i++) {
 			if (me_ctrl_actions[i].mask & binds[t]) {
 				strncpy(act, me_ctrl_actions[i].name, 31);
-				fprintf(fn, "%s %s = player%i %s" NL, bind_str, names[t],
+				fprintf(fn, "%s %s = player%i %s" NL, bind_str, name,
 					((binds[t]>>16)&1)+1, mystrip(act));
 			}
 		}
@@ -244,7 +257,7 @@ static void keys_write(FILE *fn, const char *bind_str, const int binds[32],
 		for (i = 0; emuctrl_actions[i].name != NULL; i++) {
 			if (emuctrl_actions[i].mask & binds[t]) {
 				strncpy(act, emuctrl_actions[i].name, 31);
-				fprintf(fn, "%s %s = %s" NL, bind_str, names[t], mystrip(act));
+				fprintf(fn, "%s %s = %s" NL, bind_str, name, mystrip(act));
 			}
 		}
 	}
@@ -281,8 +294,9 @@ static int default_var(const menu_entry *me)
 		case MA_CDOPT_LEDS:
 			return defaultConfig.EmuOpt;
 
-		case MA_CTRL_TURBO_RATE:
-			return defaultConfig.turbo_rate;
+		case MA_CTRL_TURBO_RATE: return defaultConfig.turbo_rate;
+		case MA_OPT_SCALING:     return defaultConfig.scaling;
+		case MA_OPT_ROTATION:    return defaultConfig.rotation;
 
 		case MA_OPT_SAVE_SLOT:
 		default:
@@ -384,11 +398,13 @@ write:
 	}
 
 	// save key config
-	keys_write(fn, "bind", currentConfig.KeyBinds, defaultConfig.KeyBinds, keyNames, no_defaults);
-	keys_write(fn, "bind_joy0", currentConfig.JoyBinds[0], defaultConfig.JoyBinds[0], joyKeyNames, 1);
-	keys_write(fn, "bind_joy1", currentConfig.JoyBinds[1], defaultConfig.JoyBinds[1], joyKeyNames, 1);
-	keys_write(fn, "bind_joy2", currentConfig.JoyBinds[2], defaultConfig.JoyBinds[2], joyKeyNames, 1);
-	keys_write(fn, "bind_joy3", currentConfig.JoyBinds[3], defaultConfig.JoyBinds[3], joyKeyNames, 1);
+	keys_write(fn, "bind", currentConfig.KeyBinds, defaultConfig.KeyBinds, keyNames, PLAT_MAX_KEYS, no_defaults);
+#if PLAT_HAVE_JOY
+	keys_write(fn, "bind_joy0", currentConfig.JoyBinds[0], defaultConfig.JoyBinds[0], joyKeyNames, 32, 1);
+	keys_write(fn, "bind_joy1", currentConfig.JoyBinds[1], defaultConfig.JoyBinds[1], joyKeyNames, 32, 1);
+	keys_write(fn, "bind_joy2", currentConfig.JoyBinds[2], defaultConfig.JoyBinds[2], joyKeyNames, 32, 1);
+	keys_write(fn, "bind_joy3", currentConfig.JoyBinds[3], defaultConfig.JoyBinds[3], joyKeyNames, 32, 1);
+#endif
 
 #ifndef PSP
 	if (section == NULL)
@@ -423,7 +439,7 @@ int config_writelrom(const char *fname)
 	int size;
 	FILE *f;
 
-	if (strlen(lastRomFile) == 0) return -1;
+	if (strlen(loadedRomFName) == 0) return -1;
 
 	f = fopen(fname, "r");
 	if (f != NULL)
@@ -456,7 +472,7 @@ int config_writelrom(const char *fname)
 		fwrite(old_data, 1, optr - old_data, f);
 		free(old_data);
 	}
-	fprintf(f, "LastUsedROM = %s" NL, lastRomFile);
+	fprintf(f, "LastUsedROM = %s" NL, loadedRomFName);
 	fclose(f);
 	return 0;
 }
@@ -487,9 +503,9 @@ int config_readlrom(const char *fname)
 		tmp++;
 		mystrip(tmp);
 
-		len = sizeof(lastRomFile);
-		strncpy(lastRomFile, tmp, len);
-		lastRomFile[len-1] = 0;
+		len = sizeof(loadedRomFName);
+		strncpy(loadedRomFName, tmp, len);
+		loadedRomFName[len-1] = 0;
 		ret = 0;
 		break;
 	}
@@ -686,16 +702,29 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 
 static unsigned int keys_encountered = 0;
 
-static void keys_parse(const char *var, const char *val, int binds[32], const char * const names[32])
+static void keys_parse(const char *var, const char *val, int binds[32],
+	const char * const names[32], int max_keys)
 {
 	int t, i;
 	unsigned int player;
 
 	for (t = 0; t < 32; t++)
 	{
-		if (strcmp(names[t], var) == 0) break;
+		if (names[t] && strcmp(names[t], var) == 0) break;
 	}
-	if (t == 32) {
+	if (t == 32)
+	{
+		int len = strlen(var);
+		if (len == 1) t = var[0];
+		else if (len >= 4 && var[0] == '\\' && var[1] == 'x') {
+			char *p;
+			t = (int)strtoul(var + 2, &p, 16);
+			if (*p != 0) t = max_keys; // parse failed
+		}
+		else
+			t = max_keys; // invalid
+	}
+	if (t < 0 || t >= max_keys) {
 		lprintf("unhandled bind \"%s\"\n", var);
 		return;
 	}
@@ -732,7 +761,7 @@ fail:
 
 #define try_joy_parse(num) { \
 	if (strncasecmp(var, "bind_joy"#num " ", 10) == 0) { \
-		keys_parse(var + 10, val, currentConfig.JoyBinds[num], joyKeyNames); \
+		keys_parse(var + 10, val, currentConfig.JoyBinds[num], joyKeyNames, 32); \
 		return; \
 	} \
 }
@@ -752,13 +781,15 @@ static void parse(const char *var, const char *val)
 
 	// key binds
 	if (strncasecmp(var, "bind ", 5) == 0) {
-		keys_parse(var + 5, val, currentConfig.KeyBinds, keyNames);
+		keys_parse(var + 5, val, currentConfig.KeyBinds, keyNames, PLAT_MAX_KEYS);
 		return;
 	}
+#if PLAT_HAVE_JOY
 	try_joy_parse(0)
 	try_joy_parse(1)
 	try_joy_parse(2)
 	try_joy_parse(3)
+#endif
 
 	for (t = 0; t < sizeof(cfg_opts) / sizeof(cfg_opts[0]) && ret == 0; t++)
 	{

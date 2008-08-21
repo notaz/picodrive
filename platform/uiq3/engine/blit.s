@@ -1,3 +1,4 @@
+@ vim:filetype=armasm
 @ some color conversion and blitting routines
 
 @ (c) Copyright 2006, notaz
@@ -692,4 +693,14 @@ vidClear:
     add     r0,  r0, #16*4
     orr     r12, #(240/16-1)<<16
     b       .loopVidClear
+
+@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+.equ EExecSetExceptionHandler, (90)
+
+.global my_SetExceptionHandler
+
+my_SetExceptionHandler:
+    mov     ip, lr
+    swi     EExecSetExceptionHandler
 

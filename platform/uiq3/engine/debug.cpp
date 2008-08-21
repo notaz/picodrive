@@ -2,6 +2,9 @@
 #include <e32svr.h> // RDebug
 #include "debug.h"
 
+//#define LOG_FILE "C:\\logs\\pico.log"
+#define LOG_FILE _L("D:\\pico.log")
+
 #ifdef __WINS__
 
 void ExceptionHandler(TExcType exc) {}
@@ -40,6 +43,7 @@ static const wchar_t * const exception_names[] = {
 };
 
 
+#if 0
 static void getASpace(TUint *code_start, TUint *code_end, TUint *stack_start, TUint *stack_end)
 {
 	TUint pc, sp;
@@ -63,21 +67,23 @@ static void getASpace(TUint *code_start, TUint *code_end, TUint *stack_start, TU
 		chunk.Close();
 	}
 }
+#endif
 
 // tmp
 #if defined(__DEBUG_PRINT)
-extern "C" char *debugString();
+extern "C" char *PDebugMain();
 #endif
 
 // our very own exception handler
 void ExceptionHandler(TExcType exc)
 {
+	DEBUGPRINT(_L("ExceptionHandler() called!!!")); // this seems to never be called
+
+#if 0
 	TUint lr, sp, i;
 	TUint stack_end	= 0;				// ending address of our stack chunk
 	TUint code_start = 0, code_end = 0; // starting and ending addresses of our code chunk
 	TUint guessed_address = 0;
-
-	DEBUGPRINT(_L("ExceptionHandler()")); // this seems to never be called
 
 	asm volatile ("str lr, %0" : "=m" (lr) );
 	asm volatile ("str sp, %0" : "=m" (sp) );
@@ -136,11 +142,11 @@ void ExceptionHandler(TExcType exc)
 
 	// tmp
 #if defined(__DEBUG_PRINT)
-	char *ps, *cstr = debugString();
+	char *ps, *cstr = PDebugMain();
 	for(ps = cstr; *ps; ps++) {
 	  if(*ps == '\n') {
 	    *ps = 0;
-	    dprintf(cstr);
+	    lprintf(cstr);
 		cstr = ps+1;
 	  }
 	}
@@ -154,9 +160,32 @@ void ExceptionHandler(TExcType exc)
 	// more descriptive replacement of "KERN-EXEC 3" panic
 	buff1.Format(_L("K-EX3: %S"), &ptrExc);
 	User::Panic(buff1, exc);
+#endif
 }
 
 #endif // ifdef __WINS__
+
+
+#if 1 // def __DEBUG_PRINT_C
+	#include <stdarg.h> // va_*
+	#include <stdio.h>  // vsprintf
+
+	// debug print from c code
+	extern "C" void lprintf(char *format, ...)
+	{
+		va_list args;
+		char    buffer[512];
+		int len;
+
+		va_start(args,format);
+		len = vsprintf(buffer,format,args);
+		va_end(args);
+		if (buffer[len-1] == '\n')
+			buffer[len-1] = 0;
+
+		DEBUGPRINT(_L("%S"), DO_CONV(buffer));
+	}
+#endif
 
 
 #if defined(__DEBUG_PRINT) || defined(__WINS__)
@@ -172,24 +201,6 @@ void ExceptionHandler(TExcType exc)
 	}
 #endif
 
-#ifdef __DEBUG_PRINT_C
-	#include <stdarg.h> // va_*
-	#include <stdio.h>  // vsprintf
-
-	// debug print from c code
-	extern "C" void dprintf(char *format, ...)
-	{
-		va_list args;
-		char    buffer[512];
-
-		va_start(args,format);
-		vsprintf(buffer,format,args);
-		va_end(args);
-
-		DEBUGPRINT(_L("%S"), DO_CONV(buffer));
-	}
-#endif
-
 #ifdef __DEBUG_PRINT_FILE
 	#include <f32file.h>
 
@@ -201,12 +212,12 @@ void ExceptionHandler(TExcType exc)
 	{
 		// try to open
 		logMutex.CreateLocal();
-		RFs fserv;
+		/*RFs fserv;
 		fserv.Connect();
 		RFile logFile;
-		logFile.Replace(fserv, _L("C:\\logs\\pico.log"), EFileWrite|EFileShareAny);
+		logFile.Replace(fserv, LOG_FILE, EFileWrite|EFileShareAny);
 		logFile.Close();
-		fserv.Close();
+		fserv.Close();*/
 	}
 
 	// debug print to file
@@ -225,7 +236,7 @@ void ExceptionHandler(TExcType exc)
 
 		RThread thisThread;
 		RFile logFile;
-		res = logFile.Open(fserv, _L("C:\\logs\\pico.log"), EFileWrite|EFileShareAny);
+		res = logFile.Open(fserv, LOG_FILE, EFileWrite|EFileShareAny);
 		if(res) goto fail1;
 
 		logFile.Size(size); logFile.Seek(ESeekStart, size);
