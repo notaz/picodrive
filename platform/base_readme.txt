@@ -36,7 +36,6 @@ How to make it run
 Copy PicoDrive.gpe, pico940_v3.bin and mmuhack.o to any place in your filesystem
 (all 3 files must be in the same directory) and run PicoDrive.gpe.
 Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
-
 #endif
 #ifdef GIZ
 First make sure you have homebrew-enabled Service Pack installed. Then copy
@@ -45,7 +44,6 @@ be in the same directory) and run PicoDrive.exe using the launcher of your choic
 (some of them might require renaming PicoDrive.exe to Autorun.exe, placing it in
 the root of SD, etc). Then load a ROM and enjoy! ROMs can be placed anywhere, can
 be in .smd or .bin format and can be zipped (one ROM per zip).
-
 #endif
 #ifdef PSP
 If you are running a custom firmware, just copy the whole PicoDrive directory to
@@ -53,8 +51,13 @@ If you are running a custom firmware, just copy the whole PicoDrive directory to
 which one GAME* directory to use).
 
 If you are on 1.5, there is a separate KXploited version for it.
-
 #endif
+#ifdef UIQ
+Copy SIS and some ROMs to any directory in your memory stick, and install the SIS.
+Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
+#endif
+#ifndef UIQ
+
 Note that this emulator may require some tweaking of configuration settings to run
 some games well. For Genesis/MegaDrive, if you have any problems (game does not
 boot, sound is glitchy, broken graphics), try to:
@@ -67,13 +70,19 @@ boot, sound is glitchy, broken graphics), try to:
 Some games may need to be reset after adjusting settings.
 
 For possible Sega/Mega CD problems, see "Other important stuff" section below.
+#endif
 
 
 How to run Sega/Mega CD games
 -----------------------------
 
-To play any game, you need BIOS files. These files must be copied to the same
-directory as mentioned PicoDrive files. Files can be named as follows:
+To play any game, you need BIOS files. These files must be copied to
+#ifdef UIQ
+D:\other\PicoDrive\ directory.
+#else
+the same directory as mentioned PicoDrive files.
+#endif
+Files can be named as follows:
 
 US: us_scd1_9210.bin us_scd2_9306.bin SegaCDBIOS9303.bin
 EU: eu_mcd1_9210.bin eu_mcd2_9303.bin eu_mcd2_9306.bin
@@ -125,7 +134,11 @@ Other important stuff
 ---------------------
 
 * If your Genesis/MD game has graphical glitches, this is most likely because
+#ifndef UIQ
   "accurate renderer" is not enabled (see options).
+#else
+  "Fast renderer (inaccurate)" is enabled. Try disabling it.
+#endif
 * Sega/Mega CD: If the game hangs after Sega logo, you may need to enable
   "better sync" and/or "Scale/Rot. fx" options, found in "Sega/Mega CD options"
   submenu, and then reset the game. Some other games may also require
@@ -167,6 +180,9 @@ Other important stuff
 Configuration
 -------------
 
+#ifdef UIQ
+#include "config.txt"
+#else
 @@0. "Renderer"
 #ifdef GP2X
 8bit fast:
@@ -480,6 +496,7 @@ both buttons for that action to happen).
 
 There is also option to enable 6 button pad (will allow you to configure XYZ
 keys), and an option to set turbo rate (in Hz) for turbo buttons.
+#endif
 
 
 Cheat support
@@ -656,6 +673,7 @@ Changelog
   * Fixed a crash when uncompressed savestate is loaded.
   * Fixed an idle loop detection related hanging problem.
   * PSP: fixed another palette related regression.
+  * UIQ3: updated frontend for the latest emu core.
 
 1.51a
   * Fixed a sync problem between main and sub 68k. Should fix the hanging

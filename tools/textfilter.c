@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 
 
 static int check_defines(const char **defs, int defcount, char *tdef)
 {
 	int i, len;
 
+	while (isspace(*tdef)) tdef++;
 	len = strlen(tdef);
 	for (i = 0; i < len; i++)
 		if (tdef[i] == ' ' || tdef[i] == '\r' || tdef[i] == '\n') break;
@@ -43,7 +45,7 @@ int main(int argc, char *argv[])
 {
 	char buff[1024];
 	FILE *fi, *fo;
-	int skip_mode = 0, ifdef_level = 0, line = 0;
+	int skip_mode = 0, ifdef_level = 0, skip_level = 0, line = 0;
 
 	if (argc < 3)
 	{
@@ -77,20 +79,25 @@ int main(int argc, char *argv[])
 			/* control char */
 			if (strncmp(buff, "#ifdef ", 7) == 0)
 			{
-				if (!check_defines((void *) &argv[3], argc-3, buff + 7)) skip_mode = 1;
 				ifdef_level++;
+				if (!skip_mode && !check_defines((void *) &argv[3], argc-3, buff + 7))
+					skip_mode = 1, skip_level = ifdef_level;
 			}
 			else if (strncmp(buff, "#ifndef ", 8) == 0)
 			{
-				if ( check_defines((void *) &argv[3], argc-3, buff + 7)) skip_mode = 1;
 				ifdef_level++;
+				if (!skip_mode &&  check_defines((void *) &argv[3], argc-3, buff + 8))
+					skip_mode = 1, skip_level = ifdef_level;
 			}
 			else if (strncmp(buff, "#else", 5) == 0)
 			{
-				skip_mode ^= 1;
+				if (!skip_mode || skip_level == ifdef_level)
+					skip_mode ^= 1, skip_level = ifdef_level;
 			}
 			else if (strncmp(buff, "#endif", 6) == 0)
 			{
+				if (skip_level == ifdef_level)
+					skip_mode = 0;
 				ifdef_level--;
 				if (ifdef_level == 0) skip_mode = 0;
 				if (ifdef_level < 0)
@@ -98,6 +105,29 @@ int main(int argc, char *argv[])
 					printf("%i: warning: #endif without #ifdef, ignoring\n", line);
 					ifdef_level = 0;
 				}
+			}
+			else if (strncmp(buff, "#include ", 9) == 0)
+			{
+				char *pe, *p = buff + 9;
+				FILE *ftmp;
+				if (skip_mode) continue;
+				while (*p && (*p == ' ' || *p == '\"')) p++;
+				for (pe = p + strlen(p) - 1; pe > p; pe--)
+					if (isspace(*pe) || *pe == '\"') *pe = 0;
+					else break;
+				ftmp = fopen(p, "r");
+				if (ftmp == NULL) {
+					printf("%i: error: failed to include \"%s\"\n", line, p);
+					return 1;
+				}
+				while (!feof(ftmp))
+				{
+					fgs = fgets(buff, sizeof(buff), ftmp);
+					if (fgs == NULL) break;
+					fputs(buff, fo);
+				}
+				fclose(ftmp);
+				continue;
 			}
 
 			/* skip line */
