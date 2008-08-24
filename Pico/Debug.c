@@ -53,7 +53,7 @@ char *PDebugMain(void)
   sprintf(dstrp, "z80Run: %i, z80_reset: %i, z80_bnk: %06x\n", Pico.m.z80Run, Pico.m.z80_reset, Pico.m.z80_bank68k<<15); MVP;
   z80_debug(dstrp); MVP;
   if (strlen(dstr) > sizeof(dstr))
-    printf("warning: debug buffer overflow (%i/%i)\n", strlen(dstr), sizeof(dstr));
+    elprintf(EL_STATUS, "warning: debug buffer overflow (%i/%i)\n", strlen(dstr), sizeof(dstr));
 
   return dstr;
 }

@@ -44,9 +44,11 @@ extern void menu_romload_end(void);
 
 
 // utilities
-static void strlwr_(char* string)
+static void strlwr_(char *string)
 {
-	while ( (*string++ = (char)tolower(*string)) );
+	char *p;
+	for (p = string; *p; p++)
+		*p = (char)tolower(*p);
 }
 
 static int try_rfn_cut(char *fname)
@@ -345,6 +347,7 @@ int emu_ReloadRom(char *rom_fname)
 			return 0;
 		}
 		get_ext(rom_fname, ext);
+		lprintf("gmv loaded for %s\n", rom_fname);
 	}
 	else if (!strcmp(ext, ".pat"))
 	{
@@ -407,7 +410,9 @@ int emu_ReloadRom(char *rom_fname)
 	rom_loaded = 0;
 
 	if ( (ret = PicoCartLoad(rom, &rom_data, &rom_size)) ) {
-		sprintf(menuErrorMsg, "PicoCartLoad() failed.");
+		if      (ret == 2) sprintf(menuErrorMsg, "Out of memory");
+		else if (ret == 3) sprintf(menuErrorMsg, "Read failed");
+		else               sprintf(menuErrorMsg, "PicoCartLoad() failed.");
 		lprintf("%s\n", menuErrorMsg);
 		goto fail2;
 	}
@@ -774,13 +779,13 @@ void emu_updateMovie(void)
 	} else {
 		// MXYZ SACB RLDU
 		PicoPad[0] = ~movie_data[offs]   & 0x8f; // ! SCBA RLDU
-		if(!(movie_data[offs]   & 0x10)) PicoPad[0] |= 0x40; // A
-		if(!(movie_data[offs]   & 0x20)) PicoPad[0] |= 0x10; // B
-		if(!(movie_data[offs]   & 0x40)) PicoPad[0] |= 0x20; // A
+		if(!(movie_data[offs]   & 0x10)) PicoPad[0] |= 0x40; // C
+		if(!(movie_data[offs]   & 0x20)) PicoPad[0] |= 0x10; // A
+		if(!(movie_data[offs]   & 0x40)) PicoPad[0] |= 0x20; // B
 		PicoPad[1] = ~movie_data[offs+1] & 0x8f; // ! SCBA RLDU
-		if(!(movie_data[offs+1] & 0x10)) PicoPad[1] |= 0x40; // A
-		if(!(movie_data[offs+1] & 0x20)) PicoPad[1] |= 0x10; // B
-		if(!(movie_data[offs+1] & 0x40)) PicoPad[1] |= 0x20; // A
+		if(!(movie_data[offs+1] & 0x10)) PicoPad[1] |= 0x40; // C
+		if(!(movie_data[offs+1] & 0x20)) PicoPad[1] |= 0x10; // A
+		if(!(movie_data[offs+1] & 0x40)) PicoPad[1] |= 0x20; // B
 		PicoPad[0] |= (~movie_data[offs+2] & 0x0A) << 8; // ! MZYX
 		if(!(movie_data[offs+2] & 0x01)) PicoPad[0] |= 0x0400; // X
 		if(!(movie_data[offs+2] & 0x04)) PicoPad[0] |= 0x0100; // Z

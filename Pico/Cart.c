@@ -137,8 +137,10 @@ zip_failed:
     if (f == NULL)
       goto cso_failed;
 
+#ifndef __EPOC32__
     /* we use our own buffering */
     setvbuf(f, NULL, _IONBF, 0);
+#endif
 
     cso = malloc(sizeof(*cso));
     if (cso == NULL)
@@ -192,9 +194,6 @@ cso_failed:
   f = fopen(path, "rb");
   if (f == NULL) return NULL;
 
-  /* we use our own buffering */
-  setvbuf(f, NULL, _IONBF, 0);
-
   file = malloc(sizeof(*file));
   if (file == NULL) {
     fclose(f);
@@ -206,6 +205,12 @@ cso_failed:
   file->size  = ftell(f);
   file->type  = PMT_UNCOMPRESSED;
   fseek(f, 0, SEEK_SET);
+
+#ifndef __EPOC32__ // makes things worse on Symbian
+  if (file->size > 0x400000)
+    /* we use our own buffering */
+    setvbuf(f, NULL, _IONBF, 0);
+#endif
 
   return file;
 }
@@ -445,7 +450,7 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
   rom=PicoCartAlloc(size);
   if (rom==NULL) {
     elprintf(EL_STATUS, "out of memory (wanted %i)", size);
-    return 1;
+    return 2;
   }
 
   if (PicoCartLoadProgressCB != NULL)
@@ -470,7 +475,7 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
   if (bytes_read <= 0) {
     elprintf(EL_STATUS, "read failed");
     free(rom);
-    return 1;
+    return 3;
   }
 
   // maybe we are loading MegaCD BIOS?

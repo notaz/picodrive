@@ -283,7 +283,7 @@ static void blit(const char *fps, const char *notice)
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal)
 		{
-			int pallen = 0x40;
+			int pallen = 0xc0;
 			Pico.m.dirtyPal = 0;
 			if (Pico.video.reg[0xC]&8) // shadow/hilight mode
 			{
@@ -293,21 +293,14 @@ static void blit(const char *fps, const char *notice)
 				memcpy32(localPal+0xc0, localPal+0x40, 0x40);
 				pallen = 0x100;
 			}
-			else if (rendstatus & PDRAW_ACC_SPRITES) {
-				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
-				memcpy32(localPal+0x40, localPal, 0x40);
-				memcpy32(localPal+0x80, localPal, 0x40);
-				memcpy32(localPal+0xc0, localPal, 0x40);
-				pallen = 0x100;
-			}
 			else if (rendstatus & PDRAW_SONIC_MODE) { // mid-frame palette changes
 				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 				vidConvCpyRGB32(localPal+0x40, HighPal, 0x40);
 				vidConvCpyRGB32(localPal+0x80, HighPal+0x40, 0x40);
-				pallen = 0xc0;
 			}
 			else {
 				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
+				memcpy32(localPal+0x80, localPal, 0x40); // for spr prio mess
 			}
 			if (pallen > 0xc0) {
 				localPal[0xc0] = 0x0000c000;

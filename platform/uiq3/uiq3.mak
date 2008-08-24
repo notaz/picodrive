@@ -35,10 +35,9 @@ ELF2E32 = elf2e32
 BMCONV = bmconv
 EPOCRC = EPOCROOT=$(EPOCROOT) epocrc
 
-PATH := $(EPOCROOT)/bin:$(GCCPATH)/bin:$(GCCPATH)/$(GCCPREF)/bin:$(PATH)
+PATH := $(EPOCROOT)/bin:$(GCCPATH)/bin:$(PATH)
 
-# TODO: do we really need -mapcs?
-# -march=armv5t
+# -march=armv5t ?
 CFLAGS += -Wall -pipe -nostdinc -msoft-float
 CFLAGS += -DNDEBUG -D_UNICODE -D__GCCE__  -D__SYMBIAN32__ -D__EPOC32__ -D__MARM__
 CFLAGS += -D__EABI__ -D__MARM_ARMV5__ -D__EXE__ -D__SUPPORT_CPP_EXCEPTIONS__ -D__MARM_ARMV5__

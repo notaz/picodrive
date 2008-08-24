@@ -84,8 +84,8 @@ char *loadrom_fname = NULL;
 int   loadrom_result = 0;
 static timeval noticeMsgTime = { 0, 0 };	// when started showing
 static CGameAudioMS *gameAudio = 0;			// the audio object itself
-static int reset_timing;
-extern int pico_was_reset;
+static int reset_timing = 0;
+static int pico_was_reset = 0;
 extern RSemaphore initSemaphore;
 extern RSemaphore pauseSemaphore;
 extern RSemaphore loadWaitSemaphore;
@@ -170,21 +170,27 @@ static void TargetEpocGameL()
 	int thissec = 0, frames_done = 0, frames_shown = 0;
 	int target_fps, target_frametime;
 	int i, lim_time;
-	//TRawEvent blevent;
 
 	MainInit();
 	buff[0] = 0;
 
+	// try to start pico
+	DEBUGPRINT(_L("PicoInit()"));
 	PicoInit();
-
-	// just to keep the backlight on (works only on UIQ2)
-	//blevent.Set(TRawEvent::EActive);
+	PicoDrawSetColorFormat(2);
+	PicoWriteSound = updateSound;
 
 	// loop?
 	for(;;)
 	{
 		if (gamestate == PGS_Running)
 		{
+			#ifdef __DEBUG_PRINT
+			TInt mem, cells = User::CountAllocCells();
+			User::AllocSize(mem);
+			DEBUGPRINT(_L("worker: cels=%d, size=%d KB"), cells, mem/1024);
+			#endif
+
 			// switch context to other thread
 			User::After(50000);
 			// prepare window and stuff
@@ -203,7 +209,7 @@ static void TargetEpocGameL()
 				if(!noticeMsgTime.tv_sec) strcpy(noticeMsg, "NTSC@SYSTEM@/@60@FPS");
 			}
 			target_frametime = 1000000/target_fps;
-			if(!noticeMsgTime.tv_sec && pico_was_reset)
+			if (!noticeMsgTime.tv_sec && pico_was_reset)
 				gettimeofday(&noticeMsgTime, 0);
 
 			// prepare CD buffer
@@ -263,6 +269,7 @@ static void TargetEpocGameL()
 						frames_shown -= target_fps; if (frames_shown < 0) frames_shown = 0;
 						if (frames_shown > frames_done) frames_shown = frames_done;
 					}
+					User::ResetInactivityTime();
 				}
 
 
@@ -331,14 +338,23 @@ static void TargetEpocGameL()
 			CPolledActiveScheduler::Instance()->Schedule();
 			CGameWindow::FreeResources();
 		}
+		else if(gamestate == PGS_Reset)
+		{
+			PicoReset();
+			pico_was_reset = 1;
+			gamestate = PGS_Running;
+		}
 		else if(gamestate == PGS_ReloadRom)
 		{
 			loadrom_result = emu_ReloadRom(loadrom_fname);
 			pico_was_reset = 1;
 			if (loadrom_result)
 				gamestate = PGS_Running;
-			else
+			else {
+				extern char menuErrorMsg[];
 				gamestate = PGS_Paused;
+				lprintf("%s\n", menuErrorMsg);
+			}
 			DEBUGPRINT(_L("done loading ROM, retval=%i"), loadrom_result);
 			loadWaitSemaphore.Signal();
 			User::After(50000);
@@ -363,15 +379,8 @@ static void TargetEpocGameL()
 				User::After(150000);
 			}
 
+			emu_WriteConfig(0);
 			CGameWindow::FreeResources();
-		} else if(gamestate == PGS_DebugHeap) {
-			#ifdef __DEBUG_PRINT
-			TInt cells = User::CountAllocCells();
-			TInt mem;
-			User::AllocSize(mem);
-			DEBUGPRINT(_L("worker: cels=%d, size=%d KB"), cells, mem/1024);
-			gamestate = gamestate_next;
-			#endif
 		} else if(gamestate == PGS_Quit) {
 			break;
 		}
@@ -396,11 +405,6 @@ static void MainInit()
 //	HAL::Get(HALData::EMachineUid, machineUid); // find out the machine UID
 
 	DumpMemInfo();
-
-	// try to start pico
-	DEBUGPRINT(_L("PicoInit()"));
-	PicoDrawSetColorFormat(2);
-	PicoWriteSound = updateSound;
 
 //	if (pauseSemaphore.Handle() <= 0)
 //		pauseSemaphore.CreateLocal(0);
@@ -776,6 +780,8 @@ void CGameWindow::DoKeys(void)
 			areaActions = 0;
 		}
 	}
+
+	if (movie_data) emu_updateMovie();
 }
 
 
@@ -875,8 +881,11 @@ void CGameWindow::RunEvents(TUint32 which)
 		sprintf(noticeMsg, "SAVE@SLOT@%i@SELECTED", state_slot);
 		gettimeofday(&noticeMsgTime, 0);
 	}
-	if(which & 0x0020) if(gameAudio) currentConfig.volume = gameAudio->ChangeVolume(0);
-	if(which & 0x0010) if(gameAudio) currentConfig.volume = gameAudio->ChangeVolume(1);
+	if ((which & 0x0030) && gameAudio != NULL) {
+		currentConfig.volume = gameAudio->ChangeVolume((which & 0x0010) ? 1 : 0);
+		sprintf(noticeMsg, "VOL@%02i@", currentConfig.volume);
+		gettimeofday(&noticeMsgTime, 0);
+	}
 }
 
 

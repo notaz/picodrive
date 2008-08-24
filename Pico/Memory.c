@@ -76,8 +76,9 @@ PICO_INTERNAL u32 PicoCheckPc(u32 pc)
   pc&=~1;
   if ((pc<<8) == 0)
   {
-    printf("%i:%03i: game crash detected @ %06x\n", Pico.m.frame_count, Pico.m.scanline, SekPc);
-    return (int)Pico.rom + Pico.romsize; // common crash condition, can happen if acc timing is off
+    elprintf(EL_STATUS|EL_ANOMALY, "%i:%03i: game crash detected @ %06x\n",
+      Pico.m.frame_count, Pico.m.scanline, SekPc);
+    return (int)Pico.rom + Pico.romsize; // common crash condition, may happen with bad ROMs
   }
 
   PicoCpuCM68k.membase=PicoMemBase(pc&0x00ffffff);

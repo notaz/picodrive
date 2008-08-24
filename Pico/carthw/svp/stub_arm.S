@@ -40,7 +40,6 @@ ssp_block_table_iram:
  .space SSP_BLOCKTAB_IRAM_SIZE
  .space SSP_BLOCKTAB_ALIGN_SIZE
 
-
 .text
 .align 2
 
@@ -59,6 +58,7 @@ ssp_block_table_iram:
 @ r9:  r4-r6 (.654)
 @ r10: P
 @ r11: cycles
+@ r12: tmp
 
 
 #define SSP_OFFS_GR         0x400
@@ -207,7 +207,7 @@ ssp_drc_do_patch:
     bic     r3, r3, #1			@ L bit
     orr     r3, r3, r12,lsl #6
     mov     r3, r3, ror #8              @ patched branch instruction
-    str     r3, [r1, #-4]
+    str     r3, [r1, #-4]               @ patch the bl/b to jump directly to another handler
 
 ssp_drc_dp_end:
     str     r2, [r7, #SSP_OFFS_TMP1]

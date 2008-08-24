@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#ifdef UIQ3
+#ifdef __EPOC32__
 #include <unistd.h>
 #endif
 #include "config.h"

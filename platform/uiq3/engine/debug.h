@@ -16,7 +16,7 @@
 		#ifdef __cplusplus
 		extern "C"
 		#endif
-		void lprintf(char *format, ...);
+		void lprintf(const char *format, ...);
 	#endif
 #else
 	#define DEBUGPRINT(x...)

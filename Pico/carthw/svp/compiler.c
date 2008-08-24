@@ -1663,7 +1663,7 @@ static void emit_block_prologue(void)
 	// check if there are enough cycles..
 	// note: r0 must contain PC of current block
 	EOP_CMP_IMM(11,0,0);			// cmp r11, #0
-	emit_call(A_COND_LE, ssp_drc_end);
+	emit_jump(A_COND_LE, ssp_drc_end);
 }
 
 /* cond:
@@ -1684,20 +1684,29 @@ static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 		if (target != NULL)
 			emit_jump(A_COND_AL, target);
 		else {
-			emit_jump(A_COND_AL, ssp_drc_next);
-			// cause the next block to be emitted over jump instrction
-			tcache_ptr--;
+			int ops = emit_jump(A_COND_AL, ssp_drc_next);
+			// cause the next block to be emitted over jump instruction
+			tcache_ptr -= ops;
 		}
 	}
 	else {
-		u32 *target1 = (pc < 0x400) ? ssp_block_table_iram[ssp->drc.iram_context][pc] : ssp_block_table[pc];
+		u32 *target1 = (pc     < 0x400) ? ssp_block_table_iram[ssp->drc.iram_context][pc] : ssp_block_table[pc];
 		u32 *target2 = (end_pc < 0x400) ? ssp_block_table_iram[ssp->drc.iram_context][end_pc] : ssp_block_table[end_pc];
 		if (target1 != NULL)
 		     emit_jump(cond, target1);
-		else emit_call(cond, ssp_drc_next_patch);
 		if (target2 != NULL)
 		     emit_jump(tr_neg_cond(cond), target2); // neg_cond, to be able to swap jumps if needed
-		else emit_call(tr_neg_cond(cond), ssp_drc_next_patch);
+#ifndef __EPOC32__
+		// emit patchable branches
+		if (target1 == NULL)
+			emit_call(cond, ssp_drc_next_patch);
+		if (target2 == NULL)
+			emit_call(tr_neg_cond(cond), ssp_drc_next_patch);
+#else
+		// won't patch indirect jumps
+		if (target1 == NULL || target2 == NULL)
+			emit_jump(A_COND_AL, ssp_drc_next);
+#endif
 	}
 }
 
@@ -1708,6 +1717,7 @@ void *ssp_translate_block(int pc)
 	int ret, end_cond = A_COND_AL, jump_pc = -1;
 
 	//printf("translate %04x -> %04x\n", pc<<1, (tcache_ptr-tcache)<<2);
+
 	block_start = tcache_ptr;
 	known_regb = 0;
 	dirty_regb = KRREG_P;
@@ -1748,7 +1758,7 @@ void *ssp_translate_block(int pc)
 	emit_block_epilogue(ccount, end_cond, jump_pc, pc);
 
 	if (tcache_ptr - tcache > SSP_TCACHE_SIZE/4) {
-		elprintf(EL_ANOMALY, "tcache overflow!\n");
+		elprintf(EL_ANOMALY|EL_STATUS|EL_SVP, "tcache overflow!\n");
 		fflush(stdout);
 		exit(1);
 	}
@@ -1824,6 +1834,7 @@ void ssp1601_dyn_reset(ssp1601_t *ssp)
 	// prevent new versions of IRAM from appearing
 	memset(svp->iram_rom, 0, 0x800);
 }
+
 
 void ssp1601_dyn_run(int cycles)
 {

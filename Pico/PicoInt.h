@@ -541,10 +541,6 @@ PICO_INTERNAL void z80_reset(void);
 PICO_INTERNAL void z80_exit(void);
 extern int PsndDacLine;
 
-#ifdef __cplusplus
-} // End of extern "C"
-#endif
-
 // emulation event logging
 #ifndef EL_LOGMASK
 #define EL_LOGMASK 0
@@ -588,6 +584,10 @@ extern void lprintf(const char *fmt, ...);
 #define cdprintf
 #else
 #define cdprintf(x...)
+#endif
+
+#ifdef __cplusplus
+} // End of extern "C"
 #endif
 
 #endif // PICO_INTERNAL_INCLUDED

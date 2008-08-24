@@ -171,7 +171,7 @@ void ExceptionHandler(TExcType exc)
 	#include <stdio.h>  // vsprintf
 
 	// debug print from c code
-	extern "C" void lprintf(char *format, ...)
+	extern "C" void lprintf(const char *format, ...)
 	{
 		va_list args;
 		char    buffer[512];

@@ -182,7 +182,7 @@ static void drawTextM2Fat(int x, int y, const char *text)
 static void drawTextFpsCenter0(const char *text)
 {
 	if(!text) return;
-	drawTextM2(214, 216, text);
+	drawTextM2((Pico.video.reg[12]&1) ? 234 : 214, 216, text);
 }
 
 static void drawTextFpsFit0(const char *text)
@@ -206,7 +206,7 @@ static void drawTextFps0(const char *text)
 static void drawTextNoticeCenter0(const char *text)
 {
 	if(!text) return;
-	drawTextM2(2, 216, text);
+	drawTextM2(42, 216, text);
 }
 
 static void drawTextNoticeFit0(const char *text)
@@ -250,12 +250,14 @@ static void fillLocalPal(void)
 		memcpy32(localPal+0xc0, localPal+0x40, 0x40);
 		localPal[0xe0] = 0x00000000; // reserved pixels for OSD
 		localPal[0xf0] = 0x00ee0000;
-	} else if (rendstatus & 0x20) { // mid-frame palette changes
+	}
+	else if (rendstatus & PDRAW_SONIC_MODE) { // mid-frame palette changes
 		vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 		vidConvCpyRGB32(localPal+0x40, HighPal, 0x40);
 		vidConvCpyRGB32(localPal+0x80, HighPal+0x40, 0x40);
 	} else {
 		vidConvCpyRGB32(localPal, Pico.cram, 0x40);
+		memcpy32(localPal+0x80, localPal, 0x40); // for sprite prio mess
 	}
 }
 
@@ -265,8 +267,6 @@ static void vidBlit_90(int full)
 {
 	unsigned char *ps = PicoDraw2FB+328*8;
 	unsigned long *pd = (unsigned long *) screenbuff;
-
-	if (Pico.m.dirtyPal) fillLocalPal();
 
 	if(Pico.video.reg[12]&1)
 		vidConvCpy_90(pd, ps, localPal, 320/8);
@@ -283,8 +283,6 @@ static void vidBlit_270(int full)
 {
 	unsigned char *ps = PicoDraw2FB+328*8;
 	unsigned long *pd = (unsigned long *) screenbuff;
-
-	if (Pico.m.dirtyPal) fillLocalPal();
 
 	if(Pico.video.reg[12]&1)
 		vidConvCpy_270(pd, ps, localPal, 320/8);
@@ -303,8 +301,6 @@ static void vidBlitCenter_0(int full)
 	unsigned char *ps = PicoDraw2FB+328*8+8;
 	unsigned long *pd = (unsigned long *) screenbuff;
 
-	if (Pico.m.dirtyPal) fillLocalPal();
-
 	if(Pico.video.reg[12]&1) ps += 32;
 	vidConvCpy_center_0(pd, ps, localPal);
 	if(full) vidClear(pd + 224*256, 96);
@@ -316,8 +312,6 @@ static void vidBlitCenter_180(int full)
 	unsigned char *ps = PicoDraw2FB+328*8+8;
 	unsigned long *pd = (unsigned long *) screenbuff;
 
-	if (Pico.m.dirtyPal) fillLocalPal();
-
 	if(Pico.video.reg[12]&1) ps += 32;
 	vidConvCpy_center_180(pd, ps, localPal);
 	if(full) vidClear(pd + 224*256, 96);
@@ -326,8 +320,6 @@ static void vidBlitCenter_180(int full)
 
 static void vidBlitFit_0(int full)
 {
-	if (Pico.m.dirtyPal) fillLocalPal();
-
 	if(Pico.video.reg[12]&1)
 		 vidConvCpy_center2_40c_0(screenbuff, PicoDraw2FB+328*8, localPal, 168);
 	else vidConvCpy_center2_32c_0(screenbuff, PicoDraw2FB+328*8, localPal, 168);
@@ -337,8 +329,6 @@ static void vidBlitFit_0(int full)
 
 static void vidBlitFit_180(int full)
 {
-	if (Pico.m.dirtyPal) fillLocalPal();
-
 	if(Pico.video.reg[12]&1)
 	     vidConvCpy_center2_40c_180(screenbuff, PicoDraw2FB+328*8, localPal, 168);
 	else vidConvCpy_center2_32c_180(screenbuff, PicoDraw2FB+328*8-64, localPal, 168);
@@ -348,8 +338,6 @@ static void vidBlitFit_180(int full)
 
 static void vidBlitFit2_0(int full)
 {
-	if (Pico.m.dirtyPal) fillLocalPal();
-
 	if(Pico.video.reg[12]&1)
 	     vidConvCpy_center2_40c_0(screenbuff, PicoDraw2FB+328*8, localPal, 224);
 	else vidConvCpy_center2_32c_0(screenbuff, PicoDraw2FB+328*8, localPal, 224);
@@ -359,8 +347,6 @@ static void vidBlitFit2_0(int full)
 
 static void vidBlitFit2_180(int full)
 {
-	if (Pico.m.dirtyPal) fillLocalPal();
-
 	if(Pico.video.reg[12]&1)
 	     vidConvCpy_center2_40c_180(screenbuff, PicoDraw2FB+328*8, localPal, 224);
 	else vidConvCpy_center2_32c_180(screenbuff, PicoDraw2FB+328*8-64, localPal, 224);
@@ -453,6 +439,7 @@ int vidInit(void *vidmem, int reinit)
 		vidBlit = vidBlit_270;
 	}
 
+	fillLocalPal();
 	vidBlit(1);
 	PicoOpt |= 0x100;
 	Pico.m.dirtyPal = 1;
@@ -475,6 +462,7 @@ void vidDrawFrame(char *noticeStr, char *fpsStr, int num)
 		drawTextFps(fpsStr);
 	drawTextNotice(noticeStr);
 
+	if (Pico.m.dirtyPal) fillLocalPal();
 	vidBlit(!num); // copy full frame once a second
 }
 

@@ -839,7 +839,7 @@ static void DrawSpritesSHi(unsigned char *sprited)
     }
   }
 }
-#endif
+#endif // !_ASM_DRAW_C
 
 static void DrawSpritesHiAS(unsigned char *sprited, int sh)
 {
@@ -849,6 +849,8 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
 
   cnt = sprited[0] & 0x7f;
   if (cnt == 0) return;
+
+  rendstatus |= PDRAW_SPR_LO_ON_HI;
 
   p = &sprited[3];
 
@@ -1200,7 +1202,7 @@ static void FinalizeLineBGR444(int sh)
     }
   }
 
-  if (!sh && (rendstatus & PDRAW_ACC_SPRITES))
+  if (!sh && (rendstatus & PDRAW_SPR_LO_ON_HI))
     mask=0x3f; // accurate sprites
 
   for(i = 0; i < len; i++)
@@ -1228,7 +1230,7 @@ static void FinalizeLineRGB555(int sh)
   {
 #ifndef PSP
     int i, mask=0xff;
-    if (!sh && (rendstatus & PDRAW_ACC_SPRITES))
+    if (!sh && (rendstatus & PDRAW_SPR_LO_ON_HI))
       mask=0x3f; // accurate sprites, upper bits are priority stuff
 
     for (i = 0; i < len; i++)
@@ -1236,7 +1238,7 @@ static void FinalizeLineRGB555(int sh)
 #else
     extern void amips_clut(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
     extern void amips_clut_6bit(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
-    if (!sh && (rendstatus & PDRAW_ACC_SPRITES))
+    if (!sh && (rendstatus & PDRAW_SPR_LO_ON_HI))
          amips_clut_6bit(pd, ps, pal, len);
     else amips_clut(pd, ps, pal, len);
 #endif
@@ -1250,7 +1252,7 @@ static void FinalizeLine8bit(int sh)
   int len, rs = rendstatus;
   static int dirty_count;
 
-  if (!sh && !(rs & PDRAW_ACC_SPRITES) && Pico.m.dirtyPal == 1 && DrawScanline < 222)
+  if (!sh && Pico.m.dirtyPal == 1 && DrawScanline < 222)
   {
     // a hack for mid-frame palette changes
     if (!(rs & PDRAW_SONIC_MODE))
@@ -1374,8 +1376,8 @@ static int DrawDisplay(int sh)
   if (!(PicoDrawMask & PDRAW_SPRITES_HI_ON));
   else if (rendstatus & PDRAW_INTERLACE)
     DrawAllSpritesInterlace(1, sh);
-  // AS on and have both lo/hi sprites and lo before hi sprites?
-  else if ((sprited[1] & 0xd0) == 0xd0 && (rendstatus & PDRAW_ACC_SPRITES))
+  // have sprites without layer pri bit ontop of sprites with that bit
+  else if ((sprited[1] & 0xd0) == 0xd0 && (PicoOpt & POPT_ACC_SPRITES))
     DrawSpritesHiAS(sprited, sh);
   else if (sh && (sprited[1] & SPRL_MAY_HAVE_OP))
     DrawSpritesSHi(sprited);
@@ -1394,13 +1396,11 @@ static int DrawDisplay(int sh)
   return 0;
 }
 
-
+// MUST be called every frame
 PICO_INTERNAL void PicoFrameStart(void)
 {
   // prepare to do this frame
   rendstatus = 0;
-  if (PicoOpt & POPT_ACC_SPRITES)
-    rendstatus |= PDRAW_ACC_SPRITES;
   if ((Pico.video.reg[12]&6) == 6)
     rendstatus |= PDRAW_INTERLACE; // interlace mode
 

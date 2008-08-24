@@ -27,8 +27,8 @@ enum TPicoGameState {
 	PGS_Paused,
 	PGS_Quit,
 	PGS_KeyConfig,
-	PGS_DebugHeap,
 	PGS_ReloadRom,
+	PGS_Reset,
 };
 
 enum TPicoServRqst {
@@ -49,11 +49,8 @@ enum TPicoGenErrors { // generic errors
 	PicoErrNoErr = 0, // OK
 	PicoErrRomOpenFailed,
 	PicoErrOutOfMem,
-	PicoErrNotRom,
-	PicoErrNoRomsInArchive,
-	PicoErrUncomp, // 5
 	PicoErrOutOfMemSnd,
-	PicoErrGenSnd, // 7 generic sound system error
+	PicoErrGenSnd, // generic sound system error
 	PicoErrEmuThread
 };
 

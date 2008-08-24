@@ -152,7 +152,7 @@ These options just show if your BIOS files were correctly detected by the emulat
 4. "CD LEDs"
 The Sega/Mega CD unit had two blinking LEDs (red and green) on it. This option will display them on top-left corner of the screen.
 
-5. "CDDA audio (using mp3s)"
+5. "CDDA audio"
 This option enables CD audio playback.
 
 6. "PCM audio"

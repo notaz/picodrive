@@ -178,27 +178,49 @@ static void emit_mov_const(int cond, int d, unsigned int val)
 		EOP_C_DOP_IMM(cond, need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 0, val&0xff);
 }
 
-static void check_offset_24(int val)
+static int is_offset_24(int val)
 {
-	if (val >= (int)0xff000000 && val <= 0x00ffffff) return;
-	printf("offset_24 overflow %08x\n", val);
-	exit(1);
+	if (val >= (int)0xff000000 && val <= 0x00ffffff) return 1;
+	return 0;
 }
 
-static void emit_call(int cond, void *target)
+static int emit_xbranch(int cond, void *target, int is_call)
 {
 	int val = (unsigned int *)target - tcache_ptr - 2;
-	check_offset_24(val);
+	int direct = is_offset_24(val);
+	u32 *start_ptr = tcache_ptr;
 
-	EOP_C_B(cond,1,val & 0xffffff);			// bl target
+	if (direct)
+	{
+		EOP_C_B(cond,is_call,val & 0xffffff);		// b, bl target
+	}
+	else
+	{
+#ifdef __EPOC32__
+//		elprintf(EL_SVP, "emitting indirect jmp %08x->%08x", tcache_ptr, target);
+		if (is_call)
+			EOP_ADD_IMM(14,15,0,8);			// add lr,pc,#8
+		EOP_C_AM2_IMM(cond,1,0,1,15,15,0);		// ldrcc pc,[pc]
+		EOP_MOV_REG_SIMPLE(15,15);			// mov pc, pc
+		EMIT((u32)target);
+#else
+		// should never happen
+		elprintf(EL_STATUS|EL_SVP|EL_ANOMALY, "indirect jmp %08x->%08x", target, tcache_ptr);
+		exit(1);
+#endif
+	}
+
+	return tcache_ptr - start_ptr;
 }
 
-static void emit_jump(int cond, void *target)
+static int emit_call(int cond, void *target)
 {
-	int val = (unsigned int *)target - tcache_ptr - 2;
-	check_offset_24(val);
+	return emit_xbranch(cond, target, 1);
+}
 
-	EOP_C_B(cond,0,val & 0xffffff);			// b target
+static int emit_jump(int cond, void *target)
+{
+	return emit_xbranch(cond, target, 0);
 }
 
 static void handle_caches(void)

@@ -65,6 +65,7 @@ void emu_prepareDefaultConfig(void)
 	defaultConfig.Frameskip = -1; // auto
 	defaultConfig.volume = 80;
 	defaultConfig.scaling = 0;
+	defaultConfig.KeyBinds[0xd5] = 1<<26; // back
 }
 
 /* used by config engine only, not actual menus */
@@ -102,7 +103,7 @@ const int opt2_entry_count = OPT2_ENTRY_COUNT;
 menu_entry cdopt_entries[] =
 {
 	{ "CD LEDs",                   MB_ONOFF, MA_CDOPT_LEDS,         &currentConfig.EmuOpt, 0x0400, 0, 0, 1, 1 },
-	{ "CDDA audio (using mp3s)",   MB_ONOFF, MA_CDOPT_CDDA,         &PicoOpt, 0x0800, 0, 0, 1, 1 },
+	{ "CDDA audio",                MB_ONOFF, MA_CDOPT_CDDA,         &PicoOpt, 0x0800, 0, 0, 1, 1 },
 	{ "PCM audio",                 MB_ONOFF, MA_CDOPT_PCM,          &PicoOpt, 0x0400, 0, 0, 1, 1 },
 	{ NULL,                        MB_NONE,  MA_CDOPT_READAHEAD,    NULL, 0, 0, 0, 1, 1 },
 	{ "SaveRAM cart",              MB_ONOFF, MA_CDOPT_SAVERAM,      &PicoOpt, 0x8000, 0, 0, 1, 1 },

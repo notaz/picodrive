@@ -37,7 +37,6 @@ extern const char *actionNames[];
 RSemaphore initSemaphore;
 RSemaphore pauseSemaphore;
 RSemaphore loadWaitSemaphore;
-int pico_was_reset = 0;
 static CPicolAppView *appView = 0;
 
 
@@ -65,9 +64,7 @@ TInt CPicoGameSession::Do(const TPicoServRqst what, TAny *param)
 
 		case PicoMsgReset: 
 			if(rom_loaded) {
-				PicoReset();
-				pico_was_reset = 1;
-				return ChangeRunState(PGS_Running);
+				return ChangeRunState(PGS_Reset);
 			}
 			return 1;
 
@@ -182,13 +179,14 @@ TInt CPicoGameSession::loadROM(TPtrC16 *pptr)
 	// If successful, in will enter PGS_Running state by itself.
 	loadrom_fname = (char *)writeBuf.PtrZ();
 	loadrom_result = 0;
+	loadWaitSemaphore.Wait(1); // make sure sem is not set
 	ret = ChangeRunState(PGS_ReloadRom);
 	if(ret) return ret;
 
-	loadWaitSemaphore.Wait(20*1000*1000);
+	loadWaitSemaphore.Wait(60*1000*1000);
 
 	if (loadrom_result == 0)
-		return PicoErrNotRom;
+		return PicoErrRomOpenFailed;
 
 	emu_getGameName(buff);
 	TPtrC8 buff8((TUint8*) buff);
@@ -198,11 +196,9 @@ TInt CPicoGameSession::loadROM(TPtrC16 *pptr)
 
 	// debug
 	#ifdef __DEBUG_PRINT
-	TInt cells = User::CountAllocCells();
-	TInt mem;
+	TInt mem, cells = User::CountAllocCells();
 	User::AllocSize(mem);
 	DEBUGPRINT(_L("comm:   cels=%d, size=%d KB"), cells, mem/1024);
-	ChangeRunState(PGS_DebugHeap, PGS_Running);
 	#endif
 
 	return 0;

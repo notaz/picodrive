@@ -35,6 +35,7 @@
 #include "../common/emu.h"
 #include "emu.h"
 
+extern "C" char menuErrorMsg[];
 
 ////////////////////////////////////////////////////////////////
 //
@@ -235,24 +236,16 @@ void CPicolAppView::DisplayOpenROMDialogL()
 		iROMLoaded = EFalse;
 		switch (res)
 		{
-			case PicoErrRomOpenFailed:
-				CEikonEnv::Static()->InfoWinL(_L("Error"), _L("Failed to open file."));
+			case PicoErrRomOpenFailed: {
+				TBuf<64> mErrorBuff;
+				TPtrC8 buff8((TUint8*) menuErrorMsg);
+				mErrorBuff.Copy(buff8);
+				CEikonEnv::Static()->InfoWinL(_L("Error"), mErrorBuff);
 				break;
+			}
 
 			case PicoErrOutOfMem:
 				CEikonEnv::Static()->InfoWinL(_L("Error"), _L("Failed to allocate memory."));
-				break;
-
-			case PicoErrNotRom:
-				CEikonEnv::Static()->InfoWinL(_L("Error"), _L("The file you selected is not a game ROM."));
-				break;
-
-			case PicoErrNoRomsInArchive:
-				CEikonEnv::Static()->InfoWinL(_L("Error"), _L("No game ROMs found in zipfile."));
-				break;
-
-			case PicoErrUncomp:
-				CEikonEnv::Static()->InfoWinL(_L("Error"), _L("Failed while unzipping ROM."));
 				break;
 
 			case PicoErrEmuThread:

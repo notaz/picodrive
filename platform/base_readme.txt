@@ -402,7 +402,7 @@ test your BIOS.
 The Sega/Mega CD unit had two blinking LEDs (red and green) on it. This option
 will display them on top-left corner of the screen.
 
-@@2. "CDDA audio (using mp3s)"
+@@2. "CDDA audio"
 This option enables CD audio playback.
 
 @@2. "PCM audio"
@@ -497,6 +497,7 @@ both buttons for that action to happen).
 There is also option to enable 6 button pad (will allow you to configure XYZ
 keys), and an option to set turbo rate (in Hz) for turbo buttons.
 #endif
+#ifndef UIQ
 
 
 Cheat support
@@ -535,6 +536,7 @@ PATCH FILE: Sonic 2.bin.pat
 
 Put the file into your ROMs directory. Then load the .pat file as you would
 a ROM. Then Cheat Menu Option should appear in main menu.
+#endif
 
 
 What is emulated?

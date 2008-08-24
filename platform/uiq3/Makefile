@@ -1,4 +1,4 @@
-# makefile for uiq3_patcher_0_2.tar.gz
+# makefile for uiq3_patcher_0_2.tar.gz setup, modified
 export CROSS = arm-none-symbianelf-
 APPNAME = PicoDrive
 VER_MAJ = 1
@@ -141,6 +141,20 @@ engine/blit_asm.o : engine/blit.s
 	@echo ">>>" $@
 	$(AS) $(ASFLAGS) $< -o $@
 
-# App.o can't be optimized
-#App.o : App.cpp
-#	$(CC) $(CXXFLAGS) -O0 -c $< -o $@
+
+readme.txt: ../../tools/textfilter ../base_readme.txt
+	../../tools/textfilter ../base_readme.txt $@ UIQ
+
+# ----------- release -----------
+ifneq ($(findstring rel,$(MAKECMDGOALS)),)
+ifeq ($(VER),)
+$(error need VER)
+endif
+endif
+
+rel: picodrive.sis readme.txt
+	zip -9 -j ../../PicoDrive_uiq3_$(VER).zip $^
+	mkdir bin_to_cso_mp3
+	cp ../../tools/bin_to_cso_mp3/* bin_to_cso_mp3/
+	zip -9 -r ../../PicoDrive_uiq3_$(VER).zip bin_to_cso_mp3
+	rm -rf bin_to_cso_mp3

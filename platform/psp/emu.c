@@ -263,7 +263,7 @@ static void do_pal_update(int allow_sh, int allow_as)
 		localPal[0xe0] = 0;
 		localPal[0xf0] = 0x001f;
 	}
-	else if (allow_as && (rendstatus & PDRAW_ACC_SPRITES))
+	else if (allow_as && (rendstatus & PDRAW_SPR_LO_ON_HI))
 	{
 		memcpy32((int *)dpal+0x80/2, (void *)localPal, 0x40*2/4);
 	}
@@ -290,7 +290,7 @@ static void EmuScanPrepare(void)
 
 	if (Pico.m.dirtyPal)
 		do_pal_update(1, 1);
-	if ((rendstatus & PDRAW_ACC_SPRITES) && !(Pico.video.reg[0xC]&8))
+	if ((rendstatus & PDRAW_SPR_LO_ON_HI) && !(Pico.video.reg[0xC]&8))
 	     amips_clut_f = amips_clut_6bit;
 	else amips_clut_f = amips_clut;
 }

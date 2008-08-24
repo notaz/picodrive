@@ -9,7 +9,7 @@
 #ifdef _MSC_VER
 #define snprintf _snprintf
 #endif
-#ifdef UIQ3
+#ifdef __EPOC32__
 #define snprintf(b,s,...) sprintf(b,##__VA_ARGS__)
 #endif
 
