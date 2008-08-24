@@ -321,7 +321,7 @@ static void vidBlitCenter_180(int full)
 static void vidBlitFit_0(int full)
 {
 	if(Pico.video.reg[12]&1)
-		 vidConvCpy_center2_40c_0(screenbuff, PicoDraw2FB+328*8, localPal, 168);
+	     vidConvCpy_center2_40c_0(screenbuff, PicoDraw2FB+328*8, localPal, 168);
 	else vidConvCpy_center2_32c_0(screenbuff, PicoDraw2FB+328*8, localPal, 168);
 	if(full) vidClear((unsigned long *)screenbuff + 168*256, 320-168);
 }
@@ -389,6 +389,7 @@ int vidInit(void *vidmem, int reinit)
 	// select suitable blitters
 	vidBlit = vidBlit_270;
 	PicoScanBegin = EmuScanBegin8;
+	PicoScanEnd = NULL;
 	drawTextFps = drawTextFps0;
 	drawTextNotice = drawTextNotice0;
 
@@ -411,6 +412,7 @@ int vidInit(void *vidmem, int reinit)
 			vidBlit = vidBlitFit_0;
 			drawTextFps = drawTextFpsFit0;
 			drawTextNotice = drawTextNoticeFit0;
+			PicoScanBegin = NULL;
 			PicoScanEnd = EmuScanEndFit0;
 		}
 	} else if (currentConfig.rotation == TPicoConfig::PRot90) {
@@ -432,6 +434,7 @@ int vidInit(void *vidmem, int reinit)
 			vidBlit = vidBlitFit_180;
 			drawTextFps = drawTextFpsFit0;
 			drawTextNotice = drawTextNoticeFit0;
+			PicoScanBegin = NULL;
 			PicoScanEnd = EmuScanEndFit0;
 		}
 	}

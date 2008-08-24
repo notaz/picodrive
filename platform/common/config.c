@@ -729,7 +729,8 @@ static void keys_parse(const char *var, const char *val, int binds[32],
 		return;
 	}
 
-	if (binds == currentConfig.KeyBinds && !(keys_encountered & (1<<t))) { // hack
+	// unbind old, but only when key is first encountered
+	if (t < 32 && binds == currentConfig.KeyBinds && !(keys_encountered & (1<<t))) {
 		binds[t] = 0;
 		keys_encountered |= 1<<t;
 	}

@@ -1430,7 +1430,7 @@ static void PicoLine(void)
     FinalizeLine(sh);
 
   if (PicoScanEnd != NULL)
-    PicoScanEnd(DrawScanline);
+    skip_next_line = PicoScanEnd(DrawScanline);
 }
 
 void PicoDrawSync(int to, int blank_last_line)

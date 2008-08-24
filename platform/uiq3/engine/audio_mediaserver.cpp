@@ -95,8 +95,10 @@ void CGameAudioMS::ConstructL()
 	iBufferSize *= bufferedFrames;
 	for (TInt i=0 ; i<KSoundBuffers ; i++)
 	{
-		iSoundBuffers[i] = HBufC8::NewL(iBufferSize);
-		iSoundBuffers[i]->Des().FillZ  (iBufferSize);
+		// it seems .SetLength(max) throws USER:23 panic,
+		// so make them a bit larger
+		iSoundBuffers[i] = HBufC8::NewL(iBufferSize+4);
+		iSoundBuffers[i]->Des().FillZ  (iBufferSize+4);
 	}
 
 	iCurrentBuffer = 0;
