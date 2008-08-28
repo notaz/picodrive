@@ -3,7 +3,7 @@
 #include <string.h>
 #include "cue.h"
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 // #define elprintf(w,f,...) printf(f "\n",##__VA_ARGS__);
 
 #ifdef _MSC_VER

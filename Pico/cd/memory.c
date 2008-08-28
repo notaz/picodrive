@@ -3,7 +3,7 @@
 // (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 
 #include "../sound/ym2612.h"
 #include "../sound/sn76496.h"
@@ -452,7 +452,7 @@ static void OtherWrite8End(u32 a, u32 d, int realsize)
 #ifndef _ASM_CD_MEMORY_C
 #define _CD_MEMORY_C
 #undef _ASM_MEMORY_C
-#include "../MemoryCmn.c"
+#include "../memory_cmn.c"
 #include "cell_map.c"
 #endif
 

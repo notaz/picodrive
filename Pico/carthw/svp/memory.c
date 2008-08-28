@@ -6,8 +6,7 @@
 // For commercial use, separate licencing terms must be obtained.
 
 
-#include "../../PicoInt.h"
-#include "../../PicoInt.h"
+#include "../../pico_int.h"
 
 #ifndef UTYPES_DEFINED
 typedef unsigned char  u8;

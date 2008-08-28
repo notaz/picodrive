@@ -8,13 +8,13 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include "../../Pico/sound/ym2612.h"
+#include "../../pico/sound/ym2612.h"
 #include "../gp2x/gp2x.h"
 #include "../gp2x/emu.h"
 #include "../gp2x/menu.h"
 #include "../gp2x/code940/940shared.h"
 #include "../common/helix/pub/mp3dec.h"
-#include "../../Pico/PicoInt.h"
+#include "../../pico/pico_int.h"
 
 
 // static _940_data_t  shared_data_;

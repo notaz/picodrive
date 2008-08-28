@@ -18,9 +18,9 @@
 #include "../common/arm_utils.h"
 #include "../common/menu.h"
 #include "../common/emu.h"
-#include "../../Pico/PicoInt.h"
-#include "../../Pico/sound/ym2612.h"
-#include "../../Pico/sound/mix.h"
+#include "../../pico/pico_int.h"
+#include "../../pico/sound/ym2612.h"
+#include "../../pico/sound/mix.h"
 
 /* we will need some gp2x internals here */
 extern volatile unsigned short *gp2x_memregs; /* from minimal library rlyeh */

@@ -23,7 +23,7 @@
 #include <string.h>
 
 #include "version.h"
-#include <Pico/PicoInt.h>
+#include <pico/pico_int.h>
 #include "../common/emu.h"
 #include "engine/debug.h"
 #include "App.h"

@@ -16,7 +16,7 @@
 #include "giz.h"
 #include "asm_utils.h"
 
-#include <Pico/PicoInt.h>
+#include <pico/pico_int.h>
 
 #ifdef BENCHMARK
 #define OSD_FPS_X 220

@@ -7,7 +7,7 @@
 // For commercial use, separate licencing terms must be obtained.
 
 
-#include "PicoInt.h"
+#include "pico_int.h"
 #include "../zlib/zlib.h"
 #include "../unzip/unzip.h"
 #include "../unzip/unzip_stream.h"

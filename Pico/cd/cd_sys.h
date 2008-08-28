@@ -72,7 +72,7 @@ typedef struct {
 PICO_INTERNAL void LBA_to_MSF(int lba, _msf *MSF);
 PICO_INTERNAL int  Track_to_LBA(int track);
 
-// moved to Pico.h
+// moved to pico.h
 // int  Insert_CD(char *iso_name, int is_bin);
 // void Stop_CD(void);
 

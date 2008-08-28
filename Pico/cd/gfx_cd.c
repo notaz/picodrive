@@ -5,7 +5,7 @@
 // (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 
 #define _rot_comp Pico_mcd->rot_comp
 

@@ -17,9 +17,9 @@
 #include "config.h"
 #include "common.h"
 
-#include <Pico/PicoInt.h>
-#include <Pico/Patch.h>
-#include <Pico/cd/cue.h>
+#include <pico/pico_int.h>
+#include <pico/patch.h>
+#include <pico/cd/cue.h>
 #include <zlib/zlib.h>
 
 

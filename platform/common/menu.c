@@ -338,8 +338,8 @@ int me_process(menu_entry *entries, int count, menu_id id, int is_next)
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <Pico/Pico.h>
-#include <Pico/Debug.h>
+#include <pico/pico.h>
+#include <pico/debug.h>
 
 void SekStepM68k(void);
 

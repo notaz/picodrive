@@ -3,7 +3,7 @@
 // (c) Copyright 2008, Grazvydas "notaz" Ignotas
 // Free for non-commercial use.
 
-#include "../../PicoInt.h"
+#include "../../pico_int.h"
 #include "compiler.h"
 
 #define u32 unsigned int

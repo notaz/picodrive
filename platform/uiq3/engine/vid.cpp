@@ -5,7 +5,7 @@
 
 #include "vid.h"
 #include "../Engine.h"
-#include <Pico/PicoInt.h>
+#include <pico/pico_int.h>
 #include "../../common/emu.h"
 #include "blit.h"
 #include "debug.h"

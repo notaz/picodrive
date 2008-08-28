@@ -25,8 +25,8 @@
 //#include <string.h>
 #include <ctype.h>
 
-#include "PicoInt.h"
-#include "Patch.h"
+#include "pico_int.h"
+#include "patch.h"
 
 struct patch
 {

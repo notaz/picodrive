@@ -4,7 +4,7 @@
 #include "../common/emu.h"
 #include "../common/config.h"
 #include "../common/menu.h"
-#include "Pico/PicoInt.h"
+#include "pico/pico_int.h"
 
 const char * const keyNames[] = {
 	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,

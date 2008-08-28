@@ -7,9 +7,7 @@
 
 #include <d3dx8.h>
 
-#include <Pico/Pico.h>
-
-#define PI 3.14159265f
+#include <pico/pico.h>
 
 #define RELEASE(x) if (x) x->Release();  x=NULL;
 

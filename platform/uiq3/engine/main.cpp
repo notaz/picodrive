@@ -17,7 +17,7 @@
 #include "debug.h"
 #include "../Engine.h"
 
-#include <Pico/PicoInt.h>
+#include <pico/pico_int.h>
 #include "../../common/emu.h"
 #include "../emu.h"
 #include "vid.h"

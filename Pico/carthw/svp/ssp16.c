@@ -12,8 +12,6 @@
  * Useful for homebrew or if a new VR revision pops up. */
 //#define DO_CHECKS
 
-#include "../../PicoInt.h"
-
 /*
  * Register info
  *
@@ -188,7 +186,7 @@
  *   ops not used by VR are not implemented
  */
 
-#include "../../PicoInt.h"
+#include "../../pico_int.h"
 
 #define u32 unsigned int
 

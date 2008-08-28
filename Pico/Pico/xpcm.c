@@ -4,7 +4,7 @@
  * best sounding of the ones that I tried.
  */
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 
 #define ADPCMSHIFT      8
 #define ADFIX(f)        (int) ((double)f * (double)(1<<ADPCMSHIFT))

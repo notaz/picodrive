@@ -27,85 +27,58 @@ use_cyclone = 1
 # objects
 
 # launcher
-OBJ += App.o Engine.o Dialogs.o CSimpleTextParser.o emu.o
+OBJS += App.o Engine.o Dialogs.o CSimpleTextParser.o emu.o
 # engine
-OBJ += engine/main.o engine/vid.o engine/polledas.o engine/audio_mediaserver.o engine/debug.o
+OBJS += engine/main.o engine/vid.o engine/polledas.o engine/audio_mediaserver.o engine/debug.o
 ifeq "$(asm_blit)" "1"
-OBJ += engine/blit_asm.o
+OBJS += engine/blit_asm.o
 else
-OBJ += engine/blit.o
+OBJS += engine/blit.o
 endif
 # common
-OBJ += ../common/emu.o ../common/config.o ../common/menu.o ../common/mp3_helix.o
+OBJS += ../common/emu.o ../common/config.o ../common/menu.o ../common/mp3_helix.o
 # Pico
-OBJ += Pico/Area.o Pico/Cart.o Pico/Memory.o Pico/Misc.o Pico/Pico.o Pico/Sek.o \
-		Pico/VideoPort.o Pico/Draw2.o Pico/Draw.o Pico/Patch.o Pico/Debug.o
+OBJS += pico/area.o pico/cart.o pico/memory.o pico/misc.o pico/pico.o pico/sek.o \
+		pico/videoport.o pico/draw2.o pico/draw.o pico/patch.o pico/debug.o
 # Pico - CD
-OBJ += Pico/cd/Pico.o Pico/cd/Memory.o Pico/cd/Sek.o Pico/cd/LC89510.o \
-		Pico/cd/cd_sys.o Pico/cd/cd_file.o Pico/cd/cue.o Pico/cd/gfx_cd.o \
-		Pico/cd/Area.o Pico/cd/Misc.o Pico/cd/pcm.o Pico/cd/buffering.o
+OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
+		pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \
+		pico/cd/area.o pico/cd/misc.o pico/cd/pcm.o pico/cd/buffering.o
 # Pico - Pico
-OBJ += Pico/Pico/Pico.o Pico/Pico/Memory.o Pico/Pico/xpcm.o
+OBJS += pico/pico/pico.o pico/pico/memory.o pico/pico/xpcm.o
 # Pico - carthw
-OBJ += Pico/carthw/carthw.o Pico/carthw/svp/svp.o Pico/carthw/svp/Memory.o \
-		Pico/carthw/svp/ssp16.o Pico/carthw/svp/compiler.o Pico/carthw/svp/stub_arm.o
-
-# asm stuff
-ifeq "$(asm_render)" "1"
-CFLAGS += -D_ASM_DRAW_C
-OBJ += Pico/draw_asm.o Pico/draw2_asm.o
-endif
-ifeq "$(asm_memory)" "1"
-CFLAGS += -D_ASM_MEMORY_C
-OBJ += Pico/memory_asm.o
-endif
-ifeq "$(asm_ym2612)" "1"
-CFLAGS += -D_ASM_YM2612_C
-OBJ += Pico/sound/ym2612_asm.o
-endif
-ifeq "$(asm_misc)" "1"
-CFLAGS += -D_ASM_MISC_C
-OBJ += Pico/misc_asm.o
-OBJ += Pico/cd/misc_asm.o
-endif
-ifeq "$(asm_cdpico)" "1"
-CFLAGS += -D_ASM_CD_PICO_C
-OBJ += Pico/cd/pico_asm.o
-endif
-ifeq "$(asm_cdmemory)" "1"
-CFLAGS += -D_ASM_CD_MEMORY_C
-OBJ += Pico/cd/memory_asm.o
-endif
+OBJS += pico/carthw/carthw.o pico/carthw/svp/svp.o pico/carthw/svp/memory.o \
+		pico/carthw/svp/ssp16.o pico/carthw/svp/compiler.o pico/carthw/svp/stub_arm.o
 
 # Pico - sound
-OBJ += Pico/sound/sound.o
-OBJ += Pico/sound/mix_asm.o
-OBJ += Pico/sound/sn76496.o Pico/sound/ym2612.o
+OBJS += pico/sound/sound.o
+OBJS += pico/sound/mix_arm.o
+OBJS += pico/sound/sn76496.o pico/sound/ym2612.o
 # zlib
-OBJ += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
+OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o
 # unzip
-OBJ += unzip/unzip.o unzip/unzip_stream.o
+OBJS += unzip/unzip.o unzip/unzip_stream.o
 # CPU cores
 ifeq "$(use_musashi)" "1"
 CFLAGS += -DEMU_M68K
-OBJ += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
+OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
 endif
 ifeq "$(use_cyclone)" "1"
 CFLAGS += -DEMU_C68K
-OBJ += cpu/Cyclone/proj/Cyclone.o cpu/Cyclone/tools/idle.o
+OBJS += cpu/Cyclone/proj/Cyclone.o cpu/Cyclone/tools/idle.o
 endif
 # drz80
 CFLAGS += -D_USE_DRZ80
-OBJ += cpu/DrZ80/drz80.o
+OBJS += cpu/DrZ80/drz80.o
 # helix
-OBJ += ../common/helix/$(CROSS)helix-mp3.a
+OBJS += ../common/helix/$(CROSS)helix-mp3.a
 
 
 vpath %.c = ../..
 vpath %.s = ../..
 vpath %.S = ../..
-DIRS = platform platform/common Pico Pico/cd Pico/Pico Pico/sound Pico/carthw/svp \
+DIRS = platform platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
 	zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools cpu/mz80 cpu/DrZ80
 
 ICONS := $(shell echo rsc/*.bmp)
@@ -125,8 +98,8 @@ EPOCRCFLAGS += -I./
 
 all: mkdirs sis
 
-include uiq3.mak
 include ../common/common_arm.mak
+include uiq3.mak
 
 
 $(NAME).mbg $(NAME).mbm : $(ICONS)

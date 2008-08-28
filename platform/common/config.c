@@ -18,7 +18,7 @@ static char *mystrip(char *str);
 
 #include "menu.h"
 #include "emu.h"
-#include <Pico/Pico.h>
+#include <pico/pico.h>
 
 extern menu_entry opt_entries[];
 extern menu_entry opt2_entries[];

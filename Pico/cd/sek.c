@@ -1,7 +1,7 @@
 // (c) Copyright 2007 notaz, All rights reserved.
 
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 
 
 int SekCycleCntS68k=0; // cycles done in this frame

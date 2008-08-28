@@ -7,7 +7,7 @@
  *                                                         *
  ***********************************************************/
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 #include "cd_file.h"
 #include "cue.h"
 

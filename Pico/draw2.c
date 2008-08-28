@@ -9,7 +9,7 @@
 // this is a frame-based renderer, alternative to Dave's line based which is in Draw.c
 
 
-#include "PicoInt.h"
+#include "pico_int.h"
 
 // port_config.h include must define these 2 defines:
 // #define START_ROW  1 // which row of tiles to start rendering at?

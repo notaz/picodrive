@@ -10,8 +10,7 @@
 #include <string.h>
 #include "ym2612.h"
 #include "sn76496.h"
-
-#include "../PicoInt.h"
+#include "../pico_int.h"
 #include "../cd/pcm.h"
 #include "mix.h"
 

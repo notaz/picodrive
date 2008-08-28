@@ -64,54 +64,27 @@ OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o pla
 
 # Pico
 ifeq "$(amalgamate)" "1"
-OBJS += ../../PicoAll.o
+OBJS += ../../picoAll.o
 else
-OBJS += Pico/Area.o Pico/Cart.o Pico/Memory.o Pico/Misc.o Pico/Pico.o Pico/Sek.o \
-		Pico/VideoPort.o Pico/Draw2.o Pico/Draw.o Pico/Patch.o Pico/Debug.o
+OBJS += pico/area.o pico/cart.o pico/memory.o pico/misc.o pico/pico.o pico/sek.o \
+		pico/videoport.o pico/draw2.o pico/draw.o pico/patch.o pico/debug.o
 # Pico - CD
-OBJS += Pico/cd/Pico.o Pico/cd/Memory.o Pico/cd/Sek.o Pico/cd/LC89510.o \
-		Pico/cd/cd_sys.o Pico/cd/cd_file.o Pico/cd/cue.o Pico/cd/gfx_cd.o \
-		Pico/cd/Area.o Pico/cd/Misc.o Pico/cd/pcm.o Pico/cd/buffering.o
+OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
+		pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \
+		pico/cd/area.o pico/cd/misc.o pico/cd/pcm.o pico/cd/buffering.o
 endif
 # Pico - Pico
-OBJS += Pico/Pico/Pico.o Pico/Pico/Memory.o Pico/Pico/xpcm.o
+OBJS += pico/pico/pico.o pico/pico/memory.o pico/pico/xpcm.o
 # Pico - carthw
-OBJS += Pico/carthw/carthw.o Pico/carthw/svp/svp.o Pico/carthw/svp/Memory.o \
-		Pico/carthw/svp/ssp16.o Pico/carthw/svp/compiler.o Pico/carthw/svp/stub_arm.o
-
-# asm stuff
-ifeq "$(asm_render)" "1"
-DEFINC += -D_ASM_DRAW_C
-OBJS += Pico/draw_asm.o Pico/draw2_asm.o
-endif
-ifeq "$(asm_memory)" "1"
-DEFINC += -D_ASM_MEMORY_C
-OBJS += Pico/memory_asm.o
-endif
-ifeq "$(asm_ym2612)" "1"
-DEFINC += -D_ASM_YM2612_C
-OBJS += Pico/sound/ym2612_asm.o
-endif
-ifeq "$(asm_misc)" "1"
-DEFINC += -D_ASM_MISC_C
-OBJS += Pico/misc_asm.o
-OBJS += Pico/cd/misc_asm.o
-endif
-ifeq "$(asm_cdpico)" "1"
-DEFINC += -D_ASM_CD_PICO_C
-OBJS += Pico/cd/pico_asm.o
-endif
-ifeq "$(asm_cdmemory)" "1"
-DEFINC += -D_ASM_CD_MEMORY_C
-OBJS += Pico/cd/memory_asm.o
-endif
+OBJS += pico/carthw/carthw.o pico/carthw/svp/svp.o pico/carthw/svp/memory.o \
+		pico/carthw/svp/ssp16.o pico/carthw/svp/compiler.o pico/carthw/svp/stub_arm.o
 
 # Pico - sound
 ifneq "$(amalgamate)" "1"
-OBJS += Pico/sound/sound.o
+OBJS += pico/sound/sound.o
 endif
-OBJS += Pico/sound/mix_asm.o
-OBJS += Pico/sound/sn76496.o Pico/sound/ym2612.o
+OBJS += pico/sound/mix_arm.o
+OBJS += pico/sound/sn76496.o pico/sound/ym2612.o
 # zlib
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o
@@ -119,7 +92,7 @@ OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 OBJS += unzip/unzip.o unzip/unzip_stream.o
 # debug
 ifeq "$(debug_cyclone)" "1"
-OBJS += Pico/DebugCPU.o cpu/musashi/m68kdasm.o
+OBJS += pico/DebugCPU.o cpu/musashi/m68kdasm.o
 endif
 # CPU cores
 ifeq "$(use_musashi)" "1"
@@ -142,11 +115,13 @@ endif
 vpath %.c = ../..
 vpath %.s = ../..
 vpath %.S = ../..
-DIRS = platform platform/gp2x platform/common Pico Pico/cd Pico/Pico Pico/sound Pico/carthw/svp \
+DIRS = platform platform/gp2x platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
 	zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools cpu/mz80 cpu/DrZ80
 
 
 all: mkdirs PicoDrive.gpe
+
+include ../common/common_arm.mak
 
 PicoDrive.gpe : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
 	@echo ">>>" $@
@@ -158,21 +133,13 @@ endif
 up: PicoDrive.gpe
 	@cp -v PicoDrive.gpe /mnt/gp2x/mnt/sd/emus/PicoDrive/
 
-#	@cmd //C copy PicoDrive.gpe \\\\10.0.1.2\\gp2x\\mnt\\sd\\games\\PicoDrive\\
-
-# cleanup
 clean: tidy
 	$(RM) PicoDrive.gpe
 tidy:
 	$(RM) $(OBJS)
-#	rm -rf $(DIRS) # don't clean, gcda may be there
-#	@make -C ../../cpu/Cyclone/proj -f Makefile.linux clean
-
 
 readme.txt: ../../tools/textfilter ../base_readme.txt
 	../../tools/textfilter ../base_readme.txt $@ GP2X
-
-include ../common/common_arm.mak
 
 # ----------- release -----------
 ifneq ($(findstring rel,$(MAKECMDGOALS)),)

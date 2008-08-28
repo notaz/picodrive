@@ -77,7 +77,7 @@ REGDIR ?= ../reg
 SRCH += $(shell echo ../inc/*.h)
 SRC += $(shell echo ../src/*.cpp)
 SRCRES ?= $(shell echo $(RSCDIR)/*.rss $(RSCDIR)/*.rls $(REGDIR)/*.rss $(REGDIR)/*.rls)
-OBJ ?= $(SRC:.cpp=.o)
+OBJS ?= $(SRC:.cpp=.o)
 
 .PHONY : all mbm icon_mbm rsc reg loc bin sis run
 
@@ -126,9 +126,9 @@ bin : bin_elf
 
 bin_elf : $(NAME).elf.exe
 
-$(NAME).elf.exe : $(OBJ) $(EXTRALIB)
+$(NAME).elf.exe : $(OBJS) $(EXTRALIB)
 	@echo "Linking..."
-	$(LD) $(LDFLAGS) $(OBJ) $(EXTRALIB) $(LDFLAGS2)
+	$(LD) $(LDFLAGS) $(OBJS) $(EXTRALIB) $(LDFLAGS2)
 
 .cpp.o :
 	@echo "Compiling $< ..."
@@ -157,7 +157,7 @@ run : sis
 	$(CXX) -M -DDEPS $(SRC) $(CXXFLAGS) >> $@
 
 clean :
-	rm -f $(NAME).exe $(NAME).elf.exe $(OBJ) tags .deps $(NAME).exe.map
+	rm -f $(NAME).exe $(NAME).elf.exe $(OBJS) tags .deps $(NAME).exe.map
 	rm -f *.bkp ../src/*.bkp ../inc/*.bkp $(RSCDIR)/*.bkp $(REGDIR)/*.bkp
 	rm -f $(RSCDIR)/*.rsc $(RSCDIR)/*.rsg
 	rm -f $(REGDIR)/*.rsc $(REGDIR)/*.rsg

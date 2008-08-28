@@ -27,8 +27,8 @@
 #include "../common/lprintf.h"
 #include "version.h"
 
-#include <Pico/PicoInt.h>
-#include <Pico/Patch.h>
+#include <pico/pico_int.h>
+#include <pico/patch.h>
 #include <zlib/zlib.h>
 
 

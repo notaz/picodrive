@@ -1,7 +1,7 @@
 // Some misc stuff
 // (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 
 unsigned char formatted_bram[4*0x10] =
 {

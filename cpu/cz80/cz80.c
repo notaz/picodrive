@@ -15,7 +15,7 @@
 
 #if PICODRIVE_HACKS
 #undef EMU_M68K
-#include <Pico/PicoInt.h>
+#include <pico/pico_int.h>
 #endif
 
 #ifndef ALIGN_DATA

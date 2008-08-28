@@ -24,9 +24,9 @@
 #include "../common/common.h"
 #include "asm_utils.h"
 
-#include <Pico/PicoInt.h>
-#include <Pico/Patch.h>
-#include <Pico/sound/mix.h>
+#include <pico/pico_int.h>
+#include <pico/patch.h>
+#include <pico/sound/mix.h>
 #include <zlib/zlib.h>
 
 //#define PFRAMES
@@ -294,8 +294,8 @@ static int EmuScanEnd16(unsigned int num)
 		len = 256;
 	}
 
-	if (!sh && (rendstatus & PDRAW_ACC_SPRITES))
-		mask=0x3f; // accurate sprites, upper bits are priority stuff
+	if (!sh && (rendstatus & PDRAW_SPR_LO_ON_HI))
+		mask=0x3f; // messed sprites, upper bits are priority stuff
 
 #if 1
 	clut_line(pd, ps, pal, (mask<<16) | len);
@@ -773,6 +773,11 @@ void emu_forcedFrame(int opts)
 */
 	PicoOpt = po_old;
 	currentConfig.EmuOpt = eo_old;
+}
+
+void emu_platformDebugCat(char *str)
+{
+	// nothing
 }
 
 static void simpleWait(int thissec, int lim_time)

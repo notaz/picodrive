@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../../Pico/PicoInt.h"
-#include "../../Pico/sound/mix.h"
+#include "../../pico/pico_int.h"
+#include "../../pico/sound/mix.h"
 #include "helix/pub/mp3dec.h"
 #include "lprintf.h"
 

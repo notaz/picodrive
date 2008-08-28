@@ -6,7 +6,7 @@
 // For commercial use, separate licencing terms must be obtained.
 
 
-#include "../../PicoInt.h"
+#include "../../pico_int.h"
 #include "compiler.h"
 #ifdef __GP2X__
 #include <sys/mman.h>

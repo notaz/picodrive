@@ -9,7 +9,7 @@
  * while the game runs, memcpy will suffice.
  */
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 
 
 /* 12-in-1 and 4-in-1. Assuming >= 2MB ROMs here. */

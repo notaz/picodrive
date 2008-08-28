@@ -2,7 +2,7 @@
 // Based on Gens code by Stéphane Dallongeville
 // (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 #include "pcm.h"
 
 static unsigned int g_rate = 0; // 18.14 fixed point

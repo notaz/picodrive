@@ -7,7 +7,7 @@
 // For commercial use, separate licencing terms must be obtained.
 
 
-#include "PicoInt.h"
+#include "pico_int.h"
 
 #include "sound/ym2612.h"
 #include "sound/sn76496.h"
@@ -317,7 +317,7 @@ static void OtherWrite8End(u32 a,u32 d,int realsize)
     Pico.m.prot_bytes[(a>>2)&1] = (u8)d;
 }
 
-#include "MemoryCmn.c"
+#include "memory_cmn.c"
 
 
 // -----------------------------------------------------------------

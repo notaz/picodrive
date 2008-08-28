@@ -7,7 +7,7 @@
 // For commercial use, separate licencing terms must be obtained.
 
 
-#include "PicoInt.h"
+#include "pico_int.h"
 #include "sound/ym2612.h"
 
 int PicoVer=0x0133;
@@ -287,9 +287,7 @@ static __inline void getSamples(int y)
 #endif
 }
 
-
-#include "PicoFrameHints.c"
-
+#include "pico_cmn.c"
 
 int z80stopCycle;
 int z80_cycle_cnt;        /* 'done' z80 cycles before z80_run() */
@@ -315,21 +313,6 @@ PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done)
 void PicoFrame(void)
 {
   Pico.m.frame_count++;
-
-#if 0
-  if ((Pico.m.frame_count & 0x3f) == 0)
-  {
-    extern int idlehit_addrs[], idlehit_counts[];
-    int i;
-    printf("--\n");
-    for (i = 0; i < 128 && idlehit_addrs[i] != 0; i++) {
-      if (idlehit_counts[i] != 0) {
-        printf("%06x %i %i\n", idlehit_addrs[i], idlehit_counts[i],  idlehit_counts[i] >> 6);
-        idlehit_counts[i] = 0;
-      }
-    }
-  }
-#endif
 
   if (PicoAHW & PAHW_MCD) {
     PicoFrameMCD();

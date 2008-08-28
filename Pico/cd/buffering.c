@@ -1,7 +1,7 @@
 // Buffering handling
 // (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 
 int PicoCDBuffers = 0;
 static unsigned char *cd_buffer = NULL;

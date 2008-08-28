@@ -2,7 +2,7 @@
 // (c) Copyright 2007, Grazvydas "notaz" Ignotas
 
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 
 // ym2612
 #include "../sound/ym2612.h"

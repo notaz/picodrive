@@ -1,8 +1,8 @@
 // some debug code, just for fun of it
 // (c) Copyright 2008 notaz, All rights reserved.
 
-#include "PicoInt.h"
-#include "Debug.h"
+#include "pico_int.h"
+#include "debug.h"
 
 #define bit(r, x) ((r>>x)&1)
 #define MVP dstrp+=strlen(dstrp)

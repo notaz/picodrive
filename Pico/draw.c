@@ -18,7 +18,7 @@
  * AS is enabled by user and takes priority over "sonic mode".
  */
 
-#include "PicoInt.h"
+#include "pico_int.h"
 
 int (*PicoScanBegin)(unsigned int num) = NULL;
 int (*PicoScanEnd)  (unsigned int num) = NULL;

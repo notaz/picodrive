@@ -1,4 +1,4 @@
-#include "../PicoInt.h"
+#include "../pico_int.h"
 #include "../sound/sn76496.h"
 
 #ifndef UTYPES_DEFINED

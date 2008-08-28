@@ -24,9 +24,9 @@
 #include "../common/config.h"
 #include "cpuctrl.h"
 
-#include <Pico/PicoInt.h>
-#include <Pico/Patch.h>
-#include <Pico/sound/mix.h>
+#include <pico/pico_int.h>
+#include <pico/patch.h>
+#include <pico/sound/mix.h>
 #include <zlib/zlib.h>
 
 //#define PFRAMES

@@ -10,7 +10,7 @@ for_15fw = 1
 # :!touch platform/psp/psp.c
 
 
-CFLAGS += -I../.. -I. -DNO_SYNC
+CFLAGS += -I../.. -I. -DNO_SYNC -D_ASM_DRAW_C_AMIPS
 CFLAGS += -Wall -Winline -G0
 #CFLAGS += -DLPRINTF_STDIO
 #CFLAGS += -pg
@@ -32,28 +32,28 @@ OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o pla
 
 # Pico
 ifeq "$(amalgamate)" "1"
-OBJS += ../../PicoAll.o
+OBJS += ../../picoAll.o
 else
-OBJS += Pico/Area.o Pico/Cart.o Pico/Memory.o Pico/Misc.o Pico/Pico.o Pico/Sek.o Pico/VideoPort.o \
-		Pico/Draw2.o Pico/Draw.o Pico/Patch.o Pico/Draw_amips.o Pico/Memory_amips.o \
-		Pico/Misc_amips.o Pico/Debug.o
+OBJS += pico/area.o pico/cart.o pico/memory.o pico/misc.o pico/pico.o pico/sek.o pico/videoport.o \
+		pico/draw2.o pico/draw.o pico/patch.o pico/draw_amips.o pico/memory_amips.o \
+		pico/misc_amips.o pico/debug.o
 # Pico - CD
-OBJS += Pico/cd/Pico.o Pico/cd/Memory.o Pico/cd/Sek.o Pico/cd/LC89510.o \
-		Pico/cd/cd_sys.o Pico/cd/cd_file.o Pico/cd/cue.o Pico/cd/gfx_cd.o \
-		Pico/cd/Area.o Pico/cd/Misc.o Pico/cd/pcm.o Pico/cd/buffering.o
+OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
+		pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \
+		pico/cd/area.o pico/cd/misc.o pico/cd/pcm.o pico/cd/buffering.o
 # Pico - carthw
-OBJS += Pico/carthw/carthw.o Pico/carthw/svp/svp.o Pico/carthw/svp/Memory.o \
-		Pico/carthw/svp/ssp16.o
+OBJS += pico/carthw/carthw.o pico/carthw/svp/svp.o pico/carthw/svp/memory.o \
+		pico/carthw/svp/ssp16.o
 # Pico - Pico
-OBJS += Pico/Pico/Pico.o Pico/Pico/Memory.o Pico/Pico/xpcm.o
+OBJS += pico/pico/pico.o pico/pico/memory.o pico/pico/xpcm.o
 endif
 
 # Pico - sound
 ifneq "$(amalgamate)" "1"
-OBJS += Pico/sound/sound.o
+OBJS += pico/sound/sound.o
 endif
-OBJS += Pico/sound/mix.o
-OBJS += Pico/sound/sn76496.o Pico/sound/ym2612.o
+OBJS += pico/sound/mix.o
+OBJS += pico/sound/sn76496.o pico/sound/ym2612.o
 # zlib (hacked)
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o \
@@ -81,7 +81,7 @@ OBJS += data/bg32.o data/bg40.o
 
 vpath %.c = ../..
 vpath %.s = ../..
-DIRS = platform platform/psp platform/common Pico Pico/cd Pico/Pico Pico/sound Pico/carthw/svp \
+DIRS = platform platform/psp platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
 	zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80
 
 
@@ -125,23 +125,19 @@ cpu/fame/famec.o : ../../cpu/fame/famec.c
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -Wno-unused -c $< -o $@
 
-Pico/Memory.o : ../../Pico/Memory.c
-	@echo ">>>" $<
-	$(CC) $(CFLAGS) -O2 -c $< -o $@ -D_ASM_MEMORY_C -D_ASM_MEMORY_C_AMIPS
-
-Pico/cd/Memory.o : ../../Pico/cd/Memory.c
-	@echo ">>>" $<
-	$(CC) $(CFLAGS) -O2 -c $< -o $@
-
-Pico/Draw.o : ../../Pico/Draw.c
-	@echo ">>>" $<
-	$(CC) $(CFLAGS) -c $< -o $@ -D_ASM_DRAW_C_AMIPS
-
-Pico/Misc.o : ../../Pico/Misc.c
+pico/misc.o : ../../pico/misc.c
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -c $< -o $@ -D_ASM_MISC_C_AMIPS
 
-Pico/cd/gfx_cd.o : ../../Pico/cd/gfx_cd.c
+pico/memory.o : ../../pico/memory.c
+	@echo ">>>" $<
+	$(CC) $(CFLAGS) -O2 -c $< -o $@ -D_ASM_MEMORY_C -D_ASM_MEMORY_C_AMIPS
+
+pico/cd/memory.o : ../../pico/cd/memory.c
+	@echo ">>>" $<
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+
+pico/cd/gfx_cd.o : ../../pico/cd/gfx_cd.c
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -O2 -c $< -o $@
 

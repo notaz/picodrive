@@ -7,7 +7,7 @@
  *                                                         *
  ***********************************************************/
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 
 #define CDC_DMA_SPEED 256
 

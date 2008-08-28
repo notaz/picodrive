@@ -1,7 +1,7 @@
 // (c) Copyright 2007 notaz, All rights reserved.
 
 
-#include "../PicoInt.h"
+#include "../pico_int.h"
 #include "../sound/ym2612.h"
 
 extern unsigned char formatted_bram[4*0x10];
@@ -235,7 +235,7 @@ static __inline void getSamples(int y)
 
 
 #define PICO_CD
-#include "../PicoFrameHints.c"
+#include "../pico_cmn.c"
 
 
 PICO_INTERNAL void PicoFrameMCD(void)

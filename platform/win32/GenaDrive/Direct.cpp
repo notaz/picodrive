@@ -305,6 +305,8 @@ int DirectPresent()
 }
 
 #ifdef USE_D3D
+#define PI 3.14159265f
+
 static int MakeVertexList()
 {
   struct CustomVertex *vert=NULL,*pv=NULL;

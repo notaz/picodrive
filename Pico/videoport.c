@@ -7,7 +7,7 @@
 // For commercial use, separate licencing terms must be obtained.
 
 
-#include "PicoInt.h"
+#include "pico_int.h"
 #include "cd/gfx_cd.h"
 
 extern const unsigned char  hcounts_32[];

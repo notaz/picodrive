@@ -6,7 +6,7 @@
 // For commercial use, separate licencing terms must be obtained.
 
 
-#include "PicoInt.h"
+#include "pico_int.h"
 
 // H-counter table for hvcounter reads in 40col mode
 // based on Gens code
