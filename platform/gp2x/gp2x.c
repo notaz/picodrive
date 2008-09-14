@@ -36,6 +36,7 @@
 #include "gp2x.h"
 #include "usbjoy.h"
 #include "../common/arm_utils.h"
+#include "../common/arm_linux.h"
 
 volatile unsigned short *gp2x_memregs;
 //static
@@ -162,9 +163,7 @@ void gp2x_video_wait_vsync(void)
 void gp2x_video_flush_cache(void)
 {
 	// since we are using the mmu hack, we must flush the cache first
-	// (the params are most likely wrong, but they seem to work somehow)
-	//flushcache(addr, addr + 320*240*2, 0);
-	flushcache(gp2x_screen, (char *)gp2x_screen + 320*240*2, 0);
+	cache_flush_d_inval_i(gp2x_screen, (char *)gp2x_screen + 320*240*2);
 }
 
 

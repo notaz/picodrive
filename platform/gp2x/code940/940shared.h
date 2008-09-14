@@ -1,4 +1,4 @@
-#include "../../../Pico/sound/ym2612.h"
+#include "../../../pico/sound/ym2612.h"
 #include "../../common/helix/pub/mp3dec.h"
 
 // max 16 jobs, lower num means higher prio

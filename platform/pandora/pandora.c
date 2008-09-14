@@ -15,7 +15,7 @@
 
 #include "../gp2x/gp2x.h"
 #include "../gp2x/usbjoy.h"
-#include "../common/arm_utils.h"
+#include "../common/arm_linux.h"
 
 static volatile unsigned int *memregs = MAP_FAILED;
 //static
@@ -64,12 +64,10 @@ void gp2x_video_wait_vsync(void)
 {
 }
 
-
 void gp2x_video_flush_cache(void)
 {
-//	flushcache(gp2x_screen, (char *)gp2x_screen + 320*240*2, 0);
+//	cache_flush_d_inval_i(gp2x_screen, (char *)gp2x_screen + 320*240*2, 0);
 }
-
 
 void gp2x_memcpy_buffers(int buffers, void *data, int offset, int len)
 {
@@ -89,6 +87,7 @@ void gp2x_memset_all_buffers(int offset, int byte, int len)
 
 void gp2x_pd_clone_buffer2(void)
 {
+	memset(gp2x_screen, 0, 800*480*2);
 }
 
 
@@ -140,11 +139,10 @@ int gp2x_touchpad_read(int *x, int *y)
 }
 
 
-//static int s_oldrate = 0, s_oldbits = 0, s_oldstereo = 0;
+static int s_oldrate = 0, s_oldbits = 0, s_oldstereo = 0;
 
 void gp2x_start_sound(int rate, int bits, int stereo)
 {
-#if 0
 	int frag = 0, bsize, buffers;
 
 	// if no settings change, we don't need to do anything
@@ -171,13 +169,12 @@ void gp2x_start_sound(int rate, int bits, int stereo)
 		rate, bits, stereo?"stereo":"mono", frag>>16, 1<<(frag&0xffff));
 
 	s_oldrate = rate; s_oldbits = bits; s_oldstereo = stereo;
-#endif
 }
 
 
 void gp2x_sound_write(void *buff, int len)
 {
-//	write(sounddev, buff, len);
+	write(sounddev, buff, len);
 }
 
 void gp2x_sound_sync(void)

@@ -214,10 +214,3 @@ spend_cycles:
     bx      lr
 
 
-.global flushcache
-
-flushcache:
-    swi #0x9f0002
-    mov pc, lr
-
-

@@ -1,14 +1,6 @@
 @ vim:filetype=armasm
 
 
-.global cache_flush_d_inval_i
-
-cache_flush_d_inval_i:
-    mov     r2, #0x0  @ must be 0 ???
-    swi     0x9f0002
-    bx      lr
-
-
 .global clut_line @ void *dest, void *src, unsigned short *pal, int pixels_mask
 
 clut_line:

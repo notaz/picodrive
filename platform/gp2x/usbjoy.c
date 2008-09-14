@@ -57,8 +57,8 @@ struct usbjoy *joy_open(int joynumber)
 	char path [128];
 	struct usbjoy * joy = NULL;
 	struct js_event event;
+#ifdef __GP2X__
 	static char insmod_done = 0;
-
 	// notaz: on my system I get unresolved input_* symbols, so have to 'insmod input' too
 	// also we should insmod only once, not on every joy_open() call.
 	if (!insmod_done) {
@@ -66,13 +66,18 @@ struct usbjoy *joy_open(int joynumber)
 		system ("insmod joydev"); // Loads joydev module
 		insmod_done = 1;
 	}
+#endif
 
 	if (joynumber == 0) {
 	}
 	else if (joynumber > 0) {
 		sprintf (path, "/dev/input/js%d", joynumber-1);
 		fd = open(path, O_RDONLY, 0);
-		if (fd > 0) {
+		if (fd == -1) {
+			sprintf (path, "/dev/js%d", joynumber-1);
+			fd = open(path, O_RDONLY, 0);
+		}
+		if (fd != -1) {
 			joy = (struct usbjoy *) malloc(sizeof(*joy));
 			if (joy == NULL) { close(fd); return NULL; }
 			memset(joy, 0, sizeof(*joy));

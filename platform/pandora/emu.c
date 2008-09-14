@@ -139,7 +139,7 @@ void emu_prepareDefaultConfig(void)
 	defaultConfig.EmuOpt    = 0x8f | 0x00600; // | <- confirm_save, cd_leds
 	defaultConfig.s_PicoOpt  = 0x0f | POPT_EXT_FM|POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC;
 	defaultConfig.s_PicoOpt |= POPT_ACC_SPRITES|POPT_EN_MCD_GFX;
-	defaultConfig.s_PicoOpt &= ~POPT_EN_SVP_DRC; // crashes :(
+//	defaultConfig.s_PicoOpt &= ~POPT_EN_SVP_DRC; // crashes :(
 	defaultConfig.EmuOpt    &= ~8; // no save gzip
 	defaultConfig.s_PsndRate = 44100;
 	defaultConfig.s_PicoRegion = 0;
@@ -1001,7 +1001,8 @@ void emu_Loop(void)
 
 		if (currentConfig.Frameskip < 0 && tval.tv_usec - lim_time >= 300000) // slowdown detection
 			reset_timing = 1;
-/*		else if (PsndOut != NULL || currentConfig.Frameskip < 0)
+#if 1
+		else if (PsndOut != NULL || currentConfig.Frameskip < 0)
 		{
 			// sleep or vsync if we are still too fast
 			// usleep sleeps for ~20ms minimum, so it is not a solution here
@@ -1017,7 +1018,7 @@ void emu_Loop(void)
 				}
 			}
 		}
-*/
+#endif
 		blit(fpsbuff, notice);
 
 		pframes_done++; pframes_shown++;
