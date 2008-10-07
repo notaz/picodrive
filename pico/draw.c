@@ -10,12 +10,16 @@
  * The renderer has 4 modes now:
  * - normal
  * - shadow/hilight (s/h)
- * - "sonic mode" for midline palette changes
- * - accurate sprites (AS)
+ * - "sonic mode" for midline palette changes (8bit mode only)
+ * - accurate sprites (AS) [+ s/h]
  *
  * AS and s/h both use upper bits for both priority and shadow/hilight flags.
  * "sonic mode" is autodetected, shadow/hilight is enabled by emulated game.
  * AS is enabled by user and takes priority over "sonic mode".
+ *
+ * not handled properly:
+ * - hilight op on shadow tile
+ * - AS + s/h (s/h sprite flag interferes with and cleared by AS code)
  */
 
 #include "pico_int.h"
@@ -150,25 +154,25 @@ TileFlipMaker(TileFlip,pix_just_write)
 // draw a sprite pixel, process operator colors
 #define pix_sh(x) \
   if (!t); \
-  else if (t==0xe) pd[x]=(pd[x]&0x3f)|0x80; /* hilight */ \
-  else if (t==0xf) pd[x]= pd[x]      |0xc0; /* shadow  */ \
+  else if (t>=0xe) pd[x]=(pd[x]&0x3f)|(t<<6); /* c0 shadow, 80 hilight */ \
   else pd[x]=pal|t
 
 TileNormMaker(TileNormSH, pix_sh)
 TileFlipMaker(TileFlipSH, pix_sh)
 
-// draw a sprite pixel ignoring operator colors
-#define pix_sh_noop(x) \
-  if (t && t < 0xe) \
-    pd[x]=pal|t
+// draw a sprite pixel, mark operator colors
+#define pix_sh_markop(x) \
+  if (!t); \
+  else if (t>=0xe) pd[x]|=0x80; \
+  else pd[x]=pal|t
 
-TileNormMaker(TileNormSH_noop, pix_sh_noop)
-TileFlipMaker(TileFlipSH_noop, pix_sh_noop)
+TileNormMaker(TileNormSH_markop, pix_sh_markop)
+TileFlipMaker(TileFlipSH_markop, pix_sh_markop)
 
-// process operator pixels only, apply only on low pri tiles
+// process operator pixels only, apply only on low pri tiles and other op pixels
 #define pix_sh_onlyop(x) \
-  if      (t==0xe && (pd[x]&0x40)) pd[x]=(pd[x]&0x3f)|0x80; /* hilight */ \
-  else if (t==0xf && (pd[x]&0x40)) pd[x]= pd[x]      |0xc0; /* shadow  */
+  if (t>=0xe && (pd[x]&0xc0)) \
+    pd[x]=(pd[x]&0x3f)|(t<<6); /* c0 shadow, 80 hilight */ \
 
 TileNormMaker(TileNormSH_onlyop_lp, pix_sh_onlyop)
 TileFlipMaker(TileFlipSH_onlyop_lp, pix_sh_onlyop)
@@ -524,12 +528,13 @@ static void DrawWindow(int tstart, int tend, int prio, int sh) // int *hcache
 static void DrawTilesFromCacheShPrep(void)
 {
   // as some layer has covered whole line with hi priority tiles,
-  // we can process whole line and then act as if sh/hi mode was off.
+  // we can process whole line and then act as if sh/hi mode was off,
+  // but leave lo pri op sprite markers alone
   int c = 320/4, *zb = (int *)(HighCol+8);
   rendstatus |= PDRAW_SHHI_DONE;
   while (c--)
   {
-    *zb++ &= 0x3f3f3f3f;
+    *zb++ &= 0xbfbfbfbf;
   }
 }
 
@@ -576,8 +581,8 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim)
       addr+=(unsigned int)code>>25; // y offset into tile
       dx=(code>>16)&0x1ff;
       zb = HighCol+dx;
-      *zb++ &= 0x3f; *zb++ &= 0x3f; *zb++ &= 0x3f; *zb++ &= 0x3f;
-      *zb++ &= 0x3f; *zb++ &= 0x3f; *zb++ &= 0x3f; *zb++ &= 0x3f;
+      *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf;
+      *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf;
 
       pal=((code>>9)&0x30);
       if (rlim-dx < 0) goto last_cut_tile;
@@ -661,8 +666,8 @@ static void DrawSprite(int *sprite, int sh)
   pal|=sh<<6;
 
   if (sh && (code&0x6000) == 0x6000) {
-    if(code&0x0800) fTileFunc=TileFlipSH_noop;
-    else            fTileFunc=TileNormSH_noop;
+    if(code&0x0800) fTileFunc=TileFlipSH_markop;
+    else            fTileFunc=TileNormSH_markop;
   } else {
     if(code&0x0800) fTileFunc=TileFlip;
     else            fTileFunc=TileNorm;
@@ -771,8 +776,13 @@ static void DrawAllSpritesInterlace(int pri, int sh)
 
 
 #ifndef _ASM_DRAW_C
-// Index + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: vert./horiz. size
-// Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
+/*
+ * s/h drawing: lo_layers|40, lo_sprites|40 && mark_op,
+ *        hi_layers&=~40, hi_sprites
+ *
+ * Index + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: vert./horiz. size
+ * Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
+ */
 static void DrawSpritesSHi(unsigned char *sprited)
 {
   int (*fTileFunc)(int sx,int addr,int pal);
