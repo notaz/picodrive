@@ -609,7 +609,7 @@ static void sound_init(void)
 		lprintf("sceKernelCreateThread failed: %i\n", thid);
 }
 
-static void sound_prepare(void)
+void emu_startSound(void)
 {
 	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 	int ret, stereo;
@@ -648,7 +648,7 @@ static void sound_prepare(void)
 	}
 }
 
-static void sound_end(void)
+void emu_endSound(void)
 {
 	int i;
 	if (samples_done == 0)
@@ -665,6 +665,14 @@ static void sound_end(void)
 	for (i = 0; sceAudioOutput2GetRestSample() > 0 && i < 16; i++)
 		psp_msleep(100);
 	sceAudio_5C37C0AE();
+}
+
+/* wait until we can write more sound */
+void emu_waitSound(void)
+{
+	// TODO: test this
+	while (!sound_thread_exit && samples_made - samples_done > samples_block * 4)
+		psp_msleep(10);
 }
 
 static void sound_deinit(void)
@@ -944,7 +952,7 @@ void emu_Loop(void)
 	PsndOut = NULL;
 	if (currentConfig.EmuOpt & 4)
 	{
-		sound_prepare();
+		emu_startSound();
 	}
 
 	sceDisplayWaitVblankStart();
@@ -1090,8 +1098,8 @@ void emu_Loop(void)
 	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
 
 	if (PsndOut != NULL) {
+		emu_endSound();
 		PsndOut = NULL;
-		sound_end();
 	}
 
 	// save SRAM

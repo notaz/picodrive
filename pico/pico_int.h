@@ -531,8 +531,8 @@ PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba);
 // sound/sound.c
 PICO_INTERNAL void PsndReset(void);
 PICO_INTERNAL void PsndDoDAC(int line_to);
-PICO_INTERNAL int  PsndRender(int offset, int length);
 PICO_INTERNAL void PsndClear(void);
+PICO_INTERNAL void PsndGetSamples(int y);
 // z80 functionality wrappers
 PICO_INTERNAL void z80_init(void);
 PICO_INTERNAL void z80_pack(unsigned char *data);

@@ -24,6 +24,7 @@ void gp2x_pd_clone_buffer2(void);
 void gp2x_start_sound(int rate, int bits, int stereo);
 void gp2x_sound_write(void *buff, int len);
 void gp2x_sound_volume(int l, int r);
+void gp2x_sound_sync(void);
 
 /* input */
 unsigned long gp2x_joystick_read(int allow_usb_joy);

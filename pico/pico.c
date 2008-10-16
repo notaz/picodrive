@@ -258,35 +258,6 @@ static __inline void SekRunM68k(int cyc)
 #endif
 }
 
-
-// to be called on 224 or line_sample scanlines only
-static __inline void getSamples(int y)
-{
-#if SIMPLE_WRITE_SOUND
-  if (y != 224) return;
-  PsndRender(0, PsndLen);
-  if (PicoWriteSound) PicoWriteSound(PsndLen);
-  PsndClear();
-#else
-  static int curr_pos = 0;
-
-  if(y == 224) {
-    if(emustatus & 2)
-         curr_pos += PsndRender(curr_pos, PsndLen-PsndLen/2);
-    else curr_pos  = PsndRender(0, PsndLen);
-    if (emustatus&1) emustatus|=2; else emustatus&=~2;
-    if (PicoWriteSound) PicoWriteSound(curr_pos);
-    // clear sound buffer
-    PsndClear();
-  }
-  else if(emustatus & 3) {
-    emustatus|= 2;
-    emustatus&=~1;
-    curr_pos = PsndRender(0, PsndLen/2);
-  }
-#endif
-}
-
 #include "pico_cmn.c"
 
 int z80stopCycle;

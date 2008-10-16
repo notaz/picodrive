@@ -343,6 +343,20 @@ int me_process(menu_entry *entries, int count, menu_id id, int is_next)
 
 void SekStepM68k(void);
 
+static void mplayer_loop(void)
+{
+	emu_startSound();
+
+	while (1)
+	{
+		PDebugZ80Frame();
+		if (read_buttons_async(BTN_NORTH)) break;
+		emu_waitSound();
+	}
+
+	emu_endSound();
+}
+
 static void draw_text_debug(const char *str, int skip, int from)
 {
 	const char *p;
@@ -415,7 +429,7 @@ void debug_menu_loop(void)
 		}
 		menu_draw_end();
 
-		inp = read_buttons(BTN_EAST|BTN_SOUTH|BTN_WEST|BTN_L|BTN_R|BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT);
+		inp = read_buttons(BTN_EAST|BTN_SOUTH|BTN_WEST|BTN_NORTH|BTN_L|BTN_R|BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT);
 		if (inp & BTN_SOUTH) return;
 		if (inp & BTN_L) { mode--; if (mode < 0) mode = 3; }
 		if (inp & BTN_R) { mode++; if (mode > 3) mode = 0; }
@@ -423,6 +437,10 @@ void debug_menu_loop(void)
 		{
 			case 0:
 				if (inp & BTN_EAST) SekStepM68k();
+				if (inp & BTN_NORTH) {
+					while (inp & BTN_NORTH) inp = read_buttons_async(BTN_NORTH);
+					mplayer_loop();
+				}
 				if ((inp & (BTN_WEST|BTN_LEFT)) == (BTN_WEST|BTN_LEFT)) {
 					mkdir("dumps", 0777);
 					PDebugDumpMem();

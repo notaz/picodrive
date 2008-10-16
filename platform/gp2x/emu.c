@@ -665,6 +665,46 @@ static void updateSound(int len)
 		gp2x_sound_write(PsndOut, len<<1);
 }
 
+void emu_startSound(void)
+{
+	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
+	int target_fps = Pico.m.pal ? 50 : 60;
+
+	PsndOut = NULL;
+
+	// prepare sound stuff
+	if (currentConfig.EmuOpt & 4)
+	{
+		int snd_excess_add;
+		if (PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old ||
+				((PicoOpt&0x200) && crashed_940)) {
+			PsndRerate(Pico.m.frame_count ? 1 : 0);
+		}
+		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
+		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
+			PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
+		gp2x_start_sound(PsndRate, 16, (PicoOpt&8)>>3);
+		gp2x_sound_volume(currentConfig.volume, currentConfig.volume);
+		PicoWriteSound = updateSound;
+		update_volume(0, 0);
+		memset(sndBuffer, 0, sizeof(sndBuffer));
+		PsndOut = sndBuffer;
+		PsndRate_old = PsndRate;
+		PicoOpt_old  = PicoOpt;
+		pal_old = Pico.m.pal;
+	}
+}
+
+void emu_endSound(void)
+{
+}
+
+/* wait until we can write more sound */
+void emu_waitSound(void)
+{
+	// don't need to do anything, writes will block by themselves
+}
+
 
 static void SkipFrame(int do_audio)
 {
@@ -776,8 +816,7 @@ static void tga_dump(void)
 
 void emu_Loop(void)
 {
-	static int gp2x_old_clock = 200;
-	static int PsndRate_old = 0, PicoOpt_old = 0, EmuOpt_old = 0, pal_old = 0;
+	static int gp2x_old_clock = 200, EmuOpt_old = 0;
 	char fpsbuff[24]; // fps count c string
 	struct timeval tval; // timing
 	int pframes_done, pframes_shown, pthissec; // "period" frames, used for sync
@@ -821,29 +860,7 @@ void emu_Loop(void)
 	target_frametime = 1000000/target_fps;
 	reset_timing = 1;
 
-	// prepare sound stuff
-	if (currentConfig.EmuOpt & 4)
-	{
-		int snd_excess_add;
-		if (PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old ||
-				((PicoOpt&0x200) && crashed_940)) {
-			PsndRerate(Pico.m.frame_count ? 1 : 0);
-		}
-		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
-		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
-		gp2x_start_sound(PsndRate, 16, (PicoOpt&8)>>3);
-		gp2x_sound_volume(currentConfig.volume, currentConfig.volume);
-		PicoWriteSound = updateSound;
-		update_volume(0, 0);
-		memset(sndBuffer, 0, sizeof(sndBuffer));
-		PsndOut = sndBuffer;
-		PsndRate_old = PsndRate;
-		PicoOpt_old  = PicoOpt;
-		pal_old = Pico.m.pal;
-	} else {
-		PsndOut = NULL;
-	}
+	emu_startSound();
 
 	// prepare CD buffer
 	if (PicoAHW & PAHW_MCD) PicoCDBufferInit();

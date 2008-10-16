@@ -2,6 +2,7 @@
 // (c) Copyright 2008 notaz, All rights reserved.
 
 #include "pico_int.h"
+#include "sound/ym2612.h"
 #include "debug.h"
 
 #define bit(r, x) ((r>>x)&1)
@@ -299,5 +300,45 @@ void PDebugDumpMem(void)
     dump_ram_noswab(Pico_mcd->pcm_ram,"dumps/pcm_ram.bin");
     dump_ram_noswab(Pico_mcd->bram,   "dumps/bram.bin");
   }
+}
+
+void PDebugZ80Frame(void)
+{
+  int lines, line_sample;
+
+  if (Pico.m.pal) {
+    lines = 312;
+    line_sample = 68;
+  } else {
+    lines = 262;
+    line_sample = 93;
+  }
+
+  z80_resetCycles();
+  emustatus &= ~1;
+
+  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
+    PicoSyncZ80(line_sample*488);
+  if (ym2612.dacen && PsndDacLine <= line_sample)
+    PsndDoDAC(line_sample);
+  if (PsndOut)
+    PsndGetSamples(line_sample);
+
+  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80)) {
+    PicoSyncZ80(224*488);
+    z80_int();
+  }
+  if (ym2612.dacen && PsndDacLine <= 224)
+    PsndDoDAC(224);
+  if (PsndOut)
+    PsndGetSamples(224);
+
+  // sync z80
+  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
+    PicoSyncZ80(Pico.m.pal ? 151809 : 127671); // cycles adjusted for converter
+  if (PsndOut && ym2612.dacen && PsndDacLine <= lines-1)
+    PsndDoDAC(lines-1);
+
+  timers_cycle();
 }
 

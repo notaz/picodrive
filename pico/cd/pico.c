@@ -225,15 +225,6 @@ static __inline void update_chips(void)
 }
 
 
-static __inline void getSamples(int y)
-{
-  int len = PsndRender(0, PsndLen);
-  if (PicoWriteSound) PicoWriteSound(len);
-  // clear sound buffer
-  PsndClear();
-}
-
-
 #define PICO_CD
 #include "../pico_cmn.c"
 

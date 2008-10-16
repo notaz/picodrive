@@ -69,7 +69,6 @@ void  emu_textOut16(int x, int y, const char *text);
 char *emu_makeRomId(void);
 void  emu_getGameName(char *str150);
 void  emu_findKeyBindCombos(void);
-void  emu_forcedFrame(int opts);
 void  emu_changeFastForward(int set_on);
 void  emu_RunEventsPico(unsigned int events);
 void  emu_DoTurbo(int *pad, int acts);
@@ -77,9 +76,14 @@ void  emu_packConfig(void);
 void  emu_unpackConfig(void);
 void  emu_shutdownMCD(void);
 
+/* not in common */
 extern const char * const keyNames[];
 void  emu_prepareDefaultConfig(void);
 void  emu_platformDebugCat(char *str);
+void  emu_forcedFrame(int opts);
+void  emu_startSound(void);
+void  emu_endSound(void);
+void  emu_waitSound(void);
 
 #ifdef __cplusplus
 } // extern "C"

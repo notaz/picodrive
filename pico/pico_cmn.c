@@ -64,6 +64,7 @@ static int PicoFrameHints(void)
   SekCyclesResetS68k();
 #endif
   PsndDacLine = 0;
+  emustatus &= ~1;
 
   pv->status&=~0x88; // clear V-Int, come out of vblank
 
@@ -118,19 +119,15 @@ static int PicoFrameHints(void)
       }
     }
 
-#ifndef PICO_CD
     // get samples from sound chips
-    if (y == 32 && PsndOut)
-      emustatus &= ~1;
-    else if ((y == 224 || y == line_sample) && PsndOut)
+    if ((y == 224 || y == line_sample) && PsndOut)
     {
       if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
         PicoSyncZ80(SekCycleCnt);
       if (ym2612.dacen && PsndDacLine <= y)
         PsndDoDAC(y);
-      getSamples(y);
+      PsndGetSamples(y);
     }
-#endif
 
     // Run scanline:
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
@@ -196,15 +193,12 @@ static int PicoFrameHints(void)
   }
 
   // get samples from sound chips
-#ifndef PICO_CD
-  if (y == 224)
-#endif
-    if (PsndOut)
-    {
-      if (ym2612.dacen && PsndDacLine <= y)
-        PsndDoDAC(y);
-      getSamples(y);
-    }
+  if (y == 224 && PsndOut)
+  {
+    if (ym2612.dacen && PsndDacLine <= y)
+      PsndDoDAC(y);
+    PsndGetSamples(y);
+  }
 
   // Run scanline:
   if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
