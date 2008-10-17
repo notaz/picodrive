@@ -390,10 +390,10 @@ static void RunEvents(unsigned int which)
 		{
 			int keys;
 			blit("", (which & 0x1000) ? "LOAD STATE? (PLAY=yes, STOP=no)" : "OVERWRITE SAVE? (PLAY=yes, STOP=no)");
-			while( !((keys = Framework_PollGetButtons()) & (BTN_PLAY|BTN_STOP)) )
+			while( !((keys = Framework_PollGetButtons()) & (PBTN_PLAY|PBTN_STOP)) )
 				Sleep(50);
-			if (keys & BTN_STOP) do_it = 0;
-			while(  ((keys = Framework_PollGetButtons()) & (BTN_PLAY|BTN_STOP)) ) // wait for release
+			if (keys & PBTN_STOP) do_it = 0;
+			while(  ((keys = Framework_PollGetButtons()) & (PBTN_PLAY|PBTN_STOP)) ) // wait for release
 				Sleep(50);
 			clearArea(0);
 		}
@@ -449,7 +449,7 @@ static void updateKeys(void)
 	int i;
 
 	keys = Framework_PollGetButtons();
-	if (keys & BTN_HOME)
+	if (keys & PBTN_HOME)
 		engineState = PGS_Menu;
 
 	keys &= CONFIGURABLE_KEYS;

@@ -48,23 +48,23 @@ void psp_wait_suspend(void);
 void psp_resume_suspend(void);
 
 /* shorter btn names */
-#define BTN_UP       PSP_CTRL_UP
-#define BTN_LEFT     PSP_CTRL_LEFT
-#define BTN_RIGHT    PSP_CTRL_RIGHT
-#define BTN_DOWN     PSP_CTRL_DOWN
-#define BTN_L        PSP_CTRL_LTRIGGER
-#define BTN_R        PSP_CTRL_RTRIGGER
-#define BTN_TRIANGLE PSP_CTRL_TRIANGLE
-#define BTN_CIRCLE   PSP_CTRL_CIRCLE
-#define BTN_X        PSP_CTRL_CROSS
-#define BTN_SQUARE   PSP_CTRL_SQUARE
-#define BTN_SELECT   PSP_CTRL_SELECT
-#define BTN_START    PSP_CTRL_START
-#define BTN_NOTE     PSP_CTRL_NOTE // doesn't seem to work?
+#define PBTN_UP       PSP_CTRL_UP
+#define PBTN_LEFT     PSP_CTRL_LEFT
+#define PBTN_RIGHT    PSP_CTRL_RIGHT
+#define PBTN_DOWN     PSP_CTRL_DOWN
+#define PBTN_L        PSP_CTRL_LTRIGGER
+#define PBTN_R        PSP_CTRL_RTRIGGER
+#define PBTN_TRIANGLE PSP_CTRL_TRIANGLE
+#define PBTN_CIRCLE   PSP_CTRL_CIRCLE
+#define PBTN_X        PSP_CTRL_CROSS
+#define PBTN_SQUARE   PSP_CTRL_SQUARE
+#define PBTN_SELECT   PSP_CTRL_SELECT
+#define PBTN_START    PSP_CTRL_START
+#define PBTN_NOTE     PSP_CTRL_NOTE // doesn't seem to work?
 
 /* fake 'nub' btns */
-#define BTN_NUB_UP    (1 << 28)
-#define BTN_NUB_RIGHT (1 << 29)
-#define BTN_NUB_DOWN  (1 << 30)
-#define BTN_NUB_LEFT  (1 << 31)
+#define PBTN_NUB_UP    (1 << 28)
+#define PBTN_NUB_RIGHT (1 << 29)
+#define PBTN_NUB_DOWN  (1 << 30)
+#define PBTN_NUB_LEFT  (1 << 31)
 

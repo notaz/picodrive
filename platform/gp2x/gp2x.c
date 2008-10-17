@@ -28,13 +28,12 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
-#include <sys/soundcard.h>
 #include <fcntl.h>
 #include <errno.h>
 
 #include "gp2x.h"
-#include "usbjoy.h"
+#include "../linux/usbjoy.h"
+#include "../linux/sndout_oss.h"
 #include "../common/arm_utils.h"
 #include "../common/arm_linux.h"
 
@@ -45,7 +44,7 @@ static void *gp2x_screens[4];
 static int screensel = 0;
 //static
 int memdev = 0;
-static int sounddev = -1, mixerdev = -1, touchdev = -1;
+static int touchdev = -1;
 static int touchcal[7] = { 6203, 0, -1501397, 0, -4200, 16132680, 65536 };
 
 void *gp2x_screen;
@@ -210,9 +209,9 @@ unsigned long gp2x_joystick_read(int allow_usb_joy)
 
 	if (allow_usb_joy && num_of_joys > 0) {
 		// check the usb joy as well..
-		gp2x_usbjoy_update();
+		usbjoy_update();
 		for (i = 0; i < num_of_joys; i++)
-			value |= gp2x_usbjoy_check(i);
+			value |= usbjoy_check(i);
 	}
 
 	return value;
@@ -248,57 +247,6 @@ int gp2x_touchpad_read(int *x, int *y)
 	// printf("read %i %i %i\n", event.pressure, *x, *y);
 
 	return zero_seen ? event.pressure : 0;
-}
-
-
-static int s_oldrate = 0, s_oldbits = 0, s_oldstereo = 0;
-
-void gp2x_start_sound(int rate, int bits, int stereo)
-{
-	int frag = 0, bsize, buffers;
-
-	// if no settings change, we don't need to do anything
-	if (rate == s_oldrate && s_oldbits == bits && s_oldstereo == stereo) return;
-
-	if (sounddev > 0) close(sounddev);
-	sounddev = open("/dev/dsp", O_WRONLY|O_ASYNC);
-	if (sounddev == -1)
-		printf("open(\"/dev/dsp\") failed with %i\n", errno);
-
-	ioctl(sounddev, SNDCTL_DSP_SETFMT, &bits);
-	ioctl(sounddev, SNDCTL_DSP_SPEED,  &rate);
-	ioctl(sounddev, SNDCTL_DSP_STEREO, &stereo);
-	// calculate buffer size
-	buffers = 16;
-	bsize = rate / 32;
-	if (rate > 22050) { bsize*=4; buffers*=2; } // 44k mode seems to be very demanding
-	while ((bsize>>=1)) frag++;
-	frag |= buffers<<16; // 16 buffers
-	ioctl(sounddev, SNDCTL_DSP_SETFRAGMENT, &frag);
-	usleep(192*1024);
-
-	printf("gp2x_set_sound: %i/%ibit/%s, %i buffers of %i bytes\n",
-		rate, bits, stereo?"stereo":"mono", frag>>16, 1<<(frag&0xffff));
-
-	s_oldrate = rate; s_oldbits = bits; s_oldstereo = stereo;
-}
-
-
-void gp2x_sound_write(void *buff, int len)
-{
-	write(sounddev, buff, len);
-}
-
-void gp2x_sound_sync(void)
-{
-	ioctl(sounddev, SOUND_PCM_SYNC, 0);
-}
-
-void gp2x_sound_volume(int l, int r)
-{
- 	l=l<0?0:l; l=l>255?255:l; r=r<0?0:r; r=r>255?255:r;
- 	l<<=8; l|=r;
- 	ioctl(mixerdev, SOUND_MIXER_WRITE_PCM, &l); /*SOUND_MIXER_WRITE_VOLUME*/
 }
 
 
@@ -352,7 +300,7 @@ void gp2x_init(void)
   	memdev = open("/dev/mem", O_RDWR);
 	if (memdev == -1)
 	{
-		printf("open(\"/dev/mem\") failed with %i\n", errno);
+		perror("open(\"/dev/mem\")");
 		exit(1);
 	}
 
@@ -360,7 +308,7 @@ void gp2x_init(void)
 	printf("memregs are @ %p\n", gp2x_memregs);
 	if(gp2x_memregs == MAP_FAILED)
 	{
-		printf("mmap(memregs) failed with %i\n", errno);
+		perror("mmap(memregs)");
 		exit(1);
 	}
 	gp2x_memregl = (unsigned long *) gp2x_memregs;
@@ -370,7 +318,7 @@ void gp2x_init(void)
   	gp2x_screens[0] = mmap(0, FRAMEBUFF_WHOLESIZE, PROT_WRITE, MAP_SHARED, memdev, FRAMEBUFF_ADDR0);
 	if(gp2x_screens[0] == MAP_FAILED)
 	{
-		printf("mmap(gp2x_screen) failed with %i\n", errno);
+		perror("mmap(gp2x_screen)");
 		exit(1);
 	}
 	printf("framebuffers point to %p\n", gp2x_screens[0]);
@@ -390,12 +338,10 @@ void gp2x_init(void)
 	gp2x_memset_all_buffers(0, 0, 320*240*2);
 
 	// snd
-  	mixerdev = open("/dev/mixer", O_RDWR);
-	if (mixerdev == -1)
-		printf("open(\"/dev/mixer\") failed with %i\n", errno);
+	sndout_oss_init();
 
 	/* init usb joys -GnoStiC */
-	gp2x_usbjoy_init();
+	usbjoy_init();
 
 	// touchscreen
 	touchdev = open("/dev/touchscreen/wm97xx", O_RDONLY);
@@ -432,16 +378,15 @@ void gp2x_deinit(void)
 	munmap(gp2x_screens[0], FRAMEBUFF_WHOLESIZE);
 	munmap((void *)gp2x_memregs, 0x10000);
 	close(memdev);
-	close(mixerdev);
-	if (sounddev >= 0) close(sounddev);
 	if (touchdev >= 0) close(touchdev);
 
-	gp2x_usbjoy_deinit();
+	sndout_oss_exit();
+	usbjoy_deinit();
 
 	printf("all done, running ");
 
 	// Zaq121's alternative frontend support from MAME
-	if(ext_menu && ext_state) {
+	if (ext_menu && ext_state) {
 		printf("%s -state %s\n", ext_menu, ext_state);
 		execl(ext_menu, ext_menu, "-state", ext_state, NULL);
 	} else if(ext_menu) {

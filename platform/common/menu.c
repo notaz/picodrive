@@ -350,7 +350,7 @@ static void mplayer_loop(void)
 	while (1)
 	{
 		PDebugZ80Frame();
-		if (read_buttons_async(BTN_NORTH)) break;
+		if (read_buttons_async(PBTN_NORTH)) break;
 		emu_waitSound();
 	}
 
@@ -429,41 +429,41 @@ void debug_menu_loop(void)
 		}
 		menu_draw_end();
 
-		inp = read_buttons(BTN_EAST|BTN_SOUTH|BTN_WEST|BTN_NORTH|BTN_L|BTN_R|BTN_UP|BTN_DOWN|BTN_LEFT|BTN_RIGHT);
-		if (inp & BTN_SOUTH) return;
-		if (inp & BTN_L) { mode--; if (mode < 0) mode = 3; }
-		if (inp & BTN_R) { mode++; if (mode > 3) mode = 0; }
+		inp = read_buttons(PBTN_EAST|PBTN_SOUTH|PBTN_WEST|PBTN_NORTH|PBTN_L|PBTN_R|PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT);
+		if (inp & PBTN_SOUTH) return;
+		if (inp & PBTN_L) { mode--; if (mode < 0) mode = 3; }
+		if (inp & PBTN_R) { mode++; if (mode > 3) mode = 0; }
 		switch (mode)
 		{
 			case 0:
-				if (inp & BTN_EAST) SekStepM68k();
-				if (inp & BTN_NORTH) {
-					while (inp & BTN_NORTH) inp = read_buttons_async(BTN_NORTH);
+				if (inp & PBTN_EAST) SekStepM68k();
+				if (inp & PBTN_NORTH) {
+					while (inp & PBTN_NORTH) inp = read_buttons_async(PBTN_NORTH);
 					mplayer_loop();
 				}
-				if ((inp & (BTN_WEST|BTN_LEFT)) == (BTN_WEST|BTN_LEFT)) {
+				if ((inp & (PBTN_WEST|PBTN_LEFT)) == (PBTN_WEST|PBTN_LEFT)) {
 					mkdir("dumps", 0777);
 					PDebugDumpMem();
-					while (inp & BTN_WEST) inp = read_buttons_async(BTN_WEST);
+					while (inp & PBTN_WEST) inp = read_buttons_async(PBTN_WEST);
 					dumped = 1;
 				}
 				break;
 			case 1:
-				if (inp & BTN_LEFT)  PicoDrawMask ^= PDRAW_LAYERB_ON;
-				if (inp & BTN_RIGHT) PicoDrawMask ^= PDRAW_LAYERA_ON;
-				if (inp & BTN_DOWN)  PicoDrawMask ^= PDRAW_SPRITES_LOW_ON;
-				if (inp & BTN_UP)    PicoDrawMask ^= PDRAW_SPRITES_HI_ON;
-				if (inp & BTN_EAST) {
+				if (inp & PBTN_LEFT)  PicoDrawMask ^= PDRAW_LAYERB_ON;
+				if (inp & PBTN_RIGHT) PicoDrawMask ^= PDRAW_LAYERA_ON;
+				if (inp & PBTN_DOWN)  PicoDrawMask ^= PDRAW_SPRITES_LOW_ON;
+				if (inp & PBTN_UP)    PicoDrawMask ^= PDRAW_SPRITES_HI_ON;
+				if (inp & PBTN_EAST) {
 					PsndOut = NULL; // just in case
 					PicoSkipFrame = 1;
 					PicoFrame();
 					PicoSkipFrame = 0;
-					while (inp & BTN_EAST) inp = read_buttons_async(BTN_EAST);
+					while (inp & PBTN_EAST) inp = read_buttons_async(PBTN_EAST);
 				}
 				break;
 			case 3:
-				if (inp & BTN_DOWN)  spr_offs++;
-				if (inp & BTN_UP)    spr_offs--;
+				if (inp & PBTN_DOWN)  spr_offs++;
+				if (inp & PBTN_UP)    spr_offs--;
 				if (spr_offs < 0) spr_offs = 0;
 				break;
 		}

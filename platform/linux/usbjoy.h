@@ -228,15 +228,15 @@ int joy_close (struct usbjoy * joy);
 
 
 
-/* gp2x stuff */
+/* more stuff */
 extern int num_of_joys;
 extern struct usbjoy *joys[4];
 
-void gp2x_usbjoy_update(void);
-void gp2x_usbjoy_init(void);
-int  gp2x_usbjoy_check(int joyno);
-int  gp2x_usbjoy_check2(int joyno);
-void gp2x_usbjoy_deinit(void);
+void usbjoy_update(void);
+void usbjoy_init(void);
+int  usbjoy_check(int joyno);
+int  usbjoy_check2(int joyno);
+void usbjoy_deinit(void);
 
 
 #endif // USBJOY_H

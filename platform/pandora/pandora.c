@@ -7,23 +7,20 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
-#include <sys/soundcard.h>
 #include <linux/fb.h>
 #include <fcntl.h>
 #include <errno.h>
 
 #include "../gp2x/gp2x.h"
-#include "../gp2x/usbjoy.h"
+#include "../linux/usbjoy.h"
+#include "../linux/sndout_oss.h"
 #include "../common/arm_linux.h"
 
 static volatile unsigned int *memregs = MAP_FAILED;
 //static
 int memdev = 0;
-static int fbdev = -1, sounddev = -1, mixerdev = -1, touchdev = -1;
-static int touchcal[7] = { 6203, 0, -1501397, 0, -4200, 16132680, 65536 };
+static int fbdev = -1;
 
-//#define SCREEN_MAP_SIZE (((800*(480+11)*2)+0xfff)&~0xfff)
 #define SCREEN_MAP_SIZE (800*480*2)
 static void *screen = MAP_FAILED;
 void *gp2x_screen;
@@ -98,13 +95,17 @@ unsigned long gp2x_joystick_read(int allow_usb_joy)
 
 	if (allow_usb_joy && num_of_joys > 0) {
 		// check the usb joy as well..
-		gp2x_usbjoy_update();
+		usbjoy_update();
 		for (i = 0; i < num_of_joys; i++)
-			value |= gp2x_usbjoy_check(i);
+			value |= usbjoy_check(i);
 	}
 
 	return value;
 }
+
+// FIXME
+#if 0
+static int touchcal[7] = { 6203, 0, -1501397, 0, -4200, 16132680, 65536 };
 
 typedef struct ucb1x00_ts_event
 {
@@ -137,73 +138,19 @@ int gp2x_touchpad_read(int *x, int *y)
 
 	return zero_seen ? event.pressure : 0;
 }
-
-
-static int s_oldrate = 0, s_oldbits = 0, s_oldstereo = 0;
-
-void gp2x_start_sound(int rate, int bits, int stereo)
-{
-	int frag = 0, bsize, buffers;
-
-	// if no settings change, we don't need to do anything
-	if (rate == s_oldrate && s_oldbits == bits && s_oldstereo == stereo) return;
-
-	if (sounddev > 0) close(sounddev);
-	sounddev = open("/dev/dsp", O_WRONLY|O_ASYNC);
-	if (sounddev == -1)
-		printf("open(\"/dev/dsp\") failed with %i\n", errno);
-
-	ioctl(sounddev, SNDCTL_DSP_SETFMT, &bits);
-	ioctl(sounddev, SNDCTL_DSP_SPEED,  &rate);
-	ioctl(sounddev, SNDCTL_DSP_STEREO, &stereo);
-	// calculate buffer size
-	buffers = 16;
-	bsize = rate / 32;
-	if (rate > 22050) { bsize*=4; buffers*=2; } // 44k mode seems to be very demanding
-	while ((bsize>>=1)) frag++;
-	frag |= buffers<<16; // 16 buffers
-	ioctl(sounddev, SNDCTL_DSP_SETFRAGMENT, &frag);
-	usleep(192*1024);
-
-	printf("gp2x_set_sound: %i/%ibit/%s, %i buffers of %i bytes\n",
-		rate, bits, stereo?"stereo":"mono", frag>>16, 1<<(frag&0xffff));
-
-	s_oldrate = rate; s_oldbits = bits; s_oldstereo = stereo;
-}
-
-
-void gp2x_sound_write(void *buff, int len)
-{
-	write(sounddev, buff, len);
-}
-
-void gp2x_sound_sync(void)
-{
-//	ioctl(sounddev, SOUND_PCM_SYNC, 0);
-}
-
-void gp2x_sound_volume(int l, int r)
-{
-#if 0
- 	l=l<0?0:l; l=l>255?255:l; r=r<0?0:r; r=r>255?255:r;
- 	l<<=8; l|=r;
- 	ioctl(mixerdev, SOUND_MIXER_WRITE_PCM, &l); /*SOUND_MIXER_WRITE_VOLUME*/
+#else
+int gp2x_touchpad_read(int *x, int *y) { return -1; }
 #endif
-}
-
 
 /* common */
 void gp2x_init(void)
 {
-	struct fb_fix_screeninfo fbfix;
-	int ret;
-
 	printf("entering init()\n"); fflush(stdout);
 
   	memdev = open("/dev/mem", O_RDWR);
 	if (memdev == -1)
 	{
-		printf("open(\"/dev/mem\") failed with %i\n", errno);
+		perror("open(\"/dev/mem\")");
 		exit(1);
 	}
 /*
@@ -217,73 +164,39 @@ void gp2x_init(void)
 	fbdev = open("/dev/fb0", O_RDWR);
 	if (fbdev == -1)
 	{
-		printf("open(\"/dev/fb0\") failed with %i\n", errno);
+		perror("open(\"/dev/fb0\")");
 		exit(1);
-	}
-
-	ret = ioctl(fbdev, FBIOGET_FSCREENINFO, &fbfix);
-	if (ret == -1)
-	{
-		printf("ioctl(fbdev) failed with %i\n", errno);
-		exit(1);
-	}
-
-	// squidge hack
-	if (fbfix.line_length != 800*2)
-	{
-		gp2x_screen = malloc(800*640*2);
-		return;
 	}
 
 	screen = mmap(0, SCREEN_MAP_SIZE, PROT_WRITE|PROT_READ, MAP_SHARED, fbdev, 0);
 	if (screen == MAP_FAILED)
 	{
-		printf("mmap(fbptr) failed with %i\n", errno);
+		perror("mmap(fbptr)");
 		exit(1);
 	}
 	printf("fbptr %p\n", screen);
-//	gp2x_screen = (char *)screen + 800*10*2-64;
 	gp2x_screen = screen;
 
-
 	// snd
-  	mixerdev = open("/dev/mixer", O_RDWR);
-	if (mixerdev == -1)
-		printf("open(\"/dev/mixer\") failed with %i\n", errno);
+	sndout_oss_init();
 
 	/* init usb joys -GnoStiC */
-	gp2x_usbjoy_init();
-
-	// touchscreen
-	touchdev = open("/dev/touchscreen/wm97xx", O_RDONLY);
-	if (touchdev >= 0) {
-		FILE *pcf = fopen("/etc/pointercal", "r");
-		if (pcf) {
-			fscanf(pcf, "%d %d %d %d %d %d %d", &touchcal[0], &touchcal[1],
-				&touchcal[2], &touchcal[3], &touchcal[4], &touchcal[5], &touchcal[6]);
-			fclose(pcf);
-		}
-		printf("found touchscreen/wm97xx\n");
-	}
+	usbjoy_init();
 
 	printf("exitting init()\n"); fflush(stdout);
 }
 
 void gp2x_deinit(void)
 {
-	//gp2x_video_changemode(15);
-
 	if (screen != MAP_FAILED)
 		munmap(screen, SCREEN_MAP_SIZE);
 	if (memregs != MAP_FAILED)
 		munmap((void *)memregs, 0x10000);
 	close(memdev);
 	if (fbdev >= 0)    close(fbdev);
-	if (mixerdev >= 0) close(mixerdev);
-	if (sounddev >= 0) close(sounddev);
-	if (touchdev >= 0) close(touchdev);
 
-	gp2x_usbjoy_deinit();
+	sndout_oss_exit();
+	usbjoy_deinit();
 
 	printf("all done");
 }
@@ -302,7 +215,6 @@ void lprintf(const char *fmt, ...)
 /* fake GP2X */
 int crashed_940 = 0;
 
-int readpng(void *dest, const char *fname, int what) { return -1; }
 void set_gamma(int g100, int A_SNs_curve) {}
 void set_FCLK(unsigned MHZ) {}
 void set_LCD_custom_rate(int rate) {}

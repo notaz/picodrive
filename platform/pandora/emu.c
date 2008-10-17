@@ -15,13 +15,14 @@
 #include <stdarg.h>
 
 #include "../gp2x/emu.h"
-#include "../gp2x/usbjoy.h"
 #include "../gp2x/menu.h"
 #include "../common/arm_utils.h"
 #include "../common/fonts.h"
 #include "../common/emu.h"
 #include "../common/config.h"
 #include "../common/common.h"
+#include "../linux/usbjoy.h"
+#include "../linux/sndout_oss.h"
 #include "asm_utils.h"
 
 #include <pico/pico_int.h>
@@ -554,7 +555,7 @@ static void update_volume(int has_changed, int is_up)
 				if (vol >  0) vol--;
 			}
 			wait_frames = 0;
-			gp2x_sound_volume(vol, vol);
+			sndout_oss_setvol(vol, vol);
 			currentConfig.volume = vol;
 		}
 		sprintf(noticeMsg, "VOL: %02i", vol);
@@ -681,9 +682,9 @@ static void updateKeys(void)
 	// add joy inputs
 	if (num_of_joys > 0)
 	{
-		gp2x_usbjoy_update();
+		usbjoy_update();
 		for (joy = 0; joy < num_of_joys; joy++) {
-			int btns = gp2x_usbjoy_check2(joy);
+			int btns = usbjoy_check2(joy);
 			for (i = 0; i < 32; i++) {
 				if (btns & (1 << i)) {
 					int acts = currentConfig.JoyBinds[joy][i];
@@ -729,7 +730,7 @@ static void updateSound(int len)
 
 	/* avoid writing audio when lagging behind to prevent audio lag */
 	if (PicoSkipFrame != 2)
-		gp2x_sound_write(PsndOut, len<<1);
+		sndout_oss_write(PsndOut, len<<1);
 }
 
 
@@ -833,8 +834,8 @@ void emu_Loop(void)
 		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
 		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
 			PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
-		gp2x_start_sound(PsndRate, 16, (PicoOpt&8)>>3);
-		gp2x_sound_volume(currentConfig.volume, currentConfig.volume);
+		sndout_oss_start(PsndRate, 16, (PicoOpt&8)>>3);
+		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
 		PicoWriteSound = updateSound;
 		update_volume(0, 0);
 		memset(sndBuffer, 0, sizeof(sndBuffer));

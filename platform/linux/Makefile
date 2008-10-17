@@ -27,8 +27,8 @@ COPT    += `pkg-config --cflags gthread-2.0`
 LDFLAGS += `pkg-config --libs gthread-2.0`
 
 # frontend
-OBJS += platform/gp2x/main.o platform/gp2x/menu.o platform/gp2x/emu.o platform/gp2x/usbjoy.o blit.o \
-		gp2x.o 940ctl_ym2612.o log_io.o
+OBJS += platform/gp2x/main.o platform/gp2x/menu.o platform/gp2x/emu.o usbjoy.o blit.o \
+		sndout_oss.o gp2x.o 940ctl_ym2612.o log_io.o
 
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/config.o platform/common/fonts.o \

@@ -20,12 +20,6 @@ void gp2x_memcpy_all_buffers(void *data, int offset, int len);
 void gp2x_memset_all_buffers(int offset, int byte, int len);
 void gp2x_pd_clone_buffer2(void);
 
-/* sound */
-void gp2x_start_sound(int rate, int bits, int stereo);
-void gp2x_sound_write(void *buff, int len);
-void gp2x_sound_volume(int l, int r);
-void gp2x_sound_sync(void);
-
 /* input */
 unsigned long gp2x_joystick_read(int allow_usb_joy);
 int gp2x_touchpad_read(int *x, int *y);

@@ -9,15 +9,14 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
-#include <sys/soundcard.h>
 #include <fcntl.h>
 #include <errno.h>
 
 #include "../gp2x/emu.h"
 #include "../gp2x/gp2x.h"
-#include "../gp2x/usbjoy.h"
 #include "../gp2x/version.h"
+#include "sndout_oss.h"
+#include "usbjoy.h"
 
 #include "log_io.h"
 
@@ -25,7 +24,6 @@ void *gp2x_screen;
 static int current_bpp = 8;
 static int current_pal[256];
 static unsigned long current_keys = 0;
-static int sounddev = 0, mixerdev = 0;
 static const char *verstring = "PicoDrive " VERSION;
 
 // dummies
@@ -184,13 +182,11 @@ void gp2x_init(void)
 	memset(gp2x_screen, 0, 320*240*2 + 320*2);
 
 	// snd
-  	mixerdev = open("/dev/mixer", O_RDWR);
-	if (mixerdev == -1)
-		printf("open(\"/dev/mixer\") failed with %i\n", errno);
+	sndout_oss_init();
 
 	gtk_initf();
 
-	gp2x_usbjoy_init();
+	usbjoy_init();
 
 	printf("exitting init()\n"); fflush(stdout);
 }
@@ -198,9 +194,8 @@ void gp2x_init(void)
 void gp2x_deinit(void)
 {
 	free(gp2x_screen);
-	if (sounddev > 0) close(sounddev);
-	close(mixerdev);
-	gp2x_usbjoy_deinit();
+	sndout_oss_exit();
+	usbjoy_deinit();
 }
 
 /* video */
@@ -304,54 +299,6 @@ void gp2x_pd_clone_buffer2(void)
 	memset(gp2x_screen, 0, 320*240*2);
 }
 
-/* sound */
-static int s_oldrate = 0, s_oldbits = 0, s_oldstereo = 0;
-
-void gp2x_start_sound(int rate, int bits, int stereo)
-{
-	int frag = 0, bsize, buffers;
-
-	// if no settings change, we don't need to do anything
-	if (rate == s_oldrate && s_oldbits == bits && s_oldstereo == stereo) return;
-
-	if (sounddev > 0) close(sounddev);
-	sounddev = open("/dev/dsp", O_WRONLY|O_ASYNC);
-	if (sounddev == -1)
-		printf("open(\"/dev/dsp\") failed with %i\n", errno);
-
-	ioctl(sounddev, SNDCTL_DSP_SPEED,  &rate);
-	ioctl(sounddev, SNDCTL_DSP_SETFMT, &bits);
-	ioctl(sounddev, SNDCTL_DSP_STEREO, &stereo);
-	// calculate buffer size
-	buffers = 16;
-	bsize = rate / 32;
-	if (rate > 22050) { bsize*=4; buffers*=2; } // 44k mode seems to be very demanding
-	while ((bsize>>=1)) frag++;
-	frag |= buffers<<16; // 16 buffers
-	ioctl(sounddev, SNDCTL_DSP_SETFRAGMENT, &frag);
-	printf("gp2x_set_sound: %i/%ibit/%s, %i buffers of %i bytes\n",
-		rate, bits, stereo?"stereo":"mono", frag>>16, 1<<(frag&0xffff));
-
-	s_oldrate = rate; s_oldbits = bits; s_oldstereo = stereo;
-}
-
-void gp2x_sound_write(void *buff, int len)
-{
-	write(sounddev, buff, len);
-}
-
-void gp2x_sound_sync(void)
-{
-	ioctl(sounddev, SOUND_PCM_SYNC, 0);
-}
-
-void gp2x_sound_volume(int l, int r)
-{
- 	l=l<0?0:l; l=l>255?255:l; r=r<0?0:r; r=r>255?255:r;
- 	l<<=8; l|=r;
- 	ioctl(mixerdev, SOUND_MIXER_WRITE_PCM, &l); /*SOUND_MIXER_WRITE_VOLUME*/
-}
-
 /* joy */
 unsigned long gp2x_joystick_read(int allow_usb_joy)
 {
@@ -360,9 +307,9 @@ unsigned long gp2x_joystick_read(int allow_usb_joy)
 
 	if (allow_usb_joy && num_of_joys > 0) {
 		// check the usb joy as well..
-		gp2x_usbjoy_update();
+		usbjoy_update();
 		for (i = 0; i < num_of_joys; i++)
-			value |= gp2x_usbjoy_check(i);
+			value |= usbjoy_check(i);
 	}
 
 	return value;

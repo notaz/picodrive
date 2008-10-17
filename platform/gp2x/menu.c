@@ -13,7 +13,7 @@
 #include "gp2x.h"
 #include "emu.h"
 #include "menu.h"
-#include "usbjoy.h"
+#include "../linux/usbjoy.h"
 #include "../common/emu.h"
 #include "../common/menu.h"
 #include "../common/arm_utils.h"
@@ -90,9 +90,9 @@ static unsigned long input2_read(unsigned long interesting, int *joy)
 	{
 		*joy = 0;
 		if ((ret = gp2x_joystick_read(0) & interesting)) break;
-		gp2x_usbjoy_update();
+		usbjoy_update();
 		for (i = 0; i < num_of_joys; i++) {
-			ret = gp2x_usbjoy_check2(i);
+			ret = usbjoy_check2(i);
 			if (ret) { *joy = i + 1; break; }
 		}
 		if (ret) break;

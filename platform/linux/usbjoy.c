@@ -322,15 +322,14 @@ int joy_close (struct usbjoy * joy) {
 
 
 /*********************************************************************/
-/* GP2X USB Joystick Handling -GnoStiC                               */
-/*********************************************************************/
 
-#include "gp2x.h"
+#include "../common/common.h"
 
 int num_of_joys = 0;
 struct usbjoy *joys[4];
 
-void gp2x_usbjoy_init (void) {
+void usbjoy_init (void)
+{
 	/* Open available joysticks -GnoStiC */
 	int i, n = 0;
 
@@ -347,7 +346,8 @@ void gp2x_usbjoy_init (void) {
 	printf("Found %d Joystick(s)\n",num_of_joys);
 }
 
-void gp2x_usbjoy_update (void) {
+void usbjoy_update (void)
+{
 	/* Update Joystick Event Cache */
 	int q, foo;
 	for (q=0; q < num_of_joys; q++) {
@@ -355,45 +355,48 @@ void gp2x_usbjoy_update (void) {
 	}
 }
 
-int gp2x_usbjoy_check (int joyno) {
+int usbjoy_check (int joyno)
+{
 	/* Check Joystick */
 	int q, joyExKey = 0;
 	struct usbjoy *joy = joys[joyno];
 
 	if (joy != NULL) {
-		if (joy_getaxe(JOYUP, joy))    { joyExKey |= GP2X_UP; }
-		if (joy_getaxe(JOYDOWN, joy))  { joyExKey |= GP2X_DOWN; }
-		if (joy_getaxe(JOYLEFT, joy))  { joyExKey |= GP2X_LEFT; }
-		if (joy_getaxe(JOYRIGHT, joy)) { joyExKey |= GP2X_RIGHT; }
+		if (joy_getaxe(JOYUP, joy))    { joyExKey |= PBTN_UP; }
+		if (joy_getaxe(JOYDOWN, joy))  { joyExKey |= PBTN_DOWN; }
+		if (joy_getaxe(JOYLEFT, joy))  { joyExKey |= PBTN_LEFT; }
+		if (joy_getaxe(JOYRIGHT, joy)) { joyExKey |= PBTN_RIGHT; }
 
 		/* loop through joy buttons to check if they are pushed */
 		for (q=0; q<joy_buttons (joy); q++) {
 			if (joy_getbutton (q, joy)) {
 				if (joy->type == JOY_TYPE_LOGITECH) {
 					switch (q) {
-						case 0: joyExKey |= GP2X_A; break;
-						case 1: joyExKey |= GP2X_X; break;
-						case 2: joyExKey |= GP2X_B; break;
-						case 3: joyExKey |= GP2X_Y; break;
+						case 0: joyExKey |= PBTN_WEST;  break;
+						case 1: joyExKey |= PBTN_SOUTH; break;
+						case 2: joyExKey |= PBTN_EAST;  break;
+						case 3: joyExKey |= PBTN_NORTH; break;
 					}
 				} else {
 					switch (q) {
-						case 0: joyExKey |= GP2X_Y; break;
-						case 1: joyExKey |= GP2X_B; break;
-						case 2: joyExKey |= GP2X_X; break;
-						case 3: joyExKey |= GP2X_A; break;
+						case 0: joyExKey |= PBTN_NORTH; break;
+						case 1: joyExKey |= PBTN_EAST;  break;
+						case 2: joyExKey |= PBTN_SOUTH; break;
+						case 3: joyExKey |= PBTN_WEST;  break;
 					}
 				}
 
 				switch (q) {
-					case  4: joyExKey |= GP2X_L; break;
-					case  5: joyExKey |= GP2X_R; break;
-					case  6: joyExKey |= GP2X_L; break; /* left shoulder button 2 */
-					case  7: joyExKey |= GP2X_R; break; /* right shoulder button 2 */
+					case  4: joyExKey |= PBTN_L; break;
+					case  5: joyExKey |= PBTN_R; break;
+					case  6: joyExKey |= PBTN_L; break; /* left shoulder button 2 */
+					case  7: joyExKey |= PBTN_R; break; /* right shoulder button 2 */
+/*
 					case  8: joyExKey |= GP2X_SELECT;break;
 					case  9: joyExKey |= GP2X_START; break;
 					case 10: joyExKey |= GP2X_PUSH;  break;
 					case 11: joyExKey |= GP2X_PUSH;  break;
+*/
 				}
 			}
 		}
@@ -401,7 +404,8 @@ int gp2x_usbjoy_check (int joyno) {
 	return joyExKey;
 }
 
-int gp2x_usbjoy_check2 (int joyno) {
+int usbjoy_check2 (int joyno)
+{
 	/* Check Joystick, don't map to gp2x joy */
 	int q, to, joyExKey = 0;
 	struct usbjoy *joy = joys[joyno];
@@ -423,7 +427,8 @@ int gp2x_usbjoy_check2 (int joyno) {
 
 
 
-void gp2x_usbjoy_deinit (void) {
+void usbjoy_deinit (void)
+{
 	int i;
 	for (i=0; i<num_of_joys; i++) {
 		joy_close (joys[i]);

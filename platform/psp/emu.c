@@ -750,10 +750,10 @@ static void RunEventsPico(unsigned int events, unsigned int keys)
 	if (pico_inp_mode != 0)
 	{
 		PicoPad[0] &= ~0x0f; // release UDLR
-		if (keys & BTN_UP)   { pico_pen_y--; if (pico_pen_y < 8) pico_pen_y = 8; }
-		if (keys & BTN_DOWN) { pico_pen_y++; if (pico_pen_y > 224-PICO_PEN_ADJUST_Y) pico_pen_y = 224-PICO_PEN_ADJUST_Y; }
-		if (keys & BTN_LEFT) { pico_pen_x--; if (pico_pen_x < 0) pico_pen_x = 0; }
-		if (keys & BTN_RIGHT) {
+		if (keys & PBTN_UP)   { pico_pen_y--; if (pico_pen_y < 8) pico_pen_y = 8; }
+		if (keys & PBTN_DOWN) { pico_pen_y++; if (pico_pen_y > 224-PICO_PEN_ADJUST_Y) pico_pen_y = 224-PICO_PEN_ADJUST_Y; }
+		if (keys & PBTN_LEFT) { pico_pen_x--; if (pico_pen_x < 0) pico_pen_x = 0; }
+		if (keys & PBTN_RIGHT) {
 			int lim = (Pico.video.reg[12]&1) ? 319 : 255;
 			pico_pen_x++;
 			if (pico_pen_x > lim-PICO_PEN_ADJUST_X)
@@ -779,10 +779,10 @@ static void RunEvents(unsigned int which)
 			int keys;
 			sceGuSync(0,0);
 			blit2("", (which & 0x1000) ? "LOAD STATE? (X=yes, O=no)" : "OVERWRITE SAVE? (X=yes, O=no)", 0);
-			while( !((keys = psp_pad_read(1)) & (BTN_X|BTN_CIRCLE)) )
+			while( !((keys = psp_pad_read(1)) & (PBTN_X|PBTN_CIRCLE)) )
 				psp_msleep(50);
-			if (keys & BTN_CIRCLE) do_it = 0;
-			while(  ((keys = psp_pad_read(1)) & (BTN_X|BTN_CIRCLE)) ) // wait for release
+			if (keys & PBTN_CIRCLE) do_it = 0;
+			while(  ((keys = psp_pad_read(1)) & (PBTN_X|PBTN_CIRCLE)) ) // wait for release
 				psp_msleep(50);
 			clearArea(0);
 		}
@@ -836,7 +836,7 @@ static void updateKeys(void)
 	if (keys & PSP_CTRL_HOME)
 		sceDisplayWaitVblankStart();
 
-	if (keys & BTN_SELECT)
+	if (keys & PBTN_SELECT)
 		engineState = PGS_Menu;
 
 	keys &= CONFIGURABLE_KEYS;

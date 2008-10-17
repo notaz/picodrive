@@ -3,17 +3,17 @@
 #ifdef __GP2X__
 #include "../gp2x/gp2x.h"
 
-#define BTN_UP    GP2X_UP
-#define BTN_DOWN  GP2X_DOWN
-#define BTN_LEFT  GP2X_LEFT
-#define BTN_RIGHT GP2X_RIGHT
+#define PBTN_UP    GP2X_UP
+#define PBTN_DOWN  GP2X_DOWN
+#define PBTN_LEFT  GP2X_LEFT
+#define PBTN_RIGHT GP2X_RIGHT
 
-#define BTN_NORTH GP2X_Y
-#define BTN_SOUTH GP2X_X
-#define BTN_WEST  GP2X_A
-#define BTN_EAST  GP2X_B
-#define BTN_L     GP2X_L
-#define BTN_R     GP2X_R
+#define PBTN_NORTH GP2X_Y
+#define PBTN_SOUTH GP2X_X
+#define PBTN_WEST  GP2X_A
+#define PBTN_EAST  GP2X_B
+#define PBTN_L     GP2X_L
+#define PBTN_R     GP2X_R
 
 unsigned long wait_for_input(unsigned long interesting);
 void gp2x_pd_clone_buffer2(void);
@@ -43,10 +43,10 @@ void menu_flip(void);
 
 #include "../gizmondo/giz.h"
 
-#define BTN_NORTH BTN_STOP
-#define BTN_SOUTH BTN_PLAY
-#define BTN_WEST  BTN_REW
-#define BTN_EAST  BTN_FWD
+#define PBTN_NORTH PBTN_STOP
+#define PBTN_SOUTH PBTN_PLAY
+#define PBTN_WEST  PBTN_REW
+#define PBTN_EAST  PBTN_FWD
 
 unsigned long wait_for_input(unsigned int interesting);
 void menu_draw_begin(int use_bgbuff);
@@ -75,10 +75,10 @@ extern void *giz_screen;
 
 #include "../psp/psp.h"
 
-#define BTN_NORTH BTN_TRIANGLE
-#define BTN_SOUTH BTN_X
-#define BTN_WEST  BTN_SQUARE
-#define BTN_EAST  BTN_CIRCLE
+#define PBTN_NORTH PBTN_TRIANGLE
+#define PBTN_SOUTH PBTN_X
+#define PBTN_WEST  PBTN_SQUARE
+#define PBTN_EAST  PBTN_CIRCLE
 
 unsigned long wait_for_input(unsigned int interesting, int is_key_config);
 void menu_draw_begin(void);
@@ -106,17 +106,17 @@ void menu_draw_end(void);
 
 #include "../gp2x/gp2x.h"
 
-#define BTN_UP    0
-#define BTN_DOWN  0
-#define BTN_LEFT  0
-#define BTN_RIGHT 0
+#define PBTN_UP    0
+#define PBTN_DOWN  0
+#define PBTN_LEFT  0
+#define PBTN_RIGHT 0
 
-#define BTN_NORTH 0
-#define BTN_SOUTH 0
-#define BTN_WEST  0
-#define BTN_EAST  0
-#define BTN_L     0
-#define BTN_R     0
+#define PBTN_NORTH 0
+#define PBTN_SOUTH 0
+#define PBTN_WEST  0
+#define PBTN_EAST  0
+#define PBTN_L     0
+#define PBTN_R     0
 
 unsigned long wait_for_input(unsigned long interesting);
 void gp2x_pd_clone_buffer2(void);

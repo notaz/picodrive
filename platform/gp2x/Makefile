@@ -54,14 +54,14 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += main.o menu.o gp2x.o usbjoy.o emu.o squidgehack.o cpuctrl.o
+OBJS += main.o menu.o gp2x.o emu.o squidgehack.o cpuctrl.o
 # 940 core control
 OBJS += 940ctl.o
 
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
 	platform/common/arm_utils.o platform/common/arm_linux.o platform/common/readpng.o \
-	platform/common/mp3_helix.o
+	platform/common/mp3_helix.o platform/linux/usbjoy.o platform/linux/sndout_oss.o
 
 # Pico
 ifeq "$(amalgamate)" "1"
@@ -116,8 +116,8 @@ endif
 vpath %.c = ../..
 vpath %.s = ../..
 vpath %.S = ../..
-DIRS = platform platform/gp2x platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
-	zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools cpu/mz80 cpu/DrZ80
+DIRS = platform platform/gp2x platform/linux platform/common pico pico/cd pico/pico pico/sound \
+	pico/carthw/svp zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools cpu/mz80 cpu/DrZ80
 
 
 all: mkdirs PicoDrive.gpe

@@ -224,11 +224,11 @@ unsigned int psp_pad_read(int blocking)
 	buttons = pad.Buttons;
 
 	// analog..
-	buttons &= ~(BTN_NUB_UP|BTN_NUB_DOWN|BTN_NUB_LEFT|BTN_NUB_RIGHT);
-	if (pad.Lx < 128 - ANALOG_DEADZONE) buttons |= BTN_NUB_LEFT;
-	if (pad.Lx > 128 + ANALOG_DEADZONE) buttons |= BTN_NUB_RIGHT;
-	if (pad.Ly < 128 - ANALOG_DEADZONE) buttons |= BTN_NUB_UP;
-	if (pad.Ly > 128 + ANALOG_DEADZONE) buttons |= BTN_NUB_DOWN;
+	buttons &= ~(PBTN_NUB_UP|PBTN_NUB_DOWN|PBTN_NUB_LEFT|PBTN_NUB_RIGHT);
+	if (pad.Lx < 128 - ANALOG_DEADZONE) buttons |= PBTN_NUB_LEFT;
+	if (pad.Lx > 128 + ANALOG_DEADZONE) buttons |= PBTN_NUB_RIGHT;
+	if (pad.Ly < 128 - ANALOG_DEADZONE) buttons |= PBTN_NUB_UP;
+	if (pad.Ly > 128 + ANALOG_DEADZONE) buttons |= PBTN_NUB_DOWN;
 
 	return buttons;
 }

@@ -1,4 +1,5 @@
-export CROSS = arm-none-linux-gnueabi-
+#export CROSS = arm-none-linux-gnueabi-
+LIBROOT = /home/notaz/dev/pnd/libroot
 
 # settings
 #mz80 = 1
@@ -29,7 +30,7 @@ use_cyclone = 1
 endif
 
 DEFINC = -I../.. -I. -DARM -DPANDORA
-COPT_COMMON = -Wall -Winline -mcpu=cortex-a8 -mtune=cortex-a8 -march=armv7-a
+COPT_COMMON = -Wall -Winline -mcpu=cortex-a8 -mtune=cortex-a8 -march=armv7-a -I$(LIBROOT)/include
 ifeq ($(DEBUG),)
 COPT_COMMON += -O2 # -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
 else
@@ -51,12 +52,12 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += pandora.o main.o emu.o asm_utils.o platform/gp2x/menu.o platform/gp2x/usbjoy.o
+OBJS += pandora.o main.o emu.o asm_utils.o platform/gp2x/menu.o
 
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
-	platform/common/arm_utils.o platform/common/mp3_helix.o platform/common/arm_linux.o
-	# platform/common/readpng.o
+	platform/common/arm_utils.o platform/common/mp3_helix.o platform/common/arm_linux.o \
+	platform/common/readpng.o platform/linux/usbjoy.o platform/linux/sndout_oss.o
 
 # Pico
 ifeq "$(amalgamate)" "1"
@@ -120,7 +121,7 @@ endif
 vpath %.c = ../..
 vpath %.s = ../..
 vpath %.S = ../..
-DIRS = platform platform/gp2x platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
+DIRS = platform platform/gp2x platform/linux platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
 	zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools cpu/mz80 cpu/DrZ80
 
 
@@ -130,7 +131,7 @@ include ../common/common_arm.mak
 
 PicoDrive : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
 	@echo ">>>" $@
-	$(CC) -o $@ $(CFLAGS) $^ -lm -Wl,-Map=PicoDrive.map # -lpng
+	$(CC) -o $@ $(CFLAGS) $^ -lm -Wl,-Map=PicoDrive.map -lpng -L$(LIBROOT)/lib
 ifeq ($(DEBUG),)
 	$(STRIP) $@
 endif
