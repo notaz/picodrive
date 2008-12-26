@@ -15,7 +15,7 @@
 #include "Dialogs.h"
 #include "Engine.h"
 #include "picodrive.hrh"
-#include <picodrive.rsg>
+#include "rsc/picodrive.rsg"
 
 #include "version.h"
 #include "CSimpleTextParser.h"

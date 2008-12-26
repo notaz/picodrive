@@ -1,6 +1,6 @@
 %{"notaz"}
 :"notaz"
-#{"PicoDrive"}, (0xA00010F3), 1, 51, 0, TYPE=SA
+#{"PicoDrive"}, (0xA00010F3), 1, 51, 1, TYPE=SA
 (0x101F6300), 3, 0, 0, {"UIQ30ProductID"}
 "picodrive.exe"-"!:\sys\bin\PicoDrive.exe"
 "rsc/picodrive.rsc"-"!:\resource\apps\PicoDrive.rsc"
