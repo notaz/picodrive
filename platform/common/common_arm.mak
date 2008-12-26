@@ -51,7 +51,7 @@ pico/pico.o pico/cd/pico.o : ../../pico/pico_cmn.c ../../pico/pico_int.h
 pico/memory.o pico/cd/memory.o : ../../pico/memory_cmn.c ../../pico/pico_int.h
 
 # build Cyclone
-cpu/Cyclone/proj/Cyclone.s:
+../../cpu/Cyclone/proj/Cyclone.s:
 	@echo building Cyclone...
 	@make -C ../../cpu/Cyclone/proj CONFIG_FILE=config_pico.h
 
