@@ -8,24 +8,17 @@
 #include <linux/input.h>
 #include <errno.h>
 
+#include "../common/input.h"
 #include "event.h"
-
-#define NUM_DEVS	8
-#define NUM_KEYS_DOWN	16
 
 #define BIT(x) (keybits[(x)/sizeof(keybits[0])/8] & \
 	(1 << ((x) & (sizeof(keybits[0])*8-1))))
 
-static int event_fds[NUM_DEVS];
-static int event_fd_count = 0;
-
-int in_event_init(void)
+int in_evdev_probe(void)
 {
 	int i;
 
-	in_event_exit();
-
-	for (i = 0; event_fd_count < NUM_DEVS; i++)
+	for (i = 0;; i++)
 	{
 		int u, ret, fd, keybits[KEY_MAX/sizeof(int)];
 		int support = 0, count = 0;
@@ -39,7 +32,7 @@ int in_event_init(void)
 		/* check supported events */
 		ret = ioctl(fd, EVIOCGBIT(0, sizeof(support)), &support);
 		if (ret == -1) {
-			printf("in_event: ioctl failed on %s\n", name);
+			printf("in_evdev: ioctl failed on %s\n", name);
 			goto skip;
 		}
 
@@ -48,95 +41,81 @@ int in_event_init(void)
 
 		ret = ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keybits)), keybits);
 		if (ret == -1) {
-			printf("in_event: ioctl failed on %s\n", name);
+			printf("in_evdev: ioctl failed on %s\n", name);
 			goto skip;
 		}
 
-		printf("%s: %08x\n", name, support);
-
 		/* check for interesting keys */
 		for (u = 0; u < KEY_MAX; u++) {
-			if (BIT(u) && u != KEY_POWER)
+			if (BIT(u) && u != KEY_POWER && u != KEY_SLEEP)
 				count++;
 		}
 
 		if (count == 0)
 			goto skip;
 
-		ioctl(fd, EVIOCGNAME(sizeof(name)), name);
-		printf("event: %d: using \"%s\" with %d events\n",
-			event_fd_count, name, count);
-		event_fds[event_fd_count++] = fd;
+		strcpy(name, "evdev:");
+		ioctl(fd, EVIOCGNAME(sizeof(name)-6), name+6);
+		printf("in_evdev: found \"%s\" with %d events (type %08x)\n",
+			name+6, count, support);
+		in_register(name, IN_DRVID_EVDEV, (void *)fd);
 		continue;
 
 skip:
 		close(fd);
 	}
 
-	printf("event: %d devices found.\n", event_fd_count);
 	return 0;
 }
 
-void in_event_exit(void)
+void in_evdev_free(void *drv_data)
 {
-	for (; event_fd_count > 0; event_fd_count--)
-		close(event_fds[event_fd_count - 1]);
+	close((int)drv_data);
 }
 
-int in_event_update(int binds[512])
+int in_evdev_bind_count(void)
+{
+	return 512;
+}
+
+int in_evdev_update(void *drv_data, int *binds)
 {
 	struct input_event ev[16];
-	int d, rd, ret;
-	int result = 0;
-
-	for (d = 0; d < event_fd_count; d++)
-	{
-		int keybits[KEY_MAX/sizeof(int)];
-		int fd = event_fds[d];
-		int u, changed = 0;
-
-		while (1) {
-			rd = read(fd, ev, sizeof(ev));
-			if (rd < (int)sizeof(ev[0])) {
-				if (errno != EAGAIN)
-					perror("event: read failed");
-				break;
-			}
-
-			changed = 1;
-		}
-
-		if (!changed)
-			continue;
-
-		ret = ioctl(fd, EVIOCGKEY(sizeof(keybits)), keybits);
-		if (ret == -1) {
-			printf("in_event: ioctl failed on %d\n", d);
-			continue;
-		}
-
-		for (u = 0; u < KEY_MAX; u++) {
-			if (BIT(u)) {
-				printf(" %d", u);
-				result |= binds[u];
-			}
-		}
-		printf("\n");
-	}
-
-	return result;
-}
-
-int main()
-{
-	in_event_init();
+	int keybits[KEY_MAX/sizeof(int)];
+	int fd = (int)drv_data;
+	int result = 0, changed = 0;
+	int rd, ret, u;
 
 	while (1) {
-		int b[512];
-		in_event_update(b);
-		sleep(1);
+		rd = read(fd, ev, sizeof(ev));
+		if (rd < (int)sizeof(ev[0])) {
+			if (errno != EAGAIN)
+				perror("in_evdev: read failed");
+			break;
+		}
+
+		changed = 1;
 	}
 
-	return 0;
+/*
+	if (!changed)
+		return 0;
+*/
+	ret = ioctl(fd, EVIOCGKEY(sizeof(keybits)), keybits);
+	if (ret == -1) {
+		perror("in_evdev: ioctl failed");
+		return 0;
+	}
+
+	printf("#%d: ", fd);
+	for (u = 0; u < KEY_MAX; u++) {
+		if (BIT(u)) {
+			printf(" %d", u);
+			result |= binds[u];
+		}
+	}
+	printf("\n");
+
+	return result;
 }
 

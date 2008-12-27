@@ -1,3 +1,4 @@
-int in_event_init(void);
-void in_event_exit(void);
-int in_event_update(int binds[512]);
+int  in_evdev_probe(void);
+void in_evdev_free(void *drv_data);
+int  in_evdev_bind_count(void);
+int  in_evdev_update(void *drv_data, int *binds);
