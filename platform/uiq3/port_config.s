@@ -11,3 +11,6 @@
 
 @ this should be set to one only for GP2X port
 .equiv EXTERNAL_YM2612,         0
+
+@ also update VID_BORDER_R in port_config.h
+.equiv BORDER_R,		16

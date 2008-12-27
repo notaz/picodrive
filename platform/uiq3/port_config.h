@@ -31,4 +31,7 @@
 #define PATH_SEP      "\\"
 #define PATH_SEP_C    '\\'
 
+// engine/vid.cpp, also update BORDER_R in port_config.s
+#define VID_BORDER_R  16
+
 #endif // PORT_CONFIG_H

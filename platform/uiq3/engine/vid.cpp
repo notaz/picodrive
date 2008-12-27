@@ -19,7 +19,7 @@ extern const char *actionNames[];
 static void *screenbuff = 0; // pointer to real device video memory
 //static
 extern "C" { unsigned char *PicoDraw2FB = 0; }  // temporary buffer
-const int framebuffsize  = (8+320)*(8+240+8)*2+8*2; // actual framebuffer size (in bytes+to support new rendering mode)
+const int framebuffsize  = (8+320)*(8+240+8)*2+8*2; // PicoDraw2FB size (in bytes+to support new rendering mode)
 
 // drawer function pointers
 static void (*drawTextFps)(const char *text) = 0;
@@ -272,9 +272,9 @@ static void vidBlit_90(int full)
 		vidConvCpy_90(pd, ps, localPal, 320/8);
 	else {
 		if(full) vidClear(pd, 32);
-		pd += 256*32;
+		pd += (240+VID_BORDER_R)*32;
 		vidConvCpy_90(pd, ps, localPal, 256/8);
-		if(full) vidClear(pd + 256*256, 32);
+		if(full) vidClear(pd + (240+VID_BORDER_R)*256, 32);
 	}
 }
 
@@ -288,10 +288,10 @@ static void vidBlit_270(int full)
 		vidConvCpy_270(pd, ps, localPal, 320/8);
 	else {
 		if(full) vidClear(pd, 32);
-		pd += 256*32;
+		pd += (240+VID_BORDER_R)*32;
 		ps -= 64;     // the blitter starts copying from the right border, so we need to adjust
 		vidConvCpy_270(pd, ps, localPal, 256/8);
-		if(full) vidClear(pd + 256*256, 32);
+		if(full) vidClear(pd + (240+VID_BORDER_R)*256, 32);
 	}
 }
 
@@ -303,7 +303,7 @@ static void vidBlitCenter_0(int full)
 
 	if(Pico.video.reg[12]&1) ps += 32;
 	vidConvCpy_center_0(pd, ps, localPal);
-	if(full) vidClear(pd + 224*256, 96);
+	if(full) vidClear(pd + (240+VID_BORDER_R)*224, 96);
 }
 
 
@@ -314,7 +314,7 @@ static void vidBlitCenter_180(int full)
 
 	if(Pico.video.reg[12]&1) ps += 32;
 	vidConvCpy_center_180(pd, ps, localPal);
-	if(full) vidClear(pd + 224*256, 96);
+	if(full) vidClear(pd + (240+VID_BORDER_R)*224, 96);
 }
 
 
@@ -323,7 +323,7 @@ static void vidBlitFit_0(int full)
 	if(Pico.video.reg[12]&1)
 	     vidConvCpy_center2_40c_0(screenbuff, PicoDraw2FB+328*8, localPal, 168);
 	else vidConvCpy_center2_32c_0(screenbuff, PicoDraw2FB+328*8, localPal, 168);
-	if(full) vidClear((unsigned long *)screenbuff + 168*256, 320-168);
+	if(full) vidClear((unsigned long *)screenbuff + (240+VID_BORDER_R)*168, 320-168);
 }
 
 
@@ -332,7 +332,7 @@ static void vidBlitFit_180(int full)
 	if(Pico.video.reg[12]&1)
 	     vidConvCpy_center2_40c_180(screenbuff, PicoDraw2FB+328*8, localPal, 168);
 	else vidConvCpy_center2_32c_180(screenbuff, PicoDraw2FB+328*8-64, localPal, 168);
-	if(full) vidClear((unsigned long *)screenbuff + 168*256, 320-168);
+	if(full) vidClear((unsigned long *)screenbuff + (240+VID_BORDER_R)*168, 320-168);
 }
 
 
@@ -341,7 +341,7 @@ static void vidBlitFit2_0(int full)
 	if(Pico.video.reg[12]&1)
 	     vidConvCpy_center2_40c_0(screenbuff, PicoDraw2FB+328*8, localPal, 224);
 	else vidConvCpy_center2_32c_0(screenbuff, PicoDraw2FB+328*8, localPal, 224);
-	if(full) vidClear((unsigned long *)screenbuff + 224*256, 96);
+	if(full) vidClear((unsigned long *)screenbuff + (240+VID_BORDER_R)*224, 96);
 }
 
 
@@ -350,9 +350,8 @@ static void vidBlitFit2_180(int full)
 	if(Pico.video.reg[12]&1)
 	     vidConvCpy_center2_40c_180(screenbuff, PicoDraw2FB+328*8, localPal, 224);
 	else vidConvCpy_center2_32c_180(screenbuff, PicoDraw2FB+328*8-64, localPal, 224);
-	if(full) vidClear((unsigned long *)screenbuff + 224*256, 96);
+	if(full) vidClear((unsigned long *)screenbuff + (240+VID_BORDER_R)*224, 96);
 }
-
 
 static void vidBlitCfg(void)
 {
@@ -364,7 +363,7 @@ static void vidBlitCfg(void)
 	//for (int i = 1; i < 320; i++, ps += 240, pd += 256)
 	//	vidConvCpyRGB32(pd, ps, 240);
 
-	for (i = 0; i < 320; i++, pd += 16)
+	for (i = 0; i < 320; i++, pd += VID_BORDER_R)
 		for (int u = 0; u < 240; u++, ps++, pd++)
 			*pd = ((*ps & 0xf) << 20) | ((*ps & 0xf0) << 8) | ((*ps & 0xf00) >> 4);
 }
