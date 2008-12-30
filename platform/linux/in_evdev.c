@@ -8,8 +8,9 @@
 #include <linux/input.h>
 #include <errno.h>
 
+#include "../common/common.h"
 #include "../common/input.h"
-#include "event.h"
+#include "in_evdev.h"
 
 #define BIT(x) (keybits[(x)/sizeof(keybits[0])/8] & \
 	(1 << ((x) & (sizeof(keybits[0])*8-1))))
@@ -115,6 +116,101 @@ int in_evdev_update(void *drv_data, int *binds)
 		}
 	}
 	printf("\n");
+
+	return result;
+}
+
+int in_evdev_update_menu(void **data, int count)
+{
+	const int *fds = (const int *)data;
+	static int result = 0;
+	int i, ret, fdmax = -1;
+	int oldresult = result;
+	long flags;
+
+	/* switch to blocking mode */
+	for (i = 0; i < count; i++) {
+		if (fds[i] > fdmax) fdmax = fds[i];
+
+		flags = (long)fcntl(fds[i], F_GETFL);
+		if ((int)flags == -1) {
+			perror("in_evdev: F_GETFL fcntl failed");
+			continue;
+		}
+		flags &= ~O_NONBLOCK;
+		ret = fcntl(fds[i], F_SETFL, flags);
+		if (ret == -1)
+			perror("in_evdev: F_SETFL fcntl failed");
+	}
+
+	while (1)
+	{
+		struct input_event ev[64];
+		int fd, rd;
+		fd_set fdset;
+
+		FD_ZERO(&fdset);
+		for (i = 0; i < count; i++)
+			FD_SET(fds[i], &fdset);
+
+		ret = select(fdmax + 1, &fdset, NULL, NULL, NULL);
+		if (ret == -1)
+		{
+			perror("in_evdev: select failed");
+			sleep(1);
+			return 0;
+		}
+
+		for (i = 0; i < count; i++)
+			if (FD_ISSET(fds[i], &fdset))
+				fd = fds[i];
+
+		rd = read(fd, ev, sizeof(ev[0]) * 64);
+		if (rd < (int) sizeof(ev[0])) {
+			perror("in_evdev: error reading");
+			sleep(1);
+			return 0;
+		}
+
+		#define mapkey(o,k) \
+			case o: \
+				if (ev[i].value) result |= k; \
+				else result &= ~k; \
+				break
+		for (i = 0; i < rd / sizeof(ev[0]); i++)
+		{
+			if (ev[i].type != EV_KEY || ev[i].value < 0 || ev[i].value > 1)
+				continue;
+
+			switch (ev[i].code) {
+				/* keyboards */
+				mapkey(KEY_UP,		PBTN_UP);
+				mapkey(KEY_DOWN,	PBTN_DOWN);
+				mapkey(KEY_LEFT,	PBTN_LEFT);
+				mapkey(KEY_RIGHT,	PBTN_RIGHT);
+				mapkey(KEY_ENTER,	PBTN_EAST);
+				mapkey(KEY_ESC,		PBTN_SOUTH);
+			}
+		}
+		#undef mapkey
+
+		if (oldresult != result) break;
+	}
+
+	/* switch back to non-blocking mode */
+	for (i = 0; i < count; i++) {
+		if (fds[i] > fdmax) fdmax = fds[i];
+
+		flags = (long)fcntl(fds[i], F_GETFL);
+		if ((int)flags == -1) {
+			perror("in_evdev: F_GETFL fcntl failed");
+			continue;
+		}
+		flags |= O_NONBLOCK;
+		ret = fcntl(fds[i], F_SETFL, flags);
+		if (ret == -1)
+			perror("in_evdev: F_SETFL fcntl failed");
+	}
 
 	return result;
 }

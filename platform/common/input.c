@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "input.h"
-#include "../linux/event.h"
+#include "../linux/in_evdev.h"
 
 typedef struct
 {
@@ -23,10 +23,8 @@ static int in_dev_count = 0;
 static int in_bind_count(int drv_id)
 {
 	int count = 0;
-#ifdef IN_EVDEV
 	if (drv_id == IN_DRVID_EVDEV)
 		count = in_evdev_bind_count();
-#endif
 	if (count <= 0)
 		printf("input: failed to get bind count for drv %d\n", drv_id);
 
@@ -50,10 +48,8 @@ static int *in_alloc_binds(int drv_id)
 static void in_free(in_dev_t *dev)
 {
 	if (dev->probed) {
-#ifdef IN_EVDEV
 		if (dev->drv_id == IN_DRVID_EVDEV)
 			in_evdev_free(dev->drv_data);
-#endif
 	}
 	dev->probed = 0;
 	dev->drv_data = NULL;
@@ -128,9 +124,7 @@ void in_probe(void)
 	for (i = 0; i < in_dev_count; i++)
 		in_devices[i].probed = 0;
 
-#ifdef IN_EVDEV
 	in_evdev_probe();
-#endif
 
 	/* get rid of devs without binds and probes */
 	for (i = 0; i < in_dev_count; i++) {
@@ -163,11 +157,40 @@ int in_update(void)
 
 	for (i = 0; i < in_dev_count; i++) {
 		if (in_devices[i].probed && in_devices[i].binds != NULL) {
-#ifdef IN_EVDEV
-			result |= in_evdev_update(in_devices[i].drv_data, in_devices[i].binds);
-#endif
+			if (in_devices[i].drv_id == IN_DRVID_EVDEV)
+				result |= in_evdev_update(in_devices[i].drv_data, in_devices[i].binds);
 		}
 	}
+
+	return result;
+}
+
+/* 
+ * update with wait for a press, return bitfield of BTN_*
+ * only can use 1 drv here..
+ */
+int in_update_menu(void)
+{
+	int result = 0;
+#ifdef IN_EVDEV
+	void *data[IN_MAX_DEVS];
+	int i, count = 0;
+
+	for (i = 0; i < in_dev_count; i++) {
+		if (in_devices[i].probed)
+			data[count++] = in_devices[i].drv_data;
+	}
+
+	if (count == 0) {
+		/* don't deadlock, fail */
+		printf("input: failed to find devices to read\n");
+		exit(1);
+	}
+
+	result = in_evdev_update_menu(data, count);
+#else
+#error no menu read handlers
+#endif
 
 	return result;
 }
@@ -180,11 +203,14 @@ void in_init(void)
 
 int main(void)
 {
+	int ret;
+
 	in_init();
 	in_probe();
 
 	while (1) {
-		in_update();
+		ret = in_update_menu();
+		printf("%08x\n", ret);
 		sleep(1);
 	}
 

@@ -106,17 +106,17 @@ void menu_draw_end(void);
 
 #include "../gp2x/gp2x.h"
 
-#define PBTN_UP    0
-#define PBTN_DOWN  0
-#define PBTN_LEFT  0
-#define PBTN_RIGHT 0
+#define PBTN_UP    (1 <<  0)
+#define PBTN_DOWN  (1 <<  1)
+#define PBTN_LEFT  (1 <<  2)
+#define PBTN_RIGHT (1 <<  3)
 
-#define PBTN_NORTH 0
-#define PBTN_SOUTH 0
-#define PBTN_WEST  0
-#define PBTN_EAST  0
-#define PBTN_L     0
-#define PBTN_R     0
+#define PBTN_NORTH (1 <<  4)
+#define PBTN_SOUTH (1 <<  5)
+#define PBTN_WEST  (1 <<  6)
+#define PBTN_EAST  (1 <<  7)
+#define PBTN_L     (1 <<  8)
+#define PBTN_R     (1 <<  9)
 
 unsigned long wait_for_input(unsigned long interesting);
 void gp2x_pd_clone_buffer2(void);
