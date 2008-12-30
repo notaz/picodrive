@@ -102,18 +102,6 @@ void emu_Init(void)
 }
 
 
-static void scaling_update(void)
-{
-	PicoOpt &= ~0x4100;
-	switch (currentConfig.scaling) {
-		default: break; // off
-		case 1:  // hw hor
-		case 2:  PicoOpt |=  0x0100; break; // hw hor+vert
-		case 3:  PicoOpt |=  0x4000; break; // sw hor
-	}
-}
-
-
 void emu_Deinit(void)
 {
 	// save SRAM
@@ -814,7 +802,6 @@ void emu_Loop(void)
 
 	// make sure we are in correct mode
 	vidResetMode();
-	scaling_update();
 	Pico.m.dirtyPal = 1;
 	oldmodes = ((Pico.video.reg[12]&1)<<2) ^ 0xc;
 	emu_findKeyBindCombos();
