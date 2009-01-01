@@ -670,6 +670,16 @@ int emu_WriteConfig(int is_game)
 }
 
 
+void emu_writelrom(void)
+{
+	char cfg[512];
+	make_config_cfg(cfg);
+	config_writelrom(cfg);
+#ifndef NO_SYNC
+	sync();
+#endif
+}
+
 #ifndef UIQ3
 void emu_textOut8(int x, int y, const char *text)
 {
