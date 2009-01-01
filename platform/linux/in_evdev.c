@@ -12,10 +12,11 @@
 #include "../common/input.h"
 #include "in_evdev.h"
 
-#define BIT(x) (keybits[(x)/sizeof(keybits[0])/8] & \
+#define KEYBITS_BIT(x) (keybits[(x)/sizeof(keybits[0])/8] & \
 	(1 << ((x) & (sizeof(keybits[0])*8-1))))
 
-static const char *in_evdev_keys[KEY_MAX + 1] = {
+static const char * const in_evdev_prefix = "evdev:";
+static const char * const in_evdev_keys[KEY_MAX + 1] = {
 	[0 ... KEY_MAX] = NULL,
 	[KEY_RESERVED] = "Reserved",		[KEY_ESC] = "Esc",
 	[KEY_1] = "1",				[KEY_2] = "2",
@@ -102,13 +103,13 @@ static const char *in_evdev_keys[KEY_MAX + 1] = {
 };
 
 
-int in_evdev_probe(void)
+static void in_evdev_probe(void)
 {
 	int i;
 
 	for (i = 0;; i++)
 	{
-		int u, ret, fd, keybits[KEY_MAX/sizeof(int)];
+		int u, ret, fd, keybits[(KEY_MAX+1)/sizeof(int)];
 		int support = 0, count = 0;
 		char name[64];
 
@@ -134,15 +135,15 @@ int in_evdev_probe(void)
 		}
 
 		/* check for interesting keys */
-		for (u = 0; u < KEY_MAX; u++) {
-			if (BIT(u) && u != KEY_POWER && u != KEY_SLEEP)
+		for (u = 0; u < KEY_MAX + 1; u++) {
+			if (KEYBITS_BIT(u) && u != KEY_POWER && u != KEY_SLEEP)
 				count++;
 		}
 
 		if (count == 0)
 			goto skip;
 
-		strcpy(name, "evdev:");
+		strcpy(name, in_evdev_prefix);
 		ioctl(fd, EVIOCGNAME(sizeof(name)-6), name+6);
 		printf("in_evdev: found \"%s\" with %d events (type %08x)\n",
 			name+6, count, support);
@@ -152,24 +153,22 @@ int in_evdev_probe(void)
 skip:
 		close(fd);
 	}
-
-	return 0;
 }
 
-void in_evdev_free(void *drv_data)
+static void in_evdev_free(void *drv_data)
 {
 	close((int)drv_data);
 }
 
-int in_evdev_bind_count(void)
+static int in_evdev_get_bind_count(void)
 {
-	return 512;
+	return KEY_MAX + 1;
 }
 
 int in_evdev_update(void *drv_data, int *binds)
 {
 	struct input_event ev[16];
-	int keybits[KEY_MAX/sizeof(int)];
+	int keybits[(KEY_MAX+1)/sizeof(int)];
 	int fd = (int)drv_data;
 	int result = 0, changed = 0;
 	int rd, ret, u;
@@ -196,8 +195,8 @@ int in_evdev_update(void *drv_data, int *binds)
 	}
 
 	printf("#%d: ", fd);
-	for (u = 0; u < KEY_MAX; u++) {
-		if (BIT(u)) {
+	for (u = 0; u < KEY_MAX + 1; u++) {
+		if (KEYBITS_BIT(u)) {
 			printf(" %d", u);
 			result |= binds[u];
 		}
@@ -207,7 +206,7 @@ int in_evdev_update(void *drv_data, int *binds)
 	return result;
 }
 
-void in_evdev_set_blocking(void *data, int y)
+static void in_evdev_set_blocking(void *data, int y)
 {
 	long flags;
 	int ret;
@@ -275,7 +274,7 @@ int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down)
 	}
 }
 
-int in_evdev_menu_translate(int keycode)
+static int in_evdev_menu_translate(int keycode)
 {
 	switch (keycode) {
 		/* keyboards */
@@ -289,14 +288,92 @@ int in_evdev_menu_translate(int keycode)
 	}
 }
 
-const char *in_evdev_get_key_name(int keycode)
+static int in_evdev_get_key_code(const char *key_name)
+{
+	int i;
+
+	for (i = 0; i < KEY_MAX + 1; i++) {
+		const char *k = in_evdev_keys[i];
+		if (k != NULL && k[0] == key_name[0] &&
+				strcasecmp(k, key_name) == 0)
+			return i;
+	}
+
+	return -1;
+}
+
+static const char *in_evdev_get_key_name(int keycode)
 {
 	const char *name = NULL;
-	if (keycode >= 0 && keycode < KEY_MAX)
+	if (keycode >= 0 && keycode <= KEY_MAX)
 		name = in_evdev_keys[keycode];
 	if (name == NULL)
 		name = "Unkn";
 	
 	return name;
+}
+
+static const struct {
+	short code;
+	short bit;
+} in_evdev_def_binds[] =
+{
+	/* MXYZ SACB RLDU */
+	{ KEY_UP,	0 },
+	{ KEY_DOWN,	1 },
+	{ KEY_LEFT,	2 },
+	{ KEY_RIGHT,	3 },
+	{ KEY_S,	4 },	/* B */
+	{ KEY_D,	5 },	/* C */
+	{ KEY_A,	6 },	/* A */
+	{ KEY_ENTER,	7 },
+};
+
+#define DEF_BIND_COUNT (sizeof(in_evdev_def_binds) / sizeof(in_evdev_def_binds[0]))
+
+static void in_evdev_get_def_binds(int *binds)
+{
+	int i;
+
+	for (i = 0; i < DEF_BIND_COUNT; i++)
+		binds[in_evdev_def_binds[i].code] = 1 << in_evdev_def_binds[i].bit;
+}
+
+/* remove bad binds, count good ones */
+static int in_evdev_clean_binds(void *drv_data, int *binds)
+{
+	int keybits[(KEY_MAX+1)/sizeof(int)];
+	int i, ret, count = 0;
+
+	ret = ioctl((int)drv_data, EVIOCGBIT(EV_KEY, sizeof(keybits)), keybits);
+	if (ret == -1) {
+		perror("in_evdev: ioctl failed");
+		memset(keybits, 0xff, sizeof(keybits)); /* mark all as good */
+	}
+
+	for (i = 0; i < KEY_MAX + 1; i++) {
+		if (!KEYBITS_BIT(i))
+			binds[i] = binds[i + KEY_MAX + 1] = 0;
+		if (binds[i])
+			count++;
+	}
+
+	return count;
+}
+
+void in_evdev_init(void *vdrv)
+{
+	in_drv_t *drv = vdrv;
+
+	drv->prefix = in_evdev_prefix;
+	drv->probe = in_evdev_probe;
+	drv->free = in_evdev_free;
+	drv->get_bind_count = in_evdev_get_bind_count;
+	drv->get_def_binds = in_evdev_get_def_binds;
+	drv->clean_binds = in_evdev_clean_binds;
+	drv->set_blocking = in_evdev_set_blocking;
+	drv->menu_translate = in_evdev_menu_translate;
+	drv->get_key_code = in_evdev_get_key_code;
+	drv->get_key_name = in_evdev_get_key_name;
 }
 
