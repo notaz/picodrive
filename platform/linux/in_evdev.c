@@ -165,6 +165,8 @@ static int in_evdev_get_bind_count(void)
 	return KEY_MAX + 1;
 }
 
+/* returns bitfield of active binds or -1 if nothing
+ * changed from previous time */
 int in_evdev_update(void *drv_data, int *binds)
 {
 	struct input_event ev[16];
@@ -184,24 +186,20 @@ int in_evdev_update(void *drv_data, int *binds)
 		changed = 1;
 	}
 
-/*
 	if (!changed)
-		return 0;
-*/
+		return -1;
+
 	ret = ioctl(fd, EVIOCGKEY(sizeof(keybits)), keybits);
 	if (ret == -1) {
 		perror("in_evdev: ioctl failed");
 		return 0;
 	}
 
-	printf("#%d: ", fd);
 	for (u = 0; u < KEY_MAX + 1; u++) {
 		if (KEYBITS_BIT(u)) {
-			printf(" %d", u);
 			result |= binds[u];
 		}
 	}
-	printf("\n");
 
 	return result;
 }
@@ -225,10 +223,20 @@ static void in_evdev_set_blocking(void *data, int y)
 		perror("in_evdev: F_SETFL fcntl failed");
 }
 
-int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down)
+int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down, int timeout_ms)
 {
 	const int *fds = (const int *)data;
+	struct timeval tv, *timeout = NULL;
 	int i, fdmax = -1;
+
+	if (timeout_ms > 0) {
+		tv.tv_sec = timeout_ms / 1000;
+		tv.tv_usec = (timeout_ms % 1000) * 1000;
+		timeout = &tv;
+	}
+
+	if (is_down != NULL)
+		*is_down = 0;
 
 	for (i = 0; i < dcount; i++)
 		if (fds[i] > fdmax) fdmax = fds[i];
@@ -243,13 +251,16 @@ int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down)
 		for (i = 0; i < dcount; i++)
 			FD_SET(fds[i], &fdset);
 
-		ret = select(fdmax + 1, &fdset, NULL, NULL, NULL);
+		ret = select(fdmax + 1, &fdset, NULL, NULL, timeout);
 		if (ret == -1)
 		{
 			perror("in_evdev: select failed");
 			sleep(1);
 			return 0;
 		}
+
+		if (ret == 0)
+			return 0; /* timeout */
 
 		for (i = 0; i < dcount; i++)
 			if (FD_ISSET(fds[i], &fdset))
@@ -267,7 +278,7 @@ int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down)
 			if (ev[i].type != EV_KEY || ev[i].value < 0 || ev[i].value > 1)
 				continue;
 
-			if (is_down)
+			if (is_down != NULL)
 				*is_down = ev[i].value;
 			return ev[i].code;
 		}
