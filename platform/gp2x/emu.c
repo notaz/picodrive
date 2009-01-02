@@ -22,6 +22,7 @@
 #include "../common/fonts.h"
 #include "../common/emu.h"
 #include "../common/config.h"
+#include "../common/input.h"
 #include "../linux/sndout_oss.h"
 #include "cpuctrl.h"
 
@@ -580,6 +581,14 @@ static void updateKeys(void)
 	keys &= CONFIGURABLE_KEYS;
 	keys2 = keys;
 
+#if 1
+	{
+		/* FIXME: combos */
+		int acts = in_update();
+		int pl = (acts >> 16) & 1;
+		allActions[pl] |= acts;
+	}
+#else
 	for (i = 0; i < 32; i++)
 	{
 		if (keys2 & (1 << i))
@@ -607,6 +616,7 @@ static void updateKeys(void)
 			}
 		}
 	}
+#endif
 
 	// add joy inputs
 	if (num_of_joys > 0)

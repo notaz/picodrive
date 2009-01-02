@@ -18,6 +18,8 @@
 #include "../common/menu.h"
 #include "../common/arm_utils.h"
 #include "../common/readpng.h"
+#include "../common/common.h"
+#include "../common/input.h"
 #include "version.h"
 
 #include <pico/pico_int.h>
@@ -40,26 +42,25 @@ const char * const keyNames[] = {
 void menu_darken_bg(void *dst, int pixels, int darker);
 static void menu_prepare_bg(int use_game_bg);
 
-static unsigned long inp_prev = 0;
-static int inp_prevjoy = 0;
-
-unsigned long wait_for_input(unsigned long interesting)
+/* wait for input, do autorepeat */
+int wait_for_input(int interesting)
 {
-	unsigned long ret;
+	static int inp_prev = 0;
 	static int repeats = 0, wait = 20;
-	int release = 0, i;
+	int ret, release = 0, i;
 
 	if      (repeats == 2) wait = 3;
 	else if (repeats == 4) wait = 2;
 	else if (repeats == 6) wait = 1;
 
-	for (i = 0; i < wait && inp_prev == gp2x_joystick_read(1); i++) {
+	for (i = 0; i < wait; i++) {
+		ret = in_update_menu(30);
+		if (ret != inp_prev) break;
 		if (i == 0) repeats++;
-		usleep(30000);
 	}
 
-	while ( !((ret = gp2x_joystick_read(1)) & interesting) ) {
-		usleep(50000);
+	while (!(ret & interesting)) {
+		ret = in_update_menu(0);
 		release = 1;
 	}
 
@@ -67,67 +68,15 @@ unsigned long wait_for_input(unsigned long interesting)
 		repeats = 0;
 		wait = 20;
 	}
-	if (wait > 6 && (ret&(GP2X_UP|GP2X_LEFT|GP2X_DOWN|GP2X_RIGHT|GP2X_L|GP2X_R)))
+	if (wait > 6 && (ret & (PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT)))
 		wait = 6;
 	inp_prev = ret;
-	inp_prevjoy = 0;
 
 	// we don't need diagonals in menus
-	if ((ret&GP2X_UP)   && (ret&GP2X_LEFT))  ret &= ~GP2X_LEFT;
-	if ((ret&GP2X_UP)   && (ret&GP2X_RIGHT)) ret &= ~GP2X_RIGHT;
-	if ((ret&GP2X_DOWN) && (ret&GP2X_LEFT))  ret &= ~GP2X_LEFT;
-	if ((ret&GP2X_DOWN) && (ret&GP2X_RIGHT)) ret &= ~GP2X_RIGHT;
-
-	return ret;
-}
-
-static unsigned long input2_read(unsigned long interesting, int *joy)
-{
-	unsigned long ret;
-	int i;
-
-	do
-	{
-		*joy = 0;
-		if ((ret = gp2x_joystick_read(0) & interesting)) break;
-		usbjoy_update();
-		for (i = 0; i < num_of_joys; i++) {
-			ret = usbjoy_check2(i);
-			if (ret) { *joy = i + 1; break; }
-		}
-		if (ret) break;
-	}
-	while(0);
-
-	return ret;
-}
-
-// similar to wait_for_input(), but returns joy num
-static unsigned long wait_for_input_usbjoy(unsigned long interesting, int *joy)
-{
-	unsigned long ret;
-	const int wait = 300*1000;
-	int i;
-
-	if (inp_prevjoy == 0) inp_prev &= interesting;
-	for (i = 0; i < 6; i++) {
-		ret = input2_read(interesting, joy);
-		if (*joy != inp_prevjoy || ret != inp_prev) break;
-		usleep(wait/6);
-	}
-
-	while ( !(ret = input2_read(interesting, joy)) ) {
-		usleep(50000);
-	}
-
-	inp_prev = ret;
-	inp_prevjoy = *joy;
-
-	// handle only 1 event at a time
-	for (i = 1; i != 0; i <<= 1)
-		if (ret & i) { ret &= i; break; }
-	// ... but allow select
-	ret |= inp_prev & GP2X_SELECT;
+	if ((ret & PBTN_UP)   && (ret & PBTN_LEFT))  ret &= ~PBTN_LEFT;
+	if ((ret & PBTN_UP)   && (ret & PBTN_RIGHT)) ret &= ~PBTN_RIGHT;
+	if ((ret & PBTN_DOWN) && (ret & PBTN_LEFT))  ret &= ~PBTN_LEFT;
+	if ((ret & PBTN_DOWN) && (ret & PBTN_RIGHT)) ret &= ~PBTN_RIGHT;
 
 	return ret;
 }
@@ -626,10 +575,41 @@ static char *usb_joy_key_name(int joy, int num)
 
 static char *action_binds(int player_idx, int action_mask)
 {
-	static char strkeys[32*5];
-	int joy, i;
+	static char strkeys[32];
+	int d, k, d_prev = -1;
 
 	strkeys[0] = 0;
+
+	for (d = 0; d < IN_MAX_DEVS; d++)
+	{
+		const int *binds;
+		int count;
+
+		binds = in_get_dev_binds(d);
+		if (binds == NULL)
+			continue;
+
+		count = in_get_dev_bind_count(d);
+		for (k = 0; k < count; k++)
+		{
+			const char *xname;
+			char prefix[16];
+			if (!(binds[k] & action_mask))
+				continue;
+
+			if (player_idx >= 0 && ((binds[k] >> 16) & 3) != player_idx)
+				continue;
+
+			xname = in_get_key_name(d, k);
+			if (strkeys[0])
+				strncat(strkeys, d == d_prev ? " + " : ", ", sizeof(strkeys));
+			if (d) sprintf(prefix, "%d: ", d);
+			if (d) strncat(strkeys, prefix, sizeof(strkeys));
+			strncat(strkeys, xname, sizeof(strkeys));
+			d_prev = d;
+		}
+	}
+#if 0
 	for (i = 0; i < 32; i++) // i is key index
 	{
 		if (currentConfig.KeyBinds[i] & action_mask)
@@ -654,6 +634,8 @@ static char *action_binds(int player_idx, int action_mask)
 			}
 		}
 	}
+#endif
+
 
 	// limit..
 	strkeys[20] = 0;
@@ -689,28 +671,33 @@ static void unbind_action(int action, int pl_idx, int joy)
 	}
 }
 
-static int count_bound_keys(int action, int pl_idx, int joy)
+static int count_bound_keys(int dev_id, int action_mask, int player_idx)
 {
-	int i, keys = 0;
+	const int *binds;
+	int k, keys = 0;
+	int count;
 
-	if (joy)
+	binds = in_get_dev_binds(dev_id);
+	if (binds == NULL)
+		return 0;
+
+	count = in_get_dev_bind_count(dev_id);
+	for (k = 0; k < count; k++)
 	{
-		for (i = 0; i < 32; i++) {
-			if (pl_idx >= 0 && (currentConfig.JoyBinds[joy-1][i]&0x30000) != (pl_idx<<16)) continue;
-			if (currentConfig.JoyBinds[joy-1][i] & action) keys++;
-		}
+		if (!(binds[k] & action_mask))
+			continue;
+
+		if (player_idx >= 0 && ((binds[k] >> 16) & 3) != player_idx)
+			continue;
+
+		keys++;
 	}
-	else
-	{
-		for (i = 0; i < 32; i++) {
-			if (pl_idx >= 0 && (currentConfig.KeyBinds[i]&0x30000) != (pl_idx<<16)) continue;
-			if (currentConfig.KeyBinds[i] & action) keys++;
-		}
-	}
+
 	return keys;
 }
 
-static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_idx, int sel)
+static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_idx,
+		int sel, int is_bind)
 {
 	int x, y, tl_y = 30, i;
 
@@ -732,9 +719,7 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 	text_out16(x, y, "Done");
 
 	if (sel < opt_cnt) {
-		text_out16(30, 195, "Press a button to bind/unbind");
-		text_out16(30, 205, "Use SELECT to clear");
-		text_out16(30, 215, "To bind UP/DOWN, hold SELECT");
+		text_out16(30, 205, is_bind ? "Press a button to bind/unbind" : "Press B to define");
 		text_out16(30, 225, "Select \"Done\" to exit");
 	} else {
 		text_out16(30, 205, "Use Options -> Save cfg");
@@ -746,56 +731,39 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 
 static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_idx)
 {
-	int joy = 0, sel = 0, menu_sel_max = opt_cnt, prev_select = 0, i;
-	unsigned long inp = 0;
+	int sel = 0, menu_sel_max = opt_cnt;
+	int kc, dev_id, is_down, mkey, unbind;
 
 	for (;;)
 	{
-		draw_key_config(opts, opt_cnt, player_idx, sel);
-		inp = wait_for_input_usbjoy(CONFIGURABLE_KEYS, &joy);
-		// printf("got %08lX from joy %i\n", inp, joy);
-		if (joy == 0)
-		{
-			if (!(inp & GP2X_SELECT)) {
-				prev_select = 0;
-				if(inp & GP2X_UP  ) { sel--; if (sel < 0) sel = menu_sel_max; continue; }
-				if(inp & GP2X_DOWN) { sel++; if (sel > menu_sel_max) sel = 0; continue; }
-			}
-			if (sel >= opt_cnt) {
-				if (inp & (GP2X_B|GP2X_X)) break;
-				else continue;
-			}
-			// if we are here, we want to bind/unbind something
-			if ((inp & GP2X_SELECT) && !prev_select)
-				unbind_action(opts[sel].mask, player_idx, -1);
-			prev_select = inp & GP2X_SELECT;
-			inp &= CONFIGURABLE_KEYS;
-			inp &= ~GP2X_SELECT;
-			for (i = 0; i < 32; i++)
-				if (inp & (1 << i)) {
-					if (count_bound_keys(opts[sel].mask, player_idx, 0) >= 2)
-					     currentConfig.KeyBinds[i] &= ~opts[sel].mask; // allow to unbind only
-					else currentConfig.KeyBinds[i] ^=  opts[sel].mask;
-					if (player_idx >= 0 && (currentConfig.KeyBinds[i] & opts[sel].mask)) {
-						currentConfig.KeyBinds[i] &= ~(3 << 16);
-						currentConfig.KeyBinds[i] |= player_idx << 16;
-					}
-				}
+		draw_key_config(opts, opt_cnt, player_idx, sel, 0);
+		mkey = wait_for_input(PBTN_UP|PBTN_DOWN|PBTN_SOUTH|PBTN_EAST);
+		switch (mkey) {
+			case PBTN_UP:   sel--; if (sel < 0) sel = menu_sel_max; continue;
+			case PBTN_DOWN: sel++; if (sel > menu_sel_max) sel = 0; continue;
+			case PBTN_SOUTH:
+				if (sel >= opt_cnt)
+					return;
+				continue;
+			case PBTN_EAST:
+				if (sel >= opt_cnt)
+					return;
+				break;
+			default:continue;
 		}
-		else if (sel < opt_cnt)
-		{
-			for (i = 0; i < 32; i++)
-				if (inp & (1 << i)) {
-					int *bind = &currentConfig.JoyBinds[joy-1][i];
-					if ((*bind & opts[sel].mask) && (player_idx < 0 || player_idx == ((*bind>>16)&3)))
-						*bind &= ~opts[sel].mask;
-					else {
-						// override
-						unbind_action(opts[sel].mask, player_idx, joy);
-						*bind = opts[sel].mask;
-						if (player_idx > 0) *bind |= player_idx << 16;
-					}
-				}
+
+		draw_key_config(opts, opt_cnt, player_idx, sel, 1);
+		//inp = wait_for_input_usbjoy(CONFIGURABLE_KEYS, &joy);
+		for (is_down = 0; is_down == 0; )
+			kc = in_update_keycode(&dev_id, &is_down, 0);
+
+		unbind = count_bound_keys(dev_id, opts[sel].mask, player_idx) >= 2;
+
+		in_bind_key(dev_id, kc, opts[sel].mask, unbind);
+		if (player_idx >= 0) {
+			/* FIXME */
+			in_bind_key(dev_id, kc, 3 << 16, 1);
+			in_bind_key(dev_id, kc, player_idx << 16, 0);
 		}
 	}
 }
@@ -1654,10 +1622,12 @@ static void menu_gfx_prepare(void)
 
 void menu_loop(void)
 {
+	in_set_blocking(1);
 	menu_gfx_prepare();
 
 	menu_loop_root();
 
+	in_set_blocking(0);
 	menuErrorMsg[0] = 0;
 }
 

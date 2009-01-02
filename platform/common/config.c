@@ -10,6 +10,7 @@
 #include <unistd.h>
 #endif
 #include "config.h"
+#include "input.h"
 #include "lprintf.h"
 
 static char *mystrip(char *str);
@@ -218,31 +219,30 @@ static const char *joyKeyNames[32] =
 };
 #endif
 
-static void keys_write(FILE *fn, const char *bind_str, const int binds[32],
-		const int def_binds[32], const char * const names[32], int key_count, int no_defaults)
+static void keys_write(FILE *fn, const char *bind_str, int dev_id, const int *binds, int no_defaults)
 {
-	int t, i;
-	char act[48], name[32];
+	char act[48];
+	int key_count, t, i;
+	const int *def_binds;
+
+	key_count = in_get_dev_bind_count(dev_id);
+	def_binds = in_get_dev_def_binds(dev_id);
 
 	for (t = 0; t < key_count; t++)
 	{
+		const char *name;
 		act[0] = act[31] = 0;
+
 		if (no_defaults && binds[t] == def_binds[t])
 			continue;
+
+		name = in_get_key_name(dev_id, t);
 #ifdef __GP2X__
-		if (strcmp(names[t], "SELECT") == 0) continue;
+		if (strcmp(name, "SELECT") == 0) continue;
 #endif
-		if (t >= 32 || names[t] == NULL || strcmp(names[t], "???") == 0) {
-			if ((t >= '0' && t <= '9') || (t >= 'a' && t <= 'z') || (t >= 'A' && t <= 'Z'))
-				sprintf(name, "%c", t);
-			else
-				sprintf(name, "\\x%02x", t);
-		}
-		else
-			strcpy(name, names[t]);
 
 		if (binds[t] == 0 && def_binds[t] != 0) {
-			fprintf(fn, "%s %s =" NL, bind_str, name); // no binds
+			fprintf(fn, "%s %s =" NL, bind_str, name);
 			continue;
 		}
 
@@ -397,13 +397,44 @@ write:
 		}
 	}
 
-	// save key config
+	/* input: save device names */
+	for (t = 0; t < IN_MAX_DEVS; t++)
+	{
+		const int  *binds = in_get_dev_binds(t);
+		const char *name =  in_get_dev_name(t);
+		if (binds == NULL || name == NULL)
+			continue;
+
+		fprintf(fn, "input%d = %s" NL, t, name);
+	}
+
+	/* input: save binds */
+	for (t = 0; t < IN_MAX_DEVS; t++)
+	{
+		const int *binds = in_get_dev_binds(t);
+		const char *name = in_get_dev_name(t);
+		char strbind[16];
+		int count;
+
+		if (binds == NULL || name == NULL)
+			continue;
+
+		sprintf(strbind, "bind%d", t);
+		if (t == 0) strbind[4] = 0;
+
+		count = in_get_dev_bind_count(t);
+		keys_write(fn, strbind, t, binds, no_defaults);
+	}
+
+#if 0
+	/* old stuff */
 	keys_write(fn, "bind", currentConfig.KeyBinds, defaultConfig.KeyBinds, keyNames, PLAT_MAX_KEYS, no_defaults);
 #if PLAT_HAVE_JOY
 	keys_write(fn, "bind_joy0", currentConfig.JoyBinds[0], defaultConfig.JoyBinds[0], joyKeyNames, 32, 1);
 	keys_write(fn, "bind_joy1", currentConfig.JoyBinds[1], defaultConfig.JoyBinds[1], joyKeyNames, 32, 1);
 	keys_write(fn, "bind_joy2", currentConfig.JoyBinds[2], defaultConfig.JoyBinds[2], joyKeyNames, 32, 1);
 	keys_write(fn, "bind_joy3", currentConfig.JoyBinds[3], defaultConfig.JoyBinds[3], joyKeyNames, 32, 1);
+#endif
 #endif
 
 #ifndef PSP
@@ -702,12 +733,45 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 
 static unsigned int keys_encountered = 0;
 
-static void keys_parse(const char *var, const char *val, int binds[32],
-	const char * const names[32], int max_keys)
+static int parse_bind_val(const char *val)
 {
-	int t, i;
-	unsigned int player;
+	int i;
 
+	if (val[0] == 0)
+		return 0;
+	
+	if (strncasecmp(val, "player", 6) == 0)
+	{
+		unsigned int player;
+		player = atoi(val + 6) - 1;
+		if (player > 1)
+			return -1;
+
+		for (i = 0; i < sizeof(me_ctrl_actions) / sizeof(me_ctrl_actions[0]); i++) {
+			if (strncasecmp(me_ctrl_actions[i].name, val + 8, strlen(val + 8)) == 0)
+				return me_ctrl_actions[i].mask | (player<<16);
+		}
+	}
+	for (i = 0; emuctrl_actions[i].name != NULL; i++) {
+		if (strncasecmp(emuctrl_actions[i].name, val, strlen(val)) == 0)
+			return emuctrl_actions[i].mask;
+	}
+
+	return -1;
+}
+
+static void keys_parse(const char *key, const char *val, int dev_id)
+{
+	int binds;
+
+	binds = parse_bind_val(val);
+	if (binds == -1) {
+		lprintf("config: unhandled action \"%s\"\n", val);
+		return;
+	}
+
+	in_config_bind_key(dev_id, key, binds);
+/*
 	for (t = 0; t < 32; t++)
 	{
 		if (names[t] && strcmp(names[t], var) == 0) break;
@@ -734,29 +798,7 @@ static void keys_parse(const char *var, const char *val, int binds[32],
 		binds[t] = 0;
 		keys_encountered |= 1<<t;
 	}
-	if (val[0] == 0)
-		return;
-	if (strncasecmp(val, "player", 6) == 0)
-	{
-		player = atoi(val + 6) - 1;
-		if (player > 1) goto fail;
-		for (i = 0; i < sizeof(me_ctrl_actions) / sizeof(me_ctrl_actions[0]); i++) {
-			if (strncasecmp(me_ctrl_actions[i].name, val + 8, strlen(val + 8)) == 0) {
-				binds[t] |= me_ctrl_actions[i].mask | (player<<16);
-				return;
-			}
-		}
-	}
-	for (i = 0; emuctrl_actions[i].name != NULL; i++) {
-		if (strncasecmp(emuctrl_actions[i].name, val, strlen(val)) == 0) {
-			binds[t] |= emuctrl_actions[i].mask;
-			return;
-		}
-	}
-
-fail:
-	lprintf("unhandled action \"%s\"\n", val);
-	return;
+*/
 }
 
 
@@ -766,6 +808,24 @@ fail:
 		return; \
 	} \
 }
+
+static int get_numvar_num(const char *var)
+{
+	char *p = NULL;
+	int num;
+	
+	if (var[0] == ' ')
+		return 0;
+
+	num = strtoul(var, &p, 10);
+	if (*p == 0 || *p == ' ')
+		return num;
+
+	return -1;
+}
+
+/* map dev number in confing to input dev number */
+static unsigned char input_dev_map[IN_MAX_DEVS];
 
 static void parse(const char *var, const char *val)
 {
@@ -780,12 +840,38 @@ static void parse(const char *var, const char *val)
 		return;
 	}
 
-	// key binds
-	if (strncasecmp(var, "bind ", 5) == 0) {
-		keys_parse(var + 5, val, currentConfig.KeyBinds, keyNames, PLAT_MAX_KEYS);
+	/* input: device name */
+	if (strncasecmp(var, "input", 5) == 0) {
+		int num = get_numvar_num(var + 5);
+		if (num >= 0 && num < IN_MAX_DEVS)
+			input_dev_map[num] = in_config_parse_dev(val);
+		else
+			printf("failed to parse: %s\n", var);
 		return;
 	}
-#if PLAT_HAVE_JOY
+
+	// key binds
+	if (strncasecmp(var, "bind", 4) == 0) {
+		const char *p = var + 4;
+		int num = get_numvar_num(p);
+		if (num < 0 || num >= IN_MAX_DEVS) {
+			printf("failed to parse: %s\n", var);
+			return;
+		}
+
+		num = input_dev_map[num];
+		if (num < 0 || num >= IN_MAX_DEVS) {
+			printf("invalid device id: %s\n", var);
+			return;
+		}
+
+		while (*p && *p != ' ') p++;
+		while (*p && *p == ' ') p++;
+		keys_parse(p, val, num);
+		return;
+	}
+
+#if 0//PLAT_HAVE_JOY
 	try_joy_parse(0)
 	try_joy_parse(1)
 	try_joy_parse(2)
@@ -854,7 +940,9 @@ int config_readsect(const char *fname, const char *section)
 	}
 
 	keys_encountered = 0;
+	memset(input_dev_map, 0xff, sizeof(input_dev_map));
 
+	in_config_start();
 	while (!feof(f))
 	{
 		ret = config_get_var_val(f, line, sizeof(line), &var, &val);
@@ -863,6 +951,7 @@ int config_readsect(const char *fname, const char *section)
 
 		parse(var, val);
 	}
+	in_config_end();
 
 	fclose(f);
 	return 0;

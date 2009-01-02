@@ -15,6 +15,7 @@
 #include "../common/menu.h"
 #include "../common/emu.h"
 #include "../common/config.h"
+#include "../common/input.h"
 #include "emu.h"
 #include "940ctl.h"
 #include "version.h"
@@ -88,10 +89,13 @@ int main(int argc, char *argv[])
 {
 	g_argv = argv;
 
+	in_init();
 	emu_prepareDefaultConfig();
 	emu_ReadConfig(0, 0);
 	config_readlrom(PicoConfigFile);
 
+	in_probe();
+	in_debug_dump();
 	gp2x_init();
 	if (currentConfig.EmuOpt&0x10) {
 		int ret = mmuhack();

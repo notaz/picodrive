@@ -7,7 +7,7 @@ use_musashi = 1
 # profile = 1
 
 
-DEFINC = -I../.. -I. -D__GP2X__ -D_UNZIP_SUPPORT -DIO_STATS # -DBENCHMARK
+DEFINC = -I../.. -I. -D__GP2X__ -D_UNZIP_SUPPORT -DIO_STATS -DIN_EVDEV # -DBENCHMARK
 GCC = gcc
 STRIP = strip
 AS = gcc
@@ -28,11 +28,11 @@ LDFLAGS += `pkg-config --libs gthread-2.0`
 
 # frontend
 OBJS += platform/gp2x/main.o platform/gp2x/menu.o platform/gp2x/emu.o usbjoy.o blit.o \
-		sndout_oss.o gp2x.o 940ctl_ym2612.o log_io.o
+		in_evdev.o sndout_oss.o gp2x.o 940ctl_ym2612.o log_io.o
 
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/config.o platform/common/fonts.o \
-		platform/common/readpng.o platform/common/mp3_helix.o
+		platform/common/readpng.o platform/common/input.o platform/common/mp3_helix.o
 
 # Pico
 OBJS += pico/area.o pico/cart.o pico/memory.o pico/misc.o pico/pico.o pico/sek.o \

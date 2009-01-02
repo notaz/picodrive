@@ -15,7 +15,7 @@
 #define PBTN_L     GP2X_L
 #define PBTN_R     GP2X_R
 
-unsigned long wait_for_input(unsigned long interesting);
+int wait_for_input(int interesting);
 void gp2x_pd_clone_buffer2(void);
 void menu_darken_bg(void *dst, int pixels, int darker);
 void menu_flip(void);
