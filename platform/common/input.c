@@ -11,7 +11,6 @@ typedef struct
 	void *drv_data;
 	char *name;
 	int *binds;
-	int prev_result;
 	int probed:1;
 } in_dev_t;
 
@@ -156,18 +155,11 @@ int in_update(void)
 
 	for (i = 0; i < in_dev_count; i++) {
 		in_dev_t *dev = &in_devices[i];
-		int ret;
 		if (dev->probed && dev->binds != NULL) {
 			switch (dev->drv_id) {
 #ifdef IN_EVDEV
 			case IN_DRVID_EVDEV:
-				ret = in_evdev_update(dev->drv_data, dev->binds);
-				if (ret == -1) /* no change */
-					result |= dev->prev_result;
-				else {
-					dev->prev_result = ret;
-					result |= ret;
-				}
+				result |= in_evdev_update(dev->drv_data, dev->binds);
 				break;
 #endif
 			}
@@ -199,7 +191,6 @@ void in_set_blocking(int is_blocking)
 	for (i = 0; i < in_dev_count; i++) {
 		if (in_devices[i].probed)
 			DRV(in_devices[i].drv_id).set_blocking(in_devices[i].drv_data, is_blocking);
-		in_devices[i].prev_result = 0;
 	}
 
 	menu_key_state = 0;

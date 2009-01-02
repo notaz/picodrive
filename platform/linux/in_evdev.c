@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -12,7 +13,21 @@
 #include "../common/input.h"
 #include "in_evdev.h"
 
+typedef struct {
+	int fd;
+	int prev_update;
+	int abs_lzone;
+	int abs_rzone;
+	int abs_tzone;
+	int abs_bzone;
+	int abs_lastx;
+	int abs_lasty;
+} in_evdev_t;
+
 #define KEYBITS_BIT(x) (keybits[(x)/sizeof(keybits[0])/8] & \
+	(1 << ((x) & (sizeof(keybits[0])*8-1))))
+
+#define KEYBITS_BIT_SET(x) (keybits[(x)/sizeof(keybits[0])/8] |= \
 	(1 << ((x) & (sizeof(keybits[0])*8-1))))
 
 static const char * const in_evdev_prefix = "evdev:";
@@ -109,8 +124,10 @@ static void in_evdev_probe(void)
 
 	for (i = 0;; i++)
 	{
-		int u, ret, fd, keybits[(KEY_MAX+1)/sizeof(int)];
+		int keybits[(KEY_MAX+1)/sizeof(int)], absbits[(ABS_MAX+1)/sizeof(int)];
 		int support = 0, count = 0;
+		in_evdev_t *dev;
+		int u, ret, fd;
 		char name[64];
 
 		snprintf(name, sizeof(name), "/dev/input/event%d", i);
@@ -143,11 +160,42 @@ static void in_evdev_probe(void)
 		if (count == 0)
 			goto skip;
 
+		dev = calloc(1, sizeof(*dev));
+		if (dev == NULL)
+			goto skip;
+
+		/* check for abs too */
+		if (support & (1 << EV_ABS)) {
+			struct input_absinfo ainfo;
+			int dist;
+			ret = ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(absbits)), absbits);
+			if (ret == -1)
+				goto no_abs;
+			if (absbits[0] & (1 << ABS_X)) {
+				ret = ioctl(fd, EVIOCGABS(ABS_X), &ainfo);
+				if (ret == -1)
+					goto no_abs;
+				dist = ainfo.maximum - ainfo.minimum;
+				dev->abs_lzone = ainfo.minimum + dist / 4;
+				dev->abs_rzone = ainfo.maximum - dist / 4;
+			}
+			if (absbits[0] & (1 << ABS_Y)) {
+				ret = ioctl(fd, EVIOCGABS(ABS_Y), &ainfo);
+				if (ret == -1)
+					goto no_abs;
+				dist = ainfo.maximum - ainfo.minimum;
+				dev->abs_tzone = ainfo.minimum + dist / 4;
+				dev->abs_bzone = ainfo.maximum - dist / 4;
+			}
+		}
+
+no_abs:
+		dev->fd = fd;
 		strcpy(name, in_evdev_prefix);
 		ioctl(fd, EVIOCGNAME(sizeof(name)-6), name+6);
 		printf("in_evdev: found \"%s\" with %d events (type %08x)\n",
 			name+6, count, support);
-		in_register(name, IN_DRVID_EVDEV, (void *)fd);
+		in_register(name, IN_DRVID_EVDEV, dev);
 		continue;
 
 skip:
@@ -157,7 +205,11 @@ skip:
 
 static void in_evdev_free(void *drv_data)
 {
-	close((int)drv_data);
+	in_evdev_t *dev = drv_data;
+	if (dev == NULL)
+		return;
+	close(dev->fd);
+	free(dev);
 }
 
 static int in_evdev_get_bind_count(void)
@@ -165,18 +217,18 @@ static int in_evdev_get_bind_count(void)
 	return KEY_MAX + 1;
 }
 
-/* returns bitfield of active binds or -1 if nothing
- * changed from previous time */
+/* returns bitfield of binds of pressed buttons */
 int in_evdev_update(void *drv_data, int *binds)
 {
 	struct input_event ev[16];
+	struct input_absinfo ainfo;
 	int keybits[(KEY_MAX+1)/sizeof(int)];
-	int fd = (int)drv_data;
+	in_evdev_t *dev = drv_data;
 	int result = 0, changed = 0;
 	int rd, ret, u;
 
 	while (1) {
-		rd = read(fd, ev, sizeof(ev));
+		rd = read(dev->fd, ev, sizeof(ev));
 		if (rd < (int)sizeof(ev[0])) {
 			if (errno != EAGAIN)
 				perror("in_evdev: read failed");
@@ -187,9 +239,9 @@ int in_evdev_update(void *drv_data, int *binds)
 	}
 
 	if (!changed)
-		return -1;
+		return dev->prev_update;
 
-	ret = ioctl(fd, EVIOCGKEY(sizeof(keybits)), keybits);
+	ret = ioctl(dev->fd, EVIOCGKEY(sizeof(keybits)), keybits);
 	if (ret == -1) {
 		perror("in_evdev: ioctl failed");
 		return 0;
@@ -201,15 +253,35 @@ int in_evdev_update(void *drv_data, int *binds)
 		}
 	}
 
+	/* map X and Y absolute to UDLR */
+	if (dev->abs_lzone != 0) {
+		ret = ioctl(dev->fd, EVIOCGABS(ABS_X), &ainfo);
+		if (ret != -1) {
+			if (ainfo.value < dev->abs_lzone) result |= binds[KEY_LEFT];
+			if (ainfo.value > dev->abs_rzone) result |= binds[KEY_RIGHT];
+		}
+	}
+	if (dev->abs_tzone != 0) {
+		ret = ioctl(dev->fd, EVIOCGABS(ABS_Y), &ainfo);
+		if (ret != -1) {
+			if (ainfo.value < dev->abs_tzone) result |= binds[KEY_UP];
+			if (ainfo.value > dev->abs_bzone) result |= binds[KEY_DOWN];
+		}
+	}
+
+	dev->prev_update = result;
 	return result;
 }
 
-static void in_evdev_set_blocking(void *data, int y)
+static void in_evdev_set_blocking(void *drv_data, int y)
 {
+	in_evdev_t *dev = drv_data;
 	long flags;
 	int ret;
 
-	flags = (long)fcntl((int)data, F_GETFL);
+	dev->prev_update = 0;
+
+	flags = (long)fcntl(dev->fd, F_GETFL);
 	if ((int)flags == -1) {
 		perror("in_evdev: F_GETFL fcntl failed");
 		return;
@@ -218,14 +290,14 @@ static void in_evdev_set_blocking(void *data, int y)
 		flags &= ~O_NONBLOCK;
 	else
 		flags |=  O_NONBLOCK;
-	ret = fcntl((int)data, F_SETFL, flags);
+	ret = fcntl(dev->fd, F_SETFL, flags);
 	if (ret == -1)
 		perror("in_evdev: F_SETFL fcntl failed");
 }
 
 int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down, int timeout_ms)
 {
-	const int *fds = (const int *)data;
+	in_evdev_t **devs = (in_evdev_t **)data;
 	struct timeval tv, *timeout = NULL;
 	int i, fdmax = -1;
 
@@ -239,17 +311,18 @@ int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down, i
 		*is_down = 0;
 
 	for (i = 0; i < dcount; i++)
-		if (fds[i] > fdmax) fdmax = fds[i];
+		if (devs[i]->fd > fdmax) fdmax = devs[i]->fd;
 
 	while (1)
 	{
 		struct input_event ev[64];
-		int ret, fd = -1, rd;
+		in_evdev_t *dev = NULL;
+		int ret, rd;
 		fd_set fdset;
 
 		FD_ZERO(&fdset);
 		for (i = 0; i < dcount; i++)
-			FD_SET(fds[i], &fdset);
+			FD_SET(devs[i]->fd, &fdset);
 
 		ret = select(fdmax + 1, &fdset, NULL, NULL, timeout);
 		if (ret == -1)
@@ -263,10 +336,10 @@ int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down, i
 			return 0; /* timeout */
 
 		for (i = 0; i < dcount; i++)
-			if (FD_ISSET(fds[i], &fdset))
-				*which = i, fd = fds[i];
+			if (FD_ISSET(devs[i]->fd, &fdset))
+				*which = i, dev = devs[i];
 
-		rd = read(fd, ev, sizeof(ev[0]) * 64);
+		rd = read(dev->fd, ev, sizeof(ev[0]) * 64);
 		if (rd < (int) sizeof(ev[0])) {
 			perror("in_evdev: error reading");
 			sleep(1);
@@ -275,12 +348,43 @@ int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down, i
 
 		for (i = 0; i < rd / sizeof(ev[0]); i++)
 		{
-			if (ev[i].type != EV_KEY || ev[i].value < 0 || ev[i].value > 1)
-				continue;
-
-			if (is_down != NULL)
-				*is_down = ev[i].value;
-			return ev[i].code;
+			if (ev[i].type == EV_KEY) {
+				if (ev[i].value < 0 || ev[i].value > 1)
+					continue;
+				if (is_down != NULL)
+					*is_down = ev[i].value;
+				return ev[i].code;
+			}
+			else if (ev[i].type == EV_ABS)
+			{
+				int down = 0;
+				if (dev->abs_lzone != 0 && ev[i].code == ABS_X) {
+					if (ev[i].value < dev->abs_lzone) {
+						down = 1;
+						dev->abs_lastx = KEY_LEFT;
+					}
+					else if (ev[i].value > dev->abs_rzone) {
+						down = 1;
+						dev->abs_lastx = KEY_RIGHT;
+					}
+					if (is_down != NULL)
+						*is_down = down;
+					return dev->abs_lastx;
+				}
+				if (dev->abs_tzone != 0 && ev[i].code == ABS_Y) {
+					if (ev[i].value < dev->abs_tzone) {
+						down = 1;
+						dev->abs_lasty = KEY_UP;
+					}
+					else if (ev[i].value > dev->abs_bzone) {
+						down = 1;
+						dev->abs_lasty = KEY_DOWN;
+					}
+					if (is_down != NULL)
+						*is_down = down;
+					return dev->abs_lasty;
+				}
+			}
 		}
 	}
 }
@@ -293,8 +397,10 @@ static int in_evdev_menu_translate(int keycode)
 		case KEY_DOWN:	return PBTN_DOWN;
 		case KEY_LEFT:	return PBTN_LEFT;
 		case KEY_RIGHT:	return PBTN_RIGHT;
-		case KEY_ENTER:	return PBTN_EAST;
-		case KEY_ESC:	return PBTN_SOUTH;
+		case KEY_ENTER:
+		case BTN_TRIGGER: return PBTN_EAST;
+		case KEY_ESC:
+		case BTN_THUMB:	return PBTN_SOUTH;
 		default:	return 0;
 	}
 }
@@ -350,16 +456,26 @@ static void in_evdev_get_def_binds(int *binds)
 		binds[in_evdev_def_binds[i].code] = 1 << in_evdev_def_binds[i].bit;
 }
 
-/* remove bad binds, count good ones */
+/* remove binds of missing keys, count remaining ones */
 static int in_evdev_clean_binds(void *drv_data, int *binds)
 {
 	int keybits[(KEY_MAX+1)/sizeof(int)];
+	in_evdev_t *dev = drv_data;
 	int i, ret, count = 0;
 
-	ret = ioctl((int)drv_data, EVIOCGBIT(EV_KEY, sizeof(keybits)), keybits);
+	ret = ioctl(dev->fd, EVIOCGBIT(EV_KEY, sizeof(keybits)), keybits);
 	if (ret == -1) {
 		perror("in_evdev: ioctl failed");
 		memset(keybits, 0xff, sizeof(keybits)); /* mark all as good */
+	}
+
+	if (dev->abs_lzone != 0) {
+		KEYBITS_BIT_SET(KEY_LEFT);
+		KEYBITS_BIT_SET(KEY_RIGHT);
+	}
+	if (dev->abs_tzone != 0) {
+		KEYBITS_BIT_SET(KEY_UP);
+		KEYBITS_BIT_SET(KEY_DOWN);
 	}
 
 	for (i = 0; i < KEY_MAX + 1; i++) {
