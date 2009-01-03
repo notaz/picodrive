@@ -131,7 +131,7 @@ static void in_evdev_probe(void)
 		char name[64];
 
 		snprintf(name, sizeof(name), "/dev/input/event%d", i);
-		fd = open(name, O_RDONLY|O_NONBLOCK);
+		fd = open(name, O_RDONLY);
 		if (fd == -1)
 			break;
 
@@ -301,7 +301,7 @@ int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down, i
 	struct timeval tv, *timeout = NULL;
 	int i, fdmax = -1;
 
-	if (timeout_ms > 0) {
+	if (timeout_ms >= 0) {
 		tv.tv_sec = timeout_ms / 1000;
 		tv.tv_usec = (timeout_ms % 1000) * 1000;
 		timeout = &tv;
@@ -315,7 +315,7 @@ int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down, i
 
 	while (1)
 	{
-		struct input_event ev[64];
+		struct input_event ev;
 		in_evdev_t *dev = NULL;
 		int ret, rd;
 		fd_set fdset;
@@ -339,51 +339,48 @@ int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down, i
 			if (FD_ISSET(devs[i]->fd, &fdset))
 				*which = i, dev = devs[i];
 
-		rd = read(dev->fd, ev, sizeof(ev[0]) * 64);
-		if (rd < (int) sizeof(ev[0])) {
+		rd = read(dev->fd, &ev, sizeof(ev));
+		if (rd < (int) sizeof(ev)) {
 			perror("in_evdev: error reading");
 			sleep(1);
 			return 0;
 		}
 
-		for (i = 0; i < rd / sizeof(ev[0]); i++)
+		if (ev.type == EV_KEY) {
+			if (ev.value < 0 || ev.value > 1)
+				continue;
+			if (is_down != NULL)
+				*is_down = ev.value;
+			return ev.code;
+		}
+		else if (ev.type == EV_ABS)
 		{
-			if (ev[i].type == EV_KEY) {
-				if (ev[i].value < 0 || ev[i].value > 1)
-					continue;
+			int down = 0;
+			if (dev->abs_lzone != 0 && ev.code == ABS_X) {
+				if (ev.value < dev->abs_lzone) {
+					down = 1;
+					dev->abs_lastx = KEY_LEFT;
+				}
+				else if (ev.value > dev->abs_rzone) {
+					down = 1;
+					dev->abs_lastx = KEY_RIGHT;
+				}
 				if (is_down != NULL)
-					*is_down = ev[i].value;
-				return ev[i].code;
+					*is_down = down;
+				return dev->abs_lastx;
 			}
-			else if (ev[i].type == EV_ABS)
-			{
-				int down = 0;
-				if (dev->abs_lzone != 0 && ev[i].code == ABS_X) {
-					if (ev[i].value < dev->abs_lzone) {
-						down = 1;
-						dev->abs_lastx = KEY_LEFT;
-					}
-					else if (ev[i].value > dev->abs_rzone) {
-						down = 1;
-						dev->abs_lastx = KEY_RIGHT;
-					}
-					if (is_down != NULL)
-						*is_down = down;
-					return dev->abs_lastx;
+			if (dev->abs_tzone != 0 && ev.code == ABS_Y) {
+				if (ev.value < dev->abs_tzone) {
+					down = 1;
+					dev->abs_lasty = KEY_UP;
 				}
-				if (dev->abs_tzone != 0 && ev[i].code == ABS_Y) {
-					if (ev[i].value < dev->abs_tzone) {
-						down = 1;
-						dev->abs_lasty = KEY_UP;
-					}
-					else if (ev[i].value > dev->abs_bzone) {
-						down = 1;
-						dev->abs_lasty = KEY_DOWN;
-					}
-					if (is_down != NULL)
-						*is_down = down;
-					return dev->abs_lasty;
+				else if (ev.value > dev->abs_bzone) {
+					down = 1;
+					dev->abs_lasty = KEY_DOWN;
 				}
+				if (is_down != NULL)
+					*is_down = down;
+				return dev->abs_lasty;
 			}
 		}
 	}
@@ -392,15 +389,15 @@ int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down, i
 static int in_evdev_menu_translate(int keycode)
 {
 	switch (keycode) {
-		/* keyboards */
 		case KEY_UP:	return PBTN_UP;
 		case KEY_DOWN:	return PBTN_DOWN;
 		case KEY_LEFT:	return PBTN_LEFT;
 		case KEY_RIGHT:	return PBTN_RIGHT;
 		case KEY_ENTER:
-		case BTN_TRIGGER: return PBTN_EAST;
+		case BTN_TRIGGER: return PBTN_MOK;
 		case KEY_ESC:
-		case BTN_THUMB:	return PBTN_SOUTH;
+		case BTN_THUMB:	return PBTN_MBACK;
+		case KEY_MENU:  return PBTN_MENU;
 		default:	return 0;
 	}
 }
