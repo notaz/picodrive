@@ -582,12 +582,8 @@ static void updateKeys(void)
 	keys2 = keys;
 
 #if 1
-	{
-		/* FIXME: combos */
-		int acts = in_update();
-		int pl = (acts >> 16) & 1;
-		allActions[pl] |= acts;
-	}
+	/* FIXME: combos, player2 */
+	allActions[0] = in_update();
 #else
 	for (i = 0; i < 32; i++)
 	{

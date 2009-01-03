@@ -15,7 +15,11 @@
 #define PBTN_L     GP2X_L
 #define PBTN_R     GP2X_R
 
-int wait_for_input(int interesting);
+/* menu nav */
+#define PBTN_MOK   GP2X_B
+#define PBTN_MBACK GP2X_X
+#define PBTN_MENU  GP2X_SELECT
+
 void gp2x_pd_clone_buffer2(void);
 void menu_darken_bg(void *dst, int pixels, int darker);
 void menu_flip(void);
@@ -24,10 +28,6 @@ void menu_flip(void);
 #define SCREEN_HEIGHT 240
 #define SCREEN_BUFFER gp2x_screen
 
-#define read_buttons(which) \
-	wait_for_input(which)
-#define read_buttons_async(which) \
-	(gp2x_joystick_read(0) & (which))
 #define menu_draw_begin() \
 	gp2x_pd_clone_buffer2()
 #define clear_screen() \
@@ -48,7 +48,6 @@ void menu_flip(void);
 #define PBTN_WEST  PBTN_REW
 #define PBTN_EAST  PBTN_FWD
 
-unsigned long wait_for_input(unsigned int interesting);
 void menu_draw_begin(int use_bgbuff);
 void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
 void menu_draw_end(void);
@@ -59,9 +58,6 @@ void menu_draw_end(void);
 extern void *menu_screen;
 extern void *giz_screen;
 
-#define read_buttons(which) \
-	wait_for_input(which)
-#define read_buttons_async(which) 0
 #define menu_draw_begin() \
 	menu_draw_begin(1)
 #define clear_screen() \
@@ -80,7 +76,6 @@ extern void *giz_screen;
 #define PBTN_WEST  PBTN_SQUARE
 #define PBTN_EAST  PBTN_CIRCLE
 
-unsigned long wait_for_input(unsigned int interesting, int is_key_config);
 void menu_draw_begin(void);
 void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
 void menu_draw_end(void);
@@ -89,10 +84,6 @@ void menu_draw_end(void);
 #define SCREEN_HEIGHT 272
 #define SCREEN_BUFFER psp_screen
 
-#define read_buttons(which) \
-	wait_for_input(which, 0)
-#define read_buttons_async(which) \
-	(psp_pad_read(0) & (which))
 #define clear_screen() \
 	memset(SCREEN_BUFFER, 0, SCREEN_WIDTH*SCREEN_HEIGHT*2)
 #define darken_screen() \
@@ -101,10 +92,6 @@ void menu_draw_end(void);
 // ------------------------------------
 
 #elif defined(PANDORA)
-
-// TODO
-
-#include "../gp2x/gp2x.h"
 
 #define PBTN_UP    (1 <<  0)
 #define PBTN_DOWN  (1 <<  1)
@@ -118,19 +105,21 @@ void menu_draw_end(void);
 #define PBTN_L     (1 <<  8)
 #define PBTN_R     (1 <<  9)
 
-unsigned long wait_for_input(unsigned long interesting);
+/* menu nav */
+#define PBTN_MOK   PBTN_EAST
+#define PBTN_MBACK PBTN_SOUTH
+#define PBTN_MENU  (1 << 10)
+
 void gp2x_pd_clone_buffer2(void);
 void menu_darken_bg(void *dst, int pixels, int darker);
 void menu_flip(void);
+
+extern void *gp2x_screen;
 
 #define SCREEN_WIDTH  800
 #define SCREEN_HEIGHT 480
 #define SCREEN_BUFFER gp2x_screen
 
-#define read_buttons(which) \
-	wait_for_input(which)
-#define read_buttons_async(which) \
-	(gp2x_joystick_read(0) & (which))
 #define menu_draw_begin() \
 	gp2x_pd_clone_buffer2()
 #define clear_screen() \

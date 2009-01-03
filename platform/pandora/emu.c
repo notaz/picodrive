@@ -16,12 +16,13 @@
 
 #include "../gp2x/emu.h"
 #include "../gp2x/menu.h"
+#include "../gp2x/gp2x.h"
 #include "../common/arm_utils.h"
 #include "../common/fonts.h"
 #include "../common/emu.h"
 #include "../common/config.h"
 #include "../common/common.h"
-#include "../linux/usbjoy.h"
+#include "../common/input.h"
 #include "../linux/sndout_oss.h"
 #include "asm_utils.h"
 
@@ -475,6 +476,7 @@ static void emu_msg_tray_open(void)
 	gettimeofday(&noticeMsgTime, 0);
 }
 
+#if 0
 static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 {
 	int ret, px, py, lim_x;
@@ -526,6 +528,7 @@ static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 	PicoPicohw.pen_pos[0] += 0x3c;
 	PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
 }
+#endif
 
 static void update_volume(int has_changed, int is_up)
 {
@@ -569,6 +572,7 @@ static void RunEvents(unsigned int which)
 		if ( emu_checkSaveFile(state_slot) &&
 				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) ||   // load
 				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) { // save
+#if 0
 			unsigned long keys;
 			blit("", (which & 0x1000) ? "LOAD STATE? (Y=yes, X=no)" : "OVERWRITE SAVE? (Y=yes, X=no)");
 			while ( !((keys = gp2x_joystick_read(1)) & (GP2X_X|GP2X_Y)) )
@@ -577,6 +581,7 @@ static void RunEvents(unsigned int which)
 			while ( gp2x_joystick_read(1) & (GP2X_X|GP2X_Y) ) // wait for release
 				usleep(50*1024);
 			clearArea(0);
+#endif
 		}
 		if (do_it) {
 			osd_text(4, SCREEN_HEIGHT-16, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
@@ -625,63 +630,11 @@ static void RunEvents(unsigned int which)
 
 static void updateKeys(void)
 {
-	unsigned int keys, keys2, allActions[2] = { 0, 0 }, events;
+	unsigned int allActions[2] = { 0, 0 }, events;
 	static unsigned int prevEvents = 0;
-	int joy, i;
 
-	keys = gp2x_joystick_read(0);
-	if (keys & GP2X_SELECT) {
-		engineState = select_exits ? PGS_Quit : PGS_Menu;
-		// wait until select is released, so menu would not resume game
-		while (gp2x_joystick_read(1) & GP2X_SELECT) usleep(50*1000);
-	}
-
-	keys &= CONFIGURABLE_KEYS;
-	keys2 = keys;
-
-	for (i = 0; i < 32; i++)
-	{
-		if (keys2 & (1 << i))
-		{
-			int pl, acts = currentConfig.KeyBinds[i];
-			if (!acts) continue;
-			pl = (acts >> 16) & 1;
-			if (kb_combo_keys & (1 << i))
-			{
-				int u = i+1, acts_c = acts & kb_combo_acts;
-				// let's try to find the other one
-				if (acts_c) {
-					for (; u < 32; u++)
-						if ( (keys2 & (1 << u)) && (currentConfig.KeyBinds[u] & acts_c) ) {
-							allActions[pl] |= acts_c & currentConfig.KeyBinds[u];
-							keys2 &= ~((1 << i) | (1 << u));
-							break;
-						}
-				}
-				// add non-combo actions if combo ones were not found
-				if (!acts_c || u == 32)
-					allActions[pl] |= acts & ~kb_combo_acts;
-			} else {
-				allActions[pl] |= acts;
-			}
-		}
-	}
-
-	// add joy inputs
-	if (num_of_joys > 0)
-	{
-		usbjoy_update();
-		for (joy = 0; joy < num_of_joys; joy++) {
-			int btns = usbjoy_check2(joy);
-			for (i = 0; i < 32; i++) {
-				if (btns & (1 << i)) {
-					int acts = currentConfig.JoyBinds[joy][i];
-					int pl = (acts >> 16) & 1;
-					allActions[pl] |= acts;
-				}
-			}
-		}
-	}
+	/* FIXME: combos, player2 */
+	allActions[0] = in_update();
 
 	PicoPad[0] = allActions[0] & 0xfff;
 	PicoPad[1] = allActions[1] & 0xfff;
@@ -703,8 +656,10 @@ static void updateKeys(void)
 
 	events &= ~prevEvents;
 
+/*
 	if (PicoAHW == PAHW_PICO)
 		RunEventsPico(events, keys);
+*/
 	if (events) RunEvents(events);
 	if (movie_data) emu_updateMovie();
 
@@ -785,10 +740,46 @@ static void simpleWait(int thissec, int lim_time)
 	}
 }
 
+void emu_startSound(void)
+{
+	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
+	int target_fps = Pico.m.pal ? 50 : 60;
+
+	PsndOut = NULL;
+
+	if (currentConfig.EmuOpt & 4)
+	{
+		int snd_excess_add;
+		if (PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old)
+			PsndRerate(Pico.m.frame_count ? 1 : 0);
+
+		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
+		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
+			PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
+		sndout_oss_start(PsndRate, 16, (PicoOpt&8)>>3);
+		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
+		PicoWriteSound = updateSound;
+		update_volume(0, 0);
+		memset(sndBuffer, 0, sizeof(sndBuffer));
+		PsndOut = sndBuffer;
+		PsndRate_old = PsndRate;
+		PicoOpt_old  = PicoOpt;
+		pal_old = Pico.m.pal;
+	}
+}
+
+void emu_endSound(void)
+{
+}
+
+/* wait until we can write more sound */
+void emu_waitSound(void)
+{
+	// don't need to do anything, writes will block by themselves
+}
 
 void emu_Loop(void)
 {
-	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 	char fpsbuff[24]; // fps count c string
 	struct timeval tval; // timing
 	int pframes_done, pframes_shown, pthissec; // "period" frames, used for sync
@@ -811,28 +802,7 @@ void emu_Loop(void)
 	target_frametime = 1000000/target_fps;
 	reset_timing = 1;
 
-	// prepare sound stuff
-	if (currentConfig.EmuOpt & 4)
-	{
-		int snd_excess_add;
-		if (PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old)
-			PsndRerate(Pico.m.frame_count ? 1 : 0);
-
-		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
-		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
-		sndout_oss_start(PsndRate, 16, (PicoOpt&8)>>3);
-		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
-		PicoWriteSound = updateSound;
-		update_volume(0, 0);
-		memset(sndBuffer, 0, sizeof(sndBuffer));
-		PsndOut = sndBuffer;
-		PsndRate_old = PsndRate;
-		PicoOpt_old  = PicoOpt;
-		pal_old = Pico.m.pal;
-	} else {
-		PsndOut = NULL;
-	}
+	emu_startSound();
 
 	// prepare CD buffer
 	if (PicoAHW & PAHW_MCD) PicoCDBufferInit();

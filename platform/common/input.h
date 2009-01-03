@@ -28,7 +28,8 @@ void in_probe(void);
 int  in_update(void);
 void in_set_blocking(int is_blocking);
 int  in_update_keycode(int *dev_id, int *is_down, int timeout_ms);
-int  in_update_menu(int timeout_ms);
+int  in_menu_wait_any(int timeout_ms);
+int  in_menu_wait(int interesting);
 int  in_get_dev_bind_count(int dev_id);
 void in_config_start(void);
 int  in_config_parse_dev(const char *dev_name);
@@ -39,5 +40,5 @@ void in_debug_dump(void);
 
 const int  *in_get_dev_binds(int dev_id);
 const int  *in_get_dev_def_binds(int dev_id);
-const char *in_get_dev_name(int dev_id);
+const char *in_get_dev_name(int dev_id, int must_be_active);
 const char *in_get_key_name(int dev_id, int keycode);

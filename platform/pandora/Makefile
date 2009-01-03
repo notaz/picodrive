@@ -29,7 +29,7 @@ else
 use_cyclone = 1
 endif
 
-DEFINC = -I../.. -I. -DARM -DPANDORA
+DEFINC = -I../.. -I. -DARM -DPANDORA -DIN_EVDEV
 COPT_COMMON = -Wall -Winline -mcpu=cortex-a8 -mtune=cortex-a8 -march=armv7-a -I$(LIBROOT)/include
 ifeq ($(DEBUG),)
 COPT_COMMON += -O2 # -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
@@ -57,7 +57,8 @@ OBJS += pandora.o main.o emu.o asm_utils.o platform/gp2x/menu.o
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
 	platform/common/arm_utils.o platform/common/mp3_helix.o platform/common/arm_linux.o \
-	platform/common/readpng.o platform/linux/usbjoy.o platform/linux/sndout_oss.o
+	platform/common/readpng.o platform/common/input.o platform/linux/in_evdev.o \
+	platform/linux/sndout_oss.o
 
 # Pico
 ifeq "$(amalgamate)" "1"
@@ -131,7 +132,7 @@ include ../common/common_arm.mak
 
 PicoDrive : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
 	@echo ">>>" $@
-	$(CC) -o $@ $(CFLAGS) $^ -lm -Wl,-Map=PicoDrive.map -lpng -L$(LIBROOT)/lib
+	$(CC) -o $@ $(CFLAGS) $^ -lm -Wl,-Map=PicoDrive.map -lpng -L$(LIBROOT)/lib -static
 ifeq ($(DEBUG),)
 	$(STRIP) $@
 endif

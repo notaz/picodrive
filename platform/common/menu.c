@@ -13,6 +13,7 @@
 #include "readpng.h"
 #include "lprintf.h"
 #include "common.h"
+#include "input.h"
 #include "emu.h"
 
 
@@ -350,7 +351,7 @@ static void mplayer_loop(void)
 	while (1)
 	{
 		PDebugZ80Frame();
-		if (read_buttons_async(PBTN_NORTH)) break;
+		if (in_menu_wait_any(0) & PBTN_NORTH) break;
 		emu_waitSound();
 	}
 
@@ -429,8 +430,8 @@ void debug_menu_loop(void)
 		}
 		menu_draw_end();
 
-		inp = read_buttons(PBTN_EAST|PBTN_SOUTH|PBTN_WEST|PBTN_NORTH|PBTN_L|PBTN_R|PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT);
-		if (inp & PBTN_SOUTH) return;
+		inp = in_menu_wait(PBTN_EAST|PBTN_MBACK|PBTN_WEST|PBTN_NORTH|PBTN_L|PBTN_R|PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT);
+		if (inp & PBTN_MBACK) return;
 		if (inp & PBTN_L) { mode--; if (mode < 0) mode = 3; }
 		if (inp & PBTN_R) { mode++; if (mode > 3) mode = 0; }
 		switch (mode)
@@ -438,13 +439,13 @@ void debug_menu_loop(void)
 			case 0:
 				if (inp & PBTN_EAST) SekStepM68k();
 				if (inp & PBTN_NORTH) {
-					while (inp & PBTN_NORTH) inp = read_buttons_async(PBTN_NORTH);
+					while (inp & PBTN_NORTH) inp = in_menu_wait_any(-1);
 					mplayer_loop();
 				}
 				if ((inp & (PBTN_WEST|PBTN_LEFT)) == (PBTN_WEST|PBTN_LEFT)) {
 					mkdir("dumps", 0777);
 					PDebugDumpMem();
-					while (inp & PBTN_WEST) inp = read_buttons_async(PBTN_WEST);
+					while (inp & PBTN_WEST) inp = in_menu_wait_any(-1);
 					dumped = 1;
 				}
 				break;
@@ -458,7 +459,7 @@ void debug_menu_loop(void)
 					PicoSkipFrame = 1;
 					PicoFrame();
 					PicoSkipFrame = 0;
-					while (inp & PBTN_EAST) inp = read_buttons_async(PBTN_EAST);
+					while (inp & PBTN_EAST) inp = in_menu_wait_any(-1);
 				}
 				break;
 			case 3:

@@ -209,16 +209,6 @@ static void custom_write(FILE *f, const menu_entry *me, int no_def)
 }
 
 
-#if PLAT_HAVE_JOY
-static const char *joyKeyNames[32] =
-{
-	"UP", "DOWN", "LEFT", "RIGHT", "b1", "b2", "b3", "b4",
-	"b5",  "b6",  "b7",  "b8",  "b9",  "b10", "b11", "b12",
-	"b13", "b14", "b15", "b16", "b17", "b19", "b19", "b20",
-	"b21", "b22", "b23", "b24", "b25", "b26", "b27", "b28"
-};
-#endif
-
 static void keys_write(FILE *fn, const char *bind_str, int dev_id, const int *binds, int no_defaults)
 {
 	char act[48];
@@ -401,7 +391,7 @@ write:
 	for (t = 0; t < IN_MAX_DEVS; t++)
 	{
 		const int  *binds = in_get_dev_binds(t);
-		const char *name =  in_get_dev_name(t);
+		const char *name =  in_get_dev_name(t, 0);
 		if (binds == NULL || name == NULL)
 			continue;
 
@@ -412,7 +402,7 @@ write:
 	for (t = 0; t < IN_MAX_DEVS; t++)
 	{
 		const int *binds = in_get_dev_binds(t);
-		const char *name = in_get_dev_name(t);
+		const char *name = in_get_dev_name(t, 0);
 		char strbind[16];
 		int count;
 
@@ -425,17 +415,6 @@ write:
 		count = in_get_dev_bind_count(t);
 		keys_write(fn, strbind, t, binds, no_defaults);
 	}
-
-#if 0
-	/* old stuff */
-	keys_write(fn, "bind", currentConfig.KeyBinds, defaultConfig.KeyBinds, keyNames, PLAT_MAX_KEYS, no_defaults);
-#if PLAT_HAVE_JOY
-	keys_write(fn, "bind_joy0", currentConfig.JoyBinds[0], defaultConfig.JoyBinds[0], joyKeyNames, 32, 1);
-	keys_write(fn, "bind_joy1", currentConfig.JoyBinds[1], defaultConfig.JoyBinds[1], joyKeyNames, 32, 1);
-	keys_write(fn, "bind_joy2", currentConfig.JoyBinds[2], defaultConfig.JoyBinds[2], joyKeyNames, 32, 1);
-	keys_write(fn, "bind_joy3", currentConfig.JoyBinds[3], defaultConfig.JoyBinds[3], joyKeyNames, 32, 1);
-#endif
-#endif
 
 #ifndef PSP
 	if (section == NULL)
@@ -771,42 +750,6 @@ static void keys_parse(const char *key, const char *val, int dev_id)
 	}
 
 	in_config_bind_key(dev_id, key, binds);
-/*
-	for (t = 0; t < 32; t++)
-	{
-		if (names[t] && strcmp(names[t], var) == 0) break;
-	}
-	if (t == 32)
-	{
-		int len = strlen(var);
-		if (len == 1) t = var[0];
-		else if (len >= 4 && var[0] == '\\' && var[1] == 'x') {
-			char *p;
-			t = (int)strtoul(var + 2, &p, 16);
-			if (*p != 0) t = max_keys; // parse failed
-		}
-		else
-			t = max_keys; // invalid
-	}
-	if (t < 0 || t >= max_keys) {
-		lprintf("unhandled bind \"%s\"\n", var);
-		return;
-	}
-
-	// unbind old, but only when key is first encountered
-	if (t < 32 && binds == currentConfig.KeyBinds && !(keys_encountered & (1<<t))) {
-		binds[t] = 0;
-		keys_encountered |= 1<<t;
-	}
-*/
-}
-
-
-#define try_joy_parse(num) { \
-	if (strncasecmp(var, "bind_joy"#num " ", 10) == 0) { \
-		keys_parse(var + 10, val, currentConfig.JoyBinds[num], joyKeyNames, 32); \
-		return; \
-	} \
 }
 
 static int get_numvar_num(const char *var)
@@ -846,7 +789,7 @@ static void parse(const char *var, const char *val)
 		if (num >= 0 && num < IN_MAX_DEVS)
 			input_dev_map[num] = in_config_parse_dev(val);
 		else
-			printf("failed to parse: %s\n", var);
+			lprintf("config: failed to parse: %s\n", var);
 		return;
 	}
 
@@ -855,13 +798,13 @@ static void parse(const char *var, const char *val)
 		const char *p = var + 4;
 		int num = get_numvar_num(p);
 		if (num < 0 || num >= IN_MAX_DEVS) {
-			printf("failed to parse: %s\n", var);
+			lprintf("config: failed to parse: %s\n", var);
 			return;
 		}
 
 		num = input_dev_map[num];
 		if (num < 0 || num >= IN_MAX_DEVS) {
-			printf("invalid device id: %s\n", var);
+			lprintf("config: invalid device id: %s\n", var);
 			return;
 		}
 
@@ -870,13 +813,6 @@ static void parse(const char *var, const char *val)
 		keys_parse(p, val, num);
 		return;
 	}
-
-#if 0//PLAT_HAVE_JOY
-	try_joy_parse(0)
-	try_joy_parse(1)
-	try_joy_parse(2)
-	try_joy_parse(3)
-#endif
 
 	for (t = 0; t < sizeof(cfg_opts) / sizeof(cfg_opts[0]) && ret == 0; t++)
 	{

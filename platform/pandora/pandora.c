@@ -12,7 +12,6 @@
 #include <errno.h>
 
 #include "../gp2x/gp2x.h"
-#include "../linux/usbjoy.h"
 #include "../linux/sndout_oss.h"
 #include "../common/arm_linux.h"
 
@@ -85,22 +84,6 @@ void gp2x_memset_all_buffers(int offset, int byte, int len)
 void gp2x_pd_clone_buffer2(void)
 {
 	memset(gp2x_screen, 0, 800*480*2);
-}
-
-
-unsigned long gp2x_joystick_read(int allow_usb_joy)
-{
-  	unsigned long value = 0;
-	int i;
-
-	if (allow_usb_joy && num_of_joys > 0) {
-		// check the usb joy as well..
-		usbjoy_update();
-		for (i = 0; i < num_of_joys; i++)
-			value |= usbjoy_check(i);
-	}
-
-	return value;
 }
 
 // FIXME
@@ -180,9 +163,6 @@ void gp2x_init(void)
 	// snd
 	sndout_oss_init();
 
-	/* init usb joys -GnoStiC */
-	usbjoy_init();
-
 	printf("exitting init()\n"); fflush(stdout);
 }
 
@@ -196,7 +176,6 @@ void gp2x_deinit(void)
 	if (fbdev >= 0)    close(fbdev);
 
 	sndout_oss_exit();
-	usbjoy_deinit();
 
 	printf("all done");
 }

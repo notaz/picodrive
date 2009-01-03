@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common.h"
 #include "input.h"
 #include "../linux/in_evdev.h"
 
@@ -195,7 +196,7 @@ void in_set_blocking(int is_blocking)
 
 	menu_key_state = 0;
 	/* flush events */
-	in_update_keycode(NULL, NULL, 1);
+	in_update_keycode(NULL, NULL, 0);
 }
 
 /* 
@@ -204,7 +205,7 @@ void in_set_blocking(int is_blocking)
  */
 int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 {
-	int result = 0, dev_id, is_down, result_menu;
+	int result = 0, dev_id = 0, is_down, result_menu;
 #ifdef IN_EVDEV
 	void **data;
 	int i, id = 0, count = 0;
@@ -229,7 +230,7 @@ int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 #endif
 
 	/* keep track of menu key state, to allow mixing
-	 * in_update_keycode() and in_update_menu() calls */
+	 * in_update_keycode() and in_menu_wait_any() calls */
 	result_menu = DRV(in_devices[dev_id].drv_id).menu_translate(result);
 	if (result_menu != 0) {
 		if (is_down)
@@ -245,10 +246,8 @@ int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 	return result;
 }
 
-/* 
- * same as above, only return bitfield of BTN_*
- */
-int in_update_menu(int timeout_ms)
+/* same as above, only return bitfield of PBTN_*  */
+int in_menu_wait_any(int timeout_ms)
 {
 	int keys_old = menu_key_state;
 
@@ -259,7 +258,7 @@ int in_update_menu(int timeout_ms)
 		code = in_update_keycode(&dev_id, &is_down, timeout_ms);
 		code = DRV(in_devices[dev_id].drv_id).menu_translate(code);
 
-		if (timeout_ms != 0)
+		if (timeout_ms >= 0)
 			break;
 		if (code == 0)
 			continue;
@@ -268,6 +267,45 @@ int in_update_menu(int timeout_ms)
 	}
 
 	return menu_key_state;
+}
+
+/* wait for menu input, do autorepeat */
+int in_menu_wait(int interesting)
+{
+	static int inp_prev = 0;
+	static int repeats = 0, wait = 20;
+	int ret = 0, release = 0, i;
+
+	if      (repeats == 2) wait = 3;
+	else if (repeats == 4) wait = 2;
+	else if (repeats == 6) wait = 1;
+
+	for (i = 0; i < wait; i++) {
+		ret = in_menu_wait_any(30);
+		if (ret != inp_prev) break;
+		if (i == 0) repeats++;
+	}
+
+	while (!(ret & interesting)) {
+		ret = in_menu_wait_any(-1);
+		release = 1;
+	}
+
+	if (release || ret != inp_prev) {
+		repeats = 0;
+		wait = 20;
+	}
+	if (wait > 6 && (ret & (PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT)))
+		wait = 6;
+	inp_prev = ret;
+
+	// we don't need diagonals in menus
+	if ((ret & PBTN_UP)   && (ret & PBTN_LEFT))  ret &= ~PBTN_LEFT;
+	if ((ret & PBTN_UP)   && (ret & PBTN_RIGHT)) ret &= ~PBTN_RIGHT;
+	if ((ret & PBTN_DOWN) && (ret & PBTN_LEFT))  ret &= ~PBTN_LEFT;
+	if ((ret & PBTN_DOWN) && (ret & PBTN_RIGHT)) ret &= ~PBTN_RIGHT;
+
+	return ret;
 }
 
 const int *in_get_dev_binds(int dev_id)
@@ -297,11 +335,13 @@ int in_get_dev_bind_count(int dev_id)
 	return in_bind_count(in_devices[dev_id].drv_id);
 }
 
-const char *in_get_dev_name(int dev_id)
+const char *in_get_dev_name(int dev_id, int must_be_active)
 {
 	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
 		return NULL;
 
+	if (must_be_active && !in_devices[dev_id].probed)
+		return NULL;
 	return in_devices[dev_id].name;
 }
 
@@ -580,7 +620,7 @@ int main(void)
 	}
 #else
 	while (1) {
-		ret = in_update_menu();
+		ret = in_menu_wait_any();
 		printf("%08x\n", ret);
 	}
 #endif

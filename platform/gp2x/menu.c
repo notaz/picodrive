@@ -42,45 +42,6 @@ const char * const keyNames[] = {
 void menu_darken_bg(void *dst, int pixels, int darker);
 static void menu_prepare_bg(int use_game_bg);
 
-/* wait for input, do autorepeat */
-int wait_for_input(int interesting)
-{
-	static int inp_prev = 0;
-	static int repeats = 0, wait = 20;
-	int ret, release = 0, i;
-
-	if      (repeats == 2) wait = 3;
-	else if (repeats == 4) wait = 2;
-	else if (repeats == 6) wait = 1;
-
-	for (i = 0; i < wait; i++) {
-		ret = in_update_menu(30);
-		if (ret != inp_prev) break;
-		if (i == 0) repeats++;
-	}
-
-	while (!(ret & interesting)) {
-		ret = in_update_menu(0);
-		release = 1;
-	}
-
-	if (release || ret != inp_prev) {
-		repeats = 0;
-		wait = 20;
-	}
-	if (wait > 6 && (ret & (PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT)))
-		wait = 6;
-	inp_prev = ret;
-
-	// we don't need diagonals in menus
-	if ((ret & PBTN_UP)   && (ret & PBTN_LEFT))  ret &= ~PBTN_LEFT;
-	if ((ret & PBTN_UP)   && (ret & PBTN_RIGHT)) ret &= ~PBTN_RIGHT;
-	if ((ret & PBTN_DOWN) && (ret & PBTN_LEFT))  ret &= ~PBTN_LEFT;
-	if ((ret & PBTN_DOWN) && (ret & PBTN_RIGHT)) ret &= ~PBTN_RIGHT;
-
-	return ret;
-}
-
 void menu_flip(void)
 {
 	gp2x_video_flush_cache();
@@ -247,8 +208,8 @@ static void do_delete(const char *fpath, const char *fname)
 	menu_flip();
 
 
-	while (gp2x_joystick_read(1) & (GP2X_A|GP2X_SELECT)) usleep(50*1000);
-	inp = wait_for_input(GP2X_Y|GP2X_X);
+	while (in_menu_wait_any(50) & (PBTN_WEST|PBTN_MENU));
+	inp = in_menu_wait(GP2X_Y|PBTN_MBACK);	/* FIXME */
 	if (inp & GP2X_Y)
 		remove(fpath);
 }
@@ -298,14 +259,14 @@ rescan:
 	for (;;)
 	{
 		draw_dirlist(curr_path, namelist, n, sel);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_L|GP2X_R|GP2X_A|GP2X_B|GP2X_X|GP2X_SELECT);
-		if(inp & GP2X_UP  )  { sel--;   if (sel < 0)   sel = n-2; }
-		if(inp & GP2X_DOWN)  { sel++;   if (sel > n-2) sel = 0; }
-		if(inp & GP2X_LEFT)  { sel-=10; if (sel < 0)   sel = 0; }
-		if(inp & GP2X_L)     { sel-=24; if (sel < 0)   sel = 0; }
-		if(inp & GP2X_RIGHT) { sel+=10; if (sel > n-2) sel = n-2; }
-		if(inp & GP2X_R)     { sel+=24; if (sel > n-2) sel = n-2; }
-		if ((inp & GP2X_B) || (inp & (GP2X_SELECT|GP2X_A)) == (GP2X_SELECT|GP2X_A)) // enter dir/select || delete
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_L|PBTN_R|PBTN_WEST|PBTN_MOK|PBTN_MBACK|PBTN_MENU);
+		if(inp & PBTN_UP  )  { sel--;   if (sel < 0)   sel = n-2; }
+		if(inp & PBTN_DOWN)  { sel++;   if (sel > n-2) sel = 0; }
+		if(inp & PBTN_LEFT)  { sel-=10; if (sel < 0)   sel = 0; }
+		if(inp & PBTN_L)     { sel-=24; if (sel < 0)   sel = 0; }
+		if(inp & PBTN_RIGHT) { sel+=10; if (sel > n-2) sel = n-2; }
+		if(inp & PBTN_R)     { sel+=24; if (sel > n-2) sel = n-2; }
+		if ((inp & PBTN_MOK) || (inp & (PBTN_MENU|PBTN_WEST)) == (PBTN_MENU|PBTN_WEST)) // enter dir/select || delete
 		{
 			again:
 			if (namelist[sel+1]->d_type == DT_REG)
@@ -313,7 +274,7 @@ rescan:
 				strcpy(romFileName, curr_path);
 				strcat(romFileName, "/");
 				strcat(romFileName, namelist[sel+1]->d_name);
-				if (inp & GP2X_B) { // return sel
+				if (inp & PBTN_MOK) { // return sel
 					ret = romFileName;
 					break;
 				}
@@ -328,7 +289,7 @@ rescan:
 			{
 				int newlen;
 				char *p, *newdir;
-				if (!(inp & GP2X_B)) continue;
+				if (!(inp & PBTN_MOK)) continue;
 				newlen = strlen(curr_path) + strlen(namelist[sel+1]->d_name) + 2;
 				newdir = malloc(newlen);
 				if (strcmp(namelist[sel+1]->d_name, "..") == 0) {
@@ -367,7 +328,7 @@ rescan:
 				}
 			}
 		}
-		if(inp & GP2X_X) break; // cancel
+		if(inp & PBTN_MBACK) break; // cancel
 	}
 
 	if (n > 0) {
@@ -412,17 +373,17 @@ static void patches_menu_loop(void)
 	for(;;)
 	{
 		draw_patchlist(menu_sel);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_L|GP2X_R|GP2X_B|GP2X_X);
-		if(inp & GP2X_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = PicoPatchCount; }
-		if(inp & GP2X_DOWN) { menu_sel++; if (menu_sel > PicoPatchCount) menu_sel = 0; }
-		if(inp &(GP2X_LEFT|GP2X_L))  { menu_sel-=10; if (menu_sel < 0) menu_sel = 0; }
-		if(inp &(GP2X_RIGHT|GP2X_R)) { menu_sel+=10; if (menu_sel > PicoPatchCount) menu_sel = PicoPatchCount; }
-		if(inp & GP2X_B) { // action
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_L|PBTN_R|PBTN_MOK|PBTN_MBACK);
+		if(inp & PBTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = PicoPatchCount; }
+		if(inp & PBTN_DOWN) { menu_sel++; if (menu_sel > PicoPatchCount) menu_sel = 0; }
+		if(inp &(PBTN_LEFT|PBTN_L))  { menu_sel-=10; if (menu_sel < 0) menu_sel = 0; }
+		if(inp &(PBTN_RIGHT|PBTN_R)) { menu_sel+=10; if (menu_sel > PicoPatchCount) menu_sel = PicoPatchCount; }
+		if(inp & PBTN_MOK) { // action
 			if (menu_sel < PicoPatchCount)
 				PicoPatches[menu_sel].active = !PicoPatches[menu_sel].active;
 			else 	return;
 		}
-		if(inp & GP2X_X) return;
+		if(inp & PBTN_MBACK) return;
 	}
 
 }
@@ -532,18 +493,18 @@ static int savestate_menu_loop(int is_loading)
 	for(;;)
 	{
 		draw_savestate_menu(menu_sel, is_loading);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_B|GP2X_X);
-		if(inp & GP2X_UP  ) {
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_MOK|PBTN_MBACK);
+		if(inp & PBTN_UP  ) {
 			do {
 				menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max;
 			} while (!(state_slot_flags & (1 << menu_sel)) && menu_sel != menu_sel_max && is_loading);
 		}
-		if(inp & GP2X_DOWN) {
+		if(inp & PBTN_DOWN) {
 			do {
 				menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0;
 			} while (!(state_slot_flags & (1 << menu_sel)) && menu_sel != menu_sel_max && is_loading);
 		}
-		if(inp & GP2X_B) { // save/load
+		if(inp & PBTN_MOK) { // save/load
 			if (menu_sel < 10) {
 				state_slot = menu_sel;
 				if (emu_SaveLoadGame(is_loading, 0)) {
@@ -553,25 +514,11 @@ static int savestate_menu_loop(int is_loading)
 				return 0;
 			} else	return 1;
 		}
-		if(inp & GP2X_X) return 1;
+		if(inp & PBTN_MBACK) return 1;
 	}
 }
 
 // -------------- key config --------------
-
-static char *usb_joy_key_name(int joy, int num)
-{
-	static char name[16];
-	switch (num)
-	{
-		case 0: sprintf(name, "Joy%i UP", joy); break;
-		case 1: sprintf(name, "Joy%i DOWN", joy); break;
-		case 2: sprintf(name, "Joy%i LEFT", joy); break;
-		case 3: sprintf(name, "Joy%i RIGHT", joy); break;
-		default:sprintf(name, "Joy%i b%i", joy, num-3); break;
-	}
-	return name;
-}
 
 static char *action_binds(int player_idx, int action_mask)
 {
@@ -609,33 +556,6 @@ static char *action_binds(int player_idx, int action_mask)
 			d_prev = d;
 		}
 	}
-#if 0
-	for (i = 0; i < 32; i++) // i is key index
-	{
-		if (currentConfig.KeyBinds[i] & action_mask)
-		{
-			if (player_idx >= 0 && ((currentConfig.KeyBinds[i] >> 16) & 3) != player_idx) continue;
-			if (strkeys[0]) { strcat(strkeys, " + "); strcat(strkeys, keyNames[i]); break; }
-			else strcpy(strkeys, keyNames[i]);
-		}
-	}
-	for (joy = 0; joy < num_of_joys; joy++)
-	{
-		for (i = 0; i < 32; i++)
-		{
-			if (currentConfig.JoyBinds[joy][i] & action_mask)
-			{
-				if (player_idx >= 0 && ((currentConfig.JoyBinds[joy][i] >> 16) & 3) != player_idx) continue;
-				if (strkeys[0]) {
-					strcat(strkeys, ", "); strcat(strkeys, usb_joy_key_name(joy + 1, i));
-					break;
-				}
-				else strcpy(strkeys, usb_joy_key_name(joy + 1, i));
-			}
-		}
-	}
-#endif
-
 
 	// limit..
 	strkeys[20] = 0;
@@ -737,25 +657,25 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 	for (;;)
 	{
 		draw_key_config(opts, opt_cnt, player_idx, sel, 0);
-		mkey = wait_for_input(PBTN_UP|PBTN_DOWN|PBTN_SOUTH|PBTN_EAST);
+		mkey = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_MBACK|PBTN_MOK);
 		switch (mkey) {
 			case PBTN_UP:   sel--; if (sel < 0) sel = menu_sel_max; continue;
 			case PBTN_DOWN: sel++; if (sel > menu_sel_max) sel = 0; continue;
-			case PBTN_SOUTH:
+			case PBTN_MBACK: return;
+			case PBTN_MOK:
 				if (sel >= opt_cnt)
 					return;
-				continue;
-			case PBTN_EAST:
-				if (sel >= opt_cnt)
-					return;
+				while (in_menu_wait_any(30) & PBTN_MOK);
 				break;
 			default:continue;
 		}
 
 		draw_key_config(opts, opt_cnt, player_idx, sel, 1);
-		//inp = wait_for_input_usbjoy(CONFIGURABLE_KEYS, &joy);
-		for (is_down = 0; is_down == 0; )
-			kc = in_update_keycode(&dev_id, &is_down, 0);
+
+		/* wait for some up event */
+		for (is_down = 1; is_down; ) {
+			kc = in_update_keycode(&dev_id, &is_down, -1);
+		}
 
 		unbind = count_bound_keys(dev_id, opts[sel].mask, player_idx) >= 2;
 
@@ -795,14 +715,16 @@ static void draw_kc_sel(int menu_sel)
 	me_draw(ctrlopt_entries, ctrlopt_entry_count, tl_x, tl_y, NULL, NULL);
 
 	tl_x = 25;
-	text_out16(tl_x, (y=130), "USB joys detected:");
-	if (num_of_joys > 0) {
-		for (i = 0; i < num_of_joys; i++) {
-			strncpy(joyname, joy_name(joys[i]), 33); joyname[33] = 0;
-			text_out16(tl_x, (y+=10), "%i: %s", i+1, joyname);
-		}
-	} else {
-		text_out16(tl_x, (y+=10), "none");
+	text_out16(tl_x, (y=130), "Input devices:");
+	for (i = 0; i < IN_MAX_DEVS && y < 230; i++) {
+		const char *tmp, *name = in_get_dev_name(i, 1);
+		if (name == NULL)
+			continue;
+		tmp = strchr(name, ':');
+		if (tmp != NULL)
+			name = tmp + 1;
+		strncpy(joyname, name, 33); joyname[33] = 0;
+		text_out16(tl_x, (y+=10), "%i: %s", i, joyname);
 	}
 
 	menu_flip();
@@ -839,13 +761,13 @@ static void kc_sel_loop(void)
 	while (1)
 	{
 		draw_kc_sel(menu_sel);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_RIGHT|GP2X_LEFT|GP2X_B|GP2X_X);
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_RIGHT|PBTN_LEFT|PBTN_MOK|PBTN_MBACK);
 		selected_id = me_index2id(ctrlopt_entries, CTRLOPT_ENTRY_COUNT, menu_sel);
-		if (inp & (GP2X_LEFT|GP2X_RIGHT)) // multi choise
-			me_process(ctrlopt_entries, CTRLOPT_ENTRY_COUNT, selected_id, (inp&GP2X_RIGHT) ? 1 : 0);
-		if (inp & GP2X_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
-		if (inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
-		if (inp & GP2X_B) {
+		if (inp & (PBTN_LEFT|PBTN_RIGHT)) // multi choise
+			me_process(ctrlopt_entries, CTRLOPT_ENTRY_COUNT, selected_id, (inp&PBTN_RIGHT) ? 1 : 0);
+		if (inp & PBTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
+		if (inp & PBTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
+		if (inp & PBTN_MOK) {
 			int is_6button = PicoOpt & POPT_6BTN_PAD;
 			switch (selected_id) {
 				case MA_CTRL_PLAYER1: key_config_loop(me_ctrl_actions, is_6button ? 15 : 11, 0); return;
@@ -856,7 +778,7 @@ static void kc_sel_loop(void)
 				default: return;
 			}
 		}
-		if (inp & GP2X_X) return;
+		if (inp & PBTN_MBACK) return;
 	}
 }
 
@@ -957,14 +879,14 @@ static void cd_menu_loop_options(void)
 	for(;;)
 	{
 		draw_cd_menu_options(menu_sel, &bios_names);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_B|GP2X_X|GP2X_A|GP2X_START);
-		if (inp & GP2X_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
-		if (inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_MOK|PBTN_MBACK|GP2X_START); /* FIXME */
+		if (inp & PBTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
+		if (inp & PBTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		selected_id = me_index2id(cdopt_entries, CDOPT_ENTRY_COUNT, menu_sel);
-		if (inp & (GP2X_LEFT|GP2X_RIGHT)) { // multi choise
-			if (!me_process(cdopt_entries, CDOPT_ENTRY_COUNT, selected_id, (inp&GP2X_RIGHT) ? 1 : 0) &&
+		if (inp & (PBTN_LEFT|PBTN_RIGHT)) { // multi choise
+			if (!me_process(cdopt_entries, CDOPT_ENTRY_COUNT, selected_id, (inp&PBTN_RIGHT) ? 1 : 0) &&
 			    selected_id == MA_CDOPT_READAHEAD) {
-				if (inp & GP2X_LEFT) {
+				if (inp & PBTN_LEFT) {
 					PicoCDBuffers >>= 1;
 					if (PicoCDBuffers < 2) PicoCDBuffers = 0;
 				} else {
@@ -974,7 +896,7 @@ static void cd_menu_loop_options(void)
 				}
 			}
 		}
-		if (inp & GP2X_B) { // toggleable options
+		if (inp & PBTN_MOK) { // toggleable options
 			if (!me_process(cdopt_entries, CDOPT_ENTRY_COUNT, selected_id, 1) &&
 			    selected_id == MA_CDOPT_DONE) {
 				return;
@@ -1007,7 +929,7 @@ static void cd_menu_loop_options(void)
 					break;
 			}
 		}
-		if (inp & (GP2X_X|GP2X_A)) return;
+		if (inp & PBTN_MBACK) return;
 	}
 }
 
@@ -1071,29 +993,28 @@ static void amenu_loop_options(void)
 	for(;;)
 	{
 		draw_amenu_options(menu_sel);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_B|GP2X_X|GP2X_A);
-		if (inp & GP2X_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
-		if (inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_MOK|PBTN_MBACK);
+		if (inp & PBTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
+		if (inp & PBTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		selected_id = me_index2id(opt2_entries, OPT2_ENTRY_COUNT, menu_sel);
-		if (inp & (GP2X_LEFT|GP2X_RIGHT)) { // multi choise
-			if (!me_process(opt2_entries, OPT2_ENTRY_COUNT, selected_id, (inp&GP2X_RIGHT) ? 1 : 0) &&
+		if (inp & (PBTN_LEFT|PBTN_RIGHT)) { // multi choise
+			if (!me_process(opt2_entries, OPT2_ENTRY_COUNT, selected_id, (inp&PBTN_RIGHT) ? 1 : 0) &&
 			    selected_id == MA_OPT2_GAMMA) {
-				while ((inp = gp2x_joystick_read(1)) & (GP2X_LEFT|GP2X_RIGHT)) {
-					currentConfig.gamma += (inp & GP2X_LEFT) ? -1 : 1;
+				while ((inp = in_menu_wait_any(20)) & (PBTN_LEFT|PBTN_RIGHT)) {
+					currentConfig.gamma += (inp & PBTN_LEFT) ? -1 : 1;
 					if (currentConfig.gamma <   1) currentConfig.gamma =   1;
 					if (currentConfig.gamma > 300) currentConfig.gamma = 300;
 					draw_amenu_options(menu_sel);
-					usleep(18*1000);
 				}
 			}
 		}
-		if (inp & GP2X_B) { // toggleable options
+		if (inp & PBTN_MOK) { // toggleable options
 			if (!me_process(opt2_entries, OPT2_ENTRY_COUNT, selected_id, 1) &&
 			    selected_id == MA_OPT2_DONE) {
 				return;
 			}
 		}
-		if (inp & (GP2X_X|GP2X_A)) return;
+		if (inp & PBTN_MBACK) return;
 	}
 }
 
@@ -1268,15 +1189,15 @@ static int menu_loop_options(void)
 	while (1)
 	{
 		draw_menu_options(menu_sel);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_LEFT|GP2X_RIGHT|GP2X_B|GP2X_X|GP2X_A);
-		if (inp & GP2X_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
-		if (inp & GP2X_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_MOK|PBTN_MBACK);
+		if (inp & PBTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
+		if (inp & PBTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		selected_id = me_index2id(opt_entries, OPT_ENTRY_COUNT, menu_sel);
-		if (inp & (GP2X_LEFT|GP2X_RIGHT)) { // multi choice
-			if (!me_process(opt_entries, OPT_ENTRY_COUNT, selected_id, (inp&GP2X_RIGHT) ? 1 : 0)) {
+		if (inp & (PBTN_LEFT|PBTN_RIGHT)) { // multi choice
+			if (!me_process(opt_entries, OPT_ENTRY_COUNT, selected_id, (inp&PBTN_RIGHT) ? 1 : 0)) {
 				switch (selected_id) {
 					case MA_OPT_RENDERER:
-						if (inp & GP2X_LEFT) {
+						if (inp & PBTN_LEFT) {
 							if      (PicoOpt&0x10) PicoOpt&= ~0x10;
 							else if (!(currentConfig.EmuOpt &0x80))currentConfig.EmuOpt |=  0x80;
 							else if (  currentConfig.EmuOpt &0x80) break;
@@ -1287,18 +1208,18 @@ static int menu_loop_options(void)
 						}
 						break;
 					case MA_OPT_SOUND_QUALITY:
-						if ((inp & GP2X_RIGHT) && PsndRate == 44100 && !(PicoOpt&0x08)) {
+						if ((inp & PBTN_RIGHT) && PsndRate == 44100 && !(PicoOpt&0x08)) {
 							PsndRate = 8000; PicoOpt|= 0x08;
-						} else if ((inp & GP2X_LEFT) && PsndRate == 8000 && (PicoOpt&0x08)) {
+						} else if ((inp & PBTN_LEFT) && PsndRate == 8000 && (PicoOpt&0x08)) {
 							PsndRate = 44100; PicoOpt&=~0x08;
-						} else  PsndRate = sndrate_prevnext(PsndRate, inp & GP2X_RIGHT);
+						} else  PsndRate = sndrate_prevnext(PsndRate, inp & PBTN_RIGHT);
 						break;
 					case MA_OPT_REGION:
-						region_prevnext(inp & GP2X_RIGHT);
+						region_prevnext(inp & PBTN_RIGHT);
 						break;
 					case MA_OPT_CONFIRM_STATES: {
 							 int n = ((currentConfig.EmuOpt>>9)&1) | ((currentConfig.EmuOpt>>10)&2);
-							 n += (inp & GP2X_LEFT) ? -1 : 1;
+							 n += (inp & PBTN_LEFT) ? -1 : 1;
 							 if (n < 0) n = 0; else if (n > 3) n = 3;
 							 n |= n << 1; n &= ~2;
 							 currentConfig.EmuOpt &= ~0xa00;
@@ -1306,23 +1227,22 @@ static int menu_loop_options(void)
 							 break;
 						 }
 					case MA_OPT_SAVE_SLOT:
-						 if (inp & GP2X_RIGHT) {
+						 if (inp & PBTN_RIGHT) {
 							 state_slot++; if (state_slot > 9) state_slot = 0;
 						 } else {state_slot--; if (state_slot < 0) state_slot = 9;
 						 }
 						 break;
 					case MA_OPT_CPU_CLOCKS:
-						 while ((inp = gp2x_joystick_read(1)) & (GP2X_LEFT|GP2X_RIGHT)) {
-							 currentConfig.CPUclock += (inp & GP2X_LEFT) ? -1 : 1;
+						 while ((inp = in_menu_wait_any(50)) & (PBTN_LEFT|PBTN_RIGHT)) {
+							 currentConfig.CPUclock += (inp & PBTN_LEFT) ? -1 : 1;
 							 if (currentConfig.CPUclock < 1) currentConfig.CPUclock = 1;
 							 draw_menu_options(menu_sel);
-							 usleep(50*1000);
 						 }
 						 break;
 					case MA_OPT_SAVECFG:
 					case MA_OPT_SAVECFG_GAME:
 					case MA_OPT_LOADCFG:
-						 config_slot += (inp&GP2X_RIGHT) ? 1 : -1;
+						 config_slot += (inp&PBTN_RIGHT) ? 1 : -1;
 						 if (config_slot > 9) config_slot = 0;
 						 if (config_slot < 0) config_slot = 9;
 						 me_enable(opt_entries, OPT_ENTRY_COUNT, MA_OPT_LOADCFG, config_slot != config_slot_current);
@@ -1335,7 +1255,7 @@ static int menu_loop_options(void)
 				}
 			}
 		}
-		if (inp & GP2X_B) {
+		if (inp & PBTN_MOK) {
 			if (!me_process(opt_entries, OPT_ENTRY_COUNT, selected_id, 1))
 			{
 				switch (selected_id)
@@ -1370,7 +1290,7 @@ static int menu_loop_options(void)
 				}
 			}
 		}
-		if(inp & (GP2X_X|GP2X_A)) {
+		if(inp & PBTN_MBACK) {
 			menu_options_save();
 			return 0;  // done (update, no write)
 		}
@@ -1464,28 +1384,28 @@ static void menu_loop_root(void)
 
 	/* make sure action buttons are not pressed on entering menu */
 	draw_menu_root(menu_sel);
-	while (gp2x_joystick_read(1) & (GP2X_B|GP2X_X|GP2X_SELECT)) usleep(50*1000);
+	while (in_menu_wait_any(50) & (PBTN_MOK|PBTN_MBACK|PBTN_MENU));
 
 	for (;;)
 	{
 		draw_menu_root(menu_sel);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_B|GP2X_X|GP2X_SELECT|GP2X_L|GP2X_R);
-		if(inp & GP2X_UP  )  { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
-		if(inp & GP2X_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
-		if((inp & (GP2X_L|GP2X_R)) == (GP2X_L|GP2X_R)) debug_menu_loop();
-		if(inp &(GP2X_SELECT|GP2X_X)){
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_MOK|PBTN_MBACK|PBTN_MENU|PBTN_L|PBTN_R);
+		if(inp & PBTN_UP  )  { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
+		if(inp & PBTN_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
+		if((inp & (PBTN_L|PBTN_R)) == (PBTN_L|PBTN_R)) debug_menu_loop();
+		if(inp &(PBTN_MENU|PBTN_MBACK)){
 			if (rom_loaded) {
-				while (gp2x_joystick_read(1) & (GP2X_SELECT|GP2X_X)) usleep(50*1000); // wait until select is released
+				while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MBACK)); // wait until select is released
 				engineState = PGS_Running;
 				break;
 			}
 		}
-		if(inp & GP2X_B)  {
+		if(inp & PBTN_MOK)  {
 			switch (me_index2id(main_entries, MAIN_ENTRY_COUNT, menu_sel))
 			{
 				case MA_MAIN_RESUME_GAME:
 					if (rom_loaded) {
-						while (gp2x_joystick_read(1) & GP2X_B) usleep(50*1000);
+						while (in_menu_wait_any(50) & PBTN_MOK);
 						engineState = PGS_Running;
 						return;
 					}
@@ -1502,7 +1422,7 @@ static void menu_loop_root(void)
 					if (rom_loaded) {
 						if(savestate_menu_loop(1))
 							continue;
-						while (gp2x_joystick_read(1) & GP2X_B) usleep(50*1000);
+						while (in_menu_wait_any(50) & PBTN_MOK);
 						engineState = PGS_Running;
 						return;
 					}
@@ -1510,7 +1430,7 @@ static void menu_loop_root(void)
 				case MA_MAIN_RESET_GAME:
 					if (rom_loaded) {
 						emu_ResetGame();
-						while (gp2x_joystick_read(1) & GP2X_B) usleep(50*1000);
+						while (in_menu_wait_any(50) & PBTN_MOK);
 						engineState = PGS_Running;
 						return;
 					}
@@ -1546,7 +1466,7 @@ static void menu_loop_root(void)
 				case MA_MAIN_CREDITS:
 					draw_menu_credits();
 					usleep(500*1000);
-					inp = wait_for_input(GP2X_B|GP2X_X);
+					inp = in_menu_wait(PBTN_MOK|PBTN_MBACK);
 					break;
 				case MA_MAIN_EXIT:
 					engineState = PGS_Quit;
@@ -1676,15 +1596,15 @@ int menu_loop_tray(void)
 
 	/* make sure action buttons are not pressed on entering menu */
 	draw_menu_tray(menu_sel);
-	while (gp2x_joystick_read(1) & GP2X_B) usleep(50*1000);
+	while (in_menu_wait_any(50) & PBTN_MOK);
 
 	for (;;)
 	{
 		draw_menu_tray(menu_sel);
-		inp = wait_for_input(GP2X_UP|GP2X_DOWN|GP2X_B);
-		if(inp & GP2X_UP  )  { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
-		if(inp & GP2X_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
-		if(inp & GP2X_B   )  {
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_MOK);
+		if(inp & PBTN_UP  )  { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
+		if(inp & PBTN_DOWN)  { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
+		if(inp & PBTN_MOK   )  {
 			switch (menu_sel) {
 				case 0: // select image
 					selfname = romsel_loop(curr_path);

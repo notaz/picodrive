@@ -15,6 +15,7 @@
 #include "../common/menu.h"
 #include "../common/emu.h"
 #include "../common/config.h"
+#include "../common/input.h"
 #include "../gp2x/emu.h"
 #include "../gp2x/version.h"
 
@@ -77,10 +78,13 @@ int main(int argc, char *argv[])
 {
 	g_argv = argv;
 
+	in_init();
 	emu_prepareDefaultConfig();
 	emu_ReadConfig(0, 0);
 	config_readlrom(PicoConfigFile);
 
+	in_probe();
+	in_debug_dump();
 	gp2x_init();
 	emu_Init();
 	menu_init();
