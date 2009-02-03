@@ -273,33 +273,27 @@ int in_menu_wait_any(int timeout_ms)
 int in_menu_wait(int interesting)
 {
 	static int inp_prev = 0;
-	static int repeats = 0, wait = 20;
-	int ret = 0, release = 0, i;
+	static int repeats = 0;
+	int ret, release = 0, wait = 666;
 
-	if      (repeats == 2) wait = 3;
-	else if (repeats == 4) wait = 2;
-	else if (repeats == 6) wait = 1;
+	if (repeats)
+		wait = 33;
 
-	for (i = 0; i < wait; i++) {
-		ret = in_menu_wait_any(30);
-		if (ret != inp_prev) break;
-		if (i == 0) repeats++;
-	}
+	ret = in_menu_wait_any(wait);
+	if (ret == inp_prev)
+		repeats++;
 
 	while (!(ret & interesting)) {
 		ret = in_menu_wait_any(-1);
 		release = 1;
 	}
 
-	if (release || ret != inp_prev) {
+	if (release || ret != inp_prev)
 		repeats = 0;
-		wait = 20;
-	}
-	if (wait > 6 && (ret & (PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT)))
-		wait = 6;
+
 	inp_prev = ret;
 
-	// we don't need diagonals in menus
+	/* we don't need diagonals in menus */
 	if ((ret & PBTN_UP)   && (ret & PBTN_LEFT))  ret &= ~PBTN_LEFT;
 	if ((ret & PBTN_UP)   && (ret & PBTN_RIGHT)) ret &= ~PBTN_RIGHT;
 	if ((ret & PBTN_DOWN) && (ret & PBTN_LEFT))  ret &= ~PBTN_LEFT;
@@ -452,6 +446,11 @@ int in_config_parse_dev(const char *name)
 	return i;
 }
 
+/*
+ * To reduce size of game specific configs, default binds are not saved.
+ * So we mark default binds in in_config_start(), override them in in_config_bind_key(),
+ * and restore whatever default binds are left in in_config_end().
+ */
 void in_config_start(void)
 {
 	int i;
