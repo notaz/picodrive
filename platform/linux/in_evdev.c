@@ -131,7 +131,7 @@ static void in_evdev_probe(void)
 		char name[64];
 
 		snprintf(name, sizeof(name), "/dev/input/event%d", i);
-		fd = open(name, O_RDONLY);
+		fd = open(name, O_RDONLY|O_NONBLOCK);
 		if (fd == -1)
 			break;
 
@@ -394,8 +394,10 @@ static int in_evdev_menu_translate(int keycode)
 		case KEY_LEFT:	return PBTN_LEFT;
 		case KEY_RIGHT:	return PBTN_RIGHT;
 		case KEY_ENTER:
+		case BTN_A:
 		case BTN_TRIGGER: return PBTN_MOK;
 		case KEY_ESC:
+		case BTN_B:
 		case BTN_THUMB:	return PBTN_MBACK;
 		case KEY_MENU:  return PBTN_MENU;
 		default:	return 0;
@@ -438,9 +440,13 @@ static const struct {
 	{ KEY_LEFT,	2 },
 	{ KEY_RIGHT,	3 },
 	{ KEY_S,	4 },	/* B */
+	{ BTN_B,	4 },
 	{ KEY_D,	5 },	/* C */
+	{ BTN_A,	5 },
 	{ KEY_A,	6 },	/* A */
+	{ BTN_Y,	6 },
 	{ KEY_ENTER,	7 },
+	{ BTN_START,	7 },
 };
 
 #define DEF_BIND_COUNT (sizeof(in_evdev_def_binds) / sizeof(in_evdev_def_binds[0]))
