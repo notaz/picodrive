@@ -72,7 +72,7 @@
 .endif
     ldreqb  r4, [r1,#\offs]
     orrne   r4, r3, r4
-    andeq   r4, r4, #0x3f
+    andeq   r4, r4, #0xbf
     strb    r4, [r1,#\offs]
 .endm
 
@@ -163,14 +163,12 @@
 .endif
     beq     0f
     cmp     r4, #0xe
-    ldrgeb  r4, [r1,#\ofs]
-    orrlt   r4, r3, r4            @ normal
+    ldrgeb  r7, [r1,#\ofs]
+    orrlt   r7, r3, r4            @ normal
 
-    biceq   r4, r4, #0xc0         @ hilight
-    orreq   r4, r4, #0x80
-    orrgt   r4, r4, #0xc0         @ shadow
-
-    strb    r4, [r1,#\ofs]
+    bicge   r7, r7, #0xc0
+    orrge   r7, r7, r4, lsl #6
+    strb    r7, [r1,#\ofs]
 0:
 .endm
 
@@ -198,38 +196,41 @@
     TileDoShGenPixel 16,  7 @ #0x000f0000
 .endm
 
-.macro TileDoShGenPixel_noop shift ofs
+.macro TileDoShGenPixel_markop shift ofs
 .if \shift
-    and     r4, r12, r2, lsr #\shift
+    ands    r4, r12, r2, lsr #\shift
 .else
-    and     r4, r12, r2
+    ands    r4, r12, r2
 .endif
-    sub     r7, r4, #1
-    cmp     r7, #0xd
-    orrcc   r4, r3, r4           @ 0-0xc (was 1-0xd)
-    strccb  r4, [r1,#\ofs]
+    beq     0f
+    cmp     r4, #0xe
+    ldrgeb  r4, [r1,#\ofs]
+    orrlt   r4, r3, r4
+    orrge   r4, r3, 0x80
+    strb    r4, [r1,#\ofs]
+0:
 .endm
 
 .macro TileFlipSh_noop
-    TileDoShGenPixel_noop 16,  0 @ #0x000f0000
-    TileDoShGenPixel_noop 20,  1 @ #0x00f00000
-    TileDoShGenPixel_noop 24,  2 @ #0x0f000000
-    TileDoShGenPixel_noop 28,  3 @ #0xf0000000
-    TileDoShGenPixel_noop  0,  4 @ #0x0000000f
-    TileDoShGenPixel_noop  4,  5 @ #0x000000f0
-    TileDoShGenPixel_noop  8,  6 @ #0x00000f00
-    TileDoShGenPixel_noop 12,  7 @ #0x0000f000
+    TileDoShGenPixel_markop 16,  0 @ #0x000f0000
+    TileDoShGenPixel_markop 20,  1 @ #0x00f00000
+    TileDoShGenPixel_markop 24,  2 @ #0x0f000000
+    TileDoShGenPixel_markop 28,  3 @ #0xf0000000
+    TileDoShGenPixel_markop  0,  4 @ #0x0000000f
+    TileDoShGenPixel_markop  4,  5 @ #0x000000f0
+    TileDoShGenPixel_markop  8,  6 @ #0x00000f00
+    TileDoShGenPixel_markop 12,  7 @ #0x0000f000
 .endm
 
 .macro TileNormSh_noop
-    TileDoShGenPixel_noop 12,  0 @ #0x0000f000
-    TileDoShGenPixel_noop  8,  1 @ #0x00000f00
-    TileDoShGenPixel_noop  4,  2 @ #0x000000f0
-    TileDoShGenPixel_noop  0,  3 @ #0x0000000f
-    TileDoShGenPixel_noop 28,  4 @ #0xf0000000
-    TileDoShGenPixel_noop 24,  5 @ #0x0f000000
-    TileDoShGenPixel_noop 20,  6 @ #0x00f00000
-    TileDoShGenPixel_noop 16,  7 @ #0x000f0000
+    TileDoShGenPixel_markop 12,  0 @ #0x0000f000
+    TileDoShGenPixel_markop  8,  1 @ #0x00000f00
+    TileDoShGenPixel_markop  4,  2 @ #0x000000f0
+    TileDoShGenPixel_markop  0,  3 @ #0x0000000f
+    TileDoShGenPixel_markop 28,  4 @ #0xf0000000
+    TileDoShGenPixel_markop 24,  5 @ #0x0f000000
+    TileDoShGenPixel_markop 20,  6 @ #0x00f00000
+    TileDoShGenPixel_markop 16,  7 @ #0x000f0000
 .endm
 
 .macro TileDoShGenPixel_onlyop_lp shift ofs
@@ -239,14 +240,13 @@
     ands    r7, r12, r2
 .endif
     ldrneb  r4, [r1,#\ofs]
-    tstne   r4, #0x40
-    beq     0f
-
     cmp     r7, #0xe
-    biceq   r4, r4, #0xc0         @ hilight
-    orreq   r4, r4, #0x80
-    orrgt   r4, r4, #0xc0         @ shadow
-    strgeb  r4, [r1,#\ofs]
+    blt     0f
+
+    tst     r4, #0xc0
+    bicne   r4, r4, #0xc0
+    orrne   r4, r4, r7, lsl #6
+    strneb  r4, [r1,#\ofs]
 0:
 .endm
 
@@ -873,8 +873,8 @@ DrawTilesFromCache:
 .dtfc_shadow_blank:
     tst     r1, #1
     ldrneb  r4, [r1]
-    mov     r6, #0x3f
-    and     r4, r4, #0x3f
+    mov     r6, #0xbf
+    and     r4, r4, #0xbf
     strneb  r4, [r1], #1
     ldrh    r4, [r1]
     orr     r6, r6, r6, lsl #8
@@ -925,7 +925,7 @@ DrawTilesFromCache:
 
     add     r1, r11,#8
     mov     r3, #320/4/4
-    mov     r6, #0x3f
+    mov     r6, #0xbf
     orr     r6, r6, r6, lsl #8
     orr     r6, r6, r6, lsl #16
 .dtfc_loop_shprep:

@@ -17,6 +17,13 @@
  * "sonic mode" is autodetected, shadow/hilight is enabled by emulated game.
  * AS is enabled by user and takes priority over "sonic mode".
  *
+ * since renderer always draws line in 8bit mode, there are 2 spare bits:
+ * b \ mode: s/h             as        sonic
+ * 00        normal          -         -
+ * 01        shadow          -         pal index
+ * 10        hilight+op spr  spr       pal index
+ * 11        shadow +op spr  -         pal index
+ *
  * not handled properly:
  * - hilight op on shadow tile
  * - AS + s/h (s/h sprite flag interferes with and cleared by AS code)
@@ -505,8 +512,8 @@ static void DrawWindow(int tstart, int tend, int prio, int sh) // int *hcache
 
       if (prio) {
         int *zb = (int *)(HighCol+8+(tilex<<3));
-        *zb++ &= 0x3f3f3f3f;
-        *zb   &= 0x3f3f3f3f;
+        *zb++ &= 0xbfbfbfbf;
+        *zb   &= 0xbfbfbfbf;
       } else {
         pal |= 0x40;
       }
@@ -925,10 +932,11 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
 
   /* nasty 1: remove 'sprite' flags */
   {
-    int c = 320/4, *zb = (int *)(HighCol+8);
+    int c = 320/4/4, *zb = (int *)(HighCol+8);
     while (c--)
     {
-      *zb++ &= 0x7f7f7f7f;
+      *zb++ &= 0x7f7f7f7f; *zb++ &= 0x7f7f7f7f;
+      *zb++ &= 0x7f7f7f7f; *zb++ &= 0x7f7f7f7f;
     }
   }
 
