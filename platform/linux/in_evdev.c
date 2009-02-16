@@ -195,7 +195,7 @@ no_abs:
 		ioctl(fd, EVIOCGNAME(sizeof(name)-6), name+6);
 		printf("in_evdev: found \"%s\" with %d events (type %08x)\n",
 			name+6, count, support);
-		in_register(name, IN_DRVID_EVDEV, dev);
+		in_register(name, IN_DRVID_EVDEV, fd, dev);
 		continue;
 
 skip:
@@ -295,95 +295,61 @@ static void in_evdev_set_blocking(void *drv_data, int y)
 		perror("in_evdev: F_SETFL fcntl failed");
 }
 
-int in_evdev_update_keycode(void **data, int dcount, int *which, int *is_down, int timeout_ms)
+static int in_evdev_update_keycode(void *data, int *is_down)
 {
-	in_evdev_t **devs = (in_evdev_t **)data;
-	struct timeval tv, *timeout = NULL;
-	int i, fdmax = -1;
-
-	if (timeout_ms >= 0) {
-		tv.tv_sec = timeout_ms / 1000;
-		tv.tv_usec = (timeout_ms % 1000) * 1000;
-		timeout = &tv;
-	}
+	in_evdev_t *dev = data;
+	struct input_event ev;
+	int rd;
 
 	if (is_down != NULL)
 		*is_down = 0;
 
-	for (i = 0; i < dcount; i++)
-		if (devs[i]->fd > fdmax) fdmax = devs[i]->fd;
+	rd = read(dev->fd, &ev, sizeof(ev));
+	if (rd < (int) sizeof(ev)) {
+		perror("in_evdev: error reading");
+		sleep(1);
+		return 0;
+	}
 
-	while (1)
+	if (ev.type == EV_KEY) {
+		if (ev.value < 0 || ev.value > 1)
+			return 0;
+		if (is_down != NULL)
+			*is_down = ev.value;
+		return ev.code;
+	}
+	else if (ev.type == EV_ABS)
 	{
-		struct input_event ev;
-		in_evdev_t *dev = NULL;
-		int ret, rd;
-		fd_set fdset;
-
-		FD_ZERO(&fdset);
-		for (i = 0; i < dcount; i++)
-			FD_SET(devs[i]->fd, &fdset);
-
-		ret = select(fdmax + 1, &fdset, NULL, NULL, timeout);
-		if (ret == -1)
-		{
-			perror("in_evdev: select failed");
-			sleep(1);
-			return 0;
-		}
-
-		if (ret == 0)
-			return 0; /* timeout */
-
-		for (i = 0; i < dcount; i++)
-			if (FD_ISSET(devs[i]->fd, &fdset))
-				*which = i, dev = devs[i];
-
-		rd = read(dev->fd, &ev, sizeof(ev));
-		if (rd < (int) sizeof(ev)) {
-			perror("in_evdev: error reading");
-			sleep(1);
-			return 0;
-		}
-
-		if (ev.type == EV_KEY) {
-			if (ev.value < 0 || ev.value > 1)
-				continue;
+		int down = 0;
+		if (dev->abs_lzone != 0 && ev.code == ABS_X) {
+			if (ev.value < dev->abs_lzone) {
+				down = 1;
+				dev->abs_lastx = KEY_LEFT;
+			}
+			else if (ev.value > dev->abs_rzone) {
+				down = 1;
+				dev->abs_lastx = KEY_RIGHT;
+			}
 			if (is_down != NULL)
-				*is_down = ev.value;
-			return ev.code;
+				*is_down = down;
+			return dev->abs_lastx;
 		}
-		else if (ev.type == EV_ABS)
-		{
-			int down = 0;
-			if (dev->abs_lzone != 0 && ev.code == ABS_X) {
-				if (ev.value < dev->abs_lzone) {
-					down = 1;
-					dev->abs_lastx = KEY_LEFT;
-				}
-				else if (ev.value > dev->abs_rzone) {
-					down = 1;
-					dev->abs_lastx = KEY_RIGHT;
-				}
-				if (is_down != NULL)
-					*is_down = down;
-				return dev->abs_lastx;
+		if (dev->abs_tzone != 0 && ev.code == ABS_Y) {
+			if (ev.value < dev->abs_tzone) {
+				down = 1;
+				dev->abs_lasty = KEY_UP;
 			}
-			if (dev->abs_tzone != 0 && ev.code == ABS_Y) {
-				if (ev.value < dev->abs_tzone) {
-					down = 1;
-					dev->abs_lasty = KEY_UP;
-				}
-				else if (ev.value > dev->abs_bzone) {
-					down = 1;
-					dev->abs_lasty = KEY_DOWN;
-				}
-				if (is_down != NULL)
-					*is_down = down;
-				return dev->abs_lasty;
+			else if (ev.value > dev->abs_bzone) {
+				down = 1;
+				dev->abs_lasty = KEY_DOWN;
 			}
+			if (is_down != NULL)
+				*is_down = down;
+			return dev->abs_lasty;
 		}
 	}
+
+	return 0;
 }
 
 static int in_evdev_menu_translate(int keycode)
@@ -502,6 +468,7 @@ void in_evdev_init(void *vdrv)
 	drv->get_def_binds = in_evdev_get_def_binds;
 	drv->clean_binds = in_evdev_clean_binds;
 	drv->set_blocking = in_evdev_set_blocking;
+	drv->update_keycode = in_evdev_update_keycode;
 	drv->menu_translate = in_evdev_menu_translate;
 	drv->get_key_code = in_evdev_get_key_code;
 	drv->get_key_name = in_evdev_get_key_name;

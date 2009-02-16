@@ -3,6 +3,7 @@
 enum {
 	IN_DRVID_UNKNOWN = 0,
 	IN_DRVID_EVDEV,
+	IN_DRVID_GP2X,
 	IN_DRVID_COUNT
 };
 
@@ -14,6 +15,7 @@ typedef struct {
 	void (*get_def_binds)(int *binds);
 	int  (*clean_binds)(void *drv_data, int *binds);
 	void (*set_blocking)(void *data, int y);
+	int  (*update_keycode)(void *drv_data, int *is_down);
 	int  (*menu_translate)(int keycode);
 	int  (*get_key_code)(const char *key_name);
 	const char * (*get_key_name)(int keycode);
@@ -21,7 +23,7 @@ typedef struct {
 
 
 /* to be called by drivers */
-void in_register(const char *nname, int drv_id, void *drv_data);
+void in_register(const char *nname, int drv_id, int fd_hnd, void *drv_data);
 
 void in_init(void);
 void in_probe(void);

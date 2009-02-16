@@ -9,6 +9,7 @@
 typedef struct
 {
 	int drv_id;
+	int drv_fd_hnd;
 	void *drv_data;
 	char *name;
 	int *binds;
@@ -61,7 +62,7 @@ static void in_free(in_dev_t *dev)
 }
 
 /* to be called by drivers */
-void in_register(const char *nname, int drv_id, void *drv_data)
+void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data)
 {
 	int i, ret, dupe_count = 0, *binds;
 	char name[256], *name_end, *tmp;
@@ -116,6 +117,7 @@ void in_register(const char *nname, int drv_id, void *drv_data)
 update:
 	in_devices[i].probed = 1;
 	in_devices[i].drv_id = drv_id;
+	in_devices[i].drv_fd_hnd = drv_fd_hnd;
 	in_devices[i].drv_data = drv_data;
 
 	if (in_devices[i].binds != NULL) {
@@ -150,6 +152,7 @@ void in_probe(void)
 	}
 }
 
+/* async update */
 int in_update(void)
 {
 	int i, result = 0;
@@ -170,19 +173,6 @@ int in_update(void)
 	return result;
 }
 
-static void **in_collect_drvdata(int drv_id, int *count)
-{
-	static void *data[IN_MAX_DEVS];
-	int i;
-
-	for (*count = i = 0; i < in_dev_count; i++) {
-		if (in_devices[i].drv_id == drv_id && in_devices[i].probed)
-			data[(*count)++] = in_devices[i].drv_data;
-	}
-
-	return data;
-}
-
 static int menu_key_state = 0;
 
 void in_set_blocking(int is_blocking)
@@ -199,39 +189,84 @@ void in_set_blocking(int is_blocking)
 	in_update_keycode(NULL, NULL, 0);
 }
 
+/* TODO: move.. */
+#include <unistd.h>
+
 /* 
- * update with wait for a press, return keycode
- * only can use 1 drv here..
+ * update with wait for a press, always return some keycode
  */
 int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 {
 	int result = 0, dev_id = 0, is_down, result_menu;
-#ifdef IN_EVDEV
-	void **data;
-	int i, id = 0, count = 0;
+	int fds_hnds[IN_MAX_DEVS];
+	int i, ret, count = 0;
+	in_drv_t *drv;
 
-	data = in_collect_drvdata(IN_DRVID_EVDEV, &count);
+	for (i = 0; i < in_dev_count; i++) {
+		if (in_devices[i].probed)
+			fds_hnds[count++] = in_devices[i].drv_fd_hnd;
+	}
+
 	if (count == 0) {
 		/* don't deadlock, fail */
 		printf("input: failed to find devices to read\n");
 		exit(1);
 	}
 
-	result = in_evdev_update_keycode(data, count, &id, &is_down, timeout_ms);
+again:
+	/* TODO: move this block to platform/linux */
+	{
+		struct timeval tv, *timeout = NULL;
+		int fdmax = -1;
+		fd_set fdset;
 
-	for (i = id; i < in_dev_count; i++) {
-		if (in_devices[i].drv_data == data[id]) {
+		if (timeout_ms >= 0) {
+			tv.tv_sec = timeout_ms / 1000;
+			tv.tv_usec = (timeout_ms % 1000) * 1000;
+			timeout = &tv;
+		}
+
+		FD_ZERO(&fdset);
+		for (i = 0; i < count; i++) {
+			if (fds_hnds[i] > fdmax) fdmax = fds_hnds[i];
+			FD_SET(fds_hnds[i], &fdset);
+		}
+
+		ret = select(fdmax + 1, &fdset, NULL, NULL, timeout);
+		if (ret == -1)
+		{
+			perror("input: select failed");
+			sleep(1);
+			return 0;
+		}
+
+		if (ret == 0)
+			return 0; /* timeout */
+
+		for (i = 0; i < count; i++)
+			if (FD_ISSET(fds_hnds[i], &fdset))
+				ret = fds_hnds[i];
+	}
+
+	for (i = 0; i < in_dev_count; i++) {
+		if (in_devices[i].drv_fd_hnd == ret) {
 			dev_id = i;
 			break;
 		}
 	}
-#else
-#error no menu read handlers
-#endif
+
+	drv = &DRV(in_devices[dev_id].drv_id);
+	result = drv->update_keycode(in_devices[dev_id].drv_data, &is_down);
+
+	/* update_keycode() might return 0 when some not interesting
+	 * event happened, like sync event for evdev.
+	 * XXX: timeout restarts.. */
+	if (result == 0)
+		goto again;
 
 	/* keep track of menu key state, to allow mixing
 	 * in_update_keycode() and in_menu_wait_any() calls */
-	result_menu = DRV(in_devices[dev_id].drv_id).menu_translate(result);
+	result_menu = drv->menu_translate(result);
 	if (result_menu != 0) {
 		if (is_down)
 			menu_key_state |=  result_menu;
@@ -571,6 +606,7 @@ static int  in_def_get_bind_count(void) { return 0; }
 static void in_def_get_def_binds(int *binds) {}
 static int  in_def_clean_binds(void *drv_data, int *binds) { return 0; }
 static void in_def_set_blocking(void *data, int y) {}
+static int  in_def_update_keycode(void *drv_data, int *is_down) { return 0; }
 static int  in_def_menu_translate(int keycode) { return keycode; }
 static int  in_def_get_key_code(const char *key_name) { return 0; }
 static const char *in_def_get_key_name(int keycode) { return NULL; }
@@ -591,6 +627,7 @@ void in_init(void)
 		in_drivers[i].get_def_binds = in_def_get_def_binds;
 		in_drivers[i].clean_binds = in_def_clean_binds;
 		in_drivers[i].set_blocking = in_def_set_blocking;
+		in_drivers[i].update_keycode = in_def_update_keycode;
 		in_drivers[i].menu_translate = in_def_menu_translate;
 		in_drivers[i].get_key_code = in_def_get_key_code;
 		in_drivers[i].get_key_name = in_def_get_key_name;
