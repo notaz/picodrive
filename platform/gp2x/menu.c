@@ -32,13 +32,6 @@
 
 extern int  mmuhack_status;
 
-const char * const keyNames[] = {
-	"UP",    "???",    "LEFT", "???",  "DOWN", "???", "RIGHT",    "???",
-	"START", "SELECT", "L",    "R",    "A",    "B",   "X",        "Y",
-	"???",   "???",    "???",  "???",  "???",  "???", "VOL DOWN", "VOL UP",
-	"???",   "???",    "???",  "PUSH", "???",  "???", "???",      "???"
-};
-
 void menu_darken_bg(void *dst, int pixels, int darker);
 static void menu_prepare_bg(int use_game_bg);
 
@@ -239,7 +232,7 @@ rescan:
 		n = scandir("/", &namelist, scandir_filter, scandir_cmp);
 		if (n < 0) {
 			// oops, we failed
-			printf("dir: "); printf(curr_path); printf("\n");
+			printf("dir: %s\n", curr_path);
 			perror("scandir");
 			return NULL;
 		}
@@ -843,11 +836,13 @@ static void draw_cd_menu_options(int menu_sel, struct bios_names_t *bios_names)
 
 	me_draw(cdopt_entries, CDOPT_ENTRY_COUNT, tl_x, tl_y, menu_cdopt_cust_draw, bios_names);
 
+/* FIXME
 	selected_id = me_index2id(cdopt_entries, CDOPT_ENTRY_COUNT, menu_sel);
 	if ((selected_id == MA_CDOPT_TESTBIOS_USA && strcmp(bios_names->us, "NOT FOUND")) ||
 		(selected_id == MA_CDOPT_TESTBIOS_EUR && strcmp(bios_names->eu, "NOT FOUND")) ||
 		(selected_id == MA_CDOPT_TESTBIOS_JAP && strcmp(bios_names->jp, "NOT FOUND")))
 			text_out16(tl_x, 210, "Press start to test selected BIOS");
+*/
 
 	menu_flip();
 }
@@ -879,7 +874,7 @@ static void cd_menu_loop_options(void)
 	for(;;)
 	{
 		draw_cd_menu_options(menu_sel, &bios_names);
-		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_MOK|PBTN_MBACK|GP2X_START); /* FIXME */
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_MOK|PBTN_MBACK);
 		if (inp & PBTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = menu_sel_max; }
 		if (inp & PBTN_DOWN) { menu_sel++; if (menu_sel > menu_sel_max) menu_sel = 0; }
 		selected_id = me_index2id(cdopt_entries, CDOPT_ENTRY_COUNT, menu_sel);
@@ -896,13 +891,13 @@ static void cd_menu_loop_options(void)
 				}
 			}
 		}
-		if (inp & PBTN_MOK) { // toggleable options
+		if (inp & PBTN_MOK) {
+			// toggleable options
 			if (!me_process(cdopt_entries, CDOPT_ENTRY_COUNT, selected_id, 1) &&
 			    selected_id == MA_CDOPT_DONE) {
 				return;
 			}
-		}
-		if (inp & GP2X_START) { // BIOS testers
+			// BIOS testers
 			switch (selected_id) {
 				case MA_CDOPT_TESTBIOS_USA:
 					if (emu_findBios(4, &bios)) { // test US

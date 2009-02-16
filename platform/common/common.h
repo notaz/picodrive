@@ -3,6 +3,25 @@
 #ifdef __GP2X__
 #include "../gp2x/gp2x.h"
 
+// TODO merge
+#define PBTN_UP    (1 <<  0)
+#define PBTN_DOWN  (1 <<  1)
+#define PBTN_LEFT  (1 <<  2)
+#define PBTN_RIGHT (1 <<  3)
+
+#define PBTN_NORTH (1 <<  4)
+#define PBTN_SOUTH (1 <<  5)
+#define PBTN_WEST  (1 <<  6)
+#define PBTN_EAST  (1 <<  7)
+#define PBTN_L     (1 <<  8)
+#define PBTN_R     (1 <<  9)
+
+/* menu nav */
+#define PBTN_MOK   PBTN_EAST
+#define PBTN_MBACK PBTN_SOUTH
+#define PBTN_MENU  (1 << 10)
+
+#if 0
 #define PBTN_UP    GP2X_UP
 #define PBTN_DOWN  GP2X_DOWN
 #define PBTN_LEFT  GP2X_LEFT
@@ -19,6 +38,8 @@
 #define PBTN_MOK   GP2X_B
 #define PBTN_MBACK GP2X_X
 #define PBTN_MENU  GP2X_SELECT
+#endif
+#define GP2X_Y 0 /* FIXME */
 
 void gp2x_pd_clone_buffer2(void);
 void menu_darken_bg(void *dst, int pixels, int darker);

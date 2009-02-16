@@ -5,6 +5,7 @@
 #include "common.h"
 #include "input.h"
 #include "../linux/in_evdev.h"
+#include "../gp2x/in_gp2x.h"
 
 typedef struct
 {
@@ -19,8 +20,10 @@ typedef struct
 static in_drv_t in_drivers[IN_DRVID_COUNT];
 static in_dev_t in_devices[IN_MAX_DEVS];
 static int in_dev_count = 0;
+static int in_have_async_devs = 0;
 
 #define DRV(id) in_drivers[(unsigned)(id) < IN_DRVID_COUNT ? (id) : 0]
+
 
 static int in_bind_count(int drv_id)
 {
@@ -61,7 +64,8 @@ static void in_free(in_dev_t *dev)
 	dev->binds = NULL;
 }
 
-/* to be called by drivers */
+/* to be called by drivers
+ * async devices must set drv_fd_hnd to -1 */
 void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data)
 {
 	int i, ret, dupe_count = 0, *binds;
@@ -133,6 +137,8 @@ update:
 void in_probe(void)
 {
 	int i;
+
+	in_have_async_devs = 0;
 	for (i = 0; i < in_dev_count; i++)
 		in_devices[i].probed = 0;
 
@@ -148,8 +154,16 @@ void in_probe(void)
 				memmove(&in_devices[i], &in_devices[i+1],
 					(in_dev_count - i) * sizeof(in_devices[0]));
 			}
+
+			continue;
 		}
+
+		if (in_devices[i].probed && in_devices[i].drv_fd_hnd == -1)
+			in_have_async_devs = 1;
 	}
+
+	if (in_have_async_devs)
+		printf("input: async-only devices detected..\n");
 }
 
 /* async update */
@@ -166,6 +180,11 @@ int in_update(void)
 				result |= in_evdev_update(dev->drv_data, dev->binds);
 				break;
 #endif
+#ifdef IN_GP2X
+			case IN_DRVID_GP2X:
+				result |= in_gp2x_update(dev->drv_data, dev->binds);
+				break;
+#endif
 			}
 		}
 	}
@@ -177,23 +196,69 @@ static int menu_key_state = 0;
 
 void in_set_blocking(int is_blocking)
 {
-	int i;
+	int i, ret;
 
-	for (i = 0; i < in_dev_count; i++) {
-		if (in_devices[i].probed)
-			DRV(in_devices[i].drv_id).set_blocking(in_devices[i].drv_data, is_blocking);
+	/* have_async_devs means we will have to do all reads async anyway.. */
+	if (!in_have_async_devs) {
+		for (i = 0; i < in_dev_count; i++) {
+			if (in_devices[i].probed)
+				DRV(in_devices[i].drv_id).set_blocking(in_devices[i].drv_data, is_blocking);
+		}
 	}
 
 	menu_key_state = 0;
+
 	/* flush events */
-	in_update_keycode(NULL, NULL, 0);
+	do {
+		ret = in_update_keycode(NULL, NULL, 0);
+	} while (ret >= 0);
 }
 
 /* TODO: move.. */
 #include <unistd.h>
+#include <sys/time.h>
+#include <time.h>
+
+static int in_update_kc_async(int *dev_id_out, int *is_down_out, int timeout_ms)
+{
+	struct timeval start, now;
+	int i, is_down, result;
+
+	gettimeofday(&start, NULL);
+
+	while (1)
+	{
+		for (i = 0; i < in_dev_count; i++) {
+			in_dev_t *d = &in_devices[i];
+			if (!d->probed)
+				continue;
+
+			result = DRV(d->drv_id).update_keycode(d->drv_data, &is_down);
+			if (result == -1)
+				continue;
+
+			if (dev_id_out)
+				*dev_id_out = i;
+			if (is_down_out)
+				*is_down_out = is_down;
+			return result;
+		}
+
+		if (timeout_ms >= 0) {
+			gettimeofday(&now, NULL);
+			if ((now.tv_sec - start.tv_sec) * 1000 +
+					(now.tv_usec - start.tv_usec) / 1000 > timeout_ms)
+				break;
+		}
+
+		usleep(10000);
+	}
+
+	return -1;
+}
 
 /* 
- * update with wait for a press, always return some keycode
+ * wait for a press, always return some keycode or -1 on timeout or error
  */
 int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 {
@@ -201,6 +266,14 @@ int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 	int fds_hnds[IN_MAX_DEVS];
 	int i, ret, count = 0;
 	in_drv_t *drv;
+
+	if (in_have_async_devs) {
+		result = in_update_kc_async(&dev_id, &is_down, timeout_ms);
+		if (result == -1)
+			return -1;
+		drv = &DRV(in_devices[dev_id].drv_id);
+		goto finish;
+	}
 
 	for (i = 0; i < in_dev_count; i++) {
 		if (in_devices[i].probed)
@@ -237,11 +310,11 @@ again:
 		{
 			perror("input: select failed");
 			sleep(1);
-			return 0;
+			return -1;
 		}
 
 		if (ret == 0)
-			return 0; /* timeout */
+			return -1; /* timeout */
 
 		for (i = 0; i < count; i++)
 			if (FD_ISSET(fds_hnds[i], &fdset))
@@ -258,12 +331,13 @@ again:
 	drv = &DRV(in_devices[dev_id].drv_id);
 	result = drv->update_keycode(in_devices[dev_id].drv_data, &is_down);
 
-	/* update_keycode() might return 0 when some not interesting
+	/* update_keycode() might return -1 when some not interesting
 	 * event happened, like sync event for evdev.
 	 * XXX: timeout restarts.. */
-	if (result == 0)
+	if (result == -1)
 		goto again;
 
+finish:
 	/* keep track of menu key state, to allow mixing
 	 * in_update_keycode() and in_menu_wait_any() calls */
 	result_menu = drv->menu_translate(result);
@@ -291,11 +365,12 @@ int in_menu_wait_any(int timeout_ms)
 		int code, is_down = 0, dev_id = 0;
 
 		code = in_update_keycode(&dev_id, &is_down, timeout_ms);
-		code = DRV(in_devices[dev_id].drv_id).menu_translate(code);
+		if (code >= 0)
+			code = DRV(in_devices[dev_id].drv_id).menu_translate(code);
 
 		if (timeout_ms >= 0)
 			break;
-		if (code == 0)
+		if (code < 0)
 			continue;
 		if (keys_old != menu_key_state)
 			break;
@@ -633,6 +708,9 @@ void in_init(void)
 		in_drivers[i].get_key_name = in_def_get_key_name;
 	}
 
+#ifdef IN_GP2X
+	in_gp2x_init(&in_drivers[IN_DRVID_GP2X]);
+#endif
 #ifdef IN_EVDEV
 	in_evdev_init(&in_drivers[IN_DRVID_EVDEV]);
 #endif

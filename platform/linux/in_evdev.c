@@ -306,14 +306,16 @@ static int in_evdev_update_keycode(void *data, int *is_down)
 
 	rd = read(dev->fd, &ev, sizeof(ev));
 	if (rd < (int) sizeof(ev)) {
-		perror("in_evdev: error reading");
-		sleep(1);
-		return 0;
+		if (errno != EAGAIN) {
+			perror("in_evdev: error reading");
+			sleep(1);
+		}
+		return -1;
 	}
 
 	if (ev.type == EV_KEY) {
 		if (ev.value < 0 || ev.value > 1)
-			return 0;
+			return -1;
 		if (is_down != NULL)
 			*is_down = ev.value;
 		return ev.code;
@@ -349,7 +351,7 @@ static int in_evdev_update_keycode(void *data, int *is_down)
 		}
 	}
 
-	return 0;
+	return -1;
 }
 
 static int in_evdev_menu_translate(int keycode)
@@ -376,8 +378,7 @@ static int in_evdev_get_key_code(const char *key_name)
 
 	for (i = 0; i < KEY_MAX + 1; i++) {
 		const char *k = in_evdev_keys[i];
-		if (k != NULL && k[0] == key_name[0] &&
-				strcasecmp(k, key_name) == 0)
+		if (k != NULL && strcasecmp(k, key_name) == 0)
 			return i;
 	}
 

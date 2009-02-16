@@ -21,9 +21,9 @@
 #include "log_io.h"
 
 void *gp2x_screen;
+unsigned long current_keys = 0;
 static int current_bpp = 8;
 static int current_pal[256];
-static unsigned long current_keys = 0;
 static const char *verstring = "PicoDrive " VERSION;
 
 // dummies
@@ -52,9 +52,13 @@ static gint key_press_event (GtkWidget *widget, GdkEventKey *event)
 {
 	switch (event->hardware_keycode)
 	{
+		case 111:
 		case 0x62: current_keys |= GP2X_UP;    break;
+		case 116:
 		case 0x68: current_keys |= GP2X_DOWN;  break;
+		case 113:
 		case 0x64: current_keys |= GP2X_LEFT;  break;
+		case 114:
 		case 0x66: current_keys |= GP2X_RIGHT; break;
 		case 0x24: current_keys |= GP2X_START; break; // enter
 		case 0x23: current_keys |= GP2X_SELECT;break; // ]
@@ -83,9 +87,13 @@ static gint key_release_event (GtkWidget *widget, GdkEventKey *event)
 {
 	switch (event->hardware_keycode)
 	{
+		case 111:
 		case 0x62: current_keys &= ~GP2X_UP;    break;
+		case 116:
 		case 0x68: current_keys &= ~GP2X_DOWN;  break;
+		case 113:
 		case 0x64: current_keys &= ~GP2X_LEFT;  break;
+		case 114:
 		case 0x66: current_keys &= ~GP2X_RIGHT; break;
 		case 0x24: current_keys &= ~GP2X_START; break; // enter
 		case 0x23: current_keys &= ~GP2X_SELECT;break; // ]
