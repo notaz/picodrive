@@ -3,11 +3,11 @@
 use_musashi = 1
 #use_fame = 1
 #use_mz80 = 1
+#profile = 1
+fake_in_gp2x = 1
 
-# profile = 1
 
-
-DEFINC = -I../.. -I. -D__GP2X__ -D_UNZIP_SUPPORT -DIO_STATS -DIN_EVDEV -DIN_GP2X -DFAKE_IN_GP2X # -DBENCHMARK
+DEFINC = -I../.. -I. -D__GP2X__ -D_UNZIP_SUPPORT -DIO_STATS -DIN_EVDEV # -DBENCHMARK
 GCC = gcc
 STRIP = strip
 AS = gcc
@@ -27,9 +27,14 @@ COPT    += `pkg-config --cflags gthread-2.0`
 LDFLAGS += `pkg-config --libs gthread-2.0`
 
 # frontend
-OBJS += platform/gp2x/main.o platform/gp2x/menu.o platform/gp2x/emu.o usbjoy.o blit.o \
-		in_evdev.o sndout_oss.o gp2x.o 940ctl_ym2612.o log_io.o \
-		platform/gp2x/in_gp2x.o
+OBJS += platform/gp2x/main.o platform/gp2x/emu.o platform/gp2x/plat.o usbjoy.o blit.o \
+		in_evdev.o sndout_oss.o gp2x.o 940ctl_ym2612.o log_io.o
+# platform/gp2x/menu.o
+
+ifeq "$(fake_in_gp2x)" "1"
+DEFINC += -DIN_GP2X -DFAKE_IN_GP2X
+OBJS += platform/gp2x/in_gp2x.o
+endif
 
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/config.o platform/common/fonts.o \

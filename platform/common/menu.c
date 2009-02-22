@@ -15,7 +15,9 @@
 #include "common.h"
 #include "input.h"
 #include "emu.h"
+#include "plat.h"
 
+#include <pico/patch.h>
 
 char menuErrorMsg[64] = { 0, };
 
@@ -98,11 +100,16 @@ static void text_out16_(int x, int y, const char *text, int color)
 void text_out16(int x, int y, const char *texto, ...)
 {
 	va_list args;
-	char    buffer[512];
+	char    buffer[256];
+	int     maxw = (SCREEN_WIDTH - x) / 8;
 
-	va_start(args,texto);
-	vsprintf(buffer,texto,args);
+	va_start(args, texto);
+	vsnprintf(buffer, sizeof(buffer), texto, args);
 	va_end(args);
+
+	if (maxw > 255)
+		maxw = 255;
+	buffer[maxw] = 0;
 
 	text_out16_(x,y,buffer,menu_text_color);
 }
@@ -246,52 +253,51 @@ void menu_init(void)
 }
 
 
-int me_id2offset(const menu_entry *entries, int count, menu_id id)
+int me_id2offset(const menu_entry *ent, menu_id id)
 {
 	int i;
-	for (i = 0; i < count; i++)
-	{
-		if (entries[i].id == id) return i;
-	}
+	for (i = 0; ent->name; ent++, i++)
+		if (ent->id == id) return i;
 
 	lprintf("%s: id %i not found\n", __FUNCTION__, id);
 	return 0;
 }
 
-void me_enable(menu_entry *entries, int count, menu_id id, int enable)
+void me_enable(menu_entry *entries, menu_id id, int enable)
 {
-	int i = me_id2offset(entries, count, id);
+	int i = me_id2offset(entries, id);
 	entries[i].enabled = enable;
 }
 
-int me_count_enabled(const menu_entry *entries, int count)
+int me_count(const menu_entry *ent)
 {
-	int i, ret = 0;
+	int ret;
 
-	for (i = 0; i < count; i++)
-	{
-		if (entries[i].enabled) ret++;
-	}
+	for (ret = 0; ent->name; ent++, ret++)
+		;
 
 	return ret;
 }
 
-menu_id me_index2id(const menu_entry *entries, int count, int index)
+menu_id me_index2id(const menu_entry *ent, int index)
 {
-	int i;
+	const menu_entry *last;
 
-	for (i = 0; i < count; i++)
+	for (; ent->name; ent++)
 	{
-		if (entries[i].enabled)
+		if (ent->enabled)
 		{
 			if (index == 0) break;
 			index--;
 		}
+		last = ent;
 	}
-	if (i >= count) i = count - 1;
-	return entries[i].id;
+	if (ent->name == NULL)
+		ent = last;
+	return ent->id;
 }
 
+/* TODO rm */
 void me_draw(const menu_entry *entries, int count, int x, int y, me_draw_custom_f *cust_draw, void *param)
 {
 	int i, y1 = y;
@@ -307,24 +313,132 @@ void me_draw(const menu_entry *entries, int count, int x, int y, me_draw_custom_
 			continue;
 		}
 		text_out16(x, y1, entries[i].name);
-		if (entries[i].beh == MB_ONOFF)
+		if (entries[i].beh == MB_OPT_ONOFF)
 			text_out16(x + 27*8, y1, (*(int *)entries[i].var & entries[i].mask) ? "ON" : "OFF");
-		else if (entries[i].beh == MB_RANGE)
+		else if (entries[i].beh == MB_OPT_RANGE)
 			text_out16(x + 27*8, y1, "%i", *(int *)entries[i].var);
 		y1 += 10;
 	}
+
 }
 
-int me_process(menu_entry *entries, int count, menu_id id, int is_next)
+static void me_draw2(const menu_entry *entries, int sel)
 {
-	int i = me_id2offset(entries, count, id);
+	const menu_entry *ent;
+	int x, y, w = 0, h = 0;
+	int opt_offs = 27*8;
+	const char *name;
+	int asel = 0;
+	int i, n;
+
+	/* calculate size of menu rect */
+	for (ent = entries, i = n = 0; ent->name; ent++, i++)
+	{
+		int wt;
+
+		if (!ent->enabled)
+			continue;
+
+		if (i == sel)
+			asel = n;
+
+		name = NULL;
+		wt = strlen(ent->name) * 8;	/* FIXME: unhardcode font width */
+		if (wt == 0 && ent->generate_name)
+			name = ent->generate_name(1);
+		if (name != NULL)
+			wt = strlen(name) * 8;
+
+		if (ent->beh != MB_NONE)
+		{
+			if (wt > opt_offs)
+				opt_offs = wt + 8;
+			wt = opt_offs;
+
+			switch (ent->beh) {
+			case MB_NONE: break;
+			case MB_OPT_ONOFF:
+			case MB_OPT_RANGE: wt += 8*3; break;
+			case MB_OPT_CUSTOM:
+				name = NULL;
+				if (ent->generate_name != NULL)
+					name = ent->generate_name(0);
+				if (name != NULL)
+					wt += strlen(name) * 8;
+				break;
+			}
+		}
+
+		if (wt > w)
+			w = wt;
+		n++;
+	}
+	h = n * 10;
+	w += 16; /* selector */
+
+	if (w > SCREEN_WIDTH) {
+		lprintf("width %d > %d\n", w, SCREEN_WIDTH);
+		w = SCREEN_WIDTH;
+	}
+	if (h > SCREEN_HEIGHT) {
+		lprintf("height %d > %d\n", w, SCREEN_HEIGHT);
+		h = SCREEN_HEIGHT;
+	}
+
+	x = SCREEN_WIDTH  / 2 - w / 2;
+	y = SCREEN_HEIGHT / 2 - h / 2;
+
+	/* draw */
+	plat_video_menu_begin();
+	menu_draw_selection(x, y + asel * 10, w);
+
+	for (ent = entries; ent->name; ent++)
+	{
+		if (!ent->enabled)
+			continue;
+
+		name = ent->name;
+		if (strlen(name) == 0) {
+			if (ent->generate_name)
+				name = ent->generate_name(1);
+		}
+		if (name != NULL)
+			text_out16(x + 16, y, name);
+
+		switch (ent->beh) {
+		case MB_NONE:
+			break;
+		case MB_OPT_ONOFF:
+			text_out16(x + 16 + opt_offs, y, (*(int *)ent->var & ent->mask) ? "ON" : "OFF");
+			break;
+		case MB_OPT_RANGE:
+			text_out16(x + 16 + opt_offs, y, "%i", *(int *)ent->var);
+			break;
+		case MB_OPT_CUSTOM:
+			name = NULL;
+			if (ent->generate_name)
+				name = ent->generate_name(0);
+			if (name != NULL)
+				text_out16(x + 16 + opt_offs, y, "%s", name);
+			break;
+		}
+
+		y += 10;
+	}
+
+	plat_video_menu_end();
+}
+
+int me_process(menu_entry *entries, menu_id id, int is_next)
+{
+	int i = me_id2offset(entries, id);
 	menu_entry *entry = &entries[i];
 	switch (entry->beh)
 	{
-		case MB_ONOFF:
+		case MB_OPT_ONOFF:
 			*(int *)entry->var ^= entry->mask;
 			return 1;
-		case MB_RANGE:
+		case MB_OPT_RANGE:
 			*(int *)entry->var += is_next ? 1 : -1;
 			if (*(int *)entry->var < (int)entry->min) *(int *)entry->var = (int)entry->min;
 			if (*(int *)entry->var > (int)entry->max) *(int *)entry->var = (int)entry->max;
@@ -332,6 +446,210 @@ int me_process(menu_entry *entries, int count, menu_id id, int is_next)
 		default:
 			return 0;
 	}
+}
+
+static void me_loop(menu_entry *menu, int *menu_sel)
+{
+	int ret, inp, sel = *menu_sel, menu_sel_max;
+
+	menu_sel_max = me_count(menu) - 1;
+	if (menu_sel_max < 1) {
+		lprintf("no enabled menu entries\n");
+		return;
+	}
+
+	while (!menu[sel].enabled && sel < menu_sel_max)
+		sel++;
+
+	/* make sure action buttons are not pressed on entering menu */
+	me_draw2(menu, sel);
+	while (in_menu_wait_any(50) & (PBTN_MOK|PBTN_MBACK|PBTN_MENU));
+
+	for (;;)
+	{
+		me_draw2(menu, sel);
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_MOK|PBTN_MBACK|PBTN_MENU|PBTN_L|PBTN_R);
+		if (inp & PBTN_UP  ) {
+			do {
+				sel--;
+				if (sel < 0)
+					sel = menu_sel_max;
+			}
+			while (!menu[sel].enabled);
+		}
+		if (inp & PBTN_DOWN) {
+			do {
+				sel++;
+				if (sel > menu_sel_max)
+					sel = 0;
+			}
+			while (!menu[sel].enabled);
+		}
+//		if ((inp & (PBTN_L|PBTN_R)) == (PBTN_L|PBTN_R)) debug_menu_loop(); // TODO
+		if (inp & (PBTN_MENU|PBTN_MBACK))
+			break;
+
+		if (inp & PBTN_MOK)
+		{
+			if (menu[sel].submenu_handler != NULL) {
+				ret = menu[sel].submenu_handler(menu[sel].id);
+				if (ret) break;
+			}
+		}
+//		menuErrorMsg[0] = 0; // TODO: clear error msg
+	}
+	*menu_sel = sel;
+}
+
+/* ***************************************** */
+
+/* TODO s */
+int menu_loop_tray(void) { return 0; }
+void menu_romload_prepare(const char *rom_name) {}
+void menu_romload_end(void) {}
+me_bind_action emuctrl_actions[1];
+menu_entry opt_entries[1];
+menu_entry opt2_entries[1];
+menu_entry cdopt_entries[1];
+menu_entry ctrlopt_entries[1];
+const int opt_entry_count = 0;
+const int opt2_entry_count = 0;
+const int cdopt_entry_count = 0;
+const int ctrlopt_entry_count = 0;
+
+extern int engineState;
+
+int savestate_menu_loop(int a) { return 1; }
+int menu_loop_options() { return 1; }
+void kc_sel_loop() {}
+void draw_menu_credits() {}
+void patches_menu_loop() {}
+
+// ------------ main menu ------------
+
+static int main_menu_handler(menu_id id)
+{
+	int ret;
+
+	switch (id)
+	{
+	case MA_MAIN_RESUME_GAME:
+		if (rom_loaded) {
+			while (in_menu_wait_any(50) & PBTN_MOK);
+			engineState = PGS_Running;
+			return 1;
+		}
+		break;
+	case MA_MAIN_SAVE_STATE:
+		if (rom_loaded) {
+			if (savestate_menu_loop(0))
+				break;
+			engineState = PGS_Running;
+			return 1;
+		}
+		break;
+	case MA_MAIN_LOAD_STATE:
+		if (rom_loaded) {
+			if (savestate_menu_loop(1))
+				break;
+			while (in_menu_wait_any(50) & PBTN_MOK);
+			engineState = PGS_Running;
+			return 1;
+		}
+		break;
+	case MA_MAIN_RESET_GAME:
+		if (rom_loaded) {
+			emu_ResetGame();
+			while (in_menu_wait_any(50) & PBTN_MOK);
+			engineState = PGS_Running;
+			return 1;
+		}
+		break;
+	case MA_MAIN_LOAD_ROM:
+		{
+/*			char curr_path[PATH_MAX], *selfname;
+			FILE *tstf;
+			if ( (tstf = fopen(loadedRomFName, "rb")) )
+			{
+				fclose(tstf);
+				strcpy(curr_path, loadedRomFName);
+			}
+			else
+				getcwd(curr_path, PATH_MAX);
+			selfname = romsel_loop(curr_path);
+			if (selfname) {
+				printf("selected file: %s\n", selfname);
+				engineState = PGS_ReloadRom;
+				return;
+			}*/
+			break;
+		}
+	case MA_MAIN_OPTIONS:
+		ret = menu_loop_options();
+		if (ret == 1) break; // status update
+		if (engineState == PGS_ReloadRom)
+			return 1; // BIOS test
+		break;
+	case MA_MAIN_CONTROLS:
+		kc_sel_loop();
+		break;
+	case MA_MAIN_CREDITS:
+		draw_menu_credits();
+		usleep(500*1000); /* FIXME */
+		in_menu_wait(PBTN_MOK|PBTN_MBACK);
+		break;
+	case MA_MAIN_EXIT:
+		engineState = PGS_Quit;
+		return 1;
+	case MA_MAIN_PATCHES:
+		if (rom_loaded && PicoPatches) {
+			patches_menu_loop();
+			PicoPatchApply();
+			strcpy(menuErrorMsg, "Patches applied");
+		}
+		break;
+	default:
+		lprintf("%s: something unknown selected\n", __FUNCTION__);
+		break;
+	}
+
+	return 0;
+}
+
+menu_entry e_main_menu[] =
+{
+	mee_submenu_id("Resume game",        MA_MAIN_RESUME_GAME, main_menu_handler),
+	mee_submenu_id("Save State",         MA_MAIN_SAVE_STATE,  main_menu_handler),
+	mee_submenu_id("Load State",         MA_MAIN_LOAD_STATE,  main_menu_handler),
+	mee_submenu_id("Reset game",         MA_MAIN_RESET_GAME,  main_menu_handler),
+	mee_submenu_id("Load new ROM/ISO",   MA_MAIN_LOAD_ROM,    main_menu_handler),
+	mee_submenu_id("Change options",     MA_MAIN_OPTIONS,     main_menu_handler),
+	mee_submenu_id("Credits",            MA_MAIN_CREDITS,     main_menu_handler),
+	mee_submenu_id("Patches / GameGenie",MA_MAIN_PATCHES,     main_menu_handler),
+	mee_submenu_id("Exit",               MA_MAIN_EXIT,        main_menu_handler),
+	mee_end,
+};
+
+void menu_loop(void)
+{
+	static int sel = 0;
+
+	me_enable(e_main_menu, MA_MAIN_RESUME_GAME, rom_loaded);
+	me_enable(e_main_menu, MA_MAIN_SAVE_STATE,  rom_loaded);
+	me_enable(e_main_menu, MA_MAIN_LOAD_STATE,  rom_loaded);
+	me_enable(e_main_menu, MA_MAIN_RESET_GAME,  rom_loaded);
+	me_enable(e_main_menu, MA_MAIN_PATCHES, PicoPatches != NULL);
+
+	plat_video_menu_enter(rom_loaded);
+	in_set_blocking(1);
+	me_loop(e_main_menu, &sel);
+	in_set_blocking(0);
+
+	if (rom_loaded) {
+		while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MBACK)); // wait until select is released
+		engineState = PGS_Running;
+	}
+
 }
 
 // ------------ debug menu ------------
@@ -406,7 +724,7 @@ void debug_menu_loop(void)
 	{
 		switch (mode)
 		{
-			case 0: menu_draw_begin();
+			case 0: plat_video_menu_begin();
 				tmp = PDebugMain();
 				emu_platformDebugCat(tmp);
 				draw_text_debug(tmp, 0, 0);
@@ -428,7 +746,7 @@ void debug_menu_loop(void)
 				draw_text_debug(PDebugSpriteList(), spr_offs, 6);
 				break;
 		}
-		menu_draw_end();
+		plat_video_menu_end();
 
 		inp = in_menu_wait(PBTN_EAST|PBTN_MBACK|PBTN_WEST|PBTN_NORTH|PBTN_L|PBTN_R|PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT);
 		if (inp & PBTN_MBACK) return;
@@ -497,4 +815,26 @@ const char *me_region_name(unsigned int code, int auto_order)
 	}
 }
 
+/* TODO: rename */
+void menu_darken_bg(void *dst, int pixels, int darker)
+{
+	unsigned int *screen = dst;
+	pixels /= 2;
+	if (darker)
+	{
+		while (pixels--)
+		{
+			unsigned int p = *screen;
+			*screen++ = ((p&0xf79ef79e)>>1) - ((p&0xc618c618)>>3);
+		}
+	}
+	else
+	{
+		while (pixels--)
+		{
+			unsigned int p = *screen;
+			*screen++ = (p&0xf79ef79e)>>1;
+		}
+	}
+}
 

@@ -54,6 +54,19 @@ extern char loadedRomFName[512];		// last loaded ROM filename
 extern int kb_combo_keys, kb_combo_acts;	// keys and actions which need button combos
 extern int pico_inp_mode;
 
+// engine states
+enum TPicoGameState {
+	PGS_Paused = 1,
+	PGS_Running,
+	PGS_Quit,
+	PGS_KeyConfig,
+	PGS_ReloadRom,
+	PGS_Menu,
+	PGS_RestartRun,
+	PGS_Suspending,		/* PSP */
+	PGS_SuspendWake,	/* PSP */
+};
+
 
 int   emu_ReloadRom(char *rom_fname);
 int   emu_SaveLoadGame(int load, int sram);
@@ -77,15 +90,6 @@ void  emu_DoTurbo(int *pad, int acts);
 void  emu_packConfig(void);
 void  emu_unpackConfig(void);
 void  emu_shutdownMCD(void);
-
-/* not in common */
-extern const char * const keyNames[];
-void  emu_prepareDefaultConfig(void);
-void  emu_platformDebugCat(char *str);
-void  emu_forcedFrame(int opts);
-void  emu_startSound(void);
-void  emu_endSound(void);
-void  emu_waitSound(void);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -5,19 +5,6 @@
 
 
 
-// engine states
-enum TPicoGameState {
-	PGS_Paused = 1,
-	PGS_Running,
-	PGS_Quit,
-	PGS_KeyConfig,
-	PGS_ReloadRom,
-	PGS_Menu,
-	PGS_RestartRun,
-	PGS_Suspending,
-	PGS_SuspendWake,
-};
-
 extern char romFileName[];
 extern int engineState, engineStateSuspend;
 

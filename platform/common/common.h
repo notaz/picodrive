@@ -1,5 +1,7 @@
 // platform specific things for common menu code
 
+/* TODO: get rid of this file */
+
 #ifdef __GP2X__
 #include "../gp2x/gp2x.h"
 

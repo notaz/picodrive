@@ -13,8 +13,9 @@ extern char menuErrorMsg[64];
 typedef enum
 {
 	MB_NONE = 1,		/* no auto processing */
-	MB_ONOFF,		/* ON/OFF setting */
-	MB_RANGE,		/* [min-max] setting */
+	MB_OPT_ONOFF,		/* ON/OFF setting */
+	MB_OPT_RANGE,		/* [min-max] setting */
+	MB_OPT_CUSTOM,
 } menu_behavior;
 
 typedef enum
@@ -104,13 +105,24 @@ typedef struct
 	char *name;
 	menu_behavior beh;
 	menu_id id;
-	void *var;		/* for on-off settings */
-	int mask;
+	void *var;		/* for on-off/range settings */
+	int mask;		/* bit to toggle for on/off */
 	signed char min;	/* for ranged integer settings, to be sign-extended */
 	signed char max;
 	char enabled;
 	char need_to_save;
+	int (*submenu_handler)(menu_id id);
+	const char * (*generate_name)(int is_left);
 } menu_entry;
+
+#define mee_submenu_id(name, id, handler) \
+	{ name, MB_NONE, id, NULL, 0, 0, 0, 1, 0, handler, NULL }
+
+#define mee_submenu(name, handler) \
+	mee_submenu_id(name, MA_NONE, handler)
+
+#define mee_end \
+	{ NULL, 0, 0, NULL, 0, 0, 0, 0, 0, NULL, NULL }
 
 typedef struct
 {
@@ -124,12 +136,15 @@ extern me_bind_action emuctrl_actions[];	// platform code
 
 typedef void (me_draw_custom_f)(const menu_entry *entry, int x, int y, void *param);
 
-int     me_id2offset(const menu_entry *entries, int count, menu_id id);
-void    me_enable(menu_entry *entries, int count, menu_id id, int enable);
-int     me_count_enabled(const menu_entry *entries, int count);
-menu_id me_index2id(const menu_entry *entries, int count, int index);
+/* TODO: move? */
+int     me_id2offset(const menu_entry *entries, menu_id id);
+void    me_enable(menu_entry *entries, menu_id id, int enable);
+int     me_count_enabled(const menu_entry *ent);
+menu_id me_index2id(const menu_entry *entries, int index);
 void    me_draw(const menu_entry *entries, int count, int x, int y, me_draw_custom_f *cust_draw, void *param);
-int     me_process(menu_entry *entries, int count, menu_id id, int is_next);
+int     me_process(menu_entry *entries, menu_id id, int is_next);
 
 const char *me_region_name(unsigned int code, int auto_order);
+
+void menu_darken_bg(void *dst, int pixels, int darker);
 

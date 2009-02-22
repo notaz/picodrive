@@ -1483,28 +1483,6 @@ static void menu_loop_root(void)
 	}
 }
 
-void menu_darken_bg(void *dst, int pixels, int darker)
-{
-	unsigned int *screen = dst;
-	pixels /= 2;
-	if (darker)
-	{
-		while (pixels--)
-		{
-			unsigned int p = *screen;
-			*screen++ = ((p&0xf79ef79e)>>1) - ((p&0xc618c618)>>3);
-		}
-	}
-	else
-	{
-		while (pixels--)
-		{
-			unsigned int p = *screen;
-			*screen++ = (p&0xf79ef79e)>>1;
-		}
-	}
-}
-
 static void menu_prepare_bg(int use_game_bg)
 {
 	if (use_game_bg)
@@ -1535,7 +1513,7 @@ static void menu_gfx_prepare(void)
 }
 
 
-void menu_loop(void)
+void menu_loop_old(void)
 {
 	in_set_blocking(1);
 	menu_gfx_prepare();
