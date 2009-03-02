@@ -103,7 +103,9 @@ static int in_gp2x_menu_translate(int keycode)
 		case BTN_RIGHT:	return PBTN_RIGHT;
 		case BTN_B:	return PBTN_MOK;
 		case BTN_X:	return PBTN_MBACK;
-		case BTN_START:	return PBTN_MENU;
+		case BTN_SELECT:return PBTN_MENU;
+		case BTN_L:	return PBTN_L;
+		case BTN_R:	return PBTN_R;
 		default:	return 0;
 	}
 }

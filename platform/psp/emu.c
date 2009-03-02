@@ -33,9 +33,8 @@ int sceAudio_E0727056(int volume, void *buffer);	// blocking output
 int sceAudioOutput2GetRestSample();
 
 
-char romFileName[PATH_MAX];
 unsigned char *PicoDraw2FB = (unsigned char *)VRAM_CACHED_STUFF + 8; // +8 to be able to skip border with 1 quadword..
-int engineState = PGS_Menu, engineStateSuspend;
+int engineStateSuspend;
 
 static unsigned int noticeMsgTime = 0;
 int reset_timing = 0; // do we need this?
@@ -1127,13 +1126,13 @@ void emu_HandleResume(void)
 	// reopen first CD track
 	if (Pico_mcd->TOC.Tracks[0].F != NULL)
 	{
-		char *fname = romFileName;
-		int len = strlen(romFileName);
+		char *fname = rom_fname_reload;
+		int len = strlen(rom_fname_reload);
 		cue_data_t *cue_data = NULL;
 
 		if (len > 4 && strcasecmp(fname + len - 4,  ".cue") == 0)
 		{
-			cue_data = cue_parse(romFileName);
+			cue_data = cue_parse(rom_fname_reload);
 			if (cue_data != NULL)
 				fname = cue_data->tracks[1].fname;
 		}

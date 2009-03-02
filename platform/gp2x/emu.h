@@ -4,14 +4,9 @@
 // For commercial use, separate licencing terms must be obtained.
 
 
-extern char romFileName[];
-extern int engineState;
-
-
 void emu_Init(void);
 void emu_Deinit(void);
 void emu_Loop(void);
-void emu_ResetGame(void);
 
 void osd_text(int x, int y, const char *text);
 

@@ -216,7 +216,7 @@ void CPicolAppView::DisplayOpenROMDialogL()
 	CleanupStack::PushL(fileArray);
 	_LIT16(KDlgTitle, "Select a ROM file");
 
-	TPtrC8 text8((TUint8*) loadedRomFName);
+	TPtrC8 text8((TUint8*) rom_fname_loaded);
 	iCurrentConfig.iLastROMFile.Copy(text8);
 
 	if( CQikSelectFileDlg::RunDlgLD( *mimeArray, *fileArray, &KDlgTitle, &iCurrentConfig.iLastROMFile) )

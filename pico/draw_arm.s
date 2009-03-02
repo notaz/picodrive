@@ -206,7 +206,7 @@
     cmp     r4, #0xe
     ldrgeb  r4, [r1,#\ofs]
     orrlt   r4, r3, r4
-    orrge   r4, r3, 0x80
+    orrge   r4, r3, #0x80
     strb    r4, [r1,#\ofs]
 0:
 .endm

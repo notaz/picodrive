@@ -28,7 +28,7 @@ LDFLAGS += `pkg-config --libs gthread-2.0`
 
 # frontend
 OBJS += platform/gp2x/main.o platform/gp2x/emu.o platform/gp2x/plat.o usbjoy.o blit.o \
-		in_evdev.o sndout_oss.o gp2x.o 940ctl_ym2612.o log_io.o
+		in_evdev.o plat.o sndout_oss.o gp2x.o 940ctl_ym2612.o log_io.o
 # platform/gp2x/menu.o
 
 ifeq "$(fake_in_gp2x)" "1"

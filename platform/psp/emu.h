@@ -4,10 +4,7 @@
 // For commercial use, separate licencing terms must be obtained.
 
 
-
-extern char romFileName[];
-extern int engineState, engineStateSuspend;
-
+extern int engineStateSuspend;
 
 void emu_Init(void);
 void emu_Deinit(void);

@@ -23,7 +23,7 @@
 
 void dummy(void)
 {
-	engineState = atoi(romFileName);
+	engineState = atoi(rom_fname_reload);
 	setbuf(NULL, NULL);
 	getenv(NULL);
 }
@@ -52,13 +52,13 @@ int pico_main(void)
 #ifndef GPROF
 				menu_loop();
 #else
-				strcpy(romFileName, loadedRomFName);
+				strcpy(rom_fname_reload, rom_fname_loaded);
 				engineState = PGS_ReloadRom;
 #endif
 				break;
 
 			case PGS_ReloadRom:
-				if (emu_ReloadRom(romFileName)) {
+				if (emu_ReloadRom(rom_fname_reload)) {
 					engineState = PGS_Running;
 					if (mp3_last_error != 0)
 						engineState = PGS_Menu; // send to menu to display mp3 error

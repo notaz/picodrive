@@ -31,7 +31,7 @@ else
 use_cyclone = 1
 endif
 
-DEFINC = -I../.. -I. -DARM -D__GP2X__ # -DBENCHMARK
+DEFINC = -I../.. -I. -DARM -D__GP2X__ -DIN_GP2X # -DBENCHMARK
 COPT_COMMON = -static -Wall -Winline
 ifeq ($(DEBUG),)
 COPT_COMMON += -O3 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
@@ -54,14 +54,15 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += main.o menu.o gp2x.o emu.o squidgehack.o cpuctrl.o
+OBJS += main.o gp2x.o emu.o in_gp2x.o squidgehack.o cpuctrl.o
 # 940 core control
 OBJS += 940ctl.o
 
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
 	platform/common/arm_utils.o platform/common/arm_linux.o platform/common/readpng.o \
-	platform/common/mp3_helix.o platform/linux/usbjoy.o platform/linux/sndout_oss.o
+	platform/common/mp3_helix.o platform/common/input.o platform/linux/usbjoy.o \
+	platform/linux/sndout_oss.o platform/linux/plat.o
 
 # Pico
 ifeq "$(amalgamate)" "1"

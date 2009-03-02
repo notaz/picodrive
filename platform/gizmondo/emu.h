@@ -4,9 +4,6 @@
 // For commercial use, separate licencing terms must be obtained.
 
 extern unsigned char gfx_buffer[321*240*2*2];
-extern char romFileName[];
-extern int engineState;
-
 
 void emu_Init(void);
 void emu_Deinit(void);

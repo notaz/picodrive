@@ -25,6 +25,7 @@
 #include "../common/input.h"
 #include "../linux/sndout_oss.h"
 #include "cpuctrl.h"
+#include "version.h"
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
@@ -40,10 +41,7 @@
 #endif
 
 
-int engineState;
 int select_exits = 0;
-
-char romFileName[PATH_MAX];
 
 extern int crashed_940;
 
@@ -1065,3 +1063,24 @@ void emu_ResetGame(void)
 	reset_timing = 1;
 }
 
+const char *plat_get_credits(void)
+{
+	return "PicoDrive v" VERSION " (c) notaz, 2006-2009\n\n\n"
+		"Credits:\n"
+		"fDave: Cyclone 68000 core,\n"
+		"      base code of PicoDrive\n"
+		"Reesy & FluBBa: DrZ80 core\n"
+		"MAME devs: YM2612 and SN76496 cores\n"
+		"rlyeh and others: minimal SDK\n"
+		"Squidge: squidgehack\n"
+		"Dzz: ARM940 sample\n"
+		"GnoStiC / Puck2099: USB joy code\n"
+		"craigix: GP2X hardware\n"
+		"ketchupgun: skin design\n"
+		"\n"
+		"special thanks (for docs, ideas):\n"
+		" Charles MacDonald, Haze,\n"
+		" Stephane Dallongeville,\n"
+		" Lordus, Exophase, Rokas,\n"
+		" Nemesis, Tasco Deluxe";
+}

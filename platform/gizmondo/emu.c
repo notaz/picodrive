@@ -26,8 +26,6 @@
 
 // main 300K gfx-related buffer. Used by menu and renderers.
 unsigned char gfx_buffer[321*240*2*2];
-char romFileName[MAX_PATH];
-int engineState;
 
 unsigned char *PicoDraw2FB = gfx_buffer;  // temporary buffer for alt renderer ( (8+320)*(8+240+8) )
 int reset_timing = 0;

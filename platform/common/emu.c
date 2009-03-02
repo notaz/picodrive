@@ -16,6 +16,7 @@
 #include "lprintf.h"
 #include "config.h"
 #include "common.h"
+#include "plat.h"
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
@@ -25,22 +26,20 @@
 
 char *PicoConfigFile = "config.cfg";
 currentConfig_t currentConfig, defaultConfig;
-int rom_loaded = 0;
 char noticeMsg[64] = { 0, };
 int state_slot = 0;
 int config_slot = 0, config_slot_current = 0;
-char loadedRomFName[512] = { 0, };
 int kb_combo_keys = 0, kb_combo_acts = 0;	// keys and actions which need button combos
 int pico_inp_mode = 0;
+int engineState = PGS_Menu;
+
+/* TODO: len checking */
+char rom_fname_reload[512] = { 0, };
+char rom_fname_loaded[512] = { 0, };
+int rom_loaded = 0;
 
 unsigned char *movie_data = NULL;
 static int movie_size = 0;
-
-// provided by platform code:
-extern void emu_noticeMsgUpdated(void);
-extern int  emu_getMainDir(char *dst, int len);
-extern void menu_romload_prepare(const char *rom_name);
-extern void menu_romload_end(void);
 
 
 // utilities
@@ -492,8 +491,8 @@ int emu_ReloadRom(char *rom_fname)
 	if (currentConfig.EmuOpt & EOPT_USE_SRAM)
 		emu_SaveLoadGame(1, 1);
 
-	strncpy(loadedRomFName, rom_fname, sizeof(loadedRomFName)-1);
-	loadedRomFName[sizeof(loadedRomFName)-1] = 0;
+	strncpy(rom_fname_loaded, rom_fname, sizeof(rom_fname_loaded)-1);
+	rom_fname_loaded[sizeof(rom_fname_loaded)-1] = 0;
 	rom_loaded = 1;
 	return 1;
 
@@ -518,8 +517,8 @@ static void romfname_ext(char *dst, const char *prefix, const char *ext)
 	int prefix_len = 0;
 
 	// make save filename
-	p = loadedRomFName+strlen(loadedRomFName)-1;
-	for (; p >= loadedRomFName && *p != PATH_SEP_C; p--); p++;
+	p = rom_fname_loaded + strlen(rom_fname_loaded) - 1;
+	for (; p >= rom_fname_loaded && *p != PATH_SEP_C; p--); p++;
 	*dst = 0;
 	if (prefix) {
 		int len = emu_getMainDir(dst, 512);
@@ -527,7 +526,7 @@ static void romfname_ext(char *dst, const char *prefix, const char *ext)
 		prefix_len = len + strlen(prefix);
 	}
 #ifdef UIQ3
-	else p = loadedRomFName; // backward compatibility
+	else p = rom_fname_loaded; // backward compatibility
 #endif
 	strncpy(dst + prefix_len, p, 511-prefix_len);
 	dst[511-8] = 0;

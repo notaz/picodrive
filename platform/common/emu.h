@@ -50,11 +50,14 @@ extern char noticeMsg[64];
 extern int state_slot;
 extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;
-extern char loadedRomFName[512];		// last loaded ROM filename
 extern int kb_combo_keys, kb_combo_acts;	// keys and actions which need button combos
 extern int pico_inp_mode;
 
+extern char rom_fname_reload[512];		// ROM to try loading on next PGS_ReloadRom
+extern char rom_fname_loaded[512];		// currently loaded ROM filename
+
 // engine states
+extern int engineState;
 enum TPicoGameState {
 	PGS_Paused = 1,
 	PGS_Running,

@@ -50,9 +50,9 @@ void parse_cmd_line(int argc, char *argv[])
 		} else {
 			/* External Frontend: ROM Name */
 			FILE *f;
-			strncpy(romFileName, argv[x], PATH_MAX);
-			romFileName[PATH_MAX-1] = 0;
-			f = fopen(romFileName, "rb");
+			strncpy(rom_fname_reload, argv[x], PATH_MAX);
+			rom_fname_reload[PATH_MAX-1] = 0;
+			f = fopen(rom_fname_reload, "rb");
 			if (f) fclose(f);
 			else unrecognized = 1;
 			engineState = PGS_ReloadRom;
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
 
 	if (engineState == PGS_ReloadRom)
 	{
-		if (emu_ReloadRom(romFileName)) {
+		if (emu_ReloadRom(rom_fname_reload)) {
 			engineState = PGS_Running;
 			if (load_state_slot >= 0) {
 				state_slot = load_state_slot;
@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
 				break;
 
 			case PGS_ReloadRom:
-				if (emu_ReloadRom(romFileName))
+				if (emu_ReloadRom(rom_fname_reload))
 					engineState = PGS_Running;
 				else {
 					printf("PGS_ReloadRom == 0\n");

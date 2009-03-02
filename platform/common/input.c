@@ -380,14 +380,14 @@ int in_menu_wait_any(int timeout_ms)
 }
 
 /* wait for menu input, do autorepeat */
-int in_menu_wait(int interesting)
+int in_menu_wait(int interesting, int autorep_delay_ms)
 {
 	static int inp_prev = 0;
 	static int repeats = 0;
 	int ret, release = 0, wait = 666;
 
 	if (repeats)
-		wait = 33;
+		wait = autorep_delay_ms;
 
 	ret = in_menu_wait_any(wait);
 	if (ret == inp_prev)
@@ -439,14 +439,22 @@ int in_get_dev_bind_count(int dev_id)
 	return in_bind_count(in_devices[dev_id].drv_id);
 }
 
-const char *in_get_dev_name(int dev_id, int must_be_active)
+const char *in_get_dev_name(int dev_id, int must_be_active, int skip_pfix)
 {
+	const char *name, *tmp;
+
 	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
 		return NULL;
 
 	if (must_be_active && !in_devices[dev_id].probed)
 		return NULL;
-	return in_devices[dev_id].name;
+
+	name = in_devices[dev_id].name;
+	tmp = strchr(name, ':');
+	if (tmp != NULL)
+		name = tmp + 1;
+
+	return name;
 }
 
 /* never returns NULL */

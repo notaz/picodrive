@@ -21,43 +21,7 @@ static char *mystrip(char *str);
 #include "emu.h"
 #include <pico/pico.h>
 
-extern menu_entry opt_entries[];
-extern menu_entry opt2_entries[];
-extern menu_entry cdopt_entries[];
-extern menu_entry ctrlopt_entries[];
-extern const int opt_entry_count;
-extern const int opt2_entry_count;
-extern const int cdopt_entry_count;
-extern const int ctrlopt_entry_count;
-#ifdef PSP
-extern menu_entry opt3_entries[];
-extern const int opt3_entry_count;
-#endif
-
-static menu_entry *cfg_opts[] =
-{
-	opt_entries,
-	opt2_entries,
-	cdopt_entries,
-	ctrlopt_entries,
-#ifdef PSP
-	opt3_entries,
-#endif
-};
-
-static const int *cfg_opt_counts[] =
-{
-	&opt_entry_count,
-	&opt2_entry_count,
-	&cdopt_entry_count,
-	&ctrlopt_entry_count,
-#ifdef PSP
-	&opt3_entry_count,
-#endif
-};
-
 #define NL "\r\n"
-
 
 static int seek_sect(FILE *f, const char *section)
 {
@@ -82,79 +46,10 @@ static int seek_sect(FILE *f, const char *section)
 
 static void custom_write(FILE *f, const menu_entry *me, int no_def)
 {
-	char *str, str24[24];
+	char str24[24];
 
 	switch (me->id)
 	{
-		case MA_OPT_RENDERER:
-			if (no_def && !((defaultConfig.s_PicoOpt^PicoOpt)&POPT_ALT_RENDERER) &&
-				!((defaultConfig.EmuOpt^currentConfig.EmuOpt)&0x80)) return;
-			if (PicoOpt&POPT_ALT_RENDERER)
-				str =
-#ifndef PSP
-				"8bit "
-#endif
-				"fast";
-			else if (currentConfig.EmuOpt&0x80)
-				str =
-#ifndef PSP
-				"16bit "
-#endif
-				"accurate";
-			else
-				str = "8bit accurate";
-			fprintf(f, "Renderer = %s", str);
-			break;
-
-		case MA_OPT_SCALING:
-			if (no_def && defaultConfig.scaling == currentConfig.scaling) return;
-#ifdef __GP2X__
-			switch (currentConfig.scaling) {
-				default: str = "OFF"; break;
-				case 1:  str = "hw horizontal";     break;
-				case 2:  str = "hw horiz. + vert."; break;
-				case 3:  str = "sw horizontal";     break;
-			}
-			fprintf(f, "Scaling = %s", str);
-#endif
-			break;
-		case MA_OPT_FRAMESKIP:
-			if (no_def && defaultConfig.Frameskip == currentConfig.Frameskip) return;
-			if (currentConfig.Frameskip < 0)
-			     strcpy(str24, "Auto");
-			else sprintf(str24, "%i", currentConfig.Frameskip);
-			fprintf(f, "Frameskip = %s", str24);
-			break;
-		case MA_OPT_SOUND_QUALITY:
-			if (no_def && !((defaultConfig.s_PicoOpt^PicoOpt)&POPT_EN_STEREO) &&
-				defaultConfig.s_PsndRate == PsndRate) return;
-			str = (PicoOpt&POPT_EN_STEREO)?"stereo":"mono";
-			fprintf(f, "Sound Quality = %i %s", PsndRate, str);
-			break;
-		case MA_OPT_REGION:
-			if (no_def && defaultConfig.s_PicoRegion == PicoRegionOverride &&
-				defaultConfig.s_PicoAutoRgnOrder == PicoAutoRgnOrder) return;
-			strncpy(str24, me_region_name(PicoRegionOverride, PicoAutoRgnOrder), 23); str24[23] = 0;
-			fprintf(f, "Region = %s", mystrip(str24));
-			break;
-		case MA_OPT_CONFIRM_STATES:
-			if (no_def && !((defaultConfig.EmuOpt^currentConfig.EmuOpt)&(5<<9))) return;
-			switch ((currentConfig.EmuOpt >> 9) & 5) {
-				default: str = "OFF";    break;
-				case 1:  str = "writes"; break;
-				case 4:  str = "loads";  break;
-				case 5:  str = "both";   break;
-			}
-			fprintf(f, "Confirm savestate = %s", str);
-			break;
-		case MA_OPT_CPU_CLOCKS:
-			if (no_def && defaultConfig.CPUclock == currentConfig.CPUclock) return;
-#ifdef __GP2X__
-			fprintf(f, "GP2X CPU clocks = %i", currentConfig.CPUclock);
-#elif defined(PSP)
-			fprintf(f, "PSP CPU clock = %i", currentConfig.CPUclock);
-#endif
-			break;
 		case MA_OPT2_GAMMA:
 			if (no_def && defaultConfig.gamma == currentConfig.gamma) return;
 			fprintf(f, "Gamma correction = %.3f", (double)currentConfig.gamma / 100.0);
@@ -299,7 +194,7 @@ int config_writesect(const char *fname, const char *section)
 	FILE *fo = NULL, *fn = NULL; // old and new
 	int no_defaults = 0; // avoid saving defaults
 	menu_entry *me;
-	int t, i, tlen, ret;
+	int t, tlen, ret;
 	char line[128], *tmp;
 
 	if (section != NULL)
@@ -368,30 +263,34 @@ write:
 	if (section != NULL)
 		fprintf(fn, "[%s]" NL, section);
 
-	for (t = 0; t < sizeof(cfg_opts) / sizeof(cfg_opts[0]); t++)
+	me = me_list_get_first();
+	while (me != NULL)
 	{
-		me = cfg_opts[t];
-		tlen = *(cfg_opt_counts[t]);
-		for (i = 0; i < tlen; i++, me++)
-		{
-			if (!me->need_to_save) continue;
-			if ((me->beh != MB_ONOFF && me->beh != MB_RANGE) || me->name == NULL)
-				custom_write(fn, me, no_defaults);
-			else if (me->beh == MB_ONOFF) {
-				if (!no_defaults || ((*(int *)me->var ^ default_var(me)) & me->mask))
-					fprintf(fn, "%s = %i" NL, me->name, (*(int *)me->var & me->mask) ? 1 : 0);
-			} else if (me->beh == MB_RANGE) {
-				if (!no_defaults || (*(int *)me->var ^ default_var(me)))
-					fprintf(fn, "%s = %i" NL, me->name, *(int *)me->var);
-			}
-		}
+		int dummy;
+		if (!me->need_to_save)
+			goto next;
+		if (me->beh == MB_OPT_ONOFF) {
+			if (!no_defaults || ((*(int *)me->var ^ default_var(me)) & me->mask))
+				fprintf(fn, "%s = %i" NL, me->name, (*(int *)me->var & me->mask) ? 1 : 0);
+		} else if (me->beh == MB_OPT_RANGE) {
+			if (!no_defaults || (*(int *)me->var ^ default_var(me)))
+				fprintf(fn, "%s = %i" NL, me->name, *(int *)me->var);
+		} else if (me->name != NULL && me->generate_name != NULL) {
+			strncpy(line, me->generate_name(0, &dummy), sizeof(line));
+			line[sizeof(line) - 1] = 0;
+			mystrip(line);
+			fprintf(fn, "%s = %s" NL, me->name, line);
+		} else
+			custom_write(fn, me, no_defaults);
+next:
+		me = me_list_get_next();
 	}
 
 	/* input: save device names */
 	for (t = 0; t < IN_MAX_DEVS; t++)
 	{
 		const int  *binds = in_get_dev_binds(t);
-		const char *name =  in_get_dev_name(t, 0);
+		const char *name =  in_get_dev_name(t, 0, 0);
 		if (binds == NULL || name == NULL)
 			continue;
 
@@ -402,7 +301,7 @@ write:
 	for (t = 0; t < IN_MAX_DEVS; t++)
 	{
 		const int *binds = in_get_dev_binds(t);
-		const char *name = in_get_dev_name(t, 0);
+		const char *name = in_get_dev_name(t, 0, 0);
 		char strbind[16];
 		int count;
 
@@ -449,7 +348,7 @@ int config_writelrom(const char *fname)
 	int size;
 	FILE *f;
 
-	if (strlen(loadedRomFName) == 0) return -1;
+	if (strlen(rom_fname_loaded) == 0) return -1;
 
 	f = fopen(fname, "r");
 	if (f != NULL)
@@ -482,7 +381,7 @@ int config_writelrom(const char *fname)
 		fwrite(old_data, 1, optr - old_data, f);
 		free(old_data);
 	}
-	fprintf(f, "LastUsedROM = %s" NL, loadedRomFName);
+	fprintf(f, "LastUsedROM = %s" NL, rom_fname_loaded);
 	fclose(f);
 	return 0;
 }
@@ -513,9 +412,9 @@ int config_readlrom(const char *fname)
 		tmp++;
 		mystrip(tmp);
 
-		len = sizeof(loadedRomFName);
-		strncpy(loadedRomFName, tmp, len);
-		loadedRomFName[len-1] = 0;
+		len = sizeof(rom_fname_loaded);
+		strncpy(rom_fname_loaded, tmp, len);
+		rom_fname_loaded[len-1] = 0;
 		ret = 0;
 		break;
 	}
@@ -773,7 +672,7 @@ static unsigned char input_dev_map[IN_MAX_DEVS];
 static void parse(const char *var, const char *val)
 {
 	menu_entry *me;
-	int t, i, tlen, tmp, ret = 0;
+	int tmp, ret = 0;
 
 	if (strcasecmp(var, "LastUsedROM") == 0)
 		return; /* handled elsewhere */
@@ -814,30 +713,30 @@ static void parse(const char *var, const char *val)
 		return;
 	}
 
-	for (t = 0; t < sizeof(cfg_opts) / sizeof(cfg_opts[0]) && ret == 0; t++)
+	me = me_list_get_first();
+	while (me != NULL && ret == 0)
 	{
-		me = cfg_opts[t];
-		tlen = *(cfg_opt_counts[t]);
-		for (i = 0; i < tlen && ret == 0; i++, me++)
-		{
-			if (!me->need_to_save) continue;
-			if (me->name != NULL) {
-				if (strcasecmp(var, me->name) != 0) continue; // surely not this one
-				if (me->beh == MB_ONOFF) {
-					tmp = atoi(val);
-					if (tmp) *(int *)me->var |=  me->mask;
-					else     *(int *)me->var &= ~me->mask;
-					return;
-				} else if (me->beh == MB_RANGE) {
-					tmp = atoi(val);
-					if (tmp < me->min) tmp = me->min;
-					if (tmp > me->max) tmp = me->max;
-					*(int *)me->var = tmp;
-					return;
-				}
+		if (!me->need_to_save)
+			goto next;
+		if (me->name != NULL && me->name[0] != 0) {
+			if (strcasecmp(var, me->name) != 0)
+				goto next; /* surely not this one */
+			if (me->beh == MB_OPT_ONOFF) {
+				tmp = atoi(val);
+				if (tmp) *(int *)me->var |=  me->mask;
+				else     *(int *)me->var &= ~me->mask;
+				return;
+			} else if (me->beh == MB_OPT_RANGE) {
+				tmp = atoi(val);
+				if (tmp < me->min) tmp = me->min;
+				if (tmp > me->max) tmp = me->max;
+				*(int *)me->var = tmp;
+				return;
 			}
-			ret = custom_read(me, var, val);
 		}
+		ret = custom_read(me, var, val);
+next:
+		me = me_list_get_next();
 	}
 	if (!ret) lprintf("config_readsect: unhandled var: \"%s\"\n", var);
 }
