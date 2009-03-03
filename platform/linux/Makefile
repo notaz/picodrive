@@ -1,44 +1,40 @@
-
 # settings
 use_musashi = 1
 #use_fame = 1
 #use_mz80 = 1
 #profile = 1
-fake_in_gp2x = 1
+#fake_in_gp2x = 1
 
-
-DEFINC = -I../.. -I. -D__GP2X__ -D_UNZIP_SUPPORT -DIO_STATS -DIN_EVDEV # -DBENCHMARK
-GCC = gcc
-STRIP = strip
-AS = gcc
+-include Makefile.local
 
 ifeq "$(profile)" "1"
-COPT_COMMON = -s -O3 -ftracer -fstrength-reduce -Wall -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math -fprofile-generate
-COPT = $(COPT_COMMON)
+CFLAGS += -O3 -Wall
+CFLAGS += -ftracer -fstrength-reduce -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math
+CFLAGS += -fprofile-generate
 else
-COPT = -ggdb -Wall -fno-strict-aliasing # -pg -O3  -ftracer -fstrength-reduce -funroll-loops -fomit-frame-pointer -ffast-math
-COPT_COMMON = $(COPT)
+CFLAGS = -ggdb -Wall
 endif
+DEFINES = __GP2X__ _UNZIP_SUPPORT IO_STATS IN_EVDEV
+CFLAGS += -I../.. -I.
 
 # gtk
-COPT    += `pkg-config --cflags gtk+-2.0`
+CFLAGS  += `pkg-config --cflags gtk+-2.0`
 LDFLAGS += `pkg-config --libs gtk+-2.0`
-COPT    += `pkg-config --cflags gthread-2.0`
+CFLAGS  += `pkg-config --cflags gthread-2.0`
 LDFLAGS += `pkg-config --libs gthread-2.0`
 
 # frontend
 OBJS += platform/gp2x/main.o platform/gp2x/emu.o platform/gp2x/plat.o usbjoy.o blit.o \
 		in_evdev.o plat.o sndout_oss.o gp2x.o 940ctl_ym2612.o log_io.o
-# platform/gp2x/menu.o
-
-ifeq "$(fake_in_gp2x)" "1"
-DEFINC += -DIN_GP2X -DFAKE_IN_GP2X
-OBJS += platform/gp2x/in_gp2x.o
-endif
 
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/config.o platform/common/fonts.o \
 		platform/common/readpng.o platform/common/input.o platform/common/mp3_helix.o
+
+ifeq "$(fake_in_gp2x)" "1"
+DEFINES += IN_GP2X FAKE_IN_GP2X
+OBJS += platform/gp2x/in_gp2x.o
+endif
 
 # Pico
 OBJS += pico/area.o pico/cart.o pico/memory.o pico/misc.o pico/pico.o pico/sek.o \
@@ -61,19 +57,19 @@ OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 OBJS += unzip/unzip.o unzip/unzip_stream.o
 # CPU cores
 ifeq "$(use_musashi)" "1"
-DEFINC += -DEMU_M68K
+DEFINES += EMU_M68K
 OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
 endif
 ifeq "$(use_fame)" "1"
-DEFINC += -DEMU_F68K
+DEFINES += EMU_F68K
 OBJS += cpu/fame/famec.o
 endif
 # z80
 ifeq "$(use_mz80)" "1"
-DEFINC += -D_USE_MZ80
+DEFINES += _USE_MZ80
 OBJS += cpu/mz80/mz80.o
 else
-DEFINC += -D_USE_CZ80
+DEFINES += _USE_CZ80
 OBJS += cpu/cz80/cz80.o
 endif
 # misc
@@ -85,7 +81,10 @@ endif
 endif
 OBJS += cpu/musashi/m68kdasm.o
 
+CFLAGS += $(addprefix -D,$(DEFINES))
+
 vpath %.c = ../..
+
 DIRS = platform platform/gp2x platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
 	zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80
 
@@ -100,7 +99,7 @@ tidy:
 
 PicoDrive : $(OBJS) ../common/helix/helix_mp3_x86.a
 	@echo ">>>" $@
-	$(GCC) $(COPT) $^ $(LDFLAGS) -lm -lpng -Wl,-Map=PicoDrive.map -o $@
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) -lm -lpng -Wl,-Map=PicoDrive.map -o $@
 
 mkdirs:
 	mkdir -p $(DIRS)
@@ -124,18 +123,17 @@ cpu/mz80/mz80.o : ../../cpu/mz80/mz80.asm
 
 .c.o:
 	@echo ">>>" $<
-	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 .s.o:
 	@echo ">>>" $<
-	$(GCC) $(COPT) $(DEFINC) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 
-pico/sound/ym2612.o : ../../pico/sound/ym2612.c
-	@echo ">>>" $@
-	$(GCC) $(COPT_COMMON) $(DEFINC) -c $< -o $@
+#pico/sound/ym2612.o : ../../pico/sound/ym2612.c
+#	@echo ">>>" $@
+#	$(CC) $(CFLAGS) -c $< -o $@
 
 cpu/fame/famec.o : ../../cpu/fame/famec.c ../../cpu/fame/famec_opcodes.h
 	@echo ">>>" $<
-	$(GCC) $(COPT) $(DEFINC) -Wno-unused -c $< -o $@
-
+	$(CC) $(CFLAGS) -Wno-unused -c $< -o $@
 

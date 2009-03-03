@@ -94,12 +94,15 @@ void text_out16(int x, int y, const char *texto, ...)
 	char    buffer[256];
 	int     maxw = (SCREEN_WIDTH - x) / 8;
 
+	if (maxw < 0)
+		return;
+
 	va_start(args, texto);
 	vsnprintf(buffer, sizeof(buffer), texto, args);
 	va_end(args);
 
-	if (maxw > 255)
-		maxw = 255;
+	if (maxw > sizeof(buffer) - 1)
+		maxw = sizeof(buffer) - 1;
 	buffer[maxw] = 0;
 
 	text_out16_(x,y,buffer,menu_text_color);
@@ -141,9 +144,15 @@ static void smalltext_out16_(int x, int y, const char *texto, int color)
 void smalltext_out16(int x, int y, const char *texto, int color)
 {
 	char buffer[SCREEN_WIDTH/6+1];
+	int maxw = (SCREEN_WIDTH - x) / 6;
+
+	if (maxw < 0)
+		return;
 
 	strncpy(buffer, texto, sizeof(buffer));
-	buffer[sizeof(buffer) - 1] = 0;
+	if (maxw > sizeof(buffer) - 1)
+		maxw = sizeof(buffer) - 1;
+	buffer[maxw] = 0;
 
 	smalltext_out16_(x, y, buffer, color);
 }

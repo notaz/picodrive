@@ -111,6 +111,19 @@ static gint key_release_event (GtkWidget *widget, GdkEventKey *event)
 	return 0;
 }
 
+/*
+void                gdk_drawable_get_size               (GdkDrawable *drawable,
+		gint *width,
+		gint *height);
+**/
+
+static void size_allocate_event(GtkWidget *widget, GtkAllocation *allocation, gpointer user_data)
+{
+	gint w, h;
+	gdk_drawable_get_size(gtk_items.window, &w, &h);
+	printf("%dx%d %dx%d\n", allocation->width, allocation->height, w, h);
+}
+
 static void *gtk_threadf(void *targ)
 {
 	int argc = 0;
@@ -136,6 +149,9 @@ static void *gtk_threadf(void *targ)
 
 	g_signal_connect (G_OBJECT (gtk_items.window), "key_release_event",
 			G_CALLBACK (key_release_event), NULL);
+
+	g_signal_connect (G_OBJECT (gtk_items.window), "size_allocate",
+			G_CALLBACK (size_allocate_event), NULL);
 
 	gtk_container_set_border_width (GTK_CONTAINER (gtk_items.window), 2);
 	gtk_window_set_title ((GtkWindow *) gtk_items.window, verstring);
