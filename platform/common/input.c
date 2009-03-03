@@ -4,6 +4,7 @@
 
 #include "common.h"
 #include "input.h"
+#include "plat.h"
 #include "../linux/in_evdev.h"
 #include "../gp2x/in_gp2x.h"
 
@@ -214,17 +215,12 @@ void in_set_blocking(int is_blocking)
 	} while (ret >= 0);
 }
 
-/* TODO: move.. */
-#include <unistd.h>
-#include <sys/time.h>
-#include <time.h>
-
 static int in_update_kc_async(int *dev_id_out, int *is_down_out, int timeout_ms)
 {
-	struct timeval start, now;
 	int i, is_down, result;
+	unsigned int ticks;
 
-	gettimeofday(&start, NULL);
+	ticks = plat_get_ticks_ms();
 
 	while (1)
 	{
@@ -244,14 +240,10 @@ static int in_update_kc_async(int *dev_id_out, int *is_down_out, int timeout_ms)
 			return result;
 		}
 
-		if (timeout_ms >= 0) {
-			gettimeofday(&now, NULL);
-			if ((now.tv_sec - start.tv_sec) * 1000 +
-					(now.tv_usec - start.tv_usec) / 1000 > timeout_ms)
-				break;
-		}
+		if (timeout_ms >= 0 && (int)(plat_get_ticks_ms() - ticks) > timeout_ms)
+			break;
 
-		usleep(10000);
+		plat_sleep_ms(10);
 	}
 
 	return -1;
@@ -262,9 +254,10 @@ static int in_update_kc_async(int *dev_id_out, int *is_down_out, int timeout_ms)
  */
 int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 {
-	int result = 0, dev_id = 0, is_down, result_menu;
+	int result = -1, dev_id = 0, is_down, result_menu;
 	int fds_hnds[IN_MAX_DEVS];
 	int i, ret, count = 0;
+	unsigned int ticks;
 	in_drv_t *drv;
 
 	if (in_have_async_devs) {
@@ -274,6 +267,8 @@ int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 		drv = &DRV(in_devices[dev_id].drv_id);
 		goto finish;
 	}
+
+	ticks = plat_get_ticks_ms();
 
 	for (i = 0; i < in_dev_count; i++) {
 		if (in_devices[i].probed)
@@ -286,57 +281,38 @@ int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 		exit(1);
 	}
 
-again:
-	/* TODO: move this block to platform/linux */
+	while (1)
 	{
-		struct timeval tv, *timeout = NULL;
-		int fdmax = -1;
-		fd_set fdset;
+		ret = plat_wait_event(fds_hnds, count, timeout_ms);
+		if (ret < 0)
+			break;
+
+		for (i = 0; i < in_dev_count; i++) {
+			if (in_devices[i].drv_fd_hnd == ret) {
+				dev_id = i;
+				break;
+			}
+		}
+
+		drv = &DRV(in_devices[dev_id].drv_id);
+		result = drv->update_keycode(in_devices[dev_id].drv_data, &is_down);
+
+		/* update_keycode() might return -1 when some not interesting
+		 * event happened, like sync event for evdev. */
+		if (result >= 0)
+			break;
 
 		if (timeout_ms >= 0) {
-			tv.tv_sec = timeout_ms / 1000;
-			tv.tv_usec = (timeout_ms % 1000) * 1000;
-			timeout = &tv;
-		}
-
-		FD_ZERO(&fdset);
-		for (i = 0; i < count; i++) {
-			if (fds_hnds[i] > fdmax) fdmax = fds_hnds[i];
-			FD_SET(fds_hnds[i], &fdset);
-		}
-
-		ret = select(fdmax + 1, &fdset, NULL, NULL, timeout);
-		if (ret == -1)
-		{
-			perror("input: select failed");
-			sleep(1);
-			return -1;
-		}
-
-		if (ret == 0)
-			return -1; /* timeout */
-
-		for (i = 0; i < count; i++)
-			if (FD_ISSET(fds_hnds[i], &fdset))
-				ret = fds_hnds[i];
-	}
-
-	for (i = 0; i < in_dev_count; i++) {
-		if (in_devices[i].drv_fd_hnd == ret) {
-			dev_id = i;
-			break;
+			unsigned int ticks2 = plat_get_ticks_ms();
+			timeout_ms -= ticks2 - ticks;
+			ticks = ticks2;
+			if (timeout_ms <= 0)
+				break;
 		}
 	}
 
-	drv = &DRV(in_devices[dev_id].drv_id);
-	result = drv->update_keycode(in_devices[dev_id].drv_data, &is_down);
-
-	/* update_keycode() might return -1 when some not interesting
-	 * event happened, like sync event for evdev.
-	 * XXX: timeout restarts.. */
 	if (result == -1)
-		goto again;
-
+		return -1;
 finish:
 	/* keep track of menu key state, to allow mixing
 	 * in_update_keycode() and in_menu_wait_any() calls */

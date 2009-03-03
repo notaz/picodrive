@@ -24,8 +24,13 @@ void plat_video_menu_begin(void);
 void plat_video_menu_end(void);
 
 int  plat_is_dir(const char *path);
+int  plat_wait_event(int *fds_hnds, int count, int timeout_ms);
+void plat_sleep_ms(int ms);
 
-const char *plat_get_credits(void);
+/* ms counter, to be used for time diff */
+unsigned int  plat_get_ticks_ms(void);
+
+const char   *plat_get_credits(void);
 
 #ifdef __cplusplus
 } // extern "C"
