@@ -32,7 +32,6 @@
 #include <errno.h>
 
 #include "gp2x.h"
-#include "../linux/usbjoy.h"
 #include "../linux/sndout_oss.h"
 #include "../common/arm_utils.h"
 #include "../common/arm_linux.h"
@@ -46,8 +45,6 @@ static int screensel = 0;
 int memdev = 0;
 static int touchdev = -1;
 static int touchcal[7] = { 6203, 0, -1501397, 0, -4200, 16132680, 65536 };
-
-void *gp2x_screen;
 
 #define FRAMEBUFF_WHOLESIZE (0x30000*4) // 320*240*2 + some more
 #define FRAMEBUFF_ADDR0 (0x4000000-FRAMEBUFF_WHOLESIZE)
@@ -72,7 +69,7 @@ void gp2x_video_flip(void)
   	gp2x_memregs[0x2912>>1] = lsw;
 
 	// jump to other buffer:
-	gp2x_screen = gp2x_screens[++screensel&3];
+	g_screen_ptr = gp2x_screens[++screensel&3];
 }
 
 /* doulblebuffered flip */
@@ -86,7 +83,7 @@ void gp2x_video_flip2(void)
   	gp2x_memregs[0x2912>>1] = 0;
 
 	// jump to other buffer:
-	gp2x_screen = gp2x_screens[++screensel&1];
+	g_screen_ptr = gp2x_screens[++screensel&1];
 }
 
 
@@ -162,7 +159,7 @@ void gp2x_video_wait_vsync(void)
 void gp2x_video_flush_cache(void)
 {
 	// since we are using the mmu hack, we must flush the cache first
-	cache_flush_d_inval_i(gp2x_screen, (char *)gp2x_screen + 320*240*2);
+	cache_flush_d_inval_i(g_screen_ptr, (char *)g_screen_ptr + 320*240*2);
 }
 
 
@@ -193,11 +190,11 @@ void gp2x_memset_all_buffers(int offset, int byte, int len)
 
 void gp2x_pd_clone_buffer2(void)
 {
-	memcpy(gp2x_screen, gp2x_screens[2], 320*240*2);
+	memcpy(g_screen_ptr, gp2x_screens[2], 320*240*2);
 }
 
 
-unsigned long gp2x_joystick_read(int allow_usb_joy)
+unsigned long gp2x_joystick_read(int unused)
 {
 	int i;
   	unsigned long value=(gp2x_memregs[0x1198>>1] & 0x00FF); // GPIO M
@@ -206,13 +203,6 @@ unsigned long gp2x_joystick_read(int allow_usb_joy)
   	if(value==0xDF) value=0xAF;
   	if(value==0x7F) value=0xBE;
   	value = ~((gp2x_memregs[0x1184>>1] & 0xFF00) | value | (gp2x_memregs[0x1186>>1] << 16)); // C D
-
-	if (allow_usb_joy && num_of_joys > 0) {
-		// check the usb joy as well..
-		usbjoy_update();
-		for (i = 0; i < num_of_joys; i++)
-			value |= usbjoy_check(i);
-	}
 
 	return value;
 }
@@ -318,7 +308,7 @@ void gp2x_init(void)
   	gp2x_screens[0] = mmap(0, FRAMEBUFF_WHOLESIZE, PROT_WRITE, MAP_SHARED, memdev, FRAMEBUFF_ADDR0);
 	if(gp2x_screens[0] == MAP_FAILED)
 	{
-		perror("mmap(gp2x_screen)");
+		perror("mmap(g_screen_ptr)");
 		exit(1);
 	}
 	printf("framebuffers point to %p\n", gp2x_screens[0]);
@@ -326,7 +316,7 @@ void gp2x_init(void)
 	gp2x_screens[2] = (char *) gp2x_screens[1]+0x30000;
 	gp2x_screens[3] = (char *) gp2x_screens[2]+0x30000;
 
-	gp2x_screen = gp2x_screens[0];
+	g_screen_ptr = gp2x_screens[0];
 	screensel = 0;
 
 	gp2x_screenaddr_old[0] = gp2x_memregs[0x290E>>1];
@@ -339,9 +329,6 @@ void gp2x_init(void)
 
 	// snd
 	sndout_oss_init();
-
-	/* init usb joys -GnoStiC */
-	usbjoy_init();
 
 	// touchscreen
 	touchdev = open("/dev/touchscreen/wm97xx", O_RDONLY);
@@ -381,7 +368,6 @@ void gp2x_deinit(void)
 	if (touchdev >= 0) close(touchdev);
 
 	sndout_oss_exit();
-	usbjoy_deinit();
 
 	printf("all done, running ");
 

@@ -24,7 +24,7 @@ CFLAGS  += `pkg-config --cflags gthread-2.0`
 LDFLAGS += `pkg-config --libs gthread-2.0`
 
 # frontend
-OBJS += platform/gp2x/main.o platform/gp2x/emu.o platform/gp2x/plat.o usbjoy.o blit.o \
+OBJS += platform/gp2x/main.o platform/gp2x/emu.o platform/gp2x/plat.o blit.o \
 		in_evdev.o plat.o sndout_oss.o gp2x.o 940ctl_ym2612.o log_io.o
 
 # common

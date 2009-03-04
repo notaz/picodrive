@@ -17,7 +17,6 @@
 #include "emu.h"
 #include "gp2x.h"
 #include "menu.h"
-#include "../linux/usbjoy.h"
 #include "../common/arm_utils.h"
 #include "../common/fonts.h"
 #include "../common/emu.h"
@@ -167,23 +166,24 @@ void emu_prepareDefaultConfig(void)
 void osd_text(int x, int y, const char *text)
 {
 	int len = strlen(text)*8;
+	int *p, i, h, offs;
 
 	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
-		int *p, i, h;
-		x &= ~3; // align x
 		len = (len+3) >> 2;
 		for (h = 0; h < 8; h++) {
-			p = (int *) ((unsigned char *) gp2x_screen+x+320*(y+h));
-			for (i = len; i; i--, p++) *p = 0xe0e0e0e0;
+			offs = (x + g_screen_width * (y+h)) & ~3;
+			p = (int *) ((char *)g_screen_ptr + offs);
+			for (i = len; i; i--, p++)
+				*p = 0xe0e0e0e0;
 		}
 		emu_textOut8(x, y, text);
 	} else {
-		int *p, i, h;
-		x &= ~1; // align x
 		len = (len+1) >> 1;
 		for (h = 0; h < 8; h++) {
-			p = (int *) ((unsigned short *) gp2x_screen+x+320*(y+h));
-			for (i = len; i; i--, p++) *p = (*p>>2)&0x39e7;
+			offs = (x + g_screen_width * (y+h)) & ~1;
+			p = (int *) ((short *)g_screen_ptr + offs);
+			for (i = len; i; i--, p++)
+				*p = (*p >> 2) & 0x39e7;
 		}
 		emu_textOut16(x, y, text);
 	}
@@ -200,15 +200,15 @@ static void draw_cd_leds(void)
 		// 8-bit modes
 		unsigned int col_g = (old_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
 		unsigned int col_r = (old_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
-		*(unsigned int *)((char *)gp2x_screen + 320*2+ 4) =
-		*(unsigned int *)((char *)gp2x_screen + 320*3+ 4) =
-		*(unsigned int *)((char *)gp2x_screen + 320*4+ 4) = col_g;
-		*(unsigned int *)((char *)gp2x_screen + 320*2+12) =
-		*(unsigned int *)((char *)gp2x_screen + 320*3+12) =
-		*(unsigned int *)((char *)gp2x_screen + 320*4+12) = col_r;
+		*(unsigned int *)((char *)g_screen_ptr + 320*2+ 4) =
+		*(unsigned int *)((char *)g_screen_ptr + 320*3+ 4) =
+		*(unsigned int *)((char *)g_screen_ptr + 320*4+ 4) = col_g;
+		*(unsigned int *)((char *)g_screen_ptr + 320*2+12) =
+		*(unsigned int *)((char *)g_screen_ptr + 320*3+12) =
+		*(unsigned int *)((char *)g_screen_ptr + 320*4+12) = col_r;
 	} else {
 		// 16-bit modes
-		unsigned int *p = (unsigned int *)((short *)gp2x_screen + 320*2+4);
+		unsigned int *p = (unsigned int *)((short *)g_screen_ptr + 320*2+4);
 		unsigned int col_g = (old_reg & 2) ? 0x06000600 : 0;
 		unsigned int col_r = (old_reg & 1) ? 0xc000c000 : 0;
 		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 320/2 - 12/2;
@@ -219,7 +219,7 @@ static void draw_cd_leds(void)
 
 static void draw_pico_ptr(void)
 {
-	unsigned short *p = (unsigned short *)gp2x_screen;
+	unsigned short *p = (unsigned short *)g_screen_ptr;
 
 	// only if pen enabled and for 16bit modes
 	if (pico_inp_mode == 0 || (PicoOpt&0x10) || !(currentConfig.EmuOpt&0x80)) return;
@@ -239,7 +239,7 @@ static void draw_pico_ptr(void)
 static int EmuScanBegin16(unsigned int num)
 {
 	if (!(Pico.video.reg[1]&8)) num += 8;
-	DrawLineDest = (unsigned short *) gp2x_screen + 320 * num;
+	DrawLineDest = (unsigned short *) g_screen_ptr + g_screen_width * num;
 
 	return 0;
 }
@@ -247,7 +247,7 @@ static int EmuScanBegin16(unsigned int num)
 static int EmuScanBegin8(unsigned int num)
 {
 	if (!(Pico.video.reg[1]&8)) num += 8;
-	DrawLineDest = (unsigned char *)  gp2x_screen + 320 * num;
+	DrawLineDest = (unsigned char *)  g_screen_ptr + g_screen_width * num;
 
 	return 0;
 }
@@ -272,7 +272,7 @@ static void blit(const char *fps, const char *notice)
 		if (PicoRead16Hook == PicoSVPRead16)
 			memset32((int *)(PicoDraw2FB+328*8+328*223), 0xe0e0e0e0, 328);
 		// do actual copy
-		vidCpyM2((unsigned char *)gp2x_screen+320*8, PicoDraw2FB+328*8);
+		vidCpyM2((unsigned char *)g_screen_ptr+320*8, PicoDraw2FB+328*8);
 	}
 	else if (!(emu_opt&0x80))
 	{
@@ -326,12 +326,12 @@ static void blit(const char *fps, const char *notice)
 	if (!(PicoOpt&0x10)) {
 		if (!(Pico.video.reg[1]&8)) {
 			if (currentConfig.EmuOpt&0x80) {
-				DrawLineDest = (unsigned short *) gp2x_screen + 320*8;
+				DrawLineDest = (unsigned short *) g_screen_ptr + 320*8;
 			} else {
-				DrawLineDest = (unsigned char  *) gp2x_screen + 320*8;
+				DrawLineDest = (unsigned char  *) g_screen_ptr + 320*8;
 			}
 		} else {
-			DrawLineDest = gp2x_screen;
+			DrawLineDest = g_screen_ptr;
 		}
 	}
 }
@@ -389,12 +389,12 @@ static void emu_msg_cb(const char *msg)
 		// 8-bit renderers
 		gp2x_memset_all_buffers(320*232, 0xe0, 320*8);
 		osd_text(4, 232, msg);
-		gp2x_memcpy_all_buffers((char *)gp2x_screen+320*232, 320*232, 320*8);
+		gp2x_memcpy_all_buffers((char *)g_screen_ptr+320*232, 320*232, 320*8);
 	} else {
 		// 16bit accurate renderer
 		gp2x_memset_all_buffers(320*232*2, 0, 320*8*2);
 		osd_text(4, 232, msg);
-		gp2x_memcpy_all_buffers((char *)gp2x_screen+320*232*2, 320*232*2, 320*8*2);
+		gp2x_memcpy_all_buffers((char *)g_screen_ptr+320*232*2, 320*232*2, 320*8*2);
 	}
 	gettimeofday(&noticeMsgTime, 0);
 	noticeMsgTime.tv_sec -= 2;
@@ -521,7 +521,7 @@ static void RunEvents(unsigned int which)
 		if (do_it) {
 			osd_text(4, 232, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
 			PicoStateProgressCB = emu_state_cb;
-			gp2x_memcpy_all_buffers(gp2x_screen, 0, 320*240*2);
+			gp2x_memcpy_all_buffers(g_screen_ptr, 0, 320*240*2);
 			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
 			PicoStateProgressCB = NULL;
 		}
@@ -567,14 +567,10 @@ static void updateKeys(void)
 {
 	unsigned int keys, keys2, allActions[2] = { 0, 0 }, events;
 	static unsigned int prevEvents = 0;
-	int joy, i;
 
 	keys = gp2x_joystick_read(0);
-	if (keys & GP2X_SELECT) {
+	if (keys & GP2X_SELECT)
 		engineState = select_exits ? PGS_Quit : PGS_Menu;
-		// wait until select is released, so menu would not resume game
-		while (gp2x_joystick_read(1) & GP2X_SELECT) usleep(50*1000);
-	}
 
 	keys &= CONFIGURABLE_KEYS;
 	keys2 = keys;
@@ -611,22 +607,6 @@ static void updateKeys(void)
 		}
 	}
 #endif
-
-	// add joy inputs
-	if (num_of_joys > 0)
-	{
-		usbjoy_update();
-		for (joy = 0; joy < num_of_joys; joy++) {
-			int btns = usbjoy_check2(joy);
-			for (i = 0; i < 32; i++) {
-				if (btns & (1 << i)) {
-					int acts = currentConfig.JoyBinds[joy][i];
-					int pl = (acts >> 16) & 1;
-					allActions[pl] |= acts;
-				}
-			}
-		}
-	}
 
 	PicoPad[0] = allActions[0] & 0xfff;
 	PicoPad[1] = allActions[1] & 0xfff;
@@ -736,7 +716,7 @@ void emu_forcedFrame(int opts)
 		clearArea(1);
 	} else	vidCpyM2 = vidCpyM2_40col;
 
-	vidCpyM2((unsigned char *)gp2x_screen+320*8, PicoDraw2FB+328*8);
+	vidCpyM2((unsigned char *)g_screen_ptr+320*8, PicoDraw2FB+328*8);
 	vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 	gp2x_video_setpalette(localPal, 0x40);
 */
@@ -799,11 +779,11 @@ static void tga_dump(void)
 #define CONV(X) (((X>>1)&0x7fe0)|(X&0x1f)) // 555?
 
 	for (i = 0; i < 320*240; i++)
-		if(oldscr[i] != CONV(((unsigned short *)gp2x_screen)[i])) break;
+		if(oldscr[i] != CONV(((unsigned short *)g_screen_ptr)[i])) break;
 	if (i < 320*240)
 	{
 		for (i = 0; i < 320*240; i++)
-			oldscr[i] = CONV(((unsigned short *)gp2x_screen)[i]);
+			oldscr[i] = CONV(((unsigned short *)g_screen_ptr)[i]);
 		sprintf(name, "%05i.tga", Pico.m.frame_count);
 		f = fopen(name, "wb");
 		if (!f) { printf("!f\n"); exit(1); }

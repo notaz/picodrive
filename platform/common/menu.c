@@ -1,4 +1,4 @@
-// (c) Copyright 2006,2007 notaz, All rights reserved.
+// (c) Copyright 2006-2009 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -38,7 +38,7 @@ static int menu_sel_color = -1; // disabled
 static void text_out16_(int x, int y, const char *text, int color)
 {
 	int i, l, u, tr, tg, tb, len;
-	unsigned short *dest = (unsigned short *)SCREEN_BUFFER + x + y*SCREEN_WIDTH;
+	unsigned short *dest = (unsigned short *)g_screen_ptr + x + y * g_screen_width;
 	tr = (color & 0xf800) >> 8;
 	tg = (color & 0x07e0) >> 3;
 	tb = (color & 0x001f) << 3;
@@ -61,7 +61,7 @@ static void text_out16_(int x, int y, const char *text, int color)
 	{
 		unsigned char  *src = menu_font_data + (unsigned int)text[i]*4*10;
 		unsigned short *dst = dest;
-		for (l = 0; l < 10; l++, dst += SCREEN_WIDTH-8)
+		for (l = 0; l < 10; l++, dst += g_screen_width - 8)
 		{
 			for (u = 8/2; u > 0; u--, src++)
 			{
@@ -92,7 +92,7 @@ void text_out16(int x, int y, const char *texto, ...)
 {
 	va_list args;
 	char    buffer[256];
-	int     maxw = (SCREEN_WIDTH - x) / 8;
+	int     maxw = (g_screen_width - x) / 8;
 
 	if (maxw < 0)
 		return;
@@ -123,7 +123,7 @@ static void smalltext_out16_(int x, int y, const char *texto, int color)
 		if (!c) break;
 
 		src = fontdata6x8[c];
-		dst = (unsigned short *)SCREEN_BUFFER + x + y*SCREEN_WIDTH;
+		dst = (unsigned short *)g_screen_ptr + x + y * g_screen_width;
 
 		while (h--)
 		{
@@ -136,15 +136,15 @@ static void smalltext_out16_(int x, int y, const char *texto, int color)
 			}
 			src++;
 
-			dst += SCREEN_WIDTH-6;
+			dst += g_screen_width - 6;
 		}
 	}
 }
 
 void smalltext_out16(int x, int y, const char *texto, int color)
 {
-	char buffer[SCREEN_WIDTH/6+1];
-	int maxw = (SCREEN_WIDTH - x) / 6;
+	char buffer[128];
+	int maxw = (g_screen_width - x) / 6;
 
 	if (maxw < 0)
 		return;
@@ -167,13 +167,13 @@ static void menu_draw_selection(int x, int y, int w)
 	if (menu_sel_color < 0) return; // no selection hilight
 
 	if (y > 0) y--;
-	dest = (unsigned short *)SCREEN_BUFFER + x + y*SCREEN_WIDTH + 14;
+	dest = (unsigned short *)g_screen_ptr + x + y * g_screen_width + 14;
 	for (h = 11; h > 0; h--)
 	{
 		dst = dest;
 		for (i = w; i > 0; i--)
 			*dst++ = menu_sel_color;
-		dest += SCREEN_WIDTH;
+		dest += g_screen_width;
 	}
 }
 
@@ -334,17 +334,17 @@ static void me_draw(const menu_entry *entries, int sel)
 	h = n * 10;
 	w += 16; /* selector */
 
-	if (w > SCREEN_WIDTH) {
-		lprintf("width %d > %d\n", w, SCREEN_WIDTH);
-		w = SCREEN_WIDTH;
+	if (w > g_screen_width) {
+		lprintf("width %d > %d\n", w, g_screen_width);
+		w = g_screen_width;
 	}
-	if (h > SCREEN_HEIGHT) {
-		lprintf("height %d > %d\n", w, SCREEN_HEIGHT);
-		h = SCREEN_HEIGHT;
+	if (h > g_screen_height) {
+		lprintf("height %d > %d\n", w, g_screen_height);
+		h = g_screen_height;
 	}
 
-	x = SCREEN_WIDTH  / 2 - w / 2;
-	y = SCREEN_HEIGHT / 2 - h / 2;
+	x = g_screen_width  / 2 - w / 2;
+	y = g_screen_height / 2 - h / 2;
 
 	/* draw */
 	plat_video_menu_begin();
@@ -390,7 +390,7 @@ static void me_draw(const menu_entry *entries, int sel)
 	/* display message if we have one */
 	if (menuErrorMsg[0] != 0) {
 		static int msg_redraws = 0;
-		if (SCREEN_HEIGHT - h >= 2*10)
+		if (g_screen_height - h >= 2*10)
 			text_out16(5, 226, menuErrorMsg);
 		else
 			lprintf("menu msg doesn't fit!\n");
@@ -510,14 +510,14 @@ static void draw_menu_credits(void)
 		p++;
 	}
 
-	x = SCREEN_WIDTH  / 2 - w *  8 / 2;
-	y = SCREEN_HEIGHT / 2 - h * 10 / 2;
+	x = g_screen_width  / 2 - w *  8 / 2;
+	y = g_screen_height / 2 - h * 10 / 2;
 	if (x < 0) x = 0;
 	if (y < 0) y = 0;
 
 	plat_video_menu_begin();
 
-	for (p = creds; *p != 0 && y <= SCREEN_HEIGHT - 10; y += 10) {
+	for (p = creds; *p != 0 && y <= g_screen_height - 10; y += 10) {
 		text_out16(x, y, p);
 
 		for (; *p != 0 && *p != '\n'; p++)
@@ -535,30 +535,30 @@ static int cdload_called = 0;
 
 static void load_progress_cb(int percent)
 {
-	int ln, len = percent * SCREEN_WIDTH / 100;
-	unsigned short *dst = (unsigned short *)SCREEN_BUFFER + SCREEN_WIDTH * 10 * 2;
+	int ln, len = percent * g_screen_width / 100;
+	unsigned short *dst = (unsigned short *)g_screen_ptr + g_screen_width * 10 * 2;
 
-	if (len > SCREEN_WIDTH)
-		len = SCREEN_WIDTH;
-	for (ln = 10 - 2; ln > 0; ln--, dst += SCREEN_WIDTH)
+	if (len > g_screen_width)
+		len = g_screen_width;
+	for (ln = 10 - 2; ln > 0; ln--, dst += g_screen_width)
 		memset(dst, 0xff, len * 2);
 	plat_video_menu_end();
 }
 
 static void cdload_progress_cb(int percent)
 {
-	int ln, len = percent * SCREEN_WIDTH / 100;
-	unsigned short *dst = (unsigned short *)SCREEN_BUFFER + SCREEN_WIDTH * 10 * 2;
+	int ln, len = percent * g_screen_width / 100;
+	unsigned short *dst = (unsigned short *)g_screen_ptr + g_screen_width * 10 * 2;
 
-	memset(dst, 0xff, SCREEN_WIDTH * (10 - 2) * 2);
+	memset(dst, 0xff, g_screen_width * (10 - 2) * 2);
 
 	smalltext_out16(1, 3 * 10, "Processing CD image / MP3s", 0xffff);
 	smalltext_out16(1, 4 * 10, rom_fname_loaded, 0xffff);
-	dst += SCREEN_WIDTH * 30;
+	dst += g_screen_width * 30;
 
-	if (len > SCREEN_WIDTH)
-		len = SCREEN_WIDTH;
-	for (ln = (10 - 2); ln > 0; ln--, dst += SCREEN_WIDTH)
+	if (len > g_screen_width)
+		len = g_screen_width;
+	for (ln = (10 - 2); ln > 0; ln--, dst += g_screen_width)
 		memset(dst, 0xff, len * 2);
 
 	plat_video_menu_end();
@@ -618,7 +618,7 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 {
 	int max_cnt, start, i, pos;
 
-	max_cnt = SCREEN_HEIGHT / 10;
+	max_cnt = g_screen_height / 10;
 	start = max_cnt / 2 - sel;
 	n--; // exclude current dir (".")
 
@@ -627,7 +627,7 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 //	if (!rom_loaded)
 //		menu_darken_bg(gp2x_screen, 320*240, 0);
 
-	menu_darken_bg((short *)SCREEN_BUFFER + SCREEN_WIDTH * max_cnt/2 * 10, SCREEN_WIDTH * 8, 0);
+	menu_darken_bg((short *)g_screen_ptr + g_screen_width * max_cnt/2 * 10, g_screen_width * 8, 0);
 
 	if (start - 2 >= 0)
 		smalltext_out16(14, (start - 2)*10, curdir, 0xffff);
@@ -723,14 +723,14 @@ rescan:
 	{
 		draw_dirlist(curr_path, namelist, n, sel);
 		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|
-			PBTN_L|PBTN_R|PBTN_WEST|PBTN_MOK|PBTN_MBACK|PBTN_MENU, 33); // TODO L R
+			PBTN_L|PBTN_R|PBTN_MA2|PBTN_MOK|PBTN_MBACK|PBTN_MENU, 33);
 		if (inp & PBTN_UP  )  { sel--;   if (sel < 0)   sel = n-2; }
 		if (inp & PBTN_DOWN)  { sel++;   if (sel > n-2) sel = 0; }
 		if (inp & PBTN_LEFT)  { sel-=10; if (sel < 0)   sel = 0; }
 		if (inp & PBTN_L)     { sel-=24; if (sel < 0)   sel = 0; }
 		if (inp & PBTN_RIGHT) { sel+=10; if (sel > n-2) sel = n-2; }
 		if (inp & PBTN_R)     { sel+=24; if (sel > n-2) sel = n-2; }
-		if ((inp & PBTN_MOK) || (inp & (PBTN_MENU|PBTN_WEST)) == (PBTN_MENU|PBTN_WEST)) // enter dir/select || delete
+		if ((inp & PBTN_MOK) || (inp & (PBTN_MENU|PBTN_MA2)) == (PBTN_MENU|PBTN_MA2))
 		{
 			again:
 			if (namelist[sel+1]->d_type == DT_REG)
@@ -810,7 +810,7 @@ static void draw_patchlist(int sel)
 {
 	int max_cnt, start, i, pos, active;
 
-	max_cnt = SCREEN_HEIGHT / 10;
+	max_cnt = g_screen_height / 10;
 	start = max_cnt / 2 - sel;
 
 	plat_video_menu_begin();
@@ -932,9 +932,9 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 
 	w = 13 * 8 + 16;
 	h = (1+2+10+1) * 10;
-	x = SCREEN_WIDTH / 2 - w / 2;
+	x = g_screen_width / 2 - w / 2;
 	if (x < 0) x = 0;
-	y = SCREEN_HEIGHT / 2 - h / 2;
+	y = g_screen_height / 2 - h / 2;
 	if (y < 0) y = 0;
 
 	plat_video_menu_begin();
@@ -945,7 +945,6 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 	menu_draw_selection(x - 16, y + menu_sel * 10, 13 * 8 + 4);
 
 	/* draw all 10 slots */
-	y += 10;
 	for (i = 0; i < 10; i++, y += 10)
 	{
 		text_out16(x, y, "SLOT %i (%s)", i, (state_slot_flags & (1 << i)) ? "USED" : "free");
@@ -1060,7 +1059,7 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 	int x, y = 30, w, i;
 	const char *dev_name;
 
-	x = SCREEN_WIDTH / 2 - 32*8 / 2;
+	x = g_screen_width / 2 - 32*8 / 2;
 	if (x < 0) x = 0;
 
 	plat_video_menu_begin();
@@ -1079,20 +1078,20 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 	w = strlen(dev_name) * 8;
 	if (w < 30 * 8)
 		w = 30 * 8;
-	if (w > SCREEN_WIDTH)
-		w = SCREEN_WIDTH;
+	if (w > g_screen_width)
+		w = g_screen_width;
 
-	x = SCREEN_WIDTH / 2 - w / 2;
+	x = g_screen_width / 2 - w / 2;
 
 	if (dev_count > 1) {
-		text_out16(x, SCREEN_HEIGHT - 4*10, "Viewing binds for:");
-		text_out16(x, SCREEN_HEIGHT - 3*10, dev_name);
+		text_out16(x, g_screen_height - 4*10, "Viewing binds for:");
+		text_out16(x, g_screen_height - 3*10, dev_name);
 	}
 
 	if (is_bind)
-		text_out16(x, SCREEN_HEIGHT - 2*10, "Press a button to bind/unbind");
+		text_out16(x, g_screen_height - 2*10, "Press a button to bind/unbind");
 	else if (dev_count > 1)
-		text_out16(x, SCREEN_HEIGHT - 2*10, "Press left/right for other devs");
+		text_out16(x, g_screen_height - 2*10, "Press left/right for other devs");
 
 	plat_video_menu_end();
 }
@@ -1653,7 +1652,8 @@ static void mplayer_loop(void)
 	while (1)
 	{
 		PDebugZ80Frame();
-		if (in_menu_wait_any(0) & PBTN_NORTH) break;
+		if (in_menu_wait_any(0) & PBTN_MA3)
+			break;
 		emu_waitSound();
 	}
 
@@ -1674,7 +1674,7 @@ static void draw_text_debug(const char *str, int skip, int from)
 	}
 
 	str = p;
-	for (line = from; line < SCREEN_HEIGHT/10; line++)
+	for (line = from; line < g_screen_height / 10; line++)
 	{
 		while (*p && *p != '\n') p++;
 		smalltext_out16(1, line*10, str, 0xffff);
@@ -1691,9 +1691,9 @@ static void draw_frame_debug(void)
 	if (PicoDrawMask & PDRAW_SPRITES_LOW_ON) memcpy(layer_str + 12, "spr_lo", 6);
 	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)  memcpy(layer_str + 19, "spr_hi", 6);
 
-	clear_screen();
+	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 	emu_forcedFrame(0);
-	smalltext_out16(4, SCREEN_HEIGHT-8, layer_str, 0xffff);
+	smalltext_out16(4, g_screen_height - 8, layer_str, 0xffff);
 }
 
 static void debug_menu_loop(void)
@@ -1711,26 +1711,26 @@ static void debug_menu_loop(void)
 				emu_platformDebugCat(tmp);
 				draw_text_debug(tmp, 0, 0);
 				if (dumped) {
-					smalltext_out16(SCREEN_WIDTH-6*10, SCREEN_HEIGHT-8, "dumped", 0xffff);
+					smalltext_out16(g_screen_width - 6*10, g_screen_height - 8, "dumped", 0xffff);
 					dumped = 0;
 				}
 				break;
 			case 1: draw_frame_debug(); break;
-			case 2: clear_screen();
+			case 2: memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 				emu_forcedFrame(0);
-				darken_screen();
-				PDebugShowSpriteStats((unsigned short *)SCREEN_BUFFER + (SCREEN_HEIGHT/2 - 240/2)*SCREEN_WIDTH +
-					SCREEN_WIDTH/2 - 320/2, SCREEN_WIDTH); break;
-			case 3: clear_screen();
-				PDebugShowPalette(SCREEN_BUFFER, SCREEN_WIDTH);
-				PDebugShowSprite((unsigned short *)SCREEN_BUFFER + SCREEN_WIDTH*120+SCREEN_WIDTH/2+16,
-					SCREEN_WIDTH, spr_offs);
+				menu_darken_bg(g_screen_ptr, g_screen_width * g_screen_height, 0);
+				PDebugShowSpriteStats((unsigned short *)g_screen_ptr + (g_screen_height/2 - 240/2)*g_screen_width +
+					g_screen_width/2 - 320/2, g_screen_width); break;
+			case 3: memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
+				PDebugShowPalette(g_screen_ptr, g_screen_width);
+				PDebugShowSprite((unsigned short *)g_screen_ptr + g_screen_width*120 + g_screen_width/2 + 16,
+					g_screen_width, spr_offs);
 				draw_text_debug(PDebugSpriteList(), spr_offs, 6);
 				break;
 		}
 		plat_video_menu_end();
 
-		inp = in_menu_wait(PBTN_EAST|PBTN_MBACK|PBTN_WEST|PBTN_NORTH|PBTN_L|PBTN_R |
+		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK|PBTN_MA2|PBTN_MA3|PBTN_L|PBTN_R |
 					PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT, 70);
 		if (inp & PBTN_MBACK) return;
 		if (inp & PBTN_L) { mode--; if (mode < 0) mode = 3; }
@@ -1738,15 +1738,17 @@ static void debug_menu_loop(void)
 		switch (mode)
 		{
 			case 0:
-				if (inp & PBTN_EAST) SekStepM68k();
-				if (inp & PBTN_NORTH) {
-					while (inp & PBTN_NORTH) inp = in_menu_wait_any(-1);
+				if (inp & PBTN_MOK)
+					SekStepM68k();
+				if (inp & PBTN_MA3) {
+					while (inp & PBTN_MA3)
+						inp = in_menu_wait_any(-1);
 					mplayer_loop();
 				}
-				if ((inp & (PBTN_WEST|PBTN_LEFT)) == (PBTN_WEST|PBTN_LEFT)) {
+				if ((inp & (PBTN_MA2|PBTN_LEFT)) == (PBTN_MA2|PBTN_LEFT)) {
 					mkdir("dumps", 0777);
 					PDebugDumpMem();
-					while (inp & PBTN_WEST) inp = in_menu_wait_any(-1);
+					while (inp & PBTN_MA2) inp = in_menu_wait_any(-1);
 					dumped = 1;
 				}
 				break;
@@ -1755,12 +1757,12 @@ static void debug_menu_loop(void)
 				if (inp & PBTN_RIGHT) PicoDrawMask ^= PDRAW_LAYERA_ON;
 				if (inp & PBTN_DOWN)  PicoDrawMask ^= PDRAW_SPRITES_LOW_ON;
 				if (inp & PBTN_UP)    PicoDrawMask ^= PDRAW_SPRITES_HI_ON;
-				if (inp & PBTN_EAST) {
+				if (inp & PBTN_MOK) {
 					PsndOut = NULL; // just in case
 					PicoSkipFrame = 1;
 					PicoFrame();
 					PicoSkipFrame = 0;
-					while (inp & PBTN_EAST) inp = in_menu_wait_any(-1);
+					while (inp & PBTN_MOK) inp = in_menu_wait_any(-1);
 				}
 				break;
 			case 3:

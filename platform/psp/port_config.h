@@ -8,6 +8,10 @@
 #define REDUCE_IO_CALLS 1      // another workaround
 #define SIMPLE_WRITE_SOUND 0
 
+#define SCREEN_SIZE_FIXED 1
+#define SCREEN_WIDTH  512
+#define SCREEN_HEIGHT 272
+
 // draw.c
 #define USE_BGR555 1
 #define OVERRIDE_HIGHCOL 1

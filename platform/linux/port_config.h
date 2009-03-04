@@ -10,6 +10,10 @@
 #define REDUCE_IO_CALLS 0
 #define SIMPLE_WRITE_SOUND 0
 
+#define SCREEN_SIZE_FIXED 0
+#define SCREEN_WIDTH  320
+#define SCREEN_HEIGHT 240
+
 // draw.c
 #define OVERRIDE_HIGHCOL 0
 

@@ -24,6 +24,13 @@
 #include <zlib/zlib.h>
 
 
+void *g_screen_ptr;
+
+#if !SCREEN_SIZE_FIXED
+int g_screen_width  = SCREEN_WIDTH;
+int g_screen_height = SCREEN_HEIGHT;
+#endif
+
 char *PicoConfigFile = "config.cfg";
 currentConfig_t currentConfig, defaultConfig;
 char noticeMsg[64] = { 0, };
@@ -679,54 +686,36 @@ void emu_writelrom(void)
 #endif
 }
 
-#ifndef UIQ3
-void emu_textOut8(int x, int y, const char *text)
-{
-	int i,l,len=strlen(text);
-	unsigned char *screen = (unsigned char *)SCREEN_BUFFER + x + y*SCREEN_WIDTH;
+/* always using built-in font */
 
-	/* always using built-in font */
-	for (i = 0; i < len; i++)
-	{
-		for (l=0;l<8;l++)
-		{
-			unsigned char fd = fontdata8x8[((text[i])*8)+l];
-			if (fd&0x80) screen[l*SCREEN_WIDTH+0]=0xf0;
-			if (fd&0x40) screen[l*SCREEN_WIDTH+1]=0xf0;
-			if (fd&0x20) screen[l*SCREEN_WIDTH+2]=0xf0;
-			if (fd&0x10) screen[l*SCREEN_WIDTH+3]=0xf0;
-			if (fd&0x08) screen[l*SCREEN_WIDTH+4]=0xf0;
-			if (fd&0x04) screen[l*SCREEN_WIDTH+5]=0xf0;
-			if (fd&0x02) screen[l*SCREEN_WIDTH+6]=0xf0;
-			if (fd&0x01) screen[l*SCREEN_WIDTH+7]=0xf0;
-		}
-		screen += 8;
-	}
+#define mk_text_out(name, type, val) \
+void name(int x, int y, const char *text)				\
+{									\
+	int i, l, len = strlen(text);					\
+	type *screen = (type *)g_screen_ptr + x + y * g_screen_width;	\
+									\
+	for (i = 0; i < len; i++, screen += 8)				\
+	{								\
+		for (l = 0; l < 8; l++)					\
+		{							\
+			unsigned char fd = fontdata8x8[text[i] * 8 + l];\
+			type *s = screen + l * g_screen_width;		\
+			if (fd&0x80) s[0] = val;			\
+			if (fd&0x40) s[1] = val;			\
+			if (fd&0x20) s[2] = val;			\
+			if (fd&0x10) s[3] = val;			\
+			if (fd&0x08) s[4] = val;			\
+			if (fd&0x04) s[5] = val;			\
+			if (fd&0x02) s[6] = val;			\
+			if (fd&0x01) s[7] = val;			\
+		}							\
+	}								\
 }
 
-void emu_textOut16(int x, int y, const char *text)
-{
-	int i,l,len=strlen(text);
-	unsigned short *screen = (unsigned short *)SCREEN_BUFFER + x + y*SCREEN_WIDTH;
+mk_text_out(emu_textOut8, unsigned char, 0xf0)
+mk_text_out(emu_textOut16, unsigned short, 0xffff)
 
-	for (i = 0; i < len; i++)
-	{
-		for (l=0;l<8;l++)
-		{
-			unsigned char fd = fontdata8x8[((text[i])*8)+l];
-			if(fd&0x80) screen[l*SCREEN_WIDTH+0]=0xffff;
-			if(fd&0x40) screen[l*SCREEN_WIDTH+1]=0xffff;
-			if(fd&0x20) screen[l*SCREEN_WIDTH+2]=0xffff;
-			if(fd&0x10) screen[l*SCREEN_WIDTH+3]=0xffff;
-			if(fd&0x08) screen[l*SCREEN_WIDTH+4]=0xffff;
-			if(fd&0x04) screen[l*SCREEN_WIDTH+5]=0xffff;
-			if(fd&0x02) screen[l*SCREEN_WIDTH+6]=0xffff;
-			if(fd&0x01) screen[l*SCREEN_WIDTH+7]=0xffff;
-		}
-		screen += 8;
-	}
-}
-#endif
+#undef mk_text_out
 
 #ifdef PSP
 #define MAX_COMBO_KEY 23
@@ -734,6 +723,7 @@ void emu_textOut16(int x, int y, const char *text)
 #define MAX_COMBO_KEY 31
 #endif
 
+// FIXME
 void emu_findKeyBindCombos(void)
 {
 	int act, u;

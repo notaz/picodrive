@@ -15,16 +15,16 @@
 #include "../gp2x/emu.h"
 #include "../gp2x/gp2x.h"
 #include "../gp2x/version.h"
+#include "../common/emu.h"
 #include "sndout_oss.h"
-#include "usbjoy.h"
 
 #include "log_io.h"
 
-void *gp2x_screen;
 unsigned long current_keys = 0;
 static int current_bpp = 8;
 static int current_pal[256];
 static const char *verstring = "PicoDrive " VERSION;
+static int scr_changed = 0, scr_w = SCREEN_WIDTH, scr_h = SCREEN_HEIGHT;
 
 // dummies
 char *ext_menu = 0, *ext_state = 0;
@@ -111,17 +111,12 @@ static gint key_release_event (GtkWidget *widget, GdkEventKey *event)
 	return 0;
 }
 
-/*
-void                gdk_drawable_get_size               (GdkDrawable *drawable,
-		gint *width,
-		gint *height);
-**/
-
 static void size_allocate_event(GtkWidget *widget, GtkAllocation *allocation, gpointer user_data)
 {
-	gint w, h;
-	gdk_drawable_get_size(gtk_items.window, &w, &h);
-	printf("%dx%d %dx%d\n", allocation->width, allocation->height, w, h);
+	// printf("%dx%d\n", allocation->width, allocation->height);
+	scr_w = allocation->width - 2;
+	scr_h = allocation->height - 2;
+	scr_changed = 1;
 }
 
 static void *gtk_threadf(void *targ)
@@ -153,7 +148,7 @@ static void *gtk_threadf(void *targ)
 	g_signal_connect (G_OBJECT (gtk_items.window), "size_allocate",
 			G_CALLBACK (size_allocate_event), NULL);
 
-	gtk_container_set_border_width (GTK_CONTAINER (gtk_items.window), 2);
+	gtk_container_set_border_width (GTK_CONTAINER (gtk_items.window), 1);
 	gtk_window_set_title ((GtkWindow *) gtk_items.window, verstring);
 
 	box = gtk_hbox_new(FALSE, 0);
@@ -198,28 +193,35 @@ void finalize_image(guchar *pixels, gpointer data)
 
 /* --- */
 
+static void realloc_screen(void)
+{
+	void *old = g_screen_ptr;
+	g_screen_width = scr_w;
+	g_screen_height = scr_h;
+	g_screen_ptr = malloc(g_screen_width * g_screen_height * 2);
+	free(old);
+	scr_changed = 0;
+}
+
 void gp2x_init(void)
 {
 	printf("entering init()\n"); fflush(stdout);
 
-	gp2x_screen = malloc(320*240*2 + 320*2);
-	memset(gp2x_screen, 0, 320*240*2 + 320*2);
+	realloc_screen();
+	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 
 	// snd
 	sndout_oss_init();
 
 	gtk_initf();
 
-	usbjoy_init();
-
 	printf("exitting init()\n"); fflush(stdout);
 }
 
 void gp2x_deinit(void)
 {
-	free(gp2x_screen);
+	free(g_screen_ptr);
 	sndout_oss_exit();
-	usbjoy_deinit();
 }
 
 /* video */
@@ -227,11 +229,13 @@ void gp2x_video_flip(void)
 {
 	GdkPixbuf	*pixbuf;
 	unsigned char	*image;
-	int		i;
+	int		pixel_count, i;
+
+	pixel_count = g_screen_width * g_screen_height;
 
 	gdk_threads_enter();
 
-	image = malloc (320*240*3);
+	image = malloc(pixel_count * 3);
 	if (image == NULL)
 	{
 		gdk_threads_leave();
@@ -240,10 +244,10 @@ void gp2x_video_flip(void)
 
 	if (current_bpp == 8)
 	{
-		unsigned char *pixels = gp2x_screen;
+		unsigned char *pixels = g_screen_ptr;
 		int pix;
 
-		for (i = 0; i < 320*240; i++)
+		for (i = 0; i < pixel_count; i++)
 		{
 			pix = current_pal[pixels[i]];
 			image[3 * i + 0] = pix >> 16;
@@ -253,9 +257,9 @@ void gp2x_video_flip(void)
 	}
 	else
 	{
-		unsigned short *pixels = gp2x_screen;
+		unsigned short *pixels = g_screen_ptr;
 
-		for (i = 0; i < 320*240; i++)
+		for (i = 0; i < pixel_count; i++)
 		{
 			/*  in:           rrrr rggg gggb bbbb */
 			/* out: rrrr r000 gggg gg00 bbbb b000 */
@@ -266,11 +270,15 @@ void gp2x_video_flip(void)
 	}
 
 	pixbuf = gdk_pixbuf_new_from_data (image, GDK_COLORSPACE_RGB,
-			FALSE, 8, 320, 240, 320*3, finalize_image, NULL);
+			FALSE, 8, g_screen_width, g_screen_height,
+			g_screen_width * 3, finalize_image, NULL);
 	gtk_image_set_from_pixbuf (GTK_IMAGE (gtk_items.pixmap1), pixbuf);
 	g_object_unref (pixbuf);
 
 	gdk_threads_leave();
+
+	if (scr_changed)
+		realloc_screen();
 }
 
 void gp2x_video_flip2(void)
@@ -303,40 +311,30 @@ void gp2x_video_RGB_setscaling(int v_offs, int W, int H)
 
 void gp2x_memcpy_buffers(int buffers, void *data, int offset, int len)
 {
-	if ((char *)gp2x_screen + offset != data)
-		memcpy((char *)gp2x_screen + offset, data, len);
+	if ((char *)g_screen_ptr + offset != data)
+		memcpy((char *)g_screen_ptr + offset, data, len);
 }
 
 void gp2x_memcpy_all_buffers(void *data, int offset, int len)
 {
-	memcpy((char *)gp2x_screen + offset, data, len);
+	memcpy((char *)g_screen_ptr + offset, data, len);
 }
 
 
 void gp2x_memset_all_buffers(int offset, int byte, int len)
 {
-	memset((char *)gp2x_screen + offset, byte, len);
+	memset((char *)g_screen_ptr + offset, byte, len);
 }
 
 void gp2x_pd_clone_buffer2(void)
 {
-	memset(gp2x_screen, 0, 320*240*2);
+	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 }
 
 /* joy */
 unsigned long gp2x_joystick_read(int allow_usb_joy)
 {
-	unsigned long value = current_keys;
-	int i;
-
-	if (allow_usb_joy && num_of_joys > 0) {
-		// check the usb joy as well..
-		usbjoy_update();
-		for (i = 0; i < num_of_joys; i++)
-			value |= usbjoy_check(i);
-	}
-
-	return value;
+	return current_keys;
 }
 
 int gp2x_touchpad_read(int *x, int *y)

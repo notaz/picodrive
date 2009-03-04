@@ -52,7 +52,7 @@ int reset_timing = 0;
 
 #define PICO_PEN_ADJUST_X 4
 #define PICO_PEN_ADJUST_Y 2
-static int pico_pen_x = SCREEN_WIDTH/2, pico_pen_y = 240/2;
+static int pico_pen_x = 0, pico_pen_y = 240/2;
 
 static void emu_msg_cb(const char *msg);
 static void emu_msg_tray_open(void);
@@ -126,7 +126,6 @@ void emu_prepareDefaultConfig(void)
 	defaultConfig.EmuOpt    = 0x8f | 0x00600; // | <- confirm_save, cd_leds
 	defaultConfig.s_PicoOpt  = 0x0f | POPT_EXT_FM|POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC;
 	defaultConfig.s_PicoOpt |= POPT_ACC_SPRITES|POPT_EN_MCD_GFX;
-//	defaultConfig.s_PicoOpt &= ~POPT_EN_SVP_DRC; // crashes :(
 	defaultConfig.EmuOpt    &= ~8; // no save gzip
 	defaultConfig.s_PsndRate = 44100;
 	defaultConfig.s_PicoRegion = 0;
@@ -142,14 +141,14 @@ void emu_prepareDefaultConfig(void)
 static void textOut16(int x, int y, const char *text)
 {
 	int i,l,len=strlen(text);
-	unsigned int *screen = (unsigned int *)((unsigned short *)SCREEN_BUFFER + (x&~1) + y*SCREEN_WIDTH);
+	unsigned int *screen = (unsigned int *)((unsigned short *)g_screen_ptr + (x&~1) + y*g_screen_width);
 
 	for (i = 0; i < len; i++)
 	{
 		for (l=0;l<16;)
 		{
 			unsigned char fd = fontdata8x8[((text[i])*8)+l/2];
-			unsigned int *d = &screen[l*SCREEN_WIDTH/2];
+			unsigned int *d = &screen[l*g_screen_width/2];
 			if (fd&0x80) d[0]=0xffffffff;
 			if (fd&0x40) d[1]=0xffffffff;
 			if (fd&0x20) d[2]=0xffffffff;
@@ -158,7 +157,7 @@ static void textOut16(int x, int y, const char *text)
 			if (fd&0x04) d[5]=0xffffffff;
 			if (fd&0x02) d[6]=0xffffffff;
 			if (fd&0x01) d[7]=0xffffffff;
-			l++; d = &screen[l*SCREEN_WIDTH/2];
+			l++; d = &screen[l*g_screen_width/2];
 			if (fd&0x80) d[0]=0xffffffff;
 			if (fd&0x40) d[1]=0xffffffff;
 			if (fd&0x20) d[2]=0xffffffff;
@@ -183,7 +182,7 @@ void osd_text(int x, int y, const char *text)
 		x &= ~3; // align x
 		len = (len+3) >> 2;
 		for (h = 0; h < 8; h++) {
-			p = (int *) ((unsigned char *) gp2x_screen+x+SCREEN_WIDTH*(y+h));
+			p = (int *) ((unsigned char *) gp2x_screen+x+g_screen_width*(y+h));
 			for (i = len; i; i--, p++) *p = 0xe0e0e0e0;
 		}
 		emu_textOut8(x, y, text);
@@ -192,7 +191,7 @@ void osd_text(int x, int y, const char *text)
 		x &= ~1; // align x
 		len++;
 		for (h = 0; h < 16; h++) {
-			p = (int *) ((unsigned short *) gp2x_screen+x+SCREEN_WIDTH*(y+h));
+			p = (int *) ((unsigned short *) gp2x_screen+x+g_screen_width*(y+h));
 			for (i = len; i; i--, p++) *p = 0;//(*p>>2)&0x39e7;
 		}
 		textOut16(x, y, text);
@@ -210,19 +209,19 @@ static void draw_cd_leds(void)
 		// 8-bit modes
 		unsigned int col_g = (old_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
 		unsigned int col_r = (old_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
-		*(unsigned int *)((char *)gp2x_screen + SCREEN_WIDTH*2+ 4) =
-		*(unsigned int *)((char *)gp2x_screen + SCREEN_WIDTH*3+ 4) =
-		*(unsigned int *)((char *)gp2x_screen + SCREEN_WIDTH*4+ 4) = col_g;
-		*(unsigned int *)((char *)gp2x_screen + SCREEN_WIDTH*2+12) =
-		*(unsigned int *)((char *)gp2x_screen + SCREEN_WIDTH*3+12) =
-		*(unsigned int *)((char *)gp2x_screen + SCREEN_WIDTH*4+12) = col_r;
+		*(unsigned int *)((char *)gp2x_screen + g_screen_width*2+ 4) =
+		*(unsigned int *)((char *)gp2x_screen + g_screen_width*3+ 4) =
+		*(unsigned int *)((char *)gp2x_screen + g_screen_width*4+ 4) = col_g;
+		*(unsigned int *)((char *)gp2x_screen + g_screen_width*2+12) =
+		*(unsigned int *)((char *)gp2x_screen + g_screen_width*3+12) =
+		*(unsigned int *)((char *)gp2x_screen + g_screen_width*4+12) = col_r;
 	} else {
 		// 16-bit modes
-		unsigned int *p = (unsigned int *)((short *)gp2x_screen + SCREEN_WIDTH*2+4);
+		unsigned int *p = (unsigned int *)((short *)gp2x_screen + g_screen_width*2+4);
 		unsigned int col_g = (old_reg & 2) ? 0x06000600 : 0;
 		unsigned int col_r = (old_reg & 1) ? 0xc000c000 : 0;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += SCREEN_WIDTH/2 - 12/2;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += SCREEN_WIDTH/2 - 12/2;
+		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += g_screen_width/2 - 12/2;
+		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += g_screen_width/2 - 12/2;
 		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
 	}
 }
@@ -237,7 +236,7 @@ static void draw_pico_ptr(void)
 	if (!(Pico.video.reg[12]&1) && !(PicoOpt&POPT_DIS_32C_BORDER))
 		p += 32;
 
-	p += SCREEN_WIDTH * (pico_pen_y + PICO_PEN_ADJUST_Y);
+	p += g_screen_width * (pico_pen_y + PICO_PEN_ADJUST_Y);
 	p += pico_pen_x + PICO_PEN_ADJUST_X;
 	p[0]   ^= 0xffff;
 	p[319] ^= 0xffff;
@@ -305,7 +304,7 @@ static int EmuScanEnd16(unsigned int num)
 static int EmuScanBegin8(unsigned int num)
 {
 	if (!(Pico.video.reg[1]&8)) num += 8;
-	DrawLineDest = (unsigned char *)  gp2x_screen + SCREEN_WIDTH * num;
+	DrawLineDest = (unsigned char *)  gp2x_screen + g_screen_width * num;
 
 	return 0;
 }
@@ -330,7 +329,7 @@ static void blit(const char *fps, const char *notice)
 		if (PicoRead16Hook == PicoSVPRead16)
 			memset32((int *)(PicoDraw2FB+328*8+328*223), 0xe0e0e0e0, 328);
 		// do actual copy
-		vidCpyM2((unsigned char *)gp2x_screen+SCREEN_WIDTH*8, PicoDraw2FB+328*8);
+		vidCpyM2((unsigned char *)gp2x_screen+g_screen_width*8, PicoDraw2FB+328*8);
 	}
 	else if (!(emu_opt&0x80))
 	{
@@ -368,7 +367,7 @@ static void blit(const char *fps, const char *notice)
 	}
 
 	if (notice || (emu_opt & 2)) {
-		int h = SCREEN_HEIGHT-16;
+		int h = g_screen_height-16;
 		if (currentConfig.scaling == 2 && !(Pico.video.reg[1]&8)) h -= 16;
 		if (notice) osd_text(4, h, notice);
 		if (emu_opt & 2)
@@ -393,12 +392,12 @@ static void clearArea(int full)
 {
 	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
 		// 8-bit renderers
-		if (full) gp2x_memset_all_buffers(0, 0xe0, SCREEN_WIDTH*240);
-		else      gp2x_memset_all_buffers(SCREEN_WIDTH*232, 0xe0, SCREEN_WIDTH*8);
+		if (full) gp2x_memset_all_buffers(0, 0xe0, g_screen_width*240);
+		else      gp2x_memset_all_buffers(g_screen_width*232, 0xe0, g_screen_width*8);
 	} else {
 		// 16bit accurate renderer
-		if (full) gp2x_memset_all_buffers(0, 0, SCREEN_WIDTH*SCREEN_HEIGHT*2);
-		else      gp2x_memset_all_buffers(SCREEN_WIDTH*(SCREEN_HEIGHT-16)*2, 0, SCREEN_WIDTH*16*2);
+		if (full) gp2x_memset_all_buffers(0, 0, g_screen_width*g_screen_height*2);
+		else      gp2x_memset_all_buffers(g_screen_width*(g_screen_height-16)*2, 0, g_screen_width*16*2);
 	}
 }
 
@@ -443,16 +442,16 @@ static void emu_msg_cb(const char *msg)
 {
 	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
 		// 8-bit renderers
-		gp2x_memset_all_buffers(SCREEN_WIDTH*(SCREEN_HEIGHT-16), 0xe0, SCREEN_WIDTH*16);
-		osd_text(4, SCREEN_HEIGHT-16, msg);
-		gp2x_memcpy_all_buffers((char *)gp2x_screen+SCREEN_WIDTH*(SCREEN_HEIGHT-16),
-			SCREEN_WIDTH*(SCREEN_HEIGHT-16), SCREEN_WIDTH*16);
+		gp2x_memset_all_buffers(g_screen_width*(g_screen_height-16), 0xe0, g_screen_width*16);
+		osd_text(4, g_screen_height-16, msg);
+		gp2x_memcpy_all_buffers((char *)gp2x_screen+g_screen_width*(g_screen_height-16),
+			g_screen_width*(g_screen_height-16), g_screen_width*16);
 	} else {
 		// 16bit accurate renderer
-		gp2x_memset_all_buffers(SCREEN_WIDTH*(SCREEN_HEIGHT-16)*2, 0, SCREEN_WIDTH*16*2);
-		osd_text(4, SCREEN_HEIGHT-16, msg);
-		gp2x_memcpy_all_buffers((char *)gp2x_screen+SCREEN_WIDTH*(SCREEN_HEIGHT-16)*2,
-			SCREEN_WIDTH*(SCREEN_HEIGHT-16)*2, SCREEN_WIDTH*16*2);
+		gp2x_memset_all_buffers(g_screen_width*(g_screen_height-16)*2, 0, g_screen_width*16*2);
+		osd_text(4, g_screen_height-16, msg);
+		gp2x_memcpy_all_buffers((char *)gp2x_screen+g_screen_width*(g_screen_height-16)*2,
+			g_screen_width*(g_screen_height-16)*2, g_screen_width*16*2);
 	}
 	gettimeofday(&noticeMsgTime, 0);
 	noticeMsgTime.tv_sec -= 2;
@@ -581,9 +580,9 @@ static void RunEvents(unsigned int which)
 #endif
 		}
 		if (do_it) {
-			osd_text(4, SCREEN_HEIGHT-16, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
+			osd_text(4, g_screen_height-16, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
 			PicoStateProgressCB = emu_state_cb;
-			gp2x_memcpy_all_buffers(gp2x_screen, 0, SCREEN_WIDTH*SCREEN_HEIGHT*2);
+			gp2x_memcpy_all_buffers(gp2x_screen, 0, g_screen_width*g_screen_height*2);
 			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
 			PicoStateProgressCB = NULL;
 		}
@@ -708,7 +707,7 @@ void emu_forcedFrame(int opts)
 		clearArea(1);
 	} else	vidCpyM2 = vidCpyM2_40col;
 
-	vidCpyM2((unsigned char *)gp2x_screen+SCREEN_WIDTH*8, PicoDraw2FB+328*8);
+	vidCpyM2((unsigned char *)gp2x_screen+g_screen_width*8, PicoDraw2FB+328*8);
 	vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 	gp2x_video_setpalette(localPal, 0x40);
 */
@@ -851,7 +850,7 @@ void emu_Loop(void)
 		modes = ((Pico.video.reg[12]&1)<<2)|(Pico.video.reg[1]&8);
 		if (modes != oldmodes)
 		{
-			int scalex = SCREEN_WIDTH;
+			int scalex = g_screen_width;
 			osd_fps_x = OSD_FPS_X;
 			if (modes & 4) {
 				vidCpyM2 = vidCpyM2_40col;
