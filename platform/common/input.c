@@ -426,6 +426,9 @@ const char *in_get_dev_name(int dev_id, int must_be_active, int skip_pfix)
 		return NULL;
 
 	name = in_devices[dev_id].name;
+	if (name == NULL)
+		return NULL;
+
 	tmp = strchr(name, ':');
 	if (tmp != NULL)
 		name = tmp + 1;
