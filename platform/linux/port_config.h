@@ -38,6 +38,7 @@
 #define PLAT_HAVE_JOY 1
 #define PATH_SEP      "/"
 #define PATH_SEP_C    '/'
+#define MENU_X2       0
 
 #endif //PORT_CONFIG_H
 

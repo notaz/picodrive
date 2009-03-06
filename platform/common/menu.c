@@ -25,14 +25,19 @@
 #define array_size(x) (sizeof(x) / sizeof(x[0]))
 
 static char static_buff[64];
-char menuErrorMsg[64] = { 0, };
-
+static char menu_error_msg[64] = { 0, };
+static int  menu_error_time = 0;
 
 #ifndef UIQ3
 
-static unsigned char menu_font_data[10240];
+static unsigned char *menu_font_data = NULL;
 static int menu_text_color = 0xffff; // default to white
 static int menu_sel_color = -1; // disabled
+#if MENU_X2
+static const int me_mfont_w = 16, me_mfont_h = 20;
+#else
+static const int me_mfont_w = 8, me_mfont_h = 10;
+#endif
 
 // draws text to current bbp16 screen
 static void text_out16_(int x, int y, const char *text, int color)
@@ -59,11 +64,11 @@ static void text_out16_(int x, int y, const char *text, int color)
 
 	for (i = 0; i < len; i++)
 	{
-		unsigned char  *src = menu_font_data + (unsigned int)text[i]*4*10;
+		unsigned char  *src = menu_font_data + (unsigned int)text[i] * me_mfont_w * me_mfont_h / 2;
 		unsigned short *dst = dest;
-		for (l = 0; l < 10; l++, dst += g_screen_width - 8)
+		for (l = 0; l < me_mfont_h; l++, dst += g_screen_width - me_mfont_w)
 		{
-			for (u = 8/2; u > 0; u--, src++)
+			for (u = me_mfont_w / 2; u > 0; u--, src++)
 			{
 				int c, r, g, b;
 				c = *src >> 4;
@@ -84,7 +89,7 @@ static void text_out16_(int x, int y, const char *text, int color)
 				*dst++ = ((r<<8)&0xf800) | ((g<<3)&0x07e0) | (b>>3);
 			}
 		}
-		dest += 8;
+		dest += me_mfont_w;
 	}
 }
 
@@ -92,7 +97,7 @@ void text_out16(int x, int y, const char *texto, ...)
 {
 	va_list args;
 	char    buffer[256];
-	int     maxw = (g_screen_width - x) / 8;
+	int     maxw = (g_screen_width - x) / me_mfont_w;
 
 	if (maxw < 0)
 		return;
@@ -141,7 +146,7 @@ static void smalltext_out16_(int x, int y, const char *texto, int color)
 	}
 }
 
-void smalltext_out16(int x, int y, const char *texto, int color)
+static void smalltext_out16(int x, int y, const char *texto, int color)
 {
 	char buffer[128];
 	int maxw = (g_screen_width - x) / 6;
@@ -168,7 +173,7 @@ static void menu_draw_selection(int x, int y, int w)
 
 	if (y > 0) y--;
 	dest = (unsigned short *)g_screen_ptr + x + y * g_screen_width + 14;
-	for (h = 11; h > 0; h--)
+	for (h = me_mfont_h + 1; h > 0; h--)
 	{
 		dst = dest;
 		for (i = w; i > 0; i--)
@@ -192,33 +197,65 @@ static int parse_hex_color(char *buff)
 
 void menu_init(void)
 {
-	int c, l;
-	unsigned char *fd = menu_font_data;
+	int i, c, l;
+	unsigned char *fd, *fds;
 	char buff[256];
 	FILE *f;
 
-	// generate default font from fontdata8x8
-	memset(menu_font_data, 0, sizeof(menu_font_data));
-	for (c = 0; c < 256; c++)
+	if (menu_font_data != NULL)
+		free(menu_font_data);
+
+	menu_font_data = calloc((MENU_X2 ? 256 * 320 : 128 * 160) / 2, 1);
+	if (menu_font_data == NULL)
+		return;
+
+	// generate default 8x10 font from fontdata8x8
+	for (c = 0, fd = menu_font_data; c < 256; c++)
 	{
 		for (l = 0; l < 8; l++)
 		{
 			unsigned char fd8x8 = fontdata8x8[c*8+l];
-			if (fd8x8&0x80) *fd |= 0xf0;
+			if (fd8x8&0x80) *fd  = 0xf0;
 			if (fd8x8&0x40) *fd |= 0x0f; fd++;
-			if (fd8x8&0x20) *fd |= 0xf0;
+			if (fd8x8&0x20) *fd  = 0xf0;
 			if (fd8x8&0x10) *fd |= 0x0f; fd++;
-			if (fd8x8&0x08) *fd |= 0xf0;
+			if (fd8x8&0x08) *fd  = 0xf0;
 			if (fd8x8&0x04) *fd |= 0x0f; fd++;
-			if (fd8x8&0x02) *fd |= 0xf0;
+			if (fd8x8&0x02) *fd  = 0xf0;
 			if (fd8x8&0x01) *fd |= 0x0f; fd++;
 		}
 		fd += 8*2/2; // 2 empty lines
 	}
 
+	if (MENU_X2) {
+		// expand default font
+		fds = menu_font_data + 128 * 160 / 2 - 4;
+		fd  = menu_font_data + 256 * 320 / 2 - 1;
+		for (c = 255; c >= 0; c--)
+		{
+			for (l = 9; l >= 0; l--, fds -= 4)
+			{
+				for (i = 3; i >= 0; i--) {
+					int px = fds[i] & 0x0f;
+					*fd-- = px | (px << 4);
+					px = (fds[i] >> 4) & 0x0f;
+					*fd-- = px | (px << 4);
+				}
+				for (i = 3; i >= 0; i--) {
+					int px = fds[i] & 0x0f;
+					*fd-- = px | (px << 4);
+					px = (fds[i] >> 4) & 0x0f;
+					*fd-- = px | (px << 4);
+				}
+			}
+		}
+	}
+
 	// load custom font and selector (stored as 1st symbol in font table)
 	readpng(menu_font_data, "skin/font.png", READPNG_FONT);
-	memcpy(menu_font_data, menu_font_data + ((int)'>')*4*10, 4*10); // default selector symbol is '>'
+	// default selector symbol is '>'
+	memcpy(menu_font_data, menu_font_data + ((int)'>') * me_mfont_w * me_mfont_h / 2,
+		me_mfont_w * me_mfont_h / 2);
 	readpng(menu_font_data, "skin/selector.png", READPNG_SELECTOR);
 
 	// load custom colors
@@ -281,7 +318,7 @@ static void me_draw(const menu_entry *entries, int sel)
 {
 	const menu_entry *ent;
 	int x, y, w = 0, h = 0;
-	int offs, opt_offs = 27*8;
+	int offs, opt_offs = 27 * me_mfont_w;
 	const char *name;
 	int asel = 0;
 	int i, n;
@@ -298,22 +335,22 @@ static void me_draw(const menu_entry *entries, int sel)
 			asel = n;
 
 		name = NULL;
-		wt = strlen(ent->name) * 8;	/* FIXME: unhardcode font width */
+		wt = strlen(ent->name) * me_mfont_w;
 		if (wt == 0 && ent->generate_name)
 			name = ent->generate_name(ent->id, &offs);
 		if (name != NULL)
-			wt = strlen(name) * 8;
+			wt = strlen(name) * me_mfont_w;
 
 		if (ent->beh != MB_NONE)
 		{
 			if (wt > opt_offs)
-				opt_offs = wt + 8;
+				opt_offs = wt + me_mfont_w;
 			wt = opt_offs;
 
 			switch (ent->beh) {
 			case MB_NONE: break;
 			case MB_OPT_ONOFF:
-			case MB_OPT_RANGE: wt += 8*3; break;
+			case MB_OPT_RANGE: wt += me_mfont_w * 3; break;
 			case MB_OPT_CUSTOM:
 			case MB_OPT_CUSTONOFF:
 			case MB_OPT_CUSTRANGE:
@@ -322,7 +359,7 @@ static void me_draw(const menu_entry *entries, int sel)
 				if (ent->generate_name != NULL)
 					name = ent->generate_name(ent->id, &offs);
 				if (name != NULL)
-					wt += (strlen(name) + offs) * 8;
+					wt += (strlen(name) + offs) * me_mfont_w;
 				break;
 			}
 		}
@@ -331,8 +368,8 @@ static void me_draw(const menu_entry *entries, int sel)
 			w = wt;
 		n++;
 	}
-	h = n * 10;
-	w += 16; /* selector */
+	h = n * me_mfont_h;
+	w += me_mfont_w * 2; /* selector */
 
 	if (w > g_screen_width) {
 		lprintf("width %d > %d\n", w, g_screen_width);
@@ -348,7 +385,8 @@ static void me_draw(const menu_entry *entries, int sel)
 
 	/* draw */
 	plat_video_menu_begin();
-	menu_draw_selection(x, y + asel * 10, w);
+	menu_draw_selection(x, y + asel * me_mfont_h, w);
+	x += me_mfont_w * 2;
 
 	for (ent = entries; ent->name; ent++)
 	{
@@ -361,16 +399,16 @@ static void me_draw(const menu_entry *entries, int sel)
 				name = ent->generate_name(ent->id, &offs);
 		}
 		if (name != NULL)
-			text_out16(x + 16, y, name);
+			text_out16(x, y, name);
 
 		switch (ent->beh) {
 		case MB_NONE:
 			break;
 		case MB_OPT_ONOFF:
-			text_out16(x + 16 + opt_offs, y, (*(int *)ent->var & ent->mask) ? "ON" : "OFF");
+			text_out16(x + opt_offs, y, (*(int *)ent->var & ent->mask) ? "ON" : "OFF");
 			break;
 		case MB_OPT_RANGE:
-			text_out16(x + 16 + opt_offs, y, "%i", *(int *)ent->var);
+			text_out16(x + opt_offs, y, "%i", *(int *)ent->var);
 			break;
 		case MB_OPT_CUSTOM:
 		case MB_OPT_CUSTONOFF:
@@ -380,25 +418,22 @@ static void me_draw(const menu_entry *entries, int sel)
 			if (ent->generate_name)
 				name = ent->generate_name(ent->id, &offs);
 			if (name != NULL)
-				text_out16(x + 16 + opt_offs + offs * 8, y, "%s", name);
+				text_out16(x + opt_offs + offs * me_mfont_w, y, "%s", name);
 			break;
 		}
 
-		y += 10;
+		y += me_mfont_h;
 	}
 
 	/* display message if we have one */
-	if (menuErrorMsg[0] != 0) {
-		static int msg_redraws = 0;
-		if (g_screen_height - h >= 2*10)
-			text_out16(5, 226, menuErrorMsg);
+	if (menu_error_msg[0] != 0) {
+		if (g_screen_height - h >= 2 * me_mfont_h)
+			text_out16(5, g_screen_height - me_mfont_h - 4, menu_error_msg);
 		else
 			lprintf("menu msg doesn't fit!\n");
 
-		if (++msg_redraws > 4) {
-			menuErrorMsg[0] = 0;
-			msg_redraws = 0;
-		}
+		if (plat_get_ticks_ms() - menu_error_time > 2048)
+			menu_error_msg[0] = 0;
 	}
 
 	plat_video_menu_end();
@@ -510,14 +545,14 @@ static void draw_menu_credits(void)
 		p++;
 	}
 
-	x = g_screen_width  / 2 - w *  8 / 2;
-	y = g_screen_height / 2 - h * 10 / 2;
+	x = g_screen_width  / 2 - w * me_mfont_w / 2;
+	y = g_screen_height / 2 - h * me_mfont_h / 2;
 	if (x < 0) x = 0;
 	if (y < 0) y = 0;
 
 	plat_video_menu_begin();
 
-	for (p = creds; *p != 0 && y <= g_screen_height - 10; y += 10) {
+	for (p = creds; *p != 0 && y <= g_screen_height - me_mfont_h; y += me_mfont_h) {
 		text_out16(x, y, p);
 
 		for (; *p != 0 && *p != '\n'; p++)
@@ -643,7 +678,7 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 			smalltext_out16(14,   pos*10, namelist[i+1]->d_name, color);
 		}
 	}
-	text_out16(5, max_cnt/2 * 10, ">");
+	smalltext_out16(5, max_cnt/2 * 10, ">", 0xffff);
 	plat_video_menu_end();
 }
 
@@ -930,8 +965,8 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 	if (state_slot_flags & (1 << menu_sel))
 		draw_savestate_bg(menu_sel);
 
-	w = 13 * 8 + 16;
-	h = (1+2+10+1) * 10;
+	w = 13 * me_mfont_w + me_mfont_w * 2;
+	h = (1+2+10+1) * me_mfont_h;
 	x = g_screen_width / 2 - w / 2;
 	if (x < 0) x = 0;
 	y = g_screen_height / 2 - h / 2;
@@ -940,12 +975,12 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 	plat_video_menu_begin();
 
 	text_out16(x, y, is_loading ? "Load state" : "Save state");
-	y += 3*10;
+	y += 3 * me_mfont_h;
 
-	menu_draw_selection(x - 16, y + menu_sel * 10, 13 * 8 + 4);
+	menu_draw_selection(x - me_mfont_w * 2, y + menu_sel * me_mfont_h, 13 * me_mfont_w + 4);
 
 	/* draw all 10 slots */
-	for (i = 0; i < 10; i++, y += 10)
+	for (i = 0; i < 10; i++, y += me_mfont_h)
 	{
 		text_out16(x, y, "SLOT %i (%s)", i, (state_slot_flags & (1 << i)) ? "USED" : "free");
 	}
@@ -984,7 +1019,7 @@ static int menu_loop_savestate(int is_loading)
 			if (menu_sel < 10) {
 				state_slot = menu_sel;
 				if (emu_SaveLoadGame(is_loading, 0)) {
-					strcpy(menuErrorMsg, is_loading ? "Load failed" : "Save failed");
+					me_update_msg(is_loading ? "Load failed" : "Save failed");
 					return 0;
 				}
 				return 1;
@@ -1056,42 +1091,45 @@ static int count_bound_keys(int dev_id, int action_mask, int player_idx)
 static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_idx,
 		int sel, int dev_id, int dev_count, int is_bind)
 {
-	int x, y = 30, w, i;
+	int x, y, w, i;
 	const char *dev_name;
 
-	x = g_screen_width / 2 - 32*8 / 2;
-	if (x < 0) x = 0;
+	x = g_screen_width / 2 - 20 * me_mfont_w / 2;
+	y = (g_screen_height - 4 * me_mfont_h) / 2 - (2 + opt_cnt) * me_mfont_h / 2;
+	if (x < me_mfont_w * 2)
+		x = me_mfont_w * 2;
 
 	plat_video_menu_begin();
 	if (player_idx >= 0)
-		text_out16(x, 10, "Player %i controls", player_idx + 1);
+		text_out16(x, y, "Player %i controls", player_idx + 1);
 	else
-		text_out16(x, 10, "Emulator controls");
+		text_out16(x, y, "Emulator controls");
 
-	menu_draw_selection(x - 16, y + sel*10, (player_idx >= 0) ? 66 : 140);
+	y += 2 * me_mfont_h;
+	menu_draw_selection(x - me_mfont_w * 2, y + sel * me_mfont_h, me_mfont_w); // FIXME last arg
 
-	for (i = 0; i < opt_cnt; i++, y+=10)
+	for (i = 0; i < opt_cnt; i++, y += me_mfont_h)
 		text_out16(x, y, "%s : %s", opts[i].name,
 			action_binds(player_idx, opts[i].mask, dev_id));
 
 	dev_name = in_get_dev_name(dev_id, 1, 1);
-	w = strlen(dev_name) * 8;
-	if (w < 30 * 8)
-		w = 30 * 8;
+	w = strlen(dev_name) * me_mfont_w;
+	if (w < 30 * me_mfont_w)
+		w = 30 * me_mfont_w;
 	if (w > g_screen_width)
 		w = g_screen_width;
 
 	x = g_screen_width / 2 - w / 2;
 
 	if (dev_count > 1) {
-		text_out16(x, g_screen_height - 4*10, "Viewing binds for:");
-		text_out16(x, g_screen_height - 3*10, dev_name);
+		text_out16(x, g_screen_height - 4 * me_mfont_h, "Viewing binds for:");
+		text_out16(x, g_screen_height - 3 * me_mfont_h, dev_name);
 	}
 
 	if (is_bind)
-		text_out16(x, g_screen_height - 2*10, "Press a button to bind/unbind");
+		text_out16(x, g_screen_height - 2 * me_mfont_h, "Press a button to bind/unbind");
 	else if (dev_count > 1)
-		text_out16(x, g_screen_height - 2*10, "Press left/right for other devs");
+		text_out16(x, g_screen_height - 2 * me_mfont_h, "Press left/right for other devs");
 
 	plat_video_menu_end();
 }
@@ -1501,15 +1539,15 @@ static int mh_saveloadcfg(menu_id id, int keys)
 	case MA_OPT_SAVECFG:
 	case MA_OPT_SAVECFG_GAME:
 		if (emu_WriteConfig(id == MA_OPT_SAVECFG_GAME ? 1 : 0))
-			strcpy(menuErrorMsg, "config saved");
+			me_update_msg("config saved");
 		else
-			strcpy(menuErrorMsg, "failed to write config");
+			me_update_msg("failed to write config");
 		break;
 	case MA_OPT_LOADCFG:
 		ret = emu_ReadConfig(1, 1);
 		if (!ret) ret = emu_ReadConfig(0, 1);
-		if (ret)  strcpy(menuErrorMsg, "config loaded");
-		else      strcpy(menuErrorMsg, "failed to load config");
+		if (ret)  me_update_msg("config loaded");
+		else      me_update_msg("failed to load config");
 		break;
 	default:
 		return 0;
@@ -1711,7 +1749,8 @@ static void debug_menu_loop(void)
 				emu_platformDebugCat(tmp);
 				draw_text_debug(tmp, 0, 0);
 				if (dumped) {
-					smalltext_out16(g_screen_width - 6*10, g_screen_height - 8, "dumped", 0xffff);
+					smalltext_out16(g_screen_width - 6 * me_mfont_h,
+						g_screen_height - me_mfont_h, "dumped", 0xffff);
 					dumped = 0;
 				}
 				break;
@@ -1833,7 +1872,7 @@ static int main_menu_handler(menu_id id, int keys)
 		if (rom_loaded && PicoPatches) {
 			menu_loop_patches();
 			PicoPatchApply();
-			strcpy(menuErrorMsg, "Patches applied");
+			me_update_msg("Patches applied");
 		}
 		break;
 	default:
@@ -1897,8 +1936,7 @@ static int mh_tray_load_cd(menu_id id, int keys)
 	if (cd_type != CIT_NOT_CD)
 		ret = Insert_CD(ret_name, cd_type);
 	if (ret != 0) {
-		sprintf(menuErrorMsg, "Load failed, invalid CD image?");
-		lprintf("%s\n", menuErrorMsg);
+		me_update_msg("Load failed, invalid CD image?");
 		return 0;
 	}
 
@@ -1942,6 +1980,15 @@ int menu_loop_tray(void)
 }
 
 #endif // !UIQ3
+
+void me_update_msg(const char *msg)
+{
+	strncpy(menu_error_msg, msg, sizeof(menu_error_msg));
+	menu_error_msg[sizeof(menu_error_msg) - 1] = 0;
+
+	menu_error_time = plat_get_ticks_ms();
+	lprintf("msg: %s\n", menu_error_msg);
+}
 
 // ------------ util ------------
 

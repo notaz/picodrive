@@ -30,6 +30,7 @@
 #define PLAT_HAVE_JOY 0
 #define PATH_SEP      "\\"
 #define PATH_SEP_C    '\\'
+#define MENU_X2       0
 
 // engine/vid.cpp, also update BORDER_R in port_config.s
 #define VID_BORDER_R  16

@@ -129,9 +129,9 @@ int emu_findBios(int region, char **bios_file)
 		if (bios_file) *bios_file = bios_path;
 		return 1;
 	} else {
-		sprintf(menuErrorMsg, "no %s BIOS files found, read docs",
+		sprintf(bios_path, "no %s BIOS files found, read docs",
 			region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
-		lprintf("%s\n", menuErrorMsg);
+		me_update_msg(bios_path);
 		return 0;
 	}
 }
@@ -307,7 +307,7 @@ int emu_ReloadRom(char *rom_fname)
 
 	// detect wrong extensions
 	if (!strcmp(ext, ".srm") || !strcmp(ext, "s.gz") || !strcmp(ext, ".mds")) { // s.gz ~ .mds.gz
-		sprintf(menuErrorMsg, "Not a ROM/CD selected.");
+		me_update_msg("Not a ROM/CD selected.");
 		return 0;
 	}
 
@@ -324,32 +324,32 @@ int emu_ReloadRom(char *rom_fname)
 		int dummy;
 		FILE *movie_file = fopen(rom_fname, "rb");
 		if(!movie_file) {
-			sprintf(menuErrorMsg, "Failed to open movie.");
+			me_update_msg("Failed to open movie.");
 			return 0;
 		}
 		fseek(movie_file, 0, SEEK_END);
 		movie_size = ftell(movie_file);
 		fseek(movie_file, 0, SEEK_SET);
 		if(movie_size < 64+3) {
-			sprintf(menuErrorMsg, "Invalid GMV file.");
+			me_update_msg("Invalid GMV file.");
 			fclose(movie_file);
 			return 0;
 		}
 		movie_data = malloc(movie_size);
 		if(movie_data == NULL) {
-			sprintf(menuErrorMsg, "low memory.");
+			me_update_msg("low memory.");
 			fclose(movie_file);
 			return 0;
 		}
 		fread(movie_data, 1, movie_size, movie_file);
 		fclose(movie_file);
 		if (strncmp((char *)movie_data, "Gens Movie TEST", 15) != 0) {
-			sprintf(menuErrorMsg, "Invalid GMV file.");
+			me_update_msg("Invalid GMV file.");
 			return 0;
 		}
 		dummy = try_rfn_cut(rom_fname) || try_rfn_cut(rom_fname);
 		if (!dummy) {
-			sprintf(menuErrorMsg, "Could't find a ROM for movie.");
+			me_update_msg("Could't find a ROM for movie.");
 			return 0;
 		}
 		get_ext(rom_fname, ext);
@@ -361,7 +361,7 @@ int emu_ReloadRom(char *rom_fname)
 		PicoPatchLoad(rom_fname);
 		dummy = try_rfn_cut(rom_fname) || try_rfn_cut(rom_fname);
 		if (!dummy) {
-			sprintf(menuErrorMsg, "Could't find a ROM to patch.");
+			me_update_msg("Could't find a ROM to patch.");
 			return 0;
 		}
 		get_ext(rom_fname, ext);
@@ -401,12 +401,12 @@ int emu_ReloadRom(char *rom_fname)
 
 	rom = pm_open(used_rom_name);
 	if (!rom) {
-		sprintf(menuErrorMsg, "Failed to open ROM/CD image");
+		me_update_msg("Failed to open ROM/CD image");
 		goto fail;
 	}
 
 	if (cd_state < 0) {
-		sprintf(menuErrorMsg, "Invalid CD image");
+		me_update_msg("Invalid CD image");
 		goto fail;
 	}
 
@@ -416,10 +416,9 @@ int emu_ReloadRom(char *rom_fname)
 	rom_loaded = 0;
 
 	if ( (ret = PicoCartLoad(rom, &rom_data, &rom_size)) ) {
-		if      (ret == 2) sprintf(menuErrorMsg, "Out of memory");
-		else if (ret == 3) sprintf(menuErrorMsg, "Read failed");
-		else               sprintf(menuErrorMsg, "PicoCartLoad() failed.");
-		lprintf("%s\n", menuErrorMsg);
+		if      (ret == 2) me_update_msg("Out of memory");
+		else if (ret == 3) me_update_msg("Read failed");
+		else               me_update_msg("PicoCartLoad() failed.");
 		goto fail2;
 	}
 	pm_close(rom);
@@ -429,7 +428,7 @@ int emu_ReloadRom(char *rom_fname)
 	if (rom_size <= 0x200 || strncmp((char *)rom_data, "Pico", 4) == 0 ||
 	  ((*(unsigned char *)(rom_data+4)<<16)|(*(unsigned short *)(rom_data+6))) >= (int)rom_size) {
 		if (rom_data) free(rom_data);
-		sprintf(menuErrorMsg, "Not a ROM selected.");
+		me_update_msg("Not a ROM selected.");
 		goto fail2;
 	}
 
@@ -443,7 +442,7 @@ int emu_ReloadRom(char *rom_fname)
 
 	lprintf("PicoCartInsert(%p, %d);\n", rom_data, rom_size);
 	if (PicoCartInsert(rom_data, rom_size)) {
-		sprintf(menuErrorMsg, "Failed to load ROM.");
+		me_update_msg("Failed to load ROM.");
 		goto fail2;
 	}
 
@@ -451,8 +450,7 @@ int emu_ReloadRom(char *rom_fname)
 	if (cd_state != CIT_NOT_CD) {
 		ret = Insert_CD(rom_fname, cd_state);
 		if (ret != 0) {
-			sprintf(menuErrorMsg, "Insert_CD() failed, invalid CD image?");
-			lprintf("%s\n", menuErrorMsg);
+			me_update_msg("Insert_CD() failed, invalid CD image?");
 			goto fail2;
 		}
 	}

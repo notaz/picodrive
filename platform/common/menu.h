@@ -1,11 +1,4 @@
-// (c) Copyright 2006-2008 notaz, All rights reserved.
-
-
-void menu_init(void);
-void text_out16(int x, int y, const char *texto, ...);
-void smalltext_out16(int x, int y, const char *texto, int color);
-
-extern char menuErrorMsg[64];
+// (c) Copyright 2006-2009 notaz, All rights reserved.
 
 typedef enum
 {
@@ -158,6 +151,10 @@ typedef struct
 
 extern me_bind_action me_ctrl_actions[15];
 extern me_bind_action emuctrl_actions[];	// platform code
+
+void menu_init(void);
+void text_out16(int x, int y, const char *texto, ...);
+void me_update_msg(const char *msg);
 
 menu_entry *me_list_get_first(void);
 menu_entry *me_list_get_next(void);
