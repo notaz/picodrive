@@ -156,6 +156,9 @@ void menu_init(void);
 void text_out16(int x, int y, const char *texto, ...);
 void me_update_msg(const char *msg);
 
+void menu_loop(void);
+int  menu_loop_tray(void);
+
 menu_entry *me_list_get_first(void);
 menu_entry *me_list_get_next(void);
 

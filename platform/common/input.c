@@ -257,8 +257,8 @@ int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 	int result = -1, dev_id = 0, is_down, result_menu;
 	int fds_hnds[IN_MAX_DEVS];
 	int i, ret, count = 0;
+	in_drv_t *drv = NULL;
 	unsigned int ticks;
-	in_drv_t *drv;
 
 	if (in_have_async_devs) {
 		result = in_update_kc_async(&dev_id, &is_down, timeout_ms);

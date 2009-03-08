@@ -10,20 +10,17 @@
 #include <strings.h>
 #include <linux/limits.h>
 
-#include "../gp2x/gp2x.h"
-#include "../gp2x/menu.h"
+#include "../gp2x/emu.h" // TODO rm
 #include "../common/menu.h"
 #include "../common/emu.h"
 #include "../common/config.h"
 #include "../common/input.h"
-#include "../gp2x/emu.h"
 #include "../gp2x/version.h"
+#include "pandora.h"
 
 
-extern int select_exits;
 extern char *PicoConfigFile;
 static int load_state_slot = -1;
-int mmuhack_status = 0; // TODO rm
 char **g_argv;
 
 void parse_cmd_line(int argc, char *argv[])
@@ -37,9 +34,6 @@ void parse_cmd_line(int argc, char *argv[])
 			if(strcasecmp(argv[x], "-config") == 0) {
 				if(x+1 < argc) { ++x; PicoConfigFile = argv[x]; }
 			}
-			else if(strcasecmp(argv[x], "-selectexit") == 0) {
-				select_exits = 1;
-			}
 			else if(strcasecmp(argv[x], "-loadstate") == 0) {
 				if(x+1 < argc) { ++x; load_state_slot = atoi(argv[x]); }
 			}
@@ -50,8 +44,8 @@ void parse_cmd_line(int argc, char *argv[])
 		} else {
 			/* External Frontend: ROM Name */
 			FILE *f;
-			strncpy(rom_fname_reload, argv[x], PATH_MAX);
-			rom_fname_reload[PATH_MAX-1] = 0;
+			strncpy(rom_fname_reload, argv[x], sizeof(rom_fname_reload));
+			rom_fname_reload[sizeof(rom_fname_reload) - 1] = 0;
 			f = fopen(rom_fname_reload, "rb");
 			if (f) fclose(f);
 			else unrecognized = 1;
@@ -61,14 +55,11 @@ void parse_cmd_line(int argc, char *argv[])
 	}
 
 	if (unrecognized) {
-		printf("\n\n\nPicoDrive v" VERSION " (c) notaz, 2006-2008\n");
+		printf("\n\n\nPicoDrive v" VERSION " (c) notaz, 2006-2009\n");
 		printf("usage: %s [options] [romfile]\n", argv[0]);
 		printf( "options:\n"
-				"-menu <menu_path> launch a custom program on exit instead of default gp2xmenu\n"
-				"-state <param>    pass '-state param' to the menu program\n"
 				"-config <file>    use specified config file instead of default 'picoconfig.bin'\n"
 				"                  see currentConfig_t structure in emu.h for the file format\n"
-				"-selectexit       pressing SELECT will exit the emu and start 'menu_path'\n"
 				"-loadstate <num>  if ROM is specified, try loading slot <num>\n");
 	}
 }
@@ -85,7 +76,7 @@ int main(int argc, char *argv[])
 
 	in_probe();
 	in_debug_dump();
-	gp2x_init();
+	pnd_init();
 	emu_Init();
 	menu_init();
 
@@ -141,6 +132,7 @@ int main(int argc, char *argv[])
 	endloop:
 
 	emu_Deinit();
+	pnd_exit();
 
 	return 0;
 }

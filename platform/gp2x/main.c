@@ -62,8 +62,8 @@ void parse_cmd_line(int argc, char *argv[])
 		} else {
 			/* External Frontend: ROM Name */
 			FILE *f;
-			strncpy(rom_fname_reload, argv[x], PATH_MAX);
-			rom_fname_reload[PATH_MAX-1] = 0;
+			strncpy(rom_fname_reload, argv[x], sizeof(rom_fname_reload));
+			rom_fname_reload[sizeof(rom_fname_reload) - 1] = 0;
 			f = fopen(rom_fname_reload, "rb");
 			if (f) fclose(f);
 			else unrecognized = 1;

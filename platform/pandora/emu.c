@@ -14,12 +14,10 @@
 
 #include <stdarg.h>
 
-#include "../gp2x/emu.h"
-#include "../gp2x/menu.h"
-#include "../gp2x/gp2x.h"
 #include "../common/arm_utils.h"
 #include "../common/fonts.h"
 #include "../common/emu.h"
+#include "../common/menu.h"
 #include "../common/config.h"
 #include "../common/common.h"
 #include "../common/input.h"
@@ -182,7 +180,7 @@ void osd_text(int x, int y, const char *text)
 		x &= ~3; // align x
 		len = (len+3) >> 2;
 		for (h = 0; h < 8; h++) {
-			p = (int *) ((unsigned char *) gp2x_screen+x+g_screen_width*(y+h));
+			p = (int *) ((unsigned char *) g_screen_ptr+x+g_screen_width*(y+h));
 			for (i = len; i; i--, p++) *p = 0xe0e0e0e0;
 		}
 		emu_textOut8(x, y, text);
@@ -191,7 +189,7 @@ void osd_text(int x, int y, const char *text)
 		x &= ~1; // align x
 		len++;
 		for (h = 0; h < 16; h++) {
-			p = (int *) ((unsigned short *) gp2x_screen+x+g_screen_width*(y+h));
+			p = (int *) ((unsigned short *) g_screen_ptr+x+g_screen_width*(y+h));
 			for (i = len; i; i--, p++) *p = 0;//(*p>>2)&0x39e7;
 		}
 		textOut16(x, y, text);
@@ -209,15 +207,15 @@ static void draw_cd_leds(void)
 		// 8-bit modes
 		unsigned int col_g = (old_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
 		unsigned int col_r = (old_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
-		*(unsigned int *)((char *)gp2x_screen + g_screen_width*2+ 4) =
-		*(unsigned int *)((char *)gp2x_screen + g_screen_width*3+ 4) =
-		*(unsigned int *)((char *)gp2x_screen + g_screen_width*4+ 4) = col_g;
-		*(unsigned int *)((char *)gp2x_screen + g_screen_width*2+12) =
-		*(unsigned int *)((char *)gp2x_screen + g_screen_width*3+12) =
-		*(unsigned int *)((char *)gp2x_screen + g_screen_width*4+12) = col_r;
+		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*2+ 4) =
+		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*3+ 4) =
+		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*4+ 4) = col_g;
+		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*2+12) =
+		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*3+12) =
+		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*4+12) = col_r;
 	} else {
 		// 16-bit modes
-		unsigned int *p = (unsigned int *)((short *)gp2x_screen + g_screen_width*2+4);
+		unsigned int *p = (unsigned int *)((short *)g_screen_ptr + g_screen_width*2+4);
 		unsigned int col_g = (old_reg & 2) ? 0x06000600 : 0;
 		unsigned int col_r = (old_reg & 1) ? 0xc000c000 : 0;
 		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += g_screen_width/2 - 12/2;
@@ -228,7 +226,7 @@ static void draw_cd_leds(void)
 
 static void draw_pico_ptr(void)
 {
-	unsigned short *p = (unsigned short *)gp2x_screen;
+	unsigned short *p = (unsigned short *)g_screen_ptr;
 
 	// only if pen enabled and for 16bit modes
 	if (pico_inp_mode == 0 || (PicoOpt&0x10) || !(currentConfig.EmuOpt&0x80)) return;
@@ -250,9 +248,9 @@ static void draw_pico_ptr(void)
 static int EmuScanBegin16(unsigned int num)
 {
 	if (!(Pico.video.reg[1]&8)) num += 8;
-	DrawLineDest = (unsigned short *)gp2x_screen + num*800 + 800/2 - 320/2;
+	DrawLineDest = (unsigned short *)g_screen_ptr + num*800 + 800/2 - 320/2;
 	//int w = (Pico.video.reg[12]&1) ? 320 : 256;
-	//DrawLineDest = (unsigned short *)gp2x_screen + num*w;
+	//DrawLineDest = (unsigned short *)g_screen_ptr + num*w;
 
 	return 0;
 }
@@ -268,7 +266,7 @@ static int EmuScanEnd16(unsigned int num)
 	int len, mask = 0xff;
 
 	if (!(Pico.video.reg[1]&8)) num += 8;
-	pd=(unsigned short *)gp2x_screen + num*800*2 + 800/2 - 320*2/2;
+	pd=(unsigned short *)g_screen_ptr + num*800*2 + 800/2 - 320*2/2;
 
 	if (Pico.m.dirtyPal)
 		PicoDoHighPal555(sh);
@@ -301,14 +299,6 @@ static int EmuScanEnd16(unsigned int num)
 
 #endif // USE_320_SCREEN
 
-static int EmuScanBegin8(unsigned int num)
-{
-	if (!(Pico.video.reg[1]&8)) num += 8;
-	DrawLineDest = (unsigned char *)  gp2x_screen + g_screen_width * num;
-
-	return 0;
-}
-
 int localPal[0x100];
 static void (*vidCpyM2)(void *dest, void *src) = NULL;
 
@@ -323,13 +313,13 @@ static void blit(const char *fps, const char *notice)
 			Pico.m.dirtyPal = 0;
 			vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 			// feed new palette to our device
-			gp2x_video_setpalette(localPal, 0x40);
+			// gp2x_video_setpalette(localPal, 0x40);
 		}
 		// a hack for VR
 		if (PicoRead16Hook == PicoSVPRead16)
 			memset32((int *)(PicoDraw2FB+328*8+328*223), 0xe0e0e0e0, 328);
 		// do actual copy
-		vidCpyM2((unsigned char *)gp2x_screen+g_screen_width*8, PicoDraw2FB+328*8);
+		vidCpyM2((unsigned char *)g_screen_ptr+g_screen_width*8, PicoDraw2FB+328*8);
 	}
 	else if (!(emu_opt&0x80))
 	{
@@ -362,7 +352,7 @@ static void blit(const char *fps, const char *notice)
 				localPal[0xe0] = 0x00000000; // reserved pixels for OSD
 				localPal[0xf0] = 0x00ffffff;
 			}
-			gp2x_video_setpalette(localPal, pallen);
+			// gp2x_video_setpalette(localPal, pallen);
 		}
 	}
 
@@ -377,33 +367,24 @@ static void blit(const char *fps, const char *notice)
 		draw_cd_leds();
 	if (PicoAHW & PAHW_PICO)
 		draw_pico_ptr();
-{
-//static int u=0;
-//memset((char *)gp2x_screen+800*471*2, (u++)>>1, 800*9*2);
-}
 
 	//gp2x_video_wait_vsync();
-	gp2x_video_flip();
+	// gp2x_video_flip();
 }
 
 
 // clears whole screen or just the notice area (in all buffers)
 static void clearArea(int full)
 {
-	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
-		// 8-bit renderers
-		if (full) gp2x_memset_all_buffers(0, 0xe0, g_screen_width*240);
-		else      gp2x_memset_all_buffers(g_screen_width*232, 0xe0, g_screen_width*8);
-	} else {
-		// 16bit accurate renderer
-		if (full) gp2x_memset_all_buffers(0, 0, g_screen_width*g_screen_height*2);
-		else      gp2x_memset_all_buffers(g_screen_width*(g_screen_height-16)*2, 0, g_screen_width*16*2);
-	}
+	if (full) memset(g_screen_ptr, 0, g_screen_width*g_screen_height*2);
+	else      memset((short *)g_screen_ptr + g_screen_width * (g_screen_height - 16), 0,
+			g_screen_width * 16 * 2);
 }
 
 
 static void vidResetMode(void)
 {
+#if 0
 	if (PicoOpt&0x10) {
 		gp2x_video_changemode(8);
 	} else if (currentConfig.EmuOpt&0x80) {
@@ -435,27 +416,37 @@ static void vidResetMode(void)
 	if (currentConfig.scaling == 2 && !(Pico.video.reg[1]&8))
 	     gp2x_video_RGB_setscaling(8, (PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 224);
 	else gp2x_video_RGB_setscaling(0, (PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 240);
+#else
+#ifdef USE_320_SCREEN
+	PicoDrawSetColorFormat(1);
+	PicoScanBegin = EmuScanBegin16;
+#else
+	PicoDrawSetColorFormat(-1);
+	PicoScanEnd = EmuScanEnd16;
+#endif
+#endif
 }
 
 
 static void emu_msg_cb(const char *msg)
 {
+/*
 	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
 		// 8-bit renderers
 		gp2x_memset_all_buffers(g_screen_width*(g_screen_height-16), 0xe0, g_screen_width*16);
 		osd_text(4, g_screen_height-16, msg);
-		gp2x_memcpy_all_buffers((char *)gp2x_screen+g_screen_width*(g_screen_height-16),
+		gp2x_memcpy_all_buffers((char *)g_screen_ptr+g_screen_width*(g_screen_height-16),
 			g_screen_width*(g_screen_height-16), g_screen_width*16);
 	} else {
 		// 16bit accurate renderer
 		gp2x_memset_all_buffers(g_screen_width*(g_screen_height-16)*2, 0, g_screen_width*16*2);
 		osd_text(4, g_screen_height-16, msg);
-		gp2x_memcpy_all_buffers((char *)gp2x_screen+g_screen_width*(g_screen_height-16)*2,
+		gp2x_memcpy_all_buffers((char *)g_screen_ptr+g_screen_width*(g_screen_height-16)*2,
 			g_screen_width*(g_screen_height-16)*2, g_screen_width*16*2);
 	}
 	gettimeofday(&noticeMsgTime, 0);
 	noticeMsgTime.tv_sec -= 2;
-
+*/
 	/* assumption: emu_msg_cb gets called only when something slow is about to happen */
 	reset_timing = 1;
 }
@@ -582,7 +573,7 @@ static void RunEvents(unsigned int which)
 		if (do_it) {
 			osd_text(4, g_screen_height-16, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
 			PicoStateProgressCB = emu_state_cb;
-			gp2x_memcpy_all_buffers(gp2x_screen, 0, g_screen_width*g_screen_height*2);
+			//gp2x_memcpy_all_buffers(g_screen_ptr, 0, g_screen_width*g_screen_height*2);
 			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
 			PicoStateProgressCB = NULL;
 		}
@@ -707,7 +698,7 @@ void emu_forcedFrame(int opts)
 		clearArea(1);
 	} else	vidCpyM2 = vidCpyM2_40col;
 
-	vidCpyM2((unsigned char *)gp2x_screen+g_screen_width*8, PicoDraw2FB+328*8);
+	vidCpyM2((unsigned char *)g_screen_ptr+g_screen_width*8, PicoDraw2FB+328*8);
 	vidConvCpyRGB32(localPal, Pico.cram, 0x40);
 	gp2x_video_setpalette(localPal, 0x40);
 */
@@ -806,7 +797,7 @@ void emu_Loop(void)
 	// calc vsync offset to sync timing code with vsync
 	if (currentConfig.EmuOpt&0x2000) {
 		gettimeofday(&tval, 0);
-		gp2x_video_wait_vsync();
+		//gp2x_video_wait_vsync();
 		gettimeofday(&tval, 0);
 		vsync_offset = tval.tv_usec;
 		while (vsync_offset >= target_frametime)
@@ -863,9 +854,9 @@ void emu_Loop(void)
 					vidCpyM2 = vidCpyM2_32col;
 				}
 			}
-			if (currentConfig.scaling == 2 && !(modes&8)) // want vertical scaling and game is not in 240 line mode
-			     gp2x_video_RGB_setscaling(8, scalex, 224);
-			else gp2x_video_RGB_setscaling(0, scalex, 240);
+			//if (currentConfig.scaling == 2 && !(modes&8)) // want vertical scaling and game is not in 240 line mode
+			//      gp2x_video_RGB_setscaling(8, scalex, 224);
+			// else gp2x_video_RGB_setscaling(0, scalex, 240);
 			oldmodes = modes;
 			clearArea(1);
 		}
@@ -966,7 +957,7 @@ void emu_Loop(void)
 				if (vsync_offset) {
 					if (lim_time - tval.tv_usec > target_frametime/2)
 						simpleWait(pthissec, lim_time - target_frametime/4);
-					gp2x_video_wait_vsync();
+					// gp2x_video_wait_vsync();
 				} else {
 					simpleWait(pthissec, lim_time);
 				}
