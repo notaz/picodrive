@@ -3,6 +3,8 @@
 #ifndef PORT_CONFIG_H
 #define PORT_CONFIG_H
 
+#include "version.h"
+
 #define CASE_SENSITIVE_FS 1 // CS filesystem
 #define DONT_OPEN_MANY_FILES 0
 #define REDUCE_IO_CALLS 0

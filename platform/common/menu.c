@@ -176,7 +176,7 @@ static void menu_draw_selection(int x, int y, int w)
 	for (h = me_mfont_h + 1; h > 0; h--)
 	{
 		dst = dest;
-		for (i = w; i > 0; i--)
+		for (i = w - 14; i > 0; i--)
 			*dst++ = menu_sel_color;
 		dest += g_screen_width;
 	}
@@ -472,7 +472,7 @@ static void me_loop(menu_entry *menu, int *menu_sel)
 		return;
 	}
 
-	while (!menu[sel].enabled && sel < menu_sel_max)
+	while ((!menu[sel].enabled || !menu[sel].selectable) && sel < menu_sel_max)
 		sel++;
 
 	/* make sure action buttons are not pressed on entering menu */
@@ -604,16 +604,16 @@ void menu_romload_prepare(const char *rom_name)
 {
 	const char *p = rom_name + strlen(rom_name);
 
-	plat_video_menu_begin();
-
 	while (p > rom_name && *p != '/')
 		p--;
 
 	/* fill both buffers, callbacks won't update in full */
+	plat_video_menu_begin();
 	smalltext_out16(1, 1, "Loading", 0xffff);
 	smalltext_out16(1, 10, p, 0xffff);
 	plat_video_menu_end();
 
+	plat_video_menu_begin();
 	smalltext_out16(1, 1, "Loading", 0xffff);
 	smalltext_out16(1, 10, p, 0xffff);
 	plat_video_menu_end();
@@ -977,7 +977,7 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 	text_out16(x, y, is_loading ? "Load state" : "Save state");
 	y += 3 * me_mfont_h;
 
-	menu_draw_selection(x - me_mfont_w * 2, y + menu_sel * me_mfont_h, 13 * me_mfont_w + 4);
+	menu_draw_selection(x - me_mfont_w * 2, y + menu_sel * me_mfont_h, (13 + 2) * me_mfont_w + 4);
 
 	/* draw all 10 slots */
 	for (i = 0; i < 10; i++, y += me_mfont_h)
@@ -1091,10 +1091,11 @@ static int count_bound_keys(int dev_id, int action_mask, int player_idx)
 static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_idx,
 		int sel, int dev_id, int dev_count, int is_bind)
 {
-	int x, y, w, i;
 	const char *dev_name;
+	int x, y, w, i;
 
-	x = g_screen_width / 2 - 20 * me_mfont_w / 2;
+	w = ((player_idx >= 0) ? 20 : 30) * me_mfont_w;
+	x = g_screen_width / 2 - w / 2;
 	y = (g_screen_height - 4 * me_mfont_h) / 2 - (2 + opt_cnt) * me_mfont_h / 2;
 	if (x < me_mfont_w * 2)
 		x = me_mfont_w * 2;
@@ -1106,7 +1107,7 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 		text_out16(x, y, "Emulator controls");
 
 	y += 2 * me_mfont_h;
-	menu_draw_selection(x - me_mfont_w * 2, y + sel * me_mfont_h, me_mfont_w); // FIXME last arg
+	menu_draw_selection(x - me_mfont_w * 2, y + sel * me_mfont_h, w + 2 * me_mfont_w);
 
 	for (i = 0; i < opt_cnt; i++, y += me_mfont_h)
 		text_out16(x, y, "%s : %s", opts[i].name,
@@ -1885,6 +1886,10 @@ static int main_menu_handler(menu_id id, int keys)
 
 static menu_entry e_menu_main[] =
 {
+	mee_label     ("PicoDrive " VERSION),
+	mee_label     (""),
+	mee_label     (""),
+	mee_label     (""),
 	mee_handler_id("Resume game",        MA_MAIN_RESUME_GAME, main_menu_handler),
 	mee_handler_id("Save State",         MA_MAIN_SAVE_STATE,  main_menu_handler),
 	mee_handler_id("Load State",         MA_MAIN_LOAD_STATE,  main_menu_handler),
@@ -1911,13 +1916,15 @@ void menu_loop(void)
 	plat_video_menu_enter(rom_loaded);
 	in_set_blocking(1);
 	me_loop(e_menu_main, &sel);
-	in_set_blocking(0);
 
-	if (rom_loaded && engineState == PGS_Menu) {
+	if (rom_loaded) {
+		if (engineState == PGS_Menu)
+			engineState = PGS_Running;
 		/* wait until menu, ok, back is released */
 		while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK));
-		engineState = PGS_Running;
 	}
+
+	in_set_blocking(0);
 }
 
 // --------- CD tray close menu ----------
@@ -1967,7 +1974,6 @@ int menu_loop_tray(void)
 
 	in_set_blocking(1);
 	me_loop(e_menu_tray, &sel);
-	in_set_blocking(0);
 
 	if (engineState != PGS_RestartRun) {
 		engineState = PGS_RestartRun;
@@ -1975,6 +1981,7 @@ int menu_loop_tray(void)
 	}
 
 	while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK));
+	in_set_blocking(0);
 
 	return ret;
 }

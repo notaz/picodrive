@@ -35,6 +35,7 @@
 #include "../linux/sndout_oss.h"
 #include "../common/arm_utils.h"
 #include "../common/arm_linux.h"
+#include "../common/emu.h"
 
 volatile unsigned short *gp2x_memregs;
 //static
@@ -196,7 +197,6 @@ void gp2x_pd_clone_buffer2(void)
 
 unsigned long gp2x_joystick_read(int unused)
 {
-	int i;
   	unsigned long value=(gp2x_memregs[0x1198>>1] & 0x00FF); // GPIO M
   	if(value==0xFD) value=0xFA;
   	if(value==0xF7) value=0xEB;
