@@ -114,9 +114,11 @@ static gint key_release_event (GtkWidget *widget, GdkEventKey *event)
 static void size_allocate_event(GtkWidget *widget, GtkAllocation *allocation, gpointer user_data)
 {
 	// printf("%dx%d\n", allocation->width, allocation->height);
-	scr_w = allocation->width - 2;
-	scr_h = allocation->height - 2;
-	scr_changed = 1;
+	if (scr_w != allocation->width - 2 || scr_h != allocation->height - 2) {
+		scr_w = allocation->width - 2;
+		scr_h = allocation->height - 2;
+		scr_changed = 1;
+	}
 }
 
 static void *gtk_threadf(void *targ)
@@ -198,7 +200,7 @@ static void realloc_screen(void)
 	void *old = g_screen_ptr;
 	g_screen_width = scr_w;
 	g_screen_height = scr_h;
-	g_screen_ptr = malloc(g_screen_width * g_screen_height * 2);
+	g_screen_ptr = calloc(g_screen_width * g_screen_height * 2, 1);
 	free(old);
 	scr_changed = 0;
 }
