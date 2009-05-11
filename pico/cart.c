@@ -698,7 +698,8 @@ static void PicoCartDetect(void)
   else if ((name_cmp("ROBOCOP 3") == 0 && Pico.romsize == 0x200000) ||
     (rom_strcmp(0x160, "FLICKY") == 0 && Pico.romsize >= 0x200000)  ||
     (name_cmp(" SHOVE IT!") == 0 && Pico.romsize >= 0x200000) ||
-    (name_cmp("MS PACMAN") == 0 && Pico.romsize >= 0x200000)) // bad dump?
+    (name_cmp("MS PACMAN") == 0 && Pico.romsize >= 0x200000) || // bad dump?
+    (name_cmp("ALIEN 3") == 0 && Pico.romsize == 0x200000))
   {
     carthw_12in1_startup();
   }
