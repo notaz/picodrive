@@ -33,10 +33,14 @@ static int  menu_error_time = 0;
 static unsigned char *menu_font_data = NULL;
 static int menu_text_color = 0xffff; // default to white
 static int menu_sel_color = -1; // disabled
+
+/* note: these might become non-constant in future */
 #if MENU_X2
 static const int me_mfont_w = 16, me_mfont_h = 20;
+static const int me_sfont_w = 12, me_sfont_h = 20;
 #else
 static const int me_mfont_w = 8, me_mfont_h = 10;
+static const int me_sfont_w = 6, me_sfont_h = 10;
 #endif
 
 // draws text to current bbp16 screen
@@ -113,35 +117,41 @@ void text_out16(int x, int y, const char *texto, ...)
 	text_out16_(x,y,buffer,menu_text_color);
 }
 
-
+/* draws in 6x8 font, might multiply size by integer */
 static void smalltext_out16_(int x, int y, const char *texto, int color)
 {
-	int i;
 	unsigned char  *src;
 	unsigned short *dst;
+	int multiplier = me_sfont_w / 6;
+	int i;
 
-	for (i = 0;; i++, x += 6)
+	for (i = 0;; i++, x += me_sfont_w)
 	{
 		unsigned char c = (unsigned char) texto[i];
 		int h = 8;
 
-		if (!c) break;
+		if (!c || c == '\n')
+			break;
 
 		src = fontdata6x8[c];
 		dst = (unsigned short *)g_screen_ptr + x + y * g_screen_width;
 
 		while (h--)
 		{
-			int w = 0x20;
-			while (w)
+			int m, w2, h2;
+			for (h2 = multiplier; h2 > 0; h2--)
 			{
-				if( *src & w ) *dst = color;
-				dst++;
-				w>>=1;
+				for (m = 0x20; m; m >>= 1) {
+					if (*src & m)
+						for (w2 = multiplier; w2 > 0; w2--)
+							*dst++ = color;
+					else
+						dst += multiplier;
+				}
+
+				dst += g_screen_width - me_sfont_w;
 			}
 			src++;
-
-			dst += g_screen_width - 6;
 		}
 	}
 }
@@ -585,15 +595,15 @@ static void cdload_progress_cb(int percent)
 	int ln, len = percent * g_screen_width / 100;
 	unsigned short *dst = (unsigned short *)g_screen_ptr + g_screen_width * 10 * 2;
 
-	memset(dst, 0xff, g_screen_width * (10 - 2) * 2);
+	memset(dst, 0xff, g_screen_width * (me_sfont_h - 2) * 2);
 
-	smalltext_out16(1, 3 * 10, "Processing CD image / MP3s", 0xffff);
-	smalltext_out16(1, 4 * 10, rom_fname_loaded, 0xffff);
-	dst += g_screen_width * 30;
+	smalltext_out16(1, 3 * me_sfont_h, "Processing CD image / MP3s", 0xffff);
+	smalltext_out16(1, 4 * me_sfont_h, rom_fname_loaded, 0xffff);
+	dst += g_screen_width * me_sfont_h * 3;
 
 	if (len > g_screen_width)
 		len = g_screen_width;
-	for (ln = (10 - 2); ln > 0; ln--, dst += g_screen_width)
+	for (ln = (me_sfont_h - 2); ln > 0; ln--, dst += g_screen_width)
 		memset(dst, 0xff, len * 2);
 
 	plat_video_menu_end();
@@ -610,12 +620,12 @@ void menu_romload_prepare(const char *rom_name)
 	/* fill both buffers, callbacks won't update in full */
 	plat_video_menu_begin();
 	smalltext_out16(1, 1, "Loading", 0xffff);
-	smalltext_out16(1, 10, p, 0xffff);
+	smalltext_out16(1, me_sfont_h, p, 0xffff);
 	plat_video_menu_end();
 
 	plat_video_menu_begin();
 	smalltext_out16(1, 1, "Loading", 0xffff);
-	smalltext_out16(1, 10, p, 0xffff);
+	smalltext_out16(1, me_sfont_h, p, 0xffff);
 	plat_video_menu_end();
 
 	PicoCartLoadProgressCB = load_progress_cb;
@@ -626,7 +636,7 @@ void menu_romload_prepare(const char *rom_name)
 void menu_romload_end(void)
 {
 	PicoCartLoadProgressCB = PicoCDLoadProgressCB = NULL;
-	smalltext_out16(1, (cdload_called ? 6 : 3) * 10,
+	smalltext_out16(1, (cdload_called ? 6 : 3) * me_sfont_h,
 		"Starting emulation...", 0xffff);
 	plat_video_menu_end();
 }
@@ -651,9 +661,9 @@ static unsigned short file2color(const char *fname)
 
 static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 {
-	int max_cnt, start, i, pos;
+	int max_cnt, start, i, x, pos;
 
-	max_cnt = g_screen_height / 10;
+	max_cnt = g_screen_height / me_sfont_h;
 	start = max_cnt / 2 - sel;
 	n--; // exclude current dir (".")
 
@@ -664,21 +674,22 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 
 	menu_darken_bg((short *)g_screen_ptr + g_screen_width * max_cnt/2 * 10, g_screen_width * 8, 0);
 
+	x = 5 + me_mfont_w + 1;
 	if (start - 2 >= 0)
-		smalltext_out16(14, (start - 2)*10, curdir, 0xffff);
+		smalltext_out16(14, (start - 2) * me_sfont_h, curdir, 0xffff);
 	for (i = 0; i < n; i++) {
 		pos = start + i;
 		if (pos < 0)  continue;
 		if (pos >= max_cnt) break;
 		if (namelist[i+1]->d_type == DT_DIR) {
-			smalltext_out16(14,   pos*10, "/", 0xfff6);
-			smalltext_out16(14+6, pos*10, namelist[i+1]->d_name, 0xfff6);
+			smalltext_out16(x, pos * me_sfont_h, "/", 0xfff6);
+			smalltext_out16(x + me_sfont_w, pos * me_sfont_h, namelist[i+1]->d_name, 0xfff6);
 		} else {
 			unsigned short color = file2color(namelist[i+1]->d_name);
-			smalltext_out16(14,   pos*10, namelist[i+1]->d_name, color);
+			smalltext_out16(x, pos * me_sfont_h, namelist[i+1]->d_name, color);
 		}
 	}
-	smalltext_out16(5, max_cnt/2 * 10, ">", 0xffff);
+	smalltext_out16(5, max_cnt/2 * me_sfont_h, ">", 0xffff);
 	plat_video_menu_end();
 }
 
@@ -855,14 +866,14 @@ static void draw_patchlist(int sel)
 		if (pos < 0) continue;
 		if (pos >= max_cnt) break;
 		active = PicoPatches[i].active;
-		smalltext_out16(14,     pos*10, active ? "ON " : "OFF", active ? 0xfff6 : 0xffff);
-		smalltext_out16(14+6*4, pos*10, PicoPatches[i].name,    active ? 0xfff6 : 0xffff);
+		smalltext_out16(14,     pos * me_sfont_h, active ? "ON " : "OFF", active ? 0xfff6 : 0xffff);
+		smalltext_out16(14+6*4, pos * me_sfont_h, PicoPatches[i].name,    active ? 0xfff6 : 0xffff);
 	}
 	pos = start + i;
 	if (pos < max_cnt)
-		smalltext_out16(14, pos * 10, "done", 0xffff);
+		smalltext_out16(14, pos * me_sfont_h, "done", 0xffff);
 
-	text_out16(5, max_cnt / 2 * 10, ">");
+	text_out16(5, max_cnt / 2 * me_sfont_h, ">");
 	plat_video_menu_end();
 }
 
@@ -965,7 +976,7 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 	if (state_slot_flags & (1 << menu_sel))
 		draw_savestate_bg(menu_sel);
 
-	w = 13 * me_mfont_w + me_mfont_w * 2;
+	w = (13 + 2) * me_mfont_w;
 	h = (1+2+10+1) * me_mfont_h;
 	x = g_screen_width / 2 - w / 2;
 	if (x < 0) x = 0;
@@ -1048,6 +1059,7 @@ static char *action_binds(int player_idx, int action_mask, int dev_id)
 	for (k = 0; k < count; k++)
 	{
 		const char *xname;
+		int len;
 		if (!(binds[k] & action_mask))
 			continue;
 
@@ -1055,9 +1067,12 @@ static char *action_binds(int player_idx, int action_mask, int dev_id)
 			continue;
 
 		xname = in_get_key_name(dev_id, k);
-		if (static_buff[0])
-			strncat(static_buff, " + ", sizeof(static_buff));
-		strncat(static_buff, xname, sizeof(static_buff));
+		len = strlen(static_buff);
+		if (len) {
+			strncat(static_buff, " + ", sizeof(static_buff) - len - 1);
+			len += 3;
+		}
+		strncat(static_buff, xname, sizeof(static_buff) - len - 1);
 	}
 
 	return static_buff;
@@ -1677,9 +1692,6 @@ static int menu_loop_options(menu_id id, int keys)
 
 // ------------ debug menu ------------
 
-#include <sys/stat.h>
-#include <sys/types.h>
-
 #include <pico/debug.h>
 
 extern void SekStepM68k(void);
@@ -1707,17 +1719,21 @@ static void draw_text_debug(const char *str, int skip, int from)
 	p = str;
 	while (skip-- > 0)
 	{
-		while (*p && *p != '\n') p++;
-		if (*p == 0 || p[1] == 0) return;
+		while (*p && *p != '\n')
+			p++;
+		if (*p == 0 || p[1] == 0)
+			return;
 		p++;
 	}
 
 	str = p;
-	for (line = from; line < g_screen_height / 10; line++)
+	for (line = from; line < g_screen_height / me_sfont_h; line++)
 	{
-		while (*p && *p != '\n') p++;
-		smalltext_out16(1, line*10, str, 0xffff);
-		if (*p == 0) break;
+		smalltext_out16(1, line * me_sfont_h, str, 0xffff);
+		while (*p && *p != '\n')
+			p++;
+		if (*p == 0)
+			break;
 		p++; str = p;
 	}
 }
@@ -1732,7 +1748,7 @@ static void draw_frame_debug(void)
 
 	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 	emu_forcedFrame(0);
-	smalltext_out16(4, g_screen_height - 8, layer_str, 0xffff);
+	smalltext_out16(4, g_screen_height - me_sfont_h, layer_str, 0xffff);
 }
 
 static void debug_menu_loop(void)
@@ -1750,7 +1766,7 @@ static void debug_menu_loop(void)
 				emu_platformDebugCat(tmp);
 				draw_text_debug(tmp, 0, 0);
 				if (dumped) {
-					smalltext_out16(g_screen_width - 6 * me_mfont_h,
+					smalltext_out16(g_screen_width - 6 * me_sfont_h,
 						g_screen_height - me_mfont_h, "dumped", 0xffff);
 					dumped = 0;
 				}
