@@ -36,7 +36,6 @@ currentConfig_t currentConfig, defaultConfig;
 char noticeMsg[64] = { 0, };
 int state_slot = 0;
 int config_slot = 0, config_slot_current = 0;
-int kb_combo_keys = 0, kb_combo_acts = 0;	// keys and actions which need button combos
 int pico_inp_mode = 0;
 int engineState = PGS_Menu;
 
@@ -714,54 +713,6 @@ mk_text_out(emu_textOut8, unsigned char, 0xf0)
 mk_text_out(emu_textOut16, unsigned short, 0xffff)
 
 #undef mk_text_out
-
-#ifdef PSP
-#define MAX_COMBO_KEY 23
-#else
-#define MAX_COMBO_KEY 31
-#endif
-
-// FIXME
-void emu_findKeyBindCombos(void)
-{
-	int act, u;
-
-	// find out which keys and actions are combos
-	kb_combo_keys = kb_combo_acts = 0;
-	for (act = 0; act < 32; act++)
-	{
-		int keyc = 0, keyc2 = 0;
-		if (act == 16 || act == 17) continue; // player2 flag
-		if (act > 17)
-		{
-			for (u = 0; u <= MAX_COMBO_KEY; u++)
-				if (currentConfig.KeyBinds[u] & (1 << act)) keyc++;
-		}
-		else
-		{
-			for (u = 0; u <= MAX_COMBO_KEY; u++)
-				if ((currentConfig.KeyBinds[u] & 0x30000) == 0 && // pl. 1
-					(currentConfig.KeyBinds[u] & (1 << act))) keyc++;
-			for (u = 0; u <= MAX_COMBO_KEY; u++)
-				if ((currentConfig.KeyBinds[u] & 0x30000) == 1 && // pl. 2
-					(currentConfig.KeyBinds[u] & (1 << act))) keyc2++;
-			if (keyc2 > keyc) keyc = keyc2;
-		}
-		if (keyc > 1)
-		{
-			// loop again and mark those keys and actions as combo
-			for (u = 0; u <= MAX_COMBO_KEY; u++)
-			{
-				if (currentConfig.KeyBinds[u] & (1 << act)) {
-					kb_combo_keys |= 1 << u;
-					kb_combo_acts |= 1 << act;
-				}
-			}
-		}
-	}
-
-	// printf("combo keys/acts: %08x %08x\n", kb_combo_keys, kb_combo_acts);
-}
 
 
 void emu_updateMovie(void)

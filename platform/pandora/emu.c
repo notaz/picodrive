@@ -782,7 +782,6 @@ void emu_Loop(void)
 	vidResetMode();
 	Pico.m.dirtyPal = 1;
 	oldmodes = ((Pico.video.reg[12]&1)<<2) ^ 0xc;
-	emu_findKeyBindCombos();
 
 	// pal/ntsc might have changed, reset related stuff
 	target_fps = Pico.m.pal ? 50 : 60;

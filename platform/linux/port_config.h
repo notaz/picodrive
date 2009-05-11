@@ -10,7 +10,6 @@
 #define CASE_SENSITIVE_FS 1 // CS filesystem
 #define DONT_OPEN_MANY_FILES 0
 #define REDUCE_IO_CALLS 0
-#define SIMPLE_WRITE_SOUND 0
 
 #define SCREEN_SIZE_FIXED 0
 #define SCREEN_WIDTH  320

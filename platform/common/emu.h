@@ -61,7 +61,6 @@ extern char noticeMsg[64];
 extern int state_slot;
 extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;
-extern int kb_combo_keys, kb_combo_acts;	// keys and actions which need button combos
 extern int pico_inp_mode;
 
 extern char rom_fname_reload[512];		// ROM to try loading on next PGS_ReloadRom
@@ -97,7 +96,6 @@ void  emu_textOut8 (int x, int y, const char *text);
 void  emu_textOut16(int x, int y, const char *text);
 char *emu_makeRomId(void);
 void  emu_getGameName(char *str150);
-void  emu_findKeyBindCombos(void);
 void  emu_changeFastForward(int set_on);
 void  emu_RunEventsPico(unsigned int events);
 void  emu_DoTurbo(int *pad, int acts);

@@ -195,7 +195,7 @@ no_abs:
 		ioctl(fd, EVIOCGNAME(sizeof(name)-6), name+6);
 		printf("in_evdev: found \"%s\" with %d events (type %08x)\n",
 			name+6, count, support);
-		in_register(name, IN_DRVID_EVDEV, fd, dev);
+		in_register(name, IN_DRVID_EVDEV, fd, dev, 0);
 		continue;
 
 skip:
@@ -363,11 +363,18 @@ static int in_evdev_menu_translate(int keycode)
 		case KEY_RIGHT:	return PBTN_RIGHT;
 		case KEY_ENTER:
 		case BTN_A:
-		case BTN_TRIGGER: return PBTN_MOK;
+		case BTN_TRIGGER:
+			return PBTN_MOK;
 		case KEY_ESC:
 		case BTN_B:
-		case BTN_THUMB:	return PBTN_MBACK;
-		case KEY_MENU:  return PBTN_MENU;
+		case BTN_THUMB:
+			return PBTN_MBACK;
+		case KEY_MENU:
+			return PBTN_MENU;
+		case KEY_LEFTBRACE:
+			return PBTN_L;
+		case KEY_RIGHTBRACE:
+			return PBTN_R;
 		default:	return 0;
 	}
 }

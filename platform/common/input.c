@@ -16,6 +16,7 @@ typedef struct
 	char *name;
 	int *binds;
 	int probed:1;
+	int does_combos:1;
 } in_dev_t;
 
 static in_drv_t in_drivers[IN_DRVID_COUNT];
@@ -67,7 +68,7 @@ static void in_free(in_dev_t *dev)
 
 /* to be called by drivers
  * async devices must set drv_fd_hnd to -1 */
-void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data)
+void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data, int combos)
 {
 	int i, ret, dupe_count = 0, *binds;
 	char name[256], *name_end, *tmp;
@@ -121,6 +122,7 @@ void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data)
 	printf("input: new device #%d \"%s\"\n", i, name);
 update:
 	in_devices[i].probed = 1;
+	in_devices[i].does_combos = combos;
 	in_devices[i].drv_id = drv_id;
 	in_devices[i].drv_fd_hnd = drv_fd_hnd;
 	in_devices[i].drv_data = drv_data;
@@ -133,6 +135,70 @@ update:
 			in_devices[i].binds = NULL;
 		}
 	}
+}
+
+/* key combo handling, to be called by drivers that support it */
+void in_combos_find(int *binds, int last_key, int *combo_keys, int *combo_acts)
+{
+	int act, u;
+
+	*combo_keys = *combo_acts = 0;
+	for (act = 0; act < sizeof(binds[0]) * 8; act++)
+	{
+		int keyc = 0;
+		for (u = 0; u <= last_key; u++)
+			if (binds[u] & (1 << act))
+				keyc++;
+
+		if (keyc > 1)
+		{
+			// loop again and mark those keys and actions as combo
+			for (u = 0; u <= last_key; u++)
+			{
+				if (binds[u] & (1 << act)) {
+					*combo_keys |= 1 << u;
+					*combo_acts |= 1 << act;
+				}
+			}
+		}
+	}
+}
+
+int in_combos_do(int keys, int *binds, int last_key, int combo_keys, int combo_acts)
+{
+	int i, ret = 0;
+
+	for (i = 0; i <= last_key; i++)
+	{
+		int acts;
+		if (!(keys & (1 << i)))
+			continue;
+
+		acts = binds[i];
+		if (!acts)
+			continue;
+
+		if (combo_keys & (1 << i))
+		{
+			int acts_c = acts & combo_acts;
+			int u = last_key;
+			if (acts_c) {
+				// let's try to find the other one
+				for (u = i + 1; u <= last_key; u++)
+					if ( (keys & (1 << u)) && (binds[u] & acts_c) ) {
+						ret |= acts_c & binds[u];
+						keys &= ~((1 << i) | (1 << u));
+						break;
+					}
+			}
+			// add non-combo actions if combo ones were not found
+			if (u >= last_key)
+				ret |= acts & ~combo_acts;
+		} else
+			ret |= acts;
+	}
+
+	return ret;
 }
 
 void in_probe(void)
@@ -360,7 +426,7 @@ int in_menu_wait(int interesting, int autorep_delay_ms)
 {
 	static int inp_prev = 0;
 	static int repeats = 0;
-	int ret, release = 0, wait = 666;
+	int ret, release = 0, wait = 450;
 
 	if (repeats)
 		wait = autorep_delay_ms;
@@ -407,12 +473,19 @@ const int *in_get_dev_def_binds(int dev_id)
 	return in_devices[dev_id].binds + count;
 }
 
-int in_get_dev_bind_count(int dev_id)
+int in_get_dev_info(int dev_id, int what)
 {
 	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
 		return 0;
 
-	return in_bind_count(in_devices[dev_id].drv_id);
+	switch (what) {
+	case IN_INFO_BIND_COUNT:
+		return in_bind_count(in_devices[dev_id].drv_id);
+	case IN_INFO_DOES_COMBOS:
+		return in_devices[dev_id].does_combos;
+	}
+
+	return 0;
 }
 
 const char *in_get_dev_name(int dev_id, int must_be_active, int skip_pfix)

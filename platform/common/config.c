@@ -110,7 +110,7 @@ static void keys_write(FILE *fn, const char *bind_str, int dev_id, const int *bi
 	int key_count, t, i;
 	const int *def_binds;
 
-	key_count = in_get_dev_bind_count(dev_id);
+	key_count = in_get_dev_info(dev_id, IN_INFO_BIND_COUNT);
 	def_binds = in_get_dev_def_binds(dev_id);
 
 	for (t = 0; t < key_count; t++)
@@ -311,7 +311,7 @@ next:
 		sprintf(strbind, "bind%d", t);
 		if (t == 0) strbind[4] = 0;
 
-		count = in_get_dev_bind_count(t);
+		count = in_get_dev_info(t, IN_INFO_BIND_COUNT);
 		keys_write(fn, strbind, t, binds, no_defaults);
 	}
 

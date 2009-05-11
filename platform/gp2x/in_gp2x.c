@@ -8,6 +8,11 @@
 #define IN_PREFIX "gp2x:"
 #define IN_GP2X_NBUTTONS 32
 
+/* note: in_gp2x hadles combos (if 2 btns have the same bind,
+ * both must be pressed for action to happen) */
+static int in_gp2x_combo_keys = 0;
+static int in_gp2x_combo_acts = 0;
+
 extern volatile unsigned short *gp2x_memregs; /* from minimal library rlyeh */
 
 enum  { BTN_UP = 0,      BTN_LEFT = 2,      BTN_DOWN = 4,  BTN_RIGHT = 6,
@@ -28,7 +33,7 @@ static const char * const in_gp2x_keys[IN_GP2X_NBUTTONS] = {
 
 static void in_gp2x_probe(void)
 {
-	in_register(IN_PREFIX "GP2X pad", IN_DRVID_GP2X, -1, (void *)1);
+	in_register(IN_PREFIX "GP2X pad", IN_DRVID_GP2X, -1, (void *)1, 1);
 }
 
 static int in_gp2x_get_bind_count(void)
@@ -59,14 +64,17 @@ static int in_gp2x_get_gpio_bits(void)
 /* returns bitfield of binds of pressed buttons */
 int in_gp2x_update(void *drv_data, int *binds)
 {
-	int i, value, ret = 0;
+	int i, keys, ret = 0;
 
-	value = in_gp2x_get_gpio_bits();
+	keys = in_gp2x_get_gpio_bits();
 
-	for (i = 0; value; i++) {
-		if (value & 1)
+	if (keys & in_gp2x_combo_keys)
+		return in_combos_do(keys, binds, BTN_PUSH, in_gp2x_combo_keys, in_gp2x_combo_acts);
+
+	for (i = 0; keys; i++) {
+		if (keys & 1)
 			ret |= binds[i];
-		value >>= 1;
+		keys >>= 1;
 	}
 
 	return ret;
@@ -172,6 +180,8 @@ static int in_gp2x_clean_binds(void *drv_data, int *binds)
 			count++;
 	}
 
+	in_combos_find(binds, BTN_PUSH, &in_gp2x_combo_keys, &in_gp2x_combo_acts);
+
 	return count;
 
 }
@@ -179,6 +189,8 @@ static int in_gp2x_clean_binds(void *drv_data, int *binds)
 void in_gp2x_init(void *vdrv)
 {
 	in_drv_t *drv = vdrv;
+
+	in_gp2x_combo_keys = in_gp2x_combo_acts = 0;
 
 	drv->prefix = in_gp2x_prefix;
 	drv->probe = in_gp2x_probe;

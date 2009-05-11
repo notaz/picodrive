@@ -1055,7 +1055,7 @@ static char *action_binds(int player_idx, int action_mask, int dev_id)
 	if (binds == NULL)
 		return static_buff;
 
-	count = in_get_dev_bind_count(dev_id);
+	count = in_get_dev_info(dev_id, IN_INFO_BIND_COUNT);
 	for (k = 0; k < count; k++)
 	{
 		const char *xname;
@@ -1088,7 +1088,7 @@ static int count_bound_keys(int dev_id, int action_mask, int player_idx)
 	if (binds == NULL)
 		return 0;
 
-	count = in_get_dev_bind_count(dev_id);
+	count = in_get_dev_info(dev_id, IN_INFO_BIND_COUNT);
 	for (k = 0; k < count; k++)
 	{
 		if (!(binds[k] & action_mask))
@@ -1206,7 +1206,12 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 		for (is_down = 1; is_down; )
 			kc = in_update_keycode(&dev_id, &is_down, -1);
 
-		unbind = count_bound_keys(dev_id, opts[sel].mask, player_idx) >= 2;
+		i = count_bound_keys(dev_id, opts[sel].mask, player_idx);
+		unbind = (i > 0);
+
+		/* allow combos if device supports them */
+		if (i == 1 && in_get_dev_info(dev_id, IN_INFO_DOES_COMBOS))
+			unbind = 0;
 
 		in_bind_key(dev_id, kc, opts[sel].mask, unbind);
 		if (player_idx >= 0) {

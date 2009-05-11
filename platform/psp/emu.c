@@ -831,6 +831,7 @@ static void updateKeys(void)
 	static unsigned int prevEvents = 0;
 	int i;
 
+	/* FIXME: port to input fw */
 	keys = psp_pad_read(0);
 	if (keys & PSP_CTRL_HOME)
 		sceDisplayWaitVblankStart();
@@ -839,34 +840,6 @@ static void updateKeys(void)
 		engineState = PGS_Menu;
 
 	keys &= CONFIGURABLE_KEYS;
-
-	for (i = 0; i < 32; i++)
-	{
-		if (keys & (1 << i))
-		{
-			int pl, acts = currentConfig.KeyBinds[i];
-			if (!acts) continue;
-			pl = (acts >> 16) & 1;
-			if (kb_combo_keys & (1 << i))
-			{
-				int u = i+1, acts_c = acts & kb_combo_acts;
-				// let's try to find the other one
-				if (acts_c) {
-					for (; u < 32; u++)
-						if ( (keys & (1 << u)) && (currentConfig.KeyBinds[u] & acts_c) ) {
-							allActions[pl] |= acts_c & currentConfig.KeyBinds[u];
-							keys &= ~((1 << i) | (1 << u));
-							break;
-						}
-				}
-				// add non-combo actions if combo ones were not found
-				if (!acts_c || u == 32)
-					allActions[pl] |= acts & ~kb_combo_acts;
-			} else {
-				allActions[pl] |= acts;
-			}
-		}
-	}
 
 	PicoPad[0] = allActions[0] & 0xfff;
 	PicoPad[1] = allActions[1] & 0xfff;
@@ -929,7 +902,6 @@ void emu_Loop(void)
 	clearArea(1);
 	Pico.m.dirtyPal = 1;
 	oldmodes = ((Pico.video.reg[12]&1)<<2) ^ 0xc;
-	emu_findKeyBindCombos();
 
 	// pal/ntsc might have changed, reset related stuff
 	target_fps = Pico.m.pal ? 50 : 60;

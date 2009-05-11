@@ -4,7 +4,12 @@ enum {
 	IN_DRVID_UNKNOWN = 0,
 	IN_DRVID_GP2X,
 	IN_DRVID_EVDEV,
-	IN_DRVID_COUNT
+	IN_DRVID_COUNT,
+};
+
+enum {
+	IN_INFO_BIND_COUNT = 0,
+	IN_INFO_DOES_COMBOS,
 };
 
 typedef struct {
@@ -23,7 +28,9 @@ typedef struct {
 
 
 /* to be called by drivers */
-void in_register(const char *nname, int drv_id, int fd_hnd, void *drv_data);
+void in_register(const char *nname, int drv_id, int fd_hnd, void *drv_data, int combos);
+void in_combos_find(int *binds, int last_key, int *combo_keys, int *combo_acts);
+int  in_combos_do(int keys, int *binds, int last_key, int combo_keys, int combo_acts);
 
 void in_init(void);
 void in_probe(void);
@@ -32,7 +39,7 @@ void in_set_blocking(int is_blocking);
 int  in_update_keycode(int *dev_id, int *is_down, int timeout_ms);
 int  in_menu_wait_any(int timeout_ms);
 int  in_menu_wait(int interesting, int autorep_delay_ms);
-int  in_get_dev_bind_count(int dev_id);
+int  in_get_dev_info(int dev_id, int what);
 void in_config_start(void);
 int  in_config_parse_dev(const char *dev_name);
 int  in_config_bind_key(int dev_id, const char *key, int mask);
