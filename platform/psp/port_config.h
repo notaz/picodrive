@@ -33,8 +33,6 @@ extern void blit1(void);
 #define dprintf(x...)
 
 // platform
-#define PLAT_MAX_KEYS 32
-#define PLAT_HAVE_JOY 0
 #define PATH_SEP      "/"
 #define PATH_SEP_C    '/'
 #define MENU_X2       0

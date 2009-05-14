@@ -11,7 +11,6 @@
 #include <linux/limits.h>
 
 #include "gp2x.h"
-#include "menu.h"
 #include "../common/menu.h"
 #include "../common/emu.h"
 #include "../common/config.h"

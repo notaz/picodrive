@@ -12,7 +12,6 @@
 #include "fonts.h"
 #include "readpng.h"
 #include "lprintf.h"
-#include "common.h"
 #include "input.h"
 #include "emu.h"
 #include "plat.h"
@@ -641,6 +640,44 @@ void menu_romload_end(void)
 	plat_video_menu_end();
 }
 
+// -------------- del confirm ---------------
+
+static void do_delete(const char *fpath, const char *fname)
+{
+	int len, mid, inp;
+	const char *nm;
+	char tmp[64];
+
+	plat_video_menu_begin();
+
+	if (!rom_loaded)
+		menu_darken_bg(g_screen_ptr, g_screen_width * g_screen_height, 0);
+
+	len = strlen(fname);
+	if (len > g_screen_width/6)
+		len = g_screen_width/6;
+
+	mid = g_screen_width / 2;
+	text_out16(mid - me_mfont_w * 15 / 2,  8 * me_mfont_h, "About to delete");
+	smalltext_out16(mid - len * me_sfont_w / 2, 9 * me_mfont_h + 5, fname, 0xbdff);
+	text_out16(mid - me_mfont_w * 13 / 2, 11 * me_mfont_h, "Are you sure?");
+
+	nm = in_get_key_name(-1, -PBTN_MA3);
+	snprintf(tmp, sizeof(tmp), "(%s - confirm, ", nm);
+	len = strlen(tmp);
+	nm = in_get_key_name(-1, -PBTN_MBACK);
+	snprintf(tmp + len, sizeof(tmp) - len, "%s - cancel)", nm);
+	len = strlen(tmp);
+
+	text_out16(mid - me_mfont_w * len / 2, 12 * me_mfont_h, tmp);
+	plat_video_menu_end();
+
+	while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MA2));
+	inp = in_menu_wait(PBTN_MA3|PBTN_MBACK, 100);
+	if (inp & PBTN_MA3)
+		remove(fpath);
+}
+
 // -------------- ROM selector --------------
 
 // rrrr rggg gggb bbbb
@@ -788,7 +825,7 @@ rescan:
 					ret = rom_fname_reload;
 					break;
 				}
-//				do_delete(rom_fname_reload, namelist[sel+1]->d_name); // TODO
+				do_delete(rom_fname_reload, namelist[sel+1]->d_name);
 				if (n > 0) {
 					while (n--) free(namelist[n]);
 					free(namelist);

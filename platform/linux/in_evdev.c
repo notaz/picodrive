@@ -9,7 +9,6 @@
 #include <linux/input.h>
 #include <errno.h>
 
-#include "../common/common.h"
 #include "../common/input.h"
 #include "in_evdev.h"
 
@@ -354,29 +353,50 @@ static int in_evdev_update_keycode(void *data, int *is_down)
 	return -1;
 }
 
+static const struct {
+	short key;
+	short pbtn;
+} key_pbtn_map[] =
+{
+	{ KEY_UP,	PBTN_UP },
+	{ KEY_DOWN,	PBTN_DOWN },
+	{ KEY_LEFT,	PBTN_LEFT },
+	{ KEY_RIGHT,	PBTN_RIGHT },
+	{ KEY_ENTER,	PBTN_MOK },
+	{ BTN_A,	PBTN_MOK },
+	{ BTN_TRIGGER,	PBTN_MOK },
+	{ KEY_ESC,	PBTN_MBACK },
+	{ BTN_B,	PBTN_MBACK },
+	{ BTN_THUMB,	PBTN_MBACK },
+	{ KEY_A,	PBTN_MA2 },
+	{ KEY_S,	PBTN_MA3 },
+	{ KEY_BACKSLASH,  PBTN_MENU },
+	{ KEY_MENU,	  PBTN_MENU },
+	{ KEY_LEFTBRACE,  PBTN_L },
+	{ KEY_RIGHTBRACE, PBTN_R },
+};
+
+#define KEY_PBTN_MAP_SIZE (sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]))
+
 static int in_evdev_menu_translate(int keycode)
 {
-	switch (keycode) {
-		case KEY_UP:	return PBTN_UP;
-		case KEY_DOWN:	return PBTN_DOWN;
-		case KEY_LEFT:	return PBTN_LEFT;
-		case KEY_RIGHT:	return PBTN_RIGHT;
-		case KEY_ENTER:
-		case BTN_A:
-		case BTN_TRIGGER:
-			return PBTN_MOK;
-		case KEY_ESC:
-		case BTN_B:
-		case BTN_THUMB:
-			return PBTN_MBACK;
-		case KEY_MENU:
-			return PBTN_MENU;
-		case KEY_LEFTBRACE:
-			return PBTN_L;
-		case KEY_RIGHTBRACE:
-			return PBTN_R;
-		default:	return 0;
+	int i;
+	if (keycode < 0)
+	{
+		/* menu -> kc */
+		keycode = -keycode;
+		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
+			if (key_pbtn_map[i].pbtn == keycode)
+				return key_pbtn_map[i].key;
 	}
+	else
+	{
+		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
+			if (key_pbtn_map[i].key == keycode)
+				return key_pbtn_map[i].pbtn;
+	}
+
+	return 0;
 }
 
 static int in_evdev_get_key_code(const char *key_name)
@@ -421,6 +441,8 @@ static const struct {
 	{ BTN_Y,	6 },
 	{ KEY_ENTER,	7 },
 	{ BTN_START,	7 },
+	{ BTN_TL,	27 },	/* save state */
+	{ BTN_TR,	28 },	/* load state */
 };
 
 #define DEF_BIND_COUNT (sizeof(in_evdev_def_binds) / sizeof(in_evdev_def_binds[0]))

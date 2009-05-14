@@ -19,7 +19,6 @@
 #include "../common/emu.h"
 #include "../common/menu.h"
 #include "../common/config.h"
-#include "../common/common.h"
 #include "../common/input.h"
 #include "../linux/sndout_oss.h"
 #include "asm_utils.h"

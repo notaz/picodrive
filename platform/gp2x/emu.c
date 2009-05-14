@@ -16,7 +16,7 @@
 
 #include "emu.h"
 #include "gp2x.h"
-#include "menu.h"
+#include "../common/menu.h"
 #include "../common/arm_utils.h"
 #include "../common/fonts.h"
 #include "../common/emu.h"
@@ -145,19 +145,6 @@ void emu_prepareDefaultConfig(void)
 	defaultConfig.Frameskip = -1; // auto
 	defaultConfig.CPUclock = 200;
 	defaultConfig.volume = 50;
-	defaultConfig.KeyBinds[ 0] = 1<<0; // SACB RLDU
-	defaultConfig.KeyBinds[ 4] = 1<<1;
-	defaultConfig.KeyBinds[ 2] = 1<<2;
-	defaultConfig.KeyBinds[ 6] = 1<<3;
-	defaultConfig.KeyBinds[14] = 1<<4;
-	defaultConfig.KeyBinds[13] = 1<<5;
-	defaultConfig.KeyBinds[12] = 1<<6;
-	defaultConfig.KeyBinds[ 8] = 1<<7;
-	defaultConfig.KeyBinds[15] = 1<<26; // switch rend
-	defaultConfig.KeyBinds[10] = 1<<27; // save state
-	defaultConfig.KeyBinds[11] = 1<<28; // load state
-	defaultConfig.KeyBinds[23] = 1<<29; // vol up
-	defaultConfig.KeyBinds[22] = 1<<30; // vol down
 	defaultConfig.gamma = 100;
 	defaultConfig.scaling = 0;
 	defaultConfig.turbo_rate = 15;
@@ -415,7 +402,7 @@ static void emu_msg_tray_open(void)
 	gettimeofday(&noticeMsgTime, 0);
 }
 
-static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
+static void RunEventsPico(unsigned int events)
 {
 	int ret, px, py, lim_x;
 	static int pdown_frames = 0;
@@ -449,11 +436,11 @@ static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
 		//	PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
 	}
 
+	if (PicoPad[0] & 1) pico_pen_y--;
+	if (PicoPad[0] & 2) pico_pen_y++;
+	if (PicoPad[0] & 4) pico_pen_x--;
+	if (PicoPad[0] & 8) pico_pen_x++;
 	PicoPad[0] &= ~0x0f; // release UDLR
-	if (gp2x_keys & GP2X_UP)    pico_pen_y--;
-	if (gp2x_keys & GP2X_DOWN)  pico_pen_y++;
-	if (gp2x_keys & GP2X_LEFT)  pico_pen_x--;
-	if (gp2x_keys & GP2X_RIGHT) pico_pen_x++;
 
 	lim_x = (Pico.video.reg[12]&1) ? 319 : 255;
 	if (pico_pen_y < 8) pico_pen_y = 8;
@@ -507,15 +494,31 @@ static void RunEvents(unsigned int which)
 	{
 		int do_it = 1;
 		if ( emu_checkSaveFile(state_slot) &&
-				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) ||   // load
-				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) { // save
-			unsigned long keys;
-			blit("", (which & 0x1000) ? "LOAD STATE? (Y=yes, X=no)" : "OVERWRITE SAVE? (Y=yes, X=no)");
-			while ( !((keys = gp2x_joystick_read(1)) & (GP2X_X|GP2X_Y)) )
-				usleep(50*1024);
-			if (keys & GP2X_X) do_it = 0;
-			while ( gp2x_joystick_read(1) & (GP2X_X|GP2X_Y) ) // wait for release
-				usleep(50*1024);
+				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) || // load
+				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) // save
+		{
+			const char *nm;
+			char tmp[64];
+			int keys, len;
+
+			strcpy(tmp, (which & 0x1000) ? "LOAD STATE? " : "OVERWRITE SAVE? ");
+			len = strlen(tmp);
+			nm = in_get_key_name(-1, -PBTN_MA3);
+			snprintf(tmp + len, sizeof(tmp) - len, "(%s=yes, ", nm);
+			len = strlen(tmp);
+			nm = in_get_key_name(-1, -PBTN_MBACK);
+			snprintf(tmp + len, sizeof(tmp) - len, "%s=no)", nm);
+
+			blit("", tmp);
+
+			in_set_blocking(1);
+			while (in_menu_wait_any(50) & (PBTN_MA3|PBTN_MBACK));	// wait for release
+			while ( !((keys = in_menu_wait_any(50)) & (PBTN_MA3|PBTN_MBACK)) ); // .. press
+			if (keys & PBTN_MBACK)
+				do_it = 0;
+			while (in_menu_wait_any(50) & (PBTN_MA3|PBTN_MBACK));	// .. release
+			in_set_blocking(0);
+
 			clearArea(0);
 		}
 		if (do_it) {
@@ -544,7 +547,7 @@ static void RunEvents(unsigned int which)
 			strcpy(noticeMsg, " 8bit accurate renderer");
 		}
 
-		gettimeofday(&noticeMsgTime, 0);
+		emu_noticeMsgUpdated();
 	}
 	if (which & 0x0300)
 	{
@@ -556,7 +559,7 @@ static void RunEvents(unsigned int which)
 			if(state_slot > 9) state_slot = 0;
 		}
 		sprintf(noticeMsg, "SAVE SLOT %i [%s]", state_slot, emu_checkSaveFile(state_slot) ? "USED" : "FREE");
-		gettimeofday(&noticeMsgTime, 0);
+		emu_noticeMsgUpdated();
 	}
 	if (which & 0x0080) {
 		engineState = PGS_Menu;
@@ -565,15 +568,8 @@ static void RunEvents(unsigned int which)
 
 static void updateKeys(void)
 {
-	unsigned int keys, keys2, allActions[2] = { 0, 0 }, events;
+	unsigned int allActions[2] = { 0, 0 }, events;
 	static unsigned int prevEvents = 0;
-
-	keys = gp2x_joystick_read(0);
-	if (keys & GP2X_SELECT)
-		engineState = select_exits ? PGS_Quit : PGS_Menu;
-
-	keys &= CONFIGURABLE_KEYS;
-	keys2 = keys;
 
 	/* FIXME: player2 */
 	allActions[0] = in_update();
@@ -599,7 +595,7 @@ static void updateKeys(void)
 	events &= ~prevEvents;
 
 	if (PicoAHW == PAHW_PICO)
-		RunEventsPico(events, keys);
+		RunEventsPico(events);
 	if (events) RunEvents(events);
 	if (movie_data) emu_updateMovie();
 

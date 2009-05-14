@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "common.h"
 #include "input.h"
 #include "plat.h"
 #include "../linux/in_evdev.h"
@@ -23,6 +22,8 @@ static in_drv_t in_drivers[IN_DRVID_COUNT];
 static in_dev_t in_devices[IN_MAX_DEVS];
 static int in_dev_count = 0;
 static int in_have_async_devs = 0;
+static int menu_key_state = 0;
+static int menu_last_used_dev = 0;
 
 #define DRV(id) in_drivers[(unsigned)(id) < IN_DRVID_COUNT ? (id) : 0]
 
@@ -259,8 +260,6 @@ int in_update(void)
 	return result;
 }
 
-static int menu_key_state = 0;
-
 void in_set_blocking(int is_blocking)
 {
 	int i, ret;
@@ -414,6 +413,7 @@ int in_menu_wait_any(int timeout_ms)
 			break;
 		if (code < 0)
 			continue;
+		menu_last_used_dev = dev_id;
 		if (keys_old != menu_key_state)
 			break;
 	}
@@ -516,8 +516,14 @@ const char *in_get_key_name(int dev_id, int keycode)
 	static char xname[16];
 	const char *name;
 
+	if (dev_id < 0)		/* want last used dev? */
+		dev_id = menu_last_used_dev;
+
 	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
 		return "Unkn0";
+
+	if (keycode < 0)	/* want name for menu key? */
+		keycode = DRV(in_devices[dev_id].drv_id).menu_translate(keycode);
 
 	name = DRV(in_devices[dev_id].drv_id).get_key_name(keycode);
 	if (name != NULL)

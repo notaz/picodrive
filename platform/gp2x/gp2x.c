@@ -195,18 +195,6 @@ void gp2x_pd_clone_buffer2(void)
 }
 
 
-unsigned long gp2x_joystick_read(int unused)
-{
-  	unsigned long value=(gp2x_memregs[0x1198>>1] & 0x00FF); // GPIO M
-  	if(value==0xFD) value=0xFA;
-  	if(value==0xF7) value=0xEB;
-  	if(value==0xDF) value=0xAF;
-  	if(value==0x7F) value=0xBE;
-  	value = ~((gp2x_memregs[0x1184>>1] & 0xFF00) | value | (gp2x_memregs[0x1186>>1] << 16)); // C D
-
-	return value;
-}
-
 typedef struct ucb1x00_ts_event
 {
 	unsigned short pressure;

@@ -13,7 +13,6 @@
 #include "code940/940shared.h"
 #include "gp2x.h"
 #include "emu.h"
-#include "menu.h"
 #include "../common/mp3.h"
 #include "../common/arm_utils.h"
 #include "../common/menu.h"

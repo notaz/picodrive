@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../common/common.h"
 #include "../common/input.h"
 #include "in_gp2x.h"
 
@@ -102,20 +101,45 @@ int in_gp2x_update_keycode(void *data, int *is_down)
 	return i;
 }
 
+static const struct {
+	short key;
+	short pbtn;
+} key_pbtn_map[] =
+{
+	{ BTN_UP,	PBTN_UP },
+	{ BTN_DOWN,	PBTN_DOWN },
+	{ BTN_LEFT,	PBTN_LEFT },
+	{ BTN_RIGHT,	PBTN_RIGHT },
+	{ BTN_B,	PBTN_MOK },
+	{ BTN_X,	PBTN_MBACK },
+	{ BTN_A,	PBTN_MA2 },
+	{ BTN_Y,	PBTN_MA3 },
+	{ BTN_L,	PBTN_L },
+	{ BTN_R,	PBTN_R },
+	{ BTN_SELECT,	PBTN_MENU },
+};
+
+#define KEY_PBTN_MAP_SIZE (sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]))
+
 static int in_gp2x_menu_translate(int keycode)
 {
-	switch (keycode) {
-		case BTN_UP:	return PBTN_UP;
-		case BTN_LEFT:	return PBTN_LEFT;
-		case BTN_DOWN:	return PBTN_DOWN;
-		case BTN_RIGHT:	return PBTN_RIGHT;
-		case BTN_B:	return PBTN_MOK;
-		case BTN_X:	return PBTN_MBACK;
-		case BTN_SELECT:return PBTN_MENU;
-		case BTN_L:	return PBTN_L;
-		case BTN_R:	return PBTN_R;
-		default:	return 0;
+	int i;
+	if (keycode < 0)
+	{
+		/* menu -> kc */
+		keycode = -keycode;
+		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
+			if (key_pbtn_map[i].pbtn == keycode)
+				return key_pbtn_map[i].key;
 	}
+	else
+	{
+		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
+			if (key_pbtn_map[i].key == keycode)
+				return key_pbtn_map[i].pbtn;
+	}
+
+	return 0;
 }
 
 static int in_gp2x_get_key_code(const char *key_name)
@@ -156,6 +180,12 @@ static const struct {
 	{ BTN_B,	5 },	/* C */
 	{ BTN_A,	6 },	/* A */
 	{ BTN_START,	7 },
+	{ BTN_SELECT,	23 },	/* menu */
+	{ BTN_Y,	26 },	/* switch rend */
+	{ BTN_L,	27 },	/* save state */
+	{ BTN_R,	28 },	/* load state */
+	{ BTN_VOL_UP,	29 },	/* vol up */
+	{ BTN_VOL_DOWN,	30 },	/* vol down */
 };
 
 #define DEF_BIND_COUNT (sizeof(in_gp2x_def_binds) / sizeof(in_gp2x_def_binds[0]))
@@ -171,14 +201,28 @@ static void in_gp2x_get_def_binds(int *binds)
 /* remove binds of missing keys, count remaining ones */
 static int in_gp2x_clean_binds(void *drv_data, int *binds)
 {
-	int i, count = 0;
+	int i, count = 0, have_vol = 0, have_menu = 0;
 
 	for (i = 0; i < IN_GP2X_NBUTTONS; i++) {
 		if (in_gp2x_keys[i] == NULL)
 			binds[i] = binds[i + IN_GP2X_NBUTTONS] = 0;
-		if (binds[i])
+		if (binds[i]) {
 			count++;
+			if (binds[i] & ((1 << 29)|(1 << 30)))
+				have_vol = 1;
+			if (binds[i] & (1 << 23))
+				have_menu = 1;
+		}
 	}
+
+	/* autobind some important keys, if they are unbound */
+	if (!have_vol && binds[BTN_VOL_UP] == 0 && binds[BTN_VOL_DOWN] == 0) {
+		binds[BTN_VOL_UP]   = 1 << 29;
+		binds[BTN_VOL_DOWN] = 1 << 30;
+	}
+
+	if (!have_menu && binds[BTN_SELECT] == 0)
+		binds[BTN_SELECT] = 1 << 23;
 
 	in_combos_find(binds, BTN_PUSH, &in_gp2x_combo_keys, &in_gp2x_combo_acts);
 

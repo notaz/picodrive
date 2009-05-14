@@ -40,12 +40,8 @@ typedef struct _currentConfig_t {
 	int s_PicoCDBuffers;
 	int Frameskip;
 	int CPUclock;
-	int KeyBinds[PLAT_MAX_KEYS];
 	int volume;
 	int gamma;
-#if PLAT_HAVE_JOY
-	int JoyBinds[4][32];
-#endif
 	int scaling;  // gp2x: 0=center, 1=hscale, 2=hvscale, 3=hsoftscale; psp: bilinear filtering
 	int rotation; // for UIQ
 	float scale; // psp: screen scale

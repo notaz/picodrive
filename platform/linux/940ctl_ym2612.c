@@ -11,7 +11,6 @@
 #include "../../pico/sound/ym2612.h"
 #include "../gp2x/gp2x.h"
 #include "../gp2x/emu.h"
-#include "../gp2x/menu.h"
 #include "../gp2x/code940/940shared.h"
 #include "../common/helix/pub/mp3dec.h"
 #include "../../pico/pico_int.h"
