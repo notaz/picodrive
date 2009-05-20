@@ -206,12 +206,12 @@
     cmp     r4, #0xe
     ldrgeb  r4, [r1,#\ofs]
     orrlt   r4, r3, r4
-    orrge   r4, r3, #0x80
+    orrge   r4, r4, #0x80
     strb    r4, [r1,#\ofs]
 0:
 .endm
 
-.macro TileFlipSh_noop
+.macro TileFlipSh_markop
     TileDoShGenPixel_markop 16,  0 @ #0x000f0000
     TileDoShGenPixel_markop 20,  1 @ #0x00f00000
     TileDoShGenPixel_markop 24,  2 @ #0x0f000000
@@ -222,7 +222,7 @@
     TileDoShGenPixel_markop 12,  7 @ #0x0000f000
 .endm
 
-.macro TileNormSh_noop
+.macro TileNormSh_markop
     TileDoShGenPixel_markop 12,  0 @ #0x0000f000
     TileDoShGenPixel_markop  8,  1 @ #0x00000f00
     TileDoShGenPixel_markop  4,  2 @ #0x000000f0
@@ -991,7 +991,7 @@ DrawSpriteSHi:
     orr     r9, r9, r4, lsl #16
     orr     r9, r9, #0x90000000 @ r9=scc1 ???? ... <code> (s=shadow/hilight, cc=pal)
     cmp     r12,r9, lsr #28 @ sh/hi with pal3?
-    cmpne   r3, #1          @ if not, is ir hi prio?
+    cmpne   r3, #1          @ if not, is it hi prio?
     bne     DrawSpriteSHi   @ non-operator low sprite, already drawn
 
     ldr     r3, [r0]        @ sprite[0]
@@ -1089,7 +1089,7 @@ DrawSpriteSHi:
     tst     r9, #0x0800
     bne     .dsprShi_TileFlip_sh
 
-    @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
+    @ (r1=pdest, r2=pixels8, r3=pal) r4, r7: scratch, r12: helper pattern
 .dsprShi_TileNorm_sh:
     TileNormSh
     b       .dsprShi_loop
@@ -1271,7 +1271,7 @@ DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
 
 .dspr_singlec_sh:
     cmp     r2, #0xe0000000
-    bcs     .dspr_loop          @ operator tileline, ignore
+    bcs     .dspr_TileNorm_sh   @ op. tileline, markop. XXX: maybe add a spec. handler?
 
 .dspr_SingleColor:
     and     r4, r2, #0xf
@@ -1295,11 +1295,11 @@ DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
 .dspr_TileNorm_sh:
-    TileNormSh_noop
+    TileNormSh_markop
     b       .dspr_loop
 
 .dspr_TileFlip_sh:
-    TileFlipSh_noop
+    TileFlipSh_markop
     b       .dspr_loop
 
 
