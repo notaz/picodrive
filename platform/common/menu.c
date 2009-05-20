@@ -1790,6 +1790,7 @@ static void draw_frame_debug(void)
 
 	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 	emu_forcedFrame(0);
+	smalltext_out16(4, 1, "build: " __DATE__ " " __TIME__, 0xffff);
 	smalltext_out16(4, g_screen_height - me_sfont_h, layer_str, 0xffff);
 }
 
