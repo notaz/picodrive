@@ -1702,11 +1702,7 @@ static menu_entry e_menu_options[] =
 	mee_onoff     ("Enable sound",             MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, 0x004),
 	mee_cust      ("Sound Quality",            MA_OPT_SOUND_QUALITY, mh_opt_misc, mgn_opt_sound),
 	mee_cust      ("Confirm savestate",        MA_OPT_CONFIRM_STATES,mh_opt_misc, mgn_opt_c_saves),
-#if   defined(__GP2X__)
-	mee_range     ("GP2X CPU clocks",          MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 400),
-#elif defined(PSP)
-	mee_range     ("PSP CPU clock",            MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, )
-#endif
+	mee_range     (cpu_clk_name,               MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 900),
 	mee_handler   ("[Display options]",        menu_loop_gfx_options),
 	mee_handler   ("[Advanced options]",       menu_loop_adv_options),
 	mee_handler   ("[Sega/Mega CD options]",   menu_loop_cd_options),

@@ -1,11 +1,51 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include "gp2x.h"
+#include "soc.h"
 #include "../common/plat.h"
 #include "../common/readpng.h"
 #include "../common/menu.h"
 #include "../common/emu.h"
+#include "../linux/sndout_oss.h"
 
+/* GP2X local */
+void *gp2x_screens[4];
+
+void gp2x_video_changemode(int bpp)
+{
+	gp2x_video_changemode_ll(bpp);
+
+  	gp2x_memset_all_buffers(0, 0, 320*240*2);
+	gp2x_video_flip();
+}
+
+static void gp2x_memcpy_buffers(int buffers, void *data, int offset, int len)
+{
+	char *dst;
+	if (buffers & (1<<0)) { dst = (char *)gp2x_screens[0] + offset; if (dst != data) memcpy(dst, data, len); }
+	if (buffers & (1<<1)) { dst = (char *)gp2x_screens[1] + offset; if (dst != data) memcpy(dst, data, len); }
+	if (buffers & (1<<2)) { dst = (char *)gp2x_screens[2] + offset; if (dst != data) memcpy(dst, data, len); }
+	if (buffers & (1<<3)) { dst = (char *)gp2x_screens[3] + offset; if (dst != data) memcpy(dst, data, len); }
+}
+
+void gp2x_memcpy_all_buffers(void *data, int offset, int len)
+{
+	gp2x_memcpy_buffers(0xf, data, offset, len);
+}
+
+void gp2x_memset_all_buffers(int offset, int byte, int len)
+{
+	memset((char *)gp2x_screens[0] + offset, byte, len);
+	memset((char *)gp2x_screens[1] + offset, byte, len);
+	memset((char *)gp2x_screens[2] + offset, byte, len);
+	memset((char *)gp2x_screens[3] + offset, byte, len);
+}
+
+/* common */
+char cpu_clk_name[16] = "GP2X CPU clocks";
 
 void plat_video_menu_enter(int is_rom_loaded)
 {
@@ -26,19 +66,70 @@ void plat_video_menu_enter(int is_rom_loaded)
 	gp2x_memcpy_buffers((1<<2), g_screen_ptr, 0, 320*240*2);
 
 	// switch to 16bpp
-	gp2x_video_changemode2(16);
+	gp2x_video_changemode_ll(16);
 	gp2x_video_RGB_setscaling(0, 320, 240);
 	gp2x_video_flip2();
 }
 
 void plat_video_menu_begin(void)
 {
-	gp2x_pd_clone_buffer2();
+	memcpy(g_screen_ptr, gp2x_screens[2], 320*240*2);
 }
 
 void plat_video_menu_end(void)
 {
-	gp2x_video_flush_cache();
+	// FIXME
+	// gp2x_video_flush_cache();
 	gp2x_video_flip2();
+}
+
+void plat_init(void)
+{
+	gp2x_soc_t soc;
+
+	soc = soc_detect();
+	switch (soc)
+	{
+	case SOCID_MMSP2:
+		mmsp2_init();
+		break;
+	case SOCID_POLLUX:
+		pollux_init();
+		strcpy(cpu_clk_name, "Wiz CPU clock");
+		break;
+	default:
+		fprintf(stderr, "could not recognize SoC, bailing out.\n");
+		exit(1);
+	}
+
+	gp2x_memset_all_buffers(0, 0, 320*240*2);
+
+	// snd
+	sndout_oss_init();
+}
+
+void plat_finish(void)
+{
+	switch (gp2x_soc)
+	{
+	case SOCID_MMSP2:
+		mmsp2_finish();
+		break;
+	case SOCID_POLLUX:
+		pollux_finish();
+		break;
+	}
+
+	gp2x_video_changemode(16);
+	sndout_oss_exit();
+}
+
+void lprintf(const char *fmt, ...)
+{
+	va_list vl;
+
+	va_start(vl, fmt);
+	vprintf(fmt, vl);
+	va_end(vl);
 }
 

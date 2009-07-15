@@ -16,6 +16,7 @@
 
 #include "emu.h"
 #include "gp2x.h"
+#include "soc.h"
 #include "../common/menu.h"
 #include "../common/arm_utils.h"
 #include "../common/fonts.h"
@@ -39,8 +40,6 @@
 #define OSD_FPS_X 260
 #endif
 
-
-int select_exits = 0;
 
 extern int crashed_940;
 
@@ -1017,7 +1016,7 @@ const char *plat_get_credits(void)
 		"Reesy & FluBBa: DrZ80 core\n"
 		"MAME devs: YM2612 and SN76496 cores\n"
 		"rlyeh and others: minimal SDK\n"
-		"Squidge: squidgehack\n"
+		"Squidge: mmuhack\n"
 		"Dzz: ARM940 sample\n"
 		"GnoStiC / Puck2099: USB joy code\n"
 		"craigix: GP2X hardware\n"

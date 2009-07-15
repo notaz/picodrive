@@ -1,4 +1,4 @@
-/* faking/emulating gp2x.c by using gtk */
+/* faking/emulating gp2x by using gtk */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,7 +27,6 @@ static const char *verstring = "PicoDrive " VERSION;
 static int scr_changed = 0, scr_w = SCREEN_WIDTH, scr_h = SCREEN_HEIGHT;
 
 // dummies
-char *ext_menu = 0, *ext_state = 0;
 int mix_32_to_16l_level;
 
 /* gtk */
@@ -211,7 +210,7 @@ static void realloc_screen(void)
 	scr_changed = 0;
 }
 
-void gp2x_init(void)
+void plat_init(void)
 {
 	printf("entering init()\n"); fflush(stdout);
 
@@ -226,7 +225,7 @@ void gp2x_init(void)
 	printf("exitting init()\n"); fflush(stdout);
 }
 
-void gp2x_deinit(void)
+void plat_finish(void)
 {
 	free(g_screen_ptr);
 	sndout_oss_exit();
@@ -309,34 +308,13 @@ void gp2x_video_setpalette(int *pal, int len)
 	memcpy(current_pal, pal, len*4);
 }
 
-void gp2x_video_flush_cache(void)
-{
-}
-
 void gp2x_video_RGB_setscaling(int v_offs, int W, int H)
 {
 }
 
-void gp2x_memcpy_buffers(int buffers, void *data, int offset, int len)
-{
-	if ((char *)g_screen_ptr + offset != data)
-		memcpy((char *)g_screen_ptr + offset, data, len);
-}
-
-void gp2x_memcpy_all_buffers(void *data, int offset, int len)
-{
-	memcpy((char *)g_screen_ptr + offset, data, len);
-}
-
-
 void gp2x_memset_all_buffers(int offset, int byte, int len)
 {
 	memset((char *)g_screen_ptr + offset, byte, len);
-}
-
-void gp2x_pd_clone_buffer2(void)
-{
-	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 }
 
 /* joy */
@@ -347,11 +325,11 @@ int gp2x_touchpad_read(int *x, int *y)
 
 /* 940 */
 int crashed_940 = 0;
-void Pause940(int yes)
+void pause940(int yes)
 {
 }
 
-void Reset940(int yes, int bank)
+void reset940(int yes, int bank)
 {
 }
 

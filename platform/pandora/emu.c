@@ -39,8 +39,6 @@
 #endif
 
 
-int select_exits = 0;
-
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 static struct timeval noticeMsgTime = { 0, 0 };	// when started showing
 static int osd_fps_x;

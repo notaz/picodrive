@@ -54,8 +54,8 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-# TODO: clean cpuctrl
-OBJS += main.o gp2x.o emu.o in_gp2x.o plat.o squidgehack.o cpuctrl.o
+# TODO: rm cpuctrl
+OBJS += main.o soc.o soc_mmsp2.o soc_pollux.o emu.o in_gp2x.o plat.o squidgehack.o cpuctrl.o
 # 940 core control
 OBJS += 940ctl.o
 

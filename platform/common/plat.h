@@ -3,6 +3,7 @@ extern "C" {
 #endif
 
 /* stuff to be implemented by platform code */
+extern char cpu_clk_name[];
 /* TODO rename all these */
 extern const char * const keyNames[]; // TODO rm
 void  emu_prepareDefaultConfig(void);
@@ -17,6 +18,9 @@ void emu_noticeMsgUpdated(void);
 int  emu_getMainDir(char *dst, int len);
 void menu_romload_prepare(const char *rom_name);
 void menu_romload_end(void);
+
+void plat_init(void);
+void plat_finish(void);
 
 /* menu: enter (switch bpp, etc), begin/end drawing */
 void plat_video_menu_enter(int is_rom_loaded);

@@ -11,7 +11,8 @@
 #include <errno.h>
 
 #include "code940/940shared.h"
-#include "gp2x.h"
+#include "soc_mmsp2.h"
+#include "soc.h"
 #include "emu.h"
 #include "../common/mp3.h"
 #include "../common/arm_utils.h"
@@ -20,10 +21,6 @@
 #include "../../pico/pico_int.h"
 #include "../../pico/sound/ym2612.h"
 #include "../../pico/sound/mix.h"
-
-/* we will need some gp2x internals here */
-extern volatile unsigned short *gp2x_memregs; /* from minimal library rlyeh */
-extern volatile unsigned long  *gp2x_memregl;
 
 extern int reset_timing;
 static unsigned char *shared_mem = 0;
@@ -286,8 +283,8 @@ void YM2612Init_940(int baseclock, int rate)
 	printf("YM2612Init_940()\n");
 	printf("Mem usage: shared_data: %i, shared_ctl: %i\n", sizeof(*shared_data), sizeof(*shared_ctl));
 
-	Reset940(1, 2);
-	Pause940(1);
+	reset940(1, 2);
+	pause940(1);
 
 	gp2x_memregs[0x3B40>>1] = 0;      // disable DUALCPU interrupts for 920
 	gp2x_memregs[0x3B42>>1] = 1;      // enable  DUALCPU interrupts for 940
@@ -347,8 +344,8 @@ void YM2612Init_940(int baseclock, int rate)
 	gp2x_memregl[0x4510>>2] = 0xffffffff; // clear pending IRQs in INTPND
 
 	/* start the 940 */
-	Reset940(0, 2);
-	Pause940(0);
+	reset940(0, 2);
+	pause940(0);
 
 	// YM2612ResetChip_940(); // will be done on JOB940_YM2612INIT
 

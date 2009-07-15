@@ -538,6 +538,7 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 				return 0;
 			return 1;
 
+#if 0 // TODO rm?
 		case MA_OPT_CPU_CLOCKS:
 #ifdef __GP2X__
 			if (strcasecmp(var, "GP2X CPU clocks") != 0) return 0;
@@ -546,6 +547,7 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 #endif
 			currentConfig.CPUclock = atoi(val);
 			return 1;
+#endif
 
 		case MA_OPT2_GAMMA:
 			if (strcasecmp(var, "Gamma correction") != 0) return 0;

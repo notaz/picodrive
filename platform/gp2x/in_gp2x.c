@@ -3,6 +3,7 @@
 
 #include "../common/input.h"
 #include "in_gp2x.h"
+#include "soc.h"
 
 #define IN_PREFIX "gp2x:"
 #define IN_GP2X_NBUTTONS 32
@@ -11,8 +12,6 @@
  * both must be pressed for action to happen) */
 static int in_gp2x_combo_keys = 0;
 static int in_gp2x_combo_acts = 0;
-
-extern volatile unsigned short *gp2x_memregs; /* from minimal library rlyeh */
 
 enum  { BTN_UP = 0,      BTN_LEFT = 2,      BTN_DOWN = 4,  BTN_RIGHT = 6,
         BTN_START = 8,   BTN_SELECT = 9,    BTN_L = 10,    BTN_R = 11,
@@ -43,6 +42,7 @@ static int in_gp2x_get_bind_count(void)
 static int in_gp2x_get_gpio_bits(void)
 {
 #ifndef FAKE_IN_GP2X
+	extern volatile unsigned short *gp2x_memregs;
 	int value;
 	value = gp2x_memregs[0x1198>>1] & 0xff; // GPIO M
 	if (value == 0xFD) value = 0xFA;

@@ -96,7 +96,7 @@ typedef enum
 
 typedef struct
 {
-	char *name;
+	const char *name;
 	menu_behavior beh;
 	menu_id id;
 	void *var;		/* for on-off/range settings */
