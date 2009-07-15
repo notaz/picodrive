@@ -1,4 +1,4 @@
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2006-2009 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -6,9 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <strings.h>
-#include <linux/limits.h>
 
 #include "../common/menu.h"
 #include "../common/emu.h"
@@ -16,16 +14,11 @@
 #include "../common/input.h"
 #include "../common/plat.h"
 #include "emu.h"
-#include "940ctl.h"
 #include "version.h"
-
-#include "squidgehack.h"
-#include "cpuctrl.h"
 
 
 extern char *PicoConfigFile;
 static int load_state_slot = -1;
-int mmuhack_status = 0;
 char **g_argv;
 
 void parse_cmd_line(int argc, char *argv[])
@@ -83,19 +76,6 @@ int main(int argc, char *argv[])
 	in_probe();
 	in_debug_dump();
 
-	if (currentConfig.EmuOpt&0x10) {
-		int ret = mmuhack();
-		printf("squidge hack code finished and returned %i\n", ret); fflush(stdout);
-		mmuhack_status = ret;
-	}
-	cpuctrl_init();
-	if (currentConfig.EmuOpt&0x100) {
-		printf("setting RAM timings.. "); fflush(stdout);
-		// craigix: --trc 6 --tras 4 --twr 1 --tmrd 1 --trfc 1 --trp 2 --trcd 2
-		set_RAM_Timings(6, 4, 1, 1, 1, 2, 2);
-		printf("done.\n"); fflush(stdout);
-	}
-	sharedmem_init();
 	emu_Init();
 	menu_init();
 
@@ -151,11 +131,7 @@ int main(int argc, char *argv[])
 	endloop:
 
 	emu_Deinit();
-	sharedmem_deinit();
-	cpuctrl_deinit();
 	plat_finish();
-	if (mmuhack_status)
-		mmuunhack();
 
 	return 0;
 }

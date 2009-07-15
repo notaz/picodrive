@@ -9,17 +9,19 @@
 #include "soc.h"
 #include "../common/emu.h"
 
-gp2x_soc_t gp2x_soc = -1;
-
 gp2x_soc_t soc_detect(void)
 {
 	volatile unsigned short *memregs;
 	volatile unsigned int *memregl;
+	static gp2x_soc_t ret = -1;
 	int pollux_chipname[0x30/4 + 1];
 	char *pollux_chipname_c = (char *)pollux_chipname;
-	gp2x_soc_t ret = -1;
 	int memdev;
 	int i;
+
+	if (ret != -1)
+		/* already detected */
+		return ret;
 
   	memdev = open("/dev/mem", O_RDONLY);
 	if (memdev == -1)
@@ -72,7 +74,6 @@ not_pollux_like:
 out:
 	munmap((void *)memregs, 0x20000);
 	close(memdev);
-	gp2x_soc = ret;
 	return ret;	
 }
 

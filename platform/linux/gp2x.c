@@ -13,7 +13,7 @@
 #include <errno.h>
 
 #include "../gp2x/emu.h"
-#include "../gp2x/gp2x.h"
+//#include "../gp2x/gp2x.h"
 #include "../gp2x/version.h"
 #include "../common/emu.h"
 #include "sndout_oss.h"
@@ -333,28 +333,7 @@ void reset940(int yes, int bank)
 {
 }
 
-/* faking gp2x cpuctrl.c */
-void cpuctrl_init(void)
-{
-}
-
-void cpuctrl_deinit(void)
-{
-}
-
-void set_FCLK(unsigned MHZ)
-{
-}
-
-void Disable_940(void)
-{
-}
-
 void gp2x_video_wait_vsync(void)
-{
-}
-
-void set_RAM_Timings(int tRC, int tRAS, int tWR, int tMRD, int tRFC, int tRP, int tRCD)
 {
 }
 
@@ -362,26 +341,13 @@ void set_gamma(int g100, int A_SNs_curve)
 {
 }
 
-void set_LCD_custom_rate(int rate)
+void set_lcd_custom_rate(int rate)
 {
 }
 
-void unset_LCD_custom_rate(void)
+void unset_lcd_custom_rate(void)
 {
 }
-
-/* squidgehack.c */
-int mmuhack(void)
-{
-	return 0;
-}
-
-
-int mmuunhack(void)
-{
-	return 0;
-}
-
 
 /* misc */
 void spend_cycles(int c)

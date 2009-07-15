@@ -24,12 +24,15 @@ extern int g_screen_height;
 #define EOPT_SHOW_FPS     (1<<1)
 #define EOPT_EN_SOUND     (1<<2)
 #define EOPT_GZIP_SAVES   (1<<3)
+#define EOPT_MMUHACK      (1<<4)
 #define EOPT_NO_AUTOSVCFG (1<<5)
+#define EOPT_RAM_TIMINGS  (1<<8)
+#define EOPT_PSYNC        (1<<13)
 
 typedef struct _currentConfig_t {
 	// char lastRomFile[512];
 	int EmuOpt;		// LSb->MSb: use_sram, show_fps, enable_sound, gzip_saves,
-					// squidgehack, no_save_cfg_on_exit, <unused>, 16_bit_mode
+					// mmuhack, no_save_cfg_on_exit, <unused>, 16_bit_mode
 					// craigix_ram, confirm_save, show_cd_leds, confirm_load
 					// A_SNs_gamma, perfect_vsync, giz_scanlines, giz_dblbuff
 					// vsync_mode, show_clock, no_frame_limitter

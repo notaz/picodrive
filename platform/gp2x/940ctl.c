@@ -243,7 +243,7 @@ static void internal_reset(void)
 
 
 /* this must be called after mmu hack, the allocated regions must not get cached */
-void sharedmem_init(void)
+void sharedmem940_init(void)
 {
 	if (shared_mem != NULL) return;
 
@@ -266,7 +266,7 @@ void sharedmem_init(void)
 }
 
 
-void sharedmem_deinit(void)
+void sharedmem940_finish(void)
 {
 	munmap(shared_mem, 0x210000);
 	munmap(mp3_mem, MP3_SIZE_MAX);

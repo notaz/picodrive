@@ -1,4 +1,5 @@
 /* faked 940 code just uses local copy of ym2612 */
+/* TODO: rm this */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +10,7 @@
 #include <errno.h>
 
 #include "../../pico/sound/ym2612.h"
-#include "../gp2x/gp2x.h"
+//#include "../gp2x/gp2x.h"
 #include "../gp2x/emu.h"
 #include "../gp2x/code940/940shared.h"
 #include "../common/helix/pub/mp3dec.h"

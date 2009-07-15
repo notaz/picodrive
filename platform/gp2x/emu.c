@@ -15,7 +15,7 @@
 #include <stdarg.h>
 
 #include "emu.h"
-#include "gp2x.h"
+#include "plat_gp2x.h"
 #include "soc.h"
 #include "../common/menu.h"
 #include "../common/arm_utils.h"
@@ -24,7 +24,6 @@
 #include "../common/config.h"
 #include "../common/input.h"
 #include "../linux/sndout_oss.h"
-#include "cpuctrl.h"
 #include "version.h"
 
 #include <pico/pico_int.h>
@@ -129,7 +128,7 @@ void emu_Deinit(void)
 
 	// restore gamma
 	if (gp2x_old_gamma != 100)
-		set_gamma(100, 0);
+		set_lcd_gamma(100, 0);
 }
 
 void emu_prepareDefaultConfig(void)
@@ -142,7 +141,7 @@ void emu_prepareDefaultConfig(void)
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
 	defaultConfig.s_PicoCDBuffers = 0;
 	defaultConfig.Frameskip = -1; // auto
-	defaultConfig.CPUclock = 200;
+	defaultConfig.CPUclock = -1;
 	defaultConfig.volume = 50;
 	defaultConfig.gamma = 100;
 	defaultConfig.scaling = 0;
@@ -762,7 +761,7 @@ static void tga_dump(void)
 
 void emu_Loop(void)
 {
-	static int gp2x_old_clock = 200, EmuOpt_old = 0;
+	static int gp2x_old_clock = -1, EmuOpt_old = 0;
 	char fpsbuff[24]; // fps count c string
 	struct timeval tval; // timing
 	int pframes_done, pframes_shown, pthissec; // "period" frames, used for sync
@@ -772,24 +771,40 @@ void emu_Loop(void)
 
 	printf("entered emu_Loop()\n");
 
+	if ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_RAM_TIMINGS) {
+		if (currentConfig.EmuOpt & EOPT_RAM_TIMINGS)
+			/* craigix: --cas 2 --trc 6 --tras 4 --twr 1 --tmrd 1 --trfc 1 --trp 2 --trcd 2 */
+			set_ram_timings(2, 6, 4, 1, 1, 1, 2, 2);
+		else
+			unset_ram_timings();
+	}
+
+	if (gp2x_old_clock < 0)
+		gp2x_old_clock = default_cpu_clock;
+	if (currentConfig.CPUclock < 0)
+		currentConfig.CPUclock = default_cpu_clock;
 	if (gp2x_old_clock != currentConfig.CPUclock) {
 		printf("changing clock to %i...", currentConfig.CPUclock); fflush(stdout);
-		set_FCLK(currentConfig.CPUclock);
+		gp2x_set_cpuclk(currentConfig.CPUclock);
 		gp2x_old_clock = currentConfig.CPUclock;
 		printf(" done\n");
 	}
 
 	if (gp2x_old_gamma != currentConfig.gamma || (EmuOpt_old&0x1000) != (currentConfig.EmuOpt&0x1000)) {
-		set_gamma(currentConfig.gamma, !!(currentConfig.EmuOpt&0x1000));
+		set_lcd_gamma(currentConfig.gamma, !!(currentConfig.EmuOpt&0x1000));
 		gp2x_old_gamma = currentConfig.gamma;
 		printf("updated gamma to %i, A_SN's curve: %i\n", currentConfig.gamma, !!(currentConfig.EmuOpt&0x1000));
 	}
 
-	if ((EmuOpt_old&0x2000) != (currentConfig.EmuOpt&0x2000)) {
-		if (currentConfig.EmuOpt&0x2000)
-		     set_LCD_custom_rate(Pico.m.pal ? LCDR_100 : LCDR_120);
-		else unset_LCD_custom_rate();
+	if ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_PSYNC) {
+		if (currentConfig.EmuOpt & EOPT_PSYNC)
+			set_lcd_custom_rate(Pico.m.pal);
+		else
+			unset_lcd_custom_rate();
 	}
+
+	if ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_MMUHACK)
+		gp2x_make_fb_bufferable(currentConfig.EmuOpt & EOPT_MMUHACK);
 
 	EmuOpt_old = currentConfig.EmuOpt;
 	fpsbuff[0] = 0;

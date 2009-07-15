@@ -1,4 +1,0 @@
-Squidge's MMU Hack modularized.
-Original code by Squidge.
-Module by Annonymous?
-Slightly modified by me to suit my need.

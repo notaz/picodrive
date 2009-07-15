@@ -1415,15 +1415,6 @@ static int menu_loop_cd_options(menu_id id, int keys)
 
 // ------------ adv options menu ------------
 
-// TODO FIXME fix if and mv
-static const char *mgn_aopt_sqhack(menu_id id, int *offs)
-{
-	*offs = -10;
-	sprintf(static_buff, "%s, %s", 111 ? "  active" : "inactive",
-		(currentConfig.EmuOpt & 0x10) ? "ON" : "OFF");
-	return static_buff;
-}
-
 static menu_entry e_menu_adv_options[] =
 {
 	mee_onoff     ("SRAM/BRAM saves",          MA_OPT_SRAM_STATES,    currentConfig.EmuOpt, EOPT_USE_SRAM),
@@ -1434,9 +1425,8 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoOpt, POPT_EN_PSG),
 	mee_onoff     ("gzip savestates",          MA_OPT2_GZIP_STATES,   currentConfig.EmuOpt, EOPT_GZIP_SAVES),
 	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
-	mee_label     ("- needs restart -"),
-	mee_onoff     ("craigix's RAM timings",    MA_OPT2_RAMTIMINGS,    currentConfig.EmuOpt, 0x0100),
-	mee_onoff_cust("Squidgehack",              MA_OPT2_SQUIDGEHACK,   currentConfig.EmuOpt, 0x0010, mgn_aopt_sqhack),
+	mee_onoff     ("RAM overclock",            MA_OPT2_RAMTIMINGS,    currentConfig.EmuOpt, EOPT_RAM_TIMINGS),
+	mee_onoff     ("MMU hack",                 MA_OPT2_SQUIDGEHACK,   currentConfig.EmuOpt, EOPT_MMUHACK),
 	mee_onoff     ("SVP dynarec",              MA_OPT2_SVP_DYNAREC,   PicoOpt, POPT_EN_SVP_DRC),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoOpt, POPT_DIS_IDLE_DET),
 	mee_end,

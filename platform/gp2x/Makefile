@@ -32,7 +32,8 @@ use_cyclone = 1
 endif
 
 DEFINC = -I../.. -I. -DARM -D__GP2X__ -DIN_GP2X # -DBENCHMARK
-COPT_COMMON = -static -Wall -Winline
+COPT_COMMON = -Wall -Winline
+COPT_COMMON += -static
 ifeq ($(DEBUG),)
 COPT_COMMON += -O3 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
 else
@@ -54,8 +55,7 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-# TODO: rm cpuctrl
-OBJS += main.o soc.o soc_mmsp2.o soc_pollux.o emu.o in_gp2x.o plat.o squidgehack.o cpuctrl.o
+OBJS += main.o soc.o soc_mmsp2.o soc_pollux.o emu.o in_gp2x.o plat.o warm.o
 # 940 core control
 OBJS += 940ctl.o
 

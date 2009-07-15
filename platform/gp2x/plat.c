@@ -3,8 +3,9 @@
 #include <string.h>
 #include <stdarg.h>
 
-#include "gp2x.h"
+#include "plat_gp2x.h"
 #include "soc.h"
+#include "warm.h"
 #include "../common/plat.h"
 #include "../common/readpng.h"
 #include "../common/menu.h"
@@ -12,6 +13,7 @@
 #include "../linux/sndout_oss.h"
 
 /* GP2X local */
+int default_cpu_clock;
 void *gp2x_screens[4];
 
 void gp2x_video_changemode(int bpp)
@@ -42,6 +44,22 @@ void gp2x_memset_all_buffers(int offset, int byte, int len)
 	memset((char *)gp2x_screens[1] + offset, byte, len);
 	memset((char *)gp2x_screens[2] + offset, byte, len);
 	memset((char *)gp2x_screens[3] + offset, byte, len);
+}
+
+void gp2x_make_fb_bufferable(int yes)
+{
+	int ret = 0;
+	
+	yes = yes ? 1 : 0;
+	ret |= warm_change_cb_range(WCB_B_BIT, yes, gp2x_screens[0], 320*240*2);
+	ret |= warm_change_cb_range(WCB_B_BIT, yes, gp2x_screens[1], 320*240*2);
+	ret |= warm_change_cb_range(WCB_B_BIT, yes, gp2x_screens[2], 320*240*2);
+	ret |= warm_change_cb_range(WCB_B_BIT, yes, gp2x_screens[3], 320*240*2);
+
+	if (ret)
+		fprintf(stderr, "could not make fb buferable.\n");
+	else
+		printf("made fb buferable.\n");
 }
 
 /* common */
@@ -92,15 +110,19 @@ void plat_init(void)
 	{
 	case SOCID_MMSP2:
 		mmsp2_init();
+		default_cpu_clock = 200;
 		break;
 	case SOCID_POLLUX:
 		pollux_init();
 		strcpy(cpu_clk_name, "Wiz CPU clock");
+		default_cpu_clock = 533;
 		break;
 	default:
 		fprintf(stderr, "could not recognize SoC, bailing out.\n");
 		exit(1);
 	}
+
+	warm_init();
 
 	gp2x_memset_all_buffers(0, 0, 320*240*2);
 
@@ -110,7 +132,12 @@ void plat_init(void)
 
 void plat_finish(void)
 {
-	switch (gp2x_soc)
+	gp2x_soc_t soc;
+
+	warm_finish();
+
+	soc = soc_detect();
+	switch (soc)
 	{
 	case SOCID_MMSP2:
 		mmsp2_finish();
