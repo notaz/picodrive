@@ -101,12 +101,16 @@ void emu_Init(void)
 
 static void scaling_update(void)
 {
-	PicoOpt &= ~0x4100;
+	PicoOpt &= ~(POPT_DIS_32C_BORDER|POPT_EN_SOFTSCALE);
 	switch (currentConfig.scaling) {
-		default: break; // off
-		case 1:  // hw hor
-		case 2:  PicoOpt |=  0x0100; break; // hw hor+vert
-		case 3:  PicoOpt |=  0x4000; break; // sw hor
+		default:break;
+		case EOPT_SCALE_HW_H:
+		case EOPT_SCALE_HW_HV:
+			PicoOpt |= POPT_DIS_32C_BORDER;
+			break;
+		case EOPT_SCALE_SW_H:
+			PicoOpt |= POPT_EN_SOFTSCALE;
+			break;
 	}
 }
 
@@ -133,19 +137,25 @@ void emu_Deinit(void)
 
 void emu_prepareDefaultConfig(void)
 {
+	gp2x_soc_t soc;
+
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
-	defaultConfig.EmuOpt    = 0x9d | 0x00700; // | <- ram_tmng, confirm_save, cd_leds
-	defaultConfig.s_PicoOpt = 0x0f | POPT_EXT_FM|POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC|POPT_ACC_SPRITES;
+	defaultConfig.EmuOpt    = 0x9d | EOPT_RAM_TIMINGS | 0x600; // | <- confirm_save, cd_leds
+	defaultConfig.s_PicoOpt = 0x0f | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC|POPT_ACC_SPRITES;
 	defaultConfig.s_PsndRate = 44100;
 	defaultConfig.s_PicoRegion = 0; // auto
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
 	defaultConfig.s_PicoCDBuffers = 0;
 	defaultConfig.Frameskip = -1; // auto
-	defaultConfig.CPUclock = -1;
+	defaultConfig.CPUclock = default_cpu_clock;
 	defaultConfig.volume = 50;
 	defaultConfig.gamma = 100;
 	defaultConfig.scaling = 0;
 	defaultConfig.turbo_rate = 15;
+
+	soc = soc_detect();
+	if (soc == SOCID_MMSP2)
+		defaultConfig.s_PicoOpt |= POPT_EXT_FM;
 }
 
 void osd_text(int x, int y, const char *text)
@@ -295,8 +305,10 @@ static void blit(const char *fps, const char *notice)
 
 	if (notice || (emu_opt & 2)) {
 		int h = 232;
-		if (currentConfig.scaling == 2 && !(Pico.video.reg[1]&8)) h -= 8;
-		if (notice) osd_text(4, h, notice);
+		if (currentConfig.scaling == EOPT_SCALE_HW_HV && !(Pico.video.reg[1]&8))
+			h -= 8;
+		if (notice)
+			osd_text(4, h, notice);
 		if (emu_opt & 2)
 			osd_text(osd_fps_x, h, fps);
 	}
@@ -362,7 +374,7 @@ static void vidResetMode(void)
 	}
 	Pico.m.dirtyPal = 1;
 	// reset scaling
-	if (currentConfig.scaling == 2 && !(Pico.video.reg[1]&8))
+	if (currentConfig.scaling == EOPT_SCALE_HW_HV && !(Pico.video.reg[1]&8))
 	     gp2x_video_RGB_setscaling(8, (PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 224);
 	else gp2x_video_RGB_setscaling(0, (PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 240);
 }
@@ -773,16 +785,13 @@ void emu_Loop(void)
 
 	if ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_RAM_TIMINGS) {
 		if (currentConfig.EmuOpt & EOPT_RAM_TIMINGS)
-			/* craigix: --cas 2 --trc 6 --tras 4 --twr 1 --tmrd 1 --trfc 1 --trp 2 --trcd 2 */
-			set_ram_timings(2, 6, 4, 1, 1, 1, 2, 2);
+			set_ram_timings();
 		else
 			unset_ram_timings();
 	}
 
 	if (gp2x_old_clock < 0)
 		gp2x_old_clock = default_cpu_clock;
-	if (currentConfig.CPUclock < 0)
-		currentConfig.CPUclock = default_cpu_clock;
 	if (gp2x_old_clock != currentConfig.CPUclock) {
 		printf("changing clock to %i...", currentConfig.CPUclock); fflush(stdout);
 		gp2x_set_cpuclk(currentConfig.CPUclock);
@@ -885,7 +894,8 @@ void emu_Loop(void)
 					vidCpyM2 = vidCpyM2_32col;
 				}
 			}
-			if (currentConfig.scaling == 2 && !(modes&8)) // want vertical scaling and game is not in 240 line mode
+			/* want vertical scaling and game is not in 240 line mode */
+			if (currentConfig.scaling == EOPT_SCALE_HW_HV && !(modes&8))
 			     gp2x_video_RGB_setscaling(8, scalex, 224);
 			else gp2x_video_RGB_setscaling(0, scalex, 240);
 			oldmodes = modes;

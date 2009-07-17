@@ -12,6 +12,8 @@
 #include "../common/emu.h"
 #include "../linux/sndout_oss.h"
 
+#include <pico/pico.h>
+
 /* GP2X local */
 int default_cpu_clock;
 void *gp2x_screens[4];
@@ -101,6 +103,41 @@ void plat_video_menu_end(void)
 	gp2x_video_flip2();
 }
 
+void plat_validate_config(void)
+{
+	gp2x_soc_t soc;
+
+	soc = soc_detect();
+	if (soc != SOCID_MMSP2)
+		PicoOpt &= ~POPT_EXT_FM;
+
+	if (currentConfig.gamma < 10 || currentConfig.gamma > 300)
+		currentConfig.gamma = 100;
+
+	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 1024)
+		currentConfig.CPUclock = default_cpu_clock;
+}
+
+void plat_early_init(void)
+{
+	gp2x_soc_t soc;
+
+	soc = soc_detect();
+	switch (soc)
+	{
+	case SOCID_MMSP2:
+		default_cpu_clock = 200;
+		break;
+	case SOCID_POLLUX:
+		strcpy(cpu_clk_name, "Wiz CPU clock");
+		default_cpu_clock = 533;
+		break;
+	default:
+		fprintf(stderr, "could not recognize SoC, bailing out.\n");
+		exit(1);
+	}
+}
+
 void plat_init(void)
 {
 	gp2x_soc_t soc;
@@ -110,16 +147,13 @@ void plat_init(void)
 	{
 	case SOCID_MMSP2:
 		mmsp2_init();
-		default_cpu_clock = 200;
 		break;
 	case SOCID_POLLUX:
 		pollux_init();
-		strcpy(cpu_clk_name, "Wiz CPU clock");
-		default_cpu_clock = 533;
+		menu_plat_setup(1);
 		break;
 	default:
-		fprintf(stderr, "could not recognize SoC, bailing out.\n");
-		exit(1);
+		break;
 	}
 
 	warm_init();

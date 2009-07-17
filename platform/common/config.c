@@ -451,13 +451,13 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 #ifdef __GP2X__
 			if (strcasecmp(var, "Scaling") != 0) return 0;
 			if        (strcasecmp(val, "OFF") == 0) {
-				currentConfig.scaling = 0;
+				currentConfig.scaling = EOPT_SCALE_NONE;
 			} else if (strcasecmp(val, "hw horizontal") == 0) {
-				currentConfig.scaling = 1;
+				currentConfig.scaling = EOPT_SCALE_HW_H;
 			} else if (strcasecmp(val, "hw horiz. + vert.") == 0) {
-				currentConfig.scaling = 2;
+				currentConfig.scaling = EOPT_SCALE_HW_HV;
 			} else if (strcasecmp(val, "sw horizontal") == 0) {
-				currentConfig.scaling = 3;
+				currentConfig.scaling = EOPT_SCALE_SW_H;
 			} else
 				return 0;
 			return 1;

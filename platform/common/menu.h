@@ -153,6 +153,7 @@ extern me_bind_action me_ctrl_actions[15];
 extern me_bind_action emuctrl_actions[];	// platform code
 
 void menu_init(void);
+void menu_plat_setup(int is_wiz);
 void text_out16(int x, int y, const char *texto, ...);
 void me_update_msg(const char *msg);
 

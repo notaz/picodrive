@@ -32,20 +32,20 @@ use_cyclone = 1
 endif
 
 DEFINC = -I../.. -I. -DARM -D__GP2X__ -DIN_GP2X # -DBENCHMARK
-COPT_COMMON = -Wall -Winline
-COPT_COMMON += -static
+CFLAGS += -Wall -Winline
 ifeq ($(DEBUG),)
-COPT_COMMON += -O3 -ftracer -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
+# -ftracer # TODO measure impact
+CFLAGS += -O3 -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
 else
-COPT_COMMON += -ggdb
+CFLAGS += -ggdb
 endif
 ifeq "$(profile)" "1"
-COPT_COMMON += -fprofile-generate
+CFLAGS += -fprofile-generate
 endif
 ifeq "$(profile)" "2"
-COPT_COMMON += -fprofile-use
+CFLAGS += -fprofile-use
 endif
-CFLAGS = $(COPT_COMMON) -mcpu=arm920t -mtune=arm920t
+CFLAGS += -mcpu=arm920t -mtune=arm920t
 SFLAGS = $(CFLAGS)
 ASFLAGS = -mcpu=arm920t -mfloat-abi=soft
 CC = $(CROSS)gcc
@@ -55,7 +55,7 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += main.o soc.o soc_mmsp2.o soc_pollux.o emu.o in_gp2x.o plat.o warm.o
+OBJS += main.o soc.o soc_mmsp2.o soc_pollux.o pollux_set.o emu.o in_gp2x.o plat.o warm.o
 # 940 core control
 OBJS += 940ctl.o
 
@@ -122,22 +122,22 @@ DIRS = platform platform/gp2x platform/linux platform/common pico pico/cd pico/p
 	pico/carthw/svp zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools cpu/mz80 cpu/DrZ80
 
 
-all: mkdirs PicoDrive.gpe
+all: mkdirs PicoDrive
 
 include ../common/common_arm.mak
 
-PicoDrive.gpe : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
+PicoDrive : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
 	@echo ">>>" $@
 	$(CC) -o $@ $(CFLAGS) $^ -lm -lpng -Wl,-Map=PicoDrive.map
 ifeq ($(DEBUG),)
 	$(STRIP) $@
 endif
 
-up: PicoDrive.gpe
-	@cp -v PicoDrive.gpe /mnt/gp2x/mnt/sd/emus/PicoDrive/
+up: PicoDrive
+	@cp -v PicoDrive /mnt/gp2x/mnt/sd/emus/PicoDrive/
 
 clean: tidy
-	$(RM) PicoDrive.gpe
+	$(RM) PicoDrive
 tidy:
 	$(RM) $(OBJS)
 
@@ -151,7 +151,7 @@ $(error need VER)
 endif
 endif
 
-rel: PicoDrive.gpe code940/pico940_v3.bin readme.txt PicoDrive.man.txt PicoDrive.png ../game_def.cfg
+rel: PicoDrive PicoDrive.gpe code940/pico940_v3.bin readme.txt PicoDrive.man.txt PicoDrive.png ../game_def.cfg
 	zip -9 -j ../../PicoDrive_$(VER).zip $^ mmuhack.o
 	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt
 	mkdir bin_to_cso_mp3

@@ -19,6 +19,7 @@ int  emu_getMainDir(char *dst, int len);
 void menu_romload_prepare(const char *rom_name);
 void menu_romload_end(void);
 
+void plat_early_init(void);
 void plat_init(void);
 void plat_finish(void);
 
@@ -26,6 +27,8 @@ void plat_finish(void);
 void plat_video_menu_enter(int is_rom_loaded);
 void plat_video_menu_begin(void);
 void plat_video_menu_end(void);
+
+void plat_validate_config(void);
 
 int  plat_is_dir(const char *path);
 int  plat_wait_event(int *fds_hnds, int count, int timeout_ms);

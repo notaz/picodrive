@@ -1,5 +1,10 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "../common/input.h"
 #include "in_gp2x.h"
@@ -12,6 +17,9 @@
  * both must be pressed for action to happen) */
 static int in_gp2x_combo_keys = 0;
 static int in_gp2x_combo_acts = 0;
+static int gpiodev = -1;	/* Wiz only */
+
+static int (*in_gp2x_get_bits)(void);
 
 enum  { BTN_UP = 0,      BTN_LEFT = 2,      BTN_DOWN = 4,  BTN_RIGHT = 6,
         BTN_START = 8,   BTN_SELECT = 9,    BTN_L = 10,    BTN_R = 11,
@@ -28,10 +36,40 @@ static const char * const in_gp2x_keys[IN_GP2X_NBUTTONS] = {
 	[BTN_PUSH] = "PUSH"
 };
 
+static int in_gp2x_get_mmsp2_bits(void);
+static int in_gp2x_get_wiz_bits(void);
 
 static void in_gp2x_probe(void)
 {
+	gp2x_soc_t soc;
+
+	soc = soc_detect();
+	switch (soc)
+	{
+	case SOCID_MMSP2:
+		in_gp2x_get_bits = in_gp2x_get_mmsp2_bits;
+		break;
+	case SOCID_POLLUX:
+		gpiodev = open("/dev/GPIO", O_RDONLY);
+		if (gpiodev < 0) {
+			perror("in_gp2x: couldn't open /dev/GPIO");
+			return;
+		}
+		in_gp2x_get_bits = in_gp2x_get_wiz_bits;
+		break;
+	default:
+		return;
+	}
+
 	in_register(IN_PREFIX "GP2X pad", IN_DRVID_GP2X, -1, (void *)1, 1);
+}
+
+static void in_gp2x_free(void *drv_data)
+{
+	if (gpiodev >= 0) {
+		close(gpiodev);
+		gpiodev = -1;
+	}
 }
 
 static int in_gp2x_get_bind_count(void)
@@ -39,7 +77,7 @@ static int in_gp2x_get_bind_count(void)
 	return IN_GP2X_NBUTTONS;
 }
 
-static int in_gp2x_get_gpio_bits(void)
+static int in_gp2x_get_mmsp2_bits(void)
 {
 #ifndef FAKE_IN_GP2X
 	extern volatile unsigned short *gp2x_memregs;
@@ -60,12 +98,38 @@ static int in_gp2x_get_gpio_bits(void)
 #endif
 }
 
+static int in_gp2x_get_wiz_bits(void)
+{
+	int value = 0;
+	read(gpiodev, &value, 4);
+	if (value & 0x02)
+		value |= 0x05;
+	if (value & 0x08)
+		value |= 0x14;
+	if (value & 0x20)
+		value |= 0x50;
+	if (value & 0x80)
+		value |= 0x41;
+
+	/* convert to GP2X style */
+	value &= 0x7ff55;
+	if (value & (1 << 16))
+		value |= 1 << BTN_VOL_UP;
+	if (value & (1 << 17))
+		value |= 1 << BTN_VOL_DOWN;
+	if (value & (1 << 18))
+		value |= 1 << BTN_PUSH;
+	value &= ~0x70000;
+
+	return value;
+}
+
 /* returns bitfield of binds of pressed buttons */
 int in_gp2x_update(void *drv_data, int *binds)
 {
 	int i, keys, ret = 0;
 
-	keys = in_gp2x_get_gpio_bits();
+	keys = in_gp2x_get_bits();
 
 	if (keys & in_gp2x_combo_keys)
 		return in_combos_do(keys, binds, BTN_PUSH, in_gp2x_combo_keys, in_gp2x_combo_acts);
@@ -84,7 +148,7 @@ int in_gp2x_update_keycode(void *data, int *is_down)
 	static int old_val = 0;
 	int val, diff, i;
 
-	val = in_gp2x_get_gpio_bits();
+	val = in_gp2x_get_bits();
 	diff = val ^ old_val;
 	if (diff == 0)
 		return -1;
@@ -238,6 +302,7 @@ void in_gp2x_init(void *vdrv)
 
 	drv->prefix = in_gp2x_prefix;
 	drv->probe = in_gp2x_probe;
+	drv->free = in_gp2x_free;
 	drv->get_bind_count = in_gp2x_get_bind_count;
 	drv->get_def_binds = in_gp2x_get_def_binds;
 	drv->clean_binds = in_gp2x_clean_binds;

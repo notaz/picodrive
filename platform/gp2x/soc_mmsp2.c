@@ -20,7 +20,7 @@ volatile unsigned long  *gp2x_memregl;
 extern void *gp2x_screens[4];
 static int screensel = 0;
 
-int memdev = 0;	/* used by code940 */
+int memdev = -1;	/* used by code940 */
 static int touchdev = -1;
 static int touchcal[7] = { 6203, 0, -1501397, 0, -4200, 16132680, 65536 };
 
@@ -37,7 +37,7 @@ static unsigned short gp2x_screenaddr_old[4];
 
 
 /* video stuff */
-void gp2x_video_flip(void)
+static void gp2x_video_flip_(void)
 {
 	unsigned short lsw = (unsigned short) gp2x_screenaddrs_use[screensel&3];
 	unsigned short msw = (unsigned short)(gp2x_screenaddrs_use[screensel&3] >> 16);
@@ -52,7 +52,7 @@ void gp2x_video_flip(void)
 }
 
 /* doulblebuffered flip */
-void gp2x_video_flip2(void)
+static void gp2x_video_flip2_(void)
 {
 	unsigned short msw = (unsigned short)(gp2x_screenaddrs_use[screensel&1] >> 16);
 
@@ -65,13 +65,13 @@ void gp2x_video_flip2(void)
 	g_screen_ptr = gp2x_screens[++screensel&1];
 }
 
-void gp2x_video_changemode_ll(int bpp)
+static void gp2x_video_changemode_ll_(int bpp)
 {
   	gp2x_memregs[0x28DA>>1] = (((bpp+1)/8)<<9)|0xAB; /*8/15/16/24bpp...*/
   	gp2x_memregs[0x290C>>1] = 320*((bpp+1)/8); /*line width in bytes*/
 }
 
-void gp2x_video_setpalette(int *pal, int len)
+static void gp2x_video_setpalette_(int *pal, int len)
 {
 	unsigned short *g = (unsigned short *)pal;
 	volatile unsigned short *memreg = &gp2x_memregs[0x295A>>1];
@@ -83,8 +83,7 @@ void gp2x_video_setpalette(int *pal, int len)
 		*memreg = *g++;
 }
 
-// TV Compatible function //
-void gp2x_video_RGB_setscaling(int ln_offs, int W, int H)
+static void gp2x_video_RGB_setscaling_(int ln_offs, int W, int H)
 {
 	float escalaw, escalah;
 	int bpp = (gp2x_memregs[0x28DA>>1]>>9)&0x3;
@@ -99,7 +98,7 @@ void gp2x_video_RGB_setscaling(int ln_offs, int W, int H)
 	escalaw = 1024.0; // RGB Horiz LCD
 	escalah = 320.0; // RGB Vert LCD
 
-	if(gp2x_memregs[0x2800>>1]&0x100) //TV-Out
+	if (gp2x_memregs[0x2800>>1]&0x100) //TV-Out
 	{
 		escalaw=489.0; // RGB Horiz TV (PAL, NTSC)
 		if (gp2x_memregs[0x2818>>1]  == 287) //PAL
@@ -110,14 +109,15 @@ void gp2x_video_RGB_setscaling(int ln_offs, int W, int H)
 
 	// scale horizontal
 	scalw = (unsigned short)((float)escalaw *(W/320.0));
-	/* if there is no horizontal scaling, vertical doesn't work. Here is a nasty wrokaround... */
+	/* if there is no horizontal scaling, vertical doesn't work.
+	 * Here is a nasty wrokaround... */
 	if (H != 240 && W == 320) scalw--;
 	gp2x_memregs[0x2906>>1]=scalw;
 	// scale vertical
 	gp2x_memregl[0x2908>>2]=(unsigned long)((float)escalah *bpp *(H/240.0));
 }
 
-void gp2x_video_wait_vsync(void)
+static void gp2x_video_wait_vsync_(void)
 {
 	unsigned short v = gp2x_memregs[0x1182>>1];
 	while (!((v ^ gp2x_memregs[0x1182>>1]) & 0x10))
@@ -148,7 +148,7 @@ void reset940(int yes, int bank)
 
 #define SYS_CLK_FREQ 7372800
 
-void gp2x_set_cpuclk(unsigned int mhz)
+static void gp2x_set_cpuclk_(unsigned int mhz)
 {
 	unsigned int mdiv, pdiv, sdiv = 0;
 	unsigned int v;
@@ -176,7 +176,7 @@ static unsigned short memtimex[2];
 	if (t & ~mask) \
 		goto bad
 
-void set_ram_timings(int tCAS, int tRC, int tRAS, int tWR, int tMRD, int tRFC, int tRP, int tRCD)
+static void set_ram_timing_vals(int tCAS, int tRC, int tRAS, int tWR, int tMRD, int tRFC, int tRP, int tRCD)
 {
 	int i;
 	TIMING_CHECK(tCAS, -2, 0x1);
@@ -206,7 +206,13 @@ bad:
 	fprintf(stderr, "RAM timings invalid.\n");
 }
 
-void unset_ram_timings(void)
+static void set_ram_timings_(void)
+{
+	/* craigix: --cas 2 --trc 6 --tras 4 --twr 1 --tmrd 1 --trfc 1 --trp 2 --trcd 2 */
+	set_ram_timing_vals(2, 6, 4, 1, 1, 1, 2, 2);
+}
+
+static void unset_ram_timings_(void)
 {
 	gp2x_memregs[0x3802>>1] = memtimex[0];
 	gp2x_memregs[0x3804>>1] = memtimex[1] | 0x8000;
@@ -279,7 +285,7 @@ static void set_reg_setting(const reg_setting *set)
 	}
 }
 
-void set_lcd_custom_rate(int is_pal)
+static void set_lcd_custom_rate_(int is_pal)
 {
 	if (gp2x_memregs[0x2800>>1] & 0x100) // tv-out
 		return;
@@ -291,13 +297,13 @@ void set_lcd_custom_rate(int is_pal)
 	printf("done.\n");
 }
 
-void unset_lcd_custom_rate(void)
+static void unset_lcd_custom_rate_(void)
 {
 	printf("reset to prev LCD refresh.\n");
 	set_reg_setting(lcd_rate_defaults);
 }
 
-void set_lcd_gamma(int g100, int A_SNs_curve)
+static void set_lcd_gamma_(int g100, int A_SNs_curve)
 {
 	float gamma = (float) g100 / 100;
 	int i;
@@ -473,6 +479,22 @@ void mmsp2_init(void)
 
 	/* code940 portion */
 	sharedmem940_init();
+
+	gp2x_video_flip = gp2x_video_flip_;
+	gp2x_video_flip2 = gp2x_video_flip2_;
+	gp2x_video_changemode_ll = gp2x_video_changemode_ll_;
+	gp2x_video_setpalette = gp2x_video_setpalette_;
+	gp2x_video_RGB_setscaling = gp2x_video_RGB_setscaling_;
+	gp2x_video_wait_vsync = gp2x_video_wait_vsync_;
+
+	gp2x_set_cpuclk = gp2x_set_cpuclk_;
+
+	set_lcd_custom_rate = set_lcd_custom_rate_;
+	unset_lcd_custom_rate = unset_lcd_custom_rate_;
+	set_lcd_gamma = set_lcd_gamma_;
+
+	set_ram_timings = set_ram_timings_;
+	unset_ram_timings = unset_ram_timings_;
 }
 
 void mmsp2_finish(void)
@@ -486,8 +508,8 @@ void mmsp2_finish(void)
 	gp2x_memregs[0x2912>>1] = gp2x_screenaddr_old[2];
 	gp2x_memregs[0x2914>>1] = gp2x_screenaddr_old[3];
 
-	unset_ram_timings();
-	unset_lcd_custom_rate();
+	unset_ram_timings_();
+	unset_lcd_custom_rate_();
 
 	munmap(gp2x_screens[0], FRAMEBUFF_WHOLESIZE);
 	munmap((void *)gp2x_memregs, 0x10000);

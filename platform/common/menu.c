@@ -1443,12 +1443,12 @@ static int menu_loop_adv_options(menu_id id, int keys)
 
 static const char *mgn_opt_scaling(menu_id id, int *offs)
 {
-	*offs = -12;
+	*offs = -13;
 	switch (currentConfig.scaling) {
-		default: return "            OFF";
-		case 1:  return "hw horizontal";
-		case 2:  return "hw horiz. + vert.";
-		case 3:  return "sw horizontal";
+		default:               return "             OFF";
+		case EOPT_SCALE_HW_H:  return "   hw horizontal";
+		case EOPT_SCALE_HW_HV: return "hw horiz. + vert";
+		case EOPT_SCALE_SW_H:  return "   sw horizontal";
 	}
 }
 
@@ -1462,8 +1462,8 @@ static menu_entry e_menu_gfx_options[] =
 {
 	mee_range_cust("Scaling",                  MA_OPT_SCALING,        currentConfig.scaling, 0, 3, mgn_opt_scaling),
 	mee_range_cust("Gamma correction",         MA_OPT2_GAMMA,         currentConfig.gamma, 1, 300, mgn_aopt_gamma),
-	mee_onoff     ("A_SN's gamma curve",       MA_OPT2_A_SN_GAMMA,    currentConfig.EmuOpt, 0x1000),
-	mee_onoff     ("Perfect vsync",            MA_OPT2_VSYNC,         currentConfig.EmuOpt, 0x2000),
+	mee_onoff     ("A_SN's gamma curve",       MA_OPT2_A_SN_GAMMA,    currentConfig.EmuOpt, EOPT_A_SN_GAMMA),
+	mee_onoff     ("Perfect vsync",            MA_OPT2_VSYNC,         currentConfig.EmuOpt, EOPT_PSYNC),
 	mee_end,
 };
 
@@ -2043,6 +2043,22 @@ void me_update_msg(const char *msg)
 }
 
 // ------------ util ------------
+
+/* wiz for now, probably extend later */
+void menu_plat_setup(int is_wiz)
+{
+	int i;
+
+	if (!is_wiz)
+		return;
+
+	me_enable(e_menu_adv_options, MA_OPT_ARM940_SOUND, 0);
+	me_enable(e_menu_gfx_options, MA_OPT2_GAMMA, 0);
+	me_enable(e_menu_gfx_options, MA_OPT2_A_SN_GAMMA, 0);
+
+	i = me_id2offset(e_menu_gfx_options, MA_OPT_SCALING);
+	e_menu_gfx_options[i].max = 1;	/* only off and sw */
+}
 
 /* TODO: rename */
 void menu_darken_bg(void *dst, int pixels, int darker)

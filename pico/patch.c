@@ -21,10 +21,6 @@
  * (of course, that's handled by a different source file :)
  */
 
-//#include <stdio.h>
-//#include <string.h>
-#include <ctype.h>
-
 #include "pico_int.h"
 #include "patch.h"
 
@@ -217,6 +213,12 @@ unsigned int PicoRead16(unsigned int a);
 void PicoWrite16(unsigned int a, unsigned short d);
 
 
+/* avoid dependency on newer glibc */
+static int isspace_(int c)
+{
+	return (0x09 <= c && c <= 0x0d) || c == ' ';
+}
+
 void PicoPatchUnload(void)
 {
 	if (PicoPatches != NULL)
@@ -248,7 +250,8 @@ int PicoPatchLoad(const char *fname)
 
 		llen = strlen(buff);
 		for (clen = 0; clen < llen; clen++)
-			if (isspace(buff[clen])) break;
+			if (isspace_(buff[clen]))
+				break;
 		buff[clen] = 0;
 
 		if (clen > 11 || clen < 8)
@@ -271,9 +274,11 @@ int PicoPatchLoad(const char *fname)
 		strcpy(PicoPatches[PicoPatchCount].code, buff);
 		/* strip */
 		for (clen++; clen < llen; clen++)
-			if (!isspace(buff[clen])) break;
+			if (!isspace_(buff[clen]))
+				break;
 		for (llen--; llen > 0; llen--)
-			if (!isspace(buff[llen])) break;
+			if (!isspace_(buff[llen]))
+				break;
 		buff[llen+1] = 0;
 		strncpy(PicoPatches[PicoPatchCount].name, buff + clen, 51);
 		PicoPatches[PicoPatchCount].name[51] = 0;

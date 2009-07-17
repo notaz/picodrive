@@ -27,7 +27,15 @@ extern int g_screen_height;
 #define EOPT_MMUHACK      (1<<4)
 #define EOPT_NO_AUTOSVCFG (1<<5)
 #define EOPT_RAM_TIMINGS  (1<<8)
+#define EOPT_A_SN_GAMMA   (1<<12)
 #define EOPT_PSYNC        (1<<13)
+
+enum {
+	EOPT_SCALE_NONE = 0,
+	EOPT_SCALE_SW_H,
+	EOPT_SCALE_HW_H,
+	EOPT_SCALE_HW_HV,
+};
 
 typedef struct _currentConfig_t {
 	// char lastRomFile[512];

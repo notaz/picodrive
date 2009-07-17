@@ -66,6 +66,8 @@ int main(int argc, char *argv[])
 {
 	g_argv = argv;
 
+	plat_early_init();
+
 	/* in_init() must go before config, config accesses in_ fwk */
 	in_init();
 	emu_prepareDefaultConfig();

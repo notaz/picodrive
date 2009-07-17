@@ -5,7 +5,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <ctype.h> // tolower
 #ifndef NO_SYNC
 #include <unistd.h>
 #endif
@@ -47,12 +46,13 @@ unsigned char *movie_data = NULL;
 static int movie_size = 0;
 
 
-// utilities
+/* don't use tolower() for easy old glibc binary compatibility */
 static void strlwr_(char *string)
 {
 	char *p;
 	for (p = string; *p; p++)
-		*p = (char)tolower(*p);
+		if ('A' <= *p && *p <= 'Z')
+			*p += 'a' - 'A';
 }
 
 static int try_rfn_cut(char *fname)
@@ -621,17 +621,21 @@ int emu_ReadConfig(int game, int no_defaults)
 		}
 	}
 
+	plat_validate_config();
+
 	// some sanity checks
-	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;
 #ifdef PSP
+	/* TODO: mv to plat_validate_config() */
+	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;
 	if (currentConfig.gamma < -4 || currentConfig.gamma >  16) currentConfig.gamma = 0;
 	if (currentConfig.gamma2 < 0 || currentConfig.gamma2 > 2)  currentConfig.gamma2 = 0;
-#else
-	if (currentConfig.gamma < 10 || currentConfig.gamma > 300) currentConfig.gamma = 100;
 #endif
-	if (currentConfig.volume < 0 || currentConfig.volume > 99) currentConfig.volume = 50;
+	if (currentConfig.volume < 0 || currentConfig.volume > 99)
+		currentConfig.volume = 50;
 
-	if (ret == 0) config_slot_current = config_slot;
+	if (ret == 0)
+		config_slot_current = config_slot;
+
 	return (ret == 0);
 }
 
