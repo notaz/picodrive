@@ -12,10 +12,10 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include "../gp2x/emu.h"
-//#include "../gp2x/gp2x.h"
 #include "../gp2x/version.h"
 #include "../common/emu.h"
+#include "../common/menu.h"
+#include "../common/readpng.h"
 #include "sndout_oss.h"
 
 #include "log_io.h"
@@ -28,6 +28,8 @@ static int scr_changed = 0, scr_w = SCREEN_WIDTH, scr_h = SCREEN_HEIGHT;
 
 // dummies
 int mix_32_to_16l_level;
+int crashed_940 = 0;
+int default_cpu_clock = 123;
 
 /* gtk */
 struct gtk_global_struct
@@ -210,29 +212,8 @@ static void realloc_screen(void)
 	scr_changed = 0;
 }
 
-void plat_init(void)
-{
-	printf("entering init()\n"); fflush(stdout);
-
-	realloc_screen();
-	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
-
-	// snd
-	sndout_oss_init();
-
-	gtk_initf();
-
-	printf("exitting init()\n"); fflush(stdout);
-}
-
-void plat_finish(void)
-{
-	free(g_screen_ptr);
-	sndout_oss_exit();
-}
-
-/* video */
-void gp2x_video_flip(void)
+/* gp2x/emu.c stuff, most to be rm'd */
+static void gp2x_video_flip_(void)
 {
 	GdkPixbuf	*pixbuf;
 	unsigned char	*image;
@@ -288,27 +269,17 @@ void gp2x_video_flip(void)
 		realloc_screen();
 }
 
-void gp2x_video_flip2(void)
-{
-	gp2x_video_flip();
-}
-
-void gp2x_video_changemode(int bpp)
+static void gp2x_video_changemode_ll_(int bpp)
 {
 	current_bpp = bpp;
 }
 
-void gp2x_video_changemode2(int bpp)
-{
-	current_bpp = bpp;
-}
-
-void gp2x_video_setpalette(int *pal, int len)
+static void gp2x_video_setpalette_(int *pal, int len)
 {
 	memcpy(current_pal, pal, len*4);
 }
 
-void gp2x_video_RGB_setscaling(int v_offs, int W, int H)
+void gp2x_memcpy_all_buffers(void *data, int offset, int len)
 {
 }
 
@@ -317,42 +288,124 @@ void gp2x_memset_all_buffers(int offset, int byte, int len)
 	memset((char *)g_screen_ptr + offset, byte, len);
 }
 
+void gp2x_video_changemode(int bpp)
+{
+	gp2x_video_changemode_ll_(bpp);
+}
+
+void gp2x_make_fb_bufferable(int yes)
+{
+}
+
+int soc_detect(void)
+{
+	return 0;
+}
+
+/* plat */
+static char menu_bg_buffer[320*240*2];
+char cpu_clk_name[16] = "GP2X CPU clocks";
+
+void plat_video_menu_enter(int is_rom_loaded)
+{
+	if (is_rom_loaded)
+	{
+		// darken the active framebuffer
+		memset(g_screen_ptr, 0, 320*8*2);
+		menu_darken_bg((char *)g_screen_ptr + 320*8*2, 320*224, 1);
+		memset((char *)g_screen_ptr + 320*232*2, 0, 320*8*2);
+	}
+	else
+	{
+		// should really only happen once, on startup..
+		readpng(g_screen_ptr, "skin/background.png", READPNG_BG);
+	}
+
+	memcpy(menu_bg_buffer, g_screen_ptr, 320*240*2);
+
+	// switch to 16bpp
+	gp2x_video_changemode_ll_(16);
+	gp2x_video_flip_();
+}
+
+void plat_video_menu_begin(void)
+{
+	memcpy(g_screen_ptr, menu_bg_buffer, 320*240*2);
+}
+
+void plat_video_menu_end(void)
+{
+	gp2x_video_flip_();
+}
+
+void plat_validate_config(void)
+{
+//	PicoOpt &= ~POPT_EXT_FM;
+}
+
+void plat_early_init(void)
+{
+}
+
+void plat_init(void)
+{
+	realloc_screen();
+	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
+
+	// snd
+	sndout_oss_init();
+
+	gtk_initf();
+}
+
+void plat_finish(void)
+{
+	free(g_screen_ptr);
+	sndout_oss_exit();
+}
+
+/* nasty */
+static void do_nothing()
+{
+}
+
+void *gp2x_video_flip = gp2x_video_flip_;
+void *gp2x_video_flip2 = gp2x_video_flip_;
+void *gp2x_video_changemode_ll = gp2x_video_changemode_ll_;
+void *gp2x_video_setpalette = gp2x_video_setpalette_;
+
+void *gp2x_video_RGB_setscaling = do_nothing;
+void *gp2x_video_wait_vsync = do_nothing;
+void *gp2x_set_cpuclk = do_nothing;
+void *set_lcd_custom_rate = do_nothing;
+void *unset_lcd_custom_rate = do_nothing;
+void *set_lcd_gamma = do_nothing;
+void *set_ram_timings = do_nothing;
+void *unset_ram_timings = do_nothing;
+
 /* joy */
 int gp2x_touchpad_read(int *x, int *y)
 {
 	return -1;
 }
 
-/* 940 */
-int crashed_940 = 0;
-void pause940(int yes)
-{
-}
-
-void reset940(int yes, int bank)
-{
-}
-
-void gp2x_video_wait_vsync(void)
-{
-}
-
-void set_gamma(int g100, int A_SNs_curve)
-{
-}
-
-void set_lcd_custom_rate(int rate)
-{
-}
-
-void unset_lcd_custom_rate(void)
-{
-}
-
 /* misc */
 void spend_cycles(int c)
 {
 	usleep(c/200);
+}
+
+int mp3_get_bitrate(FILE *f, int size)
+{
+	return 128;
+}
+
+void mp3_start_play(FILE *f, int pos)
+{
+}
+
+void mp3_update(int *buffer, int length, int stereo)
+{
 }
 
 /* lprintf */

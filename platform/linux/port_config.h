@@ -3,8 +3,6 @@
 #ifndef PORT_CONFIG_H
 #define PORT_CONFIG_H
 
-#include "../gp2x/version.h" /* FIXME */
-
 #define NO_SYNC
 
 #define CASE_SENSITIVE_FS 1 // CS filesystem

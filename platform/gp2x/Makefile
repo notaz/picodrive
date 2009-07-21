@@ -55,14 +55,14 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += main.o soc.o soc_mmsp2.o soc_pollux.o pollux_set.o emu.o in_gp2x.o plat.o warm.o
+OBJS += soc.o soc_mmsp2.o soc_pollux.o pollux_set.o emu.o in_gp2x.o plat.o warm.o
 # 940 core control
 OBJS += 940ctl.o
 
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
 	platform/common/arm_utils.o platform/common/arm_linux.o platform/common/readpng.o \
-	platform/common/mp3_helix.o platform/common/input.o \
+	platform/common/mp3_helix.o platform/common/input.o platform/common/main.o \
 	platform/linux/sndout_oss.o platform/linux/plat.o
 
 # Pico

@@ -13,7 +13,6 @@
 #include "code940/940shared.h"
 #include "soc_mmsp2.h"
 #include "soc.h"
-#include "emu.h"
 #include "../common/mp3.h"
 #include "../common/arm_utils.h"
 #include "../common/menu.h"

@@ -13,6 +13,9 @@ void  emu_startSound(void);
 void  emu_endSound(void);
 void  emu_waitSound(void);
 void  emu_ResetGame(void); // TODO mv rm?
+void  emu_Init(void);
+void  emu_Deinit(void);
+void  emu_Loop(void);
 
 void emu_noticeMsgUpdated(void);
 int  emu_getMainDir(char *dst, int len);

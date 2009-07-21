@@ -1,4 +1,4 @@
-// (c) Copyright 2006-2007 notaz, All rights reserved.
+// (c) Copyright 2006-2009 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -8,15 +8,11 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <linux/limits.h>
-#include <ctype.h>
-#include <unistd.h>
-
 #include <stdarg.h>
 
-#include "emu.h"
 #include "plat_gp2x.h"
 #include "soc.h"
+#include "../common/plat.h"
 #include "../common/menu.h"
 #include "../common/arm_utils.h"
 #include "../common/fonts.h"
@@ -158,7 +154,7 @@ void emu_prepareDefaultConfig(void)
 		defaultConfig.s_PicoOpt |= POPT_EXT_FM;
 }
 
-void osd_text(int x, int y, const char *text)
+static void osd_text(int x, int y, const char *text)
 {
 	int len = strlen(text)*8;
 	int *p, i, h, offs;

@@ -5,10 +5,5 @@
 
 extern unsigned char gfx_buffer[321*240*2*2];
 
-void emu_Init(void);
-void emu_Deinit(void);
-void emu_Loop(void);
-void emu_ResetGame(void);
-
 void emu_stateCb(const char *str);
 

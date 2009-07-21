@@ -168,7 +168,7 @@ static void textOut16(int x, int y, const char *text)
 }
 
 
-void osd_text(int x, int y, const char *text)
+static void osd_text(int x, int y, const char *text)
 {
 	int len = strlen(text)*8;
 

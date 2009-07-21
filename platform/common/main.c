@@ -1,4 +1,4 @@
-// (c) Copyright 2006 notaz, All rights reserved.
+// (c) Copyright 2006-2009 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -6,17 +6,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <strings.h>
-#include <linux/limits.h>
 
-#include "../gp2x/emu.h" // TODO rm
-#include "../common/menu.h"
-#include "../common/emu.h"
-#include "../common/config.h"
-#include "../common/input.h"
-#include "../gp2x/version.h"
-#include "pandora.h"
+#include "menu.h"
+#include "emu.h"
+#include "config.h"
+#include "input.h"
+#include "plat.h"
+#include <version.h>
 
 
 extern char *PicoConfigFile;
@@ -27,15 +24,15 @@ void parse_cmd_line(int argc, char *argv[])
 {
 	int x, unrecognized = 0;
 
-	for(x = 1; x < argc; x++)
+	for (x = 1; x < argc; x++)
 	{
-		if(argv[x][0] == '-')
+		if (argv[x][0] == '-')
 		{
-			if(strcasecmp(argv[x], "-config") == 0) {
-				if(x+1 < argc) { ++x; PicoConfigFile = argv[x]; }
+			if (strcasecmp(argv[x], "-config") == 0) {
+				if (x+1 < argc) { ++x; PicoConfigFile = argv[x]; }
 			}
-			else if(strcasecmp(argv[x], "-loadstate") == 0) {
-				if(x+1 < argc) { ++x; load_state_slot = atoi(argv[x]); }
+			else if (strcasecmp(argv[x], "-loadstate") == 0) {
+				if (x+1 < argc) { ++x; load_state_slot = atoi(argv[x]); }
 			}
 			else {
 				unrecognized = 1;
@@ -57,10 +54,9 @@ void parse_cmd_line(int argc, char *argv[])
 	if (unrecognized) {
 		printf("\n\n\nPicoDrive v" VERSION " (c) notaz, 2006-2009\n");
 		printf("usage: %s [options] [romfile]\n", argv[0]);
-		printf( "options:\n"
-				"-config <file>    use specified config file instead of default 'picoconfig.bin'\n"
-				"                  see currentConfig_t structure in emu.h for the file format\n"
-				"-loadstate <num>  if ROM is specified, try loading slot <num>\n");
+		printf("options:\n"
+			" -config <file>    use specified config file instead of default 'config.cfg'\n"
+			" -loadstate <num>  if ROM is specified, try loading slot <num>\n");
 	}
 }
 
@@ -69,14 +65,18 @@ int main(int argc, char *argv[])
 {
 	g_argv = argv;
 
+	plat_early_init();
+
+	/* in_init() must go before config, config accesses in_ fwk */
 	in_init();
 	emu_prepareDefaultConfig();
 	emu_ReadConfig(0, 0);
 	config_readlrom(PicoConfigFile);
 
+	plat_init();
 	in_probe();
 	in_debug_dump();
-	pnd_init();
+
 	emu_Init();
 	menu_init();
 
@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
 	endloop:
 
 	emu_Deinit();
-	pnd_exit();
+	plat_finish();
 
 	return 0;
 }

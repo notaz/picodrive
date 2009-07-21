@@ -16,6 +16,7 @@
 #include "emu.h"
 #include "plat.h"
 #include "posix.h"
+#include <version.h>
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
