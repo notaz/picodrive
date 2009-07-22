@@ -26,7 +26,11 @@ extern int g_screen_height;
 #define EOPT_GZIP_SAVES   (1<<3)
 #define EOPT_MMUHACK      (1<<4)
 #define EOPT_NO_AUTOSVCFG (1<<5)
+#define EOPT_16BPP        (1<<7)
 #define EOPT_RAM_TIMINGS  (1<<8)
+#define EOPT_CONFIRM_SAVE (1<<9)
+#define EOPT_EN_CD_LEDS   (1<<10)
+#define EOPT_CONFIRM_LOAD (1<<11)
 #define EOPT_A_SN_GAMMA   (1<<12)
 #define EOPT_PSYNC        (1<<13)
 
@@ -64,7 +68,6 @@ typedef struct _currentConfig_t {
 extern currentConfig_t currentConfig, defaultConfig;
 extern char *PicoConfigFile;
 extern int rom_loaded;
-extern char noticeMsg[64];
 extern int state_slot;
 extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;
@@ -90,14 +93,18 @@ enum TPicoGameState {
 
 int   emu_ReloadRom(char *rom_fname);
 int   emu_SaveLoadGame(int load, int sram);
+
 int   emu_ReadConfig(int game, int no_defaults);
 int   emu_WriteConfig(int game);
+void  emu_packConfig(void);
+void  emu_unpackConfig(void);
 void  emu_writelrom(void);
+
 char *emu_GetSaveFName(int load, int is_sram, int slot);
 int   emu_checkSaveFile(int slot);
 void  emu_setSaveStateCbs(int gz);
-void  emu_updateMovie(void);
-int   emu_cdCheck(int *pregion, char *fname_in);
+
+void  emu_update_input(void);
 int   emu_findBios(int region, char **bios_file);
 void  emu_textOut8 (int x, int y, const char *text);
 void  emu_textOut16(int x, int y, const char *text);
@@ -105,10 +112,8 @@ char *emu_makeRomId(void);
 void  emu_getGameName(char *str150);
 void  emu_changeFastForward(int set_on);
 void  emu_RunEventsPico(unsigned int events);
-void  emu_DoTurbo(int *pad, int acts);
-void  emu_packConfig(void);
-void  emu_unpackConfig(void);
 void  emu_shutdownMCD(void);
+int   emu_cdCheck(int *pregion, char *fname_in);
 
 #ifdef __cplusplus
 } // extern "C"

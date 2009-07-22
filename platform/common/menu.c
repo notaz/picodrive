@@ -1286,19 +1286,19 @@ me_bind_action me_ctrl_actions[15] =
 // "LOAD STATE", "VOLUME UP", "VOLUME DOWN", "DONE"
 me_bind_action emuctrl_actions[] =
 {
-	{ "Load State       ", 1<<28 },
-	{ "Save State       ", 1<<27 },
-	{ "Prev Save Slot   ", 1<<25 },
-	{ "Next Save Slot   ", 1<<24 },
-	{ "Switch Renderer  ", 1<<26 },
-	{ "Volume Down      ", 1<<30 },
-	{ "Volume Up        ", 1<<29 },
-	{ "Fast forward     ", 1<<22 },
-	{ "Enter Menu       ", 1<<23 },
-	{ "Pico Next page   ", 1<<21 },
-	{ "Pico Prev page   ", 1<<20 },
-	{ "Pico Switch input", 1<<19 },
-	{ NULL,                0     }
+	{ "Load State       ", 1 << PEVB_STATE_LOAD },
+	{ "Save State       ", 1 << PEVB_STATE_SAVE },
+	{ "Prev Save Slot   ", 1 << PEVB_SSLOT_PREV },
+	{ "Next Save Slot   ", 1 << PEVB_SSLOT_NEXT },
+	{ "Switch Renderer  ", 1 << PEVB_SWITCH_RND },
+	{ "Volume Down      ", 1 << PEVB_VOL_DOWN },
+	{ "Volume Up        ", 1 << PEVB_VOL_UP },
+	{ "Fast forward     ", 1 << PEVB_FF },
+	{ "Enter Menu       ", 1 << PEVB_MENU },
+	{ "Pico Next page   ", 1 << 21 }, /* TODO */
+	{ "Pico Prev page   ", 1 << 20 },
+	{ "Pico Switch input", 1 << 19 },
+	{ NULL,                0 }
 };
 
 static int key_config_loop_wrap(menu_id id, int keys)

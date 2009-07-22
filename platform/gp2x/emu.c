@@ -18,7 +18,6 @@
 #include "../common/fonts.h"
 #include "../common/emu.h"
 #include "../common/config.h"
-#include "../common/input.h"
 #include "../linux/sndout_oss.h"
 #include "version.h"
 
@@ -42,6 +41,7 @@ static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 static struct timeval noticeMsgTime = { 0, 0 };	// when started showing
 static int osd_fps_x;
 static int gp2x_old_gamma = 100;
+static char noticeMsg[40];
 unsigned char *PicoDraw2FB = NULL;  // temporary buffer for alt renderer
 int reset_timing = 0;
 
@@ -49,12 +49,17 @@ int reset_timing = 0;
 #define PICO_PEN_ADJUST_Y 2
 static int pico_pen_x = 320/2, pico_pen_y = 240/2;
 
-static void emu_msg_cb(const char *msg);
 static void emu_msg_tray_open(void);
 
 
-void emu_noticeMsgUpdated(void)
+void plat_status_msg(const char *format, ...)
 {
+	va_list vl;
+
+	va_start(vl, format);
+	vsnprintf(noticeMsg, sizeof(noticeMsg), format, vl);
+	va_end(vl);
+
 	gettimeofday(&noticeMsgTime, 0);
 }
 
@@ -89,7 +94,7 @@ void emu_Init(void)
 	mkdir("cfg", 0777);
 
 	PicoInit();
-	PicoMessage = emu_msg_cb;
+	PicoMessage = plat_status_msg_busy_next;
 	PicoMCDopenTray = emu_msg_tray_open;
 	PicoMCDcloseTray = menu_loop_tray;
 }
@@ -182,12 +187,10 @@ static void osd_text(int x, int y, const char *text)
 
 static void draw_cd_leds(void)
 {
-//	static
 	int old_reg;
-//	if (!((Pico_mcd->s68k_regs[0] ^ old_reg) & 3)) return; // no change // mmu hack problems?
 	old_reg = Pico_mcd->s68k_regs[0];
 
-	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
+	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP)) {
 		// 8-bit modes
 		unsigned int col_g = (old_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
 		unsigned int col_r = (old_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
@@ -250,7 +253,7 @@ static void blit(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
-	if (PicoOpt&0x10)
+	if (PicoOpt & POPT_ALT_RENDERER)
 	{
 		// 8bit fast renderer
 		if (Pico.m.dirtyPal) {
@@ -265,7 +268,7 @@ static void blit(const char *fps, const char *notice)
 		// do actual copy
 		vidCpyM2((unsigned char *)g_screen_ptr+320*8, PicoDraw2FB+328*8);
 	}
-	else if (!(emu_opt&0x80))
+	else if (!(emu_opt & EOPT_16BPP))
 	{
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal)
@@ -313,22 +316,19 @@ static void blit(const char *fps, const char *notice)
 	if (PicoAHW & PAHW_PICO)
 		draw_pico_ptr();
 
-	//gp2x_video_wait_vsync();
 	gp2x_video_flip();
 
-	if (!(PicoOpt&0x10)) {
+	if (!(PicoOpt & POPT_ALT_RENDERER)) {
 		if (!(Pico.video.reg[1]&8)) {
-			if (currentConfig.EmuOpt&0x80) {
+			if (currentConfig.EmuOpt & EOPT_16BPP)
 				DrawLineDest = (unsigned short *) g_screen_ptr + 320*8;
-			} else {
+			else
 				DrawLineDest = (unsigned char  *) g_screen_ptr + 320*8;
-			}
 		} else {
 			DrawLineDest = g_screen_ptr;
 		}
 	}
 }
-
 
 // clears whole screen or just the notice area (in all buffers)
 static void clearArea(int full)
@@ -344,12 +344,27 @@ static void clearArea(int full)
 	}
 }
 
+void plat_status_msg_busy_next(const char *msg)
+{
+	clearArea(0);
+	blit("", msg);
+
+	/* assumption: msg_busy_next gets called only when
+	 * something slow is about to happen */
+	reset_timing = 1;
+}
+
+void plat_status_msg_busy_first(const char *msg)
+{
+	gp2x_memcpy_all_buffers(g_screen_ptr, 0, 320*240*2);
+	plat_status_msg_busy_next(msg);
+}
 
 static void vidResetMode(void)
 {
-	if (PicoOpt&0x10) {
+	if (PicoOpt & POPT_ALT_RENDERER) {
 		gp2x_video_changemode(8);
-	} else if (currentConfig.EmuOpt&0x80) {
+	} else if (currentConfig.EmuOpt & EOPT_16BPP) {
 		gp2x_video_changemode(16);
 		PicoDrawSetColorFormat(1);
 		PicoScanBegin = EmuScanBegin16;
@@ -358,7 +373,7 @@ static void vidResetMode(void)
 		PicoDrawSetColorFormat(2);
 		PicoScanBegin = EmuScanBegin8;
 	}
-	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
+	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP)) {
 		// setup pal for 8-bit modes
 		localPal[0xc0] = 0x0000c000; // MCD LEDs
 		localPal[0xd0] = 0x00c00000;
@@ -375,37 +390,30 @@ static void vidResetMode(void)
 	else gp2x_video_RGB_setscaling(0, (PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 240);
 }
 
-
-static void emu_msg_cb(const char *msg)
+void plat_video_toggle_renderer(void)
 {
-	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
-		// 8-bit renderers
-		gp2x_memset_all_buffers(320*232, 0xe0, 320*8);
-		osd_text(4, 232, msg);
-		gp2x_memcpy_all_buffers((char *)g_screen_ptr+320*232, 320*232, 320*8);
+	if (PicoOpt & POPT_ALT_RENDERER) {
+		PicoOpt &= ~POPT_ALT_RENDERER;
+		currentConfig.EmuOpt |= EOPT_16BPP;
+	} else if (!(currentConfig.EmuOpt & EOPT_16BPP))
+		PicoOpt |= POPT_ALT_RENDERER;
+	else
+		currentConfig.EmuOpt &= ~EOPT_16BPP;
+
+	vidResetMode();
+
+	if (PicoOpt & POPT_ALT_RENDERER) {
+		plat_status_msg(" 8bit fast renderer");
+	} else if (currentConfig.EmuOpt & EOPT_16BPP) {
+		plat_status_msg("16bit accurate renderer");
 	} else {
-		// 16bit accurate renderer
-		gp2x_memset_all_buffers(320*232*2, 0, 320*8*2);
-		osd_text(4, 232, msg);
-		gp2x_memcpy_all_buffers((char *)g_screen_ptr+320*232*2, 320*232*2, 320*8*2);
+		plat_status_msg(" 8bit accurate renderer");
 	}
-	gettimeofday(&noticeMsgTime, 0);
-	noticeMsgTime.tv_sec -= 2;
-
-	/* assumption: emu_msg_cb gets called only when something slow is about to happen */
-	reset_timing = 1;
-}
-
-static void emu_state_cb(const char *str)
-{
-	clearArea(0);
-	blit("", str);
 }
 
 static void emu_msg_tray_open(void)
 {
-	strcpy(noticeMsg, "CD tray opened");
-	gettimeofday(&noticeMsgTime, 0);
+	plat_status_msg("CD tray opened");
 }
 
 static void RunEventsPico(unsigned int events)
@@ -460,14 +468,20 @@ static void RunEventsPico(unsigned int events)
 	PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
 }
 
-static void update_volume(int has_changed, int is_up)
+void plat_update_volume(int has_changed, int is_up)
 {
 	static int prev_frame = 0, wait_frames = 0;
 	int vol = currentConfig.volume;
+	int need_low_volume = 0;
+	gp2x_soc_t soc;
+
+	soc = soc_detect();
+	if ((PicoOpt & POPT_EN_STEREO) && soc == SOCID_MMSP2)
+		need_low_volume = 1;
 
 	if (has_changed)
 	{
-		if (vol < 5 && (PicoOpt&8) && prev_frame == Pico.m.frame_count - 1 && wait_frames < 12)
+		if (need_low_volume && vol < 5 && prev_frame == Pico.m.frame_count - 1 && wait_frames < 12)
 			wait_frames++;
 		else {
 			if (is_up) {
@@ -479,133 +493,20 @@ static void update_volume(int has_changed, int is_up)
 			sndout_oss_setvol(vol, vol);
 			currentConfig.volume = vol;
 		}
-		sprintf(noticeMsg, "VOL: %02i", vol);
-		gettimeofday(&noticeMsgTime, 0);
+		plat_status_msg("VOL: %02i", vol);
 		prev_frame = Pico.m.frame_count;
 	}
 
-	// set the right mixer func
-	if (!(PicoOpt&8)) return; // just use defaults for mono
+	if (need_low_volume)
+		return;
+
+	/* set the right mixer func */
 	if (vol >= 5)
 		PsndMix_32_to_16l = mix_32_to_16l_stereo;
 	else {
 		mix_32_to_16l_level = 5 - vol;
 		PsndMix_32_to_16l = mix_32_to_16l_stereo_lvl;
 	}
-}
-
-static void RunEvents(unsigned int which)
-{
-	if (which & 0x1800) // save or load (but not both)
-	{
-		int do_it = 1;
-		if ( emu_checkSaveFile(state_slot) &&
-				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) || // load
-				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) // save
-		{
-			const char *nm;
-			char tmp[64];
-			int keys, len;
-
-			strcpy(tmp, (which & 0x1000) ? "LOAD STATE? " : "OVERWRITE SAVE? ");
-			len = strlen(tmp);
-			nm = in_get_key_name(-1, -PBTN_MA3);
-			snprintf(tmp + len, sizeof(tmp) - len, "(%s=yes, ", nm);
-			len = strlen(tmp);
-			nm = in_get_key_name(-1, -PBTN_MBACK);
-			snprintf(tmp + len, sizeof(tmp) - len, "%s=no)", nm);
-
-			blit("", tmp);
-
-			in_set_blocking(1);
-			while (in_menu_wait_any(50) & (PBTN_MA3|PBTN_MBACK));	// wait for release
-			while ( !((keys = in_menu_wait_any(50)) & (PBTN_MA3|PBTN_MBACK)) ); // .. press
-			if (keys & PBTN_MBACK)
-				do_it = 0;
-			while (in_menu_wait_any(50) & (PBTN_MA3|PBTN_MBACK));	// .. release
-			in_set_blocking(0);
-
-			clearArea(0);
-		}
-		if (do_it) {
-			osd_text(4, 232, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
-			PicoStateProgressCB = emu_state_cb;
-			gp2x_memcpy_all_buffers(g_screen_ptr, 0, 320*240*2);
-			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
-			PicoStateProgressCB = NULL;
-		}
-
-		reset_timing = 1;
-	}
-	if (which & 0x0400) // switch renderer
-	{
-		if      (  PicoOpt&0x10)             { PicoOpt&=~0x10; currentConfig.EmuOpt |= 0x80; }
-		else if (!(currentConfig.EmuOpt&0x80)) PicoOpt|= 0x10;
-		else   currentConfig.EmuOpt &= ~0x80;
-
-		vidResetMode();
-
-		if (PicoOpt&0x10) {
-			strcpy(noticeMsg, " 8bit fast renderer");
-		} else if (currentConfig.EmuOpt&0x80) {
-			strcpy(noticeMsg, "16bit accurate renderer");
-		} else {
-			strcpy(noticeMsg, " 8bit accurate renderer");
-		}
-
-		emu_noticeMsgUpdated();
-	}
-	if (which & 0x0300)
-	{
-		if(which&0x0200) {
-			state_slot -= 1;
-			if(state_slot < 0) state_slot = 9;
-		} else {
-			state_slot += 1;
-			if(state_slot > 9) state_slot = 0;
-		}
-		sprintf(noticeMsg, "SAVE SLOT %i [%s]", state_slot, emu_checkSaveFile(state_slot) ? "USED" : "FREE");
-		emu_noticeMsgUpdated();
-	}
-	if (which & 0x0080) {
-		engineState = PGS_Menu;
-	}
-}
-
-static void updateKeys(void)
-{
-	unsigned int allActions[2] = { 0, 0 }, events;
-	static unsigned int prevEvents = 0;
-
-	/* FIXME: player2 */
-	allActions[0] = in_update();
-
-	PicoPad[0] = allActions[0] & 0xfff;
-	PicoPad[1] = allActions[1] & 0xfff;
-
-	if (allActions[0] & 0x7000) emu_DoTurbo(&PicoPad[0], allActions[0]);
-	if (allActions[1] & 0x7000) emu_DoTurbo(&PicoPad[1], allActions[1]);
-
-	events = (allActions[0] | allActions[1]) >> 16;
-
-	// volume is treated in special way and triggered every frame
-	if (events & 0x6000)
-		update_volume(1, events & 0x2000);
-
-	if ((events ^ prevEvents) & 0x40) {
-		emu_changeFastForward(events & 0x40);
-		update_volume(0, 0);
-		reset_timing = 1;
-	}
-
-	events &= ~prevEvents;
-
-	if (PicoAHW == PAHW_PICO)
-		RunEventsPico(events);
-	if (events) RunEvents(events);
-	if (movie_data) emu_updateMovie();
-
-	prevEvents = (allActions[0] | allActions[1]) >> 16;
 }
 
 
@@ -639,7 +540,7 @@ void emu_startSound(void)
 		sndout_oss_start(PsndRate, 16, (PicoOpt&8)>>3);
 		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
 		PicoWriteSound = updateSound;
-		update_volume(0, 0);
+		plat_update_volume(0, 0);
 		memset(sndBuffer, 0, sizeof(sndBuffer));
 		PsndOut = sndBuffer;
 		PsndRate_old = PsndRate;
@@ -931,8 +832,8 @@ void emu_Loop(void)
 			} else {
 				// it is quite common for this implementation to leave 1 fame unfinished
 				// when second changes, but we don't want buffer to starve.
-				if(PsndOut && pframes_done < target_fps && pframes_done > target_fps-5) {
-					updateKeys();
+				if (PsndOut && pframes_done < target_fps && pframes_done > target_fps-5) {
+					emu_update_input();
 					SkipFrame(1); pframes_done++;
 				}
 
@@ -947,7 +848,7 @@ void emu_Loop(void)
 		if (currentConfig.Frameskip >= 0) // frameskip enabled
 		{
 			for(i = 0; i < currentConfig.Frameskip; i++) {
-				updateKeys();
+				emu_update_input();
 				SkipFrame(1); pframes_done++; frames_done++;
 				if (PsndOut && !reset_timing) { // do framelimitting if sound is enabled
 					gettimeofday(&tval, 0);
@@ -968,12 +869,12 @@ void emu_Loop(void)
 				reset_timing = 1;
 				continue;
 			}
-			updateKeys();
+			emu_update_input();
 			SkipFrame(tval.tv_usec < lim_time+target_frametime*2); pframes_done++; frames_done++;
 			continue;
 		}
 
-		updateKeys();
+		emu_update_input();
 		PicoFrame();
 
 		// check time
@@ -1007,17 +908,18 @@ void emu_Loop(void)
 
 	emu_changeFastForward(0);
 
-	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
+	if (PicoAHW & PAHW_MCD)
+		PicoCDBufferFree();
 
 	// save SRAM
-	if((currentConfig.EmuOpt & 1) && SRam.changed) {
-		emu_state_cb("Writing SRAM/BRAM..");
+	if ((currentConfig.EmuOpt & EOPT_USE_SRAM) && SRam.changed) {
+		plat_status_msg_busy_first("Writing SRAM/BRAM...");
 		emu_SaveLoadGame(0, 1);
 		SRam.changed = 0;
 	}
 
 	// if in 8bit mode, generate 16bit image for menu background
-	if ((PicoOpt&0x10) || !(currentConfig.EmuOpt&0x80))
+	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP))
 		emu_forcedFrame(POPT_EN_SOFTSCALE);
 }
 

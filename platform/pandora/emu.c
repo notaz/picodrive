@@ -53,8 +53,14 @@ static void emu_msg_cb(const char *msg);
 static void emu_msg_tray_open(void);
 
 
-void emu_noticeMsgUpdated(void)
+void plat_status_msg(const char *format, ...)
 {
+	va_list vl;
+
+	va_start(vl, format);
+	vsnprintf(noticeMsg, sizeof(noticeMsg), fmt, vl);
+	va_end(vl);
+
 	gettimeofday(&noticeMsgTime, 0);
 }
 
@@ -460,59 +466,6 @@ static void emu_msg_tray_open(void)
 	gettimeofday(&noticeMsgTime, 0);
 }
 
-#if 0
-static void RunEventsPico(unsigned int events, unsigned int gp2x_keys)
-{
-	int ret, px, py, lim_x;
-	static int pdown_frames = 0;
-
-	emu_RunEventsPico(events);
-
-	if (pico_inp_mode == 0) return;
-
-	// for F200
-	ret = gp2x_touchpad_read(&px, &py);
-	if (ret >= 0)
-	{
-		if (ret > 35000)
-		{
-			if (pdown_frames++ > 5)
-				PicoPad[0] |= 0x20;
-
-			pico_pen_x = px;
-			pico_pen_y = py;
-			if (!(Pico.video.reg[12]&1)) {
-				pico_pen_x -= 32;
-				if (pico_pen_x <   0) pico_pen_x = 0;
-				if (pico_pen_x > 248) pico_pen_x = 248;
-			}
-			if (pico_pen_y > 224) pico_pen_y = 224;
-		}
-		else
-			pdown_frames = 0;
-
-		//if (ret == 0)
-		//	PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
-	}
-
-	PicoPad[0] &= ~0x0f; // release UDLR
-	if (gp2x_keys & GP2X_UP)    pico_pen_y--;
-	if (gp2x_keys & GP2X_DOWN)  pico_pen_y++;
-	if (gp2x_keys & GP2X_LEFT)  pico_pen_x--;
-	if (gp2x_keys & GP2X_RIGHT) pico_pen_x++;
-
-	lim_x = (Pico.video.reg[12]&1) ? 319 : 255;
-	if (pico_pen_y < 8) pico_pen_y = 8;
-	if (pico_pen_y > 224-PICO_PEN_ADJUST_Y) pico_pen_y = 224-PICO_PEN_ADJUST_Y;
-	if (pico_pen_x < 0) pico_pen_x = 0;
-	if (pico_pen_x > lim_x-PICO_PEN_ADJUST_X) pico_pen_x = lim_x-PICO_PEN_ADJUST_X;
-
-	PicoPicohw.pen_pos[0] = pico_pen_x;
-	if (!(Pico.video.reg[12]&1)) PicoPicohw.pen_pos[0] += pico_pen_x/4;
-	PicoPicohw.pen_pos[0] += 0x3c;
-	PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
-}
-#endif
 
 static void update_volume(int has_changed, int is_up)
 {
@@ -546,108 +499,6 @@ static void update_volume(int has_changed, int is_up)
 		mix_32_to_16l_level = 5 - vol;
 		PsndMix_32_to_16l = mix_32_to_16l_stereo_lvl;
 	}
-}
-
-static void RunEvents(unsigned int which)
-{
-	if (which & 0x1800) // save or load (but not both)
-	{
-		int do_it = 1;
-		if ( emu_checkSaveFile(state_slot) &&
-				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) ||   // load
-				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) { // save
-#if 0
-			unsigned long keys;
-			blit("", (which & 0x1000) ? "LOAD STATE? (Y=yes, X=no)" : "OVERWRITE SAVE? (Y=yes, X=no)");
-			while ( !((keys = gp2x_joystick_read(1)) & (GP2X_X|GP2X_Y)) )
-				usleep(50*1024);
-			if (keys & GP2X_X) do_it = 0;
-			while ( gp2x_joystick_read(1) & (GP2X_X|GP2X_Y) ) // wait for release
-				usleep(50*1024);
-			clearArea(0);
-#endif
-		}
-		if (do_it) {
-			osd_text(4, g_screen_height-16, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
-			PicoStateProgressCB = emu_state_cb;
-			//gp2x_memcpy_all_buffers(g_screen_ptr, 0, g_screen_width*g_screen_height*2);
-			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
-			PicoStateProgressCB = NULL;
-		}
-
-		reset_timing = 1;
-	}
-	if (which & 0x0400) // switch renderer
-	{
-		if      (  PicoOpt&0x10)             { PicoOpt&=~0x10; currentConfig.EmuOpt |= 0x80; }
-		else if (!(currentConfig.EmuOpt&0x80)) PicoOpt|= 0x10;
-		else   currentConfig.EmuOpt &= ~0x80;
-
-		vidResetMode();
-
-		if (PicoOpt&0x10) {
-			strcpy(noticeMsg, " 8bit fast renderer");
-		} else if (currentConfig.EmuOpt&0x80) {
-			strcpy(noticeMsg, "16bit accurate renderer");
-		} else {
-			strcpy(noticeMsg, " 8bit accurate renderer");
-		}
-
-		gettimeofday(&noticeMsgTime, 0);
-	}
-	if (which & 0x0300)
-	{
-		if(which&0x0200) {
-			state_slot -= 1;
-			if(state_slot < 0) state_slot = 9;
-		} else {
-			state_slot += 1;
-			if(state_slot > 9) state_slot = 0;
-		}
-		sprintf(noticeMsg, "SAVE SLOT %i [%s]", state_slot, emu_checkSaveFile(state_slot) ? "USED" : "FREE");
-		gettimeofday(&noticeMsgTime, 0);
-	}
-	if (which & 0x0080) {
-		engineState = PGS_Menu;
-	}
-}
-
-static void updateKeys(void)
-{
-	unsigned int allActions[2] = { 0, 0 }, events;
-	static unsigned int prevEvents = 0;
-
-	/* FIXME: combos, player2 */
-	allActions[0] = in_update();
-
-	PicoPad[0] = allActions[0] & 0xfff;
-	PicoPad[1] = allActions[1] & 0xfff;
-
-	if (allActions[0] & 0x7000) emu_DoTurbo(&PicoPad[0], allActions[0]);
-	if (allActions[1] & 0x7000) emu_DoTurbo(&PicoPad[1], allActions[1]);
-
-	events = (allActions[0] | allActions[1]) >> 16;
-
-	// volume is treated in special way and triggered every frame
-	if (events & 0x6000)
-		update_volume(1, events & 0x2000);
-
-	if ((events ^ prevEvents) & 0x40) {
-		emu_changeFastForward(events & 0x40);
-		update_volume(0, 0);
-		reset_timing = 1;
-	}
-
-	events &= ~prevEvents;
-
-/*
-	if (PicoAHW == PAHW_PICO)
-		RunEventsPico(events, keys);
-*/
-	if (events) RunEvents(events);
-	if (movie_data) emu_updateMovie();
-
-	prevEvents = (allActions[0] | allActions[1]) >> 16;
 }
 
 
@@ -892,7 +743,7 @@ void emu_Loop(void)
 				// it is quite common for this implementation to leave 1 fame unfinished
 				// when second changes, but we don't want buffer to starve.
 				if(PsndOut && pframes_done < target_fps && pframes_done > target_fps-5) {
-					updateKeys();
+					emu_update_input();
 					SkipFrame(1); pframes_done++;
 				}
 
@@ -907,7 +758,7 @@ void emu_Loop(void)
 		if (currentConfig.Frameskip >= 0) // frameskip enabled
 		{
 			for(i = 0; i < currentConfig.Frameskip; i++) {
-				updateKeys();
+				emu_update_input();
 				SkipFrame(1); pframes_done++; frames_done++;
 				if (PsndOut && !reset_timing) { // do framelimitting if sound is enabled
 					gettimeofday(&tval, 0);
@@ -928,12 +779,12 @@ void emu_Loop(void)
 				reset_timing = 1;
 				continue;
 			}
-			updateKeys();
+			emu_update_input();
 			SkipFrame(tval.tv_usec < lim_time+target_frametime*2); pframes_done++; frames_done++;
 			continue;
 		}
 
-		updateKeys();
+		emu_update_input();
 		PicoFrame();
 
 		// check time

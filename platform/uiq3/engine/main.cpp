@@ -889,9 +889,16 @@ void CGameWindow::RunEvents(TUint32 which)
 }
 
 
-extern "C" void emu_noticeMsgUpdated(void)
+extern "C" void plat_status_msg(const char *format, ...)
 {
-	char *p = noticeMsg;
+	va_list vl;
+	char *p;
+
+	va_start(vl, format);
+	vsnprintf(noticeMsg, sizeof(noticeMsg), fmt, vl);
+	va_end(vl);
+
+	p = noticeMsg;
 	while (*p) {
 		if (*p == ' ') *p = '@';
 		if (*p < '0' || *p > 'Z') { *p = 0; break; }

@@ -15,6 +15,7 @@
 #include "lprintf.h"
 #include "config.h"
 #include "plat.h"
+#include "input.h"
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
@@ -31,7 +32,6 @@ int g_screen_height = SCREEN_HEIGHT;
 
 char *PicoConfigFile = "config.cfg";
 currentConfig_t currentConfig, defaultConfig;
-char noticeMsg[64] = { 0, };
 int state_slot = 0;
 int config_slot = 0, config_slot_current = 0;
 int pico_inp_mode = 0;
@@ -477,18 +477,13 @@ int emu_ReloadRom(char *rom_fname)
 			// TODO: bits 6 & 5
 		}
 		movie_data[0x18+30] = 0;
-		sprintf(noticeMsg, "MOVIE: %s", (char *) &movie_data[0x18]);
+		plat_status_msg("MOVIE: %s", (char *) &movie_data[0x18]);
 	}
 	else
 	{
 		PicoOpt &= ~POPT_DIS_VDP_FIFO;
-		if (Pico.m.pal) {
-			strcpy(noticeMsg, "PAL SYSTEM / 50 FPS");
-		} else {
-			strcpy(noticeMsg, "NTSC SYSTEM / 60 FPS");
-		}
+		plat_status_msg(Pico.m.pal ? "PAL SYSTEM / 50 FPS" : "NTSC SYSTEM / 60 FPS");
 	}
-	emu_noticeMsgUpdated();
 
 	// load SRAM for this ROM
 	if (currentConfig.EmuOpt & EOPT_USE_SRAM)
@@ -712,15 +707,14 @@ mk_text_out(emu_textOut16, unsigned short, 0xffff)
 #undef mk_text_out
 
 
-void emu_updateMovie(void)
+void update_movie(void)
 {
 	int offs = Pico.m.frame_count*3 + 0x40;
 	if (offs+3 > movie_size) {
 		free(movie_data);
 		movie_data = 0;
-		strcpy(noticeMsg, "END OF MOVIE.");
+		plat_status_msg("END OF MOVIE.");
 		lprintf("END OF MOVIE.\n");
-		emu_noticeMsgUpdated();
 	} else {
 		// MXYZ SACB RLDU
 		PicoPad[0] = ~movie_data[offs]   & 0x8f; // ! SCBA RLDU
@@ -840,10 +834,8 @@ int emu_SaveLoadGame(int load, int sram)
 	// make save filename
 	saveFname = emu_GetSaveFName(load, sram, state_slot);
 	if (saveFname == NULL) {
-		if (!sram) {
-			strcpy(noticeMsg, load ? "LOAD FAILED (missing file)" : "SAVE FAILED  ");
-			emu_noticeMsgUpdated();
-		}
+		if (!sram)
+			plat_status_msg(load ? "LOAD FAILED (missing file)" : "SAVE FAILED");
 		return -1;
 	}
 
@@ -929,14 +921,13 @@ int emu_SaveLoadGame(int load, int sram)
 		}
 		else	ret = -1;
 		if (!ret)
-			strcpy(noticeMsg, load ? "GAME LOADED  " : "GAME SAVED        ");
+			plat_status_msg(load ? "GAME LOADED" : "GAME SAVED");
 		else
 		{
-			strcpy(noticeMsg, load ? "LOAD FAILED  " : "SAVE FAILED       ");
+			plat_status_msg(load ? "LOAD FAILED" : "SAVE FAILED");
 			ret = -1;
 		}
 
-		emu_noticeMsgUpdated();
 		return ret;
 	}
 }
@@ -955,8 +946,7 @@ void emu_changeFastForward(int set_on)
 		currentConfig.EmuOpt &= ~4;
 		currentConfig.EmuOpt |= 0x40000;
 		is_on = 1;
-		strcpy(noticeMsg, "FAST FORWARD   ");
-		emu_noticeMsgUpdated();
+		plat_status_msg("FAST FORWARD");
 	}
 	else if (!set_on && is_on) {
 		PsndOut = set_PsndOut;
@@ -971,31 +961,31 @@ void emu_RunEventsPico(unsigned int events)
 {
 	if (events & (1 << 3)) {
 		pico_inp_mode++;
-		if (pico_inp_mode > 2) pico_inp_mode = 0;
+		if (pico_inp_mode > 2)
+			pico_inp_mode = 0;
 		switch (pico_inp_mode) {
-			case 2: strcpy(noticeMsg, "Input: Pen on Pad      "); break;
-			case 1: strcpy(noticeMsg, "Input: Pen on Storyware"); break;
-			case 0: strcpy(noticeMsg, "Input: Joytick         ");
+			case 2: plat_status_msg("Input: Pen on Pad"); break;
+			case 1: plat_status_msg("Input: Pen on Storyware"); break;
+			case 0: plat_status_msg("Input: Joystick");
 				PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
 				break;
 		}
-		emu_noticeMsgUpdated();
 	}
 	if (events & (1 << 4)) {
 		PicoPicohw.page--;
-		if (PicoPicohw.page < 0) PicoPicohw.page = 0;
-		sprintf(noticeMsg, "Page %i                 ", PicoPicohw.page);
-		emu_noticeMsgUpdated();
+		if (PicoPicohw.page < 0)
+			PicoPicohw.page = 0;
+		plat_status_msg("Page %i", PicoPicohw.page);
 	}
 	if (events & (1 << 5)) {
 		PicoPicohw.page++;
-		if (PicoPicohw.page > 6) PicoPicohw.page = 6;
-		sprintf(noticeMsg, "Page %i                 ", PicoPicohw.page);
-		emu_noticeMsgUpdated();
+		if (PicoPicohw.page > 6)
+			PicoPicohw.page = 6;
+		plat_status_msg("Page %i", PicoPicohw.page);
 	}
 }
 
-void emu_DoTurbo(int *pad, int acts)
+static void do_turbo(int *pad, int acts)
 {
 	static int turbo_pad = 0;
 	static unsigned char turbo_cnt[3] = { 0, 0, 0 };
@@ -1017,5 +1007,107 @@ void emu_DoTurbo(int *pad, int acts)
 			turbo_pad ^= 0x40, turbo_cnt[2] = 0;
 	}
 	*pad |= turbo_pad & (acts >> 8);
+}
+
+static void run_ui_events(unsigned int which)
+{
+	if (which & (PEV_STATE_LOAD|PEV_STATE_SAVE))
+	{
+		int do_it = 1;
+		if ( emu_checkSaveFile(state_slot) &&
+				(((which & PEV_STATE_LOAD) && (currentConfig.EmuOpt & EOPT_CONFIRM_LOAD)) ||
+				 ((which & PEV_STATE_SAVE) && (currentConfig.EmuOpt & EOPT_CONFIRM_SAVE))) )
+		{
+			const char *nm;
+			char tmp[64];
+			int keys, len;
+
+			strcpy(tmp, (which & PEV_STATE_LOAD) ? "LOAD STATE?" : "OVERWRITE SAVE?");
+			len = strlen(tmp);
+			nm = in_get_key_name(-1, -PBTN_MA3);
+			snprintf(tmp + len, sizeof(tmp) - len, "(%s=yes, ", nm);
+			len = strlen(tmp);
+			nm = in_get_key_name(-1, -PBTN_MBACK);
+			snprintf(tmp + len, sizeof(tmp) - len, "%s=no)", nm);
+
+			plat_status_msg_busy_first(tmp);
+
+			in_set_blocking(1);
+			while (in_menu_wait_any(50) & (PBTN_MA3|PBTN_MBACK))
+				;
+			while ( !((keys = in_menu_wait_any(50)) & (PBTN_MA3|PBTN_MBACK)) )
+				;
+			if (keys & PBTN_MBACK)
+				do_it = 0;
+			while (in_menu_wait_any(50) & (PBTN_MA3|PBTN_MBACK))
+				;
+			in_set_blocking(0);
+		}
+		if (do_it) {
+			plat_status_msg_busy_first((which & PEV_STATE_LOAD) ? "LOADING GAME" : "SAVING GAME");
+			PicoStateProgressCB = plat_status_msg_busy_next;
+			emu_SaveLoadGame((which & PEV_STATE_LOAD) ? 1 : 0, 0);
+			PicoStateProgressCB = NULL;
+		}
+	}
+	if (which & PEV_SWITCH_RND)
+	{
+		plat_video_toggle_renderer();
+	}
+	if (which & (PEV_SSLOT_PREV|PEV_SSLOT_NEXT))
+	{
+		if (which & PEV_SSLOT_PREV) {
+			state_slot -= 1;
+			if (state_slot < 0)
+				state_slot = 9;
+		} else {
+			state_slot += 1;
+			if (state_slot > 9)
+				state_slot = 0;
+		}
+
+		plat_status_msg("SAVE SLOT %i [%s]", state_slot,
+			emu_checkSaveFile(state_slot) ? "USED" : "FREE");
+	}
+	if (which & PEV_MENU)
+		engineState = PGS_Menu;
+}
+
+void emu_update_input(void)
+{
+	unsigned int allActions[2] = { 0, 0 }, events;
+	static unsigned int prevEvents = 0;
+
+	/* FIXME: player2 */
+	allActions[0] = in_update();
+
+	PicoPad[0] = allActions[0] & 0xfff;
+	PicoPad[1] = allActions[1] & 0xfff;
+
+	if (allActions[0] & 0x7000) do_turbo(&PicoPad[0], allActions[0]);
+	if (allActions[1] & 0x7000) do_turbo(&PicoPad[1], allActions[1]);
+
+	events = (allActions[0] | allActions[1]) & PEV_MASK;
+
+	// volume is treated in special way and triggered every frame
+	if (events & (PEV_VOL_DOWN|PEV_VOL_UP))
+		plat_update_volume(1, events & PEV_VOL_UP);
+
+	if ((events ^ prevEvents) & PEV_FF) {
+		emu_changeFastForward(events & PEV_FF);
+		plat_update_volume(0, 0);
+//		reset_timing = 1;
+	}
+
+	events &= ~prevEvents;
+
+// TODO	if (PicoAHW == PAHW_PICO)
+//		RunEventsPico(events);
+	if (events)
+		run_ui_events(events);
+	if (movie_data)
+		update_movie();
+
+	prevEvents = (allActions[0] | allActions[1]) & PEV_MASK;
 }
 

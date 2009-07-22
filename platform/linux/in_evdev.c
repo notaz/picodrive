@@ -441,8 +441,8 @@ static const struct {
 	{ BTN_Y,	6 },
 	{ KEY_ENTER,	7 },
 	{ BTN_START,	7 },
-	{ BTN_TL,	27 },	/* save state */
-	{ BTN_TR,	28 },	/* load state */
+	{ BTN_TL,	PEVB_STATE_LOAD },
+	{ BTN_TR,	PEVB_STATE_SAVE },
 };
 
 #define DEF_BIND_COUNT (sizeof(in_evdev_def_binds) / sizeof(in_evdev_def_binds[0]))

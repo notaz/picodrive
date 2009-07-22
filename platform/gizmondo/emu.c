@@ -38,8 +38,9 @@ static int snd_cbuf_samples = 0, snd_all_samples = 0;
 static void blit(const char *fps, const char *notice);
 static void clearArea(int full);
 
-void emu_noticeMsgUpdated(void)
+void plat_status_msg(const char *format, ...)
 {
+	/* TODO */
 	noticeMsgTime = GetTickCount();
 }
 
@@ -446,7 +447,7 @@ static void updateKeys(void)
 	static unsigned int prevEvents = 0;
 	int i;
 
-	/* FIXME: port to input fw */
+	/* FIXME: port to input fw, merge with emu.c:emu_update_input() */
 	keys = Framework_PollGetButtons();
 	if (keys & PBTN_HOME)
 		engineState = PGS_Menu;

@@ -17,7 +17,6 @@ void  emu_Init(void);
 void  emu_Deinit(void);
 void  emu_Loop(void);
 
-void emu_noticeMsgUpdated(void);
 int  emu_getMainDir(char *dst, int len);
 void menu_romload_prepare(const char *rom_name);
 void menu_romload_end(void);
@@ -26,12 +25,21 @@ void plat_early_init(void);
 void plat_init(void);
 void plat_finish(void);
 
+/* to be used while emulation is starting or running */
+void plat_status_msg(const char *format, ...);
+
+/* used before things blocking for a while (these funcs redraw on return) */
+void plat_status_msg_busy_first(const char *msg);
+void plat_status_msg_busy_next(const char *msg);
+
 /* menu: enter (switch bpp, etc), begin/end drawing */
 void plat_video_menu_enter(int is_rom_loaded);
 void plat_video_menu_begin(void);
 void plat_video_menu_end(void);
 
+void plat_video_toggle_renderer(void);
 void plat_validate_config(void);
+void plat_update_volume(int has_changed, int is_up);
 
 int  plat_is_dir(const char *path);
 int  plat_wait_event(int *fds_hnds, int count, int timeout_ms);

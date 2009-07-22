@@ -48,8 +48,14 @@ static void sound_deinit(void);
 static void blit2(const char *fps, const char *notice, int lagging_behind);
 static void clearArea(int full);
 
-void emu_noticeMsgUpdated(void)
+void plat_status_msg(const char *format, ...)
 {
+	va_list vl;
+
+	va_start(vl, format);
+	vsnprintf(noticeMsg, sizeof(noticeMsg), fmt, vl);
+	va_end(vl);
+
 	noticeMsgTime = sceKernelGetSystemTimeLow();
 }
 
@@ -86,8 +92,7 @@ void emu_msg_cb(const char *msg)
 
 static void emu_msg_tray_open(void)
 {
-	strcpy(noticeMsg, "CD tray opened");
-	noticeMsgTime = sceKernelGetSystemTimeLow();
+	plat_status_msg("CD tray opened");
 }
 
 
@@ -632,9 +637,8 @@ void emu_startSound(void)
 	ret = sceAudio_38553111(samples_block/2, PsndRate, 2); // seems to not need that stupid 64byte alignment
 	if (ret < 0) {
 		lprintf("sceAudio_38553111() failed: %i\n", ret);
-		sprintf(noticeMsg, "sound init failed (%i), snd disabled", ret);
-		noticeMsgTime = sceKernelGetSystemTimeLow();
-		currentConfig.EmuOpt &= ~4;
+		plat_status_msg("sound init failed (%i), snd disabled", ret);
+		currentConfig.EmuOpt &= ~EOPT_EN_SOUND;
 	} else {
 		PicoWriteSound = writeSound;
 		memset32((int *)(void *)sndBuffer, 0, sizeof(sndBuffer)/4);
@@ -804,12 +808,10 @@ static void RunEvents(unsigned int which)
 
 		vidResetMode();
 
-		if (PicoOpt&0x10)
-			strcpy(noticeMsg, "fast renderer");
+		if (PicoOpt & POPT_ALT_RENDERER)
+			plat_status_msg("fast renderer");
 		else if (currentConfig.EmuOpt&0x80)
-			strcpy(noticeMsg, "accurate renderer");
-
-		noticeMsgTime = sceKernelGetSystemTimeLow();
+			plat_status_msg("accurate renderer");
 	}
 	if (which & 0x0300)
 	{
@@ -820,8 +822,8 @@ static void RunEvents(unsigned int which)
 			state_slot += 1;
 			if(state_slot > 9) state_slot = 0;
 		}
-		sprintf(noticeMsg, "SAVE SLOT %i [%s]", state_slot, emu_checkSaveFile(state_slot) ? "USED" : "FREE");
-		noticeMsgTime = sceKernelGetSystemTimeLow();
+		plat_status_msg("SAVE SLOT %i [%s]", state_slot,
+			emu_checkSaveFile(state_slot) ? "USED" : "FREE");
 	}
 }
 
@@ -831,7 +833,7 @@ static void updateKeys(void)
 	static unsigned int prevEvents = 0;
 	int i;
 
-	/* FIXME: port to input fw */
+	/* FIXME: port to input fw, merge with emu.c:emu_update_input() */
 	keys = psp_pad_read(0);
 	if (keys & PSP_CTRL_HOME)
 		sceDisplayWaitVblankStart();
