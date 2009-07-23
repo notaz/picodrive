@@ -181,7 +181,6 @@ void plat_finish(void)
 		break;
 	}
 
-	gp2x_video_changemode(16);
 	sndout_oss_exit();
 }
 

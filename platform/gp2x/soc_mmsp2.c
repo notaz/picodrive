@@ -33,7 +33,12 @@ static int touchcal[7] = { 6203, 0, -1501397, 0, -4200, 16132680, 65536 };
 
 static const int gp2x_screenaddrs[4] = { FRAMEBUFF_ADDR0, FRAMEBUFF_ADDR1, FRAMEBUFF_ADDR2, FRAMEBUFF_ADDR3 };
 static int gp2x_screenaddrs_use[4];
+
+static char gamma_was_changed = 0;
+static char cpuclk_was_changed = 0;
 static unsigned short gp2x_screenaddr_old[4];
+static unsigned short memtimex_old[2];
+static unsigned short reg0910;
 
 
 /* video stuff */
@@ -166,11 +171,11 @@ static void gp2x_set_cpuclk_(unsigned int mhz)
 	for (i = 0; i < 10000; i++)
 		if (!(gp2x_memregs[0x902>>1] & 1))
 			break;
+
+	cpuclk_was_changed = 1;
 }
 
 /* RAM timings */
-static unsigned short memtimex[2];
-
 #define TIMING_CHECK(t, adj, mask) \
 	t += adj; \
 	if (t & ~mask) \
@@ -214,8 +219,8 @@ static void set_ram_timings_(void)
 
 static void unset_ram_timings_(void)
 {
-	gp2x_memregs[0x3802>>1] = memtimex[0];
-	gp2x_memregs[0x3804>>1] = memtimex[1] | 0x8000;
+	gp2x_memregs[0x3802>>1] = memtimex_old[0];
+	gp2x_memregs[0x3804>>1] = memtimex_old[1] | 0x8000;
 	printf("RAM timings reset to startup values.\n");
 }
 
@@ -344,6 +349,8 @@ static void set_lcd_gamma_(int g100, int A_SNs_curve)
 		gp2x_memregs[0x295E>>1]= s;
 		gp2x_memregs[0x295E>>1]= g;
 	}
+
+	gamma_was_changed = 1;
 }
 
 
@@ -454,12 +461,13 @@ void mmsp2_init(void)
 
 	memcpy(gp2x_screenaddrs_use, gp2x_screenaddrs, sizeof(gp2x_screenaddrs));
 
-	/* default LCD refresh */
+	/* save startup values: LCD refresh */
 	get_reg_setting(lcd_rate_defaults);
 
-	/* RAM timings */
-	memtimex[0] = gp2x_memregs[0x3802>>1];
-	memtimex[1] = gp2x_memregs[0x3804>>1];
+	/* CPU and RAM timings */
+	reg0910 = gp2x_memregs[0x0910>>1];
+	memtimex_old[0] = gp2x_memregs[0x3802>>1];
+	memtimex_old[1] = gp2x_memregs[0x3804>>1];
 
 	/* touchscreen */
 	touchdev = open("/dev/touchscreen/wm97xx", O_RDONLY);
@@ -503,13 +511,20 @@ void mmsp2_finish(void)
 	pause940(1);
 	sharedmem940_finish();
 
+	gp2x_video_RGB_setscaling_(0, 320, 240);
+	gp2x_video_changemode_ll_(16);
+
 	gp2x_memregs[0x290E>>1] = gp2x_screenaddr_old[0];
 	gp2x_memregs[0x2910>>1] = gp2x_screenaddr_old[1];
 	gp2x_memregs[0x2912>>1] = gp2x_screenaddr_old[2];
 	gp2x_memregs[0x2914>>1] = gp2x_screenaddr_old[3];
 
-	unset_ram_timings_();
 	unset_lcd_custom_rate_();
+	if (gamma_was_changed)
+		set_lcd_gamma_(100, 0);
+	unset_ram_timings_();
+	if (cpuclk_was_changed)
+		gp2x_memregs[0x910>>1] = reg0910;
 
 	munmap(gp2x_screens[0], FRAMEBUFF_WHOLESIZE);
 	munmap((void *)gp2x_memregs, 0x10000);

@@ -27,6 +27,10 @@ static unsigned int fb_paddr[fb_buf_count];
 static int fb_work_buf;
 static int fbdev = -1;
 
+static char cpuclk_was_changed = 0;
+static unsigned short memtimex_old[2];
+static unsigned int pllsetreg0;
+
 
 /* video stuff */
 static void pollux_video_flip(int buf_count)
@@ -110,6 +114,8 @@ static void gp2x_set_cpuclk_(unsigned int mhz)
 	char buff[24];
 	snprintf(buff, sizeof(buff), "cpuclk=%u", mhz);
 	pollux_set(memregs, buff);
+
+	cpuclk_was_changed = 1;
 }
 
 /* misc */
@@ -124,8 +130,6 @@ static void pollux_set_fromenv(const char *env_var)
 }
 
 /* RAM timings */
-static unsigned short memtimex[2];
-
 static void set_ram_timings_(void)
 {
 	pollux_set_fromenv("POLLUX_RAM_TIMINGS");
@@ -135,8 +139,8 @@ static void unset_ram_timings_(void)
 {
 	int i;
 
-	memregs[0x14802>>1] = memtimex[0];
-	memregs[0x14804>>1] = memtimex[1] | 0x8000;
+	memregs[0x14802>>1] = memtimex_old[0];
+	memregs[0x14804>>1] = memtimex_old[1] | 0x8000;
 
 	for (i = 0; i < 0x100000; i++)
 		if (!(memregs[0x14804>>1] & 0x8000))
@@ -215,8 +219,9 @@ void pollux_init(void)
 	fb_work_buf = 0;
 	g_screen_ptr = gp2x_screens[0];
 
-	memtimex[0] = memregs[0x14802>>1];
-	memtimex[1] = memregs[0x14804>>1];
+	pllsetreg0 = memregl[0xf004];
+	memtimex_old[0] = memregs[0x14802>>1];
+	memtimex_old[1] = memregs[0x14804>>1];
 
 	gp2x_video_flip = gp2x_video_flip_;
 	gp2x_video_flip2 = gp2x_video_flip2_;
@@ -242,6 +247,13 @@ void pollux_finish(void)
 	memregl[0x4058>>2] |= 0x10;
 //	wiz_lcd_set_portrait(0);
 	close(fbdev);
+
+	gp2x_video_changemode_ll_(16);
+	unset_ram_timings_();
+	if (cpuclk_was_changed) {
+		memregl[0xf004>>2] = pllsetreg0;
+		memregl[0xf07c>>2] |= 0x8000;
+	}
 
 	munmap((void *)memregs, 0x20000);
 	close(memdev);
