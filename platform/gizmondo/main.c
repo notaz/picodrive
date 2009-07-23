@@ -34,7 +34,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
 				break;
 
 			case PGS_ReloadRom:
-				if (emu_ReloadRom(romFileName))
+				if (emu_reload_rom(romFileName))
 					engineState = PGS_Running;
 				else {
 					lprintf("PGS_ReloadRom == 0\n");

@@ -34,7 +34,7 @@ void emu_Init(void)
 
 	emu_prepareDefaultConfig();
 	config_readlrom("D:\\other\\PicoDrive\\config.cfg");
-	emu_ReadConfig(0, 0);
+	emu_read_config(0, 0);
 	//PicoInit();
 }
 
@@ -66,6 +66,24 @@ void emu_prepareDefaultConfig(void)
 	defaultConfig.volume = 80;
 	defaultConfig.scaling = 0;
 	defaultConfig.KeyBinds[0xd5] = 1<<26; // back
+}
+
+void emu_pack_config(void)
+{
+	currentConfig.s_PicoOpt = PicoOpt;
+	currentConfig.s_PsndRate = PsndRate;
+	currentConfig.s_PicoRegion = PicoRegionOverride;
+	currentConfig.s_PicoAutoRgnOrder = PicoAutoRgnOrder;
+	currentConfig.s_PicoCDBuffers = PicoCDBuffers;
+}
+
+void emu_unpack_config(void)
+{
+	PicoOpt = currentConfig.s_PicoOpt;
+	PsndRate = currentConfig.s_PsndRate;
+	PicoRegionOverride = currentConfig.s_PicoRegion;
+	PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
+	PicoCDBuffers = currentConfig.s_PicoCDBuffers;
 }
 
 /* used by config engine only, not actual menus */

@@ -58,7 +58,7 @@ int pico_main(void)
 				break;
 
 			case PGS_ReloadRom:
-				if (emu_ReloadRom(rom_fname_reload)) {
+				if (emu_reload_rom(rom_fname_reload)) {
 					engineState = PGS_Running;
 					if (mp3_last_error != 0)
 						engineState = PGS_Menu; // send to menu to display mp3 error

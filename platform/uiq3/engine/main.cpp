@@ -331,8 +331,8 @@ static void TargetEpocGameL()
 			if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
 
 			// save SRAM
-			if ((currentConfig.EmuOpt & EOPT_USE_SRAM) && SRam.changed) {
-				emu_SaveLoadGame(0, 1);
+			if ((currentConfig.EmuOpt & EOPT_EN_SRAM) && SRam.changed) {
+				emu_save_load_game(0, 1);
 				SRam.changed = 0;
 			}
 			CPolledActiveScheduler::Instance()->Schedule();
@@ -346,7 +346,7 @@ static void TargetEpocGameL()
 		}
 		else if(gamestate == PGS_ReloadRom)
 		{
-			loadrom_result = emu_ReloadRom(loadrom_fname);
+			loadrom_result = emu_reload_rom(loadrom_fname);
 			pico_was_reset = 1;
 			if (loadrom_result)
 				gamestate = PGS_Running;
@@ -379,7 +379,7 @@ static void TargetEpocGameL()
 				User::After(150000);
 			}
 
-			emu_WriteConfig(0);
+			emu_write_config(0);
 			CGameWindow::FreeResources();
 		} else if(gamestate == PGS_Quit) {
 			break;
@@ -853,7 +853,7 @@ void CGameWindow::RunEvents(TUint32 which)
 		if(PsndOut) gameAudio->Pause(); // this may take a while, so we pause sound output
 
 		vidDrawNotice((which & 0x1000) ? "LOADING@GAME" : "SAVING@GAME");
-		emu_SaveLoadGame(which & 0x1000, 0);
+		emu_save_load_game(which & 0x1000, 0);
 
 		if(PsndOut) PsndOut = gameAudio->ResumeL();
 		reset_timing = 1;

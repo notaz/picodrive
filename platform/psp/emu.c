@@ -748,7 +748,7 @@ static void RunEvents(unsigned int which)
 	{
 		int do_it = 1;
 
-		if ( emu_checkSaveFile(state_slot) &&
+		if ( emu_check_save_file(state_slot) &&
 				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) || // load
 				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) // save
 		{
@@ -767,7 +767,7 @@ static void RunEvents(unsigned int which)
 		{
 			osd_text(4, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME", 1, 0);
 			PicoStateProgressCB = emu_msg_cb;
-			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
+			emu_save_load_game((which & 0x1000) >> 12, 0);
 			PicoStateProgressCB = NULL;
 			psp_msleep(0);
 		}
@@ -796,7 +796,7 @@ static void RunEvents(unsigned int which)
 			if(state_slot > 9) state_slot = 0;
 		}
 		plat_status_msg("SAVE SLOT %i [%s]", state_slot,
-			emu_checkSaveFile(state_slot) ? "USED" : "FREE");
+			emu_check_save_file(state_slot) ? "USED" : "FREE");
 	}
 }
 
@@ -825,7 +825,7 @@ static void updateKeys(void)
 	events = (allActions[0] | allActions[1]) >> 16;
 
 	if ((events ^ prevEvents) & 0x40) {
-		emu_changeFastForward(events & 0x40);
+		emu_set_fastforward(events & 0x40);
 		reset_timing = 1;
 	}
 
@@ -1039,7 +1039,7 @@ void pemu_loop(void)
 	}
 
 
-	emu_changeFastForward(0);
+	emu_set_fastforward(0);
 
 	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
 
@@ -1051,7 +1051,7 @@ void pemu_loop(void)
 	// save SRAM
 	if ((currentConfig.EmuOpt & 1) && SRam.changed) {
 		emu_msg_cb("Writing SRAM/BRAM..");
-		emu_SaveLoadGame(0, 1);
+		emu_save_load_game(0, 1);
 		SRam.changed = 0;
 	}
 

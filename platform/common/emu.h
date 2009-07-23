@@ -20,7 +20,7 @@ extern int g_screen_height;
 #endif
 
 
-#define EOPT_USE_SRAM     (1<<0)
+#define EOPT_EN_SRAM      (1<<0)
 #define EOPT_SHOW_FPS     (1<<1)
 #define EOPT_EN_SOUND     (1<<2)
 #define EOPT_GZIP_SAVES   (1<<3)
@@ -99,30 +99,24 @@ enum TPicoGameState {
 void  emu_init(void);
 void  emu_finish(void);
 
-int   emu_ReloadRom(char *rom_fname);
-int   emu_SaveLoadGame(int load, int sram);
+int   emu_reload_rom(char *rom_fname);
+int   emu_save_load_game(int load, int sram);
 void  emu_reset_game(void);
 
-int   emu_ReadConfig(int game, int no_defaults);
-int   emu_WriteConfig(int game);
-void  emu_packConfig(void);
-void  emu_unpackConfig(void);
+int   emu_read_config(int game, int no_defaults);
+int   emu_write_config(int game);
 void  emu_writelrom(void);
 
-char *emu_GetSaveFName(int load, int is_sram, int slot);
-int   emu_checkSaveFile(int slot);
+char *emu_get_save_fname(int load, int is_sram, int slot);
+int   emu_check_save_file(int slot);
 void  emu_setSaveStateCbs(int gz);
 
 void  emu_update_input(void);
-int   emu_findBios(int region, char **bios_file);
 void  emu_textOut8 (int x, int y, const char *text);
 void  emu_textOut16(int x, int y, const char *text);
-char *emu_makeRomId(void);
-void  emu_getGameName(char *str150);
-void  emu_changeFastForward(int set_on);
-void  emu_RunEventsPico(unsigned int events);
-void  emu_shutdownMCD(void);
-int   emu_cdCheck(int *pregion, char *fname_in);
+void  emu_get_game_name(char *str150);
+void  emu_set_fastforward(int set_on);
+int   emu_cd_check(int *pregion, char *fname_in);
 
 #ifdef __cplusplus
 } // extern "C"

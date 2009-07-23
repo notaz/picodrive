@@ -46,11 +46,11 @@ TInt CPicoGameSession::Do(const TPicoServRqst what, TAny *param)
 	{
 		case PicoMsgLoadState: 
 			if(!rom_loaded) return -1; // no ROM
-			return emu_SaveLoadGame(1, 0);
+			return emu_save_load_game(1, 0);
 
 		case PicoMsgSaveState:
 			if(!rom_loaded) return -1;
-			return emu_SaveLoadGame(0, 0);
+			return emu_save_load_game(0, 0);
 
 		case PicoMsgLoadROM:
 			return loadROM((TPtrC16 *)param);
@@ -188,7 +188,7 @@ TInt CPicoGameSession::loadROM(TPtrC16 *pptr)
 	if (loadrom_result == 0)
 		return PicoErrRomOpenFailed;
 
-	emu_getGameName(buff);
+	emu_get_game_name(buff);
 	TPtrC8 buff8((TUint8*) buff);
 	iRomInternalName.Copy(buff8);
 

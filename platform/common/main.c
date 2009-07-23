@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 	/* in_init() must go before config, config accesses in_ fwk */
 	in_init();
 	pemu_prep_defconfig();
-	emu_ReadConfig(0, 0);
+	emu_read_config(0, 0);
 	config_readlrom(PicoConfigFile);
 
 	plat_init();
@@ -87,11 +87,11 @@ int main(int argc, char *argv[])
 
 	if (engineState == PGS_ReloadRom)
 	{
-		if (emu_ReloadRom(rom_fname_reload)) {
+		if (emu_reload_rom(rom_fname_reload)) {
 			engineState = PGS_Running;
 			if (load_state_slot >= 0) {
 				state_slot = load_state_slot;
-				emu_SaveLoadGame(1, 0);
+				emu_save_load_game(1, 0);
 			}
 		}
 	}
@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
 				break;
 
 			case PGS_ReloadRom:
-				if (emu_ReloadRom(rom_fname_reload))
+				if (emu_reload_rom(rom_fname_reload))
 					engineState = PGS_Running;
 				else {
 					printf("PGS_ReloadRom == 0\n");

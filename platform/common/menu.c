@@ -949,7 +949,7 @@ static void state_check_slots(void)
 	state_slot_flags = 0;
 
 	for (slot = 0; slot < 10; slot++) {
-		if (emu_checkSaveFile(slot))
+		if (emu_check_save_file(slot))
 			state_slot_flags |= 1 << slot;
 	}
 }
@@ -962,7 +962,7 @@ static void draw_savestate_bg(int slot)
 	void *tmp_vram, *file;
 	char *fname;
 
-	fname = emu_GetSaveFName(1, 0, slot);
+	fname = emu_get_save_fname(1, 0, slot);
 	if (!fname) return;
 
 	tmp_vram = malloc(sizeof(Pico.vram));
@@ -1067,7 +1067,7 @@ static int menu_loop_savestate(int is_loading)
 		if (inp & PBTN_MOK) { // save/load
 			if (menu_sel < 10) {
 				state_slot = menu_sel;
-				if (emu_SaveLoadGame(is_loading, 0)) {
+				if (emu_save_load_game(is_loading, 0)) {
 					me_update_msg(is_loading ? "Load failed" : "Save failed");
 					return 0;
 				}
@@ -1418,7 +1418,7 @@ static int menu_loop_cd_options(menu_id id, int keys)
 
 static menu_entry e_menu_adv_options[] =
 {
-	mee_onoff     ("SRAM/BRAM saves",          MA_OPT_SRAM_STATES,    currentConfig.EmuOpt, EOPT_USE_SRAM),
+	mee_onoff     ("SRAM/BRAM saves",          MA_OPT_SRAM_STATES,    currentConfig.EmuOpt, EOPT_EN_SRAM),
 	mee_onoff     ("Disable sprite limit",     MA_OPT2_NO_SPRITE_LIM, PicoOpt, POPT_DIS_SPRITE_LIM),
 	mee_onoff     ("Use second CPU for sound", MA_OPT_ARM940_SOUND,   PicoOpt, POPT_EXT_FM),
 	mee_onoff     ("Emulate Z80",              MA_OPT2_ENABLE_Z80,    PicoOpt, POPT_EN_Z80),
@@ -1587,14 +1587,14 @@ static int mh_saveloadcfg(menu_id id, int keys)
 	switch (id) {
 	case MA_OPT_SAVECFG:
 	case MA_OPT_SAVECFG_GAME:
-		if (emu_WriteConfig(id == MA_OPT_SAVECFG_GAME ? 1 : 0))
+		if (emu_write_config(id == MA_OPT_SAVECFG_GAME ? 1 : 0))
 			me_update_msg("config saved");
 		else
 			me_update_msg("failed to write config");
 		break;
 	case MA_OPT_LOADCFG:
-		ret = emu_ReadConfig(1, 1);
-		if (!ret) ret = emu_ReadConfig(0, 1);
+		ret = emu_read_config(1, 1);
+		if (!ret) ret = emu_read_config(0, 1);
 		if (ret)  me_update_msg("config loaded");
 		else      me_update_msg("failed to load config");
 		break;
@@ -1985,7 +1985,7 @@ static int mh_tray_load_cd(menu_id id, int keys)
 	if (ret_name == NULL)
 		return 0;
 
-	cd_type = emu_cdCheck(NULL, ret_name);
+	cd_type = emu_cd_check(NULL, ret_name);
 	if (cd_type != CIT_NOT_CD)
 		ret = Insert_CD(ret_name, cd_type);
 	if (ret != 0) {

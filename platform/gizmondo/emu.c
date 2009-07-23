@@ -346,7 +346,7 @@ static void RunEvents(unsigned int which)
 			FrameworkAudio_SetPause(1);
 		if (giz_screen == NULL)
 			giz_screen = fb_lock(1);
-		if ( emu_checkSaveFile(state_slot) &&
+		if ( emu_check_save_file(state_slot) &&
 				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) || // load
 				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) // save
 		{
@@ -364,7 +364,7 @@ static void RunEvents(unsigned int which)
 		{
 			osd_text(4, 232, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME");
 			PicoStateProgressCB = emu_stateCb;
-			emu_SaveLoadGame((which & 0x1000) >> 12, 0);
+			emu_save_load_game((which & 0x1000) >> 12, 0);
 			PicoStateProgressCB = NULL;
 			Sleep(0);
 		}
@@ -399,7 +399,7 @@ static void RunEvents(unsigned int which)
 			state_slot += 1;
 			if(state_slot > 9) state_slot = 0;
 		}
-		sprintf(noticeMsg, "SAVE SLOT %i [%s]", state_slot, emu_checkSaveFile(state_slot) ? "USED" : "FREE");
+		sprintf(noticeMsg, "SAVE SLOT %i [%s]", state_slot, emu_check_save_file(state_slot) ? "USED" : "FREE");
 		noticeMsgTime = GetTickCount();
 	}
 }
@@ -709,7 +709,7 @@ void pemu_loop(void)
 	// save SRAM
 	if ((currentConfig.EmuOpt & 1) && SRam.changed) {
 		emu_stateCb("Writing SRAM/BRAM..");
-		emu_SaveLoadGame(0, 1);
+		emu_save_load_game(0, 1);
 		SRam.changed = 0;
 	}
 }

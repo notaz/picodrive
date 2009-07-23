@@ -164,32 +164,32 @@ void CPicolAppView::HandleCommandL(CQikCommand& aCommand)
 
 		case EEikCmdPicoFrameskipAuto:
 			currentConfig.Frameskip = -1;
-			emu_WriteConfig(0);
+			emu_write_config(0);
 			break;
 
 		case EEikCmdPicoFrameskip0:
 			currentConfig.Frameskip = 0;
-			emu_WriteConfig(0);
+			emu_write_config(0);
 			break;
 
 		case EEikCmdPicoFrameskip1:
 			currentConfig.Frameskip = 1;
-			emu_WriteConfig(0);
+			emu_write_config(0);
 			break;
 
 		case EEikCmdPicoFrameskip2:
 			currentConfig.Frameskip = 2;
-			emu_WriteConfig(0);
+			emu_write_config(0);
 			break;
 
 		case EEikCmdPicoFrameskip4:
 			currentConfig.Frameskip = 4;
-			emu_WriteConfig(0);
+			emu_write_config(0);
 			break;
 
 		case EEikCmdPicoFrameskip8:
 			currentConfig.Frameskip = 8;
-			emu_WriteConfig(0);
+			emu_write_config(0);
 			break;
 
 		case EEikCmdExit:
@@ -285,10 +285,10 @@ void CPicolAppView::DisplayOpenROMDialogL()
 void CPicolAppView::DisplayConfigDialogL()
 {
 	CPicoConfigDialog* configDialog = new(ELeave)CPicoConfigDialog(currentConfig);
-	emu_packConfig();
+	emu_pack_config();
 	configDialog->ExecuteLD(R_PICO_CONFIG);
-	emu_unpackConfig();
-	emu_WriteConfig(0);
+	emu_unpack_config();
+	emu_write_config(0);
 
 	CPicoGameSession::Do(PicoMsgConfigChange, &currentConfig);
 }

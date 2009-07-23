@@ -86,15 +86,15 @@ static void get_ext(char *file, char *ext)
 	strlwr_(ext);
 }
 
-char *biosfiles_us[] = { "us_scd1_9210", "us_scd2_9306", "SegaCDBIOS9303" };
-char *biosfiles_eu[] = { "eu_mcd1_9210", "eu_mcd2_9306", "eu_mcd2_9303"   };
-char *biosfiles_jp[] = { "jp_mcd1_9112", "jp_mcd1_9111" };
+static const char *biosfiles_us[] = { "us_scd1_9210", "us_scd2_9306", "SegaCDBIOS9303" };
+static const char *biosfiles_eu[] = { "eu_mcd1_9210", "eu_mcd2_9306", "eu_mcd2_9303"   };
+static const char *biosfiles_jp[] = { "jp_mcd1_9112", "jp_mcd1_9111" };
 
-int emu_findBios(int region, char **bios_file)
+static int find_bios(int region, char **bios_file)
 {
 	static char bios_path[1024];
 	int i, count;
-	char **files;
+	const char **files;
 	FILE *f = NULL;
 
 	if (region == 4) { // US
@@ -156,7 +156,7 @@ static unsigned char id_header[0x100];
 
 /* checks if fname points to valid MegaCD image
  * if so, checks for suitable BIOS */
-int emu_cdCheck(int *pregion, char *fname_in)
+int emu_cd_check(int *pregion, char *fname_in)
 {
 	unsigned char buf[32];
 	pm_file *cd_f;
@@ -253,7 +253,7 @@ static int extract_text(char *dest, const unsigned char *src, int len, int swab)
 	return p - dest;
 }
 
-char *emu_makeRomId(void)
+static char *emu_make_rom_id(void)
 {
 	static char id_string[3+0xe*3+0x3*3+0x30*3+3];
 	int pos, swab = 1;
@@ -276,7 +276,7 @@ char *emu_makeRomId(void)
 }
 
 // buffer must be at least 150 byte long
-void emu_getGameName(char *str150)
+void emu_get_game_name(char *str150)
 {
 	int ret, swab = (PicoAHW & PAHW_MCD) ? 0 : 1;
 	char *s, *d;
@@ -292,8 +292,15 @@ void emu_getGameName(char *str150)
 	*d = 0;
 }
 
+static void shutdown_MCD(void)
+{
+	if ((PicoAHW & PAHW_MCD) && Pico_mcd != NULL)
+		Stop_CD();
+	PicoAHW &= ~PAHW_MCD;
+}
+
 // note: this function might mangle rom_fname
-int emu_ReloadRom(char *rom_fname)
+int emu_reload_rom(char *rom_fname)
 {
 	unsigned int rom_size = 0;
 	char *used_rom_name = rom_fname;
@@ -368,26 +375,25 @@ int emu_ReloadRom(char *rom_fname)
 		get_ext(rom_fname, ext);
 	}
 
-	emu_shutdownMCD();
+	shutdown_MCD();
 
 	// check for MegaCD image
-	cd_state = emu_cdCheck(&cd_region, rom_fname);
+	cd_state = emu_cd_check(&cd_region, rom_fname);
 	if (cd_state >= 0 && cd_state != CIT_NOT_CD)
 	{
 		PicoAHW |= PAHW_MCD;
 		// valid CD image, check for BIOS..
 
 		// we need to have config loaded at this point
-		ret = emu_ReadConfig(1, 1);
-		if (!ret) emu_ReadConfig(0, 1);
+		ret = emu_read_config(1, 1);
+		if (!ret) emu_read_config(0, 1);
 		cfg_loaded = 1;
 
 		if (PicoRegionOverride) {
 			cd_region = PicoRegionOverride;
 			lprintf("overrided region to %s\n", cd_region != 4 ? (cd_region == 8 ? "EU" : "JAP") : "USA");
 		}
-		if (!emu_findBios(cd_region, &used_rom_name)) {
-			// bios_help() ?
+		if (!find_bios(cd_region, &used_rom_name)) {
 			PicoAHW &= ~PAHW_MCD;
 			return 0;
 		}
@@ -437,8 +443,8 @@ int emu_ReloadRom(char *rom_fname)
 	if (!(PicoAHW & PAHW_MCD))
 		memcpy(id_header, rom_data + 0x100, sizeof(id_header));
 	if (!cfg_loaded) {
-		ret = emu_ReadConfig(1, 1);
-		if (!ret) emu_ReadConfig(0, 1);
+		ret = emu_read_config(1, 1);
+		if (!ret) emu_read_config(0, 1);
 	}
 
 	lprintf("PicoCartInsert(%p, %d);\n", rom_data, rom_size);
@@ -489,8 +495,8 @@ int emu_ReloadRom(char *rom_fname)
 	}
 
 	// load SRAM for this ROM
-	if (currentConfig.EmuOpt & EOPT_USE_SRAM)
-		emu_SaveLoadGame(1, 1);
+	if (currentConfig.EmuOpt & EOPT_EN_SRAM)
+		emu_save_load_game(1, 1);
 
 	strncpy(rom_fname_loaded, rom_fname, sizeof(rom_fname_loaded)-1);
 	rom_fname_loaded[sizeof(rom_fname_loaded)-1] = 0;
@@ -502,14 +508,6 @@ fail2:
 fail:
 	if (rom != NULL) pm_close(rom);
 	return 0;
-}
-
-
-void emu_shutdownMCD(void)
-{
-	if ((PicoAHW & PAHW_MCD) && Pico_mcd != NULL)
-		Stop_CD();
-	PicoAHW &= ~PAHW_MCD;
 }
 
 static void romfname_ext(char *dst, const char *prefix, const char *ext)
@@ -535,7 +533,6 @@ static void romfname_ext(char *dst, const char *prefix, const char *ext)
 	if (ext) strcat(dst, ext);
 }
 
-
 static void make_config_cfg(char *cfg)
 {
 	int len;
@@ -550,17 +547,9 @@ static void make_config_cfg(char *cfg)
 	cfg[511] = 0;
 }
 
-void emu_packConfig(void)
+static void emu_setDefaultConfig(void)
 {
-	currentConfig.s_PicoOpt = PicoOpt;
-	currentConfig.s_PsndRate = PsndRate;
-	currentConfig.s_PicoRegion = PicoRegionOverride;
-	currentConfig.s_PicoAutoRgnOrder = PicoAutoRgnOrder;
-	currentConfig.s_PicoCDBuffers = PicoCDBuffers;
-}
-
-void emu_unpackConfig(void)
-{
+	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
 	PicoOpt = currentConfig.s_PicoOpt;
 	PsndRate = currentConfig.s_PsndRate;
 	PicoRegionOverride = currentConfig.s_PicoRegion;
@@ -568,14 +557,7 @@ void emu_unpackConfig(void)
 	PicoCDBuffers = currentConfig.s_PicoCDBuffers;
 }
 
-static void emu_setDefaultConfig(void)
-{
-	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
-	emu_unpackConfig();
-}
-
-
-int emu_ReadConfig(int game, int no_defaults)
+int emu_read_config(int game, int no_defaults)
 {
 	char cfg[512];
 	int ret;
@@ -589,7 +571,7 @@ int emu_ReadConfig(int game, int no_defaults)
 	}
 	else
 	{
-		char *sect = emu_makeRomId();
+		char *sect = emu_make_rom_id();
 
 		// try new .cfg way
 		if (config_slot != 0)
@@ -638,7 +620,7 @@ int emu_ReadConfig(int game, int no_defaults)
 }
 
 
-int emu_WriteConfig(int is_game)
+int emu_write_config(int is_game)
 {
 	char cfg[512], *game_sect = NULL;
 	int ret, write_lrom = 0;
@@ -651,11 +633,11 @@ int emu_WriteConfig(int is_game)
 		if (config_slot != 0)
 		     sprintf(cfg, "game.%i.cfg", config_slot);
 		else strcpy(cfg,  "game.cfg");
-		game_sect = emu_makeRomId();
-		lprintf("emu_WriteConfig: sect \"%s\"\n", game_sect);
+		game_sect = emu_make_rom_id();
+		lprintf("emu_write_config: sect \"%s\"\n", game_sect);
 	}
 
-	lprintf("emu_WriteConfig: %s ", cfg);
+	lprintf("emu_write_config: %s ", cfg);
 	ret = config_writesect(cfg, game_sect);
 	if (write_lrom) config_writelrom(cfg);
 #ifndef NO_SYNC
@@ -761,7 +743,7 @@ static int try_ropen_file(const char *fname)
 	return 0;
 }
 
-char *emu_GetSaveFName(int load, int is_sram, int slot)
+char *emu_get_save_fname(int load, int is_sram, int slot)
 {
 	static char saveFname[512];
 	char ext[16];
@@ -807,9 +789,9 @@ char *emu_GetSaveFName(int load, int is_sram, int slot)
 	return saveFname;
 }
 
-int emu_checkSaveFile(int slot)
+int emu_check_save_file(int slot)
 {
-	return emu_GetSaveFName(1, 0, slot) ? 1 : 0;
+	return emu_get_save_fname(1, 0, slot) ? 1 : 0;
 }
 
 void emu_setSaveStateCbs(int gz)
@@ -829,13 +811,13 @@ void emu_setSaveStateCbs(int gz)
 	}
 }
 
-int emu_SaveLoadGame(int load, int sram)
+int emu_save_load_game(int load, int sram)
 {
 	int ret = 0;
 	char *saveFname;
 
 	// make save filename
-	saveFname = emu_GetSaveFName(load, sram, state_slot);
+	saveFname = emu_get_save_fname(load, sram, state_slot);
 	if (saveFname == NULL) {
 		if (!sram)
 			plat_status_msg(load ? "LOAD FAILED (missing file)" : "SAVE FAILED");
@@ -935,7 +917,7 @@ int emu_SaveLoadGame(int load, int sram)
 	}
 }
 
-void emu_changeFastForward(int set_on)
+void emu_set_fastforward(int set_on)
 {
 	static void *set_PsndOut = NULL;
 	static int set_Frameskip, set_EmuOpt, is_on = 0;
@@ -1056,7 +1038,7 @@ static void run_events_ui(unsigned int which)
 	if (which & (PEV_STATE_LOAD|PEV_STATE_SAVE))
 	{
 		int do_it = 1;
-		if ( emu_checkSaveFile(state_slot) &&
+		if ( emu_check_save_file(state_slot) &&
 				(((which & PEV_STATE_LOAD) && (currentConfig.EmuOpt & EOPT_CONFIRM_LOAD)) ||
 				 ((which & PEV_STATE_SAVE) && (currentConfig.EmuOpt & EOPT_CONFIRM_SAVE))) )
 		{
@@ -1088,7 +1070,7 @@ static void run_events_ui(unsigned int which)
 		if (do_it) {
 			plat_status_msg_busy_first((which & PEV_STATE_LOAD) ? "LOADING GAME" : "SAVING GAME");
 			PicoStateProgressCB = plat_status_msg_busy_next;
-			emu_SaveLoadGame((which & PEV_STATE_LOAD) ? 1 : 0, 0);
+			emu_save_load_game((which & PEV_STATE_LOAD) ? 1 : 0, 0);
 			PicoStateProgressCB = NULL;
 		}
 	}
@@ -1109,7 +1091,7 @@ static void run_events_ui(unsigned int which)
 		}
 
 		plat_status_msg("SAVE SLOT %i [%s]", state_slot,
-			emu_checkSaveFile(state_slot) ? "USED" : "FREE");
+			emu_check_save_file(state_slot) ? "USED" : "FREE");
 	}
 	if (which & PEV_MENU)
 		engineState = PGS_Menu;
@@ -1136,7 +1118,7 @@ void emu_update_input(void)
 		plat_update_volume(1, events & PEV_VOL_UP);
 
 	if ((events ^ prevEvents) & PEV_FF) {
-		emu_changeFastForward(events & PEV_FF);
+		emu_set_fastforward(events & PEV_FF);
 		plat_update_volume(0, 0);
 		reset_timing = 1;
 	}
@@ -1182,8 +1164,8 @@ void emu_init(void)
 void emu_finish(void)
 {
 	// save SRAM
-	if ((currentConfig.EmuOpt & EOPT_USE_SRAM) && SRam.changed) {
-		emu_SaveLoadGame(0, 1);
+	if ((currentConfig.EmuOpt & EOPT_EN_SRAM) && SRam.changed) {
+		emu_save_load_game(0, 1);
 		SRam.changed = 0;
 	}
 

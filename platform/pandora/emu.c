@@ -727,15 +727,15 @@ void pemu_loop(void)
 		 frames_done++;  frames_shown++;
 	}
 
-	emu_changeFastForward(0);
+	emu_set_fastforward(0);
 
 	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
 
 	// save SRAM
-	if((currentConfig.EmuOpt & 1) && SRam.changed) {
+	if ((currentConfig.EmuOpt & EOPT_EN_SRAM) && SRam.changed) {
 		/* FIXME: plat_status_msg_busy_first */
 		emu_state_cb("Writing SRAM/BRAM..");
-		emu_SaveLoadGame(0, 1);
+		emu_save_load_game(0, 1);
 		SRam.changed = 0;
 	}
 
