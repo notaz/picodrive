@@ -26,6 +26,9 @@
 #define PEVB_SSLOT_NEXT 24
 #define PEVB_MENU       23
 #define PEVB_FF         22
+#define PEVB_PICO_PNEXT 21
+#define PEVB_PICO_PPREV 20
+#define PEVB_PICO_SWINP 19
 
 #define PEV_VOL_DOWN    (1 << PEVB_VOL_DOWN)
 #define PEV_VOL_UP      (1 << PEVB_VOL_UP)
@@ -36,8 +39,11 @@
 #define PEV_SSLOT_NEXT  (1 << PEVB_SSLOT_NEXT)
 #define PEV_MENU        (1 << PEVB_MENU)
 #define PEV_FF          (1 << PEVB_FF)
+#define PEV_PICO_PNEXT  (1 << PEVB_PICO_PNEXT)
+#define PEV_PICO_PPREV  (1 << PEVB_PICO_PPREV)
+#define PEV_PICO_SWINP  (1 << PEVB_PICO_SWINP)
 
-#define PEV_MASK 0x7fc00000
+#define PEV_MASK 0x7ff80000
 
 
 enum {

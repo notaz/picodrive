@@ -37,7 +37,6 @@ unsigned char *PicoDraw2FB = (unsigned char *)VRAM_CACHED_STUFF + 8; // +8 to be
 int engineStateSuspend;
 
 static unsigned int noticeMsgTime = 0;
-int reset_timing = 0; // do we need this?
 
 #define PICO_PEN_ADJUST_X 4
 #define PICO_PEN_ADJUST_Y 2
@@ -59,7 +58,7 @@ void plat_status_msg(const char *format, ...)
 	noticeMsgTime = sceKernelGetSystemTimeLow();
 }
 
-int emu_getMainDir(char *dst, int len)
+int plat_get_root_dir(char *dst, int len)
 {
 	if (len > 0) *dst = 0;
 	return 0;
@@ -90,44 +89,18 @@ void emu_msg_cb(const char *msg)
 	reset_timing = 1;
 }
 
-static void emu_msg_tray_open(void)
-{
-	plat_status_msg("CD tray opened");
-}
-
-
+/* FIXME: move to plat */
 void emu_Init(void)
 {
-	// make dirs for saves, cfgs, etc.
-	mkdir("mds", 0777);
-	mkdir("srm", 0777);
-	mkdir("brm", 0777);
-	mkdir("cfg", 0777);
-
 	sound_init();
-
-	PicoInit();
-	PicoMessage = emu_msg_cb;
-	PicoMCDopenTray = emu_msg_tray_open;
-	PicoMCDcloseTray = menu_loop_tray;
 }
 
 void emu_Deinit(void)
 {
-	// save SRAM
-	if ((currentConfig.EmuOpt & 1) && SRam.changed) {
-		emu_SaveLoadGame(0, 1);
-		SRam.changed = 0;
-	}
-
-	if (!(currentConfig.EmuOpt & 0x20))
-		config_writelrom(PicoConfigFile);
-
-	PicoExit();
 	sound_deinit();
 }
 
-void emu_prepareDefaultConfig(void)
+void pemu_prep_defconfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
 	defaultConfig.EmuOpt    = 0x1d | 0x680; // | <- confirm_save, cd_leds, acc rend
@@ -530,7 +503,7 @@ static void vidResetMode(void)
 	sceGuSync(0,0);
 }
 
-void emu_platformDebugCat(char *str)
+void plat_debug_cat(char *str)
 {
 	strcat(str, blit_16bit_mode ? "soft clut\n" : "hard clut\n");
 }
@@ -613,7 +586,7 @@ static void sound_init(void)
 		lprintf("sceKernelCreateThread failed: %i\n", thid);
 }
 
-void emu_startSound(void)
+void pemu_sound_start(void)
 {
 	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 	int ret, stereo;
@@ -651,7 +624,7 @@ void emu_startSound(void)
 	}
 }
 
-void emu_endSound(void)
+void pemu_sound_stop(void)
 {
 	int i;
 	if (samples_done == 0)
@@ -671,7 +644,7 @@ void emu_endSound(void)
 }
 
 /* wait until we can write more sound */
-void emu_waitSound(void)
+void pemu_sound_wait(void)
 {
 	// TODO: test this
 	while (!sound_thread_exit && samples_made - samples_done > samples_block * 4)
@@ -719,7 +692,7 @@ static void SkipFrame(void)
 	PicoSkipFrame=0;
 }
 
-void emu_forcedFrame(int opts)
+void pemu_forced_frame(int opts)
 {
 	int po_old = PicoOpt;
 	int eo_old = currentConfig.EmuOpt;
@@ -878,7 +851,7 @@ static void simpleWait(unsigned int until)
 		sceKernelDelayThread(diff);
 }
 
-void emu_Loop(void)
+void pemu_loop(void)
 {
 	static int mp3_init_done = 0;
 	char fpsbuff[24]; // fps count c string
@@ -923,9 +896,9 @@ void emu_Loop(void)
 
 	// prepare sound stuff
 	PsndOut = NULL;
-	if (currentConfig.EmuOpt & 4)
+	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
 	{
-		emu_startSound();
+		pemu_sound_start();
 	}
 
 	sceDisplayWaitVblankStart();
@@ -1071,7 +1044,7 @@ void emu_Loop(void)
 	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
 
 	if (PsndOut != NULL) {
-		emu_endSound();
+		pemu_sound_stop();
 		PsndOut = NULL;
 	}
 
@@ -1084,13 +1057,6 @@ void emu_Loop(void)
 
 	// clear fps counters and stuff
 	memset32_uncached((int *)psp_video_get_active_fb() + 512*264*2/4, 0, 512*8*2/4);
-}
-
-
-void emu_ResetGame(void)
-{
-	PicoReset();
-	reset_timing = 1;
 }
 
 void emu_HandleResume(void)

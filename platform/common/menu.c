@@ -997,7 +997,7 @@ static void draw_savestate_bg(int slot)
 	}
 
 	/* do a frame and fetch menu bg */
-	emu_forcedFrame(POPT_EN_SOFTSCALE);
+	pemu_forced_frame(POPT_EN_SOFTSCALE);
 	plat_video_menu_enter(1);
 
 	memcpy(Pico.vram, tmp_vram, sizeof(Pico.vram));
@@ -1286,18 +1286,18 @@ me_bind_action me_ctrl_actions[15] =
 // "LOAD STATE", "VOLUME UP", "VOLUME DOWN", "DONE"
 me_bind_action emuctrl_actions[] =
 {
-	{ "Load State       ", 1 << PEVB_STATE_LOAD },
-	{ "Save State       ", 1 << PEVB_STATE_SAVE },
-	{ "Prev Save Slot   ", 1 << PEVB_SSLOT_PREV },
-	{ "Next Save Slot   ", 1 << PEVB_SSLOT_NEXT },
-	{ "Switch Renderer  ", 1 << PEVB_SWITCH_RND },
-	{ "Volume Down      ", 1 << PEVB_VOL_DOWN },
-	{ "Volume Up        ", 1 << PEVB_VOL_UP },
-	{ "Fast forward     ", 1 << PEVB_FF },
-	{ "Enter Menu       ", 1 << PEVB_MENU },
-	{ "Pico Next page   ", 1 << 21 }, /* TODO */
-	{ "Pico Prev page   ", 1 << 20 },
-	{ "Pico Switch input", 1 << 19 },
+	{ "Load State       ", PEV_STATE_LOAD },
+	{ "Save State       ", PEV_STATE_SAVE },
+	{ "Prev Save Slot   ", PEV_SSLOT_PREV },
+	{ "Next Save Slot   ", PEV_SSLOT_NEXT },
+	{ "Switch Renderer  ", PEV_SWITCH_RND },
+	{ "Volume Down      ", PEV_VOL_DOWN },
+	{ "Volume Up        ", PEV_VOL_UP },
+	{ "Fast forward     ", PEV_FF },
+	{ "Enter Menu       ", PEV_MENU },
+	{ "Pico Next page   ", PEV_PICO_PNEXT },
+	{ "Pico Prev page   ", PEV_PICO_PPREV },
+	{ "Pico Switch input", PEV_PICO_SWINP },
 	{ NULL,                0 }
 };
 
@@ -1727,17 +1727,17 @@ extern void SekStepM68k(void);
 
 static void mplayer_loop(void)
 {
-	emu_startSound();
+	pemu_sound_start();
 
 	while (1)
 	{
 		PDebugZ80Frame();
 		if (in_menu_wait_any(0) & PBTN_MA3)
 			break;
-		emu_waitSound();
+		pemu_sound_wait();
 	}
 
-	emu_endSound();
+	pemu_sound_stop();
 }
 
 static void draw_text_debug(const char *str, int skip, int from)
@@ -1776,7 +1776,7 @@ static void draw_frame_debug(void)
 	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)  memcpy(layer_str + 19, "spr_hi", 6);
 
 	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
-	emu_forcedFrame(0);
+	pemu_forced_frame(0);
 	smalltext_out16(4, 1, "build: " __DATE__ " " __TIME__, 0xffff);
 	smalltext_out16(4, g_screen_height - me_sfont_h, layer_str, 0xffff);
 }
@@ -1793,7 +1793,7 @@ static void debug_menu_loop(void)
 		{
 			case 0: plat_video_menu_begin();
 				tmp = PDebugMain();
-				emu_platformDebugCat(tmp);
+				plat_debug_cat(tmp);
 				draw_text_debug(tmp, 0, 0);
 				if (dumped) {
 					smalltext_out16(g_screen_width - 6 * me_sfont_h,
@@ -1803,7 +1803,7 @@ static void debug_menu_loop(void)
 				break;
 			case 1: draw_frame_debug(); break;
 			case 2: memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
-				emu_forcedFrame(0);
+				pemu_forced_frame(0);
 				menu_darken_bg(g_screen_ptr, g_screen_width * g_screen_height, 0);
 				PDebugShowSpriteStats((unsigned short *)g_screen_ptr + (g_screen_height/2 - 240/2)*g_screen_width +
 					g_screen_width/2 - 320/2, g_screen_width); break;
@@ -1896,7 +1896,7 @@ static int main_menu_handler(menu_id id, int keys)
 		break;
 	case MA_MAIN_RESET_GAME:
 		if (rom_loaded) {
-			emu_ResetGame();
+			emu_reset_game();
 			return 1;
 		}
 		break;

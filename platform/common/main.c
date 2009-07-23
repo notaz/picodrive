@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 
 	/* in_init() must go before config, config accesses in_ fwk */
 	in_init();
-	emu_prepareDefaultConfig();
+	pemu_prep_defconfig();
 	emu_ReadConfig(0, 0);
 	config_readlrom(PicoConfigFile);
 
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
 	in_probe();
 	in_debug_dump();
 
-	emu_Init();
+	emu_init();
 	menu_init();
 
 	engineState = PGS_Menu;
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
 				engineState = PGS_Running;
 
 			case PGS_Running:
-				emu_Loop();
+				pemu_loop();
 				break;
 
 			case PGS_Quit:
@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
 
 	endloop:
 
-	emu_Deinit();
+	emu_finish();
 	plat_finish();
 
 	return 0;

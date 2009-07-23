@@ -26,9 +26,7 @@
 
 // main 300K gfx-related buffer. Used by menu and renderers.
 unsigned char gfx_buffer[321*240*2*2];
-
 unsigned char *PicoDraw2FB = gfx_buffer;  // temporary buffer for alt renderer ( (8+320)*(8+240+8) )
-int reset_timing = 0;
 
 static DWORD noticeMsgTime = 0;
 static short *snd_cbuff = NULL;
@@ -44,7 +42,7 @@ void plat_status_msg(const char *format, ...)
 	noticeMsgTime = GetTickCount();
 }
 
-int emu_getMainDir(char *dst, int len)
+int plat_get_root_dir(char *dst, int len)
 {
 	if (len > 0) *dst = 0;
 
@@ -81,42 +79,7 @@ void emu_stateCb(const char *str)
 	Sleep(0); /* yield the CPU, the system may need it */
 }
 
-static void emu_msg_tray_open(void)
-{
-	strcpy(noticeMsg, "CD tray opened");
-	noticeMsgTime = GetTickCount();
-}
-
-
-void emu_Init(void)
-{
-	// make dirs for saves, cfgs, etc.
-	mkdir("mds", 0777);
-	mkdir("srm", 0777);
-	mkdir("brm", 0777);
-	mkdir("cfg", 0777);
-
-	PicoInit();
-	PicoMessage = emu_msg_cb;
-	PicoMCDopenTray = emu_msg_tray_open;
-	PicoMCDcloseTray = menu_loop_tray;
-}
-
-void emu_Deinit(void)
-{
-	// save SRAM
-	if ((currentConfig.EmuOpt & 1) && SRam.changed) {
-		emu_SaveLoadGame(0, 1);
-		SRam.changed = 0;
-	}
-
-	if (!(currentConfig.EmuOpt & 0x20))
-		config_writelrom(PicoConfigFile);
-
-	PicoExit();
-}
-
-void emu_prepareDefaultConfig(void)
+void pemu_prep_defconfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
 	defaultConfig.EmuOpt    = 0x1d | 0x680; // | confirm_save, cd_leds, 16bit rend
@@ -348,7 +311,7 @@ static void SkipFrame(void)
 }
 
 /* forced frame to front buffer */
-void emu_forcedFrame(int opts)
+void pemu_forced_frame(int opts)
 {
 	int po_old = PicoOpt;
 	int eo_old = currentConfig.EmuOpt;
@@ -484,9 +447,8 @@ static void updateKeys(void)
 	prevEvents = (allActions[0] | allActions[1]) >> 16;
 }
 
-void emu_platformDebugCat(char *str)
+void plat_debug_cat(char *str)
 {
-	// nothing
 }
 
 static void simpleWait(DWORD until)
@@ -503,7 +465,7 @@ static void simpleWait(DWORD until)
 		spend_cycles(1024*2);
 }
 
-void emu_Loop(void)
+void pemu_loop(void)
 {
 	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 	char fpsbuff[24]; // fps count c string
@@ -750,12 +712,5 @@ void emu_Loop(void)
 		emu_SaveLoadGame(0, 1);
 		SRam.changed = 0;
 	}
-}
-
-
-void emu_ResetGame(void)
-{
-	PicoReset();
-	reset_timing = 1;
 }
 

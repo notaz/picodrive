@@ -4,26 +4,23 @@ extern "C" {
 
 /* stuff to be implemented by platform code */
 extern char cpu_clk_name[];
-/* TODO rename all these */
-extern const char * const keyNames[]; // TODO rm
-void  emu_prepareDefaultConfig(void);
-void  emu_platformDebugCat(char *str);
-void  emu_forcedFrame(int opts);
-void  emu_startSound(void);
-void  emu_endSound(void);
-void  emu_waitSound(void);
-void  emu_ResetGame(void); // TODO mv rm?
-void  emu_Init(void);
-void  emu_Deinit(void);
-void  emu_Loop(void);
 
-int  emu_getMainDir(char *dst, int len);
+void pemu_prep_defconfig(void);
+void pemu_loop(void);
+void pemu_forced_frame(int opts);
+void pemu_sound_start(void);
+void pemu_sound_stop(void);
+void pemu_sound_wait(void);
+
 void menu_romload_prepare(const char *rom_name);
 void menu_romload_end(void);
 
 void plat_early_init(void);
 void plat_init(void);
 void plat_finish(void);
+
+/* return the dir/ where configs, saves, bios, etc. are found */
+int  plat_get_root_dir(char *dst, int len);
 
 /* to be used while emulation is starting or running */
 void plat_status_msg(const char *format, ...);
@@ -49,6 +46,7 @@ void plat_sleep_ms(int ms);
 unsigned int  plat_get_ticks_ms(void);
 
 const char   *plat_get_credits(void);
+void plat_debug_cat(char *str);
 
 #ifdef __cplusplus
 } // extern "C"

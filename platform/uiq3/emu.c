@@ -13,7 +13,7 @@ const char * const keyNames[] = {
 	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 };
 
-int emu_getMainDir(char *dst, int len)
+int plat_get_root_dir(char *dst, int len)
 {
 	strcpy(dst, "D:\\other\\PicoDrive\\");
 	return strlen(dst);

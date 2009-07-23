@@ -46,7 +46,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
 				engineState = PGS_Running;
 
 			case PGS_Running:
-				emu_Loop();
+				pemu_loop();
 				break;
 
 			case PGS_Quit:

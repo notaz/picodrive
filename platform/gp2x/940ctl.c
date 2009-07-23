@@ -21,7 +21,6 @@
 #include "../../pico/sound/ym2612.h"
 #include "../../pico/sound/mix.h"
 
-extern int reset_timing;
 static unsigned char *shared_mem = 0;
 static _940_data_t *shared_data = 0;
 _940_ctl_t *shared_ctl = 0;

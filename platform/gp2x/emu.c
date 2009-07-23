@@ -6,8 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <stdarg.h>
 
 #include "plat_gp2x.h"
@@ -42,14 +40,8 @@ static struct timeval noticeMsgTime = { 0, 0 };	// when started showing
 static int osd_fps_x;
 static int gp2x_old_gamma = 100;
 static char noticeMsg[40];
-unsigned char *PicoDraw2FB = NULL;  // temporary buffer for alt renderer
-int reset_timing = 0;
-
-#define PICO_PEN_ADJUST_X 4
-#define PICO_PEN_ADJUST_Y 2
-static int pico_pen_x = 320/2, pico_pen_y = 240/2;
-
-static void emu_msg_tray_open(void);
+static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
+unsigned char *PicoDraw2FB = PicoDraw2FB_;
 
 
 void plat_status_msg(const char *format, ...)
@@ -63,7 +55,7 @@ void plat_status_msg(const char *format, ...)
 	gettimeofday(&noticeMsgTime, 0);
 }
 
-int emu_getMainDir(char *dst, int len)
+int plat_get_root_dir(char *dst, int len)
 {
 	extern char **g_argv;
 	int j;
@@ -76,27 +68,6 @@ int emu_getMainDir(char *dst, int len)
 		if (dst[j] == '/') { dst[j+1] = 0; break; }
 
 	return j + 1;
-}
-
-void emu_Init(void)
-{
-	// make temp buffer for alt renderer
-	PicoDraw2FB = malloc((8+320)*(8+240+8));
-	if (!PicoDraw2FB)
-	{
-		printf("PicoDraw2FB == 0\n");
-	}
-
-	// make dirs for saves, cfgs, etc.
-	mkdir("mds", 0777);
-	mkdir("srm", 0777);
-	mkdir("brm", 0777);
-	mkdir("cfg", 0777);
-
-	PicoInit();
-	PicoMessage = plat_status_msg_busy_next;
-	PicoMCDopenTray = emu_msg_tray_open;
-	PicoMCDcloseTray = menu_loop_tray;
 }
 
 
@@ -116,27 +87,7 @@ static void scaling_update(void)
 }
 
 
-void emu_Deinit(void)
-{
-	// save SRAM
-	if((currentConfig.EmuOpt & 1) && SRam.changed) {
-		emu_SaveLoadGame(0, 1);
-		SRam.changed = 0;
-	}
-
-	if (!(currentConfig.EmuOpt & EOPT_NO_AUTOSVCFG))
-		emu_writelrom();
-
-	free(PicoDraw2FB);
-
-	PicoExit();
-
-	// restore gamma
-	if (gp2x_old_gamma != 100)
-		set_lcd_gamma(100, 0);
-}
-
-void emu_prepareDefaultConfig(void)
+void pemu_prep_defconfig(void)
 {
 	gp2x_soc_t soc;
 
@@ -411,19 +362,11 @@ void plat_video_toggle_renderer(void)
 	}
 }
 
-static void emu_msg_tray_open(void)
-{
-	plat_status_msg("CD tray opened");
-}
-
+#if 0 // TODO
 static void RunEventsPico(unsigned int events)
 {
 	int ret, px, py, lim_x;
 	static int pdown_frames = 0;
-
-	emu_RunEventsPico(events);
-
-	if (pico_inp_mode == 0) return;
 
 	// for F200
 	ret = gp2x_touchpad_read(&px, &py);
@@ -449,24 +392,8 @@ static void RunEventsPico(unsigned int events)
 		//if (ret == 0)
 		//	PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
 	}
-
-	if (PicoPad[0] & 1) pico_pen_y--;
-	if (PicoPad[0] & 2) pico_pen_y++;
-	if (PicoPad[0] & 4) pico_pen_x--;
-	if (PicoPad[0] & 8) pico_pen_x++;
-	PicoPad[0] &= ~0x0f; // release UDLR
-
-	lim_x = (Pico.video.reg[12]&1) ? 319 : 255;
-	if (pico_pen_y < 8) pico_pen_y = 8;
-	if (pico_pen_y > 224-PICO_PEN_ADJUST_Y) pico_pen_y = 224-PICO_PEN_ADJUST_Y;
-	if (pico_pen_x < 0) pico_pen_x = 0;
-	if (pico_pen_x > lim_x-PICO_PEN_ADJUST_X) pico_pen_x = lim_x-PICO_PEN_ADJUST_X;
-
-	PicoPicohw.pen_pos[0] = pico_pen_x;
-	if (!(Pico.video.reg[12]&1)) PicoPicohw.pen_pos[0] += pico_pen_x/4;
-	PicoPicohw.pen_pos[0] += 0x3c;
-	PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
 }
+#endif
 
 void plat_update_volume(int has_changed, int is_up)
 {
@@ -519,7 +446,7 @@ static void updateSound(int len)
 		sndout_oss_write(PsndOut, len<<1);
 }
 
-void emu_startSound(void)
+void pemu_sound_start(void)
 {
 	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 	int target_fps = Pico.m.pal ? 50 : 60;
@@ -549,12 +476,11 @@ void emu_startSound(void)
 	}
 }
 
-void emu_endSound(void)
+void pemu_sound_stop(void)
 {
 }
 
-/* wait until we can write more sound */
-void emu_waitSound(void)
+void pemu_sound_wait(void)
 {
 	// don't need to do anything, writes will block by themselves
 }
@@ -568,16 +494,15 @@ static void SkipFrame(int do_audio)
 }
 
 
-void emu_forcedFrame(int opts)
+void pemu_forced_frame(int opts)
 {
 	int po_old = PicoOpt;
 	int eo_old = currentConfig.EmuOpt;
 
-	PicoOpt &= ~0x10;
-	PicoOpt |= opts|POPT_ACC_SPRITES; // acc_sprites
-	currentConfig.EmuOpt |= 0x80;
+	PicoOpt &= ~POPT_ALT_RENDERER;
+	PicoOpt |= opts|POPT_ACC_SPRITES;
+	currentConfig.EmuOpt |= EOPT_16BPP;
 
-	//vidResetMode();
 	PicoDrawSetColorFormat(1);
 	PicoScanBegin = EmuScanBegin16;
 	Pico.m.dirtyPal = 1;
@@ -597,9 +522,8 @@ void emu_forcedFrame(int opts)
 	currentConfig.EmuOpt = eo_old;
 }
 
-void emu_platformDebugCat(char *str)
+void plat_debug_cat(char *str)
 {
-	// nothing
 }
 
 static void simpleWait(int thissec, int lim_time)
@@ -668,7 +592,7 @@ static void tga_dump(void)
 #endif
 
 
-void emu_Loop(void)
+void pemu_loop(void)
 {
 	static int gp2x_old_clock = -1, EmuOpt_old = 0;
 	char fpsbuff[24]; // fps count c string
@@ -726,7 +650,7 @@ void emu_Loop(void)
 	target_frametime = 1000000/target_fps;
 	reset_timing = 1;
 
-	emu_startSound();
+	pemu_sound_start();
 
 	// prepare CD buffer
 	if (PicoAHW & PAHW_MCD) PicoCDBufferInit();
@@ -920,14 +844,7 @@ void emu_Loop(void)
 
 	// if in 8bit mode, generate 16bit image for menu background
 	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP))
-		emu_forcedFrame(POPT_EN_SOFTSCALE);
-}
-
-
-void emu_ResetGame(void)
-{
-	PicoReset();
-	reset_timing = 1;
+		pemu_forced_frame(POPT_EN_SOFTSCALE);
 }
 
 const char *plat_get_credits(void)

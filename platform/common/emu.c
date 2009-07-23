@@ -16,6 +16,7 @@
 #include "config.h"
 #include "plat.h"
 #include "input.h"
+#include "posix.h"
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
@@ -34,6 +35,7 @@ char *PicoConfigFile = "config.cfg";
 currentConfig_t currentConfig, defaultConfig;
 int state_slot = 0;
 int config_slot = 0, config_slot_current = 0;
+int pico_pen_x = 320/2, pico_pen_y = 240/2;
 int pico_inp_mode = 0;
 int engineState = PGS_Menu;
 
@@ -41,6 +43,7 @@ int engineState = PGS_Menu;
 char rom_fname_reload[512] = { 0, };
 char rom_fname_loaded[512] = { 0, };
 int rom_loaded = 0;
+int reset_timing = 0;
 
 unsigned char *movie_data = NULL;
 static int movie_size = 0;
@@ -109,7 +112,7 @@ int emu_findBios(int region, char **bios_file)
 
 	for (i = 0; i < count; i++)
 	{
-		emu_getMainDir(bios_path, sizeof(bios_path));
+		plat_get_root_dir(bios_path, sizeof(bios_path));
 		strcat(bios_path, files[i]);
 		strcat(bios_path, ".bin");
 		f = fopen(bios_path, "rb");
@@ -519,7 +522,7 @@ static void romfname_ext(char *dst, const char *prefix, const char *ext)
 	for (; p >= rom_fname_loaded && *p != PATH_SEP_C; p--); p++;
 	*dst = 0;
 	if (prefix) {
-		int len = emu_getMainDir(dst, 512);
+		int len = plat_get_root_dir(dst, 512);
 		strcpy(dst + len, prefix);
 		prefix_len = len + strlen(prefix);
 	}
@@ -536,7 +539,7 @@ static void romfname_ext(char *dst, const char *prefix, const char *ext)
 static void make_config_cfg(char *cfg)
 {
 	int len;
-	len = emu_getMainDir(cfg, 512);
+	len = plat_get_root_dir(cfg, 512);
 	strncpy(cfg + len, PicoConfigFile, 512-6-1-len);
 	if (config_slot != 0)
 	{
@@ -957,9 +960,22 @@ void emu_changeFastForward(int set_on)
 	}
 }
 
-void emu_RunEventsPico(unsigned int events)
+static void emu_msg_tray_open(void)
 {
-	if (events & (1 << 3)) {
+	plat_status_msg("CD tray opened");
+}
+
+void emu_reset_game(void)
+{
+	PicoReset();
+	reset_timing = 1;
+}
+
+void run_events_pico(unsigned int events)
+{
+	int lim_x;
+
+	if (events & PEV_PICO_SWINP) {
 		pico_inp_mode++;
 		if (pico_inp_mode > 2)
 			pico_inp_mode = 0;
@@ -971,18 +987,44 @@ void emu_RunEventsPico(unsigned int events)
 				break;
 		}
 	}
-	if (events & (1 << 4)) {
+	if (events & PEV_PICO_PPREV) {
 		PicoPicohw.page--;
 		if (PicoPicohw.page < 0)
 			PicoPicohw.page = 0;
 		plat_status_msg("Page %i", PicoPicohw.page);
 	}
-	if (events & (1 << 5)) {
+	if (events & PEV_PICO_PNEXT) {
 		PicoPicohw.page++;
 		if (PicoPicohw.page > 6)
 			PicoPicohw.page = 6;
 		plat_status_msg("Page %i", PicoPicohw.page);
 	}
+
+	if (pico_inp_mode == 0)
+		return;
+
+	/* handle other input modes */
+	if (PicoPad[0] & 1) pico_pen_y--;
+	if (PicoPad[0] & 2) pico_pen_y++;
+	if (PicoPad[0] & 4) pico_pen_x--;
+	if (PicoPad[0] & 8) pico_pen_x++;
+	PicoPad[0] &= ~0x0f; // release UDLR
+
+	lim_x = (Pico.video.reg[12]&1) ? 319 : 255;
+	if (pico_pen_y < 8)
+		pico_pen_y = 8;
+	if (pico_pen_y > 224 - PICO_PEN_ADJUST_Y)
+		pico_pen_y = 224 - PICO_PEN_ADJUST_Y;
+	if (pico_pen_x < 0)
+		pico_pen_x = 0;
+	if (pico_pen_x > lim_x - PICO_PEN_ADJUST_X)
+		pico_pen_x = lim_x - PICO_PEN_ADJUST_X;
+
+	PicoPicohw.pen_pos[0] = pico_pen_x;
+	if (!(Pico.video.reg[12] & 1))
+		PicoPicohw.pen_pos[0] += pico_pen_x / 4;
+	PicoPicohw.pen_pos[0] += 0x3c;
+	PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
 }
 
 static void do_turbo(int *pad, int acts)
@@ -1009,7 +1051,7 @@ static void do_turbo(int *pad, int acts)
 	*pad |= turbo_pad & (acts >> 8);
 }
 
-static void run_ui_events(unsigned int which)
+static void run_events_ui(unsigned int which)
 {
 	if (which & (PEV_STATE_LOAD|PEV_STATE_SAVE))
 	{
@@ -1096,18 +1138,58 @@ void emu_update_input(void)
 	if ((events ^ prevEvents) & PEV_FF) {
 		emu_changeFastForward(events & PEV_FF);
 		plat_update_volume(0, 0);
-//		reset_timing = 1;
+		reset_timing = 1;
 	}
 
 	events &= ~prevEvents;
 
-// TODO	if (PicoAHW == PAHW_PICO)
-//		RunEventsPico(events);
+	if (PicoAHW == PAHW_PICO)
+		run_events_pico(events);
 	if (events)
-		run_ui_events(events);
+		run_events_ui(events);
 	if (movie_data)
 		update_movie();
 
 	prevEvents = (allActions[0] | allActions[1]) & PEV_MASK;
+}
+
+static void mkdir_path(char *path_with_reserve, int pos, const char *name)
+{
+	strcpy(path_with_reserve + pos, name);
+	if (plat_is_dir(path_with_reserve))
+		return;
+	if (mkdir(path_with_reserve, 0777) < 0)
+		lprintf("failed to create: %s\n", path_with_reserve);
+}
+
+void emu_init(void)
+{
+	char dir[256];
+	int pos;
+
+	/* make dirs for saves */
+	pos = plat_get_root_dir(dir, sizeof(dir) - 4);
+	mkdir_path(dir, pos, "mds");
+	mkdir_path(dir, pos, "srm");
+	mkdir_path(dir, pos, "brm");
+
+	PicoInit();
+	PicoMessage = plat_status_msg_busy_next;
+	PicoMCDopenTray = emu_msg_tray_open;
+	PicoMCDcloseTray = menu_loop_tray;
+}
+
+void emu_finish(void)
+{
+	// save SRAM
+	if ((currentConfig.EmuOpt & EOPT_USE_SRAM) && SRam.changed) {
+		emu_SaveLoadGame(0, 1);
+		SRam.changed = 0;
+	}
+
+	if (!(currentConfig.EmuOpt & EOPT_NO_AUTOSVCFG))
+		emu_writelrom();
+
+	PicoExit();
 }
 

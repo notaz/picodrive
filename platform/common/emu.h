@@ -71,6 +71,11 @@ extern int rom_loaded;
 extern int state_slot;
 extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;
+extern int reset_timing;
+
+#define PICO_PEN_ADJUST_X 4
+#define PICO_PEN_ADJUST_Y 2
+extern int pico_pen_x, pico_pen_y;
 extern int pico_inp_mode;
 
 extern char rom_fname_reload[512];		// ROM to try loading on next PGS_ReloadRom
@@ -91,8 +96,12 @@ enum TPicoGameState {
 };
 
 
+void  emu_init(void);
+void  emu_finish(void);
+
 int   emu_ReloadRom(char *rom_fname);
 int   emu_SaveLoadGame(int load, int sram);
+void  emu_reset_game(void);
 
 int   emu_ReadConfig(int game, int no_defaults);
 int   emu_WriteConfig(int game);

@@ -90,7 +90,7 @@ int pico_main(void)
 					emu_HandleResume();
 					break;
 				}
-				emu_Loop();
+				pemu_loop();
 #ifdef GPROF
 				goto endloop;
 #endif
