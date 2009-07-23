@@ -36,50 +36,9 @@ static const char * const in_gp2x_keys[IN_GP2X_NBUTTONS] = {
 	[BTN_PUSH] = "PUSH"
 };
 
-static int in_gp2x_get_mmsp2_bits(void);
-static int in_gp2x_get_wiz_bits(void);
-
-static void in_gp2x_probe(void)
-{
-	gp2x_soc_t soc;
-
-	soc = soc_detect();
-	switch (soc)
-	{
-	case SOCID_MMSP2:
-		in_gp2x_get_bits = in_gp2x_get_mmsp2_bits;
-		break;
-	case SOCID_POLLUX:
-		gpiodev = open("/dev/GPIO", O_RDONLY);
-		if (gpiodev < 0) {
-			perror("in_gp2x: couldn't open /dev/GPIO");
-			return;
-		}
-		in_gp2x_get_bits = in_gp2x_get_wiz_bits;
-		break;
-	default:
-		return;
-	}
-
-	in_register(IN_PREFIX "GP2X pad", IN_DRVID_GP2X, -1, (void *)1, 1);
-}
-
-static void in_gp2x_free(void *drv_data)
-{
-	if (gpiodev >= 0) {
-		close(gpiodev);
-		gpiodev = -1;
-	}
-}
-
-static int in_gp2x_get_bind_count(void)
-{
-	return IN_GP2X_NBUTTONS;
-}
 
 static int in_gp2x_get_mmsp2_bits(void)
 {
-#ifndef FAKE_IN_GP2X
 	extern volatile unsigned short *gp2x_memregs;
 	int value;
 	value = gp2x_memregs[0x1198>>1] & 0xff; // GPIO M
@@ -92,10 +51,6 @@ static int in_gp2x_get_mmsp2_bits(void)
 	value = ~value & 0x08c0ff55;
 
 	return value;
-#else
-	extern int current_keys;
-	return current_keys;
-#endif
 }
 
 static int in_gp2x_get_wiz_bits(void)
@@ -122,6 +77,56 @@ static int in_gp2x_get_wiz_bits(void)
 	value &= ~0x70000;
 
 	return value;
+}
+
+#ifdef FAKE_IN_GP2X
+static int in_gp2x_get_fake_bits(void)
+{
+	extern int current_keys;
+	return current_keys;
+}
+#endif
+
+static void in_gp2x_probe(void)
+{
+	gp2x_soc_t soc;
+
+	soc = soc_detect();
+	switch (soc)
+	{
+	case SOCID_MMSP2:
+		in_gp2x_get_bits = in_gp2x_get_mmsp2_bits;
+		break;
+	case SOCID_POLLUX:
+		gpiodev = open("/dev/GPIO", O_RDONLY);
+		if (gpiodev < 0) {
+			perror("in_gp2x: couldn't open /dev/GPIO");
+			return;
+		}
+		in_gp2x_get_bits = in_gp2x_get_wiz_bits;
+		break;
+	default:
+#ifdef FAKE_IN_GP2X
+		in_gp2x_get_bits = in_gp2x_get_fake_bits;
+		break;
+#endif
+		return;
+	}
+
+	in_register(IN_PREFIX "GP2X pad", IN_DRVID_GP2X, -1, (void *)1, 1);
+}
+
+static void in_gp2x_free(void *drv_data)
+{
+	if (gpiodev >= 0) {
+		close(gpiodev);
+		gpiodev = -1;
+	}
+}
+
+static int in_gp2x_get_bind_count(void)
+{
+	return IN_GP2X_NBUTTONS;
 }
 
 /* returns bitfield of binds of pressed buttons */

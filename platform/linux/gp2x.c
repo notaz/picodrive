@@ -30,6 +30,7 @@ static int scr_changed = 0, scr_w = SCREEN_WIDTH, scr_h = SCREEN_HEIGHT;
 int mix_32_to_16l_level;
 int crashed_940 = 0;
 int default_cpu_clock = 123;
+void *gp2x_memregs = NULL;
 
 /* gtk */
 struct gtk_global_struct
