@@ -1151,6 +1151,7 @@ static int count_bound_keys(int dev_id, int action_mask, int bindtype)
 static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_idx,
 		int sel, int dev_id, int dev_count, int is_bind)
 {
+	char buff[64], buff2[32];
 	const char *dev_name;
 	int x, y, w, i;
 
@@ -1182,15 +1183,19 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 
 	x = g_screen_width / 2 - w / 2;
 
-	if (dev_count > 1) {
-		text_out16(x, g_screen_height - 4 * me_mfont_h, "Viewing binds for:");
-		text_out16(x, g_screen_height - 3 * me_mfont_h, dev_name);
+	if (!is_bind) {
+		snprintf(buff2, sizeof(buff2), "%s", in_get_key_name(-1, -PBTN_MOK));
+		snprintf(buff, sizeof(buff), "%s - bind, %s - clear", buff2,
+				in_get_key_name(-1, -PBTN_MA2));
+		text_out16(x, g_screen_height - 4 * me_mfont_h, buff);
 	}
+	else
+		text_out16(x, g_screen_height - 4 * me_mfont_h, "Press a button to bind/unbind");
 
-	if (is_bind)
-		text_out16(x, g_screen_height - 2 * me_mfont_h, "Press a button to bind/unbind");
-	else if (dev_count > 1)
+	if (dev_count > 1) {
+		text_out16(x, g_screen_height - 3 * me_mfont_h, dev_name);
 		text_out16(x, g_screen_height - 2 * me_mfont_h, "Press left/right for other devs");
+	}
 
 	plat_video_menu_end();
 }
@@ -1199,7 +1204,7 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 {
 	int i, sel = 0, menu_sel_max = opt_cnt - 1;
 	int dev_id, dev_count, kc, is_down, mkey;
-	int unbind, bindtype, mask;
+	int unbind, bindtype, mask_shift;
 
 	for (i = 0, dev_id = -1, dev_count = 0; i < IN_MAX_DEVS; i++) {
 		if (in_get_dev_name(i, 1, 0) != NULL) {
@@ -1214,10 +1219,15 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 		return;
 	}
 
+	mask_shift = 0;
+	if (player_idx == 1)
+		mask_shift = 16;
+	bindtype = player_idx >= 0 ? IN_BINDTYPE_PLAYER12 : IN_BINDTYPE_EMU;
+
 	for (;;)
 	{
 		draw_key_config(opts, opt_cnt, player_idx, sel, dev_id, dev_count, 0);
-		mkey = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_MBACK|PBTN_MOK, 100);
+		mkey = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_MBACK|PBTN_MOK|PBTN_MA2, 100);
 		switch (mkey) {
 			case PBTN_UP:   sel--; if (sel < 0) sel = menu_sel_max; continue;
 			case PBTN_DOWN: sel++; if (sel > menu_sel_max) sel = 0; continue;
@@ -1243,6 +1253,9 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 					return;
 				while (in_menu_wait_any(30) & PBTN_MOK);
 				break;
+			case PBTN_MA2:
+				in_unbind_all(dev_id, opts[sel].mask << mask_shift, bindtype);
+				continue;
 			default:continue;
 		}
 
@@ -1252,12 +1265,7 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 		for (is_down = 1; is_down; )
 			kc = in_update_keycode(&dev_id, &is_down, -1);
 
-		bindtype = player_idx >= 0 ? IN_BINDTYPE_PLAYER12 : IN_BINDTYPE_EMU;
-		mask = opts[sel].mask;
-		if (player_idx == 1)
-			mask <<= 16;
-
-		i = count_bound_keys(dev_id, mask, bindtype);
+		i = count_bound_keys(dev_id, opts[sel].mask << mask_shift, bindtype);
 		unbind = (i > 0);
 
 		/* allow combos if device supports them */
@@ -1265,7 +1273,7 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 				in_get_dev_info(dev_id, IN_INFO_DOES_COMBOS))
 			unbind = 0;
 
-		in_bind_key(dev_id, kc, bindtype, mask, unbind);
+		in_bind_key(dev_id, kc, opts[sel].mask << mask_shift, bindtype, unbind);
 	}
 }
 
@@ -1369,6 +1377,8 @@ static menu_entry e_menu_keyconfig[] =
 static int menu_loop_keyconfig(menu_id id, int keys)
 {
 	static int sel = 0;
+
+	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, rom_loaded);
 	me_loop(e_menu_keyconfig, &sel);
 	return 0;
 }

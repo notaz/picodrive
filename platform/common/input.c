@@ -530,7 +530,7 @@ const char *in_get_key_name(int dev_id, int keycode)
 	return xname;
 }
 
-int in_bind_key(int dev_id, int keycode, int bind_type, int mask, int force_unbind)
+int in_bind_key(int dev_id, int keycode, int mask, int bind_type, int force_unbind)
 {
 	int ret, count;
 	in_dev_t *dev;
@@ -565,6 +565,24 @@ int in_bind_key(int dev_id, int keycode, int bind_type, int mask, int force_unbi
 	}
 
 	return 0;
+}
+
+void in_unbind_all(int dev_id, int act_mask, int bind_type)
+{
+	int i, count;
+	in_dev_t *dev;
+
+	if (dev_id < 0 || dev_id >= IN_MAX_DEVS || bind_type >= IN_BINDTYPE_COUNT)
+		return;
+
+	dev = &in_devices[dev_id];
+	count = dev->key_count;
+
+	if (dev->binds == NULL)
+		return;
+
+	for (i = 0; i < count; i++)
+		dev->binds[IN_BIND_OFFS(i, bind_type)] &= ~act_mask;
 }
 
 /* returns device id, or -1 on error */

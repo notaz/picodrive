@@ -101,7 +101,8 @@ void in_config_start(void);
 int  in_config_parse_dev(const char *dev_name);
 int  in_config_bind_key(int dev_id, const char *key, int binds, int bind_type);
 void in_config_end(void);
-int  in_bind_key(int dev_id, int keycode, int bind_type, int mask, int force_unbind);
+int  in_bind_key(int dev_id, int keycode, int mask, int bind_type, int force_unbind);
+void in_unbind_all(int dev_id, int act_mask, int bind_type);
 void in_debug_dump(void);
 
 const int  *in_get_dev_binds(int dev_id);
