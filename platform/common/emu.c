@@ -112,8 +112,7 @@ static int find_bios(int region, char **bios_file)
 
 	for (i = 0; i < count; i++)
 	{
-		plat_get_root_dir(bios_path, sizeof(bios_path));
-		strcat(bios_path, files[i]);
+		emu_make_path(bios_path, files[i], sizeof(bios_path) - 4);
 		strcat(bios_path, ".bin");
 		f = fopen(bios_path, "rb");
 		if (f) break;
@@ -533,18 +532,29 @@ static void romfname_ext(char *dst, const char *prefix, const char *ext)
 	if (ext) strcat(dst, ext);
 }
 
-static void make_config_cfg(char *cfg)
+void emu_make_path(char *buff, const char *end, int size)
 {
-	int len;
-	len = plat_get_root_dir(cfg, 512);
-	strncpy(cfg + len, PicoConfigFile, 512-6-1-len);
+	int pos, end_len;
+
+	end_len = strlen(end);
+	pos = plat_get_root_dir(buff, size);
+	strncpy(buff + pos, end, size - pos);
+	buff[size - 1] = 0;
+	if (pos + end_len > size - 1)
+		lprintf("Warning: path truncated: %s\n", buff);
+}
+
+static void make_config_cfg(char *cfg_buff_512)
+{
+	emu_make_path(cfg_buff_512, PicoConfigFile, 512-6);
 	if (config_slot != 0)
 	{
-		char *p = strrchr(cfg, '.');
-		if (p == NULL) p = cfg + strlen(cfg);
+		char *p = strrchr(cfg_buff_512, '.');
+		if (p == NULL)
+			p = cfg_buff_512 + strlen(cfg_buff_512);
 		sprintf(p, ".%i.cfg", config_slot);
 	}
-	cfg[511] = 0;
+	cfg_buff_512[511] = 0;
 }
 
 static void emu_setDefaultConfig(void)
@@ -649,16 +659,6 @@ int emu_write_config(int is_game)
 	return ret == 0;
 }
 
-
-void emu_writelrom(void)
-{
-	char cfg[512];
-	make_config_cfg(cfg);
-	config_writelrom(cfg);
-#ifndef NO_SYNC
-	sync();
-#endif
-}
 
 /* always using built-in font */
 
@@ -1152,14 +1152,17 @@ static void mkdir_path(char *path_with_reserve, int pos, const char *name)
 
 void emu_init(void)
 {
-	char dir[256];
+	char path[512];
 	int pos;
 
 	/* make dirs for saves */
-	pos = plat_get_root_dir(dir, sizeof(dir) - 4);
-	mkdir_path(dir, pos, "mds");
-	mkdir_path(dir, pos, "srm");
-	mkdir_path(dir, pos, "brm");
+	pos = plat_get_root_dir(path, sizeof(path) - 4);
+	mkdir_path(path, pos, "mds");
+	mkdir_path(path, pos, "srm");
+	mkdir_path(path, pos, "brm");
+
+	make_config_cfg(path);
+	config_readlrom(path);
 
 	PicoInit();
 	PicoMessage = plat_status_msg_busy_next;
@@ -1175,8 +1178,14 @@ void emu_finish(void)
 		SRam.changed = 0;
 	}
 
-	if (!(currentConfig.EmuOpt & EOPT_NO_AUTOSVCFG))
-		emu_writelrom();
+	if (!(currentConfig.EmuOpt & EOPT_NO_AUTOSVCFG)) {
+		char cfg[512];
+		make_config_cfg(cfg);
+		config_writelrom(cfg);
+#ifndef NO_SYNC
+		sync();
+#endif
+	}
 
 	PicoExit();
 }

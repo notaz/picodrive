@@ -8,7 +8,7 @@
 
 #include "../../pico_int.h"
 #include "compiler.h"
-#ifdef __linux__
+#if defined(__linux__) && defined(ARM)
 #include <sys/mman.h>
 #endif
 
@@ -100,7 +100,7 @@ static int PicoSVPDma(unsigned int source, int len, unsigned short **srcp, unsig
 
 void PicoSVPInit(void)
 {
-#ifdef __linux__
+#if defined(__linux__) && defined(ARM)
 	int ret;
 	ret = munmap(tcache, SSP_DRC_SIZE);
 	printf("munmap tcache: %i\n", ret);
@@ -110,7 +110,7 @@ void PicoSVPInit(void)
 
 static void PicoSVPShutdown(void)
 {
-#ifdef __linux__
+#if defined(__linux__) && defined(ARM)
 	// also unmap tcache
 	PicoSVPInit();
 #endif
@@ -135,7 +135,7 @@ void PicoSVPStartup(void)
 	svp = (void *) ((char *)tmp + 0x200000);
 	memset(svp, 0, sizeof(*svp));
 
-#ifdef __linux__
+#if defined(__linux__) && defined(ARM)
 	tmp = mmap(tcache, SSP_DRC_SIZE, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
 	printf("mmap tcache: %p, asked %p\n", tmp, tcache);
 #endif

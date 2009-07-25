@@ -262,14 +262,17 @@ void menu_init(void)
 	}
 
 	// load custom font and selector (stored as 1st symbol in font table)
-	readpng(menu_font_data, "skin/font.png", READPNG_FONT);
+	emu_make_path(buff, "skin/font.png", sizeof(buff));
+	readpng(menu_font_data, buff, READPNG_FONT);
 	// default selector symbol is '>'
 	memcpy(menu_font_data, menu_font_data + ((int)'>') * me_mfont_w * me_mfont_h / 2,
 		me_mfont_w * me_mfont_h / 2);
-	readpng(menu_font_data, "skin/selector.png", READPNG_SELECTOR);
+	emu_make_path(buff, "skin/selector.png", sizeof(buff));
+	readpng(menu_font_data, buff, READPNG_SELECTOR);
 
 	// load custom colors
-	f = fopen("skin/skin.txt", "r");
+	emu_make_path(buff, "skin/skin.txt", sizeof(buff));
+	f = fopen(buff, "r");
 	if (f != NULL)
 	{
 		lprintf("found skin.txt\n");

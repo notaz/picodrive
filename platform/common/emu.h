@@ -105,12 +105,12 @@ void  emu_reset_game(void);
 
 int   emu_read_config(int game, int no_defaults);
 int   emu_write_config(int game);
-void  emu_writelrom(void);
 
 char *emu_get_save_fname(int load, int is_sram, int slot);
 int   emu_check_save_file(int slot);
 void  emu_setSaveStateCbs(int gz);
 
+void  emu_make_path(char *buff, const char *end, int size);
 void  emu_update_input(void);
 void  emu_textOut8 (int x, int y, const char *text);
 void  emu_textOut16(int x, int y, const char *text);

@@ -295,15 +295,10 @@ void YM2612Init_940(int baseclock, int rate)
 	{
 		unsigned char ucData[1024];
 		int nRead, i, nLen = 0;
-		char binpath[1024];
+		char binpath[512];
 		FILE *fp;
 
-		strncpy(binpath, g_argv[0], 1023);
-		binpath[1023] = 0;
-		for (i = strlen(binpath); i > 0; i--)
-			if (binpath[i] == '/') { binpath[i] = 0; break; }
-		strcat(binpath, "/" CODE940_FILE);
-
+		emu_make_path(binpath, CODE940_FILE, sizeof(binpath));
 		fp = fopen(binpath, "rb");
 		if(!fp)
 		{

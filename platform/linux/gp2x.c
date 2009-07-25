@@ -318,8 +318,12 @@ void plat_video_menu_enter(int is_rom_loaded)
 	}
 	else
 	{
+		char buff[256];
+
 		// should really only happen once, on startup..
-		readpng(g_screen_ptr, "skin/background.png", READPNG_BG);
+		emu_make_path(buff, "skin/background.png", sizeof(buff));
+		if (readpng(g_screen_ptr, buff, READPNG_BG) < 0)
+			memset(g_screen_ptr, 0, 320*240*2);
 	}
 
 	memcpy(menu_bg_buffer, g_screen_ptr, 320*240*2);
