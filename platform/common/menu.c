@@ -328,7 +328,7 @@ static void me_draw(const menu_entry *entries, int sel)
 {
 	const menu_entry *ent;
 	int x, y, w = 0, h = 0;
-	int offs, opt_offs = 27 * me_mfont_w;
+	int offs, col2_offs = 27 * me_mfont_w;
 	const char *name;
 	int asel = 0;
 	int i, n;
@@ -353,9 +353,9 @@ static void me_draw(const menu_entry *entries, int sel)
 
 		if (ent->beh != MB_NONE)
 		{
-			if (wt > opt_offs)
-				opt_offs = wt + me_mfont_w;
-			wt = opt_offs;
+			if (wt > col2_offs)
+				col2_offs = wt + me_mfont_w;
+			wt = col2_offs;
 
 			switch (ent->beh) {
 			case MB_NONE: break;
@@ -415,10 +415,10 @@ static void me_draw(const menu_entry *entries, int sel)
 		case MB_NONE:
 			break;
 		case MB_OPT_ONOFF:
-			text_out16(x + opt_offs, y, (*(int *)ent->var & ent->mask) ? "ON" : "OFF");
+			text_out16(x + col2_offs, y, (*(int *)ent->var & ent->mask) ? "ON" : "OFF");
 			break;
 		case MB_OPT_RANGE:
-			text_out16(x + opt_offs, y, "%i", *(int *)ent->var);
+			text_out16(x + col2_offs, y, "%i", *(int *)ent->var);
 			break;
 		case MB_OPT_CUSTOM:
 		case MB_OPT_CUSTONOFF:
@@ -428,7 +428,7 @@ static void me_draw(const menu_entry *entries, int sel)
 			if (ent->generate_name)
 				name = ent->generate_name(ent->id, &offs);
 			if (name != NULL)
-				text_out16(x + opt_offs + offs * me_mfont_w, y, "%s", name);
+				text_out16(x + col2_offs + offs * me_mfont_w, y, "%s", name);
 			break;
 		}
 
@@ -1084,8 +1084,8 @@ static int menu_loop_savestate(int is_loading)
 
 static char *action_binds(int player_idx, int action_mask, int dev_id)
 {
+	int k, count, can_combo, type;
 	const int *binds;
-	int k, count;
 
 	static_buff[0] = 0;
 
@@ -1094,21 +1094,30 @@ static char *action_binds(int player_idx, int action_mask, int dev_id)
 		return static_buff;
 
 	count = in_get_dev_info(dev_id, IN_INFO_BIND_COUNT);
+	can_combo = in_get_dev_info(dev_id, IN_INFO_DOES_COMBOS);
+
+	type = IN_BINDTYPE_EMU;
+	if (player_idx >= 0) {
+		can_combo = 0;
+		type = IN_BINDTYPE_PLAYER12;
+	}
+	if (player_idx == 1)
+		action_mask <<= 16;
+
 	for (k = 0; k < count; k++)
 	{
 		const char *xname;
 		int len;
-		if (!(binds[k] & action_mask))
-			continue;
 
-		if (player_idx >= 0 && ((binds[k] >> 16) & 3) != player_idx)
+		if (!(binds[IN_BIND_OFFS(k, type)] & action_mask))
 			continue;
 
 		xname = in_get_key_name(dev_id, k);
 		len = strlen(static_buff);
 		if (len) {
-			strncat(static_buff, " + ", sizeof(static_buff) - len - 1);
-			len += 3;
+			strncat(static_buff, can_combo ? " + " : ", ",
+				sizeof(static_buff) - len - 1);
+			len += can_combo ? 3 : 2;
 		}
 		strncat(static_buff, xname, sizeof(static_buff) - len - 1);
 	}
@@ -1116,7 +1125,7 @@ static char *action_binds(int player_idx, int action_mask, int dev_id)
 	return static_buff;
 }
 
-static int count_bound_keys(int dev_id, int action_mask, int player_idx)
+static int count_bound_keys(int dev_id, int action_mask, int bindtype)
 {
 	const int *binds;
 	int k, keys = 0;
@@ -1129,13 +1138,8 @@ static int count_bound_keys(int dev_id, int action_mask, int player_idx)
 	count = in_get_dev_info(dev_id, IN_INFO_BIND_COUNT);
 	for (k = 0; k < count; k++)
 	{
-		if (!(binds[k] & action_mask))
-			continue;
-
-		if (player_idx >= 0 && ((binds[k] >> 16) & 3) != player_idx)
-			continue;
-
-		keys++;
+		if (binds[IN_BIND_OFFS(k, bindtype)] & action_mask)
+			keys++;
 	}
 
 	return keys;
@@ -1191,7 +1195,8 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_idx)
 {
 	int i, sel = 0, menu_sel_max = opt_cnt - 1;
-	int dev_id, dev_count, kc, is_down, mkey, unbind;
+	int dev_id, dev_count, kc, is_down, mkey;
+	int unbind, bindtype, mask;
 
 	for (i = 0, dev_id = -1, dev_count = 0; i < IN_MAX_DEVS; i++) {
 		if (in_get_dev_name(i, 1, 0) != NULL) {
@@ -1244,19 +1249,20 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 		for (is_down = 1; is_down; )
 			kc = in_update_keycode(&dev_id, &is_down, -1);
 
-		i = count_bound_keys(dev_id, opts[sel].mask, player_idx);
+		bindtype = player_idx >= 0 ? IN_BINDTYPE_PLAYER12 : IN_BINDTYPE_EMU;
+		mask = opts[sel].mask;
+		if (player_idx == 1)
+			mask <<= 16;
+
+		i = count_bound_keys(dev_id, mask, bindtype);
 		unbind = (i > 0);
 
 		/* allow combos if device supports them */
-		if (i == 1 && in_get_dev_info(dev_id, IN_INFO_DOES_COMBOS))
+		if (i == 1 && bindtype == IN_BINDTYPE_EMU &&
+				in_get_dev_info(dev_id, IN_INFO_DOES_COMBOS))
 			unbind = 0;
 
-		in_bind_key(dev_id, kc, opts[sel].mask, unbind);
-		if (player_idx >= 0) {
-			/* FIXME */
-			in_bind_key(dev_id, kc, 3 << 16, 1);
-			in_bind_key(dev_id, kc, player_idx << 16, 0);
-		}
+		in_bind_key(dev_id, kc, bindtype, mask, unbind);
 	}
 }
 
@@ -1280,10 +1286,6 @@ me_bind_action me_ctrl_actions[15] =
 	{ "Z      ", 0x0100 }
 };
 
-// player2_flag, reserved, ?, ?,
-// ?, ?, fast forward, menu
-// "NEXT SAVE SLOT", "PREV SAVE SLOT", "SWITCH RENDERER", "SAVE STATE",
-// "LOAD STATE", "VOLUME UP", "VOLUME DOWN", "DONE"
 me_bind_action emuctrl_actions[] =
 {
 	{ "Load State       ", PEV_STATE_LOAD },

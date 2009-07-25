@@ -107,40 +107,53 @@ static void custom_write(FILE *f, const menu_entry *me, int no_def)
 static void keys_write(FILE *fn, const char *bind_str, int dev_id, const int *binds, int no_defaults)
 {
 	char act[48];
-	int key_count, t, i;
+	int key_count, k, i;
 	const int *def_binds;
 
 	key_count = in_get_dev_info(dev_id, IN_INFO_BIND_COUNT);
 	def_binds = in_get_dev_def_binds(dev_id);
 
-	for (t = 0; t < key_count; t++)
+	for (k = 0; k < key_count; k++)
 	{
 		const char *name;
+		int t, mask;
 		act[0] = act[31] = 0;
 
-		if (no_defaults && binds[t] == def_binds[t])
-			continue;
+		for (t = 0; t < IN_BINDTYPE_COUNT; t++)
+			if (binds[IN_BIND_OFFS(k, t)] != def_binds[IN_BIND_OFFS(k, t)])
+				break;
 
-		name = in_get_key_name(dev_id, t);
-#ifdef __GP2X__
-		if (strcmp(name, "SELECT") == 0) continue;
-#endif
+		if (no_defaults && t == IN_BINDTYPE_COUNT)
+			continue;	/* no change from defaults */
 
-		if (binds[t] == 0 && def_binds[t] != 0) {
+		name = in_get_key_name(dev_id, k);
+
+		for (t = 0; t < IN_BINDTYPE_COUNT; t++)
+			if (binds[IN_BIND_OFFS(k, t)] != 0 || def_binds[IN_BIND_OFFS(k, t)] == 0)
+				break;
+
+		if (t == IN_BINDTYPE_COUNT) {
+			/* key has default bind removed */
 			fprintf(fn, "%s %s =" NL, bind_str, name);
 			continue;
 		}
 
 		for (i = 0; i < sizeof(me_ctrl_actions) / sizeof(me_ctrl_actions[0]); i++) {
-			if (me_ctrl_actions[i].mask & binds[t]) {
+			mask = me_ctrl_actions[i].mask;
+			if (mask & binds[IN_BIND_OFFS(k, IN_BINDTYPE_PLAYER12)]) {
 				strncpy(act, me_ctrl_actions[i].name, 31);
-				fprintf(fn, "%s %s = player%i %s" NL, bind_str, name,
-					((binds[t]>>16)&1)+1, mystrip(act));
+				fprintf(fn, "%s %s = player1 %s" NL, bind_str, name, mystrip(act));
+			}
+			mask = me_ctrl_actions[i].mask << 16;
+			if (mask & binds[IN_BIND_OFFS(k, IN_BINDTYPE_PLAYER12)]) {
+				strncpy(act, me_ctrl_actions[i].name, 31);
+				fprintf(fn, "%s %s = player2 %s" NL, bind_str, name, mystrip(act));
 			}
 		}
 
 		for (i = 0; emuctrl_actions[i].name != NULL; i++) {
-			if (emuctrl_actions[i].mask & binds[t]) {
+			mask = emuctrl_actions[i].mask;
+			if (mask & binds[IN_BIND_OFFS(k, IN_BINDTYPE_EMU)]) {
 				strncpy(act, emuctrl_actions[i].name, 31);
 				fprintf(fn, "%s %s = %s" NL, bind_str, name, mystrip(act));
 			}
@@ -613,28 +626,35 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 
 static unsigned int keys_encountered = 0;
 
-static int parse_bind_val(const char *val)
+static int parse_bind_val(const char *val, int *type)
 {
 	int i;
 
+	*type = IN_BINDTYPE_NONE;
 	if (val[0] == 0)
 		return 0;
 	
 	if (strncasecmp(val, "player", 6) == 0)
 	{
-		unsigned int player;
+		int player, shift = 0;
 		player = atoi(val + 6) - 1;
+
 		if (player > 1)
 			return -1;
+		if (player == 1)
+			shift = 16;
 
+		*type = IN_BINDTYPE_PLAYER12;
 		for (i = 0; i < sizeof(me_ctrl_actions) / sizeof(me_ctrl_actions[0]); i++) {
 			if (strncasecmp(me_ctrl_actions[i].name, val + 8, strlen(val + 8)) == 0)
-				return me_ctrl_actions[i].mask | (player<<16);
+				return me_ctrl_actions[i].mask << shift;
 		}
 	}
 	for (i = 0; emuctrl_actions[i].name != NULL; i++) {
-		if (strncasecmp(emuctrl_actions[i].name, val, strlen(val)) == 0)
+		if (strncasecmp(emuctrl_actions[i].name, val, strlen(val)) == 0) {
+			*type = IN_BINDTYPE_EMU;
 			return emuctrl_actions[i].mask;
+		}
 	}
 
 	return -1;
@@ -642,15 +662,15 @@ static int parse_bind_val(const char *val)
 
 static void keys_parse(const char *key, const char *val, int dev_id)
 {
-	int binds;
+	int acts, type;
 
-	binds = parse_bind_val(val);
-	if (binds == -1) {
+	acts = parse_bind_val(val, &type);
+	if (acts == -1) {
 		lprintf("config: unhandled action \"%s\"\n", val);
 		return;
 	}
 
-	in_config_bind_key(dev_id, key, binds);
+	in_config_bind_key(dev_id, key, acts, type);
 }
 
 static int get_numvar_num(const char *var)

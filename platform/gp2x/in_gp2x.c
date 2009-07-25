@@ -113,7 +113,8 @@ static void in_gp2x_probe(void)
 		return;
 	}
 
-	in_register(IN_PREFIX "GP2X pad", IN_DRVID_GP2X, -1, (void *)1, 1);
+	in_register(IN_PREFIX "GP2X pad", IN_DRVID_GP2X, -1, (void *)1,
+		IN_GP2X_NBUTTONS, 1);
 }
 
 static void in_gp2x_free(void *drv_data)
@@ -129,23 +130,29 @@ static int in_gp2x_get_bind_count(void)
 	return IN_GP2X_NBUTTONS;
 }
 
-/* returns bitfield of binds of pressed buttons */
-int in_gp2x_update(void *drv_data, int *binds)
+/* ORs result with pressed buttons */
+int in_gp2x_update(void *drv_data, const int *binds, int *result)
 {
-	int i, keys, ret = 0;
+	int type_start = 0;
+	int i, t, keys;
 
 	keys = in_gp2x_get_bits();
 
-	if (keys & in_gp2x_combo_keys)
-		return in_combos_do(keys, binds, BTN_PUSH, in_gp2x_combo_keys, in_gp2x_combo_acts);
-
-	for (i = 0; keys; i++) {
-		if (keys & 1)
-			ret |= binds[i];
-		keys >>= 1;
+	if (keys & in_gp2x_combo_keys) {
+		result[IN_BINDTYPE_EMU] = in_combos_do(keys, binds, BTN_PUSH,
+						in_gp2x_combo_keys, in_gp2x_combo_acts);
+		type_start = IN_BINDTYPE_PLAYER12;
 	}
 
-	return ret;
+	for (i = 0; keys; i++, keys >>= 1) {
+		if (!(keys & 1))
+			continue;
+
+		for (t = type_start; t < IN_BINDTYPE_COUNT; t++)
+			result[t] |= binds[IN_BIND_OFFS(i, t)];
+	}
+
+	return 0;
 }
 
 int in_gp2x_update_keycode(void *data, int *is_down)
@@ -237,24 +244,25 @@ static const char *in_gp2x_get_key_name(int keycode)
 
 static const struct {
 	short code;
-	short bit;
+	char btype;
+	char bit;
 } in_gp2x_def_binds[] =
 {
 	/* MXYZ SACB RLDU */
-	{ BTN_UP,	0 },
-	{ BTN_DOWN,	1 },
-	{ BTN_LEFT,	2 },
-	{ BTN_RIGHT,	3 },
-	{ BTN_X,	4 },	/* B */
-	{ BTN_B,	5 },	/* C */
-	{ BTN_A,	6 },	/* A */
-	{ BTN_START,	7 },
-	{ BTN_SELECT,	23 },	/* menu */
-	{ BTN_Y,	26 },	/* switch rend */
-	{ BTN_L,	27 },	/* save state */
-	{ BTN_R,	28 },	/* load state */
-	{ BTN_VOL_UP,	29 },	/* vol up */
-	{ BTN_VOL_DOWN,	30 },	/* vol down */
+	{ BTN_UP,	IN_BINDTYPE_PLAYER12, 0 },
+	{ BTN_DOWN,	IN_BINDTYPE_PLAYER12, 1 },
+	{ BTN_LEFT,	IN_BINDTYPE_PLAYER12, 2 },
+	{ BTN_RIGHT,	IN_BINDTYPE_PLAYER12, 3 },
+	{ BTN_X,	IN_BINDTYPE_PLAYER12, 4 },	/* B */
+	{ BTN_B,	IN_BINDTYPE_PLAYER12, 5 },	/* C */
+	{ BTN_A,	IN_BINDTYPE_PLAYER12, 6 },	/* A */
+	{ BTN_START,	IN_BINDTYPE_PLAYER12, 7 },
+	{ BTN_SELECT,	IN_BINDTYPE_EMU, PEVB_MENU },
+	{ BTN_Y,	IN_BINDTYPE_EMU, PEVB_SWITCH_RND },
+	{ BTN_L,	IN_BINDTYPE_EMU, PEVB_STATE_SAVE },
+	{ BTN_R,	IN_BINDTYPE_EMU, PEVB_STATE_LOAD },
+	{ BTN_VOL_UP,	IN_BINDTYPE_EMU, PEVB_VOL_UP },
+	{ BTN_VOL_DOWN,	IN_BINDTYPE_EMU, PEVB_VOL_DOWN },
 };
 
 #define DEF_BIND_COUNT (sizeof(in_gp2x_def_binds) / sizeof(in_gp2x_def_binds[0]))
@@ -264,39 +272,46 @@ static void in_gp2x_get_def_binds(int *binds)
 	int i;
 
 	for (i = 0; i < DEF_BIND_COUNT; i++)
-		binds[in_gp2x_def_binds[i].code] = 1 << in_gp2x_def_binds[i].bit;
+		binds[IN_BIND_OFFS(in_gp2x_def_binds[i].code, in_gp2x_def_binds[i].btype)] =
+			1 << in_gp2x_def_binds[i].bit;
 }
 
 /* remove binds of missing keys, count remaining ones */
-static int in_gp2x_clean_binds(void *drv_data, int *binds)
+static int in_gp2x_clean_binds(void *drv_data, int *binds, int *def_binds)
 {
 	int i, count = 0, have_vol = 0, have_menu = 0;
 
 	for (i = 0; i < IN_GP2X_NBUTTONS; i++) {
-		if (in_gp2x_keys[i] == NULL)
-			binds[i] = binds[i + IN_GP2X_NBUTTONS] = 0;
-		if (binds[i]) {
-			count++;
-			if (binds[i] & ((1 << 29)|(1 << 30)))
-				have_vol = 1;
-			if (binds[i] & (1 << 23))
-				have_menu = 1;
+		int t, eb, offs;
+		for (t = 0; t < IN_BINDTYPE_COUNT; t++) {
+			offs = IN_BIND_OFFS(i, t);
+			if (in_gp2x_keys[i] == NULL)
+				binds[offs] = def_binds[offs] = 0;
+			if (binds[offs])
+				count++;
 		}
+		eb = binds[IN_BIND_OFFS(i, IN_BINDTYPE_EMU)];
+		if (eb & (PEV_VOL_DOWN|PEV_VOL_UP))
+			have_vol = 1;
+		if (eb & PEV_MENU)
+			have_menu = 1;
 	}
 
 	/* autobind some important keys, if they are unbound */
 	if (!have_vol && binds[BTN_VOL_UP] == 0 && binds[BTN_VOL_DOWN] == 0) {
-		binds[BTN_VOL_UP]   = 1 << 29;
-		binds[BTN_VOL_DOWN] = 1 << 30;
+		binds[IN_BIND_OFFS(BTN_VOL_UP, IN_BINDTYPE_EMU)]   = PEV_VOL_UP;
+		binds[IN_BIND_OFFS(BTN_VOL_DOWN, IN_BINDTYPE_EMU)] = PEV_VOL_DOWN;
+		count += 2;
 	}
 
-	if (!have_menu && binds[BTN_SELECT] == 0)
-		binds[BTN_SELECT] = 1 << 23;
+	if (!have_menu) {
+		binds[IN_BIND_OFFS(BTN_SELECT, IN_BINDTYPE_EMU)] = PEV_MENU;
+		count++;
+	}
 
 	in_combos_find(binds, BTN_PUSH, &in_gp2x_combo_keys, &in_gp2x_combo_acts);
 
 	return count;
-
 }
 
 void in_gp2x_init(void *vdrv)

@@ -13,7 +13,8 @@ typedef struct
 	int drv_fd_hnd;
 	void *drv_data;
 	char *name;
-	int *binds;
+	int key_count;
+	int *binds;	/* total = key_count * bindtypes * 2 */
 	int probed:1;
 	int does_combos:1;
 } in_dev_t;
@@ -28,29 +29,17 @@ static int menu_last_used_dev = 0;
 #define DRV(id) in_drivers[(unsigned)(id) < IN_DRVID_COUNT ? (id) : 0]
 
 
-static int in_bind_count(int drv_id)
+static int *in_alloc_binds(int drv_id, int key_count)
 {
-	int count = DRV(drv_id).get_bind_count();
-	if (count <= 0)
-		printf("input: failed to get bind count for drv %d\n", drv_id);
+	int *binds;
 
-	return count;
-}
-
-static int *in_alloc_binds(int drv_id)
-{
-	int count, *binds;
-
-	count = in_bind_count(drv_id);
-	if (count <= 0)
-		return NULL;
-
-	binds = calloc(count * 2, sizeof(binds[0]));
+	binds = calloc(key_count * IN_BINDTYPE_COUNT * 2, sizeof(binds[0]));
 	if (binds == NULL)
 		return NULL;
 
-	DRV(drv_id).get_def_binds(binds + count);
-	memcpy(binds, binds + count, count * sizeof(binds[0]));
+	DRV(drv_id).get_def_binds(binds + key_count * IN_BINDTYPE_COUNT);
+	memcpy(binds, binds + key_count * IN_BINDTYPE_COUNT,
+		sizeof(binds[0]) * key_count * IN_BINDTYPE_COUNT);
 
 	return binds;
 }
@@ -69,7 +58,8 @@ static void in_free(in_dev_t *dev)
 
 /* to be called by drivers
  * async devices must set drv_fd_hnd to -1 */
-void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data, int combos)
+void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data,
+		int key_count, int combos)
 {
 	int i, ret, dupe_count = 0, *binds;
 	char name[256], *name_end, *tmp;
@@ -109,7 +99,7 @@ void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data, 
 	if (tmp == NULL)
 		return;
 
-	binds = in_alloc_binds(drv_id);
+	binds = in_alloc_binds(drv_id, key_count);
 	if (binds == NULL) {
 		free(tmp);
 		return;
@@ -117,6 +107,7 @@ void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data, 
 
 	in_devices[i].name = tmp;
 	in_devices[i].binds = binds;
+	in_devices[i].key_count = key_count;
 	if (i + 1 > in_dev_count)
 		in_dev_count = i + 1;
 
@@ -129,7 +120,8 @@ update:
 	in_devices[i].drv_data = drv_data;
 
 	if (in_devices[i].binds != NULL) {
-		ret = DRV(drv_id).clean_binds(drv_data, in_devices[i].binds);
+		ret = DRV(drv_id).clean_binds(drv_data, in_devices[i].binds,
+			in_devices[i].binds + key_count * IN_BINDTYPE_COUNT);
 		if (ret == 0) {
 			/* no useable binds */
 			free(in_devices[i].binds);
@@ -138,8 +130,9 @@ update:
 	}
 }
 
-/* key combo handling, to be called by drivers that support it */
-void in_combos_find(int *binds, int last_key, int *combo_keys, int *combo_acts)
+/* key combo handling, to be called by drivers that support it.
+ * Only care about IN_BINDTYPE_EMU */
+void in_combos_find(const int *binds, int last_key, int *combo_keys, int *combo_acts)
 {
 	int act, u;
 
@@ -148,7 +141,7 @@ void in_combos_find(int *binds, int last_key, int *combo_keys, int *combo_acts)
 	{
 		int keyc = 0;
 		for (u = 0; u <= last_key; u++)
-			if (binds[u] & (1 << act))
+			if (binds[IN_BIND_OFFS(u, IN_BINDTYPE_EMU)] & (1 << act))
 				keyc++;
 
 		if (keyc > 1)
@@ -156,7 +149,7 @@ void in_combos_find(int *binds, int last_key, int *combo_keys, int *combo_acts)
 			// loop again and mark those keys and actions as combo
 			for (u = 0; u <= last_key; u++)
 			{
-				if (binds[u] & (1 << act)) {
+				if (binds[IN_BIND_OFFS(u, IN_BINDTYPE_EMU)] & (1 << act)) {
 					*combo_keys |= 1 << u;
 					*combo_acts |= 1 << act;
 				}
@@ -165,38 +158,40 @@ void in_combos_find(int *binds, int last_key, int *combo_keys, int *combo_acts)
 	}
 }
 
-int in_combos_do(int keys, int *binds, int last_key, int combo_keys, int combo_acts)
+int in_combos_do(int keys, const int *binds, int last_key, int combo_keys, int combo_acts)
 {
 	int i, ret = 0;
 
 	for (i = 0; i <= last_key; i++)
 	{
-		int acts;
+		int acts, acts_c, u;
+
 		if (!(keys & (1 << i)))
 			continue;
 
-		acts = binds[i];
+		acts = binds[IN_BIND_OFFS(i, IN_BINDTYPE_EMU)];
 		if (!acts)
 			continue;
 
-		if (combo_keys & (1 << i))
-		{
-			int acts_c = acts & combo_acts;
-			int u = last_key;
-			if (acts_c) {
-				// let's try to find the other one
-				for (u = i + 1; u <= last_key; u++)
-					if ( (keys & (1 << u)) && (binds[u] & acts_c) ) {
-						ret |= acts_c & binds[u];
-						keys &= ~((1 << i) | (1 << u));
-						break;
-					}
-			}
-			// add non-combo actions if combo ones were not found
-			if (u >= last_key)
-				ret |= acts & ~combo_acts;
-		} else
+		if (!(combo_keys & (1 << i))) {
 			ret |= acts;
+			continue;
+		}
+
+		acts_c = acts & combo_acts;
+		u = last_key;
+		if (acts_c) {
+			// let's try to find the other one
+			for (u = i + 1; u <= last_key; u++)
+				if ( (keys & (1 << u)) && (binds[IN_BIND_OFFS(u, IN_BINDTYPE_EMU)] & acts_c) ) {
+					ret |= acts_c & binds[IN_BIND_OFFS(u, IN_BINDTYPE_EMU)];
+					keys &= ~((1 << i) | (1 << u));
+					break;
+				}
+		}
+		// add non-combo actions if combo ones were not found
+		if (u >= last_key)
+			ret |= acts & ~combo_acts;
 	}
 
 	return ret;
@@ -235,9 +230,9 @@ void in_probe(void)
 }
 
 /* async update */
-int in_update(void)
+int in_update(int *result)
 {
-	int i, result = 0;
+	int i, ret = 0;
 
 	for (i = 0; i < in_dev_count; i++) {
 		in_dev_t *dev = &in_devices[i];
@@ -245,19 +240,19 @@ int in_update(void)
 			switch (dev->drv_id) {
 #ifdef IN_EVDEV
 			case IN_DRVID_EVDEV:
-				result |= in_evdev_update(dev->drv_data, dev->binds);
+				ret |= in_evdev_update(dev->drv_data, dev->binds, result);
 				break;
 #endif
 #ifdef IN_GP2X
 			case IN_DRVID_GP2X:
-				result |= in_gp2x_update(dev->drv_data, dev->binds);
+				ret |= in_gp2x_update(dev->drv_data, dev->binds, result);
 				break;
 #endif
 			}
 		}
 	}
 
-	return result;
+	return ret;
 }
 
 void in_set_blocking(int is_blocking)
@@ -464,13 +459,10 @@ const int *in_get_dev_binds(int dev_id)
 
 const int *in_get_dev_def_binds(int dev_id)
 {
-	int count;
-
 	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
 		return NULL;
 
-	count = in_bind_count(in_devices[dev_id].drv_id);
-	return in_devices[dev_id].binds + count;
+	return in_devices[dev_id].binds + in_devices[dev_id].key_count * IN_BINDTYPE_COUNT;
 }
 
 int in_get_dev_info(int dev_id, int what)
@@ -480,7 +472,7 @@ int in_get_dev_info(int dev_id, int what)
 
 	switch (what) {
 	case IN_INFO_BIND_COUNT:
-		return in_bind_count(in_devices[dev_id].drv_id);
+		return in_devices[dev_id].key_count;
 	case IN_INFO_DOES_COMBOS:
 		return in_devices[dev_id].does_combos;
 	}
@@ -538,33 +530,35 @@ const char *in_get_key_name(int dev_id, int keycode)
 	return xname;
 }
 
-int in_bind_key(int dev_id, int keycode, int mask, int force_unbind)
+int in_bind_key(int dev_id, int keycode, int bind_type, int mask, int force_unbind)
 {
 	int ret, count;
 	in_dev_t *dev;
 
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
+	if (dev_id < 0 || dev_id >= IN_MAX_DEVS || bind_type >= IN_BINDTYPE_COUNT)
 		return -1;
+
 	dev = &in_devices[dev_id];
+	count = dev->key_count;
 
 	if (dev->binds == NULL) {
 		if (force_unbind)
 			return 0;
-		dev->binds = in_alloc_binds(dev->drv_id);
+		dev->binds = in_alloc_binds(dev->drv_id, count);
 		if (dev->binds == NULL)
 			return -1;
 	}
 
-	count = in_bind_count(dev->drv_id);
 	if (keycode < 0 || keycode >= count)
 		return -1;
 	
 	if (force_unbind)
-		dev->binds[keycode] &= ~mask;
+		dev->binds[IN_BIND_OFFS(keycode, bind_type)] &= ~mask;
 	else
-		dev->binds[keycode] ^=  mask;
+		dev->binds[IN_BIND_OFFS(keycode, bind_type)] ^=  mask;
 	
-	ret = DRV(dev->drv_id).clean_binds(dev->drv_data, dev->binds);
+	ret = DRV(dev->drv_id).clean_binds(dev->drv_data, dev->binds,
+				dev->binds + count * IN_BINDTYPE_COUNT);
 	if (ret == 0) {
 		free(dev->binds);
 		dev->binds = NULL;
@@ -616,9 +610,11 @@ int in_config_parse_dev(const char *name)
 	if (in_devices[i].name == NULL)
 		return -1;
 
+	in_devices[i].key_count = DRV(drv_id).get_bind_count();
+	in_devices[i].drv_id = drv_id;
+
 	if (i + 1 > in_dev_count)
 		in_dev_count = i + 1;
-	in_devices[i].drv_id = drv_id;
 
 	return i;
 }
@@ -640,25 +636,23 @@ void in_config_start(void)
 		if (binds == NULL)
 			continue;
 
-		count = in_bind_count(in_devices[i].drv_id);
-		def_binds = binds + count;
+		count = in_devices[i].key_count;
+		def_binds = binds + count * IN_BINDTYPE_COUNT;
 
-		for (n = 0; n < count; n++)
+		for (n = 0; n < count * IN_BINDTYPE_COUNT; n++)
 			if (binds[n] == def_binds[n])
 				binds[n] = -1;
 	}
 }
 
-int in_config_bind_key(int dev_id, const char *key, int binds)
+int in_config_bind_key(int dev_id, const char *key, int acts, int bind_type)
 {
-	int count, kc;
 	in_dev_t *dev;
+	int i, offs, kc;
 
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
+	if (dev_id < 0 || dev_id >= IN_MAX_DEVS || bind_type >= IN_BINDTYPE_COUNT)
 		return -1;
 	dev = &in_devices[dev_id];
-
-	count = in_bind_count(dev->drv_id);
 
 	/* maybe a raw code? */
 	if (key[0] == '\\' && key[1] == 'x') {
@@ -670,7 +664,7 @@ int in_config_bind_key(int dev_id, const char *key, int binds)
 	else {
 		/* device specific key name */
 		if (dev->binds == NULL) {
-			dev->binds = in_alloc_binds(dev->drv_id);
+			dev->binds = in_alloc_binds(dev->drv_id, dev->key_count);
 			if (dev->binds == NULL)
 				return -1;
 			in_config_start();
@@ -683,15 +677,21 @@ int in_config_bind_key(int dev_id, const char *key, int binds)
 		}
 	}
 
-	if (kc < 0 || kc >= count) {
+	if (kc < 0 || kc >= dev->key_count) {
 		printf("input: bad key: %s\n", key);
 		return -1;
 	}
 
-	if (dev->binds[kc] == -1)
-		dev->binds[kc] = 0;
-	dev->binds[kc] |= binds;
+	if (bind_type == IN_BINDTYPE_NONE) {
+		for (i = 0; i < IN_BINDTYPE_COUNT; i++)
+			dev->binds[IN_BIND_OFFS(kc, i)] = 0;
+		return 0;
+	}
 
+	offs = IN_BIND_OFFS(kc, bind_type);
+	if (dev->binds[offs] == -1)
+		dev->binds[offs] = 0;
+	dev->binds[offs] |= acts;
 	return 0;
 }
 
@@ -706,18 +706,18 @@ void in_config_end(void)
 		if (dev->binds == NULL)
 			continue;
 
-		count = in_bind_count(dev->drv_id);
+		count = dev->key_count;
 		binds = dev->binds;
-		def_binds = binds + count;
+		def_binds = binds + count * IN_BINDTYPE_COUNT;
 
-		for (n = 0; n < count; n++)
+		for (n = 0; n < count * IN_BINDTYPE_COUNT; n++)
 			if (binds[n] == -1)
 				binds[n] = def_binds[n];
 
 		if (dev->drv_data == NULL)
 			continue;
 
-		ret = DRV(dev->drv_id).clean_binds(dev->drv_data, binds);
+		ret = DRV(dev->drv_id).clean_binds(dev->drv_data, binds, def_binds);
 		if (ret == 0) {
 			/* no useable binds */
 			free(dev->binds);
@@ -746,7 +746,7 @@ static void in_def_probe(void) {}
 static void in_def_free(void *drv_data) {}
 static int  in_def_get_bind_count(void) { return 0; }
 static void in_def_get_def_binds(int *binds) {}
-static int  in_def_clean_binds(void *drv_data, int *binds) { return 0; }
+static int  in_def_clean_binds(void *drv_data, int *b, int *db) { return 0; }
 static void in_def_set_blocking(void *data, int y) {}
 static int  in_def_update_keycode(void *drv_data, int *is_down) { return 0; }
 static int  in_def_menu_translate(int keycode) { return keycode; }

@@ -1099,31 +1099,37 @@ static void run_events_ui(unsigned int which)
 
 void emu_update_input(void)
 {
-	unsigned int allActions[2] = { 0, 0 }, events;
-	static unsigned int prevEvents = 0;
+	static int prev_events = 0;
+	int actions[IN_BINDTYPE_COUNT] = { 0, };
+	int pl_actions[2];
+	int events;
 
-	/* FIXME: player2 */
-	allActions[0] = in_update();
+	in_update(actions);
 
-	PicoPad[0] = allActions[0] & 0xfff;
-	PicoPad[1] = allActions[1] & 0xfff;
+	pl_actions[0] = actions[IN_BINDTYPE_PLAYER12];
+	pl_actions[1] = actions[IN_BINDTYPE_PLAYER12] >> 16;
 
-	if (allActions[0] & 0x7000) do_turbo(&PicoPad[0], allActions[0]);
-	if (allActions[1] & 0x7000) do_turbo(&PicoPad[1], allActions[1]);
+	PicoPad[0] = pl_actions[0] & 0xfff;
+	PicoPad[1] = pl_actions[1] & 0xfff;
 
-	events = (allActions[0] | allActions[1]) & PEV_MASK;
+	if (pl_actions[0] & 0x7000)
+		do_turbo(&PicoPad[0], pl_actions[0]);
+	if (pl_actions[1] & 0x7000)
+		do_turbo(&PicoPad[1], pl_actions[1]);
+
+	events = actions[IN_BINDTYPE_EMU] & PEV_MASK;
 
 	// volume is treated in special way and triggered every frame
 	if (events & (PEV_VOL_DOWN|PEV_VOL_UP))
 		plat_update_volume(1, events & PEV_VOL_UP);
 
-	if ((events ^ prevEvents) & PEV_FF) {
+	if ((events ^ prev_events) & PEV_FF) {
 		emu_set_fastforward(events & PEV_FF);
 		plat_update_volume(0, 0);
 		reset_timing = 1;
 	}
 
-	events &= ~prevEvents;
+	events &= ~prev_events;
 
 	if (PicoAHW == PAHW_PICO)
 		run_events_pico(events);
@@ -1132,7 +1138,7 @@ void emu_update_input(void)
 	if (movie_data)
 		update_movie();
 
-	prevEvents = (allActions[0] | allActions[1]) & PEV_MASK;
+	prev_events = actions[IN_BINDTYPE_EMU] & PEV_MASK;
 }
 
 static void mkdir_path(char *path_with_reserve, int pos, const char *name)
