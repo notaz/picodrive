@@ -341,15 +341,26 @@ static void vidResetMode(void)
 	else gp2x_video_RGB_setscaling(0, (PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 240);
 }
 
-void plat_video_toggle_renderer(void)
+void plat_video_toggle_renderer(int is_next, int is_menu)
 {
+	/* alt, 16bpp, 8bpp */
 	if (PicoOpt & POPT_ALT_RENDERER) {
 		PicoOpt &= ~POPT_ALT_RENDERER;
-		currentConfig.EmuOpt |= EOPT_16BPP;
-	} else if (!(currentConfig.EmuOpt & EOPT_16BPP))
-		PicoOpt |= POPT_ALT_RENDERER;
-	else
+		if (is_next)
+			currentConfig.EmuOpt |= EOPT_16BPP;
+	} else if (!(currentConfig.EmuOpt & EOPT_16BPP)) {
+		if (is_next)
+			PicoOpt |= POPT_ALT_RENDERER;
+		else
+			currentConfig.EmuOpt |= EOPT_16BPP;
+	} else {
 		currentConfig.EmuOpt &= ~EOPT_16BPP;
+		if (!is_next)
+			PicoOpt |= POPT_ALT_RENDERER;
+	}
+
+	if (is_menu)
+		return;
 
 	vidResetMode();
 

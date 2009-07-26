@@ -557,7 +557,7 @@ static void make_config_cfg(char *cfg_buff_512)
 	cfg_buff_512[511] = 0;
 }
 
-static void emu_setDefaultConfig(void)
+void emu_set_defconfig(void)
 {
 	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
 	PicoOpt = currentConfig.s_PicoOpt;
@@ -575,7 +575,7 @@ int emu_read_config(int game, int no_defaults)
 	if (!game)
 	{
 		if (!no_defaults)
-			emu_setDefaultConfig();
+			emu_set_defconfig();
 		make_config_cfg(cfg);
 		ret = config_readsect(cfg, NULL);
 	}
@@ -593,7 +593,7 @@ int emu_read_config(int game, int no_defaults)
 		{
 			// read user's config
 			int vol = currentConfig.volume;
-			emu_setDefaultConfig();
+			emu_set_defconfig();
 			ret = config_readsect(cfg, sect);
 			currentConfig.volume = vol; // make vol global (bah)
 		}
@@ -1076,7 +1076,7 @@ static void run_events_ui(unsigned int which)
 	}
 	if (which & PEV_SWITCH_RND)
 	{
-		plat_video_toggle_renderer();
+		plat_video_toggle_renderer(1, 0);
 	}
 	if (which & (PEV_SSLOT_PREV|PEV_SSLOT_NEXT))
 	{

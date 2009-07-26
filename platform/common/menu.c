@@ -1457,6 +1457,23 @@ static int menu_loop_adv_options(menu_id id, int keys)
 
 // ------------ gfx options menu ------------
 
+static int mh_opt_render(menu_id id, int keys)
+{
+	plat_video_toggle_renderer((keys & PBTN_RIGHT) ? 1 : 0, 1);
+	return 0;
+}
+
+static const char *mgn_opt_renderer(menu_id id, int *offs)
+{
+	*offs = -11;
+	if (PicoOpt & POPT_ALT_RENDERER)
+		return "     8bit fast";
+	else if (currentConfig.EmuOpt & EOPT_16BPP)
+		return "16bit accurate";
+	else
+		return " 8bit accurate";
+}
+
 static const char *mgn_opt_scaling(menu_id id, int *offs)
 {
 	*offs = -13;
@@ -1476,6 +1493,7 @@ static const char *mgn_aopt_gamma(menu_id id, int *offs)
 
 static menu_entry e_menu_gfx_options[] =
 {
+	mee_cust      ("Renderer",                 MA_OPT_RENDERER,       mh_opt_render, mgn_opt_renderer),
 	mee_range_cust("Scaling",                  MA_OPT_SCALING,        currentConfig.scaling, 0, 3, mgn_opt_scaling),
 	mee_range_cust("Gamma correction",         MA_OPT2_GAMMA,         currentConfig.gamma, 1, 300, mgn_aopt_gamma),
 	mee_onoff     ("A_SN's gamma curve",       MA_OPT2_A_SN_GAMMA,    currentConfig.EmuOpt, EOPT_A_SN_GAMMA),
@@ -1493,20 +1511,6 @@ static int menu_loop_gfx_options(menu_id id, int keys)
 // ------------ options menu ------------
 
 static menu_entry e_menu_options[];
-
-/* TODO: move to plat */
-static int mh_opt_render(menu_id id, int keys)
-{
-	if (keys & PBTN_LEFT) {
-		if      (PicoOpt&0x10) PicoOpt&= ~0x10;
-		else if (!(currentConfig.EmuOpt &0x80))currentConfig.EmuOpt |=  0x80;
-	} else {
-		if      (PicoOpt&0x10) return 0;
-		else if (!(currentConfig.EmuOpt &0x80))PicoOpt|=  0x10;
-		else if (  currentConfig.EmuOpt &0x80) currentConfig.EmuOpt &= ~0x80;
-	}
-	return 0;
-}
 
 static int sndrate_prevnext(int rate, int dir)
 {
@@ -1620,15 +1624,11 @@ static int mh_saveloadcfg(menu_id id, int keys)
 	return 1;
 }
 
-static const char *mgn_opt_renderer(menu_id id, int *offs)
+static int mh_restore_defaults(menu_id id, int keys)
 {
-	*offs = -6;
-	if (PicoOpt & POPT_ALT_RENDERER)
-		return " 8bit fast";
-	else if (currentConfig.EmuOpt & 0x80)
-		return "16bit accurate";
-	else
-		return " 8bit accurate";
+	emu_set_defconfig();
+	me_update_msg("defaults restored");
+	return 1;
 }
 
 static const char *mgn_opt_fskip(menu_id id, int *offs)
@@ -1703,9 +1703,8 @@ static menu_entry e_menu_options[] =
 	mee_range     ("Save slot",                MA_OPT_SAVE_SLOT,     state_slot, 0, 9),
 	mee_range_cust("Frameskip",                MA_OPT_FRAMESKIP,     currentConfig.Frameskip, -1, 16, mgn_opt_fskip),
 	mee_cust      ("Region",                   MA_OPT_REGION,        mh_opt_misc, mgn_opt_region),
-	mee_cust      ("Renderer",                 MA_OPT_RENDERER,      mh_opt_render, mgn_opt_renderer),
-	mee_onoff     ("Show FPS",                 MA_OPT_SHOW_FPS,      currentConfig.EmuOpt, 0x002),
-	mee_onoff     ("Enable sound",             MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, 0x004),
+	mee_onoff     ("Show FPS",                 MA_OPT_SHOW_FPS,      currentConfig.EmuOpt, EOPT_SHOW_FPS),
+	mee_onoff     ("Enable sound",             MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, EOPT_EN_SOUND),
 	mee_cust      ("Sound Quality",            MA_OPT_SOUND_QUALITY, mh_opt_misc, mgn_opt_sound),
 	mee_cust      ("Confirm savestate",        MA_OPT_CONFIRM_STATES,mh_opt_misc, mgn_opt_c_saves),
 	mee_range     (cpu_clk_name,               MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 900),
@@ -1715,6 +1714,7 @@ static menu_entry e_menu_options[] =
 	mee_handler_mkname_id(MA_OPT_SAVECFG, mh_saveloadcfg, mgn_savecfg),
 	mee_handler_id("Save cfg for current game only", MA_OPT_SAVECFG_GAME, mh_saveloadcfg),
 	mee_handler_mkname_id(MA_OPT_LOADCFG, mh_saveloadcfg, mgn_loadcfg),
+	mee_handler   ("Restore defaults",         mh_restore_defaults),
 	mee_end,
 };
 
