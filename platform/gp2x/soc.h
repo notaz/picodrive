@@ -14,6 +14,7 @@ void pollux_finish(void);
 /* SoC specific functions */
 extern void (*gp2x_video_flip)(void);
 extern void (*gp2x_video_flip2)(void);
+/* negative bpp means rotated mode (for Wiz) */
 extern void (*gp2x_video_changemode_ll)(int bpp);
 extern void (*gp2x_video_setpalette)(int *pal, int len);
 extern void (*gp2x_video_RGB_setscaling)(int ln_offs, int W, int H);

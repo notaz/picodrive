@@ -17,6 +17,7 @@
 #include "../common/arm_utils.h"
 #include "../common/menu.h"
 #include "../common/emu.h"
+#include "../common/input.h"
 #include "../../pico/pico_int.h"
 #include "../../pico/sound/ym2612.h"
 #include "../../pico/sound/mix.h"
@@ -294,7 +295,7 @@ void YM2612Init_940(int baseclock, int rate)
 	if (crashed_940)
 	{
 		unsigned char ucData[1024];
-		int nRead, i, nLen = 0;
+		int nRead, nLen = 0;
 		char binpath[512];
 		FILE *fp;
 
@@ -306,6 +307,7 @@ void YM2612Init_940(int baseclock, int rate)
 			text_out16(10, 100, "failed to open required file:");
 			text_out16(10, 110, CODE940_FILE);
 			gp2x_video_flip2();
+			in_menu_wait(PBTN_MOK|PBTN_MBACK, 100);
 			printf("failed to open %s\n", binpath);
 			exit(1);
 		}

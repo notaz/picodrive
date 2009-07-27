@@ -37,12 +37,12 @@ extern int crashed_940;
 
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 static struct timeval noticeMsgTime = { 0, 0 };	// when started showing
-static int osd_fps_x;
-static int gp2x_old_gamma = 100;
 static char noticeMsg[40];
 static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
 unsigned char *PicoDraw2FB = PicoDraw2FB_;
+static int osd_fps_x;
 
+extern void *gp2x_screens[4];
 
 void plat_status_msg(const char *format, ...)
 {
@@ -92,7 +92,7 @@ void pemu_prep_defconfig(void)
 	gp2x_soc_t soc;
 
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
-	defaultConfig.EmuOpt    = 0x9d | EOPT_RAM_TIMINGS | 0x600; // | <- confirm_save, cd_leds
+	defaultConfig.EmuOpt    = 0x9d | EOPT_RAM_TIMINGS|EOPT_CONFIRM_SAVE|EOPT_EN_CD_LEDS;
 	defaultConfig.s_PicoOpt = 0x0f | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC|POPT_ACC_SPRITES;
 	defaultConfig.s_PsndRate = 44100;
 	defaultConfig.s_PicoRegion = 0; // auto
@@ -108,77 +108,129 @@ void pemu_prep_defconfig(void)
 	soc = soc_detect();
 	if (soc == SOCID_MMSP2)
 		defaultConfig.s_PicoOpt |= POPT_EXT_FM;
+	else if (soc == SOCID_POLLUX)
+		defaultConfig.EmuOpt |= EOPT_WIZ_TEAR_FIX;
 }
 
-static void osd_text(int x, int y, const char *text)
+static void (*osd_text)(int x, int y, const char *text);
+
+static void osd_text8(int x, int y, const char *text)
 {
 	int len = strlen(text)*8;
 	int *p, i, h, offs;
 
-	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
-		len = (len+3) >> 2;
-		for (h = 0; h < 8; h++) {
-			offs = (x + g_screen_width * (y+h)) & ~3;
-			p = (int *) ((char *)g_screen_ptr + offs);
-			for (i = len; i; i--, p++)
-				*p = 0xe0e0e0e0;
-		}
-		emu_textOut8(x, y, text);
-	} else {
-		len = (len+1) >> 1;
-		for (h = 0; h < 8; h++) {
-			offs = (x + g_screen_width * (y+h)) & ~1;
-			p = (int *) ((short *)g_screen_ptr + offs);
-			for (i = len; i; i--, p++)
-				*p = (*p >> 2) & 0x39e7;
-		}
-		emu_textOut16(x, y, text);
+	len = (len+3) >> 2;
+	for (h = 0; h < 8; h++) {
+		offs = (x + g_screen_width * (y+h)) & ~3;
+		p = (int *) ((char *)g_screen_ptr + offs);
+		for (i = len; i; i--, p++)
+			*p = 0xe0e0e0e0;
 	}
+	emu_text_out8(x, y, text);
+}
+
+static void osd_text16(int x, int y, const char *text)
+{
+	int len = strlen(text)*8;
+	int *p, i, h, offs;
+
+	len = (len+1) >> 1;
+	for (h = 0; h < 8; h++) {
+		offs = (x + g_screen_width * (y+h)) & ~1;
+		p = (int *) ((short *)g_screen_ptr + offs);
+		for (i = len; i; i--, p++)
+			*p = (*p >> 2) & 0x39e7;
+	}
+	emu_text_out16(x, y, text);
+}
+
+static void osd_text8_rot(int x, int y, const char *text)
+{
+	int len = strlen(text) * 8;
+	char *p = (char *)g_screen_ptr + 240*(320-x) + y;
+
+	while (len--) {
+		memset(p, 0xe0, 8);
+		p -= 240;
+	}
+
+	emu_text_out8_rot(x, y, text);
+}
+
+static void osd_text16_rot(int x, int y, const char *text)
+{
+	int len = strlen(text) * 8;
+	short *p = (short *)g_screen_ptr + 240*(320-x) + y;
+
+	while (len--) {
+		memset(p, 0, 8*2);
+		p -= 240;
+	}
+
+	emu_text_out16_rot(x, y, text);
 }
 
 static void draw_cd_leds(void)
 {
-	int old_reg;
-	old_reg = Pico_mcd->s68k_regs[0];
+	int led_reg, pitch, scr_offs, led_offs;
+	led_reg = Pico_mcd->s68k_regs[0];
+
+	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
+		pitch = 240;
+		led_offs = -pitch * 6;
+		scr_offs = pitch * (320 - 4);
+	} else {
+		pitch = 320;
+		led_offs = 4;
+		scr_offs = pitch * 2 + 4;
+	}
 
 	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP)) {
+	#define p(x) px[(x) >> 2]
 		// 8-bit modes
-		unsigned int col_g = (old_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
-		unsigned int col_r = (old_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
-		*(unsigned int *)((char *)g_screen_ptr + 320*2+ 4) =
-		*(unsigned int *)((char *)g_screen_ptr + 320*3+ 4) =
-		*(unsigned int *)((char *)g_screen_ptr + 320*4+ 4) = col_g;
-		*(unsigned int *)((char *)g_screen_ptr + 320*2+12) =
-		*(unsigned int *)((char *)g_screen_ptr + 320*3+12) =
-		*(unsigned int *)((char *)g_screen_ptr + 320*4+12) = col_r;
+		unsigned int *px = (unsigned int *)((char *)g_screen_ptr + scr_offs);
+		unsigned int col_g = (led_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
+		unsigned int col_r = (led_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
+		p(pitch*0) = p(pitch*1) = p(pitch*2) = col_g;
+		p(pitch*0 + led_offs) = p(pitch*1 + led_offs) = p(pitch*2 + led_offs) = col_r;
+	#undef p
 	} else {
+	#define p(x) px[(x)*2 >> 2] = px[((x)*2 >> 2) + 1]
 		// 16-bit modes
-		unsigned int *p = (unsigned int *)((short *)g_screen_ptr + 320*2+4);
-		unsigned int col_g = (old_reg & 2) ? 0x06000600 : 0;
-		unsigned int col_r = (old_reg & 1) ? 0xc000c000 : 0;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 320/2 - 12/2;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 320/2 - 12/2;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
+		unsigned int *px = (unsigned int *)((short *)g_screen_ptr + scr_offs);
+		unsigned int col_g = (led_reg & 2) ? 0x06000600 : 0;
+		unsigned int col_r = (led_reg & 1) ? 0xc000c000 : 0;
+		p(pitch*0) = p(pitch*1) = p(pitch*2) = col_g;
+		p(pitch*0 + led_offs) = p(pitch*1 + led_offs) = p(pitch*2 + led_offs) = col_r;
+	#undef p
 	}
 }
 
 static void draw_pico_ptr(void)
 {
 	unsigned short *p = (unsigned short *)g_screen_ptr;
+	int x, y, pitch = 320;
 
 	// only if pen enabled and for 16bit modes
-	if (pico_inp_mode == 0 || (PicoOpt&0x10) || !(currentConfig.EmuOpt&0x80)) return;
+	if (pico_inp_mode == 0 || (PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP))
+		return;
 
-	if (!(Pico.video.reg[12]&1) && !(PicoOpt&POPT_DIS_32C_BORDER))
-		p += 32;
+	x = pico_pen_x + PICO_PEN_ADJUST_X;
+	y = pico_pen_y + PICO_PEN_ADJUST_Y;
+	if (!(Pico.video.reg[12]&1) && !(PicoOpt & POPT_DIS_32C_BORDER))
+		x += 32;
 
-	p += 320 * (pico_pen_y + PICO_PEN_ADJUST_Y);
-	p += pico_pen_x + PICO_PEN_ADJUST_X;
-	p[0]   ^= 0xffff;
-	p[319] ^= 0xffff;
-	p[320] ^= 0xffff;
-	p[321] ^= 0xffff;
-	p[640] ^= 0xffff;
+	if (EOPT_WIZ_TEAR_FIX) {
+		pitch = 240;
+		p += (319 - x) * pitch + y;
+	} else
+		p += x + y * pitch;
+
+	p[0]       ^= 0xffff;
+	p[pitch-1] ^= 0xffff;
+	p[pitch]   ^= 0xffff;
+	p[pitch+1] ^= 0xffff;
+	p[pitch*2] ^= 0xffff;
 }
 
 static int EmuScanBegin16(unsigned int num)
@@ -197,8 +249,45 @@ static int EmuScanBegin8(unsigned int num)
 	return 0;
 }
 
+/* rot thing for Wiz */
+static unsigned char __attribute__((aligned(4))) rot_buff[320*4*2];
+
+static int EmuScanBegin16_rot(unsigned int num)
+{
+	DrawLineDest = rot_buff + (num & 3) * 320 * 2;
+	return 0;
+}
+
+static int EmuScanEnd16_rot(unsigned int num)
+{
+	if ((num & 3) != 3)
+		return 0;
+	if (!(Pico.video.reg[1] & 8))
+		num += 8;
+	rotated_blit16(g_screen_ptr, rot_buff, num + 1,
+		!(Pico.video.reg[12] & 1) && !(PicoOpt & POPT_EN_SOFTSCALE));
+	return 0;
+}
+
+static int EmuScanBegin8_rot(unsigned int num)
+{
+	DrawLineDest = rot_buff + (num & 3) * 320;
+	return 0;
+}
+
+static int EmuScanEnd8_rot(unsigned int num)
+{
+	if ((num & 3) != 3)
+		return 0;
+	if (!(Pico.video.reg[1] & 8))
+		num += 8;
+	rotated_blit8(g_screen_ptr, rot_buff, num + 1,
+		!(Pico.video.reg[12] & 1));
+	return 0;
+}
+
 int localPal[0x100];
-static void (*vidCpyM2)(void *dest, void *src) = NULL;
+static void (*vidcpyM2)(void *dest, void *src, int m32col, int with_32c_border) = NULL;
 
 static void blit(const char *fps, const char *notice)
 {
@@ -217,7 +306,8 @@ static void blit(const char *fps, const char *notice)
 		if (PicoRead16Hook == PicoSVPRead16)
 			memset32((int *)(PicoDraw2FB+328*8+328*223), 0xe0e0e0e0, 328);
 		// do actual copy
-		vidCpyM2((unsigned char *)g_screen_ptr+320*8, PicoDraw2FB+328*8);
+		vidcpyM2(g_screen_ptr, PicoDraw2FB+328*8,
+			!(Pico.video.reg[12] & 1), !(PicoOpt & POPT_DIS_32C_BORDER));
 	}
 	else if (!(emu_opt & EOPT_16BPP))
 	{
@@ -268,23 +358,32 @@ static void blit(const char *fps, const char *notice)
 		draw_pico_ptr();
 
 	gp2x_video_flip();
-
-	if (!(PicoOpt & POPT_ALT_RENDERER)) {
-		if (!(Pico.video.reg[1]&8)) {
-			if (currentConfig.EmuOpt & EOPT_16BPP)
-				DrawLineDest = (unsigned short *) g_screen_ptr + 320*8;
-			else
-				DrawLineDest = (unsigned char  *) g_screen_ptr + 320*8;
-		} else {
-			DrawLineDest = g_screen_ptr;
-		}
-	}
 }
 
 // clears whole screen or just the notice area (in all buffers)
 static void clearArea(int full)
 {
-	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
+	int is_8bit = (PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP);
+	if (!full && (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX)) {
+		/* ugh.. */
+		int i, u, *p;
+		if (is_8bit) {
+			for (i = 0; i < 4; i++) {
+				p = (int *)gp2x_screens[i] + (240-8) / 4;
+				for (u = 320; u > 0; u--, p += 240/4)
+					p[0] = p[1] = 0xe0e0e0e0;
+			}
+		} else {
+			for (i = 0; i < 4; i++) {
+				p = (int *)gp2x_screens[i] + (240-8)*2 / 4;
+				for (u = 320; u > 0; u--, p += 240*2/4)
+					p[0] = p[1] = p[2] = p[3] = 0;
+			}
+		}
+		return;
+	}
+
+	if (is_8bit) {
 		// 8-bit renderers
 		if (full) gp2x_memset_all_buffers(0, 0xe0, 320*240);
 		else      gp2x_memset_all_buffers(320*232, 0xe0, 320*8);
@@ -313,17 +412,46 @@ void plat_status_msg_busy_first(const char *msg)
 
 static void vidResetMode(void)
 {
+	PicoScanEnd = NULL;
+
 	if (PicoOpt & POPT_ALT_RENDERER) {
-		gp2x_video_changemode(8);
-	} else if (currentConfig.EmuOpt & EOPT_16BPP) {
-		gp2x_video_changemode(16);
-		PicoDrawSetColorFormat(1);
-		PicoScanBegin = EmuScanBegin16;
-	} else {
-		gp2x_video_changemode(8);
-		PicoDrawSetColorFormat(2);
-		PicoScanBegin = EmuScanBegin8;
+		if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
+			gp2x_video_changemode(-8);
+			vidcpyM2 = vidcpy_m2_rot;
+			osd_text = osd_text8_rot;
+		} else {
+			gp2x_video_changemode(8);
+			vidcpyM2 = vidcpy_m2;
+			osd_text = osd_text8;
+		}
 	}
+	else if (currentConfig.EmuOpt & EOPT_16BPP) {
+		PicoDrawSetColorFormat(1);
+		if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
+			gp2x_video_changemode(-16);
+			PicoScanBegin = EmuScanBegin16_rot;
+			PicoScanEnd = EmuScanEnd16_rot;
+			osd_text = osd_text16_rot;
+		} else {
+			gp2x_video_changemode(16);
+			PicoScanBegin = EmuScanBegin16;
+			osd_text = osd_text16;
+		}
+	}
+	else {
+		PicoDrawSetColorFormat(2);
+		if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
+			gp2x_video_changemode(-8);
+			PicoScanBegin = EmuScanBegin8_rot;
+			PicoScanEnd = EmuScanEnd8_rot;
+			osd_text = osd_text8_rot;
+		} else {
+			gp2x_video_changemode(8);
+			PicoScanBegin = EmuScanBegin8;
+			osd_text = osd_text8;
+		}
+	}
+
 	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP)) {
 		// setup pal for 8-bit modes
 		localPal[0xc0] = 0x0000c000; // MCD LEDs
@@ -335,6 +463,7 @@ static void vidResetMode(void)
 		gp2x_video_flip();
 	}
 	Pico.m.dirtyPal = 1;
+
 	// reset scaling
 	if (currentConfig.scaling == EOPT_SCALE_HW_HV && !(Pico.video.reg[1]&8))
 	     gp2x_video_RGB_setscaling(8, (PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 224);
@@ -516,19 +645,10 @@ void pemu_forced_frame(int opts)
 
 	PicoDrawSetColorFormat(1);
 	PicoScanBegin = EmuScanBegin16;
+	PicoScanEnd = NULL;
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 
-/*
-	if (!(Pico.video.reg[12]&1)) {
-		vidCpyM2 = vidCpyM2_32col;
-		clearArea(1);
-	} else	vidCpyM2 = vidCpyM2_40col;
-
-	vidCpyM2((unsigned char *)g_screen_ptr+320*8, PicoDraw2FB+328*8);
-	vidConvCpyRGB32(localPal, Pico.cram, 0x40);
-	gp2x_video_setpalette(localPal, 0x40);
-*/
 	PicoOpt = po_old;
 	currentConfig.EmuOpt = eo_old;
 }
@@ -605,7 +725,8 @@ static void tga_dump(void)
 
 void pemu_loop(void)
 {
-	static int gp2x_old_clock = -1, EmuOpt_old = 0;
+	static int gp2x_old_clock = -1, EmuOpt_old = 0, pal_old = 0;
+	static int gp2x_old_gamma = 100;
 	char fpsbuff[24]; // fps count c string
 	struct timeval tval; // timing
 	int pframes_done, pframes_shown, pthissec; // "period" frames, used for sync
@@ -637,7 +758,7 @@ void pemu_loop(void)
 		printf("updated gamma to %i, A_SN's curve: %i\n", currentConfig.gamma, !!(currentConfig.EmuOpt&0x1000));
 	}
 
-	if ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_PSYNC) {
+	if (((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_PSYNC) || Pico.m.pal != pal_old) {
 		if (currentConfig.EmuOpt & EOPT_PSYNC)
 			set_lcd_custom_rate(Pico.m.pal);
 		else
@@ -648,6 +769,7 @@ void pemu_loop(void)
 		gp2x_make_fb_bufferable(currentConfig.EmuOpt & EOPT_MMUHACK);
 
 	EmuOpt_old = currentConfig.EmuOpt;
+	pal_old = Pico.m.pal;
 	fpsbuff[0] = 0;
 
 	// make sure we are in correct mode
@@ -667,7 +789,7 @@ void pemu_loop(void)
 	if (PicoAHW & PAHW_MCD) PicoCDBufferInit();
 
 	// calc vsync offset to sync timing code with vsync
-	if (currentConfig.EmuOpt&0x2000) {
+	if (currentConfig.EmuOpt & EOPT_PSYNC) {
 		gettimeofday(&tval, 0);
 		gp2x_video_wait_vsync();
 		gettimeofday(&tval, 0);
@@ -715,16 +837,9 @@ void pemu_loop(void)
 		{
 			int scalex = 320;
 			osd_fps_x = OSD_FPS_X;
-			if (modes & 4) {
-				vidCpyM2 = vidCpyM2_40col;
-			} else {
-				if (PicoOpt & 0x100) {
-					vidCpyM2 = vidCpyM2_32col_nobord;
-					scalex = 256;
-					osd_fps_x = OSD_FPS_X - 64;
-				} else {
-					vidCpyM2 = vidCpyM2_32col;
-				}
+			if (!(modes & 4) && (PicoOpt & POPT_DIS_32C_BORDER)) {
+				scalex = 256;
+				osd_fps_x = OSD_FPS_X - 64;
 			}
 			/* want vertical scaling and game is not in 240 line mode */
 			if (currentConfig.scaling == EOPT_SCALE_HW_HV && !(modes&8))
@@ -853,9 +968,8 @@ void pemu_loop(void)
 		SRam.changed = 0;
 	}
 
-	// if in 8bit mode, generate 16bit image for menu background
-	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP))
-		pemu_forced_frame(POPT_EN_SOFTSCALE);
+	// do menu background to be sure it's right
+	pemu_forced_frame(POPT_EN_SOFTSCALE);
 }
 
 const char *plat_get_credits(void)

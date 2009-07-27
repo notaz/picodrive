@@ -86,13 +86,20 @@ void plat_video_menu_enter(int is_rom_loaded)
 			memset(g_screen_ptr, 0, 320*240*2);
 	}
 
-	// copy to buffer2
+	// copy to buffer2, switch to black
 	gp2x_memcpy_buffers((1<<2), g_screen_ptr, 0, 320*240*2);
+
+	/* try to switch nicely avoiding tearing on Wiz */
+	gp2x_video_wait_vsync();
+	memset(gp2x_screens[0], 0, 320*240*2);
+	memset(gp2x_screens[1], 0, 320*240*2);
+	gp2x_video_flip2();
+	gp2x_video_wait_vsync();
+	gp2x_video_wait_vsync();
 
 	// switch to 16bpp
 	gp2x_video_changemode_ll(16);
 	gp2x_video_RGB_setscaling(0, 320, 240);
-	gp2x_video_flip2();
 }
 
 void plat_video_menu_begin(void)
@@ -114,6 +121,8 @@ void plat_validate_config(void)
 	soc = soc_detect();
 	if (soc != SOCID_MMSP2)
 		PicoOpt &= ~POPT_EXT_FM;
+	if (soc != SOCID_POLLUX)
+		currentConfig.EmuOpt &= ~EOPT_WIZ_TEAR_FIX;
 
 	if (currentConfig.gamma < 10 || currentConfig.gamma > 300)
 		currentConfig.gamma = 100;

@@ -76,7 +76,7 @@ static void osd_text(int x, const char *text, int is_active, int clear_all)
 		memset32_uncached(p, 0, len);
 	}
 	if (is_active) { tmp = psp_screen; psp_screen = screen; } // nasty pointer tricks
-	emu_textOut16(x, 264, text);
+	emu_text_out16(x, 264, text);
 	if (is_active) psp_screen = tmp;
 }
 
@@ -409,7 +409,7 @@ static void dbg_text(void)
 		p = (int *) ((int)p & ~3); // align
 		memset32_uncached(p, 0, len);
 	}
-	emu_textOut16(2, 256, text);
+	emu_text_out16(2, 256, text);
 }
 #endif
 

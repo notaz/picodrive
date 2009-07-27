@@ -33,6 +33,12 @@ extern int g_screen_height;
 #define EOPT_CONFIRM_LOAD (1<<11)
 #define EOPT_A_SN_GAMMA   (1<<12)
 #define EOPT_PSYNC        (1<<13)
+#define EOPT_GIZ_SCANLN   (1<<14)
+#define EOPT_GIZ_DBLBUF   (1<<15)
+#define EOPT_VSYNC_MODE   (1<<16)
+#define EOPT_SHOW_RTC     (1<<17)
+#define EOPT_NO_FRMLIMIT  (1<<18)
+#define EOPT_WIZ_TEAR_FIX (1<<19)
 
 enum {
 	EOPT_SCALE_NONE = 0,
@@ -42,13 +48,8 @@ enum {
 };
 
 typedef struct _currentConfig_t {
-	// char lastRomFile[512];
-	int EmuOpt;		// LSb->MSb: use_sram, show_fps, enable_sound, gzip_saves,
-					// mmuhack, no_save_cfg_on_exit, <unused>, 16_bit_mode
-					// craigix_ram, confirm_save, show_cd_leds, confirm_load
-					// A_SNs_gamma, perfect_vsync, giz_scanlines, giz_dblbuff
-					// vsync_mode, show_clock, no_frame_limitter
-	int s_PicoOpt;		// for old cfg files only
+	int EmuOpt;
+	int s_PicoOpt;
 	int s_PsndRate;
 	int s_PicoRegion;
 	int s_PicoAutoRgnOrder;
@@ -111,10 +112,13 @@ char *emu_get_save_fname(int load, int is_sram, int slot);
 int   emu_check_save_file(int slot);
 void  emu_setSaveStateCbs(int gz);
 
+void  emu_text_out8 (int x, int y, const char *text);
+void  emu_text_out16(int x, int y, const char *text);
+void  emu_text_out8_rot (int x, int y, const char *text);
+void  emu_text_out16_rot(int x, int y, const char *text);
+
 void  emu_make_path(char *buff, const char *end, int size);
 void  emu_update_input(void);
-void  emu_textOut8 (int x, int y, const char *text);
-void  emu_textOut16(int x, int y, const char *text);
 void  emu_get_game_name(char *str150);
 void  emu_set_fastforward(int set_on);
 int   emu_cd_check(int *pregion, char *fname_in);

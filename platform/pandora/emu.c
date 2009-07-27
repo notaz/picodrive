@@ -134,7 +134,7 @@ static void osd_text(int x, int y, const char *text)
 			p = (int *) ((unsigned char *) g_screen_ptr+x+g_screen_width*(y+h));
 			for (i = len; i; i--, p++) *p = 0xe0e0e0e0;
 		}
-		emu_textOut8(x, y, text);
+		emu_text_out8(x, y, text);
 	} else {
 		int *p, i, h;
 		x &= ~1; // align x
@@ -143,7 +143,7 @@ static void osd_text(int x, int y, const char *text)
 			p = (int *) ((unsigned short *) g_screen_ptr+x+g_screen_width*(y+h));
 			for (i = len; i; i--, p++) *p = 0;//(*p>>2)&0x39e7;
 		}
-		textOut16(x, y, text);
+		text_out16(x, y, text);
 	}
 }
 

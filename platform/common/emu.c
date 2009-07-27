@@ -662,32 +662,36 @@ int emu_write_config(int is_game)
 
 /* always using built-in font */
 
-#define mk_text_out(name, type, val) \
+#define mk_text_out(name, type, val, topleft, step_x, step_y) \
 void name(int x, int y, const char *text)				\
 {									\
 	int i, l, len = strlen(text);					\
-	type *screen = (type *)g_screen_ptr + x + y * g_screen_width;	\
+	type *screen = (type *)(topleft) + x * step_x + y * step_y;	\
 									\
-	for (i = 0; i < len; i++, screen += 8)				\
+	for (i = 0; i < len; i++, screen += 8 * step_x)			\
 	{								\
 		for (l = 0; l < 8; l++)					\
 		{							\
 			unsigned char fd = fontdata8x8[text[i] * 8 + l];\
-			type *s = screen + l * g_screen_width;		\
-			if (fd&0x80) s[0] = val;			\
-			if (fd&0x40) s[1] = val;			\
-			if (fd&0x20) s[2] = val;			\
-			if (fd&0x10) s[3] = val;			\
-			if (fd&0x08) s[4] = val;			\
-			if (fd&0x04) s[5] = val;			\
-			if (fd&0x02) s[6] = val;			\
-			if (fd&0x01) s[7] = val;			\
+			type *s = screen + l * step_y;			\
+			if (fd&0x80) s[step_x * 0] = val;		\
+			if (fd&0x40) s[step_x * 1] = val;		\
+			if (fd&0x20) s[step_x * 2] = val;		\
+			if (fd&0x10) s[step_x * 3] = val;		\
+			if (fd&0x08) s[step_x * 4] = val;		\
+			if (fd&0x04) s[step_x * 5] = val;		\
+			if (fd&0x02) s[step_x * 6] = val;		\
+			if (fd&0x01) s[step_x * 7] = val;		\
 		}							\
 	}								\
 }
 
-mk_text_out(emu_textOut8, unsigned char, 0xf0)
-mk_text_out(emu_textOut16, unsigned short, 0xffff)
+mk_text_out(emu_text_out8,      unsigned char,    0xf0, g_screen_ptr, 1, g_screen_width)
+mk_text_out(emu_text_out16,     unsigned short, 0xffff, g_screen_ptr, 1, g_screen_width)
+mk_text_out(emu_text_out8_rot,  unsigned char,    0xf0,
+	(char *)g_screen_ptr  + (g_screen_width - 1) * g_screen_height, -g_screen_height, 1)
+mk_text_out(emu_text_out16_rot, unsigned short, 0xffff,
+	(short *)g_screen_ptr + (g_screen_width - 1) * g_screen_height, -g_screen_height, 1)
 
 #undef mk_text_out
 

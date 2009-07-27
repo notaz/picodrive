@@ -55,7 +55,7 @@ static void emu_msg_cb(const char *msg)
 	giz_screen = fb_lock(1);
 
 	memset32((int *)((char *)giz_screen + 321*232*2), 0, 321*8*2/4);
-	emu_textOut16(4, 232, msg);
+	emu_text_out16(4, 232, msg);
 	noticeMsgTime = GetTickCount() - 2000;
 
 	/* assumption: emu_msg_cb gets called only when something slow is about to happen */
@@ -137,7 +137,7 @@ static void osd_text(int x, int y, const char *text)
 		p = (int *) ((int)p & ~3); // align
 		memset32(p, 0, len);
 	}
-	emu_textOut16(x, y, text);
+	emu_text_out16(x, y, text);
 }
 
 /*

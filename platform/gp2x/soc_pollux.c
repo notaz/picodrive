@@ -30,6 +30,7 @@ static int fbdev = -1;
 static char cpuclk_was_changed = 0;
 static unsigned short memtimex_old[2];
 static unsigned int pllsetreg0;
+static int last_pal_setting = 0;
 
 
 /* video stuff */
@@ -56,9 +57,30 @@ static void gp2x_video_flip2_(void)
 
 static void gp2x_video_changemode_ll_(int bpp)
 {
+	static int prev_bpp = 0;
 	int code = 0, bytes = 2;
+	int rot_cmd[2] = { 0, 0 };
 	unsigned int r;
-	switch (bpp)
+	int ret;
+
+	if (bpp == prev_bpp)
+		return;
+	prev_bpp = bpp;
+
+	printf("changemode: %dbpp rot=%d\n", abs(bpp), bpp < 0);
+
+	/* negative bpp means rotated mode */
+	rot_cmd[0] = (bpp < 0) ? 6 : 5;
+	ret = ioctl(fbdev, _IOW('D', 90, int[2]), rot_cmd);
+	if (ret < 0)
+		perror("rot ioctl failed");
+	memregl[0x4004>>2] = (bpp < 0) ? 0x013f00ef : 0x00ef013f;
+	memregl[0x4000>>2] |= 1 << 3;
+
+	/* the above ioctl resets LCD timings, so set them here */
+	set_lcd_custom_rate(last_pal_setting);
+
+	switch (abs(bpp))
 	{
 		case 8:
 			code = 0x443a;
@@ -72,12 +94,12 @@ static void gp2x_video_changemode_ll_(int bpp)
 			break;
 
 		default:
-			printf("unhandled bpp request: %d\n", bpp);
+			printf("unhandled bpp request: %d\n", abs(bpp));
 			return;
 	}
 
 	memregl[0x405c>>2] = bytes;
-	memregl[0x4060>>2] = bytes * 320;
+	memregl[0x4060>>2] = bytes * (bpp < 0 ? 240 : 320);
 
 	r = memregl[0x4058>>2];
 	r = (r & 0xffff) | (code << 16) | 0x10;
@@ -156,6 +178,7 @@ static void set_lcd_custom_rate_(int is_pal)
 
 	snprintf(buff, sizeof(buff), "POLLUX_LCD_TIMINGS_%s", is_pal ? "PAL" : "NTSC");
 	pollux_set_fromenv(buff);
+	last_pal_setting = is_pal;
 }
 
 static void unset_lcd_custom_rate_(void)
@@ -245,7 +268,6 @@ void pollux_finish(void)
 	/* switch to default fb mem, turn portrait off */
 	memregl[0x406C>>2] = fb_paddr[0];
 	memregl[0x4058>>2] |= 0x10;
-//	wiz_lcd_set_portrait(0);
 	close(fbdev);
 
 	gp2x_video_changemode_ll_(16);
