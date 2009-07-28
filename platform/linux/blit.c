@@ -1,6 +1,7 @@
 
 // Convert 0000bbb0 ggg0rrr0 0000bbb0 ggg0rrr0
 // to      00000000 rrr00000 ggg00000 bbb00000 ...
+// TODO: rm when gp2x/emu.c is no longer used
 
 void vidConvCpyRGB32  (void *to, void *from, int pixels)
 {
@@ -45,37 +46,39 @@ void vidConvCpyRGB32hi(void *to, void *from, int pixels)
 	}
 }
 
-void vidCpyM2_40col(void *dest, void *src)
+void vidcpy_m2(void *dest, void *src, int m32col, int with_32c_border)
 {
 	unsigned char *pd = dest, *ps = src;
 	int i, u;
 
-	for (i = 0; i < 224; i++)
-	{
-		ps += 8;
-		for (u = 0; u < 320; u++)
-			*pd++ = *ps++;
+	if (m32col) {
+		for (i = 0; i < 224; i++)
+		{
+			ps += 8;
+			pd += 32;
+			for (u = 0; u < 256; u++)
+				*pd++ = *ps++;
+			ps += 64;
+			pd += 32;
+		}
+	} else {
+		for (i = 0; i < 224; i++)
+		{
+			ps += 8;
+			for (u = 0; u < 320; u++)
+				*pd++ = *ps++;
+		}
 	}
 }
 
-void vidCpyM2_32col(void *dest, void *src)
+void vidcpy_m2_rot(void *dest, void *src, int m32col, int with_32c_border)
 {
-	unsigned char *pd = dest, *ps = src;
-	int i, u;
-
-	for (i = 0; i < 224; i++)
-	{
-		ps += 8;
-		pd += 32;
-		for (u = 0; u < 256; u++)
-			*pd++ = *ps++;
-		ps += 64;
-		pd += 32;
-	}
 }
 
-void vidCpyM2_32col_nobord(void *dest, void *src)
+void rotated_blit8 (void *dst, void *linesx4, int y, int is_32col)
 {
-	vidCpyM2_32col(dest, src);
 }
 
+void rotated_blit16(void *dst, void *linesx4, int y, int is_32col)
+{
+}

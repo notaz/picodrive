@@ -25,6 +25,7 @@ static int current_bpp = 8;
 static int current_pal[256];
 static const char *verstring = "PicoDrive " VERSION;
 static int scr_changed = 0, scr_w = SCREEN_WIDTH, scr_h = SCREEN_HEIGHT;
+void *gp2x_screens[4];
 
 // dummies
 int mix_32_to_16l_level;
@@ -206,11 +207,15 @@ void finalize_image(guchar *pixels, gpointer data)
 static void realloc_screen(void)
 {
 	void *old = g_screen_ptr;
+	int i;
 	g_screen_width = scr_w;
 	g_screen_height = scr_h;
 	g_screen_ptr = calloc(g_screen_width * g_screen_height * 2, 1);
 	free(old);
 	scr_changed = 0;
+
+	for (i = 0; i < 4; i++)
+		gp2x_screens[i] = g_screen_ptr;
 }
 
 /* gp2x/emu.c stuff, most to be rm'd */
