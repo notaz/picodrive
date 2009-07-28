@@ -31,7 +31,7 @@ else
 use_cyclone = 1
 endif
 
-DEFINC = -I../.. -I. -DARM -D__GP2X__ -DIN_GP2X # -DBENCHMARK
+DEFINC = -I../.. -I. -DARM -D__GP2X__ -DIN_GP2X -DIN_EVDEV # -DBENCHMARK
 CFLAGS += -Wall -Winline
 ifeq ($(DEBUG),)
 # -ftracer # TODO measure impact
@@ -63,7 +63,7 @@ OBJS += 940ctl.o
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
 	platform/common/arm_utils.o platform/common/arm_linux.o platform/common/readpng.o \
 	platform/common/mp3_helix.o platform/common/input.o platform/common/main.o \
-	platform/linux/sndout_oss.o platform/linux/plat.o
+	platform/linux/sndout_oss.o platform/linux/plat.o platform/linux/in_evdev.o
 
 # Pico
 ifeq "$(amalgamate)" "1"
