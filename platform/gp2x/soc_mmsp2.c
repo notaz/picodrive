@@ -353,6 +353,10 @@ static void set_lcd_gamma_(int g100, int A_SNs_curve)
 	gamma_was_changed = 1;
 }
 
+static int gp2x_read_battery_(void)
+{
+	return -1; /* TODO? */
+}
 
 /* these are not quite MMSP2 related,
  * more to GP2X F100/F200 consoles themselves. */
@@ -503,6 +507,7 @@ void mmsp2_init(void)
 
 	set_ram_timings = set_ram_timings_;
 	unset_ram_timings = unset_ram_timings_;
+	gp2x_read_battery = gp2x_read_battery_;
 }
 
 void mmsp2_finish(void)

@@ -327,7 +327,7 @@ static int me_count(const menu_entry *ent)
 	return ret;
 }
 
-static void me_draw(const menu_entry *entries, int sel)
+static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 {
 	const menu_entry *ent;
 	int x, y, w = 0, h = 0;
@@ -449,6 +449,9 @@ static void me_draw(const menu_entry *entries, int sel)
 			menu_error_msg[0] = 0;
 	}
 
+	if (draw_more != NULL)
+		draw_more();
+
 	plat_video_menu_end();
 }
 
@@ -475,12 +478,12 @@ static int me_process(menu_entry *entry, int is_next)
 
 static void debug_menu_loop(void);
 
-static void me_loop(menu_entry *menu, int *menu_sel)
+static void me_loop(menu_entry *menu, int *menu_sel, void (*draw_more)(void))
 {
 	int ret, inp, sel = *menu_sel, menu_sel_max;
 
 	menu_sel_max = me_count(menu) - 1;
-	if (menu_sel_max < 1) {
+	if (menu_sel_max < 0) {
 		lprintf("no enabled menu entries\n");
 		return;
 	}
@@ -489,12 +492,12 @@ static void me_loop(menu_entry *menu, int *menu_sel)
 		sel++;
 
 	/* make sure action buttons are not pressed on entering menu */
-	me_draw(menu, sel);
+	me_draw(menu, sel, NULL);
 	while (in_menu_wait_any(50) & (PBTN_MOK|PBTN_MBACK|PBTN_MENU));
 
 	for (;;)
 	{
-		me_draw(menu, sel);
+		me_draw(menu, sel, draw_more);
 		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|
 					PBTN_MOK|PBTN_MBACK|PBTN_MENU|PBTN_L|PBTN_R, 70);
 		if (inp & (PBTN_MENU|PBTN_MBACK))
@@ -539,6 +542,9 @@ static void me_loop(menu_entry *menu, int *menu_sel)
 }
 
 /* ***************************************** */
+
+/* platform specific options and handlers */
+#include "../gp2x/menu.c"
 
 static void draw_menu_credits(void)
 {
@@ -1379,7 +1385,7 @@ static int menu_loop_keyconfig(menu_id id, int keys)
 	static int sel = 0;
 
 	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, rom_loaded);
-	me_loop(e_menu_keyconfig, &sel);
+	me_loop(e_menu_keyconfig, &sel, NULL);
 	return 0;
 }
 
@@ -1425,7 +1431,7 @@ static menu_entry e_menu_cd_options[] =
 static int menu_loop_cd_options(menu_id id, int keys)
 {
 	static int sel = 0;
-	me_loop(e_menu_cd_options, &sel);
+	me_loop(e_menu_cd_options, &sel, NULL);
 	return 0;
 }
 
@@ -1435,23 +1441,20 @@ static menu_entry e_menu_adv_options[] =
 {
 	mee_onoff     ("SRAM/BRAM saves",          MA_OPT_SRAM_STATES,    currentConfig.EmuOpt, EOPT_EN_SRAM),
 	mee_onoff     ("Disable sprite limit",     MA_OPT2_NO_SPRITE_LIM, PicoOpt, POPT_DIS_SPRITE_LIM),
-	mee_onoff     ("Use second CPU for sound", MA_OPT_ARM940_SOUND,   PicoOpt, POPT_EXT_FM),
 	mee_onoff     ("Emulate Z80",              MA_OPT2_ENABLE_Z80,    PicoOpt, POPT_EN_Z80),
 	mee_onoff     ("Emulate YM2612 (FM)",      MA_OPT2_ENABLE_YM2612, PicoOpt, POPT_EN_FM),
 	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoOpt, POPT_EN_PSG),
 	mee_onoff     ("gzip savestates",          MA_OPT2_GZIP_STATES,   currentConfig.EmuOpt, EOPT_GZIP_SAVES),
 	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
-	mee_onoff     ("RAM overclock",            MA_OPT2_RAMTIMINGS,    currentConfig.EmuOpt, EOPT_RAM_TIMINGS),
-	mee_onoff     ("MMU hack",                 MA_OPT2_SQUIDGEHACK,   currentConfig.EmuOpt, EOPT_MMUHACK),
-	mee_onoff     ("SVP dynarec",              MA_OPT2_SVP_DYNAREC,   PicoOpt, POPT_EN_SVP_DRC),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoOpt, POPT_DIS_IDLE_DET),
+	MENU_GP2X_OPTIONS_ADV
 	mee_end,
 };
 
 static int menu_loop_adv_options(menu_id id, int keys)
 {
 	static int sel = 0;
-	me_loop(e_menu_adv_options, &sel);
+	me_loop(e_menu_adv_options, &sel, NULL);
 	return 0;
 }
 
@@ -1463,49 +1466,17 @@ static int mh_opt_render(menu_id id, int keys)
 	return 0;
 }
 
-static const char *mgn_opt_renderer(menu_id id, int *offs)
-{
-	*offs = -11;
-	if (PicoOpt & POPT_ALT_RENDERER)
-		return "     8bit fast";
-	else if (currentConfig.EmuOpt & EOPT_16BPP)
-		return "16bit accurate";
-	else
-		return " 8bit accurate";
-}
-
-static const char *mgn_opt_scaling(menu_id id, int *offs)
-{
-	*offs = -13;
-	switch (currentConfig.scaling) {
-		default:               return "             OFF";
-		case EOPT_SCALE_HW_H:  return "   hw horizontal";
-		case EOPT_SCALE_HW_HV: return "hw horiz. + vert";
-		case EOPT_SCALE_SW_H:  return "   sw horizontal";
-	}
-}
-
-static const char *mgn_aopt_gamma(menu_id id, int *offs)
-{
-	sprintf(static_buff, "%i.%02i", currentConfig.gamma / 100, currentConfig.gamma%100);
-	return static_buff;
-}
-
 static menu_entry e_menu_gfx_options[] =
 {
 	mee_cust      ("Renderer",                 MA_OPT_RENDERER,       mh_opt_render, mgn_opt_renderer),
-	mee_range_cust("Scaling",                  MA_OPT_SCALING,        currentConfig.scaling, 0, 3, mgn_opt_scaling),
-	mee_onoff     ("Tearing Fix",              MA_OPT_TEARING_FIX,    currentConfig.EmuOpt, EOPT_WIZ_TEAR_FIX),
-	mee_range_cust("Gamma correction",         MA_OPT2_GAMMA,         currentConfig.gamma, 1, 300, mgn_aopt_gamma),
-	mee_onoff     ("A_SN's gamma curve",       MA_OPT2_A_SN_GAMMA,    currentConfig.EmuOpt, EOPT_A_SN_GAMMA),
-	mee_onoff     ("Perfect vsync",            MA_OPT2_VSYNC,         currentConfig.EmuOpt, EOPT_PSYNC),
+	MENU_GP2X_OPTIONS_GFX
 	mee_end,
 };
 
 static int menu_loop_gfx_options(menu_id id, int keys)
 {
 	static int sel = 0;
-	me_loop(e_menu_gfx_options, &sel);
+	me_loop(e_menu_gfx_options, &sel, NULL);
 	return 0;
 }
 
@@ -1726,7 +1697,7 @@ static int menu_loop_options(menu_id id, int keys)
 	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, rom_loaded);
 	me_enable(e_menu_options, MA_OPT_LOADCFG, config_slot != config_slot_current);
 
-	me_loop(e_menu_options, &sel);
+	me_loop(e_menu_options, &sel, NULL);
 
 	if (PicoRegionOverride)
 		// force setting possibly changed..
@@ -1977,7 +1948,7 @@ void menu_loop(void)
 
 	plat_video_menu_enter(rom_loaded);
 	in_set_blocking(1);
-	me_loop(e_menu_main, &sel);
+	me_loop(e_menu_main, &sel, menu_main_plat_draw);
 
 	if (rom_loaded) {
 		if (engineState == PGS_Menu)
@@ -2035,7 +2006,7 @@ int menu_loop_tray(void)
 	plat_video_menu_enter(rom_loaded);
 
 	in_set_blocking(1);
-	me_loop(e_menu_tray, &sel);
+	me_loop(e_menu_tray, &sel, NULL);
 
 	if (engineState != PGS_RestartRun) {
 		engineState = PGS_RestartRun;
@@ -2061,13 +2032,15 @@ void me_update_msg(const char *msg)
 
 // ------------ util ------------
 
-/* wiz for now, probably extend later */
+/* GP2X/wiz for now, probably extend later */
 void menu_plat_setup(int is_wiz)
 {
 	int i;
 
-	if (!is_wiz)
+	if (!is_wiz) {
+		me_enable(e_menu_gfx_options, MA_OPT_TEARING_FIX, 0);
 		return;
+	}
 
 	me_enable(e_menu_adv_options, MA_OPT_ARM940_SOUND, 0);
 	me_enable(e_menu_gfx_options, MA_OPT2_GAMMA, 0);

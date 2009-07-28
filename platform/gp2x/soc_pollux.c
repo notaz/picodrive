@@ -19,6 +19,7 @@
 static volatile unsigned short *memregs;
 static volatile unsigned long  *memregl;
 static int memdev = -1;
+static int battdev = -1;
 
 extern void *gp2x_screens[4];
 
@@ -190,6 +191,23 @@ static void set_lcd_gamma_(int g100, int A_SNs_curve)
 	/* hm, the LCD possibly can do it (but not POLLUX) */
 }
 
+static int gp2x_read_battery_(void)
+{
+	unsigned short magic_val = 0;
+
+	if (battdev < 0)
+		return -1;
+	if (read(battdev, &magic_val, sizeof(magic_val)) != sizeof(magic_val))
+		return -1;
+	switch (magic_val) {
+	default:
+	case 1:	return 100;
+	case 2: return 66;
+	case 3: return 40;
+	case 4: return 0;
+	}
+}
+
 void pollux_init(void)
 {
 	struct fb_fix_screeninfo fbfix;
@@ -242,7 +260,11 @@ void pollux_init(void)
 	fb_work_buf = 0;
 	g_screen_ptr = gp2x_screens[0];
 
-	pllsetreg0 = memregl[0xf004];
+	battdev = open("/dev/pollux_batt", O_RDONLY);
+	if (battdev < 0)
+		perror("Warning: could't open pollux_batt");
+
+	pllsetreg0 = memregl[0xf004>>2];
 	memtimex_old[0] = memregs[0x14802>>1];
 	memtimex_old[1] = memregs[0x14804>>1];
 
@@ -261,6 +283,7 @@ void pollux_init(void)
 
 	set_ram_timings = set_ram_timings_;
 	unset_ram_timings = unset_ram_timings_;
+	gp2x_read_battery = gp2x_read_battery_;
 }
 
 void pollux_finish(void)
@@ -279,5 +302,7 @@ void pollux_finish(void)
 
 	munmap((void *)memregs, 0x20000);
 	close(memdev);
+	if (battdev >= 0)
+		close(battdev);
 }
 

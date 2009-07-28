@@ -23,6 +23,7 @@ void (*set_lcd_gamma)(int g100, int A_SNs_curve);
 
 void (*set_ram_timings)(void);
 void (*unset_ram_timings)(void);
+int  (*gp2x_read_battery)(void);
 
 
 gp2x_soc_t soc_detect(void)

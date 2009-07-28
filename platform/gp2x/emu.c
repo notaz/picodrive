@@ -109,7 +109,7 @@ void pemu_prep_defconfig(void)
 	if (soc == SOCID_MMSP2)
 		defaultConfig.s_PicoOpt |= POPT_EXT_FM;
 	else if (soc == SOCID_POLLUX)
-		defaultConfig.EmuOpt |= EOPT_WIZ_TEAR_FIX;
+		defaultConfig.EmuOpt |= EOPT_WIZ_TEAR_FIX|EOPT_SHOW_RTC;
 }
 
 static void (*osd_text)(int x, int y, const char *text);

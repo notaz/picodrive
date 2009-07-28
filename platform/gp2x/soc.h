@@ -28,4 +28,5 @@ extern void (*set_lcd_gamma)(int g100, int A_SNs_curve);
 
 extern void (*set_ram_timings)(void);
 extern void (*unset_ram_timings)(void);
+extern int  (*gp2x_read_battery)(void);
 
