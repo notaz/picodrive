@@ -17,6 +17,12 @@ int plat_is_dir(const char *path)
 	return 0;
 }
 
+#ifdef __GP2X__
+/* Wiz has a borked gettimeofday().. */
+#define plat_get_ticks_ms plat_get_ticks_ms_gtod
+#define plat_get_ticks_us plat_get_ticks_us_gtod
+#endif
+
 unsigned int plat_get_ticks_ms(void)
 {
 	struct timeval tv;
@@ -25,8 +31,21 @@ unsigned int plat_get_ticks_ms(void)
 	gettimeofday(&tv, NULL);
 
 	ret = (unsigned)tv.tv_sec * 1000;
-	/* approximate division */
+	/* approximate /= 1000 */
 	ret += ((unsigned)tv.tv_usec * 4195) >> 22;
+
+	return ret;
+}
+
+unsigned int plat_get_ticks_us(void)
+{
+	struct timeval tv;
+	unsigned int ret;
+
+	gettimeofday(&tv, NULL);
+
+	ret = (unsigned)tv.tv_sec * 1000000;
+	ret += (unsigned)tv.tv_usec;
 
 	return ret;
 }

@@ -25,6 +25,9 @@ void (*set_ram_timings)(void);
 void (*unset_ram_timings)(void);
 int  (*gp2x_read_battery)(void);
 
+unsigned int (*gp2x_get_ticks_ms)(void);
+unsigned int (*gp2x_get_ticks_us)(void);
+
 
 gp2x_soc_t soc_detect(void)
 {

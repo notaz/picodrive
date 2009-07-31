@@ -99,6 +99,7 @@ enum TPicoGameState {
 
 void  emu_init(void);
 void  emu_finish(void);
+void  emu_loop(void);
 
 int   emu_reload_rom(char *rom_fname);
 int   emu_save_load_game(int load, int sram);
@@ -122,6 +123,7 @@ void  emu_update_input(void);
 void  emu_get_game_name(char *str150);
 void  emu_set_fastforward(int set_on);
 int   emu_cd_check(int *pregion, char *fname_in);
+void  emu_status_msg(const char *format, ...);
 
 #ifdef __cplusplus
 } // extern "C"

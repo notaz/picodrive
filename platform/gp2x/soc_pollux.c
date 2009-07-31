@@ -208,6 +208,31 @@ static int gp2x_read_battery_(void)
 	}
 }
 
+#define TIMER_BASE3 0x1980
+#define TIMER_REG(x) memregl[(TIMER_BASE3 + x) >> 2]
+
+unsigned int gp2x_get_ticks_us_(void)
+{
+	TIMER_REG(0x08) = 0x4b;  /* run timer, latch value */
+	return TIMER_REG(0);
+}
+
+unsigned int gp2x_get_ticks_ms_(void)
+{
+	unsigned long long v64;
+	v64 = (unsigned long long)gp2x_get_ticks_us_() * 4195;
+	return v64 >> 22;
+}
+
+static void timer_cleanup(void)
+{
+	TIMER_REG(0x40) = 0x0c;	/* be sure clocks are on */
+	TIMER_REG(0x08) = 0x23;	/* stop the timer, clear irq in case it's pending */
+	TIMER_REG(0x00) = 0;	/* clear counter */
+	TIMER_REG(0x40) = 0;	/* clocks off */
+	TIMER_REG(0x44) = 0;	/* dividers back to default */
+}
+
 void pollux_init(void)
 {
 	struct fb_fix_screeninfo fbfix;
@@ -264,6 +289,14 @@ void pollux_init(void)
 	if (battdev < 0)
 		perror("Warning: could't open pollux_batt");
 
+	/* setup timer */
+	if (TIMER_REG(0x08) & 8)
+		timer_cleanup();
+
+	TIMER_REG(0x44) = 0x922; /* using PLL1, divider value 147 */
+	TIMER_REG(0x40) = 0x0c;  /* clocks on */
+	TIMER_REG(0x08) = 0x6b;  /* run timer, clear irq, latch value */
+
 	pllsetreg0 = memregl[0xf004>>2];
 	memtimex_old[0] = memregs[0x14802>>1];
 	memtimex_old[1] = memregs[0x14804>>1];
@@ -284,6 +317,9 @@ void pollux_init(void)
 	set_ram_timings = set_ram_timings_;
 	unset_ram_timings = unset_ram_timings_;
 	gp2x_read_battery = gp2x_read_battery_;
+
+	gp2x_get_ticks_ms = gp2x_get_ticks_ms_;
+	gp2x_get_ticks_us = gp2x_get_ticks_us_;
 }
 
 void pollux_finish(void)

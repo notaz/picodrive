@@ -34,7 +34,6 @@
 
 
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
-static struct timeval noticeMsgTime = { 0, 0 };	// when started showing
 static int osd_fps_x;
 unsigned char *PicoDraw2FB = NULL;  // temporary buffer for alt renderer
 
@@ -42,17 +41,6 @@ unsigned char *PicoDraw2FB = NULL;  // temporary buffer for alt renderer
 #define PICO_PEN_ADJUST_Y 2
 static int pico_pen_x = 0, pico_pen_y = 240/2;
 
-
-void plat_status_msg(const char *format, ...)
-{
-	va_list vl;
-
-	va_start(vl, format);
-	vsnprintf(noticeMsg, sizeof(noticeMsg), fmt, vl);
-	va_end(vl);
-
-	gettimeofday(&noticeMsgTime, 0);
-}
 
 int plat_get_root_dir(char *dst, int len)
 {

@@ -30,3 +30,6 @@ extern void (*set_ram_timings)(void);
 extern void (*unset_ram_timings)(void);
 extern int  (*gp2x_read_battery)(void);
 
+/* gettimeofday is not suitable for Wiz, at least fw 1.1 or lower */
+extern unsigned int (*gp2x_get_ticks_ms)(void);
+extern unsigned int (*gp2x_get_ticks_us)(void);

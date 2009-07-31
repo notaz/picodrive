@@ -28,19 +28,12 @@
 unsigned char gfx_buffer[321*240*2*2];
 unsigned char *PicoDraw2FB = gfx_buffer;  // temporary buffer for alt renderer ( (8+320)*(8+240+8) )
 
-static DWORD noticeMsgTime = 0;
 static short *snd_cbuff = NULL;
 static int snd_cbuf_samples = 0, snd_all_samples = 0;
 
 
 static void blit(const char *fps, const char *notice);
 static void clearArea(int full);
-
-void plat_status_msg(const char *format, ...)
-{
-	/* TODO */
-	noticeMsgTime = GetTickCount();
-}
 
 int plat_get_root_dir(char *dst, int len)
 {

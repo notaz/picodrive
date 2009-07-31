@@ -36,8 +36,6 @@ int sceAudioOutput2GetRestSample();
 unsigned char *PicoDraw2FB = (unsigned char *)VRAM_CACHED_STUFF + 8; // +8 to be able to skip border with 1 quadword..
 int engineStateSuspend;
 
-static unsigned int noticeMsgTime = 0;
-
 #define PICO_PEN_ADJUST_X 4
 #define PICO_PEN_ADJUST_Y 2
 static int pico_pen_x = 320/2, pico_pen_y = 240/2;
@@ -46,17 +44,6 @@ static void sound_init(void);
 static void sound_deinit(void);
 static void blit2(const char *fps, const char *notice, int lagging_behind);
 static void clearArea(int full);
-
-void plat_status_msg(const char *format, ...)
-{
-	va_list vl;
-
-	va_start(vl, format);
-	vsnprintf(noticeMsg, sizeof(noticeMsg), fmt, vl);
-	va_end(vl);
-
-	noticeMsgTime = sceKernelGetSystemTimeLow();
-}
 
 int plat_get_root_dir(char *dst, int len)
 {
@@ -610,7 +597,7 @@ void pemu_sound_start(void)
 	ret = sceAudio_38553111(samples_block/2, PsndRate, 2); // seems to not need that stupid 64byte alignment
 	if (ret < 0) {
 		lprintf("sceAudio_38553111() failed: %i\n", ret);
-		plat_status_msg("sound init failed (%i), snd disabled", ret);
+		emu_status_msg("sound init failed (%i), snd disabled", ret);
 		currentConfig.EmuOpt &= ~EOPT_EN_SOUND;
 	} else {
 		PicoWriteSound = writeSound;
@@ -782,9 +769,9 @@ static void RunEvents(unsigned int which)
 		vidResetMode();
 
 		if (PicoOpt & POPT_ALT_RENDERER)
-			plat_status_msg("fast renderer");
+			emu_status_msg("fast renderer");
 		else if (currentConfig.EmuOpt&0x80)
-			plat_status_msg("accurate renderer");
+			emu_status_msg("accurate renderer");
 	}
 	if (which & 0x0300)
 	{
@@ -795,7 +782,7 @@ static void RunEvents(unsigned int which)
 			state_slot += 1;
 			if(state_slot > 9) state_slot = 0;
 		}
-		plat_status_msg("SAVE SLOT %i [%s]", state_slot,
+		emu_status_msg("SAVE SLOT %i [%s]", state_slot,
 			emu_check_save_file(state_slot) ? "USED" : "FREE");
 	}
 }

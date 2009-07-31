@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #ifndef NO_SYNC
 #include <unistd.h>
 #endif
@@ -44,6 +45,8 @@ char rom_fname_reload[512] = { 0, };
 char rom_fname_loaded[512] = { 0, };
 int rom_loaded = 0;
 int reset_timing = 0;
+static unsigned int notice_msg_time;	/* when started showing */
+static char noticeMsg[40];
 
 unsigned char *movie_data = NULL;
 static int movie_size = 0;
@@ -84,6 +87,17 @@ static void get_ext(char *file, char *ext)
 	strncpy(ext, p, 4);
 	ext[4] = 0;
 	strlwr_(ext);
+}
+
+void emu_status_msg(const char *format, ...)
+{
+	va_list vl;
+
+	va_start(vl, format);
+	vsnprintf(noticeMsg, sizeof(noticeMsg), format, vl);
+	va_end(vl);
+
+	notice_msg_time = plat_get_ticks_ms();
 }
 
 static const char *biosfiles_us[] = { "us_scd1_9210", "us_scd2_9306", "SegaCDBIOS9303" };
@@ -485,12 +499,12 @@ int emu_reload_rom(char *rom_fname)
 			// TODO: bits 6 & 5
 		}
 		movie_data[0x18+30] = 0;
-		plat_status_msg("MOVIE: %s", (char *) &movie_data[0x18]);
+		emu_status_msg("MOVIE: %s", (char *) &movie_data[0x18]);
 	}
 	else
 	{
 		PicoOpt &= ~POPT_DIS_VDP_FIFO;
-		plat_status_msg(Pico.m.pal ? "PAL SYSTEM / 50 FPS" : "NTSC SYSTEM / 60 FPS");
+		emu_status_msg(Pico.m.pal ? "PAL SYSTEM / 50 FPS" : "NTSC SYSTEM / 60 FPS");
 	}
 
 	// load SRAM for this ROM
@@ -702,7 +716,7 @@ void update_movie(void)
 	if (offs+3 > movie_size) {
 		free(movie_data);
 		movie_data = 0;
-		plat_status_msg("END OF MOVIE.");
+		emu_status_msg("END OF MOVIE.");
 		lprintf("END OF MOVIE.\n");
 	} else {
 		// MXYZ SACB RLDU
@@ -824,7 +838,7 @@ int emu_save_load_game(int load, int sram)
 	saveFname = emu_get_save_fname(load, sram, state_slot);
 	if (saveFname == NULL) {
 		if (!sram)
-			plat_status_msg(load ? "LOAD FAILED (missing file)" : "SAVE FAILED");
+			emu_status_msg(load ? "LOAD FAILED (missing file)" : "SAVE FAILED");
 		return -1;
 	}
 
@@ -910,10 +924,10 @@ int emu_save_load_game(int load, int sram)
 		}
 		else	ret = -1;
 		if (!ret)
-			plat_status_msg(load ? "GAME LOADED" : "GAME SAVED");
+			emu_status_msg(load ? "GAME LOADED" : "GAME SAVED");
 		else
 		{
-			plat_status_msg(load ? "LOAD FAILED" : "SAVE FAILED");
+			emu_status_msg(load ? "LOAD FAILED" : "SAVE FAILED");
 			ret = -1;
 		}
 
@@ -935,7 +949,7 @@ void emu_set_fastforward(int set_on)
 		currentConfig.EmuOpt &= ~4;
 		currentConfig.EmuOpt |= 0x40000;
 		is_on = 1;
-		plat_status_msg("FAST FORWARD");
+		emu_status_msg("FAST FORWARD");
 	}
 	else if (!set_on && is_on) {
 		PsndOut = set_PsndOut;
@@ -948,7 +962,7 @@ void emu_set_fastforward(int set_on)
 
 static void emu_msg_tray_open(void)
 {
-	plat_status_msg("CD tray opened");
+	emu_status_msg("CD tray opened");
 }
 
 void emu_reset_game(void)
@@ -966,9 +980,9 @@ void run_events_pico(unsigned int events)
 		if (pico_inp_mode > 2)
 			pico_inp_mode = 0;
 		switch (pico_inp_mode) {
-			case 2: plat_status_msg("Input: Pen on Pad"); break;
-			case 1: plat_status_msg("Input: Pen on Storyware"); break;
-			case 0: plat_status_msg("Input: Joystick");
+			case 2: emu_status_msg("Input: Pen on Pad"); break;
+			case 1: emu_status_msg("Input: Pen on Storyware"); break;
+			case 0: emu_status_msg("Input: Joystick");
 				PicoPicohw.pen_pos[0] = PicoPicohw.pen_pos[1] = 0x8000;
 				break;
 		}
@@ -977,13 +991,13 @@ void run_events_pico(unsigned int events)
 		PicoPicohw.page--;
 		if (PicoPicohw.page < 0)
 			PicoPicohw.page = 0;
-		plat_status_msg("Page %i", PicoPicohw.page);
+		emu_status_msg("Page %i", PicoPicohw.page);
 	}
 	if (events & PEV_PICO_PNEXT) {
 		PicoPicohw.page++;
 		if (PicoPicohw.page > 6)
 			PicoPicohw.page = 6;
-		plat_status_msg("Page %i", PicoPicohw.page);
+		emu_status_msg("Page %i", PicoPicohw.page);
 	}
 
 	if (pico_inp_mode == 0)
@@ -1094,7 +1108,7 @@ static void run_events_ui(unsigned int which)
 				state_slot = 0;
 		}
 
-		plat_status_msg("SAVE SLOT %i [%s]", state_slot,
+		emu_status_msg("SAVE SLOT %i [%s]", state_slot,
 			emu_check_save_file(state_slot) ? "USED" : "FREE");
 	}
 	if (which & PEV_MENU)
@@ -1192,5 +1206,207 @@ void emu_finish(void)
 	}
 
 	PicoExit();
+}
+
+static void skip_frame(int do_audio)
+{
+	PicoSkipFrame = do_audio ? 1 : 2;
+	PicoFrame();
+	PicoSkipFrame = 0;
+}
+
+/* our tick here is 1 us right now */
+#define ms_to_ticks(x) (unsigned int)(x * 1000)
+#define get_ticks() plat_get_ticks_us()
+
+void emu_loop(void)
+{
+	int pframes_done;		/* "period" frames, used for sync */
+	int frames_done, frames_shown;	/* actual frames for fps counter */
+	int oldmodes, target_fps, target_frametime;
+	unsigned int timestamp_base = 0, timestamp_fps;
+	char *notice_msg = NULL;
+	char fpsbuff[24];
+	int i;
+
+	fpsbuff[0] = 0;
+
+	/* make sure we are in correct mode */
+	oldmodes = ((Pico.video.reg[12]&1)<<2) ^ 0xc;
+	Pico.m.dirtyPal = 1;
+
+	/* number of ticks per frame */
+	if (Pico.m.pal) {
+		target_fps = 50;
+		target_frametime = ms_to_ticks(1000) / 50;
+	} else {
+		target_fps = 60;
+		target_frametime = ms_to_ticks(1000) / 60 + 1;
+	}
+
+	// prepare CD buffer
+	if (PicoAHW & PAHW_MCD)
+		PicoCDBufferInit();
+
+	if (currentConfig.EmuOpt & EOPT_PSYNC)
+		plat_video_wait_vsync();
+
+	pemu_loop_prep();
+
+	timestamp_fps = get_ticks();
+	reset_timing = 1;
+
+	frames_done = frames_shown = pframes_done = 0;
+
+	/* loop with resync every 1 sec. */
+	while (engineState == PGS_Running)
+	{
+		unsigned int timestamp;
+		int diff, diff_lim;
+		int modes;
+
+		timestamp = get_ticks();
+		if (reset_timing) {
+			reset_timing = 0;
+			timestamp_base = timestamp;
+			pframes_done = 0;
+		}
+
+		// show notice_msg message?
+		if (notice_msg_time != 0)
+		{
+			static int noticeMsgSum;
+			if (timestamp - ms_to_ticks(notice_msg_time) > ms_to_ticks(2000)) {
+				notice_msg_time = 0;
+				plat_status_msg_clear();
+				notice_msg = NULL;
+			} else {
+				int sum = noticeMsg[0] + noticeMsg[1] + noticeMsg[2];
+				if (sum != noticeMsgSum) {
+					plat_status_msg_clear();
+					noticeMsgSum = sum;
+				}
+				notice_msg = noticeMsg;
+			}
+		}
+
+		// check for mode changes
+		modes = ((Pico.video.reg[12]&1)<<2) | (Pico.video.reg[1]&8);
+		if (modes != oldmodes) {
+			oldmodes = modes;
+			pemu_video_mode_change(!(modes & 4), (modes & 8));
+		}
+
+		// second changed?
+		if (timestamp - timestamp_fps >= ms_to_ticks(1000))
+		{
+#ifdef BENCHMARK
+			static int bench = 0, bench_fps = 0, bench_fps_s = 0, bfp = 0, bf[4];
+			if (++bench == 10) {
+				bench = 0;
+				bench_fps_s = bench_fps;
+				bf[bfp++ & 3] = bench_fps;
+				bench_fps = 0;
+			}
+			bench_fps += frames_shown;
+			sprintf(fpsbuff, "%02i/%02i/%02i", frames_shown, bench_fps_s, (bf[0]+bf[1]+bf[2]+bf[3])>>2);
+#else
+			if (currentConfig.EmuOpt & EOPT_SHOW_FPS) {
+				sprintf(fpsbuff, "%02i/%02i", frames_shown, frames_done);
+				if (fpsbuff[5] == 0) { fpsbuff[5] = fpsbuff[6] = ' '; fpsbuff[7] = 0; }
+			}
+#endif
+			frames_shown = frames_done = 0;
+			timestamp_fps += ms_to_ticks(1000);
+		}
+#ifdef PFRAMES
+		sprintf(fpsbuff, "%i", Pico.m.frame_count);
+#endif
+
+		if (timestamp - timestamp_base >= ms_to_ticks(1000))
+		{
+			if (PsndOut == 0 && currentConfig.Frameskip >= 0)
+				pframes_done = 0;
+			else
+				pframes_done -= target_fps;
+			timestamp_base += ms_to_ticks(1000);
+		}
+
+		diff = timestamp - timestamp_base;
+		diff_lim = (pframes_done + 1) * target_frametime;
+
+		if (currentConfig.Frameskip >= 0) // frameskip enabled
+		{
+			for (i = 0; i < currentConfig.Frameskip; i++) {
+				emu_update_input();
+				skip_frame(1);
+				pframes_done++; frames_done++;
+				diff_lim += target_frametime;
+
+				if (PsndOut && !reset_timing) { // do framelimitting if sound is enabled
+					timestamp = get_ticks();
+					diff = timestamp - timestamp_base;
+					if (diff < diff_lim) // we are too fast
+						plat_wait_till_us(timestamp_base + diff_lim);
+				}
+			}
+		}
+		else if (diff > diff_lim)
+		{
+			/* no time left for this frame - skip */
+			if (diff - diff_lim >= ms_to_ticks(300)) {
+				/* if too much behind, reset instead */
+				reset_timing = 1;
+				continue;
+			}
+			emu_update_input();
+			skip_frame(diff < diff_lim + target_frametime * 2);
+			pframes_done++; frames_done++;
+			continue;
+		}
+
+		emu_update_input();
+		PicoFrame();
+
+		/* frame limiter */
+		if (!reset_timing && (PsndOut != NULL || currentConfig.Frameskip < 0))
+		{
+			timestamp = get_ticks();
+			diff = timestamp - timestamp_base;
+
+			// sleep or vsync if we are still too fast
+			if (diff < diff_lim)
+			{
+				// we are too fast
+				if (currentConfig.EmuOpt & EOPT_PSYNC) {
+					if (diff_lim - diff > target_frametime/2)
+						plat_wait_till_us(timestamp_base + target_frametime/4);
+					plat_video_wait_vsync();
+				} else
+					plat_wait_till_us(timestamp_base + diff_lim);
+			}
+		}
+
+		pemu_update_display(fpsbuff, notice_msg);
+
+		pframes_done++; frames_done++; frames_shown++;
+	}
+
+	emu_set_fastforward(0);
+
+	if (PicoAHW & PAHW_MCD)
+		PicoCDBufferFree();
+
+	// save SRAM
+	if ((currentConfig.EmuOpt & EOPT_EN_SRAM) && SRam.changed) {
+		plat_status_msg_busy_first("Writing SRAM/BRAM...");
+		emu_save_load_game(0, 1);
+		SRam.changed = 0;
+	}
+
+	// do menu background to be sure it's right
+	pemu_forced_frame(POPT_EN_SOFTSCALE);
+
+	pemu_loop_end();
 }
 

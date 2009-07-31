@@ -5,8 +5,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
-#include <stdarg.h>
 
 #include "plat_gp2x.h"
 #include "soc.h"
@@ -36,24 +34,11 @@
 extern int crashed_940;
 
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
-static struct timeval noticeMsgTime = { 0, 0 };	// when started showing
-static char noticeMsg[40];
 static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
 unsigned char *PicoDraw2FB = PicoDraw2FB_;
 static int osd_fps_x;
 
 extern void *gp2x_screens[4];
-
-void plat_status_msg(const char *format, ...)
-{
-	va_list vl;
-
-	va_start(vl, format);
-	vsnprintf(noticeMsg, sizeof(noticeMsg), format, vl);
-	va_end(vl);
-
-	gettimeofday(&noticeMsgTime, 0);
-}
 
 int plat_get_root_dir(char *dst, int len)
 {
@@ -289,7 +274,7 @@ static int EmuScanEnd8_rot(unsigned int num)
 int localPal[0x100];
 static void (*vidcpyM2)(void *dest, void *src, int m32col, int with_32c_border) = NULL;
 
-static void blit(const char *fps, const char *notice)
+void pemu_update_display(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
@@ -360,11 +345,42 @@ static void blit(const char *fps, const char *notice)
 	gp2x_video_flip();
 }
 
-// clears whole screen or just the notice area (in all buffers)
-static void clearArea(int full)
+/* XXX */
+#ifdef __GP2X__
+unsigned int plat_get_ticks_ms(void)
+{
+	return gp2x_get_ticks_ms();
+}
+
+unsigned int plat_get_ticks_us(void)
+{
+	return gp2x_get_ticks_us();
+}
+#endif
+
+void plat_wait_till_us(unsigned int us_to)
+{
+	unsigned int now;
+
+	spend_cycles(1024);
+	now = plat_get_ticks_us();
+
+	while ((signed int)(us_to - now) > 512)
+	{
+		spend_cycles(1024);
+		now = plat_get_ticks_us();
+	}
+}
+
+void plat_video_wait_vsync(void)
+{
+	gp2x_video_wait_vsync();
+}
+
+void plat_status_msg_clear(void)
 {
 	int is_8bit = (PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP);
-	if (!full && (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX)) {
+	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
 		/* ugh.. */
 		int i, u, *p;
 		if (is_8bit) {
@@ -383,21 +399,16 @@ static void clearArea(int full)
 		return;
 	}
 
-	if (is_8bit) {
-		// 8-bit renderers
-		if (full) gp2x_memset_all_buffers(0, 0xe0, 320*240);
-		else      gp2x_memset_all_buffers(320*232, 0xe0, 320*8);
-	} else {
-		// 16bit accurate renderer
-		if (full) gp2x_memset_all_buffers(0, 0, 320*240*2);
-		else      gp2x_memset_all_buffers(320*232*2, 0, 320*8*2);
-	}
+	if (is_8bit)
+		gp2x_memset_all_buffers(320*232, 0xe0, 320*8);
+	else
+		gp2x_memset_all_buffers(320*232*2, 0, 320*8*2);
 }
 
 void plat_status_msg_busy_next(const char *msg)
 {
-	clearArea(0);
-	blit("", msg);
+	plat_status_msg_clear();
+	pemu_update_display("", msg);
 
 	/* assumption: msg_busy_next gets called only when
 	 * something slow is about to happen */
@@ -494,11 +505,11 @@ void plat_video_toggle_renderer(int is_next, int is_menu)
 	vidResetMode();
 
 	if (PicoOpt & POPT_ALT_RENDERER) {
-		plat_status_msg(" 8bit fast renderer");
+		emu_status_msg(" 8bit fast renderer");
 	} else if (currentConfig.EmuOpt & EOPT_16BPP) {
-		plat_status_msg("16bit accurate renderer");
+		emu_status_msg("16bit accurate renderer");
 	} else {
-		plat_status_msg(" 8bit accurate renderer");
+		emu_status_msg(" 8bit accurate renderer");
 	}
 }
 
@@ -560,7 +571,7 @@ void plat_update_volume(int has_changed, int is_up)
 			sndout_oss_setvol(vol, vol);
 			currentConfig.volume = vol;
 		}
-		plat_status_msg("VOL: %02i", vol);
+		emu_status_msg("VOL: %02i", vol);
 		prev_frame = Pico.m.frame_count;
 	}
 
@@ -576,10 +587,10 @@ void plat_update_volume(int has_changed, int is_up)
 	}
 }
 
-
 static void updateSound(int len)
 {
-	if (PicoOpt&8) len<<=1;
+	if (PicoOpt & POPT_EN_STEREO)
+		len <<= 1;
 
 	/* avoid writing audio when lagging behind to prevent audio lag */
 	if (PicoSkipFrame != 2)
@@ -626,14 +637,6 @@ void pemu_sound_wait(void)
 }
 
 
-static void SkipFrame(int do_audio)
-{
-	PicoSkipFrame=do_audio ? 1 : 2;
-	PicoFrame();
-	PicoSkipFrame=0;
-}
-
-
 void pemu_forced_frame(int opts)
 {
 	int po_old = PicoOpt;
@@ -657,22 +660,26 @@ void plat_debug_cat(char *str)
 {
 }
 
-static void simpleWait(int thissec, int lim_time)
+void pemu_video_mode_change(int is_32col, int is_240_lines)
 {
-	struct timeval tval;
-
-	spend_cycles(1024);
-	gettimeofday(&tval, 0);
-	if (thissec != tval.tv_sec) tval.tv_usec+=1000000;
-
-	while (tval.tv_usec < lim_time)
-	{
-		spend_cycles(1024);
-		gettimeofday(&tval, 0);
-		if (thissec != tval.tv_sec) tval.tv_usec+=1000000;
+	int scalex = 320;
+	osd_fps_x = OSD_FPS_X;
+	if (is_32col && (PicoOpt & POPT_DIS_32C_BORDER)) {
+		scalex = 256;
+		osd_fps_x = OSD_FPS_X - 64;
 	}
-}
+	/* want vertical scaling and game is not in 240 line mode */
+	if (currentConfig.scaling == EOPT_SCALE_HW_HV && !is_240_lines)
+		gp2x_video_RGB_setscaling(8, scalex, 224);
+	else
+		gp2x_video_RGB_setscaling(0, scalex, 240);
 
+	// clear whole screen in all buffers
+	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP))
+		gp2x_memset_all_buffers(0, 0xe0, 320*240);
+	else
+		gp2x_memset_all_buffers(0, 0, 320*240*2);
+}
 
 #if 0
 static void tga_dump(void)
@@ -722,19 +729,10 @@ static void tga_dump(void)
 }
 #endif
 
-
-void pemu_loop(void)
+void pemu_loop_prep(void)
 {
 	static int gp2x_old_clock = -1, EmuOpt_old = 0, pal_old = 0;
 	static int gp2x_old_gamma = 100;
-	char fpsbuff[24]; // fps count c string
-	struct timeval tval; // timing
-	int pframes_done, pframes_shown, pthissec; // "period" frames, used for sync
-	int  frames_done,  frames_shown,  thissec; // actual frames
-	int oldmodes = 0, target_fps, target_frametime, lim_time, vsync_offset, i;
-	char *notice = 0;
-
-	printf("entered emu_Loop()\n");
 
 	if ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_RAM_TIMINGS) {
 		if (currentConfig.EmuOpt & EOPT_RAM_TIMINGS)
@@ -770,206 +768,16 @@ void pemu_loop(void)
 
 	EmuOpt_old = currentConfig.EmuOpt;
 	pal_old = Pico.m.pal;
-	fpsbuff[0] = 0;
 
 	// make sure we are in correct mode
 	vidResetMode();
 	scaling_update();
-	Pico.m.dirtyPal = 1;
-	oldmodes = ((Pico.video.reg[12]&1)<<2) ^ 0xc;
-
-	// pal/ntsc might have changed, reset related stuff
-	target_fps = Pico.m.pal ? 50 : 60;
-	target_frametime = 1000000/target_fps;
-	reset_timing = 1;
 
 	pemu_sound_start();
+}
 
-	// prepare CD buffer
-	if (PicoAHW & PAHW_MCD) PicoCDBufferInit();
-
-	// calc vsync offset to sync timing code with vsync
-	if (currentConfig.EmuOpt & EOPT_PSYNC) {
-		gettimeofday(&tval, 0);
-		gp2x_video_wait_vsync();
-		gettimeofday(&tval, 0);
-		vsync_offset = tval.tv_usec;
-		while (vsync_offset >= target_frametime)
-			vsync_offset -= target_frametime;
-		if (!vsync_offset) vsync_offset++;
-		printf("vsync_offset: %i\n", vsync_offset);
-	} else
-		vsync_offset = 0;
-
-	frames_done = frames_shown = thissec =
-	pframes_done = pframes_shown = pthissec = 0;
-
-	// loop
-	while (engineState == PGS_Running)
-	{
-		int modes;
-
-		gettimeofday(&tval, 0);
-		if (reset_timing) {
-			reset_timing = 0;
-			pthissec = tval.tv_sec;
-			pframes_shown = pframes_done = tval.tv_usec/target_frametime;
-		}
-
-		// show notice message?
-		if (noticeMsgTime.tv_sec)
-		{
-			static int noticeMsgSum;
-			if((tval.tv_sec*1000000+tval.tv_usec) - (noticeMsgTime.tv_sec*1000000+noticeMsgTime.tv_usec) > 2000000) { // > 2.0 sec
-				noticeMsgTime.tv_sec = noticeMsgTime.tv_usec = 0;
-				clearArea(0);
-				notice = 0;
-			} else {
-				int sum = noticeMsg[0]+noticeMsg[1]+noticeMsg[2];
-				if (sum != noticeMsgSum) { clearArea(0); noticeMsgSum = sum; }
-				notice = noticeMsg;
-			}
-		}
-
-		// check for mode changes
-		modes = ((Pico.video.reg[12]&1)<<2)|(Pico.video.reg[1]&8);
-		if (modes != oldmodes)
-		{
-			int scalex = 320;
-			osd_fps_x = OSD_FPS_X;
-			if (!(modes & 4) && (PicoOpt & POPT_DIS_32C_BORDER)) {
-				scalex = 256;
-				osd_fps_x = OSD_FPS_X - 64;
-			}
-			/* want vertical scaling and game is not in 240 line mode */
-			if (currentConfig.scaling == EOPT_SCALE_HW_HV && !(modes&8))
-			     gp2x_video_RGB_setscaling(8, scalex, 224);
-			else gp2x_video_RGB_setscaling(0, scalex, 240);
-			oldmodes = modes;
-			clearArea(1);
-		}
-
-		// second changed?
-		if (thissec != tval.tv_sec)
-		{
-#ifdef BENCHMARK
-			static int bench = 0, bench_fps = 0, bench_fps_s = 0, bfp = 0, bf[4];
-			if (++bench == 10) {
-				bench = 0;
-				bench_fps_s = bench_fps;
-				bf[bfp++ & 3] = bench_fps;
-				bench_fps = 0;
-			}
-			bench_fps += frames_shown;
-			sprintf(fpsbuff, "%02i/%02i/%02i", frames_shown, bench_fps_s, (bf[0]+bf[1]+bf[2]+bf[3])>>2);
-#else
-			if (currentConfig.EmuOpt & 2) {
-				sprintf(fpsbuff, "%02i/%02i", frames_shown, frames_done);
-				if (fpsbuff[5] == 0) { fpsbuff[5] = fpsbuff[6] = ' '; fpsbuff[7] = 0; }
-			}
-#endif
-			frames_shown = frames_done = 0;
-			thissec = tval.tv_sec;
-		}
-#ifdef PFRAMES
-		sprintf(fpsbuff, "%i", Pico.m.frame_count);
-#endif
-
-		if (pthissec != tval.tv_sec)
-		{
-			if (PsndOut == 0 && currentConfig.Frameskip >= 0) {
-				pframes_done = pframes_shown = 0;
-			} else {
-				// it is quite common for this implementation to leave 1 fame unfinished
-				// when second changes, but we don't want buffer to starve.
-				if (PsndOut && pframes_done < target_fps && pframes_done > target_fps-5) {
-					emu_update_input();
-					SkipFrame(1); pframes_done++;
-				}
-
-				pframes_done  -= target_fps; if (pframes_done  < 0) pframes_done  = 0;
-				pframes_shown -= target_fps; if (pframes_shown < 0) pframes_shown = 0;
-				if (pframes_shown > pframes_done) pframes_shown = pframes_done;
-			}
-			pthissec = tval.tv_sec;
-		}
-
-		lim_time = (pframes_done+1) * target_frametime + vsync_offset;
-		if (currentConfig.Frameskip >= 0) // frameskip enabled
-		{
-			for(i = 0; i < currentConfig.Frameskip; i++) {
-				emu_update_input();
-				SkipFrame(1); pframes_done++; frames_done++;
-				if (PsndOut && !reset_timing) { // do framelimitting if sound is enabled
-					gettimeofday(&tval, 0);
-					if (pthissec != tval.tv_sec) tval.tv_usec+=1000000;
-					if (tval.tv_usec < lim_time) { // we are too fast
-						simpleWait(pthissec, lim_time);
-					}
-				}
-				lim_time += target_frametime;
-			}
-		}
-		else if (tval.tv_usec > lim_time) // auto frameskip
-		{
-			// no time left for this frame - skip
-			if (tval.tv_usec - lim_time >= 300000) {
-				/* something caused a slowdown for us (disk access? cache flush?)
-				 * try to recover by resetting timing... */
-				reset_timing = 1;
-				continue;
-			}
-			emu_update_input();
-			SkipFrame(tval.tv_usec < lim_time+target_frametime*2); pframes_done++; frames_done++;
-			continue;
-		}
-
-		emu_update_input();
-		PicoFrame();
-
-		// check time
-		gettimeofday(&tval, 0);
-		if (pthissec != tval.tv_sec) tval.tv_usec+=1000000;
-
-		if (currentConfig.Frameskip < 0 && tval.tv_usec - lim_time >= 300000) // slowdown detection
-			reset_timing = 1;
-		else if (PsndOut != NULL || currentConfig.Frameskip < 0)
-		{
-			// sleep or vsync if we are still too fast
-			// usleep sleeps for ~20ms minimum, so it is not a solution here
-			if (!reset_timing && tval.tv_usec < lim_time)
-			{
-				// we are too fast
-				if (vsync_offset) {
-					if (lim_time - tval.tv_usec > target_frametime/2)
-						simpleWait(pthissec, lim_time - target_frametime/4);
-					gp2x_video_wait_vsync();
-				} else {
-					simpleWait(pthissec, lim_time);
-				}
-			}
-		}
-
-		blit(fpsbuff, notice);
-
-		pframes_done++; pframes_shown++;
-		 frames_done++;  frames_shown++;
-	}
-
-	emu_set_fastforward(0);
-
-	if (PicoAHW & PAHW_MCD)
-		PicoCDBufferFree();
-
-	// save SRAM
-	if ((currentConfig.EmuOpt & EOPT_EN_SRAM) && SRam.changed) {
-		plat_status_msg_busy_first("Writing SRAM/BRAM...");
-		emu_save_load_game(0, 1);
-		SRam.changed = 0;
-	}
-
-	// do menu background to be sure it's right
-	pemu_forced_frame(POPT_EN_SOFTSCALE);
+void pemu_loop_end(void)
+{
 }
 
 const char *plat_get_credits(void)

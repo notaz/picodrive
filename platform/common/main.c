@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
 				engineState = PGS_Running;
 
 			case PGS_Running:
-				pemu_loop();
+				emu_loop();
 				break;
 
 			case PGS_Quit:

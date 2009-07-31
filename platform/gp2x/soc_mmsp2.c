@@ -12,6 +12,7 @@
 #include "soc_mmsp2.h"
 #include "plat_gp2x.h"
 #include "../common/emu.h"
+#include "../common/plat.h"
 #include "../common/arm_utils.h"
 #include "940ctl.h"
 
@@ -40,6 +41,8 @@ static unsigned short gp2x_screenaddr_old[4];
 static unsigned short memtimex_old[2];
 static unsigned short reg0910;
 
+extern unsigned int plat_get_ticks_ms_gtod(void);
+extern unsigned int plat_get_ticks_us_gtod(void);
 
 /* video stuff */
 static void gp2x_video_flip_(void)
@@ -508,6 +511,9 @@ void mmsp2_init(void)
 	set_ram_timings = set_ram_timings_;
 	unset_ram_timings = unset_ram_timings_;
 	gp2x_read_battery = gp2x_read_battery_;
+
+	gp2x_get_ticks_ms = plat_get_ticks_ms_gtod;
+	gp2x_get_ticks_us = plat_get_ticks_us_gtod;
 }
 
 void mmsp2_finish(void)
