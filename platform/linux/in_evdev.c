@@ -158,7 +158,7 @@ static void in_evdev_probe(void)
 
 		/* check for interesting keys */
 		for (u = 0; u < KEY_CNT; u++) {
-			if (KEYBITS_BIT(u) && u != KEY_POWER && u != KEY_SLEEP)
+			if (KEYBITS_BIT(u) && u != KEY_POWER && u != KEY_SLEEP && u != BTN_TOUCH)
 				count++;
 		}
 
