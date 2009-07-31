@@ -1,4 +1,4 @@
-#ifdef __GP2X_H__
+#ifdef __GP2X__
 
 #include <time.h>
 #include "soc.h"
@@ -103,5 +103,6 @@ static const char *mgn_aopt_gamma(menu_id id, int *offs)
 #define MENU_GP2X_OPTIONS_GFX
 #define MENU_GP2X_OPTIONS_ADV
 #define mgn_opt_renderer NULL /* TODO */
+#define menu_main_plat_draw NULL
 
 #endif

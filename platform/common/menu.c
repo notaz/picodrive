@@ -455,8 +455,9 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 	plat_video_menu_end();
 }
 
-static int me_process(menu_entry *entry, int is_next)
+static int me_process(menu_entry *entry, int is_next, int is_lr)
 {
+	int c;
 	switch (entry->beh)
 	{
 		case MB_OPT_ONOFF:
@@ -465,7 +466,8 @@ static int me_process(menu_entry *entry, int is_next)
 			return 1;
 		case MB_OPT_RANGE:
 		case MB_OPT_CUSTRANGE:
-			*(int *)entry->var += is_next ? 1 : -1;
+			c = is_lr ? 10 : 1;
+			*(int *)entry->var += is_next ? c : -c;
 			if (*(int *)entry->var < (int)entry->min)
 				*(int *)entry->var = (int)entry->max;
 			if (*(int *)entry->var > (int)entry->max)
@@ -524,8 +526,9 @@ static void me_loop(menu_entry *menu, int *menu_sel, void (*draw_more)(void))
 		if ((inp & (PBTN_L|PBTN_R)) == (PBTN_L|PBTN_R))
 			debug_menu_loop();
 
-		if (inp & (PBTN_LEFT|PBTN_RIGHT)) { /* multi choice */
-			if (me_process(&menu[sel], (inp & PBTN_RIGHT) ? 1 : 0))
+		if (inp & (PBTN_LEFT|PBTN_RIGHT|PBTN_L|PBTN_R)) { /* multi choice */
+			if (me_process(&menu[sel], (inp & (PBTN_RIGHT|PBTN_R)) ? 1 : 0,
+						inp & (PBTN_L|PBTN_R)))
 				continue;
 		}
 
