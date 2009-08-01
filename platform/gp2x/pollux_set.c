@@ -196,8 +196,8 @@ static int apply_cpuclk(volatile unsigned short *memregs, void *data)
 {
 	volatile unsigned int *memregl = (volatile void *)memregs;
 	int mhz = *(int *)data;
-	int mdiv, pdiv, sdiv = 0;
-	int i, v;
+	int adiv, mdiv, pdiv, sdiv = 0;
+	int i, vf000, vf004;
 
 	// m = MDIV, p = PDIV, s = SDIV
 	#define SYS_CLK_FREQ 27
@@ -205,13 +205,21 @@ static int apply_cpuclk(volatile unsigned short *memregs, void *data)
 	mdiv = (mhz * pdiv) / SYS_CLK_FREQ;
 	if (mdiv & ~0x3ff)
 		return -1;
-	v = (pdiv<<18) | (mdiv<<8) | sdiv;
+	vf004 = (pdiv<<18) | (mdiv<<8) | sdiv;
 
-	memregl[0xf004>>2] = v;
+	// attempt to keep AHB the divider close to 250, but not higher
+	for (adiv = 1; mhz / adiv > 250; adiv++)
+		;
+
+	vf000 = memregl[0xf000>>2];
+	vf000 = (vf000 & ~0x3c0) | ((adiv - 1) << 6);
+	memregl[0xf000>>2] = vf000;
+	memregl[0xf004>>2] = vf004;
 	memregl[0xf07c>>2] |= 0x8000;
 	for (i = 0; (memregl[0xf07c>>2] & 0x8000) && i < 0x100000; i++)
 		;
 
+	printf("clock set to %dMHz, AHB set to %dMHz\n", mhz, mhz / adiv);
 	return 0;
 }
 
