@@ -219,9 +219,10 @@ unsigned int gp2x_get_ticks_us_(void)
 
 unsigned int gp2x_get_ticks_ms_(void)
 {
+	/* approximate /= 1000 */
 	unsigned long long v64;
-	v64 = (unsigned long long)gp2x_get_ticks_us_() * 4195;
-	return v64 >> 22;
+	v64 = (unsigned long long)gp2x_get_ticks_us_() * 4294968;
+	return v64 >> 32;
 }
 
 static void timer_cleanup(void)

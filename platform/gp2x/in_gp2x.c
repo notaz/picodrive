@@ -27,7 +27,7 @@ enum  { BTN_UP = 0,      BTN_LEFT = 2,      BTN_DOWN = 4,  BTN_RIGHT = 6,
         BTN_VOL_UP = 23, BTN_VOL_DOWN = 22, BTN_PUSH = 27 };
 
 static const char * const in_gp2x_prefix = IN_PREFIX;
-static const char * const in_gp2x_keys[IN_GP2X_NBUTTONS] = {
+static const char *in_gp2x_keys[IN_GP2X_NBUTTONS] = {
 	[0 ... IN_GP2X_NBUTTONS-1] = NULL,
 	[BTN_UP]    = "UP",    [BTN_LEFT]   = "LEFT",   [BTN_DOWN] = "DOWN", [BTN_RIGHT] = "RIGHT",
 	[BTN_START] = "START", [BTN_SELECT] = "SELECT", [BTN_L]    = "L",    [BTN_R]     = "R",
@@ -104,6 +104,7 @@ static void in_gp2x_probe(void)
 			return;
 		}
 		in_gp2x_get_bits = in_gp2x_get_wiz_bits;
+		in_gp2x_keys[BTN_START] = "MENU";
 		break;
 	default:
 #ifdef FAKE_IN_GP2X
