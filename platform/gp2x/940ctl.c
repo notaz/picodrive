@@ -405,23 +405,23 @@ int YM2612UpdateOne_940(int *buffer, int length, int stereo, int is_buf_empty)
 }
 
 
+/***********************************************************/
+
 static int mp3_samples_ready = 0, mp3_buffer_offs = 0;
 static int mp3_play_bufsel = 0, mp3_job_started = 0;
 
 void mp3_update(int *buffer, int length, int stereo)
 {
 	int length_mp3;
-	int cdda_on;
 
-	// playback was started, track not ended
-	cdda_on = loaded_mp3 && shared_ctl->mp3_offs < shared_ctl->mp3_len;
-
-	if (!cdda_on) return;
-
-	if (!(PicoOpt&0x200)) {
+	if (!(PicoOpt & POPT_EXT_FM)) {
 		mp3_update_local(buffer, length, stereo);
 		return;
 	}
+
+	// check if playback was started, track not ended
+	if (loaded_mp3 == NULL || shared_ctl->mp3_offs >= shared_ctl->mp3_len)
+		return;
 
 	length_mp3 = length;
 	if (PsndRate == 22050) length_mp3 <<= 1;	// mp3s are locked to 44100Hz stereo
@@ -475,13 +475,15 @@ void mp3_update(int *buffer, int length, int stereo)
 }
 
 
-/***********************************************************/
-
 void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 {
 	int byte_offs = 0;
 
-	if (!(PicoOpt&0x800)) { // cdda disabled?
+	if (!(PicoOpt & POPT_EN_MCD_CDDA) || f == NULL)
+		return;
+
+	if (!(PicoOpt & POPT_EXT_FM)) {
+		mp3_start_play_local(f, pos);
 		return;
 	}
 
@@ -522,31 +524,7 @@ void mp3_start_play(FILE *f, int pos) // pos is 0-1023
 	mp3_job_started = 0;
 	shared_ctl->mp3_buffsel = 1; // will change to 0 on first decode
 
-	if (PicoOpt & POPT_EXT_FM)
-	{
-		add_job_940(JOB940_MP3RESET);
-		if (CHECK_BUSY(JOB940_MP3RESET)) wait_busy_940(JOB940_MP3RESET);
-	}
-	else
-		mp3_start_local();
+	add_job_940(JOB940_MP3RESET);
+	if (CHECK_BUSY(JOB940_MP3RESET)) wait_busy_940(JOB940_MP3RESET);
 }
-
-
-int mp3_get_offset(void)
-{
-	unsigned int offs1024 = 0;
-	int cdda_on;
-
-	cdda_on = (PicoAHW & PAHW_MCD) && (PicoOpt&0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
-			(Pico_mcd->scd.Status_CDC & 1) && loaded_mp3;
-
-	if (cdda_on) {
-		offs1024  = shared_ctl->mp3_offs << 7;
-		offs1024 /= shared_ctl->mp3_len  >> 3;
-	}
-	printf("offs1024=%u (%i/%i)\n", offs1024, shared_ctl->mp3_offs, shared_ctl->mp3_len);
-
-	return offs1024;
-}
-
 

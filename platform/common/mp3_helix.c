@@ -6,14 +6,22 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../../pico/pico_int.h"
-#include "../../pico/sound/mix.h"
+#include <pico/pico_int.h>
+#include <pico/sound/mix.h>
 #include "helix/pub/mp3dec.h"
+#include "mp3.h"
 #include "lprintf.h"
 
 static HMP3Decoder mp3dec = 0;
+static FILE *mp3_current_file = NULL;
+static int mp3_file_len = 0, mp3_file_pos = 0;
 static int mp3_buffer_offs = 0;
+static unsigned char mp3_input_buffer[2*1024];
 
+#ifdef __GP2X__
+#define mp3_update mp3_update_local
+#define mp3_start_play mp3_start_play_local
+#endif
 
 static int find_sync_word(unsigned char *buf, int nBytes)
 {
@@ -40,7 +48,6 @@ static int find_sync_word(unsigned char *buf, int nBytes)
 
 	return -1;
 }
-
 
 static int try_get_header(unsigned char *buff, MP3FrameInfo *fi)
 {
@@ -94,111 +101,54 @@ int mp3_get_bitrate(FILE *f, int len)
 	return fi.bitrate / 1000;
 }
 
-
-#ifdef __GP2X__
-
-#include "../gp2x/code940/940shared.h"
-
-extern _940_ctl_t *shared_ctl;
-extern unsigned char *mp3_mem;
-
-static int mp3_decode(void)
-{
-	// tried copying this to cached mem, no improvement noticed
-	int mp3_offs = shared_ctl->mp3_offs;
-	unsigned char *readPtr = mp3_mem + mp3_offs;
-	int bytesLeft = shared_ctl->mp3_len - mp3_offs;
-	int offset; // frame offset from readPtr
-	int retries = 0, err;
-
-	if (bytesLeft <= 0) return 1; // EOF, nothing to do
-
-retry:
-	offset = find_sync_word(readPtr, bytesLeft);
-	if (offset < 0) {
-		shared_ctl->mp3_offs = shared_ctl->mp3_len;
-		return 1; // EOF
-	}
-	readPtr += offset;
-	bytesLeft -= offset;
-
-	err = MP3Decode(mp3dec, &readPtr, &bytesLeft, cdda_out_buffer, 0);
-	if (err) {
-		if (err == ERR_MP3_INDATA_UNDERFLOW) {
-			shared_ctl->mp3_offs = shared_ctl->mp3_len; // EOF
-			return 1;
-		} else if (err <= -6 && err >= -12) {
-			// ERR_MP3_INVALID_FRAMEHEADER, ERR_MP3_INVALID_*
-			// just try to skip the offending frame..
-			readPtr++;
-			bytesLeft--;
-			if (retries++ < 2) goto retry;
-			else lprintf("mp3 decode failed with %i after %i retries\n", err, retries);
-		}
-		shared_ctl->mp3_errors++;
-		shared_ctl->mp3_lasterr = err;
-	}
-	shared_ctl->mp3_offs = readPtr - mp3_mem;
-	return 0;
-}
-
-void mp3_start_local(void)
-{
-	// must re-init decoder for new track
-	if (mp3dec) MP3FreeDecoder(mp3dec);
-	mp3dec = MP3InitDecoder();
-
-	mp3_buffer_offs = 0;
-	mp3_decode();
-}
-
-#define mp3_update mp3_update_local
-
-#else // !__GP2X__
-
-static FILE *mp3_current_file = NULL;
-static int mp3_file_len = 0, mp3_file_pos = 0;
-static unsigned char mp3_input_buffer[2*1024];
-
 static int mp3_decode(void)
 {
 	unsigned char *readPtr;
 	int bytesLeft;
 	int offset; // mp3 frame offset from readPtr
-	int err;
+	int had_err;
+	int err = 0;
 
 	do
 	{
-		if (mp3_file_pos >= mp3_file_len) return 1; // EOF, nothing to do
+		if (mp3_file_pos >= mp3_file_len)
+			return 1; /* EOF, nothing to do */
 
 		fseek(mp3_current_file, mp3_file_pos, SEEK_SET);
 		bytesLeft = fread(mp3_input_buffer, 1, sizeof(mp3_input_buffer), mp3_current_file);
 
 		offset = find_sync_word(mp3_input_buffer, bytesLeft);
 		if (offset < 0) {
-			//lprintf("find_sync_word (%i/%i) err %i\n", mp3_file_pos, mp3_file_len, offset);
+			lprintf("find_sync_word (%i/%i) err %i\n", mp3_file_pos, mp3_file_len, offset);
 			mp3_file_pos = mp3_file_len;
 			return 1; // EOF
 		}
 		readPtr = mp3_input_buffer + offset;
 		bytesLeft -= offset;
 
+		had_err = err;
 		err = MP3Decode(mp3dec, &readPtr, &bytesLeft, cdda_out_buffer, 0);
 		if (err) {
-			//lprintf("MP3Decode err (%i/%i) %i\n", mp3_file_pos, mp3_file_len, err);
-			if (err == ERR_MP3_INDATA_UNDERFLOW) {
+			if (err == ERR_MP3_MAINDATA_UNDERFLOW && !had_err) {
+				// just need another frame
+				mp3_file_pos += readPtr - mp3_input_buffer;
+				continue;
+			}
+			if (err == ERR_MP3_INDATA_UNDERFLOW && !had_err) {
 				if (offset == 0)
 					// something's really wrong here, frame had to fit
 					mp3_file_pos = mp3_file_len;
 				else
 					mp3_file_pos += offset;
 				continue;
-			} else if (err <= -6 && err >= -12) {
+			}
+			if (-12 <= err && err <= -6) {
 				// ERR_MP3_INVALID_FRAMEHEADER, ERR_MP3_INVALID_*
 				// just try to skip the offending frame..
 				mp3_file_pos += offset + 1;
 				continue;
 			}
+			lprintf("MP3Decode err (%i/%i) %i\n", mp3_file_pos, mp3_file_len, err);
 			mp3_file_pos = mp3_file_len;
 			return 1;
 		}
@@ -215,14 +165,13 @@ void mp3_start_play(FILE *f, int pos)
 	mp3_current_file = NULL;
 	mp3_buffer_offs = 0;
 
-	// must re-init decoder for new track
-	if (mp3dec) MP3FreeDecoder(mp3dec);
-	mp3dec = MP3InitDecoder();
-
-	if (!(PicoOpt&POPT_EN_MCD_CDDA) || f == NULL) // cdda disabled or no file?
+	if (!(PicoOpt & POPT_EN_MCD_CDDA) || f == NULL) // cdda disabled or no file?
 		return;
 
-	//lprintf("mp3_start_play %p %i\n", f, pos);
+	// must re-init decoder for new track
+	if (mp3dec)
+		MP3FreeDecoder(mp3dec);
+	mp3dec = MP3InitDecoder();
 
 	mp3_current_file = f;
 	fseek(f, 0, SEEK_END);
@@ -230,41 +179,21 @@ void mp3_start_play(FILE *f, int pos)
 
 	// seek..
 	if (pos) {
-		mp3_file_pos = (mp3_file_len << 6) >> 10;
-		mp3_file_pos *= pos;
-		mp3_file_pos >>= 6;
+		unsigned long long pos64 = mp3_file_len;
+		pos64 *= pos;
+		mp3_file_pos = pos64 >> 10;
 	}
 
 	mp3_decode();
 }
-
-int mp3_get_offset(void)
-{
-	unsigned int offs1024 = 0;
-	int cdda_on;
-
-	cdda_on = (PicoAHW & PAHW_MCD) && (PicoOpt&POPT_EN_MCD_CDDA) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
-			(Pico_mcd->scd.Status_CDC & 1) && mp3_current_file != NULL;
-
-	if (cdda_on) {
-		offs1024  = mp3_file_pos << 7;
-		offs1024 /= mp3_file_len >> 3;
-	}
-	//lprintf("mp3_get_offset offs1024=%u (%i/%i)\n", offs1024, mp3_file_pos, mp3_file_len);
-
-	return offs1024;
-}
-
-#endif // ifndef __GP2X__
 
 void mp3_update(int *buffer, int length, int stereo)
 {
 	int length_mp3, shr = 0;
 	void (*mix_samples)(int *dest_buf, short *mp3_buf, int count) = mix_16h_to_32;
 
-#ifndef __GP2X__
-	if (mp3_current_file == NULL || mp3_file_pos >= mp3_file_len) return; // no file / EOF
-#endif
+	if (mp3_current_file == NULL || mp3_file_pos >= mp3_file_len)
+		return; /* no file / EOF */
 
 	length_mp3 = length;
 	if (PsndRate == 22050) { mix_samples = mix_16h_to_32_s1; length_mp3 <<= 1; shr = 1; }
@@ -286,5 +215,4 @@ void mp3_update(int *buffer, int length, int stereo)
 			mp3_buffer_offs = 0;
 	}
 }
-
 

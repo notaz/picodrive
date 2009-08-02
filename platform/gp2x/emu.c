@@ -409,6 +409,7 @@ void plat_status_msg_busy_next(const char *msg)
 {
 	plat_status_msg_clear();
 	pemu_update_display("", msg);
+	emu_status_msg("");
 
 	/* assumption: msg_busy_next gets called only when
 	 * something slow is about to happen */
@@ -600,22 +601,26 @@ static void updateSound(int len)
 void pemu_sound_start(void)
 {
 	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
-	int target_fps = Pico.m.pal ? 50 : 60;
 
 	PsndOut = NULL;
 
 	// prepare sound stuff
-	if (currentConfig.EmuOpt & 4)
+	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
 	{
+		int is_stereo = (PicoOpt & POPT_EN_STEREO) ? 1 : 0;
+		int target_fps = Pico.m.pal ? 50 : 60;
 		int snd_excess_add;
-		if (PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old ||
-				((PicoOpt&0x200) && crashed_940)) {
+		gp2x_soc_t soc;
+
+		#define SOUND_RERATE_FLAGS (POPT_EN_FM|POPT_EN_PSG|POPT_EN_STEREO|POPT_EXT_FM|POPT_EN_MCD_CDDA)
+		if (PsndRate != PsndRate_old || Pico.m.pal != pal_old || ((PicoOpt & POPT_EXT_FM) && crashed_940) ||
+				((PicoOpt ^ PicoOpt_old) & SOUND_RERATE_FLAGS)) {
 			PsndRerate(Pico.m.frame_count ? 1 : 0);
 		}
-		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
+		snd_excess_add = ((PsndRate - PsndLen * target_fps)<<16) / target_fps;
 		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
-		sndout_oss_start(PsndRate, 16, (PicoOpt&8)>>3);
+			PsndRate, PsndLen, snd_excess_add, is_stereo, Pico.m.pal);
+		sndout_oss_start(PsndRate, 16, is_stereo);
 		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
 		PicoWriteSound = updateSound;
 		plat_update_volume(0, 0);
@@ -624,6 +629,11 @@ void pemu_sound_start(void)
 		PsndRate_old = PsndRate;
 		PicoOpt_old  = PicoOpt;
 		pal_old = Pico.m.pal;
+
+		/* Wiz's sound hardware needs more prebuffer */
+		soc = soc_detect();
+		if (soc == SOCID_POLLUX)
+			updateSound(PsndLen);
 	}
 }
 

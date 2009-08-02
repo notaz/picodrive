@@ -61,32 +61,43 @@ static void mp3_decode(void)
 
 	if (bytesLeft <= 0) return; // EOF, nothing to do
 
-retry:
-	offset = find_sync_word(readPtr, bytesLeft);
-	if (offset < 0) {
-		set_if_not_changed(&shared_ctl->mp3_offs, mp3_offs, shared_ctl->mp3_len);
-		return; // EOF
-	}
-	readPtr += offset;
-	bytesLeft -= offset;
+	for (retries = 0; retries < 2; retries++)
+	{
+		offset = find_sync_word(readPtr, bytesLeft);
+		if (offset < 0)
+			goto set_eof;
 
-	err = MP3Decode(shared_data->mp3dec, &readPtr, &bytesLeft,
-			shared_data->mp3_buffer[shared_ctl->mp3_buffsel], 0);
-	if (err) {
-		if (err == ERR_MP3_INDATA_UNDERFLOW) {
-			set_if_not_changed(&shared_ctl->mp3_offs, mp3_offs, shared_ctl->mp3_len);
-			return;
-		} else if (err <= -6 && err >= -12) {
-			// ERR_MP3_INVALID_FRAMEHEADER, ERR_MP3_INVALID_*
-			// just try to skip the offending frame..
-			readPtr++;
-			bytesLeft--;
-			if (retries++ < 2) goto retry;
+		readPtr += offset;
+		bytesLeft -= offset;
+
+		err = MP3Decode(shared_data->mp3dec, &readPtr, &bytesLeft,
+				shared_data->mp3_buffer[shared_ctl->mp3_buffsel], 0);
+		if (err) {
+			if (err == ERR_MP3_MAINDATA_UNDERFLOW)
+				// just need another frame
+				continue;
+
+			if (err == ERR_MP3_INDATA_UNDERFLOW)
+				goto set_eof;
+
+			if (err <= -6 && err >= -12) {
+				// ERR_MP3_INVALID_FRAMEHEADER, ERR_MP3_INVALID_*
+				// just try to skip the offending frame..
+				readPtr++;
+				bytesLeft--;
+				continue;
+			}
+			shared_ctl->mp3_errors++;
+			shared_ctl->mp3_lasterr = err;
 		}
-		shared_ctl->mp3_errors++;
-		shared_ctl->mp3_lasterr = err;
+		break;
 	}
+
 	set_if_not_changed(&shared_ctl->mp3_offs, mp3_offs, readPtr - mp3_data);
+	return;
+
+set_eof:
+	set_if_not_changed(&shared_ctl->mp3_offs, mp3_offs, shared_ctl->mp3_len);
 }
 
 static void ym_flush_writes(void)
