@@ -50,20 +50,7 @@ static void custom_write(FILE *f, const menu_entry *me, int no_def)
 
 	switch (me->id)
 	{
-		case MA_OPT2_GAMMA:
-			if (no_def && defaultConfig.gamma == currentConfig.gamma) return;
-			fprintf(f, "Gamma correction = %.3f", (double)currentConfig.gamma / 100.0);
-			break;
-		case MA_OPT2_SQUIDGEHACK:
-			if (no_def && !((defaultConfig.EmuOpt^currentConfig.EmuOpt)&0x0010)) return;
-			fprintf(f, "Squidgehack = %i", (currentConfig.EmuOpt&0x0010)>>4);
-			break;
-		case MA_CDOPT_READAHEAD:
-			if (no_def && defaultConfig.s_PicoCDBuffers == PicoCDBuffers) return;
-			sprintf(str24, "%i", PicoCDBuffers * 2);
-			fprintf(f, "ReadAhead buffer = %s", str24);
-			break;
-		/* PSP */
+		/* TODO: this should be rm'd when PSP menu is converted */
 		case MA_OPT3_SCALE:
 			if (no_def && defaultConfig.scale == currentConfig.scale) return;
 			fprintf(f, "Scale factor = %.2f", currentConfig.scale);
@@ -161,45 +148,80 @@ static void keys_write(FILE *fn, const char *bind_str, int dev_id, const int *bi
 	}
 }
 
-
+/* XXX: this should go to menu structures instead */
 static int default_var(const menu_entry *me)
 {
 	switch (me->id)
 	{
-		case MA_OPT_ACC_TIMING:
-		case MA_OPT_ACC_SPRITES:
-		case MA_OPT_ARM940_SOUND:
-		case MA_OPT_6BUTTON_PAD:
-		case MA_OPT2_ENABLE_Z80:
 		case MA_OPT2_ENABLE_YM2612:
 		case MA_OPT2_ENABLE_SN76496:
-		case MA_OPT2_SVP_DYNAREC:
-		case MA_CDOPT_CDDA:
+		case MA_OPT2_ENABLE_Z80:
+		case MA_OPT_6BUTTON_PAD:
+		case MA_OPT_ACC_SPRITES:
+		case MA_OPT_ARM940_SOUND:
 		case MA_CDOPT_PCM:
-		case MA_CDOPT_SAVERAM:
+		case MA_CDOPT_CDDA:
 		case MA_CDOPT_SCALEROT_CHIP:
 		case MA_CDOPT_BETTER_SYNC:
+		case MA_CDOPT_SAVERAM:
+		case MA_OPT2_SVP_DYNAREC:
+		case MA_OPT2_NO_SPRITE_LIM:
+		case MA_OPT2_NO_IDLE_LOOPS:
 			return defaultConfig.s_PicoOpt;
 
+		case MA_OPT_SRAM_STATES:
 		case MA_OPT_SHOW_FPS:
 		case MA_OPT_ENABLE_SOUND:
-		case MA_OPT_SRAM_STATES:
-		case MA_OPT2_A_SN_GAMMA:
-		case MA_OPT2_VSYNC:
 		case MA_OPT2_GZIP_STATES:
+		case MA_OPT2_SQUIDGEHACK:
 		case MA_OPT2_NO_LAST_ROM:
 		case MA_OPT2_RAMTIMINGS:
 		case MA_CDOPT_LEDS:
+		case MA_OPT2_A_SN_GAMMA:
+		case MA_OPT2_VSYNC:
+		case MA_OPT_INTERLACED:
+		case MA_OPT2_DBLBUFF:
+		case MA_OPT2_STATUS_LINE:
+		case MA_OPT2_NO_FRAME_LIMIT:
+		case MA_OPT_TEARING_FIX:
 			return defaultConfig.EmuOpt;
 
 		case MA_CTRL_TURBO_RATE: return defaultConfig.turbo_rate;
 		case MA_OPT_SCALING:     return defaultConfig.scaling;
 		case MA_OPT_ROTATION:    return defaultConfig.rotation;
+		case MA_OPT2_GAMMA:      return defaultConfig.gamma;
+		case MA_OPT_FRAMESKIP:   return defaultConfig.Frameskip;
+		case MA_OPT_CPU_CLOCKS:  return defaultConfig.CPUclock;
 
 		case MA_OPT_SAVE_SLOT:
 		default:
 			return 0;
 	}
+}
+
+static int is_cust_val_default(const menu_entry *me)
+{
+	switch (me->id)
+	{
+		case MA_OPT_REGION:
+			return defaultConfig.s_PicoRegion == PicoRegionOverride &&
+				defaultConfig.s_PicoAutoRgnOrder == PicoAutoRgnOrder;
+		case MA_OPT_SOUND_QUALITY:
+			return defaultConfig.s_PsndRate == PsndRate &&
+				((defaultConfig.s_PicoOpt ^ PicoOpt) & POPT_EN_STEREO) == 0;
+		case MA_OPT_CONFIRM_STATES:
+			return !((defaultConfig.EmuOpt ^ currentConfig.EmuOpt) &
+				(EOPT_CONFIRM_LOAD|EOPT_CONFIRM_SAVE)) == 0;
+		case MA_OPT_RENDERER:
+			return ((defaultConfig.s_PicoOpt ^ PicoOpt) & POPT_ALT_RENDERER) == 0 &&
+				((defaultConfig.EmuOpt ^ currentConfig.EmuOpt) & EOPT_16BPP) == 0;
+		case MA_CDOPT_READAHEAD:
+			return defaultConfig.s_PicoCDBuffers == PicoCDBuffers;
+		default:break;
+	}
+
+	lprintf("is_cust_val_default: unhandled id %i\n", me->id);
+	return 0;
 }
 
 int config_writesect(const char *fname, const char *section)
@@ -282,17 +304,19 @@ write:
 		int dummy;
 		if (!me->need_to_save)
 			goto next;
-		if (me->beh == MB_OPT_ONOFF) {
+		if (me->beh == MB_OPT_ONOFF || me->beh == MB_OPT_CUSTONOFF) {
 			if (!no_defaults || ((*(int *)me->var ^ default_var(me)) & me->mask))
 				fprintf(fn, "%s = %i" NL, me->name, (*(int *)me->var & me->mask) ? 1 : 0);
-		} else if (me->beh == MB_OPT_RANGE) {
+		} else if (me->beh == MB_OPT_RANGE || me->beh == MB_OPT_CUSTRANGE) {
 			if (!no_defaults || (*(int *)me->var ^ default_var(me)))
 				fprintf(fn, "%s = %i" NL, me->name, *(int *)me->var);
 		} else if (me->name != NULL && me->generate_name != NULL) {
-			strncpy(line, me->generate_name(0, &dummy), sizeof(line));
-			line[sizeof(line) - 1] = 0;
-			mystrip(line);
-			fprintf(fn, "%s = %s" NL, me->name, line);
+			if (!no_defaults || !is_cust_val_default(me)) {
+				strncpy(line, me->generate_name(0, &dummy), sizeof(line));
+				line[sizeof(line) - 1] = 0;
+				mystrip(line);
+				fprintf(fn, "%s = %s" NL, me->name, line);
+			}
 		} else
 			custom_write(fn, me, no_defaults);
 next:
@@ -472,7 +496,7 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			} else if (strcasecmp(val, "sw horizontal") == 0) {
 				currentConfig.scaling = EOPT_SCALE_SW_H;
 			} else
-				return 0;
+				currentConfig.scaling = atoi(val);
 			return 1;
 #else
 			return 0;

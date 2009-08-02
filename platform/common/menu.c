@@ -1421,7 +1421,7 @@ static int mh_cdopt_ra(menu_id id, int keys)
 
 static menu_entry e_menu_cd_options[] =
 {
-	mee_onoff("CD LEDs",              MA_CDOPT_LEDS,          currentConfig.EmuOpt, 0x0400),
+	mee_onoff("CD LEDs",              MA_CDOPT_LEDS,          currentConfig.EmuOpt, EOPT_EN_CD_LEDS),
 	mee_onoff("CDDA audio",           MA_CDOPT_CDDA,          PicoOpt, POPT_EN_MCD_CDDA),
 	mee_onoff("PCM audio",            MA_CDOPT_PCM,           PicoOpt, POPT_EN_MCD_PCM),
 	mee_cust ("ReadAhead buffer",     MA_CDOPT_READAHEAD,     mh_cdopt_ra, mgn_cdopt_ra),
