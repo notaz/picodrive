@@ -1325,10 +1325,14 @@ void emu_loop(void)
 
 		if (timestamp - timestamp_base >= ms_to_ticks(1000))
 		{
-			if (PsndOut == 0 && currentConfig.Frameskip >= 0)
+			if ((currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) && currentConfig.Frameskip >= 0)
 				pframes_done = 0;
-			else
+			else {
 				pframes_done -= target_fps;
+				/* don't allow it to drift during heavy slowdowns */
+				if (pframes_done < -2)
+					pframes_done = -2;
+			}
 			timestamp_base += ms_to_ticks(1000);
 		}
 
@@ -1343,7 +1347,7 @@ void emu_loop(void)
 				pframes_done++; frames_done++;
 				diff_lim += target_frametime;
 
-				if (PsndOut && !reset_timing) { // do framelimitting if sound is enabled
+				if (!(currentConfig.EmuOpt & EOPT_NO_FRMLIMIT)) {
 					timestamp = get_ticks();
 					diff = timestamp - timestamp_base;
 					if (diff < diff_lim) // we are too fast
@@ -1369,7 +1373,7 @@ void emu_loop(void)
 		PicoFrame();
 
 		/* frame limiter */
-		if (!reset_timing && (PsndOut != NULL || currentConfig.Frameskip < 0))
+		if (!reset_timing && !(currentConfig.EmuOpt & EOPT_NO_FRMLIMIT))
 		{
 			timestamp = get_ticks();
 			diff = timestamp - timestamp_base;

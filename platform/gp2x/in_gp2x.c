@@ -104,7 +104,6 @@ static void in_gp2x_probe(void)
 			return;
 		}
 		in_gp2x_get_bits = in_gp2x_get_wiz_bits;
-		in_gp2x_keys[BTN_START] = "MENU";
 		break;
 	default:
 #ifdef FAKE_IN_GP2X
@@ -318,7 +317,12 @@ static int in_gp2x_clean_binds(void *drv_data, int *binds, int *def_binds)
 void in_gp2x_init(void *vdrv)
 {
 	in_drv_t *drv = vdrv;
+	gp2x_soc_t soc;
 
+	soc = soc_detect();
+	if (soc == SOCID_POLLUX)
+		in_gp2x_keys[BTN_START] = "MENU";
+	
 	in_gp2x_combo_keys = in_gp2x_combo_acts = 0;
 
 	drv->prefix = in_gp2x_prefix;

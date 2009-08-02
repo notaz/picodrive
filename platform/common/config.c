@@ -490,6 +490,8 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			PsndRate = strtoul(val, &tmp, 10);
 			if (PsndRate < 8000 || PsndRate > 44100)
 				PsndRate = 22050;
+			if (*tmp == 'H' || *tmp == 'h') tmp++;
+			if (*tmp == 'Z' || *tmp == 'z') tmp++;
 			while (*tmp == ' ') tmp++;
 			if        (strcasecmp(tmp, "stereo") == 0) {
 				PicoOpt |=  POPT_EN_STEREO;
@@ -550,17 +552,6 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			} else
 				return 0;
 			return 1;
-
-#if 0 // TODO rm?
-		case MA_OPT_CPU_CLOCKS:
-#ifdef __GP2X__
-			if (strcasecmp(var, "GP2X CPU clocks") != 0) return 0;
-#elif defined(PSP)
-			if (strcasecmp(var, "PSP CPU clock") != 0) return 0;
-#endif
-			currentConfig.CPUclock = atoi(val);
-			return 1;
-#endif
 
 		case MA_OPT2_GAMMA:
 			if (strcasecmp(var, "Gamma correction") != 0) return 0;
