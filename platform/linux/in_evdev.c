@@ -14,6 +14,7 @@
 
 typedef struct {
 	int fd;
+	int *kbits;
 	int abs_lzone;
 	int abs_rzone;
 	int abs_tzone;
@@ -31,6 +32,9 @@ typedef struct {
 
 #define KEYBITS_BIT_SET(x) (keybits[(x)/sizeof(keybits[0])/8] |= \
 	(1 << ((x) & (sizeof(keybits[0])*8-1))))
+
+#define KEYBITS_BIT_CLEAR(x) (keybits[(x)/sizeof(keybits[0])/8] &= \
+	~(1 << ((x) & (sizeof(keybits[0])*8-1))))
 
 static const char * const in_evdev_prefix = "evdev:";
 static const char * const in_evdev_keys[KEY_CNT] = {
@@ -158,7 +162,8 @@ static void in_evdev_probe(void)
 
 		/* check for interesting keys */
 		for (u = 0; u < KEY_CNT; u++) {
-			if (KEYBITS_BIT(u) && u != KEY_POWER && u != KEY_SLEEP && u != BTN_TOUCH)
+			if (KEYBITS_BIT(u) && u != KEY_POWER &&
+					u != KEY_SLEEP && u != BTN_TOUCH)
 				count++;
 		}
 
@@ -168,6 +173,16 @@ static void in_evdev_probe(void)
 		dev = calloc(1, sizeof(*dev));
 		if (dev == NULL)
 			goto skip;
+
+		ret = ioctl(fd, EVIOCGKEY(sizeof(keybits)), keybits);
+		if (ret == -1) {
+			printf("Warning: EVIOCGKEY not supported, will have to track state\n");
+			dev->kbits = calloc(KEY_CNT, sizeof(int));
+			if (dev->kbits == NULL) {
+				free(dev);
+				goto skip;
+			}
+		}
 
 		/* check for abs too */
 		if (support & (1 << EV_ABS)) {
@@ -235,23 +250,36 @@ int in_evdev_update(void *drv_data, const int *binds, int *result)
 {
 	struct input_event ev[16];
 	struct input_absinfo ainfo;
-	int keybits[KEY_CNT / sizeof(int)];
+	int keybits_[KEY_CNT / sizeof(int)];
+	int *keybits = keybits_;
 	in_evdev_t *dev = drv_data;
 	int rd, ret, u;
 
-	while (1) {
-		rd = read(dev->fd, ev, sizeof(ev));
-		if (rd < (int)sizeof(ev[0])) {
-			if (errno != EAGAIN)
-				perror("in_evdev: read failed");
-			break;
+	if (dev->kbits == NULL) {
+		ret = ioctl(dev->fd, EVIOCGKEY(sizeof(keybits)), keybits);
+		if (ret == -1) {
+			perror("in_evdev: ioctl failed");
+			return -1;
 		}
 	}
-
-	ret = ioctl(dev->fd, EVIOCGKEY(sizeof(keybits)), keybits);
-	if (ret == -1) {
-		perror("in_evdev: ioctl failed");
-		return -1;
+	else {
+		keybits = dev->kbits;
+		while (1) {
+			rd = read(dev->fd, ev, sizeof(ev));
+			if (rd < (int)sizeof(ev[0])) {
+				if (errno != EAGAIN)
+					perror("in_evdev: read failed");
+				break;
+			}
+			for (u = 0; u < rd / sizeof(ev[0]); u++) {
+				if (ev[u].type != EV_KEY)
+					continue;
+				else if (ev[u].value == 1)
+					KEYBITS_BIT_SET(ev[u].code);
+				else if (ev[u].value == 0)
+					KEYBITS_BIT_CLEAR(ev[u].code);
+			}
+		}
 	}
 
 	for (u = 0; u < KEY_CNT; u++) {
