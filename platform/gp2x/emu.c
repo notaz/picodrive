@@ -576,7 +576,7 @@ void plat_update_volume(int has_changed, int is_up)
 		prev_frame = Pico.m.frame_count;
 	}
 
-	if (need_low_volume)
+	if (!need_low_volume)
 		return;
 
 	/* set the right mixer func */

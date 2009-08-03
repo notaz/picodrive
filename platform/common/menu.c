@@ -2043,6 +2043,8 @@ void menu_plat_setup(int is_wiz)
 
 	if (!is_wiz) {
 		me_enable(e_menu_gfx_options, MA_OPT_TEARING_FIX, 0);
+		i = me_id2offset(e_menu_gfx_options, MA_OPT_TEARING_FIX);
+		e_menu_gfx_options[i].need_to_save = 0;
 		return;
 	}
 
@@ -2052,6 +2054,8 @@ void menu_plat_setup(int is_wiz)
 
 	i = me_id2offset(e_menu_gfx_options, MA_OPT_SCALING);
 	e_menu_gfx_options[i].max = 1;	/* only off and sw */
+	i = me_id2offset(e_menu_gfx_options, MA_OPT_ARM940_SOUND);
+	e_menu_gfx_options[i].need_to_save = 0;
 }
 
 /* TODO: rename */

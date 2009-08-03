@@ -25,6 +25,8 @@
 #include <zlib/zlib.h>
 
 
+#define STATUS_MSG_TIMEOUT 2000
+
 void *g_screen_ptr;
 
 #if !SCREEN_SIZE_FIXED
@@ -92,23 +94,29 @@ static void get_ext(char *file, char *ext)
 void emu_status_msg(const char *format, ...)
 {
 	va_list vl;
+	int ret;
 
 	va_start(vl, format);
-	vsnprintf(noticeMsg, sizeof(noticeMsg), format, vl);
+	ret = vsnprintf(noticeMsg, sizeof(noticeMsg), format, vl);
 	va_end(vl);
+
+	/* be sure old text gets overwritten */
+	for (; ret < 28; ret++)
+		noticeMsg[ret] = ' ';
+	noticeMsg[ret] = 0;
 
 	notice_msg_time = plat_get_ticks_ms();
 }
 
-static const char *biosfiles_us[] = { "us_scd1_9210", "us_scd2_9306", "SegaCDBIOS9303" };
-static const char *biosfiles_eu[] = { "eu_mcd1_9210", "eu_mcd2_9306", "eu_mcd2_9303"   };
-static const char *biosfiles_jp[] = { "jp_mcd1_9112", "jp_mcd1_9111" };
+static const char * const biosfiles_us[] = { "us_scd1_9210", "us_scd2_9306", "SegaCDBIOS9303" };
+static const char * const biosfiles_eu[] = { "eu_mcd1_9210", "eu_mcd2_9306", "eu_mcd2_9303"   };
+static const char * const biosfiles_jp[] = { "jp_mcd1_9112", "jp_mcd1_9111" };
 
 static int find_bios(int region, char **bios_file)
 {
 	static char bios_path[1024];
 	int i, count;
-	const char **files;
+	const char * const *files;
 	FILE *f = NULL;
 
 	if (region == 4) { // US
@@ -924,7 +932,7 @@ int emu_save_load_game(int load, int sram)
 		}
 		else	ret = -1;
 		if (!ret)
-			emu_status_msg(load ? "GAME LOADED" : "GAME SAVED");
+			emu_status_msg(load ? "STATE LOADED" : "STATE SAVED");
 		else
 		{
 			emu_status_msg(load ? "LOAD FAILED" : "SAVE FAILED");
@@ -1086,7 +1094,7 @@ static void run_events_ui(unsigned int which)
 			in_set_blocking(0);
 		}
 		if (do_it) {
-			plat_status_msg_busy_first((which & PEV_STATE_LOAD) ? "LOADING GAME" : "SAVING GAME");
+			plat_status_msg_busy_first((which & PEV_STATE_LOAD) ? "LOADING STATE" : "SAVING STATE");
 			PicoStateProgressCB = plat_status_msg_busy_next;
 			emu_save_load_game((which & PEV_STATE_LOAD) ? 1 : 0, 0);
 			PicoStateProgressCB = NULL;
@@ -1276,7 +1284,7 @@ void emu_loop(void)
 		if (notice_msg_time != 0)
 		{
 			static int noticeMsgSum;
-			if (timestamp - ms_to_ticks(notice_msg_time) > ms_to_ticks(2000)) {
+			if (timestamp - ms_to_ticks(notice_msg_time) > ms_to_ticks(STATUS_MSG_TIMEOUT)) {
 				notice_msg_time = 0;
 				plat_status_msg_clear();
 				notice_msg = NULL;
@@ -1330,6 +1338,10 @@ void emu_loop(void)
 			else {
 				pframes_done -= target_fps;
 				/* don't allow it to drift during heavy slowdowns */
+				if (pframes_done < -5) {
+					reset_timing = 1;
+					continue;
+				}
 				if (pframes_done < -2)
 					pframes_done = -2;
 			}
@@ -1358,7 +1370,7 @@ void emu_loop(void)
 		else if (diff > diff_lim)
 		{
 			/* no time left for this frame - skip */
-			if (diff - diff_lim >= ms_to_ticks(300)) {
+			if (diff - diff_lim >= ms_to_ticks(200)) {
 				/* if too much behind, reset instead */
 				reset_timing = 1;
 				continue;

@@ -160,6 +160,7 @@ void plat_init(void)
 	{
 	case SOCID_MMSP2:
 		mmsp2_init();
+		menu_plat_setup(0);
 		break;
 	case SOCID_POLLUX:
 		pollux_init();
