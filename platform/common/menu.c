@@ -1968,24 +1968,14 @@ void menu_loop(void)
 
 static int mh_tray_load_cd(menu_id id, int keys)
 {
-	cd_img_type cd_type;
 	char *ret_name;
-	int ret = -1;
 
 	ret_name = romsel_run();
 	if (ret_name == NULL)
 		return 0;
 
-	cd_type = emu_cd_check(NULL, ret_name);
-	if (cd_type != CIT_NOT_CD)
-		ret = Insert_CD(ret_name, cd_type);
-	if (ret != 0) {
-		me_update_msg("Load failed, invalid CD image?");
-		return 0;
-	}
-
 	engineState = PGS_RestartRun;
-	return 1;
+	return emu_swap_cd(ret_name);
 }
 
 static int mh_tray_nothing(menu_id id, int keys)
@@ -2001,6 +1991,7 @@ static menu_entry e_menu_tray[] =
 	mee_label  (""),
 	mee_handler("Load CD image",  mh_tray_load_cd),
 	mee_handler("Insert nothing", mh_tray_nothing),
+	mee_end,
 };
 
 int menu_loop_tray(void)

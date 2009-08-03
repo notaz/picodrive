@@ -121,7 +121,7 @@ void PicoCDBufferFree(void);
 void PicoCDBufferFlush(void);
 
 // cd/cd_sys.c
-int Insert_CD(char *cdimg_name, int type);
+int Insert_CD(const char *cdimg_name, int type);
 void Stop_CD(void); // releases all resources taken when CD game was started.
 
 // Cart.c

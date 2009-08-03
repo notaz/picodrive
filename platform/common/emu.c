@@ -80,9 +80,9 @@ static int try_rfn_cut(char *fname)
 	return 0;
 }
 
-static void get_ext(char *file, char *ext)
+static void get_ext(const char *file, char *ext)
 {
-	char *p;
+	const char *p;
 
 	p = file + strlen(file) - 4;
 	if (p < file) p = file;
@@ -177,12 +177,13 @@ static unsigned char id_header[0x100];
 
 /* checks if fname points to valid MegaCD image
  * if so, checks for suitable BIOS */
-int emu_cd_check(int *pregion, char *fname_in)
+static int emu_cd_check(int *pregion, const char *fname_in)
 {
+	const char *fname = fname_in;
 	unsigned char buf[32];
 	pm_file *cd_f;
 	int region = 4; // 1: Japan, 4: US, 8: Europe
-	char ext[5], *fname = fname_in;
+	char ext[5];
 	cue_track_type type = CT_UNKNOWN;
 	cue_data_t *cue_data = NULL;
 
@@ -529,6 +530,24 @@ fail2:
 fail:
 	if (rom != NULL) pm_close(rom);
 	return 0;
+}
+
+int emu_swap_cd(const char *fname)
+{
+	cd_img_type cd_type;
+	int ret = -1;
+
+	cd_type = emu_cd_check(NULL, fname);
+	if (cd_type != CIT_NOT_CD)
+		ret = Insert_CD(fname, cd_type);
+	if (ret != 0) {
+		me_update_msg("Load failed, invalid CD image?");
+		return 0;
+	}
+
+	strncpy(rom_fname_loaded, fname, sizeof(rom_fname_loaded)-1);
+	rom_fname_loaded[sizeof(rom_fname_loaded)-1] = 0;
+	return 1;
 }
 
 static void romfname_ext(char *dst, const char *prefix, const char *ext)

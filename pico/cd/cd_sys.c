@@ -196,7 +196,7 @@ PICO_INTERNAL void Reset_CD(void)
 }
 
 
-int Insert_CD(char *cdimg_name, int type)
+int Insert_CD(const char *cdimg_name, int type)
 {
 	int ret = 1;
 
