@@ -788,6 +788,22 @@ void pemu_loop_prep(void)
 
 void pemu_loop_end(void)
 {
+	int po_old = PicoOpt;
+	int eo_old = currentConfig.EmuOpt;
+
+	/* do one more frame for menu bg */
+	PicoOpt &= ~POPT_ALT_RENDERER;
+	PicoOpt |= POPT_EN_SOFTSCALE|POPT_ACC_SPRITES;
+	currentConfig.EmuOpt |= EOPT_16BPP;
+
+	PicoScanBegin = EmuScanBegin16;
+	PicoScanEnd = NULL;
+	PicoDrawSetColorFormat(1);
+	Pico.m.dirtyPal = 1;
+	PicoFrame();
+
+	PicoOpt = po_old;
+	currentConfig.EmuOpt = eo_old;
 }
 
 const char *plat_get_credits(void)

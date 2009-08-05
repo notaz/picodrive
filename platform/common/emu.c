@@ -1429,9 +1429,6 @@ void emu_loop(void)
 
 	emu_set_fastforward(0);
 
-	if (PicoAHW & PAHW_MCD)
-		PicoCDBufferFree();
-
 	// save SRAM
 	if ((currentConfig.EmuOpt & EOPT_EN_SRAM) && SRam.changed) {
 		plat_status_msg_busy_first("Writing SRAM/BRAM...");
@@ -1439,9 +1436,11 @@ void emu_loop(void)
 		SRam.changed = 0;
 	}
 
-	// do menu background to be sure it's right
-	pemu_forced_frame(POPT_EN_SOFTSCALE);
-
 	pemu_loop_end();
+
+	// pemu_loop_end() might want to do 1 frame for bg image,
+	// so free CD buffer here
+	if (PicoAHW & PAHW_MCD)
+		PicoCDBufferFree();
 }
 
