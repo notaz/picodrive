@@ -590,12 +590,16 @@ void plat_update_volume(int has_changed, int is_up)
 
 static void updateSound(int len)
 {
+	len <<= 1;
 	if (PicoOpt & POPT_EN_STEREO)
 		len <<= 1;
 
+	if ((currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) && !sndout_oss_can_write(len))
+		return;
+
 	/* avoid writing audio when lagging behind to prevent audio lag */
 	if (PicoSkipFrame != 2)
-		sndout_oss_write(PsndOut, len<<1);
+		sndout_oss_write(PsndOut, len);
 }
 
 void pemu_sound_start(void)
@@ -609,31 +613,40 @@ void pemu_sound_start(void)
 	{
 		int is_stereo = (PicoOpt & POPT_EN_STEREO) ? 1 : 0;
 		int target_fps = Pico.m.pal ? 50 : 60;
-		int snd_excess_add;
+		int frame_samples, snd_excess_add;
 		gp2x_soc_t soc;
+
+		soc = soc_detect();
 
 		#define SOUND_RERATE_FLAGS (POPT_EN_FM|POPT_EN_PSG|POPT_EN_STEREO|POPT_EXT_FM|POPT_EN_MCD_CDDA)
 		if (PsndRate != PsndRate_old || Pico.m.pal != pal_old || ((PicoOpt & POPT_EXT_FM) && crashed_940) ||
 				((PicoOpt ^ PicoOpt_old) & SOUND_RERATE_FLAGS)) {
 			PsndRerate(Pico.m.frame_count ? 1 : 0);
 		}
-		snd_excess_add = ((PsndRate - PsndLen * target_fps)<<16) / target_fps;
-		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, snd_excess_add, is_stereo, Pico.m.pal);
-		sndout_oss_start(PsndRate, 16, is_stereo);
-		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
-		PicoWriteSound = updateSound;
-		plat_update_volume(0, 0);
+
 		memset(sndBuffer, 0, sizeof(sndBuffer));
 		PsndOut = sndBuffer;
+		PicoWriteSound = updateSound;
 		PsndRate_old = PsndRate;
 		PicoOpt_old  = PicoOpt;
 		pal_old = Pico.m.pal;
+		plat_update_volume(0, 0);
+
+		frame_samples = PsndLen;
+		snd_excess_add = ((PsndRate - PsndLen * target_fps)<<16) / target_fps;
+		if (snd_excess_add != 0)
+			frame_samples++;
+		if (soc == SOCID_POLLUX)
+			frame_samples *= 2;	/* force larger buffer */
+
+		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
+			PsndRate, PsndLen, snd_excess_add, is_stereo, Pico.m.pal);
+		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
+		sndout_oss_start(PsndRate, frame_samples, is_stereo);
 
 		/* Wiz's sound hardware needs more prebuffer */
-		soc = soc_detect();
 		if (soc == SOCID_POLLUX)
-			updateSound(PsndLen);
+			updateSound(frame_samples);
 	}
 }
 

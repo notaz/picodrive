@@ -430,9 +430,6 @@ problems in some rare cases. Try disabling this if your game has problems.
 
 @@3. "Disable frame limiter"
 This allows games to run faster then 50/60fps, useful for benchmarking.
-#ifdef GP2X
-You need to disable sound for this to work properly.
-#endif
 
 #ifdef GP2X
 @@3. "Use ARM940 core for sound"
