@@ -256,7 +256,7 @@ int in_evdev_update(void *drv_data, const int *binds, int *result)
 	int rd, ret, u;
 
 	if (dev->kbits == NULL) {
-		ret = ioctl(dev->fd, EVIOCGKEY(sizeof(keybits)), keybits);
+		ret = ioctl(dev->fd, EVIOCGKEY(sizeof(keybits_)), keybits_);
 		if (ret == -1) {
 			perror("in_evdev: ioctl failed");
 			return -1;
