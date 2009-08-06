@@ -14,7 +14,7 @@ asm_misc = 1
 asm_cdpico = 1
 asm_cdmemory = 1
 amalgamate = 0
-#profile = 1
+profile = 2
 #use_musashi = 1
 #up = 1
 
@@ -34,8 +34,8 @@ endif
 DEFINC = -I../.. -I. -DARM -D__GP2X__ -DIN_GP2X -DIN_EVDEV # -DBENCHMARK
 CFLAGS += -Wall -Winline
 ifeq ($(DEBUG),)
-# -ftracer # TODO measure impact
-CFLAGS += -O3 -fstrength-reduce -fomit-frame-pointer -fstrict-aliasing -ffast-math
+# -ftracer -fstrength-reduce # TODO measure impact
+CFLAGS += -O3 -fomit-frame-pointer -fstrict-aliasing -ffast-math
 else
 CFLAGS += -ggdb
 endif
@@ -55,22 +55,23 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += soc.o soc_mmsp2.o soc_pollux.o pollux_set.o emu.o in_gp2x.o plat.o warm.o
+OBJS += plat.o warm.o pollux_set.o soc.o soc_mmsp2.o soc_pollux.o emu.o in_gp2x.o
 # 940 core control
 OBJS += 940ctl.o
 
 # common
-OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
-	platform/common/arm_utils.o platform/common/arm_linux.o platform/common/readpng.o \
-	platform/common/mp3_helix.o platform/common/input.o platform/common/main.o \
+OBJS += platform/common/emu.o platform/common/input.o platform/common/menu.o \
+	platform/common/fonts.o platform/common/config.o platform/common/arm_utils.o \
+	platform/common/arm_linux.o platform/common/readpng.o \
+	platform/common/mp3_helix.o platform/common/main.o \
 	platform/linux/sndout_oss.o platform/linux/plat.o platform/linux/in_evdev.o
 
 # Pico
 ifeq "$(amalgamate)" "1"
 OBJS += ../../picoAll.o
 else
-OBJS += pico/area.o pico/cart.o pico/memory.o pico/misc.o pico/pico.o pico/sek.o \
-		pico/videoport.o pico/draw2.o pico/draw.o pico/patch.o pico/debug.o
+OBJS += pico/memory.o pico/videoport.o pico/draw.o pico/draw2.o pico/pico.o pico/sek.o \
+		pico/area.o pico/cart.o pico/misc.o pico/patch.o pico/debug.o
 # Pico - CD
 OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
 		pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \
@@ -88,23 +89,14 @@ OBJS += pico/sound/sound.o
 endif
 OBJS += pico/sound/mix_arm.o
 OBJS += pico/sound/sn76496.o pico/sound/ym2612.o
+# unzip
+OBJS += unzip/unzip.o unzip/unzip_stream.o
 # zlib
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o
-# unzip
-OBJS += unzip/unzip.o unzip/unzip_stream.o
 # debug
 ifeq "$(debug_cyclone)" "1"
 OBJS += pico/DebugCPU.o cpu/musashi/m68kdasm.o
-endif
-# CPU cores
-ifeq "$(use_musashi)" "1"
-DEFINC += -DEMU_M68K
-OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
-endif
-ifeq "$(use_cyclone)" "1"
-DEFINC += -DEMU_C68K
-OBJS += cpu/Cyclone/proj/Cyclone.o cpu/Cyclone/tools/idle.o
 endif
 # drz80/mz80
 ifeq "$(mz80)" "1"
@@ -114,6 +106,14 @@ else
 DEFINC += -D_USE_DRZ80
 OBJS += cpu/DrZ80/drz80.o
 endif
+ifeq "$(use_musashi)" "1"
+DEFINC += -DEMU_M68K
+OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
+endif
+ifeq "$(use_cyclone)" "1"
+DEFINC += -DEMU_C68K
+OBJS += cpu/Cyclone/proj/Cyclone.o cpu/Cyclone/tools/idle.o
+endif
 
 vpath %.c = ../..
 vpath %.s = ../..
@@ -122,13 +122,25 @@ DIRS = platform platform/gp2x platform/linux platform/common pico pico/cd pico/p
 	pico/carthw/svp zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools cpu/mz80 cpu/DrZ80
 
 
-all: mkdirs PicoDrive
+all: mkdirs PicoDrive_dyn PicoDrive_sta
 
 include ../common/common_arm.mak
 
-PicoDrive : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
+PicoDrive.o : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
+	$(LD) -r -o $@ $^
+
+PicoDrive_dyn : PicoDrive.o
 	@echo ">>>" $@
-	$(CC) -o $@ $(CFLAGS) $^ -lm -lpng -Wl,-Map=PicoDrive.map
+	$(CC) -o $@ $(CFLAGS) $^ -Wl,-Bstatic -lm -Wl,-Bdynamic -lpng -Wl,-Map=$@.map
+ifeq ($(DEBUG),)
+	$(STRIP) $@
+endif
+#	$(CC) -o $@ $(CFLAGS) $^ -lm -lpng -Wl,-Map=$@.map
+#	$(CC) -o $@ $(CFLAGS) $^ -Wl,-Bstatic -lm -Wl,-Bdynamic -lpng -Wl,-Map=$@.map
+
+PicoDrive_sta : PicoDrive.o
+	@echo ">>>" $@
+	$(CC) -static -o $@ $(CFLAGS) $^ -lm -lpng -Wl,-Map=$@.map
 ifeq ($(DEBUG),)
 	$(STRIP) $@
 endif
