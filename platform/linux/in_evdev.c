@@ -317,6 +317,16 @@ static void in_evdev_set_blocking(void *drv_data, int y)
 		perror("in_evdev: F_GETFL fcntl failed");
 		return;
 	}
+
+	if (flags & O_NONBLOCK) {
+		/* flush the event queue */
+		struct input_event ev;
+		do {
+			ret = read(dev->fd, &ev, sizeof(ev));
+		}
+		while (ret == sizeof(ev));
+	}
+
 	if (y)
 		flags &= ~O_NONBLOCK;
 	else

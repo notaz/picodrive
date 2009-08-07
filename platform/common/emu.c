@@ -643,7 +643,8 @@ int emu_read_config(int game, int no_defaults)
 			// read global config, and apply game_def.cfg on top
 			make_config_cfg(cfg);
 			config_readsect(cfg, NULL);
-			ret = config_readsect("game_def.cfg", sect);
+			emu_make_path(cfg, "game_def.cfg", sizeof(cfg));
+			ret = config_readsect(cfg, sect);
 		}
 
 		if (ret == 0)

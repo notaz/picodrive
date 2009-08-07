@@ -131,14 +131,15 @@ void PsndRerate(int preserve_state)
   }
 
   if (preserve_state) {
-    state = malloc(0x200);
+    state = malloc(0x204);
     if (state == NULL) return;
-    memcpy(state, YM2612GetRegs(), 0x200);
+    ym2612_pack_state();
+    memcpy(state, YM2612GetRegs(), 0x204);
   }
   YM2612Init(Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7, PsndRate);
   if (preserve_state) {
     // feed it back it's own registers, just like after loading state
-    memcpy(YM2612GetRegs(), state, 0x200);
+    memcpy(YM2612GetRegs(), state, 0x204);
     ym2612_unpack_state();
     if ((PicoAHW & PAHW_MCD) && !(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
       cdda_start_play();
