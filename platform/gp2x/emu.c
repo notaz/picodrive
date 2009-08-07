@@ -756,6 +756,9 @@ void pemu_loop_prep(void)
 {
 	static int gp2x_old_clock = -1, EmuOpt_old = 0, pal_old = 0;
 	static int gp2x_old_gamma = 100;
+	gp2x_soc_t soc;
+
+	soc = soc_detect();
 
 	if ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_RAM_TIMINGS) {
 		if (currentConfig.EmuOpt & EOPT_RAM_TIMINGS)
@@ -773,16 +776,16 @@ void pemu_loop_prep(void)
 		printf(" done\n");
 	}
 
-	if (gp2x_old_gamma != currentConfig.gamma || (EmuOpt_old&0x1000) != (currentConfig.EmuOpt&0x1000)) {
-		set_lcd_gamma(currentConfig.gamma, !!(currentConfig.EmuOpt&0x1000));
+	if (gp2x_old_gamma != currentConfig.gamma || ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_A_SN_GAMMA)) {
+		set_lcd_gamma(currentConfig.gamma, !!(currentConfig.EmuOpt & EOPT_A_SN_GAMMA));
 		gp2x_old_gamma = currentConfig.gamma;
 		printf("updated gamma to %i, A_SN's curve: %i\n", currentConfig.gamma, !!(currentConfig.EmuOpt&0x1000));
 	}
 
-	if (((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_PSYNC) || Pico.m.pal != pal_old) {
-		if (currentConfig.EmuOpt & EOPT_PSYNC)
+	if (((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_VSYNC) || Pico.m.pal != pal_old) {
+		if ((currentConfig.EmuOpt & EOPT_VSYNC) || soc == SOCID_POLLUX)
 			set_lcd_custom_rate(Pico.m.pal);
-		else
+		else if (EmuOpt_old & EOPT_VSYNC)
 			unset_lcd_custom_rate();
 	}
 

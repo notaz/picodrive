@@ -32,7 +32,7 @@ extern int g_screen_height;
 #define EOPT_EN_CD_LEDS   (1<<10)
 #define EOPT_CONFIRM_LOAD (1<<11)
 #define EOPT_A_SN_GAMMA   (1<<12)
-#define EOPT_PSYNC        (1<<13)
+#define EOPT_VSYNC        (1<<13)
 #define EOPT_GIZ_SCANLN   (1<<14)
 #define EOPT_GIZ_DBLBUF   (1<<15)
 #define EOPT_VSYNC_MODE   (1<<16)

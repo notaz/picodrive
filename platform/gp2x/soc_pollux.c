@@ -34,6 +34,17 @@ static unsigned int pllsetreg0;
 static int last_pal_setting = 0;
 
 
+/* misc */
+static void pollux_set_fromenv(const char *env_var)
+{
+	const char *set_string;
+	set_string = getenv(env_var);
+	if (set_string)
+		pollux_set(memregs, set_string);
+	else
+		printf("env var %s not defined.\n", env_var);
+}
+
 /* video stuff */
 static void pollux_video_flip(int buf_count)
 {
@@ -62,6 +73,7 @@ static void gp2x_video_changemode_ll_(int bpp)
 	int code = 0, bytes = 2;
 	int rot_cmd[2] = { 0, 0 };
 	unsigned int r;
+	char buff[32];
 	int ret;
 
 	if (bpp == prev_bpp)
@@ -79,7 +91,8 @@ static void gp2x_video_changemode_ll_(int bpp)
 	memregl[0x4000>>2] |= 1 << 3;
 
 	/* the above ioctl resets LCD timings, so set them here */
-	set_lcd_custom_rate(last_pal_setting);
+	snprintf(buff, sizeof(buff), "POLLUX_LCD_TIMINGS_%s", last_pal_setting ? "PAL" : "NTSC");
+	pollux_set_fromenv(buff);
 
 	switch (abs(bpp))
 	{
@@ -141,17 +154,6 @@ static void gp2x_set_cpuclk_(unsigned int mhz)
 	cpuclk_was_changed = 1;
 }
 
-/* misc */
-static void pollux_set_fromenv(const char *env_var)
-{
-	const char *set_string;
-	set_string = getenv(env_var);
-	if (set_string)
-		pollux_set(memregs, set_string);
-	else
-		printf("env var %s not defined.\n", env_var);
-}
-
 /* RAM timings */
 static void set_ram_timings_(void)
 {
@@ -175,10 +177,7 @@ static void unset_ram_timings_(void)
 /* LCD refresh */
 static void set_lcd_custom_rate_(int is_pal)
 {
-	char buff[32];
-
-	snprintf(buff, sizeof(buff), "POLLUX_LCD_TIMINGS_%s", is_pal ? "PAL" : "NTSC");
-	pollux_set_fromenv(buff);
+	/* just remember PAL/NTSC. We always set timings in _changemode_ll() */
 	last_pal_setting = is_pal;
 }
 

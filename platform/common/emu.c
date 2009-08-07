@@ -1276,15 +1276,14 @@ void emu_loop(void)
 	if (PicoAHW & PAHW_MCD)
 		PicoCDBufferInit();
 
-	if (currentConfig.EmuOpt & EOPT_PSYNC)
-		plat_video_wait_vsync();
-
 	pemu_loop_prep();
 
 	timestamp_fps = get_ticks();
 	reset_timing = 1;
 
 	frames_done = frames_shown = pframes_done = 0;
+
+	plat_video_wait_vsync();
 
 	/* loop with resync every 1 sec. */
 	while (engineState == PGS_Running)
@@ -1414,12 +1413,9 @@ void emu_loop(void)
 			if (diff < diff_lim)
 			{
 				// we are too fast
-				if (currentConfig.EmuOpt & EOPT_PSYNC) {
-					if (diff_lim - diff > target_frametime/2)
-						plat_wait_till_us(timestamp_base + target_frametime/4);
+				plat_wait_till_us(timestamp_base + diff_lim - target_frametime / 4);
+				if (currentConfig.EmuOpt & EOPT_VSYNC)
 					plat_video_wait_vsync();
-				} else
-					plat_wait_till_us(timestamp_base + diff_lim);
 			}
 		}
 
