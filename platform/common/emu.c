@@ -407,8 +407,8 @@ int emu_reload_rom(char *rom_fname)
 		// valid CD image, check for BIOS..
 
 		// we need to have config loaded at this point
-		ret = emu_read_config(1, 1);
-		if (!ret) emu_read_config(0, 1);
+		ret = emu_read_config(1, 0);
+		if (!ret) emu_read_config(0, 0);
 		cfg_loaded = 1;
 
 		if (PicoRegionOverride) {
@@ -465,8 +465,8 @@ int emu_reload_rom(char *rom_fname)
 	if (!(PicoAHW & PAHW_MCD))
 		memcpy(id_header, rom_data + 0x100, sizeof(id_header));
 	if (!cfg_loaded) {
-		ret = emu_read_config(1, 1);
-		if (!ret) emu_read_config(0, 1);
+		ret = emu_read_config(1, 0);
+		if (!ret) emu_read_config(0, 0);
 	}
 
 	lprintf("PicoCartInsert(%p, %d);\n", rom_data, rom_size);
@@ -613,10 +613,11 @@ int emu_read_config(int game, int no_defaults)
 	char cfg[512];
 	int ret;
 
+	if (!no_defaults)
+		emu_set_defconfig();
+
 	if (!game)
 	{
-		if (!no_defaults)
-			emu_set_defconfig();
 		make_config_cfg(cfg);
 		ret = config_readsect(cfg, NULL);
 	}
