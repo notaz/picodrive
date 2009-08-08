@@ -196,8 +196,14 @@ void mp3_update(int *buffer, int length, int stereo)
 		return; /* no file / EOF */
 
 	length_mp3 = length;
-	if (PsndRate == 22050) { mix_samples = mix_16h_to_32_s1; length_mp3 <<= 1; shr = 1; }
-	else if (PsndRate == 11025) { mix_samples = mix_16h_to_32_s2; length_mp3 <<= 2; shr = 2; }
+	if (PsndRate <= 11025 + 100) {
+		mix_samples = mix_16h_to_32_s2;
+		length_mp3 <<= 2; shr = 2;
+	}
+	else if (PsndRate <= 22050 + 100) {
+		mix_samples = mix_16h_to_32_s1;
+		length_mp3 <<= 1; shr = 1;
+	}
 
 	if (1152 - mp3_buffer_offs >= length_mp3) {
 		mix_samples(buffer, cdda_out_buffer + mp3_buffer_offs*2, length<<1);

@@ -33,7 +33,7 @@
 
 extern int crashed_940;
 
-static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
+static short __attribute__((aligned(4))) sndBuffer[2*(44100+100)/50];
 static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
 unsigned char *PicoDraw2FB = PicoDraw2FB_;
 static int osd_fps_x;
@@ -205,7 +205,7 @@ static void draw_pico_ptr(void)
 	if (!(Pico.video.reg[12]&1) && !(PicoOpt & POPT_DIS_32C_BORDER))
 		x += 32;
 
-	if (EOPT_WIZ_TEAR_FIX) {
+	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
 		pitch = 240;
 		p += (319 - x) * pitch + y;
 	} else
@@ -614,9 +614,19 @@ void pemu_sound_start(void)
 		int is_stereo = (PicoOpt & POPT_EN_STEREO) ? 1 : 0;
 		int target_fps = Pico.m.pal ? 50 : 60;
 		int frame_samples, snd_excess_add;
+		int snd_rate_oss = PsndRate;
 		gp2x_soc_t soc;
 
 		soc = soc_detect();
+		if (soc == SOCID_POLLUX) {
+			/* POLLUX pain: DPLL1 / mclk_div / bitclk_div / 4 */
+			switch (PsndRate) {
+			case 44100: PsndRate = 44171; break; // 44170.673077
+			case 22050: PsndRate = 22086; break; // 22085.336538
+			case 11025: PsndRate = 11043; break; // 11042.668269
+			default: break;
+			}
+		}
 
 		#define SOUND_RERATE_FLAGS (POPT_EN_FM|POPT_EN_PSG|POPT_EN_STEREO|POPT_EXT_FM|POPT_EN_MCD_CDDA)
 		if (PsndRate != PsndRate_old || Pico.m.pal != pal_old || ((PicoOpt & POPT_EXT_FM) && crashed_940) ||
@@ -642,7 +652,7 @@ void pemu_sound_start(void)
 		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
 			PsndRate, PsndLen, snd_excess_add, is_stereo, Pico.m.pal);
 		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
-		sndout_oss_start(PsndRate, frame_samples, is_stereo);
+		sndout_oss_start(snd_rate_oss, frame_samples, is_stereo);
 
 		/* Wiz's sound hardware needs more prebuffer */
 		if (soc == SOCID_POLLUX)
@@ -652,6 +662,13 @@ void pemu_sound_start(void)
 
 void pemu_sound_stop(void)
 {
+	/* get back from Wiz pain */
+	switch (PsndRate) {
+		case 44171: PsndRate = 44100; break;
+		case 22086: PsndRate = 22050; break;
+		case 11043: PsndRate = 11025; break;
+		default: break;
+	}
 }
 
 void pemu_sound_wait(void)
@@ -806,6 +823,8 @@ void pemu_loop_end(void)
 {
 	int po_old = PicoOpt;
 	int eo_old = currentConfig.EmuOpt;
+
+	pemu_sound_stop();
 
 	/* do one more frame for menu bg */
 	PicoOpt &= ~POPT_ALT_RENDERER;

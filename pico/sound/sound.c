@@ -17,7 +17,7 @@
 void (*PsndMix_32_to_16l)(short *dest, int *src, int count) = mix_32_to_16l_stereo;
 
 // master int buffer to mix to
-static int PsndBuffer[2*44100/50];
+static int PsndBuffer[2*(44100+100)/50];
 
 // dac
 static unsigned short dac_info[312+4]; // pppppppp ppppllll, p - pos in buff, l - length to write for this sample
@@ -126,7 +126,10 @@ void PsndRerate(int preserve_state)
 
   // not all rates are supported in MCD mode due to mp3 decoder limitations
   if (PicoAHW & PAHW_MCD) {
-    if (PsndRate != 11025 && PsndRate != 22050 && PsndRate != 44100) PsndRate = 22050;
+    if (!(11025-100 <= PsndRate && PsndRate <= 11025+100) &&
+        !(22050-100 <= PsndRate && PsndRate <= 22050+100) &&
+        !(44100-100 <= PsndRate && PsndRate <= 44100+100))
+      PsndRate = 22050;
     PicoOpt |= POPT_EN_STEREO; // force stereo
   }
 
@@ -212,12 +215,14 @@ static pm_file *cdda_stream = NULL;
 
 static void cdda_raw_update(int *buffer, int length)
 {
-  int ret, cdda_bytes;
-  if (cdda_stream == NULL) return;
+  int ret, cdda_bytes, mult = 1;
+  if (cdda_stream == NULL)
+    return;
 
   cdda_bytes = length*4;
-  if (PsndRate <= 22050) cdda_bytes *= 2;
-  if (PsndRate <  22050) cdda_bytes *= 2;
+  if (PsndRate <= 22050 + 100) mult = 2;
+  if (PsndRate <  22050 - 100) mult = 4;
+  cdda_bytes *= mult;
 
   ret = pm_read(cdda_out_buffer, cdda_bytes, cdda_stream);
   if (ret < cdda_bytes) {
@@ -227,10 +232,10 @@ static void cdda_raw_update(int *buffer, int length)
   }
 
   // now mix
-  switch (PsndRate) {
-    case 44100: mix_16h_to_32(buffer, cdda_out_buffer, length*2); break;
-    case 22050: mix_16h_to_32_s1(buffer, cdda_out_buffer, length*2); break;
-    case 11025: mix_16h_to_32_s2(buffer, cdda_out_buffer, length*2); break;
+  switch (mult) {
+    case 1: mix_16h_to_32(buffer, cdda_out_buffer, length*2); break;
+    case 2: mix_16h_to_32_s1(buffer, cdda_out_buffer, length*2); break;
+    case 4: mix_16h_to_32_s2(buffer, cdda_out_buffer, length*2); break;
   }
 }
 
