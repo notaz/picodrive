@@ -718,7 +718,7 @@ void in_config_end(void)
 	int i;
 
 	for (i = 0; i < IN_MAX_DEVS; i++) {
-		int n, ret, count, *binds, *def_binds;
+		int n, t, ret, count, *binds, *def_binds;
 		in_dev_t *dev = &in_devices[i];
 
 		if (dev->binds == NULL)
@@ -728,9 +728,18 @@ void in_config_end(void)
 		binds = dev->binds;
 		def_binds = binds + count * IN_BINDTYPE_COUNT;
 
-		for (n = 0; n < count * IN_BINDTYPE_COUNT; n++)
-			if (binds[n] == -1)
-				binds[n] = def_binds[n];
+		for (n = 0; n < count; n++) {
+			int is_default = 1;
+			for (t = 0; t < IN_BINDTYPE_COUNT; t++)
+				if (binds[IN_BIND_OFFS(n, t)] == -1)
+					binds[IN_BIND_OFFS(n, t)] = 0;
+				else
+					is_default = 0;
+
+			if (is_default)
+				for (t = 0; t < IN_BINDTYPE_COUNT; t++)
+					binds[IN_BIND_OFFS(n, t)] = def_binds[IN_BIND_OFFS(n, t)];
+		}
 
 		if (dev->drv_data == NULL)
 			continue;
