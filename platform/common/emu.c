@@ -797,7 +797,8 @@ char *emu_get_save_fname(int load, int is_sram, int slot)
 
 	if (is_sram)
 	{
-		romfname_ext(saveFname, (PicoAHW&1) ? "brm"PATH_SEP : "srm"PATH_SEP, (PicoAHW&1) ? ".brm" : ".srm");
+		romfname_ext(saveFname, (PicoAHW & PAHW_MCD) ? "brm"PATH_SEP : "srm"PATH_SEP,
+				(PicoAHW & PAHW_MCD) ? ".brm" : ".srm");
 		if (load) {
 			if (try_ropen_file(saveFname)) return saveFname;
 			// try in current dir..
@@ -989,9 +990,14 @@ void emu_set_fastforward(int set_on)
 	}
 }
 
-static void emu_msg_tray_open(void)
+static void emu_tray_open(void)
 {
-	emu_status_msg("CD tray opened");
+	engineState = PGS_TrayMenu;
+}
+
+static void emu_tray_close(void)
+{
+	emu_status_msg("CD tray closed.");
 }
 
 void emu_reset_game(void)
@@ -1213,8 +1219,8 @@ void emu_init(void)
 
 	PicoInit();
 	PicoMessage = plat_status_msg_busy_next;
-	PicoMCDopenTray = emu_msg_tray_open;
-	PicoMCDcloseTray = menu_loop_tray;
+	PicoMCDopenTray = emu_tray_open;
+	PicoMCDcloseTray = emu_tray_close;
 }
 
 void emu_finish(void)

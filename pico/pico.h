@@ -78,7 +78,7 @@ void PicoGetInternal(pint_t which, pint_ret_t *ret);
 
 // cd/Pico.c
 extern void (*PicoMCDopenTray)(void);
-extern int  (*PicoMCDcloseTray)(void);
+extern void (*PicoMCDcloseTray)(void);
 extern int PicoCDBuffers;
 
 // Pico/Pico.c

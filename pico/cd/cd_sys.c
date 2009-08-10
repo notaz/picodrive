@@ -208,7 +208,9 @@ int Insert_CD(const char *cdimg_name, int type)
 		ret = Load_CD_Image(cdimg_name, type);
 		if (ret == 0) {
 			CD_Present = 1;
-			Pico_mcd->scd.Status_CDD = READY;
+			/* for open tray close command will handle Status_CDD */
+			if (Pico_mcd->scd.Status_CDD != TRAY_OPEN)
+				Pico_mcd->scd.Status_CDD = READY;
 		}
 	}
 
@@ -651,15 +653,12 @@ PICO_INTERNAL int Fast_Rewind_CDD_c9(void)
 
 PICO_INTERNAL int Close_Tray_CDD_cC(void)
 {
-	CD_Present = 0;
-	//Clear_Sound_Buffer();
-
 	Pico_mcd->scd.Status_CDC &= ~1;			// Stop CDC read
 
 	elprintf(EL_STATUS, "tray close\n");
 
 	if (PicoMCDcloseTray != NULL)
-		CD_Present = PicoMCDcloseTray();
+		PicoMCDcloseTray();
 
 	Pico_mcd->scd.Status_CDD = CD_Present ? STOPPED : NOCD;
 	Pico_mcd->cdd.Status = 0x0000;

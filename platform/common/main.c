@@ -104,6 +104,10 @@ int main(int argc, char *argv[])
 				menu_loop();
 				break;
 
+			case PGS_TrayMenu:
+				menu_loop_tray();
+				break;
+
 			case PGS_ReloadRom:
 				if (emu_reload_rom(rom_fname_reload))
 					engineState = PGS_Running;
@@ -115,6 +119,7 @@ int main(int argc, char *argv[])
 
 			case PGS_RestartRun:
 				engineState = PGS_Running;
+				/* vvv fallthrough */
 
 			case PGS_Running:
 				emu_loop();

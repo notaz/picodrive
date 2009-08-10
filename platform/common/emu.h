@@ -91,6 +91,7 @@ enum TPicoGameState {
 	PGS_KeyConfig,
 	PGS_ReloadRom,
 	PGS_Menu,
+	PGS_TrayMenu,
 	PGS_RestartRun,
 	PGS_Suspending,		/* PSP */
 	PGS_SuspendWake,	/* PSP */

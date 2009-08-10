@@ -8,7 +8,7 @@ extern unsigned char formatted_bram[4*0x10];
 extern unsigned int s68k_poll_adclk;
 
 void (*PicoMCDopenTray)(void) = NULL;
-int  (*PicoMCDcloseTray)(void) = NULL;
+void (*PicoMCDcloseTray)(void) = NULL;
 
 
 PICO_INTERNAL void PicoInitMCD(void)

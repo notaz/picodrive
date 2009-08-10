@@ -1985,8 +1985,7 @@ static int mh_tray_nothing(menu_id id, int keys)
 
 static menu_entry e_menu_tray[] =
 {
-	mee_label  ("The unit is about to"),
-	mee_label  ("close the CD tray."),
+	mee_label  ("The CD tray has opened."),
 	mee_label  (""),
 	mee_label  (""),
 	mee_handler("Load CD image",  mh_tray_load_cd),
