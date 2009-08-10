@@ -20,7 +20,6 @@
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
-#include <zlib/zlib.h>
 
 #define array_size(x) (sizeof(x) / sizeof(x[0]))
 
@@ -971,7 +970,7 @@ static void draw_savestate_bg(int slot)
 	struct PicoVideo tmp_pv;
 	unsigned short tmp_cram[0x40];
 	unsigned short tmp_vsram[0x40];
-	void *tmp_vram, *file;
+	void *tmp_vram;
 	char *fname;
 
 	fname = emu_get_save_fname(1, 0, slot);
@@ -985,28 +984,7 @@ static void draw_savestate_bg(int slot)
 	memcpy(tmp_vsram, Pico.vsram, sizeof(Pico.vsram));
 	memcpy(&tmp_pv, &Pico.video, sizeof(Pico.video));
 
-	if (strcmp(fname + strlen(fname) - 3, ".gz") == 0) {
-		file = gzopen(fname, "rb");
-		emu_setSaveStateCbs(1);
-	} else {
-		file = fopen(fname, "rb");
-		emu_setSaveStateCbs(0);
-	}
-
-	if (file) {
-		if (PicoAHW & PAHW_MCD) {
-			PicoCdLoadStateGfx(file);
-		} else {
-			areaSeek(file, 0x10020, SEEK_SET);  // skip header and RAM in state file
-			areaRead(Pico.vram, 1, sizeof(Pico.vram), file);
-			areaSeek(file, 0x2000, SEEK_CUR);
-			areaRead(Pico.cram, 1, sizeof(Pico.cram), file);
-			areaRead(Pico.vsram, 1, sizeof(Pico.vsram), file);
-			areaSeek(file, 0x221a0, SEEK_SET);
-			areaRead(&Pico.video, 1, sizeof(Pico.video), file);
-		}
-		areaClose(file);
-	}
+	PicoStateLoadVDP(fname);
 
 	/* do a frame and fetch menu bg */
 	pemu_forced_frame(POPT_EN_SOFTSCALE);

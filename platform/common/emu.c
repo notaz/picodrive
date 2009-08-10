@@ -1,4 +1,4 @@
-// (c) Copyright 2006-2007 notaz, All rights reserved.
+// (c) Copyright 2006-2009 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -22,7 +22,6 @@
 #include <pico/pico_int.h>
 #include <pico/patch.h>
 #include <pico/cd/cue.h>
-#include <zlib/zlib.h>
 
 
 #define STATUS_MSG_TIMEOUT 2000
@@ -516,13 +515,14 @@ int emu_reload_rom(char *rom_fname)
 		emu_status_msg(Pico.m.pal ? "PAL SYSTEM / 50 FPS" : "NTSC SYSTEM / 60 FPS");
 	}
 
+	strncpy(rom_fname_loaded, rom_fname, sizeof(rom_fname_loaded)-1);
+	rom_fname_loaded[sizeof(rom_fname_loaded)-1] = 0;
+	rom_loaded = 1;
+
 	// load SRAM for this ROM
 	if (currentConfig.EmuOpt & EOPT_EN_SRAM)
 		emu_save_load_game(1, 1);
 
-	strncpy(rom_fname_loaded, rom_fname, sizeof(rom_fname_loaded)-1);
-	rom_fname_loaded[sizeof(rom_fname_loaded)-1] = 0;
-	rom_loaded = 1;
 	return 1;
 
 fail2:
@@ -766,18 +766,6 @@ void update_movie(void)
 	}
 }
 
-
-static size_t gzRead2(void *p, size_t _size, size_t _n, void *file)
-{
-	return gzread(file, p, _n);
-}
-
-
-static size_t gzWrite2(void *p, size_t _size, size_t _n, void *file)
-{
-	return gzwrite(file, p, _n);
-}
-
 static int try_ropen_file(const char *fname)
 {
 	FILE *f;
@@ -840,23 +828,6 @@ char *emu_get_save_fname(int load, int is_sram, int slot)
 int emu_check_save_file(int slot)
 {
 	return emu_get_save_fname(1, 0, slot) ? 1 : 0;
-}
-
-void emu_setSaveStateCbs(int gz)
-{
-	if (gz) {
-		areaRead  = gzRead2;
-		areaWrite = gzWrite2;
-		areaEof   = (areaeof *) gzeof;
-		areaSeek  = (areaseek *) gzseek;
-		areaClose = (areaclose *) gzclose;
-	} else {
-		areaRead  = (arearw *) fread;
-		areaWrite = (arearw *) fwrite;
-		areaEof   = (areaeof *) feof;
-		areaSeek  = (areaseek *) fseek;
-		areaClose = (areaclose *) fclose;
-	}
 }
 
 int emu_save_load_game(int load, int sram)
@@ -929,34 +900,13 @@ int emu_save_load_game(int load, int sram)
 	}
 	else
 	{
-		void *PmovFile = NULL;
-		if (strcmp(saveFname + strlen(saveFname) - 3, ".gz") == 0)
-		{
-			if( (PmovFile = gzopen(saveFname, load ? "rb" : "wb")) ) {
-				emu_setSaveStateCbs(1);
-				if (!load) gzsetparams(PmovFile, 9, Z_DEFAULT_STRATEGY);
-			}
-		}
-		else
-		{
-			if( (PmovFile = fopen(saveFname, load ? "rb" : "wb")) ) {
-				emu_setSaveStateCbs(0);
-			}
-		}
-		if(PmovFile) {
-			ret = PmovState(load ? 6 : 5, PmovFile);
-			areaClose(PmovFile);
-			PmovFile = 0;
-			if (load) Pico.m.dirtyPal=1;
+		ret = PicoState(saveFname, !load);
+		if (!ret) {
 #ifndef NO_SYNC
-			else sync();
+			if (!load) sync();
 #endif
-		}
-		else	ret = -1;
-		if (!ret)
 			emu_status_msg(load ? "STATE LOADED" : "STATE SAVED");
-		else
-		{
+		} else {
 			emu_status_msg(load ? "LOAD FAILED" : "SAVE FAILED");
 			ret = -1;
 		}

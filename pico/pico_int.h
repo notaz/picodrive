@@ -388,6 +388,17 @@ typedef struct {
 extern carthw_state_chunk *carthw_chunks;
 #define CHUNK_CARTHW 64
 
+// area.c
+typedef size_t (arearw)(void *p, size_t _size, size_t _n, void *file);
+typedef size_t (areaeof)(void *file);
+typedef int    (areaseek)(void *file, long offset, int whence);
+typedef int    (areaclose)(void *file);
+extern arearw  *areaRead;  // external read and write function pointers for
+extern arearw  *areaWrite; // gzip save state ability
+extern areaeof *areaEof;
+extern areaseek *areaSeek;
+extern areaclose *areaClose;
+
 // Cart.c
 extern void (*PicoCartUnloadHook)(void);
 

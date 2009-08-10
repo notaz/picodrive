@@ -98,21 +98,12 @@ typedef struct
 } picohw_state;
 extern picohw_state PicoPicohw;
 
-// Area.c
-typedef size_t (arearw)(void *p, size_t _size, size_t _n, void *file);
-typedef size_t (areaeof)(void *file);
-typedef int    (areaseek)(void *file, long offset, int whence);
-typedef int    (areaclose)(void *file);
-// Save or load the state from PmovFile:
-int PmovState(int PmovAction, void *PmovFile); // &1=for reading &2=for writing &4=volatile &8=non-volatile
-extern arearw  *areaRead;  // external read and write function pointers for
-extern arearw  *areaWrite; // gzip save state ability
-extern areaeof *areaEof;
-extern areaseek *areaSeek;
-extern areaclose *areaClose;
+// area.c
+int PicoState(const char *fname, int is_save);
+int PicoStateLoadVDP(const char *fname);
 extern void (*PicoStateProgressCB)(const char *str);
 
-// cd/Area.c
+// cd/area.c
 int  PicoCdLoadStateGfx(void *file);
 
 // cd/buffering.c
