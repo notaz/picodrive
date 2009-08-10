@@ -1338,7 +1338,7 @@ void emu_loop(void)
 				if (!(currentConfig.EmuOpt & EOPT_NO_FRMLIMIT)) {
 					timestamp = get_ticks();
 					diff = timestamp - timestamp_base;
-					if (diff < diff_lim) // we are too fast
+					if (!reset_timing && diff < diff_lim) // we are too fast
 						plat_wait_till_us(timestamp_base + diff_lim);
 				}
 			}
