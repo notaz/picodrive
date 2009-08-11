@@ -785,44 +785,53 @@ char *emu_get_save_fname(int load, int is_sram, int slot)
 
 	if (is_sram)
 	{
-		romfname_ext(saveFname, (PicoAHW & PAHW_MCD) ? "brm"PATH_SEP : "srm"PATH_SEP,
-				(PicoAHW & PAHW_MCD) ? ".brm" : ".srm");
-		if (load) {
-			if (try_ropen_file(saveFname)) return saveFname;
-			// try in current dir..
-			romfname_ext(saveFname, NULL, (PicoAHW & PAHW_MCD) ? ".brm" : ".srm");
-			if (try_ropen_file(saveFname)) return saveFname;
-			return NULL; // give up
-		}
+		strcpy(ext, (PicoAHW & PAHW_MCD) ? ".brm" : ".srm");
+		romfname_ext(saveFname, (PicoAHW & PAHW_MCD) ? "brm"PATH_SEP : "srm"PATH_SEP, ext);
+		if (!load)
+			return saveFname;
+
+		if (try_ropen_file(saveFname))
+			return saveFname;
+
+		romfname_ext(saveFname, NULL, ext);
+		if (try_ropen_file(saveFname))
+			return saveFname;
 	}
 	else
 	{
+		const char *ext_main = (currentConfig.EmuOpt & EOPT_GZIP_SAVES) ? ".mds.gz" : ".mds";
+		const char *ext_othr = (currentConfig.EmuOpt & EOPT_GZIP_SAVES) ? ".mds" : ".mds.gz";
 		ext[0] = 0;
-		if(slot > 0 && slot < 10) sprintf(ext, ".%i", slot);
-		strcat(ext, (currentConfig.EmuOpt & EOPT_GZIP_SAVES) ? ".mds.gz" : ".mds");
+		if (slot > 0 && slot < 10)
+			sprintf(ext, ".%i", slot);
+		strcat(ext, ext_main);
 
-		romfname_ext(saveFname, "mds" PATH_SEP, ext);
-		if (load) {
-			if (try_ropen_file(saveFname)) return saveFname;
+		if (!load) {
+			romfname_ext(saveFname, "mds" PATH_SEP, ext);
+			return saveFname;
+		}
+		else {
+			romfname_ext(saveFname, "mds" PATH_SEP, ext);
+			if (try_ropen_file(saveFname))
+				return saveFname;
+
 			romfname_ext(saveFname, NULL, ext);
-			if (try_ropen_file(saveFname)) return saveFname;
-			// no gzipped states, search for non-gzipped
-			if (currentConfig.EmuOpt & EOPT_GZIP_SAVES)
-			{
-				ext[0] = 0;
-				if(slot > 0 && slot < 10) sprintf(ext, ".%i", slot);
-				strcat(ext, ".mds");
+			if (try_ropen_file(saveFname))
+				return saveFname;
 
-				romfname_ext(saveFname, "mds"PATH_SEP, ext);
-				if (try_ropen_file(saveFname)) return saveFname;
-				romfname_ext(saveFname, NULL, ext);
-				if (try_ropen_file(saveFname)) return saveFname;
-			}
-			return NULL;
+			// try the other ext
+			ext[0] = 0;
+			if (slot > 0 && slot < 10)
+				sprintf(ext, ".%i", slot);
+			strcat(ext, ext_othr);
+
+			romfname_ext(saveFname, "mds"PATH_SEP, ext);
+			if (try_ropen_file(saveFname))
+				return saveFname;
 		}
 	}
 
-	return saveFname;
+	return NULL;
 }
 
 int emu_check_save_file(int slot)

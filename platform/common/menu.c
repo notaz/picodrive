@@ -971,7 +971,7 @@ static void draw_savestate_bg(int slot)
 	unsigned short tmp_cram[0x40];
 	unsigned short tmp_vsram[0x40];
 	void *tmp_vram;
-	char *fname;
+	const char *fname;
 
 	fname = emu_get_save_fname(1, 0, slot);
 	if (!fname) return;
