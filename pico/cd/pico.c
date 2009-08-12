@@ -208,20 +208,6 @@ static __inline void update_chips(void)
 	// update gfx chip
 	if (Pico_mcd->rot_comp.Reg_58 & 0x8000)
 		gfx_cd_update();
-
-	// delayed setting of DMNA bit (needed for Silpheed)
-	if (Pico_mcd->m.state_flags & 2) {
-		Pico_mcd->m.state_flags &= ~2;
-		if (!(Pico_mcd->s68k_regs[3] & 4)) {
-			Pico_mcd->s68k_regs[3] |=  2;
-			Pico_mcd->s68k_regs[3] &= ~1;
-#ifdef USE_POLL_DETECT
-			if ((s68k_poll_adclk&0xfe) == 2) {
-				SekSetStopS68k(0); s68k_poll_adclk = 0;
-			}
-#endif
-		}
-	}
 }
 
 

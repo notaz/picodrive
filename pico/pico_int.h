@@ -41,10 +41,7 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
 #define SekCyclesLeftS68k \
 	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuCS68k.cycles)
-#define SekSetCyclesLeftNoMCD(c) PicoCpuCM68k.cycles=c
-#define SekSetCyclesLeft(c) { \
-	if ((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) SekCycleCnt=SekCycleAim-(c); else SekSetCyclesLeftNoMCD(c); \
-}
+#define SekEndTimeslice(after) PicoCpuCM68k.cycles=after
 #define SekPc (PicoCpuCM68k.pc-PicoCpuCM68k.membase)
 #define SekPcS68k (PicoCpuCS68k.pc-PicoCpuCS68k.membase)
 #define SekSetStop(x) { PicoCpuCM68k.state_flags&=~1; if (x) { PicoCpuCM68k.state_flags|=1; PicoCpuCM68k.cycles=0; } }
@@ -67,10 +64,7 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
 #define SekCyclesLeftS68k \
 	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuFS68k.io_cycle_counter)
-#define SekSetCyclesLeftNoMCD(c) PicoCpuFM68k.io_cycle_counter=c
-#define SekSetCyclesLeft(c) { \
-	if ((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) SekCycleCnt=SekCycleAim-(c); else SekSetCyclesLeftNoMCD(c); \
-}
+#define SekEndTimeslice(after) PicoCpuFM68k.io_cycle_counter=after
 #define SekPc     fm68k_get_pc(&PicoCpuFM68k)
 #define SekPcS68k fm68k_get_pc(&PicoCpuFS68k)
 #define SekSetStop(x) { \
@@ -100,10 +94,7 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
 #define SekCyclesLeftS68k \
 	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuMS68k.cyc_remaining_cycles)
-#define SekSetCyclesLeftNoMCD(c) SET_CYCLES(c)
-#define SekSetCyclesLeft(c) { \
-	if ((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) SekCycleCnt=SekCycleAim-(c); else SET_CYCLES(c); \
-}
+#define SekEndTimeslice(after) SET_CYCLES(after)
 #define SekPc m68k_get_reg(&PicoCpuMM68k, M68K_REG_PC)
 #define SekPcS68k m68k_get_reg(&PicoCpuMS68k, M68K_REG_PC)
 #define SekSetStop(x) { \
@@ -125,7 +116,7 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 }
 
 #endif
-#endif
+#endif // EMU_M68K
 
 extern int SekCycleCnt; // cycles done in this frame
 extern int SekCycleAim; // cycle aim
@@ -141,9 +132,9 @@ extern unsigned int SekCycleCntT; // total cycle counter, updated once per frame
 #define SekCyclesDoneT() (SekCycleCntT+SekCyclesDone()) // total nuber of cycles done for this rom
 
 #define SekEndRun(after) { \
-	SekCycleCnt -= SekCyclesLeft - after; \
-	if(SekCycleCnt < 0) SekCycleCnt = 0; \
-	SekSetCyclesLeft(after); \
+	SekCycleCnt -= SekCyclesLeft - (after); \
+	if (SekCycleCnt < 0) SekCycleCnt = 0; \
+	SekEndTimeslice(after); \
 }
 
 extern int SekCycleCntS68k;
@@ -157,13 +148,11 @@ extern int SekCycleAimS68k;
 
 #ifdef EMU_CORE_DEBUG
 extern int dbg_irq_level;
-#undef SekSetCyclesLeftNoMCD
-#undef SekSetCyclesLeft
+#undef SekEndTimeslice
 #undef SekCyclesBurn
 #undef SekEndRun
 #undef SekInterrupt
-#define SekSetCyclesLeftNoMCD(c)
-#define SekSetCyclesLeft(c)
+#define SekEndTimeslice(c)
 #define SekCyclesBurn(c) c
 #define SekEndRun(c)
 #define SekInterrupt(irq) dbg_irq_level=irq
@@ -325,7 +314,7 @@ struct mcd_misc
 	unsigned short hint_vector;
 	unsigned char  busreq;
 	unsigned char  s68k_pend_ints;
-	unsigned int   state_flags;	// 04: emu state: reset_pending, dmna_pending
+	unsigned int   state_flags;	// 04: emu state: reset_pending
 	unsigned int   counter75hz;
 	unsigned int   pad0;
 	int            timer_int3;	// 10

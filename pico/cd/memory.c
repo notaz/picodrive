@@ -27,6 +27,7 @@ typedef unsigned int   u32;
 #define rdprintf(...)
 //#define wrdprintf dprintf
 #define wrdprintf(...)
+//#define r3printf elprintf
 #define r3printf(...)
 #endif
 
@@ -57,8 +58,6 @@ static u32 m68k_reg_read16(u32 a)
       goto end;
     case 2:
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0xc7);
-      // the DMNA delay must only be visible on s68k side (Lunar2, Silpheed)
-      if (Pico_mcd->m.state_flags&2) { d &= ~1; d |= 2; }
       r3printf(EL_STATUS, "m68k_regs r3: %02x @%06x", (u8)d, SekPc);
       goto end;
     case 4:
@@ -109,8 +108,8 @@ void m68k_reg_write8(u32 a, u32 d)
     case 1:
       d &= 3;
       if (!(d&1)) Pico_mcd->m.state_flags |= 1; // reset pending, needed to be sure we fetch the right vectors on reset
-      if ( (Pico_mcd->m.busreq&1) != (d&1)) dprintf("m68k: s68k reset %i", !(d&1));
-      if ( (Pico_mcd->m.busreq&2) != (d&2)) dprintf("m68k: s68k brq %i", (d&2)>>1);
+      if ( (Pico_mcd->m.busreq&1) != (d&1)) elprintf(EL_INTSW, "m68k: s68k reset %i", !(d&1));
+      if ( (Pico_mcd->m.busreq&2) != (d&2)) elprintf(EL_INTSW, "m68k: s68k brq %i", (d&2)>>1);
       if ((Pico_mcd->m.state_flags&1) && (d&3)==1) {
         SekResetS68k(); // S68k comes out of RESET or BRQ state
         Pico_mcd->m.state_flags&=~1;
@@ -131,20 +130,14 @@ void m68k_reg_write8(u32 a, u32 d)
       //if ((Pico_mcd->s68k_regs[3]&4) != (d&4)) dprintf("m68k: ram mode %i mbit", (d&4) ? 1 : 2);
       //if ((Pico_mcd->s68k_regs[3]&2) != (d&2)) dprintf("m68k: %s", (d&4) ? ((d&2) ? "word swap req" : "noop?") :
       //                                             ((d&2) ? "word ram to s68k" : "word ram to m68k"));
-      if (dold & 4) {
-        d ^= 2;                // writing 0 to DMNA actually sets it, 1 does nothing
+      if (dold & 4) {   // 1M mode
+        d ^= 2;         // writing 0 to DMNA actually sets it, 1 does nothing
       } else {
-        //dold &= ~2; // ??
-#if 1
-	if (d & (d ^ dold) & 2) { // DMNA is being set
-          Pico_mcd->m.state_flags |= 2; // we must delay setting DMNA bit (needed for Silpheed)
-          d &= ~2;
-	}
-        else
-          Pico_mcd->m.state_flags &= ~2;
-#else
-        if (d & 2) dold &= ~1; // return word RAM to s68k in 2M mode
-#endif
+	if ((d ^ dold) & d & 2) { // DMNA is being set
+          dold &= ~1;   // return word RAM to s68k
+          /* Silpheed hack: bset(w3), r3, btst, bne, r3 */
+          SekEndRun(20+16+10+12+16);
+        }
       }
       Pico_mcd->s68k_regs[3] = d | dold; // really use s68k side register
 #ifdef USE_POLL_DETECT
@@ -324,9 +317,9 @@ void s68k_reg_write8(u32 a, u32 d)
         }
         else
           d |= dold&1;
+        // s68k can only set RET, writing 0 has no effect
         if (d&1) d &= ~2; // return word RAM to m68k in 2M mode
       }
-      Pico_mcd->m.state_flags &= ~2;
       break;
     }
     case 4:

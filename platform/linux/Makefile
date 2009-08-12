@@ -59,6 +59,7 @@ OBJS += unzip/unzip.o unzip/unzip_stream.o
 ifeq "$(use_musashi)" "1"
 DEFINES += EMU_M68K
 OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
+OBJS += cpu/musashi/m68kdasm.o
 endif
 ifeq "$(use_fame)" "1"
 DEFINES += EMU_F68K
@@ -76,10 +77,8 @@ endif
 ifeq "$(use_fame)" "1"
 ifeq "$(use_musashi)" "1"
 OBJS += pico/debugCPU.o
-OBJS += cpu/musashi/m68kdasm.o
 endif
 endif
-OBJS += cpu/musashi/m68kdasm.o
 
 CFLAGS += $(addprefix -D,$(DEFINES))
 

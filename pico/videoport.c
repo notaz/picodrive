@@ -94,7 +94,7 @@ static void DmaSlow(int len)
 
   Pico.m.dma_xfers += len;
   if ((PicoAHW & PAHW_MCD) && (PicoOpt & POPT_EN_MCD_PSYNC)) SekCyclesBurn(CheckDMA());
-  else SekSetCyclesLeftNoMCD(SekCyclesLeftNoMCD - CheckDMA());
+  else SekEndTimeslice(SekCyclesLeftNoMCD - CheckDMA());
 
   if ((source&0xe00000)==0xe00000) { // Ram
     pd=(u16 *)(Pico.ram+(source&0xfffe));
