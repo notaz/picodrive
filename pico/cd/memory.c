@@ -315,10 +315,13 @@ void s68k_reg_write8(u32 a, u32 d)
           wram_1M_to_2M(Pico_mcd->word_ram2M);
           PicoMemResetCD(d);
         }
-        else
-          d |= dold&1;
         // s68k can only set RET, writing 0 has no effect
-        if (d&1) d &= ~2; // return word RAM to m68k in 2M mode
+        else if ((dold ^ d) & d & 1) {   // RET being set
+          SekEndRunS68k(20+16+10+12+16); // see DMNA case
+        } else
+          d |= dold & 1;
+        if (d & 1)
+          d &= ~2;                       // DMNA clears
       }
       break;
     }

@@ -119,6 +119,11 @@ int OpBtstImm(int op)
     if (type==3) ot("  orr r1,r0,r11 ;@ Set bit\n");
     ot("\n");
     EaWrite(8,   1,tea,size,0x003f,0,0);
+#if CYCLONE_FOR_GENESIS && !MEMHANDLERS_CHANGE_CYCLES
+    // this is a bit hacky (device handlers might modify cycles)
+    if (tea==0x38||tea==0x39)
+      ot("  ldr r5,[r7,#0x5c] ;@ Load Cycles\n");
+#endif
   }
 
   OpEnd(sea,tea);
