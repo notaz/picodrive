@@ -121,6 +121,12 @@ all: mkdirs PicoDrive
 
 include ../common/common_arm.mak
 
+platform/common/menu.o : revision.h
+
+revision.h:
+	@echo "#define REVISION \"`svn info | grep Revision | cut -c 11-`\"" > /tmp/r.tmp
+	@diff -q $@ /tmp/r.tmp > /dev/null 2>&1 || mv -f /tmp/r.tmp $@
+
 # partial linking helps profiled builds due to section merging
 PicoDrive.o : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
 	$(LD) -r -o $@ $^

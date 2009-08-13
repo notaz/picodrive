@@ -17,6 +17,7 @@
 #include "plat.h"
 #include "posix.h"
 #include <version.h>
+#include <revision.h>
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
@@ -1036,6 +1037,9 @@ static int menu_loop_savestate(int is_loading)
 
 	state_check_slots();
 
+	if (!(state_slot_flags & (1 << menu_sel)) && is_loading)
+		menu_sel = menu_sel_max;
+
 	for (;;)
 	{
 		draw_savestate_menu(menu_sel, is_loading);
@@ -1736,6 +1740,12 @@ static void draw_text_debug(const char *str, int skip, int from)
 	}
 }
 
+#ifdef __GNUC__
+#define COMPILER "gcc " __VERSION__
+#else
+#define COMPILER
+#endif
+
 static void draw_frame_debug(void)
 {
 	char layer_str[48] = "layers:             ";
@@ -1746,7 +1756,7 @@ static void draw_frame_debug(void)
 
 	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 	pemu_forced_frame(0);
-	smalltext_out16(4, 1, "build: " __DATE__ " " __TIME__, 0xffff);
+	smalltext_out16(4, 1, "build: r" REVISION "  "__DATE__ " " __TIME__ " " COMPILER, 0xffff);
 	smalltext_out16(4, g_screen_height - me_sfont_h, layer_str, 0xffff);
 }
 

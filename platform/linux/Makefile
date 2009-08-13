@@ -106,6 +106,11 @@ mkdirs:
 pico/carthw/svp/compiler.o : ../../pico/carthw/svp/gen_arm.c
 pico/pico.o pico/cd/pico.o : ../../pico/pico_cmn.c ../../pico/pico_int.h
 pico/memory.o pico/cd/memory.o : ../../pico/memory_cmn.c ../../pico/pico_int.h
+platform/common/menu.o : revision.h
+
+revision.h:
+	@echo "#define REVISION \"`svn info | grep Revision | cut -c 11-`\"" > /tmp/r.tmp
+	@diff -q $@ /tmp/r.tmp > /dev/null 2>&1 || mv -f /tmp/r.tmp $@
 
 ../../cpu/musashi/m68kops.c :
 	@make -C ../../cpu/musashi

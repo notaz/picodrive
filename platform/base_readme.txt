@@ -644,6 +644,15 @@ Additional thanks
 
 Changelog
 ---------
+1.56
+  * Changed sync in Sega CD emulation again. Should fix games that
+    broke after changes in 1.51a.
+  * Fixed default keys rebinding when they shouldn't.
+  * Fixed sram being loaded from wrong game.
+  * Emu should no longer hang shortly after using fast-forward.
+  * Fixed save states sometimes no longer showing up in save state menu.
+  * ARM: some asm code refactoring for slight speed improvement.
+
 1.55
   + Added Wiz support. Now the same GP2X binary supports F100/F200 and Wiz.
   * Changed shadow/hilight handling a bit, fixes some effects in Pirates! Gold.
