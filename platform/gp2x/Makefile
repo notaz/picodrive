@@ -157,8 +157,9 @@ ifeq ($(VER),)
 $(error need VER)
 endif
 endif
+CODE940 = code940/pico940_v3.bin
 
-rel: PicoDrive PicoDrive.gpe code940/pico940_v3.bin readme.txt PicoDrive.png ../game_def.cfg \
+rel: PicoDrive PicoDrive.gpe $(CODE940) readme.txt PicoDrive.png ../game_def.cfg \
 		warm_2.4.25.o warm_2.4.26-open2x.o warm_2.6.24.ko
 	zip -9 -j ../../PicoDrive_$(VER).zip $^
 	zip -9 -r ../../PicoDrive_$(VER).zip skin -i \*.png -i \*.txt
@@ -167,6 +168,6 @@ rel: PicoDrive PicoDrive.gpe code940/pico940_v3.bin readme.txt PicoDrive.png ../
 	zip -9 -r ../../PicoDrive_$(VER).zip bin_to_cso_mp3
 	rm -rf bin_to_cso_mp3
 
-code940/code940.bin:
+$(CODE940):
 	make -C code940/
 
