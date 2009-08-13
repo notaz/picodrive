@@ -121,16 +121,18 @@ int OpMove(int op)
 
   OpStart(op,sea,tea); Cycles=4;
 
-  EaCalcRead(-1,1,sea,size,0x003f);
-
   if (movea==0)
   {
-    ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
+    EaCalcRead(-1,0,sea,size,0x003f);
+    ot("  adds r1,r0,#0 ;@ Defines NZ, clears CV\n");
     ot("  mrs r10,cpsr ;@ r10=NZCV flags\n");
     ot("\n");
   }
-
-  if (movea) size=2; // movea always expands to 32-bits
+  else
+  {
+    EaCalcRead(-1,1,sea,size,0x003f);
+    size=2; // movea always expands to 32-bits
+  }
 
   eawrite_check_addrerr=1;
 #if SPLIT_MOVEL_PD

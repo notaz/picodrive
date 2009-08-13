@@ -500,7 +500,7 @@ int OpBranch(int op)
   OpEnd(size?0x10:0);
 
   // since all "DontBranch" code is same for every size, output only once
-  if (cc>=2&&(op&0xff00)==0x6200)
+  if (cc>=2&&(op&0xff00)==0x6700)
   {
     ot("BccDontBranch%i%s\n", 8<<size, ms?"":":");
     if (size) ot("  add r4,r4,#%d\n",1<<size);

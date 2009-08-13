@@ -12,6 +12,68 @@ int Cycles; // Current cycles for opcode
 int pc_dirty; // something changed PC during processing
 int arm_op_count;
 
+// opcodes often used by games
+static const unsigned short hot_opcodes[] = {
+  0x6701, // beq     $3
+  0x6601, // bne     $3
+  0x51c8, // dbra    Dn, $2
+  0x4a38, // tst.b   $0.w
+  0xd040, // add.w   Dn, Dn
+  0x4a79, // tst.w   $0.l
+  0x0240, // andi.w  #$0, D0
+  0x2038, // move.l  $0.w, D0
+  0xb0b8, // cmp.l   $0.w, D0
+  0x6001, // bra     $3
+  0x30c0, // move.w  D0, (A0)+
+  0x3028, // move.w  ($0,A0), D0
+  0x0c40, // cmpi.w  #$0, D0
+  0x0c79, // cmpi.w  #$0, $0.l
+  0x4e75, // rts
+  0x4e71, // nop
+  0x3000, // move.w  D0, D0
+  0x0839, // btst    #$0, $0.l
+  0x7000, // moveq   #$0, D0
+  0x3040, // movea.w D0, A0
+  0x0838, // btst    #$0, $0.w
+  0x4a39, // tst.b   $0.l
+  0x33d8, // move.w  (A0)+, $0.l
+  0x6700, // beq     $2
+  0xb038, // cmp.b   $0.w, D0
+  0x3039, // move.w  $0.l, D0
+  0x4840, // swap    D0
+  0x6101, // bsr     $3
+  0x6100, // bsr     $2
+  0x5e40, // addq.w  #7, D0
+  0x1039, // move.b  $0.l, D0
+  0x20c0, // move.l  D0, (A0)+
+  0x1018, // move.b  (A0)+, D0
+  0x30d0, // move.w  (A0), (A0)+
+  0x3080, // move.w  D0, (A0)
+  0x3018, // move.w  (A0)+, D0
+  0xc040, // and.w   D0, D0
+  0x3180, // move.w  D0, (A0,D0.w)
+  0x1198, // move.b  (A0)+, (A0,D0.w)
+  0x6501, // bcs     $3
+  0x6500, // bcs     $2
+  0x6401, // bcc     $3
+  0x6a01, // bpl     $3
+  0x41f0, // lea     (A0,D0.w), A0
+  0x4a28, // tst.b   ($0,A0)
+  0x0828, // btst    #$0, ($0,A0)
+  0x0640, // addi.w  #$0, D0
+  0x10c0, // move.b  D0, (A0)+
+  0x10d8, // move.b  (A0)+, (A0)+
+};
+#define hot_opcode_count (int)(sizeof(hot_opcodes) / sizeof(hot_opcodes[0]))
+
+static int is_op_hot(int op)
+{
+  int i;
+  for (i = 0; i < hot_opcode_count; i++)
+    if (op == hot_opcodes[i])
+      return 1;
+  return 0;
+}
 
 void ot(const char *format, ...)
 {
@@ -957,11 +1019,15 @@ static void PrintOpcodes()
   OpEnd();
 
 
+  for (op=0;op<hot_opcode_count;op++)
+    OpAny(hot_opcodes[op]);
+
   for (op=0;op<0x10000;op++)
   {
     if ((op&0xfff)==0) { printf("%x",op>>12); fflush(stdout); } // Update progress
 
-    OpAny(op);
+    if (!is_op_hot(op))
+      OpAny(op);
   }
 
   ot("\n");
