@@ -219,7 +219,10 @@ void Cz80_Reset(cz80_struc *CPU)
 #if PICODRIVE_HACKS
 static inline unsigned char picodrive_read(unsigned short a)
 {
-	return (a < 0x4000) ? Pico.zram[a&0x1fff] : z80_read(a);
+	unsigned long v = z80_read_map[a >> Z80_MEM_SHIFT];
+	if (v & 0x80000000)
+		return ((z80_read_f *)(v << 1))(a);
+	return *(unsigned char *)((v << 1) + a);
 }
 #endif
 

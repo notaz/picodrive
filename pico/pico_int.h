@@ -218,11 +218,16 @@ extern int z80_scanline_cycles;  /* cycles done until z80_scanline */
 
 #define cycles_68k_to_z80(x) ((x)*957 >> 11)
 
+#define Z80_MEM_SHIFT 13
+extern unsigned long z80_read_map [0x10000 >> Z80_MEM_SHIFT];
+extern unsigned long z80_write_map[0x10000 >> Z80_MEM_SHIFT];
+typedef unsigned char (z80_read_f)(unsigned short a);
+typedef void (z80_write_f)(unsigned int a, unsigned char data);
+
 // ---------------------------------------------------------
 
 // main oscillator clock which controls timing
 #define OSC_NTSC 53693100
-// seems to be accurate, see scans from http://www.hot.ee/tmeeco/
 #define OSC_PAL  53203424
 
 struct PicoVideo
@@ -369,12 +374,12 @@ typedef struct
 #define Pico_mcd ((mcd_state *)Pico.rom)
 
 
-// Area.c
+// area.c
 PICO_INTERNAL void PicoAreaPackCpu(unsigned char *cpu, int is_sub);
 PICO_INTERNAL void PicoAreaUnpackCpu(unsigned char *cpu, int is_sub);
 extern void (*PicoLoadStateHook)(void);
 
-// cd/Area.c
+// cd/area.c
 PICO_INTERNAL int PicoCdSaveState(void *file);
 PICO_INTERNAL int PicoCdLoadState(void *file);
 
@@ -397,23 +402,23 @@ extern areaeof *areaEof;
 extern areaseek *areaSeek;
 extern areaclose *areaClose;
 
-// Cart.c
+// cart.c
 extern void (*PicoCartUnloadHook)(void);
 
-// Debug.c
+// debug.c
 int CM_compareRun(int cyc, int is_sub);
 
-// Draw.c
+// draw.c
 PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawSync(int to, int blank_last_line);
 extern int DrawScanline;
 #define MAX_LINE_SPRITES 29
 extern unsigned char HighLnSpr[240][3 + MAX_LINE_SPRITES];
 
-// Draw2.c
+// draw2.c
 PICO_INTERNAL void PicoFrameFull();
 
-// Memory.c
+// memory.c
 PICO_INTERNAL void PicoInitPc(unsigned int pc);
 PICO_INTERNAL unsigned int PicoCheckPc(unsigned int pc);
 PICO_INTERNAL_ASM unsigned int PicoRead32(unsigned int a);
@@ -421,29 +426,21 @@ PICO_INTERNAL void PicoMemSetup(void);
 PICO_INTERNAL_ASM void PicoMemReset(void);
 PICO_INTERNAL void PicoMemResetHooks(void);
 PICO_INTERNAL int PadRead(int i);
-PICO_INTERNAL unsigned char z80_read(unsigned short a);
-#ifndef _USE_CZ80
-PICO_INTERNAL_ASM void z80_write(unsigned char data, unsigned short a);
-PICO_INTERNAL void z80_write16(unsigned short data, unsigned short a);
-PICO_INTERNAL unsigned short z80_read16(unsigned short a);
-#else
-PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data);
-#endif
 PICO_INTERNAL int ym2612_write_local(unsigned int a, unsigned int d, int is_from_z80);
 extern unsigned int (*PicoRead16Hook)(unsigned int a, int realsize);
 extern void (*PicoWrite8Hook) (unsigned int a,unsigned int d,int realsize);
 extern void (*PicoWrite16Hook)(unsigned int a,unsigned int d,int realsize);
 
-// cd/Memory.c
+// cd/memory.c
 PICO_INTERNAL void PicoMemSetupCD(void);
 PICO_INTERNAL_ASM void PicoMemResetCD(int r3);
 PICO_INTERNAL_ASM void PicoMemResetCDdecode(int r3);
 
-// Pico/Memory.c
+// pico/memory.c
 PICO_INTERNAL void PicoMemSetupPico(void);
 PICO_INTERNAL unsigned int ym2612_read_local_68k(void);
 
-// Pico.c
+// pico.c
 extern struct Pico Pico;
 extern struct PicoSRAM SRam;
 extern int PicoPadInt[2];
@@ -454,23 +451,23 @@ PICO_INTERNAL int  CheckDMA(void);
 PICO_INTERNAL void PicoDetectRegion(void);
 PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done);
 
-// cd/Pico.c
+// cd/pico.c
 PICO_INTERNAL void PicoInitMCD(void);
 PICO_INTERNAL void PicoExitMCD(void);
 PICO_INTERNAL void PicoPowerMCD(void);
 PICO_INTERNAL int  PicoResetMCD(void);
 PICO_INTERNAL void PicoFrameMCD(void);
 
-// Pico/Pico.c
+// pico/pico.c
 PICO_INTERNAL void PicoInitPico(void);
 PICO_INTERNAL void PicoReratePico(void);
 
-// Pico/xpcm.c
+// pico/xpcm.c
 PICO_INTERNAL void PicoPicoPCMUpdate(short *buffer, int length, int stereo);
 PICO_INTERNAL void PicoPicoPCMReset(void);
 PICO_INTERNAL void PicoPicoPCMRerate(int xpcm_rate);
 
-// Sek.c
+// sek.c
 PICO_INTERNAL void SekInit(void);
 PICO_INTERNAL int  SekReset(void);
 PICO_INTERNAL void SekState(int *data);
@@ -479,7 +476,7 @@ void SekStepM68k(void);
 void SekInitIdleDet(void);
 void SekFinishIdleDet(void);
 
-// cd/Sek.c
+// cd/sek.c
 PICO_INTERNAL void SekInitS68k(void);
 PICO_INTERNAL int  SekResetS68k(void);
 PICO_INTERNAL int  SekInterruptS68k(int irq);
@@ -515,13 +512,13 @@ void ym2612_unpack_state(void);
   timer_b_step = TIMER_B_TICK_ZCYCLES * 256;
 
 
-// VideoPort.c
+// videoport.c
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead8(unsigned int a);
 extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp);
 
-// Misc.c
+// misc.c
 PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d);
 PICO_INTERNAL void SRAMUpdPending(unsigned int a, unsigned int d);
 PICO_INTERNAL_ASM unsigned int SRAMReadEEPROM(void);
@@ -530,7 +527,16 @@ PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count)
 PICO_INTERNAL_ASM void memcpy32(int *dest, int *src, int count); // 32bit word count
 PICO_INTERNAL_ASM void memset32(int *dest, int c, int count);
 
-// cd/Misc.c
+// z80 functionality wrappers
+PICO_INTERNAL void z80_init(void);
+PICO_INTERNAL void z80_pack(unsigned char *data);
+PICO_INTERNAL void z80_unpack(unsigned char *data);
+PICO_INTERNAL void z80_reset(void);
+PICO_INTERNAL void z80_exit(void);
+void z80_map_set(unsigned long *map, int start_addr,
+  int end_addr, void *func_or_mh, int is_func);
+
+// cd/misc.c
 PICO_INTERNAL_ASM void wram_2M_to_1M(unsigned char *m);
 PICO_INTERNAL_ASM void wram_1M_to_2M(unsigned char *m);
 
@@ -542,12 +548,6 @@ PICO_INTERNAL void PsndReset(void);
 PICO_INTERNAL void PsndDoDAC(int line_to);
 PICO_INTERNAL void PsndClear(void);
 PICO_INTERNAL void PsndGetSamples(int y);
-// z80 functionality wrappers
-PICO_INTERNAL void z80_init(void);
-PICO_INTERNAL void z80_pack(unsigned char *data);
-PICO_INTERNAL void z80_unpack(unsigned char *data);
-PICO_INTERNAL void z80_reset(void);
-PICO_INTERNAL void z80_exit(void);
 extern int PsndDacLine;
 
 // emulation event logging
@@ -593,6 +593,12 @@ extern void lprintf(const char *fmt, ...);
 #define cdprintf
 #else
 #define cdprintf(x...)
+#endif
+
+#if defined(__GNUC__) && !defined(ARM)
+#define MEMH_FUNC __attribute__((aligned(4)))
+#else
+#define MEMH_FUNC
 #endif
 
 #ifdef __cplusplus

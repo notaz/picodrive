@@ -19,7 +19,7 @@ typedef unsigned int   u32;
 #define UTYPES_DEFINED
 #endif
 
-extern unsigned int lastSSRamWrite; // used by serial SRAM code
+extern unsigned int lastSSRamWrite; // used by serial eeprom code
 
 #ifdef _ASM_MEMORY_C
 u32  PicoRead8(u32 a);
@@ -514,6 +514,7 @@ PICO_INTERNAL void PicoMemResetHooks(void)
   PicoWrite16Hook = OtherWrite16End;
 }
 
+static void z80_mem_setup(void);
 #ifdef EMU_M68K
 static void m68k_mem_setup(void);
 #endif
@@ -555,6 +556,8 @@ PICO_INTERNAL void PicoMemSetup(void)
 #ifdef EMU_M68K
   m68k_mem_setup();
 #endif
+
+  z80_mem_setup();
 }
 
 /* some nasty things below :( */
@@ -880,7 +883,7 @@ int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   if (xcycles >= timer_b_next_oflow) \
     ym2612.OPN.ST.status |= (ym2612.OPN.ST.mode >> 2) & 2
 
-u32 ym2612_read_local_z80(void)
+static u32 MEMH_FUNC ym2612_read_local_z80(void)
 {
   int xcycles = z80_cyclesDone() << 8;
 
@@ -978,94 +981,114 @@ void ym2612_unpack_state(void)
 // -----------------------------------------------------------------
 //                        z80 memhandlers
 
-PICO_INTERNAL unsigned char z80_read(unsigned short a)
+static unsigned char MEMH_FUNC z80_md_vdp_read(unsigned short a)
 {
-  u8 ret = 0;
+  // TODO?
+  elprintf(EL_ANOMALY, "z80 invalid r8 [%06x] %02x", a, 0xff);
+  return 0xff;
+}
 
-  if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
-  {
-    return ym2612_read_local_z80();
+static unsigned char MEMH_FUNC z80_md_bank_read(unsigned short a)
+{
+  extern unsigned int PicoReadM68k8(unsigned int a);
+  unsigned int addr68k;
+  unsigned char ret;
+
+  addr68k = Pico.m.z80_bank68k<<15;
+  addr68k += a & 0x7fff;
+
+  if (addr68k < Pico.romsize) {
+    ret = Pico.rom[addr68k^1];
+    goto out;
   }
 
-  if (a>=0x8000)
-  {
-    extern u32 PicoReadM68k8(u32 a);
-    u32 addr68k;
-    addr68k=Pico.m.z80_bank68k<<15;
-    addr68k+=a&0x7fff;
+  elprintf(EL_ANOMALY, "z80->68k upper read [%06x] %02x", addr68k, ret);
+  if (PicoAHW & PAHW_MCD)
+       ret = PicoReadM68k8(addr68k);
+  else ret = PicoRead8(addr68k);
 
-    if (addr68k < Pico.romsize) { ret = Pico.rom[addr68k^1]; goto bnkend; }
-    elprintf(EL_ANOMALY, "z80->68k upper read [%06x] %02x", addr68k, ret);
-    if (PicoAHW & PAHW_MCD)
-         ret = PicoReadM68k8(addr68k);
-    else ret = PicoRead8(addr68k);
-bnkend:
-    elprintf(EL_Z80BNK, "z80->68k r8 [%06x] %02x", addr68k, ret);
-    return ret;
-  }
-
-  // should not be needed, cores should be able to access RAM themselves
-  if (a<0x4000) return Pico.zram[a&0x1fff];
-
-  elprintf(EL_ANOMALY, "z80 invalid r8 [%06x] %02x", a, ret);
+out:
+  elprintf(EL_Z80BNK, "z80->68k r8 [%06x] %02x", addr68k, ret);
   return ret;
 }
 
-#ifndef _USE_CZ80
-PICO_INTERNAL_ASM void z80_write(unsigned char data, unsigned short a)
-#else
-PICO_INTERNAL_ASM void z80_write(unsigned int a, unsigned char data)
-#endif
+static void MEMH_FUNC z80_md_ym2612_write(unsigned int a, unsigned char data)
 {
-  if ((a>>13)==2) // 0x4000-0x5fff (Charles MacDonald)
+  if (PicoOpt & POPT_EN_FM)
+    emustatus |= ym2612_write_local(a, data, 1) & 1;
+}
+
+static void MEMH_FUNC z80_md_vdp_br_write(unsigned int a, unsigned char data)
+{
+  // TODO: allow full VDP access
+  if ((a&0xfff9) == 0x7f11) // 7f11 7f13 7f15 7f17
   {
-    if(PicoOpt&POPT_EN_FM) emustatus|=ym2612_write_local(a, data, 1) & 1;
+    if (PicoOpt & POPT_EN_PSG)
+      SN76496Write(data);
     return;
   }
 
-  if ((a&0xfff9)==0x7f11) // 7f11 7f13 7f15 7f17
+  if ((a>>8) == 0x60)
   {
-    if(PicoOpt&POPT_EN_PSG) SN76496Write(data);
+    Pico.m.z80_bank68k >>= 1;
+    Pico.m.z80_bank68k |= data << 8;
+    Pico.m.z80_bank68k &= 0x1ff; // 9 bits and filled in the new top one
     return;
   }
-
-  if ((a>>8)==0x60)
-  {
-    Pico.m.z80_bank68k>>=1;
-    Pico.m.z80_bank68k|=(data&1)<<8;
-    Pico.m.z80_bank68k&=0x1ff; // 9 bits and filled in the new top one
-    return;
-  }
-
-  if (a>=0x8000)
-  {
-    extern void PicoWriteM68k8(u32 a,u8 d);
-    u32 addr68k;
-    addr68k=Pico.m.z80_bank68k<<15;
-    addr68k+=a&0x7fff;
-    elprintf(EL_Z80BNK, "z80->68k w8 [%06x] %02x", addr68k, data);
-    if (PicoAHW & PAHW_MCD)
-         PicoWriteM68k8(addr68k, data);
-    else PicoWrite8(addr68k, data);
-    return;
-  }
-
-  // should not be needed
-  if (a<0x4000) { Pico.zram[a&0x1fff]=data; return; }
 
   elprintf(EL_ANOMALY, "z80 invalid w8 [%06x] %02x", a, data);
 }
 
-#ifndef _USE_CZ80
-PICO_INTERNAL unsigned short z80_read16(unsigned short a)
+static void MEMH_FUNC z80_md_bank_write(unsigned int a, unsigned char data)
 {
-  return (u16) ( (u16)z80_read(a) | ((u16)z80_read((u16)(a+1))<<8) );
+  extern void PicoWriteM68k8(unsigned int a, unsigned char d);
+  unsigned int addr68k;
+
+  addr68k = Pico.m.z80_bank68k << 15;
+  addr68k += a & 0x7fff;
+
+  elprintf(EL_Z80BNK, "z80->68k w8 [%06x] %02x", addr68k, data);
+  if (PicoAHW & PAHW_MCD)
+       PicoWriteM68k8(addr68k, data);
+  else PicoWrite8(addr68k, data);
 }
 
-PICO_INTERNAL void z80_write16(unsigned short data, unsigned short a)
+// -----------------------------------------------------------------
+
+static unsigned char z80_md_in(unsigned short p)
 {
-  z80_write((unsigned char) data,a);
-  z80_write((unsigned char)(data>>8),(u16)(a+1));
+  elprintf(EL_ANOMALY, "Z80 port %04x read", p);
+  return 0xff;
 }
+
+static void z80_md_out(unsigned short p, unsigned char d)
+{
+  elprintf(EL_ANOMALY, "Z80 port %04x write %02x", p, d);
+}
+
+static void z80_mem_setup(void)
+{
+  z80_map_set(z80_read_map, 0x0000, 0x1fff, Pico.zram, 0);
+  z80_map_set(z80_read_map, 0x2000, 0x3fff, Pico.zram, 0);
+  z80_map_set(z80_read_map, 0x4000, 0x5fff, ym2612_read_local_z80, 1);
+  z80_map_set(z80_read_map, 0x6000, 0x7fff, z80_md_vdp_read, 1);
+  z80_map_set(z80_read_map, 0x8000, 0xffff, z80_md_bank_read, 1);
+
+  z80_map_set(z80_write_map, 0x0000, 0x1fff, Pico.zram, 0);
+  z80_map_set(z80_write_map, 0x2000, 0x3fff, Pico.zram, 0);
+  z80_map_set(z80_write_map, 0x4000, 0x5fff, z80_md_ym2612_write, 1);
+  z80_map_set(z80_write_map, 0x6000, 0x7fff, z80_md_vdp_br_write, 1);
+  z80_map_set(z80_write_map, 0x8000, 0xffff, z80_md_bank_write, 1);
+
+#ifdef _USE_DRZ80
+  drZ80.z80_in = z80_md_in;
+  drZ80.z80_out = z80_md_out;
 #endif
+#ifdef _USE_CZ80
+  Cz80_Set_Fetch(&CZ80, 0x0000, 0x1fff, (UINT32)Pico.zram); // main RAM
+  Cz80_Set_Fetch(&CZ80, 0x2000, 0x3fff, (UINT32)Pico.zram); // mirror
+  Cz80_Set_INPort(&CZ80, z80_md_in);
+  Cz80_Set_OUTPort(&CZ80, z80_md_out);
+#endif
+}
 
