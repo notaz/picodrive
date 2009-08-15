@@ -602,7 +602,7 @@ static void load_progress_cb(int percent)
 	plat_video_menu_end();
 }
 
-static void cdload_progress_cb(int percent)
+static void cdload_progress_cb(const char *fname, int percent)
 {
 	int ln, len = percent * g_screen_width / 100;
 	unsigned short *dst = (unsigned short *)g_screen_ptr + g_screen_width * 10 * 2;
@@ -610,7 +610,7 @@ static void cdload_progress_cb(int percent)
 	memset(dst, 0xff, g_screen_width * (me_sfont_h - 2) * 2);
 
 	smalltext_out16(1, 3 * me_sfont_h, "Processing CD image / MP3s", 0xffff);
-	smalltext_out16(1, 4 * me_sfont_h, rom_fname_loaded, 0xffff);
+	smalltext_out16(1, 4 * me_sfont_h, fname, 0xffff);
 	dst += g_screen_width * me_sfont_h * 3;
 
 	if (len > g_screen_width)
@@ -647,7 +647,8 @@ void menu_romload_prepare(const char *rom_name)
 
 void menu_romload_end(void)
 {
-	PicoCartLoadProgressCB = PicoCDLoadProgressCB = NULL;
+	PicoCartLoadProgressCB = NULL;
+	PicoCDLoadProgressCB = NULL;
 	smalltext_out16(1, (cdload_called ? 6 : 3) * me_sfont_h,
 		"Starting emulation...", 0xffff);
 	plat_video_menu_end();

@@ -73,7 +73,8 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 #endif
 	};
 
-	if (PicoCDLoadProgressCB != NULL) PicoCDLoadProgressCB(1);
+	if (PicoCDLoadProgressCB != NULL)
+		PicoCDLoadProgressCB(cd_img_name, 1);
 
 	Unload_ISO();
 
@@ -118,7 +119,8 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 		i = 100 / cue_data->track_count+1;
 		for (num_track = 2; num_track <= cue_data->track_count; num_track++)
 		{
-			if (PicoCDLoadProgressCB != NULL) PicoCDLoadProgressCB(i * num_track);
+			if (PicoCDLoadProgressCB != NULL)
+				PicoCDLoadProgressCB(cd_img_name, i * num_track);
 			index = num_track - 1;
 			Cur_LBA += cue_data->tracks[num_track].pregap;
 			if (cue_data->tracks[num_track].type == CT_MP3) {
@@ -179,7 +181,8 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 
 	for (num_track = 2, i = 0, missed = 0; i < 100 && missed < 4; i++)
 	{
-		if (PicoCDLoadProgressCB != NULL && i > 1) PicoCDLoadProgressCB(i + (100-i)*missed/4);
+		if (PicoCDLoadProgressCB != NULL && i > 1)
+			PicoCDLoadProgressCB(cd_img_name, i + (100-i)*missed/4);
 
 		for (j = 0; j < sizeof(exts)/sizeof(char *); j++)
 		{
@@ -225,7 +228,8 @@ finish:
 	elprintf(EL_STATUS, "End CD -  %02d:%02d:%02d\n", Tracks[index].MSF.M,
 		Tracks[index].MSF.S, Tracks[index].MSF.F);
 
-	if (PicoCDLoadProgressCB != NULL) PicoCDLoadProgressCB(100);
+	if (PicoCDLoadProgressCB != NULL)
+		PicoCDLoadProgressCB(cd_img_name, 100);
 
 	return 0;
 }

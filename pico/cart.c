@@ -18,7 +18,7 @@ static char *rom_exts[] = { "bin", "gen", "smd", "iso" };
 void (*PicoCartUnloadHook)(void) = NULL;
 
 void (*PicoCartLoadProgressCB)(int percent) = NULL;
-void (*PicoCDLoadProgressCB)(int percent) = NULL; // handled in Pico/cd/cd_file.c
+void (*PicoCDLoadProgressCB)(const char *fname, int percent) = NULL; // handled in Pico/cd/cd_file.c
 
 static void PicoCartDetect(void);
 
