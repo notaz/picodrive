@@ -118,6 +118,7 @@ PICO_INTERNAL void z80_reset(void)
   drZ80.Z80IM = 0; // 1?
   drZ80.z80irqvector = 0xff0000; // RST 38h
   drZ80.Z80PC_BASE = drZ80.Z80PC = z80_read_map[0] << 1;
+  // drZ80 is locked in single bank
   drZ80.Z80SP_BASE = z80_read_map[0] << 1;
 //  drZ80.Z80SP = drZ80.z80_rebaseSP(0x2000); // 0xf000 ?
 #endif

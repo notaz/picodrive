@@ -514,7 +514,6 @@ PICO_INTERNAL void PicoMemResetHooks(void)
   PicoWrite16Hook = OtherWrite16End;
 }
 
-static void z80_mem_setup(void);
 #ifdef EMU_M68K
 static void m68k_mem_setup(void);
 #endif
@@ -1066,7 +1065,7 @@ static void z80_md_out(unsigned short p, unsigned char d)
   elprintf(EL_ANOMALY, "Z80 port %04x write %02x", p, d);
 }
 
-static void z80_mem_setup(void)
+void z80_mem_setup(void)
 {
   z80_map_set(z80_read_map, 0x0000, 0x1fff, Pico.zram, 0);
   z80_map_set(z80_read_map, 0x2000, 0x3fff, Pico.zram, 0);

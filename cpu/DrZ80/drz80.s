@@ -14,12 +14,12 @@
       .equiv INTERRUPT_MODE,         0	;@0 = Use internal int handler, 1 = Use Mames int handler
       .equiv FAST_Z80SP,             1	;@0 = Use mem functions for stack pointer, 1 = Use direct mem pointer
       .equiv UPDATE_CONTEXT,         0
-      .equiv DRZ80_FOR_PICODRIVE,    1
       .equiv DRZ80_XMAP,             1
       .equiv DRZ80_XMAP_MORE_INLINE, 1
 
 .if DRZ80_XMAP
       .equ Z80_MEM_SHIFT, 13
+      ;@ note: stack is locked in single bank that z80sp_base points to
 .endif
 
 .if INTERRUPT_MODE
@@ -160,14 +160,14 @@ z80_xmap_read16: @ addr
 
 0:
     @ z80_xmap_read8 will save r3 and r12 for us
-    stmfd sp!,{r4,r5,lr}
-    mov r4,r0
+    stmfd sp!,{r8,r9,lr}
+    mov r8,r0
     bl z80_xmap_read8
-    mov r5,r0
-    add r0,r4,#1
+    mov r9,r0
+    add r0,r8,#1
     bl z80_xmap_read8
-    orr r0,r5,r0,lsl #8
-    ldmfd sp!,{r4,r5,pc}
+    orr r0,r9,r0,lsl #8
+    ldmfd sp!,{r8,r9,pc}
 
 z80_xmap_write16: @ data, addr
     add r2,r1,#1
@@ -187,14 +187,30 @@ z80_xmap_write16: @ data, addr
     bx lr
 
 0:
-    stmfd sp!,{r4,r5,lr}
-    mov r4,r0
-    mov r5,r1
+    stmfd sp!,{r8,r9,lr}
+    mov r8,r0
+    mov r9,r1
     bl z80_xmap_write8
-    mov r0,r4,lsr #8
-    add r1,r5,#1
+    mov r0,r8,lsr #8
+    add r1,r9,#1
     bl z80_xmap_write8
-    ldmfd sp!,{r4,r5,pc}
+    ldmfd sp!,{r8,r9,pc}
+
+z80_xmap_rebase_pc:
+    ldr r1,[cpucontext,#z80_read8]
+    mov r2,r0,lsr #Z80_MEM_SHIFT
+    ldr r1,[r1,r2,lsl #2]
+    movs r1,r1,lsl #1
+    strcc r1,[cpucontext,#z80pc_base]
+    addcc z80pc,r1,r0
+    bxcc lr
+
+z80_bad_jump:
+    ldr r0,[cpucontext,#z80_read8]
+    ldr r0,[r0]
+    str r0,[cpucontext,#z80pc_base]
+    mov z80pc,r0
+    bx lr
 .endif
 
 
@@ -335,10 +351,8 @@ z80_xmap_write16: @ data, addr
 .if UPDATE_CONTEXT
      str z80pc,[cpucontext,#z80pc_pointer]
 .endif
-.if DRZ80_FOR_PICODRIVE
-    ldr r1,[cpucontext,#z80pc_base]
-    bic r0,r0,#0xfe000
-    add z80pc,r1,r0
+.if DRZ80_XMAP
+    bl z80_xmap_rebase_pc
 .else
     stmfd sp!,{r3,r12}
 	mov lr,pc
@@ -352,9 +366,10 @@ z80_xmap_write16: @ data, addr
 .if UPDATE_CONTEXT
      str z80pc,[cpucontext,#z80pc_pointer]
 .endif
-.if DRZ80_FOR_PICODRIVE
-    bic r0,r0,#0xfe000
+.if DRZ80_XMAP
+    ;@ XXX: SP is locked to single back z80sp_base points to.
     ldr r1,[cpucontext,#z80sp_base]
+    bic r0,r0,#0x7f<<Z80_MEM_SHIFT
     add r0,r1,r0
 .else
 	stmfd sp!,{r3,r12}
@@ -722,22 +737,9 @@ z80_xmap_write16: @ data, addr
 
 .macro opPOP
 .if FAST_Z80SP
-.if DRZ80_FOR_PICODRIVE
-    @ notaz: try to protect against stack overflows, which tend to happen in Picodrive because of poor timing
-    ldr r2,[cpucontext,#z80sp_base]
-	ldrb r0,[z80sp],#1
-    add r2,r2,#0x2000
-    cmp z80sp,r2
-@    subge z80sp,z80sp,#0x2000 @ unstable?
-	ldrb r1,[z80sp],#1
-    cmp z80sp,r2
-@    subge z80sp,z80sp,#0x2000
-	orr r0,r0,r1, lsl #8
-.else
 	ldrb r0,[z80sp],#1
 	ldrb r1,[z80sp],#1
 	orr r0,r0,r1, lsl #8
-.endif
 .else
 	mov r0,z80sp
 	readmem16
@@ -752,23 +754,22 @@ z80_xmap_write16: @ data, addr
 .endm
 ;@---------------------------------------
 
+.macro stack_check
+    @ try to protect against stack overflows, lock into current bank
+    ldr r1,[cpucontext,#z80sp_base]
+    sub r1,z80sp,r1
+    cmp r1,#2
+    addlt z80sp,z80sp,#1<<Z80_MEM_SHIFT
+.endm
+
 .macro opPUSHareg reg @ reg > r1
 .if FAST_Z80SP
-.if DRZ80_FOR_PICODRIVE
-    @ notaz: try to protect against stack overflows, which tend to happen in Picodrive because of poor timing
-    ldr r0,[cpucontext,#z80sp_base]
-    cmp z80sp,r0
-    addle z80sp,z80sp,#0x2000
-    mov r1,\reg, lsr #8
-	strb r1,[z80sp,#-1]!
-    cmp z80sp,r0
-    addle z80sp,z80sp,#0x2000
-	strb \reg,[z80sp,#-1]!
-.else
+.if DRZ80_XMAP
+	stack_check
+.endif
 	mov r1,\reg, lsr #8
 	strb r1,[z80sp,#-1]!
 	strb \reg,[z80sp,#-1]!
-.endif
 .else
     mov r0,\reg
 	sub z80sp,z80sp,#2
@@ -779,22 +780,13 @@ z80_xmap_write16: @ data, addr
 
 .macro opPUSHreg reg
 .if FAST_Z80SP
-.if DRZ80_FOR_PICODRIVE
-    ldr r0,[cpucontext,#z80sp_base]
-    cmp z80sp,r0
-    addle z80sp,z80sp,#0x2000
-    mov r1,\reg, lsr #24
-	strb r1,[z80sp,#-1]!
-    cmp z80sp,r0
-    addle z80sp,z80sp,#0x2000
-	mov r1,\reg, lsr #16
-	strb r1,[z80sp,#-1]!
-.else
-    mov r1,\reg, lsr #24
-	strb r1,[z80sp,#-1]!
-	mov r1,\reg, lsr #16
-	strb r1,[z80sp,#-1]!
+.if DRZ80_XMAP
+	stack_check
 .endif
+    mov r1,\reg, lsr #24
+	strb r1,[z80sp,#-1]!
+	mov r1,\reg, lsr #16
+	strb r1,[z80sp,#-1]!
 .else
 	mov r0,\reg,lsr #16
 	sub z80sp,z80sp,#2

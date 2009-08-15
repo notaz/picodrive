@@ -427,6 +427,7 @@ PICO_INTERNAL_ASM void PicoMemReset(void);
 PICO_INTERNAL void PicoMemResetHooks(void);
 PICO_INTERNAL int PadRead(int i);
 PICO_INTERNAL int ym2612_write_local(unsigned int a, unsigned int d, int is_from_z80);
+void z80_mem_setup(void);
 extern unsigned int (*PicoRead16Hook)(unsigned int a, int realsize);
 extern void (*PicoWrite8Hook) (unsigned int a,unsigned int d,int realsize);
 extern void (*PicoWrite16Hook)(unsigned int a,unsigned int d,int realsize);

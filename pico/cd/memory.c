@@ -1711,6 +1711,7 @@ PICO_INTERNAL void PicoMemSetupCD(void)
 #ifdef EMU_M68K
   m68k_mem_setup_cd();
 #endif
+  z80_mem_setup();
 
   // m68k_poll_addr = m68k_poll_cnt = 0;
   s68k_poll_adclk = s68k_poll_cnt = 0;
