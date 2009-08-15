@@ -63,20 +63,7 @@ int mz80_run(int cycles)
 #endif
 
 #ifdef _USE_DRZ80
-
 struct DrZ80 drZ80;
-
-static unsigned int DrZ80_rebasePC(unsigned short a)
-{
-  drZ80.Z80PC_BASE = (unsigned int) Pico.zram;
-  return drZ80.Z80PC_BASE + a;
-}
-
-static unsigned int DrZ80_rebaseSP(unsigned short a)
-{
-  drZ80.Z80SP_BASE = (unsigned int) Pico.zram;
-  return drZ80.Z80SP_BASE + a;
-}
 #endif
 
 
@@ -101,8 +88,8 @@ PICO_INTERNAL void z80_init(void)
 #endif
 #ifdef _USE_DRZ80
   memset(&drZ80, 0, sizeof(drZ80));
-  drZ80.z80_rebasePC=DrZ80_rebasePC;
-  drZ80.z80_rebaseSP=DrZ80_rebaseSP;
+  drZ80.z80_rebasePC=NULL; // unused, handled by xmap
+  drZ80.z80_rebaseSP=NULL;
   drZ80.z80_read8   =(void *)z80_read_map;
   drZ80.z80_read16  =NULL;
   drZ80.z80_write8  =(void *)z80_write_map;
@@ -130,8 +117,9 @@ PICO_INTERNAL void z80_reset(void)
   drZ80.Z80IY = 0xFFFF << 16;
   drZ80.Z80IM = 0; // 1?
   drZ80.z80irqvector = 0xff0000; // RST 38h
-  drZ80.Z80PC = drZ80.z80_rebasePC(0);
-  drZ80.Z80SP = drZ80.z80_rebaseSP(0x2000); // 0xf000 ?
+  drZ80.Z80PC_BASE = drZ80.Z80PC = z80_read_map[0] << 1;
+  drZ80.Z80SP_BASE = z80_read_map[0] << 1;
+//  drZ80.Z80SP = drZ80.z80_rebaseSP(0x2000); // 0xf000 ?
 #endif
 #ifdef _USE_CZ80
   Cz80_Reset(&CZ80);
@@ -142,6 +130,7 @@ PICO_INTERNAL void z80_reset(void)
   Pico.m.z80_fakeval = 0; // for faking when Z80 is disabled
 }
 
+// XXX TODO: should better use universal z80 save format
 PICO_INTERNAL void z80_pack(unsigned char *data)
 {
 #if defined(_USE_MZ80)
@@ -151,8 +140,8 @@ PICO_INTERNAL void z80_pack(unsigned char *data)
   memcpy(data+4, &mz80.z80clockticks, sizeof(mz80)-5*4); // don't save base&memhandlers
 #elif defined(_USE_DRZ80)
   *(int *)data = 0x015A7244; // "DrZ" v1
-  drZ80.Z80PC = drZ80.z80_rebasePC(drZ80.Z80PC-drZ80.Z80PC_BASE);
-  drZ80.Z80SP = drZ80.z80_rebaseSP(drZ80.Z80SP-drZ80.Z80SP_BASE);
+//  drZ80.Z80PC = drZ80.z80_rebasePC(drZ80.Z80PC-drZ80.Z80PC_BASE);
+//  drZ80.Z80SP = drZ80.z80_rebaseSP(drZ80.Z80SP-drZ80.Z80SP_BASE);
   memcpy(data+4, &drZ80, 0x54);
 #elif defined(_USE_CZ80)
   *(int *)data = 0x00007a43; // "Cz"
@@ -175,10 +164,28 @@ PICO_INTERNAL void z80_unpack(unsigned char *data)
   }
 #elif defined(_USE_DRZ80)
   if (*(int *)data == 0x015A7244) { // "DrZ" v1 save?
+    int pc, sp;
     memcpy(&drZ80, data+4, 0x54);
+    pc = (drZ80.Z80PC - drZ80.Z80PC_BASE) & 0xffff;
+    sp = (drZ80.Z80SP - drZ80.Z80SP_BASE) & 0xffff;
     // update bases
-    drZ80.Z80PC = drZ80.z80_rebasePC(drZ80.Z80PC-drZ80.Z80PC_BASE);
-    drZ80.Z80SP = drZ80.z80_rebaseSP(drZ80.Z80SP-drZ80.Z80SP_BASE);
+    drZ80.Z80PC_BASE = z80_read_map[pc >> Z80_MEM_SHIFT];
+    if (drZ80.Z80PC & (1<<31)) {
+      elprintf(EL_STATUS|EL_ANOMALY, "bad PC in z80 save: %04x", pc);
+      drZ80.Z80PC_BASE = drZ80.Z80PC = z80_read_map[0];
+    } else {
+      drZ80.Z80PC_BASE <<= 1;
+      drZ80.Z80PC = drZ80.Z80PC_BASE + pc;
+    }
+    drZ80.Z80SP_BASE = z80_read_map[sp >> Z80_MEM_SHIFT];
+    if (drZ80.Z80SP & (1<<31)) {
+      elprintf(EL_STATUS|EL_ANOMALY, "bad SP in z80 save: %04x", sp);
+      drZ80.Z80SP_BASE = z80_read_map[0];
+      drZ80.Z80SP = drZ80.Z80SP_BASE + (1 << Z80_MEM_SHIFT);
+    } else {
+      drZ80.Z80SP_BASE <<= 1;
+      drZ80.Z80SP = drZ80.Z80SP_BASE + sp;
+    }
   } else {
     z80_reset();
     drZ80.Z80IM = 1;

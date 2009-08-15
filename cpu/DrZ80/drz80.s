@@ -11,20 +11,19 @@
       .global DrZ80Run
       .global DrZ80Ver
 
-      .equiv INTERRUPT_MODE,        0	;@0 = Use internal int handler, 1 = Use Mames int handler
-      .equiv FAST_Z80SP,            1	;@0 = Use mem functions for stack pointer, 1 = Use direct mem pointer
-      .equiv UPDATE_CONTEXT,        0
-      .equiv DRZ80_FOR_PICODRIVE,   1
+      .equiv INTERRUPT_MODE,         0	;@0 = Use internal int handler, 1 = Use Mames int handler
+      .equiv FAST_Z80SP,             1	;@0 = Use mem functions for stack pointer, 1 = Use direct mem pointer
+      .equiv UPDATE_CONTEXT,         0
+      .equiv DRZ80_FOR_PICODRIVE,    1
+      .equiv DRZ80_XMAP,             1
+      .equiv DRZ80_XMAP_MORE_INLINE, 1
+
+.if DRZ80_XMAP
+      .equ Z80_MEM_SHIFT, 13
+.endif
 
 .if INTERRUPT_MODE
       .extern Interrupt
-.endif
-
-.if DRZ80_FOR_PICODRIVE
-      .extern PicoRead8
-      .extern Pico
-      .extern z80_write
-      .extern ym2612_read_local_z80
 .endif
 
 DrZ80Ver: .long 0x0001
@@ -32,8 +31,8 @@ DrZ80Ver: .long 0x0001
 ;@ --------------------------- Defines ----------------------------
 ;@ Make sure that regs/pointers for z80pc to z80sp match up!
 
-	opcodes    .req r3
-	z80_icount .req r4
+	z80_icount .req r3
+	opcodes    .req r4
 	cpucontext .req r5
 	z80pc      .req r6
 	z80a       .req r7
@@ -104,138 +103,100 @@ DrZ80Ver: .long 0x0001
 
 .text
 
-.if DRZ80_FOR_PICODRIVE
+.if DRZ80_XMAP
 
-pico_z80_read8: @ addr
-    cmp r0,#0x2000         @ Z80 RAM
-    ldrlt r1,[cpucontext,#z80sp_base]
-    ldrltb r0,[r1,r0]
-    bxlt lr
+z80_xmap_read8: @ addr
+    ldr r1,[cpucontext,#z80_read8]
+    mov r2,r0,lsr #Z80_MEM_SHIFT
+    ldr r1,[r1,r2,lsl #2]
+    movs r1,r1,lsl #1
+    ldrccb r0,[r1,r0]
+    bxcc lr
 
-    cmp r0,#0x8000         @ 68k bank
-    blt 1f
-    ldr r2,=(Pico+0x22212)
-    ldrh r1,[r2]
-    bic r0,r0,#0x3f8000
-    orr r0,r0,r1,lsl #15
-    ldr r1,[r2,#-0xe]      @ ROM size
-    cmp r0,r1
-    ldrlt r1,[r2,#-0x12]   @ ROM
-    eorlt r0,r0,#1         @ our ROM is byteswapped
-    ldrltb r0,[r1,r0]
-    bxlt lr
-    stmfd sp!,{r3,r12,lr}
-    bl PicoRead8
-    ldmfd sp!,{r3,r12,pc}
-1:
-    mov r1,r0,lsr #13
-    cmp r1,#2              @ YM2612 (0x4000-0x5fff)
-    bne 0f
-    and r0,r0,#3
-    stmfd sp!,{r3,r12,lr}
+z80_xmap_read8_handler: @ addr, func
     str z80_icount,[cpucontext,#cycles_pointer]
-    bl ym2612_read_local_z80
-    ldmfd sp!,{r3,r12,pc}
-0:
-    cmp r0,#0x4000
-    movge r0,#0xff
-    bxge lr
-    ldr r1,[cpucontext,#z80sp_base]
-    bic r0,r0,#0x0fe000    @ Z80 RAM (mirror)
-    ldrb r0,[r1,r0]
-    bx lr
+    stmfd sp!,{r12,lr}
+    mov lr,pc
+    bx r1
+    ldr z80_icount,[cpucontext,#cycles_pointer]
+    ldmfd sp!,{r12,pc}
 
-pico_z80_read16: @ addr
-    cmp r0,#0x2000         @ Z80 RAM
-    bge 2f
-    ldr r1,[cpucontext,#z80sp_base]
+z80_xmap_write8: @ data, addr
+    ldr r2,[cpucontext,#z80_write8]
+    add r2,r2,r1,lsr #Z80_MEM_SHIFT-2
+    bic r2,r2,#3
+    ldr r2,[r2]
+    movs r2,r2,lsl #1
+    strccb r0,[r2,r1]
+    bxcc lr
+
+z80_xmap_write8_handler: @ data, addr, func
+    str z80_icount,[cpucontext,#cycles_pointer]
+    mov r3,r0
+    mov r0,r1
+    mov r1,r3
+    stmfd sp!,{r12,lr}
+    mov lr,pc
+    bx r2
+    ldr z80_icount,[cpucontext,#cycles_pointer]
+    ldmfd sp!,{r12,pc}
+
+z80_xmap_read16: @ addr
+    @ check if we cross bank boundary
+    add r1,r0,#1
+    eor r1,r0,r0
+    tst r1,#1<<Z80_MEM_SHIFT
+    bne 0f
+
+    ldr r1,[cpucontext,#z80_read8]
+    mov r2,r0,lsr #Z80_MEM_SHIFT
+    ldr r1,[r1,r2,lsl #2]
+    movs r1,r1,lsl #1
+    bcs 0f
     ldrb r0,[r1,r0]!
     ldrb r1,[r1,#1]
     orr r0,r0,r1,lsl #8
     bx lr
 
-2:
-    cmp r0,#0x8000         @ 68k bank
-    blt 1f
-    ldr r2,=(Pico+0x22212)
-    ldrh r1,[r2]
-    bic r0,r0,#0x1f8000
-    orr r0,r0,r1,lsl #15
-    ldr r1,[r2,#-0xe]      @ ROM size
-    cmp r0,r1
-    ldr r1,[r2,#-0x12]     @ ROM
-    tst r0,#1
-    eor r0,r0,#1
-    ldrb r0,[r1,r0]!
-    ldreqb r1,[r1,#-1]
-    ldrneb r1,[r1,#3]      @ this is due to byteswapped ROM
-    orr r0,r0,r1,lsl #8
-    bx lr
-3:
-    stmfd sp!,{r3-r5,r12,lr}
+0:
+    @ z80_xmap_read8 will save r3 and r12 for us
+    stmfd sp!,{r4,r5,lr}
     mov r4,r0
-    bl PicoRead8
+    bl z80_xmap_read8
     mov r5,r0
     add r0,r4,#1
-    bl PicoRead8
+    bl z80_xmap_read8
     orr r0,r5,r0,lsl #8
-    ldmfd sp!,{r3-r5,r12,pc}
-1:
-    mov r1,r0,lsr #13
-    cmp r1,#2              @ YM2612 (0x4000-0x5fff)
+    ldmfd sp!,{r4,r5,pc}
+
+z80_xmap_write16: @ data, addr
+    add r2,r1,#1
+    eor r2,r1,r1
+    tst r2,#1<<Z80_MEM_SHIFT
     bne 0f
-    and r0,r0,#3
-    stmfd sp!,{r3,r12,lr}
-    str z80_icount,[cpucontext,#cycles_pointer]
-    bl ym2612_read_local_z80
-    orr r0,r0,r0,lsl #8
-    ldmfd sp!,{r3,r12,pc}
-0:
-    cmp r0,#0x4000
-    movge r0,#0xff
-    bxge lr
-    ldr r1,[cpucontext,#z80sp_base]
-    bic r0,r0,#0x0fe000    @ Z80 RAM (mirror)
-    ldrb r0,[r1,r0]!
-    ldrb r1,[r1,#1]
-    orr r0,r0,r1,lsl #8
-    bx lr
 
-pico_z80_write8: @ data, addr
-    cmp r1,#0x4000
-    bge 1f
-    ldr r2,[cpucontext,#z80sp_base]
-    bic r1,r1,#0x0fe000    @ Z80 RAM
-    strb r0,[r2,r1]
-    bx lr
-1:
-    stmfd sp!,{r3,r12,lr}
-    str z80_icount,[cpucontext,#cycles_pointer]
-    bl z80_write
-    ldmfd sp!,{r3,r12,pc}
-
-pico_z80_write16: @ data, addr
-    cmp r1,#0x4000
-    bge 1f
-    ldr r2,[cpucontext,#z80sp_base]
-    bic r1,r1,#0x0fe000    @ Z80 RAM
+    ldr r2,[cpucontext,#z80_read8]
+    add r2,r2,r1,lsr #Z80_MEM_SHIFT-2
+    bic r2,r2,#3
+    ldr r2,[r2]
+    movs r2,r2,lsl #1
+    bcs 0f
     strb r0,[r2,r1]!
     mov r0,r0,lsr #8
     strb r0,[r2,#1]
     bx lr
-1:
-    stmfd sp!,{r3-r5,r12,lr}
-    str z80_icount,[cpucontext,#cycles_pointer]
+
+0:
+    stmfd sp!,{r4,r5,lr}
     mov r4,r0
     mov r5,r1
-    bl z80_write
+    bl z80_xmap_write8
     mov r0,r4,lsr #8
     add r1,r5,#1
-    bl z80_write
-    ldmfd sp!,{r3-r5,r12,pc}
-
-    .pool
+    bl z80_xmap_write8
+    ldmfd sp!,{r4,r5,pc}
 .endif
+
 
 .macro fetch cycs
 	subs z80_icount,z80_icount,#\cycs
@@ -262,9 +223,18 @@ pico_z80_write16: @ data, addr
 .if UPDATE_CONTEXT
     str z80pc,[cpucontext,#z80pc_pointer]
 .endif
-.if DRZ80_FOR_PICODRIVE
-    bl pico_z80_read8
+.if DRZ80_XMAP
+.if !DRZ80_XMAP_MORE_INLINE
+    ldr r1,[cpucontext,#z80_read8]
+    mov r2,r0,lsr #Z80_MEM_SHIFT
+    ldr r1,[r1,r2,lsl #2]
+    movs r1,r1,lsl #1
+    ldrccb r0,[r1,r0]
+    blcs z80_xmap_read8_handler
 .else
+    bl z80_xmap_read8
+.endif
+.else ;@ if !DRZ80_XMAP
     stmfd sp!,{r3,r12}
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_read8]			;@ r0 = addr - data returned in r0
@@ -281,8 +251,8 @@ pico_z80_write16: @ data, addr
 .if UPDATE_CONTEXT
      str z80pc,[cpucontext,#z80pc_pointer]
 .endif
-.if DRZ80_FOR_PICODRIVE
-    bl pico_z80_read16
+.if DRZ80_XMAP
+    bl z80_xmap_read16
 .else
 	stmfd sp!,{r3,r12}
 	mov lr,pc
@@ -295,9 +265,18 @@ pico_z80_write16: @ data, addr
 .if UPDATE_CONTEXT
      str z80pc,[cpucontext,#z80pc_pointer]
 .endif
-.if DRZ80_FOR_PICODRIVE
-    bl pico_z80_write8
+.if DRZ80_XMAP
+.if DRZ80_XMAP_MORE_INLINE
+    ldr r2,[cpucontext,#z80_write8]
+    mov lr,r1,lsr #Z80_MEM_SHIFT
+    ldr r2,[r2,lr,lsl #2]
+    movs r2,r2,lsl #1
+    strccb r0,[r2,r1]
+    blcs z80_xmap_write8_handler
 .else
+    bl z80_xmap_write8
+.endif
+.else ;@ if !DRZ80_XMAP
 	stmfd sp!,{r3,r12}
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_write8]			;@ r0=data r1=addr
@@ -319,8 +298,8 @@ pico_z80_write16: @ data, addr
 .if UPDATE_CONTEXT
      str z80pc,[cpucontext,#z80pc_pointer]
 .endif
-.if DRZ80_FOR_PICODRIVE
-    bl pico_z80_write16
+.if DRZ80_XMAP
+    bl z80_xmap_write16
 .else
 	stmfd sp!,{r3,r12}
 	mov lr,pc
@@ -334,19 +313,16 @@ pico_z80_write16: @ data, addr
      str z80pc,[cpucontext,#z80pc_pointer]
 .endif
 	mov r0,z80hl, lsr #16
-.if DRZ80_FOR_PICODRIVE
-    bl pico_z80_read8
+.if DRZ80_XMAP
+    bl z80_xmap_read8
 .else
     stmfd sp!,{r3,r12}
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_read8]			;@ r0 = addr - data returned in r0
 .endif
-.if UPDATE_CONTEXT
-     str z80pc,[cpucontext,#z80pc_pointer]
-.endif
 	mov r1,z80de, lsr #16
-.if DRZ80_FOR_PICODRIVE
-    bl pico_z80_write8
+.if DRZ80_XMAP
+    bl z80_xmap_write8
 .else
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_write8]			;@ r0=data r1=addr
@@ -829,14 +805,13 @@ pico_z80_write16: @ data, addr
 ;@---------------------------------------
 
 .macro opRESmemHL bit
-.if DRZ80_FOR_PICODRIVE
 	mov r0,z80hl, lsr #16
-    bl pico_z80_read8
+.if DRZ80_XMAP
+	bl z80_xmap_read8
 	bic r0,r0,#1<<\bit
 	mov r1,z80hl, lsr #16
-    bl pico_z80_write8
+	bl z80_xmap_write8
 .else
-	mov r0,z80hl, lsr #16
 	stmfd sp!,{r3,r12}
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_read8]			;@ r0 = addr - data returned in r0
@@ -851,12 +826,12 @@ pico_z80_write16: @ data, addr
 ;@---------------------------------------
 
 .macro opRESmem bit
-.if DRZ80_FOR_PICODRIVE
+.if DRZ80_XMAP
 	stmfd sp!,{r0}							;@ save addr as well
-    bl pico_z80_read8
+	bl z80_xmap_read8
 	bic r0,r0,#1<<\bit
 	ldmfd sp!,{r1}							;@ restore addr into r1
-    bl pico_z80_write8
+	bl z80_xmap_write8
 .else
 	stmfd sp!,{r3,r12}
 	stmfd sp!,{r0}							;@ save addr as well
@@ -1111,14 +1086,13 @@ pico_z80_write16: @ data, addr
 ;@---------------------------------------
 
 .macro opSETmemHL bit
-.if DRZ80_FOR_PICODRIVE
 	mov r0,z80hl, lsr #16
-    bl pico_z80_read8
+.if DRZ80_XMAP
+	bl z80_xmap_read8
 	orr r0,r0,#1<<\bit
 	mov r1,z80hl, lsr #16
-    bl pico_z80_write8
+	bl z80_xmap_write8
 .else
-	mov r0,z80hl, lsr #16
 	stmfd sp!,{r3,r12}
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_read8]			;@ r0 = addr - data returned in r0
@@ -1133,12 +1107,12 @@ pico_z80_write16: @ data, addr
 ;@---------------------------------------
 
 .macro opSETmem bit
-.if DRZ80_FOR_PICODRIVE
+.if DRZ80_XMAP
 	stmfd sp!,{r0}	;@ save addr as well
-    bl pico_z80_read8
+	bl z80_xmap_read8
 	orr r0,r0,#1<<\bit
 	ldmfd sp!,{r1}	;@ restore addr into r1
-    bl pico_z80_write8
+	bl z80_xmap_write8
 .else
 	stmfd sp!,{r3,r12}
 	stmfd sp!,{r0}	;@ save addr as well
@@ -1502,23 +1476,18 @@ DoInterrupt_mode2:
 	orr r0,r0,r1,lsr#16
 
 	;@ read new pc from vector address
-.if DRZ80_FOR_PICODRIVE
-    bl pico_z80_read16
-    bic r0,r0,#0xfe000
-    ldr r1,[cpucontext,#z80pc_base]
-    add z80pc,r1,r0
 .if UPDATE_CONTEXT
      str z80pc,[cpucontext,#z80pc_pointer]
 .endif
+.if DRZ80_XMAP
+    bl z80_xmap_read16
+    rebasepc
 .else
 	stmfd sp!,{r3,r12}
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_read16]
 
 	;@ rebase new pc
-.if UPDATE_CONTEXT
-     str z80pc,[cpucontext,#z80pc_pointer]
-.endif
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_rebasePC] ;@ r0=new pc - external function sets z80pc_base and returns new z80pc in r0
 	ldmfd sp!,{r3,r12}
