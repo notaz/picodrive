@@ -9,6 +9,8 @@
 extern "C" {
 #endif
 
+#define array_size(x) (sizeof(x) / sizeof(x[0]))
+
 extern void *g_screen_ptr;
 
 #if SCREEN_SIZE_FIXED
@@ -97,6 +99,13 @@ enum TPicoGameState {
 	PGS_SuspendWake,	/* PSP */
 };
 
+// media types
+enum {
+	PM_BAD = 0,
+	PM_MD_CART,	/* also 32x */
+	PM_MARK3,
+	PM_CD,
+};
 
 void  emu_init(void);
 void  emu_finish(void);

@@ -551,6 +551,11 @@ PICO_INTERNAL void PsndClear(void);
 PICO_INTERNAL void PsndGetSamples(int y);
 extern int PsndDacLine;
 
+// sms.c
+void PicoPowerMS(void);
+void PicoMemSetupMS(void);
+void PicoFrameMS(void);
+
 // emulation event logging
 #ifndef EL_LOGMASK
 #define EL_LOGMASK 0
@@ -596,7 +601,7 @@ extern void lprintf(const char *fmt, ...);
 #define cdprintf(x...)
 #endif
 
-#if defined(__GNUC__) && !defined(ARM)
+#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 3
 #define MEMH_FUNC __attribute__((aligned(4)))
 #else
 #define MEMH_FUNC

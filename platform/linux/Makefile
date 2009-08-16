@@ -12,7 +12,7 @@ CFLAGS += -O3 -Wall
 CFLAGS += -ftracer -fstrength-reduce -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math
 CFLAGS += -fprofile-generate
 else
-CFLAGS = -ggdb -Wall
+CFLAGS = -ggdb -Wall -falign-functions=2
 endif
 DEFINES = _UNZIP_SUPPORT IO_STATS IN_EVDEV
 CFLAGS += -I../.. -I.
@@ -38,7 +38,8 @@ endif
 
 # Pico
 OBJS += pico/area.o pico/cart.o pico/memory.o pico/misc.o pico/pico.o pico/sek.o \
-	pico/videoport.o pico/draw2.o pico/draw.o pico/z80if.o pico/patch.o pico/debug.o
+	pico/videoport.o pico/draw2.o pico/draw.o pico/z80if.o pico/patch.o \
+	pico/sms.o pico/debug.o
 # Pico - CD
 OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
 	pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \

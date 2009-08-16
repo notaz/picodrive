@@ -13,7 +13,7 @@
 #include "../unzip/unzip_stream.h"
 
 
-static char *rom_exts[] = { "bin", "gen", "smd", "iso" };
+static const char *rom_exts[] = { "bin", "gen", "smd", "iso", "sms", "gg", "sg" };
 
 void (*PicoCartUnloadHook)(void) = NULL;
 
@@ -99,7 +99,10 @@ pm_file *pm_open(const char *path)
         if (zipentry->uncompressed_size >= 128*1024) goto found_rom_zip;
         if (strlen(zipentry->name) < 5) continue;
 
-        ext = zipentry->name+strlen(zipentry->name)-3;
+        ext = zipentry->name + strlen(zipentry->name) - 2;
+        if (ext[-1] != '.') ext--;
+        if (ext[-1] != '.') ext--;
+
         for (i = 0; i < sizeof(rom_exts)/sizeof(rom_exts[0]); i++)
           if (strcasecmp(ext, rom_exts[i]) == 0) goto found_rom_zip;
       }
@@ -437,7 +440,7 @@ static unsigned char *PicoCartAlloc(int filesize)
   return rom;
 }
 
-int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
+int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms)
 {
   unsigned char *rom=NULL; int size, bytes_read;
   if (f==NULL) return 1;
@@ -478,19 +481,22 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize)
     return 3;
   }
 
-  // maybe we are loading MegaCD BIOS?
-  if (!(PicoAHW & PAHW_MCD) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) ||
-       !strncmp((char *)rom+0x128, "BOOT", 4))) {
-    PicoAHW |= PAHW_MCD;
-    rom = cd_realloc(rom, size);
-  }
+  if (!is_sms)
+  {
+    // maybe we are loading MegaCD BIOS?
+    if (!(PicoAHW & PAHW_MCD) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) ||
+         !strncmp((char *)rom+0x128, "BOOT", 4))) {
+      PicoAHW |= PAHW_MCD;
+      rom = cd_realloc(rom, size);
+    }
 
-  // Check for SMD:
-  if (size >= 0x4200 && (size&0x3fff)==0x200 &&
-      ((rom[0x2280] == 'S' && rom[0x280] == 'E') || (rom[0x280] == 'S' && rom[0x2281] == 'E'))) {
-    DecodeSmd(rom,size); size-=0x200; // Decode and byteswap SMD
+    // Check for SMD:
+    if (size >= 0x4200 && (size&0x3fff)==0x200 &&
+        ((rom[0x2280] == 'S' && rom[0x280] == 'E') || (rom[0x280] == 'S' && rom[0x2281] == 'E'))) {
+      DecodeSmd(rom,size); size-=0x200; // Decode and byteswap SMD
+    }
+    else Byteswap(rom,size); // Just byteswap
   }
-  else Byteswap(rom,size); // Just byteswap
 
   if (prom)  *prom=rom;
   if (psize) *psize=size;
@@ -520,7 +526,7 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
     PicoCartUnloadHook = NULL;
   }
 
-  PicoAHW &= PAHW_MCD;
+  PicoAHW &= PAHW_MCD|PAHW_SMS;
 
   PicoMemResetHooks();
   PicoDmaHook = NULL;
@@ -531,7 +537,7 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
 
   PicoMemReset();
 
-  if (!(PicoAHW & PAHW_MCD))
+  if (!(PicoAHW & (PAHW_MCD|PAHW_SMS)))
     PicoCartDetect();
 
   // setup correct memory map for loaded ROM
@@ -543,15 +549,25 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
     case PAHW_SVP:  PicoMemSetup(); break;
     case PAHW_MCD:  PicoMemSetupCD(); break;
     case PAHW_PICO: PicoMemSetupPico(); break;
+    case PAHW_SMS:  PicoMemSetupMS(); break;
   }
   PicoMemReset();
 
-  PicoPower();
+  if (PicoAHW & PAHW_SMS)
+    PicoPowerMS();
+  else
+    PicoPower();
+
   return 0;
 }
 
 void PicoCartUnload(void)
 {
+  if (PicoCartUnloadHook != NULL) {
+    PicoCartUnloadHook();
+    PicoCartUnloadHook = NULL;
+  }
+
   if (Pico.rom != NULL) {
     SekFinishIdleDet();
     free(Pico.rom);

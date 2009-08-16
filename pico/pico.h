@@ -57,6 +57,7 @@ extern int PicoOpt; // bitfield
 #define PAHW_32X  (1<<1)
 #define PAHW_SVP  (1<<2)
 #define PAHW_PICO (1<<3)
+#define PAHW_SMS  (1<<4)
 extern int PicoAHW;            // Pico active hw
 extern int PicoVer;
 extern int PicoSkipFrame;      // skip rendering frame, but still do sound (if enabled) and emulation stuff
@@ -133,7 +134,7 @@ pm_file *pm_open(const char *path);
 size_t   pm_read(void *ptr, size_t bytes, pm_file *stream);
 int      pm_seek(pm_file *stream, long offset, int whence);
 int      pm_close(pm_file *fp);
-int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize);
+int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms);
 int PicoCartInsert(unsigned char *rom,unsigned int romsize);
 void Byteswap(unsigned char *data,int len);
 void PicoCartUnload(void);

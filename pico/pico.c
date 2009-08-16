@@ -289,6 +289,10 @@ void PicoFrame(void)
     PicoFrameMCD();
     return;
   }
+  else if (PicoAHW & PAHW_SMS) {
+    PicoFrameMS();
+    return;
+  }
 
   //if(Pico.video.reg[12]&0x2) Pico.video.status ^= 0x10; // change odd bit in interlace mode
 

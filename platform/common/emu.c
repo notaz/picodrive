@@ -174,8 +174,7 @@ static int emu_isBios(const char *name)
 
 static unsigned char id_header[0x100];
 
-/* checks if fname points to valid MegaCD image
- * if so, checks for suitable BIOS */
+/* checks if fname points to valid MegaCD image */
 static int emu_cd_check(int *pregion, const char *fname_in)
 {
 	const char *fname = fname_in;
@@ -241,6 +240,58 @@ static int emu_cd_check(int *pregion, const char *fname_in)
 	if (pregion != NULL) *pregion = region;
 
 	return type;
+}
+
+static int detect_media(const char *fname)
+{
+	static const short sms_offsets[] = { 0x7ff0, 0x3ff0, 0x1ff0 };
+	pm_file *pmf;
+	char buff[32];
+	char ext[5];
+	int i;
+
+	get_ext(fname, ext);
+
+	// detect wrong extensions
+	if (!strcmp(ext, ".srm") || !strcmp(ext, "s.gz") || !strcmp(ext, ".mds")) // s.gz ~ .mds.gz
+		return PM_BAD;
+
+	/* don't believe in extensions, except .cue */
+	if (strcasecmp(ext, ".cue") == 0)
+		return PM_CD;
+
+	pmf = pm_open(fname);
+	if (pmf == NULL)
+		return PM_BAD;
+
+	if (pm_read(buff, 32, pmf) != 32) {
+		pm_close(pmf);
+		return PM_BAD;
+	}
+
+	if (strncasecmp("SEGADISCSYSTEM", buff + 0x00, 14) == 0 ||
+	    strncasecmp("SEGADISCSYSTEM", buff + 0x10, 14) == 0) {
+		pm_close(pmf);
+		return PM_CD;
+	}
+
+	for (i = 0; i < array_size(sms_offsets); i++) {
+		if (pm_seek(pmf, sms_offsets[i], SEEK_SET) != sms_offsets[i])
+			goto not_mark3;		/* actually it could be but can't be detected */
+
+		if (pm_read(buff, 16, pmf) != 16)
+			goto not_mark3;
+
+		if (strncasecmp("TMR SEGA", buff, 8) == 0) {
+			pm_close(pmf);
+			return PM_MARK3;
+		}
+	}
+
+not_mark3:
+	pm_close(pmf);
+	/* the main emu function is to emulate MD, so assume MD */
+	return PM_MD_CART;
 }
 
 static int extract_text(char *dest, const unsigned char *src, int len, int swab)
@@ -321,6 +372,7 @@ static void shutdown_MCD(void)
 }
 
 // note: this function might mangle rom_fname
+// XXX: portions of this code should move to pico/
 int emu_reload_rom(char *rom_fname)
 {
 	unsigned int rom_size = 0;
@@ -328,19 +380,13 @@ int emu_reload_rom(char *rom_fname)
 	unsigned char *rom_data = NULL;
 	char ext[5];
 	pm_file *rom = NULL;
-	int ret, cd_state, cd_region, cfg_loaded = 0;
+	int cd_state = CIT_NOT_CD;
+	int ret, media_type, cd_region;
+	int cfg_loaded = 0, bad_rom = 0;
 
 	lprintf("emu_ReloadRom(%s)\n", rom_fname);
 
 	get_ext(rom_fname, ext);
-
-	// detect wrong extensions
-	if (!strcmp(ext, ".srm") || !strcmp(ext, "s.gz") || !strcmp(ext, ".mds")) { // s.gz ~ .mds.gz
-		me_update_msg("Not a ROM/CD selected.");
-		return 0;
-	}
-
-	PicoPatchUnload();
 
 	// check for movie file
 	if (movie_data) {
@@ -396,46 +442,53 @@ int emu_reload_rom(char *rom_fname)
 		get_ext(rom_fname, ext);
 	}
 
+	media_type = detect_media(rom_fname);
+	if (media_type == PM_BAD) {
+		me_update_msg("Not a ROM/CD img selected.");
+		return 0;
+	}
+
 	shutdown_MCD();
+	PicoPatchUnload();
 
-	// check for MegaCD image
-	cd_state = emu_cd_check(&cd_region, rom_fname);
-	if (cd_state >= 0 && cd_state != CIT_NOT_CD)
+	if (media_type == PM_CD)
 	{
-		PicoAHW |= PAHW_MCD;
-		// valid CD image, check for BIOS..
+		// check for MegaCD image
+		cd_state = emu_cd_check(&cd_region, rom_fname);
+		if (cd_state >= 0 && cd_state != CIT_NOT_CD)
+		{
+			// valid CD image, check for BIOS..
 
-		// we need to have config loaded at this point
-		ret = emu_read_config(1, 0);
-		if (!ret) emu_read_config(0, 0);
-		cfg_loaded = 1;
+			// we need to have config loaded at this point
+			ret = emu_read_config(1, 0);
+			if (!ret) emu_read_config(0, 0);
+			cfg_loaded = 1;
 
-		if (PicoRegionOverride) {
-			cd_region = PicoRegionOverride;
-			lprintf("overrided region to %s\n", cd_region != 4 ? (cd_region == 8 ? "EU" : "JAP") : "USA");
+			if (PicoRegionOverride) {
+				cd_region = PicoRegionOverride;
+				lprintf("override region to %s\n", cd_region != 4 ?
+					(cd_region == 8 ? "EU" : "JAP") : "USA");
+			}
+			if (!find_bios(cd_region, &used_rom_name))
+				return 0;
+
+			get_ext(used_rom_name, ext);
+			PicoAHW |= PAHW_MCD;
 		}
-		if (!find_bios(cd_region, &used_rom_name)) {
-			PicoAHW &= ~PAHW_MCD;
+		else {
+			me_update_msg("Invalid CD image");
 			return 0;
 		}
-
-		get_ext(used_rom_name, ext);
 	}
-	else
-	{
-		if (PicoAHW & PAHW_MCD) Stop_CD();
-		PicoAHW &= ~PAHW_MCD;
+	else if (media_type == PM_MARK3) {
+		lprintf("detected SMS ROM\n");
+		PicoAHW = PAHW_SMS;
 	}
 
 	rom = pm_open(used_rom_name);
-	if (!rom) {
-		me_update_msg("Failed to open ROM/CD image");
-		goto fail;
-	}
-
-	if (cd_state < 0) {
-		me_update_msg("Invalid CD image");
-		goto fail;
+	if (rom == NULL) {
+		me_update_msg("Failed to open ROM");
+		return 0;
 	}
 
 	menu_romload_prepare(used_rom_name); // also CD load
@@ -443,21 +496,29 @@ int emu_reload_rom(char *rom_fname)
 	PicoCartUnload();
 	rom_loaded = 0;
 
-	if ( (ret = PicoCartLoad(rom, &rom_data, &rom_size)) ) {
+	ret = PicoCartLoad(rom, &rom_data, &rom_size, (PicoAHW & PAHW_SMS) ? 1 : 0);
+	pm_close(rom);
+	if (ret != 0) {
 		if      (ret == 2) me_update_msg("Out of memory");
 		else if (ret == 3) me_update_msg("Read failed");
 		else               me_update_msg("PicoCartLoad() failed.");
-		goto fail2;
+		goto fail;
 	}
-	pm_close(rom);
-	rom = NULL;
 
-	// detect wrong files (Pico crashes on very small files), also see if ROM EP is good
-	if (rom_size <= 0x200 || strncmp((char *)rom_data, "Pico", 4) == 0 ||
-	  ((*(unsigned char *)(rom_data+4)<<16)|(*(unsigned short *)(rom_data+6))) >= (int)rom_size) {
-		if (rom_data) free(rom_data);
-		me_update_msg("Not a ROM selected.");
-		goto fail2;
+	// detect wrong files
+	if (strncmp((char *)rom_data, "Pico", 4) == 0)
+		bad_rom = 1;
+	else if (!(PicoAHW & PAHW_SMS)) {
+		unsigned short *d = (unsigned short *)(rom_data + 4);
+		if ((((d[0] << 16) | d[1]) & 0xffffff) >= (int)rom_size) {
+			lprintf("bad reset vector\n");
+			bad_rom = 1;
+		}
+	}
+
+	if (bad_rom) {
+		me_update_msg("Bad ROM detected.");
+		goto fail;
 	}
 
 	// load config for this ROM (do this before insert to get correct region)
@@ -468,18 +529,19 @@ int emu_reload_rom(char *rom_fname)
 		if (!ret) emu_read_config(0, 0);
 	}
 
-	lprintf("PicoCartInsert(%p, %d);\n", rom_data, rom_size);
 	if (PicoCartInsert(rom_data, rom_size)) {
 		me_update_msg("Failed to load ROM.");
-		goto fail2;
+		goto fail;
 	}
 
 	// insert CD if it was detected
 	if (cd_state != CIT_NOT_CD) {
 		ret = Insert_CD(rom_fname, cd_state);
 		if (ret != 0) {
+			PicoCartUnload();
+			rom_data = NULL; // freed by unload
 			me_update_msg("Insert_CD() failed, invalid CD image?");
-			goto fail2;
+			goto fail;
 		}
 	}
 
@@ -511,8 +573,22 @@ int emu_reload_rom(char *rom_fname)
 	}
 	else
 	{
+		const char *sys_name, *tv_standard;
+		int fps;
+
+		if (PicoAHW & PAHW_SMS) {
+			sys_name = "Master System";
+		} else {
+			sys_name = "MegaDrive";
+			if ((Pico.m.hardware&0xc0) == 0x80)
+				sys_name = "Genesis";
+		}
+		tv_standard = Pico.m.pal ? "PAL" : "NTSC";
+		fps = Pico.m.pal ? 50 : 60;
+
+ 		emu_status_msg("%s %s / %dFPS", tv_standard, sys_name, fps);
+
 		PicoOpt &= ~POPT_DIS_VDP_FIFO;
-		emu_status_msg(Pico.m.pal ? "PAL SYSTEM / 50 FPS" : "NTSC SYSTEM / 60 FPS");
 	}
 
 	strncpy(rom_fname_loaded, rom_fname, sizeof(rom_fname_loaded)-1);
@@ -525,10 +601,10 @@ int emu_reload_rom(char *rom_fname)
 
 	return 1;
 
-fail2:
-	menu_romload_end();
 fail:
-	if (rom != NULL) pm_close(rom);
+	if (rom_data)
+		free(rom_data);
+	menu_romload_end();
 	return 0;
 }
 
