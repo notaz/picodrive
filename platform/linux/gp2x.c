@@ -1,10 +1,10 @@
-/* faking/emulating gp2x by using gtk */
+/* faking/emulating gp2x by using xlib */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <gtk/gtk.h>
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -33,33 +33,15 @@ int crashed_940 = 0;
 int default_cpu_clock = 123;
 void *gp2x_memregs = NULL;
 
-/* gtk */
-struct gtk_global_struct
-{
-        GtkWidget *window;
-        GtkWidget *pixmap1;
-} gtk_items;
-
-
-static gboolean delete_event (GtkWidget *widget, GdkEvent *event, gpointer data)
-{
-	return FALSE;
-}
-
-static void destroy (GtkWidget *widget, gpointer data)
-{
-	gtk_main_quit ();
-}
-
 /* faking GP2X pad */
 enum  { GP2X_UP=0x1,       GP2X_LEFT=0x4,       GP2X_DOWN=0x10,  GP2X_RIGHT=0x40,
         GP2X_START=1<<8,   GP2X_SELECT=1<<9,    GP2X_L=1<<10,    GP2X_R=1<<11,
         GP2X_A=1<<12,      GP2X_B=1<<13,        GP2X_X=1<<14,    GP2X_Y=1<<15,
         GP2X_VOL_UP=1<<23, GP2X_VOL_DOWN=1<<22, GP2X_PUSH=1<<27 };
 
-static gint key_press_event (GtkWidget *widget, GdkEventKey *event)
+static void key_press_event(int keycode)
 {
-	switch (event->hardware_keycode)
+	switch (keycode)
 	{
 		case 111:
 		case 0x62: current_keys |= GP2X_UP;    break;
@@ -88,13 +70,11 @@ static gint key_press_event (GtkWidget *widget, GdkEventKey *event)
 			break;
 		}
 	}
-
-	return 0;
 }
 
-static gint key_release_event (GtkWidget *widget, GdkEventKey *event)
+static void key_release_event(int keycode)
 {
-	switch (event->hardware_keycode)
+	switch (keycode)
 	{
 		case 111:
 		case 0x62: current_keys &= ~GP2X_UP;    break;
@@ -116,90 +96,162 @@ static gint key_release_event (GtkWidget *widget, GdkEventKey *event)
 		case 0x18: current_keys &= ~GP2X_VOL_DOWN;break; // q
 		case 0x19: current_keys &= ~GP2X_VOL_UP;break; // w
 	}
-
-	return 0;
 }
 
-static void size_allocate_event(GtkWidget *widget, GtkAllocation *allocation, gpointer user_data)
+/* --- */
+
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+
+static Display *xlib_display;
+static Window xlib_window;
+static XImage *ximage;
+
+static void ximage_realloc(Display *display, Visual *visual)
 {
-	// printf("%dx%d\n", allocation->width, allocation->height);
-	if (scr_w != allocation->width - 2 || scr_h != allocation->height - 2) {
-		scr_w = allocation->width - 2;
-		scr_h = allocation->height - 2;
-		scr_changed = 1;
+	void *xlib_screen;
+
+	XLockDisplay(xlib_display);
+
+	if (ximage != NULL)
+		XDestroyImage(ximage);
+	ximage = NULL;
+
+	xlib_screen = calloc(scr_w * scr_h, 4);
+	if (xlib_screen != NULL)
+		ximage = XCreateImage(display, visual, 24, ZPixmap, 0,
+				xlib_screen, scr_w, scr_h, 32, 0);
+	if (ximage == NULL)
+		fprintf(stderr, "failed to alloc ximage\n");
+
+	XUnlockDisplay(xlib_display);
+}
+
+static void xlib_update(void)
+{
+	Status xstatus;
+
+	XLockDisplay(xlib_display);
+
+	xstatus = XPutImage(xlib_display, xlib_window, DefaultGC(xlib_display, 0), ximage,
+		0, 0, 0, 0, g_screen_width, g_screen_height);
+	if (xstatus != 0)
+		fprintf(stderr, "XPutImage %d\n", xstatus);
+
+	XUnlockDisplay(xlib_display);
+}
+
+static void *xlib_threadf(void *targ)
+{
+	unsigned int width, height, display_width, display_height;
+	sem_t *sem = targ;
+	XTextProperty windowName;
+	Window win;
+	XEvent report;
+	Display *display;
+	Visual *visual;
+	int screen;
+
+	XInitThreads();
+
+	xlib_display = display = XOpenDisplay(NULL);
+	if (display == NULL)
+	{
+		fprintf(stderr, "cannot connect to X server %s\n",
+				XDisplayName(NULL));
+		sem_post(sem);
+		return NULL;
+	}
+
+	visual = DefaultVisual(display, 0);
+	if (visual->class != TrueColor)
+	{
+		fprintf(stderr, "cannot handle non true color visual\n");
+		XCloseDisplay(display);
+		sem_post(sem);
+		return NULL;
+	}
+
+	printf("X vendor: %s, rel: %d, display: %s, protocol ver: %d.%d\n", ServerVendor(display),
+		VendorRelease(display), DisplayString(display), ProtocolVersion(display),
+		ProtocolRevision(display));
+
+	screen = DefaultScreen(display);
+
+	ximage_realloc(display, visual);
+	sem_post(sem);
+
+	display_width = DisplayWidth(display, screen);
+	display_height = DisplayHeight(display, screen);
+
+	xlib_window = win = XCreateSimpleWindow(display,
+			RootWindow(display, screen),
+			display_width / 2 - scr_w / 2,
+			display_height / 2 - scr_h / 2,
+			scr_w + 2, scr_h + 2, 1,
+			BlackPixel(display, screen),
+			BlackPixel(display, screen));
+
+	XStringListToTextProperty((char **)&verstring, 1, &windowName);
+	XSetWMName(display, win, &windowName);
+
+	XSelectInput(display, win, ExposureMask |
+			KeyPressMask |
+			ButtonPressMask |
+			StructureNotifyMask);
+
+	XMapWindow(display, win);
+
+	while (1)
+	{
+		XNextEvent(display, &report);
+		switch (report.type)
+		{
+			case Expose:
+				while (XCheckTypedEvent(display, Expose, &report))
+					;
+				xlib_update();
+				break;
+
+			case ConfigureNotify:
+				width = report.xconfigure.width;
+				height = report.xconfigure.height;
+				if (scr_w != width - 2 || scr_h != height - 2) {
+					scr_w = width - 2;
+					scr_h = height - 2;
+					scr_changed = 1;
+				}
+				break;
+
+			case ButtonPress:
+				break;
+
+			case KeyPress:
+				key_press_event(report.xkey.keycode);
+				break;
+
+			case KeyRelease:
+				key_release_event(report.xkey.keycode);
+				break;
+
+			default:
+				break;
+		}
 	}
 }
 
-static void *gtk_threadf(void *targ)
+static void xlib_init(void)
 {
-	int argc = 0;
-	char *argv[] = { "" };
-	GtkWidget *box;
-	sem_t *sem = targ;
+	pthread_t x_thread;
+	sem_t xlib_sem;
 
-	g_thread_init (NULL);
-	gdk_threads_init ();
-	gdk_set_locale ();
-	gtk_init (&argc, (char ***) &argv);
+	sem_init(&xlib_sem, 0, 0);
 
-	/* create new window */
-	gtk_items.window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-	g_signal_connect (G_OBJECT (gtk_items.window), "delete_event",
-			G_CALLBACK (delete_event), NULL);
+	pthread_create(&x_thread, NULL, xlib_threadf, &xlib_sem);
+	pthread_detach(x_thread);
 
-	g_signal_connect (G_OBJECT (gtk_items.window), "destroy",
-			G_CALLBACK (destroy), NULL);
-
-	g_signal_connect (G_OBJECT (gtk_items.window), "key_press_event",
-			G_CALLBACK (key_press_event), NULL);
-
-	g_signal_connect (G_OBJECT (gtk_items.window), "key_release_event",
-			G_CALLBACK (key_release_event), NULL);
-
-	g_signal_connect (G_OBJECT (gtk_items.window), "size_allocate",
-			G_CALLBACK (size_allocate_event), NULL);
-
-	gtk_container_set_border_width (GTK_CONTAINER (gtk_items.window), 1);
-	gtk_window_set_title ((GtkWindow *) gtk_items.window, verstring);
-
-	box = gtk_hbox_new(FALSE, 0);
-	gtk_widget_show(box);
-	gtk_container_add (GTK_CONTAINER (gtk_items.window), box);
-
-	/* live pixmap */
-	gtk_items.pixmap1 = gtk_image_new ();
-	gtk_container_add (GTK_CONTAINER (box), gtk_items.pixmap1);
-	gtk_widget_show (gtk_items.pixmap1);
-	gtk_widget_set_size_request (gtk_items.pixmap1, 320, 240);
-
-	gtk_widget_show  (gtk_items.window);
-
-	sem_post(sem);
-
-	gtk_main();
-
-	printf("linux: gtk thread finishing\n");
-	exit(1);
-
-	return NULL;
-}
-
-static void gtk_initf(void)
-{
-	pthread_t gtk_thread;
-	sem_t sem;
-	sem_init(&sem, 0, 0);
-
-	pthread_create(&gtk_thread, NULL, gtk_threadf, &sem);
-	pthread_detach(gtk_thread);
-
-	sem_wait(&sem);
-	sem_close(&sem);
-}
-
-void finalize_image(guchar *pixels, gpointer data)
-{
-	free(pixels);
+	sem_wait(&xlib_sem);
+	sem_destroy(&xlib_sem);
 }
 
 /* --- */
@@ -221,20 +273,14 @@ static void realloc_screen(void)
 /* gp2x/emu.c stuff, most to be rm'd */
 static void gp2x_video_flip_(void)
 {
-	GdkPixbuf	*pixbuf;
-	unsigned char	*image;
-	int		pixel_count, i;
+	unsigned int *image;
+	int pixel_count, i;
+
+	if (ximage == NULL)
+		return;
 
 	pixel_count = g_screen_width * g_screen_height;
-
-	gdk_threads_enter();
-
-	image = malloc(pixel_count * 3);
-	if (image == NULL)
-	{
-		gdk_threads_leave();
-		return;
-	}
+	image = (void *)ximage->data;
 
 	if (current_bpp == 8)
 	{
@@ -244,9 +290,7 @@ static void gp2x_video_flip_(void)
 		for (i = 0; i < pixel_count; i++)
 		{
 			pix = current_pal[pixels[i]];
-			image[3 * i + 0] = pix >> 16;
-			image[3 * i + 1] = pix >>  8;
-			image[3 * i + 2] = pix;
+			image[i] = pix;
 		}
 	}
 	else
@@ -257,22 +301,17 @@ static void gp2x_video_flip_(void)
 		{
 			/*  in:           rrrr rggg gggb bbbb */
 			/* out: rrrr r000 gggg gg00 bbbb b000 */
-			image[3 * i + 0] = (pixels[i] >> 8) & 0xf8;
-			image[3 * i + 1] = (pixels[i] >> 3) & 0xfc;
-			image[3 * i + 2] = (pixels[i] << 3);
+			image[i]  = (pixels[i] << 8) & 0xf80000;
+			image[i] |= (pixels[i] << 5) & 0x00fc00;
+			image[i] |= (pixels[i] << 3) & 0x0000f8;
 		}
 	}
+	xlib_update();
 
-	pixbuf = gdk_pixbuf_new_from_data (image, GDK_COLORSPACE_RGB,
-			FALSE, 8, g_screen_width, g_screen_height,
-			g_screen_width * 3, finalize_image, NULL);
-	gtk_image_set_from_pixbuf (GTK_IMAGE (gtk_items.pixmap1), pixbuf);
-	g_object_unref (pixbuf);
-
-	gdk_threads_leave();
-
-	if (scr_changed)
+	if (scr_changed) {
 		realloc_screen();
+		ximage_realloc(xlib_display, DefaultVisual(xlib_display, 0));
+	}
 }
 
 static void gp2x_video_changemode_ll_(int bpp)
@@ -365,7 +404,7 @@ void plat_init(void)
 	// snd
 	sndout_oss_init();
 
-	gtk_initf();
+	xlib_init();
 }
 
 void plat_finish(void)

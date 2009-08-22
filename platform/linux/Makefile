@@ -16,12 +16,7 @@ CFLAGS = -ggdb -Wall -falign-functions=2
 endif
 DEFINES = _UNZIP_SUPPORT IO_STATS IN_EVDEV
 CFLAGS += -I../.. -I.
-
-# gtk
-CFLAGS  += `pkg-config --cflags gtk+-2.0`
-LDFLAGS += `pkg-config --libs gtk+-2.0`
-CFLAGS  += `pkg-config --cflags gthread-2.0`
-LDFLAGS += `pkg-config --libs gthread-2.0`
+LDFLAGS += -lX11 -lpthread
 
 # frontend
 OBJS += platform/gp2x/emu.o blit.o in_evdev.o plat.o sndout_oss.o gp2x.o log_io.o
@@ -133,10 +128,6 @@ cpu/mz80/mz80.o : ../../cpu/mz80/mz80.asm
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -c $< -o $@
 
-
-#pico/sound/ym2612.o : ../../pico/sound/ym2612.c
-#	@echo ">>>" $@
-#	$(CC) $(CFLAGS) -c $< -o $@
 
 cpu/fame/famec.o : ../../cpu/fame/famec.c ../../cpu/fame/famec_opcodes.h
 	@echo ">>>" $<
