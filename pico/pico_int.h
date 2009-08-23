@@ -272,10 +272,14 @@ struct PicoMisc
 struct Pico
 {
   unsigned char ram[0x10000];  // 0x00000 scratch ram
-  unsigned short vram[0x8000]; // 0x10000
+  union {
+    unsigned short vram[0x8000];  // 0x10000
+    unsigned char  vramb[0x4000]; // VRAM in SMS mode
+  };
   unsigned char zram[0x2000];  // 0x20000 Z80 ram
   unsigned char ioports[0x10];
-  unsigned int pad[0x3c];      // unused
+  unsigned char sms_io_ctl;
+  unsigned char pad[0xef];     // unused
   unsigned short cram[0x40];   // 0x22100
   unsigned short vsram[0x40];  // 0x22180
 
@@ -549,10 +553,12 @@ PICO_INTERNAL void PsndReset(void);
 PICO_INTERNAL void PsndDoDAC(int line_to);
 PICO_INTERNAL void PsndClear(void);
 PICO_INTERNAL void PsndGetSamples(int y);
+PICO_INTERNAL void PsndGetSamplesMS(void);
 extern int PsndDacLine;
 
 // sms.c
 void PicoPowerMS(void);
+void PicoResetMS(void);
 void PicoMemSetupMS(void);
 void PicoFrameMS(void);
 

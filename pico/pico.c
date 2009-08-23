@@ -141,14 +141,23 @@ int PicoReset(void)
 {
   unsigned char sram_reg=Pico.m.sram_reg; // must be preserved
 
-  if (Pico.romsize<=0) return 1;
+  if (Pico.romsize <= 0)
+    return 1;
 
   /* must call now, so that banking is reset, and correct vectors get fetched */
-  if (PicoResetHook) PicoResetHook();
+  if (PicoResetHook)
+    PicoResetHook();
 
   PicoMemReset();
-  SekReset();
   memset(&PicoPadInt,0,sizeof(PicoPadInt));
+  emustatus = 0;
+
+  if (PicoAHW & PAHW_SMS) {
+    PicoResetMS();
+    return 0;
+  }
+
+  SekReset();
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
   SekSetRealTAS(PicoAHW & PAHW_MCD);
   SekCycleCntT=0;
@@ -156,7 +165,6 @@ int PicoReset(void)
   if (PicoAHW & PAHW_MCD)
     // needed for MCD to reset properly, probably some bug hides behind this..
     memset(Pico.ioports,0,sizeof(Pico.ioports));
-  emustatus = 0;
 
   Pico.m.dirtyPal = 1;
 
@@ -169,7 +177,7 @@ int PicoReset(void)
   PsndReset(); // pal must be known here
 
   // create an empty "dma" to cause 68k exec start at random frame location
-  if (Pico.m.dma_xfers == 0 && !(PicoOpt&POPT_DIS_VDP_FIFO))
+  if (Pico.m.dma_xfers == 0 && !(PicoOpt & POPT_DIS_VDP_FIFO))
     Pico.m.dma_xfers = rand() & 0x1fff;
 
   SekFinishIdleDet();

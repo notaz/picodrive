@@ -396,3 +396,30 @@ PICO_INTERNAL void PsndGetSamples(int y)
 #endif
 }
 
+PICO_INTERNAL void PsndGetSamplesMS(void)
+{
+  int *buf32 = PsndBuffer;
+  int stereo = (PicoOpt & 8) >> 3;
+  int length = PsndLen;
+
+#if !SIMPLE_WRITE_SOUND
+  // compensate for float part of PsndLen
+  PsndLen_exc_cnt += PsndLen_exc_add;
+  if (PsndLen_exc_cnt >= 0x10000) {
+    PsndLen_exc_cnt -= 0x10000;
+    length++;
+  }
+#endif
+
+  // PSG
+  if (PicoOpt & POPT_EN_PSG)
+    SN76496Update(PsndOut, length, stereo);
+
+  // convert + limit to normal 16bit output
+  PsndMix_32_to_16l(PsndOut, buf32, length);
+
+  if (PicoWriteSound != NULL)
+    PicoWriteSound(length);
+  PsndClear();
+}
+
