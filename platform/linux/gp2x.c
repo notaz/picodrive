@@ -196,8 +196,7 @@ static void *xlib_threadf(void *targ)
 	XSetWMName(display, win, &windowName);
 
 	XSelectInput(display, win, ExposureMask |
-			KeyPressMask |
-			ButtonPressMask |
+			KeyPressMask | KeyReleaseMask |
 			StructureNotifyMask);
 
 	XMapWindow(display, win);
