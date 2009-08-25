@@ -74,7 +74,6 @@ struct TileStrip
 // stuff available in asm:
 #ifdef _ASM_DRAW_C
 void DrawWindow(int tstart, int tend, int prio, int sh);
-void BackFill(int reg7, int sh);
 void DrawAllSprites(unsigned char *sprited, int prio, int sh);
 void DrawTilesFromCache(int *hc, int sh, int rlim);
 void DrawSpritesSHi(unsigned char *sprited);
@@ -1140,7 +1139,7 @@ static void DrawAllSprites(unsigned char *sprited, int prio, int sh)
 
 // --------------------------------------------
 
-static void BackFill(int reg7, int sh)
+void BackFill(int reg7, int sh)
 {
   unsigned int back;
 
@@ -1303,7 +1302,7 @@ static void FinalizeLine8bit(int sh)
   }
 }
 
-static void (*FinalizeLine)(int sh) = FinalizeLineBGR444;
+static void (*FinalizeLine)(int sh);
 
 // --------------------------------------------
 

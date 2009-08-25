@@ -439,6 +439,7 @@ static void vidResetMode(void)
 	}
 	else if (currentConfig.EmuOpt & EOPT_16BPP) {
 		PicoDrawSetColorFormat(1);
+		PicoDrawSetColorFormatMode4(1);
 		if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
 			gp2x_video_changemode(-16);
 			PicoScanBegin = EmuScanBegin16_rot;

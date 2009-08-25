@@ -272,7 +272,7 @@ struct PicoMisc
 struct Pico
 {
   unsigned char ram[0x10000];  // 0x00000 scratch ram
-  union {
+  union {                      // vram is byteswapped for easier reads when drawing
     unsigned short vram[0x8000];  // 0x10000
     unsigned char  vramb[0x4000]; // VRAM in SMS mode
   };
@@ -415,12 +415,18 @@ int CM_compareRun(int cyc, int is_sub);
 // draw.c
 PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawSync(int to, int blank_last_line);
+void BackFill(int reg7, int sh);
 extern int DrawScanline;
 #define MAX_LINE_SPRITES 29
 extern unsigned char HighLnSpr[240][3 + MAX_LINE_SPRITES];
 
 // draw2.c
 PICO_INTERNAL void PicoFrameFull();
+
+// mode4.c
+void PicoFrameStartMode4(void);
+void PicoLineMode4(int line);
+void PicoDoHighPal555M4(void);
 
 // memory.c
 PICO_INTERNAL void PicoInitPc(unsigned int pc);

@@ -28,11 +28,11 @@ static void vdp_data_write(unsigned char d)
 
   if (pv->type == 3) {
     Pico.cram[pv->addr & 0x1f] = d;
+    Pico.m.dirtyPal = 1;
   } else {
     Pico.vramb[pv->addr] = d;
   }
   pv->addr = (pv->addr + 1) & 0x3fff;
-  elprintf(EL_ANOMALY, "  addr=%04x", pv->addr);
 
   pv->pending = 0;
 }
@@ -44,7 +44,7 @@ static void vdp_ctl_write(unsigned char d)
   if (pv->pending) {
     if ((d >> 6) == 2) {
       pv->reg[d & 0x0f] = pv->addr;
-      elprintf(EL_ANOMALY, "  VDP r%02x=%02x", d & 0x0f, pv->addr & 0xff);
+      elprintf(EL_IO, "  VDP r%02x=%02x", d & 0x0f, pv->addr & 0xff);
     }
     pv->type = d >> 6;
     pv->addr &= 0x00ff;
@@ -60,7 +60,7 @@ static unsigned char z80_sms_in(unsigned short a)
 {
   unsigned char d = 0;
 
-  elprintf(EL_ANOMALY, "z80 port %04x read", a);
+  elprintf(EL_IO, "z80 port %04x read", a);
   a &= 0xc1;
   switch (a)
   {
@@ -95,13 +95,13 @@ static unsigned char z80_sms_in(unsigned short a)
       break;
   }
 
-  elprintf(EL_ANOMALY, "ret = %02x", d);
+  elprintf(EL_IO, "ret = %02x", d);
   return d;
 }
 
 static void z80_sms_out(unsigned short a, unsigned char d)
 {
-  elprintf(EL_ANOMALY, "z80 port %04x write %02x", a, d);
+  elprintf(EL_IO, "z80 port %04x write %02x", a, d);
   a &= 0xc1;
   switch (a)
   {
@@ -151,15 +151,9 @@ static void write_bank(unsigned short a, unsigned char d)
   }
 }
 
-static unsigned char MEMH_FUNC xread(unsigned short a)
-{
-  elprintf(EL_ANOMALY, "z80 read  [%04x]", a);
-  return Pico.zram[a & 0x1fff];
-}
-
 static void MEMH_FUNC xwrite(unsigned int a, unsigned char d)
 {
-  elprintf(EL_ANOMALY, "z80 write [%04x] %02x", a, d);
+  elprintf(EL_IO, "z80 write [%04x] %02x", a, d);
   if (a >= 0xc000)
     Pico.zram[a & 0x1fff] = d;
   if (a >= 0xfff0)
@@ -186,7 +180,7 @@ void PicoMemSetupMS(void)
 {
   z80_map_set(z80_read_map, 0x0000, 0xbfff, Pico.rom, 0);
   z80_map_set(z80_read_map, 0xc000, 0xdfff, Pico.zram, 0);
-  z80_map_set(z80_read_map, 0xe000, 0xffff, xread, 1);
+  z80_map_set(z80_read_map, 0xe000, 0xffff, Pico.zram, 0);
 
   z80_map_set(z80_write_map, 0x0000, 0xbfff, xwrite, 1);
   z80_map_set(z80_write_map, 0xc000, 0xdfff, Pico.zram, 0);
@@ -215,11 +209,15 @@ void PicoFrameMS(void)
   int lines_vis = 192;
   int y;
 
+  PicoFrameStartMode4();
+
   for (y = 0; y < lines; y++)
   {
     pv->v_counter = Pico.m.scanline = y;
 
-    if (y == lines_vis + 1) {
+    if (y < lines_vis)
+      PicoLineMode4(y);
+    else if (y == lines_vis + 1) {
       Pico.video.pending_ints |= 1;
       if (Pico.video.reg[1] & 0x20) {
         elprintf(EL_INTS, "vint");
@@ -232,6 +230,5 @@ void PicoFrameMS(void)
   }
 
   PsndGetSamplesMS();
-  elprintf(EL_ANOMALY, "frame end");
 }
 

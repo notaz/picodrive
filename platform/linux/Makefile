@@ -34,7 +34,7 @@ endif
 # Pico
 OBJS += pico/area.o pico/cart.o pico/memory.o pico/misc.o pico/pico.o pico/sek.o \
 	pico/videoport.o pico/draw2.o pico/draw.o pico/z80if.o pico/patch.o \
-	pico/sms.o pico/debug.o
+	pico/mode4.o pico/sms.o pico/debug.o
 # Pico - CD
 OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
 	pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \

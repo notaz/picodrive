@@ -179,6 +179,9 @@ extern unsigned char  *PicoDraw2FB;  // buffer for fast renderer in format (8+32
 extern unsigned short *PicoCramHigh; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to use
 
+// mode4.c
+void PicoDrawSetColorFormatMode4(int which);
+
 // sound.c
 extern int PsndRate,PsndLen;
 extern short *PsndOut;

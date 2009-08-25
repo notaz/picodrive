@@ -161,22 +161,14 @@ void PDebugShowSpriteStats(unsigned short *screen, int stride)
 
 void PDebugShowPalette(unsigned short *screen, int stride)
 {
-  unsigned int *spal=(void *)Pico.cram;
-  unsigned int *dpal=(void *)HighPal;
-  int x, y, i;
+  int x, y;
 
-  for (i = 0x3f/2; i >= 0; i--)
-#ifdef USE_BGR555
-    dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
-#else
-    dpal[i] = ((spal[i]&0x000f000f)<<12)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)>>7);
-#endif
-  for (i = 0x3f; i >= 0; i--)
-    HighPal[0x40|i] = (unsigned short)((HighPal[i]>>1)&0x738e);
-  for (i = 0x3f; i >= 0; i--) {
-    int t=HighPal[i]&0xe71c;t+=0x4208;if(t&0x20)t|=0x1c;if(t&0x800)t|=0x700;if(t&0x10000)t|=0xe000;t&=0xe71c;
-    HighPal[0x80|i] = (unsigned short)t;
-  }
+  Pico.m.dirtyPal = 1;
+  if (PicoAHW & PAHW_SMS)
+    PicoDoHighPal555M4();
+  else
+    PicoDoHighPal555(1);
+  Pico.m.dirtyPal = 1;
 
   screen += 16*stride+8;
   for (y = 0; y < 8*4; y++)
@@ -192,8 +184,6 @@ void PDebugShowPalette(unsigned short *screen, int stride)
   for (y = 0; y < 8*4; y++)
     for (x = 0; x < 8*16; x++)
       screen[x + y*stride] = HighPal[(x/8 + (y/8)*16) | 0x80];
-
-  Pico.m.dirtyPal = 1;
 }
 
 #if defined(DRAW2_OVERRIDE_LINE_WIDTH)
