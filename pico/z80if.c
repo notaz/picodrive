@@ -22,11 +22,14 @@ void MEMH_FUNC z80_map_set(unsigned long *map, int start_addr, int end_addr,
     return;
   }
 
-  for (i = start_addr >> Z80_MEM_SHIFT; i <= end_addr >> Z80_MEM_SHIFT; i++)
+  if (!is_func)
+    addr -= (start_addr >> Z80_MEM_SHIFT) << Z80_MEM_SHIFT;
+
+  for (i = start_addr >> Z80_MEM_SHIFT; i <= end_addr >> Z80_MEM_SHIFT; i++) {
+    map[i] = addr >> 1;
     if (is_func)
-      map[i] = (addr >> 1) | (1 << (sizeof(addr) * 8 - 1));
-    else
-      map[i] = (addr - (i << Z80_MEM_SHIFT)) >> 1;
+      map[i] |= 1 << (sizeof(addr) * 8 - 1);
+  }
 }
 
 #ifdef _USE_MZ80
