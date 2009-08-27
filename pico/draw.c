@@ -40,7 +40,7 @@ unsigned char *HighCol=DefHighCol;
 #else
 unsigned char  HighCol[8+320+8];
 #endif
-unsigned short DefOutBuff[320*2];
+static unsigned int DefOutBuff[320*2/2];
 void *DrawLineDest=DefOutBuff; // pointer to dest buffer where to draw this line to
 
 static int  HighCacheA[41+1];   // caches for high layers
@@ -1269,7 +1269,7 @@ static void FinalizeLine8bit(int sh)
   int len, rs = rendstatus;
   static int dirty_count;
 
-  if (!sh && Pico.m.dirtyPal == 1 && DrawScanline < 222)
+  if (!sh && Pico.m.dirtyPal == 1)
   {
     // a hack for mid-frame palette changes
     if (!(rs & PDRAW_SONIC_MODE))
@@ -1305,22 +1305,6 @@ static void FinalizeLine8bit(int sh)
 static void (*FinalizeLine)(int sh);
 
 // --------------------------------------------
-
-static void DrawBlankedLine(void)
-{
-  int sh=(Pico.video.reg[0xC]&8)>>3; // shadow/hilight?
-
-  if (PicoScanBegin != NULL)
-    PicoScanBegin(DrawScanline);
-
-  BackFill(Pico.video.reg[7], sh);
-
-  if (FinalizeLine != NULL)
-    FinalizeLine(sh);
-
-  if (PicoScanEnd != NULL)
-    PicoScanEnd(DrawScanline);
-}
 
 static int DrawDisplay(int sh)
 {
@@ -1420,23 +1404,46 @@ PICO_INTERNAL void PicoFrameStart(void)
   rendstatus = 0;
   if ((Pico.video.reg[12]&6) == 6)
     rendstatus |= PDRAW_INTERLACE; // interlace mode
+  if (Pico.video.reg[1] & 8)
+    rendstatus |= PDRAW_240LINES;
 
-  if (Pico.m.dirtyPal) Pico.m.dirtyPal = 2; // reset dirty if needed
+  if (Pico.m.dirtyPal)
+    Pico.m.dirtyPal = 2; // reset dirty if needed
 
   DrawScanline=0;
   PrepareSprites(1);
   skip_next_line=0;
 }
 
-static void PicoLine(void)
+static void DrawBlankedLine(int line, int offs)
+{
+  int sh = (Pico.video.reg[0xC]&8)>>3; // shadow/hilight?
+
+  if (PicoScanBegin != NULL)
+    PicoScanBegin(line + offs);
+
+  BackFill(Pico.video.reg[7], sh);
+
+  if (FinalizeLine != NULL)
+    FinalizeLine(sh);
+
+  if (PicoScanEnd != NULL)
+    PicoScanEnd(line + offs);
+}
+
+static void PicoLine(int line, int offs)
 {
   int sh;
-  if (skip_next_line>0) { skip_next_line--; return; } // skip rendering lines
+  if (skip_next_line > 0) {
+    skip_next_line--;
+    return;
+  }
 
   sh=(Pico.video.reg[0xC]&8)>>3; // shadow/hilight?
 
+  DrawScanline = line;
   if (PicoScanBegin != NULL)
-    skip_next_line = PicoScanBegin(DrawScanline);
+    skip_next_line = PicoScanBegin(line + offs);
 
   // Draw screen:
   BackFill(Pico.video.reg[7], sh);
@@ -1447,31 +1454,40 @@ static void PicoLine(void)
     FinalizeLine(sh);
 
   if (PicoScanEnd != NULL)
-    skip_next_line = PicoScanEnd(DrawScanline);
+    skip_next_line = PicoScanEnd(line + offs);
 }
 
 void PicoDrawSync(int to, int blank_last_line)
 {
-  for (; DrawScanline < to; DrawScanline++)
+  int line, offs = 0;
+
+  if (!(rendstatus & PDRAW_240LINES))
+    offs = 8;
+
+  for (line = DrawScanline; line < to; line++)
   {
 #if !CAN_HANDLE_240_LINES
-    if (DrawScanline >= 224) break;
+    if (line >= 224) break;
 #endif
-    PicoLine();
+    PicoLine(line, offs);
   }
 
 #if !CAN_HANDLE_240_LINES
-  if (DrawScanline >= 224) { DrawScanline = 240; return; }
+  if (line >= 224) {
+    DrawScanline = 240;
+    return;
+  }
 #endif
 
   // last line
-  if (DrawScanline <= to)
+  if (line <= to)
   {
     if (blank_last_line)
-         DrawBlankedLine();
-    else PicoLine();
-    DrawScanline++;
+         DrawBlankedLine(line, offs);
+    else PicoLine(line, offs);
+    line++;
   }
+  DrawScanline = line;
 }
 
 void PicoDrawSetColorFormat(int which)
@@ -1483,8 +1499,10 @@ void PicoDrawSetColorFormat(int which)
     case 0: FinalizeLine = FinalizeLineBGR444; break;
     default:FinalizeLine = NULL; break;
   }
+  PicoDrawSetColorFormatMode4(which);
 #if OVERRIDE_HIGHCOL
-  if (which) HighCol=DefHighCol;
+  if (which)
+    HighCol=DefHighCol;
 #endif
 }
 

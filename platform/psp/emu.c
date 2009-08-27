@@ -261,8 +261,6 @@ static void EmuScanPrepare(void)
 
 static int EmuScanSlowBegin(unsigned int num)
 {
-	if (!(Pico.video.reg[1]&8)) num += 8;
-
 	if (!dynamic_palette)
 		HighCol = (unsigned char *)VRAM_CACHED_STUFF + num * 512 + 8;
 
@@ -271,8 +269,6 @@ static int EmuScanSlowBegin(unsigned int num)
 
 static int EmuScanSlowEnd(unsigned int num)
 {
-	if (!(Pico.video.reg[1]&8)) num += 8;
-
 	if (Pico.m.dirtyPal) {
 		if (!dynamic_palette) {
 			do_slowmode_lines(num);

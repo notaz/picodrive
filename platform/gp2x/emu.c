@@ -220,7 +220,6 @@ static void draw_pico_ptr(void)
 
 static int EmuScanBegin16(unsigned int num)
 {
-	if (!(Pico.video.reg[1]&8)) num += 8;
 	DrawLineDest = (unsigned short *) g_screen_ptr + g_screen_width * num;
 
 	return 0;
@@ -228,7 +227,6 @@ static int EmuScanBegin16(unsigned int num)
 
 static int EmuScanBegin8(unsigned int num)
 {
-	if (!(Pico.video.reg[1]&8)) num += 8;
 	DrawLineDest = (unsigned char *)  g_screen_ptr + g_screen_width * num;
 
 	return 0;
@@ -247,8 +245,6 @@ static int EmuScanEnd16_rot(unsigned int num)
 {
 	if ((num & 3) != 3)
 		return 0;
-	if (!(Pico.video.reg[1] & 8))
-		num += 8;
 	rotated_blit16(g_screen_ptr, rot_buff, num + 1,
 		!(Pico.video.reg[12] & 1) && !(PicoOpt & POPT_EN_SOFTSCALE));
 	return 0;
@@ -264,8 +260,6 @@ static int EmuScanEnd8_rot(unsigned int num)
 {
 	if ((num & 3) != 3)
 		return 0;
-	if (!(Pico.video.reg[1] & 8))
-		num += 8;
 	rotated_blit8(g_screen_ptr, rot_buff, num + 1,
 		!(Pico.video.reg[12] & 1));
 	return 0;
@@ -439,7 +433,6 @@ static void vidResetMode(void)
 	}
 	else if (currentConfig.EmuOpt & EOPT_16BPP) {
 		PicoDrawSetColorFormat(1);
-		PicoDrawSetColorFormatMode4(1);
 		if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
 			gp2x_video_changemode(-16);
 			PicoScanBegin = EmuScanBegin16_rot;

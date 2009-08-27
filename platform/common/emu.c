@@ -245,8 +245,11 @@ static int emu_cd_check(int *pregion, const char *fname_in)
 static int detect_media(const char *fname)
 {
 	static const short sms_offsets[] = { 0x7ff0, 0x3ff0, 0x1ff0 };
+	static const char *sms_exts[] = { "sms", "gg", "sg" };
+	static const char *md_exts[] = { "gen", "bin", "smd" };
+	char buff0[32], buff[32];
+	unsigned short *d16;
 	pm_file *pmf;
-	char buff[32];
 	char ext[5];
 	int i;
 
@@ -264,34 +267,69 @@ static int detect_media(const char *fname)
 	if (pmf == NULL)
 		return PM_BAD;
 
-	if (pm_read(buff, 32, pmf) != 32) {
+	if (pm_read(buff0, 32, pmf) != 32) {
 		pm_close(pmf);
 		return PM_BAD;
 	}
 
-	if (strncasecmp("SEGADISCSYSTEM", buff + 0x00, 14) == 0 ||
-	    strncasecmp("SEGADISCSYSTEM", buff + 0x10, 14) == 0) {
+	if (strncasecmp("SEGADISCSYSTEM", buff0 + 0x00, 14) == 0 ||
+	    strncasecmp("SEGADISCSYSTEM", buff0 + 0x10, 14) == 0) {
 		pm_close(pmf);
 		return PM_CD;
 	}
 
-	for (i = 0; i < array_size(sms_offsets); i++) {
-		if (pm_seek(pmf, sms_offsets[i], SEEK_SET) != sms_offsets[i])
-			goto not_mark3;		/* actually it could be but can't be detected */
+	/* check for SMD evil */
+	if (pmf->size >= 0x4200 && (pmf->size & 0x3fff) == 0x200) {
+		if (pm_seek(pmf, sms_offsets[0] + 0x200, SEEK_SET) == sms_offsets[0] + 0x200 &&
+		    pm_read(buff, 16, pmf) == 16 &&
+		    strncmp("TMR SEGA", buff, 8) == 0)
+			goto looks_like_sms;
 
-		if (pm_read(buff, 16, pmf) != 16)
-			goto not_mark3;
-
-		if (strncasecmp("TMR SEGA", buff, 8) == 0) {
-			pm_close(pmf);
-			return PM_MARK3;
-		}
+		/* could parse further but don't bother */
+		goto extension_check;
 	}
 
-not_mark3:
+	/* MD header? Act as TMSS BIOS here */
+	if (pm_seek(pmf, 0x100, SEEK_SET) == 0x100 && pm_read(buff, 16, pmf) == 16) {
+		if (strncmp(buff, "SEGA", 4) == 0 || strncmp(buff, " SEG", 4) == 0)
+			goto looks_like_md;
+	}
+
+	for (i = 0; i < array_size(sms_offsets); i++) {
+		if (pm_seek(pmf, sms_offsets[i], SEEK_SET) != sms_offsets[i])
+			continue;
+
+		if (pm_read(buff, 16, pmf) != 16)
+			continue;
+
+		if (strncmp("TMR SEGA", buff, 8) == 0)
+			goto looks_like_sms;
+	}
+
+extension_check:
+	/* probably some headerless thing. Maybe check the extension after all. */
+	for (i = 0; i < array_size(md_exts); i++)
+		if (strcasecmp(pmf->ext, md_exts[i]) == 0)
+			goto looks_like_md;
+
+	for (i = 0; i < array_size(sms_exts); i++)
+		if (strcasecmp(pmf->ext, sms_exts[i]) == 0)
+			goto looks_like_sms;
+
+	/* If everything else fails, make a guess on the reset vector */
+	d16 = (unsigned short *)(buff0 + 4);
+	if ((((d16[0] << 16) | d16[1]) & 0xffffff) >= pmf->size) {
+		lprintf("bad MD reset vector, assuming SMS\n");
+		goto looks_like_sms;
+	}
+
+looks_like_md:
 	pm_close(pmf);
-	/* the main emu function is to emulate MD, so assume MD */
 	return PM_MD_CART;
+
+looks_like_sms:
+	pm_close(pmf);
+	return PM_MARK3;
 }
 
 static int extract_text(char *dest, const unsigned char *src, int len, int swab)
@@ -450,6 +488,7 @@ int emu_reload_rom(char *rom_fname)
 
 	shutdown_MCD();
 	PicoPatchUnload();
+	PicoAHW = 0;
 
 	if (media_type == PM_CD)
 	{

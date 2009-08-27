@@ -71,18 +71,31 @@ static int uncompress2(void *dest, int destLen, void *source, int sourceLen)
     return inflateEnd(&stream);
 }
 
+static const char *get_ext(const char *path)
+{
+  const char *ext;
+  if (strlen(path) < 4)
+    return ""; // no ext
+
+  // allow 2 or 3 char extensions for now
+  ext = path + strlen(path) - 2;
+  if (ext[-1] != '.') ext--;
+  if (ext[-1] != '.')
+    return "";
+  return ext;
+}
+
 pm_file *pm_open(const char *path)
 {
   pm_file *file = NULL;
   const char *ext;
   FILE *f;
 
-  if (path == NULL) return NULL;
+  if (path == NULL)
+    return NULL;
 
-  if (strlen(path) < 5) ext = NULL; // no ext
-  else ext = path + strlen(path) - 3;
-
-  if (ext && strcasecmp(ext, "zip") == 0)
+  ext = get_ext(path);
+  if (strcasecmp(ext, "zip") == 0)
   {
     struct zipent *zipentry;
     gzFile gzf = NULL;
@@ -90,21 +103,19 @@ pm_file *pm_open(const char *path)
     int i;
 
     zipfile = openzip(path);
-
     if (zipfile != NULL)
     {
       /* search for suitable file (right extension or large enough file) */
       while ((zipentry = readzip(zipfile)) != NULL)
       {
-        if (zipentry->uncompressed_size >= 128*1024) goto found_rom_zip;
-        if (strlen(zipentry->name) < 5) continue;
+        ext = get_ext(zipentry->name);
 
-        ext = zipentry->name + strlen(zipentry->name) - 2;
-        if (ext[-1] != '.') ext--;
-        if (ext[-1] != '.') ext--;
+        if (zipentry->uncompressed_size >= 32*1024)
+          goto found_rom_zip;
 
         for (i = 0; i < sizeof(rom_exts)/sizeof(rom_exts[0]); i++)
-          if (strcasecmp(ext, rom_exts[i]) == 0) goto found_rom_zip;
+          if (strcasecmp(ext, rom_exts[i]) == 0)
+            goto found_rom_zip;
       }
 
       /* zipfile given, but nothing found suitable for us inside */
@@ -115,12 +126,13 @@ found_rom_zip:
       gzf = zip2gz(zipfile, zipentry);
       if (gzf == NULL)  goto zip_failed;
 
-      file = malloc(sizeof(*file));
+      file = calloc(1, sizeof(*file));
       if (file == NULL) goto zip_failed;
       file->file  = zipfile;
       file->param = gzf;
       file->size  = zipentry->uncompressed_size;
       file->type  = PMT_ZIP;
+      strncpy(file->ext, ext, sizeof(file->ext) - 1);
       return file;
 
 zip_failed:
@@ -132,7 +144,7 @@ zip_failed:
       return NULL;
     }
   }
-  else if (ext && strcasecmp(ext, "cso") == 0)
+  else if (strcasecmp(ext, "cso") == 0)
   {
     cso_struct *cso = NULL, *tmp = NULL;
     int size;
@@ -179,7 +191,7 @@ zip_failed:
     cso->fpos_in = ftell(f);
     cso->fpos_out = 0;
     cso->block_in_buff = -1;
-    file = malloc(sizeof(*file));
+    file = calloc(1, sizeof(*file));
     if (file == NULL) goto cso_failed;
     file->file  = f;
     file->param = cso;
@@ -197,7 +209,7 @@ cso_failed:
   f = fopen(path, "rb");
   if (f == NULL) return NULL;
 
-  file = malloc(sizeof(*file));
+  file = calloc(1, sizeof(*file));
   if (file == NULL) {
     fclose(f);
     return NULL;
@@ -207,6 +219,7 @@ cso_failed:
   file->param = NULL;
   file->size  = ftell(f);
   file->type  = PMT_UNCOMPRESSED;
+  strncpy(file->ext, ext, sizeof(file->ext) - 1);
   fseek(f, 0, SEEK_SET);
 
 #ifndef __EPOC32__ // makes things worse on Symbian
@@ -421,37 +434,51 @@ static unsigned char *cd_realloc(void *old, int filesize)
   return rom;
 }
 
-static unsigned char *PicoCartAlloc(int filesize)
+static unsigned char *PicoCartAlloc(int filesize, int is_sms)
 {
   int alloc_size;
   unsigned char *rom;
 
-  if (PicoAHW & PAHW_MCD) return cd_realloc(NULL, filesize);
+  if (PicoAHW & PAHW_MCD)
+    return cd_realloc(NULL, filesize);
 
-  alloc_size=filesize+0x7ffff;
-  if((filesize&0x3fff)==0x200) alloc_size-=0x200;
-  alloc_size&=~0x7ffff; // use alloc size of multiples of 512K, so that memhandlers could be set up more efficiently
-  if((filesize&0x3fff)==0x200) alloc_size+=0x200;
-  else if(alloc_size-filesize < 4) alloc_size+=4; // padding for out-of-bound exec protection
+  if (is_sms) {
+    // make size power of 2 for easier banking handling
+    int s = 0, tmp = filesize;
+    while ((tmp >>= 1) != 0)
+      s++;
+    if (filesize > (1 << s))
+      s++;
+    alloc_size = 1 << s;
+  }
+  else {
+    // align to 512K for memhandlers
+    alloc_size = (filesize + 0x7ffff) & ~0x7ffff;
+  }
+
+  if (alloc_size - filesize < 4)
+    alloc_size += 4; // padding for out-of-bound exec protection
 
   // Allocate space for the rom plus padding
-  rom=(unsigned char *)malloc(alloc_size);
-  if(rom) memset(rom+alloc_size-0x80000,0,0x80000);
+  rom = calloc(alloc_size, 1);
   return rom;
 }
 
 int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms)
 {
-  unsigned char *rom=NULL; int size, bytes_read;
-  if (f==NULL) return 1;
+  unsigned char *rom;
+  int size, bytes_read;
 
-  size=f->size;
+  if (f == NULL)
+    return 1;
+
+  size = f->size;
   if (size <= 0) return 1;
-  size=(size+3)&~3; // Round up to a multiple of 4
+  size = (size+3)&~3; // Round up to a multiple of 4
 
   // Allocate space for the rom plus padding
-  rom=PicoCartAlloc(size);
-  if (rom==NULL) {
+  rom = PicoCartAlloc(size, is_sms);
+  if (rom == NULL) {
     elprintf(EL_STATUS, "out of memory (wanted %i)", size);
     return 2;
   }
@@ -491,15 +518,25 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms)
     }
 
     // Check for SMD:
-    if (size >= 0x4200 && (size&0x3fff)==0x200 &&
+    if (size >= 0x4200 && (size&0x3fff) == 0x200 &&
         ((rom[0x2280] == 'S' && rom[0x280] == 'E') || (rom[0x280] == 'S' && rom[0x2281] == 'E'))) {
+      elprintf(EL_STATUS, "SMD format detected.");
       DecodeSmd(rom,size); size-=0x200; // Decode and byteswap SMD
     }
     else Byteswap(rom,size); // Just byteswap
   }
+  else
+  {
+    if (size >= 0x4200 && (size&0x3fff) == 0x200) {
+      elprintf(EL_STATUS, "SMD format detected.");
+      // at least here it's not interleaved
+      size -= 0x200;
+      memmove(rom, rom + 0x200, size);
+    }
+  }
 
-  if (prom)  *prom=rom;
-  if (psize) *psize=size;
+  if (prom)  *prom = rom;
+  if (psize) *psize = size;
 
   return 0;
 }

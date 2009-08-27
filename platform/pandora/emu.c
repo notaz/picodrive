@@ -186,7 +186,6 @@ static void draw_pico_ptr(void)
 
 static int EmuScanBegin16(unsigned int num)
 {
-	if (!(Pico.video.reg[1]&8)) num += 8;
 	DrawLineDest = (unsigned short *)g_screen_ptr + num*800 + 800/2 - 320/2;
 	//int w = (Pico.video.reg[12]&1) ? 320 : 256;
 	//DrawLineDest = (unsigned short *)g_screen_ptr + num*w;
@@ -204,7 +203,6 @@ static int EmuScanEnd16(unsigned int num)
 	int sh = Pico.video.reg[0xC]&8;
 	int len, mask = 0xff;
 
-	if (!(Pico.video.reg[1]&8)) num += 8;
 	pd=(unsigned short *)g_screen_ptr + num*800*2 + 800/2 - 320*2/2;
 
 	if (Pico.m.dirtyPal)

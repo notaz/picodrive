@@ -92,7 +92,7 @@ static const unsigned long mask_numbers[] = {
 
 static int EmuScanBegin8(unsigned int num)
 {
-	DrawLineDest = PicoDraw2FB + 328*num + 328*8 + 8;
+	DrawLineDest = PicoDraw2FB + 328*num + 8;
 
 	return 0;
 }
@@ -105,7 +105,7 @@ static int EmuScanEndFit0(unsigned int num)
 	static int u = 0, num2 = 0;
 	if(!num) u = num2 = 0;
 
-	DrawLineDest = PicoDraw2FB + 328*(++num2) + 328*8 + 8;
+	DrawLineDest = PicoDraw2FB + 328*(++num2) + 8;
 
 	u += 6666;
 

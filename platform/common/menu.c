@@ -1803,7 +1803,7 @@ static void debug_menu_loop(void)
 		{
 			case 0:
 				if (inp & PBTN_MOK)
-					SekStepM68k();
+					PDebugCPUStep();
 				if (inp & PBTN_MA3) {
 					while (inp & PBTN_MA3)
 						inp = in_menu_wait_any(-1);

@@ -129,6 +129,7 @@ typedef struct
 	void *param;		/* additional file related field */
 	unsigned int size;	/* size */
 	pm_type type;
+	char ext[4];
 } pm_file;
 pm_file *pm_open(const char *path);
 size_t   pm_read(void *ptr, size_t bytes, pm_file *stream);
@@ -170,6 +171,8 @@ extern int PicoDrawMask;
 #define PDRAW_SONIC_MODE    (1<<5) // mid-frame palette changes for 8bit renderer
 #define PDRAW_PLANE_HI_PRIO (1<<6) // have layer with all hi prio tiles (mk3)
 #define PDRAW_SHHI_DONE     (1<<7) // layer sh/hi already processed
+#define PDRAW_240LINES      (1<<8) // 240 line display (224 if not set)
+#define PDRAW_192LINES      (1<<9) // 192 line display (for SMS games)
 extern int rendstatus;
 extern unsigned short HighPal[0x100];
 
@@ -178,9 +181,6 @@ extern unsigned short HighPal[0x100];
 extern unsigned char  *PicoDraw2FB;  // buffer for fast renderer in format (8+320)x(8+224+8) (eights for borders)
 extern unsigned short *PicoCramHigh; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to use
-
-// mode4.c
-void PicoDrawSetColorFormatMode4(int which);
 
 // sound.c
 extern int PsndRate,PsndLen;

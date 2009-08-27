@@ -1,3 +1,13 @@
+/*
+ * TODO:
+ * - start in a state as if BIOS ran
+ * - remaining status flags (OVR/COL)
+ * - RAM support in mapper
+ * - region support
+ * - Pause button (NMI)
+ * - SN76496 DAC-like usage
+ * - H counter
+ */
 #include "pico_int.h"
 #include "sound/sn76496.h"
 
@@ -71,10 +81,12 @@ static unsigned char z80_sms_in(unsigned short a)
 
     case 0x40: /* V counter */
       d = Pico.video.v_counter;
+      elprintf(EL_HVCNT, "V counter read: %02x", d);
       break;
 
     case 0x41: /* H counter */
       d = Pico.m.rotate++;
+      elprintf(EL_HVCNT, "H counter read: %02x", d);
       break;
 
     case 0x80:
@@ -125,24 +137,28 @@ static void z80_sms_out(unsigned short a, unsigned char d)
   }
 }
 
+static int bank_mask;
+
 static void write_bank(unsigned short a, unsigned char d)
 {
-  d &= 0x3f; // XXX
   switch (a & 0x0f)
   {
     case 0x0c:
+      elprintf(EL_STATUS|EL_ANOMALY, "%02x written to control reg!", d);
       break;
     case 0x0d:
       if (d != 0)
         elprintf(EL_STATUS|EL_ANOMALY, "bank0 changed to %d!", d);
       break;
     case 0x0e:
+      d &= bank_mask;
       z80_map_set(z80_read_map, 0x4000, 0x7fff, Pico.rom + (d << 14), 0);
 #ifdef _USE_CZ80
       Cz80_Set_Fetch(&CZ80, 0x4000, 0x7fff, (UINT32)Pico.rom + (d << 14));
 #endif
       break;
     case 0x0f:
+      d &= bank_mask;
       z80_map_set(z80_read_map, 0x8000, 0xbfff, Pico.rom + (d << 14), 0);
 #ifdef _USE_CZ80
       Cz80_Set_Fetch(&CZ80, 0x8000, 0xbfff, (UINT32)Pico.rom + (d << 14));
@@ -168,10 +184,22 @@ void PicoResetMS(void)
 
 void PicoPowerMS(void)
 {
+  int s, tmp;
+
   memset(&Pico.ram,0,(unsigned int)&Pico.rom-(unsigned int)&Pico.ram);
   memset(&Pico.video,0,sizeof(Pico.video));
   memset(&Pico.m,0,sizeof(Pico.m));
   Pico.m.pal = 0;
+
+  // calculate a mask for bank writes.
+  // ROM loader has aligned the size for us, so this is safe.
+  s = 0; tmp = Pico.romsize;
+  while ((tmp >>= 1) != 0)
+    s++;
+  if (Pico.romsize > (1 << s))
+    s++;
+  tmp = 1 << s;
+  bank_mask = (tmp - 1) >> 14;
 
   PicoReset();
 }
@@ -207,9 +235,11 @@ void PicoFrameMS(void)
   int cycles_line = is_pal ? 58020 : 58293; /* (226.6 : 227.7) * 256 */
   int cycles_done = 0, cycles_aim = 0;
   int lines_vis = 192;
+  int hint; // Hint counter
   int y;
 
   PicoFrameStartMode4();
+  hint = pv->reg[0x0a];
 
   for (y = 0; y < lines; y++)
   {
@@ -217,9 +247,22 @@ void PicoFrameMS(void)
 
     if (y < lines_vis)
       PicoLineMode4(y);
+
+    if (y <= lines_vis)
+    {
+      if (--hint < 0)
+      {
+        hint = pv->reg[0x0a];
+        pv->pending_ints |= 2;
+        if (pv->reg[0] & 0x10) {
+          elprintf(EL_INTS, "hint");
+          z80_int();
+        }
+      }
+    }
     else if (y == lines_vis + 1) {
-      Pico.video.pending_ints |= 1;
-      if (Pico.video.reg[1] & 0x20) {
+      pv->pending_ints |= 1;
+      if (pv->reg[1] & 0x20) {
         elprintf(EL_INTS, "vint");
         z80_int();
       }
@@ -230,5 +273,16 @@ void PicoFrameMS(void)
   }
 
   PsndGetSamplesMS();
+}
+
+void PicoFrameDrawOnlyMS(void)
+{
+  int lines_vis = 192;
+  int y;
+
+  PicoFrameStartMode4();
+
+  for (y = 0; y < lines_vis; y++)
+    PicoLineMode4(y);
 }
 

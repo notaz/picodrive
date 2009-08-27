@@ -427,6 +427,7 @@ PICO_INTERNAL void PicoFrameFull();
 void PicoFrameStartMode4(void);
 void PicoLineMode4(int line);
 void PicoDoHighPal555M4(void);
+void PicoDrawSetColorFormatMode4(int which);
 
 // memory.c
 PICO_INTERNAL void PicoInitPc(unsigned int pc);
@@ -567,6 +568,7 @@ void PicoPowerMS(void);
 void PicoResetMS(void);
 void PicoMemSetupMS(void);
 void PicoFrameMS(void);
+void PicoFrameDrawOnlyMS(void);
 
 // emulation event logging
 #ifndef EL_LOGMASK

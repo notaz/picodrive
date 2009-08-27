@@ -65,7 +65,7 @@ ifeq "$(amalgamate)" "1"
 OBJS += ../../picoAll.o
 else
 OBJS += pico/area.o pico/cart.o pico/memory.o pico/misc.o pico/pico.o pico/sek.o pico/z80if.o \
-		pico/videoport.o pico/draw2.o pico/draw.o pico/patch.o pico/debug.o
+		pico/videoport.o pico/draw2.o pico/draw.o pico/mode4.o pico/sms.o pico/patch.o pico/debug.o
 # Pico - CD
 OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
 		pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \
@@ -120,12 +120,7 @@ DIRS = platform platform/gp2x platform/linux platform/common pico pico/cd pico/p
 all: mkdirs PicoDrive
 
 include ../common/common_arm.mak
-
-platform/common/menu.o : revision.h
-
-revision.h:
-	@echo "#define REVISION \"`svn info | grep Revision | cut -c 11-`\"" > /tmp/r.tmp
-	@diff -q $@ /tmp/r.tmp > /dev/null 2>&1 || mv -f /tmp/r.tmp $@
+include ../common/revision.mak
 
 # partial linking helps profiled builds due to section merging
 PicoDrive.o : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a

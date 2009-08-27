@@ -1,7 +1,16 @@
+/*
+ * TODO:
+ * - TMS9918 modes?
+ * - gg mode?
+ * - column scroll (reg 0 bit7)
+ * - 224/240 line modes
+ * - doubled sprites
+ */
 #include "pico_int.h"
 
 static void (*FinalizeLineM4)(void);
 static int skip_next_line;
+static int screen_offset;
 
 #define PLANAR_PIXEL(x,p) \
   t = pack & (0x80808080 >> p); \
@@ -54,85 +63,145 @@ static int TileFlipM4(int sx,int addr,int pal)
   return 1; /* Tile blank */
 }
 
-struct TileStrip
+static void draw_sprites(int scanline)
 {
-  int nametab; // Position in VRAM of name table (for this tile line)
-  int line;    // Line number in pixels 0x000-0x3ff within the virtual tilemap
-  int hscroll; // Horizontal scroll value in pixels for the line
-  int xmask;   // X-Mask (0x1f - 0x7f) for horizontal wraparound in the tilemap
-  int *hc;     // cache for high tile codes and their positions
-  int cells;   // cells (tiles) to draw (32 col mode doesn't need to update whole 320)
-};
+  struct PicoVideo *pv = &Pico.video;
+  unsigned int sprites_addr[8];
+  unsigned int sprites_x[8];
+  unsigned char *sat;
+  int xoff = 8; // relative to HighCol, which is (screen - 8)
+  int sprite_base, addr_mask;
+  int i, s, h;
 
-static void DrawStrip(struct TileStrip *ts, int cellskip)
+  if (pv->reg[0] & 8)
+    xoff = 0;
+
+  sat = (unsigned char *)Pico.vram + ((pv->reg[5] & 0x7e) << 7);
+  if (pv->reg[1] & 2) {
+    addr_mask = 0xfe; h = 16;
+  } else {
+    addr_mask = 0xff; h = 8;
+  }
+  sprite_base = (pv->reg[6] & 4) << (13-2-1);
+
+  for (i = s = 0; i < 64 && s < 8; i++)
+  {
+    int y;
+    y = sat[i] + 1;
+    if (y == 0xd1)
+      break;
+    if (y + h <= scanline || scanline < y)
+      continue; // not on this line
+
+    sprites_x[s] = xoff + sat[0x80 + i*2];
+    sprites_addr[s] = sprite_base + ((sat[0x80 + i*2 + 1] & addr_mask) << (5-1)) +
+      ((scanline - y) << (2-1));
+    s++;
+  }
+
+  // now draw all sprites backwards
+  for (--s; s >= 0; s--)
+    TileNormM4(sprites_x[s], sprites_addr[s], 0x10);
+}
+
+// tilex_ty_prio merged to reduce register pressure
+static void draw_strip(const unsigned short *nametab, int dx, int cells, int tilex_ty_prio)
 {
-  int tilex,dx,ty,code=0,addr=0,cells;
-  int oldcode=-1,blank=-1; // The tile we know is blank
-  int pal=0;
+  int oldcode = -1, blank = -1; // The tile we know is blank
+  int addr = 0, pal = 0;
 
   // Draw tiles across screen:
-  tilex=((-ts->hscroll)>>3)+cellskip;
-  ty=(ts->line&7)<<1; // Y-Offset into tile
-  dx=((ts->hscroll-1)&7)+1;
-  cells = ts->cells - cellskip;
-  if (dx != 8) cells++; // have hscroll, need to draw 1 cell more
-  dx+=cellskip<<3;
-
-  for (; cells > 0; dx+=8,tilex++,cells--)
+  for (; cells > 0; dx += 8, tilex_ty_prio++, cells--)
   {
-    int zero;
+    int code, zero;
 
-    code=Pico.vram[ts->nametab + (tilex & 0x1f)];
-    if (code==blank) continue;
+    code = nametab[tilex_ty_prio & 0x1f];
+    if (code == blank)
+      continue;
+    if ((code ^ tilex_ty_prio) & 0x1000) // priority differs?
+      continue;
 
-    if (code!=oldcode) {
+    if (code != oldcode) {
       oldcode = code;
       // Get tile address/2:
-      addr=(code&0x1ff)<<4;
-      addr+=ty;
-      if (code&0x0400) addr^=0xe; // Y-flip
+      addr = (code & 0x1ff) << 4;
+      addr += tilex_ty_prio >> 16;
+      if (code & 0x0400)
+        addr ^= 0xe; // Y-flip
 
-      pal=((code>>7)&0x10);
+      pal = (code>>7) & 0x10;
     }
 
-    if (code&0x0200) zero=TileFlipM4(dx,addr,pal);
-    else             zero=TileNormM4(dx,addr,pal);
+    if (code&0x0200) zero = TileFlipM4(dx, addr, pal);
+    else             zero = TileNormM4(dx, addr, pal);
 
-    if (zero) blank=code; // We know this tile is blank now
+    if (zero)
+      blank = code; // We know this tile is blank now
   }
 }
 
-static void DrawLayer(int cellskip, int maxcells)
+static void DrawDisplayM4(int scanline)
 {
-  struct PicoVideo *pvid=&Pico.video;
-  struct TileStrip ts;
-  int vscroll;
-
-  ts.cells=maxcells;
-
-  // Find name table:
-  ts.nametab=(pvid->reg[2]&0x0e) << (10-1);
-
-  // Get horizontal scroll value, will be masked later
-  ts.hscroll=0;//pvid->reg[8];
-  vscroll=0;//pvid->reg[9]; // Get vertical scroll value
+  struct PicoVideo *pv = &Pico.video;
+  unsigned short *nametab;
+  int line, tilex, dx, ty, cells;
+  int cellskip = 0; // XXX
+  int maxcells = 32;
 
   // Find the line in the name table
-  ts.line=(vscroll+DrawScanline)&0xff;
-  ts.nametab+=(ts.line>>3) << (6-1);
+  line = pv->reg[9] + scanline; // vscroll + scanline
+  if (line >= 224)
+    line -= 224;
 
-  DrawStrip(&ts, cellskip);
-}
+  // Find name table:
+  nametab = Pico.vram;
+  nametab += (pv->reg[2] & 0x0e) << (10-1);
+  nametab += (line>>3) << (6-1);
 
-static void DrawDisplayM4(void)
-{
-  DrawLayer(0, 32);
+  dx = pv->reg[8]; // hscroll
+  if (scanline < 16 && (pv->reg[0] & 0x40))
+    dx = 0; // hscroll disabled for top 2 rows
+
+  tilex = ((-dx >> 3) + cellskip) & 0x1f;
+  ty = (line & 7) << 1; // Y-Offset into tile
+  cells = maxcells - cellskip;
+
+  dx = ((dx - 1) & 7) + 1;
+  if (dx != 8)
+    cells++; // have hscroll, need to draw 1 cell more
+  dx += cellskip << 3;
+
+  // low priority tiles
+  if (PicoDrawMask & PDRAW_LAYERB_ON)
+    draw_strip(nametab, dx, cells, tilex | 0x0000 | (ty << 16));
+
+  // sprites
+  if (PicoDrawMask & PDRAW_SPRITES_LOW_ON)
+    draw_sprites(scanline);
+
+  // high priority tiles (use virtual layer switch just for fun)
+  if (PicoDrawMask & PDRAW_LAYERA_ON)
+    draw_strip(nametab, dx, cells, tilex | 0x1000 | (ty << 16));
+
+  if (pv->reg[0] & 0x20)
+    // first column masked
+    ((int *)HighCol)[2] = ((int *)HighCol)[3] = 0xe0e0e0e0;
 }
 
 void PicoFrameStartMode4(void)
 {
-  DrawScanline = 0;
   skip_next_line = 0;
+  screen_offset = 24;
+  rendstatus = PDRAW_192LINES;
+  if ((Pico.video.reg[0] & 6) == 6 && (Pico.video.reg[1] & 0x18)) {
+    rendstatus &= ~PDRAW_192LINES;
+    if (Pico.video.reg[1] & 0x08) {
+      screen_offset = 0;
+      rendstatus |= PDRAW_240LINES;
+    }
+    else // it's 224 lines
+      screen_offset = 8;
+  }
 }
 
 void PicoLineMode4(int line)
@@ -142,21 +211,19 @@ void PicoLineMode4(int line)
     return;
   }
 
-  DrawScanline = line;
-
   if (PicoScanBegin != NULL)
-    skip_next_line = PicoScanBegin(DrawScanline);
+    skip_next_line = PicoScanBegin(line + screen_offset);
 
   // Draw screen:
-  BackFill((Pico.video.reg[7] & 0x0f) | 0x10, 0);
+  BackFill(Pico.video.reg[7] & 0x0f, 0);
   if (Pico.video.reg[1] & 0x40)
-    DrawDisplayM4();
+    DrawDisplayM4(line);
 
   if (FinalizeLineM4 != NULL)
     FinalizeLineM4();
 
   if (PicoScanEnd != NULL)
-    skip_next_line = PicoScanEnd(DrawScanline);
+    skip_next_line = PicoScanEnd(line + screen_offset);
 }
 
 void PicoDoHighPal555M4(void)
@@ -203,16 +270,18 @@ static void FinalizeLineRGB555M4(void)
   }
 }
 
+static void FinalizeLine8bitM4(void)
+{
+  memcpy32(DrawLineDest, (int *)(HighCol+8), 256/4);
+}
+
 void PicoDrawSetColorFormatMode4(int which)
 {
   switch (which)
   {
+    case 2: FinalizeLineM4 = FinalizeLine8bitM4; break;
     case 1: FinalizeLineM4 = FinalizeLineRGB555M4; break;
     default:FinalizeLineM4 = NULL; break;
   }
-#if OVERRIDE_HIGHCOL
-  if (which)
-    HighCol = DefHighCol;
-#endif
 }
 

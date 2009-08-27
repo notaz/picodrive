@@ -103,7 +103,6 @@ void pemu_prep_defconfig(void)
 
 static int EmuScanBegin16(unsigned int num)
 {
-	if (!(Pico.video.reg[1]&8)) num += 8;
 	DrawLineDest = (unsigned short *) giz_screen + 321 * num;
 
 	if ((currentConfig.EmuOpt&0x4000) && (num&1) == 0) // (Pico.m.frame_count&1))
@@ -115,7 +114,6 @@ static int EmuScanBegin16(unsigned int num)
 static int EmuScanBegin8(unsigned int num)
 {
 	// draw like the fast renderer
-	if (!(Pico.video.reg[1]&8)) num += 8;
 	HighCol = gfx_buffer + 328 * num;
 
 	return 0;

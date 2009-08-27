@@ -270,11 +270,19 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
 
 void PDebugDumpMem(void)
 {
-  dump_ram(Pico.ram,  "dumps/ram.bin");
   dump_ram_noswab(Pico.zram, "dumps/zram.bin");
-  dump_ram(Pico.vram, "dumps/vram.bin");
   dump_ram(Pico.cram, "dumps/cram.bin");
-  dump_ram(Pico.vsram,"dumps/vsram.bin");
+
+  if (PicoAHW & PAHW_SMS)
+  {
+    dump_ram_noswab(Pico.vramb, "dumps/vram.bin");
+  }
+  else
+  {
+    dump_ram(Pico.ram,  "dumps/ram.bin");
+    dump_ram(Pico.vram, "dumps/vram.bin");
+    dump_ram(Pico.vsram,"dumps/vsram.bin");
+  }
 
   if (PicoAHW & PAHW_MCD)
   {
@@ -295,6 +303,9 @@ void PDebugDumpMem(void)
 void PDebugZ80Frame(void)
 {
   int lines, line_sample;
+
+  if (PicoAHW & PAHW_SMS)
+    return;
 
   if (Pico.m.pal) {
     lines = 312;
@@ -330,5 +341,13 @@ void PDebugZ80Frame(void)
     PsndDoDAC(lines-1);
 
   timers_cycle();
+}
+
+void PDebugCPUStep(void)
+{
+  if (PicoAHW & PAHW_SMS)
+    z80_run(1);
+  else
+    SekStepM68k();
 }
 

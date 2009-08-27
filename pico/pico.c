@@ -312,8 +312,12 @@ void PicoFrame(void)
 
 void PicoFrameDrawOnly(void)
 {
-  PicoFrameStart();
-  PicoDrawSync(223, 0);
+  if (!(PicoAHW & PAHW_SMS)) {
+    PicoFrameStart();
+    PicoDrawSync(223, 0);
+  } else {
+    PicoFrameDrawOnlyMS();
+  }
 }
 
 void PicoGetInternal(pint_t which, pint_ret_t *r)
