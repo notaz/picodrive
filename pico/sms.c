@@ -141,6 +141,7 @@ static int bank_mask;
 
 static void write_bank(unsigned short a, unsigned char d)
 {
+  elprintf(EL_Z80BNK, "bank %04x %02x @ %04x", a, d, z80_pc());
   switch (a & 0x0f)
   {
     case 0x0c:
@@ -272,7 +273,8 @@ void PicoFrameMS(void)
     cycles_done += z80_run((cycles_aim - cycles_done) >> 8) << 8;
   }
 
-  PsndGetSamplesMS();
+  if (PsndOut)
+    PsndGetSamplesMS();
 }
 
 void PicoFrameDrawOnlyMS(void)

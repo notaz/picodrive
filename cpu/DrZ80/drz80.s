@@ -144,7 +144,7 @@ z80_xmap_write8_handler: @ data, addr, func
 z80_xmap_read16: @ addr
     @ check if we cross bank boundary
     add r1,r0,#1
-    eor r1,r0,r0
+    eor r1,r1,r0
     tst r1,#1<<Z80_MEM_SHIFT
     bne 0f
 
@@ -171,11 +171,11 @@ z80_xmap_read16: @ addr
 
 z80_xmap_write16: @ data, addr
     add r2,r1,#1
-    eor r2,r1,r1
+    eor r2,r2,r1
     tst r2,#1<<Z80_MEM_SHIFT
     bne 0f
 
-    ldr r2,[cpucontext,#z80_read8]
+    ldr r2,[cpucontext,#z80_write8]
     add r2,r2,r1,lsr #Z80_MEM_SHIFT-2
     bic r2,r2,#3
     ldr r2,[r2]
