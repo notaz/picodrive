@@ -814,6 +814,11 @@ rescan:
 		}
 	}
 
+	/* make sure action buttons are not pressed on entering menu */
+	draw_dirlist(curr_path, namelist, n, sel);
+	while (in_menu_wait_any(50) & (PBTN_MOK|PBTN_MBACK|PBTN_MENU))
+		;
+
 	for (;;)
 	{
 		draw_dirlist(curr_path, namelist, n, sel);
@@ -1945,7 +1950,8 @@ void menu_loop(void)
 		if (engineState == PGS_Menu)
 			engineState = PGS_Running;
 		/* wait until menu, ok, back is released */
-		while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK));
+		while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK))
+			;
 	}
 
 	in_set_blocking(0);
