@@ -416,8 +416,8 @@ PICO_INTERNAL void PsndGetSamplesMS(void)
 
   // upmix to "stereo" if needed
   if (stereo) {
-    int i = length, *p = (void *)PsndOut;
-    while (i--)
+    int i, *p;
+    for (i = length, p = (void *)PsndOut; i > 0; i--, p++)
       *p |= *p << 16;
   }
 
