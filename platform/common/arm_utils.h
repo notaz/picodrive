@@ -3,9 +3,9 @@
 
 // For commercial use, separate licencing terms must be obtained.
 
-void vidConvCpyRGB32  (void *to, void *from, int pixels);
-void vidConvCpyRGB32sh(void *to, void *from, int pixels);
-void vidConvCpyRGB32hi(void *to, void *from, int pixels);
+void bgr444_to_rgb32(void *to, void *from);
+void bgr444_to_rgb32_sh(void *to, void *from);
+
 void vidcpy_m2(void *dest, void *src, int m32col, int with_32c_border);
 void vidcpy_m2_rot(void *dest, void *src, int m32col, int with_32c_border);
 void spend_cycles(int c); // utility

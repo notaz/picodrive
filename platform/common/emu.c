@@ -1332,7 +1332,7 @@ void emu_loop(void)
 {
 	int pframes_done;		/* "period" frames, used for sync */
 	int frames_done, frames_shown;	/* actual frames for fps counter */
-	int oldmodes, target_fps, target_frametime;
+	int target_fps, target_frametime;
 	unsigned int timestamp_base = 0, timestamp_fps;
 	char *notice_msg = NULL;
 	char fpsbuff[24];
@@ -1341,8 +1341,8 @@ void emu_loop(void)
 	fpsbuff[0] = 0;
 
 	/* make sure we are in correct mode */
-	oldmodes = ((Pico.video.reg[12]&1)<<2) ^ 0xc;
 	Pico.m.dirtyPal = 1;
+	rendstatus_old = -1;
 
 	/* number of ticks per frame */
 	if (Pico.m.pal) {
@@ -1371,7 +1371,6 @@ void emu_loop(void)
 	{
 		unsigned int timestamp;
 		int diff, diff_lim;
-		int modes;
 
 		timestamp = get_ticks();
 		if (reset_timing) {
@@ -1396,13 +1395,6 @@ void emu_loop(void)
 				}
 				notice_msg = noticeMsg;
 			}
-		}
-
-		// check for mode changes
-		modes = ((Pico.video.reg[12]&1)<<2) | (Pico.video.reg[1]&8);
-		if (modes != oldmodes) {
-			oldmodes = modes;
-			pemu_video_mode_change(!(modes & 4), (modes & 8));
 		}
 
 		// second changed?

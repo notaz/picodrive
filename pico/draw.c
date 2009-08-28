@@ -53,8 +53,8 @@ int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
 #define SPRL_LO_ABOVE_HI 0x10 // low priority sprites may be on top of hi
 unsigned char HighLnSpr[240][3 + MAX_LINE_SPRITES]; // sprite_count, ^flags, tile_count, [spritep]...
 
-int rendstatus = 0;
-int DrawScanline = 0;
+int rendstatus, rendstatus_old;
+int DrawScanline;
 int PicoDrawMask = -1;
 
 static int skip_next_line=0;
@@ -79,7 +79,6 @@ void DrawTilesFromCache(int *hc, int sh, int rlim);
 void DrawSpritesSHi(unsigned char *sprited);
 void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
 void FinalizeLineBGR444(int sh);
-void FinalizeLineRGB555(int sh);
 void *blockcpy(void *dst, const void *src, size_t n);
 void blockcpy_or(void *dst, void *src, size_t n, int pat);
 #else
@@ -1160,20 +1159,24 @@ unsigned short HighPal[0x100];
 #ifndef _ASM_DRAW_C
 void PicoDoHighPal555(int sh)
 {
+  unsigned int *spal, *dpal;
   unsigned short *pal=HighPal;
   int i, t;
 
   Pico.m.dirtyPal = 0;
 
-  {
-    unsigned int *spal=(void *)Pico.cram;
-    unsigned int *dpal=(void *)HighPal;
-    for (i = 0x3f/2; i >= 0; i--)
+  spal = (void *)Pico.cram;
+  dpal = (void *)HighPal;
+
+  for (i = 0; i < 0x40; i++) {
+    unsigned int t = spal[i];
 #ifdef USE_BGR555
-      dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
+    t = ((t & 0x000e000e)<< 1) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)<<4);
 #else
-      dpal[i] = ((spal[i]&0x000f000f)<<12)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)>>7);
+    t = ((t & 0x000e000e)<<12) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)>>7);
 #endif
+    t |= (t >> 3) & 0x18e318e3;
+    dpal[i] = t;
   }
 
   if (sh)
@@ -1227,7 +1230,7 @@ static void FinalizeLineBGR444(int sh)
 }
 
 
-static void FinalizeLineRGB555(int sh)
+void FinalizeLineRGB555(int sh)
 {
   unsigned short *pd=DrawLineDest;
   unsigned char  *ps=HighCol+8;
@@ -1265,7 +1268,7 @@ static void FinalizeLineRGB555(int sh)
 
 static void FinalizeLine8bit(int sh)
 {
-  unsigned char *pd=DrawLineDest;
+  unsigned char *pd = DrawLineDest;
   int len, rs = rendstatus;
   static int dirty_count;
 
@@ -1287,7 +1290,8 @@ static void FinalizeLine8bit(int sh)
   if (Pico.video.reg[12]&1) {
     len = 320;
   } else {
-    if (!(PicoOpt&POPT_DIS_32C_BORDER)) pd+=32;
+    if (!(PicoOpt & POPT_DIS_32C_BORDER))
+      pd += 32;
     len = 256;
   }
 
@@ -1407,12 +1411,22 @@ PICO_INTERNAL void PicoFrameStart(void)
   if (Pico.video.reg[1] & 8)
     rendstatus |= PDRAW_240LINES;
 
+  DrawScanline = 0;
+  skip_next_line = 0;
+
+  if (rendstatus != rendstatus_old) {
+    rendstatus_old = rendstatus;
+    emu_video_mode_change((rendstatus & PDRAW_240LINES) ? 0 : 8,
+      (rendstatus & PDRAW_240LINES) ? 240 : 224,
+      (Pico.video.reg[12] & 1) ? 0 : 1);
+  }
+
+  if (PicoOpt & POPT_ALT_RENDERER)
+    return;
+
   if (Pico.m.dirtyPal)
     Pico.m.dirtyPal = 2; // reset dirty if needed
-
-  DrawScanline=0;
   PrepareSprites(1);
-  skip_next_line=0;
 }
 
 static void DrawBlankedLine(int line, int offs)

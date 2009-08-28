@@ -398,7 +398,6 @@ PICO_INTERNAL void PsndGetSamples(int y)
 
 PICO_INTERNAL void PsndGetSamplesMS(void)
 {
-  int *buf32 = PsndBuffer;
   int stereo = (PicoOpt & 8) >> 3;
   int length = PsndLen;
 
@@ -415,8 +414,12 @@ PICO_INTERNAL void PsndGetSamplesMS(void)
   if (PicoOpt & POPT_EN_PSG)
     SN76496Update(PsndOut, length, stereo);
 
-  // convert + limit to normal 16bit output
-  PsndMix_32_to_16l(PsndOut, buf32, length);
+  // upmix to "stereo" if needed
+  if (stereo) {
+    int i = length, *p = (void *)PsndOut;
+    while (i--)
+      *p |= *p << 16;
+  }
 
   if (PicoWriteSound != NULL)
     PicoWriteSound(length);

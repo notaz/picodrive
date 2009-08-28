@@ -13,7 +13,6 @@
 @ to      00000000 rrr00000 ggg00000 bbb00000 ...
 
 @ lr =  0x00e000e0, out: r3=lower_pix, r2=higher_pix; trashes rin
-@ if sh==2, r8=0x00404040 (sh!=0 destroys flags!)
 .macro convRGB32_2 rin sh=0
     and     r2,  lr, \rin, lsr #4 @ blue
     and     r3,  \rin, lr
@@ -59,16 +58,19 @@
 .endif
 
     orr     r2,  r2,   r2,  lsr #3
+.if \sh == 1
+    str     r2, [r0, #0x40*2*4]
+.endif
     str     r2, [r0], #4
 .endm
 
 
-.global vidConvCpyRGB32 @ void *to, void *from, int pixels
+.global bgr444_to_rgb32 @ void *to, void *from
 
-vidConvCpyRGB32:
+bgr444_to_rgb32:
     stmfd   sp!, {r4-r7,lr}
 
-    mov     r12, r2, lsr #3 @ repeats
+    mov     r12, #0x40>>3 @ repeats
     mov     lr, #0x00e00000
     orr     lr, lr, #0x00e0
 
@@ -80,19 +82,18 @@ vidConvCpyRGB32:
     convRGB32_2 r5
     convRGB32_2 r6
     convRGB32_2 r7
-
     bgt     .loopRGB32
 
-    ldmfd   sp!, {r4-r7,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r7,pc}
 
 
-.global vidConvCpyRGB32sh @ void *to, void *from, int pixels
+.global bgr444_to_rgb32_sh @ void *to, void *from
 
-vidConvCpyRGB32sh:
+bgr444_to_rgb32_sh:
     stmfd   sp!, {r4-r7,lr}
 
-    mov     r12, r2, lsr #3 @ repeats
+    mov     r12, #0x40>>3 @ repeats
+    add     r0, r0, #0x40*4
     mov     lr, #0x00e00000
     orr     lr, lr, #0x00e0
 
@@ -104,21 +105,10 @@ vidConvCpyRGB32sh:
     convRGB32_2 r5, 1
     convRGB32_2 r6, 1
     convRGB32_2 r7, 1
-
     bgt     .loopRGB32sh
 
-    ldmfd   sp!, {r4-r7,lr}
-    bx      lr
-
-
-.global vidConvCpyRGB32hi @ void *to, void *from, int pixels
-
-vidConvCpyRGB32hi:
-    stmfd   sp!, {r4-r7,lr}
-
-    mov     r12, r2, lsr #3 @ repeats
-    mov     lr, #0x00e00000
-    orr     lr, lr, #0x00e0
+    mov     r12, #0x40>>3 @ repeats
+    sub     r1, r1, #0x40*2
 
 .loopRGB32hi:
      ldmia    r1!, {r4-r7}

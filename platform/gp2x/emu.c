@@ -36,7 +36,7 @@ extern int crashed_940;
 static short __attribute__((aligned(4))) sndBuffer[2*(44100+100)/50];
 static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
 unsigned char *PicoDraw2FB = PicoDraw2FB_;
-static int osd_fps_x;
+static int osd_fps_x, osd_y;
 
 extern void *gp2x_screens[4];
 
@@ -265,21 +265,66 @@ static int EmuScanEnd8_rot(unsigned int num)
 	return 0;
 }
 
-int localPal[0x100];
-static void (*vidcpyM2)(void *dest, void *src, int m32col, int with_32c_border) = NULL;
+static int localPal[0x100];
+static void (*vidcpyM2)(void *dest, void *src, int m32col, int with_32c_border);
+static int (*make_local_pal)(int fast_mode);
+
+static int make_local_pal_md(int fast_mode)
+{
+	int pallen = 0xc0;
+
+	bgr444_to_rgb32(localPal, Pico.cram);
+	if (fast_mode)
+		return 0x40;
+
+	if (Pico.video.reg[0xC] & 8) { // shadow/hilight mode
+		bgr444_to_rgb32_sh(localPal, Pico.cram);
+		localPal[0xc0] = 0x0000c000;
+		localPal[0xd0] = 0x00c00000;
+		localPal[0xe0] = 0x00000000; // reserved pixels for OSD
+		localPal[0xf0] = 0x00ffffff;
+		pallen = 0x100;
+	}
+	else if (rendstatus & PDRAW_SONIC_MODE) { // mid-frame palette changes
+		bgr444_to_rgb32(localPal+0x40, HighPal);
+		bgr444_to_rgb32(localPal+0x80, HighPal+0x40);
+	}
+	else
+		memcpy32(localPal+0x80, localPal, 0x40); // for spr prio mess
+
+	return pallen;
+}
+
+static int make_local_pal_sms(int fast_mode)
+{
+	unsigned short *spal = Pico.cram;
+	unsigned int *dpal = (void *)localPal;
+	unsigned int i, t;
+
+	for (i = 0x40; i > 0; i--) {
+		t = *spal++;
+		t = ((t & 0x0003) << 22) | ((t & 0x000c) << 12) | ((t & 0x0030) << 2);
+		t |= t >> 2;
+		t |= t >> 4;
+		*dpal++ = t;
+	}
+
+	return 0x40;
+}
 
 void pemu_update_display(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
+	int ret;
 
 	if (PicoOpt & POPT_ALT_RENDERER)
 	{
 		// 8bit fast renderer
 		if (Pico.m.dirtyPal) {
 			Pico.m.dirtyPal = 0;
-			vidConvCpyRGB32(localPal, Pico.cram, 0x40);
+			ret = make_local_pal(1);
 			// feed new palette to our device
-			gp2x_video_setpalette(localPal, 0x40);
+			gp2x_video_setpalette(localPal, ret);
 		}
 		// a hack for VR
 		if (PicoRead16Hook == PicoSVPRead16)
@@ -293,43 +338,17 @@ void pemu_update_display(const char *fps, const char *notice)
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal)
 		{
-			int pallen = 0xc0;
 			Pico.m.dirtyPal = 0;
-			if (Pico.video.reg[0xC]&8) // shadow/hilight mode
-			{
-				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
-				vidConvCpyRGB32sh(localPal+0x40, Pico.cram, 0x40);
-				vidConvCpyRGB32hi(localPal+0x80, Pico.cram, 0x40);
-				memcpy32(localPal+0xc0, localPal+0x40, 0x40);
-				pallen = 0x100;
-			}
-			else if (rendstatus & PDRAW_SONIC_MODE) { // mid-frame palette changes
-				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
-				vidConvCpyRGB32(localPal+0x40, HighPal, 0x40);
-				vidConvCpyRGB32(localPal+0x80, HighPal+0x40, 0x40);
-			}
-			else {
-				vidConvCpyRGB32(localPal, Pico.cram, 0x40);
-				memcpy32(localPal+0x80, localPal, 0x40); // for spr prio mess
-			}
-			if (pallen > 0xc0) {
-				localPal[0xc0] = 0x0000c000;
-				localPal[0xd0] = 0x00c00000;
-				localPal[0xe0] = 0x00000000; // reserved pixels for OSD
-				localPal[0xf0] = 0x00ffffff;
-			}
-			gp2x_video_setpalette(localPal, pallen);
+			ret = make_local_pal(0);
+			gp2x_video_setpalette(localPal, ret);
 		}
 	}
 
 	if (notice || (emu_opt & 2)) {
-		int h = 232;
-		if (currentConfig.scaling == EOPT_SCALE_HW_HV && !(Pico.video.reg[1]&8))
-			h -= 8;
 		if (notice)
-			osd_text(4, h, notice);
+			osd_text(4, osd_y, notice);
 		if (emu_opt & 2)
-			osd_text(osd_fps_x, h, fps);
+			osd_text(osd_fps_x, osd_y, fps);
 	}
 	if ((emu_opt & 0x400) && (PicoAHW & PAHW_MCD))
 		draw_cd_leds();
@@ -474,6 +493,9 @@ static void vidResetMode(void)
 	if (currentConfig.scaling == EOPT_SCALE_HW_HV && !(Pico.video.reg[1]&8))
 	     gp2x_video_RGB_setscaling(8, (PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 224);
 	else gp2x_video_RGB_setscaling(0, (PicoOpt&0x100)&&!(Pico.video.reg[12]&1) ? 256 : 320, 240);
+
+	// palette converters for 8bit modes
+	make_local_pal = (PicoAHW & PAHW_SMS) ? make_local_pal_sms : make_local_pal_md;
 }
 
 void plat_video_toggle_renderer(int is_next, int is_menu)
@@ -498,6 +520,7 @@ void plat_video_toggle_renderer(int is_next, int is_menu)
 		return;
 
 	vidResetMode();
+	rendstatus_old = -1;
 
 	if (PicoOpt & POPT_ALT_RENDERER) {
 		emu_status_msg(" 8bit fast renderer");
@@ -694,18 +717,21 @@ void plat_debug_cat(char *str)
 {
 }
 
-void pemu_video_mode_change(int is_32col, int is_240_lines)
+void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
 	int scalex = 320;
 	osd_fps_x = OSD_FPS_X;
-	if (is_32col && (PicoOpt & POPT_DIS_32C_BORDER)) {
+	osd_y = 232;
+	if (is_32cols && (PicoOpt & POPT_DIS_32C_BORDER)) {
 		scalex = 256;
 		osd_fps_x = OSD_FPS_X - 64;
 	}
+
 	/* want vertical scaling and game is not in 240 line mode */
-	if (currentConfig.scaling == EOPT_SCALE_HW_HV && !is_240_lines)
-		gp2x_video_RGB_setscaling(8, scalex, 224);
-	else
+	if (currentConfig.scaling == EOPT_SCALE_HW_HV) {
+		gp2x_video_RGB_setscaling(start_line, scalex, line_count);
+		osd_y = start_line + line_count - 8;
+	} else
 		gp2x_video_RGB_setscaling(0, scalex, 240);
 
 	// clear whole screen in all buffers
@@ -819,6 +845,7 @@ void pemu_loop_end(void)
 	int eo_old = currentConfig.EmuOpt;
 
 	pemu_sound_stop();
+	memset32(g_screen_ptr, 0, 320*240*2/4);
 
 	/* do one more frame for menu bg */
 	PicoOpt &= ~POPT_ALT_RENDERER;

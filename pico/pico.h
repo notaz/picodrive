@@ -4,7 +4,7 @@
 // Pico Library - Header File
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006-2008 notaz, All rights reserved.
+// (c) Copyright 2006-2009 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -30,6 +30,9 @@ extern void mp3_update(int *buffer, int length, int stereo);
 // on a mem region [start_addr, end_addr)
 // used by SVP dynarec
 extern void cache_flush_d_inval_i(const void *start_addr, const void *end_addr);
+
+// this one should handle display mode changes
+extern void emu_video_mode_change(int start_line, int line_count, int is_32cols);
 
 // Pico.c
 #define POPT_EN_FM          (1<< 0) // 00 000x
@@ -172,8 +175,7 @@ extern int PicoDrawMask;
 #define PDRAW_PLANE_HI_PRIO (1<<6) // have layer with all hi prio tiles (mk3)
 #define PDRAW_SHHI_DONE     (1<<7) // layer sh/hi already processed
 #define PDRAW_240LINES      (1<<8) // 240 line display (224 if not set)
-#define PDRAW_192LINES      (1<<9) // 192 line display (for SMS games)
-extern int rendstatus;
+extern int rendstatus, rendstatus_old;
 extern unsigned short HighPal[0x100];
 
 // Draw2.c

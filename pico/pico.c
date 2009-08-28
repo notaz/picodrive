@@ -293,20 +293,19 @@ void PicoFrame(void)
 {
   Pico.m.frame_count++;
 
-  if (PicoAHW & PAHW_MCD) {
-    PicoFrameMCD();
+  if (PicoAHW & PAHW_SMS) {
+    PicoFrameMS();
     return;
   }
-  else if (PicoAHW & PAHW_SMS) {
-    PicoFrameMS();
+
+  if (PicoAHW & PAHW_MCD) {
+    PicoFrameMCD();
     return;
   }
 
   //if(Pico.video.reg[12]&0x2) Pico.video.status ^= 0x10; // change odd bit in interlace mode
 
-  if (!(PicoOpt&POPT_ALT_RENDERER))
-    PicoFrameStart();
-
+  PicoFrameStart();
   PicoFrameHints();
 }
 

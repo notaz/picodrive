@@ -9,7 +9,6 @@ void pemu_prep_defconfig(void);
 void pemu_loop_prep(void);
 void pemu_loop_end(void);
 void pemu_forced_frame(int opts);
-void pemu_video_mode_change(int is_32col, int is_240_lines);
 void pemu_update_display(const char *fps, const char *notice_msg);
 
 void pemu_sound_start(void);

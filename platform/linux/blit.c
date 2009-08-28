@@ -3,37 +3,36 @@
 // to      00000000 rrr00000 ggg00000 bbb00000 ...
 // TODO: rm when gp2x/emu.c is no longer used
 
-void vidConvCpyRGB32  (void *to, void *from, int pixels)
+void bgr444_to_rgb32(void *to, void *from)
 {
 	unsigned short *ps = from;
 	unsigned int   *pd = to;
+	int pixels;
 
-	for (; pixels; pixels--, ps++, pd++)
+	for (pixels = 0x40; pixels; pixels--, ps++, pd++)
 	{
 		*pd = ((*ps<<20)&0xe00000) | ((*ps<<8)&0xe000) | ((*ps>>4)&0xe0);
 		*pd |= *pd >> 3;
 	}
 }
 
-void vidConvCpyRGB32sh(void *to, void *from, int pixels)
+void bgr444_to_rgb32_sh(void *to, void *from)
 {
 	unsigned short *ps = from;
 	unsigned int   *pd = to;
+	int pixels;
 
-	for (; pixels; pixels--, ps++, pd++)
+	pd += 0x40;
+	for (pixels = 0x40; pixels; pixels--, ps++, pd++)
 	{
 		*pd = ((*ps<<20)&0xe00000) | ((*ps<<8)&0xe000) | ((*ps>>4)&0xe0);
 		*pd >>= 1;
 		*pd |= *pd >> 3;
+		pd[0x40*2] = *pd;
 	}
-}
 
-void vidConvCpyRGB32hi(void *to, void *from, int pixels)
-{
-	unsigned short *ps = from;
-	unsigned int   *pd = to;
-
-	for (; pixels; pixels--, ps++, pd++)
+	ps -= 0x40;
+	for (pixels = 0x40; pixels; pixels--, ps++, pd++)
 	{
 		*pd = ((*ps<<20)&0xe00000) | ((*ps<<8)&0xe000) | ((*ps>>4)&0xe0);
 		continue;

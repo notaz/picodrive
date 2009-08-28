@@ -190,17 +190,26 @@ static void DrawDisplayM4(int scanline)
 
 void PicoFrameStartMode4(void)
 {
+  int lines = 192;
   skip_next_line = 0;
   screen_offset = 24;
-  rendstatus = PDRAW_192LINES;
+  rendstatus = 0;
+
   if ((Pico.video.reg[0] & 6) == 6 && (Pico.video.reg[1] & 0x18)) {
-    rendstatus &= ~PDRAW_192LINES;
     if (Pico.video.reg[1] & 0x08) {
-      screen_offset = 0;
       rendstatus |= PDRAW_240LINES;
+      screen_offset = 0;
+      lines = 240;
     }
-    else // it's 224 lines
+    else {
       screen_offset = 8;
+      lines = 224;
+    }
+  }
+
+  if (rendstatus != rendstatus_old) {
+    rendstatus_old = rendstatus;
+    emu_video_mode_change(screen_offset, lines, 1);
   }
 }
 
@@ -251,28 +260,22 @@ void PicoDoHighPal555M4(void)
 
 static void FinalizeLineRGB555M4(void)
 {
-  unsigned short *pd=DrawLineDest;
-  unsigned char  *ps=HighCol+8;
-  unsigned short *pal=HighPal;
-  int i;
-
   if (Pico.m.dirtyPal)
     PicoDoHighPal555M4();
 
-  if (!(PicoOpt & POPT_DIS_32C_BORDER))
-    pd += 32;
-
-  for (i = 256/4; i > 0; i--) {
-    *pd++ = pal[*ps++];
-    *pd++ = pal[*ps++];
-    *pd++ = pal[*ps++];
-    *pd++ = pal[*ps++];
-  }
+  // standard FinalizeLine can finish it for us,
+  // with features like scaling and such
+  FinalizeLineRGB555(0);
 }
 
 static void FinalizeLine8bitM4(void)
 {
-  memcpy32(DrawLineDest, (int *)(HighCol+8), 256/4);
+  unsigned char *pd = DrawLineDest;
+
+  if (!(PicoOpt & POPT_DIS_32C_BORDER))
+    pd += 32;
+
+  memcpy32((int *)pd, (int *)(HighCol+8), 256/4);
 }
 
 void PicoDrawSetColorFormatMode4(int which)

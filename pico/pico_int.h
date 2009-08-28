@@ -186,6 +186,7 @@ extern struct DrZ80 drZ80;
 #define z80_int()          drZ80.Z80_IRQ = 1
 
 #define z80_cyclesLeft     drZ80.cycles
+#define z80_pc()           (drZ80.Z80PC - drZ80.Z80PC_BASE)
 
 #elif defined(_USE_CZ80)
 #include "../cpu/cz80/cz80.h"
@@ -195,6 +196,7 @@ extern struct DrZ80 drZ80;
 #define z80_int()          Cz80_Set_IRQ(&CZ80, 0, HOLD_LINE)
 
 #define z80_cyclesLeft     (CZ80.ICount - CZ80.ExtraCycles)
+#define z80_pc()           Cz80_Get_Reg(&CZ80, CZ80_PC)
 
 #else
 
@@ -416,6 +418,7 @@ int CM_compareRun(int cyc, int is_sub);
 PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawSync(int to, int blank_last_line);
 void BackFill(int reg7, int sh);
+void FinalizeLineRGB555(int sh);
 extern int DrawScanline;
 #define MAX_LINE_SPRITES 29
 extern unsigned char HighLnSpr[240][3 + MAX_LINE_SPRITES];
