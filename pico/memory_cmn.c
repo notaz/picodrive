@@ -45,17 +45,7 @@ static
 #endif
 u32 z80ReadBusReq(void)
 {
-  u32 d=Pico.m.z80Run&1;
-  if (!d) {
-    // needed by buggy Terminator (Sega CD)
-    int stop_before = SekCyclesDone() - z80stopCycle;
-    //elprintf(EL_BUSREQ, "get_zrun: stop before: %i", stop_before);
-    // note: if we use 20 or more here, Barkley Shut Up and Jam! will purposedly crash itself.
-    // but CD Terminator needs at least 32, so it only works because next frame cycle wrap.
-    if (stop_before > 0 && stop_before < 20) // Gens uses 16 here
-      d = 1; // bus not yet available
-  }
-
+  u32 d = (Pico.m.z80Run | Pico.m.z80_reset) & 1;
   elprintf(EL_BUSREQ, "get_zrun: %02x [%i] @%06x", d|0x80, SekCyclesDone(), SekPc);
   return d|0x80;
 }
