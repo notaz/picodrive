@@ -48,7 +48,7 @@ mkdirs:
 # deps
 pico/carthw/svp/compiler.o : ../../pico/carthw/svp/ssp16.o ../../pico/carthw/svp/gen_arm.c
 pico/pico.o pico/cd/pico.o : ../../pico/pico_cmn.c ../../pico/pico_int.h
-pico/memory.o pico/cd/memory.o : ../../pico/memory_cmn.c ../../pico/pico_int.h
+pico/memory.o pico/cd/memory.o : ../../pico/pico_int.h ../../pico/memory.h
 
 # build Cyclone
 ../../cpu/Cyclone/proj/Cyclone.s:

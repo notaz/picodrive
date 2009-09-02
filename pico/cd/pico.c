@@ -30,6 +30,7 @@ PICO_INTERNAL void PicoPowerMCD(void)
   memset(Pico_mcd->pcm_ram,    0, sizeof(Pico_mcd->pcm_ram));
   memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
   memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - fmt_size, formatted_bram, fmt_size);
+  PicoMemRemapCD(1);
 }
 
 PICO_INTERNAL int PicoResetMCD(void)
@@ -45,13 +46,12 @@ PICO_INTERNAL int PicoResetMCD(void)
   Reset_CD();
   LC89510_Reset();
   gfx_cd_reset();
-  PicoMemResetCD(1);
 #ifdef _ASM_CD_MEMORY_C
   //PicoMemResetCDdecode(1); // don't have to call this in 2M mode
 #endif
 
   // use SRam.data for RAM cart
-  if (PicoOpt&POPT_EN_MCD_RAMCART) {
+  if (PicoOpt & POPT_EN_MCD_RAMCART) {
     if (SRam.data == NULL)
       SRam.data = calloc(1, 0x12000);
   }

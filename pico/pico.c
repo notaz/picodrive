@@ -57,7 +57,7 @@ void PicoExit(void)
 
 void PicoPower(void)
 {
-  unsigned char sram_reg=Pico.m.sram_reg; // must be preserved
+  unsigned char sram_status = Pico.m.sram_status; // must be preserved
 
   Pico.m.frame_count = 0;
 
@@ -78,7 +78,7 @@ void PicoPower(void)
   if (PicoAHW & PAHW_MCD)
     PicoPowerMCD();
 
-  Pico.m.sram_reg=sram_reg;
+  Pico.m.sram_status = sram_status;
   PicoReset();
 }
 
@@ -94,14 +94,16 @@ PICO_INTERNAL void PicoDetectRegion(void)
   else
   {
     // Read cartridge region data:
-    int region=PicoRead32(0x1f0);
+    unsigned short *rd = (unsigned short *)(Pico.rom + 0x1f0);
+    int region = (rd[0] << 16) | rd[1];
 
-    for (i=0;i<4;i++)
+    for (i = 0; i < 4; i++)
     {
-      int c=0;
+      int c;
 
-      c=region>>(i<<3); c&=0xff;
-      if (c<=' ') continue;
+      c = region >> (i<<3);
+      c &= 0xff;
+      if (c <= ' ') continue;
 
            if (c=='J')  support|=1;
       else if (c=='U')  support|=4;
@@ -139,7 +141,7 @@ PICO_INTERNAL void PicoDetectRegion(void)
 
 int PicoReset(void)
 {
-  unsigned char sram_reg=Pico.m.sram_reg; // must be preserved
+  unsigned char sram_status = Pico.m.sram_status; // must be preserved
 
   if (Pico.romsize <= 0)
     return 1;
@@ -148,7 +150,6 @@ int PicoReset(void)
   if (PicoResetHook)
     PicoResetHook();
 
-  PicoMemReset();
   memset(&PicoPadInt,0,sizeof(PicoPadInt));
   emustatus = 0;
 
@@ -169,6 +170,7 @@ int PicoReset(void)
   Pico.m.dirtyPal = 1;
 
   Pico.m.z80_bank68k = 0;
+  Pico.m.z80_reset = 1;
   memset(Pico.zram, 0, sizeof(Pico.zram)); // ??
 
   PicoDetectRegion();
@@ -192,11 +194,12 @@ int PicoReset(void)
     SekInitIdleDet();
 
   // reset sram state; enable sram access by default if it doesn't overlap with ROM
-  Pico.m.sram_reg=sram_reg&0x14;
-  if (!(Pico.m.sram_reg&4) && Pico.romsize <= SRam.start) Pico.m.sram_reg |= 1;
+  Pico.m.sram_status = sram_status & (SRS_DETECTED|SRS_EEPROM);
+  if (!(Pico.m.sram_status & SRS_EEPROM) && Pico.romsize <= SRam.start)
+    Pico.m.sram_status |= SRS_MAPPED;
 
   elprintf(EL_STATUS, "sram: det: %i; eeprom: %i; start: %06x; end: %06x",
-    (Pico.m.sram_reg>>4)&1, (Pico.m.sram_reg>>2)&1, SRam.start, SRam.end);
+    !!(sram_status & SRS_DETECTED), !!(sram_status & SRS_EEPROM), SRam.start, SRam.end);
 
   return 0;
 }

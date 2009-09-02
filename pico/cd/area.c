@@ -273,11 +273,11 @@ readend:
 	if (PicoAHW & PAHW_MCD)
 	{
 		/* after load events */
-		if (Pico_mcd->s68k_regs[3]&4) // 1M mode?
+		if (Pico_mcd->s68k_regs[3] & 4) // 1M mode?
 			wram_2M_to_1M(Pico_mcd->word_ram2M);
-		PicoMemResetCD(Pico_mcd->s68k_regs[3]);
+		PicoMemRemapCD(Pico_mcd->s68k_regs[3]);
 #ifdef _ASM_CD_MEMORY_C
-		if (Pico_mcd->s68k_regs[3]&4)
+		if (Pico_mcd->s68k_regs[3] & 4)
 			PicoMemResetCDdecode(Pico_mcd->s68k_regs[3]);
 #endif
 		if (!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))

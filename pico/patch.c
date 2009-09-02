@@ -303,7 +303,8 @@ void PicoPatchPrepare(void)
 	for (i = 0; i < PicoPatchCount; i++)
 	{
 		PicoPatches[i].addr &= ~1;
-		PicoPatches[i].data_old = PicoRead16(PicoPatches[i].addr);
+		if (PicoPatches[i].addr < Pico.romsize)
+			PicoPatches[i].data_old = *(unsigned short *)(Pico.rom + PicoPatches[i].addr);
 		if (strstr(PicoPatches[i].name, "AUTO"))
 			PicoPatches[i].active = 1;
 	}
@@ -333,9 +334,7 @@ void PicoPatchApply(void)
 		}
 		else
 		{
-			/* RAM or some other weird patch */
-			if (PicoPatches[i].active)
-				PicoWrite16(addr, PicoPatches[i].data);
+			/* TODO? */
 		}
 	}
 }

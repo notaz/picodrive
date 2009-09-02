@@ -255,7 +255,7 @@ struct PicoMisc
   char dirtyPal;               // 06 Is the palette dirty (1 - change @ this frame, 2 - some time before)
   unsigned char hardware;      // 07 Hardware value for country
   unsigned char pal;           // 08 1=PAL 0=NTSC
-  unsigned char sram_reg;      // SRAM mode register. bit0: allow read? bit1: deny write? bit2: EEPROM? bit4: detected? (header or by access)
+  unsigned char sram_status;   // 09 SRAM status. See SRS_* below
   unsigned short z80_bank68k;  // 0a
   unsigned short z80_lastaddr; // this is for Z80 faking
   unsigned char  z80_fakeval;
@@ -293,6 +293,11 @@ struct Pico
 };
 
 // sram
+#define SRS_MAPPED   (1 << 0)
+#define SRS_READONLY (1 << 1)
+#define SRS_EEPROM   (1 << 2)
+#define SRS_DETECTED (1 << 4)
+
 struct PicoSRAM
 {
   unsigned char *data;		// actual data
@@ -435,25 +440,23 @@ void PicoDrawSetColorFormatMode4(int which);
 // memory.c
 PICO_INTERNAL void PicoInitPc(unsigned int pc);
 PICO_INTERNAL unsigned int PicoCheckPc(unsigned int pc);
-PICO_INTERNAL_ASM unsigned int PicoRead32(unsigned int a);
 PICO_INTERNAL void PicoMemSetup(void);
-PICO_INTERNAL_ASM void PicoMemReset(void);
 PICO_INTERNAL void PicoMemResetHooks(void);
-PICO_INTERNAL int PadRead(int i);
-PICO_INTERNAL int ym2612_write_local(unsigned int a, unsigned int d, int is_from_z80);
-void z80_mem_setup(void);
 extern unsigned int (*PicoRead16Hook)(unsigned int a, int realsize);
 extern void (*PicoWrite8Hook) (unsigned int a,unsigned int d,int realsize);
 extern void (*PicoWrite16Hook)(unsigned int a,unsigned int d,int realsize);
-
-// cd/memory.c
-PICO_INTERNAL void PicoMemSetupCD(void);
-PICO_INTERNAL_ASM void PicoMemResetCD(int r3);
-PICO_INTERNAL_ASM void PicoMemResetCDdecode(int r3);
+unsigned int PicoRead8_io(unsigned int a);
+unsigned int PicoRead16_io(unsigned int a);
+void PicoWrite8_io(unsigned int a, unsigned int d);
+void PicoWrite16_io(unsigned int a, unsigned int d);
 
 // pico/memory.c
 PICO_INTERNAL void PicoMemSetupPico(void);
-PICO_INTERNAL unsigned int ym2612_read_local_68k(void);
+
+// cd/memory.c
+PICO_INTERNAL void PicoMemSetupCD(void);
+PICO_INTERNAL_ASM void PicoMemRemapCD(int r3);
+PICO_INTERNAL_ASM void PicoMemResetCDdecode(int r3);
 
 // pico.c
 extern struct Pico Pico;
@@ -534,9 +537,9 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead8(unsigned int a);
 extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp);
 
 // misc.c
-PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d);
-PICO_INTERNAL void SRAMUpdPending(unsigned int a, unsigned int d);
-PICO_INTERNAL_ASM unsigned int SRAMReadEEPROM(void);
+PICO_INTERNAL void EEPROM_write(unsigned int d);
+PICO_INTERNAL void EEPROM_upd_pending(unsigned int a, unsigned int d);
+PICO_INTERNAL_ASM unsigned int EEPROM_read(void);
 PICO_INTERNAL_ASM void memcpy16(unsigned short *dest, unsigned short *src, int count);
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);
 PICO_INTERNAL_ASM void memcpy32(int *dest, int *src, int count); // 32bit word count
@@ -548,8 +551,6 @@ PICO_INTERNAL void z80_pack(unsigned char *data);
 PICO_INTERNAL void z80_unpack(unsigned char *data);
 PICO_INTERNAL void z80_reset(void);
 PICO_INTERNAL void z80_exit(void);
-void z80_map_set(unsigned long *map, int start_addr,
-  int end_addr, void *func_or_mh, int is_func);
 
 // cd/misc.c
 PICO_INTERNAL_ASM void wram_2M_to_1M(unsigned char *m);
@@ -595,6 +596,8 @@ void PicoFrameDrawOnlyMS(void);
 #define EL_SVP     0x00004000 /* SVP stuff */
 #define EL_PICOHW  0x00008000 /* Pico stuff */
 #define EL_IDLE    0x00010000 /* idle loop det. */
+#define EL_CDREGS  0x00020000 /* MCD: register access */
+#define EL_CDREG3  0x00040000 /* MCD: register 3 only */
 
 #define EL_STATUS  0x40000000 /* status messages */
 #define EL_ANOMALY 0x80000000 /* some unexpected conditions (during emulation) */

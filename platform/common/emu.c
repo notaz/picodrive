@@ -989,7 +989,8 @@ int emu_save_load_game(int load, int sram)
 			}
 		} else {
 			sram_size = SRam.end-SRam.start+1;
-			if(Pico.m.sram_reg & 4) sram_size=0x2000;
+			if (Pico.m.sram_status & SRS_EEPROM)
+				sram_size = 0x2000;
 			sram_data = SRam.data;
 		}
 		if (!sram_data) return 0; // SRam forcefully disabled for this game

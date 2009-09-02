@@ -95,11 +95,11 @@ const unsigned char hcounts_32[] = {
 
 unsigned int lastSSRamWrite = 0xffff0000;
 
-// sram_reg: LAtd sela (L=pending SCL, A=pending SDA, t=(unused),
+// sram_status: LAtd sela (L=pending SCL, A=pending SDA, t=(unused),
 //                      d=SRAM was detected (header or by access), s=started, e=save is EEPROM, l=old SCL, a=old SDA)
-PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
+PICO_INTERNAL void EEPROM_write(unsigned int d) // ???? ??la (l=SCL, a=SDA)
 {
-  unsigned int sreg = Pico.m.sram_reg, saddr = Pico.m.eeprom_addr, scyc = Pico.m.eeprom_cycle, ssa = Pico.m.eeprom_slave;
+  unsigned int sreg = Pico.m.sram_status, saddr = Pico.m.eeprom_addr, scyc = Pico.m.eeprom_cycle, ssa = Pico.m.eeprom_slave;
 
   elprintf(EL_EEPROM, "eeprom: scl/sda: %i/%i -> %i/%i, newtime=%i", (sreg&2)>>1, sreg&1,
     (d&2)>>1, d&1, SekCyclesDoneT()-lastSSRamWrite);
@@ -197,21 +197,21 @@ PICO_INTERNAL void SRAMWriteEEPROM(unsigned int d) // ???? ??la (l=SCL, a=SDA)
   }
 
   sreg &= ~3; sreg |= d&3; // remember SCL and SDA
-  Pico.m.sram_reg    = (unsigned char) sreg;
+  Pico.m.sram_status    = (unsigned char) sreg;
   Pico.m.eeprom_cycle= (unsigned char) scyc;
   Pico.m.eeprom_slave= (unsigned char) ssa;
   Pico.m.eeprom_addr = (unsigned short)saddr;
 }
 
-PICO_INTERNAL_ASM unsigned int SRAMReadEEPROM(void)
+PICO_INTERNAL_ASM unsigned int EEPROM_read(void)
 {
   unsigned int shift, d;
   unsigned int sreg, saddr, scyc, ssa, interval;
 
   // flush last pending write
-  SRAMWriteEEPROM(Pico.m.sram_reg>>6);
+  EEPROM_write(Pico.m.sram_status>>6);
 
-  sreg = Pico.m.sram_reg; saddr = Pico.m.eeprom_addr&0x1fff; scyc = Pico.m.eeprom_cycle; ssa = Pico.m.eeprom_slave;
+  sreg = Pico.m.sram_status; saddr = Pico.m.eeprom_addr&0x1fff; scyc = Pico.m.eeprom_cycle; ssa = Pico.m.eeprom_slave;
   interval = SekCyclesDoneT()-lastSSRamWrite;
   d = (sreg>>6)&1; // use SDA as "open bus"
 
@@ -250,9 +250,9 @@ PICO_INTERNAL_ASM unsigned int SRAMReadEEPROM(void)
   return (d << SRam.eeprom_bit_out);
 }
 
-PICO_INTERNAL void SRAMUpdPending(unsigned int a, unsigned int d)
+PICO_INTERNAL void EEPROM_upd_pending(unsigned int a, unsigned int d)
 {
-  unsigned int d1, sreg = Pico.m.sram_reg;
+  unsigned int d1, sreg = Pico.m.sram_status;
 
   if (!((SRam.eeprom_abits^a)&1))
   {
@@ -269,7 +269,7 @@ PICO_INTERNAL void SRAMUpdPending(unsigned int a, unsigned int d)
     sreg |= d1<<6;
   }
 
-  Pico.m.sram_reg = (unsigned char) sreg;
+  Pico.m.sram_status = (unsigned char) sreg;
 }
 
 

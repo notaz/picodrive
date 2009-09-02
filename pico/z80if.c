@@ -6,32 +6,6 @@
 unsigned long z80_read_map [0x10000 >> Z80_MEM_SHIFT];
 unsigned long z80_write_map[0x10000 >> Z80_MEM_SHIFT];
 
-void MEMH_FUNC z80_map_set(unsigned long *map, int start_addr, int end_addr,
-    void *func_or_mh, int is_func)
-{
-  unsigned long addr = (unsigned long)func_or_mh;
-  int mask = (1 << Z80_MEM_SHIFT) - 1;
-  int i;
-
-  if ((start_addr & mask) != 0 || (end_addr & mask) != mask)
-    elprintf(EL_STATUS|EL_ANOMALY, "z80_map_set: tried to map bad range: %04x-%04x",
-      start_addr, end_addr);
-
-  if (addr & 1) {
-    elprintf(EL_STATUS|EL_ANOMALY, "z80_map_set: ptr is not aligned: %08lx", addr);
-    return;
-  }
-
-  if (!is_func)
-    addr -= (start_addr >> Z80_MEM_SHIFT) << Z80_MEM_SHIFT;
-
-  for (i = start_addr >> Z80_MEM_SHIFT; i <= end_addr >> Z80_MEM_SHIFT; i++) {
-    map[i] = addr >> 1;
-    if (is_func)
-      map[i] |= 1 << (sizeof(addr) * 8 - 1);
-  }
-}
-
 #ifdef _USE_MZ80
 
 // memhandlers for mz80 core

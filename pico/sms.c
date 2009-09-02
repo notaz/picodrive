@@ -9,6 +9,7 @@
  * - H counter
  */
 #include "pico_int.h"
+#include "memory.h"
 #include "sound/sn76496.h"
 
 static unsigned char vdp_data_read(void)

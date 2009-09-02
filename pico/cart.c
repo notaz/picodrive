@@ -572,13 +572,10 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   PicoLoadStateHook = NULL;
   carthw_chunks = NULL;
 
-  PicoMemReset();
-
   if (!(PicoAHW & (PAHW_MCD|PAHW_SMS)))
     PicoCartDetect();
 
   // setup correct memory map for loaded ROM
-  // call PicoMemReset again due to possible memmap change
   switch (PicoAHW) {
     default:
       elprintf(EL_STATUS|EL_ANOMALY, "starting in unknown hw configuration: %x", PicoAHW);
@@ -588,7 +585,6 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
     case PAHW_PICO: PicoMemSetupPico(); break;
     case PAHW_SMS:  PicoMemSetupMS(); break;
   }
-  PicoMemReset();
 
   if (PicoAHW & PAHW_SMS)
     PicoPowerMS();
@@ -627,6 +623,12 @@ static int name_cmp(const char *name)
   return rom_strcmp(0x150, name);
 }
 
+static unsigned int rom_read32(int addr)
+{
+  unsigned short *m = (unsigned short *)(Pico.rom + addr);
+  return (m[0] << 16) | m[1];
+}
+
 /*
  * various cart-specific things, which can't be handled by generic code
  * (maybe I should start using CRC for this stuff?)
@@ -634,28 +636,28 @@ static int name_cmp(const char *name)
 static void PicoCartDetect(void)
 {
   int sram_size = 0, csum;
-  Pico.m.sram_reg = 0;
+  Pico.m.sram_status = 0;
 
-  csum = PicoRead32(0x18c) & 0xffff;
+  csum = rom_read32(0x18c) & 0xffff;
 
   if (Pico.rom[0x1B1] == 'R' && Pico.rom[0x1B0] == 'A')
   {
     if (Pico.rom[0x1B2] & 0x40)
     {
       // EEPROM
-      SRam.start = PicoRead32(0x1B4) & ~1; // zero address is used for clock by some games
-      SRam.end   = PicoRead32(0x1B8);
+      SRam.start = rom_read32(0x1B4) & ~1; // zero address is used for clock by some games
+      SRam.end   = rom_read32(0x1B8);
       sram_size  = 0x2000;
-      Pico.m.sram_reg |= 4;
+      Pico.m.sram_status |= SRS_EEPROM;
     } else {
       // normal SRAM
-      SRam.start = PicoRead32(0x1B4) & ~0xff;
-      SRam.end   = PicoRead32(0x1B8) | 1;
+      SRam.start = rom_read32(0x1B4) & ~0xff;
+      SRam.end   = rom_read32(0x1B8) | 1;
       sram_size  = SRam.end - SRam.start + 1;
     }
     SRam.start &= ~0xff000000;
     SRam.end   &= ~0xff000000;
-    Pico.m.sram_reg |= 0x10; // SRAM was detected
+    Pico.m.sram_status |= SRS_DETECTED;
   }
   if (sram_size <= 0)
   {
@@ -713,7 +715,7 @@ static void PicoCartDetect(void)
            name_cmp("RINGS OF POWER") == 0)
   {
     SRam.start = SRam.end = 0x200000;
-    Pico.m.sram_reg = 0x14;
+    Pico.m.sram_status = SRS_DETECTED|SRS_EEPROM;
     SRam.eeprom_abits = 0;
     SRam.eeprom_bit_cl = 6;
     SRam.eeprom_bit_in = 7;
@@ -725,7 +727,7 @@ static void PicoCartDetect(void)
   {
     SRam.start = 0x300000;
     SRam.end   = 0x380001;
-    Pico.m.sram_reg = 0x14;
+    Pico.m.sram_status = SRS_DETECTED|SRS_EEPROM;
     SRam.eeprom_type = 2;
     SRam.eeprom_abits = 0;
     SRam.eeprom_bit_cl = 1;

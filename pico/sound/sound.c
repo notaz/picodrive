@@ -107,14 +107,9 @@ static void dac_recalculate(void)
 
 PICO_INTERNAL void PsndReset(void)
 {
-  void *ym2612_regs;
-
-  // also clear the internal registers+addr line
-  ym2612_regs = YM2612GetRegs();
-  memset(ym2612_regs, 0, 0x200+4);
-  timers_reset();
-
+  // PsndRerate calls YM2612Init, which also resets
   PsndRerate(0);
+  timers_reset();
 }
 
 
