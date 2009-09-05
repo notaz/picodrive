@@ -35,8 +35,8 @@ char *PDebugMain(void)
   sprintf(dstrp, "mode set 4: %02x\n", (r=reg[0xC])); MVP;
   sprintf(dstrp, "interlace: %i%i, cells: %i, shadow: %i\n", bit(r,2), bit(r,1), (r&0x80) ? 40 : 32, bit(r,3)); MVP;
   sprintf(dstrp, "scroll size: w: %i, h: %i  SRAM: %i; eeprom: %i (%i)\n", reg[0x10]&3, (reg[0x10]&0x30)>>4,
-  	bit(Pico.m.sram_status, 4), bit(Pico.m.sram_status, 2), SRam.eeprom_type); MVP;
-  sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_status); MVP;
+  	!!(SRam.flags & SRF_ENABLED), !!(SRam.flags & SRF_EEPROM), SRam.eeprom_type); MVP;
+  sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); MVP;
   sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status); MVP;
   sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count); MVP;
 #if defined(EMU_C68K)

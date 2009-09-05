@@ -75,7 +75,7 @@ static void PicoResetPico(void)
 
 PICO_INTERNAL void PicoInitPico(void)
 {
-  elprintf(EL_STATUS, "Pico detected");
+  elprintf(EL_STATUS, "Pico startup");
   PicoLineHook = PicoLinePico;
   PicoResetHook = PicoResetPico;
 

@@ -144,6 +144,10 @@ static int PicoAreaScan(int is_write, unsigned int ver, void *PmovFile)
   SCAN_VAR(Pico.m    ,"misc")
   SCAN_VAR(Pico.video,"video")
 
+  // no longer keeping eeprom data in sram_reg
+  if (!is_write && (Pico.m.sram_reg & 4))
+    Pico.m.sram_reg = SRR_MAPPED;
+
   if (is_write)
     z80_pack(cpu_z80);
   ret = SCAN_VAR(cpu_z80,"cpu_z80")

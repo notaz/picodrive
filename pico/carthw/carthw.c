@@ -1,86 +1,79 @@
 /*
  * Support for a few cart mappers.
  *
- * (c) Copyright 2008, Grazvydas "notaz" Ignotas
+ * (c) Copyright 2008-2009, Grazvydas "notaz" Ignotas
  * Free for non-commercial use.
  *
- *
- * I should better do some pointer stuff here. But as none of these bankswitch
- * while the game runs, memcpy will suffice.
  */
 
 #include "../pico_int.h"
+#include "../memory.h"
 
 
-/* 12-in-1 and 4-in-1. Assuming >= 2MB ROMs here. */
-static unsigned int carthw_12in1_baddr = 0;
+/* Common *-in-1 pirate mapper.
+ * Switches banks based on addr lines when /TIME is set.
+ * TODO: verify
+ */
+static unsigned int carthw_Xin1_baddr = 0;
 
-static carthw_state_chunk carthw_12in1_state[] =
-{
-	{ CHUNK_CARTHW, sizeof(carthw_12in1_baddr), &carthw_12in1_baddr },
-	{ 0,            0,                          NULL }
-};
-
-static unsigned int carthw_12in1_read16(unsigned int a, int realsize)
-{
-	// ??
-	elprintf(EL_UIO, "12-in-1: read [%06x] @ %06x", a, SekPc);
-	return 0;
-}
-
-static void carthw_12in1_write8(unsigned int a, unsigned int d, int realsize)
+static void carthw_Xin1_do(u32 a, int mask, int shift)
 {
 	int len;
 
-	if (a < 0xA13000 || a >= 0xA13040) {
-		/* 4-in-1 has Real Deal Boxing, which uses serial eeprom,
-		 * but I really doubt that pirate cart had it */
-		if (a != 0x200001)
-			elprintf(EL_ANOMALY, "12-in-1: unexpected write [%06x] %02x @ %06x", a, d, SekPc);
-		return;
-	}
-
-	carthw_12in1_baddr = a;
-	a &= 0x3f; a <<= 16;
+	carthw_Xin1_baddr = a;
+	a &= mask;
+	a <<= shift;
 	len = Pico.romsize - a;
 	if (len <= 0) {
-		elprintf(EL_ANOMALY|EL_STATUS, "12-in-1: missing bank @ %06x", a);
+		elprintf(EL_ANOMALY|EL_STATUS, "X-in-1: missing bank @ %06x", a);
 		return;
 	}
 
-	memcpy(Pico.rom, Pico.rom + Pico.romsize + a, len);
+	len = (len + M68K_BANK_MASK) & ~M68K_BANK_MASK;
+	cpu68k_map_set(m68k_read8_map,  0x000000, len - 1, Pico.rom + a, 0);
+	cpu68k_map_set(m68k_read16_map, 0x000000, len - 1, Pico.rom + a, 0);
 }
 
-static void carthw_12in1_reset(void)
+static carthw_state_chunk carthw_Xin1_state[] =
 {
-	carthw_12in1_write8(0xA13000, 0, 0);
-}
+	{ CHUNK_CARTHW, sizeof(carthw_Xin1_baddr), &carthw_Xin1_baddr },
+	{ 0,            0,                         NULL }
+};
 
-static void carthw_12in1_statef(void)
+// TODO: test a0, reads, w16
+static void carthw_Xin1_write8(u32 a, u32 d)
 {
-	carthw_12in1_write8(carthw_12in1_baddr, 0, 0);
-}
-
-void carthw_12in1_startup(void)
-{
-	void *tmp;
-
-	elprintf(EL_STATUS, "12-in-1 mapper detected");
-
-	tmp = realloc(Pico.rom, Pico.romsize * 2);
-	if (tmp == NULL)
-	{
-		elprintf(EL_STATUS, "OOM");
+	if ((a & 0xffff00) != 0xa13000) {
+		PicoWrite8_io(a, d);
 		return;
 	}
-	Pico.rom = tmp;
-	memcpy(Pico.rom + Pico.romsize, Pico.rom, Pico.romsize);
 
-	PicoRead16Hook = carthw_12in1_read16;
-	PicoWrite8Hook = carthw_12in1_write8;
-	PicoResetHook  = carthw_12in1_reset;
-	PicoLoadStateHook = carthw_12in1_statef;
-	carthw_chunks     = carthw_12in1_state;
+	carthw_Xin1_do(a, 0x3f, 16);
+}
+
+static void carthw_Xin1_mem_setup(void)
+{
+	cpu68k_map_set(m68k_write8_map, 0xa10000, 0xa1ffff, carthw_Xin1_write8, 1);
+}
+
+static void carthw_Xin1_reset(void)
+{
+	carthw_Xin1_write8(0xa13000, 0);
+}
+
+static void carthw_Xin1_statef(void)
+{
+	carthw_Xin1_write8(carthw_Xin1_baddr, 0);
+}
+
+void carthw_Xin1_startup(void)
+{
+	elprintf(EL_STATUS, "X-in-1 mapper startup");
+
+	PicoCartMemSetup  = carthw_Xin1_mem_setup;
+	PicoResetHook     = carthw_Xin1_reset;
+	PicoLoadStateHook = carthw_Xin1_statef;
+	carthw_chunks     = carthw_Xin1_state;
 }
 
 
@@ -88,9 +81,8 @@ void carthw_12in1_startup(void)
  * http://www.sharemation.com/TascoDLX/REALTEC%20Cart%20Mapper%20-%20description%20v1.txt
  */
 static int realtec_bank = 0x80000000, realtec_size = 0x80000000;
-static int realtec_romsize = 0;
 
-static void carthw_realtec_write8(unsigned int a, unsigned int d, int realsize)
+static void carthw_realtec_write8(u32 a, u32 d)
 {
 	int i, bank_old = realtec_bank, size_old = realtec_size;
 
@@ -121,105 +113,92 @@ static void carthw_realtec_write8(unsigned int a, unsigned int d, int realsize)
 		(realtec_bank != bank_old || realtec_size != size_old))
 	{
 		elprintf(EL_ANOMALY, "realtec: new bank %06x, size %06x", realtec_bank, realtec_size, SekPc);
-		if (realtec_size > realtec_romsize - realtec_bank || realtec_bank >= realtec_romsize)
+		if (realtec_size > Pico.romsize - realtec_bank)
 		{
 			elprintf(EL_ANOMALY, "realtec: bank too large / out of range?");
 			return;
 		}
 
-		for (i = 0; i < 0x400000; i += realtec_size)
-			memcpy(Pico.rom + i, Pico.rom + 0x400000 + realtec_bank, realtec_size);
+		for (i = 0; i < 0x400000; i += realtec_size) {
+			cpu68k_map_set(m68k_read8_map,  i, realtec_size - 1, Pico.rom + realtec_bank, 0);
+			cpu68k_map_set(m68k_read16_map, i, realtec_size - 1, Pico.rom + realtec_bank, 0);
+		}
 	}
 }
 
 static void carthw_realtec_reset(void)
 {
 	int i;
+
 	/* map boot code */
-	for (i = 0; i < 0x400000; i += 0x2000)
-		memcpy(Pico.rom + i, Pico.rom + 0x400000 + realtec_romsize - 0x2000, 0x2000);
+	for (i = 0; i < 0x400000; i += M68K_BANK_SIZE) {
+		cpu68k_map_set(m68k_read8_map,  i, i + M68K_BANK_SIZE - 1, Pico.rom + Pico.romsize, 0);
+		cpu68k_map_set(m68k_read16_map, i, i + M68K_BANK_SIZE - 1, Pico.rom + Pico.romsize, 0);
+	}
+	cpu68k_map_set(m68k_write8_map, 0x400000, 0x400000 + M68K_BANK_SIZE - 1, carthw_realtec_write8, 1);
 	realtec_bank = realtec_size = 0x80000000;
 }
 
 void carthw_realtec_startup(void)
 {
 	void *tmp;
+	int i;
 
-	elprintf(EL_STATUS, "Realtec mapper detected");
+	elprintf(EL_STATUS, "Realtec mapper startup");
 
-	realtec_romsize = Pico.romsize;
-	Pico.romsize = 0x400000;
-	tmp = realloc(Pico.rom, 0x400000 + realtec_romsize);
+	// allocate additional bank for boot code
+	// (we know those ROMs have aligned size)
+	tmp = realloc(Pico.rom, Pico.romsize + M68K_BANK_SIZE);
 	if (tmp == NULL)
 	{
 		elprintf(EL_STATUS, "OOM");
 		return;
 	}
 	Pico.rom = tmp;
-	memcpy(Pico.rom + 0x400000, Pico.rom, realtec_romsize);
 
-	PicoWrite8Hook = carthw_realtec_write8;
+	// create bank for boot code
+	for (i = 0; i < M68K_BANK_SIZE; i += 0x2000)
+		memcpy(Pico.rom + Pico.romsize + i, Pico.rom + Pico.romsize - 0x2000, 0x2000);
+
 	PicoResetHook = carthw_realtec_reset;
 }
 
 /* Radica mapper, based on DevSter's info
  * http://devster.monkeeh.com/sega/radica/
+ * XXX: mostly the same as X-in-1, merge?
  */
-static unsigned int carthw_radica_baddr = 0;
-
-static carthw_state_chunk carthw_radica_state[] =
+static u32 carthw_radica_read16(u32 a)
 {
-	{ CHUNK_CARTHW, sizeof(carthw_radica_baddr), &carthw_radica_baddr },
-	{ 0,            0,                           NULL }
-};
+	if ((a & 0xffff00) != 0xa13000)
+		return PicoRead16_io(a);
 
-static unsigned int carthw_radica_read16(unsigned int a, int realsize)
-{
-	if ((a & 0xffff80) != 0xa13000) {
-		elprintf(EL_UIO, "radica: r16 %06x", a);
-		return 0;
-	}
-
-	carthw_radica_baddr = a;
-	a = (a & 0x7e) << 15;
-	if (a >= Pico.romsize) {
-		elprintf(EL_ANOMALY|EL_STATUS, "radica: missing bank @ %06x", a);
-		return 0;
-	}
-	memcpy(Pico.rom, Pico.rom + Pico.romsize + a, Pico.romsize - a);
+	carthw_Xin1_do(a, 0x7e, 15);
 
 	return 0;
 }
 
+static void carthw_radica_mem_setup(void)
+{
+	cpu68k_map_set(m68k_read16_map, 0xa10000, 0xa1ffff, carthw_radica_read16, 1);
+}
+
 static void carthw_radica_statef(void)
 {
-	carthw_radica_read16(carthw_radica_baddr, 0);
+	carthw_radica_read16(carthw_Xin1_baddr);
 }
 
 static void carthw_radica_reset(void)
 {
-	memcpy(Pico.rom, Pico.rom + Pico.romsize, Pico.romsize);
+	carthw_radica_read16(0xa13000);
 }
 
 void carthw_radica_startup(void)
 {
-	void *tmp;
+	elprintf(EL_STATUS, "Radica mapper startup");
 
-	elprintf(EL_STATUS, "Radica mapper detected");
-
-	tmp = realloc(Pico.rom, Pico.romsize * 2);
-	if (tmp == NULL)
-	{
-		elprintf(EL_STATUS, "OOM");
-		return;
-	}
-	Pico.rom = tmp;
-	memcpy(Pico.rom + Pico.romsize, Pico.rom, Pico.romsize);
-
-	PicoRead16Hook = carthw_radica_read16;
-	PicoResetHook  = carthw_radica_reset;
+	PicoCartMemSetup  = carthw_radica_mem_setup;
+	PicoResetHook     = carthw_radica_reset;
 	PicoLoadStateHook = carthw_radica_statef;
-	carthw_chunks     = carthw_radica_state;
+	carthw_chunks     = carthw_Xin1_state;
 }
-
 

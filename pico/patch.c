@@ -213,12 +213,6 @@ unsigned int PicoRead16(unsigned int a);
 void PicoWrite16(unsigned int a, unsigned short d);
 
 
-/* avoid dependency on newer glibc */
-static int isspace_(int c)
-{
-	return (0x09 <= c && c <= 0x0d) || c == ' ';
-}
-
 void PicoPatchUnload(void)
 {
 	if (PicoPatches != NULL)

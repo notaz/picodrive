@@ -170,7 +170,7 @@ static void blit(const char *fps, const char *notice)
 			vidConvCpyRGB565(localPal, Pico.cram, 0x40);
 		}
 		// a hack for VR
-		if (PicoRead16Hook == PicoSVPRead16)
+		if (PicoAHW & PAHW_SVP)
 			memset32((int *)(PicoDraw2FB+328*8+328*223), 0xe0e0e0e0, 328);
 		if (!(Pico.video.reg[12]&1)) lines_flags|=0x10000;
 		if (currentConfig.EmuOpt&0x4000)

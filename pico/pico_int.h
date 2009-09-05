@@ -255,18 +255,19 @@ struct PicoMisc
   char dirtyPal;               // 06 Is the palette dirty (1 - change @ this frame, 2 - some time before)
   unsigned char hardware;      // 07 Hardware value for country
   unsigned char pal;           // 08 1=PAL 0=NTSC
-  unsigned char sram_status;   // 09 SRAM status. See SRS_* below
+  unsigned char sram_reg;      // 09 SRAM reg. See SRR_* below
   unsigned short z80_bank68k;  // 0a
   unsigned short z80_lastaddr; // this is for Z80 faking
-  unsigned char  z80_fakeval;
+  unsigned char  pad0;
   unsigned char  z80_reset;    // z80 reset held
   unsigned char  padDelay[2];  // 10 gamepad phase time outs, so we count a delay
   unsigned short eeprom_addr;  // EEPROM address register
-  unsigned char  eeprom_cycle; // EEPROM SRAM cycle number
+  unsigned char  eeprom_cycle; // EEPROM cycle number
   unsigned char  eeprom_slave; // EEPROM slave word for X24C02 and better SRAMs
-  unsigned char prot_bytes[2]; // simple protection faking
+  unsigned char  eeprom_status;
+  unsigned char  pad1;
   unsigned short dma_xfers;    // 18
-  unsigned char pad[2];
+  unsigned char  eeprom_wb[2]; // EEPROM latch/write buffer
   unsigned int  frame_count;   // 1c for movies and idle det
 };
 
@@ -293,24 +294,26 @@ struct Pico
 };
 
 // sram
-#define SRS_MAPPED   (1 << 0)
-#define SRS_READONLY (1 << 1)
-#define SRS_EEPROM   (1 << 2)
-#define SRS_DETECTED (1 << 4)
+#define SRR_MAPPED   (1 << 0)
+#define SRR_READONLY (1 << 1)
+
+#define SRF_ENABLED  (1 << 0)
+#define SRF_EEPROM   (1 << 1)
 
 struct PicoSRAM
 {
   unsigned char *data;		// actual data
   unsigned int start;		// start address in 68k address space
   unsigned int end;
-  unsigned char unused1;	// 0c: unused
+  unsigned char flags;		// 0c: SRF_*
   unsigned char unused2;
   unsigned char changed;
-  unsigned char eeprom_type;    // eeprom type: 0: 7bit (24C01), 2: device with 2 addr words (X24C02+), 3: dev with 3 addr words
-  unsigned char eeprom_abits;	// eeprom access must be odd addr for: bit0 ~ cl, bit1 ~ out
+  unsigned char eeprom_type;    // eeprom type: 0: 7bit (24C01), 2: 2 addr words (X24C02+), 3: 3 addr words
+  unsigned char unused3;
   unsigned char eeprom_bit_cl;	// bit number for cl
   unsigned char eeprom_bit_in;  // bit number for in
   unsigned char eeprom_bit_out; // bit number for out
+  unsigned int size;
 };
 
 // MCD
@@ -414,6 +417,7 @@ extern areaseek *areaSeek;
 extern areaclose *areaClose;
 
 // cart.c
+extern void (*PicoCartMemSetup)(void);
 extern void (*PicoCartUnloadHook)(void);
 
 // debug.c
@@ -441,10 +445,6 @@ void PicoDrawSetColorFormatMode4(int which);
 PICO_INTERNAL void PicoInitPc(unsigned int pc);
 PICO_INTERNAL unsigned int PicoCheckPc(unsigned int pc);
 PICO_INTERNAL void PicoMemSetup(void);
-PICO_INTERNAL void PicoMemResetHooks(void);
-extern unsigned int (*PicoRead16Hook)(unsigned int a, int realsize);
-extern void (*PicoWrite8Hook) (unsigned int a,unsigned int d,int realsize);
-extern void (*PicoWrite16Hook)(unsigned int a,unsigned int d,int realsize);
 unsigned int PicoRead8_io(unsigned int a);
 unsigned int PicoRead16_io(unsigned int a);
 void PicoWrite8_io(unsigned int a, unsigned int d);
@@ -537,13 +537,15 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead8(unsigned int a);
 extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp);
 
 // misc.c
-PICO_INTERNAL void EEPROM_write(unsigned int d);
-PICO_INTERNAL void EEPROM_upd_pending(unsigned int a, unsigned int d);
-PICO_INTERNAL_ASM unsigned int EEPROM_read(void);
 PICO_INTERNAL_ASM void memcpy16(unsigned short *dest, unsigned short *src, int count);
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);
 PICO_INTERNAL_ASM void memcpy32(int *dest, int *src, int count); // 32bit word count
 PICO_INTERNAL_ASM void memset32(int *dest, int c, int count);
+
+// eeprom.c
+void EEPROM_write8(unsigned int a, unsigned int d);
+void EEPROM_write16(unsigned int d);
+unsigned int EEPROM_read(void);
 
 // z80 functionality wrappers
 PICO_INTERNAL void z80_init(void);
@@ -573,6 +575,12 @@ void PicoResetMS(void);
 void PicoMemSetupMS(void);
 void PicoFrameMS(void);
 void PicoFrameDrawOnlyMS(void);
+
+/* avoid dependency on newer glibc */
+static __inline int isspace_(int c)
+{
+	return (0x09 <= c && c <= 0x0d) || c == ' ';
+}
 
 // emulation event logging
 #ifndef EL_LOGMASK

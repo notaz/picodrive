@@ -64,8 +64,9 @@ OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o pla
 ifeq "$(amalgamate)" "1"
 OBJS += ../../picoAll.o
 else
-OBJS += pico/area.o pico/cart.o pico/memory.o pico/misc.o pico/pico.o pico/sek.o pico/z80if.o \
-		pico/videoport.o pico/draw2.o pico/draw.o pico/mode4.o pico/sms.o pico/patch.o pico/debug.o
+OBJS += pico/area.o pico/cart.o pico/memory.o pico/pico.o pico/sek.o pico/z80if.o \
+	pico/videoport.o pico/draw2.o pico/draw.o pico/mode4.o pico/sms.o \
+	pico/misc.o pico/eeprom.o pico/patch.o pico/debug.o
 # Pico - CD
 OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
 		pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \

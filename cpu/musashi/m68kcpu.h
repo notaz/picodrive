@@ -2011,8 +2011,8 @@ void m68ki_exception_interrupt(uint int_level)
 	FLAG_INT_MASK = int_level<<8;
 
 	/* Get the new PC */
-	//new_pc = m68ki_read_data_32((vector<<2) + REG_VBR);
-	new_pc = m68k_read_immediate_32((vector<<2) + REG_VBR); // notaz hack
+	new_pc = m68ki_read_data_32((vector<<2) + REG_VBR);
+	//new_pc = m68k_read_immediate_32((vector<<2) + REG_VBR); // notaz hack
 
 	/* If vector is uninitialized, call the uninitialized interrupt vector */
 	if(new_pc == 0)

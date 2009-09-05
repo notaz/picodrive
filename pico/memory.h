@@ -5,6 +5,9 @@ typedef unsigned short u16;
 typedef unsigned int   u32;
 
 #define M68K_MEM_SHIFT 16
+// minimum size we can map
+#define M68K_BANK_SIZE (1 << M68K_MEM_SHIFT)
+#define M68K_BANK_MASK (M68K_BANK_SIZE - 1)
 
 extern unsigned long m68k_read8_map  [0x1000000 >> M68K_MEM_SHIFT];
 extern unsigned long m68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];

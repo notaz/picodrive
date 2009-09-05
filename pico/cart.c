@@ -15,7 +15,8 @@
 
 static const char *rom_exts[] = { "bin", "gen", "smd", "iso", "sms", "gg", "sg" };
 
-void (*PicoCartUnloadHook)(void) = NULL;
+void (*PicoCartUnloadHook)(void);
+void (*PicoCartMemSetup)(void);
 
 void (*PicoCartLoadProgressCB)(int percent) = NULL;
 void (*PicoCDLoadProgressCB)(const char *fname, int percent) = NULL; // handled in Pico/cd/cd_file.c
@@ -565,7 +566,7 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
 
   PicoAHW &= PAHW_MCD|PAHW_SMS;
 
-  PicoMemResetHooks();
+  PicoCartMemSetup = NULL;
   PicoDmaHook = NULL;
   PicoResetHook = NULL;
   PicoLineHook = NULL;
@@ -585,6 +586,9 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
     case PAHW_PICO: PicoMemSetupPico(); break;
     case PAHW_SMS:  PicoMemSetupMS(); break;
   }
+
+  if (PicoCartMemSetup != NULL)
+    PicoCartMemSetup();
 
   if (PicoAHW & PAHW_SMS)
     PicoPowerMS();
@@ -611,16 +615,11 @@ void PicoCartUnload(void)
 static int rom_strcmp(int rom_offset, const char *s1)
 {
   int i, len = strlen(s1);
-  const char *s_rom = (const char *)Pico.rom + rom_offset;
+  const char *s_rom = (const char *)Pico.rom;
   for (i = 0; i < len; i++)
-    if (s1[i] != s_rom[i^1])
+    if (s1[i] != s_rom[(i + rom_offset) ^ 1])
       return 1;
   return 0;
-}
-
-static int name_cmp(const char *name)
-{
-  return rom_strcmp(0x150, name);
 }
 
 static unsigned int rom_read32(int addr)
@@ -629,160 +628,298 @@ static unsigned int rom_read32(int addr)
   return (m[0] << 16) | m[1];
 }
 
+static char *sskip(char *s)
+{
+  while (*s && isspace_(*s))
+    s++;
+  return s;
+}
+
+static void rstrip(char *s)
+{
+  char *p;
+  for (p = s + strlen(s) - 1; p >= s; p--)
+    if (isspace_(*p))
+      *p = 0;
+}
+
+static int is_expr(const char *expr, char **pr)
+{
+  int len = strlen(expr);
+  char *p = *pr;
+
+  if (strncmp(expr, p, len) != 0)
+    return 0;
+  p = sskip(p + len);
+  if (*p != '=')
+    return 0; // wrong or malformed
+
+  *pr = sskip(p + 1);
+  return 1;
+}
+
+static void parse_carthw(int *fill_sram)
+{
+  int line = 0, any_checks_passed = 0, skip_sect = 0;
+  char buff[256], *p, *r;
+  FILE *f;
+
+  f = fopen("carthw.cfg", "r");
+  if (f == NULL) {
+    elprintf(EL_STATUS, "couldn't open carthw.txt!");
+    return;
+  }
+
+  while ((p = fgets(buff, sizeof(buff), f)))
+  {
+    line++;
+    p = sskip(p);
+    if (*p == 0 || *p == '#')
+      continue;
+
+    if (*p == '[') {
+      any_checks_passed = 0;
+      skip_sect = 0;
+      continue;
+    }
+    
+    if (skip_sect)
+      continue;
+
+    /* look for checks */
+    if (is_expr("check_str", &p))
+    {
+      int offs;
+      offs = strtoul(p, &r, 0);
+      if (offs < 0 || offs > Pico.romsize) {
+        elprintf(EL_STATUS, "carthw:%d: check_str offs out of range: %d\n", line, offs);
+	goto bad;
+      }
+      p = sskip(r);
+      if (*p != ',')
+        goto bad;
+      p = sskip(p + 1);
+      if (*p != '"')
+        goto bad;
+      p++;
+      r = strchr(p, '"');
+      if (r == NULL)
+        goto bad;
+      *r = 0;
+
+      if (rom_strcmp(offs, p) == 0)
+        any_checks_passed = 1;
+      else
+        skip_sect = 1;
+      continue;
+    }
+    else if (is_expr("check_size_gt", &p))
+    {
+      int size;
+      size = strtoul(p, &r, 0);
+      if (r == p || size < 0)
+        goto bad;
+
+      if (Pico.romsize > size)
+        any_checks_passed = 1;
+      else
+        skip_sect = 1;
+      continue;
+    }
+    else if (is_expr("check_csum", &p))
+    {
+      int csum;
+      csum = strtoul(p, &r, 0);
+      if (r == p || (csum & 0xffff0000))
+        goto bad;
+
+      if (csum == (rom_read32(0x18c) & 0xffff))
+        any_checks_passed = 1;
+      else
+        skip_sect = 1;
+      continue;
+    }
+
+    /* now time for actions */
+    if (is_expr("hw", &p)) {
+      if (!any_checks_passed)
+        goto no_checks;
+      rstrip(p);
+
+      if      (strcmp(p, "svp") == 0)
+        PicoSVPStartup();
+      else if (strcmp(p, "pico") == 0)
+        PicoInitPico();
+      else if (strcmp(p, "x_in_1_mapper") == 0)
+        carthw_Xin1_startup();
+      else if (strcmp(p, "realtec_mapper") == 0)
+        carthw_realtec_startup();
+      else if (strcmp(p, "radica_mapper") == 0)
+        carthw_radica_startup();
+      else {
+        elprintf(EL_STATUS, "carthw:%d: unsupported mapper: %s", line, p);
+        skip_sect = 1;
+      }
+      continue;
+    }
+    if (is_expr("sram_range", &p)) {
+      int start, end;
+
+      if (!any_checks_passed)
+        goto no_checks;
+      rstrip(p);
+
+      start = strtoul(p, &r, 0);
+      if (r == p)
+        goto bad;
+      p = sskip(r);
+      if (*p != ',')
+        goto bad;
+      p = sskip(p + 1);
+      end = strtoul(p, &r, 0);
+      if (r == p)
+        goto bad;
+      if (((start | end) & 0xff000000) || start > end) {
+        elprintf(EL_STATUS, "carthw:%d: bad sram_range: %08x - %08x", line, start, end);
+        goto bad_nomsg;
+      }
+      SRam.start = start;
+      SRam.end = end;
+      continue;
+    }
+    else if (is_expr("prop", &p)) {
+      if (!any_checks_passed)
+        goto no_checks;
+      rstrip(p);
+
+      if      (strcmp(p, "no_sram") == 0)
+        SRam.flags &= ~SRF_ENABLED;
+      else if (strcmp(p, "no_eeprom") == 0)
+        SRam.flags &= ~SRF_EEPROM;
+      else if (strcmp(p, "filled_sram") == 0)
+        *fill_sram = 1;
+      else {
+        elprintf(EL_STATUS, "carthw:%d: unsupported prop: %s", line, p);
+        goto bad_nomsg;
+      }
+      continue;
+    }
+    else if (is_expr("eeprom_type", &p)) {
+      int type;
+      if (!any_checks_passed)
+        goto no_checks;
+      rstrip(p);
+
+      type = strtoul(p, &r, 0);
+      if (r == p || type < 0)
+        goto bad;
+      SRam.eeprom_type = type;
+      SRam.flags |= SRF_EEPROM;
+      continue;
+    }
+    else if (is_expr("eeprom_lines", &p)) {
+      int scl, sda_in, sda_out;
+      if (!any_checks_passed)
+        goto no_checks;
+      rstrip(p);
+
+      scl = strtoul(p, &r, 0);
+      if (r == p || scl < 0 || scl > 15)
+        goto bad;
+      p = sskip(r);
+      if (*p++ != ',')
+        goto bad;
+      sda_in = strtoul(p, &r, 0);
+      if (r == p || sda_in < 0 || sda_in > 15)
+        goto bad;
+      p = sskip(r);
+      if (*p++ != ',')
+        goto bad;
+      sda_out = strtoul(p, &r, 0);
+      if (r == p || sda_out < 0 || sda_out > 15)
+        goto bad;
+
+      SRam.eeprom_bit_cl = scl;
+      SRam.eeprom_bit_in = sda_in;
+      SRam.eeprom_bit_out= sda_out;
+      continue;
+    }
+
+
+bad:
+    elprintf(EL_STATUS, "carthw:%d: unrecognized expression: %s", line, buff);
+bad_nomsg:
+    skip_sect = 1;
+    continue;
+
+no_checks:
+    elprintf(EL_STATUS, "carthw:%d: command without any checks before it: %s", line, buff);
+    skip_sect = 1;
+    continue;
+  }
+  fclose(f);
+}
+
 /*
  * various cart-specific things, which can't be handled by generic code
- * (maybe I should start using CRC for this stuff?)
  */
 static void PicoCartDetect(void)
 {
-  int sram_size = 0, csum;
-  Pico.m.sram_status = 0;
+  int fill_sram = 0, csum;
 
   csum = rom_read32(0x18c) & 0xffff;
 
+  memset(&SRam, 0, sizeof(SRam));
   if (Pico.rom[0x1B1] == 'R' && Pico.rom[0x1B0] == 'A')
   {
+    SRam.start =  rom_read32(0x1B4) & ~0xff000001; // align
+    SRam.end   = (rom_read32(0x1B8) & ~0xff000000) | 1;
     if (Pico.rom[0x1B2] & 0x40)
-    {
       // EEPROM
-      SRam.start = rom_read32(0x1B4) & ~1; // zero address is used for clock by some games
-      SRam.end   = rom_read32(0x1B8);
-      sram_size  = 0x2000;
-      Pico.m.sram_status |= SRS_EEPROM;
-    } else {
-      // normal SRAM
-      SRam.start = rom_read32(0x1B4) & ~0xff;
-      SRam.end   = rom_read32(0x1B8) | 1;
-      sram_size  = SRam.end - SRam.start + 1;
-    }
-    SRam.start &= ~0xff000000;
-    SRam.end   &= ~0xff000000;
-    Pico.m.sram_status |= SRS_DETECTED;
+      SRam.flags |= SRF_EEPROM;
+    SRam.flags |= SRF_ENABLED;
   }
-  if (sram_size <= 0)
+  if (SRam.end == 0 || SRam.start > SRam.end)
   {
     // some games may have bad headers, like S&K and Sonic3
     // note: majority games use 0x200000 as starting address, but there are some which
     // use something else (0x300000 by HardBall '95). Luckily they have good headers.
     SRam.start = 0x200000;
     SRam.end   = 0x203FFF;
-    sram_size  = 0x004000;
+    SRam.flags |= SRF_ENABLED;
   }
-
-  // this game actually doesn't have SRAM, but some weird protection
-  if (rom_strcmp(0x120, "PUGGSY") == 0)
-  {
-    SRam.start = SRam.end = sram_size = 0;
-  }
-
-  if (sram_size)
-  {
-    SRam.data = (unsigned char *) calloc(sram_size, 1);
-    if (SRam.data == NULL) return;
-  }
-  SRam.changed = 0;
 
   // set EEPROM defaults, in case it gets detected
   SRam.eeprom_type   = 0; // 7bit (24C01)
-  SRam.eeprom_abits  = 3; // eeprom access must be odd addr for: bit0 ~ cl, bit1 ~ in
   SRam.eeprom_bit_cl = 1;
   SRam.eeprom_bit_in = 0;
   SRam.eeprom_bit_out= 0;
 
-  // some known EEPROM data (thanks to EkeEke)
-  if (name_cmp("COLLEGE SLAM") == 0 ||
-      name_cmp("FRANK THOMAS BIGHURT BASEBAL") == 0)
+  parse_carthw(&fill_sram);
+
+  if (SRam.flags & SRF_ENABLED)
   {
-    SRam.eeprom_type = 3;
-    SRam.eeprom_abits = 2;
-    SRam.eeprom_bit_cl = 0;
-  }
-  else if (name_cmp("NBA JAM TOURNAMENT EDITION") == 0 ||
-           name_cmp("NFL QUARTERBACK CLUB") == 0)
-  {
-    SRam.eeprom_type = 2;
-    SRam.eeprom_abits = 2;
-    SRam.eeprom_bit_cl = 0;
-  }
-  else if (name_cmp("NBA JAM") == 0)
-  {
-    SRam.eeprom_type = 2;
-    SRam.eeprom_bit_out = 1;
-    SRam.eeprom_abits = 0;
-  }
-  else if (name_cmp("NHLPA HOCKEY '93") == 0 ||
-           name_cmp("NHLPA Hockey '93") == 0 ||
-           name_cmp("RINGS OF POWER") == 0)
-  {
-    SRam.start = SRam.end = 0x200000;
-    Pico.m.sram_status = SRS_DETECTED|SRS_EEPROM;
-    SRam.eeprom_abits = 0;
-    SRam.eeprom_bit_cl = 6;
-    SRam.eeprom_bit_in = 7;
-    SRam.eeprom_bit_out= 7;
-  }
-  else if ( name_cmp("MICRO MACHINES II") == 0 ||
-           (name_cmp("        ") == 0 && // Micro Machines {Turbo Tournament '96, Military - It's a Blast!}
-           (csum == 0x165e || csum == 0x168b || csum == 0xCEE0 || csum == 0x2C41)))
-  {
-    SRam.start = 0x300000;
-    SRam.end   = 0x380001;
-    Pico.m.sram_status = SRS_DETECTED|SRS_EEPROM;
-    SRam.eeprom_type = 2;
-    SRam.eeprom_abits = 0;
-    SRam.eeprom_bit_cl = 1;
-    SRam.eeprom_bit_in = 0;
-    SRam.eeprom_bit_out= 7;
+    if (SRam.flags & SRF_EEPROM)
+      SRam.size = 0x2000;
+    else
+      SRam.size = SRam.end - SRam.start + 1;
+
+    SRam.data = calloc(SRam.size, 1);
+    if (SRam.data == NULL)
+      SRam.flags &= ~SRF_ENABLED;
+
+    if (SRam.eeprom_type == 1)	// 1 == 0 in PD EEPROM code
+      SRam.eeprom_type = 0;
   }
 
-  // SVP detection
-  else if (name_cmp("Virtua Racing") == 0 ||
-           name_cmp("VIRTUA RACING") == 0)
+  if ((SRam.flags & SRF_ENABLED) && fill_sram)
   {
-    PicoSVPStartup();
-  }
-
-  // Pico
-  else if (rom_strcmp(0x100, "SEGA PICO") == 0 ||
-           rom_strcmp(0x100, "IMA IKUNOUJYUKU") == 0) // what is that supposed to mean?
-  {
-    PicoInitPico();
-  }
-
-  // Detect 12-in-1 mapper
-  else if ((name_cmp("ROBOCOP 3") == 0 && Pico.romsize == 0x200000) ||
-    (rom_strcmp(0x160, "FLICKY") == 0 && Pico.romsize >= 0x200000)  ||
-    (name_cmp(" SHOVE IT!") == 0 && Pico.romsize >= 0x200000) ||
-    (name_cmp("MS PACMAN") == 0 && Pico.romsize >= 0x200000) || // bad dump?
-    (name_cmp("ALIEN 3") == 0 && Pico.romsize == 0x200000))
-  {
-    carthw_12in1_startup();
-  }
-
-  // Realtec mapper
-  else if (Pico.romsize == 512*1024 && (
-    rom_strcmp(0x94, "THE EARTH DEFEND") == 0 ||
-    rom_strcmp(0xfe, "WISEGAME 11-03-1993") == 0 || // Funny World
-    rom_strcmp(0x95, "MALLET LEGEND ") == 0)) // Whac-A-Critter
-  {
-    carthw_realtec_startup();
-  }
-
-  // Radica mapper
-  else if (name_cmp("KID CHAMELEON") == 0 && Pico.romsize > 0x100000)
-  {
-    carthw_radica_startup();
-  }
-
-  // Some games malfunction if SRAM is not filled with 0xff
-  if (name_cmp("DINO DINI'S SOCCER") == 0 ||
-      name_cmp("MICRO MACHINES II") == 0)
-  {
-    memset(SRam.data, 0xff, sram_size);
+    elprintf(EL_STATUS, "SRAM fill");
+    memset(SRam.data, 0xff, SRam.size);
   }
 
   // Unusual region 'code'
   if (rom_strcmp(0x1f0, "EUROPE") == 0 || rom_strcmp(0x1f0, "Europe") == 0)
-    *(int *) (Pico.rom+0x1f0) = 0x20204520;
+    *(int *) (Pico.rom + 0x1f0) = 0x20204520;
 }
 

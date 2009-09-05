@@ -1,32 +1,28 @@
 #include "../pico_int.h"
+#include "../memory.h"
 #include "../sound/sn76496.h"
 
-#ifndef UTYPES_DEFINED
-typedef unsigned char  u8;
-typedef unsigned short u16;
-typedef unsigned int   u32;
-#define UTYPES_DEFINED
-#endif
-
-
-// -----------------------------------------------------------------
-//                     Read Rom and read Ram
-
-static u32 PicoReadPico8(u32 a)
+/*
+void dump(u16 w)
 {
-  u32 d=0;
+  static FILE *f[0x10] = { NULL, };
+  char fname[32];
+  int num = PicoPicohw.r12 & 0xf;
 
-  if ((a&0xe00000)==0xe00000) { d = *(u8 *)(Pico.ram+((a^1)&0xffff)); goto end; } // Ram
-  if (a<Pico.romsize) { d = *(u8 *)(Pico.rom+(a^1)); goto end; } // Rom
+  w = (w << 8) | (w >> 8);
+  sprintf(fname, "ldump%i.bin", num);
+  if (f[num] == NULL)
+    f[num] = fopen(fname, "wb");
+  fwrite(&w, 1, 2, f[num]);
+  //fclose(f);
+}
+*/
 
-  a&=0xffffff;
+static u32 PicoRead8_pico(u32 a)
+{
+  u32 d = 0;
 
-  if ((a&0xfffff0)==0xc00000) { // VDP
-    d=PicoVideoRead8(a);
-    goto end;
-  }
-
-  if ((a&0xffffe0)==0x800000) // Pico I/O
+  if ((a & 0xffffe0) == 0x800000) // Pico I/O
   {
     switch (a & 0x1f)
     {
@@ -44,120 +40,42 @@ static u32 PicoReadPico8(u32 a)
       case 0x0d: d = (1 << (PicoPicohw.page & 7)) - 1; break;
       case 0x12: d = PicoPicohw.fifo_bytes == 0 ? 0x80 : 0; break; // guess
       default:
-        elprintf(EL_UIO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
-        break;
+        goto unhandled;
     }
+    return d;
   }
 
-  //elprintf(EL_UIO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
-
-end:
-  elprintf(EL_IO, "r8 : %06x,   %02x @%06x", a&0xffffff, (u8)d, SekPc);
+unhandled:
+  elprintf(EL_UIO, "m68k unmapped r8  [%06x] @%06x", a, SekPc);
   return d;
 }
 
-static u32 PicoReadPico16(u32 a)
+static u32 PicoRead16_pico(u32 a)
 {
-  u32 d=0;
-
-  if ((a&0xe00000)==0xe00000) { d=*(u16 *)(Pico.ram+(a&0xfffe)); goto end; } // Ram
-
-  a&=0xfffffe;
-
-  if (a<Pico.romsize) { d = *(u16 *)(Pico.rom+a); goto end; } // Rom
-
-  if ((a&0xfffff0)==0xc00000) {
-    d = PicoVideoRead(a);
-    goto end;
-  }
+  u32 d = 0;
 
   if      (a == 0x800010)
     d = (PicoPicohw.fifo_bytes > 0x3f) ? 0 : (0x3f - PicoPicohw.fifo_bytes);
   else if (a == 0x800012)
     d = PicoPicohw.fifo_bytes == 0 ? 0x8000 : 0; // guess
   else
-    elprintf(EL_UIO, "r16: %06x, %04x @%06x", a&0xffffff, d, SekPc);
+    elprintf(EL_UIO, "m68k unmapped r16 [%06x] @%06x", a, SekPc);
 
-  //elprintf(EL_UIO, "r16: %06x, %04x @%06x", a&0xffffff, d, SekPc);
-
-end:
-  elprintf(EL_IO, "r16: %06x, %04x @%06x", a&0xffffff, d, SekPc);
   return d;
 }
 
-static u32 PicoReadPico32(u32 a)
+static void PicoWrite8_pico(u32 a, u32 d)
 {
-  u32 d=0;
-
-  if ((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); d = (pm[0]<<16)|pm[1]; goto end; } // Ram
-
-  a&=0xfffffe;
-
-  if (a<Pico.romsize) { u16 *pm=(u16 *)(Pico.rom+a); d = (pm[0]<<16)|pm[1]; goto end; } // Rom
-
-  if ((a&0xfffff0)==0xc00000) {
-    d = (PicoVideoRead(a)<<16)|PicoVideoRead(a+2);
-    goto end;
-  }
-
-  elprintf(EL_UIO, "r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
-
-end:
-  elprintf(EL_IO, "r32: %06x, %08x @%06x", a&0xffffff, d, SekPc);
-  return d;
-}
-
-// -----------------------------------------------------------------
-//                            Write Ram
-/*
-void dump(u16 w)
-{
-  static FILE *f[0x10] = { NULL, };
-  char fname[32];
-  int num = PicoPicohw.r12 & 0xf;
-
-  w = (w << 8) | (w >> 8);
-  sprintf(fname, "ldump%i.bin", num);
-  if (f[num] == NULL)
-    f[num] = fopen(fname, "wb");
-  fwrite(&w, 1, 2, f[num]);
-  //fclose(f);
-}
-*/
-
-static void PicoWritePico8(u32 a,u8 d)
-{
-  elprintf(EL_IO, "w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
-
-  if ((a&0xe00000)==0xe00000) { *(u8 *)(Pico.ram+((a^1)&0xffff))=d; return; } // Ram
-
-  a&=0xffffff;
-  if ((a&0xfffff9)==0xc00011) { if (PicoOpt&2) SN76496Write(d); return; } // PSG Sound
-
-  if ((a&0xfffff0)==0xc00000) { // VDP
-    d&=0xff;
-    PicoVideoWrite(a,(u16)(d|(d<<8))); // Byte access gets mirrored
-    return;
-  }
-
-  switch (a & 0x1f) {
+  switch (a & ~0x800000) {
     case 0x19: case 0x1b: case 0x1d: case 0x1f: break; // 'S' 'E' 'G' 'A'
     default:
-      elprintf(EL_UIO, "w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
+      elprintf(EL_UIO, "m68k unmapped w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
       break;
   }
-  //elprintf(EL_UIO, "w8 : %06x,   %02x @%06x", a&0xffffff, d, SekPc);
 }
 
-static void PicoWritePico16(u32 a,u16 d)
+static void PicoWrite16_pico(u32 a, u32 d)
 {
-  elprintf(EL_IO, "w16: %06x, %04x", a&0xffffff, d);
-
-  if ((a&0xe00000)==0xe00000) { *(u16 *)(Pico.ram+(a&0xfffe))=d; return; } // Ram
-
-  a&=0xfffffe;
-  if ((a&0xfffff0)==0xc00000) { PicoVideoWrite(a,(u16)d); return; } // VDP
-
   //if (a == 0x800010) dump(d);
   if (a == 0x800010)
   {
@@ -179,97 +97,21 @@ static void PicoWritePico16(u32 a,u16 d)
       PicoReratePico();
   }
   else
-    elprintf(EL_UIO, "w16: %06x, %04x", a&0xffffff, d);
-
-  //elprintf(EL_UIO, "w16: %06x, %04x", a&0xffffff, d);
+    elprintf(EL_UIO, "m68k unmapped w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
 }
-
-static void PicoWritePico32(u32 a,u32 d)
-{
-  elprintf(EL_IO, "w32: %06x, %08x", a&0xffffff, d);
-
-  if ((a&0xe00000)==0xe00000)
-  {
-    // Ram:
-    u16 *pm=(u16 *)(Pico.ram+(a&0xfffe));
-    pm[0]=(u16)(d>>16); pm[1]=(u16)d;
-    return;
-  }
-
-  a&=0xfffffe;
-  if ((a&0xfffff0)==0xc00000)
-  {
-    // VDP:
-    PicoVideoWrite(a,  (u16)(d>>16));
-    PicoVideoWrite(a+2,(u16)d);
-    return;
-  }
-
-  elprintf(EL_UIO, "w32: %06x, %08x", a&0xffffff, d);
-}
-
-#ifdef EMU_M68K
-extern unsigned int (*pm68k_read_memory_8) (unsigned int address);
-extern unsigned int (*pm68k_read_memory_16)(unsigned int address);
-extern unsigned int (*pm68k_read_memory_32)(unsigned int address);
-extern void (*pm68k_write_memory_8) (unsigned int address, unsigned char  value);
-extern void (*pm68k_write_memory_16)(unsigned int address, unsigned short value);
-extern void (*pm68k_write_memory_32)(unsigned int address, unsigned int   value);
-extern unsigned int (*pm68k_read_memory_pcr_8) (unsigned int address);
-extern unsigned int (*pm68k_read_memory_pcr_16)(unsigned int address);
-extern unsigned int (*pm68k_read_memory_pcr_32)(unsigned int address);
-
-static unsigned int m68k_read_memory_pcrp_8(unsigned int a)
-{
-  if((a&0xe00000)==0xe00000) return *(u8 *)(Pico.ram+((a^1)&0xffff)); // Ram
-  return 0;
-}
-
-static unsigned int m68k_read_memory_pcrp_16(unsigned int a)
-{
-  if((a&0xe00000)==0xe00000) return *(u16 *)(Pico.ram+(a&0xfffe)); // Ram
-  return 0;
-}
-
-static unsigned int m68k_read_memory_pcrp_32(unsigned int a)
-{
-  if((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); return (pm[0]<<16)|pm[1]; } // Ram
-  return 0;
-}
-#endif // EMU_M68K
 
 
 PICO_INTERNAL void PicoMemSetupPico(void)
 {
-#ifdef EMU_C68K
-  PicoCpuCM68k.checkpc=PicoCheckPc;
-  PicoCpuCM68k.fetch8 =PicoCpuCM68k.read8 =PicoReadPico8;
-  PicoCpuCM68k.fetch16=PicoCpuCM68k.read16=PicoReadPico16;
-  PicoCpuCM68k.fetch32=PicoCpuCM68k.read32=PicoReadPico32;
-  PicoCpuCM68k.write8 =PicoWritePico8;
-  PicoCpuCM68k.write16=PicoWritePico16;
-  PicoCpuCM68k.write32=PicoWritePico32;
-#endif
-#ifdef EMU_M68K
-  pm68k_read_memory_8  = PicoReadPico8;
-  pm68k_read_memory_16 = PicoReadPico16;
-  pm68k_read_memory_32 = PicoReadPico32;
-  pm68k_write_memory_8  = PicoWritePico8;
-  pm68k_write_memory_16 = PicoWritePico16;
-  pm68k_write_memory_32 = PicoWritePico32;
-  pm68k_read_memory_pcr_8  = m68k_read_memory_pcrp_8;
-  pm68k_read_memory_pcr_16 = m68k_read_memory_pcrp_16;
-  pm68k_read_memory_pcr_32 = m68k_read_memory_pcrp_32;
-#endif
-#ifdef EMU_F68K
-  // use standard setup, only override handlers
   PicoMemSetup();
-  PicoCpuFM68k.read_byte =PicoReadPico8;
-  PicoCpuFM68k.read_word =PicoReadPico16;
-  PicoCpuFM68k.read_long =PicoReadPico32;
-  PicoCpuFM68k.write_byte=PicoWritePico8;
-  PicoCpuFM68k.write_word=PicoWritePico16;
-  PicoCpuFM68k.write_long=PicoWritePico32;
-#endif
+
+  // no MD IO or Z80 on Pico
+  m68k_map_unmap(0x400000, 0xbfffff);
+
+  // map Pico I/O
+  cpu68k_map_set(m68k_read8_map,   0x800000, 0x80ffff, PicoRead8_pico, 1);
+  cpu68k_map_set(m68k_read16_map,  0x800000, 0x80ffff, PicoRead16_pico, 1);
+  cpu68k_map_set(m68k_write8_map,  0x800000, 0x80ffff, PicoWrite8_pico, 1);
+  cpu68k_map_set(m68k_write16_map, 0x800000, 0x80ffff, PicoWrite16_pico, 1);
 }
 

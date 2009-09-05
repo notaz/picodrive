@@ -253,7 +253,7 @@ static void blit(const char *fps, const char *notice)
 			// gp2x_video_setpalette(localPal, 0x40);
 		}
 		// a hack for VR
-		if (PicoRead16Hook == PicoSVPRead16)
+		if (PicoAHW & PAHW_SVP)
 			memset32((int *)(PicoDraw2FB+328*8+328*223), 0xe0e0e0e0, 328);
 		// do actual copy
 		vidCpyM2((unsigned char *)g_screen_ptr+g_screen_width*8, PicoDraw2FB+328*8);

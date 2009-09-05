@@ -327,7 +327,7 @@ void pemu_update_display(const char *fps, const char *notice)
 			gp2x_video_setpalette(localPal, ret);
 		}
 		// a hack for VR
-		if (PicoRead16Hook == PicoSVPRead16)
+		if (PicoAHW & PAHW_SVP)
 			memset32((int *)(PicoDraw2FB+328*8+328*223), 0xe0e0e0e0, 328);
 		// do actual copy
 		vidcpyM2(g_screen_ptr, PicoDraw2FB+328*8,

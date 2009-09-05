@@ -40,8 +40,6 @@ void PicoInit(void)
 
   PicoInitMCD();
   PicoSVPInit();
-
-  SRam.data=0;
 }
 
 // to be called once on emu exit
@@ -52,13 +50,12 @@ void PicoExit(void)
   PicoCartUnload();
   z80_exit();
 
-  if (SRam.data) free(SRam.data); SRam.data=0;
+  if (SRam.data)
+    free(SRam.data);
 }
 
 void PicoPower(void)
 {
-  unsigned char sram_status = Pico.m.sram_status; // must be preserved
-
   Pico.m.frame_count = 0;
 
   // clear all memory of the emulated machine
@@ -78,7 +75,6 @@ void PicoPower(void)
   if (PicoAHW & PAHW_MCD)
     PicoPowerMCD();
 
-  Pico.m.sram_status = sram_status;
   PicoReset();
 }
 
@@ -141,8 +137,6 @@ PICO_INTERNAL void PicoDetectRegion(void)
 
 int PicoReset(void)
 {
-  unsigned char sram_status = Pico.m.sram_status; // must be preserved
-
   if (Pico.romsize <= 0)
     return 1;
 
@@ -194,12 +188,13 @@ int PicoReset(void)
     SekInitIdleDet();
 
   // reset sram state; enable sram access by default if it doesn't overlap with ROM
-  Pico.m.sram_status = sram_status & (SRS_DETECTED|SRS_EEPROM);
-  if (!(Pico.m.sram_status & SRS_EEPROM) && Pico.romsize <= SRam.start)
-    Pico.m.sram_status |= SRS_MAPPED;
+  Pico.m.sram_reg = 0;
+  if ((SRam.flags & SRF_EEPROM) || Pico.romsize <= SRam.start)
+    Pico.m.sram_reg |= SRR_MAPPED;
 
-  elprintf(EL_STATUS, "sram: det: %i; eeprom: %i; start: %06x; end: %06x",
-    !!(sram_status & SRS_DETECTED), !!(sram_status & SRS_EEPROM), SRam.start, SRam.end);
+  if (SRam.flags & SRF_ENABLED)
+    elprintf(EL_STATUS, "sram: %06x - %06x; eeprom: %i", SRam.start, SRam.end,
+      !!(SRam.flags & SRF_EEPROM));
 
   return 0;
 }

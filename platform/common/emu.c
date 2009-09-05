@@ -977,7 +977,7 @@ int emu_save_load_game(int load, int sram)
 		int truncate = 1;
 		if (PicoAHW & PAHW_MCD)
 		{
-			if (PicoOpt&POPT_EN_MCD_RAMCART) {
+			if (PicoOpt & POPT_EN_MCD_RAMCART) {
 				sram_size = 0x12000;
 				sram_data = SRam.data;
 				if (sram_data)
@@ -988,9 +988,7 @@ int emu_save_load_game(int load, int sram)
 				truncate  = 0; // the .brm may contain RAM cart data after normal brm
 			}
 		} else {
-			sram_size = SRam.end-SRam.start+1;
-			if (Pico.m.sram_status & SRS_EEPROM)
-				sram_size = 0x2000;
+			sram_size = SRam.size;
 			sram_data = SRam.data;
 		}
 		if (!sram_data) return 0; // SRam forcefully disabled for this game

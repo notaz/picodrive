@@ -1044,101 +1044,12 @@ static void PicoWriteCD32w(unsigned int a, unsigned int d) {
 	if (m68ki_cpu_p == &PicoCpuMS68k) s68k_write32(a, d); else m68k_write32(a, d);
 }
 
-// these are allowed to access RAM
-static unsigned int  m68k_read_pcrelative_CD8 (unsigned int a)
-{
-  a&=0xffffff;
-  if(m68ki_cpu_p == &PicoCpuMS68k) {
-    if (a < 0x80000) return *(u8 *)(Pico_mcd->prg_ram+(a^1)); // PRG Ram
-    if ((a&0xfc0000)==0x080000 && !(Pico_mcd->s68k_regs[3]&4)) // word RAM (2M area: 080000-0bffff)
-      return *(u8 *)(Pico_mcd->word_ram2M+((a^1)&0x3ffff));
-    if ((a&0xfe0000)==0x0c0000 &&  (Pico_mcd->s68k_regs[3]&4)) { // word RAM (1M area: 0c0000-0dffff)
-      int bank = (Pico_mcd->s68k_regs[3]&1)^1;
-      return *(u8 *)(Pico_mcd->word_ram1M[bank]+((a^1)&0x1ffff));
-    }
-    elprintf(EL_ANOMALY, "s68k_read_pcrelative_CD8 FIXME: can't handle %06x", a);
-  } else {
-    if((a&0xe00000)==0xe00000) return *(u8 *)(Pico.ram+((a^1)&0xffff)); // Ram
-    if(a<0x20000)              return *(u8 *)(Pico.rom+(a^1)); // Bios
-    if((a&0xfc0000)==0x200000) { // word RAM
-      if(!(Pico_mcd->s68k_regs[3]&4)) // 2M?
-        return *(u8 *)(Pico_mcd->word_ram2M+((a^1)&0x3ffff));
-      else if (a < 0x220000) {
-        int bank = Pico_mcd->s68k_regs[3]&1;
-        return *(u8 *)(Pico_mcd->word_ram1M[bank]+((a^1)&0x1ffff));
-      }
-    }
-    elprintf(EL_ANOMALY, "m68k_read_pcrelative_CD8 FIXME: can't handle %06x", a);
-  }
-  return 0;//(u8)  lastread_d;
-}
-static unsigned int  m68k_read_pcrelative_CD16(unsigned int a)
-{
-  a&=0xffffff;
-  if(m68ki_cpu_p == &PicoCpuMS68k) {
-    if (a < 0x80000) return *(u16 *)(Pico_mcd->prg_ram+(a&~1)); // PRG Ram
-    if ((a&0xfc0000)==0x080000 && !(Pico_mcd->s68k_regs[3]&4)) // word RAM (2M area: 080000-0bffff)
-      return *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
-    if ((a&0xfe0000)==0x0c0000 &&  (Pico_mcd->s68k_regs[3]&4)) { // word RAM (1M area: 0c0000-0dffff)
-      int bank = (Pico_mcd->s68k_regs[3]&1)^1;
-      return *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
-    }
-    elprintf(EL_ANOMALY, "s68k_read_pcrelative_CD16 FIXME: can't handle %06x", a);
-  } else {
-    if((a&0xe00000)==0xe00000) return *(u16 *)(Pico.ram+(a&0xfffe)); // Ram
-    if(a<0x20000)              return *(u16 *)(Pico.rom+(a&~1)); // Bios
-    if((a&0xfc0000)==0x200000) { // word RAM
-      if(!(Pico_mcd->s68k_regs[3]&4)) // 2M?
-        return *(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe));
-      else if (a < 0x220000) {
-        int bank = Pico_mcd->s68k_regs[3]&1;
-        return *(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
-      }
-    }
-    elprintf(EL_ANOMALY, "m68k_read_pcrelative_CD16 FIXME: can't handle %06x", a);
-  }
-  return 0;
-}
-static unsigned int  m68k_read_pcrelative_CD32(unsigned int a)
-{
-  u16 *pm;
-  a&=0xffffff;
-  if(m68ki_cpu_p == &PicoCpuMS68k) {
-    if (a < 0x80000) { u16 *pm=(u16 *)(Pico_mcd->prg_ram+(a&~1)); return (pm[0]<<16)|pm[1]; } // PRG Ram
-    if ((a&0xfc0000)==0x080000 && !(Pico_mcd->s68k_regs[3]&4)) // word RAM (2M area: 080000-0bffff)
-      { pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe)); return (pm[0]<<16)|pm[1]; }
-    if ((a&0xfe0000)==0x0c0000 &&  (Pico_mcd->s68k_regs[3]&4)) { // word RAM (1M area: 0c0000-0dffff)
-      int bank = (Pico_mcd->s68k_regs[3]&1)^1;
-      pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
-      return (pm[0]<<16)|pm[1];
-    }
-    elprintf(EL_ANOMALY, "s68k_read_pcrelative_CD32 FIXME: can't handle %06x", a);
-  } else {
-    if((a&0xe00000)==0xe00000) { u16 *pm=(u16 *)(Pico.ram+(a&0xfffe)); return (pm[0]<<16)|pm[1]; } // Ram
-    if(a<0x20000)              { u16 *pm=(u16 *)(Pico.rom+(a&~1));     return (pm[0]<<16)|pm[1]; }
-    if((a&0xfc0000)==0x200000) { // word RAM
-      if(!(Pico_mcd->s68k_regs[3]&4)) // 2M?
-        { pm=(u16 *)(Pico_mcd->word_ram2M+(a&0x3fffe)); return (pm[0]<<16)|pm[1]; }
-      else if (a < 0x220000) {
-        int bank = Pico_mcd->s68k_regs[3]&1;
-        pm=(u16 *)(Pico_mcd->word_ram1M[bank]+(a&0x1fffe));
-        return (pm[0]<<16)|pm[1];
-      }
-    }
-    elprintf(EL_ANOMALY, "m68k_read_pcrelative_CD32 FIXME: can't handle %06x", a);
-  }
-  return 0;
-}
-
 extern unsigned int (*pm68k_read_memory_8) (unsigned int address);
 extern unsigned int (*pm68k_read_memory_16)(unsigned int address);
 extern unsigned int (*pm68k_read_memory_32)(unsigned int address);
 extern void (*pm68k_write_memory_8) (unsigned int address, unsigned char  value);
 extern void (*pm68k_write_memory_16)(unsigned int address, unsigned short value);
 extern void (*pm68k_write_memory_32)(unsigned int address, unsigned int   value);
-extern unsigned int (*pm68k_read_memory_pcr_8) (unsigned int address);
-extern unsigned int (*pm68k_read_memory_pcr_16)(unsigned int address);
-extern unsigned int (*pm68k_read_memory_pcr_32)(unsigned int address);
 
 static void m68k_mem_setup_cd(void)
 {
@@ -1148,9 +1059,6 @@ static void m68k_mem_setup_cd(void)
   pm68k_write_memory_8  = PicoWriteCD8w;
   pm68k_write_memory_16 = PicoWriteCD16w;
   pm68k_write_memory_32 = PicoWriteCD32w;
-  pm68k_read_memory_pcr_8  = m68k_read_pcrelative_CD8;
-  pm68k_read_memory_pcr_16 = m68k_read_pcrelative_CD16;
-  pm68k_read_memory_pcr_32 = m68k_read_pcrelative_CD32;
 }
 #endif // EMU_M68K
 

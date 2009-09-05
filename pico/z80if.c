@@ -106,7 +106,6 @@ PICO_INTERNAL void z80_reset(void)
   Cz80_Set_Reg(&CZ80, CZ80_IY, 0xffff);
   Cz80_Set_Reg(&CZ80, CZ80_SP, 0x2000);
 #endif
-  Pico.m.z80_fakeval = 0; // for faking when Z80 is disabled
 }
 
 // XXX TODO: should better use universal z80 save format

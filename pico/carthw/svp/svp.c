@@ -121,7 +121,7 @@ void PicoSVPStartup(void)
 {
 	void *tmp;
 
-	elprintf(EL_SVP, "SVP init");
+	elprintf(EL_STATUS, "SVP startup");
 
 	tmp = realloc(Pico.rom, 0x200000 + sizeof(*svp));
 	if (tmp == NULL)
@@ -150,9 +150,7 @@ void PicoSVPStartup(void)
 #endif
 
 	// init ok, setup hooks..
-	PicoRead16Hook = PicoSVPRead16;
-	PicoWrite8Hook = PicoSVPWrite8;
-	PicoWrite16Hook = PicoSVPWrite16;
+	PicoCartMemSetup = PicoSVPMemSetup;
 	PicoDmaHook = PicoSVPDma;
 	PicoResetHook = PicoSVPReset;
 	PicoLineHook = PicoSVPLine;

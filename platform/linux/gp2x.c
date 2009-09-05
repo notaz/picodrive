@@ -425,6 +425,7 @@ void *gp2x_video_setpalette = gp2x_video_setpalette_;
 void *gp2x_video_RGB_setscaling = do_nothing;
 void *gp2x_video_wait_vsync = do_nothing;
 void *gp2x_set_cpuclk = do_nothing;
+void *gp2x_read_battery = do_nothing;
 void *set_lcd_custom_rate = do_nothing;
 void *unset_lcd_custom_rate = do_nothing;
 void *set_lcd_gamma = do_nothing;
