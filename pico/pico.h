@@ -140,7 +140,6 @@ int      pm_seek(pm_file *stream, long offset, int whence);
 int      pm_close(pm_file *fp);
 int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms);
 int PicoCartInsert(unsigned char *rom,unsigned int romsize);
-void Byteswap(unsigned char *data,int len);
 void PicoCartUnload(void);
 extern void (*PicoCartLoadProgressCB)(int percent);
 extern void (*PicoCDLoadProgressCB)(const char *fname, int percent);

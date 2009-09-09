@@ -379,7 +379,7 @@ int pm_close(pm_file *fp)
 }
 
 
-void Byteswap(unsigned char *data,int len)
+static void Byteswap(unsigned char *data,int len)
 {
   int i=0;
 
@@ -612,6 +612,18 @@ void PicoCartUnload(void)
   }
 }
 
+static unsigned int rom_crc32(void)
+{
+  unsigned int crc;
+  elprintf(EL_STATUS, "caclulating CRC32..");
+
+  // have to unbyteswap for calculation..
+  Byteswap(Pico.rom, Pico.romsize);
+  crc = crc32(0, Pico.rom, Pico.romsize);
+  Byteswap(Pico.rom, Pico.romsize);
+  return crc;
+}
+
 static int rom_strcmp(int rom_offset, const char *s1)
 {
   int i, len = strlen(s1);
@@ -643,6 +655,30 @@ static void rstrip(char *s)
       *p = 0;
 }
 
+static int parse_3_vals(char *p, int *val0, int *val1, int *val2)
+{
+  char *r;
+  *val0 = strtoul(p, &r, 0);
+  if (r == p)
+    goto bad;
+  p = sskip(r);
+  if (*p++ != ',')
+    goto bad;
+  *val1 = strtoul(p, &r, 0);
+  if (r == p)
+    goto bad;
+  p = sskip(r);
+  if (*p++ != ',')
+    goto bad;
+  *val2 = strtoul(p, &r, 0);
+  if (r == p)
+    goto bad;
+
+  return 1;
+bad:
+  return 0;
+}
+
 static int is_expr(const char *expr, char **pr)
 {
   int len = strlen(expr);
@@ -661,6 +697,7 @@ static int is_expr(const char *expr, char **pr)
 static void parse_carthw(int *fill_sram)
 {
   int line = 0, any_checks_passed = 0, skip_sect = 0;
+  int tmp, rom_crc = 0;
   char buff[256], *p, *r;
   FILE *f;
 
@@ -739,6 +776,21 @@ static void parse_carthw(int *fill_sram)
         skip_sect = 1;
       continue;
     }
+    else if (is_expr("check_crc32", &p))
+    {
+      unsigned int crc;
+      crc = strtoul(p, &r, 0);
+      if (r == p)
+        goto bad;
+
+      if (rom_crc == 0)
+        rom_crc = rom_crc32();
+      if (crc == rom_crc)
+        any_checks_passed = 1;
+      else
+        skip_sect = 1;
+      continue;
+    }
 
     /* now time for actions */
     if (is_expr("hw", &p)) {
@@ -750,12 +802,18 @@ static void parse_carthw(int *fill_sram)
         PicoSVPStartup();
       else if (strcmp(p, "pico") == 0)
         PicoInitPico();
+      else if (strcmp(p, "prot") == 0)
+        carthw_sprot_startup();
+      else if (strcmp(p, "ssf2_mapper") == 0)
+        carthw_ssf2_startup();
       else if (strcmp(p, "x_in_1_mapper") == 0)
         carthw_Xin1_startup();
       else if (strcmp(p, "realtec_mapper") == 0)
         carthw_realtec_startup();
       else if (strcmp(p, "radica_mapper") == 0)
         carthw_radica_startup();
+      else if (strcmp(p, "prot_lk3") == 0)
+        carthw_prot_lk3_startup();
       else {
         elprintf(EL_STATUS, "carthw:%d: unsupported mapper: %s", line, p);
         skip_sect = 1;
@@ -823,25 +881,27 @@ static void parse_carthw(int *fill_sram)
         goto no_checks;
       rstrip(p);
 
-      scl = strtoul(p, &r, 0);
-      if (r == p || scl < 0 || scl > 15)
+      if (!parse_3_vals(p, &scl, &sda_in, &sda_out))
         goto bad;
-      p = sskip(r);
-      if (*p++ != ',')
-        goto bad;
-      sda_in = strtoul(p, &r, 0);
-      if (r == p || sda_in < 0 || sda_in > 15)
-        goto bad;
-      p = sskip(r);
-      if (*p++ != ',')
-        goto bad;
-      sda_out = strtoul(p, &r, 0);
-      if (r == p || sda_out < 0 || sda_out > 15)
+      if (scl < 0 || scl > 15 || sda_in < 0 || sda_in > 15 ||
+          sda_out < 0 || sda_out > 15)
         goto bad;
 
       SRam.eeprom_bit_cl = scl;
       SRam.eeprom_bit_in = sda_in;
       SRam.eeprom_bit_out= sda_out;
+      continue;
+    }
+    else if ((tmp = is_expr("prot_ro_value16", &p)) || is_expr("prot_rw_value16", &p)) {
+      int addr, mask, val;
+      if (!any_checks_passed)
+        goto no_checks;
+      rstrip(p);
+
+      if (!parse_3_vals(p, &addr, &mask, &val))
+        goto bad;
+
+      carthw_sprot_new_location(addr, mask, val, tmp ? 1 : 0);
       continue;
     }
 
@@ -865,9 +925,7 @@ no_checks:
  */
 static void PicoCartDetect(void)
 {
-  int fill_sram = 0, csum;
-
-  csum = rom_read32(0x18c) & 0xffff;
+  int fill_sram = 0;
 
   memset(&SRam, 0, sizeof(SRam));
   if (Pico.rom[0x1B1] == 'R' && Pico.rom[0x1B0] == 'A')
