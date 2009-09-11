@@ -55,7 +55,9 @@ extern void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 #define POPT_EN_SVP_DRC     (1<<17)
 #define POPT_DIS_SPRITE_LIM (1<<18)
 #define POPT_DIS_IDLE_DET   (1<<19)
+#define POPT_DIS_32X        (1<<20)
 extern int PicoOpt; // bitfield
+
 #define PAHW_MCD  (1<<0)
 #define PAHW_32X  (1<<1)
 #define PAHW_SVP  (1<<2)

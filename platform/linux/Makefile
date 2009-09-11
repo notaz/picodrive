@@ -39,6 +39,8 @@ OBJS += pico/area.o pico/cart.o pico/memory.o pico/pico.o pico/sek.o \
 OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
 	pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \
 	pico/cd/area.o pico/cd/misc.o pico/cd/pcm.o pico/cd/buffering.o
+# Pico - 32X
+OBJS += pico/32x/32x.o pico/32x/memory.o
 # Pico - Pico
 OBJS += pico/pico/pico.o pico/pico/memory.o pico/pico/xpcm.o
 # Pico - sound
@@ -81,7 +83,7 @@ CFLAGS += $(addprefix -D,$(DEFINES))
 vpath %.c = ../..
 
 DIRS = platform platform/gp2x platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
-	zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80
+	pico/32x zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80
 
 all: mkdirs PicoDrive
 clean: tidy

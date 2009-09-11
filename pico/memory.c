@@ -501,6 +501,11 @@ u32 PicoRead8_io(u32 a)
     goto end;
   }
 
+  if (!(PicoOpt & POPT_DIS_32X)) {
+    d = PicoRead8_32x(a);
+    goto end;
+  }
+
   d = m68k_unmapped_read8(a);
 end:
   return d;
@@ -529,6 +534,11 @@ u32 PicoRead16_io(u32 a)
     goto end;
   }
 
+  if (!(PicoOpt & POPT_DIS_32X)) {
+    d = PicoRead16_32x(a);
+    goto end;
+  }
+
   d = m68k_unmapped_read16(a);
 end:
   return d;
@@ -554,6 +564,11 @@ void PicoWrite8_io(u32 a, u32 d)
     Pico.m.sram_reg |= (u8)(d & 3);
     return;
   }
+  if (!(PicoOpt & POPT_DIS_32X)) {
+    PicoWrite8_32x(a, d);
+    return;
+  }
+
   m68k_unmapped_write8(a, d);
 }
 
@@ -575,6 +590,10 @@ void PicoWrite16_io(u32 a, u32 d)
     elprintf(EL_SRAMIO, "sram reg=%02x", d);
     Pico.m.sram_reg &= ~(SRR_MAPPED|SRR_READONLY);
     Pico.m.sram_reg |= (u8)(d & 3);
+    return;
+  }
+  if (!(PicoOpt & POPT_DIS_32X)) {
+    PicoWrite16_32x(a, d);
     return;
   }
   m68k_unmapped_write16(a, d);

@@ -257,15 +257,15 @@ struct PicoMisc
   unsigned char pal;           // 08 1=PAL 0=NTSC
   unsigned char sram_reg;      // 09 SRAM reg. See SRR_* below
   unsigned short z80_bank68k;  // 0a
-  unsigned short z80_lastaddr; // this is for Z80 faking
-  unsigned char  pad0;
+  unsigned short pad0;
+  unsigned char  pad1;
   unsigned char  z80_reset;    // z80 reset held
   unsigned char  padDelay[2];  // 10 gamepad phase time outs, so we count a delay
   unsigned short eeprom_addr;  // EEPROM address register
   unsigned char  eeprom_cycle; // EEPROM cycle number
   unsigned char  eeprom_slave; // EEPROM slave word for X24C02 and better SRAMs
   unsigned char  eeprom_status;
-  unsigned char  pad1;
+  unsigned char  pad2;
   unsigned short dma_xfers;    // 18
   unsigned char  eeprom_wb[2]; // EEPROM latch/write buffer
   unsigned int  frame_count;   // 1c for movies and idle det
@@ -385,8 +385,17 @@ typedef struct
 	Rot_Comp rot_comp;
 } mcd_state;
 
+// XXX: this will need to be reworked for cart+cd support.
 #define Pico_mcd ((mcd_state *)Pico.rom)
 
+// 32X
+struct Pico32x
+{
+  unsigned short regs[0x20];
+  unsigned short vdp_regs[0x10];
+  unsigned char pending_fb;
+  unsigned char pad[3];
+};
 
 // area.c
 PICO_INTERNAL void PicoAreaPackCpu(unsigned char *cpu, int is_sub);
@@ -576,6 +585,19 @@ void PicoMemSetupMS(void);
 void PicoFrameMS(void);
 void PicoFrameDrawOnlyMS(void);
 
+// 32x/32x.c
+extern struct Pico32x Pico32x;
+void Pico32xInit(void);
+void Pico32xStartup(void);
+void PicoReset32x(void);
+
+// 32x/memory.c
+unsigned int PicoRead8_32x(unsigned int a);
+unsigned int PicoRead16_32x(unsigned int a);
+void PicoWrite8_32x(unsigned int a, unsigned int d);
+void PicoWrite16_32x(unsigned int a, unsigned int d);
+void PicoMemSetup32x(void);
+
 /* avoid dependency on newer glibc */
 static __inline int isspace_(int c)
 {
@@ -606,6 +628,7 @@ static __inline int isspace_(int c)
 #define EL_IDLE    0x00010000 /* idle loop det. */
 #define EL_CDREGS  0x00020000 /* MCD: register access */
 #define EL_CDREG3  0x00040000 /* MCD: register 3 only */
+#define EL_32X     0x00080000
 
 #define EL_STATUS  0x40000000 /* status messages */
 #define EL_ANOMALY 0x80000000 /* some unexpected conditions (during emulation) */

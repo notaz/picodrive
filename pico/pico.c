@@ -40,6 +40,7 @@ void PicoInit(void)
 
   PicoInitMCD();
   PicoSVPInit();
+  Pico32xInit();
 }
 
 // to be called once on emu exit
@@ -186,6 +187,11 @@ int PicoReset(void)
   // reinit, so that checksum checks pass
   if (!(PicoOpt & POPT_DIS_IDLE_DET))
     SekInitIdleDet();
+
+  if (!(PicoOpt & POPT_DIS_32X)) {
+    PicoReset32x();
+    return 0;
+  }
 
   // reset sram state; enable sram access by default if it doesn't overlap with ROM
   Pico.m.sram_reg = 0;
