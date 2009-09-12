@@ -76,6 +76,9 @@ void PicoPower(void)
   if (PicoAHW & PAHW_MCD)
     PicoPowerMCD();
 
+  if (!(PicoOpt & POPT_DIS_32X))
+    PicoPower32x();
+
   PicoReset();
 }
 
@@ -302,8 +305,14 @@ void PicoFrame(void)
     return;
   }
 
+  // TODO: MCD+32X
   if (PicoAHW & PAHW_MCD) {
     PicoFrameMCD();
+    return;
+  }
+
+  if (PicoAHW & PAHW_32X) {
+    PicoFrame32x();
     return;
   }
 

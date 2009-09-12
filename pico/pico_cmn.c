@@ -31,7 +31,6 @@
 }
 #endif
 
-// Accurate but slower frame which does hints
 static int PicoFrameHints(void)
 {
   struct PicoVideo *pv=&Pico.video;
@@ -175,6 +174,10 @@ static int PicoFrameHints(void)
 
   pv->status|=0x08; // go into vblank
   pv->pending_ints|=0x20;
+
+#ifdef PICO_32X
+  p32x_start_blank();
+#endif
 
   // the following SekRun is there for several reasons:
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)

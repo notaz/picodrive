@@ -36,7 +36,7 @@ void plat_video_menu_begin(void);
 void plat_video_menu_end(void);
 
 void plat_video_wait_vsync(void);
-void plat_video_toggle_renderer(int is_next, int is_menu);
+void plat_video_toggle_renderer(int is_next, int force_16bpp, int is_menu);
 void plat_validate_config(void);
 void plat_update_volume(int has_changed, int is_up);
 

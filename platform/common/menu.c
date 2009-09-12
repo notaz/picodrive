@@ -1452,7 +1452,7 @@ static int menu_loop_adv_options(menu_id id, int keys)
 
 static int mh_opt_render(menu_id id, int keys)
 {
-	plat_video_toggle_renderer((keys & PBTN_RIGHT) ? 1 : 0, 1);
+	plat_video_toggle_renderer((keys & PBTN_RIGHT) ? 1 : 0, 0, 1);
 	return 0;
 }
 

@@ -34,6 +34,9 @@ extern void cache_flush_d_inval_i(const void *start_addr, const void *end_addr);
 // this one should handle display mode changes
 extern void emu_video_mode_change(int start_line, int line_count, int is_32cols);
 
+// this must switch to 32bpp mode
+extern void emu_32x_startup(void);
+
 // Pico.c
 #define POPT_EN_FM          (1<< 0) // 00 000x
 #define POPT_EN_PSG         (1<< 1)

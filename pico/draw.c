@@ -78,7 +78,7 @@ void DrawAllSprites(unsigned char *sprited, int prio, int sh);
 void DrawTilesFromCache(int *hc, int sh, int rlim);
 void DrawSpritesSHi(unsigned char *sprited);
 void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
-void FinalizeLineBGR444(int sh);
+void FinalizeLineBGR444(int sh, int line);
 void *blockcpy(void *dst, const void *src, size_t n);
 void blockcpy_or(void *dst, void *src, size_t n, int pat);
 #else
@@ -1192,7 +1192,7 @@ void PicoDoHighPal555(int sh)
   }
 }
 
-static void FinalizeLineBGR444(int sh)
+static void FinalizeLineBGR444(int sh, int line)
 {
   unsigned short *pd=DrawLineDest;
   unsigned char  *ps=HighCol+8;
@@ -1230,7 +1230,7 @@ static void FinalizeLineBGR444(int sh)
 }
 
 
-void FinalizeLineRGB555(int sh)
+void FinalizeLineRGB555(int sh, int line)
 {
   unsigned short *pd=DrawLineDest;
   unsigned char  *ps=HighCol+8;
@@ -1266,7 +1266,7 @@ void FinalizeLineRGB555(int sh)
 }
 #endif
 
-static void FinalizeLine8bit(int sh)
+static void FinalizeLine8bit(int sh, int line)
 {
   unsigned char *pd = DrawLineDest;
   int len, rs = rendstatus;
@@ -1306,7 +1306,7 @@ static void FinalizeLine8bit(int sh)
   }
 }
 
-static void (*FinalizeLine)(int sh);
+static void (*FinalizeLine)(int sh, int line);
 
 // --------------------------------------------
 
@@ -1429,43 +1429,38 @@ PICO_INTERNAL void PicoFrameStart(void)
   PrepareSprites(1);
 }
 
-static void DrawBlankedLine(int line, int offs)
+static void DrawBlankedLine(int line, int offs, int sh, int bgc)
 {
-  int sh = (Pico.video.reg[0xC]&8)>>3; // shadow/hilight?
-
   if (PicoScanBegin != NULL)
     PicoScanBegin(line + offs);
 
-  BackFill(Pico.video.reg[7], sh);
+  BackFill(bgc, sh);
 
   if (FinalizeLine != NULL)
-    FinalizeLine(sh);
+    FinalizeLine(sh, line);
 
   if (PicoScanEnd != NULL)
     PicoScanEnd(line + offs);
 }
 
-static void PicoLine(int line, int offs)
+static void PicoLine(int line, int offs, int sh, int bgc)
 {
-  int sh;
   if (skip_next_line > 0) {
     skip_next_line--;
     return;
   }
-
-  sh=(Pico.video.reg[0xC]&8)>>3; // shadow/hilight?
 
   DrawScanline = line;
   if (PicoScanBegin != NULL)
     skip_next_line = PicoScanBegin(line + offs);
 
   // Draw screen:
-  BackFill(Pico.video.reg[7], sh);
+  BackFill(bgc, sh);
   if (Pico.video.reg[1]&0x40)
     DrawDisplay(sh);
 
   if (FinalizeLine != NULL)
-    FinalizeLine(sh);
+    FinalizeLine(sh, line);
 
   if (PicoScanEnd != NULL)
     skip_next_line = PicoScanEnd(line + offs);
@@ -1474,16 +1469,22 @@ static void PicoLine(int line, int offs)
 void PicoDrawSync(int to, int blank_last_line)
 {
   int line, offs = 0;
+  int sh = (Pico.video.reg[0xC] & 8) >> 3; // shadow/hilight?
+  int bgc = Pico.video.reg[7];
 
   if (!(rendstatus & PDRAW_240LINES))
     offs = 8;
+
+  // need to know which pixels are bg for 32x
+  if (PicoAHW & PAHW_32X)
+    bgc = 0;
 
   for (line = DrawScanline; line < to; line++)
   {
 #if !CAN_HANDLE_240_LINES
     if (line >= 224) break;
 #endif
-    PicoLine(line, offs);
+    PicoLine(line, offs, sh, bgc);
   }
 
 #if !CAN_HANDLE_240_LINES
@@ -1497,8 +1498,8 @@ void PicoDrawSync(int to, int blank_last_line)
   if (line <= to)
   {
     if (blank_last_line)
-         DrawBlankedLine(line, offs);
-    else PicoLine(line, offs);
+         DrawBlankedLine(line, offs, sh, bgc);
+    else PicoLine(line, offs, sh, bgc);
     line++;
   }
   DrawScanline = line;
@@ -1509,7 +1510,7 @@ void PicoDrawSetColorFormat(int which)
   switch (which)
   {
     case 2: FinalizeLine = FinalizeLine8bit;   break;
-    case 1: FinalizeLine = FinalizeLineRGB555; break;
+    case 1: FinalizeLine = (PicoAHW & PAHW_32X) ? FinalizeLine32xRGB555 : FinalizeLineRGB555; break;
     case 0: FinalizeLine = FinalizeLineBGR444; break;
     default:FinalizeLine = NULL; break;
   }

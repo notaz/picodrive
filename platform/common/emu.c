@@ -409,6 +409,32 @@ static void shutdown_MCD(void)
 	PicoAHW &= ~PAHW_MCD;
 }
 
+static void system_announce(void)
+{
+	const char *sys_name, *tv_standard;
+	int fps;
+
+	if (PicoAHW & PAHW_SMS) {
+		sys_name = "Master System";
+	} else if (PicoAHW & PAHW_PICO) {
+		sys_name = "Pico";
+	} else if (PicoAHW & PAHW_MCD) {
+		sys_name = "Mega CD";
+		if ((Pico.m.hardware & 0xc0) == 0x80)
+			sys_name = "Sega CD";
+	} else if (PicoAHW & PAHW_32X) {
+		sys_name = "32X";
+	} else {
+		sys_name = "MegaDrive";
+		if ((Pico.m.hardware & 0xc0) == 0x80)
+			sys_name = "Genesis";
+	}
+	tv_standard = Pico.m.pal ? "PAL" : "NTSC";
+	fps = Pico.m.pal ? 50 : 60;
+
+	emu_status_msg("%s %s / %dFPS", tv_standard, sys_name, fps);
+}
+
 // note: this function might mangle rom_fname
 // XXX: portions of this code should move to pico/
 int emu_reload_rom(char *rom_fname)
@@ -612,21 +638,7 @@ int emu_reload_rom(char *rom_fname)
 	}
 	else
 	{
-		const char *sys_name, *tv_standard;
-		int fps;
-
-		if (PicoAHW & PAHW_SMS) {
-			sys_name = "Master System";
-		} else {
-			sys_name = "MegaDrive";
-			if ((Pico.m.hardware&0xc0) == 0x80)
-				sys_name = "Genesis";
-		}
-		tv_standard = Pico.m.pal ? "PAL" : "NTSC";
-		fps = Pico.m.pal ? 50 : 60;
-
- 		emu_status_msg("%s %s / %dFPS", tv_standard, sys_name, fps);
-
+		system_announce();
 		PicoOpt &= ~POPT_DIS_VDP_FIFO;
 	}
 
@@ -1073,6 +1085,12 @@ static void emu_tray_close(void)
 	emu_status_msg("CD tray closed.");
 }
 
+void emu_32x_startup(void)
+{
+	plat_video_toggle_renderer(0, 1, 0);
+	system_announce();
+}
+
 void emu_reset_game(void)
 {
 	PicoReset();
@@ -1200,9 +1218,9 @@ static void run_events_ui(unsigned int which)
 			PicoStateProgressCB = NULL;
 		}
 	}
-	if (which & PEV_SWITCH_RND)
+	if ((which & PEV_SWITCH_RND) && !(PicoAHW & PAHW_32X))
 	{
-		plat_video_toggle_renderer(1, 0);
+		plat_video_toggle_renderer(1, 0, 0);
 	}
 	if (which & (PEV_SSLOT_PREV|PEV_SSLOT_NEXT))
 	{

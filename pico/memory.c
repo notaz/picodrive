@@ -1082,7 +1082,6 @@ static unsigned char MEMH_FUNC z80_md_vdp_read(unsigned short a)
 
 static unsigned char MEMH_FUNC z80_md_bank_read(unsigned short a)
 {
-  extern unsigned int PicoReadM68k8(unsigned int a);
   unsigned int addr68k;
   unsigned char ret;
 
@@ -1124,7 +1123,6 @@ static void MEMH_FUNC z80_md_vdp_br_write(unsigned int a, unsigned char data)
 
 static void MEMH_FUNC z80_md_bank_write(unsigned int a, unsigned char data)
 {
-  extern void PicoWriteM68k8(unsigned int a, unsigned char d);
   unsigned int addr68k;
 
   addr68k = Pico.m.z80_bank68k << 15;

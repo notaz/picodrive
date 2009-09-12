@@ -498,10 +498,14 @@ static void vidResetMode(void)
 	make_local_pal = (PicoAHW & PAHW_SMS) ? make_local_pal_sms : make_local_pal_md;
 }
 
-void plat_video_toggle_renderer(int is_next, int is_menu)
+void plat_video_toggle_renderer(int is_next, int force_16bpp, int is_menu)
 {
+	if (force_16bpp) {
+		PicoOpt &= ~POPT_ALT_RENDERER;
+		currentConfig.EmuOpt |= EOPT_16BPP;
+	}
 	/* alt, 16bpp, 8bpp */
-	if (PicoOpt & POPT_ALT_RENDERER) {
+	else if (PicoOpt & POPT_ALT_RENDERER) {
 		PicoOpt &= ~POPT_ALT_RENDERER;
 		if (is_next)
 			currentConfig.EmuOpt |= EOPT_16BPP;

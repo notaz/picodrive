@@ -389,12 +389,32 @@ typedef struct
 #define Pico_mcd ((mcd_state *)Pico.rom)
 
 // 32X
+#define P32XV_nPAL (1<<15)
+#define P32XV_PRI  (1<< 7)
+#define P32XV_Mx   (3<< 0)
+
+#define P32XV_VBLK (1<<15)
+#define P32XV_HBLK (1<<14)
+#define P32XV_PEN  (1<<13)
+#define P32XV_nFEN (1<< 1)
+#define P32XV_FS   (1<< 0)
+
 struct Pico32x
 {
   unsigned short regs[0x20];
   unsigned short vdp_regs[0x10];
   unsigned char pending_fb;
-  unsigned char pad[3];
+  unsigned char dirty_pal;
+  unsigned char pad[2];
+};
+
+struct Pico32xMem
+{
+  unsigned char  sdram[0x40000];
+  unsigned short dram[2][0x20000/2]; // AKA fb
+  unsigned char  m68k_rom[0x10000]; // 0x100; using M68K_BANK_SIZE
+  unsigned short pal[0x100];
+  unsigned short pal_native[0x100]; // converted to native (for renderer)
 };
 
 // area.c
@@ -436,7 +456,7 @@ int CM_compareRun(int cyc, int is_sub);
 PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawSync(int to, int blank_last_line);
 void BackFill(int reg7, int sh);
-void FinalizeLineRGB555(int sh);
+void FinalizeLineRGB555(int sh, int line);
 extern int DrawScanline;
 #define MAX_LINE_SPRITES 29
 extern unsigned char HighLnSpr[240][3 + MAX_LINE_SPRITES];
@@ -588,15 +608,22 @@ void PicoFrameDrawOnlyMS(void);
 // 32x/32x.c
 extern struct Pico32x Pico32x;
 void Pico32xInit(void);
-void Pico32xStartup(void);
+void PicoPower32x(void);
 void PicoReset32x(void);
+void Pico32xStartup(void);
+void PicoFrame32x(void);
 
 // 32x/memory.c
+struct Pico32xMem *Pico32xMem;
 unsigned int PicoRead8_32x(unsigned int a);
 unsigned int PicoRead16_32x(unsigned int a);
 void PicoWrite8_32x(unsigned int a, unsigned int d);
 void PicoWrite16_32x(unsigned int a, unsigned int d);
 void PicoMemSetup32x(void);
+void Pico32xSwapDRAM(int b);
+
+// 32x/draw.c
+void FinalizeLine32xRGB555(int sh, int line);
 
 /* avoid dependency on newer glibc */
 static __inline int isspace_(int c)
