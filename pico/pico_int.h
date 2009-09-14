@@ -471,8 +471,6 @@ void PicoDoHighPal555M4(void);
 void PicoDrawSetColorFormatMode4(int which);
 
 // memory.c
-PICO_INTERNAL void PicoInitPc(unsigned int pc);
-PICO_INTERNAL unsigned int PicoCheckPc(unsigned int pc);
 PICO_INTERNAL void PicoMemSetup(void);
 unsigned int PicoRead8_io(unsigned int a);
 unsigned int PicoRead16_io(unsigned int a);
@@ -684,6 +682,12 @@ extern void lprintf(const char *fmt, ...);
 #define MEMH_FUNC __attribute__((aligned(4)))
 #else
 #define MEMH_FUNC
+#endif
+
+#ifdef __GNUC__
+#define NOINLINE __attribute__((noinline))
+#else
+#define NOINLINE
 #endif
 
 #ifdef __cplusplus

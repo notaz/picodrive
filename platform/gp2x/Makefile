@@ -102,7 +102,7 @@ OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
 endif
 ifeq "$(use_cyclone)" "1"
 DEFINC += -DEMU_C68K
-OBJS += cpu/Cyclone/proj/Cyclone.o cpu/Cyclone/tools/idle.o
+OBJS += pico/m68kif_cyclone.o cpu/Cyclone/proj/Cyclone.o cpu/Cyclone/tools/idle.o
 endif
 ifeq "$(mz80)" "1"
 DEFINC += -D_USE_MZ80

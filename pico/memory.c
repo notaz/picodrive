@@ -160,56 +160,14 @@ void log_io(unsigned int addr, int bits, int rw);
 #endif
 
 #if defined(EMU_C68K)
-static __inline int PicoMemBase(u32 pc)
+void cyclone_crashed(u32 pc, struct Cyclone *context)
 {
-  int membase=0;
-
-  if (pc<Pico.romsize+4)
-  {
-    membase=(int)Pico.rom; // Program Counter in Rom
-  }
-  else if ((pc&0xe00000)==0xe00000)
-  {
-    membase=(int)Pico.ram-(pc&0xff0000); // Program Counter in Ram
-  }
-  else
-  {
-    // Error - Program Counter is invalid
-    membase=(int)Pico.rom;
-  }
-
-  return membase;
+    elprintf(EL_STATUS|EL_ANOMALY, "%c68k crash detected @ %06x\n",
+      context == &PicoCpuCM68k ? 'm' : 's', pc);
+    context->membase = (u32)Pico.rom;
+    context->pc = (u32)Pico.rom + Pico.romsize;
 }
 #endif
-
-
-PICO_INTERNAL u32 PicoCheckPc(u32 pc)
-{
-  u32 ret=0;
-#if defined(EMU_C68K)
-  pc-=PicoCpuCM68k.membase; // Get real pc
-//  pc&=0xfffffe;
-  pc&=~1;
-  if ((pc<<8) == 0)
-  {
-    elprintf(EL_STATUS|EL_ANOMALY, "%i:%03i: game crash detected @ %06x\n",
-      Pico.m.frame_count, Pico.m.scanline, SekPc);
-    return (int)Pico.rom + Pico.romsize; // common crash condition, may happen with bad ROMs
-  }
-
-  PicoCpuCM68k.membase=PicoMemBase(pc&0x00ffffff);
-  PicoCpuCM68k.membase-=pc&0xff000000;
-
-  ret = PicoCpuCM68k.membase+pc;
-#endif
-  return ret;
-}
-
-
-PICO_INTERNAL void PicoInitPc(u32 pc)
-{
-  PicoCheckPc(pc);
-}
 
 // -----------------------------------------------------------------
 // memmap helpers
@@ -259,7 +217,7 @@ static u32 io_ports_read(u32 a)
   return d;
 }
 
-static void io_ports_write(u32 a, u32 d)
+static void NOINLINE io_ports_write(u32 a, u32 d)
 {
   a = (a>>1) & 0xf;
 
@@ -271,11 +229,11 @@ static void io_ports_write(u32 a, u32 d)
       Pico.m.padTHPhase[a - 1]++;
   }
 
-  // cartain IO ports can be used as RAM
+  // certain IO ports can be used as RAM
   Pico.ioports[a] = d;
 }
 
-static void ctl_write_z80busreq(u32 d)
+static void NOINLINE ctl_write_z80busreq(u32 d)
 {
   d&=1; d^=1;
   elprintf(EL_BUSREQ, "set_zrun: %i->%i [%i] @%06x", Pico.m.z80Run, d, SekCyclesDone(), SekPc);
@@ -295,7 +253,7 @@ static void ctl_write_z80busreq(u32 d)
   }
 }
 
-static void ctl_write_z80reset(u32 d)
+static void NOINLINE ctl_write_z80reset(u32 d)
 {
   d&=1; d^=1;
   elprintf(EL_BUSREQ, "set_zreset: %i->%i [%i] @%06x", Pico.m.z80_reset, d, SekCyclesDone(), SekPc);
@@ -491,13 +449,15 @@ u32 PicoRead8_io(u32 a)
   d = Pico.m.rotate++;
   d ^= d << 6;
 
-  // bit8 seems to be readable in this range
-  if ((a & 0xfc01) == 0x1000)
-    d &= ~0x01;
+  if ((a & 0xfc00) == 0x1000) {
+    // bit8 seems to be readable in this range
+    if (!(a & 1))
+      d &= ~0x01;
 
-  if ((a & 0xff01) == 0x1100) { // z80 busreq (verified)
-    d |= (Pico.m.z80Run | Pico.m.z80_reset) & 1;
-    elprintf(EL_BUSREQ, "get_zrun: %02x [%i] @%06x", d, SekCyclesDone(), SekPc);
+    if ((a & 0xff01) == 0x1100) { // z80 busreq (verified)
+      d |= (Pico.m.z80Run | Pico.m.z80_reset) & 1;
+      elprintf(EL_BUSREQ, "get_zrun: %02x [%i] @%06x", d, SekCyclesDone(), SekPc);
+    }
     goto end;
   }
 
@@ -526,12 +486,13 @@ u32 PicoRead16_io(u32 a)
   d ^= (d << 5) ^ (d << 8);
 
   // bit8 seems to be readable in this range
-  if ((a & 0xfc00) == 0x1000)
+  if ((a & 0xfc00) == 0x1000) {
     d &= ~0x0100;
 
-  if ((a & 0xff00) == 0x1100) { // z80 busreq
-    d |= ((Pico.m.z80Run | Pico.m.z80_reset) & 1) << 8;
-    elprintf(EL_BUSREQ, "get_zrun: %04x [%i] @%06x", d, SekCyclesDone(), SekPc);
+    if ((a & 0xff00) == 0x1100) { // z80 busreq
+      d |= ((Pico.m.z80Run | Pico.m.z80_reset) & 1) << 8;
+      elprintf(EL_BUSREQ, "get_zrun: %04x [%i] @%06x", d, SekCyclesDone(), SekPc);
+    }
     goto end;
   }
 
@@ -718,13 +679,16 @@ PICO_INTERNAL void PicoMemSetup(void)
 
   // Setup memory callbacks:
 #ifdef EMU_C68K
-  PicoCpuCM68k.checkpc = PicoCheckPc;
-  PicoCpuCM68k.fetch8  = PicoCpuCM68k.read8  = m68k_read8;
-  PicoCpuCM68k.fetch16 = PicoCpuCM68k.read16 = m68k_read16;
-  PicoCpuCM68k.fetch32 = PicoCpuCM68k.read32 = m68k_read32;
-  PicoCpuCM68k.write8  = m68k_write8;
-  PicoCpuCM68k.write16 = m68k_write16;
-  PicoCpuCM68k.write32 = m68k_write32;
+  PicoCpuCM68k.read8  = (void *)m68k_read8_map;
+  PicoCpuCM68k.read16 = (void *)m68k_read16_map;
+  PicoCpuCM68k.read32 = (void *)m68k_read16_map;
+  PicoCpuCM68k.write8  = (void *)m68k_write8_map;
+  PicoCpuCM68k.write16 = (void *)m68k_write16_map;
+  PicoCpuCM68k.write32 = (void *)m68k_write16_map;
+  PicoCpuCM68k.checkpc = NULL; /* unused */
+  PicoCpuCM68k.fetch8  = NULL;
+  PicoCpuCM68k.fetch16 = NULL;
+  PicoCpuCM68k.fetch32 = NULL;
 #endif
 #ifdef EMU_F68K
   PicoCpuFM68k.read_byte  = m68k_read8;

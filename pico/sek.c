@@ -138,13 +138,7 @@ PICO_INTERNAL int SekReset(void)
   if (Pico.rom==NULL) return 1;
 
 #ifdef EMU_C68K
-  PicoCpuCM68k.state_flags=0;
-  PicoCpuCM68k.osp=0;
-  PicoCpuCM68k.srh =0x27; // Supervisor mode
-  PicoCpuCM68k.irq=0;
-  PicoCpuCM68k.a[7]=PicoCpuCM68k.read32(0); // Stack Pointer
-  PicoCpuCM68k.membase=0;
-  PicoCpuCM68k.pc=PicoCpuCM68k.checkpc(PicoCpuCM68k.read32(4)); // Program Counter
+  CycloneReset(&PicoCpuCM68k);
 #endif
 #ifdef EMU_M68K
   m68k_set_context(&PicoCpuMM68k); // if we ever reset m68k, we always need it's context to be set

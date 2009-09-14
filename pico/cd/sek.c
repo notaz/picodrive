@@ -133,14 +133,7 @@ PICO_INTERNAL int SekResetS68k(void)
   if (Pico.rom==NULL) return 1;
 
 #ifdef EMU_C68K
-  PicoCpuCS68k.state_flags=0;
-  PicoCpuCS68k.osp=0;
-  PicoCpuCS68k.srh =0x27; // Supervisor mode
-  PicoCpuCS68k.flags=4;   // Z set
-  PicoCpuCS68k.irq=0;
-  PicoCpuCS68k.a[7]=PicoCpuCS68k.read32(0); // Stack Pointer
-  PicoCpuCS68k.membase=0;
-  PicoCpuCS68k.pc=PicoCpuCS68k.checkpc(PicoCpuCS68k.read32(4)); // Program Counter
+  CycloneReset(&PicoCpuCS68k);
 #endif
 #ifdef EMU_M68K
   {

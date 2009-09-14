@@ -787,74 +787,6 @@ static void PicoWriteS68k16_pr(u32 a, u32 d)
 
 // -----------------------------------------------------------------
 
-#ifdef EMU_C68K
-static __inline int PicoMemBaseM68k(u32 pc)
-{
-  if ((pc&0xe00000)==0xe00000)
-    return (int)Pico.ram-(pc&0xff0000); // Program Counter in Ram
-
-  if (pc < 0x20000)
-    return (int)Pico_mcd->bios; // Program Counter in BIOS
-
-  if ((pc&0xfc0000)==0x200000)
-  {
-    if (!(Pico_mcd->s68k_regs[3]&4))
-      return (int)Pico_mcd->word_ram2M - 0x200000; // Program Counter in Word Ram
-    if (pc < 0x220000) {
-      int bank = Pico_mcd->s68k_regs[3]&1;
-      return (int)Pico_mcd->word_ram1M[bank] - 0x200000;
-    }
-  }
-
-  // Error - Program Counter is invalid
-  elprintf(EL_ANOMALY, "m68k FIXME: unhandled jump to %06x", pc);
-
-  return (int)Pico_mcd->bios;
-}
-
-
-static u32 PicoCheckPcM68k(u32 pc)
-{
-  pc-=PicoCpuCM68k.membase; // Get real pc
-  pc&=0xfffffe;
-
-  PicoCpuCM68k.membase=PicoMemBaseM68k(pc);
-
-  return PicoCpuCM68k.membase+pc;
-}
-
-
-static __inline int PicoMemBaseS68k(u32 pc)
-{
-  if (pc < 0x80000)                     // PRG RAM
-    return (int)Pico_mcd->prg_ram;
-
-  if ((pc&0xfc0000)==0x080000)          // WORD RAM 2M area (assume we are in the right mode..)
-    return (int)Pico_mcd->word_ram2M - 0x080000;
-
-  if ((pc&0xfe0000)==0x0c0000) {        // word RAM 1M area
-    int bank = (Pico_mcd->s68k_regs[3]&1)^1;
-    return (int)Pico_mcd->word_ram1M[bank] - 0x0c0000;
-  }
-
-  // Error - Program Counter is invalid
-  elprintf(EL_ANOMALY, "s68k FIXME: unhandled jump to %06x", pc);
-
-  return (int)Pico_mcd->prg_ram;
-}
-
-
-static u32 PicoCheckPcS68k(u32 pc)
-{
-  pc-=PicoCpuCS68k.membase; // Get real pc
-  pc&=0xfffffe;
-
-  PicoCpuCS68k.membase=PicoMemBaseS68k(pc);
-
-  return PicoCpuCS68k.membase+pc;
-}
-#endif
-
 // TODO: probably split
 void PicoMemRemapCD(int r3)
 {
@@ -963,15 +895,17 @@ PICO_INTERNAL void PicoMemSetupCD(void)
   cpu68k_map_set(s68k_write16_map, 0xff0000, 0xffffff, PicoWriteS68k16_pr, 1);
 
 #ifdef EMU_C68K
-  PicoCpuCM68k.checkpc = PicoCheckPcM68k;
   // s68k
-  PicoCpuCS68k.checkpc = PicoCheckPcS68k;
-  PicoCpuCS68k.fetch8  = PicoCpuCS68k.read8  = s68k_read8;
-  PicoCpuCS68k.fetch16 = PicoCpuCS68k.read16 = s68k_read16;
-  PicoCpuCS68k.fetch32 = PicoCpuCS68k.read32 = s68k_read32;
-  PicoCpuCS68k.write8  = s68k_write8;
-  PicoCpuCS68k.write16 = s68k_write16;
-  PicoCpuCS68k.write32 = s68k_write32;
+  PicoCpuCS68k.read8  = (void *)s68k_read8_map;
+  PicoCpuCS68k.read16 = (void *)s68k_read16_map;
+  PicoCpuCS68k.read32 = (void *)s68k_read16_map;
+  PicoCpuCS68k.write8  = (void *)s68k_write8_map;
+  PicoCpuCS68k.write16 = (void *)s68k_write16_map;
+  PicoCpuCS68k.write32 = (void *)s68k_write16_map;
+  PicoCpuCS68k.checkpc = NULL; /* unused */
+  PicoCpuCS68k.fetch8  = NULL;
+  PicoCpuCS68k.fetch16 = NULL;
+  PicoCpuCS68k.fetch32 = NULL;
 #endif
 #ifdef EMU_F68K
   // s68k

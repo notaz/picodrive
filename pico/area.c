@@ -89,8 +89,9 @@ PICO_INTERNAL void PicoAreaUnpackCpu(unsigned char *cpu, int is_sub)
   CycloneSetSr(context, *(unsigned int *)(cpu+0x44));
   context->osp=*(unsigned int *)(cpu+0x48);
   memcpy(context->d,cpu,0x40);
-  context->membase=0;
-  context->pc = context->checkpc(*(unsigned int *)(cpu+0x40)); // Base pc
+  context->membase = 0;
+  context->pc = *(unsigned int *)(cpu+0x40);
+  CycloneUnpack(context, NULL); // rebase PC
   context->irq = cpu[0x4c];
   context->state_flags = 0;
   if (cpu[0x4d])
