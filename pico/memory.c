@@ -517,6 +517,7 @@ u32 PicoRead16_io(u32 a)
 
   if ((a & 0xffe0) == 0x0000) { // I/O ports
     d = io_ports_read(a);
+    d |= d << 8;
     goto end;
   }
 
