@@ -8,7 +8,7 @@
  */
 #include "pico_int.h"
 
-static void (*FinalizeLineM4)(void);
+static void (*FinalizeLineM4)(int line);
 static int skip_next_line;
 static int screen_offset;
 
@@ -229,7 +229,7 @@ void PicoLineMode4(int line)
     DrawDisplayM4(line);
 
   if (FinalizeLineM4 != NULL)
-    FinalizeLineM4();
+    FinalizeLineM4(line);
 
   if (PicoScanEnd != NULL)
     skip_next_line = PicoScanEnd(line + screen_offset);
@@ -258,17 +258,17 @@ void PicoDoHighPal555M4(void)
   }
 }
 
-static void FinalizeLineRGB555M4(void)
+static void FinalizeLineRGB555M4(int line)
 {
   if (Pico.m.dirtyPal)
     PicoDoHighPal555M4();
 
   // standard FinalizeLine can finish it for us,
   // with features like scaling and such
-  FinalizeLineRGB555(0);
+  FinalizeLineRGB555(0, line);
 }
 
-static void FinalizeLine8bitM4(void)
+static void FinalizeLine8bitM4(int line)
 {
   unsigned char *pd = DrawLineDest;
 

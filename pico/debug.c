@@ -346,7 +346,7 @@ void PDebugZ80Frame(void)
 void PDebugCPUStep(void)
 {
   if (PicoAHW & PAHW_SMS)
-    z80_run(1);
+    z80_run_nr(1);
   else
     SekStepM68k();
 }
