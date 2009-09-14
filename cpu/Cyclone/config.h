@@ -66,6 +66,17 @@
 #define MEMHANDLERS_CHANGE_CYCLES   0
 
 /*
+ * If the following macro is defined, Cyclone no longer calls read*, write*,
+ * fetch* and checkpc from it's context, it calls these functions directly
+ * instead, prefixed with prefix selected below. For example, if
+ * MEMHANDLERS_DIRECT_PREFIX is set to cyclone_, it will call cyclone_read8
+ * on byte reads.
+ * This is to avoid indirect jumps, which are slower. It also saves one ARM
+ * instruction.
+ */
+/* MEMHANDLERS_DIRECT_PREFIX "cyclone_" */
+
+/*
  * If enabled, Cyclone will call .IrqCallback routine from it's context whenever it
  * acknowledges an IRQ. IRQ level (.irq) is not cleared automatically, do this in your
  * handler if needed.

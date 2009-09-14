@@ -21,6 +21,8 @@
 #define MEMHANDLERS_CHANGE_FLAGS    0
 #define MEMHANDLERS_CHANGE_CYCLES   0
 
+#define MEMHANDLERS_DIRECT_PREFIX   "cyclone_"
+
 #define USE_INT_ACK_CALLBACK        1
 
 #define INT_ACK_NEEDS_STUFF         0

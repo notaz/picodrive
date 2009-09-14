@@ -52,6 +52,9 @@ struct Cyclone
 // Initialize. Used only if Cyclone was compiled with compressed jumptable, see config.h
 void CycloneInit(void);
 
+// Reset
+void CycloneReset(struct Cyclone *pcy);
+
 // Run cyclone. Cycles should be specified in context (pcy->cycles)
 void CycloneRun(struct Cyclone *pcy);
 

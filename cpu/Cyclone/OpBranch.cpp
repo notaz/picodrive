@@ -5,10 +5,14 @@
 static void CheckPc(void)
 {
 #if USE_CHECKPC_CALLBACK
+ #ifdef MEMHANDLERS_DIRECT_PREFIX
+  ot("  bl %scheckpc ;@ Call checkpc()\n", MEMHANDLERS_DIRECT_PREFIX);
+ #else
   ot(";@ Check Memory Base+pc\n");
   ot("  mov lr,pc\n");
   ot("  ldr pc,[r7,#0x64] ;@ Call checkpc()\n");
   ot("\n");
+ #endif
 #endif
 }
 

@@ -301,6 +301,32 @@ static void PrintFramework()
   ot("\n");
 
   // --------------
+  ot("CycloneReset%s\n", ms?"":":");
+  ot("  stmfd sp!,{r7,lr}\n");
+  ot("  mov r7,r0\n");
+  ot("  mov r0,#0\n");
+  ot("  str r0,[r7,#0x58] ;@ state_flags\n");
+  ot("  str r0,[r7,#0x48] ;@ OSP\n");
+  ot("  mov r1,#0x27 ;@ Supervisor mode\n");
+  ot("  strb r1,[r7,#0x44] ;@ set SR high\n");
+  ot("  strb r0,[r7,#0x47] ;@ IRQ\n");
+  MemHandler(0,2);
+  ot("  str r0,[r7,#0x3c] ;@ Stack pointer\n");
+  ot("  mov r0,#0\n");
+  ot("  str r0,[r7,#0x60] ;@ Membase\n");
+  ot("  mov r0,#4\n");
+  MemHandler(0,2);
+#ifdef MEMHANDLERS_DIRECT_PREFIX
+  ot("  bl %scheckpc ;@ Call checkpc()\n", MEMHANDLERS_DIRECT_PREFIX);
+#else
+  ot("  mov lr,pc\n");
+  ot("  ldr pc,[r7,#0x64] ;@ Call checkpc()\n");
+#endif
+  ot("  str r0,[r7,#0x40] ;@ PC + base\n");
+  ot("  ldmfd sp!,{r7,pc}\n");
+  ot("\n");
+
+  // --------------
   // 68k: XNZVC, ARM: NZCV
   ot("CycloneSetSr%s\n", ms?"":":");
   ot("  mov r2,r1,lsr #8\n");
@@ -375,9 +401,10 @@ static void PrintFramework()
 
   // --------------
   ot("CycloneUnpack%s\n", ms?"":":");
-  ot("  stmfd sp!,{r4,r5,lr}\n");
-  ot("  mov r4,r0\n");
-  ot("  mov r5,r1\n");
+  ot("  stmfd sp!,{r5,r7,lr}\n");
+  ot("  mov r7,r0\n");
+  ot("  movs r5,r1\n");
+  ot("  beq c_unpack_do_pc\n");
   ot("  mov r3,#16\n");
   ot(";@ 0x00-0x3f: DA registers\n");
   ot("c_unpack_loop%s\n",ms?"":":");
@@ -387,30 +414,37 @@ static void PrintFramework()
   ot("  bne c_unpack_loop\n");
   ot(";@ 0x40: PC\n");
   ot("  ldr r0,[r5],#4 ;@ PC\n");
-#if USE_CHECKPC_CALLBACK
-  ot("  mov r1,#0\n");
-  ot("  str r1,[r4,#0x60] ;@ Memory base\n");
-  ot("  mov lr,pc\n");
-  ot("  ldr pc,[r4,#0x64] ;@ Call checkpc()\n");
-#else
-  ot("  ldr r1,[r4,#0x60] ;@ Memory base\n");
-  ot("  add r0,r0,r1 ;@ r0 = Memory Base + New PC\n");
-#endif
-  ot("  str r0,[r4,#0x40] ;@ PC + Memory Base\n");
+  ot("  str r0,[r7,#0x40] ;@ handle later\n");
   ot(";@ 0x44: SR\n");
   ot("  ldrh r1,[r5],#2\n");
-  ot("  mov r0,r4\n");
+  ot("  mov r0,r7\n");
   ot("  bl CycloneSetSr\n");
   ot(";@ 0x46: IRQ level\n");
   ot("  ldrb r0,[r5],#2\n");
-  ot("  strb r0,[r4,#0x47]\n");
+  ot("  strb r0,[r7,#0x47]\n");
   ot(";@ 0x48: other SP\n");
   ot("  ldr r0,[r5],#4\n");
-  ot("  str r0,[r4,#0x48]\n");
+  ot("  str r0,[r7,#0x48]\n");
   ot(";@ 0x4c: CPU state flags\n");
   ot("  ldr r0,[r5],#4\n");
-  ot("  str r0,[r4,#0x58]\n");
-  ot("  ldmfd sp!,{r4,r5,pc}\n");
+  ot("  str r0,[r7,#0x58]\n");
+  ot("c_unpack_do_pc%s\n",ms?"":":");
+  ot("  ldr r0,[r7,#0x40] ;@ unbased PC\n");
+#if USE_CHECKPC_CALLBACK
+  ot("  mov r1,#0\n");
+  ot("  str r1,[r7,#0x60] ;@ Memory base\n");
+ #ifdef MEMHANDLERS_DIRECT_PREFIX
+  ot("  bl %scheckpc ;@ Call checkpc()\n", MEMHANDLERS_DIRECT_PREFIX);
+ #else
+  ot("  mov lr,pc\n");
+  ot("  ldr pc,[r7,#0x64] ;@ Call checkpc()\n");
+ #endif
+#else
+  ot("  ldr r1,[r7,#0x60] ;@ Memory base\n");
+  ot("  add r0,r0,r1 ;@ r0 = Memory Base + New PC\n");
+#endif
+  ot("  str r0,[r7,#0x40] ;@ PC + Memory Base\n");
+  ot("  ldmfd sp!,{r5,r7,pc}\n");
   ot("\n");
 
   // --------------
@@ -549,12 +583,20 @@ static void PrintFramework()
   MemHandler(0,2,0,0);
   ot("  tst r0,r0 ;@ uninitialized int vector?\n");
   ot("  moveq r0,#0x3c\n");
+ #ifdef MEMHANDLERS_DIRECT_PREFIX
+  ot("  bleq %sread32 ;@ Call read32(r0) handler\n", MEMHANDLERS_DIRECT_PREFIX);
+ #else
   ot("  moveq lr,pc\n");
   ot("  ldreq pc,[r7,#0x70] ;@ Call read32(r0) handler\n");
+ #endif
 #if USE_CHECKPC_CALLBACK
   ot("  add lr,pc,#4\n");
   ot("  add r0,r0,r11 ;@ r0 = Memory Base + New PC\n");
+ #ifdef MEMHANDLERS_DIRECT_PREFIX
+  ot("  bl %scheckpc ;@ Call checkpc()\n", MEMHANDLERS_DIRECT_PREFIX);
+ #else
   ot("  ldr pc,[r7,#0x64] ;@ Call checkpc()\n");
+ #endif
  #if EMULATE_ADDRESS_ERRORS_JUMP
   ot("  mov r4,r0\n");
  #else
@@ -636,7 +678,11 @@ static void PrintFramework()
 #if USE_CHECKPC_CALLBACK
   ot("  add lr,pc,#4\n");
   ot("  add r0,r0,r3 ;@ r0 = Memory Base + New PC\n");
+ #ifdef MEMHANDLERS_DIRECT_PREFIX
+  ot("  bl %scheckpc ;@ Call checkpc()\n", MEMHANDLERS_DIRECT_PREFIX);
+ #else
   ot("  ldr pc,[r7,#0x64] ;@ Call checkpc()\n");
+ #endif
  #if EMULATE_ADDRESS_ERRORS_JUMP
   ot("  mov r4,r0\n");
  #else
@@ -763,7 +809,11 @@ static void PrintFramework()
 #if USE_CHECKPC_CALLBACK
   ot("  add lr,pc,#4\n");
   ot("  add r0,r0,r3 ;@ r0 = Memory Base + New PC\n");
+ #ifdef MEMHANDLERS_DIRECT_PREFIX
+  ot("  bl %scheckpc ;@ Call checkpc()\n", MEMHANDLERS_DIRECT_PREFIX);
+ #else
   ot("  ldr pc,[r7,#0x64] ;@ Call checkpc()\n");
+ #endif
   ot("  mov r4,r0\n");
 #else
   ot("  add r4,r0,r3 ;@ r4 = Memory Base + New PC\n");
@@ -854,8 +904,8 @@ static void PrintFramework()
 // Trashes r0-r3,r12,lr
 int MemHandler(int type,int size,int addrreg,int need_addrerr_check)
 {
-  int func=0;
-  func=0x68+type*0xc+(size<<2); // Find correct offset
+  int func=0x68+type*0xc+(size<<2); // Find correct offset
+  char what[32];
 
 #if MEMHANDLERS_NEED_FLAGS
   ot("  mov r3,r10,lsr #28\n");
@@ -894,6 +944,14 @@ int MemHandler(int type,int size,int addrreg,int need_addrerr_check)
   }
   else
 #endif
+
+  sprintf(what, "%s%d", type==0 ? "read" : (type==1 ? "write" : "fetch"), 8<<size);
+#ifdef MEMHANDLERS_DIRECT_PREFIX
+  if (addrreg != 0)
+    ot("  mov r0,r%i\n", addrreg);
+  ot("  bl %s%s ;@ Call ", MEMHANDLERS_DIRECT_PREFIX, what);
+  (void)func; // avoid warning
+#else
   if (addrreg != 0)
   {
     ot("  add lr,pc,#4\n");
@@ -902,14 +960,11 @@ int MemHandler(int type,int size,int addrreg,int need_addrerr_check)
   else
     ot("  mov lr,pc\n");
   ot("  ldr pc,[r7,#0x%x] ;@ Call ",func);
+#endif
 
   // Document what we are calling:
-  if (type==0) ot("read");
-  if (type==1) ot("write");
-  if (type==2) ot("fetch");
-
-  if (type==1) ot("%d(r0,r1)",8<<size);
-  else         ot("%d(r0)",   8<<size);
+  if (type==1) ot("%s(r0,r1)",what);
+  else         ot("%s(r0)",   what);
   ot(" handler\n");
 
 #if MEMHANDLERS_CHANGE_FLAGS
@@ -1185,6 +1240,7 @@ static int CycloneMake()
 
   ot(ms?"  area |.text|, code\n":"  .text\n  .align 4\n\n");
   ot("  %s CycloneInit\n",globl);
+  ot("  %s CycloneReset\n",globl);
   ot("  %s CycloneRun\n",globl);
   ot("  %s CycloneSetSr\n",globl);
   ot("  %s CycloneGetSr\n",globl);
