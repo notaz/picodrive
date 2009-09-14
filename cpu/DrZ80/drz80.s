@@ -6713,7 +6713,8 @@ opcode_DD_2E:
 opcode_DD_34:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	stmfd sp!,{r0}	;@ save addr
 	readmem8
 	opINC8b
@@ -6724,7 +6725,8 @@ opcode_DD_34:
 opcode_DD_35:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	stmfd sp!,{r0}	;@ save addr
 	readmem8
 	opDEC8b
@@ -6736,7 +6738,8 @@ opcode_DD_36:
 	ldrsb r2,[z80pc],#1
 	ldrb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r1,r2,r1, lsr #16
+	add r1,r1,r2, lsl #16
+	mov r1,r1,lsr #16
 	writemem8
 	fetch 19
 ;@ADD IX,SP
@@ -6767,7 +6770,8 @@ opcode_DD_45:
 opcode_DD_46:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	and z80bc,z80bc,#0xFF<<16
 	orr z80bc,z80bc,r0, lsl #24
@@ -6788,7 +6792,8 @@ opcode_DD_4D:
 opcode_DD_4E:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	and z80bc,z80bc,#0xFF<<24
 	orr z80bc,z80bc,r0, lsl #16
@@ -6810,7 +6815,8 @@ opcode_DD_55:
 opcode_DD_56:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	and z80de,z80de,#0xFF<<16
 	orr z80de,z80de,r0, lsl #24
@@ -6831,7 +6837,8 @@ opcode_DD_5D:
 opcode_DD_5E:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	and z80de,z80de,#0xFF<<24
 	orr z80de,z80de,r0, lsl #16
@@ -6868,7 +6875,8 @@ opcode_DD_65:
 opcode_DD_66:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	and z80hl,z80hl,#0xFF<<16
 	orr z80hl,z80hl,r0, lsl #24
@@ -6910,7 +6918,8 @@ opcode_DD_6D:
 opcode_DD_6E:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	and z80hl,z80hl,#0xFF<<24
 	orr z80hl,z80hl,r0, lsl #16
@@ -6925,7 +6934,8 @@ opcode_DD_6F:
 opcode_DD_70:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r1,r0,r1, lsr #16
+	add r1,r1,r0, lsl #16
+	mov r1,r1,lsr #16
 	mov r0,z80bc, lsr #24
 	writemem8
 	fetch 19
@@ -6933,7 +6943,8 @@ opcode_DD_70:
 opcode_DD_71:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r1,r0,r1, lsr #16
+	add r1,r1,r0, lsl #16
+	mov r1,r1,lsr #16
 	mov r0,z80bc, lsr #16
 	and r0,r0,#0xFF
 	writemem8
@@ -6942,7 +6953,8 @@ opcode_DD_71:
 opcode_DD_72:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r1,r0,r1, lsr #16
+	add r1,r1,r0, lsl #16
+	mov r1,r1,lsr #16
 	mov r0,z80de, lsr #24
 	writemem8
 	fetch 19
@@ -6950,7 +6962,8 @@ opcode_DD_72:
 opcode_DD_73:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r1,r0,r1, lsr #16
+	add r1,r1,r0, lsl #16
+	mov r1,r1,lsr #16
 	mov r0,z80de, lsr #16
 	and r0,r0,#0xFF
 	writemem8
@@ -6959,7 +6972,8 @@ opcode_DD_73:
 opcode_DD_74:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r1,r0,r1, lsr #16
+	add r1,r1,r0, lsl #16
+	mov r1,r1,lsr #16
 	mov r0,z80hl, lsr #24
 	writemem8
 	fetch 19
@@ -6967,7 +6981,8 @@ opcode_DD_74:
 opcode_DD_75:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r1,r0,r1, lsr #16
+	add r1,r1,r0, lsl #16
+	mov r1,r1,lsr #16
 	mov r0,z80hl, lsr #16
 	and r0,r0,#0xFF
 	writemem8
@@ -6976,7 +6991,8 @@ opcode_DD_75:
 opcode_DD_77:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r1,r0,r1, lsr #16
+	add r1,r1,r0, lsl #16
+	mov r1,r1,lsr #16
 	mov r0,z80a, lsr #24
 	writemem8
 	fetch 19
@@ -6995,7 +7011,8 @@ opcode_DD_7D:
 opcode_DD_7E:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	mov z80a,r0, lsl #24
 	fetch 19
@@ -7014,7 +7031,8 @@ opcode_DD_85:
 opcode_DD_86:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	opADDb
 	fetch 19
@@ -7033,7 +7051,8 @@ opcode_DD_8D:
 opcode_DD_8E:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	opADCb
 	fetch 19
@@ -7052,7 +7071,8 @@ opcode_DD_95:
 opcode_DD_96:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	opSUBb
 	fetch 19
@@ -7071,7 +7091,8 @@ opcode_DD_9D:
 opcode_DD_9E:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	opSBCb
 	fetch 19
@@ -7090,7 +7111,8 @@ opcode_DD_A5:
 opcode_DD_A6:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	opANDb
 	fetch 19
@@ -7109,7 +7131,8 @@ opcode_DD_AD:
 opcode_DD_AE:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	opXORb
 	fetch 19
@@ -7128,7 +7151,8 @@ opcode_DD_B5:
 opcode_DD_B6:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	opORb
 	fetch 19
@@ -7147,7 +7171,8 @@ opcode_DD_BD:
 opcode_DD_BE:
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 	readmem8
 	opCPb
 	fetch 19
@@ -7159,7 +7184,8 @@ opcode_DD_CB:
 ;@moves the PC to the location of the subroutine
 	ldrsb r0,[z80pc],#1
 	ldr r1,[z80xx]
-	add r0,r0,r1, lsr #16
+	add r0,r1,r0, lsl #16
+	mov r0,r0,lsr #16
 
 	ldrb r1,[z80pc],#1
 	ldr pc,[pc,r1, lsl #2]
