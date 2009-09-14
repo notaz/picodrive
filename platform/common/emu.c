@@ -514,6 +514,9 @@ int emu_reload_rom(char *rom_fname)
 
 	shutdown_MCD();
 	PicoPatchUnload();
+	PicoCartUnload();
+	rom_loaded = 0;
+
 	PicoAHW = 0;
 
 	if (media_type == PM_CD)
@@ -557,9 +560,6 @@ int emu_reload_rom(char *rom_fname)
 	}
 
 	menu_romload_prepare(used_rom_name); // also CD load
-
-	PicoCartUnload();
-	rom_loaded = 0;
 
 	ret = PicoCartLoad(rom, &rom_data, &rom_size, (PicoAHW & PAHW_SMS) ? 1 : 0);
 	pm_close(rom);

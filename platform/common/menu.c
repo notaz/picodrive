@@ -1752,11 +1752,12 @@ static void draw_text_debug(const char *str, int skip, int from)
 
 static void draw_frame_debug(void)
 {
-	char layer_str[48] = "layers:             ";
+	char layer_str[48] = "layers:                   ";
 	if (PicoDrawMask & PDRAW_LAYERB_ON)      memcpy(layer_str +  8, "B", 1);
 	if (PicoDrawMask & PDRAW_LAYERA_ON)      memcpy(layer_str + 10, "A", 1);
 	if (PicoDrawMask & PDRAW_SPRITES_LOW_ON) memcpy(layer_str + 12, "spr_lo", 6);
 	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)  memcpy(layer_str + 19, "spr_hi", 6);
+	if (PicoDrawMask & PDRAW_32X_ON)         memcpy(layer_str + 26, "32x", 4);
 
 	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 	pemu_forced_frame(0);
@@ -1826,6 +1827,7 @@ static void debug_menu_loop(void)
 				if (inp & PBTN_RIGHT) PicoDrawMask ^= PDRAW_LAYERA_ON;
 				if (inp & PBTN_DOWN)  PicoDrawMask ^= PDRAW_SPRITES_LOW_ON;
 				if (inp & PBTN_UP)    PicoDrawMask ^= PDRAW_SPRITES_HI_ON;
+				if (inp & PBTN_MA2)   PicoDrawMask ^= PDRAW_32X_ON;
 				if (inp & PBTN_MOK) {
 					PsndOut = NULL; // just in case
 					PicoSkipFrame = 1;

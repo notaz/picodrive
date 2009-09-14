@@ -23,12 +23,24 @@ void Pico32xInit(void)
 void PicoPower32x(void)
 {
   memset(&Pico32x, 0, sizeof(Pico32x));
+
   Pico32x.regs[0] = 0x0082; // SH2 reset?
   Pico32x.vdp_regs[0x0a/2] = P32XV_VBLK|P32XV_HBLK|P32XV_PEN;
 }
 
+void PicoUnload32x(void)
+{
+  if (Pico32xMem != NULL)
+    free(Pico32xMem);
+  Pico32xMem = NULL;
+
+  PicoAHW &= ~PAHW_32X;
+}
+
 void PicoReset32x(void)
 {
+  extern int p32x_csum_faked;
+  p32x_csum_faked = 0; // tmp
 }
 
 static void p32x_start_blank(void)

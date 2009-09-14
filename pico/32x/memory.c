@@ -5,13 +5,21 @@ static const char str_mars[] = "MARS";
 
 struct Pico32xMem *Pico32xMem;
 
+static void bank_switch(int b);
+
 // SH2 faking
 static const u16 comm_fakevals[] = {
   0x4d5f, 0x4f4b, // M_OK
   0x535f, 0x4f4b, // S_OK
+  0x4D41, 0x5346, // MASF - Brutal Unleashed
+  0x5331, 0x4d31, // Darxide
+  0x5332, 0x4d32,
+  0x5333, 0x4d33,
+  0x0000, 0x0000, // eq for doom
   0x0002, // Mortal Kombat
   0, // pad
 };
+int p32x_csum_faked;
 
 static u32 p32x_reg_read16(u32 a)
 {
@@ -20,9 +28,9 @@ static u32 p32x_reg_read16(u32 a)
   // SH2 faker
   if ((a & 0x30) == 0x20)
   {
-    static int f = 0, csum_faked = 0;
-    if (a == 0x28 && !csum_faked) {
-      csum_faked = 1;
+    static int f = 0;
+    if (a == 0x28 && !p32x_csum_faked) {
+      p32x_csum_faked = 1;
       return *(unsigned short *)(Pico.rom + 0x18e);
     }
     if (f >= sizeof(comm_fakevals) / sizeof(comm_fakevals[0]))
@@ -31,17 +39,6 @@ static u32 p32x_reg_read16(u32 a)
   }
 
   return Pico32x.regs[a / 2];
-}
-
-static void p32x_reg_write16(u32 a, u32 d)
-{
-  a &= 0x3e;
-
-  if (a == 0 && !(Pico32x.regs[0] & 1)) {
-    Pico32x.regs[0] |= 1;
-    Pico32xStartup();
-    return;
-  }
 }
 
 static void p32x_reg_write8(u32 a, u32 d)
@@ -53,6 +50,23 @@ static void p32x_reg_write8(u32 a, u32 d)
     Pico32xStartup();
     return;
   }
+
+  if (!(Pico32x.regs[0] & 1))
+    return;
+
+  if (a == 5) {
+    d &= 7;
+    if (Pico32x.regs[4/2] != d) {
+      Pico32x.regs[4/2] = d;
+      bank_switch(d);
+      return;
+    }
+  }
+}
+
+static void p32x_reg_write16(u32 a, u32 d)
+{
+  p32x_reg_write8(a + 1, d);
 }
 
 // VDP regs
@@ -77,6 +91,9 @@ static void p32x_vdp_write8(u32 a, u32 d)
         else
           r[0x0a/2] &= ~P32XV_VBLK;
       }
+      // priority inversion is handled in palette
+      if ((r[0] ^ d) & P32XV_PRI)
+        Pico32x.dirty_pal = 1;
       r[0] = (r[0] & P32XV_nPAL) | (d & 0xff);
       break;
     case 0x0b:
@@ -260,12 +277,33 @@ void Pico32xSwapDRAM(int b)
   cpu68k_map_set(m68k_write16_map, 0x840000, 0x85ffff, Pico32xMem->dram[b], 0);
 }
 
+static void bank_switch(int b)
+{
+  unsigned int rs, bank;
+
+  bank = b << 20;
+  if (bank >= Pico.romsize) {
+    elprintf(EL_32X|EL_ANOMALY, "missing bank @ %06x", bank);
+    return;
+  }
+
+  // 32X ROM (unbanked, XXX: consider mirroring?)
+  rs = (Pico.romsize + M68K_BANK_MASK) & ~M68K_BANK_MASK;
+  rs -= bank;
+  if (rs > 0x100000)
+    rs = 0x100000;
+  cpu68k_map_set(m68k_read8_map,   0x900000, 0x900000 + rs - 1, Pico.rom + bank, 0);
+  cpu68k_map_set(m68k_read16_map,  0x900000, 0x900000 + rs - 1, Pico.rom + bank, 0);
+
+  elprintf(EL_32X, "bank %06x-%06x -> %06x", 0x900000, 0x900000 + rs - 1, bank);
+}
+
 #define HWSWAP(x) (((x) << 16) | ((x) >> 16))
 void PicoMemSetup32x(void)
 {
   unsigned short *ps;
   unsigned int *pl;
-  unsigned int rs, rs1;
+  unsigned int rs;
   int i;
 
   Pico32xMem = calloc(1, sizeof(*Pico32xMem));
@@ -284,9 +322,13 @@ void PicoMemSetup32x(void)
   for (i = 0xc0/2; i < 0x100/2; i++)
     ps[i] = 0x4e71;
 
+#if 0
   ps[0xc0/2] = 0x46fc;
   ps[0xc2/2] = 0x2700; // move #0x2700,sr
   ps[0xfe/2] = 0x60fe; // jump to self
+#else
+  ps[0xfe/2] = 0x4e75; // rts
+#endif
 
   // fill remaining mem with ROM
   memcpy(Pico32xMem->m68k_rom + 0x100, Pico.rom + 0x100, sizeof(Pico32xMem->m68k_rom) - 0x100);
@@ -307,16 +349,13 @@ void PicoMemSetup32x(void)
   Pico32xSwapDRAM(1);
 
   // 32X ROM (unbanked, XXX: consider mirroring?)
-  rs1 = rs = (Pico.romsize + M68K_BANK_MASK) & ~M68K_BANK_MASK;
-  if (rs1 > 0x80000)
-    rs1 = 0x80000;
-  cpu68k_map_set(m68k_read8_map,   0x880000, 0x880000 + rs1 - 1, Pico.rom, 0);
-  cpu68k_map_set(m68k_read16_map,  0x880000, 0x880000 + rs1 - 1, Pico.rom, 0);
+  rs = (Pico.romsize + M68K_BANK_MASK) & ~M68K_BANK_MASK;
+  if (rs > 0x80000)
+    rs = 0x80000;
+  cpu68k_map_set(m68k_read8_map,   0x880000, 0x880000 + rs - 1, Pico.rom, 0);
+  cpu68k_map_set(m68k_read16_map,  0x880000, 0x880000 + rs - 1, Pico.rom, 0);
 
   // 32X ROM (banked)
-  if (rs > 0x100000)
-    rs = 0x100000;
-  cpu68k_map_set(m68k_read8_map,   0x900000, 0x900000 + rs - 1, Pico.rom, 0);
-  cpu68k_map_set(m68k_read16_map,  0x900000, 0x900000 + rs - 1, Pico.rom, 0);
+  bank_switch(0);
 }
 

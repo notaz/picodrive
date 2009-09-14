@@ -1,18 +1,22 @@
 #include "../pico_int.h"
 
-static void convert_pal555(void)
+static void convert_pal555(int invert_prio)
 {
   unsigned int *ps = (void *)Pico32xMem->pal;
   unsigned int *pd = (void *)Pico32xMem->pal_native;
   unsigned int m1 = 0x001f001f;
   unsigned int m2 = 0x03e003e0;
   unsigned int m3 = 0xfc00fc00;
+  unsigned int inv = 0;
   int i;
+
+  if (invert_prio)
+    inv = 0x00200020;
 
   // place prio to LS green bit
   for (i = 0x100/2; i > 0; i--, ps++, pd++) {
     unsigned int t = *ps;
-    *pd = ((t & m1) << 11) | ((t & m2) << 1) | ((t & m3) >> 10);
+    *pd = (((t & m1) << 11) | ((t & m2) << 1) | ((t & m3) >> 10)) ^ inv;
   }
 
   Pico32x.dirty_pal = 0;
@@ -34,11 +38,14 @@ void FinalizeLine32xRGB555(int sh, int line)
   FinalizeLineRGB555(sh, line);
   Pico.cram[0] = cram0;
 
-  if ((Pico32x.vdp_regs[0] & 3) == 0)
+  if ((Pico32x.vdp_regs[0] & P32XV_Mx) == 0)
     return; // blanking
 
+  if (!(PicoDrawMask & PDRAW_32X_ON))
+    return;
+
   if (Pico32x.dirty_pal)
-    convert_pal555();
+    convert_pal555(Pico32x.vdp_regs[0] & P32XV_PRI);
 
   if ((Pico32x.vdp_regs[0] & P32XV_Mx) == 1) {
     unsigned short *dram = (void *)Pico32xMem->dram[Pico32x.vdp_regs[0x0a/2] & P32XV_FS];

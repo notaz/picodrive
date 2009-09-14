@@ -169,6 +169,7 @@ extern int PicoDrawMask;
 #define PDRAW_LAYERA_ON      (1<<3)
 #define PDRAW_SPRITES_LOW_ON (1<<4)
 #define PDRAW_SPRITES_HI_ON  (1<<7)
+#define PDRAW_32X_ON         (1<<8)
 // internals
 #define PDRAW_SPRITES_MOVED (1<<0) // (asm)
 #define PDRAW_WND_DIFF_PRIO (1<<1) // not all window tiles use same priority

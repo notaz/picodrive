@@ -116,8 +116,9 @@ vpath %.c = ../..
 vpath %.s = ../..
 vpath %.S = ../..
 
-DIRS = platform platform/gp2x platform/linux platform/common pico pico/cd pico/pico pico/sound \
-	pico/carthw/svp zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools cpu/mz80 cpu/DrZ80
+DIRS = platform platform/gp2x platform/linux platform/common pico pico/cd pico/pico pico/32x \
+	pico/sound pico/carthw/svp zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools \
+	cpu/mz80 cpu/DrZ80
 
 
 all: mkdirs PicoDrive
