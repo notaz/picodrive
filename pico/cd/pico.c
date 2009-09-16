@@ -30,7 +30,6 @@ PICO_INTERNAL void PicoPowerMCD(void)
   memset(Pico_mcd->pcm_ram,    0, sizeof(Pico_mcd->pcm_ram));
   memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
   memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - fmt_size, formatted_bram, fmt_size);
-  PicoMemRemapCD(1);
 }
 
 PICO_INTERNAL int PicoResetMCD(void)

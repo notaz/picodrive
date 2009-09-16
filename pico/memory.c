@@ -21,7 +21,7 @@ unsigned long m68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
 unsigned long m68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
 
 static void xmap_set(unsigned long *map, int shift, int start_addr, int end_addr,
-    void *func_or_mh, int is_func)
+    const void *func_or_mh, int is_func)
 {
   unsigned long addr = (unsigned long)func_or_mh;
   int mask = (1 << shift) - 1;
@@ -49,13 +49,13 @@ static void xmap_set(unsigned long *map, int shift, int start_addr, int end_addr
 }
 
 void z80_map_set(unsigned long *map, int start_addr, int end_addr,
-    void *func_or_mh, int is_func)
+    const void *func_or_mh, int is_func)
 {
   xmap_set(map, Z80_MEM_SHIFT, start_addr, end_addr, func_or_mh, is_func);
 }
 
 void cpu68k_map_set(unsigned long *map, int start_addr, int end_addr,
-    void *func_or_mh, int is_func)
+    const void *func_or_mh, int is_func)
 {
   xmap_set(map, M68K_MEM_SHIFT, start_addr, end_addr, func_or_mh, is_func);
 }
@@ -144,6 +144,10 @@ static u32 ym2612_read_local_68k(void);
 static int ym2612_write_local(u32 a, u32 d, int is_from_z80);
 static void z80_mem_setup(void);
 
+#ifdef _ASM_MEMORY_C
+u32 PicoRead8_sram(u32 a);
+u32 PicoRead16_sram(u32 a);
+#endif
 
 #ifdef EMU_CORE_DEBUG
 u32 lastread_a, lastread_d[16]={0,}, lastwrite_cyc_d[16]={0,}, lastwrite_mus_d[16]={0,};
@@ -172,7 +176,10 @@ void cyclone_crashed(u32 pc, struct Cyclone *context)
 // -----------------------------------------------------------------
 // memmap helpers
 
-static int PadRead(int i)
+#ifndef _ASM_MEMORY_C
+static
+#endif
+int PadRead(int i)
 {
   int pad,value,data_reg;
   pad=~PicoPadInt[i]; // Get inverse of pad MXYZ SACB RLDU
@@ -204,6 +211,8 @@ static int PadRead(int i)
   return value; // will mirror later
 }
 
+#ifndef _ASM_MEMORY_C
+
 static u32 io_ports_read(u32 a)
 {
   u32 d;
@@ -233,7 +242,9 @@ static void NOINLINE io_ports_write(u32 a, u32 d)
   Pico.ioports[a] = d;
 }
 
-static void NOINLINE ctl_write_z80busreq(u32 d)
+#endif // _ASM_MEMORY_C
+
+void NOINLINE ctl_write_z80busreq(u32 d)
 {
   d&=1; d^=1;
   elprintf(EL_BUSREQ, "set_zrun: %i->%i [%i] @%06x", Pico.m.z80Run, d, SekCyclesDone(), SekPc);
@@ -253,7 +264,7 @@ static void NOINLINE ctl_write_z80busreq(u32 d)
   }
 }
 
-static void NOINLINE ctl_write_z80reset(u32 d)
+void NOINLINE ctl_write_z80reset(u32 d)
 {
   d&=1; d^=1;
   elprintf(EL_BUSREQ, "set_zreset: %i->%i [%i] @%06x", Pico.m.z80_reset, d, SekCyclesDone(), SekPc);
@@ -276,6 +287,8 @@ static void NOINLINE ctl_write_z80reset(u32 d)
 }
 
 // -----------------------------------------------------------------
+
+#ifndef _ASM_MEMORY_C
 
 // cart (save) RAM area (usually 0x200000 - ...)
 static u32 PicoRead8_sram(u32 a)
@@ -321,6 +334,8 @@ static u32 PicoRead16_sram(u32 a)
 
   return m68k_unmapped_read16(a);
 }
+
+#endif // _ASM_MEMORY_C
 
 static void PicoWrite8_sram(u32 a, u32 d)
 {
@@ -415,7 +430,6 @@ static void PicoWrite8_z80(u32 a, u32 d)
       SN76496Write(d);
     return;
   }
-#if !defined(_ASM_MEMORY_C) || defined(_ASM_MEMORY_C_AMIPS)
   if ((a & 0x7f00) == 0x6000) // Z80 BANK register
   {
     Pico.m.z80_bank68k >>= 1;
@@ -424,7 +438,6 @@ static void PicoWrite8_z80(u32 a, u32 d)
     elprintf(EL_Z80BNK, "z80 bank=%06x", Pico.m.z80_bank68k << 15);
     return;
   }
-#endif
   elprintf(EL_UIO|EL_ANOMALY, "68k bad write [%06x] %02x @ %06x", a, d&0xff, SekPc);
 }
 
@@ -434,6 +447,8 @@ static void PicoWrite16_z80(u32 a, u32 d)
   // TODO: verify remaining accesses
   PicoWrite8_z80(a, d >> 8);
 }
+
+#ifndef _ASM_MEMORY_C
 
 // IO/control area (0xa10000 - 0xa1ffff)
 u32 PicoRead8_io(u32 a)
@@ -560,6 +575,8 @@ void PicoWrite16_io(u32 a, u32 d)
   }
   m68k_unmapped_write16(a, d);
 }
+
+#endif // _ASM_MEMORY_C
 
 // VDP area (0xc00000 - 0xdfffff)
 // TODO: verify if lower byte goes to PSG on word writes

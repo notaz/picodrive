@@ -272,18 +272,10 @@ PICO_INTERNAL int PicoCdLoadState(void *file)
 readend:
 	if (PicoAHW & PAHW_MCD)
 	{
-		/* after load events */
-		if (Pico_mcd->s68k_regs[3] & 4) // 1M mode?
-			wram_2M_to_1M(Pico_mcd->word_ram2M);
-		PicoMemRemapCD(Pico_mcd->s68k_regs[3]);
-#ifdef _ASM_CD_MEMORY_C
-		if (Pico_mcd->s68k_regs[3] & 4)
-			PicoMemResetCDdecode(Pico_mcd->s68k_regs[3]);
-#endif
+		PicoMemStateLoaded();
+
 		if (!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
 			cdda_start_play();
-		// restore hint vector
-        	*(unsigned short *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
 
 		// must unpack after other CD stuff is loaded
 		PicoAreaUnpackCpu(buff_s68k, 1);

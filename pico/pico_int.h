@@ -259,7 +259,7 @@ struct PicoMisc
   unsigned short z80_bank68k;  // 0a
   unsigned short pad0;
   unsigned char  pad1;
-  unsigned char  z80_reset;    // z80 reset held
+  unsigned char  z80_reset;    // 0f z80 reset held
   unsigned char  padDelay[2];  // 10 gamepad phase time outs, so we count a delay
   unsigned short eeprom_addr;  // EEPROM address register
   unsigned char  eeprom_cycle; // EEPROM cycle number
@@ -482,8 +482,7 @@ PICO_INTERNAL void PicoMemSetupPico(void);
 
 // cd/memory.c
 PICO_INTERNAL void PicoMemSetupCD(void);
-PICO_INTERNAL_ASM void PicoMemRemapCD(int r3);
-PICO_INTERNAL_ASM void PicoMemResetCDdecode(int r3);
+void PicoMemStateLoaded(void);
 
 // pico.c
 extern struct Pico Pico;

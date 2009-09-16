@@ -20,9 +20,9 @@ extern unsigned long s68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
 extern unsigned long s68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
 
 void z80_map_set(unsigned long *map, int start_addr, int end_addr,
-    void *func_or_mh, int is_func);
+    const void *func_or_mh, int is_func);
 void cpu68k_map_set(unsigned long *map, int start_addr, int end_addr,
-    void *func_or_mh, int is_func);
+    const void *func_or_mh, int is_func);
 void cpu68k_map_all_ram(int start_addr, int end_addr, void *ptr, int is_sub);
 void m68k_map_unmap(int start_addr, int end_addr);
 
