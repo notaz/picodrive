@@ -71,6 +71,8 @@ else
 DEFINES += _USE_CZ80
 OBJS += cpu/cz80/cz80.o
 endif
+# sh2
+OBJS += cpu/sh2mame/sh2pico.o
 # misc
 ifeq "$(use_fame)" "1"
 ifeq "$(use_musashi)" "1"
@@ -83,7 +85,7 @@ CFLAGS += $(addprefix -D,$(DEFINES))
 vpath %.c = ../..
 
 DIRS = platform platform/gp2x platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
-	pico/32x zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80
+	pico/32x zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80 cpu/sh2mame
 
 all: mkdirs PicoDrive
 clean: tidy

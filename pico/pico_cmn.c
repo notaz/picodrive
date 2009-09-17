@@ -1,5 +1,5 @@
 // common code for Pico.c and cd/Pico.c
-// (c) Copyright 2007,2008 Grazvydas "notaz" Ignotas
+// (c) Copyright 2007-2009 Grazvydas "notaz" Ignotas
 
 #define CYCLES_M68K_LINE     488 // suitable for both PAL/NTSC
 #define CYCLES_M68K_VINT_LAG  68
@@ -15,9 +15,16 @@
   }
 
 // CPUS_RUN
+#ifndef RUN_SH2S
+#define RUN_SH2S
+#endif
+
 #ifndef PICO_CD
 #define CPUS_RUN(m68k_cycles,s68k_cycles) \
-    SekRunM68k(m68k_cycles);
+{ \
+    SekRunM68k(m68k_cycles); \
+    RUN_SH2S \
+}
 #else
 #define CPUS_RUN(m68k_cycles,s68k_cycles) \
 { \

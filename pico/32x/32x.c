@@ -10,6 +10,12 @@ void Pico32xStartup(void)
   PicoAHW |= PAHW_32X;
   PicoMemSetup32x();
 
+  sh2_init(&msh2);
+  sh2_reset(&msh2);
+
+  sh2_init(&ssh2);
+  sh2_reset(&ssh2);
+
   if (!Pico.m.pal)
     Pico32x.vdp_regs[0] |= P32XV_nPAL;
 
@@ -77,6 +83,9 @@ static __inline void SekRunM68k(int cyc)
 }
 
 #define PICO_32X
+#define RUN_SH2S \
+  sh2_execute(&msh2, 1000);
+
 #include "../pico_cmn.c"
 
 void PicoFrame32x(void)

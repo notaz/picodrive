@@ -226,6 +226,13 @@ extern unsigned long z80_write_map[0x10000 >> Z80_MEM_SHIFT];
 typedef unsigned char (z80_read_f)(unsigned short a);
 typedef void (z80_write_f)(unsigned int a, unsigned char data);
 
+// ----------------------- SH2 CPU -----------------------
+
+#include "cpu/sh2mame/sh2.h"
+
+SH2 msh2, ssh2;
+#define ash2_pc() msh2.ppc
+
 // ---------------------------------------------------------
 
 // main oscillator clock which controls timing
@@ -389,15 +396,18 @@ typedef struct
 #define Pico_mcd ((mcd_state *)Pico.rom)
 
 // 32X
-#define P32XV_nPAL (1<<15)
-#define P32XV_PRI  (1<< 7)
-#define P32XV_Mx   (3<< 0)
+#define P32XS_FM    (1<<15)
+#define P32XS2_ADEN (1<< 9)
 
-#define P32XV_VBLK (1<<15)
-#define P32XV_HBLK (1<<14)
-#define P32XV_PEN  (1<<13)
-#define P32XV_nFEN (1<< 1)
-#define P32XV_FS   (1<< 0)
+#define P32XV_nPAL  (1<<15)
+#define P32XV_PRI   (1<< 7)
+#define P32XV_Mx    (3<< 0)
+
+#define P32XV_VBLK  (1<<15)
+#define P32XV_HBLK  (1<<14)
+#define P32XV_PEN   (1<<13)
+#define P32XV_nFEN  (1<< 1)
+#define P32XV_FS    (1<< 0)
 
 struct Pico32x
 {
@@ -413,6 +423,8 @@ struct Pico32xMem
   unsigned char  sdram[0x40000];
   unsigned short dram[2][0x20000/2]; // AKA fb
   unsigned char  m68k_rom[0x10000]; // 0x100; using M68K_BANK_SIZE
+  unsigned char  sh2_rom_m[0x800];
+  unsigned char  sh2_rom_s[0x400];
   unsigned short pal[0x100];
   unsigned short pal_native[0x100]; // converted to native (for renderer)
 };

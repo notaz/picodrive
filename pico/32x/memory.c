@@ -7,7 +7,12 @@ struct Pico32xMem *Pico32xMem;
 
 static void bank_switch(int b);
 
+#define MSB8(x) ((x) >> 8)
+
 // SH2 faking
+#define FAKE_SH2
+int p32x_csum_faked;
+#ifdef FAKE_SH2
 static const u16 comm_fakevals[] = {
   0x4d5f, 0x4f4b, // M_OK
   0x535f, 0x4f4b, // S_OK
@@ -17,55 +22,78 @@ static const u16 comm_fakevals[] = {
   0x5333, 0x4d33,
   0x0000, 0x0000, // eq for doom
   0x0002, // Mortal Kombat
-  0, // pad
+//  0, // pad
 };
-int p32x_csum_faked;
+
+static u32 sh2_comm_faker(u32 a)
+{
+  static int f = 0;
+  if (a == 0x28 && !p32x_csum_faked) {
+    p32x_csum_faked = 1;
+    return *(unsigned short *)(Pico.rom + 0x18e);
+  }
+  if (f >= sizeof(comm_fakevals) / sizeof(comm_fakevals[0]))
+    f = 0;
+  return comm_fakevals[f++];
+}
+#endif
 
 static u32 p32x_reg_read16(u32 a)
 {
   a &= 0x3e;
 
-  // SH2 faker
+#ifdef FAKE_SH2
   if ((a & 0x30) == 0x20)
-  {
-    static int f = 0;
-    if (a == 0x28 && !p32x_csum_faked) {
-      p32x_csum_faked = 1;
-      return *(unsigned short *)(Pico.rom + 0x18e);
-    }
-    if (f >= sizeof(comm_fakevals) / sizeof(comm_fakevals[0]))
-      f = 0;
-    return comm_fakevals[f++];
-  }
+    return sh2_comm_faker(a);
+#endif
 
   return Pico32x.regs[a / 2];
 }
 
 static void p32x_reg_write8(u32 a, u32 d)
 {
+  u16 *r = Pico32x.regs;
   a &= 0x3f;
 
-  if (a == 1 && !(Pico32x.regs[0] & 1)) {
-    Pico32x.regs[0] |= 1;
+  if (a == 1 && !(r[0] & 1)) {
+    r[0] |= 1;
     Pico32xStartup();
     return;
   }
 
-  if (!(Pico32x.regs[0] & 1))
+  if (!(r[0] & 1))
     return;
 
-  if (a == 5) {
-    d &= 7;
-    if (Pico32x.regs[4/2] != d) {
-      Pico32x.regs[4/2] = d;
-      bank_switch(d);
-      return;
-    }
+  switch (a) {
+    case 0:
+      r[0] = (r[0] & 0x83) | ((d << 8) & P32XS_FM);
+      break;
+    case 5:
+      d &= 7;
+      if (r[4/2] != d) {
+        r[4/2] = d;
+        bank_switch(d);
+      }
+      break;
   }
 }
 
 static void p32x_reg_write16(u32 a, u32 d)
 {
+  u16 *r = Pico32x.regs;
+  a &= 0x3e;
+
+  switch (a) {
+    case 0:
+      r[0] = (r[0] & 0x83) | (d & P32XS_FM);
+      return;
+  }
+
+  if ((a & 0x30) == 0x20) {
+    r[a / 2] = d;
+    return;
+  }
+
   p32x_reg_write8(a + 1, d);
 }
 
@@ -111,6 +139,33 @@ static void p32x_vdp_write8(u32 a, u32 d)
 static void p32x_vdp_write16(u32 a, u32 d)
 {
   p32x_vdp_write8(a | 1, d);
+}
+
+// SH2 regs
+static u32 p32x_sh2reg_read16(u32 a)
+{
+  a &= 0xff; // ?
+  if (a == 0) {
+    return (Pico32x.regs[0] & P32XS_FM) | P32XS2_ADEN;
+  }
+
+  return 0;
+}
+
+static void p32x_sh2reg_write8(u32 a, u32 d)
+{
+}
+
+static void p32x_sh2reg_write16(u32 a, u32 d)
+{
+  a &= 0xff;
+
+  if ((a & 0x30) == 0x20) {
+    Pico32x.regs[a/2] = d;
+    return;
+  }
+
+  p32x_sh2reg_write8(a | 1, d);
 }
 
 // default 32x handlers
@@ -298,6 +353,152 @@ static void bank_switch(int b)
   elprintf(EL_32X, "bank %06x-%06x -> %06x", 0x900000, 0x900000 + rs - 1, bank);
 }
 
+// -----------------------------------------------------------------
+//                              SH2  
+// -----------------------------------------------------------------
+
+u32 pico32x_read8(u32 a)
+{
+  u32 d = 0;
+  if (a < sizeof(Pico32xMem->sh2_rom_m))
+    return Pico32xMem->sh2_rom_m[a ^ 1];
+
+  if ((a & 0x0ffc0000) == 0x06000000)
+    return Pico32xMem->sdram[(a & 0x3ffff) ^ 1];
+
+  if ((a & 0x0fc00000) == 0x02000000)
+    if ((a & 0x003fffff) < Pico.romsize)
+      return Pico.rom[(a & 0x3fffff) ^ 1];
+
+  if ((a & 0x0fffff00) == 0x4000) {
+    d = p32x_sh2reg_read16(a);
+    goto out_16to8;
+  }
+
+  if ((a & 0x0fffff00) == 0x4100) {
+    d = p32x_vdp_read16(a);
+    goto out_16to8;
+  }
+
+  if ((a & 0x0fffff00) == 0x4200) {
+    d = Pico32xMem->pal[(a & 0x1ff) / 2];
+    goto out_16to8;
+  }
+
+  elprintf(EL_UIO, "sh2 unmapped r8  [%08x]       %02x @%06x", a, d, ash2_pc());
+  return d;
+
+out_16to8:
+  if (a & 1)
+    d &= 0xff;
+  else
+    d >>= 8;
+
+  elprintf(EL_32X, "sh2 r8  [%08x]       %02x @%06x", a, d, ash2_pc());
+  return d;
+}
+
+u32 pico32x_read16(u32 a)
+{
+  u32 d = 0;
+  if (a < sizeof(Pico32xMem->sh2_rom_m))
+    return *(u16 *)(Pico32xMem->sh2_rom_m + a);
+
+  if ((a & 0x0ffc0000) == 0x06000000)
+    return ((u16 *)Pico32xMem->sdram)[(a & 0x3ffff) / 2];
+
+  if ((a & 0x0fc00000) == 0x02000000)
+    if ((a & 0x003fffff) < Pico.romsize)
+      return ((u16 *)Pico.rom)[(a & 0x3fffff) / 2];
+
+  if ((a & 0x0fffff00) == 0x4000) {
+    d = p32x_sh2reg_read16(a);
+    goto out;
+  }
+
+  if ((a & 0x0fffff00) == 0x4100) {
+    d = p32x_vdp_read16(a);
+    goto out;
+  }
+
+  if ((a & 0x0fffff00) == 0x4200) {
+    d = Pico32xMem->pal[(a & 0x1ff) / 2];
+    goto out;
+  }
+
+  elprintf(EL_UIO, "sh2 unmapped r16 [%08x]     %04x @%06x", a, d, ash2_pc());
+  return d;
+
+out:
+  elprintf(EL_32X, "sh2 r16 [%08x]     %04x @%06x", a, d, ash2_pc());
+  return d;
+}
+
+u32 pico32x_read32(u32 a)
+{
+//  elprintf(EL_UIO, "sh2 r32 [%08x] %08x @%06x", a, d, ash2_pc());
+  return (pico32x_read16(a) << 16) | pico32x_read16(a + 2);
+}
+
+void pico32x_write8(u32 a, u32 d)
+{
+  if ((a & 0x0ffffc00) == 0x4000)
+    elprintf(EL_32X, "sh2 w8  [%08x]       %02x @%06x", a, d & 0xff, ash2_pc());
+
+  if ((a & 0x0ffc0000) == 0x06000000) {
+    Pico32xMem->sdram[(a & 0x3ffff) ^ 1] = d;
+    return;
+  }
+
+  if ((a & 0x0fffff00) == 0x4100) {
+    p32x_vdp_write8(a, d);
+    return;
+  }
+
+  if ((a & 0x0fffff00) == 0x4000) {
+    p32x_sh2reg_write8(a, d);
+    return;
+  }
+
+  elprintf(EL_UIO, "sh2 unmapped w8  [%08x]       %02x @%06x", a, d & 0xff, ash2_pc());
+}
+
+void pico32x_write16(u32 a, u32 d)
+{
+  if ((a & 0x0ffffc00) == 0x4000)
+    elprintf(EL_32X, "sh2 w16 [%08x]     %04x @%06x", a, d & 0xffff, ash2_pc());
+
+  if ((a & 0x0ffc0000) == 0x06000000) {
+    ((u16 *)Pico32xMem->sdram)[(a & 0x3ffff) / 2] = d;
+    return;
+  }
+
+  if ((a & 0x0fffff00) == 0x4100) {
+    p32x_vdp_write16(a, d);
+    return;
+  }
+
+  if ((a & 0x0ffffe00) == 0x4200) {
+    Pico32xMem->pal[(a & 0x1ff) / 2] = d;
+    Pico32x.dirty_pal = 1;
+    return;
+  }
+
+  if ((a & 0x0fffff00) == 0x4000) {
+    p32x_sh2reg_write16(a, d);
+    return;
+  }
+
+  elprintf(EL_UIO, "sh2 unmapped w16 [%08x]     %04x @%06x", a, d & 0xffff, ash2_pc());
+}
+
+void pico32x_write32(u32 a, u32 d)
+{
+//  elprintf(EL_UIO, "sh2 w32 [%08x] %08x @%06x", a, d, ash2_pc());
+  pico32x_write16(a, d >> 16);
+  pico32x_write16(a + 2, d);
+}
+
 #define HWSWAP(x) (((x) << 16) | ((x) >> 16))
 void PicoMemSetup32x(void)
 {
@@ -332,6 +533,24 @@ void PicoMemSetup32x(void)
 
   // fill remaining mem with ROM
   memcpy(Pico32xMem->m68k_rom + 0x100, Pico.rom + 0x100, sizeof(Pico32xMem->m68k_rom) - 0x100);
+
+  // 32X ROM
+  // TODO: move
+  {
+    FILE *f = fopen("32X_M_BIOS.BIN", "rb");
+    int i;
+    if (f == NULL) {
+      printf("missing BIOS\n");
+      exit(1);
+    }
+    fread(Pico32xMem->sh2_rom_m, 1, sizeof(Pico32xMem->sh2_rom_m), f);
+    fclose(f);
+    for (i = 0; i < sizeof(Pico32xMem->sh2_rom_m); i += 2) {
+      int t = Pico32xMem->sh2_rom_m[i];
+      Pico32xMem->sh2_rom_m[i] = Pico32xMem->sh2_rom_m[i + 1];
+      Pico32xMem->sh2_rom_m[i + 1] = t;
+    }
+  }
 
   // cartridge area becomes unmapped
   // XXX: we take the easy way and don't unmap ROM,
