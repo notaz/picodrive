@@ -69,7 +69,13 @@ int sh2_execute(SH2 *sh2_, int cycles)
 	{
 		UINT32 opcode;
 
-		opcode = RW(sh2->pc);
+		if (sh2->delay)
+		{
+			opcode = RW(sh2->delay);
+			sh2->pc -= 2;
+		}
+		else
+			opcode = RW(sh2->pc);
 
 		sh2->delay = 0;
 		sh2->pc += 2;

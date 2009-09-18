@@ -52,7 +52,7 @@ static int poll_undetect(struct poll_det *pd, int flag)
 }
 
 // SH2 faking
-//#define FAKE_SH2
+#define FAKE_SH2
 int p32x_csum_faked;
 #ifdef FAKE_SH2
 static const u16 comm_fakevals[] = {
@@ -84,7 +84,7 @@ static u32 p32x_reg_read16(u32 a)
 {
   a &= 0x3e;
 
-#ifdef FAKE_SH2
+#if 0
   if ((a & 0x30) == 0x20)
     return sh2_comm_faker(a);
 #else
@@ -92,6 +92,11 @@ static u32 p32x_reg_read16(u32 a)
     SekSetStop(1);
     SekEndRun(16);
   }
+#endif
+#ifdef FAKE_SH2
+  // fake only slave for now
+  if (a == 0x24 || a == 0x26)
+    return sh2_comm_faker(a);
 #endif
 
   return Pico32x.regs[a / 2];
@@ -136,9 +141,11 @@ static void p32x_reg_write16(u32 a, u32 d)
       return;
   }
 
-  if ((a & 0x30) == 0x20) {
+  if ((a & 0x30) == 0x20 && r[a / 2] != d) {
     r[a / 2] = d;
-    poll_undetect(&msh2_poll, P32XF_MSH2POLL);
+    if (poll_undetect(&msh2_poll, P32XF_MSH2POLL))
+      // if SH2 is busy waiting, it needs to see the result ASAP
+      SekEndRun(16);
     return;
   }
 
@@ -460,6 +467,7 @@ out_16to8:
 u32 pico32x_read16(u32 a)
 {
   u32 d = 0;
+
   if (a < sizeof(Pico32xMem->sh2_rom_m))
     return *(u16 *)(Pico32xMem->sh2_rom_m + a);
 
