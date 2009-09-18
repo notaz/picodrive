@@ -1797,14 +1797,18 @@ static void debug_menu_loop(void)
 					g_screen_width, spr_offs);
 				draw_text_debug(PDebugSpriteList(), spr_offs, 6);
 				break;
+			case 4: plat_video_menu_begin();
+				tmp = PDebug32x();
+				draw_text_debug(tmp, 0, 0);
+				break;
 		}
 		plat_video_menu_end();
 
 		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK|PBTN_MA2|PBTN_MA3|PBTN_L|PBTN_R |
 					PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT, 70);
 		if (inp & PBTN_MBACK) return;
-		if (inp & PBTN_L) { mode--; if (mode < 0) mode = 3; }
-		if (inp & PBTN_R) { mode++; if (mode > 3) mode = 0; }
+		if (inp & PBTN_L) { mode--; if (mode < 0) mode = 4; }
+		if (inp & PBTN_R) { mode++; if (mode > 4) mode = 0; }
 		switch (mode)
 		{
 			case 0:

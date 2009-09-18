@@ -59,6 +59,35 @@ char *PDebugMain(void)
   return dstr;
 }
 
+char *PDebug32x(void)
+{
+  char *dstrp = dstr;
+  unsigned short *r;
+  int i;
+
+  r = Pico32x.regs;
+  sprintf(dstrp, "regs:\n"); MVP;
+  for (i = 0; i < 0x40/2; i += 8) {
+    sprintf(dstrp, "%02x: %04x %04x %04x %04x %04x %04x %04x %04x\n",
+      i*2, r[i+0], r[i+1], r[i+2], r[i+3], r[i+4], r[i+5], r[i+6], r[i+7]); MVP;
+  }
+
+  i = 0;
+  r = Pico32x.vdp_regs;
+  sprintf(dstrp, "VDP regs:\n"); MVP;
+  sprintf(dstrp, "%02x: %04x %04x %04x %04x %04x %04x %04x %04x\n",
+    i*2, r[i+0], r[i+1], r[i+2], r[i+3], r[i+4], r[i+5], r[i+6], r[i+7]); MVP;
+
+  sprintf(dstrp, "                   mSH2              sSH2\n"); MVP;
+  sprintf(dstrp, "PC:            %08x          %08x\n", msh2_pc(), ssh2_pc()); MVP;
+  for (i = 0; i < 16/2; i++) {
+    sprintf(dstrp, "R%d,%2d %08x,%08x %08x,%08x\n", i, i + 8,
+      msh2_reg(i), msh2_reg(i+8), ssh2_reg(i), ssh2_reg(i+8)); MVP;
+  }
+
+  return dstr;
+}
+
 char *PDebugSpriteList(void)
 {
   struct PicoVideo *pvid=&Pico.video;
@@ -297,6 +326,14 @@ void PDebugDumpMem(void)
       wram_2M_to_1M(Pico_mcd->word_ram2M);
     dump_ram_noswab(Pico_mcd->pcm_ram,"dumps/pcm_ram.bin");
     dump_ram_noswab(Pico_mcd->bram,   "dumps/bram.bin");
+  }
+
+  if (PicoAHW & PAHW_32X)
+  {
+    dump_ram(Pico32xMem->sdram, "dumps/sdram.bin");
+    dump_ram(Pico32xMem->dram[0], "dumps/dram0.bin");
+    dump_ram(Pico32xMem->dram[1], "dumps/dram1.bin");
+    dump_ram(Pico32xMem->pal, "dumps/pal32x.bin");
   }
 }
 

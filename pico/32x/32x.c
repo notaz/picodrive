@@ -82,9 +82,14 @@ static __inline void SekRunM68k(int cyc)
 #endif
 }
 
+// ~1463.8, but due to cache misses and slow mem
+// it's much lower than that
+#define SH2_LINE_CYCLES 700
+
 #define PICO_32X
 #define RUN_SH2S \
-  sh2_execute(&msh2, 1000);
+  if (!(Pico32x.emu_flags & P32XF_MSH2POLL)) \
+    sh2_execute(&msh2, SH2_LINE_CYCLES);
 
 #include "../pico_cmn.c"
 

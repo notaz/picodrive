@@ -9,8 +9,50 @@ static void bank_switch(int b);
 
 #define MSB8(x) ((x) >> 8)
 
+// poll detection
+struct poll_det {
+	int addr, pc, cnt;
+};
+static struct poll_det m68k_poll;
+static struct poll_det msh2_poll;
+
+#define POLL_THRESHOLD 6
+
+static int poll_detect(struct poll_det *pd, u32 a, u32 pc, int flag)
+{
+  int ret = 0;
+
+  if (a - 2 <= pd->addr && pd->addr <= a + 2 && pd->pc == pc) {
+    pd->cnt++;
+    if (pd->cnt > POLL_THRESHOLD) {
+      if (!(Pico32x.emu_flags & flag)) {
+        elprintf(EL_32X, "%s poll addr %08x @ %06x",
+          flag == P32XF_68KPOLL ? "m68k" : (flag == P32XF_MSH2POLL ? "msh2" : "ssh2"), a, pc);
+        ret = 1;
+      }
+      Pico32x.emu_flags |= flag;
+    }
+  }
+  else
+    pd->cnt = 0;
+  pd->addr = a;
+  pd->pc = pc;
+
+  return ret;
+}
+
+static int poll_undetect(struct poll_det *pd, int flag)
+{
+  int ret = 0;
+  if (pd->cnt > POLL_THRESHOLD)
+    ret = 1;
+  pd->addr = pd->cnt = 0;
+  Pico32x.emu_flags &= ~flag;
+  return ret;
+}
+
 // SH2 faking
-#define FAKE_SH2
+//#define FAKE_SH2
 int p32x_csum_faked;
 #ifdef FAKE_SH2
 static const u16 comm_fakevals[] = {
@@ -45,6 +87,11 @@ static u32 p32x_reg_read16(u32 a)
 #ifdef FAKE_SH2
   if ((a & 0x30) == 0x20)
     return sh2_comm_faker(a);
+#else
+  if (poll_detect(&m68k_poll, a, SekPc, P32XF_68KPOLL)) {
+    SekSetStop(1);
+    SekEndRun(16);
+  }
 #endif
 
   return Pico32x.regs[a / 2];
@@ -91,6 +138,7 @@ static void p32x_reg_write16(u32 a, u32 d)
 
   if ((a & 0x30) == 0x20) {
     r[a / 2] = d;
+    poll_undetect(&msh2_poll, P32XF_MSH2POLL);
     return;
   }
 
@@ -131,6 +179,7 @@ static void p32x_vdp_write8(u32 a, u32 d)
       if ((r[0x0a/2] & P32XV_VBLK) && ((r[0x0a/2] ^ d) & P32XV_FS)) {
         r[0x0a/2] ^= 1;
 	Pico32xSwapDRAM(d ^ 1);
+        elprintf(EL_32X, "VDP FS: %d", r[0x0a/2] & P32XV_FS);
       }
       break;
   }
@@ -145,9 +194,15 @@ static void p32x_vdp_write16(u32 a, u32 d)
 static u32 p32x_sh2reg_read16(u32 a)
 {
   a &= 0xff; // ?
+
+  if (poll_detect(&msh2_poll, a, ash2_pc(), P32XF_MSH2POLL))
+    ash2_end_run(8);
+
   if (a == 0) {
     return (Pico32x.regs[0] & P32XS_FM) | P32XS2_ADEN;
   }
+  if ((a & 0x30) == 0x20)
+    return Pico32x.regs[a / 2];
 
   return 0;
 }
@@ -162,6 +217,10 @@ static void p32x_sh2reg_write16(u32 a, u32 d)
 
   if ((a & 0x30) == 0x20) {
     Pico32x.regs[a/2] = d;
+    if (poll_undetect(&m68k_poll, P32XF_68KPOLL))
+      // dangerous, but let's just assume 68k program
+      // didn't issue STOP itself.
+      SekSetStop(0);
     return;
   }
 
@@ -450,6 +509,12 @@ void pico32x_write8(u32 a, u32 d)
     return;
   }
 
+  if ((a & 0x0ffe0000) == 0x04000000) {
+    u8 *dram = (u8 *)Pico32xMem->dram[(Pico32x.vdp_regs[0x0a/2] & P32XV_FS) ^ 1];
+    dram[(a & 0x1ffff) ^ 1] = d;
+    return;
+  }
+
   if ((a & 0x0fffff00) == 0x4100) {
     p32x_vdp_write8(a, d);
     return;
@@ -470,6 +535,11 @@ void pico32x_write16(u32 a, u32 d)
 
   if ((a & 0x0ffc0000) == 0x06000000) {
     ((u16 *)Pico32xMem->sdram)[(a & 0x3ffff) / 2] = d;
+    return;
+  }
+
+  if ((a & 0x0ffe0000) == 0x04000000) {
+    Pico32xMem->dram[(Pico32x.vdp_regs[0x0a/2] & P32XV_FS) ^ 1][(a & 0x1ffff) / 2] = d;
     return;
   }
 

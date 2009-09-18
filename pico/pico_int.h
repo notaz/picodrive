@@ -232,6 +232,13 @@ typedef void (z80_write_f)(unsigned int a, unsigned char data);
 
 SH2 msh2, ssh2;
 #define ash2_pc() msh2.ppc
+#define ash2_end_run(after) sh2_icount = after
+
+#define msh2_pc() msh2.ppc
+#define ssh2_pc() ssh2.ppc
+
+#define msh2_reg(x) msh2.r[x]
+#define ssh2_reg(x) ssh2.r[x]
 
 // ---------------------------------------------------------
 
@@ -409,6 +416,10 @@ typedef struct
 #define P32XV_nFEN  (1<< 1)
 #define P32XV_FS    (1<< 0)
 
+#define P32XF_68KPOLL  (1 << 0)
+#define P32XF_MSH2POLL (1 << 1)
+#define P32XF_SSH2POLL (1 << 2)
+
 struct Pico32x
 {
   unsigned short regs[0x20];
@@ -416,6 +427,7 @@ struct Pico32x
   unsigned char pending_fb;
   unsigned char dirty_pal;
   unsigned char pad[2];
+  unsigned int emu_flags;
 };
 
 struct Pico32xMem

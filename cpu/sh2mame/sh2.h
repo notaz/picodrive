@@ -50,6 +50,8 @@ typedef struct
 	int   is_slave;
 } SH2;
 
+extern int sh2_icount;
+
 void sh2_init(SH2 *sh2);
 void sh2_reset(SH2 *sh2);
 int sh2_execute(SH2 *sh2_, int cycles);

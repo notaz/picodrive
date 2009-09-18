@@ -115,7 +115,7 @@
 
 #define LOG(x)	do { if (VERBOSE) logerror x; } while (0)
 
-static int sh2_icount;
+int sh2_icount;
 SH2 *sh2;
 
 #if 0
