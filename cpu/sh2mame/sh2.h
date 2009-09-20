@@ -39,13 +39,15 @@ typedef struct
 	UINT32	sr;
 	UINT32	gbr, vbr;
 	UINT32	mach, macl;
+
 	UINT32	ea;
 	UINT32	delay;
 	UINT32	test_irq;
 
+	int	pending_irq;
+	void	(*irq_callback)(int level);
+
 	// XXX: unused, will we ever use?
-	void  (*irq_callback)(void);
-	int   nmi_line_state;
 	int   internal_irq_level;
 	int   is_slave;
 } SH2;
@@ -55,5 +57,6 @@ extern int sh2_icount;
 void sh2_init(SH2 *sh2);
 void sh2_reset(SH2 *sh2);
 int sh2_execute(SH2 *sh2_, int cycles);
+void sh2_irl_irq(SH2 *sh2, int level);
 
 #endif /* __SH2_H__ */

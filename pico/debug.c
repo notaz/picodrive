@@ -79,11 +79,12 @@ char *PDebug32x(void)
     i*2, r[i+0], r[i+1], r[i+2], r[i+3], r[i+4], r[i+5], r[i+6], r[i+7]); MVP;
 
   sprintf(dstrp, "                   mSH2              sSH2\n"); MVP;
-  sprintf(dstrp, "PC:            %08x          %08x\n", msh2_pc(), ssh2_pc()); MVP;
+  sprintf(dstrp, "PC,SR %08x,     %03x %08x,     %03x\n", sh2_pc(0), sh2_sr(0), sh2_pc(1), sh2_sr(1)); MVP;
   for (i = 0; i < 16/2; i++) {
     sprintf(dstrp, "R%d,%2d %08x,%08x %08x,%08x\n", i, i + 8,
-      msh2_reg(i), msh2_reg(i+8), ssh2_reg(i), ssh2_reg(i+8)); MVP;
+      sh2_reg(0,i), sh2_reg(0,i+8), sh2_reg(1,i), sh2_reg(1,i+8)); MVP;
   }
+  sprintf(dstrp, "gb,vb %08x,%08x %08x,%08x\n", sh2_gbr(0), sh2_vbr(0), sh2_gbr(1), sh2_vbr(1));
 
   return dstr;
 }

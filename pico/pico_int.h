@@ -234,11 +234,11 @@ SH2 msh2, ssh2;
 #define ash2_pc() msh2.ppc
 #define ash2_end_run(after) sh2_icount = after
 
-#define msh2_pc() msh2.ppc
-#define ssh2_pc() ssh2.ppc
-
-#define msh2_reg(x) msh2.r[x]
-#define ssh2_reg(x) ssh2.r[x]
+#define sh2_pc(c)     (c) ? ssh2.ppc : msh2.ppc
+#define sh2_reg(c, x) (c) ? ssh2.r[x] : msh2.r[x]
+#define sh2_gbr(c)    (c) ? ssh2.gbr : msh2.gbr
+#define sh2_vbr(c)    (c) ? ssh2.vbr : msh2.vbr
+#define sh2_sr(c)     (c) ? ssh2.sr : msh2.sr
 
 // ---------------------------------------------------------
 
@@ -405,10 +405,13 @@ typedef struct
 // 32X
 #define P32XS_FM    (1<<15)
 #define P32XS2_ADEN (1<< 9)
+#define P32XS_FULL  (1<< 7)
+#define P32XS_68S   (1<< 2)
+#define P32XS_RV    (1<< 0)
 
 #define P32XV_nPAL  (1<<15)
 #define P32XV_PRI   (1<< 7)
-#define P32XV_Mx    (3<< 0)
+#define P32XV_Mx    (3<< 0) // display mode mask
 
 #define P32XV_VBLK  (1<<15)
 #define P32XV_HBLK  (1<<14)
@@ -416,9 +419,21 @@ typedef struct
 #define P32XV_nFEN  (1<< 1)
 #define P32XV_FS    (1<< 0)
 
-#define P32XF_68KPOLL  (1 << 0)
-#define P32XF_MSH2POLL (1 << 1)
-#define P32XF_SSH2POLL (1 << 2)
+#define P32XF_68KPOLL   (1 << 0)
+#define P32XF_MSH2POLL  (1 << 1)
+#define P32XF_SSH2POLL  (1 << 2)
+#define P32XF_68KVPOLL  (1 << 3)
+#define P32XF_MSH2VPOLL (1 << 4)
+#define P32XF_SSH2VPOLL (1 << 5)
+
+#define P32XI_VRES (1 << 14/2) // IRL/2
+#define P32XI_VINT (1 << 12/2)
+#define P32XI_HINT (1 << 10/2)
+#define P32XI_CMD  (1 <<  8/2)
+#define P32XI_PWM  (1 <<  6/2)
+
+// real one is 4*2, but we use more because we don't lockstep
+#define DMAC_FIFO_LEN (4*4)
 
 struct Pico32x
 {
@@ -428,6 +443,11 @@ struct Pico32x
   unsigned char dirty_pal;
   unsigned char pad[2];
   unsigned int emu_flags;
+  unsigned char sh2irq_mask[2];
+  unsigned char sh2irqi[2];      // individual
+  unsigned int sh2irqs;          // common irqs
+  unsigned short dmac_fifo[DMAC_FIFO_LEN];
+  unsigned int dmac_ptr;
 };
 
 struct Pico32xMem
@@ -439,6 +459,7 @@ struct Pico32xMem
   unsigned char  sh2_rom_s[0x400];
   unsigned short pal[0x100];
   unsigned short pal_native[0x100]; // converted to native (for renderer)
+  unsigned int   sh2_peri_regs[2][0x200/4]; // periphereal regs of SH2s
 };
 
 // area.c
@@ -634,6 +655,7 @@ void PicoReset32x(void);
 void Pico32xStartup(void);
 void PicoUnload32x(void);
 void PicoFrame32x(void);
+void p32x_update_irls(void);
 
 // 32x/memory.c
 struct Pico32xMem *Pico32xMem;
@@ -643,6 +665,7 @@ void PicoWrite8_32x(unsigned int a, unsigned int d);
 void PicoWrite16_32x(unsigned int a, unsigned int d);
 void PicoMemSetup32x(void);
 void Pico32xSwapDRAM(int b);
+void p32x_poll_event(int is_vdp);
 
 // 32x/draw.c
 void FinalizeLine32xRGB555(int sh, int line);

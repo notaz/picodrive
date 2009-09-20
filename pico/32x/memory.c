@@ -10,15 +10,14 @@ static void bank_switch(int b);
 #define MSB8(x) ((x) >> 8)
 
 // poll detection
+#define POLL_THRESHOLD 6
+
 struct poll_det {
 	int addr, pc, cnt;
 };
-static struct poll_det m68k_poll;
-static struct poll_det msh2_poll;
+static struct poll_det m68k_poll, msh2_poll;
 
-#define POLL_THRESHOLD 6
-
-static int poll_detect(struct poll_det *pd, u32 a, u32 pc, int flag)
+static int p32x_poll_detect(struct poll_det *pd, u32 a, u32 pc, int flag)
 {
   int ret = 0;
 
@@ -41,7 +40,7 @@ static int poll_detect(struct poll_det *pd, u32 a, u32 pc, int flag)
   return ret;
 }
 
-static int poll_undetect(struct poll_det *pd, int flag)
+static int p32x_poll_undetect(struct poll_det *pd, int flag)
 {
   int ret = 0;
   if (pd->cnt > POLL_THRESHOLD)
@@ -49,6 +48,11 @@ static int poll_undetect(struct poll_det *pd, int flag)
   pd->addr = pd->cnt = 0;
   Pico32x.emu_flags &= ~flag;
   return ret;
+}
+
+void p32x_poll_event(int is_vdp)
+{
+  p32x_poll_undetect(&msh2_poll, is_vdp ? P32XF_MSH2VPOLL : P32XF_MSH2POLL);
 }
 
 // SH2 faking
@@ -80,6 +84,44 @@ static u32 sh2_comm_faker(u32 a)
 }
 #endif
 
+// DMAC handling
+static struct {
+  unsigned int sar0, dar0, tcr0; // src addr, dst addr, transfer count
+  unsigned int chcr0; // chan ctl
+  unsigned int sar1, dar1, tcr1; // same for chan 1
+  unsigned int chcr1;
+  int pad[4];
+  unsigned int dmaor;
+} * dmac0;
+
+static void dma_68k2sh2_do(void)
+{
+  unsigned short *dreqlen = &Pico32x.regs[0x10 / 2];
+  int i;
+
+  if (dmac0->tcr0 != *dreqlen)
+    elprintf(EL_32X|EL_ANOMALY, "tcr0 and dreq len differ: %d != %d", dmac0->tcr0, *dreqlen);
+
+  for (i = 0; i < Pico32x.dmac_ptr && dmac0->tcr0 > 0; i++) {
+    extern void p32x_sh2_write16(u32 a, u32 d);
+      elprintf(EL_32X|EL_ANOMALY, "dmaw [%08x] %04x, left %d", dmac0->dar0, Pico32x.dmac_fifo[i], *dreqlen);
+    p32x_sh2_write16(dmac0->dar0, Pico32x.dmac_fifo[i]);
+    dmac0->dar0 += 2;
+    dmac0->tcr0--;
+    (*dreqlen)--;
+  }
+
+  Pico32x.dmac_ptr = 0; // HACK
+  Pico32x.regs[6 / 2] &= ~P32XS_FULL;
+  if (*dreqlen == 0)
+    Pico32x.regs[6 / 2] &= ~P32XS_68S; // transfer complete
+  if (dmac0->tcr0 == 0)
+    dmac0->chcr0 |= 2; // DMA has ended normally
+  p32x_poll_undetect(&m68k_poll, P32XF_68KPOLL);
+}
+
+// ------------------------------------------------------------------
+
 static u32 p32x_reg_read16(u32 a)
 {
   a &= 0x3e;
@@ -88,8 +130,7 @@ static u32 p32x_reg_read16(u32 a)
   if ((a & 0x30) == 0x20)
     return sh2_comm_faker(a);
 #else
-  if (poll_detect(&m68k_poll, a, SekPc, P32XF_68KPOLL)) {
-    SekSetStop(1);
+  if (p32x_poll_detect(&m68k_poll, a, SekPc, P32XF_68KPOLL)) {
     SekEndRun(16);
   }
 #endif
@@ -117,15 +158,24 @@ static void p32x_reg_write8(u32 a, u32 d)
     return;
 
   switch (a) {
-    case 0:
+    case 0: // adapter ctl
       r[0] = (r[0] & 0x83) | ((d << 8) & P32XS_FM);
       break;
-    case 5:
+    case 3: // irq ctl
+      if ((d & 1) && !(Pico32x.sh2irqi[0] & P32XI_CMD)) {
+        Pico32x.sh2irqi[0] |= P32XI_CMD;
+        p32x_update_irls();
+      }
+      break;
+    case 5: // bank
       d &= 7;
-      if (r[4/2] != d) {
-        r[4/2] = d;
+      if (r[4 / 2] != d) {
+        r[4 / 2] = d;
         bank_switch(d);
       }
+      break;
+    case 7: // DREQ ctl
+      r[6 / 2] = (r[6 / 2] & P32XS_FULL) | (d & (P32XS_68S|P32XS_RV));
       break;
   }
 }
@@ -135,15 +185,40 @@ static void p32x_reg_write16(u32 a, u32 d)
   u16 *r = Pico32x.regs;
   a &= 0x3e;
 
+  // for write loops with FIFO checks..
+  m68k_poll.cnt = 0;
+
   switch (a) {
-    case 0:
+    case 0x00: // adapter ctl
       r[0] = (r[0] & 0x83) | (d & P32XS_FM);
       return;
+    case 0x10: // DREQ len
+      r[a / 2] = d & ~3;
+      return;
+    case 0x12: // FIFO reg
+      if (!(r[6 / 2] & P32XS_68S)) {
+        elprintf(EL_32X|EL_ANOMALY, "DREQ FIFO w16 without 68S?");
+	return;
+      }
+      if (Pico32x.dmac_ptr < DMAC_FIFO_LEN) {
+        Pico32x.dmac_fifo[Pico32x.dmac_ptr++] = d;
+        if ((Pico32x.dmac_ptr & 3) == 0 && (dmac0->chcr0 & 3) == 1 && (dmac0->dmaor & 1))
+          dma_68k2sh2_do();
+        if (Pico32x.dmac_ptr == DMAC_FIFO_LEN)
+          r[6 / 2] |= P32XS_FULL;
+      }
+      break;
   }
 
-  if ((a & 0x30) == 0x20 && r[a / 2] != d) {
+  // DREQ src, dst
+  if      ((a & 0x38) == 0x08) {
     r[a / 2] = d;
-    if (poll_undetect(&msh2_poll, P32XF_MSH2POLL))
+    return;
+  }
+  // comm port
+  else if ((a & 0x30) == 0x20 && r[a / 2] != d) {
+    r[a / 2] = d;
+    if (p32x_poll_undetect(&msh2_poll, P32XF_MSH2POLL))
       // if SH2 is busy waiting, it needs to see the result ASAP
       SekEndRun(16);
     return;
@@ -152,6 +227,7 @@ static void p32x_reg_write16(u32 a, u32 d)
   p32x_reg_write8(a + 1, d);
 }
 
+// ------------------------------------------------------------------
 // VDP regs
 static u32 p32x_vdp_read16(u32 a)
 {
@@ -165,15 +241,12 @@ static void p32x_vdp_write8(u32 a, u32 d)
   u16 *r = Pico32x.vdp_regs;
   a &= 0x0f;
 
+  // for FEN checks between writes
+  msh2_poll.cnt = 0;
+
   // TODO: verify what's writeable
   switch (a) {
     case 0x01:
-      if (((r[0] & 3) == 0) != ((d & 3) == 0)) { // forced blanking changed
-        if (Pico.video.status & 8)
-          r[0x0a/2] |=  P32XV_VBLK;
-        else
-          r[0x0a/2] &= ~P32XV_VBLK;
-      }
       // priority inversion is handled in palette
       if ((r[0] ^ d) & P32XV_PRI)
         Pico32x.dirty_pal = 1;
@@ -183,7 +256,7 @@ static void p32x_vdp_write8(u32 a, u32 d)
       d &= 1;
       Pico32x.pending_fb = d;
       // if we are blanking and FS bit is changing
-      if ((r[0x0a/2] & P32XV_VBLK) && ((r[0x0a/2] ^ d) & P32XV_FS)) {
+      if (((r[0x0a/2] & P32XV_VBLK) || (r[0] & P32XV_Mx) == 0) && ((r[0x0a/2] ^ d) & P32XV_FS)) {
         r[0x0a/2] ^= 1;
 	Pico32xSwapDRAM(d ^ 1);
         elprintf(EL_32X, "VDP FS: %d", r[0x0a/2] & P32XV_FS);
@@ -197,43 +270,93 @@ static void p32x_vdp_write16(u32 a, u32 d)
   p32x_vdp_write8(a | 1, d);
 }
 
+// ------------------------------------------------------------------
 // SH2 regs
 static u32 p32x_sh2reg_read16(u32 a)
 {
-  a &= 0xff; // ?
+  u16 *r = Pico32x.regs;
+  a &= 0xfe; // ?
 
-  if (poll_detect(&msh2_poll, a, ash2_pc(), P32XF_MSH2POLL))
-    ash2_end_run(8);
-
-  if (a == 0) {
-    return (Pico32x.regs[0] & P32XS_FM) | P32XS2_ADEN;
+  switch (a) {
+    case 0x00: // adapter/irq ctl
+      return (r[0] & P32XS_FM) | P32XS2_ADEN | Pico32x.sh2irq_mask[0];
+    case 0x10: // DREQ len
+      return r[a / 2];
   }
-  if ((a & 0x30) == 0x20)
-    return Pico32x.regs[a / 2];
+
+  // DREQ src, dst; comm port
+  if ((a & 0x38) == 0x08 || (a & 0x30) == 0x20)
+    return r[a / 2];
 
   return 0;
 }
 
 static void p32x_sh2reg_write8(u32 a, u32 d)
 {
+  a &= 0xff;
+  if (a == 1) {
+    Pico32x.sh2irq_mask[0] = d & 0x0f;
+    p32x_update_irls();
+  }
 }
 
 static void p32x_sh2reg_write16(u32 a, u32 d)
 {
-  a &= 0xff;
+  a &= 0xfe;
 
-  if ((a & 0x30) == 0x20) {
+  if ((a & 0x30) == 0x20 && Pico32x.regs[a/2] != d) {
     Pico32x.regs[a/2] = d;
-    if (poll_undetect(&m68k_poll, P32XF_68KPOLL))
-      // dangerous, but let's just assume 68k program
-      // didn't issue STOP itself.
-      SekSetStop(0);
+    p32x_poll_undetect(&m68k_poll, P32XF_68KPOLL);
     return;
   }
 
+  switch (a) {
+    case 0x14: Pico32x.sh2irqs &= ~P32XI_VRES; goto irls;
+    case 0x16: Pico32x.sh2irqs &= ~P32XI_VINT; goto irls;
+    case 0x18: Pico32x.sh2irqs &= ~P32XI_HINT; goto irls;
+    case 0x1a: Pico32x.sh2irqi[0] &= ~P32XI_CMD; goto irls;
+    case 0x1c: Pico32x.sh2irqs &= ~P32XI_PWM;  goto irls;
+  }
+
   p32x_sh2reg_write8(a | 1, d);
+  return;
+
+irls:
+  p32x_update_irls();
 }
 
+static u32 sh2_peripheral_read(u32 a)
+{
+  u32 d;
+  a &= 0x1fc;
+  d = Pico32xMem->sh2_peri_regs[0][a / 4];
+
+  elprintf(EL_32X, "sh2 peri r32 [%08x] %08x @%06x", a, d, ash2_pc());
+  return d;
+}
+
+static void sh2_peripheral_write(u32 a, u32 d)
+{
+  unsigned int *r = Pico32xMem->sh2_peri_regs[0];
+  elprintf(EL_32X, "sh2 peri w32 [%08x] %08x @%06x", a, d, ash2_pc());
+
+  a &= 0x1fc;
+  r[a / 4] = d;
+
+  if ((a == 0x1b0 || a == 0x18c) && (dmac0->chcr0 & 3) == 1 && (dmac0->dmaor & 1)) {
+    elprintf(EL_32X, "sh2 DMA %08x -> %08x, cnt %d, chcr %04x @%06x",
+      dmac0->sar0, dmac0->dar0, dmac0->tcr0, dmac0->chcr0, ash2_pc());
+    dmac0->tcr0 &= 0xffffff;
+    // DREQ is only sent after first 4 words are written.
+    // we do multiple of 4 words to avoid messing up alignment
+    if (dmac0->sar0 == 0x20004012 && Pico32x.dmac_ptr && (Pico32x.dmac_ptr & 3) == 0) {
+      elprintf(EL_32X, "68k -> sh2 DMA");
+      dma_68k2sh2_do();
+    }
+  }
+}
+
+// ------------------------------------------------------------------
 // default 32x handlers
 u32 PicoRead8_32x(u32 a)
 {
@@ -423,9 +546,11 @@ static void bank_switch(int b)
 //                              SH2  
 // -----------------------------------------------------------------
 
-u32 pico32x_read8(u32 a)
+u32 p32x_sh2_read8(u32 a)
 {
+  int pd = 0;
   u32 d = 0;
+
   if (a < sizeof(Pico32xMem->sh2_rom_m))
     return Pico32xMem->sh2_rom_m[a ^ 1];
 
@@ -438,12 +563,14 @@ u32 pico32x_read8(u32 a)
 
   if ((a & 0x0fffff00) == 0x4000) {
     d = p32x_sh2reg_read16(a);
-    goto out_16to8;
+    pd = P32XF_MSH2POLL;
+    goto out_pd;
   }
 
   if ((a & 0x0fffff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    goto out_16to8;
+    pd = P32XF_MSH2VPOLL;
+    goto out_pd;
   }
 
   if ((a & 0x0fffff00) == 0x4200) {
@@ -453,6 +580,10 @@ u32 pico32x_read8(u32 a)
 
   elprintf(EL_UIO, "sh2 unmapped r8  [%08x]       %02x @%06x", a, d, ash2_pc());
   return d;
+
+out_pd:
+  if (p32x_poll_detect(&msh2_poll, a, ash2_pc(), pd))
+    ash2_end_run(8);
 
 out_16to8:
   if (a & 1)
@@ -464,8 +595,9 @@ out_16to8:
   return d;
 }
 
-u32 pico32x_read16(u32 a)
+u32 p32x_sh2_read16(u32 a)
 {
+  int pd = 0;
   u32 d = 0;
 
   if (a < sizeof(Pico32xMem->sh2_rom_m))
@@ -480,12 +612,14 @@ u32 pico32x_read16(u32 a)
 
   if ((a & 0x0fffff00) == 0x4000) {
     d = p32x_sh2reg_read16(a);
-    goto out;
+    pd = P32XF_MSH2POLL;
+    goto out_pd;
   }
 
   if ((a & 0x0fffff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    goto out;
+    pd = P32XF_MSH2VPOLL;
+    goto out_pd;
   }
 
   if ((a & 0x0fffff00) == 0x4200) {
@@ -496,18 +630,25 @@ u32 pico32x_read16(u32 a)
   elprintf(EL_UIO, "sh2 unmapped r16 [%08x]     %04x @%06x", a, d, ash2_pc());
   return d;
 
+out_pd:
+  if (p32x_poll_detect(&msh2_poll, a, ash2_pc(), pd))
+    ash2_end_run(8);
+
 out:
   elprintf(EL_32X, "sh2 r16 [%08x]     %04x @%06x", a, d, ash2_pc());
   return d;
 }
 
-u32 pico32x_read32(u32 a)
+u32 p32x_sh2_read32(u32 a)
 {
+  if ((a & 0xfffffe00) == 0xfffffe00)
+    return sh2_peripheral_read(a);
+
 //  elprintf(EL_UIO, "sh2 r32 [%08x] %08x @%06x", a, d, ash2_pc());
-  return (pico32x_read16(a) << 16) | pico32x_read16(a + 2);
+  return (p32x_sh2_read16(a) << 16) | p32x_sh2_read16(a + 2);
 }
 
-void pico32x_write8(u32 a, u32 d)
+void p32x_sh2_write8(u32 a, u32 d)
 {
   if ((a & 0x0ffffc00) == 0x4000)
     elprintf(EL_32X, "sh2 w8  [%08x]       %02x @%06x", a, d & 0xff, ash2_pc());
@@ -536,7 +677,7 @@ void pico32x_write8(u32 a, u32 d)
   elprintf(EL_UIO, "sh2 unmapped w8  [%08x]       %02x @%06x", a, d & 0xff, ash2_pc());
 }
 
-void pico32x_write16(u32 a, u32 d)
+void p32x_sh2_write16(u32 a, u32 d)
 {
   if ((a & 0x0ffffc00) == 0x4000)
     elprintf(EL_32X, "sh2 w16 [%08x]     %04x @%06x", a, d & 0xffff, ash2_pc());
@@ -570,11 +711,16 @@ void pico32x_write16(u32 a, u32 d)
   elprintf(EL_UIO, "sh2 unmapped w16 [%08x]     %04x @%06x", a, d & 0xffff, ash2_pc());
 }
 
-void pico32x_write32(u32 a, u32 d)
+void p32x_sh2_write32(u32 a, u32 d)
 {
+  if ((a & 0xfffffe00) == 0xfffffe00) {
+    sh2_peripheral_write(a, d);
+    return;
+  }
+
 //  elprintf(EL_UIO, "sh2 w32 [%08x] %08x @%06x", a, d, ash2_pc());
-  pico32x_write16(a, d >> 16);
-  pico32x_write16(a + 2, d);
+  p32x_sh2_write16(a, d >> 16);
+  p32x_sh2_write16(a + 2, d);
 }
 
 #define HWSWAP(x) (((x) << 16) | ((x) >> 16))
@@ -590,6 +736,8 @@ void PicoMemSetup32x(void)
     elprintf(EL_STATUS, "OOM");
     return;
   }
+
+  dmac0 = (void *)&Pico32xMem->sh2_peri_regs[0][0x180 / 4];
 
   // generate 68k ROM
   ps = (unsigned short *)Pico32xMem->m68k_rom;
