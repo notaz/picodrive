@@ -9,19 +9,19 @@ typedef unsigned short UINT16;
 typedef unsigned char  UINT8;
 
 // pico memhandlers
-unsigned int p32x_sh2_read8(unsigned int a);
-unsigned int p32x_sh2_read16(unsigned int a);
-unsigned int p32x_sh2_read32(unsigned int a);
-void p32x_sh2_write8(unsigned int a, unsigned int d);
-void p32x_sh2_write16(unsigned int a, unsigned int d);
-void p32x_sh2_write32(unsigned int a, unsigned int d);
+unsigned int p32x_sh2_read8(unsigned int a, int id);
+unsigned int p32x_sh2_read16(unsigned int a, int id);
+unsigned int p32x_sh2_read32(unsigned int a, int id);
+void p32x_sh2_write8(unsigned int a, unsigned int d, int id);
+void p32x_sh2_write16(unsigned int a, unsigned int d, int id);
+void p32x_sh2_write32(unsigned int a, unsigned int d, int id);
 
-#define RB p32x_sh2_read8
-#define RW p32x_sh2_read16
-#define RL p32x_sh2_read32
-#define WB p32x_sh2_write8
-#define WW p32x_sh2_write16
-#define WL p32x_sh2_write32
+#define RB(a) p32x_sh2_read8(a,sh2->is_slave)
+#define RW(a) p32x_sh2_read16(a,sh2->is_slave)
+#define RL(a) p32x_sh2_read32(a,sh2->is_slave)
+#define WB(a,d) p32x_sh2_write8(a,d,sh2->is_slave)
+#define WW(a,d) p32x_sh2_write16(a,d,sh2->is_slave)
+#define WL(a,d) p32x_sh2_write32(a,d,sh2->is_slave)
 
 // some stuff from sh2comn.h
 #define T	0x00000001
@@ -114,9 +114,10 @@ int sh2_execute(SH2 *sh2_, int cycles)
 	return cycles - sh2_icount;
 }
 
-void sh2_init(SH2 *sh2)
+void sh2_init(SH2 *sh2, int is_slave)
 {
 	memset(sh2, 0, sizeof(*sh2));
+	sh2->is_slave = is_slave;
 }
 
 void sh2_irl_irq(SH2 *sh2, int level)
@@ -129,7 +130,7 @@ void sh2_irl_irq(SH2 *sh2, int level)
 		/* masked */
 		return;
 
-	sh2->irq_callback(level);
+	sh2->irq_callback(sh2->is_slave, level);
 	vector = 64 + level/2;
 
 	sh2->r[15] -= 4;

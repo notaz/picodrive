@@ -231,7 +231,6 @@ typedef void (z80_write_f)(unsigned int a, unsigned char data);
 #include "cpu/sh2mame/sh2.h"
 
 SH2 msh2, ssh2;
-#define ash2_pc() msh2.ppc
 #define ash2_end_run(after) sh2_icount = after
 
 #define sh2_pc(c)     (c) ? ssh2.ppc : msh2.ppc
@@ -453,8 +452,9 @@ struct Pico32x
 struct Pico32xMem
 {
   unsigned char  sdram[0x40000];
-  unsigned short dram[2][0x20000/2]; // AKA fb
-  unsigned char  m68k_rom[0x10000]; // 0x100; using M68K_BANK_SIZE
+  unsigned short dram[2][0x20000/2];    // AKA fb
+  unsigned char  m68k_rom[0x10000];     // 0x100; using M68K_BANK_SIZE
+  unsigned char  data_array[2][0x1000]; // cache in SH2s (can be used as RAM)
   unsigned char  sh2_rom_m[0x800];
   unsigned char  sh2_rom_s[0x400];
   unsigned short pal[0x100];

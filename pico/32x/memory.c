@@ -13,13 +13,16 @@ static void bank_switch(int b);
 #define POLL_THRESHOLD 6
 
 struct poll_det {
-	int addr, pc, cnt;
+	int addr, pc, cnt, flag;
 };
-static struct poll_det m68k_poll, msh2_poll;
+static struct poll_det m68k_poll, sh2_poll[2];
 
-static int p32x_poll_detect(struct poll_det *pd, u32 a, u32 pc, int flag)
+static int p32x_poll_detect(struct poll_det *pd, u32 a, u32 pc, int is_vdp)
 {
-  int ret = 0;
+  int ret = 0, flag = pd->flag;
+
+  if (is_vdp)
+    flag <<= 3;
 
   if (a - 2 <= pd->addr && pd->addr <= a + 2 && pd->pc == pc) {
     pd->cnt++;
@@ -40,9 +43,11 @@ static int p32x_poll_detect(struct poll_det *pd, u32 a, u32 pc, int flag)
   return ret;
 }
 
-static int p32x_poll_undetect(struct poll_det *pd, int flag)
+static int p32x_poll_undetect(struct poll_det *pd, int is_vdp)
 {
-  int ret = 0;
+  int ret = 0, flag = pd->flag;
+  if (is_vdp)
+    flag <<= 3;
   if (pd->cnt > POLL_THRESHOLD)
     ret = 1;
   pd->addr = pd->cnt = 0;
@@ -52,11 +57,12 @@ static int p32x_poll_undetect(struct poll_det *pd, int flag)
 
 void p32x_poll_event(int is_vdp)
 {
-  p32x_poll_undetect(&msh2_poll, is_vdp ? P32XF_MSH2VPOLL : P32XF_MSH2POLL);
+  p32x_poll_undetect(&sh2_poll[0], is_vdp);
+  p32x_poll_undetect(&sh2_poll[1], is_vdp);
 }
 
 // SH2 faking
-#define FAKE_SH2
+//#define FAKE_SH2
 int p32x_csum_faked;
 #ifdef FAKE_SH2
 static const u16 comm_fakevals[] = {
@@ -103,9 +109,9 @@ static void dma_68k2sh2_do(void)
     elprintf(EL_32X|EL_ANOMALY, "tcr0 and dreq len differ: %d != %d", dmac0->tcr0, *dreqlen);
 
   for (i = 0; i < Pico32x.dmac_ptr && dmac0->tcr0 > 0; i++) {
-    extern void p32x_sh2_write16(u32 a, u32 d);
+    extern void p32x_sh2_write16(u32 a, u32 d, int id);
       elprintf(EL_32X|EL_ANOMALY, "dmaw [%08x] %04x, left %d", dmac0->dar0, Pico32x.dmac_fifo[i], *dreqlen);
-    p32x_sh2_write16(dmac0->dar0, Pico32x.dmac_fifo[i]);
+    p32x_sh2_write16(dmac0->dar0, Pico32x.dmac_fifo[i], 0);
     dmac0->dar0 += 2;
     dmac0->tcr0--;
     (*dreqlen)--;
@@ -117,10 +123,11 @@ static void dma_68k2sh2_do(void)
     Pico32x.regs[6 / 2] &= ~P32XS_68S; // transfer complete
   if (dmac0->tcr0 == 0)
     dmac0->chcr0 |= 2; // DMA has ended normally
-  p32x_poll_undetect(&m68k_poll, P32XF_68KPOLL);
+  p32x_poll_undetect(&m68k_poll, 0);
 }
 
 // ------------------------------------------------------------------
+// 68k regs
 
 static u32 p32x_reg_read16(u32 a)
 {
@@ -130,7 +137,7 @@ static u32 p32x_reg_read16(u32 a)
   if ((a & 0x30) == 0x20)
     return sh2_comm_faker(a);
 #else
-  if (p32x_poll_detect(&m68k_poll, a, SekPc, P32XF_68KPOLL)) {
+  if (p32x_poll_detect(&m68k_poll, a, SekPc, 0)) {
     SekEndRun(16);
   }
 #endif
@@ -164,6 +171,10 @@ static void p32x_reg_write8(u32 a, u32 d)
     case 3: // irq ctl
       if ((d & 1) && !(Pico32x.sh2irqi[0] & P32XI_CMD)) {
         Pico32x.sh2irqi[0] |= P32XI_CMD;
+        p32x_update_irls();
+      }
+      if ((d & 2) && !(Pico32x.sh2irqi[1] & P32XI_CMD)) {
+        Pico32x.sh2irqi[1] |= P32XI_CMD;
         p32x_update_irls();
       }
       break;
@@ -218,8 +229,8 @@ static void p32x_reg_write16(u32 a, u32 d)
   // comm port
   else if ((a & 0x30) == 0x20 && r[a / 2] != d) {
     r[a / 2] = d;
-    if (p32x_poll_undetect(&msh2_poll, P32XF_MSH2POLL))
-      // if SH2 is busy waiting, it needs to see the result ASAP
+    if (p32x_poll_undetect(&sh2_poll[0], 0) || p32x_poll_undetect(&sh2_poll[1], 0))
+      // if some SH2 is busy waiting, it needs to see the result ASAP
       SekEndRun(16);
     return;
   }
@@ -242,7 +253,7 @@ static void p32x_vdp_write8(u32 a, u32 d)
   a &= 0x0f;
 
   // for FEN checks between writes
-  msh2_poll.cnt = 0;
+  sh2_poll[0].cnt = 0;
 
   // TODO: verify what's writeable
   switch (a) {
@@ -272,14 +283,15 @@ static void p32x_vdp_write16(u32 a, u32 d)
 
 // ------------------------------------------------------------------
 // SH2 regs
-static u32 p32x_sh2reg_read16(u32 a)
+
+static u32 p32x_sh2reg_read16(u32 a, int cpuid)
 {
   u16 *r = Pico32x.regs;
   a &= 0xfe; // ?
 
   switch (a) {
     case 0x00: // adapter/irq ctl
-      return (r[0] & P32XS_FM) | P32XS2_ADEN | Pico32x.sh2irq_mask[0];
+      return (r[0] & P32XS_FM) | P32XS2_ADEN | Pico32x.sh2irq_mask[cpuid];
     case 0x10: // DREQ len
       return r[a / 2];
   }
@@ -291,22 +303,23 @@ static u32 p32x_sh2reg_read16(u32 a)
   return 0;
 }
 
-static void p32x_sh2reg_write8(u32 a, u32 d)
+static void p32x_sh2reg_write8(u32 a, u32 d, int cpuid)
 {
   a &= 0xff;
   if (a == 1) {
-    Pico32x.sh2irq_mask[0] = d & 0x0f;
+    Pico32x.sh2irq_mask[cpuid] = d & 0x0f;
     p32x_update_irls();
   }
 }
 
-static void p32x_sh2reg_write16(u32 a, u32 d)
+static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
 {
   a &= 0xfe;
 
   if ((a & 0x30) == 0x20 && Pico32x.regs[a/2] != d) {
-    Pico32x.regs[a/2] = d;
-    p32x_poll_undetect(&m68k_poll, P32XF_68KPOLL);
+    Pico32x.regs[a / 2] = d;
+    p32x_poll_undetect(&m68k_poll, 0);
+    p32x_poll_undetect(&sh2_poll[cpuid ^ 1], 0);
     return;
   }
 
@@ -314,38 +327,38 @@ static void p32x_sh2reg_write16(u32 a, u32 d)
     case 0x14: Pico32x.sh2irqs &= ~P32XI_VRES; goto irls;
     case 0x16: Pico32x.sh2irqs &= ~P32XI_VINT; goto irls;
     case 0x18: Pico32x.sh2irqs &= ~P32XI_HINT; goto irls;
-    case 0x1a: Pico32x.sh2irqi[0] &= ~P32XI_CMD; goto irls;
+    case 0x1a: Pico32x.sh2irqi[cpuid] &= ~P32XI_CMD; goto irls;
     case 0x1c: Pico32x.sh2irqs &= ~P32XI_PWM;  goto irls;
   }
 
-  p32x_sh2reg_write8(a | 1, d);
+  p32x_sh2reg_write8(a | 1, d, cpuid);
   return;
 
 irls:
   p32x_update_irls();
 }
 
-static u32 sh2_peripheral_read(u32 a)
+static u32 sh2_peripheral_read(u32 a, int id)
 {
   u32 d;
   a &= 0x1fc;
   d = Pico32xMem->sh2_peri_regs[0][a / 4];
 
-  elprintf(EL_32X, "sh2 peri r32 [%08x] %08x @%06x", a, d, ash2_pc());
+  elprintf(EL_32X, "%csh2 peri r32 [%08x] %08x @%06x", id ? 's' : 'm', a, d, sh2_pc(id));
   return d;
 }
 
-static void sh2_peripheral_write(u32 a, u32 d)
+static void sh2_peripheral_write(u32 a, u32 d, int id)
 {
   unsigned int *r = Pico32xMem->sh2_peri_regs[0];
-  elprintf(EL_32X, "sh2 peri w32 [%08x] %08x @%06x", a, d, ash2_pc());
+  elprintf(EL_32X, "%csh2 peri w32 [%08x] %08x @%06x", id ? 's' : 'm', a, d, sh2_pc(id));
 
   a &= 0x1fc;
   r[a / 4] = d;
 
   if ((a == 0x1b0 || a == 0x18c) && (dmac0->chcr0 & 3) == 1 && (dmac0->dmaor & 1)) {
     elprintf(EL_32X, "sh2 DMA %08x -> %08x, cnt %d, chcr %04x @%06x",
-      dmac0->sar0, dmac0->dar0, dmac0->tcr0, dmac0->chcr0, ash2_pc());
+      dmac0->sar0, dmac0->dar0, dmac0->tcr0, dmac0->chcr0, sh2_pc(id));
     dmac0->tcr0 &= 0xffffff;
     // DREQ is only sent after first 4 words are written.
     // we do multiple of 4 words to avoid messing up alignment
@@ -546,13 +559,15 @@ static void bank_switch(int b)
 //                              SH2  
 // -----------------------------------------------------------------
 
-u32 p32x_sh2_read8(u32 a)
+u32 p32x_sh2_read8(u32 a, int id)
 {
-  int pd = 0;
+  int pd_vdp = 0;
   u32 d = 0;
 
-  if (a < sizeof(Pico32xMem->sh2_rom_m))
+  if (id == 0 && a < sizeof(Pico32xMem->sh2_rom_m))
     return Pico32xMem->sh2_rom_m[a ^ 1];
+  if (id == 1 && a < sizeof(Pico32xMem->sh2_rom_s))
+    return Pico32xMem->sh2_rom_s[a ^ 1];
 
   if ((a & 0x0ffc0000) == 0x06000000)
     return Pico32xMem->sdram[(a & 0x3ffff) ^ 1];
@@ -561,15 +576,17 @@ u32 p32x_sh2_read8(u32 a)
     if ((a & 0x003fffff) < Pico.romsize)
       return Pico.rom[(a & 0x3fffff) ^ 1];
 
+  if ((a & ~0xfff) == 0xc0000000)
+    return Pico32xMem->data_array[id][(a & 0xfff) ^ 1];
+
   if ((a & 0x0fffff00) == 0x4000) {
-    d = p32x_sh2reg_read16(a);
-    pd = P32XF_MSH2POLL;
+    d = p32x_sh2reg_read16(a, id);
     goto out_pd;
   }
 
   if ((a & 0x0fffff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    pd = P32XF_MSH2VPOLL;
+    pd_vdp = 1;
     goto out_pd;
   }
 
@@ -578,11 +595,12 @@ u32 p32x_sh2_read8(u32 a)
     goto out_16to8;
   }
 
-  elprintf(EL_UIO, "sh2 unmapped r8  [%08x]       %02x @%06x", a, d, ash2_pc());
+  elprintf(EL_UIO, "%csh2 unmapped r8  [%08x]       %02x @%06x",
+    id ? 's' : 'm', a, d, sh2_pc(id));
   return d;
 
 out_pd:
-  if (p32x_poll_detect(&msh2_poll, a, ash2_pc(), pd))
+  if (p32x_poll_detect(&sh2_poll[id], a, sh2_pc(id), pd_vdp))
     ash2_end_run(8);
 
 out_16to8:
@@ -591,17 +609,20 @@ out_16to8:
   else
     d >>= 8;
 
-  elprintf(EL_32X, "sh2 r8  [%08x]       %02x @%06x", a, d, ash2_pc());
+  elprintf(EL_32X, "%csh2 r8  [%08x]       %02x @%06x",
+    id ? 's' : 'm', a, d, sh2_pc(id));
   return d;
 }
 
-u32 p32x_sh2_read16(u32 a)
+u32 p32x_sh2_read16(u32 a, int id)
 {
-  int pd = 0;
+  int pd_vdp = 0;
   u32 d = 0;
 
-  if (a < sizeof(Pico32xMem->sh2_rom_m))
+  if (id == 0 && a < sizeof(Pico32xMem->sh2_rom_m))
     return *(u16 *)(Pico32xMem->sh2_rom_m + a);
+  if (id == 1 && a < sizeof(Pico32xMem->sh2_rom_s))
+    return *(u16 *)(Pico32xMem->sh2_rom_s + a);
 
   if ((a & 0x0ffc0000) == 0x06000000)
     return ((u16 *)Pico32xMem->sdram)[(a & 0x3ffff) / 2];
@@ -610,15 +631,17 @@ u32 p32x_sh2_read16(u32 a)
     if ((a & 0x003fffff) < Pico.romsize)
       return ((u16 *)Pico.rom)[(a & 0x3fffff) / 2];
 
+  if ((a & ~0xfff) == 0xc0000000)
+    return ((u16 *)Pico32xMem->data_array[id])[(a & 0xfff) / 2];
+
   if ((a & 0x0fffff00) == 0x4000) {
-    d = p32x_sh2reg_read16(a);
-    pd = P32XF_MSH2POLL;
+    d = p32x_sh2reg_read16(a, id);
     goto out_pd;
   }
 
   if ((a & 0x0fffff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    pd = P32XF_MSH2VPOLL;
+    pd_vdp = 1;
     goto out_pd;
   }
 
@@ -627,31 +650,34 @@ u32 p32x_sh2_read16(u32 a)
     goto out;
   }
 
-  elprintf(EL_UIO, "sh2 unmapped r16 [%08x]     %04x @%06x", a, d, ash2_pc());
+  elprintf(EL_UIO, "%csh2 unmapped r16 [%08x]     %04x @%06x",
+    id ? 's' : 'm', a, d, sh2_pc(id));
   return d;
 
 out_pd:
-  if (p32x_poll_detect(&msh2_poll, a, ash2_pc(), pd))
+  if (p32x_poll_detect(&sh2_poll[id], a, sh2_pc(id), pd_vdp))
     ash2_end_run(8);
 
 out:
-  elprintf(EL_32X, "sh2 r16 [%08x]     %04x @%06x", a, d, ash2_pc());
+  elprintf(EL_32X, "%csh2 r16 [%08x]     %04x @%06x",
+    id ? 's' : 'm', a, d, sh2_pc(id));
   return d;
 }
 
-u32 p32x_sh2_read32(u32 a)
+u32 p32x_sh2_read32(u32 a, int id)
 {
   if ((a & 0xfffffe00) == 0xfffffe00)
-    return sh2_peripheral_read(a);
+    return sh2_peripheral_read(a, id);
 
 //  elprintf(EL_UIO, "sh2 r32 [%08x] %08x @%06x", a, d, ash2_pc());
-  return (p32x_sh2_read16(a) << 16) | p32x_sh2_read16(a + 2);
+  return (p32x_sh2_read16(a, id) << 16) | p32x_sh2_read16(a + 2, id);
 }
 
-void p32x_sh2_write8(u32 a, u32 d)
+void p32x_sh2_write8(u32 a, u32 d, int id)
 {
   if ((a & 0x0ffffc00) == 0x4000)
-    elprintf(EL_32X, "sh2 w8  [%08x]       %02x @%06x", a, d & 0xff, ash2_pc());
+    elprintf(EL_32X, "%csh2 w8  [%08x]       %02x @%06x",
+      id ? 's' : 'm', a, d & 0xff, sh2_pc(id));
 
   if ((a & 0x0ffc0000) == 0x06000000) {
     Pico32xMem->sdram[(a & 0x3ffff) ^ 1] = d;
@@ -664,26 +690,38 @@ void p32x_sh2_write8(u32 a, u32 d)
     return;
   }
 
+  if ((a & ~0xfff) == 0xc0000000) {
+    Pico32xMem->data_array[id][(a & 0xfff) ^ 1] = d;
+    return;
+  }
+
   if ((a & 0x0fffff00) == 0x4100) {
     p32x_vdp_write8(a, d);
     return;
   }
 
   if ((a & 0x0fffff00) == 0x4000) {
-    p32x_sh2reg_write8(a, d);
+    p32x_sh2reg_write8(a, d, id);
     return;
   }
 
-  elprintf(EL_UIO, "sh2 unmapped w8  [%08x]       %02x @%06x", a, d & 0xff, ash2_pc());
+  elprintf(EL_UIO, "%csh2 unmapped w8  [%08x]       %02x @%06x",
+    id ? 's' : 'm', a, d & 0xff, sh2_pc(id));
 }
 
-void p32x_sh2_write16(u32 a, u32 d)
+void p32x_sh2_write16(u32 a, u32 d, int id)
 {
   if ((a & 0x0ffffc00) == 0x4000)
-    elprintf(EL_32X, "sh2 w16 [%08x]     %04x @%06x", a, d & 0xffff, ash2_pc());
+    elprintf(EL_32X, "%csh2 w16 [%08x]     %04x @%06x",
+      id ? 's' : 'm', a, d & 0xffff, sh2_pc(id));
 
   if ((a & 0x0ffc0000) == 0x06000000) {
     ((u16 *)Pico32xMem->sdram)[(a & 0x3ffff) / 2] = d;
+    return;
+  }
+
+  if ((a & ~0xfff) == 0xc0000000) {
+    ((u16 *)Pico32xMem->data_array[id])[(a & 0xfff) / 2] = d;
     return;
   }
 
@@ -704,23 +742,23 @@ void p32x_sh2_write16(u32 a, u32 d)
   }
 
   if ((a & 0x0fffff00) == 0x4000) {
-    p32x_sh2reg_write16(a, d);
+    p32x_sh2reg_write16(a, d, id);
     return;
   }
 
-  elprintf(EL_UIO, "sh2 unmapped w16 [%08x]     %04x @%06x", a, d & 0xffff, ash2_pc());
+  elprintf(EL_UIO, "%csh2 unmapped w16 [%08x]     %04x @%06x",
+    id ? 's' : 'm', a, d & 0xffff, sh2_pc(id));
 }
 
-void p32x_sh2_write32(u32 a, u32 d)
+void p32x_sh2_write32(u32 a, u32 d, int id)
 {
   if ((a & 0xfffffe00) == 0xfffffe00) {
-    sh2_peripheral_write(a, d);
+    sh2_peripheral_write(a, d, id);
     return;
   }
 
-//  elprintf(EL_UIO, "sh2 w32 [%08x] %08x @%06x", a, d, ash2_pc());
-  p32x_sh2_write16(a, d >> 16);
-  p32x_sh2_write16(a + 2, d);
+  p32x_sh2_write16(a, d >> 16, id);
+  p32x_sh2_write16(a + 2, d, id);
 }
 
 #define HWSWAP(x) (((x) << 16) | ((x) >> 16))
@@ -766,15 +804,28 @@ void PicoMemSetup32x(void)
     FILE *f = fopen("32X_M_BIOS.BIN", "rb");
     int i;
     if (f == NULL) {
-      printf("missing BIOS\n");
+      printf("missing 32X_M_BIOS.BIN\n");
       exit(1);
     }
     fread(Pico32xMem->sh2_rom_m, 1, sizeof(Pico32xMem->sh2_rom_m), f);
     fclose(f);
+    f = fopen("32X_S_BIOS.BIN", "rb");
+    if (f == NULL) {
+      printf("missing 32X_S_BIOS.BIN\n");
+      exit(1);
+    }
+    fread(Pico32xMem->sh2_rom_s, 1, sizeof(Pico32xMem->sh2_rom_s), f);
+    fclose(f);
+    // byteswap
     for (i = 0; i < sizeof(Pico32xMem->sh2_rom_m); i += 2) {
       int t = Pico32xMem->sh2_rom_m[i];
       Pico32xMem->sh2_rom_m[i] = Pico32xMem->sh2_rom_m[i + 1];
       Pico32xMem->sh2_rom_m[i + 1] = t;
+    }
+    for (i = 0; i < sizeof(Pico32xMem->sh2_rom_s); i += 2) {
+      int t = Pico32xMem->sh2_rom_s[i];
+      Pico32xMem->sh2_rom_s[i] = Pico32xMem->sh2_rom_s[i + 1];
+      Pico32xMem->sh2_rom_s[i + 1] = t;
     }
   }
 
@@ -802,5 +853,10 @@ void PicoMemSetup32x(void)
 
   // 32X ROM (banked)
   bank_switch(0);
+
+  // setup poll detector
+  m68k_poll.flag = P32XF_68KPOLL;
+  sh2_poll[0].flag = P32XF_MSH2POLL;
+  sh2_poll[1].flag = P32XF_SSH2POLL;
 }
 

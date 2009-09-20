@@ -3,10 +3,10 @@
 
 struct Pico32x Pico32x;
 
-static void sh2_irq_cb(int level)
+static void sh2_irq_cb(int id, int level)
 {
   // diagnostic for now
-  elprintf(EL_32X, "sh2 ack %d @ %08x", level, ash2_pc());
+  elprintf(EL_32X, "%csh2 ack %d @ %08x", id ? 's' : 'm', level, sh2_pc(id));
 }
 
 void p32x_update_irls(void)
@@ -39,11 +39,11 @@ void Pico32xStartup(void)
   PicoAHW |= PAHW_32X;
   PicoMemSetup32x();
 
-  sh2_init(&msh2);
+  sh2_init(&msh2, 0);
   msh2.irq_callback = sh2_irq_cb;
   sh2_reset(&msh2);
 
-  sh2_init(&ssh2);
+  sh2_init(&ssh2, 1);
   ssh2.irq_callback = sh2_irq_cb;
   sh2_reset(&ssh2);
 
@@ -127,7 +127,9 @@ static __inline void SekRunM68k(int cyc)
 #define PICO_32X
 #define RUN_SH2S \
   if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) \
-    sh2_execute(&msh2, SH2_LINE_CYCLES);
+    sh2_execute(&msh2, SH2_LINE_CYCLES); \
+  if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) \
+    sh2_execute(&ssh2, SH2_LINE_CYCLES);
 
 #include "../pico_cmn.c"
 
@@ -141,12 +143,4 @@ void PicoFrame32x(void)
 
   PicoFrameStart();
   PicoFrameHints();
-
-  // hack
-  if (Pico.m.frame_count == 83) {
-    Pico32xMem->sdram[0x3610 ^ 1] = 'R';
-    Pico32xMem->sdram[0x3611 ^ 1] = 'E';
-    Pico32xMem->sdram[0x3612 ^ 1] = 'D';
-    Pico32xMem->sdram[0x3613 ^ 1] = 'Y';
-  }
 }
