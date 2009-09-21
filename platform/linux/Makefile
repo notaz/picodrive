@@ -94,9 +94,8 @@ tidy:
 	$(RM) $(OBJS)
 	rm -rf $(DIRS)
 	@make -C ../../cpu/mz80/ clean
-	@make -C ../common/helix/ X86=1 clean
 
-PicoDrive : $(OBJS) ../common/helix/helix_mp3_x86.a
+PicoDrive : $(OBJS)
 	@echo ">>>" $@
 	$(CC) $(CFLAGS) $^ $(LDFLAGS) -lm -lpng -Wl,-Map=PicoDrive.map -o $@
 
@@ -118,9 +117,6 @@ cpu/mz80/mz80.o : ../../cpu/mz80/mz80.asm
 
 ../../cpu/mz80/mz80.asm :
 	@make -C ../../cpu/mz80/
-
-../common/helix/helix_mp3_x86.a:
-	@make -C ../common/helix/ X86=1 clean all
 
 .c.o:
 	@echo ">>>" $<
