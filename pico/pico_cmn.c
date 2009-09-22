@@ -100,6 +100,9 @@ static int PicoFrameHints(void)
 #ifdef PICO_CD
     check_cd_dma();
 #endif
+#ifdef PICO_32X
+    p32x_pwm_irq_check();
+#endif
 
     // H-Interrupts:
     if (--hint < 0) // y <= lines_vis: Comix Zone, Golden Axe
@@ -169,6 +172,9 @@ static int PicoFrameHints(void)
 #ifdef PICO_CD
   check_cd_dma();
 #endif
+#ifdef PICO_32X
+  p32x_pwm_irq_check();
+#endif
 
   // Last H-Int:
   if (--hint < 0)
@@ -236,6 +242,9 @@ static int PicoFrameHints(void)
     PAD_DELAY
 #ifdef PICO_CD
     check_cd_dma();
+#endif
+#ifdef PICO_32X
+    p32x_pwm_irq_check();
 #endif
 
     // Run scanline:

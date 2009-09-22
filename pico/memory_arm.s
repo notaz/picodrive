@@ -10,7 +10,7 @@
 .equ SRR_READONLY,  (1 <<  1)
 .equ SRF_EEPROM,    (1 <<  1)
 .equ POPT_6BTN_PAD, (1 <<  5)
-.equ POPT_DIS_32X,  (1 << 20)
+.equ POPT_EN_32X,   (1 << 20)
 
 .text
 .align 4
@@ -114,8 +114,8 @@ m_read8_not_io:
 m_read8_not_brq:
     ldr     r2, =PicoOpt
     ldr     r2, [r2]
-    tst     r2, #POPT_DIS_32X
-    beq     PicoRead8_32x
+    tst     r2, #POPT_EN_32X
+    bne     PicoRead8_32x
     mov     r0, #0
     bx      lr
 
@@ -190,8 +190,8 @@ m_read16_not_io:
 m_read16_not_brq:
     ldr     r2, =PicoOpt
     ldr     r2, [r2]
-    tst     r2, #POPT_DIS_32X
-    beq     PicoRead16_32x
+    tst     r2, #POPT_EN_32X
+    bne     PicoRead16_32x
     mov     r0, #0
     bx      lr
 
@@ -261,8 +261,8 @@ m_write8_not_z80ctl:
 m_write8_not_sreg:
     ldr     r2, =PicoOpt
     ldr     r2, [r2]
-    tst     r2, #POPT_DIS_32X
-    beq     PicoWrite8_32x
+    tst     r2, #POPT_EN_32X
+    bne     PicoWrite8_32x
     bx      lr
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -298,8 +298,8 @@ m_write16_not_z80ctl:
 m_write16_not_sreg:
     ldr     r2, =PicoOpt
     ldr     r2, [r2]
-    tst     r2, #POPT_DIS_32X
-    beq     PicoWrite16_32x
+    tst     r2, #POPT_EN_32X
+    bne     PicoWrite16_32x
     bx      lr
 
 .pool

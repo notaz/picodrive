@@ -135,12 +135,15 @@ static __inline void SekRunM68k(int cyc)
 
 void PicoFrame32x(void)
 {
+  pwm_frame_smp_cnt = 0;
+
   Pico32x.vdp_regs[0x0a/2] &= ~P32XV_VBLK; // get out of vblank
-  if ((Pico32x.vdp_regs[0] & 3 ) != 0) // no forced blanking
-    Pico32x.vdp_regs[0x0a/2] &= ~P32XV_PEN; // no pal access
+  if ((Pico32x.vdp_regs[0] & P32XV_Mx) != 0) // no forced blanking
+    Pico32x.vdp_regs[0x0a/2] &= ~P32XV_PEN; // no palette access
 
   p32x_poll_event(1);
 
   PicoFrameStart();
   PicoFrameHints();
 }
+

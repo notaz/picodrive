@@ -1,7 +1,7 @@
 // Pico Library - Internal Header File
 
 // (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006-2008 Grazvydas "notaz" Ignotas, all rights reserved.
+// (c) Copyright 2006-2009 Grazvydas "notaz" Ignotas, all rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -418,6 +418,9 @@ typedef struct
 #define P32XV_nFEN  (1<< 1)
 #define P32XV_FS    (1<< 0)
 
+#define P32XP_FULL  (1<<15) // PWM
+#define P32XP_EMPTY (1<<14)
+
 #define P32XF_68KPOLL   (1 << 0)
 #define P32XF_MSH2POLL  (1 << 1)
 #define P32XF_SSH2POLL  (1 << 2)
@@ -433,6 +436,7 @@ typedef struct
 
 // real one is 4*2, but we use more because we don't lockstep
 #define DMAC_FIFO_LEN (4*4)
+#define PWM_BUFF_LEN 1024 // in one channel samples
 
 struct Pico32x
 {
@@ -447,6 +451,7 @@ struct Pico32x
   unsigned int sh2irqs;          // common irqs
   unsigned short dmac_fifo[DMAC_FIFO_LEN];
   unsigned int dmac_ptr;
+  unsigned int pwm_irq_sample_cnt;
 };
 
 struct Pico32xMem
@@ -460,6 +465,7 @@ struct Pico32xMem
   unsigned short pal[0x100];
   unsigned short pal_native[0x100];     // converted to native (for renderer)
   unsigned int   sh2_peri_regs[2][0x200/4]; // periphereal regs of SH2s
+  signed short   pwm[2*PWM_BUFF_LEN];   // PWM buffer for current frame
 };
 
 // area.c
@@ -670,6 +676,14 @@ void p32x_poll_event(int is_vdp);
 
 // 32x/draw.c
 void FinalizeLine32xRGB555(int sh, int line);
+
+// 32x/pwm.c
+unsigned int p32x_pwm_read16(unsigned int a);
+void p32x_pwm_write16(unsigned int a, unsigned int d);
+void p32x_pwm_refresh(void);
+void p32x_pwm_irq_check(void);
+void p32x_pwm_update(int *buf32, int length, int stereo);
+extern int pwm_frame_smp_cnt;
 
 /* avoid dependency on newer glibc */
 static __inline int isspace_(int c)

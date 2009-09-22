@@ -77,7 +77,7 @@ void PicoPower(void)
   if (PicoAHW & PAHW_MCD)
     PicoPowerMCD();
 
-  if (!(PicoOpt & POPT_DIS_32X))
+  if (PicoOpt & POPT_EN_32X)
     PicoPower32x();
 
   PicoReset();
@@ -192,7 +192,7 @@ int PicoReset(void)
   if (!(PicoOpt & POPT_DIS_IDLE_DET))
     SekInitIdleDet();
 
-  if (!(PicoOpt & POPT_DIS_32X)) {
+  if (PicoOpt & POPT_EN_32X) {
     PicoReset32x();
     return 0;
   }
@@ -218,6 +218,9 @@ void PicoLoopPrepare(void)
 
   // FIXME: PAL has 313 scanlines..
   scanlines_total = Pico.m.pal ? 312 : 262;
+
+  if (PicoAHW & PAHW_32X)
+    p32x_pwm_refresh();
 }
 
 

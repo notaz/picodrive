@@ -356,6 +356,9 @@ static int PsndRender(int offset, int length)
       cdda_raw_update(buf32, length);
   }
 
+  if ((PicoAHW & PAHW_32X) && (PicoOpt & POPT_EN_PWM))
+    p32x_pwm_update(buf32, length, stereo);
+
   // convert + limit to normal 16bit output
   PsndMix_32_to_16l(PsndOut+offset, buf32, length);
 

@@ -1424,6 +1424,21 @@ static int menu_loop_cd_options(menu_id id, int keys)
 	return 0;
 }
 
+// ------------ 32X options menu ------------
+
+static menu_entry e_menu_32x_options[] =
+{
+	mee_onoff("32X enabled",          MA_32XOPT_ENABLE_32X,   PicoOpt, POPT_EN_32X),
+	mee_onoff("PWM sound",            MA_32XOPT_PWM,          PicoOpt, POPT_EN_PWM),
+};
+
+static int menu_loop_32x_options(menu_id id, int keys)
+{
+	static int sel = 0;
+	me_loop(e_menu_32x_options, &sel, NULL);
+	return 0;
+}
+
 // ------------ adv options menu ------------
 
 static menu_entry e_menu_adv_options[] =
@@ -1672,6 +1687,7 @@ static menu_entry e_menu_options[] =
 	mee_range     (cpu_clk_name,               MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 900),
 	mee_handler   ("[Display options]",        menu_loop_gfx_options),
 	mee_handler   ("[Sega/Mega CD options]",   menu_loop_cd_options),
+	mee_handler   ("[32X options]",            menu_loop_32x_options),
 	mee_handler   ("[Advanced options]",       menu_loop_adv_options),
 	mee_handler_mkname_id(MA_OPT_SAVECFG, mh_saveloadcfg, mgn_savecfg),
 	mee_handler_id("Save cfg for current game only", MA_OPT_SAVECFG_GAME, mh_saveloadcfg),
@@ -2079,6 +2095,7 @@ static menu_entry *e_menu_table[] =
 	e_menu_gfx_options,
 	e_menu_adv_options,
 	e_menu_cd_options,
+	e_menu_32x_options,
 	e_menu_keyconfig,
 	e_menu_hidden,
 };

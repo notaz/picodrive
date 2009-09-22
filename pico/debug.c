@@ -335,6 +335,8 @@ void PDebugDumpMem(void)
     dump_ram(Pico32xMem->dram[0], "dumps/dram0.bin");
     dump_ram(Pico32xMem->dram[1], "dumps/dram1.bin");
     dump_ram(Pico32xMem->pal, "dumps/pal32x.bin");
+    dump_ram(Pico32xMem->data_array[0], "dumps/data_array0.bin");
+    dump_ram(Pico32xMem->data_array[1], "dumps/data_array1.bin");
   }
 }
 

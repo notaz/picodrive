@@ -123,7 +123,6 @@ static void dma_68k2sh2_do(void)
     Pico32x.regs[6 / 2] &= ~P32XS_68S; // transfer complete
   if (dmac0->tcr0 == 0)
     dmac0->chcr0 |= 2; // DMA has ended normally
-  p32x_poll_undetect(&m68k_poll, 0);
 }
 
 // ------------------------------------------------------------------
@@ -137,7 +136,7 @@ static u32 p32x_reg_read16(u32 a)
   if ((a & 0x30) == 0x20)
     return sh2_comm_faker(a);
 #else
-  if (p32x_poll_detect(&m68k_poll, a, SekPc, 0)) {
+  if ((a & 0x30) == 0x20 && p32x_poll_detect(&m68k_poll, a, SekPc, 0)) {
     SekEndRun(16);
   }
 #endif
@@ -146,6 +145,8 @@ static u32 p32x_reg_read16(u32 a)
   if (a == 0x24 || a == 0x26)
     return sh2_comm_faker(a);
 #endif
+  if ((a & 0x30) == 0x30)
+    return p32x_pwm_read16(a);
 
   return Pico32x.regs[a / 2];
 }
@@ -196,9 +197,6 @@ static void p32x_reg_write16(u32 a, u32 d)
   u16 *r = Pico32x.regs;
   a &= 0x3e;
 
-  // for write loops with FIFO checks..
-  m68k_poll.cnt = 0;
-
   switch (a) {
     case 0x00: // adapter ctl
       r[0] = (r[0] & 0x83) | (d & P32XS_FM);
@@ -232,6 +230,11 @@ static void p32x_reg_write16(u32 a, u32 d)
     if (p32x_poll_undetect(&sh2_poll[0], 0) || p32x_poll_undetect(&sh2_poll[1], 0))
       // if some SH2 is busy waiting, it needs to see the result ASAP
       SekEndRun(16);
+    return;
+  }
+  // PWM
+  else if ((a & 0x30) == 0x30) {
+    p32x_pwm_write16(a, d);
     return;
   }
 
@@ -296,9 +299,19 @@ static u32 p32x_sh2reg_read16(u32 a, int cpuid)
       return r[a / 2];
   }
 
-  // DREQ src, dst; comm port
-  if ((a & 0x38) == 0x08 || (a & 0x30) == 0x20)
+  // DREQ src, dst
+  if ((a & 0x38) == 0x08)
     return r[a / 2];
+  // comm port
+  if ((a & 0x30) == 0x20) {
+    if (p32x_poll_detect(&sh2_poll[cpuid], a, sh2_pc(cpuid), 0))
+      ash2_end_run(8);
+    return r[a / 2];
+  }
+  if ((a & 0x30) == 0x30) {
+    sh2_poll[cpuid].cnt = 0;
+    return p32x_pwm_read16(a);
+  }
 
   return 0;
 }
@@ -316,10 +329,16 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
 {
   a &= 0xfe;
 
+  // comm
   if ((a & 0x30) == 0x20 && Pico32x.regs[a/2] != d) {
     Pico32x.regs[a / 2] = d;
     p32x_poll_undetect(&m68k_poll, 0);
     p32x_poll_undetect(&sh2_poll[cpuid ^ 1], 0);
+    return;
+  }
+  // PWM
+  else if ((a & 0x30) == 0x30) {
+    p32x_pwm_write16(a, d);
     return;
   }
 
@@ -561,7 +580,6 @@ static void bank_switch(int b)
 
 u32 p32x_sh2_read8(u32 a, int id)
 {
-  int pd_vdp = 0;
   u32 d = 0;
 
   if (id == 0 && a < sizeof(Pico32xMem->sh2_rom_m))
@@ -581,13 +599,14 @@ u32 p32x_sh2_read8(u32 a, int id)
 
   if ((a & 0x0fffff00) == 0x4000) {
     d = p32x_sh2reg_read16(a, id);
-    goto out_pd;
+    goto out_16to8;
   }
 
   if ((a & 0x0fffff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    pd_vdp = 1;
-    goto out_pd;
+    if (p32x_poll_detect(&sh2_poll[id], a, sh2_pc(id), 1))
+      ash2_end_run(8);
+    goto out_16to8;
   }
 
   if ((a & 0x0fffff00) == 0x4200) {
@@ -598,10 +617,6 @@ u32 p32x_sh2_read8(u32 a, int id)
   elprintf(EL_UIO, "%csh2 unmapped r8  [%08x]       %02x @%06x",
     id ? 's' : 'm', a, d, sh2_pc(id));
   return d;
-
-out_pd:
-  if (p32x_poll_detect(&sh2_poll[id], a, sh2_pc(id), pd_vdp))
-    ash2_end_run(8);
 
 out_16to8:
   if (a & 1)
@@ -616,7 +631,6 @@ out_16to8:
 
 u32 p32x_sh2_read16(u32 a, int id)
 {
-  int pd_vdp = 0;
   u32 d = 0;
 
   if (id == 0 && a < sizeof(Pico32xMem->sh2_rom_m))
@@ -636,13 +650,14 @@ u32 p32x_sh2_read16(u32 a, int id)
 
   if ((a & 0x0fffff00) == 0x4000) {
     d = p32x_sh2reg_read16(a, id);
-    goto out_pd;
+    goto out;
   }
 
   if ((a & 0x0fffff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    pd_vdp = 1;
-    goto out_pd;
+    if (p32x_poll_detect(&sh2_poll[id], a, sh2_pc(id), 1))
+      ash2_end_run(8);
+    goto out;
   }
 
   if ((a & 0x0fffff00) == 0x4200) {
@@ -653,10 +668,6 @@ u32 p32x_sh2_read16(u32 a, int id)
   elprintf(EL_UIO, "%csh2 unmapped r16 [%08x]     %04x @%06x",
     id ? 's' : 'm', a, d, sh2_pc(id));
   return d;
-
-out_pd:
-  if (p32x_poll_detect(&sh2_poll[id], a, sh2_pc(id), pd_vdp))
-    ash2_end_run(8);
 
 out:
   elprintf(EL_32X, "%csh2 r16 [%08x]     %04x @%06x",

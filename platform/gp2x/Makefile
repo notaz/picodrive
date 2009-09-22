@@ -73,7 +73,7 @@ OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
 		pico/cd/area.o pico/cd/misc.o pico/cd/pcm.o pico/cd/buffering.o
 endif
 # Pico - 32X
-OBJS += pico/32x/32x.o pico/32x/memory.o pico/32x/draw.o
+OBJS += pico/32x/32x.o pico/32x/memory.o pico/32x/draw.o pico/32x/pwm.o
 # Pico - Pico
 OBJS += pico/pico/pico.o pico/pico/memory.o pico/pico/xpcm.o
 # Pico - carthw
