@@ -1373,6 +1373,7 @@ void emu_loop(void)
 	// prepare CD buffer
 	if (PicoAHW & PAHW_MCD)
 		PicoCDBufferInit();
+	PicoLoopPrepare();
 
 	pemu_loop_prep();
 

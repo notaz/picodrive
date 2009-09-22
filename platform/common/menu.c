@@ -1689,10 +1689,6 @@ static int menu_loop_options(menu_id id, int keys)
 
 	me_loop(e_menu_options, &sel, NULL);
 
-	if (PicoRegionOverride)
-		// force setting possibly changed..
-		Pico.m.pal = (PicoRegionOverride == 2 || PicoRegionOverride == 8) ? 1 : 0;
-
 	return 0;
 }
 

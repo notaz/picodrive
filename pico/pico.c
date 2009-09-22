@@ -10,17 +10,18 @@
 #include "pico_int.h"
 #include "sound/ym2612.h"
 
-int PicoVer=0x0133;
 struct Pico Pico;
-int PicoOpt = 0;
-int PicoSkipFrame = 0; // skip rendering frame?
-int emustatus = 0;     // rapid_ym2612, multi_ym_updates
+int PicoOpt;     
+int PicoSkipFrame;     // skip rendering frame?
 int PicoPad[2];        // Joypads, format is MXYZ SACB RLDU
 int PicoPadInt[2];     // internal copy
-int PicoAHW = 0;       // active addon hardware: scd_active, 32x_active, svp_active, pico_active
-int PicoRegionOverride = 0; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
-int PicoAutoRgnOrder = 0;
-struct PicoSRAM SRam = {0,};
+int PicoAHW;           // active addon hardware: PAHW_*
+int PicoRegionOverride; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
+int PicoAutoRgnOrder;
+
+struct PicoSRAM SRam;
+int emustatus;         // rapid_ym2612, multi_ym_updates
+int scanlines_total;
 
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
@@ -206,6 +207,17 @@ int PicoReset(void)
       !!(SRam.flags & SRF_EEPROM));
 
   return 0;
+}
+
+// flush cinfig changes before emu loop starts
+void PicoLoopPrepare(void)
+{
+  if (PicoRegionOverride)
+    // force setting possibly changed..
+    Pico.m.pal = (PicoRegionOverride == 2 || PicoRegionOverride == 8) ? 1 : 0;
+
+  // FIXME: PAL has 313 scanlines..
+  scanlines_total = Pico.m.pal ? 312 : 262;
 }
 
 

@@ -59,6 +59,7 @@ extern void emu_32x_startup(void);
 #define POPT_DIS_SPRITE_LIM (1<<18)
 #define POPT_DIS_IDLE_DET   (1<<19)
 #define POPT_DIS_32X        (1<<20)
+#define POPT_DIS_PWM        (1<<21)
 extern int PicoOpt; // bitfield
 
 #define PAHW_MCD  (1<<0)
@@ -67,7 +68,6 @@ extern int PicoOpt; // bitfield
 #define PAHW_PICO (1<<3)
 #define PAHW_SMS  (1<<4)
 extern int PicoAHW;            // Pico active hw
-extern int PicoVer;
 extern int PicoSkipFrame;      // skip rendering frame, but still do sound (if enabled) and emulation stuff
 extern int PicoRegionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 extern int PicoAutoRgnOrder;   // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
@@ -76,6 +76,7 @@ void PicoInit(void);
 void PicoExit(void);
 void PicoPower(void);
 int  PicoReset(void);
+void PicoLoopPrepare(void);
 void PicoFrame(void);
 void PicoFrameDrawOnly(void);
 extern int PicoPad[2]; // Joypads, format is MXYZ SACB RLDU

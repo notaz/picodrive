@@ -221,9 +221,8 @@ static int PicoFrameHints(void)
   if (PicoLineHook) PicoLineHook();
 #endif
 
-  // PAL line count might actually be 313 according to Steve Snake, but that would complicate things.
-  lines = Pico.m.pal ? 312 : 262;
-  vcnt_wrap = Pico.m.pal ? 0x103 : 0xEB; // based on Gens
+  lines = scanlines_total;
+  vcnt_wrap = Pico.m.pal ? 0x103 : 0xEB; // based on Gens, TODO: verify
 
   for (y++; y < lines; y++)
   {

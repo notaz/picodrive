@@ -100,9 +100,10 @@ PICO_INTERNAL int PicoCdSaveState(void *file)
 {
 	unsigned char buff[0x60];
 	void *ym2612_regs = YM2612GetRegs();
+	int ver = 0x0133; // not really used..
 
 	areaWrite("PicoSEXT", 1, 8, file);
-	areaWrite(&PicoVer, 1, 4, file);
+	areaWrite(&ver, 1, 4, file);
 
 	memset(buff, 0, sizeof(buff));
 	PicoAreaPackCpu(buff, 0);
@@ -114,17 +115,13 @@ PICO_INTERNAL int PicoCdSaveState(void *file)
 	CHECKED_WRITE_BUFF(CHUNK_VSRAM, Pico.vsram);
 	CHECKED_WRITE_BUFF(CHUNK_MISC,  Pico.m);
 	CHECKED_WRITE_BUFF(CHUNK_VIDEO, Pico.video);
-	if (PicoOpt&7) {
-		memset(buff, 0, sizeof(buff));
-		z80_pack(buff);
-		CHECKED_WRITE_BUFF(CHUNK_Z80, buff);
-	}
-	if (PicoOpt&3)
-		CHECKED_WRITE(CHUNK_PSG, 28*4, sn76496_regs);
-	if (PicoOpt&1) {
-		ym2612_pack_state();
-		CHECKED_WRITE(CHUNK_FM, 0x200+4, ym2612_regs);
-	}
+
+	memset(buff, 0, sizeof(buff));
+	z80_pack(buff);
+	CHECKED_WRITE_BUFF(CHUNK_Z80, buff);
+	CHECKED_WRITE(CHUNK_PSG, 28*4, sn76496_regs);
+	ym2612_pack_state();
+	CHECKED_WRITE(CHUNK_FM, 0x200+4, ym2612_regs);
 
 	if (PicoAHW & PAHW_MCD)
 	{

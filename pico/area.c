@@ -16,7 +16,6 @@
 // sn76496
 extern int *sn76496_regs;
 
-
 struct PicoArea { void *data; int len; char *name; };
 
 // strange observation on Symbian OS 9.1, m600 organizer fw r3a06:
@@ -175,7 +174,6 @@ static int PicoAreaScan(int is_write, unsigned int ver, void *PmovFile)
 // Save or load the state from PmovFile:
 static int PmovState(int is_write, void *PmovFile)
 {
-  int minimum=0;
   unsigned char head[32];
 
   if ((PicoAHW & PAHW_MCD) || carthw_chunks != NULL)
@@ -191,12 +189,10 @@ static int PmovState(int is_write, void *PmovFile)
 
   memset(head,0,sizeof(head));
 
-  // Find out minimal compatible version:
-  minimum = 0x0021;
-
+  // not really used..
   memcpy(head,"Pico",4);
-  *(unsigned int *)(head+0x8)=PicoVer;
-  *(unsigned int *)(head+0xc)=minimum;
+  *(unsigned int *)(head+0x8)=0x0133;
+  *(unsigned int *)(head+0xc)=0x0021;
 
   // Scan header:
   if (is_write)

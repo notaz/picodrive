@@ -404,11 +404,11 @@ typedef struct
 // 32X
 #define P32XS_FM    (1<<15)
 #define P32XS2_ADEN (1<< 9)
-#define P32XS_FULL  (1<< 7)
+#define P32XS_FULL  (1<< 7) // DREQ FIFO full
 #define P32XS_68S   (1<< 2)
 #define P32XS_RV    (1<< 0)
 
-#define P32XV_nPAL  (1<<15)
+#define P32XV_nPAL  (1<<15) // VDP
 #define P32XV_PRI   (1<< 7)
 #define P32XV_Mx    (3<< 0) // display mode mask
 
@@ -458,7 +458,7 @@ struct Pico32xMem
   unsigned char  sh2_rom_m[0x800];
   unsigned char  sh2_rom_s[0x400];
   unsigned short pal[0x100];
-  unsigned short pal_native[0x100]; // converted to native (for renderer)
+  unsigned short pal_native[0x100];     // converted to native (for renderer)
   unsigned int   sh2_peri_regs[2][0x200/4]; // periphereal regs of SH2s
 };
 
@@ -534,6 +534,7 @@ extern struct Pico Pico;
 extern struct PicoSRAM SRam;
 extern int PicoPadInt[2];
 extern int emustatus;
+extern int scanlines_total;
 extern void (*PicoResetHook)(void);
 extern void (*PicoLineHook)(void);
 PICO_INTERNAL int  CheckDMA(void);
