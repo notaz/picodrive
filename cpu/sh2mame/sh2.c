@@ -367,7 +367,7 @@ INLINE void BRA(UINT32 d)
 #if BUSY_LOOP_HACKS
 	if (disp == -2)
 	{
-		UINT32 next_opcode = RW(sh2->ppc & AM);
+		UINT32 next_opcode = RW(sh2->pc & AM);
 		/* BRA  $
          * NOP
          */
@@ -795,7 +795,7 @@ INLINE void DT(UINT32 n)
 		sh2->sr &= ~T;
 #if BUSY_LOOP_HACKS
 	{
-		UINT32 next_opcode = RW(sh2->ppc & AM);
+		UINT32 next_opcode = RW(sh2->pc & AM);
 		/* DT   Rn
          * BF   $-2
          */

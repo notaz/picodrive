@@ -71,15 +71,18 @@ int sh2_execute(SH2 *sh2_, int cycles)
 
 		if (sh2->delay)
 		{
+			sh2->ppc = sh2->delay;
 			opcode = RW(sh2->delay);
 			sh2->pc -= 2;
 		}
 		else
+		{
+			sh2->ppc = sh2->pc;
 			opcode = RW(sh2->pc);
+		}
 
 		sh2->delay = 0;
 		sh2->pc += 2;
-		sh2->ppc = sh2->pc;
 
 		switch (opcode & ( 15 << 12))
 		{
