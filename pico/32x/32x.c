@@ -92,6 +92,8 @@ static void p32x_start_blank(void)
     Pico32xSwapDRAM(Pico32x.pending_fb ^ 1);
   }
 
+  Pico32x.sh2irqs |= P32XI_VINT;
+  p32x_update_irls();
   p32x_poll_event(1);
 }
 
@@ -122,7 +124,7 @@ static __inline void SekRunM68k(int cyc)
 
 // ~1463.8, but due to cache misses and slow mem
 // it's much lower than that
-#define SH2_LINE_CYCLES 700
+#define SH2_LINE_CYCLES 735
 
 #define PICO_32X
 #define RUN_SH2S \

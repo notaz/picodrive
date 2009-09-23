@@ -406,6 +406,7 @@ typedef struct
 #define P32XS2_ADEN (1<< 9)
 #define P32XS_FULL  (1<< 7) // DREQ FIFO full
 #define P32XS_68S   (1<< 2)
+#define P32XS_DMA   (1<< 1)
 #define P32XS_RV    (1<< 0)
 
 #define P32XV_nPAL  (1<<15) // VDP

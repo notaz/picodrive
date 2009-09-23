@@ -156,6 +156,9 @@ static void p32x_reg_write8(u32 a, u32 d)
   u16 *r = Pico32x.regs;
   a &= 0x3f;
 
+  // for things like bset on comm port
+  m68k_poll.cnt = 0;
+
   if (a == 1 && !(r[0] & 1)) {
     r[0] |= 1;
     Pico32xStartup();
@@ -187,7 +190,7 @@ static void p32x_reg_write8(u32 a, u32 d)
       }
       break;
     case 7: // DREQ ctl
-      r[6 / 2] = (r[6 / 2] & P32XS_FULL) | (d & (P32XS_68S|P32XS_RV));
+      r[6 / 2] = (r[6 / 2] & P32XS_FULL) | (d & (P32XS_68S|P32XS_DMA|P32XS_RV));
       break;
   }
 }
@@ -196,6 +199,9 @@ static void p32x_reg_write16(u32 a, u32 d)
 {
   u16 *r = Pico32x.regs;
   a &= 0x3e;
+
+  // for things like bset on comm port
+  m68k_poll.cnt = 0;
 
   switch (a) {
     case 0x00: // adapter ctl
@@ -361,19 +367,40 @@ static u32 sh2_peripheral_read(u32 a, int id)
 {
   u32 d;
   a &= 0x1fc;
-  d = Pico32xMem->sh2_peri_regs[0][a / 4];
+  d = Pico32xMem->sh2_peri_regs[id][a / 4];
 
-  elprintf(EL_32X, "%csh2 peri r32 [%08x] %08x @%06x", id ? 's' : 'm', a, d, sh2_pc(id));
+  elprintf(EL_32X, "%csh2 peri r32 [%08x] %08x @%06x", id ? 's' : 'm', a | ~0x1ff, d, sh2_pc(id));
   return d;
 }
 
 static void sh2_peripheral_write(u32 a, u32 d, int id)
 {
-  unsigned int *r = Pico32xMem->sh2_peri_regs[0];
+  unsigned int *r = Pico32xMem->sh2_peri_regs[id];
   elprintf(EL_32X, "%csh2 peri w32 [%08x] %08x @%06x", id ? 's' : 'm', a, d, sh2_pc(id));
 
   a &= 0x1fc;
   r[a / 4] = d;
+
+  switch (a) {
+    // division unit:
+    case 0x104: // DVDNT: divident L, starts divide
+      elprintf(EL_32X, "%csh2 divide %08x / %08x", id ? 's' : 'm', d, r[0x100 / 4]);
+      if (r[0x100 / 4]) {
+        r[0x118 / 4] = r[0x110 / 4] = d % r[0x100 / 4];
+        r[0x11c / 4] = r[0x114 / 4] = d / r[0x100 / 4];
+      }
+      break;
+    case 0x114:
+      elprintf(EL_32X, "%csh2 divide %08x%08x / %08x @%08x",
+        id ? 's' : 'm', r[0x110 / 4], d, r[0x100 / 4], sh2_pc(id));
+      if (r[0x100 / 4]) {
+        long long divident = (long long)r[0x110 / 4] << 32 | d;
+        // XXX: undocumented mirroring to 0x118,0x11c?
+        r[0x118 / 4] = r[0x110 / 4] = divident % r[0x100 / 4];
+        r[0x11c / 4] = r[0x114 / 4] = divident / r[0x100 / 4];
+      }
+      break;
+  }
 
   if ((a == 0x1b0 || a == 0x18c) && (dmac0->chcr0 & 3) == 1 && (dmac0->dmaor & 1)) {
     elprintf(EL_32X, "sh2 DMA %08x -> %08x, cnt %d, chcr %04x @%06x",
@@ -597,6 +624,11 @@ u32 p32x_sh2_read8(u32 a, int id)
   if ((a & ~0xfff) == 0xc0000000)
     return Pico32xMem->data_array[id][(a & 0xfff) ^ 1];
 
+  if ((a & 0x0ffe0000) == 0x04000000) {
+    u8 *dram = (u8 *)Pico32xMem->dram[(Pico32x.vdp_regs[0x0a/2] & P32XV_FS) ^ 1];
+    return dram[(a & 0x1ffff) ^ 1];
+  }
+
   if ((a & 0x0fffff00) == 0x4000) {
     d = p32x_sh2reg_read16(a, id);
     goto out_16to8;
@@ -647,6 +679,9 @@ u32 p32x_sh2_read16(u32 a, int id)
 
   if ((a & ~0xfff) == 0xc0000000)
     return ((u16 *)Pico32xMem->data_array[id])[(a & 0xfff) / 2];
+
+  if ((a & 0x0ffe0000) == 0x04000000)
+    return Pico32xMem->dram[(Pico32x.vdp_regs[0x0a/2] & P32XV_FS) ^ 1][(a & 0x1ffff) / 2];
 
   if ((a & 0x0fffff00) == 0x4000) {
     d = p32x_sh2reg_read16(a, id);
