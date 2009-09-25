@@ -27,9 +27,10 @@ void p32x_update_irls(void)
 
   elprintf(EL_32X, "update_irls: m %d, s %d", mlvl, slvl);
   sh2_irl_irq(&msh2, mlvl);
-  if (mlvl)
-    p32x_poll_event(0);
   sh2_irl_irq(&ssh2, slvl);
+  mlvl = mlvl ? 1 : 0;
+  slvl = slvl ? 1 : 0;
+  p32x_poll_event(mlvl | (slvl << 1), 0);
 }
 
 void Pico32xStartup(void)
@@ -63,6 +64,7 @@ void PicoPower32x(void)
 
   Pico32x.regs[0] = 0x0082; // SH2 reset?
   Pico32x.vdp_regs[0x0a/2] = P32XV_VBLK|P32XV_HBLK|P32XV_PEN;
+  Pico32x.sh2_regs[0] = P32XS2_ADEN;
 }
 
 void PicoUnload32x(void)
@@ -94,7 +96,7 @@ static void p32x_start_blank(void)
 
   Pico32x.sh2irqs |= P32XI_VINT;
   p32x_update_irls();
-  p32x_poll_event(1);
+  p32x_poll_event(3, 1);
 }
 
 // FIXME..
@@ -127,11 +129,22 @@ static __inline void SekRunM68k(int cyc)
 #define SH2_LINE_CYCLES 735
 
 #define PICO_32X
-#define RUN_SH2S \
+#define RUN_SH2S_SIMPLE \
   if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) \
     sh2_execute(&msh2, SH2_LINE_CYCLES); \
   if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) \
     sh2_execute(&ssh2, SH2_LINE_CYCLES);
+
+#define RUN_SH2S_LOCKSTEP \
+{ \
+  int i; \
+  for (i = 0; i < SH2_LINE_CYCLES; i+= 3) { \
+    sh2_execute(&msh2, 3); \
+    sh2_execute(&ssh2, 3); \
+  } \
+}
+
+#define RUN_SH2S RUN_SH2S_SIMPLE
 
 #include "../pico_cmn.c"
 
@@ -143,7 +156,7 @@ void PicoFrame32x(void)
   if ((Pico32x.vdp_regs[0] & P32XV_Mx) != 0) // no forced blanking
     Pico32x.vdp_regs[0x0a/2] &= ~P32XV_PEN; // no palette access
 
-  p32x_poll_event(1);
+  p32x_poll_event(3, 1);
 
   PicoFrameStart();
   PicoFrameHints();

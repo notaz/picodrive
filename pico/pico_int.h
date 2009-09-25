@@ -443,9 +443,9 @@ struct Pico32x
 {
   unsigned short regs[0x20];
   unsigned short vdp_regs[0x10];
+  unsigned short sh2_regs[3];
   unsigned char pending_fb;
   unsigned char dirty_pal;
-  unsigned char pad[2];
   unsigned int emu_flags;
   unsigned char sh2irq_mask[2];
   unsigned char sh2irqi[2];      // individual
@@ -673,7 +673,7 @@ void PicoWrite8_32x(unsigned int a, unsigned int d);
 void PicoWrite16_32x(unsigned int a, unsigned int d);
 void PicoMemSetup32x(void);
 void Pico32xSwapDRAM(int b);
-void p32x_poll_event(int is_vdp);
+void p32x_poll_event(int cpu_mask, int is_vdp);
 
 // 32x/draw.c
 void FinalizeLine32xRGB555(int sh, int line);
