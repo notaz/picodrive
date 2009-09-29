@@ -7,29 +7,29 @@ struct Pico32xMem *Pico32xMem;
 
 static void bank_switch(int b);
 
-#define MSB8(x) ((x) >> 8)
-
 // poll detection
 #define POLL_THRESHOLD 6
 
 struct poll_det {
-	int addr, pc, cnt, flag;
+  u32 addr, cycles, cyc_max;
+  int cnt, flag;
 };
 static struct poll_det m68k_poll, sh2_poll[2];
 
-static int p32x_poll_detect(struct poll_det *pd, u32 a, u32 pc, int is_vdp)
+static int p32x_poll_detect(struct poll_det *pd, u32 a, u32 cycles, int is_vdp)
 {
   int ret = 0, flag = pd->flag;
 
   if (is_vdp)
     flag <<= 3;
 
-  if (a - 2 <= pd->addr && pd->addr <= a + 2) { // && pd->pc == pc) {
+  if (a - 2 <= pd->addr && pd->addr <= a + 2 && cycles - pd->cycles < pd->cyc_max) {
     pd->cnt++;
     if (pd->cnt > POLL_THRESHOLD) {
       if (!(Pico32x.emu_flags & flag)) {
-        elprintf(EL_32X, "%s poll addr %08x @ %06x",
-          flag == P32XF_68KPOLL ? "m68k" : (flag == P32XF_MSH2POLL ? "msh2" : "ssh2"), a, pc);
+        elprintf(EL_32X, "%s poll addr %08x, cyc %u",
+          flag & (P32XF_68KPOLL|P32XF_68KVPOLL) ? "m68k" :
+          (flag & (P32XF_MSH2POLL|P32XF_MSH2VPOLL) ? "msh2" : "ssh2"), a, cycles - pd->cycles);
         ret = 1;
       }
       Pico32x.emu_flags |= flag;
@@ -38,7 +38,7 @@ static int p32x_poll_detect(struct poll_det *pd, u32 a, u32 pc, int is_vdp)
   else
     pd->cnt = 0;
   pd->addr = a;
-  pd->pc = pc;
+  pd->cycles = cycles;
 
   return ret;
 }
@@ -47,11 +47,15 @@ static int p32x_poll_undetect(struct poll_det *pd, int is_vdp)
 {
   int ret = 0, flag = pd->flag;
   if (is_vdp)
-    flag <<= 3;
-  if (pd->cnt > POLL_THRESHOLD)
+    flag <<= 3; // VDP only
+  else
+    flag |= flag << 3; // both
+  if (Pico32x.emu_flags & flag) {
+    elprintf(EL_32X, "poll %02x -> %02x", Pico32x.emu_flags, Pico32x.emu_flags & ~flag);
     ret = 1;
-  pd->addr = pd->cnt = 0;
+  }
   Pico32x.emu_flags &= ~flag;
+  pd->addr = pd->cnt = 0;
   return ret;
 }
 
@@ -112,7 +116,7 @@ static void dma_68k2sh2_do(void)
 
   for (i = 0; i < Pico32x.dmac_ptr && dmac0->tcr0 > 0; i++) {
     extern void p32x_sh2_write16(u32 a, u32 d, int id);
-      elprintf(EL_32X|EL_ANOMALY, "dmaw [%08x] %04x, left %d", dmac0->dar0, Pico32x.dmac_fifo[i], *dreqlen);
+      elprintf(EL_32X, "dmaw [%08x] %04x, left %d", dmac0->dar0, Pico32x.dmac_fifo[i], *dreqlen);
     p32x_sh2_write16(dmac0->dar0, Pico32x.dmac_fifo[i], 0);
     dmac0->dar0 += 2;
     dmac0->tcr0--;
@@ -123,8 +127,10 @@ static void dma_68k2sh2_do(void)
   Pico32x.regs[6 / 2] &= ~P32XS_FULL;
   if (*dreqlen == 0)
     Pico32x.regs[6 / 2] &= ~P32XS_68S; // transfer complete
-  if (dmac0->tcr0 == 0)
+  if (dmac0->tcr0 == 0) {
     dmac0->chcr0 |= 2; // DMA has ended normally
+    p32x_poll_undetect(&sh2_poll[0], 0);
+  }
 }
 
 // ------------------------------------------------------------------
@@ -140,7 +146,7 @@ static u32 p32x_reg_read16(u32 a)
   if ((a & 0x30) == 0x20)
     return sh2_comm_faker(a);
 #else
-  if ((a & 0x30) == 0x20 && p32x_poll_detect(&m68k_poll, a, SekPc, 0)) {
+  if ((a & 0x30) == 0x20 && p32x_poll_detect(&m68k_poll, a, SekCyclesDoneT(), 0)) {
     SekEndRun(16);
   }
 #endif
@@ -276,6 +282,11 @@ static void p32x_vdp_write8(u32 a, u32 d)
       if ((r[0] ^ d) & P32XV_PRI)
         Pico32x.dirty_pal = 1;
       r[0] = (r[0] & P32XV_nPAL) | (d & 0xff);
+      if ((d & 3) == 3)
+        elprintf(EL_32X|EL_ANOMALY, "TODO: mode3");
+      break;
+    case 0x05: // fill len
+      r[4 / 2] = d & 0xff;
       break;
     case 0x0b:
       d &= 1;
@@ -292,6 +303,24 @@ static void p32x_vdp_write8(u32 a, u32 d)
 
 static void p32x_vdp_write16(u32 a, u32 d)
 {
+  a &= 0x0e;
+  if (a == 6) { // fill start
+    Pico32x.vdp_regs[6 / 2] = d;
+    return;
+  }
+  if (a == 8) { // fill data
+    u16 *dram = Pico32xMem->dram[(Pico32x.vdp_regs[0x0a/2] & P32XV_FS) ^ 1];
+    int len = Pico32x.vdp_regs[4 / 2];
+    a = Pico32x.vdp_regs[6 / 2];
+    while (len--) {
+      dram[a] = d;
+      a = (a & 0xff00) | ((a + 1) & 0xff);
+    }
+    Pico32x.vdp_regs[6 / 2] = a;
+    Pico32x.vdp_regs[8 / 2] = d;
+    return;
+  }
+
   p32x_vdp_write8(a | 1, d);
 }
 
@@ -317,7 +346,7 @@ static u32 p32x_sh2reg_read16(u32 a, int cpuid)
     return r[a / 2];
   // comm port
   if ((a & 0x30) == 0x20) {
-    if (p32x_poll_detect(&sh2_poll[cpuid], a, sh2_pc(cpuid), 0))
+    if (p32x_poll_detect(&sh2_poll[cpuid], a, ash2_cycles_done(), 0))
       ash2_end_run(8);
     return r[a / 2];
   }
@@ -375,7 +404,10 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
     case 0x16: Pico32x.sh2irqs &= ~P32XI_VINT; goto irls;
     case 0x18: Pico32x.sh2irqs &= ~P32XI_HINT; goto irls;
     case 0x1a: Pico32x.sh2irqi[cpuid] &= ~P32XI_CMD; goto irls;
-    case 0x1c: Pico32x.sh2irqs &= ~P32XI_PWM;  goto irls;
+    case 0x1c:
+      Pico32x.sh2irqs &= ~P32XI_PWM;
+      p32x_pwm_irq_check(0);
+      goto irls;
   }
 
   p32x_sh2reg_write8(a | 1, d, cpuid);
@@ -422,29 +454,31 @@ static void sh2_peripheral_write8(u32 a, u32 d, int id)
 
 static void sh2_peripheral_write32(u32 a, u32 d, int id)
 {
-  unsigned int *r = Pico32xMem->sh2_peri_regs[id];
+  u32 *r = Pico32xMem->sh2_peri_regs[id];
   elprintf(EL_32X, "%csh2 peri w32 [%08x] %08x @%06x", id ? 's' : 'm', a, d, sh2_pc(id));
 
   a &= 0x1fc;
   r[a / 4] = d;
 
   switch (a) {
-    // division unit:
+    // division unit (TODO: verify):
     case 0x104: // DVDNT: divident L, starts divide
       elprintf(EL_32X, "%csh2 divide %08x / %08x", id ? 's' : 'm', d, r[0x100 / 4]);
       if (r[0x100 / 4]) {
-        r[0x118 / 4] = r[0x110 / 4] = d % r[0x100 / 4];
-        r[0x11c / 4] = r[0x114 / 4] = d / r[0x100 / 4];
+        signed int divisor = r[0x100 / 4];
+                       r[0x118 / 4] = r[0x110 / 4] = (signed int)d % divisor;
+        r[0x104 / 4] = r[0x11c / 4] = r[0x114 / 4] = (signed int)d / divisor;
       }
       break;
     case 0x114:
       elprintf(EL_32X, "%csh2 divide %08x%08x / %08x @%08x",
         id ? 's' : 'm', r[0x110 / 4], d, r[0x100 / 4], sh2_pc(id));
       if (r[0x100 / 4]) {
-        long long divident = (long long)r[0x110 / 4] << 32 | d;
+        signed long long divident = (signed long long)r[0x110 / 4] << 32 | d;
+        signed int divisor = r[0x100 / 4];
         // XXX: undocumented mirroring to 0x118,0x11c?
-        r[0x118 / 4] = r[0x110 / 4] = divident % r[0x100 / 4];
-        r[0x11c / 4] = r[0x114 / 4] = divident / r[0x100 / 4];
+        r[0x118 / 4] = r[0x110 / 4] = divident % divisor;
+        r[0x11c / 4] = r[0x114 / 4] = divident / divisor;
       }
       break;
   }
@@ -453,6 +487,12 @@ static void sh2_peripheral_write32(u32 a, u32 d, int id)
     elprintf(EL_32X, "sh2 DMA %08x -> %08x, cnt %d, chcr %04x @%06x",
       dmac0->sar0, dmac0->dar0, dmac0->tcr0, dmac0->chcr0, sh2_pc(id));
     dmac0->tcr0 &= 0xffffff;
+
+    // HACK: assume bus is busy and SH2 is halted
+    // XXX: use different mechanism for this, not poll det
+    Pico32x.emu_flags |= id ? P32XF_SSH2POLL : P32XF_MSH2POLL;
+    ash2_end_run(5);
+
     // DREQ is only sent after first 4 words are written.
     // we do multiple of 4 words to avoid messing up alignment
     if (dmac0->sar0 == 0x20004012 && Pico32x.dmac_ptr && (Pico32x.dmac_ptr & 3) == 0) {
@@ -683,7 +723,7 @@ u32 p32x_sh2_read8(u32 a, int id)
 
   if ((a & 0xdfffff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    if (p32x_poll_detect(&sh2_poll[id], a, sh2_pc(id), 1))
+    if (p32x_poll_detect(&sh2_poll[id], a, ash2_cycles_done(), 1))
       ash2_end_run(8);
     goto out_16to8;
   }
@@ -740,7 +780,7 @@ u32 p32x_sh2_read16(u32 a, int id)
 
   if ((a & 0xdfffff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    if (p32x_poll_detect(&sh2_poll[id], a, sh2_pc(id), 1))
+    if (p32x_poll_detect(&sh2_poll[id], a, ash2_cycles_done(), 1))
       ash2_end_run(8);
     goto out;
   }
@@ -847,6 +887,7 @@ void p32x_sh2_write16(u32 a, u32 d, int id)
   }
 
   if ((a & 0xdfffff00) == 0x4100) {
+    sh2_poll[id].cnt = 0; // for poll before VDP accesses
     p32x_vdp_write16(a, d);
     return;
   }
@@ -972,7 +1013,10 @@ void PicoMemSetup32x(void)
 
   // setup poll detector
   m68k_poll.flag = P32XF_68KPOLL;
+  m68k_poll.cyc_max = 64;
   sh2_poll[0].flag = P32XF_MSH2POLL;
+  sh2_poll[0].cyc_max = 16;
   sh2_poll[1].flag = P32XF_SSH2POLL;
+  sh2_poll[1].cyc_max = 16;
 }
 

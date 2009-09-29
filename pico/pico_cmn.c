@@ -16,14 +16,14 @@
 
 // CPUS_RUN
 #ifndef RUN_SH2S
-#define RUN_SH2S
+#define RUN_SH2S(x)
 #endif
 
 #ifndef PICO_CD
 #define CPUS_RUN(m68k_cycles,s68k_cycles) \
 { \
     SekRunM68k(m68k_cycles); \
-    RUN_SH2S \
+    RUN_SH2S(m68k_cycles); \
 }
 #else
 #define CPUS_RUN(m68k_cycles,s68k_cycles) \
@@ -101,7 +101,7 @@ static int PicoFrameHints(void)
     check_cd_dma();
 #endif
 #ifdef PICO_32X
-    p32x_pwm_irq_check();
+    p32x_pwm_irq_check(1);
 #endif
 
     // H-Interrupts:
@@ -173,7 +173,7 @@ static int PicoFrameHints(void)
   check_cd_dma();
 #endif
 #ifdef PICO_32X
-  p32x_pwm_irq_check();
+  p32x_pwm_irq_check(1);
 #endif
 
   // Last H-Int:
@@ -244,7 +244,7 @@ static int PicoFrameHints(void)
     check_cd_dma();
 #endif
 #ifdef PICO_32X
-    p32x_pwm_irq_check();
+    p32x_pwm_irq_check(1);
 #endif
 
     // Run scanline:

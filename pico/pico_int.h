@@ -232,6 +232,7 @@ typedef void (z80_write_f)(unsigned int a, unsigned char data);
 
 SH2 msh2, ssh2;
 #define ash2_end_run(after) sh2_icount = after
+#define ash2_cycles_done() (10000 - sh2_icount) // HACK
 
 #define sh2_pc(c)     (c) ? ssh2.ppc : msh2.ppc
 #define sh2_reg(c, x) (c) ? ssh2.r[x] : msh2.r[x]
@@ -682,7 +683,7 @@ void FinalizeLine32xRGB555(int sh, int line);
 unsigned int p32x_pwm_read16(unsigned int a);
 void p32x_pwm_write16(unsigned int a, unsigned int d);
 void p32x_pwm_refresh(void);
-void p32x_pwm_irq_check(void);
+void p32x_pwm_irq_check(int new_line);
 void p32x_pwm_update(int *buf32, int length, int stereo);
 extern int pwm_frame_smp_cnt;
 

@@ -71,6 +71,8 @@ char *PDebug32x(void)
     sprintf(dstrp, "%02x: %04x %04x %04x %04x %04x %04x %04x %04x\n",
       i*2, r[i+0], r[i+1], r[i+2], r[i+3], r[i+4], r[i+5], r[i+6], r[i+7]); MVP;
   }
+  r = Pico32x.sh2_regs;
+  sprintf(dstrp, "SH: %04x %04x %04x      IRQs: %02x\n", r[0], r[1], r[2], Pico32x.sh2irqs); MVP;
 
   i = 0;
   r = Pico32x.vdp_regs;
@@ -85,6 +87,8 @@ char *PDebug32x(void)
       sh2_reg(0,i), sh2_reg(0,i+8), sh2_reg(1,i), sh2_reg(1,i+8)); MVP;
   }
   sprintf(dstrp, "gb,vb %08x,%08x %08x,%08x\n", sh2_gbr(0), sh2_vbr(0), sh2_gbr(1), sh2_vbr(1));
+  sprintf(dstrp, "IRQs/mask:        %02x/%02x             %02x/%02x\n",
+    Pico32x.sh2irqi[0], Pico32x.sh2irq_mask[0], Pico32x.sh2irqi[1], Pico32x.sh2irq_mask[1]); MVP;
 
   return dstr;
 }

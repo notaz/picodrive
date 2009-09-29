@@ -126,25 +126,28 @@ static __inline void SekRunM68k(int cyc)
 
 // ~1463.8, but due to cache misses and slow mem
 // it's much lower than that
-#define SH2_LINE_CYCLES 735
+//#define SH2_LINE_CYCLES 735
+#define CYCLES_M68K2SH2(x) ((x) * 9 / 4)
 
 #define PICO_32X
-#define RUN_SH2S_SIMPLE \
+#define RUN_SH2S_SIMPLE(m68k_cycles) \
   if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) \
-    sh2_execute(&msh2, SH2_LINE_CYCLES); \
+    sh2_execute(&msh2, CYCLES_M68K2SH2(m68k_cycles)); \
   if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) \
-    sh2_execute(&ssh2, SH2_LINE_CYCLES);
+    sh2_execute(&ssh2, CYCLES_M68K2SH2(m68k_cycles))
 
-#define RUN_SH2S_LOCKSTEP \
+#define STEP 66
+#define RUN_SH2S_LOCKSTEP(m68k_cycles) \
 { \
   int i; \
-  for (i = 0; i < SH2_LINE_CYCLES; i+= 3) { \
-    sh2_execute(&msh2, 3); \
-    sh2_execute(&ssh2, 3); \
+  for (i = 0; i < CYCLES_M68K2SH2(m68k_cycles); i+= STEP) { \
+    sh2_execute(&msh2, STEP); \
+    sh2_execute(&ssh2, STEP); \
   } \
 }
 
 #define RUN_SH2S RUN_SH2S_SIMPLE
+//#define RUN_SH2S RUN_SH2S_LOCKSTEP
 
 #include "../pico_cmn.c"
 
@@ -160,5 +163,6 @@ void PicoFrame32x(void)
 
   PicoFrameStart();
   PicoFrameHints();
+  elprintf(EL_32X, "poll: %02x", Pico32x.emu_flags);
 }
 

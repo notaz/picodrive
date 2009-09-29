@@ -12,7 +12,7 @@ CFLAGS += -O3 -Wall
 CFLAGS += -ftracer -fstrength-reduce -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math
 CFLAGS += -fprofile-generate
 else
-CFLAGS = -ggdb -Wall -falign-functions=2
+CFLAGS += -ggdb -Wall -falign-functions=2
 endif
 DEFINES = _UNZIP_SUPPORT IO_STATS IN_EVDEV
 CFLAGS += -I../.. -I.

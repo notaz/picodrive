@@ -29,13 +29,14 @@ void p32x_pwm_refresh(void)
 
 // irq for every sample??
 // FIXME: we need to hit more than once per line :(
-void p32x_pwm_irq_check(void)
+void p32x_pwm_irq_check(int new_line)
 {
   int tm = (Pico32x.regs[0x30 / 2] & 0x0f00) >> 8;
   if (tm == 0)
     return; // TODO: verify
 
-  Pico32x.pwm_irq_sample_cnt += pwm_line_samples;
+  if (new_line)
+    Pico32x.pwm_irq_sample_cnt += pwm_line_samples;
   if (Pico32x.pwm_irq_sample_cnt >= (tm << 16)) {
     Pico32x.pwm_irq_sample_cnt -= tm << 16;
     Pico32x.sh2irqs |= P32XI_PWM;
@@ -136,7 +137,7 @@ void p32x_pwm_update(int *buf32, int length, int stereo)
     }
   }
 
-  elprintf(EL_STATUS, "pwm_update: pwm_ptr %d, len %d, step %04x, done %d",
+  elprintf(EL_32X, "pwm_update: pwm_ptr %d, len %d, step %04x, done %d",
     pwm_ptr, length, step, (pwmb - Pico32xMem->pwm) / 2);
 
   pwm_ptr = 0;
