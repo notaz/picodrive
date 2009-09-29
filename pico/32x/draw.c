@@ -79,7 +79,13 @@ void FinalizeLine32xRGB555(int sh, int line)
     }
   }
   else { // Run Length Mode
-
+    unsigned short len, t;
+    for (i = 320; i > 0; ps++) {
+      t = pal[*ps & 0xff];
+      for (len = (*ps >> 8) + 1; len > 0 && i > 0; len--, i--, pd++, pb++)
+        if (*pb == 0 || (t & 0x20))
+          *pd = t;
+    }
   }
 }
 

@@ -14,7 +14,7 @@ void p32x_pwm_refresh(void)
 
   cycles = (cycles - 1) & 0x0fff;
   if (cycles < 500) {
-    elprintf(EL_32X|EL_ANOMALY, "pwm: low cycle value: %d", cycles + 1);
+    elprintf(EL_32X|EL_PWM|EL_ANOMALY, "pwm: low cycle value: %d", cycles + 1);
     cycles = 500;
   }
   pwm_cycles = cycles;
@@ -59,7 +59,7 @@ unsigned int p32x_pwm_read16(unsigned int a)
     case 6: // R ch
     case 8: // MONO
       predict = (pwm_line_samples * Pico.m.scanline) >> 16;
-      elprintf(EL_32X, "pwm: read status: ptr %d/%d, predict %d",
+      elprintf(EL_PWM, "pwm: read status: ptr %d/%d, predict %d",
         pwm_frame_smp_cnt, (pwm_line_samples * scanlines_total) >> 16, predict);
       if (pwm_frame_smp_cnt > predict + 3)
         d |= P32XP_FULL;
@@ -97,7 +97,7 @@ void p32x_pwm_write16(unsigned int a, unsigned int d)
     if (a >= 6) { // R or MONO
       pwm_frame_smp_cnt++;
       pwm_ptr = (pwm_ptr + 1) & (PWM_BUFF_LEN - 1);
-        elprintf(EL_32X, "pwm: smp_cnt %d, ptr %d, smp %x", pwm_frame_smp_cnt, pwm_ptr, d);
+        elprintf(EL_PWM, "pwm: smp_cnt %d, ptr %d, smp %x", pwm_frame_smp_cnt, pwm_ptr, d);
     }
   }
 }
@@ -137,7 +137,7 @@ void p32x_pwm_update(int *buf32, int length, int stereo)
     }
   }
 
-  elprintf(EL_32X, "pwm_update: pwm_ptr %d, len %d, step %04x, done %d",
+  elprintf(EL_PWM, "pwm_update: pwm_ptr %d, len %d, step %04x, done %d",
     pwm_ptr, length, step, (pwmb - Pico32xMem->pwm) / 2);
 
   pwm_ptr = 0;

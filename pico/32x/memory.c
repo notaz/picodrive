@@ -114,6 +114,10 @@ static void dma_68k2sh2_do(void)
   if (dmac0->tcr0 != *dreqlen)
     elprintf(EL_32X|EL_ANOMALY, "tcr0 and dreq len differ: %d != %d", dmac0->tcr0, *dreqlen);
 
+  // HACK: assume bus is busy and SH2 is halted
+  // XXX: use different mechanism for this, not poll det
+  Pico32x.emu_flags |= P32XF_MSH2POLL; // id ? P32XF_SSH2POLL : P32XF_MSH2POLL;
+
   for (i = 0; i < Pico32x.dmac_ptr && dmac0->tcr0 > 0; i++) {
     extern void p32x_sh2_write16(u32 a, u32 d, int id);
       elprintf(EL_32X, "dmaw [%08x] %04x, left %d", dmac0->dar0, Pico32x.dmac_fifo[i], *dreqlen);
@@ -177,7 +181,7 @@ static void p32x_reg_write8(u32 a, u32 d)
   switch (a) {
     case 0: // adapter ctl
       r[0] = (r[0] & 0x83) | ((d << 8) & P32XS_FM);
-      break;
+      return;
     case 3: // irq ctl
       if ((d & 1) && !(Pico32x.sh2irqi[0] & P32XI_CMD)) {
         Pico32x.sh2irqi[0] |= P32XI_CMD;
@@ -189,20 +193,29 @@ static void p32x_reg_write8(u32 a, u32 d)
         p32x_update_irls();
         SekEndRun(16);
       }
-      break;
+      return;
     case 5: // bank
       d &= 7;
       if (r[4 / 2] != d) {
         r[4 / 2] = d;
         bank_switch(d);
       }
-      break;
+      return;
     case 7: // DREQ ctl
       r[6 / 2] = (r[6 / 2] & P32XS_FULL) | (d & (P32XS_68S|P32XS_DMA|P32XS_RV));
-      break;
+      return;
     case 0x1b: // TV
       r[0x1a / 2] = d;
-      break;
+      return;
+  }
+
+  if ((a & 0x30) == 0x20) {
+    u8 *r8 = (u8 *)r;
+    r8[a ^ 1] = d;
+    if (p32x_poll_undetect(&sh2_poll[0], 0) || p32x_poll_undetect(&sh2_poll[1], 0))
+      // if some SH2 is busy waiting, it needs to see the result ASAP
+      SekEndRun(16);
+    return;
   }
 }
 
@@ -310,7 +323,7 @@ static void p32x_vdp_write16(u32 a, u32 d)
   }
   if (a == 8) { // fill data
     u16 *dram = Pico32xMem->dram[(Pico32x.vdp_regs[0x0a/2] & P32XV_FS) ^ 1];
-    int len = Pico32x.vdp_regs[4 / 2];
+    int len = Pico32x.vdp_regs[4 / 2] + 1;
     a = Pico32x.vdp_regs[6 / 2];
     while (len--) {
       dram[a] = d;
@@ -365,16 +378,24 @@ static void p32x_sh2reg_write8(u32 a, u32 d, int cpuid)
     case 0: // FM
       Pico32x.regs[0] &= ~P32XS_FM;
       Pico32x.regs[0] |= (d << 8) & P32XS_FM;
-      break;
+      return;
     case 1: // 
       Pico32x.sh2irq_mask[cpuid] = d & 0x8f;
       Pico32x.sh2_regs[0] &= ~0x80;
       Pico32x.sh2_regs[0] |= d & 0x80;
       p32x_update_irls();
-      break;
+      return;
     case 5: // H count
       Pico32x.sh2_regs[4 / 2] = d & 0xff;
-      break;
+      return;
+  }
+
+  if ((a & 0x30) == 0x20) {
+    u8 *r8 = (u8 *)Pico32x.regs;
+    r8[a ^ 1] = d;
+    p32x_poll_undetect(&m68k_poll, 0);
+    p32x_poll_undetect(&sh2_poll[cpuid ^ 1], 0);
+    return;
   }
 }
 
@@ -488,10 +509,8 @@ static void sh2_peripheral_write32(u32 a, u32 d, int id)
       dmac0->sar0, dmac0->dar0, dmac0->tcr0, dmac0->chcr0, sh2_pc(id));
     dmac0->tcr0 &= 0xffffff;
 
-    // HACK: assume bus is busy and SH2 is halted
-    // XXX: use different mechanism for this, not poll det
-    Pico32x.emu_flags |= id ? P32XF_SSH2POLL : P32XF_MSH2POLL;
-    ash2_end_run(5);
+    // HACK: assume 68k starts writing soon and end the timeslice
+    ash2_end_run(16);
 
     // DREQ is only sent after first 4 words are written.
     // we do multiple of 4 words to avoid messing up alignment
@@ -775,6 +794,8 @@ u32 p32x_sh2_read16(u32 a, int id)
 
   if ((a & 0xdfffff00) == 0x4000) {
     d = p32x_sh2reg_read16(a, id);
+    if (!(EL_LOGMASK & EL_PWM) && (a & 0x30) == 0x30) // hide PWM
+      return d;
     goto out;
   }
 
@@ -855,7 +876,7 @@ void p32x_sh2_write8(u32 a, u32 d, int id)
 
 void p32x_sh2_write16(u32 a, u32 d, int id)
 {
-  if ((a & 0xdffffc00) == 0x4000)
+  if ((a & 0xdffffc00) == 0x4000 && ((EL_LOGMASK & EL_PWM) || (a & 0x30) != 0x30)) // hide PWM
     elprintf(EL_32X, "%csh2 w16 [%08x]     %04x @%06x",
       id ? 's' : 'm', a, d & 0xffff, sh2_pc(id));
 

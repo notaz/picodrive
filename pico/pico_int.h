@@ -718,6 +718,7 @@ static __inline int isspace_(int c)
 #define EL_CDREGS  0x00020000 /* MCD: register access */
 #define EL_CDREG3  0x00040000 /* MCD: register 3 only */
 #define EL_32X     0x00080000
+#define EL_PWM     0x00100000 /* 32X PWM stuff (LOTS of output) */
 
 #define EL_STATUS  0x40000000 /* status messages */
 #define EL_ANOMALY 0x80000000 /* some unexpected conditions (during emulation) */
