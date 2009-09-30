@@ -48,10 +48,10 @@ typedef struct
 	void	(*irq_callback)(int id, int level);
 	int	is_slave;
 
-	// XXX: unused, will we ever use?
-	int   internal_irq_level;
+	UINT32	cycles_aim;	// subtract sh2_icount to get global counter
 } SH2;
 
+SH2 *sh2; // active sh2
 extern int sh2_icount;
 
 void sh2_init(SH2 *sh2, int is_slave);

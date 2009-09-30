@@ -55,8 +55,6 @@ void sh2_reset(SH2 *sh2)
 	sh2->pc = RL(0);
 	sh2->r[15] = RL(4);
 	sh2->sr = I;
-
-	sh2->internal_irq_level = -1;
 }
 
 /* Execute cycles - returns number of cycles actually run */
@@ -64,6 +62,7 @@ int sh2_execute(SH2 *sh2_, int cycles)
 {
 	sh2 = sh2_;
 	sh2_icount = cycles;
+	sh2->cycles_aim += cycles;
 
 	do
 	{
@@ -112,7 +111,7 @@ int sh2_execute(SH2 *sh2_, int cycles)
 		}
 		sh2_icount--;
 	}
-	while (sh2_icount > 0);
+	while (sh2_icount > 0 || sh2->delay);	/* can't interrupt before delay */
 
 	return cycles - sh2_icount;
 }
