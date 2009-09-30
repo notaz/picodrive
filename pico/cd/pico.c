@@ -211,6 +211,16 @@ static __inline void update_chips(void)
 
 
 #define PICO_CD
+#define CPUS_RUN(m68k_cycles,s68k_cycles) \
+{ \
+    if ((PicoOpt&POPT_EN_MCD_PSYNC) && (Pico_mcd->m.busreq&3) == 1) { \
+      SekRunPS(m68k_cycles, s68k_cycles); /* "better/perfect sync" */ \
+    } else { \
+      SekRunM68k(m68k_cycles); \
+      if ((Pico_mcd->m.busreq&3) == 1) /* no busreq/no reset */ \
+        SekRunS68k(s68k_cycles); \
+    } \
+}
 #include "../pico_cmn.c"
 
 

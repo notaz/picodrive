@@ -86,7 +86,7 @@ char *PDebug32x(void)
     sprintf(dstrp, "R%d,%2d %08x,%08x %08x,%08x\n", i, i + 8,
       sh2_reg(0,i), sh2_reg(0,i+8), sh2_reg(1,i), sh2_reg(1,i+8)); MVP;
   }
-  sprintf(dstrp, "gb,vb %08x,%08x %08x,%08x\n", sh2_gbr(0), sh2_vbr(0), sh2_gbr(1), sh2_vbr(1));
+  sprintf(dstrp, "gb,vb %08x,%08x %08x,%08x\n", sh2_gbr(0), sh2_vbr(0), sh2_gbr(1), sh2_vbr(1)); MVP;
   sprintf(dstrp, "IRQs/mask:        %02x/%02x             %02x/%02x\n",
     Pico32x.sh2irqi[0], Pico32x.sh2irq_mask[0], Pico32x.sh2irqi[1], Pico32x.sh2irq_mask[1]); MVP;
 

@@ -232,7 +232,7 @@ typedef void (z80_write_f)(unsigned int a, unsigned char data);
 
 SH2 msh2, ssh2;
 #define ash2_end_run(after) sh2_icount = after
-#define ash2_cycles_done() (10000 - sh2_icount) // HACK
+#define ash2_cycles_done() (sh2->cycles_aim - sh2_icount)
 
 #define sh2_pc(c)     (c) ? ssh2.ppc : msh2.ppc
 #define sh2_reg(c, x) (c) ? ssh2.r[x] : msh2.r[x]

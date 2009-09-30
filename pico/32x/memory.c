@@ -1,6 +1,13 @@
 #include "../pico_int.h"
 #include "../memory.h"
 
+#if 1
+#undef ash2_end_run
+#undef SekEndRun
+#define ash2_end_run(x)
+#define SekEndRun(x)
+#endif
+
 static const char str_mars[] = "MARS";
 
 struct Pico32xMem *Pico32xMem;
@@ -35,9 +42,10 @@ static int p32x_poll_detect(struct poll_det *pd, u32 a, u32 cycles, int is_vdp)
       Pico32x.emu_flags |= flag;
     }
   }
-  else
+  else {
     pd->cnt = 0;
-  pd->addr = a;
+    pd->addr = a;
+  }
   pd->cycles = cycles;
 
   return ret;
@@ -348,7 +356,9 @@ static u32 p32x_sh2reg_read16(u32 a, int cpuid)
   switch (a) {
     case 0x00: // adapter/irq ctl
       return (r[0] & P32XS_FM) | Pico32x.sh2_regs[0] | Pico32x.sh2irq_mask[cpuid];
-    case 0x04: // H count
+    case 0x04: // H count (often as comm too)
+      if (p32x_poll_detect(&sh2_poll[cpuid], a, ash2_cycles_done(), 0))
+        ash2_end_run(8);
       return Pico32x.sh2_regs[4 / 2];
     case 0x10: // DREQ len
       return r[a / 2];
@@ -387,6 +397,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, int cpuid)
       return;
     case 5: // H count
       Pico32x.sh2_regs[4 / 2] = d & 0xff;
+      p32x_poll_undetect(&sh2_poll[cpuid ^ 1], 0);
       return;
   }
 
@@ -730,7 +741,8 @@ u32 p32x_sh2_read8(u32 a, int id)
   if ((a & ~0xfff) == 0xc0000000)
     return Pico32xMem->data_array[id][(a & 0xfff) ^ 1];
 
-  if ((a & 0xdffe0000) == 0x04000000) {
+  if ((a & 0xdffc0000) == 0x04000000) {
+    /* XXX: overwrite readable as normal? */
     u8 *dram = (u8 *)Pico32xMem->dram[(Pico32x.vdp_regs[0x0a/2] & P32XV_FS) ^ 1];
     return dram[(a & 0x1ffff) ^ 1];
   }
@@ -846,8 +858,8 @@ void p32x_sh2_write8(u32 a, u32 d, int id)
     if (!(a & 0x20000) || d) {
       dram = (u8 *)Pico32xMem->dram[(Pico32x.vdp_regs[0x0a/2] & P32XV_FS) ^ 1];
       dram[(a & 0x1ffff) ^ 1] = d;
-      return;
     }
+    return;
   }
 
   if ((a & ~0xfff) == 0xc0000000) {

@@ -15,27 +15,9 @@
   }
 
 // CPUS_RUN
-#ifndef RUN_SH2S
-#define RUN_SH2S(x)
-#endif
-
-#ifndef PICO_CD
+#ifndef CPUS_RUN
 #define CPUS_RUN(m68k_cycles,s68k_cycles) \
-{ \
-    SekRunM68k(m68k_cycles); \
-    RUN_SH2S(m68k_cycles); \
-}
-#else
-#define CPUS_RUN(m68k_cycles,s68k_cycles) \
-{ \
-    if ((PicoOpt&POPT_EN_MCD_PSYNC) && (Pico_mcd->m.busreq&3) == 1) { \
-      SekRunPS(m68k_cycles, s68k_cycles); /* "better/perfect sync" */ \
-    } else { \
-      SekRunM68k(m68k_cycles); \
-      if ((Pico_mcd->m.busreq&3) == 1) /* no busreq/no reset */ \
-        SekRunS68k(s68k_cycles); \
-    } \
-}
+  SekRunM68k(m68k_cycles)
 #endif
 
 static int PicoFrameHints(void)
