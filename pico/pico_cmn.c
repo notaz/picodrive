@@ -5,6 +5,7 @@
 #define CYCLES_M68K_VINT_LAG  68
 #define CYCLES_M68K_ASD      148
 #define CYCLES_S68K_LINE     795
+#define CYCLES_S68K_VINT_LAG 111
 #define CYCLES_S68K_ASD      241
 
 // pad delay (for 6 button pads)
@@ -178,7 +179,7 @@ static int PicoFrameHints(void)
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
-  SekRunM68k(CYCLES_M68K_VINT_LAG);
+  CPUS_RUN(CYCLES_M68K_VINT_LAG, CYCLES_S68K_VINT_LAG);
 
   if (pv->reg[1]&0x20) {
     elprintf(EL_INTS, "vint: @ %06x [%i]", SekPc, SekCycleCnt);
@@ -201,7 +202,7 @@ static int PicoFrameHints(void)
   // Run scanline:
   if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
   CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG - CYCLES_M68K_ASD,
-    CYCLES_S68K_LINE - CYCLES_S68K_ASD);
+    CYCLES_S68K_LINE - CYCLES_S68K_VINT_LAG - CYCLES_S68K_ASD);
 
 #ifdef PICO_CD
   update_chips();

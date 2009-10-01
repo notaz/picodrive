@@ -231,7 +231,7 @@ typedef void (z80_write_f)(unsigned int a, unsigned char data);
 #include "cpu/sh2mame/sh2.h"
 
 SH2 msh2, ssh2;
-#define ash2_end_run(after) sh2_icount = after
+#define ash2_end_run(after) if (sh2_icount > (after)) sh2_icount = after
 #define ash2_cycles_done() (sh2->cycles_aim - sh2_icount)
 
 #define sh2_pc(c)     (c) ? ssh2.ppc : msh2.ppc

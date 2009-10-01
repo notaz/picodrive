@@ -99,28 +99,20 @@ static void p32x_start_blank(void)
   p32x_poll_event(3, 1);
 }
 
-// FIXME..
-static __inline void SekRunM68k(int cyc)
+static __inline void run_m68k(int cyc)
 {
-  int cyc_do;
-  SekCycleAim += cyc;
   if (Pico32x.emu_flags & P32XF_68KPOLL) {
-    SekCycleCnt = SekCycleAim;
+    SekCycleCnt += cyc;
     return;
   }
-  if ((cyc_do = SekCycleAim - SekCycleCnt) <= 0)
-    return;
-#if defined(EMU_CORE_DEBUG)
-  // this means we do run-compare
-  SekCycleCnt+=CM_compareRun(cyc_do, 0);
-#elif defined(EMU_C68K)
-  PicoCpuCM68k.cycles=cyc_do;
+#if defined(EMU_C68K)
+  PicoCpuCM68k.cycles = cyc;
   CycloneRun(&PicoCpuCM68k);
-  SekCycleCnt+=cyc_do-PicoCpuCM68k.cycles;
+  SekCycleCnt += cyc - PicoCpuCM68k.cycles;
 #elif defined(EMU_M68K)
-  SekCycleCnt+=m68k_execute(cyc_do);
+  SekCycleCnt += m68k_execute(cyc);
 #elif defined(EMU_F68K)
-  SekCycleCnt+=fm68k_emulate(cyc_do+1, 0, 0);
+  SekCycleCnt += fm68k_emulate(cyc+1, 0, 0);
 #endif
 }
 
@@ -131,18 +123,28 @@ static __inline void SekRunM68k(int cyc)
 
 #define PICO_32X
 #define CPUS_RUN_SIMPLE(m68k_cycles,s68k_cycles) \
-  SekRunM68k(m68k_cycles); \
-  if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) \
-    sh2_execute(&msh2, CYCLES_M68K2SH2(m68k_cycles)); \
-  if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) \
-    sh2_execute(&ssh2, CYCLES_M68K2SH2(m68k_cycles))
+{ \
+  int slice; \
+  SekCycleAim += m68k_cycles; \
+  while (SekCycleCnt < SekCycleAim) { \
+    slice = SekCycleCnt; \
+    run_m68k(SekCycleAim - SekCycleCnt); \
+    slice = SekCycleCnt - slice; /* real count from 68k */ \
+    if (SekCycleCnt < SekCycleAim) \
+      elprintf(EL_32X, "slice %d", slice); \
+    if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) \
+      sh2_execute(&ssh2, CYCLES_M68K2SH2(slice)); \
+    if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) \
+      sh2_execute(&msh2, CYCLES_M68K2SH2(slice)); \
+  } \
+}
 
 #define STEP_68K 24
 #define CPUS_RUN_LOCKSTEP(m68k_cycles,s68k_cycles) \
 { \
   int i; \
   for (i = 0; i <= (m68k_cycles) - STEP_68K; i += STEP_68K) { \
-    SekRunM68k(STEP_68K); \
+    run_m68k(STEP_68K); \
     if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) \
       sh2_execute(&msh2, CYCLES_M68K2SH2(STEP_68K)); \
     if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) \
@@ -150,15 +152,15 @@ static __inline void SekRunM68k(int cyc)
   } \
   /* last step */ \
   i = (m68k_cycles) - i; \
-  SekRunM68k(i); \
+  run_m68k(i); \
   if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) \
     sh2_execute(&msh2, CYCLES_M68K2SH2(i)); \
   if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) \
     sh2_execute(&ssh2, CYCLES_M68K2SH2(i)); \
 }
 
-//#define CPUS_RUN CPUS_RUN_SIMPLE
-#define CPUS_RUN CPUS_RUN_LOCKSTEP
+#define CPUS_RUN CPUS_RUN_SIMPLE
+//#define CPUS_RUN CPUS_RUN_LOCKSTEP
 
 #include "../pico_cmn.c"
 

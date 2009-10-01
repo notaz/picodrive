@@ -1,7 +1,7 @@
 #include "../pico_int.h"
 #include "../memory.h"
 
-#if 1
+#if 0
 #undef ash2_end_run
 #undef SekEndRun
 #define ash2_end_run(x)
@@ -159,7 +159,7 @@ static u32 p32x_reg_read16(u32 a)
     return sh2_comm_faker(a);
 #else
   if ((a & 0x30) == 0x20 && p32x_poll_detect(&m68k_poll, a, SekCyclesDoneT(), 0)) {
-    SekEndRun(16);
+    SekEndTimeslice(16);
   }
 #endif
 
@@ -220,9 +220,11 @@ static void p32x_reg_write8(u32 a, u32 d)
   if ((a & 0x30) == 0x20) {
     u8 *r8 = (u8 *)r;
     r8[a ^ 1] = d;
-    if (p32x_poll_undetect(&sh2_poll[0], 0) || p32x_poll_undetect(&sh2_poll[1], 0))
-      // if some SH2 is busy waiting, it needs to see the result ASAP
-      SekEndRun(16);
+    p32x_poll_undetect(&sh2_poll[0], 0);
+    p32x_poll_undetect(&sh2_poll[1], 0);
+    // if some SH2 is busy waiting, it needs to see the result ASAP
+    if (SekCyclesLeftNoMCD > 32)
+      SekEndRun(32);
     return;
   }
 }
@@ -265,9 +267,11 @@ static void p32x_reg_write16(u32 a, u32 d)
   // comm port
   else if ((a & 0x30) == 0x20 && r[a / 2] != d) {
     r[a / 2] = d;
-    if (p32x_poll_undetect(&sh2_poll[0], 0) || p32x_poll_undetect(&sh2_poll[1], 0))
-      // if some SH2 is busy waiting, it needs to see the result ASAP
-      SekEndRun(16);
+    p32x_poll_undetect(&sh2_poll[0], 0);
+    p32x_poll_undetect(&sh2_poll[1], 0);
+    // same as for w8
+    if (SekCyclesLeftNoMCD > 32)
+      SekEndRun(32);
     return;
   }
   // PWM
