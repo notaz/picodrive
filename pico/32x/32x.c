@@ -1,6 +1,7 @@
 #include "../pico_int.h"
 #include "../sound/ym2612.h"
 
+SH2 sh2s[2];
 struct Pico32x Pico32x;
 
 static void sh2_irq_cb(int id, int level)
@@ -50,6 +51,9 @@ void Pico32xStartup(void)
 
   if (!Pico.m.pal)
     Pico32x.vdp_regs[0] |= P32XV_nPAL;
+
+  PREG8(Pico32xMem->sh2_peri_regs[0], 4) =
+  PREG8(Pico32xMem->sh2_peri_regs[1], 4) = 0x84; // SCI SSR
 
   emu_32x_startup();
 }

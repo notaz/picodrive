@@ -220,7 +220,7 @@ void PicoLoopPrepare(void)
   scanlines_total = Pico.m.pal ? 312 : 262;
 
   if (PicoAHW & PAHW_32X)
-    p32x_pwm_refresh();
+    p32x_timers_recalc();
 }
 
 

@@ -230,7 +230,10 @@ typedef void (z80_write_f)(unsigned int a, unsigned char data);
 
 #include "cpu/sh2mame/sh2.h"
 
-SH2 msh2, ssh2;
+extern SH2 sh2s[2];
+#define msh2 sh2s[0]
+#define ssh2 sh2s[1]
+
 #define ash2_end_run(after) if (sh2_icount > (after)) sh2_icount = after
 #define ash2_cycles_done() (sh2->cycles_aim - sh2_icount)
 
@@ -435,6 +438,9 @@ typedef struct
 #define P32XI_HINT (1 << 10/2)
 #define P32XI_CMD  (1 <<  8/2)
 #define P32XI_PWM  (1 <<  6/2)
+
+// peripheral reg access
+#define PREG8(regs,offs) ((unsigned char *)regs)[offs ^ 3]
 
 // real one is 4*2, but we use more because we don't lockstep
 #define DMAC_FIFO_LEN (4*4)
@@ -682,9 +688,9 @@ void FinalizeLine32xRGB555(int sh, int line);
 // 32x/pwm.c
 unsigned int p32x_pwm_read16(unsigned int a);
 void p32x_pwm_write16(unsigned int a, unsigned int d);
-void p32x_pwm_refresh(void);
-void p32x_pwm_irq_check(int new_line);
 void p32x_pwm_update(int *buf32, int length, int stereo);
+void p32x_timers_do(int new_line);
+void p32x_timers_recalc(void);
 extern int pwm_frame_smp_cnt;
 
 /* avoid dependency on newer glibc */

@@ -84,7 +84,7 @@ static int PicoFrameHints(void)
     check_cd_dma();
 #endif
 #ifdef PICO_32X
-    p32x_pwm_irq_check(1);
+    p32x_timers_do(1);
 #endif
 
     // H-Interrupts:
@@ -156,7 +156,7 @@ static int PicoFrameHints(void)
   check_cd_dma();
 #endif
 #ifdef PICO_32X
-  p32x_pwm_irq_check(1);
+  p32x_timers_do(1);
 #endif
 
   // Last H-Int:
@@ -227,7 +227,7 @@ static int PicoFrameHints(void)
     check_cd_dma();
 #endif
 #ifdef PICO_32X
-    p32x_pwm_irq_check(1);
+    p32x_timers_do(1);
 #endif
 
     // Run scanline:

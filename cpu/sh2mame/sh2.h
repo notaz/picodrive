@@ -44,7 +44,9 @@ typedef struct
 	UINT32	delay;
 	UINT32	test_irq;
 
-	int	pending_irq;
+	int	pending_irl;
+	int	pending_int_irq;	// internal irq
+	int	pending_int_vector;
 	void	(*irq_callback)(int id, int level);
 	int	is_slave;
 
@@ -58,5 +60,6 @@ void sh2_init(SH2 *sh2, int is_slave);
 void sh2_reset(SH2 *sh2);
 int sh2_execute(SH2 *sh2_, int cycles);
 void sh2_irl_irq(SH2 *sh2, int level);
+void sh2_internal_irq(SH2 *sh2, int level, int vector);
 
 #endif /* __SH2_H__ */
