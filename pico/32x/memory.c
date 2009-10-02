@@ -158,8 +158,18 @@ static u32 p32x_reg_read16(u32 a)
   if ((a & 0x30) == 0x20)
     return sh2_comm_faker(a);
 #else
-  if ((a & 0x30) == 0x20 && p32x_poll_detect(&m68k_poll, a, SekCyclesDoneT(), 0)) {
-    SekEndTimeslice(16);
+  if ((a & 0x30) == 0x20) {
+    // evil X-Men proto polls in a dbra loop and expects it to expire..
+    static u32 dr2 = 0;
+    if (SekDar(2) != dr2)
+      m68k_poll.cnt = 0;
+    dr2 = SekDar(2);
+
+    if (p32x_poll_detect(&m68k_poll, a, SekCyclesDoneT(), 0)) {
+      SekSetStop(1);
+      SekEndTimeslice(16);
+    }
+    dr2 = SekDar(2);
   }
 #endif
 
@@ -406,7 +416,8 @@ static void p32x_sh2reg_write8(u32 a, u32 d, int cpuid)
   if ((a & 0x30) == 0x20) {
     u8 *r8 = (u8 *)Pico32x.regs;
     r8[a ^ 1] = d;
-    p32x_poll_undetect(&m68k_poll, 0);
+    if (p32x_poll_undetect(&m68k_poll, 0))
+      SekSetStop(0);
     p32x_poll_undetect(&sh2_poll[cpuid ^ 1], 0);
     return;
   }
@@ -419,7 +430,8 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
   // comm
   if ((a & 0x30) == 0x20 && Pico32x.regs[a/2] != d) {
     Pico32x.regs[a / 2] = d;
-    p32x_poll_undetect(&m68k_poll, 0);
+    if (p32x_poll_undetect(&m68k_poll, 0))
+      SekSetStop(0);
     p32x_poll_undetect(&sh2_poll[cpuid ^ 1], 0);
     return;
   }

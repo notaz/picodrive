@@ -105,10 +105,6 @@ static void p32x_start_blank(void)
 
 static __inline void run_m68k(int cyc)
 {
-  if (Pico32x.emu_flags & P32XF_68KPOLL) {
-    SekCycleCnt += cyc;
-    return;
-  }
 #if defined(EMU_C68K)
   PicoCpuCM68k.cycles = cyc;
   CycloneRun(&PicoCpuCM68k);

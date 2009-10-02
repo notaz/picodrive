@@ -45,12 +45,15 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekEndTimesliceS68k(after) PicoCpuCS68k.cycles=after
 #define SekPc (PicoCpuCM68k.pc-PicoCpuCM68k.membase)
 #define SekPcS68k (PicoCpuCS68k.pc-PicoCpuCS68k.membase)
+#define SekDar(x) PicoCpuCM68k.d[x]
+#define SekSr     CycloneGetSr(&PicoCpuCM68k)
 #define SekSetStop(x) { PicoCpuCM68k.state_flags&=~1; if (x) { PicoCpuCM68k.state_flags|=1; PicoCpuCM68k.cycles=0; } }
 #define SekSetStopS68k(x) { PicoCpuCS68k.state_flags&=~1; if (x) { PicoCpuCS68k.state_flags|=1; PicoCpuCS68k.cycles=0; } }
 #define SekIsStoppedS68k() (PicoCpuCS68k.state_flags&1)
 #define SekShouldInterrupt (PicoCpuCM68k.irq > (PicoCpuCM68k.srh&7))
 
 #define SekInterrupt(i) PicoCpuCM68k.irq=i
+#define SekIrqLevel     PicoCpuCM68k.irq
 
 #ifdef EMU_M68K
 #define EMU_CORE_DEBUG
@@ -69,6 +72,8 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #define SekEndTimesliceS68k(after) PicoCpuFS68k.io_cycle_counter=after
 #define SekPc     fm68k_get_pc(&PicoCpuFM68k)
 #define SekPcS68k fm68k_get_pc(&PicoCpuFS68k)
+#define SekDar(x) PicoCpuFM68k.dreg[x].D
+#define SekSr     PicoCpuFM68k.sr
 #define SekSetStop(x) { \
 	PicoCpuFM68k.execinfo &= ~FM68K_HALTED; \
 	if (x) { PicoCpuFM68k.execinfo |= FM68K_HALTED; PicoCpuFM68k.io_cycle_counter = 0; } \
@@ -81,6 +86,7 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #define SekShouldInterrupt fm68k_would_interrupt()
 
 #define SekInterrupt(irq) PicoCpuFM68k.interrupts[0]=irq
+#define SekIrqLevel       PicoCpuFM68k.interrupts[0]
 
 #ifdef EMU_M68K
 #define EMU_CORE_DEBUG
@@ -100,6 +106,8 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #define SekEndTimesliceS68k(after) PicoCpuMS68k.cyc_remaining_cycles=after
 #define SekPc m68k_get_reg(&PicoCpuMM68k, M68K_REG_PC)
 #define SekPcS68k m68k_get_reg(&PicoCpuMS68k, M68K_REG_PC)
+#define SekDar(x) PicoCpuMM68k.dar[x]
+#define SekSr m68k_get_reg(&PicoCpuMM68k, M68K_REG_SR)
 #define SekSetStop(x) { \
 	if(x) { SET_CYCLES(0); PicoCpuMM68k.stopped=STOP_LEVEL_STOP; } \
 	else PicoCpuMM68k.stopped=0; \
@@ -117,6 +125,7 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 	m68k_set_irq(irq); \
 	m68k_set_context(oldcontext); \
 }
+#define SekIrqLevel (PicoCpuMM68k.int_level >> 8)
 
 #endif
 #endif // EMU_M68K

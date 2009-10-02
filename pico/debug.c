@@ -38,19 +38,14 @@ char *PDebugMain(void)
   	!!(SRam.flags & SRF_ENABLED), !!(SRam.flags & SRF_EEPROM), SRam.eeprom_type); MVP;
   sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); MVP;
   sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status); MVP;
-  sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count); MVP;
+  sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i, cycles: %i\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count, SekCyclesDoneT()); MVP;
+  sprintf(dstrp, "M68k: PC: %06x, SR: %04x, irql: %i\n", SekPc, SekSr, SekIrqLevel); MVP;
 #if defined(EMU_C68K)
-  sprintf(dstrp, "M68k: PC: %06x, st_flg: %x, cycles: %u\n", SekPc, PicoCpuCM68k.state_flags, SekCyclesDoneT()); MVP;
-  sprintf(dstrp, "d0=%08x, a0=%08x, osp=%08x, irql=%i\n", PicoCpuCM68k.d[0], PicoCpuCM68k.a[0], PicoCpuCM68k.osp, PicoCpuCM68k.irq); MVP;
-  sprintf(dstrp, "d1=%08x, a1=%08x,  sr=%04x\n", PicoCpuCM68k.d[1], PicoCpuCM68k.a[1], CycloneGetSr(&PicoCpuCM68k)); dstrp+=strlen(dstrp); MVP;
-  for(r=2; r < 8; r++) {
-    sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, PicoCpuCM68k.d[r], r, PicoCpuCM68k.a[r]); MVP;
-  }
-#elif defined(EMU_M68K)
-  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuMM68k.int_level>>8); MVP;
-#elif defined(EMU_F68K)
-  sprintf(dstrp, "M68k: PC: %06x, cycles: %u, irql: %i\n", SekPc, SekCyclesDoneT(), PicoCpuFM68k.interrupts[0]); MVP;
+  sprintf(dstrp - 1, ", st_flg: %x\n", PicoCpuCM68k.state_flags); MVP;
 #endif
+  for (r = 0; r < 8; r++) {
+    sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, SekDar(r), r, SekDar(r+8)); MVP;
+  }
   sprintf(dstrp, "z80Run: %i, z80_reset: %i, z80_bnk: %06x\n", Pico.m.z80Run, Pico.m.z80_reset, Pico.m.z80_bank68k<<15); MVP;
   z80_debug(dstrp); MVP;
   if (strlen(dstr) > sizeof(dstr))
@@ -72,7 +67,8 @@ char *PDebug32x(void)
       i*2, r[i+0], r[i+1], r[i+2], r[i+3], r[i+4], r[i+5], r[i+6], r[i+7]); MVP;
   }
   r = Pico32x.sh2_regs;
-  sprintf(dstrp, "SH: %04x %04x %04x      IRQs: %02x\n", r[0], r[1], r[2], Pico32x.sh2irqs); MVP;
+  sprintf(dstrp, "SH: %04x %04x %04x      IRQs: %02x  eflags: %02x\n",
+    r[0], r[1], r[2], Pico32x.sh2irqs, Pico32x.emu_flags); MVP;
 
   i = 0;
   r = Pico32x.vdp_regs;
