@@ -1299,6 +1299,19 @@ void emu_init(void)
 	char path[512];
 	int pos;
 
+#if 0
+	// FIXME: handle through menu, etc
+	FILE *f;
+	f = fopen("32X_M_BIOS.BIN", "rb");
+	p32x_bios_m = malloc(2048);
+	fread(p32x_bios_m, 1, 2048, f);
+	fclose(f);
+	f = fopen("32X_S_BIOS.BIN", "rb");
+	p32x_bios_s = malloc(1024);
+	fread(p32x_bios_s, 1, 1024, f);
+	fclose(f);
+#endif
+
 	/* make dirs for saves */
 	pos = plat_get_root_dir(path, sizeof(path) - 4);
 	mkdir_path(path, pos, "mds");

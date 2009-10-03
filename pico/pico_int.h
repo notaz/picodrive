@@ -252,6 +252,11 @@ extern SH2 sh2s[2];
 #define sh2_vbr(c)    (c) ? ssh2.vbr : msh2.vbr
 #define sh2_sr(c)     (c) ? ssh2.sr : msh2.sr
 
+#define sh2_set_gbr(c, v) \
+  { if (c) ssh2.gbr = v; else msh2.gbr = v; }
+#define sh2_set_vbr(c, v) \
+  { if (c) ssh2.vbr = v; else msh2.vbr = v; }
+
 // ---------------------------------------------------------
 
 // main oscillator clock which controls timing
@@ -416,6 +421,9 @@ typedef struct
 
 // 32X
 #define P32XS_FM    (1<<15)
+#define P32XS_REN   (1<< 7)
+#define P32XS_nRES  (1<< 1)
+#define P32XS_ADEN  (1<< 0)
 #define P32XS2_ADEN (1<< 9)
 #define P32XS_FULL  (1<< 7) // DREQ FIFO full
 #define P32XS_68S   (1<< 2)
@@ -514,6 +522,7 @@ extern areaseek *areaSeek;
 extern areaclose *areaClose;
 
 // cart.c
+void Byteswap(void *dst, const void *src, int len);
 extern void (*PicoCartMemSetup)(void);
 extern void (*PicoCartUnloadHook)(void);
 
@@ -680,6 +689,7 @@ void Pico32xStartup(void);
 void PicoUnload32x(void);
 void PicoFrame32x(void);
 void p32x_update_irls(void);
+void p32x_reset_sh2s(void);
 
 // 32x/memory.c
 struct Pico32xMem *Pico32xMem;

@@ -1,8 +1,8 @@
 #include "../pico_int.h"
 #include "../sound/ym2612.h"
 
-SH2 sh2s[2];
 struct Pico32x Pico32x;
+SH2 sh2s[2];
 
 static void sh2_irq_cb(int id, int level)
 {
@@ -39,15 +39,12 @@ void Pico32xStartup(void)
   elprintf(EL_STATUS|EL_32X, "32X startup");
 
   PicoAHW |= PAHW_32X;
-  PicoMemSetup32x();
-
   sh2_init(&msh2, 0);
   msh2.irq_callback = sh2_irq_cb;
-  sh2_reset(&msh2);
-
   sh2_init(&ssh2, 1);
   ssh2.irq_callback = sh2_irq_cb;
-  sh2_reset(&ssh2);
+
+  PicoMemSetup32x();
 
   if (!Pico.m.pal)
     Pico32x.vdp_regs[0] |= P32XV_nPAL;
@@ -58,6 +55,54 @@ void Pico32xStartup(void)
   emu_32x_startup();
 }
 
+#define HWSWAP(x) (((x) << 16) | ((x) >> 16))
+void p32x_reset_sh2s(void)
+{
+  elprintf(EL_32X, "sh2 reset");
+
+  sh2_reset(&msh2);
+  sh2_reset(&ssh2);
+
+  // if we don't have BIOS set, perform it's work here.
+  // MSH2
+  if (p32x_bios_m == NULL) {
+    unsigned int idl_src, idl_dst, idl_size; // initial data load
+    unsigned int vbr;
+
+    // initial data
+    idl_src = HWSWAP(*(unsigned int *)(Pico.rom + 0x3d4)) & ~0xf0000000;
+    idl_dst = HWSWAP(*(unsigned int *)(Pico.rom + 0x3d8)) & ~0xf0000000;
+    idl_size= HWSWAP(*(unsigned int *)(Pico.rom + 0x3dc));
+    if (idl_size > Pico.romsize || idl_src + idl_size > Pico.romsize ||
+        idl_size > 0x40000 || idl_dst + idl_size > 0x40000 || (idl_src & 3) || (idl_dst & 3)) {
+      elprintf(EL_STATUS|EL_ANOMALY, "32x: invalid initial data ptrs: %06x -> %06x, %06x",
+        idl_src, idl_dst, idl_size);
+    }
+    else
+      memcpy(Pico32xMem->sdram + idl_dst, Pico.rom + idl_src, idl_size);
+
+    // GBR/VBR
+    vbr = HWSWAP(*(unsigned int *)(Pico.rom + 0x3e8));
+    sh2_set_gbr(0, 0x20004000);
+    sh2_set_vbr(0, vbr);
+
+    // checksum and M_OK
+    Pico32x.regs[0x28 / 2] = *(unsigned short *)(Pico.rom + 0x18e);
+    // program will set M_OK
+  }
+
+  // SSH2
+  if (p32x_bios_s == NULL) {
+    unsigned int vbr;
+
+    // GBR/VBR
+    vbr = HWSWAP(*(unsigned int *)(Pico.rom + 0x3ec));
+    sh2_set_gbr(1, 0x20004000);
+    sh2_set_vbr(1, vbr);
+    // program will set S_OK
+  }
+}
+
 void Pico32xInit(void)
 {
 }
@@ -66,7 +111,7 @@ void PicoPower32x(void)
 {
   memset(&Pico32x, 0, sizeof(Pico32x));
 
-  Pico32x.regs[0] = 0x0082; // SH2 reset?
+  Pico32x.regs[0] = P32XS_REN|P32XS_nRES; // verified
   Pico32x.vdp_regs[0x0a/2] = P32XV_VBLK|P32XV_HBLK|P32XV_PEN;
   Pico32x.sh2_regs[0] = P32XS2_ADEN;
 }
@@ -82,8 +127,11 @@ void PicoUnload32x(void)
 
 void PicoReset32x(void)
 {
-  extern int p32x_csum_faked;
-  p32x_csum_faked = 0; // tmp
+  if (PicoAHW & PAHW_32X) {
+    Pico32x.sh2irqs |= P32XI_VRES;
+    p32x_update_irls();
+    p32x_poll_event(3, 0);
+  }
 }
 
 static void p32x_start_blank(void)
@@ -129,6 +177,8 @@ static __inline void run_m68k(int cyc)
   while (SekCycleCnt < SekCycleAim) { \
     slice = SekCycleCnt; \
     run_m68k(SekCycleAim - SekCycleCnt); \
+    if (!(Pico32x.regs[0] & P32XS_nRES)) \
+      continue; /* SH2s reseting */ \
     slice = SekCycleCnt - slice; /* real count from 68k */ \
     if (SekCycleCnt < SekCycleAim) \
       elprintf(EL_32X, "slice %d", slice); \

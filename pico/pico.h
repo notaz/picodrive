@@ -37,6 +37,10 @@ extern void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 // this must switch to 32bpp mode
 extern void emu_32x_startup(void);
 
+// optional 32X BIOS, should be left NULL if not used
+// must be 256, 2048, 1024 bytes
+extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
+
 // Pico.c
 #define POPT_EN_FM          (1<< 0) // 00 000x
 #define POPT_EN_PSG         (1<< 1)

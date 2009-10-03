@@ -41,20 +41,11 @@ void p32x_sh2_write32(unsigned int a, unsigned int d, int id);
 
 void sh2_reset(SH2 *sh2)
 {
-	int save_is_slave;
-	void *save_irqcallback;
-
-	save_irqcallback = sh2->irq_callback;
-	save_is_slave = sh2->is_slave;
-
-	memset(sh2, 0, sizeof(SH2));
-
-	sh2->is_slave = save_is_slave;
-	sh2->irq_callback = save_irqcallback;
-
 	sh2->pc = RL(0);
 	sh2->r[15] = RL(4);
 	sh2->sr = I;
+	sh2->vbr = 0;
+	sh2->pending_int_irq = 0;
 }
 
 static void sh2_do_irq(SH2 *sh2, int level, int vector)
