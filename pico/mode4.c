@@ -193,11 +193,10 @@ void PicoFrameStartMode4(void)
   int lines = 192;
   skip_next_line = 0;
   screen_offset = 24;
-  rendstatus = 0;
+  rendstatus = PDRAW_32_COLS;
 
   if ((Pico.video.reg[0] & 6) == 6 && (Pico.video.reg[1] & 0x18)) {
     if (Pico.video.reg[1] & 0x08) {
-      rendstatus |= PDRAW_240LINES;
       screen_offset = 0;
       lines = 240;
     }
@@ -207,8 +206,9 @@ void PicoFrameStartMode4(void)
     }
   }
 
-  if (rendstatus != rendstatus_old) {
+  if (rendstatus != rendstatus_old || lines != rendlines) {
     rendstatus_old = rendstatus;
+    rendlines = lines;
     emu_video_mode_change(screen_offset, lines, 1);
   }
 }

@@ -34,7 +34,7 @@ extern void cache_flush_d_inval_i(const void *start_addr, const void *end_addr);
 // this one should handle display mode changes
 extern void emu_video_mode_change(int start_line, int line_count, int is_32cols);
 
-// this must switch to 32bpp mode
+// this must switch to 16bpp mode
 extern void emu_32x_startup(void);
 
 // optional 32X BIOS, should be left NULL if not used
@@ -149,7 +149,7 @@ size_t   pm_read(void *ptr, size_t bytes, pm_file *stream);
 int      pm_seek(pm_file *stream, long offset, int whence);
 int      pm_close(pm_file *fp);
 int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms);
-int PicoCartInsert(unsigned char *rom,unsigned int romsize);
+int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_cfg);
 void PicoCartUnload(void);
 extern void (*PicoCartLoadProgressCB)(int percent);
 extern void (*PicoCDLoadProgressCB)(const char *fname, int percent);
@@ -184,8 +184,9 @@ extern int PicoDrawMask;
 #define PDRAW_SONIC_MODE    (1<<5) // mid-frame palette changes for 8bit renderer
 #define PDRAW_PLANE_HI_PRIO (1<<6) // have layer with all hi prio tiles (mk3)
 #define PDRAW_SHHI_DONE     (1<<7) // layer sh/hi already processed
-#define PDRAW_240LINES      (1<<8) // 240 line display (224 if not set)
+#define PDRAW_32_COLS       (1<<8) // 32 column mode
 extern int rendstatus, rendstatus_old;
+extern int rendlines;
 extern unsigned short HighPal[0x100];
 
 // Draw2.c

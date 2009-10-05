@@ -41,9 +41,11 @@ int pico_pen_x = 320/2, pico_pen_y = 240/2;
 int pico_inp_mode = 0;
 int engineState = PGS_Menu;
 
+/* tmp buff to reduce stack usage for plats with small stack */
+static char static_buff[512];
 /* TODO: len checking */
-char rom_fname_reload[512] = { 0, };
-char rom_fname_loaded[512] = { 0, };
+char rom_fname_reload[512];
+char rom_fname_loaded[512];
 int rom_loaded = 0;
 int reset_timing = 0;
 static unsigned int notice_msg_time;	/* when started showing */
@@ -113,7 +115,6 @@ static const char * const biosfiles_jp[] = { "jp_mcd1_9112", "jp_mcd1_9111" };
 
 static int find_bios(int region, char **bios_file)
 {
-	static char bios_path[1024];
 	int i, count;
 	const char * const *files;
 	FILE *f = NULL;
@@ -133,26 +134,27 @@ static int find_bios(int region, char **bios_file)
 
 	for (i = 0; i < count; i++)
 	{
-		emu_make_path(bios_path, files[i], sizeof(bios_path) - 4);
-		strcat(bios_path, ".bin");
-		f = fopen(bios_path, "rb");
+		emu_make_path(static_buff, files[i], sizeof(static_buff) - 4);
+		strcat(static_buff, ".bin");
+		f = fopen(static_buff, "rb");
 		if (f) break;
 
-		bios_path[strlen(bios_path) - 4] = 0;
-		strcat(bios_path, ".zip");
-		f = fopen(bios_path, "rb");
+		static_buff[strlen(static_buff) - 4] = 0;
+		strcat(static_buff, ".zip");
+		f = fopen(static_buff, "rb");
 		if (f) break;
 	}
 
 	if (f) {
-		lprintf("using bios: %s\n", bios_path);
+		lprintf("using bios: %s\n", static_buff);
 		fclose(f);
-		if (bios_file) *bios_file = bios_path;
+		if (bios_file)
+			*bios_file = static_buff;
 		return 1;
 	} else {
-		sprintf(bios_path, "no %s BIOS files found, read docs",
+		sprintf(static_buff, "no %s BIOS files found, read docs",
 			region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
-		me_update_msg(bios_path);
+		me_update_msg(static_buff);
 		return 0;
 	}
 }
@@ -560,6 +562,7 @@ int emu_reload_rom(char *rom_fname)
 	}
 
 	menu_romload_prepare(used_rom_name); // also CD load
+	used_rom_name = NULL; // uses static_buff
 
 	ret = PicoCartLoad(rom, &rom_data, &rom_size, (PicoAHW & PAHW_SMS) ? 1 : 0);
 	pm_close(rom);
@@ -594,7 +597,8 @@ int emu_reload_rom(char *rom_fname)
 		if (!ret) emu_read_config(0, 0);
 	}
 
-	if (PicoCartInsert(rom_data, rom_size)) {
+	emu_make_path(static_buff, "carthw.cfg", sizeof(static_buff));
+	if (PicoCartInsert(rom_data, rom_size, static_buff)) {
 		me_update_msg("Failed to load ROM.");
 		goto fail;
 	}
@@ -700,6 +704,7 @@ static void romfname_ext(char *dst, const char *prefix, const char *ext)
 	if (ext) strcat(dst, ext);
 }
 
+// <base dir><end>
 void emu_make_path(char *buff, const char *end, int size)
 {
 	int pos, end_len;
@@ -907,7 +912,7 @@ static int try_ropen_file(const char *fname)
 
 char *emu_get_save_fname(int load, int is_sram, int slot)
 {
-	static char saveFname[512];
+	char *saveFname = static_buff;
 	char ext[16];
 
 	if (is_sram)
@@ -1482,7 +1487,7 @@ void emu_loop(void)
 				pframes_done++; frames_done++;
 				diff_lim += target_frametime;
 
-				if (!(currentConfig.EmuOpt & EOPT_NO_FRMLIMIT)) {
+				if (!(currentConfig.EmuOpt & (EOPT_NO_FRMLIMIT|EOPT_EXT_FRMLIMIT))) {
 					timestamp = get_ticks();
 					diff = timestamp - timestamp_base;
 					if (!reset_timing && diff < diff_lim) // we are too fast
@@ -1508,7 +1513,7 @@ void emu_loop(void)
 		PicoFrame();
 
 		/* frame limiter */
-		if (!reset_timing && !(currentConfig.EmuOpt & EOPT_NO_FRMLIMIT))
+		if (!reset_timing && !(currentConfig.EmuOpt & (EOPT_NO_FRMLIMIT|EOPT_EXT_FRMLIMIT)))
 		{
 			timestamp = get_ticks();
 			diff = timestamp - timestamp_base;

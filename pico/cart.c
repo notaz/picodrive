@@ -21,7 +21,7 @@ void (*PicoCartMemSetup)(void);
 void (*PicoCartLoadProgressCB)(int percent) = NULL;
 void (*PicoCDLoadProgressCB)(const char *fname, int percent) = NULL; // handled in Pico/cd/cd_file.c
 
-static void PicoCartDetect(void);
+static void PicoCartDetect(const char *carthw_cfg);
 
 /* cso struct */
 typedef struct _cso_struct
@@ -541,7 +541,7 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms)
 }
 
 // Insert a cartridge:
-int PicoCartInsert(unsigned char *rom,unsigned int romsize)
+int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_cfg)
 {
   // notaz: add a 68k "jump one op back" opcode to the end of ROM.
   // This will hang the emu, but will prevent nasty crashes.
@@ -572,7 +572,7 @@ int PicoCartInsert(unsigned char *rom,unsigned int romsize)
   carthw_chunks = NULL;
 
   if (!(PicoAHW & (PAHW_MCD|PAHW_SMS)))
-    PicoCartDetect();
+    PicoCartDetect(carthw_cfg);
 
   // setup correct memory map for loaded ROM
   switch (PicoAHW) {
@@ -695,16 +695,16 @@ static int is_expr(const char *expr, char **pr)
   return 1;
 }
 
-static void parse_carthw(int *fill_sram)
+static void parse_carthw(const char *carthw_cfg, int *fill_sram)
 {
   int line = 0, any_checks_passed = 0, skip_sect = 0;
   int tmp, rom_crc = 0;
   char buff[256], *p, *r;
   FILE *f;
 
-  f = fopen("carthw.cfg", "r");
+  f = fopen(carthw_cfg, "r");
   if (f == NULL) {
-    elprintf(EL_STATUS, "couldn't open carthw.txt!");
+    elprintf(EL_STATUS, "couldn't open carthw.cfg!");
     return;
   }
 
@@ -924,7 +924,7 @@ no_checks:
 /*
  * various cart-specific things, which can't be handled by generic code
  */
-static void PicoCartDetect(void)
+static void PicoCartDetect(const char *carthw_cfg)
 {
   int fill_sram = 0;
 
@@ -954,7 +954,8 @@ static void PicoCartDetect(void)
   SRam.eeprom_bit_in = 0;
   SRam.eeprom_bit_out= 0;
 
-  parse_carthw(&fill_sram);
+  if (carthw_cfg != NULL)
+    parse_carthw(carthw_cfg, &fill_sram);
 
   if (SRam.flags & SRF_ENABLED)
   {

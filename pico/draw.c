@@ -54,6 +54,7 @@ int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
 unsigned char HighLnSpr[240][3 + MAX_LINE_SPRITES]; // sprite_count, ^flags, tile_count, [spritep]...
 
 int rendstatus, rendstatus_old;
+int rendlines;
 int DrawScanline;
 int PicoDrawMask = -1;
 
@@ -1404,21 +1405,25 @@ static int DrawDisplay(int sh)
 // MUST be called every frame
 PICO_INTERNAL void PicoFrameStart(void)
 {
+  int lines = 224;
+
   // prepare to do this frame
   rendstatus = 0;
-  if ((Pico.video.reg[12]&6) == 6)
+  if ((Pico.video.reg[12] & 6) == 6)
     rendstatus |= PDRAW_INTERLACE; // interlace mode
+  if (!(Pico.video.reg[12] & 1))
+    rendstatus |= PDRAW_32_COLS;
   if (Pico.video.reg[1] & 8)
-    rendstatus |= PDRAW_240LINES;
+    lines = 240;
 
   DrawScanline = 0;
   skip_next_line = 0;
 
-  if (rendstatus != rendstatus_old) {
+  if (rendstatus != rendstatus_old || lines != rendlines) {
+    rendlines = lines;
     rendstatus_old = rendstatus;
-    emu_video_mode_change((rendstatus & PDRAW_240LINES) ? 0 : 8,
-      (rendstatus & PDRAW_240LINES) ? 240 : 224,
-      (Pico.video.reg[12] & 1) ? 0 : 1);
+    emu_video_mode_change((lines == 240) ? 0 : 8,
+      lines, (Pico.video.reg[12] & 1) ? 0 : 1);
   }
 
   if (PicoOpt & POPT_ALT_RENDERER)
@@ -1445,6 +1450,8 @@ static void DrawBlankedLine(int line, int offs, int sh, int bgc)
 
 static void PicoLine(int line, int offs, int sh, int bgc)
 {
+  int skip = 0;
+
   if (skip_next_line > 0) {
     skip_next_line--;
     return;
@@ -1452,7 +1459,12 @@ static void PicoLine(int line, int offs, int sh, int bgc)
 
   DrawScanline = line;
   if (PicoScanBegin != NULL)
-    skip_next_line = PicoScanBegin(line + offs);
+    skip = PicoScanBegin(line + offs);
+
+  if (skip) {
+    skip_next_line = skip - 1;
+    return;
+  }
 
   // Draw screen:
   BackFill(bgc, sh);
@@ -1472,7 +1484,7 @@ void PicoDrawSync(int to, int blank_last_line)
   int sh = (Pico.video.reg[0xC] & 8) >> 3; // shadow/hilight?
   int bgc = Pico.video.reg[7];
 
-  if (!(rendstatus & PDRAW_240LINES))
+  if (rendlines != 240)
     offs = 8;
 
   // need to know which pixels are bg for 32x

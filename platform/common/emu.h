@@ -41,6 +41,7 @@ extern int g_screen_height;
 #define EOPT_SHOW_RTC     (1<<17)
 #define EOPT_NO_FRMLIMIT  (1<<18)
 #define EOPT_WIZ_TEAR_FIX (1<<19)
+#define EOPT_EXT_FRMLIMIT (1<<20) // no internal frame limiter (limited by snd, etc)
 
 enum {
 	EOPT_SCALE_NONE = 0,
