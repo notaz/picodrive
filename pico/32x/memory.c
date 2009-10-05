@@ -894,6 +894,12 @@ static void bank_switch(int b)
   cpu68k_map_set(m68k_read16_map,  0x900000, 0x900000 + rs - 1, Pico.rom + bank, 0);
 
   elprintf(EL_32X, "bank %06x-%06x -> %06x", 0x900000, 0x900000 + rs - 1, bank);
+
+#ifdef EMU_F68K
+  // setup FAME fetchmap
+  for (rs = 0x90; rs < 0xa0; rs++)
+    PicoCpuFM68k.Fetch[rs] = (u32)Pico.rom + bank - 0x900000;
+#endif
 }
 
 // -----------------------------------------------------------------
@@ -1289,6 +1295,12 @@ void PicoMemSetup32x(void)
     rs = 0x80000;
   cpu68k_map_set(m68k_read8_map,   0x880000, 0x880000 + rs - 1, Pico.rom, 0);
   cpu68k_map_set(m68k_read16_map,  0x880000, 0x880000 + rs - 1, Pico.rom, 0);
+#ifdef EMU_F68K
+  // setup FAME fetchmap
+  PicoCpuFM68k.Fetch[0] = (u32)Pico32xMem->m68k_rom;
+  for (rs = 0x88; rs < 0x90; rs++)
+    PicoCpuFM68k.Fetch[rs] = (u32)Pico.rom - 0x880000;
+#endif
 
   // 32X ROM (banked)
   bank_switch(0);
