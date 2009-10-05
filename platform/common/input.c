@@ -6,6 +6,7 @@
 #include "plat.h"
 #include "../linux/in_evdev.h"
 #include "../gp2x/in_gp2x.h"
+#include "../win32/in_vk.h"
 
 typedef struct
 {
@@ -237,6 +238,7 @@ int in_update(int *result)
 	for (i = 0; i < in_dev_count; i++) {
 		in_dev_t *dev = &in_devices[i];
 		if (dev->probed && dev->binds != NULL) {
+			// FIXME: this is stupid, make it indirect
 			switch (dev->drv_id) {
 #ifdef IN_EVDEV
 			case IN_DRVID_EVDEV:
@@ -248,6 +250,9 @@ int in_update(int *result)
 				ret |= in_gp2x_update(dev->drv_data, dev->binds, result);
 				break;
 #endif
+			case IN_DRVID_VK:
+				ret |= in_vk_update(dev->drv_data, dev->binds, result);
+				break;
 			}
 		}
 	}
@@ -808,6 +813,7 @@ void in_init(void)
 #ifdef IN_EVDEV
 	in_evdev_init(&in_drivers[IN_DRVID_EVDEV]);
 #endif
+	in_vk_init(&in_drivers[IN_DRVID_VK]);
 }
 
 #if 0

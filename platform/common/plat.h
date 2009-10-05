@@ -15,9 +15,6 @@ void pemu_sound_start(void);
 void pemu_sound_stop(void);
 void pemu_sound_wait(void);
 
-void menu_romload_prepare(const char *rom_name);
-void menu_romload_end(void);
-
 void plat_early_init(void);
 void plat_init(void);
 void plat_finish(void);
@@ -44,7 +41,7 @@ int  plat_is_dir(const char *path);
 int  plat_wait_event(int *fds_hnds, int count, int timeout_ms);
 void plat_sleep_ms(int ms);
 
-/* timers, to be used for time diff and must refet to the same clock */
+/* timers, to be used for time diff and must refer to the same clock */
 unsigned int plat_get_ticks_ms(void);
 unsigned int plat_get_ticks_us(void);
 void plat_wait_till_us(unsigned int us);

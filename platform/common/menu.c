@@ -23,7 +23,7 @@
 #include <pico/patch.h>
 
 static char static_buff[64];
-static char menu_error_msg[64] = { 0, };
+char menu_error_msg[64] = { 0, };
 static int  menu_error_time = 0;
 
 #ifndef UIQ3

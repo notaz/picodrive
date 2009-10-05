@@ -159,6 +159,9 @@ void menu_plat_setup(int is_wiz);
 void text_out16(int x, int y, const char *texto, ...);
 void me_update_msg(const char *msg);
 
+void menu_romload_prepare(const char *rom_name);
+void menu_romload_end(void);
+
 void menu_loop(void);
 int  menu_loop_tray(void);
 
