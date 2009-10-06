@@ -36,6 +36,7 @@ Enter:  Start
 A:      A
 S:      B           red button
 D:      C           pen push
+Q,W,E:  X,Y,Z
 TAB:            (reset)
 Esc:           (load ROM)
 Arrows:          D-pad

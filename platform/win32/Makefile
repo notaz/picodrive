@@ -15,7 +15,7 @@ STRIP = $(CROSS)strip
 DEFINES = _UNZIP_SUPPORT IN_VK
 CFLAGS += -O2 -Wall -falign-functions=2 -ffast-math
 CFLAGS += -I../.. -I. -I../../zlib/ -Idirectx/include/
-LDFLAGS += -L. -Ldirectx/lib/ -lgdi32 -lcomdlg32 -lddraw -ldsound -ldxguid
+LDFLAGS += -mwindows -L. -Ldirectx/lib/ -lgdi32 -lcomdlg32 -lddraw -ldsound -ldxguid
 
 # frontend
 OBJS += main.o plat.o direct.o dsnd.o in_vk.o

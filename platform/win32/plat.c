@@ -41,7 +41,7 @@ void plat_wait_till_us(unsigned int us)
 {
 	int msdiff = (int)(us - plat_get_ticks_us()) / 1000;
 	if (msdiff > 6)
-;//		Sleep(msdiff - 6);
+		Sleep(msdiff - 6);
 	while (plat_get_ticks_us() < us)
 		;
 }
@@ -216,7 +216,7 @@ const char *plat_get_credits(void)
 		"Chui: Fame/C\n"
 		"NJ: CZ80\n"
 		"MAME devs: YM2612, SN76496 and SH2 cores\n"
-		"StÃ©phane Dallongeville: base of Fame/C (C68K), CZ80\n\n"
+		"Stéphane Dallongeville: base of Fame/C (C68K), CZ80\n\n"
 		"Special thanks (ideas, valuable information and stuff):\n"
 		"Charles MacDonald, Eke, Exophase, Haze, Lordus, Nemesis,\n"
 		"Pierpaolo Prazzoli, Rokas, Steve Snake, Tasco Deluxe.\n";

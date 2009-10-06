@@ -216,6 +216,10 @@ static const struct {
 	{ 'D',		IN_BINDTYPE_PLAYER12, 5 },	/* C */
 	{ 'A',		IN_BINDTYPE_PLAYER12, 6 },	/* A */
 	{ VK_RETURN,	IN_BINDTYPE_PLAYER12, 7 },
+	{ 'E',		IN_BINDTYPE_PLAYER12, 8 },	/* Z */
+	{ 'W',		IN_BINDTYPE_PLAYER12, 9 },	/* Y */
+	{ 'Q',		IN_BINDTYPE_PLAYER12,10 },	/* X */
+	{ 'R',		IN_BINDTYPE_PLAYER12,11 },	/* M */
 /*
 	{ BTN_SELECT,	IN_BINDTYPE_EMU, PEVB_MENU },
 //	{ BTN_Y,	IN_BINDTYPE_EMU, PEVB_SWITCH_RND },

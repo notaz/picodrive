@@ -4,6 +4,7 @@
 
 #include "input.h"
 #include "plat.h"
+#include "lprintf.h"
 #include "../linux/in_evdev.h"
 #include "../gp2x/in_gp2x.h"
 #include "../win32/in_vk.h"
@@ -90,7 +91,7 @@ void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data,
 		for (i = 0; i < IN_MAX_DEVS; i++)
 			if (!in_devices[i].probed) break;
 		if (i >= IN_MAX_DEVS) {
-			printf("input: too many devices, can't add %s\n", name);
+			lprintf("input: too many devices, can't add %s\n", name);
 			return;
 		}
 		in_free(&in_devices[i]);
@@ -112,7 +113,7 @@ void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data,
 	if (i + 1 > in_dev_count)
 		in_dev_count = i + 1;
 
-	printf("input: new device #%d \"%s\"\n", i, name);
+	lprintf("input: new device #%d \"%s\"\n", i, name);
 update:
 	in_devices[i].probed = 1;
 	in_devices[i].does_combos = combos;
@@ -227,7 +228,7 @@ void in_probe(void)
 	}
 
 	if (in_have_async_devs)
-		printf("input: async-only devices detected..\n");
+		lprintf("input: async-only devices detected..\n");
 }
 
 /* async update */
@@ -342,7 +343,7 @@ int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 
 	if (count == 0) {
 		/* don't deadlock, fail */
-		printf("input: failed to find devices to read\n");
+		lprintf("input: failed to find devices to read\n");
 		exit(1);
 	}
 
@@ -604,7 +605,7 @@ int in_config_parse_dev(const char *name)
 	}
 
 	if (drv_id < 0) {
-		printf("input: missing driver for %s\n", name);
+		lprintf("input: missing driver for %s\n", name);
 		return -1;
 	}
 
@@ -622,7 +623,7 @@ int in_config_parse_dev(const char *name)
 		for (i = 0; i < IN_MAX_DEVS; i++)
 			if (in_devices[i].name == NULL) break;
 		if (i >= IN_MAX_DEVS) {
-			printf("input: too many devices, can't add %s\n", name);
+			lprintf("input: too many devices, can't add %s\n", name);
 			return -1;
 		}
 	}
@@ -701,7 +702,7 @@ int in_config_bind_key(int dev_id, const char *key, int acts, int bind_type)
 	}
 
 	if (kc < 0 || kc >= dev->key_count) {
-		printf("input: bad key: %s\n", key);
+		lprintf("input: bad key: %s\n", key);
 		return -1;
 	}
 
@@ -762,12 +763,12 @@ void in_debug_dump(void)
 {
 	int i;
 
-	printf("# drv probed binds name\n");
+	lprintf("# drv probed binds name\n");
 	for (i = 0; i < IN_MAX_DEVS; i++) {
 		in_dev_t *d = &in_devices[i];
 		if (!d->probed && d->name == NULL && d->binds == NULL)
 			continue;
-		printf("%d %3d %6c %5c %s\n", i, d->drv_id, d->probed ? 'y' : 'n',
+		lprintf("%d %3d %6c %5c %s\n", i, d->drv_id, d->probed ? 'y' : 'n',
 			d->binds ? 'y' : 'n', d->name);
 	}
 }
@@ -830,12 +831,12 @@ int main(void)
 	while (1) {
 		int dev = 0, down;
 		ret = in_update_keycode(&dev, &down);
-		printf("#%i: %i %i (%s)\n", dev, down, ret, in_get_key_name(dev, ret));
+		lprintf("#%i: %i %i (%s)\n", dev, down, ret, in_get_key_name(dev, ret));
 	}
 #else
 	while (1) {
 		ret = in_menu_wait_any();
-		printf("%08x\n", ret);
+		lprintf("%08x\n", ret);
 	}
 #endif
 
