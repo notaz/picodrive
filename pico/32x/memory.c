@@ -577,6 +577,8 @@ static void sh2_peripheral_write32(u32 a, u32 d, int id)
                        r[0x118 / 4] = r[0x110 / 4] = (signed int)d % divisor;
         r[0x104 / 4] = r[0x11c / 4] = r[0x114 / 4] = (signed int)d / divisor;
       }
+      else
+        r[0x110 / 4] = r[0x114 / 4] = r[0x118 / 4] = r[0x11c / 4] = 0; // ?
       break;
     case 0x114:
       elprintf(EL_32X, "%csh2 divide %08x%08x / %08x @%08x",
@@ -586,8 +588,16 @@ static void sh2_peripheral_write32(u32 a, u32 d, int id)
         signed int divisor = r[0x100 / 4];
         // XXX: undocumented mirroring to 0x118,0x11c?
         r[0x118 / 4] = r[0x110 / 4] = divident % divisor;
-        r[0x11c / 4] = r[0x114 / 4] = divident / divisor;
+        divident /= divisor;
+        r[0x11c / 4] = r[0x114 / 4] = divident;
+        divident >>= 31;
+        if ((unsigned long long)divident + 1 > 1) {
+          //elprintf(EL_32X, "%csh2 divide overflow! @%08x", id ? 's' : 'm', sh2_pc(id));
+          r[0x11c / 4] = r[0x114 / 4] = divident > 0 ? 0x7fffffff : 0x80000000; // overflow
+        }
       }
+      else
+        r[0x110 / 4] = r[0x114 / 4] = r[0x118 / 4] = r[0x11c / 4] = 0; // ?
       break;
   }
 
