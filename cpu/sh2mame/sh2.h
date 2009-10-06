@@ -32,17 +32,17 @@
 
 typedef struct
 {
-	UINT32	r[16];
-	UINT32	ppc;
-	UINT32	pc;
-	UINT32	pr;
-	UINT32	sr;
-	UINT32	gbr, vbr;
-	UINT32	mach, macl;
+	unsigned int	r[16];
+	unsigned int	ppc;
+	unsigned int	pc;
+	unsigned int	pr;
+	unsigned int	sr;
+	unsigned int	gbr, vbr;
+	unsigned int	mach, macl;
 
-	UINT32	ea;
-	UINT32	delay;
-	UINT32	test_irq;
+	unsigned int	ea;
+	unsigned int	delay;
+	unsigned int	test_irq;
 
 	int	pending_irl;
 	int	pending_int_irq;	// internal irq
@@ -50,7 +50,7 @@ typedef struct
 	void	(*irq_callback)(int id, int level);
 	int	is_slave;
 
-	UINT32	cycles_aim;	// subtract sh2_icount to get global counter
+	unsigned int	cycles_aim;	// subtract sh2_icount to get global counter
 } SH2;
 
 SH2 *sh2; // active sh2

@@ -12,6 +12,7 @@ asm_cdmemory = 1
 amalgamate = 0
 #profile = 1
 #use_musashi = 1
+use_sh2mame = 1
 #up = 1
 
 
@@ -111,6 +112,10 @@ else
 DEFINC += -D_USE_DRZ80
 OBJS += cpu/DrZ80/drz80.o
 endif
+ifeq "$(use_sh2mame)" "1"
+OBJS += cpu/sh2mame/sh2pico.o
+else
+endif
 
 vpath %.c = ../..
 vpath %.s = ../..
@@ -118,7 +123,7 @@ vpath %.S = ../..
 
 DIRS = platform platform/gp2x platform/linux platform/common pico pico/cd pico/pico pico/32x \
 	pico/sound pico/carthw/svp zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools \
-	cpu/mz80 cpu/DrZ80
+	cpu/mz80 cpu/DrZ80 cpu/sh2mame
 
 
 all: mkdirs PicoDrive
