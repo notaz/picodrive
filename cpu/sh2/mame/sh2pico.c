@@ -1,4 +1,4 @@
-#include <string.h>
+#include "../sh2.h"
 
 // MAME types
 typedef signed char  INT8;
@@ -7,14 +7,6 @@ typedef signed int   INT32;
 typedef unsigned int   UINT32;
 typedef unsigned short UINT16;
 typedef unsigned char  UINT8;
-
-// pico memhandlers
-unsigned int p32x_sh2_read8(unsigned int a, int id);
-unsigned int p32x_sh2_read16(unsigned int a, int id);
-unsigned int p32x_sh2_read32(unsigned int a, int id);
-void p32x_sh2_write8(unsigned int a, unsigned int d, int id);
-void p32x_sh2_write16(unsigned int a, unsigned int d, int id);
-void p32x_sh2_write32(unsigned int a, unsigned int d, int id);
 
 #define RB(a) p32x_sh2_read8(a,sh2->is_slave)
 #define RW(a) p32x_sh2_read16(a,sh2->is_slave)
@@ -37,42 +29,18 @@ void p32x_sh2_write32(unsigned int a, unsigned int d, int id);
 #define Rn	((opcode>>8)&15)
 #define Rm	((opcode>>4)&15)
 
+#define sh2_icount sh2->icount
+
 #include "sh2.c"
 
-void sh2_reset(SH2 *sh2)
-{
-	sh2->pc = RL(0);
-	sh2->r[15] = RL(4);
-	sh2->sr = I;
-	sh2->vbr = 0;
-	sh2->pending_int_irq = 0;
-}
-
-static void sh2_do_irq(SH2 *sh2, int level, int vector)
-{
-	sh2->irq_callback(sh2->is_slave, level);
-
-	sh2->r[15] -= 4;
-	WL(sh2->r[15], sh2->sr);		/* push SR onto stack */
-	sh2->r[15] -= 4;
-	WL(sh2->r[15], sh2->pc);		/* push PC onto stack */
-
-	/* set I flags in SR */
-	sh2->sr = (sh2->sr & ~I) | (level << 4);
-
-	/* fetch PC */
-	sh2->pc = RL(sh2->vbr + vector * 4);
-
-	/* 13 cycles at best */
-	sh2_icount -= 13;
-}
-
-/* Execute cycles - returns number of cycles actually run */
-int sh2_execute(SH2 *sh2_, int cycles)
+void sh2_execute(SH2 *sh2_, int cycles)
 {
 	sh2 = sh2_;
-	sh2_icount = cycles;
 	sh2->cycles_aim += cycles;
+	sh2->icount = cycles = sh2->cycles_aim - sh2->cycles_done;
+
+	if (sh2->icount <= 0)
+		return;
 
 	do
 	{
@@ -121,36 +89,10 @@ int sh2_execute(SH2 *sh2_, int cycles)
 				sh2_internal_irq(sh2, sh2->pending_int_irq, sh2->pending_int_vector);
 			sh2->test_irq = 0;
 		}
-		sh2_icount--;
+		sh2->icount--;
 	}
-	while (sh2_icount > 0 || sh2->delay);	/* can't interrupt before delay */
+	while (sh2->icount > 0 || sh2->delay);	/* can't interrupt before delay */
 
-	return cycles - sh2_icount;
-}
-
-void sh2_init(SH2 *sh2, int is_slave)
-{
-	memset(sh2, 0, sizeof(*sh2));
-	sh2->is_slave = is_slave;
-}
-
-void sh2_irl_irq(SH2 *sh2, int level)
-{
-	sh2->pending_irl = level;
-	if (level <= ((sh2->sr >> 4) & 0x0f))
-		return;
-
-	sh2_do_irq(sh2, level, 64 + level/2);
-}
-
-void sh2_internal_irq(SH2 *sh2, int level, int vector)
-{
-	sh2->pending_int_irq = level;
-	sh2->pending_int_vector = vector;
-	if (level <= ((sh2->sr >> 4) & 0x0f))
-		return;
-
-	sh2_do_irq(sh2, level, vector);
-	sh2->pending_int_irq = 0; // auto-clear
+	sh2->cycles_done += cycles - sh2->icount;
 }
 

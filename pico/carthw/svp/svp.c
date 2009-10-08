@@ -8,9 +8,6 @@
 
 #include "../../pico_int.h"
 #include "compiler.h"
-#if defined(__linux__) && defined(ARM)
-#include <sys/mman.h>
-#endif
 
 svp_t *svp = NULL;
 int PicoSVPCycles = 850; // cycles/line, just a guess
@@ -100,20 +97,6 @@ static int PicoSVPDma(unsigned int source, int len, unsigned short **srcp, unsig
 
 void PicoSVPInit(void)
 {
-#if defined(__linux__) && defined(ARM)
-	int ret;
-	ret = munmap(tcache, SSP_DRC_SIZE);
-	printf("munmap tcache: %i\n", ret);
-#endif
-}
-
-
-static void PicoSVPShutdown(void)
-{
-#if defined(__linux__) && defined(ARM)
-	// also unmap tcache
-	PicoSVPInit();
-#endif
 }
 
 
@@ -135,16 +118,12 @@ void PicoSVPStartup(void)
 	svp = (void *) ((char *)tmp + 0x200000);
 	memset(svp, 0, sizeof(*svp));
 
-#if defined(__linux__) && defined(ARM)
-	tmp = mmap(tcache, SSP_DRC_SIZE, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
-	printf("mmap tcache: %p, asked %p\n", tmp, tcache);
-#endif
-
 	// init SVP compiler
 	svp_dyn_ready = 0;
 #ifndef PSP
-	if (PicoOpt&POPT_EN_SVP_DRC) {
-		if (ssp1601_dyn_startup()) return;
+	if (PicoOpt & POPT_EN_SVP_DRC) {
+		if (ssp1601_dyn_startup())
+			return;
 		svp_dyn_ready = 1;
 	}
 #endif
@@ -154,7 +133,6 @@ void PicoSVPStartup(void)
 	PicoDmaHook = PicoSVPDma;
 	PicoResetHook = PicoSVPReset;
 	PicoLineHook = PicoSVPLine;
-	PicoCartUnloadHook = PicoSVPShutdown;
 
 	// save state stuff
 	svp_states[0].ptr = svp->iram_rom;

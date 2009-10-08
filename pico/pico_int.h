@@ -237,14 +237,14 @@ typedef void (z80_write_f)(unsigned int a, unsigned char data);
 
 // ----------------------- SH2 CPU -----------------------
 
-#include "cpu/sh2mame/sh2.h"
+#include "cpu/sh2/sh2.h"
 
 extern SH2 sh2s[2];
 #define msh2 sh2s[0]
 #define ssh2 sh2s[1]
 
-#define ash2_end_run(after) if (sh2_icount > (after)) sh2_icount = after
-#define ash2_cycles_done() (sh2->cycles_aim - sh2_icount)
+#define ash2_end_run(after) if (sh2->icount > (after)) sh2->icount = after
+#define ash2_cycles_done() (sh2->cycles_aim - sh2->icount)
 
 #define sh2_pc(c)     (c) ? ssh2.ppc : msh2.ppc
 #define sh2_reg(c, x) (c) ? ssh2.r[x] : msh2.r[x]

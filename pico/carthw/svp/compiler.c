@@ -4,6 +4,7 @@
 // Free for non-commercial use.
 
 #include "../../pico_int.h"
+#include "../../../cpu/drc/cmn.h"
 #include "compiler.h"
 
 #define u32 unsigned int
@@ -23,10 +24,6 @@ extern ssp1601_t *ssp;
 
 #ifndef ARM
 #define DUMP_BLOCK 0x0c9a
-u32 tcache[SSP_TCACHE_SIZE/4];
-u32 *ssp_block_table[0x5090/2];
-u32 *ssp_block_table_iram[15][0x800/2];
-char ssp_align[SSP_BLOCKTAB_ALIGN_SIZE];
 void ssp_drc_next(void){}
 void ssp_drc_next_patch(void){}
 void ssp_drc_end(void){}
@@ -1795,6 +1792,8 @@ static void ssp1601_state_load(void)
 
 int ssp1601_dyn_startup(void)
 {
+	drc_cmn_init();
+
 	memset(tcache, 0, SSP_TCACHE_SIZE);
 	memset(ssp_block_table, 0, sizeof(ssp_block_table));
 	memset(ssp_block_table_iram, 0, sizeof(ssp_block_table_iram));

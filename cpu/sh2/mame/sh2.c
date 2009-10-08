@@ -100,7 +100,7 @@
  *****************************************************************************/
 
 //#include "debugger.h"
-#include "sh2.h"
+//#include "sh2.h"
 //#include "sh2comn.h"
 #define INLINE static
 
@@ -115,7 +115,7 @@
 
 #define LOG(x)	do { if (VERBOSE) logerror x; } while (0)
 
-int sh2_icount;
+//int sh2_icount;
 SH2 *sh2;
 
 #if 0

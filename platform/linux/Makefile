@@ -2,6 +2,7 @@
 use_musashi = 1
 #use_fame = 1
 #use_mz80 = 1
+#use_sh2drc = 1
 #profile = 1
 #fake_in_gp2x = 1
 
@@ -72,7 +73,12 @@ DEFINES += _USE_CZ80
 OBJS += cpu/cz80/cz80.o
 endif
 # sh2
-OBJS += cpu/sh2mame/sh2pico.o
+OBJS += cpu/sh2/sh2.o
+ifeq "$(use_sh2drc)" "1"
+else
+OBJS += cpu/sh2/mame/sh2pico.o
+endif
+OBJS += cpu/drc/cmn.o
 # misc
 ifeq "$(use_fame)" "1"
 ifeq "$(use_musashi)" "1"
@@ -85,7 +91,7 @@ CFLAGS += $(addprefix -D,$(DEFINES))
 vpath %.c = ../..
 
 DIRS = platform platform/gp2x platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
-	pico/32x zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80 cpu/sh2mame
+	pico/32x zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80 cpu/sh2/mame cpu/drc
 
 all: mkdirs PicoDrive
 clean: tidy

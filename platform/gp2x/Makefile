@@ -112,10 +112,13 @@ else
 DEFINC += -D_USE_DRZ80
 OBJS += cpu/DrZ80/drz80.o
 endif
+OBJS += cpu/sh2/sh2.o
 ifeq "$(use_sh2mame)" "1"
-OBJS += cpu/sh2mame/sh2pico.o
+OBJS += cpu/sh2/mame/sh2pico.o
 else
 endif
+OBJS += cpu/drc/cmn.o
+OBJS += cpu/drc/cmn_arm.o
 
 vpath %.c = ../..
 vpath %.s = ../..
@@ -123,7 +126,7 @@ vpath %.S = ../..
 
 DIRS = platform platform/gp2x platform/linux platform/common pico pico/cd pico/pico pico/32x \
 	pico/sound pico/carthw/svp zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools \
-	cpu/mz80 cpu/DrZ80 cpu/sh2mame
+	cpu/mz80 cpu/DrZ80 cpu/sh2/mame cpu/drc
 
 
 all: mkdirs PicoDrive
