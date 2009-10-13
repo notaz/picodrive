@@ -855,7 +855,8 @@ INLINE void JSR(UINT32 m)
 /*  LDC     Rm,SR */
 INLINE void LDCSR(UINT32 m)
 {
-	sh2->sr = sh2->r[m] & FLAGS;
+	sh2->sr &= ~0xfff;
+	sh2->sr |= sh2->r[m] & FLAGS;
 	sh2->test_irq = 1;
 }
 
@@ -875,7 +876,8 @@ INLINE void LDCVBR(UINT32 m)
 INLINE void LDCMSR(UINT32 m)
 {
 	sh2->ea = sh2->r[m];
-	sh2->sr = RL( sh2->ea ) & FLAGS;
+	sh2->sr &= ~0xfff;
+	sh2->sr |= RL( sh2->ea ) & FLAGS;
 	sh2->r[m] += 4;
 	sh2_icount -= 2;
 	sh2->test_irq = 1;
@@ -1461,7 +1463,8 @@ INLINE void RTE(void)
 	sh2->pc = RL( sh2->ea );
 	sh2->r[15] += 4;
 	sh2->ea = sh2->r[15];
-	sh2->sr = RL( sh2->ea ) & FLAGS;
+	sh2->sr &= ~0xfff;
+	sh2->sr |= RL( sh2->ea ) & FLAGS;
 	sh2->r[15] += 4;
 	sh2_icount -= 3;
 	sh2->test_irq = 1;
@@ -1556,7 +1559,7 @@ INLINE void SLEEP(void)
 /*  STC     SR,Rn */
 INLINE void STCSR(UINT32 n)
 {
-	sh2->r[n] = sh2->sr;
+	sh2->r[n] = sh2->sr & FLAGS;
 }
 
 /*  STC     GBR,Rn */
@@ -1576,7 +1579,7 @@ INLINE void STCMSR(UINT32 n)
 {
 	sh2->r[n] -= 4;
 	sh2->ea = sh2->r[n];
-	WL( sh2->ea, sh2->sr );
+	WL( sh2->ea, sh2->sr & FLAGS );
 	sh2_icount--;
 }
 
@@ -1738,7 +1741,7 @@ INLINE void TRAPA(UINT32 i)
 	sh2->ea = sh2->vbr + imm * 4;
 
 	sh2->r[15] -= 4;
-	WL( sh2->r[15], sh2->sr );
+	WL( sh2->r[15], sh2->sr & FLAGS );
 	sh2->r[15] -= 4;
 	WL( sh2->r[15], sh2->pc );
 
