@@ -2,7 +2,8 @@
 use_musashi = 1
 #use_fame = 1
 #use_mz80 = 1
-#use_sh2drc = 1
+use_sh2drc = 1
+drc_debug = 1
 #profile = 1
 #fake_in_gp2x = 1
 
@@ -75,6 +76,16 @@ endif
 # sh2
 OBJS += cpu/sh2/sh2.o
 ifeq "$(use_sh2drc)" "1"
+DEFINES += DRC_SH2 DRC_TMP
+OBJS += cpu/sh2/mame/sh2pico.o
+OBJS += cpu/sh2/compiler.o
+OBJS += cpu/sh2/stub_x86.o
+ifeq "$(drc_debug)" "1"
+DEFINES += DRC_DEBUG
+OBJS += cpu/sh2/mame/sh2dasm.o
+OBJS += host_dasm.o
+LDFLAGS += -lbfd -lopcodes
+endif
 else
 OBJS += cpu/sh2/mame/sh2pico.o
 endif
@@ -89,6 +100,7 @@ endif
 CFLAGS += $(addprefix -D,$(DEFINES))
 
 vpath %.c = ../..
+vpath %.asm = ../..
 
 DIRS = platform platform/gp2x platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
 	pico/32x zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80 cpu/sh2/mame cpu/drc
@@ -130,6 +142,9 @@ cpu/mz80/mz80.o : ../../cpu/mz80/mz80.asm
 .s.o:
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -c $< -o $@
+%.o : %.asm
+	@echo ">>>" $<
+	nasm -f elf $< -o $@
 
 
 cpu/fame/famec.o : ../../cpu/fame/famec.c ../../cpu/fame/famec_opcodes.h

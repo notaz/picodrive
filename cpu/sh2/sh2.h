@@ -13,32 +13,37 @@ void p32x_sh2_write32(unsigned int a, unsigned int d, int id);
 
 typedef struct
 {
-	unsigned int	r[16];
+	unsigned int	r[16];		// 00
+	unsigned int	pc;		// 40
 	unsigned int	ppc;
-	unsigned int	pc;
 	unsigned int	pr;
 	unsigned int	sr;
-	unsigned int	gbr, vbr;
-	unsigned int	mach, macl;
+	unsigned int	gbr, vbr;	// 50
+	unsigned int	mach, macl;	// 58
 
+	// interpreter stuff
+	int		icount;		// 60 cycles left in current timeslice
 	unsigned int	ea;
 	unsigned int	delay;
 	unsigned int	test_irq;
 
+	// drc stuff
+	void	**pc_hashtab;		// 70
+
+	// common
 	int	pending_irl;
 	int	pending_int_irq;	// internal irq
 	int	pending_int_vector;
 	void	(*irq_callback)(int id, int level);
 	int	is_slave;
 
-	int		icount;		// cycles left in current timeslice
 	unsigned int	cycles_aim;	// subtract sh2_icount to get global counter
 	unsigned int	cycles_done;
 } SH2;
 
 extern SH2 *sh2; // active sh2
 
-void sh2_init(SH2 *sh2, int is_slave);
+int  sh2_init(SH2 *sh2, int is_slave);
 void sh2_reset(SH2 *sh2);
 void sh2_irl_irq(SH2 *sh2, int level);
 void sh2_internal_irq(SH2 *sh2, int level, int vector);

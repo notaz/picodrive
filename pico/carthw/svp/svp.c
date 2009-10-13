@@ -99,6 +99,13 @@ void PicoSVPInit(void)
 {
 }
 
+static void PicoSVPExit(void)
+{
+#ifndef PSP
+	ssp1601_dyn_exit();
+#endif
+}
+
 
 void PicoSVPStartup(void)
 {
@@ -133,6 +140,7 @@ void PicoSVPStartup(void)
 	PicoDmaHook = PicoSVPDma;
 	PicoResetHook = PicoSVPReset;
 	PicoLineHook = PicoSVPLine;
+	PicoCartUnloadHook = PicoSVPExit;
 
 	// save state stuff
 	svp_states[0].ptr = svp->iram_rom;

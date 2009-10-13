@@ -13,6 +13,7 @@ void ssp_hle_11_384(void);
 void ssp_hle_11_38a(void);
 
 int  ssp1601_dyn_startup(void);
+void ssp1601_dyn_exit(void);
 void ssp1601_dyn_reset(ssp1601_t *ssp);
 void ssp1601_dyn_run(int cycles);
 

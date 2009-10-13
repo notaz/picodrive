@@ -38,6 +38,7 @@ void Pico32xStartup(void)
 {
   elprintf(EL_STATUS|EL_32X, "32X startup");
 
+  // TODO: OOM handling
   PicoAHW |= PAHW_32X;
   sh2_init(&msh2, 0);
   msh2.irq_callback = sh2_irq_cb;

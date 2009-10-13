@@ -243,10 +243,19 @@ extern SH2 sh2s[2];
 #define msh2 sh2s[0]
 #define ssh2 sh2s[1]
 
-#define ash2_end_run(after) if (sh2->icount > (after)) sh2->icount = after
-#define ash2_cycles_done() (sh2->cycles_aim - sh2->icount)
+#ifndef DRC_SH2
+# define ash2_end_run(after) if (sh2->icount > (after)) sh2->icount = after
+# define ash2_cycles_done() (sh2->cycles_aim - sh2->icount)
+#else
+# define ash2_end_run(after) { \
+   if ((sh2->sr >> 12) > (after)) \
+     { sh2->sr &= 0xfff; sh2->sr |= (after) << 12; } \
+}
+# define ash2_cycles_done() (sh2->cycles_aim - (sh2->sr >> 12))
+#endif
 
-#define sh2_pc(c)     (c) ? ssh2.ppc : msh2.ppc
+//#define sh2_pc(c)     (c) ? ssh2.ppc : msh2.ppc
+#define sh2_pc(c)     (c) ? ssh2.pc : msh2.pc
 #define sh2_reg(c, x) (c) ? ssh2.r[x] : msh2.r[x]
 #define sh2_gbr(c)    (c) ? ssh2.gbr : msh2.gbr
 #define sh2_vbr(c)    (c) ? ssh2.vbr : msh2.vbr

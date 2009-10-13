@@ -7,7 +7,13 @@
 #include "../../../cpu/drc/cmn.h"
 #include "compiler.h"
 
-#define u32 unsigned int
+// FIXME: asm has these hardcoded
+#define SSP_BLOCKTAB_ENTS       (0x5090/2)
+#define SSP_BLOCKTAB_IRAM_ONE   (0x800/2) // table entries
+#define SSP_BLOCKTAB_IRAM_ENTS  (15*SSP_BLOCKTAB_IRAM_ONE)
+
+static u32 **ssp_block_table; // [0x5090/2];
+static u32 **ssp_block_table_iram; // [15][0x800/2];
 
 static u32 *tcache_ptr = NULL;
 
@@ -23,7 +29,7 @@ extern ssp1601_t *ssp;
 #define SSP_FLAG_N (1<<0xf)
 
 #ifndef ARM
-#define DUMP_BLOCK 0x0c9a
+//#define DUMP_BLOCK 0x0c9a
 void ssp_drc_next(void){}
 void ssp_drc_next_patch(void){}
 void ssp_drc_end(void){}
@@ -1677,7 +1683,9 @@ static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 		emit_jump(A_COND_AL, ssp_drc_next);
 	}
 	else if (cond == A_COND_AL) {
-		u32 *target = (pc < 0x400) ? ssp_block_table_iram[ssp->drc.iram_context][pc] : ssp_block_table[pc];
+		u32 *target = (pc < 0x400) ?
+			ssp_block_table_iram[ssp->drc.iram_context * SSP_BLOCKTAB_IRAM_ONE + pc] :
+			ssp_block_table[pc];
 		if (target != NULL)
 			emit_jump(A_COND_AL, target);
 		else {
@@ -1687,8 +1695,12 @@ static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 		}
 	}
 	else {
-		u32 *target1 = (pc     < 0x400) ? ssp_block_table_iram[ssp->drc.iram_context][pc] : ssp_block_table[pc];
-		u32 *target2 = (end_pc < 0x400) ? ssp_block_table_iram[ssp->drc.iram_context][end_pc] : ssp_block_table[end_pc];
+		u32 *target1 = (pc     < 0x400) ?
+			ssp_block_table_iram[ssp->drc.iram_context * SSP_BLOCKTAB_IRAM_ONE + pc] :
+			ssp_block_table[pc];
+		u32 *target2 = (end_pc < 0x400) ?
+			ssp_block_table_iram[ssp->drc.iram_context * SSP_BLOCKTAB_IRAM_ONE + end_pc] :
+			ssp_block_table[end_pc];
 		if (target1 != NULL)
 		     emit_jump(cond, target1);
 		if (target2 != NULL)
@@ -1754,7 +1766,7 @@ void *ssp_translate_block(int pc)
 	tr_flush_dirty_pmcrs();
 	emit_block_epilogue(ccount, end_cond, jump_pc, pc);
 
-	if (tcache_ptr - tcache > SSP_TCACHE_SIZE/4) {
+	if (tcache_ptr - tcache > DRC_TCACHE_SIZE/4) {
 		elprintf(EL_ANOMALY|EL_STATUS|EL_SVP, "tcache overflow!\n");
 		fflush(stdout);
 		exit(1);
@@ -1790,13 +1802,29 @@ static void ssp1601_state_load(void)
 	ssp->drc.iram_context = 0;
 }
 
+void ssp1601_dyn_exit(void)
+{
+	free(ssp_block_table);
+	free(ssp_block_table_iram);
+	ssp_block_table = ssp_block_table_iram = NULL;
+
+	drc_cmn_cleanup();
+}
+
 int ssp1601_dyn_startup(void)
 {
 	drc_cmn_init();
 
-	memset(tcache, 0, SSP_TCACHE_SIZE);
-	memset(ssp_block_table, 0, sizeof(ssp_block_table));
-	memset(ssp_block_table_iram, 0, sizeof(ssp_block_table_iram));
+	ssp_block_table = calloc(sizeof(ssp_block_table[0]), SSP_BLOCKTAB_ENTS);
+	if (ssp_block_table == NULL)
+		return -1;
+	ssp_block_table_iram = calloc(sizeof(ssp_block_table_iram[0]), SSP_BLOCKTAB_IRAM_ENTS);
+	if (ssp_block_table_iram == NULL) {
+		free(ssp_block_table);
+		return -1;
+	}
+
+	memset(tcache, 0, DRC_TCACHE_SIZE);
 	tcache_ptr = tcache;
 
 	PicoLoadStateHook = ssp1601_state_load;
@@ -1806,12 +1834,12 @@ int ssp1601_dyn_startup(void)
 	// hle'd blocks
 	ssp_block_table[0x800/2] = (void *) ssp_hle_800;
 	ssp_block_table[0x902/2] = (void *) ssp_hle_902;
-	ssp_block_table_iram[ 7][0x030/2] = (void *) ssp_hle_07_030;
-	ssp_block_table_iram[ 7][0x036/2] = (void *) ssp_hle_07_036;
-	ssp_block_table_iram[ 7][0x6d6/2] = (void *) ssp_hle_07_6d6;
-	ssp_block_table_iram[11][0x12c/2] = (void *) ssp_hle_11_12c;
-	ssp_block_table_iram[11][0x384/2] = (void *) ssp_hle_11_384;
-	ssp_block_table_iram[11][0x38a/2] = (void *) ssp_hle_11_38a;
+	ssp_block_table_iram[ 7 * SSP_BLOCKTAB_IRAM_ENTS + 0x030/2] = (void *) ssp_hle_07_030;
+	ssp_block_table_iram[ 7 * SSP_BLOCKTAB_IRAM_ENTS + 0x036/2] = (void *) ssp_hle_07_036;
+	ssp_block_table_iram[ 7 * SSP_BLOCKTAB_IRAM_ENTS + 0x6d6/2] = (void *) ssp_hle_07_6d6;
+	ssp_block_table_iram[11 * SSP_BLOCKTAB_IRAM_ENTS + 0x12c/2] = (void *) ssp_hle_11_12c;
+	ssp_block_table_iram[11 * SSP_BLOCKTAB_IRAM_ENTS + 0x384/2] = (void *) ssp_hle_11_384;
+	ssp_block_table_iram[11 * SSP_BLOCKTAB_IRAM_ENTS + 0x38a/2] = (void *) ssp_hle_11_38a;
 #endif
 
 	return 0;

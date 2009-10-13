@@ -1,12 +1,19 @@
 #include <string.h>
 #include "sh2.h"
+#include "compiler.h"
 
 #define I 0xf0
 
-void sh2_init(SH2 *sh2, int is_slave)
+int sh2_init(SH2 *sh2, int is_slave)
 {
+	int ret = 0;
+
 	memset(sh2, 0, sizeof(*sh2));
 	sh2->is_slave = is_slave;
+#ifdef DRC_SH2
+	ret = sh2_drc_init(sh2);
+#endif
+	return ret;
 }
 
 void sh2_reset(SH2 *sh2)

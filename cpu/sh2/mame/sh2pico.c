@@ -33,6 +33,8 @@ typedef unsigned char  UINT8;
 
 #include "sh2.c"
 
+#ifndef DRC_TMP
+
 void sh2_execute(SH2 *sh2_, int cycles)
 {
 	sh2 = sh2_;
@@ -95,4 +97,44 @@ void sh2_execute(SH2 *sh2_, int cycles)
 
 	sh2->cycles_done += cycles - sh2->icount;
 }
+
+#else // DRC_TMP
+
+// tmp
+void __attribute__((regparm(2))) sh2_do_op(SH2 *sh2_, int opcode)
+{
+	sh2 = sh2_;
+	sh2->pc += 2;
+
+	switch (opcode & ( 15 << 12))
+	{
+		case  0<<12: op0000(opcode); break;
+		case  1<<12: op0001(opcode); break;
+		case  2<<12: op0010(opcode); break;
+		case  3<<12: op0011(opcode); break;
+		case  4<<12: op0100(opcode); break;
+		case  5<<12: op0101(opcode); break;
+		case  6<<12: op0110(opcode); break;
+		case  7<<12: op0111(opcode); break;
+		case  8<<12: op1000(opcode); break;
+		case  9<<12: op1001(opcode); break;
+		case 10<<12: op1010(opcode); break;
+		case 11<<12: op1011(opcode); break;
+		case 12<<12: op1100(opcode); break;
+		case 13<<12: op1101(opcode); break;
+		case 14<<12: op1110(opcode); break;
+		default: op1111(opcode); break;
+	}
+
+	if (sh2->test_irq)
+	{
+		if (sh2->pending_irl > sh2->pending_int_irq)
+			sh2_irl_irq(sh2, sh2->pending_irl);
+		else
+			sh2_internal_irq(sh2, sh2->pending_int_irq, sh2->pending_int_vector);
+		sh2->test_irq = 0;
+	}
+}
+
+#endif
 
