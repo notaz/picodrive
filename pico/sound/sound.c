@@ -247,7 +247,7 @@ PICO_INTERNAL void cdda_start_play(void)
   lba_offset += Pico_mcd->TOC.Tracks[index].Offset;
 
   // find the actual file for this track
-  for (i = index; i >= 0; i--)
+  for (i = index; i > 0; i--)
     if (Pico_mcd->TOC.Tracks[i].F != NULL) break;
 
   if (Pico_mcd->TOC.Tracks[i].F == NULL) {
