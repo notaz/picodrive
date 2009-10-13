@@ -1,3 +1,6 @@
+/*
+ * vim:shiftwidth=2:expandtab
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -6,7 +9,25 @@
 #include "compiler.h"
 #include "../drc/cmn.h"
 
+#ifndef DRC_DEBUG
+#define DRC_DEBUG 0
+#endif
+
+#if DRC_DEBUG
+#include "mame/sh2dasm.h"
+#include <platform/linux/host_dasm.h>
+static int insns_compiled, hash_collisions, host_insn_count;
+#endif
+#if (DRC_DEBUG & 2)
+static void *tcache_dsm_ptr = tcache;
+static char sh2dasm_buff[64];
+#endif
+
 #define BLOCK_CYCLE_LIMIT 100
+
+static void *tcache_ptr;
+
+#include "../drc/emit_x86.c"
 
 typedef enum {
   SHR_R0 = 0, SHR_R15 = 15,
@@ -20,28 +41,19 @@ typedef struct block_desc_ {
   struct block_desc_ *next;	// next block with the same PC hash
 } block_desc;
 
-#define MAX_BLOCK_COUNT 1024
+#define MAX_BLOCK_COUNT (4*1024)
 static block_desc *block_table;
 static int block_count;
 
 #define MAX_HASH_ENTRIES 1024
 #define HASH_MASK (MAX_HASH_ENTRIES - 1)
 
-#ifdef DRC_DEBUG
-#include "mame/sh2dasm.h"
-#include <platform/linux/host_dasm.h>
-static void *tcache_dsm_ptr = tcache;
-#endif
-
-static void *tcache_ptr;
-
-#include "../drc/emit_x86.c"
-
 extern void sh2_drc_entry(SH2 *sh2, void *block);
 extern void sh2_drc_exit(void);
 
 // tmp
 extern void __attribute__((regparm(2))) sh2_do_op(SH2 *sh2, int opcode);
+static void __attribute__((regparm(1))) sh2_test_irq(SH2 *sh2);
 
 static void *dr_find_block(block_desc *tab, u32 addr)
 {
@@ -121,17 +133,8 @@ static void emit_braf(sh2_reg_e reg, u32 pc)
     emith_move_r_r(0, host_reg);
   emith_add_r_imm(0, pc);
 
-  emith_ctx_write(0, SHR_PC * 4);
+  emith_ctx_write(0, SHR_PPC * 4);
 }
-
-// FIXME: this is broken, delayed insn shouldn't affect branch
-#define DELAYED_OP \
-  if (delayed_op < 0) { \
-    delayed_op = op; \
-    goto next_op; \
-  } \
-  delayed_op = -1; \
-  pc -= 2 /* adjust back */
 
 /*
 static int sh2_translate_op4(int op)
@@ -149,43 +152,52 @@ static int sh2_translate_op4(int op)
 }
 */
 
+#define DELAYED_OP \
+  delayed_op = 2
+
+#define CHECK_UNHANDLED_BITS(mask) { \
+  if ((op & (mask)) != 0) \
+    goto default_; \
+}
+
 static void *sh2_translate(SH2 *sh2, block_desc *other_block)
 {
   void *block_entry = tcache_ptr;
   block_desc *this_block;
   unsigned int pc = sh2->pc;
-  int op, delayed_op = -1;
+  int op, delayed_op = 0, test_irq = 0;
   int cycles = 0;
-  u32 tmp;
+  u32 tmp, tmp2;
 
   this_block = dr_add_block(pc, block_entry);
-  if (other_block != NULL) {
-    printf("hash collision between %08x and %08x\n", pc, other_block->addr);
+  if (other_block != NULL)
     this_block->next = other_block;
-  }
+
   HASH_FUNC(sh2->pc_hashtab, pc) = this_block;
 
-#ifdef DRC_DEBUG
-  printf("== %csh2 block #%d %08x %p\n", sh2->is_slave ? 's' : 'm',
+#if (DRC_DEBUG & 1)
+  printf("== %csh2 block #%d %08x -> %p\n", sh2->is_slave ? 's' : 'm',
     block_count, pc, block_entry);
+  if (other_block != NULL) {
+    printf(" hash collision with %08x\n", other_block->addr);
+    hash_collisions++;
+  }
 #endif
 
-  while (cycles < BLOCK_CYCLE_LIMIT)
+  while (cycles < BLOCK_CYCLE_LIMIT || delayed_op)
   {
-    if (delayed_op >= 0)
-      op = delayed_op;
-    else {
-next_op:
-      op = p32x_sh2_read16(pc, sh2->is_slave);
+    if (delayed_op > 0)
+      delayed_op--;
 
-#ifdef DRC_DEBUG
-      {
-        char buff[64];
-        DasmSH2(buff, pc, op);
-        printf("%08x %04x %s\n", pc, op, buff);
-      }
+    op = p32x_sh2_read16(pc, sh2->is_slave);
+
+#if (DRC_DEBUG & 3)
+    insns_compiled++;
+#if (DRC_DEBUG & 2)
+    DasmSH2(sh2dasm_buff, pc, op);
+    printf("%08x %04x %s\n", pc, op, sh2dasm_buff);
 #endif
-    }
+#endif
 
     pc += 2;
     cycles++;
@@ -193,60 +205,71 @@ next_op:
     switch ((op >> 12) & 0x0f)
     {
     case 0x00:
-      // RTS        0000000000001011
-      if (op == 0x000b) {
+      switch (op & 0x0f) {
+      case 0x03:
+        CHECK_UNHANDLED_BITS(0xd0);
+        // BRAF Rm    0000mmmm00100011
+        // BSRF Rm    0000mmmm00000011
         DELAYED_OP;
-        emit_move_r_r(SHR_PC, SHR_PR);
+        if (!(op & 0x20))
+          emit_move_r_imm32(SHR_PR, pc + 2);
+        emit_braf((op >> 8) & 0x0f, pc + 2);
         cycles++;
-        goto end_block;
-      }
-      // RTE        0000000000101011
-      if (op == 0x002b) {
+        goto end_op;
+      case 0x09:
+        CHECK_UNHANDLED_BITS(0xf0);
+        // NOP        0000000000001001
+        goto end_op;
+      case 0x0b:
+        CHECK_UNHANDLED_BITS(0xd0);
         DELAYED_OP;
-        cycles++;
-        //emit_move_r_r(SHR_PC, SHR_PR);
-        emit_move_r_imm32(SHR_PC, pc - 4);
-        emith_pass_arg(2, sh2, op);
-        emith_call(sh2_do_op);
-        goto end_block;
-      }
-      // BRAF Rm    0000mmmm00100011
-      if (op == 0x0023) {
-        DELAYED_OP;
-        cycles++;
-        emit_braf((op >> 8) & 0x0f, pc);
-        goto end_block;
-      }
-      // BSRF Rm    0000mmmm00000011
-      if (op == 0x0003) {
-        DELAYED_OP;
-        emit_move_r_imm32(SHR_PR, pc);
-        emit_braf((op >> 8) & 0x0f, pc);
-        cycles++;
-        goto end_block;
+        if (!(op & 0x20)) {
+          // RTS        0000000000001011
+          emit_move_r_r(SHR_PPC, SHR_PR);
+          cycles++;
+        } else {
+          // RTE        0000000000101011
+          //emit_move_r_r(SHR_PC, SHR_PR);
+          emit_move_r_imm32(SHR_PC, pc - 2);
+          emith_pass_arg(2, sh2, op);
+          emith_call(sh2_do_op);
+          emit_move_r_r(SHR_PPC, SHR_PC);
+          test_irq = 1;
+          cycles += 3;
+        }
+        goto end_op;
       }
       goto default_;
 
     case 0x04:
-      // JMP  @Rm   0100mmmm00101011
-      if ((op & 0xff) == 0x2b) {
+      switch (op & 0x0f) {
+      case 0x07:
+        if ((op & 0xf0) != 0)
+          goto default_;
+        // LDC.L @Rm+,SR  0100mmmm00000111
+        test_irq = 1;
+        goto default_;
+      case 0x0b:
+        if ((op & 0xd0) != 0)
+          goto default_;
+        // JMP  @Rm   0100mmmm00101011
+        // JSR  @Rm   0100mmmm00001011
         DELAYED_OP;
-        emit_move_r_r(SHR_PC, (op >> 8) & 0x0f);
+        if (!(op & 0x20))
+          emit_move_r_imm32(SHR_PR, pc + 2);
+        emit_move_r_r(SHR_PPC, (op >> 8) & 0x0f);
         cycles++;
-        goto end_block;
-      }
-      // JSR  @Rm   0100mmmm00001011
-      if ((op & 0xff) == 0x0b) {
-        DELAYED_OP;
-        emit_move_r_imm32(SHR_PR, pc);
-        emit_move_r_r(SHR_PC, (op >> 8) & 0x0f);
-        cycles++;
-        goto end_block;
+        goto end_op;
+      case 0x0e:
+        if ((op & 0xf0) != 0)
+          goto default_;
+        // LDC Rm,SR  0100mmmm00001110
+        test_irq = 1;
+        goto default_;
       }
       goto default_;
 
-    case 0x08: {
-      int adj = 2;
+    case 0x08:
       switch (op & 0x0f00) {
       // BT/S label 10001101dddddddd
       case 0x0d00:
@@ -254,35 +277,36 @@ next_op:
       case 0x0f00:
         DELAYED_OP;
         cycles--;
-        adj = 0;
         // fallthrough
       // BT   label 10001001dddddddd
       case 0x0900:
       // BF   label 10001011dddddddd
       case 0x0b00:
-        cycles += 2;
-        emit_move_r_imm32(SHR_PC, pc);
-        emith_test_t();
         tmp = ((signed int)(op << 24) >> 23);
-        EMIT_CONDITIONAL(emit_move_r_imm32(SHR_PC, pc + tmp + adj), (op & 0x0200) ? 1 : 0);
-        goto end_block;
+        tmp2 = delayed_op ? SHR_PPC : SHR_PC;
+        emit_move_r_imm32(tmp2, pc + (delayed_op ? 2 : 0));
+        emith_test_t();
+        EMIT_CONDITIONAL(emit_move_r_imm32(tmp2, pc + tmp + 2), (op & 0x0200) ? 1 : 0);
+        cycles += 2;
+        if (!delayed_op)
+          goto end_block;
+        goto end_op;
       }
       goto default_;
-    }
 
     case 0x0a:
       // BRA  label 1010dddddddddddd
       DELAYED_OP;
     do_bra:
       tmp = ((signed int)(op << 20) >> 19);
-      emit_move_r_imm32(SHR_PC, pc + tmp);
+      emit_move_r_imm32(SHR_PPC, pc + tmp + 2);
       cycles++;
-      goto end_block;
+      break;
 
     case 0x0b:
       // BSR  label 1011dddddddddddd
       DELAYED_OP;
-      emit_move_r_imm32(SHR_PR, pc);
+      emit_move_r_imm32(SHR_PR, pc + 2);
       goto do_bra;
 
     default:
@@ -293,7 +317,18 @@ next_op:
       break;
     }
 
-#ifdef DRC_DEBUG
+end_op:
+    if (delayed_op == 1) {
+      emit_move_r_r(SHR_PC, SHR_PPC);
+      break;
+    }
+    if (test_irq && delayed_op != 2) {
+      emith_pass_arg(1, sh2);
+      emith_call(sh2_test_irq);
+      break;
+    }
+
+#if (DRC_DEBUG & 2)
     host_dasm(tcache_dsm_ptr, (char *)tcache_ptr - (char *)tcache_dsm_ptr);
     tcache_dsm_ptr = tcache_ptr;
 #endif
@@ -312,15 +347,21 @@ end_block:
     emith_sub_r_imm(reg_map_g2h[SHR_SR], cycles << 12);
   emith_jump(sh2_drc_exit);
 
-#ifdef DRC_DEBUG
+#if (DRC_DEBUG & 2)
   host_dasm(tcache_dsm_ptr, (char *)tcache_ptr - (char *)tcache_dsm_ptr);
   tcache_dsm_ptr = tcache_ptr;
+#endif
+#if (DRC_DEBUG & 1)
+  printf(" tcache %d/%d, hash collisions %d/%d, insns %d -> %d %.3f\n",
+    (char *)tcache_ptr - (char *)tcache, DRC_TCACHE_SIZE,
+    hash_collisions, block_count, insns_compiled, host_insn_count,
+    (double)host_insn_count / insns_compiled);
 #endif
   return block_entry;
 
 unimplemented:
   // last op
-#ifdef DRC_DEBUG
+#if (DRC_DEBUG & 2)
   host_dasm(tcache_dsm_ptr, (char *)tcache_ptr - (char *)tcache_dsm_ptr);
   tcache_dsm_ptr = tcache_ptr;
 #endif
@@ -344,7 +385,7 @@ void __attribute__((noinline)) sh2_drc_dispatcher(SH2 *sh2)
     if (block == NULL)
       block = sh2_translate(sh2, bd);
 
-#ifdef DRC_DEBUG
+#if (DRC_DEBUG & 4)
     printf("= %csh2 enter %08x %p\n", sh2->is_slave ? 's' : 'm', sh2->pc, block);
 #endif
     sh2_drc_entry(sh2, block);
@@ -364,31 +405,29 @@ void sh2_execute(SH2 *sh2, int cycles)
   sh2->cycles_done += cycles - ((signed int)sh2->sr >> 12);
 }
 
-
-static int cmn_init_done;
-
-static int common_init(void)
+static void __attribute__((regparm(1))) sh2_test_irq(SH2 *sh2)
 {
-  block_count = 0;
-  block_table = calloc(MAX_BLOCK_COUNT, sizeof(*block_table));
-  if (block_table == NULL)
-    return -1;
-
-  tcache_ptr = tcache;
-
-  cmn_init_done = 1;
-  return 0;
+  if (sh2->pending_irl > sh2->pending_int_irq)
+    sh2_irl_irq(sh2, sh2->pending_irl);
+  else
+    sh2_internal_irq(sh2, sh2->pending_int_irq, sh2->pending_int_vector);
 }
 
 int sh2_drc_init(SH2 *sh2)
 {
-  if (!cmn_init_done) {
-    int ret = common_init();
-    if (ret)
-      return ret;
+  if (block_table == NULL) {
+    block_count = 0;
+    block_table = calloc(MAX_BLOCK_COUNT, sizeof(*block_table));
+    if (block_table == NULL)
+      return -1;
+
+    tcache_ptr = tcache;
+#if (DRC_DEBUG & 1)
+    hash_collisions = 0;
+#endif
   }
 
-  assert(sh2->pc_hashtab == NULL);
+  //assert(sh2->pc_hashtab == NULL);
   sh2->pc_hashtab = calloc(sizeof(sh2->pc_hashtab[0]), MAX_HASH_ENTRIES);
   if (sh2->pc_hashtab == NULL)
     return -1;
@@ -396,3 +435,13 @@ int sh2_drc_init(SH2 *sh2)
   return 0;
 }
 
+void sh2_drc_finish(SH2 *sh2)
+{
+  if (block_table != NULL) {
+    free(block_table);
+    block_table = NULL;
+  }
+
+  free(sh2->pc_hashtab);
+  sh2->pc_hashtab = NULL;
+}

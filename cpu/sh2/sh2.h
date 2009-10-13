@@ -44,6 +44,7 @@ typedef struct
 extern SH2 *sh2; // active sh2
 
 int  sh2_init(SH2 *sh2, int is_slave);
+void sh2_finish(SH2 *sh2);
 void sh2_reset(SH2 *sh2);
 void sh2_irl_irq(SH2 *sh2, int level);
 void sh2_internal_irq(SH2 *sh2, int level, int vector);

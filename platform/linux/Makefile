@@ -81,7 +81,7 @@ OBJS += cpu/sh2/mame/sh2pico.o
 OBJS += cpu/sh2/compiler.o
 OBJS += cpu/sh2/stub_x86.o
 ifeq "$(drc_debug)" "1"
-DEFINES += DRC_DEBUG
+DEFINES += DRC_DEBUG=1
 OBJS += cpu/sh2/mame/sh2dasm.o
 OBJS += host_dasm.o
 LDFLAGS += -lbfd -lopcodes

@@ -125,15 +125,6 @@ void __attribute__((regparm(2))) sh2_do_op(SH2 *sh2_, int opcode)
 		case 14<<12: op1110(opcode); break;
 		default: op1111(opcode); break;
 	}
-
-	if (sh2->test_irq)
-	{
-		if (sh2->pending_irl > sh2->pending_int_irq)
-			sh2_irl_irq(sh2, sh2->pending_irl);
-		else
-			sh2_internal_irq(sh2, sh2->pending_int_irq, sh2->pending_int_vector);
-		sh2->test_irq = 0;
-	}
 }
 
 #endif

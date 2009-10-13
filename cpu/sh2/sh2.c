@@ -16,6 +16,13 @@ int sh2_init(SH2 *sh2, int is_slave)
 	return ret;
 }
 
+void sh2_finish(SH2 *sh2)
+{
+#ifdef DRC_SH2
+	sh2_drc_finish(sh2);
+#endif
+}
+
 void sh2_reset(SH2 *sh2)
 {
 	sh2->pc = p32x_sh2_read32(0, sh2->is_slave);

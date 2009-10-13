@@ -1,5 +1,12 @@
 #include <stdarg.h>
 
+#if (DRC_DEBUG & 1)
+#define COUNT_OP \
+	host_insn_count++
+#else
+#define COUNT_OP
+#endif
+
 // TODO: move
 static int reg_map_g2h[] = {
 	-1, -1, -1, -1,
@@ -20,11 +27,16 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	tcache_ptr = (char *)tcache_ptr + sizeof(type); \
 }
 
+#define EMIT_OP(op) { \
+	COUNT_OP; \
+	EMIT(op, u8); \
+}
+
 #define EMIT_MODRM(mod,r,rm) \
 	EMIT(((mod)<<6) | ((r)<<3) | (rm), u8)
 
 #define EMIT_OP_MODRM(op,mod,r,rm) { \
-	EMIT(op, u8); \
+	EMIT_OP(op); \
 	EMIT_MODRM(mod, r, rm); \
 }
 
@@ -32,7 +44,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_OP_MODRM(0x8b, 3, dst, src)
 
 #define emith_move_r_imm(r, imm) { \
-	EMIT(0xb8 + (r), u8); \
+	EMIT_OP(0xb8 + (r)); \
 	EMIT(imm, u32); \
 }
 
@@ -65,26 +77,24 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_test_t() { \
 	if (reg_map_g2h[SHR_SR] == -1) { \
-		EMIT(0xf6, u8); \
-		EMIT_MODRM(1, 0, 5); \
+		EMIT_OP_MODRM(0xf6, 1, 0, 5); \
 		EMIT(SHR_SR * 4, u8); \
 		EMIT(0x01, u8); /* test [ebp+SHR_SR], byte 1 */ \
 	} else { \
-		EMIT(0xf7, u8); \
-		EMIT_MODRM(3, 0, reg_map_g2h[SHR_SR]); \
+		EMIT_OP_MODRM(0xf7, 3, 0, reg_map_g2h[SHR_SR]); \
 		EMIT(0x01, u16); /* test <reg>, word 1 */ \
 	} \
 }
 
 #define emith_jump(ptr) { \
 	u32 disp = (u32)ptr - ((u32)tcache_ptr + 5); \
-	EMIT(0xe9, u8); \
+	EMIT_OP(0xe9); \
 	EMIT(disp, u32); \
 }
 
 #define emith_call(ptr) { \
 	u32 disp = (u32)ptr - ((u32)tcache_ptr + 5); \
-	EMIT(0xe8, u8); \
+	EMIT_OP(0xe8); \
 	EMIT(disp, u32); \
 }
 

@@ -122,6 +122,8 @@ void PicoUnload32x(void)
   if (Pico32xMem != NULL)
     free(Pico32xMem);
   Pico32xMem = NULL;
+  sh2_finish(&msh2);
+  sh2_finish(&ssh2);
 
   PicoAHW &= ~PAHW_32X;
 }
