@@ -118,7 +118,6 @@ OBJS += cpu/sh2/mame/sh2pico.o
 else
 endif
 OBJS += cpu/drc/cmn.o
-OBJS += cpu/drc/cmn_arm.o
 
 vpath %.c = ../..
 vpath %.s = ../..
