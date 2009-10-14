@@ -259,7 +259,7 @@ extern SH2 sh2s[2];
 #define sh2_reg(c, x) (c) ? ssh2.r[x] : msh2.r[x]
 #define sh2_gbr(c)    (c) ? ssh2.gbr : msh2.gbr
 #define sh2_vbr(c)    (c) ? ssh2.vbr : msh2.vbr
-#define sh2_sr(c)     (c) ? ssh2.sr : msh2.sr
+#define sh2_sr(c)   (((c) ? ssh2.sr : msh2.sr) & 0xfff)
 
 #define sh2_set_gbr(c, v) \
   { if (c) ssh2.gbr = v; else msh2.gbr = v; }

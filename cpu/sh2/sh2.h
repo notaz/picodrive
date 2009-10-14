@@ -31,6 +31,7 @@ typedef struct
 	void	**pc_hashtab;		// 70
 
 	// common
+	int	pending_level;		// MAX(pending_irl, pending_int_irq)
 	int	pending_irl;
 	int	pending_int_irq;	// internal irq
 	int	pending_int_vector;
@@ -48,6 +49,7 @@ void sh2_finish(SH2 *sh2);
 void sh2_reset(SH2 *sh2);
 void sh2_irl_irq(SH2 *sh2, int level);
 void sh2_internal_irq(SH2 *sh2, int level, int vector);
+void sh2_do_irq(SH2 *sh2, int level, int vector);
 
 void sh2_execute(SH2 *sh2, int cycles);
 

@@ -318,15 +318,16 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
     }
 
 end_op:
-    if (delayed_op == 1) {
+    if (delayed_op == 1)
       emit_move_r_r(SHR_PC, SHR_PPC);
-      break;
-    }
+
     if (test_irq && delayed_op != 2) {
       emith_pass_arg(1, sh2);
       emith_call(sh2_test_irq);
       break;
     }
+    if (delayed_op == 1)
+      break;
 
 #if (DRC_DEBUG & 2)
     host_dasm(tcache_dsm_ptr, (char *)tcache_ptr - (char *)tcache_dsm_ptr);
@@ -372,8 +373,13 @@ void __attribute__((noinline)) sh2_drc_dispatcher(SH2 *sh2)
 {
   while (((signed int)sh2->sr >> 12) > 0)
   {
-    block_desc *bd = HASH_FUNC(sh2->pc_hashtab, sh2->pc);
     void *block = NULL;
+    block_desc *bd;
+
+    // FIXME: must avoid doing it so often..
+    sh2_test_irq(sh2);
+
+    bd = HASH_FUNC(sh2->pc_hashtab, sh2->pc);
 
     if (bd != NULL) {
       if (bd->addr == sh2->pc)
@@ -407,10 +413,16 @@ void sh2_execute(SH2 *sh2, int cycles)
 
 static void __attribute__((regparm(1))) sh2_test_irq(SH2 *sh2)
 {
-  if (sh2->pending_irl > sh2->pending_int_irq)
-    sh2_irl_irq(sh2, sh2->pending_irl);
-  else
-    sh2_internal_irq(sh2, sh2->pending_int_irq, sh2->pending_int_vector);
+  if (sh2->pending_level > ((sh2->sr >> 4) & 0x0f))
+  {
+    if (sh2->pending_irl > sh2->pending_int_irq)
+      sh2_do_irq(sh2, sh2->pending_irl, 64 + sh2->pending_irl/2);
+    else {
+      sh2_do_irq(sh2, sh2->pending_int_irq, sh2->pending_int_vector);
+      sh2->pending_int_irq = 0; // auto-clear
+      sh2->pending_level = sh2->pending_irl;
+    }
+  }
 }
 
 int sh2_drc_init(SH2 *sh2)

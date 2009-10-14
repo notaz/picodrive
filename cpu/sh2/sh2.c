@@ -32,7 +32,7 @@ void sh2_reset(SH2 *sh2)
 	sh2->pending_int_irq = 0;
 }
 
-static void sh2_do_irq(SH2 *sh2, int level, int vector)
+void sh2_do_irq(SH2 *sh2, int level, int vector)
 {
 	sh2->irq_callback(sh2->is_slave, level);
 
@@ -55,20 +55,23 @@ static void sh2_do_irq(SH2 *sh2, int level, int vector)
 void sh2_irl_irq(SH2 *sh2, int level)
 {
 	sh2->pending_irl = level;
-	if (level <= ((sh2->sr >> 4) & 0x0f))
-		return;
+	if (level > sh2->pending_int_irq)
+		sh2->pending_level = level;
+	else
+		sh2->pending_level = sh2->pending_int_irq;
 
-	sh2_do_irq(sh2, level, 64 + level/2);
+	sh2->test_irq = 1;
 }
 
 void sh2_internal_irq(SH2 *sh2, int level, int vector)
 {
+	// FIXME: multiple internal irqs not handled..
+	// assuming internal irqs never clear until accepted
 	sh2->pending_int_irq = level;
 	sh2->pending_int_vector = vector;
-	if (level <= ((sh2->sr >> 4) & 0x0f))
-		return;
+	if (level > sh2->pending_level)
+		sh2->pending_level = level;
 
-	sh2_do_irq(sh2, level, vector);
-	sh2->pending_int_irq = 0; // auto-clear
+	sh2->test_irq = 1;
 }
 
