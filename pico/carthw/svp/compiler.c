@@ -1834,12 +1834,12 @@ int ssp1601_dyn_startup(void)
 	// hle'd blocks
 	ssp_block_table[0x800/2] = (void *) ssp_hle_800;
 	ssp_block_table[0x902/2] = (void *) ssp_hle_902;
-	ssp_block_table_iram[ 7 * SSP_BLOCKTAB_IRAM_ENTS + 0x030/2] = (void *) ssp_hle_07_030;
-	ssp_block_table_iram[ 7 * SSP_BLOCKTAB_IRAM_ENTS + 0x036/2] = (void *) ssp_hle_07_036;
-	ssp_block_table_iram[ 7 * SSP_BLOCKTAB_IRAM_ENTS + 0x6d6/2] = (void *) ssp_hle_07_6d6;
-	ssp_block_table_iram[11 * SSP_BLOCKTAB_IRAM_ENTS + 0x12c/2] = (void *) ssp_hle_11_12c;
-	ssp_block_table_iram[11 * SSP_BLOCKTAB_IRAM_ENTS + 0x384/2] = (void *) ssp_hle_11_384;
-	ssp_block_table_iram[11 * SSP_BLOCKTAB_IRAM_ENTS + 0x38a/2] = (void *) ssp_hle_11_38a;
+	ssp_block_table_iram[ 7 * SSP_BLOCKTAB_IRAM_ONE + 0x030/2] = (void *) ssp_hle_07_030;
+	ssp_block_table_iram[ 7 * SSP_BLOCKTAB_IRAM_ONE + 0x036/2] = (void *) ssp_hle_07_036;
+	ssp_block_table_iram[ 7 * SSP_BLOCKTAB_IRAM_ONE + 0x6d6/2] = (void *) ssp_hle_07_6d6;
+	ssp_block_table_iram[11 * SSP_BLOCKTAB_IRAM_ONE + 0x12c/2] = (void *) ssp_hle_11_12c;
+	ssp_block_table_iram[11 * SSP_BLOCKTAB_IRAM_ONE + 0x384/2] = (void *) ssp_hle_11_384;
+	ssp_block_table_iram[11 * SSP_BLOCKTAB_IRAM_ONE + 0x38a/2] = (void *) ssp_hle_11_38a;
 #endif
 
 	return 0;

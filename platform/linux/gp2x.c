@@ -388,7 +388,9 @@ void plat_video_menu_end(void)
 
 void plat_validate_config(void)
 {
+	extern int PicoOpt;
 //	PicoOpt &= ~POPT_EXT_FM;
+	PicoOpt &= ~(1<<17); // POPT_EN_SVP_DRC
 }
 
 void plat_early_init(void)

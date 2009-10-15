@@ -7,6 +7,7 @@
 
 
 #include "../../pico_int.h"
+#include "../../cpu/drc/cmn.h"
 #include "compiler.h"
 
 svp_t *svp = NULL;
@@ -97,6 +98,11 @@ static int PicoSVPDma(unsigned int source, int len, unsigned short **srcp, unsig
 
 void PicoSVPInit(void)
 {
+#ifndef PSP
+	// this is to unmap tcache and make
+	// mem available for large ROMs, MCD, etc.
+	drc_cmn_cleanup();
+#endif
 }
 
 static void PicoSVPExit(void)

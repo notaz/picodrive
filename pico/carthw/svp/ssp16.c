@@ -647,14 +647,14 @@ static void write_XST(u32 d)
 static u32 read_PM4(void)
 {
 	u32 d = pm_io(4, 0, 0);
-/* TODO?
+
 	if (d == 0) {
 		switch (GET_PPC_OFFS()) {
 			case 0x0854: ssp->emu_status |= SSP_WAIT_30FE08; elprintf(EL_SVP, "det TIGHT loop: [30fe08]"); break;
 			case 0x4f12: ssp->emu_status |= SSP_WAIT_30FE06; elprintf(EL_SVP, "det TIGHT loop: [30fe06]"); break;
 		}
 	}
-*/
+
 	if (d != (u32)-1) return d;
 	// can be removed?
 	elprintf(EL_SVP|EL_ANOMALY, "PM4 raw r %04x @ %04x", rPM4, GET_PPC_OFFS());
