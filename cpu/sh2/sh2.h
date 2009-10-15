@@ -1,16 +1,6 @@
 #ifndef __SH2_H__
 #define __SH2_H__
 
-// pico memhandlers
-// XXX: move somewhere else
-unsigned int p32x_sh2_read8(unsigned int a, int id);
-unsigned int p32x_sh2_read16(unsigned int a, int id);
-unsigned int p32x_sh2_read32(unsigned int a, int id);
-void p32x_sh2_write8(unsigned int a, unsigned int d, int id);
-void p32x_sh2_write16(unsigned int a, unsigned int d, int id);
-void p32x_sh2_write32(unsigned int a, unsigned int d, int id);
-
-
 typedef struct
 {
 	unsigned int	r[16];		// 00
@@ -27,10 +17,15 @@ typedef struct
 	unsigned int	delay;
 	unsigned int	test_irq;
 
-	// drc stuff
-	void	**pc_hashtab;		// 70
-
 	// common
+	void	*read8_map;		// 70
+	void	*read16_map;
+	void	*write8_map;
+	void	*write16_map;
+
+	// drc stuff
+	void	**pc_hashtab;		// 80
+
 	int	pending_level;		// MAX(pending_irl, pending_int_irq)
 	int	pending_irl;
 	int	pending_int_irq;	// internal irq
@@ -52,5 +47,14 @@ void sh2_internal_irq(SH2 *sh2, int level, int vector);
 void sh2_do_irq(SH2 *sh2, int level, int vector);
 
 void sh2_execute(SH2 *sh2, int cycles);
+
+// pico memhandlers
+// XXX: move somewhere else
+unsigned int p32x_sh2_read8(unsigned int a, SH2 *sh2);
+unsigned int p32x_sh2_read16(unsigned int a, SH2 *sh2);
+unsigned int p32x_sh2_read32(unsigned int a, SH2 *sh2);
+void p32x_sh2_write8(unsigned int a, unsigned int d, SH2 *sh2);
+void p32x_sh2_write16(unsigned int a, unsigned int d, SH2 *sh2);
+void p32x_sh2_write32(unsigned int a, unsigned int d, SH2 *sh2);
 
 #endif /* __SH2_H__ */

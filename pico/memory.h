@@ -3,25 +3,26 @@
 typedef unsigned char  u8;
 typedef unsigned short u16;
 typedef unsigned int   u32;
+typedef unsigned long  uptr; // unsigned pointer-sized int
 
 #define M68K_MEM_SHIFT 16
 // minimum size we can map
 #define M68K_BANK_SIZE (1 << M68K_MEM_SHIFT)
 #define M68K_BANK_MASK (M68K_BANK_SIZE - 1)
 
-extern unsigned long m68k_read8_map  [0x1000000 >> M68K_MEM_SHIFT];
-extern unsigned long m68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
-extern unsigned long m68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
-extern unsigned long m68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
+extern uptr m68k_read8_map  [0x1000000 >> M68K_MEM_SHIFT];
+extern uptr m68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
+extern uptr m68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
+extern uptr m68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
 
-extern unsigned long s68k_read8_map  [0x1000000 >> M68K_MEM_SHIFT];
-extern unsigned long s68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
-extern unsigned long s68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
-extern unsigned long s68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
+extern uptr s68k_read8_map  [0x1000000 >> M68K_MEM_SHIFT];
+extern uptr s68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
+extern uptr s68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
+extern uptr s68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
 
-void z80_map_set(unsigned long *map, int start_addr, int end_addr,
+void z80_map_set(uptr *map, int start_addr, int end_addr,
     const void *func_or_mh, int is_func);
-void cpu68k_map_set(unsigned long *map, int start_addr, int end_addr,
+void cpu68k_map_set(uptr *map, int start_addr, int end_addr,
     const void *func_or_mh, int is_func);
 void cpu68k_map_all_ram(int start_addr, int end_addr, void *ptr, int is_sub);
 void m68k_map_unmap(int start_addr, int end_addr);
@@ -35,7 +36,7 @@ typedef void (cpu68k_write_f)(u32 a, u32 d);
 #define MAKE_68K_READ8(name, map)               \
 u32 name(u32 a)                                 \
 {                                               \
-  unsigned long v;                              \
+  uptr v;                                       \
   a &= 0x00ffffff;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
   if (v & 0x80000000)                           \
@@ -47,7 +48,7 @@ u32 name(u32 a)                                 \
 #define MAKE_68K_READ16(name, map)              \
 u32 name(u32 a)                                 \
 {                                               \
-  unsigned long v;                              \
+  uptr v;                                       \
   a &= 0x00fffffe;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
   if (v & 0x80000000)                           \
@@ -59,7 +60,7 @@ u32 name(u32 a)                                 \
 #define MAKE_68K_READ32(name, map)              \
 u32 name(u32 a)                                 \
 {                                               \
-  unsigned long v, vs;                          \
+  uptr v, vs;                                   \
   u32 d;                                        \
   a &= 0x00fffffe;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
@@ -78,7 +79,7 @@ u32 name(u32 a)                                 \
 #define MAKE_68K_WRITE8(name, map)              \
 void name(u32 a, u8 d)                          \
 {                                               \
-  unsigned long v;                              \
+  uptr v;                                       \
   a &= 0x00ffffff;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
   if (v & 0x80000000)                           \
@@ -90,7 +91,7 @@ void name(u32 a, u8 d)                          \
 #define MAKE_68K_WRITE16(name, map)             \
 void name(u32 a, u16 d)                         \
 {                                               \
-  unsigned long v;                              \
+  uptr v;                                       \
   a &= 0x00fffffe;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
   if (v & 0x80000000)                           \
@@ -102,7 +103,7 @@ void name(u32 a, u16 d)                         \
 #define MAKE_68K_WRITE32(name, map)             \
 void name(u32 a, u32 d)                         \
 {                                               \
-  unsigned long v, vs;                          \
+  uptr v, vs;                                   \
   a &= 0x00fffffe;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
   vs = v << 1;                                  \

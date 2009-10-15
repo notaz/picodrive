@@ -15,15 +15,15 @@
 
 extern unsigned int lastSSRamWrite; // used by serial eeprom code
 
-unsigned long m68k_read8_map  [0x1000000 >> M68K_MEM_SHIFT];
-unsigned long m68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
-unsigned long m68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
-unsigned long m68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
+uptr m68k_read8_map  [0x1000000 >> M68K_MEM_SHIFT];
+uptr m68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
+uptr m68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
+uptr m68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
 
-static void xmap_set(unsigned long *map, int shift, int start_addr, int end_addr,
+static void xmap_set(uptr *map, int shift, int start_addr, int end_addr,
     const void *func_or_mh, int is_func)
 {
-  unsigned long addr = (unsigned long)func_or_mh;
+  uptr addr = (uptr)func_or_mh;
   int mask = (1 << shift) - 1;
   int i;
 
@@ -48,13 +48,13 @@ static void xmap_set(unsigned long *map, int shift, int start_addr, int end_addr
   }
 }
 
-void z80_map_set(unsigned long *map, int start_addr, int end_addr,
+void z80_map_set(uptr *map, int start_addr, int end_addr,
     const void *func_or_mh, int is_func)
 {
   xmap_set(map, Z80_MEM_SHIFT, start_addr, end_addr, func_or_mh, is_func);
 }
 
-void cpu68k_map_set(unsigned long *map, int start_addr, int end_addr,
+void cpu68k_map_set(uptr *map, int start_addr, int end_addr,
     const void *func_or_mh, int is_func)
 {
   xmap_set(map, M68K_MEM_SHIFT, start_addr, end_addr, func_or_mh, is_func);
@@ -63,8 +63,8 @@ void cpu68k_map_set(unsigned long *map, int start_addr, int end_addr,
 // more specialized/optimized function (does same as above)
 void cpu68k_map_all_ram(int start_addr, int end_addr, void *ptr, int is_sub)
 {
-  unsigned long *r8map, *r16map, *w8map, *w16map;
-  unsigned long addr = (unsigned long)ptr;
+  uptr *r8map, *r16map, *w8map, *w16map;
+  uptr addr = (uptr)ptr;
   int shift = M68K_MEM_SHIFT;
   int i;
 
@@ -110,23 +110,23 @@ static void m68k_unmapped_write16(u32 a, u32 d)
 
 void m68k_map_unmap(int start_addr, int end_addr)
 {
-  unsigned long addr;
+  uptr addr;
   int shift = M68K_MEM_SHIFT;
   int i;
 
-  addr = (unsigned long)m68k_unmapped_read8;
+  addr = (uptr)m68k_unmapped_read8;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
     m68k_read8_map[i] = (addr >> 1) | (1 << 31);
 
-  addr = (unsigned long)m68k_unmapped_read16;
+  addr = (uptr)m68k_unmapped_read16;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
     m68k_read16_map[i] = (addr >> 1) | (1 << 31);
 
-  addr = (unsigned long)m68k_unmapped_write8;
+  addr = (uptr)m68k_unmapped_write8;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
     m68k_write8_map[i] = (addr >> 1) | (1 << 31);
 
-  addr = (unsigned long)m68k_unmapped_write16;
+  addr = (uptr)m68k_unmapped_write16;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
     m68k_write16_map[i] = (addr >> 1) | (1 << 31);
 }

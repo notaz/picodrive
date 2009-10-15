@@ -8,12 +8,12 @@ typedef unsigned int   UINT32;
 typedef unsigned short UINT16;
 typedef unsigned char  UINT8;
 
-#define RB(a) p32x_sh2_read8(a,sh2->is_slave)
-#define RW(a) p32x_sh2_read16(a,sh2->is_slave)
-#define RL(a) p32x_sh2_read32(a,sh2->is_slave)
-#define WB(a,d) p32x_sh2_write8(a,d,sh2->is_slave)
-#define WW(a,d) p32x_sh2_write16(a,d,sh2->is_slave)
-#define WL(a,d) p32x_sh2_write32(a,d,sh2->is_slave)
+#define RB(a) p32x_sh2_read8(a,sh2)
+#define RW(a) p32x_sh2_read16(a,sh2)
+#define RL(a) p32x_sh2_read32(a,sh2)
+#define WB(a,d) p32x_sh2_write8(a,d,sh2)
+#define WW(a,d) p32x_sh2_write16(a,d,sh2)
+#define WL(a,d) p32x_sh2_write32(a,d,sh2)
 
 // some stuff from sh2comn.h
 #define T	0x00000001

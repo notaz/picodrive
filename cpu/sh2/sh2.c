@@ -25,8 +25,8 @@ void sh2_finish(SH2 *sh2)
 
 void sh2_reset(SH2 *sh2)
 {
-	sh2->pc = p32x_sh2_read32(0, sh2->is_slave);
-	sh2->r[15] = p32x_sh2_read32(4, sh2->is_slave);
+	sh2->pc = p32x_sh2_read32(0, sh2);
+	sh2->r[15] = p32x_sh2_read32(4, sh2);
 	sh2->sr = I;
 	sh2->vbr = 0;
 	sh2->pending_int_irq = 0;
@@ -37,15 +37,15 @@ void sh2_do_irq(SH2 *sh2, int level, int vector)
 	sh2->irq_callback(sh2->is_slave, level);
 
 	sh2->r[15] -= 4;
-	p32x_sh2_write32(sh2->r[15], sh2->sr, sh2->is_slave);	/* push SR onto stack */
+	p32x_sh2_write32(sh2->r[15], sh2->sr, sh2);	/* push SR onto stack */
 	sh2->r[15] -= 4;
-	p32x_sh2_write32(sh2->r[15], sh2->pc, sh2->is_slave);	/* push PC onto stack */
+	p32x_sh2_write32(sh2->r[15], sh2->pc, sh2);	/* push PC onto stack */
 
 	/* set I flags in SR */
 	sh2->sr = (sh2->sr & ~I) | (level << 4);
 
 	/* fetch PC */
-	sh2->pc = p32x_sh2_read32(sh2->vbr + vector * 4, sh2->is_slave);
+	sh2->pc = p32x_sh2_read32(sh2->vbr + vector * 4, sh2);
 
 	/* 13 cycles at best */
 	sh2->cycles_done += 13;
