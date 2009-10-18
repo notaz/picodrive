@@ -18,13 +18,13 @@ typedef struct
 	unsigned int	test_irq;
 
 	// common
-	void	*read8_map;		// 70
-	void	*read16_map;
-	void	*write8_map;
-	void	*write16_map;
+	const void	*read8_map;	// 70
+	const void	*read16_map;
+	const void	**write8_tab;
+	const void	**write16_tab;
 
 	// drc stuff
-	void	**pc_hashtab;		// 80
+	//void	**pc_hashtab;		// 80
 
 	int	pending_level;		// MAX(pending_irl, pending_int_irq)
 	int	pending_irl;

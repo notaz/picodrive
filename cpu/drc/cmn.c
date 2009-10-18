@@ -5,7 +5,7 @@
 
 #include "cmn.h"
 
-u32 __attribute__((aligned(4096))) tcache[DRC_TCACHE_SIZE/4];
+u8 __attribute__((aligned(4096))) tcache[DRC_TCACHE_SIZE];
 
 
 void drc_cmn_init(void)

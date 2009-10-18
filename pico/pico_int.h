@@ -472,6 +472,9 @@ typedef struct
 #define DMAC_FIFO_LEN (4*4)
 #define PWM_BUFF_LEN 1024 // in one channel samples
 
+#define SH2_DRCBLK_RAM_SHIFT 1
+#define SH2_DRCBLK_DA_SHIFT  1
+
 struct Pico32x
 {
   unsigned short regs[0x20];
@@ -491,9 +494,15 @@ struct Pico32x
 struct Pico32xMem
 {
   unsigned char  sdram[0x40000];
+#ifdef DRC_SH2
+  unsigned short drcblk_ram[1 << (18 - SH2_DRCBLK_RAM_SHIFT)];
+#endif
   unsigned short dram[2][0x20000/2];    // AKA fb
   unsigned char  m68k_rom[0x10000];     // 0x100; using M68K_BANK_SIZE
   unsigned char  data_array[2][0x1000]; // cache in SH2s (can be used as RAM)
+#ifdef DRC_SH2
+  unsigned short drcblk_da[2][1 << (12 - SH2_DRCBLK_DA_SHIFT)];
+#endif
   unsigned char  sh2_rom_m[0x800];
   unsigned char  sh2_rom_s[0x400];
   unsigned short pal[0x100];
@@ -726,6 +735,10 @@ static __inline int isspace_(int c)
 {
 	return (0x09 <= c && c <= 0x0d) || c == ' ';
 }
+
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+#endif
 
 // emulation event logging
 #ifndef EL_LOGMASK

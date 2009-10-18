@@ -1766,7 +1766,7 @@ void *ssp_translate_block(int pc)
 	tr_flush_dirty_pmcrs();
 	emit_block_epilogue(ccount, end_cond, jump_pc, pc);
 
-	if (tcache_ptr - tcache > DRC_TCACHE_SIZE/4) {
+	if (tcache_ptr - (u32 *)tcache > DRC_TCACHE_SIZE/4) {
 		elprintf(EL_ANOMALY|EL_STATUS|EL_SVP, "tcache overflow!\n");
 		fflush(stdout);
 		exit(1);
@@ -1825,7 +1825,7 @@ int ssp1601_dyn_startup(void)
 	}
 
 	memset(tcache, 0, DRC_TCACHE_SIZE);
-	tcache_ptr = tcache;
+	tcache_ptr = (void *)tcache;
 
 	PicoLoadStateHook = ssp1601_state_load;
 

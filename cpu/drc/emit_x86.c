@@ -7,6 +7,8 @@
 #define COUNT_OP
 #endif
 
+enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
+
 // TODO: move
 static int reg_map_g2h[] = {
 	-1, -1, -1, -1,
@@ -17,14 +19,14 @@ static int reg_map_g2h[] = {
 	-1, -1, -1, -1,
 };
 
-enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
+#define CONTEXT_REG xBP
 
 #define EMIT_PTR(ptr, val, type) \
 	*(type *)(ptr) = val
 
 #define EMIT(val, type) { \
 	EMIT_PTR(tcache_ptr, val, type); \
-	tcache_ptr = (char *)tcache_ptr + sizeof(type); \
+	tcache_ptr += sizeof(type); \
 }
 
 #define EMIT_OP(op) { \
@@ -99,32 +101,29 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 }
 
 #define EMIT_CONDITIONAL(code, is_nonzero) { \
-	char *ptr = tcache_ptr; \
-	tcache_ptr = (char *)tcache_ptr + 2; \
+	u8 *ptr = tcache_ptr; \
+	tcache_ptr = tcache_ptr + 2; \
 	code; \
 	EMIT_PTR(ptr, ((is_nonzero) ? 0x75 : 0x74), u8); \
-	EMIT_PTR(ptr + 1, ((char *)tcache_ptr - (ptr + 2)), u8); \
+	EMIT_PTR(ptr + 1, (tcache_ptr - (ptr + 2)), u8); \
 }
 
-static void emith_pass_arg(int count, ...)
-{
-	va_list vl;
-	int i;
-
-	va_start(vl, count);
-
-	for (i = 0; i < count; i++) {
-		long av = va_arg(vl, long);
-		int r = 7;
-
-		switch (i) {
-		case 0: r = xAX; break;
-		case 1: r = xDX; break;
-		case 2: r = xCX; break;
-		}
-		emith_move_r_imm(r, av);
+#define arg2reg(rd, arg) \
+	switch (arg) { \
+	case 0: rd = xAX; break; \
+	case 1: rd = xDX; break; \
+	case 2: rd = xCX; break; \
 	}
 
-	va_end(vl);
+#define emith_pass_arg_r(arg, reg) { \
+	int rd = 7; \
+	arg2reg(rd, arg); \
+	emith_move_r_r(rd, reg); \
+}
+
+#define emith_pass_arg_imm(arg, imm) { \
+	int rd = 7; \
+	arg2reg(rd, arg); \
+	emith_move_r_imm(rd, imm); \
 }
 
