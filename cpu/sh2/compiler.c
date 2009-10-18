@@ -189,7 +189,7 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
     if (delayed_op > 0)
       delayed_op--;
 
-    op = p32x_sh2_read16(pc, sh2->is_slave);
+    op = p32x_sh2_read16(pc, sh2);
 
 #if (DRC_DEBUG & 3)
     insns_compiled++;
