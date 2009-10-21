@@ -1,9 +1,18 @@
 // Basic macros to emit ARM instructions and some utils
 
-// (c) Copyright 2008, Grazvydas "notaz" Ignotas
+// (c) Copyright 2008-2009, Grazvydas "notaz" Ignotas
 // Free for non-commercial use.
 
-#define EMIT(x) *tcache_ptr++ = x
+#define CONTEXT_REG 7
+
+// XXX: tcache_ptr type for SVP and SH2 compilers differs..
+#define EMIT_PTR(ptr, x) \
+	do { \
+		*(u32 *)ptr = x; \
+		ptr = (void *)((u8 *)ptr + sizeof(u32)); \
+	} while (0)
+
+#define EMIT(x) EMIT_PTR(tcache_ptr, x)
 
 #define A_R4M  (1 << 4)
 #define A_R5M  (1 << 5)
@@ -159,36 +168,41 @@
 #define EOP_MSR_REG(rm)       EOP_C_MSR_REG(A_COND_AL,rm)
 
 
-static void emit_mov_const(int cond, int d, unsigned int val)
+static void emith_op_imm(int cond, int op, int r, unsigned int imm)
 {
-	int need_or = 0;
-	if (val & 0xff000000) {
-		EOP_C_DOP_IMM(cond, A_OP_MOV, 0, 0, d, 8/2, (val>>24)&0xff);
-		need_or = 1;
-	}
-	if (val & 0x00ff0000) {
-		EOP_C_DOP_IMM(cond, need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 16/2, (val>>16)&0xff);
-		need_or = 1;
-	}
-	if (val & 0x0000ff00) {
-		EOP_C_DOP_IMM(cond, need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 24/2, (val>>8)&0xff);
-		need_or = 1;
-	}
-	if ((val &0x000000ff) || !need_or)
-		EOP_C_DOP_IMM(cond, need_or ? A_OP_ORR : A_OP_MOV, 0, need_or ? d : 0, d, 0, val&0xff);
+	u32 v, ror2;
+
+	if (imm == 0 && op != A_OP_MOV)
+		return;
+
+	/* shift down to get starting rot2 */
+	for (v = imm, ror2 = 0; v && !(v & 3); v >>= 2)
+		ror2++;
+	ror2 = 16 - ror2;
+
+	EOP_C_DOP_IMM(cond, op, 0, op == A_OP_MOV ? 0 : r, r, ror2 & 0x0f, v & 0xff);
+	if (op == A_OP_MOV)
+		op = A_OP_ORR;
+
+	v >>= 8;
+	if (v & 0xff)
+		EOP_C_DOP_IMM(cond, op, 0, r, r, (ror2 - 8/2) & 0x0f, v & 0xff);
+	v >>= 8;
+	if (v & 0xff)
+		EOP_C_DOP_IMM(cond, op, 0, r, r, (ror2 - 8/2) & 0x0f, v & 0xff);
+	v >>= 8;
+	if (v & 0xff)
+		EOP_C_DOP_IMM(cond, op, 0, r, r, (ror2 - 8/2) & 0x0f, v & 0xff);
 }
 
-static int is_offset_24(int val)
-{
-	if (val >= (int)0xff000000 && val <= 0x00ffffff) return 1;
-	return 0;
-}
+#define is_offset_24(val) \
+	((val) >= (int)0xff000000 && (val) <= 0x00ffffff)
 
-static int emit_xbranch(int cond, void *target, int is_call)
+static int emith_xbranch(int cond, void *target, int is_call)
 {
-	int val = (unsigned int *)target - tcache_ptr - 2;
+	int val = (u32 *)target - (u32 *)tcache_ptr - 2;
 	int direct = is_offset_24(val);
-	u32 *start_ptr = tcache_ptr;
+	u32 *start_ptr = (u32 *)tcache_ptr;
 
 	if (direct)
 	{
@@ -210,17 +224,7 @@ static int emit_xbranch(int cond, void *target, int is_call)
 #endif
 	}
 
-	return tcache_ptr - start_ptr;
-}
-
-static int emit_call(int cond, void *target)
-{
-	return emit_xbranch(cond, target, 1);
-}
-
-static int emit_jump(int cond, void *target)
-{
-	return emit_xbranch(cond, target, 0);
+	return (u32 *)tcache_ptr - start_ptr;
 }
 
 static void handle_caches(void)
@@ -229,6 +233,70 @@ static void handle_caches(void)
 	extern void cache_flush_d_inval_i(const void *start_addr, const void *end_addr);
 	cache_flush_d_inval_i(tcache, tcache_ptr);
 #endif
+}
+
+
+#define EMITH_CONDITIONAL(code, is_nonzero) { \
+	u32 val, cond, *ptr; \
+	cond = (is_nonzero) ? A_COND_NE : A_COND_EQ; \
+	ptr = (void *)tcache_ptr; \
+	tcache_ptr = (void *)(ptr + 1); \
+	code; \
+	val = (u32 *)tcache_ptr - (ptr + 2); \
+	EMIT_PTR(ptr, ((cond)<<28) | 0x0a000000 | (val & 0xffffff)); \
+}
+
+#define emith_move_r_r(dst, src) \
+	EOP_MOV_REG_SIMPLE(dst, src)
+
+#define emith_move_r_imm(r, imm) \
+	emith_op_imm(A_COND_AL, A_OP_MOV, r, imm)
+
+#define emith_add_r_imm(r, imm) \
+	emith_op_imm(A_COND_AL, A_OP_ADD, r, imm)
+
+#define emith_sub_r_imm(r, imm) \
+	emith_op_imm(A_COND_AL, A_OP_SUB, r, imm)
+
+#define emith_ctx_read(r, offs) \
+	EOP_LDR_IMM(r, CONTEXT_REG, offs)
+
+#define emith_ctx_write(r, offs) \
+	EOP_STR_IMM(r, CONTEXT_REG, offs)
+
+#define emith_ctx_sub(val, offs) { \
+	emith_ctx_read(0, offs); \
+	emith_sub_r_imm(0, val); \
+	emith_ctx_write(0, offs); \
+}
+
+// upto 4 args
+#define emith_pass_arg_r(arg, reg) \
+	EOP_MOV_REG_SIMPLE(arg, reg)
+
+#define emith_pass_arg_imm(arg, imm) \
+	emith_move_r_imm(arg, imm)
+
+#define emith_call_cond(cond, target) \
+	emith_xbranch(cond, target, 1)
+
+#define emith_jump_cond(cond, target) \
+	emith_xbranch(cond, target, 0)
+
+#define emith_call(target) \
+	emith_call_cond(A_COND_AL, target)
+
+#define emith_jump(target) \
+	emith_jump_cond(A_COND_AL, target)
+
+/* SH2 drc specific */
+#define emith_test_t() { \
+	int r = reg_map_g2h[SHR_SR]; \
+	if (r == -1) { \
+		emith_ctx_read(0, SHR_SR * 4); \
+		r = 0; \
+	} \
+	EOP_TST_IMM(r, 0, 1); \
 }
 
 

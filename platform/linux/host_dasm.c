@@ -11,6 +11,20 @@ extern char **g_argv;
 
 static struct disassemble_info di;
 
+#ifdef ARM
+#define print_insn_func print_insn_little_arm
+#define BFD_ARCH bfd_arch_arm
+#define BFD_MACH bfd_mach_arm_4T
+#else
+#define print_insn_func print_insn_i386_intel
+#define BFD_ARCH bfd_arch_i386
+#define BFD_MACH bfd_mach_i386_i386_intel_syntax
+#endif
+
+/* hacks for ARM */
+int floatformat_to_double;
+int floatformat_ieee_single_little;
+
 /* symbols */
 static asymbol **symbols;
 static long symcount;
@@ -141,8 +155,8 @@ static void host_dasm_init(void)
   di.print_address_func = dis_asm_print_address;
 //  di.symbol_at_address_func = dis_asm_symbol_at_address;
   di.read_memory_func = dis_asm_read_memory;
-  di.arch = bfd_arch_i386;
-  di.mach = bfd_mach_i386_i386_intel_syntax;
+  di.arch = BFD_ARCH;
+  di.mach = BFD_MACH;
   di.endian = BFD_ENDIAN_LITTLE;
   disassemble_init_for_target(&di);
 }
@@ -160,7 +174,7 @@ void host_dasm(void *addr, int len)
   vma_end = vma + len;
   while (vma < vma_end) {
     printf("  %p ", (void *)(long)vma);
-    vma += print_insn_i386_intel(vma, &di);
+    vma += print_insn_func(vma, &di);
     printf("\n");
   }
 }

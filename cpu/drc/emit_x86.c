@@ -9,16 +9,6 @@
 
 enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
-// TODO: move
-static int reg_map_g2h[] = {
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-};
-
 #define CONTEXT_REG xBP
 
 #define EMIT_PTR(ptr, val, type) \
@@ -62,30 +52,19 @@ static int reg_map_g2h[] = {
 
 // XXX: offs is 8bit only
 #define emith_ctx_read(r, offs) { \
-	EMIT_OP_MODRM(0x8b, 1, r, 5); \
+	EMIT_OP_MODRM(0x8b, 1, r, xBP); \
 	EMIT(offs, u8); 	/* mov tmp, [ebp+#offs] */ \
 }
 
 #define emith_ctx_write(r, offs) { \
-	EMIT_OP_MODRM(0x89, 1, r, 5); \
+	EMIT_OP_MODRM(0x89, 1, r, xBP); \
 	EMIT(offs, u8); 	/* mov [ebp+#offs], tmp */ \
 }
 
 #define emith_ctx_sub(val, offs) { \
-	EMIT_OP_MODRM(0x81, 1, 5, 5); \
+	EMIT_OP_MODRM(0x81, 1, 5, xBP); \
 	EMIT(offs, u8); \
 	EMIT(val, u32); 	/* sub [ebp+#offs], dword val */ \
-}
-
-#define emith_test_t() { \
-	if (reg_map_g2h[SHR_SR] == -1) { \
-		EMIT_OP_MODRM(0xf6, 1, 0, 5); \
-		EMIT(SHR_SR * 4, u8); \
-		EMIT(0x01, u8); /* test [ebp+SHR_SR], byte 1 */ \
-	} else { \
-		EMIT_OP_MODRM(0xf7, 3, 0, reg_map_g2h[SHR_SR]); \
-		EMIT(0x01, u16); /* test <reg>, word 1 */ \
-	} \
 }
 
 #define emith_jump(ptr) { \
@@ -100,7 +79,7 @@ static int reg_map_g2h[] = {
 	EMIT(disp, u32); \
 }
 
-#define EMIT_CONDITIONAL(code, is_nonzero) { \
+#define EMITH_CONDITIONAL(code, is_nonzero) { \
 	u8 *ptr = tcache_ptr; \
 	tcache_ptr = tcache_ptr + 2; \
 	code; \
@@ -125,5 +104,17 @@ static int reg_map_g2h[] = {
 	int rd = 7; \
 	arg2reg(rd, arg); \
 	emith_move_r_imm(rd, imm); \
+}
+
+/* SH2 drc specific */
+#define emith_test_t() { \
+	if (reg_map_g2h[SHR_SR] == -1) { \
+		EMIT_OP_MODRM(0xf6, 1, 0, 5); \
+		EMIT(SHR_SR * 4, u8); \
+		EMIT(0x01, u8); /* test [ebp+SHR_SR], byte 1 */ \
+	} else { \
+		EMIT_OP_MODRM(0xf7, 3, 0, reg_map_g2h[SHR_SR]); \
+		EMIT(0x01, u16); /* test <reg>, word 1 */ \
+	} \
 }
 

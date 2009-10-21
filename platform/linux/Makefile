@@ -9,6 +9,10 @@ drc_debug = 1
 
 -include Makefile.local
 
+ifndef ARCH
+ARCH = x86
+endif
+
 ifeq "$(profile)" "1"
 CFLAGS += -O3 -Wall
 CFLAGS += -ftracer -fstrength-reduce -funroll-loops -fomit-frame-pointer -fstrict-aliasing -ffast-math
@@ -18,7 +22,15 @@ CFLAGS += -ggdb -Wall -falign-functions=2
 endif
 DEFINES = _UNZIP_SUPPORT IO_STATS IN_EVDEV
 CFLAGS += -I../.. -I.
-LDFLAGS += -lX11 -lpthread
+LDFLAGS += -lpthread
+ifeq "$(ARCH)" "arm"
+CFLAGS += -mcpu=arm920t
+DEFINES += ARM
+else
+LDFLAGS += -lX11
+endif
+
+CC = $(CROSS)gcc
 
 # frontend
 OBJS += platform/gp2x/emu.o blit.o in_evdev.o plat.o sndout_oss.o gp2x.o log_io.o
@@ -50,6 +62,9 @@ OBJS += pico/sound/sound.o pico/sound/sn76496.o pico/sound/ym2612.o pico/sound/m
 # Pico - carthw
 OBJS += pico/carthw/carthw.o pico/carthw/svp/svp.o pico/carthw/svp/memory.o \
 	pico/carthw/svp/ssp16.o pico/carthw/svp/compiler.o
+ifeq "$(ARCH)" "arm"
+OBJS += pico/carthw/svp/stub_arm.o
+endif
 # zlib
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o zlib/uncompr.o
@@ -79,7 +94,7 @@ ifeq "$(use_sh2drc)" "1"
 DEFINES += DRC_SH2 DRC_TMP
 OBJS += cpu/sh2/mame/sh2pico.o
 OBJS += cpu/sh2/compiler.o
-OBJS += cpu/sh2/stub_x86.o
+OBJS += cpu/sh2/stub_$(ARCH).o
 ifeq "$(drc_debug)" "1"
 DEFINES += DRC_DEBUG=1
 OBJS += cpu/sh2/mame/sh2dasm.o
@@ -100,6 +115,8 @@ endif
 CFLAGS += $(addprefix -D,$(DEFINES))
 
 vpath %.c = ../..
+vpath %.s = ../..
+vpath %.S = ../..
 vpath %.asm = ../..
 
 DIRS = platform platform/gp2x platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
@@ -122,7 +139,7 @@ mkdirs:
 
 include ../common/revision.mak
 
-pico/carthw/svp/compiler.o : ../../pico/carthw/svp/gen_arm.c
+pico/carthw/svp/compiler.o : ../../cpu/drc/emit_arm.c
 pico/pico.o pico/cd/pico.o : ../../pico/pico_cmn.c ../../pico/pico_int.h
 pico/memory.o pico/cd/memory.o : ../../pico/pico_int.h ../../pico/memory.h
 

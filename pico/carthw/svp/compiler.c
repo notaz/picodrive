@@ -35,7 +35,7 @@ void ssp_drc_next_patch(void){}
 void ssp_drc_end(void){}
 #endif
 
-#include "gen_arm.c"
+#include "../../../cpu/drc/emit_arm.c"
 
 // -----------------------------------------------------
 
@@ -285,11 +285,11 @@ static void tr_flush_dirty_prs(void)
 	int i, ror = 0, reg;
 	int dirty = dirty_regb >> 8;
 	if ((dirty&7) == 7) {
-		emit_mov_const(A_COND_AL, 8, known_regs.r[0]|(known_regs.r[1]<<8)|(known_regs.r[2]<<16));
+		emith_move_r_imm(8, known_regs.r[0]|(known_regs.r[1]<<8)|(known_regs.r[2]<<16));
 		dirty &= ~7;
 	}
 	if ((dirty&0x70) == 0x70) {
-		emit_mov_const(A_COND_AL, 9, known_regs.r[4]|(known_regs.r[5]<<8)|(known_regs.r[6]<<16));
+		emith_move_r_imm(9, known_regs.r[4]|(known_regs.r[5]<<8)|(known_regs.r[6]<<16));
 		dirty &= ~0x70;
 	}
 	/* r0-r7 */
@@ -348,14 +348,14 @@ static void tr_make_dirty_ST(void)
 static void tr_mov16(int r, int val)
 {
 	if (hostreg_r[r] != val) {
-		emit_mov_const(A_COND_AL, r, val);
+		emith_move_r_imm(r, val);
 		hostreg_r[r] = val;
 	}
 }
 
 static void tr_mov16_cond(int cond, int r, int val)
 {
-	emit_mov_const(cond, r, val);
+	emith_op_imm(cond, A_OP_MOV, r, val);
 	hostreg_r[r] = -1;
 }
 
@@ -367,7 +367,7 @@ static void tr_flush_dirty_pmcrs(void)
 
 	if (dirty_regb & KRREG_PMC) {
 		val = known_regs.pmc.v;
-		emit_mov_const(A_COND_AL, 1, val);
+		emith_move_r_imm(1, val);
 		EOP_STR_IMM(1,7,0x400+SSP_PMC*4);
 
 		if (known_regs.emu_status & (SSP_PMC_SET|SSP_PMC_HAVE_ADDR)) {
@@ -380,14 +380,14 @@ static void tr_flush_dirty_pmcrs(void)
 		if (dirty_regb & (1 << (20+i))) {
 			if (val != known_regs.pmac_read[i]) {
 				val = known_regs.pmac_read[i];
-				emit_mov_const(A_COND_AL, 1, val);
+				emith_move_r_imm(1, val);
 			}
 			EOP_STR_IMM(1,7,0x454+i*4); // pmac_read
 		}
 		if (dirty_regb & (1 << (25+i))) {
 			if (val != known_regs.pmac_write[i]) {
 				val = known_regs.pmac_write[i];
-				emit_mov_const(A_COND_AL, 1, val);
+				emith_move_r_imm(1, val);
 			}
 			EOP_STR_IMM(1,7,0x46c+i*4); // pmac_write
 		}
@@ -792,7 +792,7 @@ static void tr_PMX_to_r0(int reg)
 		if      ((mode & 0xfff0) == 0x0800)
 		{
 			EOP_LDR_IMM(1,7,0x488);		// rom_ptr
-			emit_mov_const(A_COND_AL, 0, (pmcv&0xfffff)<<1);
+			emith_move_r_imm(0, (pmcv&0xfffff)<<1);
 			EOP_LDRH_REG(0,1,0);		// ldrh r0, [r1, r0]
 			known_regs.pmac_read[reg] += 1;
 		}
@@ -800,7 +800,7 @@ static void tr_PMX_to_r0(int reg)
 		{
 			int inc = get_inc(mode);
 			EOP_LDR_IMM(1,7,0x490);		// dram_ptr
-			emit_mov_const(A_COND_AL, 0, (pmcv&0xffff)<<1);
+			emith_move_r_imm(0, (pmcv&0xffff)<<1);
 			EOP_LDRH_REG(0,1,0);		// ldrh r0, [r1, r0]
 			if (reg == 4 && (pmcv == 0x187f03 || pmcv == 0x187f04)) // wait loop detection
 			{
@@ -835,7 +835,7 @@ static void tr_PMX_to_r0(int reg)
 	tr_flush_dirty_ST();
 	//tr_flush_dirty_pmcrs();
 	tr_mov16(0, reg);
-	emit_call(A_COND_AL, ssp_pm_read);
+	emith_call(ssp_pm_read);
 	hostreg_clear();
 }
 
@@ -1034,7 +1034,7 @@ static void tr_r0_to_PMX(int reg)
 			int inc = get_inc(mode);
 			if (mode & 0x0400) tr_unhandled();
 			EOP_LDR_IMM(1,7,0x490);		// dram_ptr
-			emit_mov_const(A_COND_AL, 2, addr<<1);
+			emith_move_r_imm(2, addr << 1);
 			EOP_STRH_REG(0,1,2);		// strh r0, [r1, r2]
 			known_regs.pmac_write[reg] += inc;
 		}
@@ -1042,7 +1042,7 @@ static void tr_r0_to_PMX(int reg)
 		{
 			if (mode & 0x0400) tr_unhandled();
 			EOP_LDR_IMM(1,7,0x490);		// dram_ptr
-			emit_mov_const(A_COND_AL, 2, addr<<1);
+			emith_move_r_imm(2, addr << 1);
 			EOP_STRH_REG(0,1,2);		// strh r0, [r1, r2]
 			known_regs.pmac_write[reg] += (addr&1) ? 31 : 1;
 		}
@@ -1050,7 +1050,7 @@ static void tr_r0_to_PMX(int reg)
 		{
 			int inc = get_inc(mode);
 			EOP_LDR_IMM(1,7,0x48c);		// iram_ptr
-			emit_mov_const(A_COND_AL, 2, (addr&0x3ff)<<1);
+			emith_move_r_imm(2, (addr&0x3ff) << 1);
 			EOP_STRH_REG(0,1,2);		// strh r0, [r1, r2]
 			EOP_MOV_IMM(1,0,1);
 			EOP_STR_IMM(1,7,0x494);		// iram_dirty
@@ -1076,7 +1076,7 @@ static void tr_r0_to_PMX(int reg)
 	tr_flush_dirty_ST();
 	//tr_flush_dirty_pmcrs();
 	tr_mov16(1, reg);
-	emit_call(A_COND_AL, ssp_pm_write);
+	emith_call(ssp_pm_write);
 	hostreg_clear();
 }
 
@@ -1117,7 +1117,7 @@ static void tr_r0_to_PMC(int const_val)
 	{
 		tr_flush_dirty_ST();
 		if (known_regb & KRREG_PMC) {
-			emit_mov_const(A_COND_AL, 1, known_regs.pmc.v);
+			emith_move_r_imm(1, known_regs.pmc.v);
 			EOP_STR_IMM(1,7,0x400+SSP_PMC*4);
 			known_regb &= ~KRREG_PMC;
 			dirty_regb &= ~KRREG_PMC;
@@ -1666,7 +1666,7 @@ static void emit_block_prologue(void)
 	// check if there are enough cycles..
 	// note: r0 must contain PC of current block
 	EOP_CMP_IMM(11,0,0);			// cmp r11, #0
-	emit_jump(A_COND_LE, ssp_drc_end);
+	emith_jump_cond(A_COND_LE, ssp_drc_end);
 }
 
 /* cond:
@@ -1680,16 +1680,16 @@ static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 
 	if (cond < 0 || (end_pc >= 0x400 && pc < 0x400)) {
 		// indirect jump, or rom -> iram jump, must use dispatcher
-		emit_jump(A_COND_AL, ssp_drc_next);
+		emith_jump(ssp_drc_next);
 	}
 	else if (cond == A_COND_AL) {
 		u32 *target = (pc < 0x400) ?
 			ssp_block_table_iram[ssp->drc.iram_context * SSP_BLOCKTAB_IRAM_ONE + pc] :
 			ssp_block_table[pc];
 		if (target != NULL)
-			emit_jump(A_COND_AL, target);
+			emith_jump(target);
 		else {
-			int ops = emit_jump(A_COND_AL, ssp_drc_next);
+			int ops = emith_jump(ssp_drc_next);
 			// cause the next block to be emitted over jump instruction
 			tcache_ptr -= ops;
 		}
@@ -1702,19 +1702,19 @@ static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 			ssp_block_table_iram[ssp->drc.iram_context * SSP_BLOCKTAB_IRAM_ONE + end_pc] :
 			ssp_block_table[end_pc];
 		if (target1 != NULL)
-		     emit_jump(cond, target1);
+		     emith_jump_cond(cond, target1);
 		if (target2 != NULL)
-		     emit_jump(tr_neg_cond(cond), target2); // neg_cond, to be able to swap jumps if needed
+		     emith_jump_cond(tr_neg_cond(cond), target2); // neg_cond, to be able to swap jumps if needed
 #ifndef __EPOC32__
 		// emit patchable branches
 		if (target1 == NULL)
-			emit_call(cond, ssp_drc_next_patch);
+			emith_call_cond(cond, ssp_drc_next_patch);
 		if (target2 == NULL)
-			emit_call(tr_neg_cond(cond), ssp_drc_next_patch);
+			emith_call_cond(tr_neg_cond(cond), ssp_drc_next_patch);
 #else
 		// won't patch indirect jumps
 		if (target1 == NULL || target2 == NULL)
-			emit_jump(A_COND_AL, ssp_drc_next);
+			emith_jump(ssp_drc_next);
 #endif
 	}
 }
@@ -1758,7 +1758,7 @@ void *ssp_translate_block(int pc)
 	if (ccount >= 100) {
 		end_cond = A_COND_AL;
 		jump_pc = pc;
-		emit_mov_const(A_COND_AL, 0, pc);
+		emith_move_r_imm(0, pc);
 	}
 
 	tr_flush_dirty_prs();

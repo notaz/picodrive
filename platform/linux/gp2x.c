@@ -33,6 +33,9 @@ int crashed_940 = 0;
 int default_cpu_clock = 123;
 void *gp2x_memregs = NULL;
 
+/* ifndef is for qemu build without video out */
+#ifndef ARM
+
 /* faking GP2X pad */
 enum  { GP2X_UP=0x1,       GP2X_LEFT=0x4,       GP2X_DOWN=0x10,  GP2X_RIGHT=0x40,
         GP2X_START=1<<8,   GP2X_SELECT=1<<9,    GP2X_L=1<<10,    GP2X_R=1<<11,
@@ -252,6 +255,7 @@ static void xlib_init(void)
 	sem_wait(&xlib_sem);
 	sem_destroy(&xlib_sem);
 }
+#endif // !ARM
 
 /* --- */
 
@@ -272,6 +276,7 @@ static void realloc_screen(void)
 /* gp2x/emu.c stuff, most to be rm'd */
 static void gp2x_video_flip_(void)
 {
+#ifndef ARM
 	unsigned int *image;
 	int pixel_count, i;
 
@@ -311,6 +316,7 @@ static void gp2x_video_flip_(void)
 		realloc_screen();
 		ximage_realloc(xlib_display, DefaultVisual(xlib_display, 0));
 	}
+#endif
 }
 
 static void gp2x_video_changemode_ll_(int bpp)
@@ -405,7 +411,9 @@ void plat_init(void)
 	// snd
 	sndout_oss_init();
 
+#ifndef ARM
 	xlib_init();
+#endif
 }
 
 void plat_finish(void)
@@ -456,6 +464,10 @@ void mp3_start_play(FILE *f, int pos)
 }
 
 void mp3_update(int *buffer, int length, int stereo)
+{
+}
+
+void cache_flush_d_inval_i()
 {
 }
 

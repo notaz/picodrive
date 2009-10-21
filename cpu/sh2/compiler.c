@@ -52,7 +52,31 @@ static u8 *tcache_ptrs[3];
 // ptr for code emiters
 static u8 *tcache_ptr;
 
+#ifdef ARM
+#include "../drc/emit_arm.c"
+
+static const int reg_map_g2h[] = {
+	-1, -1, -1, -1,
+	-1, -1, -1, -1,
+	-1, -1, -1, -1,
+	-1, -1, -1, -1,
+	-1, -1, -1, -1,
+	-1, -1, -1, -1,
+};
+
+#else
 #include "../drc/emit_x86.c"
+
+static const int reg_map_g2h[] = {
+	-1, -1, -1, -1,
+	-1, -1, -1, -1,
+	-1, -1, -1, -1,
+	-1, -1, -1, -1,
+	-1, -1, -1, -1,
+	-1, -1, -1, -1,
+};
+
+#endif
 
 typedef enum {
   SHR_R0 = 0, SHR_R15 = 15,
@@ -364,7 +388,7 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         tmp2 = delayed_op ? SHR_PPC : SHR_PC;
         emit_move_r_imm32(tmp2, pc + (delayed_op ? 2 : 0));
         emith_test_t();
-        EMIT_CONDITIONAL(emit_move_r_imm32(tmp2, pc + tmp + 2), (op & 0x0200) ? 1 : 0);
+        EMITH_CONDITIONAL(emit_move_r_imm32(tmp2, pc + tmp + 2), (op & 0x0200) ? 1 : 0);
         cycles += 2;
         if (!delayed_op)
           goto end_block;
