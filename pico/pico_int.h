@@ -789,10 +789,10 @@ extern void lprintf(const char *fmt, ...);
 #define cdprintf(x...)
 #endif
 
-#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 3
-#define MEMH_FUNC __attribute__((aligned(4)))
+#ifdef __i386__
+#define REGPARM(x) __attribute__((regparm(x)))
 #else
-#define MEMH_FUNC
+#define REGPARM(x)
 #endif
 
 #ifdef __GNUC__

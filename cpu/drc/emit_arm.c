@@ -10,6 +10,7 @@
 	do { \
 		*(u32 *)ptr = x; \
 		ptr = (void *)((u8 *)ptr + sizeof(u32)); \
+		COUNT_OP; \
 	} while (0)
 
 #define EMIT(x) EMIT_PTR(tcache_ptr, x)
@@ -170,29 +171,26 @@
 
 static void emith_op_imm(int cond, int op, int r, unsigned int imm)
 {
-	u32 v, ror2;
+	int ror2, rn = r;
+	u32 v;
 
-	if (imm == 0 && op != A_OP_MOV)
+	if (op == A_OP_MOV)
+		rn = 0;
+	else if (imm == 0)
 		return;
 
-	/* shift down to get starting rot2 */
-	for (v = imm, ror2 = 0; v && !(v & 3); v >>= 2)
-		ror2++;
-	ror2 = 16 - ror2;
+	for (v = imm, ror2 = 0; v != 0 || op == A_OP_MOV; v >>= 8, ror2 -= 8/2) {
+		/* shift down to get 'best' rot2 */
+		for (; v && !(v & 3); v >>= 2)
+			ror2--;
 
-	EOP_C_DOP_IMM(cond, op, 0, op == A_OP_MOV ? 0 : r, r, ror2 & 0x0f, v & 0xff);
-	if (op == A_OP_MOV)
-		op = A_OP_ORR;
+		EOP_C_DOP_IMM(cond, op, 0, rn, r, ror2 & 0x0f, v & 0xff);
 
-	v >>= 8;
-	if (v & 0xff)
-		EOP_C_DOP_IMM(cond, op, 0, r, r, (ror2 - 8/2) & 0x0f, v & 0xff);
-	v >>= 8;
-	if (v & 0xff)
-		EOP_C_DOP_IMM(cond, op, 0, r, r, (ror2 - 16/2) & 0x0f, v & 0xff);
-	v >>= 8;
-	if (v & 0xff)
-		EOP_C_DOP_IMM(cond, op, 0, r, r, (ror2 - 24/2) & 0x0f, v & 0xff);
+		if (op == A_OP_MOV) {
+			op = A_OP_ORR;
+			rn = r;
+		}
+	}
 }
 
 #define is_offset_24(val) \
@@ -225,14 +223,6 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	}
 
 	return (u32 *)tcache_ptr - start_ptr;
-}
-
-static void handle_caches(void)
-{
-#ifdef ARM
-	extern void cache_flush_d_inval_i(const void *start_addr, const void *end_addr);
-	cache_flush_d_inval_i(tcache, tcache_ptr);
-#endif
 }
 
 

@@ -1,12 +1,5 @@
 #include <stdarg.h>
 
-#if (DRC_DEBUG & 1)
-#define COUNT_OP \
-	host_insn_count++
-#else
-#define COUNT_OP
-#endif
-
 enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define CONTEXT_REG xBP

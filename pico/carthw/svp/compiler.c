@@ -35,6 +35,7 @@ void ssp_drc_next_patch(void){}
 void ssp_drc_end(void){}
 #endif
 
+#define COUNT_OP
 #include "../../../cpu/drc/emit_arm.c"
 
 // -----------------------------------------------------
@@ -1787,7 +1788,9 @@ void *ssp_translate_block(int pc)
 	exit(0);
 #endif
 
-	handle_caches();
+#ifdef ARM
+	cache_flush_d_inval_i(tcache, tcache_ptr);
+#endif
 
 	return block_start;
 }

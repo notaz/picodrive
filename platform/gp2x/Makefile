@@ -15,14 +15,15 @@ amalgamate = 0
 use_sh2drc = 1
 drc_debug = 1
 
+-include Makefile.local
 
 ifeq "$(debug_cyclone)" "1"
 use_cyclone = 1
 use_musashi = 1
 endif
 ifeq "$(use_musashi)" "1"
+# due to CPU stop flag acces
 asm_cdpico = 0
-asm_memory = 0
 asm_cdmemory = 0
 else
 use_cyclone = 1
@@ -119,8 +120,8 @@ DEFINES += DRC_SH2 DRC_TMP
 OBJS += cpu/sh2/mame/sh2pico.o
 OBJS += cpu/sh2/compiler.o
 OBJS += cpu/sh2/stub_arm.o
-ifeq "$(drc_debug)" "1"
-DEFINES += DRC_DEBUG=1
+ifdef drc_debug
+DEFINES += DRC_DEBUG=$(drc_debug)
 OBJS += cpu/sh2/mame/sh2dasm.o
 OBJS += platform/linux/host_dasm.o
 LDFLAGS += -lbfd -lopcodes -liberty

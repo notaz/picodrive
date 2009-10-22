@@ -37,7 +37,7 @@ remove_useless_symbols (asymbol **symbols, long count)
     {
       asymbol *sym = *in_ptr++;
 
-      if (sym->name == NULL || sym->name[0] == '\0')
+      if (sym->name == NULL || sym->name[0] == '\0' || sym->name[0] == '$')
         continue;
       if (sym->flags & (BSF_DEBUGGING | BSF_SECTION_SYM))
         continue;
@@ -53,6 +53,7 @@ remove_useless_symbols (asymbol **symbols, long count)
 */
       *out_ptr++ = sym;
     }
+
   return out_ptr - symbols;
 }
 

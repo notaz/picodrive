@@ -14,16 +14,22 @@
 #define DRC_DEBUG 0
 #endif
 
+#if DRC_DEBUG
 #define dbg(l,...) { \
   if ((l) & DRC_DEBUG) \
     elprintf(EL_STATUS, ##__VA_ARGS__); \
 }
 
-#if DRC_DEBUG
 #include "mame/sh2dasm.h"
 #include <platform/linux/host_dasm.h>
 static int insns_compiled, hash_collisions, host_insn_count;
+#define COUNT_OP \
+	host_insn_count++
+#else // !DRC_DEBUG
+#define COUNT_OP
+#define dbg(...)
 #endif
+
 #if (DRC_DEBUG & 2)
 static u8 *tcache_dsm_ptrs[3];
 static char sh2dasm_buff[64];
@@ -111,12 +117,12 @@ extern void sh2_drc_entry(SH2 *sh2, void *block);
 extern void sh2_drc_exit(void);
 
 // tmp
-extern void __attribute__((regparm(2))) sh2_do_op(SH2 *sh2, int opcode);
-static void __attribute__((regparm(1))) sh2_test_irq(SH2 *sh2);
+extern void REGPARM(2) sh2_do_op(SH2 *sh2, int opcode);
+static void REGPARM(1) sh2_test_irq(SH2 *sh2);
 
 static void flush_tcache(int tcid)
 {
-  printf("tcache #%d flush! (%d/%d, bds %d/%d)\n", tcid,
+  dbg(1, "tcache #%d flush! (%d/%d, bds %d/%d)", tcid,
     tcache_ptrs[tcid] - tcache_bases[tcid], tcache_sizes[tcid],
     block_counts[tcid], block_max_counts[tcid]);
 
@@ -469,6 +475,10 @@ end_block:
   emith_jump(sh2_drc_exit);
   tcache_ptrs[tcache_id] = tcache_ptr;
 
+#ifdef ARM
+  cache_flush_d_inval_i(block_entry, tcache_ptr);
+#endif
+
   do_host_disasm(tcache_id);
   dbg(1, " block #%d,%d tcache %d/%d, insns %d -> %d %.3f",
     tcache_id, block_counts[tcache_id],
@@ -476,6 +486,10 @@ end_block:
     insns_compiled, host_insn_count, (double)host_insn_count / insns_compiled);
   if ((sh2->pc & 0xc6000000) == 0x02000000) // ROM
     dbg(1, "  hash collisions %d/%d", hash_collisions, block_counts[tcache_id]);
+#if (DRC_DEBUG & 2)
+  fflush(stdout);
+#endif
+
   return block_entry;
 /*
 unimplemented:
@@ -592,7 +606,7 @@ void sh2_execute(SH2 *sh2, int cycles)
   sh2->cycles_done += cycles - ((signed int)sh2->sr >> 12);
 }
 
-static void __attribute__((regparm(1))) sh2_test_irq(SH2 *sh2)
+static void REGPARM(1) sh2_test_irq(SH2 *sh2)
 {
   if (sh2->pending_level > ((sh2->sr >> 4) & 0x0f))
   {
@@ -634,8 +648,22 @@ static void block_stats(void)
       (double)maxb->refcount / total * 100.0);
     maxb->refcount = 0;
   }
+
+  for (b = 0; b < ARRAY_SIZE(block_tables); b++)
+    for (i = 0; i < block_counts[b]; i++)
+      block_tables[b][i].refcount = 0;
 }
+#else
+#define block_stats()
 #endif
+
+void sh2_drc_flush_all(void)
+{
+  block_stats();
+  flush_tcache(0);
+  flush_tcache(1);
+  flush_tcache(2);
+}
 
 int sh2_drc_init(SH2 *sh2)
 {
@@ -656,6 +684,9 @@ int sh2_drc_init(SH2 *sh2)
       block_tables[i] = block_tables[i - 1] + block_max_counts[i - 1];
       tcache_bases[i] = tcache_ptrs[i] = tcache_bases[i - 1] + tcache_sizes[i - 1];
     }
+
+    // tmp
+    PicoOpt |= POPT_DIS_VDP_FIFO;
 
 #if (DRC_DEBUG & 2)
     for (i = 0; i < ARRAY_SIZE(block_tables); i++)
@@ -678,9 +709,7 @@ int sh2_drc_init(SH2 *sh2)
 void sh2_drc_finish(SH2 *sh2)
 {
   if (block_tables[0] != NULL) {
-#if (DRC_DEBUG & 1)
     block_stats();
-#endif
     free(block_tables[0]);
     memset(block_tables, 0, sizeof(block_tables));
 

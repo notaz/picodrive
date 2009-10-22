@@ -735,7 +735,7 @@ static void PicoWrite8_32x_on(u32 a, u32 d)
 static void PicoWrite16_32x_on(u32 a, u32 d)
 {
   if ((a & 0xfc00) == 0x5000)
-    elprintf(EL_UIO, "m68k 32x w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
+    elprintf(EL_32X, "m68k 32x w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
 
   if ((a & 0xffc0) == 0x5100) { // a15100
     p32x_reg_write16(a, d);

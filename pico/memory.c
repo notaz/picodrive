@@ -957,7 +957,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   if (xcycles >= timer_b_next_oflow) \
     ym2612.OPN.ST.status |= (ym2612.OPN.ST.mode >> 2) & 2
 
-static u32 MEMH_FUNC ym2612_read_local_z80(void)
+static u32 ym2612_read_local_z80(void)
 {
   int xcycles = z80_cyclesDone() << 8;
 
@@ -1055,14 +1055,14 @@ void ym2612_unpack_state(void)
 // -----------------------------------------------------------------
 //                        z80 memhandlers
 
-static unsigned char MEMH_FUNC z80_md_vdp_read(unsigned short a)
+static unsigned char z80_md_vdp_read(unsigned short a)
 {
   // TODO?
   elprintf(EL_ANOMALY, "z80 invalid r8 [%06x] %02x", a, 0xff);
   return 0xff;
 }
 
-static unsigned char MEMH_FUNC z80_md_bank_read(unsigned short a)
+static unsigned char z80_md_bank_read(unsigned short a)
 {
   unsigned int addr68k;
   unsigned char ret;
@@ -1076,13 +1076,13 @@ static unsigned char MEMH_FUNC z80_md_bank_read(unsigned short a)
   return ret;
 }
 
-static void MEMH_FUNC z80_md_ym2612_write(unsigned int a, unsigned char data)
+static void z80_md_ym2612_write(unsigned int a, unsigned char data)
 {
   if (PicoOpt & POPT_EN_FM)
     emustatus |= ym2612_write_local(a, data, 1) & 1;
 }
 
-static void MEMH_FUNC z80_md_vdp_br_write(unsigned int a, unsigned char data)
+static void z80_md_vdp_br_write(unsigned int a, unsigned char data)
 {
   // TODO: allow full VDP access
   if ((a&0xfff9) == 0x7f11) // 7f11 7f13 7f15 7f17
@@ -1103,7 +1103,7 @@ static void MEMH_FUNC z80_md_vdp_br_write(unsigned int a, unsigned char data)
   elprintf(EL_ANOMALY, "z80 invalid w8 [%06x] %02x", a, data);
 }
 
-static void MEMH_FUNC z80_md_bank_write(unsigned int a, unsigned char data)
+static void z80_md_bank_write(unsigned int a, unsigned char data)
 {
   unsigned int addr68k;
 

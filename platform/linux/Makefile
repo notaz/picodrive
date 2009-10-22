@@ -22,13 +22,13 @@ CFLAGS += -ggdb -Wall -falign-functions=2
 endif
 DEFINES = _UNZIP_SUPPORT IO_STATS IN_EVDEV
 CFLAGS += -I../.. -I.
-LDFLAGS += -lpthread
+LDFLAGS += -lm -lpng
 ifeq "$(ARCH)" "arm"
 CFLAGS += -mcpu=arm920t
 DEFINES += ARM
-else
-LDFLAGS += -lX11
 endif
+LDFLAGS += -lpthread
+LDFLAGS += -lX11
 
 CC = $(CROSS)gcc
 
@@ -95,8 +95,8 @@ DEFINES += DRC_SH2 DRC_TMP
 OBJS += cpu/sh2/mame/sh2pico.o
 OBJS += cpu/sh2/compiler.o
 OBJS += cpu/sh2/stub_$(ARCH).o
-ifeq "$(drc_debug)" "1"
-DEFINES += DRC_DEBUG=1
+ifdef drc_debug
+DEFINES += DRC_DEBUG=$(drc_debug)
 OBJS += cpu/sh2/mame/sh2dasm.o
 OBJS += host_dasm.o
 LDFLAGS += -lbfd -lopcodes -liberty
@@ -132,7 +132,7 @@ tidy:
 
 PicoDrive : $(OBJS)
 	@echo ">>>" $@
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) -lm -lpng -Wl,-Map=PicoDrive.map -o $@
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) -Wl,-Map=PicoDrive.map -o $@
 
 mkdirs:
 	@mkdir -p $(DIRS)

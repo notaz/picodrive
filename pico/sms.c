@@ -169,7 +169,7 @@ static void write_bank(unsigned short a, unsigned char d)
   }
 }
 
-static void MEMH_FUNC xwrite(unsigned int a, unsigned char d)
+static void xwrite(unsigned int a, unsigned char d)
 {
   elprintf(EL_IO, "z80 write [%04x] %02x", a, d);
   if (a >= 0xc000)

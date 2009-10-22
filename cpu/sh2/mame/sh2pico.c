@@ -104,8 +104,14 @@ void sh2_execute(SH2 *sh2_, int cycles)
 
 #else // DRC_TMP
 
+#ifdef __i386__
+#define REGPARM(x) __attribute__((regparm(x)))
+#else
+#define REGPARM(x)
+#endif
+
 // tmp
-void __attribute__((regparm(2))) sh2_do_op(SH2 *sh2_, int opcode)
+void REGPARM(2) sh2_do_op(SH2 *sh2_, int opcode)
 {
 	sh2 = sh2_;
 	sh2->pc += 2;
