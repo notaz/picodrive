@@ -99,7 +99,7 @@ ifeq "$(drc_debug)" "1"
 DEFINES += DRC_DEBUG=1
 OBJS += cpu/sh2/mame/sh2dasm.o
 OBJS += host_dasm.o
-LDFLAGS += -lbfd -lopcodes
+LDFLAGS += -lbfd -lopcodes -liberty
 endif
 else
 OBJS += cpu/sh2/mame/sh2pico.o

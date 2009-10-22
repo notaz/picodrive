@@ -12,8 +12,8 @@ asm_cdmemory = 1
 amalgamate = 0
 #profile = 1
 #use_musashi = 1
-use_sh2mame = 1
-#up = 1
+use_sh2drc = 1
+drc_debug = 1
 
 
 ifeq "$(debug_cyclone)" "1"
@@ -28,8 +28,8 @@ else
 use_cyclone = 1
 endif
 
-DEFINC = -I../.. -I. -DARM -D__GP2X__ -DIN_GP2X -DIN_EVDEV # -DBENCHMARK
-CFLAGS += -Wall -Winline
+DEFINES += ARM __GP2X__ IN_GP2X IN_EVDEV # BENCHMARK
+CFLAGS += -Wall -Winline -I../.. -I.
 ifeq ($(DEBUG),)
 CFLAGS += -O3 -fomit-frame-pointer -fstrict-aliasing -ffast-math
 else
@@ -42,8 +42,9 @@ ifeq "$(profile)" "2"
 CFLAGS += -fprofile-use
 endif
 CFLAGS += -mcpu=arm920t -mtune=arm920t
-SFLAGS = $(CFLAGS)
 ASFLAGS = -mcpu=arm920t -mfloat-abi=soft
+LDFLAGS += -lm -lpng
+
 CC = $(CROSS)gcc
 STRIP = $(CROSS)strip
 AS = $(CROSS)as
@@ -51,7 +52,7 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += plat.o warm.o pollux_set.o soc.o soc_mmsp2.o soc_pollux.o emu.o in_gp2x.o
+OBJS += plat.o warm.o pollux_set.o soc.o soc_mmsp2.o soc_pollux.o soc_dummy.o emu.o in_gp2x.o
 # 940 core control
 OBJS += 940ctl.o
 
@@ -98,26 +99,38 @@ OBJS += pico/DebugCPU.o cpu/musashi/m68kdasm.o
 endif
 # CPU cores
 ifeq "$(use_musashi)" "1"
-DEFINC += -DEMU_M68K
+DEFINES += EMU_M68K
 OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
 endif
 ifeq "$(use_cyclone)" "1"
-DEFINC += -DEMU_C68K
+DEFINES += EMU_C68K
 OBJS += pico/m68kif_cyclone.o cpu/Cyclone/proj/Cyclone.o cpu/Cyclone/tools/idle.o
 endif
 ifeq "$(mz80)" "1"
-DEFINC += -D_USE_MZ80
+DEFINES += _USE_MZ80
 OBJS += cpu/mz80/mz80.o
 else
-DEFINC += -D_USE_DRZ80
+DEFINES += _USE_DRZ80
 OBJS += cpu/DrZ80/drz80.o
 endif
 OBJS += cpu/sh2/sh2.o
-ifeq "$(use_sh2mame)" "1"
+ifeq "$(use_sh2drc)" "1"
+DEFINES += DRC_SH2 DRC_TMP
 OBJS += cpu/sh2/mame/sh2pico.o
+OBJS += cpu/sh2/compiler.o
+OBJS += cpu/sh2/stub_arm.o
+ifeq "$(drc_debug)" "1"
+DEFINES += DRC_DEBUG=1
+OBJS += cpu/sh2/mame/sh2dasm.o
+OBJS += platform/linux/host_dasm.o
+LDFLAGS += -lbfd -lopcodes -liberty
+endif
 else
+OBJS += cpu/sh2/mame/sh2pico.o
 endif
 OBJS += cpu/drc/cmn.o
+
+CFLAGS += $(addprefix -D,$(DEFINES))
 
 vpath %.c = ../..
 vpath %.s = ../..
@@ -141,7 +154,7 @@ PicoDrive.o : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a
 # also libm on F100 is not compatible
 PicoDrive : PicoDrive.o
 	@echo ">>>" $@
-	$(CC) -static -o $@ $(CFLAGS) $^ -lm -lpng -Wl,-Map=$@.map
+	$(CC) -static -o $@ $(CFLAGS) $^ $(LDFLAGS) -Wl,-Map=$@.map
 ifeq ($(DEBUG),)
 	$(STRIP) $@
 endif

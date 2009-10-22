@@ -11,6 +11,9 @@ void mmsp2_finish(void);
 void pollux_init(void);
 void pollux_finish(void);
 
+void dummy_init(void);
+void dummy_finish(void);
+
 /* SoC specific functions */
 extern void (*gp2x_video_flip)(void);
 extern void (*gp2x_video_flip2)(void);

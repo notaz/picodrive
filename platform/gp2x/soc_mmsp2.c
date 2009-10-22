@@ -41,8 +41,8 @@ static unsigned short gp2x_screenaddr_old[4];
 static unsigned short memtimex_old[2];
 static unsigned short reg0910;
 
-extern unsigned int plat_get_ticks_ms_gtod(void);
-extern unsigned int plat_get_ticks_us_gtod(void);
+extern unsigned int plat_get_ticks_ms_good(void);
+extern unsigned int plat_get_ticks_us_good(void);
 
 /* video stuff */
 static void gp2x_video_flip_(void)
@@ -512,8 +512,8 @@ void mmsp2_init(void)
 	unset_ram_timings = unset_ram_timings_;
 	gp2x_read_battery = gp2x_read_battery_;
 
-	gp2x_get_ticks_ms = plat_get_ticks_ms_gtod;
-	gp2x_get_ticks_us = plat_get_ticks_us_gtod;
+	gp2x_get_ticks_ms = plat_get_ticks_ms_good;
+	gp2x_get_ticks_us = plat_get_ticks_us_good;
 }
 
 void mmsp2_finish(void)

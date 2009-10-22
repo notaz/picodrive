@@ -146,8 +146,8 @@ void plat_early_init(void)
 		default_cpu_clock = 533;
 		break;
 	default:
-		fprintf(stderr, "could not recognize SoC, bailing out.\n");
-		exit(1);
+		printf("could not recognize SoC, running in dummy mode.\n");
+		break;
 	}
 }
 
@@ -167,6 +167,7 @@ void plat_init(void)
 		menu_plat_setup(1);
 		break;
 	default:
+		dummy_init();
 		break;
 	}
 
@@ -192,6 +193,9 @@ void plat_finish(void)
 		break;
 	case SOCID_POLLUX:
 		pollux_finish();
+		break;
+	default:
+		dummy_finish();
 		break;
 	}
 

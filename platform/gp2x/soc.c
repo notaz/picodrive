@@ -33,13 +33,13 @@ gp2x_soc_t soc_detect(void)
 {
 	volatile unsigned short *memregs;
 	volatile unsigned int *memregl;
-	static gp2x_soc_t ret = -1;
+	static gp2x_soc_t ret = -2;
 	int pollux_chipname[0x30/4 + 1];
 	char *pollux_chipname_c = (char *)pollux_chipname;
 	int memdev;
 	int i;
 
-	if (ret != -1)
+	if (ret != -2)
 		/* already detected */
 		return ret;
 
@@ -47,6 +47,7 @@ gp2x_soc_t soc_detect(void)
 	if (memdev == -1)
 	{
 		perror("open(/dev/mem)");
+		ret = -1;
 		return -1;
 	}
 
@@ -55,6 +56,7 @@ gp2x_soc_t soc_detect(void)
 	{
 		perror("mmap(memregs)");
 		close(memdev);
+		ret = -1;
 		return -1;
 	}
 	memregl = (volatile void *)memregs;

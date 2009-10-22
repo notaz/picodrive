@@ -21,10 +21,6 @@ static struct disassemble_info di;
 #define BFD_MACH bfd_mach_i386_i386_intel_syntax
 #endif
 
-/* hacks for ARM */
-int floatformat_to_double;
-int floatformat_ieee_single_little;
-
 /* symbols */
 static asymbol **symbols;
 static long symcount;

@@ -19,8 +19,8 @@ int plat_is_dir(const char *path)
 
 #ifdef __GP2X__
 /* Wiz has a borked gettimeofday().. */
-#define plat_get_ticks_ms plat_get_ticks_ms_gtod
-#define plat_get_ticks_us plat_get_ticks_us_gtod
+#define plat_get_ticks_ms plat_get_ticks_ms_good
+#define plat_get_ticks_us plat_get_ticks_us_good
 #endif
 
 unsigned int plat_get_ticks_ms(void)
