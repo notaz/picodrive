@@ -641,6 +641,9 @@ int sh2_drc_init(SH2 *sh2)
 {
   if (block_tables[0] == NULL) {
     int i, cnt;
+
+    drc_cmn_init();
+
     cnt = block_max_counts[0] + block_max_counts[1] + block_max_counts[2];
     block_tables[0] = calloc(cnt, sizeof(*block_tables[0]));
     if (block_tables[0] == NULL)
@@ -680,6 +683,8 @@ void sh2_drc_finish(SH2 *sh2)
 #endif
     free(block_tables[0]);
     memset(block_tables, 0, sizeof(block_tables));
+
+    drc_cmn_cleanup();
   }
 
   if (hash_table != NULL) {

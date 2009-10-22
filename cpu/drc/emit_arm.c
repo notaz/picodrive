@@ -189,10 +189,10 @@ static void emith_op_imm(int cond, int op, int r, unsigned int imm)
 		EOP_C_DOP_IMM(cond, op, 0, r, r, (ror2 - 8/2) & 0x0f, v & 0xff);
 	v >>= 8;
 	if (v & 0xff)
-		EOP_C_DOP_IMM(cond, op, 0, r, r, (ror2 - 8/2) & 0x0f, v & 0xff);
+		EOP_C_DOP_IMM(cond, op, 0, r, r, (ror2 - 16/2) & 0x0f, v & 0xff);
 	v >>= 8;
 	if (v & 0xff)
-		EOP_C_DOP_IMM(cond, op, 0, r, r, (ror2 - 8/2) & 0x0f, v & 0xff);
+		EOP_C_DOP_IMM(cond, op, 0, r, r, (ror2 - 24/2) & 0x0f, v & 0xff);
 }
 
 #define is_offset_24(val) \
