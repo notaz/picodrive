@@ -254,12 +254,6 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_ctx_write(r, offs) \
 	EOP_STR_IMM(r, CONTEXT_REG, offs)
 
-#define emith_ctx_sub(val, offs) { \
-	emith_ctx_read(0, offs); \
-	emith_sub_r_imm(0, val); \
-	emith_ctx_write(0, offs); \
-}
-
 // upto 4 args
 #define emith_pass_arg_r(arg, reg) \
 	EOP_MOV_REG_SIMPLE(arg, reg)
@@ -281,11 +275,7 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 /* SH2 drc specific */
 #define emith_test_t() { \
-	int r = reg_map_g2h[SHR_SR]; \
-	if (r == -1) { \
-		emith_ctx_read(0, SHR_SR * 4); \
-		r = 0; \
-	} \
+	int r = rcache_get_reg(SHR_SR, RC_GR_READ); \
 	EOP_TST_IMM(r, 0, 1); \
 }
 

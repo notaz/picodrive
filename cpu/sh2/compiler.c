@@ -58,28 +58,60 @@ static u8 *tcache_ptrs[3];
 // ptr for code emiters
 static u8 *tcache_ptr;
 
+// host register tracking
+enum {
+  HR_FREE,
+  HR_CACHED, // 'val' has sh2_reg_e
+  HR_CACHED_DIRTY,
+  HR_CONST,  // 'val' has constant
+  HR_TEMP,   // reg used for temp storage
+};
+
+typedef struct {
+  u8 reg;
+  u8 type;
+  u16 stamp; // kind of a timestamp
+  u32 val;
+} temp_reg_t;
+
 #ifdef ARM
 #include "../drc/emit_arm.c"
 
 static const int reg_map_g2h[] = {
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+};
+
+static temp_reg_t reg_temp[] = {
+  {  0, },
+  {  1, },
+  { 12, },
+  { 14, },
+  {  2, },
+  {  3, },
 };
 
 #else
 #include "../drc/emit_x86.c"
 
 static const int reg_map_g2h[] = {
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
-	-1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+};
+
+// ax, cx, dx are usually temporaries
+static temp_reg_t reg_temp[] = {
+  { xAX, },
+  { xCX, },
+  { xDX, },
 };
 
 #endif
@@ -174,49 +206,143 @@ static block_desc *dr_add_block(u32 addr, int tcache_id, int *blk_id)
 
 // ---------------------------------------------------------------
 
+// register chache
+static u16 rcache_counter;
+
+static temp_reg_t *rcache_evict(void)
+{
+  // evict reg with oldest stamp
+  int i, oldest = -1;
+  u16 min_stamp = (u16)-1;
+
+  for (i = 0; i < ARRAY_SIZE(reg_temp); i++) {
+    if (reg_temp[i].type == HR_CACHED || reg_temp[i].type == HR_CACHED_DIRTY)
+      if (reg_temp[i].stamp <= min_stamp) {
+        min_stamp = reg_temp[i].stamp;
+        oldest = i;
+      }
+  }
+
+  if (oldest == -1) {
+    printf("no registers to ec=vict, aborting\n");
+    exit(1);
+  }
+
+  i = oldest;
+  if (reg_temp[i].type == HR_CACHED_DIRTY) {
+    // writeback
+    emith_ctx_write(reg_temp[i].reg, reg_temp[i].val * 4);
+  }
+
+  return &reg_temp[i];
+}
+
+typedef enum {
+  RC_GR_READ,
+  RC_GR_WRITE,
+  RC_GR_RMW,
+} rc_gr_mode;
+
+static int rcache_get_reg(sh2_reg_e r, rc_gr_mode mode)
+{
+  temp_reg_t *tr;
+  int i;
+
+  // maybe already statically mapped?
+  i = reg_map_g2h[r];
+  if (i != -1)
+    return i;
+
+  rcache_counter++;
+
+  // maybe already cached?
+  for (i = ARRAY_SIZE(reg_temp) - 1; i >= 0; i--) {
+    if ((reg_temp[i].type == HR_CACHED || reg_temp[i].type == HR_CACHED_DIRTY) &&
+         reg_temp[i].val == r)
+    {
+      reg_temp[i].stamp = rcache_counter;
+      if (mode != RC_GR_READ)
+        reg_temp[i].type = HR_CACHED_DIRTY;
+      return reg_temp[i].reg;
+    }
+  }
+
+  // use any free reg
+  for (i = ARRAY_SIZE(reg_temp) - 1; i >= 0; i--) {
+    if (reg_temp[i].type == HR_FREE || reg_temp[i].type == HR_CONST) {
+      tr = &reg_temp[i];
+      goto do_alloc;
+    }
+  }
+
+  tr = rcache_evict();
+
+do_alloc:
+  if (mode != RC_GR_WRITE)
+    emith_ctx_read(tr->reg, r * 4);
+
+  tr->type = mode != RC_GR_READ ? HR_CACHED_DIRTY : HR_CACHED;
+  tr->val = r;
+  tr->stamp = rcache_counter;
+  return tr->reg;
+}
+
+static int rcache_get_tmp(void)
+{
+  temp_reg_t *tr;
+  int i;
+
+  for (i = 0; i < ARRAY_SIZE(reg_temp); i++)
+    if (reg_temp[i].type == HR_FREE || reg_temp[i].type == HR_CONST) {
+      tr = &reg_temp[i];
+      goto do_alloc;
+    }
+
+  tr = rcache_evict();
+
+do_alloc:
+  tr->type = HR_TEMP;
+  return tr->reg;
+}
+
+static void rcache_free_tmp(int hr)
+{
+  int i;
+  for (i = 0; i < ARRAY_SIZE(reg_temp); i++)
+    if (reg_temp[i].reg == hr)
+      break;
+
+  if (i == ARRAY_SIZE(reg_temp) || reg_temp[i].type != HR_TEMP)
+    printf("rcache_free_tmp fail: #%i hr %d, type %d\n", i, hr, reg_temp[i].type);
+}
+
+static void rcache_flush(void)
+{
+  int i;
+  for (i = 0; i < ARRAY_SIZE(reg_temp); i++) {
+    if (reg_temp[i].type == HR_CACHED_DIRTY) {
+      // writeback
+      emith_ctx_write(reg_temp[i].reg, reg_temp[i].val * 4);
+    }
+    reg_temp[i].type = HR_FREE;
+  }
+  rcache_counter = 0;
+}
+
+// ---------------------------------------------------------------
+
 static void emit_move_r_imm32(sh2_reg_e dst, u32 imm)
 {
-  int host_dst = reg_map_g2h[dst];
-  int tmp = 0;
-
-  if (host_dst != -1)
-    tmp = host_dst;
-  emith_move_r_imm(tmp, imm);
-  if (host_dst == -1)
-    emith_ctx_write(tmp, dst * 4);
+  int hr = rcache_get_reg(dst, RC_GR_WRITE);
+  emith_move_r_imm(hr, imm);
 }
 
 static void emit_move_r_r(sh2_reg_e dst, sh2_reg_e src)
 {
-  int host_dst = reg_map_g2h[dst], host_src = reg_map_g2h[src];
-  int tmp = 0;
+  int hr_d = rcache_get_reg(dst, RC_GR_WRITE);
+  int hr_s = rcache_get_reg(src, RC_GR_READ);
 
-  if (host_dst != -1 && host_src != -1) {
-    emith_move_r_r(host_dst, host_src);
-    return;
-  }
-
-  if (host_src != -1)
-    tmp = host_src;
-  if (host_dst != -1)
-    tmp = host_dst;
-
-  if (host_src == -1)
-    emith_ctx_read(tmp, src * 4);
-  if (host_dst == -1)
-    emith_ctx_write(tmp, dst * 4);
-}
-
-static void emit_braf(sh2_reg_e reg, u32 pc)
-{
-  int host_reg = reg_map_g2h[reg];
-  if (host_reg == -1) {
-    emith_ctx_read(0, reg * 4);
-  } else
-    emith_move_r_r(0, host_reg);
-  emith_add_r_imm(0, pc);
-
-  emith_ctx_write(0, SHR_PPC * 4);
+  emith_move_r_r(hr_d, hr_s);
 }
 
 /*
@@ -320,7 +446,10 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         DELAYED_OP;
         if (!(op & 0x20))
           emit_move_r_imm32(SHR_PR, pc + 2);
-        emit_braf((op >> 8) & 0x0f, pc + 2);
+        tmp = rcache_get_reg(SHR_PPC, RC_GR_WRITE);
+        tmp2 = rcache_get_reg((op >> 8) & 0x0f, RC_GR_READ);
+        emith_move_r_r(tmp, tmp2);
+        emith_add_r_imm(tmp, pc + 2);
         cycles++;
         goto end_op;
       case 0x09:
@@ -338,6 +467,7 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
           // RTE        0000000000101011
           //emit_move_r_r(SHR_PC, SHR_PR);
           emit_move_r_imm32(SHR_PC, pc - 2);
+          rcache_flush();
           emith_pass_arg_r(0, CONTEXT_REG);
           emith_pass_arg_imm(1, op);
           emith_call(sh2_do_op);
@@ -351,6 +481,11 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
 
     case 0x04:
       switch (op & 0x0f) {
+      case 0x00:
+        if ((op & 0xf0) != 1)
+          goto default_;
+        // DT Rn      0100nnnn00010000
+        goto default_;
       case 0x07:
         if ((op & 0xf0) != 0)
           goto default_;
@@ -420,6 +555,7 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
     default:
     default_:
       emit_move_r_imm32(SHR_PC, pc - 2);
+      rcache_flush();
       emith_pass_arg_r(0, CONTEXT_REG);
       emith_pass_arg_imm(1, op);
       emith_call(sh2_do_op);
@@ -431,6 +567,7 @@ end_op:
       emit_move_r_r(SHR_PC, SHR_PPC);
 
     if (test_irq && delayed_op != 2) {
+      rcache_flush();
       emith_pass_arg_r(0, CONTEXT_REG);
       emith_call(sh2_test_irq);
       break;
@@ -468,10 +605,9 @@ end_block:
     }
   }
 
-  if (reg_map_g2h[SHR_SR] == -1) {
-    emith_ctx_sub(cycles << 12, SHR_SR * 4);
-  } else
-    emith_sub_r_imm(reg_map_g2h[SHR_SR], cycles << 12);
+  tmp = rcache_get_reg(SHR_SR, RC_GR_RMW);
+  emith_sub_r_imm(tmp, cycles << 12);
+  rcache_flush();
   emith_jump(sh2_drc_exit);
   tcache_ptrs[tcache_id] = tcache_ptr;
 

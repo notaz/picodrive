@@ -54,12 +54,6 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT(offs, u8); 	/* mov [ebp+#offs], tmp */ \
 }
 
-#define emith_ctx_sub(val, offs) { \
-	EMIT_OP_MODRM(0x81, 1, 5, xBP); \
-	EMIT(offs, u8); \
-	EMIT(val, u32); 	/* sub [ebp+#offs], dword val */ \
-}
-
 #define emith_jump(ptr) { \
 	u32 disp = (u32)ptr - ((u32)tcache_ptr + 5); \
 	EMIT_OP(0xe9); \
