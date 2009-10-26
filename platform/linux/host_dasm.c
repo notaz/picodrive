@@ -170,7 +170,7 @@ void host_dasm(void *addr, int len)
 
   vma_end = vma + len;
   while (vma < vma_end) {
-    printf("  %p ", (void *)(long)vma);
+    printf("      %p ", (void *)(long)vma);
     vma += print_insn_func(vma, &di);
     printf("\n");
   }

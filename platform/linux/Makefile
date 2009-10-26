@@ -3,7 +3,7 @@ use_musashi = 1
 #use_fame = 1
 #use_mz80 = 1
 use_sh2drc = 1
-drc_debug = 1
+#drc_debug = 3
 #profile = 1
 #fake_in_gp2x = 1
 
@@ -140,6 +140,7 @@ mkdirs:
 include ../common/revision.mak
 
 pico/carthw/svp/compiler.o : ../../cpu/drc/emit_arm.c
+cpu/sh2/compiler.o : ../../cpu/drc/emit_x86.c
 pico/pico.o pico/cd/pico.o : ../../pico/pico_cmn.c ../../pico/pico_int.h
 pico/memory.o pico/cd/memory.o : ../../pico/pico_int.h ../../pico/memory.h
 

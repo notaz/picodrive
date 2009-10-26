@@ -1167,7 +1167,7 @@ typedef void (sh2_write_handler)(u32 a, u32 d, int id);
 #define SH2MAP_ADDR2OFFS(a) \
   (((a >> 25) & 3) | ((a >> 27) & 0x1c))
 
-u32 p32x_sh2_read8(u32 a, SH2 *sh2)
+u32 REGPARM(2) p32x_sh2_read8(u32 a, SH2 *sh2)
 {
   const sh2_memmap *sh2_map = sh2->read8_map;
   uptr p;
@@ -1180,7 +1180,7 @@ u32 p32x_sh2_read8(u32 a, SH2 *sh2)
     return *(u8 *)((p << 1) + ((a & sh2_map->mask) ^ 1));
 }
 
-u32 p32x_sh2_read16(u32 a, SH2 *sh2)
+u32 REGPARM(2) p32x_sh2_read16(u32 a, SH2 *sh2)
 {
   const sh2_memmap *sh2_map = sh2->read16_map;
   uptr p;
@@ -1193,7 +1193,7 @@ u32 p32x_sh2_read16(u32 a, SH2 *sh2)
     return *(u16 *)((p << 1) + ((a & sh2_map->mask) & ~1));
 }
 
-u32 p32x_sh2_read32(u32 a, SH2 *sh2)
+u32 REGPARM(2) p32x_sh2_read32(u32 a, SH2 *sh2)
 {
   const sh2_memmap *sh2_map = sh2->read16_map;
   sh2_read_handler *handler;
@@ -1216,7 +1216,7 @@ u32 p32x_sh2_read32(u32 a, SH2 *sh2)
   return (handler(a, sh2->is_slave) << 16) | handler(a + 2, sh2->is_slave);
 }
 
-void p32x_sh2_write8(u32 a, u32 d, SH2 *sh2)
+void REGPARM(3) p32x_sh2_write8(u32 a, u32 d, SH2 *sh2)
 {
   const void **sh2_wmap = sh2->write8_tab;
   sh2_write_handler *wh;
@@ -1225,7 +1225,7 @@ void p32x_sh2_write8(u32 a, u32 d, SH2 *sh2)
   wh(a, d, sh2->is_slave);
 }
 
-void p32x_sh2_write16(u32 a, u32 d, SH2 *sh2)
+void REGPARM(3) p32x_sh2_write16(u32 a, u32 d, SH2 *sh2)
 {
   const void **sh2_wmap = sh2->write16_tab;
   sh2_write_handler *wh;
@@ -1234,7 +1234,7 @@ void p32x_sh2_write16(u32 a, u32 d, SH2 *sh2)
   wh(a, d, sh2->is_slave);
 }
 
-void p32x_sh2_write32(u32 a, u32 d, SH2 *sh2)
+void REGPARM(3) p32x_sh2_write32(u32 a, u32 d, SH2 *sh2)
 {
   const void **sh2_wmap = sh2->write16_tab;
   sh2_write_handler *handler;

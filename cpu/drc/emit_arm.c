@@ -30,7 +30,14 @@
 #define A_COND_NE 0x1
 #define A_COND_MI 0x4
 #define A_COND_PL 0x5
+#define A_COND_LS 0x9
 #define A_COND_LE 0xd
+
+/* unified conditions */
+#define DCOND_EQ A_COND_EQ
+#define DCOND_NE A_COND_NE
+#define DCOND_MI A_COND_MI
+#define DCOND_PL A_COND_PL
 
 /* addressing mode 1 */
 #define A_AM1_LSL 0
@@ -49,6 +56,7 @@
 #define A_OP_RSB 0x3
 #define A_OP_ADD 0x4
 #define A_OP_TST 0x8
+#define A_OP_TEQ 0x9
 #define A_OP_CMP 0xa
 #define A_OP_ORR 0xc
 #define A_OP_MOV 0xd
@@ -71,37 +79,43 @@
 #define EOP_CMP_IMM(   rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_CMP,1,rn, 0,ror2,imm8)
 #define EOP_RSB_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_RSB,0,rn,rd,ror2,imm8)
 
-#define EOP_MOV_REG(s,   rd,shift_imm,shift_op,rm) EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
-#define EOP_ORR_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_ORR,s,rn,rd,shift_imm,shift_op,rm)
-#define EOP_ADD_REG(s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_ADD,s,rn,rd,shift_imm,shift_op,rm)
-#define EOP_TST_REG(  rn,   shift_imm,shift_op,rm) EOP_C_DOP_REG_XIMM(A_COND_AL,A_OP_TST,1,rn, 0,shift_imm,shift_op,rm)
+#define EOP_MOV_IMM_C(cond,rd,   ror2,imm8) EOP_C_DOP_IMM(cond,A_OP_MOV,0, 0,rd,ror2,imm8)
+#define EOP_ORR_IMM_C(cond,rd,rn,ror2,imm8) EOP_C_DOP_IMM(cond,A_OP_ORR,0,rn,rd,ror2,imm8)
+#define EOP_RSB_IMM_C(cond,rd,rn,ror2,imm8) EOP_C_DOP_IMM(cond,A_OP_RSB,0,rn,rd,ror2,imm8)
 
-#define EOP_MOV_REG2(s,   rd,rs,shift_op,rm) EOP_C_DOP_REG_XREG(A_COND_AL,A_OP_MOV,s, 0,rd,rs,shift_op,rm)
-#define EOP_ADD_REG2(s,rn,rd,rs,shift_op,rm) EOP_C_DOP_REG_XREG(A_COND_AL,A_OP_ADD,s,rn,rd,rs,shift_op,rm)
-#define EOP_SUB_REG2(s,rn,rd,rs,shift_op,rm) EOP_C_DOP_REG_XREG(A_COND_AL,A_OP_SUB,s,rn,rd,rs,shift_op,rm)
+#define EOP_MOV_REG(cond,s,rd,   rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
+#define EOP_ORR_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_ORR,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_ADD_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_ADD,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_SUB_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_SUB,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_TST_REG(cond,     rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_TST,1,rn, 0,shift_imm,shift_op,rm)
+#define EOP_TEQ_REG(cond,     rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_TEQ,1,rn, 0,shift_imm,shift_op,rm)
 
-#define EOP_MOV_REG_SIMPLE(rd,rm)           EOP_MOV_REG(0,rd,0,A_AM1_LSL,rm)
-#define EOP_MOV_REG_LSL(rd,   rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_LSL,rm)
-#define EOP_MOV_REG_LSR(rd,   rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_LSR,rm)
-#define EOP_MOV_REG_ASR(rd,   rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_ASR,rm)
-#define EOP_MOV_REG_ROR(rd,   rm,shift_imm) EOP_MOV_REG(0,rd,shift_imm,A_AM1_ROR,rm)
+#define EOP_MOV_REG2(s,rd,   rm,shift_op,rs) EOP_C_DOP_REG_XREG(A_COND_AL,A_OP_MOV,s, 0,rd,rs,shift_op,rm)
+#define EOP_ADD_REG2(s,rd,rn,rm,shift_op,rs) EOP_C_DOP_REG_XREG(A_COND_AL,A_OP_ADD,s,rn,rd,rs,shift_op,rm)
+#define EOP_SUB_REG2(s,rd,rn,rm,shift_op,rs) EOP_C_DOP_REG_XREG(A_COND_AL,A_OP_SUB,s,rn,rd,rs,shift_op,rm)
 
-#define EOP_ORR_REG_SIMPLE(rd,rm)           EOP_ORR_REG(0,rd,rd,0,A_AM1_LSL,rm)
-#define EOP_ORR_REG_LSL(rd,rn,rm,shift_imm) EOP_ORR_REG(0,rn,rd,shift_imm,A_AM1_LSL,rm)
-#define EOP_ORR_REG_LSR(rd,rn,rm,shift_imm) EOP_ORR_REG(0,rn,rd,shift_imm,A_AM1_LSR,rm)
-#define EOP_ORR_REG_ASR(rd,rn,rm,shift_imm) EOP_ORR_REG(0,rn,rd,shift_imm,A_AM1_ASR,rm)
-#define EOP_ORR_REG_ROR(rd,rn,rm,shift_imm) EOP_ORR_REG(0,rn,rd,shift_imm,A_AM1_ROR,rm)
+#define EOP_MOV_REG_SIMPLE(rd,rm)           EOP_MOV_REG(A_COND_AL,0,rd,rm,A_AM1_LSL,0)
+#define EOP_MOV_REG_LSL(rd,   rm,shift_imm) EOP_MOV_REG(A_COND_AL,0,rd,rm,A_AM1_LSL,shift_imm)
+#define EOP_MOV_REG_LSR(rd,   rm,shift_imm) EOP_MOV_REG(A_COND_AL,0,rd,rm,A_AM1_LSR,shift_imm)
+#define EOP_MOV_REG_ASR(rd,   rm,shift_imm) EOP_MOV_REG(A_COND_AL,0,rd,rm,A_AM1_ASR,shift_imm)
+#define EOP_MOV_REG_ROR(rd,   rm,shift_imm) EOP_MOV_REG(A_COND_AL,0,rd,rm,A_AM1_ROR,shift_imm)
 
-#define EOP_ADD_REG_SIMPLE(rd,rm)           EOP_ADD_REG(0,rd,rd,0,A_AM1_LSL,rm)
-#define EOP_ADD_REG_LSL(rd,rn,rm,shift_imm) EOP_ADD_REG(0,rn,rd,shift_imm,A_AM1_LSL,rm)
-#define EOP_ADD_REG_LSR(rd,rn,rm,shift_imm) EOP_ADD_REG(0,rn,rd,shift_imm,A_AM1_LSR,rm)
+#define EOP_ORR_REG_SIMPLE(rd,rm)           EOP_ORR_REG(A_COND_AL,0,rd,rd,rm,A_AM1_LSL,0)
+#define EOP_ORR_REG_LSL(rd,rn,rm,shift_imm) EOP_ORR_REG(A_COND_AL,0,rd,rn,rm,A_AM1_LSL,shift_imm)
+#define EOP_ORR_REG_LSR(rd,rn,rm,shift_imm) EOP_ORR_REG(A_COND_AL,0,rd,rn,rm,A_AM1_LSR,shift_imm)
+#define EOP_ORR_REG_ASR(rd,rn,rm,shift_imm) EOP_ORR_REG(A_COND_AL,0,rd,rn,rm,A_AM1_ASR,shift_imm)
+#define EOP_ORR_REG_ROR(rd,rn,rm,shift_imm) EOP_ORR_REG(A_COND_AL,0,rd,rn,rm,A_AM1_ROR,shift_imm)
 
-#define EOP_TST_REG_SIMPLE(rn,rm)           EOP_TST_REG(  rn,   0,A_AM1_LSL,rm)
+#define EOP_ADD_REG_SIMPLE(rd,rm)           EOP_ADD_REG(A_COND_AL,0,rd,rd,rm,A_AM1_LSL,0)
+#define EOP_ADD_REG_LSL(rd,rn,rm,shift_imm) EOP_ADD_REG(A_COND_AL,0,rd,rn,rm,A_AM1_LSL,shift_imm)
+#define EOP_ADD_REG_LSR(rd,rn,rm,shift_imm) EOP_ADD_REG(A_COND_AL,0,rd,rn,rm,A_AM1_LSR,shift_imm)
 
-#define EOP_MOV_REG2_LSL(rd,   rm,rs)       EOP_MOV_REG2(0,   rd,rs,A_AM1_LSL,rm)
-#define EOP_MOV_REG2_ROR(rd,   rm,rs)       EOP_MOV_REG2(0,   rd,rs,A_AM1_ROR,rm)
-#define EOP_ADD_REG2_LSL(rd,rn,rm,rs)       EOP_ADD_REG2(0,rn,rd,rs,A_AM1_LSL,rm)
-#define EOP_SUB_REG2_LSL(rd,rn,rm,rs)       EOP_SUB_REG2(0,rn,rd,rs,A_AM1_LSL,rm)
+#define EOP_TST_REG_SIMPLE(rn,rm)           EOP_TST_REG(A_COND_AL,  rn,   0,A_AM1_LSL,rm)
+
+#define EOP_MOV_REG2_LSL(rd,   rm,rs)       EOP_MOV_REG2(0,rd,   rm,A_AM1_LSL,rs)
+#define EOP_MOV_REG2_ROR(rd,   rm,rs)       EOP_MOV_REG2(0,rd,   rm,A_AM1_ROR,rs)
+#define EOP_ADD_REG2_LSL(rd,rn,rm,rs)       EOP_ADD_REG2(0,rd,rn,rm,A_AM1_LSL,rs)
+#define EOP_SUB_REG2_LSL(rd,rn,rm,rs)       EOP_SUB_REG2(0,rd,rn,rm,A_AM1_LSL,rs)
 
 /* addressing mode 2 */
 #define EOP_C_AM2_IMM(cond,u,b,l,rn,rd,offset_12) \
@@ -169,13 +183,15 @@
 #define EOP_MSR_REG(rm)       EOP_C_MSR_REG(A_COND_AL,rm)
 
 
-static void emith_op_imm(int cond, int op, int r, unsigned int imm)
+static void emith_op_imm(int cond, int s, int op, int r, unsigned int imm)
 {
-	int ror2, rn = r;
+	int ror2, rd = r, rn = r;
 	u32 v;
 
 	if (op == A_OP_MOV)
 		rn = 0;
+	else if (op == A_OP_TST || op == A_OP_TEQ)
+		rd = 0;
 	else if (imm == 0)
 		return;
 
@@ -184,7 +200,7 @@ static void emith_op_imm(int cond, int op, int r, unsigned int imm)
 		for (; v && !(v & 3); v >>= 2)
 			ror2--;
 
-		EOP_C_DOP_IMM(cond, op, 0, rn, r, ror2 & 0x0f, v & 0xff);
+		EOP_C_DOP_IMM(cond, op, s, rn, rd, ror2 & 0x0f, v & 0xff);
 
 		if (op == A_OP_MOV) {
 			op = A_OP_ORR;
@@ -226,6 +242,13 @@ static int emith_xbranch(int cond, void *target, int is_call)
 }
 
 
+// fake "simple" or "short" jump - using cond insns instead
+#define EMITH_SJMP_START(cond) \
+	(void)(cond)
+
+#define EMITH_SJMP_END(cond) \
+	(void)(cond)
+
 #define EMITH_CONDITIONAL(code, is_nonzero) { \
 	u32 val, cond, *ptr; \
 	cond = (is_nonzero) ? A_COND_NE : A_COND_EQ; \
@@ -236,23 +259,97 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	EMIT_PTR(ptr, ((cond)<<28) | 0x0a000000 | (val & 0xffffff)); \
 }
 
-#define emith_move_r_r(dst, src) \
-	EOP_MOV_REG_SIMPLE(dst, src)
+#define emith_move_r_r(d, s) \
+	EOP_MOV_REG_SIMPLE(d, s)
+
+#define emith_add_r_r(d, s) \
+	EOP_ADD_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
+
+#define emith_sub_r_r(d, s) \
+	EOP_SUB_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
+
+#define emith_teq_r_r(d, s) \
+	EOP_TEQ_REG(A_COND_AL,d,s,A_AM1_LSL,0)
+
+#define emith_subf_r_r(d, s) \
+	EOP_SUB_REG(A_COND_AL,1,d,d,s,A_AM1_LSL,0)
 
 #define emith_move_r_imm(r, imm) \
-	emith_op_imm(A_COND_AL, A_OP_MOV, r, imm)
+	emith_op_imm(A_COND_AL, 0, A_OP_MOV, r, imm)
 
 #define emith_add_r_imm(r, imm) \
-	emith_op_imm(A_COND_AL, A_OP_ADD, r, imm)
+	emith_op_imm(A_COND_AL, 0, A_OP_ADD, r, imm)
 
 #define emith_sub_r_imm(r, imm) \
-	emith_op_imm(A_COND_AL, A_OP_SUB, r, imm)
+	emith_op_imm(A_COND_AL, 0, A_OP_SUB, r, imm)
+
+#define emith_bic_r_imm(r, imm) \
+	emith_op_imm(A_COND_AL, 0, A_OP_BIC, r, imm)
+
+#define emith_or_r_imm(r, imm) \
+	emith_op_imm(A_COND_AL, 0, A_OP_ORR, r, imm)
+
+// note: use 8bit imm only
+#define emith_tst_r_imm(r, imm) \
+	emith_op_imm(A_COND_AL, 1, A_OP_TST, r, imm)
+
+#define emith_subf_r_imm(r, imm) \
+	emith_op_imm(A_COND_AL, 1, A_OP_SUB, r, imm)
+
+#define emith_add_r_imm_c(cond, r, imm) \
+	emith_op_imm(cond, 0, A_OP_ADD, r, imm)
+
+#define emith_sub_r_imm_c(cond, r, imm) \
+	emith_op_imm(cond, 0, A_OP_SUB, r, imm)
+
+#define emith_or_r_imm_c(cond, r, imm) \
+	emith_op_imm(cond, 0, A_OP_ORR, r, imm)
+
+#define emith_lsl(d, s, cnt) \
+	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_LSL,cnt)
+
+#define emith_lsr(d, s, cnt) \
+	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_LSR,cnt)
+
+#define emith_asrf(d, s, cnt) \
+	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_ASR,cnt)
+
+#define emith_mul(d, s1, s2) { \
+	if ((d) != (s1)) /* rd != rm limitation */ \
+		EOP_MUL(d, s1, s2); \
+	else \
+		EOP_MUL(d, s2, s1); \
+}
 
 #define emith_ctx_read(r, offs) \
 	EOP_LDR_IMM(r, CONTEXT_REG, offs)
 
 #define emith_ctx_write(r, offs) \
 	EOP_STR_IMM(r, CONTEXT_REG, offs)
+
+#define emith_clear_msb(d, s, count) { \
+	u32 t; \
+	if ((count) <= 8) { \
+		t = (count) - 8; \
+		t = (0xff << t) & 0xff; \
+		EOP_BIC_IMM(d,s,8/2,t); \
+	} else if ((count) >= 24) { \
+		t = (count) - 24; \
+		t = 0xff >> t; \
+		EOP_AND_IMM(d,s,0,t); \
+	} else { \
+		EOP_MOV_REG_LSL(d,s,count); \
+		EOP_MOV_REG_LSR(d,d,count); \
+	} \
+}
+
+#define emith_sext(d, s, bits) { \
+	EOP_MOV_REG_LSL(d,s,32 - (bits)); \
+	EOP_MOV_REG_ASR(d,d,32 - (bits)); \
+}
+
+#define host_arg2reg(rd, arg) \
+	rd = arg
 
 // upto 4 args
 #define emith_pass_arg_r(arg, reg) \
@@ -274,9 +371,29 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	emith_jump_cond(A_COND_AL, target)
 
 /* SH2 drc specific */
-#define emith_test_t() { \
+#define emith_sh2_test_t() { \
 	int r = rcache_get_reg(SHR_SR, RC_GR_READ); \
 	EOP_TST_IMM(r, 0, 1); \
 }
 
+#define emith_sh2_dtbf_loop() { \
+	int cr, rn;                                                          \
+	tmp = rcache_get_tmp();                                              \
+	cr = rcache_get_reg(SHR_SR, RC_GR_RMW);                              \
+	rn = rcache_get_reg((op >> 8) & 0x0f, RC_GR_RMW);                    \
+	emith_sub_r_imm(rn, 1);                /* sub rn, #1 */              \
+	emith_bic_r_imm(cr, 1);                /* bic cr, #1 */              \
+	emith_sub_r_imm(cr, (cycles+1) << 12); /* sub cr, #(cycles+1)<<12 */ \
+	cycles = 0;                                                          \
+	emith_asrf(tmp, cr, 2+12);             /* movs tmp, cr, asr #2+12 */ \
+	EOP_MOV_IMM_C(A_COND_MI,tmp,0,0);      /* movmi tmp, #0 */           \
+	emith_lsl(cr, cr, 20);                 /* mov cr, cr, lsl #20 */     \
+	emith_lsr(cr, cr, 20);                 /* mov cr, cr, lsr #20 */     \
+	emith_subf_r_r(rn, tmp);               /* subs rn, tmp */            \
+	EOP_RSB_IMM_C(A_COND_LS,tmp,rn,0,0);   /* rsbls tmp, rn, #0 */       \
+	EOP_ORR_REG(A_COND_LS,0,cr,cr,tmp,A_AM1_LSL,12+2); /* orrls cr,tmp,lsl #12+2 */\
+	EOP_ORR_IMM_C(A_COND_LS,cr,cr,0,1);    /* orrls cr, #1 */            \
+	EOP_MOV_IMM_C(A_COND_LS,rn,0,0);       /* movls rn, #0 */            \
+	rcache_free_tmp(tmp);                                                \
+}
 

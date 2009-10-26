@@ -356,7 +356,7 @@ static void tr_mov16(int r, int val)
 
 static void tr_mov16_cond(int cond, int r, int val)
 {
-	emith_op_imm(cond, A_OP_MOV, r, val);
+	emith_op_imm(cond, 0, A_OP_MOV, r, val);
 	hostreg_r[r] = -1;
 }
 

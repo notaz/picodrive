@@ -50,11 +50,17 @@ void sh2_execute(SH2 *sh2, int cycles);
 
 // pico memhandlers
 // XXX: move somewhere else
-unsigned int p32x_sh2_read8(unsigned int a, SH2 *sh2);
-unsigned int p32x_sh2_read16(unsigned int a, SH2 *sh2);
-unsigned int p32x_sh2_read32(unsigned int a, SH2 *sh2);
-void p32x_sh2_write8(unsigned int a, unsigned int d, SH2 *sh2);
-void p32x_sh2_write16(unsigned int a, unsigned int d, SH2 *sh2);
-void p32x_sh2_write32(unsigned int a, unsigned int d, SH2 *sh2);
+#if !defined(REGPARM) && defined(__i386__) 
+#define REGPARM(x) __attribute__((regparm(x)))
+#else
+#define REGPARM(x)
+#endif
+
+unsigned int REGPARM(2) p32x_sh2_read8(unsigned int a, SH2 *sh2);
+unsigned int REGPARM(2) p32x_sh2_read16(unsigned int a, SH2 *sh2);
+unsigned int REGPARM(2) p32x_sh2_read32(unsigned int a, SH2 *sh2);
+void REGPARM(3) p32x_sh2_write8(unsigned int a, unsigned int d, SH2 *sh2);
+void REGPARM(3) p32x_sh2_write16(unsigned int a, unsigned int d, SH2 *sh2);
+void REGPARM(3) p32x_sh2_write32(unsigned int a, unsigned int d, SH2 *sh2);
 
 #endif /* __SH2_H__ */

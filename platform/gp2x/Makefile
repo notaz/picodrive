@@ -13,7 +13,7 @@ amalgamate = 0
 #profile = 1
 #use_musashi = 1
 use_sh2drc = 1
-drc_debug = 1
+#drc_debug = 3
 
 -include Makefile.local
 
