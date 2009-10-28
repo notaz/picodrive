@@ -141,6 +141,7 @@ include ../common/revision.mak
 
 pico/carthw/svp/compiler.o : ../../cpu/drc/emit_arm.c
 cpu/sh2/compiler.o : ../../cpu/drc/emit_x86.c
+cpu/sh2/mame/sh2pico.o : ../../cpu/sh2/mame/sh2.c
 pico/pico.o pico/cd/pico.o : ../../pico/pico_cmn.c ../../pico/pico_int.h
 pico/memory.o pico/cd/memory.o : ../../pico/pico_int.h ../../pico/memory.h
 

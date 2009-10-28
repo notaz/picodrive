@@ -1,22 +1,46 @@
+/*
+ * note about silly things like emith_eor_r_r_r_lsl:
+ * these are here because the compiler was designed
+ * for ARM as it's primary target.
+ */
 #include <stdarg.h>
 
 enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define CONTEXT_REG xBP
 
+#define IOP_JO  0x70
+#define IOP_JNO 0x71
+#define IOP_JB  0x72
+#define IOP_JAE 0x73
 #define IOP_JE  0x74
 #define IOP_JNE 0x75
 #define IOP_JBE 0x76
 #define IOP_JA  0x77
 #define IOP_JS  0x78
 #define IOP_JNS 0x79
+#define IOP_JL  0x7c
+#define IOP_JGE 0x7d
 #define IOP_JLE 0x7e
+#define IOP_JG  0x7f
 
 // unified conditions (we just use rel8 jump instructions for x86)
 #define DCOND_EQ IOP_JE
 #define DCOND_NE IOP_JNE
 #define DCOND_MI IOP_JS      // MInus
 #define DCOND_PL IOP_JNS     // PLus or zero
+#define DCOND_HI IOP_JA      // higher (unsigned)
+#define DCOND_HS IOP_JAE     // higher || same (unsigned)
+#define DCOND_LO IOP_JB      // lower (unsigned)
+#define DCOND_LS IOP_JBE     // lower || same (unsigned)
+#define DCOND_GE IOP_JGE     // greater || equal (signed)
+#define DCOND_GT IOP_JG      // greater (signed)
+#define DCOND_LE IOP_JLE     // less || equal (signed)
+#define DCOND_LT IOP_JL      // less (signed)
+#define DCOND_VS IOP_JO      // oVerflow Set
+#define DCOND_VC IOP_JNO     // oVerflow Clear
+#define DCOND_CS IOP_JB	     // Carry Set
+#define DCOND_CC IOP_JAE     // Carry Clear
 
 #define EMIT_PTR(ptr, val, type) \
 	*(type *)(ptr) = val
@@ -47,6 +71,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_PTR(ptr, op, u8); \
 	EMIT_PTR(ptr + 1, (tcache_ptr - (ptr+2)), u8)
 
+// _r_r
 #define emith_move_r_r(dst, src) \
 	EMIT_OP_MODRM(0x8b, 3, dst, src)
 
@@ -56,17 +81,53 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_sub_r_r(d, s) \
 	EMIT_OP_MODRM(0x29, 3, s, d)
 
+#define emith_adc_r_r(d, s) \
+	EMIT_OP_MODRM(0x11, 3, s, d)
+
+#define emith_sbc_r_r(d, s) \
+	EMIT_OP_MODRM(0x19, 3, s, d) /* SBB */
+
 #define emith_or_r_r(d, s) \
 	EMIT_OP_MODRM(0x09, 3, s, d)
 
+#define emith_and_r_r(d, s) \
+	EMIT_OP_MODRM(0x21, 3, s, d)
+
 #define emith_eor_r_r(d, s) \
-	EMIT_OP_MODRM(0x31, 3, s, d)
+	EMIT_OP_MODRM(0x31, 3, s, d) /* XOR */
+
+#define emith_tst_r_r(d, s) \
+	EMIT_OP_MODRM(0x85, 3, s, d) /* TEST */
+
+#define emith_cmp_r_r(d, s) \
+	EMIT_OP_MODRM(0x39, 3, s, d)
 
 // fake teq - test equivalence - get_flags(d ^ s)
 #define emith_teq_r_r(d, s) { \
 	emith_push(d); \
 	emith_eor_r_r(d, s); \
 	emith_pop(d); \
+}
+
+// _r_r_r
+#define emith_eor_r_r_r(d, s1, s2) { \
+	if (d != s1) \
+		emith_move_r_r(d, s1); \
+	emith_eor_r_r(d, s2); \
+}
+
+#define emith_or_r_r_r_lsl(d, s1, s2, lslimm) { \
+	if (d != s2 && d != s1) { \
+		emith_lsl(d, s2, lslimm); \
+		emith_or_r_r(d, s1); \
+	} else { \
+		if (d != s1) \
+			emith_move_r_r(d, s1); \
+		emith_push(s2); \
+		emith_lsl(s2, s2, lslimm); \
+		emith_or_r_r(d, s2); \
+		emith_pop(s2); \
+	} \
 }
 
 // _r_imm
@@ -105,17 +166,22 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 // fake conditionals (using SJMP instead)
 #define emith_add_r_imm_c(cond, r, imm) { \
 	(void)(cond); \
-	emith_arith_r_imm(0, r, imm); \
+	emith_add_r_imm(r, imm); \
 }
 
 #define emith_or_r_imm_c(cond, r, imm) { \
 	(void)(cond); \
-	emith_arith_r_imm(1, r, imm); \
+	emith_or_r_imm(r, imm); \
 }
 
 #define emith_sub_r_imm_c(cond, r, imm) { \
 	(void)(cond); \
-	emith_arith_r_imm(5, r, imm); \
+	emith_sub_r_imm(r, imm); \
+}
+
+#define emith_bic_r_imm_c(cond, r, imm) { \
+	(void)(cond); \
+	emith_bic_r_imm(r, imm); \
 }
 
 // shift
@@ -126,11 +192,14 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT(cnt, u8); \
 }
 
-#define emith_asr(d, s, cnt) \
-	emith_shift(7, d, s, cnt)
-
 #define emith_lsl(d, s, cnt) \
 	emith_shift(4, d, s, cnt)
+
+#define emith_lsr(d, s, cnt) \
+	emith_shift(5, d, s, cnt)
+
+#define emith_asr(d, s, cnt) \
+	emith_shift(7, d, s, cnt)
 
 // misc
 #define emith_push(r) \
@@ -155,11 +224,24 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_asr(d, d, 32 - (bits)); \
 }
 
+// put bit0 of r0 to carry
+#define emith_set_carry(r0) { \
+	emith_tst_r_imm(r0, 1); /* clears C */ \
+	EMITH_SJMP_START(DCOND_EQ); \
+	EMIT_OP(0xf9); /* STC */ \
+	EMITH_SJMP_END(DCOND_EQ); \
+}
+
+// put bit0 of r0 to carry (for subtraction)
+#define emith_set_carry_sub emith_set_carry
+
 // XXX: stupid mess
-#define emith_mul(d, s1, s2) { \
+#define emith_mul_(op, dlo, dhi, s1, s2) { \
 	int rmr; \
-	if (d != xAX) \
+	if (dlo != xAX && dhi != xAX) \
 		emith_push(xAX); \
+	if (dlo != xDX && dhi != xDX) \
+		emith_push(xDX); \
 	if ((s1) == xAX) \
 		rmr = s2; \
 	else if ((s2) == xAX) \
@@ -168,18 +250,39 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 		emith_move_r_r(xAX, s1); \
 		rmr = s2; \
 	} \
-	emith_push(xDX); \
-	EMIT_OP_MODRM(0xf7, 3, 4, rmr); /* MUL rmr */ \
-	emith_pop(xDX); \
-	if (d != xAX) { \
-		emith_move_r_r(d, xAX); \
+	EMIT_OP_MODRM(0xf7, 3, op, rmr); /* xMUL rmr */ \
+	/* XXX: using push/pop for the case of edx->eax; eax->edx */ \
+	if (dhi != xDX && dhi != -1) \
+		emith_push(xDX); \
+	if (dlo != xAX) \
+		emith_move_r_r(dlo, xAX); \
+	if (dhi != xDX && dhi != -1) \
+		emith_pop(dhi); \
+	if (dlo != xDX && dhi != xDX) \
+		emith_pop(xDX); \
+	if (dlo != xAX && dhi != xAX) \
 		emith_pop(xAX); \
-	} \
 }
+
+#define emith_mul_u64(dlo, dhi, s1, s2) \
+	emith_mul_(4, dlo, dhi, s1, s2) /* MUL */
+
+#define emith_mul_s64(dlo, dhi, s1, s2) \
+	emith_mul_(5, dlo, dhi, s1, s2) /* IMUL */
+
+#define emith_mul(d, s1, s2) \
+	emith_mul_(4, d, -1, s1, s2)
 
 // "flag" instructions are the same
 #define emith_subf_r_imm emith_sub_r_imm
+#define emith_addf_r_r   emith_add_r_r
 #define emith_subf_r_r   emith_sub_r_r
+#define emith_adcf_r_r   emith_adc_r_r
+#define emith_sbcf_r_r   emith_sbc_r_r
+
+#define emith_lslf emith_lsl
+#define emith_lsrf emith_lsr
+#define emith_asrf emith_asr
 
 // XXX: offs is 8bit only
 #define emith_ctx_read(r, offs) { \

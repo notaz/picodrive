@@ -28,9 +28,17 @@
 #define A_COND_AL 0xe
 #define A_COND_EQ 0x0
 #define A_COND_NE 0x1
+#define A_COND_HS 0x2
+#define A_COND_LO 0x3
 #define A_COND_MI 0x4
 #define A_COND_PL 0x5
+#define A_COND_VS 0x6
+#define A_COND_VC 0x7
+#define A_COND_HI 0x8
 #define A_COND_LS 0x9
+#define A_COND_GE 0xa
+#define A_COND_LT 0xb
+#define A_COND_GT 0xc
 #define A_COND_LE 0xd
 
 /* unified conditions */
@@ -38,6 +46,18 @@
 #define DCOND_NE A_COND_NE
 #define DCOND_MI A_COND_MI
 #define DCOND_PL A_COND_PL
+#define DCOND_HI A_COND_HI
+#define DCOND_HS A_COND_HS
+#define DCOND_LO A_COND_LO
+#define DCOND_GE A_COND_GE
+#define DCOND_GT A_COND_GT
+#define DCOND_LT A_COND_LT
+#define DCOND_LS A_COND_LS
+#define DCOND_LE A_COND_LE
+#define DCOND_VS A_COND_VS
+#define DCOND_VC A_COND_VC
+#define DCOND_CS A_COND_HS
+#define DCOND_CC A_COND_LO
 
 /* addressing mode 1 */
 #define A_AM1_LSL 0
@@ -55,12 +75,15 @@
 #define A_OP_SUB 0x2
 #define A_OP_RSB 0x3
 #define A_OP_ADD 0x4
+#define A_OP_ADC 0x5
+#define A_OP_SBC 0x6
 #define A_OP_TST 0x8
 #define A_OP_TEQ 0x9
 #define A_OP_CMP 0xa
 #define A_OP_ORR 0xc
 #define A_OP_MOV 0xd
 #define A_OP_BIC 0xe
+#define A_OP_MVN 0xf
 
 #define EOP_C_DOP_X(cond,op,s,rn,rd,shifter_op) \
 	EMIT(((cond)<<28) | ((op)<< 21) | ((s)<<20) | ((rn)<<16) | ((rd)<<12) | (shifter_op))
@@ -71,6 +94,7 @@
 
 #define EOP_MOV_IMM(rd,   ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_MOV,0, 0,rd,ror2,imm8)
 #define EOP_ORR_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ORR,0,rn,rd,ror2,imm8)
+#define EOP_EOR_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_EOR,0,rn,rd,ror2,imm8)
 #define EOP_ADD_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ADD,0,rn,rd,ror2,imm8)
 #define EOP_BIC_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_BIC,0,rn,rd,ror2,imm8)
 #define EOP_AND_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_AND,0,rn,rd,ror2,imm8)
@@ -86,7 +110,12 @@
 #define EOP_MOV_REG(cond,s,rd,   rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
 #define EOP_ORR_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_ORR,s,rn,rd,shift_imm,shift_op,rm)
 #define EOP_ADD_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_ADD,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_ADC_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_ADC,s,rn,rd,shift_imm,shift_op,rm)
 #define EOP_SUB_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_SUB,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_SBC_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_SBC,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_AND_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_AND,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_EOR_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_EOR,s,rn,rd,shift_imm,shift_op,rm)
+#define EOP_CMP_REG(cond,     rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_CMP,1,rn, 0,shift_imm,shift_op,rm)
 #define EOP_TST_REG(cond,     rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_TST,1,rn, 0,shift_imm,shift_op,rm)
 #define EOP_TEQ_REG(cond,     rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_TEQ,1,rn, 0,shift_imm,shift_op,rm)
 
@@ -166,6 +195,12 @@
 /* misc */
 #define EOP_C_MUL(cond,s,rd,rs,rm) \
 	EMIT(((cond)<<28) | ((s)<<20) | ((rd)<<16) | ((rs)<<8) | 0x90 | (rm))
+
+#define EOP_C_UMULL(cond,s,rdhi,rdlo,rs,rm) \
+	EMIT(((cond)<<28) | 0x00800000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm))
+
+#define EOP_C_SMULL(cond,s,rdhi,rdlo,rs,rm) \
+	EMIT(((cond)<<28) | 0x00c00000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm))
 
 #define EOP_MUL(rd,rm,rs) EOP_C_MUL(A_COND_AL,0,rd,rs,rm) // note: rd != rm
 
@@ -249,18 +284,20 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define EMITH_SJMP_END(cond) \
 	(void)(cond)
 
-#define EMITH_CONDITIONAL(code, is_nonzero) { \
-	u32 val, cond, *ptr; \
-	cond = (is_nonzero) ? A_COND_NE : A_COND_EQ; \
-	ptr = (void *)tcache_ptr; \
-	tcache_ptr = (void *)(ptr + 1); \
-	code; \
-	val = (u32 *)tcache_ptr - (ptr + 2); \
-	EMIT_PTR(ptr, ((cond)<<28) | 0x0a000000 | (val & 0xffffff)); \
-}
-
 #define emith_move_r_r(d, s) \
 	EOP_MOV_REG_SIMPLE(d, s)
+
+#define emith_or_r_r_r_lsl(d, s1, s2, lslimm) \
+	EOP_ORR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
+
+#define emith_eor_r_r_r_lsl(d, s1, s2, lslimm) \
+	EOP_EOR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
+
+#define emith_or_r_r_r(d, s1, s2) \
+	emith_or_r_r_r_lsl(d, s1, s2, 0)
+
+#define emith_eor_r_r_r(d, s1, s2) \
+	emith_eor_r_r_r_lsl(d, s1, s2, 0)
 
 #define emith_add_r_r(d, s) \
 	EOP_ADD_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
@@ -268,11 +305,35 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_sub_r_r(d, s) \
 	EOP_SUB_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
 
+#define emith_and_r_r(d, s) \
+	EOP_AND_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
+
+#define emith_or_r_r(d, s) \
+	emith_or_r_r_r(d, d, s)
+
+#define emith_eor_r_r(d, s) \
+	emith_eor_r_r_r(d, d, s)
+
+#define emith_tst_r_r(d, s) \
+	EOP_TST_REG(A_COND_AL,d,s,A_AM1_LSL,0)
+
 #define emith_teq_r_r(d, s) \
 	EOP_TEQ_REG(A_COND_AL,d,s,A_AM1_LSL,0)
 
+#define emith_cmp_r_r(d, s) \
+	EOP_CMP_REG(A_COND_AL,d,s,A_AM1_LSL,0)
+
+#define emith_addf_r_r(d, s) \
+	EOP_ADD_REG(A_COND_AL,1,d,d,s,A_AM1_LSL,0)
+
 #define emith_subf_r_r(d, s) \
 	EOP_SUB_REG(A_COND_AL,1,d,d,s,A_AM1_LSL,0)
+
+#define emith_adcf_r_r(d, s) \
+	EOP_ADC_REG(A_COND_AL,1,d,d,s,A_AM1_LSL,0)
+
+#define emith_sbcf_r_r(d, s) \
+	EOP_SBC_REG(A_COND_AL,1,d,d,s,A_AM1_LSL,0)
 
 #define emith_move_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_MOV, r, imm)
@@ -305,11 +366,17 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_or_r_imm_c(cond, r, imm) \
 	emith_op_imm(cond, 0, A_OP_ORR, r, imm)
 
+#define emith_bic_r_imm_c(cond, r, imm) \
+	emith_op_imm(cond, 0, A_OP_BIC, r, imm)
+
 #define emith_lsl(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_LSL,cnt)
 
 #define emith_lsr(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_LSR,cnt)
+
+#define emith_lslf(d, s, cnt) \
+	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_LSL,cnt)
 
 #define emith_asrf(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_ASR,cnt)
@@ -321,6 +388,13 @@ static int emith_xbranch(int cond, void *target, int is_call)
 		EOP_MUL(d, s2, s1); \
 }
 
+#define emith_mul_u64(dlo, dhi, s1, s2) \
+	EOP_C_UMULL(A_COND_AL,0,dhi,dlo,s1,s2)
+
+#define emith_mul_s64(dlo, dhi, s1, s2) \
+	EOP_C_SMULL(A_COND_AL,0,dhi,dlo,s1,s2)
+
+// misc
 #define emith_ctx_read(r, offs) \
 	EOP_LDR_IMM(r, CONTEXT_REG, offs)
 
@@ -346,6 +420,18 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_sext(d, s, bits) { \
 	EOP_MOV_REG_LSL(d,s,32 - (bits)); \
 	EOP_MOV_REG_ASR(d,d,32 - (bits)); \
+}
+
+// put bit0 of r0 to carry
+#define emith_set_carry(r0) \
+	EOP_TST_REG(A_COND_AL,r0,r0,A_AM1_LSR,1) /* shift out to carry */ \
+
+// put bit0 of r0 to carry (for subtraction, inverted on ARM)
+#define emith_set_carry_sub(r0) { \
+	int t = rcache_get_tmp(); \
+	EOP_EOR_IMM(t,r0,0,1); /* invert */ \
+	EOP_MOV_REG(A_COND_AL,1,t,t,A_AM1_LSR,1); /* shift out to carry */ \
+	rcache_free_tmp(t); \
 }
 
 #define host_arg2reg(rd, arg) \
