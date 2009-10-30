@@ -40,6 +40,8 @@
 #define A_COND_LT 0xb
 #define A_COND_GT 0xc
 #define A_COND_LE 0xd
+#define A_COND_CS A_COND_HS
+#define A_COND_CC A_COND_LO
 
 /* unified conditions */
 #define DCOND_EQ A_COND_EQ
@@ -56,8 +58,6 @@
 #define DCOND_LE A_COND_LE
 #define DCOND_VS A_COND_VS
 #define DCOND_VC A_COND_VC
-#define DCOND_CS A_COND_HS
-#define DCOND_CC A_COND_LO
 
 /* addressing mode 1 */
 #define A_AM1_LSL 0
@@ -225,8 +225,6 @@ static void emith_op_imm(int cond, int s, int op, int r, unsigned int imm)
 
 	if (op == A_OP_MOV)
 		rn = 0;
-	else if (op == A_OP_TST || op == A_OP_TEQ)
-		rd = 0;
 	else if (imm == 0)
 		return;
 
@@ -242,6 +240,14 @@ static void emith_op_imm(int cond, int s, int op, int r, unsigned int imm)
 			rn = r;
 		}
 	}
+}
+
+// test op
+#define emith_top_imm(cond, op, r, imm) { \
+	u32 ror2, v; \
+	for (ror2 = 0, v = imm; v && !(v & 3); v >>= 2) \
+		ror2--; \
+	EOP_C_DOP_IMM(cond, op, 1, r, 0, ror2 & 0x0f, v & 0xff); \
 }
 
 #define is_offset_24(val) \
@@ -350,9 +356,12 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_or_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_ORR, r, imm)
 
-// note: use 8bit imm only
+// note: only use 8bit imm for these
 #define emith_tst_r_imm(r, imm) \
-	emith_op_imm(A_COND_AL, 1, A_OP_TST, r, imm)
+	emith_top_imm(A_COND_AL, A_OP_TST, r, imm)
+
+#define emith_cmp_r_imm(r, imm) \
+	emith_top_imm(A_COND_AL, A_OP_CMP, r, imm)
 
 #define emith_subf_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 1, A_OP_SUB, r, imm)
@@ -375,11 +384,33 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_lsr(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_LSR,cnt)
 
+#define emith_ror(d, s, cnt) \
+	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_ROR,cnt)
+
 #define emith_lslf(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_LSL,cnt)
 
+#define emith_lsrf(d, s, cnt) \
+	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_LSR,cnt)
+
 #define emith_asrf(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_ASR,cnt)
+
+// note: only C flag updated correctly
+#define emith_rolf(d, s, cnt) { \
+	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_ROR,32-(cnt)); \
+	/* we don't have ROL so we shift to get the right carry */ \
+	EOP_TST_REG(A_COND_AL,d,d,A_AM1_LSR,1); \
+}
+
+#define emith_rorf(d, s, cnt) \
+	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_ROR,cnt)
+
+#define emith_rolcf(d) \
+	emith_adcf_r_r(d, d)
+
+#define emith_rorcf(d) \
+	EOP_MOV_REG(A_COND_AL,1,d,d,A_AM1_ROR,0) /* ROR #0 -> RRX */
 
 #define emith_mul(d, s1, s2) { \
 	if ((d) != (s1)) /* rd != rm limitation */ \
@@ -483,3 +514,19 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	rcache_free_tmp(tmp);                                                \
 }
 
+#define emith_write_sr(srcr) { \
+	int srr = rcache_get_reg(SHR_SR, RC_GR_RMW); \
+	emith_lsr(srr, srr, 12); \
+	emith_or_r_r_r_lsl(srr, srr, srcr, 20); \
+	emith_ror(srr, srr, 20); \
+}
+
+#define emith_carry_to_t(srr, is_sub) { \
+	if (is_sub) { /* has inverted C on ARM */ \
+		emith_or_r_imm_c(A_COND_CC, srr, 1); \
+		emith_bic_r_imm_c(A_COND_CS, srr, 1); \
+	} else { \
+		emith_or_r_imm_c(A_COND_CS, srr, 1); \
+		emith_bic_r_imm_c(A_COND_CC, srr, 1); \
+	} \
+}

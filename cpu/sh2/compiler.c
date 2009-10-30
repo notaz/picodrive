@@ -512,8 +512,6 @@ SWAP.B Rm,Rn              0110nnnnmmmm1000
 SWAP.W Rm,Rn              0110nnnnmmmm1001
 ADD         #imm,Rn  0111nnnniiiiiiii
 CMP/EQ      #imm,R0  10001000iiiiiiii
-CMP/PZ      Rn       0100nnnn00010001
-CMP/PL      Rn       0100nnnn00010101
 EXTS.B Rm,Rn         0110nnnnmmmm1110
 EXTS.W Rm,Rn         0110nnnnmmmm1111
 EXTU.B Rm,Rn         0110nnnnmmmm1100
@@ -531,12 +529,6 @@ TST      #imm,R0             11001000iiiiiiii
 TST.B    #imm,@(R0,GBR)      11001100iiiiiiii
 XOR      #imm,R0             11001010iiiiiiii
 XOR.B    #imm,@(R0,GBR)      11001110iiiiiiii
-ROTL     Rn        0100nnnn00000100
-ROTR     Rn        0100nnnn00000101
-ROTCL    Rn        0100nnnn00100100
-ROTCR    Rn        0100nnnn00100101
-SHAR     Rn        0100nnnn00100001
-SHLR     Rn        0100nnnn00000001
 SHLL2    Rn        0100nnnn00001000
 SHLR2    Rn        0100nnnn00001001
 SHLL8    Rn        0100nnnn00011000
@@ -545,20 +537,9 @@ SHLL16 Rn          0100nnnn00101000
 SHLR16 Rn          0100nnnn00101001
 LDC      Rm,GBR    0100mmmm00011110
 LDC      Rm,VBR    0100mmmm00101110
-LDC.L    @Rm+,GBR  0100mmmm00010111
-LDC.L    @Rm+,VBR  0100mmmm00100111
 LDS      Rm,MACH   0100mmmm00001010
 LDS      Rm,MACL   0100mmmm00011010
 LDS      Rm,PR     0100mmmm00101010
-LDS.L    @Rm+,MACH 0100mmmm00000110
-LDS.L    @Rm+,MACL 0100mmmm00010110
-LDS.L    @Rm+,PR   0100mmmm00100110
-STC.L    SR,@–Rn   0100nnnn00000011
-STC.L    GBR,@–Rn  0100nnnn00010011
-STC.L    VBR,@–Rn  0100nnnn00100011
-STS.L    MACH,@–Rn 0100nnnn00000010
-STS.L    MACL,@–Rn 0100nnnn00010010
-STS.L    PR,@–Rn   0100nnnn00100010
 TRAPA    #imm      11000011iiiiiiii
 */
 
@@ -578,8 +559,8 @@ TRAPA    #imm      11000011iiiiiiii
 #define GET_Rn() \
   ((op >> 8) & 0x0f)
 
-#define CHECK_FX_GT_3() \
-  if (GET_Fx() > 3) \
+#define CHECK_FX_LT(n) \
+  if (GET_Fx() < n) \
     goto default_
 
 static void *sh2_translate(SH2 *sh2, block_desc *other_block)
@@ -670,8 +651,10 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         default:
           goto default_;
         }
-        tmp2 = rcache_get_reg(tmp2, RC_GR_READ);
-        emith_move_r_r(tmp, tmp2);
+        tmp3 = rcache_get_reg(tmp2, RC_GR_READ);
+        emith_move_r_r(tmp, tmp3);
+        if (tmp2 == SHR_SR)
+          emith_clear_msb(tmp, tmp, 20); // reserved bits defined by ISA as 0
         goto end_op;
       case 0x03:
         CHECK_UNHANDLED_BITS(0xd0);
@@ -751,17 +734,18 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         switch (GET_Fx())
         {
         case 0: // STS      MACH,Rn   0000nnnn00001010
-          tmp2 = rcache_get_reg(SHR_MACH, RC_GR_READ);
+          tmp2 = SHR_MACH;
           break;
         case 1: // STS      MACL,Rn   0000nnnn00011010
-          tmp2 = rcache_get_reg(SHR_MACL, RC_GR_READ);
+          tmp2 = SHR_MACL;
           break;
         case 2: // STS      PR,Rn     0000nnnn00101010
-          tmp2 = rcache_get_reg(SHR_PR, RC_GR_READ);
+          tmp2 = SHR_PR;
           break;
         default:
           goto default_;
         }
+        tmp2 = rcache_get_reg(tmp2, RC_GR_READ);
         emith_move_r_r(tmp, tmp2);
         goto end_op;
       case 0x0b:
@@ -1013,20 +997,12 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         if (op & 4) { // adc
           emith_set_carry(tmp3);
           emith_adcf_r_r(tmp, tmp2);
-          tmp  = DCOND_CS; // set condition
-          tmp2 = DCOND_CC; // clear condition
+          emith_carry_to_t(tmp3, 0);
         } else {
           emith_set_carry_sub(tmp3);
           emith_sbcf_r_r(tmp, tmp2);
-          tmp  = DCOND_LO; // using LO/HS instead of CS/CC
-          tmp2 = DCOND_HS; // due to ARM target..
+          emith_carry_to_t(tmp3, 1);
         }
-        EMITH_SJMP_START(tmp);
-        emith_bic_r_imm_c(tmp2, tmp3, T);
-        EMITH_SJMP_END(tmp);
-        EMITH_SJMP_START(tmp2);
-        emith_or_r_imm_c(tmp, tmp3, T);
-        EMITH_SJMP_END(tmp2);
         goto end_op;
       case 0x0b: // SUBV    Rm,Rn       0011nnnnmmmm1011
       case 0x0f: // ADDV    Rm,Rn       0011nnnnmmmm1111
@@ -1063,11 +1039,8 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         case 2: // SHAL Rn    0100nnnn00100000
           tmp  = rcache_get_reg(GET_Rn(), RC_GR_RMW);
           tmp2 = rcache_get_reg(SHR_SR, RC_GR_RMW);
-          emith_bic_r_imm(tmp2, T);
           emith_lslf(tmp, tmp, 1);
-          EMITH_SJMP_START(DCOND_CC);
-          emith_or_r_imm_c(DCOND_CS, tmp2, T);
-          EMITH_SJMP_END(DCOND_CC);
+          emith_carry_to_t(tmp2,  0);
           goto end_op;
         case 1: // DT Rn      0100nnnn00010000
           if (p32x_sh2_read16(pc, sh2) == 0x8bfd) { // BF #-2
@@ -1084,12 +1057,139 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
           goto end_op;
         }
         goto default_;
-      case 0x07:
-        if ((op & 0xf0) != 0)
-          goto default_;
-        // LDC.L @Rm+,SR  0100mmmm00000111
-        test_irq = 1;
+      case 0x01:
+        switch (GET_Fx())
+        {
+        case 0: // SHLR Rn    0100nnnn00000001
+        case 2: // SHAR Rn    0100nnnn00100001
+          tmp  = rcache_get_reg(GET_Rn(), RC_GR_RMW);
+          tmp2 = rcache_get_reg(SHR_SR, RC_GR_RMW);
+          if (op & 0x20) {
+            emith_asrf(tmp, tmp, 1);
+          } else
+            emith_lsrf(tmp, tmp, 1);
+          emith_carry_to_t(tmp2, 0);
+          goto end_op;
+        case 1: // CMP/PZ Rn  0100nnnn00010001
+          tmp  = rcache_get_reg(GET_Rn(), RC_GR_RMW);
+          tmp2 = rcache_get_reg(SHR_SR, RC_GR_RMW);
+          emith_bic_r_imm(tmp2, T);
+          emith_cmp_r_imm(tmp, 0);
+          EMITH_SJMP_START(DCOND_LT);
+          emith_or_r_imm_c(DCOND_GE, tmp2, T);
+          EMITH_SJMP_END(DCOND_LT);
+          goto end_op;
+        }
         goto default_;
+      case 0x02:
+      case 0x03:
+        switch (op & 0x3f)
+        {
+        case 0x02: // STS.L    MACH,@–Rn 0100nnnn00000010
+          tmp = SHR_MACH;
+          break;
+        case 0x12: // STS.L    MACL,@–Rn 0100nnnn00010010
+          tmp = SHR_MACL;
+          break;
+        case 0x22: // STS.L    PR,@–Rn   0100nnnn00100010
+          tmp = SHR_PR;
+          break;
+        case 0x03: // STC.L    SR,@–Rn   0100nnnn00000011
+          tmp = SHR_SR;
+          break;
+        case 0x13: // STC.L    GBR,@–Rn  0100nnnn00010011
+          tmp = SHR_GBR;
+          break;
+        case 0x23: // STC.L    VBR,@–Rn  0100nnnn00100011
+          tmp = SHR_VBR;
+          break;
+        default:
+          goto default_;
+        }
+        tmp2 = rcache_get_reg(GET_Rn(), RC_GR_RMW);
+        emith_sub_r_imm(tmp2, 4);
+        rcache_clean();
+        rcache_get_reg_arg(0, GET_Rn());
+        tmp3 = rcache_get_reg_arg(1, tmp);
+        if (tmp == SHR_SR)
+          emith_clear_msb(tmp3, tmp3, 20); // reserved bits defined by ISA as 0
+        emit_memhandler_write(2);
+        goto end_op;
+      case 0x04:
+      case 0x05:
+        switch (op & 0x3f)
+        {
+        case 0x04: // ROTL   Rn          0100nnnn00000100
+        case 0x05: // ROTR   Rn          0100nnnn00000101
+          tmp  = rcache_get_reg(GET_Rn(), RC_GR_RMW);
+          tmp2 = rcache_get_reg(SHR_SR, RC_GR_RMW);
+          if (op & 1) {
+            emith_rorf(tmp, tmp, 1);
+          } else
+            emith_rolf(tmp, tmp, 1);
+          emith_carry_to_t(tmp2, 0);
+          goto end_op;
+        case 0x24: // ROTCL  Rn          0100nnnn00100100
+        case 0x25: // ROTCR  Rn          0100nnnn00100101
+          tmp  = rcache_get_reg(GET_Rn(), RC_GR_RMW);
+          tmp2 = rcache_get_reg(SHR_SR, RC_GR_RMW);
+          emith_set_carry(tmp2);
+          if (op & 1) {
+            emith_rorcf(tmp);
+          } else
+            emith_rolcf(tmp);
+          emith_carry_to_t(tmp2, 0);
+          goto end_op;
+        case 0x15: // CMP/PL Rn          0100nnnn00010101
+          tmp  = rcache_get_reg(GET_Rn(), RC_GR_RMW);
+          tmp2 = rcache_get_reg(SHR_SR, RC_GR_RMW);
+          emith_bic_r_imm(tmp2, T);
+          emith_cmp_r_imm(tmp, 0);
+          EMITH_SJMP_START(DCOND_LE);
+          emith_or_r_imm_c(DCOND_GT, tmp2, T);
+          EMITH_SJMP_END(DCOND_LE);
+          goto end_op;
+        }
+        goto default_;
+      case 0x06:
+      case 0x07:
+        switch (op & 0x3f)
+        {
+        case 0x06: // LDS.L @Rm+,MACH 0100mmmm00000110
+          tmp = SHR_MACH;
+          break;
+        case 0x16: // LDS.L @Rm+,MACL 0100mmmm00010110
+          tmp = SHR_MACL;
+          break;
+        case 0x26: // LDS.L @Rm+,PR   0100mmmm00100110
+          tmp = SHR_PR;
+          break;
+        case 0x07: // LDC.L @Rm+,SR   0100mmmm00000111
+          tmp = SHR_SR;
+          break;
+        case 0x17: // LDC.L @Rm+,GBR  0100mmmm00010111
+          tmp = SHR_GBR;
+          break;
+        case 0x27: // LDC.L @Rm+,VBR  0100mmmm00100111
+          tmp = SHR_VBR;
+          break;
+        default:
+          goto default_;
+        }
+        rcache_clean();
+        rcache_get_reg_arg(0, GET_Rn());
+        tmp2 = emit_memhandler_read(2);
+        if (tmp == SHR_SR) {
+          emith_write_sr(tmp2);
+          test_irq = 1;
+        } else {
+          tmp = rcache_get_reg(tmp, RC_GR_WRITE);
+          emith_move_r_r(tmp, tmp2);
+        }
+        rcache_free_tmp(tmp2);
+        tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
+        emith_add_r_imm(tmp, 4);
+        goto end_op;
       case 0x0b:
         if ((op & 0xd0) != 0)
           goto default_;

@@ -39,8 +39,6 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define DCOND_LT IOP_JL      // less (signed)
 #define DCOND_VS IOP_JO      // oVerflow Set
 #define DCOND_VC IOP_JNO     // oVerflow Clear
-#define DCOND_CS IOP_JB	     // Carry Set
-#define DCOND_CC IOP_JAE     // Carry Clear
 
 #define EMIT_PTR(ptr, val, type) \
 	*(type *)(ptr) = val
@@ -141,7 +139,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT(imm, u32); \
 }
 
-// 2 - adc, 3 - sbb, 6 - xor, 7 - cmp
+// 2 - adc, 3 - sbb, 6 - xor
 #define emith_add_r_imm(r, imm) \
 	emith_arith_r_imm(0, r, imm)
 
@@ -153,6 +151,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_sub_r_imm(r, imm) \
 	emith_arith_r_imm(5, r, imm)
+
+#define emith_cmp_r_imm(r, imm) \
+	emith_arith_r_imm(7, r, imm)
 
 #define emith_tst_r_imm(r, imm) { \
 	EMIT_OP_MODRM(0xf7, 3, 0, r); \
@@ -200,6 +201,18 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_asr(d, s, cnt) \
 	emith_shift(7, d, s, cnt)
+
+#define emith_rol(d, s, cnt) \
+	emith_shift(0, d, s, cnt)
+
+#define emith_ror(d, s, cnt) \
+	emith_shift(1, d, s, cnt)
+
+#define emith_rolc(r) \
+	EMIT_OP_MODRM(0xd1, 3, 2, r)
+
+#define emith_rorc(r) \
+	EMIT_OP_MODRM(0xd1, 3, 3, r)
 
 // misc
 #define emith_push(r) \
@@ -280,9 +293,13 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_adcf_r_r   emith_adc_r_r
 #define emith_sbcf_r_r   emith_sbc_r_r
 
-#define emith_lslf emith_lsl
-#define emith_lsrf emith_lsr
-#define emith_asrf emith_asr
+#define emith_lslf  emith_lsl
+#define emith_lsrf  emith_lsr
+#define emith_asrf  emith_asr
+#define emith_rolf  emith_rol
+#define emith_rorf  emith_ror
+#define emith_rolcf emith_rolc
+#define emith_rorcf emith_rorc
 
 // XXX: offs is 8bit only
 #define emith_ctx_read(r, offs) { \
@@ -366,5 +383,24 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_move_r_imm(rn, 0);                         \
 	JMP8_EMIT(IOP_JA, jmp1);                         \
 	rcache_free_tmp(tmp);                            \
+}
+
+#define emith_write_sr(srcr) { \
+	int tmp = rcache_get_tmp(); \
+	int srr = rcache_get_reg(SHR_SR, RC_GR_RMW); \
+	emith_clear_msb(tmp, srcr, 20); \
+	emith_bic_r_imm(srr, 0xfff); \
+	emith_or_r_r(srr, tmp); \
+	rcache_free_tmp(tmp); \
+}
+
+#define emith_carry_to_t(srr, is_sub) { \
+	int tmp = rcache_get_tmp(); \
+	EMIT_OP(0x0f); \
+	EMIT(0x92, u8); \
+	EMIT_MODRM(3, 0, tmp); /* SETC */ \
+	emith_bic_r_imm(srr, 1); \
+	EMIT_OP_MODRM(0x08, 3, tmp, srr); /* OR srrl, tmpl */ \
+	rcache_free_tmp(tmp); \
 }
 
