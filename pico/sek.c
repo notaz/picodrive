@@ -8,6 +8,7 @@
 
 
 #include "pico_int.h"
+#include "memory.h"
 
 
 int SekCycleCnt=0; // cycles done in this frame
@@ -189,7 +190,7 @@ PICO_INTERNAL void SekSetRealTAS(int use_real)
 #include "cpu/Cyclone/tools/idle.h"
 #endif
 
-static int *idledet_addrs = NULL;
+static unsigned short **idledet_ptrs = NULL;
 static int idledet_count = 0, idledet_bads = 0;
 int idledet_start_frame = 0;
 
@@ -214,13 +215,13 @@ void SekRegisterIdleHit(unsigned int pc)
 
 void SekInitIdleDet(void)
 {
-  void *tmp = realloc(idledet_addrs, 0x200*4);
+  unsigned short **tmp = realloc(idledet_ptrs, 0x200*4);
   if (tmp == NULL) {
-    free(idledet_addrs);
-    idledet_addrs = NULL;
+    free(idledet_ptrs);
+    idledet_ptrs = NULL;
   }
   else
-    idledet_addrs = tmp;
+    idledet_ptrs = tmp;
   idledet_count = idledet_bads = 0;
   idledet_start_frame = Pico.m.frame_count + 360;
 #ifdef IDLE_STATS
@@ -284,6 +285,9 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
 int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx)
 {
   int is_main68k = 1;
+  u16 *target;
+  uptr v;
+
 #if   defined(EMU_C68K)
   struct Cyclone *cyc = ctx;
   is_main68k = cyc == &PicoCpuCM68k;
@@ -295,19 +299,24 @@ int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx)
   elprintf(EL_IDLE, "idle: patch %06x %04x %04x %c %c #%i", pc, oldop, newop,
     (newop&0x200)?'n':'y', is_main68k?'m':'s', idledet_count);
 
-  if (pc > Pico.romsize && !(PicoAHW & PAHW_SVP)) {
-    if (++idledet_bads > 128) return 2; // remove detector
+  // XXX: probably shouldn't patch RAM too
+  v = m68k_read16_map[pc >> M68K_MEM_SHIFT];
+  if (!(v & 0x80000000))
+    target = (u16 *)((v << 1) + pc);
+  else {
+    if (++idledet_bads > 128)
+      return 2; // remove detector
     return 1; // don't patch
   }
 
   if (idledet_count >= 0x200 && (idledet_count & 0x1ff) == 0) {
-    void *tmp = realloc(idledet_addrs, (idledet_count+0x200)*4);
-    if (tmp == NULL) return 1;
-    idledet_addrs = tmp;
+    unsigned short **tmp = realloc(idledet_ptrs, (idledet_count+0x200)*4);
+    if (tmp == NULL)
+      return 1;
+    idledet_ptrs = tmp;
   }
 
-  if (pc < Pico.romsize)
-    idledet_addrs[idledet_count++] = pc;
+  idledet_ptrs[idledet_count++] = target;
 
   return 0;
 }
@@ -322,7 +331,7 @@ void SekFinishIdleDet(void)
 #endif
   while (idledet_count > 0)
   {
-    unsigned short *op = (unsigned short *)&Pico.rom[idledet_addrs[--idledet_count]];
+    unsigned short *op = idledet_ptrs[--idledet_count];
     if      ((*op & 0xfd00) == 0x7100)
       *op &= 0xff, *op |= 0x6600;
     else if ((*op & 0xfd00) == 0x7500)
