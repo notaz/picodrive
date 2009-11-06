@@ -77,6 +77,7 @@
 #define A_OP_ADD 0x4
 #define A_OP_ADC 0x5
 #define A_OP_SBC 0x6
+#define A_OP_RSC 0x7
 #define A_OP_TST 0x8
 #define A_OP_TEQ 0x9
 #define A_OP_CMP 0xa
@@ -93,6 +94,7 @@
 #define EOP_C_DOP_REG_XREG(cond,op,s,rn,rd,rs,       shift_op,rm) EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_REG_XREG(rs,       shift_op,rm))
 
 #define EOP_MOV_IMM(rd,   ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_MOV,0, 0,rd,ror2,imm8)
+#define EOP_MVN_IMM(rd,   ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_MVN,0, 0,rd,ror2,imm8)
 #define EOP_ORR_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ORR,0,rn,rd,ror2,imm8)
 #define EOP_EOR_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_EOR,0,rn,rd,ror2,imm8)
 #define EOP_ADD_IMM(rd,rn,ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_ADD,0,rn,rd,ror2,imm8)
@@ -108,6 +110,7 @@
 #define EOP_RSB_IMM_C(cond,rd,rn,ror2,imm8) EOP_C_DOP_IMM(cond,A_OP_RSB,0,rn,rd,ror2,imm8)
 
 #define EOP_MOV_REG(cond,s,rd,   rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_MOV,s, 0,rd,shift_imm,shift_op,rm)
+#define EOP_MVN_REG(cond,s,rd,   rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_MVN,s, 0,rd,shift_imm,shift_op,rm)
 #define EOP_ORR_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_ORR,s,rn,rd,shift_imm,shift_op,rm)
 #define EOP_ADD_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_ADD,s,rn,rd,shift_imm,shift_op,rm)
 #define EOP_ADC_REG(cond,s,rd,rn,rm,shift_op,shift_imm) EOP_C_DOP_REG_XIMM(cond,A_OP_ADC,s,rn,rd,shift_imm,shift_op,rm)
@@ -218,9 +221,9 @@
 #define EOP_MSR_REG(rm)       EOP_C_MSR_REG(A_COND_AL,rm)
 
 
-static void emith_op_imm(int cond, int s, int op, int r, unsigned int imm)
+static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int imm)
 {
-	int ror2, rd = r, rn = r;
+	int ror2;
 	u32 v;
 
 	if (op == A_OP_MOV)
@@ -237,10 +240,13 @@ static void emith_op_imm(int cond, int s, int op, int r, unsigned int imm)
 
 		if (op == A_OP_MOV) {
 			op = A_OP_ORR;
-			rn = r;
+			rn = rd;
 		}
 	}
 }
+
+#define emith_op_imm(cond, s, op, r, imm) \
+	emith_op_imm2(cond, s, op, r, r, imm)
 
 // test op
 #define emith_top_imm(cond, op, r, imm) { \
@@ -292,6 +298,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_move_r_r(d, s) \
 	EOP_MOV_REG_SIMPLE(d, s)
+
+#define emith_mvn_r_r(d, s) \
+	EOP_MVN_REG(A_COND_AL,0,d,s,A_AM1_LSL,0)
 
 #define emith_or_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_ORR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
@@ -353,8 +362,14 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_bic_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_BIC, r, imm)
 
+#define emith_and_r_imm(r, imm) \
+	emith_op_imm(A_COND_AL, 0, A_OP_AND, r, imm)
+
 #define emith_or_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_ORR, r, imm)
+
+#define emith_eor_r_imm(r, imm) \
+	emith_op_imm(A_COND_AL, 0, A_OP_EOR, r, imm)
 
 // note: only use 8bit imm for these
 #define emith_tst_r_imm(r, imm) \
@@ -378,6 +393,19 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_bic_r_imm_c(cond, r, imm) \
 	emith_op_imm(cond, 0, A_OP_BIC, r, imm)
 
+#define emith_move_r_imm_s8(r, imm) { \
+	if ((imm) & 0x80) \
+		EOP_MVN_IMM(r, 0, ((imm) ^ 0xff)); \
+	else \
+		EOP_MOV_IMM(r, 0, imm); \
+}
+
+#define emith_and_r_r_imm(d, s, imm) \
+	emith_op_imm2(A_COND_AL, 0, A_OP_AND, d, s, imm)
+
+#define emith_neg_r_r(d, s) \
+	EOP_RSB_IMM(d, s, 0, 0)
+
 #define emith_lsl(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_LSL,cnt)
 
@@ -386,6 +414,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_ror(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_ROR,cnt)
+
+#define emith_rol(d, s, cnt) \
+	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_ROR,32-(cnt)); \
 
 #define emith_lslf(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_LSL,cnt)
@@ -411,6 +442,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_rorcf(d) \
 	EOP_MOV_REG(A_COND_AL,1,d,d,A_AM1_ROR,0) /* ROR #0 -> RRX */
+
+#define emith_negcf_r_r(d, s) \
+	EOP_C_DOP_IMM(A_COND_AL,A_OP_RSC,1,s,d,0,0)
 
 #define emith_mul(d, s1, s2) { \
 	if ((d) != (s1)) /* rd != rm limitation */ \
@@ -495,23 +529,23 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_sh2_dtbf_loop() { \
 	int cr, rn;                                                          \
-	tmp = rcache_get_tmp();                                              \
+	int tmp_ = rcache_get_tmp();                                         \
 	cr = rcache_get_reg(SHR_SR, RC_GR_RMW);                              \
 	rn = rcache_get_reg((op >> 8) & 0x0f, RC_GR_RMW);                    \
 	emith_sub_r_imm(rn, 1);                /* sub rn, #1 */              \
 	emith_bic_r_imm(cr, 1);                /* bic cr, #1 */              \
 	emith_sub_r_imm(cr, (cycles+1) << 12); /* sub cr, #(cycles+1)<<12 */ \
 	cycles = 0;                                                          \
-	emith_asrf(tmp, cr, 2+12);             /* movs tmp, cr, asr #2+12 */ \
-	EOP_MOV_IMM_C(A_COND_MI,tmp,0,0);      /* movmi tmp, #0 */           \
+	emith_asrf(tmp_, cr, 2+12);            /* movs tmp_, cr, asr #2+12 */\
+	EOP_MOV_IMM_C(A_COND_MI,tmp_,0,0);     /* movmi tmp_, #0 */          \
 	emith_lsl(cr, cr, 20);                 /* mov cr, cr, lsl #20 */     \
 	emith_lsr(cr, cr, 20);                 /* mov cr, cr, lsr #20 */     \
-	emith_subf_r_r(rn, tmp);               /* subs rn, tmp */            \
-	EOP_RSB_IMM_C(A_COND_LS,tmp,rn,0,0);   /* rsbls tmp, rn, #0 */       \
-	EOP_ORR_REG(A_COND_LS,0,cr,cr,tmp,A_AM1_LSL,12+2); /* orrls cr,tmp,lsl #12+2 */\
+	emith_subf_r_r(rn, tmp_);              /* subs rn, tmp_ */           \
+	EOP_RSB_IMM_C(A_COND_LS,tmp_,rn,0,0);  /* rsbls tmp_, rn, #0 */      \
+	EOP_ORR_REG(A_COND_LS,0,cr,cr,tmp_,A_AM1_LSL,12+2); /* orrls cr,tmp_,lsl #12+2 */\
 	EOP_ORR_IMM_C(A_COND_LS,cr,cr,0,1);    /* orrls cr, #1 */            \
 	EOP_MOV_IMM_C(A_COND_LS,rn,0,0);       /* movls rn, #0 */            \
-	rcache_free_tmp(tmp);                                                \
+	rcache_free_tmp(tmp_);                                               \
 }
 
 #define emith_write_sr(srcr) { \
