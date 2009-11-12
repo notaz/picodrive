@@ -1016,6 +1016,10 @@ static u32 sh2_read16_da(u32 a, int id)
   return ((u16 *)Pico32xMem->data_array[id])[(a & 0xfff) / 2];
 }
 
+static void sh2_write_ignore(u32 a, u32 d, int id)
+{
+}
+
 // write8
 static void sh2_write8_unmapped(u32 a, u32 d, int id)
 {
@@ -1449,6 +1453,12 @@ void PicoMemSetup32x(void)
     sh2_read16_map[i].addr  = MAP_HANDLER(sh2_read16_unmapped);
     sh2_write8_map[i]       = sh2_write8_unmapped;
     sh2_write16_map[i]      = sh2_write16_unmapped;
+  }
+
+  // "purge area"
+  for (i = 0x08; i <= 0x0b; i++) {
+    sh2_write8_map[i]       =
+    sh2_write16_map[i]      = sh2_write_ignore;
   }
 
   // CS0
