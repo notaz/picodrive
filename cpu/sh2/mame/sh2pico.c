@@ -33,7 +33,7 @@ typedef unsigned char  UINT8;
 
 #include "sh2.c"
 
-#ifndef DRC_TMP
+#ifndef DRC_SH2
 
 void sh2_execute(SH2 *sh2_, int cycles)
 {
@@ -48,6 +48,7 @@ void sh2_execute(SH2 *sh2_, int cycles)
 	{
 		UINT32 opcode;
 
+		/* FIXME: Darxide doesn't like this */
 		if (sh2->test_irq && !sh2->delay && sh2->pending_level > ((sh2->sr >> 4) & 0x0f))
 		{
 			if (sh2->pending_irl > sh2->pending_int_irq)
@@ -102,7 +103,7 @@ void sh2_execute(SH2 *sh2_, int cycles)
 	sh2->cycles_done += cycles - sh2->icount;
 }
 
-#else // DRC_TMP
+#else // DRC_SH2
 
 #ifdef __i386__
 #define REGPARM(x) __attribute__((regparm(x)))
@@ -110,7 +111,7 @@ void sh2_execute(SH2 *sh2_, int cycles)
 #define REGPARM(x)
 #endif
 
-// tmp
+// drc debug
 void REGPARM(2) sh2_do_op(SH2 *sh2_, int opcode)
 {
 	sh2 = sh2_;

@@ -4,6 +4,8 @@
 
 #define I 0xf0
 
+SH2 *sh2; // active sh2
+
 int sh2_init(SH2 *sh2, int is_slave)
 {
 	int ret = 0;

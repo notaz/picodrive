@@ -1,9 +1,12 @@
 # settings
 use_musashi = 1
 #use_fame = 1
-#use_mz80 = 1
+use_cz80 = 1
 use_sh2drc = 1
+#use_sh2mame = 1
+
 #drc_debug = 3
+#drc_debug_interp = 1
 #profile = 1
 #fake_in_gp2x = 1
 
@@ -70,47 +73,6 @@ OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o zlib/uncompr.o
 # unzip
 OBJS += unzip/unzip.o unzip/unzip_stream.o
-# CPU cores
-ifeq "$(use_musashi)" "1"
-DEFINES += EMU_M68K
-OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
-#OBJS += cpu/musashi/m68kdasm.o
-endif
-ifeq "$(use_fame)" "1"
-DEFINES += EMU_F68K
-OBJS += cpu/fame/famec.o
-endif
-# z80
-ifeq "$(use_mz80)" "1"
-DEFINES += _USE_MZ80
-OBJS += cpu/mz80/mz80.o
-else
-DEFINES += _USE_CZ80
-OBJS += cpu/cz80/cz80.o
-endif
-# sh2
-OBJS += cpu/sh2/sh2.o
-ifeq "$(use_sh2drc)" "1"
-DEFINES += DRC_SH2 DRC_TMP
-OBJS += cpu/sh2/mame/sh2pico.o
-OBJS += cpu/sh2/compiler.o
-OBJS += cpu/sh2/stub_$(ARCH).o
-ifdef drc_debug
-DEFINES += DRC_DEBUG=$(drc_debug)
-OBJS += cpu/sh2/mame/sh2dasm.o
-OBJS += host_dasm.o
-LDFLAGS += -lbfd -lopcodes -liberty
-endif
-else
-OBJS += cpu/sh2/mame/sh2pico.o
-endif
-OBJS += cpu/drc/cmn.o
-# misc
-ifeq "$(use_fame)" "1"
-ifeq "$(use_musashi)" "1"
-OBJS += pico/debugCPU.o
-endif
-endif
 
 CFLAGS += $(addprefix -D,$(DEFINES))
 
@@ -119,10 +81,13 @@ vpath %.s = ../..
 vpath %.S = ../..
 vpath %.asm = ../..
 
-DIRS = platform platform/gp2x platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
+DIRS = platform/linux platform/gp2x platform/common pico pico/cd pico/pico pico/sound pico/carthw/svp \
 	pico/32x zlib unzip cpu cpu/musashi cpu/fame cpu/mz80 cpu/cz80 cpu/sh2/mame cpu/drc
 
 all: mkdirs PicoDrive
+
+include ../common/common.mak
+
 clean: tidy
 	@$(RM) PicoDrive
 tidy:
@@ -139,22 +104,6 @@ mkdirs:
 
 include ../common/revision.mak
 
-pico/carthw/svp/compiler.o : ../../cpu/drc/emit_arm.c
-cpu/sh2/compiler.o : ../../cpu/drc/emit_x86.c
-cpu/sh2/mame/sh2pico.o : ../../cpu/sh2/mame/sh2.c
-pico/pico.o pico/cd/pico.o : ../../pico/pico_cmn.c ../../pico/pico_int.h
-pico/memory.o pico/cd/memory.o : ../../pico/pico_int.h ../../pico/memory.h
-
-../../cpu/musashi/m68kops.c :
-	@make -C ../../cpu/musashi
-
-cpu/mz80/mz80.o : ../../cpu/mz80/mz80.asm
-	@echo $@
-	@nasm -f elf $< -o $@
-
-../../cpu/mz80/mz80.asm :
-	@make -C ../../cpu/mz80/
-
 .c.o:
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -164,9 +113,4 @@ cpu/mz80/mz80.o : ../../cpu/mz80/mz80.asm
 %.o : %.asm
 	@echo ">>>" $<
 	nasm -f elf $< -o $@
-
-
-cpu/fame/famec.o : ../../cpu/fame/famec.c ../../cpu/fame/famec_opcodes.h
-	@echo ">>>" $<
-	$(CC) $(CFLAGS) -Wno-unused -c $< -o $@
 

@@ -1,6 +1,7 @@
 /*
  * vim:shiftwidth=2:expandtab
  */
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -124,6 +125,9 @@ static temp_reg_t reg_temp[] = {
 #define I	0x000000f0
 #define Q	0x00000100
 #define M	0x00000200
+
+#define Q_SHIFT 8
+#define M_SHIFT 9
 
 typedef enum {
   SHR_R0 = 0, SHR_SP = 15,
@@ -517,6 +521,58 @@ static void emit_indirect_indexed_write(int rx, int ry, int wr, int size)
   emit_memhandler_write(size);
 }
 
+// read @Rn, @rm
+static void emit_indirect_read_double(u32 *rnr, u32 *rmr, int rn, int rm, int size)
+{
+  int tmp;
+
+  rcache_clean();
+  rcache_get_reg_arg(0, rn);
+  tmp = emit_memhandler_read(size);
+  emith_ctx_write(tmp, offsetof(SH2, drc_tmp));
+  rcache_free_tmp(tmp);
+  tmp = rcache_get_reg(rn, RC_GR_RMW);
+  emith_add_r_imm(tmp, 1 << size);
+
+  rcache_clean();
+  rcache_get_reg_arg(0, rm);
+  *rmr = emit_memhandler_read(size);
+  *rnr = rcache_get_tmp();
+  emith_ctx_read(*rnr, offsetof(SH2, drc_tmp));
+  tmp = rcache_get_reg(rm, RC_GR_RMW);
+  emith_add_r_imm(tmp, 1 << size);
+}
+ 
+// fixup for saturated MAC, to be called from generated code
+// FIXME: statically alloced regs need to be fixed
+static void sh2_macl_sat_fixup(void)
+{
+  if ((signed int)sh2->mach < 0 && sh2->mach < 0xffff8000)
+  {
+    sh2->mach = 0x00008000;
+    sh2->macl = 0x00000000;
+  }
+  else if ((signed int)sh2->mach > 0 && sh2->mach > 0x00007fff)
+  {
+    sh2->mach = 0x00007fff;
+    sh2->macl = 0xffffffff;
+  }
+}
+
+static void sh2_macw_sat_fixup(void)
+{
+  signed int t = sh2->mach;
+  if (t < -1 || (t == -1 && !(sh2->macl & 0x80000000)))
+  {
+    sh2->mach = 0xffffffff; // ?
+    sh2->macl = 0x80000000;
+  }
+  else if (t > 0 || (t == 0 && (sh2->macl & 0x80000000)))
+  {
+    sh2->mach = 0x7fffffff;
+    sh2->macl = 0xffffffff;
+  }
+}
 
 #define DELAYED_OP \
   delayed_op = 2
@@ -546,7 +602,7 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
   int op, delayed_op = 0, test_irq = 0;
   int tcache_id = 0, blkid = 0;
   int cycles = 0;
-  u32 tmp, tmp2, tmp3, tmp4;
+  u32 tmp, tmp2, tmp3, tmp4, sr;
 
   // validate PC
   tmp = sh2->pc >> 29;
@@ -771,8 +827,27 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         rcache_free_tmp(tmp);
         goto end_op;
       case 0x0f: // MAC.L   @Rm+,@Rn+  0000nnnnmmmm1111
-        // TODO
-        break;
+        emit_indirect_read_double(&tmp, &tmp2, GET_Rn(), GET_Rm(), 2);
+        tmp3 = rcache_get_reg(SHR_SR, RC_GR_READ);
+        tmp4 = rcache_get_reg(SHR_MACH, RC_GR_RMW);
+        /* MS 16 MAC bits unused if saturated */
+        emith_tst_r_imm(tmp3, S);
+        EMITH_SJMP_START(DCOND_EQ);
+        emith_clear_msb_c(DCOND_NE, tmp4, tmp4, 16);
+        EMITH_SJMP_END(DCOND_EQ);
+        tmp3 = rcache_get_reg(SHR_MACL, RC_GR_RMW); // might evict SR
+        emith_mula_s64(tmp3, tmp4, tmp, tmp2);
+        rcache_free_tmp(tmp);
+        rcache_free_tmp(tmp2);
+        rcache_clean();
+        tmp3 = rcache_get_reg(SHR_SR, RC_GR_READ);
+        emith_tst_r_imm(tmp3, S);
+        EMITH_SJMP_START(DCOND_EQ);
+        emith_call_cond(DCOND_NE, sh2_macl_sat_fixup);
+        EMITH_SJMP_END(DCOND_EQ);
+        rcache_invalidate();
+        cycles += 3;
+        goto end_op;
       }
       goto default_;
 
@@ -869,7 +944,7 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         tmp  = rcache_get_reg(GET_Rn(), RC_GR_RMW);
         tmp2 = rcache_get_reg(GET_Rm(), RC_GR_READ);
         emith_lsr(tmp, tmp, 16);
-        emith_or_r_r_r_lsl(tmp, tmp, tmp2, 16);
+        emith_or_r_r_lsl(tmp, tmp2, 16);
         goto end_op;
       case 0x0e: // MULU.W Rm,Rn        0010nnnnmmmm1110
       case 0x0f: // MULS.W Rm,Rn        0010nnnnmmmm1111
@@ -935,8 +1010,37 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         }
         goto end_op;
       case 0x04: // DIV1    Rm,Rn       0011nnnnmmmm0100
-        // TODO
-        break;
+        // Q1 = carry(Rn = (Rn << 1) | T)
+        // if Q ^ M
+        //   Q2 = carry(Rn += Rm)
+        // else
+        //   Q2 = carry(Rn -= Rm)
+        // Q = M ^ Q1 ^ Q2
+        // T = (Q == M) = !(Q ^ M) = !(Q1 ^ Q2)
+        tmp2 = rcache_get_reg(GET_Rn(), RC_GR_RMW);
+        tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ);
+        sr   = rcache_get_reg(SHR_SR, RC_GR_RMW);
+        emith_set_carry(sr);
+        emith_adcf_r_r(tmp2, tmp2);
+        emith_carry_to_t(sr, 0);            // keep Q1 in T for now
+        tmp4 = rcache_get_tmp();
+        emith_and_r_r_imm(tmp4, sr, M);
+        emith_eor_r_r_lsr(sr, tmp4, M_SHIFT - Q_SHIFT); // Q ^= M
+        rcache_free_tmp(tmp4);
+        // add or sub, invert T if carry to get Q1 ^ Q2
+        // in: (Q ^ M) passed in Q, Q1 in T
+        emith_sh2_div1_step(tmp2, tmp3, sr);
+	emith_bic_r_imm(sr, Q);
+	emith_tst_r_imm(sr, M);
+	EMITH_SJMP_START(DCOND_EQ);
+	emith_or_r_imm_c(DCOND_NE, sr, Q);  // Q = M
+	EMITH_SJMP_END(DCOND_EQ);
+	emith_tst_r_imm(sr, T);
+	EMITH_SJMP_START(DCOND_EQ);
+	emith_eor_r_imm_c(DCOND_NE, sr, Q); // Q = M ^ Q1 ^ Q2
+	EMITH_SJMP_END(DCOND_EQ);
+	emith_eor_r_imm(sr, T);             // T = !(Q1 ^ Q2)
+        goto end_op;
       case 0x05: // DMULU.L Rm,Rn       0011nnnnmmmm0101
         tmp  = rcache_get_reg(GET_Rn(), RC_GR_READ);
         tmp2 = rcache_get_reg(GET_Rm(), RC_GR_READ);
@@ -1248,7 +1352,6 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         }
         if (tmp2 == SHR_SR) {
           emith_write_sr(tmp);
-          emit_move_r_imm32(SHR_PC, pc);
           test_irq = 1;
         } else {
           tmp2 = rcache_get_reg(tmp2, RC_GR_WRITE);
@@ -1257,7 +1360,24 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         goto end_op;
       case 0x0f:
         // MAC @Rm+,@Rn+  0100nnnnmmmm1111
-        break; // TODO
+        emit_indirect_read_double(&tmp, &tmp2, GET_Rn(), GET_Rm(), 1);
+        emith_sext(tmp, tmp, 16);
+        emith_sext(tmp2, tmp2, 16);
+        tmp3 = rcache_get_reg(SHR_MACL, RC_GR_RMW);
+        tmp4 = rcache_get_reg(SHR_MACH, RC_GR_RMW);
+        emith_mula_s64(tmp3, tmp4, tmp, tmp2);
+        rcache_free_tmp(tmp);
+        rcache_free_tmp(tmp2);
+        rcache_clean();
+        // XXX: MACH should be untouched when S is set?
+        tmp3 = rcache_get_reg(SHR_SR, RC_GR_READ);
+        emith_tst_r_imm(tmp3, S);
+        EMITH_SJMP_START(DCOND_EQ);
+        emith_call_cond(DCOND_NE, sh2_macw_sat_fixup);
+        EMITH_SJMP_END(DCOND_EQ);
+        rcache_invalidate();
+        cycles += 2;
+        goto end_op;
       }
       goto default_;
 
@@ -1315,9 +1435,9 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
             tmp3 = rcache_get_tmp();
           tmp4 = rcache_get_tmp();
           emith_lsr(tmp3, tmp, 16);
-          emith_or_r_r_r_lsl(tmp3, tmp3, tmp, 24);
+          emith_or_r_r_lsl(tmp3, tmp, 24);
           emith_and_r_r_imm(tmp4, tmp, 0xff00);
-          emith_or_r_r_r_lsl(tmp3, tmp3, tmp4, 8);
+          emith_or_r_r_lsl(tmp3, tmp4, 8);
           emith_rol(tmp2, tmp3, 16);
           rcache_free_tmp(tmp4);
           if (tmp == tmp2)
@@ -1429,8 +1549,14 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
     /////////////////////////////////////////////
     case 0x09:
       // MOV.W @(disp,PC),Rn  1001nnnndddddddd
-      // TODO
-      goto default_;
+      rcache_clean();
+      tmp = rcache_get_tmp_arg(0);
+      emith_move_r_imm(tmp, pc + (op & 0xff) * 2 + 2);
+      tmp  = emit_memhandler_read(1);
+      tmp2 = rcache_get_reg(GET_Rn(), RC_GR_WRITE);
+      emith_sext(tmp2, tmp, 16);
+      rcache_free_tmp(tmp);
+      goto end_op;
 
     /////////////////////////////////////////////
     case 0x0a:
@@ -1557,8 +1683,14 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
     /////////////////////////////////////////////
     case 0x0d:
       // MOV.L @(disp,PC),Rn  1101nnnndddddddd
-      // TODO
-      goto default_;
+      rcache_clean();
+      tmp = rcache_get_tmp_arg(0);
+      emith_move_r_imm(tmp, (pc + (op & 0xff) * 4 + 2) & ~3);
+      tmp  = emit_memhandler_read(2);
+      tmp2 = rcache_get_reg(GET_Rn(), RC_GR_WRITE);
+      emith_move_r_r(tmp2, tmp);
+      rcache_free_tmp(tmp);
+      goto end_op;
 
     /////////////////////////////////////////////
     case 0x0e:
@@ -1569,11 +1701,15 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
 
     default:
     default_:
+      elprintf(EL_ANOMALY, "%csh2 drc: unhandled op %04x @ %08x",
+        sh2->is_slave ? 's' : 'm', op, pc - 2);
+#ifdef DRC_DEBUG_INTERP
       emit_move_r_imm32(SHR_PC, pc - 2);
       rcache_flush();
       emith_pass_arg_r(0, CONTEXT_REG);
       emith_pass_arg_imm(1, op);
       emith_call(sh2_do_op);
+#endif
       break;
     }
 
@@ -1582,10 +1718,12 @@ end_op:
       emit_move_r_r(SHR_PC, SHR_PPC);
 
     if (test_irq && delayed_op != 2) {
+      if (!delayed_op)
+        emit_move_r_imm32(SHR_PC, pc);
       rcache_flush();
       emith_pass_arg_r(0, CONTEXT_REG);
       emith_call(sh2_test_irq);
-      break;
+      goto end_block_btf;
     }
     if (delayed_op == 1)
       break;

@@ -1,8 +1,12 @@
-export CROSS = arm-linux-
+CROSS ?= arm-linux-
 
 # settings
-#mz80 = 1
-#debug_cyclone = 1
+use_cyclone = 1
+#use_musashi = 1
+use_drz80 = 1
+use_sh2drc = 1
+#use_sh2mame = 1
+
 asm_memory = 1
 asm_render = 1
 asm_ym2612 = 1
@@ -11,8 +15,6 @@ asm_cdpico = 1
 asm_cdmemory = 1
 amalgamate = 0
 #profile = 1
-#use_musashi = 1
-use_sh2drc = 1
 #drc_debug = 3
 
 -include Makefile.local
@@ -25,10 +27,9 @@ ifeq "$(use_musashi)" "1"
 # due to CPU stop flag acces
 asm_cdpico = 0
 asm_cdmemory = 0
-else
-use_cyclone = 1
 endif
 
+ARCH = arm
 DEFINES += ARM __GP2X__ IN_GP2X IN_EVDEV # BENCHMARK
 CFLAGS += -Wall -Winline -I../.. -I.
 ifeq ($(DEBUG),)
@@ -94,42 +95,6 @@ OBJS += unzip/unzip.o unzip/unzip_stream.o
 # zlib
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o
-# debug
-ifeq "$(debug_cyclone)" "1"
-OBJS += pico/DebugCPU.o cpu/musashi/m68kdasm.o
-endif
-# CPU cores
-ifeq "$(use_musashi)" "1"
-DEFINES += EMU_M68K
-OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
-endif
-ifeq "$(use_cyclone)" "1"
-DEFINES += EMU_C68K
-OBJS += pico/m68kif_cyclone.o cpu/Cyclone/proj/Cyclone.o cpu/Cyclone/tools/idle.o
-endif
-ifeq "$(mz80)" "1"
-DEFINES += _USE_MZ80
-OBJS += cpu/mz80/mz80.o
-else
-DEFINES += _USE_DRZ80
-OBJS += cpu/DrZ80/drz80.o
-endif
-OBJS += cpu/sh2/sh2.o
-ifeq "$(use_sh2drc)" "1"
-DEFINES += DRC_SH2 DRC_TMP
-OBJS += cpu/sh2/mame/sh2pico.o
-OBJS += cpu/sh2/compiler.o
-OBJS += cpu/sh2/stub_arm.o
-ifdef drc_debug
-DEFINES += DRC_DEBUG=$(drc_debug)
-OBJS += cpu/sh2/mame/sh2dasm.o
-OBJS += platform/linux/host_dasm.o
-LDFLAGS += -lbfd -lopcodes -liberty
-endif
-else
-OBJS += cpu/sh2/mame/sh2pico.o
-endif
-OBJS += cpu/drc/cmn.o
 
 CFLAGS += $(addprefix -D,$(DEFINES))
 
@@ -144,6 +109,7 @@ DIRS = platform platform/gp2x platform/linux platform/common pico pico/cd pico/p
 
 all: mkdirs PicoDrive
 
+include ../common/common.mak
 include ../common/common_arm.mak
 include ../common/revision.mak
 

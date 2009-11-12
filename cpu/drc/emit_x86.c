@@ -1,5 +1,5 @@
 /*
- * note about silly things like emith_or_r_r_r_lsl:
+ * note about silly things like emith_eor_r_r_r:
  * these are here because the compiler was designed
  * for ARM as it's primary target.
  */
@@ -9,6 +9,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define CONTEXT_REG xBP
 
+#define IOP_JMP 0xeb
 #define IOP_JO  0x70
 #define IOP_JNO 0x71
 #define IOP_JB  0x72
@@ -55,6 +56,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define EMIT_MODRM(mod,r,rm) \
 	EMIT(((mod)<<6) | ((r)<<3) | (rm), u8)
+
+#define EMIT_SIB(scale,index,base) \
+	EMIT(((scale)<<6) | ((index)<<3) | (base), u8)
 
 #define EMIT_OP_MODRM(op,mod,r,rm) { \
 	EMIT_OP(op); \
@@ -139,12 +143,20 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	} \
 }
 
-#define emith_or_r_r_r_lsl(d, s1, s2, lslimm) { \
+// _r_r_shift
+#define emith_or_r_r_lsl(d, s, lslimm) { \
 	int tmp_ = rcache_get_tmp(); \
-	emith_lsl(tmp_, s2, lslimm); \
-	emith_or_r_r(tmp_, s1); \
-	emith_move_r_r(d, tmp_); \
+	emith_lsl(tmp_, s, lslimm); \
+	emith_or_r_r(d, tmp_); \
 	rcache_free_tmp(tmp_); \
+}
+
+// d != s
+#define emith_eor_r_r_lsr(d, s, lsrimm) { \
+	emith_push(s); \
+	emith_lsr(s, s, lsrimm); \
+	emith_eor_r_r(d, s); \
+	emith_pop(s); \
 }
 
 // _r_imm
@@ -198,6 +210,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_or_r_imm_c(cond, r, imm) { \
 	(void)(cond); \
 	emith_or_r_imm(r, imm); \
+}
+
+#define emith_eor_r_imm_c(cond, r, imm) { \
+	(void)(cond); \
+	emith_eor_r_imm(r, imm); \
 }
 
 #define emith_sub_r_imm_c(cond, r, imm) { \
@@ -264,9 +281,20 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_and_r_imm(d, t); \
 }
 
+#define emith_clear_msb_c(cond, d, s, count) { \
+	(void)(cond); \
+	emith_clear_msb(d, s, count); \
+}
+
 #define emith_sext(d, s, bits) { \
 	emith_lsl(d, s, 32 - (bits)); \
 	emith_asr(d, d, 32 - (bits)); \
+}
+
+#define emith_setc(r) { \
+	EMIT_OP(0x0f); \
+	EMIT(0x92, u8); \
+	EMIT_MODRM(3, 0, r); /* SETC r */ \
 }
 
 // put bit0 of r0 to carry
@@ -318,6 +346,19 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_mul(d, s1, s2) \
 	emith_mul_(4, d, -1, s1, s2)
 
+// (dlo,dhi) += signed(s1) * signed(s2)
+#define emith_mula_s64(dlo, dhi, s1, s2) { \
+	emith_push(dhi); \
+	emith_push(dlo); \
+	emith_mul_(5, dlo, dhi, s1, s2); \
+	EMIT_OP_MODRM(0x03, 0, dlo, 4); \
+	EMIT_SIB(0, 4, 4); /* add dlo, [esp] */ \
+	EMIT_OP_MODRM(0x13, 1, dhi, 4); \
+	EMIT_SIB(0, 4, 4); \
+	EMIT(4, u8); /* adc dhi, [esp+4] */ \
+	emith_add_r_imm(xSP, 4*2); \
+}
+
 // "flag" instructions are the same
 #define emith_subf_r_imm emith_sub_r_imm
 #define emith_addf_r_r   emith_add_r_r
@@ -356,6 +397,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_OP(0xe8); \
 	EMIT(disp, u32); \
 }
+
+#define emith_call_cond(cond, ptr) \
+	emith_call(ptr)
 
 // "simple" or "short" jump
 #define EMITH_SJMP_START(cond) { \
@@ -429,11 +473,31 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_carry_to_t(srr, is_sub) { \
 	int tmp_ = rcache_get_tmp(); \
-	EMIT_OP(0x0f); \
-	EMIT(0x92, u8); \
-	EMIT_MODRM(3, 0, tmp_); /* SETC */ \
+	emith_setc(tmp_); \
 	emith_bic_r_imm(srr, 1); \
 	EMIT_OP_MODRM(0x08, 3, tmp_, srr); /* OR srrl, tmpl */ \
 	rcache_free_tmp(tmp_); \
+}
+
+/*
+ * if Q
+ *   t = carry(Rn += Rm)
+ * else
+ *   t = carry(Rn -= Rm)
+ * T ^= t
+ */
+#define emith_sh2_div1_step(rn, rm, sr) {         \
+	u8 *jmp0, *jmp1;                          \
+	int tmp_ = rcache_get_tmp();              \
+	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
+	JMP8_POS(jmp0);          /* je do_sub */  \
+	emith_add_r_r(rn, rm);                    \
+	JMP8_POS(jmp1);          /* jmp done */   \
+	JMP8_EMIT(IOP_JE, jmp0); /* do_sub: */    \
+	emith_sub_r_r(rn, rm);                    \
+	JMP8_EMIT(IOP_JMP, jmp1);/* done: */      \
+	emith_setc(tmp_);                         \
+	EMIT_OP_MODRM(0x30, 3, tmp_, sr); /* T = Q1 ^ Q2 (byte) */ \
+	rcache_free_tmp(tmp_);                    \
 }
 

@@ -189,8 +189,11 @@
 
 #define EOP_BX(rm) EOP_C_BX(A_COND_AL,rm)
 
+#define EOP_C_B_PTR(ptr,cond,l,signed_immed_24) \
+	EMIT_PTR(ptr, ((cond)<<28) | 0x0a000000 | ((l)<<24) | (signed_immed_24))
+
 #define EOP_C_B(cond,l,signed_immed_24) \
-	EMIT(((cond)<<28) | 0x0a000000 | ((l)<<24) | (signed_immed_24))
+	EOP_C_B_PTR(tcache_ptr,cond,l,signed_immed_24)
 
 #define EOP_B( signed_immed_24) EOP_C_B(A_COND_AL,0,signed_immed_24)
 #define EOP_BL(signed_immed_24) EOP_C_B(A_COND_AL,1,signed_immed_24)
@@ -204,6 +207,9 @@
 
 #define EOP_C_SMULL(cond,s,rdhi,rdlo,rs,rm) \
 	EMIT(((cond)<<28) | 0x00c00000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm))
+
+#define EOP_C_SMLAL(cond,s,rdhi,rdlo,rs,rm) \
+	EMIT(((cond)<<28) | 0x00e00000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm))
 
 #define EOP_MUL(rd,rm,rs) EOP_C_MUL(A_COND_AL,0,rd,rs,rm) // note: rd != rm
 
@@ -308,6 +314,15 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_eor_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_EOR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
 
+#define emith_eor_r_r_r_lsr(d, s1, s2, lsrimm) \
+	EOP_EOR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSR,lsrimm)
+
+#define emith_or_r_r_lsl(d, s, lslimm) \
+	emith_or_r_r_r_lsl(d, d, s, lslimm)
+
+#define emith_eor_r_r_lsr(d, s, lsrimm) \
+	emith_eor_r_r_r_lsr(d, d, s, lsrimm)
+
 #define emith_or_r_r_r(d, s1, s2) \
 	emith_or_r_r_r_lsl(d, s1, s2, 0)
 
@@ -390,6 +405,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_or_r_imm_c(cond, r, imm) \
 	emith_op_imm(cond, 0, A_OP_ORR, r, imm)
 
+#define emith_eor_r_imm_c(cond, r, imm) \
+	emith_op_imm(cond, 0, A_OP_EOR, r, imm)
+
 #define emith_bic_r_imm_c(cond, r, imm) \
 	emith_op_imm(cond, 0, A_OP_BIC, r, imm)
 
@@ -459,6 +477,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_mul_s64(dlo, dhi, s1, s2) \
 	EOP_C_SMULL(A_COND_AL,0,dhi,dlo,s1,s2)
 
+#define emith_mula_s64(dlo, dhi, s1, s2) \
+	EOP_C_SMLAL(A_COND_AL,0,dhi,dlo,s1,s2)
+
 // misc
 #define emith_ctx_read(r, offs) \
 	EOP_LDR_IMM(r, CONTEXT_REG, offs)
@@ -466,27 +487,42 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_ctx_write(r, offs) \
 	EOP_STR_IMM(r, CONTEXT_REG, offs)
 
-#define emith_clear_msb(d, s, count) { \
+#define emith_clear_msb_c(cond, d, s, count) { \
 	u32 t; \
 	if ((count) <= 8) { \
 		t = (count) - 8; \
 		t = (0xff << t) & 0xff; \
 		EOP_BIC_IMM(d,s,8/2,t); \
+		EOP_C_DOP_IMM(cond,A_OP_BIC,0,s,d,8/2,t); \
 	} else if ((count) >= 24) { \
 		t = (count) - 24; \
 		t = 0xff >> t; \
 		EOP_AND_IMM(d,s,0,t); \
+		EOP_C_DOP_IMM(cond,A_OP_AND,0,s,d,0,t); \
 	} else { \
-		EOP_MOV_REG_LSL(d,s,count); \
-		EOP_MOV_REG_LSR(d,d,count); \
+		EOP_MOV_REG(cond,0,d,s,A_AM1_LSL,count); \
+		EOP_MOV_REG(cond,0,d,d,A_AM1_LSR,count); \
 	} \
 }
+
+#define emith_clear_msb(d, s, count) \
+	emith_clear_msb_c(A_COND_AL, d, s, count)
 
 #define emith_sext(d, s, bits) { \
 	EOP_MOV_REG_LSL(d,s,32 - (bits)); \
 	EOP_MOV_REG_ASR(d,d,32 - (bits)); \
 }
 
+#define JMP_POS(ptr) \
+	ptr = tcache_ptr; \
+	tcache_ptr += sizeof(u32)
+
+#define JMP_EMIT(cond, ptr) { \
+	int val = (u32 *)tcache_ptr - (u32 *)(ptr) - 2; \
+	EOP_C_B_PTR(ptr, cond, 0, val & 0xffffff); \
+}
+
+// _r_r
 // put bit0 of r0 to carry
 #define emith_set_carry(r0) \
 	EOP_TST_REG(A_COND_AL,r0,r0,A_AM1_LSR,1) /* shift out to carry */ \
@@ -564,3 +600,24 @@ static int emith_xbranch(int cond, void *target, int is_call)
 		emith_bic_r_imm_c(A_COND_CC, srr, 1); \
 	} \
 }
+
+/*
+ * if Q
+ *   t = carry(Rn += Rm)
+ * else
+ *   t = carry(Rn -= Rm)
+ * T ^= t
+ */
+#define emith_sh2_div1_step(rn, rm, sr) {         \
+	void *jmp0, *jmp1;                        \
+	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
+	JMP_POS(jmp0);           /* beq do_sub */ \
+	emith_addf_r_r(rn, rm);                   \
+	emith_eor_r_imm_c(A_COND_CS, sr, T);      \
+	JMP_POS(jmp1);           /* b done */     \
+	JMP_EMIT(A_COND_EQ, jmp0); /* do_sub: */  \
+	emith_subf_r_r(rn, rm);                   \
+	emith_eor_r_imm_c(A_COND_CC, sr, T);      \
+	JMP_EMIT(A_COND_AL, jmp1); /* done: */    \
+}
+

@@ -11,20 +11,20 @@ typedef struct
 	unsigned int	gbr, vbr;	// 50
 	unsigned int	mach, macl;	// 58
 
-	// interpreter stuff
-	int		icount;		// 60 cycles left in current timeslice
-	unsigned int	ea;
-	unsigned int	delay;
-	unsigned int	test_irq;
-
 	// common
-	const void	*read8_map;	// 70
+	const void	*read8_map;	// 60
 	const void	*read16_map;
 	const void	**write8_tab;
 	const void	**write16_tab;
 
 	// drc stuff
-	//void	**pc_hashtab;		// 80
+	int		drc_tmp;	// 70
+
+	// interpreter stuff
+	int		icount;		// cycles left in current timeslice
+	unsigned int	ea;
+	unsigned int	delay;
+	unsigned int	test_irq;
 
 	int	pending_level;		// MAX(pending_irl, pending_int_irq)
 	int	pending_irl;
@@ -37,7 +37,7 @@ typedef struct
 	unsigned int	cycles_done;
 } SH2;
 
-extern SH2 *sh2; // active sh2
+extern SH2 *sh2; // active sh2. XXX: consider removing
 
 int  sh2_init(SH2 *sh2, int is_slave);
 void sh2_finish(SH2 *sh2);

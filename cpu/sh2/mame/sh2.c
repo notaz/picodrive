@@ -116,7 +116,7 @@
 #define LOG(x)	do { if (VERBOSE) logerror x; } while (0)
 
 //int sh2_icount;
-SH2 *sh2;
+//SH2 *sh2;
 
 #if 0
 INLINE UINT8 RB(offs_t A)

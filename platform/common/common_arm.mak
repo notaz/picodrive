@@ -45,20 +45,6 @@ clean_prof:
 mkdirs:
 	mkdir -p $(DIRS)
 
-# some deps
-pico/carthw/svp/compiler.o : ../../pico/carthw/svp/ssp16.o ../../cpu/drc/emit_arm.c
-cpu/sh2/compiler.o : ../../cpu/drc/emit_arm.c
-pico/pico.o pico/cd/pico.o : ../../pico/pico_cmn.c ../../pico/pico_int.h
-pico/memory.o pico/cd/memory.o : ../../pico/pico_int.h ../../pico/memory.h
-
-# build Cyclone
-../../cpu/Cyclone/proj/Cyclone.s:
-	@echo building Cyclone...
-	@make -C ../../cpu/Cyclone/proj CONFIG_FILE=config_pico.h
-
-../../cpu/musashi/m68kops.c :
-	@make -C ../../cpu/musashi
-
 # build helix libs
 ../common/helix/$(CROSS)helix-mp3.a:
 	make -C ../common/helix clean all
