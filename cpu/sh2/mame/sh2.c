@@ -1827,104 +1827,102 @@ INLINE void op0000(UINT16 opcode)
 {
 	switch (opcode & 0x3F)
 	{
-	case 0x00: NOP();						break;
-	case 0x01: NOP();						break;
-	case 0x02: STCSR(Rn);					break;
-	case 0x03: BSRF(Rn);					break;
-	case 0x04: MOVBS0(Rm, Rn);				break;
-	case 0x05: MOVWS0(Rm, Rn);				break;
-	case 0x06: MOVLS0(Rm, Rn);				break;
-	case 0x07: MULL(Rm, Rn);				break;
-	case 0x08: CLRT();						break;
-	case 0x09: NOP();						break;
-	case 0x0a: STSMACH(Rn); 				break;
-	case 0x0b: RTS();						break;
-	case 0x0c: MOVBL0(Rm, Rn);				break;
-	case 0x0d: MOVWL0(Rm, Rn);				break;
-	case 0x0e: MOVLL0(Rm, Rn);				break;
-	case 0x0f: MAC_L(Rm, Rn);				break;
+	case 0x00: NOP();		rlog(0);			break;
+	case 0x01: NOP();		rlog(0);			break;
+	case 0x02: STCSR(Rn);		rlog(LRN); 			break;
+	case 0x03: BSRF(Rn);		rlog(LRN); 			break;
+	case 0x04: MOVBS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x05: MOVWS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x06: MOVLS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x07: MULL(Rm, Rn);	rlog(LRNM); rlog1(SHR_MACL);	break;
+	case 0x08: CLRT();		rlog(0);			break;
+	case 0x09: NOP();		rlog(0);			break;
+	case 0x0a: STSMACH(Rn); 	rlog(LRN);  rlog1(SHR_MACH); 	break;
+	case 0x0b: RTS();		rlog(0);    rlog1(SHR_PR);	break;
+	case 0x0c: MOVBL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x0d: MOVWL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x0e: MOVLL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x0f: MAC_L(Rm, Rn);	rlog(LRNM); rlog2(SHR_MACL,SHR_MACH); break;
 
-	case 0x10: NOP();						break;
-	case 0x11: NOP();						break;
-	case 0x12: STCGBR(Rn);					break;
-	case 0x13: NOP();						break;
-	case 0x14: MOVBS0(Rm, Rn);				break;
-	case 0x15: MOVWS0(Rm, Rn);				break;
-	case 0x16: MOVLS0(Rm, Rn);				break;
-	case 0x17: MULL(Rm, Rn);				break;
-	case 0x18: SETT();						break;
-	case 0x19: DIV0U(); 					break;
-	case 0x1a: STSMACL(Rn); 				break;
-	case 0x1b: SLEEP(); 					break;
-	case 0x1c: MOVBL0(Rm, Rn);				break;
-	case 0x1d: MOVWL0(Rm, Rn);				break;
-	case 0x1e: MOVLL0(Rm, Rn);				break;
-	case 0x1f: MAC_L(Rm, Rn);				break;
+	case 0x10: NOP();		rlog(0);			break;
+	case 0x11: NOP();		rlog(0);			break;
+	case 0x12: STCGBR(Rn);		rlog(LRN);  rlog1(SHR_GBR);	break;
+	case 0x13: NOP();		rlog(0);			break;
+	case 0x14: MOVBS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x15: MOVWS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x16: MOVLS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x17: MULL(Rm, Rn);	rlog(LRNM); rlog1(SHR_MACL);	break;
+	case 0x18: SETT();		rlog(0);			break;
+	case 0x19: DIV0U(); 		rlog(0);			break;
+	case 0x1a: STSMACL(Rn); 	rlog(LRN);  rlog1(SHR_MACL);	break;
+	case 0x1b: SLEEP(); 		rlog(0);			break;
+	case 0x1c: MOVBL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x1d: MOVWL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x1e: MOVLL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x1f: MAC_L(Rm, Rn);	rlog(LRNM); rlog2(SHR_MACL,SHR_MACH); break;
 
-	case 0x20: NOP();						break;
-	case 0x21: NOP();						break;
-	case 0x22: STCVBR(Rn);					break;
-	case 0x23: BRAF(Rn);					break;
-	case 0x24: MOVBS0(Rm, Rn);				break;
-	case 0x25: MOVWS0(Rm, Rn);				break;
-	case 0x26: MOVLS0(Rm, Rn);				break;
-	case 0x27: MULL(Rm, Rn);				break;
-	case 0x28: CLRMAC();					break;
-	case 0x29: MOVT(Rn);					break;
-	case 0x2a: STSPR(Rn);					break;
-	case 0x2b: RTE();						break;
-	case 0x2c: MOVBL0(Rm, Rn);				break;
-	case 0x2d: MOVWL0(Rm, Rn);				break;
-	case 0x2e: MOVLL0(Rm, Rn);				break;
-	case 0x2f: MAC_L(Rm, Rn);				break;
+	case 0x20: NOP();		rlog(0);			break;
+	case 0x21: NOP();		rlog(0);			break;
+	case 0x22: STCVBR(Rn);		rlog(LRN);  rlog1(SHR_VBR);	break;
+	case 0x23: BRAF(Rn);		rlog(LRN);			break;
+	case 0x24: MOVBS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x25: MOVWS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x26: MOVLS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x27: MULL(Rm, Rn);	rlog(LRNM); rlog1(SHR_MACL);	break;
+	case 0x28: CLRMAC();		rlog(0);    rlog2(SHR_MACL,SHR_MACH); break;
+	case 0x29: MOVT(Rn);		rlog(LRN);			break;
+	case 0x2a: STSPR(Rn);		rlog(LRN);  rlog1(SHR_PR);	break;
+	case 0x2b: RTE();		rlog(0);			break;
+	case 0x2c: MOVBL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x2d: MOVWL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x2e: MOVLL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x2f: MAC_L(Rm, Rn);	rlog(LRNM); rlog2(SHR_MACL,SHR_MACH); break;
 
-	case 0x30: NOP();						break;
-	case 0x31: NOP();						break;
-	case 0x32: NOP();						break;
-	case 0x33: NOP();						break;
-	case 0x34: MOVBS0(Rm, Rn);				break;
-	case 0x35: MOVWS0(Rm, Rn);				break;
-	case 0x36: MOVLS0(Rm, Rn);				break;
-	case 0x37: MULL(Rm, Rn);				break;
-	case 0x38: NOP();						break;
-	case 0x39: NOP();						break;
-	case 0x3c: MOVBL0(Rm, Rn);				break;
-	case 0x3d: MOVWL0(Rm, Rn);				break;
-	case 0x3e: MOVLL0(Rm, Rn);				break;
-	case 0x3f: MAC_L(Rm, Rn);				break;
-	case 0x3a: NOP();						break;
-	case 0x3b: NOP();						break;
-
-
-
+	case 0x30: NOP();		rlog(0);			break;
+	case 0x31: NOP();		rlog(0);			break;
+	case 0x32: NOP();		rlog(0);			break;
+	case 0x33: NOP();		rlog(0);			break;
+	case 0x34: MOVBS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x35: MOVWS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x36: MOVLS0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x37: MULL(Rm, Rn);	rlog(LRNM); rlog1(SHR_MACL);	break;
+	case 0x38: NOP();		rlog(0);			break;
+	case 0x39: NOP();		rlog(0);			break;
+	case 0x3c: MOVBL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x3d: MOVWL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x3e: MOVLL0(Rm, Rn);	rlog(LRNM); rlog1(0);		break;
+	case 0x3f: MAC_L(Rm, Rn);	rlog(LRNM); rlog2(SHR_MACL,SHR_MACH); break;
+	case 0x3a: NOP();		rlog(0);			break;
+	case 0x3b: NOP();		rlog(0);			break;
 	}
 }
 
 INLINE void op0001(UINT16 opcode)
 {
 	MOVLS4(Rm, opcode & 0x0f, Rn);
+	rlog(LRNM);
 }
 
 INLINE void op0010(UINT16 opcode)
 {
 	switch (opcode & 15)
 	{
-	case  0: MOVBS(Rm, Rn); 				break;
-	case  1: MOVWS(Rm, Rn); 				break;
-	case  2: MOVLS(Rm, Rn); 				break;
-	case  3: NOP(); 						break;
-	case  4: MOVBM(Rm, Rn); 				break;
-	case  5: MOVWM(Rm, Rn); 				break;
-	case  6: MOVLM(Rm, Rn); 				break;
-	case  7: DIV0S(Rm, Rn); 				break;
-	case  8: TST(Rm, Rn);					break;
-	case  9: AND(Rm, Rn);					break;
-	case 10: XOR(Rm, Rn);					break;
-	case 11: OR(Rm, Rn);					break;
-	case 12: CMPSTR(Rm, Rn);				break;
-	case 13: XTRCT(Rm, Rn); 				break;
-	case 14: MULU(Rm, Rn);					break;
-	case 15: MULS(Rm, Rn);					break;
+	case  0: MOVBS(Rm, Rn); 	rlog(LRNM);			break;
+	case  1: MOVWS(Rm, Rn); 	rlog(LRNM);			break;
+	case  2: MOVLS(Rm, Rn); 	rlog(LRNM);			break;
+	case  3: NOP(); 		rlog(0);			break;
+	case  4: MOVBM(Rm, Rn); 	rlog(LRNM);			break;
+	case  5: MOVWM(Rm, Rn); 	rlog(LRNM);			break;
+	case  6: MOVLM(Rm, Rn); 	rlog(LRNM);			break;
+	case  7: DIV0S(Rm, Rn); 	rlog(LRNM);			break;
+	case  8: TST(Rm, Rn);		rlog(LRNM);			break;
+	case  9: AND(Rm, Rn);		rlog(LRNM);			break;
+	case 10: XOR(Rm, Rn);		rlog(LRNM);			break;
+	case 11: OR(Rm, Rn);		rlog(LRNM);			break;
+	case 12: CMPSTR(Rm, Rn);	rlog(LRNM);			break;
+	case 13: XTRCT(Rm, Rn); 	rlog(LRNM);			break;
+	case 14: MULU(Rm, Rn);		rlog(LRNM); rlog1(SHR_MACL);	break;
+	case 15: MULS(Rm, Rn);		rlog(LRNM); rlog1(SHR_MACL);	break;
 	}
 }
 
@@ -1932,22 +1930,22 @@ INLINE void op0011(UINT16 opcode)
 {
 	switch (opcode & 15)
 	{
-	case  0: CMPEQ(Rm, Rn); 				break;
-	case  1: NOP(); 						break;
-	case  2: CMPHS(Rm, Rn); 				break;
-	case  3: CMPGE(Rm, Rn); 				break;
-	case  4: DIV1(Rm, Rn);					break;
-	case  5: DMULU(Rm, Rn); 				break;
-	case  6: CMPHI(Rm, Rn); 				break;
-	case  7: CMPGT(Rm, Rn); 				break;
-	case  8: SUB(Rm, Rn);					break;
-	case  9: NOP(); 						break;
-	case 10: SUBC(Rm, Rn);					break;
-	case 11: SUBV(Rm, Rn);					break;
-	case 12: ADD(Rm, Rn);					break;
-	case 13: DMULS(Rm, Rn); 				break;
-	case 14: ADDC(Rm, Rn);					break;
-	case 15: ADDV(Rm, Rn);					break;
+	case  0: CMPEQ(Rm, Rn); 	rlog(LRNM);			break;
+	case  1: NOP(); 		rlog(0);			break;
+	case  2: CMPHS(Rm, Rn); 	rlog(LRNM);			break;
+	case  3: CMPGE(Rm, Rn); 	rlog(LRNM);			break;
+	case  4: DIV1(Rm, Rn);		rlog(LRNM);			break;
+	case  5: DMULU(Rm, Rn); 	rlog(LRNM); rlog2(SHR_MACL,SHR_MACH); break;
+	case  6: CMPHI(Rm, Rn); 	rlog(LRNM);			break;
+	case  7: CMPGT(Rm, Rn); 	rlog(LRNM);			break;
+	case  8: SUB(Rm, Rn);		rlog(LRNM);			break;
+	case  9: NOP(); 		rlog(0);			break;
+	case 10: SUBC(Rm, Rn);		rlog(LRNM);			break;
+	case 11: SUBV(Rm, Rn);		rlog(LRNM);			break;
+	case 12: ADD(Rm, Rn);		rlog(LRNM);			break;
+	case 13: DMULS(Rm, Rn); 	rlog(LRNM); rlog2(SHR_MACL,SHR_MACH); break;
+	case 14: ADDC(Rm, Rn);		rlog(LRNM);			break;
+	case 15: ADDV(Rm, Rn);		rlog(LRNM);			break;
 	}
 }
 
@@ -1955,80 +1953,80 @@ INLINE void op0100(UINT16 opcode)
 {
 	switch (opcode & 0x3F)
 	{
-	case 0x00: SHLL(Rn);					break;
-	case 0x01: SHLR(Rn);					break;
-	case 0x02: STSMMACH(Rn);				break;
-	case 0x03: STCMSR(Rn);					break;
-	case 0x04: ROTL(Rn);					break;
-	case 0x05: ROTR(Rn);					break;
-	case 0x06: LDSMMACH(Rn);				break;
-	case 0x07: LDCMSR(Rn);					break;
-	case 0x08: SHLL2(Rn);					break;
-	case 0x09: SHLR2(Rn);					break;
-	case 0x0a: LDSMACH(Rn); 				break;
-	case 0x0b: JSR(Rn); 					break;
-	case 0x0c: NOP();						break;
-	case 0x0d: NOP();						break;
-	case 0x0e: LDCSR(Rn);					break;
-	case 0x0f: MAC_W(Rm, Rn);				break;
+	case 0x00: SHLL(Rn);		rlog(LRN);			break;
+	case 0x01: SHLR(Rn);		rlog(LRN);			break;
+	case 0x02: STSMMACH(Rn);	rlog(LRN); rlog1(SHR_MACH);	break;
+	case 0x03: STCMSR(Rn);		rlog(LRN);			break;
+	case 0x04: ROTL(Rn);		rlog(LRN);			break;
+	case 0x05: ROTR(Rn);		rlog(LRN);			break;
+	case 0x06: LDSMMACH(Rn);	rlog(LRN); rlog1(SHR_MACH);	break;
+	case 0x07: LDCMSR(Rn);		rlog(LRN);			break;
+	case 0x08: SHLL2(Rn);		rlog(LRN);			break;
+	case 0x09: SHLR2(Rn);		rlog(LRN);			break;
+	case 0x0a: LDSMACH(Rn); 	rlog(LRN); rlog1(SHR_MACH);	break;
+	case 0x0b: JSR(Rn); 		rlog(LRN); rlog1(SHR_PR);	break;
+	case 0x0c: NOP();		rlog(0);			break;
+	case 0x0d: NOP();		rlog(0);			break;
+	case 0x0e: LDCSR(Rn);		rlog(LRN);			break;
+	case 0x0f: MAC_W(Rm, Rn);	rlog(LRNM); rlog2(SHR_MACL,SHR_MACH); break;
 
-	case 0x10: DT(Rn);						break;
-	case 0x11: CMPPZ(Rn);					break;
-	case 0x12: STSMMACL(Rn);				break;
-	case 0x13: STCMGBR(Rn); 				break;
-	case 0x14: NOP();						break;
-	case 0x15: CMPPL(Rn);					break;
-	case 0x16: LDSMMACL(Rn);				break;
-	case 0x17: LDCMGBR(Rn); 				break;
-	case 0x18: SHLL8(Rn);					break;
-	case 0x19: SHLR8(Rn);					break;
-	case 0x1a: LDSMACL(Rn); 				break;
-	case 0x1b: TAS(Rn); 					break;
-	case 0x1c: NOP();						break;
-	case 0x1d: NOP();						break;
-	case 0x1e: LDCGBR(Rn);					break;
-	case 0x1f: MAC_W(Rm, Rn);				break;
+	case 0x10: DT(Rn);		rlog(LRN);			break;
+	case 0x11: CMPPZ(Rn);		rlog(LRN);			break;
+	case 0x12: STSMMACL(Rn);	rlog(LRN); rlog1(SHR_MACL);	break;
+	case 0x13: STCMGBR(Rn); 	rlog(LRN); rlog1(SHR_GBR);	break;
+	case 0x14: NOP();		rlog(0);			break;
+	case 0x15: CMPPL(Rn);		rlog(LRN);			break;
+	case 0x16: LDSMMACL(Rn);	rlog(LRN); rlog1(SHR_MACL);	break;
+	case 0x17: LDCMGBR(Rn); 	rlog(LRN); rlog1(SHR_GBR);	break;
+	case 0x18: SHLL8(Rn);		rlog(LRN);			break;
+	case 0x19: SHLR8(Rn);		rlog(LRN);			break;
+	case 0x1a: LDSMACL(Rn); 	rlog(LRN); rlog1(SHR_MACL);	break;
+	case 0x1b: TAS(Rn); 		rlog(LRN);			break;
+	case 0x1c: NOP();		rlog(0);			break;
+	case 0x1d: NOP();		rlog(0);			break;
+	case 0x1e: LDCGBR(Rn);		rlog(LRN); rlog1(SHR_GBR);	break;
+	case 0x1f: MAC_W(Rm, Rn);	rlog(LRNM); rlog2(SHR_MACL,SHR_MACH); break;
 
-	case 0x20: SHAL(Rn);					break;
-	case 0x21: SHAR(Rn);					break;
-	case 0x22: STSMPR(Rn);					break;
-	case 0x23: STCMVBR(Rn); 				break;
-	case 0x24: ROTCL(Rn);					break;
-	case 0x25: ROTCR(Rn);					break;
-	case 0x26: LDSMPR(Rn);					break;
-	case 0x27: LDCMVBR(Rn); 				break;
-	case 0x28: SHLL16(Rn);					break;
-	case 0x29: SHLR16(Rn);					break;
-	case 0x2a: LDSPR(Rn);					break;
-	case 0x2b: JMP(Rn); 					break;
-	case 0x2c: NOP();						break;
-	case 0x2d: NOP();						break;
-	case 0x2e: LDCVBR(Rn);					break;
-	case 0x2f: MAC_W(Rm, Rn);				break;
+	case 0x20: SHAL(Rn);		rlog(LRN);			break;
+	case 0x21: SHAR(Rn);		rlog(LRN);			break;
+	case 0x22: STSMPR(Rn);		rlog(LRN); rlog1(SHR_PR);	break;
+	case 0x23: STCMVBR(Rn); 	rlog(LRN); rlog1(SHR_VBR);	break;
+	case 0x24: ROTCL(Rn);		rlog(LRN);			break;
+	case 0x25: ROTCR(Rn);		rlog(LRN);			break;
+	case 0x26: LDSMPR(Rn);		rlog(LRN); rlog1(SHR_PR);	break;
+	case 0x27: LDCMVBR(Rn); 	rlog(LRN); rlog1(SHR_VBR);	break;
+	case 0x28: SHLL16(Rn);		rlog(LRN);			break;
+	case 0x29: SHLR16(Rn);		rlog(LRN);			break;
+	case 0x2a: LDSPR(Rn);		rlog(LRN); rlog1(SHR_PR);	break;
+	case 0x2b: JMP(Rn); 		rlog(LRN);			break;
+	case 0x2c: NOP();		rlog(0);			break;
+	case 0x2d: NOP();		rlog(0);			break;
+	case 0x2e: LDCVBR(Rn);		rlog(LRN); rlog1(SHR_VBR);	break;
+	case 0x2f: MAC_W(Rm, Rn);	rlog(LRNM); rlog2(SHR_MACL,SHR_MACH); break;
 
-	case 0x30: NOP();						break;
-	case 0x31: NOP();						break;
-	case 0x32: NOP();						break;
-	case 0x33: NOP();						break;
-	case 0x34: NOP();						break;
-	case 0x35: NOP();						break;
-	case 0x36: NOP();						break;
-	case 0x37: NOP();						break;
-	case 0x38: NOP();						break;
-	case 0x39: NOP();						break;
-	case 0x3a: NOP();						break;
-	case 0x3b: NOP();						break;
-	case 0x3c: NOP();						break;
-	case 0x3d: NOP();						break;
-	case 0x3e: NOP();						break;
-	case 0x3f: MAC_W(Rm, Rn);				break;
-
+	case 0x30:
+	case 0x31:
+	case 0x32:
+	case 0x33:
+	case 0x34:
+	case 0x35:
+	case 0x36:
+	case 0x37:
+	case 0x38:
+	case 0x39:
+	case 0x3a:
+	case 0x3b:
+	case 0x3c:
+	case 0x3d:
+	case 0x3e: NOP();		rlog(0);			break;
+	case 0x3f: MAC_W(Rm, Rn);	rlog(LRNM); rlog2(SHR_MACL,SHR_MACH); break;
 	}
 }
 
 INLINE void op0101(UINT16 opcode)
 {
 	MOVLL4(Rm, opcode & 0x0f, Rn);
+	rlog(LRNM);
 }
 
 INLINE void op0110(UINT16 opcode)
@@ -2052,33 +2050,35 @@ INLINE void op0110(UINT16 opcode)
 	case 14: EXTSB(Rm, Rn); 				break;
 	case 15: EXTSW(Rm, Rn); 				break;
 	}
+	rlog(LRNM);
 }
 
 INLINE void op0111(UINT16 opcode)
 {
 	ADDI(opcode & 0xff, Rn);
+	rlog(LRN);
 }
 
 INLINE void op1000(UINT16 opcode)
 {
 	switch ( opcode  & (15<<8) )
 	{
-	case  0 << 8: MOVBS4(opcode & 0x0f, Rm); 	break;
-	case  1 << 8: MOVWS4(opcode & 0x0f, Rm); 	break;
-	case  2<< 8: NOP(); 				break;
-	case  3<< 8: NOP(); 				break;
-	case  4<< 8: MOVBL4(Rm, opcode & 0x0f); 	break;
-	case  5<< 8: MOVWL4(Rm, opcode & 0x0f); 	break;
-	case  6<< 8: NOP(); 				break;
-	case  7<< 8: NOP(); 				break;
-	case  8<< 8: CMPIM(opcode & 0xff);		break;
-	case  9<< 8: BT(opcode & 0xff); 		break;
-	case 10<< 8: NOP(); 				break;
-	case 11<< 8: BF(opcode & 0xff); 		break;
-	case 12<< 8: NOP(); 				break;
-	case 13<< 8: BTS(opcode & 0xff);		break;
-	case 14<< 8: NOP(); 				break;
-	case 15<< 8: BFS(opcode & 0xff);		break;
+	case  0<< 8: MOVBS4(opcode & 0x0f, Rm); rlog(LRM); rlog1(0);	break;
+	case  1<< 8: MOVWS4(opcode & 0x0f, Rm); rlog(LRM); rlog1(0);	break;
+	case  2<< 8: NOP(); 			rlog(0);		break;
+	case  3<< 8: NOP(); 			rlog(0);		break;
+	case  4<< 8: MOVBL4(Rm, opcode & 0x0f); rlog(LRM); rlog1(0);	break;
+	case  5<< 8: MOVWL4(Rm, opcode & 0x0f); rlog(LRM); rlog1(0);	break;
+	case  6<< 8: NOP(); 			rlog(0);	break;
+	case  7<< 8: NOP(); 			rlog(0);	break;
+	case  8<< 8: CMPIM(opcode & 0xff);	rlog(0);   rlog1(0);	break;
+	case  9<< 8: BT(opcode & 0xff); 	rlog(0);	break;
+	case 10<< 8: NOP(); 			rlog(0);	break;
+	case 11<< 8: BF(opcode & 0xff); 	rlog(0);	break;
+	case 12<< 8: NOP(); 			rlog(0);	break;
+	case 13<< 8: BTS(opcode & 0xff);	rlog(0);	break;
+	case 14<< 8: NOP(); 			rlog(0);	break;
+	case 15<< 8: BFS(opcode & 0xff);	rlog(0);	break;
 	}
 }
 
@@ -2086,54 +2086,62 @@ INLINE void op1000(UINT16 opcode)
 INLINE void op1001(UINT16 opcode)
 {
 	MOVWI(opcode & 0xff, Rn);
+	rlog(LRN);
 }
 
 INLINE void op1010(UINT16 opcode)
 {
 	BRA(opcode & 0xfff);
+	rlog(0);
 }
 
 INLINE void op1011(UINT16 opcode)
 {
 	BSR(opcode & 0xfff);
+	rlog(0);
+	rlog1(SHR_PR);
 }
 
 INLINE void op1100(UINT16 opcode)
 {
 	switch (opcode & (15<<8))
 	{
-	case  0<<8: MOVBSG(opcode & 0xff); 		break;
-	case  1<<8: MOVWSG(opcode & 0xff); 		break;
-	case  2<<8: MOVLSG(opcode & 0xff); 		break;
-	case  3<<8: TRAPA(opcode & 0xff);		break;
-	case  4<<8: MOVBLG(opcode & 0xff); 		break;
-	case  5<<8: MOVWLG(opcode & 0xff); 		break;
-	case  6<<8: MOVLLG(opcode & 0xff); 		break;
-	case  7<<8: MOVA(opcode & 0xff);		break;
-	case  8<<8: TSTI(opcode & 0xff);		break;
-	case  9<<8: ANDI(opcode & 0xff);		break;
-	case 10<<8: XORI(opcode & 0xff);		break;
-	case 11<<8: ORI(opcode & 0xff);			break;
-	case 12<<8: TSTM(opcode & 0xff);		break;
-	case 13<<8: ANDM(opcode & 0xff);		break;
-	case 14<<8: XORM(opcode & 0xff);		break;
-	case 15<<8: ORM(opcode & 0xff);			break;
+	case  0<<8: MOVBSG(opcode & 0xff); 	rlog2(0, SHR_GBR);	break;
+	case  1<<8: MOVWSG(opcode & 0xff); 	rlog2(0, SHR_GBR);	break;
+	case  2<<8: MOVLSG(opcode & 0xff); 	rlog2(0, SHR_GBR);	break;
+	case  3<<8: TRAPA(opcode & 0xff);	rlog1(SHR_VBR);		break;
+	case  4<<8: MOVBLG(opcode & 0xff); 	rlog2(0, SHR_GBR);	break;
+	case  5<<8: MOVWLG(opcode & 0xff); 	rlog2(0, SHR_GBR);	break;
+	case  6<<8: MOVLLG(opcode & 0xff); 	rlog2(0, SHR_GBR);	break;
+	case  7<<8: MOVA(opcode & 0xff);	rlog1(0);		break;
+	case  8<<8: TSTI(opcode & 0xff);	rlog1(0);		break;
+	case  9<<8: ANDI(opcode & 0xff);	rlog1(0);		break;
+	case 10<<8: XORI(opcode & 0xff);	rlog1(0);		break;
+	case 11<<8: ORI(opcode & 0xff);		rlog1(0);		break;
+	case 12<<8: TSTM(opcode & 0xff);	rlog2(0, SHR_GBR);	break;
+	case 13<<8: ANDM(opcode & 0xff);	rlog2(0, SHR_GBR);	break;
+	case 14<<8: XORM(opcode & 0xff);	rlog2(0, SHR_GBR);	break;
+	case 15<<8: ORM(opcode & 0xff);		rlog2(0, SHR_GBR);	break;
 	}
+	rlog(0);
 }
 
 INLINE void op1101(UINT16 opcode)
 {
 	MOVLI(opcode & 0xff, Rn);
+	rlog(LRN);
 }
 
 INLINE void op1110(UINT16 opcode)
 {
 	MOVI(opcode & 0xff, Rn);
+	rlog(LRN);
 }
 
 INLINE void op1111(UINT16 opcode)
 {
 	NOP();
+	rlog(0);
 }
 
 #endif

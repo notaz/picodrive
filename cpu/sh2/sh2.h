@@ -1,6 +1,13 @@
 #ifndef __SH2_H__
 #define __SH2_H__
 
+// registers - matches structure order
+typedef enum {
+  SHR_R0 = 0, SHR_SP = 15,
+  SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
+  SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
+} sh2_reg_e;
+
 typedef struct
 {
 	unsigned int	r[16];		// 00

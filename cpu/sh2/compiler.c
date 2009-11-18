@@ -129,12 +129,6 @@ static temp_reg_t reg_temp[] = {
 #define Q_SHIFT 8
 #define M_SHIFT 9
 
-typedef enum {
-  SHR_R0 = 0, SHR_SP = 15,
-  SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
-  SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
-} sh2_reg_e;
-
 typedef struct block_desc_ {
   u32 addr;			// SH2 PC address
   u32 end_addr;                 // TODO rm?
