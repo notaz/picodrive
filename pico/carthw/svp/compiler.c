@@ -1197,7 +1197,10 @@ static int tr_detect_set_pm(unsigned int op, int *pc, int imm)
 		int reg = is_write ? ((tmpv>>4)&0x7) : (tmpv&0x7);
 		if (reg > 4) tr_unhandled();
 		if ((tmpv & 0x0f) != 0 && (tmpv & 0xf0) != 0) tr_unhandled();
-		known_regs.pmac_read[is_write ? reg + 5 : reg] = pmcv;
+		if (is_write)
+			known_regs.pmac_write[reg] = pmcv;
+		else
+			known_regs.pmac_read[reg] = pmcv;
 		known_regb |= is_write ? (1 << (reg+25)) : (1 << (reg+20));
 		dirty_regb |= is_write ? (1 << (reg+25)) : (1 << (reg+20));
 		known_regs.emu_status &= ~SSP_PMC_SET;

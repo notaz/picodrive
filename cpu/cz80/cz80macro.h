@@ -74,7 +74,7 @@
 	unsigned short a = A; \
 	unsigned char d = D; \
 	unsigned long v = z80_write_map[a >> Z80_MEM_SHIFT]; \
-	if (v & 0x80000000) \
+	if (map_flag_set(v)) \
 		((z80_write_f *)(v << 1))(a, d); \
 	else \
 		*(unsigned char *)((v << 1) + a) = d; \

@@ -44,7 +44,11 @@ int sndout_oss_start(int rate, int frame_samples, int stereo)
 	if (sounddev == -1)
 	{
 		perror("open(\"/dev/dsp\")");
-		return -1;
+		sounddev = open("/dev/dsp1", O_WRONLY|O_ASYNC);
+		if (sounddev == -1) {
+			perror("open(\"/dev/dsp1\")");
+			return -1;
+		}
 	}
 
 	// calculate buffer size. We one to fit 1 frame worth of sound data.

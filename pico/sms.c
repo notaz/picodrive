@@ -156,14 +156,14 @@ static void write_bank(unsigned short a, unsigned char d)
       d &= bank_mask;
       z80_map_set(z80_read_map, 0x4000, 0x7fff, Pico.rom + (d << 14), 0);
 #ifdef _USE_CZ80
-      Cz80_Set_Fetch(&CZ80, 0x4000, 0x7fff, (UINT32)Pico.rom + (d << 14));
+      Cz80_Set_Fetch(&CZ80, 0x4000, 0x7fff, (FPTR)Pico.rom + (d << 14));
 #endif
       break;
     case 0x0f:
       d &= bank_mask;
       z80_map_set(z80_read_map, 0x8000, 0xbfff, Pico.rom + (d << 14), 0);
 #ifdef _USE_CZ80
-      Cz80_Set_Fetch(&CZ80, 0x8000, 0xbfff, (UINT32)Pico.rom + (d << 14));
+      Cz80_Set_Fetch(&CZ80, 0x8000, 0xbfff, (FPTR)Pico.rom + (d << 14));
 #endif
       break;
   }
@@ -188,7 +188,7 @@ void PicoPowerMS(void)
 {
   int s, tmp;
 
-  memset(&Pico.ram,0,(unsigned int)&Pico.rom-(unsigned int)&Pico.ram);
+  memset(&Pico.ram,0,(unsigned char *)&Pico.rom - Pico.ram);
   memset(&Pico.video,0,sizeof(Pico.video));
   memset(&Pico.m,0,sizeof(Pico.m));
   Pico.m.pal = 0;
@@ -221,9 +221,9 @@ void PicoMemSetupMS(void)
   drZ80.z80_out = z80_sms_out;
 #endif
 #ifdef _USE_CZ80
-  Cz80_Set_Fetch(&CZ80, 0x0000, 0xbfff, (UINT32)Pico.rom);
-  Cz80_Set_Fetch(&CZ80, 0xc000, 0xdfff, (UINT32)Pico.zram);
-  Cz80_Set_Fetch(&CZ80, 0xe000, 0xffff, (UINT32)Pico.zram);
+  Cz80_Set_Fetch(&CZ80, 0x0000, 0xbfff, (FPTR)Pico.rom);
+  Cz80_Set_Fetch(&CZ80, 0xc000, 0xdfff, (FPTR)Pico.zram);
+  Cz80_Set_Fetch(&CZ80, 0xe000, 0xffff, (FPTR)Pico.zram);
   Cz80_Set_INPort(&CZ80, z80_sms_in);
   Cz80_Set_OUTPort(&CZ80, z80_sms_out);
 #endif

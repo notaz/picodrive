@@ -1,10 +1,9 @@
+#include <stddef.h>
 #include "pico_int.h"
-#include "sound/sn76496.h"
+#include "memory.h"
 
-#define Z80_MEM_SHIFT 13
-
-unsigned long z80_read_map [0x10000 >> Z80_MEM_SHIFT];
-unsigned long z80_write_map[0x10000 >> Z80_MEM_SHIFT];
+uptr z80_read_map [0x10000 >> Z80_MEM_SHIFT];
+uptr z80_write_map[0x10000 >> Z80_MEM_SHIFT];
 
 #ifdef _USE_MZ80
 
@@ -124,7 +123,7 @@ PICO_INTERNAL void z80_pack(unsigned char *data)
 #elif defined(_USE_CZ80)
   *(int *)data = 0x00007a43; // "Cz"
   *(int *)(data+4) = Cz80_Get_Reg(&CZ80, CZ80_PC);
-  memcpy(data+8, &CZ80, (INT32)&CZ80.BasePC - (INT32)&CZ80);
+  memcpy(data+8, &CZ80, offsetof(cz80_struc, BasePC));
 #endif
 }
 
@@ -171,7 +170,7 @@ PICO_INTERNAL void z80_unpack(unsigned char *data)
   }
 #elif defined(_USE_CZ80)
   if (*(int *)data == 0x00007a43) { // "Cz" save?
-    memcpy(&CZ80, data+8, (INT32)&CZ80.BasePC - (INT32)&CZ80);
+    memcpy(&CZ80, data+8, offsetof(cz80_struc, BasePC));
     Cz80_Set_Reg(&CZ80, CZ80_PC, *(int *)(data+4));
   } else {
     z80_reset();
@@ -192,6 +191,6 @@ PICO_INTERNAL void z80_debug(char *dstr)
 #if defined(_USE_DRZ80)
   sprintf(dstr, "Z80 state: PC: %04x SP: %04x\n", drZ80.Z80PC-drZ80.Z80PC_BASE, drZ80.Z80SP-drZ80.Z80SP_BASE);
 #elif defined(_USE_CZ80)
-  sprintf(dstr, "Z80 state: PC: %04x SP: %04x\n", CZ80.PC - CZ80.BasePC, CZ80.SP.W);
+  sprintf(dstr, "Z80 state: PC: %04x SP: %04x\n", (unsigned int)(CZ80.PC - CZ80.BasePC), CZ80.SP.W);
 #endif
 }

@@ -55,8 +55,8 @@ static int in_gp2x_get_mmsp2_bits(void)
 
 static int in_gp2x_get_wiz_bits(void)
 {
-	int value = 0;
-	read(gpiodev, &value, 4);
+	int r, value = 0;
+	r = read(gpiodev, &value, 4);
 	if (value & 0x02)
 		value |= 0x05;
 	if (value & 0x08)

@@ -43,6 +43,10 @@ extern "C" {
 #define INT32	signed int
 #endif
 
+#ifndef FPTR
+#define FPTR	unsigned long
+#endif
+
 /*************************************/
 /* Z80 core Structures & definitions */
 /*************************************/
@@ -222,7 +226,7 @@ typedef struct cz80_t
 	union16 IX;
 	union16 IY;
 	union16 SP;
-	UINT32 PC;
+	UINT32 unusedPC;	/* left for binary compat */
 
 	union16 BC2;
 	union16 DE2;
@@ -242,11 +246,12 @@ typedef struct cz80_t
 	INT32 ICount;
 	INT32 ExtraCycles;
 
-	UINT32 BasePC;
-	UINT32 Fetch[CZ80_FETCH_BANK];
+	FPTR BasePC;
+	FPTR PC;
+	FPTR Fetch[CZ80_FETCH_BANK];
 #if CZ80_ENCRYPTED_ROM
-	INT32 OPBase;
-	INT32 OPFetch[CZ80_FETCH_BANK];
+	FPTR OPBase;
+	FPTR OPFetch[CZ80_FETCH_BANK];
 #endif
 
 	UINT8 *pzR8[8];
@@ -284,7 +289,7 @@ void Cz80_Set_IRQ(cz80_struc *CPU, INT32 line, INT32 state);
 UINT32  Cz80_Get_Reg(cz80_struc *CPU, INT32 regnum);
 void Cz80_Set_Reg(cz80_struc *CPU, INT32 regnum, UINT32 value);
 
-void Cz80_Set_Fetch(cz80_struc *CPU, UINT32 low_adr, UINT32 high_adr, UINT32 fetch_adr);
+void Cz80_Set_Fetch(cz80_struc *CPU, UINT32 low_adr, UINT32 high_adr, FPTR fetch_adr);
 #if CZ80_ENCRYPTED_ROM
 void Cz80_Set_Encrypt_Range(cz80_struc *CPU, UINT32 low_adr, UINT32 high_adr, UINT32 decrypted_rom);
 #endif

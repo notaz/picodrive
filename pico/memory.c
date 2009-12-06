@@ -44,7 +44,7 @@ static void xmap_set(uptr *map, int shift, int start_addr, int end_addr,
   for (i = start_addr >> shift; i <= end_addr >> shift; i++) {
     map[i] = addr >> 1;
     if (is_func)
-      map[i] |= 1 << (sizeof(addr) * 8 - 1);
+      map[i] |= (uptr)1 << (sizeof(addr) * 8 - 1);
   }
 }
 
@@ -1146,8 +1146,8 @@ static void z80_mem_setup(void)
   drZ80.z80_out = z80_md_out;
 #endif
 #ifdef _USE_CZ80
-  Cz80_Set_Fetch(&CZ80, 0x0000, 0x1fff, (UINT32)Pico.zram); // main RAM
-  Cz80_Set_Fetch(&CZ80, 0x2000, 0x3fff, (UINT32)Pico.zram); // mirror
+  Cz80_Set_Fetch(&CZ80, 0x0000, 0x1fff, (FPTR)Pico.zram); // main RAM
+  Cz80_Set_Fetch(&CZ80, 0x2000, 0x3fff, (FPTR)Pico.zram); // mirror
   Cz80_Set_INPort(&CZ80, z80_md_in);
   Cz80_Set_OUTPort(&CZ80, z80_md_out);
 #endif

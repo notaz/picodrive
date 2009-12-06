@@ -61,7 +61,7 @@ void PicoPower(void)
   Pico.m.frame_count = 0;
 
   // clear all memory of the emulated machine
-  memset(&Pico.ram,0,(unsigned int)&Pico.rom-(unsigned int)&Pico.ram);
+  memset(&Pico.ram,0,(unsigned char *)&Pico.rom - Pico.ram);
 
   memset(&Pico.video,0,sizeof(Pico.video));
   memset(&Pico.m,0,sizeof(Pico.m));

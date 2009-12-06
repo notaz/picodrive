@@ -14,8 +14,7 @@
 #include "cz80.h"
 
 #if PICODRIVE_HACKS
-#undef EMU_M68K
-#include <pico/pico_int.h>
+#include <pico/memory.h>
 #endif
 
 #ifndef ALIGN_DATA
@@ -107,7 +106,7 @@ void Cz80_Init(cz80_struc *CPU)
 
 	for (i = 0; i < CZ80_FETCH_BANK; i++)
 	{
-		CPU->Fetch[i] = (UINT32)cz80_bad_address;
+		CPU->Fetch[i] = (FPTR)cz80_bad_address;
 #if CZ80_ENCRYPTED_ROM
 		CPU->OPFetch[i] = 0;
 #endif
@@ -211,7 +210,7 @@ void Cz80_Init(cz80_struc *CPU)
 
 void Cz80_Reset(cz80_struc *CPU)
 {
-	memset(CPU, 0, (INT32)&CPU->BasePC - (INT32)CPU);
+	memset(CPU, 0, (FPTR)&CPU->BasePC - (FPTR)CPU);
 	Cz80_Set_Reg(CPU, CZ80_PC, 0);
 }
 
@@ -219,8 +218,8 @@ void Cz80_Reset(cz80_struc *CPU)
 #if PICODRIVE_HACKS
 static inline unsigned char picodrive_read(unsigned short a)
 {
-	unsigned long v = z80_read_map[a >> Z80_MEM_SHIFT];
-	if (v & 0x80000000)
+	uptr v = z80_read_map[a >> Z80_MEM_SHIFT];
+	if (map_flag_set(v))
 		return ((z80_read_f *)(v << 1))(a);
 	return *(unsigned char *)((v << 1) + a);
 }
@@ -236,9 +235,9 @@ INT32 Cz80_Exec(cz80_struc *CPU, INT32 cycles)
 #include "cz80jmp.c"
 #endif
 
-	UINT32 PC;
+	FPTR PC;
 #if CZ80_ENCRYPTED_ROM
-	INT32 OPBase;
+	FPTR OPBase;
 #endif
 	UINT32 Opcode;
 	UINT32 adr = 0;
@@ -317,9 +316,9 @@ void Cz80_Set_IRQ(cz80_struc *CPU, INT32 line, INT32 state)
 
 		if (state != CLEAR_LINE)
 		{
-			UINT32 PC = CPU->PC;
+			FPTR PC = CPU->PC;
 #if CZ80_ENCRYPTED_ROM
-			INT32 OPBase = CPU->OPBase;
+			FPTR OPBase = CPU->OPBase;
 #endif
 
 			CPU->IRQLine = line;
@@ -408,7 +407,7 @@ void Cz80_Set_Reg(cz80_struc *CPU, INT32 regnum, UINT32 val)
 	フェッチアドレス設定
 --------------------------------------------------------*/
 
-void Cz80_Set_Fetch(cz80_struc *CPU, UINT32 low_adr, UINT32 high_adr, UINT32 fetch_adr)
+void Cz80_Set_Fetch(cz80_struc *CPU, UINT32 low_adr, UINT32 high_adr, FPTR fetch_adr)
 {
 	int i, j;
 

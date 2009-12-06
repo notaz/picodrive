@@ -1178,7 +1178,7 @@ u32 REGPARM(2) p32x_sh2_read8(u32 a, SH2 *sh2)
 
   sh2_map += SH2MAP_ADDR2OFFS(a);
   p = sh2_map->addr;
-  if (p & (1 << 31))
+  if (map_flag_set(p))
     return ((sh2_read_handler *)(p << 1))(a, sh2->is_slave);
   else
     return *(u8 *)((p << 1) + ((a & sh2_map->mask) ^ 1));
@@ -1191,7 +1191,7 @@ u32 REGPARM(2) p32x_sh2_read16(u32 a, SH2 *sh2)
 
   sh2_map += SH2MAP_ADDR2OFFS(a);
   p = sh2_map->addr;
-  if (p & (1 << 31))
+  if (map_flag_set(p))
     return ((sh2_read_handler *)(p << 1))(a, sh2->is_slave);
   else
     return *(u16 *)((p << 1) + ((a & sh2_map->mask) & ~1));
@@ -1207,7 +1207,7 @@ u32 REGPARM(2) p32x_sh2_read32(u32 a, SH2 *sh2)
   offs = SH2MAP_ADDR2OFFS(a);
   sh2_map += offs;
   p = sh2_map->addr;
-  if (!(p & (1 << 31))) {
+  if (!map_flag_set(p)) {
     // XXX: maybe 32bit access instead with ror?
     u16 *pd = (u16 *)((p << 1) + ((a & sh2_map->mask) & ~1));
     return (pd[0] << 16) | pd[1];
@@ -1376,7 +1376,7 @@ static void get_bios(void)
 }
 
 #define MAP_MEMORY(m) ((uptr)(m) >> 1)
-#define MAP_HANDLER(h) (((uptr)(h) >> 1) | (1 << 31))
+#define MAP_HANDLER(h) ( ((uptr)(h) >> 1) | ((uptr)1 << (sizeof(uptr) * 8 - 1)) )
 
 static sh2_memmap sh2_read8_map[0x20], sh2_read16_map[0x20];
 // for writes we are using handlers only

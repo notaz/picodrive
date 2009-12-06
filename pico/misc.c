@@ -101,7 +101,7 @@ typedef struct
 
 PICO_INTERNAL_ASM void memcpy16(unsigned short *dest, unsigned short *src, int count)
 {
-	if ((((int)dest | (int)src) & 3) == 0)
+	if ((((long)dest | (long)src) & 3) == 0)
 	{
 		if (count >= 32) {
 			memcpy32((int *)dest, (int *)src, count/2);

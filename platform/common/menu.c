@@ -276,7 +276,8 @@ void menu_init(void)
 		lprintf("found skin.txt\n");
 		while (!feof(f))
 		{
-			fgets(buff, sizeof(buff), f);
+			if (fgets(buff, sizeof(buff), f) == NULL)
+				break;
 			if (buff[0] == '#'  || buff[0] == '/')  continue; // comment
 			if (buff[0] == '\r' || buff[0] == '\n') continue; // empty line
 			if (strncmp(buff, "text_color=", 11) == 0)
@@ -744,10 +745,15 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 
 static int scandir_cmp(const void *p1, const void *p2)
 {
-	struct dirent **d1 = (struct dirent **)p1, **d2 = (struct dirent **)p2;
-	if ((*d1)->d_type == (*d2)->d_type) return alphasort(d1, d2);
-	if ((*d1)->d_type == DT_DIR) return -1; // put before
-	if ((*d2)->d_type == DT_DIR) return  1;
+	const struct dirent **d1 = (const struct dirent **)p1;
+	const struct dirent **d2 = (const struct dirent **)p2;
+	if ((*d1)->d_type == (*d2)->d_type)
+		return alphasort(d1, d2);
+	if ((*d1)->d_type == DT_DIR)
+		return -1; // put before
+	if ((*d2)->d_type == DT_DIR)
+		return  1;
+
 	return alphasort(d1, d2);
 }
 
@@ -789,13 +795,13 @@ rescan:
 		fname = p+1;
 	}
 
-	n = scandir(curr_path, &namelist, scandir_filter, scandir_cmp);
+	n = scandir(curr_path, &namelist, scandir_filter, (void *)scandir_cmp);
 	if (n < 0) {
 		lprintf("menu_loop_romsel failed, dir: %s\n", curr_path);
 
 		// try root
-		getcwd(curr_path, len);
-		n = scandir(curr_path, &namelist, scandir_filter, scandir_cmp);
+		plat_get_root_dir(curr_path, len);
+		n = scandir(curr_path, &namelist, scandir_filter, (void *)scandir_cmp);
 		if (n < 0) {
 			// oops, we failed
 			lprintf("menu_loop_romsel failed, dir: %s\n", curr_path);

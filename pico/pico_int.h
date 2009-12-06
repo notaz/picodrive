@@ -229,12 +229,6 @@ extern int z80_scanline_cycles;  /* cycles done until z80_scanline */
 
 #define cycles_68k_to_z80(x) ((x)*957 >> 11)
 
-#define Z80_MEM_SHIFT 13
-extern unsigned long z80_read_map [0x10000 >> Z80_MEM_SHIFT];
-extern unsigned long z80_write_map[0x10000 >> Z80_MEM_SHIFT];
-typedef unsigned char (z80_read_f)(unsigned short a);
-typedef void (z80_write_f)(unsigned int a, unsigned char data);
-
 // ----------------------- SH2 CPU -----------------------
 
 #include "cpu/sh2/sh2.h"

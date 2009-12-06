@@ -917,7 +917,7 @@ OP_DJNZ:
 	OP(0x18):   // JR   n
 OP_JR:
 		adr = (INT8)READ_ARG();
-		PC += adr;
+		PC += (INT8)adr;
 		RET(12)
 
 	OP(0x20):   // JR   NZ,n
