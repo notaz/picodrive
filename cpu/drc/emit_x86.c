@@ -1,7 +1,9 @@
 /*
+ * note:
+ *  temp registers must be eax-edx due to use of SETcc.
  * note about silly things like emith_eor_r_r_r:
- * these are here because the compiler was designed
- * for ARM as it's primary target.
+ *  these are here because the compiler was designed
+ *  for ARM as it's primary target.
  */
 #include <stdarg.h>
 
@@ -298,20 +300,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_setc(r) { \
 	EMIT_OP(0x0f); \
-	EMIT(0x92, u8); \
-	EMIT_MODRM(3, 0, r); /* SETC r */ \
+	EMIT_OP_MODRM(0x92, 3, 0, r); /* SETC r */ \
 }
-
-// put bit0 of r0 to carry
-#define emith_set_carry(r0) { \
-	emith_tst_r_imm(r0, 1); /* clears C */ \
-	EMITH_SJMP_START(DCOND_EQ); \
-	EMIT_OP(0xf9); /* STC */ \
-	EMITH_SJMP_END(DCOND_EQ); \
-}
-
-// put bit0 of r0 to carry (for subtraction)
-#define emith_set_carry_sub emith_set_carry
 
 // XXX: stupid mess
 #define emith_mul_(op, dlo, dhi, s1, s2) { \
@@ -389,7 +379,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_ctx_read_multiple(r, offs, cnt, tmpr) do { \
 	int r_ = r, offs_ = offs, cnt_ = cnt;     \
-	for (; cnt > 0; r_++, offs_ += 4, cnt_--) \
+	for (; cnt_ > 0; r_++, offs_ += 4, cnt_--) \
 		emith_ctx_read(r_, offs_);        \
 } while (0)
 
@@ -400,7 +390,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_ctx_write_multiple(r, offs, cnt, tmpr) do { \
 	int r_ = r, offs_ = offs, cnt_ = cnt;     \
-	for (; cnt > 0; r_++, offs_ += 4, cnt_--) \
+	for (; cnt_ > 0; r_++, offs_ += 4, cnt_--) \
 		emith_ctx_write(r_, offs_);       \
 } while (0)
 
@@ -457,9 +447,13 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_sh2_drc_entry() { \
 	emith_push(xBX);        \
 	emith_push(xBP);        \
+	emith_push(xSI);        \
+	emith_push(xDI);        \
 }
 
 #define emith_sh2_drc_exit() {  \
+	emith_pop(xDI);         \
+	emith_pop(xSI);         \
 	emith_pop(xBP);         \
 	emith_pop(xBX);         \
 	EMIT_OP(0xc3); /* ret */\
@@ -467,8 +461,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_sh2_test_t() { \
 	int t = rcache_get_reg(SHR_SR, RC_GR_READ); \
-	EMIT_OP_MODRM(0xf6, 3, 0, t); \
-	EMIT(0x01, u8); /* test <reg>, byte 1 */ \
+	EMIT(0x66, u8); \
+	EMIT_OP_MODRM(0xf7, 3, 0, t); \
+	EMIT(0x01, u16); /* test <reg>, word 1 */ \
 }
 
 #define emith_sh2_dtbf_loop() { \
@@ -506,13 +501,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	rcache_free_tmp(tmp_); \
 }
 
-#define emith_carry_to_t(srr, is_sub) { \
-	int tmp_ = rcache_get_tmp(); \
-	emith_setc(tmp_); \
-	emith_bic_r_imm(srr, 1); \
-	EMIT_OP_MODRM(0x08, 3, tmp_, srr); /* OR srrl, tmpl */ \
-	rcache_free_tmp(tmp_); \
-}
+#define emith_tpop_carry(sr, is_sub) \
+	emith_lsr(sr, sr, 1)
+
+#define emith_tpush_carry(sr, is_sub) \
+	emith_adc_r_r(sr, sr)
 
 /*
  * if Q
@@ -524,6 +517,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_sh2_div1_step(rn, rm, sr) {         \
 	u8 *jmp0, *jmp1;                          \
 	int tmp_ = rcache_get_tmp();              \
+	emith_eor_r_r(tmp_, tmp_);                \
 	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
 	JMP8_POS(jmp0);          /* je do_sub */  \
 	emith_add_r_r(rn, rm);                    \
@@ -532,7 +526,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_sub_r_r(rn, rm);                    \
 	JMP8_EMIT(IOP_JMP, jmp1);/* done: */      \
 	emith_setc(tmp_);                         \
-	EMIT_OP_MODRM(0x30, 3, tmp_, sr); /* T = Q1 ^ Q2 (byte) */ \
+	EMIT_OP_MODRM(0x31, 3, tmp_, sr); /* T = Q1 ^ Q2 */ \
 	rcache_free_tmp(tmp_);                    \
 }
 

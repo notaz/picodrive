@@ -84,11 +84,11 @@ typedef struct {
 #include "../drc/emit_arm.c"
 
 static const int reg_map_g2h[] = {
+   4,  5,  6,  7,
+   8, -1, -1, -1,
   -1, -1, -1, -1,
-  -1, -1, -1, -1,
-  -1, -1, -1, -1,
-  -1, -1, -1, -1,
-  -1, -1, -1, -1,
+  -1, -1, -1,  9,
+  -1, -1, -1, 10,
   -1, -1, -1, -1,
 };
 
@@ -105,11 +105,11 @@ static temp_reg_t reg_temp[] = {
 #include "../drc/emit_x86.c"
 
 static const int reg_map_g2h[] = {
+  xSI,-1, -1, -1,
   -1, -1, -1, -1,
   -1, -1, -1, -1,
   -1, -1, -1, -1,
-  -1, -1, -1, -1,
-  -1, -1, -1, -1,
+  -1, -1, -1, xDI,
   -1, -1, -1, -1,
 };
 
@@ -1051,9 +1051,9 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         tmp2 = rcache_get_reg(GET_Rn(), RC_GR_RMW);
         tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ);
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW);
-        emith_set_carry(sr);
+        emith_tpop_carry(sr, 0);
         emith_adcf_r_r(tmp2, tmp2);
-        emith_carry_to_t(sr, 0);            // keep Q1 in T for now
+        emith_tpush_carry(sr, 0);            // keep Q1 in T for now
         tmp4 = rcache_get_tmp();
         emith_and_r_r_imm(tmp4, sr, M);
         emith_eor_r_r_lsr(sr, tmp4, M_SHIFT - Q_SHIFT); // Q ^= M
@@ -1094,13 +1094,13 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         tmp2 = rcache_get_reg(GET_Rm(), RC_GR_READ);
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW);
         if (op & 4) { // adc
-          emith_set_carry(sr);
+          emith_tpop_carry(sr, 0);
           emith_adcf_r_r(tmp, tmp2);
-          emith_carry_to_t(sr, 0);
+          emith_tpush_carry(sr, 0);
         } else {
-          emith_set_carry_sub(sr);
+          emith_tpop_carry(sr, 1);
           emith_sbcf_r_r(tmp, tmp2);
-          emith_carry_to_t(sr, 1);
+          emith_tpush_carry(sr, 1);
         }
         goto end_op;
       case 0x0b: // SUBV    Rm,Rn       0011nnnnmmmm1011
@@ -1138,8 +1138,9 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         case 2: // SHAL Rn    0100nnnn00100000
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW);
+          emith_tpop_carry(sr, 0); // dummy
           emith_lslf(tmp, tmp, 1);
-          emith_carry_to_t(sr, 0);
+          emith_tpush_carry(sr, 0);
           goto end_op;
         case 1: // DT Rn      0100nnnn00010000
           if (p32x_sh2_read16(pc, sh2) == 0x8bfd) { // BF #-2
@@ -1161,11 +1162,12 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         case 2: // SHAR Rn    0100nnnn00100001
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW);
+          emith_tpop_carry(sr, 0); // dummy
           if (op & 0x20) {
             emith_asrf(tmp, tmp, 1);
           } else
             emith_lsrf(tmp, tmp, 1);
-          emith_carry_to_t(sr, 0);
+          emith_tpush_carry(sr, 0);
           goto end_op;
         case 1: // CMP/PZ Rn  0100nnnn00010001
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
@@ -1220,22 +1222,23 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
         case 0x05: // ROTR   Rn          0100nnnn00000101
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW);
+          emith_tpop_carry(sr, 0); // dummy
           if (op & 1) {
             emith_rorf(tmp, tmp, 1);
           } else
             emith_rolf(tmp, tmp, 1);
-          emith_carry_to_t(sr, 0);
+          emith_tpush_carry(sr, 0);
           goto end_op;
         case 0x24: // ROTCL  Rn          0100nnnn00100100
         case 0x25: // ROTCR  Rn          0100nnnn00100101
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW);
-          emith_set_carry(sr);
+          emith_tpop_carry(sr, 0);
           if (op & 1) {
             emith_rorcf(tmp);
           } else
             emith_rolcf(tmp);
-          emith_carry_to_t(sr, 0);
+          emith_tpush_carry(sr, 0);
           goto end_op;
         case 0x15: // CMP/PL Rn          0100nnnn00010101
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
@@ -1487,9 +1490,9 @@ static void *sh2_translate(SH2 *sh2, block_desc *other_block)
           break;
         case 0x0a: // NEGC   Rm,Rn        0110nnnnmmmm1010
           sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
-          emith_set_carry_sub(sr);
+          emith_tpop_carry(sr, 1);
           emith_negcf_r_r(tmp2, tmp);
-          emith_carry_to_t(sr, 1);
+          emith_tpush_carry(sr, 1);
           break;
         case 0x0b: // NEG    Rm,Rn        0110nnnnmmmm1011
           emith_neg_r_r(tmp2, tmp);
@@ -2019,6 +2022,9 @@ int sh2_drc_init(SH2 *sh2)
 
     tcache_ptr = tcache;
     sh2_generate_utils();
+#ifdef ARM
+    cache_flush_d_inval_i(tcache, tcache_ptr);
+#endif
 
     memset(block_counts, 0, sizeof(block_counts));
     tcache_bases[0] = tcache_ptrs[0] = tcache_ptr;

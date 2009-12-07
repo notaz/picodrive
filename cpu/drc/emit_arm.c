@@ -3,7 +3,7 @@
 // (c) Copyright 2008-2009, Grazvydas "notaz" Ignotas
 // Free for non-commercial use.
 
-#define CONTEXT_REG 7
+#define CONTEXT_REG 11
 
 // XXX: tcache_ptr type for SVP and SH2 compilers differs..
 #define EMIT_PTR(ptr, x) \
@@ -182,8 +182,11 @@
 #define EOP_XXM(cond,p,u,s,w,l,rn,list) \
 	EMIT(((cond)<<28) | (1<<27) | ((p)<<24) | ((u)<<23) | ((s)<<22) | ((w)<<21) | ((l)<<20) | ((rn)<<16) | (list))
 
-#define EOP_STMFD(rb,list) EOP_XXM(A_COND_AL,1,0,0,1,0,rb,list)
-#define EOP_LDMFD(rb,list) EOP_XXM(A_COND_AL,0,1,0,1,1,rb,list)
+#define EOP_STMIA(rb,list) EOP_XXM(A_COND_AL,0,1,0,0,0,rb,list)
+#define EOP_LDMIA(rb,list) EOP_XXM(A_COND_AL,0,1,0,0,1,rb,list)
+
+#define EOP_STMFD_SP(list) EOP_XXM(A_COND_AL,1,0,0,1,0,13,list)
+#define EOP_LDMFD_SP(list) EOP_XXM(A_COND_AL,0,1,0,1,1,13,list)
 
 /* branches */
 #define EOP_C_BX(cond,rm) \
@@ -357,6 +360,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_sub_r_r(d, s) \
 	EOP_SUB_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
 
+#define emith_adc_r_r(d, s) \
+	EOP_ADC_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
+
 #define emith_and_r_r(d, s) \
 	EOP_AND_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
 
@@ -521,24 +527,25 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_ctx_read(r, offs) \
 	EOP_LDR_IMM(r, CONTEXT_REG, offs)
 
-#define emith_ctx_read_multiple(r, offs, count, tmpr) do { \
-	int v_, r_ = r, c_ = count; \
-	for (v_ = 0; c_; c_--, r_++) \
-		v_ |= 1 << r_; \
-	EOP_ADD_IMM(tmpr,CONTEXT_REG,30/2,(offs)>>2); \
-	EOP_LDMFD(tmpr,v_); \
-} while(0)
-
 #define emith_ctx_write(r, offs) \
 	EOP_STR_IMM(r, CONTEXT_REG, offs)
 
-#define emith_ctx_write_multiple(r, offs, count, tmpr) do { \
-	int v_, r_ = r, c_ = count; \
-	for (v_ = 0; c_; c_--, r_++) \
-		v_ |= 1 << r_; \
-	EOP_ADD_IMM(tmpr,CONTEXT_REG,30/2,(offs)>>2); \
-	EOP_STMFD(tmpr,v_); \
+#define emith_ctx_do_multiple(op, r, offs, count, tmpr) do { \
+	int v_, r_ = r, c_ = count, b_ = CONTEXT_REG;        \
+	for (v_ = 0; c_; c_--, r_++)                         \
+		v_ |= 1 << r_;                               \
+	if ((offs) != 0) {                                   \
+		EOP_ADD_IMM(tmpr,CONTEXT_REG,30/2,(offs)>>2);\
+		b_ = tmpr;                                   \
+	}                                                    \
+	op(b_,v_);                                           \
 } while(0)
+
+#define emith_ctx_read_multiple(r, offs, count, tmpr) \
+	emith_ctx_do_multiple(EOP_LDMIA, r, offs, count, tmpr)
+
+#define emith_ctx_write_multiple(r, offs, count, tmpr) \
+	emith_ctx_do_multiple(EOP_STMIA, r, offs, count, tmpr)
 
 #define emith_clear_msb_c(cond, d, s, count) { \
 	u32 t; \
@@ -564,19 +571,6 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_sext(d, s, bits) { \
 	EOP_MOV_REG_LSL(d,s,32 - (bits)); \
 	EOP_MOV_REG_ASR(d,d,32 - (bits)); \
-}
-
-// _r_r
-// put bit0 of r0 to carry
-#define emith_set_carry(r0) \
-	EOP_TST_REG(A_COND_AL,r0,r0,A_AM1_LSR,1) /* shift out to carry */ \
-
-// put bit0 of r0 to carry (for subtraction, inverted on ARM)
-#define emith_set_carry_sub(r0) { \
-	int t = rcache_get_tmp(); \
-	EOP_EOR_IMM(t,r0,0,1); /* invert */ \
-	EOP_MOV_REG(A_COND_AL,1,t,t,A_AM1_LSR,1); /* shift out to carry */ \
-	rcache_free_tmp(t); \
 }
 
 #define host_arg2reg(rd, arg) \
@@ -606,10 +600,10 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 /* SH2 drc specific */
 #define emith_sh2_drc_entry() \
-	EOP_STMFD(13,A_R7M|A_R14M)
+	EOP_STMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R14M)
 
 #define emith_sh2_drc_exit() \
-	EOP_LDMFD(13,A_R7M|A_R15M)
+	EOP_LDMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R15M)
 
 #define emith_sh2_test_t() { \
 	int r = rcache_get_reg(SHR_SR, RC_GR_READ); \
@@ -652,6 +646,18 @@ static int emith_xbranch(int cond, void *target, int is_call)
 		emith_or_r_imm_c(A_COND_CS, srr, 1); \
 		emith_bic_r_imm_c(A_COND_CC, srr, 1); \
 	} \
+}
+
+#define emith_tpop_carry(sr, is_sub) {  \
+	if (is_sub)                     \
+		emith_eor_r_imm(sr, 1); \
+	emith_lsrf(sr, sr, 1);          \
+}
+
+#define emith_tpush_carry(sr, is_sub) { \
+	emith_adc_r_r(sr, sr);          \
+	if (is_sub)                     \
+		emith_eor_r_imm(sr, 1); \
 }
 
 /*
