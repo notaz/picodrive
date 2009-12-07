@@ -144,6 +144,7 @@ static int insn_printf(void *f, const char *format, ...)
 
 static void host_dasm_init(void)
 {
+  bfd_init();
   slurp_symtab(g_argv[0]);
 
   init_disassemble_info(&di, NULL, insn_printf);

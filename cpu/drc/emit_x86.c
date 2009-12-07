@@ -202,6 +202,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_arith_r_imm(4, r, ~(imm))
 
 // fake conditionals (using SJMP instead)
+#define emith_move_r_imm_c(cond, r, imm) { \
+	(void)(cond); \
+	emith_move_r_imm(r, imm); \
+}
+
 #define emith_add_r_imm_c(cond, r, imm) { \
 	(void)(cond); \
 	emith_add_r_imm(r, imm); \
@@ -365,6 +370,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_subf_r_r   emith_sub_r_r
 #define emith_adcf_r_r   emith_adc_r_r
 #define emith_sbcf_r_r   emith_sbc_r_r
+#define emith_eorf_r_r   emith_eor_r_r
 #define emith_negcf_r_r  emith_negc_r_r
 
 #define emith_lslf  emith_lsl
@@ -376,15 +382,27 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_rorcf emith_rorc
 
 // XXX: offs is 8bit only
-#define emith_ctx_read(r, offs) { \
+#define emith_ctx_read(r, offs) do { \
 	EMIT_OP_MODRM(0x8b, 1, r, xBP); \
 	EMIT(offs, u8); 	/* mov tmp, [ebp+#offs] */ \
-}
+} while (0)
 
-#define emith_ctx_write(r, offs) { \
+#define emith_ctx_read_multiple(r, offs, cnt, tmpr) do { \
+	int r_ = r, offs_ = offs, cnt_ = cnt;     \
+	for (; cnt > 0; r_++, offs_ += 4, cnt_--) \
+		emith_ctx_read(r_, offs_);        \
+} while (0)
+
+#define emith_ctx_write(r, offs) do { \
 	EMIT_OP_MODRM(0x89, 1, r, xBP); \
 	EMIT(offs, u8); 	/* mov [ebp+#offs], tmp */ \
-}
+} while (0)
+
+#define emith_ctx_write_multiple(r, offs, cnt, tmpr) do { \
+	int r_ = r, offs_ = offs, cnt_ = cnt;     \
+	for (; cnt > 0; r_++, offs_ += 4, cnt_--) \
+		emith_ctx_write(r_, offs_);       \
+} while (0)
 
 #define emith_jump(ptr) { \
 	u32 disp = (u32)ptr - ((u32)tcache_ptr + 5); \
@@ -401,14 +419,20 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_call_cond(cond, ptr) \
 	emith_call(ptr)
 
-// "simple" or "short" jump
-#define EMITH_SJMP_START(cond) { \
+#define emith_jump_reg(r) \
+	EMIT_OP_MODRM(0xff, 3, 4, r)
+
+#define EMITH_JMP_START(cond) { \
 	u8 *cond_ptr; \
 	JMP8_POS(cond_ptr)
 
-#define EMITH_SJMP_END(cond) \
+#define EMITH_JMP_END(cond) \
 	JMP8_EMIT(cond, cond_ptr); \
 }
+
+// "simple" jump (no more then a few insns)
+#define EMITH_SJMP_START EMITH_JMP_START
+#define EMITH_SJMP_END EMITH_JMP_END
 
 #define host_arg2reg(rd, arg) \
 	switch (arg) { \
@@ -430,6 +454,17 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 }
 
 /* SH2 drc specific */
+#define emith_sh2_drc_entry() { \
+	emith_push(xBX);        \
+	emith_push(xBP);        \
+}
+
+#define emith_sh2_drc_exit() {  \
+	emith_pop(xBP);         \
+	emith_pop(xBX);         \
+	EMIT_OP(0xc3); /* ret */\
+}
+
 #define emith_sh2_test_t() { \
 	int t = rcache_get_reg(SHR_SR, RC_GR_READ); \
 	EMIT_OP_MODRM(0xf6, 3, 0, t); \

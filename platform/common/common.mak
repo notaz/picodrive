@@ -37,7 +37,6 @@ OBJS += cpu/drc/cmn.o
 ifeq "$(use_sh2drc)" "1"
 DEFINES += DRC_SH2
 OBJS += cpu/sh2/compiler.o
-OBJS += cpu/sh2/stub_$(ARCH).o
 ifdef drc_debug
 DEFINES += DRC_DEBUG=$(drc_debug)
 OBJS += cpu/sh2/mame/sh2dasm.o
