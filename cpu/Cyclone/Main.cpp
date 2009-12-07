@@ -77,7 +77,7 @@ static int is_op_hot(int op)
 
 void ot(const char *format, ...)
 {
-  va_list valist=NULL;
+  va_list valist;
   int i, len;
 
   // notaz: stop me from leaving newlines in the middle of format string
