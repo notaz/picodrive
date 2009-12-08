@@ -797,10 +797,13 @@ rescan:
 
 	n = scandir(curr_path, &namelist, scandir_filter, (void *)scandir_cmp);
 	if (n < 0) {
+		char *t;
 		lprintf("menu_loop_romsel failed, dir: %s\n", curr_path);
 
 		// try root
-		plat_get_root_dir(curr_path, len);
+		t = getcwd(curr_path, len);
+		if (t == NULL)
+			plat_get_root_dir(curr_path, len);
 		n = scandir(curr_path, &namelist, scandir_filter, (void *)scandir_cmp);
 		if (n < 0) {
 			// oops, we failed
