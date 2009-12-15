@@ -11,37 +11,38 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define CONTEXT_REG xBP
 
-#define IOP_JMP 0xeb
-#define IOP_JO  0x70
-#define IOP_JNO 0x71
-#define IOP_JB  0x72
-#define IOP_JAE 0x73
-#define IOP_JE  0x74
-#define IOP_JNE 0x75
-#define IOP_JBE 0x76
-#define IOP_JA  0x77
-#define IOP_JS  0x78
-#define IOP_JNS 0x79
-#define IOP_JL  0x7c
-#define IOP_JGE 0x7d
-#define IOP_JLE 0x7e
-#define IOP_JG  0x7f
+#define ICOND_JO  0x00
+#define ICOND_JNO 0x01
+#define ICOND_JB  0x02
+#define ICOND_JAE 0x03
+#define ICOND_JE  0x04
+#define ICOND_JNE 0x05
+#define ICOND_JBE 0x06
+#define ICOND_JA  0x07
+#define ICOND_JS  0x08
+#define ICOND_JNS 0x09
+#define ICOND_JL  0x0c
+#define ICOND_JGE 0x0d
+#define ICOND_JLE 0x0e
+#define ICOND_JG  0x0f
+
+#define IOP_JMP   0xeb
 
 // unified conditions (we just use rel8 jump instructions for x86)
-#define DCOND_EQ IOP_JE
-#define DCOND_NE IOP_JNE
-#define DCOND_MI IOP_JS      // MInus
-#define DCOND_PL IOP_JNS     // PLus or zero
-#define DCOND_HI IOP_JA      // higher (unsigned)
-#define DCOND_HS IOP_JAE     // higher || same (unsigned)
-#define DCOND_LO IOP_JB      // lower (unsigned)
-#define DCOND_LS IOP_JBE     // lower || same (unsigned)
-#define DCOND_GE IOP_JGE     // greater || equal (signed)
-#define DCOND_GT IOP_JG      // greater (signed)
-#define DCOND_LE IOP_JLE     // less || equal (signed)
-#define DCOND_LT IOP_JL      // less (signed)
-#define DCOND_VS IOP_JO      // oVerflow Set
-#define DCOND_VC IOP_JNO     // oVerflow Clear
+#define DCOND_EQ ICOND_JE
+#define DCOND_NE ICOND_JNE
+#define DCOND_MI ICOND_JS      // MInus
+#define DCOND_PL ICOND_JNS     // PLus or zero
+#define DCOND_HI ICOND_JA      // higher (unsigned)
+#define DCOND_HS ICOND_JAE     // higher || same (unsigned)
+#define DCOND_LO ICOND_JB      // lower (unsigned)
+#define DCOND_LS ICOND_JBE     // lower || same (unsigned)
+#define DCOND_GE ICOND_JGE     // greater || equal (signed)
+#define DCOND_GT ICOND_JG      // greater (signed)
+#define DCOND_LE ICOND_JLE     // less || equal (signed)
+#define DCOND_LT ICOND_JL      // less (signed)
+#define DCOND_VS ICOND_JO      // oVerflow Set
+#define DCOND_VC ICOND_JNO     // oVerflow Clear
 
 #define EMIT_PTR(ptr, val, type) \
 	*(type *)(ptr) = val
@@ -72,7 +73,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	tcache_ptr += 2
 
 #define JMP8_EMIT(op, ptr) \
-	EMIT_PTR(ptr, op, u8); \
+	EMIT_PTR(ptr, 0x70|(op), u8); \
+	EMIT_PTR(ptr + 1, (tcache_ptr - (ptr+2)), u8)
+
+#define JMP8_EMIT_NC(ptr) \
+	EMIT_PTR(ptr, IOP_JMP, u8); \
 	EMIT_PTR(ptr + 1, (tcache_ptr - (ptr+2)), u8)
 
 // _r_r
@@ -170,10 +175,10 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_move_r_imm_s8(r, imm) \
 	emith_move_r_imm(r, (u32)(signed int)(signed char)(imm))
 
-#define emith_arith_r_imm(op, r, imm) { \
+#define emith_arith_r_imm(op, r, imm) do { \
 	EMIT_OP_MODRM(0x81, 3, op, r); \
 	EMIT(imm, u32); \
-}
+} while (0)
 
 // 2 - adc, 3 - sbb
 #define emith_add_r_imm(r, imm) \
@@ -194,10 +199,10 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_cmp_r_imm(r, imm) \
 	emith_arith_r_imm(7, r, imm)
 
-#define emith_tst_r_imm(r, imm) { \
+#define emith_tst_r_imm(r, imm) do { \
 	EMIT_OP_MODRM(0xf7, 3, 0, r); \
 	EMIT(imm, u32); \
-}
+} while (0)
 
 // fake
 #define emith_bic_r_imm(r, imm) \
@@ -238,7 +243,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_and_r_r_imm(d, s, imm) { \
 	if (d != s) \
 		emith_move_r_r(d, s); \
-	emith_and_r_imm(d, imm) \
+	emith_and_r_imm(d, imm); \
 }
 
 // shift
@@ -395,13 +400,28 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 } while (0)
 
 #define emith_jump(ptr) { \
-	u32 disp = (u32)ptr - ((u32)tcache_ptr + 5); \
+	u32 disp = (u32)(ptr) - ((u32)tcache_ptr + 5); \
 	EMIT_OP(0xe9); \
 	EMIT(disp, u32); \
 }
 
+#define emith_jump_cond(cond, ptr) { \
+	u32 disp = (u32)(ptr) - ((u32)tcache_ptr + 6); \
+	EMIT(0x0f, u8); \
+	EMIT_OP(0x80 | (cond)); \
+	EMIT(disp, u32); \
+}
+
+#define emith_jump_patchable(cond) \
+	emith_jump_cond(cond, 0)
+
+#define emith_jump_patch(ptr, target) do { \
+	u32 disp = (u32)(target) - ((u32)(ptr) + 6); \
+	EMIT_PTR((u8 *)(ptr) + 2, disp, u32); \
+} while (0)
+
 #define emith_call(ptr) { \
-	u32 disp = (u32)ptr - ((u32)tcache_ptr + 5); \
+	u32 disp = (u32)(ptr) - ((u32)tcache_ptr + 5); \
 	EMIT_OP(0xe8); \
 	EMIT(disp, u32); \
 }
@@ -459,13 +479,6 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_OP(0xc3); /* ret */\
 }
 
-#define emith_sh2_test_t() { \
-	int t = rcache_get_reg(SHR_SR, RC_GR_READ); \
-	EMIT(0x66, u8); \
-	EMIT_OP_MODRM(0xf7, 3, 0, t); \
-	EMIT(0x01, u16); /* test <reg>, word 1 */ \
-}
-
 #define emith_sh2_dtbf_loop() { \
 	u8 *jmp0; /* negative cycles check */            \
 	u8 *jmp1; /* unsinged overflow check */          \
@@ -479,7 +492,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_asr(tmp_, cr, 2+12);                       \
 	JMP8_POS(jmp0); /* no negative cycles */         \
 	emith_move_r_imm(tmp_, 0);                       \
-	JMP8_EMIT(IOP_JNS, jmp0);                        \
+	JMP8_EMIT(ICOND_JNS, jmp0);                      \
 	emith_and_r_imm(cr, 0xffe);                      \
 	emith_subf_r_r(rn, tmp_);                        \
 	JMP8_POS(jmp1); /* no overflow */                \
@@ -488,16 +501,15 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_or_r_r(cr, rn);                            \
 	emith_or_r_imm(cr, 1);                           \
 	emith_move_r_imm(rn, 0);                         \
-	JMP8_EMIT(IOP_JA, jmp1);                         \
+	JMP8_EMIT(ICOND_JA, jmp1);                       \
 	rcache_free_tmp(tmp_);                           \
 }
 
-#define emith_write_sr(srcr) { \
+#define emith_write_sr(sr, srcr) { \
 	int tmp_ = rcache_get_tmp(); \
-	int srr = rcache_get_reg(SHR_SR, RC_GR_RMW); \
-	emith_clear_msb(tmp_, srcr, 20); \
-	emith_bic_r_imm(srr, 0xfff); \
-	emith_or_r_r(srr, tmp_); \
+	emith_clear_msb(tmp_, srcr, 22); \
+	emith_bic_r_imm(sr, 0x3ff); \
+	emith_or_r_r(sr, tmp_); \
 	rcache_free_tmp(tmp_); \
 }
 
@@ -522,9 +534,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	JMP8_POS(jmp0);          /* je do_sub */  \
 	emith_add_r_r(rn, rm);                    \
 	JMP8_POS(jmp1);          /* jmp done */   \
-	JMP8_EMIT(IOP_JE, jmp0); /* do_sub: */    \
+	JMP8_EMIT(ICOND_JE, jmp0); /* do_sub: */  \
 	emith_sub_r_r(rn, rm);                    \
-	JMP8_EMIT(IOP_JMP, jmp1);/* done: */      \
+	JMP8_EMIT_NC(jmp1);      /* done: */      \
 	emith_setc(tmp_);                         \
 	EMIT_OP_MODRM(0x31, 3, tmp_, sr); /* T = Q1 ^ Q2 */ \
 	rcache_free_tmp(tmp_);                    \

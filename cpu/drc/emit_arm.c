@@ -264,12 +264,12 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 	emith_op_imm2(cond, s, op, r, r, imm)
 
 // test op
-#define emith_top_imm(cond, op, r, imm) { \
+#define emith_top_imm(cond, op, r, imm) do { \
 	u32 ror2, v; \
 	for (ror2 = 0, v = imm; v && !(v & 3); v >>= 2) \
 		ror2--; \
 	EOP_C_DOP_IMM(cond, op, 1, r, 0, ror2 & 0x0f, v & 0xff); \
-}
+} while (0)
 
 #define is_offset_24(val) \
 	((val) >= (int)0xff000000 && (val) <= 0x00ffffff)
@@ -595,6 +595,15 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_jump(target) \
 	emith_jump_cond(A_COND_AL, target)
 
+#define emith_jump_patchable(cond) \
+	emith_jump_cond(cond, 0)
+
+#define emith_jump_patch(ptr, target) do { \
+	u32 *ptr_ = ptr; \
+	u32 val = (u32 *)(target) - (u32 *)ptr_ - 2; \
+	*ptr_ = (*ptr_ & 0xff000000) | (val & 0x00ffffff); \
+} while (0)
+
 #define emith_jump_reg(r) \
 	EOP_BX(r)
 
@@ -604,11 +613,6 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_sh2_drc_exit() \
 	EOP_LDMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R15M)
-
-#define emith_sh2_test_t() { \
-	int r = rcache_get_reg(SHR_SR, RC_GR_READ); \
-	EOP_TST_IMM(r, 0, 1); \
-}
 
 #define emith_sh2_dtbf_loop() { \
 	int cr, rn;                                                          \
@@ -631,11 +635,10 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	rcache_free_tmp(tmp_);                                               \
 }
 
-#define emith_write_sr(srcr) { \
-	int srr = rcache_get_reg(SHR_SR, RC_GR_RMW); \
-	emith_lsr(srr, srr, 12); \
-	emith_or_r_r_r_lsl(srr, srr, srcr, 20); \
-	emith_ror(srr, srr, 20); \
+#define emith_write_sr(sr, srcr) { \
+	emith_lsr(sr, sr, 10); \
+	emith_or_r_r_r_lsl(sr, sr, srcr, 22); \
+	emith_ror(sr, sr, 22); \
 }
 
 #define emith_carry_to_t(srr, is_sub) { \
