@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <dirent.h>
 #include <sys/time.h>
 #include <time.h>
@@ -15,6 +16,21 @@ int plat_is_dir(const char *path)
 		return 1;
 	}
 	return 0;
+}
+
+int plat_get_root_dir(char *dst, int len)
+{
+	extern char **g_argv;
+	int j;
+
+	strncpy(dst, g_argv[0], len);
+	len -= 32; // reserve
+	if (len < 0) len = 0;
+	dst[len] = 0;
+	for (j = strlen(dst); j > 0; j--)
+		if (dst[j] == '/') { dst[j+1] = 0; break; }
+
+	return j + 1;
 }
 
 #ifdef __GP2X__

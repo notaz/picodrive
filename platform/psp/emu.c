@@ -89,14 +89,8 @@ void emu_Deinit(void)
 
 void pemu_prep_defconfig(void)
 {
-	memset(&defaultConfig, 0, sizeof(defaultConfig));
-	defaultConfig.EmuOpt    = 0x1d | 0x680; // | <- confirm_save, cd_leds, acc rend
-	defaultConfig.s_PicoOpt = 0x0f | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX|POPT_ACC_SPRITES;
 	defaultConfig.s_PsndRate = 22050;
-	defaultConfig.s_PicoRegion = 0; // auto
-	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
 	defaultConfig.s_PicoCDBuffers = 64;
-	defaultConfig.Frameskip = -1; // auto
 	defaultConfig.CPUclock = 333;
 	defaultConfig.KeyBinds[ 4] = 1<<0; // SACB RLDU
 	defaultConfig.KeyBinds[ 6] = 1<<1;
@@ -117,7 +111,6 @@ void pemu_prep_defconfig(void)
 	defaultConfig.scale = 1.20;    // fullscreen
 	defaultConfig.hscale40 = 1.25;
 	defaultConfig.hscale32 = 1.56;
-	defaultConfig.turbo_rate = 15;
 }
 
 

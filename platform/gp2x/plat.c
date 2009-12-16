@@ -69,26 +69,6 @@ char cpu_clk_name[16] = "GP2X CPU clocks";
 
 void plat_video_menu_enter(int is_rom_loaded)
 {
-	if (is_rom_loaded)
-	{
-		// darken the active framebuffer
-		memset(g_screen_ptr, 0, 320*8*2);
-		menu_darken_bg((char *)g_screen_ptr + 320*8*2, 320*224, 1);
-		memset((char *)g_screen_ptr + 320*232*2, 0, 320*8*2);
-	}
-	else
-	{
-		char buff[256];
-
-		// should really only happen once, on startup..
-		emu_make_path(buff, "skin/background.png", sizeof(buff));
-		if (readpng(g_screen_ptr, buff, READPNG_BG) < 0)
-			memset(g_screen_ptr, 0, 320*240*2);
-	}
-
-	// copy to buffer2, switch to black
-	gp2x_memcpy_buffers((1<<2), g_screen_ptr, 0, 320*240*2);
-
 	/* try to switch nicely avoiding tearing on Wiz */
 	gp2x_video_wait_vsync();
 	memset(gp2x_screens[0], 0, 320*240*2);
@@ -112,23 +92,6 @@ void plat_video_menu_end(void)
 	// FIXME
 	// gp2x_video_flush_cache();
 	gp2x_video_flip2();
-}
-
-void plat_validate_config(void)
-{
-	gp2x_soc_t soc;
-
-	soc = soc_detect();
-	if (soc != SOCID_MMSP2)
-		PicoOpt &= ~POPT_EXT_FM;
-	if (soc != SOCID_POLLUX)
-		currentConfig.EmuOpt &= ~EOPT_WIZ_TEAR_FIX;
-
-	if (currentConfig.gamma < 10 || currentConfig.gamma > 300)
-		currentConfig.gamma = 100;
-
-	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 1024)
-		currentConfig.CPUclock = default_cpu_clock;
 }
 
 void plat_early_init(void)
@@ -174,6 +137,9 @@ void plat_init(void)
 	warm_init();
 
 	gp2x_memset_all_buffers(0, 0, 320*240*2);
+
+	// use buffer2 for menubg (using only buffers 0, 1 in menu)
+	g_menubg_ptr = gp2x_screens[2];
 
 	// snd
 	sndout_oss_init();

@@ -4,25 +4,25 @@
 // For commercial use, separate licencing terms must be obtained.
 
 #include <stdio.h>
+#include <unistd.h>
 
 #include "../common/emu.h"
 #include "../common/menu.h"
 #include "../common/plat.h"
 #include "../common/arm_utils.h"
 #include "../linux/sndout_oss.h"
-#include "asm_utils.h"
 #include "version.h"
 
 #include <pico/pico_int.h>
 
-#define USE_320_SCREEN 1
-
 
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
-static unsigned char temp_frame[g_screen_width * g_screen_height * 2];
+unsigned char temp_frame[320 * 240 * 2];
 unsigned char *PicoDraw2FB = temp_frame;
 static int osd_fps_x;
 char cpu_clk_name[] = "unused";
+
+extern void update_screen(void);
 
 
 void pemu_prep_defconfig(void)
@@ -33,126 +33,93 @@ void pemu_prep_defconfig(void)
 
 void pemu_validate_config(void)
 {
+	extern int PicoOpt;
+//	PicoOpt &= ~POPT_EXT_FM;
+	PicoOpt &= ~POPT_EN_SVP_DRC;
 }
 
-// FIXME: cleanup
-static void osd_text(int x, int y, const char *text)
+// FIXME: dupes from GP2X, need cleanup
+static void (*osd_text)(int x, int y, const char *text);
+
+static void osd_text8(int x, int y, const char *text)
 {
 	int len = strlen(text)*8;
+	int *p, i, h, offs;
 
-	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
-		int *p, i, h;
-		x &= ~3; // align x
-		len = (len+3) >> 2;
-		for (h = 0; h < 8; h++) {
-			p = (int *) ((unsigned char *) g_screen_ptr+x+g_screen_width*(y+h));
-			for (i = len; i; i--, p++) *p = 0xe0e0e0e0;
-		}
-		emu_text_out8(x, y, text);
-	} else {
-		int *p, i, h;
-		x &= ~1; // align x
-		len++;
-		for (h = 0; h < 16; h++) {
-			p = (int *) ((unsigned short *) g_screen_ptr+x+g_screen_width*(y+h));
-			for (i = len; i; i--, p++) *p = 0;//(*p>>2)&0x39e7;
-		}
-		text_out16(x, y, text);
+	len = (len+3) >> 2;
+	for (h = 0; h < 8; h++) {
+		offs = (x + g_screen_width * (y+h)) & ~3;
+		p = (int *) ((char *)g_screen_ptr + offs);
+		for (i = len; i; i--, p++)
+			*p = 0xe0e0e0e0;
 	}
+	emu_text_out8(x, y, text);
+}
+
+static void osd_text16(int x, int y, const char *text)
+{
+	int len = strlen(text)*8;
+	int *p, i, h, offs;
+
+	len = (len+1) >> 1;
+	for (h = 0; h < 8; h++) {
+		offs = (x + g_screen_width * (y+h)) & ~1;
+		p = (int *) ((short *)g_screen_ptr + offs);
+		for (i = len; i; i--, p++)
+			*p = (*p >> 2) & 0x39e7;
+	}
+	emu_text_out16(x, y, text);
 }
 
 static void draw_cd_leds(void)
 {
-//	static
-	int old_reg;
-//	if (!((Pico_mcd->s68k_regs[0] ^ old_reg) & 3)) return; // no change // mmu hack problems?
-	old_reg = Pico_mcd->s68k_regs[0];
+	int led_reg, pitch, scr_offs, led_offs;
+	led_reg = Pico_mcd->s68k_regs[0];
 
-	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
+	pitch = 320;
+	led_offs = 4;
+	scr_offs = pitch * 2 + 4;
+
+	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP)) {
+	#define p(x) px[(x) >> 2]
 		// 8-bit modes
-		unsigned int col_g = (old_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
-		unsigned int col_r = (old_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*2+ 4) =
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*3+ 4) =
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*4+ 4) = col_g;
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*2+12) =
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*3+12) =
-		*(unsigned int *)((char *)g_screen_ptr + g_screen_width*4+12) = col_r;
+		unsigned int *px = (unsigned int *)((char *)g_screen_ptr + scr_offs);
+		unsigned int col_g = (led_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
+		unsigned int col_r = (led_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
+		p(pitch*0) = p(pitch*1) = p(pitch*2) = col_g;
+		p(pitch*0 + led_offs) = p(pitch*1 + led_offs) = p(pitch*2 + led_offs) = col_r;
+	#undef p
 	} else {
+	#define p(x) px[(x)*2 >> 2] = px[((x)*2 >> 2) + 1]
 		// 16-bit modes
-		unsigned int *p = (unsigned int *)((short *)g_screen_ptr + g_screen_width*2+4);
-		unsigned int col_g = (old_reg & 2) ? 0x06000600 : 0;
-		unsigned int col_r = (old_reg & 1) ? 0xc000c000 : 0;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += g_screen_width/2 - 12/2;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += g_screen_width/2 - 12/2;
-		*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
+		unsigned int *px = (unsigned int *)((short *)g_screen_ptr + scr_offs);
+		unsigned int col_g = (led_reg & 2) ? 0x06000600 : 0;
+		unsigned int col_r = (led_reg & 1) ? 0xc000c000 : 0;
+		p(pitch*0) = p(pitch*1) = p(pitch*2) = col_g;
+		p(pitch*0 + led_offs) = p(pitch*1 + led_offs) = p(pitch*2 + led_offs) = col_r;
+	#undef p
 	}
 }
-
-#ifdef USE_320_SCREEN
 
 static int EmuScanBegin16(unsigned int num)
 {
-	DrawLineDest = (unsigned short *)g_screen_ptr + num*800 + 800/2 - 320/2;
-	//int w = (Pico.video.reg[12]&1) ? 320 : 256;
-	//DrawLineDest = (unsigned short *)g_screen_ptr + num*w;
+	DrawLineDest = (unsigned short *)g_screen_ptr + num * g_screen_width;
 
 	return 0;
 }
-
-#else // USE_320_SCREEN
-
-static int EmuScanEnd16(unsigned int num)
-{
-	unsigned char  *ps=HighCol+8;
-	unsigned short *pd;
-	unsigned short *pal=HighPal;
-	int sh = Pico.video.reg[0xC]&8;
-	int len, mask = 0xff;
-
-	pd=(unsigned short *)g_screen_ptr + num*800*2 + 800/2 - 320*2/2;
-
-	if (Pico.m.dirtyPal)
-		PicoDoHighPal555(sh);
-
-	if (Pico.video.reg[12]&1) {
-		len = 320;
-	} else {
-		pd += 32*2;
-		len = 256;
-	}
-
-	if (!sh && (rendstatus & PDRAW_SPR_LO_ON_HI))
-		mask=0x3f; // messed sprites, upper bits are priority stuff
-
-#if 1
-	clut_line(pd, ps, pal, (mask<<16) | len);
-#else
-	for (; len > 0; len--)
-	{
-		unsigned int p = pal[*ps++ & mask];
-		p |= p << 16;
-		*(unsigned int *)pd = p;
-		*(unsigned int *)(&pd[800]) = p;
-		pd += 2;
-	}
-#endif
-
-	return 0;
-}
-
-#endif // USE_320_SCREEN
 
 void pemu_update_display(const char *fps, const char *notice)
 {
 	if (notice || (currentConfig.EmuOpt & EOPT_SHOW_FPS)) {
 		if (notice)
-			osd_text(4, 460, notice);
+			osd_text(4, g_screen_height - 8, notice);
 		if (currentConfig.EmuOpt & EOPT_SHOW_FPS)
-			osd_text(osd_fps_x, 460, fps);
+			osd_text(osd_fps_x, g_screen_height - 8, fps);
 	}
 	if ((PicoAHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
+
+	update_screen();
 }
 
 void plat_video_toggle_renderer(int is_next, int force_16bpp, int is_menu)
@@ -172,6 +139,7 @@ void plat_video_menu_begin(void)
 
 void plat_video_menu_end(void)
 {
+	update_screen();
 }
 
 void plat_status_msg_clear(void)
@@ -197,22 +165,6 @@ void plat_status_msg_busy_first(const char *msg)
 
 void plat_update_volume(int has_changed, int is_up)
 {
-	static int prev_frame = 0, wait_frames = 0;
-	int vol = currentConfig.volume;
-
-	if (has_changed)
-	{
-		if (is_up) {
-			if (vol < 99) vol++;
-		} else {
-			if (vol >  0) vol--;
-		}
-		wait_frames = 0;
-		sndout_oss_setvol(vol, vol);
-		currentConfig.volume = vol;
-		emu_status_msg("VOL: %02i", vol);
-		prev_frame = Pico.m.frame_count;
-	}
 }
 
 void pemu_forced_frame(int opts)
@@ -220,17 +172,13 @@ void pemu_forced_frame(int opts)
 	int po_old = PicoOpt;
 	int eo_old = currentConfig.EmuOpt;
 
-	PicoOpt &= ~0x10;
+	PicoOpt &= ~POPT_ALT_RENDERER;
 	PicoOpt |= opts|POPT_ACC_SPRITES; // acc_sprites
-	currentConfig.EmuOpt |= 0x80;
+	currentConfig.EmuOpt |= EOPT_16BPP;
 
-#ifdef USE_320_SCREEN
 	PicoDrawSetColorFormat(1);
 	PicoScanBegin = EmuScanBegin16;
-#else
-	PicoDrawSetColorFormat(-1);
-	PicoScanEnd = EmuScanEnd16;
-#endif
+
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 
@@ -259,7 +207,7 @@ void pemu_sound_start(void)
 
 	PsndOut = NULL;
 
-	if (currentConfig.EmuOpt & 4)
+	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
 	{
 		int snd_excess_add;
 		if (PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old)
@@ -303,13 +251,9 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 
 void pemu_loop_prep(void)
 {
-#ifdef USE_320_SCREEN
 	PicoDrawSetColorFormat(1);
 	PicoScanBegin = EmuScanBegin16;
-#else
-	PicoDrawSetColorFormat(-1);
-	PicoScanEnd = EmuScanEnd16;
-#endif
+	osd_text = osd_text16;
 
 	pemu_sound_start();
 }
@@ -335,17 +279,15 @@ void pemu_loop_end(void)
 	currentConfig.EmuOpt = eo_old;
 }
 
-/* XXX: avoid busy wait somehow? */
 void plat_wait_till_us(unsigned int us_to)
 {
 	unsigned int now;
 
-	spend_cycles(1024);
 	now = plat_get_ticks_us();
 
 	while ((signed int)(us_to - now) > 512)
 	{
-		spend_cycles(1024);
+		usleep(1024);
 		now = plat_get_ticks_us();
 	}
 }

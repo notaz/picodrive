@@ -6,6 +6,7 @@ extern "C" {
 extern char cpu_clk_name[];
 
 void pemu_prep_defconfig(void);
+void pemu_validate_config(void);
 void pemu_loop_prep(void);
 void pemu_loop_end(void);
 void pemu_forced_frame(int opts);
@@ -34,7 +35,6 @@ void plat_video_menu_end(void);
 
 void plat_video_wait_vsync(void);
 void plat_video_toggle_renderer(int is_next, int force_16bpp, int is_menu);
-void plat_validate_config(void);
 void plat_update_volume(int has_changed, int is_up);
 
 int  plat_is_dir(const char *path);

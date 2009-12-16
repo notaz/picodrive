@@ -730,6 +730,27 @@ static void make_config_cfg(char *cfg_buff_512)
 	cfg_buff_512[511] = 0;
 }
 
+void emu_prep_defconfig(void)
+{
+	memset(&defaultConfig, 0, sizeof(defaultConfig));
+	defaultConfig.EmuOpt    = 0x9d | EOPT_RAM_TIMINGS|EOPT_CONFIRM_SAVE|EOPT_EN_CD_LEDS;
+	defaultConfig.s_PicoOpt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80 |
+				  POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC|POPT_ACC_SPRITES |
+				  POPT_EN_32X|POPT_EN_PWM;
+	defaultConfig.s_PsndRate = 44100;
+	defaultConfig.s_PicoRegion = 0; // auto
+	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
+	defaultConfig.s_PicoCDBuffers = 0;
+	defaultConfig.Frameskip = -1; // auto
+	defaultConfig.volume = 50;
+	defaultConfig.gamma = 100;
+	defaultConfig.scaling = 0;
+	defaultConfig.turbo_rate = 15;
+
+	// platform specific overrides
+	pemu_prep_defconfig();
+}
+
 void emu_set_defconfig(void)
 {
 	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
@@ -786,7 +807,7 @@ int emu_read_config(int game, int no_defaults)
 		}
 	}
 
-	plat_validate_config();
+	pemu_validate_config();
 
 	// some sanity checks
 #ifdef PSP

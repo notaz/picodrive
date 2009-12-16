@@ -154,6 +154,8 @@ typedef struct
 extern me_bind_action me_ctrl_actions[15];
 extern me_bind_action emuctrl_actions[];	// platform code
 
+extern void *g_menubg_ptr;
+
 void menu_init(void);
 void menu_plat_setup(int is_wiz);
 void text_out16(int x, int y, const char *texto, ...);
@@ -167,6 +169,4 @@ int  menu_loop_tray(void);
 
 menu_entry *me_list_get_first(void);
 menu_entry *me_list_get_next(void);
-
-void menu_darken_bg(void *dst, int pixels, int darker);
 

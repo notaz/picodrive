@@ -117,6 +117,7 @@ int   emu_swap_cd(const char *fname);
 int   emu_save_load_game(int load, int sram);
 void  emu_reset_game(void);
 
+void  emu_prep_defconfig(void);
 void  emu_set_defconfig(void);
 int   emu_read_config(int game, int no_defaults);
 int   emu_write_config(int game);

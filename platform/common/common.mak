@@ -1,3 +1,35 @@
+ifneq ($(DEBUG),)
+CFLAGS += -ggdb
+endif
+ifeq "$(profile)" "1"
+CFLAGS += -fprofile-generate
+endif
+ifeq "$(profile)" "2"
+CFLAGS += -fprofile-use
+endif
+
+# === Pico core ===
+# Pico
+OBJS += pico/area.o pico/cart.o pico/memory.o pico/pico.o pico/sek.o pico/z80if.o \
+	pico/videoport.o pico/draw2.o pico/draw.o pico/mode4.o pico/sms.o \
+	pico/misc.o pico/eeprom.o pico/patch.o pico/debug.o
+# CD
+OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
+	pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \
+	pico/cd/area.o pico/cd/misc.o pico/cd/pcm.o pico/cd/buffering.o
+# 32X
+OBJS += pico/32x/32x.o pico/32x/memory.o pico/32x/draw.o pico/32x/pwm.o
+# Pico
+OBJS += pico/pico/pico.o pico/pico/memory.o pico/pico/xpcm.o
+# carthw
+OBJS += pico/carthw/carthw.o
+# SVP
+OBJS += pico/carthw/svp/svp.o pico/carthw/svp/memory.o \
+	pico/carthw/svp/ssp16.o
+# sound
+OBJS += pico/sound/sound.o
+OBJS += pico/sound/sn76496.o pico/sound/ym2612.o
+
 # === CPU cores ===
 # --- M68k ---
 ifeq "$(use_musashi)" "1"
@@ -52,6 +84,29 @@ endif
 ifeq "$(use_sh2mame)" "1"
 OBJS += cpu/sh2/mame/sh2pico.o
 endif
+
+
+DIRS += platform platform/common pico pico/cd pico/pico pico/32x pico/sound pico/carthw/svp \
+	cpu cpu/musashi cpu/cz80 cpu/fame cpu/sh2/mame cpu/drc
+
+
+# common rules
+.c.o:
+	@echo ">>>" $<
+	$(CC) $(CFLAGS) -c $< -o $@
+.s.o:
+	@echo ">>>" $<
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean_prof:
+	find ../.. -name '*.gcno' -delete
+	find ../.. -name '*.gcda' -delete
+
+mkdirs:
+	mkdir -p $(DIRS)
+
+../../tools/textfilter: ../../tools/textfilter.c
+	make -C ../../tools/ textfilter
 
 
 # random deps

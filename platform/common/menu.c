@@ -23,8 +23,9 @@
 #include <pico/patch.h>
 
 static char static_buff[64];
-char menu_error_msg[64] = { 0, };
 static int  menu_error_time = 0;
+char menu_error_msg[64] = { 0, };
+void *g_menubg_ptr;
 
 #ifndef UIQ3
 
@@ -299,6 +300,49 @@ void menu_init(void)
 	}
 }
 
+
+static void menu_darken_bg(void *dst, void *src, int pixels, int darker)
+{
+	unsigned int *dest = dst;
+	unsigned int *sorc = src;
+	pixels /= 2;
+	if (darker)
+	{
+		while (pixels--)
+		{
+			unsigned int p = *sorc++;
+			*dest++ = ((p&0xf79ef79e)>>1) - ((p&0xc618c618)>>3);
+		}
+	}
+	else
+	{
+		while (pixels--)
+		{
+			unsigned int p = *sorc++;
+			*dest++ = (p&0xf79ef79e)>>1;
+		}
+	}
+}
+
+static void menu_enter(int is_rom_loaded)
+{
+	if (is_rom_loaded)
+	{
+		// darken the active framebuffer
+		menu_darken_bg(g_menubg_ptr, g_screen_ptr, g_screen_width * g_screen_height, 1);
+	}
+	else
+	{
+		char buff[256];
+
+		// should really only happen once, on startup..
+		emu_make_path(buff, "skin/background.png", sizeof(buff));
+		if (readpng(g_menubg_ptr, buff, READPNG_BG) < 0)
+			memset(g_menubg_ptr, 0, g_screen_width * g_screen_height * 2);
+	}
+
+	plat_video_menu_enter(is_rom_loaded);
+}
 
 static int me_id2offset(const menu_entry *ent, menu_id id)
 {
@@ -664,7 +708,7 @@ static void do_delete(const char *fpath, const char *fname)
 	plat_video_menu_begin();
 
 	if (!rom_loaded)
-		menu_darken_bg(g_screen_ptr, g_screen_width * g_screen_height, 0);
+		menu_darken_bg(g_screen_ptr, g_screen_ptr, g_screen_width * g_screen_height, 0);
 
 	len = strlen(fname);
 	if (len > g_screen_width/6)
@@ -712,6 +756,7 @@ static unsigned short file2color(const char *fname)
 static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 {
 	int max_cnt, start, i, x, pos;
+	void *darken_ptr;
 
 	max_cnt = g_screen_height / me_sfont_h;
 	start = max_cnt / 2 - sel;
@@ -722,7 +767,8 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 //	if (!rom_loaded)
 //		menu_darken_bg(gp2x_screen, 320*240, 0);
 
-	menu_darken_bg((short *)g_screen_ptr + g_screen_width * max_cnt/2 * 10, g_screen_width * 8, 0);
+	darken_ptr = (short *)g_screen_ptr + g_screen_width * max_cnt/2 * 10;
+	menu_darken_bg(darken_ptr, darken_ptr, g_screen_width * 8, 0);
 
 	x = 5 + me_mfont_w + 1;
 	if (start - 2 >= 0)
@@ -1002,7 +1048,7 @@ static void draw_savestate_bg(int slot)
 
 	/* do a frame and fetch menu bg */
 	pemu_forced_frame(POPT_EN_SOFTSCALE);
-	plat_video_menu_enter(1);
+	menu_enter(1);
 
 	memcpy(Pico.vram, tmp_vram, sizeof(Pico.vram));
 	memcpy(Pico.cram, tmp_cram, sizeof(Pico.cram));
@@ -1809,7 +1855,7 @@ static void debug_menu_loop(void)
 			case 1: draw_frame_debug(); break;
 			case 2: memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 				pemu_forced_frame(0);
-				menu_darken_bg(g_screen_ptr, g_screen_width * g_screen_height, 0);
+				menu_darken_bg(g_screen_ptr, g_screen_ptr, g_screen_width * g_screen_height, 0);
 				PDebugShowSpriteStats((unsigned short *)g_screen_ptr + (g_screen_height/2 - 240/2)*g_screen_width +
 					g_screen_width/2 - 320/2, g_screen_width); break;
 			case 3: memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
@@ -1969,7 +2015,7 @@ void menu_loop(void)
 	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  rom_loaded);
 	me_enable(e_menu_main, MA_MAIN_PATCHES, PicoPatches != NULL);
 
-	plat_video_menu_enter(rom_loaded);
+	menu_enter(rom_loaded);
 	in_set_blocking(1);
 	me_loop(e_menu_main, &sel, menu_main_plat_draw);
 
@@ -2017,7 +2063,7 @@ int menu_loop_tray(void)
 {
 	int ret = 1, sel = 0;
 
-	plat_video_menu_enter(rom_loaded);
+	menu_enter(rom_loaded);
 
 	in_set_blocking(1);
 	me_loop(e_menu_tray, &sel, NULL);
@@ -2066,29 +2112,6 @@ void menu_plat_setup(int is_wiz)
 	e_menu_gfx_options[i].max = 1;	/* only off and sw */
 	i = me_id2offset(e_menu_gfx_options, MA_OPT_ARM940_SOUND);
 	e_menu_gfx_options[i].need_to_save = 0;
-}
-
-/* TODO: rename */
-void menu_darken_bg(void *dst, int pixels, int darker)
-{
-	unsigned int *screen = dst;
-	pixels /= 2;
-	if (darker)
-	{
-		while (pixels--)
-		{
-			unsigned int p = *screen;
-			*screen++ = ((p&0xf79ef79e)>>1) - ((p&0xc618c618)>>3);
-		}
-	}
-	else
-	{
-		while (pixels--)
-		{
-			unsigned int p = *screen;
-			*screen++ = (p&0xf79ef79e)>>1;
-		}
-	}
 }
 
 /* hidden options for config engine only */

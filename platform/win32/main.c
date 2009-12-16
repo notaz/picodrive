@@ -565,7 +565,7 @@ void xxinit(void)
 {
   /* in_init() must go before config, config accesses in_ fwk */
   in_init();
-  pemu_prep_defconfig();
+  emu_prep_defconfig();
   emu_read_config(0, 0);
   config_readlrom(PicoConfigFile);
 

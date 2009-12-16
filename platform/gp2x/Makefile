@@ -13,7 +13,6 @@ asm_ym2612 = 1
 asm_misc = 1
 asm_cdpico = 1
 asm_cdmemory = 1
-amalgamate = 0
 #profile = 1
 #drc_debug = 3
 
@@ -34,14 +33,6 @@ DEFINES += ARM __GP2X__ IN_GP2X IN_EVDEV # BENCHMARK
 CFLAGS += -Wall -Winline -I../.. -I.
 ifeq ($(DEBUG),)
 CFLAGS += -O3 -fomit-frame-pointer -fstrict-aliasing -ffast-math
-else
-CFLAGS += -ggdb
-endif
-ifeq "$(profile)" "1"
-CFLAGS += -fprofile-generate
-endif
-ifeq "$(profile)" "2"
-CFLAGS += -fprofile-use
 endif
 CFLAGS += -mcpu=arm920t -mtune=arm920t
 ASFLAGS = -mcpu=arm920t -mfloat-abi=soft
@@ -58,53 +49,27 @@ OBJS += plat.o warm.o pollux_set.o soc.o soc_mmsp2.o soc_pollux.o soc_dummy.o em
 # 940 core control
 OBJS += 940ctl.o
 
+# ARM stuff
+OBJS += pico/carthw/svp/compiler.o pico/carthw/svp/stub_arm.o
+OBJS += pico/sound/mix_arm.o
+
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
 	platform/common/arm_utils.o platform/common/arm_linux.o platform/common/readpng.o \
 	platform/common/mp3_helix.o platform/common/input.o platform/common/main.o \
 	platform/linux/sndout_oss.o platform/linux/plat.o platform/linux/in_evdev.o
 
-# Pico
-ifeq "$(amalgamate)" "1"
-OBJS += ../../picoAll.o
-else
-OBJS += pico/area.o pico/cart.o pico/memory.o pico/pico.o pico/sek.o pico/z80if.o \
-	pico/videoport.o pico/draw2.o pico/draw.o pico/mode4.o pico/sms.o \
-	pico/misc.o pico/eeprom.o pico/patch.o pico/debug.o
-# Pico - CD
-OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
-		pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \
-		pico/cd/area.o pico/cd/misc.o pico/cd/pcm.o pico/cd/buffering.o
-endif
-# Pico - 32X
-OBJS += pico/32x/32x.o pico/32x/memory.o pico/32x/draw.o pico/32x/pwm.o
-# Pico - Pico
-OBJS += pico/pico/pico.o pico/pico/memory.o pico/pico/xpcm.o
-# Pico - carthw
-OBJS += pico/carthw/carthw.o pico/carthw/svp/svp.o pico/carthw/svp/memory.o \
-		pico/carthw/svp/ssp16.o pico/carthw/svp/compiler.o pico/carthw/svp/stub_arm.o
-
-# Pico - sound
-ifneq "$(amalgamate)" "1"
-OBJS += pico/sound/sound.o
-endif
-OBJS += pico/sound/mix_arm.o
-OBJS += pico/sound/sn76496.o pico/sound/ym2612.o
 # unzip
 OBJS += unzip/unzip.o unzip/unzip_stream.o
 # zlib
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o
 
-CFLAGS += $(addprefix -D,$(DEFINES))
-
 vpath %.c = ../..
 vpath %.s = ../..
 vpath %.S = ../..
 
-DIRS = platform platform/gp2x platform/linux platform/common pico pico/cd pico/pico pico/32x \
-	pico/sound pico/carthw/svp zlib unzip cpu cpu/musashi cpu/Cyclone/proj cpu/Cyclone/tools \
-	cpu/mz80 cpu/DrZ80 cpu/sh2/mame cpu/drc
+DIRS += platform/gp2x platform/linux zlib unzip 
 
 
 all: mkdirs PicoDrive
@@ -112,6 +77,8 @@ all: mkdirs PicoDrive
 include ../common/common.mak
 include ../common/common_arm.mak
 include ../common/revision.mak
+
+CFLAGS += $(addprefix -D,$(DEFINES))
 
 # partial linking helps profiled builds due to section merging
 PicoDrive.o : $(OBJS) ../common/helix/$(CROSS)helix-mp3.a

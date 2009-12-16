@@ -316,7 +316,7 @@ static void CommandChange(void)
   if (cmd&0x80) CommandDma();
 }
 
-static __inline void DrawSync(int blank_on)
+static void DrawSync(int blank_on)
 {
   if (Pico.m.scanline < 224 && !(PicoOpt & POPT_ALT_RENDERER) &&
       !PicoSkipFrame && DrawScanline <= Pico.m.scanline) {

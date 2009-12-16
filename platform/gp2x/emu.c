@@ -40,21 +40,6 @@ static int osd_fps_x, osd_y;
 
 extern void *gp2x_screens[4];
 
-int plat_get_root_dir(char *dst, int len)
-{
-	extern char **g_argv;
-	int j;
-
-	strncpy(dst, g_argv[0], len);
-	len -= 32; // reserve
-	if (len < 0) len = 0;
-	dst[len] = 0;
-	for (j = strlen(dst); j > 0; j--)
-		if (dst[j] == '/') { dst[j+1] = 0; break; }
-
-	return j + 1;
-}
-
 
 static void scaling_update(void)
 {
@@ -76,27 +61,30 @@ void pemu_prep_defconfig(void)
 {
 	gp2x_soc_t soc;
 
-	memset(&defaultConfig, 0, sizeof(defaultConfig));
-	defaultConfig.EmuOpt    = 0x9d | EOPT_RAM_TIMINGS|EOPT_CONFIRM_SAVE|EOPT_EN_CD_LEDS;
-	defaultConfig.s_PicoOpt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80 |
-				  POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC|POPT_ACC_SPRITES |
-				  POPT_EN_32X|POPT_EN_PWM;
-	defaultConfig.s_PsndRate = 44100;
-	defaultConfig.s_PicoRegion = 0; // auto
-	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
-	defaultConfig.s_PicoCDBuffers = 0;
-	defaultConfig.Frameskip = -1; // auto
 	defaultConfig.CPUclock = default_cpu_clock;
-	defaultConfig.volume = 50;
-	defaultConfig.gamma = 100;
-	defaultConfig.scaling = 0;
-	defaultConfig.turbo_rate = 15;
 
 	soc = soc_detect();
 	if (soc == SOCID_MMSP2)
 		defaultConfig.s_PicoOpt |= POPT_EXT_FM;
 	else if (soc == SOCID_POLLUX)
 		defaultConfig.EmuOpt |= EOPT_WIZ_TEAR_FIX|EOPT_SHOW_RTC;
+}
+
+void pemu_validate_config(void)
+{
+	gp2x_soc_t soc;
+
+	soc = soc_detect();
+	if (soc != SOCID_MMSP2)
+		PicoOpt &= ~POPT_EXT_FM;
+	if (soc != SOCID_POLLUX)
+		currentConfig.EmuOpt &= ~EOPT_WIZ_TEAR_FIX;
+
+	if (currentConfig.gamma < 10 || currentConfig.gamma > 300)
+		currentConfig.gamma = 100;
+
+	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 1024)
+		currentConfig.CPUclock = default_cpu_clock;
 }
 
 static void (*osd_text)(int x, int y, const char *text);
@@ -346,13 +334,13 @@ void pemu_update_display(const char *fps, const char *notice)
 		}
 	}
 
-	if (notice || (emu_opt & 2)) {
+	if (notice || (emu_opt & EOPT_SHOW_FPS)) {
 		if (notice)
 			osd_text(4, osd_y, notice);
 		if (emu_opt & 2)
 			osd_text(osd_fps_x, osd_y, fps);
 	}
-	if ((emu_opt & 0x400) && (PicoAHW & PAHW_MCD))
+	if ((PicoAHW & PAHW_MCD) && (emu_opt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
 	if (PicoAHW & PAHW_PICO)
 		draw_pico_ptr();

@@ -26,27 +26,10 @@ OBJS += pico/cd/memory_arm.o
 endif
 
 
-.c.o:
-	@echo ">>>" $<
-	$(CC) $(CFLAGS) -c $< -o $@
+DIRS += cpu/Cyclone cpu/Cyclone/proj cpu/Cyclone/tools cpu/DrZ80
 
-.S.o:
-	@echo ">>>" $<
-	$(CC) $(CFLAGS) -c $< -o $@
-
-
-../../tools/textfilter: ../../tools/textfilter.c
-	make -C ../../tools/ textfilter
-
-clean_prof:
-	find ../.. -name '*.gcno' -delete
-	find ../.. -name '*.gcda' -delete
-
-mkdirs:
-	mkdir -p $(DIRS)
 
 # build helix libs
 ../common/helix/$(CROSS)helix-mp3.a:
-	make -C ../common/helix clean all
-
+	make -C ../common/helix CROSS=$(CROSS) clean all
 
