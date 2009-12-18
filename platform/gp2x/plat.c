@@ -138,7 +138,7 @@ void plat_init(void)
 
 	gp2x_memset_all_buffers(0, 0, 320*240*2);
 
-	// use buffer2 for menubg (using only buffers 0, 1 in menu)
+	// use buffer2 for menubg to save mem (using only buffers 0, 1 in menu)
 	g_menubg_ptr = gp2x_screens[2];
 
 	// snd

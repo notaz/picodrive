@@ -51,7 +51,7 @@ int sndout_oss_start(int rate, int frame_samples, int stereo)
 		}
 	}
 
-	// calculate buffer size. We one to fit 1 frame worth of sound data.
+	// calculate buffer size. We want to fit 1 frame worth of sound data.
 	// Also ignore mono because both GP2X and Wiz mixes mono to stereo anyway.
 	bsize = frame_samples << 2;
 

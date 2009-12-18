@@ -1527,6 +1527,7 @@ void PicoDrawSetColorFormat(int which)
     default:FinalizeLine = NULL; break;
   }
   PicoDrawSetColorFormatMode4(which);
+  rendstatus_old = -1;
 #if OVERRIDE_HIGHCOL
   if (which)
     HighCol=DefHighCol;

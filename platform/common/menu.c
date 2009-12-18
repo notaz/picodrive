@@ -767,8 +767,8 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 //	if (!rom_loaded)
 //		menu_darken_bg(gp2x_screen, 320*240, 0);
 
-	darken_ptr = (short *)g_screen_ptr + g_screen_width * max_cnt/2 * 10;
-	menu_darken_bg(darken_ptr, darken_ptr, g_screen_width * 8, 0);
+	darken_ptr = (short *)g_screen_ptr + g_screen_width * max_cnt/2 * me_sfont_h;
+	menu_darken_bg(darken_ptr, darken_ptr, g_screen_width * me_sfont_h * 8 / 10, 0);
 
 	x = 5 + me_mfont_w + 1;
 	if (start - 2 >= 0)
@@ -1485,6 +1485,7 @@ static menu_entry e_menu_32x_options[] =
 {
 	mee_onoff("32X enabled",          MA_32XOPT_ENABLE_32X,   PicoOpt, POPT_EN_32X),
 	mee_onoff("PWM sound",            MA_32XOPT_PWM,          PicoOpt, POPT_EN_PWM),
+	mee_end,
 };
 
 static int menu_loop_32x_options(menu_id id, int keys)
