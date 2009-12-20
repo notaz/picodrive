@@ -126,11 +126,17 @@ static const char * const in_evdev_keys[KEY_CNT] = {
 
 static void in_evdev_probe(void)
 {
+	long keybits[KEY_CNT / sizeof(long) / 8];
+	long absbits[(ABS_MAX+1) / sizeof(long) / 8];
 	int i;
+
+	// the kernel might support and return less keys then we know about,
+	// so make sure the buffers are clear.
+	memset(keybits, 0, sizeof(keybits));
+	memset(absbits, 0, sizeof(absbits));
 
 	for (i = 0;; i++)
 	{
-		int keybits[KEY_CNT / sizeof(int)], absbits[(ABS_MAX+1)/sizeof(int)];
 		int support = 0, count = 0;
 		in_evdev_t *dev;
 		int u, ret, fd;

@@ -1421,9 +1421,10 @@ PICO_INTERNAL void PicoFrameStart(void)
 
   if (rendstatus != rendstatus_old || lines != rendlines) {
     rendlines = lines;
-    rendstatus_old = rendstatus;
+    // mode_change() might reset rendstatus_old by calling SetColorFormat
     emu_video_mode_change((lines == 240) ? 0 : 8,
       lines, (Pico.video.reg[12] & 1) ? 0 : 1);
+    rendstatus_old = rendstatus;
   }
 
   if (PicoOpt & POPT_ALT_RENDERER)
