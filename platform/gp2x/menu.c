@@ -1,5 +1,3 @@
-#ifdef __GP2X__
-
 #include <time.h>
 #include "soc.h"
 
@@ -84,25 +82,17 @@ static const char *mgn_aopt_gamma(menu_id id, int *offs)
 }
 
 
-#define MENU_GP2X_OPTIONS_GFX \
+#define MENU_OPTIONS_GFX \
 	mee_range_cust("Scaling",                  MA_OPT_SCALING,        currentConfig.scaling, 0, 3, mgn_opt_scaling), \
 	mee_onoff     ("Tearing Fix",              MA_OPT_TEARING_FIX,    currentConfig.EmuOpt, EOPT_WIZ_TEAR_FIX), \
 	mee_range_cust("Gamma correction",         MA_OPT2_GAMMA,         currentConfig.gamma, 1, 300, mgn_aopt_gamma), \
 	mee_onoff     ("A_SN's gamma curve",       MA_OPT2_A_SN_GAMMA,    currentConfig.EmuOpt, EOPT_A_SN_GAMMA), \
 	mee_onoff     ("Vsync",                    MA_OPT2_VSYNC,         currentConfig.EmuOpt, EOPT_VSYNC),
 
-#define MENU_GP2X_OPTIONS_ADV \
+#define MENU_OPTIONS_ADV \
 	mee_onoff     ("Use second CPU for sound", MA_OPT_ARM940_SOUND,   PicoOpt, POPT_EXT_FM), \
 	mee_onoff     ("RAM overclock",            MA_OPT2_RAMTIMINGS,    currentConfig.EmuOpt, EOPT_RAM_TIMINGS), \
 	mee_onoff     ("MMU hack",                 MA_OPT2_SQUIDGEHACK,   currentConfig.EmuOpt, EOPT_MMUHACK), \
 	mee_onoff     ("SVP dynarec",              MA_OPT2_SVP_DYNAREC,   PicoOpt, POPT_EN_SVP_DRC), \
-	mee_onoff     ("Status line in main menu", MA_OPT2_STATUS_LINE,   currentConfig.EmuOpt, EOPT_SHOW_RTC ),
+	mee_onoff     ("Status line in main menu", MA_OPT2_STATUS_LINE,   currentConfig.EmuOpt, EOPT_SHOW_RTC),
 
-#else
-
-#define MENU_GP2X_OPTIONS_GFX
-#define MENU_GP2X_OPTIONS_ADV
-#define mgn_opt_renderer NULL /* TODO */
-#define menu_main_plat_draw NULL
-
-#endif

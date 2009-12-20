@@ -6,7 +6,6 @@
 #define CASE_SENSITIVE_FS 1 // CS filesystem
 #define DONT_OPEN_MANY_FILES 0
 #define REDUCE_IO_CALLS 0
-#define SIMPLE_WRITE_SOUND 0
 
 #define SCREEN_SIZE_FIXED 1
 #define SCREEN_WIDTH  800
@@ -21,6 +20,8 @@
 
 // pico.c
 #define CAN_HANDLE_240_LINES	1
+
+#define SIMPLE_WRITE_SOUND	0
 
 // logging emu events
 #define EL_LOGMASK (EL_STATUS|EL_IDLE) // (EL_STATUS|EL_ANOMALY|EL_UIO|EL_SRAMIO|EL_INTS|EL_CDPOLL) // xffff

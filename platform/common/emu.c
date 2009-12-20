@@ -1535,6 +1535,9 @@ void emu_loop(void)
 
 		emu_update_input();
 		PicoFrame();
+		pemu_finalize_frame(fpsbuff, notice_msg);
+
+		//plat_video_flip();
 
 		/* frame limiter */
 		if (!reset_timing && !(currentConfig.EmuOpt & (EOPT_NO_FRMLIMIT|EOPT_EXT_FRMLIMIT)))
@@ -1552,7 +1555,9 @@ void emu_loop(void)
 			}
 		}
 
-		pemu_update_display(fpsbuff, notice_msg);
+		// XXX: for some plats it might be better to flip before vsync
+		// (due to shadow registers in display hw)
+		plat_video_flip();
 
 		pframes_done++; frames_done++; frames_shown++;
 	}

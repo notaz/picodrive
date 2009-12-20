@@ -10,7 +10,7 @@ void pemu_validate_config(void);
 void pemu_loop_prep(void);
 void pemu_loop_end(void);
 void pemu_forced_frame(int opts);
-void pemu_update_display(const char *fps, const char *notice_msg);
+void pemu_finalize_frame(const char *fps, const char *notice_msg);
 
 void pemu_sound_start(void);
 void pemu_sound_stop(void);
@@ -33,8 +33,10 @@ void plat_video_menu_enter(int is_rom_loaded);
 void plat_video_menu_begin(void);
 void plat_video_menu_end(void);
 
+void plat_video_flip(void);
 void plat_video_wait_vsync(void);
 void plat_video_toggle_renderer(int is_next, int force_16bpp, int is_menu);
+
 void plat_update_volume(int has_changed, int is_up);
 
 int  plat_is_dir(const char *path);

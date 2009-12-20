@@ -2,13 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-#include <pthread.h>
-#include <semaphore.h>
-
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 
 #include "../common/emu.h"
 #include "../common/menu.h"
@@ -17,14 +10,22 @@
 
 #include "log_io.h"
 
-unsigned long current_keys = 0;
+int current_keys;
+unsigned char *PicoDraw2FB;
+
+#ifdef FBDEV
+
+#include "fbdev.h"
+
+#else
+
+#include <pthread.h>
+#include <semaphore.h>
+
 static int current_bpp = 16;
 static int current_pal[256];
 static const char *verstring = "PicoDrive " VERSION;
 static int scr_changed = 0, scr_w = SCREEN_WIDTH, scr_h = SCREEN_HEIGHT;
-
-/* ifndef is for qemu build without video out */
-#ifndef ARM
 
 /* faking GP2X pad */
 enum  { GP2X_UP=0x1,       GP2X_LEFT=0x4,       GP2X_DOWN=0x10,  GP2X_RIGHT=0x40,
@@ -245,23 +246,24 @@ static void xlib_init(void)
 	sem_wait(&xlib_sem);
 	sem_destroy(&xlib_sem);
 }
-#endif // !ARM
 
 /* --- */
 
 static void realloc_screen(void)
 {
-	void *old = g_screen_ptr;
+	int size = scr_w * scr_h * 2;
 	g_screen_width = scr_w;
 	g_screen_height = scr_h;
-	g_screen_ptr = calloc(g_screen_width * g_screen_height * 2, 1);
-	free(old);
+	g_screen_ptr = realloc(g_screen_ptr, size);
+	g_menubg_ptr = realloc(g_menubg_ptr, size);
+	memset(g_screen_ptr, 0, size);
+	memset(g_menubg_ptr, 0, size);
+	PicoDraw2FB = g_menubg_ptr;
 	scr_changed = 0;
 }
 
-void update_screen(void)
+void plat_video_flip(void)
 {
-#ifndef ARM
 	unsigned int *image;
 	int pixel_count, i;
 
@@ -301,8 +303,13 @@ void update_screen(void)
 		realloc_screen();
 		ximage_realloc(xlib_display, DefaultVisual(xlib_display, 0));
 	}
-#endif
 }
+
+void plat_video_wait_vsync(void)
+{
+}
+
+#endif // !FBDEV
 
 void plat_early_init(void)
 {
@@ -310,20 +317,31 @@ void plat_early_init(void)
 
 void plat_init(void)
 {
+#ifdef FBDEV
+	int ret, w, h;
+	ret = vout_fbdev_init(&w, &h);
+	if (ret != 0)
+		exit(1);
+	g_screen_width = w;
+	g_menubg_ptr = realloc(g_menubg_ptr, w * g_screen_height * 2);
+	PicoDraw2FB = g_menubg_ptr;
+#else
 	realloc_screen();
 	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
+	xlib_init();
+#endif
 
 	// snd
 	sndout_oss_init();
-
-#ifndef ARM
-	xlib_init();
-#endif
 }
 
 void plat_finish(void)
 {
+#ifdef FBDEV
+	vout_fbdev_finish();
+#else
 	free(g_screen_ptr);
+#endif
 	sndout_oss_exit();
 }
 

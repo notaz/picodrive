@@ -1,23 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <linux/fb.h>
-#include <fcntl.h>
-#include <errno.h>
 
 #include "../linux/sndout_oss.h"
-#include "../common/arm_linux.h"
+#include "../linux/fbdev.h"
 #include "../common/emu.h"
-
-static int fbdev = -1;
-
-#define SCREEN_MAP_SIZE (800*480*2)
-static void *screen = MAP_FAILED;
 
 void plat_early_init(void)
 {
@@ -25,38 +12,28 @@ void plat_early_init(void)
 
 void plat_init(void)
 {
-	printf("entering init()\n"); fflush(stdout);
+	int ret, w, h;
 
-	fbdev = open("/dev/fb0", O_RDWR);
-	if (fbdev == -1)
-	{
-		perror("open(\"/dev/fb0\")");
+	ret = vout_fbdev_init(&w, &h);
+	if (ret != 0) {
+		fprintf(stderr, "couldn't init framebuffer\n");
 		exit(1);
 	}
 
-	screen = mmap(0, SCREEN_MAP_SIZE, PROT_WRITE|PROT_READ, MAP_SHARED, fbdev, 0);
-	if (screen == MAP_FAILED)
-	{
-		perror("mmap(fbptr)");
+	if (w != g_screen_width || h != g_screen_height) {
+		fprintf(stderr, "%dx%d not supported\n", w, h);
+		vout_fbdev_finish();
 		exit(1);
 	}
-	printf("fbptr %p\n", screen);
-	g_screen_ptr = screen;
 
 	// snd
 	sndout_oss_init();
-
-	printf("exitting init()\n"); fflush(stdout);
 }
 
 void plat_finish(void)
 {
-	if (screen != MAP_FAILED)
-		munmap(screen, SCREEN_MAP_SIZE);
-	if (fbdev >= 0)
-		close(fbdev);
-
 	sndout_oss_exit();
+	vout_fbdev_finish();
 
 	printf("all done");
 }

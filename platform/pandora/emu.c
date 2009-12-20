@@ -4,24 +4,25 @@
 // For commercial use, separate licencing terms must be obtained.
 
 #include <stdio.h>
+#include <unistd.h>
 
 #include "../common/emu.h"
 #include "../common/menu.h"
 #include "../common/plat.h"
 #include "../common/arm_utils.h"
 #include "../linux/sndout_oss.h"
+#include "../linux/fbdev.h"
 #include "asm_utils.h"
 #include "version.h"
 
 #include <pico/pico_int.h>
 
-#define USE_320_SCREEN 1
+//#define USE_320_SCREEN 1
 
 
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 static unsigned char temp_frame[g_screen_width * g_screen_height * 2];
 unsigned char *PicoDraw2FB = temp_frame;
-static int osd_fps_x;
 char cpu_clk_name[] = "unused";
 
 
@@ -29,6 +30,8 @@ void pemu_prep_defconfig(void)
 {
 	// XXX: move elsewhere
 	g_menubg_ptr = temp_frame;
+
+	defaultConfig.EmuOpt |= EOPT_VSYNC;
 }
 
 void pemu_validate_config(void)
@@ -141,15 +144,40 @@ static int EmuScanEnd16(unsigned int num)
 	return 0;
 }
 
+static int EmuScanEnd16_32x(unsigned int num)
+{
+	unsigned int *ps;
+	unsigned int *pd;
+	int len;
+
+	ps = (unsigned int *)temp_frame;
+	pd = (unsigned int *)g_screen_ptr + (num*800*2 + 800/2 - 320*2/2) / 2;
+
+	for (len = 320/2; len > 0; len--, ps++) {
+		unsigned int p, p1;
+		p1 = *ps;
+		p = p1 << 16;
+		p |= p >> 16;
+		*pd = pd[800/2] = p;
+		pd++;
+
+		p = p1 >> 16;
+		p |= p << 16;
+		*pd = pd[800/2] = p;
+		pd++;
+	}
+
+	return 0;
+}
 #endif // USE_320_SCREEN
 
-void pemu_update_display(const char *fps, const char *notice)
+void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	if (notice || (currentConfig.EmuOpt & EOPT_SHOW_FPS)) {
 		if (notice)
-			osd_text(4, 460, notice);
+			osd_text(4, 464, notice);
 		if (currentConfig.EmuOpt & EOPT_SHOW_FPS)
-			osd_text(osd_fps_x, 460, fps);
+			osd_text(640, 464, fps);
 	}
 	if ((PicoAHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
@@ -172,19 +200,24 @@ void plat_video_menu_begin(void)
 
 void plat_video_menu_end(void)
 {
+	plat_video_flip();
 }
 
 void plat_status_msg_clear(void)
 {
-	unsigned short *d = (unsigned short *)g_screen_ptr + g_screen_width * g_screen_height;
-	int l = g_screen_width * 8;
-	memset32((int *)(d - l), 0, l * 2 / 4);
+	int s = g_screen_width * g_screen_height * 2;
+	int l = g_screen_width * 16 * 2;
+	int i;
+
+	for (i = 0; i < fbdev_buffer_count; i++)
+		memset32((int *)((char *)fbdev_buffers[i] + s - l), 0, l / 4);
 }
 
 void plat_status_msg_busy_next(const char *msg)
 {
 	plat_status_msg_clear();
-	pemu_update_display("", msg);
+	pemu_finalize_frame("", msg);
+	plat_video_flip();
 	emu_status_msg("");
 	reset_timing = 1;
 }
@@ -224,13 +257,6 @@ void pemu_forced_frame(int opts)
 	PicoOpt |= opts|POPT_ACC_SPRITES; // acc_sprites
 	currentConfig.EmuOpt |= 0x80;
 
-#ifdef USE_320_SCREEN
-	PicoDrawSetColorFormat(1);
-	PicoScanBegin = EmuScanBegin16;
-#else
-	PicoDrawSetColorFormat(-1);
-	PicoScanEnd = EmuScanEnd16;
-#endif
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 
@@ -240,48 +266,59 @@ void pemu_forced_frame(int opts)
 
 static void updateSound(int len)
 {
+	unsigned int t;
+
 	len <<= 1;
 	if (PicoOpt & POPT_EN_STEREO)
 		len <<= 1;
 
+	// sndout_oss_can_write() not reliable..
 	if ((currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) && !sndout_oss_can_write(len))
 		return;
 
 	/* avoid writing audio when lagging behind to prevent audio lag */
-	if (PicoSkipFrame != 2)
-		sndout_oss_write(PsndOut, len);
+	if (PicoSkipFrame == 2)
+		return;
+
+	t = plat_get_ticks_ms();
+	sndout_oss_write(PsndOut, len);
+	t = plat_get_ticks_ms() - t;
+	if (t > 1)
+		printf("audio lag %u\n", t);
 }
 
 void pemu_sound_start(void)
 {
-	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 	int target_fps = Pico.m.pal ? 50 : 60;
 
 	PsndOut = NULL;
 
-	if (currentConfig.EmuOpt & 4)
+	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
 	{
-		int snd_excess_add;
-		if (PsndRate != PsndRate_old || (PicoOpt&0x20b) != (PicoOpt_old&0x20b) || Pico.m.pal != pal_old)
-			PsndRerate(Pico.m.frame_count ? 1 : 0);
+		int snd_excess_add, frame_samples;
+		int is_stereo = (PicoOpt & POPT_EN_STEREO) ? 1 : 0;
 
-		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
+		PsndRerate(Pico.m.frame_count ? 1 : 0);
+
+		frame_samples = PsndLen;
+		snd_excess_add = ((PsndRate - PsndLen * target_fps)<<16) / target_fps;
+		if (snd_excess_add != 0)
+			frame_samples++;
+
 		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, snd_excess_add, (PicoOpt&8)>>3, Pico.m.pal);
-		sndout_oss_start(PsndRate, 16, (PicoOpt&8)>>3);
-		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
+			PsndRate, PsndLen, snd_excess_add, is_stereo, Pico.m.pal);
+		sndout_oss_start(PsndRate, frame_samples * 2, is_stereo);
+		//sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
 		PicoWriteSound = updateSound;
 		plat_update_volume(0, 0);
 		memset(sndBuffer, 0, sizeof(sndBuffer));
 		PsndOut = sndBuffer;
-		PsndRate_old = PsndRate;
-		PicoOpt_old  = PicoOpt;
-		pal_old = Pico.m.pal;
 	}
 }
 
 void pemu_sound_stop(void)
 {
+	sndout_oss_stop();
 }
 
 void pemu_sound_wait(void)
@@ -295,22 +332,32 @@ void plat_debug_cat(char *str)
 
 void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
-	osd_fps_x = 260;
+	int i;
 
 	// clear whole screen in all buffers
-	memset32(g_screen_ptr, 0, g_screen_width * g_screen_height * 2 / 4);
-}
+	for (i = 0; i < fbdev_buffer_count; i++)
+		memset32(fbdev_buffers[i], 0, g_screen_width * g_screen_height * 2 / 4);
 
-void pemu_loop_prep(void)
-{
 #ifdef USE_320_SCREEN
 	PicoDrawSetColorFormat(1);
 	PicoScanBegin = EmuScanBegin16;
 #else
-	PicoDrawSetColorFormat(-1);
-	PicoScanEnd = EmuScanEnd16;
+	if (PicoAHW & PAHW_32X) {
+		DrawLineDest = (unsigned short *)temp_frame;
+		PicoDrawSetColorFormat(1);
+		PicoScanBegin = NULL;
+		PicoScanEnd = EmuScanEnd16_32x;
+	} else {
+		PicoDrawSetColorFormat(-1);
+		PicoScanBegin = NULL;
+		PicoScanEnd = EmuScanEnd16;
+	}
 #endif
+}
 
+void pemu_loop_prep(void)
+{
+	emu_video_mode_change(0, 0, 0);
 	pemu_sound_start();
 }
 
@@ -335,23 +382,27 @@ void pemu_loop_end(void)
 	currentConfig.EmuOpt = eo_old;
 }
 
-/* XXX: avoid busy wait somehow? */
 void plat_wait_till_us(unsigned int us_to)
 {
 	unsigned int now;
+	signed int diff;
 
-	spend_cycles(1024);
 	now = plat_get_ticks_us();
 
-	while ((signed int)(us_to - now) > 512)
-	{
+	// XXX: need to check NOHZ and djw kernel
+	diff = (signed int)(us_to - now);
+	if (diff > 10000) {
+		//printf("sleep %d\n", us_to - now);
+		usleep(diff * 15 / 16);
+		now = plat_get_ticks_us();
+		//printf(" wake %d\n", (signed)(us_to - now));
+	}
+/*
+	while ((signed int)(us_to - now) > 512) {
 		spend_cycles(1024);
 		now = plat_get_ticks_us();
 	}
-}
-
-void plat_video_wait_vsync(void)
-{
+*/
 }
 
 const char *plat_get_credits(void)

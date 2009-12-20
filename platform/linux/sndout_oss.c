@@ -25,21 +25,27 @@ int sndout_oss_init(void)
 	return 0;
 }
 
+void sndout_oss_stop(void)
+{
+	if (sounddev < 0)
+		return;
+
+	ioctl(sounddev, SOUND_PCM_SYNC, 0);
+	close(sounddev);
+	sounddev = -1;
+}
+
 int sndout_oss_start(int rate, int frame_samples, int stereo)
 {
 	static int s_oldrate = 0, s_old_fsamples = 0, s_oldstereo = 0;
 	int frag, bsize, bits, ret;
 
-	// if no settings change, we don't need to do anything,
-	// since audio is never stopped
-	if (rate == s_oldrate && s_old_fsamples == frame_samples && s_oldstereo == stereo)
+	// GP2X: if no settings change, we don't need to do anything,
+	// since audio is never stopped there
+	if (sounddev >= 0 && rate == s_oldrate && s_old_fsamples == frame_samples && s_oldstereo == stereo)
 		return 0;
 
-	if (sounddev >= 0) {
-		ioctl(sounddev, SOUND_PCM_SYNC, 0);
-		close(sounddev);
-	}
-
+	sndout_oss_stop();
 	sounddev = open("/dev/dsp", O_WRONLY|O_ASYNC);
 	if (sounddev == -1)
 	{
@@ -72,8 +78,10 @@ int sndout_oss_start(int rate, int frame_samples, int stereo)
 	if (ret < 0)
 		perror("failed to set audio format");
 
+#ifdef __GP2X__
 	// not sure if this is still needed (avoiding driver bugs?)
 	usleep(192*1024);
+#endif
 
 	printf("sndout_oss_start: %d/%dbit/%s, %d buffers of %i bytes\n",
 		rate, bits, stereo ? "stereo" : "mono", frag >> 16, 1 << (frag & 0xffff));

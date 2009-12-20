@@ -302,7 +302,7 @@ static int make_local_pal_sms(int fast_mode)
 	return 0x40;
 }
 
-void pemu_update_display(const char *fps, const char *notice)
+void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 	int ret;
@@ -344,7 +344,10 @@ void pemu_update_display(const char *fps, const char *notice)
 		draw_cd_leds();
 	if (PicoAHW & PAHW_PICO)
 		draw_pico_ptr();
+}
 
+void plat_video_flip(void)
+{
 	gp2x_video_flip();
 }
 
@@ -411,7 +414,8 @@ void plat_status_msg_clear(void)
 void plat_status_msg_busy_next(const char *msg)
 {
 	plat_status_msg_clear();
-	pemu_update_display("", msg);
+	pemu_finalize_frame("", msg);
+	plat_video_flip();
 	emu_status_msg("");
 
 	/* assumption: msg_busy_next gets called only when

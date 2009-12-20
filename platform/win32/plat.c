@@ -91,7 +91,11 @@ void pemu_forced_frame(int opts)
 {
 }
 
-void pemu_update_display(const char *fps, const char *notice_msg)
+void pemu_finalize_frame(const char *fps, const char *notice_msg)
+{
+}
+
+void plat_video_flip(void)
 {
 	DirectScreen(g_screen_ptr);
 	DirectPresent();

@@ -1,4 +1,7 @@
 # settings
+#use_fbdev = 1
+#fake_in_gp2x = 1
+
 use_musashi = 1
 #use_fame = 1
 use_cz80 = 1
@@ -8,7 +11,6 @@ use_sh2drc = 1
 #drc_debug = 3
 #drc_debug_interp = 1
 #profile = 1
-#fake_in_gp2x = 1
 
 -include Makefile.local
 
@@ -24,8 +26,6 @@ ifeq "$(ARCH)" "arm"
 CFLAGS += -mcpu=arm920t
 DEFINES += ARM
 endif
-LDFLAGS += -lpthread
-LDFLAGS += -lX11
 
 CC = $(CROSS)gcc
 
@@ -36,6 +36,14 @@ OBJS += io.o emu.o blit.o in_evdev.o plat.o sndout_oss.o log_io.o
 OBJS += platform/common/main.o platform/common/emu.o platform/common/menu.o \
 	platform/common/config.o platform/common/fonts.o platform/common/readpng.o \
 	platform/common/input.o
+
+ifeq "$(use_fbdev)" "1"
+DEFINES += FBDEV
+OBJS += fbdev.o
+else
+LDFLAGS += -lpthread
+LDFLAGS += -lX11
+endif
 
 ifeq "$(fake_in_gp2x)" "1"
 DEFINES += IN_GP2X FAKE_IN_GP2X

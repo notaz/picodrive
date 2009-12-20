@@ -590,7 +590,16 @@ static void me_loop(menu_entry *menu, int *menu_sel, void (*draw_more)(void))
 /* ***************************************** */
 
 /* platform specific options and handlers */
+#if   defined(__GP2X__)
 #include "../gp2x/menu.c"
+#elif defined(PANDORA)
+#include "../pandora/menu.c"
+#else
+#define MENU_OPTIONS_GFX
+#define MENU_OPTIONS_ADV
+#define mgn_opt_renderer NULL /* TODO */
+#define menu_main_plat_draw NULL
+#endif
 
 static void draw_menu_credits(void)
 {
@@ -668,20 +677,18 @@ static void cdload_progress_cb(const char *fname, int percent)
 void menu_romload_prepare(const char *rom_name)
 {
 	const char *p = rom_name + strlen(rom_name);
+	int i;
 
 	while (p > rom_name && *p != '/')
 		p--;
 
-	/* fill both buffers, callbacks won't update in full */
-	plat_video_menu_begin();
-	smalltext_out16(1, 1, "Loading", 0xffff);
-	smalltext_out16(1, me_sfont_h, p, 0xffff);
-	plat_video_menu_end();
-
-	plat_video_menu_begin();
-	smalltext_out16(1, 1, "Loading", 0xffff);
-	smalltext_out16(1, me_sfont_h, p, 0xffff);
-	plat_video_menu_end();
+	/* fill all buffers, callbacks won't update in full */
+	for (i = 0; i < 3; i++) {
+		plat_video_menu_begin();
+		smalltext_out16(1, 1, "Loading", 0xffff);
+		smalltext_out16(1, me_sfont_h, p, 0xffff);
+		plat_video_menu_end();
+	}
 
 	PicoCartLoadProgressCB = load_progress_cb;
 	PicoCDLoadProgressCB = cdload_progress_cb;
@@ -1508,7 +1515,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoOpt, POPT_DIS_IDLE_DET),
 	mee_onoff     ("Disable frame limiter",    MA_OPT2_NO_FRAME_LIMIT,currentConfig.EmuOpt, EOPT_NO_FRMLIMIT),
-	MENU_GP2X_OPTIONS_ADV
+	MENU_OPTIONS_ADV
 	mee_end,
 };
 
@@ -1530,7 +1537,7 @@ static int mh_opt_render(menu_id id, int keys)
 static menu_entry e_menu_gfx_options[] =
 {
 	mee_cust      ("Renderer",                 MA_OPT_RENDERER,       mh_opt_render, mgn_opt_renderer),
-	MENU_GP2X_OPTIONS_GFX
+	MENU_OPTIONS_GFX
 	mee_end,
 };
 
