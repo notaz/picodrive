@@ -45,7 +45,7 @@ static const int me_sfont_w = 6, me_sfont_h = 10;
 // draws text to current bbp16 screen
 static void text_out16_(int x, int y, const char *text, int color)
 {
-	int i, l, u, tr, tg, tb, len;
+	int i, lh, tr, tg, tb, len;
 	unsigned short *dest = (unsigned short *)g_screen_ptr + x + y * g_screen_width;
 	tr = (color & 0xf800) >> 8;
 	tg = (color & 0x07e0) >> 3;
@@ -65,11 +65,17 @@ static void text_out16_(int x, int y, const char *text, int color)
 		len = p - text;
 	}
 
+	lh = me_mfont_h;
+	if (y + lh > g_screen_height)
+		lh = g_screen_height - y;
+
 	for (i = 0; i < len; i++)
 	{
 		unsigned char  *src = menu_font_data + (unsigned int)text[i] * me_mfont_w * me_mfont_h / 2;
 		unsigned short *dst = dest;
-		for (l = 0; l < me_mfont_h; l++, dst += g_screen_width - me_mfont_w)
+		int u, l;
+
+		for (l = 0; l < lh; l++, dst += g_screen_width - me_mfont_w)
 		{
 			for (u = me_mfont_w / 2; u > 0; u--, src++)
 			{

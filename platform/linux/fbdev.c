@@ -38,6 +38,8 @@ void plat_video_flip(void)
 
 	fbvar_new.yoffset = fbvar_old.yres * draw_buf;
 	g_screen_ptr = fbdev_buffers[fbdev_buffer_write];
+
+	ioctl(fbdev, FBIOPAN_DISPLAY, &fbvar_new);
 }
 
 void plat_video_wait_vsync(void)
