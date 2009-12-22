@@ -4,6 +4,7 @@
 
 #include "../linux/sndout_oss.h"
 #include "../linux/fbdev.h"
+#include "../linux/x11h.h"
 #include "../common/emu.h"
 
 void plat_early_init(void)
@@ -13,6 +14,8 @@ void plat_early_init(void)
 void plat_init(void)
 {
 	int ret, w, h;
+
+	x11h_init();
 
 	ret = vout_fbdev_init(&w, &h);
 	if (ret != 0) {

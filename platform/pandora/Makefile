@@ -33,7 +33,7 @@ CFLAGS += -Wall -Winline -mcpu=cortex-a8 -mtune=cortex-a8 -march=armv7-a
 ifeq ($(DEBUG),)
 CFLAGS += -O2 -fomit-frame-pointer -fstrict-aliasing -ffast-math
 endif
-LDFLAGS += -lm -lpng -L$(LIBROOT)/lib -static
+LDFLAGS += -L$(LIBROOT)/lib -Wl,-Bstatic -lpng -Wl,-Bdynamic -lm -lpthread -ldl
 ASFLAGS = -mcpu=cortex-a8
 CC = $(CROSS)gcc
 STRIP = $(CROSS)strip
@@ -49,7 +49,7 @@ OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o pla
 	platform/common/arm_utils.o platform/common/mp3_helix.o platform/common/arm_linux.o \
 	platform/common/readpng.o platform/common/input.o platform/common/main.o \
 	platform/linux/fbdev.o platform/linux/in_evdev.o platform/linux/sndout_oss.o \
-	platform/linux/plat.o
+	platform/linux/plat.o platform/linux/x11h.o
 
 # ARM stuff
 OBJS += pico/carthw/svp/compiler.o pico/carthw/svp/stub_arm.o
