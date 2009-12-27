@@ -23,7 +23,8 @@ static struct disassemble_info di;
 
 /* symbols */
 static asymbol **symbols;
-static long symcount;
+static long symcount, symstorage;
+static int init_done;
 
 /* Filter out (in place) symbols that are useless for disassembly.
    COUNT is the number of elements in SYMBOLS.
@@ -60,7 +61,6 @@ remove_useless_symbols (asymbol **symbols, long count)
 static void slurp_symtab(const char *filename)
 {
   bfd *abfd;
-  long storage;
 
   symcount = 0;
 
@@ -76,11 +76,14 @@ static void slurp_symtab(const char *filename)
   if (!(bfd_get_file_flags(abfd) & HAS_SYMS))
     goto no_symbols;
 
-  storage = bfd_get_symtab_upper_bound(abfd);
-  if (storage <= 0)
+  symstorage = bfd_get_symtab_upper_bound(abfd);
+  if (symstorage <= 0)
     goto no_symbols;
 
-  symbols = malloc(storage);
+  symbols = malloc(symstorage);
+  if (symbols == NULL)
+    goto no_symbols;
+
   symcount = bfd_canonicalize_symtab(abfd, symbols);
   if (symcount < 0)
     goto no_symbols;
@@ -91,10 +94,27 @@ static void slurp_symtab(const char *filename)
 
 no_symbols:
   fprintf(stderr, "no symbols in %s\n", bfd_get_filename(abfd));
+  if (symbols != NULL)
+    free(symbols);
+  symbols = NULL;
   if (abfd != NULL)
     bfd_close(abfd);
 }
 
+static const char *lookup_name(bfd_vma addr)
+{
+  asymbol **sptr = symbols;
+  int i;
+
+  for (i = 0; i < symcount; i++) {
+    asymbol *sym = *sptr++;
+
+    if (addr == sym->value + sym->section->vma)
+      return sym->name;
+  }
+
+  return NULL;
+}
 
 /* Like target_read_memory, but slightly different parameters.  */
 static int
@@ -115,19 +135,13 @@ dis_asm_memory_error(int status, bfd_vma memaddr,
 static void
 dis_asm_print_address(bfd_vma addr, struct disassemble_info *info)
 {
-  asymbol **sptr = symbols;
-  int i;
+  const char *name;
 
   printf("%08x", (int)addr);
 
-  for (i = 0; i < symcount; i++) {
-    asymbol *sym = *sptr++;
-
-    if (addr == sym->value + sym->section->vma) {
-      printf(" <%s>", sym->name);
-      break;
-    }
-  }
+  name = lookup_name(addr);
+  if (name != NULL)
+    printf(" <%s>", name);
 }
 
 static int insn_printf(void *f, const char *format, ...)
@@ -157,23 +171,55 @@ static void host_dasm_init(void)
   di.mach = BFD_MACH;
   di.endian = BFD_ENDIAN_LITTLE;
   disassemble_init_for_target(&di);
+  init_done = 1;
 }
 
 void host_dasm(void *addr, int len)
 {
-  bfd_vma vma_end, vma = (bfd_vma)(int)addr;
-  static int init_done = 0;
+  bfd_vma vma_end, vma = (bfd_vma)(long)addr;
+  const char *name;
 
-  if (!init_done) {
+  if (!init_done)
     host_dasm_init();
-    init_done = 1;
-  }
 
   vma_end = vma + len;
   while (vma < vma_end) {
+    name = lookup_name(vma);
+    if (name != NULL)
+      printf("%s:\n", name);
+
     printf("      %p ", (void *)(long)vma);
     vma += print_insn_func(vma, &di);
     printf("\n");
   }
+}
+
+void host_dasm_new_symbol_(void *addr, const char *name)
+{
+  bfd_vma vma = (bfd_vma)(long)addr;
+  asymbol *sym, **tmp;
+
+  if (!init_done)
+    host_dasm_init();
+  if (symbols == NULL)
+    return;
+  if (symstorage <= symcount * sizeof(symbols[0])) {
+    tmp = realloc(symbols, symstorage * 2);
+    if (tmp == NULL)
+      return;
+    symstorage *= 2;
+    symbols = tmp;
+  }
+
+  symbols[symcount] = calloc(sizeof(*symbols[0]), 1);
+  if (symbols[symcount] == NULL)
+    return;
+
+  // a HACK (should use correct section), but ohwell
+  sym = symbols[symcount];
+  sym->section = symbols[0]->section;
+  sym->value = vma - sym->section->vma;
+  sym->name = name;
+  symcount++;
 }
 
