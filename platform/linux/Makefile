@@ -68,7 +68,7 @@ vpath %.s = ../..
 vpath %.S = ../..
 vpath %.asm = ../..
 
-DIRS += platform/linux
+DIRS += platform/linux zlib unzip
 
 all: mkdirs PicoDrive
 

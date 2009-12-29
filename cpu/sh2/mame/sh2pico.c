@@ -77,13 +77,9 @@ void sh2_execute(SH2 *sh2_, int cycles)
 		/* FIXME: Darxide doesn't like this */
 		if (sh2->test_irq && !sh2->delay && sh2->pending_level > ((sh2->sr >> 4) & 0x0f))
 		{
-			if (sh2->pending_irl > sh2->pending_int_irq)
-				sh2_do_irq(sh2, sh2->pending_irl, 64 + sh2->pending_irl/2);
-			else {
-				sh2_do_irq(sh2, sh2->pending_int_irq, sh2->pending_int_vector);
-				sh2->pending_int_irq = 0; // auto-clear
-				sh2->pending_level = sh2->pending_irl;
-			}
+			int level = sh2->pending_level;
+			int vector = sh2->irq_callback(sh2, level);
+			sh2_do_irq(sh2, level, vector);
 			sh2->test_irq = 0;
 		}
 

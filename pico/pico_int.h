@@ -469,6 +469,8 @@ typedef struct
 #define SH2_DRCBLK_RAM_SHIFT 1
 #define SH2_DRCBLK_DA_SHIFT  1
 
+#define SH2_WRITE_SHIFT 25
+
 struct Pico32x
 {
   unsigned short regs[0x20];

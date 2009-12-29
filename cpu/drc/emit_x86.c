@@ -239,7 +239,17 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_bic_r_imm(r, imm); \
 }
 
+#define emith_jump_reg_c(cond, r) emith_jump_reg(r)
+#define emith_jump_ctx_c(cond, offs) emith_jump_ctx(offs)
+#define emith_ret_c(cond) emith_ret()
+
 // _r_r_imm
+#define emith_add_r_r_imm(d, s, imm) { \
+	if (d != s) \
+		emith_move_r_r(d, s); \
+	emith_add_r_imm(d, imm); \
+}
+
 #define emith_and_r_r_imm(d, s, imm) { \
 	if (d != s) \
 		emith_move_r_r(d, s); \
@@ -278,6 +288,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 // misc
 #define emith_push(r) \
 	EMIT_OP(0x50 + (r))
+
+#define emith_push_imm(imm) { \
+	EMIT_OP(0x68); \
+	EMIT(imm, u32); \
+}
 
 #define emith_pop(r) \
 	EMIT_OP(0x58 + (r))
@@ -376,11 +391,22 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_rolcf emith_rolc
 #define emith_rorcf emith_rorc
 
-// XXX: offs is 8bit only
-#define emith_ctx_read(r, offs) do { \
-	EMIT_OP_MODRM(0x8b, 1, r, xBP); \
-	EMIT(offs, u8); 	/* mov tmp, [ebp+#offs] */ \
+#define emith_ctx_op(op, r, offs) do { \
+	/* mov r <-> [ebp+#offs] */ \
+	if ((offs) >= 0x80) { \
+		EMIT_OP_MODRM(op, 2, r, xBP); \
+		EMIT(offs, u32); \
+	} else { \
+		EMIT_OP_MODRM(op, 1, r, xBP); \
+		EMIT(offs, u8); \
+	} \
 } while (0)
+
+#define emith_ctx_read(r, offs) \
+	emith_ctx_op(0x8b, r, offs)
+
+#define emith_ctx_write(r, offs) \
+	emith_ctx_op(0x89, r, offs)
 
 #define emith_ctx_read_multiple(r, offs, cnt, tmpr) do { \
 	int r_ = r, offs_ = offs, cnt_ = cnt;     \
@@ -388,16 +414,17 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 		emith_ctx_read(r_, offs_);        \
 } while (0)
 
-#define emith_ctx_write(r, offs) do { \
-	EMIT_OP_MODRM(0x89, 1, r, xBP); \
-	EMIT(offs, u8); 	/* mov [ebp+#offs], tmp */ \
-} while (0)
-
 #define emith_ctx_write_multiple(r, offs, cnt, tmpr) do { \
 	int r_ = r, offs_ = offs, cnt_ = cnt;     \
 	for (; cnt_ > 0; r_++, offs_ += 4, cnt_--) \
 		emith_ctx_write(r_, offs_);       \
 } while (0)
+
+// assumes EBX is free
+#define emith_ret_to_ctx(offs) { \
+	emith_pop(xBX); \
+	emith_ctx_write(xBX, offs); \
+}
 
 #define emith_jump(ptr) { \
 	u32 disp = (u32)(ptr) - ((u32)tcache_ptr + 5); \
@@ -429,8 +456,24 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_call_cond(cond, ptr) \
 	emith_call(ptr)
 
+#define emith_call_reg(r) \
+	EMIT_OP_MODRM(0xff, 3, 2, r)
+
+#define emith_call_ctx(offs) { \
+	EMIT_OP_MODRM(0xff, 2, 2, xBP); \
+	EMIT(offs, u32); \
+}
+
+#define emith_ret() \
+	EMIT_OP(0xc3)
+
 #define emith_jump_reg(r) \
 	EMIT_OP_MODRM(0xff, 3, 4, r)
+
+#define emith_jump_ctx(offs) { \
+	EMIT_OP_MODRM(0xff, 2, 4, xBP); \
+	EMIT(offs, u32); \
+}
 
 #define EMITH_JMP_START(cond) { \
 	u8 *cond_ptr; \
@@ -476,7 +519,19 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_pop(xSI);         \
 	emith_pop(xBP);         \
 	emith_pop(xBX);         \
-	EMIT_OP(0xc3); /* ret */\
+	emith_ret();            \
+}
+
+// assumes EBX is free temporary
+#define emith_sh2_wcall(a, tab, ret_ptr) { \
+	int arg2_; \
+	host_arg2reg(arg2_, 2); \
+	emith_lsr(xBX, a, SH2_WRITE_SHIFT); \
+	EMIT_OP_MODRM(0x8b, 0, xBX, 4); \
+	EMIT_SIB(2, xBX, tab); /* mov ebx, [tab + ebx * 4] */ \
+	emith_ctx_read(arg2_, offsetof(SH2, is_slave)); \
+	emith_push_imm((long)(ret_ptr)); \
+	emith_jump_reg(xBX); \
 }
 
 #define emith_sh2_dtbf_loop() { \

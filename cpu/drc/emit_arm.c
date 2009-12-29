@@ -155,6 +155,10 @@
 #define EOP_C_AM2_IMM(cond,u,b,l,rn,rd,offset_12) \
 	EMIT(((cond)<<28) | 0x05000000 | ((u)<<23) | ((b)<<22) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | (offset_12))
 
+#define EOP_C_AM2_REG(cond,u,b,l,rn,rd,shift_imm,shift_op,rm) \
+	EMIT(((cond)<<28) | 0x07000000 | ((u)<<23) | ((b)<<22) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | \
+		((shift_imm)<<7) | ((shift_op)<<5) | (rm))
+
 /* addressing mode 3 */
 #define EOP_C_AM3(cond,u,r,l,rn,rd,s,h,immed_reg) \
 	EMIT(((cond)<<28) | 0x01000090 | ((u)<<23) | ((r)<<22) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | \
@@ -165,11 +169,15 @@
 #define EOP_C_AM3_REG(cond,u,l,rn,rd,s,h,rm)       EOP_C_AM3(cond,u,0,l,rn,rd,s,h,rm)
 
 /* ldr and str */
+#define EOP_LDR_IMM2(cond,rd,rn,offset_12) EOP_C_AM2_IMM(cond,1,0,1,rn,rd,offset_12)
+
 #define EOP_LDR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,1,0,1,rn,rd,offset_12)
 #define EOP_LDR_NEGIMM(rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,0,0,1,rn,rd,offset_12)
 #define EOP_LDR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,1,rn,rd,0)
 #define EOP_STR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,offset_12)
 #define EOP_STR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,0)
+
+#define EOP_LDR_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,1,rn,rd,shift_imm,A_AM1_LSL,rm)
 
 #define EOP_LDRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,offset_8)
 #define EOP_LDRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,0)
@@ -191,8 +199,6 @@
 /* branches */
 #define EOP_C_BX(cond,rm) \
 	EMIT(((cond)<<28) | 0x012fff10 | (rm))
-
-#define EOP_BX(rm) EOP_C_BX(A_COND_AL,rm)
 
 #define EOP_C_B_PTR(ptr,cond,l,signed_immed_24) \
 	EMIT_PTR(ptr, ((cond)<<28) | 0x0a000000 | ((l)<<24) | (signed_immed_24))
@@ -232,6 +238,7 @@
 #define EOP_MSR_REG(rm)       EOP_C_MSR_REG(A_COND_AL,rm)
 
 
+// XXX: AND, RSB, *C, MVN will break if 1 insn is not enough
 static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int imm)
 {
 	int ror2;
@@ -253,10 +260,9 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 
 		EOP_C_DOP_IMM(cond, op, s, rn, rd, ror2 & 0x0f, v & 0xff);
 
-		if (op == A_OP_MOV) {
+		if (op == A_OP_MOV)
 			op = A_OP_ORR;
-			rn = rd;
-		}
+		rn = rd;
 	}
 }
 
@@ -461,6 +467,12 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_and_r_r_imm(d, s, imm) \
 	emith_op_imm2(A_COND_AL, 0, A_OP_AND, d, s, imm)
 
+#define emith_add_r_r_imm(d, s, imm) \
+	emith_op_imm2(A_COND_AL, 0, A_OP_ADD, d, s, imm)
+
+#define emith_sub_r_r_imm(d, s, imm) \
+	emith_op_imm2(A_COND_AL, 0, A_OP_SUB, d, s, imm)
+
 #define emith_neg_r_r(d, s) \
 	EOP_RSB_IMM(d, s, 0, 0)
 
@@ -583,17 +595,11 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_pass_arg_imm(arg, imm) \
 	emith_move_r_imm(arg, imm)
 
-#define emith_call_cond(cond, target) \
-	emith_xbranch(cond, target, 1)
+#define emith_jump(target) \
+	emith_jump_cond(A_COND_AL, target)
 
 #define emith_jump_cond(cond, target) \
 	emith_xbranch(cond, target, 0)
-
-#define emith_call(target) \
-	emith_call_cond(A_COND_AL, target)
-
-#define emith_jump(target) \
-	emith_jump_cond(A_COND_AL, target)
 
 #define emith_jump_patchable(cond) \
 	emith_jump_cond(cond, 0)
@@ -604,8 +610,37 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	*ptr_ = (*ptr_ & 0xff000000) | (val & 0x00ffffff); \
 } while (0)
 
+#define emith_jump_reg_c(cond, r) \
+	EOP_C_BX(cond, r)
+
 #define emith_jump_reg(r) \
-	EOP_BX(r)
+	emith_jump_reg_c(A_COND_AL, r)
+
+#define emith_jump_ctx_c(cond, offs) \
+	EOP_LDR_IMM2(cond,15,CONTEXT_REG,offs)
+
+#define emith_jump_ctx(offs) \
+	emith_jump_ctx_c(A_COND_AL, offs)
+
+#define emith_call_cond(cond, target) \
+	emith_xbranch(cond, target, 1)
+
+#define emith_call(target) \
+	emith_call_cond(A_COND_AL, target)
+
+#define emith_call_ctx(offs) { \
+	emith_move_r_r(14, 15); \
+	emith_jump_ctx(offs); \
+}
+
+#define emith_ret_c(cond) \
+	emith_jump_reg_c(cond, 14)
+
+#define emith_ret() \
+	emith_ret_c(A_COND_AL)
+
+#define emith_ret_to_ctx(offs) \
+	emith_ctx_write(14, offs)
 
 /* SH2 drc specific */
 #define emith_sh2_drc_entry() \
@@ -613,6 +648,18 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_sh2_drc_exit() \
 	EOP_LDMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R15M)
+
+#define emith_sh2_wcall(a, tab, ret_ptr) { \
+	int val_ = (char *)(ret_ptr) - (char *)tcache_ptr - 2*4; \
+	if (val_ >= 0) \
+		emith_add_r_r_imm(14, 15, val_); \
+	else if (val_ < 0) \
+		emith_sub_r_r_imm(14, 15, -val_); \
+	emith_lsr(12, a, SH2_WRITE_SHIFT); \
+	EOP_LDR_REG_LSL(A_COND_AL,12,tab,12,2); \
+	emith_ctx_read(2, offsetof(SH2, is_slave)); \
+	emith_jump_reg(12); \
+}
 
 #define emith_sh2_dtbf_loop() { \
 	int cr, rn;                                                          \

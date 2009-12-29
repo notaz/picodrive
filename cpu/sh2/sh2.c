@@ -36,8 +36,6 @@ void sh2_reset(SH2 *sh2)
 
 void sh2_do_irq(SH2 *sh2, int level, int vector)
 {
-	sh2->irq_callback(sh2->is_slave, level);
-
 	sh2->r[15] -= 4;
 	p32x_sh2_write32(sh2->r[15], sh2->sr, sh2);	/* push SR onto stack */
 	sh2->r[15] -= 4;

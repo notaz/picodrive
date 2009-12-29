@@ -4,10 +4,19 @@
 struct Pico32x Pico32x;
 SH2 sh2s[2];
 
-static void sh2_irq_cb(int id, int level)
+static int REGPARM(2) sh2_irq_cb(SH2 *sh2, int level)
 {
-  // diagnostic for now
-  elprintf(EL_32X, "%csh2 ack %d @ %08x", id ? 's' : 'm', level, sh2_pc(id));
+  if (sh2->pending_irl > sh2->pending_int_irq) {
+    elprintf(EL_32X, "%csh2 ack/irl %d @ %08x",
+      sh2->is_slave ? 's' : 'm', level, sh2->pc);
+    return 64 + sh2->pending_irl / 2;
+  } else {
+    elprintf(EL_32X, "%csh2 ack/int %d/%d @ %08x",
+      sh2->is_slave ? 's' : 'm', level, sh2->pending_int_vector, sh2->pc);
+    sh2->pending_int_irq = 0; // auto-clear
+    sh2->pending_level = sh2->pending_irl;
+    return sh2->pending_int_vector;
+  }
 }
 
 void p32x_update_irls(void)
