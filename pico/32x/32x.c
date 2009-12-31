@@ -165,6 +165,8 @@ static void p32x_start_blank(void)
 
 static __inline void run_m68k(int cyc)
 {
+  pprof_start(m68k);
+
 #if defined(EMU_C68K)
   PicoCpuCM68k.cycles = cyc;
   CycloneRun(&PicoCpuCM68k);
@@ -174,6 +176,8 @@ static __inline void run_m68k(int cyc)
 #elif defined(EMU_F68K)
   SekCycleCnt += fm68k_emulate(cyc+1, 0, 0);
 #endif
+
+  pprof_end(m68k);
 }
 
 // ~1463.8, but due to cache misses and slow mem
@@ -194,10 +198,18 @@ static __inline void run_m68k(int cyc)
     slice = SekCycleCnt - slice; /* real count from 68k */ \
     if (SekCycleCnt < SekCycleAim) \
       elprintf(EL_32X, "slice %d", slice); \
-    if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) \
+    if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) { \
+      pprof_start(ssh2); \
       sh2_execute(&ssh2, CYCLES_M68K2SH2(slice)); \
-    if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) \
+      pprof_end(ssh2); \
+    } \
+    if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) { \
+      pprof_start(msh2); \
       sh2_execute(&msh2, CYCLES_M68K2SH2(slice)); \
+      pprof_end(msh2); \
+    } \
+    pprof_start(dummy); \
+    pprof_end(dummy); \
   } \
 }
 

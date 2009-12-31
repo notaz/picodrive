@@ -272,6 +272,8 @@ PICO_INTERNAL int CheckDMA(void)
 static __inline void SekRunM68k(int cyc)
 {
   int cyc_do;
+  pprof_start(m68k);
+
   SekCycleAim+=cyc;
   if ((cyc_do=SekCycleAim-SekCycleCnt) <= 0) return;
 #if defined(EMU_CORE_DEBUG)
@@ -286,6 +288,8 @@ static __inline void SekRunM68k(int cyc)
 #elif defined(EMU_F68K)
   SekCycleCnt+=fm68k_emulate(cyc_do+1, 0, 0);
 #endif
+
+  pprof_end(m68k);
 }
 
 #include "pico_cmn.c"
@@ -303,38 +307,47 @@ PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done)
   z80_cycle_aim = cycles_68k_to_z80(m68k_cycles_done);
   cnt = z80_cycle_aim - z80_cycle_cnt;
 
+  pprof_start(z80);
+
   elprintf(EL_BUSREQ, "z80 sync %i (%i|%i -> %i|%i)", cnt, z80_cycle_cnt, z80_cycle_cnt / 228,
     z80_cycle_aim, z80_cycle_aim / 228);
 
   if (cnt > 0)
     z80_cycle_cnt += z80_run(cnt);
+
+  pprof_end(z80);
 }
 
 
 void PicoFrame(void)
 {
+  pprof_start(frame);
+
   Pico.m.frame_count++;
 
   if (PicoAHW & PAHW_SMS) {
     PicoFrameMS();
-    return;
+    goto end;
   }
 
   // TODO: MCD+32X
   if (PicoAHW & PAHW_MCD) {
     PicoFrameMCD();
-    return;
+    goto end;
   }
 
   if (PicoAHW & PAHW_32X) {
     PicoFrame32x();
-    return;
+    goto end;
   }
 
   //if(Pico.video.reg[12]&0x2) Pico.video.status ^= 0x10; // change odd bit in interlace mode
 
   PicoFrameStart();
   PicoFrameHints();
+
+end:
+  pprof_end(frame);
 }
 
 void PicoFrameDrawOnly(void)

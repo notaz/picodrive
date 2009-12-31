@@ -66,6 +66,9 @@ PICO_INTERNAL int PicoResetMCD(void)
 static __inline void SekRunM68k(int cyc)
 {
   int cyc_do;
+
+  pprof_start(m68k);
+
   SekCycleAim+=cyc;
   if ((cyc_do=SekCycleAim-SekCycleCnt) <= 0) return;
 #if defined(EMU_CORE_DEBUG)
@@ -81,6 +84,7 @@ static __inline void SekRunM68k(int cyc)
   g_m68kcontext=&PicoCpuFM68k;
   SekCycleCnt+=fm68k_emulate(cyc_do, 0, 0);
 #endif
+  pprof_end(m68k);
 }
 
 static __inline void SekRunS68k(int cyc)

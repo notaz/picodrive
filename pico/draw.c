@@ -1485,6 +1485,8 @@ void PicoDrawSync(int to, int blank_last_line)
   int sh = (Pico.video.reg[0xC] & 8) >> 3; // shadow/hilight?
   int bgc = Pico.video.reg[7];
 
+  pprof_start(draw);
+
   if (rendlines != 240)
     offs = 8;
 
@@ -1516,6 +1518,8 @@ void PicoDrawSync(int to, int blank_last_line)
     line++;
   }
   DrawScanline = line;
+
+  pprof_end(draw);
 }
 
 void PicoDrawSetColorFormat(int which)

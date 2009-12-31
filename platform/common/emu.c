@@ -1347,6 +1347,8 @@ void emu_init(void)
 	mkdir_path(path, pos, "srm");
 	mkdir_path(path, pos, "brm");
 
+	pprof_init();
+
 	make_config_cfg(path);
 	config_readlrom(path);
 
@@ -1372,6 +1374,8 @@ void emu_finish(void)
 		sync();
 #endif
 	}
+
+	pprof_finish();
 
 	PicoExit();
 }
@@ -1431,6 +1435,8 @@ void emu_loop(void)
 	{
 		unsigned int timestamp;
 		int diff, diff_lim;
+
+		pprof_start(main);
 
 		timestamp = get_ticks();
 		if (reset_timing) {
@@ -1537,7 +1543,7 @@ void emu_loop(void)
 		PicoFrame();
 		pemu_finalize_frame(fpsbuff, notice_msg);
 
-		//plat_video_flip();
+		// plat_video_flip();
 
 		/* frame limiter */
 		if (!reset_timing && !(currentConfig.EmuOpt & (EOPT_NO_FRMLIMIT|EOPT_EXT_FRMLIMIT)))
@@ -1560,6 +1566,8 @@ void emu_loop(void)
 		plat_video_flip();
 
 		pframes_done++; frames_done++; frames_shown++;
+
+		pprof_end(main);
 	}
 
 	emu_set_fastforward(0);

@@ -7,6 +7,10 @@ endif
 ifeq "$(profile)" "2"
 CFLAGS += -fprofile-use
 endif
+ifeq "$(pprof)" "1"
+DEFINES += PPROF
+OBJS += platform/linux/pprof.o
+endif
 
 # === Pico core ===
 # Pico

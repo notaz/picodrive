@@ -257,8 +257,11 @@ void NOINLINE ctl_write_z80busreq(u32 d)
     else
     {
       z80stopCycle = SekCyclesDone();
-      if ((PicoOpt&POPT_EN_Z80) && !Pico.m.z80_reset)
+      if ((PicoOpt&POPT_EN_Z80) && !Pico.m.z80_reset) {
+        pprof_start(m68k);
         PicoSyncZ80(z80stopCycle);
+        pprof_end_sub(m68k);
+      }
     }
     Pico.m.z80Run = d;
   }
@@ -272,8 +275,11 @@ void NOINLINE ctl_write_z80reset(u32 d)
   {
     if (d)
     {
-      if ((PicoOpt&POPT_EN_Z80) && Pico.m.z80Run)
+      if ((PicoOpt&POPT_EN_Z80) && Pico.m.z80Run) {
+        pprof_start(m68k);
         PicoSyncZ80(SekCyclesDone());
+        pprof_end_sub(m68k);
+      }
       YM2612ResetChip();
       timers_reset();
     }

@@ -308,6 +308,8 @@ static int PsndRender(int offset, int length)
 		(Pico_mcd->pcm.control & 0x80) && Pico_mcd->pcm.enabled;
   offset <<= stereo;
 
+  pprof_start(sound);
+
 #if !SIMPLE_WRITE_SOUND
   if (offset == 0) { // should happen once per frame
     // compensate for float part of PsndLen
@@ -361,6 +363,8 @@ static int PsndRender(int offset, int length)
 
   // convert + limit to normal 16bit output
   PsndMix_32_to_16l(PsndOut+offset, buf32, length);
+
+  pprof_end(sound);
 
   return length;
 }

@@ -779,6 +779,18 @@ extern void lprintf(const char *fmt, ...);
 #define elprintf(w,f,...)
 #endif
 
+// profiling
+#ifdef PPROF
+#include <platform/linux/pprof.h>
+#else
+#define pprof_init()
+#define pprof_finish()
+#define pprof_start(x)
+#define pprof_end(...)
+#define pprof_end_sub(...)
+#endif
+
+// misc
 #ifdef _MSC_VER
 #define cdprintf
 #else
