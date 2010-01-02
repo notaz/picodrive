@@ -89,7 +89,7 @@ PicoDrive : $(OBJS)
 	$(CC) $(CFLAGS) $^ $(LDFLAGS) -Wl,-Map=PicoDrive.map -o $@
 
 pprof: pprof.c
-	$(CROSS)gcc -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@ -lrt
+	$(CROSS)gcc -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@
 
 %.o : %.asm
 	@echo ">>>" $<

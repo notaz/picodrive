@@ -613,11 +613,16 @@ static void DrawDisplayFull(void)
 
 PICO_INTERNAL void PicoFrameFull()
 {
+	pprof_start(draw);
+
 	// prepare cram?
 	if (PicoPrepareCram) PicoPrepareCram();
 
 	// Draw screen:
 	BackFillFull(Pico.video.reg[7]);
-	if (Pico.video.reg[1]&0x40) DrawDisplayFull();
+	if (Pico.video.reg[1] & 0x40)
+		DrawDisplayFull();
+
+	pprof_end(draw);
 }
 
