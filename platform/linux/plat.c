@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/mman.h>
 
 #include "../common/plat.h"
 
@@ -106,5 +107,23 @@ int plat_wait_event(int *fds_hnds, int count, int timeout_ms)
 			ret = fds_hnds[i];
 
 	return ret;
+}
+
+void *plat_mmap(unsigned long addr, size_t size)
+{
+	void *req, *ret;
+	req = (void *)addr;
+	ret = mmap(req, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+	if (ret == MAP_FAILED)
+		return NULL;
+	if (ret != req)
+		printf("warning: mmaped to %p, requested %p\n", ret, req);
+
+	return ret;
+}
+
+void plat_munmap(void *ptr, size_t size)
+{
+	munmap(ptr, size);
 }
 

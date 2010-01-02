@@ -129,7 +129,7 @@ void PicoPower32x(void)
 void PicoUnload32x(void)
 {
   if (Pico32xMem != NULL)
-    free(Pico32xMem);
+    plat_munmap(Pico32xMem, sizeof(*Pico32xMem));
   Pico32xMem = NULL;
   sh2_finish(&msh2);
   sh2_finish(&ssh2);

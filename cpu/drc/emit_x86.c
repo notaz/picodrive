@@ -219,29 +219,38 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_add_r_imm(r, imm); \
 }
 
-#define emith_or_r_imm_c(cond, r, imm) { \
-	(void)(cond); \
-	emith_or_r_imm(r, imm); \
-}
-
-#define emith_eor_r_imm_c(cond, r, imm) { \
-	(void)(cond); \
-	emith_eor_r_imm(r, imm); \
-}
-
 #define emith_sub_r_imm_c(cond, r, imm) { \
 	(void)(cond); \
 	emith_sub_r_imm(r, imm); \
 }
 
-#define emith_bic_r_imm_c(cond, r, imm) { \
-	(void)(cond); \
-	emith_bic_r_imm(r, imm); \
-}
+#define emith_or_r_imm_c(cond, r, imm) \
+	emith_or_r_imm(r, imm)
+#define emith_eor_r_imm_c(cond, r, imm) \
+	emith_eor_r_imm(r, imm)
+#define emith_bic_r_imm_c(cond, r, imm) \
+	emith_bic_r_imm(r, imm)
+#define emith_ror_c(cond, d, s, cnt) \
+	emith_ror(d, s, cnt)
 
-#define emith_jump_reg_c(cond, r) emith_jump_reg(r)
-#define emith_jump_ctx_c(cond, offs) emith_jump_ctx(offs)
-#define emith_ret_c(cond) emith_ret()
+#define emith_read_r_r_offs_c(cond, r, rs, offs) \
+	emith_read_r_r_offs(r, rs, offs)
+#define emith_write_r_r_offs_c(cond, r, rs, offs) \
+	emith_write_r_r_offs(r, rs, offs)
+#define emith_read8_r_r_offs_c(cond, r, rs, offs) \
+	emith_read8_r_r_offs(r, rs, offs)
+#define emith_write8_r_r_offs_c(cond, r, rs, offs) \
+	emith_write8_r_r_offs(r, rs, offs)
+#define emith_read16_r_r_offs_c(cond, r, rs, offs) \
+	emith_read16_r_r_offs(r, rs, offs)
+#define emith_write16_r_r_offs_c(cond, r, rs, offs) \
+	emith_write16_r_r_offs(r, rs, offs)
+#define emith_jump_reg_c(cond, r) \
+	emith_jump_reg(r)
+#define emith_jump_ctx_c(cond, offs) \
+	emith_jump_ctx(offs)
+#define emith_ret_c(cond) \
+	emith_ret()
 
 // _r_r_imm
 #define emith_add_r_r_imm(d, s, imm) { \
@@ -391,22 +400,44 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_rolcf emith_rolc
 #define emith_rorcf emith_rorc
 
-#define emith_ctx_op(op, r, offs) do { \
+#define emith_deref_op(op, r, rs, offs) do { \
 	/* mov r <-> [ebp+#offs] */ \
 	if ((offs) >= 0x80) { \
-		EMIT_OP_MODRM(op, 2, r, xBP); \
+		EMIT_OP_MODRM(op, 2, r, rs); \
 		EMIT(offs, u32); \
 	} else { \
-		EMIT_OP_MODRM(op, 1, r, xBP); \
+		EMIT_OP_MODRM(op, 1, r, rs); \
 		EMIT(offs, u8); \
 	} \
 } while (0)
 
+#define emith_read_r_r_offs(r, rs, offs) \
+	emith_deref_op(0x8b, r, rs, offs)
+
+#define emith_write_r_r_offs(r, rs, offs) \
+	emith_deref_op(0x89, r, rs, offs)
+
+#define emith_read8_r_r_offs(r, rs, offs) \
+	emith_deref_op(0x8a, r, rs, offs)
+
+#define emith_write8_r_r_offs(r, rs, offs) \
+	emith_deref_op(0x88, r, rs, offs)
+
+#define emith_read16_r_r_offs(r, rs, offs) { \
+	EMIT(0x66, u8); /* operand override */ \
+	emith_read_r_r_offs(r, rs, offs); \
+}
+
+#define emith_write16_r_r_offs(r, rs, offs) { \
+	EMIT(0x66, u8); \
+	emith_write16_r_r_offs(r, rs, offs) \
+}
+
 #define emith_ctx_read(r, offs) \
-	emith_ctx_op(0x8b, r, offs)
+	emith_read_r_r_offs(r, CONTEXT_REG, offs)
 
 #define emith_ctx_write(r, offs) \
-	emith_ctx_op(0x89, r, offs)
+	emith_write_r_r_offs(r, CONTEXT_REG, offs)
 
 #define emith_ctx_read_multiple(r, offs, cnt, tmpr) do { \
 	int r_ = r, offs_ = offs, cnt_ = cnt;     \
@@ -460,7 +491,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_OP_MODRM(0xff, 3, 2, r)
 
 #define emith_call_ctx(offs) { \
-	EMIT_OP_MODRM(0xff, 2, 2, xBP); \
+	EMIT_OP_MODRM(0xff, 2, 2, CONTEXT_REG); \
 	EMIT(offs, u32); \
 }
 
@@ -471,7 +502,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_OP_MODRM(0xff, 3, 4, r)
 
 #define emith_jump_ctx(offs) { \
-	EMIT_OP_MODRM(0xff, 2, 4, xBP); \
+	EMIT_OP_MODRM(0xff, 2, 4, CONTEXT_REG); \
 	EMIT(offs, u32); \
 }
 
@@ -483,9 +514,26 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	JMP8_EMIT(cond, cond_ptr); \
 }
 
+#define EMITH_JMP3_START(cond) { \
+	u8 *cond_ptr, *else_ptr; \
+	JMP8_POS(cond_ptr)
+
+#define EMITH_JMP3_MID(cond) \
+	JMP8_POS(else_ptr); \
+	JMP8_EMIT(cond, cond_ptr);
+
+#define EMITH_JMP3_END() \
+	JMP8_EMIT_NC(else_ptr); \
+}
+
 // "simple" jump (no more then a few insns)
+// ARM will use conditional instructions here
 #define EMITH_SJMP_START EMITH_JMP_START
 #define EMITH_SJMP_END EMITH_JMP_END
+
+#define EMITH_SJMP3_START EMITH_JMP3_START
+#define EMITH_SJMP3_MID EMITH_JMP3_MID
+#define EMITH_SJMP3_END EMITH_JMP3_END
 
 #define host_arg2reg(rd, arg) \
 	switch (arg) { \

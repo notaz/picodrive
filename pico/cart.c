@@ -13,6 +13,7 @@
 #include "../unzip/unzip_stream.h"
 
 
+static int rom_alloc_size;
 static const char *rom_exts[] = { "bin", "gen", "smd", "iso", "sms", "gg", "sg" };
 
 void (*PicoCartUnloadHook)(void);
@@ -425,21 +426,9 @@ static int DecodeSmd(unsigned char *data,int len)
   return 0;
 }
 
-static unsigned char *cd_realloc(void *old, int filesize)
-{
-  unsigned char *rom;
-  rom=realloc(old, sizeof(mcd_state));
-  if (rom) memset(rom+0x20000, 0, sizeof(mcd_state)-0x20000);
-  return rom;
-}
-
 static unsigned char *PicoCartAlloc(int filesize, int is_sms)
 {
-  int alloc_size;
   unsigned char *rom;
-
-  if (PicoAHW & PAHW_MCD)
-    return cd_realloc(NULL, filesize);
 
   if (is_sms) {
     // make size power of 2 for easier banking handling
@@ -448,18 +437,24 @@ static unsigned char *PicoCartAlloc(int filesize, int is_sms)
       s++;
     if (filesize > (1 << s))
       s++;
-    alloc_size = 1 << s;
+    rom_alloc_size = 1 << s;
   }
   else {
+    // make alloc size at least sizeof(mcd_state),
+    // in case we want to switch to CD mode
+    if (filesize < sizeof(mcd_state))
+      filesize = sizeof(mcd_state);
+
     // align to 512K for memhandlers
-    alloc_size = (filesize + 0x7ffff) & ~0x7ffff;
+    rom_alloc_size = (filesize + 0x7ffff) & ~0x7ffff;
   }
 
-  if (alloc_size - filesize < 4)
-    alloc_size += 4; // padding for out-of-bound exec protection
+  if (rom_alloc_size - filesize < 4)
+    rom_alloc_size += 4; // padding for out-of-bound exec protection
 
   // Allocate space for the rom plus padding
-  rom = calloc(alloc_size, 1);
+  // use special address for 32x dynarec
+  rom = plat_mmap(0x02000000, rom_alloc_size);
   return rom;
 }
 
@@ -513,7 +508,6 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms)
     if (!(PicoAHW & PAHW_MCD) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) ||
          !strncmp((char *)rom+0x128, "BOOT", 4))) {
       PicoAHW |= PAHW_MCD;
-      rom = cd_realloc(rom, size);
     }
 
     // Check for SMD:
@@ -608,8 +602,8 @@ void PicoCartUnload(void)
 
   if (Pico.rom != NULL) {
     SekFinishIdleDet();
-    free(Pico.rom);
-    Pico.rom=NULL;
+    plat_munmap(Pico.rom, rom_alloc_size);
+    Pico.rom = NULL;
   }
 }
 

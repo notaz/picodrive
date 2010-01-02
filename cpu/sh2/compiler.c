@@ -496,24 +496,60 @@ static void emit_or_t_if_eq(int srr)
 // reg cache must be clean before call
 static int emit_memhandler_read(int size)
 {
-  int ctxr;
-  host_arg2reg(ctxr, 1);
-  emith_move_r_r(ctxr, CONTEXT_REG);
-  switch (size) {
-  case 0: // 8
-    // must writeback cycles for poll detection stuff
-    if (reg_map_g2h[SHR_SR] != -1)
-      emith_ctx_write(reg_map_g2h[SHR_SR], SHR_SR * 4);
-    emith_call(p32x_sh2_read8);
-    break;
-  case 1: // 16
-    if (reg_map_g2h[SHR_SR] != -1)
-      emith_ctx_write(reg_map_g2h[SHR_SR], SHR_SR * 4);
-    emith_call(p32x_sh2_read16);
-    break;
-  case 2: // 32
-    emith_call(p32x_sh2_read32);
-    break;
+  int arg0, arg1;
+  host_arg2reg(arg0, 0);
+
+  // must writeback cycles for poll detection stuff
+  if (reg_map_g2h[SHR_SR] != -1)
+    emith_ctx_write(reg_map_g2h[SHR_SR], SHR_SR * 4);
+  arg1 = rcache_get_tmp_arg(1);
+  emith_move_r_r(arg1, CONTEXT_REG);
+
+#if 1
+  if (Pico.rom == (void *)0x02000000 && Pico32xMem->sdram == (void *)0x06000000) {
+    int tmp = rcache_get_tmp();
+    emith_and_r_r_imm(tmp, arg0, 0xfb000000);
+    emith_cmp_r_imm(tmp, 0x02000000);
+    switch (size) {
+    case 0: // 8
+      EMITH_SJMP3_START(DCOND_NE);
+      emith_eor_r_imm_c(DCOND_EQ, arg0, 1);
+      emith_read8_r_r_offs_c(DCOND_EQ, arg0, arg0, 0);
+      EMITH_SJMP3_MID(DCOND_NE);
+      emith_call_cond(DCOND_NE, p32x_sh2_read8);
+      EMITH_SJMP3_END();
+      break;
+    case 1: // 16
+      EMITH_SJMP3_START(DCOND_NE);
+      emith_read16_r_r_offs_c(DCOND_EQ, arg0, arg0, 0);
+      EMITH_SJMP3_MID(DCOND_NE);
+      emith_call_cond(DCOND_NE, p32x_sh2_read16);
+      EMITH_SJMP3_END();
+      break;
+    case 2: // 32
+      EMITH_SJMP3_START(DCOND_NE);
+      emith_read_r_r_offs_c(DCOND_EQ, arg0, arg0, 0);
+      emith_ror_c(DCOND_EQ, arg0, arg0, 16);
+      EMITH_SJMP3_MID(DCOND_NE);
+      emith_call_cond(DCOND_NE, p32x_sh2_read32);
+      EMITH_SJMP3_END();
+      break;
+    }
+  }
+  else
+#endif
+  {
+    switch (size) {
+    case 0: // 8
+      emith_call(p32x_sh2_read8);
+      break;
+    case 1: // 16
+      emith_call(p32x_sh2_read16);
+      break;
+    case 2: // 32
+      emith_call(p32x_sh2_read32);
+      break;
+    }
   }
   rcache_invalidate();
   // assuming arg0 and retval reg matches

@@ -28,8 +28,13 @@ extern void mp3_update(int *buffer, int length, int stereo);
 
 // this function should write-back d-cache and invalidate i-cache
 // on a mem region [start_addr, end_addr)
-// used by SVP dynarec
+// used by dynarecs
 extern void cache_flush_d_inval_i(const void *start_addr, const void *end_addr);
+
+// attempt to alloc mem at specified address.
+// alloc anywhere else if that fails (callers should handle that)
+extern void *plat_mmap(unsigned long addr, size_t size);
+extern void  plat_munmap(void *ptr, size_t size);
 
 // this one should handle display mode changes
 extern void emu_video_mode_change(int start_line, int line_count, int is_32cols);

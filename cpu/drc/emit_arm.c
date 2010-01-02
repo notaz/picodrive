@@ -169,7 +169,8 @@
 #define EOP_C_AM3_REG(cond,u,l,rn,rd,s,h,rm)       EOP_C_AM3(cond,u,0,l,rn,rd,s,h,rm)
 
 /* ldr and str */
-#define EOP_LDR_IMM2(cond,rd,rn,offset_12) EOP_C_AM2_IMM(cond,1,0,1,rn,rd,offset_12)
+#define EOP_LDR_IMM2(cond,rd,rn,offset_12)  EOP_C_AM2_IMM(cond,1,0,1,rn,rd,offset_12)
+#define EOP_LDRB_IMM2(cond,rd,rn,offset_12) EOP_C_AM2_IMM(cond,1,1,1,rn,rd,offset_12)
 
 #define EOP_LDR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,1,0,1,rn,rd,offset_12)
 #define EOP_LDR_NEGIMM(rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,0,0,1,rn,rd,offset_12)
@@ -178,6 +179,8 @@
 #define EOP_STR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,0)
 
 #define EOP_LDR_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,1,rn,rd,shift_imm,A_AM1_LSL,rm)
+
+#define EOP_LDRH_IMM2(cond,rd,rn,offset_8)  EOP_C_AM3_IMM(cond,1,1,rn,rd,0,1,offset_8)
 
 #define EOP_LDRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,offset_8)
 #define EOP_LDRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,0)
@@ -327,11 +330,14 @@ static int emith_xbranch(int cond, void *target, int is_call)
 }
 
 // fake "simple" or "short" jump - using cond insns instead
-#define EMITH_SJMP_START(cond) \
+#define EMITH_NOTHING1(cond) \
 	(void)(cond)
 
-#define EMITH_SJMP_END(cond) \
-	(void)(cond)
+#define EMITH_SJMP_START(cond)	EMITH_NOTHING1(cond)
+#define EMITH_SJMP_END(cond)	EMITH_NOTHING1(cond)
+#define EMITH_SJMP3_START(cond)	EMITH_NOTHING1(cond)
+#define EMITH_SJMP3_MID(cond)	EMITH_NOTHING1(cond)
+#define EMITH_SJMP3_END()
 
 #define emith_move_r_r(d, s) \
 	EOP_MOV_REG_SIMPLE(d, s)
@@ -485,8 +491,11 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_asr(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_ASR,cnt)
 
+#define emith_ror_c(cond, d, s, cnt) \
+	EOP_MOV_REG(cond,0,d,s,A_AM1_ROR,cnt)
+
 #define emith_ror(d, s, cnt) \
-	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_ROR,cnt)
+	emith_ror_c(A_COND_AL, d, s, cnt)
 
 #define emith_rol(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,0,d,s,A_AM1_ROR,32-(cnt)); \
@@ -536,8 +545,26 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	EOP_C_SMLAL(A_COND_AL,0,dhi,dlo,s1,s2)
 
 // misc
+#define emith_read_r_r_offs_c(cond, r, rs, offs) \
+	EOP_LDR_IMM2(cond, r, rs, offs)
+
+#define emith_read8_r_r_offs_c(cond, r, rs, offs) \
+	EOP_LDRB_IMM2(cond, r, rs, offs)
+
+#define emith_read16_r_r_offs_c(cond, r, rs, offs) \
+	EOP_LDRH_IMM2(cond, r, rs, offs)
+
+#define emith_read_r_r_offs(r, rs, offs) \
+	emith_read_r_r_offs_c(A_COND_AL, r, rs, offs)
+
+#define emith_read8_r_r_offs(r, rs, offs) \
+	emith_read8_r_r_offs_c(A_COND_AL, r, rs, offs)
+
+#define emith_read16_r_r_offs(r, rs, offs) \
+	emith_read16_r_r_offs_c(A_COND_AL, r, rs, offs)
+
 #define emith_ctx_read(r, offs) \
-	EOP_LDR_IMM(r, CONTEXT_REG, offs)
+	emith_read_r_r_offs(r, CONTEXT_REG, offs)
 
 #define emith_ctx_write(r, offs) \
 	EOP_STR_IMM(r, CONTEXT_REG, offs)
