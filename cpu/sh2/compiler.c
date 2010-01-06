@@ -1,5 +1,10 @@
 /*
  * vim:shiftwidth=2:expandtab
+ *
+ * notes:
+ * - tcache, block descriptor, link buffer overflows result in sh2_translate()
+ *   failure, followed by full tcache invalidation for that region
+ * - jumps between blocks are tracked for SMC handling (in block_links[])
  */
 #include <stddef.h>
 #include <stdio.h>
@@ -55,22 +60,49 @@ static void REGPARM(3) *sh2_drc_announce_entry(void *block, SH2 *sh2, u32 sr)
 
 #define BLOCK_CYCLE_LIMIT 100
 #define MAX_BLOCK_SIZE (BLOCK_CYCLE_LIMIT * 6 * 6)
+#define TCACHE_BUFFERS 3
 
 // we have 3 translation cache buffers, split from one drc/cmn buffer.
 // BIOS shares tcache with data array because it's only used for init
 // and can be discarded early
 // XXX: need to tune sizes
-static const int tcache_sizes[3] = {
+static const int tcache_sizes[TCACHE_BUFFERS] = {
   DRC_TCACHE_SIZE * 6 / 8, // ROM, DRAM
   DRC_TCACHE_SIZE / 8, // BIOS, data array in master sh2
   DRC_TCACHE_SIZE / 8, // ... slave
 };
 
-static u8 *tcache_bases[3];
-static u8 *tcache_ptrs[3];
+static u8 *tcache_bases[TCACHE_BUFFERS];
+static u8 *tcache_ptrs[TCACHE_BUFFERS];
 
 // ptr for code emiters
 static u8 *tcache_ptr;
+
+typedef struct block_desc_ {
+  u32 addr;                  // SH2 PC address
+  u32 end_addr;              // TODO rm?
+  void *tcache_ptr;          // translated block for above PC
+  struct block_desc_ *next;  // next block with the same PC hash
+#if (DRC_DEBUG & 1)
+  int refcount;
+#endif
+} block_desc;
+
+typedef struct block_link_ {
+  u32 target_pc;
+  void *jump;
+//  struct block_link_ *next;
+} block_link;
+
+static const int block_max_counts[TCACHE_BUFFERS] = {
+  4*1024,
+  256,
+  256,
+};
+static block_desc *block_tables[TCACHE_BUFFERS];
+static block_link *block_links[TCACHE_BUFFERS]; 
+static int block_counts[TCACHE_BUFFERS];
+static int block_link_counts[TCACHE_BUFFERS];
 
 // host register tracking
 enum {
@@ -146,24 +178,6 @@ static temp_reg_t reg_temp[] = {
 #define Q_SHIFT 8
 #define M_SHIFT 9
 
-typedef struct block_desc_ {
-  u32 addr;                  // SH2 PC address
-  u32 end_addr;              // TODO rm?
-  void *tcache_ptr;          // translated block for above PC
-  struct block_desc_ *next;  // next block with the same PC hash
-#if (DRC_DEBUG & 1)
-  int refcount;
-#endif
-} block_desc;
-
-static const int block_max_counts[3] = {
-  4*1024,
-  256,
-  256,
-};
-static block_desc *block_tables[3];
-static int block_counts[3];
-
 // ROM hash table
 #define MAX_HASH_ENTRIES 1024
 #define HASH_MASK (MAX_HASH_ENTRIES - 1)
@@ -202,6 +216,24 @@ static void flush_tcache(int tcid)
 #endif
 }
 
+// add block links (tracked branches)
+static int dr_add_block_link(u32 target_pc, void *jump, int tcache_id)
+{
+  block_link *bl = block_links[tcache_id];
+  int cnt = block_link_counts[tcache_id];
+
+  if (cnt >= block_max_counts[tcache_id] * 2) {
+    printf("bl overflow for tcache %d\n", tcache_id);
+    return -1;
+  }
+
+  bl[cnt].target_pc = target_pc;
+  bl[cnt].jump = jump;
+  block_link_counts[tcache_id]++;
+
+  return 0;
+}
+
 static void *dr_find_block(block_desc *tab, u32 addr)
 {
   for (tab = tab->next; tab != NULL; tab = tab->next)
@@ -220,8 +252,10 @@ static block_desc *dr_add_block(u32 addr, int tcache_id, int *blk_id)
   int *bcount = &block_counts[tcache_id];
   block_desc *bd;
 
-  if (*bcount >= block_max_counts[tcache_id])
+  if (*bcount >= block_max_counts[tcache_id]) {
+    printf("bd overflow for tcache %d\n", tcache_id);
     return NULL;
+  }
 
   bd = &block_tables[tcache_id][*bcount];
   bd->addr = addr;
@@ -242,6 +276,13 @@ static block_desc *dr_add_block(u32 addr, int tcache_id, int *blk_id)
 
   return bd;
 }
+
+#define ADD_TO_ARRAY(array, count, item, failcode) \
+  array[count++] = item; \
+  if (count >= ARRAY_SIZE(array)) { \
+    printf("warning: " #array " overflow\n"); \
+    failcode; \
+  }
 
 int find_in_array(u32 *array, size_t size, u32 what)
 {
@@ -714,6 +755,40 @@ static void REGPARM(3) *lookup_block(u32 pc, int is_slave, int *tcache_id)
   return block;
 }
 
+void dr_link_blocks(void *target, u32 pc, int tcache_id)
+{
+  block_link *bl = block_links[tcache_id];
+  int cnt = block_link_counts[tcache_id];
+  int i;
+
+  for (i = 0; i < cnt; i++) {
+    if (bl[i].target_pc == pc) {
+      dbg(1, "- link from %p", bl[i].jump);
+      emith_jump_patch(bl[i].jump, target);
+      // XXX: sync ARM caches (old jump should be fine)?
+    }
+  }
+}
+
+void *dr_prepare_ext_branch(u32 pc, SH2 *sh2, int tcache_id)
+{
+  int target_tcache_id;
+  void *target;
+  int ret;
+
+  target = lookup_block(pc, sh2->is_slave, &target_tcache_id);
+  if (target_tcache_id == tcache_id) {
+    // allow linking blocks only from local cache
+    ret = dr_add_block_link(pc, tcache_ptr, tcache_id);
+    if (ret < 0)
+      return NULL;
+  }
+  if (target == NULL || target_tcache_id != tcache_id)
+    target = sh2_drc_dispatcher;
+
+  return target;
+}
+
 #define DELAYED_OP \
   drcf.delayed_op = 2
 
@@ -749,7 +824,7 @@ static void REGPARM(3) *lookup_block(u32 pc, int is_slave, int *tcache_id)
   if (GET_Fx() >= n) \
     goto default_
 
-#define MAX_LOCAL_BRANCHES 16
+#define MAX_LOCAL_BRANCHES 32
 
 // op_flags: data from 1st pass
 #define OP_FLAGS(pc) op_flags[((pc) - base_pc) / 2]
@@ -764,7 +839,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   void *branch_patch_ptr[MAX_LOCAL_BRANCHES];
   u32 branch_patch_pc[MAX_LOCAL_BRANCHES];
   int branch_patch_count = 0;
-  int branch_patch_cond = -1;
+  int pending_branch_cond = -1;
+  int pending_branch_pc = 0;
   u8 op_flags[BLOCK_CYCLE_LIMIT + 1];
   struct {
     u32 delayed_op:2;
@@ -772,9 +848,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     u32 use_saved_t:1; // delayed op modifies T
   } drcf = { 0, };
 
+  // PC of current, first, last, last_target_blk SH2 insn
+  u32 pc, base_pc, end_pc, out_pc;
   void *block_entry;
   block_desc *this_block;
-  u32 pc, base_pc, end_pc; // PC of current, first, last insn
   int blkid_main = 0;
   u32 tmp, tmp2;
   int cycles;
@@ -793,28 +870,38 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
   tcache_ptr = tcache_ptrs[tcache_id];
   this_block = dr_add_block(base_pc, tcache_id, &blkid_main);
+  if (this_block == NULL)
+    return NULL;
 
   // predict tcache overflow
   tmp = tcache_ptr - tcache_bases[tcache_id];
-  if (tmp > tcache_sizes[tcache_id] - MAX_BLOCK_SIZE || this_block == NULL)
+  if (tmp > tcache_sizes[tcache_id] - MAX_BLOCK_SIZE) {
+    printf("tcache %d overflow\n", tcache_id);
     return NULL;
+  }
 
   block_entry = tcache_ptr;
   dbg(1, "== %csh2 block #%d,%d %08x -> %p", sh2->is_slave ? 's' : 'm',
     tcache_id, blkid_main, base_pc, block_entry);
+
+  dr_link_blocks(tcache_ptr, base_pc, tcache_id);
 
   // 1st pass: scan forward for local branches
   memset(op_flags, 0, sizeof(op_flags));
   for (cycles = 0, pc = base_pc; cycles < BLOCK_CYCLE_LIMIT; cycles++, pc += 2) {
     op = p32x_sh2_read16(pc, sh2);
     if ((op & 0xf000) == 0xa000 || (op & 0xf000) == 0xb000) { // BRA, BSR
+      signed int offs = ((signed int)(op << 20) >> 19);
       pc += 2;
       OP_FLAGS(pc) |= OF_DELAY_OP;
+      ADD_TO_ARRAY(branch_target_pc, branch_target_count, pc + offs + 2,);
       break;
     }
     if ((op & 0xf000) == 0) {
       op &= 0xff;
-      if (op == 0x23 || op == 0x03 || op == 0x0b) { // BRAF, BSRF, RTS
+      if (op == 0x1b) // SLEEP
+        break;
+      if (op == 0x23 || op == 0x03 || op == 0x0b || op == 0x2b) { // BRAF, BSRF, RTS, RTE
         pc += 2;
         OP_FLAGS(pc) |= OF_DELAY_OP;
         break;
@@ -830,13 +917,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       signed int offs = ((signed int)(op << 24) >> 23);
       if (op & 0x0400)
         OP_FLAGS(pc + 2) |= OF_DELAY_OP;
-      branch_target_pc[branch_target_count++] = pc + offs + 4;
-      if (branch_target_count == MAX_LOCAL_BRANCHES) {
-        printf("warning: branch target overflow\n");
-        // will only spawn additional blocks
-        break;
-      }
+      ADD_TO_ARRAY(branch_target_pc, branch_target_count, pc + offs + 4, break);
     }
+    if ((op & 0xff00) == 0xc300) // TRAPA
+      break;
   }
 
   end_pc = pc;
@@ -853,6 +937,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
   // -------------------------------------------------
   // 2nd pass: actual compilation
+  out_pc = 0;
   pc = base_pc;
   for (cycles = 0; pc <= end_pc || drcf.delayed_op; )
   {
@@ -891,8 +976,11 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           *drcblk = (blkid << 1) | 1;
         }
 
-        dbg(1, "=== %csh2 subblock #%d,%d %08x -> %p", sh2->is_slave ? 's' : 'm',
+        dbg(1, "-- %csh2 subblock #%d,%d %08x -> %p", sh2->is_slave ? 's' : 'm',
           tcache_id, blkid, pc, tcache_ptr);
+
+        // since we made a block entry, link any other blocks that jump to current pc
+        dr_link_blocks(tcache_ptr, pc, tcache_id);
       }
       branch_target_ptr[i] = tcache_ptr;
 
@@ -961,6 +1049,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_move_r_imm(tmp3, pc + 2);
           emith_add_r_r(tmp, tmp3);
         }
+        out_pc = (u32)-1;
         cycles++;
         goto end_op;
       case 0x04: // MOV.B Rm,@(R0,Rn)   0000nnnnmmmm0100
@@ -1055,12 +1144,13 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         case 0: // RTS        0000000000001011
           DELAYED_OP;
           emit_move_r_r(SHR_PC, SHR_PR);
+          out_pc = (u32)-1;
           cycles++;
           break;
         case 1: // SLEEP      0000000000011011
-          emit_move_r_imm32(SHR_PC, pc - 2);
           tmp = rcache_get_reg(SHR_SR, RC_GR_RMW);
           emith_clear_msb(tmp, tmp, 20); // clear cycles
+          out_pc = out_pc - 2;
           cycles = 1;
           goto end_op;
         case 2: // RTE        0000000000101011
@@ -1083,6 +1173,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           tmp = rcache_get_reg(SHR_SP, RC_GR_RMW);
           emith_add_r_imm(tmp, 4*2);
           drcf.test_irq = 1;
+          out_pc = (u32)-1;
           cycles += 3;
           break;
         default:
@@ -1628,6 +1719,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           if (!(op & 0x20))
             emit_move_r_imm32(SHR_PR, pc + 2);
           emit_move_r_r(SHR_PC, (op >> 8) & 0x0f);
+          out_pc = (u32)-1;
           cycles++;
           break;
         case 1: // TAS.B @Rn  0100nnnn00011011
@@ -1857,36 +1949,15 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         DELAYED_OP;
         cycles--;
         // fallthrough
-      case 0x0900:   // BT   label 10001001dddddddd
-      case 0x0b00: { // BF   label 10001011dddddddd
-        // jmp_cond ~ cond when guest doesn't jump
-        int jmp_cond  = (op & 0x0200) ? DCOND_NE : DCOND_EQ;
-        int insn_cond = (op & 0x0200) ? DCOND_EQ : DCOND_NE;
-        signed int offs = ((signed int)(op << 24) >> 23);
-        sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
-        if (find_in_array(branch_target_pc, branch_target_count, pc + offs + 2) >= 0) {
-          branch_patch_pc[branch_patch_count] = pc + offs + 2;
-          branch_patch_cond = insn_cond;
-          goto end_op;
-        }
-
-        // can't resolve branch, cause end of block
-        tmp = rcache_get_reg(SHR_PC, RC_GR_WRITE);
-        emith_move_r_imm(tmp, pc + (drcf.delayed_op ? 2 : 0));
-        emith_tst_r_imm(sr, T);
-        EMITH_SJMP_START(jmp_cond);
-        if (!drcf.delayed_op)
-          offs += 2;
-        if (offs < 0) {
-          emith_sub_r_imm_c(insn_cond, tmp, -offs);
-        } else
-          emith_add_r_imm_c(insn_cond, tmp, offs);
-        EMITH_SJMP_END(jmp_cond);
+      case 0x0900: // BT   label 10001001dddddddd
+      case 0x0b00: // BF   label 10001011dddddddd
+        // will handle conditional branches later
+        pending_branch_cond = (op & 0x0200) ? DCOND_EQ : DCOND_NE;
+        i = ((signed int)(op << 24) >> 23);
+        pending_branch_pc = pc + i + 2;
         cycles += 2;
-        if (!drcf.delayed_op)
-          goto end_block_btf;
         goto end_op;
-      }}
+      }
       goto default_;
 
     /////////////////////////////////////////////
@@ -1905,9 +1976,11 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     case 0x0a:
       // BRA  label 1010dddddddddddd
       DELAYED_OP;
-    do_bra:
+      sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
       tmp = ((signed int)(op << 20) >> 19);
-      emit_move_r_imm32(SHR_PC, pc + tmp + 2);
+      out_pc = pc + tmp + 2;
+      if (tmp == (u32)-4)
+        emith_clear_msb(sr, sr, 20); // burn cycles
       cycles++;
       break;
 
@@ -1916,7 +1989,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       // BSR  label 1011dddddddddddd
       DELAYED_OP;
       emit_move_r_imm32(SHR_PR, pc + 2);
-      goto do_bra;
+      tmp = ((signed int)(op << 20) >> 19);
+      out_pc = pc + tmp + 2;
+      cycles++;
+      break;
 
     /////////////////////////////////////////////
     case 0x0c:
@@ -1969,8 +2045,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp2 = rcache_get_reg(SHR_PC, RC_GR_WRITE);
         emith_move_r_r(tmp2, tmp);
         rcache_free_tmp(tmp);
+        out_pc = (u32)-1;
         cycles += 7;
-        goto end_block_btf;
+        goto end_op;
       case 0x0700: // MOVA @(disp,PC),R0    11000111dddddddd
         emit_move_r_imm32(SHR_R0, (pc + (op & 0xff) * 4 + 2) & ~3);
         goto end_op;
@@ -2064,29 +2141,49 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     }
 
 end_op:
-    // block-local conditional branch handling (with/without delay)
-    if (branch_patch_cond != -1 && drcf.delayed_op != 2) {
+    // conditional branch handling (with/without delay)
+    if (pending_branch_cond != -1 && drcf.delayed_op != 2)
+    {
+      u32 target_pc = pending_branch_pc;
+      void *target;
+
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
       // handle cycles
       FLUSH_CYCLES(sr);
       rcache_clean();
-
       if (drcf.use_saved_t)
         emith_tst_r_imm(sr, T_save);
       else
         emith_tst_r_imm(sr, T);
-      branch_patch_ptr[branch_patch_count] = tcache_ptr;
-      emith_jump_patchable(branch_patch_cond);
+
+      if (find_in_array(branch_target_pc, branch_target_count, target_pc) >= 0) {
+        // local branch
+        // XXX: jumps back can be linked already
+        branch_patch_pc[branch_patch_count] = target_pc;
+        branch_patch_ptr[branch_patch_count] = tcache_ptr;
+        emith_jump_cond_patchable(pending_branch_cond, tcache_ptr);
+
+        branch_patch_count++;
+        if (branch_patch_count == MAX_LOCAL_BRANCHES) {
+          printf("warning: too many local branches\n");
+          break;
+        }
+      }
+      else {
+        // can't resolve branch locally, make a block exit
+        emit_move_r_imm32(SHR_PC, target_pc);
+        rcache_clean();
+
+        target = dr_prepare_ext_branch(target_pc, sh2, tcache_id);
+        if (target == NULL)
+          return NULL;
+        emith_jump_cond_patchable(pending_branch_cond, target);
+      }
 
       drcf.use_saved_t = 0;
-      branch_patch_cond = -1;
-      branch_patch_count++;
-      drcf.delayed_op = 0; // XXX: delayed_op ends block, so must override
-      if (branch_patch_count == MAX_LOCAL_BRANCHES) {
-        printf("too many local branches\n");
-        break;
-      }
+      pending_branch_cond = -1;
     }
+
     // test irq?
     // XXX: delay slots..
     if (drcf.test_irq && drcf.delayed_op != 2) {
@@ -2098,34 +2195,41 @@ end_op:
       emith_call(sh2_drc_test_irq);
       drcf.test_irq = 0;
     }
-    if (drcf.delayed_op == 1)
-      break;
 
     do_host_disasm(tcache_id);
+
+    if (out_pc != 0 && drcf.delayed_op != 2)
+      break;
   }
-
-  // delayed_op means some kind of branch - PC already handled
-  if (!drcf.delayed_op)
-    emit_move_r_imm32(SHR_PC, pc);
-
-end_block_btf:
-  this_block->end_addr = pc;
 
   tmp = rcache_get_reg(SHR_SR, RC_GR_RMW);
   FLUSH_CYCLES(tmp);
   rcache_flush();
-  emith_jump(sh2_drc_dispatcher);
+
+  if (out_pc == (u32)-1) {
+    // indirect jump -> back to dispatcher
+    emith_jump(sh2_drc_dispatcher);
+  } else {
+    void *target;
+    if (out_pc == 0)
+      out_pc = pc;
+    emit_move_r_imm32(SHR_PC, out_pc);
+    rcache_flush();
+
+    target = dr_prepare_ext_branch(out_pc, sh2, tcache_id);
+    if (target == NULL)
+      return NULL;
+    emith_jump_patchable(target);
+  }
 
   // link local branches
   for (i = 0; i < branch_patch_count; i++) {
     void *target;
     int t;
-    //printf("patch %08x %p\n", branch_patch_pc[i], branch_patch_ptr[i]);
     t = find_in_array(branch_target_pc, branch_target_count, branch_patch_pc[i]);
-    if (branch_target_ptr[t] != NULL)
-      target = branch_target_ptr[t];
-    else {
-      // flush pc and go back to dispatcher (for now)
+    target = branch_target_ptr[t];
+    if (target == NULL) {
+      // flush pc and go back to dispatcher (should no longer happen)
       printf("stray branch to %08x %p\n", branch_patch_pc[i], tcache_ptr);
       target = tcache_ptr;
       emit_move_r_imm32(SHR_PC, branch_patch_pc[i]);
@@ -2134,6 +2238,8 @@ end_block_btf:
     }
     emith_jump_patch(branch_patch_ptr[i], target);
   }
+
+  this_block->end_addr = pc;
 
   // mark memory blocks as containing compiled code
   if (tcache_id != 0) {
@@ -2184,12 +2290,6 @@ end_block_btf:
 #endif
 
   return block_entry;
-/*
-unimplemented:
-  // last op
-  do_host_disasm(tcache_id);
-  exit(1);
-*/
 }
 
 static void sh2_generate_utils(void)
@@ -2359,6 +2459,7 @@ static void sh2_smc_rm_block(u16 *drcblk, u16 *p, block_desc *btab, u32 a)
   block_desc *bd = btab + id;
 
   // FIXME: skip subblocks; do both directions
+  // FIXME: collect all branches
   dbg(1, "  killing block %08x", bd->addr);
   bd->addr = bd->end_addr = 0;
 
@@ -2466,29 +2567,32 @@ void sh2_drc_flush_all(void)
 
 int sh2_drc_init(SH2 *sh2)
 {
-  if (block_tables[0] == NULL) {
-    int i, cnt;
+  int i;
+
+  if (block_tables[0] == NULL)
+  {
+    for (i = 0; i < TCACHE_BUFFERS; i++) {
+      block_tables[i] = calloc(block_max_counts[i], sizeof(*block_tables[0]));
+      if (block_tables[i] == NULL)
+        goto fail;
+      // max 2 block links (exits) per block
+      block_links[i] = calloc(block_max_counts[i] * 2, sizeof(*block_links[0]));
+      if (block_links[i] == NULL)
+        goto fail;
+    }
+    memset(block_counts, 0, sizeof(block_counts));
+    memset(block_link_counts, 0, sizeof(block_link_counts));
 
     drc_cmn_init();
-
-    cnt = block_max_counts[0] + block_max_counts[1] + block_max_counts[2];
-    block_tables[0] = calloc(cnt, sizeof(*block_tables[0]));
-    if (block_tables[0] == NULL)
-      return -1;
-
     tcache_ptr = tcache;
     sh2_generate_utils();
 #ifdef ARM
     cache_flush_d_inval_i(tcache, tcache_ptr);
 #endif
 
-    memset(block_counts, 0, sizeof(block_counts));
     tcache_bases[0] = tcache_ptrs[0] = tcache_ptr;
-
-    for (i = 1; i < ARRAY_SIZE(block_tables); i++) {
-      block_tables[i] = block_tables[i - 1] + block_max_counts[i - 1];
+    for (i = 1; i < ARRAY_SIZE(tcache_bases); i++)
       tcache_bases[i] = tcache_ptrs[i] = tcache_bases[i - 1] + tcache_sizes[i - 1];
-    }
 
     // tmp
     PicoOpt |= POPT_DIS_VDP_FIFO;
@@ -2508,18 +2612,38 @@ int sh2_drc_init(SH2 *sh2)
   if (hash_table == NULL) {
     hash_table = calloc(sizeof(hash_table[0]), MAX_HASH_ENTRIES);
     if (hash_table == NULL)
-      return -1;
+      goto fail;
   }
 
   return 0;
+
+fail:
+  sh2_drc_finish(sh2);
+  return -1;
 }
 
 void sh2_drc_finish(SH2 *sh2)
 {
+  int i;
+
   if (block_tables[0] != NULL) {
     block_stats();
-    free(block_tables[0]);
-    memset(block_tables, 0, sizeof(block_tables));
+
+    for (i = 0; i < TCACHE_BUFFERS; i++) {
+#if (DRC_DEBUG & 2)
+      printf("~~~ tcache %d\n", i);
+      tcache_dsm_ptrs[i] = tcache_bases[i];
+      tcache_ptr = tcache_ptrs[i];
+      do_host_disasm(i);
+#endif
+
+      if (block_tables[i] != NULL)
+        free(block_tables[i]);
+      block_tables[i] = NULL;
+      if (block_links[i] == NULL)
+        free(block_links[i]);
+      block_links[i] = NULL;
+    }
 
     drc_cmn_cleanup();
   }

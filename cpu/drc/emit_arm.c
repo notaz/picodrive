@@ -625,16 +625,19 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_jump(target) \
 	emith_jump_cond(A_COND_AL, target)
 
+#define emith_jump_patchable(target) \
+	emith_jump(target)
+
 #define emith_jump_cond(cond, target) \
 	emith_xbranch(cond, target, 0)
 
-#define emith_jump_patchable(cond) \
-	emith_jump_cond(cond, 0)
+#define emith_jump_cond_patchable(cond, target) \
+	emith_jump_cond(cond, target)
 
 #define emith_jump_patch(ptr, target) do { \
 	u32 *ptr_ = ptr; \
-	u32 val = (u32 *)(target) - (u32 *)ptr_ - 2; \
-	*ptr_ = (*ptr_ & 0xff000000) | (val & 0x00ffffff); \
+	u32 val_ = (u32 *)(target) - ptr_ - 2; \
+	*ptr_ = (*ptr_ & 0xff000000) | (val_ & 0x00ffffff); \
 } while (0)
 
 #define emith_jump_reg_c(cond, r) \

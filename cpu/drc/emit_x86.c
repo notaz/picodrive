@@ -463,6 +463,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT(disp, u32); \
 }
 
+#define emith_jump_patchable(target) \
+	emith_jump(target)
+
 #define emith_jump_cond(cond, ptr) { \
 	u32 disp = (u32)(ptr) - ((u32)tcache_ptr + 6); \
 	EMIT(0x0f, u8); \
@@ -470,12 +473,13 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT(disp, u32); \
 }
 
-#define emith_jump_patchable(cond) \
-	emith_jump_cond(cond, 0)
+#define emith_jump_cond_patchable(cond, target) \
+	emith_jump_cond(cond, target)
 
 #define emith_jump_patch(ptr, target) do { \
-	u32 disp = (u32)(target) - ((u32)(ptr) + 6); \
-	EMIT_PTR((u8 *)(ptr) + 2, disp, u32); \
+	u32 disp_ = (u32)(target) - ((u32)(ptr) + 4); \
+	u32 offs_ = (*(u8 *)(ptr) == 0x0f) ? 2 : 1; \
+	EMIT_PTR((u8 *)(ptr) + offs_, disp_ - offs_, u32); \
 } while (0)
 
 #define emith_call(ptr) { \
