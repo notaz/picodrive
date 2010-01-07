@@ -4,7 +4,20 @@
  * notes:
  * - tcache, block descriptor, link buffer overflows result in sh2_translate()
  *   failure, followed by full tcache invalidation for that region
- * - jumps between blocks are tracked for SMC handling (in block_links[])
+ * - jumps between blocks are tracked for SMC handling (in block_links[]),
+ *   except jumps between different tcaches
+ *
+ * implemented:
+ * - static register allocation
+ * - remaining register caching and tracking in temporaries
+ * - block-local branch linking
+ * - block linking (except between tcaches)
+ *
+ * TODO:
+ * - proper SMC handling
+ * - constant propagation
+ * - stack caching?
+ * - bug fixing
  */
 #include <stddef.h>
 #include <stdio.h>
@@ -2521,10 +2534,11 @@ void sh2_execute(SH2 *sh2c, int cycles)
 }
 
 #if (DRC_DEBUG & 1)
-static void block_stats(void)
+void block_stats(void)
 {
   int c, b, i, total = 0;
 
+  printf("block stats:\n");
   for (b = 0; b < ARRAY_SIZE(block_tables); b++)
     for (i = 0; i < block_counts[b]; i++)
       if (block_tables[b][i].addr != 0)
