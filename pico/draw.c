@@ -1566,10 +1566,12 @@ void PicoDrawSetOutFormat(pdso_t which, int allow_32x)
   rendstatus_old = -1;
 }
 
+// note: may be called on the middle of frame
 void PicoDrawSetOutBuf(void *dest, int increment)
 {
   DrawLineDestBase = dest;
   DrawLineDestIncrement = increment;
+  DrawLineDest = DrawLineDestBase + DrawScanline * increment;
 }
 
 void PicoDrawSetInternalBuf(void *dest, int increment)
@@ -1577,6 +1579,7 @@ void PicoDrawSetInternalBuf(void *dest, int increment)
   if (dest != NULL) {
     HighColBase = dest;
     HighColIncrement = increment;
+    HighCol = HighColBase + DrawScanline * increment;
   }
   else {
     HighColBase = DefHighCol;

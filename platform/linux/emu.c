@@ -156,6 +156,8 @@ static void apply_renderer(void)
 		PicoDraw32xSetFrameMode(1, only_32x);
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 	}
+	//PicoDraw32xSetFrameMode(0, 0);
+	//PicoDrawSetOutFormat(PDF_RGB555, 1);
 }
 
 void plat_video_toggle_renderer(int change, int is_menu)
@@ -220,7 +222,9 @@ void pemu_forced_frame(int opts)
 	PicoOpt &= ~POPT_ALT_RENDERER;
 	PicoOpt |= opts|POPT_ACC_SPRITES; // acc_sprites
 
-	PicoDrawSetOutFormat(PDF_RGB555, 0);
+	PicoDrawSetOutFormat(PDF_RGB555, 1);
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
+	PicoDraw32xSetFrameMode(0, 0);
 
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
@@ -311,7 +315,9 @@ void pemu_loop_end(void)
 	PicoOpt &= ~POPT_ALT_RENDERER;
 	PicoOpt |= POPT_EN_SOFTSCALE|POPT_ACC_SPRITES;
 
-	PicoDrawSetOutFormat(PDF_RGB555, 0);
+	PicoDrawSetOutFormat(PDF_RGB555, 1);
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
+	PicoDraw32xSetFrameMode(0, 0);
 	Pico.m.dirtyPal = 1;
 	PicoFrame();
 

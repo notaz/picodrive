@@ -58,7 +58,7 @@ Pico32xNativePal:
 .endm
 
 @ direct color
-@ unsigned short *dst, unsigned short *dram, int lines_offs, int mdbg
+@ unsigned short *dst, unsigned short *dram, int lines_sft_offs, int mdbg
 .macro make_do_loop_dc name call_scan do_md
 .global \name
 \name:
@@ -144,7 +144,7 @@ Pico32xNativePal:
 .endif
 .endm
 
-@ unsigned short *dst, unsigned short *dram, int lines_offs, int mdbg
+@ unsigned short *dst, unsigned short *dram, int lines_sft_offs, int mdbg
 .macro make_do_loop_pp name call_scan do_md
 .global \name
 \name:
@@ -175,6 +175,8 @@ Pico32xNativePal:
     add     r11,r11,#8
     mov     r6, #320
     add     r5, r1, r12, lsl #1 @ p32x = dram + dram[l]
+    and     r12,r2, #0x100      @ shift
+    add     r5, r5, r12,lsr #8
 
 2: @ loop_inner:
     do_pixel_pp \do_md
@@ -185,7 +187,7 @@ Pico32xNativePal:
 
 
 @ run length
-@ unsigned short *dst, unsigned short *dram, int lines_offs, int mdbg
+@ unsigned short *dst, unsigned short *dram, int lines_sft_offs, int mdbg
 .macro make_do_loop_rl name call_scan do_md
 .global \name
 \name:

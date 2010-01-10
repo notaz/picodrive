@@ -437,6 +437,8 @@ typedef struct
 #define P32XV_PRI   (1<< 7)
 #define P32XV_Mx    (3<< 0) // display mode mask
 
+#define P32XV_SFT   (1<< 0)
+
 #define P32XV_VBLK  (1<<15)
 #define P32XV_HBLK  (1<<14)
 #define P32XV_PEN   (1<<13)

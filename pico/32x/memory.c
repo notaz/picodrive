@@ -341,6 +341,9 @@ static void p32x_vdp_write8(u32 a, u32 d)
         Pico32x.dirty_pal = 1;
       r[0] = (r[0] & P32XV_nPAL) | (d & 0xff);
       break;
+    case 0x03: // shift (for pp mode)
+      r[2 / 2] = d & 1;
+      break;
     case 0x05: // fill len
       r[4 / 2] = d & 0xff;
       break;
@@ -1050,8 +1053,9 @@ static int REGPARM(3) sh2_write8_cs0(u32 a, u32 d, int id)
   return sh2_write8_unmapped(a, d, id);
 }
 
+/* quirk: in both normal and overwrite areas only nonzero values go through */
 #define sh2_write8_dramN(n) \
-  if (!(a & 0x20000) || d) { \
+  if ((d & 0xff) != 0) { \
     u8 *dram = (u8 *)Pico32xMem->dram[n]; \
     dram[(a & 0x1ffff) ^ 1] = d; \
   } \
