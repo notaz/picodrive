@@ -53,17 +53,6 @@ static void menu_main_plat_draw(void)
 
 // ------------ gfx options menu ------------
 
-static const char *mgn_opt_renderer(menu_id id, int *offs)
-{
-	*offs = -11;
-	if (PicoOpt & POPT_ALT_RENDERER)
-		return "     8bit fast";
-	else if (currentConfig.EmuOpt & EOPT_16BPP)
-		return "16bit accurate";
-	else
-		return " 8bit accurate";
-}
-
 static const char *mgn_opt_scaling(menu_id id, int *offs)
 {
 	*offs = -13;

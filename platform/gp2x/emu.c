@@ -1,7 +1,15 @@
-// (c) Copyright 2006-2009 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
+/*
+ * (c) Copyright 2006-2010 notaz, All rights reserved.
+ *
+ * For performance reasons 3 renderers are exported for both MD and 32x modes:
+ * - 16bpp line renderer
+ * - 8bpp line renderer (slightly faster)
+ * - 8bpp tile renderer
+ * In 32x mode:
+ * - 32x layer is overlayed on top of 16bpp one
+ * - line internal one done on PicoDraw2FB, then mixed with 32x
+ * - tile internal one done on PicoDraw2FB, then mixed with 32x
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +45,11 @@ static short __attribute__((aligned(4))) sndBuffer[2*(44100+100)/50];
 static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
 unsigned char *PicoDraw2FB = PicoDraw2FB_;
 static int osd_fps_x, osd_y;
+const char *renderer_names_[] = { "16bit accurate", " 8bit accurate", "     8bit fast", NULL };
+const char *renderer_names32x_[] = { "accurate", "faster  ", "fastest ", NULL };
+const char **renderer_names = renderer_names_;
+const char **renderer_names32x = renderer_names32x_;
+enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 
 extern void *gp2x_screens[4];
 
@@ -62,6 +75,7 @@ void pemu_prep_defconfig(void)
 	gp2x_soc_t soc;
 
 	defaultConfig.CPUclock = default_cpu_clock;
+	defaultConfig.renderer32x = RT_8BIT_FAST;
 
 	soc = soc_detect();
 	if (soc == SOCID_MMSP2)
@@ -86,6 +100,31 @@ void pemu_validate_config(void)
 	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 1024)
 		currentConfig.CPUclock = default_cpu_clock;
 }
+
+static int get_renderer(void)
+{
+	if (PicoAHW & PAHW_32X)
+		return currentConfig.renderer32x;
+	else
+		return currentConfig.renderer;
+}
+
+static void change_renderer(int diff)
+{
+	int *r;
+	if (PicoAHW & PAHW_32X)
+		r = &currentConfig.renderer32x;
+	else
+		r = &currentConfig.renderer;
+	*r += diff;
+	if      (*r >= RT_COUNT)
+		*r = 0;
+	else if (*r < 0)
+		*r = RT_COUNT - 1;
+}
+
+#define is_16bit_mode() \
+	(get_renderer() == RT_16BIT || (PicoAHW & PAHW_32X))
 
 static void (*osd_text)(int x, int y, const char *text);
 
@@ -160,7 +199,7 @@ static void draw_cd_leds(void)
 		scr_offs = pitch * 2 + 4;
 	}
 
-	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP)) {
+	if (!is_16bit_mode()) {
 	#define p(x) px[(x) >> 2]
 		// 8-bit modes
 		unsigned int *px = (unsigned int *)((char *)g_screen_ptr + scr_offs);
@@ -187,7 +226,7 @@ static void draw_pico_ptr(void)
 	int x, y, pitch = 320;
 
 	// only if pen enabled and for 16bit modes
-	if (pico_inp_mode == 0 || (PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP))
+	if (pico_inp_mode == 0 || currentConfig.EmuOpt != RT_16BIT)
 		return;
 
 	x = pico_pen_x + PICO_PEN_ADJUST_X;
@@ -206,20 +245,6 @@ static void draw_pico_ptr(void)
 	p[pitch]   ^= 0xffff;
 	p[pitch+1] ^= 0xffff;
 	p[pitch*2] ^= 0xffff;
-}
-
-static int EmuScanBegin16(unsigned int num)
-{
-	DrawLineDest = (unsigned short *) g_screen_ptr + g_screen_width * num;
-
-	return 0;
-}
-
-static int EmuScanBegin8(unsigned int num)
-{
-	DrawLineDest = (unsigned char *)  g_screen_ptr + g_screen_width * num;
-
-	return 0;
 }
 
 /* rot thing for Wiz */
@@ -307,7 +332,9 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 	int emu_opt = currentConfig.EmuOpt;
 	int ret;
 
-	if (PicoOpt & POPT_ALT_RENDERER)
+	if (PicoAHW & PAHW_32X)
+		; // nothing to do
+	else if (get_renderer() == RT_8BIT_FAST)
 	{
 		// 8bit fast renderer
 		if (Pico.m.dirtyPal) {
@@ -323,7 +350,7 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		vidcpyM2(g_screen_ptr, PicoDraw2FB+328*8,
 			!(Pico.video.reg[12] & 1), !(PicoOpt & POPT_DIS_32C_BORDER));
 	}
-	else if (!(emu_opt & EOPT_16BPP))
+	else if (get_renderer() == RT_8BIT_ACC)
 	{
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal)
@@ -348,7 +375,12 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 
 void plat_video_flip(void)
 {
+	int stride = g_screen_width;
 	gp2x_video_flip();
+
+	if (is_16bit_mode())
+		stride *= 2;
+	PicoDrawSetOutBuf(g_screen_ptr, stride);
 }
 
 /* XXX */
@@ -385,7 +417,7 @@ void plat_video_wait_vsync(void)
 
 void plat_status_msg_clear(void)
 {
-	int is_8bit = (PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP);
+	int is_8bit = !is_16bit_mode();
 	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
 		/* ugh.. */
 		int i, u, *p;
@@ -431,47 +463,78 @@ void plat_status_msg_busy_first(const char *msg)
 
 static void vidResetMode(void)
 {
+	int gp2x_mode = 16;
+	int renderer = get_renderer();
+
+	PicoScanBegin = NULL;
 	PicoScanEnd = NULL;
 
-	if (PicoOpt & POPT_ALT_RENDERER) {
+	switch (renderer) {
+	case RT_16BIT:
+		PicoOpt &= ~POPT_ALT_RENDERER;
+		PicoDrawSetOutFormat(PDF_RGB555, 0);
+		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 		if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
-			gp2x_video_changemode(-8);
-			vidcpyM2 = vidcpy_m2_rot;
-			osd_text = osd_text8_rot;
-		} else {
-			gp2x_video_changemode(8);
-			vidcpyM2 = vidcpy_m2;
-			osd_text = osd_text8;
-		}
-	}
-	else if (currentConfig.EmuOpt & EOPT_16BPP) {
-		PicoDrawSetColorFormat(1);
-		if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
-			gp2x_video_changemode(-16);
 			PicoScanBegin = EmuScanBegin16_rot;
 			PicoScanEnd = EmuScanEnd16_rot;
-			osd_text = osd_text16_rot;
-		} else {
-			gp2x_video_changemode(16);
-			PicoScanBegin = EmuScanBegin16;
-			osd_text = osd_text16;
 		}
-	}
-	else {
-		PicoDrawSetColorFormat(2);
+		break;
+	case RT_8BIT_ACC:
+		PicoOpt &= ~POPT_ALT_RENDERER;
+		PicoDrawSetOutFormat(PDF_8BIT, 0);
+		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width);
 		if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
-			gp2x_video_changemode(-8);
 			PicoScanBegin = EmuScanBegin8_rot;
 			PicoScanEnd = EmuScanEnd8_rot;
-			osd_text = osd_text8_rot;
-		} else {
-			gp2x_video_changemode(8);
-			PicoScanBegin = EmuScanBegin8;
-			osd_text = osd_text8;
 		}
+		gp2x_mode = 8;
+		break;
+	case RT_8BIT_FAST:
+		PicoOpt |=  POPT_ALT_RENDERER;
+		PicoDrawSetOutFormat(PDF_NONE, 0);
+		if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX)
+			vidcpyM2 = vidcpy_m2_rot;
+		else
+			vidcpyM2 = vidcpy_m2;
+		gp2x_mode = 8;
+		break;
 	}
 
-	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP)) {
+	if (is_16bit_mode())
+		osd_text = (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) ? osd_text16_rot : osd_text16;
+	else
+		osd_text = (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) ? osd_text8_rot : osd_text8;
+
+	if (PicoAHW & PAHW_32X) {
+		// rules change in 32X world
+		if (renderer != RT_16BIT) {
+			PicoDrawSetOutFormat(PDF_NONE, 0);
+			PicoScanBegin = NULL;
+			PicoScanEnd = NULL;
+		}
+		PicoScan32xBegin = NULL;
+		PicoScan32xEnd = NULL;
+		if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
+			PicoScan32xBegin = EmuScanBegin16_rot;
+			PicoScan32xEnd = EmuScanEnd16_rot;
+		}
+		// Wiz 16bit is an exception, uses line rendering due to rotation mess
+		if (renderer == RT_16BIT && (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX)) {
+			PicoDrawSetOutFormat(PDF_RGB555, 1);
+			PicoDraw32xSetFrameMode(0, 0);
+		}
+		else {
+			PicoDraw32xSetFrameMode(1, (renderer == RT_16BIT) ? 1 : 0);
+		}
+		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
+		gp2x_mode = 16;
+	}
+
+	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX)
+		gp2x_mode = -gp2x_mode;
+	gp2x_video_changemode(gp2x_mode);
+
+	if (!is_16bit_mode()) {
 		// setup pal for 8-bit modes
 		localPal[0xc0] = 0x0000c000; // MCD LEDs
 		localPal[0xd0] = 0x00c00000;
@@ -492,41 +555,20 @@ static void vidResetMode(void)
 	make_local_pal = (PicoAHW & PAHW_SMS) ? make_local_pal_sms : make_local_pal_md;
 }
 
-void plat_video_toggle_renderer(int is_next, int force_16bpp, int is_menu)
+void plat_video_toggle_renderer(int change, int is_menu_call)
 {
-	if (force_16bpp) {
-		PicoOpt &= ~POPT_ALT_RENDERER;
-		currentConfig.EmuOpt |= EOPT_16BPP;
-	}
-	/* alt, 16bpp, 8bpp */
-	else if (PicoOpt & POPT_ALT_RENDERER) {
-		PicoOpt &= ~POPT_ALT_RENDERER;
-		if (is_next)
-			currentConfig.EmuOpt |= EOPT_16BPP;
-	} else if (!(currentConfig.EmuOpt & EOPT_16BPP)) {
-		if (is_next)
-			PicoOpt |= POPT_ALT_RENDERER;
-		else
-			currentConfig.EmuOpt |= EOPT_16BPP;
-	} else {
-		currentConfig.EmuOpt &= ~EOPT_16BPP;
-		if (!is_next)
-			PicoOpt |= POPT_ALT_RENDERER;
-	}
+	change_renderer(change);
 
-	if (is_menu)
+	if (is_menu_call)
 		return;
 
 	vidResetMode();
 	rendstatus_old = -1;
 
-	if (PicoOpt & POPT_ALT_RENDERER) {
-		emu_status_msg(" 8bit fast renderer");
-	} else if (currentConfig.EmuOpt & EOPT_16BPP) {
-		emu_status_msg("16bit accurate renderer");
-	} else {
-		emu_status_msg(" 8bit accurate renderer");
-	}
+	if (PicoAHW & PAHW_32X)
+		emu_status_msg(renderer_names32x[get_renderer()]);
+	else
+		emu_status_msg(renderer_names[get_renderer()]);
 }
 
 #if 0 // TODO
@@ -695,20 +737,19 @@ void pemu_sound_wait(void)
 void pemu_forced_frame(int opts)
 {
 	int po_old = PicoOpt;
-	int eo_old = currentConfig.EmuOpt;
 
 	PicoOpt &= ~POPT_ALT_RENDERER;
 	PicoOpt |= opts|POPT_ACC_SPRITES;
-	currentConfig.EmuOpt |= EOPT_16BPP;
 
-	PicoDrawSetColorFormat(1);
-	PicoScanBegin = EmuScanBegin16;
+	PicoDrawSetOutFormat(PDF_RGB555, 1);
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
+	PicoDraw32xSetFrameMode(0, 0);
+	PicoScanBegin = NULL;
 	PicoScanEnd = NULL;
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 
 	PicoOpt = po_old;
-	currentConfig.EmuOpt = eo_old;
 }
 
 void plat_debug_cat(char *str)
@@ -733,7 +774,7 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 		gp2x_video_RGB_setscaling(0, scalex, 240);
 
 	// clear whole screen in all buffers
-	if ((PicoOpt & POPT_ALT_RENDERER) || !(currentConfig.EmuOpt & EOPT_16BPP))
+	if (!is_16bit_mode())
 		gp2x_memset_all_buffers(0, 0xe0, 320*240);
 	else
 		gp2x_memset_all_buffers(0, 0, 320*240*2);
@@ -848,11 +889,12 @@ void pemu_loop_end(void)
 	/* do one more frame for menu bg */
 	PicoOpt &= ~POPT_ALT_RENDERER;
 	PicoOpt |= POPT_EN_SOFTSCALE|POPT_ACC_SPRITES;
-	currentConfig.EmuOpt |= EOPT_16BPP;
 
-	PicoScanBegin = EmuScanBegin16;
+	PicoDrawSetOutFormat(PDF_RGB555, 1);
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
+	PicoDraw32xSetFrameMode(0, 0);
+	PicoScanBegin = NULL;
 	PicoScanEnd = NULL;
-	PicoDrawSetColorFormat(1);
 	Pico.m.dirtyPal = 1;
 	PicoFrame();
 

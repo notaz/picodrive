@@ -211,6 +211,8 @@ void PicoFrameStartMode4(void)
     rendlines = lines;
     emu_video_mode_change(screen_offset, lines, 1);
   }
+
+  DrawLineDest = (char *)DrawLineDestBase + screen_offset * DrawLineDestIncrement;
 }
 
 void PicoLineMode4(int line)
@@ -233,6 +235,8 @@ void PicoLineMode4(int line)
 
   if (PicoScanEnd != NULL)
     skip_next_line = PicoScanEnd(line + screen_offset);
+
+  DrawLineDest = (char *)DrawLineDest + DrawLineDestIncrement;
 }
 
 void PicoDoHighPal555M4(void)
@@ -265,7 +269,7 @@ static void FinalizeLineRGB555M4(int line)
 
   // standard FinalizeLine can finish it for us,
   // with features like scaling and such
-  FinalizeLineRGB555(0, line);
+  FinalizeLine555(0, line);
 }
 
 static void FinalizeLine8bitM4(int line)
@@ -278,13 +282,13 @@ static void FinalizeLine8bitM4(int line)
   memcpy32((int *)pd, (int *)(HighCol+8), 256/4);
 }
 
-void PicoDrawSetColorFormatMode4(int which)
+void PicoDrawSetOutputMode4(pdso_t which)
 {
   switch (which)
   {
-    case 2: FinalizeLineM4 = FinalizeLine8bitM4; break;
-    case 1: FinalizeLineM4 = FinalizeLineRGB555M4; break;
-    default:FinalizeLineM4 = NULL; break;
+    case PDF_8BIT:   FinalizeLineM4 = FinalizeLine8bitM4; break;
+    case PDF_RGB555: FinalizeLineM4 = FinalizeLineRGB555M4; break;
+    default:         FinalizeLineM4 = NULL; break;
   }
 }
 

@@ -19,6 +19,8 @@
 .extern DrawStripInterlace
 .extern HighCacheS_ptr
 
+.equiv OVERRIDE_HIGHCOL,  1
+
 .equ PDRAW_SPRITES_MOVED, (1<<0)
 .equ PDRAW_WND_DIFF_PRIO, (1<<1)
 .equ PDRAW_ACC_SPRITES,   (1<<2)
@@ -1674,7 +1676,7 @@ PicoDoHighPal555:
     ldr     r8, =(Pico+0x22228)  @ Pico.video
 
 PicoDoHighPal555_nopush:
-    str     r1, [sp, #-8]        @ is called from FinalizeLineRGB555?
+    str     r1, [sp, #-8]        @ is called from FinalizeLine555?
 
     str     r0, [sp, #-4]
     ldr     r0, =HighPal
@@ -1728,9 +1730,9 @@ PicoDoHighPal555_end:
     b       FinalizeLineRGB555_pal_done
 
 
-.global FinalizeLineRGB555 @ int sh
+.global FinalizeLine555 @ int sh
 
-FinalizeLineRGB555:
+FinalizeLine555:
     stmfd   sp!, {r4-r9,lr}
     ldr     r8, =(Pico+0x22228)  @ Pico.video
 

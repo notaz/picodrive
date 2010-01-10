@@ -28,7 +28,7 @@ extern int g_screen_height;
 #define EOPT_GZIP_SAVES   (1<<3)
 #define EOPT_MMUHACK      (1<<4)
 #define EOPT_NO_AUTOSVCFG (1<<5)
-#define EOPT_16BPP        (1<<7)
+#define EOPT_16BPP        (1<<7)  // depreceted for .renderer
 #define EOPT_RAM_TIMINGS  (1<<8)
 #define EOPT_CONFIRM_SAVE (1<<9)
 #define EOPT_EN_CD_LEDS   (1<<10)
@@ -67,6 +67,8 @@ typedef struct _currentConfig_t {
 	float hscale32, hscale40; // psp: horizontal scale
 	int gamma2;  // psp: black level
 	int turbo_rate;
+	int renderer;
+	int renderer32x;
 } currentConfig_t;
 
 extern currentConfig_t currentConfig, defaultConfig;

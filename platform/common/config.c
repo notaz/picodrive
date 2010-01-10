@@ -10,6 +10,7 @@
 #include <unistd.h>
 #endif
 #include "config.h"
+#include "plat.h"
 #include "input.h"
 #include "lprintf.h"
 
@@ -197,6 +198,7 @@ static int default_var(const menu_entry *me)
 		case MA_OPT2_GAMMA:      return defaultConfig.gamma;
 		case MA_OPT_FRAMESKIP:   return defaultConfig.Frameskip;
 		case MA_OPT_CPU_CLOCKS:  return defaultConfig.CPUclock;
+		case MA_OPT_RENDERER:    return defaultConfig.renderer;
 
 		case MA_OPT_SAVE_SLOT:
 		default:
@@ -217,9 +219,6 @@ static int is_cust_val_default(const menu_entry *me)
 		case MA_OPT_CONFIRM_STATES:
 			return !((defaultConfig.EmuOpt ^ currentConfig.EmuOpt) &
 				(EOPT_CONFIRM_LOAD|EOPT_CONFIRM_SAVE)) == 0;
-		case MA_OPT_RENDERER:
-			return ((defaultConfig.s_PicoOpt ^ PicoOpt) & POPT_ALT_RENDERER) == 0 &&
-				((defaultConfig.EmuOpt ^ currentConfig.EmuOpt) & EOPT_16BPP) == 0;
 		case MA_CDOPT_READAHEAD:
 			return defaultConfig.s_PicoCDBuffers == PicoCDBuffers;
 		default:break;
@@ -468,26 +467,21 @@ int config_readlrom(const char *fname)
 static int custom_read(menu_entry *me, const char *var, const char *val)
 {
 	char *tmp;
-	int tmpi;
+	int i;
 
 	switch (me->id)
 	{
 		case MA_OPT_RENDERER:
-			if (strcasecmp(var, "Renderer") != 0) return 0;
-			if      (strcasecmp(val, "8bit fast") == 0 || strcasecmp(val, "fast") == 0) {
-				PicoOpt |=  POPT_ALT_RENDERER;
-			}
-			else if (strcasecmp(val, "16bit accurate") == 0 || strcasecmp(val, "accurate") == 0) {
-				PicoOpt &= ~POPT_ALT_RENDERER;
-				currentConfig.EmuOpt |=  0x80;
-			}
-			else if (strcasecmp(val, "8bit accurate") == 0) {
-				PicoOpt &= ~POPT_ALT_RENDERER;
-				currentConfig.EmuOpt &= ~0x80;
-			}
-			else
+			if (strcasecmp(var, "Renderer") != 0 || renderer_names == NULL)
 				return 0;
-			return 1;
+
+			for (i = 0; renderer_names[i] != NULL; i++) {
+				if (strcasecmp(val, renderer_names[i]) == 0) {
+					currentConfig.renderer = i;
+					return 1;
+				}
+			}
+			return 0;
 
 		case MA_OPT_SCALING:
 #ifdef __GP2X__
@@ -589,9 +583,9 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 
 		case MA_OPT2_SQUIDGEHACK:
 			if (strcasecmp(var, "Squidgehack") != 0) return 0;
-			tmpi = atoi(val);
-			if (tmpi) *(int *)me->var |=  me->mask;
-			else      *(int *)me->var &= ~me->mask;
+			i = atoi(val);
+			if (i) *(int *)me->var |=  me->mask;
+			else   *(int *)me->var &= ~me->mask;
 			return 1;
 
 		case MA_CDOPT_READAHEAD:

@@ -23,6 +23,8 @@
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 static unsigned char temp_frame[g_screen_width * g_screen_height * 2];
 unsigned char *PicoDraw2FB = temp_frame;
+const char **renderer_names = NULL;
+const char **renderer_names32x = NULL;
 char cpu_clk_name[] = "unused";
 
 
@@ -43,7 +45,7 @@ static void osd_text(int x, int y, const char *text)
 {
 	int len = strlen(text)*8;
 
-	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
+	if (0) {
 		int *p, i, h;
 		x &= ~3; // align x
 		len = (len+3) >> 2;
@@ -71,7 +73,7 @@ static void draw_cd_leds(void)
 //	if (!((Pico_mcd->s68k_regs[0] ^ old_reg) & 3)) return; // no change // mmu hack problems?
 	old_reg = Pico_mcd->s68k_regs[0];
 
-	if ((PicoOpt&0x10)||!(currentConfig.EmuOpt&0x80)) {
+	if (0) {
 		// 8-bit modes
 		unsigned int col_g = (old_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
 		unsigned int col_r = (old_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
@@ -183,10 +185,10 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		draw_cd_leds();
 }
 
-void plat_video_toggle_renderer(int is_next, int force_16bpp, int is_menu)
+void plat_video_toggle_renderer(int change, int is_menu)
 {
 	// this will auto-select SMS/32X renderers
-	PicoDrawSetColorFormat(1);
+	PicoDrawSetOutFormat(PDF_RGB555, 1);
 }
 
 void plat_video_menu_enter(int is_rom_loaded)
@@ -251,17 +253,14 @@ void plat_update_volume(int has_changed, int is_up)
 void pemu_forced_frame(int opts)
 {
 	int po_old = PicoOpt;
-	int eo_old = currentConfig.EmuOpt;
 
 	PicoOpt &= ~0x10;
 	PicoOpt |= opts|POPT_ACC_SPRITES; // acc_sprites
-	currentConfig.EmuOpt |= 0x80;
 
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 
 	PicoOpt = po_old;
-	currentConfig.EmuOpt = eo_old;
 }
 
 static void updateSound(int len)
@@ -339,16 +338,16 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 		memset32(fbdev_buffers[i], 0, g_screen_width * g_screen_height * 2 / 4);
 
 #ifdef USE_320_SCREEN
-	PicoDrawSetColorFormat(1);
+	PicoDrawSetOutFormat(PDF_RGB555, 1);
 	PicoScanBegin = EmuScanBegin16;
 #else
 	if (PicoAHW & PAHW_32X) {
 		DrawLineDest = (unsigned short *)temp_frame;
-		PicoDrawSetColorFormat(1);
+		PicoDrawSetOutFormat(PDF_RGB555, 1);
 		PicoScanBegin = NULL;
 		PicoScanEnd = EmuScanEnd16_32x;
 	} else {
-		PicoDrawSetColorFormat(-1);
+		PicoDrawSetOutFormat(PDF_NONE, 0);
 		PicoScanBegin = NULL;
 		PicoScanEnd = EmuScanEnd16;
 	}
@@ -374,7 +373,7 @@ void pemu_loop_end(void)
 	PicoOpt |= POPT_EN_SOFTSCALE|POPT_ACC_SPRITES;
 	currentConfig.EmuOpt |= EOPT_16BPP;
 
-	PicoDrawSetColorFormat(1);
+	PicoDrawSetOutFormat(PDF_RGB555, 1);
 	Pico.m.dirtyPal = 1;
 	PicoFrame();
 

@@ -465,7 +465,7 @@ static void vidResetMode(void)
 	sceGuTexImage(0,512,512,512,(char *)VRAM_STUFF + 16);
 
 	// slow rend.
-	PicoDrawSetColorFormat(-1);
+	PicoDrawSetOutFormat(PDF_NONE, 0);
 	PicoScanBegin = EmuScanSlowBegin;
 	PicoScanEnd = EmuScanSlowEnd;
 
@@ -682,7 +682,7 @@ void pemu_forced_frame(int opts)
 	memset32((int *)VRAM_CACHED_STUFF + 512*232/4, 0xe0e0e0e0, 512*8/4);
 	memset32_uncached((int *)psp_screen + 512*264*2/4, 0, 512*8*2/4);
 
-	PicoDrawSetColorFormat(-1);
+	PicoDrawSetOutFormat(PDF_NONE, 0);
 	PicoScanBegin = EmuScanSlowBegin;
 	PicoScanEnd = EmuScanSlowEnd;
 	EmuScanPrepare();

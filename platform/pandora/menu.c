@@ -6,4 +6,3 @@
 	mee_onoff     ("Status line in main menu", MA_OPT2_STATUS_LINE,   currentConfig.EmuOpt, EOPT_SHOW_RTC),
 
 #define menu_main_plat_draw NULL
-#define mgn_opt_renderer NULL

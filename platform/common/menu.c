@@ -603,7 +603,6 @@ static void me_loop(menu_entry *menu, int *menu_sel, void (*draw_more)(void))
 #else
 #define MENU_OPTIONS_GFX
 #define MENU_OPTIONS_ADV
-#define mgn_opt_renderer NULL /* TODO */
 #define menu_main_plat_draw NULL
 #endif
 
@@ -1494,16 +1493,47 @@ static int menu_loop_cd_options(menu_id id, int keys)
 
 // ------------ 32X options menu ------------
 
+static const char *get_rname(const char **rn, int val, int *offs)
+{
+	int i, len, found = -1, maxlen = 0;
+
+	for (i = 0; rn[i] != NULL; i++) {
+		len = strlen(rn[i]);
+		if (len > maxlen)
+			maxlen = len;
+		if (i == val)
+			found = i;
+	}
+
+	*offs = 3 - maxlen;
+	if (found >= 0)
+		return rn[found];
+	return "???";
+}
+
+static const char *mgn_opt_renderer32x(menu_id id, int *offs)
+{
+	return get_rname(renderer_names32x, currentConfig.renderer32x, offs);
+}
+
 static menu_entry e_menu_32x_options[] =
 {
-	mee_onoff("32X enabled",          MA_32XOPT_ENABLE_32X,   PicoOpt, POPT_EN_32X),
-	mee_onoff("PWM sound",            MA_32XOPT_PWM,          PicoOpt, POPT_EN_PWM),
+	mee_onoff     ("32X enabled",  MA_32XOPT_ENABLE_32X, PicoOpt, POPT_EN_32X),
+	mee_range_cust("32X renderer", MA_32XOPT_RENDERER,   currentConfig.renderer32x, 0, 0, mgn_opt_renderer32x),
+	mee_onoff     ("PWM sound",    MA_32XOPT_PWM,        PicoOpt, POPT_EN_PWM),
 	mee_end,
 };
 
 static int menu_loop_32x_options(menu_id id, int keys)
 {
 	static int sel = 0;
+	int i, c;
+
+	for (c = 0; renderer_names32x != NULL && renderer_names32x[c] != NULL; )
+		c++;
+	i = me_id2offset(e_menu_32x_options, MA_32XOPT_RENDERER);
+	e_menu_32x_options[i].max = c > 0 ? (c - 1) : 0;
+
 	me_loop(e_menu_32x_options, &sel, NULL);
 	return 0;
 }
@@ -1534,15 +1564,14 @@ static int menu_loop_adv_options(menu_id id, int keys)
 
 // ------------ gfx options menu ------------
 
-static int mh_opt_render(menu_id id, int keys)
+static const char *mgn_opt_renderer(menu_id id, int *offs)
 {
-	plat_video_toggle_renderer((keys & PBTN_RIGHT) ? 1 : 0, 0, 1);
-	return 0;
+	return get_rname(renderer_names, currentConfig.renderer, offs);
 }
 
 static menu_entry e_menu_gfx_options[] =
 {
-	mee_cust      ("Renderer",                 MA_OPT_RENDERER,       mh_opt_render, mgn_opt_renderer),
+	mee_range_cust("Renderer", MA_OPT_RENDERER,   currentConfig.renderer, 0, 0, mgn_opt_renderer),
 	MENU_OPTIONS_GFX
 	mee_end,
 };
@@ -1550,6 +1579,14 @@ static menu_entry e_menu_gfx_options[] =
 static int menu_loop_gfx_options(menu_id id, int keys)
 {
 	static int sel = 0;
+	int i, c;
+
+	for (c = 0; renderer_names != NULL && renderer_names[c] != NULL; )
+		c++;
+	i = me_id2offset(e_menu_gfx_options, MA_OPT_RENDERER);
+	e_menu_gfx_options[i].max = c > 0 ? (c - 1) : 0;
+	me_enable(e_menu_gfx_options, MA_OPT_RENDERER, renderer_names != NULL);
+
 	me_loop(e_menu_gfx_options, &sel, NULL);
 	return 0;
 }

@@ -34,14 +34,15 @@
 int (*PicoScanBegin)(unsigned int num) = NULL;
 int (*PicoScanEnd)  (unsigned int num) = NULL;
 
-#if OVERRIDE_HIGHCOL
 static unsigned char DefHighCol[8+320+8];
-unsigned char *HighCol=DefHighCol;
-#else
-unsigned char  HighCol[8+320+8];
-#endif
+unsigned char *HighCol = DefHighCol;
+static unsigned char *HighColBase = DefHighCol;
+static int HighColIncrement;
+
 static unsigned int DefOutBuff[320*2/2];
-void *DrawLineDest=DefOutBuff; // pointer to dest buffer where to draw this line to
+void *DrawLineDest = DefOutBuff; // pointer to dest buffer where to draw this line to
+void *DrawLineDestBase = DefOutBuff;
+int DrawLineDestIncrement;
 
 static int  HighCacheA[41+1];   // caches for high layers
 static int  HighCacheB[41+1];
@@ -1193,6 +1194,7 @@ void PicoDoHighPal555(int sh)
   }
 }
 
+#if 0
 static void FinalizeLineBGR444(int sh, int line)
 {
   unsigned short *pd=DrawLineDest;
@@ -1229,9 +1231,10 @@ static void FinalizeLineBGR444(int sh, int line)
   for(i = 0; i < len; i++)
     pd[i] = pal[ps[i] & mask];
 }
+#endif
 
 
-void FinalizeLineRGB555(int sh, int line)
+void FinalizeLine555(int sh, int line)
 {
   unsigned short *pd=DrawLineDest;
   unsigned char  *ps=HighCol+8;
@@ -1405,7 +1408,7 @@ static int DrawDisplay(int sh)
 // MUST be called every frame
 PICO_INTERNAL void PicoFrameStart(void)
 {
-  int lines = 224;
+  int offs = 8, lines = 224;
 
   // prepare to do this frame
   rendstatus = 0;
@@ -1413,9 +1416,13 @@ PICO_INTERNAL void PicoFrameStart(void)
     rendstatus |= PDRAW_INTERLACE; // interlace mode
   if (!(Pico.video.reg[12] & 1))
     rendstatus |= PDRAW_32_COLS;
-  if (Pico.video.reg[1] & 8)
+  if (Pico.video.reg[1] & 8) {
+    offs = 0;
     lines = 240;
+  }
 
+  HighCol = HighColBase;
+  DrawLineDest = (char *)DrawLineDestBase + offs * DrawLineDestIncrement;
   DrawScanline = 0;
   skip_next_line = 0;
 
@@ -1477,6 +1484,9 @@ static void PicoLine(int line, int offs, int sh, int bgc)
 
   if (PicoScanEnd != NULL)
     skip_next_line = PicoScanEnd(line + offs);
+
+  HighCol += HighColIncrement;
+  DrawLineDest = (char *)DrawLineDest + DrawLineDestIncrement;
 }
 
 void PicoDrawSync(int to, int blank_last_line)
@@ -1489,10 +1499,6 @@ void PicoDrawSync(int to, int blank_last_line)
 
   if (rendlines != 240)
     offs = 8;
-
-  // need to know which pixels are bg for 32x
-  if (PicoAHW & PAHW_32X)
-    bgc = 0;
 
   for (line = DrawScanline; line < to; line++)
   {
@@ -1522,20 +1528,59 @@ void PicoDrawSync(int to, int blank_last_line)
   pprof_end(draw);
 }
 
-void PicoDrawSetColorFormat(int which)
+// also works for fast renderer
+void PicoDrawUpdateHighPal(void)
+{
+  int sh = (Pico.video.reg[0xC] & 8) >> 3; // shadow/hilight?
+  if (PicoOpt & POPT_ALT_RENDERER)
+    sh = 0; // no s/h support
+
+  PicoDoHighPal555(sh);
+  if (rendstatus & PDRAW_SONIC_MODE) {
+    // FIXME?
+    memcpy(HighPal + 0x40, HighPal, 0x40*2);
+    memcpy(HighPal + 0x80, HighPal, 0x40*2);
+  }
+}
+
+void PicoDrawSetOutFormat(pdso_t which, int allow_32x)
 {
   switch (which)
   {
-    case 2: FinalizeLine = FinalizeLine8bit;   break;
-    case 1: FinalizeLine = (PicoAHW & PAHW_32X) ? FinalizeLine32xRGB555 : FinalizeLineRGB555; break;
-    case 0: FinalizeLine = FinalizeLineBGR444; break;
-    default:FinalizeLine = NULL; break;
+    case PDF_8BIT:
+      FinalizeLine = FinalizeLine8bit;
+      break;
+
+    case PDF_RGB555:
+      if ((PicoAHW & PAHW_32X) && allow_32x)
+        FinalizeLine = FinalizeLine32xRGB555;
+      else
+        FinalizeLine = FinalizeLine555;
+      break;
+
+    default:
+      FinalizeLine = NULL;
+      break;
   }
-  PicoDrawSetColorFormatMode4(which);
+  PicoDrawSetOutputMode4(which);
   rendstatus_old = -1;
-#if OVERRIDE_HIGHCOL
-  if (which)
-    HighCol=DefHighCol;
-#endif
+}
+
+void PicoDrawSetOutBuf(void *dest, int increment)
+{
+  DrawLineDestBase = dest;
+  DrawLineDestIncrement = increment;
+}
+
+void PicoDrawSetInternalBuf(void *dest, int increment)
+{
+  if (dest != NULL) {
+    HighColBase = dest;
+    HighColIncrement = increment;
+  }
+  else {
+    HighColBase = DefHighCol;
+    HighColIncrement = 0;
+  }
 }
 

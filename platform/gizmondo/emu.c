@@ -230,10 +230,10 @@ static void vidResetMode(void)
 
 	if (PicoOpt&0x10) {
 	} else if (currentConfig.EmuOpt&0x80) {
-		PicoDrawSetColorFormat(1);
+		PicoDrawSetOutFormat(PDF_RGB555, 0);
 		PicoScanBegin = EmuScanBegin16;
 	} else {
-		PicoDrawSetColorFormat(-1);
+		PicoDrawSetOutFormat(PDF_NONE, 0);
 		PicoScanBegin = EmuScanBegin8;
 	}
 	if ((PicoOpt&0x10) || !(currentConfig.EmuOpt&0x80)) {
@@ -306,7 +306,7 @@ void pemu_forced_frame(int opts)
 	if (giz_screen == NULL)
 		giz_screen = fb_lock(1);
 
-	PicoDrawSetColorFormat(1);
+	PicoDrawSetOutFormat(PDF_RGB555, 0);
 	PicoScanBegin = EmuScanBegin16;
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();

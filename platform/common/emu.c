@@ -1116,7 +1116,7 @@ static void emu_tray_close(void)
 
 void emu_32x_startup(void)
 {
-	plat_video_toggle_renderer(0, 1, 0);
+	plat_video_toggle_renderer(0, 0);
 	system_announce();
 }
 
@@ -1247,9 +1247,9 @@ static void run_events_ui(unsigned int which)
 			PicoStateProgressCB = NULL;
 		}
 	}
-	if ((which & PEV_SWITCH_RND) && !(PicoAHW & PAHW_32X))
+	if (which & PEV_SWITCH_RND)
 	{
-		plat_video_toggle_renderer(1, 0, 0);
+		plat_video_toggle_renderer(1, 0);
 	}
 	if (which & (PEV_SSLOT_PREV|PEV_SSLOT_NEXT))
 	{
@@ -1493,17 +1493,15 @@ void emu_loop(void)
 		{
 			if ((currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) && currentConfig.Frameskip >= 0)
 				pframes_done = 0;
-			else {
+			else
 				pframes_done -= target_fps;
-				/* don't allow it to drift during heavy slowdowns */
-				if (pframes_done < -5) {
-					reset_timing = 1;
-					continue;
-				}
-				if (pframes_done < -2)
-					pframes_done = -2;
+			if (pframes_done < -2) {
+				/* don't drag more than 2 frames behind */
+				pframes_done = -2;
+				timestamp_base = timestamp - 2 * target_frametime;
 			}
-			timestamp_base += ms_to_ticks(1000);
+			else
+				timestamp_base += ms_to_ticks(1000);
 		}
 
 		diff = timestamp - timestamp_base;
@@ -1528,15 +1526,13 @@ void emu_loop(void)
 		else if (diff > diff_lim)
 		{
 			/* no time left for this frame - skip */
-			if (diff - diff_lim >= ms_to_ticks(200)) {
-				/* if too much behind, reset instead */
-				reset_timing = 1;
+			/* limit auto frameskip to 8 */
+			if (frames_done / 8 <= frames_shown) {
+				emu_update_input();
+				skip_frame(diff < diff_lim + target_frametime * 16);
+				pframes_done++; frames_done++;
 				continue;
 			}
-			emu_update_input();
-			skip_frame(diff < diff_lim + target_frametime * 2);
-			pframes_done++; frames_done++;
-			continue;
 		}
 
 		emu_update_input();

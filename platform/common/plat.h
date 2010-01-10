@@ -4,6 +4,8 @@ extern "C" {
 
 /* stuff to be implemented by platform code */
 extern char cpu_clk_name[];
+extern const char **renderer_names;
+extern const char **renderer_names32x;
 
 void pemu_prep_defconfig(void);
 void pemu_validate_config(void);
@@ -35,7 +37,7 @@ void plat_video_menu_end(void);
 
 void plat_video_flip(void);
 void plat_video_wait_vsync(void);
-void plat_video_toggle_renderer(int is_next, int force_16bpp, int is_menu);
+void plat_video_toggle_renderer(int change, int menu_call);
 
 void plat_update_volume(int has_changed, int is_up);
 

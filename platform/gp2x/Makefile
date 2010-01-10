@@ -13,6 +13,7 @@ asm_ym2612 = 1
 asm_misc = 1
 asm_cdpico = 1
 asm_cdmemory = 1
+asm_32xdraw = 1
 #profile = 1
 #drc_debug = 3
 

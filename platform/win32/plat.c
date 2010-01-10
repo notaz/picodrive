@@ -13,6 +13,8 @@
 static unsigned short screen_buff[320 * 240];
 static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
 unsigned char *PicoDraw2FB = PicoDraw2FB_;
+const char **renderer_names = NULL;
+const char **renderer_names32x = NULL;
 
 char cpu_clk_name[] = "unused";
 
@@ -68,17 +70,10 @@ void pemu_validate_config(void)
 {
 }
 
-static int EmuScanBegin16(unsigned int num)
-{
-	DrawLineDest = (unsigned short *) g_screen_ptr + g_screen_width * num;
-
-	return 0;
-}
-
 void pemu_loop_prep(void)
 {
-	PicoDrawSetColorFormat(1);
-	PicoScanBegin = EmuScanBegin16;
+	PicoDrawSetOutFormat(PDF_RGB555, 1);
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 	pemu_sound_start();
 }
 
@@ -105,10 +100,10 @@ void plat_video_wait_vsync(void)
 {
 }
 
-void plat_video_toggle_renderer(int is_next, int force_16bpp, int is_menu)
+void plat_video_toggle_renderer(int change, int is_menu)
 {
 	// this will auto-select SMS/32X renderers
-	PicoDrawSetColorFormat(1);
+	PicoDrawSetOutFormat(PDF_RGB555, 1);
 }
 
 void emu_video_mode_change(int start_line, int line_count, int is_32cols)

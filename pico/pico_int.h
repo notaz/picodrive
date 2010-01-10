@@ -474,8 +474,8 @@ typedef struct
 struct Pico32x
 {
   unsigned short regs[0x20];
-  unsigned short vdp_regs[0x10];
-  unsigned short sh2_regs[3];
+  unsigned short vdp_regs[0x10]; // 0x40
+  unsigned short sh2_regs[3];    // 0x60
   unsigned char pending_fb;
   unsigned char dirty_pal;
   unsigned int emu_flags;
@@ -547,10 +547,12 @@ int CM_compareRun(int cyc, int is_sub);
 PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawSync(int to, int blank_last_line);
 void BackFill(int reg7, int sh);
-void FinalizeLineRGB555(int sh, int line);
+void FinalizeLine555(int sh, int line);
 extern int DrawScanline;
 #define MAX_LINE_SPRITES 29
 extern unsigned char HighLnSpr[240][3 + MAX_LINE_SPRITES];
+extern void *DrawLineDestBase;
+extern int DrawLineDestIncrement;
 
 // draw2.c
 PICO_INTERNAL void PicoFrameFull();
@@ -559,7 +561,7 @@ PICO_INTERNAL void PicoFrameFull();
 void PicoFrameStartMode4(void);
 void PicoLineMode4(int line);
 void PicoDoHighPal555M4(void);
-void PicoDrawSetColorFormatMode4(int which);
+void PicoDrawSetOutputMode4(pdso_t which);
 
 // memory.c
 PICO_INTERNAL void PicoMemSetup(void);
@@ -717,6 +719,8 @@ void p32x_poll_event(int cpu_mask, int is_vdp);
 
 // 32x/draw.c
 void FinalizeLine32xRGB555(int sh, int line);
+void PicoDraw32xLayer(int offs, int lines, int mdbg);
+extern int Pico32xDrawMode;
 
 // 32x/pwm.c
 unsigned int p32x_pwm_read16(unsigned int a);

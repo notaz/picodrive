@@ -12,9 +12,6 @@
 #define SCREEN_WIDTH  321
 #define SCREEN_HEIGHT 240
 
-// draw.c
-#define OVERRIDE_HIGHCOL 1
-
 // draw2.c
 #define START_ROW  0 // which row of tiles to start rendering at?
 #define END_ROW   28 // ..end

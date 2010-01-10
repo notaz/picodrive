@@ -24,6 +24,10 @@ ifeq "$(asm_cdmemory)" "1"
 DEFINES += _ASM_CD_MEMORY_C
 OBJS += pico/cd/memory_arm.o
 endif
+ifeq "$(asm_32xdraw)" "1"
+DEFINES += _ASM_32X_DRAW
+OBJS += pico/32x/draw_arm.o
+endif
 
 
 DIRS += cpu/Cyclone cpu/Cyclone/proj cpu/Cyclone/tools cpu/DrZ80

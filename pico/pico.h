@@ -160,13 +160,18 @@ extern void (*PicoCartLoadProgressCB)(int percent);
 extern void (*PicoCDLoadProgressCB)(const char *fname, int percent);
 
 // Draw.c
-void PicoDrawSetColorFormat(int which); // 0=BGR444, 1=RGB555, 2=8bit(HighPal pal)
+// for line-based renderer, set conversion
+// from internal 8 bit representation in 'HighCol' to:
+typedef enum
+{
+	PDF_NONE = 0,    // no conversion
+	PDF_RGB555,      // RGB/BGR output, depends on compile options
+	PDF_8BIT,        // 8-bit out (handles shadow/hilight mode, sonic water)
+} pdso_t;
+void PicoDrawSetOutFormat(pdso_t which, int allow_32x);
+void PicoDrawSetOutBuf(void *dest, int increment);
 extern void *DrawLineDest;
-#if OVERRIDE_HIGHCOL
 extern unsigned char *HighCol;
-#else
-extern unsigned char  HighCol[8+320+8];
-#endif
 extern int (*PicoScanBegin)(unsigned int num);
 extern int (*PicoScanEnd)(unsigned int num);
 // utility
@@ -194,11 +199,20 @@ extern int rendstatus, rendstatus_old;
 extern int rendlines;
 extern unsigned short HighPal[0x100];
 
-// Draw2.c
+// draw.c
+void PicoDrawUpdateHighPal(void);
+void PicoDrawSetInternalBuf(void *dest, int line_increment);
+
+// draw2.c
 // stuff below is optional
 extern unsigned char  *PicoDraw2FB;  // buffer for fast renderer in format (8+320)x(8+224+8) (eights for borders)
 extern unsigned short *PicoCramHigh; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to use
+
+// 32x/draw.c
+void PicoDraw32xSetFrameMode(int is_on, int only_32x);
+extern int (*PicoScan32xBegin)(unsigned int num);
+extern int (*PicoScan32xEnd)(unsigned int num);
 
 // sound.c
 extern int PsndRate,PsndLen;
