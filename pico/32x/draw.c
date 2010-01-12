@@ -133,7 +133,8 @@ static void do_loop_dc##name(unsigned short *dst,               \
     unsigned short *dram, int lines_sft_offs, int mdbg)         \
 {                                                               \
   int inv_bit = (Pico32x.vdp_regs[0] & P32XV_PRI) ? 0x8000 : 0; \
-  unsigned char  *pmd = PicoDraw2FB + 328 * 8 + 8;              \
+  unsigned char  *pmd = PicoDraw2FB +                           \
+                          328 * (lines_sft_offs & 0xff) + 8;    \
   unsigned short *palmd = HighPal;                              \
   unsigned short *p32x;                                         \
   int lines = lines_sft_offs >> 16;                             \
@@ -152,7 +153,8 @@ static void do_loop_pp##name(unsigned short *dst,               \
     unsigned short *dram, int lines_sft_offs, int mdbg)         \
 {                                                               \
   unsigned short *pal = Pico32xMem->pal_native;                 \
-  unsigned char  *pmd = PicoDraw2FB + 328 * 8 + 8;              \
+  unsigned char  *pmd = PicoDraw2FB +                           \
+                          328 * (lines_sft_offs & 0xff) + 8;    \
   unsigned short *palmd = HighPal;                              \
   unsigned char  *p32x;                                         \
   int lines = lines_sft_offs >> 16;                             \
@@ -172,7 +174,8 @@ static void do_loop_rl##name(unsigned short *dst,               \
     unsigned short *dram, int lines_sft_offs, int mdbg)         \
 {                                                               \
   unsigned short *pal = Pico32xMem->pal_native;                 \
-  unsigned char  *pmd = PicoDraw2FB + 328 * 8 + 8;              \
+  unsigned char  *pmd = PicoDraw2FB +                           \
+                          328 * (lines_sft_offs & 0xff) + 8;    \
   unsigned short *palmd = HighPal;                              \
   unsigned short *p32x;                                         \
   int lines = lines_sft_offs >> 16;                             \
@@ -217,10 +220,10 @@ void PicoDraw32xLayer(int offs, int lines, int md_bg)
   int lines_sft_offs;
   int which_func;
 
-  DrawLineDest = DrawLineDestBase + offs * DrawLineDestIncrement;
+  DrawLineDest = (char *)DrawLineDestBase + offs * DrawLineDestIncrement;
   dram = Pico32xMem->dram[Pico32x.vdp_regs[0x0a/2] & P32XV_FS];
 
-  if (Pico32xDrawMode == 2) {
+  if (Pico32xDrawMode == PDM32X_BOTH) {
     if (Pico.m.dirtyPal)
       PicoDrawUpdateHighPal();
   }
@@ -247,7 +250,7 @@ void PicoDraw32xLayer(int offs, int lines, int md_bg)
   }
 
 do_it:
-  if (Pico32xDrawMode == 2)
+  if (Pico32xDrawMode == PDM32X_BOTH)
     which_func = have_scan ? DO_LOOP_MD_SCAN : DO_LOOP_MD;
   else
     which_func = have_scan ? DO_LOOP_SCAN : DO_LOOP;
@@ -256,6 +259,44 @@ do_it:
     lines_sft_offs |= 1 << 8;
 
   do_loop[which_func](DrawLineDest, dram, lines_sft_offs, md_bg);
+}
+
+// mostly unused, games tend to keep 32X layer on
+void PicoDraw32xLayerMdOnly(int offs, int lines)
+{
+  int have_scan = PicoScan32xBegin != NULL && PicoScan32xEnd != NULL;
+  unsigned short *dst = (void *)((char *)DrawLineDestBase + offs * DrawLineDestIncrement);
+  unsigned char  *pmd = PicoDraw2FB + 328 * offs + 8;
+  unsigned short *pal = HighPal;
+  int poffs = 0, plen = 320;
+  int l, p;
+
+  if (!(Pico.video.reg[12] & 1)) {
+    // 32col mode
+    poffs = 32;
+    plen = 256;
+  }
+
+  if (Pico.m.dirtyPal)
+    PicoDrawUpdateHighPal();
+
+  dst += poffs;
+  for (l = 0; l < lines; l++) {
+    if (have_scan) {
+      PicoScan32xBegin(l + offs);
+      dst = DrawLineDest + poffs;
+    }
+    for (p = 0; p < plen; p += 4) {
+      dst[p + 0] = pal[*pmd++];
+      dst[p + 1] = pal[*pmd++];
+      dst[p + 2] = pal[*pmd++];
+      dst[p + 3] = pal[*pmd++];
+    }
+    dst = (void *)((char *)dst + DrawLineDestIncrement);
+    pmd += 328 - plen;
+    if (have_scan)
+      PicoScan32xEnd(l + offs);
+  }
 }
 
 void PicoDraw32xSetFrameMode(int is_on, int only_32x)
@@ -268,10 +309,10 @@ void PicoDraw32xSetFrameMode(int is_on, int only_32x)
   if (is_on) {
     // use the same layout as alt renderer
     PicoDrawSetInternalBuf(PicoDraw2FB + 328*8, 328);
-    Pico32xDrawMode = only_32x ? 1 : 2;
+    Pico32xDrawMode = only_32x ? PDM32X_32X_ONLY : PDM32X_BOTH;
   } else {
     PicoDrawSetInternalBuf(NULL, 0);
-    Pico32xDrawMode = 0;
+    Pico32xDrawMode = PDM32X_OFF;
   }
 }
 

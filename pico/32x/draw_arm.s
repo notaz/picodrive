@@ -69,7 +69,9 @@ Pico32xNativePal:
     ldr     r10,[r10, #0x40] @ Pico32x.vdp_regs[0]
     ldr     r11,[r11]
     ldr     r9, =HighPal     @ palmd
-    add     r11,r11,#(328*8) @ r11 = pmd: md data
+    and     r4, r2, #0xff
+    mov     r5, #328
+    mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
     tst     r10,#P32XV_PRI
     moveq   r10,#0
     movne   r10,#0x8000      @ r10 = inv_bit
@@ -135,7 +137,9 @@ Pico32xNativePal:
     ldr     r11,[r11]
     ldr     r10,[r10]
     ldr     r9, =HighPal     @ palmd
-    add     r11,r11,#(328*8) @ r11 = pmd: md data
+    and     r4, r2, #0xff
+    mov     r5, #328
+    mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
     call_scan_prep \call_scan
 
     mov     r4, #0           @ line
@@ -290,7 +294,9 @@ Pico32xNativePal:
     ldr     r11,[r11]
     ldr     r10,[r10]
     ldr     r9, =HighPal     @ palmd
-    add     r11,r11,#(328*8) @ r11 = pmd: md data
+    and     r4, r2, #0xff
+    mov     r5, #328
+    mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
     call_scan_prep \call_scan
 
     mov     r4, #0           @ line

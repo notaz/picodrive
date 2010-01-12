@@ -148,24 +148,25 @@ void PicoReset32x(void)
 
 static void p32x_start_blank(void)
 {
-  if (Pico32xDrawMode != 0) {
+  if (Pico32xDrawMode != PDM32X_OFF && !PicoSkipFrame) {
+    int offs = 8, lines = 224;
+    if ((Pico.video.reg[1] & 8) && !(PicoOpt & POPT_ALT_RENDERER)) {
+      offs = 0;
+      lines = 240;
+    }
+
+    // XXX: no proper handling of 32col mode..
     if ((Pico32x.vdp_regs[0] & P32XV_Mx) != 0 && // 32x not blanking
         (Pico.video.reg[12] & 1) && // 40col mode
         (PicoDrawMask & PDRAW_32X_ON))
     {
       int md_bg = Pico.video.reg[7] & 0x3f;
-      int offs = 8, lines = 224;
-      if (Pico.video.reg[1] & 8) {
-        offs = 0;
-        lines = 240;
-      }
 
       // we draw full layer (not line-by-line)
       PicoDraw32xLayer(offs, lines, md_bg);
     }
-    else {
-      // TODO: MD layer only?
-    }
+    else if (Pico32xDrawMode != PDM32X_32X_ONLY)
+      PicoDraw32xLayerMdOnly(offs, lines);
   }
 
   // enter vblank

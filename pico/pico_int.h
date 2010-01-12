@@ -722,6 +722,12 @@ void p32x_poll_event(int cpu_mask, int is_vdp);
 // 32x/draw.c
 void FinalizeLine32xRGB555(int sh, int line);
 void PicoDraw32xLayer(int offs, int lines, int mdbg);
+void PicoDraw32xLayerMdOnly(int offs, int lines);
+enum {
+  PDM32X_OFF,
+  PDM32X_32X_ONLY,
+  PDM32X_BOTH,
+};
 extern int Pico32xDrawMode;
 
 // 32x/pwm.c
