@@ -122,28 +122,8 @@ Pico32xNativePal:
 
 
 @ packed pixel
-.macro do_pixel_pp do_md
-    ldrb    r7, [r11], #1    @ MD pixel
-    eor     r12,r5, #1
-    ldrb    r8, [r12]        @ palette index
-    cmp     r7, r3           @ MD has bg pixel?
-    mov     r12,r8,lsl #1
-    ldrh    r8, [r10,r12]    @ t = 32x pixel
-    mov     r7, r7, lsl #1
-    add     r5, r5, #1
-    eorne   r12,r8, #0x20
-    tstne   r12, #0x20
-.if \do_md
-    ldrneh  r8, [r9, r7]     @ t = palmd[*pmd]
-    subs    r6, r6, #1
-    strh    r8, [r0], #2     @ *dst++ = t
-.else
-    streqh  r8, [r0], #2
-    addne   r0, r0, #2
-    subs    r6, r6, #1
-.endif
-.endm
-
+@ note: this may read a few bytes over the end of PicoDraw2FB and dram,
+@       so those should have a bit more alloc'ed than really needed.
 @ unsigned short *dst, unsigned short *dram, int lines_sft_offs, int mdbg
 .macro make_do_loop_pp name call_scan do_md
 .global \name
@@ -173,16 +153,128 @@ Pico32xNativePal:
     mov     r12,r4, lsl #1
     ldrh    r12,[r1, r12]
     add     r11,r11,#8
-    mov     r6, #320
+    mov     r6, #320/2
     add     r5, r1, r12, lsl #1 @ p32x = dram + dram[l]
     and     r12,r2, #0x100      @ shift
     add     r5, r5, r12,lsr #8
 
 2: @ loop_inner:
-    do_pixel_pp \do_md
-    do_pixel_pp \do_md
-    bgt     2b @ loop_inner
-    b       0b @ loop_outer
+@ r4,r6 - counters; r5 - 32x data; r9,r10 - md,32x pal; r11 - md data
+@ r7,r8,r12,lr - temp
+    tst     r5, #1
+    ldreqb  r8, [r5], #2
+    ldrb    r7, [r5, #-1]
+    ldrneb  r8, [r5, #2]!    @ r7,r8 - pixel 0,1 index
+    subs    r6, r6, #1
+    blt     0b @ loop_outer
+    cmp     r7, r8
+    beq     5f @ check_fill @ +8
+
+3: @ no_fill:
+    mov     r12,r7, lsl #1
+    mov     lr, r8, lsl #1
+    ldrh    r7, [r10,r12]
+    ldrh    r8, [r10,lr]
+    add     r11,r11,#2
+
+    eor     r12,r7, #0x20
+    tst     r12,#0x20
+    ldrneb  r12,[r11,#-2]    @ MD pixel 0
+    eor     lr, r8, #0x20
+    cmpne   r12,r3           @ MD has bg pixel?
+.if \do_md
+    mov     r12,r12,lsl #1
+    ldrneh  r7, [r9, r12]    @ t = palmd[pmd[0]]
+    tst     lr, #0x20
+    ldrneb  lr, [r11,#-1]    @ MD pixel 1
+    strh    r7, [r0], #2
+    cmpne   lr, r3           @ MD has bg pixel?
+    mov     lr, lr, lsl #1
+    ldrneh  r8, [r9, lr]     @ t = palmd[pmd[1]]
+    strh    r8, [r0], #2
+.else
+    streqh  r7, [r0]
+    tst     lr, #0x20
+    ldrneb  lr, [r11,#-1]    @ MD pixel 1
+    add     r0, r0, #4
+    cmpne   lr, r3           @ MD has bg pixel?
+    streqh  r8, [r0, #-2]
+.endif
+    b       2b @ loop_inner
+
+5: @ check_fill
+    @ count pixels, align if needed
+    bic     r12,r5, #1
+    ldrh    r12,[r12]
+    orr     lr, r7, r7, lsl #8
+    cmp     r12,lr
+    bne     3b @ no_fill
+
+    tst     r5, #1
+    sub     lr, r5, #2       @ starting r5 (32x render data start)
+    addeq   r5, r5, #2
+    addne   r5, r5, #1       @ add for the check above
+    add     r6, r6, #1       @ restore from dec
+    orr     r7, r7, r7, lsl #8
+6:
+    sub     r12,r5, lr
+    ldrh    r8, [r5], #2
+    cmp     r12,r6, lsl #1
+    ldrh    r12,[r5], #2
+    bge     7f @ count_done
+    cmp     r8, r7
+    cmpeq   r12,r7
+    beq     6b
+
+7: @ count_done
+    sub     r5, r5, #4      @ undo readahead
+
+    @ fix alignment and check type
+    sub     r8, r5, lr
+    tst     r8, #1
+    subne   r5, r5, #1
+    subne   r8, r8, #1
+
+    and     r7, r7, #0xff
+    cmp     r8, r6, lsl #1
+    mov     r7, r7, lsl #1
+    movgt   r8, r6, lsl #1  @ r8=count
+    ldrh    r7, [r10,r7]
+    sub     r6, r6, r8, lsr #1 @ adjust counter
+    tst     r7, #0x20
+    beq     9f @ bg_mode
+
+    add     r11,r11,r8
+8:
+    subs    r8, r8, #2
+    strgeh  r7, [r0], #2
+    strgeh  r7, [r0], #2
+    bgt     8b
+    b       2b @ loop_inner
+
+9: @ bg_mode:
+    ldrb    r12,[r11],#1     @ MD pixel
+    ldrb    lr, [r11],#1
+    cmp     r12,r3           @ MD has bg pixel?
+.if \do_md
+    mov     r12,r12,lsl #1
+    ldrneh  r12,[r9, r12]    @ t = palmd[*pmd]
+    moveq   r12,r7
+    cmp     lr, r3
+    mov     lr, lr, lsl #1
+    ldrneh  lr, [r9, lr]
+    moveq   lr, r7
+    strh    r12,[r0], #2
+    strh    lr, [r0], #2
+.else
+    streqh  r7, [r0]
+    cmp     lr, r3
+    streqh  r7, [r0, #2]
+    add     r0, r0, #4
+.endif
+    subs    r8, r8, #2
+    bgt     9b @ bg_mode
+    b       2b @ loop_inner
 .endm
 
 

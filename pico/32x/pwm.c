@@ -50,14 +50,18 @@ void p32x_timers_recalc(void)
 void p32x_timers_do(int new_line)
 {
   int tm, cnt, i;
-  tm = (Pico32x.regs[0x30 / 2] & 0x0f00) >> 8;
-  if (tm != 0) {
-    if (new_line)
-      Pico32x.pwm_irq_sample_cnt += pwm_line_samples;
-    if (Pico32x.pwm_irq_sample_cnt >= (tm << 16)) {
-      Pico32x.pwm_irq_sample_cnt -= tm << 16;
-      Pico32x.sh2irqs |= P32XI_PWM;
-      p32x_update_irls();
+
+  if (PicoOpt & POPT_EN_PWM)
+  {
+    tm = (Pico32x.regs[0x30 / 2] & 0x0f00) >> 8;
+    if (tm != 0) {
+      if (new_line)
+        Pico32x.pwm_irq_sample_cnt += pwm_line_samples;
+      if (Pico32x.pwm_irq_sample_cnt >= (tm << 16)) {
+        Pico32x.pwm_irq_sample_cnt -= tm << 16;
+        Pico32x.sh2irqs |= P32XI_PWM;
+        p32x_update_irls();
+      }
     }
   }
 

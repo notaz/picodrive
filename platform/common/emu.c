@@ -1476,6 +1476,7 @@ void emu_loop(void)
 			}
 			bench_fps += frames_shown;
 			sprintf(fpsbuff, "%02i/%02i/%02i", frames_shown, bench_fps_s, (bf[0]+bf[1]+bf[2]+bf[3])>>2);
+			printf("%s\n", fpsbuff);
 #else
 			if (currentConfig.EmuOpt & EOPT_SHOW_FPS) {
 				sprintf(fpsbuff, "%02i/%02i", frames_shown, frames_done);

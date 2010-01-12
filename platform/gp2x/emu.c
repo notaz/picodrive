@@ -30,8 +30,6 @@
 #include <pico/sound/mix.h>
 #include <zlib/zlib.h>
 
-//#define PFRAMES
-
 #ifdef BENCHMARK
 #define OSD_FPS_X 220
 #else
