@@ -1521,8 +1521,8 @@ void PicoMemSetup32x(void)
 
   msh2.read8_map   = ssh2.read8_map   = sh2_read8_map;
   msh2.read16_map  = ssh2.read16_map  = sh2_read16_map;
-  msh2.write8_tab  = ssh2.write8_tab  = (const void **)sh2_write8_map;
-  msh2.write16_tab = ssh2.write16_tab = (const void **)sh2_write16_map;
+  msh2.write8_tab  = ssh2.write8_tab  = (const void **)(void *)sh2_write8_map;
+  msh2.write16_tab = ssh2.write16_tab = (const void **)(void *)sh2_write16_map;
 
   // setup poll detector
   m68k_poll.flag = P32XF_68KPOLL;
@@ -1531,6 +1531,11 @@ void PicoMemSetup32x(void)
   sh2_poll[0].cyc_max = 21;
   sh2_poll[1].flag = P32XF_SSH2POLL;
   sh2_poll[1].cyc_max = 16;
+
+#ifdef DRC_SH2
+  sh2_drc_mem_setup(&msh2);
+  sh2_drc_mem_setup(&ssh2);
+#endif
 }
 
 // vim:shiftwidth=2:expandtab

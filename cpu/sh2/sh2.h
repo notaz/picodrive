@@ -33,6 +33,10 @@ typedef struct SH2_
 	// drc stuff
 	int		drc_tmp;	// 70
 	int		irq_cycles;
+	void		*p_bios;	// convenience pointers
+	void		*p_da;
+	void		*p_sdram;
+	void		*p_rom;
 
 	// interpreter stuff
 	int		icount;		// cycles left in current timeslice

@@ -490,7 +490,8 @@ static UINT32 op1000(char *buffer, UINT32 pc, UINT16 opcode)
 
 static UINT32 op1001(char *buffer, UINT32 pc, UINT16 opcode)
 {
-	sprintf(buffer, "MOV.W   @($%04X,PC),%s", (opcode & 0xff) * 2, regname[Rn]);
+	sprintf(buffer, "MOV.W   @($%02X,PC),%s  ; @$%08x", (opcode & 0xff) * 2, regname[Rn],
+		pc + (opcode & 0xff) * 2 + 2);
 	return 0;
 }
 
@@ -566,8 +567,8 @@ static UINT32 op1100(char *buffer, UINT32 pc, UINT16 opcode)
 
 static UINT32 op1101(char *buffer, UINT32 pc, UINT16 opcode)
 {
-	sprintf(buffer, "MOV.L   @($%02X,PC),%s  ; #$%06x", (opcode * 4) & 0x3ff, regname[Rn],
-		(pc + ((opcode * 4) & 0x3ff) + 2) & ~3);
+	sprintf(buffer, "MOV.L   @($%02X,PC),%s  ; @$%08x", (opcode & 0xff) * 4, regname[Rn],
+		(pc + (opcode & 0xff) * 4 + 2) & ~3);
 	return 0;
 }
 
