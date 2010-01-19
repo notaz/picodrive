@@ -37,6 +37,7 @@ typedef struct SH2_
 	void		*p_da;
 	void		*p_sdram;
 	void		*p_rom;
+	unsigned int	pdb_io_csum[2];
 
 	// interpreter stuff
 	int		icount;		// cycles left in current timeslice

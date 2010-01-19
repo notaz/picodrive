@@ -12,6 +12,8 @@ use_sh2drc = 1
 #drc_debug_interp = 1
 #profile = 1
 
+all: mkdirs PicoDrive
+
 -include Makefile.local
 
 ifndef ARCH
@@ -27,7 +29,7 @@ CFLAGS += -mcpu=arm920t
 DEFINES += ARM
 endif
 
-CC = $(CROSS)gcc
+CC ?= $(CROSS)gcc
 
 # frontend
 OBJS += io.o emu.o blit.o in_evdev.o plat.o sndout_oss.o log_io.o
@@ -69,8 +71,6 @@ vpath %.S = ../..
 vpath %.asm = ../..
 
 DIRS += platform/linux zlib unzip
-
-all: mkdirs PicoDrive
 
 include ../common/common.mak
 include ../common/revision.mak

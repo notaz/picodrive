@@ -29,6 +29,7 @@
 #include "sh2.h"
 #include "compiler.h"
 #include "../drc/cmn.h"
+#include "../debug.h"
 
 // features
 #define PROPAGATE_CONSTANTS     1
@@ -68,12 +69,14 @@ static char sh2dasm_buff[64];
 #define do_host_disasm(x)
 #endif
 
-#if (DRC_DEBUG & 4)
-static void REGPARM(3) *sh2_drc_announce_entry(void *block, SH2 *sh2, u32 sr)
+#if (DRC_DEBUG & 4) || defined(PDB)
+static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
 {
-  if (block != NULL)
+  if (block != NULL) {
     dbg(4, "= %csh2 enter %08x %p, c=%d", sh2->is_slave ? 's' : 'm',
       sh2->pc, block, (signed int)sr >> 12);
+    pdb_step(sh2, sh2->pc);
+  }
   return block;
 }
 #endif
@@ -216,10 +219,15 @@ static void REGPARM(1) (*sh2_drc_entry)(SH2 *sh2);
 static void            (*sh2_drc_dispatcher)(void);
 static void            (*sh2_drc_exit)(void);
 static void            (*sh2_drc_test_irq)(void);
+
+static u32  REGPARM(2) (*sh2_drc_read8)(u32 a, SH2 *sh2);
+static u32  REGPARM(2) (*sh2_drc_read16)(u32 a, SH2 *sh2);
+static u32  REGPARM(2) (*sh2_drc_read32)(u32 a, SH2 *sh2);
 static void REGPARM(2) (*sh2_drc_write8)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write8_slot)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write16)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write16_slot)(u32 a, u32 d);
+static int  REGPARM(3) (*sh2_drc_write32)(u32 a, u32 d, SH2 *sh2);
 
 extern void REGPARM(2) sh2_do_op(SH2 *sh2, int opcode);
 
@@ -242,6 +250,7 @@ static void flush_tcache(int tcid)
 #endif
 }
 
+#if LINK_BRANCHES
 // add block links (tracked branches)
 static int dr_add_block_link(u32 target_pc, void *jump, int tcache_id)
 {
@@ -259,6 +268,7 @@ static int dr_add_block_link(u32 target_pc, void *jump, int tcache_id)
 
   return 0;
 }
+#endif
 
 static void *dr_find_block(block_desc *tab, u32 addr)
 {
@@ -848,7 +858,7 @@ static int emit_memhandler_read_(int size, int ram_check)
   arg1 = rcache_get_tmp_arg(1);
   emith_move_r_r(arg1, CONTEXT_REG);
 
-#if 1
+#ifndef PDB_NET
   if (ram_check && Pico.rom == (void *)0x02000000 && Pico32xMem->sdram == (void *)0x06000000) {
     int tmp = rcache_get_tmp();
     emith_and_r_r_imm(tmp, arg0, 0xfb000000);
@@ -859,14 +869,14 @@ static int emit_memhandler_read_(int size, int ram_check)
       emith_eor_r_imm_c(DCOND_EQ, arg0, 1);
       emith_read8_r_r_offs_c(DCOND_EQ, arg0, arg0, 0);
       EMITH_SJMP3_MID(DCOND_NE);
-      emith_call_cond(DCOND_NE, p32x_sh2_read8);
+      emith_call_cond(DCOND_NE, sh2_drc_read8);
       EMITH_SJMP3_END();
       break;
     case 1: // 16
       EMITH_SJMP3_START(DCOND_NE);
       emith_read16_r_r_offs_c(DCOND_EQ, arg0, arg0, 0);
       EMITH_SJMP3_MID(DCOND_NE);
-      emith_call_cond(DCOND_NE, p32x_sh2_read16);
+      emith_call_cond(DCOND_NE, sh2_drc_read16);
       EMITH_SJMP3_END();
       break;
     case 2: // 32
@@ -874,7 +884,7 @@ static int emit_memhandler_read_(int size, int ram_check)
       emith_read_r_r_offs_c(DCOND_EQ, arg0, arg0, 0);
       emith_ror_c(DCOND_EQ, arg0, arg0, 16);
       EMITH_SJMP3_MID(DCOND_NE);
-      emith_call_cond(DCOND_NE, p32x_sh2_read32);
+      emith_call_cond(DCOND_NE, sh2_drc_read32);
       EMITH_SJMP3_END();
       break;
     }
@@ -884,13 +894,13 @@ static int emit_memhandler_read_(int size, int ram_check)
   {
     switch (size) {
     case 0: // 8
-      emith_call(p32x_sh2_read8);
+      emith_call(sh2_drc_read8);
       break;
     case 1: // 16
-      emith_call(p32x_sh2_read16);
+      emith_call(sh2_drc_read16);
       break;
     case 2: // 32
-      emith_call(p32x_sh2_read32);
+      emith_call(sh2_drc_read32);
       break;
     }
   }
@@ -974,7 +984,7 @@ static void emit_memhandler_write(int size, u32 pc, int delay)
     break;
   case 2: // 32
     emith_move_r_r(ctxr, CONTEXT_REG);
-    emith_call(p32x_sh2_write32);
+    emith_call(sh2_drc_write32);
     break;
   }
   rcache_invalidate();
@@ -1050,10 +1060,11 @@ static void emit_block_entry(void)
   host_arg2reg(arg1, 1);
   host_arg2reg(arg2, 2);
 
-#if (DRC_DEBUG & 4)
+#if (DRC_DEBUG & 4) || defined(PDB)
+  emit_do_static_regs(1, arg2);
   emith_move_r_r(arg1, CONTEXT_REG);
   emith_move_r_r(arg2, rcache_get_reg(SHR_SR, RC_GR_READ));
-  emith_call(sh2_drc_announce_entry);
+  emith_call(sh2_drc_log_entry);
   rcache_invalidate();
 #endif
   emith_tst_r_r(arg0, arg0);
@@ -1256,10 +1267,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   }
   branch_target_count = tmp;
   memset(branch_target_ptr, 0, sizeof(branch_target_ptr[0]) * branch_target_count);
-#if !LINK_BRANCHES
-  // for debug
-  branch_target_count = 0;
-#endif
 
   // -------------------------------------------------
   // 2nd pass: actual compilation
@@ -2479,6 +2486,7 @@ end_op:
       else
         emith_tst_r_imm(sr, T);
 
+#if LINK_BRANCHES
       if (find_in_array(branch_target_pc, branch_target_count, target_pc) >= 0) {
         // local branch
         // XXX: jumps back can be linked already
@@ -2492,7 +2500,9 @@ end_op:
           break;
         }
       }
-      else {
+      else
+#endif
+      {
         // can't resolve branch locally, make a block exit
         emit_move_r_imm32(SHR_PC, target_pc);
         rcache_clean();
@@ -2622,6 +2632,11 @@ static void sh2_generate_utils(void)
   int arg0, arg1, arg2, sr, tmp;
   void *sh2_drc_write_end, *sh2_drc_write_slot_end;
 
+  sh2_drc_write32 = p32x_sh2_write32;
+  sh2_drc_read8  = p32x_sh2_read8;
+  sh2_drc_read16 = p32x_sh2_read16;
+  sh2_drc_read32 = p32x_sh2_read32;
+
   host_arg2reg(arg0, 0);
   host_arg2reg(arg1, 1);
   host_arg2reg(arg2, 2);
@@ -2679,7 +2694,7 @@ static void sh2_generate_utils(void)
   tmp = rcache_get_reg_arg(1, SHR_SR);
   emith_clear_msb(tmp, tmp, 22);
   emith_move_r_r(arg2, CONTEXT_REG);
-  emith_call(p32x_sh2_write32);
+  emith_call(p32x_sh2_write32); // XXX: use sh2_drc_write32?
   rcache_invalidate();
   // push PC
   rcache_get_reg_arg(0, SHR_SP);
@@ -2722,7 +2737,6 @@ static void sh2_generate_utils(void)
   EMITH_SJMP_START(DCOND_NE);
   emith_jump_ctx_c(DCOND_EQ, offsetof(SH2, drc_tmp)); // return
   EMITH_SJMP_END(DCOND_NE);
-  // since PC is up to date, jump to it's block instead of returning
   emith_call(sh2_drc_test_irq);
   emith_jump_ctx(offsetof(SH2, drc_tmp));
 
@@ -2762,6 +2776,50 @@ static void sh2_generate_utils(void)
   emith_ret_to_ctx(offsetof(SH2, drc_tmp));
   emith_ctx_read(arg2, offsetof(SH2, write16_tab));
   emith_sh2_wcall(arg0, arg2, sh2_drc_write_slot_end);
+
+#ifdef PDB_NET
+  // debug
+  #define MAKE_READ_WRAPPER(func) { \
+    void *tmp = (void *)tcache_ptr; \
+    emith_ret_to_ctx(offsetof(SH2, drc_tmp)); \
+    emith_call(func); \
+    emith_ctx_read(arg2, offsetof(SH2, pdb_io_csum[0]));  \
+    emith_addf_r_r(arg2, arg0);                           \
+    emith_ctx_write(arg2, offsetof(SH2, pdb_io_csum[0])); \
+    emith_ctx_read(arg2, offsetof(SH2, pdb_io_csum[1]));  \
+    emith_adc_r_imm(arg2, 0x01000000);                    \
+    emith_ctx_write(arg2, offsetof(SH2, pdb_io_csum[1])); \
+    emith_jump_ctx(offsetof(SH2, drc_tmp)); \
+    func = tmp; \
+  }
+  #define MAKE_WRITE_WRAPPER(func) { \
+    void *tmp = (void *)tcache_ptr; \
+    emith_ctx_read(arg2, offsetof(SH2, pdb_io_csum[0]));  \
+    emith_addf_r_r(arg2, arg1);                           \
+    emith_ctx_write(arg2, offsetof(SH2, pdb_io_csum[0])); \
+    emith_ctx_read(arg2, offsetof(SH2, pdb_io_csum[1]));  \
+    emith_adc_r_imm(arg2, 0x01000000);                    \
+    emith_ctx_write(arg2, offsetof(SH2, pdb_io_csum[1])); \
+    emith_move_r_r(arg2, CONTEXT_REG);                    \
+    emith_jump(func); \
+    func = tmp; \
+  }
+
+  MAKE_READ_WRAPPER(sh2_drc_read8);
+  MAKE_READ_WRAPPER(sh2_drc_read16);
+  MAKE_READ_WRAPPER(sh2_drc_read32);
+  MAKE_WRITE_WRAPPER(sh2_drc_write8);
+  MAKE_WRITE_WRAPPER(sh2_drc_write8_slot);
+  MAKE_WRITE_WRAPPER(sh2_drc_write16);
+  MAKE_WRITE_WRAPPER(sh2_drc_write16_slot);
+  MAKE_WRITE_WRAPPER(sh2_drc_write32);
+#if (DRC_DEBUG & 2)
+  host_dasm_new_symbol(sh2_drc_read8);
+  host_dasm_new_symbol(sh2_drc_read16);
+  host_dasm_new_symbol(sh2_drc_read32);
+  host_dasm_new_symbol(sh2_drc_write32);
+#endif
+#endif
 
   rcache_invalidate();
 #if (DRC_DEBUG & 2)

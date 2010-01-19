@@ -180,12 +180,17 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT(imm, u32); \
 } while (0)
 
-// 2 - adc, 3 - sbb
 #define emith_add_r_imm(r, imm) \
 	emith_arith_r_imm(0, r, imm)
 
 #define emith_or_r_imm(r, imm) \
 	emith_arith_r_imm(1, r, imm)
+
+#define emith_adc_r_imm(r, imm) \
+	emith_arith_r_imm(2, r, imm)
+
+#define emith_sbc_r_imm(r, imm) \
+	emith_arith_r_imm(3, r, imm) // sbb
 
 #define emith_and_r_imm(r, imm) \
 	emith_arith_r_imm(4, r, imm)

@@ -188,7 +188,7 @@ void host_dasm(void *addr, int len)
     if (name != NULL)
       printf("%s:\n", name);
 
-    printf("     %08lx ", (long)vma);
+    printf("   %08lx ", (long)vma);
     vma += print_insn_func(vma, &di);
     printf("\n");
   }

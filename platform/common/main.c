@@ -13,6 +13,7 @@
 #include "config.h"
 #include "input.h"
 #include "plat.h"
+#include <cpu/debug.h>
 #include <version.h>
 
 
@@ -33,6 +34,12 @@ void parse_cmd_line(int argc, char *argv[])
 			}
 			else if (strcasecmp(argv[x], "-loadstate") == 0) {
 				if (x+1 < argc) { ++x; load_state_slot = atoi(argv[x]); }
+			}
+			else if (strcasecmp(argv[x], "-pdb") == 0) {
+				if (x+1 < argc) { ++x; pdb_command(argv[x]); }
+			}
+			else if (strcasecmp(argv[x], "-pdb_connect") == 0) {
+				if (x+2 < argc) { pdb_net_connect(argv[x+1], argv[x+2]); x += 2; }
 			}
 			else {
 				unrecognized = 1;

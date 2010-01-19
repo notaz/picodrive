@@ -241,30 +241,45 @@
 #define EOP_MSR_REG(rm)       EOP_C_MSR_REG(A_COND_AL,rm)
 
 
-// XXX: AND, RSB, *C, MVN will break if 1 insn is not enough
+// XXX: AND, RSB, *C, will break if 1 insn is not enough
 static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int imm)
 {
 	int ror2;
 	u32 v;
 
-	if (op == A_OP_MOV) {
+	switch (op) {
+	case A_OP_MOV:
 		rn = 0;
-		if (~imm < 0x100) {
+		if (~imm < 0x10000) {
 			imm = ~imm;
 			op = A_OP_MVN;
 		}
-	} else if (imm == 0)
-		return;
+		break;
 
-	for (v = imm, ror2 = 0; v != 0 || op == A_OP_MOV; v >>= 8, ror2 -= 8/2) {
+	case A_OP_EOR:
+	case A_OP_SUB:
+	case A_OP_ADD:
+	case A_OP_ORR:
+	case A_OP_BIC:
+		if (s == 0 && imm == 0)
+			return;
+		break;
+	}
+
+	for (v = imm, ror2 = 0; ; ror2 -= 8/2) {
 		/* shift down to get 'best' rot2 */
 		for (; v && !(v & 3); v >>= 2)
 			ror2--;
 
 		EOP_C_DOP_IMM(cond, op, s, rn, rd, ror2 & 0x0f, v & 0xff);
 
+		v >>= 8;
+		if (v == 0)
+			break;
 		if (op == A_OP_MOV)
 			op = A_OP_ORR;
+		if (op == A_OP_MVN)
+			op = A_OP_BIC;
 		rn = rd;
 	}
 }
@@ -413,6 +428,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_add_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_ADD, r, imm)
+
+#define emith_adc_r_imm(r, imm) \
+	emith_op_imm(A_COND_AL, 0, A_OP_ADC, r, imm)
 
 #define emith_sub_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_SUB, r, imm)

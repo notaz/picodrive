@@ -1,5 +1,6 @@
 #include <string.h>
 #include "sh2.h"
+#include "../debug.h"
 #include "compiler.h"
 
 #define I 0xf0
@@ -12,6 +13,7 @@ int sh2_init(SH2 *sh2, int is_slave)
 
 	memset(sh2, 0, sizeof(*sh2));
 	sh2->is_slave = is_slave;
+	pdb_register_cpu(sh2, PDBCT_SH2, is_slave ? "ssh2" : "msh2");
 #ifdef DRC_SH2
 	ret = sh2_drc_init(sh2);
 #endif

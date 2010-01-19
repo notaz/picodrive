@@ -7,6 +7,17 @@ endif
 ifeq "$(profile)" "2"
 CFLAGS += -fprofile-use
 endif
+ifeq "$(pdb)" "1"
+DEFINES += PDB
+OBJS += cpu/debug.o
+ ifeq "$(pdb_net)" "1"
+ DEFINES += PDB_NET
+ endif
+ ifeq "$(readline)" "1"
+ DEFINES += HAVE_READLINE
+ LDFLAGS += -lreadline
+ endif
+endif
 ifeq "$(pprof)" "1"
 DEFINES += PPROF
 OBJS += platform/linux/pprof.o
