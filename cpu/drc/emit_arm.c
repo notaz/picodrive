@@ -332,8 +332,8 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	tcache_ptr += sizeof(u32)
 
 #define JMP_EMIT(cond, ptr) { \
-	int val = (u32 *)tcache_ptr - (u32 *)(ptr) - 2; \
-	EOP_C_B_PTR(ptr, cond, 0, val & 0xffffff); \
+	u32 val_ = (u32 *)tcache_ptr - (u32 *)(ptr) - 2; \
+	EOP_C_B_PTR(ptr, cond, 0, val_ & 0xffffff); \
 }
 
 #define EMITH_JMP_START(cond) { \
@@ -630,9 +630,6 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	EOP_MOV_REG_ASR(d,d,32 - (bits)); \
 }
 
-#define host_arg2reg(rd, arg) \
-	rd = arg
-
 // upto 4 args
 #define emith_pass_arg_r(arg, reg) \
 	EOP_MOV_REG_SIMPLE(arg, reg)
@@ -657,6 +654,11 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	u32 val_ = (u32 *)(target) - ptr_ - 2; \
 	*ptr_ = (*ptr_ & 0xff000000) | (val_ & 0x00ffffff); \
 } while (0)
+
+#define emith_jump_at(ptr, target) { \
+	u32 val_ = (u32 *)(target) - (u32 *)(ptr) - 2; \
+	EOP_C_B_PTR(ptr, A_COND_AL, 0, val_ & 0xffffff); \
+}
 
 #define emith_jump_reg_c(cond, r) \
 	EOP_C_BX(cond, r)
@@ -689,6 +691,18 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_ret_to_ctx(offs) \
 	emith_ctx_write(14, offs)
+
+#define emith_push_ret() \
+	EOP_STMFD_SP(A_R14M)
+
+#define emith_pop_and_ret() \
+	EOP_LDMFD_SP(A_R15M)
+
+#define host_instructions_updated(base, end) \
+	cache_flush_d_inval_i(base, end)
+
+#define host_arg2reg(rd, arg) \
+	rd = arg
 
 /* SH2 drc specific */
 #define emith_sh2_drc_entry() \

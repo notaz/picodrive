@@ -104,7 +104,6 @@ static u8 *tcache_ptr;
 
 typedef struct block_desc_ {
   u32 addr;                  // SH2 PC address
-  u32 end_addr;              // TODO rm?
   void *tcache_ptr;          // translated block for above PC
   struct block_desc_ *next;  // next block with the same PC hash
 #if (DRC_DEBUG & 1)
@@ -114,7 +113,7 @@ typedef struct block_desc_ {
 
 typedef struct block_link_ {
   u32 target_pc;
-  void *jump;
+  void *jump;     // insn address
 //  struct block_link_ *next;
 } block_link;
 
@@ -231,13 +230,108 @@ static int  REGPARM(3) (*sh2_drc_write32)(u32 a, u32 d, SH2 *sh2);
 
 extern void REGPARM(2) sh2_do_op(SH2 *sh2, int opcode);
 
-static void flush_tcache(int tcid)
+// address space stuff
+static void *dr_get_pc_base(u32 pc, int is_slave)
+{
+  void *ret = NULL;
+  u32 mask = 0;
+
+  if ((pc & ~0x7ff) == 0) {
+    // BIOS
+    ret = is_slave ? Pico32xMem->sh2_rom_s : Pico32xMem->sh2_rom_m;
+    mask = 0x7ff;
+  }
+  else if ((pc & 0xfffff000) == 0xc0000000) {
+    // data array
+    ret = Pico32xMem->data_array[is_slave];
+    mask = 0xfff;
+  }
+  else if ((pc & 0xc6000000) == 0x06000000) {
+    // SDRAM
+    ret = Pico32xMem->sdram;
+    mask = 0x03ffff;
+  }
+  else if ((pc & 0xc6000000) == 0x02000000) {
+    // ROM
+    ret = Pico.rom;
+    mask = 0x3fffff;
+  }
+
+  if (ret == NULL)
+    return (void *)-1; // NULL is valid value
+
+  return (char *)ret - (pc & ~mask);
+}
+
+static int dr_ctx_get_mem_ptr(u32 a, u32 *mask)
+{
+  int poffs = -1;
+
+  if ((a & ~0x7ff) == 0) {
+    // BIOS
+    poffs = offsetof(SH2, p_bios);
+    *mask = 0x7ff;
+  }
+  else if ((a & 0xfffff000) == 0xc0000000) {
+    // data array
+    poffs = offsetof(SH2, p_da);
+    *mask = 0xfff;
+  }
+  else if ((a & 0xc6000000) == 0x06000000) {
+    // SDRAM
+    poffs = offsetof(SH2, p_sdram);
+    *mask = 0x03ffff;
+  }
+  else if ((a & 0xc6000000) == 0x02000000) {
+    // ROM
+    poffs = offsetof(SH2, p_rom);
+    *mask = 0x3fffff;
+  }
+
+  return poffs;
+}
+
+static block_desc *dr_get_bd(u32 pc, int is_slave, int *tcache_id)
+{
+  *tcache_id = 0;
+
+  // we have full block id tables for data_array and RAM
+  // BIOS goes to data_array table too
+  if ((pc & 0xe0000000) == 0xc0000000 || (pc & ~0xfff) == 0) {
+    int blkid = Pico32xMem->drcblk_da[is_slave][(pc & 0xfff) >> SH2_DRCBLK_DA_SHIFT];
+    *tcache_id = 1 + is_slave;
+    if (blkid & 1)
+      return &block_tables[*tcache_id][blkid >> 1];
+  }
+  // RAM
+  else if ((pc & 0xc6000000) == 0x06000000) {
+    int blkid = Pico32xMem->drcblk_ram[(pc & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT];
+    if (blkid & 1)
+      return &block_tables[0][blkid >> 1];
+  }
+  // ROM
+  else if ((pc & 0xc6000000) == 0x02000000) {
+    block_desc *bd = HASH_FUNC(hash_table, pc);
+
+    for (; bd != NULL; bd = bd->next)
+      if (bd->addr == pc)
+        return bd;
+  }
+
+  return NULL;
+}
+
+// ---------------------------------------------------------------
+
+// block management
+static void REGPARM(1) flush_tcache(int tcid)
 {
   dbg(1, "tcache #%d flush! (%d/%d, bds %d/%d)", tcid,
     tcache_ptrs[tcid] - tcache_bases[tcid], tcache_sizes[tcid],
     block_counts[tcid], block_max_counts[tcid]);
 
   block_counts[tcid] = 0;
+  block_link_counts[tcid] = 0;
   tcache_ptrs[tcid] = tcache_bases[tcid];
   if (tcid == 0) { // ROM, RAM
     memset(hash_table, 0, sizeof(hash_table[0]) * MAX_HASH_ENTRIES);
@@ -270,28 +364,27 @@ static int dr_add_block_link(u32 target_pc, void *jump, int tcache_id)
 }
 #endif
 
-static void *dr_find_block(block_desc *tab, u32 addr)
+static block_desc *dr_add_block(u32 addr, int is_slave, int *blk_id)
 {
-  for (tab = tab->next; tab != NULL; tab = tab->next)
-    if (tab->addr == addr)
-      break;
-
-  if (tab != NULL)
-    return tab->tcache_ptr;
-
-  printf("block miss for %08x\n", addr);
-  return NULL;
-}
-
-static block_desc *dr_add_block(u32 addr, int tcache_id, int *blk_id)
-{
-  int *bcount = &block_counts[tcache_id];
   block_desc *bd;
+  int tcache_id;
+  int *bcount;
 
+  bd = dr_get_bd(addr, is_slave, &tcache_id);
+  if (bd != NULL) {
+    dbg(1, "block override for %08x", addr);
+    bd->tcache_ptr = tcache_ptr;
+    *blk_id = bd - block_tables[tcache_id];
+    return bd;
+  }
+
+  bcount = &block_counts[tcache_id];
   if (*bcount >= block_max_counts[tcache_id]) {
     printf("bd overflow for tcache %d\n", tcache_id);
     return NULL;
   }
+  if (*bcount == 0)
+    (*bcount)++; // not using descriptor 0
 
   bd = &block_tables[tcache_id][*bcount];
   bd->addr = addr;
@@ -313,6 +406,62 @@ static block_desc *dr_add_block(u32 addr, int tcache_id, int *blk_id)
   return bd;
 }
 
+static void REGPARM(3) *dr_lookup_block(u32 pc, int is_slave, int *tcache_id)
+{
+  block_desc *bd = NULL;
+  void *block = NULL;
+
+  bd = dr_get_bd(pc, is_slave, tcache_id);
+  if (bd != NULL)
+    block = bd->tcache_ptr;
+
+#if (DRC_DEBUG & 1)
+  if (bd != NULL)
+    bd->refcount++;
+#endif
+  return block;
+}
+
+static void *dr_prepare_ext_branch(u32 pc, SH2 *sh2, int tcache_id)
+{
+#if LINK_BRANCHES
+  int target_tcache_id;
+  void *target;
+  int ret;
+
+  target = dr_lookup_block(pc, sh2->is_slave, &target_tcache_id);
+  if (target_tcache_id == tcache_id) {
+    // allow linking blocks only from local cache
+    ret = dr_add_block_link(pc, tcache_ptr, tcache_id);
+    if (ret < 0)
+      return NULL;
+  }
+  if (target == NULL || target_tcache_id != tcache_id)
+    target = sh2_drc_dispatcher;
+
+  return target;
+#else
+  return sh2_drc_dispatcher;
+#endif
+}
+
+static void dr_link_blocks(void *target, u32 pc, int tcache_id)
+{
+#if LINK_BRANCHES
+  block_link *bl = block_links[tcache_id];
+  int cnt = block_link_counts[tcache_id];
+  int i;
+
+  for (i = 0; i < cnt; i++) {
+    if (bl[i].target_pc == pc) {
+      dbg(1, "- link from %p", bl[i].jump);
+      emith_jump_patch(bl[i].jump, target);
+      // XXX: sync ARM caches (old jump should be fine)?
+    }
+  }
+#endif
+}
+
 #define ADD_TO_ARRAY(array, count, item, failcode) \
   array[count++] = item; \
   if (count >= ARRAY_SIZE(array)) { \
@@ -320,7 +469,7 @@ static block_desc *dr_add_block(u32 addr, int tcache_id, int *blk_id)
     failcode; \
   }
 
-int find_in_array(u32 *array, size_t size, u32 what)
+static int find_in_array(u32 *array, size_t size, u32 what)
 {
   size_t i;
   for (i = 0; i < size; i++)
@@ -332,6 +481,7 @@ int find_in_array(u32 *array, size_t size, u32 what)
 
 // ---------------------------------------------------------------
 
+// register cache / constant propagation stuff
 typedef enum {
   RC_GR_READ,
   RC_GR_WRITE,
@@ -346,9 +496,9 @@ static u32 dr_gcregs[24];
 static u32 dr_gcregs_mask;
 static u32 dr_gcregs_dirty;
 
+#if PROPAGATE_CONSTANTS
 static void gconst_new(sh2_reg_e r, u32 val)
 {
-#if PROPAGATE_CONSTANTS
   int i;
 
   dr_gcregs_mask  |= 1 << r;
@@ -363,8 +513,8 @@ static void gconst_new(sh2_reg_e r, u32 val)
       reg_temp[i].flags = 0;
     }
   }
-#endif
 }
+#endif
 
 static int gconst_get(sh2_reg_e r, u32 *val)
 {
@@ -423,7 +573,6 @@ static void gconst_invalidate(void)
   dr_gcregs_mask = dr_gcregs_dirty = 0;
 }
 
-// register chache
 static u16 rcache_counter;
 
 static temp_reg_t *rcache_evict(void)
@@ -701,118 +850,22 @@ static void rcache_flush(void)
 
 // ---------------------------------------------------------------
 
-// address space stuff
-static void *dr_get_pc_base(u32 pc, int is_slave)
-{
-  void *ret = NULL;
-  u32 mask = 0;
-
-  if ((pc & ~0x7ff) == 0) {
-    // BIOS
-    ret = is_slave ? Pico32xMem->sh2_rom_s : Pico32xMem->sh2_rom_m;
-    mask = 0x7ff;
-  }
-  else if ((pc & 0xfffff000) == 0xc0000000) {
-    // data array
-    ret = Pico32xMem->data_array[is_slave];
-    mask = 0xfff;
-  }
-  else if ((pc & 0xc6000000) == 0x06000000) {
-    // SDRAM
-    ret = Pico32xMem->sdram;
-    mask = 0x03ffff;
-  }
-  else if ((pc & 0xc6000000) == 0x02000000) {
-    // ROM
-    ret = Pico.rom;
-    mask = 0x3fffff;
-  }
-
-  if (ret == NULL)
-    return (void *)-1; // NULL is valid value
-
-  return (char *)ret - (pc & ~mask);
-}
-
 static int emit_get_rbase_and_offs(u32 a, u32 *offs)
 {
-  int poffs = -1;
   u32 mask = 0;
+  int poffs;
   int hr;
 
-  if ((a & ~0x7ff) == 0) {
-    // BIOS
-    poffs = offsetof(SH2, p_bios);
-    mask = 0x7ff;
-  }
-  else if ((a & 0xfffff000) == 0xc0000000) {
-    // data array
-    poffs = offsetof(SH2, p_da);
-    mask = 0xfff;
-  }
-  else if ((a & 0xc6000000) == 0x06000000) {
-    // SDRAM
-    poffs = offsetof(SH2, p_sdram);
-    mask = 0x03ffff;
-  }
-  else if ((a & 0xc6000000) == 0x02000000) {
-    // ROM
-    poffs = offsetof(SH2, p_rom);
-    mask = 0x3fffff;
-  }
-
+  poffs = dr_ctx_get_mem_ptr(a, &mask);
   if (poffs == -1)
     return -1;
 
-  // XXX: could use related reg
+  // XXX: could use some related reg
   hr = rcache_get_tmp();
   emith_ctx_read(hr, poffs);
   emith_add_r_imm(hr, a & mask & ~0xff);
   *offs = a & 0xff; // XXX: ARM oriented..
   return hr;
-}
-
-static void REGPARM(3) *lookup_block(u32 pc, int is_slave, int *tcache_id)
-{
-  block_desc *bd = NULL;
-  void *block = NULL;
-  *tcache_id = 0;
-
-  // we have full block id tables for data_array and RAM
-  // BIOS goes to data_array table too
-  if ((pc & 0xe0000000) == 0xc0000000 || (pc & ~0xfff) == 0) {
-    int blkid = Pico32xMem->drcblk_da[is_slave][(pc & 0xfff) >> SH2_DRCBLK_DA_SHIFT];
-    *tcache_id = 1 + is_slave;
-    if (blkid & 1) {
-      bd = &block_tables[*tcache_id][blkid >> 1];
-      block = bd->tcache_ptr;
-    }
-  }
-  // RAM
-  else if ((pc & 0xc6000000) == 0x06000000) {
-    int blkid = Pico32xMem->drcblk_ram[(pc & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT];
-    if (blkid & 1) {
-      bd = &block_tables[0][blkid >> 1];
-      block = bd->tcache_ptr;
-    }
-  }
-  // ROM
-  else if ((pc & 0xc6000000) == 0x02000000) {
-    bd = HASH_FUNC(hash_table, pc);
-
-    if (bd != NULL) {
-      if (bd->addr == pc)
-        block = bd->tcache_ptr;
-      else
-        block = dr_find_block(bd, pc);
-    }
-  }
-
-#if (DRC_DEBUG & 1)
-  if (bd != NULL)
-    bd->refcount++;
-#endif
-  return block;
 }
 
 static void emit_move_r_imm32(sh2_reg_e dst, u32 imm)
@@ -1073,46 +1126,6 @@ static void emit_block_entry(void)
   EMITH_SJMP_END(DCOND_EQ);
 }
 
-void dr_link_blocks(void *target, u32 pc, int tcache_id)
-{
-#if LINK_BRANCHES
-  block_link *bl = block_links[tcache_id];
-  int cnt = block_link_counts[tcache_id];
-  int i;
-
-  for (i = 0; i < cnt; i++) {
-    if (bl[i].target_pc == pc) {
-      dbg(1, "- link from %p", bl[i].jump);
-      emith_jump_patch(bl[i].jump, target);
-      // XXX: sync ARM caches (old jump should be fine)?
-    }
-  }
-#endif
-}
-
-void *dr_prepare_ext_branch(u32 pc, SH2 *sh2, int tcache_id)
-{
-#if LINK_BRANCHES
-  int target_tcache_id;
-  void *target;
-  int ret;
-
-  target = lookup_block(pc, sh2->is_slave, &target_tcache_id);
-  if (target_tcache_id == tcache_id) {
-    // allow linking blocks only from local cache
-    ret = dr_add_block_link(pc, tcache_ptr, tcache_id);
-    if (ret < 0)
-      return NULL;
-  }
-  if (target == NULL || target_tcache_id != tcache_id)
-    target = sh2_drc_dispatcher;
-
-  return target;
-#else
-  return sh2_drc_dispatcher;
-#endif
-}
-
 #define DELAYED_OP \
   drcf.delayed_op = 2
 
@@ -1163,8 +1176,9 @@ void *dr_prepare_ext_branch(u32 pc, SH2 *sh2, int tcache_id)
 static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 {
   // XXX: maybe use structs instead?
-  void *branch_target_ptr[MAX_LOCAL_BRANCHES];
   u32 branch_target_pc[MAX_LOCAL_BRANCHES];
+  void *branch_target_ptr[MAX_LOCAL_BRANCHES];
+  int branch_target_blkid[MAX_LOCAL_BRANCHES];
   int branch_target_count = 0;
   void *branch_patch_ptr[MAX_LOCAL_BRANCHES];
   u32 branch_patch_pc[MAX_LOCAL_BRANCHES];
@@ -1202,7 +1216,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   }
 
   tcache_ptr = tcache_ptrs[tcache_id];
-  this_block = dr_add_block(base_pc, tcache_id, &blkid_main);
+  this_block = dr_add_block(base_pc, sh2->is_slave, &blkid_main);
   if (this_block == NULL)
     return NULL;
 
@@ -1267,6 +1281,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   }
   branch_target_count = tmp;
   memset(branch_target_ptr, 0, sizeof(branch_target_ptr[0]) * branch_target_count);
+  memset(branch_target_blkid, 0, sizeof(branch_target_blkid[0]) * branch_target_count);
 
   // -------------------------------------------------
   // 2nd pass: actual compilation
@@ -1284,12 +1299,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     i = find_in_array(branch_target_pc, branch_target_count, pc);
     if (i >= 0)
     {
-      if (pc != sh2->pc)
+      if (pc != base_pc)
       {
         /* make "subblock" - just a mid-block entry */
         block_desc *subblock;
-        u16 *drcblk;
-        int blkid;
 
         sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
         FLUSH_CYCLES(sr);
@@ -1300,23 +1313,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           rcache_flush();
         do_host_disasm(tcache_id);
 
-        subblock = dr_add_block(pc, tcache_id, &blkid);
+        subblock = dr_add_block(pc, sh2->is_slave, &branch_target_blkid[i]);
         if (subblock == NULL)
           return NULL;
-        subblock->end_addr = pc;
-
-        if (tcache_id != 0) { // data array, BIOS
-          drcblk = Pico32xMem->drcblk_da[sh2->is_slave];
-          drcblk += (pc & 0x00fff) >> SH2_DRCBLK_DA_SHIFT;
-          *drcblk = (blkid << 1) | 1;
-        } else if ((this_block->addr & 0xc7fc0000) == 0x06000000) { // DRAM
-          drcblk = Pico32xMem->drcblk_ram;
-          drcblk += (pc & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT;
-          *drcblk = (blkid << 1) | 1;
-        }
 
         dbg(1, "-- %csh2 subblock #%d,%d %08x -> %p", sh2->is_slave ? 's' : 'm',
-          tcache_id, blkid, pc, tcache_ptr);
+          tcache_id, branch_target_blkid[i], pc, tcache_ptr);
 
         // since we made a block entry, link any other blocks that jump to current pc
         dr_link_blocks(tcache_ptr, pc, tcache_id);
@@ -1848,7 +1850,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
               // XXX: limit burned cycles
               emit_move_r_imm32(GET_Rn(), 0);
               emith_or_r_imm(sr, T);
-              cycles += tmp * 4;
+              cycles += tmp * 4 + 1; // +1 syncs with noconst version, not sure why
               skip_op = 1;
             }
             else
@@ -2572,39 +2574,44 @@ end_op:
     emith_jump_patch(branch_patch_ptr[i], target);
   }
 
-  this_block->end_addr = pc;
-  if (last_inlined_literal > pc)
-    this_block->end_addr = last_inlined_literal + 4;
+  end_pc = pc;
+  if (last_inlined_literal > end_pc)
+    end_pc = last_inlined_literal + 4;
 
   // mark memory blocks as containing compiled code
-  if (tcache_id != 0) {
-    // data array, BIOS
-    u16 *drcblk = Pico32xMem->drcblk_da[sh2->is_slave];
-    tmp  = (this_block->addr & 0xfff) >> SH2_DRCBLK_DA_SHIFT;
-    tmp2 = (this_block->end_addr & 0xfff) >> SH2_DRCBLK_DA_SHIFT;
-    drcblk[tmp] = (blkid_main << 1) | 1;
-    for (++tmp; tmp < tmp2; tmp++) {
-      if (drcblk[tmp])
-        continue; // dont overwrite overlay block(s)
-      drcblk[tmp] = blkid_main << 1;
+  // override any overlay blocks as they become unreachable anyway
+  if (tcache_id != 0 || (this_block->addr & 0xc7fc0000) == 0x06000000)
+  {
+    u16 *drc_ram_blk = NULL;
+    u32 mask = 0, shift = 0;
+
+    if (tcache_id != 0) {
+      // data array, BIOS
+      drc_ram_blk = Pico32xMem->drcblk_da[sh2->is_slave];
+      shift = SH2_DRCBLK_DA_SHIFT;
+      mask = 0xfff;
     }
-  }
-  else if ((this_block->addr & 0xc7fc0000) == 0x06000000) { // DRAM
-    tmp  = (this_block->addr & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT;
-    tmp2 = (this_block->end_addr & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT;
-    Pico32xMem->drcblk_ram[tmp] = (blkid_main << 1) | 1;
-    for (++tmp; tmp < tmp2; tmp++) {
-      if (Pico32xMem->drcblk_ram[tmp])
-        continue;
-      Pico32xMem->drcblk_ram[tmp] = blkid_main << 1;
+    else if ((this_block->addr & 0xc7fc0000) == 0x06000000) {
+      // SDRAM
+      drc_ram_blk = Pico32xMem->drcblk_ram;
+      shift = SH2_DRCBLK_RAM_SHIFT;
+      mask = 0x3ffff;
     }
+
+    drc_ram_blk[(base_pc >> shift) & mask] = (blkid_main << 1) | 1;
+    for (pc = base_pc + 2; pc < end_pc; pc += 2)
+      drc_ram_blk[(pc >> shift) & mask] = blkid_main << 1;
+
+    // mark subblocks too
+    for (i = 0; i < branch_target_count; i++)
+      if (branch_target_blkid[i] != 0)
+        drc_ram_blk[(branch_target_pc[i] >> shift) & mask] =
+          branch_target_blkid[i] << 1;
   }
 
   tcache_ptrs[tcache_id] = tcache_ptr;
 
-#ifdef ARM
-  cache_flush_d_inval_i(block_entry, tcache_ptr);
-#endif
+  host_instructions_updated(block_entry, tcache_ptr);
 
   do_host_disasm(tcache_id);
   dbg(1, " block #%d,%d tcache %d/%d, insns %d -> %d %.3f",
@@ -2656,7 +2663,7 @@ static void sh2_generate_utils(void)
   emith_ctx_read(arg0, SHR_PC * 4);
   emith_ctx_read(arg1, offsetof(SH2, is_slave));
   emith_add_r_r_imm(arg2, CONTEXT_REG, offsetof(SH2, drc_tmp));
-  emith_call(lookup_block);
+  emith_call(dr_lookup_block);
   emit_block_entry();
   // lookup failed, call sh2_translate()
   emith_move_r_r(arg0, CONTEXT_REG);
@@ -2781,7 +2788,7 @@ static void sh2_generate_utils(void)
   // debug
   #define MAKE_READ_WRAPPER(func) { \
     void *tmp = (void *)tcache_ptr; \
-    emith_ret_to_ctx(offsetof(SH2, drc_tmp)); \
+    emith_push_ret(); \
     emith_call(func); \
     emith_ctx_read(arg2, offsetof(SH2, pdb_io_csum[0]));  \
     emith_addf_r_r(arg2, arg0);                           \
@@ -2789,7 +2796,7 @@ static void sh2_generate_utils(void)
     emith_ctx_read(arg2, offsetof(SH2, pdb_io_csum[1]));  \
     emith_adc_r_imm(arg2, 0x01000000);                    \
     emith_ctx_write(arg2, offsetof(SH2, pdb_io_csum[1])); \
-    emith_jump_ctx(offsetof(SH2, drc_tmp)); \
+    emith_pop_and_ret(); \
     func = tmp; \
   }
   #define MAKE_WRITE_WRAPPER(func) { \
@@ -2836,48 +2843,57 @@ static void sh2_generate_utils(void)
 #endif
 }
 
-static void sh2_smc_rm_block(u16 *drcblk, u16 *p, block_desc *btab, u32 a)
+static void *sh2_smc_rm_block_entry(block_desc *bd, int tcache_id)
 {
-  u16 id = *p >> 1;
-  block_desc *bd = btab + id;
+  // XXX: kill links somehow?
+  dbg(1, "  killing entry %08x, blkid %d", bd->addr, bd - block_tables[tcache_id]);
+  bd->addr = 0;
+  // since we never reuse space of dead blocks,
+  // insert jump to dispatcher for blocks that are linked to this point
+  emith_jump_at(bd->tcache_ptr, sh2_drc_dispatcher);
+  return bd->tcache_ptr;
+}
 
-  // FIXME: skip subblocks; do both directions
-  // FIXME: collect all branches
-  dbg(1, "  killing block %08x", bd->addr);
-  bd->addr = bd->end_addr = 0;
+static void sh2_smc_rm_block(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, u32 mask)
+{
+  //block_link *bl = block_links[tcache_id];
+  //int bl_count = block_link_counts[tcache_id];
+  block_desc *btab = block_tables[tcache_id];
+  u16 *p = drc_ram_blk + ((a & mask) >> shift);
+  u16 *pe = drc_ram_blk + (mask >> shift);
+  void *tcache_min, *tcache_max;
+  int main_id, prev_id = 0;
 
-  while (p > drcblk && (p[-1] >> 1) == id)
+  while (p > drc_ram_blk && (*p & 1) == 0)
     p--;
 
-  // check for possible overlay block
-  if (p > 0 && p[-1] != 0) {
-    bd = btab + (p[-1] >> 1);
-    if (bd->addr <= a && a < bd->end_addr)
-      sh2_smc_rm_block(drcblk, p - 1, btab, a);
+  if (!(*p & 1))
+    printf("smc rm: missing block start for %08x?\n", a);
+  main_id = *p >> 1;
+  tcache_min = tcache_max = sh2_smc_rm_block_entry(&btab[main_id], tcache_id);
+
+  for (*p++ = 0; p <= pe && *p != 0 && !(*p & 1); p++) {
+    int id = *p >> 1;
+    if (id != main_id && id != prev_id)
+      tcache_max = sh2_smc_rm_block_entry(&btab[*p >> 1], tcache_id);
+    *p = 0;
+    prev_id = id;
   }
 
-  do {
-    *p++ = 0;
-  }
-  while ((*p >> 1) == id);
+  host_instructions_updated(tcache_min, (void *)((char *)tcache_max + 4));
 }
 
 void sh2_drc_wcheck_ram(unsigned int a, int val, int cpuid)
 {
-  u16 *drcblk = Pico32xMem->drcblk_ram;
-  u16 *p = drcblk + ((a & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT);
-
   dbg(1, "%csh2 smc check @%08x", cpuid ? 's' : 'm', a);
-  sh2_smc_rm_block(drcblk, p, block_tables[0], a);
+  sh2_smc_rm_block(a, Pico32xMem->drcblk_ram, 0, SH2_DRCBLK_RAM_SHIFT, 0x3ffff);
 }
 
 void sh2_drc_wcheck_da(unsigned int a, int val, int cpuid)
 {
-  u16 *drcblk = Pico32xMem->drcblk_da[cpuid];
-  u16 *p = drcblk + ((a & 0xfff) >> SH2_DRCBLK_DA_SHIFT);
-
   dbg(1, "%csh2 smc check @%08x", cpuid ? 's' : 'm', a);
-  sh2_smc_rm_block(drcblk, p, block_tables[1 + cpuid], a);
+  sh2_smc_rm_block(a, Pico32xMem->drcblk_da[cpuid],
+    1 + cpuid, SH2_DRCBLK_DA_SHIFT, 0xfff);
 }
 
 void sh2_execute(SH2 *sh2c, int cycles)
@@ -2979,9 +2995,7 @@ int sh2_drc_init(SH2 *sh2)
     drc_cmn_init();
     tcache_ptr = tcache;
     sh2_generate_utils();
-#ifdef ARM
-    cache_flush_d_inval_i(tcache, tcache_ptr);
-#endif
+    host_instructions_updated(tcache, tcache_ptr);
 
     tcache_bases[0] = tcache_ptrs[0] = tcache_ptr;
     for (i = 1; i < ARRAY_SIZE(tcache_bases); i++)

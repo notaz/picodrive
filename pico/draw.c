@@ -1421,7 +1421,7 @@ PICO_INTERNAL void PicoFrameStart(void)
     lines = 240;
   }
 
-  HighCol = HighColBase;
+  HighCol = HighColBase + offs * HighColIncrement;
   DrawLineDest = (char *)DrawLineDestBase + offs * DrawLineDestIncrement;
   DrawScanline = 0;
   skip_next_line = 0;

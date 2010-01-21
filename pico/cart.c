@@ -9,6 +9,7 @@
 
 #include "pico_int.h"
 #include "../zlib/zlib.h"
+#include "../cpu/debug.h"
 #include "../unzip/unzip.h"
 #include "../unzip/unzip_stream.h"
 
@@ -555,6 +556,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
     PicoCartUnloadHook();
     PicoCartUnloadHook = NULL;
   }
+  pdb_cleanup();
 
   PicoAHW &= PAHW_MCD|PAHW_SMS;
 

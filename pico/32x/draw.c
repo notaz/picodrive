@@ -308,7 +308,7 @@ void PicoDraw32xSetFrameMode(int is_on, int only_32x)
 
   if (is_on) {
     // use the same layout as alt renderer
-    PicoDrawSetInternalBuf(PicoDraw2FB + 328*8, 328);
+    PicoDrawSetInternalBuf(PicoDraw2FB, 328);
     Pico32xDrawMode = only_32x ? PDM32X_32X_ONLY : PDM32X_BOTH;
   } else {
     PicoDrawSetInternalBuf(NULL, 0);

@@ -23,7 +23,11 @@ int main(int argc, char *argv[])
   struct sockaddr_in6 sa;
   packet_t packet1, packet2;
   int i, ret, cnt, cpuid;
+  int check_len_override = 0;
   socklen_t sal;
+
+  if (argv[1] != NULL)
+    check_len_override = atoi(argv[1]);
 
   memset(&hints, 0, sizeof(hints));
   hints.ai_flags = AI_CANONNAME;
@@ -78,6 +82,7 @@ int main(int argc, char *argv[])
 
   for (cnt = 0; ; cnt++)
   {
+    int len;
 #define tmp_size (4+4 + 24*4 + 2*4)
     ret = recv(sock1, &packet1, tmp_size, MSG_WAITALL);
     if (ret != tmp_size) {
@@ -97,12 +102,18 @@ int main(int argc, char *argv[])
     }
 
     cpuid = packet1.header.cpuid;
-    if (memcmp(&packet1, &packet2, sizeof(packet1.header) + packet1.header.len) == 0) {
+    len = sizeof(packet1.header) + packet1.header.len;
+    if (check_len_override > 0)
+      len = check_len_override;
+
+    if (memcmp(&packet1, &packet2, len) == 0) {
       pc_trace[cpuid][pc_trace_p[cpuid]++ & 3] = packet1.regs[0];
       continue;
     }
 
-    if (*(int *)&packet1.header != *(int *)&packet2.header)
+    if (packet1.header.cpuid != packet2.header.cpuid)
+      printf("%d: CPU %d %d\n", packet1.header.cpuid & 0xff, packet2.header.cpuid & 0xff);
+    else if (*(int *)&packet1.header != *(int *)&packet2.header)
       printf("%d: header\n", cnt);
 
     // check regs (and stuff)
@@ -113,10 +124,18 @@ int main(int argc, char *argv[])
     break;
   }
 
-  printf("--\nCPU %d, trace:", cpuid);
-  for (i = 0; i < 4; i++)
-    printf(" %08x", pc_trace[cpuid][pc_trace_p[cpuid]++ & 3]);
-  printf(" %08x\n", packet1.regs[0]);
+  printf("--\nCPU %d\n", cpuid);
+  for (cpuid = 0; cpuid < 2; cpuid++) {
+    printf("trace%d: ", cpuid);
+    for (i = 0; i < 4; i++)
+      printf(" %08x", pc_trace[cpuid][pc_trace_p[cpuid]++ & 3]);
+
+    if (packet1.header.cpuid == cpuid)
+      printf(" %08x", packet1.regs[0]);
+    else if (packet2.header.cpuid == cpuid)
+      printf(" %08x", packet2.regs[0]);
+    printf("\n");
+  }
 
   for (i = 0; i < 24+1; i++)
     printf("%3s: %08x %08x\n", regnames[i], packet1.regs[i], packet2.regs[i]);
