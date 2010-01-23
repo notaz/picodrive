@@ -35,7 +35,7 @@ typedef struct SH2_
 	int		irq_cycles;
 	void		*p_bios;	// convenience pointers
 	void		*p_da;
-	void		*p_sdram;
+	void		*p_sdram;	// 80
 	void		*p_rom;
 	unsigned int	pdb_io_csum[2];
 

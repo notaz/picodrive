@@ -63,10 +63,10 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define EMIT_SIB(scale,index,base) \
 	EMIT(((scale)<<6) | ((index)<<3) | (base), u8)
 
-#define EMIT_OP_MODRM(op,mod,r,rm) { \
+#define EMIT_OP_MODRM(op,mod,r,rm) do { \
 	EMIT_OP(op); \
 	EMIT_MODRM(mod, r, rm); \
-}
+} while (0)
 
 #define JMP8_POS(ptr) \
 	ptr = tcache_ptr; \
@@ -418,48 +418,43 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define is_abcdx(r) (xAX <= (r) && (r) <= xDX)
 
-#define emith_read_op_8_16(op, r, rs, offs) do { \
-	int r_ = r; \
-	if (!is_abcdx(r)) \
-		r_ = rcache_get_tmp(); \
-	emith_deref_op(op, r_, rs, offs); \
-	if ((r) != r_) { \
-		emith_move_r_r(r, r_); \
-		rcache_free_tmp(r_); \
-	} \
-} while (0)
-
-#define emith_write_op_8_16(op, r, rs, offs) do { \
-	int r_ = r; \
-	if (!is_abcdx(r)) { \
-		r_ = rcache_get_tmp(); \
-		emith_move_r_r(r_, r); \
-	} \
-	emith_deref_op(op, r_, rs, offs); \
-	if ((r) != r_) \
-		rcache_free_tmp(r_); \
-} while (0)
-
 #define emith_read_r_r_offs(r, rs, offs) \
 	emith_deref_op(0x8b, r, rs, offs)
 
 #define emith_write_r_r_offs(r, rs, offs) \
 	emith_deref_op(0x89, r, rs, offs)
 
-#define emith_read8_r_r_offs(r, rs, offs) \
-	emith_read_op_8_16(0x8a, r, rs, offs)
+// note: don't use prefixes on this
+#define emith_read8_r_r_offs(r, rs, offs) do { \
+	int r_ = r; \
+	if (!is_abcdx(r)) \
+		r_ = rcache_get_tmp(); \
+	emith_deref_op(0x8a, r_, rs, offs); \
+	if ((r) != r_) { \
+		emith_move_r_r(r, r_); \
+		rcache_free_tmp(r_); \
+	} \
+} while (0)
 
-#define emith_write8_r_r_offs(r, rs, offs) \
-	emith_write_op_8_16(0x88, r, rs, offs)
+#define emith_write8_r_r_offs(r, rs, offs) do {\
+	int r_ = r; \
+	if (!is_abcdx(r)) { \
+		r_ = rcache_get_tmp(); \
+		emith_move_r_r(r_, r); \
+	} \
+	emith_deref_op(0x88, r_, rs, offs); \
+	if ((r) != r_) \
+		rcache_free_tmp(r_); \
+} while (0)
 
 #define emith_read16_r_r_offs(r, rs, offs) { \
 	EMIT(0x66, u8); /* operand override */ \
-	emith_read_op_8_16(0x8b, r, rs, offs); \
+	emith_read_r_r_offs(r, rs, offs); \
 }
 
 #define emith_write16_r_r_offs(r, rs, offs) { \
 	EMIT(0x66, u8); \
-	emith_read_op_8_16(0x89, r, rs, offs); \
+	emith_write_r_r_offs(r, rs, offs); \
 }
 
 #define emith_ctx_read(r, offs) \

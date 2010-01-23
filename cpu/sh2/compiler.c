@@ -6,6 +6,8 @@
  *   failure, followed by full tcache invalidation for that region
  * - jumps between blocks are tracked for SMC handling (in block_links[]),
  *   except jumps between different tcaches
+ * - non-main block entries are called subblocks, as they have same tracking
+ *   structures that main blocks have.
  *
  * implemented:
  * - static register allocation
@@ -35,8 +37,14 @@
 #define PROPAGATE_CONSTANTS     1
 #define LINK_BRANCHES           1
 
+// limits (per block)
+#define BLOCK_CYCLE_LIMIT       100
+#define MAX_BLOCK_SIZE          (BLOCK_CYCLE_LIMIT * 6 * 6)
+
 // max literal offset from the block end
 #define MAX_LITERAL_OFFSET      32*2
+#define MAX_LITERALS            (BLOCK_CYCLE_LIMIT / 4)
+#define MAX_LOCAL_BRANCHES      32
 
 // debug stuff {
 #ifndef DRC_DEBUG
@@ -82,8 +90,6 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
 #endif
 // } debug
 
-#define BLOCK_CYCLE_LIMIT 100
-#define MAX_BLOCK_SIZE (BLOCK_CYCLE_LIMIT * 6 * 6)
 #define TCACHE_BUFFERS 3
 
 // we have 3 translation cache buffers, split from one drc/cmn buffer.
@@ -710,9 +716,8 @@ static int rcache_get_arg_id(int arg)
     if (reg_temp[i].hreg == r)
       break;
 
-  if (i == ARRAY_SIZE(reg_temp))
-    // let's just say it's untracked arg reg
-    return r;
+  if (i == ARRAY_SIZE(reg_temp)) // can't happen
+    exit(1);
 
   if (reg_temp[i].type == HR_CACHED) {
     // writeback
@@ -744,7 +749,7 @@ static int rcache_get_tmp_arg(int arg)
 static int rcache_get_reg_arg(int arg, sh2_reg_e r)
 {
   int i, srcr, dstr, dstid;
-  int dirty = 0;
+  int dirty = 0, src_dirty = 0;
 
   dstid = rcache_get_arg_id(arg);
   dstr = reg_temp[dstid].hreg;
@@ -760,6 +765,8 @@ static int rcache_get_reg_arg(int arg, sh2_reg_e r)
          reg_temp[i].greg == r)
     {
       srcr = reg_temp[i].hreg;
+      if (reg_temp[i].flags & HRF_DIRTY)
+        src_dirty = 1;
       goto do_cache;
     }
   }
@@ -776,13 +783,22 @@ static int rcache_get_reg_arg(int arg, sh2_reg_e r)
 do_cache:
   if (dstr != srcr)
     emith_move_r_r(dstr, srcr);
+#if 1
+  else
+    dirty |= src_dirty;
+
+  if (dirty)
+    // must clean, callers might want to modify the arg before call
+    emith_ctx_write(dstr, r * 4);
+#else
+  if (dirty)
+    reg_temp[dstid].flags |= HRF_DIRTY;
+#endif
 
   reg_temp[dstid].stamp = ++rcache_counter;
   reg_temp[dstid].type = HR_CACHED;
   reg_temp[dstid].greg = r;
   reg_temp[dstid].flags |= HRF_LOCKED;
-  if (dirty)
-    reg_temp[dstid].flags |= HRF_DIRTY;
   return dstr;
 }
 
@@ -1167,8 +1183,6 @@ static void emit_block_entry(void)
   if (GET_Fx() >= n) \
     goto default_
 
-#define MAX_LOCAL_BRANCHES 32
-
 // op_flags: data from 1st pass
 #define OP_FLAGS(pc) op_flags[((pc) - base_pc) / 2]
 #define OF_DELAY_OP (1 << 0)
@@ -1183,6 +1197,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   void *branch_patch_ptr[MAX_LOCAL_BRANCHES];
   u32 branch_patch_pc[MAX_LOCAL_BRANCHES];
   int branch_patch_count = 0;
+  u32 literal_addr[MAX_LITERALS];
+  int literal_addr_count = 0;
   int pending_branch_cond = -1;
   int pending_branch_pc = 0;
   u8 op_flags[BLOCK_CYCLE_LIMIT + 1];
@@ -1194,7 +1210,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
   // PC of current, first, last, last_target_blk SH2 insn
   u32 pc, base_pc, end_pc, out_pc;
-  u32 last_inlined_literal = 0;
   void *block_entry;
   block_desc *this_block;
   u16 *dr_pc_base;
@@ -1297,7 +1312,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     op = FETCH_OP(pc);
 
     i = find_in_array(branch_target_pc, branch_target_count, pc);
-    if (i >= 0)
+    if (i >= 0 || pc == base_pc)
     {
       if (pc != base_pc)
       {
@@ -1313,17 +1328,18 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           rcache_flush();
         do_host_disasm(tcache_id);
 
+        dbg(1, "-- %csh2 subblock #%d,%d %08x -> %p", sh2->is_slave ? 's' : 'm',
+          tcache_id, branch_target_blkid[i], pc, tcache_ptr);
+
         subblock = dr_add_block(pc, sh2->is_slave, &branch_target_blkid[i]);
         if (subblock == NULL)
           return NULL;
 
-        dbg(1, "-- %csh2 subblock #%d,%d %08x -> %p", sh2->is_slave ? 's' : 'm',
-          tcache_id, branch_target_blkid[i], pc, tcache_ptr);
-
         // since we made a block entry, link any other blocks that jump to current pc
         dr_link_blocks(tcache_ptr, pc, tcache_id);
       }
-      branch_target_ptr[i] = tcache_ptr;
+      if (i >= 0)
+        branch_target_ptr[i] = tcache_ptr;
 
       // must update PC
       emit_move_r_imm32(SHR_PC, pc);
@@ -1334,6 +1350,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       emith_cmp_r_imm(sr, 0);
       emith_jump_cond(DCOND_LE, sh2_drc_exit);
       do_host_disasm(tcache_id);
+      rcache_unlock_all();
     }
 
 #if (DRC_DEBUG & 3)
@@ -2291,10 +2308,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       // MOV.W @(disp,PC),Rn  1001nnnndddddddd
       tmp = pc + (op & 0xff) * 2 + 2;
 #if PROPAGATE_CONSTANTS
-      if (tmp < end_pc + MAX_LITERAL_OFFSET) {
+      if (tmp < end_pc + MAX_LITERAL_OFFSET && literal_addr_count < MAX_LITERALS) {
+        ADD_TO_ARRAY(literal_addr, literal_addr_count, tmp,);
         gconst_new(GET_Rn(), (u32)(int)(signed short)FETCH_OP(tmp));
-        if (last_inlined_literal < tmp)
-          last_inlined_literal = tmp;
       }
       else
 #endif
@@ -2433,10 +2449,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       // MOV.L @(disp,PC),Rn  1101nnnndddddddd
       tmp = (pc + (op & 0xff) * 4 + 2) & ~3;
 #if PROPAGATE_CONSTANTS
-      if (tmp < end_pc + MAX_LITERAL_OFFSET) {
+      if (tmp < end_pc + MAX_LITERAL_OFFSET && literal_addr_count < MAX_LITERALS) {
+        ADD_TO_ARRAY(literal_addr, literal_addr_count, tmp,);
         gconst_new(GET_Rn(), FETCH32(tmp));
-        if (last_inlined_literal < tmp)
-          last_inlined_literal = tmp;
       }
       else
 #endif
@@ -2575,8 +2590,6 @@ end_op:
   }
 
   end_pc = pc;
-  if (last_inlined_literal > end_pc)
-    end_pc = last_inlined_literal + 4;
 
   // mark memory blocks as containing compiled code
   // override any overlay blocks as they become unreachable anyway
@@ -2602,11 +2615,20 @@ end_op:
     for (pc = base_pc + 2; pc < end_pc; pc += 2)
       drc_ram_blk[(pc >> shift) & mask] = blkid_main << 1;
 
-    // mark subblocks too
+    // mark subblocks
     for (i = 0; i < branch_target_count; i++)
       if (branch_target_blkid[i] != 0)
         drc_ram_blk[(branch_target_pc[i] >> shift) & mask] =
-          branch_target_blkid[i] << 1;
+          (branch_target_blkid[i] << 1) | 1;
+
+    // mark literals
+    for (i = 0; i < literal_addr_count; i++) {
+      tmp = literal_addr[i];
+      //printf("marking literal %08x\n", tmp);
+      drc_ram_blk[(tmp >> shift) & mask] = blkid_main << 1;
+      if (!(tmp & 3)) // assume long
+        drc_ram_blk[((tmp + 2) >> shift) & mask] = blkid_main << 1;
+    }
   }
 
   tcache_ptrs[tcache_id] = tcache_ptr;
@@ -2845,12 +2867,28 @@ static void sh2_generate_utils(void)
 
 static void *sh2_smc_rm_block_entry(block_desc *bd, int tcache_id)
 {
+  void *tmp;
+
   // XXX: kill links somehow?
   dbg(1, "  killing entry %08x, blkid %d", bd->addr, bd - block_tables[tcache_id]);
-  bd->addr = 0;
+  if (bd->addr == 0 || bd->tcache_ptr == NULL) {
+    printf("  killing dead block!? %08x\n", bd->addr);
+    return bd->tcache_ptr;
+  }
+
   // since we never reuse space of dead blocks,
   // insert jump to dispatcher for blocks that are linked to this point
-  emith_jump_at(bd->tcache_ptr, sh2_drc_dispatcher);
+  //emith_jump_at(bd->tcache_ptr, sh2_drc_dispatcher);
+
+  // attempt to handle self-modifying blocks by exiting at nearest known PC
+  tmp = tcache_ptr;
+  tcache_ptr = bd->tcache_ptr;
+  emit_move_r_imm32(SHR_PC, bd->addr);
+  rcache_flush();
+  emith_jump(sh2_drc_dispatcher);
+  tcache_ptr = tmp;
+
+  bd->addr = 0;
   return bd->tcache_ptr;
 }
 
@@ -2860,27 +2898,55 @@ static void sh2_smc_rm_block(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, 
   //int bl_count = block_link_counts[tcache_id];
   block_desc *btab = block_tables[tcache_id];
   u16 *p = drc_ram_blk + ((a & mask) >> shift);
-  u16 *pe = drc_ram_blk + (mask >> shift);
+  u16 *pmax = drc_ram_blk + (mask >> shift);
   void *tcache_min, *tcache_max;
-  int main_id, prev_id = 0;
+  int zeros;
+  u16 *pt;
 
-  while (p > drc_ram_blk && (*p & 1) == 0)
-    p--;
+  // Figure out what the main block is, as subblocks also have the flag set.
+  // This relies on sub having single entry. It's possible that innocent
+  // block might be hit, but that's not such a big deal.
+  if ((p[0] >> 1) != (p[1] >> 1)) {
+    for (; p > drc_ram_blk; p--)
+      if (p[-1] == 0 || (p[-1] >> 1) == (*p >> 1))
+        break;
+  }
+  pt = p;
 
-  if (!(*p & 1))
+  for (; p > drc_ram_blk; p--)
+    if ((*p & 1))
+      break;
+
+  if (!(*p & 1)) {
     printf("smc rm: missing block start for %08x?\n", a);
-  main_id = *p >> 1;
-  tcache_min = tcache_max = sh2_smc_rm_block_entry(&btab[main_id], tcache_id);
-
-  for (*p++ = 0; p <= pe && *p != 0 && !(*p & 1); p++) {
-    int id = *p >> 1;
-    if (id != main_id && id != prev_id)
-      tcache_max = sh2_smc_rm_block_entry(&btab[*p >> 1], tcache_id);
-    *p = 0;
-    prev_id = id;
+    p = pt;
   }
 
-  host_instructions_updated(tcache_min, (void *)((char *)tcache_max + 4));
+  if (*p == 0)
+    return;
+
+  tcache_min = tcache_max = sh2_smc_rm_block_entry(&btab[*p >> 1], tcache_id);
+  *p = 0;
+
+  for (p++, zeros = 0; p < pmax && zeros < MAX_LITERAL_OFFSET / 2; p++) {
+    int id = *p >> 1;
+    if (id == 0) {
+      // there can be holes because games sometimes keep variables
+      // directly in literal pool and we don't inline them to avoid recompile
+      // (Star Wars Arcade)
+      zeros++;
+      continue;
+    }
+    if (*p & 1) {
+      if (id == (p[1] >> 1))
+        // hit other block
+        break;
+      tcache_max = sh2_smc_rm_block_entry(&btab[id], tcache_id);
+    }
+    *p = 0;
+  }
+
+  host_instructions_updated(tcache_min, (void *)((char *)tcache_max + 4*4 + 4));
 }
 
 void sh2_drc_wcheck_ram(unsigned int a, int val, int cpuid)

@@ -535,7 +535,8 @@ static UINT32 op1100(char *buffer, UINT32 pc, UINT16 opcode)
 		sprintf(buffer, "MOV.L   @($%04X,GBR),R0", (opcode & 0xff) * 4);
 		break;
 	case  7:
-		sprintf(buffer, "MOVA    @($%04X,PC),R0", (opcode & 0xff) * 4);
+		sprintf(buffer, "MOVA    @($%04X,PC),R0  ; @$%08x", (opcode & 0xff) * 4,
+			((pc + 2) & ~3) + (opcode & 0xff) * 4);
 		break;
 	case  8:
 		sprintf(buffer, "TST     #$%02X,R0", opcode & 0xff);

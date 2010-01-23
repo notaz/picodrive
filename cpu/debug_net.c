@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -112,7 +113,7 @@ int main(int argc, char *argv[])
     }
 
     if (packet1.header.cpuid != packet2.header.cpuid)
-      printf("%d: CPU %d %d\n", packet1.header.cpuid & 0xff, packet2.header.cpuid & 0xff);
+      printf("%d: CPU %d %d\n", cnt, packet1.header.cpuid & 0xff, packet2.header.cpuid & 0xff);
     else if (*(int *)&packet1.header != *(int *)&packet2.header)
       printf("%d: header\n", cnt);
 
