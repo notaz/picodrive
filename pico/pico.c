@@ -192,10 +192,8 @@ int PicoReset(void)
   if (!(PicoOpt & POPT_DIS_IDLE_DET))
     SekInitIdleDet();
 
-  if (PicoOpt & POPT_EN_32X) {
+  if (PicoOpt & POPT_EN_32X)
     PicoReset32x();
-    return 0;
-  }
 
   // reset sram state; enable sram access by default if it doesn't overlap with ROM
   Pico.m.sram_reg = 0;

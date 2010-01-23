@@ -17,7 +17,6 @@
  * - some constant propagation
  *
  * TODO:
- * - proper SMC handling
  * - better constant propagation
  * - stack caching?
  * - bug fixing

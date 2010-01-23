@@ -74,15 +74,6 @@ void sh2_execute(SH2 *sh2_, int cycles)
 	{
 		UINT32 opcode;
 
-		/* FIXME: Darxide doesn't like this */
-		if (sh2->test_irq && !sh2->delay && sh2->pending_level > ((sh2->sr >> 4) & 0x0f))
-		{
-			int level = sh2->pending_level;
-			int vector = sh2->irq_callback(sh2, level);
-			sh2_do_irq(sh2, level, vector);
-			sh2->test_irq = 0;
-		}
-
 		if (sh2->delay)
 		{
 			sh2->ppc = sh2->delay;
@@ -119,6 +110,15 @@ void sh2_execute(SH2 *sh2_, int cycles)
 		}
 
 		sh2->icount--;
+
+		if (sh2->test_irq && !sh2->delay && sh2->pending_level > ((sh2->sr >> 4) & 0x0f))
+		{
+			int level = sh2->pending_level;
+			int vector = sh2->irq_callback(sh2, level);
+			sh2_do_irq(sh2, level, vector);
+			sh2->test_irq = 0;
+		}
+
 	}
 	while (sh2->icount > 0 || sh2->delay);	/* can't interrupt before delay */
 

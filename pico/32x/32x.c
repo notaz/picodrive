@@ -19,7 +19,7 @@ static int REGPARM(2) sh2_irq_cb(SH2 *sh2, int level)
   }
 }
 
-void p32x_update_irls(void)
+void p32x_update_irls(int nested_call)
 {
   int irqs, mlvl = 0, slvl = 0;
 
@@ -36,8 +36,8 @@ void p32x_update_irls(void)
   slvl *= 2;
 
   elprintf(EL_32X, "update_irls: m %d, s %d", mlvl, slvl);
-  sh2_irl_irq(&msh2, mlvl);
-  sh2_irl_irq(&ssh2, slvl);
+  sh2_irl_irq(&msh2, mlvl, nested_call);
+  sh2_irl_irq(&ssh2, slvl, nested_call);
   mlvl = mlvl ? 1 : 0;
   slvl = slvl ? 1 : 0;
   p32x_poll_event(mlvl | (slvl << 1), 0);
@@ -141,7 +141,7 @@ void PicoReset32x(void)
 {
   if (PicoAHW & PAHW_32X) {
     Pico32x.sh2irqs |= P32XI_VRES;
-    p32x_update_irls();
+    p32x_update_irls(0);
     p32x_poll_event(3, 0);
   }
 }
@@ -186,7 +186,7 @@ static void p32x_start_blank(void)
   }
 
   Pico32x.sh2irqs |= P32XI_VINT;
-  p32x_update_irls();
+  p32x_update_irls(0);
   p32x_poll_event(3, 1);
 }
 

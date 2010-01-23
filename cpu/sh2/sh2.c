@@ -54,15 +54,23 @@ void sh2_do_irq(SH2 *sh2, int level, int vector)
 //	sh2->icount -= 13;
 }
 
-void sh2_irl_irq(SH2 *sh2, int level)
+void sh2_irl_irq(SH2 *sh2, int level, int nested_call)
 {
 	sh2->pending_irl = level;
-	if (level > sh2->pending_int_irq)
-		sh2->pending_level = level;
-	else
-		sh2->pending_level = sh2->pending_int_irq;
+	if (level < sh2->pending_int_irq)
+		level = sh2->pending_int_irq;
+	sh2->pending_level = level;
 
-	sh2->test_irq = 1;
+	if (!nested_call) {
+		// not in memhandler, so handle this now (recompiler friendly)
+		// do this to avoid missing irqs that other SH2 might clear
+		if (level > ((sh2->sr >> 4) & 0x0f)) {
+			int vector = sh2->irq_callback(sh2, level);
+			sh2_do_irq(sh2, level, vector);
+		}
+	}
+	else
+		sh2->test_irq = 1;
 }
 
 void sh2_internal_irq(SH2 *sh2, int level, int vector)

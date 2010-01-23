@@ -224,12 +224,12 @@ static void p32x_reg_write8(u32 a, u32 d)
     case 3: // irq ctl
       if ((d & 1) && !(Pico32x.sh2irqi[0] & P32XI_CMD)) {
         Pico32x.sh2irqi[0] |= P32XI_CMD;
-        p32x_update_irls();
+        p32x_update_irls(0);
         SekEndRun(16);
       }
       if ((d & 2) && !(Pico32x.sh2irqi[1] & P32XI_CMD)) {
         Pico32x.sh2irqi[1] |= P32XI_CMD;
-        p32x_update_irls();
+        p32x_update_irls(0);
         SekEndRun(16);
       }
       return;
@@ -431,7 +431,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, int cpuid)
       Pico32x.sh2irq_mask[cpuid] = d & 0x8f;
       Pico32x.sh2_regs[0] &= ~0x80;
       Pico32x.sh2_regs[0] |= d & 0x80;
-      p32x_update_irls();
+      p32x_update_irls(1);
       return;
     case 5: // H count
       Pico32x.sh2_regs[4 / 2] = d & 0xff;
@@ -486,7 +486,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
   return;
 
 irls:
-  p32x_update_irls();
+  p32x_update_irls(1);
 }
 
 // ------------------------------------------------------------------
@@ -950,7 +950,7 @@ static u32 sh2_read8_cs0(u32 a, int id)
   if (id == 1 && a < sizeof(Pico32xMem->sh2_rom_s))
     return Pico32xMem->sh2_rom_s[a ^ 1];
 
-  if ((a & 0x3ff00) == 0x4200) {
+  if ((a & 0x3fe00) == 0x4200) {
     d = Pico32xMem->pal[(a & 0x1ff) / 2];
     goto out_16to8;
   }
@@ -1004,7 +1004,7 @@ static u32 sh2_read16_cs0(u32 a, int id)
   if (id == 1 && a < sizeof(Pico32xMem->sh2_rom_s))
     return *(u16 *)(Pico32xMem->sh2_rom_s + a);
 
-  if ((a & 0x3ff00) == 0x4200) {
+  if ((a & 0x3fe00) == 0x4200) {
     d = Pico32xMem->pal[(a & 0x1ff) / 2];
     goto out;
   }

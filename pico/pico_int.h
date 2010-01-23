@@ -706,7 +706,7 @@ void PicoReset32x(void);
 void Pico32xStartup(void);
 void PicoUnload32x(void);
 void PicoFrame32x(void);
-void p32x_update_irls(void);
+void p32x_update_irls(int nested_call);
 void p32x_reset_sh2s(void);
 
 // 32x/memory.c
@@ -734,7 +734,7 @@ extern int Pico32xDrawMode;
 unsigned int p32x_pwm_read16(unsigned int a);
 void p32x_pwm_write16(unsigned int a, unsigned int d);
 void p32x_pwm_update(int *buf32, int length, int stereo);
-void p32x_timers_do(int new_line);
+void p32x_timers_do(int line_call);
 void p32x_timers_recalc(void);
 extern int pwm_frame_smp_cnt;
 
