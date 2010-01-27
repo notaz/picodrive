@@ -592,6 +592,17 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   return 0;
 }
 
+int PicoCartResize(int newsize)
+{
+  void *tmp = plat_mremap(Pico.rom, rom_alloc_size, newsize);
+  if (tmp == NULL)
+    return -1;
+
+  Pico.rom = tmp;
+  rom_alloc_size = newsize;
+  return 0;
+}
+
 void PicoCartUnload(void)
 {
   if (PicoCartUnloadHook != NULL) {

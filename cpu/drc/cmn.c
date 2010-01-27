@@ -13,7 +13,7 @@ void drc_cmn_init(void)
 #ifdef __linux__
 	void *tmp;
 
-	tmp = mmap(tcache, DRC_TCACHE_SIZE, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+	tmp = mmap(tcache, DRC_TCACHE_SIZE, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 	printf("mmap tcache: %p, asked %p\n", tmp, tcache);
 #endif
 }

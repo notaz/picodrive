@@ -52,10 +52,7 @@ static void SekResetAckS68k(void)
 
 static int SekUnrecognizedOpcodeS68k(void)
 {
-  unsigned int pc, op;
-  pc = SekPcS68k;
-  op = PicoCpuCS68k.read16(pc);
-  elprintf(EL_ANOMALY, "Unrecognized Opcode %04x @ %06x", op, pc);
+  elprintf(EL_ANOMALY, "Unrecognized Opcode @ %06x", SekPcS68k);
   //exit(1);
   return 0;
 }

@@ -115,20 +115,17 @@ static void PicoSVPExit(void)
 
 void PicoSVPStartup(void)
 {
-	void *tmp;
+	int ret;
 
 	elprintf(EL_STATUS, "SVP startup");
 
-	tmp = realloc(Pico.rom, 0x200000 + sizeof(*svp));
-	if (tmp == NULL)
-	{
+	ret = PicoCartResize(Pico.romsize + sizeof(*svp));
+	if (ret != 0) {
 		elprintf(EL_STATUS|EL_SVP, "OOM for SVP data");
 		return;
 	}
 
-	//PicoOpt &= ~0x20000;
-	Pico.rom = tmp;
-	svp = (void *) ((char *)tmp + 0x200000);
+	svp = (void *) ((char *)Pico.rom + Pico.romsize);
 	memset(svp, 0, sizeof(*svp));
 
 	// init SVP compiler
@@ -155,5 +152,4 @@ void PicoSVPStartup(void)
 	carthw_chunks = svp_states;
 	PicoAHW |= PAHW_SVP;
 }
-
 

@@ -203,20 +203,17 @@ static void carthw_realtec_reset(void)
 
 void carthw_realtec_startup(void)
 {
-	void *tmp;
 	int i;
 
 	elprintf(EL_STATUS, "Realtec mapper startup");
 
 	// allocate additional bank for boot code
 	// (we know those ROMs have aligned size)
-	tmp = realloc(Pico.rom, Pico.romsize + M68K_BANK_SIZE);
-	if (tmp == NULL)
-	{
+	i = PicoCartResize(Pico.romsize + M68K_BANK_SIZE);
+	if (i != 0) {
 		elprintf(EL_STATUS, "OOM");
 		return;
 	}
-	Pico.rom = tmp;
 
 	// create bank for boot code
 	for (i = 0; i < M68K_BANK_SIZE; i += 0x2000)
@@ -487,18 +484,16 @@ static void carthw_prot_lk3_mem_setup(void)
 
 void carthw_prot_lk3_startup(void)
 {
-  void *tmp;
+  int ret;
 
   elprintf(EL_STATUS, "lk3 prot emu startup");
 
   // allocate space for bank0 backup
-  tmp = realloc(Pico.rom, Pico.romsize + 0x8000);
-  if (tmp == NULL)
-  {
+  ret = PicoCartResize(Pico.romsize + 0x8000);
+  if (ret != 0) {
     elprintf(EL_STATUS, "OOM");
     return;
   }
-  Pico.rom = tmp;
   memcpy(Pico.rom + Pico.romsize, Pico.rom, 0x8000);
 
   PicoCartMemSetup = carthw_prot_lk3_mem_setup;

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <dirent.h>
@@ -112,12 +113,26 @@ int plat_wait_event(int *fds_hnds, int count, int timeout_ms)
 void *plat_mmap(unsigned long addr, size_t size)
 {
 	void *req, *ret;
+
 	req = (void *)addr;
-	ret = mmap(req, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -1, 0);
+	ret = mmap(req, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 	if (ret == MAP_FAILED)
 		return NULL;
 	if (ret != req)
 		printf("warning: mmaped to %p, requested %p\n", ret, req);
+
+	return ret;
+}
+
+void *plat_mremap(void *ptr, size_t oldsize, size_t newsize)
+{
+	void *ret;
+
+	ret = mremap(ptr, oldsize, newsize, MREMAP_MAYMOVE);
+	if (ret == MAP_FAILED)
+		return NULL;
+	if (ret != ptr)
+		printf("warning: mremap moved: %p -> %p\n", ptr, ret);
 
 	return ret;
 }
