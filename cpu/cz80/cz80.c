@@ -394,8 +394,8 @@ void Cz80_Set_Reg(cz80_struc *CPU, INT32 regnum, UINT32 val)
 	case CZ80_R:    zR = val; break;
 	case CZ80_I:    zI = val; break;
 	case CZ80_IM:   zIM = val; break;
-	case CZ80_IFF1: zIFF1 = val; break;
-	case CZ80_IFF2: zIFF2 = val; break;
+	case CZ80_IFF1: zIFF1 = val ? (1 << 2) : 0; break;
+	case CZ80_IFF2: zIFF2 = val ? (1 << 2) : 0; break;
 	case CZ80_HALT: CPU->HaltState = val; break;
 	case CZ80_IRQ:  CPU->IRQState = val; break;
 	default: break;

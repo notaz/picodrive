@@ -19,7 +19,6 @@
 
 .if DRZ80_XMAP
       .equ Z80_MEM_SHIFT, 13
-      ;@ note: stack is locked in single bank that z80sp_base points to
 .endif
 
 .if INTERRUPT_MODE
@@ -206,12 +205,30 @@ z80_xmap_rebase_pc:
     bxcc lr
 
 z80_bad_jump:
-    ldr r0,[cpucontext,#z80_read8]
-    ldr r0,[r0]
-    str r0,[cpucontext,#z80pc_base]
+    stmfd sp!,{r3,r12,lr}
+    mov lr,pc
+    ldr pc,[cpucontext,#z80_rebasePC]
     mov z80pc,r0
-    bx lr
-.endif
+    ldmfd sp!,{r3,r12,pc}
+
+z80_xmap_rebase_sp:
+    ldr r1,[cpucontext,#z80_read8]
+    sub r2,r0,#1
+    mov r2,r2,lsl #16
+    mov r2,r2,lsr #(Z80_MEM_SHIFT+16)
+    ldr r1,[r1,r2,lsl #2]
+    movs r1,r1,lsl #1
+    strcc r1,[cpucontext,#z80sp_base]
+    addcc z80sp,r1,r0
+    bxcc lr
+
+    stmfd sp!,{r3,r12,lr}
+    mov lr,pc
+    ldr pc,[cpucontext,#z80_rebaseSP]
+    mov z80sp,r0
+    ldmfd sp!,{r3,r12,pc}
+ 
+.endif @ DRZ80_XMAP
 
 
 .macro fetch cycs
@@ -367,15 +384,13 @@ z80_bad_jump:
      str z80pc,[cpucontext,#z80pc_pointer]
 .endif
 .if DRZ80_XMAP
-    ;@ XXX: SP is locked to single back z80sp_base points to.
-    ldr r1,[cpucontext,#z80sp_base]
-    bic r0,r0,#0x7f<<Z80_MEM_SHIFT
-    add r0,r1,r0
+    bl z80_xmap_rebase_sp
 .else
 	stmfd sp!,{r3,r12}
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_rebaseSP]		;@ external function must rebase sp
 	ldmfd sp!,{r3,r12}
+	mov z80sp,r0
 .endif
 .endm
 ;@----------------------------------------------------------------------------
@@ -4492,7 +4507,6 @@ opcode_3_1:
 .if FAST_Z80SP
 	orr r0,r0,r1, lsl #8
 	rebasesp
-	mov z80sp,r0
 .else
 	orr z80sp,r0,r1, lsl #8
 .endif
@@ -5567,7 +5581,6 @@ opcode_F_9:
 .if FAST_Z80SP
 	mov r0,z80hl, lsr #16
 	rebasesp
-	mov z80sp,r0
 .else
 	mov z80sp,z80hl, lsr #16
 .endif
@@ -7433,7 +7446,6 @@ opcode_DD_F9:
 .if FAST_Z80SP
 	ldrh r0,[z80xx,#2]
 	rebasesp
-	mov z80sp,r0
 .else
 	ldrh z80sp,[z80xx,#2]
 .endif
@@ -7771,8 +7783,9 @@ opcode_ED_7B:
 	readmem16
 .if FAST_Z80SP
 	rebasesp
-.endif
+.else
 	mov z80sp,r0
+.endif
 	fetch 20
 ;@LDI
 opcode_ED_A0:

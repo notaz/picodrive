@@ -322,7 +322,7 @@ static u32 PicoRead8_sram(u32 a)
 static u32 PicoRead16_sram(u32 a)
 {
   u32 d;
-  if (SRam.end >= a && a >= SRam.start && (Pico.m.sram_reg & SRR_MAPPED))
+  if (SRam.start <= a && a <= SRam.end && (Pico.m.sram_reg & SRR_MAPPED))
   {
     if (SRam.flags & SRF_EEPROM)
       d = EEPROM_read();

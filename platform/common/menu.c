@@ -19,7 +19,7 @@
 #include <version.h>
 #include <revision.h>
 
-#include <pico/pico_int.h>
+#include <pico/pico.h>
 #include <pico/patch.h>
 
 static char static_buff[64];
@@ -1039,34 +1039,22 @@ static void state_check_slots(void)
 
 static void draw_savestate_bg(int slot)
 {
-	struct PicoVideo tmp_pv;
-	unsigned short tmp_cram[0x40];
-	unsigned short tmp_vsram[0x40];
-	void *tmp_vram;
 	const char *fname;
+	void *tmp_state;
 
 	fname = emu_get_save_fname(1, 0, slot);
-	if (!fname) return;
+	if (!fname)
+		return;
 
-	tmp_vram = malloc(sizeof(Pico.vram));
-	if (tmp_vram == NULL) return;
+	tmp_state = PicoTmpStateSave();
 
-	memcpy(tmp_vram, Pico.vram, sizeof(Pico.vram));
-	memcpy(tmp_cram, Pico.cram, sizeof(Pico.cram));
-	memcpy(tmp_vsram, Pico.vsram, sizeof(Pico.vsram));
-	memcpy(&tmp_pv, &Pico.video, sizeof(Pico.video));
-
-	PicoStateLoadVDP(fname);
+	PicoStateLoadGfx(fname);
 
 	/* do a frame and fetch menu bg */
 	pemu_forced_frame(POPT_EN_SOFTSCALE);
 	menu_enter(1);
 
-	memcpy(Pico.vram, tmp_vram, sizeof(Pico.vram));
-	memcpy(Pico.cram, tmp_cram, sizeof(Pico.cram));
-	memcpy(Pico.vsram, tmp_vsram, sizeof(Pico.vsram));
-	memcpy(&Pico.video, &tmp_pv,  sizeof(Pico.video));
-	free(tmp_vram);
+	PicoTmpStateRestore(tmp_state);
 }
 
 static void draw_savestate_menu(int menu_sel, int is_loading)
@@ -1105,6 +1093,7 @@ static int menu_loop_savestate(int is_loading)
 	static int menu_sel = 10;
 	int menu_sel_max = 10;
 	unsigned long inp = 0;
+	int ret = 0;
 
 	state_check_slots();
 
@@ -1134,15 +1123,18 @@ static int menu_loop_savestate(int is_loading)
 				state_slot = menu_sel;
 				if (emu_save_load_game(is_loading, 0)) {
 					me_update_msg(is_loading ? "Load failed" : "Save failed");
-					return 0;
+					break;
 				}
-				return 1;
+				ret = 1;
+				break;
 			}
-			return 0;
+			break;
 		}
 		if (inp & PBTN_MBACK)
-			return 0;
+			break;
 	}
+
+	return ret;
 }
 
 // -------------- key config --------------

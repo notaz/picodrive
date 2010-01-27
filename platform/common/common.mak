@@ -25,13 +25,13 @@ endif
 
 # === Pico core ===
 # Pico
-OBJS += pico/area.o pico/cart.o pico/memory.o pico/pico.o pico/sek.o pico/z80if.o \
+OBJS += pico/state.o pico/cart.o pico/memory.o pico/pico.o pico/sek.o pico/z80if.o \
 	pico/videoport.o pico/draw2.o pico/draw.o pico/mode4.o pico/sms.o \
 	pico/misc.o pico/eeprom.o pico/patch.o pico/debug.o
 # CD
 OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
 	pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \
-	pico/cd/area.o pico/cd/misc.o pico/cd/pcm.o pico/cd/buffering.o
+	pico/cd/misc.o pico/cd/pcm.o pico/cd/buffering.o
 # 32X
 OBJS += pico/32x/32x.o pico/32x/memory.o pico/32x/draw.o pico/32x/pwm.o
 # Pico
@@ -62,11 +62,6 @@ OBJS += cpu/fame/famec.o
 endif
 
 # --- Z80 ---
-ifeq "$(use_mz80)" "1"
-DEFINES += _USE_MZ80
-OBJS += cpu/mz80/mz80.o
-endif
-#
 ifeq "$(use_drz80)" "1"
 DEFINES += _USE_DRZ80
 OBJS += cpu/DrZ80/drz80.o

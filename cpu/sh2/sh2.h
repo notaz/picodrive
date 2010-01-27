@@ -64,8 +64,13 @@ void sh2_reset(SH2 *sh2);
 void sh2_irl_irq(SH2 *sh2, int level, int nested_call);
 void sh2_internal_irq(SH2 *sh2, int level, int vector);
 void sh2_do_irq(SH2 *sh2, int level, int vector);
+void sh2_pack(const SH2 *sh2, unsigned char *buff);
+void sh2_unpack(SH2 *sh2, const unsigned char *buff);
 
 void sh2_execute(SH2 *sh2, int cycles);
+
+// regs, pending_int*, cycles, reserved
+#define SH2_STATE_SIZE ((24 + 2 + 2 + 12) * 4)
 
 // pico memhandlers
 // XXX: move somewhere else

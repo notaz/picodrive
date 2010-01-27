@@ -27,7 +27,7 @@ PicoRead8_sram: @ u32 a, u32 d
     ldr     r3, =(Pico+0x22200)
     ldr     r1, [r2, #8]    @ SRam.end
     cmp     r0, r1
-    bge     m_read8_nosram
+    bgt     m_read8_nosram
     ldr     r1, [r2, #4]    @ SRam.start
     cmp     r0, r1
     blt     m_read8_nosram
@@ -58,8 +58,8 @@ m_read8_nosram:
 m_read8_eeprom:
     stmfd   sp!,{r0,lr}
     bl      EEPROM_read
-    ldmfd   sp!,{r0,lr}
-    tst     r0, #1
+    ldmfd   sp!,{r1,lr}
+    tst     r1, #1
     moveq   r0, r0, lsr #8
     bx      lr
 
@@ -126,7 +126,7 @@ PicoRead16_sram: @ u32 a, u32 d
     ldr     r3, =(Pico+0x22200)
     ldr     r1, [r2, #8]    @ SRam.end
     cmp     r0, r1
-    bge     m_read16_nosram
+    bgt     m_read16_nosram
     ldr     r1, [r2, #4]    @ SRam.start
     cmp     r0, r1
     blt     m_read16_nosram

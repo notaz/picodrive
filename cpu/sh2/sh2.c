@@ -1,4 +1,6 @@
 #include <string.h>
+#include <stddef.h>
+
 #include "sh2.h"
 #include "../debug.h"
 #include "compiler.h"
@@ -83,5 +85,33 @@ void sh2_internal_irq(SH2 *sh2, int level, int vector)
 		sh2->pending_level = level;
 
 	sh2->test_irq = 1;
+}
+
+#define SH2_REG_SIZE (offsetof(SH2, macl) + sizeof(sh2->macl))
+
+void sh2_pack(const SH2 *sh2, unsigned char *buff)
+{
+	unsigned int *p;
+
+	memcpy(buff, sh2, SH2_REG_SIZE);
+	p = (void *)(buff + SH2_REG_SIZE);
+
+	p[0] = sh2->pending_int_irq;
+	p[1] = sh2->pending_int_vector;
+	p[2] = sh2->cycles_aim;
+	p[3] = sh2->cycles_done;
+}
+
+void sh2_unpack(SH2 *sh2, const unsigned char *buff)
+{
+	unsigned int *p;
+
+	memcpy(sh2, buff, SH2_REG_SIZE);
+	p = (void *)(buff + SH2_REG_SIZE);
+
+	sh2->pending_int_irq = p[0];
+	sh2->pending_int_vector = p[1];
+	sh2->cycles_aim = p[2];
+	sh2->cycles_done = p[3];
 }
 

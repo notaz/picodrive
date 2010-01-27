@@ -103,7 +103,7 @@ static unsigned char z80_sms_in(unsigned short a)
       break;
 
     case 0xc1: /* I/O port B and miscellaneous */
-      d = (Pico.sms_io_ctl & 0x80) | ((Pico.sms_io_ctl << 1) & 0x40) | 0x30;
+      d = (Pico.ms.io_ctl & 0x80) | ((Pico.ms.io_ctl << 1) & 0x40) | 0x30;
       d |= ~(PicoPad[1] >> 2) & 0x0f;
       break;
   }
@@ -119,7 +119,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
   switch (a)
   {
     case 0x01:
-      Pico.sms_io_ctl = d;
+      Pico.ms.io_ctl = d;
       break;
 
     case 0x40:
@@ -167,6 +167,7 @@ static void write_bank(unsigned short a, unsigned char d)
 #endif
       break;
   }
+  Pico.ms.carthw[a & 0x0f] = d;
 }
 
 static void xwrite(unsigned int a, unsigned char d)
@@ -174,7 +175,7 @@ static void xwrite(unsigned int a, unsigned char d)
   elprintf(EL_IO, "z80 write [%04x] %02x", a, d);
   if (a >= 0xc000)
     Pico.zram[a & 0x1fff] = d;
-  if (a >= 0xfff0)
+  if (a >= 0xfff8)
     write_bank(a, d);
 }
 
@@ -203,6 +204,9 @@ void PicoPowerMS(void)
   tmp = 1 << s;
   bank_mask = (tmp - 1) >> 14;
 
+  Pico.ms.carthw[0x0e] = 1;
+  Pico.ms.carthw[0x0f] = 2;
+
   PicoReset();
 }
 
@@ -227,6 +231,12 @@ void PicoMemSetupMS(void)
   Cz80_Set_INPort(&CZ80, z80_sms_in);
   Cz80_Set_OUTPort(&CZ80, z80_sms_out);
 #endif
+}
+
+void PicoStateLoadedMS(void)
+{
+  write_bank(0xfffe, Pico.ms.carthw[0x0e]);
+  write_bank(0xffff, Pico.ms.carthw[0x0f]);
 }
 
 void PicoFrameMS(void)

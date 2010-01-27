@@ -34,6 +34,7 @@ extern void cache_flush_d_inval_i(const void *start_addr, const void *end_addr);
 // attempt to alloc mem at specified address.
 // alloc anywhere else if that fails (callers should handle that)
 extern void *plat_mmap(unsigned long addr, size_t size);
+extern void *plat_mremap(void *ptr, size_t oldsize, size_t newsize);
 extern void  plat_munmap(void *ptr, size_t size);
 
 // this one should handle display mode changes
@@ -119,11 +120,10 @@ extern picohw_state PicoPicohw;
 
 // area.c
 int PicoState(const char *fname, int is_save);
-int PicoStateLoadVDP(const char *fname);
+int PicoStateLoadGfx(const char *fname);
+void *PicoTmpStateSave(void);
+void  PicoTmpStateRestore(void *data);
 extern void (*PicoStateProgressCB)(const char *str);
-
-// cd/area.c
-int  PicoCdLoadStateGfx(void *file);
 
 // cd/buffering.c
 void PicoCDBufferInit(void);

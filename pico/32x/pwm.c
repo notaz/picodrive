@@ -145,7 +145,6 @@ void p32x_pwm_write16(unsigned int a, unsigned int d)
 
 void p32x_pwm_update(int *buf32, int length, int stereo)
 {
-  extern int pwm_ptr;
   short *pwmb;
   int step;
   int p = 0;

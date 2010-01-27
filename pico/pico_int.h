@@ -178,14 +178,7 @@ extern int dbg_irq_level;
 
 // ----------------------- Z80 CPU -----------------------
 
-#if defined(_USE_MZ80)
-#include "../cpu/mz80/mz80.h"
-
-#define z80_run(cycles)    { mz80GetElapsedTicks(1); mz80_run(cycles) }
-#define z80_run_nr(cycles) mz80_run(cycles)
-#define z80_int()          mz80int(0)
-
-#elif defined(_USE_DRZ80)
+#if defined(_USE_DRZ80)
 #include "../cpu/DrZ80/drz80.h"
 
 extern struct DrZ80 drZ80;
@@ -214,6 +207,8 @@ extern struct DrZ80 drZ80;
 #define z80_int()
 
 #endif
+
+#define Z80_STATE_SIZE 0x60
 
 extern int z80stopCycle;         /* in 68k cycles */
 extern int z80_cycle_cnt;        /* 'done' z80 cycles before z80_run() */
@@ -305,6 +300,13 @@ struct PicoMisc
   unsigned int  frame_count;   // 1c for movies and idle det
 };
 
+struct PicoMS
+{
+  unsigned char carthw[0x10];
+  unsigned char io_ctl;
+  unsigned char pad[0x4f];
+};
+
 // some assembly stuff depend on these, do not touch!
 struct Pico
 {
@@ -314,9 +316,8 @@ struct Pico
     unsigned char  vramb[0x4000]; // VRAM in SMS mode
   };
   unsigned char zram[0x2000];  // 0x20000 Z80 ram
-  unsigned char ioports[0x10];
-  unsigned char sms_io_ctl;
-  unsigned char pad[0xef];     // unused
+  unsigned char ioports[0x10]; // XXX: fix asm and mv
+  unsigned char pad[0xf0];     // unused
   unsigned short cram[0x40];   // 0x22100
   unsigned short vsram[0x40];  // 0x22180
 
@@ -325,6 +326,7 @@ struct Pico
 
   struct PicoMisc m;
   struct PicoVideo video;
+  struct PicoMS ms;
 };
 
 // sram
@@ -487,6 +489,7 @@ struct Pico32x
   unsigned short dmac_fifo[DMAC_FIFO_LEN];
   unsigned int dmac_ptr;
   unsigned int pwm_irq_sample_cnt;
+  unsigned int reserved[9];
 };
 
 struct Pico32xMem
@@ -496,7 +499,10 @@ struct Pico32xMem
   unsigned short drcblk_ram[1 << (18 - SH2_DRCBLK_RAM_SHIFT)];
 #endif
   unsigned short dram[2][0x20000/2];    // AKA fb
-  unsigned char  m68k_rom[0x10000];     // 0x100; using M68K_BANK_SIZE
+  union {
+    unsigned char  m68k_rom[0x100];
+    unsigned char  m68k_rom_bank[0x10000]; // M68K_BANK_SIZE
+  };
   unsigned char  data_array[2][0x1000]; // cache in SH2s (can be used as RAM)
 #ifdef DRC_SH2
   unsigned short drcblk_da[2][1 << (12 - SH2_DRCBLK_DA_SHIFT)];
@@ -510,13 +516,7 @@ struct Pico32xMem
 };
 
 // area.c
-PICO_INTERNAL void PicoAreaPackCpu(unsigned char *cpu, int is_sub);
-PICO_INTERNAL void PicoAreaUnpackCpu(unsigned char *cpu, int is_sub);
 extern void (*PicoLoadStateHook)(void);
-
-// cd/area.c
-PICO_INTERNAL int PicoCdSaveState(void *file);
-PICO_INTERNAL int PicoCdLoadState(void *file);
 
 typedef struct {
 	int chunk;
@@ -526,19 +526,9 @@ typedef struct {
 extern carthw_state_chunk *carthw_chunks;
 #define CHUNK_CARTHW 64
 
-// area.c
-typedef size_t (arearw)(void *p, size_t _size, size_t _n, void *file);
-typedef size_t (areaeof)(void *file);
-typedef int    (areaseek)(void *file, long offset, int whence);
-typedef int    (areaclose)(void *file);
-extern arearw  *areaRead;  // external read and write function pointers for
-extern arearw  *areaWrite; // gzip save state ability
-extern areaeof *areaEof;
-extern areaseek *areaSeek;
-extern areaclose *areaClose;
-
 // cart.c
-void Byteswap(void *dst, const void *src, int len);
+extern int PicoCartResize(int newsize);
+extern void Byteswap(void *dst, const void *src, int len);
 extern void (*PicoCartMemSetup)(void);
 extern void (*PicoCartUnloadHook)(void);
 
@@ -612,6 +602,8 @@ PICO_INTERNAL void SekInit(void);
 PICO_INTERNAL int  SekReset(void);
 PICO_INTERNAL void SekState(int *data);
 PICO_INTERNAL void SekSetRealTAS(int use_real);
+PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub);
+PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub);
 void SekStepM68k(void);
 void SekInitIdleDet(void);
 void SekFinishIdleDet(void);
@@ -671,8 +663,8 @@ unsigned int EEPROM_read(void);
 
 // z80 functionality wrappers
 PICO_INTERNAL void z80_init(void);
-PICO_INTERNAL void z80_pack(unsigned char *data);
-PICO_INTERNAL void z80_unpack(unsigned char *data);
+PICO_INTERNAL void z80_pack(void *data);
+PICO_INTERNAL int  z80_unpack(const void *data);
 PICO_INTERNAL void z80_reset(void);
 PICO_INTERNAL void z80_exit(void);
 
@@ -695,6 +687,7 @@ extern int PsndDacLine;
 void PicoPowerMS(void);
 void PicoResetMS(void);
 void PicoMemSetupMS(void);
+void PicoStateLoadedMS(void);
 void PicoFrameMS(void);
 void PicoFrameDrawOnlyMS(void);
 
@@ -717,6 +710,7 @@ void PicoWrite8_32x(unsigned int a, unsigned int d);
 void PicoWrite16_32x(unsigned int a, unsigned int d);
 void PicoMemSetup32x(void);
 void Pico32xSwapDRAM(int b);
+void Pico32xStateLoaded(void);
 void p32x_poll_event(int cpu_mask, int is_vdp);
 
 // 32x/draw.c

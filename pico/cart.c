@@ -439,6 +439,9 @@ static unsigned char *PicoCartAlloc(int filesize, int is_sms)
     if (filesize > (1 << s))
       s++;
     rom_alloc_size = 1 << s;
+    // be sure we can cover all address space
+    if (rom_alloc_size < 0x10000)
+      rom_alloc_size = 0x10000;
   }
   else {
     // make alloc size at least sizeof(mcd_state),
