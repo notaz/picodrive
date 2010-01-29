@@ -50,53 +50,6 @@ static int seek_sect(FILE *f, const char *section)
 }
 
 
-static void custom_write(FILE *f, const menu_entry *me, int no_def)
-{
-	char str24[24];
-
-	switch (me->id)
-	{
-		/* TODO: this should be rm'd when PSP menu is converted */
-		case MA_OPT3_SCALE:
-			if (no_def && defaultConfig.scale == currentConfig.scale) return;
-			fprintf(f, "Scale factor = %.2f", currentConfig.scale);
-			break;
-		case MA_OPT3_HSCALE32:
-			if (no_def && defaultConfig.hscale32 == currentConfig.hscale32) return;
-			fprintf(f, "Hor. scale (for low res. games) = %.2f", currentConfig.hscale32);
-			break;
-		case MA_OPT3_HSCALE40:
-			if (no_def && defaultConfig.hscale40 == currentConfig.hscale40) return;
-			fprintf(f, "Hor. scale (for hi res. games) = %.2f", currentConfig.hscale40);
-			break;
-		case MA_OPT3_FILTERING:
-			if (no_def && defaultConfig.scaling == currentConfig.scaling) return;
-			fprintf(f, "Bilinear filtering = %i", currentConfig.scaling);
-			break;
-		case MA_OPT3_GAMMAA:
-			if (no_def && defaultConfig.gamma == currentConfig.gamma) return;
-			fprintf(f, "Gamma adjustment = %i", currentConfig.gamma);
-			break;
-		case MA_OPT3_BLACKLVL:
-			if (no_def && defaultConfig.gamma2 == currentConfig.gamma2) return;
-			fprintf(f, "Black level = %i", currentConfig.gamma2);
-			break;
-		case MA_OPT3_VSYNC:
-			if (no_def && (defaultConfig.EmuOpt&0x12000) == (currentConfig.gamma2&0x12000)) return;
-			strcpy(str24, "never");
-			if (currentConfig.EmuOpt & 0x2000)
-				strcpy(str24, (currentConfig.EmuOpt & 0x10000) ? "sometimes" : "always");
-			fprintf(f, "Wait for vsync = %s", str24);
-			break;
-
-		default:
-			lprintf("unhandled custom_write: %i\n", me->id);
-			return;
-	}
-	fprintf(f, NL);
-}
-
-
 static void keys_write(FILE *fn, const char *bind_str, int dev_id, const int *binds, int no_defaults)
 {
 	char act[48];
@@ -170,6 +123,8 @@ static int default_var(const menu_entry *me)
 		case MA_CDOPT_SCALEROT_CHIP:
 		case MA_CDOPT_BETTER_SYNC:
 		case MA_CDOPT_SAVERAM:
+		case MA_32XOPT_ENABLE_32X:
+		case MA_32XOPT_PWM:
 		case MA_OPT2_SVP_DYNAREC:
 		case MA_OPT2_NO_SPRITE_LIM:
 		case MA_OPT2_NO_IDLE_LOOPS:
@@ -197,11 +152,16 @@ static int default_var(const menu_entry *me)
 		case MA_OPT_ROTATION:    return defaultConfig.rotation;
 		case MA_OPT2_GAMMA:      return defaultConfig.gamma;
 		case MA_OPT_FRAMESKIP:   return defaultConfig.Frameskip;
+		case MA_OPT_CONFIRM_STATES: return defaultConfig.confirm_save;
 		case MA_OPT_CPU_CLOCKS:  return defaultConfig.CPUclock;
 		case MA_OPT_RENDERER:    return defaultConfig.renderer;
+		case MA_32XOPT_RENDERER: return defaultConfig.renderer32x;
 
 		case MA_OPT_SAVE_SLOT:
+			return 0;
+
 		default:
+			lprintf("missing default for %d\n", me->id);
 			return 0;
 	}
 }
@@ -216,11 +176,12 @@ static int is_cust_val_default(const menu_entry *me)
 		case MA_OPT_SOUND_QUALITY:
 			return defaultConfig.s_PsndRate == PsndRate &&
 				((defaultConfig.s_PicoOpt ^ PicoOpt) & POPT_EN_STEREO) == 0;
-		case MA_OPT_CONFIRM_STATES:
-			return !((defaultConfig.EmuOpt ^ currentConfig.EmuOpt) &
-				(EOPT_CONFIRM_LOAD|EOPT_CONFIRM_SAVE)) == 0;
 		case MA_CDOPT_READAHEAD:
 			return defaultConfig.s_PicoCDBuffers == PicoCDBuffers;
+		case MA_32XOPT_MSH2_CYCLES:
+			return p32x_msh2_multiplier == MSH2_MULTI_DEFAULT;
+		case MA_32XOPT_SSH2_CYCLES:
+			return p32x_ssh2_multiplier == SSH2_MULTI_DEFAULT;
 		default:break;
 	}
 
@@ -302,29 +263,42 @@ write:
 	if (section != NULL)
 		fprintf(fn, "[%s]" NL, section);
 
-	me = me_list_get_first();
-	while (me != NULL)
+	for (me = me_list_get_first(); me != NULL; me = me_list_get_next())
 	{
 		int dummy;
 		if (!me->need_to_save)
-			goto next;
+			continue;
+
 		if (me->beh == MB_OPT_ONOFF || me->beh == MB_OPT_CUSTONOFF) {
 			if (!no_defaults || ((*(int *)me->var ^ default_var(me)) & me->mask))
 				fprintf(fn, "%s = %i" NL, me->name, (*(int *)me->var & me->mask) ? 1 : 0);
-		} else if (me->beh == MB_OPT_RANGE || me->beh == MB_OPT_CUSTRANGE) {
+		}
+		else if (me->beh == MB_OPT_RANGE || me->beh == MB_OPT_CUSTRANGE) {
 			if (!no_defaults || (*(int *)me->var ^ default_var(me)))
 				fprintf(fn, "%s = %i" NL, me->name, *(int *)me->var);
-		} else if (me->name != NULL && me->generate_name != NULL) {
+		}
+		else if (me->beh == MB_OPT_ENUM && me->data != NULL) {
+			const char **names = (const char **)me->data;
+			for (t = 0; names[t] != NULL; t++)
+				if (*(int *)me->var == t && (!no_defaults || (*(int *)me->var ^ default_var(me)))) {
+					strncpy(line, names[t], sizeof(line));
+					goto write_line;
+				}
+		}
+		else if (me->name != NULL && me->generate_name != NULL) {
 			if (!no_defaults || !is_cust_val_default(me)) {
 				strncpy(line, me->generate_name(0, &dummy), sizeof(line));
-				line[sizeof(line) - 1] = 0;
-				mystrip(line);
-				fprintf(fn, "%s = %s" NL, me->name, line);
+				goto write_line;
 			}
-		} else
-			custom_write(fn, me, no_defaults);
-next:
-		me = me_list_get_next();
+		}
+		else
+			lprintf("config: unhandled write: %i\n", me->id);
+		continue;
+
+write_line:
+		line[sizeof(line) - 1] = 0;
+		mystrip(line);
+		fprintf(fn, "%s = %s" NL, me->name, line);
 	}
 
 	/* input: save device names */
@@ -467,40 +441,9 @@ int config_readlrom(const char *fname)
 static int custom_read(menu_entry *me, const char *var, const char *val)
 {
 	char *tmp;
-	int i;
 
 	switch (me->id)
 	{
-		case MA_OPT_RENDERER:
-			if (strcasecmp(var, "Renderer") != 0 || renderer_names == NULL)
-				return 0;
-
-			for (i = 0; renderer_names[i] != NULL; i++) {
-				if (strcasecmp(val, renderer_names[i]) == 0) {
-					currentConfig.renderer = i;
-					return 1;
-				}
-			}
-			return 0;
-
-		case MA_OPT_SCALING:
-#ifdef __GP2X__
-			if (strcasecmp(var, "Scaling") != 0) return 0;
-			if        (strcasecmp(val, "OFF") == 0) {
-				currentConfig.scaling = EOPT_SCALE_NONE;
-			} else if (strcasecmp(val, "hw horizontal") == 0) {
-				currentConfig.scaling = EOPT_SCALE_HW_H;
-			} else if (strcasecmp(val, "hw horiz. + vert.") == 0) {
-				currentConfig.scaling = EOPT_SCALE_HW_HV;
-			} else if (strcasecmp(val, "sw horizontal") == 0) {
-				currentConfig.scaling = EOPT_SCALE_SW_H;
-			} else
-				currentConfig.scaling = atoi(val);
-			return 1;
-#else
-			return 0;
-#endif
-
 		case MA_OPT_FRAMESKIP:
 			if (strcasecmp(var, "Frameskip") != 0) return 0;
 			if (strcasecmp(val, "Auto") == 0)
@@ -559,39 +502,22 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 				return 0;
 			return 1;
 
-		case MA_OPT_CONFIRM_STATES:
-			if (strcasecmp(var, "Confirm savestate") != 0) return 0;
-			if        (strcasecmp(val, "OFF") == 0) {
-				currentConfig.EmuOpt &= ~(5<<9);
-			} else if (strcasecmp(val, "writes") == 0) {
-				currentConfig.EmuOpt &= ~(5<<9);
-				currentConfig.EmuOpt |=   1<<9;
-			} else if (strcasecmp(val, "loads") == 0) {
-				currentConfig.EmuOpt &= ~(5<<9);
-				currentConfig.EmuOpt |=   4<<9;
-			} else if (strcasecmp(val, "both") == 0) {
-				currentConfig.EmuOpt &= ~(5<<9);
-				currentConfig.EmuOpt |=   5<<9;
-			} else
-				return 0;
-			return 1;
-
 		case MA_OPT2_GAMMA:
 			if (strcasecmp(var, "Gamma correction") != 0) return 0;
 			currentConfig.gamma = (int) (atof(val) * 100.0);
-			return 1;
-
-		case MA_OPT2_SQUIDGEHACK:
-			if (strcasecmp(var, "Squidgehack") != 0) return 0;
-			i = atoi(val);
-			if (i) *(int *)me->var |=  me->mask;
-			else   *(int *)me->var &= ~me->mask;
 			return 1;
 
 		case MA_CDOPT_READAHEAD:
 			if (strcasecmp(var, "ReadAhead buffer") != 0) return 0;
 			PicoCDBuffers = atoi(val) / 2;
 			return 1;
+
+		case MA_32XOPT_MSH2_CYCLES:
+		case MA_32XOPT_SSH2_CYCLES: {
+			int *mul = (me->id == MA_32XOPT_MSH2_CYCLES) ? &p32x_msh2_multiplier : &p32x_ssh2_multiplier;
+			*mul = ((unsigned int)atoi(val) << SH2_MULTI_SHIFT) / 7670;
+			return 1;
+		}
 
 		/* PSP */
 		case MA_OPT3_SCALE:
@@ -606,19 +532,8 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			if (strcasecmp(var, "Hor. scale (for hi res. games)") != 0) return 0;
 			currentConfig.hscale40 = atof(val);
 			return 1;
-		case MA_OPT3_FILTERING:
-			if (strcasecmp(var, "Bilinear filtering") != 0) return 0;
-			currentConfig.scaling = atoi(val);
-			return 1;
-		case MA_OPT3_GAMMAA:
-			if (strcasecmp(var, "Gamma adjustment") != 0) return 0;
-			currentConfig.gamma = atoi(val);
-			return 1;
-		case MA_OPT3_BLACKLVL:
-			if (strcasecmp(var, "Black level") != 0) return 0;
-			currentConfig.gamma2 = atoi(val);
-			return 1;
 		case MA_OPT3_VSYNC:
+			// XXX: use enum
 			if (strcasecmp(var, "Wait for vsync") != 0) return 0;
 			if        (strcasecmp(val, "never") == 0) {
 				currentConfig.EmuOpt &= ~0x12000;
@@ -632,7 +547,7 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			return 1;
 
 		default:
-			lprintf("unhandled custom_read: %i\n", me->id);
+			lprintf("unhandled custom_read %i: %s\n", me->id, var);
 			return 0;
 	}
 }
@@ -708,7 +623,7 @@ static unsigned char input_dev_map[IN_MAX_DEVS];
 static void parse(const char *var, const char *val)
 {
 	menu_entry *me;
-	int tmp, ret = 0;
+	int tmp;
 
 	if (strcasecmp(var, "LastUsedROM") == 0)
 		return; /* handled elsewhere */
@@ -749,32 +664,60 @@ static void parse(const char *var, const char *val)
 		return;
 	}
 
-	me = me_list_get_first();
-	while (me != NULL && ret == 0)
+	for (me = me_list_get_first(); me != NULL; me = me_list_get_next())
 	{
+		char *p;
+
 		if (!me->need_to_save)
-			goto next;
+			continue;
 		if (me->name != NULL && me->name[0] != 0) {
 			if (strcasecmp(var, me->name) != 0)
-				goto next; /* surely not this one */
+				continue; /* surely not this one */
 			if (me->beh == MB_OPT_ONOFF) {
-				tmp = atoi(val);
+				tmp = strtol(val, &p, 0);
+				if (*p != 0)
+					goto bad_val;
 				if (tmp) *(int *)me->var |=  me->mask;
 				else     *(int *)me->var &= ~me->mask;
 				return;
-			} else if (me->beh == MB_OPT_RANGE) {
-				tmp = atoi(val);
+			}
+			else if (me->beh == MB_OPT_RANGE) {
+				tmp = strtol(val, &p, 0);
+				if (*p != 0)
+					goto bad_val;
 				if (tmp < me->min) tmp = me->min;
 				if (tmp > me->max) tmp = me->max;
 				*(int *)me->var = tmp;
 				return;
 			}
+			else if (me->beh == MB_OPT_ENUM) {
+				const char **names, *p1;
+				int i;
+
+				names = (const char **)me->data;
+				if (names == NULL)
+					goto bad_val;
+				for (i = 0; names[i] != NULL; i++) {
+					for (p1 = names[i]; *p1 == ' '; p1++)
+						;
+					if (strcasecmp(p1, val) == 0) {
+						*(int *)me->var = i;
+						return;
+					}
+				}
+				goto bad_val;
+			}
 		}
-		ret = custom_read(me, var, val);
-next:
-		me = me_list_get_next();
+		if (!custom_read(me, var, val))
+			break;
+		return;
 	}
-	if (!ret) lprintf("config_readsect: unhandled var: \"%s\"\n", var);
+
+	lprintf("config_readsect: unhandled var: \"%s\"\n", var);
+	return;
+
+bad_val:
+	lprintf("config_readsect: unhandled val for \"%s\": %s\n", var, val);
 }
 
 

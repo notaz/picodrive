@@ -43,10 +43,8 @@ static short __attribute__((aligned(4))) sndBuffer[2*(44100+100)/50];
 static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
 unsigned char *PicoDraw2FB = PicoDraw2FB_;
 static int osd_fps_x, osd_y;
-const char *renderer_names_[] = { "16bit accurate", " 8bit accurate", "     8bit fast", NULL };
-const char *renderer_names32x_[] = { "accurate", "faster  ", "fastest ", NULL };
-const char **renderer_names = renderer_names_;
-const char **renderer_names32x = renderer_names32x_;
+const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast", NULL };
+const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
 enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 
 extern void *gp2x_screens[4];
@@ -902,7 +900,7 @@ void pemu_loop_end(void)
 
 const char *plat_get_credits(void)
 {
-	return "PicoDrive v" VERSION " (c) notaz, 2006-2009\n\n\n"
+	return "PicoDrive v" VERSION " (c) notaz, 2006-2010\n\n\n"
 		"Credits:\n"
 		"fDave: Cyclone 68000 core,\n"
 		"      base code of PicoDrive\n"

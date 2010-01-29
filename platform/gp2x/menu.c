@@ -53,26 +53,17 @@ static void menu_main_plat_draw(void)
 
 // ------------ gfx options menu ------------
 
-static const char *mgn_opt_scaling(menu_id id, int *offs)
-{
-	*offs = -13;
-	switch (currentConfig.scaling) {
-		default:               return "             OFF";
-		case EOPT_SCALE_HW_H:  return "   hw horizontal";
-		case EOPT_SCALE_HW_HV: return "hw horiz. + vert";
-		case EOPT_SCALE_SW_H:  return "   sw horizontal";
-	}
-}
-
 static const char *mgn_aopt_gamma(menu_id id, int *offs)
 {
-	sprintf(static_buff, "%i.%02i", currentConfig.gamma / 100, currentConfig.gamma%100);
+	sprintf(static_buff, "%i.%02i", currentConfig.gamma / 100, currentConfig.gamma % 100);
 	return static_buff;
 }
 
 
+const char *men_scaling_opts[] = { "OFF", "sw horizontal", "hw horizontal", "hw horiz. + vert", NULL };
+
 #define MENU_OPTIONS_GFX \
-	mee_range_cust("Scaling",                  MA_OPT_SCALING,        currentConfig.scaling, 0, 3, mgn_opt_scaling), \
+	mee_enum      ("Scaling",                  MA_OPT_SCALING,        currentConfig.scaling, men_scaling_opts), \
 	mee_onoff     ("Tearing Fix",              MA_OPT_TEARING_FIX,    currentConfig.EmuOpt, EOPT_WIZ_TEAR_FIX), \
 	mee_range_cust("Gamma correction",         MA_OPT2_GAMMA,         currentConfig.gamma, 1, 300, mgn_aopt_gamma), \
 	mee_onoff     ("A_SN's gamma curve",       MA_OPT2_A_SN_GAMMA,    currentConfig.EmuOpt, EOPT_A_SN_GAMMA), \

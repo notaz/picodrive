@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
 	/* in_init() must go before config, config accesses in_ fwk */
 	in_init();
 	emu_prep_defconfig();
-	emu_read_config(0, 0);
+	emu_read_config(NULL, 0);
 	config_readlrom(PicoConfigFile);
 
 	plat_init();

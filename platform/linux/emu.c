@@ -18,10 +18,8 @@
 
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 char cpu_clk_name[] = "unused";
-const char *renderer_names_[] = { "16bit accurate", " 8bit accurate", "     8bit fast", NULL };
-const char *renderer_names32x_[] = { "accurate", "faster  ", "fastest ", NULL };
-const char **renderer_names = renderer_names_;
-const char **renderer_names32x = renderer_names32x_;
+const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast", NULL };
+const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
 enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 
 

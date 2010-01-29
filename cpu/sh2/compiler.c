@@ -66,7 +66,7 @@ static int insns_compiled, hash_collisions, host_insn_count;
 #define dbg(...)
 #endif
 
-#if (DRC_DEBUG & 2)
+#if (DRC_DEBUG & 4)
 static u8 *tcache_dsm_ptrs[3];
 static char sh2dasm_buff[64];
 #define do_host_disasm(tcid) \
@@ -76,11 +76,11 @@ static char sh2dasm_buff[64];
 #define do_host_disasm(x)
 #endif
 
-#if (DRC_DEBUG & 4) || defined(PDB)
+#if (DRC_DEBUG & 8) || defined(PDB)
 static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
 {
   if (block != NULL) {
-    dbg(4, "= %csh2 enter %08x %p, c=%d", sh2->is_slave ? 's' : 'm',
+    dbg(8, "= %csh2 enter %08x %p, c=%d", sh2->is_slave ? 's' : 'm',
       sh2->pc, block, (signed int)sr >> 12);
     pdb_step(sh2, sh2->pc);
   }
@@ -111,7 +111,7 @@ typedef struct block_desc_ {
   u32 addr;                  // SH2 PC address
   void *tcache_ptr;          // translated block for above PC
   struct block_desc_ *next;  // next block with the same PC hash
-#if (DRC_DEBUG & 1)
+#if (DRC_DEBUG & 2)
   int refcount;
 #endif
 } block_desc;
@@ -344,7 +344,7 @@ static void REGPARM(1) flush_tcache(int tcid)
   }
   else
     memset(Pico32xMem->drcblk_da[tcid - 1], 0, sizeof(Pico32xMem->drcblk_da[0]));
-#if (DRC_DEBUG & 2)
+#if (DRC_DEBUG & 4)
   tcache_dsm_ptrs[tcid] = tcache_bases[tcid];
 #endif
 }
@@ -357,7 +357,7 @@ static int dr_add_block_link(u32 target_pc, void *jump, int tcache_id)
   int cnt = block_link_counts[tcache_id];
 
   if (cnt >= block_max_counts[tcache_id] * 2) {
-    printf("bl overflow for tcache %d\n", tcache_id);
+    dbg(1, "bl overflow for tcache %d\n", tcache_id);
     return -1;
   }
 
@@ -377,7 +377,7 @@ static block_desc *dr_add_block(u32 addr, int is_slave, int *blk_id)
 
   bd = dr_get_bd(addr, is_slave, &tcache_id);
   if (bd != NULL) {
-    dbg(1, "block override for %08x", addr);
+    dbg(2, "block override for %08x", addr);
     bd->tcache_ptr = tcache_ptr;
     *blk_id = bd - block_tables[tcache_id];
     return bd;
@@ -385,7 +385,7 @@ static block_desc *dr_add_block(u32 addr, int is_slave, int *blk_id)
 
   bcount = &block_counts[tcache_id];
   if (*bcount >= block_max_counts[tcache_id]) {
-    printf("bd overflow for tcache %d\n", tcache_id);
+    dbg(1, "bd overflow for tcache %d", tcache_id);
     return NULL;
   }
   if (*bcount == 0)
@@ -400,7 +400,7 @@ static block_desc *dr_add_block(u32 addr, int is_slave, int *blk_id)
   if ((addr & 0xc6000000) == 0x02000000) { // ROM
     bd->next = HASH_FUNC(hash_table, addr);
     HASH_FUNC(hash_table, addr) = bd;
-#if (DRC_DEBUG & 1)
+#if (DRC_DEBUG & 2)
     if (bd->next != NULL) {
       printf(" hash collision with %08x\n", bd->next->addr);
       hash_collisions++;
@@ -420,7 +420,7 @@ static void REGPARM(3) *dr_lookup_block(u32 pc, int is_slave, int *tcache_id)
   if (bd != NULL)
     block = bd->tcache_ptr;
 
-#if (DRC_DEBUG & 1)
+#if (DRC_DEBUG & 2)
   if (bd != NULL)
     bd->refcount++;
 #endif
@@ -459,7 +459,7 @@ static void dr_link_blocks(void *target, u32 pc, int tcache_id)
 
   for (i = 0; i < cnt; i++) {
     if (bl[i].target_pc == pc) {
-      dbg(1, "- link from %p", bl[i].jump);
+      dbg(2, "- link from %p", bl[i].jump);
       emith_jump_patch(bl[i].jump, target);
       // XXX: sync ARM caches (old jump should be fine)?
     }
@@ -470,7 +470,7 @@ static void dr_link_blocks(void *target, u32 pc, int tcache_id)
 #define ADD_TO_ARRAY(array, count, item, failcode) \
   array[count++] = item; \
   if (count >= ARRAY_SIZE(array)) { \
-    printf("warning: " #array " overflow\n"); \
+    dbg(1, "warning: " #array " overflow"); \
     failcode; \
   }
 
@@ -1128,7 +1128,7 @@ static void emit_block_entry(void)
   host_arg2reg(arg1, 1);
   host_arg2reg(arg2, 2);
 
-#if (DRC_DEBUG & 4) || defined(PDB)
+#if (DRC_DEBUG & 8) || defined(PDB)
   emit_do_static_regs(1, arg2);
   emith_move_r_r(arg1, CONTEXT_REG);
   emith_move_r_r(arg2, rcache_get_reg(SHR_SR, RC_GR_READ));
@@ -1237,12 +1237,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   // predict tcache overflow
   tmp = tcache_ptr - tcache_bases[tcache_id];
   if (tmp > tcache_sizes[tcache_id] - MAX_BLOCK_SIZE) {
-    printf("tcache %d overflow\n", tcache_id);
+    dbg(1, "tcache %d overflow", tcache_id);
     return NULL;
   }
 
   block_entry = tcache_ptr;
-  dbg(1, "== %csh2 block #%d,%d %08x -> %p", sh2->is_slave ? 's' : 'm',
+  dbg(2, "== %csh2 block #%d,%d %08x -> %p", sh2->is_slave ? 's' : 'm',
     tcache_id, blkid_main, base_pc, block_entry);
 
   dr_link_blocks(tcache_ptr, base_pc, tcache_id);
@@ -1327,7 +1327,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           rcache_flush();
         do_host_disasm(tcache_id);
 
-        dbg(1, "-- %csh2 subblock #%d,%d %08x -> %p", sh2->is_slave ? 's' : 'm',
+        dbg(2, "-- %csh2 subblock #%d,%d %08x -> %p", sh2->is_slave ? 's' : 'm',
           tcache_id, branch_target_blkid[i], pc, tcache_ptr);
 
         subblock = dr_add_block(pc, sh2->is_slave, &branch_target_blkid[i]);
@@ -1352,9 +1352,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       rcache_unlock_all();
     }
 
-#if (DRC_DEBUG & 3)
-    insns_compiled++;
 #if (DRC_DEBUG & 2)
+    insns_compiled++;
+#if (DRC_DEBUG & 4)
     DasmSH2(sh2dasm_buff, pc, op);
     printf("%08x %04x %s\n", pc, op, sh2dasm_buff);
 #endif
@@ -2512,7 +2512,7 @@ end_op:
 
         branch_patch_count++;
         if (branch_patch_count == MAX_LOCAL_BRANCHES) {
-          printf("warning: too many local branches\n");
+          dbg(1, "warning: too many local branches");
           break;
         }
       }
@@ -2578,8 +2578,8 @@ end_op:
     t = find_in_array(branch_target_pc, branch_target_count, branch_patch_pc[i]);
     target = branch_target_ptr[t];
     if (target == NULL) {
-      // flush pc and go back to dispatcher (should no longer happen)
-      printf("stray branch to %08x %p\n", branch_patch_pc[i], tcache_ptr);
+      // flush pc and go back to dispatcher (this should no longer happen)
+      dbg(1, "stray branch to %08x %p", branch_patch_pc[i], tcache_ptr);
       target = tcache_ptr;
       emit_move_r_imm32(SHR_PC, branch_patch_pc[i]);
       rcache_flush();
@@ -2623,7 +2623,6 @@ end_op:
     // mark literals
     for (i = 0; i < literal_addr_count; i++) {
       tmp = literal_addr[i];
-      //printf("marking literal %08x\n", tmp);
       drc_ram_blk[(tmp >> shift) & mask] = blkid_main << 1;
       if (!(tmp & 3)) // assume long
         drc_ram_blk[((tmp + 2) >> shift) & mask] = blkid_main << 1;
@@ -2635,12 +2634,12 @@ end_op:
   host_instructions_updated(block_entry, tcache_ptr);
 
   do_host_disasm(tcache_id);
-  dbg(1, " block #%d,%d tcache %d/%d, insns %d -> %d %.3f",
+  dbg(2, " block #%d,%d tcache %d/%d, insns %d -> %d %.3f",
     tcache_id, block_counts[tcache_id],
     tcache_ptr - tcache_bases[tcache_id], tcache_sizes[tcache_id],
     insns_compiled, host_insn_count, (double)host_insn_count / insns_compiled);
   if ((sh2->pc & 0xc6000000) == 0x02000000) // ROM
-    dbg(1, "  hash collisions %d/%d", hash_collisions, block_counts[tcache_id]);
+    dbg(2, "  hash collisions %d/%d", hash_collisions, block_counts[tcache_id]);
 /*
  printf("~~~\n");
  tcache_dsm_ptrs[tcache_id] = block_entry;
@@ -2648,7 +2647,7 @@ end_op:
  printf("~~~\n");
 */
 
-#if (DRC_DEBUG & 2)
+#if (DRC_DEBUG & 4)
   fflush(stdout);
 #endif
 
@@ -2841,7 +2840,7 @@ static void sh2_generate_utils(void)
   MAKE_WRITE_WRAPPER(sh2_drc_write16);
   MAKE_WRITE_WRAPPER(sh2_drc_write16_slot);
   MAKE_WRITE_WRAPPER(sh2_drc_write32);
-#if (DRC_DEBUG & 2)
+#if (DRC_DEBUG & 4)
   host_dasm_new_symbol(sh2_drc_read8);
   host_dasm_new_symbol(sh2_drc_read16);
   host_dasm_new_symbol(sh2_drc_read32);
@@ -2850,7 +2849,7 @@ static void sh2_generate_utils(void)
 #endif
 
   rcache_invalidate();
-#if (DRC_DEBUG & 2)
+#if (DRC_DEBUG & 4)
   host_dasm_new_symbol(sh2_drc_entry);
   host_dasm_new_symbol(sh2_drc_dispatcher);
   host_dasm_new_symbol(sh2_drc_exit);
@@ -2869,9 +2868,9 @@ static void *sh2_smc_rm_block_entry(block_desc *bd, int tcache_id)
   void *tmp;
 
   // XXX: kill links somehow?
-  dbg(1, "  killing entry %08x, blkid %d", bd->addr, bd - block_tables[tcache_id]);
+  dbg(2, "  killing entry %08x, blkid %d", bd->addr, bd - block_tables[tcache_id]);
   if (bd->addr == 0 || bd->tcache_ptr == NULL) {
-    printf("  killing dead block!? %08x\n", bd->addr);
+    dbg(1, "  killing dead block!? %08x", bd->addr);
     return bd->tcache_ptr;
   }
 
@@ -2917,7 +2916,7 @@ static void sh2_smc_rm_block(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, 
       break;
 
   if (!(*p & 1)) {
-    printf("smc rm: missing block start for %08x?\n", a);
+    dbg(1, "smc rm: missing block start for %08x?", a);
     p = pt;
   }
 
@@ -2950,13 +2949,13 @@ static void sh2_smc_rm_block(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, 
 
 void sh2_drc_wcheck_ram(unsigned int a, int val, int cpuid)
 {
-  dbg(1, "%csh2 smc check @%08x", cpuid ? 's' : 'm', a);
+  dbg(2, "%csh2 smc check @%08x", cpuid ? 's' : 'm', a);
   sh2_smc_rm_block(a, Pico32xMem->drcblk_ram, 0, SH2_DRCBLK_RAM_SHIFT, 0x3ffff);
 }
 
 void sh2_drc_wcheck_da(unsigned int a, int val, int cpuid)
 {
-  dbg(1, "%csh2 smc check @%08x", cpuid ? 's' : 'm', a);
+  dbg(2, "%csh2 smc check @%08x", cpuid ? 's' : 'm', a);
   sh2_smc_rm_block(a, Pico32xMem->drcblk_da[cpuid],
     1 + cpuid, SH2_DRCBLK_DA_SHIFT, 0xfff);
 }
@@ -2979,12 +2978,12 @@ void sh2_execute(SH2 *sh2c, int cycles)
   // TODO: irq cycles
   ret_cycles = (signed int)sh2c->sr >> 12;
   if (ret_cycles > 0)
-    printf("warning: drc returned with cycles: %d\n", ret_cycles);
+    dbg(1, "warning: drc returned with cycles: %d", ret_cycles);
 
   sh2c->cycles_done += cycles - ret_cycles;
 }
 
-#if (DRC_DEBUG & 1)
+#if (DRC_DEBUG & 2)
 void block_stats(void)
 {
   int c, b, i, total = 0;
@@ -3069,7 +3068,7 @@ int sh2_drc_init(SH2 *sh2)
     // tmp
     PicoOpt |= POPT_DIS_VDP_FIFO;
 
-#if (DRC_DEBUG & 2)
+#if (DRC_DEBUG & 4)
     for (i = 0; i < ARRAY_SIZE(block_tables); i++)
       tcache_dsm_ptrs[i] = tcache_bases[i];
     // disasm the utils
@@ -3102,7 +3101,7 @@ void sh2_drc_finish(SH2 *sh2)
     block_stats();
 
     for (i = 0; i < TCACHE_BUFFERS; i++) {
-#if (DRC_DEBUG & 2)
+#if (DRC_DEBUG & 4)
       printf("~~~ tcache %d\n", i);
       tcache_dsm_ptrs[i] = tcache_bases[i];
       tcache_ptr = tcache_ptrs[i];

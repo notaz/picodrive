@@ -23,8 +23,8 @@
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 static unsigned char temp_frame[g_screen_width * g_screen_height * 2];
 unsigned char *PicoDraw2FB = temp_frame;
-const char **renderer_names = NULL;
-const char **renderer_names32x = NULL;
+const char *renderer_names[] = { NULL };
+const char *renderer_names32x[] = { NULL };
 char cpu_clk_name[] = "unused";
 
 
@@ -406,7 +406,7 @@ void plat_wait_till_us(unsigned int us_to)
 
 const char *plat_get_credits(void)
 {
-	return "PicoDrive v" VERSION " (c) notaz, 2006-2009\n\n\n"
+	return "PicoDrive v" VERSION " (c) notaz, 2006-2010\n\n\n"
 		"Credits:\n"
 		"fDave: Cyclone 68000 core,\n"
 		"      base code of PicoDrive\n"

@@ -13,8 +13,8 @@
 static unsigned short screen_buff[320 * 240];
 static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
 unsigned char *PicoDraw2FB = PicoDraw2FB_;
-const char **renderer_names = NULL;
-const char **renderer_names32x = NULL;
+const char *renderer_names[] = { NULL };
+const char *renderer_names32x[] = { NULL };
 
 char cpu_clk_name[] = "unused";
 

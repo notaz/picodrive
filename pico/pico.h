@@ -209,6 +209,14 @@ extern unsigned char  *PicoDraw2FB;  // buffer for fast renderer in format (8+32
 extern unsigned short *PicoCramHigh; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to use
 
+// 32x/32x.c
+// multipliers against 68k clock
+extern int p32x_msh2_multiplier;
+extern int p32x_ssh2_multiplier;
+#define SH2_MULTI_SHIFT 10
+#define MSH2_MULTI_DEFAULT ((1 << SH2_MULTI_SHIFT) * 3 / 2)
+#define SSH2_MULTI_DEFAULT ((1 << SH2_MULTI_SHIFT) * 3 / 2)
+
 // 32x/draw.c
 void PicoDraw32xSetFrameMode(int is_on, int only_32x);
 extern int (*PicoScan32xBegin)(unsigned int num);

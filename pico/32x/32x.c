@@ -4,6 +4,9 @@
 struct Pico32x Pico32x;
 SH2 sh2s[2];
 
+int p32x_msh2_multiplier = MSH2_MULTI_DEFAULT;
+int p32x_ssh2_multiplier = SSH2_MULTI_DEFAULT;
+
 static int REGPARM(2) sh2_irq_cb(SH2 *sh2, int level)
 {
   if (sh2->pending_irl > sh2->pending_int_irq) {
@@ -194,6 +197,7 @@ static __inline void run_m68k(int cyc)
 {
   pprof_start(m68k);
 
+p32x_poll_event(3, 0);
 #if defined(EMU_C68K)
   PicoCpuCM68k.cycles = cyc;
   CycloneRun(&PicoCpuCM68k);
@@ -210,7 +214,8 @@ static __inline void run_m68k(int cyc)
 // ~1463.8, but due to cache misses and slow mem
 // it's much lower than that
 //#define SH2_LINE_CYCLES 735
-#define CYCLES_M68K2SH2(x) ((x) * 6 / 4)
+#define CYCLES_M68K2MSH2(x) (((x) * p32x_msh2_multiplier) >> 10)
+#define CYCLES_M68K2SSH2(x) (((x) * p32x_ssh2_multiplier) >> 10)
 
 #define PICO_32X
 #define CPUS_RUN_SIMPLE(m68k_cycles,s68k_cycles) \
@@ -227,12 +232,12 @@ static __inline void run_m68k(int cyc)
       elprintf(EL_32X, "slice %d", slice); \
     if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) { \
       pprof_start(ssh2); \
-      sh2_execute(&ssh2, CYCLES_M68K2SH2(slice)); \
+      sh2_execute(&ssh2, CYCLES_M68K2SSH2(slice)); \
       pprof_end(ssh2); \
     } \
     if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) { \
       pprof_start(msh2); \
-      sh2_execute(&msh2, CYCLES_M68K2SH2(slice)); \
+      sh2_execute(&msh2, CYCLES_M68K2MSH2(slice)); \
       pprof_end(msh2); \
     } \
     pprof_start(dummy); \

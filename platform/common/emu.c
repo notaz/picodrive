@@ -92,6 +92,36 @@ static void get_ext(const char *file, char *ext)
 	strlwr_(ext);
 }
 
+static void fname_ext(char *dst, int dstlen, const char *prefix, const char *ext, const char *fname)
+{
+	int prefix_len = 0;
+	const char *p;
+
+	*dst = 0;
+	if (prefix) {
+		int len = plat_get_root_dir(dst, dstlen);
+		strcpy(dst + len, prefix);
+		prefix_len = len + strlen(prefix);
+	}
+
+	p = fname + strlen(fname) - 1;
+	for (; p >= fname && *p != PATH_SEP_C; p--)
+		;
+	p++;
+	strncpy(dst + prefix_len, p, dstlen - prefix_len - 1);
+
+	dst[dstlen - 8] = 0;
+	if (dst[strlen(dst) - 4] == '.')
+		dst[strlen(dst) - 4] = 0;
+	if (ext)
+		strcat(dst, ext);
+}
+
+static void romfname_ext(char *dst, int dstlen, const char *prefix, const char *ext)
+{
+	fname_ext(dst, dstlen, prefix, ext, rom_fname_loaded);
+}
+
 void emu_status_msg(const char *format, ...)
 {
 	va_list vl;
@@ -365,7 +395,7 @@ static int extract_text(char *dest, const unsigned char *src, int len, int swab)
 	return p - dest;
 }
 
-static char *emu_make_rom_id(void)
+static char *emu_make_rom_id(const char *fname)
 {
 	static char id_string[3+0xe*3+0x3*3+0x30*3+3];
 	int pos, swab = 1;
@@ -374,15 +404,25 @@ static char *emu_make_rom_id(void)
 		strcpy(id_string, "CD|");
 		swab = 0;
 	}
-	else strcpy(id_string, "MD|");
+	else if (PicoAHW & PAHW_SMS)
+		strcpy(id_string, "MS|");
+	else	strcpy(id_string, "MD|");
 	pos = 3;
 
-	pos += extract_text(id_string + pos, id_header + 0x80, 0x0e, swab); // serial
-	id_string[pos] = '|'; pos++;
-	pos += extract_text(id_string + pos, id_header + 0xf0, 0x03, swab); // region
-	id_string[pos] = '|'; pos++;
-	pos += extract_text(id_string + pos, id_header + 0x50, 0x30, swab); // overseas name
-	id_string[pos] = 0;
+	if (!(PicoAHW & PAHW_SMS)) {
+		pos += extract_text(id_string + pos, id_header + 0x80, 0x0e, swab); // serial
+		id_string[pos] = '|'; pos++;
+		pos += extract_text(id_string + pos, id_header + 0xf0, 0x03, swab); // region
+		id_string[pos] = '|'; pos++;
+		pos += extract_text(id_string + pos, id_header + 0x50, 0x30, swab); // overseas name
+		id_string[pos] = 0;
+		if (pos > 5)
+			return id_string;
+		pos = 3;
+	}
+
+	// can't find name in ROM, use filename
+	fname_ext(id_string + 3, sizeof(id_string) - 3, NULL, NULL, fname);
 
 	return id_string;
 }
@@ -530,8 +570,8 @@ int emu_reload_rom(char *rom_fname)
 			// valid CD image, check for BIOS..
 
 			// we need to have config loaded at this point
-			ret = emu_read_config(1, 0);
-			if (!ret) emu_read_config(0, 0);
+			ret = emu_read_config(rom_fname, 0);
+			if (!ret) emu_read_config(NULL, 0);
 			cfg_loaded = 1;
 
 			if (PicoRegionOverride) {
@@ -593,8 +633,8 @@ int emu_reload_rom(char *rom_fname)
 	if (!(PicoAHW & PAHW_MCD))
 		memcpy(id_header, rom_data + 0x100, sizeof(id_header));
 	if (!cfg_loaded) {
-		ret = emu_read_config(1, 0);
-		if (!ret) emu_read_config(0, 0);
+		ret = emu_read_config(rom_fname, 0);
+		if (!ret) emu_read_config(NULL, 0);
 	}
 
 	emu_make_path(static_buff, "carthw.cfg", sizeof(static_buff));
@@ -681,29 +721,6 @@ int emu_swap_cd(const char *fname)
 	return 1;
 }
 
-static void romfname_ext(char *dst, const char *prefix, const char *ext)
-{
-	char *p;
-	int prefix_len = 0;
-
-	// make save filename
-	p = rom_fname_loaded + strlen(rom_fname_loaded) - 1;
-	for (; p >= rom_fname_loaded && *p != PATH_SEP_C; p--); p++;
-	*dst = 0;
-	if (prefix) {
-		int len = plat_get_root_dir(dst, 512);
-		strcpy(dst + len, prefix);
-		prefix_len = len + strlen(prefix);
-	}
-#ifdef UIQ3
-	else p = rom_fname_loaded; // backward compatibility
-#endif
-	strncpy(dst + prefix_len, p, 511-prefix_len);
-	dst[511-8] = 0;
-	if (dst[strlen(dst)-4] == '.') dst[strlen(dst)-4] = 0;
-	if (ext) strcat(dst, ext);
-}
-
 // <base dir><end>
 void emu_make_path(char *buff, const char *end, int size)
 {
@@ -733,7 +750,7 @@ static void make_config_cfg(char *cfg_buff_512)
 void emu_prep_defconfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
-	defaultConfig.EmuOpt    = 0x9d | EOPT_RAM_TIMINGS|EOPT_CONFIRM_SAVE|EOPT_EN_CD_LEDS;
+	defaultConfig.EmuOpt    = 0x9d | EOPT_RAM_TIMINGS|EOPT_EN_CD_LEDS;
 	defaultConfig.s_PicoOpt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80 |
 				  POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_SVP_DRC|POPT_ACC_SPRITES |
 				  POPT_EN_32X|POPT_EN_PWM;
@@ -741,6 +758,7 @@ void emu_prep_defconfig(void)
 	defaultConfig.s_PicoRegion = 0; // auto
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
 	defaultConfig.s_PicoCDBuffers = 0;
+	defaultConfig.confirm_save = EOPT_CONFIRM_SAVE;
 	defaultConfig.Frameskip = -1; // auto
 	defaultConfig.volume = 50;
 	defaultConfig.gamma = 100;
@@ -759,9 +777,11 @@ void emu_set_defconfig(void)
 	PicoRegionOverride = currentConfig.s_PicoRegion;
 	PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
 	PicoCDBuffers = currentConfig.s_PicoCDBuffers;
+	p32x_msh2_multiplier = MSH2_MULTI_DEFAULT;
+	p32x_ssh2_multiplier = SSH2_MULTI_DEFAULT;
 }
 
-int emu_read_config(int game, int no_defaults)
+int emu_read_config(const char *rom_fname, int no_defaults)
 {
 	char cfg[512];
 	int ret;
@@ -769,16 +789,16 @@ int emu_read_config(int game, int no_defaults)
 	if (!no_defaults)
 		emu_set_defconfig();
 
-	if (!game)
+	if (rom_fname == NULL)
 	{
+		// global config
 		make_config_cfg(cfg);
 		ret = config_readsect(cfg, NULL);
 	}
 	else
 	{
-		char *sect = emu_make_rom_id();
+		char *sect = emu_make_rom_id(rom_fname);
 
-		// try new .cfg way
 		if (config_slot != 0)
 		     sprintf(cfg, "game.%i.cfg", config_slot);
 		else strcpy(cfg,  "game.cfg");
@@ -839,7 +859,7 @@ int emu_write_config(int is_game)
 		if (config_slot != 0)
 		     sprintf(cfg, "game.%i.cfg", config_slot);
 		else strcpy(cfg,  "game.cfg");
-		game_sect = emu_make_rom_id();
+		game_sect = emu_make_rom_id(rom_fname_loaded);
 		lprintf("emu_write_config: sect \"%s\"\n", game_sect);
 	}
 
@@ -939,14 +959,15 @@ char *emu_get_save_fname(int load, int is_sram, int slot)
 	if (is_sram)
 	{
 		strcpy(ext, (PicoAHW & PAHW_MCD) ? ".brm" : ".srm");
-		romfname_ext(saveFname, (PicoAHW & PAHW_MCD) ? "brm"PATH_SEP : "srm"PATH_SEP, ext);
+		romfname_ext(saveFname, sizeof(static_buff),
+			(PicoAHW & PAHW_MCD) ? "brm"PATH_SEP : "srm"PATH_SEP, ext);
 		if (!load)
 			return saveFname;
 
 		if (try_ropen_file(saveFname))
 			return saveFname;
 
-		romfname_ext(saveFname, NULL, ext);
+		romfname_ext(saveFname, sizeof(static_buff), NULL, ext);
 		if (try_ropen_file(saveFname))
 			return saveFname;
 	}
@@ -960,15 +981,15 @@ char *emu_get_save_fname(int load, int is_sram, int slot)
 		strcat(ext, ext_main);
 
 		if (!load) {
-			romfname_ext(saveFname, "mds" PATH_SEP, ext);
+			romfname_ext(saveFname, sizeof(static_buff), "mds" PATH_SEP, ext);
 			return saveFname;
 		}
 		else {
-			romfname_ext(saveFname, "mds" PATH_SEP, ext);
+			romfname_ext(saveFname, sizeof(static_buff), "mds" PATH_SEP, ext);
 			if (try_ropen_file(saveFname))
 				return saveFname;
 
-			romfname_ext(saveFname, NULL, ext);
+			romfname_ext(saveFname, sizeof(static_buff), NULL, ext);
 			if (try_ropen_file(saveFname))
 				return saveFname;
 
@@ -978,7 +999,7 @@ char *emu_get_save_fname(int load, int is_sram, int slot)
 				sprintf(ext, ".%i", slot);
 			strcat(ext, ext_othr);
 
-			romfname_ext(saveFname, "mds"PATH_SEP, ext);
+			romfname_ext(saveFname, sizeof(static_buff), "mds"PATH_SEP, ext);
 			if (try_ropen_file(saveFname))
 				return saveFname;
 		}
@@ -1212,8 +1233,8 @@ static void run_events_ui(unsigned int which)
 	{
 		int do_it = 1;
 		if ( emu_check_save_file(state_slot) &&
-				(((which & PEV_STATE_LOAD) && (currentConfig.EmuOpt & EOPT_CONFIRM_LOAD)) ||
-				 ((which & PEV_STATE_SAVE) && (currentConfig.EmuOpt & EOPT_CONFIRM_SAVE))) )
+			(((which & PEV_STATE_LOAD) && (currentConfig.confirm_save & EOPT_CONFIRM_LOAD)) ||
+			 ((which & PEV_STATE_SAVE) && (currentConfig.confirm_save & EOPT_CONFIRM_SAVE))) )
 		{
 			const char *nm;
 			char tmp[64];

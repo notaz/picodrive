@@ -30,9 +30,7 @@ extern int g_screen_height;
 #define EOPT_NO_AUTOSVCFG (1<<5)
 #define EOPT_16BPP        (1<<7)  // depreceted for .renderer
 #define EOPT_RAM_TIMINGS  (1<<8)
-#define EOPT_CONFIRM_SAVE (1<<9)
 #define EOPT_EN_CD_LEDS   (1<<10)
-#define EOPT_CONFIRM_LOAD (1<<11)
 #define EOPT_A_SN_GAMMA   (1<<12)
 #define EOPT_VSYNC        (1<<13)
 #define EOPT_GIZ_SCANLN   (1<<14)
@@ -50,6 +48,13 @@ enum {
 	EOPT_SCALE_HW_HV,
 };
 
+enum {
+	EOPT_CONFIRM_NONE = 0,
+	EOPT_CONFIRM_SAVE = 1,
+	EOPT_CONFIRM_LOAD = 2,
+	EOPT_CONFIRM_BOTH = 3,
+};
+
 typedef struct _currentConfig_t {
 	int EmuOpt;
 	int s_PicoOpt;
@@ -58,6 +63,7 @@ typedef struct _currentConfig_t {
 	int s_PicoAutoRgnOrder;
 	int s_PicoCDBuffers;
 	int Frameskip;
+	int confirm_save;
 	int CPUclock;
 	int volume;
 	int gamma;
@@ -121,7 +127,7 @@ void  emu_reset_game(void);
 
 void  emu_prep_defconfig(void);
 void  emu_set_defconfig(void);
-int   emu_read_config(int game, int no_defaults);
+int   emu_read_config(const char *rom_fname, int no_defaults);
 int   emu_write_config(int game);
 
 char *emu_get_save_fname(int load, int is_sram, int slot);
