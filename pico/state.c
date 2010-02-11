@@ -384,6 +384,10 @@ static int state_load(void *file)
   char header[8];
   int ver, len;
 
+  memset(buff_m68k, 0, sizeof(buff_m68k));
+  memset(buff_s68k, 0, sizeof(buff_s68k));
+  memset(buff_z80, 0, sizeof(buff_z80));
+
   g_read_offs = 0;
   CHECKED_READ(8, header);
   if (strncmp(header, "PicoSMCD", 8) && strncmp(header, "PicoSEXT", 8))
@@ -408,7 +412,6 @@ static int state_load(void *file)
 
       case CHUNK_Z80:
         CHECKED_READ_BUFF(buff_z80);
-        z80_unpack(buff_z80);
         break;
 
       case CHUNK_RAM:     CHECKED_READ_BUFF(Pico.ram); break;
@@ -499,12 +502,14 @@ readend:
     if (!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
       cdda_start_play();
 
-    // must unpack after mem is set up
     SekUnpackCpu(buff_s68k, 1);
   }
 
+  // must unpack 68k and z80 after banks are set up
   if (!(PicoAHW & PAHW_SMS))
     SekUnpackCpu(buff_m68k, 0);
+
+  z80_unpack(buff_z80);
 
   if (PicoAHW & PAHW_32X)
     Pico32xStateLoaded();

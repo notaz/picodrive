@@ -257,6 +257,8 @@ void PicoFrameMS(void)
   for (y = 0; y < lines; y++)
   {
     pv->v_counter = Pico.m.scanline = y;
+    if (y > 218)
+      pv->v_counter = y - 6;
 
     if (y < lines_vis && !skip)
       PicoLineMode4(y);

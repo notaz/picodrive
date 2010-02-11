@@ -260,6 +260,7 @@ void PicoDoHighPal555M4(void)
     t |= (t >> 4) & 0x08610861;
     *dpal = t;
   }
+  HighPal[0xe0] = 0;
 }
 
 static void FinalizeLineRGB555M4(int line)
