@@ -5,15 +5,12 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <linux/fb.h>
-#include <termios.h>
 #include <linux/kd.h>
 
 int main()
 {
 	struct fb_var_screeninfo fbvar;
-	struct termios kbd_termios;
 	int ret, fbdev, kbdfd;
-	FILE *tios_f;
 
 	fbdev = open("/dev/fb0", O_RDWR);
 	if (fbdev == -1) {
@@ -40,28 +37,16 @@ int main()
 end_fb:
 	close(fbdev);
 
-	tios_f = fopen("/tmp/pico_tios", "rb");
-	if (tios_f != NULL) {
-		kbdfd = open("/dev/tty", O_RDWR);
-		if (kbdfd == -1) {
-			perror("open /dev/tty");
-			return 1;
-		}
-
-		if (fread(&kbd_termios, sizeof(kbd_termios), 1, tios_f) == 1) {
-			if (ioctl(kbdfd, KDSETMODE, KD_TEXT) == -1)
-				perror("KDSETMODE KD_TEXT");
-
-			printf("restoring termios.. ");
-			if (tcsetattr(kbdfd, TCSAFLUSH, &kbd_termios) == -1)
-				perror("tcsetattr");
-			else
-				printf("ok\n");
-		}
-
-		close(kbdfd);
-		fclose(tios_f);
+	kbdfd = open("/dev/tty", O_RDWR);
+	if (kbdfd == -1) {
+		perror("open /dev/tty");
+		return 1;
 	}
+
+	if (ioctl(kbdfd, KDSETMODE, KD_TEXT) == -1)
+		perror("KDSETMODE KD_TEXT");
+
+	close(kbdfd);
 
 	return 0;
 }

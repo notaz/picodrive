@@ -15,7 +15,6 @@
 #include <linux/kd.h>
 
 #define PFX "oshide: "
-#define TERMIOS_DUMP_FILE "/tmp/pico_tios"
 
 #define FPTR(f) typeof(f) * p##f
 #define FPTR_LINK(xf, dl, f) { \
@@ -169,7 +168,6 @@ static int g_kbdfd;
 static void hidecon_start(void)
 {
 	struct termios kbd_termios;
-	FILE *tios_f;
 	int mode;
 
 	g_kbdfd = open("/dev/tty", O_RDWR);
@@ -186,14 +184,6 @@ static void hidecon_start(void)
 	if (tcgetattr(g_kbdfd, &kbd_termios) == -1) {
 		perror(PFX "tcgetattr");
 		goto fail;
-	}
-
-	/* dump for picorestore */
-	g_kbd_termios_saved = kbd_termios;
-	tios_f = fopen(TERMIOS_DUMP_FILE, "wb");
-	if (tios_f) {
-		fwrite(&kbd_termios, sizeof(kbd_termios), 1, tios_f);
-		fclose(tios_f);
 	}
 
 	kbd_termios.c_lflag &= ~(ICANON | ECHO); // | ISIG);
@@ -229,8 +219,6 @@ static void hidecon_end(void)
 
 	if (tcsetattr(g_kbdfd, TCSAFLUSH, &g_kbd_termios_saved) == -1)
 		perror(PFX "tcsetattr");
-
-	remove(TERMIOS_DUMP_FILE);
 
 	close(g_kbdfd);
 	g_kbdfd = -1;
