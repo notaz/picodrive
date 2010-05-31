@@ -49,7 +49,7 @@ OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o pla
 	platform/common/arm_utils.o platform/common/mp3_helix.o platform/common/arm_linux.o \
 	platform/common/readpng.o platform/common/input.o platform/common/main.o \
 	platform/linux/fbdev.o platform/linux/in_evdev.o platform/linux/sndout_oss.o \
-	platform/linux/plat.o platform/linux/x11h.o
+	platform/linux/plat.o platform/linux/oshide.o
 
 # ARM stuff
 OBJS += pico/carthw/svp/compiler.o pico/carthw/svp/stub_arm.o
@@ -66,7 +66,7 @@ vpath %.s = ../..
 vpath %.S = ../..
 DIRS += platform/linux zlib unzip
 
-all: mkdirs PicoDrive
+all: mkdirs PicoDrive picorestore
 
 include ../common/common.mak
 include ../common/common_arm.mak

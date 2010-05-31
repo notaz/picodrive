@@ -187,11 +187,11 @@ static void menu_draw_selection(int x, int y, int w)
 	if (menu_sel_color < 0) return; // no selection hilight
 
 	if (y > 0) y--;
-	dest = (unsigned short *)g_screen_ptr + x + y * g_screen_width + 14;
+	dest = (unsigned short *)g_screen_ptr + x + y * g_screen_width + me_mfont_w * 2 - 2;
 	for (h = me_mfont_h + 1; h > 0; h--)
 	{
 		dst = dest;
-		for (i = w - 14; i > 0; i--)
+		for (i = w - (me_mfont_w * 2 - 2); i > 0; i--)
 			*dst++ = menu_sel_color;
 		dest += g_screen_width;
 	}
@@ -268,12 +268,13 @@ void menu_init(void)
 
 	// load custom font and selector (stored as 1st symbol in font table)
 	emu_make_path(buff, "skin/font.png", sizeof(buff));
-	readpng(menu_font_data, buff, READPNG_FONT);
+	readpng(menu_font_data, buff, READPNG_FONT,
+		MENU_X2 ? 256 : 128, MENU_X2 ? 320 : 160);
 	// default selector symbol is '>'
 	memcpy(menu_font_data, menu_font_data + ((int)'>') * me_mfont_w * me_mfont_h / 2,
 		me_mfont_w * me_mfont_h / 2);
 	emu_make_path(buff, "skin/selector.png", sizeof(buff));
-	readpng(menu_font_data, buff, READPNG_SELECTOR);
+	readpng(menu_font_data, buff, READPNG_SELECTOR, MENU_X2 ? 16 : 8, MENU_X2 ? 20 : 10);
 
 	// load custom colors
 	emu_make_path(buff, "skin/skin.txt", sizeof(buff));
@@ -343,7 +344,7 @@ static void menu_enter(int is_rom_loaded)
 
 		// should really only happen once, on startup..
 		emu_make_path(buff, "skin/background.png", sizeof(buff));
-		if (readpng(g_menubg_ptr, buff, READPNG_BG) < 0)
+		if (readpng(g_menubg_ptr, buff, READPNG_BG, g_screen_width, g_screen_height) < 0)
 			memset(g_menubg_ptr, 0, g_screen_width * g_screen_height * 2);
 	}
 
@@ -378,11 +379,11 @@ static int me_count(const menu_entry *ent)
 
 static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 {
-	const menu_entry *ent;
+	const menu_entry *ent, *ent_sel = entries;
 	int x, y, w = 0, h = 0;
 	int offs, col2_offs = 27 * me_mfont_w;
+	int vi_sel_ln = 0;
 	const char *name;
-	int asel = 0;
 	int i, n;
 
 	/* calculate size of menu rect */
@@ -393,8 +394,10 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 		if (!ent->enabled)
 			continue;
 
-		if (i == sel)
-			asel = n;
+		if (i == sel) {
+			ent_sel = ent;
+			vi_sel_ln = n;
+		}
 
 		name = NULL;
 		wt = strlen(ent->name) * me_mfont_w;
@@ -450,7 +453,7 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 
 	/* draw */
 	plat_video_menu_begin();
-	menu_draw_selection(x, y + asel * me_mfont_h, w);
+	menu_draw_selection(x, y + vi_sel_ln * me_mfont_h, w);
 	x += me_mfont_w * 2;
 
 	for (ent = entries; ent->name; ent++)
@@ -517,13 +520,13 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 		if (plat_get_ticks_ms() - menu_error_time > 2048)
 			menu_error_msg[0] = 0;
 	}
-	else if (entries[asel].help != NULL) {
-		const char *tmp = entries[asel].help;
+	else if (ent_sel->help != NULL) {
+		const char *tmp = ent_sel->help;
 		int l;
 		for (l = 0; tmp != NULL && *tmp != 0; l++)
 			tmp = strchr(tmp + 1, '\n');
 		if (h >= l * me_sfont_h + 4)
-			for (tmp = entries[asel].help; l > 0; l--, tmp = strchr(tmp, '\n') + 1)
+			for (tmp = ent_sel->help; l > 0; l--, tmp = strchr(tmp, '\n') + 1)
 				smalltext_out16(5, g_screen_height - (l * me_sfont_h + 4), tmp, 0xffff);
 	}
 

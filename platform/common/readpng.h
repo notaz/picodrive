@@ -3,8 +3,7 @@ typedef enum
 	READPNG_BG = 1,
 	READPNG_FONT,
 	READPNG_SELECTOR,
-	READPNG_320_24,
-	READPNG_480_24
+	READPNG_24,
 }
 readpng_what;
 
@@ -12,7 +11,7 @@ readpng_what;
 extern "C" {
 #endif
 
-int readpng(void *dest, const char *fname, readpng_what what);
+int readpng(void *dest, const char *fname, readpng_what what, int w, int h);
 
 #ifdef __cplusplus
 }

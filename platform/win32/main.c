@@ -107,7 +107,7 @@ static HBITMAP png2hb(const char *fname, int is_480)
 
   bmem = calloc(1, is_480 ? 480*240*3 : 320*240*3);
   if (bmem == NULL) return NULL;
-  ret = readpng(bmem, fname, is_480 ? READPNG_480_24 : READPNG_320_24);
+  ret = readpng(bmem, fname, READPNG_24, is_480 ? 480 : 320, 240);
   if (ret != 0) {
     free(bmem);
     return NULL;

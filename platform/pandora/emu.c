@@ -17,16 +17,31 @@
 
 #include <pico/pico_int.h>
 
-//#define USE_320_SCREEN 1
-
 
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 static unsigned char temp_frame[g_screen_width * g_screen_height * 2];
 unsigned char *PicoDraw2FB = temp_frame;
 const char *renderer_names[] = { NULL };
 const char *renderer_names32x[] = { NULL };
-char cpu_clk_name[] = "unused";
+char cpu_clk_name[] = "Max CPU clock";
 
+enum {
+	SCALE_1x1,
+	SCALE_2x2_3x2,
+	SCALE_2x2_2x2,
+};
+
+static int get_cpu_clock(void)
+{
+	FILE *f;
+	int ret = 0;
+	f = fopen("/proc/pandora/cpu_mhz_max", "r");
+	if (f) {
+		fscanf(f, "%d", &ret);
+		fclose(f);
+	}
+	return ret;
+}
 
 void pemu_prep_defconfig(void)
 {
@@ -34,10 +49,12 @@ void pemu_prep_defconfig(void)
 	g_menubg_ptr = temp_frame;
 
 	defaultConfig.EmuOpt |= EOPT_VSYNC;
+	defaultConfig.scaling = SCALE_2x2_3x2;
 }
 
 void pemu_validate_config(void)
 {
+	currentConfig.CPUclock = get_cpu_clock();
 }
 
 // FIXME: cleanup
@@ -94,9 +111,7 @@ static void draw_cd_leds(void)
 	}
 }
 
-#ifdef USE_320_SCREEN
-
-static int EmuScanBegin16(unsigned int num)
+static int emuscan_1x1(unsigned int num)
 {
 	DrawLineDest = (unsigned short *)g_screen_ptr + num*800 + 800/2 - 320/2;
 	//int w = (Pico.video.reg[12]&1) ? 320 : 256;
@@ -105,47 +120,32 @@ static int EmuScanBegin16(unsigned int num)
 	return 0;
 }
 
-#else // USE_320_SCREEN
-
-static int EmuScanEnd16(unsigned int num)
-{
-	unsigned char  *ps=HighCol+8;
-	unsigned short *pd;
-	unsigned short *pal=HighPal;
-	int sh = Pico.video.reg[0xC]&8;
-	int len, mask = 0xff;
-
-	pd=(unsigned short *)g_screen_ptr + num*800*2 + 800/2 - 320*2/2;
-
-	if (Pico.m.dirtyPal)
-		PicoDoHighPal555(sh);
-
-	if (Pico.video.reg[12]&1) {
-		len = 320;
-	} else {
-		pd += 32*2;
-		len = 256;
-	}
-
-	if (!sh && (rendstatus & PDRAW_SPR_LO_ON_HI))
-		mask=0x3f; // messed sprites, upper bits are priority stuff
-
-#if 1
-	clut_line(pd, ps, pal, (mask<<16) | len);
-#else
-	for (; len > 0; len--)
-	{
-		unsigned int p = pal[*ps++ & mask];
-		p |= p << 16;
-		*(unsigned int *)pd = p;
-		*(unsigned int *)(&pd[800]) = p;
-		pd += 2;
-	}
-#endif
-
-	return 0;
+#define MAKE_EMUSCAN(name_, clut_name_, offs_, len_)		\
+static int name_(unsigned int num)				\
+{								\
+	unsigned char  *ps = HighCol+8;				\
+	unsigned short *pd, *pal = HighPal;			\
+	int sh = Pico.video.reg[0xC] & 8;			\
+	int mask = 0xff;					\
+								\
+	pd = (unsigned short *)g_screen_ptr + num*800*2 + offs_;\
+								\
+	if (Pico.m.dirtyPal)					\
+		PicoDoHighPal555(sh);				\
+								\
+	if (!sh && (rendstatus & PDRAW_SPR_LO_ON_HI))		\
+		mask = 0x3f; /* upper bits are priority stuff */\
+								\
+	clut_line##clut_name_(pd, ps, pal, (mask<<16) | len_);	\
+								\
+	return 0;						\
 }
 
+MAKE_EMUSCAN(emuscan_2x2_40, 2x2, 800/2 - 320*2/2, 320)
+MAKE_EMUSCAN(emuscan_2x2_32, 2x2, 800/2 - 256*2/2, 256)
+MAKE_EMUSCAN(emuscan_3x2_32, 3x2, 800/2 - 256*3/2, 256)
+
+#if 0 /* FIXME */
 static int EmuScanEnd16_32x(unsigned int num)
 {
 	unsigned int *ps;
@@ -171,7 +171,7 @@ static int EmuScanEnd16_32x(unsigned int num)
 
 	return 0;
 }
-#endif // USE_320_SCREEN
+#endif
 
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
@@ -337,26 +337,47 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 	for (i = 0; i < fbdev_buffer_count; i++)
 		memset32(fbdev_buffers[i], 0, g_screen_width * g_screen_height * 2 / 4);
 
-#ifdef USE_320_SCREEN
-	PicoDrawSetOutFormat(PDF_RGB555, 1);
-	PicoScanBegin = EmuScanBegin16;
-#else
+	PicoScanBegin = NULL;
+	PicoScanEnd = NULL;
+
+#if 0
 	if (PicoAHW & PAHW_32X) {
+		/* FIXME */
 		DrawLineDest = (unsigned short *)temp_frame;
 		PicoDrawSetOutFormat(PDF_RGB555, 1);
-		PicoScanBegin = NULL;
 		PicoScanEnd = EmuScanEnd16_32x;
-	} else {
-		PicoDrawSetOutFormat(PDF_NONE, 0);
-		PicoScanBegin = NULL;
-		PicoScanEnd = EmuScanEnd16;
-	}
+	} else
 #endif
+	{
+		switch (currentConfig.scaling) {
+		case SCALE_1x1:
+			PicoDrawSetOutFormat(PDF_RGB555, 1);
+			PicoScanBegin = emuscan_1x1;
+			break;
+		case SCALE_2x2_3x2:
+			PicoDrawSetOutFormat(PDF_NONE, 0);
+			PicoScanEnd = is_32cols ? emuscan_3x2_32 : emuscan_2x2_40;
+			break;
+		case SCALE_2x2_2x2:
+			PicoDrawSetOutFormat(PDF_NONE, 0);
+			PicoScanEnd = is_32cols ? emuscan_2x2_32 : emuscan_2x2_40;
+			break;
+		}
+	}
 }
 
 void pemu_loop_prep(void)
 {
 	emu_video_mode_change(0, 0, 0);
+	
+	if (currentConfig.CPUclock != get_cpu_clock()) {
+		FILE *f = fopen("/proc/pandora/cpu_mhz_max", "w");
+		if (f != NULL) {
+			fprintf(f, "%d\n", currentConfig.CPUclock);
+			fclose(f);
+		}
+	}
+
 	pemu_sound_start();
 }
 
@@ -388,7 +409,7 @@ void plat_wait_till_us(unsigned int us_to)
 
 	now = plat_get_ticks_us();
 
-	// XXX: need to check NOHZ and djw kernel
+	// XXX: need to check NOHZ
 	diff = (signed int)(us_to - now);
 	if (diff > 10000) {
 		//printf("sleep %d\n", us_to - now);
@@ -412,12 +433,8 @@ const char *plat_get_credits(void)
 		"      base code of PicoDrive\n"
 		"Reesy & FluBBa: DrZ80 core\n"
 		"MAME devs: YM2612 and SN76496 cores\n"
-		"rlyeh and others: minimal SDK\n"
-		"Squidge: mmuhack\n"
-		"Dzz: ARM940 sample\n"
-		"GnoStiC / Puck2099: USB joy code\n"
-		"craigix: GP2X hardware\n"
-		"ketchupgun: skin design\n"
+		"Pandora team: Pandora\n"
+		"Inder: menu bg\n"
 		"\n"
 		"special thanks (for docs, ideas):\n"
 		" Charles MacDonald, Haze,\n"

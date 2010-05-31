@@ -95,9 +95,9 @@ int vout_fbdev_init(int *w, int *h)
 	fbdev_mem_size = *w * *h * 2 * fbdev_buffer_count;
 	fbdev_mem = mmap(0, fbdev_mem_size, PROT_WRITE|PROT_READ, MAP_SHARED, fbdev, 0);
 	if (fbdev_mem == MAP_FAILED && fbdev_buffer_count > 1) {
+		fprintf(stderr, "Warning: can't map %d bytes, doublebuffering disabled\n", fbdev_mem_size);
 		fbdev_mem_size = *w * *h * 2;
 		fbdev_buffer_count = 1;
-		fprintf(stderr, "Warning: can't map %d bytes, doublebuffering disabled\n", fbdev_mem_size);
 		fbdev_mem = mmap(0, fbdev_mem_size, PROT_WRITE|PROT_READ, MAP_SHARED, fbdev, 0);
 	}
 	if (fbdev_mem == MAP_FAILED) {

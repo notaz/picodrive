@@ -4,15 +4,7 @@
 #include "readpng.h"
 #include "lprintf.h"
 
-#ifdef PSP
-#define BG_WIDTH  480
-#define BG_HEIGHT 272
-#else
-#define BG_WIDTH  320
-#define BG_HEIGHT 240
-#endif
-
-int readpng(void *dest, const char *fname, readpng_what what)
+int readpng(void *dest, const char *fname, readpng_what what, int req_w, int req_h)
 {
 	FILE *fp;
 	png_structp png_ptr = NULL;
@@ -71,9 +63,11 @@ int readpng(void *dest, const char *fname, readpng_what what)
 				break;
 			}
 			height = info_ptr->height;
-			if (height > BG_HEIGHT) height = BG_HEIGHT;
+			if (height > req_h)
+				height = req_h;
 			width = info_ptr->width;
-			if (width > BG_WIDTH) width = BG_WIDTH;
+			if (width > req_w)
+				width = req_w;
 
 			for (h = 0; h < height; h++)
 			{
@@ -88,7 +82,7 @@ int readpng(void *dest, const char *fname, readpng_what what)
 #endif
 					src += 3;
 				}
-				dst += BG_WIDTH - width;
+				dst += req_w - width;
 			}
 			break;
 		}
@@ -97,10 +91,10 @@ int readpng(void *dest, const char *fname, readpng_what what)
 		{
 			int x, y, x1, y1;
 			unsigned char *dst = dest;
-			if (info_ptr->width != 128 || info_ptr->height != 160)
+			if (info_ptr->width != req_w || info_ptr->height != req_h)
 			{
-				lprintf(__FILE__ ": unexpected font image size %ix%i, needed 128x160\n",
-					(int)info_ptr->width, (int)info_ptr->height);
+				lprintf(__FILE__ ": unexpected font image size %dx%d, needed %dx%d\n",
+					(int)info_ptr->width, (int)info_ptr->height, req_w, req_h);
 				break;
 			}
 			if (info_ptr->pixel_depth != 8)
@@ -112,10 +106,13 @@ int readpng(void *dest, const char *fname, readpng_what what)
 			{
 				for (x = 0; x < 16; x++)
 				{
-					for (y1 = 0; y1 < 10; y1++)
+					/* 16x16 grid of syms */
+					int sym_w = req_w / 16;
+					int sym_h = req_h / 16;
+					for (y1 = 0; y1 < sym_h; y1++)
 					{
-						unsigned char *src = row_ptr[y*10 + y1] + x*8;
-						for (x1 = 8/2; x1 > 0; x1--, src+=2)
+						unsigned char *src = row_ptr[y*sym_h + y1] + x*sym_w;
+						for (x1 = sym_w/2; x1 > 0; x1--, src+=2)
 							*dst++ = ((src[0]^0xff) & 0xf0) | ((src[1]^0xff) >> 4);
 					}
 				}
@@ -127,10 +124,10 @@ int readpng(void *dest, const char *fname, readpng_what what)
 		{
 			int x1, y1;
 			unsigned char *dst = dest;
-			if (info_ptr->width != 8 || info_ptr->height != 10)
+			if (info_ptr->width != req_w || info_ptr->height != req_h)
 			{
-				lprintf(__FILE__ ": unexpected selector image size %ix%i, needed 8x10\n",
-					(int)info_ptr->width, (int)info_ptr->height);
+				lprintf(__FILE__ ": unexpected selector image size %ix%i, needed %dx%d\n",
+					(int)info_ptr->width, (int)info_ptr->height, req_w, req_h);
 				break;
 			}
 			if (info_ptr->pixel_depth != 8)
@@ -138,20 +135,18 @@ int readpng(void *dest, const char *fname, readpng_what what)
 				lprintf(__FILE__ ": selector image uses %ibpp, needed 8bpp\n", info_ptr->pixel_depth);
 				break;
 			}
-			for (y1 = 0; y1 < 10; y1++)
+			for (y1 = 0; y1 < req_h; y1++)
 			{
 				unsigned char *src = row_ptr[y1];
-				for (x1 = 8/2; x1 > 0; x1--, src+=2)
+				for (x1 = req_w/2; x1 > 0; x1--, src+=2)
 					*dst++ = ((src[0]^0xff) & 0xf0) | ((src[1]^0xff) >> 4);
 			}
 			break;
 		}
 
-		case READPNG_320_24:
-		case READPNG_480_24:
+		case READPNG_24:
 		{
 			int height, width, h;
-			int needw = (what == READPNG_480_24) ? 480 : 320;
 			unsigned char *dst = dest;
 			if (info_ptr->pixel_depth != 24)
 			{
@@ -159,15 +154,17 @@ int readpng(void *dest, const char *fname, readpng_what what)
 				break;
 			}
 			height = info_ptr->height;
-			if (height > 240) height = 240;
+			if (height > req_h)
+				height = req_h;
 			width = info_ptr->width;
-			if (width > needw) width = needw;
+			if (width > req_w)
+				width = req_w;
 
 			for (h = 0; h < height; h++)
 			{
 				int len = width;
 				unsigned char *src = row_ptr[h];
-				dst += (needw - width) * 3;
+				dst += (req_w - width) * 3;
 				for (len = width; len > 0; len--, dst+=3, src+=3)
 					dst[0] = src[2], dst[1] = src[1], dst[2] = src[0];
 			}

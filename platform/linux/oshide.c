@@ -1,9 +1,21 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
+
 #include <dlfcn.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <linux/kd.h>
+
+#define PFX "oshide: "
+#define TERMIOS_DUMP_FILE "/tmp/pico_tios"
 
 #define FPTR(f) typeof(f) * p##f
 #define FPTR_LINK(xf, dl, f) { \
@@ -92,13 +104,9 @@ static void *x11h_handler(void *arg)
 
 	visual = DefaultVisual(display, 0);
 	if (visual->class != TrueColor)
-	{
-		fprintf(stderr, "cannot handle non true color visual\n");
-		xf.pXCloseDisplay(display);
-		goto fail2;
-	}
+		fprintf(stderr, PFX "warning: non true color visual\n");
 
-	printf("x11h: X vendor: %s, rel: %d, display: %s, protocol ver: %d.%d\n", ServerVendor(display),
+	printf(PFX "X vendor: %s, rel: %d, display: %s, protocol ver: %d.%d\n", ServerVendor(display),
 		VendorRelease(display), DisplayString(display), ProtocolVersion(display),
 		ProtocolRevision(display));
 
@@ -106,7 +114,7 @@ static void *x11h_handler(void *arg)
 
 	display_width = DisplayWidth(display, screen);
 	display_height = DisplayHeight(display, screen);
-	printf("x11h: display is %dx%d\n", display_width, display_height);
+	printf(PFX "display is %dx%d\n", display_width, display_height);
 
 	win = xf.pXCreateSimpleWindow(display,
 			RootWindow(display, screen),
@@ -155,19 +163,101 @@ fail:
 	return NULL;
 }
 
-int x11h_init(void)
+static struct termios g_kbd_termios_saved;
+static int g_kbdfd;
+
+static void hidecon_start(void)
+{
+	struct termios kbd_termios;
+	FILE *tios_f;
+	int mode;
+
+	g_kbdfd = open("/dev/tty", O_RDWR);
+	if (g_kbdfd == -1) {
+		perror(PFX "open /dev/tty");
+		return;
+	}
+
+	if (ioctl(g_kbdfd, KDGETMODE, &mode) == -1) {
+		perror(PFX "(not hiding FB): KDGETMODE");
+		goto fail;
+	}
+
+	if (tcgetattr(g_kbdfd, &kbd_termios) == -1) {
+		perror(PFX "tcgetattr");
+		goto fail;
+	}
+
+	/* dump for picorestore */
+	g_kbd_termios_saved = kbd_termios;
+	tios_f = fopen(TERMIOS_DUMP_FILE, "wb");
+	if (tios_f) {
+		fwrite(&kbd_termios, sizeof(kbd_termios), 1, tios_f);
+		fclose(tios_f);
+	}
+
+	kbd_termios.c_lflag &= ~(ICANON | ECHO); // | ISIG);
+	kbd_termios.c_iflag &= ~(ISTRIP | IGNCR | ICRNL | INLCR | IXOFF | IXON);
+	kbd_termios.c_cc[VMIN] = 0;
+	kbd_termios.c_cc[VTIME] = 0;
+
+	if (tcsetattr(g_kbdfd, TCSAFLUSH, &kbd_termios) == -1) {
+		perror(PFX "tcsetattr");
+		goto fail;
+	}
+
+	if (ioctl(g_kbdfd, KDSETMODE, KD_GRAPHICS) == -1) {
+		perror(PFX "KDSETMODE KD_GRAPHICS");
+		tcsetattr(g_kbdfd, TCSAFLUSH, &g_kbd_termios_saved);
+		goto fail;
+	}
+
+	return;
+
+fail:
+	close(g_kbdfd);
+	g_kbdfd = -1;
+}
+
+static void hidecon_end(void)
+{
+	if (g_kbdfd < 0)
+		return;
+
+	if (ioctl(g_kbdfd, KDSETMODE, KD_TEXT) == -1)
+		perror(PFX "KDSETMODE KD_TEXT");
+
+	if (tcsetattr(g_kbdfd, TCSAFLUSH, &g_kbd_termios_saved) == -1)
+		perror(PFX "tcsetattr");
+
+	remove(TERMIOS_DUMP_FILE);
+
+	close(g_kbdfd);
+	g_kbdfd = -1;
+}
+
+int oshide_init(void)
 {
 	pthread_t tid;
 	int ret;
 
 	ret = pthread_create(&tid, NULL, x11h_handler, NULL);
 	if (ret != 0) {
-		fprintf(stderr, "x11h: failed to create thread: %d\n", ret);
+		fprintf(stderr, PFX "failed to create thread: %d\n", ret);
 		return ret;
 	}
 	pthread_detach(tid);
 
+	hidecon_start();
+
 	return 0;
+}
+
+void oshide_finish(void)
+{
+	/* XXX: the X thread.. */
+
+	hidecon_end();
 }
 
 #if 0
