@@ -207,7 +207,7 @@ int PicoReset(void)
   return 0;
 }
 
-// flush cinfig changes before emu loop starts
+// flush config changes before emu loop starts
 void PicoLoopPrepare(void)
 {
   if (PicoRegionOverride)

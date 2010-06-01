@@ -1428,6 +1428,14 @@ void emu_loop(void)
 	Pico.m.dirtyPal = 1;
 	rendstatus_old = -1;
 
+	PicoLoopPrepare();
+
+	// prepare CD buffer
+	if (PicoAHW & PAHW_MCD)
+		PicoCDBufferInit();
+
+	pemu_loop_prep();
+
 	/* number of ticks per frame */
 	if (Pico.m.pal) {
 		target_fps = 50;
@@ -1436,13 +1444,6 @@ void emu_loop(void)
 		target_fps = 60;
 		target_frametime = ms_to_ticks(1000) / 60 + 1;
 	}
-
-	// prepare CD buffer
-	if (PicoAHW & PAHW_MCD)
-		PicoCDBufferInit();
-	PicoLoopPrepare();
-
-	pemu_loop_prep();
 
 	timestamp_fps = get_ticks();
 	reset_timing = 1;
