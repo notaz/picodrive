@@ -684,14 +684,24 @@ PICO_INTERNAL void PsndGetSamplesMS(void);
 extern int PsndDacLine;
 
 // sms.c
+#ifndef NO_SMS
 void PicoPowerMS(void);
 void PicoResetMS(void);
 void PicoMemSetupMS(void);
 void PicoStateLoadedMS(void);
 void PicoFrameMS(void);
 void PicoFrameDrawOnlyMS(void);
+#else
+#define PicoPowerMS()
+#define PicoResetMS()
+#define PicoMemSetupMS()
+#define PicoStateLoadedMS()
+#define PicoFrameMS()
+#define PicoFrameDrawOnlyMS()
+#endif
 
 // 32x/32x.c
+#ifndef NO_32X
 extern struct Pico32x Pico32x;
 void Pico32xInit(void);
 void PicoPower32x(void);
@@ -731,6 +741,18 @@ void p32x_pwm_update(int *buf32, int length, int stereo);
 void p32x_timers_do(int line_call);
 void p32x_timers_recalc(void);
 extern int pwm_frame_smp_cnt;
+#else
+#define Pico32xInit()
+#define PicoPower32x()
+#define PicoReset32x()
+#define PicoFrame32x()
+#define PicoUnload32x()
+#define Pico32xStateLoaded()
+#define PicoDraw32xSetFrameMode(...)
+#define FinalizeLine32xRGB555 NULL
+#define p32x_pwm_update(...)
+#define p32x_timers_recalc()
+#endif
 
 /* avoid dependency on newer glibc */
 static __inline int isspace_(int c)

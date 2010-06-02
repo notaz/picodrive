@@ -4,9 +4,6 @@
 struct Pico32x Pico32x;
 SH2 sh2s[2];
 
-int p32x_msh2_multiplier = MSH2_MULTI_DEFAULT;
-int p32x_ssh2_multiplier = SSH2_MULTI_DEFAULT;
-
 static int REGPARM(2) sh2_irq_cb(SH2 *sh2, int level)
 {
   if (sh2->pending_irl > sh2->pending_int_irq) {

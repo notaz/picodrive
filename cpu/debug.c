@@ -188,10 +188,11 @@ enum cmd_ret_e {
 
 static int do_print(struct pdb_cpu *cpu, const char *args)
 {
-  int i;
   elprintf(EL_STATUS, "cpu %d (%s)", cpu->id, cpu->name);
+#ifndef NO_32X
   if (cpu->type == PDBCT_SH2) {
     SH2 *sh2 = cpu->context;
+    int i;
     printf("PC,SR %08x,     %03x\n", sh2->pc, sh2->sr & 0x3ff);
     for (i = 0; i < 16/2; i++)
       printf("R%d,%2d %08x,%08x\n", i, i + 8, sh2->r[i], sh2->r[i + 8]);
@@ -200,6 +201,7 @@ static int do_print(struct pdb_cpu *cpu, const char *args)
       Pico32x.sh2irq_mask[sh2->is_slave]);
     printf("cycles %d/%d (%d)\n", sh2->cycles_done, sh2->cycles_aim, (signed int)sh2->sr >> 12);
   }
+#endif
   return CMDRET_DONE;
 }
 

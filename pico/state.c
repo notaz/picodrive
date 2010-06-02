@@ -308,6 +308,7 @@ static int state_save(void *file)
       wram_2M_to_1M(Pico_mcd->word_ram2M);
   }
 
+#ifndef NO_32X
   if (PicoAHW & PAHW_32X)
   {
     unsigned char cpubuff[SH2_STATE_SIZE];
@@ -332,6 +333,7 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_DRAM,      Pico32xMem->dram);
     CHECKED_WRITE_BUFF(CHUNK_32XPAL,    Pico32xMem->pal);
   }
+#endif
 
   if (carthw_chunks != NULL)
   {
@@ -451,6 +453,7 @@ static int state_load(void *file)
       case CHUNK_MISC_CD:  CHECKED_READ_BUFF(Pico_mcd->m); break;
 
       // 32x stuff
+#ifndef NO_32X
       case CHUNK_MSH2:
         CHECKED_READ_BUFF(buff_sh2);
         sh2_unpack(&sh2s[0], buff_sh2);
@@ -472,7 +475,7 @@ static int state_load(void *file)
       case CHUNK_SDRAM:       CHECKED_READ_BUFF(Pico32xMem->sdram); break;
       case CHUNK_DRAM:        CHECKED_READ_BUFF(Pico32xMem->dram); break;
       case CHUNK_32XPAL:      CHECKED_READ_BUFF(Pico32xMem->pal); break;
-
+#endif
       default:
         if (carthw_chunks != NULL)
         {
@@ -546,6 +549,7 @@ static int state_load_gfx(void *file)
       case CHUNK_VSRAM: CHECKED_READ_BUFF(Pico.vsram); found++; break;
       case CHUNK_VIDEO: CHECKED_READ_BUFF(Pico.video); found++; break;
 
+#ifndef NO_32X
       case CHUNK_DRAM:
         if (Pico32xMem != NULL)
           CHECKED_READ_BUFF(Pico32xMem->dram);
@@ -560,7 +564,7 @@ static int state_load_gfx(void *file)
       case CHUNK_32XSYS:
         CHECKED_READ_BUFF(Pico32x);
         break;
-
+#endif
       default:
         areaSeek(file, len, SEEK_CUR);
         break;
@@ -652,11 +656,13 @@ void *PicoTmpStateSave(void)
   memcpy(t->vsram, Pico.vsram, sizeof(Pico.vsram));
   memcpy(&t->video, &Pico.video, sizeof(Pico.video));
 
+#ifndef NO_32X
   if (PicoAHW & PAHW_32X) {
     memcpy(&t->t32x.p32x, &Pico32x, sizeof(Pico32x));
     memcpy(t->t32x.dram, Pico32xMem->dram, sizeof(Pico32xMem->dram));
     memcpy(t->t32x.pal, Pico32xMem->pal, sizeof(Pico32xMem->pal));
   }
+#endif
 
   return t;
 }
@@ -673,12 +679,14 @@ void PicoTmpStateRestore(void *data)
   memcpy(&Pico.video, &t->video, sizeof(Pico.video));
   Pico.m.dirtyPal = 1;
 
+#ifndef NO_32X
   if (PicoAHW & PAHW_32X) {
     memcpy(&Pico32x, &t->t32x.p32x, sizeof(Pico32x));
     memcpy(Pico32xMem->dram, t->t32x.dram, sizeof(Pico32xMem->dram));
     memcpy(Pico32xMem->pal, t->t32x.pal, sizeof(Pico32xMem->pal));
     Pico32x.dirty_pal = 1;
   }
+#endif
 }
 
 // vim:shiftwidth=2:expandtab

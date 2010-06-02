@@ -26,14 +26,24 @@ endif
 # === Pico core ===
 # Pico
 OBJS += pico/state.o pico/cart.o pico/memory.o pico/pico.o pico/sek.o pico/z80if.o \
-	pico/videoport.o pico/draw2.o pico/draw.o pico/mode4.o pico/sms.o \
+	pico/videoport.o pico/draw2.o pico/draw.o pico/mode4.o \
 	pico/misc.o pico/eeprom.o pico/patch.o pico/debug.o
+# SMS
+ifneq "$(no_sms)" "1"
+OBJS += pico/sms.o
+else
+DEFINES += NO_SMS
+endif
 # CD
 OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
 	pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \
 	pico/cd/misc.o pico/cd/pcm.o pico/cd/buffering.o
 # 32X
+ifneq "$(no_32x)" "1"
 OBJS += pico/32x/32x.o pico/32x/memory.o pico/32x/draw.o pico/32x/pwm.o
+else
+DEFINES += NO_32X
+endif
 # Pico
 OBJS += pico/pico/pico.o pico/pico/memory.o pico/pico/xpcm.o
 # carthw
@@ -73,8 +83,9 @@ OBJS += cpu/cz80/cz80.o
 endif
 
 # --- SH2 ---
-OBJS += cpu/sh2/sh2.o
 OBJS += cpu/drc/cmn.o
+ifneq "$(no_32x)" "1"
+OBJS += cpu/sh2/sh2.o
 #
 ifeq "$(use_sh2drc)" "1"
 DEFINES += DRC_SH2
@@ -89,11 +100,12 @@ ifeq "$(drc_debug_interp)" "1"
 DEFINES += DRC_DEBUG_INTERP
 use_sh2mame = 1
 endif
-endif
+endif # use_sh2drc
 #
 ifeq "$(use_sh2mame)" "1"
 OBJS += cpu/sh2/mame/sh2pico.o
 endif
+endif # !no_32x
 
 
 DIRS += platform platform/common pico pico/cd pico/pico pico/32x pico/sound pico/carthw/svp \

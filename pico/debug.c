@@ -56,6 +56,7 @@ char *PDebugMain(void)
 
 char *PDebug32x(void)
 {
+#ifndef NO_32X
   char *dstrp = dstr;
   unsigned short *r;
   int i;
@@ -85,6 +86,9 @@ char *PDebug32x(void)
   sprintf(dstrp, "gb,vb %08x,%08x %08x,%08x\n", sh2_gbr(0), sh2_vbr(0), sh2_gbr(1), sh2_vbr(1)); MVP;
   sprintf(dstrp, "IRQs/mask:        %02x/%02x             %02x/%02x\n",
     Pico32x.sh2irqi[0], Pico32x.sh2irq_mask[0], Pico32x.sh2irqi[1], Pico32x.sh2irq_mask[1]); MVP;
+#else
+  dstr[0] = 0;
+#endif
 
   return dstr;
 }
@@ -329,6 +333,7 @@ void PDebugDumpMem(void)
     dump_ram_noswab(Pico_mcd->bram,   "dumps/bram.bin");
   }
 
+#ifndef NO_32X
   if (PicoAHW & PAHW_32X)
   {
     dump_ram(Pico32xMem->sdram, "dumps/sdram.bin");
@@ -338,6 +343,7 @@ void PDebugDumpMem(void)
     dump_ram(Pico32xMem->data_array[0], "dumps/data_array0.bin");
     dump_ram(Pico32xMem->data_array[1], "dumps/data_array1.bin");
   }
+#endif
 }
 
 void PDebugZ80Frame(void)

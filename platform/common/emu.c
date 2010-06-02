@@ -453,11 +453,14 @@ static void shutdown_MCD(void)
 
 static void system_announce(void)
 {
-	const char *sys_name, *tv_standard;
+	const char *sys_name, *tv_standard, *extra = "";
 	int fps;
 
 	if (PicoAHW & PAHW_SMS) {
 		sys_name = "Master System";
+#ifdef NO_SMS
+		extra = " [no support]";
+#endif
 	} else if (PicoAHW & PAHW_PICO) {
 		sys_name = "Pico";
 	} else if (PicoAHW & PAHW_MCD) {
@@ -474,7 +477,7 @@ static void system_announce(void)
 	tv_standard = Pico.m.pal ? "PAL" : "NTSC";
 	fps = Pico.m.pal ? 50 : 60;
 
-	emu_status_msg("%s %s / %dFPS", tv_standard, sys_name, fps);
+	emu_status_msg("%s %s / %dFPS%s", tv_standard, sys_name, fps, extra);
 }
 
 // note: this function might mangle rom_fname

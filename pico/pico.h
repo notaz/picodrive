@@ -101,7 +101,7 @@ extern void (*PicoMCDopenTray)(void);
 extern void (*PicoMCDcloseTray)(void);
 extern int PicoCDBuffers;
 
-// Pico/Pico.c
+// pico.c
 #define XPCM_BUFFER_SIZE (320+160)
 typedef struct
 {
@@ -209,7 +209,7 @@ extern unsigned char  *PicoDraw2FB;  // buffer for fast renderer in format (8+32
 extern unsigned short *PicoCramHigh; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to use
 
-// 32x/32x.c
+// pico.c (32x)
 // multipliers against 68k clock
 extern int p32x_msh2_multiplier;
 extern int p32x_ssh2_multiplier;

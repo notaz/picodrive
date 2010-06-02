@@ -23,6 +23,9 @@ struct PicoSRAM SRam;
 int emustatus;         // rapid_ym2612, multi_ym_updates
 int scanlines_total;
 
+int p32x_msh2_multiplier = MSH2_MULTI_DEFAULT;
+int p32x_ssh2_multiplier = SSH2_MULTI_DEFAULT;
+
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
 void (*PicoLineHook)(void) = NULL;
