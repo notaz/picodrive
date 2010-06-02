@@ -11,7 +11,7 @@ void pemu_prep_defconfig(void);
 void pemu_validate_config(void);
 void pemu_loop_prep(void);
 void pemu_loop_end(void);
-void pemu_forced_frame(int opts);
+void pemu_forced_frame(int opts, int no_scale);
 void pemu_finalize_frame(const char *fps, const char *notice_msg);
 
 void pemu_sound_start(void);

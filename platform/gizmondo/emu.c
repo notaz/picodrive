@@ -294,7 +294,7 @@ static void SkipFrame(void)
 }
 
 /* forced frame to front buffer */
-void pemu_forced_frame(int opts)
+void pemu_forced_frame(int opts, int no_scale)
 {
 	int po_old = PicoOpt;
 	int eo_old = currentConfig.EmuOpt;

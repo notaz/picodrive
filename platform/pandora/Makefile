@@ -1,6 +1,7 @@
 #export CROSS = arm-none-linux-gnueabi-
 CROSS ?= $(CROSS_COMPILE)
 LIBROOT = /home/notaz/dev/pnd/libroot
+PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
 
 # settings
 use_cyclone = 1
@@ -17,6 +18,9 @@ asm_cdpico = 1
 asm_cdmemory = 1
 #profile = 1
 #drc_debug = 3
+
+no_32x = 1
+no_sms = 1
 
 -include Makefile.local
 
@@ -87,13 +91,18 @@ tidy:
 	$(RM) $(OBJS)
 
 readme.txt: ../../tools/textfilter ../base_readme.txt
-	../../tools/textfilter ../base_readme.txt $@ GP2X
+	../../tools/textfilter ../base_readme.txt $@ PANDORA
 
 # ----------- release -----------
 ifneq ($(findstring rel,$(MAKECMDGOALS)),)
-$(error TODO)
 ifeq ($(VER),)
 $(error need VER)
 endif
 endif
 
+rel: PicoDrive PicoDrive.run picorestore ../../pico/carthw.cfg readme.txt \
+	skin PicoDrive.png PicoDrive_p.png PicoDrive.pxml
+	rm -rf out
+	mkdir out
+	cp -r $^ out/
+	$(PND_MAKE) -p PicoDrive_$(VER).pnd -d out -x PicoDrive.pxml -i PicoDrive.png -c

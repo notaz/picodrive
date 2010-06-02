@@ -82,7 +82,7 @@ void pemu_loop_end(void)
 	pemu_sound_stop();
 }
 
-void pemu_forced_frame(int opts)
+void pemu_forced_frame(int opts, int no_scale)
 {
 }
 

@@ -186,6 +186,7 @@ static void hidecon_start(void)
 		goto fail;
 	}
 
+	g_kbd_termios_saved = kbd_termios;
 	kbd_termios.c_lflag &= ~(ICANON | ECHO); // | ISIG);
 	kbd_termios.c_iflag &= ~(ISTRIP | IGNCR | ICRNL | INLCR | IXOFF | IXON);
 	kbd_termios.c_cc[VMIN] = 0;

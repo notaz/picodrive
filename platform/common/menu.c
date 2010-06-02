@@ -164,7 +164,7 @@ static void smalltext_out16_(int x, int y, const char *texto, int color)
 static void smalltext_out16(int x, int y, const char *texto, int color)
 {
 	char buffer[128];
-	int maxw = (g_screen_width - x) / 6;
+	int maxw = (g_screen_width - x) / me_sfont_w;
 
 	if (maxw < 0)
 		return;
@@ -274,7 +274,7 @@ void menu_init(void)
 	memcpy(menu_font_data, menu_font_data + ((int)'>') * me_mfont_w * me_mfont_h / 2,
 		me_mfont_w * me_mfont_h / 2);
 	emu_make_path(buff, "skin/selector.png", sizeof(buff));
-	readpng(menu_font_data, buff, READPNG_SELECTOR, MENU_X2 ? 16 : 8, MENU_X2 ? 20 : 10);
+	readpng(menu_font_data, buff, READPNG_SELECTOR, me_mfont_w, me_mfont_h);
 
 	// load custom colors
 	emu_make_path(buff, "skin/skin.txt", sizeof(buff));
@@ -413,9 +413,12 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 			wt = col2_offs;
 
 			switch (ent->beh) {
-			case MB_NONE: break;
+			case MB_NONE:
+				break;
 			case MB_OPT_ONOFF:
-			case MB_OPT_RANGE: wt += me_mfont_w * 3; break;
+			case MB_OPT_RANGE:
+				wt += me_mfont_w * 3;
+				break;
 			case MB_OPT_CUSTOM:
 			case MB_OPT_CUSTONOFF:
 			case MB_OPT_CUSTRANGE:
@@ -694,11 +697,11 @@ static int cdload_called = 0;
 static void load_progress_cb(int percent)
 {
 	int ln, len = percent * g_screen_width / 100;
-	unsigned short *dst = (unsigned short *)g_screen_ptr + g_screen_width * 10 * 2;
+	unsigned short *dst = (unsigned short *)g_screen_ptr + g_screen_width * me_sfont_h * 2;
 
 	if (len > g_screen_width)
 		len = g_screen_width;
-	for (ln = 10 - 2; ln > 0; ln--, dst += g_screen_width)
+	for (ln = me_sfont_h - 2; ln > 0; ln--, dst += g_screen_width)
 		memset(dst, 0xff, len * 2);
 	plat_video_menu_end();
 }
@@ -706,7 +709,7 @@ static void load_progress_cb(int percent)
 static void cdload_progress_cb(const char *fname, int percent)
 {
 	int ln, len = percent * g_screen_width / 100;
-	unsigned short *dst = (unsigned short *)g_screen_ptr + g_screen_width * 10 * 2;
+	unsigned short *dst = (unsigned short *)g_screen_ptr + g_screen_width * me_sfont_h * 2;
 
 	memset(dst, 0xff, g_screen_width * (me_sfont_h - 2) * 2);
 
@@ -767,8 +770,8 @@ static void do_delete(const char *fpath, const char *fname)
 		menu_darken_bg(g_screen_ptr, g_screen_ptr, g_screen_width * g_screen_height, 0);
 
 	len = strlen(fname);
-	if (len > g_screen_width/6)
-		len = g_screen_width/6;
+	if (len > g_screen_width / me_sfont_w)
+		len = g_screen_width / me_sfont_w;
 
 	mid = g_screen_width / 2;
 	text_out16(mid - me_mfont_w * 15 / 2,  8 * me_mfont_h, "About to delete");
@@ -1021,7 +1024,7 @@ static void draw_patchlist(int sel)
 {
 	int max_cnt, start, i, pos, active;
 
-	max_cnt = g_screen_height / 10;
+	max_cnt = g_screen_height / me_sfont_h;
 	start = max_cnt / 2 - sel;
 
 	plat_video_menu_begin();
@@ -1031,8 +1034,8 @@ static void draw_patchlist(int sel)
 		if (pos < 0) continue;
 		if (pos >= max_cnt) break;
 		active = PicoPatches[i].active;
-		smalltext_out16(14,     pos * me_sfont_h, active ? "ON " : "OFF", active ? 0xfff6 : 0xffff);
-		smalltext_out16(14+6*4, pos * me_sfont_h, PicoPatches[i].name,    active ? 0xfff6 : 0xffff);
+		smalltext_out16(14,                pos * me_sfont_h, active ? "ON " : "OFF", active ? 0xfff6 : 0xffff);
+		smalltext_out16(14 + me_sfont_w*4, pos * me_sfont_h, PicoPatches[i].name,    active ? 0xfff6 : 0xffff);
 	}
 	pos = start + i;
 	if (pos < max_cnt)
@@ -1095,7 +1098,7 @@ static void draw_savestate_bg(int slot)
 	PicoStateLoadGfx(fname);
 
 	/* do a frame and fetch menu bg */
-	pemu_forced_frame(POPT_EN_SOFTSCALE);
+	pemu_forced_frame(POPT_EN_SOFTSCALE, 0);
 	menu_enter(1);
 
 	PicoTmpStateRestore(tmp_state);
@@ -1539,6 +1542,8 @@ static int menu_loop_cd_options(menu_id id, int keys)
 
 // ------------ 32X options menu ------------
 
+#ifndef NO_32X
+
 // convert from multiplier of VClk
 static int mh_opt_sh2cycles(menu_id id, int keys)
 {
@@ -1590,6 +1595,8 @@ static int menu_loop_32x_options(menu_id id, int keys)
 
 	return 0;
 }
+
+#endif
 
 // ------------ adv options menu ------------
 
@@ -1814,7 +1821,9 @@ static menu_entry e_menu_options[] =
 	mee_range     (cpu_clk_name,               MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 900),
 	mee_handler   ("[Display options]",        menu_loop_gfx_options),
 	mee_handler   ("[Sega/Mega CD options]",   menu_loop_cd_options),
+#ifndef NO_32X
 	mee_handler   ("[32X options]",            menu_loop_32x_options),
+#endif
 	mee_handler   ("[Advanced options]",       menu_loop_adv_options),
 	mee_cust_nosave("Save global config",      MA_OPT_SAVECFG, mh_saveloadcfg, mgn_saveloadcfg),
 	mee_cust_nosave("Save cfg for loaded game",MA_OPT_SAVECFG_GAME, mh_saveloadcfg, mgn_saveloadcfg),
@@ -1899,7 +1908,7 @@ static void draw_frame_debug(void)
 	if (PicoDrawMask & PDRAW_32X_ON)         memcpy(layer_str + 26, "32x", 4);
 
 	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
-	pemu_forced_frame(0);
+	pemu_forced_frame(0, 0);
 	smalltext_out16(4, 1, "build: r" REVISION "  "__DATE__ " " __TIME__ " " COMPILER, 0xffff);
 	smalltext_out16(4, g_screen_height - me_sfont_h, layer_str, 0xffff);
 }
@@ -1924,12 +1933,14 @@ static void debug_menu_loop(void)
 					dumped = 0;
 				}
 				break;
-			case 1: draw_frame_debug(); break;
+			case 1: draw_frame_debug();
+				break;
 			case 2: memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
-				pemu_forced_frame(0);
+				pemu_forced_frame(0, 1);
 				menu_darken_bg(g_screen_ptr, g_screen_ptr, g_screen_width * g_screen_height, 0);
 				PDebugShowSpriteStats((unsigned short *)g_screen_ptr + (g_screen_height/2 - 240/2)*g_screen_width +
-					g_screen_width/2 - 320/2, g_screen_width); break;
+					g_screen_width/2 - 320/2, g_screen_width);
+				break;
 			case 3: memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 				PDebugShowPalette(g_screen_ptr, g_screen_width);
 				PDebugShowSprite((unsigned short *)g_screen_ptr + g_screen_width*120 + g_screen_width/2 + 16,
@@ -2199,7 +2210,9 @@ static menu_entry *e_menu_table[] =
 	e_menu_gfx_options,
 	e_menu_adv_options,
 	e_menu_cd_options,
+#ifndef NO_32X
 	e_menu_32x_options,
+#endif
 	e_menu_keyconfig,
 	e_menu_hidden,
 };

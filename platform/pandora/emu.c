@@ -49,6 +49,7 @@ void pemu_prep_defconfig(void)
 	g_menubg_ptr = temp_frame;
 
 	defaultConfig.EmuOpt |= EOPT_VSYNC;
+	defaultConfig.s_PicoOpt |= POPT_EN_MCD_GFX|POPT_EN_MCD_PSYNC;
 	defaultConfig.scaling = SCALE_2x2_3x2;
 }
 
@@ -113,9 +114,9 @@ static void draw_cd_leds(void)
 
 static int emuscan_1x1(unsigned int num)
 {
-	DrawLineDest = (unsigned short *)g_screen_ptr + num*800 + 800/2 - 320/2;
-	//int w = (Pico.video.reg[12]&1) ? 320 : 256;
-	//DrawLineDest = (unsigned short *)g_screen_ptr + num*w;
+	DrawLineDest = (unsigned short *)g_screen_ptr +
+		g_screen_width * g_screen_height / 2 - g_screen_width * 240 / 2 +
+		num*g_screen_width + g_screen_width/2 - 320/2;
 
 	return 0;
 }
@@ -250,17 +251,24 @@ void plat_update_volume(int has_changed, int is_up)
 	}
 }
 
-void pemu_forced_frame(int opts)
+void pemu_forced_frame(int opts, int no_scale)
 {
+	int oldscale = currentConfig.scaling;
 	int po_old = PicoOpt;
 
-	PicoOpt &= ~0x10;
+	if (no_scale) {
+		currentConfig.scaling = SCALE_1x1;
+		emu_video_mode_change(0, 0, 0);
+	}
+
+	PicoOpt &= ~POPT_ALT_RENDERER;
 	PicoOpt |= opts|POPT_ACC_SPRITES; // acc_sprites
 
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 
 	PicoOpt = po_old;
+	currentConfig.scaling = oldscale;
 }
 
 static void updateSound(int len)
@@ -368,14 +376,11 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 
 void pemu_loop_prep(void)
 {
-	emu_video_mode_change(0, 0, 0);
-	
 	if (currentConfig.CPUclock != get_cpu_clock()) {
-		FILE *f = fopen("/proc/pandora/cpu_mhz_max", "w");
-		if (f != NULL) {
-			fprintf(f, "%d\n", currentConfig.CPUclock);
-			fclose(f);
-		}
+		char buf[64];
+		snprintf(buf, sizeof(buf), "sudo /usr/pandora/scripts/op_cpuspeed.sh %d",
+			currentConfig.CPUclock);
+		system(buf);
 	}
 
 	pemu_sound_start();
@@ -434,7 +439,7 @@ const char *plat_get_credits(void)
 		"Reesy & FluBBa: DrZ80 core\n"
 		"MAME devs: YM2612 and SN76496 cores\n"
 		"Pandora team: Pandora\n"
-		"Inder: menu bg\n"
+		"Inder, ketchupgun: graphics\n"
 		"\n"
 		"special thanks (for docs, ideas):\n"
 		" Charles MacDonald, Haze,\n"

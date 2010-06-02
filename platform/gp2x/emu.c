@@ -730,7 +730,7 @@ void pemu_sound_wait(void)
 }
 
 
-void pemu_forced_frame(int opts)
+void pemu_forced_frame(int opts, int no_scale)
 {
 	int po_old = PicoOpt;
 

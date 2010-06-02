@@ -212,7 +212,7 @@ void plat_update_volume(int has_changed, int is_up)
 {
 }
 
-void pemu_forced_frame(int opts)
+void pemu_forced_frame(int opts, int no_scale)
 {
 	int po_old = PicoOpt;
 	int eo_old = currentConfig.EmuOpt;
