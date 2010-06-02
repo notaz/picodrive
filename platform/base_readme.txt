@@ -56,6 +56,9 @@ If you are on 1.5, there is a separate KXploited version for it.
 Copy SIS and some ROMs to any directory in your memory stick, and install the SIS.
 Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
 #endif
+#ifdef PANDORA
+Just copy the .pnd to <sd card>/pandora/menu or <sd card>/pandora/desktop.
+#endif
 #ifndef UIQ
 
 This emulator has lots of options with various tweaks (for improved speed mostly),
@@ -72,7 +75,12 @@ To play any game, you need BIOS files. These files must be copied to
 #ifdef UIQ
 D:\other\PicoDrive\ directory.
 #else
+#ifdef PANDORA
+<sd card>/pandora/appdata/PicoDrive/ directory
+(if you run PicoDrive once it will create that directory for you).
+#else
 the same directory as PicoDrive files.
+#endif
 #endif
 Files can be named as follows:
 
@@ -637,13 +645,18 @@ Additional thanks
   (http://www.inf.u-szeged.hu/symbian-gcc/) for their updated pre-SymbianOS9
   compile tools.
 * AnotherGuest for all his Symbian stuff and support.
-* Inder for the icons.
 #endif
+* Inder for some graphics.
 * Anyone else I forgot. You know who you are.
 
 
 Changelog
 ---------
+1.80beta1
+  * Added pandora port.
+  * Lots of other stuff I don't have time to write here
+    (to be added here soon).
+
 1.56
   * Changed sync in Sega CD emulation again. Should fix games that
     broke after changes in 1.51a.

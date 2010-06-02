@@ -1,0 +1,6 @@
+#!/bin/sh
+
+./PicoDrive "$@"
+
+# restore stuff ip pico crashes
+./picorestore
