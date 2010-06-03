@@ -17,12 +17,12 @@
  
   <author name="notaz" website="http://notaz.gp2x.de/"/>
  
-  <version major="1" minor="80" release="0" build="0"/><!--This programs version-->
-  <info name="readme" type="text/plain" src="readme.txt"/>
+  <version major="@major@" minor="@minor@" release="0" build="@revision@"/>
+  <info name="PicoDrive readme" type="text/plain" src="readme.txt"/>
  
   <categories>
-    <category name="Game"><!--category like "Games", "Graphics", "Internet" etc-->
-    <subcategory name="Emulator"/><!--subcategory, like "Board Games", "Strategy", "First Person Shooters"-->
+    <category name="Game">
+    <subcategory name="Emulator"/>
     </category>
   </categories>
 </application>

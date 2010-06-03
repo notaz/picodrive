@@ -2,5 +2,5 @@
 
 ./PicoDrive "$@"
 
-# restore stuff ip pico crashes
+# restore stuff if pico crashes
 ./picorestore

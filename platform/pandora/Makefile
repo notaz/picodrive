@@ -93,12 +93,12 @@ tidy:
 readme.txt: ../../tools/textfilter ../base_readme.txt
 	../../tools/textfilter ../base_readme.txt $@ PANDORA
 
+PicoDrive.pxml: PicoDrive.pxml.template
+	./make_pxml.sh PicoDrive.pxml.template PicoDrive.pxml
+
 # ----------- release -----------
-ifneq ($(findstring rel,$(MAKECMDGOALS)),)
-ifeq ($(VER),)
-$(error need VER)
-endif
-endif
+
+VER = $(shell head -n 1 version.h | sed 's/.*"\(.*\)\.\(.*\)".*/\1\2/g')
 
 rel: PicoDrive PicoDrive.run picorestore ../../pico/carthw.cfg readme.txt \
 	skin PicoDrive.png PicoDrive_p.png PicoDrive.pxml
