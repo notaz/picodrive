@@ -5,9 +5,16 @@
 #include "input.h"
 #include "plat.h"
 #include "lprintf.h"
+
+#ifdef IN_EVDEV
 #include "../linux/in_evdev.h"
+#endif
+#ifdef IN_GP2X
 #include "../gp2x/in_gp2x.h"
+#endif
+#ifdef IN_VK
 #include "../win32/in_vk.h"
+#endif
 
 typedef struct
 {
@@ -251,9 +258,11 @@ int in_update(int *result)
 				ret |= in_gp2x_update(dev->drv_data, dev->binds, result);
 				break;
 #endif
+#ifdef IN_VK
 			case IN_DRVID_VK:
 				ret |= in_vk_update(dev->drv_data, dev->binds, result);
 				break;
+#endif
 			}
 		}
 	}
@@ -814,7 +823,9 @@ void in_init(void)
 #ifdef IN_EVDEV
 	in_evdev_init(&in_drivers[IN_DRVID_EVDEV]);
 #endif
+#ifdef IN_VK
 	in_vk_init(&in_drivers[IN_DRVID_VK]);
+#endif
 }
 
 #if 0
