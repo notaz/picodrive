@@ -46,11 +46,11 @@ int sndout_oss_start(int rate, int frame_samples, int stereo)
 		return 0;
 
 	sndout_oss_stop();
-	sounddev = open("/dev/dsp", O_WRONLY|O_ASYNC);
+	sounddev = open("/dev/dsp", O_WRONLY);
 	if (sounddev == -1)
 	{
 		perror("open(\"/dev/dsp\")");
-		sounddev = open("/dev/dsp1", O_WRONLY|O_ASYNC);
+		sounddev = open("/dev/dsp1", O_WRONLY);
 		if (sounddev == -1) {
 			perror("open(\"/dev/dsp1\")");
 			return -1;
