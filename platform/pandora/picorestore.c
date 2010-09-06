@@ -11,6 +11,8 @@
 int main()
 {
 	struct fb_var_screeninfo fbvar;
+	struct omapfb_plane_info pi;
+	struct omapfb_mem_info mi;
 	int ret, fbdev, kbdfd;
 
 	fbdev = open("/dev/fb0", O_RDWR);
@@ -45,18 +47,18 @@ end_fb0:
 		goto end_fb1;
 	}
 
-	ret  = ioctl(fd, OMAPFB_QUERY_PLANE, &pi);
-	ret |= ioctl(fd, OMAPFB_QUERY_MEM, &mi);
+	ret  = ioctl(fbdev, OMAPFB_QUERY_PLANE, &pi);
+	ret |= ioctl(fbdev, OMAPFB_QUERY_MEM, &mi);
 	if (ret != 0)
 		perror("QUERY_*");
 
 	pi.enabled = 0;
-	ret = ioctl(fd, OMAPFB_SETUP_PLANE, &pi);
+	ret = ioctl(fbdev, OMAPFB_SETUP_PLANE, &pi);
 	if (ret != 0)
 		perror("SETUP_PLANE");
 
 	mi.size = 0;
-	ret = ioctl(fd, OMAPFB_SETUP_MEM, &mi);
+	ret = ioctl(fbdev, OMAPFB_SETUP_MEM, &mi);
 	if (ret != 0)
 		perror("SETUP_MEM");
 

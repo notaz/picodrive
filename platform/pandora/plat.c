@@ -339,7 +339,7 @@ int pnd_setup_layer(int enabled, int x, int y, int w, int h)
 
 void pnd_restore_layer_data(void)
 {
-	short *t = ((short *)fb_copy)[320*240 / 2 + 160];
+	short *t = (short *)fb_copy + 320*240 / 2 + 160;
 
 	// right now this is used by menu, which wants to preview something
 	// so try to get something on the layer.
