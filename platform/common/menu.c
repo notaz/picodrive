@@ -1359,11 +1359,13 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 						break;
 				}
 				continue;
-			case PBTN_MBACK: return;
+			case PBTN_MBACK:
+				return;
 			case PBTN_MOK:
 				if (sel >= opt_cnt)
 					return;
-				while (in_menu_wait_any(30) & PBTN_MOK);
+				while (in_menu_wait_any(30) & PBTN_MOK)
+					;
 				break;
 			case PBTN_MA2:
 				in_unbind_all(dev_id, opts[sel].mask << mask_shift, bindtype);
@@ -1385,7 +1387,10 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 				in_get_dev_info(dev_id, IN_INFO_DOES_COMBOS))
 			unbind = 0;
 
-		in_bind_key(dev_id, kc, opts[sel].mask << mask_shift, bindtype, unbind);
+		if (unbind)
+			in_unbind_all(dev_id, opts[sel].mask << mask_shift, bindtype);
+
+		in_bind_key(dev_id, kc, opts[sel].mask << mask_shift, bindtype, 0);
 	}
 }
 
