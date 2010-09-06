@@ -1140,8 +1140,11 @@ static void emu_tray_close(void)
 
 void emu_32x_startup(void)
 {
-	plat_video_toggle_renderer(0, 0);
+	plat_video_toggle_renderer(0, 0); // HACK
 	system_announce();
+
+	// force mode change event
+	rendstatus_old = -1;
 }
 
 void emu_reset_game(void)

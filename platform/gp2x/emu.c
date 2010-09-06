@@ -13,6 +13,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "plat_gp2x.h"
 #include "soc.h"
@@ -870,6 +871,10 @@ void pemu_loop_prep(void)
 	// make sure we are in correct mode
 	vidResetMode();
 	scaling_update();
+
+	// dirty buffers better go now than during gameplay
+	sync();
+	sleep(0);
 
 	pemu_sound_start();
 }

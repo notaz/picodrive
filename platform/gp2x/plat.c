@@ -85,6 +85,7 @@ void plat_video_menu_enter(int is_rom_loaded)
 void plat_video_menu_begin(void)
 {
 	memcpy(g_screen_ptr, gp2x_screens[2], 320*240*2);
+	g_menuscreen_ptr = g_screen_ptr;
 }
 
 void plat_video_menu_end(void)

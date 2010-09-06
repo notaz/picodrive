@@ -75,6 +75,7 @@ typedef struct _currentConfig_t {
 	int turbo_rate;
 	int renderer;
 	int renderer32x;
+	int filter; // pandora
 } currentConfig_t;
 
 extern currentConfig_t currentConfig, defaultConfig;

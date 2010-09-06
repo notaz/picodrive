@@ -252,8 +252,8 @@ static void xlib_init(void)
 static void realloc_screen(void)
 {
 	int size = scr_w * scr_h * 2;
-	g_screen_width = scr_w;
-	g_screen_height = scr_h;
+	g_menuscreen_w = scr_w;
+	g_menuscreen_h = scr_h;
 	g_screen_ptr = realloc(g_screen_ptr, size);
 	g_menubg_ptr = realloc(g_menubg_ptr, size);
 	memset(g_screen_ptr, 0, size);
@@ -322,6 +322,8 @@ void plat_init(void)
 	ret = vout_fbdev_init(&w, &h);
 	if (ret != 0)
 		exit(1);
+	g_menuscreen_w = w;
+	g_menuscreen_h = h;
 	g_screen_width = w;
 	g_menubg_ptr = realloc(g_menubg_ptr, w * g_screen_height * 2);
 	PicoDraw2FB = g_menubg_ptr;

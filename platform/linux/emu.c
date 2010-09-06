@@ -179,6 +179,7 @@ void plat_video_menu_enter(int is_rom_loaded)
 void plat_video_menu_begin(void)
 {
 	memcpy32(g_screen_ptr, g_menubg_ptr, g_screen_width * g_screen_height * 2 / 4);
+	g_menubg_ptr = g_screen_ptr;
 }
 
 void plat_video_menu_end(void)

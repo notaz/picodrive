@@ -1,4 +1,4 @@
-// (c) Copyright 2006-2009 notaz, All rights reserved.
+// (c) Copyright 2006-2010 notaz, All rights reserved.
 // Free for non-commercial use.
 
 // For commercial use, separate licencing terms must be obtained.
@@ -25,9 +25,16 @@
 static char static_buff[64];
 static int  menu_error_time = 0;
 char menu_error_msg[64] = { 0, };
+void *g_menuscreen_ptr;
+void *g_menubg_src_ptr;
 void *g_menubg_ptr;
 
 #ifndef UIQ3
+
+#if !SCREEN_SIZE_FIXED
+int g_menuscreen_w = MSCREEN_WIDTH;
+int g_menuscreen_h = MSCREEN_HEIGHT;
+#endif
 
 static unsigned char *menu_font_data = NULL;
 static int menu_text_color = 0xffff; // default to white
@@ -46,7 +53,7 @@ static const int me_sfont_w = 6, me_sfont_h = 10;
 static void text_out16_(int x, int y, const char *text, int color)
 {
 	int i, lh, tr, tg, tb, len;
-	unsigned short *dest = (unsigned short *)g_screen_ptr + x + y * g_screen_width;
+	unsigned short *dest = (unsigned short *)g_menuscreen_ptr + x + y * g_menuscreen_w;
 	tr = (color & 0xf800) >> 8;
 	tg = (color & 0x07e0) >> 3;
 	tb = (color & 0x001f) << 3;
@@ -66,8 +73,8 @@ static void text_out16_(int x, int y, const char *text, int color)
 	}
 
 	lh = me_mfont_h;
-	if (y + lh > g_screen_height)
-		lh = g_screen_height - y;
+	if (y + lh > g_menuscreen_h)
+		lh = g_menuscreen_h - y;
 
 	for (i = 0; i < len; i++)
 	{
@@ -75,7 +82,7 @@ static void text_out16_(int x, int y, const char *text, int color)
 		unsigned short *dst = dest;
 		int u, l;
 
-		for (l = 0; l < lh; l++, dst += g_screen_width - me_mfont_w)
+		for (l = 0; l < lh; l++, dst += g_menuscreen_w - me_mfont_w)
 		{
 			for (u = me_mfont_w / 2; u > 0; u--, src++)
 			{
@@ -106,7 +113,7 @@ void text_out16(int x, int y, const char *texto, ...)
 {
 	va_list args;
 	char    buffer[256];
-	int     maxw = (g_screen_width - x) / me_mfont_w;
+	int     maxw = (g_menuscreen_w - x) / me_mfont_w;
 
 	if (maxw < 0)
 		return;
@@ -139,7 +146,7 @@ static void smalltext_out16_(int x, int y, const char *texto, int color)
 			break;
 
 		src = fontdata6x8[c];
-		dst = (unsigned short *)g_screen_ptr + x + y * g_screen_width;
+		dst = (unsigned short *)g_menuscreen_ptr + x + y * g_menuscreen_w;
 
 		while (h--)
 		{
@@ -154,7 +161,7 @@ static void smalltext_out16_(int x, int y, const char *texto, int color)
 						dst += multiplier;
 				}
 
-				dst += g_screen_width - me_sfont_w;
+				dst += g_menuscreen_w - me_sfont_w;
 			}
 			src++;
 		}
@@ -164,7 +171,7 @@ static void smalltext_out16_(int x, int y, const char *texto, int color)
 static void smalltext_out16(int x, int y, const char *texto, int color)
 {
 	char buffer[128];
-	int maxw = (g_screen_width - x) / me_sfont_w;
+	int maxw = (g_menuscreen_w - x) / me_sfont_w;
 
 	if (maxw < 0)
 		return;
@@ -187,13 +194,13 @@ static void menu_draw_selection(int x, int y, int w)
 	if (menu_sel_color < 0) return; // no selection hilight
 
 	if (y > 0) y--;
-	dest = (unsigned short *)g_screen_ptr + x + y * g_screen_width + me_mfont_w * 2 - 2;
+	dest = (unsigned short *)g_menuscreen_ptr + x + y * g_menuscreen_w + me_mfont_w * 2 - 2;
 	for (h = me_mfont_h + 1; h > 0; h--)
 	{
 		dst = dest;
 		for (i = w - (me_mfont_w * 2 - 2); i > 0; i--)
 			*dst++ = menu_sel_color;
-		dest += g_screen_width;
+		dest += g_menuscreen_w;
 	}
 }
 
@@ -335,8 +342,12 @@ static void menu_enter(int is_rom_loaded)
 {
 	if (is_rom_loaded)
 	{
+		void *src = g_menubg_src_ptr;
+		if (src == NULL)
+			src = g_menuscreen_ptr;
+
 		// darken the active framebuffer
-		menu_darken_bg(g_menubg_ptr, g_screen_ptr, g_screen_width * g_screen_height, 1);
+		menu_darken_bg(g_menubg_ptr, src, g_menuscreen_w * g_menuscreen_h, 1);
 	}
 	else
 	{
@@ -344,8 +355,8 @@ static void menu_enter(int is_rom_loaded)
 
 		// should really only happen once, on startup..
 		emu_make_path(buff, "skin/background.png", sizeof(buff));
-		if (readpng(g_menubg_ptr, buff, READPNG_BG, g_screen_width, g_screen_height) < 0)
-			memset(g_menubg_ptr, 0, g_screen_width * g_screen_height * 2);
+		if (readpng(g_menubg_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h) < 0)
+			memset(g_menubg_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
 	}
 
 	plat_video_menu_enter(is_rom_loaded);
@@ -442,17 +453,17 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 	h = n * me_mfont_h;
 	w += me_mfont_w * 2; /* selector */
 
-	if (w > g_screen_width) {
-		lprintf("width %d > %d\n", w, g_screen_width);
-		w = g_screen_width;
+	if (w > g_menuscreen_w) {
+		lprintf("width %d > %d\n", w, g_menuscreen_w);
+		w = g_menuscreen_w;
 	}
-	if (h > g_screen_height) {
-		lprintf("height %d > %d\n", w, g_screen_height);
-		h = g_screen_height;
+	if (h > g_menuscreen_h) {
+		lprintf("height %d > %d\n", w, g_menuscreen_h);
+		h = g_menuscreen_h;
 	}
 
-	x = g_screen_width  / 2 - w / 2;
-	y = g_screen_height / 2 - h / 2;
+	x = g_menuscreen_w  / 2 - w / 2;
+	y = g_menuscreen_h / 2 - h / 2;
 
 	/* draw */
 	plat_video_menu_begin();
@@ -513,10 +524,10 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 	}
 
 	/* display help or message if we have one */
-	h = (g_screen_height - h) / 2; // bottom area height
+	h = (g_menuscreen_h - h) / 2; // bottom area height
 	if (menu_error_msg[0] != 0) {
 		if (h >= me_mfont_h + 4)
-			text_out16(5, g_screen_height - me_mfont_h - 4, menu_error_msg);
+			text_out16(5, g_menuscreen_h - me_mfont_h - 4, menu_error_msg);
 		else
 			lprintf("menu msg doesn't fit!\n");
 
@@ -530,7 +541,7 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 			tmp = strchr(tmp + 1, '\n');
 		if (h >= l * me_sfont_h + 4)
 			for (tmp = ent_sel->help; l > 0; l--, tmp = strchr(tmp, '\n') + 1)
-				smalltext_out16(5, g_screen_height - (l * me_sfont_h + 4), tmp, 0xffff);
+				smalltext_out16(5, g_menuscreen_h - (l * me_sfont_h + 4), tmp, 0xffff);
 	}
 
 	if (draw_more != NULL)
@@ -671,14 +682,14 @@ static void draw_menu_credits(void)
 		p++;
 	}
 
-	x = g_screen_width  / 2 - w * me_mfont_w / 2;
-	y = g_screen_height / 2 - h * me_mfont_h / 2;
+	x = g_menuscreen_w  / 2 - w * me_mfont_w / 2;
+	y = g_menuscreen_h / 2 - h * me_mfont_h / 2;
 	if (x < 0) x = 0;
 	if (y < 0) y = 0;
 
 	plat_video_menu_begin();
 
-	for (p = creds; *p != 0 && y <= g_screen_height - me_mfont_h; y += me_mfont_h) {
+	for (p = creds; *p != 0 && y <= g_menuscreen_h - me_mfont_h; y += me_mfont_h) {
 		text_out16(x, y, p);
 
 		for (; *p != 0 && *p != '\n'; p++)
@@ -696,30 +707,30 @@ static int cdload_called = 0;
 
 static void load_progress_cb(int percent)
 {
-	int ln, len = percent * g_screen_width / 100;
-	unsigned short *dst = (unsigned short *)g_screen_ptr + g_screen_width * me_sfont_h * 2;
+	int ln, len = percent * g_menuscreen_w / 100;
+	unsigned short *dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_w * me_sfont_h * 2;
 
-	if (len > g_screen_width)
-		len = g_screen_width;
-	for (ln = me_sfont_h - 2; ln > 0; ln--, dst += g_screen_width)
+	if (len > g_menuscreen_w)
+		len = g_menuscreen_w;
+	for (ln = me_sfont_h - 2; ln > 0; ln--, dst += g_menuscreen_w)
 		memset(dst, 0xff, len * 2);
 	plat_video_menu_end();
 }
 
 static void cdload_progress_cb(const char *fname, int percent)
 {
-	int ln, len = percent * g_screen_width / 100;
-	unsigned short *dst = (unsigned short *)g_screen_ptr + g_screen_width * me_sfont_h * 2;
+	int ln, len = percent * g_menuscreen_w / 100;
+	unsigned short *dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_w * me_sfont_h * 2;
 
-	memset(dst, 0xff, g_screen_width * (me_sfont_h - 2) * 2);
+	memset(dst, 0xff, g_menuscreen_w * (me_sfont_h - 2) * 2);
 
 	smalltext_out16(1, 3 * me_sfont_h, "Processing CD image / MP3s", 0xffff);
 	smalltext_out16(1, 4 * me_sfont_h, fname, 0xffff);
-	dst += g_screen_width * me_sfont_h * 3;
+	dst += g_menuscreen_w * me_sfont_h * 3;
 
-	if (len > g_screen_width)
-		len = g_screen_width;
-	for (ln = (me_sfont_h - 2); ln > 0; ln--, dst += g_screen_width)
+	if (len > g_menuscreen_w)
+		len = g_menuscreen_w;
+	for (ln = (me_sfont_h - 2); ln > 0; ln--, dst += g_menuscreen_w)
 		memset(dst, 0xff, len * 2);
 
 	plat_video_menu_end();
@@ -767,13 +778,13 @@ static void do_delete(const char *fpath, const char *fname)
 	plat_video_menu_begin();
 
 	if (!rom_loaded)
-		menu_darken_bg(g_screen_ptr, g_screen_ptr, g_screen_width * g_screen_height, 0);
+		menu_darken_bg(g_menuscreen_ptr, g_menuscreen_ptr, g_menuscreen_w * g_menuscreen_h, 0);
 
 	len = strlen(fname);
-	if (len > g_screen_width / me_sfont_w)
-		len = g_screen_width / me_sfont_w;
+	if (len > g_menuscreen_w / me_sfont_w)
+		len = g_menuscreen_w / me_sfont_w;
 
-	mid = g_screen_width / 2;
+	mid = g_menuscreen_w / 2;
 	text_out16(mid - me_mfont_w * 15 / 2,  8 * me_mfont_h, "About to delete");
 	smalltext_out16(mid - len * me_sfont_w / 2, 9 * me_mfont_h + 5, fname, 0xbdff);
 	text_out16(mid - me_mfont_w * 13 / 2, 11 * me_mfont_h, "Are you sure?");
@@ -817,7 +828,7 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 	int max_cnt, start, i, x, pos;
 	void *darken_ptr;
 
-	max_cnt = g_screen_height / me_sfont_h;
+	max_cnt = g_menuscreen_h / me_sfont_h;
 	start = max_cnt / 2 - sel;
 	n--; // exclude current dir (".")
 
@@ -826,8 +837,8 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 //	if (!rom_loaded)
 //		menu_darken_bg(gp2x_screen, 320*240, 0);
 
-	darken_ptr = (short *)g_screen_ptr + g_screen_width * max_cnt/2 * me_sfont_h;
-	menu_darken_bg(darken_ptr, darken_ptr, g_screen_width * me_sfont_h * 8 / 10, 0);
+	darken_ptr = (short *)g_menuscreen_ptr + g_menuscreen_w * max_cnt/2 * me_sfont_h;
+	menu_darken_bg(darken_ptr, darken_ptr, g_menuscreen_w * me_sfont_h * 8 / 10, 0);
 
 	x = 5 + me_mfont_w + 1;
 	if (start - 2 >= 0)
@@ -1024,7 +1035,7 @@ static void draw_patchlist(int sel)
 {
 	int max_cnt, start, i, pos, active;
 
-	max_cnt = g_screen_height / me_sfont_h;
+	max_cnt = g_menuscreen_h / me_sfont_h;
 	start = max_cnt / 2 - sel;
 
 	plat_video_menu_begin();
@@ -1113,9 +1124,9 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 
 	w = (13 + 2) * me_mfont_w;
 	h = (1+2+10+1) * me_mfont_h;
-	x = g_screen_width / 2 - w / 2;
+	x = g_menuscreen_w / 2 - w / 2;
 	if (x < 0) x = 0;
-	y = g_screen_height / 2 - h / 2;
+	y = g_menuscreen_h / 2 - h / 2;
 	if (y < 0) y = 0;
 
 	plat_video_menu_begin();
@@ -1257,8 +1268,8 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 	int x, y, w, i;
 
 	w = ((player_idx >= 0) ? 20 : 30) * me_mfont_w;
-	x = g_screen_width / 2 - w / 2;
-	y = (g_screen_height - 4 * me_mfont_h) / 2 - (2 + opt_cnt) * me_mfont_h / 2;
+	x = g_menuscreen_w / 2 - w / 2;
+	y = (g_menuscreen_h - 4 * me_mfont_h) / 2 - (2 + opt_cnt) * me_mfont_h / 2;
 	if (x < me_mfont_w * 2)
 		x = me_mfont_w * 2;
 
@@ -1279,23 +1290,23 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 	w = strlen(dev_name) * me_mfont_w;
 	if (w < 30 * me_mfont_w)
 		w = 30 * me_mfont_w;
-	if (w > g_screen_width)
-		w = g_screen_width;
+	if (w > g_menuscreen_w)
+		w = g_menuscreen_w;
 
-	x = g_screen_width / 2 - w / 2;
+	x = g_menuscreen_w / 2 - w / 2;
 
 	if (!is_bind) {
 		snprintf(buff2, sizeof(buff2), "%s", in_get_key_name(-1, -PBTN_MOK));
 		snprintf(buff, sizeof(buff), "%s - bind, %s - clear", buff2,
 				in_get_key_name(-1, -PBTN_MA2));
-		text_out16(x, g_screen_height - 4 * me_mfont_h, buff);
+		text_out16(x, g_menuscreen_h - 4 * me_mfont_h, buff);
 	}
 	else
-		text_out16(x, g_screen_height - 4 * me_mfont_h, "Press a button to bind/unbind");
+		text_out16(x, g_menuscreen_h - 4 * me_mfont_h, "Press a button to bind/unbind");
 
 	if (dev_count > 1) {
-		text_out16(x, g_screen_height - 3 * me_mfont_h, dev_name);
-		text_out16(x, g_screen_height - 2 * me_mfont_h, "Press left/right for other devs");
+		text_out16(x, g_menuscreen_h - 3 * me_mfont_h, dev_name);
+		text_out16(x, g_menuscreen_h - 2 * me_mfont_h, "Press left/right for other devs");
 	}
 
 	plat_video_menu_end();
@@ -1881,7 +1892,7 @@ static void draw_text_debug(const char *str, int skip, int from)
 	}
 
 	str = p;
-	for (line = from; line < g_screen_height / me_sfont_h; line++)
+	for (line = from; line < g_menuscreen_h / me_sfont_h; line++)
 	{
 		smalltext_out16(1, line * me_sfont_h, str, 0xffff);
 		while (*p && *p != '\n')
@@ -1907,10 +1918,10 @@ static void draw_frame_debug(void)
 	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)  memcpy(layer_str + 19, "spr_hi", 6);
 	if (PicoDrawMask & PDRAW_32X_ON)         memcpy(layer_str + 26, "32x", 4);
 
-	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
+	memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
 	pemu_forced_frame(0, 0);
 	smalltext_out16(4, 1, "build: r" REVISION "  "__DATE__ " " __TIME__ " " COMPILER, 0xffff);
-	smalltext_out16(4, g_screen_height - me_sfont_h, layer_str, 0xffff);
+	smalltext_out16(4, g_menuscreen_h - me_sfont_h, layer_str, 0xffff);
 }
 
 static void debug_menu_loop(void)
@@ -1928,23 +1939,23 @@ static void debug_menu_loop(void)
 				plat_debug_cat(tmp);
 				draw_text_debug(tmp, 0, 0);
 				if (dumped) {
-					smalltext_out16(g_screen_width - 6 * me_sfont_h,
-						g_screen_height - me_mfont_h, "dumped", 0xffff);
+					smalltext_out16(g_menuscreen_w - 6 * me_sfont_h,
+						g_menuscreen_h - me_mfont_h, "dumped", 0xffff);
 					dumped = 0;
 				}
 				break;
 			case 1: draw_frame_debug();
 				break;
-			case 2: memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
+			case 2: memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
 				pemu_forced_frame(0, 1);
-				menu_darken_bg(g_screen_ptr, g_screen_ptr, g_screen_width * g_screen_height, 0);
-				PDebugShowSpriteStats((unsigned short *)g_screen_ptr + (g_screen_height/2 - 240/2)*g_screen_width +
-					g_screen_width/2 - 320/2, g_screen_width);
+				menu_darken_bg(g_menuscreen_ptr, g_menuscreen_ptr, g_menuscreen_w * g_menuscreen_h, 0);
+				PDebugShowSpriteStats((unsigned short *)g_menuscreen_ptr + (g_menuscreen_h/2 - 240/2)*g_menuscreen_w +
+					g_menuscreen_w/2 - 320/2, g_menuscreen_w);
 				break;
-			case 3: memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
-				PDebugShowPalette(g_screen_ptr, g_screen_width);
-				PDebugShowSprite((unsigned short *)g_screen_ptr + g_screen_width*120 + g_screen_width/2 + 16,
-					g_screen_width, spr_offs);
+			case 3: memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
+				PDebugShowPalette(g_menuscreen_ptr, g_menuscreen_w);
+				PDebugShowSprite((unsigned short *)g_menuscreen_ptr + g_menuscreen_w*120 + g_menuscreen_w/2 + 16,
+					g_menuscreen_w, spr_offs);
 				draw_text_debug(PDebugSpriteList(), spr_offs, 6);
 				break;
 			case 4: plat_video_menu_begin();

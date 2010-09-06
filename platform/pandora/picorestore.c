@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <linux/fb.h>
+#include <linux/omapfb.h>
 #include <linux/kd.h>
 
 int main()
@@ -14,14 +15,14 @@ int main()
 
 	fbdev = open("/dev/fb0", O_RDWR);
 	if (fbdev == -1) {
-		perror("open");
-		return 1;
+		perror("open fb0");
+		goto end_fb0;
 	}
 
 	ret = ioctl(fbdev, FBIOGET_VSCREENINFO, &fbvar);
 	if (ret == -1) {
 		perror("FBIOGET_VSCREENINFO ioctl");
-		goto end_fb;
+		goto end_fb0;
 	}
 
 	if (fbvar.yoffset != 0) {
@@ -34,8 +35,34 @@ int main()
 			printf("ok\n");
 	}
 
-end_fb:
-	close(fbdev);
+end_fb0:
+	if (fbdev >= 0)
+		close(fbdev);
+
+	fbdev = open("/dev/fb1", O_RDWR);
+	if (fbdev == -1) {
+		perror("open fb1");
+		goto end_fb1;
+	}
+
+	ret  = ioctl(fd, OMAPFB_QUERY_PLANE, &pi);
+	ret |= ioctl(fd, OMAPFB_QUERY_MEM, &mi);
+	if (ret != 0)
+		perror("QUERY_*");
+
+	pi.enabled = 0;
+	ret = ioctl(fd, OMAPFB_SETUP_PLANE, &pi);
+	if (ret != 0)
+		perror("SETUP_PLANE");
+
+	mi.size = 0;
+	ret = ioctl(fd, OMAPFB_SETUP_MEM, &mi);
+	if (ret != 0)
+		perror("SETUP_MEM");
+
+end_fb1:
+	if (fbdev >= 0)
+		close(fbdev);
 
 	kbdfd = open("/dev/tty", O_RDWR);
 	if (kbdfd == -1) {

@@ -71,6 +71,7 @@ void z80_init(void)
 void z80_reset(void)
 {
 #ifdef _USE_DRZ80
+  // FIXME: reset is not correct
   memset(&drZ80, 0, 0x54);
   drZ80.Z80F  = (1<<2);  // set ZFlag
   drZ80.Z80F2 = (1<<2);  // set ZFlag

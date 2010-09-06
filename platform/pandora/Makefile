@@ -19,9 +19,6 @@ asm_cdmemory = 1
 #profile = 1
 #drc_debug = 3
 
-no_32x = 1
-no_sms = 1
-
 -include Makefile.local
 
 ifeq "$(use_musashi)" "1"
@@ -46,7 +43,7 @@ LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
 # frontend
-OBJS += pandora.o emu.o asm_utils.o
+OBJS += plat.o asm_utils.o
 
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
@@ -95,6 +92,8 @@ readme.txt: ../../tools/textfilter ../base_readme.txt
 
 PicoDrive.pxml: PicoDrive.pxml.template
 	./make_pxml.sh PicoDrive.pxml.template PicoDrive.pxml
+
+platform/common/menu.o: menu.c
 
 # ----------- release -----------
 

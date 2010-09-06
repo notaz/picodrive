@@ -1,5 +1,7 @@
 // (c) Copyright 2006-2009 notaz, All rights reserved.
 
+#include "port_config.h"
+
 typedef enum
 {
 	MB_NONE = 1,		/* no auto processing */
@@ -73,6 +75,10 @@ typedef enum
 	MA_OPT3_VSYNC,
 	MA_OPT3_GAMMAA,
 	MA_OPT3_BLACKLVL,
+	MA_OPT3_LAYER_X,
+	MA_OPT3_LAYER_Y,
+	MA_OPT3_LAYER_W,
+	MA_OPT3_LAYER_H,
 	MA_OPT3_DONE,
 	MA_CDOPT_TESTBIOS_USA,
 	MA_CDOPT_TESTBIOS_EUR,
@@ -108,9 +114,9 @@ typedef struct
 	int mask;		/* bit to toggle for on/off */
 	signed short min;	/* for ranged integer settings, to be sign-extended */
 	signed short max;
-	int enabled:1;
-	int need_to_save:1;
-	int selectable:1;
+	unsigned int enabled:1;
+	unsigned int need_to_save:1;
+	unsigned int selectable:1;
 	int (*handler)(menu_id id, int keys);
 	const char * (*generate_name)(menu_id id, int *offs);
 	const void *data;
@@ -137,6 +143,9 @@ typedef struct
 
 #define mee_range(name, id, var, min, max) \
 	{ name, MB_OPT_RANGE, id, &(var), 0, min, max, 1, 1, 1, NULL, NULL, NULL, NULL }
+
+#define mee_range_hide(name, id, var, min, max) \
+	{ name, MB_OPT_RANGE, id, &(var), 0, min, max, 0, 1, 0, NULL, NULL, NULL, NULL }
 
 #define mee_cust_s_h(name, id, need_save, handler, name_func, help) \
 	{ name, MB_OPT_CUSTOM, id, NULL, 0, 0, 0, 1, need_save, 1, handler, name_func, NULL, help }
@@ -174,7 +183,16 @@ typedef struct
 extern me_bind_action me_ctrl_actions[15];
 extern me_bind_action emuctrl_actions[];	// platform code
 
+extern void *g_menubg_src_ptr;
 extern void *g_menubg_ptr;
+extern void *g_menuscreen_ptr;
+#if SCREEN_SIZE_FIXED
+#define g_menuscreen_w MSCREEN_WIDTH
+#define g_menuscreen_h MSCREEN_HEIGHT
+#else
+extern int g_menuscreen_w;
+extern int g_menuscreen_h;
+#endif
 
 void menu_init(void);
 void menu_plat_setup(int is_wiz);
