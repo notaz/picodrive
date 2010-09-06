@@ -71,26 +71,28 @@ void z80_init(void)
 void z80_reset(void)
 {
 #ifdef _USE_DRZ80
-  // FIXME: reset is not correct
-  memset(&drZ80, 0, 0x54);
+  drZ80.Z80I = 0;
+  drZ80.Z80IM = 0;
+  drZ80.Z80IF = 0;
+  drZ80.z80irqvector = 0xff0000; // RST 38h
+  drZ80.Z80PC_BASE = drZ80.Z80PC = z80_read_map[0] << 1;
+  // others not changed, undefined on cold boot
+/*
   drZ80.Z80F  = (1<<2);  // set ZFlag
   drZ80.Z80F2 = (1<<2);  // set ZFlag
   drZ80.Z80IX = 0xFFFF << 16;
   drZ80.Z80IY = 0xFFFF << 16;
-  drZ80.Z80I = 0;
-  drZ80.Z80IM = 0; // 1?
-  drZ80.z80irqvector = 0xff0000; // RST 38h
-  drZ80.Z80PC_BASE = drZ80.Z80PC = z80_read_map[0] << 1;
+*/
   // drZ80 is locked in single bank
   drz80_sp_base = (PicoAHW & PAHW_SMS) ? 0xc000 : 0x0000;
   drZ80.Z80SP_BASE = z80_read_map[drz80_sp_base >> Z80_MEM_SHIFT] << 1;
   if (PicoAHW & PAHW_SMS)
     drZ80.Z80SP = drZ80.Z80SP_BASE + 0xdff0; // simulate BIOS
+  // XXX: since we use direct SP pointer, it might make sense to force it to RAM,
+  // but we'll rely on built-in stack protection for now
 #endif
 #ifdef _USE_CZ80
   Cz80_Reset(&CZ80);
-  Cz80_Set_Reg(&CZ80, CZ80_IX, 0xffff);
-  Cz80_Set_Reg(&CZ80, CZ80_IY, 0xffff);
   if (PicoAHW & PAHW_SMS)
     Cz80_Set_Reg(&CZ80, CZ80_SP, 0xdff0);
 #endif
