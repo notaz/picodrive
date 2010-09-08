@@ -48,7 +48,7 @@ OBJS += plat.o asm_utils.o
 # common
 OBJS += platform/common/emu.o platform/common/menu.o platform/common/fonts.o platform/common/config.o \
 	platform/common/arm_utils.o platform/common/mp3_helix.o platform/common/arm_linux.o \
-	platform/common/readpng.o platform/common/input.o platform/common/main.o \
+	platform/common/readpng.o platform/common/input.o platform/common/main.o platform/common/mp3.o \
 	platform/linux/fbdev.o platform/linux/in_evdev.o platform/linux/sndout_oss.o \
 	platform/linux/plat.o platform/linux/oshide.o
 

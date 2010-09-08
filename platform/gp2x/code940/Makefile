@@ -19,10 +19,11 @@ AS = $(CROSS)as
 LD = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
 
+vpath %.c = ../../common
+
 BIN = pico940_v3.bin
 
 all: $(BIN)
-
 
 .c.o:
 	@echo ">>>" $<
@@ -35,7 +36,7 @@ all: $(BIN)
 # stuff for 940 core
 
 # init, emu_control, emu
-OBJS940 += 940init.o 940.o 940ym2612.o memcpy.o misc_arm.o
+OBJS940 += 940init.o 940.o 940ym2612.o memcpy.o misc_arm.o mp3.o
 # the asm code seems to be faster when run on 920, but not on 940 for some reason
 # OBJS940 += ../../Pico/sound/ym2612_asm.o
 

@@ -475,9 +475,10 @@ void mp3_update(int *buffer, int length, int stereo)
 }
 
 
-void mp3_start_play(FILE *f, int pos) // pos is 0-1023
+void mp3_start_play(void *f_, int pos) // pos is 0-1023
 {
 	int byte_offs = 0;
+	FILE *f = f_;
 
 	if (!(PicoOpt & POPT_EN_MCD_CDDA) || f == NULL)
 		return;

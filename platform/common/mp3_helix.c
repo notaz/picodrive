@@ -23,39 +23,13 @@ static unsigned char mp3_input_buffer[2*1024];
 #define mp3_start_play mp3_start_play_local
 #endif
 
-static int find_sync_word(unsigned char *buf, int nBytes)
-{
-	unsigned char *p, *pe;
-
-	/* find byte-aligned syncword - need 12 (MPEG 1,2) or 11 (MPEG 2.5) matching bits */
-	for (p = buf, pe = buf + nBytes - 4; p < pe; p++)
-	{
-		int pn;
-		if (p[0] != 0xff) continue;
-		pn = p[1];
-		if ((pn & 0xf8) != 0xf8 || // currently must be MPEG1
-		    (pn & 6) == 0) {       // invalid layer
-			p++; continue;
-		}
-		pn = p[2];
-		if ((pn & 0xf0) < 0x20 || (pn & 0xf0) == 0xf0 || // bitrates
-		    (pn & 0x0c) != 0) { // not 44kHz
-			continue;
-		}
-
-		return p - buf;
-	}
-
-	return -1;
-}
-
 static int try_get_header(unsigned char *buff, MP3FrameInfo *fi)
 {
 	int ret, offs1, offs = 0;
 
 	while (1)
 	{
-		offs1 = find_sync_word(buff + offs, 2048 - offs);
+		offs1 = mp3_find_sync_word(buff + offs, 2048 - offs);
 		if (offs1 < 0) return -2;
 		offs += offs1;
 		if (2048 - offs < 4) return -3;
@@ -70,21 +44,24 @@ static int try_get_header(unsigned char *buff, MP3FrameInfo *fi)
 	return ret;
 }
 
-int mp3_get_bitrate(FILE *f, int len)
+int mp3_get_bitrate(void *f_, int len)
 {
 	unsigned char buff[2048];
 	MP3FrameInfo fi;
+	FILE *f = f_;
 	int ret;
 
-	memset(buff, 0, 2048);
+	memset(buff, 0, sizeof(buff));
 
-	if (mp3dec) MP3FreeDecoder(mp3dec);
+	if (mp3dec)
+		MP3FreeDecoder(mp3dec);
 	mp3dec = MP3InitDecoder();
 
 	fseek(f, 0, SEEK_SET);
-	ret = fread(buff, 1, 2048, f);
+	ret = fread(buff, 1, sizeof(buff), f);
 	fseek(f, 0, SEEK_SET);
-	if (ret <= 0) return -1;
+	if (ret <= 0)
+		return -1;
 
 	ret = try_get_header(buff, &fi);
 	if (ret != 0 || fi.bitrate == 0) {
@@ -94,7 +71,8 @@ int mp3_get_bitrate(FILE *f, int len)
 		fseek(f, 0, SEEK_SET);
 		ret = try_get_header(buff, &fi);
 	}
-	if (ret != 0) return ret;
+	if (ret != 0)
+		return ret;
 
 	// printf("bitrate: %i\n", fi.bitrate / 1000);
 
@@ -117,7 +95,7 @@ static int mp3_decode(void)
 		fseek(mp3_current_file, mp3_file_pos, SEEK_SET);
 		bytesLeft = fread(mp3_input_buffer, 1, sizeof(mp3_input_buffer), mp3_current_file);
 
-		offset = find_sync_word(mp3_input_buffer, bytesLeft);
+		offset = mp3_find_sync_word(mp3_input_buffer, bytesLeft);
 		if (offset < 0) {
 			lprintf("find_sync_word (%i/%i) err %i\n", mp3_file_pos, mp3_file_len, offset);
 			mp3_file_pos = mp3_file_len;
@@ -159,8 +137,10 @@ static int mp3_decode(void)
 	return 0;
 }
 
-void mp3_start_play(FILE *f, int pos)
+void mp3_start_play(void *f_, int pos)
 {
+	FILE *f = f_;
+
 	mp3_file_len = mp3_file_pos = 0;
 	mp3_current_file = NULL;
 	mp3_buffer_offs = 0;
@@ -177,11 +157,27 @@ void mp3_start_play(FILE *f, int pos)
 	fseek(f, 0, SEEK_END);
 	mp3_file_len = ftell(f);
 
+	// search for first sync word, skipping stuff like ID3 tags
+	while (mp3_file_pos < 128*1024) {
+		int offs, bytes;
+
+		fseek(f, mp3_file_pos, SEEK_SET);
+		bytes = fread(mp3_input_buffer, 1, sizeof(mp3_input_buffer), f);
+		if (bytes < 4)
+			break;
+		offs = mp3_find_sync_word(mp3_input_buffer, bytes);
+		if (offs >= 0) {
+			mp3_file_pos += offs;
+			break;
+		}
+		mp3_file_pos += bytes - 2;
+	}
+
 	// seek..
 	if (pos) {
-		unsigned long long pos64 = mp3_file_len;
+		unsigned long long pos64 = mp3_file_len - mp3_file_pos;
 		pos64 *= pos;
-		mp3_file_pos = pos64 >> 10;
+		mp3_file_pos += pos64 >> 10;
 	}
 
 	mp3_decode();

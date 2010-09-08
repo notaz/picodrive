@@ -2,6 +2,7 @@
 // (c) Copyright 2006-2007, Grazvydas "notaz" Ignotas
 
 #include "940shared.h"
+#include "../../common/mp3.h"
 
 static _940_data_t *shared_data = (_940_data_t *)   0x00100000;
 static _940_ctl_t  *shared_ctl  = (_940_ctl_t *)    0x00200000;
@@ -25,32 +26,6 @@ void _memcpy(void *dst, const void *src, int count);
 //	asm volatile ("mcr p15, 0, r0, c7, c10, 4" ::: "r0"); /* drain write buffer */
 
 
-static int find_sync_word(unsigned char *buf, int nBytes)
-{
-	unsigned char *p, *pe;
-
-	/* find byte-aligned syncword - need 12 (MPEG 1,2) or 11 (MPEG 2.5) matching bits */
-	for (p = buf, pe = buf + nBytes - 4; p < pe; p++)
-	{
-		int pn;
-		if (p[0] != 0xff) continue;
-		pn = p[1];
-		if ((pn & 0xf8) != 0xf8 || // currently must be MPEG1
-		    (pn & 6) == 0) {       // invalid layer
-			p++; continue;
-		}
-		pn = p[2];
-		if ((pn & 0xf0) < 0x20 || (pn & 0xf0) == 0xf0 || // bitrates
-		    (pn & 0x0c) != 0) { // not 44kHz
-			continue;
-		}
-
-		return p - buf;
-	}
-
-	return -1;
-}
-
 static void mp3_decode(void)
 {
 	int mp3_offs = shared_ctl->mp3_offs;
@@ -63,7 +38,7 @@ static void mp3_decode(void)
 
 	for (retries = 0; retries < 2; retries++)
 	{
-		offset = find_sync_word(readPtr, bytesLeft);
+		offset = mp3_find_sync_word(readPtr, bytesLeft);
 		if (offset < 0)
 			goto set_eof;
 

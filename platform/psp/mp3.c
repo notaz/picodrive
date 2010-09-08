@@ -300,11 +300,11 @@ static int decode_thread(SceSize args, void *argp)
 
 
 // might be called before initialization
-int mp3_get_bitrate(FILE *f, int size)
+int mp3_get_bitrate(void *f, int size)
 {
 	int ret, retval = -1, sample_rate, bitrate;
 	// filenames are stored instead handles in PSP, due to stupid max open file limit
-	char *fname = (char *)f;
+	char *fname = f;
 
 	/* make sure thread is not busy.. */
 	if (thread_busy_sem >= 0)
@@ -351,9 +351,9 @@ end:
 
 static int mp3_job_started = 0, mp3_samples_ready = 0, mp3_buffer_offs = 0, mp3_play_bufsel = 0;
 
-void mp3_start_play(FILE *f, int pos)
+void mp3_start_play(void *f, int pos)
 {
-	char *fname = (char *)f;
+	char *fname = f;
 
 	if (!initialized) return;
 

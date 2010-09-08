@@ -348,12 +348,12 @@ void plat_finish(void)
 }
 
 /* misc */
-int mp3_get_bitrate(FILE *f, int size)
+int mp3_get_bitrate(void *f, int size)
 {
 	return 128;
 }
 
-void mp3_start_play(FILE *f, int pos)
+void mp3_start_play(void *f, int pos)
 {
 }
 

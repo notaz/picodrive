@@ -155,7 +155,7 @@ void plat_video_wait_vsync(void)
 
 void plat_status_msg_clear(void)
 {
-	vout_fbdev_clear_lines(layer_fb, g_screen_height - 8, 8);
+	vout_fbdev_clear_lines(layer_fb, g_osd_y, 8);
 }
 
 void plat_status_msg_busy_next(const char *msg)
