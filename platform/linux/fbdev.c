@@ -134,11 +134,11 @@ void vout_fbdev_clear(struct vout_fbdev *fbdev)
 
 void vout_fbdev_clear_lines(struct vout_fbdev *fbdev, int y, int count)
 {
-	int stride = fbdev->fbvar_new.xres * fbdev->fbvar_new.bits_per_pixel / 8;
+	int stride = fbdev->fbvar_new.xres_virtual * fbdev->fbvar_new.bits_per_pixel / 8;
 	int i;
 
-	if (y + count > fbdev->fbvar_new.yres)
-		count = fbdev->fbvar_new.yres - y;
+	if (y + count > fbdev->top_border + fbdev->fbvar_new.yres)
+		count = fbdev->top_border + fbdev->fbvar_new.yres - y;
 
 	if (y >= 0 && count > 0)
 		for (i = 0; i < fbdev->buffer_count; i++)
