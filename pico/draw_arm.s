@@ -1595,53 +1595,26 @@ FinalizeLineBGR444:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-@ hilights 2 pixels in RGB555/BGR555 format
-.macro TileDoShHi2Pixels555 reg
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #27
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #26
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #27
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #27
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #26
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #27
-.endm
-
-
 @ Convert 0000bbb0 ggg0rrr0
 @ to      rrrrrggg gggbbbbb
 
-@ r2,r3,r9 - scratch, lr = 0x001c001c, r8 = 0x00030003
+@ r2,r3 - scratch, lr = 0x001c001c, r8 = 0x08610861
 .macro convRGB565 reg
-    and     r2,   lr,   \reg,lsl #1
-    and     r9,   r8,   \reg,lsr #2
-    orr     r2,   r2,   r9           @ r2=red
-    and     r3,   lr,   \reg,lsr #7
-    and     r9,   r8,   \reg,lsr #10
-    orr     r3,   r3,   r9           @ r3=blue
-    and     \reg, \reg, lr,  lsl #3
-    orr     \reg, \reg, \reg,lsl #3  @ green
-    orr     \reg, \reg, r2,  lsl #11 @ add red back
-    orr     \reg, \reg, r3           @ add blue back
+    and     r2,   lr,   \reg,lsr #7  @ b
+    and     r3,   lr,   \reg,lsr #3  @ g
+    and     \reg, lr,   \reg,lsl #1  @ r
+    orr     r2,   r2,   r3,  lsl #6
+    orr     \reg, r2,   \reg,lsl #11
+
+    and     r2,   r8,   \reg,lsr #4
+    orr     \reg, \reg, r2
 .endm
 
-@ trashes: r2-r9,r12,lr; r0,r1 are advanced
+@ trashes: r2-r8,r12,lr; r8 = 0x08610861; r0,r1 are advanced
 .macro vidConvCpyRGB565_local
     mov     r12, r2, lsr #3  @ repeats
     mov     lr, #0x001c0000
     orr     lr, lr,  #0x01c  @ lr == pattern 0x001c001c
-    mov     r8, #0x00030000
-    orr     r8, r8,  #0x003
 
 0:
     ldmia   r1!, {r4-r7}
@@ -1663,6 +1636,9 @@ FinalizeLineBGR444:
 
 vidConvCpyRGB565: @ void *to, void *from, int pixels
     stmfd   sp!, {r4-r9,lr}
+    mov     r8,     #0x0061
+    orr     r8, r8, #0x0800
+    orr     r8, r8, lsl #16
     vidConvCpyRGB565_local
     ldmfd   sp!, {r4-r9,lr}
     bx      lr
@@ -1676,9 +1652,8 @@ PicoDoHighPal555:
     ldr     r8, =(Pico+0x22228)  @ Pico.video
 
 PicoDoHighPal555_nopush:
-    str     r1, [sp, #-8]        @ is called from FinalizeLine555?
+    orr     r9, r1, r0, lsl #31  @ 0:called from FinalizeLine555, 31: s/h
 
-    str     r0, [sp, #-4]
     ldr     r0, =HighPal
 
     mov     r1, #0
@@ -1686,10 +1661,13 @@ PicoDoHighPal555_nopush:
 
     sub     r1, r8, #0x128       @ r1=Pico.cram
     mov     r2, #0x40
+    mov     r8,     #0x0061
+    orr     r8, r8, #0x0800
+    orr     r8, r8, lsl #16
+
     vidConvCpyRGB565_local
 
-    ldr     r0, [sp, #-4]
-    tst     r0, r0
+    tst     r9, #(1<<31)
     beq     PicoDoHighPal555_end
 
     ldr     r3, =HighPal
@@ -1711,19 +1689,28 @@ PicoDoHighPal555_nopush:
     bne     .fl_loopcpRGB555_sh
 
     @ hilighted pixels:
+    @  t = ((dpal[i] >> 1) & 0x738e738e) + 0x738e738e;
+    @  t |= (t >> 4) & 0x08610861;
+    @ r8=0x08610861
     sub     r3, r3, #0x40*2
-    mov     lr, #0x40/2
+    mov     lr, #0x40/4
 .fl_loopcpRGB555_hi:
-    ldr     r1, [r3], #4
-    TileDoShHi2Pixels555 r1
-    str     r1, [r4], #4
+    ldmia   r3!, {r1,r6}
+    and     r1, r12, r1, lsr #1
+    and     r6, r12, r6, lsr #1
+    add     r1, r12, r1
+    add     r6, r12, r6
+    and     r5, r8, r1, lsr #4
+    and     r7, r8, r6, lsr #4
+    orr     r1, r1, r5
+    orr     r6, r6, r7
+    stmia   r4!, {r1,r6}
     subs    lr, lr, #1
     bne     .fl_loopcpRGB555_hi
     mov     r0, #1
 
 PicoDoHighPal555_end:
-    ldr     r1, [sp, #-8]
-    tst     r1, r1
+    tst     r9, #1
     ldmeqfd sp!, {r4-r9,pc}
 
     ldr     r8, =(Pico+0x22228)  @ Pico.video

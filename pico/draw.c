@@ -19,7 +19,7 @@
  *
  * since renderer always draws line in 8bit mode, there are 2 spare bits:
  * b \ mode: s/h             as        sonic
- * 00        normal          -         -
+ * 00        normal          -         pal index
  * 01        shadow          -         pal index
  * 10        hilight+op spr  spr       pal index
  * 11        shadow +op spr  -         pal index
@@ -1162,34 +1162,37 @@ unsigned short HighPal[0x100];
 void PicoDoHighPal555(int sh)
 {
   unsigned int *spal, *dpal;
-  unsigned short *pal=HighPal;
-  int i, t;
+  unsigned int t, i;
 
   Pico.m.dirtyPal = 0;
 
   spal = (void *)Pico.cram;
   dpal = (void *)HighPal;
 
-  for (i = 0; i < 0x40; i++) {
-    unsigned int t = spal[i];
+  for (i = 0; i < 0x40 / 2; i++) {
+    t = spal[i];
 #ifdef USE_BGR555
     t = ((t & 0x000e000e)<< 1) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)<<4);
 #else
     t = ((t & 0x000e000e)<<12) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)>>7);
 #endif
-    t |= (t >> 3) & 0x18e318e3;
+    // treat it like it was 4-bit per channel, since in s/h mode it somewhat is that.
+    // otherwise intensity difference between this and s/h will be wrong
+    t |= (t >> 4) & 0x08610861; // 0x18e318e3
     dpal[i] = t;
   }
 
+  // norm: xxx0, sh: 0xxx, hi: 0xxx + 7
   if (sh)
   {
     // shadowed pixels
-    for (i = 0x3f; i >= 0; i--)
-      pal[0x40|i] = pal[0xc0|i] = (unsigned short)((pal[i]>>1)&0x738e);
+    for (i = 0; i < 0x40 / 2; i++)
+      dpal[0x40/2 | i] = dpal[0xc0/2 | i] = (dpal[i] >> 1) & 0x738e738e;
     // hilighted pixels
-    for (i = 0x3f; i >= 0; i--) {
-      t=pal[i]&0xe71c;t+=0x4208;if(t&0x20)t|=0x1c;if(t&0x800)t|=0x700;if(t&0x10000)t|=0xe000;t&=0xe71c;
-      pal[0x80|i]=(unsigned short)t;
+    for (i = 0; i < 0x40 / 2; i++) {
+      t = ((dpal[i] >> 1) & 0x738e738e) + 0x738e738e; // 0x7bef7bef;
+      t |= (t >> 4) & 0x08610861;
+      dpal[0x80/2 | i] = t;
     }
   }
 }
