@@ -166,7 +166,7 @@ void log_io(unsigned int addr, int bits, int rw);
 #if defined(EMU_C68K)
 void cyclone_crashed(u32 pc, struct Cyclone *context)
 {
-    elprintf(EL_STATUS|EL_ANOMALY, "%c68k crash detected @ %06x\n",
+    elprintf(EL_STATUS|EL_ANOMALY, "%c68k crash detected @ %06x",
       context == &PicoCpuCM68k ? 'm' : 's', pc);
     context->membase = (u32)Pico.rom;
     context->pc = (u32)Pico.rom + Pico.romsize;

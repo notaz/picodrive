@@ -115,12 +115,10 @@ static int emuscan(unsigned int num)
 
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
-	if (notice || (currentConfig.EmuOpt & EOPT_SHOW_FPS)) {
-		if (notice)
-			osd_text(2, g_osd_y, notice);
-		if (currentConfig.EmuOpt & EOPT_SHOW_FPS)
-			osd_text(g_osd_fps_x, g_osd_y, fps);
-	}
+	if (notice && notice[0])
+		osd_text(2, g_osd_y, notice);
+	if (fps && fps[0] && (currentConfig.EmuOpt & EOPT_SHOW_FPS))
+		osd_text(g_osd_fps_x, g_osd_y, fps);
 	if ((PicoAHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
 }
@@ -426,6 +424,7 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 	pnd_setup_layer(1, g_layer_x, g_layer_y, g_layer_w, g_layer_h);
 	vout_fbdev_resize(layer_fb, fb_w, fb_h, fb_left, fb_right, fb_top, fb_bottom, 0);
 	vout_fbdev_clear(layer_fb);
+	plat_video_flip();
 }
 
 static void make_bg(void)
