@@ -3,7 +3,6 @@ extern "C" {
 #endif
 
 /* stuff to be implemented by platform code */
-extern char cpu_clk_name[];
 extern const char *renderer_names[];
 extern const char *renderer_names32x[];
 

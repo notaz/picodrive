@@ -1606,7 +1606,7 @@ static int menu_loop_32x_options(menu_id id, int keys)
 {
 	static int sel = 0;
 
-	me_enable(e_menu_32x_options, MA_32XOPT_RENDERER, renderer_names32x != NULL);
+	me_enable(e_menu_32x_options, MA_32XOPT_RENDERER, renderer_names32x[0] != NULL);
 	me_loop(e_menu_32x_options, &sel, NULL);
 
 	return 0;
@@ -1834,7 +1834,7 @@ static menu_entry e_menu_options[] =
 	mee_onoff     ("Enable sound",             MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, EOPT_EN_SOUND),
 	mee_cust      ("Sound Quality",            MA_OPT_SOUND_QUALITY, mh_opt_misc, mgn_opt_sound),
 	mee_enum_h    ("Confirm savestate",        MA_OPT_CONFIRM_STATES,currentConfig.confirm_save, men_confirm_save, h_confirm_save),
-	mee_range     (cpu_clk_name,               MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 900),
+	mee_range     ("",                         MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 900),
 	mee_handler   ("[Display options]",        menu_loop_gfx_options),
 	mee_handler   ("[Sega/Mega CD options]",   menu_loop_cd_options),
 #ifndef NO_32X
@@ -1851,7 +1851,10 @@ static menu_entry e_menu_options[] =
 static int menu_loop_options(menu_id id, int keys)
 {
 	static int sel = 0;
+	int i;
 
+	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
+	e_menu_options[i].enabled = e_menu_options[i].name ? 1 : 0;
 	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, rom_loaded);
 	me_enable(e_menu_options, MA_OPT_LOADCFG, config_slot != config_slot_current);
 
@@ -2190,28 +2193,6 @@ void me_update_msg(const char *msg)
 }
 
 // ------------ util ------------
-
-/* GP2X/wiz for now, probably extend later */
-void menu_plat_setup(int is_wiz)
-{
-	int i;
-
-	if (!is_wiz) {
-		me_enable(e_menu_gfx_options, MA_OPT_TEARING_FIX, 0);
-		i = me_id2offset(e_menu_gfx_options, MA_OPT_TEARING_FIX);
-		e_menu_gfx_options[i].need_to_save = 0;
-		return;
-	}
-
-	me_enable(e_menu_adv_options, MA_OPT_ARM940_SOUND, 0);
-	me_enable(e_menu_gfx_options, MA_OPT2_GAMMA, 0);
-	me_enable(e_menu_gfx_options, MA_OPT2_A_SN_GAMMA, 0);
-
-	i = me_id2offset(e_menu_gfx_options, MA_OPT_SCALING);
-	e_menu_gfx_options[i].max = 1;	/* only off and sw */
-	i = me_id2offset(e_menu_gfx_options, MA_OPT_ARM940_SOUND);
-	e_menu_gfx_options[i].need_to_save = 0;
-}
 
 /* hidden options for config engine only */
 static menu_entry e_menu_hidden[] =

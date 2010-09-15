@@ -43,9 +43,8 @@ extern int g_screen_height;
 
 enum {
 	EOPT_SCALE_NONE = 0,
-	EOPT_SCALE_SW_H,
-	EOPT_SCALE_HW_H,
-	EOPT_SCALE_HW_HV,
+	EOPT_SCALE_SW,
+	EOPT_SCALE_HW,
 };
 
 enum {
@@ -67,7 +66,8 @@ typedef struct _currentConfig_t {
 	int CPUclock;
 	int volume;
 	int gamma;
-	int scaling;  // gp2x: 0=center, 1=hscale, 2=hvscale, 3=hsoftscale; psp: bilinear filtering
+	int scaling;  // gp2x: EOPT_SCALE_*; psp: bilinear filtering
+	int vscaling;
 	int rotation; // for UIQ
 	float scale; // psp: screen scale
 	float hscale32, hscale40; // psp: horizontal scale

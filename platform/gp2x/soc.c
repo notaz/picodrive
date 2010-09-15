@@ -39,7 +39,7 @@ gp2x_soc_t soc_detect(void)
 	int memdev;
 	int i;
 
-	if (ret != -2)
+	if ((int)ret != -2)
 		/* already detected */
 		return ret;
 

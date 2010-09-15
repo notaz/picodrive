@@ -35,11 +35,6 @@ static void gp2x_video_wait_vsync_(void)
 {
 }
 
-/* CPU clock */
-static void gp2x_set_cpuclk_(unsigned int mhz)
-{
-}
-
 /* RAM timings */
 static void set_ram_timings_(void)
 {
@@ -80,8 +75,6 @@ void dummy_init(void)
 	gp2x_video_setpalette = gp2x_video_setpalette_;
 	gp2x_video_RGB_setscaling = gp2x_video_RGB_setscaling_;
 	gp2x_video_wait_vsync = gp2x_video_wait_vsync_;
-
-	gp2x_set_cpuclk = gp2x_set_cpuclk_;
 
 	set_lcd_custom_rate = set_lcd_custom_rate_;
 	unset_lcd_custom_rate = unset_lcd_custom_rate_;

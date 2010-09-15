@@ -466,8 +466,7 @@ static void vidResetMode(void)
 
 	// slow rend.
 	PicoDrawSetOutFormat(PDF_NONE, 0);
-	PicoScanBegin = EmuScanSlowBegin;
-	PicoScanEnd = EmuScanSlowEnd;
+	PicoDrawSetCallbacks(EmuScanSlowBegin, EmuScanSlowEnd);
 
 	localPal[0xe0] = 0;
 	localPal[0xf0] = 0x001f;
@@ -683,8 +682,7 @@ void pemu_forced_frame(int opts, int no_scale)
 	memset32_uncached((int *)psp_screen + 512*264*2/4, 0, 512*8*2/4);
 
 	PicoDrawSetOutFormat(PDF_NONE, 0);
-	PicoScanBegin = EmuScanSlowBegin;
-	PicoScanEnd = EmuScanSlowEnd;
+	PicoDrawSetCallbacks(EmuScanSlowBegin, EmuScanSlowEnd);
 	EmuScanPrepare();
 	PicoFrameDrawOnly();
 	blit1();

@@ -1,5 +1,6 @@
 #include <time.h>
 #include "soc.h"
+#include "plat_gp2x.h"
 
 static void menu_main_plat_draw(void)
 {
@@ -60,10 +61,11 @@ static const char *mgn_aopt_gamma(menu_id id, int *offs)
 }
 
 
-const char *men_scaling_opts[] = { "OFF", "sw horizontal", "hw horizontal", "hw horiz. + vert", NULL };
+const char *men_scaling_opts[] = { "OFF", "software", "hardware", NULL };
 
 #define MENU_OPTIONS_GFX \
-	mee_enum      ("Scaling",                  MA_OPT_SCALING,        currentConfig.scaling, men_scaling_opts), \
+	mee_enum      ("Horizontal scaling",       MA_OPT_SCALING,        currentConfig.scaling, men_scaling_opts), \
+	mee_enum      ("Vertical scaling",         MA_OPT_VSCALING,       currentConfig.vscaling, men_scaling_opts), \
 	mee_onoff     ("Tearing Fix",              MA_OPT_TEARING_FIX,    currentConfig.EmuOpt, EOPT_WIZ_TEAR_FIX), \
 	mee_range_cust("Gamma correction",         MA_OPT2_GAMMA,         currentConfig.gamma, 1, 300, mgn_aopt_gamma), \
 	mee_onoff     ("A_SN's gamma curve",       MA_OPT2_A_SN_GAMMA,    currentConfig.EmuOpt, EOPT_A_SN_GAMMA), \
@@ -75,4 +77,48 @@ const char *men_scaling_opts[] = { "OFF", "sw horizontal", "hw horizontal", "hw 
 	mee_onoff     ("MMU hack",                 MA_OPT2_SQUIDGEHACK,   currentConfig.EmuOpt, EOPT_MMUHACK), \
 	mee_onoff     ("SVP dynarec",              MA_OPT2_SVP_DYNAREC,   PicoOpt, POPT_EN_SVP_DRC), \
 	mee_onoff     ("Status line in main menu", MA_OPT2_STATUS_LINE,   currentConfig.EmuOpt, EOPT_SHOW_RTC),
+
+
+static menu_entry e_menu_adv_options[];
+static menu_entry e_menu_gfx_options[];
+static menu_entry e_menu_options[];
+
+void gp2x_menu_init(void)
+{
+	static menu_entry *cpu_clk_ent;
+	int i;
+
+	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
+	cpu_clk_ent = &e_menu_options[i];
+
+	/* disable by default.. */
+	me_enable(e_menu_adv_options, MA_OPT_ARM940_SOUND, 0);
+	me_enable(e_menu_gfx_options, MA_OPT_TEARING_FIX, 0);
+	me_enable(e_menu_gfx_options, MA_OPT2_GAMMA, 0);
+	me_enable(e_menu_gfx_options, MA_OPT2_A_SN_GAMMA, 0);
+
+	switch (gp2x_dev_id) {
+	case GP2X_DEV_GP2X:
+		me_enable(e_menu_adv_options, MA_OPT_ARM940_SOUND, 1);
+		me_enable(e_menu_gfx_options, MA_OPT2_GAMMA, 1);
+		me_enable(e_menu_gfx_options, MA_OPT2_A_SN_GAMMA, 1);
+		cpu_clk_ent->name = "GP2X CPU clocks";
+		break;
+	case GP2X_DEV_WIZ:
+		me_enable(e_menu_gfx_options, MA_OPT_TEARING_FIX, 1);
+		cpu_clk_ent->name = "Wiz/Caanoo CPU clock";
+		break;
+	case GP2X_DEV_CAANOO:
+		cpu_clk_ent->name = "Wiz/Caanoo CPU clock";
+		break;
+	default:
+		break;
+	}
+
+	if (gp2x_set_cpuclk == NULL)
+		cpu_clk_ent->name = "";
+
+	if (gp2x_dev_id != GP2X_DEV_GP2X)
+		men_scaling_opts[2] = NULL; /* leave only off and sw */
+}
 

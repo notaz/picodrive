@@ -1590,3 +1590,19 @@ void PicoDrawSetInternalBuf(void *dest, int increment)
   }
 }
 
+void PicoDrawSetCallbacks(int (*begin)(unsigned int num), int (*end)(unsigned int num))
+{
+  PicoScanBegin = NULL;
+  PicoScanEnd = NULL;
+  PicoScan32xBegin = NULL;
+  PicoScan32xEnd = NULL;
+
+  if ((PicoAHW & PAHW_32X) && FinalizeLine != FinalizeLine32xRGB555) {
+    PicoScan32xBegin = begin;
+    PicoScan32xEnd = end;
+  }
+  else {
+    PicoScanBegin = begin;
+    PicoScanEnd = end;
+  }
+}

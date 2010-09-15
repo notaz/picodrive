@@ -39,7 +39,6 @@ static unsigned char __attribute__((aligned(4))) fb_copy[g_screen_width * g_scre
 unsigned char *PicoDraw2FB = temp_frame;
 const char *renderer_names[] = { NULL };
 const char *renderer_names32x[] = { NULL };
-char cpu_clk_name[] = "Max CPU clock";
 
 static int get_cpu_clock(void)
 {
@@ -371,9 +370,8 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
 	int fb_w = 320, fb_h = 240, fb_left = 0, fb_right = 0, fb_top = 0, fb_bottom = 0;
 
-	PicoScanBegin = emuscan;
-	PicoScanEnd = NULL;
 	PicoDrawSetOutFormat(PDF_RGB555, 1);
+	PicoDrawSetCallbacks(emuscan, NULL);
 
 	if (is_32cols) {
 		fb_w = 256;

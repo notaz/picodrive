@@ -540,6 +540,8 @@ PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawSync(int to, int blank_last_line);
 void BackFill(int reg7, int sh);
 void FinalizeLine555(int sh, int line);
+extern int (*PicoScanBegin)(unsigned int num);
+extern int (*PicoScanEnd)(unsigned int num);
 extern int DrawScanline;
 #define MAX_LINE_SPRITES 29
 extern unsigned char HighLnSpr[240][3 + MAX_LINE_SPRITES];
@@ -727,6 +729,8 @@ void p32x_poll_event(int cpu_mask, int is_vdp);
 void FinalizeLine32xRGB555(int sh, int line);
 void PicoDraw32xLayer(int offs, int lines, int mdbg);
 void PicoDraw32xLayerMdOnly(int offs, int lines);
+extern int (*PicoScan32xBegin)(unsigned int num);
+extern int (*PicoScan32xEnd)(unsigned int num);
 enum {
   PDM32X_OFF,
   PDM32X_32X_ONLY,

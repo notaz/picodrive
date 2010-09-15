@@ -8,7 +8,7 @@
 
 #include "../common/input.h"
 #include "in_gp2x.h"
-#include "soc.h"
+#include "plat_gp2x.h"
 
 #define IN_PREFIX "gp2x:"
 #define IN_GP2X_NBUTTONS 32
@@ -92,15 +92,12 @@ static int in_gp2x_get_fake_bits(void)
 
 static void in_gp2x_probe(void)
 {
-	gp2x_soc_t soc;
-
-	soc = soc_detect();
-	switch (soc)
+	switch (gp2x_dev_id)
 	{
-	case SOCID_MMSP2:
+	case GP2X_DEV_GP2X:
 		in_gp2x_get_bits = in_gp2x_get_mmsp2_bits;
 		break;
-	case SOCID_POLLUX:
+	case GP2X_DEV_WIZ:
 		gpiodev = open("/dev/GPIO", O_RDONLY);
 		if (gpiodev < 0) {
 			perror("in_gp2x: couldn't open /dev/GPIO");
@@ -320,10 +317,8 @@ static int in_gp2x_clean_binds(void *drv_data, int *binds, int *def_binds)
 void in_gp2x_init(void *vdrv)
 {
 	in_drv_t *drv = vdrv;
-	gp2x_soc_t soc;
 
-	soc = soc_detect();
-	if (soc == SOCID_POLLUX)
+	if (gp2x_dev_id == GP2X_DEV_WIZ)
 		in_gp2x_keys[BTN_START] = "MENU";
 	
 	in_gp2x_combo_keys = in_gp2x_combo_acts = 0;

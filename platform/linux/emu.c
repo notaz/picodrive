@@ -17,7 +17,6 @@
 
 
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
-char cpu_clk_name[] = "unused";
 const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast", NULL };
 const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
 enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
@@ -125,9 +124,6 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 
 static void apply_renderer(void)
 {
-	PicoScanBegin = NULL;
-	PicoScanEnd = NULL;
-
 	switch (currentConfig.renderer) {
 	case RT_16BIT:
 		PicoOpt &= ~POPT_ALT_RENDERER;

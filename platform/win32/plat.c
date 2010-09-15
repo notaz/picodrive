@@ -16,8 +16,6 @@ unsigned char *PicoDraw2FB = PicoDraw2FB_;
 const char *renderer_names[] = { NULL };
 const char *renderer_names32x[] = { NULL };
 
-char cpu_clk_name[] = "unused";
-
 void plat_init(void)
 {
 	g_screen_ptr = (void *)screen_buff;

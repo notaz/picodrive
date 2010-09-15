@@ -27,6 +27,7 @@ typedef enum
 	MA_MAIN_EXIT,
 	MA_OPT_RENDERER,
 	MA_OPT_SCALING,
+	MA_OPT_VSCALING,
 	MA_OPT_ACC_SPRITES,
 	MA_OPT_SHOW_FPS,
 	MA_OPT_FRAMESKIP,
@@ -195,7 +196,6 @@ extern int g_menuscreen_h;
 #endif
 
 void menu_init(void);
-void menu_plat_setup(int is_wiz);
 void text_out16(int x, int y, const char *texto, ...);
 void me_update_msg(const char *msg);
 

@@ -41,9 +41,6 @@ static unsigned short gp2x_screenaddr_old[4];
 static unsigned short memtimex_old[2];
 static unsigned short reg0910;
 
-extern unsigned int plat_get_ticks_ms_good(void);
-extern unsigned int plat_get_ticks_us_good(void);
-
 /* video stuff */
 static void gp2x_video_flip_(void)
 {

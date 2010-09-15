@@ -16,14 +16,15 @@
 
 /* GP2X local */
 int default_cpu_clock;
+int gp2x_dev_id;
+int gp2x_current_bpp;
 void *gp2x_screens[4];
 
 void gp2x_video_changemode(int bpp)
 {
 	gp2x_video_changemode_ll(bpp);
 
-  	gp2x_memset_all_buffers(0, 0, 320*240*2);
-	gp2x_video_flip();
+	gp2x_current_bpp = bpp < 0 ? -bpp : bpp;
 }
 
 static void gp2x_memcpy_buffers(int buffers, void *data, int offset, int len)
@@ -65,17 +66,17 @@ void gp2x_make_fb_bufferable(int yes)
 }
 
 /* common */
-char cpu_clk_name[16] = "GP2X CPU clocks";
-
 void plat_video_menu_enter(int is_rom_loaded)
 {
-	/* try to switch nicely avoiding tearing on Wiz */
-	gp2x_video_wait_vsync();
-	memset(gp2x_screens[0], 0, 320*240*2);
-	memset(gp2x_screens[1], 0, 320*240*2);
-	gp2x_video_flip2();
-	gp2x_video_wait_vsync();
-	gp2x_video_wait_vsync();
+	if (gp2x_current_bpp != 16 || gp2x_dev_id == GP2X_DEV_WIZ) {
+		/* try to switch nicely avoiding glitches */
+		gp2x_video_wait_vsync();
+		memset(gp2x_screens[0], 0, 320*240*2);
+		memset(gp2x_screens[1], 0, 320*240*2);
+		gp2x_video_flip2(); // might flip to fb2/3
+		gp2x_video_flip2(); // ..so we do it again
+		// gp2x_video_wait_vsync();
+	}
 
 	// switch to 16bpp
 	gp2x_video_changemode_ll(16);
@@ -98,21 +99,34 @@ void plat_video_menu_end(void)
 void plat_early_init(void)
 {
 	gp2x_soc_t soc;
+	FILE *f;
 
 	soc = soc_detect();
 	switch (soc)
 	{
 	case SOCID_MMSP2:
 		default_cpu_clock = 200;
+		gp2x_dev_id = GP2X_DEV_GP2X;
 		break;
 	case SOCID_POLLUX:
-		strcpy(cpu_clk_name, "Wiz CPU clock");
 		default_cpu_clock = 533;
+		f = fopen("/dev/accel", "rb");
+		if (f) {
+			printf("detected Caanoo\n");
+			gp2x_dev_id = GP2X_DEV_CAANOO;
+			fclose(f);
+		}
+		else {
+			printf("detected Wiz\n");
+			gp2x_dev_id = GP2X_DEV_WIZ;
+		}
 		break;
 	default:
 		printf("could not recognize SoC, running in dummy mode.\n");
 		break;
 	}
+
+	gp2x_menu_init();
 }
 
 void plat_init(void)
@@ -124,11 +138,9 @@ void plat_init(void)
 	{
 	case SOCID_MMSP2:
 		mmsp2_init();
-		menu_plat_setup(0);
 		break;
 	case SOCID_POLLUX:
 		pollux_init();
-		menu_plat_setup(1);
 		break;
 	default:
 		dummy_init();

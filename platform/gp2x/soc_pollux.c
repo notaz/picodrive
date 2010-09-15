@@ -21,11 +21,12 @@
 #include "soc.h"
 #include "plat_gp2x.h"
 #include "../common/emu.h"
+#include "../common/plat.h"
 #include "../common/arm_utils.h"
 #include "pollux_set.h"
 
 static volatile unsigned short *memregs;
-static volatile unsigned long  *memregl;
+static volatile unsigned int   *memregl;
 static int memdev = -1;
 static int battdev = -1;
 
@@ -241,10 +242,29 @@ static void timer_cleanup(void)
 	TIMER_REG(0x44) = 0;	/* dividers back to default */
 }
 
+/* note: both PLLs are programmed the same way,
+ * the databook incorrectly states that PLL1 differs */
+static int decode_pll(unsigned int reg)
+{
+	long long v;
+	int p, m, s;
+
+	p = (reg >> 18) & 0x3f;
+	m = (reg >> 8) & 0x3ff;
+	s = reg & 0xff;
+
+	if (p == 0)
+		p = 1;
+
+	v = 27000000; // master clock
+	v = v * m / (p << s);
+	return v;
+}
+
 void pollux_init(void)
 {
 	struct fb_fix_screeninfo fbfix;
-	int i, ret;
+	int i, ret, rate;
 
 	memdev = open("/dev/mem", O_RDWR);
 	if (memdev == -1) {
@@ -297,13 +317,32 @@ void pollux_init(void)
 	if (battdev < 0)
 		perror("Warning: could't open pollux_batt");
 
-	/* setup timer */
-	if (TIMER_REG(0x08) & 8)
-		timer_cleanup();
+	/* find what PLL1 runs at, for the timer */
+	rate = decode_pll(memregl[0xf008>>2]);
+	printf("PLL1 @ %dHz\n", rate);
+	rate /= 1000000;
 
-	TIMER_REG(0x44) = 0x922; /* using PLL1, divider value 147 */
-	TIMER_REG(0x40) = 0x0c;  /* clocks on */
-	TIMER_REG(0x08) = 0x6b;  /* run timer, clear irq, latch value */
+	/* setup timer */
+	if (1 <= rate && rate <= 256) {
+		if (TIMER_REG(0x08) & 8) {
+			fprintf(stderr, "warning: timer in use, overriding!\n");
+			timer_cleanup();
+		}
+
+		TIMER_REG(0x44) = ((rate - 1) << 4) | 2; /* using PLL1, divide by it's rate */
+		TIMER_REG(0x40) = 0x0c;  /* clocks on */
+		TIMER_REG(0x08) = 0x6b;  /* run timer, clear irq, latch value */
+
+		gp2x_get_ticks_ms = gp2x_get_ticks_ms_;
+		gp2x_get_ticks_us = gp2x_get_ticks_us_;
+	}
+	else {
+		fprintf(stderr, "warning: could not make use of timer\n");
+
+		// those functions are actually not good at all on Wiz kernel
+		gp2x_get_ticks_ms = plat_get_ticks_ms_good;
+		gp2x_get_ticks_us = plat_get_ticks_us_good;
+	}
 
 	pllsetreg0 = memregl[0xf004>>2];
 	memtimex_old[0] = memregs[0x14802>>1];
@@ -316,7 +355,15 @@ void pollux_init(void)
 	gp2x_video_RGB_setscaling = gp2x_video_RGB_setscaling_;
 	gp2x_video_wait_vsync = gp2x_video_wait_vsync_;
 
-	gp2x_set_cpuclk = gp2x_set_cpuclk_;
+	/* some firmwares have sys clk on PLL0, we can't adjust CPU clock
+	 * by reprogramming the PLL0 then, as it overclocks system bus */
+	if ((memregl[0xf000>>2] & 0x03000030) == 0x01000000)
+		gp2x_set_cpuclk = gp2x_set_cpuclk_;
+	else {
+		fprintf(stderr, "unexpected PLL config (%08x), overclocking disabled\n",
+			memregl[0xf000>>2]);
+		gp2x_set_cpuclk = NULL;
+	}
 
 	set_lcd_custom_rate = set_lcd_custom_rate_;
 	unset_lcd_custom_rate = unset_lcd_custom_rate_;
@@ -325,9 +372,6 @@ void pollux_init(void)
 	set_ram_timings = set_ram_timings_;
 	unset_ram_timings = unset_ram_timings_;
 	gp2x_read_battery = gp2x_read_battery_;
-
-	gp2x_get_ticks_ms = gp2x_get_ticks_ms_;
-	gp2x_get_ticks_us = gp2x_get_ticks_us_;
 }
 
 void pollux_finish(void)

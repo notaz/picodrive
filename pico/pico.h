@@ -170,10 +170,9 @@ typedef enum
 } pdso_t;
 void PicoDrawSetOutFormat(pdso_t which, int allow_32x);
 void PicoDrawSetOutBuf(void *dest, int increment);
+void PicoDrawSetCallbacks(int (*begin)(unsigned int num), int (*end)(unsigned int num));
 extern void *DrawLineDest;
 extern unsigned char *HighCol;
-extern int (*PicoScanBegin)(unsigned int num);
-extern int (*PicoScanEnd)(unsigned int num);
 // utility
 #ifdef _ASM_DRAW_C
 void vidConvCpyRGB565(void *to, void *from, int pixels);
@@ -219,8 +218,6 @@ extern int p32x_ssh2_multiplier;
 
 // 32x/draw.c
 void PicoDraw32xSetFrameMode(int is_on, int only_32x);
-extern int (*PicoScan32xBegin)(unsigned int num);
-extern int (*PicoScan32xEnd)(unsigned int num);
 
 // sound.c
 extern int PsndRate,PsndLen;

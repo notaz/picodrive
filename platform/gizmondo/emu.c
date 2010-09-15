@@ -231,10 +231,10 @@ static void vidResetMode(void)
 	if (PicoOpt&0x10) {
 	} else if (currentConfig.EmuOpt&0x80) {
 		PicoDrawSetOutFormat(PDF_RGB555, 0);
-		PicoScanBegin = EmuScanBegin16;
+		PicoDrawSetCallbacks(EmuScanBegin16, NULL);
 	} else {
 		PicoDrawSetOutFormat(PDF_NONE, 0);
-		PicoScanBegin = EmuScanBegin8;
+		PicoDrawSetCallbacks(EmuScanBegin8, NULL);
 	}
 	if ((PicoOpt&0x10) || !(currentConfig.EmuOpt&0x80)) {
 		// setup pal for 8-bit modes
@@ -307,7 +307,7 @@ void pemu_forced_frame(int opts, int no_scale)
 		giz_screen = fb_lock(1);
 
 	PicoDrawSetOutFormat(PDF_RGB555, 0);
-	PicoScanBegin = EmuScanBegin16;
+	PicoDrawSetCallbacks(EmuScanBegin16, NULL);
 	Pico.m.dirtyPal = 1;
 	PicoFrameDrawOnly();
 

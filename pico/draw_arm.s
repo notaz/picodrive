@@ -1638,7 +1638,7 @@ vidConvCpyRGB565: @ void *to, void *from, int pixels
     stmfd   sp!, {r4-r9,lr}
     mov     r8,     #0x0061
     orr     r8, r8, #0x0800
-    orr     r8, r8, lsl #16
+    orr     r8, r8, r8, lsl #16
     vidConvCpyRGB565_local
     ldmfd   sp!, {r4-r9,lr}
     bx      lr
@@ -1663,7 +1663,7 @@ PicoDoHighPal555_nopush:
     mov     r2, #0x40
     mov     r8,     #0x0061
     orr     r8, r8, #0x0800
-    orr     r8, r8, lsl #16
+    orr     r8, r8, r8, lsl #16
 
     vidConvCpyRGB565_local
 

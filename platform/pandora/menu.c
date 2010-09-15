@@ -81,6 +81,7 @@ static int menu_loop_cscaler(menu_id id, int keys)
 #include <errno.h>
 
 static menu_entry e_menu_gfx_options[];
+static menu_entry e_menu_options[];
 
 void pnd_menu_init(void)
 {
@@ -139,5 +140,8 @@ void pnd_menu_init(void)
 	i = me_id2offset(e_menu_gfx_options, MA_OPT3_FILTERING);
 	e_menu_gfx_options[i].data = (void *)mfilters;
 	pnd_filter_list = mfilters;
+
+	i = me_id2offset(e_menu_options, MA_OPT_SCALING);
+	e_menu_options[i]->name = "Max CPU clock";
 }
 
