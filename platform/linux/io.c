@@ -5,6 +5,7 @@
 
 #include "../common/emu.h"
 #include "../common/menu.h"
+#include "../common/plat.h"
 #include "sndout_oss.h"
 #include "version.h"
 
@@ -252,8 +253,8 @@ static void xlib_init(void)
 static void realloc_screen(void)
 {
 	int size = scr_w * scr_h * 2;
-	g_menuscreen_w = scr_w;
-	g_menuscreen_h = scr_h;
+	g_screen_width = g_menuscreen_w = scr_w;
+	g_screen_height = g_menuscreen_h = scr_h;
 	g_screen_ptr = realloc(g_screen_ptr, size);
 	g_menubg_ptr = realloc(g_menubg_ptr, size);
 	memset(g_screen_ptr, 0, size);
@@ -302,6 +303,9 @@ void plat_video_flip(void)
 	if (scr_changed) {
 		realloc_screen();
 		ximage_realloc(xlib_display, DefaultVisual(xlib_display, 0));
+
+		// propagate new ponters to renderers
+		plat_video_toggle_renderer(0, 0);
 	}
 }
 
@@ -322,9 +326,8 @@ void plat_init(void)
 	ret = vout_fbdev_init(&w, &h);
 	if (ret != 0)
 		exit(1);
-	g_menuscreen_w = w;
-	g_menuscreen_h = h;
-	g_screen_width = w;
+	g_screen_width = g_menuscreen_w = w;
+	g_screen_height = g_menuscreen_h = h;
 	g_menubg_ptr = realloc(g_menubg_ptr, w * g_screen_height * 2);
 	PicoDraw2FB = g_menubg_ptr;
 #else

@@ -10,8 +10,9 @@
 #define SCREEN_SIZE_FIXED 1
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 240
-#define MSCREEN_WIDTH  800
-#define MSCREEN_HEIGHT 480
+#define MSCREEN_SIZE_FIXED 0
+#define MSCREEN_WIDTH  SCREEN_WIDTH
+#define MSCREEN_HEIGHT SCREEN_HEIGHT
 
 // draw2.c
 #define START_ROW  0 // which row of tiles to start rendering at?

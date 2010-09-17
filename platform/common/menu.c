@@ -31,7 +31,7 @@ void *g_menubg_ptr;
 
 #ifndef UIQ3
 
-#if !SCREEN_SIZE_FIXED
+#if !MSCREEN_SIZE_FIXED
 int g_menuscreen_w = MSCREEN_WIDTH;
 int g_menuscreen_h = MSCREEN_HEIGHT;
 #endif

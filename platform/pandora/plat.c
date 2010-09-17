@@ -32,13 +32,13 @@
 static struct vout_fbdev *main_fb, *layer_fb;
 static int g_layer_x, g_layer_y;
 static int g_layer_w = 320, g_layer_h = 240;
-static int g_osd_fps_x, g_osd_y;
+static int g_osd_fps_x, g_osd_y, doing_bg_frame;
 
 static const char pnd_script_base[] = "sudo -n /usr/pandora/scripts";
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
-static unsigned char __attribute__((aligned(4))) temp_frame[g_menuscreen_w * g_menuscreen_h * 2];
 static unsigned char __attribute__((aligned(4))) fb_copy[g_screen_width * g_screen_height * 2];
-unsigned char *PicoDraw2FB = temp_frame;
+static void *temp_frame;
+unsigned char *PicoDraw2FB;
 const char *renderer_names[] = { NULL };
 const char *renderer_names32x[] = { NULL };
 
@@ -207,20 +207,34 @@ void plat_update_volume(int has_changed, int is_up)
 	}
 }
 
-static void make_bg(void)
+static void make_bg(int no_scale)
 {
 	unsigned short *s = (void *)fb_copy;
-	unsigned int t, *d = (unsigned int *)g_menubg_src_ptr + 80 / 2;
 	int x, y;
 
-	memset32(g_menubg_src_ptr, 0, 800 * 480 * 2 / 4);
+	memset32(g_menubg_src_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2 / 4);
 
-	for (y = 0; y < 240; y++, s += 320, d += 800*2/2) {
-		for (x = 0; x < 320; x++) {
-			t = s[x];
-			t |= t << 16;
-			d[x] = d[x + 800 / 2] = t;
+	if (!no_scale && g_menuscreen_w >= 640 && g_menuscreen_h >= 480) {
+		unsigned int t, *d = g_menubg_src_ptr;
+		d += (g_menuscreen_h / 2 - 480 / 2) * g_menuscreen_w / 2;
+		d += (g_menuscreen_w / 2 - 640 / 2) / 2;
+		for (y = 0; y < 240; y++, s += 320, d += g_menuscreen_w*2/2) {
+			for (x = 0; x < 320; x++) {
+				t = s[x];
+				t |= t << 16;
+				d[x] = d[x + g_menuscreen_w / 2] = t;
+			}
 		}
+		return;
+	}
+
+	if (g_menuscreen_w >= 320 && g_menuscreen_h >= 240) {
+		unsigned short *d = g_menubg_src_ptr;
+		d += (g_menuscreen_h / 2 - 240 / 2) * g_menuscreen_w;
+		d += (g_menuscreen_w / 2 - 320 / 2);
+		for (y = 0; y < 240; y++, s += 320, d += g_menuscreen_w)
+			memcpy(d, s, 320*2);
+		return;
 	}
 }
 
@@ -236,14 +250,16 @@ void pemu_forced_frame(int no_scale, int do_emu)
 
 	PicoDrawSetOutFormat(PDF_RGB555, 1);
 	Pico.m.dirtyPal = 1;
+	doing_bg_frame = 1;
 	if (do_emu)
 		PicoFrame();
 	else
 		PicoFrameDrawOnly();
+	doing_bg_frame = 0;
 
 	// making a copy because enabling the layer clears it's mem
 	memcpy32((void *)fb_copy, g_screen_ptr, sizeof(fb_copy) / 4);
-	make_bg(); // FIXME: honour no_scale
+	make_bg(no_scale);
 
 	PicoOpt = po_old;
 }
@@ -273,32 +289,24 @@ static void updateSound(int len)
 
 void pemu_sound_start(void)
 {
-	int target_fps = Pico.m.pal ? 50 : 60;
-
 	PsndOut = NULL;
 
 	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
 	{
-		int snd_excess_add, frame_samples;
 		int is_stereo = (PicoOpt & POPT_EN_STEREO) ? 1 : 0;
 
 		PsndRerate(Pico.m.frame_count ? 1 : 0);
 
-		frame_samples = PsndLen;
-		snd_excess_add = ((PsndRate - PsndLen * target_fps)<<16) / target_fps;
-		if (snd_excess_add != 0)
-			frame_samples++;
-
 		/*
-		 * for 44k stereo, we do 1470 samples/frame
+		 * for 44k stereo, we do 1470 samples/emu_frame
 		 * OMAP driver does power of 2 buffers, so we need at least 4K buffer.
 		 * The most we can lag is 1K samples, size of OMAP's McBSP FIFO,
 		 * with 2K sample buffer we might sometimes lag more than that,
 		 * thus causing underflows.
 		 */
-		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, snd_excess_add, is_stereo, Pico.m.pal);
-		sndout_oss_start(PsndRate, frame_samples * 2, is_stereo);
+		printf("starting audio: %i len: %i stereo: %i, pal: %i\n",
+			PsndRate, PsndLen, is_stereo, Pico.m.pal);
+		sndout_oss_start(PsndRate, is_stereo, 2);
 		//sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
 		PicoWriteSound = updateSound;
 		plat_update_volume(0, 0);
@@ -410,6 +418,9 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
 	int fb_w = 320, fb_h = 240, fb_left = 0, fb_right = 0, fb_top = 0, fb_bottom = 0;
 
+	if (doing_bg_frame)
+		return;
+
 	PicoDrawSetOutFormat(PDF_RGB555, 1);
 	PicoDrawSetCallbacks(emuscan, NULL);
 
@@ -490,7 +501,7 @@ void pemu_loop_prep(void)
 	}
 
 	// make sure there is no junk left behind the layer
-	memset32(g_menuscreen_ptr, 0, 800 * 480 * 2 / 4);
+	memset32(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2 / 4);
 	g_menuscreen_ptr = vout_fbdev_flip(main_fb);
 
 	// emu_video_mode_change will call pnd_setup_layer()
@@ -596,10 +607,8 @@ void plat_init(void)
 		exit(1);
 	}
 
-	if (w != g_menuscreen_w || h != g_menuscreen_h) {
-		fprintf(stderr, "%dx%d not supported on %s\n", w, h, main_fb_name);
-		goto fail0;
-	}
+	g_menuscreen_w = w;
+	g_menuscreen_h = h;
 	g_menuscreen_ptr = vout_fbdev_flip(main_fb);
 
 	w = 320; h = 240;
@@ -615,8 +624,14 @@ void plat_init(void)
 	}
 	g_screen_ptr = vout_fbdev_flip(layer_fb);
 
+	temp_frame = calloc(g_menuscreen_w * g_menuscreen_h * 2, 1);
+	if (temp_frame == NULL) {
+		fprintf(stderr, "OOM\n");
+		goto fail1;
+	}
 	g_menubg_ptr = temp_frame;
 	g_menubg_src_ptr = temp_frame;
+	PicoDraw2FB = temp_frame;
 
 	sndout_oss_init();
 	pnd_menu_init();
