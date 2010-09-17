@@ -65,7 +65,7 @@ static int in_vk_keys_down[4];
 static void in_vk_probe(void)
 {
 	memset(in_vk_keys_down, 0, sizeof(in_vk_keys_down));
-	in_register(IN_VK_PREFIX "vk", IN_DRVID_VK, -1, (void *)1, IN_VK_NKEYS, 0);
+	in_register(IN_VK_PREFIX "vk", IN_DRVID_VK, -1, (void *)1, IN_VK_NKEYS, NULL, 0);
 }
 
 static int in_vk_get_bind_count(void)
@@ -145,7 +145,7 @@ static const struct {
 
 #define KEY_PBTN_MAP_SIZE (sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]))
 
-static int in_vk_menu_translate(int keycode)
+static int in_vk_menu_translate(void *drv_data, int keycode)
 {
 	int i;
 	if (keycode < 0)

@@ -24,8 +24,9 @@ typedef struct
 	char *name;
 	int key_count;
 	int *binds;	/* total = key_count * bindtypes * 2 */
-	int probed:1;
-	int does_combos:1;
+	const char * const *key_names;
+	unsigned int probed:1;
+	unsigned int does_combos:1;
 } in_dev_t;
 
 static in_drv_t in_drivers[IN_DRVID_COUNT];
@@ -68,7 +69,7 @@ static void in_free(in_dev_t *dev)
 /* to be called by drivers
  * async devices must set drv_fd_hnd to -1 */
 void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data,
-		int key_count, int combos)
+		int key_count, const char * const *key_names, int combos)
 {
 	int i, ret, dupe_count = 0, *binds;
 	char name[256], *name_end, *tmp;
@@ -126,6 +127,7 @@ update:
 	in_devices[i].does_combos = combos;
 	in_devices[i].drv_id = drv_id;
 	in_devices[i].drv_fd_hnd = drv_fd_hnd;
+	in_devices[i].key_names = key_names;
 	in_devices[i].drv_data = drv_data;
 
 	if (in_devices[i].binds != NULL) {
@@ -236,6 +238,8 @@ void in_probe(void)
 
 	if (in_have_async_devs)
 		lprintf("input: async-only devices detected..\n");
+
+	in_debug_dump();
 }
 
 /* async update */
@@ -268,26 +272,6 @@ int in_update(int *result)
 	}
 
 	return ret;
-}
-
-void in_set_blocking(int is_blocking)
-{
-	int i, ret;
-
-	/* have_async_devs means we will have to do all reads async anyway.. */
-	if (!in_have_async_devs) {
-		for (i = 0; i < in_dev_count; i++) {
-			if (in_devices[i].probed)
-				DRV(in_devices[i].drv_id).set_blocking(in_devices[i].drv_data, is_blocking);
-		}
-	}
-
-	menu_key_state = 0;
-
-	/* flush events */
-	do {
-		ret = in_update_keycode(NULL, NULL, 0);
-	} while (ret >= 0);
 }
 
 static int in_update_kc_async(int *dev_id_out, int *is_down_out, int timeout_ms)
@@ -391,7 +375,7 @@ int in_update_keycode(int *dev_id_out, int *is_down_out, int timeout_ms)
 finish:
 	/* keep track of menu key state, to allow mixing
 	 * in_update_keycode() and in_menu_wait_any() calls */
-	result_menu = drv->menu_translate(result);
+	result_menu = drv->menu_translate(in_devices[dev_id].drv_data, result);
 	if (result_menu != 0) {
 		if (is_down)
 			menu_key_state |=  result_menu;
@@ -416,16 +400,13 @@ int in_menu_wait_any(int timeout_ms)
 		int code, is_down = 0, dev_id = 0;
 
 		code = in_update_keycode(&dev_id, &is_down, timeout_ms);
-		if (code >= 0)
-			code = DRV(in_devices[dev_id].drv_id).menu_translate(code);
-
-		if (timeout_ms >= 0)
-			break;
 		if (code < 0)
-			continue;
-		menu_last_used_dev = dev_id;
-		if (keys_old != menu_key_state)
 			break;
+
+		if (keys_old != menu_key_state) {
+			menu_last_used_dev = dev_id;
+			break;
+		}
 	}
 
 	return menu_key_state;
@@ -480,19 +461,81 @@ const int *in_get_dev_def_binds(int dev_id)
 	return in_devices[dev_id].binds + in_devices[dev_id].key_count * IN_BINDTYPE_COUNT;
 }
 
-int in_get_dev_info(int dev_id, int what)
+int in_get_config(int dev_id, int what, void *val)
 {
-	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
-		return 0;
+	int *ival = val;
+	in_dev_t *dev;
 
+	if (dev_id < 0 || dev_id >= IN_MAX_DEVS || val == NULL)
+		return -1;
+
+	dev = &in_devices[dev_id];
 	switch (what) {
-	case IN_INFO_BIND_COUNT:
-		return in_devices[dev_id].key_count;
-	case IN_INFO_DOES_COMBOS:
-		return in_devices[dev_id].does_combos;
+	case IN_CFG_BIND_COUNT:
+		*ival = dev->key_count;
+		break;
+	case IN_CFG_DOES_COMBOS:
+		*ival = dev->does_combos;
+		break;
+	case IN_CFG_BLOCKING:
+	case IN_CFG_KEY_NAMES:
+		return -1; /* not implemented */
+	default:
+		return DRV(dev->drv_id).get_config(dev->drv_data, what, ival);
 	}
 
 	return 0;
+}
+
+static int in_set_blocking(int is_blocking)
+{
+	int i, ret;
+
+	/* have_async_devs means we will have to do all reads async anyway.. */
+	if (!in_have_async_devs) {
+		for (i = 0; i < in_dev_count; i++) {
+			if (in_devices[i].probed)
+				DRV(in_devices[i].drv_id).set_config(in_devices[i].drv_data,
+								     IN_CFG_BLOCKING, is_blocking);
+		}
+	}
+
+	menu_key_state = 0;
+
+	/* flush events */
+	do {
+		ret = in_update_keycode(NULL, NULL, 0);
+	} while (ret >= 0);
+
+	return 0;
+}
+
+int in_set_config(int dev_id, int what, const void *val, int size)
+{
+	const int *ival = val;
+	in_dev_t *dev;
+
+	if (what == IN_CFG_BLOCKING)
+		return in_set_blocking(*ival);
+
+	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
+		return -1;
+
+	dev = &in_devices[dev_id];
+	if (what == IN_CFG_KEY_NAMES) {
+		const char * const *names = val;
+		int count = size / sizeof(names[0]);
+
+		if (count < dev->key_count) {
+			lprintf("input: set_key_names: not enough keys\n");
+			return -1;
+		}
+
+		dev->key_names = names;
+		return 0;
+	}
+
+	return DRV(dev->drv_id).set_config(dev->drv_data, what, *ival);
 }
 
 const char *in_get_dev_name(int dev_id, int must_be_active, int skip_pfix)
@@ -517,11 +560,28 @@ const char *in_get_dev_name(int dev_id, int must_be_active, int skip_pfix)
 	return name;
 }
 
+int in_name_to_id(const char *dev_name)
+{
+	int i;
+
+	for (i = 0; i < in_dev_count; i++)
+		if (strcmp(dev_name, in_devices[i].name) == 0)
+			break;
+
+	if (i >= in_dev_count) {
+		lprintf("input: in_name_to_id: no such device: %s\n", dev_name);
+		return -1;
+	}
+
+	return i;
+}
+
 /* never returns NULL */
 const char *in_get_key_name(int dev_id, int keycode)
 {
+	const char *name = NULL;
 	static char xname[16];
-	const char *name;
+	in_dev_t *dev;
 
 	if (dev_id < 0)		/* want last used dev? */
 		dev_id = menu_last_used_dev;
@@ -529,10 +589,16 @@ const char *in_get_key_name(int dev_id, int keycode)
 	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
 		return "Unkn0";
 
+	dev = &in_devices[dev_id];
 	if (keycode < 0)	/* want name for menu key? */
-		keycode = DRV(in_devices[dev_id].drv_id).menu_translate(keycode);
+		keycode = DRV(dev->drv_id).menu_translate(dev->drv_data, keycode);
 
-	name = DRV(in_devices[dev_id].drv_id).get_key_name(keycode);
+	if (dev->key_names != NULL && 0 <= keycode && keycode < dev->key_count)
+		name = dev->key_names[keycode];
+	if (name != NULL)
+		return name;
+
+	name = DRV(dev->drv_id).get_key_name(keycode);
 	if (name != NULL)
 		return name;
 
@@ -703,7 +769,19 @@ int in_config_bind_key(int dev_id, const char *key, int acts, int bind_type)
 			in_config_start();
 		}
 
-		kc = DRV(dev->drv_id).get_key_code(key);
+		kc = -1;
+		if (dev->key_names != NULL) {
+			for (i = 0; i < dev->key_count; i++) {
+				const char *k = dev->key_names[i];
+				if (k != NULL && strcasecmp(k, key) == 0) {
+					kc = i;
+					break;
+				}
+			}
+		}
+
+		if (kc < 0)
+			kc = DRV(dev->drv_id).get_key_code(key);
 		if (kc < 0 && strlen(key) == 1) {
 			/* assume scancode */
 			kc = key[0];
@@ -789,10 +867,11 @@ static void in_def_free(void *drv_data) {}
 static int  in_def_get_bind_count(void) { return 0; }
 static void in_def_get_def_binds(int *binds) {}
 static int  in_def_clean_binds(void *drv_data, int *b, int *db) { return 0; }
-static void in_def_set_blocking(void *data, int y) {}
+static int  in_def_get_config(void *drv_data, int what, int *val) { return -1; }
+static int  in_def_set_config(void *drv_data, int what, int val) { return -1; }
 static int  in_def_update_keycode(void *drv_data, int *is_down) { return 0; }
-static int  in_def_menu_translate(int keycode) { return keycode; }
-static int  in_def_get_key_code(const char *key_name) { return 0; }
+static int  in_def_menu_translate(void *drv_data, int keycode) { return keycode; }
+static int  in_def_get_key_code(const char *key_name) { return -1; }
 static const char *in_def_get_key_name(int keycode) { return NULL; }
 
 void in_init(void)
@@ -810,7 +889,8 @@ void in_init(void)
 		in_drivers[i].get_bind_count = in_def_get_bind_count;
 		in_drivers[i].get_def_binds = in_def_get_def_binds;
 		in_drivers[i].clean_binds = in_def_clean_binds;
-		in_drivers[i].set_blocking = in_def_set_blocking;
+		in_drivers[i].get_config = in_def_get_config;
+		in_drivers[i].set_config = in_def_set_config;
 		in_drivers[i].update_keycode = in_def_update_keycode;
 		in_drivers[i].menu_translate = in_def_menu_translate;
 		in_drivers[i].get_key_code = in_def_get_key_code;

@@ -15,12 +15,15 @@
 typedef struct {
 	int fd;
 	int *kbits;
+	int abs_min_x;
+	int abs_max_x;
+	int abs_min_y;
+	int abs_max_y;
 	int abs_lzone;
-	int abs_rzone;
-	int abs_tzone;
-	int abs_bzone;
 	int abs_lastx;
 	int abs_lasty;
+	int kc_first;
+	int kc_last;
 } in_evdev_t;
 
 #ifndef KEY_CNT
@@ -138,8 +141,8 @@ static void in_evdev_probe(void)
 	for (i = 0;; i++)
 	{
 		int support = 0, count = 0;
+		int u, ret, fd, kc_first, kc_last;
 		in_evdev_t *dev;
-		int u, ret, fd;
 		char name[64];
 
 		snprintf(name, sizeof(name), "/dev/input/event%d", i);
@@ -167,10 +170,17 @@ static void in_evdev_probe(void)
 		}
 
 		/* check for interesting keys */
+		kc_first = KEY_MAX;
+		kc_last = 0;
 		for (u = 0; u < KEY_CNT; u++) {
-			if (KEYBITS_BIT(u) && u != KEY_POWER &&
-					u != KEY_SLEEP && u != BTN_TOUCH)
-				count++;
+			if (KEYBITS_BIT(u)) {
+				if (u < kc_first)
+					kc_first = u;
+				if (u > kc_last)
+					kc_last = u;
+				if (u != KEY_POWER && u != KEY_SLEEP && u != BTN_TOUCH)
+					count++;
+			}
 		}
 
 		if (count == 0)
@@ -202,26 +212,29 @@ static void in_evdev_probe(void)
 				if (ret == -1)
 					goto no_abs;
 				dist = ainfo.maximum - ainfo.minimum;
-				dev->abs_lzone = ainfo.minimum + dist / 4;
-				dev->abs_rzone = ainfo.maximum - dist / 4;
+				dev->abs_lzone = dist / 4;
+				dev->abs_min_x = ainfo.minimum;
+				dev->abs_max_x = ainfo.maximum;
 			}
 			if (absbits[0] & (1 << ABS_Y)) {
 				ret = ioctl(fd, EVIOCGABS(ABS_Y), &ainfo);
 				if (ret == -1)
 					goto no_abs;
 				dist = ainfo.maximum - ainfo.minimum;
-				dev->abs_tzone = ainfo.minimum + dist / 4;
-				dev->abs_bzone = ainfo.maximum - dist / 4;
+				dev->abs_min_y = ainfo.minimum;
+				dev->abs_max_y = ainfo.maximum;
 			}
 		}
 
 no_abs:
 		dev->fd = fd;
+		dev->kc_first = kc_first;
+		dev->kc_last = kc_last;
 		strcpy(name, in_evdev_prefix);
 		ioctl(fd, EVIOCGNAME(sizeof(name)-6), name+6);
 		printf("in_evdev: found \"%s\" with %d events (type %08x)\n",
 			name+6, count, support);
-		in_register(name, IN_DRVID_EVDEV, fd, dev, KEY_CNT, 0);
+		in_register(name, IN_DRVID_EVDEV, fd, dev, KEY_CNT, in_evdev_keys, 0);
 		continue;
 
 skip:
@@ -259,7 +272,7 @@ int in_evdev_update(void *drv_data, const int *binds, int *result)
 	int keybits_[KEY_CNT / sizeof(int)];
 	int *keybits = keybits_;
 	in_evdev_t *dev = drv_data;
-	int rd, ret, u;
+	int rd, ret, u, lzone;
 
 	if (dev->kbits == NULL) {
 		ret = ioctl(dev->fd, EVIOCGKEY(sizeof(keybits_)), keybits_);
@@ -288,40 +301,40 @@ int in_evdev_update(void *drv_data, const int *binds, int *result)
 		}
 	}
 
-	for (u = 0; u < KEY_CNT; u++) {
+	for (u = dev->kc_first; u <= dev->kc_last; u++) {
 		if (KEYBITS_BIT(u))
 			or_binds(binds, u, result);
 	}
 
 	/* map X and Y absolute to UDLR */
-	if (dev->abs_lzone != 0) {
+	lzone = dev->abs_lzone;
+	if (lzone != 0) {
 		ret = ioctl(dev->fd, EVIOCGABS(ABS_X), &ainfo);
 		if (ret != -1) {
-			if (ainfo.value < dev->abs_lzone) or_binds(binds, KEY_LEFT, result);
-			if (ainfo.value > dev->abs_rzone) or_binds(binds, KEY_RIGHT, result);
+			if (ainfo.value < dev->abs_min_x + lzone) or_binds(binds, KEY_LEFT, result);
+			if (ainfo.value > dev->abs_max_x - lzone) or_binds(binds, KEY_RIGHT, result);
 		}
 	}
-	if (dev->abs_tzone != 0) {
+	if (lzone != 0) {
 		ret = ioctl(dev->fd, EVIOCGABS(ABS_Y), &ainfo);
 		if (ret != -1) {
-			if (ainfo.value < dev->abs_tzone) or_binds(binds, KEY_UP, result);
-			if (ainfo.value > dev->abs_bzone) or_binds(binds, KEY_DOWN, result);
+			if (ainfo.value < dev->abs_min_y + lzone) or_binds(binds, KEY_UP, result);
+			if (ainfo.value > dev->abs_max_y - lzone) or_binds(binds, KEY_DOWN, result);
 		}
 	}
 
 	return 0;
 }
 
-static void in_evdev_set_blocking(void *drv_data, int y)
+static int in_evdev_set_blocking(in_evdev_t *dev, int y)
 {
-	in_evdev_t *dev = drv_data;
 	long flags;
 	int ret;
 
 	flags = (long)fcntl(dev->fd, F_GETFL);
 	if ((int)flags == -1) {
 		perror("in_evdev: F_GETFL fcntl failed");
-		return;
+		return -1;
 	}
 
 	if (flags & O_NONBLOCK) {
@@ -338,18 +351,46 @@ static void in_evdev_set_blocking(void *drv_data, int y)
 	else
 		flags |=  O_NONBLOCK;
 	ret = fcntl(dev->fd, F_SETFL, flags);
-	if (ret == -1)
+	if (ret == -1) {
 		perror("in_evdev: F_SETFL fcntl failed");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int in_evdev_set_config(void *drv_data, int what, int val)
+{
+	in_evdev_t *dev = drv_data;
+	int tmp;
+
+	switch (what) {
+	case IN_CFG_BLOCKING:
+		return in_evdev_set_blocking(dev, val);
+	case IN_CFG_ABS_DEAD_ZONE:
+		if (val < 1 || val > 99 || dev->abs_lzone == 0)
+			return -1;
+		/* XXX: based on X axis only, for now.. */
+		tmp = (dev->abs_max_x - dev->abs_min_x) / 2;
+		dev->abs_lzone = tmp - tmp * val / 100;
+		if (dev->abs_lzone < 1)
+			dev->abs_lzone = 1;
+		else if (dev->abs_lzone >= tmp)
+			dev->abs_lzone = tmp - 1;
+		break;
+	default:
+		return -1;
+	}
+
+	return 0;
 }
 
 static int in_evdev_update_keycode(void *data, int *is_down)
 {
+	int ret_kc = -1, ret_down = 0;
 	in_evdev_t *dev = data;
 	struct input_event ev;
 	int rd;
-
-	if (is_down != NULL)
-		*is_down = 0;
 
 	rd = read(dev->fd, &ev, sizeof(ev));
 	if (rd < (int) sizeof(ev)) {
@@ -357,48 +398,58 @@ static int in_evdev_update_keycode(void *data, int *is_down)
 			perror("in_evdev: error reading");
 			sleep(1);
 		}
-		return -1;
+		goto out;
 	}
 
 	if (ev.type == EV_KEY) {
 		if (ev.value < 0 || ev.value > 1)
-			return -1;
-		if (is_down != NULL)
-			*is_down = ev.value;
-		return ev.code;
+			goto out;
+		ret_kc = ev.code;
+		ret_down = ev.value;
+		goto out;
 	}
 	else if (ev.type == EV_ABS)
 	{
-		int down = 0;
-		if (dev->abs_lzone != 0 && ev.code == ABS_X) {
-			if (ev.value < dev->abs_lzone) {
-				down = 1;
-				dev->abs_lastx = KEY_LEFT;
-			}
-			else if (ev.value > dev->abs_rzone) {
-				down = 1;
-				dev->abs_lastx = KEY_RIGHT;
-			}
-			if (is_down != NULL)
-				*is_down = down;
-			return dev->abs_lastx;
+		int lzone = dev->abs_lzone, down = 0, *last;
+
+		// map absolute to up/down/left/right
+		if (lzone != 0 && ev.code == ABS_X) {
+			if (ev.value < dev->abs_min_x + lzone)
+				down = KEY_LEFT;
+			else if (ev.value > dev->abs_max_x - lzone)
+				down = KEY_RIGHT;
+			last = &dev->abs_lastx;
 		}
-		if (dev->abs_tzone != 0 && ev.code == ABS_Y) {
-			if (ev.value < dev->abs_tzone) {
-				down = 1;
-				dev->abs_lasty = KEY_UP;
-			}
-			else if (ev.value > dev->abs_bzone) {
-				down = 1;
-				dev->abs_lasty = KEY_DOWN;
-			}
-			if (is_down != NULL)
-				*is_down = down;
-			return dev->abs_lasty;
+		else if (lzone != 0 && ev.code == ABS_Y) {
+			if (ev.value < dev->abs_min_y + lzone)
+				down = KEY_UP;
+			else if (ev.value > dev->abs_max_y - lzone)
+				down = KEY_DOWN;
+			last = &dev->abs_lasty;
 		}
+		else
+			goto out;
+
+		if (down == *last)
+			goto out;
+
+		if (down == 0 || *last != 0) {
+			/* key up or direction change, return up event for old key */
+			ret_kc = *last;
+			ret_down = 0;
+			*last = 0;
+			goto out;
+		}
+		ret_kc = *last = down;
+		ret_down = 1;
+		goto out;
 	}
 
-	return -1;
+out:
+	if (is_down != NULL)
+		*is_down = ret_down;
+
+	return ret_kc;
 }
 
 static const struct {
@@ -410,36 +461,51 @@ static const struct {
 	{ KEY_DOWN,	PBTN_DOWN },
 	{ KEY_LEFT,	PBTN_LEFT },
 	{ KEY_RIGHT,	PBTN_RIGHT },
-	{ KEY_ENTER,	PBTN_MOK },
+	/* XXX: maybe better set this from it's plat code somehow */
+	/* Pandora */
 	{ KEY_END,	PBTN_MOK },
-	{ BTN_TRIGGER,	PBTN_MOK },
-	{ KEY_ESC,	PBTN_MBACK },
 	{ KEY_PAGEDOWN,	PBTN_MBACK },
-	{ BTN_THUMB,	PBTN_MBACK },
-	{ KEY_A,	PBTN_MA2 },
 	{ KEY_HOME,	PBTN_MA2 },
-	{ KEY_S,	PBTN_MA3 },
 	{ KEY_PAGEUP,	PBTN_MA3 },
-	{ KEY_BACKSLASH,  PBTN_MENU },
 	{ KEY_LEFTCTRL,   PBTN_MENU },
 	{ KEY_RIGHTSHIFT, PBTN_L },
-	{ KEY_LEFTBRACE,  PBTN_L },
 	{ KEY_RIGHTCTRL,  PBTN_R },
+	/* Caanoo */
+	{ BTN_THUMB2,	PBTN_MOK },
+	{ BTN_THUMB,	PBTN_MBACK },
+	{ BTN_TRIGGER,	PBTN_MA2 },
+	{ BTN_TOP,	PBTN_MA3 },
+	{ BTN_BASE,	PBTN_MENU },
+	{ BTN_TOP2,	PBTN_L },
+	{ BTN_PINKIE,	PBTN_R },
+	/* "normal" keyboards */
+	{ KEY_ENTER,	PBTN_MOK },
+	{ KEY_ESC,	PBTN_MBACK },
+	{ KEY_A,	PBTN_MA2 },
+	{ KEY_S,	PBTN_MA3 },
+	{ KEY_BACKSLASH,  PBTN_MENU },
+	{ KEY_LEFTBRACE,  PBTN_L },
 	{ KEY_RIGHTBRACE, PBTN_R },
 };
 
 #define KEY_PBTN_MAP_SIZE (sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]))
 
-static int in_evdev_menu_translate(int keycode)
+static int in_evdev_menu_translate(void *drv_data, int keycode)
 {
+	in_evdev_t *dev = drv_data;
 	int i;
+
 	if (keycode < 0)
 	{
 		/* menu -> kc */
 		keycode = -keycode;
 		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
-			if (key_pbtn_map[i].pbtn == keycode)
-				return key_pbtn_map[i].key;
+			if (key_pbtn_map[i].pbtn == keycode) {
+				int k = key_pbtn_map[i].key;
+				/* should really check EVIOCGBIT, but this is enough for now */
+				if (dev->kc_first <= k && k <= dev->kc_last)
+					return k;
+			}
 	}
 	else
 	{
@@ -449,30 +515,6 @@ static int in_evdev_menu_translate(int keycode)
 	}
 
 	return 0;
-}
-
-static int in_evdev_get_key_code(const char *key_name)
-{
-	int i;
-
-	for (i = 0; i < KEY_CNT; i++) {
-		const char *k = in_evdev_keys[i];
-		if (k != NULL && strcasecmp(k, key_name) == 0)
-			return i;
-	}
-
-	return -1;
-}
-
-static const char *in_evdev_get_key_name(int keycode)
-{
-	const char *name = NULL;
-	if (keycode >= 0 && keycode <= KEY_MAX)
-		name = in_evdev_keys[keycode];
-	if (name == NULL)
-		name = "Unkn";
-	
-	return name;
 }
 
 static const struct {
@@ -487,16 +529,26 @@ static const struct {
 	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, 2 },
 	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, 3 },
 	{ KEY_S,	IN_BINDTYPE_PLAYER12, 4 },	/* B */
-	{ KEY_PAGEDOWN,	IN_BINDTYPE_PLAYER12, 4 },
 	{ KEY_D,	IN_BINDTYPE_PLAYER12, 5 },	/* C */
-	{ KEY_END,	IN_BINDTYPE_PLAYER12, 5 },
 	{ KEY_A,	IN_BINDTYPE_PLAYER12, 6 },	/* A */
-	{ KEY_HOME,	IN_BINDTYPE_PLAYER12, 6 },
 	{ KEY_ENTER,	IN_BINDTYPE_PLAYER12, 7 },
+	{ KEY_BACKSLASH, IN_BINDTYPE_EMU, PEVB_MENU },
+	/* Pandora */
+	{ KEY_PAGEDOWN,	IN_BINDTYPE_PLAYER12, 4 },
+	{ KEY_END,	IN_BINDTYPE_PLAYER12, 5 },
+	{ KEY_HOME,	IN_BINDTYPE_PLAYER12, 6 },
 	{ KEY_LEFTALT,	IN_BINDTYPE_PLAYER12, 7 },
 	{ KEY_RIGHTSHIFT,IN_BINDTYPE_EMU, PEVB_STATE_SAVE },
 	{ KEY_RIGHTCTRL, IN_BINDTYPE_EMU, PEVB_STATE_LOAD },
 	{ KEY_LEFTCTRL,	 IN_BINDTYPE_EMU, PEVB_MENU },
+	/* Caanoo */
+	{ BTN_THUMB,	IN_BINDTYPE_PLAYER12, 4 },	/* B */
+	{ BTN_THUMB2,	IN_BINDTYPE_PLAYER12, 5 },	/* C */
+	{ BTN_TRIGGER,	IN_BINDTYPE_PLAYER12, 6 },	/* A */
+	{ BTN_BASE3,	IN_BINDTYPE_PLAYER12, 7 },
+	{ BTN_TOP2,	IN_BINDTYPE_EMU, PEVB_STATE_SAVE },
+	{ BTN_PINKIE,	IN_BINDTYPE_EMU, PEVB_STATE_LOAD },
+	{ BTN_BASE,	IN_BINDTYPE_EMU, PEVB_MENU },
 };
 
 #define DEF_BIND_COUNT (sizeof(in_evdev_def_binds) / sizeof(in_evdev_def_binds[0]))
@@ -527,7 +579,7 @@ static int in_evdev_clean_binds(void *drv_data, int *binds, int *def_binds)
 		KEYBITS_BIT_SET(KEY_LEFT);
 		KEYBITS_BIT_SET(KEY_RIGHT);
 	}
-	if (dev->abs_tzone != 0) {
+	if (dev->abs_lzone != 0) {
 		KEYBITS_BIT_SET(KEY_UP);
 		KEYBITS_BIT_SET(KEY_DOWN);
 	}
@@ -555,10 +607,8 @@ void in_evdev_init(void *vdrv)
 	drv->get_bind_count = in_evdev_get_bind_count;
 	drv->get_def_binds = in_evdev_get_def_binds;
 	drv->clean_binds = in_evdev_clean_binds;
-	drv->set_blocking = in_evdev_set_blocking;
+	drv->set_config = in_evdev_set_config;
 	drv->update_keycode = in_evdev_update_keycode;
 	drv->menu_translate = in_evdev_menu_translate;
-	drv->get_key_code = in_evdev_get_key_code;
-	drv->get_key_name = in_evdev_get_key_name;
 }
 

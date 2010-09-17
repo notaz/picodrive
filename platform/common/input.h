@@ -55,8 +55,11 @@ enum {
 };
 
 enum {
-	IN_INFO_BIND_COUNT = 0,
-	IN_INFO_DOES_COMBOS,
+	IN_CFG_BIND_COUNT = 0,
+	IN_CFG_DOES_COMBOS,
+	IN_CFG_BLOCKING,
+	IN_CFG_KEY_NAMES,
+	IN_CFG_ABS_DEAD_ZONE, /* dead zone for analog-digital mapping */
 };
 
 enum {
@@ -76,9 +79,10 @@ typedef struct {
 	int  (*get_bind_count)(void);
 	void (*get_def_binds)(int *binds);
 	int  (*clean_binds)(void *drv_data, int *binds, int *def_finds);
-	void (*set_blocking)(void *data, int y);
+	int  (*get_config)(void *drv_data, int what, int *val);
+	int  (*set_config)(void *drv_data, int what, int val);
 	int  (*update_keycode)(void *drv_data, int *is_down);
-	int  (*menu_translate)(int keycode);
+	int  (*menu_translate)(void *drv_data, int keycode);
 	int  (*get_key_code)(const char *key_name);
 	const char * (*get_key_name)(int keycode);
 } in_drv_t;
@@ -86,22 +90,23 @@ typedef struct {
 
 /* to be called by drivers */
 void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data,
-		int key_count, int combos);
+		int key_count, const char * const *key_names, int combos);
 void in_combos_find(const int *binds, int last_key, int *combo_keys, int *combo_acts);
 int  in_combos_do(int keys, const int *binds, int last_key, int combo_keys, int combo_acts);
 
 void in_init(void);
 void in_probe(void);
 int  in_update(int *result);
-void in_set_blocking(int is_blocking);
 int  in_update_keycode(int *dev_id, int *is_down, int timeout_ms);
 int  in_menu_wait_any(int timeout_ms);
 int  in_menu_wait(int interesting, int autorep_delay_ms);
-int  in_get_dev_info(int dev_id, int what);
 void in_config_start(void);
 int  in_config_parse_dev(const char *dev_name);
 int  in_config_bind_key(int dev_id, const char *key, int binds, int bind_type);
 void in_config_end(void);
+int  in_get_config(int dev_id, int what, void *val);
+int  in_set_config(int dev_id, int what, const void *val, int size);
+int  in_name_to_id(const char *dev_name);
 int  in_bind_key(int dev_id, int keycode, int mask, int bind_type, int force_unbind);
 void in_unbind_all(int dev_id, int act_mask, int bind_type);
 void in_debug_dump(void);
@@ -110,3 +115,8 @@ const int  *in_get_dev_binds(int dev_id);
 const int  *in_get_dev_def_binds(int dev_id);
 const char *in_get_dev_name(int dev_id, int must_be_active, int skip_pfix);
 const char *in_get_key_name(int dev_id, int keycode);
+
+#define in_set_config_int(dev_id, what, v) { \
+	int val_ = v; \
+	in_set_config(dev_id, what, &val_, sizeof(val_)); \
+}

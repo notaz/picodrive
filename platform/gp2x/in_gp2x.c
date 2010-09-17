@@ -29,8 +29,8 @@ enum  { BTN_UP = 0,      BTN_LEFT = 2,      BTN_DOWN = 4,  BTN_RIGHT = 6,
 static const char * const in_gp2x_prefix = IN_PREFIX;
 static const char *in_gp2x_keys[IN_GP2X_NBUTTONS] = {
 	[0 ... IN_GP2X_NBUTTONS-1] = NULL,
-	[BTN_UP]    = "UP",    [BTN_LEFT]   = "LEFT",   [BTN_DOWN] = "DOWN", [BTN_RIGHT] = "RIGHT",
-	[BTN_START] = "START", [BTN_SELECT] = "SELECT", [BTN_L]    = "L",    [BTN_R]     = "R",
+	[BTN_UP]    = "Up",    [BTN_LEFT]   = "Left",   [BTN_DOWN] = "Down", [BTN_RIGHT] = "Right",
+	[BTN_START] = "Start", [BTN_SELECT] = "Select", [BTN_L]    = "L",    [BTN_R]     = "R",
 	[BTN_A]     = "A",     [BTN_B]      = "B",      [BTN_X]    = "X",    [BTN_Y]     = "Y",
 	[BTN_VOL_DOWN]= "VOL DOWN",                     [BTN_VOL_UP] = "VOL UP",
 	[BTN_PUSH] = "PUSH"
@@ -81,7 +81,7 @@ static int in_gp2x_get_wiz_bits(void)
 
 #ifdef FAKE_IN_GP2X
 volatile unsigned short *gp2x_memregs;
-gp2x_soc_t soc_detect(void) { return -1; }
+int gp2x_dev_id = -1;
 
 static int in_gp2x_get_fake_bits(void)
 {
@@ -105,6 +105,7 @@ static void in_gp2x_probe(void)
 		}
 		in_gp2x_get_bits = in_gp2x_get_wiz_bits;
 		break;
+	// we'll use evdev for Caanoo
 	default:
 #ifdef FAKE_IN_GP2X
 		in_gp2x_get_bits = in_gp2x_get_fake_bits;
@@ -114,7 +115,7 @@ static void in_gp2x_probe(void)
 	}
 
 	in_register(IN_PREFIX "GP2X pad", IN_DRVID_GP2X, -1, (void *)1,
-		IN_GP2X_NBUTTONS, 1);
+		IN_GP2X_NBUTTONS, in_gp2x_keys, 1);
 }
 
 static void in_gp2x_free(void *drv_data)
@@ -197,7 +198,7 @@ static const struct {
 
 #define KEY_PBTN_MAP_SIZE (sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]))
 
-static int in_gp2x_menu_translate(int keycode)
+static int in_gp2x_menu_translate(void *drv_data, int keycode)
 {
 	int i;
 	if (keycode < 0)
@@ -216,30 +217,6 @@ static int in_gp2x_menu_translate(int keycode)
 	}
 
 	return 0;
-}
-
-static int in_gp2x_get_key_code(const char *key_name)
-{
-	int i;
-
-	for (i = 0; i < IN_GP2X_NBUTTONS; i++) {
-		const char *k = in_gp2x_keys[i];
-		if (k != NULL && strcasecmp(k, key_name) == 0)
-			return i;
-	}
-
-	return -1;
-}
-
-static const char *in_gp2x_get_key_name(int keycode)
-{
-	const char *name = NULL;
-	if (keycode >= 0 && keycode < IN_GP2X_NBUTTONS)
-		name = in_gp2x_keys[keycode];
-	if (name == NULL)
-		name = "Unkn";
-	
-	return name;
 }
 
 static const struct {
@@ -330,8 +307,6 @@ void in_gp2x_init(void *vdrv)
 	drv->get_def_binds = in_gp2x_get_def_binds;
 	drv->clean_binds = in_gp2x_clean_binds;
 	drv->menu_translate = in_gp2x_menu_translate;
-	drv->get_key_code = in_gp2x_get_key_code;
-	drv->get_key_name = in_gp2x_get_key_name;
 	drv->update_keycode = in_gp2x_update_keycode;
 }
 
