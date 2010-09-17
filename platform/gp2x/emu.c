@@ -23,6 +23,7 @@
 #include "../common/fonts.h"
 #include "../common/emu.h"
 #include "../common/config.h"
+#include "../common/input.h"
 #include "../linux/sndout_oss.h"
 #include "version.h"
 
@@ -60,6 +61,7 @@ void pemu_prep_defconfig(void)
 
 	defaultConfig.CPUclock = default_cpu_clock;
 	defaultConfig.renderer32x = RT_8BIT_FAST;
+	defaultConfig.analog_deadzone = 50;
 
 	soc = soc_detect();
 	if (soc == SOCID_MMSP2)
@@ -523,9 +525,10 @@ static void vid_reset_mode(void)
 		}
 		else {
 			PicoDrawSetOutFormat(PDF_NONE, 0);
-			PicoDraw32xSetFrameMode(1, (renderer == RT_16BIT) ? 1 : 0);
+			PicoDraw32xSetFrameMode(1, 0);
 		}
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
+		gp2x_mode = 16;
 	}
 
 	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
@@ -548,12 +551,7 @@ static void vid_reset_mode(void)
 	else
 		osd_text = (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) ? osd_text8_rot : osd_text8;
 
-	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX)
-		gp2x_mode = -gp2x_mode;
-
 	gp2x_video_wait_vsync();
-	gp2x_video_changemode(gp2x_mode);
-
 	if (!is_16bit_mode()) {
 		// setup pal for 8-bit modes
 		localPal[0xc0] = 0x0000c000; // MCD LEDs
@@ -565,6 +563,11 @@ static void vid_reset_mode(void)
 	}
 	else
 		gp2x_memset_all_buffers(0, 0, 320*240*2);
+
+	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX)
+		gp2x_mode = -gp2x_mode;
+
+	gp2x_video_changemode(gp2x_mode);
 
 	Pico.m.dirtyPal = 1;
 
@@ -794,13 +797,15 @@ void pemu_sound_wait(void)
 	// don't need to do anything, writes will block by themselves
 }
 
-void pemu_forced_frame(int opts, int no_scale)
+void pemu_forced_frame(int no_scale, int do_emu)
 {
 	int po_old = PicoOpt;
 
 	doing_bg_frame = 1;
 	PicoOpt &= ~POPT_ALT_RENDERER;
-	PicoOpt |= opts|POPT_ACC_SPRITES;
+	PicoOpt |= POPT_ACC_SPRITES;
+	if (!no_scale)
+		PicoOpt |= POPT_EN_SOFTSCALE;
 
 	memset32(g_screen_ptr, 0, g_screen_width * g_screen_height * 2 / 4);
 
@@ -810,12 +815,12 @@ void pemu_forced_frame(int opts, int no_scale)
 	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
 
-	if (no_scale == -9)
-		// yes I'm lazy, see pemu_forced_frame call below
+	if (do_emu)
 		PicoFrame();
 	else
 		PicoFrameDrawOnly();
 
+	g_menubg_src_ptr = g_screen_ptr;
 	doing_bg_frame = 0;
 	PicoOpt = po_old;
 }
@@ -909,6 +914,10 @@ void pemu_loop_prep(void)
 			unset_lcd_custom_rate();
 	}
 
+	if (gp2x_dev_id == GP2X_DEV_CAANOO)
+		in_set_config_int(in_name_to_id("evdev:pollux-analog"), IN_CFG_ABS_DEAD_ZONE,
+				currentConfig.analog_deadzone);
+
 	if ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_MMUHACK)
 		gp2x_make_fb_bufferable(currentConfig.EmuOpt & EOPT_MMUHACK);
 
@@ -931,8 +940,7 @@ void pemu_loop_end(void)
 	pemu_sound_stop();
 
 	/* do one more frame for menu bg */
-	pemu_forced_frame(POPT_EN_SOFTSCALE, -9);
-	g_menubg_src_ptr = g_screen_ptr;
+	pemu_forced_frame(0, 1);
 }
 
 const char *plat_get_credits(void)

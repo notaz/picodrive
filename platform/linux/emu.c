@@ -174,7 +174,6 @@ void plat_video_menu_enter(int is_rom_loaded)
 
 void plat_video_menu_begin(void)
 {
-	memcpy32(g_screen_ptr, g_menubg_ptr, g_screen_width * g_screen_height * 2 / 4);
 	g_menuscreen_ptr = g_screen_ptr;
 }
 
@@ -209,23 +208,29 @@ void plat_update_volume(int has_changed, int is_up)
 {
 }
 
-void pemu_forced_frame(int opts, int no_scale)
+void pemu_forced_frame(int no_scale, int do_emu)
 {
 	int po_old = PicoOpt;
-	int eo_old = currentConfig.EmuOpt;
+
+	memset32(g_screen_ptr, 0, g_screen_width * g_screen_height * 2 / 4);
 
 	PicoOpt &= ~POPT_ALT_RENDERER;
-	PicoOpt |= opts|POPT_ACC_SPRITES; // acc_sprites
+	PicoOpt |= POPT_ACC_SPRITES;
+	if (!no_scale)
+		PicoOpt |= POPT_EN_SOFTSCALE;
 
 	PicoDrawSetOutFormat(PDF_RGB555, 1);
 	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 	PicoDraw32xSetFrameMode(0, 0);
 
 	Pico.m.dirtyPal = 1;
-	PicoFrameDrawOnly();
+	if (do_emu)
+		PicoFrame();
+	else
+		PicoFrameDrawOnly();
 
+	g_menubg_src_ptr = g_screen_ptr;
 	PicoOpt = po_old;
-	currentConfig.EmuOpt = eo_old;
 }
 
 static void updateSound(int len)
@@ -300,24 +305,10 @@ void pemu_loop_prep(void)
 
 void pemu_loop_end(void)
 {
-	int po_old = PicoOpt;
-	int eo_old = currentConfig.EmuOpt;
-
 	pemu_sound_stop();
-	memset32(g_screen_ptr, 0, g_screen_width * g_screen_height * 2 / 4);
 
 	/* do one more frame for menu bg */
-	PicoOpt &= ~POPT_ALT_RENDERER;
-	PicoOpt |= POPT_EN_SOFTSCALE|POPT_ACC_SPRITES;
-
-	PicoDrawSetOutFormat(PDF_RGB555, 1);
-	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
-	PicoDraw32xSetFrameMode(0, 0);
-	Pico.m.dirtyPal = 1;
-	PicoFrame();
-
-	PicoOpt = po_old;
-	currentConfig.EmuOpt = eo_old;
+	pemu_forced_frame(0, 1);
 }
 
 void plat_wait_till_us(unsigned int us_to)

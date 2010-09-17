@@ -10,6 +10,7 @@
 #include "../common/readpng.h"
 #include "../common/menu.h"
 #include "../common/emu.h"
+#include "../common/input.h"
 #include "../linux/sndout_oss.h"
 
 #include <pico/pico.h>
@@ -19,6 +20,27 @@ int default_cpu_clock;
 int gp2x_dev_id;
 int gp2x_current_bpp;
 void *gp2x_screens[4];
+
+#include <linux/input.h>
+
+static const char * const caanoo_keys[KEY_MAX + 1] = {
+	[0 ... KEY_MAX] = NULL,
+	[KEY_UP]	= "Up",
+	[KEY_LEFT]	= "Left",
+	[KEY_RIGHT]	= "Right",
+	[KEY_DOWN]	= "Down",
+	[BTN_TRIGGER]	= "A",
+	[BTN_THUMB]	= "X",
+	[BTN_THUMB2]	= "B",
+	[BTN_TOP]	= "Y",
+	[BTN_TOP2]	= "L",
+	[BTN_PINKIE]	= "R",
+	[BTN_BASE]	= "Home",
+	[BTN_BASE2]	= "Lock",
+	[BTN_BASE3]	= "I",
+	[BTN_BASE4]	= "II",
+	[BTN_BASE5]	= "Push",
+};
 
 void gp2x_video_changemode(int bpp)
 {
@@ -75,8 +97,9 @@ void plat_video_menu_enter(int is_rom_loaded)
 		memset(gp2x_screens[1], 0, 320*240*2);
 		gp2x_video_flip2(); // might flip to fb2/3
 		gp2x_video_flip2(); // ..so we do it again
-		// gp2x_video_wait_vsync();
 	}
+	else
+		gp2x_video_flip2();
 
 	// switch to 16bpp
 	gp2x_video_changemode_ll(16);
@@ -85,14 +108,11 @@ void plat_video_menu_enter(int is_rom_loaded)
 
 void plat_video_menu_begin(void)
 {
-	memcpy(g_screen_ptr, gp2x_screens[2], 320*240*2);
 	g_menuscreen_ptr = g_screen_ptr;
 }
 
 void plat_video_menu_end(void)
 {
-	// FIXME
-	// gp2x_video_flush_cache();
 	gp2x_video_flip2();
 }
 
@@ -126,7 +146,9 @@ void plat_early_init(void)
 		break;
 	}
 
-	gp2x_menu_init();
+	// just use gettimeofday until plat_init()
+	gp2x_get_ticks_ms = plat_get_ticks_ms_good;
+	gp2x_get_ticks_us = plat_get_ticks_us_good;
 }
 
 void plat_init(void)
@@ -156,6 +178,12 @@ void plat_init(void)
 
 	// snd
 	sndout_oss_init();
+
+	if (gp2x_dev_id == GP2X_DEV_CAANOO)
+		in_set_config(in_name_to_id("evdev:pollux-analog"), IN_CFG_KEY_NAMES,
+				caanoo_keys, sizeof(caanoo_keys));
+
+	gp2x_menu_init();
 }
 
 void plat_finish(void)

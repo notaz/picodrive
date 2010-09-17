@@ -21,10 +21,10 @@ static int menu_loop_cscaler(menu_id id, int keys)
 
 	for (;;)
 	{
-		plat_video_menu_begin();
+		menu_draw_begin(0);
 		memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
 		text_out16(2, 480 - 18, "%dx%d | d-pad to resize, R+d-pad to move", g_layer_cw, g_layer_ch);
-		plat_video_menu_end();
+		menu_draw_end();
 
 		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_R|PBTN_MOK|PBTN_MBACK, 40);
 		if (inp & PBTN_UP)    g_layer_cy--;
@@ -82,6 +82,7 @@ static int menu_loop_cscaler(menu_id id, int keys)
 
 static menu_entry e_menu_gfx_options[];
 static menu_entry e_menu_options[];
+static menu_entry e_menu_keyconfig[];
 
 void pnd_menu_init(void)
 {
@@ -141,7 +142,9 @@ void pnd_menu_init(void)
 	e_menu_gfx_options[i].data = (void *)mfilters;
 	pnd_filter_list = mfilters;
 
-	i = me_id2offset(e_menu_options, MA_OPT_SCALING);
-	e_menu_options[i]->name = "Max CPU clock";
+	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
+	e_menu_options[i].name = "Max CPU clock";
+
+	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, 0);
 }
 

@@ -294,13 +294,15 @@ static void SkipFrame(void)
 }
 
 /* forced frame to front buffer */
-void pemu_forced_frame(int opts, int no_scale)
+void pemu_forced_frame(int no_scale, int do_emu)
 {
 	int po_old = PicoOpt;
 	int eo_old = currentConfig.EmuOpt;
 
 	PicoOpt &= ~0x10;
-	PicoOpt |= opts|POPT_ACC_SPRITES;
+	PicoOpt |= POPT_ACC_SPRITES;
+	if (!no_scale)
+		PicoOpt |= POPT_EN_SOFTSCALE;
 	currentConfig.EmuOpt |= 0x80;
 
 	if (giz_screen == NULL)

@@ -18,6 +18,7 @@
 #include "../common/menu.h"
 #include "../common/plat.h"
 #include "../common/arm_utils.h"
+#include "../common/input.h"
 #include "../linux/sndout_oss.h"
 #include "../linux/fbdev.h"
 #include "plat.h"
@@ -26,6 +27,7 @@
 
 #include <pico/pico_int.h>
 
+#include <linux/input.h>
 
 static struct vout_fbdev *main_fb, *layer_fb;
 static int g_layer_x, g_layer_y;
@@ -39,6 +41,23 @@ static unsigned char __attribute__((aligned(4))) fb_copy[g_screen_width * g_scre
 unsigned char *PicoDraw2FB = temp_frame;
 const char *renderer_names[] = { NULL };
 const char *renderer_names32x[] = { NULL };
+
+static const char * const pandora_gpio_keys[KEY_MAX + 1] = {
+	[0 ... KEY_MAX] = NULL,
+	[KEY_UP]	= "Up",
+	[KEY_LEFT]	= "Left",
+	[KEY_RIGHT]	= "Right",
+	[KEY_DOWN]	= "Down",
+	[KEY_HOME]	= "A",
+	[KEY_PAGEDOWN]	= "X",
+	[KEY_END]	= "B",
+	[KEY_PAGEUP]	= "Y",
+	[KEY_RIGHTSHIFT]= "L",
+	[KEY_RIGHTCTRL]	= "R",
+	[KEY_LEFTALT]	= "Start",
+	[KEY_LEFTCTRL]	= "Select",
+	[KEY_MENU]	= "Pandora",
+};
 
 static int get_cpu_clock(void)
 {
@@ -137,7 +156,6 @@ void plat_video_menu_enter(int is_rom_loaded)
 
 void plat_video_menu_begin(void)
 {
-	memcpy32(g_menuscreen_ptr, g_menubg_ptr, g_menuscreen_w * g_menuscreen_h * 2 / 4);
 }
 
 void plat_video_menu_end(void)
@@ -189,23 +207,45 @@ void plat_update_volume(int has_changed, int is_up)
 	}
 }
 
-void pemu_forced_frame(int opts, int no_scale)
+static void make_bg(void)
 {
-	int oldscale = currentConfig.scaling;
+	unsigned short *s = (void *)fb_copy;
+	unsigned int t, *d = (unsigned int *)g_menubg_src_ptr + 80 / 2;
+	int x, y;
+
+	memset32(g_menubg_src_ptr, 0, 800 * 480 * 2 / 4);
+
+	for (y = 0; y < 240; y++, s += 320, d += 800*2/2) {
+		for (x = 0; x < 320; x++) {
+			t = s[x];
+			t |= t << 16;
+			d[x] = d[x + 800 / 2] = t;
+		}
+	}
+}
+
+void pemu_forced_frame(int no_scale, int do_emu)
+{
 	int po_old = PicoOpt;
 
-	if (no_scale) {
-		currentConfig.scaling = SCALE_1x1;
-		emu_video_mode_change(8, 224, 0);
-	}
+	memset32(g_screen_ptr, 0, g_screen_width * g_screen_height * 2 / 4);
 
-	PicoOpt |= opts|POPT_ACC_SPRITES;
+	PicoOpt |= POPT_ACC_SPRITES;
+	if (!no_scale)
+		PicoOpt |= POPT_EN_SOFTSCALE;
 
+	PicoDrawSetOutFormat(PDF_RGB555, 1);
 	Pico.m.dirtyPal = 1;
-	PicoFrameDrawOnly();
+	if (do_emu)
+		PicoFrame();
+	else
+		PicoFrameDrawOnly();
+
+	// making a copy because enabling the layer clears it's mem
+	memcpy32((void *)fb_copy, g_screen_ptr, sizeof(fb_copy) / 4);
+	make_bg(); // FIXME: honour no_scale
 
 	PicoOpt = po_old;
-	currentConfig.scaling = oldscale;
 }
 
 static void updateSound(int len)
@@ -425,23 +465,6 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 	plat_video_flip();
 }
 
-static void make_bg(void)
-{
-	unsigned short *s = (void *)fb_copy;
-	unsigned int t, *d = (unsigned int *)g_menubg_src_ptr + 80 / 2;
-	int x, y;
-
-	memset32(g_menubg_src_ptr, 0, 800 * 480 * 2 / 4);
-
-	for (y = 0; y < 240; y++, s += 320, d += 800*2/2) {
-		for (x = 0; x < 320; x++) {
-			t = s[x];
-			t |= t << 16;
-			d[x] = d[x + 800 / 2] = t;
-		}
-	}
-}
-
 void pemu_loop_prep(void)
 {
 	static int pal_old = -1;
@@ -481,28 +504,12 @@ void pemu_loop_prep(void)
 
 void pemu_loop_end(void)
 {
-	int po_old = PicoOpt;
-	int eo_old = currentConfig.EmuOpt;
-
 	pemu_sound_stop();
-	memset32(g_screen_ptr, 0, g_screen_width * g_screen_height * 2 / 4);
 
 	/* do one more frame for menu bg */
-	PicoOpt |= POPT_EN_SOFTSCALE|POPT_ACC_SPRITES;
-	currentConfig.EmuOpt |= EOPT_16BPP;
-
-	PicoDrawSetOutFormat(PDF_RGB555, 1);
-	Pico.m.dirtyPal = 1;
-	PicoFrame();
-
-	// making a copy because enabling the layer clears it's mem
-	memcpy32((void *)fb_copy, g_screen_ptr, sizeof(fb_copy) / 4);
-	make_bg();
+	pemu_forced_frame(0, 1);
 
 	pnd_setup_layer(0, g_layer_x, g_layer_y, g_layer_w, g_layer_h);
-
-	PicoOpt = po_old;
-	currentConfig.EmuOpt = eo_old;
 }
 
 void plat_wait_till_us(unsigned int us_to)
@@ -613,6 +620,9 @@ void plat_init(void)
 
 	sndout_oss_init();
 	pnd_menu_init();
+
+	in_set_config(in_name_to_id("evdev:gpio-keys"), IN_CFG_KEY_NAMES,
+		      pandora_gpio_keys, sizeof(pandora_gpio_keys));
 	return;
 
 fail1:

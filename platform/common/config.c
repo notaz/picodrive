@@ -53,10 +53,10 @@ static int seek_sect(FILE *f, const char *section)
 static void keys_write(FILE *fn, const char *bind_str, int dev_id, const int *binds, int no_defaults)
 {
 	char act[48];
-	int key_count, k, i;
+	int key_count = 0, k, i;
 	const int *def_binds;
 
-	key_count = in_get_dev_info(dev_id, IN_INFO_BIND_COUNT);
+	in_get_config(dev_id, IN_CFG_BIND_COUNT, &key_count);
 	def_binds = in_get_dev_def_binds(dev_id);
 
 	for (k = 0; k < key_count; k++)
@@ -268,6 +268,8 @@ write:
 		int dummy;
 		if (!me->need_to_save)
 			continue;
+		if (me->name == NULL || me->name[0] == 0)
+			continue;
 
 		if (me->beh == MB_OPT_ONOFF || me->beh == MB_OPT_CUSTONOFF) {
 			if (!no_defaults || ((*(int *)me->var ^ default_var(me)) & me->mask))
@@ -285,7 +287,7 @@ write:
 					goto write_line;
 				}
 		}
-		else if (me->name != NULL && me->generate_name != NULL) {
+		else if (me->generate_name != NULL) {
 			if (!no_defaults || !is_cust_val_default(me)) {
 				strncpy(line, me->generate_name(0, &dummy), sizeof(line));
 				goto write_line;
@@ -318,7 +320,7 @@ write_line:
 		const int *binds = in_get_dev_binds(t);
 		const char *name = in_get_dev_name(t, 0, 0);
 		char strbind[16];
-		int count;
+		int count = 0;
 
 		if (binds == NULL || name == NULL)
 			continue;
@@ -326,7 +328,7 @@ write_line:
 		sprintf(strbind, "bind%d", t);
 		if (t == 0) strbind[4] = 0;
 
-		count = in_get_dev_info(t, IN_INFO_BIND_COUNT);
+		in_get_config(t, IN_CFG_BIND_COUNT, &count);
 		keys_write(fn, strbind, t, binds, no_defaults);
 	}
 
@@ -670,47 +672,45 @@ static void parse(const char *var, const char *val)
 
 		if (!me->need_to_save)
 			continue;
-		if (me->name != NULL && me->name[0] != 0) {
-			if (strcasecmp(var, me->name) != 0)
-				continue; /* surely not this one */
-			if (me->beh == MB_OPT_ONOFF) {
-				tmp = strtol(val, &p, 0);
-				if (*p != 0)
-					goto bad_val;
-				if (tmp) *(int *)me->var |=  me->mask;
-				else     *(int *)me->var &= ~me->mask;
-				return;
-			}
-			else if (me->beh == MB_OPT_RANGE) {
-				tmp = strtol(val, &p, 0);
-				if (*p != 0)
-					goto bad_val;
-				if (tmp < me->min) tmp = me->min;
-				if (tmp > me->max) tmp = me->max;
-				*(int *)me->var = tmp;
-				return;
-			}
-			else if (me->beh == MB_OPT_ENUM) {
-				const char **names, *p1;
-				int i;
+		if (me->name == NULL || strcasecmp(var, me->name) != 0)
+			continue;
 
-				names = (const char **)me->data;
-				if (names == NULL)
-					goto bad_val;
-				for (i = 0; names[i] != NULL; i++) {
-					for (p1 = names[i]; *p1 == ' '; p1++)
-						;
-					if (strcasecmp(p1, val) == 0) {
-						*(int *)me->var = i;
-						return;
-					}
-				}
+		if (me->beh == MB_OPT_ONOFF) {
+			tmp = strtol(val, &p, 0);
+			if (*p != 0)
 				goto bad_val;
-			}
+			if (tmp) *(int *)me->var |=  me->mask;
+			else     *(int *)me->var &= ~me->mask;
+			return;
 		}
-		if (!custom_read(me, var, val))
-			break;
-		return;
+		else if (me->beh == MB_OPT_RANGE) {
+			tmp = strtol(val, &p, 0);
+			if (*p != 0)
+				goto bad_val;
+			if (tmp < me->min) tmp = me->min;
+			if (tmp > me->max) tmp = me->max;
+			*(int *)me->var = tmp;
+			return;
+		}
+		else if (me->beh == MB_OPT_ENUM) {
+			const char **names, *p1;
+			int i;
+
+			names = (const char **)me->data;
+			if (names == NULL)
+				goto bad_val;
+			for (i = 0; names[i] != NULL; i++) {
+				for (p1 = names[i]; *p1 == ' '; p1++)
+					;
+				if (strcasecmp(p1, val) == 0) {
+					*(int *)me->var = i;
+					return;
+				}
+			}
+			goto bad_val;
+		}
+		else if (custom_read(me, var, val))
+			return;
 	}
 
 	lprintf("config_readsect: unhandled var: \"%s\"\n", var);

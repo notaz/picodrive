@@ -387,6 +387,7 @@ void pollux_finish(void)
 		memregl[0xf004>>2] = pllsetreg0;
 		memregl[0xf07c>>2] |= 0x8000;
 	}
+	timer_cleanup();
 
 	munmap((void *)memregs, 0x20000);
 	close(memdev);

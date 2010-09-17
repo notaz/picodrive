@@ -314,6 +314,17 @@ void menu_init(void)
 	}
 }
 
+static void menu_draw_begin(int need_bg)
+{
+	plat_video_menu_begin();
+	if (need_bg)
+		memcpy(g_menuscreen_ptr, g_menubg_ptr, g_menuscreen_w * g_menuscreen_h * 2);
+}
+
+static void menu_draw_end(void)
+{
+	plat_video_menu_end();
+}
 
 static void menu_darken_bg(void *dst, void *src, int pixels, int darker)
 {
@@ -342,12 +353,8 @@ static void menu_enter(int is_rom_loaded)
 {
 	if (is_rom_loaded)
 	{
-		void *src = g_menubg_src_ptr;
-		if (src == NULL)
-			src = g_menuscreen_ptr;
-
 		// darken the active framebuffer
-		menu_darken_bg(g_menubg_ptr, src, g_menuscreen_w * g_menuscreen_h, 1);
+		menu_darken_bg(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h, 1);
 	}
 	else
 	{
@@ -466,7 +473,7 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 	y = g_menuscreen_h / 2 - h / 2;
 
 	/* draw */
-	plat_video_menu_begin();
+	menu_draw_begin(1);
 	menu_draw_selection(x, y + vi_sel_ln * me_mfont_h, w);
 	x += me_mfont_w * 2;
 
@@ -547,7 +554,7 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 	if (draw_more != NULL)
 		draw_more();
 
-	plat_video_menu_end();
+	menu_draw_end();
 }
 
 static int me_process(menu_entry *entry, int is_next, int is_lr)
@@ -687,7 +694,7 @@ static void draw_menu_credits(void)
 	if (x < 0) x = 0;
 	if (y < 0) y = 0;
 
-	plat_video_menu_begin();
+	menu_draw_begin(1);
 
 	for (p = creds; *p != 0 && y <= g_menuscreen_h - me_mfont_h; y += me_mfont_h) {
 		text_out16(x, y, p);
@@ -698,7 +705,7 @@ static void draw_menu_credits(void)
 			p++;
 	}
 
-	plat_video_menu_end();
+	menu_draw_end();
 }
 
 // --------- loading ROM screen ----------
@@ -708,20 +715,25 @@ static int cdload_called = 0;
 static void load_progress_cb(int percent)
 {
 	int ln, len = percent * g_menuscreen_w / 100;
-	unsigned short *dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_w * me_sfont_h * 2;
+	unsigned short *dst;
 
 	if (len > g_menuscreen_w)
 		len = g_menuscreen_w;
+
+	menu_draw_begin(0);
+	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_w * me_sfont_h * 2;
 	for (ln = me_sfont_h - 2; ln > 0; ln--, dst += g_menuscreen_w)
 		memset(dst, 0xff, len * 2);
-	plat_video_menu_end();
+	menu_draw_end();
 }
 
 static void cdload_progress_cb(const char *fname, int percent)
 {
 	int ln, len = percent * g_menuscreen_w / 100;
-	unsigned short *dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_w * me_sfont_h * 2;
+	unsigned short *dst;
 
+	menu_draw_begin(0);
+	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_w * me_sfont_h * 2;
 	memset(dst, 0xff, g_menuscreen_w * (me_sfont_h - 2) * 2);
 
 	smalltext_out16(1, 3 * me_sfont_h, "Processing CD image / MP3s", 0xffff);
@@ -730,10 +742,11 @@ static void cdload_progress_cb(const char *fname, int percent)
 
 	if (len > g_menuscreen_w)
 		len = g_menuscreen_w;
+
 	for (ln = (me_sfont_h - 2); ln > 0; ln--, dst += g_menuscreen_w)
 		memset(dst, 0xff, len * 2);
+	menu_draw_end();
 
-	plat_video_menu_end();
 	cdload_called = 1;
 }
 
@@ -747,10 +760,10 @@ void menu_romload_prepare(const char *rom_name)
 
 	/* fill all buffers, callbacks won't update in full */
 	for (i = 0; i < 3; i++) {
-		plat_video_menu_begin();
+		menu_draw_begin(1);
 		smalltext_out16(1, 1, "Loading", 0xffff);
 		smalltext_out16(1, me_sfont_h, p, 0xffff);
-		plat_video_menu_end();
+		menu_draw_end();
 	}
 
 	PicoCartLoadProgressCB = load_progress_cb;
@@ -762,9 +775,11 @@ void menu_romload_end(void)
 {
 	PicoCartLoadProgressCB = NULL;
 	PicoCDLoadProgressCB = NULL;
+
+	menu_draw_begin(0);
 	smalltext_out16(1, (cdload_called ? 6 : 3) * me_sfont_h,
 		"Starting emulation...", 0xffff);
-	plat_video_menu_end();
+	menu_draw_end();
 }
 
 // -------------- del confirm ---------------
@@ -775,7 +790,7 @@ static void do_delete(const char *fpath, const char *fname)
 	const char *nm;
 	char tmp[64];
 
-	plat_video_menu_begin();
+	menu_draw_begin(1);
 
 	if (!rom_loaded)
 		menu_darken_bg(g_menuscreen_ptr, g_menuscreen_ptr, g_menuscreen_w * g_menuscreen_h, 0);
@@ -797,7 +812,7 @@ static void do_delete(const char *fpath, const char *fname)
 	len = strlen(tmp);
 
 	text_out16(mid - me_mfont_w * len / 2, 12 * me_mfont_h, tmp);
-	plat_video_menu_end();
+	menu_draw_end();
 
 	while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MA2));
 	inp = in_menu_wait(PBTN_MA3|PBTN_MBACK, 100);
@@ -832,7 +847,7 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 	start = max_cnt / 2 - sel;
 	n--; // exclude current dir (".")
 
-	plat_video_menu_begin();
+	menu_draw_begin(1);
 
 //	if (!rom_loaded)
 //		menu_darken_bg(gp2x_screen, 320*240, 0);
@@ -856,7 +871,7 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 		}
 	}
 	smalltext_out16(5, max_cnt/2 * me_sfont_h, ">", 0xffff);
-	plat_video_menu_end();
+	menu_draw_end();
 }
 
 static int scandir_cmp(const void *p1, const void *p2)
@@ -1038,7 +1053,7 @@ static void draw_patchlist(int sel)
 	max_cnt = g_menuscreen_h / me_sfont_h;
 	start = max_cnt / 2 - sel;
 
-	plat_video_menu_begin();
+	menu_draw_begin(1);
 
 	for (i = 0; i < PicoPatchCount; i++) {
 		pos = start + i;
@@ -1053,7 +1068,7 @@ static void draw_patchlist(int sel)
 		smalltext_out16(14, pos * me_sfont_h, "done", 0xffff);
 
 	text_out16(5, max_cnt / 2 * me_sfont_h, ">");
-	plat_video_menu_end();
+	menu_draw_end();
 }
 
 static void menu_loop_patches(void)
@@ -1109,8 +1124,9 @@ static void draw_savestate_bg(int slot)
 	PicoStateLoadGfx(fname);
 
 	/* do a frame and fetch menu bg */
-	pemu_forced_frame(POPT_EN_SOFTSCALE, 0);
-	menu_enter(1);
+	pemu_forced_frame(0, 0);
+
+	menu_darken_bg(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h, 1);
 
 	PicoTmpStateRestore(tmp_state);
 }
@@ -1129,7 +1145,7 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 	y = g_menuscreen_h / 2 - h / 2;
 	if (y < 0) y = 0;
 
-	plat_video_menu_begin();
+	menu_draw_begin(1);
 
 	text_out16(x, y, is_loading ? "Load state" : "Save state");
 	y += 3 * me_mfont_h;
@@ -1143,7 +1159,7 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 	}
 	text_out16(x, y, "back");
 
-	plat_video_menu_end();
+	menu_draw_end();
 }
 
 static int menu_loop_savestate(int is_loading)
@@ -1199,7 +1215,7 @@ static int menu_loop_savestate(int is_loading)
 
 static char *action_binds(int player_idx, int action_mask, int dev_id)
 {
-	int k, count, can_combo, type;
+	int k, count = 0, can_combo = 0, type;
 	const int *binds;
 
 	static_buff[0] = 0;
@@ -1208,8 +1224,8 @@ static char *action_binds(int player_idx, int action_mask, int dev_id)
 	if (binds == NULL)
 		return static_buff;
 
-	count = in_get_dev_info(dev_id, IN_INFO_BIND_COUNT);
-	can_combo = in_get_dev_info(dev_id, IN_INFO_DOES_COMBOS);
+	in_get_config(dev_id, IN_CFG_BIND_COUNT, &count);
+	in_get_config(dev_id, IN_CFG_DOES_COMBOS, &can_combo);
 
 	type = IN_BINDTYPE_EMU;
 	if (player_idx >= 0) {
@@ -1244,13 +1260,13 @@ static int count_bound_keys(int dev_id, int action_mask, int bindtype)
 {
 	const int *binds;
 	int k, keys = 0;
-	int count;
+	int count = 0;
 
 	binds = in_get_dev_binds(dev_id);
 	if (binds == NULL)
 		return 0;
 
-	count = in_get_dev_info(dev_id, IN_INFO_BIND_COUNT);
+	in_get_config(dev_id, IN_CFG_BIND_COUNT, &count);
 	for (k = 0; k < count; k++)
 	{
 		if (binds[IN_BIND_OFFS(k, bindtype)] & action_mask)
@@ -1273,7 +1289,7 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 	if (x < me_mfont_w * 2)
 		x = me_mfont_w * 2;
 
-	plat_video_menu_begin();
+	menu_draw_begin(1);
 	if (player_idx >= 0)
 		text_out16(x, y, "Player %i controls", player_idx + 1);
 	else
@@ -1309,12 +1325,12 @@ static void draw_key_config(const me_bind_action *opts, int opt_cnt, int player_
 		text_out16(x, g_menuscreen_h - 2 * me_mfont_h, "Press left/right for other devs");
 	}
 
-	plat_video_menu_end();
+	menu_draw_end();
 }
 
 static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_idx)
 {
-	int i, sel = 0, menu_sel_max = opt_cnt - 1;
+	int i, sel = 0, menu_sel_max = opt_cnt - 1, does_combos = 0;
 	int dev_id, dev_count, kc, is_down, mkey;
 	int unbind, bindtype, mask_shift;
 
@@ -1383,8 +1399,8 @@ static void key_config_loop(const me_bind_action *opts, int opt_cnt, int player_
 		unbind = (i > 0);
 
 		/* allow combos if device supports them */
-		if (i == 1 && bindtype == IN_BINDTYPE_EMU &&
-				in_get_dev_info(dev_id, IN_INFO_DOES_COMBOS))
+		in_get_config(dev_id, IN_CFG_DOES_COMBOS, &does_combos);
+		if (i == 1 && bindtype == IN_BINDTYPE_EMU && does_combos)
 			unbind = 0;
 
 		if (unbind)
@@ -1477,6 +1493,7 @@ static menu_entry e_menu_keyconfig[] =
 	mee_handler_id("Emulator controls", MA_CTRL_EMU,        key_config_loop_wrap),
 	mee_onoff     ("6 button pad",      MA_OPT_6BUTTON_PAD, PicoOpt, POPT_6BTN_PAD),
 	mee_range     ("Turbo rate",        MA_CTRL_TURBO_RATE, currentConfig.turbo_rate, 1, 30),
+	mee_range     ("Analog deadzone",   MA_CTRL_DEADZONE,   currentConfig.analog_deadzone, 1, 99),
 	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG, mh_saveloadcfg, mgn_saveloadcfg),
 	mee_cust_nosave("Save cfg for loaded game", MA_OPT_SAVECFG_GAME, mh_saveloadcfg, mgn_saveloadcfg),
 	mee_label     (""),
@@ -1834,7 +1851,7 @@ static menu_entry e_menu_options[] =
 	mee_onoff     ("Enable sound",             MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, EOPT_EN_SOUND),
 	mee_cust      ("Sound Quality",            MA_OPT_SOUND_QUALITY, mh_opt_misc, mgn_opt_sound),
 	mee_enum_h    ("Confirm savestate",        MA_OPT_CONFIRM_STATES,currentConfig.confirm_save, men_confirm_save, h_confirm_save),
-	mee_range     ("",                         MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 900),
+	mee_range     ("",                         MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 1200),
 	mee_handler   ("[Display options]",        menu_loop_gfx_options),
 	mee_handler   ("[Sega/Mega CD options]",   menu_loop_cd_options),
 #ifndef NO_32X
@@ -1854,7 +1871,7 @@ static int menu_loop_options(menu_id id, int keys)
 	int i;
 
 	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
-	e_menu_options[i].enabled = e_menu_options[i].name ? 1 : 0;
+	e_menu_options[i].enabled = e_menu_options[i].name[0] ? 1 : 0;
 	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, rom_loaded);
 	me_enable(e_menu_options, MA_OPT_LOADCFG, config_slot != config_slot_current);
 
@@ -1926,8 +1943,8 @@ static void draw_frame_debug(void)
 	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)  memcpy(layer_str + 19, "spr_hi", 6);
 	if (PicoDrawMask & PDRAW_32X_ON)         memcpy(layer_str + 26, "32x", 4);
 
-	memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
-	pemu_forced_frame(0, 0);
+	pemu_forced_frame(1, 0);
+	memcpy(g_menuscreen_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
 	smalltext_out16(4, 1, "build: r" REVISION "  "__DATE__ " " __TIME__ " " COMPILER, 0xffff);
 	smalltext_out16(4, g_menuscreen_h - me_sfont_h, layer_str, 0xffff);
 }
@@ -1940,10 +1957,10 @@ static void debug_menu_loop(void)
 
 	while (1)
 	{
+		menu_draw_begin(1);
 		switch (mode)
 		{
-			case 0: plat_video_menu_begin();
-				tmp = PDebugMain();
+			case 0: tmp = PDebugMain();
 				plat_debug_cat(tmp);
 				draw_text_debug(tmp, 0, 0);
 				if (dumped) {
@@ -1954,9 +1971,8 @@ static void debug_menu_loop(void)
 				break;
 			case 1: draw_frame_debug();
 				break;
-			case 2: memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
-				pemu_forced_frame(0, 1);
-				menu_darken_bg(g_menuscreen_ptr, g_menuscreen_ptr, g_menuscreen_w * g_menuscreen_h, 0);
+			case 2: pemu_forced_frame(1, 0);
+				menu_darken_bg(g_menuscreen_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h, 0);
 				PDebugShowSpriteStats((unsigned short *)g_menuscreen_ptr + (g_menuscreen_h/2 - 240/2)*g_menuscreen_w +
 					g_menuscreen_w/2 - 320/2, g_menuscreen_w);
 				break;
@@ -1966,12 +1982,11 @@ static void debug_menu_loop(void)
 					g_menuscreen_w, spr_offs);
 				draw_text_debug(PDebugSpriteList(), spr_offs, 6);
 				break;
-			case 4: plat_video_menu_begin();
-				tmp = PDebug32x();
+			case 4: tmp = PDebug32x();
 				draw_text_debug(tmp, 0, 0);
 				break;
 		}
-		plat_video_menu_end();
+		menu_draw_end();
 
 		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK|PBTN_MA2|PBTN_MA3|PBTN_L|PBTN_R |
 					PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT, 70);
@@ -2118,7 +2133,7 @@ void menu_loop(void)
 	me_enable(e_menu_main, MA_MAIN_PATCHES, PicoPatches != NULL);
 
 	menu_enter(rom_loaded);
-	in_set_blocking(1);
+	in_set_config_int(0, IN_CFG_BLOCKING, 1);
 	me_loop(e_menu_main, &sel, menu_main_plat_draw);
 
 	if (rom_loaded) {
@@ -2129,7 +2144,7 @@ void menu_loop(void)
 			;
 	}
 
-	in_set_blocking(0);
+	in_set_config_int(0, IN_CFG_BLOCKING, 0);
 }
 
 // --------- CD tray close menu ----------
@@ -2167,7 +2182,7 @@ int menu_loop_tray(void)
 
 	menu_enter(rom_loaded);
 
-	in_set_blocking(1);
+	in_set_config_int(0, IN_CFG_BLOCKING, 1);
 	me_loop(e_menu_tray, &sel, NULL);
 
 	if (engineState != PGS_RestartRun) {
@@ -2176,7 +2191,7 @@ int menu_loop_tray(void)
 	}
 
 	while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK));
-	in_set_blocking(0);
+	in_set_config_int(0, IN_CFG_BLOCKING, 0);
 
 	return ret;
 }

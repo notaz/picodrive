@@ -76,6 +76,7 @@ typedef struct _currentConfig_t {
 	int renderer;
 	int renderer32x;
 	int filter; // pandora
+	int analog_deadzone;
 } currentConfig_t;
 
 extern currentConfig_t currentConfig, defaultConfig;

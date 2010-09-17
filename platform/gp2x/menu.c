@@ -82,6 +82,7 @@ const char *men_scaling_opts[] = { "OFF", "software", "hardware", NULL };
 static menu_entry e_menu_adv_options[];
 static menu_entry e_menu_gfx_options[];
 static menu_entry e_menu_options[];
+static menu_entry e_menu_keyconfig[];
 
 void gp2x_menu_init(void)
 {
@@ -120,5 +121,8 @@ void gp2x_menu_init(void)
 
 	if (gp2x_dev_id != GP2X_DEV_GP2X)
 		men_scaling_opts[2] = NULL; /* leave only off and sw */
+
+	if (gp2x_dev_id != GP2X_DEV_CAANOO)
+		me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, 0);
 }
 

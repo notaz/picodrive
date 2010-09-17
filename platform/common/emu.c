@@ -1256,7 +1256,7 @@ static void run_events_ui(unsigned int which)
 
 			plat_status_msg_busy_first(tmp);
 
-			in_set_blocking(1);
+			in_set_config_int(0, IN_CFG_BLOCKING, 1);
 			while (in_menu_wait_any(50) & (PBTN_MA3|PBTN_MBACK))
 				;
 			while ( !((keys = in_menu_wait_any(50)) & (PBTN_MA3|PBTN_MBACK)) )
@@ -1265,7 +1265,7 @@ static void run_events_ui(unsigned int which)
 				do_it = 0;
 			while (in_menu_wait_any(50) & (PBTN_MA3|PBTN_MBACK))
 				;
-			in_set_blocking(0);
+			in_set_config_int(0, IN_CFG_BLOCKING, 0);
 		}
 		if (do_it) {
 			plat_status_msg_busy_first((which & PEV_STATE_LOAD) ? "LOADING STATE" : "SAVING STATE");

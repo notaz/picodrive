@@ -74,15 +74,13 @@ int main(int argc, char *argv[])
 
 	plat_early_init();
 
-	/* in_init() must go before config, config accesses in_ fwk */
 	in_init();
-	emu_prep_defconfig();
-	emu_read_config(NULL, 0);
-	config_readlrom(PicoConfigFile);
+	in_probe();
 
 	plat_init();
-	in_probe();
-	in_debug_dump();
+
+	emu_prep_defconfig(); // depends on input
+	emu_read_config(NULL, 0);
 
 	emu_init();
 	menu_init();
