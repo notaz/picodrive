@@ -17,6 +17,7 @@
 
 #include "plat_gp2x.h"
 #include "soc.h"
+#include "soc_pollux.h"
 #include "../common/plat.h"
 #include "../common/menu.h"
 #include "../common/arm_utils.h"
@@ -733,21 +734,22 @@ void pemu_sound_start(void)
 	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
 	{
 		int is_stereo = (PicoOpt & POPT_EN_STEREO) ? 1 : 0;
-		int target_fps = Pico.m.pal ? 50 : 60;
-		int frame_samples, snd_excess_add;
 		int snd_rate_oss = PsndRate;
 		gp2x_soc_t soc;
 
+		memset(sndBuffer, 0, sizeof(sndBuffer));
+		PsndOut = sndBuffer;
+		PicoWriteSound = updateSound;
+		plat_update_volume(0, 0);
+
+		printf("starting audio: %i len: %i stereo: %i, pal: %i\n",
+			PsndRate, PsndLen, is_stereo, Pico.m.pal);
+		sndout_oss_start(snd_rate_oss, is_stereo, 1);
+		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
+
 		soc = soc_detect();
-		if (soc == SOCID_POLLUX) {
-			/* POLLUX pain: DPLL1 / mclk_div / bitclk_div / 4 */
-			switch (PsndRate) {
-			case 44100: PsndRate = 44171; break; // 44170.673077
-			case 22050: PsndRate = 22086; break; // 22085.336538
-			case 11025: PsndRate = 11043; break; // 11042.668269
-			default: break;
-			}
-		}
+		if (soc == SOCID_POLLUX)
+			PsndRate = pollux_get_real_snd_rate(PsndRate);
 
 		#define SOUND_RERATE_FLAGS (POPT_EN_FM|POPT_EN_PSG|POPT_EN_STEREO|POPT_EXT_FM|POPT_EN_MCD_CDDA)
 		if (PsndRate != PsndRate_old || Pico.m.pal != pal_old || ((PicoOpt & POPT_EXT_FM) && crashed_940) ||
@@ -755,40 +757,25 @@ void pemu_sound_start(void)
 			PsndRerate(Pico.m.frame_count ? 1 : 0);
 		}
 
-		memset(sndBuffer, 0, sizeof(sndBuffer));
-		PsndOut = sndBuffer;
-		PicoWriteSound = updateSound;
 		PsndRate_old = PsndRate;
 		PicoOpt_old  = PicoOpt;
 		pal_old = Pico.m.pal;
-		plat_update_volume(0, 0);
-
-		frame_samples = PsndLen;
-		snd_excess_add = ((PsndRate - PsndLen * target_fps)<<16) / target_fps;
-		if (snd_excess_add != 0)
-			frame_samples++;
-		if (soc == SOCID_POLLUX)
-			frame_samples *= 2;	/* force larger buffer */
-
-		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, snd_excess_add, is_stereo, Pico.m.pal);
-		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
-		sndout_oss_start(snd_rate_oss, frame_samples, is_stereo);
-
-		/* Wiz's sound hardware needs more prebuffer */
-		if (soc == SOCID_POLLUX)
-			updateSound(frame_samples);
 	}
 }
 
+static const int sound_rates[] = { 44100, 32000, 22050, 16000, 11025, 8000 };
+
 void pemu_sound_stop(void)
 {
-	/* get back from Wiz pain */
-	switch (PsndRate) {
-		case 44171: PsndRate = 44100; break;
-		case 22086: PsndRate = 22050; break;
-		case 11043: PsndRate = 11025; break;
-		default: break;
+	int i;
+
+	/* get back from Pollux pain */
+	PsndRate += 1000;
+	for (i = 0; i < ARRAY_SIZE(sound_rates); i++) {
+		if (PsndRate >= sound_rates[i]) {
+			PsndRate = sound_rates[i];
+			break;
+		}
 	}
 }
 
@@ -801,7 +788,6 @@ void pemu_forced_frame(int no_scale, int do_emu)
 {
 	int po_old = PicoOpt;
 
-	doing_bg_frame = 1;
 	PicoOpt &= ~POPT_ALT_RENDERER;
 	PicoOpt |= POPT_ACC_SPRITES;
 	if (!no_scale)
@@ -815,13 +801,14 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
 
+	doing_bg_frame = 1;
 	if (do_emu)
 		PicoFrame();
 	else
 		PicoFrameDrawOnly();
+	doing_bg_frame = 0;
 
 	g_menubg_src_ptr = g_screen_ptr;
-	doing_bg_frame = 0;
 	PicoOpt = po_old;
 }
 

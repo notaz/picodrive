@@ -39,7 +39,8 @@ static int fbdev = -1;
 
 static char cpuclk_was_changed = 0;
 static unsigned short memtimex_old[2];
-static unsigned int pllsetreg0;
+static unsigned int pllsetreg0_old;
+static unsigned int timer_drift; // count per real second
 static int last_pal_setting = 0;
 
 
@@ -219,13 +220,13 @@ static int gp2x_read_battery_(void)
 #define TIMER_BASE3 0x1980
 #define TIMER_REG(x) memregl[(TIMER_BASE3 + x) >> 2]
 
-unsigned int gp2x_get_ticks_us_(void)
+static unsigned int gp2x_get_ticks_us_(void)
 {
 	TIMER_REG(0x08) = 0x4b;  /* run timer, latch value */
 	return TIMER_REG(0);
 }
 
-unsigned int gp2x_get_ticks_ms_(void)
+static unsigned int gp2x_get_ticks_ms_(void)
 {
 	/* approximate /= 1000 */
 	unsigned long long v64;
@@ -261,10 +262,42 @@ static int decode_pll(unsigned int reg)
 	return v;
 }
 
+int pollux_get_real_snd_rate(int req_rate)
+{
+	int clk0_src, clk1_src, rate, div;
+
+	clk0_src = (memregl[0xdbc4>>2] >> 1) & 7;
+	clk1_src = (memregl[0xdbc8>>2] >> 1) & 7;
+	if (clk0_src > 1 || clk1_src != 7) {
+		fprintf(stderr, "get_real_snd_rate: bad clk sources: %d %d\n", clk0_src, clk1_src);
+		return req_rate;
+	}
+
+	rate = decode_pll(clk0_src ? memregl[0xf008>>2] : memregl[0xf004>>2]);
+
+	// apply divisors
+	div = ((memregl[0xdbc4>>2] >> 4) & 0x1f) + 1;
+	rate /= div;
+	div = ((memregl[0xdbc8>>2] >> 4) & 0x1f) + 1;
+	rate /= div;
+	rate /= 64;
+
+	//printf("rate %d\n", rate);
+	rate -= rate * timer_drift / 1000000;
+	printf("adjusted rate: %d\n", rate);
+
+	if (rate < 8000-1000 || rate > 44100+1000) {
+		fprintf(stderr, "get_real_snd_rate: got bad rate: %d\n", rate);
+		return req_rate;
+	}
+
+	return rate;
+}
+
 void pollux_init(void)
 {
 	struct fb_fix_screeninfo fbfix;
-	int i, ret, rate;
+	int i, ret, rate, timer_div;
 
 	memdev = open("/dev/mem", O_RDWR);
 	if (memdev == -1) {
@@ -320,16 +353,18 @@ void pollux_init(void)
 	/* find what PLL1 runs at, for the timer */
 	rate = decode_pll(memregl[0xf008>>2]);
 	printf("PLL1 @ %dHz\n", rate);
-	rate /= 1000000;
 
 	/* setup timer */
-	if (1 <= rate && rate <= 256) {
+	timer_div = (rate + 500000) / 1000000;
+	if (1 <= timer_div && timer_div <= 256) {
+		timer_drift = (rate - (timer_div * 1000000)) / timer_div;
+
 		if (TIMER_REG(0x08) & 8) {
 			fprintf(stderr, "warning: timer in use, overriding!\n");
 			timer_cleanup();
 		}
 
-		TIMER_REG(0x44) = ((rate - 1) << 4) | 2; /* using PLL1, divide by it's rate */
+		TIMER_REG(0x44) = ((timer_div - 1) << 4) | 2; /* using PLL1, divide by it's rate */
 		TIMER_REG(0x40) = 0x0c;  /* clocks on */
 		TIMER_REG(0x08) = 0x6b;  /* run timer, clear irq, latch value */
 
@@ -344,7 +379,7 @@ void pollux_init(void)
 		gp2x_get_ticks_us = plat_get_ticks_us_good;
 	}
 
-	pllsetreg0 = memregl[0xf004>>2];
+	pllsetreg0_old = memregl[0xf004>>2];
 	memtimex_old[0] = memregs[0x14802>>1];
 	memtimex_old[1] = memregs[0x14804>>1];
 
@@ -384,7 +419,7 @@ void pollux_finish(void)
 	gp2x_video_changemode_ll_(16);
 	unset_ram_timings_();
 	if (cpuclk_was_changed) {
-		memregl[0xf004>>2] = pllsetreg0;
+		memregl[0xf004>>2] = pllsetreg0_old;
 		memregl[0xf07c>>2] |= 0x8000;
 	}
 	timer_cleanup();

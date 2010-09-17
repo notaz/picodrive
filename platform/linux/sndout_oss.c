@@ -12,6 +12,7 @@
 static int sounddev = -1, mixerdev = -1;
 static int can_write_safe;
 
+#define FRAG_COUNT 4
 
 int sndout_oss_init(void)
 {
@@ -35,14 +36,14 @@ void sndout_oss_stop(void)
 	sounddev = -1;
 }
 
-int sndout_oss_start(int rate, int frame_samples, int stereo)
+int sndout_oss_start(int rate, int stereo, int frames_in_frag)
 {
-	static int s_oldrate = 0, s_old_fsamples = 0, s_oldstereo = 0;
+	static int s_oldrate = 0, s_oldstereo = 0;
 	int frag, bsize, bits, ret;
 
 	// GP2X: if no settings change, we don't need to do anything,
 	// since audio is never stopped there
-	if (sounddev >= 0 && rate == s_oldrate && s_old_fsamples == frame_samples && s_oldstereo == stereo)
+	if (sounddev >= 0 && rate == s_oldrate && s_oldstereo == stereo)
 		return 0;
 
 	sndout_oss_stop();
@@ -57,14 +58,15 @@ int sndout_oss_start(int rate, int frame_samples, int stereo)
 		}
 	}
 
-	// calculate buffer size. We want to fit 1 frame worth of sound data.
-	// Also ignore mono because both GP2X and Wiz mixes mono to stereo anyway.
-	bsize = frame_samples << 2;
+	// try to fit frames_in_frag frames worth of data in fragment
+	// ignore mono because it's unlikely to be used and
+	// both GP2X and Wiz mixes mono to stereo anyway.
+	bsize = (frames_in_frag * rate / 50) * 4;
 
 	for (frag = 0; bsize; bsize >>= 1, frag++)
 		;
 
-	frag |= 16 << 16;	// fragment count
+	frag |= FRAG_COUNT << 16;	// fragment count
 	ret = ioctl(sounddev, SNDCTL_DSP_SETFRAGMENT, &frag);
 	if (ret < 0)
 		perror("SNDCTL_DSP_SETFRAGMENT failed");
@@ -86,7 +88,7 @@ int sndout_oss_start(int rate, int frame_samples, int stereo)
 	printf("sndout_oss_start: %d/%dbit/%s, %d buffers of %i bytes\n",
 		rate, bits, stereo ? "stereo" : "mono", frag >> 16, 1 << (frag & 0xffff));
 
-	s_oldrate = rate; s_old_fsamples = frame_samples; s_oldstereo = stereo;
+	s_oldrate = rate; s_oldstereo = stereo;
 	can_write_safe = 0;
 	return 0;
 }
@@ -111,8 +113,8 @@ int sndout_oss_can_write(int bytes)
 	if (ret < 0)
 		return 1;
 
-	// have enough bytes to write + 4 extra frags
-	return bi.bytes - bi.fragsize * 4 >= bytes ? 1 : 0;
+	// have enough bytes to write + 1 frag
+	return bi.bytes - bi.fragsize >= bytes ? 1 : 0;
 }
 
 void sndout_oss_sync(void)

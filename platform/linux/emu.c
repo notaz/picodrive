@@ -255,19 +255,13 @@ void pemu_sound_start(void)
 
 	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
 	{
-		int snd_excess_add, frame_samples;
 		int is_stereo = (PicoOpt & POPT_EN_STEREO) ? 1 : 0;
 
 		PsndRerate(Pico.m.frame_count ? 1 : 0);
 
-		frame_samples = PsndLen;
-		snd_excess_add = ((PsndRate - PsndLen * target_fps)<<16) / target_fps;
-		if (snd_excess_add != 0)
-			frame_samples++;
-
-		printf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, snd_excess_add, is_stereo, Pico.m.pal);
-		sndout_oss_start(PsndRate, frame_samples, is_stereo);
+		printf("starting audio: %i len: %i stereo: %i, pal: %i\n",
+			PsndRate, PsndLen, is_stereo, Pico.m.pal);
+		sndout_oss_start(PsndRate, is_stereo, 1);
 		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
 		PicoWriteSound = updateSound;
 		plat_update_volume(0, 0);

@@ -1,5 +1,5 @@
 int  sndout_oss_init(void);
-int  sndout_oss_start(int rate, int frame_samples, int stereo);
+int  sndout_oss_start(int rate, int stereo, int frames_in_frag);
 void sndout_oss_stop(void);
 int  sndout_oss_write(const void *buff, int len);
 int  sndout_oss_can_write(int bytes);
