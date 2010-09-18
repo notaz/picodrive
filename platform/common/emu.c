@@ -497,11 +497,13 @@ int emu_reload_rom(char *rom_fname)
 
 	get_ext(rom_fname, ext);
 
-	// check for movie file
+	// early cleanup
+	PicoPatchUnload();
 	if (movie_data) {
 		free(movie_data);
 		movie_data = 0;
 	}
+
 	if (!strcmp(ext, ".gmv"))
 	{
 		// check for both gmv and rom
@@ -558,7 +560,6 @@ int emu_reload_rom(char *rom_fname)
 	}
 
 	shutdown_MCD();
-	PicoPatchUnload();
 	PicoCartUnload();
 	rom_loaded = 0;
 
