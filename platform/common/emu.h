@@ -146,6 +146,9 @@ void  emu_get_game_name(char *str150);
 void  emu_set_fastforward(int set_on);
 void  emu_status_msg(const char *format, ...);
 
+/* used by some (but not all) platforms */
+void  emu_cmn_forced_frame(int no_scale, int do_emu);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

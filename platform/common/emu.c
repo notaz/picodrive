@@ -1350,6 +1350,26 @@ static void mkdir_path(char *path_with_reserve, int pos, const char *name)
 		lprintf("failed to create: %s\n", path_with_reserve);
 }
 
+void emu_cmn_forced_frame(int no_scale, int do_emu)
+{
+	int po_old = PicoOpt;
+
+	memset32(g_screen_ptr, 0, g_screen_width * g_screen_height * 2 / 4);
+
+	PicoOpt |= POPT_ACC_SPRITES;
+	if (!no_scale)
+		PicoOpt |= POPT_EN_SOFTSCALE;
+
+	PicoDrawSetOutFormat(PDF_RGB555, 1);
+	Pico.m.dirtyPal = 1;
+	if (do_emu)
+		PicoFrame();
+	else
+		PicoFrameDrawOnly();
+
+	PicoOpt = po_old;
+}
+
 void emu_init(void)
 {
 	char path[512];

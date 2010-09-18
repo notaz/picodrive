@@ -375,7 +375,8 @@ PICO_INTERNAL void PsndGetSamples(int y)
 #if SIMPLE_WRITE_SOUND
   if (y != 224) return;
   PsndRender(0, PsndLen);
-  if (PicoWriteSound) PicoWriteSound(PsndLen);
+  if (PicoWriteSound)
+    PicoWriteSound(PsndLen * ((PicoOpt & POPT_EN_STEREO) ? 4 : 2));
   PsndClear();
 #else
   static int curr_pos = 0;
@@ -385,8 +386,11 @@ PICO_INTERNAL void PsndGetSamples(int y)
     if (emustatus & 2)
          curr_pos += PsndRender(curr_pos, PsndLen-PsndLen/2);
     else curr_pos  = PsndRender(0, PsndLen);
-    if (emustatus&1) emustatus|=2; else emustatus&=~2;
-    if (PicoWriteSound) PicoWriteSound(curr_pos);
+    if (emustatus & 1)
+         emustatus |=  2;
+    else emustatus &= ~2;
+    if (PicoWriteSound)
+      PicoWriteSound(curr_pos * ((PicoOpt & POPT_EN_STEREO) ? 4 : 2));
     // clear sound buffer
     PsndClear();
   }
@@ -424,7 +428,7 @@ PICO_INTERNAL void PsndGetSamplesMS(void)
   }
 
   if (PicoWriteSound != NULL)
-    PicoWriteSound(length);
+    PicoWriteSound(length * ((PicoOpt & POPT_EN_STEREO) ? 4 : 2));
   PsndClear();
 }
 

@@ -273,10 +273,8 @@ static void stdbg(const char *fmt, ...)
 
 static void updateSound(int len)
 {
-	if (PicoOpt&8) len<<=1;
-
-	snd_all_samples += len;
-	PsndOut += len;
+	snd_all_samples += len / 2;
+	PsndOut += len / 2;
 	if (PsndOut - snd_cbuff >= snd_cbuf_samples)
 	{
 		//if (PsndOut - snd_cbuff != snd_cbuf_samples)

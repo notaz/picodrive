@@ -90,7 +90,7 @@ void PicoLoopPrepare(void);
 void PicoFrame(void);
 void PicoFrameDrawOnly(void);
 extern int PicoPad[2]; // Joypads, format is MXYZ SACB RLDU
-extern void (*PicoWriteSound)(int len); // called once per frame at the best time to send sound buffer (PsndOut) to hardware
+extern void (*PicoWriteSound)(int bytes); // called once per frame at the best time to send sound buffer (PsndOut) to hardware
 extern void (*PicoMessage)(const char *msg); // callback to output text message from emu
 typedef enum { PI_ROM, PI_ISPAL, PI_IS40_CELL, PI_IS240_LINES } pint_t;
 typedef union { int vint; void *vptr; } pint_ret_t;

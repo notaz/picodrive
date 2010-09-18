@@ -210,47 +210,27 @@ void plat_update_volume(int has_changed, int is_up)
 
 void pemu_forced_frame(int no_scale, int do_emu)
 {
-	int po_old = PicoOpt;
-
-	memset32(g_screen_ptr, 0, g_screen_width * g_screen_height * 2 / 4);
-
-	PicoOpt &= ~POPT_ALT_RENDERER;
-	PicoOpt |= POPT_ACC_SPRITES;
-	if (!no_scale)
-		PicoOpt |= POPT_EN_SOFTSCALE;
-
-	PicoDrawSetOutFormat(PDF_RGB555, 1);
 	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 	PicoDraw32xSetFrameMode(0, 0);
-
+	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
-	if (do_emu)
-		PicoFrame();
-	else
-		PicoFrameDrawOnly();
+
+	emu_cmn_forced_frame(no_scale, do_emu);
 
 	g_menubg_src_ptr = g_screen_ptr;
-	PicoOpt = po_old;
 }
 
-static void updateSound(int len)
+static void oss_write_nonblocking(int len)
 {
-	len <<= 1;
-	if (PicoOpt & POPT_EN_STEREO)
-		len <<= 1;
-
+	// sndout_oss_can_write() is not reliable, only use with no_frmlimit
 	if ((currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) && !sndout_oss_can_write(len))
 		return;
 
-	/* avoid writing audio when lagging behind to prevent audio lag */
-	if (PicoSkipFrame != 2)
-		sndout_oss_write(PsndOut, len);
+	sndout_oss_write_nb(PsndOut, len);
 }
 
 void pemu_sound_start(void)
 {
-	int target_fps = Pico.m.pal ? 50 : 60;
-
 	PsndOut = NULL;
 
 	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
@@ -263,7 +243,7 @@ void pemu_sound_start(void)
 			PsndRate, PsndLen, is_stereo, Pico.m.pal);
 		sndout_oss_start(PsndRate, is_stereo, 1);
 		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
-		PicoWriteSound = updateSound;
+		PicoWriteSound = oss_write_nonblocking;
 		plat_update_volume(0, 0);
 		memset(sndBuffer, 0, sizeof(sndBuffer));
 		PsndOut = sndBuffer;

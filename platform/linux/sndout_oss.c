@@ -98,6 +98,42 @@ int sndout_oss_write(const void *buff, int len)
 	return write(sounddev, buff, len);
 }
 
+#include "../common/plat.h"
+
+/* not really non-blocking, just detects if blocking occurs
+ * and starts skipping writes in case it does. */
+int sndout_oss_write_nb(const void *buff, int len)
+{
+	static int lag_counter, skip_counter;
+	unsigned int t;
+	int ret;
+
+	if (lag_counter > 2) {
+		// skip writes if audio starts blocking
+		lag_counter = 0;
+		skip_counter = FRAG_COUNT;
+	}
+
+	if (skip_counter > 0) {
+		skip_counter--;
+		return len;
+	}
+
+	t = plat_get_ticks_ms();
+	ret = sndout_oss_write(buff, len);
+	t = plat_get_ticks_ms() - t;
+	if (t > 1) {
+		// this shouldn't really happen, most likely audio is out of sync
+		lag_counter++;
+		if (lag_counter > 2)
+			printf("audio lag %u\n", t);
+	}
+	else
+		lag_counter = 0;
+
+	return ret;
+}
+
 int sndout_oss_can_write(int bytes)
 {
 	audio_buf_info bi;

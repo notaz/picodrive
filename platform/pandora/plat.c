@@ -240,51 +240,22 @@ static void make_bg(int no_scale)
 
 void pemu_forced_frame(int no_scale, int do_emu)
 {
-	int po_old = PicoOpt;
-
-	memset32(g_screen_ptr, 0, g_screen_width * g_screen_height * 2 / 4);
-
-	PicoOpt |= POPT_ACC_SPRITES;
-	if (!no_scale)
-		PicoOpt |= POPT_EN_SOFTSCALE;
-
-	PicoDrawSetOutFormat(PDF_RGB555, 1);
-	Pico.m.dirtyPal = 1;
 	doing_bg_frame = 1;
-	if (do_emu)
-		PicoFrame();
-	else
-		PicoFrameDrawOnly();
+	emu_cmn_forced_frame(no_scale, do_emu);
 	doing_bg_frame = 0;
 
 	// making a copy because enabling the layer clears it's mem
 	memcpy32((void *)fb_copy, g_screen_ptr, sizeof(fb_copy) / 4);
 	make_bg(no_scale);
-
-	PicoOpt = po_old;
 }
 
-static void updateSound(int len)
+static void oss_write_nonblocking(int len)
 {
-	unsigned int t;
-
-	len <<= 1;
-	if (PicoOpt & POPT_EN_STEREO)
-		len <<= 1;
-
-	// sndout_oss_can_write() not reliable..
+	// sndout_oss_can_write() is not reliable, only use with no_frmlimit
 	if ((currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) && !sndout_oss_can_write(len))
 		return;
 
-	/* avoid writing audio when lagging behind to prevent audio lag */
-	if (PicoSkipFrame == 2)
-		return;
-
-	t = plat_get_ticks_ms();
-	sndout_oss_write(PsndOut, len);
-	t = plat_get_ticks_ms() - t;
-	if (t > 1)
-		printf("audio lag %u\n", t);
+	sndout_oss_write_nb(PsndOut, len);
 }
 
 void pemu_sound_start(void)
@@ -308,7 +279,7 @@ void pemu_sound_start(void)
 			PsndRate, PsndLen, is_stereo, Pico.m.pal);
 		sndout_oss_start(PsndRate, is_stereo, 2);
 		//sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
-		PicoWriteSound = updateSound;
+		PicoWriteSound = oss_write_nonblocking;
 		plat_update_volume(0, 0);
 		memset(sndBuffer, 0, sizeof(sndBuffer));
 		PsndOut = sndBuffer;
