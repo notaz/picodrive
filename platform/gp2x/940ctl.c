@@ -275,8 +275,6 @@ void sharedmem940_finish(void)
 }
 
 
-extern char **g_argv;
-
 void YM2612Init_940(int baseclock, int rate)
 {
 	printf("YM2612Init_940()\n");

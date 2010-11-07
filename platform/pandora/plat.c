@@ -5,7 +5,6 @@
 
 #include <stdio.h>
 #include <unistd.h>
-#include <stdarg.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -625,15 +624,5 @@ void plat_finish(void)
 	oshide_finish();
 
 	printf("all done\n");
-}
-
-/* lprintf */
-void lprintf(const char *fmt, ...)
-{
-	va_list vl;
-
-	va_start(vl, fmt);
-	vprintf(fmt, vl);
-	va_end(vl);
 }
 

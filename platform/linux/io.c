@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 
 #include "../common/emu.h"
 #include "../common/menu.h"
@@ -362,15 +361,5 @@ void mp3_start_play(void *f, int pos)
 
 void mp3_update(int *buffer, int length, int stereo)
 {
-}
-
-/* lprintf */
-void lprintf(const char *fmt, ...)
-{
-	va_list vl;
-
-	va_start(vl, fmt);
-	vprintf(fmt, vl);
-	va_end(vl);
 }
 

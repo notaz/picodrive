@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include <dirent.h>
 #include <sys/time.h>
 #include <time.h>
@@ -22,17 +23,22 @@ int plat_is_dir(const char *path)
 
 int plat_get_root_dir(char *dst, int len)
 {
-	extern char **g_argv;
-	int j;
+	int j, ret;
 
-	strncpy(dst, g_argv[0], len);
-	len -= 32; // reserve
-	if (len < 0) len = 0;
-	dst[len] = 0;
+	ret = readlink("/proc/self/exe", dst, len - 1);
+	if (ret < 0) {
+		perror("readlink");
+		ret = 0;
+	}
+	dst[ret] = 0;
+
 	for (j = strlen(dst); j > 0; j--)
-		if (dst[j] == '/') { dst[j+1] = 0; break; }
+		if (dst[j] == '/') {
+			dst[++j] = 0;
+			break;
+		}
 
-	return j + 1;
+	return 0;
 }
 
 #ifdef __GP2X__
@@ -140,5 +146,15 @@ void *plat_mremap(void *ptr, size_t oldsize, size_t newsize)
 void plat_munmap(void *ptr, size_t size)
 {
 	munmap(ptr, size);
+}
+
+/* lprintf */
+void lprintf(const char *fmt, ...)
+{
+	va_list vl;
+
+	va_start(vl, fmt);
+	vprintf(fmt, vl);
+	va_end(vl);
 }
 

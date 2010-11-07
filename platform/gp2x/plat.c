@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 
 #include "plat_gp2x.h"
 #include "soc.h"
@@ -207,14 +206,5 @@ void plat_finish(void)
 	}
 
 	sndout_oss_exit();
-}
-
-void lprintf(const char *fmt, ...)
-{
-	va_list vl;
-
-	va_start(vl, fmt);
-	vprintf(fmt, vl);
-	va_end(vl);
 }
 
