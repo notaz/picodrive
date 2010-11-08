@@ -608,6 +608,28 @@ const char *in_get_key_name(int dev_id, int keycode)
 	return xname;
 }
 
+int in_get_key_code(int dev_id, const char *key_name)
+{
+	in_dev_t *dev;
+	int i;
+
+	if (dev_id < 0)		/* want last used dev? */
+		dev_id = menu_last_used_dev;
+
+	if (dev_id < 0 || dev_id >= IN_MAX_DEVS)
+		return -1;
+
+	dev = &in_devices[dev_id];
+	if (dev->key_names == NULL)
+		return -1;
+
+	for (i = 0; i < dev->key_count; i++)
+		if (dev->key_names[i] && strcasecmp(dev->key_names[i], key_name) == 0)
+			return i;
+
+	return -1;
+}
+
 int in_bind_key(int dev_id, int keycode, int mask, int bind_type, int force_unbind)
 {
 	int ret, count;
