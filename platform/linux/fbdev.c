@@ -1,3 +1,10 @@
+/*
+ * (C) Gražvydas "notaz" Ignotas, 2009-2010
+ *
+ * This work is licensed under the terms of the GNU LGPL, version 2.1 or later.
+ * See the COPYING file in the top-level directory.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
