@@ -570,7 +570,9 @@ static void in_evdev_get_def_binds(int *binds)
 {
 	int i;
 
-	for (i = 0; in_evdev_defbinds[i].bit != 0; i++) {
+	for (i = 0; ; i++) {
+		if (in_evdev_defbinds[i].bit == 0 && in_evdev_defbinds[i].code == 0)
+			break;
 		binds[IN_BIND_OFFS(in_evdev_defbinds[i].code, in_evdev_defbinds[i].btype)] =
 			1 << in_evdev_defbinds[i].bit;
 	}
