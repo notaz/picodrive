@@ -520,6 +520,8 @@ static int in_evdev_menu_translate(void *drv_data, int keycode)
 	return 0;
 }
 
+/* FIXME: move to plat */
+#if 0
 static const struct {
 	short code;
 	char btype;
@@ -553,16 +555,16 @@ static const struct {
 	{ BTN_PINKIE,	IN_BINDTYPE_EMU, PEVB_STATE_LOAD },
 	{ BTN_BASE,	IN_BINDTYPE_EMU, PEVB_MENU },
 };
-
-#define DEF_BIND_COUNT (sizeof(in_evdev_def_binds) / sizeof(in_evdev_def_binds[0]))
+#endif
 
 static void in_evdev_get_def_binds(int *binds)
 {
 	int i;
 
-	for (i = 0; i < DEF_BIND_COUNT; i++)
-		binds[IN_BIND_OFFS(in_evdev_def_binds[i].code, in_evdev_def_binds[i].btype)] =
-			1 << in_evdev_def_binds[i].bit;
+	for (i = 0; in_evdev_defbinds[i].bit != 0; i++) {
+		binds[IN_BIND_OFFS(in_evdev_defbinds[i].code, in_evdev_defbinds[i].btype)] =
+			1 << in_evdev_defbinds[i].bit;
+	}
 }
 
 /* remove binds of missing keys, count remaining ones */
