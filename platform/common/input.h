@@ -87,6 +87,11 @@ typedef struct {
 	const char * (*get_key_name)(int keycode);
 } in_drv_t;
 
+struct in_default_bind {
+	unsigned short code;
+	unsigned char btype;    /* IN_BINDTYPE_* */
+	unsigned char bit;
+};
 
 /* to be called by drivers */
 void in_register(const char *nname, int drv_id, int drv_fd_hnd, void *drv_data,
