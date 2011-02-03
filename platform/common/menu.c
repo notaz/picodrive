@@ -1,7 +1,12 @@
-// (c) Copyright 2006-2010 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
+/*
+ * (C) Gražvydas "notaz" Ignotas, 2006-2010
+ *
+ * This work is licensed under the terms of any of these licenses
+ * (at your option):
+ *  - GNU GPL, version 2 or later.
+ *  - GNU LGPL, version 2.1 or later.
+ * See the COPYING file in the top-level directory.
+ */
 
 #include <stdio.h>
 #include <string.h>
@@ -341,26 +346,6 @@ static void menu_darken_bg(void *dst, void *src, int pixels, int darker)
 	}
 }
 
-static void menu_enter(int is_rom_loaded)
-{
-	if (is_rom_loaded)
-	{
-		// darken the active framebuffer
-		menu_darken_bg(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h, 1);
-	}
-	else
-	{
-		char buff[256];
-
-		// should really only happen once, on startup..
-		emu_make_path(buff, "skin/background.png", sizeof(buff));
-		if (readpng(g_menubg_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h) < 0)
-			memset(g_menubg_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
-	}
-
-	plat_video_menu_enter(is_rom_loaded);
-}
-
 static int me_id2offset(const menu_entry *ent, menu_id id)
 {
 	int i;
@@ -461,8 +446,11 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 		h = g_menuscreen_h;
 	}
 
-	x = g_menuscreen_w  / 2 - w / 2;
+	x = g_menuscreen_w / 2 - w / 2;
 	y = g_menuscreen_h / 2 - h / 2;
+#ifdef MENU_ALIGN_LEFT
+	if (x > 12) x = 12;
+#endif
 
 	/* draw */
 	menu_draw_begin(1);
@@ -511,7 +499,7 @@ static void me_draw(const menu_entry *entries, int sel, void (*draw_more)(void))
 				len = strlen(names[i]);
 				if (len > 10)
 					offs = 10 - len - 2;
-				if (i == *(int *)ent->var) {
+				if (i == *(unsigned char *)ent->var) {
 					text_out16(x + col2_offs + offs * me_mfont_w, y, "%s", names[i]);
 					break;
 				}
@@ -652,7 +640,7 @@ static void me_loop(menu_entry *menu, int *menu_sel, void (*draw_more)(void))
 
 /* ***************************************** */
 
-static void draw_menu_credits(void)
+static void draw_menu_credits(void (*draw_more)(void))
 {
 	const char *creds, *p;
 	int x, y, h, w, wt;
@@ -670,7 +658,7 @@ static void draw_menu_credits(void)
 		p++;
 	}
 
-	x = g_menuscreen_w  / 2 - w * me_mfont_w / 2;
+	x = g_menuscreen_w / 2 - w * me_mfont_w / 2;
 	y = g_menuscreen_h / 2 - h * me_mfont_h / 2;
 	if (x < 0) x = 0;
 	if (y < 0) y = 0;
@@ -685,6 +673,9 @@ static void draw_menu_credits(void)
 		if (*p != 0)
 			p++;
 	}
+
+	if (draw_more != NULL)
+		draw_more();
 
 	menu_draw_end();
 }
@@ -726,22 +717,6 @@ static void do_delete(const char *fpath, const char *fname)
 
 // -------------- ROM selector --------------
 
-// rrrr rggg gggb bbbb
-static unsigned short file2color(const char *fname)
-{
-	const char *ext = fname + strlen(fname) - 3;
-	static const char *rom_exts[]   = { "zip", "bin", "smd", "gen", "iso", "cso", "cue" };
-	static const char *other_exts[] = { "gmv", "pat" };
-	int i;
-
-	if (ext < fname) ext = fname;
-	for (i = 0; i < array_size(rom_exts); i++)
-		if (strcasecmp(ext, rom_exts[i]) == 0) return 0xbdff; // FIXME: mk defines
-	for (i = 0; i < array_size(other_exts); i++)
-		if (strcasecmp(ext, other_exts[i]) == 0) return 0xaff5;
-	return 0xffff;
-}
-
 static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 {
 	int max_cnt, start, i, x, pos;
@@ -770,7 +745,7 @@ static void draw_dirlist(char *curdir, struct dirent **namelist, int n, int sel)
 			smalltext_out16(x, pos * me_sfont_h, "/", 0xfff6);
 			smalltext_out16(x + me_sfont_w, pos * me_sfont_h, namelist[i+1]->d_name, 0xfff6);
 		} else {
-			unsigned short color = file2color(namelist[i+1]->d_name);
+			unsigned short color = fname2color(namelist[i+1]->d_name);
 			smalltext_out16(x, pos * me_sfont_h, namelist[i+1]->d_name, color);
 		}
 	}
@@ -897,9 +872,12 @@ rescan:
 			{
 				int newlen;
 				char *p, *newdir;
-				if (!(inp & PBTN_MOK)) continue;
+				if (!(inp & PBTN_MOK))
+					continue;
 				newlen = strlen(curr_path) + strlen(namelist[sel+1]->d_name) + 2;
 				newdir = malloc(newlen);
+				if (newdir == NULL)
+					break;
 				if (strcmp(namelist[sel+1]->d_name, "..") == 0) {
 					char *start = curr_path;
 					p = start + strlen(start) - 1;
@@ -945,6 +923,13 @@ rescan:
 		free(namelist);
 	}
 
+	// restore curr_path
+	if (fname != NULL) {
+		n = strlen(curr_path);
+		if (curr_path + n + 1 == fname)
+			curr_path[n] = '/';
+	}
+
 	return ret;
 }
 
@@ -979,6 +964,10 @@ static void draw_savestate_menu(int menu_sel, int is_loading)
 	if (x < 0) x = 0;
 	y = g_menuscreen_h / 2 - h / 2;
 	if (y < 0) y = 0;
+#ifdef MENU_ALIGN_LEFT
+	if (x > 12 + me_mfont_w * 2)
+		x = 12 + me_mfont_w * 2;
+#endif
 
 	menu_draw_begin(1);
 

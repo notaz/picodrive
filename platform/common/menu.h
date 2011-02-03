@@ -1,4 +1,12 @@
-// (c) Copyright 2006-2009 notaz, All rights reserved.
+/*
+ * (C) Gražvydas "notaz" Ignotas, 2006-2010
+ *
+ * This work is licensed under the terms of any of these licenses
+ * (at your option):
+ *  - GNU GPL, version 2 or later.
+ *  - GNU LGPL, version 2.1 or later.
+ * See the COPYING file in the top-level directory.
+ */
 
 typedef enum
 {
@@ -29,11 +37,17 @@ typedef struct
 	const char *help;
 } menu_entry;
 
+#define mee_handler_id_h(name, id, handler, help) \
+	{ name, MB_NONE, id, NULL, 0, 0, 0, 1, 0, 1, handler, NULL, NULL, help }
+
 #define mee_handler_id(name, id, handler) \
-	{ name, MB_NONE, id, NULL, 0, 0, 0, 1, 0, 1, handler, NULL, NULL, NULL }
+	mee_handler_id_h(name, id, handler, NULL)
 
 #define mee_handler(name, handler) \
 	mee_handler_id(name, MA_NONE, handler)
+
+#define mee_handler_h(name, handler, help) \
+	mee_handler_id_h(name, MA_NONE, handler, help)
 
 #define mee_label(name) \
 	{ name, MB_NONE, MA_NONE, NULL, 0, 0, 0, 1, 0, 0, NULL, NULL, NULL, NULL }

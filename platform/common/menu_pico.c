@@ -6,6 +6,22 @@
 #include <pico/pico.h>
 #include <pico/patch.h>
 
+// rrrr rggg gggb bbbb
+static unsigned short fname2color(const char *fname)
+{
+	const char *ext = fname + strlen(fname) - 3;
+	static const char *rom_exts[]   = { "zip", "bin", "smd", "gen", "iso", "cso", "cue" };
+	static const char *other_exts[] = { "gmv", "pat" };
+	int i;
+
+	if (ext < fname) ext = fname;
+	for (i = 0; i < array_size(rom_exts); i++)
+		if (strcasecmp(ext, rom_exts[i]) == 0) return 0xbdff; // FIXME: mk defines
+	for (i = 0; i < array_size(other_exts); i++)
+		if (strcasecmp(ext, other_exts[i]) == 0) return 0xaff5;
+	return 0xffff;
+}
+
 #include "menu.c"
 
 /* platform specific options and handlers */
@@ -18,6 +34,26 @@
 #define MENU_OPTIONS_ADV
 #define menu_main_plat_draw NULL
 #endif
+
+static void menu_enter(int is_rom_loaded)
+{
+	if (is_rom_loaded)
+	{
+		// darken the active framebuffer
+		menu_darken_bg(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h, 1);
+	}
+	else
+	{
+		char buff[256];
+
+		// should really only happen once, on startup..
+		emu_make_path(buff, "skin/background.png", sizeof(buff));
+		if (readpng(g_menubg_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h) < 0)
+			memset(g_menubg_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
+	}
+
+	plat_video_menu_enter(is_rom_loaded);
+}
 
 static void draw_savestate_bg(int slot)
 {
