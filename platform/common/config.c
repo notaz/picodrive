@@ -84,7 +84,7 @@ static void keys_write(FILE *fn, const char *bind_str, int dev_id, const int *bi
 			continue;
 		}
 
-		for (i = 0; i < sizeof(me_ctrl_actions) / sizeof(me_ctrl_actions[0]); i++) {
+		for (i = 0; me_ctrl_actions[i].name != NULL; i++) {
 			mask = me_ctrl_actions[i].mask;
 			if (mask & binds[IN_BIND_OFFS(k, IN_BINDTYPE_PLAYER12)]) {
 				strncpy(act, me_ctrl_actions[i].name, 31);
@@ -576,7 +576,7 @@ static int parse_bind_val(const char *val, int *type)
 			shift = 16;
 
 		*type = IN_BINDTYPE_PLAYER12;
-		for (i = 0; i < sizeof(me_ctrl_actions) / sizeof(me_ctrl_actions[0]); i++) {
+		for (i = 0; me_ctrl_actions[i].name != NULL; i++) {
 			if (strncasecmp(me_ctrl_actions[i].name, val + 8, strlen(val + 8)) == 0)
 				return me_ctrl_actions[i].mask << shift;
 		}
