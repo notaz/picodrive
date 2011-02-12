@@ -1,3 +1,6 @@
+#ifndef INCLUDE_uXt8Z4R7EMpuEEtvSibXjNhKH3741VNc
+#define INCLUDE_uXt8Z4R7EMpuEEtvSibXjNhKH3741VNc 1
+
 #define IN_MAX_DEVS 10
 
 /* unified menu keys */
@@ -126,3 +129,5 @@ const char *in_get_key_name(int dev_id, int keycode);
 	int val_ = v; \
 	in_set_config(dev_id, what, &val_, sizeof(val_)); \
 }
+
+#endif /* INCLUDE_uXt8Z4R7EMpuEEtvSibXjNhKH3741VNc */
