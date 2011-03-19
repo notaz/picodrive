@@ -223,8 +223,14 @@ void in_probe(void)
 	int i;
 
 	in_have_async_devs = 0;
-	for (i = 0; i < in_dev_count; i++)
-		in_devices[i].probed = 0;
+	for (i = 0; i < in_dev_count; i++) {
+		in_dev_t *dev = &in_devices[i];
+		if (dev->probed) {
+			DRV(dev->drv_id).free(dev->drv_data);
+			dev->drv_data = NULL;
+			dev->probed = 0;
+		}
+	}
 
 	for (i = 1; i < IN_DRVID_COUNT; i++)
 		in_drivers[i].probe();
