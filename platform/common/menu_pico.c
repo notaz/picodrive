@@ -875,7 +875,7 @@ static int main_menu_handler(int id, int keys)
 		}
 		break;
 	case MA_MAIN_CREDITS:
-		draw_menu_credits();
+		draw_menu_message(, NULL);
 		in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
 		break;
 	case MA_MAIN_EXIT:
