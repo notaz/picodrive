@@ -108,16 +108,15 @@ int  in_update(int *result);
 int  in_update_keycode(int *dev_id, int *is_down, int timeout_ms);
 int  in_menu_wait_any(int timeout_ms);
 int  in_menu_wait(int interesting, int autorep_delay_ms);
-void in_config_start(void);
 int  in_config_parse_dev(const char *dev_name);
 int  in_config_bind_key(int dev_id, const char *key, int binds, int bind_type);
-void in_config_end(void);
 int  in_get_config(int dev_id, int what, void *val);
 int  in_set_config(int dev_id, int what, const void *val, int size);
 int  in_get_key_code(int dev_id, const char *key_name);
 int  in_name_to_id(const char *dev_name);
 int  in_bind_key(int dev_id, int keycode, int mask, int bind_type, int force_unbind);
 void in_unbind_all(int dev_id, int act_mask, int bind_type);
+void in_clean_binds(void);
 void in_debug_dump(void);
 
 const int  *in_get_dev_binds(int dev_id);
