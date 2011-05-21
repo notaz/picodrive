@@ -13,13 +13,15 @@ The base code originates from Dave's (fdave, finalburn) PicoDrive 0.30 for
 Pocket PC. The Sega/Mega CD code is roughly based on Stephane Dallongeville's
 Gens.
 #else
-This is yet another Megadrive / Genesis / Sega CD / Mega CD emulator, which
-was written having ARM-based handheld devices in mind (such as PDAs,
-smartphones and handheld consoles like GP2X and Gizmondo of course).
-The critical parts (renderer, 68K and Z80 cpu interpreters) and some other
-random code is written in ARM asm, other code is C. The base code originates
-from Dave's (fdave, finalburn) PicoDrive 0.30 for Pocket PC. The Sega/Mega CD
-code is roughly based on Stephane Dallongeville's Gens.
+This is yet another Megadrive / Genesis / Sega CD / Mega CD / 32X / SMS
+emulator, which was written having ARM-based handheld devices in mind
+(such as PDAs, smartphones and handheld consoles like GP2X and Gizmondo
+of course).
+The emulator is heavily optimized for ARM, features assembly cores for
+68k, Z80 and VDP chip emulation, also has dynamic recompilers for SH2 and
+SSP16 (for 32X and SVP emulation). It was started by Dave (aka fdave,
+finalburn author) as basic Genesis/Megadrive emulator for Pocket PC,
+then taken over by notaz and developed primarily for GPH devices.
 #endif
 
 PicoDrive is the first emulator ever to properly emulate Virtua Racing and
@@ -31,8 +33,8 @@ How to make it run
 
 #ifdef GP2X
 Extract all files to some directory on your SD and run PicoDrive.gpe from your
-GP2X/Wiz menu. The same .gpe supports GP2X F100/F200 and Wiz, there is no need
-to use separate versions.
+GP2X/Wiz/Caanoo menu. The same .gpe supports GP2X F100/F200, Wiz and Caanoo,
+there is no need to use separate versions.
 Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
 Sega/Mega CD images can be in ISO/CSO+MP3/WAV or CUE+BIN formats (read below
 for more details).
@@ -230,6 +232,9 @@ Enters Display options menu (see below).
 @@0. "[Sega/Mega CD options]"
 Enters Sega/Mega CD options menu (see below).
 
+@@0. "[32X options]"
+Enters 32X options menu (see below).
+
 @@0. "[Advanced options]"
 Enters advanced options menu (see below).
 
@@ -239,7 +244,7 @@ is no game specific config saved (which will be loaded in that case).
 You can press left/right to switch to a different config profile.
 
 @@0. "Save cfg for current game only"
-Whenever you load current ROM again these settings will be loaded
+Whenever you load current ROM again these settings will be loaded.
 
 @@0. "Restore defaults"
 Restores all options (except controls) to defaults.
@@ -259,12 +264,14 @@ mid-frame image changes (raster effects), so it is useful only with some games.
 
 Other two are accurate line-based renderers. The 8bit is faster but does not
 run well with some games like Street Racer.
+
 #endif
 #ifdef GIZ
 This option allows to switch between 16bit and 8bit renderers. The 8bit one is
 a bit faster for some games, but not much, because colors still need to be
 converted to 16bit, as this is what Gizmondo requires. It also introduces
 graphics problems for some games, so it's best to use 16bit one.
+
 #endif
 #ifdef PSP
 This option allows to switch between fast and accurate renderers. The fast one
@@ -272,18 +279,10 @@ is much faster, because it draws the whole frame at a time, instead of doing it
 line by line, like the accurate one does. But because of the way it works it
 can't render any mid-frame image changes (raster effects), so it is useful only
 for some games.
-#endif
-#endif
 
+#endif
+#endif
 #ifdef GP2X
-@@1. "Scaling"
-"hw" means GP2X hardware scaler, which causes no performance loss, but scaled
-image looks a bit blocky. "sw" means software scaling, which uses pixel
-averaging and may look a bit nicer, but blurry. Horizontal scaling is only for
-games which use so called "32 column mode" (256x224 or 256x240), and scales
-image width to 320 pixels. Vertical scales height to 240 for games which use
-height 224 (most of them). Note that Wiz doesn't have the hardware scaler.
-
 @@1. "Tearing Fix"
 Wiz only: works around the tearing problem by using portrait mode. Causes ~5-10%
 performance hit, but eliminates the tearing effect.
@@ -297,7 +296,7 @@ F100/F200 only: If this is enabled, different gamma adjustment method will be
 used (suggested by A_SN from gp32x boards). Intended to be used for F100, makes
 difference for dark and bright colors.
 
-@@1. "Perfect vsync"
+@@1. "Vsync"
 This one adjusts the LCD refresh rate to better match game's refresh rate and
 starts synchronizing rendering with it. Should make scrolling smoother and
 eliminate tearing on F100/F200.
@@ -365,7 +364,7 @@ Scale the image up, but keep 4:3 aspect, by adding black borders.
 Adjust the resizing options to make the game image fullscreen.
 #endif
 #ifdef PANDORA
-To be updated..
+Allows to set up scaling, filtering and vertical sync.
 #endif
 
 
@@ -395,8 +394,8 @@ Here you can enable 64K RAM cart. Format it in BIOS if you do.
 
 @@2. "Scale/Rot. fx"
 The Sega/Mega CD had scaling/rotation chip, which allows effects similar to
-"Mode 7" effects in SNES. Unfortunately emulating it is slow, and very few games
-used it, so it's better to disable this option, unless game really needs it.
+"Mode 7" effects in SNES. Disabling may improve performance but cause graphical
+glitches.
 
 @@2. "Better sync"
 This option is similar to "Perfect synchro" in Gens. Some games require it to run,
@@ -404,30 +403,53 @@ for example most (all?) Wolfteam games, and some other ones. Don't use it for
 games which don't need it, it will just slow them down.
 
 
+32X options
+-----------
+
+@@3. "32X enabled"
+Enables emulation of addon. Option only takes effect when ROM is reloaded.
+
+#ifdef GP2X
+@@3. "32X renderer"
+This currently only affects how the Genesis/MD layers are rendered, which is
+same as "Renderer" in display options.
+
+#endif
+@@3. "PWM sound"
+Emulates PWM sound portion of 32X hardware. Disabling this may greatly improve
+performance for games that dedicate one of SD2s for sound, but will cause
+missing sound effects and instruments.
+
+@@3. "Master SH2 cycles" / "Slave SH2 cycles"
+This allows underclocking the 32X CPUs for better emulation performance. The
+number has the same meaning as cycles in DOSBox, which is cycles per millisecond.
+Underclocking too much may cause various in-game glitches.
+
+
 Advanced configuration
 ----------------------
 
-@@3. "Use SRAM/BRAM savestates"
+@@4. "Use SRAM/BRAM savestates"
 This will automatically read/write SRAM (or BRAM for Sega/Mega CD) savestates for
 games which are using them. SRAM is saved whenever you enter the menu or exit the
 emulator.
 
-@@3. "Disable sprite limit"
+@@4. "Disable sprite limit"
 The MegaDrive/Genesis had a limit on how many sprites (usually smaller moving
 objects) can be displayed on single line. This option allows to disable that
 limit. Note that some games used this to hide unwanted things, so it is not
 always good to enable this option.
 
-@@3. "Emulate Z80"
+@@4. "Emulate Z80"
 Enables emulation of Z80 chip, which was mostly used to drive the other sound chips.
 Some games do complex sync with it, so you must enable it even if you don't use
 sound to be able to play them.
 
-@@3. "Emulate YM2612 (FM)"
+@@4. "Emulate YM2612 (FM)"
 This enables emulation of six-channel FM sound synthesizer chip, which was used to
 produce sound effects and music.
 
-@@3. "Emulate SN76496 (PSG)"
+@@4. "Emulate SN76496 (PSG)"
 This enables emulation of PSG (programmable sound generation) sound chip for
 additional effects.
 
@@ -435,36 +457,36 @@ Note: if you change sound settings AFTER loading a ROM, you may need to reset
 game to get sound. This is because most games initialize sound chips on
 startup, and this data is lost when sound chips are being enabled/disabled.
 
-@@3. "gzip savestates"
+@@4. "gzip savestates"
 This will always apply gzip compression on your savestates, allowing you to
 save some space and load/save time.
 
-@@3. "Don't save last used ROM"
+@@4. "Don't save last used ROM"
 This will disable writing last used ROM to config on exit (what might cause SD
 card corruption according to DaveC).
 
-@@3. "Disable idle loop patching"
+@@4. "Disable idle loop patching"
 Idle loop patching is used to improve performance, but may cause compatibility
 problems in some rare cases. Try disabling this if your game has problems.
 
-@@3. "Disable frame limiter"
+@@4. "Disable frame limiter"
 This allows games to run faster then 50/60fps, useful for benchmarking.
 
 #ifdef GP2X
-@@3. "Use ARM940 core for sound"
+@@4. "Use ARM940 core for sound"
 F100/F200: This option causes PicoDrive to use ARM940T core (GP2X's second CPU)
 for sound (i.e. to generate YM2612 samples) to improve performance noticeably.
 It also decodes MP3s in Sega/Mega CD mode.
 
-@@3. "RAM overclock"
+@@4. "RAM overclock"
 This overclocks the GP2X RAM chips for improved performance, but may cause
 instability. Keep it enabled if it doesn't cause problems.
 
-@@3. "MMU hack"
+@@4. "MMU hack"
 Makes framebuffer bufferable for improved performance. There are no drawbacks
 so it should be left enabled.
 
-@@3. "SVP dynarec"
+@@4. "SVP dynarec"
 This enables dynamic recompilation for SVP chip emulated for Virtua Racing game,
 what improves it's emulation performance greatly.
 #endif
@@ -540,7 +562,7 @@ VDP: yes, except some quirks and modes not used by games
 YM2612 FM: yes, optimized MAME core
 SN76489 PSG: yes, MAME core
 SVP chip: yes! This is first emu to ever do this.
-Some in-cart mappers are supported too.
+Some in-cart mappers are also supported.
 
 Sega/Mega CD:
 #ifdef PSP
@@ -553,11 +575,15 @@ PCM sound source: yes
 CD-ROM controller: yes (mostly)
 bram (internal backup RAM): yes
 
+32X:
+2x SH2 @ 23MHz: yes, custom recompiler
+Super VDP: yes
+PWM: yes
+
 
 Problems / limitations
 ----------------------
 
-* 32x is not emulated.
 #ifdef PSP
 * SVP emulation is terribly slow.
 #endif
@@ -573,7 +599,7 @@ Credits
 This emulator is made of the code from following people/projects:
 
 notaz
-GP2X, UIQ, PSP, Gizmondo ports, CPU core hacks,
+GP2X, UIQ, PSP, Gizmondo ports, CPU core hacks, dynamic recompilers,
 lots of additional coding (see changelog).
 Homepage: http://notaz.gp2x.de/
 
@@ -627,7 +653,7 @@ Additional thanks
 * Haze for his research (http://haze.mameworld.info).
 * Lordus, Exophase and Rokas for various ideas.
 * Nemesis for his YM2612 research.
-* Many posters at spritesmind.net forums valuable information.
+* Many posters at spritesmind.net forums for valuable information.
 * Mark and Jean-loup for zlib library.
 * ketchupgun for the skin.
 #ifdef GP2X
@@ -657,6 +683,20 @@ Additional thanks
 
 Changelog
 ---------
+1.80
+  + Added Caanoo support. Now the GP2X binary supports GP2X F100/F200, Wiz
+    and Caanoo. Lots of internal refactoring to support this.
+  + Enabled 32X and SMS code. It's still unfinished but better release something
+    now than wait even more (it has been in development for more then a year now
+    due to various other projects or simply lack of time).
+  + Pandora: added hardware scaler support, including ability to resize the
+    layer and control filtering.
+  + GP2X: Added basic line-doubling vertical scaling option.
+  * Changed the way keys are bound, no need to unbind old one any more.
+  * Handle MP3s with ID3 tags better (some MP3s with ID3 did not play).
+  * Improved shadow/hilight color levels.
+  * Fixed broken cheat support.
+
 1.80beta2
   * Pandora: updated documentation.
 

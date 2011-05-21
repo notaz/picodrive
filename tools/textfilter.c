@@ -25,17 +25,19 @@ static int check_defines(const char **defs, int defcount, char *tdef)
 
 static void do_counters(char *str)
 {
-	static int counters[4] = { 1, 1, 1, 1 };
+	static int counter_id = -1, counter;
 	char buff[1024];
-	int counter;
 	char *s = str;
 
 	while ((s = strstr(s, "@@")))
 	{
-		if (s[2] < '0' || s[2] > '3') { s++; continue; }
+		if (s[2] < '0' || s[2] > '9') { s++; continue; }
 
-		counter = s[2] - '0';
-		snprintf(buff, sizeof(buff), "%i%s", counters[counter]++, s + 3);
+		if (counter_id != s[2] - '0') {
+			counter_id = s[2] - '0';
+			counter = 1;
+		}
+		snprintf(buff, sizeof(buff), "%i%s", counter++, s + 3);
 		strcpy(s, buff);
 	}
 }
