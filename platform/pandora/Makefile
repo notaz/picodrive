@@ -97,7 +97,7 @@ platform/common/menu.o: menu.c
 
 # ----------- release -----------
 
-VER = $(shell head -n 1 version.h | sed 's/.*"\(.*\)\.\(.*\)".*/\1\2/g')
+VER ?= $(shell head -n 1 version.h | sed 's/.*"\(.*\)\.\(.*\)".*/\1\2/g')
 
 rel: PicoDrive PicoDrive.run picorestore ../../pico/carthw.cfg readme.txt \
 	skin PicoDrive.png PicoDrive_p.png PicoDrive.pxml

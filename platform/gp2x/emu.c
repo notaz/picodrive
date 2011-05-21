@@ -67,8 +67,10 @@ void pemu_prep_defconfig(void)
 	soc = soc_detect();
 	if (soc == SOCID_MMSP2)
 		defaultConfig.s_PicoOpt |= POPT_EXT_FM;
-	else if (soc == SOCID_POLLUX)
+	else if (soc == SOCID_POLLUX) {
 		defaultConfig.EmuOpt |= EOPT_WIZ_TEAR_FIX|EOPT_SHOW_RTC;
+		defaultConfig.s_PicoOpt |= POPT_EN_MCD_GFX;
+	}
 }
 
 void pemu_validate_config(void)

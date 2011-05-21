@@ -149,7 +149,7 @@ static void gp2x_video_RGB_setscaling_(int ln_offs, int W, int H)
 
 static void gp2x_video_wait_vsync_(void)
 {
-	while (!(memregl[0x308c>>2] & (1 << 10)));
+	while (!(memregl[0x308c>>2] & (1 << 10)))
 		spend_cycles(128);
 	memregl[0x308c>>2] |= 1 << 10;
 }

@@ -1357,6 +1357,7 @@ void emu_cmn_forced_frame(int no_scale, int do_emu)
 
 	memset32(g_screen_ptr, 0, g_screen_width * g_screen_height * 2 / 4);
 
+	PicoOpt &= ~POPT_ALT_RENDERER;
 	PicoOpt |= POPT_ACC_SPRITES;
 	if (!no_scale)
 		PicoOpt |= POPT_EN_SOFTSCALE;
