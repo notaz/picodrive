@@ -7,10 +7,8 @@ static const char h_cscaler[]   = "Displays the scaler layer, you can resize it\
 				  "using d-pad or move it using R+d-pad";
 static const char *men_dummy[] = { NULL };
 char **pnd_filter_list;
-int g_layer_cx = 80, g_layer_cy = 0;
-int g_layer_cw = 640, g_layer_ch = 480;
 
-static int menu_loop_cscaler(menu_id id, int keys)
+static int menu_loop_cscaler(int id, int keys)
 {
 	unsigned int inp;
 
@@ -89,7 +87,7 @@ void pnd_menu_init(void)
 	struct dirent *ent;
 	int i, count = 0;
 	char **mfilters;
-	char buff[64];
+	char buff[64], *p;
 	DIR *dir;
 
 	dir = opendir("/etc/pandora/conf/dss_fir");
@@ -106,7 +104,8 @@ void pnd_menu_init(void)
 				perror("readdir");
 			break;
 		}
-		if (strstr(ent->d_name, "_up_h"))
+		p = strstr(ent->d_name, "_up");
+		if (p != NULL && (p[3] == 0 || !strcmp(p + 3, "_h")))
 			count++;
 	}
 
@@ -119,14 +118,13 @@ void pnd_menu_init(void)
 
 	rewinddir(dir);
 	for (i = 0; (ent = readdir(dir)); ) {
-		char *pos;
 		size_t len;
 
-		pos = strstr(ent->d_name, "_up_h");
-		if (pos == NULL)
+		p = strstr(ent->d_name, "_up");
+		if (p == NULL || (p[3] != 0 && strcmp(p + 3, "_h")))
 			continue;
 
-		len = pos - ent->d_name;
+		len = p - ent->d_name;
 		if (len > sizeof(buff) - 1)
 			continue;
 

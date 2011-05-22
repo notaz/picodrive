@@ -29,6 +29,8 @@
 #include <linux/input.h>
 
 static struct vout_fbdev *main_fb, *layer_fb;
+// g_layer_* - in use, g_layer_c* - configured custom
+int g_layer_cx, g_layer_cy, g_layer_cw, g_layer_ch;
 static int g_layer_x, g_layer_y;
 static int g_layer_w = 320, g_layer_h = 240;
 static int g_osd_fps_x, g_osd_y, doing_bg_frame;
@@ -56,6 +58,30 @@ static const char * const pandora_gpio_keys[KEY_MAX + 1] = {
 	[KEY_LEFTALT]	= "Start",
 	[KEY_LEFTCTRL]	= "Select",
 	[KEY_MENU]	= "Pandora",
+};
+
+struct in_default_bind in_evdev_defbinds[] =
+{
+	/* MXYZ SACB RLDU */
+	{ KEY_UP,	IN_BINDTYPE_PLAYER12, 0 },
+	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, 1 },
+	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, 2 },
+	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, 3 },
+	{ KEY_S,	IN_BINDTYPE_PLAYER12, 4 },	/* B */
+	{ KEY_D,	IN_BINDTYPE_PLAYER12, 5 },	/* C */
+	{ KEY_A,	IN_BINDTYPE_PLAYER12, 6 },	/* A */
+	{ KEY_ENTER,	IN_BINDTYPE_PLAYER12, 7 },
+	{ KEY_BACKSLASH, IN_BINDTYPE_EMU, PEVB_MENU },
+	{ KEY_SPACE,	IN_BINDTYPE_EMU, PEVB_MENU },
+	/* Pandora */
+	{ KEY_PAGEDOWN,	IN_BINDTYPE_PLAYER12, 4 },
+	{ KEY_END,	IN_BINDTYPE_PLAYER12, 5 },
+	{ KEY_HOME,	IN_BINDTYPE_PLAYER12, 6 },
+	{ KEY_LEFTALT,	IN_BINDTYPE_PLAYER12, 7 },
+	{ KEY_RIGHTSHIFT,IN_BINDTYPE_EMU, PEVB_STATE_SAVE },
+	{ KEY_RIGHTCTRL, IN_BINDTYPE_EMU, PEVB_STATE_LOAD },
+	{ KEY_LEFTCTRL,	 IN_BINDTYPE_EMU, PEVB_MENU },
+	{ 0, 0, 0 }
 };
 
 static int get_cpu_clock(void)
@@ -441,8 +467,8 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 	g_osd_y = fb_top + fb_h - 8;
 
 	pnd_setup_layer(1, g_layer_x, g_layer_y, g_layer_w, g_layer_h);
-	vout_fbdev_resize(layer_fb, fb_w, fb_h, fb_left, fb_right, fb_top, fb_bottom, 0);
 	vout_fbdev_clear(layer_fb);
+	vout_fbdev_resize(layer_fb, fb_w, fb_h, 16, fb_left, fb_right, fb_top, fb_bottom, 3);
 	plat_video_flip();
 }
 
@@ -516,24 +542,6 @@ void plat_wait_till_us(unsigned int us_to)
 */
 }
 
-const char *plat_get_credits(void)
-{
-	return "PicoDrive v" VERSION " (c) notaz, 2006-2010\n\n\n"
-		"Credits:\n"
-		"fDave: Cyclone 68000 core,\n"
-		"      base code of PicoDrive\n"
-		"Reesy & FluBBa: DrZ80 core\n"
-		"MAME devs: YM2612 and SN76496 cores\n"
-		"Pandora team: Pandora\n"
-		"Inder, ketchupgun: graphics\n"
-		"\n"
-		"special thanks (for docs, ideas):\n"
-		" Charles MacDonald, Haze,\n"
-		" Stephane Dallongeville,\n"
-		" Lordus, Exophase, Rokas,\n"
-		" Nemesis, Tasco Deluxe";
-}
-
 #include "../linux/oshide.h"
 
 void plat_early_init(void)
@@ -571,7 +579,7 @@ void plat_init(void)
 	oshide_init();
 
 	w = h = 0;
-	main_fb = vout_fbdev_init(main_fb_name, &w, &h, 0);
+	main_fb = vout_fbdev_init(main_fb_name, &w, &h, 16, 2);
 	if (main_fb == NULL) {
 		fprintf(stderr, "couldn't init fb: %s\n", main_fb_name);
 		exit(1);
@@ -582,7 +590,7 @@ void plat_init(void)
 	g_menuscreen_ptr = vout_fbdev_flip(main_fb);
 
 	w = 320; h = 240;
-	layer_fb = vout_fbdev_init(layer_fb_name, &w, &h, 0);
+	layer_fb = vout_fbdev_init(layer_fb_name, &w, &h, 16, 3);
 	if (layer_fb == NULL) {
 		fprintf(stderr, "couldn't init fb: %s\n", layer_fb_name);
 		goto fail0;

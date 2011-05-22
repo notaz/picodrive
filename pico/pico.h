@@ -12,7 +12,7 @@
 #ifndef PICO_H
 #define PICO_H
 
-//#include <stdio.h>
+#include <stdlib.h> // size_t
 
 // port-specific compile-time settings
 #include <port_config.h>

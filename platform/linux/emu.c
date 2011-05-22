@@ -298,24 +298,3 @@ void plat_wait_till_us(unsigned int us_to)
 	}
 }
 
-const char *plat_get_credits(void)
-{
-	return "PicoDrive v" VERSION " (c) notaz, 2006-2009\n\n\n"
-		"Credits:\n"
-		"fDave: Cyclone 68000 core,\n"
-		"      base code of PicoDrive\n"
-		"Reesy & FluBBa: DrZ80 core\n"
-		"MAME devs: YM2612 and SN76496 cores\n"
-		"rlyeh and others: minimal SDK\n"
-		"Squidge: mmuhack\n"
-		"Dzz: ARM940 sample\n"
-		"GnoStiC / Puck2099: USB joy code\n"
-		"craigix: GP2X hardware\n"
-		"ketchupgun: skin design\n"
-		"\n"
-		"special thanks (for docs, ideas):\n"
-		" Charles MacDonald, Haze,\n"
-		" Stephane Dallongeville,\n"
-		" Lordus, Exophase, Rokas,\n"
-		" Nemesis, Tasco Deluxe";
-}

@@ -5,6 +5,7 @@
 #include "../common/emu.h"
 #include "../common/menu.h"
 #include "../common/plat.h"
+#include "../common/input.h"
 #include "sndout_oss.h"
 #include "version.h"
 
@@ -362,4 +363,21 @@ void mp3_start_play(void *f, int pos)
 void mp3_update(int *buffer, int length, int stereo)
 {
 }
+
+#include <linux/input.h>
+
+struct in_default_bind in_evdev_defbinds[] =
+{
+	/* MXYZ SACB RLDU */
+	{ KEY_UP,	IN_BINDTYPE_PLAYER12, 0 },
+	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, 1 },
+	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, 2 },
+	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, 3 },
+	{ KEY_S,	IN_BINDTYPE_PLAYER12, 4 },	/* B */
+	{ KEY_D,	IN_BINDTYPE_PLAYER12, 5 },	/* C */
+	{ KEY_A,	IN_BINDTYPE_PLAYER12, 6 },	/* A */
+	{ KEY_ENTER,	IN_BINDTYPE_PLAYER12, 7 },
+	{ KEY_BACKSLASH, IN_BINDTYPE_EMU, PEVB_MENU },
+	{ 0, 0, 0 }
+};
 

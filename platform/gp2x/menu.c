@@ -54,7 +54,7 @@ static void menu_main_plat_draw(void)
 
 // ------------ gfx options menu ------------
 
-static const char *mgn_aopt_gamma(menu_id id, int *offs)
+static const char *mgn_aopt_gamma(int id, int *offs)
 {
 	sprintf(static_buff, "%i.%02i", currentConfig.gamma / 100, currentConfig.gamma % 100);
 	return static_buff;

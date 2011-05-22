@@ -19,6 +19,7 @@ static char *mystrip(char *str);
 #ifndef _MSC_VER
 
 #include "menu.h"
+#include "menu_pico.h"
 #include "emu.h"
 #include <pico/pico.h>
 
@@ -756,7 +757,6 @@ int config_readsect(const char *fname, const char *section)
 	keys_encountered = 0;
 	memset(input_dev_map, 0xff, sizeof(input_dev_map));
 
-	in_config_start();
 	while (!feof(f))
 	{
 		ret = config_get_var_val(f, line, sizeof(line), &var, &val);
@@ -765,7 +765,6 @@ int config_readsect(const char *fname, const char *section)
 
 		parse(var, val);
 	}
-	in_config_end();
 
 	fclose(f);
 	return 0;

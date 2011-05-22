@@ -35,7 +35,7 @@ CC ?= $(CROSS)gcc
 OBJS += io.o emu.o blit.o in_evdev.o plat.o sndout_oss.o log_io.o
 
 # common
-OBJS += platform/common/main.o platform/common/emu.o platform/common/menu.o \
+OBJS += platform/common/main.o platform/common/emu.o platform/common/menu_pico.o \
 	platform/common/config.o platform/common/fonts.o platform/common/readpng.o \
 	platform/common/input.o
 

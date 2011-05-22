@@ -1,4 +1,7 @@
+#include <string.h>
+
 #include "emu.h"
+#include "menu_pico.h"
 
 #include <version.h>
 #include <revision.h>
@@ -399,8 +402,8 @@ static const char *mgn_opt_sh2cycles(int id, int *offs)
 static const char h_32x_enable[] = "Enable emulation of the 32X addon";
 static const char h_pwm[]        = "Disabling may improve performance, but break sound";
 static const char h_sh2cycles[]  = "Cycles/millisecond (similar to DOSBox)\n"
-	"lower values speed up emulation but break games\n"
-	"at least 11000 recommended for compatibility";
+				   "lower values speed up emulation but break games\n"
+				   "at least 11000 recommended for compatibility";
 
 static menu_entry e_menu_32x_options[] =
 {
@@ -828,6 +831,26 @@ static void debug_menu_loop(void)
 
 // ------------ main menu ------------
 
+static const char credits[] =
+	"PicoDrive v" VERSION " (c) notaz, 2006-2011\n\n\n"
+	"Credits:\n"
+	"fDave: Cyclone 68000 core,\n"
+	"      base code of PicoDrive\n"
+	"Reesy & FluBBa: DrZ80 core\n"
+	"MAME devs: YM2612 and SN76496 cores\n"
+	"Inder, ketchupgun: graphics\n"
+#ifdef __GP2X__
+	"rlyeh and others: minimal SDK\n"
+	"Squidge: mmuhack\n"
+	"Dzz: ARM940 sample\n"
+#endif
+	"\n"
+	"special thanks (for docs, ideas):\n"
+	" Charles MacDonald, Haze,\n"
+	" Stephane Dallongeville,\n"
+	" Lordus, Exophase, Rokas,\n"
+	" Nemesis, Tasco Deluxe";
+
 static char *romsel_run(void)
 {
 	char *ret, *sel_name;
@@ -875,7 +898,7 @@ static int main_menu_handler(int id, int keys)
 		}
 		break;
 	case MA_MAIN_CREDITS:
-		draw_menu_message(, NULL);
+		draw_menu_message(credits, NULL);
 		in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
 		break;
 	case MA_MAIN_EXIT:

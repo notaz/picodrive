@@ -41,6 +41,29 @@ static const char * const caanoo_keys[KEY_MAX + 1] = {
 	[BTN_BASE5]	= "Push",
 };
 
+struct in_default_bind in_evdev_defbinds[] =
+{
+	/* MXYZ SACB RLDU */
+	{ KEY_UP,	IN_BINDTYPE_PLAYER12, 0 },
+	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, 1 },
+	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, 2 },
+	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, 3 },
+	{ KEY_S,	IN_BINDTYPE_PLAYER12, 4 },	/* B */
+	{ KEY_D,	IN_BINDTYPE_PLAYER12, 5 },	/* C */
+	{ KEY_A,	IN_BINDTYPE_PLAYER12, 6 },	/* A */
+	{ KEY_ENTER,	IN_BINDTYPE_PLAYER12, 7 },
+	{ KEY_BACKSLASH, IN_BINDTYPE_EMU, PEVB_MENU },
+	/* Caanoo */
+	{ BTN_THUMB,	IN_BINDTYPE_PLAYER12, 4 },	/* B */
+	{ BTN_THUMB2,	IN_BINDTYPE_PLAYER12, 5 },	/* C */
+	{ BTN_TRIGGER,	IN_BINDTYPE_PLAYER12, 6 },	/* A */
+	{ BTN_BASE3,	IN_BINDTYPE_PLAYER12, 7 },
+	{ BTN_TOP2,	IN_BINDTYPE_EMU, PEVB_STATE_SAVE },
+	{ BTN_PINKIE,	IN_BINDTYPE_EMU, PEVB_STATE_LOAD },
+	{ BTN_BASE,	IN_BINDTYPE_EMU, PEVB_MENU },
+	{ 0, 0, 0 }
+};
+
 void gp2x_video_changemode(int bpp)
 {
 	gp2x_video_changemode_ll(bpp);
