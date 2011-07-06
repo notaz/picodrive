@@ -25,6 +25,11 @@ static unsigned short fname2color(const char *fname)
 	return 0xffff;
 }
 
+static const char *filter_exts[] = {
+	".mp3", ".MP3", ".srm", ".brm", "s.gz", ".mds",	"bcfg", ".txt", ".htm", "html",
+	".jpg", ".gpe"
+};
+
 #include "menu.c"
 
 /* platform specific options and handlers */
@@ -309,7 +314,7 @@ static int menu_loop_keyconfig(int id, int keys)
 	static int sel = 0;
 
 	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, rom_loaded);
-	me_loop(e_menu_keyconfig, &sel, NULL);
+	me_loop(e_menu_keyconfig, &sel);
 	return 0;
 }
 
@@ -365,7 +370,7 @@ static menu_entry e_menu_cd_options[] =
 static int menu_loop_cd_options(int id, int keys)
 {
 	static int sel = 0;
-	me_loop(e_menu_cd_options, &sel, NULL);
+	me_loop(e_menu_cd_options, &sel);
 	return 0;
 }
 
@@ -420,7 +425,7 @@ static int menu_loop_32x_options(int id, int keys)
 	static int sel = 0;
 
 	me_enable(e_menu_32x_options, MA_32XOPT_RENDERER, renderer_names32x[0] != NULL);
-	me_loop(e_menu_32x_options, &sel, NULL);
+	me_loop(e_menu_32x_options, &sel);
 
 	return 0;
 }
@@ -447,7 +452,7 @@ static menu_entry e_menu_adv_options[] =
 static int menu_loop_adv_options(int id, int keys)
 {
 	static int sel = 0;
-	me_loop(e_menu_adv_options, &sel, NULL);
+	me_loop(e_menu_adv_options, &sel);
 	return 0;
 }
 
@@ -465,7 +470,7 @@ static int menu_loop_gfx_options(int id, int keys)
 	static int sel = 0;
 
 	me_enable(e_menu_gfx_options, MA_OPT_RENDERER, renderer_names[0] != NULL);
-	me_loop(e_menu_gfx_options, &sel, NULL);
+	me_loop(e_menu_gfx_options, &sel);
 
 	return 0;
 }
@@ -671,7 +676,7 @@ static int menu_loop_options(int id, int keys)
 	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, rom_loaded);
 	me_enable(e_menu_options, MA_OPT_LOADCFG, config_slot != config_slot_current);
 
-	me_loop(e_menu_options, &sel, NULL);
+	me_loop(e_menu_options, &sel);
 
 	return 0;
 }
@@ -950,7 +955,7 @@ void menu_loop(void)
 
 	menu_enter(rom_loaded);
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
-	me_loop(e_menu_main, &sel, menu_main_plat_draw);
+	me_loop_d(e_menu_main, &sel, NULL, menu_main_plat_draw);
 
 	if (rom_loaded) {
 		if (engineState == PGS_Menu)
@@ -999,7 +1004,7 @@ int menu_loop_tray(void)
 	menu_enter(rom_loaded);
 
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
-	me_loop(e_menu_tray, &sel, NULL);
+	me_loop(e_menu_tray, &sel);
 
 	if (engineState != PGS_RestartRun) {
 		engineState = PGS_RestartRun;
