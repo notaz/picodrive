@@ -20,6 +20,7 @@
 #include "../common/input.h"
 #include "../linux/sndout_oss.h"
 #include "../linux/fbdev.h"
+#include "../linux/xenv.h"
 #include "plat.h"
 #include "asm_utils.h"
 #include "version.h"
@@ -169,6 +170,10 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 void plat_video_flip(void)
 {
 	g_screen_ptr = vout_fbdev_flip(layer_fb);
+
+	// XXX: drain OS event queue here, maybe we'll actually use it someday..
+	int dummy;
+	xenv_update(&dummy);
 }
 
 void plat_video_toggle_renderer(int change, int is_menu)
@@ -542,8 +547,6 @@ void plat_wait_till_us(unsigned int us_to)
 */
 }
 
-#include "../linux/oshide.h"
-
 void plat_early_init(void)
 {
 }
@@ -576,7 +579,7 @@ void plat_init(void)
 		exit(1);
 	}
 
-	oshide_init();
+	xenv_init();
 
 	w = h = 0;
 	main_fb = vout_fbdev_init(main_fb_name, &w, &h, 16, 2);
@@ -629,7 +632,7 @@ void plat_finish(void)
 {
 	sndout_oss_exit();
 	vout_fbdev_finish(main_fb);
-	oshide_finish();
+	xenv_finish();
 
 	printf("all done\n");
 }

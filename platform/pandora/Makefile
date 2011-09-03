@@ -50,7 +50,7 @@ OBJS += platform/common/emu.o platform/common/menu_pico.o platform/common/fonts.
 	platform/common/arm_utils.o platform/common/mp3_helix.o platform/common/arm_linux.o \
 	platform/common/readpng.o platform/common/input.o platform/common/main.o platform/common/mp3.o \
 	platform/linux/fbdev.o platform/linux/in_evdev.o platform/linux/sndout_oss.o \
-	platform/linux/plat.o platform/linux/oshide.o
+	platform/linux/plat.o platform/linux/xenv.o
 
 # ARM stuff
 OBJS += pico/carthw/svp/compiler.o pico/carthw/svp/stub_arm.o
