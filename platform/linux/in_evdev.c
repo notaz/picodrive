@@ -37,8 +37,8 @@ typedef struct {
 	int kc_first;
 	int kc_last;
 	unsigned int abs_count;
-	/* 16.16 multiplier to IN_ABS_RANGE */
-	unsigned int abs_mult[MAX_ABS_DEVS];
+	int abs_mult[MAX_ABS_DEVS]; /* 16.16 multiplier to IN_ABS_RANGE */
+	int abs_adj[MAX_ABS_DEVS];  /* adjust for centering */
 	unsigned int abs_to_digital:1;
 } in_evdev_t;
 
@@ -246,6 +246,7 @@ static void in_evdev_probe(void)
 				dist = ainfo.maximum - ainfo.minimum;
 				if (dist != 0)
 					dev->abs_mult[u] = IN_ABS_RANGE * 2 * 65536 / dist;
+				dev->abs_adj[u] = -(ainfo.maximum + ainfo.minimum + 1) / 2;
 				have_abs = 1;
 			}
 			dev->abs_count = u;
@@ -371,7 +372,8 @@ static int in_evdev_update_analog(void *drv_data, int axis_id, int *result)
 	if (ret != 0)
 		return ret;
 
-	*result = (int)(ainfo.value * dev->abs_mult[axis_id]) >> 16;
+	*result = (ainfo.value + dev->abs_adj[axis_id]) * dev->abs_mult[axis_id];
+	*result >>= 16;
 	return 0;
 }
 
