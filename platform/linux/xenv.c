@@ -186,7 +186,7 @@ static int x11h_update(int *is_down)
 }
 
 static struct termios g_kbd_termios_saved;
-static int g_kbdfd;
+static int g_kbdfd = -1;
 
 static int tty_init(void)
 {
