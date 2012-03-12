@@ -1,5 +1,5 @@
 /*
- * (C) Gražvydas "notaz" Ignotas, 2009-2011
+ * (C) Gražvydas "notaz" Ignotas, 2009-2012
  *
  * This work is licensed under the terms of any of these licenses
  * (at your option):
@@ -142,7 +142,8 @@ static int x11h_init(void)
 	attributes.cursor = transparent_cursor(&g_xstuff, display, win);
 	g_xstuff.pXChangeWindowAttributes(display, win, CWOverrideRedirect | CWCursor, &attributes);
 
-	g_xstuff.pXSelectInput(display, win, ExposureMask | FocusChangeMask | KeyPressMask | KeyReleaseMask);
+	g_xstuff.pXSelectInput(display, win, ExposureMask | FocusChangeMask | KeyPressMask
+		| KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
 	g_xstuff.pXMapWindow(display, win);
 	g_xstuff.pXGrabKeyboard(display, win, False, GrabModeAsync, GrabModeAsync, CurrentTime);
 	g_xstuff.pXkbSetDetectableAutoRepeat(display, 1, NULL);
@@ -157,32 +158,54 @@ fail:
 	return -1;
 }
 
-static int x11h_update(int *is_down)
+static void x11h_update(int (*key_cb)(void *cb_arg, int kc, int is_pressed),
+			int (*mouseb_cb)(void *cb_arg, int x, int y, int button, int is_pressed),
+			int (*mousem_cb)(void *cb_arg, int x, int y),
+			void *cb_arg)
 {
 	XEvent evt;
+	int keysym;
 
 	while (g_xstuff.pXPending(g_xstuff.display))
 	{
 		g_xstuff.pXNextEvent(g_xstuff.display, &evt);
 		switch (evt.type)
 		{
-			case Expose:
-				while (g_xstuff.pXCheckTypedEvent(g_xstuff.display, Expose, &evt))
-					;
-				break;
+		case Expose:
+			while (g_xstuff.pXCheckTypedEvent(g_xstuff.display, Expose, &evt))
+				;
+			break;
 
-			case KeyPress:
-				*is_down = 1;
-				return g_xstuff.pXLookupKeysym(&evt.xkey, 0);
+		case KeyPress:
+			keysym = g_xstuff.pXLookupKeysym(&evt.xkey, 0);
+			if (key_cb != NULL)
+				key_cb(cb_arg, keysym, 1);
+			break;
 
-			case KeyRelease:
-				*is_down = 0;
-				return g_xstuff.pXLookupKeysym(&evt.xkey, 0);
-				// printf("press %d\n", evt.xkey.keycode);
+		case KeyRelease:
+			keysym = g_xstuff.pXLookupKeysym(&evt.xkey, 0);
+			if (key_cb != NULL)
+				key_cb(cb_arg, keysym, 0);
+			break;
+
+		case ButtonPress:
+			if (mouseb_cb != NULL)
+				mouseb_cb(cb_arg, evt.xbutton.x, evt.xbutton.y,
+					  evt.xbutton.button, 1);
+			break;
+
+		case ButtonRelease:
+			if (mouseb_cb != NULL)
+				mouseb_cb(cb_arg, evt.xbutton.x, evt.xbutton.y,
+					  evt.xbutton.button, 0);
+			break;
+
+		case MotionNotify:
+			if (mousem_cb != NULL)
+				mousem_cb(cb_arg, evt.xmotion.x, evt.xmotion.y);
+			break;
 		}
 	}
-
-	return NoSymbol;
 }
 
 static struct termios g_kbd_termios_saved;
@@ -249,26 +272,38 @@ static void tty_end(void)
 	g_kbdfd = -1;
 }
 
-int xenv_init(void)
+int xenv_init(int *have_mouse_events)
 {
+	int have_mouse = 0;
 	int ret;
 
 	ret = x11h_init();
-	if (ret == 0)
-		return 0;
+	if (ret == 0) {
+		have_mouse = 1;
+		goto out;
+	}
 
 	ret = tty_init();
 	if (ret == 0)
-		return 0;
+		goto out;
 
 	fprintf(stderr, PFX "error: both x11h_init and tty_init failed\n");
-	return -1;
+	ret = -1;
+out:
+	if (have_mouse_events != NULL)
+		*have_mouse_events = have_mouse;
+	return ret;
 }
 
-int xenv_update(int *is_down)
+int xenv_update(int (*key_cb)(void *cb_arg, int kc, int is_pressed),
+		int (*mouseb_cb)(void *cb_arg, int x, int y, int button, int is_pressed),
+		int (*mousem_cb)(void *cb_arg, int x, int y),
+		void *cb_arg)
 {
-	if (g_xstuff.display)
-		return x11h_update(is_down);
+	if (g_xstuff.display) {
+		x11h_update(key_cb, mouseb_cb, mousem_cb, cb_arg);
+		return 0;
+	}
 
 	// TODO: read tty?
 	return -1;
