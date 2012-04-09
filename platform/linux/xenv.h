@@ -1,5 +1,10 @@
 
-int  xenv_init(int *have_mouse_events, const char *window_title);
+#define XENV_CAP_KEYS	(1<<0)
+#define XENV_CAP_MOUSE	(1<<1)
+
+/* xenv_flags specify if we need keys and mouse,
+ * flag is removed if input is not available */
+int  xenv_init(int *xenv_flags, const char *window_title);
 
 /* read events from X, calling key_cb for key, mouseb_cb for mouse button
  * and mousem_cb for mouse motion events */

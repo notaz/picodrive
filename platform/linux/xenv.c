@@ -25,6 +25,8 @@
 #include <termios.h>
 #include <linux/kd.h>
 
+#include "xenv.h"
+
 #define PFX "xenv: "
 
 #define FPTR(f) typeof(f) * p##f
@@ -81,13 +83,14 @@ static Cursor transparent_cursor(struct xstuff *xf, Display *display, Window win
 	return cursor;
 }
 
-static int x11h_init(const char *window_title)
+static int x11h_init(int *xenv_flags, const char *window_title)
 {
 	unsigned int display_width, display_height;
 	Display *display;
 	XSetWindowAttributes attributes;
 	Window win;
 	Visual *visual;
+	long evt_mask;
 	void *x11lib;
 	int screen;
 
@@ -153,10 +156,14 @@ static int x11h_init(const char *window_title)
 	attributes.cursor = transparent_cursor(&g_xstuff, display, win);
 	g_xstuff.pXChangeWindowAttributes(display, win, CWOverrideRedirect | CWCursor, &attributes);
 
-	g_xstuff.pXStoreName(display, win, window_title);
-	g_xstuff.pXSelectInput(display, win, ExposureMask | FocusChangeMask
-		| KeyPressMask | KeyReleaseMask | ButtonPressMask
-		| ButtonReleaseMask | PointerMotionMask | PropertyChangeMask);
+	if (window_title != NULL)
+		g_xstuff.pXStoreName(display, win, window_title);
+	evt_mask = ExposureMask | FocusChangeMask | PropertyChangeMask;
+	if (xenv_flags && (*xenv_flags & XENV_CAP_KEYS))
+		evt_mask |= KeyPressMask | KeyReleaseMask;
+	if (xenv_flags && (*xenv_flags & XENV_CAP_MOUSE))
+		evt_mask |= ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
+	g_xstuff.pXSelectInput(display, win, evt_mask);
 	g_xstuff.pXMapWindow(display, win);
 	g_xstuff.pXGrabKeyboard(display, win, False, GrabModeAsync, GrabModeAsync, CurrentTime);
 	g_xstuff.pXkbSetDetectableAutoRepeat(display, 1, NULL);
@@ -368,17 +375,16 @@ static void tty_end(void)
 	g_kbdfd = -1;
 }
 
-int xenv_init(int *have_mouse_events, const char *window_title)
+int xenv_init(int *xenv_flags, const char *window_title)
 {
-	int have_mouse = 0;
 	int ret;
 
-	ret = x11h_init(window_title);
-	if (ret == 0) {
-		have_mouse = 1;
+	ret = x11h_init(xenv_flags, window_title);
+	if (ret == 0)
 		goto out;
-	}
 
+	if (xenv_flags != NULL)
+		*xenv_flags &= ~(XENV_CAP_KEYS | XENV_CAP_MOUSE); /* TODO? */
 	ret = tty_init();
 	if (ret == 0)
 		goto out;
@@ -386,8 +392,6 @@ int xenv_init(int *have_mouse_events, const char *window_title)
 	fprintf(stderr, PFX "error: both x11h_init and tty_init failed\n");
 	ret = -1;
 out:
-	if (have_mouse_events != NULL)
-		*have_mouse_events = have_mouse;
 	return ret;
 }
 
