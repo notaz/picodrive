@@ -1012,7 +1012,7 @@ char *emu_get_save_fname(int load, int is_sram, int slot)
 	return NULL;
 }
 
-int emu_check_save_file(int slot)
+int emu_check_save_file(int slot, int *time)
 {
 	return emu_get_save_fname(1, 0, slot) ? 1 : 0;
 }
@@ -1239,7 +1239,7 @@ static void run_events_ui(unsigned int which)
 	if (which & (PEV_STATE_LOAD|PEV_STATE_SAVE))
 	{
 		int do_it = 1;
-		if ( emu_check_save_file(state_slot) &&
+		if ( emu_check_save_file(state_slot, NULL) &&
 			(((which & PEV_STATE_LOAD) && (currentConfig.confirm_save & EOPT_CONFIRM_LOAD)) ||
 			 ((which & PEV_STATE_SAVE) && (currentConfig.confirm_save & EOPT_CONFIRM_SAVE))) )
 		{
@@ -1292,7 +1292,7 @@ static void run_events_ui(unsigned int which)
 		}
 
 		emu_status_msg("SAVE SLOT %i [%s]", state_slot,
-			emu_check_save_file(state_slot) ? "USED" : "FREE");
+			emu_check_save_file(state_slot, NULL) ? "USED" : "FREE");
 	}
 	if (which & PEV_MENU)
 		engineState = PGS_Menu;
