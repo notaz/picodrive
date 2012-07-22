@@ -193,7 +193,8 @@ static void menu_loop_patches(void)
 	for (;;)
 	{
 		draw_patchlist(menu_sel);
-		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_L|PBTN_R|PBTN_MOK|PBTN_MBACK, 33);
+		inp = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT|PBTN_L|PBTN_R
+				|PBTN_MOK|PBTN_MBACK, NULL, 33);
 		if (inp & PBTN_UP  ) { menu_sel--; if (menu_sel < 0) menu_sel = PicoPatchCount; }
 		if (inp & PBTN_DOWN) { menu_sel++; if (menu_sel > PicoPatchCount) menu_sel = 0; }
 		if (inp &(PBTN_LEFT|PBTN_L))  { menu_sel-=10; if (menu_sel < 0) menu_sel = 0; }
@@ -694,7 +695,7 @@ static void mplayer_loop(void)
 	while (1)
 	{
 		PDebugZ80Frame();
-		if (in_menu_wait_any(0) & PBTN_MA3)
+		if (in_menu_wait_any(NULL, 0) & PBTN_MA3)
 			break;
 		pemu_sound_wait();
 	}
@@ -790,7 +791,7 @@ static void debug_menu_loop(void)
 		menu_draw_end();
 
 		inp = in_menu_wait(PBTN_MOK|PBTN_MBACK|PBTN_MA2|PBTN_MA3|PBTN_L|PBTN_R |
-					PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT, 70);
+					PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT, NULL, 70);
 		if (inp & PBTN_MBACK) return;
 		if (inp & PBTN_L) { mode--; if (mode < 0) mode = 4; }
 		if (inp & PBTN_R) { mode++; if (mode > 4) mode = 0; }
@@ -801,13 +802,13 @@ static void debug_menu_loop(void)
 					PDebugCPUStep();
 				if (inp & PBTN_MA3) {
 					while (inp & PBTN_MA3)
-						inp = in_menu_wait_any(-1);
+						inp = in_menu_wait_any(NULL, -1);
 					mplayer_loop();
 				}
 				if ((inp & (PBTN_MA2|PBTN_LEFT)) == (PBTN_MA2|PBTN_LEFT)) {
 					mkdir("dumps", 0777);
 					PDebugDumpMem();
-					while (inp & PBTN_MA2) inp = in_menu_wait_any(-1);
+					while (inp & PBTN_MA2) inp = in_menu_wait_any(NULL, -1);
 					dumped = 1;
 				}
 				break;
@@ -822,7 +823,7 @@ static void debug_menu_loop(void)
 					PicoSkipFrame = 1;
 					PicoFrame();
 					PicoSkipFrame = 0;
-					while (inp & PBTN_MOK) inp = in_menu_wait_any(-1);
+					while (inp & PBTN_MOK) inp = in_menu_wait_any(NULL, -1);
 				}
 				break;
 			case 3:
@@ -904,7 +905,7 @@ static int main_menu_handler(int id, int keys)
 		break;
 	case MA_MAIN_CREDITS:
 		draw_menu_message(credits, NULL);
-		in_menu_wait(PBTN_MOK|PBTN_MBACK, 70);
+		in_menu_wait(PBTN_MOK|PBTN_MBACK, NULL, 70);
 		break;
 	case MA_MAIN_EXIT:
 		engineState = PGS_Quit;
@@ -961,7 +962,7 @@ void menu_loop(void)
 		if (engineState == PGS_Menu)
 			engineState = PGS_Running;
 		/* wait until menu, ok, back is released */
-		while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK))
+		while (in_menu_wait_any(NULL, 50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK))
 			;
 	}
 
@@ -1011,7 +1012,7 @@ int menu_loop_tray(void)
 		ret = 0; /* no CD inserted */
 	}
 
-	while (in_menu_wait_any(50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK));
+	while (in_menu_wait_any(NULL, 50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK));
 	in_set_config_int(0, IN_CFG_BLOCKING, 0);
 
 	return ret;

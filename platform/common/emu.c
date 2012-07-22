@@ -1258,13 +1258,13 @@ static void run_events_ui(unsigned int which)
 			plat_status_msg_busy_first(tmp);
 
 			in_set_config_int(0, IN_CFG_BLOCKING, 1);
-			while (in_menu_wait_any(50) & (PBTN_MA3|PBTN_MBACK))
+			while (in_menu_wait_any(NULL, 50) & (PBTN_MA3|PBTN_MBACK))
 				;
-			while ( !((keys = in_menu_wait_any(50)) & (PBTN_MA3|PBTN_MBACK)) )
+			while ( !((keys = in_menu_wait_any(NULL, 50)) & (PBTN_MA3|PBTN_MBACK)) )
 				;
 			if (keys & PBTN_MBACK)
 				do_it = 0;
-			while (in_menu_wait_any(50) & (PBTN_MA3|PBTN_MBACK))
+			while (in_menu_wait_any(NULL, 50) & (PBTN_MA3|PBTN_MBACK))
 				;
 			in_set_config_int(0, IN_CFG_BLOCKING, 0);
 		}
