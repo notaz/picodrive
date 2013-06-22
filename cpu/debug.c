@@ -88,6 +88,8 @@ static int pdb_net_send(struct pdb_cpu *cpu, unsigned int pc)
     packet.header.len = 4 + rl + 4*2;
     sh2->pdb_io_csum[0] = sh2->pdb_io_csum[1] = 0;
   }
+  else
+    memset(&packet, 0, sizeof(packet));
 
   ret = send(pdb_net_sock, &packet, sizeof(packet.header) + packet.header.len, MSG_NOSIGNAL);
   if (ret != sizeof(packet.header) + packet.header.len) {
