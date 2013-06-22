@@ -8,3 +8,6 @@ config.log
 cpu/musashi/m68kmake
 cpu/musashi/m68kops.c
 cpu/musashi/m68kops.h
+skin
+config.cfg
+srm/

@@ -95,7 +95,7 @@ extern int reset_timing;
 extern int pico_pen_x, pico_pen_y;
 extern int pico_inp_mode;
 
-extern char rom_fname_reload[512];		// ROM to try loading on next PGS_ReloadRom
+extern const char *rom_fname_reload;		// ROM to try loading on next PGS_ReloadRom
 extern char rom_fname_loaded[512];		// currently loaded ROM filename
 
 // engine states
@@ -125,7 +125,7 @@ void  emu_init(void);
 void  emu_finish(void);
 void  emu_loop(void);
 
-int   emu_reload_rom(char *rom_fname);
+int   emu_reload_rom(const char *rom_fname_in);
 int   emu_swap_cd(const char *fname);
 int   emu_save_load_game(int load, int sram);
 void  emu_reset_game(void);
@@ -177,6 +177,7 @@ void plat_status_msg_busy_next(const char *msg);
 void plat_status_msg_clear(void);
 
 void plat_video_toggle_renderer(int change, int menu_call);
+void plat_video_loop_prepare(void);
 
 void plat_update_volume(int has_changed, int is_up);
 

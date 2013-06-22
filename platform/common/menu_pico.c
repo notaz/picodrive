@@ -20,8 +20,12 @@
 #define REVISION "0"
 
 static const char *rom_exts[] = {
-	"zip", "bin", "smd", "gen",
-	"iso", "cso", "cue", NULL
+	"zip",
+	"bin", "smd", "gen",
+	"iso", "cso", "cue",
+	"32x",
+	"sms",
+	NULL
 };
 
 // rrrr rggg gggb bbbb
@@ -56,8 +60,21 @@ static void menu_enter(int is_rom_loaded)
 {
 	if (is_rom_loaded)
 	{
+		int w = g_screen_width, h = g_screen_height;
+		short *src, *dst;
+
+		if (w > g_menuscreen_w)
+			w = g_menuscreen_w;
+		if (h > g_menuscreen_h)
+			h = g_menuscreen_h;
+		src = (short *)g_menubg_src_ptr;
+		dst = (short *)g_menubg_ptr +
+			(g_menuscreen_h / 2 - h / 2) * g_menuscreen_w +
+			(g_menuscreen_w / 2 - w / 2);
+
 		// darken the active framebuffer
-		menu_darken_bg(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h, 1);
+		for (; h > 0; dst += g_menuscreen_w, src += g_screen_width, h--)
+			menu_darken_bg(dst, src, w, 1);
 	}
 	else
 	{
@@ -468,9 +485,12 @@ static int menu_loop_adv_options(int id, int keys)
 
 // ------------ gfx options menu ------------
 
+static const char *men_dummy[] = { NULL };
+
 static menu_entry e_menu_gfx_options[] =
 {
-	mee_enum("Renderer", MA_OPT_RENDERER, currentConfig.renderer, renderer_names),
+	mee_enum("Video output mode", MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
+	mee_enum("Renderer",          MA_OPT_RENDERER, currentConfig.renderer, renderer_names),
 	MENU_OPTIONS_GFX
 	mee_end,
 };
@@ -866,21 +886,6 @@ static const char credits[] =
 	" Lordus, Exophase, Rokas,\n"
 	" Nemesis, Tasco Deluxe";
 
-static const char *romsel_run(void)
-{
-	const char *ret;
-	char *sel_name;
-
-	sel_name = malloc(sizeof(rom_fname_loaded));
-	if (sel_name == NULL)
-		return NULL;
-	strcpy(sel_name, rom_fname_loaded);
-
-	ret = menu_loop_romsel(sel_name, sizeof(rom_fname_loaded), rom_exts, NULL);
-	free(sel_name);
-	return ret;
-}
-
 static int main_menu_handler(int id, int keys)
 {
 	const char *ret_name;
@@ -906,9 +911,12 @@ static int main_menu_handler(int id, int keys)
 		}
 		break;
 	case MA_MAIN_LOAD_ROM:
-		ret_name = romsel_run();
+		rom_fname_reload = NULL;
+		ret_name = menu_loop_romsel(rom_fname_loaded,
+			sizeof(rom_fname_loaded), rom_exts, NULL);
 		if (ret_name != NULL) {
 			lprintf("selected file: %s\n", ret_name);
+			rom_fname_reload = ret_name;
 			engineState = PGS_ReloadRom;
 			return 1;
 		}
@@ -977,6 +985,7 @@ void menu_loop(void)
 	}
 
 	in_set_config_int(0, IN_CFG_BLOCKING, 0);
+	plat_video_menu_leave();
 }
 
 // --------- CD tray close menu ----------
@@ -985,10 +994,13 @@ static int mh_tray_load_cd(int id, int keys)
 {
 	const char *ret_name;
 
-	ret_name = romsel_run();
+	rom_fname_reload = NULL;
+	ret_name = menu_loop_romsel(rom_fname_loaded,
+			sizeof(rom_fname_loaded), rom_exts, NULL);
 	if (ret_name == NULL)
 		return 0;
 
+	rom_fname_reload = ret_name;
 	engineState = PGS_RestartRun;
 	return emu_swap_cd(ret_name);
 }
@@ -1024,6 +1036,7 @@ int menu_loop_tray(void)
 
 	while (in_menu_wait_any(NULL, 50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK));
 	in_set_config_int(0, IN_CFG_BLOCKING, 0);
+	plat_video_menu_leave();
 
 	return ret;
 }
@@ -1090,5 +1103,12 @@ menu_entry *me_list_get_next(void)
 
 void menu_init(void)
 {
+	int i;
+
 	menu_init_base();
+
+	i = me_id2offset(e_menu_gfx_options, MA_OPT_VOUT_MODE);
+	e_menu_gfx_options[i].data = plat_target.vout_methods;
+	me_enable(e_menu_gfx_options, MA_OPT_VOUT_MODE,
+		plat_target.vout_methods != NULL);
 }

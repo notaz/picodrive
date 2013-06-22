@@ -171,20 +171,6 @@ void plat_video_toggle_renderer(int change, int is_menu)
 	emu_status_msg(renderer_names[currentConfig.renderer]);
 }
 
-void plat_video_menu_enter(int is_rom_loaded)
-{
-}
-
-void plat_video_menu_begin(void)
-{
-	g_menuscreen_ptr = g_screen_ptr;
-}
-
-void plat_video_menu_end(void)
-{
-	plat_video_flip();
-}
-
 void plat_status_msg_clear(void)
 {
 	unsigned short *d = (unsigned short *)g_screen_ptr + g_screen_width * g_screen_height;

@@ -1,6 +1,20 @@
 #ifndef INCLUDE_c48097f3ff2a6a9af1cce8fd7a9b3f0c
 #define INCLUDE_c48097f3ff2a6a9af1cce8fd7a9b3f0c 1
 
+/* gamepad - MXYZ SACB RLDU */
+#define GBTN_UP         0
+#define GBTN_DOWN       1
+#define GBTN_LEFT       2
+#define GBTN_RIGHT      3
+#define GBTN_B          4
+#define GBTN_C          5
+#define GBTN_A          6
+#define GBTN_START      7
+#define GBTN_Z          8
+#define GBTN_Y          9
+#define GBTN_X          10
+#define GBTN_MODE       11
+
 /* ui events */
 #define PEVB_VOL_DOWN   30
 #define PEVB_VOL_UP     29

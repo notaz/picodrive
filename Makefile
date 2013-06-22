@@ -26,20 +26,26 @@ CFLAGS += -I.
 CFLAGS += -Iplatform/linux/
 LDLIBS += -lm -lpng
 
+# tmp
+CFLAGS += `sdl-config --cflags`
+LDLIBS += `sdl-config --libs`
+
 all: PicoDrive
 
 # frontend
-OBJS += platform/linux/io.o platform/linux/emu.o platform/linux/blit.o \
+OBJS += platform/linux/emu.o platform/linux/blit.o \
 	platform/linux/log_io.o
 
 # common
 OBJS += platform/common/main.o platform/common/emu.o platform/common/menu_pico.o \
-	platform/common/config.o
+	platform/common/config.o platform/common/plat_sdl.o \
+	platform/common/mp3_dummy.o
 
 # libpicofe
 OBJS += platform/libpicofe/input.o platform/libpicofe/readpng.o \
 	platform/libpicofe/fonts.o platform/libpicofe/linux/in_evdev.o \
-	platform/libpicofe/linux/plat.o platform/libpicofe/linux/sndout_oss.o
+	platform/libpicofe/linux/plat.o platform/libpicofe/linux/sndout_oss.o \
+	platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
 
 OBJS += platform/libpicofe/plat_dummy.o
 

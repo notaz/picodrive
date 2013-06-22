@@ -49,24 +49,25 @@ void parse_cmd_line(int argc, char *argv[])
 				break;
 			}
 		} else {
-			/* External Frontend: ROM Name */
-			FILE *f;
-			strncpy(rom_fname_reload, argv[x], sizeof(rom_fname_reload));
-			rom_fname_reload[sizeof(rom_fname_reload) - 1] = 0;
-			f = fopen(rom_fname_reload, "rb");
-			if (f) fclose(f);
-			else unrecognized = 1;
-			engineState = PGS_ReloadRom;
+			FILE *f = fopen(argv[x], "rb");
+			if (f) {
+				fclose(f);
+				rom_fname_reload = argv[x];
+				engineState = PGS_ReloadRom;
+			}
+			else
+				unrecognized = 1;
 			break;
 		}
 	}
 
 	if (unrecognized) {
-		printf("\n\n\nPicoDrive v" VERSION " (c) notaz, 2006-2009\n");
+		printf("\n\n\nPicoDrive v" VERSION " (c) notaz, 2006-2009,2013\n");
 		printf("usage: %s [options] [romfile]\n", argv[0]);
 		printf("options:\n"
 			" -config <file>    use specified config file instead of default 'config.cfg'\n"
-			" -loadstate <num>  if ROM is specified, try loading slot <num>\n");
+			" -loadstate <num>  if ROM is specified, try loading savestate slot <num>\n");
+		exit(1);
 	}
 }
 
@@ -75,12 +76,13 @@ int main(int argc, char *argv[])
 {
 	g_argv = argv;
 
-	//plat_early_init();
+	plat_early_init();
 
 	in_init();
-	in_probe();
+	//in_probe();
 
 	plat_target_init();
+	plat_init();
 
 	emu_prep_defconfig(); // depends on input
 	emu_read_config(NULL, 0);
@@ -145,6 +147,7 @@ int main(int argc, char *argv[])
 	endloop:
 
 	emu_finish();
+	plat_finish();
 	plat_target_finish();
 
 	return 0;
