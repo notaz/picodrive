@@ -225,13 +225,6 @@ extern short *PsndOut;
 extern void (*PsndMix_32_to_16l)(short *dest, int *src, int count);
 void PsndRerate(int preserve_state);
 
-// Utils.c
-extern int PicuAnd;
-int PicuQuick(unsigned short *dest,unsigned short *src);
-int PicuShrink(unsigned short *dest,int destLen,unsigned short *src,int srcLen);
-int PicuShrinkReverse(unsigned short *dest,int destLen,unsigned short *src,int srcLen);
-int PicuMerge(unsigned short *dest,int destLen,unsigned short *src,int srcLen);
-
 #ifdef __cplusplus
 } // End of extern "C"
 #endif

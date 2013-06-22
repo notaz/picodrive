@@ -1,3 +1,0 @@
-EXPORTS
-; NEW:
-	NewL__13CGameAudioMotiiii @ 1 NONAME ; static CGameAudioMot* NewL(TInt aRate, TBool aStereo, TInt aPcmFrames, TInt aBufferedFrames);
