@@ -283,9 +283,9 @@ int pollux_get_real_snd_rate(int req_rate)
 	rate = decode_pll(clk0_src ? memregl[0xf008>>2] : memregl[0xf004>>2]);
 
 	// apply divisors
-	div = ((memregl[0xdbc4>>2] >> 4) & 0x1f) + 1;
+	div = ((memregl[0xdbc4>>2] >> 4) & 0x3f) + 1;
 	rate /= div;
-	div = ((memregl[0xdbc8>>2] >> 4) & 0x1f) + 1;
+	div = ((memregl[0xdbc8>>2] >> 4) & 0x3f) + 1;
 	rate /= div;
 	rate /= 64;
 
