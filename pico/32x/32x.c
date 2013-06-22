@@ -1,3 +1,10 @@
+/*
+ * PicoDrive
+ * (C) notaz, 2009,2010
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 #include "../pico_int.h"
 #include "../sound/ym2612.h"
 

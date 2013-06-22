@@ -1,6 +1,9 @@
 /*
  * Human-readable config file management for PicoDrive
- * (c) notaz, 2008
+ * (C) notaz, 2008-2010
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
  */
 
 #include <stdio.h>

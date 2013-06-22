@@ -1,12 +1,12 @@
-# vim:filetype=mips
+#*
+#* memory handlers with banking support
+#* (C) notaz, 2007-2008
+#*
+#* This work is licensed under the terms of MAME license.
+#* See COPYING file in the top-level directory.
+#*
 
-# memory handlers with banking support for SSF II - The New Challengers
-# mostly based on Gens code
 # OUT OF DATE
-
-# (c) Copyright 2007, Grazvydas "notaz" Ignotas
-# All Rights Reserved
-
 
 .set noreorder
 .set noat
@@ -787,3 +787,4 @@ pwr_banking:
     jr      $ra
     nop
 
+# vim:filetype=mips

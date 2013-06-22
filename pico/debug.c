@@ -1,5 +1,10 @@
-// some debug code, just for fun of it
-// (c) Copyright 2008 notaz, All rights reserved.
+/*
+ * debug stuff
+ * (C) notaz, 2006-2009
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 #include "pico_int.h"
 #include "sound/ym2612.h"

@@ -1,5 +1,9 @@
 /*
- * vim:shiftwidth=2:expandtab
+ * SH2 recompiler
+ * (C) notaz, 2009,2010
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
  *
  * notes:
  * - tcache, block descriptor, link buffer overflows result in sh2_translate()
@@ -3124,3 +3128,5 @@ void sh2_drc_finish(SH2 *sh2)
     hash_table = NULL;
   }
 }
+
+// vim:shiftwidth=2:expandtab

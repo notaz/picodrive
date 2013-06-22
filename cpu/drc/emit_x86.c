@@ -1,4 +1,10 @@
 /*
+ * Basic macros to emit x86 instructions and some utils
+ * Copyright (C) 2008,2009,2010 notaz
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ *
  * note:
  *  temp registers must be eax-edx due to use of SETcc and r/w 8/16.
  * note about silly things like emith_eor_r_r_r:

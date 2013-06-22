@@ -1,8 +1,12 @@
-# vim:filetype=mips
-
-# several drawing related functions for Allegrex MIPS
-# (c) Copyright 2007, Grazvydas "notaz" Ignotas
-# All Rights Reserved
+#*
+#* several drawing related functions for Allegrex MIPS
+#* (C) notaz, 2007-2008
+#*
+#* This work is licensed under the terms of MAME license.
+#* See COPYING file in the top-level directory.
+#*
+#* this is highly specialized, be careful if changing related C code!
+#*
 
 .set noreorder # don't reorder any instructions
 .set noat      # don't use $at
@@ -1749,4 +1753,4 @@ TileTable:
   .long tile11110000, tile11110001, tile11110010, tile11110011, tile11110100, tile11110101, tile11110110, tile11110111
   .long tile11111000, tile11111001, tile11111010, tile11111011, tile11111100, tile11111101, tile11111110, tile11111111
 
-
+# vim:filetype=mips

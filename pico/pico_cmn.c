@@ -1,5 +1,10 @@
-// common code for Pico.c and cd/Pico.c
-// (c) Copyright 2007-2009 Grazvydas "notaz" Ignotas
+/*
+ * common code for pico.c and cd/pico.c
+ * (C) notaz, 2007-2009
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 #define CYCLES_M68K_LINE     488 // suitable for both PAL/NTSC
 #define CYCLES_M68K_VINT_LAG  68

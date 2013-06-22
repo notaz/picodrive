@@ -1,8 +1,10 @@
-@ vim:filetype=armasm
-
-@ Memory I/O handlers for Sega/Mega CD emulation
-@ (c) Copyright 2007-2009, Grazvydas "notaz" Ignotas
-
+@*
+@* Memory I/O handlers for Sega/Mega CD emulation
+@* (C) notaz, 2007-2009
+@*
+@* This work is licensed under the terms of MAME license.
+@* See COPYING file in the top-level directory.
+@*
 
 .equiv PCM_STEP_SHIFT, 11
 
@@ -734,3 +736,4 @@ m_s68k_write16_regs_spec:               @ special case
 
 .pool
 
+@ vim:filetype=armasm

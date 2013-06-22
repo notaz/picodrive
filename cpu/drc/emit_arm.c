@@ -1,8 +1,10 @@
-// Basic macros to emit ARM instructions and some utils
-
-// (c) Copyright 2008-2009, Grazvydas "notaz" Ignotas
-// Free for non-commercial use.
-
+/*
+ * Basic macros to emit ARM instructions and some utils
+ * Copyright (C) 2008,2009,2010 notaz
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 #define CONTEXT_REG 11
 
 // XXX: tcache_ptr type for SVP and SH2 compilers differs..

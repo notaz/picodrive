@@ -1,13 +1,10 @@
-// This is part of Pico Library
-
-// (c) Copyright 2007, Grazvydas "notaz" Ignotas
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
-
-
-// this is a frame-based renderer, alternative to Dave's line based which is in Draw.c
-
+/*
+ * tile renderer
+ * (C) notaz, 2006-2008
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 #include "pico_int.h"
 

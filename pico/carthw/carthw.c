@@ -1,9 +1,9 @@
 /*
  * Support for a few cart mappers and some protection.
+ * (C) notaz, 2008,2009,2010
  *
- * (c) Copyright 2008-2009, Grazvydas "notaz" Ignotas
- * Free for non-commercial use.
- *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
  */
 
 #include "../pico_int.h"

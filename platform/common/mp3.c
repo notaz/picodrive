@@ -1,3 +1,10 @@
+/*
+ * PicoDrive
+ * (C) notaz, 2010
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 #include "mp3.h"
 
 int mp3_find_sync_word(const unsigned char *buf, int size)

@@ -1,7 +1,10 @@
-// (c) Copyright 2006-2009 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
+/*
+ * PicoDrive
+ * (C) notaz, 2006-2010
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 #include <stdio.h>
 #include <unistd.h>

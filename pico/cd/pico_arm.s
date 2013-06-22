@@ -1,11 +1,14 @@
-@ vim:filetype=armasm
+@*
+@* CPU scheduling code
+@* (C) notaz, 2007-2008
+@*
+@* This work is licensed under the terms of MAME license.
+@* See COPYING file in the top-level directory.
+@*
 
 @ SekRunPS runs PicoCpuCM68k and PicoCpuCS68k interleaved in steps of PS_STEP_M68K
 @ cycles. This is done without calling CycloneRun and jumping directly to
 @ Cyclone code to avoid pushing/popping all the registers every time.
-
-@ (c) Copyright 2007, Grazvydas "notaz" Ignotas
-@ All Rights Reserved
 
 
 .equiv PS_STEP_M68K, ((488<<16)/20) @ ~24
@@ -179,3 +182,4 @@ CycloneSpecial2:
   mov r5,#0
   bx r1
 
+@ vim:filetype=armasm

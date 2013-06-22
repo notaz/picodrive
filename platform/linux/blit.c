@@ -1,3 +1,10 @@
+/*
+ * PicoDrive
+ * (C) notaz, 2006,2009
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 // Convert 0000bbb0 ggg0rrr0 0000bbb0 ggg0rrr0
 // to      00000000 rrr00000 ggg00000 bbb00000 ...

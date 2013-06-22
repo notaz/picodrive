@@ -1,4 +1,10 @@
-@ vim:filetype=armasm
+@*
+@* PicoDrive
+@* (C) notaz, 2010
+@*
+@* This work is licensed under the terms of MAME license.
+@* See COPYING file in the top-level directory.
+@*
 
 .extern Pico32x
 .extern PicoDraw2FB
@@ -361,3 +367,4 @@ make_do_loop_rl do_loop_rl_md,      0, 1
 make_do_loop_rl do_loop_rl_scan,    1, 0
 make_do_loop_rl do_loop_rl_scan_md, 1, 1
 
+@ vim:filetype=armasm

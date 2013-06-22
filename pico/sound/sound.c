@@ -1,11 +1,11 @@
-// This is part of Pico Library
-
-// (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006,2007 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
-
+/*
+ * PicoDrive
+ * (c) Copyright Dave, 2004
+ * (C) notaz, 2006-2009
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 #include <string.h>
 #include "ym2612.h"

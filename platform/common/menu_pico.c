@@ -1,3 +1,10 @@
+/*
+ * PicoDrive
+ * (C) notaz, 2010,2011
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 #include <string.h>
 
 #include "emu.h"

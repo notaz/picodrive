@@ -1,10 +1,10 @@
-// This is part of Pico Library
-
-// (c) Copyright 2006 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
-
+/*
+ * rarely used EEPROM code
+ * (C) notaz, 2006-2008
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 #include "pico_int.h"
 

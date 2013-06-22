@@ -1,9 +1,10 @@
-@ vim:filetype=armasm
-
-@ Compiler helper functions and some SVP HLE code
-
-@ (c) Copyright 2008, Grazvydas "notaz" Ignotas
-@ Free for non-commercial use.
+@*
+@* Compiler helper functions and some SVP HLE code
+@* (C) notaz, 2008,2009
+@*
+@* This work is licensed under the terms of MAME license.
+@* See COPYING file in the top-level directory.
+@*
 
 .global ssp_drc_entry
 .global ssp_drc_next
@@ -615,3 +616,4 @@ hle_07_036_ending2:
     mov     r0, #0x87
     b       ssp_drc_next	@ let the dispatcher finish this
 
+@ vim:filetype=armasm

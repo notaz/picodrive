@@ -1,8 +1,10 @@
-@ vim:filetype=armasm
-
-@ (c) Copyright 2006-2009, Grazvydas "notaz" Ignotas
-@ All Rights Reserved
-
+/*
+ * PicoDrive
+ * (C) notaz, 2006-2009
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 @@ .include "port_config.s"
 
@@ -304,3 +306,4 @@ m_write16_not_sreg:
 
 .pool
 
+@ vim:filetype=armasm

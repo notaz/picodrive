@@ -1,10 +1,10 @@
-@ vim:filetype=armasm
-@ some color conversion and blitting routines
-
-@ (c) Copyright 2006, 2007 notaz
-@ All Rights Reserved
-
-@ vim:filetype=armasm
+/*
+ * some color conversion and blitting routines
+ * (C) notaz, 2006-2009
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 .text
 .align 4
@@ -335,3 +335,4 @@ spend_cycles:
 
     bx      lr
 
+@ vim:filetype=armasm

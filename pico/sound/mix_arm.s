@@ -1,8 +1,10 @@
-@ vim:filetype=armasm
-
-@ Generic routines for mixing audio samples
-@ (c) Copyright 2007, Grazvydas "notaz" Ignotas
-
+/*
+ * Generic routines for mixing audio samples
+ * (C) notaz, 2007,2008
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 .text
 .align 4
@@ -364,4 +366,4 @@ m32_16l_st_l_no_unal2:
     ldmfd   sp!, {r4-r9,lr}
     bx      lr
 
-
+@ vim:filetype=armasm

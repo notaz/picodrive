@@ -1,8 +1,10 @@
-# vim:filetype=mips
-
-# Some misc routines for Allegrex MIPS
-# (c) Copyright 2007, Grazvydas "notaz" Ignotas
-# All Rights Reserved
+#*
+#* Some misc routines for Allegrex MIPS
+#* (C) notaz, 2007-2008
+#*
+#* This work is licensed under the terms of MAME license.
+#* See COPYING file in the top-level directory.
+#*
 
 .set noreorder
 .set noat
@@ -173,3 +175,4 @@ mc32_return:
     jr      $ra
     nop
 
+# vim:filetype=mips

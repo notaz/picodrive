@@ -1,10 +1,11 @@
-// Pico Library - Internal Header File
-
-// (c) Copyright 2004 Dave, All rights reserved.
-// (c) Copyright 2006-2009 Grazvydas "notaz" Ignotas, all rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
+/*
+ * PicoDrive - Internal Header File
+ * (c) Copyright Dave, 2004
+ * (C) notaz, 2006-2010
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 #ifndef PICO_INTERNAL_INCLUDED
 #define PICO_INTERNAL_INCLUDED

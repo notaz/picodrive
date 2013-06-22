@@ -1,5 +1,9 @@
 /*
  * rarely used EEPROM code
+ * (C) notaz, 2007-2009
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
  *
  * (see Genesis Plus for Wii/GC code and docs for info,
  * full game list and better code).

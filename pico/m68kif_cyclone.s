@@ -1,4 +1,10 @@
-@ vim:filetype=armasm
+/*
+ * PicoDrive
+ * (C) notaz, 2009
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 .equ M68K_MEM_SHIFT, 16
 
@@ -138,3 +144,4 @@ cyclone_write32: @ u32 a, u32 d
     add     r0, r0, #2
     bx      r2
 
+@ vim:filetype=armasm

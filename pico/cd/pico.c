@@ -1,5 +1,10 @@
-// (c) Copyright 2007 notaz, All rights reserved.
-
+/*
+ * PicoDrive
+ * (C) notaz, 2007
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 #include "../pico_int.h"
 #include "../sound/ym2612.h"

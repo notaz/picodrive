@@ -1,6 +1,9 @@
 /*
- * vim:shiftwidth=2:expandtab
  * PDB, the PicoDrive debugger
+ * (C) notaz, 2010
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
  */
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -407,3 +410,4 @@ void pdb_cleanup(void)
   pdb_cpu_count = 0;
 }
 
+// vim:shiftwidth=2:expandtab

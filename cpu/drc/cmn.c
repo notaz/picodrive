@@ -1,3 +1,10 @@
+/*
+ * PicoDrive
+ * Copyright (C) 2009,2010 notaz
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 #include <stdio.h>
 #ifdef __linux__
 #include <sys/mman.h>

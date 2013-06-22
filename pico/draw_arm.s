@@ -1,10 +1,12 @@
-@ vim:filetype=armasm
-
-@ ARM assembly versions of some funtions from draw.c
-@ this is highly specialized, be careful if changing related C code!
-
-@ (c) Copyright 2007-2008, Grazvydas "notaz" Ignotas
-@ All Rights Reserved
+/*
+ * assembly optimized versions of most funtions from draw.c
+ * (C) notaz, 2006-2010
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ *
+ * this is highly specialized, be careful if changing related C code!
+ */
 
 .include "port_config.s"
 
@@ -2026,3 +2028,4 @@ blockcpy_loop_or:
     ldmfd   sp!, {r4-r6}
     bx      lr
 
+@ vim:filetype=armasm

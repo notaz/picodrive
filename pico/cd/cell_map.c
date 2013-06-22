@@ -1,5 +1,10 @@
-// Convert "cell arrange" address to normal address.
-// (c) Copyright 2007, Grazvydas "notaz" Ignotas
+/*
+ * Convert "cell arrange" address to normal address.
+ * (C) notaz, 2008
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 // 64 x32 x16 x8 x4 x4
 static unsigned int cell_map(int celln)

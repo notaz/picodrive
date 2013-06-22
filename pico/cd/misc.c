@@ -1,5 +1,10 @@
-// Some misc stuff
-// (c) Copyright 2007, Grazvydas "notaz" Ignotas
+/*
+ * PicoDrive
+ * (C) notaz, 2007
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 #include "../pico_int.h"
 

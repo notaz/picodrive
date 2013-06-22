@@ -1,7 +1,3 @@
-// (c) Copyright 2006,2007 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
 
 void menu_loop(void);
 int  menu_loop_tray(void);

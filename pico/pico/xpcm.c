@@ -1,4 +1,10 @@
 /*
+ * PicoDrive
+ * (C) notaz, 2008
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ *
  * The following ADPCM algorithm was stolen from MAME aica driver.
  * I'm quite sure it's not the right one, but it's the
  * best sounding of the ones that I tried.

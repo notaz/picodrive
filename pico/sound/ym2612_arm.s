@@ -1,3 +1,11 @@
+/*
+ * PicoDrive
+ * (C) notaz, 2006
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
+
 @ this is a rewrite of MAME's ym2612 code, in particular this is only the main sample-generatin loop.
 @ it does not seem to give much performance increase (if any at all), so don't use it if it causes trouble.
 @ - notaz, 2006

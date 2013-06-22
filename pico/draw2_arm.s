@@ -1,11 +1,12 @@
-@ vim:filetype=armasm
-
-@ assembly optimized versions of most funtions from draw2.c
-@ this is highly specialized, be careful if changing related C code!
-
-@ (c) Copyright 2007, Grazvydas "notaz" Ignotas
-@ All Rights Reserved
-
+/*
+ * assembly optimized versions of most funtions from draw2.c
+ * (C) notaz, 2006-2008
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ *
+ * this is highly specialized, be careful if changing related C code!
+ */
 
 .extern Pico
 .extern PicoDraw2FB
@@ -926,4 +927,4 @@ DrawSpriteFull:
 
 .pool
 
-
+@ vim:filetype=armasm

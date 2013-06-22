@@ -1,8 +1,10 @@
-@ vim:filetype=armasm
-
-@ Generic memory routines.
-@ (c) Copyright 2007, Grazvydas "notaz" Ignotas
-
+/*
+ * Generic memory routines.
+ * (C) notaz, 2007-2008
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 .global memcpy16 @ unsigned short *dest, unsigned short *src, int count
 
@@ -177,5 +179,4 @@ mst32_fin:
     ldmfd   sp!, {lr}
     bx      lr
 
-
-
+@ vim:filetype=armasm

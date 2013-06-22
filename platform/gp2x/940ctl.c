@@ -1,5 +1,10 @@
-// Code for communication with ARM940 and control of it.
-// (c) Copyright 2007, Grazvydas "notaz" Ignotas
+/*
+ * Code for communication with ARM940 and control of it.
+ * (C) notaz, 2006-2009
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 #include <stdio.h>
 #include <stdlib.h>

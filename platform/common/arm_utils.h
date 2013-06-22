@@ -1,7 +1,3 @@
-// (c) Copyright 2006-2009 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
 
 void bgr444_to_rgb32(void *to, void *from);
 void bgr444_to_rgb32_sh(void *to, void *from);

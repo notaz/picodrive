@@ -1,7 +1,10 @@
-// (c) Copyright 2007 notaz, All rights reserved.
-// Free for non-commercial use.
-
-// For commercial use, separate licencing terms must be obtained.
+/*
+ * PicoDrive
+ * (C) notaz, 2006-2008
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 // don't like to use loads of #ifdefs, so duplicating GP2X code
 // horribly instead

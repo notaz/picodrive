@@ -1,5 +1,10 @@
-// Memory I/O handlers for Sega/Mega CD.
-// (c) Copyright 2007-2009, Grazvydas "notaz" Ignotas
+/*
+ * Memory I/O handlers for Sega/Mega CD.
+ * (C) notaz, 2007-2009
+ *
+ * This work is licensed under the terms of MAME license.
+ * See COPYING file in the top-level directory.
+ */
 
 #include "../pico_int.h"
 #include "../memory.h"
