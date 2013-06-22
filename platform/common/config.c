@@ -9,16 +9,16 @@
 #ifdef __EPOC32__
 #include <unistd.h>
 #endif
+
+#include "../libpicofe/input.h"
+#include "../libpicofe/plat.h"
+#include "../libpicofe/lprintf.h"
 #include "config.h"
-#include "plat.h"
-#include "input.h"
-#include "lprintf.h"
 
 static char *mystrip(char *str);
 
 #ifndef _MSC_VER
 
-#include "menu.h"
 #include "menu_pico.h"
 #include "emu.h"
 #include <pico/pico.h>

@@ -337,6 +337,7 @@ static int PsndRender(int offset, int length)
     memset32(buf32, 0, length<<stereo);
 
 //printf("active_chs: %02x\n", buf32_updated);
+  (void)buf32_updated;
 
   // CD: PCM sound
   if (do_pcm) {

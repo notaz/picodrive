@@ -1,3 +1,8 @@
+#ifndef __MENU_PICO_H__
+#define __MENU_PICO_H__
+
+#include "../libpicofe/menu.h"
+
 typedef enum
 {
 	MA_NONE = 1,
@@ -92,3 +97,10 @@ typedef enum
 	MA_CTRL_DONE,
 } menu_id;
 
+void menu_init(void);
+void menu_loop(void);
+int menu_loop_tray(void);
+void menu_romload_prepare(const char *rom_name);
+void menu_romload_end(void);
+
+#endif // __MENU_PICO_H__

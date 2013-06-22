@@ -8,11 +8,11 @@
 #include <string.h>
 #include <strings.h>
 
-#include "menu.h"
+#include "../libpicofe/input.h"
+#include "../libpicofe/plat.h"
+#include "menu_pico.h"
 #include "emu.h"
 #include "config.h"
-#include "input.h"
-#include "plat.h"
 #include <cpu/debug.h>
 #include <version.h>
 
@@ -72,12 +72,12 @@ int main(int argc, char *argv[])
 {
 	g_argv = argv;
 
-	plat_early_init();
+	//plat_early_init();
 
 	in_init();
 	in_probe();
 
-	plat_init();
+	plat_target_init();
 
 	emu_prep_defconfig(); // depends on input
 	emu_read_config(NULL, 0);
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
 	endloop:
 
 	emu_finish();
-	plat_finish();
+	plat_target_finish();
 
 	return 0;
 }

@@ -6,11 +6,11 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include "../libpicofe/menu.h"
+#include "../libpicofe/plat.h"
+#include "../libpicofe/linux/sndout_oss.h"
 #include "../common/emu.h"
-#include "../common/menu.h"
-#include "../common/plat.h"
 #include "../common/arm_utils.h"
-#include "../linux/sndout_oss.h"
 #include "version.h"
 
 #include <pico/pico_int.h>

@@ -10,14 +10,15 @@
 #include <unistd.h>
 #endif
 
+#include "../libpicofe/posix.h"
+#include "../libpicofe/input.h"
+#include "../libpicofe/fonts.h"
+#include "../libpicofe/lprintf.h"
+#include "../libpicofe/plat.h"
 #include "emu.h"
-#include "menu.h"
-#include "fonts.h"
-#include "lprintf.h"
+#include "input_pico.h"
+#include "menu_pico.h"
 #include "config.h"
-#include "plat.h"
-#include "input.h"
-#include "posix.h"
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
@@ -184,7 +185,7 @@ static int find_bios(int region, char **bios_file)
 	} else {
 		sprintf(static_buff, "no %s BIOS files found, read docs",
 			region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
-		me_update_msg(static_buff);
+		menu_update_msg(static_buff);
 		return 0;
 	}
 }
@@ -510,32 +511,32 @@ int emu_reload_rom(char *rom_fname)
 		int dummy;
 		FILE *movie_file = fopen(rom_fname, "rb");
 		if (!movie_file) {
-			me_update_msg("Failed to open movie.");
+			menu_update_msg("Failed to open movie.");
 			return 0;
 		}
 		fseek(movie_file, 0, SEEK_END);
 		movie_size = ftell(movie_file);
 		fseek(movie_file, 0, SEEK_SET);
 		if (movie_size < 64+3) {
-			me_update_msg("Invalid GMV file.");
+			menu_update_msg("Invalid GMV file.");
 			fclose(movie_file);
 			return 0;
 		}
 		movie_data = malloc(movie_size);
 		if (movie_data == NULL) {
-			me_update_msg("low memory.");
+			menu_update_msg("low memory.");
 			fclose(movie_file);
 			return 0;
 		}
 		dummy = fread(movie_data, 1, movie_size, movie_file);
 		fclose(movie_file);
 		if (strncmp((char *)movie_data, "Gens Movie TEST", 15) != 0) {
-			me_update_msg("Invalid GMV file.");
+			menu_update_msg("Invalid GMV file.");
 			return 0;
 		}
 		dummy = try_rfn_cut(rom_fname) || try_rfn_cut(rom_fname);
 		if (!dummy) {
-			me_update_msg("Could't find a ROM for movie.");
+			menu_update_msg("Could't find a ROM for movie.");
 			return 0;
 		}
 		get_ext(rom_fname, ext);
@@ -547,7 +548,7 @@ int emu_reload_rom(char *rom_fname)
 		PicoPatchLoad(rom_fname);
 		dummy = try_rfn_cut(rom_fname) || try_rfn_cut(rom_fname);
 		if (!dummy) {
-			me_update_msg("Could't find a ROM to patch.");
+			menu_update_msg("Could't find a ROM to patch.");
 			return 0;
 		}
 		get_ext(rom_fname, ext);
@@ -555,7 +556,7 @@ int emu_reload_rom(char *rom_fname)
 
 	media_type = detect_media(rom_fname);
 	if (media_type == PM_BAD) {
-		me_update_msg("Not a ROM/CD img selected.");
+		menu_update_msg("Not a ROM/CD img selected.");
 		return 0;
 	}
 
@@ -590,7 +591,7 @@ int emu_reload_rom(char *rom_fname)
 			PicoAHW |= PAHW_MCD;
 		}
 		else {
-			me_update_msg("Invalid CD image");
+			menu_update_msg("Invalid CD image");
 			return 0;
 		}
 	}
@@ -601,7 +602,7 @@ int emu_reload_rom(char *rom_fname)
 
 	rom = pm_open(used_rom_name);
 	if (rom == NULL) {
-		me_update_msg("Failed to open ROM");
+		menu_update_msg("Failed to open ROM");
 		return 0;
 	}
 
@@ -611,9 +612,9 @@ int emu_reload_rom(char *rom_fname)
 	ret = PicoCartLoad(rom, &rom_data, &rom_size, (PicoAHW & PAHW_SMS) ? 1 : 0);
 	pm_close(rom);
 	if (ret != 0) {
-		if      (ret == 2) me_update_msg("Out of memory");
-		else if (ret == 3) me_update_msg("Read failed");
-		else               me_update_msg("PicoCartLoad() failed.");
+		if      (ret == 2) menu_update_msg("Out of memory");
+		else if (ret == 3) menu_update_msg("Read failed");
+		else               menu_update_msg("PicoCartLoad() failed.");
 		goto fail;
 	}
 
@@ -629,7 +630,7 @@ int emu_reload_rom(char *rom_fname)
 	}
 
 	if (bad_rom) {
-		me_update_msg("Bad ROM detected.");
+		menu_update_msg("Bad ROM detected.");
 		goto fail;
 	}
 
@@ -643,7 +644,7 @@ int emu_reload_rom(char *rom_fname)
 
 	emu_make_path(static_buff, "carthw.cfg", sizeof(static_buff));
 	if (PicoCartInsert(rom_data, rom_size, static_buff)) {
-		me_update_msg("Failed to load ROM.");
+		menu_update_msg("Failed to load ROM.");
 		goto fail;
 	}
 
@@ -653,7 +654,7 @@ int emu_reload_rom(char *rom_fname)
 		if (ret != 0) {
 			PicoCartUnload();
 			rom_data = NULL; // freed by unload
-			me_update_msg("Insert_CD() failed, invalid CD image?");
+			menu_update_msg("Insert_CD() failed, invalid CD image?");
 			goto fail;
 		}
 	}
@@ -716,7 +717,7 @@ int emu_swap_cd(const char *fname)
 	if (cd_type != CIT_NOT_CD)
 		ret = Insert_CD(fname, cd_type);
 	if (ret != 0) {
-		me_update_msg("Load failed, invalid CD image?");
+		menu_update_msg("Load failed, invalid CD image?");
 		return 0;
 	}
 

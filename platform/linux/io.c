@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../libpicofe/menu.h"
+#include "../libpicofe/input.h"
+#include "../libpicofe/linux/sndout_oss.h"
 #include "../common/emu.h"
-#include "../common/menu.h"
-#include "../common/plat.h"
-#include "../common/input.h"
-#include "sndout_oss.h"
+#include "../common/input_pico.h"
 #include "version.h"
 
 #include "log_io.h"

@@ -149,6 +149,34 @@ void  emu_status_msg(const char *format, ...);
 /* used by some (but not all) platforms */
 void  emu_cmn_forced_frame(int no_scale, int do_emu);
 
+/* stuff to be implemented by platform code */
+extern const char *renderer_names[];
+extern const char *renderer_names32x[];
+
+void pemu_prep_defconfig(void);
+void pemu_validate_config(void);
+void pemu_loop_prep(void);
+void pemu_loop_end(void);
+void pemu_forced_frame(int no_scale, int do_emu); // ..to g_menubg_src_ptr
+void pemu_finalize_frame(const char *fps, const char *notice_msg);
+
+void pemu_sound_start(void);
+void pemu_sound_stop(void);
+void pemu_sound_wait(void);
+
+void plat_early_init(void);
+void plat_init(void);
+void plat_finish(void);
+
+/* used before things blocking for a while (these funcs redraw on return) */
+void plat_status_msg_busy_first(const char *msg);
+void plat_status_msg_busy_next(const char *msg);
+void plat_status_msg_clear(void);
+
+void plat_video_toggle_renderer(int change, int menu_call);
+
+void plat_update_volume(int has_changed, int is_up);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

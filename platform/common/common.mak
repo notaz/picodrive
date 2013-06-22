@@ -1,6 +1,3 @@
-ifneq ($(DEBUG),)
-CFLAGS += -ggdb
-endif
 ifeq "$(profile)" "1"
 CFLAGS += -fprofile-generate
 endif
@@ -120,35 +117,28 @@ DIRS += platform platform/common pico pico/cd pico/pico pico/32x pico/sound pico
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clean_prof:
-	find ../.. -name '*.gcno' -delete
-	find ../.. -name '*.gcda' -delete
-
 mkdirs:
 	mkdir -p $(DIRS)
 
-../../tools/textfilter: ../../tools/textfilter.c
-	make -C ../../tools/ textfilter
+tools/textfilter: tools/textfilter.c
+	make -C tools/ textfilter
 
 
 # random deps
-pico/carthw/svp/compiler.o : ../../cpu/drc/emit_$(ARCH).c
-cpu/sh2/compiler.o : ../../cpu/drc/emit_$(ARCH).c
-cpu/sh2/mame/sh2pico.o : ../../cpu/sh2/mame/sh2.c
-pico/pico.o pico/cd/pico.o : ../../pico/pico_cmn.c ../../pico/pico_int.h
-pico/memory.o pico/cd/memory.o : ../../pico/pico_int.h ../../pico/memory.h
+pico/carthw/svp/compiler.o : cpu/drc/emit_$(ARCH).c
+cpu/sh2/compiler.o : cpu/drc/emit_$(ARCH).c
+cpu/sh2/mame/sh2pico.o : cpu/sh2/mame/sh2.c
+pico/pico.o pico/cd/pico.o : pico/pico_cmn.c pico/pico_int.h
+pico/memory.o pico/cd/memory.o : pico/pico_int.h pico/memory.h
 
-../../cpu/musashi/m68kops.c :
-	@make -C ../../cpu/musashi
+cpu/musashi/m68kops.c :
+	@make -C cpu/musashi
 
-../../cpu/mz80/mz80.asm :
-	@make -C ../../cpu/mz80/
-
-cpu/fame/famec.o : ../../cpu/fame/famec.c ../../cpu/fame/famec_opcodes.h
+cpu/fame/famec.o : cpu/fame/famec.c cpu/fame/famec_opcodes.h
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -Wno-unused -c $< -o $@
 
-../../cpu/Cyclone/proj/Cyclone.s:
+cpu/Cyclone/proj/Cyclone.s:
 	@echo building Cyclone...
-	@make -C ../../cpu/Cyclone/proj CONFIG_FILE=config_pico.h
+	@make -C cpu/Cyclone/proj CONFIG_FILE=config_pico.h
 

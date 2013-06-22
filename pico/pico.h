@@ -33,7 +33,7 @@ extern void cache_flush_d_inval_i(const void *start_addr, const void *end_addr);
 
 // attempt to alloc mem at specified address.
 // alloc anywhere else if that fails (callers should handle that)
-extern void *plat_mmap(unsigned long addr, size_t size);
+extern void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed);
 extern void *plat_mremap(void *ptr, size_t oldsize, size_t newsize);
 extern void  plat_munmap(void *ptr, size_t size);
 

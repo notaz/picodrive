@@ -458,7 +458,7 @@ static unsigned char *PicoCartAlloc(int filesize, int is_sms)
 
   // Allocate space for the rom plus padding
   // use special address for 32x dynarec
-  rom = plat_mmap(0x02000000, rom_alloc_size);
+  rom = plat_mmap(0x02000000, rom_alloc_size, 0, 0);
   return rom;
 }
 

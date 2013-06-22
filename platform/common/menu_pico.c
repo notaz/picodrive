@@ -2,35 +2,37 @@
 
 #include "emu.h"
 #include "menu_pico.h"
+#include "input_pico.h"
 
 #include <version.h>
-#include <revision.h>
 
 #include <pico/pico.h>
 #include <pico/patch.h>
+
+// FIXME
+#define REVISION "0"
+
+static const char *rom_exts[] = {
+	"zip", "bin", "smd", "gen",
+	"iso", "cso", "cue", NULL
+};
 
 // rrrr rggg gggb bbbb
 static unsigned short fname2color(const char *fname)
 {
 	const char *ext = fname + strlen(fname) - 3;
-	static const char *rom_exts[]   = { "zip", "bin", "smd", "gen", "iso", "cso", "cue" };
 	static const char *other_exts[] = { "gmv", "pat" };
 	int i;
 
 	if (ext < fname) ext = fname;
-	for (i = 0; i < array_size(rom_exts); i++)
+	for (i = 0; rom_exts[i] != NULL; i++)
 		if (strcasecmp(ext, rom_exts[i]) == 0) return 0xbdff; // FIXME: mk defines
 	for (i = 0; i < array_size(other_exts); i++)
 		if (strcasecmp(ext, other_exts[i]) == 0) return 0xaff5;
 	return 0xffff;
 }
 
-static const char *filter_exts[] = {
-	".mp3", ".MP3", ".srm", ".brm", "s.gz", ".mds",	"bcfg", ".txt", ".htm", "html",
-	".jpg", ".gpe"
-};
-
-#include "menu.c"
+#include "../libpicofe/menu.c"
 
 /* platform specific options and handlers */
 #if   defined(__GP2X__)
@@ -96,7 +98,7 @@ static void load_progress_cb(int percent)
 	if (len > g_menuscreen_w)
 		len = g_menuscreen_w;
 
-	menu_draw_begin(0);
+	menu_draw_begin(0, 1);
 	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_w * me_sfont_h * 2;
 	for (ln = me_sfont_h - 2; ln > 0; ln--, dst += g_menuscreen_w)
 		memset(dst, 0xff, len * 2);
@@ -108,7 +110,7 @@ static void cdload_progress_cb(const char *fname, int percent)
 	int ln, len = percent * g_menuscreen_w / 100;
 	unsigned short *dst;
 
-	menu_draw_begin(0);
+	menu_draw_begin(0, 1);
 	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_w * me_sfont_h * 2;
 	memset(dst, 0xff, g_menuscreen_w * (me_sfont_h - 2) * 2);
 
@@ -136,7 +138,7 @@ void menu_romload_prepare(const char *rom_name)
 
 	/* fill all buffers, callbacks won't update in full */
 	for (i = 0; i < 3; i++) {
-		menu_draw_begin(1);
+		menu_draw_begin(1, 1);
 		smalltext_out16(1, 1, "Loading", 0xffff);
 		smalltext_out16(1, me_sfont_h, p, 0xffff);
 		menu_draw_end();
@@ -152,7 +154,7 @@ void menu_romload_end(void)
 	PicoCartLoadProgressCB = NULL;
 	PicoCDLoadProgressCB = NULL;
 
-	menu_draw_begin(0);
+	menu_draw_begin(0, 1);
 	smalltext_out16(1, (cdload_called ? 6 : 3) * me_sfont_h,
 		"Starting emulation...", 0xffff);
 	menu_draw_end();
@@ -167,7 +169,7 @@ static void draw_patchlist(int sel)
 	max_cnt = g_menuscreen_h / me_sfont_h;
 	start = max_cnt / 2 - sel;
 
-	menu_draw_begin(1);
+	menu_draw_begin(1, 0);
 
 	for (i = 0; i < PicoPatchCount; i++) {
 		pos = start + i;
@@ -565,15 +567,15 @@ static int mh_saveloadcfg(int id, int keys)
 	case MA_OPT_SAVECFG:
 	case MA_OPT_SAVECFG_GAME:
 		if (emu_write_config(id == MA_OPT_SAVECFG_GAME ? 1 : 0))
-			me_update_msg("config saved");
+			menu_update_msg("config saved");
 		else
-			me_update_msg("failed to write config");
+			menu_update_msg("failed to write config");
 		break;
 	case MA_OPT_LOADCFG:
 		ret = emu_read_config(rom_fname_loaded, 1);
 		if (!ret) ret = emu_read_config(NULL, 1);
-		if (ret)  me_update_msg("config loaded");
-		else      me_update_msg("failed to load config");
+		if (ret)  menu_update_msg("config loaded");
+		else      menu_update_msg("failed to load config");
 		break;
 	default:
 		return 0;
@@ -585,7 +587,7 @@ static int mh_saveloadcfg(int id, int keys)
 static int mh_restore_defaults(int id, int keys)
 {
 	emu_set_defconfig();
-	me_update_msg("defaults restored");
+	menu_update_msg("defaults restored");
 	return 1;
 }
 
@@ -759,7 +761,7 @@ static void debug_menu_loop(void)
 
 	while (1)
 	{
-		menu_draw_begin(1);
+		menu_draw_begin(1, 0);
 		switch (mode)
 		{
 			case 0: tmp = PDebugMain();
@@ -857,23 +859,24 @@ static const char credits[] =
 	" Lordus, Exophase, Rokas,\n"
 	" Nemesis, Tasco Deluxe";
 
-static char *romsel_run(void)
+static const char *romsel_run(void)
 {
-	char *ret, *sel_name;
+	const char *ret;
+	char *sel_name;
 
 	sel_name = malloc(sizeof(rom_fname_loaded));
 	if (sel_name == NULL)
 		return NULL;
 	strcpy(sel_name, rom_fname_loaded);
 
-	ret = menu_loop_romsel(sel_name, sizeof(rom_fname_loaded));
+	ret = menu_loop_romsel(sel_name, sizeof(rom_fname_loaded), rom_exts, NULL);
 	free(sel_name);
 	return ret;
 }
 
 static int main_menu_handler(int id, int keys)
 {
-	char *ret_name;
+	const char *ret_name;
 
 	switch (id)
 	{
@@ -914,7 +917,7 @@ static int main_menu_handler(int id, int keys)
 		if (rom_loaded && PicoPatches) {
 			menu_loop_patches();
 			PicoPatchApply();
-			me_update_msg("Patches applied");
+			menu_update_msg("Patches applied");
 		}
 		break;
 	default:
@@ -973,7 +976,7 @@ void menu_loop(void)
 
 static int mh_tray_load_cd(int id, int keys)
 {
-	char *ret_name;
+	const char *ret_name;
 
 	ret_name = romsel_run();
 	if (ret_name == NULL)
@@ -1018,7 +1021,7 @@ int menu_loop_tray(void)
 	return ret;
 }
 
-void me_update_msg(const char *msg)
+void menu_update_msg(const char *msg)
 {
 	strncpy(menu_error_msg, msg, sizeof(menu_error_msg));
 	menu_error_msg[sizeof(menu_error_msg) - 1] = 0;
@@ -1078,3 +1081,7 @@ menu_entry *me_list_get_next(void)
 	return me_list_i;
 }
 
+void menu_init(void)
+{
+	menu_init_base();
+}
