@@ -1,0 +1,7 @@
+*.o
+*.swp
+tags
+cscope.out
+PicoDrive.map
+config.mak
+config.log
