@@ -198,9 +198,6 @@ void plat_init(void)
 	// use buffer2 for menubg to save mem (using only buffers 0, 1 in menu)
 	g_menubg_ptr = gp2x_screens[2];
 
-	// snd
-	sndout_oss_init();
-
 	if (gp2x_dev_id == GP2X_DEV_CAANOO)
 		in_set_config(in_name_to_id("evdev:pollux-analog"), IN_CFG_KEY_NAMES,
 				caanoo_keys, sizeof(caanoo_keys));
@@ -227,7 +224,5 @@ void plat_finish(void)
 		dummy_finish();
 		break;
 	}
-
-	sndout_oss_exit();
 }
 

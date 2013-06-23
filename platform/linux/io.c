@@ -11,7 +11,6 @@
 
 #include "../libpicofe/menu.h"
 #include "../libpicofe/input.h"
-#include "../libpicofe/linux/sndout_oss.h"
 #include "../common/emu.h"
 #include "../common/input_pico.h"
 #include "version.h"
@@ -342,9 +341,6 @@ void plat_init(void)
 	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);
 	xlib_init();
 #endif
-
-	// snd
-	sndout_oss_init();
 }
 
 void plat_finish(void)
@@ -354,7 +350,6 @@ void plat_finish(void)
 #else
 	free(g_screen_ptr);
 #endif
-	sndout_oss_exit();
 }
 
 /* misc */

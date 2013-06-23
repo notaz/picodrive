@@ -27,7 +27,7 @@ CFLAGS += -Iplatform/linux/
 LDLIBS += -lm -lpng
 
 # tmp
-CFLAGS += `sdl-config --cflags`
+CFLAGS += `sdl-config --cflags` -DHAVE_SDL
 LDLIBS += `sdl-config --libs`
 
 all: PicoDrive
@@ -45,7 +45,8 @@ OBJS += platform/common/main.o platform/common/emu.o platform/common/menu_pico.o
 OBJS += platform/libpicofe/input.o platform/libpicofe/readpng.o \
 	platform/libpicofe/fonts.o platform/libpicofe/linux/in_evdev.o \
 	platform/libpicofe/linux/plat.o platform/libpicofe/linux/sndout_oss.o \
-	platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
+	platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o \
+	platform/libpicofe/sndout.o platform/libpicofe/sndout_sdl.o
 
 OBJS += platform/libpicofe/plat_dummy.o
 

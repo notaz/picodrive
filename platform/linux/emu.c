@@ -11,7 +11,6 @@
 
 #include "../libpicofe/menu.h"
 #include "../libpicofe/plat.h"
-#include "../libpicofe/linux/sndout_oss.h"
 #include "../common/emu.h"
 #include "../common/arm_utils.h"
 #include "version.h"
@@ -19,7 +18,6 @@
 #include <pico/pico_int.h>
 
 
-static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast", NULL };
 const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
 enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
@@ -209,43 +207,9 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	g_menubg_src_ptr = g_screen_ptr;
 }
 
-static void oss_write_nonblocking(int len)
-{
-	// sndout_oss_can_write() is not reliable, only use with no_frmlimit
-	if ((currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) && !sndout_oss_can_write(len))
-		return;
-
-	sndout_oss_write_nb(PsndOut, len);
-}
-
 void pemu_sound_start(void)
 {
-	PsndOut = NULL;
-
-	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
-	{
-		int is_stereo = (PicoOpt & POPT_EN_STEREO) ? 1 : 0;
-
-		PsndRerate(Pico.m.frame_count ? 1 : 0);
-
-		printf("starting audio: %i len: %i stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, is_stereo, Pico.m.pal);
-		sndout_oss_start(PsndRate, is_stereo, 1);
-		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
-		PicoWriteSound = oss_write_nonblocking;
-		plat_update_volume(0, 0);
-		memset(sndBuffer, 0, sizeof(sndBuffer));
-		PsndOut = sndBuffer;
-	}
-}
-
-void pemu_sound_stop(void)
-{
-}
-
-void pemu_sound_wait(void)
-{
-	// don't need to do anything, writes will block by themselves
+	emu_sound_start();
 }
 
 void plat_debug_cat(char *str)
@@ -262,14 +226,10 @@ void pemu_loop_prep(void)
 {
 	apply_renderer();
 	osd_text = osd_text16;
-
-	pemu_sound_start();
 }
 
 void pemu_loop_end(void)
 {
-	pemu_sound_stop();
-
 	/* do one more frame for menu bg */
 	pemu_forced_frame(0, 1);
 }

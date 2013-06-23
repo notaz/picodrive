@@ -16,6 +16,7 @@
 #include "../libpicofe/posix.h"
 #include "../libpicofe/input.h"
 #include "../libpicofe/fonts.h"
+#include "../libpicofe/sndout.h"
 #include "../libpicofe/lprintf.h"
 #include "../libpicofe/plat.h"
 #include "emu.h"
@@ -44,6 +45,8 @@ int config_slot = 0, config_slot_current = 0;
 int pico_pen_x = 320/2, pico_pen_y = 240/2;
 int pico_inp_mode = 0;
 int engineState = PGS_Menu;
+
+static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 
 /* tmp buff to reduce stack usage for plats with small stack */
 static char static_buff[512];
@@ -1418,6 +1421,8 @@ void emu_init(void)
 	PicoMessage = plat_status_msg_busy_next;
 	PicoMCDopenTray = emu_tray_open;
 	PicoMCDcloseTray = emu_tray_close;
+
+	sndout_init();
 }
 
 void emu_finish(void)
@@ -1440,6 +1445,42 @@ void emu_finish(void)
 	pprof_finish();
 
 	PicoExit();
+	sndout_exit();
+}
+
+static void snd_write_nonblocking(int len)
+{
+	sndout_write_nb(PsndOut, len);
+}
+
+void emu_sound_start(void)
+{
+	PsndOut = NULL;
+
+	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
+	{
+		int is_stereo = (PicoOpt & POPT_EN_STEREO) ? 1 : 0;
+
+		PsndRerate(Pico.m.frame_count ? 1 : 0);
+
+		printf("starting audio: %i len: %i stereo: %i, pal: %i\n",
+			PsndRate, PsndLen, is_stereo, Pico.m.pal);
+		sndout_start(PsndRate, is_stereo);
+		PicoWriteSound = snd_write_nonblocking;
+		plat_update_volume(0, 0);
+		memset(sndBuffer, 0, sizeof(sndBuffer));
+		PsndOut = sndBuffer;
+	}
+}
+
+void emu_sound_stop(void)
+{
+	sndout_stop();
+}
+
+void emu_sound_wait(void)
+{
+	sndout_wait();
 }
 
 static void skip_frame(int do_audio)
@@ -1477,6 +1518,7 @@ void emu_loop(void)
 
 	plat_video_loop_prepare();
 	pemu_loop_prep();
+	pemu_sound_start();
 
 	/* number of ticks per frame */
 	if (Pico.m.pal) {
@@ -1641,6 +1683,7 @@ void emu_loop(void)
 	}
 
 	pemu_loop_end();
+	emu_sound_stop();
 
 	// pemu_loop_end() might want to do 1 frame for bg image,
 	// so free CD buffer here

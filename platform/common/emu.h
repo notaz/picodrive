@@ -149,6 +149,11 @@ void  emu_get_game_name(char *str150);
 void  emu_set_fastforward(int set_on);
 void  emu_status_msg(const char *format, ...);
 
+/* default sound code */
+void  emu_sound_start(void);
+void  emu_sound_stop(void);
+void  emu_sound_wait(void);
+
 /* used by some (but not all) platforms */
 void  emu_cmn_forced_frame(int no_scale, int do_emu);
 
@@ -164,8 +169,6 @@ void pemu_forced_frame(int no_scale, int do_emu); // ..to g_menubg_src_ptr
 void pemu_finalize_frame(const char *fps, const char *notice_msg);
 
 void pemu_sound_start(void);
-void pemu_sound_stop(void);
-void pemu_sound_wait(void);
 
 void plat_early_init(void);
 void plat_init(void);

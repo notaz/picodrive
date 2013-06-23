@@ -726,10 +726,10 @@ static void mplayer_loop(void)
 		PDebugZ80Frame();
 		if (in_menu_wait_any(NULL, 0) & PBTN_MA3)
 			break;
-		pemu_sound_wait();
+		emu_sound_wait();
 	}
 
-	pemu_sound_stop();
+	emu_sound_stop();
 }
 
 static void draw_text_debug(const char *str, int skip, int from)
