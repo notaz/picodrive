@@ -31,7 +31,7 @@ use_drz80 ?= 1
 use_sh2drc ?= 1
 
 asm_memory = 1
-#asm_render = 1
+asm_render = 1
 asm_ym2612 = 1
 asm_misc = 1
 asm_cdpico = 1

@@ -15,8 +15,15 @@
 @ .equiv START_ROW, 		1
 @ .equiv END_ROW, 		27
 @ one row means 8 pixels. If above example was used, (27-1)*8=208 lines would be rendered.
-.include "port_config.s"
+#ifndef START_ROW
+#define START_ROW 0
+#endif
+#ifndef END_ROW
+#define END_ROW 28
+#endif
 
+.text
+.align 2
 
 .global BackFillFull @ int reg7
 

@@ -6,8 +6,6 @@
  * See COPYING file in the top-level directory.
  */
 
-@@ .include "port_config.s"
-
 .equ SRR_MAPPED,    (1 <<  0)
 .equ SRR_READONLY,  (1 <<  1)
 .equ SRF_EEPROM,    (1 <<  1)

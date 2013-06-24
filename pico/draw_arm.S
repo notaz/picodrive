@@ -8,8 +8,6 @@
  * this is highly specialized, be careful if changing related C code!
  */
 
-.include "port_config.s"
-
 .extern Pico
 .extern PicoOpt
 .extern HighCol
@@ -1768,11 +1766,11 @@ FinalizeLineRGB555_pal_done:
 
 .fl_no32colRGB555:
 
-.if UNALIGNED_DRAWLINEDEST
+#ifdef UNALIGNED_DRAWLINEDEST
     @ this is basically for Gizmondo, which has unaligned odd lines in the framebuffer
     tst     r0, #2
     bne     .fl_RGB555u
-.endif
+#endif
 
 .fl_loopRGB555:
     ldr     r12, [r1], #4
@@ -1815,10 +1813,10 @@ FinalizeLineRGB555_pal_done:
     mov     r9, #0x3900 @ f800 07e0 001f | e000 0780 001c | 3800 01e0 0007
     orr     r9, r9, #0x00e7
 
-.if UNALIGNED_DRAWLINEDEST
+#ifdef UNALIGNED_DRAWLINEDEST
     tst     r0, #2
     bne     .fl_32scale_RGB555u
-.endif
+#endif
 
 .fl_loop32scale_RGB555:
     ldr     r12, [r1], #4
@@ -1876,7 +1874,7 @@ FinalizeLineRGB555_pal_done:
     ldmfd   sp!, {r4-r9,lr}
     bx      lr
 
-.if UNALIGNED_DRAWLINEDEST
+#ifdef UNALIGNED_DRAWLINEDEST
     @ unaligned versions of loops
     @ warning: starts drawing 2bytes before dst
 
@@ -1989,7 +1987,7 @@ FinalizeLineRGB555_pal_done:
     ldmfd   sp!, {r4-r9,lr}
     bx      lr
 
-.endif @ UNALIGNED_DRAWLINEDEST
+#endif /* UNALIGNED_DRAWLINEDEST */
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
