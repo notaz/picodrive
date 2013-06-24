@@ -20,6 +20,37 @@ DEFINES += PPROF
 OBJS += platform/linux/pprof.o
 endif
 
+# asm stuff
+ifeq "$(asm_render)" "1"
+DEFINES += _ASM_DRAW_C
+OBJS += pico/draw_arm.o pico/draw2_arm.o
+endif
+ifeq "$(asm_memory)" "1"
+DEFINES += _ASM_MEMORY_C
+OBJS += pico/memory_arm.o
+endif
+ifeq "$(asm_ym2612)" "1"
+DEFINES += _ASM_YM2612_C
+OBJS += pico/sound/ym2612_arm.o
+endif
+ifeq "$(asm_misc)" "1"
+DEFINES += _ASM_MISC_C
+OBJS += pico/misc_arm.o
+OBJS += pico/cd/misc_arm.o
+endif
+ifeq "$(asm_cdpico)" "1"
+DEFINES += _ASM_CD_PICO_C
+OBJS += pico/cd/pico_arm.o
+endif
+ifeq "$(asm_cdmemory)" "1"
+DEFINES += _ASM_CD_MEMORY_C
+OBJS += pico/cd/memory_arm.o
+endif
+ifeq "$(asm_32xdraw)" "1"
+DEFINES += _ASM_32X_DRAW
+OBJS += pico/32x/draw_arm.o
+endif
+
 # === Pico core ===
 # Pico
 OBJS += pico/state.o pico/cart.o pico/memory.o pico/pico.o pico/sek.o pico/z80if.o \
@@ -48,6 +79,10 @@ OBJS += pico/carthw/carthw.o
 # SVP
 OBJS += pico/carthw/svp/svp.o pico/carthw/svp/memory.o \
 	pico/carthw/svp/ssp16.o
+ifeq "$(ARCH)" "arm"
+OBJS += pico/carthw/svp/stub_arm.o
+OBJS += pico/carthw/svp/compiler.o
+endif
 # sound
 OBJS += pico/sound/sound.o
 OBJS += pico/sound/sn76496.o pico/sound/ym2612.o
@@ -61,7 +96,7 @@ OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
 endif
 ifeq "$(use_cyclone)" "1"
 DEFINES += EMU_C68K
-OBJS += pico/m68kif_cyclone.o cpu/Cyclone/proj/Cyclone.o cpu/Cyclone/tools/idle.o
+OBJS += pico/m68kif_cyclone.o cpu/cyclone/Cyclone.o cpu/cyclone/tools/idle.o
 endif
 ifeq "$(use_fame)" "1"
 DEFINES += EMU_F68K
@@ -104,21 +139,12 @@ OBJS += cpu/sh2/mame/sh2pico.o
 endif
 endif # !no_32x
 
-
-DIRS += platform platform/common pico pico/cd pico/pico pico/32x pico/sound pico/carthw/svp \
-	cpu cpu/musashi cpu/cz80 cpu/fame cpu/sh2/mame cpu/drc
-
+CFLAGS += $(addprefix -D,$(DEFINES))
 
 # common rules
-.c.o:
-	@echo ">>>" $<
-	$(CC) $(CFLAGS) -c $< -o $@
 .s.o:
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -c $< -o $@
-
-mkdirs:
-	mkdir -p $(DIRS)
 
 tools/textfilter: tools/textfilter.c
 	make -C tools/ textfilter
@@ -138,7 +164,7 @@ cpu/fame/famec.o : cpu/fame/famec.c cpu/fame/famec_opcodes.h
 	@echo ">>>" $<
 	$(CC) $(CFLAGS) -Wno-unused -c $< -o $@
 
-cpu/Cyclone/proj/Cyclone.s:
+cpu/cyclone/Cyclone.s:
 	@echo building Cyclone...
-	@make -C cpu/Cyclone/proj CONFIG_FILE=config_pico.h
+	@make -C cpu/cyclone CONFIG_FILE='\"../cyclone_config.h\"'
 

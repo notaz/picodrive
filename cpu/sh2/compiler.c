@@ -159,7 +159,7 @@ typedef struct {
 
 // note: reg_temp[] must have at least the amount of
 // registers used by handlers in worst case (currently 4)
-#ifdef ARM
+#ifdef __arm__
 #include "../drc/emit_arm.c"
 
 static const int reg_map_g2h[] = {

@@ -35,7 +35,6 @@
 // platform
 #define PATH_SEP      "/"
 #define PATH_SEP_C    '/'
-#define MENU_X2       0
 
 #endif //PORT_CONFIG_H
 

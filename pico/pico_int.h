@@ -35,7 +35,7 @@ extern "C" {
 
 // ----------------------- 68000 CPU -----------------------
 #ifdef EMU_C68K
-#include "../cpu/Cyclone/Cyclone.h"
+#include "../cpu/cyclone/Cyclone.h"
 extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekCyclesLeftNoMCD PicoCpuCM68k.cycles // cycles left for this run
 #define SekCyclesLeft \
@@ -46,7 +46,7 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekEndTimesliceS68k(after) PicoCpuCS68k.cycles=after
 #define SekPc (PicoCpuCM68k.pc-PicoCpuCM68k.membase)
 #define SekPcS68k (PicoCpuCS68k.pc-PicoCpuCS68k.membase)
-#define SekDar(x) PicoCpuCM68k.d[x]
+#define SekDar(x) (x < 8 ? PicoCpuCM68k.d[x] : PicoCpuCM68k.a[x - 8])
 #define SekSr     CycloneGetSr(&PicoCpuCM68k)
 #define SekSetStop(x) { PicoCpuCM68k.state_flags&=~1; if (x) { PicoCpuCM68k.state_flags|=1; PicoCpuCM68k.cycles=0; } }
 #define SekSetStopS68k(x) { PicoCpuCS68k.state_flags&=~1; if (x) { PicoCpuCS68k.state_flags|=1; PicoCpuCS68k.cycles=0; } }
@@ -73,7 +73,7 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #define SekEndTimesliceS68k(after) PicoCpuFS68k.io_cycle_counter=after
 #define SekPc     fm68k_get_pc(&PicoCpuFM68k)
 #define SekPcS68k fm68k_get_pc(&PicoCpuFS68k)
-#define SekDar(x) PicoCpuFM68k.dreg[x].D
+#define SekDar(x) (x < 8 ? PicoCpuFM68k.dreg[x].D : PicoCpuFM68k.areg[x - 8].D)
 #define SekSr     PicoCpuFM68k.sr
 #define SekSetStop(x) { \
 	PicoCpuFM68k.execinfo &= ~FM68K_HALTED; \

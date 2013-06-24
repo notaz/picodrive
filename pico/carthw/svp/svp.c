@@ -56,7 +56,7 @@ static void PicoSVPReset(void)
 
 	memcpy(svp->iram_rom + 0x800, Pico.rom + 0x800, 0x20000 - 0x800);
 	ssp1601_reset(&svp->ssp1601);
-#ifndef PSP
+#ifdef __arm__
 	if ((PicoOpt&POPT_EN_SVP_DRC) && svp_dyn_ready)
 		ssp1601_dyn_reset(&svp->ssp1601);
 #endif
@@ -66,7 +66,7 @@ static void PicoSVPReset(void)
 static void PicoSVPLine(void)
 {
 	int count = 1;
-#if defined(ARM) || defined(PSP)
+#if defined(__arm__) || defined(PSP)
 	// performance hack
 	static int delay_lines = 0;
 	delay_lines++;
@@ -76,7 +76,7 @@ static void PicoSVPLine(void)
 	delay_lines = 0;
 #endif
 
-#ifndef PSP
+#ifdef __arm__
 	if ((PicoOpt&POPT_EN_SVP_DRC) && svp_dyn_ready)
 		ssp1601_dyn_run(PicoSVPCycles * count);
 	else
@@ -118,7 +118,7 @@ static int PicoSVPDma(unsigned int source, int len, unsigned short **srcp, unsig
 
 void PicoSVPInit(void)
 {
-#ifndef PSP
+#ifdef __arm__
 	// this is to unmap tcache and make
 	// mem available for large ROMs, MCD, etc.
 	drc_cmn_cleanup();
@@ -127,7 +127,7 @@ void PicoSVPInit(void)
 
 static void PicoSVPExit(void)
 {
-#ifndef PSP
+#ifdef __arm__
 	ssp1601_dyn_exit();
 #endif
 }
@@ -150,7 +150,7 @@ void PicoSVPStartup(void)
 
 	// init SVP compiler
 	svp_dyn_ready = 0;
-#ifndef PSP
+#ifdef __arm__
 	if (PicoOpt & POPT_EN_SVP_DRC) {
 		if (ssp1601_dyn_startup())
 			return;

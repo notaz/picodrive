@@ -11,3 +11,5 @@ cpu/musashi/m68kops.h
 skin
 config.cfg
 srm/
+brm/
+mds/

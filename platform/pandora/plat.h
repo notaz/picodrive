@@ -1,5 +1,4 @@
 
-extern char **pnd_filter_list;
 extern int g_layer_cx, g_layer_cy;
 extern int g_layer_cw, g_layer_ch;
 

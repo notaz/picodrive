@@ -31,7 +31,7 @@ extern ssp1601_t *ssp;
 #define SSP_FLAG_Z (1<<0xd)
 #define SSP_FLAG_N (1<<0xf)
 
-#ifndef ARM
+#ifndef __arm__
 //#define DUMP_BLOCK 0x0c9a
 void ssp_drc_next(void){}
 void ssp_drc_next_patch(void){}
@@ -1794,7 +1794,7 @@ void *ssp_translate_block(int pc)
 	exit(0);
 #endif
 
-#ifdef ARM
+#ifdef __arm__
 	cache_flush_d_inval_i(tcache, tcache_ptr);
 #endif
 
@@ -1839,7 +1839,7 @@ int ssp1601_dyn_startup(void)
 	PicoLoadStateHook = ssp1601_state_load;
 
 	n_in_ops = 0;
-#ifdef ARM
+#ifdef __arm__
 	// hle'd blocks
 	ssp_block_table[0x800/2] = (void *) ssp_hle_800;
 	ssp_block_table[0x902/2] = (void *) ssp_hle_902;
@@ -1879,7 +1879,7 @@ void ssp1601_dyn_run(int cycles)
 #ifdef DUMP_BLOCK
 	ssp_translate_block(DUMP_BLOCK >> 1);
 #endif
-#ifdef ARM
+#ifdef __arm__
 	ssp_drc_entry(cycles);
 #endif
 }

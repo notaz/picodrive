@@ -15,22 +15,23 @@
 #include <unistd.h>
 #include <linux/fb.h>
 #include <linux/omapfb.h>
+#include <linux/input.h>
 
 #include "../common/emu.h"
-#include "../common/menu.h"
-#include "../common/plat.h"
 #include "../common/arm_utils.h"
-#include "../common/input.h"
-#include "../linux/sndout_oss.h"
-#include "../linux/fbdev.h"
-#include "../linux/xenv.h"
+#include "../common/input_pico.h"
+#include "../common/version.h"
+#include "../libpicofe/input.h"
+#include "../libpicofe/menu.h"
+#include "../libpicofe/plat.h"
+#include "../libpicofe/linux/in_evdev.h"
+#include "../libpicofe/linux/sndout_oss.h"
+#include "../libpicofe/linux/fbdev.h"
+#include "../libpicofe/linux/xenv.h"
 #include "plat.h"
 #include "asm_utils.h"
-#include "version.h"
 
 #include <pico/pico_int.h>
-
-#include <linux/input.h>
 
 static struct vout_fbdev *main_fb, *layer_fb;
 // g_layer_* - in use, g_layer_c* - configured custom
@@ -40,8 +41,7 @@ static int g_layer_w = 320, g_layer_h = 240;
 static int g_osd_fps_x, g_osd_y, doing_bg_frame;
 
 static const char pnd_script_base[] = "sudo -n /usr/pandora/scripts";
-static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
-static unsigned char __attribute__((aligned(4))) fb_copy[g_screen_width * g_screen_height * 2];
+static unsigned char __attribute__((aligned(4))) fb_copy[320 * 240 * 2];
 static void *temp_frame;
 unsigned char *PicoDraw2FB;
 const char *renderer_names[] = { NULL };
@@ -64,41 +64,28 @@ static const char * const pandora_gpio_keys[KEY_MAX + 1] = {
 	[KEY_MENU]	= "Pandora",
 };
 
-struct in_default_bind in_evdev_defbinds[] =
+static struct in_default_bind in_evdev_defbinds[] =
 {
-	/* MXYZ SACB RLDU */
-	{ KEY_UP,	IN_BINDTYPE_PLAYER12, 0 },
-	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, 1 },
-	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, 2 },
-	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, 3 },
-	{ KEY_S,	IN_BINDTYPE_PLAYER12, 4 },	/* B */
-	{ KEY_D,	IN_BINDTYPE_PLAYER12, 5 },	/* C */
-	{ KEY_A,	IN_BINDTYPE_PLAYER12, 6 },	/* A */
-	{ KEY_ENTER,	IN_BINDTYPE_PLAYER12, 7 },
+	{ KEY_UP,	IN_BINDTYPE_PLAYER12, GBTN_UP },
+	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, GBTN_DOWN },
+	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, GBTN_LEFT },
+	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, GBTN_RIGHT },
+	{ KEY_A,	IN_BINDTYPE_PLAYER12, GBTN_A },
+	{ KEY_S,	IN_BINDTYPE_PLAYER12, GBTN_B },
+	{ KEY_D,	IN_BINDTYPE_PLAYER12, GBTN_C },
+	{ KEY_ENTER,	IN_BINDTYPE_PLAYER12, GBTN_START },
 	{ KEY_BACKSLASH, IN_BINDTYPE_EMU, PEVB_MENU },
 	{ KEY_SPACE,	IN_BINDTYPE_EMU, PEVB_MENU },
 	/* Pandora */
-	{ KEY_PAGEDOWN,	IN_BINDTYPE_PLAYER12, 4 },
-	{ KEY_END,	IN_BINDTYPE_PLAYER12, 5 },
-	{ KEY_HOME,	IN_BINDTYPE_PLAYER12, 6 },
-	{ KEY_LEFTALT,	IN_BINDTYPE_PLAYER12, 7 },
+	{ KEY_HOME,	IN_BINDTYPE_PLAYER12, GBTN_A },
+	{ KEY_PAGEDOWN,	IN_BINDTYPE_PLAYER12, GBTN_B },
+	{ KEY_END,	IN_BINDTYPE_PLAYER12, GBTN_C },
+	{ KEY_LEFTALT,	IN_BINDTYPE_PLAYER12, GBTN_START },
 	{ KEY_RIGHTSHIFT,IN_BINDTYPE_EMU, PEVB_STATE_SAVE },
 	{ KEY_RIGHTCTRL, IN_BINDTYPE_EMU, PEVB_STATE_LOAD },
 	{ KEY_LEFTCTRL,	 IN_BINDTYPE_EMU, PEVB_MENU },
 	{ 0, 0, 0 }
 };
-
-static int get_cpu_clock(void)
-{
-	FILE *f;
-	int ret = 0;
-	f = fopen("/proc/pandora/cpu_mhz_max", "r");
-	if (f) {
-		fscanf(f, "%d", &ret);
-		fclose(f);
-	}
-	return ret;
-}
 
 void pemu_prep_defconfig(void)
 {
@@ -109,7 +96,7 @@ void pemu_prep_defconfig(void)
 
 void pemu_validate_config(void)
 {
-	currentConfig.CPUclock = get_cpu_clock();
+	currentConfig.CPUclock = plat_target_cpu_clock_get();
 }
 
 static void osd_text(int x, int y, const char *text)
@@ -175,8 +162,7 @@ void plat_video_flip(void)
 	g_screen_ptr = vout_fbdev_flip(layer_fb);
 
 	// XXX: drain OS event queue here, maybe we'll actually use it someday..
-	int dummy;
-	xenv_update(&dummy);
+	xenv_update(NULL, NULL, NULL, NULL);
 }
 
 void plat_video_toggle_renderer(int change, int is_menu)
@@ -194,6 +180,10 @@ void plat_video_menu_begin(void)
 void plat_video_menu_end(void)
 {
 	g_menuscreen_ptr = vout_fbdev_flip(main_fb);
+}
+
+void plat_video_menu_leave(void)
+{
 }
 
 void plat_video_wait_vsync(void)
@@ -222,53 +212,6 @@ void plat_status_msg_busy_first(const char *msg)
 
 void plat_update_volume(int has_changed, int is_up)
 {
-	static int prev_frame = 0, wait_frames = 0;
-	int vol = currentConfig.volume;
-
-	if (has_changed)
-	{
-		if (is_up) {
-			if (vol < 99) vol++;
-		} else {
-			if (vol >  0) vol--;
-		}
-		wait_frames = 0;
-		sndout_oss_setvol(vol, vol);
-		currentConfig.volume = vol;
-		emu_status_msg("VOL: %02i", vol);
-		prev_frame = Pico.m.frame_count;
-	}
-}
-
-static void make_bg(int no_scale)
-{
-	unsigned short *s = (void *)fb_copy;
-	int x, y;
-
-	memset32(g_menubg_src_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2 / 4);
-
-	if (!no_scale && g_menuscreen_w >= 640 && g_menuscreen_h >= 480) {
-		unsigned int t, *d = g_menubg_src_ptr;
-		d += (g_menuscreen_h / 2 - 480 / 2) * g_menuscreen_w / 2;
-		d += (g_menuscreen_w / 2 - 640 / 2) / 2;
-		for (y = 0; y < 240; y++, s += 320, d += g_menuscreen_w*2/2) {
-			for (x = 0; x < 320; x++) {
-				t = s[x];
-				t |= t << 16;
-				d[x] = d[x + g_menuscreen_w / 2] = t;
-			}
-		}
-		return;
-	}
-
-	if (g_menuscreen_w >= 320 && g_menuscreen_h >= 240) {
-		unsigned short *d = g_menubg_src_ptr;
-		d += (g_menuscreen_h / 2 - 240 / 2) * g_menuscreen_w;
-		d += (g_menuscreen_w / 2 - 320 / 2);
-		for (y = 0; y < 240; y++, s += 320, d += g_menuscreen_w)
-			memcpy(d, s, 320*2);
-		return;
-	}
 }
 
 void pemu_forced_frame(int no_scale, int do_emu)
@@ -278,55 +221,13 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	doing_bg_frame = 0;
 
 	// making a copy because enabling the layer clears it's mem
-	memcpy32((void *)fb_copy, g_screen_ptr, sizeof(fb_copy) / 4);
-	make_bg(no_scale);
-}
-
-static void oss_write_nonblocking(int len)
-{
-	// sndout_oss_can_write() is not reliable, only use with no_frmlimit
-	if ((currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) && !sndout_oss_can_write(len))
-		return;
-
-	sndout_oss_write_nb(PsndOut, len);
+	memcpy((void *)fb_copy, g_screen_ptr, sizeof(fb_copy));
+	g_menubg_src_ptr = fb_copy;
 }
 
 void pemu_sound_start(void)
 {
-	PsndOut = NULL;
-
-	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
-	{
-		int is_stereo = (PicoOpt & POPT_EN_STEREO) ? 1 : 0;
-
-		PsndRerate(Pico.m.frame_count ? 1 : 0);
-
-		/*
-		 * for 44k stereo, we do 1470 samples/emu_frame
-		 * OMAP driver does power of 2 buffers, so we need at least 4K buffer.
-		 * The most we can lag is 1K samples, size of OMAP's McBSP FIFO,
-		 * with 2K sample buffer we might sometimes lag more than that,
-		 * thus causing underflows.
-		 */
-		printf("starting audio: %i len: %i stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, is_stereo, Pico.m.pal);
-		sndout_oss_start(PsndRate, is_stereo, 2);
-		//sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
-		PicoWriteSound = oss_write_nonblocking;
-		plat_update_volume(0, 0);
-		memset(sndBuffer, 0, sizeof(sndBuffer));
-		PsndOut = sndBuffer;
-	}
-}
-
-void pemu_sound_stop(void)
-{
-	sndout_oss_stop();
-}
-
-void pemu_sound_wait(void)
-{
-	// don't need to do anything, writes will block by themselves
+	emu_sound_start();
 }
 
 void plat_debug_cat(char *str)
@@ -395,27 +296,8 @@ void pnd_restore_layer_data(void)
 	if ((t[0] | t[5] | t[13]) == 0)
 		memset32((void *)fb_copy, 0x07000700, sizeof(fb_copy) / 4);
 
-	memcpy32(g_screen_ptr, (void *)fb_copy, 320*240*2 / 4);
+	memcpy(g_screen_ptr, (void *)fb_copy, 320*240*2);
 	plat_video_flip();
-}
-
-static void apply_filter(int which)
-{
-	char buf[128];
-	int i;
-
-	if (pnd_filter_list == NULL)
-		return;
-
-	for (i = 0; i < which; i++)
-		if (pnd_filter_list[i] == NULL)
-			return;
-
-	if (pnd_filter_list[i] == NULL)
-		return;
-
-	snprintf(buf, sizeof(buf), "%s/op_videofir.sh %s", pnd_script_base, pnd_filter_list[i]);
-	system(buf);
 }
 
 void emu_video_mode_change(int start_line, int line_count, int is_32cols)
@@ -480,47 +362,24 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 	plat_video_flip();
 }
 
-void pemu_loop_prep(void)
+void plat_video_loop_prepare(void)
 {
-	static int pal_old = -1;
-	static int filter_old = -1;
-	char buf[128];
-
-	if (currentConfig.CPUclock != get_cpu_clock()) {
-		snprintf(buf, sizeof(buf), "unset DISPLAY; echo y | %s/op_cpuspeed.sh %d",
-			 pnd_script_base, currentConfig.CPUclock);
-		system(buf);
-	}
-
-	if (Pico.m.pal != pal_old) {
-		snprintf(buf, sizeof(buf), "%s/op_lcdrate.sh %d",
-			 pnd_script_base, Pico.m.pal ? 50 : 60);
-		system(buf);
-		pal_old = Pico.m.pal;
-	}
-
-	if (currentConfig.filter != filter_old) {
-		apply_filter(currentConfig.filter);
-		filter_old = currentConfig.filter;
-	}
-
 	// make sure there is no junk left behind the layer
-	memset32(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2 / 4);
+	memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
 	g_menuscreen_ptr = vout_fbdev_flip(main_fb);
 
 	// emu_video_mode_change will call pnd_setup_layer()
+}
 
+void pemu_loop_prep(void)
+{
 	// dirty buffers better go now than during gameplay
 	sync();
 	sleep(0);
-
-	pemu_sound_start();
 }
 
 void pemu_loop_end(void)
 {
-	pemu_sound_stop();
-
 	/* do one more frame for menu bg */
 	pemu_forced_frame(0, 1);
 
@@ -582,7 +441,7 @@ void plat_init(void)
 		exit(1);
 	}
 
-	xenv_init();
+	xenv_init(NULL, "PicoDrive " VERSION);
 
 	w = h = 0;
 	main_fb = vout_fbdev_init(main_fb_name, &w, &h, 16, 2);
@@ -617,11 +476,14 @@ void plat_init(void)
 	g_menubg_src_ptr = temp_frame;
 	PicoDraw2FB = temp_frame;
 
-	sndout_oss_init();
 	pnd_menu_init();
 
-	in_set_config(in_name_to_id("evdev:gpio-keys"), IN_CFG_KEY_NAMES,
-		      pandora_gpio_keys, sizeof(pandora_gpio_keys));
+	in_evdev_init(in_evdev_defbinds);
+	in_probe();
+	plat_target_setup_input();
+
+	sndout_oss_frag_frames = 2;
+
 	return;
 
 fail1:
@@ -633,7 +495,6 @@ fail0:
 
 void plat_finish(void)
 {
-	sndout_oss_exit();
 	vout_fbdev_finish(main_fb);
 	xenv_finish();
 

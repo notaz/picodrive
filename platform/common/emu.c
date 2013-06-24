@@ -1483,6 +1483,29 @@ void emu_sound_wait(void)
 	sndout_wait();
 }
 
+static void emu_loop_prep(void)
+{
+	static int pal_old = -1;
+	static int filter_old = -1;
+
+	if (currentConfig.CPUclock != plat_target_cpu_clock_get())
+		plat_target_cpu_clock_set(currentConfig.CPUclock);
+
+	if (Pico.m.pal != pal_old) {
+		plat_target_lcdrate_set(Pico.m.pal);
+		pal_old = Pico.m.pal;
+	}
+
+	if (currentConfig.filter != filter_old) {
+		plat_target_hwfilter_set(currentConfig.filter);
+		filter_old = currentConfig.filter;
+	}
+
+	plat_target_gamma_set(currentConfig.gamma, 0);
+
+	pemu_loop_prep();
+}
+
 static void skip_frame(int do_audio)
 {
 	PicoSkipFrame = do_audio ? 1 : 2;
@@ -1517,7 +1540,7 @@ void emu_loop(void)
 		PicoCDBufferInit();
 
 	plat_video_loop_prepare();
-	pemu_loop_prep();
+	emu_loop_prep();
 	pemu_sound_start();
 
 	/* number of ticks per frame */

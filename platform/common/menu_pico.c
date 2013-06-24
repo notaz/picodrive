@@ -5,6 +5,7 @@
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
  */
+#include <stdio.h>
 #include <string.h>
 
 #include "emu.h"
@@ -15,6 +16,12 @@
 
 #include <pico/pico.h>
 #include <pico/patch.h>
+
+#ifdef PANDORA
+#define MENU_X2 1
+#else
+#define MENU_X2 0
+#endif
 
 // FIXME
 #define REVISION "0"
@@ -45,6 +52,8 @@ static unsigned short fname2color(const char *fname)
 
 #include "../libpicofe/menu.c"
 
+static const char *men_dummy[] = { NULL };
+
 /* platform specific options and handlers */
 #if   defined(__GP2X__)
 #include "../gp2x/menu.c"
@@ -56,25 +65,48 @@ static unsigned short fname2color(const char *fname)
 #define menu_main_plat_draw NULL
 #endif
 
+static void make_bg(int no_scale)
+{
+	unsigned short *src = (void *)g_menubg_src_ptr;
+	int w = g_screen_width, h = g_screen_height;
+	short *dst;
+	int x, y;
+
+	if (!no_scale && g_menuscreen_w / w >= 2 && g_menuscreen_h / h >= 2)
+	{
+		unsigned int t, *d = g_menubg_ptr;
+		d += (g_menuscreen_h / 2 - h * 2 / 2)
+			* g_menuscreen_w / 2;
+		d += (g_menuscreen_w / 2 - w * 2 / 2) / 2;
+		for (y = 0; y < h; y++, src += w, d += g_menuscreen_w*2/2) {
+			for (x = 0; x < w; x++) {
+				t = src[x];
+				t = ((t & 0xf79e)>>1) - ((t & 0xc618)>>3);
+				t |= t << 16;
+				d[x] = d[x + g_menuscreen_w / 2] = t;
+			}
+		}
+		return;
+	}
+
+	if (w > g_menuscreen_w)
+		w = g_menuscreen_w;
+	if (h > g_menuscreen_h)
+		h = g_menuscreen_h;
+	dst = (short *)g_menubg_ptr +
+		(g_menuscreen_h / 2 - h / 2) * g_menuscreen_w +
+		(g_menuscreen_w / 2 - w / 2);
+
+	// darken the active framebuffer
+	for (; h > 0; dst += g_menuscreen_w, src += g_screen_width, h--)
+		menu_darken_bg(dst, src, w, 1);
+}
+
 static void menu_enter(int is_rom_loaded)
 {
 	if (is_rom_loaded)
 	{
-		int w = g_screen_width, h = g_screen_height;
-		short *src, *dst;
-
-		if (w > g_menuscreen_w)
-			w = g_menuscreen_w;
-		if (h > g_menuscreen_h)
-			h = g_menuscreen_h;
-		src = (short *)g_menubg_src_ptr;
-		dst = (short *)g_menubg_ptr +
-			(g_menuscreen_h / 2 - h / 2) * g_menuscreen_w +
-			(g_menuscreen_w / 2 - w / 2);
-
-		// darken the active framebuffer
-		for (; h > 0; dst += g_menuscreen_w, src += g_screen_width, h--)
-			menu_darken_bg(dst, src, w, 1);
+		make_bg(0);
 	}
 	else
 	{
@@ -105,7 +137,7 @@ static void draw_savestate_bg(int slot)
 	/* do a frame and fetch menu bg */
 	pemu_forced_frame(0, 0);
 
-	menu_darken_bg(g_menubg_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h, 1);
+	make_bg(0);
 
 	PicoTmpStateRestore(tmp_state);
 }
@@ -485,12 +517,14 @@ static int menu_loop_adv_options(int id, int keys)
 
 // ------------ gfx options menu ------------
 
-static const char *men_dummy[] = { NULL };
+static const char h_gamma[] = "Gamma/brightness adjustment (default 100)";
 
 static menu_entry e_menu_gfx_options[] =
 {
-	mee_enum("Video output mode", MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
-	mee_enum("Renderer",          MA_OPT_RENDERER, currentConfig.renderer, renderer_names),
+	mee_enum   ("Video output mode", MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
+	mee_enum   ("Renderer",          MA_OPT_RENDERER, currentConfig.renderer, renderer_names),
+	mee_enum   ("Filter",            MA_OPT3_FILTERING, currentConfig.filter, men_dummy),
+	mee_range_h("Gamma adjustment",  MA_OPT3_GAMMA, currentConfig.gamma, 1, 200, h_gamma),
 	MENU_OPTIONS_GFX
 	mee_end,
 };
@@ -775,7 +809,8 @@ static void draw_frame_debug(void)
 	if (PicoDrawMask & PDRAW_32X_ON)         memcpy(layer_str + 26, "32x", 4);
 
 	pemu_forced_frame(1, 0);
-	memcpy(g_menuscreen_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h * 2);
+	make_bg(1);
+
 	smalltext_out16(4, 1, "build: r" REVISION "  "__DATE__ " " __TIME__ " " COMPILER, 0xffff);
 	smalltext_out16(4, g_menuscreen_h - me_sfont_h, layer_str, 0xffff);
 }
@@ -803,7 +838,7 @@ static void debug_menu_loop(void)
 			case 1: draw_frame_debug();
 				break;
 			case 2: pemu_forced_frame(1, 0);
-				menu_darken_bg(g_menuscreen_ptr, g_menubg_src_ptr, g_menuscreen_w * g_menuscreen_h, 0);
+				make_bg(1);
 				PDebugShowSpriteStats((unsigned short *)g_menuscreen_ptr + (g_menuscreen_h/2 - 240/2)*g_menuscreen_w +
 					g_menuscreen_w/2 - 320/2, g_menuscreen_w);
 				break;
@@ -1111,4 +1146,12 @@ void menu_init(void)
 	e_menu_gfx_options[i].data = plat_target.vout_methods;
 	me_enable(e_menu_gfx_options, MA_OPT_VOUT_MODE,
 		plat_target.vout_methods != NULL);
+
+	i = me_id2offset(e_menu_gfx_options, MA_OPT3_FILTERING);
+	e_menu_gfx_options[i].data = plat_target.hwfilters;
+	me_enable(e_menu_gfx_options, MA_OPT3_FILTERING,
+		plat_target.hwfilters != NULL);
+
+	me_enable(e_menu_gfx_options, MA_OPT3_GAMMA,
+                plat_target.gamma_set != NULL);
 }
