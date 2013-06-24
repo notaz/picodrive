@@ -38,7 +38,7 @@ OBJS += platform/linux/emu.o platform/linux/blit.o \
 
 # common
 OBJS += platform/common/main.o platform/common/emu.o platform/common/menu_pico.o \
-	platform/common/config.o platform/common/plat_sdl.o \
+	platform/common/config_file.o platform/common/plat_sdl.o \
 	platform/common/mp3_dummy.o
 
 # libpicofe

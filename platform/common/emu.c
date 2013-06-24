@@ -22,7 +22,7 @@
 #include "emu.h"
 #include "input_pico.h"
 #include "menu_pico.h"
-#include "config.h"
+#include "config_file.h"
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>

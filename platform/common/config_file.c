@@ -16,7 +16,7 @@
 #include "../libpicofe/input.h"
 #include "../libpicofe/plat.h"
 #include "../libpicofe/lprintf.h"
-#include "config.h"
+#include "config_file.h"
 
 static char *mystrip(char *str);
 
