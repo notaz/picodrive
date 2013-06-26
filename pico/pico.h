@@ -211,7 +211,7 @@ extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to us
 extern int p32x_msh2_multiplier;
 extern int p32x_ssh2_multiplier;
 #define SH2_MULTI_SHIFT 10
-#define MSH2_MULTI_DEFAULT ((1 << SH2_MULTI_SHIFT) * 3 / 2)
+#define MSH2_MULTI_DEFAULT ((1 << SH2_MULTI_SHIFT) * 21 / 10)
 #define SSH2_MULTI_DEFAULT ((1 << SH2_MULTI_SHIFT) * 3 / 2)
 
 // 32x/draw.c
