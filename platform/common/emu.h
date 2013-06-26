@@ -84,7 +84,6 @@ typedef struct _currentConfig_t {
 
 extern currentConfig_t currentConfig, defaultConfig;
 extern char *PicoConfigFile;
-extern int rom_loaded;
 extern int state_slot;
 extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;
@@ -111,14 +110,6 @@ enum TPicoGameState {
 	PGS_RestartRun,
 	PGS_Suspending,		/* PSP */
 	PGS_SuspendWake,	/* PSP */
-};
-
-// media types
-enum {
-	PM_BAD = 0,
-	PM_MD_CART,	/* also 32x */
-	PM_MARK3,
-	PM_CD,
 };
 
 void  emu_init(void);

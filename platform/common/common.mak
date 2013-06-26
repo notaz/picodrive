@@ -55,7 +55,8 @@ endif
 # Pico
 OBJS += pico/state.o pico/cart.o pico/memory.o pico/pico.o pico/sek.o pico/z80if.o \
 	pico/videoport.o pico/draw2.o pico/draw.o pico/mode4.o \
-	pico/misc.o pico/eeprom.o pico/patch.o pico/debug.o
+	pico/misc.o pico/eeprom.o pico/patch.o pico/debug.o \
+	pico/media.o
 # SMS
 ifneq "$(no_sms)" "1"
 OBJS += pico/sms.o
@@ -86,6 +87,11 @@ endif
 # sound
 OBJS += pico/sound/sound.o
 OBJS += pico/sound/sn76496.o pico/sound/ym2612.o
+ifeq "$(ARCH)" "arm"
+OBJS += pico/sound/mix_arm.o
+else
+OBJS += pico/sound/mix.o
+endif
 
 # === CPU cores ===
 # --- M68k ---

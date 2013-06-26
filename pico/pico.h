@@ -156,6 +156,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
 void PicoCartUnload(void);
 extern void (*PicoCartLoadProgressCB)(int percent);
 extern void (*PicoCDLoadProgressCB)(const char *fname, int percent);
+extern int PicoGameLoaded;
 
 // Draw.c
 // for line-based renderer, set conversion
@@ -222,6 +223,24 @@ extern int PsndRate,PsndLen;
 extern short *PsndOut;
 extern void (*PsndMix_32_to_16l)(short *dest, int *src, int count);
 void PsndRerate(int preserve_state);
+
+// media.c
+enum media_type_e {
+  PM_BAD_DETECT = -1,
+  PM_ERROR = -2,
+  PM_BAD_CD = -3,
+  PM_BAD_CD_NO_BIOS = -4,
+  PM_MD_CART = 1,	/* also 32x */
+  PM_MARK3,
+  PM_CD,
+};
+enum media_type_e PicoLoadMedia(const char *filename,
+  const char *carthw_cfg_fname,
+  const char *(*get_bios_filename)(int *region, const char *cd_fname),
+  void (*do_region_override)(const char *media_filename));
+int PicoCdCheck(const char *fname_in, int *pregion);
+
+extern unsigned char media_id_header[0x100];
 
 #ifdef __cplusplus
 } // End of extern "C"

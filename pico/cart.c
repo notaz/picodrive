@@ -23,6 +23,8 @@ void (*PicoCartMemSetup)(void);
 void (*PicoCartLoadProgressCB)(int percent) = NULL;
 void (*PicoCDLoadProgressCB)(const char *fname, int percent) = NULL; // handled in Pico/cd/cd_file.c
 
+int PicoGameLoaded;
+
 static void PicoCartDetect(const char *carthw_cfg);
 
 /* cso struct */
@@ -592,6 +594,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   else
     PicoPower();
 
+  PicoGameLoaded = 1;
   return 0;
 }
 
@@ -621,6 +624,7 @@ void PicoCartUnload(void)
     plat_munmap(Pico.rom, rom_alloc_size);
     Pico.rom = NULL;
   }
+  PicoGameLoaded = 0;
 }
 
 static unsigned int rom_crc32(void)

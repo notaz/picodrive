@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdarg.h>
 #ifndef NO_SYNC
 #include <unistd.h>
@@ -26,7 +27,6 @@
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
-#include <pico/cd/cue.h>
 
 
 #define STATUS_MSG_TIMEOUT 2000
@@ -52,7 +52,6 @@ static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 static char static_buff[512];
 const char *rom_fname_reload;
 char rom_fname_loaded[512];
-int rom_loaded = 0;
 int reset_timing = 0;
 static unsigned int notice_msg_time;	/* when started showing */
 static char noticeMsg[40];
@@ -149,19 +148,30 @@ static const char * const biosfiles_us[] = { "us_scd1_9210", "us_scd2_9306", "Se
 static const char * const biosfiles_eu[] = { "eu_mcd1_9210", "eu_mcd2_9306", "eu_mcd2_9303"   };
 static const char * const biosfiles_jp[] = { "jp_mcd1_9112", "jp_mcd1_9111" };
 
-static int find_bios(int region, const char **bios_file)
+static const char *find_bios(int *region, const char *cd_fname)
 {
 	int i, count;
 	const char * const *files;
 	FILE *f = NULL;
+	int ret;
 
-	if (region == 4) { // US
+	// we need to have config loaded at this point
+	ret = emu_read_config(cd_fname, 0);
+	if (!ret) emu_read_config(NULL, 0);
+
+	if (PicoRegionOverride) {
+		*region = PicoRegionOverride;
+		lprintf("override region to %s\n", *region != 4 ?
+			(*region == 8 ? "EU" : "JAP") : "USA");
+	}
+
+	if (*region == 4) { // US
 		files = biosfiles_us;
 		count = sizeof(biosfiles_us) / sizeof(char *);
-	} else if (region == 8) { // EU
+	} else if (*region == 8) { // EU
 		files = biosfiles_eu;
 		count = sizeof(biosfiles_eu) / sizeof(char *);
-	} else if (region == 1 || region == 2) {
+	} else if (*region == 1 || *region == 2) {
 		files = biosfiles_jp;
 		count = sizeof(biosfiles_jp) / sizeof(char *);
 	} else {
@@ -184,14 +194,12 @@ static int find_bios(int region, const char **bios_file)
 	if (f) {
 		lprintf("using bios: %s\n", static_buff);
 		fclose(f);
-		if (bios_file)
-			*bios_file = static_buff;
-		return 1;
+		return static_buff;
 	} else {
 		sprintf(static_buff, "no %s BIOS files found, read docs",
-			region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
+			*region != 4 ? (*region == 8 ? "EU" : "JAP") : "USA");
 		menu_update_msg(static_buff);
-		return 0;
+		return NULL;
 	}
 }
 
@@ -209,166 +217,6 @@ static int emu_isBios(const char *name)
 	return 0;
 }
 */
-
-static unsigned char id_header[0x100];
-
-/* checks if fname points to valid MegaCD image */
-static int emu_cd_check(int *pregion, const char *fname_in)
-{
-	const char *fname = fname_in;
-	unsigned char buf[32];
-	pm_file *cd_f;
-	int region = 4; // 1: Japan, 4: US, 8: Europe
-	char ext[5];
-	cue_track_type type = CT_UNKNOWN;
-	cue_data_t *cue_data = NULL;
-
-	get_ext(fname_in, ext);
-	if (strcasecmp(ext, ".cue") == 0) {
-		cue_data = cue_parse(fname_in);
-		if (cue_data != NULL) {
-			fname = cue_data->tracks[1].fname;
-			type  = cue_data->tracks[1].type;
-		}
-		else
-			return -1;
-	}
-
-	cd_f = pm_open(fname);
-	if (cue_data != NULL)
-		cue_destroy(cue_data);
-
-	if (cd_f == NULL) return 0; // let the upper level handle this
-
-	if (pm_read(buf, 32, cd_f) != 32) {
-		pm_close(cd_f);
-		return -1;
-	}
-
-	if (!strncasecmp("SEGADISCSYSTEM", (char *)buf+0x00, 14)) {
-		if (type && type != CT_ISO)
-			elprintf(EL_STATUS, ".cue has wrong type: %i", type);
-		type = CT_ISO;       // Sega CD (ISO)
-	}
-	if (!strncasecmp("SEGADISCSYSTEM", (char *)buf+0x10, 14)) {
-		if (type && type != CT_BIN)
-			elprintf(EL_STATUS, ".cue has wrong type: %i", type);
-		type = CT_BIN;       // Sega CD (BIN)
-	}
-
-	if (type == CT_UNKNOWN) {
-		pm_close(cd_f);
-		return 0;
-	}
-
-	pm_seek(cd_f, (type == CT_ISO) ? 0x100 : 0x110, SEEK_SET);
-	pm_read(id_header, sizeof(id_header), cd_f);
-
-	/* it seems we have a CD image here. Try to detect region now.. */
-	pm_seek(cd_f, (type == CT_ISO) ? 0x100+0x10B : 0x110+0x10B, SEEK_SET);
-	pm_read(buf, 1, cd_f);
-	pm_close(cd_f);
-
-	if (buf[0] == 0x64) region = 8; // EU
-	if (buf[0] == 0xa1) region = 1; // JAP
-
-	lprintf("detected %s Sega/Mega CD image with %s region\n",
-		type == CT_BIN ? "BIN" : "ISO", region != 4 ? (region == 8 ? "EU" : "JAP") : "USA");
-
-	if (pregion != NULL) *pregion = region;
-
-	return type;
-}
-
-static int detect_media(const char *fname)
-{
-	static const short sms_offsets[] = { 0x7ff0, 0x3ff0, 0x1ff0 };
-	static const char *sms_exts[] = { "sms", "gg", "sg" };
-	static const char *md_exts[] = { "gen", "bin", "smd" };
-	char buff0[32], buff[32];
-	unsigned short *d16;
-	pm_file *pmf;
-	char ext[5];
-	int i;
-
-	get_ext(fname, ext);
-
-	// detect wrong extensions
-	if (!strcmp(ext, ".srm") || !strcmp(ext, "s.gz") || !strcmp(ext, ".mds")) // s.gz ~ .mds.gz
-		return PM_BAD;
-
-	/* don't believe in extensions, except .cue */
-	if (strcasecmp(ext, ".cue") == 0)
-		return PM_CD;
-
-	pmf = pm_open(fname);
-	if (pmf == NULL)
-		return PM_BAD;
-
-	if (pm_read(buff0, 32, pmf) != 32) {
-		pm_close(pmf);
-		return PM_BAD;
-	}
-
-	if (strncasecmp("SEGADISCSYSTEM", buff0 + 0x00, 14) == 0 ||
-	    strncasecmp("SEGADISCSYSTEM", buff0 + 0x10, 14) == 0) {
-		pm_close(pmf);
-		return PM_CD;
-	}
-
-	/* check for SMD evil */
-	if (pmf->size >= 0x4200 && (pmf->size & 0x3fff) == 0x200) {
-		if (pm_seek(pmf, sms_offsets[0] + 0x200, SEEK_SET) == sms_offsets[0] + 0x200 &&
-		    pm_read(buff, 16, pmf) == 16 &&
-		    strncmp("TMR SEGA", buff, 8) == 0)
-			goto looks_like_sms;
-
-		/* could parse further but don't bother */
-		goto extension_check;
-	}
-
-	/* MD header? Act as TMSS BIOS here */
-	if (pm_seek(pmf, 0x100, SEEK_SET) == 0x100 && pm_read(buff, 16, pmf) == 16) {
-		if (strncmp(buff, "SEGA", 4) == 0 || strncmp(buff, " SEG", 4) == 0)
-			goto looks_like_md;
-	}
-
-	for (i = 0; i < array_size(sms_offsets); i++) {
-		if (pm_seek(pmf, sms_offsets[i], SEEK_SET) != sms_offsets[i])
-			continue;
-
-		if (pm_read(buff, 16, pmf) != 16)
-			continue;
-
-		if (strncmp("TMR SEGA", buff, 8) == 0)
-			goto looks_like_sms;
-	}
-
-extension_check:
-	/* probably some headerless thing. Maybe check the extension after all. */
-	for (i = 0; i < array_size(md_exts); i++)
-		if (strcasecmp(pmf->ext, md_exts[i]) == 0)
-			goto looks_like_md;
-
-	for (i = 0; i < array_size(sms_exts); i++)
-		if (strcasecmp(pmf->ext, sms_exts[i]) == 0)
-			goto looks_like_sms;
-
-	/* If everything else fails, make a guess on the reset vector */
-	d16 = (unsigned short *)(buff0 + 4);
-	if ((((d16[0] << 16) | d16[1]) & 0xffffff) >= pmf->size) {
-		lprintf("bad MD reset vector, assuming SMS\n");
-		goto looks_like_sms;
-	}
-
-looks_like_md:
-	pm_close(pmf);
-	return PM_MD_CART;
-
-looks_like_sms:
-	pm_close(pmf);
-	return PM_MARK3;
-}
 
 static int extract_text(char *dest, const unsigned char *src, int len, int swab)
 {
@@ -416,11 +264,11 @@ static char *emu_make_rom_id(const char *fname)
 	pos = 3;
 
 	if (!(PicoAHW & PAHW_SMS)) {
-		pos += extract_text(id_string + pos, id_header + 0x80, 0x0e, swab); // serial
+		pos += extract_text(id_string + pos, media_id_header + 0x80, 0x0e, swab); // serial
 		id_string[pos] = '|'; pos++;
-		pos += extract_text(id_string + pos, id_header + 0xf0, 0x03, swab); // region
+		pos += extract_text(id_string + pos, media_id_header + 0xf0, 0x03, swab); // region
 		id_string[pos] = '|'; pos++;
-		pos += extract_text(id_string + pos, id_header + 0x50, 0x30, swab); // overseas name
+		pos += extract_text(id_string + pos, media_id_header + 0x50, 0x30, swab); // overseas name
 		id_string[pos] = 0;
 		if (pos > 5)
 			return id_string;
@@ -439,7 +287,7 @@ void emu_get_game_name(char *str150)
 	int ret, swab = (PicoAHW & PAHW_MCD) ? 0 : 1;
 	char *s, *d;
 
-	ret = extract_text(str150, id_header + 0x50, 0x30, swab); // overseas name
+	ret = extract_text(str150, media_id_header + 0x50, 0x30, swab); // overseas name
 
 	for (s = d = str150 + 1; s < str150+ret; s++)
 	{
@@ -448,13 +296,6 @@ void emu_get_game_name(char *str150)
 			*d++ = *s;
 	}
 	*d = 0;
-}
-
-static void shutdown_MCD(void)
-{
-	if ((PicoAHW & PAHW_MCD) && Pico_mcd != NULL)
-		Stop_CD();
-	PicoAHW &= ~PAHW_MCD;
 }
 
 static void system_announce(void)
@@ -486,19 +327,20 @@ static void system_announce(void)
 	emu_status_msg("%s %s / %dFPS%s", tv_standard, sys_name, fps, extra);
 }
 
-// XXX: portions of this code should move to pico/
+static void do_region_override(const char *media_fname)
+{
+	// we only need to override region if config tells us so
+	int ret = emu_read_config(media_fname, 0);
+	if (!ret) emu_read_config(NULL, 0);
+}
+
 int emu_reload_rom(const char *rom_fname_in)
 {
-	unsigned int rom_size = 0;
-	const char *used_rom_name = NULL;
 	char *rom_fname = NULL;
-	unsigned char *rom_data = NULL;
 	char ext[5];
-	pm_file *rom = NULL;
-	int cd_state = CIT_NOT_CD;
-	int ret, media_type, cd_region;
-	int cfg_loaded = 0, bad_rom = 0;
+	enum media_type_e media_type;
 	int menu_romload_started = 0;
+	char carthw_path[512];
 	int retval = 0;
 
 	lprintf("emu_ReloadRom(%s)\n", rom_fname_in);
@@ -507,7 +349,6 @@ int emu_reload_rom(const char *rom_fname_in)
 	if (rom_fname == NULL)
 		return 0;
 
-	used_rom_name = rom_fname;
 	get_ext(rom_fname, ext);
 
 	// early cleanup
@@ -566,110 +407,29 @@ int emu_reload_rom(const char *rom_fname_in)
 		get_ext(rom_fname, ext);
 	}
 
-	media_type = detect_media(rom_fname);
-	if (media_type == PM_BAD) {
+	menu_romload_prepare(rom_fname); // also CD load
+	menu_romload_started = 1;
+
+	emu_make_path(carthw_path, "carthw.cfg", sizeof(carthw_path));
+
+	media_type = PicoLoadMedia(rom_fname, carthw_path,
+			find_bios, do_region_override);
+
+	switch (media_type) {
+	case PM_BAD_DETECT:
 		menu_update_msg("Not a ROM/CD img selected.");
 		goto out;
-	}
-
-	shutdown_MCD();
-	PicoCartUnload();
-	rom_loaded = 0;
-
-	PicoAHW = 0;
-
-	if (media_type == PM_CD)
-	{
-		// check for MegaCD image
-		cd_state = emu_cd_check(&cd_region, rom_fname);
-		if (cd_state >= 0 && cd_state != CIT_NOT_CD)
-		{
-			// valid CD image, check for BIOS..
-
-			// we need to have config loaded at this point
-			ret = emu_read_config(rom_fname, 0);
-			if (!ret) emu_read_config(NULL, 0);
-			cfg_loaded = 1;
-
-			if (PicoRegionOverride) {
-				cd_region = PicoRegionOverride;
-				lprintf("override region to %s\n", cd_region != 4 ?
-					(cd_region == 8 ? "EU" : "JAP") : "USA");
-			}
-			if (!find_bios(cd_region, &used_rom_name))
-				goto out;
-
-			get_ext(used_rom_name, ext);
-			PicoAHW |= PAHW_MCD;
-		}
-		else {
-			menu_update_msg("Invalid CD image");
-			goto out;
-		}
-	}
-	else if (media_type == PM_MARK3) {
-		lprintf("detected SMS ROM\n");
-		PicoAHW = PAHW_SMS;
-	}
-
-	rom = pm_open(used_rom_name);
-	if (rom == NULL) {
-		menu_update_msg("Failed to open ROM");
+	case PM_BAD_CD:
+		menu_update_msg("Invalid CD image");
 		goto out;
-	}
-
-	menu_romload_prepare(used_rom_name); // also CD load
-	menu_romload_started = 1;
-	used_rom_name = NULL; // uses static_buff
-
-	ret = PicoCartLoad(rom, &rom_data, &rom_size, (PicoAHW & PAHW_SMS) ? 1 : 0);
-	pm_close(rom);
-	if (ret != 0) {
-		if      (ret == 2) menu_update_msg("Out of memory");
-		else if (ret == 3) menu_update_msg("Read failed");
-		else               menu_update_msg("PicoCartLoad() failed.");
+	case PM_BAD_CD_NO_BIOS:
+		// find_bios() prints a message
 		goto out;
-	}
-
-	// detect wrong files
-	if (strncmp((char *)rom_data, "Pico", 4) == 0)
-		bad_rom = 1;
-	else if (!(PicoAHW & PAHW_SMS)) {
-		unsigned short *d = (unsigned short *)(rom_data + 4);
-		if ((((d[0] << 16) | d[1]) & 0xffffff) >= (int)rom_size) {
-			lprintf("bad reset vector\n");
-			bad_rom = 1;
-		}
-	}
-
-	if (bad_rom) {
-		menu_update_msg("Bad ROM detected.");
+	case PM_ERROR:
+		menu_update_msg("Load error");
 		goto out;
-	}
-
-	// load config for this ROM (do this before insert to get correct region)
-	if (!(PicoAHW & PAHW_MCD))
-		memcpy(id_header, rom_data + 0x100, sizeof(id_header));
-	if (!cfg_loaded) {
-		ret = emu_read_config(rom_fname, 0);
-		if (!ret) emu_read_config(NULL, 0);
-	}
-
-	emu_make_path(static_buff, "carthw.cfg", sizeof(static_buff));
-	if (PicoCartInsert(rom_data, rom_size, static_buff)) {
-		menu_update_msg("Failed to load ROM.");
-		goto out;
-	}
-
-	// insert CD if it was detected
-	if (cd_state != CIT_NOT_CD) {
-		ret = Insert_CD(rom_fname, cd_state);
-		if (ret != 0) {
-			PicoCartUnload();
-			rom_data = NULL; // freed by unload
-			menu_update_msg("Insert_CD() failed, invalid CD image?");
-			goto out;
-		}
+	default:
+		break;
 	}
 
 	menu_romload_end();
@@ -707,7 +467,6 @@ int emu_reload_rom(const char *rom_fname_in)
 
 	strncpy(rom_fname_loaded, rom_fname, sizeof(rom_fname_loaded)-1);
 	rom_fname_loaded[sizeof(rom_fname_loaded)-1] = 0;
-	rom_loaded = 1;
 
 	// load SRAM for this ROM
 	if (currentConfig.EmuOpt & EOPT_EN_SRAM)
@@ -715,8 +474,6 @@ int emu_reload_rom(const char *rom_fname_in)
 
 	retval = 1;
 out:
-	if (retval == 0 && rom_data)
-		free(rom_data);
 	if (menu_romload_started)
 		menu_romload_end();
 	free(rom_fname);
@@ -728,7 +485,7 @@ int emu_swap_cd(const char *fname)
 	cd_img_type cd_type;
 	int ret = -1;
 
-	cd_type = emu_cd_check(NULL, fname);
+	cd_type = PicoCdCheck(fname, NULL);
 	if (cd_type != CIT_NOT_CD)
 		ret = Insert_CD(fname, cd_type);
 	if (ret != 0) {

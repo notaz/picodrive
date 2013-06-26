@@ -103,9 +103,6 @@ endif
 
 ifeq "$(ARCH)" "arm"
 OBJS += platform/libpicofe/arm_linux.o
-OBJS += pico/sound/mix_arm.o
-else
-OBJS += pico/sound/mix.o
 endif
 
 # zlib

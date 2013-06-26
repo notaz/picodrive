@@ -372,7 +372,7 @@ static int menu_loop_keyconfig(int id, int keys)
 {
 	static int sel = 0;
 
-	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, rom_loaded);
+	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, PicoGameLoaded);
 	me_loop(e_menu_keyconfig, &sel);
 	return 0;
 }
@@ -737,7 +737,7 @@ static int menu_loop_options(int id, int keys)
 
 	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
 	e_menu_options[i].enabled = e_menu_options[i].name[0] ? 1 : 0;
-	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, rom_loaded);
+	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, PicoGameLoaded);
 	me_enable(e_menu_options, MA_OPT_LOADCFG, config_slot != config_slot_current);
 
 	me_loop(e_menu_options, &sel);
@@ -928,19 +928,19 @@ static int main_menu_handler(int id, int keys)
 	switch (id)
 	{
 	case MA_MAIN_RESUME_GAME:
-		if (rom_loaded)
+		if (PicoGameLoaded)
 			return 1;
 		break;
 	case MA_MAIN_SAVE_STATE:
-		if (rom_loaded)
+		if (PicoGameLoaded)
 			return menu_loop_savestate(0);
 		break;
 	case MA_MAIN_LOAD_STATE:
-		if (rom_loaded)
+		if (PicoGameLoaded)
 			return menu_loop_savestate(1);
 		break;
 	case MA_MAIN_RESET_GAME:
-		if (rom_loaded) {
+		if (PicoGameLoaded) {
 			emu_reset_game();
 			return 1;
 		}
@@ -964,7 +964,7 @@ static int main_menu_handler(int id, int keys)
 		engineState = PGS_Quit;
 		return 1;
 	case MA_MAIN_PATCHES:
-		if (rom_loaded && PicoPatches) {
+		if (PicoGameLoaded && PicoPatches) {
 			menu_loop_patches();
 			PicoPatchApply();
 			menu_update_msg("Patches applied");
@@ -1001,17 +1001,17 @@ void menu_loop(void)
 {
 	static int sel = 0;
 
-	me_enable(e_menu_main, MA_MAIN_RESUME_GAME, rom_loaded);
-	me_enable(e_menu_main, MA_MAIN_SAVE_STATE,  rom_loaded);
-	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  rom_loaded);
-	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  rom_loaded);
+	me_enable(e_menu_main, MA_MAIN_RESUME_GAME, PicoGameLoaded);
+	me_enable(e_menu_main, MA_MAIN_SAVE_STATE,  PicoGameLoaded);
+	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  PicoGameLoaded);
+	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  PicoGameLoaded);
 	me_enable(e_menu_main, MA_MAIN_PATCHES, PicoPatches != NULL);
 
-	menu_enter(rom_loaded);
+	menu_enter(PicoGameLoaded);
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
 	me_loop_d(e_menu_main, &sel, NULL, menu_main_plat_draw);
 
-	if (rom_loaded) {
+	if (PicoGameLoaded) {
 		if (engineState == PGS_Menu)
 			engineState = PGS_Running;
 		/* wait until menu, ok, back is released */
@@ -1059,7 +1059,7 @@ int menu_loop_tray(void)
 {
 	int ret = 1, sel = 0;
 
-	menu_enter(rom_loaded);
+	menu_enter(PicoGameLoaded);
 
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
 	me_loop(e_menu_tray, &sel);
