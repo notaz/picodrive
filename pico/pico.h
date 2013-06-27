@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+// message log
+extern void lprintf(const char *fmt, ...);
+
 // external funcs for Sega/Mega CD
 extern int  mp3_get_bitrate(void *f, int size);
 extern void mp3_start_play(void *f, int pos);
@@ -27,7 +30,7 @@ extern void mp3_update(int *buffer, int length, int stereo);
 // this function should write-back d-cache and invalidate i-cache
 // on a mem region [start_addr, end_addr)
 // used by dynarecs
-extern void cache_flush_d_inval_i(const void *start_addr, const void *end_addr);
+extern void cache_flush_d_inval_i(void *start_addr, void *end_addr);
 
 // attempt to alloc mem at specified address.
 // alloc anywhere else if that fails (callers should handle that)

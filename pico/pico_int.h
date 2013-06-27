@@ -800,7 +800,6 @@ static __inline int isspace_(int c)
 #define EL_ANOMALY 0x80000000 /* some unexpected conditions (during emulation) */
 
 #if EL_LOGMASK
-extern void lprintf(const char *fmt, ...);
 #define elprintf(w,f,...) \
 { \
 	if ((w) & EL_LOGMASK) \

@@ -69,6 +69,8 @@ void Pico32xStartup(void)
   PREG8(Pico32xMem->sh2_peri_regs[0], 4) =
   PREG8(Pico32xMem->sh2_peri_regs[1], 4) = 0x84; // SCI SSR
 
+  rendstatus_old = -1;
+
   emu_32x_startup();
 }
 

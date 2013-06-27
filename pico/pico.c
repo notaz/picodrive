@@ -220,6 +220,9 @@ void PicoLoopPrepare(void)
   // FIXME: PAL has 313 scanlines..
   scanlines_total = Pico.m.pal ? 312 : 262;
 
+  Pico.m.dirtyPal = 1;
+  rendstatus_old = -1;
+
   if (PicoAHW & PAHW_32X)
     p32x_timers_recalc();
 }

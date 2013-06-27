@@ -144,9 +144,15 @@ void emu_status_msg(const char *format, ...)
 	notice_msg_time = plat_get_ticks_ms();
 }
 
-static const char * const biosfiles_us[] = { "us_scd1_9210", "us_scd2_9306", "SegaCDBIOS9303" };
-static const char * const biosfiles_eu[] = { "eu_mcd1_9210", "eu_mcd2_9306", "eu_mcd2_9303"   };
-static const char * const biosfiles_jp[] = { "jp_mcd1_9112", "jp_mcd1_9111" };
+static const char * const biosfiles_us[] = {
+	"us_scd1_9210", "us_scd2_9306", "SegaCDBIOS9303", "bios_CD_U"
+};
+static const char * const biosfiles_eu[] = {
+	"eu_mcd1_9210", "eu_mcd2_9306", "eu_mcd2_9303", "bios_CD_E"
+};
+static const char * const biosfiles_jp[] = {
+	"jp_mcd1_9112", "jp_mcd1_9111", "bios_CD_J"
+};
 
 static const char *find_bios(int *region, const char *cd_fname)
 {
@@ -916,9 +922,6 @@ void emu_32x_startup(void)
 {
 	plat_video_toggle_renderer(0, 0); // HACK
 	system_announce();
-
-	// force mode change event
-	rendstatus_old = -1;
 }
 
 void emu_reset_game(void)
@@ -1285,10 +1288,6 @@ void emu_loop(void)
 	int i;
 
 	fpsbuff[0] = 0;
-
-	/* make sure we are in correct mode */
-	Pico.m.dirtyPal = 1;
-	rendstatus_old = -1;
 
 	PicoLoopPrepare();
 

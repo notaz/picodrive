@@ -54,10 +54,34 @@ endif
 -include Makefile.local
 
 ifeq "$(use_musashi)" "1"
-# due to CPU stop flag acces
+# due to CPU stop flag access
 asm_cdpico = 0
 asm_cdmemory = 0
 endif
+
+# frontend
+ifeq "$(PLATFORM)" "generic"
+OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
+OBJS += platform/common/plat_sdl.o
+OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
+OBJS += platform/libpicofe/plat_dummy.o
+USE_FRONTEND = 1
+endif
+ifeq "$(PLATFORM)" "pandora"
+platform/common/menu_pico.o: CFLAGS += -DPANDORA
+OBJS += platform/pandora/plat.o
+OBJS += platform/pandora/asm_utils.o
+OBJS += platform/common/arm_utils.o 
+OBJS += platform/libpicofe/linux/fbdev.o 
+OBJS += platform/libpicofe/linux/xenv.o
+OBJS += platform/libpicofe/pandora/plat.o
+USE_FRONTEND = 1
+endif
+ifeq "$(PLATFORM)" "libretro"
+OBJS += platform/libretro.o 
+endif
+
+ifeq "$(USE_FRONTEND)" "1"
 
 # common
 OBJS += platform/common/main.o platform/common/emu.o \
@@ -83,27 +107,13 @@ platform/libpicofe/sndout.o: CFLAGS += -DHAVE_SDL
 OBJS += platform/libpicofe/sndout_sdl.o
 endif
 
-# frontend
-OBJS += platform/common/mp3_dummy.o
-ifeq "$(PLATFORM)" "generic"
-OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
-OBJS += platform/common/plat_sdl.o
-OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
-OBJS += platform/libpicofe/plat_dummy.o
-endif
-ifeq "$(PLATFORM)" "pandora"
-platform/common/menu_pico.o: CFLAGS += -DPANDORA
-OBJS += platform/pandora/plat.o
-OBJS += platform/pandora/asm_utils.o
-OBJS += platform/common/arm_utils.o 
-OBJS += platform/libpicofe/linux/fbdev.o 
-OBJS += platform/libpicofe/linux/xenv.o
-OBJS += platform/libpicofe/pandora/plat.o
-endif
-
 ifeq "$(ARCH)" "arm"
 OBJS += platform/libpicofe/arm_linux.o
 endif
+
+endif # USE_FRONTEND
+
+OBJS += platform/common/mp3_dummy.o
 
 # zlib
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
