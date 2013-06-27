@@ -11,6 +11,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <errno.h>
 #ifdef __MACH__
 #include <libkern/OSCacheControl.h>
 #endif
@@ -71,8 +72,10 @@ void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
 
 	req = (void *)addr;
 	ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
-	if (ret == MAP_FAILED)
+	if (ret == MAP_FAILED) {
+		lprintf("mmap(%08lx, %zd) failed: %d\n", addr, size, errno);
 		return NULL;
+	}
 
 	if (addr != 0 && ret != (void *)addr) {
 		lprintf("warning: wanted to map @%08lx, got %p\n",
@@ -100,6 +103,15 @@ void plat_munmap(void *ptr, size_t size)
 {
 	if (ptr != NULL)
 		munmap(ptr, size);
+}
+
+int plat_mem_set_exec(void *ptr, size_t size)
+{
+	int ret = mprotect(ptr, size, PROT_READ | PROT_WRITE | PROT_EXEC);
+	if (ret != 0)
+		lprintf("mprotect(%p, %zd) failed: %d\n", ptr, size, errno);
+
+	return ret;
 }
 
 void emu_video_mode_change(int start_line, int line_count, int is_32cols)

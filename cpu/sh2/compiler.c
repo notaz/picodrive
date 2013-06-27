@@ -431,6 +431,12 @@ static void REGPARM(3) *dr_lookup_block(u32 pc, int is_slave, int *tcache_id)
   return block;
 }
 
+static void *dr_failure(void)
+{
+  lprintf("recompilation failed\n");
+  exit(1);
+}
+
 static void *dr_prepare_ext_branch(u32 pc, SH2 *sh2, int tcache_id)
 {
 #if LINK_BRANCHES
@@ -1126,13 +1132,15 @@ static void emit_do_static_regs(int is_write, int tmpr)
 
 static void emit_block_entry(void)
 {
-  int arg0, arg1, arg2;
+  int arg0;
 
   host_arg2reg(arg0, 0);
+
+#if (DRC_DEBUG & 8) || defined(PDB)
+  int arg1, arg2;
   host_arg2reg(arg1, 1);
   host_arg2reg(arg2, 2);
 
-#if (DRC_DEBUG & 8) || defined(PDB)
   emit_do_static_regs(1, arg2);
   emith_move_r_r(arg1, CONTEXT_REG);
   emith_move_r_r(arg2, rcache_get_reg(SHR_SR, RC_GR_READ));
@@ -1296,10 +1304,16 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     pc = branch_target_pc[i];
     if (base_pc <= pc && pc <= end_pc && !(OP_FLAGS(pc) & OF_DELAY_OP))
       branch_target_pc[tmp++] = branch_target_pc[i];
+
+    if (i == branch_target_count - 1) // workaround gcc 4.5.2 bug?
+      break;
   }
+
   branch_target_count = tmp;
-  memset(branch_target_ptr, 0, sizeof(branch_target_ptr[0]) * branch_target_count);
-  memset(branch_target_blkid, 0, sizeof(branch_target_blkid[0]) * branch_target_count);
+  if (branch_target_count > 0) {
+    memset(branch_target_ptr, 0, sizeof(branch_target_ptr[0]) * branch_target_count);
+    memset(branch_target_blkid, 0, sizeof(branch_target_blkid[0]) * branch_target_count);
+  }
 
   // -------------------------------------------------
   // 2nd pass: actual compilation
@@ -2702,7 +2716,7 @@ static void sh2_generate_utils(void)
   emith_call(sh2_translate);
   emit_block_entry();
   // XXX: can't translate, fail
-  emith_call(exit);
+  emith_call(dr_failure);
 
   // sh2_drc_test_irq(void)
   // assumes it's called from main function (may jump to dispatcher)
