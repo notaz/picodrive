@@ -6,7 +6,7 @@ CFLAGS += -fprofile-use
 endif
 ifeq "$(pdb)" "1"
 DEFINES += PDB
-OBJS += cpu/debug.o
+SRCS_COMMON += $(R)cpu/debug.c
  ifeq "$(pdb_net)" "1"
  DEFINES += PDB_NET
  endif
@@ -17,121 +17,125 @@ OBJS += cpu/debug.o
 endif
 ifeq "$(pprof)" "1"
 DEFINES += PPROF
-OBJS += platform/linux/pprof.o
+SRCS_COMMON += $(R)platform/linux/pprof.c
 endif
 
 # asm stuff
 ifeq "$(asm_render)" "1"
 DEFINES += _ASM_DRAW_C
-OBJS += pico/draw_arm.o pico/draw2_arm.o
+SRCS_COMMON += $(R)pico/draw_arm.S $(R)pico/draw2_arm.S
 endif
 ifeq "$(asm_memory)" "1"
 DEFINES += _ASM_MEMORY_C
-OBJS += pico/memory_arm.o
+SRCS_COMMON += $(R)pico/memory_arm.s
 endif
 ifeq "$(asm_ym2612)" "1"
 DEFINES += _ASM_YM2612_C
-OBJS += pico/sound/ym2612_arm.o
+SRCS_COMMON += $(R)pico/sound/ym2612_arm.s
 endif
 ifeq "$(asm_misc)" "1"
 DEFINES += _ASM_MISC_C
-OBJS += pico/misc_arm.o
-OBJS += pico/cd/misc_arm.o
+SRCS_COMMON += $(R)pico/misc_arm.s
+SRCS_COMMON += $(R)pico/cd/misc_arm.s
 endif
 ifeq "$(asm_cdpico)" "1"
 DEFINES += _ASM_CD_PICO_C
-OBJS += pico/cd/pico_arm.o
+SRCS_COMMON += $(R)pico/cd/pico_arm.s
 endif
 ifeq "$(asm_cdmemory)" "1"
 DEFINES += _ASM_CD_MEMORY_C
-OBJS += pico/cd/memory_arm.o
+SRCS_COMMON += $(R)pico/cd/memory_arm.s
 endif
 ifeq "$(asm_32xdraw)" "1"
 DEFINES += _ASM_32X_DRAW
-OBJS += pico/32x/draw_arm.o
+SRCS_COMMON += $(R)pico/32x/draw_arm.s
 endif
 
 # === Pico core ===
 # Pico
-OBJS += pico/state.o pico/cart.o pico/memory.o pico/pico.o pico/sek.o pico/z80if.o \
-	pico/videoport.o pico/draw2.o pico/draw.o pico/mode4.o \
-	pico/misc.o pico/eeprom.o pico/patch.o pico/debug.o \
-	pico/media.o
+SRCS_COMMON += $(R)pico/pico.c $(R)pico/cart.c $(R)pico/memory.c \
+	$(R)pico/state.c $(R)pico/sek.c $(R)pico/z80if.c \
+	$(R)pico/videoport.c $(R)pico/draw2.c $(R)pico/draw.c \
+	$(R)pico/mode4.c $(R)pico/misc.c $(R)pico/eeprom.c \
+	$(R)pico/patch.c $(R)pico/debug.c $(R)pico/media.c
 # SMS
 ifneq "$(no_sms)" "1"
-OBJS += pico/sms.o
+SRCS_COMMON += $(R)pico/sms.c
 else
 DEFINES += NO_SMS
 endif
 # CD
-OBJS += pico/cd/pico.o pico/cd/memory.o pico/cd/sek.o pico/cd/LC89510.o \
-	pico/cd/cd_sys.o pico/cd/cd_file.o pico/cd/cue.o pico/cd/gfx_cd.o \
-	pico/cd/misc.o pico/cd/pcm.o pico/cd/buffering.o
+SRCS_COMMON += $(R)pico/cd/pico.c $(R)pico/cd/memory.c $(R)pico/cd/sek.c \
+	$(R)pico/cd/LC89510.c $(R)pico/cd/cd_sys.c $(R)pico/cd/cd_file.c \
+	$(R)pico/cd/cue.c $(R)pico/cd/gfx_cd.c $(R)pico/cd/misc.c \
+	$(R)pico/cd/pcm.c $(R)pico/cd/buffering.c
 # 32X
 ifneq "$(no_32x)" "1"
-OBJS += pico/32x/32x.o pico/32x/memory.o pico/32x/draw.o pico/32x/pwm.o
+SRCS_COMMON += $(R)pico/32x/32x.c $(R)pico/32x/memory.c $(R)pico/32x/draw.c \
+	$(R)pico/32x/pwm.c
 else
 DEFINES += NO_32X
 endif
 # Pico
-OBJS += pico/pico/pico.o pico/pico/memory.o pico/pico/xpcm.o
+SRCS_COMMON += $(R)pico/pico/pico.c $(R)pico/pico/memory.c $(R)pico/pico/xpcm.c
 # carthw
-OBJS += pico/carthw/carthw.o
+SRCS_COMMON += $(R)pico/carthw/carthw.c
 # SVP
-OBJS += pico/carthw/svp/svp.o pico/carthw/svp/memory.o \
-	pico/carthw/svp/ssp16.o
+SRCS_COMMON += $(R)pico/carthw/svp/svp.c $(R)pico/carthw/svp/memory.c \
+	$(R)pico/carthw/svp/ssp16.c
 ifeq "$(ARCH)" "arm"
-OBJS += pico/carthw/svp/stub_arm.o
-OBJS += pico/carthw/svp/compiler.o
+SRCS_COMMON += $(R)pico/carthw/svp/stub_arm.S
+SRCS_COMMON += $(R)pico/carthw/svp/compiler.c
 endif
 # sound
-OBJS += pico/sound/sound.o
-OBJS += pico/sound/sn76496.o pico/sound/ym2612.o
+SRCS_COMMON += $(R)pico/sound/sound.c
+SRCS_COMMON += $(R)pico/sound/sn76496.c $(R)pico/sound/ym2612.c
 ifeq "$(ARCH)" "arm"
-OBJS += pico/sound/mix_arm.o
+SRCS_COMMON += $(R)pico/sound/mix_arm.s
 else
-OBJS += pico/sound/mix.o
+SRCS_COMMON += $(R)pico/sound/mix.c
 endif
 
 # === CPU cores ===
 # --- M68k ---
 ifeq "$(use_musashi)" "1"
 DEFINES += EMU_M68K
-OBJS += cpu/musashi/m68kops.o cpu/musashi/m68kcpu.o
-#OBJS += cpu/musashi/m68kdasm.o
+SRCS_COMMON += $(R)cpu/musashi/m68kops.c $(R)cpu/musashi/m68kcpu.c
+#SRCS_COMMON += $(R)cpu/musashi/m68kdasm.c
 endif
 ifeq "$(use_cyclone)" "1"
 DEFINES += EMU_C68K
-OBJS += pico/m68kif_cyclone.o cpu/cyclone/Cyclone.o cpu/cyclone/tools/idle.o
+SRCS_COMMON += $(R)pico/m68kif_cyclone.s $(R)cpu/cyclone/Cyclone.s \
+	$(R)cpu/cyclone/tools/idle.s
 endif
 ifeq "$(use_fame)" "1"
 DEFINES += EMU_F68K
-OBJS += cpu/fame/famec.o
+SRCS_COMMON += $(R)cpu/fame/famec.c
 endif
 
 # --- Z80 ---
 ifeq "$(use_drz80)" "1"
 DEFINES += _USE_DRZ80
-OBJS += cpu/DrZ80/drz80.o
+SRCS_COMMON += $(R)cpu/DrZ80/drz80.s
 endif
 #
 ifeq "$(use_cz80)" "1"
 DEFINES += _USE_CZ80
-OBJS += cpu/cz80/cz80.o
+SRCS_COMMON += $(R)cpu/cz80/cz80.c
 endif
 
 # --- SH2 ---
-OBJS += cpu/drc/cmn.o
+SRCS_COMMON += $(R)cpu/drc/cmn.c
 ifneq "$(no_32x)" "1"
-OBJS += cpu/sh2/sh2.o
+SRCS_COMMON += $(R)cpu/sh2/sh2.c
 #
 ifeq "$(use_sh2drc)" "1"
 DEFINES += DRC_SH2
-OBJS += cpu/sh2/compiler.o
+SRCS_COMMON += $(R)cpu/sh2/compiler.c
 ifdef drc_debug
 DEFINES += DRC_DEBUG=$(drc_debug)
-OBJS += cpu/sh2/mame/sh2dasm.o
-OBJS += platform/linux/host_dasm.o
+SRCS_COMMON += $(R)cpu/sh2/mame/sh2dasm.c
+SRCS_COMMON += $(R)platform/linux/host_dasm.c
 LDFLAGS += -lbfd -lopcodes -liberty
 endif
 ifeq "$(drc_debug_interp)" "1"
@@ -141,36 +145,29 @@ endif
 endif # use_sh2drc
 #
 ifeq "$(use_sh2mame)" "1"
-OBJS += cpu/sh2/mame/sh2pico.o
+SRCS_COMMON += $(R)cpu/sh2/mame/sh2pico.c
 endif
 endif # !no_32x
 
-CFLAGS += $(addprefix -D,$(DEFINES))
+OBJS_COMMON := $(SRCS_COMMON:.c=.o)
+OBJS_COMMON := $(OBJS_COMMON:.s=.o)
+OBJS_COMMON := $(OBJS_COMMON:.S=.o)
 
-# common rules
-.s.o:
-	@echo ">>>" $<
-	$(CC) $(CFLAGS) -c $< -o $@
+ifneq ($(deps_set),yes)
+ifeq "$(use_cyclone)" "1"
+$(FR)pico/pico.c: $(FR)cpu/cyclone/Cyclone.h
+endif
 
-tools/textfilter: tools/textfilter.c
-	make -C tools/ textfilter
+$(FR)cpu/cyclone/Cyclone.h:
+	@echo "Cyclone submodule is missing, please run 'git submodule update --init'"
+	@false
 
-
-# random deps
-pico/carthw/svp/compiler.o : cpu/drc/emit_$(ARCH).c
-cpu/sh2/compiler.o : cpu/drc/emit_$(ARCH).c
-cpu/sh2/mame/sh2pico.o : cpu/sh2/mame/sh2.c
-pico/pico.o pico/cd/pico.o : pico/pico_cmn.c pico/pico_int.h
-pico/memory.o pico/cd/memory.o : pico/pico_int.h pico/memory.h
-
-cpu/musashi/m68kops.c :
-	@make -C cpu/musashi
-
-cpu/fame/famec.o : cpu/fame/famec.c cpu/fame/famec_opcodes.h
-	@echo ">>>" $<
-	$(CC) $(CFLAGS) -Wno-unused -c $< -o $@
-
-cpu/cyclone/Cyclone.s:
+$(FR)cpu/cyclone/Cyclone.s:
 	@echo building Cyclone...
-	@make -C cpu/cyclone CONFIG_FILE='\"../cyclone_config.h\"'
+	@make -C $(R)cpu/cyclone/ CONFIG_FILE='\"../cyclone_config.h\"'
 
+$(FR)cpu/musashi/m68kops.c:
+	@make -C $(R)cpu/musashi
+
+deps_set = yes
+endif # deps_set

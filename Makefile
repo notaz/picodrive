@@ -124,6 +124,9 @@ OBJS += unzip/unzip.o unzip/unzip_stream.o
 
 include platform/common/common.mak
 
+OBJS += $(OBJS_COMMON)
+CFLAGS += $(addprefix -D,$(DEFINES))
+
 target_: $(TARGET)
 
 clean:
@@ -134,6 +137,20 @@ $(TARGET): $(OBJS)
 
 pprof: platform/linux/pprof.c
 	$(CC) -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@
+
+tools/textfilter: tools/textfilter.c
+	make -C tools/ textfilter
+
+.s.o:
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# random deps
+pico/carthw/svp/compiler.o : cpu/drc/emit_$(ARCH).c
+cpu/sh2/compiler.o : cpu/drc/emit_$(ARCH).c
+cpu/sh2/mame/sh2pico.o : cpu/sh2/mame/sh2.c
+pico/pico.o pico/cd/pico.o : pico/pico_cmn.c pico/pico_int.h
+pico/memory.o pico/cd/memory.o : pico/pico_int.h pico/memory.h
+cpu/fame/famec.o: cpu/fame/famec.c cpu/fame/famec_opcodes.h
 
 # ----------- release -----------
 
