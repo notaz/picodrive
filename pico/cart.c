@@ -709,21 +709,45 @@ static int is_expr(const char *expr, char **pr)
   return 1;
 }
 
+#include "carthw_cfg.c"
+
 static void parse_carthw(const char *carthw_cfg, int *fill_sram)
 {
   int line = 0, any_checks_passed = 0, skip_sect = 0;
+  const char *s, *builtin = builtin_carthw_cfg;
   int tmp, rom_crc = 0;
   char buff[256], *p, *r;
   FILE *f;
 
   f = fopen(carthw_cfg, "r");
-  if (f == NULL) {
+  if (f == NULL)
+    f = fopen("pico/carthw.cfg", "r");
+  if (f == NULL)
     elprintf(EL_STATUS, "couldn't open carthw.cfg!");
-    return;
-  }
 
-  while ((p = fgets(buff, sizeof(buff), f)))
+  for (;;)
   {
+    if (f != NULL) {
+      p = fgets(buff, sizeof(buff), f);
+      if (p == NULL)
+        break;
+    }
+    else {
+      if (*builtin == 0)
+        break;
+      for (s = builtin; *s != 0 && *s != '\n'; s++)
+        ;
+      while (*s == '\n')
+        s++;
+      tmp = s - builtin;
+      if (tmp > sizeof(buff) - 1)
+        tmp = sizeof(buff) - 1;
+      memcpy(buff, builtin, tmp);
+      buff[tmp] = 0;
+      p = buff;
+      builtin = s;
+    }
+
     line++;
     p = sskip(p);
     if (*p == 0 || *p == '#')
@@ -934,7 +958,9 @@ no_checks:
     skip_sect = 1;
     continue;
   }
-  fclose(f);
+
+  if (f != NULL)
+    fclose(f);
 }
 
 /*
@@ -999,3 +1025,4 @@ static void PicoCartDetect(const char *carthw_cfg)
     *(int *) (Pico.rom + 0x1f0) = 0x20204520;
 }
 
+// vim:shiftwidth=2:expandtab
