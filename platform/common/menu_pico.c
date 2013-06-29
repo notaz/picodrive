@@ -27,7 +27,7 @@
 
 static const char *rom_exts[] = {
 	"zip",
-	"bin", "smd", "gen",
+	"bin", "smd", "gen", "md",
 	"iso", "cso", "cue",
 	"32x",
 	"sms",
@@ -37,11 +37,16 @@ static const char *rom_exts[] = {
 // rrrr rggg gggb bbbb
 static unsigned short fname2color(const char *fname)
 {
-	const char *ext = fname + strlen(fname) - 3;
 	static const char *other_exts[] = { "gmv", "pat" };
+	const char *ext;
 	int i;
 
-	if (ext < fname) ext = fname;
+	ext = strrchr(fname, '.');
+	if (ext++ == NULL) {
+		ext = fname + strlen(fname) - 3;
+		if (ext < fname) ext = fname;
+	}
+
 	for (i = 0; rom_exts[i] != NULL; i++)
 		if (strcasecmp(ext, rom_exts[i]) == 0) return 0xbdff; // FIXME: mk defines
 	for (i = 0; i < array_size(other_exts); i++)
