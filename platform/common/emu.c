@@ -581,33 +581,29 @@ int emu_read_config(const char *rom_fname, int no_defaults)
 	}
 	else
 	{
-		char *sect = emu_make_rom_id(rom_fname);
+		char ext[16];
+		int vol;
 
 		if (config_slot != 0)
-		     sprintf(cfg, "game.%i.cfg", config_slot);
-		else strcpy(cfg,  "game.cfg");
-
-		ret = -1;
-		if (config_havesect(cfg, sect))
-		{
-			// read user's config
-			int vol = currentConfig.volume;
-			emu_set_defconfig();
-			ret = config_readsect(cfg, sect);
-			currentConfig.volume = vol; // make vol global (bah)
-		}
+			snprintf(ext, sizeof(ext), ".%i.cfg", config_slot);
 		else
+			strcpy(ext, ".cfg");
+
+		fname_ext(cfg, sizeof(cfg), "cfg"PATH_SEP, ext, rom_fname);
+
+		// read user's config
+		vol = currentConfig.volume;
+		ret = config_readsect(cfg, NULL);
+		currentConfig.volume = vol; // make vol global (bah)
+
+		if (ret != 0)
 		{
 			// read global config, and apply game_def.cfg on top
 			make_config_cfg(cfg);
 			config_readsect(cfg, NULL);
-			emu_make_path(cfg, "game_def.cfg", sizeof(cfg));
-			ret = config_readsect(cfg, sect);
-		}
 
-		if (ret == 0)
-		{
-			lprintf("loaded cfg from sect \"%s\"\n", sect);
+			emu_make_path(cfg, "game_def.cfg", sizeof(cfg));
+			ret = config_readsect(cfg, emu_make_rom_id(rom_fname));
 		}
 	}
 
@@ -632,7 +628,7 @@ int emu_read_config(const char *rom_fname, int no_defaults)
 
 int emu_write_config(int is_game)
 {
-	char cfg[512], *game_sect = NULL;
+	char cfg[512];
 	int ret, write_lrom = 0;
 
 	if (!is_game)
@@ -640,15 +636,18 @@ int emu_write_config(int is_game)
 		make_config_cfg(cfg);
 		write_lrom = 1;
 	} else {
+		char ext[16];
+
 		if (config_slot != 0)
-		     sprintf(cfg, "game.%i.cfg", config_slot);
-		else strcpy(cfg,  "game.cfg");
-		game_sect = emu_make_rom_id(rom_fname_loaded);
-		lprintf("emu_write_config: sect \"%s\"\n", game_sect);
+			snprintf(ext, sizeof(ext), ".%i.cfg", config_slot);
+		else
+			strcpy(ext, ".cfg");
+
+		romfname_ext(cfg, sizeof(cfg), "cfg"PATH_SEP, ext);
 	}
 
 	lprintf("emu_write_config: %s ", cfg);
-	ret = config_writesect(cfg, game_sect);
+	ret = config_write(cfg);
 	if (write_lrom) config_writelrom(cfg);
 #ifndef NO_SYNC
 	sync();
@@ -1172,6 +1171,7 @@ void emu_init(void)
 	mkdir_path(path, pos, "mds");
 	mkdir_path(path, pos, "srm");
 	mkdir_path(path, pos, "brm");
+	mkdir_path(path, pos, "cfg");
 
 	pprof_init();
 

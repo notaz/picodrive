@@ -53,51 +53,31 @@ static int seek_sect(FILE *f, const char *section)
 	return 0;
 }
 
-
-static void keys_write(FILE *fn, const char *bind_str, int dev_id, const int *binds, int no_defaults)
+static void keys_write(FILE *fn, int dev_id, const int *binds)
 {
 	char act[48];
 	int key_count = 0, k, i;
-	const int *def_binds;
 
 	in_get_config(dev_id, IN_CFG_BIND_COUNT, &key_count);
-	def_binds = in_get_dev_def_binds(dev_id);
 
 	for (k = 0; k < key_count; k++)
 	{
 		const char *name;
-		int t, mask;
+		int mask;
 		act[0] = act[31] = 0;
 
-		for (t = 0; t < IN_BINDTYPE_COUNT; t++)
-			if (binds[IN_BIND_OFFS(k, t)] != def_binds[IN_BIND_OFFS(k, t)])
-				break;
-
-		if (no_defaults && t == IN_BINDTYPE_COUNT)
-			continue;	/* no change from defaults */
-
 		name = in_get_key_name(dev_id, k);
-
-		for (t = 0; t < IN_BINDTYPE_COUNT; t++)
-			if (binds[IN_BIND_OFFS(k, t)] != 0 || def_binds[IN_BIND_OFFS(k, t)] == 0)
-				break;
-
-		if (t == IN_BINDTYPE_COUNT) {
-			/* key has default bind removed */
-			fprintf(fn, "%s %s =" NL, bind_str, name);
-			continue;
-		}
 
 		for (i = 0; me_ctrl_actions[i].name != NULL; i++) {
 			mask = me_ctrl_actions[i].mask;
 			if (mask & binds[IN_BIND_OFFS(k, IN_BINDTYPE_PLAYER12)]) {
 				strncpy(act, me_ctrl_actions[i].name, 31);
-				fprintf(fn, "%s %s = player1 %s" NL, bind_str, name, mystrip(act));
+				fprintf(fn, "bind %s = player1 %s" NL, name, mystrip(act));
 			}
 			mask = me_ctrl_actions[i].mask << 16;
 			if (mask & binds[IN_BIND_OFFS(k, IN_BINDTYPE_PLAYER12)]) {
 				strncpy(act, me_ctrl_actions[i].name, 31);
-				fprintf(fn, "%s %s = player2 %s" NL, bind_str, name, mystrip(act));
+				fprintf(fn, "bind %s = player2 %s" NL, name, mystrip(act));
 			}
 		}
 
@@ -105,197 +85,49 @@ static void keys_write(FILE *fn, const char *bind_str, int dev_id, const int *bi
 			mask = emuctrl_actions[i].mask;
 			if (mask & binds[IN_BIND_OFFS(k, IN_BINDTYPE_EMU)]) {
 				strncpy(act, emuctrl_actions[i].name, 31);
-				fprintf(fn, "%s %s = %s" NL, bind_str, name, mystrip(act));
+				fprintf(fn, "bind %s = %s" NL, name, mystrip(act));
 			}
 		}
 	}
 }
 
-/* XXX: this should go to menu structures instead */
-static int default_var(const menu_entry *me)
+int config_write(const char *fname)
 {
-	switch (me->id)
-	{
-		case MA_OPT2_ENABLE_YM2612:
-		case MA_OPT2_ENABLE_SN76496:
-		case MA_OPT2_ENABLE_Z80:
-		case MA_OPT_6BUTTON_PAD:
-		case MA_OPT_ACC_SPRITES:
-		case MA_OPT_ARM940_SOUND:
-		case MA_CDOPT_PCM:
-		case MA_CDOPT_CDDA:
-		case MA_CDOPT_SCALEROT_CHIP:
-		case MA_CDOPT_BETTER_SYNC:
-		case MA_CDOPT_SAVERAM:
-		case MA_32XOPT_ENABLE_32X:
-		case MA_32XOPT_PWM:
-		case MA_OPT2_SVP_DYNAREC:
-		case MA_OPT2_NO_SPRITE_LIM:
-		case MA_OPT2_NO_IDLE_LOOPS:
-			return defaultConfig.s_PicoOpt;
-
-		case MA_OPT_SRAM_STATES:
-		case MA_OPT_SHOW_FPS:
-		case MA_OPT_ENABLE_SOUND:
-		case MA_OPT2_GZIP_STATES:
-		case MA_OPT2_SQUIDGEHACK:
-		case MA_OPT2_NO_LAST_ROM:
-		case MA_OPT2_RAMTIMINGS:
-		case MA_CDOPT_LEDS:
-		case MA_OPT2_A_SN_GAMMA:
-		case MA_OPT2_VSYNC:
-		case MA_OPT_INTERLACED:
-		case MA_OPT2_DBLBUFF:
-		case MA_OPT2_STATUS_LINE:
-		case MA_OPT2_NO_FRAME_LIMIT:
-		case MA_OPT_TEARING_FIX:
-			return defaultConfig.EmuOpt;
-
-		case MA_CTRL_TURBO_RATE: return defaultConfig.turbo_rate;
-		case MA_OPT_SCALING:     return defaultConfig.scaling;
-		case MA_OPT_ROTATION:    return defaultConfig.rotation;
-		case MA_OPT2_GAMMA:      return defaultConfig.gamma;
-		case MA_OPT_FRAMESKIP:   return defaultConfig.Frameskip;
-		case MA_OPT_CONFIRM_STATES: return defaultConfig.confirm_save;
-		case MA_OPT_CPU_CLOCKS:  return defaultConfig.CPUclock;
-		case MA_OPT_RENDERER:    return defaultConfig.renderer;
-		case MA_32XOPT_RENDERER: return defaultConfig.renderer32x;
-
-		case MA_OPT_SAVE_SLOT:
-			return 0;
-
-		default:
-			lprintf("missing default for %d\n", me->id);
-			return 0;
-	}
-}
-
-static int is_cust_val_default(const menu_entry *me)
-{
-	switch (me->id)
-	{
-		case MA_OPT_REGION:
-			return defaultConfig.s_PicoRegion == PicoRegionOverride &&
-				defaultConfig.s_PicoAutoRgnOrder == PicoAutoRgnOrder;
-		case MA_OPT_SOUND_QUALITY:
-			return defaultConfig.s_PsndRate == PsndRate &&
-				((defaultConfig.s_PicoOpt ^ PicoOpt) & POPT_EN_STEREO) == 0;
-		case MA_CDOPT_READAHEAD:
-			return defaultConfig.s_PicoCDBuffers == PicoCDBuffers;
-		case MA_32XOPT_MSH2_CYCLES:
-			return p32x_msh2_multiplier == MSH2_MULTI_DEFAULT;
-		case MA_32XOPT_SSH2_CYCLES:
-			return p32x_ssh2_multiplier == SSH2_MULTI_DEFAULT;
-		default:break;
-	}
-
-	lprintf("is_cust_val_default: unhandled id %i\n", me->id);
-	return 0;
-}
-
-int config_writesect(const char *fname, const char *section)
-{
-	FILE *fo = NULL, *fn = NULL; // old and new
-	int no_defaults = 0; // avoid saving defaults
+	FILE *fn = NULL;
 	menu_entry *me;
-	int t, tlen, ret;
-	char line[128], *tmp;
+	int t;
+	char line[128];
 
-	if (section != NULL)
-	{
-		no_defaults = 1;
-
-		fo = fopen(fname, "r");
-		if (fo == NULL) {
-			fn = fopen(fname, "w");
-			goto write;
-		}
-
-		ret = seek_sect(fo, section);
-		if (!ret) {
-			// sect not found, we can simply append
-			fclose(fo); fo = NULL;
-			fn = fopen(fname, "a");
-			goto write;
-		}
-
-		// use 2 files..
-		fclose(fo);
-		rename(fname, "tmp.cfg");
-		fo = fopen("tmp.cfg", "r");
-		fn = fopen(fname, "w");
-		if (fo == NULL || fn == NULL) goto write;
-
-		// copy everything until sect
-		tlen = strlen(section);
-		while (!feof(fo))
-		{
-			tmp = fgets(line, sizeof(line), fo);
-			if (tmp == NULL) break;
-
-			if (line[0] == '[' && strncmp(line + 1, section, tlen) == 0 && line[tlen+1] == ']')
-				break;
-			fputs(line, fn);
-		}
-
-		// now skip to next sect
-		while (!feof(fo))
-		{
-			tmp = fgets(line, sizeof(line), fo);
-			if (tmp == NULL) break;
-			if (line[0] == '[') {
-				fseek(fo, -strlen(line), SEEK_CUR);
-				break;
-			}
-		}
-		if (feof(fo))
-		{
-			fclose(fo); fo = NULL;
-			remove("tmp.cfg");
-		}
-	}
-	else
-	{
-		fn = fopen(fname, "w");
-	}
-
-write:
-	if (fn == NULL) {
-		if (fo) fclose(fo);
+	fn = fopen(fname, "w");
+	if (fn == NULL)
 		return -1;
-	}
-	if (section != NULL)
-		fprintf(fn, "[%s]" NL, section);
 
 	for (me = me_list_get_first(); me != NULL; me = me_list_get_next())
 	{
 		int dummy;
-		if (!me->need_to_save)
+		if (!me->need_to_save || !me->enabled)
 			continue;
 		if (me->name == NULL || me->name[0] == 0)
 			continue;
 
 		if (me->beh == MB_OPT_ONOFF || me->beh == MB_OPT_CUSTONOFF) {
-			if (!no_defaults || ((*(int *)me->var ^ default_var(me)) & me->mask))
-				fprintf(fn, "%s = %i" NL, me->name, (*(int *)me->var & me->mask) ? 1 : 0);
+			fprintf(fn, "%s = %i" NL, me->name, (*(int *)me->var & me->mask) ? 1 : 0);
 		}
 		else if (me->beh == MB_OPT_RANGE || me->beh == MB_OPT_CUSTRANGE) {
-			if (!no_defaults || (*(int *)me->var ^ default_var(me)))
-				fprintf(fn, "%s = %i" NL, me->name, *(int *)me->var);
+			fprintf(fn, "%s = %i" NL, me->name, *(int *)me->var);
 		}
 		else if (me->beh == MB_OPT_ENUM && me->data != NULL) {
 			const char **names = (const char **)me->data;
-			for (t = 0; names[t] != NULL; t++)
-				if (*(int *)me->var == t && (!no_defaults || (*(int *)me->var ^ default_var(me)))) {
+			for (t = 0; names[t] != NULL; t++) {
+				if (*(int *)me->var == t) {
 					strncpy(line, names[t], sizeof(line));
 					goto write_line;
 				}
+			}
 		}
 		else if (me->generate_name != NULL) {
-			if (!no_defaults || !is_cust_val_default(me)) {
-				strncpy(line, me->generate_name(0, &dummy), sizeof(line));
-				goto write_line;
-			}
+			strncpy(line, me->generate_name(0, &dummy), sizeof(line));
+			goto write_line;
 		}
 		else
 			lprintf("config: unhandled write: %i\n", me->id);
@@ -307,60 +139,29 @@ write_line:
 		fprintf(fn, "%s = %s" NL, me->name, line);
 	}
 
-	/* input: save device names */
-	for (t = 0; t < IN_MAX_DEVS; t++)
-	{
-		const int  *binds = in_get_dev_binds(t);
-		const char *name =  in_get_dev_name(t, 0, 0);
-		if (binds == NULL || name == NULL)
-			continue;
-
-		fprintf(fn, "input%d = %s" NL, t, name);
-	}
-
 	/* input: save binds */
 	for (t = 0; t < IN_MAX_DEVS; t++)
 	{
 		const int *binds = in_get_dev_binds(t);
 		const char *name = in_get_dev_name(t, 0, 0);
-		char strbind[16];
 		int count = 0;
 
 		if (binds == NULL || name == NULL)
 			continue;
 
-		sprintf(strbind, "bind%d", t);
-		if (t == 0) strbind[4] = 0;
+		fprintf(fn, "binddev = %s" NL, name);
 
 		in_get_config(t, IN_CFG_BIND_COUNT, &count);
-		keys_write(fn, strbind, t, binds, no_defaults);
+		keys_write(fn, t, binds);
 	}
 
-#ifndef PSP
-	if (section == NULL)
-		fprintf(fn, "Sound Volume = %i" NL, currentConfig.volume);
-#endif
+	fprintf(fn, "Sound Volume = %i" NL, currentConfig.volume);
 
 	fprintf(fn, NL);
-
-	if (fo != NULL)
-	{
-		// copy whatever is left
-		while (!feof(fo))
-		{
-			tmp = fgets(line, sizeof(line), fo);
-			if (tmp == NULL) break;
-
-			fputs(line, fn);
-		}
-		fclose(fo);
-		remove("tmp.cfg");
-	}
 
 	fclose(fn);
 	return 0;
 }
-
 
 int config_writelrom(const char *fname)
 {
@@ -442,7 +243,6 @@ int config_readlrom(const char *fname)
 	fclose(f);
 	return ret;
 }
-
 
 static int custom_read(menu_entry *me, const char *var, const char *val)
 {
@@ -558,9 +358,6 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 	}
 }
 
-
-static unsigned int keys_encountered = 0;
-
 static int parse_bind_val(const char *val, int *type)
 {
 	int i;
@@ -595,38 +392,43 @@ static int parse_bind_val(const char *val, int *type)
 	return -1;
 }
 
-static void keys_parse(const char *key, const char *val, int dev_id)
+static void keys_parse_all(FILE *f)
 {
+	char line[256], *var, *val;
+	int dev_id = -1;
 	int acts, type;
+	int ret;
 
-	acts = parse_bind_val(val, &type);
-	if (acts == -1) {
-		lprintf("config: unhandled action \"%s\"\n", val);
-		return;
+	while (!feof(f))
+	{
+		ret = config_get_var_val(f, line, sizeof(line), &var, &val);
+		if (ret ==  0) break;
+		if (ret == -1) continue;
+
+		if (strcasecmp(var, "binddev") == 0) {
+			dev_id = in_config_parse_dev(val);
+			if (dev_id < 0) {
+				printf("input: can't handle dev: %s\n", val);
+				continue;
+			}
+			in_unbind_all(dev_id, -1, -1);
+			continue;
+		}
+		if (dev_id < 0 || strncasecmp(var, "bind ", 5) != 0)
+			continue;
+
+		acts = parse_bind_val(val, &type);
+		if (acts == -1) {
+			lprintf("config: unhandled action \"%s\"\n", val);
+			return;
+		}
+
+		mystrip(var + 5);
+		in_config_bind_key(dev_id, var + 5, acts, type);
 	}
-
-	in_config_bind_key(dev_id, key, acts, type);
 }
 
-static int get_numvar_num(const char *var)
-{
-	char *p = NULL;
-	int num;
-	
-	if (var[0] == ' ')
-		return 0;
-
-	num = strtoul(var, &p, 10);
-	if (*p == 0 || *p == ' ')
-		return num;
-
-	return -1;
-}
-
-/* map dev number in confing to input dev number */
-static unsigned char input_dev_map[IN_MAX_DEVS];
-
-static void parse(const char *var, const char *val)
+static void parse(const char *var, const char *val, int *keys_encountered)
 {
 	menu_entry *me;
 	int tmp;
@@ -634,39 +436,13 @@ static void parse(const char *var, const char *val)
 	if (strcasecmp(var, "LastUsedROM") == 0)
 		return; /* handled elsewhere */
 
+	if (strncasecmp(var, "bind", 4) == 0) {
+		*keys_encountered = 1;
+		return; /* handled elsewhere */
+	}
+
 	if (strcasecmp(var, "Sound Volume") == 0) {
 		currentConfig.volume = atoi(val);
-		return;
-	}
-
-	/* input: device name */
-	if (strncasecmp(var, "input", 5) == 0) {
-		int num = get_numvar_num(var + 5);
-		if (num >= 0 && num < IN_MAX_DEVS)
-			input_dev_map[num] = in_config_parse_dev(val);
-		else
-			lprintf("config: failed to parse: %s\n", var);
-		return;
-	}
-
-	// key binds
-	if (strncasecmp(var, "bind", 4) == 0) {
-		const char *p = var + 4;
-		int num = get_numvar_num(p);
-		if (num < 0 || num >= IN_MAX_DEVS) {
-			lprintf("config: failed to parse: %s\n", var);
-			return;
-		}
-
-		num = input_dev_map[num];
-		if (num < 0 || num >= IN_MAX_DEVS) {
-			lprintf("config: invalid device id: %s\n", var);
-			return;
-		}
-
-		while (*p && *p != ' ') p++;
-		while (*p && *p == ' ') p++;
-		keys_parse(p, val, num);
 		return;
 	}
 
@@ -721,26 +497,13 @@ static void parse(const char *var, const char *val)
 	return;
 
 bad_val:
-	lprintf("config_readsect: unhandled val for \"%s\": %s\n", var, val);
-}
-
-
-int config_havesect(const char *fname, const char *section)
-{
-	FILE *f;
-	int ret;
-
-	f = fopen(fname, "r");
-	if (f == NULL) return 0;
-
-	ret = seek_sect(f, section);
-	fclose(f);
-	return ret;
+	lprintf("config_readsect: unhandled val for \"%s\": \"%s\"\n", var, val);
 }
 
 int config_readsect(const char *fname, const char *section)
 {
 	char line[128], *var, *val;
+	int keys_encountered = 0;
 	FILE *f;
 	int ret;
 
@@ -749,6 +512,7 @@ int config_readsect(const char *fname, const char *section)
 
 	if (section != NULL)
 	{
+		/* for game_def.cfg only */
 		ret = seek_sect(f, section);
 		if (!ret) {
 			lprintf("config_readsect: %s: missing section [%s]\n", fname, section);
@@ -757,8 +521,7 @@ int config_readsect(const char *fname, const char *section)
 		}
 	}
 
-	keys_encountered = 0;
-	memset(input_dev_map, 0xff, sizeof(input_dev_map));
+	emu_set_defconfig();
 
 	while (!feof(f))
 	{
@@ -766,10 +529,21 @@ int config_readsect(const char *fname, const char *section)
 		if (ret ==  0) break;
 		if (ret == -1) continue;
 
-		parse(var, val);
+		parse(var, val, &keys_encountered);
+	}
+
+	if (keys_encountered) {
+		rewind(f);
+		keys_parse_all(f);
 	}
 
 	fclose(f);
+
+	lprintf("config_readsect: loaded from %s", fname);
+	if (section != NULL)
+		lprintf(" [%s]", section);
+	printf("\n");
+
 	return 0;
 }
 

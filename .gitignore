@@ -13,5 +13,6 @@ config.cfg
 srm/
 brm/
 mds/
+cfg/
 libs/
 obj/
