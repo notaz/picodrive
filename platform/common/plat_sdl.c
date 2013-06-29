@@ -200,6 +200,12 @@ void plat_early_init(void)
 {
 }
 
+static void plat_sdl_quit(void)
+{
+	// for now..
+	exit(1);
+}
+
 void plat_init(void)
 {
 	int shadow_size;
@@ -208,6 +214,8 @@ void plat_init(void)
 	ret = plat_sdl_init();
 	if (ret != 0)
 		exit(1);
+
+	plat_sdl_quit_cb = plat_sdl_quit;
 
 	SDL_WM_SetCaption("PicoDrive" VERSION, NULL);
 
