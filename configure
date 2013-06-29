@@ -123,10 +123,8 @@ if [ "x$sound_drivers" != "x" ]; then
   done
 fi
 
-if [ "$need_libpicofe" = "yes" ]; then
-  if ! test -f "frontend/libpicofe/README"; then
-    fail "libpicofe is missing, please run 'git submodule init && git submodule update'"
-  fi
+if ! test -f "platform/libpicofe/README"; then
+  fail "libpicofe is missing, please run 'git submodule update --init'"
 fi
 
 #if [ "$need_warm" = "yes" ]; then
