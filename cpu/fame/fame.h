@@ -122,7 +122,7 @@ typedef struct
 	unsigned short execinfo;
 	// PD extension
 	int            io_cycle_counter; // cycles left
-	unsigned int   Fetch[M68K_FETCHBANK1];
+	unsigned long  Fetch[M68K_FETCHBANK1];
 } M68K_CONTEXT;
 
 extern M68K_CONTEXT *g_m68kcontext;

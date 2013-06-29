@@ -37,12 +37,7 @@ asm_misc = 1
 asm_cdpico = 1
 asm_cdmemory = 1
 else # if not arm
-ifneq "$(ARCH)" "x86_64"
-# no 64bit support
 use_fame ?= 1
-else
-use_musashi ?= 1
-endif
 use_cz80 ?= 1
 use_sh2mame ?= 1
 endif

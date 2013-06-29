@@ -966,14 +966,14 @@ static void remap_word_ram(int r3)
   if (!(r3 & 4))
   {
     for (i = M68K_FETCHBANK1*2/16; (i<<(24-FAMEC_FETCHBITS)) < 0x240000; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico_mcd->word_ram2M - 0x200000;
+      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico_mcd->word_ram2M - 0x200000;
   }
   else
   {
     for (i = M68K_FETCHBANK1*2/16; (i<<(24-FAMEC_FETCHBITS)) < 0x220000; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico_mcd->word_ram1M[r3 & 1] - 0x200000;
+      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico_mcd->word_ram1M[r3 & 1] - 0x200000;
     for (i = M68K_FETCHBANK1*0x0c/0x100; (i<<(24-FAMEC_FETCHBITS)) < 0x0e0000; i++)
-      PicoCpuFS68k.Fetch[i] = (unsigned int)Pico_mcd->word_ram1M[(r3&1)^1] - 0x0c0000;
+      PicoCpuFS68k.Fetch[i] = (unsigned long)Pico_mcd->word_ram1M[(r3&1)^1] - 0x0c0000;
   }
 #endif
 }
@@ -1073,23 +1073,23 @@ PICO_INTERNAL void PicoMemSetupCD(void)
     // M68k
     // by default, point everything to fitst 64k of ROM (BIOS)
     for (i = 0; i < M68K_FETCHBANK1; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
+      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
     // now real ROM (BIOS)
     for (i = 0; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < Pico.romsize; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico.rom;
+      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.rom;
     // .. and RAM
     for (i = M68K_FETCHBANK1*14/16; i < M68K_FETCHBANK1; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned int)Pico.ram - (i<<(24-FAMEC_FETCHBITS));
+      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.ram - (i<<(24-FAMEC_FETCHBITS));
     // S68k
     // PRG RAM is default
     for (i = 0; i < M68K_FETCHBANK1; i++)
-      PicoCpuFS68k.Fetch[i] = (unsigned int)Pico_mcd->prg_ram - (i<<(24-FAMEC_FETCHBITS));
+      PicoCpuFS68k.Fetch[i] = (unsigned long)Pico_mcd->prg_ram - (i<<(24-FAMEC_FETCHBITS));
     // real PRG RAM
     for (i = 0; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < 0x80000; i++)
-      PicoCpuFS68k.Fetch[i] = (unsigned int)Pico_mcd->prg_ram;
+      PicoCpuFS68k.Fetch[i] = (unsigned long)Pico_mcd->prg_ram;
     // WORD RAM 2M area
     for (i = M68K_FETCHBANK1*0x08/0x100; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < 0xc0000; i++)
-      PicoCpuFS68k.Fetch[i] = (unsigned int)Pico_mcd->word_ram2M - 0x80000;
+      PicoCpuFS68k.Fetch[i] = (unsigned long)Pico_mcd->word_ram2M - 0x80000;
     // remap_word_ram() will setup word ram for both
   }
 #endif

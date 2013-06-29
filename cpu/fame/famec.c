@@ -11,6 +11,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#endif
+
 #include "fame.h"
 
 
@@ -70,12 +74,17 @@
 #undef s32
 #endif
 
+#ifdef uptr
+#undef uptr
+#endif
+
 #define u8	unsigned char
 #define s8	signed char
 #define u16	unsigned short
 #define s16	signed short
 #define u32	unsigned int
 #define s32	signed int
+#define uptr	unsigned long
 
 /*
 typedef unsigned char	u8;
@@ -287,7 +296,7 @@ typedef signed int	s32;
 #define M68K_PPL (m68kcontext.sr >> 8) & 7
 
 #define GET_PC                  \
-	((u32)PC - BasePC)
+	(u32)((uptr)PC - BasePC)
 
 
 #ifdef FAMEC_CHECK_BRANCHES
@@ -522,7 +531,7 @@ M68K_CONTEXT *g_m68kcontext;
 static u32 Opcode;
 static s32 cycles_needed;
 static u16 *PC;
-static u32 BasePC;
+static uptr BasePC;
 static u32 flag_C;
 static u32 flag_V;
 static u32 flag_NotZ;
@@ -697,7 +706,7 @@ int fm68k_reset(void)
 u32 fm68k_get_pc(M68K_CONTEXT *context)
 {
 #ifdef FAMEC_NO_GOTOS
-	return (context->execinfo & M68K_RUNNING)?(u32)PC-BasePC:context->pc;
+	return (context->execinfo & M68K_RUNNING)?(uptr)PC-BasePC:context->pc;
 #else
 	return context->pc; // approximate PC in this mode
 #endif
@@ -776,8 +785,6 @@ static FAMEC_EXTRA_INLINE u32 execute_exception_group_0(s32 vect, s32 addr, u16 
 }
 
 
-static void setup_jumptable(void);
-
 #ifdef FAMEC_NO_GOTOS
 
 #define OPCODE(N_OP) static void OP_##N_OP(void)
@@ -795,7 +802,7 @@ int fm68k_emulate(s32 cycles, int dualcore, int idle_mode)
 	u32 Opcode;
 	s32 cycles_needed;
 	u16 *PC;
-	u32 BasePC;
+	uptr BasePC;
 	u32 flag_C;
 	u32 flag_V;
 	u32 flag_NotZ;

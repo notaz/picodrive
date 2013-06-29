@@ -3826,7 +3826,7 @@ OPCODE(0x083A)
 
 	FETCH_BYTE(src);
 	src = 1 << (src & 7);
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -3843,7 +3843,7 @@ OPCODE(0x083B)
 
 	FETCH_BYTE(src);
 	src = 1 << (src & 7);
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -4572,7 +4572,7 @@ OPCODE(0x013A)
 
 	src = DREGu8((Opcode >> 9) & 7);
 	src = 1 << (src & 7);
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -4589,7 +4589,7 @@ OPCODE(0x013B)
 
 	src = DREGu8((Opcode >> 9) & 7);
 	src = 1 << (src & 7);
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7116,7 +7116,7 @@ OPCODE(0x103A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7135,7 +7135,7 @@ OPCODE(0x10BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7155,7 +7155,7 @@ OPCODE(0x10FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7176,7 +7176,7 @@ OPCODE(0x113A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7197,7 +7197,7 @@ OPCODE(0x117A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7218,7 +7218,7 @@ OPCODE(0x11BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7239,7 +7239,7 @@ OPCODE(0x11FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7259,7 +7259,7 @@ OPCODE(0x13FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7279,7 +7279,7 @@ OPCODE(0x1EFA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7300,7 +7300,7 @@ OPCODE(0x1F3A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7321,7 +7321,7 @@ OPCODE(0x103B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7340,7 +7340,7 @@ OPCODE(0x10BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7360,7 +7360,7 @@ OPCODE(0x10FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7381,7 +7381,7 @@ OPCODE(0x113B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7402,7 +7402,7 @@ OPCODE(0x117B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7423,7 +7423,7 @@ OPCODE(0x11BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7444,7 +7444,7 @@ OPCODE(0x11FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7464,7 +7464,7 @@ OPCODE(0x13FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7484,7 +7484,7 @@ OPCODE(0x1EFB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -7505,7 +7505,7 @@ OPCODE(0x1F3B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = (uptr)(PC) - BasePC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
@@ -9890,7 +9890,7 @@ OPCODE(0x203A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -9909,7 +9909,7 @@ OPCODE(0x20BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -9929,7 +9929,7 @@ OPCODE(0x20FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -9950,7 +9950,7 @@ OPCODE(0x213A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -9971,7 +9971,7 @@ OPCODE(0x217A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -9992,7 +9992,7 @@ OPCODE(0x21BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10013,7 +10013,7 @@ OPCODE(0x21FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10033,7 +10033,7 @@ OPCODE(0x23FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10053,7 +10053,7 @@ OPCODE(0x2EFA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10074,7 +10074,7 @@ OPCODE(0x2F3A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10095,7 +10095,7 @@ OPCODE(0x203B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10114,7 +10114,7 @@ OPCODE(0x20BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10134,7 +10134,7 @@ OPCODE(0x20FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10155,7 +10155,7 @@ OPCODE(0x213B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10176,7 +10176,7 @@ OPCODE(0x217B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10197,7 +10197,7 @@ OPCODE(0x21BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10218,7 +10218,7 @@ OPCODE(0x21FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10238,7 +10238,7 @@ OPCODE(0x23FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10258,7 +10258,7 @@ OPCODE(0x2EFB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -10279,7 +10279,7 @@ OPCODE(0x2F3B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, res)
@@ -11017,7 +11017,7 @@ OPCODE(0x207A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READSX_LONG_F(adr, res)
@@ -11032,7 +11032,7 @@ OPCODE(0x207B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READSX_LONG_F(adr, res)
@@ -12859,7 +12859,7 @@ OPCODE(0x303A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -12878,7 +12878,7 @@ OPCODE(0x30BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -12898,7 +12898,7 @@ OPCODE(0x30FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -12919,7 +12919,7 @@ OPCODE(0x313A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -12940,7 +12940,7 @@ OPCODE(0x317A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -12961,7 +12961,7 @@ OPCODE(0x31BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -12982,7 +12982,7 @@ OPCODE(0x31FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13002,7 +13002,7 @@ OPCODE(0x33FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13022,7 +13022,7 @@ OPCODE(0x3EFA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13043,7 +13043,7 @@ OPCODE(0x3F3A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13064,7 +13064,7 @@ OPCODE(0x303B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13083,7 +13083,7 @@ OPCODE(0x30BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13103,7 +13103,7 @@ OPCODE(0x30FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13124,7 +13124,7 @@ OPCODE(0x313B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13145,7 +13145,7 @@ OPCODE(0x317B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13166,7 +13166,7 @@ OPCODE(0x31BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13187,7 +13187,7 @@ OPCODE(0x31FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13207,7 +13207,7 @@ OPCODE(0x33FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13227,7 +13227,7 @@ OPCODE(0x3EFB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13248,7 +13248,7 @@ OPCODE(0x3F3B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -13986,7 +13986,7 @@ OPCODE(0x307A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READSX_WORD_F(adr, res)
@@ -14001,7 +14001,7 @@ OPCODE(0x307B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READSX_WORD_F(adr, res)
@@ -16479,7 +16479,7 @@ OPCODE(0x44FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -16494,7 +16494,7 @@ OPCODE(0x44FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, res)
@@ -16786,7 +16786,7 @@ OPCODE(0x46FA)
 
 	if (flag_S)
 	{
-		adr = GET_SWORD + ((u32)(PC) - BasePC);
+		adr = GET_SWORD + GET_PC;
 		PC++;
 		PRE_IO
 		READ_WORD_F(adr, res)
@@ -16816,7 +16816,7 @@ OPCODE(0x46FB)
 
 	if (flag_S)
 	{
-		adr = (u32)(PC) - BasePC;
+		adr = GET_PC;
 		DECODE_EXT_WORD
 		PRE_IO
 		READ_WORD_F(adr, res)
@@ -17250,7 +17250,7 @@ OPCODE(0x487A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	PUSH_32_F(adr)
@@ -17264,7 +17264,7 @@ OPCODE(0x487B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	PUSH_32_F(adr)
@@ -18760,7 +18760,7 @@ OPCODE(0x4CBA)
 	s32 *psrc;
 
 	FETCH_WORD(res);
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	psrc = &DREGs32(0);
 	dst = adr;
@@ -18792,7 +18792,7 @@ OPCODE(0x4CBB)
 	s32 *psrc;
 
 	FETCH_WORD(res);
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	psrc = &DREGs32(0);
 	dst = adr;
@@ -19037,7 +19037,7 @@ OPCODE(0x4CFA)
 	u32 *psrc;
 
 	FETCH_WORD(res);
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	psrc = &DREGu32(0);
 	dst = adr;
@@ -19069,7 +19069,7 @@ OPCODE(0x4CFB)
 	u32 *psrc;
 
 	FETCH_WORD(res);
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	psrc = &DREGu32(0);
 	dst = adr;
@@ -19342,7 +19342,7 @@ OPCODE(0x4E90)
 	{
 		u32 oldPC;
 
-		oldPC = (u32)(PC) - BasePC;
+		oldPC = GET_PC;
 	PRE_IO
 		PUSH_32_F(oldPC)
 	}
@@ -19363,7 +19363,7 @@ OPCODE(0x4EA8)
 	{
 		u32 oldPC;
 
-		oldPC = (u32)(PC) - BasePC;
+		oldPC = GET_PC;
 	PRE_IO
 		PUSH_32_F(oldPC)
 	}
@@ -19384,7 +19384,7 @@ OPCODE(0x4EB0)
 	{
 		u32 oldPC;
 
-		oldPC = (u32)(PC) - BasePC;
+		oldPC = GET_PC;
 	PRE_IO
 		PUSH_32_F(oldPC)
 	}
@@ -19404,7 +19404,7 @@ OPCODE(0x4EB8)
 	{
 		u32 oldPC;
 
-		oldPC = (u32)(PC) - BasePC;
+		oldPC = GET_PC;
 	PRE_IO
 		PUSH_32_F(oldPC)
 	}
@@ -19424,7 +19424,7 @@ OPCODE(0x4EB9)
 	{
 		u32 oldPC;
 
-		oldPC = (u32)(PC) - BasePC;
+		oldPC = GET_PC;
 	PRE_IO
 		PUSH_32_F(oldPC)
 	}
@@ -19440,12 +19440,12 @@ OPCODE(0x4EBA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	{
 		u32 oldPC;
 
-		oldPC = (u32)(PC) - BasePC;
+		oldPC = GET_PC;
 	PRE_IO
 		PUSH_32_F(oldPC)
 	}
@@ -19461,12 +19461,12 @@ OPCODE(0x4EBB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	{
 		u32 oldPC;
 
-		oldPC = (u32)(PC) - BasePC;
+		oldPC = GET_PC;
 	PRE_IO
 		PUSH_32_F(oldPC)
 	}
@@ -19544,7 +19544,7 @@ OPCODE(0x4EFA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	SET_PC(adr)
 	CHECK_BRANCH_EXCEPTION(adr)
@@ -19557,7 +19557,7 @@ OPCODE(0x4EFB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	SET_PC(adr)
 	CHECK_BRANCH_EXCEPTION(adr)
@@ -19723,7 +19723,7 @@ OPCODE(0x41BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -19743,7 +19743,7 @@ OPCODE(0x41BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -19882,7 +19882,7 @@ OPCODE(0x41FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	res = adr;
 	AREG((Opcode >> 9) & 7) = res;
@@ -19895,7 +19895,7 @@ OPCODE(0x41FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	res = adr;
 	AREG((Opcode >> 9) & 7) = res;
@@ -23305,7 +23305,7 @@ OPCODE(0x51C8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23330,7 +23330,7 @@ OPCODE(0x52C8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23361,7 +23361,7 @@ OPCODE(0x53C8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23392,7 +23392,7 @@ OPCODE(0x54C8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23423,7 +23423,7 @@ OPCODE(0x55C8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23454,7 +23454,7 @@ OPCODE(0x56C8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23485,7 +23485,7 @@ OPCODE(0x57C8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23516,7 +23516,7 @@ OPCODE(0x58C8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23547,7 +23547,7 @@ OPCODE(0x59C8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23578,7 +23578,7 @@ OPCODE(0x5AC8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23609,7 +23609,7 @@ OPCODE(0x5BC8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23640,7 +23640,7 @@ OPCODE(0x5CC8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23671,7 +23671,7 @@ OPCODE(0x5DC8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23702,7 +23702,7 @@ OPCODE(0x5EC8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -23733,7 +23733,7 @@ OPCODE(0x5FC8)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25189,7 +25189,7 @@ OPCODE(0x6200)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25209,7 +25209,7 @@ OPCODE(0x6300)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25229,7 +25229,7 @@ OPCODE(0x6400)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25249,7 +25249,7 @@ OPCODE(0x6500)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25269,7 +25269,7 @@ OPCODE(0x6600)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25289,7 +25289,7 @@ OPCODE(0x6700)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25309,7 +25309,7 @@ OPCODE(0x6800)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25329,7 +25329,7 @@ OPCODE(0x6900)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25349,7 +25349,7 @@ OPCODE(0x6A00)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25369,7 +25369,7 @@ OPCODE(0x6B00)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25389,7 +25389,7 @@ OPCODE(0x6C00)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25409,7 +25409,7 @@ OPCODE(0x6D00)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25429,7 +25429,7 @@ OPCODE(0x6E00)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25449,7 +25449,7 @@ OPCODE(0x6F00)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25463,7 +25463,7 @@ RET(12)
 OPCODE(0x6001)
 {
 #ifdef FAMEC_CHECK_BRANCHES
-	u32 newPC = (u32)(PC) - BasePC;
+	u32 newPC = GET_PC;
 	s8 offs=Opcode;
 	newPC += offs;
 	SET_PC(newPC);
@@ -25483,7 +25483,7 @@ OPCODE(0x6000)
 	{
 		u32 newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		newPC += GET_SWORD;
 		SET_PC(newPC);
 		CHECK_BRANCH_EXCEPTION(newPC)
@@ -25501,7 +25501,7 @@ OPCODE(0x6101)
 
 	PRE_IO
 
-	oldPC = (u32)(PC) - BasePC;
+	oldPC = GET_PC;
 	PUSH_32_F(oldPC)
 #ifdef FAMEC_CHECK_BRANCHES
 	offs = Opcode;
@@ -25525,7 +25525,7 @@ OPCODE(0x6100)
 	{
 		u32 oldPC, newPC;
 
-		newPC = (u32)(PC) - BasePC;
+		newPC = GET_PC;
 		oldPC = newPC + 2;
 		PUSH_32_F(oldPC)
 		newPC += GET_SWORD;
@@ -25716,7 +25716,7 @@ OPCODE(0x803A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, src)
@@ -25737,7 +25737,7 @@ OPCODE(0x803B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, src)
@@ -25978,7 +25978,7 @@ OPCODE(0x807A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -25999,7 +25999,7 @@ OPCODE(0x807B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -26240,7 +26240,7 @@ OPCODE(0x80BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, src)
@@ -26261,7 +26261,7 @@ OPCODE(0x80BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, src)
@@ -27424,7 +27424,7 @@ OPCODE(0x80FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -27473,7 +27473,7 @@ OPCODE(0x80FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -28116,7 +28116,7 @@ OPCODE(0x81FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READSX_WORD_F(adr, src)
@@ -28173,7 +28173,7 @@ OPCODE(0x81FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READSX_WORD_F(adr, src)
@@ -28574,7 +28574,7 @@ OPCODE(0x903A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, src)
@@ -28594,7 +28594,7 @@ OPCODE(0x903B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, src)
@@ -28839,7 +28839,7 @@ OPCODE(0x907A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -28859,7 +28859,7 @@ OPCODE(0x907B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -29113,7 +29113,7 @@ OPCODE(0x90BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, src)
@@ -29134,7 +29134,7 @@ OPCODE(0x90BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, src)
@@ -30241,7 +30241,7 @@ OPCODE(0x90FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READSX_WORD_F(adr, src)
@@ -30262,7 +30262,7 @@ OPCODE(0x90FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READSX_WORD_F(adr, src)
@@ -30488,7 +30488,7 @@ OPCODE(0x91FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READSX_LONG_F(adr, src)
@@ -30505,7 +30505,7 @@ OPCODE(0x91FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READSX_LONG_F(adr, src)
@@ -30740,7 +30740,7 @@ OPCODE(0xB03A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, src)
@@ -30759,7 +30759,7 @@ OPCODE(0xB03B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, src)
@@ -30991,7 +30991,7 @@ OPCODE(0xB07A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -31010,7 +31010,7 @@ OPCODE(0xB07B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -31251,7 +31251,7 @@ OPCODE(0xB0BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, src)
@@ -31271,7 +31271,7 @@ OPCODE(0xB0BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, src)
@@ -32381,7 +32381,7 @@ OPCODE(0xB0FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READSX_WORD_F(adr, src)
@@ -32401,7 +32401,7 @@ OPCODE(0xB0FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READSX_WORD_F(adr, src)
@@ -32646,7 +32646,7 @@ OPCODE(0xB1FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READSX_LONG_F(adr, src)
@@ -32666,7 +32666,7 @@ OPCODE(0xB1FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READSX_LONG_F(adr, src)
@@ -32903,7 +32903,7 @@ OPCODE(0xC03A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, src)
@@ -32924,7 +32924,7 @@ OPCODE(0xC03B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, src)
@@ -33165,7 +33165,7 @@ OPCODE(0xC07A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -33186,7 +33186,7 @@ OPCODE(0xC07B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -33427,7 +33427,7 @@ OPCODE(0xC0BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, src)
@@ -33448,7 +33448,7 @@ OPCODE(0xC0BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, src)
@@ -34410,7 +34410,7 @@ OPCODE(0xC0FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -34434,7 +34434,7 @@ OPCODE(0xC0FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -34711,7 +34711,7 @@ OPCODE(0xC1FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READSX_WORD_F(adr, src)
@@ -34735,7 +34735,7 @@ OPCODE(0xC1FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READSX_WORD_F(adr, src)
@@ -35045,7 +35045,7 @@ OPCODE(0xD03A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_BYTE_F(adr, src)
@@ -35065,7 +35065,7 @@ OPCODE(0xD03B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, src)
@@ -35310,7 +35310,7 @@ OPCODE(0xD07A)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -35330,7 +35330,7 @@ OPCODE(0xD07B)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_WORD_F(adr, src)
@@ -35584,7 +35584,7 @@ OPCODE(0xD0BA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READ_LONG_F(adr, src)
@@ -35605,7 +35605,7 @@ OPCODE(0xD0BB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_LONG_F(adr, src)
@@ -36712,7 +36712,7 @@ OPCODE(0xD0FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READSX_WORD_F(adr, src)
@@ -36733,7 +36733,7 @@ OPCODE(0xD0FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READSX_WORD_F(adr, src)
@@ -36959,7 +36959,7 @@ OPCODE(0xD1FA)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = GET_SWORD + ((u32)(PC) - BasePC);
+	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
 	READSX_LONG_F(adr, src)
@@ -36976,7 +36976,7 @@ OPCODE(0xD1FB)
 	u32 adr, res;
 	u32 src, dst;
 
-	adr = (u32)(PC) - BasePC;
+	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
 	READSX_LONG_F(adr, src)
@@ -39974,7 +39974,7 @@ RET(14)
 OPCODE(0x6001_idle)
 {
 #ifdef FAMEC_CHECK_BRANCHES
-	u32 newPC = (u32)(PC) - BasePC;
+	u32 newPC = GET_PC;
 	s8 offs=Opcode;
 	newPC += offs;
 	SET_PC(newPC);

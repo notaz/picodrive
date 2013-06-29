@@ -917,7 +917,7 @@ static void bank_switch(int b)
 #ifdef EMU_F68K
   // setup FAME fetchmap
   for (rs = 0x90; rs < 0xa0; rs++)
-    PicoCpuFM68k.Fetch[rs] = (u32)Pico.rom + bank - 0x900000;
+    PicoCpuFM68k.Fetch[rs] = (unsigned long)Pico.rom + bank - 0x900000;
 #endif
 }
 
@@ -1461,9 +1461,9 @@ void PicoMemSetup32x(void)
   cpu68k_map_set(m68k_read16_map,  0x880000, 0x880000 + rs - 1, Pico.rom, 0);
 #ifdef EMU_F68K
   // setup FAME fetchmap
-  PicoCpuFM68k.Fetch[0] = (u32)Pico32xMem->m68k_rom;
+  PicoCpuFM68k.Fetch[0] = (unsigned long)Pico32xMem->m68k_rom;
   for (rs = 0x88; rs < 0x90; rs++)
-    PicoCpuFM68k.Fetch[rs] = (u32)Pico.rom - 0x880000;
+    PicoCpuFM68k.Fetch[rs] = (unsigned long)Pico.rom - 0x880000;
 #endif
 
   // 32X ROM (banked)
