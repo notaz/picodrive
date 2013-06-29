@@ -15,9 +15,8 @@
 #include "../libpicofe/plat.h"
 #include "menu_pico.h"
 #include "emu.h"
-//#include "config.h"
+#include "version.h"
 #include <cpu/debug.h>
-#include <version.h>
 
 
 extern char *PicoConfigFile;

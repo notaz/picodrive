@@ -11,8 +11,7 @@
 #include "emu.h"
 #include "menu_pico.h"
 #include "input_pico.h"
-
-#include <version.h>
+#include "version.h"
 
 #include <pico/pico.h>
 #include <pico/patch.h>
