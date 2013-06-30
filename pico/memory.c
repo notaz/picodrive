@@ -23,6 +23,11 @@ uptr m68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
 static void xmap_set(uptr *map, int shift, int start_addr, int end_addr,
     const void *func_or_mh, int is_func)
 {
+#ifdef __clang__
+  // workaround bug (segfault) in 
+  // Apple LLVM version 4.2 (clang-425.0.27) (based on LLVM 3.2svn)
+  volatile 
+#endif
   uptr addr = (uptr)func_or_mh;
   int mask = (1 << shift) - 1;
   int i;
@@ -110,6 +115,11 @@ static void m68k_unmapped_write16(u32 a, u32 d)
 
 void m68k_map_unmap(int start_addr, int end_addr)
 {
+#ifdef __clang__
+  // workaround bug (segfault) in 
+  // Apple LLVM version 4.2 (clang-425.0.27) (based on LLVM 3.2svn)
+  volatile 
+#endif
   uptr addr;
   int shift = M68K_MEM_SHIFT;
   int i;

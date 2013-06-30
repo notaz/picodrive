@@ -128,9 +128,3 @@ PLATFORM = libretro
 NO_CONFIG_MAK = yes
 
 include Makefile
-
-# workaround another breakage on;
-# Apple LLVM version 4.2 (clang-425.0.27) (based on LLVM 3.2svn)
-ifeq ($(platform), ios)
-pico/memory.o: CFLAGS += -O0
-endif
