@@ -89,6 +89,7 @@ SRCS_COMMON += $(R)pico/carthw/carthw.c
 SRCS_COMMON += $(R)pico/carthw/svp/svp.c $(R)pico/carthw/svp/memory.c \
 	$(R)pico/carthw/svp/ssp16.c
 ifeq "$(use_svpdrc)" "1"
+DEFINES += _SVP_DRC
 SRCS_COMMON += $(R)pico/carthw/svp/stub_arm.S
 SRCS_COMMON += $(R)pico/carthw/svp/compiler.c
 endif
