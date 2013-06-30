@@ -124,13 +124,18 @@ include platform/common/common.mak
 OBJS += $(OBJS_COMMON)
 CFLAGS += $(addprefix -D,$(DEFINES))
 
+ifneq ($(findstring gcc,$(CC)),)
+LDFLAGS += -Wl,-Map=$(TARGET).map
+endif
+
+
 target_: $(TARGET)
 
 clean:
 	$(RM) $(TARGET) $(OBJS)
 
 $(TARGET): $(OBJS)
-	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS) -Wl,-Map=$(TARGET).map
+	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS)
 
 pprof: platform/linux/pprof.c
 	$(CC) -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@
