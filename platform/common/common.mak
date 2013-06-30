@@ -20,7 +20,8 @@ DEFINES += PPROF
 SRCS_COMMON += $(R)platform/linux/pprof.c
 endif
 
-# asm stuff
+# ARM asm stuff
+ifeq "$(ARCH)" "arm"
 ifeq "$(asm_render)" "1"
 DEFINES += _ASM_DRAW_C
 SRCS_COMMON += $(R)pico/draw_arm.S $(R)pico/draw2_arm.S
@@ -50,6 +51,10 @@ ifeq "$(asm_32xdraw)" "1"
 DEFINES += _ASM_32X_DRAW
 SRCS_COMMON += $(R)pico/32x/draw_arm.s
 endif
+ifeq "$(asm_mix)" "1"
+SRCS_COMMON += $(R)pico/sound/mix_arm.s
+endif
+endif # ARCH=arm
 
 # === Pico core ===
 # Pico
@@ -83,16 +88,14 @@ SRCS_COMMON += $(R)pico/carthw/carthw.c
 # SVP
 SRCS_COMMON += $(R)pico/carthw/svp/svp.c $(R)pico/carthw/svp/memory.c \
 	$(R)pico/carthw/svp/ssp16.c
-ifeq "$(ARCH)" "arm"
+ifeq "$(use_svpdrc)" "1"
 SRCS_COMMON += $(R)pico/carthw/svp/stub_arm.S
 SRCS_COMMON += $(R)pico/carthw/svp/compiler.c
 endif
 # sound
 SRCS_COMMON += $(R)pico/sound/sound.c
 SRCS_COMMON += $(R)pico/sound/sn76496.c $(R)pico/sound/ym2612.c
-ifeq "$(ARCH)" "arm"
-SRCS_COMMON += $(R)pico/sound/mix_arm.s
-else
+ifneq "$(ARCH)$(asm_mix)" "arm1"
 SRCS_COMMON += $(R)pico/sound/mix.c
 endif
 

@@ -29,13 +29,15 @@ ifeq "$(ARCH)" "arm"
 use_cyclone ?= 1
 use_drz80 ?= 1
 use_sh2drc ?= 1
+use_svpdrc ?= 1
 
-asm_memory = 1
-asm_render = 1
-asm_ym2612 = 1
-asm_misc = 1
-asm_cdpico = 1
-asm_cdmemory = 1
+asm_memory ?= 1
+asm_render ?= 1
+asm_ym2612 ?= 1
+asm_misc ?= 1
+asm_cdpico ?= 1
+asm_cdmemory ?= 1
+asm_mix ?= 1
 else # if not arm
 use_fame ?= 1
 use_cz80 ?= 1

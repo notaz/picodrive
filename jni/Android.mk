@@ -18,6 +18,7 @@ use_drz80 = 0
 use_cz80 = 0
 use_sh2drc = 0
 use_sh2mame = 0
+use_svpdrc = 0
 
 asm_memory = 0
 asm_render = 0
@@ -25,6 +26,7 @@ asm_ym2612 = 0
 asm_misc = 0
 asm_cdpico = 0
 asm_cdmemory = 0
+asm_mix = 0
 
 ifeq ($(TARGET_ARCH),arm)
   LOCAL_ARM_MODE := arm
@@ -35,6 +37,7 @@ ifeq ($(TARGET_ARCH),arm)
   use_cyclone = 1
   use_drz80 = 1
   use_sh2drc = 1
+  use_svpdrc = 1
 
   asm_memory = 1
   asm_render = 1
@@ -42,6 +45,7 @@ ifeq ($(TARGET_ARCH),arm)
   asm_misc = 1
   asm_cdpico = 1
   asm_cdmemory = 1
+  asm_mix = 1
 else
   use_fame = 1
   use_cz80 = 1

@@ -39,8 +39,24 @@ else ifeq ($(platform), ios)
    CFLAGS += -DIOS
 
    ARCH := arm
-   HAVE_NEON = 1
-   USE_DYNAREC = 1
+   HAVE_NEON = 0
+   USE_DYNAREC = 0
+
+   use_fame = 1
+   use_cz80 = 1
+   use_sh2mame = 1
+   use_cyclone = 0
+   use_drz80 = 0
+   use_sh2drc = 0
+   use_svpdrc = 0
+
+   asm_memory = 0
+   asm_render = 0
+   asm_ym2612 = 0
+   asm_misc = 0
+   asm_cdpico = 0
+   asm_cdmemory = 0
+   asm_mix = 0
 else ifeq ($(platform), ps3)
    TARGET := $(TARGET_NAME)_libretro_ps3.a
    CC = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-gcc.exe
