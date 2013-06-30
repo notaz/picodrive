@@ -13,7 +13,7 @@
 #include "../libpicofe/plat.h"
 #include "../common/emu.h"
 #include "../common/arm_utils.h"
-#include "version.h"
+#include "../common/version.h"
 
 #include <pico/pico_int.h>
 
