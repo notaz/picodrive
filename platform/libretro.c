@@ -21,6 +21,10 @@
 #include "common/version.h"
 #include "libretro.h"
 
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
@@ -92,11 +96,35 @@ void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
 
 void *plat_mremap(void *ptr, size_t oldsize, size_t newsize)
 {
+#ifdef __linux__
 	void *ret = mremap(ptr, oldsize, newsize, 0);
 	if (ret == MAP_FAILED)
 		return NULL;
 
 	return ret;
+#else
+	void *tmp, *ret;
+	size_t preserve_size;
+	
+	preserve_size = oldsize;
+	if (preserve_size > newsize)
+		preserve_size = newsize;
+	tmp = malloc(preserve_size);
+	if (tmp == NULL)
+		return NULL;
+	memcpy(tmp, ptr, preserve_size);
+
+	munmap(ptr, oldsize);
+	ret = mmap(ptr, newsize, PROT_READ | PROT_WRITE,
+		   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (ret == MAP_FAILED) {
+		free(tmp);
+		return NULL;
+	}
+	memcpy(ret, tmp, preserve_size);
+	free(tmp);
+	return ret;
+#endif
 }
 
 void plat_munmap(void *ptr, size_t size)
