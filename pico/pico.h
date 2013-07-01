@@ -212,12 +212,14 @@ extern unsigned short *PicoCramHigh; // pointer to CRAM buff (0x40 shorts), conv
 extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to use
 
 // pico.c (32x)
-// multipliers against 68k clock
+// multipliers against 68k clock (7670442)
+// normally * 3, but effectively slower due to high latencies everywhere
+// however using something lower breaks MK2 animations
 extern int p32x_msh2_multiplier;
 extern int p32x_ssh2_multiplier;
 #define SH2_MULTI_SHIFT 10
-#define MSH2_MULTI_DEFAULT ((1 << SH2_MULTI_SHIFT) * 21 / 10)
-#define SSH2_MULTI_DEFAULT ((1 << SH2_MULTI_SHIFT) * 3 / 2)
+#define MSH2_MULTI_DEFAULT ((1 << SH2_MULTI_SHIFT) * 3)
+#define SSH2_MULTI_DEFAULT ((1 << SH2_MULTI_SHIFT) * 3)
 
 // 32x/draw.c
 void PicoDraw32xSetFrameMode(int is_on, int only_32x);
