@@ -102,7 +102,15 @@ else ifeq ($(platform), qnx)
    ARCH = arm
    HAVE_NEON = 1
    USE_DYNAREC = 1
-else ifeq ($(platform), arm)
+else ifeq ($(platform), armv6)
+   TARGET := $(TARGET_NAME)_libretro.so
+   SHARED := -shared -Wl,--no-undefined
+   CFLAGS += -marm -mfloat-abi=softfp
+   ASFLAGS += -mfloat-abi=softfp
+
+   ARCH = arm
+   USE_DYNAREC = 1
+else ifeq ($(platform), armv7)
    TARGET := $(TARGET_NAME)_libretro.so
    SHARED := -shared -Wl,--no-undefined
    CFLAGS += -marm -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp
