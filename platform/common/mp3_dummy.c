@@ -6,18 +6,15 @@
  * See COPYING file in the top-level directory.
  */
 
+#include <stdio.h>
 #include "mp3.h"
-#include <pico/pico.h>
 
-int mp3_get_bitrate(void *f_, int len)
+int mp3dec_start(void)
 {
 	return -1;
 }
 
-void mp3_start_play(void *f_, int pos)
+int mp3dec_decode(FILE *f, int *file_pos, int file_len)
 {
-}
-
-void mp3_update(int *buffer, int length, int stereo)
-{
+	return -1;
 }

@@ -217,7 +217,7 @@ void plat_init(void)
 
 	plat_sdl_quit_cb = plat_sdl_quit;
 
-	SDL_WM_SetCaption("PicoDrive" VERSION, NULL);
+	SDL_WM_SetCaption("PicoDrive " VERSION, NULL);
 
 	g_menuscreen_w = plat_sdl_screen->w;
 	g_menuscreen_h = plat_sdl_screen->h;
