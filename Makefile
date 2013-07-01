@@ -110,7 +110,12 @@ endif
 
 endif # USE_FRONTEND
 
+OBJS += platform/common/mp3.o
+ifeq "$(HAVE_LIBAVCODEC)" "1"
+OBJS += platform/common/mp3_libavcodec.o
+else
 OBJS += platform/common/mp3_dummy.o
+endif
 
 # zlib
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \

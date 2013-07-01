@@ -39,7 +39,7 @@ have_armv5=""
 have_armv6=""
 have_armv7=""
 have_arm_neon=""
-have_tslib=""
+have_libavcodec=""
 enable_dynarec="yes"
 need_sdl="no"
 need_xlib="no"
@@ -274,11 +274,25 @@ EOF
   compile_binary "$@"
 }
 
+check_libavcodec()
+{
+  cat > $TMPC <<EOF
+  #include <libavcodec/avcodec.h>
+  void main() { avcodec_decode_audio3(0, 0, 0, 0); }
+EOF
+  compile_binary "$@" -lavcodec
+}
+
 #MAIN_LDLIBS="$MAIN_LDLIBS -lz"
 #check_zlib || fail "please install zlib (libz-dev)"
 
 MAIN_LDLIBS="-lpng $MAIN_LDLIBS"
 check_libpng || fail "please install libpng (libpng-dev)"
+
+if check_libavcodec; then
+  have_libavcodec="yes"
+  MAIN_LDLIBS="-lavcodec $MAIN_LDLIBS"
+fi
 
 # find what audio support we can compile
 if [ "x$sound_drivers" = "x" ]; then
@@ -320,6 +334,7 @@ fi
 test "x$have_armv6" != "x" || have_armv6="no"
 test "x$have_armv7" != "x" || have_armv7="no"
 test "x$have_arm_neon" != "x" || have_arm_neon="no"
+test "x$have_libavcodec" != "x" || have_libavcodec="no"
 
 echo "architecture        $ARCH"
 echo "platform            $platform"
@@ -328,6 +343,7 @@ echo "C compiler          $CC"
 echo "C compiler flags    $CFLAGS"
 echo "libraries           $MAIN_LDLIBS"
 echo "linker flags        $LDFLAGS"
+echo "libavcodec (mp3)    $have_libavcodec"
 echo "enable dynarec      $enable_dynarec"
 # echo "ARMv7 optimizations $have_armv7"
 # echo "enable ARM NEON     $have_arm_neon"
@@ -349,6 +365,9 @@ echo >> $config_mak
 echo "ARCH = $ARCH" >> $config_mak
 echo "PLATFORM = $platform" >> $config_mak
 echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
+if [ "$have_libavcodec" = "yes" ]; then
+  echo "HAVE_LIBAVCODEC = 1" >> $config_mak
+fi
 if [ "$have_arm_neon" = "yes" ]; then
   echo "HAVE_NEON = 1" >> $config_mak
 fi
