@@ -10,12 +10,19 @@
 #include <stdio.h>
 #include <string.h>
 #include <libavcodec/avcodec.h>
+#include <dlfcn.h>
 
 #include <pico/pico_int.h>
 #include "../libpicofe/lprintf.h"
 #include "mp3.h"
 
 static AVCodecContext *ctx;
+
+/* avoid compile time linking to libavcodec due to huge list of it's deps..
+ * we also use this old API as newer one is not available on pandora */
+void (*p_av_init_packet)(AVPacket *pkt);
+int (*p_avcodec_decode_audio3)(AVCodecContext *avctx, int16_t *samples,
+	int *frame_size_ptr, AVPacket *avpkt);
 
 int mp3dec_decode(FILE *f, int *file_pos, int file_len)
 {
@@ -27,7 +34,7 @@ int mp3dec_decode(FILE *f, int *file_pos, int file_len)
 	int offset;
 	int len;
 
-	av_init_packet(&avpkt);
+	p_av_init_packet(&avpkt);
 
 	do
 	{
@@ -60,8 +67,13 @@ int mp3dec_decode(FILE *f, int *file_pos, int file_len)
 		avpkt.data = input_buf + offset;
 		avpkt.size = frame_size;
 		bytes_out = sizeof(cdda_out_buffer);
+#if LIBAVCODEC_VERSION_MAJOR < 53
+		// stupidity in v52: enforces this size even when
+		// it doesn't need/use that much at all
+		bytes_out = AVCODEC_MAX_AUDIO_FRAME_SIZE;
+#endif
 
-		len = avcodec_decode_audio3(ctx, cdda_out_buffer,
+		len = p_avcodec_decode_audio3(ctx, cdda_out_buffer,
 			&bytes_out, &avpkt);
 		if (len <= 0) {
 			lprintf("mp3 decode err (%i/%i) %i\n",
@@ -81,11 +93,44 @@ int mp3dec_decode(FILE *f, int *file_pos, int file_len)
 
 int mp3dec_start(void)
 {
+	void (*avcodec_register_all)(void);
+	AVCodec *(*avcodec_find_decoder)(enum CodecID id);
+	AVCodecContext *(*avcodec_alloc_context)(void);
+	int (*avcodec_open)(AVCodecContext *avctx, AVCodec *codec);
+	void (*av_free)(void *ptr);
 	AVCodec *codec;
+	void *soh;
 	int ret;
 
 	if (ctx != NULL)
 		return 0;
+
+	// either v52 or v53 should be ok
+	soh = dlopen("libavcodec.so.52", RTLD_NOW);
+	if (soh == NULL)
+		soh = dlopen("libavcodec.so.53", RTLD_NOW);
+	if (soh == NULL) {
+		lprintf("mp3dec: load libavcodec.so: %s\n", dlerror());
+		return -1;
+	}
+
+	avcodec_register_all = dlsym(soh, "avcodec_register_all");
+	avcodec_find_decoder = dlsym(soh, "avcodec_find_decoder");
+	avcodec_alloc_context = dlsym(soh, "avcodec_alloc_context");
+	avcodec_open = dlsym(soh, "avcodec_open");
+	av_free = dlsym(soh, "av_free");
+	p_av_init_packet = dlsym(soh, "av_init_packet");
+	p_avcodec_decode_audio3 = dlsym(soh, "avcodec_decode_audio3");
+
+	if (avcodec_register_all == NULL || avcodec_find_decoder == NULL
+	    || avcodec_alloc_context == NULL || avcodec_open == NULL
+	    || av_free == NULL
+	    || p_av_init_packet == NULL || p_avcodec_decode_audio3 == NULL)
+	{
+		lprintf("mp3dec: missing symbol(s) in libavcodec.so\n");
+		dlclose(soh);
+		return -1;
+	}
 
 	// init decoder
 
