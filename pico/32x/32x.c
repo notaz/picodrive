@@ -254,21 +254,21 @@ p32x_poll_event(3, 0);
 #define STEP_68K 24
 #define CPUS_RUN_LOCKSTEP(m68k_cycles,s68k_cycles) \
 { \
-  int i; \
-  for (i = 0; i <= (m68k_cycles) - STEP_68K; i += STEP_68K) { \
+  int slice; \
+  SekCycleAim += m68k_cycles; \
+  while (SekCycleCnt < SekCycleAim) { \
+    slice = SekCycleCnt; \
     run_m68k(STEP_68K); \
-    if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) \
-      sh2_execute(&msh2, CYCLES_M68K2SH2(STEP_68K)); \
-    if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) \
-      sh2_execute(&ssh2, CYCLES_M68K2SH2(STEP_68K)); \
+    if (!(Pico32x.regs[0] & P32XS_nRES)) \
+      continue; /* SH2s reseting */ \
+    slice = SekCycleCnt - slice; /* real count from 68k */ \
+    if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) { \
+      sh2_execute(&ssh2, CYCLES_M68K2SSH2(slice)); \
+    } \
+    if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) { \
+      sh2_execute(&msh2, CYCLES_M68K2MSH2(slice)); \
+    } \
   } \
-  /* last step */ \
-  i = (m68k_cycles) - i; \
-  run_m68k(i); \
-  if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) \
-    sh2_execute(&msh2, CYCLES_M68K2SH2(i)); \
-  if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) \
-    sh2_execute(&ssh2, CYCLES_M68K2SH2(i)); \
 }
 
 #define CPUS_RUN CPUS_RUN_SIMPLE
