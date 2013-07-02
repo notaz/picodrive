@@ -280,7 +280,7 @@ check_libavcodec()
   #include <libavcodec/avcodec.h>
   void main() { avcodec_decode_audio3(0, 0, 0, 0); }
 EOF
-  compile_binary "$@" -lavcodec
+  compile_object "$@"
 }
 
 #MAIN_LDLIBS="$MAIN_LDLIBS -lz"
@@ -291,7 +291,11 @@ check_libpng || fail "please install libpng (libpng-dev)"
 
 if check_libavcodec; then
   have_libavcodec="yes"
-  MAIN_LDLIBS="-lavcodec $MAIN_LDLIBS"
+  # add -ldl if needed
+  case "$MAIN_LDLIBS" in
+    *"-ldl"*) ;;
+    *) MAIN_LDLIBS="-ldl $MAIN_LDLIBS" ;;
+  esac
 fi
 
 # find what audio support we can compile
