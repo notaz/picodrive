@@ -181,6 +181,9 @@ PICO_INTERNAL void PsndDoDAC(int line_to)
   int dout = ym2612.dacout;
   int line_from = PsndDacLine;
 
+  if (line_to >= 312)
+    line_to = 311;
+
   PsndDacLine = line_to + 1;
 
   pos =dac_info[line_from]>>4;
