@@ -1558,4 +1558,4 @@ void Pico32xStateLoaded(void)
 #endif
 }
 
-// vim:shiftwidth=2:expandtab
+// vim:shiftwidth=2:ts=2:expandtab

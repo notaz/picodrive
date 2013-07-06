@@ -609,9 +609,6 @@ void retro_init(void)
 	PicoAutoRgnOrder = 0x184; // US, EU, JP
 	PicoCDBuffers = 0;
 
-	p32x_msh2_multiplier = MSH2_MULTI_DEFAULT;
-	p32x_ssh2_multiplier = SSH2_MULTI_DEFAULT;
-
 	vout_width = 320;
 	vout_height = 240;
 	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);

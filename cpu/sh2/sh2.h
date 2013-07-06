@@ -52,9 +52,19 @@ typedef struct SH2_
 	int	REGPARM(2) (*irq_callback)(struct SH2_ *sh2, int level);
 	int	is_slave;
 
-	unsigned int	cycles_aim;	// subtract sh2_icount to get global counter
-	unsigned int	cycles_done;
+	unsigned int	cycles_timeslice;
+
+	// we use 68k reference cycles for easier sync
+	unsigned int	m68krcycles_done;
+	unsigned int	mult_m68k_to_sh2;
+	unsigned int	mult_sh2_to_m68k;
 } SH2;
+
+#define CYCLE_MULT_SHIFT 10
+#define C_M68K_TO_SH2(xsh2, c) \
+	((int)((c) * (xsh2).mult_m68k_to_sh2) >> CYCLE_MULT_SHIFT)
+#define C_SH2_TO_M68K(xsh2, c) \
+	((int)((c + 3) * (xsh2).mult_sh2_to_m68k) >> CYCLE_MULT_SHIFT)
 
 extern SH2 *sh2; // active sh2. XXX: consider removing
 
@@ -67,7 +77,7 @@ void sh2_do_irq(SH2 *sh2, int level, int vector);
 void sh2_pack(const SH2 *sh2, unsigned char *buff);
 void sh2_unpack(SH2 *sh2, const unsigned char *buff);
 
-void sh2_execute(SH2 *sh2, int cycles);
+int  sh2_execute(SH2 *sh2, int cycles);
 
 // regs, pending_int*, cycles, reserved
 #define SH2_STATE_SIZE ((24 + 2 + 2 + 12) * 4)

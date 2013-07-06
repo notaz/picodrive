@@ -61,14 +61,15 @@ static unsigned int op_refs[0x10000];
 
 #ifndef DRC_SH2
 
-void sh2_execute(SH2 *sh2_, int cycles)
+int sh2_execute(SH2 *sh2_, int cycles)
 {
 	sh2 = sh2_;
-	sh2->cycles_aim += cycles;
-	sh2->icount = cycles = sh2->cycles_aim - sh2->cycles_done;
+	sh2->icount = cycles;
 
 	if (sh2->icount <= 0)
-		return;
+		return cycles;
+
+	sh2->cycles_timeslice = cycles;
 
 	do
 	{
@@ -122,7 +123,7 @@ void sh2_execute(SH2 *sh2_, int cycles)
 	}
 	while (sh2->icount > 0 || sh2->delay);	/* can't interrupt before delay */
 
-	sh2->cycles_done += cycles - sh2->icount;
+	return sh2->cycles_timeslice - sh2->icount;
 }
 
 #else // DRC_SH2

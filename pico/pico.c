@@ -23,9 +23,6 @@ struct PicoSRAM SRam;
 int emustatus;         // rapid_ym2612, multi_ym_updates
 int scanlines_total;
 
-int p32x_msh2_multiplier = MSH2_MULTI_DEFAULT;
-int p32x_ssh2_multiplier = SSH2_MULTI_DEFAULT;
-
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
 void (*PicoLineHook)(void) = NULL;
@@ -271,29 +268,6 @@ PICO_INTERNAL int CheckDMA(void)
   elprintf(EL_VDPDMA, "~Dma %i op=%i can=%i burn=%i [%i]", Pico.m.dma_xfers, dma_op1, xfers_can, burn, SekCyclesDone());
   //dprintf("~aim: %i, cnt: %i", SekCycleAim, SekCycleCnt);
   return burn;
-}
-
-static __inline void SekRunM68k(int cyc)
-{
-  int cyc_do;
-  pprof_start(m68k);
-
-  SekCycleAim+=cyc;
-  if ((cyc_do=SekCycleAim-SekCycleCnt) <= 0) return;
-#if defined(EMU_CORE_DEBUG)
-  // this means we do run-compare
-  SekCycleCnt+=CM_compareRun(cyc_do, 0);
-#elif defined(EMU_C68K)
-  PicoCpuCM68k.cycles=cyc_do;
-  CycloneRun(&PicoCpuCM68k);
-  SekCycleCnt+=cyc_do-PicoCpuCM68k.cycles;
-#elif defined(EMU_M68K)
-  SekCycleCnt+=m68k_execute(cyc_do);
-#elif defined(EMU_F68K)
-  SekCycleCnt+=fm68k_emulate(cyc_do+1, 0, 0);
-#endif
-
-  pprof_end(m68k);
 }
 
 #include "pico_cmn.c"

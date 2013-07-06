@@ -20,7 +20,7 @@ int sh2_init(SH2 *sh2, int is_slave)
 {
 	int ret = 0;
 
-	memset(sh2, 0, sizeof(*sh2));
+	memset(sh2, 0, offsetof(SH2, mult_m68k_to_sh2));
 	sh2->is_slave = is_slave;
 	pdb_register_cpu(sh2, PDBCT_SH2, is_slave ? "ssh2" : "msh2");
 #ifdef DRC_SH2
@@ -59,7 +59,7 @@ void sh2_do_irq(SH2 *sh2, int level, int vector)
 	sh2->pc = p32x_sh2_read32(sh2->vbr + vector * 4, sh2);
 
 	/* 13 cycles at best */
-	sh2->cycles_done += 13;
+	sh2->m68krcycles_done += C_SH2_TO_M68K(*sh2, 13);
 //	sh2->icount -= 13;
 }
 
@@ -105,8 +105,6 @@ void sh2_pack(const SH2 *sh2, unsigned char *buff)
 
 	p[0] = sh2->pending_int_irq;
 	p[1] = sh2->pending_int_vector;
-	p[2] = sh2->cycles_aim;
-	p[3] = sh2->cycles_done;
 }
 
 void sh2_unpack(SH2 *sh2, const unsigned char *buff)
@@ -118,7 +116,5 @@ void sh2_unpack(SH2 *sh2, const unsigned char *buff)
 
 	sh2->pending_int_irq = p[0];
 	sh2->pending_int_vector = p[1];
-	sh2->cycles_aim = p[2];
-	sh2->cycles_done = p[3];
 }
 

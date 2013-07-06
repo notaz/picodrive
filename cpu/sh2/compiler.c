@@ -2978,13 +2978,12 @@ void sh2_drc_wcheck_da(unsigned int a, int val, int cpuid)
     1 + cpuid, SH2_DRCBLK_DA_SHIFT, 0xfff);
 }
 
-void sh2_execute(SH2 *sh2c, int cycles)
+int sh2_execute(SH2 *sh2c, int cycles)
 {
   int ret_cycles;
   sh2 = sh2c; // XXX
 
-  sh2c->cycles_aim += cycles;
-  cycles = sh2c->cycles_aim - sh2c->cycles_done;
+  sh2c->cycles_timeslice = cycles;
 
   // cycles are kept in SHR_SR unused bits (upper 20)
   // bit19 contains T saved for delay slot
@@ -2998,7 +2997,7 @@ void sh2_execute(SH2 *sh2c, int cycles)
   if (ret_cycles > 0)
     dbg(1, "warning: drc returned with cycles: %d", ret_cycles);
 
-  sh2c->cycles_done += cycles - ret_cycles;
+  return sh2c->cycles_timeslice - ret_cycles;
 }
 
 #if (DRC_DEBUG & 2)

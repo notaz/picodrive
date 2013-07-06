@@ -548,6 +548,8 @@ void emu_prep_defconfig(void)
 	defaultConfig.gamma = 100;
 	defaultConfig.scaling = 0;
 	defaultConfig.turbo_rate = 15;
+	defaultConfig.msh2_khz = PICO_MSH2_HZ / 1000;
+	defaultConfig.ssh2_khz = PICO_SSH2_HZ / 1000;
 
 	// platform specific overrides
 	pemu_prep_defconfig();
@@ -561,8 +563,6 @@ void emu_set_defconfig(void)
 	PicoRegionOverride = currentConfig.s_PicoRegion;
 	PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
 	PicoCDBuffers = currentConfig.s_PicoCDBuffers;
-	p32x_msh2_multiplier = MSH2_MULTI_DEFAULT;
-	p32x_ssh2_multiplier = SSH2_MULTI_DEFAULT;
 }
 
 int emu_read_config(const char *rom_fname, int no_defaults)

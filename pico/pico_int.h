@@ -50,6 +50,7 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekSr     CycloneGetSr(&PicoCpuCM68k)
 #define SekSetStop(x) { PicoCpuCM68k.state_flags&=~1; if (x) { PicoCpuCM68k.state_flags|=1; PicoCpuCM68k.cycles=0; } }
 #define SekSetStopS68k(x) { PicoCpuCS68k.state_flags&=~1; if (x) { PicoCpuCS68k.state_flags|=1; PicoCpuCS68k.cycles=0; } }
+#define SekIsStoppedM68k() (PicoCpuCM68k.state_flags&1)
 #define SekIsStoppedS68k() (PicoCpuCS68k.state_flags&1)
 #define SekShouldInterrupt (PicoCpuCM68k.irq > (PicoCpuCM68k.srh&7))
 
@@ -83,6 +84,7 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 	PicoCpuFS68k.execinfo &= ~FM68K_HALTED; \
 	if (x) { PicoCpuFS68k.execinfo |= FM68K_HALTED; PicoCpuFS68k.io_cycle_counter = 0; } \
 }
+#define SekIsStoppedM68k() (PicoCpuFM68k.execinfo&FM68K_HALTED)
 #define SekIsStoppedS68k() (PicoCpuFS68k.execinfo&FM68K_HALTED)
 #define SekShouldInterrupt fm68k_would_interrupt()
 
@@ -117,6 +119,7 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 	if(x) { SET_CYCLES(0); PicoCpuMS68k.stopped=STOP_LEVEL_STOP; } \
 	else PicoCpuMS68k.stopped=0; \
 }
+#define SekIsStoppedM68k() (PicoCpuMM68k.stopped==STOP_LEVEL_STOP)
 #define SekIsStoppedS68k() (PicoCpuMS68k.stopped==STOP_LEVEL_STOP)
 #define SekShouldInterrupt (CPU_INT_LEVEL > FLAG_INT_MASK)
 
@@ -235,13 +238,13 @@ extern SH2 sh2s[2];
 
 #ifndef DRC_SH2
 # define ash2_end_run(after) if (sh2->icount > (after)) sh2->icount = after
-# define ash2_cycles_done() (sh2->cycles_aim - sh2->icount)
+# define ash2_cycles_done() (sh2->cycles_timeslice - sh2->icount)
 #else
 # define ash2_end_run(after) { \
    if ((sh2->sr >> 12) > (after)) \
      { sh2->sr &= 0xfff; sh2->sr |= (after) << 12; } \
 }
-# define ash2_cycles_done() (sh2->cycles_aim - (sh2->sr >> 12))
+# define ash2_cycles_done() (sh2->cycles_timeslice - (sh2->sr >> 12))
 #endif
 
 //#define sh2_pc(c)     (c) ? ssh2.ppc : msh2.ppc
@@ -712,6 +715,7 @@ void PicoReset32x(void);
 void Pico32xStartup(void);
 void PicoUnload32x(void);
 void PicoFrame32x(void);
+void p32x_sync_sh2s(unsigned int m68k_target);
 void p32x_update_irls(int nested_call);
 void p32x_reset_sh2s(void);
 
