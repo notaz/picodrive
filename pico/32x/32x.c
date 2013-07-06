@@ -120,10 +120,16 @@ void p32x_reset_sh2s(void)
     sh2_set_vbr(1, vbr);
     // program will set S_OK
   }
+
+  msh2.m68krcycles_done = ssh2.m68krcycles_done = SekCyclesDoneT();
 }
 
 void Pico32xInit(void)
 {
+  if (msh2.mult_m68k_to_sh2 == 0 || msh2.mult_sh2_to_m68k == 0)
+    Pico32xSetClocks(PICO_MSH2_HZ, 0);
+  if (ssh2.mult_m68k_to_sh2 == 0 || ssh2.mult_sh2_to_m68k == 0)
+    Pico32xSetClocks(0, PICO_MSH2_HZ);
 }
 
 void PicoPower32x(void)
@@ -199,81 +205,76 @@ static void p32x_start_blank(void)
   p32x_poll_event(3, 1);
 }
 
-static __inline void run_m68k(int cyc)
+#define sync_sh2s_normal p32x_sync_sh2s
+//#define sync_sh2s_lockstep p32x_sync_sh2s
+
+void sync_sh2s_normal(unsigned int m68k_target)
 {
-  pprof_start(m68k);
+  unsigned int target = m68k_target;
+  int msh2_cycles, ssh2_cycles;
+  int done;
 
-p32x_poll_event(3, 0);
-#if defined(EMU_C68K)
-  PicoCpuCM68k.cycles = cyc;
-  CycloneRun(&PicoCpuCM68k);
-  SekCycleCnt += cyc - PicoCpuCM68k.cycles;
-#elif defined(EMU_M68K)
-  SekCycleCnt += m68k_execute(cyc);
-#elif defined(EMU_F68K)
-  SekCycleCnt += fm68k_emulate(cyc+1, 0, 0);
-#endif
+  elprintf(EL_32X, "sh2 sync to %u (%u)", m68k_target, SekCycleCnt);
 
-  pprof_end(m68k);
-}
+  if (!(Pico32x.regs[0] & P32XS_nRES))
+    return; // rare
 
-// ~1463.8, but due to cache misses and slow mem
-// it's much lower than that
-//#define SH2_LINE_CYCLES 735
-#define CYCLES_M68K2MSH2(x) (((x) * p32x_msh2_multiplier) >> 10)
-#define CYCLES_M68K2SSH2(x) (((x) * p32x_ssh2_multiplier) >> 10)
+  {
+    msh2_cycles = C_M68K_TO_SH2(msh2, target - msh2.m68krcycles_done);
+    ssh2_cycles = C_M68K_TO_SH2(ssh2, target - ssh2.m68krcycles_done);
 
-#define PICO_32X
-#define CPUS_RUN_SIMPLE(m68k_cycles,s68k_cycles) \
-{ \
-  int slice; \
-  SekCycleAim += m68k_cycles; \
-  while (SekCycleCnt < SekCycleAim) { \
-    slice = SekCycleCnt; \
-    run_m68k(SekCycleAim - SekCycleCnt); \
-    if (!(Pico32x.regs[0] & P32XS_nRES)) \
-      continue; /* SH2s reseting */ \
-    slice = SekCycleCnt - slice; /* real count from 68k */ \
-    if (SekCycleCnt < SekCycleAim) \
-      elprintf(EL_32X, "slice %d", slice); \
-    if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) { \
-      pprof_start(ssh2); \
-      sh2_execute(&ssh2, CYCLES_M68K2SSH2(slice)); \
-      pprof_end(ssh2); \
-    } \
-    if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) { \
-      pprof_start(msh2); \
-      sh2_execute(&msh2, CYCLES_M68K2MSH2(slice)); \
-      pprof_end(msh2); \
-    } \
-    pprof_start(dummy); \
-    pprof_end(dummy); \
-  } \
+    while (msh2_cycles > 0 || ssh2_cycles > 0) {
+      elprintf(EL_32X, "sh2 exec %u,%u->%u",
+        msh2.m68krcycles_done, ssh2.m68krcycles_done, target);
+
+      if (Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL)) {
+        ssh2.m68krcycles_done = target;
+        ssh2_cycles = 0;
+      }
+      else if (ssh2_cycles > 0) {
+        done = sh2_execute(&ssh2, ssh2_cycles);
+        ssh2.m68krcycles_done += C_SH2_TO_M68K(ssh2, done);
+
+        ssh2_cycles = C_M68K_TO_SH2(ssh2, target - ssh2.m68krcycles_done);
+      }
+
+      if (Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL)) {
+        msh2.m68krcycles_done = target;
+        msh2_cycles = 0;
+      }
+      else if (msh2_cycles > 0) {
+        done = sh2_execute(&msh2, msh2_cycles);
+        msh2.m68krcycles_done += C_SH2_TO_M68K(msh2, done);
+
+        msh2_cycles = C_M68K_TO_SH2(msh2, target - msh2.m68krcycles_done);
+      }
+    }
+  }
 }
 
 #define STEP_68K 24
-#define CPUS_RUN_LOCKSTEP(m68k_cycles,s68k_cycles) \
-{ \
-  int slice; \
-  SekCycleAim += m68k_cycles; \
-  while (SekCycleCnt < SekCycleAim) { \
-    slice = SekCycleCnt; \
-    run_m68k(STEP_68K); \
-    if (!(Pico32x.regs[0] & P32XS_nRES)) \
-      continue; /* SH2s reseting */ \
-    slice = SekCycleCnt - slice; /* real count from 68k */ \
-    if (!(Pico32x.emu_flags & (P32XF_SSH2POLL|P32XF_SSH2VPOLL))) { \
-      sh2_execute(&ssh2, CYCLES_M68K2SSH2(slice)); \
-    } \
-    if (!(Pico32x.emu_flags & (P32XF_MSH2POLL|P32XF_MSH2VPOLL))) { \
-      sh2_execute(&msh2, CYCLES_M68K2MSH2(slice)); \
-    } \
-  } \
+
+void sync_sh2s_lockstep(unsigned int m68k_target)
+{
+  unsigned int mcycles;
+  
+  mcycles = msh2.m68krcycles_done;
+  if (ssh2.m68krcycles_done < mcycles)
+    mcycles = ssh2.m68krcycles_done;
+
+  while (mcycles < m68k_target) {
+    mcycles += STEP_68K;
+    sync_sh2s_normal(mcycles);
+  }
 }
 
-#define CPUS_RUN CPUS_RUN_SIMPLE
-//#define CPUS_RUN CPUS_RUN_LOCKSTEP
+#define CPUS_RUN(m68k_cycles,s68k_cycles) do { \
+  SekRunM68k(m68k_cycles); \
+  if (SekIsStoppedM68k()) \
+    p32x_sync_sh2s(SekCycleCntT + SekCycleCnt); \
+} while (0)
 
+#define PICO_32X
 #include "../pico_cmn.c"
 
 void PicoFrame32x(void)
@@ -291,3 +292,20 @@ void PicoFrame32x(void)
   elprintf(EL_32X, "poll: %02x", Pico32x.emu_flags);
 }
 
+// calculate multipliers against 68k clock (7670442)
+// normally * 3, but effectively slower due to high latencies everywhere
+// however using something lower breaks MK2 animations
+void Pico32xSetClocks(int msh2_hz, int ssh2_hz)
+{
+  float m68k_clk = (float)(OSC_NTSC / 7);
+  if (msh2_hz > 0) {
+    msh2.mult_m68k_to_sh2 = (int)((float)msh2_hz * (1 << CYCLE_MULT_SHIFT) / m68k_clk);
+    msh2.mult_sh2_to_m68k = (int)(m68k_clk * (1 << CYCLE_MULT_SHIFT) / (float)msh2_hz);
+  }
+  if (ssh2_hz > 0) {
+    ssh2.mult_m68k_to_sh2 = (int)((float)ssh2_hz * (1 << CYCLE_MULT_SHIFT) / m68k_clk);
+    ssh2.mult_sh2_to_m68k = (int)(m68k_clk * (1 << CYCLE_MULT_SHIFT) / (float)ssh2_hz);
+  }
+}
+
+// vim:shiftwidth=2:ts=2:expandtab

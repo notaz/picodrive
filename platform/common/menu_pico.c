@@ -444,26 +444,28 @@ static int menu_loop_cd_options(int id, int keys)
 // convert from multiplier of VClk
 static int mh_opt_sh2cycles(int id, int keys)
 {
-	int *mul = (id == MA_32XOPT_MSH2_CYCLES) ? &p32x_msh2_multiplier : &p32x_ssh2_multiplier;
+	int *khz = (id == MA_32XOPT_MSH2_CYCLES) ?
+		&currentConfig.msh2_khz : &currentConfig.ssh2_khz;
 
 	if (keys & (PBTN_LEFT|PBTN_RIGHT))
-		*mul += (keys & PBTN_LEFT) ? -10 : 10;
+		*khz += (keys & PBTN_LEFT) ? -50 : 50;
 	if (keys & (PBTN_L|PBTN_R))
-		*mul += (keys & PBTN_L) ? -100 : 100;
+		*khz += (keys & PBTN_L) ? -500 : 500;
 
-	if (*mul < 1)
-		*mul = 1;
-	else if (*mul > (10 << SH2_MULTI_SHIFT))
-		*mul = 10 << SH2_MULTI_SHIFT;
+	if (*khz < 1)
+		*khz = 1;
+	else if (*khz > 0x7fffffff / 1000)
+		*khz = 0x7fffffff / 1000;
 
 	return 0;
 }
 
 static const char *mgn_opt_sh2cycles(int id, int *offs)
 {
-	int mul = (id == MA_32XOPT_MSH2_CYCLES) ? p32x_msh2_multiplier : p32x_ssh2_multiplier;
-	
-	sprintf(static_buff, "%d", 7670 * mul >> SH2_MULTI_SHIFT);
+	int khz = (id == MA_32XOPT_MSH2_CYCLES) ?
+		currentConfig.msh2_khz : currentConfig.ssh2_khz;
+
+	sprintf(static_buff, "%d", khz);
 	return static_buff;
 }
 
@@ -489,6 +491,8 @@ static int menu_loop_32x_options(int id, int keys)
 
 	me_enable(e_menu_32x_options, MA_32XOPT_RENDERER, renderer_names32x[0] != NULL);
 	me_loop(e_menu_32x_options, &sel);
+
+	Pico32xSetClocks(currentConfig.msh2_khz * 1000, currentConfig.msh2_khz * 1000);
 
 	return 0;
 }

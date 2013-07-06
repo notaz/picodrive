@@ -68,30 +68,6 @@ PICO_INTERNAL int PicoResetMCD(void)
   return 0;
 }
 
-static __inline void SekRunM68k(int cyc)
-{
-  int cyc_do;
-
-  pprof_start(m68k);
-
-  SekCycleAim+=cyc;
-  if ((cyc_do=SekCycleAim-SekCycleCnt) <= 0) return;
-#if defined(EMU_CORE_DEBUG)
-  SekCycleCnt+=CM_compareRun(cyc_do, 0);
-#elif defined(EMU_C68K)
-  PicoCpuCM68k.cycles=cyc_do;
-  CycloneRun(&PicoCpuCM68k);
-  SekCycleCnt+=cyc_do-PicoCpuCM68k.cycles;
-#elif defined(EMU_M68K)
-  m68k_set_context(&PicoCpuMM68k);
-  SekCycleCnt+=m68k_execute(cyc_do);
-#elif defined(EMU_F68K)
-  g_m68kcontext=&PicoCpuFM68k;
-  SekCycleCnt+=fm68k_emulate(cyc_do, 0, 0);
-#endif
-  pprof_end(m68k);
-}
-
 static __inline void SekRunS68k(int cyc)
 {
   int cyc_do;
@@ -106,9 +82,11 @@ static __inline void SekRunS68k(int cyc)
 #elif defined(EMU_M68K)
   m68k_set_context(&PicoCpuMS68k);
   SekCycleCntS68k+=m68k_execute(cyc_do);
+  m68k_set_context(&PicoCpuMM68k);
 #elif defined(EMU_F68K)
   g_m68kcontext=&PicoCpuFS68k;
   SekCycleCntS68k+=fm68k_emulate(cyc_do, 0, 0);
+  g_m68kcontext=&PicoCpuFM68k;
 #endif
 }
 

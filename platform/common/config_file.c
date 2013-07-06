@@ -319,11 +319,14 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			return 1;
 
 		case MA_32XOPT_MSH2_CYCLES:
-		case MA_32XOPT_SSH2_CYCLES: {
-			int *mul = (me->id == MA_32XOPT_MSH2_CYCLES) ? &p32x_msh2_multiplier : &p32x_ssh2_multiplier;
-			*mul = ((unsigned int)atoi(val) << SH2_MULTI_SHIFT) / 7670;
+			currentConfig.msh2_khz = atoi(val);
+			Pico32xSetClocks(currentConfig.msh2_khz * 1000, 0);
 			return 1;
-		}
+
+		case MA_32XOPT_SSH2_CYCLES:
+			currentConfig.ssh2_khz = atoi(val);
+			Pico32xSetClocks(0, currentConfig.ssh2_khz * 1000);
+			return 1;
 
 		/* PSP */
 		case MA_OPT3_SCALE:

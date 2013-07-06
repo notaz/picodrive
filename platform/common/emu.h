@@ -80,6 +80,8 @@ typedef struct _currentConfig_t {
 	int renderer32x;
 	int filter; // pandora
 	int analog_deadzone;
+	int msh2_khz;
+	int ssh2_khz;
 } currentConfig_t;
 
 extern currentConfig_t currentConfig, defaultConfig;

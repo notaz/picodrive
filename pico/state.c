@@ -333,6 +333,8 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_SDRAM,     Pico32xMem->sdram);
     CHECKED_WRITE_BUFF(CHUNK_DRAM,      Pico32xMem->dram);
     CHECKED_WRITE_BUFF(CHUNK_32XPAL,    Pico32xMem->pal);
+
+    sh2s[0].m68krcycles_done = sh2s[1].m68krcycles_done = SekCycleCnt;
   }
 #endif
 
@@ -690,4 +692,4 @@ void PicoTmpStateRestore(void *data)
 #endif
 }
 
-// vim:shiftwidth=2:expandtab
+// vim:shiftwidth=2:ts=2:expandtab
