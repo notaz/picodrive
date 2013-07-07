@@ -1,12 +1,9 @@
 /*
  * PicoDrive
- * (C) notaz, 2009,2010
+ * (C) notaz, 2009,2010,2013
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
- *
- * SH2 addr lines:
- * iii. .cc. ..xx *   // Internal, Cs, x
  *
  * Register map:
  * a15100 F....... R.....EA  F.....AC N...VHMP 4000 // Fm Ren nrEs Aden Cart heN V H cMd Pwm
@@ -25,6 +22,21 @@
  * a1511e ?                  ?                 401e
  * a15120            (16 bytes comm)           2020
  * a15130                 (PWM)                2030
+ *
+ * SH2 addr lines:
+ * iii. .cc. ..xx *   // Internal, Cs, x
+ *
+ * sh2 map, wait/bus cycles (from docs):
+ *                             r    w
+ * rom      0000000-0003fff    1    -
+ * sys reg  0004000-00040ff    1    1
+ * vdp reg  0004100-00041ff    5    5
+ * vdp pal  0004200-00043ff    5    5
+ * rom      2000000-23fffff     6-15
+ * dram/fb  4000000-401ffff 5-12  1-3
+ * fb ovr   4020000-403ffff
+ * sdram    6000000-603ffff   12    2  (cycles)
+ * d.a.    c0000000-?
  */
 #include "../pico_int.h"
 #include "../memory.h"
