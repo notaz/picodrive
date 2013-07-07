@@ -183,30 +183,44 @@ static u32 p32x_reg_read16(u32 a)
 {
   a &= 0x3e;
 
-  if (a == 2) // INTM, INTS
-    return ((Pico32x.sh2irqi[0] & P32XI_CMD) >> 4) | ((Pico32x.sh2irqi[1] & P32XI_CMD) >> 3);
 #if 0
   if ((a & 0x30) == 0x20)
     return sh2_comm_faker(a);
 #else
   if ((a & 0x30) == 0x20) {
-    // evil X-Men proto polls in a dbra loop and expects it to expire..
     static u32 dr2 = 0;
+    unsigned int cycles = SekCyclesDoneT();
+    int comreg = 1 << (a & 0x0f) / 2;
+
+    // evil X-Men proto polls in a dbra loop and expects it to expire..
     if (SekDar(2) != dr2)
       m68k_poll.cnt = 0;
     dr2 = SekDar(2);
 
-    if (p32x_poll_detect(&m68k_poll, a, SekCyclesDoneT(), 0)) {
+    if (cycles - msh2.m68krcycles_done > 500)
+      p32x_sync_sh2s(cycles);
+    if (Pico32x.comm_dirty_sh2 & comreg)
+      Pico32x.comm_dirty_sh2 &= ~comreg;
+    else if (p32x_poll_detect(&m68k_poll, a, cycles, 0)) {
       SekSetStop(1);
       SekEndTimeslice(16);
     }
     dr2 = SekDar(2);
+    goto out;
   }
 #endif
+
+  if (a == 2) { // INTM, INTS
+    unsigned int cycles = SekCyclesDoneT();
+    if (cycles - msh2.m68krcycles_done > 64)
+      p32x_sync_sh2s(cycles);
+    return ((Pico32x.sh2irqi[0] & P32XI_CMD) >> 4) | ((Pico32x.sh2irqi[1] & P32XI_CMD) >> 3);
+  }
 
   if ((a & 0x30) == 0x30)
     return p32x_pwm_read16(a);
 
+out:
   return Pico32x.regs[a / 2];
 }
 
@@ -229,14 +243,14 @@ static void p32x_reg_write8(u32 a, u32 d)
       return;
     case 3: // irq ctl
       if ((d & 1) && !(Pico32x.sh2irqi[0] & P32XI_CMD)) {
+        p32x_sync_sh2s(SekCyclesDoneT());
         Pico32x.sh2irqi[0] |= P32XI_CMD;
         p32x_update_irls(0);
-        SekEndRun(16);
       }
       if ((d & 2) && !(Pico32x.sh2irqi[1] & P32XI_CMD)) {
+        p32x_sync_sh2s(SekCyclesDoneT());
         Pico32x.sh2irqi[1] |= P32XI_CMD;
         p32x_update_irls(0);
-        SekEndRun(16);
       }
       return;
     case 5: // bank
@@ -256,12 +270,23 @@ static void p32x_reg_write8(u32 a, u32 d)
 
   if ((a & 0x30) == 0x20) {
     u8 *r8 = (u8 *)r;
+    int cycles = SekCyclesDoneT();
+    int comreg;
+    
+    if (r8[a ^ 1] == d)
+      return;
+    
+    comreg = 1 << (a & 0x0f) / 2;
+    if (Pico32x.comm_dirty_68k & comreg)
+      p32x_sync_sh2s(cycles);
+
     r8[a ^ 1] = d;
     p32x_poll_undetect(&sh2_poll[0], 0);
     p32x_poll_undetect(&sh2_poll[1], 0);
-    // if some SH2 is busy waiting, it needs to see the result ASAP
-    if (SekCyclesLeftNoMCD > 32)
-      SekEndRun(32);
+    Pico32x.comm_dirty_68k |= comreg;
+
+    if (cycles - (int)msh2.m68krcycles_done > 120)
+      p32x_sync_sh2s(cycles);
     return;
   }
 }
@@ -304,13 +329,24 @@ static void p32x_reg_write16(u32 a, u32 d)
     return;
   }
   // comm port
-  else if ((a & 0x30) == 0x20 && r[a / 2] != d) {
+  else if ((a & 0x30) == 0x20) {
+    int cycles = SekCyclesDoneT();
+    int comreg;
+    
+    if (r[a / 2] == d)
+      return;
+
+    comreg = 1 << (a & 0x0f) / 2;
+    if (Pico32x.comm_dirty_68k & comreg)
+      p32x_sync_sh2s(cycles);
+
     r[a / 2] = d;
     p32x_poll_undetect(&sh2_poll[0], 0);
     p32x_poll_undetect(&sh2_poll[1], 0);
-    // same as for w8
-    if (SekCyclesLeftNoMCD > 32)
-      SekEndRun(32);
+    Pico32x.comm_dirty_68k |= comreg;
+
+    if (cycles - (int)msh2.m68krcycles_done > 120)
+      p32x_sync_sh2s(cycles);
     return;
   }
   // PWM
@@ -366,7 +402,7 @@ static void p32x_vdp_write8(u32 a, u32 d)
   }
 }
 
-static void p32x_vdp_write16(u32 a, u32 d)
+static void p32x_vdp_write16(u32 a, u32 d, u32 cycles)
 {
   a &= 0x0e;
   if (a == 6) { // fill start
@@ -376,13 +412,18 @@ static void p32x_vdp_write16(u32 a, u32 d)
   if (a == 8) { // fill data
     u16 *dram = Pico32xMem->dram[(Pico32x.vdp_regs[0x0a/2] & P32XV_FS) ^ 1];
     int len = Pico32x.vdp_regs[4 / 2] + 1;
+    int len1 = len;
     a = Pico32x.vdp_regs[6 / 2];
-    while (len--) {
+    while (len1--) {
       dram[a] = d;
       a = (a & 0xff00) | ((a + 1) & 0xff);
     }
-    Pico32x.vdp_regs[6 / 2] = a;
-    Pico32x.vdp_regs[8 / 2] = d;
+    Pico32x.vdp_regs[0x06 / 2] = a;
+    Pico32x.vdp_regs[0x08 / 2] = d;
+    if (cycles > 0) {
+      Pico32x.vdp_regs[0x0a / 2] |= P32XV_nFEN;
+      p32x_event_schedule(P32X_EVENT_FILLEND, cycles, len);
+    }
     return;
   }
 
@@ -413,7 +454,10 @@ static u32 p32x_sh2reg_read16(u32 a, int cpuid)
     return r[a / 2];
   // comm port
   if ((a & 0x30) == 0x20) {
-    if (p32x_poll_detect(&sh2_poll[cpuid], a, ash2_cycles_done(), 0))
+    int comreg = 1 << (a & 0x0f) / 2;
+    if (Pico32x.comm_dirty_68k & comreg)
+      Pico32x.comm_dirty_68k &= ~comreg;
+    else if (p32x_poll_detect(&sh2_poll[cpuid], a, ash2_cycles_done(), 0))
       ash2_end_run(8);
     return r[a / 2];
   }
@@ -437,6 +481,8 @@ static void p32x_sh2reg_write8(u32 a, u32 d, int cpuid)
       Pico32x.sh2irq_mask[cpuid] = d & 0x8f;
       Pico32x.sh2_regs[0] &= ~0x80;
       Pico32x.sh2_regs[0] |= d & 0x80;
+      if (d & 1)
+        p32x_pwm_schedule(sh2s[cpuid].m68krcycles_done); // XXX: timing?
       p32x_update_irls(1);
       return;
     case 5: // H count
@@ -447,10 +493,16 @@ static void p32x_sh2reg_write8(u32 a, u32 d, int cpuid)
 
   if ((a & 0x30) == 0x20) {
     u8 *r8 = (u8 *)Pico32x.regs;
+    int comreg;
+    if (r8[a ^ 1] == d)
+      return;
+
     r8[a ^ 1] = d;
     if (p32x_poll_undetect(&m68k_poll, 0))
       SekSetStop(0);
     p32x_poll_undetect(&sh2_poll[cpuid ^ 1], 0);
+    comreg = 1 << (a & 0x0f) / 2;
+    Pico32x.comm_dirty_sh2 |= comreg;
     return;
   }
 }
@@ -460,11 +512,17 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
   a &= 0xfe;
 
   // comm
-  if ((a & 0x30) == 0x20 && Pico32x.regs[a/2] != d) {
+  if ((a & 0x30) == 0x20) {
+    int comreg;
+    if (Pico32x.regs[a / 2] == d)
+      return;
+
     Pico32x.regs[a / 2] = d;
     if (p32x_poll_undetect(&m68k_poll, 0))
       SekSetStop(0);
     p32x_poll_undetect(&sh2_poll[cpuid ^ 1], 0);
+    comreg = 1 << (a & 0x0f) / 2;
+    Pico32x.comm_dirty_sh2 |= comreg;
     return;
   }
   // PWM
@@ -484,7 +542,8 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
     case 0x1a: Pico32x.sh2irqi[cpuid] &= ~P32XI_CMD; goto irls;
     case 0x1c:
       Pico32x.sh2irqs &= ~P32XI_PWM;
-      p32x_timers_do(0);
+      if (!(Pico32x.emu_flags & P32XF_PWM_PEND))
+        p32x_pwm_schedule(sh2s[cpuid].m68krcycles_done); // timing?
       goto irls;
   }
 
@@ -760,7 +819,7 @@ static void PicoWrite16_32x_on(u32 a, u32 d)
   }
 
   if ((a & 0xfff0) == 0x5180) { // a15180
-    p32x_vdp_write16(a, d);
+    p32x_vdp_write16(a, d, 0); // FIXME?
     return;
   }
 
@@ -1117,7 +1176,7 @@ static int REGPARM(3) sh2_write16_cs0(u32 a, u32 d, int id)
 
   if ((a & 0x3ff00) == 0x4100) {
     sh2_poll[id].cnt = 0; // for poll before VDP accesses
-    p32x_vdp_write16(a, d);
+    p32x_vdp_write16(a, d, sh2s[id].m68krcycles_done);
     return 0;
   }
 
@@ -1553,6 +1612,7 @@ void Pico32xStateLoaded(void)
   p32x_poll_event(3, 0);
   Pico32x.dirty_pal = 1;
   memset(Pico32xMem->pwm, 0, sizeof(Pico32xMem->pwm));
+  p32x_timers_recalc();
 #ifdef DRC_SH2
   sh2_drc_flush_all();
 #endif

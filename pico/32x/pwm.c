@@ -7,19 +7,21 @@
  */
 #include "../pico_int.h"
 
-static int pwm_line_samples;
+static int pwm_cycle_counter;
 static int pwm_cycles;
 static int pwm_mult;
 static int pwm_ptr;
-int pwm_frame_smp_cnt;
 
-static int timer_line_ticks[2];
+static int pwm_smp_cnt;
+static int pwm_smp_expect;
+
+static int timer_cycles[2];
+static int timer_tick_cycles[2];
 
 // timers. This includes PWM timer in 32x and internal SH2 timers
 void p32x_timers_recalc(void)
 {
   int cycles = Pico32x.regs[0x32 / 2];
-  int frame_samples;
   int tmp, i;
 
   cycles = (cycles - 1) & 0x0fff;
@@ -29,12 +31,6 @@ void p32x_timers_recalc(void)
   }
   pwm_cycles = cycles;
   pwm_mult = 0x10000 / cycles;
-  if (Pico.m.pal)
-    frame_samples = OSC_PAL / 7 * 3 / 50 / cycles;
-  else
-    frame_samples = OSC_NTSC / 7 * 3 / 60 / cycles;
-
-  pwm_line_samples = (frame_samples << 16) / scanlines_total;
 
   // SH2 timer step
   for (i = 0; i < 2; i++) {
@@ -44,58 +40,68 @@ void p32x_timers_recalc(void)
       cycles = 0x20 << tmp;
     else
       cycles = 2;
-    if (Pico.m.pal)
-      tmp = OSC_PAL / 7 * 3 / 50 / scanlines_total;
-    else
-      tmp = OSC_NTSC / 7 * 3 / 60 / scanlines_total;
-    timer_line_ticks[i] = (tmp << 16) / cycles;
-    elprintf(EL_32X, "timer_line_ticks[%d] = %.3f", i, (double)timer_line_ticks[i] / 0x10000);
+    timer_tick_cycles[i] = cycles;
+    elprintf(EL_32X, "WDT cycles[%d] = %d", i, cycles);
   }
 }
 
 // PWM irq for every tm samples
-void p32x_timers_do(int line_call)
+void p32x_timers_do(unsigned int cycles)
 {
-  int tm, cnt, i;
+  int cnt, i;
 
-  if (PicoOpt & POPT_EN_PWM)
-  {
-    tm = (Pico32x.regs[0x30 / 2] & 0x0f00) >> 8;
-    if (tm != 0) {
-      if (line_call)
-        Pico32x.pwm_irq_sample_cnt += pwm_line_samples;
-      if (Pico32x.pwm_irq_sample_cnt >= (tm << 16)) {
-        Pico32x.pwm_irq_sample_cnt -= tm << 16;
-        Pico32x.sh2irqs |= P32XI_PWM;
-        p32x_update_irls(!line_call);
-      }
-    }
+  cycles *= 3;
+
+  pwm_cycle_counter += cycles;
+  while (pwm_cycle_counter > pwm_cycles) {
+    pwm_cycle_counter -= pwm_cycles;
+    pwm_smp_expect++;
   }
 
-  if (!line_call)
-    return;
-
+  // WDT timers
   for (i = 0; i < 2; i++) {
     void *pregs = Pico32xMem->sh2_peri_regs[i];
     if (PREG8(pregs, 0x80) & 0x20) { // TME
+      timer_cycles[i] += cycles;
       cnt = PREG8(pregs, 0x81);
-      cnt += timer_line_ticks[i];
+      while (timer_cycles[i] >= timer_tick_cycles[i]) {
+        timer_cycles[i] -= timer_tick_cycles[i];
+        cnt++;
+      }
       if (cnt >= 0x100) {
         int level = PREG8(pregs, 0xe3) >> 4;
         int vector = PREG8(pregs, 0xe4) & 0x7f;
-        elprintf(EL_32X, "%csh2 WDT irq (%d, %d)", i ? 's' : 'm', level, vector);
+        elprintf(EL_32X, "%csh2 WDT irq (%d, %d)",
+          i ? 's' : 'm', level, vector);
         sh2_internal_irq(&sh2s[i], level, vector);
+        cnt &= 0xff;
       }
-      cnt &= 0xff;
       PREG8(pregs, 0x81) = cnt;
     }
   }
 }
 
+void p32x_pwm_schedule(unsigned int now)
+{
+  int tm;
+
+  if (Pico32x.emu_flags & P32XF_PWM_PEND)
+    return; // already scheduled
+  if (Pico32x.sh2irqs & P32XI_PWM)
+    return; // previous not acked
+  if (!((Pico32x.sh2irq_mask[0] | Pico32x.sh2irq_mask[1]) & 1))
+    return; // masked by everyone
+
+  tm = (Pico32x.regs[0x30 / 2] & 0x0f00) >> 8;
+  tm = ((tm - 1) & 0x0f) + 1;
+  p32x_event_schedule(P32X_EVENT_PWM, now, pwm_cycles * tm / 3);
+  Pico32x.emu_flags |= P32XF_PWM_PEND;
+}
+
 unsigned int p32x_pwm_read16(unsigned int a)
 {
   unsigned int d = 0;
-  int predict;
+  int diff;
 
   a &= 0x0e;
   switch (a) {
@@ -106,12 +112,12 @@ unsigned int p32x_pwm_read16(unsigned int a)
     case 4: // L ch
     case 6: // R ch
     case 8: // MONO
-      predict = (pwm_line_samples * Pico.m.scanline) >> 16;
-      elprintf(EL_PWM, "pwm: read status: ptr %d/%d, predict %d",
-        pwm_frame_smp_cnt, (pwm_line_samples * scanlines_total) >> 16, predict);
-      if (pwm_frame_smp_cnt > predict + 3)
+      diff = pwm_smp_cnt - pwm_smp_expect;
+      elprintf(EL_PWM, "pwm: read status: ptr %d/%d %d",
+        pwm_smp_cnt, pwm_smp_expect, diff);
+      if (diff > 3)
         d |= P32XP_FULL;
-      else if (pwm_frame_smp_cnt == 0 || pwm_frame_smp_cnt < predict - 1)
+      else if (diff < 0)
         d |= P32XP_EMPTY;
       break;
   }
@@ -143,9 +149,10 @@ void p32x_pwm_write16(unsigned int a, unsigned int d)
       Pico32xMem->pwm[pwm_ptr * 2] = Pico32xMem->pwm[pwm_ptr * 2 + 1] = d;
 
     if (a >= 6) { // R or MONO
-      pwm_frame_smp_cnt++;
+      pwm_smp_cnt++;
       pwm_ptr = (pwm_ptr + 1) & (PWM_BUFF_LEN - 1);
-        elprintf(EL_PWM, "pwm: smp_cnt %d, ptr %d, smp %x", pwm_frame_smp_cnt, pwm_ptr, d);
+      elprintf(EL_PWM, "pwm: smp_cnt %d, ptr %d, smp %x",
+          pwm_smp_cnt, pwm_ptr, d);
     }
   }
 }
@@ -190,3 +197,4 @@ void p32x_pwm_update(int *buf32, int length, int stereo)
   pwm_ptr = 0;
 }
 
+// vim:shiftwidth=2:ts=2:expandtab
