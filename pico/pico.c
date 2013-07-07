@@ -219,9 +219,6 @@ void PicoLoopPrepare(void)
 
   Pico.m.dirtyPal = 1;
   rendstatus_old = -1;
-
-  if (PicoAHW & PAHW_32X)
-    p32x_timers_recalc();
 }
 
 

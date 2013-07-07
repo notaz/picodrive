@@ -111,9 +111,6 @@ static int PicoFrameHints(void)
 #ifdef PICO_CD
     check_cd_dma();
 #endif
-#ifdef PICO_32X
-    p32x_timers_do(1);
-#endif
 
     // H-Interrupts:
     if (--hint < 0) // y <= lines_vis: Comix Zone, Golden Axe
@@ -146,6 +143,9 @@ static int PicoFrameHints(void)
         PicoSyncZ80(SekCycleCnt);
       if (ym2612.dacen && PsndDacLine <= y)
         PsndDoDAC(y);
+#ifdef PICO_32X
+      p32x_sync_sh2s(SekCycleCntT + SekCycleCnt);
+#endif
       PsndGetSamples(y);
     }
 
@@ -183,9 +183,6 @@ static int PicoFrameHints(void)
 #ifdef PICO_CD
   check_cd_dma();
 #endif
-#ifdef PICO_32X
-  p32x_timers_do(1);
-#endif
 
   // Last H-Int:
   if (--hint < 0)
@@ -198,10 +195,6 @@ static int PicoFrameHints(void)
 
   pv->status|=0x08; // go into vblank
   pv->pending_ints|=0x20;
-
-#ifdef PICO_32X
-  p32x_start_blank();
-#endif
 
   // the following SekRun is there for several reasons:
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
@@ -218,6 +211,11 @@ static int PicoFrameHints(void)
     elprintf(EL_INTS, "zint");
     z80_int();
   }
+
+#ifdef PICO_32X
+  p32x_sync_sh2s(SekCycleCntT + SekCycleCnt);
+  p32x_start_blank();
+#endif
 
   // get samples from sound chips
   if (y == 224 && PsndOut)
@@ -254,9 +252,6 @@ static int PicoFrameHints(void)
 #ifdef PICO_CD
     check_cd_dma();
 #endif
-#ifdef PICO_32X
-    p32x_timers_do(1);
-#endif
 
     // Run scanline:
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
@@ -275,6 +270,9 @@ static int PicoFrameHints(void)
   if (PsndOut && ym2612.dacen && PsndDacLine <= lines-1)
     PsndDoDAC(lines-1);
 
+#ifdef PICO_32X
+  p32x_sync_sh2s(SekCycleCntT + SekCycleCnt);
+#endif
   timers_cycle();
 
   return 0;

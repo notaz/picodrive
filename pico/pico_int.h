@@ -237,13 +237,22 @@ extern SH2 sh2s[2];
 #define ssh2 sh2s[1]
 
 #ifndef DRC_SH2
-# define ash2_end_run(after) if (sh2->icount > (after)) sh2->icount = after
+# define ash2_end_run(after) do { \
+  if (sh2->icount > (after)) { \
+    sh2->cycles_timeslice -= sh2->icount; \
+    sh2->icount = after; \
+  } \
+} while (0)
 # define ash2_cycles_done() (sh2->cycles_timeslice - sh2->icount)
 #else
-# define ash2_end_run(after) { \
-   if ((sh2->sr >> 12) > (after)) \
-     { sh2->sr &= 0xfff; sh2->sr |= (after) << 12; } \
-}
+# define ash2_end_run(after) do { \
+  int left = sh2->sr >> 12; \
+  if (left > (after)) { \
+    sh2->cycles_timeslice -= left; \
+    sh2->sr &= 0xfff; \
+    sh2->sr |= (after) << 12; \
+  } \
+} while (0)
 # define ash2_cycles_done() (sh2->cycles_timeslice - (sh2->sr >> 12))
 #endif
 
@@ -460,6 +469,7 @@ typedef struct
 #define P32XF_68KVPOLL  (1 << 3)
 #define P32XF_MSH2VPOLL (1 << 4)
 #define P32XF_SSH2VPOLL (1 << 5)
+#define P32XF_PWM_PEND  (1 << 6)
 
 #define P32XI_VRES (1 << 14/2) // IRL/2
 #define P32XI_VINT (1 << 12/2)
@@ -493,7 +503,10 @@ struct Pico32x
   unsigned short dmac_fifo[DMAC_FIFO_LEN];
   unsigned int dmac_ptr;
   unsigned int pwm_irq_sample_cnt;
-  unsigned int reserved[9];
+  unsigned char comm_dirty_68k;
+  unsigned char comm_dirty_sh2;
+  unsigned short pad;
+  unsigned int reserved[8];
 };
 
 struct Pico32xMem
@@ -719,6 +732,13 @@ void p32x_sync_sh2s(unsigned int m68k_target);
 void p32x_update_irls(int nested_call);
 void p32x_reset_sh2s(void);
 
+enum p32x_event {
+  P32X_EVENT_PWM,
+  P32X_EVENT_FILLEND,
+  P32X_EVENT_COUNT,
+};
+void p32x_event_schedule(enum p32x_event event, unsigned int now, int after);
+
 // 32x/memory.c
 struct Pico32xMem *Pico32xMem;
 unsigned int PicoRead8_32x(unsigned int a);
@@ -747,9 +767,9 @@ extern int Pico32xDrawMode;
 unsigned int p32x_pwm_read16(unsigned int a);
 void p32x_pwm_write16(unsigned int a, unsigned int d);
 void p32x_pwm_update(int *buf32, int length, int stereo);
-void p32x_timers_do(int line_call);
+void p32x_timers_do(unsigned int cycles);
 void p32x_timers_recalc(void);
-extern int pwm_frame_smp_cnt;
+void p32x_pwm_schedule(unsigned int now);
 #else
 #define Pico32xInit()
 #define PicoPower32x()
@@ -805,10 +825,10 @@ static __inline int isspace_(int c)
 
 #if EL_LOGMASK
 #define elprintf(w,f,...) \
-{ \
+do { \
 	if ((w) & EL_LOGMASK) \
 		lprintf("%05i:%03i: " f "\n",Pico.m.frame_count,Pico.m.scanline,##__VA_ARGS__); \
-}
+} while (0)
 #elif defined(_MSC_VER)
 #define elprintf
 #else
