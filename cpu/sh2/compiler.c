@@ -166,9 +166,9 @@ static const int reg_map_g2h[] = {
    4,  5,  6,  7,
    8, -1, -1, -1,
   -1, -1, -1, -1,
-  -1, -1, -1,  9,
-  -1, -1, -1, 10,
-  -1, -1, -1, -1,
+  -1, -1, -1,  9, // r12 .. sp
+  -1, -1, -1, 10, // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
+  -1, -1, -1, -1, // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
 };
 
 static temp_reg_t reg_temp[] = {
@@ -2986,7 +2986,7 @@ int sh2_execute(SH2 *sh2c, int cycles)
   sh2c->cycles_timeslice = cycles;
 
   // cycles are kept in SHR_SR unused bits (upper 20)
-  // bit19 contains T saved for delay slot
+  // bit11 contains T saved for delay slot
   // others are usual SH2 flags
   sh2c->sr &= 0x3f3;
   sh2c->sr |= cycles << 12;
