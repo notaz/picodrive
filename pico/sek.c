@@ -219,7 +219,8 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
   cpu[0x4d] = (context->execinfo & FM68K_HALTED) ? 1 : 0;
 #endif
 
-  *(unsigned int *)(cpu+0x40)=pc;
+  *(unsigned int *)(cpu+0x40) = pc;
+  *(unsigned int *)(cpu+0x50) = SekCycleCntT;
 }
 
 PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
@@ -256,6 +257,7 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
   context->execinfo &= ~FM68K_HALTED;
   if (cpu[0x4d]&1) context->execinfo |= FM68K_HALTED;
 #endif
+  SekCycleCntT = *(unsigned int *)(cpu+0x50);
 }
 
 

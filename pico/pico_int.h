@@ -722,6 +722,13 @@ void PicoFrameDrawOnlyMS(void);
 // 32x/32x.c
 #ifndef NO_32X
 extern struct Pico32x Pico32x;
+enum p32x_event {
+  P32X_EVENT_PWM,
+  P32X_EVENT_FILLEND,
+  P32X_EVENT_COUNT,
+};
+extern unsigned int event_times[P32X_EVENT_COUNT];
+
 void Pico32xInit(void);
 void PicoPower32x(void);
 void PicoReset32x(void);
@@ -731,12 +738,6 @@ void PicoFrame32x(void);
 void p32x_sync_sh2s(unsigned int m68k_target);
 void p32x_update_irls(int nested_call);
 void p32x_reset_sh2s(void);
-
-enum p32x_event {
-  P32X_EVENT_PWM,
-  P32X_EVENT_FILLEND,
-  P32X_EVENT_COUNT,
-};
 void p32x_event_schedule(enum p32x_event event, unsigned int now, int after);
 
 // 32x/memory.c

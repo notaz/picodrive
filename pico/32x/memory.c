@@ -1619,9 +1619,11 @@ void PicoMemSetup32x(void)
 
 void Pico32xStateLoaded(void)
 {
+  sh2s[0].m68krcycles_done = sh2s[1].m68krcycles_done = SekCycleCntT;
+  p32x_poll_event(3, 0);
+
   bank_switch(Pico32x.regs[4 / 2]);
   Pico32xSwapDRAM((Pico32x.vdp_regs[0x0a / 2] & P32XV_FS) ^ P32XV_FS);
-  p32x_poll_event(3, 0);
   Pico32x.dirty_pal = 1;
   memset(Pico32xMem->pwm, 0, sizeof(Pico32xMem->pwm));
   p32x_timers_recalc();

@@ -174,6 +174,7 @@ typedef enum {
   CHUNK_SDRAM,
   CHUNK_DRAM,
   CHUNK_32XPAL,
+  CHUNK_32X_EVT,
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // defined in PicoInt
@@ -222,6 +223,7 @@ static const char * const chunk_names[] = {
   "SDRAM",
   "DRAM",
   "PAL",
+  "events",
 };
 
 static int write_chunk(chunk_name_e name, int len, void *data, void *file)
@@ -334,7 +336,9 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_DRAM,      Pico32xMem->dram);
     CHECKED_WRITE_BUFF(CHUNK_32XPAL,    Pico32xMem->pal);
 
-    sh2s[0].m68krcycles_done = sh2s[1].m68krcycles_done = SekCycleCnt;
+    memset(buff, 0, 0x40);
+    memcpy(buff, event_times, sizeof(event_times));
+    CHECKED_WRITE(CHUNK_32X_EVT, 0x40, buff);
   }
 #endif
 
@@ -384,6 +388,7 @@ static int state_load(void *file)
   unsigned char buff_m68k[0x60], buff_s68k[0x60];
   unsigned char buff_z80[Z80_STATE_SIZE];
   unsigned char buff_sh2[SH2_STATE_SIZE];
+  unsigned char buff[0x40];
   unsigned char chunk;
   void *ym2612_regs;
   char header[8];
@@ -478,6 +483,11 @@ static int state_load(void *file)
       case CHUNK_SDRAM:       CHECKED_READ_BUFF(Pico32xMem->sdram); break;
       case CHUNK_DRAM:        CHECKED_READ_BUFF(Pico32xMem->dram); break;
       case CHUNK_32XPAL:      CHECKED_READ_BUFF(Pico32xMem->pal); break;
+
+      case CHUNK_32X_EVT:
+        CHECKED_READ_BUFF(buff);
+        memcpy(event_times, buff, sizeof(event_times));
+        break;
 #endif
       default:
         if (carthw_chunks != NULL)
