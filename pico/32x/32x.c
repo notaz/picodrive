@@ -1,6 +1,6 @@
 /*
  * PicoDrive
- * (C) notaz, 2009,2010
+ * (C) notaz, 2009,2010,2013
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -225,7 +225,7 @@ static void fillend_event(unsigned int now)
 
 typedef void (event_cb)(unsigned int now);
 
-static unsigned int event_times[P32X_EVENT_COUNT];
+unsigned int event_times[P32X_EVENT_COUNT];
 static unsigned int event_time_next;
 static event_cb *event_cbs[] = {
   [P32X_EVENT_PWM]      = pwm_irq_event,
