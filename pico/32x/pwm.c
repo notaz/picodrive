@@ -52,10 +52,15 @@ void p32x_timers_do(unsigned int cycles)
 
   cycles *= 3;
 
-  pwm_cycle_counter += cycles;
-  while (pwm_cycle_counter > pwm_cycles) {
-    pwm_cycle_counter -= pwm_cycles;
-    pwm_smp_expect++;
+  // since we run things in async fashion, allow pwm to lag behind
+  // but don't allow our "queue" to be infinite
+  cnt = pwm_smp_expect - pwm_smp_cnt;
+  if (cnt <= 0 || cnt * pwm_cycles < OSC_NTSC/7*3 / 60 / 2) {
+    pwm_cycle_counter += cycles;
+    while (pwm_cycle_counter > pwm_cycles) {
+      pwm_cycle_counter -= pwm_cycles;
+      pwm_smp_expect++;
+    }
   }
 
   // WDT timers
