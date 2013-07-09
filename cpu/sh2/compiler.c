@@ -983,6 +983,10 @@ static int emit_memhandler_read_(int size, int ram_check)
     }
   }
   rcache_invalidate();
+
+  if (reg_map_g2h[SHR_SR] != -1)
+    emith_ctx_read(reg_map_g2h[SHR_SR], SHR_SR * 4);
+
   // assuming arg0 and retval reg matches
   return rcache_get_tmp_arg(0);
 }
@@ -1040,6 +1044,9 @@ static void emit_memhandler_write(int size, u32 pc, int delay)
 {
   int ctxr;
   host_arg2reg(ctxr, 2);
+  if (reg_map_g2h[SHR_SR] != -1)
+    emith_ctx_write(reg_map_g2h[SHR_SR], SHR_SR * 4);
+
   switch (size) {
   case 0: // 8
     // XXX: consider inlining sh2_drc_write8
@@ -1065,6 +1072,9 @@ static void emit_memhandler_write(int size, u32 pc, int delay)
     emith_call(sh2_drc_write32);
     break;
   }
+
+  if (reg_map_g2h[SHR_SR] != -1)
+    emith_ctx_read(reg_map_g2h[SHR_SR], SHR_SR * 4);
   rcache_invalidate();
 }
 
