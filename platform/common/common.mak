@@ -139,7 +139,7 @@ SRCS_COMMON += $(R)cpu/sh2/compiler.c
 ifdef drc_debug
 DEFINES += DRC_DEBUG=$(drc_debug)
 SRCS_COMMON += $(R)cpu/sh2/mame/sh2dasm.c
-SRCS_COMMON += $(R)platform/linux/host_dasm.c
+SRCS_COMMON += $(R)platform/libpicofe/linux/host_dasm.c
 LDFLAGS += -lbfd -lopcodes -liberty
 endif
 ifeq "$(drc_debug_interp)" "1"
