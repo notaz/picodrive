@@ -61,7 +61,7 @@
 }
 
 #include "mame/sh2dasm.h"
-#include <platform/linux/host_dasm.h>
+#include <platform/libpicofe/linux/host_dasm.h>
 static int insns_compiled, hash_collisions, host_insn_count;
 #define COUNT_OP \
 	host_insn_count++
