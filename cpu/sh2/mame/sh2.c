@@ -859,6 +859,7 @@ INLINE void JMP(sh2_state *sh2, UINT32 m)
 {
 	sh2->delay = sh2->pc;
 	sh2->pc = sh2->ea = sh2->r[m];
+	sh2->icount--;
 }
 
 /*  JSR     @Rm */
@@ -1422,7 +1423,6 @@ INLINE void OR(sh2_state *sh2, UINT32 m, UINT32 n)
 INLINE void ORI(sh2_state *sh2, UINT32 i)
 {
 	sh2->r[0] |= i;
-	sh2->icount -= 2;
 }
 
 /*  OR.B    #imm,@(R0,GBR) */
@@ -1434,6 +1434,7 @@ INLINE void ORM(sh2_state *sh2, UINT32 i)
 	temp = RB( sh2, sh2->ea );
 	temp |= i;
 	WB( sh2, sh2->ea, temp );
+	sh2->icount -= 2;
 }
 
 /*  ROTCL   Rn */
