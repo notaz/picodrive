@@ -8,12 +8,12 @@ typedef unsigned int   UINT32;
 typedef unsigned short UINT16;
 typedef unsigned char  UINT8;
 
-#define RB(a) p32x_sh2_read8(a,sh2)
-#define RW(a) p32x_sh2_read16(a,sh2)
-#define RL(a) p32x_sh2_read32(a,sh2)
-#define WB(a,d) p32x_sh2_write8(a,d,sh2)
-#define WW(a,d) p32x_sh2_write16(a,d,sh2)
-#define WL(a,d) p32x_sh2_write32(a,d,sh2)
+#define RB(sh2, a) p32x_sh2_read8(a,sh2)
+#define RW(sh2, a) p32x_sh2_read16(a,sh2)
+#define RL(sh2, a) p32x_sh2_read32(a,sh2)
+#define WB(sh2, a, d) p32x_sh2_write8(a,d,sh2)
+#define WW(sh2, a, d) p32x_sh2_write16(a,d,sh2)
+#define WL(sh2, a, d) p32x_sh2_write32(a,d,sh2)
 
 // some stuff from sh2comn.h
 #define T	0x00000001
@@ -29,7 +29,10 @@ typedef unsigned char  UINT8;
 #define Rn	((opcode>>8)&15)
 #define Rm	((opcode>>4)&15)
 
-#define sh2_icount sh2->icount
+#define sh2_state SH2
+
+extern void lprintf(const char *fmt, ...);
+#define logerror lprintf
 
 #ifdef SH2_STATS
 static SH2 sh2_stats;
@@ -61,7 +64,7 @@ static unsigned int op_refs[0x10000];
 
 #ifndef DRC_SH2
 
-int sh2_execute(SH2 *sh2_, int cycles)
+int sh2_execute(SH2 *sh2, int cycles)
 {
 	sh2 = sh2_;
 	sh2->icount = cycles;
@@ -78,13 +81,13 @@ int sh2_execute(SH2 *sh2_, int cycles)
 		if (sh2->delay)
 		{
 			sh2->ppc = sh2->delay;
-			opcode = RW(sh2->delay);
+			opcode = RW(sh2, sh2->delay);
 			sh2->pc -= 2;
 		}
 		else
 		{
 			sh2->ppc = sh2->pc;
-			opcode = RW(sh2->pc);
+			opcode = RW(sh2, sh2->pc);
 		}
 
 		sh2->delay = 0;
@@ -92,22 +95,22 @@ int sh2_execute(SH2 *sh2_, int cycles)
 
 		switch (opcode & ( 15 << 12))
 		{
-		case  0<<12: op0000(opcode); break;
-		case  1<<12: op0001(opcode); break;
-		case  2<<12: op0010(opcode); break;
-		case  3<<12: op0011(opcode); break;
-		case  4<<12: op0100(opcode); break;
-		case  5<<12: op0101(opcode); break;
-		case  6<<12: op0110(opcode); break;
-		case  7<<12: op0111(opcode); break;
-		case  8<<12: op1000(opcode); break;
-		case  9<<12: op1001(opcode); break;
-		case 10<<12: op1010(opcode); break;
-		case 11<<12: op1011(opcode); break;
-		case 12<<12: op1100(opcode); break;
-		case 13<<12: op1101(opcode); break;
-		case 14<<12: op1110(opcode); break;
-		default: op1111(opcode); break;
+		case  0<<12: op0000(sh2, opcode); break;
+		case  1<<12: op0001(sh2, opcode); break;
+		case  2<<12: op0010(sh2, opcode); break;
+		case  3<<12: op0011(sh2, opcode); break;
+		case  4<<12: op0100(sh2, opcode); break;
+		case  5<<12: op0101(sh2, opcode); break;
+		case  6<<12: op0110(sh2, opcode); break;
+		case  7<<12: op0111(sh2, opcode); break;
+		case  8<<12: op1000(sh2, opcode); break;
+		case  9<<12: op1001(sh2, opcode); break;
+		case 10<<12: op1010(sh2, opcode); break;
+		case 11<<12: op1011(sh2, opcode); break;
+		case 12<<12: op1100(sh2, opcode); break;
+		case 13<<12: op1101(sh2, opcode); break;
+		case 14<<12: op1110(sh2, opcode); break;
+		default: op1111(sh2, opcode); break;
 		}
 
 		sh2->icount--;
@@ -135,29 +138,28 @@ int sh2_execute(SH2 *sh2_, int cycles)
 #endif
 
 // drc debug
-void REGPARM(2) sh2_do_op(SH2 *sh2_, int opcode)
+void REGPARM(2) sh2_do_op(SH2 *sh2, int opcode)
 {
-	sh2 = sh2_;
 	sh2->pc += 2;
 
 	switch (opcode & ( 15 << 12))
 	{
-		case  0<<12: op0000(opcode); break;
-		case  1<<12: op0001(opcode); break;
-		case  2<<12: op0010(opcode); break;
-		case  3<<12: op0011(opcode); break;
-		case  4<<12: op0100(opcode); break;
-		case  5<<12: op0101(opcode); break;
-		case  6<<12: op0110(opcode); break;
-		case  7<<12: op0111(opcode); break;
-		case  8<<12: op1000(opcode); break;
-		case  9<<12: op1001(opcode); break;
-		case 10<<12: op1010(opcode); break;
-		case 11<<12: op1011(opcode); break;
-		case 12<<12: op1100(opcode); break;
-		case 13<<12: op1101(opcode); break;
-		case 14<<12: op1110(opcode); break;
-		default: op1111(opcode); break;
+		case  0<<12: op0000(sh2, opcode); break;
+		case  1<<12: op0001(sh2, opcode); break;
+		case  2<<12: op0010(sh2, opcode); break;
+		case  3<<12: op0011(sh2, opcode); break;
+		case  4<<12: op0100(sh2, opcode); break;
+		case  5<<12: op0101(sh2, opcode); break;
+		case  6<<12: op0110(sh2, opcode); break;
+		case  7<<12: op0111(sh2, opcode); break;
+		case  8<<12: op1000(sh2, opcode); break;
+		case  9<<12: op1001(sh2, opcode); break;
+		case 10<<12: op1010(sh2, opcode); break;
+		case 11<<12: op1011(sh2, opcode); break;
+		case 12<<12: op1100(sh2, opcode); break;
+		case 13<<12: op1101(sh2, opcode); break;
+		case 14<<12: op1110(sh2, opcode); break;
+		default: op1111(sh2, opcode); break;
 	}
 }
 

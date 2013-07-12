@@ -66,8 +66,6 @@ typedef struct SH2_
 #define C_SH2_TO_M68K(xsh2, c) \
 	((int)((c + 3) * (xsh2).mult_sh2_to_m68k) >> CYCLE_MULT_SHIFT)
 
-extern SH2 *sh2; // active sh2. XXX: consider removing
-
 int  sh2_init(SH2 *sh2, int is_slave);
 void sh2_finish(SH2 *sh2);
 void sh2_reset(SH2 *sh2);

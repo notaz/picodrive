@@ -2991,7 +2991,6 @@ void sh2_drc_wcheck_da(unsigned int a, int val, int cpuid)
 int sh2_execute(SH2 *sh2c, int cycles)
 {
   int ret_cycles;
-  sh2 = sh2c; // XXX
 
   sh2c->cycles_timeslice = cycles;
 

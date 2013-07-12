@@ -454,8 +454,8 @@ static u32 p32x_sh2reg_read16(u32 a, int cpuid)
     case 0x00: // adapter/irq ctl
       return (r[0] & P32XS_FM) | Pico32x.sh2_regs[0] | Pico32x.sh2irq_mask[cpuid];
     case 0x04: // H count (often as comm too)
-      if (p32x_poll_detect(&sh2_poll[cpuid], a, ash2_cycles_done(), 0))
-        ash2_end_run(8);
+      if (p32x_poll_detect(&sh2_poll[cpuid], a, ash2_cycles_done(&sh2s[cpuid]), 0))
+        ash2_end_run(&sh2s[cpuid], 8);
       return Pico32x.sh2_regs[4 / 2];
     case 0x10: // DREQ len
       return r[a / 2];
@@ -469,8 +469,8 @@ static u32 p32x_sh2reg_read16(u32 a, int cpuid)
     int comreg = 1 << (a & 0x0f) / 2;
     if (Pico32x.comm_dirty_68k & comreg)
       Pico32x.comm_dirty_68k &= ~comreg;
-    else if (p32x_poll_detect(&sh2_poll[cpuid], a, ash2_cycles_done(), 0))
-      ash2_end_run(8);
+    else if (p32x_poll_detect(&sh2_poll[cpuid], a, ash2_cycles_done(&sh2s[cpuid]), 0))
+      ash2_end_run(&sh2s[cpuid], 8);
     return r[a / 2];
   }
   if ((a & 0x30) == 0x30) {
@@ -695,7 +695,7 @@ static void sh2_peripheral_write32(u32 a, u32 d, int id)
     dmac0->tcr0 &= 0xffffff;
 
     // HACK: assume 68k starts writing soon and end the timeslice
-    ash2_end_run(16);
+    ash2_end_run(&sh2s[id], 16);
 
     // DREQ is only sent after first 4 words are written.
     // we do multiple of 4 words to avoid messing up alignment
@@ -1016,8 +1016,8 @@ static u32 sh2_read8_cs0(u32 a, int id)
 
   if ((a & 0x3ff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    if (p32x_poll_detect(&sh2_poll[id], a, ash2_cycles_done(), 1))
-      ash2_end_run(8);
+    if (p32x_poll_detect(&sh2_poll[id], a, ash2_cycles_done(&sh2s[id]), 1))
+      ash2_end_run(&sh2s[id], 8);
     goto out_16to8;
   }
 
@@ -1071,8 +1071,8 @@ static u32 sh2_read16_cs0(u32 a, int id)
 
   if ((a & 0x3ff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    if (p32x_poll_detect(&sh2_poll[id], a, ash2_cycles_done(), 1))
-      ash2_end_run(8);
+    if (p32x_poll_detect(&sh2_poll[id], a, ash2_cycles_done(&sh2s[id]), 1))
+      ash2_end_run(&sh2s[id], 8);
     goto out;
   }
 

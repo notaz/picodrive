@@ -237,23 +237,23 @@ extern SH2 sh2s[2];
 #define ssh2 sh2s[1]
 
 #ifndef DRC_SH2
-# define ash2_end_run(after) do { \
-  if (sh2->icount > (after)) { \
-    sh2->cycles_timeslice -= sh2->icount; \
-    sh2->icount = after; \
+# define ash2_end_run(sh2, after) do { \
+  if ((sh2)->icount > (after)) { \
+    (sh2)->cycles_timeslice -= (sh2)->icount; \
+    (sh2)->icount = after; \
   } \
 } while (0)
-# define ash2_cycles_done() (sh2->cycles_timeslice - sh2->icount)
+# define ash2_cycles_done(sh2) ((sh2)->cycles_timeslice - (sh2)->icount)
 #else
-# define ash2_end_run(after) do { \
-  int left = sh2->sr >> 12; \
+# define ash2_end_run(sh2, after) do { \
+  int left = (sh2)->sr >> 12; \
   if (left > (after)) { \
-    sh2->cycles_timeslice -= left; \
-    sh2->sr &= 0xfff; \
-    sh2->sr |= (after) << 12; \
+    (sh2)->cycles_timeslice -= left; \
+    (sh2)->sr &= 0xfff; \
+    (sh2)->sr |= (after) << 12; \
   } \
 } while (0)
-# define ash2_cycles_done() (sh2->cycles_timeslice - (sh2->sr >> 12))
+# define ash2_cycles_done(sh2) ((sh2)->cycles_timeslice - ((sh2)->sr >> 12))
 #endif
 
 //#define sh2_pc(c)     (c) ? ssh2.ppc : msh2.ppc
