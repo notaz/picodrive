@@ -41,7 +41,6 @@
 #define LINK_BRANCHES           1
 
 // limits (per block)
-#define BLOCK_CYCLE_LIMIT       100
 #define MAX_BLOCK_SIZE          (BLOCK_CYCLE_LIMIT * 6 * 6)
 
 // max literal offset from the block end
@@ -49,7 +48,20 @@
 #define MAX_LITERALS            (BLOCK_CYCLE_LIMIT / 4)
 #define MAX_LOCAL_BRANCHES      32
 
-// debug stuff {
+///
+#define FETCH_OP(pc) \
+  dr_pc_base[(pc) / 2]
+
+#define FETCH32(a) \
+  ((dr_pc_base[(a) / 2] << 16) | dr_pc_base[(a) / 2 + 1])
+
+#ifdef DRC_SH2
+
+// debug stuff
+// 1 - ?
+// 2 - ?
+// 4 - log asm
+// {
 #ifndef DRC_DEBUG
 #define DRC_DEBUG 0
 #endif
@@ -237,41 +249,7 @@ static void REGPARM(2) (*sh2_drc_write16)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write16_slot)(u32 a, u32 d);
 static int  REGPARM(3) (*sh2_drc_write32)(u32 a, u32 d, SH2 *sh2);
 
-extern void REGPARM(2) sh2_do_op(SH2 *sh2, int opcode);
-
 // address space stuff
-static void *dr_get_pc_base(u32 pc, int is_slave)
-{
-  void *ret = NULL;
-  u32 mask = 0;
-
-  if ((pc & ~0x7ff) == 0) {
-    // BIOS
-    ret = is_slave ? Pico32xMem->sh2_rom_s : Pico32xMem->sh2_rom_m;
-    mask = 0x7ff;
-  }
-  else if ((pc & 0xfffff000) == 0xc0000000) {
-    // data array
-    ret = Pico32xMem->data_array[is_slave];
-    mask = 0xfff;
-  }
-  else if ((pc & 0xc6000000) == 0x06000000) {
-    // SDRAM
-    ret = Pico32xMem->sdram;
-    mask = 0x03ffff;
-  }
-  else if ((pc & 0xc6000000) == 0x02000000) {
-    // ROM
-    ret = Pico.rom;
-    mask = 0x3fffff;
-  }
-
-  if (ret == NULL)
-    return (void *)-1; // NULL is valid value
-
-  return (char *)ret - (pc & ~mask);
-}
-
 static int dr_ctx_get_mem_ptr(u32 a, u32 *mask)
 {
   int poffs = -1;
@@ -1186,12 +1164,6 @@ static void emit_block_entry(void)
     goto default_; \
 }
 
-#define FETCH_OP(pc) \
-  dr_pc_base[(pc) / 2]
-
-#define FETCH32(a) \
-  ((dr_pc_base[(a) / 2] << 16) | dr_pc_base[(a) / 2 + 1])
-
 #define GET_Fx() \
   ((op >> 4) & 0x0f)
 
@@ -1204,9 +1176,7 @@ static void emit_block_entry(void)
   if (GET_Fx() >= n) \
     goto default_
 
-// op_flags: data from 1st pass
-#define OP_FLAGS(pc) op_flags[((pc) - base_pc) / 2]
-#define OF_DELAY_OP (1 << 0)
+static void *dr_get_pc_base(u32 pc, int is_slave);
 
 static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 {
@@ -1222,7 +1192,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   int literal_addr_count = 0;
   int pending_branch_cond = -1;
   int pending_branch_pc = 0;
-  u8 op_flags[BLOCK_CYCLE_LIMIT + 1];
+  u8 op_flags[BLOCK_CYCLE_LIMIT];
   struct {
     u32 delayed_op:2;
     u32 test_irq:1;
@@ -1270,56 +1240,19 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   dr_link_blocks(tcache_ptr, base_pc, tcache_id);
 
   // 1st pass: scan forward for local branches
-  memset(op_flags, 0, sizeof(op_flags));
-  for (cycles = 0, pc = base_pc; cycles < BLOCK_CYCLE_LIMIT; cycles++, pc += 2) {
-    op = FETCH_OP(pc);
-    if ((op & 0xf000) == 0xa000 || (op & 0xf000) == 0xb000) { // BRA, BSR
-      signed int offs = ((signed int)(op << 20) >> 19);
-      pc += 2;
-      OP_FLAGS(pc) |= OF_DELAY_OP;
-      ADD_TO_ARRAY(branch_target_pc, branch_target_count, pc + offs + 2,);
-      break;
-    }
-    if ((op & 0xf000) == 0) {
-      op &= 0xff;
-      if (op == 0x1b) // SLEEP
-        break;
-      if (op == 0x23 || op == 0x03 || op == 0x0b || op == 0x2b) { // BRAF, BSRF, RTS, RTE
-        pc += 2;
-        OP_FLAGS(pc) |= OF_DELAY_OP;
-        break;
-      }
+  scan_block(base_pc, sh2->is_slave, op_flags, &end_pc);
+
+  // collect branch_targets that don't land on delay slots
+  for (pc = base_pc; pc <= end_pc; pc += 2) {
+    if (!(OP_FLAGS(pc) & OF_TARGET))
+      continue;
+    if (OP_FLAGS(pc) & OF_DELAY_OP) {
+      OP_FLAGS(pc) &= ~OF_TARGET;
       continue;
     }
-    if ((op & 0xf0df) == 0x400b) { // JMP, JSR
-      pc += 2;
-      OP_FLAGS(pc) |= OF_DELAY_OP;
-      break;
-    }
-    if ((op & 0xf900) == 0x8900) { // BT(S), BF(S)
-      signed int offs = ((signed int)(op << 24) >> 23);
-      if (op & 0x0400)
-        OP_FLAGS(pc + 2) |= OF_DELAY_OP;
-      ADD_TO_ARRAY(branch_target_pc, branch_target_count, pc + offs + 4, break);
-    }
-    if ((op & 0xff00) == 0xc300) // TRAPA
-      break;
+    ADD_TO_ARRAY(branch_target_pc, branch_target_count, pc, break);
   }
 
-  end_pc = pc;
-
-  // clean branch_targets that are not really local,
-  // and that land on delay slots
-  for (i = 0, tmp = 0; i < branch_target_count; i++) {
-    pc = branch_target_pc[i];
-    if (base_pc <= pc && pc <= end_pc && !(OP_FLAGS(pc) & OF_DELAY_OP))
-      branch_target_pc[tmp++] = branch_target_pc[i];
-
-    if (i == branch_target_count - 1) // workaround gcc 4.5.2 bug?
-      break;
-  }
-
-  branch_target_count = tmp;
   if (branch_target_count > 0) {
     memset(branch_target_ptr, 0, sizeof(branch_target_ptr[0]) * branch_target_count);
     memset(branch_target_blkid, 0, sizeof(branch_target_blkid[0]) * branch_target_count);
@@ -1338,9 +1271,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
     op = FETCH_OP(pc);
 
-    i = find_in_array(branch_target_pc, branch_target_count, pc);
-    if (i >= 0 || pc == base_pc)
+    if ((OP_FLAGS(pc) & OF_TARGET) || pc == base_pc)
     {
+      i = find_in_array(branch_target_pc, branch_target_count, pc);
       if (pc != base_pc)
       {
         /* make "subblock" - just a mid-block entry */
@@ -1382,10 +1315,25 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
 #if (DRC_DEBUG & 2)
     insns_compiled++;
+#endif
 #if (DRC_DEBUG & 4)
     DasmSH2(sh2dasm_buff, pc, op);
     printf("%08x %04x %s\n", pc, op, sh2dasm_buff);
 #endif
+#ifdef DRC_CMP
+    //if (out_pc != 0 && out_pc != (u32)-1)
+    //  emit_move_r_imm32(SHR_PC, out_pc);
+    //else 
+    if (!drcf.delayed_op) {
+      emit_move_r_imm32(SHR_PC, pc);
+      sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
+      FLUSH_CYCLES(sr);
+      // rcache_clean(); // FIXME
+      rcache_flush();
+      emit_do_static_regs(1, 0);
+      emith_pass_arg_r(0, CONTEXT_REG);
+      emith_call(do_sh2_cmp);
+    }
 #endif
 
     pc += 2;
@@ -1889,6 +1837,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW);
           if (drcf.delayed_op)
             DELAY_SAVE_T(sr);
+#ifndef DRC_CMP
           if (FETCH_OP(pc) == 0x8bfd) { // BF #-2
             if (gconst_get(GET_Rn(), &tmp)) {
               // XXX: limit burned cycles
@@ -1901,6 +1850,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
               emith_sh2_dtbf_loop();
             goto end_op;
           }
+#endif
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
           emith_bic_r_imm(sr, T);
           emith_subf_r_imm(tmp, 1);
@@ -2502,13 +2452,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     default_:
       elprintf(EL_ANOMALY, "%csh2 drc: unhandled op %04x @ %08x",
         sh2->is_slave ? 's' : 'm', op, pc - 2);
-#ifdef DRC_DEBUG_INTERP
-      emit_move_r_imm32(SHR_PC, pc - 2);
-      rcache_flush();
-      emith_pass_arg_r(0, CONTEXT_REG);
-      emith_pass_arg_imm(1, op);
-      emith_call(sh2_do_op);
-#endif
       break;
     }
 
@@ -3149,6 +3092,92 @@ void sh2_drc_finish(SH2 *sh2)
     free(hash_table);
     hash_table = NULL;
   }
+}
+
+#endif /* DRC_SH2 */
+
+static void *dr_get_pc_base(u32 pc, int is_slave)
+{
+  void *ret = NULL;
+  u32 mask = 0;
+
+  if ((pc & ~0x7ff) == 0) {
+    // BIOS
+    ret = is_slave ? Pico32xMem->sh2_rom_s : Pico32xMem->sh2_rom_m;
+    mask = 0x7ff;
+  }
+  else if ((pc & 0xfffff000) == 0xc0000000) {
+    // data array
+    ret = Pico32xMem->data_array[is_slave];
+    mask = 0xfff;
+  }
+  else if ((pc & 0xc6000000) == 0x06000000) {
+    // SDRAM
+    ret = Pico32xMem->sdram;
+    mask = 0x03ffff;
+  }
+  else if ((pc & 0xc6000000) == 0x02000000) {
+    // ROM
+    ret = Pico.rom;
+    mask = 0x3fffff;
+  }
+
+  if (ret == NULL)
+    return (void *)-1; // NULL is valid value
+
+  return (char *)ret - (pc & ~mask);
+}
+
+void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc)
+{
+  u16 *dr_pc_base;
+  u32 pc, target, op;
+  int cycles;
+
+  memset(op_flags, 0, BLOCK_CYCLE_LIMIT);
+
+  dr_pc_base = dr_get_pc_base(base_pc, is_slave);
+
+  for (cycles = 0, pc = base_pc; cycles < BLOCK_CYCLE_LIMIT-1; cycles++, pc += 2) {
+    op = FETCH_OP(pc);
+    if ((op & 0xf000) == 0xa000 || (op & 0xf000) == 0xb000) { // BRA, BSR
+      signed int offs = ((signed int)(op << 20) >> 19);
+      pc += 2;
+      OP_FLAGS(pc) |= OF_DELAY_OP;
+      target = pc + offs + 2;
+      if (base_pc <= target && target < base_pc + BLOCK_CYCLE_LIMIT * 2)
+        OP_FLAGS(target) |= OF_TARGET;
+      break;
+    }
+    if ((op & 0xf000) == 0) {
+      op &= 0xff;
+      if (op == 0x1b) // SLEEP
+        break;
+      // BRAF, BSRF, RTS, RTE
+      if (op == 0x23 || op == 0x03 || op == 0x0b || op == 0x2b) {
+        pc += 2;
+        OP_FLAGS(pc) |= OF_DELAY_OP;
+        break;
+      }
+      continue;
+    }
+    if ((op & 0xf0df) == 0x400b) { // JMP, JSR
+      pc += 2;
+      OP_FLAGS(pc) |= OF_DELAY_OP;
+      break;
+    }
+    if ((op & 0xf900) == 0x8900) { // BT(S), BF(S)
+      signed int offs = ((signed int)(op << 24) >> 23);
+      if (op & 0x0400)
+        OP_FLAGS(pc + 2) |= OF_DELAY_OP;
+      target = pc + offs + 4;
+      if (base_pc <= target && target < base_pc + BLOCK_CYCLE_LIMIT * 2)
+        OP_FLAGS(target) |= OF_TARGET;
+    }
+    if ((op & 0xff00) == 0xc300) // TRAPA
+      break;
+  }
+  *end_pc = pc;
 }
 
 // vim:shiftwidth=2:expandtab

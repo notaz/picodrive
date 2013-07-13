@@ -6,6 +6,10 @@ CFLAGS += -Iplatform/linux/
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif
+#CFLAGS += -DDRC_CMP
+#drc_debug = 4
+#profile = 1
+
 
 all: config.mak target_
 
@@ -43,10 +47,6 @@ use_fame ?= 1
 use_cz80 ?= 1
 use_sh2mame ?= 1
 endif
-
-#drc_debug = 3
-#drc_debug_interp = 1
-#profile = 1
 
 -include Makefile.local
 

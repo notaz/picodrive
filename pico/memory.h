@@ -127,3 +127,8 @@ void name(u32 a, u32 d)                         \
   }                                             \
 }
 
+// 32x
+typedef struct {
+  uptr addr; // stores (membase >> 1) or ((handler >> 1) | (1<<31))
+  u32 mask;
+} sh2_memmap;

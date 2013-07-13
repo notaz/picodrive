@@ -89,4 +89,10 @@ int REGPARM(3) p32x_sh2_write8 (unsigned int a, unsigned int d, SH2 *sh2);
 int REGPARM(3) p32x_sh2_write16(unsigned int a, unsigned int d, SH2 *sh2);
 int REGPARM(3) p32x_sh2_write32(unsigned int a, unsigned int d, SH2 *sh2);
 
+// debug
+#ifdef DRC_CMP
+void do_sh2_trace(SH2 *current, int cycles);
+void do_sh2_cmp(SH2 *current);
+#endif
+
 #endif /* __SH2_H__ */

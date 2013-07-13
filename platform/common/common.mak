@@ -1,3 +1,18 @@
+ifdef drc_debug
+use_fame = 1
+use_cz80 = 1
+use_cyclone = 0
+use_drz80 = 0
+
+asm_memory = 0
+asm_render = 0
+asm_ym2612 = 0
+asm_misc = 0
+asm_cdpico = 0
+asm_cdmemory = 0
+asm_mix = 0
+endif
+
 ifeq "$(profile)" "1"
 CFLAGS += -fprofile-generate
 endif

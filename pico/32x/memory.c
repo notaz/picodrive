@@ -1253,11 +1253,6 @@ static int REGPARM(3) sh2_write16_da(u32 a, u32 d, int id)
 }
 
 
-typedef struct {
-  uptr addr; // stores (membase >> 1) or ((handler >> 1) | (1<<31))
-  u32 mask;
-} sh2_memmap;
-
 typedef u32 (sh2_read_handler)(u32 a, int id);
 typedef int REGPARM(3) (sh2_write_handler)(u32 a, u32 d, int id);
 
