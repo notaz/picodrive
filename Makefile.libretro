@@ -21,6 +21,14 @@ CFLAGS ?=
 
 TARGET_NAME := picodrive
 
+asm_memory = 0
+asm_render = 0
+asm_ym2612 = 0
+asm_misc = 0
+asm_cdpico = 0
+asm_cdmemory = 0
+asm_mix = 0
+
 ifeq ($(platform), unix)
    TARGET := $(TARGET_NAME)_libretro.so
    SHARED := -shared
@@ -47,16 +55,9 @@ else ifeq ($(platform), ios)
    use_sh2mame = 1
    use_cyclone = 0
    use_drz80 = 0
-   use_sh2drc = 0
-   use_svpdrc = 0
+   use_sh2drc = 1
+   use_svpdrc = 1
 
-   asm_memory = 0
-   asm_render = 0
-   asm_ym2612 = 0
-   asm_misc = 0
-   asm_cdpico = 0
-   asm_cdmemory = 0
-   asm_mix = 0
 else ifeq ($(platform), ps3)
    TARGET := $(TARGET_NAME)_libretro_ps3.a
    CC = $(CELL_SDK)/host-win32/ppu/bin/ppu-lv2-gcc.exe
@@ -101,23 +102,35 @@ else ifeq ($(platform), qnx)
 
    ARCH = arm
    HAVE_NEON = 1
+   ARM_ASM = 1
    USE_DYNAREC = 1
-else ifeq ($(platform), armv6)
+else ifneq (,$(findstring armv,$(platform)))
    TARGET := $(TARGET_NAME)_libretro.so
    SHARED := -shared -Wl,--no-undefined
-   CFLAGS += -marm -mfloat-abi=softfp
-   ASFLAGS += -mfloat-abi=softfp
-
-   ARCH = arm
-   USE_DYNAREC = 1
-else ifeq ($(platform), armv7)
-   TARGET := $(TARGET_NAME)_libretro.so
-   SHARED := -shared -Wl,--no-undefined
-   CFLAGS += -marm -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp
-   ASFLAGS += -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp
-
-   ARCH = arm
+ifneq (,$(findstring cortexa8,$(platform)))
+   CFLAGS += -marm -mcpu=cortex-a8
+   ASFLAGS += -mcpu=cortex-a8
+else ifneq (,$(findstring cortexa9,$(platform)))
+   CFLAGS += -marm -mcpu=cortex-a9
+   ASFLAGS += -mcpu=cortex-a9
+endif
+   CFLAGS += -marm
+ifneq (,$(findstring neon,$(platform)))
+   CFLAGS += -mfpu=neon
+   ASFLAGS += -mfpu=neon
    HAVE_NEON = 1
+endif
+ifneq (,$(findstring softfloat,$(platform)))
+   CFLAGS += -mfloat-abi=softfp
+   ASFLAGS += -mfloat-abi=softfp
+else ifneq (,$(findstring hardfloat,$(platform)))
+   CFLAGS += -mfloat-abi=hard
+   ASFLAGS += -mfloat-abi=hard
+endif
+ifneq (,$(findstring armasm,$(platform)))
+   ARM_ASM = 1
+endif
+   ARCH = arm
    USE_DYNAREC = 1
 else
    TARGET := $(TARGET_NAME)_retro.dll
@@ -126,6 +139,16 @@ else
    SHARED := -shared -static-libgcc -static-libstdc++
    CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
 endif
+
+ifeq ($(ARM_ASM),1)
+asm_memory = 1
+asm_render = 1
+asm_ym2612 = 1
+asm_misc = 1
+asm_cdpico = 1
+asm_cdmemory = 1
+asm_mix = 1
+fi
 
 CFLAGS += -fPIC
 LDLIBS += -lm
