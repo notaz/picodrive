@@ -1,12 +1,17 @@
 #include "../sh2.h"
+#ifdef DRC_CMP
+#include "../compiler.c"
+#endif
 
 // MAME types
+#ifndef INT8
 typedef signed char  INT8;
 typedef signed short INT16;
 typedef signed int   INT32;
 typedef unsigned int   UINT32;
 typedef unsigned short UINT16;
 typedef unsigned char  UINT8;
+#endif
 
 #define RB(sh2, a) p32x_sh2_read8(a,sh2)
 #define RW(sh2, a) p32x_sh2_read16(a,sh2)
@@ -66,7 +71,12 @@ static unsigned int op_refs[0x10000];
 
 int sh2_execute(SH2 *sh2, int cycles)
 {
-	sh2 = sh2_;
+#ifdef DRC_CMP
+	unsigned int base_pc = 0, end_pc = 0;
+	unsigned char op_flags[BLOCK_CYCLE_LIMIT];
+#endif
+	UINT32 opcode;
+
 	sh2->icount = cycles;
 
 	if (sh2->icount <= 0)
@@ -76,7 +86,21 @@ int sh2_execute(SH2 *sh2, int cycles)
 
 	do
 	{
-		UINT32 opcode;
+#ifdef DRC_CMP
+		if (!sh2->delay) {
+			if (sh2->pc < base_pc || sh2->pc > end_pc) {
+				base_pc = sh2->pc;
+				scan_block(base_pc, sh2->is_slave,
+					op_flags, &end_pc);
+			}
+			if ((OP_FLAGS(sh2->pc) & OF_TARGET) || sh2->pc == base_pc) {
+				if (sh2->icount < 0)
+					break;
+			}
+
+			do_sh2_trace(sh2, sh2->icount);
+		}
+#endif
 
 		if (sh2->delay)
 		{
@@ -124,46 +148,16 @@ int sh2_execute(SH2 *sh2, int cycles)
 		}
 
 	}
+#ifndef DRC_CMP
 	while (sh2->icount > 0 || sh2->delay);	/* can't interrupt before delay */
+#else
+	while (1);
+#endif
 
 	return sh2->cycles_timeslice - sh2->icount;
 }
 
-#else // DRC_SH2
-
-#ifdef __i386__
-#define REGPARM(x) __attribute__((regparm(x)))
-#else
-#define REGPARM(x)
-#endif
-
-// drc debug
-void REGPARM(2) sh2_do_op(SH2 *sh2, int opcode)
-{
-	sh2->pc += 2;
-
-	switch (opcode & ( 15 << 12))
-	{
-		case  0<<12: op0000(sh2, opcode); break;
-		case  1<<12: op0001(sh2, opcode); break;
-		case  2<<12: op0010(sh2, opcode); break;
-		case  3<<12: op0011(sh2, opcode); break;
-		case  4<<12: op0100(sh2, opcode); break;
-		case  5<<12: op0101(sh2, opcode); break;
-		case  6<<12: op0110(sh2, opcode); break;
-		case  7<<12: op0111(sh2, opcode); break;
-		case  8<<12: op1000(sh2, opcode); break;
-		case  9<<12: op1001(sh2, opcode); break;
-		case 10<<12: op1010(sh2, opcode); break;
-		case 11<<12: op1011(sh2, opcode); break;
-		case 12<<12: op1100(sh2, opcode); break;
-		case 13<<12: op1101(sh2, opcode); break;
-		case 14<<12: op1110(sh2, opcode); break;
-		default: op1111(sh2, opcode); break;
-	}
-}
-
-#endif
+#endif // DRC_SH2
 
 #ifdef SH2_STATS
 #include <stdio.h>

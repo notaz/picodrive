@@ -349,11 +349,13 @@ INLINE void BF(sh2_state *sh2, UINT32 d)
  */
 INLINE void BFS(sh2_state *sh2, UINT32 d)
 {
+	sh2->delay = sh2->pc;
+	sh2->pc += 2;
+
 	if ((sh2->sr & T) == 0)
 	{
 		INT32 disp = ((INT32)d << 24) >> 24;
-		sh2->delay = sh2->pc;
-		sh2->pc = sh2->ea = sh2->pc + disp * 2 + 2;
+		sh2->pc = sh2->ea = sh2->pc + disp * 2;
 		sh2->icount--;
 	}
 }
@@ -439,11 +441,13 @@ INLINE void BT(sh2_state *sh2, UINT32 d)
  */
 INLINE void BTS(sh2_state *sh2, UINT32 d)
 {
+	sh2->delay = sh2->pc;
+	sh2->pc += 2;
+
 	if ((sh2->sr & T) != 0)
 	{
 		INT32 disp = ((INT32)d << 24) >> 24;
-		sh2->delay = sh2->pc;
-		sh2->pc = sh2->ea = sh2->pc + disp * 2 + 2;
+		sh2->pc = sh2->ea = sh2->pc + disp * 2;
 		sh2->icount--;
 	}
 }
