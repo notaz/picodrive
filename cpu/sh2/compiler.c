@@ -1551,7 +1551,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         EMITH_JMP_END(DCOND_EQ);
 
         rcache_free_tmp(tmp);
-        cycles += 3;
+        cycles += 2;
         goto end_op;
       }
       goto default_;
@@ -1674,8 +1674,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_clear_msb(tmp2, tmp3, 16);
         emith_mul(tmp, tmp, tmp2);
         rcache_free_tmp(tmp2);
-//      FIXME: causes timing issues in Doom?
-//        cycles++;
         goto end_op;
       }
       goto default_;
@@ -1763,6 +1761,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp3 = rcache_get_reg(SHR_MACL, RC_GR_WRITE);
         tmp4 = rcache_get_reg(SHR_MACH, RC_GR_WRITE);
         emith_mul_u64(tmp3, tmp4, tmp, tmp2);
+        cycles++;
         goto end_op;
       case 0x08: // SUB     Rm,Rn       0011nnnnmmmm1000
       case 0x0c: // ADD     Rm,Rn       0011nnnnmmmm1100
@@ -1812,6 +1811,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp3 = rcache_get_reg(SHR_MACL, RC_GR_WRITE);
         tmp4 = rcache_get_reg(SHR_MACH, RC_GR_WRITE);
         emith_mul_s64(tmp3, tmp4, tmp, tmp2);
+        cycles++;
         goto end_op;
       }
       goto default_;
@@ -1902,12 +1902,15 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           break;
         case 0x03: // STC.L    SR,@–Rn   0100nnnn00000011
           tmp = SHR_SR;
+          cycles++;
           break;
         case 0x13: // STC.L    GBR,@–Rn  0100nnnn00010011
           tmp = SHR_GBR;
+          cycles++;
           break;
         case 0x23: // STC.L    VBR,@–Rn  0100nnnn00100011
           tmp = SHR_VBR;
+          cycles++;
           break;
         default:
           goto default_;
@@ -1979,12 +1982,15 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           break;
         case 0x07: // LDC.L @Rm+,SR   0100mmmm00000111
           tmp = SHR_SR;
+          cycles += 2;
           break;
         case 0x17: // LDC.L @Rm+,GBR  0100mmmm00010111
           tmp = SHR_GBR;
+          cycles += 2;
           break;
         case 0x27: // LDC.L @Rm+,VBR  0100mmmm00100111
           tmp = SHR_VBR;
+          cycles += 2;
           break;
         default:
           goto default_;
@@ -2267,7 +2273,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x0d00: // BT/S label 10001101dddddddd
       case 0x0f00: // BF/S label 10001111dddddddd
         DELAYED_OP;
-        cycles--;
         // fallthrough
       case 0x0900: // BT   label 10001001dddddddd
       case 0x0b00: // BF   label 10001011dddddddd
@@ -2275,7 +2280,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         pending_branch_cond = (op & 0x0200) ? DCOND_EQ : DCOND_NE;
         i = ((signed int)(op << 24) >> 23);
         pending_branch_pc = pc + i + 2;
-        cycles += 2;
         goto end_op;
       }
       goto default_;
@@ -2462,16 +2466,19 @@ end_op:
     if (pending_branch_cond != -1 && drcf.delayed_op != 2)
     {
       u32 target_pc = pending_branch_pc;
+      int ctaken = drcf.delayed_op ? 1 : 2;
       void *target;
 
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
-      // handle cycles
       FLUSH_CYCLES(sr);
-      rcache_clean();
       if (drcf.use_saved_t)
         emith_tst_r_imm(sr, T_save);
       else
         emith_tst_r_imm(sr, T);
+
+      // handle cycles
+      emith_sub_r_imm_c(pending_branch_cond, sr, ctaken<<12);
+      rcache_clean();
 
 #if LINK_BRANCHES
       if (find_in_array(branch_target_pc, branch_target_count, target_pc) >= 0) {
@@ -3180,4 +3187,4 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc)
   *end_pc = pc;
 }
 
-// vim:shiftwidth=2:expandtab
+// vim:shiftwidth=2:ts=2:expandtab
