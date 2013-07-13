@@ -76,6 +76,11 @@ static void make_bg(int no_scale)
 	short *dst;
 	int x, y;
 
+	if (src == NULL) {
+		memset(g_menubg_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
+		return;
+	}
+
 	if (!no_scale && g_menuscreen_w / w >= 2 && g_menuscreen_h / h >= 2)
 	{
 		unsigned int t, *d = g_menubg_ptr;

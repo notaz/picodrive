@@ -34,7 +34,9 @@ void parse_cmd_line(int argc, char *argv[])
 			if (strcasecmp(argv[x], "-config") == 0) {
 				if (x+1 < argc) { ++x; PicoConfigFile = argv[x]; }
 			}
-			else if (strcasecmp(argv[x], "-loadstate") == 0) {
+			else if (strcasecmp(argv[x], "-loadstate") == 0
+				 || strcasecmp(argv[x], "-load") == 0)
+			{
 				if (x+1 < argc) { ++x; load_state_slot = atoi(argv[x]); }
 			}
 			else if (strcasecmp(argv[x], "-pdb") == 0) {
