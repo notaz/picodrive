@@ -735,6 +735,7 @@ void PicoReset32x(void);
 void Pico32xStartup(void);
 void PicoUnload32x(void);
 void PicoFrame32x(void);
+void Pico32xStateLoaded(int is_early);
 void p32x_sync_sh2s(unsigned int m68k_target);
 void p32x_update_irls(int nested_call);
 void p32x_reset_sh2s(void);
@@ -748,7 +749,7 @@ void PicoWrite8_32x(unsigned int a, unsigned int d);
 void PicoWrite16_32x(unsigned int a, unsigned int d);
 void PicoMemSetup32x(void);
 void Pico32xSwapDRAM(int b);
-void Pico32xStateLoaded(void);
+void Pico32xMemStateLoaded(void);
 void p32x_poll_event(int cpu_mask, int is_vdp);
 
 // 32x/draw.c

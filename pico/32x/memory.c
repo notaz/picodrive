@@ -121,8 +121,8 @@ void p32x_poll_event(int cpu_mask, int is_vdp)
 
 // SH2 faking
 //#define FAKE_SH2
-int p32x_csum_faked;
 #ifdef FAKE_SH2
+static int p32x_csum_faked;
 static const u16 comm_fakevals[] = {
   0x4d5f, 0x4f4b, // M_OK
   0x535f, 0x4f4b, // S_OK
@@ -1612,16 +1612,12 @@ void PicoMemSetup32x(void)
 #endif
 }
 
-void Pico32xStateLoaded(void)
+void Pico32xMemStateLoaded(void)
 {
-  sh2s[0].m68krcycles_done = sh2s[1].m68krcycles_done = SekCycleCntT;
-  p32x_poll_event(3, 0);
-
   bank_switch(Pico32x.regs[4 / 2]);
   Pico32xSwapDRAM((Pico32x.vdp_regs[0x0a / 2] & P32XV_FS) ^ P32XV_FS);
-  Pico32x.dirty_pal = 1;
   memset(Pico32xMem->pwm, 0, sizeof(Pico32xMem->pwm));
-  p32x_timers_recalc();
+  Pico32x.dirty_pal = 1;
 #ifdef DRC_SH2
   sh2_drc_flush_all();
 #endif
