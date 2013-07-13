@@ -142,6 +142,7 @@ void plat_video_wait_vsync(void)
 void plat_video_menu_enter(int is_rom_loaded)
 {
 	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 0);
+	g_screen_ptr = shadow_fb;
 }
 
 void plat_video_menu_begin(void)
