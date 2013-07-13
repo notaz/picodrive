@@ -118,6 +118,7 @@ void sh2_unpack(SH2 *sh2, const unsigned char *buff)
 
 	sh2->pending_int_irq = p[0];
 	sh2->pending_int_vector = p[1];
+	sh2->test_irq = 1;
 }
 
 #ifdef DRC_CMP

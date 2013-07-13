@@ -301,8 +301,10 @@ void sync_sh2s_normal(unsigned int m68k_target)
 
   elprintf(EL_32X, "sh2 sync to %u", m68k_target);
 
-  if (!(Pico32x.regs[0] & P32XS_nRES))
+  if (!(Pico32x.regs[0] & P32XS_nRES)) {
+    msh2.m68krcycles_done = ssh2.m68krcycles_done = m68k_target;
     return; // rare
+  }
 
   now = msh2.m68krcycles_done;
   if (CYCLES_GT(now, ssh2.m68krcycles_done))
@@ -414,6 +416,20 @@ void Pico32xSetClocks(int msh2_hz, int ssh2_hz)
     ssh2.mult_m68k_to_sh2 = (int)((float)ssh2_hz * (1 << CYCLE_MULT_SHIFT) / m68k_clk);
     ssh2.mult_sh2_to_m68k = (int)(m68k_clk * (1 << CYCLE_MULT_SHIFT) / (float)ssh2_hz);
   }
+}
+
+void Pico32xStateLoaded(int is_early)
+{
+  if (is_early) {
+    Pico32xMemStateLoaded();
+    return;
+  }
+
+  sh2s[0].m68krcycles_done = sh2s[1].m68krcycles_done = SekCycleCntT;
+  p32x_update_irls(0);
+  p32x_poll_event(3, 0);
+  p32x_timers_recalc();
+  run_events(SekCycleCntT);
 }
 
 // vim:shiftwidth=2:ts=2:expandtab

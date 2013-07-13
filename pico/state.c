@@ -175,6 +175,8 @@ typedef enum {
   CHUNK_DRAM,
   CHUNK_32XPAL,
   CHUNK_32X_EVT,
+  CHUNK_32X_FIRST = CHUNK_MSH2,
+  CHUNK_32X_LAST = CHUNK_32X_EVT,
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // defined in PicoInt
@@ -411,8 +413,8 @@ static int state_load(void *file)
     if (len < 0 || len > 1024*512) R_ERROR_RETURN("bad length");
     if (CHUNK_S68K <= chunk && chunk <= CHUNK_MISC_CD && !(PicoAHW & PAHW_MCD))
       R_ERROR_RETURN("cd chunk in non CD state?");
-    if (CHUNK_MSH2 <= chunk && chunk <= CHUNK_32XPAL && !(PicoAHW & PAHW_32X))
-      R_ERROR_RETURN("32x chunk in non 32x state?");
+    if (CHUNK_32X_FIRST <= chunk && chunk <= CHUNK_32X_LAST && !(PicoAHW & PAHW_32X))
+      Pico32xStartup();
 
     switch (chunk)
     {
@@ -517,18 +519,22 @@ readend:
 
     if (!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
       cdda_start_play();
-
-    SekUnpackCpu(buff_s68k, 1);
   }
+
+  if (PicoAHW & PAHW_32X)
+    Pico32xStateLoaded(1);
 
   // must unpack 68k and z80 after banks are set up
   if (!(PicoAHW & PAHW_SMS))
     SekUnpackCpu(buff_m68k, 0);
+  if (PicoAHW & PAHW_MCD)
+    SekUnpackCpu(buff_s68k, 1);
 
   z80_unpack(buff_z80);
 
+  // due to dep from 68k cycles..
   if (PicoAHW & PAHW_32X)
-    Pico32xStateLoaded();
+    Pico32xStateLoaded(0);
 
   return 0;
 }
