@@ -73,7 +73,7 @@ int sh2_execute(SH2 *sh2, int cycles)
 {
 #ifdef DRC_CMP
 	unsigned int base_pc = 0, end_pc = 0;
-	unsigned char op_flags[BLOCK_CYCLE_LIMIT];
+	unsigned char op_flags[BLOCK_INSN_LIMIT];
 #endif
 	UINT32 opcode;
 
@@ -93,7 +93,7 @@ int sh2_execute(SH2 *sh2, int cycles)
 				scan_block(base_pc, sh2->is_slave,
 					op_flags, &end_pc);
 			}
-			if ((OP_FLAGS(sh2->pc) & OF_TARGET) || sh2->pc == base_pc) {
+			if ((OP_FLAGS(sh2->pc) & OF_BTARGET) || sh2->pc == base_pc) {
 				if (sh2->icount < 0)
 					break;
 			}
