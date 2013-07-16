@@ -112,7 +112,7 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
 // and can be discarded early
 // XXX: need to tune sizes
 static const int tcache_sizes[TCACHE_BUFFERS] = {
-  DRC_TCACHE_SIZE * 6 / 8, // ROM, DRAM
+  DRC_TCACHE_SIZE * 6 / 8, // ROM (rarely used), DRAM
   DRC_TCACHE_SIZE / 8, // BIOS, data array in master sh2
   DRC_TCACHE_SIZE / 8, // ... slave
 };
@@ -149,8 +149,22 @@ static block_link *block_links[TCACHE_BUFFERS];
 static int block_counts[TCACHE_BUFFERS];
 static int block_link_counts[TCACHE_BUFFERS];
 
-#define BLOCKID_OVERLAP   0xfffe
-#define BLOCKID_MAX       block_max_counts[0]
+// used for invalidation
+static const int ram_sizes[TCACHE_BUFFERS] = {
+  0x40000,
+  0x1000,
+  0x1000,
+};
+#define ADDR_TO_BLOCK_PAGE 0x100
+
+struct block_list {
+  block_desc *block;
+  struct block_list *next;
+};
+
+// array of pointers to block_lists for RAM and 2 data arrays
+// each array has len: sizeof(mem) / ADDR_TO_BLOCK_PAGE 
+static struct block_list **inval_lookup[TCACHE_BUFFERS];
 
 // host register tracking
 enum {
@@ -315,8 +329,50 @@ static block_desc *dr_get_bd(u32 pc, int is_slave, int *tcache_id)
 // ---------------------------------------------------------------
 
 // block management
+static void add_to_block_list(struct block_list **blist, block_desc *block)
+{
+  struct block_list *added = malloc(sizeof(*added));
+  if (!added) {
+    elprintf(EL_ANOMALY, "drc OOM (1)");
+    return;
+  }
+  added->block = block;
+  added->next = *blist;
+  *blist = added;
+}
+
+static void rm_from_block_list(struct block_list **blist, block_desc *block)
+{
+  struct block_list *prev = NULL, *current = *blist;
+  for (; current != NULL; prev = current, current = current->next) {
+    if (current->block == block) {
+      if (prev == NULL)
+        *blist = current->next;
+      else
+        prev->next = current->next;
+      free(current);
+      return;
+    }
+  }
+  dbg(1, "can't rm block %p (%08x-%08x)",
+    block, block->addr, block->end_addr);
+}
+
+static void rm_block_list(struct block_list **blist)
+{
+  struct block_list *tmp, *current = *blist;
+  while (current != NULL) {
+    tmp = current;
+    current = current->next;
+    free(tmp);
+  }
+  *blist = NULL;
+}
+
 static void REGPARM(1) flush_tcache(int tcid)
 {
+  int i;
+
   dbg(1, "tcache #%d flush! (%d/%d, bds %d/%d)", tcid,
     tcache_ptrs[tcid] - tcache_bases[tcid], tcache_sizes[tcid],
     block_counts[tcid], block_max_counts[tcid]);
@@ -333,6 +389,9 @@ static void REGPARM(1) flush_tcache(int tcid)
 #if (DRC_DEBUG & 4)
   tcache_dsm_ptrs[tcid] = tcache_bases[tcid];
 #endif
+
+  for (i = 0; i < ram_sizes[tcid] / ADDR_TO_BLOCK_PAGE; i++)
+    rm_block_list(&inval_lookup[tcid][i]);
 }
 
 #if LINK_BRANCHES
@@ -1245,8 +1304,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     return NULL;
 
   block_entry = tcache_ptr;
-  dbg(2, "== %csh2 block #%d,%d %08x -> %p", sh2->is_slave ? 's' : 'm',
-    tcache_id, blkid_main, base_pc, block_entry);
+  dbg(2, "== %csh2 block #%d,%d %08x-%08x -> %p", sh2->is_slave ? 's' : 'm',
+    tcache_id, blkid_main, base_pc, end_pc, block_entry);
 
   dr_link_blocks(tcache_ptr, base_pc, tcache_id);
 
@@ -2582,46 +2641,47 @@ end_op:
   if (tcache_id != 0 || (this_block->addr & 0xc7fc0000) == 0x06000000)
   {
     u16 *p, *drc_ram_blk = NULL;
-    u32 mask = 0, shift = 0;
+    u32 addr, mask = 0, shift = 0;
 
     if (tcache_id != 0) {
       // data array, BIOS
       drc_ram_blk = Pico32xMem->drcblk_da[sh2->is_slave];
       shift = SH2_DRCBLK_DA_SHIFT;
-      mask = 0xfff/2;
+      mask = 0xfff;
     }
     else if ((this_block->addr & 0xc7fc0000) == 0x06000000) {
       // SDRAM
       drc_ram_blk = Pico32xMem->drcblk_ram;
       shift = SH2_DRCBLK_RAM_SHIFT;
-      mask = 0x3ffff/2;
+      mask = 0x3ffff;
     }
 
-    drc_ram_blk[(base_pc >> shift) & mask] = (blkid_main << 1) | 1;
+    drc_ram_blk[(base_pc & mask) >> shift] = (blkid_main << 1) | 1;
     for (pc = base_pc + 2; pc < end_pc; pc += 2) {
-      p = &drc_ram_blk[(pc >> shift) & mask];
-      if (*p && *p != (blkid_main << 1))
-        *p = BLOCKID_OVERLAP; // block intersection..
-      else
-        *p = blkid_main << 1;
+      p = &drc_ram_blk[(pc & mask) >> shift];
+      *p = blkid_main << 1;
     }
 
     // mark block entries (used by dr_get_bd())
     for (i = 0; i < branch_target_count; i++)
       if (branch_target_blkid[i] != 0)
-        drc_ram_blk[(branch_target_pc[i] >> shift) & mask] =
+        drc_ram_blk[(branch_target_pc[i] & mask) >> shift] =
           (branch_target_blkid[i] << 1) | 1;
 
     // mark literals
     for (i = 0; i < literal_addr_count; i++) {
       tmp = literal_addr[i];
-      p = &drc_ram_blk[(tmp >> shift) & mask];
-      if (*p && *p != (blkid_main << 1))
-        *p = BLOCKID_OVERLAP;
-      else
-        *p = blkid_main << 1;
+      p = &drc_ram_blk[(tmp & mask) >> shift];
+      *p = blkid_main << 1;
       if (!(tmp & 3) && shift == 1)
         p[1] = p[0]; // assume long
+    }
+
+    // add to invalidation lookup lists
+    addr = base_pc & ~(ADDR_TO_BLOCK_PAGE - 1);
+    for (; addr < end_pc + MAX_LITERAL_OFFSET; addr += ADDR_TO_BLOCK_PAGE) {
+      i = (addr & mask) / ADDR_TO_BLOCK_PAGE;
+      add_to_block_list(&inval_lookup[tcache_id][i], this_block);
     }
   }
 
@@ -2631,9 +2691,9 @@ end_op:
 
   do_host_disasm(tcache_id);
   dbg(2, " block #%d,%d tcache %d/%d, insns %d -> %d %.3f",
-    tcache_id, block_counts[tcache_id],
+    tcache_id, blkid_main,
     tcache_ptr - tcache_bases[tcache_id], tcache_sizes[tcache_id],
-    insns_compiled, host_insn_count, (double)host_insn_count / insns_compiled);
+    insns_compiled, host_insn_count, (float)host_insn_count / insns_compiled);
   if ((sh2->pc & 0xc6000000) == 0x02000000) // ROM
     dbg(2, "  hash collisions %d/%d", hash_collisions, block_counts[tcache_id]);
 /*
@@ -2859,9 +2919,10 @@ static void sh2_generate_utils(void)
 #endif
 }
 
-static void sh2_smc_rm_block_entry(block_desc *bd, int tcache_id)
+static void sh2_smc_rm_block_entry(block_desc *bd, int tcache_id, u32 ram_mask)
 {
   void *tmp;
+  u32 i, addr;
 
   // XXX: kill links somehow?
   dbg(2, "  killing entry %08x-%08x, blkid %d,%d",
@@ -2869,6 +2930,13 @@ static void sh2_smc_rm_block_entry(block_desc *bd, int tcache_id)
   if (bd->addr == 0 || bd->tcache_ptr == NULL) {
     dbg(1, "  killing dead block!? %08x", bd->addr);
     return;
+  }
+
+  // remove from inval_lookup
+  addr = bd->addr & ~(ADDR_TO_BLOCK_PAGE - 1);
+  for (; addr < bd->end_addr; addr += ADDR_TO_BLOCK_PAGE) {
+    i = (addr & ram_mask) / ADDR_TO_BLOCK_PAGE;
+    rm_from_block_list(&inval_lookup[tcache_id][i], bd);
   }
 
   // since we never reuse space of dead blocks,
@@ -2890,72 +2958,33 @@ static void sh2_smc_rm_block_entry(block_desc *bd, int tcache_id)
 
 static void sh2_smc_rm_block(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, u32 mask)
 {
-  block_desc *btab = block_tables[tcache_id];
-  u16 *p = drc_ram_blk + ((a & mask) >> shift);
-  u16 *pmax = drc_ram_blk + (mask >> shift);
-  u32 id = ~0, end_addr;
-  int max_zeros = MAX_LITERAL_OFFSET >> shift;
-  int i, zeros;
+  struct block_list **blist = NULL, *entry;
+  u32 from = ~0, to = 0;
+  block_desc *block;
 
-  if (*p == 0 || (*p >> 1) >= BLOCKID_MAX) {
-    u32 from = ~0, to = 0;
-    dbg(1, "slow-remove blocks at @%08x", a);
-    for (i = 0; i < block_counts[tcache_id]; i++) {
-      if (btab[i].addr <= a && a < btab[i].end_addr) {
-        if (btab[i].addr < from)
-          from = btab[i].addr;
-        if (btab[i].end_addr > to)
-          to = btab[i].end_addr;
-        sh2_smc_rm_block_entry(&btab[i], tcache_id);
-      }
+  blist = &inval_lookup[tcache_id][(a & mask) / ADDR_TO_BLOCK_PAGE];
+  entry = *blist;
+  while (entry != NULL) {
+    block = entry->block;
+    if (block->addr <= a && a < block->end_addr) {
+      if (block->addr < from)
+        from = block->addr;
+      if (block->end_addr > to)
+        to = block->end_addr;
+
+      sh2_smc_rm_block_entry(block, tcache_id, mask);
+
+      // entry lost, restart search
+      entry = *blist;
+      continue;
     }
-    if (from < to) {
-      p = drc_ram_blk + ((from & mask) >> shift);
-      memset(p, 0, (to - from) >> (shift - 1));
-    }
-    return;
+    entry = entry->next;
   }
 
-  // use end_addr to distinguish the same block
-  end_addr = btab[*p >> 1].end_addr;
-
-  // go up to the start
-  for (zeros = 0; p > drc_ram_blk && zeros < max_zeros; p--) {
-    // there can be holes because games sometimes keep variables
-    // directly in literal pool and we don't inline them
-    // to avoid recompile (Star Wars Arcade)
-    if (p[-1] == 0) {
-      zeros++;
-      continue;
-    }
-    zeros = 0;
-    if ((p[-1] >> 1) >= BLOCKID_MAX)
-      break;
-    if (btab[p[-1] >> 1].end_addr != end_addr)
-      break;
-  }
-
-  if (!(*p & 1))
-    dbg(1, "smc rm: missing block start for %08x?", a);
-
-  // now go down and kill everything
-  for (zeros = 0; p < pmax && zeros < max_zeros; p++) {
-    if (*p == 0) {
-      zeros++;
-      continue;
-    }
-    zeros = 0;
-    if ((*p >> 1) >= BLOCKID_MAX)
-      break;
-    if ((*p >> 1) == id) {
-      *p = 0;
-      continue;
-    }
-    id = *p >> 1;
-    if (btab[id].end_addr != end_addr)
-      break;
-    *p = 0;
-    sh2_smc_rm_block_entry(&btab[id], tcache_id);
+  // clear entry points
+  if (from < to) {
+    u16 *p = drc_ram_blk + ((from & mask) >> shift);
+    memset(p, 0, (to - from) >> (shift - 1));
   }
 }
 
@@ -3062,6 +3091,11 @@ int sh2_drc_init(SH2 *sh2)
       block_links[i] = calloc(block_max_counts[i] * 2, sizeof(*block_links[0]));
       if (block_links[i] == NULL)
         goto fail;
+
+      inval_lookup[i] = calloc(ram_sizes[i] / ADDR_TO_BLOCK_PAGE,
+                               sizeof(inval_lookup[0]));
+      if (inval_lookup[i] == NULL)
+        goto fail;
     }
     memset(block_counts, 0, sizeof(block_counts));
     memset(block_link_counts, 0, sizeof(block_link_counts));
@@ -3107,6 +3141,8 @@ void sh2_drc_finish(SH2 *sh2)
 {
   int i;
 
+  sh2_drc_flush_all();
+
   if (block_tables[0] != NULL) {
     block_stats();
 
@@ -3124,6 +3160,10 @@ void sh2_drc_finish(SH2 *sh2)
       if (block_links[i] == NULL)
         free(block_links[i]);
       block_links[i] = NULL;
+
+      if (inval_lookup[i] == NULL)
+        free(inval_lookup[i]);
+      inval_lookup[i] = NULL;
     }
 
     drc_cmn_cleanup();
