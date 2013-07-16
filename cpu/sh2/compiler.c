@@ -41,11 +41,11 @@
 #define LINK_BRANCHES           1
 
 // limits (per block)
-#define MAX_BLOCK_SIZE          (BLOCK_CYCLE_LIMIT * 6 * 6)
+#define MAX_BLOCK_SIZE          (BLOCK_INSN_LIMIT * 6 * 6)
 
 // max literal offset from the block end
 #define MAX_LITERAL_OFFSET      32*2
-#define MAX_LITERALS            (BLOCK_CYCLE_LIMIT / 4)
+#define MAX_LITERALS            (BLOCK_INSN_LIMIT / 4)
 #define MAX_LOCAL_BRANCHES      32
 
 ///
@@ -58,9 +58,10 @@
 #ifdef DRC_SH2
 
 // debug stuff
-// 1 - ?
-// 2 - ?
-// 4 - log asm
+// 1 - warnings/errors
+// 2 - block info/smc
+// 4 - asm
+// 8 - runtime entries
 // {
 #ifndef DRC_DEBUG
 #define DRC_DEBUG 0
@@ -123,29 +124,29 @@ static u8 *tcache_ptrs[TCACHE_BUFFERS];
 // ptr for code emiters
 static u8 *tcache_ptr;
 
-typedef struct block_desc_ {
+struct block_desc {
   u32 addr;                  // SH2 PC address
   u32 end_addr;              // address after last op
   void *tcache_ptr;          // translated block for above PC
-  struct block_desc_ *next;  // next block with the same PC hash
+  struct block_desc *next;   // next block with the same PC hash
 #if (DRC_DEBUG & 2)
   int refcount;
 #endif
-} block_desc;
+};
 
-typedef struct block_link_ {
+struct block_link {
   u32 target_pc;
   void *jump;     // insn address
 //  struct block_link_ *next;
-} block_link;
+};
 
 static const int block_max_counts[TCACHE_BUFFERS] = {
   4*1024,
   256,
   256,
 };
-static block_desc *block_tables[TCACHE_BUFFERS];
-static block_link *block_links[TCACHE_BUFFERS]; 
+static struct block_desc *block_tables[TCACHE_BUFFERS];
+static struct block_link *block_links[TCACHE_BUFFERS]; 
 static int block_counts[TCACHE_BUFFERS];
 static int block_link_counts[TCACHE_BUFFERS];
 
@@ -158,7 +159,7 @@ static const int ram_sizes[TCACHE_BUFFERS] = {
 #define ADDR_TO_BLOCK_PAGE 0x100
 
 struct block_list {
-  block_desc *block;
+  struct block_desc *block;
   struct block_list *next;
 };
 
@@ -248,10 +249,10 @@ static temp_reg_t reg_temp[] = {
 // ROM hash table
 #define MAX_HASH_ENTRIES 1024
 #define HASH_MASK (MAX_HASH_ENTRIES - 1)
-static void **hash_table;
+static struct block_desc **hash_table;
 
 #define HASH_FUNC(hash_tab, addr) \
-  ((block_desc **)(hash_tab))[(addr) & HASH_MASK]
+  (hash_tab)[(addr) & HASH_MASK]
 
 static void REGPARM(1) (*sh2_drc_entry)(SH2 *sh2);
 static void            (*sh2_drc_dispatcher)(void);
@@ -296,7 +297,7 @@ static int dr_ctx_get_mem_ptr(u32 a, u32 *mask)
   return poffs;
 }
 
-static block_desc *dr_get_bd(u32 pc, int is_slave, int *tcache_id)
+static struct block_desc *dr_get_bd(u32 pc, int is_slave, int *tcache_id)
 {
   *tcache_id = 0;
 
@@ -316,7 +317,7 @@ static block_desc *dr_get_bd(u32 pc, int is_slave, int *tcache_id)
   }
   // ROM
   else if ((pc & 0xc6000000) == 0x02000000) {
-    block_desc *bd = HASH_FUNC(hash_table, pc);
+    struct block_desc *bd = HASH_FUNC(hash_table, pc);
 
     for (; bd != NULL; bd = bd->next)
       if (bd->addr == pc)
@@ -329,7 +330,7 @@ static block_desc *dr_get_bd(u32 pc, int is_slave, int *tcache_id)
 // ---------------------------------------------------------------
 
 // block management
-static void add_to_block_list(struct block_list **blist, block_desc *block)
+static void add_to_block_list(struct block_list **blist, struct block_desc *block)
 {
   struct block_list *added = malloc(sizeof(*added));
   if (!added) {
@@ -341,7 +342,7 @@ static void add_to_block_list(struct block_list **blist, block_desc *block)
   *blist = added;
 }
 
-static void rm_from_block_list(struct block_list **blist, block_desc *block)
+static void rm_from_block_list(struct block_list **blist, struct block_desc *block)
 {
   struct block_list *prev = NULL, *current = *blist;
   for (; current != NULL; prev = current, current = current->next) {
@@ -398,7 +399,7 @@ static void REGPARM(1) flush_tcache(int tcid)
 // add block links (tracked branches)
 static int dr_add_block_link(u32 target_pc, void *jump, int tcache_id)
 {
-  block_link *bl = block_links[tcache_id];
+  struct block_link *bl = block_links[tcache_id];
   int cnt = block_link_counts[tcache_id];
 
   if (cnt >= block_max_counts[tcache_id] * 2) {
@@ -414,9 +415,9 @@ static int dr_add_block_link(u32 target_pc, void *jump, int tcache_id)
 }
 #endif
 
-static block_desc *dr_add_block(u32 addr, u32 end_addr, int is_slave, int *blk_id)
+static struct block_desc *dr_add_block(u32 addr, u32 end_addr, int is_slave, int *blk_id)
 {
-  block_desc *bd;
+  struct block_desc *bd;
   int tcache_id;
   int *bcount;
 
@@ -460,7 +461,7 @@ static block_desc *dr_add_block(u32 addr, u32 end_addr, int is_slave, int *blk_i
 
 static void REGPARM(3) *dr_lookup_block(u32 pc, int is_slave, int *tcache_id)
 {
-  block_desc *bd = NULL;
+  struct block_desc *bd = NULL;
   void *block = NULL;
 
   bd = dr_get_bd(pc, is_slave, tcache_id);
@@ -506,7 +507,7 @@ static void *dr_prepare_ext_branch(u32 pc, SH2 *sh2, int tcache_id)
 static void dr_link_blocks(void *target, u32 pc, int tcache_id)
 {
 #if LINK_BRANCHES
-  block_link *bl = block_links[tcache_id];
+  struct block_link *bl = block_links[tcache_id];
   int cnt = block_link_counts[tcache_id];
   int i;
 
@@ -1257,7 +1258,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   int literal_addr_count = 0;
   int pending_branch_cond = -1;
   int pending_branch_pc = 0;
-  u8 op_flags[BLOCK_CYCLE_LIMIT];
+  u8 op_flags[BLOCK_INSN_LIMIT];
   struct {
     u32 delayed_op:2;
     u32 test_irq:1;
@@ -1267,7 +1268,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   // PC of current, first, last, last_target_blk SH2 insn
   u32 pc, base_pc, end_pc, out_pc;
   void *block_entry;
-  block_desc *this_block;
+  struct block_desc *this_block;
   u16 *dr_pc_base;
   int blkid_main = 0;
   int skip_op = 0;
@@ -1310,11 +1311,11 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   dr_link_blocks(tcache_ptr, base_pc, tcache_id);
 
   // collect branch_targets that don't land on delay slots
-  for (pc = base_pc; pc <= end_pc; pc += 2) {
-    if (!(OP_FLAGS(pc) & OF_TARGET))
+  for (pc = base_pc; pc < end_pc; pc += 2) {
+    if (!(OP_FLAGS(pc) & OF_BTARGET))
       continue;
     if (OP_FLAGS(pc) & OF_DELAY_OP) {
-      OP_FLAGS(pc) &= ~OF_TARGET;
+      OP_FLAGS(pc) &= ~OF_BTARGET;
       continue;
     }
     ADD_TO_ARRAY(branch_target_pc, branch_target_count, pc, break);
@@ -1338,13 +1339,13 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
     op = FETCH_OP(pc);
 
-    if ((OP_FLAGS(pc) & OF_TARGET) || pc == base_pc)
+    if ((OP_FLAGS(pc) & OF_BTARGET) || pc == base_pc)
     {
       i = find_in_array(branch_target_pc, branch_target_count, pc);
       if (pc != base_pc)
       {
         /* make "subblock" - just a mid-block entry */
-        block_desc *subblock;
+        struct block_desc *subblock;
 
         sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
         FLUSH_CYCLES(sr);
@@ -1386,7 +1387,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #endif
 #if (DRC_DEBUG & 4)
     DasmSH2(sh2dasm_buff, pc, op);
-    printf("%08x %04x %s\n", pc, op, sh2dasm_buff);
+    printf("%c%08x %04x %s\n", (OP_FLAGS(pc) & OF_BTARGET) ? '*' : ' ',
+      pc, op, sh2dasm_buff);
 #endif
 #ifdef DRC_CMP
     //if (out_pc != 0 && out_pc != (u32)-1)
@@ -2919,7 +2921,7 @@ static void sh2_generate_utils(void)
 #endif
 }
 
-static void sh2_smc_rm_block_entry(block_desc *bd, int tcache_id, u32 ram_mask)
+static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 ram_mask)
 {
   void *tmp;
   u32 i, addr;
@@ -2960,7 +2962,7 @@ static void sh2_smc_rm_block(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, 
 {
   struct block_list **blist = NULL, *entry;
   u32 from = ~0, to = 0;
-  block_desc *block;
+  struct block_desc *block;
 
   blist = &inval_lookup[tcache_id][(a & mask) / ADDR_TO_BLOCK_PAGE];
   entry = *blist;
@@ -3034,7 +3036,7 @@ void block_stats(void)
         total += block_tables[b][i].refcount;
 
   for (c = 0; c < 10; c++) {
-    block_desc *blk, *maxb = NULL;
+    struct block_desc *blk, *maxb = NULL;
     int max = 0;
     for (b = 0; b < ARRAY_SIZE(block_tables); b++) {
       for (i = 0; i < block_counts[b]; i++) {
@@ -3215,19 +3217,19 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc)
   u32 pc, target, op;
   int cycles;
 
-  memset(op_flags, 0, BLOCK_CYCLE_LIMIT);
+  memset(op_flags, 0, BLOCK_INSN_LIMIT);
 
   dr_pc_base = dr_get_pc_base(base_pc, is_slave);
 
-  for (cycles = 0, pc = base_pc; cycles < BLOCK_CYCLE_LIMIT-1; cycles++, pc += 2) {
+  for (cycles = 0, pc = base_pc; cycles < BLOCK_INSN_LIMIT-1; cycles++, pc += 2) {
     op = FETCH_OP(pc);
     if ((op & 0xf000) == 0xa000 || (op & 0xf000) == 0xb000) { // BRA, BSR
       signed int offs = ((signed int)(op << 20) >> 19);
       pc += 2;
       OP_FLAGS(pc) |= OF_DELAY_OP;
       target = pc + offs + 2;
-      if (base_pc <= target && target < base_pc + BLOCK_CYCLE_LIMIT * 2)
-        OP_FLAGS(target) |= OF_TARGET;
+      if (base_pc <= target && target < base_pc + BLOCK_INSN_LIMIT * 2)
+        OP_FLAGS(target) |= OF_BTARGET;
       break;
     }
     if ((op & 0xf000) == 0) {
@@ -3252,8 +3254,8 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc)
       if (op & 0x0400)
         OP_FLAGS(pc + 2) |= OF_DELAY_OP;
       target = pc + offs + 4;
-      if (base_pc <= target && target < base_pc + BLOCK_CYCLE_LIMIT * 2)
-        OP_FLAGS(target) |= OF_TARGET;
+      if (base_pc <= target && target < base_pc + BLOCK_INSN_LIMIT * 2)
+        OP_FLAGS(target) |= OF_BTARGET;
     }
     if ((op & 0xff00) == 0xc300) // TRAPA
       break;
