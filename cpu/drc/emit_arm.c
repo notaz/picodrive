@@ -25,6 +25,7 @@
 #define A_R9M  (1 << 9)
 #define A_R10M (1 << 10)
 #define A_R11M (1 << 11)
+#define A_R12M (1 << 12)
 #define A_R14M (1 << 14)
 #define A_R15M (1 << 15)
 
@@ -707,11 +708,12 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	rd = arg
 
 /* SH2 drc specific */
+/* pushes r12 for eabi alignment */
 #define emith_sh2_drc_entry() \
-	EOP_STMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R14M)
+	EOP_STMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R12M|A_R14M)
 
 #define emith_sh2_drc_exit() \
-	EOP_LDMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R15M)
+	EOP_LDMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R12M|A_R15M)
 
 #define emith_sh2_wcall(a, tab, ret_ptr) { \
 	int val_ = (char *)(ret_ptr) - (char *)tcache_ptr - 2*4; \
