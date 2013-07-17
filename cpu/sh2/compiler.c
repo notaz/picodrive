@@ -8,7 +8,7 @@
  * notes:
  * - tcache, block descriptor, link buffer overflows result in sh2_translate()
  *   failure, followed by full tcache invalidation for that region
- * - jumps between blocks are tracked for SMC handling (in block_links[]),
+ * - jumps between blocks are tracked for SMC handling (in block_entry->links),
  *   except jumps between different tcaches
  *
  * implemented:
@@ -124,10 +124,17 @@ static u8 *tcache_ptr;
 
 #define MAX_BLOCK_ENTRIES (BLOCK_INSN_LIMIT / 8)
 
+struct block_link {
+  u32 target_pc;
+  void *jump;                // insn address
+  struct block_link *next;   // either in block_entry->links or 
+};
+
 struct block_entry {
   u32 pc;
   void *tcache_ptr;          // translated block for above PC
   struct block_entry *next;  // next block in hash_table with same pc hash
+  struct block_link *links;  // links to this entry
 #if (DRC_DEBUG & 2)
   struct block_desc *block;
 #endif
@@ -143,12 +150,6 @@ struct block_desc {
   struct block_entry entryp[MAX_BLOCK_ENTRIES];
 };
 
-struct block_link {
-  u32 target_pc;
-  void *jump;     // insn address
-//  struct block_link_ *next;
-};
-
 static const int block_max_counts[TCACHE_BUFFERS] = {
   4*1024,
   256,
@@ -157,13 +158,15 @@ static const int block_max_counts[TCACHE_BUFFERS] = {
 static struct block_desc *block_tables[TCACHE_BUFFERS];
 static int block_counts[TCACHE_BUFFERS];
 
-static const int block_link_max_counts[TCACHE_BUFFERS] = {
+// we have block_link_pool to avoid using mallocs
+static const int block_link_pool_max_counts[TCACHE_BUFFERS] = {
   4*1024,
   256,
   256,
 };
-static struct block_link *block_links[TCACHE_BUFFERS]; 
-static int block_link_counts[TCACHE_BUFFERS];
+static struct block_link *block_link_pool[TCACHE_BUFFERS]; 
+static int block_link_pool_counts[TCACHE_BUFFERS];
+static struct block_link *unresolved_links[TCACHE_BUFFERS];
 
 // used for invalidation
 static const int ram_sizes[TCACHE_BUFFERS] = {
@@ -386,7 +389,8 @@ static void REGPARM(1) flush_tcache(int tcid)
     block_counts[tcid], block_max_counts[tcid]);
 
   block_counts[tcid] = 0;
-  block_link_counts[tcid] = 0;
+  block_link_pool_counts[tcid] = 0;
+  unresolved_links[tcid] = NULL;
   memset(hash_tables[tcid], 0, sizeof(*hash_tables[0]) * hash_table_sizes[tcid]);
   tcache_ptrs[tcid] = tcache_bases[tcid];
   if (Pico32xMem != NULL) {
@@ -404,26 +408,6 @@ static void REGPARM(1) flush_tcache(int tcid)
   for (i = 0; i < ram_sizes[tcid] / ADDR_TO_BLOCK_PAGE; i++)
     rm_block_list(&inval_lookup[tcid][i]);
 }
-
-#if LINK_BRANCHES
-// add block links (tracked branches)
-static int dr_add_block_link(u32 target_pc, void *jump, int tcache_id)
-{
-  struct block_link *bl = block_links[tcache_id];
-  int cnt = block_link_counts[tcache_id];
-
-  if (cnt >= block_link_max_counts[tcache_id]) {
-    dbg(1, "bl overflow for tcache %d\n", tcache_id);
-    return -1;
-  }
-
-  bl[cnt].target_pc = target_pc;
-  bl[cnt].jump = jump;
-  block_link_counts[tcache_id]++;
-
-  return 0;
-}
-#endif
 
 static void add_to_hashlist(struct block_entry *be, int tcache_id)
 {
@@ -491,6 +475,7 @@ static struct block_desc *dr_add_block(u32 addr, u32 end_addr, int is_slave, int
   bd->entry_count = 1;
   bd->entryp[0].pc = addr;
   bd->entryp[0].tcache_ptr = tcache_ptr;
+  bd->entryp[0].links = NULL;
 #if (DRC_DEBUG & 2)
   bd->entryp[0].block = bd;
   bd->refcount = 0;
@@ -525,44 +510,79 @@ static void *dr_failure(void)
   exit(1);
 }
 
-static void *dr_prepare_ext_branch(u32 pc, SH2 *sh2, int tcache_id)
+static void *dr_prepare_ext_branch(u32 pc, int is_slave, int tcache_id)
 {
 #if LINK_BRANCHES
+  struct block_link *bl = block_link_pool[tcache_id];
+  int cnt = block_link_pool_counts[tcache_id];
+  struct block_entry *be = NULL;
   int target_tcache_id;
-  void *target;
-  int ret;
+  int i;
 
-  target = dr_lookup_block(pc, sh2->is_slave, &target_tcache_id);
-  if (target_tcache_id == tcache_id) {
-    // allow linking blocks only from local cache
-    ret = dr_add_block_link(pc, tcache_ptr, tcache_id);
-    if (ret < 0)
-      return NULL;
+  be = dr_get_entry(pc, is_slave, &target_tcache_id);
+  if (target_tcache_id != tcache_id)
+    return sh2_drc_dispatcher;
+
+  // if pool has been freed, reuse
+  for (i = cnt - 1; i >= 0; i--)
+    if (bl[i].target_pc != 0)
+      break;
+  cnt = i + 1;
+  if (cnt >= block_link_pool_max_counts[tcache_id]) {
+    dbg(1, "bl overflow for tcache %d\n", tcache_id);
+    return NULL;
   }
-  if (target == NULL || target_tcache_id != tcache_id)
-    target = sh2_drc_dispatcher;
+  bl += cnt;
+  block_link_pool_counts[tcache_id]++;
 
-  return target;
+  bl->target_pc = pc;
+  bl->jump = tcache_ptr;
+
+  if (be != NULL) {
+    dbg(2, "- early link from %p to pc %08x", bl->jump, pc);
+    bl->next = be->links;
+    be->links = bl;
+    return be->tcache_ptr;
+  }
+  else {
+    bl->next = unresolved_links[tcache_id];
+    unresolved_links[tcache_id] = bl;
+    return sh2_drc_dispatcher;
+  }
 #else
   return sh2_drc_dispatcher;
 #endif
 }
 
-static void dr_link_blocks(void *target, u32 pc, int tcache_id)
+static void dr_link_blocks(struct block_entry *be, int tcache_id)
 {
-#if 0 // FIXME: invalidated blocks must not be in block_links
-//LINK_BRANCHES
-  struct block_link *bl = block_links[tcache_id];
-  int cnt = block_link_counts[tcache_id];
-  int i;
+#if LINK_BRANCHES
+  struct block_link *first = unresolved_links[tcache_id];
+  struct block_link *bl, *prev, *tmp;
+  u32 pc = be->pc;
 
-  for (i = 0; i < cnt; i++) {
-    if (bl[i].target_pc == pc) {
-      dbg(2, "- link from %p", bl[i].jump);
-      emith_jump_patch(bl[i].jump, target);
-      // XXX: sync ARM caches (old jump should be fine)?
+  for (bl = prev = first; bl != NULL; ) {
+    if (bl->target_pc == pc) {
+      dbg(2, "- link from %p to pc %08x", bl->jump, pc);
+      emith_jump_patch(bl->jump, tcache_ptr);
+
+      // move bl from unresolved_links to block_entry
+      tmp = bl->next;
+      bl->next = be->links;
+      be->links = bl;
+
+      if (bl == first)
+        first = prev = bl = tmp;
+      else
+        prev->next = bl = tmp;
+      continue;
     }
+    prev = bl;
+    bl = bl->next;
   }
+  unresolved_links[tcache_id] = first;
+
+  // could sync arm caches here, but that's unnecessary
 #endif
 }
 
@@ -1352,7 +1372,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   dbg(2, "== %csh2 block #%d,%d %08x-%08x -> %p", sh2->is_slave ? 's' : 'm',
     tcache_id, blkid_main, base_pc, end_pc, block_entry_ptr);
 
-  dr_link_blocks(tcache_ptr, base_pc, tcache_id);
+  dr_link_blocks(&block->entryp[0], tcache_id);
 
   // collect branch_targets that don't land on delay slots
   for (pc = base_pc; pc < end_pc; pc += 2) {
@@ -1402,6 +1422,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         if (v < ARRAY_SIZE(block->entryp)) {
           block->entryp[v].pc = pc;
           block->entryp[v].tcache_ptr = tcache_ptr;
+          block->entryp[v].links = NULL;
 #if (DRC_DEBUG & 2)
           block->entryp[v].block = block;
 #endif
@@ -1411,8 +1432,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           dbg(2, "-- %csh2 block #%d,%d entry %08x -> %p", sh2->is_slave ? 's' : 'm',
             tcache_id, blkid_main, pc, tcache_ptr);
 
-          // since we made a block entry, link any other blocks that jump to current pc
-          dr_link_blocks(tcache_ptr, pc, tcache_id);
+          // since we made a block entry, link any other blocks
+          // that jump to current pc
+          dr_link_blocks(&block->entryp[v], tcache_id);
         }
         else {
           dbg(1, "too many entryp for block #%d,%d pc=%08x",
@@ -2623,7 +2645,7 @@ end_op:
         emit_move_r_imm32(SHR_PC, target_pc);
         rcache_clean();
 
-        target = dr_prepare_ext_branch(target_pc, sh2, tcache_id);
+        target = dr_prepare_ext_branch(target_pc, sh2->is_slave, tcache_id);
         if (target == NULL)
           return NULL;
         emith_jump_cond_patchable(pending_branch_cond, target);
@@ -2665,7 +2687,7 @@ end_op:
     emit_move_r_imm32(SHR_PC, out_pc);
     rcache_flush();
 
-    target = dr_prepare_ext_branch(out_pc, sh2, tcache_id);
+    target = dr_prepare_ext_branch(out_pc, sh2->is_slave, tcache_id);
     if (target == NULL)
       return NULL;
     emith_jump_patchable(target);
@@ -2965,6 +2987,7 @@ static void sh2_generate_utils(void)
 
 static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 ram_mask)
 {
+  struct block_link *bl, *bl_next, *bl_unresolved;
   void *tmp;
   u32 i, addr;
 
@@ -2983,9 +3006,10 @@ static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 ram
   }
 
   tmp = tcache_ptr;
+  bl_unresolved = unresolved_links[tcache_id];
 
-  // remove from hash table
-  // XXX: maybe kill links somehow instead?
+  // remove from hash table, make incoming links unresolved
+  // XXX: maybe patch branches w/flush instead?
   for (i = 0; i < bd->entry_count; i++) {
     rm_from_hashlist(&bd->entryp[i], tcache_id);
 
@@ -2997,9 +3021,17 @@ static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 ram
     emith_jump(sh2_drc_dispatcher);
 
     host_instructions_updated(bd->entryp[i].tcache_ptr, tcache_ptr);
+
+    for (bl = bd->entryp[i].links; bl != NULL; ) {
+      bl_next = bl->next;
+      bl->next = bl_unresolved;
+      bl_unresolved = bl;
+      bl = bl_next;
+    }
   }
 
   tcache_ptr = tmp;
+  unresolved_links[tcache_id] = bl_unresolved;
 
   bd->addr = bd->end_addr = 0;
   bd->entry_count = 0;
@@ -3137,8 +3169,9 @@ int sh2_drc_init(SH2 *sh2)
       if (block_tables[i] == NULL)
         goto fail;
       // max 2 block links (exits) per block
-      block_links[i] = calloc(block_link_max_counts[i], sizeof(*block_links[0]));
-      if (block_links[i] == NULL)
+      block_link_pool[i] = calloc(block_link_pool_max_counts[i],
+                          sizeof(*block_link_pool[0]));
+      if (block_link_pool[i] == NULL)
         goto fail;
 
       inval_lookup[i] = calloc(ram_sizes[i] / ADDR_TO_BLOCK_PAGE,
@@ -3151,7 +3184,7 @@ int sh2_drc_init(SH2 *sh2)
         goto fail;
     }
     memset(block_counts, 0, sizeof(block_counts));
-    memset(block_link_counts, 0, sizeof(block_link_counts));
+    memset(block_link_pool_counts, 0, sizeof(block_link_pool_counts));
 
     drc_cmn_init();
     tcache_ptr = tcache;
@@ -3204,9 +3237,9 @@ void sh2_drc_finish(SH2 *sh2)
     if (block_tables[i] != NULL)
       free(block_tables[i]);
     block_tables[i] = NULL;
-    if (block_links[i] == NULL)
-      free(block_links[i]);
-    block_links[i] = NULL;
+    if (block_link_pool[i] == NULL)
+      free(block_link_pool[i]);
+    block_link_pool[i] = NULL;
 
     if (inval_lookup[i] == NULL)
       free(inval_lookup[i]);
