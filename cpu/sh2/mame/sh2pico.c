@@ -72,8 +72,13 @@ static unsigned int op_refs[0x10000];
 int sh2_execute(SH2 *sh2, int cycles)
 {
 #ifdef DRC_CMP
-	unsigned int base_pc = 0, end_pc = 0;
-	unsigned char op_flags[BLOCK_INSN_LIMIT];
+	static unsigned int base_pc_[2] = { 0, 0 };
+	static unsigned int end_pc_[2] = { 0, 0 };
+	static unsigned char op_flags_[2][BLOCK_INSN_LIMIT];
+	unsigned int *base_pc = &base_pc_[sh2->is_slave];
+	unsigned int *end_pc = &end_pc_[sh2->is_slave];
+	unsigned char *op_flags = op_flags_[sh2->is_slave];
+	unsigned int pc_expect = sh2->pc;
 #endif
 	UINT32 opcode;
 
@@ -88,20 +93,23 @@ int sh2_execute(SH2 *sh2, int cycles)
 	{
 #ifdef DRC_CMP
 		if (!sh2->delay) {
-			if (sh2->pc < base_pc || sh2->pc >= end_pc) {
-				base_pc = sh2->pc;
-				scan_block(base_pc, sh2->is_slave,
-					op_flags, &end_pc, NULL);
+			if (sh2->pc < *base_pc || sh2->pc >= *end_pc) {
+				*base_pc = sh2->pc;
+				scan_block(*base_pc, sh2->is_slave,
+					op_flags, end_pc, NULL);
 			}
-			if ((op_flags[(sh2->pc - base_pc) / 2]
-				& OF_BTARGET) || sh2->pc == base_pc)
+			if ((op_flags[(sh2->pc - *base_pc) / 2]
+				& OF_BTARGET) || sh2->pc == *base_pc
+				|| pc_expect != sh2->pc) // branched
 			{
+				pc_expect = sh2->pc;
 				if (sh2->icount < 0)
 					break;
 			}
 
 			do_sh2_trace(sh2, sh2->icount);
 		}
+		pc_expect += 2;
 #endif
 
 		if (sh2->delay)
