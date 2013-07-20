@@ -45,6 +45,8 @@ void sh2_reset(SH2 *sh2)
 
 void sh2_do_irq(SH2 *sh2, int level, int vector)
 {
+	sh2->sr &= 0x3f3;
+
 	sh2->r[15] -= 4;
 	p32x_sh2_write32(sh2->r[15], sh2->sr, sh2);	/* push SR onto stack */
 	sh2->r[15] -= 4;
@@ -127,6 +129,7 @@ void sh2_unpack(SH2 *sh2, const unsigned char *buff)
 #include <stdio.h>
 #include <stdlib.h>
 #include <pico/memory.h>
+#include <pico/debug.h>
 
 static SH2 sh2ref[2];
 static int current_slave = -1;
@@ -307,6 +310,7 @@ end:
 			i, sh2o->r[i], i+8, sh2o->r[i+8]);
 	printf("%csh2 PC: %08x  ,   %08x\n", csh2, sh2o->pc, sh2o->ppc);
 	printf("%csh2 SR:      %03x  PR: %08x\n", csh2, sh2o->sr, sh2o->pr);
+	PDebugDumpMem();
 	exit(1);
 }
 
