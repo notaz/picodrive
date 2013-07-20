@@ -639,6 +639,21 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	EOP_MOV_REG_ASR(d,d,32 - (bits)); \
 }
 
+#define emith_do_caller_regs(mask, func) { \
+	u32 _reg_mask = (mask) & 0x500f; \
+	if (_reg_mask) { \
+		if (__builtin_parity(_reg_mask) == 1) \
+			_reg_mask |= 0x10; /* eabi align */ \
+		func(_reg_mask); \
+	} \
+}
+
+#define emith_save_caller_regs(mask) \
+	emith_do_caller_regs(mask, EOP_STMFD_SP)
+
+#define emith_restore_caller_regs(mask) \
+	emith_do_caller_regs(mask, EOP_LDMFD_SP)
+
 // upto 4 args
 #define emith_pass_arg_r(arg, reg) \
 	EOP_MOV_REG_SIMPLE(arg, reg)

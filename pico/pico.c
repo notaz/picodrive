@@ -145,6 +145,10 @@ int PicoReset(void)
   if (Pico.romsize <= 0)
     return 1;
 
+#ifdef DRC_CMP
+  PicoOpt |= POPT_DIS_VDP_FIFO|POPT_DIS_IDLE_DET;
+#endif
+
   /* must call now, so that banking is reset, and correct vectors get fetched */
   if (PicoResetHook)
     PicoResetHook();

@@ -244,6 +244,7 @@ extern SH2 sh2s[2];
   } \
 } while (0)
 # define ash2_cycles_done(sh2) ((sh2)->cycles_timeslice - (sh2)->icount)
+# define sh2_pc(c)    (c) ? ssh2.ppc : msh2.ppc
 #else
 # define ash2_end_run(sh2, after) do { \
   int left = (sh2)->sr >> 12; \
@@ -254,10 +255,9 @@ extern SH2 sh2s[2];
   } \
 } while (0)
 # define ash2_cycles_done(sh2) ((sh2)->cycles_timeslice - ((sh2)->sr >> 12))
+# define sh2_pc(c)    (c) ? ssh2.pc : msh2.pc
 #endif
 
-//#define sh2_pc(c)     (c) ? ssh2.ppc : msh2.ppc
-#define sh2_pc(c)     (c) ? ssh2.pc : msh2.pc
 #define sh2_reg(c, x) (c) ? ssh2.r[x] : msh2.r[x]
 #define sh2_gbr(c)    (c) ? ssh2.gbr : msh2.gbr
 #define sh2_vbr(c)    (c) ? ssh2.vbr : msh2.vbr

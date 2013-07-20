@@ -572,7 +572,7 @@ static void *dr_prepare_ext_branch(u32 pc, int is_slave, int tcache_id)
       break;
   cnt = i + 1;
   if (cnt >= block_link_pool_max_counts[tcache_id]) {
-    dbg(1, "bl overflow for tcache %d\n", tcache_id);
+    dbg(1, "bl overflow for tcache %d", tcache_id);
     return NULL;
   }
   bl += cnt;
@@ -992,6 +992,18 @@ static void rcache_unlock_all(void)
   int i;
   for (i = 0; i < ARRAY_SIZE(reg_temp); i++)
     reg_temp[i].flags &= ~HRF_LOCKED;
+}
+
+static inline u32 rcache_used_hreg_mask(void)
+{
+  u32 mask = 0;
+  int i;
+
+  for (i = 0; i < ARRAY_SIZE(reg_temp); i++)
+    if (reg_temp[i].type != HR_FREE)
+      mask |= 1 << reg_temp[i].hreg;
+
+  return mask;
 }
 
 static void rcache_clean(void)
@@ -1477,16 +1489,18 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       emit_move_r_imm32(SHR_PC, pc);
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
       FLUSH_CYCLES(sr);
-      // rcache_clean(); // FIXME
-      rcache_flush();
+      rcache_clean();
+
+      tmp = rcache_used_hreg_mask();
+      emith_save_caller_regs(tmp);
       emit_do_static_regs(1, 0);
       emith_pass_arg_r(0, CONTEXT_REG);
       emith_call(do_sh2_cmp);
+      emith_restore_caller_regs(tmp);
     }
 #endif
 
     pc += 2;
-    cycles += opd->cycles;
 
     if (skip_op > 0) {
       skip_op--;
@@ -2517,6 +2531,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 end_op:
     rcache_unlock_all();
 
+    cycles += opd->cycles;
+
     if (op_flags[i+1] & OF_DELAY_OP) {
       do_host_disasm(tcache_id);
       continue;
@@ -3082,9 +3098,6 @@ int sh2_drc_init(SH2 *sh2)
     tcache_bases[0] = tcache_ptrs[0] = tcache_ptr;
     for (i = 1; i < ARRAY_SIZE(tcache_bases); i++)
       tcache_bases[i] = tcache_ptrs[i] = tcache_bases[i - 1] + tcache_sizes[i - 1];
-
-    // tmp
-    PicoOpt |= POPT_DIS_VDP_FIFO;
 
 #if (DRC_DEBUG & 4)
     for (i = 0; i < ARRAY_SIZE(block_tables); i++)

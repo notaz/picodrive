@@ -129,12 +129,21 @@ void sh2_unpack(SH2 *sh2, const unsigned char *buff)
 #include <stdio.h>
 #include <stdlib.h>
 #include <pico/memory.h>
+#undef _USE_CZ80 // HACK
+#include <pico/pico_int.h>
 #include <pico/debug.h>
 
 static SH2 sh2ref[2];
-static int current_slave = -1;
 static unsigned int mem_val;
 static FILE *f;
+
+enum ctl_byte {
+	CTL_MASTERSLAVE = 0x80,
+	CTL_EA = 0x82,
+	CTL_EAVAL = 0x83,
+	CTL_M68KPC = 0x84,
+	CTL_CYCLES = 0x85,
+};
 
 #define SH2MAP_ADDR2OFFS_R(a) \
   ((((a) >> 25) & 3) | (((a) >> 27) & 0x1c))
@@ -142,12 +151,28 @@ static FILE *f;
 static unsigned int local_read32(SH2 *sh2, u32 a)
 {
 	const sh2_memmap *sh2_map = sh2->read16_map;
+	u16 *pd;
 	uptr p;
 
 	sh2_map += SH2MAP_ADDR2OFFS_R(a);
 	p = sh2_map->addr;
 	if (!map_flag_set(p)) {
-		u16 *pd = (u16 *)((p << 1) + ((a & sh2_map->mask) & ~3));
+		pd = (u16 *)((p << 1) + ((a & sh2_map->mask) & ~1));
+		return (pd[0] << 16) | pd[1];
+	}
+
+	if ((a & 0xfffff000) == 0xc0000000) {
+		// data array
+		pd = (u16 *)Pico32xMem->data_array[sh2->is_slave]
+			+ (a & 0xfff) / 2;
+		return (pd[0] << 16) | pd[1];
+	}
+	if ((a & 0xdfffffc0) == 0x4000) {
+		pd = &Pico32x.regs[(a & 0x3f) / 2];
+		return (pd[0] << 16) | pd[1];
+	}
+	if ((a & 0xdffffe00) == 0x4200) {
+		pd = &Pico32xMem->pal[(a & 0x1ff) / 2];
 		return (pd[0] << 16) | pd[1];
 	}
 
@@ -162,6 +187,8 @@ static void write_uint(unsigned char ctl, unsigned int v)
 
 void do_sh2_trace(SH2 *current, int cycles)
 {
+	static int current_slave = -1;
+	static u32 current_m68k_pc;
 	SH2 *sh2o = &sh2ref[current->is_slave];
 	u32 *regs_a = (void *)current;
 	u32 *regs_o = (void *)sh2o;
@@ -172,9 +199,14 @@ void do_sh2_trace(SH2 *current, int cycles)
 	if (f == NULL)
 		f = fopen("tracelog", "wb");
 
+	if (SekPc != current_m68k_pc) {
+		current_m68k_pc = SekPc;
+		write_uint(CTL_M68KPC, current_m68k_pc);
+	}
+
 	if (current->is_slave != current_slave) {
 		current_slave = current->is_slave;
-		v = 0x80 | current->is_slave;
+		v = CTL_MASTERSLAVE | current->is_slave;
 		fwrite(&v, 1, 1, f);
 	}
 
@@ -188,15 +220,15 @@ void do_sh2_trace(SH2 *current, int cycles)
 	}
 
 	if (current->ea != sh2o->ea) {
-		write_uint(0x82, current->ea);
+		write_uint(CTL_EA, current->ea);
 		sh2o->ea = current->ea;
 	}
 	val = local_read32(current, current->ea);
 	if (mem_val != val) {
-		write_uint(0x83, val);
+		write_uint(CTL_EAVAL, val);
 		mem_val = val;
 	}
-	write_uint(0x84, cycles);
+	write_uint(CTL_CYCLES, cycles);
 }
 
 static const char *regnames[] = {
@@ -207,6 +239,19 @@ static const char *regnames[] = {
 	"pc",  "ppc", "pr",  "sr",
 	"gbr", "vbr", "mach","macl",
 };
+
+static void dump_regs(SH2 *sh2)
+{
+	char csh2;
+	int i;
+
+	csh2 = sh2->is_slave ? 's' : 'm';
+	for (i = 0; i < 16/2; i++)
+		printf("%csh2 r%d: %08x r%02d: %08x\n", csh2,
+			i, sh2->r[i], i+8, sh2->r[i+8]);
+	printf("%csh2 PC: %08x  ,   %08x\n", csh2, sh2->pc, sh2->ppc);
+	printf("%csh2 SR:      %03x  PR: %08x\n", csh2, sh2->sr, sh2->pr);
+}
 
 void do_sh2_cmp(SH2 *current)
 {
@@ -221,30 +266,38 @@ void do_sh2_cmp(SH2 *current)
 	int bad = 0;
 	int cycles;
 	int i, ret;
-	char csh2;
 
-	if (f == NULL)
+	if (f == NULL) {
 		f = fopen("tracelog", "rb");
+		sh2ref[1].is_slave = 1;
+	}
 
 	while (1) {
 		ret = fread(&code, 1, 1, f);
 		if (ret <= 0)
 			break;
-		if (code == 0x84) {
+		if (code == CTL_CYCLES) {
 			fread(&cycles_o, 1, 4, f);
 			break;
 		}
 
 		switch (code) {
-		case 0x80:
-		case 0x81:
+		case CTL_MASTERSLAVE:
+		case CTL_MASTERSLAVE + 1:
 			current_slave = code & 1;
 			break;
-		case 0x82:
+		case CTL_EA:
 			fread(&sh2o->ea, 4, 1, f);
 			break;
-		case 0x83:
+		case CTL_EAVAL:
 			fread(&current_val, 4, 1, f);
+			break;
+		case CTL_M68KPC:
+			fread(&val, 4, 1, f);
+			if (SekPc != val) {
+				printf("m68k: %08x %08x\n", SekPc, val);
+				bad = 1;
+			}
 			break;
 		default:
 			if (code < offsetof(SH2, read8_map) / 4)
@@ -304,12 +357,9 @@ void do_sh2_cmp(SH2 *current)
 
 end:
 	printf("--\n");
-	csh2 = current->is_slave ? 's' : 'm';
-	for (i = 0; i < 16/2; i++)
-		printf("%csh2 r%d: %08x r%02d: %08x\n", csh2,
-			i, sh2o->r[i], i+8, sh2o->r[i+8]);
-	printf("%csh2 PC: %08x  ,   %08x\n", csh2, sh2o->pc, sh2o->ppc);
-	printf("%csh2 SR:      %03x  PR: %08x\n", csh2, sh2o->sr, sh2o->pr);
+	dump_regs(sh2o);
+	if (current->is_slave != current_slave)
+		dump_regs(&sh2ref[current->is_slave ^ 1]);
 	PDebugDumpMem();
 	exit(1);
 }
