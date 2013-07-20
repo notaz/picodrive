@@ -283,9 +283,7 @@ static u32  REGPARM(2) (*sh2_drc_read8)(u32 a, SH2 *sh2);
 static u32  REGPARM(2) (*sh2_drc_read16)(u32 a, SH2 *sh2);
 static u32  REGPARM(2) (*sh2_drc_read32)(u32 a, SH2 *sh2);
 static void REGPARM(2) (*sh2_drc_write8)(u32 a, u32 d);
-static void REGPARM(2) (*sh2_drc_write8_slot)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write16)(u32 a, u32 d);
-static void REGPARM(2) (*sh2_drc_write16_slot)(u32 a, u32 d);
 static int  REGPARM(3) (*sh2_drc_write32)(u32 a, u32 d, SH2 *sh2);
 
 // address space stuff
@@ -1149,7 +1147,7 @@ static int emit_memhandler_read_rr(sh2_reg_e rd, sh2_reg_e rs, u32 offs, int siz
   return hr2;
 }
 
-static void emit_memhandler_write(int size, u32 pc, int delay)
+static void emit_memhandler_write(int size, u32 pc)
 {
   int ctxr;
   host_arg2reg(ctxr, 2);
@@ -1159,22 +1157,12 @@ static void emit_memhandler_write(int size, u32 pc, int delay)
   switch (size) {
   case 0: // 8
     // XXX: consider inlining sh2_drc_write8
-    if (delay) {
-      emith_call(sh2_drc_write8_slot);
-    } else {
-      emit_move_r_imm32(SHR_PC, pc);
-      rcache_clean();
-      emith_call(sh2_drc_write8);
-    }
+    rcache_clean();
+    emith_call(sh2_drc_write8);
     break;
   case 1: // 16
-    if (delay) {
-      emith_call(sh2_drc_write16_slot);
-    } else {
-      emit_move_r_imm32(SHR_PC, pc);
-      rcache_clean();
-      emith_call(sh2_drc_write16);
-    }
+    rcache_clean();
+    emith_call(sh2_drc_write16);
     break;
   case 2: // 32
     emith_move_r_r(ctxr, CONTEXT_REG);
@@ -1182,9 +1170,9 @@ static void emit_memhandler_write(int size, u32 pc, int delay)
     break;
   }
 
+  rcache_invalidate();
   if (reg_map_g2h[SHR_SR] != -1)
     emith_ctx_read(reg_map_g2h[SHR_SR], SHR_SR * 4);
-  rcache_invalidate();
 }
 
 // @(Rx,Ry)
@@ -1541,7 +1529,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp2 = rcache_get_reg_arg(0, SHR_R0);
         tmp3 = rcache_get_reg(GET_Rn(), RC_GR_READ);
         emith_add_r_r(tmp2, tmp3);
-        emit_memhandler_write(op & 3, pc, drcf.delayed_op);
+        emit_memhandler_write(op & 3, pc);
         goto end_op;
       case 0x07:
         // MUL.L     Rm,Rn      0000nnnnmmmm0111
@@ -1708,7 +1696,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       tmp2 = rcache_get_reg_arg(1, GET_Rm());
       if (op & 0x0f)
         emith_add_r_imm(tmp, (op & 0x0f) * 4);
-      emit_memhandler_write(2, pc, drcf.delayed_op);
+      emit_memhandler_write(2, pc);
       goto end_op;
 
     case 0x02:
@@ -1720,7 +1708,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         rcache_clean();
         rcache_get_reg_arg(0, GET_Rn());
         rcache_get_reg_arg(1, GET_Rm());
-        emit_memhandler_write(op & 3, pc, drcf.delayed_op);
+        emit_memhandler_write(op & 3, pc);
         goto end_op;
       case 0x04: // MOV.B Rm,@–Rn       0010nnnnmmmm0100
       case 0x05: // MOV.W Rm,@–Rn       0010nnnnmmmm0101
@@ -1730,7 +1718,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         rcache_clean();
         rcache_get_reg_arg(0, GET_Rn());
         rcache_get_reg_arg(1, GET_Rm());
-        emit_memhandler_write(op & 3, pc, drcf.delayed_op);
+        emit_memhandler_write(op & 3, pc);
         goto end_op;
       case 0x07: // DIV0S Rm,Rn         0010nnnnmmmm0111
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW);
@@ -2066,7 +2054,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp3 = rcache_get_reg_arg(1, tmp);
         if (tmp == SHR_SR)
           emith_clear_msb(tmp3, tmp3, 22); // reserved bits defined by ISA as 0
-        emit_memhandler_write(2, pc, drcf.delayed_op);
+        emit_memhandler_write(2, pc);
         goto end_op;
       case 0x04:
       case 0x05:
@@ -2228,8 +2216,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_move_r_r(tmp2, tmp);
           rcache_free_tmp(tmp);
           rcache_get_reg_arg(0, GET_Rn());
-          emit_memhandler_write(0, pc, drcf.delayed_op);
-          cycles += 3;
+          emit_memhandler_write(0, pc);
           break;
         default:
           goto default_;
@@ -2394,7 +2381,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp3 = (op & 0x100) >> 8;
         if (op & 0x0f)
           emith_add_r_imm(tmp, (op & 0x0f) << tmp3);
-        emit_memhandler_write(tmp3, pc, drcf.delayed_op);
+        emit_memhandler_write(tmp3, pc);
         goto end_op;
       case 0x0400: // MOV.B @(disp,Rm),R0  10000100mmmmdddd
       case 0x0500: // MOV.W @(disp,Rm),R0  10000101mmmmdddd
@@ -2483,7 +2470,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp2 = rcache_get_reg_arg(1, SHR_R0);
         tmp3 = (op & 0x300) >> 8;
         emith_add_r_imm(tmp, (op & 0xff) << tmp3);
-        emit_memhandler_write(tmp3, pc, drcf.delayed_op);
+        emit_memhandler_write(tmp3, pc);
         goto end_op;
       case 0x0400: // MOV.B @(disp,GBR),R0   11000100dddddddd
       case 0x0500: // MOV.W @(disp,GBR),R0   11000101dddddddd
@@ -2499,12 +2486,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         emith_add_r_imm(tmp, 4);
         tmp = rcache_get_reg_arg(1, SHR_SR);
         emith_clear_msb(tmp, tmp, 22);
-        emit_memhandler_write(2, pc, drcf.delayed_op);
+        emit_memhandler_write(2, pc);
         // push PC
         rcache_get_reg_arg(0, SHR_SP);
         tmp = rcache_get_tmp_arg(1);
         emith_move_r_imm(tmp, pc);
-        emit_memhandler_write(2, pc, drcf.delayed_op);
+        emit_memhandler_write(2, pc);
         // obtain new PC
         emit_memhandler_read_rr(SHR_PC, SHR_VBR, (op & 0xff) * 4, 2);
         out_pc = (u32)-1;
@@ -2563,8 +2550,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp3 = rcache_get_reg_arg(0, SHR_GBR);
         tmp4 = rcache_get_reg(SHR_R0, RC_GR_READ);
         emith_add_r_r(tmp3, tmp4);
-        emit_memhandler_write(0, pc, drcf.delayed_op);
-        cycles += 2;
+        emit_memhandler_write(0, pc);
         goto end_op;
       }
       goto default_;
@@ -2779,7 +2765,6 @@ end_op:
 static void sh2_generate_utils(void)
 {
   int arg0, arg1, arg2, sr, tmp;
-  void *sh2_drc_write_end, *sh2_drc_write_slot_end;
 
   sh2_drc_write32 = p32x_sh2_write32;
   sh2_drc_read8  = p32x_sh2_read8;
@@ -2880,51 +2865,15 @@ static void sh2_generate_utils(void)
   emith_call(sh2_drc_test_irq);
   emith_jump(sh2_drc_dispatcher);
 
-  // write-caused irq detection
-  sh2_drc_write_end = tcache_ptr;
-  emith_tst_r_r(arg0, arg0);
-  EMITH_SJMP_START(DCOND_NE);
-  emith_jump_ctx_c(DCOND_EQ, offsetof(SH2, drc_tmp)); // return
-  EMITH_SJMP_END(DCOND_NE);
-  emith_call(sh2_drc_test_irq);
-  emith_jump_ctx(offsetof(SH2, drc_tmp));
-
-  // write-caused irq detection for writes in delay slot
-  sh2_drc_write_slot_end = tcache_ptr;
-  emith_tst_r_r(arg0, arg0);
-  EMITH_SJMP_START(DCOND_NE);
-  emith_jump_ctx_c(DCOND_EQ, offsetof(SH2, drc_tmp));
-  EMITH_SJMP_END(DCOND_NE);
-  // just burn cycles to get back to dispatcher after branch is handled
-  sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
-  emith_ctx_write(sr, offsetof(SH2, irq_cycles));
-  emith_clear_msb(sr, sr, 20); // clear cycles
-  rcache_flush();
-  emith_jump_ctx(offsetof(SH2, drc_tmp));
-
   // sh2_drc_write8(u32 a, u32 d)
   sh2_drc_write8 = (void *)tcache_ptr;
-  emith_ret_to_ctx(offsetof(SH2, drc_tmp));
   emith_ctx_read(arg2, offsetof(SH2, write8_tab));
-  emith_sh2_wcall(arg0, arg2, sh2_drc_write_end);
+  emith_sh2_wcall(arg0, arg2);
 
   // sh2_drc_write16(u32 a, u32 d)
   sh2_drc_write16 = (void *)tcache_ptr;
-  emith_ret_to_ctx(offsetof(SH2, drc_tmp));
   emith_ctx_read(arg2, offsetof(SH2, write16_tab));
-  emith_sh2_wcall(arg0, arg2, sh2_drc_write_end);
-
-  // sh2_drc_write8_slot(u32 a, u32 d)
-  sh2_drc_write8_slot = (void *)tcache_ptr;
-  emith_ret_to_ctx(offsetof(SH2, drc_tmp));
-  emith_ctx_read(arg2, offsetof(SH2, write8_tab));
-  emith_sh2_wcall(arg0, arg2, sh2_drc_write_slot_end);
-
-  // sh2_drc_write16_slot(u32 a, u32 d)
-  sh2_drc_write16_slot = (void *)tcache_ptr;
-  emith_ret_to_ctx(offsetof(SH2, drc_tmp));
-  emith_ctx_read(arg2, offsetof(SH2, write16_tab));
-  emith_sh2_wcall(arg0, arg2, sh2_drc_write_slot_end);
+  emith_sh2_wcall(arg0, arg2);
 
 #ifdef PDB_NET
   // debug
@@ -2958,9 +2907,7 @@ static void sh2_generate_utils(void)
   MAKE_READ_WRAPPER(sh2_drc_read16);
   MAKE_READ_WRAPPER(sh2_drc_read32);
   MAKE_WRITE_WRAPPER(sh2_drc_write8);
-  MAKE_WRITE_WRAPPER(sh2_drc_write8_slot);
   MAKE_WRITE_WRAPPER(sh2_drc_write16);
-  MAKE_WRITE_WRAPPER(sh2_drc_write16_slot);
   MAKE_WRITE_WRAPPER(sh2_drc_write32);
 #if (DRC_DEBUG & 4)
   host_dasm_new_symbol(sh2_drc_read8);
@@ -2976,12 +2923,8 @@ static void sh2_generate_utils(void)
   host_dasm_new_symbol(sh2_drc_dispatcher);
   host_dasm_new_symbol(sh2_drc_exit);
   host_dasm_new_symbol(sh2_drc_test_irq);
-  host_dasm_new_symbol(sh2_drc_write_end);
-  host_dasm_new_symbol(sh2_drc_write_slot_end);
   host_dasm_new_symbol(sh2_drc_write8);
-  host_dasm_new_symbol(sh2_drc_write8_slot);
   host_dasm_new_symbol(sh2_drc_write16);
-  host_dasm_new_symbol(sh2_drc_write16_slot);
 #endif
 }
 
