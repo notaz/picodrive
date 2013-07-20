@@ -88,12 +88,14 @@ int sh2_execute(SH2 *sh2, int cycles)
 	{
 #ifdef DRC_CMP
 		if (!sh2->delay) {
-			if (sh2->pc < base_pc || sh2->pc > end_pc) {
+			if (sh2->pc < base_pc || sh2->pc >= end_pc) {
 				base_pc = sh2->pc;
 				scan_block(base_pc, sh2->is_slave,
-					op_flags, &end_pc);
+					op_flags, &end_pc, NULL);
 			}
-			if ((OP_FLAGS(sh2->pc) & OF_BTARGET) || sh2->pc == base_pc) {
+			if ((op_flags[(sh2->pc - base_pc) / 2]
+				& OF_BTARGET) || sh2->pc == base_pc)
+			{
 				if (sh2->icount < 0)
 					break;
 			}
