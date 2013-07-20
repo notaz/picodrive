@@ -363,6 +363,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_mvn_r_r(d, s) \
 	EOP_MVN_REG(A_COND_AL,0,d,s,A_AM1_LSL,0)
 
+#define emith_add_r_r_r_lsl(d, s1, s2, lslimm) \
+	EOP_ADD_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
+
 #define emith_or_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_ORR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
 
@@ -378,6 +381,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_eor_r_r_lsr(d, s, lsrimm) \
 	emith_eor_r_r_r_lsr(d, d, s, lsrimm)
 
+#define emith_add_r_r_r(d, s1, s2) \
+	emith_add_r_r_r_lsl(d, s1, s2, 0)
+
 #define emith_or_r_r_r(d, s1, s2) \
 	emith_or_r_r_r_lsl(d, s1, s2, 0)
 
@@ -385,7 +391,7 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	emith_eor_r_r_r_lsl(d, s1, s2, 0)
 
 #define emith_add_r_r(d, s) \
-	EOP_ADD_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
+	emith_add_r_r_r(d, d, s)
 
 #define emith_sub_r_r(d, s) \
 	EOP_SUB_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
@@ -715,12 +721,7 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_sh2_drc_exit() \
 	EOP_LDMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R12M|A_R15M)
 
-#define emith_sh2_wcall(a, tab, ret_ptr) { \
-	int val_ = (char *)(ret_ptr) - (char *)tcache_ptr - 2*4; \
-	if (val_ >= 0) \
-		emith_add_r_r_imm(14, 15, val_); \
-	else if (val_ < 0) \
-		emith_sub_r_r_imm(14, 15, -val_); \
+#define emith_sh2_wcall(a, tab) { \
 	emith_lsr(12, a, SH2_WRITE_SHIFT); \
 	EOP_LDR_REG_LSL(A_COND_AL,12,tab,12,2); \
 	emith_ctx_read(2, offsetof(SH2, is_slave)); \

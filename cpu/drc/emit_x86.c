@@ -145,6 +145,17 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 }
 
 // _r_r_r
+#define emith_add_r_r_r(d, s1, s2) { \
+	if (d == s1) { \
+		emith_add_r_r(d, s2); \
+	} else if (d == s2) { \
+		emith_add_r_r(d, s1); \
+	} else { \
+		emith_move_r_r(d, s1); \
+		emith_add_r_r(d, s2); \
+	} \
+}
+
 #define emith_eor_r_r_r(d, s1, s2) { \
 	if (d == s1) { \
 		emith_eor_r_r(d, s2); \
@@ -618,14 +629,13 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 }
 
 // assumes EBX is free temporary
-#define emith_sh2_wcall(a, tab, ret_ptr) { \
+#define emith_sh2_wcall(a, tab) { \
 	int arg2_; \
 	host_arg2reg(arg2_, 2); \
 	emith_lsr(xBX, a, SH2_WRITE_SHIFT); \
 	EMIT_OP_MODRM(0x8b, 0, xBX, 4); \
 	EMIT_SIB(2, xBX, tab); /* mov ebx, [tab + ebx * 4] */ \
 	emith_ctx_read(arg2_, offsetof(SH2, is_slave)); \
-	emith_push_imm((long)(ret_ptr)); \
 	emith_jump_reg(xBX); \
 }
 
