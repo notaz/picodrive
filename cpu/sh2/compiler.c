@@ -1211,14 +1211,14 @@ static void emit_memhandler_write(int size, u32 pc)
   if (reg_map_g2h[SHR_SR] != -1)
     emith_ctx_write(reg_map_g2h[SHR_SR], SHR_SR * 4);
 
+  rcache_clean();
+
   switch (size) {
   case 0: // 8
     // XXX: consider inlining sh2_drc_write8
-    rcache_clean();
     emith_call(sh2_drc_write8);
     break;
   case 1: // 16
-    rcache_clean();
     emith_call(sh2_drc_write16);
     break;
   case 2: // 32
@@ -1410,6 +1410,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   if (branch_target_count > 0) {
     memset(branch_target_ptr, 0, sizeof(branch_target_ptr[0]) * branch_target_count);
   }
+
+  // clear stale state after compile errors
+  rcache_invalidate();
 
   // -------------------------------------------------
   // 3rd pass: actual compilation
@@ -2439,6 +2442,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         // obtain new PC
         emit_memhandler_read_rr(SHR_PC, SHR_VBR, (op & 0xff) * 4, 2);
         // indirect jump -> back to dispatcher
+        rcache_flush();
         emith_jump(sh2_drc_dispatcher);
         goto end_op;
       case 0x0700: // MOVA @(disp,PC),R0    11000111dddddddd
@@ -2602,8 +2606,10 @@ end_op:
 
       if (cond != -1)
         emith_jump_cond_patchable(cond, target);
-      else
+      else {
         emith_jump_patchable(target);
+        rcache_invalidate();
+      }
 
       drcf.pending_branch_direct = 0;
     }
@@ -2966,7 +2972,20 @@ static void sh2_smc_rm_block(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, 
     entry = entry->next;
   }
 
-  // clear entry points
+  // update range to not clear still alive blocks
+  for (entry = *blist; entry != NULL; entry = entry->next) {
+    block = entry->block;
+    if (block->addr > a) {
+      if (to > block->addr)
+        to = block->addr;
+    }
+    else {
+      if (from < block->end_addr)
+        from = block->end_addr;
+    }
+  }
+
+  // clear code marks
   if (from < to) {
     u16 *p = drc_ram_blk + ((from & mask) >> shift);
     memset(p, 0, (to - from) >> (shift - 1));
