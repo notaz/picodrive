@@ -40,9 +40,7 @@
  */
 #include "../pico_int.h"
 #include "../memory.h"
-#ifdef DRC_SH2
 #include "../../cpu/sh2/compiler.h"
-#endif
 
 #if 0
 #undef ash2_end_run
@@ -1606,10 +1604,8 @@ void PicoMemSetup32x(void)
   sh2_poll[1].flag = P32XF_SSH2POLL;
   sh2_poll[1].cyc_max = 16;
 
-#ifdef DRC_SH2
   sh2_drc_mem_setup(&msh2);
   sh2_drc_mem_setup(&ssh2);
-#endif
 }
 
 void Pico32xMemStateLoaded(void)
@@ -1618,9 +1614,8 @@ void Pico32xMemStateLoaded(void)
   Pico32xSwapDRAM((Pico32x.vdp_regs[0x0a / 2] & P32XV_FS) ^ P32XV_FS);
   memset(Pico32xMem->pwm, 0, sizeof(Pico32xMem->pwm));
   Pico32x.dirty_pal = 1;
-#ifdef DRC_SH2
+
   sh2_drc_flush_all();
-#endif
 }
 
 // vim:shiftwidth=2:ts=2:expandtab
