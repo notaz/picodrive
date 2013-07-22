@@ -471,16 +471,16 @@ static UINT32 op1000(char *buffer, UINT32 pc, UINT16 opcode)
 		sprintf(buffer, "CMP/EQ  #$%02X,R0", (opcode & 0xff));
 		break;
 	case  9:
-		sprintf(buffer, "BT      $%08X", pc + SIGNX8(opcode & 0xff) * 2 + 2);
+		sprintf(buffer, "BT      $%08x", pc + SIGNX8(opcode & 0xff) * 2 + 2);
 		break;
 	case 11:
-		sprintf(buffer, "BF      $%08X", pc + SIGNX8(opcode & 0xff) * 2 + 2);
+		sprintf(buffer, "BF      $%08x", pc + SIGNX8(opcode & 0xff) * 2 + 2);
 		break;
 	case 13:
-		sprintf(buffer, "BTS     $%08X", pc + SIGNX8(opcode & 0xff) * 2 + 2);
+		sprintf(buffer, "BTS     $%08x", pc + SIGNX8(opcode & 0xff) * 2 + 2);
 		break;
 	case 15:
-		sprintf(buffer, "BFS     $%08X", pc + SIGNX8(opcode & 0xff) * 2 + 2);
+		sprintf(buffer, "BFS     $%08x", pc + SIGNX8(opcode & 0xff) * 2 + 2);
 		break;
 	default :
 		sprintf(buffer, "invalid $%04X", opcode);
@@ -497,13 +497,13 @@ static UINT32 op1001(char *buffer, UINT32 pc, UINT16 opcode)
 
 static UINT32 op1010(char *buffer, UINT32 pc, UINT16 opcode)
 {
-	sprintf(buffer, "BRA     $%08X", SIGNX12(opcode & 0xfff) * 2 + pc + 2);
+	sprintf(buffer, "BRA     $%08x", SIGNX12(opcode & 0xfff) * 2 + pc + 2);
 	return 0;
 }
 
 static UINT32 op1011(char *buffer, UINT32 pc, UINT16 opcode)
 {
-	sprintf(buffer, "BSR     $%08X", SIGNX12(opcode & 0xfff) * 2 + pc + 2);
+	sprintf(buffer, "BSR     $%08x", SIGNX12(opcode & 0xfff) * 2 + pc + 2);
 	return DASMFLAG_STEP_OVER | DASMFLAG_STEP_OVER_EXTRA(1);
 }
 
