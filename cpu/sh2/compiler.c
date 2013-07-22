@@ -1823,9 +1823,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         rcache_get_reg_arg(1, GET_Rm());
         emit_memhandler_write(op & 3, pc);
         goto end_op;
-      case 0x04: // MOV.B Rm,@–Rn       0010nnnnmmmm0100
-      case 0x05: // MOV.W Rm,@–Rn       0010nnnnmmmm0101
-      case 0x06: // MOV.L Rm,@–Rn       0010nnnnmmmm0110
+      case 0x04: // MOV.B Rm,@-Rn       0010nnnnmmmm0100
+      case 0x05: // MOV.W Rm,@-Rn       0010nnnnmmmm0101
+      case 0x06: // MOV.L Rm,@-Rn       0010nnnnmmmm0110
         rcache_get_reg_arg(1, GET_Rm()); // for Rm == Rn
         tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
         emith_sub_r_imm(tmp, (1 << (op & 3)));
@@ -2112,22 +2112,22 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x03:
         switch (op & 0x3f)
         {
-        case 0x02: // STS.L    MACH,@–Rn 0100nnnn00000010
+        case 0x02: // STS.L    MACH,@-Rn 0100nnnn00000010
           tmp = SHR_MACH;
           break;
-        case 0x12: // STS.L    MACL,@–Rn 0100nnnn00010010
+        case 0x12: // STS.L    MACL,@-Rn 0100nnnn00010010
           tmp = SHR_MACL;
           break;
-        case 0x22: // STS.L    PR,@–Rn   0100nnnn00100010
+        case 0x22: // STS.L    PR,@-Rn   0100nnnn00100010
           tmp = SHR_PR;
           break;
-        case 0x03: // STC.L    SR,@–Rn   0100nnnn00000011
+        case 0x03: // STC.L    SR,@-Rn   0100nnnn00000011
           tmp = SHR_SR;
           break;
-        case 0x13: // STC.L    GBR,@–Rn  0100nnnn00010011
+        case 0x13: // STC.L    GBR,@-Rn  0100nnnn00010011
           tmp = SHR_GBR;
           break;
-        case 0x23: // STC.L    VBR,@–Rn  0100nnnn00100011
+        case 0x23: // STC.L    VBR,@-Rn  0100nnnn00100011
           tmp = SHR_VBR;
           break;
         default:
@@ -3448,9 +3448,9 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
         opd->source = BITMASK1(GET_Rm());
         opd->source = BITMASK1(GET_Rn());
         break;
-      case 0x04: // MOV.B Rm,@–Rn       0010nnnnmmmm0100
-      case 0x05: // MOV.W Rm,@–Rn       0010nnnnmmmm0101
-      case 0x06: // MOV.L Rm,@–Rn       0010nnnnmmmm0110
+      case 0x04: // MOV.B Rm,@-Rn       0010nnnnmmmm0100
+      case 0x05: // MOV.W Rm,@-Rn       0010nnnnmmmm0101
+      case 0x06: // MOV.L Rm,@-Rn       0010nnnnmmmm0110
         opd->source = BITMASK2(GET_Rm(), GET_Rn());
         opd->dest = BITMASK1(GET_Rn());
         break;
@@ -3568,24 +3568,24 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
       case 0x03:
         switch (op & 0x3f)
         {
-        case 0x02: // STS.L    MACH,@–Rn 0100nnnn00000010
+        case 0x02: // STS.L    MACH,@-Rn 0100nnnn00000010
           tmp = SHR_MACH;
           break;
-        case 0x12: // STS.L    MACL,@–Rn 0100nnnn00010010
+        case 0x12: // STS.L    MACL,@-Rn 0100nnnn00010010
           tmp = SHR_MACL;
           break;
-        case 0x22: // STS.L    PR,@–Rn   0100nnnn00100010
+        case 0x22: // STS.L    PR,@-Rn   0100nnnn00100010
           tmp = SHR_PR;
           break;
-        case 0x03: // STC.L    SR,@–Rn   0100nnnn00000011
+        case 0x03: // STC.L    SR,@-Rn   0100nnnn00000011
           tmp = SHR_SR;
           opd->cycles = 2;
           break;
-        case 0x13: // STC.L    GBR,@–Rn  0100nnnn00010011
+        case 0x13: // STC.L    GBR,@-Rn  0100nnnn00010011
           tmp = SHR_GBR;
           opd->cycles = 2;
           break;
-        case 0x23: // STC.L    VBR,@–Rn  0100nnnn00100011
+        case 0x23: // STC.L    VBR,@-Rn  0100nnnn00100011
           tmp = SHR_VBR;
           opd->cycles = 2;
           break;
