@@ -119,7 +119,8 @@ enum op_types {
   OP_BRANCH_RF, // indirect far (PC + Rm)
   OP_SETCLRT,   // T flag set/clear
   OP_MOVE,      // register move
-  OP_LOAD_POOL, // literal pool load
+  OP_LOAD_POOL, // literal pool load, imm is address
+  OP_MOVA,
   OP_SLEEP,
   OP_RTE,
 };
@@ -630,11 +631,11 @@ static void dr_link_blocks(struct block_entry *be, int tcache_id)
 }
 
 #define ADD_TO_ARRAY(array, count, item, failcode) \
-  array[count++] = item; \
   if (count >= ARRAY_SIZE(array)) { \
     dbg(1, "warning: " #array " overflow"); \
     failcode; \
-  }
+  } \
+  array[count++] = item;
 
 static int find_in_array(u32 *array, size_t size, u32 what)
 {
@@ -1100,7 +1101,8 @@ static int emit_memhandler_read_(int size, int ram_check)
   arg1 = rcache_get_tmp_arg(1);
   emith_move_r_r(arg1, CONTEXT_REG);
 
-#ifndef PDB_NET
+#if 0 // can't do this because of unmapped reads
+ // ndef PDB_NET
   if (ram_check && Pico.rom == (void *)0x02000000 && Pico32xMem->sdram == (void *)0x06000000) {
     int tmp = rcache_get_tmp();
     emith_and_r_r_imm(tmp, arg0, 0xfb000000);
@@ -1519,9 +1521,35 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
         DELAY_SAVE_T(sr);
       }
-      if (delay_dep_fw & ~BITMASK1(SHR_T))
-        dbg(1, "unhandled delay_dep_fw: %x", delay_dep_fw & ~BITMASK1(SHR_T));
-      if (delay_dep_bk)
+      if (delay_dep_bk & BITMASK1(SHR_PC)) {
+        if (opd->op != OP_LOAD_POOL && opd->op != OP_MOVA) {
+          // can only be those 2 really..
+          elprintf(EL_ANOMALY, "%csh2 drc: illegal slot insn %04x @ %08x?",
+            sh2->is_slave ? 's' : 'm', op, pc - 2);
+        }
+        if (opd->imm != 0)
+          ; // addr already resolved somehow
+        else {
+          switch (ops[i-1].op) {
+          case OP_BRANCH:
+            emit_move_r_imm32(SHR_PC, ops[i-1].imm);
+            break;
+          case OP_BRANCH_CT:
+          case OP_BRANCH_CF:
+            tmp = rcache_get_reg(SHR_PC, RC_GR_WRITE);
+            sr = rcache_get_reg(SHR_SR, RC_GR_READ);
+            emith_move_r_imm(tmp, pc);
+            emith_tst_r_imm(sr, T);
+            tmp2 = ops[i-1].op == OP_BRANCH_CT ? DCOND_NE : DCOND_EQ;
+            emith_move_r_imm_c(tmp2, tmp, ops[i-1].imm);
+            break;
+          // case OP_BRANCH_R OP_BRANCH_RF - PC already loaded
+          }
+        }
+      }
+      //if (delay_dep_fw & ~BITMASK1(SHR_T))
+      //  dbg(1, "unhandled delay_dep_fw: %x", delay_dep_fw & ~BITMASK1(SHR_T));
+      if (delay_dep_bk & ~BITMASK2(SHR_PC, SHR_PR))
         dbg(1, "unhandled delay_dep_bk: %x", delay_dep_bk);
     }
 
@@ -1575,7 +1603,56 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       emith_add_r_imm(tmp, 4*2);
       drcf.test_irq = 1;
       drcf.pending_branch_indirect = 1;
-      break;
+      goto end_op;
+
+    case OP_LOAD_POOL:
+#if PROPAGATE_CONSTANTS
+      if (opd->imm != 0 && opd->imm < end_pc + MAX_LITERAL_OFFSET
+          && literal_addr_count < MAX_LITERALS)
+      {
+        ADD_TO_ARRAY(literal_addr, literal_addr_count, opd->imm,);
+        if (opd->size == 2)
+          tmp = FETCH32(opd->imm);
+        else
+          tmp = (u32)(int)(signed short)FETCH_OP(opd->imm);
+        gconst_new(GET_Rn(), tmp);
+      }
+      else
+#endif
+      {
+        tmp = rcache_get_tmp_arg(0);
+        if (opd->imm != 0)
+          emith_move_r_imm(tmp, opd->imm);
+        else {
+          // have to calculate read addr from PC
+          tmp2 = rcache_get_reg(SHR_PC, RC_GR_READ);
+          if (opd->size == 2) {
+            emith_add_r_r_imm(tmp, tmp2, 2 + (op & 0xff) * 4);
+            emith_bic_r_imm(tmp, 3);
+          }
+          else
+            emith_add_r_r_imm(tmp, tmp2, 2 + (op & 0xff) * 2);
+        }
+        tmp2 = emit_memhandler_read(opd->size);
+        tmp3 = rcache_get_reg(GET_Rn(), RC_GR_WRITE);
+        if (opd->size == 2)
+          emith_move_r_r(tmp3, tmp2);
+        else
+          emith_sext(tmp3, tmp2, 16);
+        rcache_free_tmp(tmp2);
+      }
+      goto end_op;
+
+    case OP_MOVA:
+      if (opd->imm != 0)
+        emit_move_r_imm32(SHR_R0, opd->imm);
+      else {
+        tmp = rcache_get_reg(SHR_R0, RC_GR_WRITE);
+        tmp2 = rcache_get_reg(SHR_PC, RC_GR_READ);
+        emith_add_r_r_imm(tmp, tmp2, 2 + (op & 0xff) * 4);
+        emith_bic_r_imm(tmp, 3);
+      }
+      goto end_op;
     }
 
     switch ((op >> 12) & 0x0f)
@@ -1749,11 +1826,11 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x04: // MOV.B Rm,@–Rn       0010nnnnmmmm0100
       case 0x05: // MOV.W Rm,@–Rn       0010nnnnmmmm0101
       case 0x06: // MOV.L Rm,@–Rn       0010nnnnmmmm0110
+        rcache_get_reg_arg(1, GET_Rm()); // for Rm == Rn
         tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
         emith_sub_r_imm(tmp, (1 << (op & 3)));
         rcache_clean();
         rcache_get_reg_arg(0, GET_Rn());
-        rcache_get_reg_arg(1, GET_Rm());
         emit_memhandler_write(op & 3, pc);
         goto end_op;
       case 0x07: // DIV0S Rm,Rn         0010nnnnmmmm0111
@@ -1805,13 +1882,13 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW);
         emith_bic_r_imm(sr, T);
         emith_tst_r_imm(tmp, 0x000000ff);
-        emit_or_t_if_eq(tmp);
+        emit_or_t_if_eq(sr);
         emith_tst_r_imm(tmp, 0x0000ff00);
-        emit_or_t_if_eq(tmp);
+        emit_or_t_if_eq(sr);
         emith_tst_r_imm(tmp, 0x00ff0000);
-        emit_or_t_if_eq(tmp);
+        emit_or_t_if_eq(sr);
         emith_tst_r_imm(tmp, 0xff000000);
-        emit_or_t_if_eq(tmp);
+        emit_or_t_if_eq(sr);
         rcache_free_tmp(tmp);
         goto end_op;
       case 0x0d: // XTRCT  Rm,Rn        0010nnnnmmmm1101
@@ -1985,7 +2062,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           goto end_op;
         case 1: // DT Rn      0100nnnn00010000
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW);
-#ifndef DRC_CMP
+#if 0 // scheduling needs tuning
           if (FETCH_OP(pc) == 0x8bfd) { // BF #-2
             if (gconst_get(GET_Rn(), &tmp)) {
               // XXX: limit burned cycles
@@ -2385,27 +2462,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       goto default_;
 
     /////////////////////////////////////////////
-    case 0x09:
-      // MOV.W @(disp,PC),Rn  1001nnnndddddddd
-      tmp = pc + (op & 0xff) * 2 + 2;
-#if PROPAGATE_CONSTANTS
-      if (tmp < end_pc + MAX_LITERAL_OFFSET && literal_addr_count < MAX_LITERALS) {
-        ADD_TO_ARRAY(literal_addr, literal_addr_count, tmp,);
-        gconst_new(GET_Rn(), (u32)(int)(signed short)FETCH_OP(tmp));
-      }
-      else
-#endif
-      {
-        tmp2 = rcache_get_tmp_arg(0);
-        emith_move_r_imm(tmp2, tmp);
-        tmp2 = emit_memhandler_read(1);
-        tmp3 = rcache_get_reg(GET_Rn(), RC_GR_WRITE);
-        emith_sext(tmp3, tmp2, 16);
-        rcache_free_tmp(tmp2);
-      }
-      goto end_op;
-
-    /////////////////////////////////////////////
     case 0x0c:
       switch (op & 0x0f00)
       {
@@ -2444,9 +2500,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         // indirect jump -> back to dispatcher
         rcache_flush();
         emith_jump(sh2_drc_dispatcher);
-        goto end_op;
-      case 0x0700: // MOVA @(disp,PC),R0    11000111dddddddd
-        emit_move_r_imm32(SHR_R0, (pc + (op & 0xff) * 4 + 2) & ~3);
         goto end_op;
       case 0x0800: // TST #imm,R0           11001000iiiiiiii
         tmp = rcache_get_reg(SHR_R0, RC_GR_READ);
@@ -2499,27 +2552,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       goto default_;
 
     /////////////////////////////////////////////
-    case 0x0d:
-      // MOV.L @(disp,PC),Rn  1101nnnndddddddd
-      tmp = (pc + (op & 0xff) * 4 + 2) & ~3;
-#if PROPAGATE_CONSTANTS
-      if (tmp < end_pc + MAX_LITERAL_OFFSET && literal_addr_count < MAX_LITERALS) {
-        ADD_TO_ARRAY(literal_addr, literal_addr_count, tmp,);
-        gconst_new(GET_Rn(), FETCH32(tmp));
-      }
-      else
-#endif
-      {
-        tmp2 = rcache_get_tmp_arg(0);
-        emith_move_r_imm(tmp2, tmp);
-        tmp2 = emit_memhandler_read(2);
-        tmp3 = rcache_get_reg(GET_Rn(), RC_GR_WRITE);
-        emith_move_r_r(tmp3, tmp2);
-        rcache_free_tmp(tmp2);
-      }
-      goto end_op;
-
-    /////////////////////////////////////////////
     case 0x0e:
       // MOV #imm,Rn   1110nnnniiiiiiii
       emit_move_r_imm32(GET_Rn(), (u32)(signed int)(signed char)op);
@@ -2546,6 +2578,8 @@ end_op:
     if (drcf.test_irq && !drcf.pending_branch_direct) {
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
       FLUSH_CYCLES(sr);
+      if (!drcf.pending_branch_indirect)
+        emit_move_r_imm32(SHR_PC, pc);
       rcache_flush();
       emith_call(sh2_drc_test_irq);
       drcf.test_irq = 0;
@@ -2667,7 +2701,8 @@ end_op:
 
   // mark memory blocks as containing compiled code
   // override any overlay blocks as they become unreachable anyway
-  if (tcache_id != 0 || (block->addr & 0xc7fc0000) == 0x06000000)
+  if ((block->addr & 0xc7fc0000) == 0x06000000
+      || (block->addr & 0xfffff000) == 0xc0000000)
   {
     u16 *drc_ram_blk = NULL;
     u32 addr, mask = 0, shift = 0;
@@ -2678,7 +2713,7 @@ end_op:
       shift = SH2_DRCBLK_DA_SHIFT;
       mask = 0xfff;
     }
-    else if ((block->addr & 0xc7fc0000) == 0x06000000) {
+    else {
       // SDRAM
       drc_ram_blk = Pico32xMem->drcblk_ram;
       shift = SH2_DRCBLK_RAM_SHIFT;
@@ -2926,7 +2961,7 @@ static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 ram
     // since we never reuse tcache space of dead blocks,
     // insert jump to dispatcher for blocks that are linked to this
     tcache_ptr = bd->entryp[i].tcache_ptr;
-    emit_move_r_imm32(SHR_PC, bd->addr);
+    emit_move_r_imm32(SHR_PC, bd->entryp[i].pc);
     rcache_flush();
     emith_jump(sh2_drc_dispatcher);
 
@@ -3729,13 +3764,16 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
         opd->source = BITMASK1(GET_Rm());
         opd->dest |= BITMASK1(GET_Rn());
         break;
+      case 0x0a: // NEGC   Rm,Rn        0110nnnnmmmm1010
+        opd->source = BITMASK2(GET_Rm(), SHR_T);
+        opd->dest = BITMASK2(GET_Rn(), SHR_T);
+        break;
       case 0x03: // MOV    Rm,Rn        0110nnnnmmmm0011
         opd->op = OP_MOVE;
         goto arith_rmrn;
       case 0x07: // NOT    Rm,Rn        0110nnnnmmmm0111
       case 0x08: // SWAP.B Rm,Rn        0110nnnnmmmm1000
       case 0x09: // SWAP.W Rm,Rn        0110nnnnmmmm1001
-      case 0x0a: // NEGC   Rm,Rn        0110nnnnmmmm1010
       case 0x0b: // NEG    Rm,Rn        0110nnnnmmmm1011
       case 0x0c: // EXTU.B Rm,Rn        0110nnnnmmmm1100
       case 0x0d: // EXTU.W Rm,Rn        0110nnnnmmmm1101
@@ -3805,9 +3843,17 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
     case 0x09:
       // MOV.W @(disp,PC),Rn  1001nnnndddddddd
       opd->op = OP_LOAD_POOL;
+      tmp = pc + 2;
+      if (op_flags[i] & OF_DELAY_OP) {
+        if (ops[i-1].op == OP_BRANCH)
+          tmp = ops[i-1].imm;
+        else
+          tmp = 0;
+      }
       opd->source = BITMASK1(SHR_PC);
       opd->dest = BITMASK1(GET_Rn());
-      opd->imm = pc + 4 + (op & 0xff) * 2;
+      if (tmp)
+        opd->imm = tmp + 2 + (op & 0xff) * 2;
       opd->size = 1;
       break;
 
@@ -3855,8 +3901,17 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
         end_block = 1; // FIXME
         break;
       case 0x0700: // MOVA @(disp,PC),R0    11000111dddddddd
+        opd->op = OP_MOVA;
+        tmp = pc + 2;
+        if (op_flags[i] & OF_DELAY_OP) {
+          if (ops[i-1].op == OP_BRANCH)
+            tmp = ops[i-1].imm;
+          else
+            tmp = 0;
+        }
         opd->dest = BITMASK1(SHR_R0);
-        opd->imm = (pc + 4 + (op & 0xff) * 4) & ~3;
+        if (tmp)
+          opd->imm = (tmp + 2 + (op & 0xff) * 4) & ~3;
         break;
       case 0x0800: // TST #imm,R0           11001000iiiiiiii
         opd->source = BITMASK1(SHR_R0);
@@ -3897,9 +3952,17 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
     case 0x0d:
       // MOV.L @(disp,PC),Rn  1101nnnndddddddd
       opd->op = OP_LOAD_POOL;
+      tmp = pc + 2;
+      if (op_flags[i] & OF_DELAY_OP) {
+        if (ops[i-1].op == OP_BRANCH)
+          tmp = ops[i-1].imm;
+        else
+          tmp = 0;
+      }
       opd->source = BITMASK1(SHR_PC);
       opd->dest = BITMASK1(GET_Rn());
-      opd->imm = (pc + 4 + (op & 0xff) * 2) & ~3;
+      if (tmp)
+        opd->imm = (tmp + 2 + (op & 0xff) * 4) & ~3;
       opd->size = 2;
       break;
 
