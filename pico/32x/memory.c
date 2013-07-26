@@ -42,13 +42,6 @@
 #include "../memory.h"
 #include "../../cpu/sh2/compiler.h"
 
-#if 0
-#undef ash2_end_run
-#undef SekEndRun
-#define ash2_end_run(x)
-#define SekEndRun(x)
-#endif
-
 static const char str_mars[] = "MARS";
 
 void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
@@ -57,64 +50,96 @@ struct Pico32xMem *Pico32xMem;
 static void bank_switch(int b);
 
 // poll detection
-#define POLL_THRESHOLD 6
+#define POLL_THRESHOLD 3
 
-struct poll_det {
-  u32 addr, cycles, cyc_max;
-  int cnt, flag;
-};
-static struct poll_det m68k_poll, sh2_poll[2];
+static struct {
+  u32 addr, cycles;
+  int cnt;
+} m68k_poll;
 
-static int p32x_poll_detect(struct poll_det *pd, u32 a, u32 cycles, int is_vdp)
+static int m68k_poll_detect(u32 a, u32 cycles, u32 flags)
 {
-  int ret = 0, flag = pd->flag;
+  int ret = 0;
 
-  if (is_vdp)
-    flag <<= 3;
-
-  if (a - 2 <= pd->addr && pd->addr <= a + 2 && cycles - pd->cycles <= pd->cyc_max) {
-    pd->cnt++;
-    if (pd->cnt > POLL_THRESHOLD) {
-      if (!(Pico32x.emu_flags & flag)) {
-        elprintf(EL_32X, "%s poll addr %08x, cyc %u",
-          flag & (P32XF_68KPOLL|P32XF_68KVPOLL) ? "m68k" :
-          (flag & (P32XF_MSH2POLL|P32XF_MSH2VPOLL) ? "msh2" : "ssh2"), a, cycles - pd->cycles);
+  if (a - 2 <= m68k_poll.addr && m68k_poll.addr <= a + 2
+    && cycles - m68k_poll.cycles <= 64)
+  {
+    if (m68k_poll.cnt++ > POLL_THRESHOLD) {
+      if (!(Pico32x.emu_flags & flags)) {
+        elprintf(EL_32X, "m68k poll addr %08x, cyc %u",
+          a, cycles - m68k_poll.cycles);
         ret = 1;
       }
-      Pico32x.emu_flags |= flag;
+      Pico32x.emu_flags |= flags;
     }
   }
   else {
-    pd->cnt = 0;
-    pd->addr = a;
+    m68k_poll.cnt = 0;
+    m68k_poll.addr = a;
   }
-  pd->cycles = cycles;
+  m68k_poll.cycles = cycles;
 
   return ret;
 }
 
-static int p32x_poll_undetect(struct poll_det *pd, int is_vdp)
+void p32x_m68k_poll_event(u32 flags)
 {
-  int ret = 0, flag = pd->flag;
-  if (is_vdp)
-    flag <<= 3; // VDP only
+  if (Pico32x.emu_flags & flags) {
+    elprintf(EL_32X, "m68k poll %02x -> %02x", Pico32x.emu_flags,
+      Pico32x.emu_flags & ~flags);
+    Pico32x.emu_flags &= ~flags;
+    SekSetStop(0);
+  }
+  m68k_poll.addr = m68k_poll.cnt = 0;
+}
+
+static void sh2_poll_detect(SH2 *sh2, u32 a, u32 flags)
+{
+  int cycles_left = sh2_cycles_left(sh2);
+
+  if (a == sh2->poll_addr && sh2->poll_cycles - cycles_left <= 10) {
+    if (sh2->poll_cnt++ > 3) {
+      if (!(sh2->state & flags))
+        elprintf(EL_32X, "%csh2 state: %02x->%02x", sh2->is_slave?'s':'m',
+          sh2->state, sh2->state | flags);
+
+      sh2->state |= flags;
+      sh2_end_run(sh2, 1);
+      pevt_log_sh2(sh2, EVT_POLL_START);
+      return;
+    }
+  }
   else
-    flag |= flag << 3; // both
-  if (Pico32x.emu_flags & flag) {
-    elprintf(EL_32X, "poll %02x -> %02x", Pico32x.emu_flags, Pico32x.emu_flags & ~flag);
-    ret = 1;
-  }
-  Pico32x.emu_flags &= ~flag;
-  pd->addr = pd->cnt = 0;
-  return ret;
+    sh2->poll_cnt = 0;
+  sh2->poll_addr = a;
+  sh2->poll_cycles = cycles_left;
 }
 
-void p32x_poll_event(int cpu_mask, int is_vdp)
+void p32x_sh2_poll_event(SH2 *sh2, u32 flags, u32 m68k_cycles)
 {
-  if (cpu_mask & 1)
-    p32x_poll_undetect(&sh2_poll[0], is_vdp);
-  if (cpu_mask & 2)
-    p32x_poll_undetect(&sh2_poll[1], is_vdp);
+  if (sh2->state & flags) {
+    elprintf(EL_32X, "%csh2 state: %02x->%02x", sh2->is_slave?'s':'m',
+      sh2->state, sh2->state & ~flags);
+
+    if (sh2->m68krcycles_done < m68k_cycles)
+      sh2->m68krcycles_done = m68k_cycles;
+
+    pevt_log_sh2_o(sh2, EVT_POLL_END);
+  }
+
+  sh2->state &= ~flags;
+  sh2->poll_addr = sh2->poll_cycles = sh2->poll_cnt = 0;
+}
+
+static void sh2s_sync_on_read(SH2 *sh2)
+{
+  int cycles;
+  if (sh2->poll_cnt != 0)
+    return;
+
+  cycles = sh2_cycles_done(sh2);
+  if (cycles > 600)
+    p32x_sync_other_sh2(sh2, sh2->m68krcycles_done + cycles / 3);
 }
 
 // SH2 faking
@@ -165,8 +190,7 @@ static void dma_68k2sh2_do(void)
     elprintf(EL_32X|EL_ANOMALY, "tcr0 and dreq len differ: %d != %d", dmac0->tcr0, *dreqlen);
 
   // HACK: assume bus is busy and SH2 is halted
-  // XXX: use different mechanism for this, not poll det
-  Pico32x.emu_flags |= P32XF_MSH2POLL; // id ? P32XF_SSH2POLL : P32XF_MSH2POLL;
+  msh2.state |= SH2_STATE_SLEEP;
 
   for (i = 0; i < Pico32x.dmac_ptr && dmac0->tcr0 > 0; i++) {
     elprintf(EL_32X, "dmaw [%08x] %04x, left %d", dmac0->dar0, Pico32x.dmac_fifo[i], *dreqlen);
@@ -182,7 +206,7 @@ static void dma_68k2sh2_do(void)
     Pico32x.regs[6 / 2] &= ~P32XS_68S; // transfer complete
   if (dmac0->tcr0 == 0) {
     dmac0->chcr0 |= 2; // DMA has ended normally
-    p32x_poll_undetect(&sh2_poll[0], 0);
+    p32x_sh2_poll_event(&sh2s[0], SH2_STATE_SLEEP, SekCyclesDoneT());
   }
 }
 
@@ -211,7 +235,7 @@ static u32 p32x_reg_read16(u32 a)
       p32x_sync_sh2s(cycles);
     if (Pico32x.comm_dirty_sh2 & comreg)
       Pico32x.comm_dirty_sh2 &= ~comreg;
-    else if (p32x_poll_detect(&m68k_poll, a, cycles, 0)) {
+    else if (m68k_poll_detect(a, cycles, P32XF_68KCPOLL)) {
       SekSetStop(1);
       SekEndTimeslice(16);
     }
@@ -255,12 +279,12 @@ static void p32x_reg_write8(u32 a, u32 d)
       if ((d & 1) && !(Pico32x.sh2irqi[0] & P32XI_CMD)) {
         p32x_sync_sh2s(SekCyclesDoneT());
         Pico32x.sh2irqi[0] |= P32XI_CMD;
-        p32x_update_irls(0);
+        p32x_update_irls(NULL);
       }
       if ((d & 2) && !(Pico32x.sh2irqi[1] & P32XI_CMD)) {
         p32x_sync_sh2s(SekCyclesDoneT());
         Pico32x.sh2irqi[1] |= P32XI_CMD;
-        p32x_update_irls(0);
+        p32x_update_irls(NULL);
       }
       return;
     case 5: // bank
@@ -285,14 +309,14 @@ static void p32x_reg_write8(u32 a, u32 d)
     
     if (r8[a ^ 1] == d)
       return;
-    
+
     comreg = 1 << (a & 0x0f) / 2;
     if (Pico32x.comm_dirty_68k & comreg)
       p32x_sync_sh2s(cycles);
 
     r8[a ^ 1] = d;
-    p32x_poll_undetect(&sh2_poll[0], 0);
-    p32x_poll_undetect(&sh2_poll[1], 0);
+    p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
+    p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
     Pico32x.comm_dirty_68k |= comreg;
 
     if (cycles - (int)msh2.m68krcycles_done > 120)
@@ -351,8 +375,8 @@ static void p32x_reg_write16(u32 a, u32 d)
       p32x_sync_sh2s(cycles);
 
     r[a / 2] = d;
-    p32x_poll_undetect(&sh2_poll[0], 0);
-    p32x_poll_undetect(&sh2_poll[1], 0);
+    p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
+    p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
     Pico32x.comm_dirty_68k |= comreg;
 
     if (cycles - (int)msh2.m68krcycles_done > 120)
@@ -382,9 +406,6 @@ static void p32x_vdp_write8(u32 a, u32 d)
   u16 *r = Pico32x.vdp_regs;
   a &= 0x0f;
 
-  // for FEN checks between writes
-  sh2_poll[0].cnt = 0;
-
   // TODO: verify what's writeable
   switch (a) {
     case 0x01:
@@ -412,7 +433,7 @@ static void p32x_vdp_write8(u32 a, u32 d)
   }
 }
 
-static void p32x_vdp_write16(u32 a, u32 d, u32 cycles)
+static void p32x_vdp_write16(u32 a, u32 d, SH2 *sh2)
 {
   a &= 0x0e;
   if (a == 6) { // fill start
@@ -430,9 +451,10 @@ static void p32x_vdp_write16(u32 a, u32 d, u32 cycles)
     }
     Pico32x.vdp_regs[0x06 / 2] = a;
     Pico32x.vdp_regs[0x08 / 2] = d;
-    if (cycles > 0) {
+    if (sh2 != NULL && len > 4) {
       Pico32x.vdp_regs[0x0a / 2] |= P32XV_nFEN;
-      p32x_event_schedule(P32X_EVENT_FILLEND, cycles, len);
+      // supposedly takes 3 bus/6 sh2 cycles? or 3 sh2 cycles?
+      p32x_event_schedule_sh2(sh2, P32X_EVENT_FILLEND, 3 + len);
     }
     return;
   }
@@ -452,8 +474,8 @@ static u32 p32x_sh2reg_read16(u32 a, int cpuid)
     case 0x00: // adapter/irq ctl
       return (r[0] & P32XS_FM) | Pico32x.sh2_regs[0] | Pico32x.sh2irq_mask[cpuid];
     case 0x04: // H count (often as comm too)
-      if (p32x_poll_detect(&sh2_poll[cpuid], a, ash2_cycles_done(&sh2s[cpuid]), 0))
-        ash2_end_run(&sh2s[cpuid], 8);
+      sh2_poll_detect(&sh2s[cpuid], a, SH2_STATE_CPOLL);
+      sh2s_sync_on_read(&sh2s[cpuid]);
       return Pico32x.sh2_regs[4 / 2];
     case 0x10: // DREQ len
       return r[a / 2];
@@ -467,12 +489,12 @@ static u32 p32x_sh2reg_read16(u32 a, int cpuid)
     int comreg = 1 << (a & 0x0f) / 2;
     if (Pico32x.comm_dirty_68k & comreg)
       Pico32x.comm_dirty_68k &= ~comreg;
-    else if (p32x_poll_detect(&sh2_poll[cpuid], a, ash2_cycles_done(&sh2s[cpuid]), 0))
-      ash2_end_run(&sh2s[cpuid], 8);
+    else
+      sh2_poll_detect(&sh2s[cpuid], a, SH2_STATE_CPOLL);
+    sh2s_sync_on_read(&sh2s[cpuid]);
     return r[a / 2];
   }
   if ((a & 0x30) == 0x30) {
-    sh2_poll[cpuid].cnt = 0;
     return p32x_pwm_read16(a);
   }
 
@@ -482,22 +504,32 @@ static u32 p32x_sh2reg_read16(u32 a, int cpuid)
 static void p32x_sh2reg_write8(u32 a, u32 d, int cpuid)
 {
   a &= 0xff;
+
+  sh2s[cpuid].poll_addr = 0;
+
   switch (a) {
     case 0: // FM
       Pico32x.regs[0] &= ~P32XS_FM;
       Pico32x.regs[0] |= (d << 8) & P32XS_FM;
       return;
-    case 1: // 
+    case 1: // HEN/irq masks
+      if ((d ^ Pico32x.sh2_regs[0]) & 0x80)
+        elprintf(EL_ANOMALY|EL_32X, "HEN");
       Pico32x.sh2irq_mask[cpuid] = d & 0x8f;
       Pico32x.sh2_regs[0] &= ~0x80;
       Pico32x.sh2_regs[0] |= d & 0x80;
       if (d & 1)
-        p32x_pwm_schedule(sh2s[cpuid].m68krcycles_done); // XXX: timing?
-      p32x_update_irls(1);
+        p32x_pwm_schedule_sh2(&sh2s[cpuid]);
+      p32x_update_irls(&sh2s[cpuid]);
       return;
     case 5: // H count
-      Pico32x.sh2_regs[4 / 2] = d & 0xff;
-      p32x_poll_undetect(&sh2_poll[cpuid ^ 1], 0);
+      d &= 0xff;
+      if (Pico32x.sh2_regs[4 / 2] != d) {
+        Pico32x.sh2_regs[4 / 2] = d;
+        p32x_sh2_poll_event(&sh2s[cpuid ^ 1], SH2_STATE_CPOLL,
+          sh2_cycles_done_m68k(&sh2s[cpuid]));
+        sh2_end_run(&sh2s[cpuid], 4);
+      }
       return;
   }
 
@@ -508,9 +540,9 @@ static void p32x_sh2reg_write8(u32 a, u32 d, int cpuid)
       return;
 
     r8[a ^ 1] = d;
-    if (p32x_poll_undetect(&m68k_poll, 0))
-      SekSetStop(0);
-    p32x_poll_undetect(&sh2_poll[cpuid ^ 1], 0);
+    p32x_m68k_poll_event(P32XF_68KCPOLL);
+    p32x_sh2_poll_event(&sh2s[cpuid ^ 1], SH2_STATE_CPOLL,
+      sh2_cycles_done_m68k(&sh2s[cpuid]));
     comreg = 1 << (a & 0x0f) / 2;
     Pico32x.comm_dirty_sh2 |= comreg;
     return;
@@ -521,6 +553,8 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
 {
   a &= 0xfe;
 
+  sh2s[cpuid].poll_addr = 0;
+
   // comm
   if ((a & 0x30) == 0x20) {
     int comreg;
@@ -528,9 +562,9 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
       return;
 
     Pico32x.regs[a / 2] = d;
-    if (p32x_poll_undetect(&m68k_poll, 0))
-      SekSetStop(0);
-    p32x_poll_undetect(&sh2_poll[cpuid ^ 1], 0);
+    p32x_m68k_poll_event(P32XF_68KCPOLL);
+    p32x_sh2_poll_event(&sh2s[cpuid ^ 1], SH2_STATE_CPOLL,
+      sh2_cycles_done_m68k(&sh2s[cpuid]));
     comreg = 1 << (a & 0x0f) / 2;
     Pico32x.comm_dirty_sh2 |= comreg;
     return;
@@ -553,7 +587,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
     case 0x1c:
       Pico32x.sh2irqs &= ~P32XI_PWM;
       if (!(Pico32x.emu_flags & P32XF_PWM_PEND))
-        p32x_pwm_schedule(sh2s[cpuid].m68krcycles_done); // timing?
+        p32x_pwm_schedule_sh2(&sh2s[cpuid]);
       goto irls;
   }
 
@@ -561,7 +595,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
   return;
 
 irls:
-  p32x_update_irls(1);
+  p32x_update_irls(&sh2s[cpuid]);
 }
 
 // ------------------------------------------------------------------
@@ -693,7 +727,7 @@ static void sh2_peripheral_write32(u32 a, u32 d, int id)
     dmac0->tcr0 &= 0xffffff;
 
     // HACK: assume 68k starts writing soon and end the timeslice
-    ash2_end_run(&sh2s[id], 16);
+    sh2_end_run(&sh2s[id], 16);
 
     // DREQ is only sent after first 4 words are written.
     // we do multiple of 4 words to avoid messing up alignment
@@ -829,7 +863,7 @@ static void PicoWrite16_32x_on(u32 a, u32 d)
   }
 
   if ((a & 0xfff0) == 0x5180) { // a15180
-    p32x_vdp_write16(a, d, 0); // FIXME?
+    p32x_vdp_write16(a, d, NULL); // FIXME?
     return;
   }
 
@@ -1014,8 +1048,7 @@ static u32 sh2_read8_cs0(u32 a, int id)
 
   if ((a & 0x3ff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    if (p32x_poll_detect(&sh2_poll[id], a, ash2_cycles_done(&sh2s[id]), 1))
-      ash2_end_run(&sh2s[id], 8);
+    sh2_poll_detect(&sh2s[id], a, SH2_STATE_VPOLL);
     goto out_16to8;
   }
 
@@ -1069,8 +1102,7 @@ static u32 sh2_read16_cs0(u32 a, int id)
 
   if ((a & 0x3ff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    if (p32x_poll_detect(&sh2_poll[id], a, ash2_cycles_done(&sh2s[id]), 1))
-      ash2_end_run(&sh2s[id], 8);
+    sh2_poll_detect(&sh2s[id], a, SH2_STATE_VPOLL);
     goto out;
   }
 
@@ -1116,6 +1148,7 @@ static int REGPARM(3) sh2_write8_cs0(u32 a, u32 d, int id)
     id ? 's' : 'm', a, d & 0xff, sh2_pc(id));
 
   if ((a & 0x3ff00) == 0x4100) {
+    sh2s[id].poll_addr = 0;
     p32x_vdp_write8(a, d);
     return 0;
   }
@@ -1185,8 +1218,8 @@ static int REGPARM(3) sh2_write16_cs0(u32 a, u32 d, int id)
       id ? 's' : 'm', a, d & 0xffff, sh2_pc(id));
 
   if ((a & 0x3ff00) == 0x4100) {
-    sh2_poll[id].cnt = 0; // for poll before VDP accesses
-    p32x_vdp_write16(a, d, sh2s[id].m68krcycles_done);
+    sh2s[id].poll_addr = 0;
+    p32x_vdp_write16(a, d, &sh2s[id]);
     return 0;
   }
 
@@ -1596,14 +1629,6 @@ void PicoMemSetup32x(void)
   msh2.write8_tab  = ssh2.write8_tab  = (const void **)(void *)sh2_write8_map;
   msh2.write16_tab = ssh2.write16_tab = (const void **)(void *)sh2_write16_map;
 
-  // setup poll detector
-  m68k_poll.flag = P32XF_68KPOLL;
-  m68k_poll.cyc_max = 64;
-  sh2_poll[0].flag = P32XF_MSH2POLL;
-  sh2_poll[0].cyc_max = 21;
-  sh2_poll[1].flag = P32XF_SSH2POLL;
-  sh2_poll[1].cyc_max = 16;
-
   sh2_drc_mem_setup(&msh2);
   sh2_drc_mem_setup(&ssh2);
 }
@@ -1614,6 +1639,13 @@ void Pico32xMemStateLoaded(void)
   Pico32xSwapDRAM((Pico32x.vdp_regs[0x0a / 2] & P32XV_FS) ^ P32XV_FS);
   memset(Pico32xMem->pwm, 0, sizeof(Pico32xMem->pwm));
   Pico32x.dirty_pal = 1;
+
+  Pico32x.emu_flags &= ~(P32XF_68KCPOLL | P32XF_68KVPOLL);
+  memset(&m68k_poll, 0, sizeof(m68k_poll));
+  msh2.state = 0;
+  msh2.poll_addr = msh2.poll_cycles = msh2.poll_cnt = 0;
+  ssh2.state = 0;
+  ssh2.poll_addr = ssh2.poll_cycles = ssh2.poll_cnt = 0;
 
   sh2_drc_flush_all();
 }

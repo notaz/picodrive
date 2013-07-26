@@ -30,9 +30,12 @@ static __inline void SekRunM68k(int cyc)
 {
   int cyc_do;
   pprof_start(m68k);
+  pevt_log_m68k_o(EVT_RUN_START);
 
   SekCycleAim+=cyc;
-  if ((cyc_do=SekCycleAim-SekCycleCnt) <= 0) return;
+  if ((cyc_do=SekCycleAim-SekCycleCnt) <= 0)
+    goto out;
+
 #if defined(EMU_CORE_DEBUG)
   // this means we do run-compare
   SekCycleCnt+=CM_compareRun(cyc_do, 0);
@@ -46,6 +49,8 @@ static __inline void SekRunM68k(int cyc)
   SekCycleCnt+=fm68k_emulate(cyc_do+1, 0, 0);
 #endif
 
+out:
+  pevt_log_m68k_o(EVT_RUN_END);
   pprof_end(m68k);
 }
 
@@ -55,6 +60,7 @@ static int PicoFrameHints(void)
   int lines, y, lines_vis = 224, line_sample, skip, vcnt_wrap;
   int hint; // Hint counter
 
+  pevt_log_m68k_o(EVT_FRAME_START);
   pv->v_counter = Pico.m.scanline = 0;
 
   if ((PicoOpt&POPT_ALT_RENDERER) && !PicoSkipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
@@ -144,7 +150,7 @@ static int PicoFrameHints(void)
       if (ym2612.dacen && PsndDacLine <= y)
         PsndDoDAC(y);
 #ifdef PICO_32X
-      p32x_sync_sh2s(SekCycleCntT + SekCycleCnt);
+      p32x_sync_sh2s(SekCyclesDoneT2());
 #endif
       PsndGetSamples(y);
     }
@@ -158,6 +164,7 @@ static int PicoFrameHints(void)
 #else
     if (PicoLineHook) PicoLineHook();
 #endif
+    pevt_log_m68k_o(EVT_NEXT_LINE);
   }
 
   if (!skip)
@@ -213,7 +220,7 @@ static int PicoFrameHints(void)
   }
 
 #ifdef PICO_32X
-  p32x_sync_sh2s(SekCycleCntT + SekCycleCnt);
+  p32x_sync_sh2s(SekCyclesDoneT2());
   p32x_start_blank();
 #endif
 
@@ -235,6 +242,7 @@ static int PicoFrameHints(void)
 #else
   if (PicoLineHook) PicoLineHook();
 #endif
+  pevt_log_m68k_o(EVT_NEXT_LINE);
 
   lines = scanlines_total;
   vcnt_wrap = Pico.m.pal ? 0x103 : 0xEB; // based on Gens, TODO: verify
@@ -262,6 +270,7 @@ static int PicoFrameHints(void)
 #else
     if (PicoLineHook) PicoLineHook();
 #endif
+    pevt_log_m68k_o(EVT_NEXT_LINE);
   }
 
   // sync z80
@@ -271,7 +280,7 @@ static int PicoFrameHints(void)
     PsndDoDAC(lines-1);
 
 #ifdef PICO_32X
-  p32x_sync_sh2s(SekCycleCntT + SekCycleCnt);
+  p32x_sync_sh2s(SekCyclesDoneT2());
 #endif
   timers_cycle();
 

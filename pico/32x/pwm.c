@@ -86,21 +86,35 @@ void p32x_timers_do(unsigned int cycles)
   }
 }
 
-void p32x_pwm_schedule(unsigned int now)
+static int p32x_pwm_schedule_(void)
 {
   int tm;
 
   if (Pico32x.emu_flags & P32XF_PWM_PEND)
-    return; // already scheduled
+    return 0; // already scheduled
   if (Pico32x.sh2irqs & P32XI_PWM)
-    return; // previous not acked
+    return 0; // previous not acked
   if (!((Pico32x.sh2irq_mask[0] | Pico32x.sh2irq_mask[1]) & 1))
-    return; // masked by everyone
+    return 0; // masked by everyone
 
+  Pico32x.emu_flags |= P32XF_PWM_PEND;
   tm = (Pico32x.regs[0x30 / 2] & 0x0f00) >> 8;
   tm = ((tm - 1) & 0x0f) + 1;
-  p32x_event_schedule(P32X_EVENT_PWM, now, pwm_cycles * tm / 3);
-  Pico32x.emu_flags |= P32XF_PWM_PEND;
+  return pwm_cycles * tm / 3;
+}
+
+void p32x_pwm_schedule(unsigned int now)
+{
+  int after = p32x_pwm_schedule_();
+  if (after != 0)
+    p32x_event_schedule(now, P32X_EVENT_PWM, after);
+}
+
+void p32x_pwm_schedule_sh2(SH2 *sh2)
+{
+  int after = p32x_pwm_schedule_();
+  if (after != 0)
+    p32x_event_schedule_sh2(sh2, P32X_EVENT_PWM, after);
 }
 
 unsigned int p32x_pwm_read16(unsigned int a)

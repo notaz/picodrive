@@ -146,6 +146,7 @@ extern unsigned int SekCycleCntT; // total cycle counter, updated once per frame
 #define SekCyclesBurn(c)  SekCycleCnt+=c
 #define SekCyclesDone()  (SekCycleAim-SekCyclesLeft)    // number of cycles done in this frame (can be checked anywhere)
 #define SekCyclesDoneT() (SekCycleCntT+SekCyclesDone()) // total nuber of cycles done for this rom
+#define SekCyclesDoneT2() (SekCycleCntT + SekCycleCnt)  // same as above but not from memhandlers
 
 #define SekEndRun(after) { \
 	SekCycleCnt -= SekCyclesLeft - (after); \
@@ -237,26 +238,30 @@ extern SH2 sh2s[2];
 #define ssh2 sh2s[1]
 
 #ifndef DRC_SH2
-# define ash2_end_run(sh2, after) do { \
-  if ((sh2)->icount > (after)) { \
+# define sh2_end_run(sh2, after_) do { \
+  if ((sh2)->icount > (after_)) { \
     (sh2)->cycles_timeslice -= (sh2)->icount; \
-    (sh2)->icount = after; \
+    (sh2)->icount = after_; \
   } \
 } while (0)
-# define ash2_cycles_done(sh2) ((sh2)->cycles_timeslice - (sh2)->icount)
+# define sh2_cycles_left(sh2) (sh2)->icount
 # define sh2_pc(c)    (c) ? ssh2.ppc : msh2.ppc
 #else
-# define ash2_end_run(sh2, after) do { \
-  int left = (sh2)->sr >> 12; \
-  if (left > (after)) { \
-    (sh2)->cycles_timeslice -= left; \
+# define sh2_end_run(sh2, after_) do { \
+  int left_ = (signed int)(sh2)->sr >> 12; \
+  if (left_ > (after_)) { \
+    (sh2)->cycles_timeslice -= left_; \
     (sh2)->sr &= 0xfff; \
-    (sh2)->sr |= (after) << 12; \
+    (sh2)->sr |= (after_) << 12; \
   } \
 } while (0)
-# define ash2_cycles_done(sh2) ((sh2)->cycles_timeslice - ((sh2)->sr >> 12))
+# define sh2_cycles_left(sh2) ((signed int)(sh2)->sr >> 12)
 # define sh2_pc(c)    (c) ? ssh2.pc : msh2.pc
 #endif
+
+#define sh2_cycles_done(sh2) ((int)(sh2)->cycles_timeslice - sh2_cycles_left(sh2))
+#define sh2_cycles_done_m68k(sh2) \
+  ((sh2)->m68krcycles_done + (sh2_cycles_done(sh2) / 3))
 
 #define sh2_reg(c, x) (c) ? ssh2.r[x] : msh2.r[x]
 #define sh2_gbr(c)    (c) ? ssh2.gbr : msh2.gbr
@@ -463,12 +468,8 @@ typedef struct
 #define P32XP_FULL  (1<<15) // PWM
 #define P32XP_EMPTY (1<<14)
 
-#define P32XF_68KPOLL   (1 << 0)
-#define P32XF_MSH2POLL  (1 << 1)
-#define P32XF_SSH2POLL  (1 << 2)
-#define P32XF_68KVPOLL  (1 << 3)
-#define P32XF_MSH2VPOLL (1 << 4)
-#define P32XF_SSH2VPOLL (1 << 5)
+#define P32XF_68KCPOLL  (1 << 0)
+#define P32XF_68KVPOLL  (1 << 1)
 #define P32XF_PWM_PEND  (1 << 6)
 
 #define P32XI_VRES (1 << 14/2) // IRL/2
@@ -737,9 +738,11 @@ void PicoUnload32x(void);
 void PicoFrame32x(void);
 void Pico32xStateLoaded(int is_early);
 void p32x_sync_sh2s(unsigned int m68k_target);
-void p32x_update_irls(int nested_call);
+void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target);
+void p32x_update_irls(SH2 *active_sh2);
 void p32x_reset_sh2s(void);
-void p32x_event_schedule(enum p32x_event event, unsigned int now, int after);
+void p32x_event_schedule(unsigned int now, enum p32x_event event, int after);
+void p32x_event_schedule_sh2(SH2 *sh2, enum p32x_event event, int after);
 
 // 32x/memory.c
 struct Pico32xMem *Pico32xMem;
@@ -750,7 +753,8 @@ void PicoWrite16_32x(unsigned int a, unsigned int d);
 void PicoMemSetup32x(void);
 void Pico32xSwapDRAM(int b);
 void Pico32xMemStateLoaded(void);
-void p32x_poll_event(int cpu_mask, int is_vdp);
+void p32x_m68k_poll_event(unsigned int flags);
+void p32x_sh2_poll_event(SH2 *sh2, unsigned int flags, unsigned int m68k_cycles);
 
 // 32x/draw.c
 void FinalizeLine32xRGB555(int sh, int line);
@@ -772,6 +776,7 @@ void p32x_pwm_update(int *buf32, int length, int stereo);
 void p32x_timers_do(unsigned int cycles);
 void p32x_timers_recalc(void);
 void p32x_pwm_schedule(unsigned int now);
+void p32x_pwm_schedule_sh2(SH2 *sh2);
 #else
 #define Pico32xInit()
 #define PicoPower32x()
@@ -846,6 +851,45 @@ do { \
 #define pprof_start(x)
 #define pprof_end(...)
 #define pprof_end_sub(...)
+#endif
+
+#ifdef EVT_LOG
+enum evt {
+  EVT_FRAME_START,
+  EVT_NEXT_LINE,
+  EVT_RUN_START,
+  EVT_RUN_END,
+  EVT_POLL_START,
+  EVT_POLL_END,
+  EVT_CNT
+};
+
+enum evt_cpu {
+  EVT_M68K,
+  EVT_S68K,
+  EVT_MSH2,
+  EVT_SSH2,
+  EVT_CPU_CNT
+};
+
+void pevt_log(unsigned int cycles, enum evt_cpu c, enum evt e);
+void pevt_dump(void);
+
+#define pevt_log_m68k(e) \
+  pevt_log(SekCyclesDoneT(), EVT_M68K, e)
+#define pevt_log_m68k_o(e) \
+  pevt_log(SekCyclesDoneT2(), EVT_M68K, e)
+#define pevt_log_sh2(sh2, e) \
+  pevt_log(sh2_cycles_done_m68k(sh2), EVT_MSH2 + (sh2)->is_slave, e)
+#define pevt_log_sh2_o(sh2, e) \
+  pevt_log((sh2)->m68krcycles_done, EVT_MSH2 + (sh2)->is_slave, e)
+#else
+#define pevt_log(c, e)
+#define pevt_log_m68k(e)
+#define pevt_log_m68k_o(e)
+#define pevt_log_sh2(sh2, e)
+#define pevt_log_sh2_o(sh2, e)
+#define pevt_dump()
 #endif
 
 // misc

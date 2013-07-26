@@ -6,6 +6,7 @@ CFLAGS += -Iplatform/linux/
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif
+#CFLAGS += -DEVT_LOG
 #CFLAGS += -DDRC_CMP
 #drc_debug = 4
 #profile = 1
