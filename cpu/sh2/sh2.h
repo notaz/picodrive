@@ -39,6 +39,15 @@ typedef struct SH2_
 	void		*p_rom;
 	unsigned int	pdb_io_csum[2];
 
+#define SH2_STATE_RUN   (1 << 0)	// to prevent recursion
+#define SH2_STATE_SLEEP (1 << 1)
+#define SH2_STATE_CPOLL (1 << 2)	// polling comm regs
+#define SH2_STATE_VPOLL (1 << 3)	// polling VDP
+	unsigned int	state;
+	unsigned int	poll_addr;
+	int		poll_cycles;
+	int		poll_cnt;
+
 	// interpreter stuff
 	int		icount;		// cycles left in current timeslice
 	unsigned int	ea;

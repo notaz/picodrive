@@ -54,6 +54,7 @@ void PicoExit(void)
 
   if (SRam.data)
     free(SRam.data);
+  pevt_dump();
 }
 
 void PicoPower(void)
