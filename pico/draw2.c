@@ -15,14 +15,15 @@
 
 #define TILE_ROWS END_ROW-START_ROW
 
-#define USE_CACHE
-
 // note: this is not implemented in ARM asm
 #if defined(DRAW2_OVERRIDE_LINE_WIDTH)
 #define LINE_WIDTH DRAW2_OVERRIDE_LINE_WIDTH
 #else
 #define LINE_WIDTH 328
 #endif
+
+static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
+unsigned char *PicoDraw2FB = PicoDraw2FB_;
 
 static int HighCache2A[41*(TILE_ROWS+1)+1+1]; // caches for high layers
 static int HighCache2B[41*(TILE_ROWS+1)+1+1];

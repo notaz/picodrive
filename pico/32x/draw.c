@@ -82,6 +82,7 @@ static void convert_pal555(int invert_prio)
   }                                                               \
 }
 
+// this is almost never used (Wiz and menu bg gen only)
 void FinalizeLine32xRGB555(int sh, int line)
 {
   unsigned short *pd = DrawLineDest;
@@ -306,20 +307,23 @@ void PicoDraw32xLayerMdOnly(int offs, int lines)
   }
 }
 
-void PicoDraw32xSetFrameMode(int is_on, int only_32x)
+void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode)
 {
 #ifdef _ASM_32X_DRAW
   extern void *Pico32xNativePal;
   Pico32xNativePal = Pico32xMem->pal_native;
 #endif
 
-  if (is_on) {
-    // use the same layout as alt renderer
-    PicoDrawSetInternalBuf(PicoDraw2FB, 328);
-    Pico32xDrawMode = only_32x ? PDM32X_32X_ONLY : PDM32X_BOTH;
-  } else {
+  if (which == PDF_RGB555 && use_32x_line_mode) {
+    // we'll draw via FinalizeLine32xRGB555 (rare)
     PicoDrawSetInternalBuf(NULL, 0);
     Pico32xDrawMode = PDM32X_OFF;
+    return;
   }
+
+  // use the same layout as alt renderer
+  PicoDrawSetInternalBuf(PicoDraw2FB, 328);
+  Pico32xDrawMode = (which == PDF_RGB555) ? PDM32X_32X_ONLY : PDM32X_BOTH;
 }
 
+// vim:shiftwidth=2:ts=2:expandtab

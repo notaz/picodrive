@@ -43,7 +43,6 @@ static int g_osd_fps_x, g_osd_y, doing_bg_frame;
 static const char pnd_script_base[] = "sudo -n /usr/pandora/scripts";
 static unsigned char __attribute__((aligned(4))) fb_copy[320 * 240 * 2];
 static void *temp_frame;
-unsigned char *PicoDraw2FB;
 const char *renderer_names[] = { NULL };
 const char *renderer_names32x[] = { NULL };
 
@@ -140,13 +139,6 @@ static void draw_cd_leds(void)
 	}
 }
 
-static int emuscan(unsigned int num)
-{
-	DrawLineDest = (unsigned short *)g_screen_ptr + num * g_screen_width;
-
-	return 0;
-}
-
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	if (notice && notice[0])
@@ -160,6 +152,7 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 void plat_video_flip(void)
 {
 	g_screen_ptr = vout_fbdev_flip(layer_fb);
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 
 	// XXX: drain OS event queue here, maybe we'll actually use it someday..
 	xenv_update(NULL, NULL, NULL, NULL);
@@ -308,7 +301,7 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 		return;
 
 	PicoDrawSetOutFormat(PDF_RGB555, 1);
-	PicoDrawSetCallbacks(emuscan, NULL);
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 
 	if (is_32cols) {
 		fb_w = 256;
@@ -474,7 +467,6 @@ void plat_init(void)
 	}
 	g_menubg_ptr = temp_frame;
 	g_menubg_src_ptr = temp_frame;
-	PicoDraw2FB = temp_frame;
 
 	pnd_menu_init();
 

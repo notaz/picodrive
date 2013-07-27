@@ -18,7 +18,6 @@
 #include "log_io.h"
 
 int current_keys;
-unsigned char *PicoDraw2FB;
 
 #ifdef FBDEV
 
@@ -265,7 +264,6 @@ static void realloc_screen(void)
 	g_menubg_ptr = realloc(g_menubg_ptr, size);
 	memset(g_screen_ptr, 0, size);
 	memset(g_menubg_ptr, 0, size);
-	PicoDraw2FB = g_menubg_ptr;
 	scr_changed = 0;
 }
 
@@ -335,7 +333,6 @@ void plat_init(void)
 	g_screen_width = g_menuscreen_w = w;
 	g_screen_height = g_menuscreen_h = h;
 	g_menubg_ptr = realloc(g_menubg_ptr, w * g_screen_height * 2);
-	PicoDraw2FB = g_menubg_ptr;
 #else
 	realloc_screen();
 	memset(g_screen_ptr, 0, g_screen_width * g_screen_height * 2);

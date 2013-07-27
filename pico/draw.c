@@ -1546,7 +1546,7 @@ void PicoDrawUpdateHighPal(void)
   }
 }
 
-void PicoDrawSetOutFormat(pdso_t which, int allow_32x)
+void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 {
   switch (which)
   {
@@ -1555,7 +1555,7 @@ void PicoDrawSetOutFormat(pdso_t which, int allow_32x)
       break;
 
     case PDF_RGB555:
-      if ((PicoAHW & PAHW_32X) && allow_32x)
+      if ((PicoAHW & PAHW_32X) && use_32x_line_mode)
         FinalizeLine = FinalizeLine32xRGB555;
       else
         FinalizeLine = FinalizeLine555;
@@ -1565,6 +1565,7 @@ void PicoDrawSetOutFormat(pdso_t which, int allow_32x)
       FinalizeLine = NULL;
       break;
   }
+  PicoDrawSetOutFormat32x(which, use_32x_line_mode);
   PicoDrawSetOutputMode4(which);
   rendstatus_old = -1;
 }

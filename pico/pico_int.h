@@ -757,6 +757,7 @@ void p32x_m68k_poll_event(unsigned int flags);
 void p32x_sh2_poll_event(SH2 *sh2, unsigned int flags, unsigned int m68k_cycles);
 
 // 32x/draw.c
+void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode);
 void FinalizeLine32xRGB555(int sh, int line);
 void PicoDraw32xLayer(int offs, int lines, int mdbg);
 void PicoDraw32xLayerMdOnly(int offs, int lines);
@@ -784,7 +785,6 @@ void p32x_pwm_schedule_sh2(SH2 *sh2);
 #define PicoFrame32x()
 #define PicoUnload32x()
 #define Pico32xStateLoaded()
-#define PicoDraw32xSetFrameMode(...)
 #define FinalizeLine32xRGB555 NULL
 #define p32x_pwm_update(...)
 #define p32x_timers_recalc()
