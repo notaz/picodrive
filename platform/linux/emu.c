@@ -142,17 +142,8 @@ static void apply_renderer(void)
 		break;
 	}
 
-	if (PicoAHW & PAHW_32X) {
-		int only_32x = 0;
-		if (currentConfig.renderer == RT_16BIT)
-			only_32x = 1;
-		else
-			PicoDrawSetOutFormat(PDF_NONE, 0);
-		PicoDraw32xSetFrameMode(1, only_32x);
+	if (PicoAHW & PAHW_32X)
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
-	}
-	//PicoDraw32xSetFrameMode(0, 0);
-	//PicoDrawSetOutFormat(PDF_RGB555, 1);
 }
 
 void plat_video_toggle_renderer(int change, int is_menu)
@@ -198,7 +189,6 @@ void plat_update_volume(int has_changed, int is_up)
 void pemu_forced_frame(int no_scale, int do_emu)
 {
 	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
-	PicoDraw32xSetFrameMode(0, 0);
 	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
 

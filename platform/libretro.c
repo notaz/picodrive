@@ -40,10 +40,6 @@ static int vout_width, vout_height;
 
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 
-// FIXME: these 2 shouldn't be here
-static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
-unsigned char *PicoDraw2FB = PicoDraw2FB_;
-
 static void snd_write(int len);
 
 #ifdef _WIN32
@@ -151,7 +147,6 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 
 void emu_32x_startup(void)
 {
-	PicoDrawSetOutFormat(PDF_RGB555, 1);
 }
 
 #ifndef ANDROID
@@ -614,7 +609,7 @@ void retro_init(void)
 	vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 
 	PicoInit();
-	PicoDrawSetOutFormat(PDF_RGB555, 1);
+	PicoDrawSetOutFormat(PDF_RGB555, 0);
 	PicoDrawSetOutBuf(vout_buf, vout_width * 2);
 
 	//PicoMessage = plat_status_msg_busy_next;

@@ -17,10 +17,6 @@
 #include "input_pico.h"
 #include "version.h"
 
-// FIXME: these 2 shouldn't be here
-static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
-unsigned char *PicoDraw2FB = PicoDraw2FB_;
-
 static void *shadow_fb;
 
 static const struct in_default_bind in_sdl_defbinds[] = {

@@ -43,8 +43,6 @@
 extern int crashed_940;
 
 static short __attribute__((aligned(4))) sndBuffer[2*(44100+100)/50];
-static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
-unsigned char *PicoDraw2FB = PicoDraw2FB_;
 static int osd_fps_x, osd_y, doing_bg_frame;
 const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast", NULL };
 const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
@@ -524,11 +522,9 @@ static void vid_reset_mode(void)
 		// Wiz 16bit is an exception, uses line rendering due to rotation mess
 		if (renderer == RT_16BIT && (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX)) {
 			PicoDrawSetOutFormat(PDF_RGB555, 1);
-			PicoDraw32xSetFrameMode(0, 0);
 		}
 		else {
 			PicoDrawSetOutFormat(PDF_NONE, 0);
-			PicoDraw32xSetFrameMode(1, 0);
 		}
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 		gp2x_mode = 16;
@@ -785,7 +781,6 @@ void pemu_forced_frame(int no_scale, int do_emu)
 {
 	doing_bg_frame = 1;
 	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
-	PicoDraw32xSetFrameMode(0, 0);
 	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
 

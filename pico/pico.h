@@ -171,7 +171,7 @@ typedef enum
 	PDF_RGB555,      // RGB/BGR output, depends on compile options
 	PDF_8BIT,        // 8-bit out (handles shadow/hilight mode, sonic water)
 } pdso_t;
-void PicoDrawSetOutFormat(pdso_t which, int allow_32x);
+void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode);
 void PicoDrawSetOutBuf(void *dest, int increment);
 void PicoDrawSetCallbacks(int (*begin)(unsigned int num), int (*end)(unsigned int num));
 extern void *DrawLineDest;
@@ -215,9 +215,6 @@ extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to us
 #ifndef NO_32X
 
 void Pico32xSetClocks(int msh2_hz, int ssh2_hz);
-
-// 32x/draw.c
-void PicoDraw32xSetFrameMode(int is_on, int only_32x);
 
 #else
 

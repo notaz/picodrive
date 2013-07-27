@@ -26,7 +26,6 @@
 
 // main 300K gfx-related buffer. Used by menu and renderers.
 unsigned char gfx_buffer[321*240*2*2];
-unsigned char *PicoDraw2FB = gfx_buffer;  // temporary buffer for alt renderer ( (8+320)*(8+240+8) )
 
 static short *snd_cbuff = NULL;
 static int snd_cbuf_samples = 0, snd_all_samples = 0;
