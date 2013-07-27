@@ -345,7 +345,7 @@ static void p32x_reg_write16(u32 a, u32 d)
     case 0x12: // FIFO reg
       if (!(r[6 / 2] & P32XS_68S)) {
         elprintf(EL_32X|EL_ANOMALY, "DREQ FIFO w16 without 68S?");
-	return;
+        return;
       }
       if (Pico32x.dmac_ptr < DMAC_FIFO_LEN) {
         Pico32x.dmac_fifo[Pico32x.dmac_ptr++] = d;
@@ -426,7 +426,7 @@ static void p32x_vdp_write8(u32 a, u32 d)
       // if we are blanking and FS bit is changing
       if (((r[0x0a/2] & P32XV_VBLK) || (r[0] & P32XV_Mx) == 0) && ((r[0x0a/2] ^ d) & P32XV_FS)) {
         r[0x0a/2] ^= P32XV_FS;
-	Pico32xSwapDRAM(d ^ 1);
+        Pico32xSwapDRAM(d ^ 1);
         elprintf(EL_32X, "VDP FS: %d", r[0x0a/2] & P32XV_FS);
       }
       break;
@@ -831,17 +831,19 @@ static void PicoWrite8_32x_on(u32 a, u32 d)
     return;
   }
 
-  if ((a & 0xfff0) == 0x5180) { // a15180
-    p32x_vdp_write8(a, d);
-    return;
-  }
+  if (!(Pico32x.regs[0] & P32XS_FM)) {
+    if ((a & 0xfff0) == 0x5180) { // a15180
+      p32x_vdp_write8(a, d);
+      return;
+    }
 
-  // TODO: verify
-  if ((a & 0xfe00) == 0x5200) { // a15200
-    elprintf(EL_32X|EL_ANOMALY, "m68k 32x PAL w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
-    ((u8 *)Pico32xMem->pal)[(a & 0x1ff) ^ 1] = d;
-    Pico32x.dirty_pal = 1;
-    return;
+    // TODO: verify
+    if ((a & 0xfe00) == 0x5200) { // a15200
+      elprintf(EL_32X|EL_ANOMALY, "m68k 32x PAL w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
+      ((u8 *)Pico32xMem->pal)[(a & 0x1ff) ^ 1] = d;
+      Pico32x.dirty_pal = 1;
+      return;
+    }
   }
 
   elprintf(EL_UIO, "m68k unmapped w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
@@ -862,15 +864,17 @@ static void PicoWrite16_32x_on(u32 a, u32 d)
     return;
   }
 
-  if ((a & 0xfff0) == 0x5180) { // a15180
-    p32x_vdp_write16(a, d, NULL); // FIXME?
-    return;
-  }
+  if (!(Pico32x.regs[0] & P32XS_FM)) {
+    if ((a & 0xfff0) == 0x5180) { // a15180
+      p32x_vdp_write16(a, d, NULL); // FIXME?
+      return;
+    }
 
-  if ((a & 0xfe00) == 0x5200) { // a15200
-    Pico32xMem->pal[(a & 0x1ff) / 2] = d;
-    Pico32x.dirty_pal = 1;
-    return;
+    if ((a & 0xfe00) == 0x5200) { // a15200
+      Pico32xMem->pal[(a & 0x1ff) / 2] = d;
+      Pico32x.dirty_pal = 1;
+      return;
+    }
   }
 
   elprintf(EL_UIO, "m68k unmapped w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
@@ -1147,10 +1151,12 @@ static int REGPARM(3) sh2_write8_cs0(u32 a, u32 d, int id)
   elprintf(EL_32X, "%csh2 w8  [%08x]       %02x @%06x",
     id ? 's' : 'm', a, d & 0xff, sh2_pc(id));
 
-  if ((a & 0x3ff00) == 0x4100) {
-    sh2s[id].poll_addr = 0;
-    p32x_vdp_write8(a, d);
-    return 0;
+  if (Pico32x.regs[0] & P32XS_FM) {
+    if ((a & 0x3ff00) == 0x4100) {
+      sh2s[id].poll_addr = 0;
+      p32x_vdp_write8(a, d);
+      return 0;
+    }
   }
 
   if ((a & 0x3ff00) == 0x4000) {
@@ -1217,16 +1223,18 @@ static int REGPARM(3) sh2_write16_cs0(u32 a, u32 d, int id)
     elprintf(EL_32X, "%csh2 w16 [%08x]     %04x @%06x",
       id ? 's' : 'm', a, d & 0xffff, sh2_pc(id));
 
-  if ((a & 0x3ff00) == 0x4100) {
-    sh2s[id].poll_addr = 0;
-    p32x_vdp_write16(a, d, &sh2s[id]);
-    return 0;
-  }
+  if (Pico32x.regs[0] & P32XS_FM) {
+    if ((a & 0x3ff00) == 0x4100) {
+      sh2s[id].poll_addr = 0;
+      p32x_vdp_write16(a, d, &sh2s[id]);
+      return 0;
+    }
 
-  if ((a & 0x3fe00) == 0x4200) {
-    Pico32xMem->pal[(a & 0x1ff) / 2] = d;
-    Pico32x.dirty_pal = 1;
-    return 0;
+    if ((a & 0x3fe00) == 0x4200) {
+      Pico32xMem->pal[(a & 0x1ff) / 2] = d;
+      Pico32x.dirty_pal = 1;
+      return 0;
+    }
   }
 
   if ((a & 0x3ff00) == 0x4000) {
