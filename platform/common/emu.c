@@ -48,7 +48,8 @@ currentConfig_t currentConfig, defaultConfig;
 int state_slot = 0;
 int config_slot = 0, config_slot_current = 0;
 int pico_pen_x = 320/2, pico_pen_y = 240/2;
-int pico_inp_mode = 0;
+int pico_inp_mode;
+int flip_after_sync;
 int engineState = PGS_Menu;
 
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
@@ -1431,7 +1432,8 @@ void emu_loop(void)
 		PicoFrame();
 		pemu_finalize_frame(fpsbuff, notice_msg);
 
-		// plat_video_flip();
+		if (!flip_after_sync)
+			plat_video_flip();
 
 		/* frame limiter */
 		if (!reset_timing && !(currentConfig.EmuOpt & (EOPT_NO_FRMLIMIT|EOPT_EXT_FRMLIMIT)))
@@ -1449,9 +1451,8 @@ void emu_loop(void)
 			}
 		}
 
-		// XXX: for some plats it might be better to flip before vsync
-		// (due to shadow registers in display hw)
-		plat_video_flip();
+		if (flip_after_sync)
+			plat_video_flip();
 
 		pframes_done++; frames_done++; frames_shown++;
 

@@ -300,9 +300,6 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 	if (doing_bg_frame)
 		return;
 
-	PicoDrawSetOutFormat(PDF_RGB555, 1);
-	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
-
 	if (is_32cols) {
 		fb_w = 256;
 		fb_left = fb_right = 32;
@@ -353,6 +350,8 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 	vout_fbdev_clear(layer_fb);
 	vout_fbdev_resize(layer_fb, fb_w, fb_h, 16, fb_left, fb_right, fb_top, fb_bottom, 3);
 	plat_video_flip();
+
+	PicoDrawSetOutFormat(PDF_RGB555, 0);
 }
 
 void plat_video_loop_prepare(void)

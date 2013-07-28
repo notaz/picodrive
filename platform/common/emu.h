@@ -82,6 +82,7 @@ extern int state_slot;
 extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;
 extern int reset_timing;
+extern int flip_after_sync;
 
 #define PICO_PEN_ADJUST_X 4
 #define PICO_PEN_ADJUST_Y 2
