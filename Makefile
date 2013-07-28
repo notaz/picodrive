@@ -49,7 +49,7 @@ endif
 
 -include Makefile.local
 
-ifeq "$(use_musashi)" "1"
+ifneq "$(use_cyclone)" "1"
 # due to CPU stop flag access
 asm_cdpico = 0
 asm_cdmemory = 0
