@@ -1424,11 +1424,6 @@ PICO_INTERNAL void PicoFrameStart(void)
     lines = 240;
   }
 
-  HighCol = HighColBase + offs * HighColIncrement;
-  DrawLineDest = (char *)DrawLineDestBase + offs * DrawLineDestIncrement;
-  DrawScanline = 0;
-  skip_next_line = 0;
-
   if (rendstatus != rendstatus_old || lines != rendlines) {
     rendlines = lines;
     // mode_change() might reset rendstatus_old by calling SetColorFormat
@@ -1436,6 +1431,11 @@ PICO_INTERNAL void PicoFrameStart(void)
       lines, (Pico.video.reg[12] & 1) ? 0 : 1);
     rendstatus_old = rendstatus;
   }
+
+  HighCol = HighColBase + offs * HighColIncrement;
+  DrawLineDest = (char *)DrawLineDestBase + offs * DrawLineDestIncrement;
+  DrawScanline = 0;
+  skip_next_line = 0;
 
   if (PicoOpt & POPT_ALT_RENDERER)
     return;

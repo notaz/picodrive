@@ -202,6 +202,7 @@ void plat_init(void)
 		in_set_config(in_name_to_id("evdev:pollux-analog"), IN_CFG_KEY_NAMES,
 				caanoo_keys, sizeof(caanoo_keys));
 
+	flip_after_sync = 1;
 	gp2x_menu_init();
 }
 
