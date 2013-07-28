@@ -217,7 +217,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
   {
     // check for MegaCD image
     cd_img_type = PicoCdCheck(filename, &cd_region);
-    if (cd_img_type >= 0 && cd_img_type != CIT_NOT_CD)
+    if ((int)cd_img_type >= 0 && cd_img_type != CIT_NOT_CD)
     {
       // valid CD image, ask frontend for BIOS..
       rom_fname = NULL;

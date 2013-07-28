@@ -26,7 +26,7 @@ static const char builtin_carthw_cfg[] =
   "hw=ssf2_mapper\n"
   "prop=no_sram\n"
   "[]\n"
-  "check_str=0x150,\"PIER SOLAR™&THE GREAT ARCHITECTS© WaterMelon™\"\n"
+  "check_str=0x150,\"PIER SOLAR\x99&THE GREAT ARCHITECTS\xa9 WaterMelon\x99\"\n"
   "hw=piersolar_mapper\n"
   "sram_range=0xa13009,0xa1300b\n"
   "eeprom_type=3\n"

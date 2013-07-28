@@ -1082,7 +1082,8 @@ int menu_loop_tray(void)
 		ret = 0; /* no CD inserted */
 	}
 
-	while (in_menu_wait_any(NULL, 50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK));
+	while (in_menu_wait_any(NULL, 50) & (PBTN_MENU|PBTN_MOK|PBTN_MBACK))
+		;
 	in_set_config_int(0, IN_CFG_BLOCKING, 0);
 	plat_video_menu_leave();
 

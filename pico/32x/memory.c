@@ -1430,7 +1430,7 @@ static const u16 ssh2_code[] = {
   0x2200, 0x03e4  // slave start pointer in ROM
 };
 
-#define HWSWAP(x) (((x) << 16) | ((x) >> 16))
+#define HWSWAP(x) (((u16)(x) << 16) | ((x) >> 16))
 static void get_bios(void)
 {
   u16 *ps;
