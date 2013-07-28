@@ -1,4 +1,4 @@
-int  ssp_drc_entry(int cycles);
+int  ssp_drc_entry(ssp1601_t *ssp, int cycles);
 void ssp_drc_next(void);
 void ssp_drc_next_patch(void);
 void ssp_drc_end(void);

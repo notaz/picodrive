@@ -1880,7 +1880,7 @@ void ssp1601_dyn_run(int cycles)
 	ssp_translate_block(DUMP_BLOCK >> 1);
 #endif
 #ifdef __arm__
-	ssp_drc_entry(cycles);
+	ssp_drc_entry(ssp, cycles);
 #endif
 }
 
