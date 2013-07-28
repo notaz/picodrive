@@ -71,7 +71,7 @@ LOCAL_SRC_FILES += $(R)zlib/gzio.c $(R)zlib/inffast.c $(R)zlib/inflate.c \
 
 LOCAL_SRC_FILES += $(R)unzip/unzip.c $(R)unzip/unzip_stream.c
 
-LOCAL_C_INCLUDES += $(R) $(R)platform/linux
+LOCAL_C_INCLUDES += $(R)
 
 LOCAL_CFLAGS += $(addprefix -D,$(DEFINES))
 LOCAL_CFLAGS += -Wall -O3 -ffast-math -DNDEBUG

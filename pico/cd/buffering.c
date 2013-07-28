@@ -14,6 +14,8 @@ static int prev_lba = 0x80000000;
 
 static int hits, reads;
 
+#undef dprintf
+#define dprintf(...)
 
 void PicoCDBufferInit(void)
 {
@@ -114,7 +116,7 @@ PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba)
 	if (is_bin)
 	{
 		int i = 0;
-#if REDUCE_IO_CALLS
+#ifdef _PSP_FW_VERSION
 		int bufs = (read_len*2048) / (2048+304);
 		pm_read(cd_buffer, bufs*(2048+304), Pico_mcd->TOC.Tracks[0].F);
 		for (i = 1; i < bufs; i++)

@@ -1,8 +1,6 @@
 TARGET ?= PicoDrive
 CFLAGS += -Wall -ggdb -falign-functions=2
 CFLAGS += -I.
-# FIXME
-CFLAGS += -Iplatform/linux/
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
 endif

@@ -802,7 +802,11 @@ static __inline int isspace_(int c)
 
 // emulation event logging
 #ifndef EL_LOGMASK
-#define EL_LOGMASK 0
+# ifdef __x86_64__ // HACK
+#  define EL_LOGMASK (EL_STATUS|EL_IDLE|EL_ANOMALY)
+# else
+#  define EL_LOGMASK (EL_STATUS|EL_IDLE)
+# endif
 #endif
 
 #define EL_HVCNT   0x00000001 /* hv counter reads */

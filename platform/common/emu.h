@@ -6,8 +6,6 @@
  * See COPYING file in the top-level directory.
  */
 
-#include "port_config.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -16,14 +14,8 @@ extern "C" {
 
 extern void *g_screen_ptr;
 
-#if SCREEN_SIZE_FIXED
-#define g_screen_width  SCREEN_WIDTH
-#define g_screen_height SCREEN_HEIGHT
-#else
 extern int g_screen_width;
 extern int g_screen_height;
-#endif
-
 
 #define EOPT_EN_SRAM      (1<<0)
 #define EOPT_SHOW_FPS     (1<<1)
