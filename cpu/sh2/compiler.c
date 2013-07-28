@@ -3287,6 +3287,7 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
   u16 *dr_pc_base;
   u32 pc, op, tmp;
   u32 end_pc, end_literals = 0;
+  u32 lowest_mova = 0;
   struct op_data *opd;
   int next_is_delay = 0;
   int end_block = 0;
@@ -3948,8 +3949,13 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
             tmp = 0;
         }
         opd->dest = BITMASK1(SHR_R0);
-        if (tmp)
+        if (tmp) {
           opd->imm = (tmp + 2 + (op & 0xff) * 4) & ~3;
+          if (opd->imm >= base_pc) {
+            if (lowest_mova == 0 || opd->imm < lowest_mova)
+              lowest_mova = opd->imm;
+          }
+        }
         break;
       case 0x0800: // TST #imm,R0           11001000iiiiiiii
         opd->source = BITMASK1(SHR_R0);
@@ -4058,6 +4064,20 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
   end_pc = base_pc + i_end * 2;
   if (end_literals < end_pc)
     end_literals = end_pc;
+
+  // end_literals is used to decide to inline a literal or not
+  // XXX: need better detection if this actually is used in write
+  if (lowest_mova >= base_pc) {
+    if (lowest_mova < end_literals) {
+      dbg(1, "mova for %08x, block %08x", lowest_mova, base_pc);
+      end_literals = end_pc;
+    }
+    if (lowest_mova < end_pc) {
+      dbg(1, "warning: mova inside of blk for %08x, block %08x",
+        lowest_mova, base_pc);
+      end_literals = end_pc;
+    }
+  }
 
   *end_pc_out = end_pc;
   if (end_literals_out != NULL)
