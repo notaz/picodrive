@@ -31,7 +31,7 @@ int current_keys;
 static int current_bpp = 16;
 static int current_pal[256];
 static const char *verstring = "PicoDrive " VERSION;
-static int scr_changed = 0, scr_w = SCREEN_WIDTH, scr_h = SCREEN_HEIGHT;
+static int scr_changed = 0, scr_w = 320, scr_h = 240;
 
 /* faking GP2X pad */
 enum  { GP2X_UP=0x1,       GP2X_LEFT=0x4,       GP2X_DOWN=0x10,  GP2X_RIGHT=0x40,

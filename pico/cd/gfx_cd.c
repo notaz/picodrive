@@ -7,6 +7,9 @@
 
 #include "../pico_int.h"
 
+#undef dprintf
+#define dprintf(...)
+
 #define _rot_comp Pico_mcd->rot_comp
 
 static const int Table_Rot_Time[] =

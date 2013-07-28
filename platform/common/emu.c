@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-#ifndef NO_SYNC
+#ifdef __GP2X__
 #include <unistd.h>
 #endif
 
@@ -28,15 +28,20 @@
 #include <pico/pico_int.h>
 #include <pico/patch.h>
 
+#ifndef _WIN32
+#define PATH_SEP      "/"
+#define PATH_SEP_C    '/'
+#else
+#define PATH_SEP      "\\"
+#define PATH_SEP_C    '\\'
+#endif
 
 #define STATUS_MSG_TIMEOUT 2000
 
 void *g_screen_ptr;
 
-#if !SCREEN_SIZE_FIXED
-int g_screen_width  = SCREEN_WIDTH;
-int g_screen_height = SCREEN_HEIGHT;
-#endif
+int g_screen_width  = 320;
+int g_screen_height = 240;
 
 char *PicoConfigFile = "config.cfg";
 currentConfig_t currentConfig, defaultConfig;
@@ -649,7 +654,7 @@ int emu_write_config(int is_game)
 	lprintf("emu_write_config: %s ", cfg);
 	ret = config_write(cfg);
 	if (write_lrom) config_writelrom(cfg);
-#ifndef NO_SYNC
+#ifdef __GP2X__
 	sync();
 #endif
 	lprintf((ret == 0) ? "(ok)\n" : "(failed)\n");
@@ -859,7 +864,7 @@ int emu_save_load_game(int load, int sram)
 				ret = fwrite(sram_data, 1, sram_size, sramFile);
 				ret = (ret != sram_size) ? -1 : 0;
 				fclose(sramFile);
-#ifndef NO_SYNC
+#ifdef __GP2X__
 				sync();
 #endif
 			}
@@ -870,7 +875,7 @@ int emu_save_load_game(int load, int sram)
 	{
 		ret = PicoState(saveFname, !load);
 		if (!ret) {
-#ifndef NO_SYNC
+#ifdef __GP2X__
 			if (!load) sync();
 #endif
 			emu_status_msg(load ? "STATE LOADED" : "STATE SAVED");
@@ -1198,7 +1203,7 @@ void emu_finish(void)
 		char cfg[512];
 		make_config_cfg(cfg);
 		config_writelrom(cfg);
-#ifndef NO_SYNC
+#ifdef __GP2X__
 		sync();
 #endif
 	}

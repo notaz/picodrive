@@ -13,6 +13,16 @@
 
 //#define cdprintf(f,...) printf(f "\n",##__VA_ARGS__) // tmp
 
+static void to_upper(char *d, const char *s)
+{
+	for (; *s != 0; d++, s++) {
+		if ('a' <= *s && *s <= 'z')
+			*d = *s - 'a' + 'A';
+		else
+			*d = *s;
+	}
+}
+
 static int audio_track_mp3(const char *fname, int index)
 {
 	_scd_track *Tracks = Pico_mcd->TOC.Tracks;
@@ -27,7 +37,7 @@ static int audio_track_mp3(const char *fname, int index)
 	fs = ftell(tmp_file);				// used to calculate length
 	fseek(tmp_file, 0, SEEK_SET);
 
-#if DONT_OPEN_MANY_FILES
+#ifdef _PSP_FW_VERSION
 	// some systems (like PSP) can't have many open files at a time,
 	// so we work with their names instead.
 	fclose(tmp_file);
@@ -38,10 +48,10 @@ static int audio_track_mp3(const char *fname, int index)
 	if (ret != 0 || Tracks[index].KBtps <= 0)
 	{
 		elprintf(EL_STATUS, "track %2i: mp3 bitrate %i", index+1, Tracks[index].KBtps);
-#if !DONT_OPEN_MANY_FILES
-		fclose(tmp_file);
-#else
+#ifdef _PSP_FW_VERSION
 		free(tmp_file);
+#else
+		fclose(tmp_file);
 #endif
 		return -1;
 	}
@@ -62,15 +72,12 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 {
 	int i, j, num_track, Cur_LBA, index, ret, iso_name_len, missed, cd_img_sectors;
 	_scd_track *Tracks = Pico_mcd->TOC.Tracks;
-	char tmp_name[1024], tmp_ext[10];
+	char tmp_name[1024], tmp_ext[10], tmp_ext_u[10];
 	cue_data_t *cue_data = NULL;
 	pm_file *pmf;
-	static char *exts[] = {
+	static const char *exts[] = {
 		"%02d.mp3", " %02d.mp3", "-%02d.mp3", "_%02d.mp3", " - %02d.mp3",
 		"%d.mp3", " %d.mp3", "-%d.mp3", "_%d.mp3", " - %d.mp3",
-#if CASE_SENSITIVE_FS
-		"%02d.MP3", " %02d.MP3", "-%02d.MP3", "_%02d.MP3", " - %02d.MP3",
-#endif
 	};
 
 	if (PicoCDLoadProgressCB != NULL)
@@ -187,19 +194,32 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 		for (j = 0; j < sizeof(exts)/sizeof(char *); j++)
 		{
 			int ext_len;
-			sprintf(tmp_ext, exts[j], i);
-			ext_len = strlen(tmp_ext);
-
-			memcpy(tmp_name, cd_img_name, iso_name_len + 1);
-			tmp_name[iso_name_len - 4] = 0;
-			strcat(tmp_name, tmp_ext);
+			char *p;
 
 			index = num_track - 1;
+
+			sprintf(tmp_ext, exts[j], i);
+			ext_len = strlen(tmp_ext);
+			to_upper(tmp_ext_u, tmp_ext);
+
+			memcpy(tmp_name, cd_img_name, iso_name_len + 1);
+			p = tmp_name + iso_name_len - 4;
+
+			strcpy(p, tmp_ext);
 			ret = audio_track_mp3(tmp_name, index);
-			if (ret != 0 && i > 1 && iso_name_len > ext_len) {
-				tmp_name[iso_name_len - ext_len] = 0;
-				strcat(tmp_name, tmp_ext);
+			if (ret != 0) {
+				strcpy(p, tmp_ext_u);
 				ret = audio_track_mp3(tmp_name, index);
+			}
+
+			if (ret != 0 && i > 1 && iso_name_len > ext_len) {
+				p = tmp_name + iso_name_len - ext_len;
+				strcpy(p, tmp_ext);
+				ret = audio_track_mp3(tmp_name, index);
+				if (ret != 0) {
+					strcpy(p, tmp_ext_u);
+					ret = audio_track_mp3(tmp_name, index);
+				}
 			}
 
 			if (ret == 0)
@@ -248,7 +268,7 @@ PICO_INTERNAL void Unload_ISO(void)
 		if (Pico_mcd->TOC.Tracks[i].F != NULL)
 		{
 			if (Pico_mcd->TOC.Tracks[i].ftype == TYPE_MP3)
-#if DONT_OPEN_MANY_FILES
+#ifdef _PSP_FW_VERSION
 				free(Pico_mcd->TOC.Tracks[i].F);
 #else
 				fclose(Pico_mcd->TOC.Tracks[i].F);

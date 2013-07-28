@@ -26,8 +26,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "../../pico_int.h"
-#include "../../cpu/drc/cmn.h"
+#include <pico/pico_int.h>
+#include <cpu/drc/cmn.h>
 #include "compiler.h"
 
 svp_t *svp = NULL;

@@ -12,9 +12,6 @@
 
 #include <stdlib.h> // size_t
 
-// port-specific compile-time settings
-#include <port_config.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif

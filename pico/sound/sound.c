@@ -14,6 +14,8 @@
 #include "../cd/pcm.h"
 #include "mix.h"
 
+#define SIMPLE_WRITE_SOUND 0
+
 void (*PsndMix_32_to_16l)(short *dest, int *src, int count) = mix_32_to_16l_stereo;
 
 // master int buffer to mix to

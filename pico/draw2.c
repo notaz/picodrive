@@ -8,10 +8,8 @@
 
 #include "pico_int.h"
 
-// port_config.h include must define these 2 defines:
-// #define START_ROW  1 // which row of tiles to start rendering at?
-// #define END_ROW   27 // ..end
-// one row means 8 pixels. If above example was used, (27-1)*8=208 lines would be rendered.
+#define START_ROW  0 // which row of tiles to start rendering at?
+#define END_ROW   28 // ..end
 
 #define TILE_ROWS END_ROW-START_ROW
 
