@@ -805,7 +805,7 @@ static __inline int isspace_(int c)
 # ifdef __x86_64__ // HACK
 #  define EL_LOGMASK (EL_STATUS|EL_IDLE|EL_ANOMALY)
 # else
-#  define EL_LOGMASK (EL_STATUS|EL_IDLE)
+#  define EL_LOGMASK (EL_STATUS)
 # endif
 #endif
 
