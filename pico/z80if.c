@@ -164,11 +164,11 @@ void z80_pack(void *data)
   #define DRR16(n)  (drZ80.Z80##n >> 16)
   #define DRR16H(n) (drZ80.Z80##n >> 24)
   #define DRR16L(n) ((drZ80.Z80##n >> 16) & 0xff)
-  s->m.a = DRR8(A);     s->m.f = DRR8(F);
+  s->m.a = DRR8(A);     s->m.f = drZ80.Z80F;
   s->m.b = DRR16H(BC);  s->m.c = DRR16L(BC);
   s->m.d = DRR16H(DE);  s->m.e = DRR16L(DE);
   s->m.h = DRR16H(HL);  s->m.l = DRR16L(HL);
-  s->a.a = DRR8(A2);    s->a.f = DRR8(F2);
+  s->a.a = DRR8(A2);    s->a.f = drZ80.Z80F2;
   s->a.b = DRR16H(BC2); s->a.c = DRR16L(BC2);
   s->a.d = DRR16H(DE2); s->a.e = DRR16L(DE2);
   s->a.h = DRR16H(HL2); s->a.l = DRR16L(HL2);
@@ -223,11 +223,11 @@ int z80_unpack(const void *data)
   #define DRW8(n, v)       drZ80.Z80##n = (u32)(v) << 24
   #define DRW16(n, v)      drZ80.Z80##n = (u32)(v) << 16
   #define DRW16HL(n, h, l) drZ80.Z80##n = ((u32)(h) << 24) | ((u32)(l) << 16)
-  DRW8(A, s->m.a);  DRW8(F, s->m.f);
+  DRW8(A, s->m.a);  drZ80.Z80F = s->m.f;
   DRW16HL(BC, s->m.b, s->m.c);
   DRW16HL(DE, s->m.d, s->m.e);
   DRW16HL(HL, s->m.h, s->m.l);
-  DRW8(A2, s->a.a); DRW8(F2, s->a.f);
+  DRW8(A2, s->a.a); drZ80.Z80F2 = s->a.f;
   DRW16HL(BC2, s->a.b, s->a.c);
   DRW16HL(DE2, s->a.d, s->a.e);
   DRW16HL(HL2, s->a.h, s->a.l);
