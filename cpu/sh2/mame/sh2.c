@@ -115,7 +115,7 @@
 #ifndef USE_SH2DRC
 
 /* speed up delay loops, bail out of tight loops */
-#define BUSY_LOOP_HACKS 	1
+//#define BUSY_LOOP_HACKS 	1
 
 #define VERBOSE 0
 

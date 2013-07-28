@@ -46,8 +46,6 @@
 #define MAX_LITERALS            (BLOCK_INSN_LIMIT / 4)
 #define MAX_LOCAL_BRANCHES      32
 
-static int literal_disabled_frames;
-
 // debug stuff
 // 1 - warnings/errors
 // 2 - block info/smc
@@ -128,6 +126,8 @@ enum op_types {
 };
 
 #ifdef DRC_SH2
+
+static int literal_disabled_frames;
 
 #if (DRC_DEBUG & 4)
 static u8 *tcache_dsm_ptrs[3];
