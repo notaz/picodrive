@@ -1680,9 +1680,14 @@ static void emit_block_prologue(void)
  * >0: direct (un)conditional jump
  * <0: indirect jump
  */
-static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
+static void *emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 {
-	if (cycles > 0xff) { elprintf(EL_ANOMALY, "large cycle count: %i\n", cycles); cycles = 0xff; }
+	void *end_ptr = NULL;
+
+	if (cycles > 0xff) {
+		elprintf(EL_ANOMALY, "large cycle count: %i\n", cycles);
+		cycles = 0xff;
+	}
 	EOP_SUB_IMM(11,11,0,cycles);		// sub r11, r11, #cycles
 
 	if (cond < 0 || (end_pc >= 0x400 && pc < 0x400)) {
@@ -1697,6 +1702,7 @@ static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 			emith_jump(target);
 		else {
 			int ops = emith_jump(ssp_drc_next);
+			end_ptr = tcache_ptr;
 			// cause the next block to be emitted over jump instruction
 			tcache_ptr -= ops;
 		}
@@ -1724,12 +1730,17 @@ static void emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 			emith_jump(ssp_drc_next);
 #endif
 	}
+
+	if (end_ptr == NULL)
+		end_ptr = tcache_ptr;
+
+	return end_ptr;
 }
 
 void *ssp_translate_block(int pc)
 {
 	unsigned int op, op1, imm, ccount = 0;
-	unsigned int *block_start;
+	unsigned int *block_start, *block_end;
 	int ret, end_cond = A_COND_AL, jump_pc = -1;
 
 	//printf("translate %04x -> %04x\n", pc<<1, (tcache_ptr-tcache)<<2);
@@ -1771,7 +1782,7 @@ void *ssp_translate_block(int pc)
 	tr_flush_dirty_prs();
 	tr_flush_dirty_ST();
 	tr_flush_dirty_pmcrs();
-	emit_block_epilogue(ccount, end_cond, jump_pc, pc);
+	block_end = emit_block_epilogue(ccount, end_cond, jump_pc, pc);
 
 	if (tcache_ptr - (u32 *)tcache > DRC_TCACHE_SIZE/4) {
 		elprintf(EL_ANOMALY|EL_STATUS|EL_SVP, "tcache overflow!\n");
@@ -1795,7 +1806,7 @@ void *ssp_translate_block(int pc)
 #endif
 
 #ifdef __arm__
-	cache_flush_d_inval_i(tcache, tcache_ptr);
+	cache_flush_d_inval_i(block_start, block_end);
 #endif
 
 	return block_start;
