@@ -270,6 +270,8 @@ typedef struct {
 #ifdef __arm__
 #include "../drc/emit_arm.c"
 
+#ifndef __MACH__
+
 static const int reg_map_g2h[] = {
    4,  5,  6,  7,
    8, -1, -1, -1,
@@ -278,6 +280,20 @@ static const int reg_map_g2h[] = {
   -1, -1, -1, 10, // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
   -1, -1, -1, -1, // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
 };
+
+#else
+
+// no r9..
+static const int reg_map_g2h[] = {
+   4,  5,  6,  7,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1,  8, // r12 .. sp
+  -1, -1, -1, 10, // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
+  -1, -1, -1, -1, // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
+};
+
+#endif
 
 static temp_reg_t reg_temp[] = {
   {  0, },
