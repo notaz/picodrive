@@ -12,14 +12,6 @@
 .text
 .align 2
 
-@ externals
-#define cache_flush_d_inval_i ESYM(cache_flush_d_inval_i)
-#define ssp_get_iram_context  ESYM(ssp_get_iram_context)
-#define ssp_pm_read           ESYM(ssp_pm_read)
-#define ssp_pm_write          ESYM(ssp_pm_write)
-#define ssp_translate_block   ESYM(ssp_translate_block)
-#define tr_unhandled          ESYM(tr_unhandled)
-
 @       SSP_GR0, SSP_X,     SSP_Y,   SSP_A,
 @       SSP_ST,  SSP_STACK, SSP_PC,  SSP_P,
 @       SSP_PM0, SSP_PM1,   SSP_PM2, SSP_XST,
@@ -612,5 +604,24 @@ hle_07_036_ending2:
     bmi     hle_07_036_ret
     mov     r0, #0x87
     b       ssp_drc_next	@ let the dispatcher finish this
+
+
+@ ios stuff - preserving r9 on external calls
+#ifdef __MACH__
+
+#define APPLE_WRAP(f) \
+  f:; \
+  push {r9,lr}; \
+  bl _##f; \
+  pop {r9,pc}
+
+APPLE_WRAP(cache_flush_d_inval_i)
+APPLE_WRAP(ssp_get_iram_context)
+APPLE_WRAP(ssp_pm_read)
+APPLE_WRAP(ssp_pm_write)
+APPLE_WRAP(ssp_translate_block)
+APPLE_WRAP(tr_unhandled)
+
+#endif
 
 @ vim:filetype=armasm
