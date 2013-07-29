@@ -689,6 +689,18 @@ static int tr_aop_ssp2arm(int op)
 	return 0;
 }
 
+#ifdef __MACH__
+/* spacial version of call for calling C needed on ios, since we use r9.. */
+static void emith_call_c_func(void *target)
+{
+	EOP_STMFD_SP(A_R7M|A_R9M);
+	emith_call(target);
+	EOP_LDMFD_SP(A_R7M|A_R9M);
+}
+#else
+#define emith_call_c_func emith_call
+#endif
+
 // -----------------------------------------------------
 
 //@ r4:  XXYY
@@ -839,7 +851,7 @@ static void tr_PMX_to_r0(int reg)
 	tr_flush_dirty_ST();
 	//tr_flush_dirty_pmcrs();
 	tr_mov16(0, reg);
-	emith_call(ssp_pm_read);
+	emith_call_c_func(ssp_pm_read);
 	hostreg_clear();
 }
 
@@ -1080,7 +1092,7 @@ static void tr_r0_to_PMX(int reg)
 	tr_flush_dirty_ST();
 	//tr_flush_dirty_pmcrs();
 	tr_mov16(1, reg);
-	emith_call(ssp_pm_write);
+	emith_call_c_func(ssp_pm_write);
 	hostreg_clear();
 }
 
