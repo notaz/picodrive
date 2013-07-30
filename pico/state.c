@@ -11,14 +11,10 @@
 
 #include "../cpu/sh2/sh2.h"
 #include "sound/ym2612.h"
+#include "state.h"
 
 // sn76496
 extern int *sn76496_regs;
-
-typedef size_t (arearw)(void *p, size_t _size, size_t _n, void *file);
-typedef size_t (areaeof)(void *file);
-typedef int    (areaseek)(void *file, long offset, int whence);
-typedef int    (areaclose)(void *file);
 
 static arearw    *areaRead;
 static arearw    *areaWrite;
@@ -594,14 +590,9 @@ readend:
   return 0;
 }
 
-int PicoState(const char *fname, int is_save)
+static int pico_state_internal(void *afile, int is_save)
 {
-  void *afile = NULL;
   int ret;
-
-  afile = open_save_file(fname, is_save);
-  if (afile == NULL)
-    return -1;
 
   if (is_save)
     ret = state_save(afile);
@@ -617,8 +608,33 @@ int PicoState(const char *fname, int is_save)
     Pico.m.dirtyPal = 1;
   }
 
+  return ret;
+}
+
+int PicoState(const char *fname, int is_save)
+{
+  void *afile = NULL;
+  int ret;
+
+  afile = open_save_file(fname, is_save);
+  if (afile == NULL)
+    return -1;
+
+  ret = pico_state_internal(afile, is_save);
   areaClose(afile);
   return ret;
+}
+
+int PicoStateFP(void *afile, int is_save,
+  arearw *read, arearw *write, areaeof *eof, areaseek *seek)
+{
+  areaRead  = read;
+  areaWrite = write;
+  areaEof   = eof;
+  areaSeek  = seek;
+  areaClose = NULL;
+
+  return pico_state_internal(afile, is_save);
 }
 
 int PicoStateLoadGfx(const char *fname)

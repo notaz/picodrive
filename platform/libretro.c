@@ -17,6 +17,7 @@
 #endif
 
 #include <pico/pico_int.h>
+#include <pico/state.h>
 #include "common/input_pico.h"
 #include "common/version.h"
 #include "libretro.h"
@@ -226,20 +227,124 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 	info->geometry.aspect_ratio = 4.0 / 3.0;
 }
 
-/* savestates - TODO */
+/* savestates */
+struct savestate_state {
+	const char *load_buf;
+	char *save_buf;
+	size_t size;
+	size_t pos;
+};
+
+size_t state_read(void *p, size_t size, size_t nmemb, void *file)
+{
+	struct savestate_state *state = file;
+	size_t bsize = size * nmemb;
+
+	if (state->pos + bsize > state->size) {
+		lprintf("savestate error: %u/%u\n",
+			state->pos + bsize, state->size);
+		bsize = state->size - state->pos;
+		if ((int)bsize <= 0)
+			return 0;
+	}
+
+	memcpy(p, state->load_buf + state->pos, bsize);
+	state->pos += bsize;
+	return bsize;
+}
+
+size_t state_write(void *p, size_t size, size_t nmemb, void *file)
+{
+	struct savestate_state *state = file;
+	size_t bsize = size * nmemb;
+
+	if (state->pos + bsize > state->size) {
+		lprintf("savestate error: %u/%u\n",
+			state->pos + bsize, state->size);
+		bsize = state->size - state->pos;
+		if ((int)bsize <= 0)
+			return 0;
+	}
+
+	memcpy(state->save_buf + state->pos, p, bsize);
+	state->pos += bsize;
+	return bsize;
+}
+
+size_t state_skip(void *p, size_t size, size_t nmemb, void *file)
+{
+	struct savestate_state *state = file;
+	size_t bsize = size * nmemb;
+
+	state->pos += bsize;
+	return bsize;
+}
+
+size_t state_eof(void *file)
+{
+	struct savestate_state *state = file;
+
+	return state->pos >= state->size;
+}
+
+int state_fseek(void *file, long offset, int whence)
+{
+	struct savestate_state *state = file;
+
+	switch (whence) {
+	case SEEK_SET:
+		state->pos = offset;
+		break;
+	case SEEK_CUR:
+		state->pos += offset;
+		break;
+	case SEEK_END:
+		state->pos = state->size + offset;
+		break;
+	}
+	return (int)state->pos;
+}
+
+/* savestate sizes vary wildly depending if cd/32x or
+ * carthw is active, so run the whole thing to get size */
 size_t retro_serialize_size(void) 
 { 
-       return 0;
+	struct savestate_state state = { 0, };
+	int ret;
+
+	ret = PicoStateFP(&state, 1, NULL, state_skip, NULL, state_fseek);
+	if (ret != 0)
+		return 0;
+
+	return state.pos;
 }
 
 bool retro_serialize(void *data, size_t size)
 { 
-       return false;
+	struct savestate_state state = { 0, };
+	int ret;
+
+	state.save_buf = data;
+	state.size = size;
+	state.pos = 0;
+
+	ret = PicoStateFP(&state, 1, NULL, state_write,
+		NULL, state_fseek);
+	return ret == 0;
 }
 
 bool retro_unserialize(const void *data, size_t size)
 {
-       return false;
+	struct savestate_state state = { 0, };
+	int ret;
+
+	state.load_buf = data;
+	state.size = size;
+	state.pos = 0;
+
+	ret = PicoStateFP(&state, 0, state_read, NULL,
+		state_eof, state_fseek);
+	return ret == 0;
 }
 
 /* cheats - TODO */
