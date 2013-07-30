@@ -208,7 +208,8 @@ static void DmaSlow(int len)
       break;
 
     default:
-      elprintf(EL_VDPDMA|EL_ANOMALY, "DMA with bad type %i", Pico.video.type);
+      if (Pico.video.type != 0 || (EL_LOGMASK & EL_VDPDMA))
+        elprintf(EL_VDPDMA|EL_ANOMALY, "DMA with bad type %i", Pico.video.type);
       break;
   }
   // remember addr
@@ -545,3 +546,5 @@ unsigned int PicoVideoRead8(unsigned int a)
 
   return 0;
 }
+
+// vim:shiftwidth=2:ts=2:expandtab
