@@ -252,7 +252,7 @@ static u32 p32x_reg_read16(u32 a)
   }
 
   if ((a & 0x30) == 0x30)
-    return p32x_pwm_read16(a);
+    return p32x_pwm_read16(a, SekCyclesDoneT() * 3);
 
 out:
   return Pico32x.regs[a / 2];
@@ -385,7 +385,7 @@ static void p32x_reg_write16(u32 a, u32 d)
   }
   // PWM
   else if ((a & 0x30) == 0x30) {
-    p32x_pwm_write16(a, d);
+    p32x_pwm_write16(a, d, SekCyclesDoneT() * 3);
     return;
   }
 
@@ -495,7 +495,7 @@ static u32 p32x_sh2reg_read16(u32 a, int cpuid)
     return r[a / 2];
   }
   if ((a & 0x30) == 0x30) {
-    return p32x_pwm_read16(a);
+    return p32x_pwm_read16(a, sh2_cycles_done_t(&sh2s[cpuid]));
   }
 
   return 0;
@@ -571,7 +571,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
   }
   // PWM
   else if ((a & 0x30) == 0x30) {
-    p32x_pwm_write16(a, d);
+    p32x_pwm_write16(a, d, sh2_cycles_done_t(&sh2s[cpuid]));
     return;
   }
 

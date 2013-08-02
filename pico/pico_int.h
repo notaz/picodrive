@@ -260,6 +260,8 @@ extern SH2 sh2s[2];
 #endif
 
 #define sh2_cycles_done(sh2) ((int)(sh2)->cycles_timeslice - sh2_cycles_left(sh2))
+#define sh2_cycles_done_t(sh2) \
+  ((sh2)->m68krcycles_done * 3 + sh2_cycles_done(sh2))
 #define sh2_cycles_done_m68k(sh2) \
   ((sh2)->m68krcycles_done + (sh2_cycles_done(sh2) / 3))
 
@@ -507,7 +509,9 @@ struct Pico32x
   unsigned char comm_dirty_68k;
   unsigned char comm_dirty_sh2;
   unsigned short pad;
-  unsigned int reserved[8];
+  unsigned short pwm_p[2];       // pwm pos in fifo
+  unsigned int pwm_cycle_p;      // pwm play cursor (32x cycles)
+  unsigned int reserved[6];
 };
 
 struct Pico32xMem
@@ -531,6 +535,7 @@ struct Pico32xMem
   unsigned short pal_native[0x100];     // converted to native (for renderer)
   unsigned int   sh2_peri_regs[2][0x200/4]; // periphereal regs of SH2s
   signed short   pwm[2*PWM_BUFF_LEN];   // PWM buffer for current frame
+  signed short   pwm_fifo[2][4];        // [0] - current, others - fifo entries
 };
 
 // area.c
@@ -771,10 +776,10 @@ enum {
 extern int Pico32xDrawMode;
 
 // 32x/pwm.c
-unsigned int p32x_pwm_read16(unsigned int a);
-void p32x_pwm_write16(unsigned int a, unsigned int d);
+unsigned int p32x_pwm_read16(unsigned int a, unsigned int cycles);
+void p32x_pwm_write16(unsigned int a, unsigned int d, unsigned int cycles);
 void p32x_pwm_update(int *buf32, int length, int stereo);
-void p32x_timers_do(unsigned int cycles);
+void p32x_timers_do(unsigned int m68k_now, unsigned int m68k_slice);
 void p32x_timers_recalc(void);
 void p32x_pwm_schedule(unsigned int now);
 void p32x_pwm_schedule_sh2(SH2 *sh2);

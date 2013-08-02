@@ -442,7 +442,7 @@ void sync_sh2s_normal(unsigned int m68k_target)
       }
     }
 
-    p32x_timers_do(now - timer_cycles);
+    p32x_timers_do(now, now - timer_cycles);
     timer_cycles = now;
   }
 
