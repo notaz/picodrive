@@ -1,19 +1,15 @@
 /*
  * PicoDrive
- * (C) notaz, 2009,2010
+ * (C) notaz, 2009,2010,2013
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
  */
 #include "../pico_int.h"
 
-static int pwm_cycle_counter;
 static int pwm_cycles;
 static int pwm_mult;
 static int pwm_ptr;
-
-static int pwm_smp_cnt;
-static int pwm_smp_expect;
 
 static int timer_cycles[2];
 static int timer_tick_cycles[2];
@@ -25,10 +21,6 @@ void p32x_timers_recalc(void)
   int tmp, i;
 
   cycles = (cycles - 1) & 0x0fff;
-  if (cycles < 500) {
-    elprintf(EL_32X|EL_PWM|EL_ANOMALY, "pwm: low cycle value: %d", cycles + 1);
-    cycles = 500;
-  }
   pwm_cycles = cycles;
   pwm_mult = 0x10000 / cycles;
 
@@ -45,23 +37,59 @@ void p32x_timers_recalc(void)
   }
 }
 
-// PWM irq for every tm samples
-void p32x_timers_do(unsigned int cycles)
+#define consume_fifo(cycles) { \
+  int cycles_diff = (cycles) - Pico32x.pwm_cycle_p; \
+  if (cycles_diff >= pwm_cycles) \
+    consume_fifo_do((cycles), cycles_diff); \
+}
+
+static void consume_fifo_do(unsigned int cycles, int cycles_diff)
 {
+  if (pwm_cycles == 0)
+    return;
+
+  elprintf(EL_PWM, "pwm: %u: consume %d/%d, %d,%d ptr %d",
+    cycles, cycles_diff, cycles_diff / pwm_cycles,
+    Pico32x.pwm_p[0], Pico32x.pwm_p[1], pwm_ptr);
+
+  if (cycles_diff > pwm_cycles * 9) {
+    // silence/skip
+    Pico32x.pwm_cycle_p = cycles;
+    Pico32x.pwm_p[0] = Pico32x.pwm_p[1] = 0;
+    return;
+  }
+
+  for (; cycles_diff >= pwm_cycles; cycles_diff -= pwm_cycles) {
+    struct Pico32xMem *mem = Pico32xMem;
+    short *fifo_l = mem->pwm_fifo[0];
+    short *fifo_r = mem->pwm_fifo[1];
+
+    if (Pico32x.pwm_p[0] > 0) {
+      fifo_l[0] = fifo_l[1];
+      fifo_l[1] = fifo_l[2];
+      fifo_l[2] = fifo_l[3];
+      Pico32x.pwm_p[0]--;
+    }
+    if (Pico32x.pwm_p[1] > 0) {
+      fifo_r[0] = fifo_r[1];
+      fifo_r[1] = fifo_r[2];
+      fifo_r[2] = fifo_r[3];
+      Pico32x.pwm_p[1]--;
+    }
+
+    mem->pwm[pwm_ptr * 2    ] = fifo_l[0];
+    mem->pwm[pwm_ptr * 2 + 1] = fifo_r[0];
+    pwm_ptr = (pwm_ptr + 1) & (PWM_BUFF_LEN - 1);
+  }
+  Pico32x.pwm_cycle_p = cycles - cycles_diff;
+}
+
+void p32x_timers_do(unsigned int m68k_now, unsigned int m68k_slice)
+{
+  unsigned int cycles = m68k_slice * 3;
   int cnt, i;
 
-  cycles *= 3;
-
-  // since we run things in async fashion, allow pwm to lag behind
-  // but don't allow our "queue" to be infinite
-  cnt = pwm_smp_expect - pwm_smp_cnt;
-  if (cnt <= 0 || cnt * pwm_cycles < OSC_NTSC/7*3 / 60 / 2) {
-    pwm_cycle_counter += cycles;
-    while (pwm_cycle_counter > pwm_cycles) {
-      pwm_cycle_counter -= pwm_cycles;
-      pwm_smp_expect++;
-    }
-  }
+  consume_fifo(m68k_now * 3);
 
   // WDT timers
   for (i = 0; i < 2; i++) {
@@ -117,61 +145,80 @@ void p32x_pwm_schedule_sh2(SH2 *sh2)
     p32x_event_schedule_sh2(sh2, P32X_EVENT_PWM, after);
 }
 
-unsigned int p32x_pwm_read16(unsigned int a)
+unsigned int p32x_pwm_read16(unsigned int a, unsigned int cycles)
 {
   unsigned int d = 0;
-  int diff;
+
+  consume_fifo(cycles);
 
   a &= 0x0e;
   switch (a) {
     case 0: // control
     case 2: // cycle
-      return Pico32x.regs[(0x30 + a) / 2];
+      d = Pico32x.regs[(0x30 + a) / 2];
+      break;
 
     case 4: // L ch
+      if (Pico32x.pwm_p[0] == 3)
+        d |= P32XP_FULL;
+      else if (Pico32x.pwm_p[0] == 0)
+        d |= P32XP_EMPTY;
+      break;
+
     case 6: // R ch
     case 8: // MONO
-      diff = pwm_smp_cnt - pwm_smp_expect;
-      elprintf(EL_PWM, "pwm: read status: ptr %d/%d %d",
-        pwm_smp_cnt, pwm_smp_expect, diff);
-      if (diff > 3)
+      if (Pico32x.pwm_p[1] == 3)
         d |= P32XP_FULL;
-      else if (diff < 0)
+      else if (Pico32x.pwm_p[1] == 0)
         d |= P32XP_EMPTY;
       break;
   }
 
+  elprintf(EL_PWM, "pwm: read %02x %04x (p %d %d), c %u",
+    a, d, Pico32x.pwm_p[0], Pico32x.pwm_p[1], cycles);
   return d;
 }
 
-void p32x_pwm_write16(unsigned int a, unsigned int d)
+void p32x_pwm_write16(unsigned int a, unsigned int d, unsigned int cycles)
 {
+  consume_fifo(cycles);
+
   a &= 0x0e;
-  if (a == 0) // control
+  if (a == 0) { // control
+    // supposedly we should stop FIFO when xMd is 0,
+    // but mars test disagrees
     Pico32x.regs[0x30 / 2] = d;
+  }
   else if (a == 2) { // cycle
     Pico32x.regs[0x32 / 2] = d & 0x0fff;
     p32x_timers_recalc();
     Pico32x.pwm_irq_sample_cnt = 0; // resets?
   }
   else if (a <= 8) {
-    d &= 0x0fff;
+    d = (d - 1) & 0x0fff;
     if (d > pwm_cycles)
       d = pwm_cycles;
     d = (d - pwm_cycles / 2) * pwm_mult;
 
-    if       (a < 6) // L ch
-      Pico32xMem->pwm[pwm_ptr * 2] = d;
-    else if (a == 6) // R ch
-      Pico32xMem->pwm[pwm_ptr * 2 + 1] = d;
-    else             // MONO
-      Pico32xMem->pwm[pwm_ptr * 2] = Pico32xMem->pwm[pwm_ptr * 2 + 1] = d;
-
-    if (a >= 6) { // R or MONO
-      pwm_smp_cnt++;
-      pwm_ptr = (pwm_ptr + 1) & (PWM_BUFF_LEN - 1);
-      elprintf(EL_PWM, "pwm: smp_cnt %d, ptr %d, smp %x",
-          pwm_smp_cnt, pwm_ptr, d);
+    if (a == 4 || a == 8) { // L ch or MONO
+      short *fifo = Pico32xMem->pwm_fifo[0];
+      if (Pico32x.pwm_p[0] < 3)
+        Pico32x.pwm_p[0]++;
+      else {
+        fifo[1] = fifo[2];
+        fifo[2] = fifo[3];
+      }
+      fifo[Pico32x.pwm_p[0]] = d;
+    }
+    if (a == 6 || a == 8) { // R ch or MONO
+      short *fifo = Pico32xMem->pwm_fifo[1];
+      if (Pico32x.pwm_p[1] < 3)
+        Pico32x.pwm_p[1]++;
+      else {
+        fifo[1] = fifo[2];
+        fifo[2] = fifo[3];
+      }
+      fifo[Pico32x.pwm_p[1]] = d;
     }
   }
 }
@@ -181,22 +228,37 @@ void p32x_pwm_update(int *buf32, int length, int stereo)
   short *pwmb;
   int step;
   int p = 0;
+  int xmd;
 
-  if (pwm_ptr <= 16) // at least some samples..
-    return;
+  xmd = Pico32x.regs[0x30 / 2] & 0x0f;
+  if ((xmd != 0x05 && xmd != 0x0a) || pwm_ptr <= 16)
+    goto out;
 
   step = (pwm_ptr << 16) / length; // FIXME: division..
   pwmb = Pico32xMem->pwm;
 
   if (stereo)
   {
-    while (length-- > 0) {
-      *buf32++ += pwmb[0];
-      *buf32++ += pwmb[1];
+    if (xmd == 0x0a) {
+      // channel swap
+      while (length-- > 0) {
+        *buf32++ += pwmb[1];
+        *buf32++ += pwmb[0];
 
-      p += step;
-      pwmb += (p >> 16) * 2;
-      p &= 0xffff;
+        p += step;
+        pwmb += (p >> 16) * 2;
+        p &= 0xffff;
+      }
+    }
+    else {
+      while (length-- > 0) {
+        *buf32++ += pwmb[0];
+        *buf32++ += pwmb[1];
+
+        p += step;
+        pwmb += (p >> 16) * 2;
+        p &= 0xffff;
+      }
     }
   }
   else
@@ -213,6 +275,7 @@ void p32x_pwm_update(int *buf32, int length, int stereo)
   elprintf(EL_PWM, "pwm_update: pwm_ptr %d, len %d, step %04x, done %d",
     pwm_ptr, length, step, (pwmb - Pico32xMem->pwm) / 2);
 
+out:
   pwm_ptr = 0;
 }
 
