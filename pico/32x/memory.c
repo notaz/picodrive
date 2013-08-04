@@ -172,42 +172,210 @@ static u32 sh2_comm_faker(u32 a)
 #endif
 
 // DMAC handling
-static struct {
-  unsigned int sar0, dar0, tcr0; // src addr, dst addr, transfer count
-  unsigned int chcr0; // chan ctl
-  unsigned int sar1, dar1, tcr1; // same for chan 1
-  unsigned int chcr1;
-  int pad[4];
-  unsigned int dmaor;
-} * dmac0;
+struct dma_chan {
+  unsigned int sar, dar;  // src, dst addr
+  unsigned int tcr;       // transfer count
+  unsigned int chcr;      // chan ctl
+  // -- dm dm sm sm  ts ts ar am  al ds dl tb  ta ie te de
+  // ts - transfer size: 1, 2, 4, 16 bytes
+  // ar - auto request if 1, else dreq signal
+  // ie - irq enable
+  // te - transfer end
+  // de - dma enable
+  #define DMA_AR (1 << 9)
+  #define DMA_IE (1 << 2)
+  #define DMA_TE (1 << 1)
+  #define DMA_DE (1 << 0)
+};
 
-static void dma_68k2sh2_do(void)
+struct dmac {
+  struct dma_chan chan[2];
+  unsigned int vcrdma0;
+  unsigned int unknown0;
+  unsigned int vcrdma1;
+  unsigned int unknown1;
+  unsigned int dmaor;
+  // -- pr ae nmif dme
+  // pr - priority: chan0 > chan1 or round-robin
+  // ae - address error
+  // nmif - nmi occurred
+  // dme - DMA master enable
+  #define DMA_DME  (1 << 0)
+};
+
+static void dmac_te_irq(SH2 *sh2, struct dma_chan *chan)
+{
+  char *regs = (void *)Pico32xMem->sh2_peri_regs[sh2->is_slave];
+  struct dmac *dmac = (void *)(regs + 0x180);
+  int level = PREG8(regs, 0xe2) & 0x0f; // IPRA
+  int vector = (chan == &dmac->chan[0]) ?
+               dmac->vcrdma0 : dmac->vcrdma1;
+
+  elprintf(EL_32X, "dmac irq %d %d", level, vector);
+  sh2_internal_irq(sh2, level, vector & 0x7f);
+}
+
+static void dmac_transfer_complete(SH2 *sh2, struct dma_chan *chan)
+{
+  chan->chcr |= DMA_TE; // DMA has ended normally
+
+  p32x_sh2_poll_event(sh2, SH2_STATE_SLEEP, SekCyclesDoneT());
+  if (chan->chcr & DMA_IE)
+    dmac_te_irq(sh2, chan);
+}
+
+static void dmac_transfer_one(SH2 *sh2, struct dma_chan *chan)
+{
+  u32 size, d;
+
+  size = (chan->chcr >> 10) & 3;
+  switch (size) {
+  case 0:
+    d = p32x_sh2_read8(chan->sar, sh2);
+    p32x_sh2_write8(chan->dar, d, sh2);
+  case 1:
+    d = p32x_sh2_read16(chan->sar, sh2);
+    p32x_sh2_write16(chan->dar, d, sh2);
+    break;
+  case 2:
+    d = p32x_sh2_read32(chan->sar, sh2);
+    p32x_sh2_write32(chan->dar, d, sh2);
+    break;
+  case 3:
+    elprintf(EL_32X|EL_ANOMALY, "TODO: 16byte DMA");
+    chan->sar += 16; // always?
+    chan->tcr -= 4;
+    return;
+  }
+  chan->tcr--;
+
+  size = 1 << size;
+  if (chan->chcr & (1 << 15))
+    chan->dar -= size;
+  if (chan->chcr & (1 << 14))
+    chan->dar += size;
+  if (chan->chcr & (1 << 13))
+    chan->sar -= size;
+  if (chan->chcr & (1 << 12))
+    chan->sar += size;
+}
+
+static void dreq0_do(SH2 *sh2, struct dma_chan *chan)
 {
   unsigned short *dreqlen = &Pico32x.regs[0x10 / 2];
   int i;
 
-  if (dmac0->tcr0 != *dreqlen)
-    elprintf(EL_32X|EL_ANOMALY, "tcr0 and dreq len differ: %d != %d", dmac0->tcr0, *dreqlen);
+  // debug/sanity checks
+  if (chan->tcr != *dreqlen)
+    elprintf(EL_32X|EL_ANOMALY, "dreq0: tcr0 and len differ: %d != %d",
+      chan->tcr, *dreqlen);
+  // note: DACK is not connected, single addr mode should not be used
+  if ((chan->chcr & 0x3f08) != 0x0400)
+    elprintf(EL_32X|EL_ANOMALY, "dreq0: bad control: %04x", chan->chcr);
+  if (chan->sar != 0x20004012)
+    elprintf(EL_32X|EL_ANOMALY, "dreq0: bad sar?: %08x\n", chan->sar);
 
   // HACK: assume bus is busy and SH2 is halted
-  msh2.state |= SH2_STATE_SLEEP;
+  sh2->state |= SH2_STATE_SLEEP;
 
-  for (i = 0; i < Pico32x.dmac_ptr && dmac0->tcr0 > 0; i++) {
-    elprintf(EL_32X, "dmaw [%08x] %04x, left %d", dmac0->dar0, Pico32x.dmac_fifo[i], *dreqlen);
-    p32x_sh2_write16(dmac0->dar0, Pico32x.dmac_fifo[i], &msh2);
-    dmac0->dar0 += 2;
-    dmac0->tcr0--;
+  for (i = 0; i < Pico32x.dmac0_fifo_ptr && chan->tcr > 0; i++) {
+    elprintf(EL_32X, "dmaw [%08x] %04x, left %d",
+      chan->dar, Pico32x.dmac_fifo[i], *dreqlen);
+    p32x_sh2_write16(chan->dar, Pico32x.dmac_fifo[i], sh2);
+    chan->dar += 2;
+    chan->tcr--;
     (*dreqlen)--;
   }
 
-  Pico32x.dmac_ptr = 0; // HACK
+  if (Pico32x.dmac0_fifo_ptr != i)
+    memmove(Pico32x.dmac_fifo, &Pico32x.dmac_fifo[i],
+      (Pico32x.dmac0_fifo_ptr - i) * 2);
+  Pico32x.dmac0_fifo_ptr -= i;
+
   Pico32x.regs[6 / 2] &= ~P32XS_FULL;
   if (*dreqlen == 0)
     Pico32x.regs[6 / 2] &= ~P32XS_68S; // transfer complete
-  if (dmac0->tcr0 == 0) {
-    dmac0->chcr0 |= 2; // DMA has ended normally
-    p32x_sh2_poll_event(&sh2s[0], SH2_STATE_SLEEP, SekCyclesDoneT());
+  if (chan->tcr == 0)
+    dmac_transfer_complete(sh2, chan);
+  else
+    sh2_end_run(sh2, 16);
+}
+
+static void dreq1_do(SH2 *sh2, struct dma_chan *chan)
+{
+  // debug/sanity checks
+  if ((chan->chcr & 0xc308) != 0x0000)
+    elprintf(EL_32X|EL_ANOMALY, "dreq1: bad control: %04x", chan->chcr);
+  if ((chan->dar & ~0xf) != 0x20004030)
+    elprintf(EL_32X|EL_ANOMALY, "dreq1: bad dar?: %08x\n", chan->dar);
+
+  dmac_transfer_one(sh2, chan);
+  if (chan->tcr == 0)
+    dmac_transfer_complete(sh2, chan);
+}
+
+static void dreq0_trigger(void)
+{
+  struct dmac *mdmac = (void *)&Pico32xMem->sh2_peri_regs[0][0x180 / 4];
+  struct dmac *sdmac = (void *)&Pico32xMem->sh2_peri_regs[1][0x180 / 4];
+
+  elprintf(EL_32X, "dreq0_trigger\n");
+  if ((mdmac->dmaor & DMA_DME) && (mdmac->chan[0].chcr & 3) == DMA_DE) {
+    dreq0_do(&msh2, &mdmac->chan[0]);
   }
+  if ((sdmac->dmaor & DMA_DME) && (sdmac->chan[0].chcr & 3) == DMA_DE) {
+    dreq0_do(&ssh2, &sdmac->chan[0]);
+  }
+}
+
+void p32x_dreq1_trigger(void)
+{
+  struct dmac *mdmac = (void *)&Pico32xMem->sh2_peri_regs[0][0x180 / 4];
+  struct dmac *sdmac = (void *)&Pico32xMem->sh2_peri_regs[1][0x180 / 4];
+  int hit = 0;
+
+  elprintf(EL_32X, "dreq1_trigger\n");
+  if ((mdmac->dmaor & DMA_DME) && (mdmac->chan[1].chcr & 3) == DMA_DE) {
+    dreq1_do(&msh2, &mdmac->chan[1]);
+    hit = 1;
+  }
+  if ((sdmac->dmaor & DMA_DME) && (sdmac->chan[1].chcr & 3) == DMA_DE) {
+    dreq1_do(&ssh2, &sdmac->chan[1]);
+    hit = 1;
+  }
+
+  if (!hit)
+    elprintf(EL_32X|EL_ANOMALY, "dreq1: nobody cared");
+}
+
+// DMA trigger by SH2 register write
+static void dmac_trigger(SH2 *sh2, struct dma_chan *chan)
+{
+  elprintf(EL_32X, "sh2 DMA %08x->%08x, cnt %d, chcr %04x @%06x",
+    chan->sar, chan->dar, chan->tcr, chan->chcr, sh2->pc);
+  chan->tcr &= 0xffffff;
+
+  if (chan->chcr & DMA_AR) {
+    // auto-request transfer
+    while ((int)chan->tcr > 0)
+      dmac_transfer_one(sh2, chan);
+    dmac_transfer_complete(sh2, chan);
+    return;
+  }
+
+  // DREQ0 is only sent after first 4 words are written.
+  // we do multiple of 4 words to avoid messing up alignment
+  if (chan->sar == 0x20004012) {
+    if (Pico32x.dmac0_fifo_ptr && (Pico32x.dmac0_fifo_ptr & 3) == 0) {
+      elprintf(EL_32X, "68k -> sh2 DMA");
+      dreq0_trigger();
+    }
+    return;
+  }
+
+  elprintf(EL_32X|EL_ANOMALY, "unhandled DMA: "
+    "%08x->%08x, cnt %d, chcr %04x @%06x",
+    chan->sar, chan->dar, chan->tcr, chan->chcr, sh2->pc);
 }
 
 // ------------------------------------------------------------------
@@ -252,7 +420,7 @@ static u32 p32x_reg_read16(u32 a)
   }
 
   if ((a & 0x30) == 0x30)
-    return p32x_pwm_read16(a, SekCyclesDoneT() * 3);
+    return p32x_pwm_read16(a, SekCyclesDoneT());
 
 out:
   return Pico32x.regs[a / 2];
@@ -347,11 +515,11 @@ static void p32x_reg_write16(u32 a, u32 d)
         elprintf(EL_32X|EL_ANOMALY, "DREQ FIFO w16 without 68S?");
         return;
       }
-      if (Pico32x.dmac_ptr < DMAC_FIFO_LEN) {
-        Pico32x.dmac_fifo[Pico32x.dmac_ptr++] = d;
-        if ((Pico32x.dmac_ptr & 3) == 0 && (dmac0->chcr0 & 3) == 1 && (dmac0->dmaor & 1))
-          dma_68k2sh2_do();
-        if (Pico32x.dmac_ptr == DMAC_FIFO_LEN)
+      if (Pico32x.dmac0_fifo_ptr < DMAC_FIFO_LEN) {
+        Pico32x.dmac_fifo[Pico32x.dmac0_fifo_ptr++] = d;
+        if ((Pico32x.dmac0_fifo_ptr & 3) == 0)
+          dreq0_trigger();
+        if (Pico32x.dmac0_fifo_ptr == DMAC_FIFO_LEN)
           r[6 / 2] |= P32XS_FULL;
       }
       break;
@@ -385,7 +553,7 @@ static void p32x_reg_write16(u32 a, u32 d)
   }
   // PWM
   else if ((a & 0x30) == 0x30) {
-    p32x_pwm_write16(a, d, SekCyclesDoneT() * 3);
+    p32x_pwm_write16(a, d, SekCyclesDoneT());
     return;
   }
 
@@ -495,7 +663,7 @@ static u32 p32x_sh2reg_read16(u32 a, int cpuid)
     return r[a / 2];
   }
   if ((a & 0x30) == 0x30) {
-    return p32x_pwm_read16(a, sh2_cycles_done_t(&sh2s[cpuid]));
+    return p32x_pwm_read16(a, sh2_cycles_done_m68k(&sh2s[cpuid]));
   }
 
   return 0;
@@ -571,7 +739,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
   }
   // PWM
   else if ((a & 0x30) == 0x30) {
-    p32x_pwm_write16(a, d, sh2_cycles_done_t(&sh2s[cpuid]));
+    p32x_pwm_write16(a, d, sh2_cycles_done_m68k(&sh2s[cpuid]));
     return;
   }
 
@@ -586,8 +754,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
     case 0x1a: Pico32x.sh2irqi[cpuid] &= ~P32XI_CMD; goto irls;
     case 0x1c:
       Pico32x.sh2irqs &= ~P32XI_PWM;
-      if (!(Pico32x.emu_flags & P32XF_PWM_PEND))
-        p32x_pwm_schedule_sh2(&sh2s[cpuid]);
+      p32x_pwm_schedule_sh2(&sh2s[cpuid]);
       goto irls;
   }
 
@@ -721,20 +888,16 @@ static void sh2_peripheral_write32(u32 a, u32 d, int id)
       break;
   }
 
-  if ((a == 0x1b0 || a == 0x18c) && (dmac0->chcr0 & 3) == 1 && (dmac0->dmaor & 1)) {
-    elprintf(EL_32X, "sh2 DMA %08x -> %08x, cnt %d, chcr %04x @%06x",
-      dmac0->sar0, dmac0->dar0, dmac0->tcr0, dmac0->chcr0, sh2_pc(id));
-    dmac0->tcr0 &= 0xffffff;
+  // perhaps starting a DMA?
+  if (a == 0x1b0 || a == 0x18c || a == 0x19c) {
+    struct dmac *dmac = (void *)&Pico32xMem->sh2_peri_regs[id][0x180 / 4];
+    if (!(dmac->dmaor & DMA_DME))
+      return;
 
-    // HACK: assume 68k starts writing soon and end the timeslice
-    sh2_end_run(&sh2s[id], 16);
-
-    // DREQ is only sent after first 4 words are written.
-    // we do multiple of 4 words to avoid messing up alignment
-    if (dmac0->sar0 == 0x20004012 && Pico32x.dmac_ptr && (Pico32x.dmac_ptr & 3) == 0) {
-      elprintf(EL_32X, "68k -> sh2 DMA");
-      dma_68k2sh2_do();
-    }
+    if ((dmac->chan[0].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
+      dmac_trigger(&sh2s[id], &dmac->chan[0]);
+    if ((dmac->chan[1].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
+      dmac_trigger(&sh2s[id], &dmac->chan[1]);
   }
 }
 
@@ -1541,8 +1704,6 @@ void PicoMemSetup32x(void)
     elprintf(EL_STATUS, "OOM");
     return;
   }
-
-  dmac0 = (void *)&Pico32xMem->sh2_peri_regs[0][0x180 / 4];
 
   get_bios();
 

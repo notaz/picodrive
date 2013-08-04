@@ -230,15 +230,6 @@ static void p32x_start_blank(void)
   ((int)((a) - (b)) >= 0)
 
 /* events */
-static void pwm_irq_event(unsigned int now)
-{
-  Pico32x.emu_flags &= ~P32XF_PWM_PEND;
-  p32x_pwm_schedule(now);
-
-  Pico32x.sh2irqs |= P32XI_PWM;
-  p32x_update_irls(NULL);
-}
-
 static void fillend_event(unsigned int now)
 {
   Pico32x.vdp_regs[0x0a/2] &= ~P32XV_nFEN;
@@ -251,7 +242,7 @@ typedef void (event_cb)(unsigned int now);
 unsigned int event_times[P32X_EVENT_COUNT];
 static unsigned int event_time_next;
 static event_cb *event_cbs[] = {
-  [P32X_EVENT_PWM]      = pwm_irq_event,
+  [P32X_EVENT_PWM]      = p32x_pwm_irq_event,
   [P32X_EVENT_FILLEND]  = fillend_event,
 };
 
@@ -525,7 +516,7 @@ void Pico32xStateLoaded(int is_early)
   SekCycleCnt = 0;
   sh2s[0].m68krcycles_done = sh2s[1].m68krcycles_done = SekCycleCntT;
   p32x_update_irls(NULL);
-  p32x_timers_recalc();
+  p32x_pwm_state_loaded();
   run_events(SekCycleCntT);
 }
 

@@ -467,12 +467,12 @@ typedef struct
 #define P32XV_nFEN  (1<< 1)
 #define P32XV_FS    (1<< 0)
 
-#define P32XP_FULL  (1<<15) // PWM
+#define P32XP_RTP   (1<<7)  // PWM control
+#define P32XP_FULL  (1<<15) // PWM pulse
 #define P32XP_EMPTY (1<<14)
 
 #define P32XF_68KCPOLL  (1 << 0)
 #define P32XF_68KVPOLL  (1 << 1)
-#define P32XF_PWM_PEND  (1 << 6)
 
 #define P32XI_VRES (1 << 14/2) // IRL/2
 #define P32XI_VINT (1 << 12/2)
@@ -504,11 +504,12 @@ struct Pico32x
   unsigned char sh2irqi[2];      // individual
   unsigned int sh2irqs;          // common irqs
   unsigned short dmac_fifo[DMAC_FIFO_LEN];
-  unsigned int dmac_ptr;
-  unsigned int pwm_irq_sample_cnt;
+  unsigned int dmac0_fifo_ptr;
+  unsigned int pad;
   unsigned char comm_dirty_68k;
   unsigned char comm_dirty_sh2;
-  unsigned short pad;
+  unsigned char pwm_irq_cnt;
+  unsigned char pad1;
   unsigned short pwm_p[2];       // pwm pos in fifo
   unsigned int pwm_cycle_p;      // pwm play cursor (32x cycles)
   unsigned int reserved[6];
@@ -586,6 +587,7 @@ unsigned int PicoRead8_io(unsigned int a);
 unsigned int PicoRead16_io(unsigned int a);
 void PicoWrite8_io(unsigned int a, unsigned int d);
 void PicoWrite16_io(unsigned int a, unsigned int d);
+void p32x_dreq1_trigger(void);
 
 // pico/memory.c
 PICO_INTERNAL void PicoMemSetupPico(void);
@@ -781,8 +783,10 @@ void p32x_pwm_write16(unsigned int a, unsigned int d, unsigned int cycles);
 void p32x_pwm_update(int *buf32, int length, int stereo);
 void p32x_timers_do(unsigned int m68k_now, unsigned int m68k_slice);
 void p32x_timers_recalc(void);
-void p32x_pwm_schedule(unsigned int now);
+void p32x_pwm_schedule(unsigned int m68k_now);
 void p32x_pwm_schedule_sh2(SH2 *sh2);
+void p32x_pwm_irq_event(unsigned int m68k_now);
+void p32x_pwm_state_loaded(void);
 #else
 #define Pico32xInit()
 #define PicoPower32x()
