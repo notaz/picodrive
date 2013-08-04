@@ -12,15 +12,10 @@ static int pwm_mult;
 static int pwm_ptr;
 static int pwm_irq_reload;
 
-static int timer_cycles[2];
-static int timer_tick_cycles[2];
-
-// timers. This includes PWM timer in 32x and internal SH2 timers
-void p32x_timers_recalc(void)
+void p32x_pwm_ctl_changed(void)
 {
   int control = Pico32x.regs[0x30 / 2];
   int cycles = Pico32x.regs[0x32 / 2];
-  int tmp, i;
 
   cycles = (cycles - 1) & 0x0fff;
   pwm_cycles = cycles;
@@ -31,18 +26,6 @@ void p32x_timers_recalc(void)
 
   if (Pico32x.pwm_irq_cnt == 0)
     Pico32x.pwm_irq_cnt = pwm_irq_reload;
-
-  // SH2 timer step
-  for (i = 0; i < 2; i++) {
-    tmp = PREG8(Pico32xMem->sh2_peri_regs[i], 0x80) & 7;
-    // Sclk cycles per timer tick
-    if (tmp)
-      cycles = 0x20 << tmp;
-    else
-      cycles = 2;
-    timer_tick_cycles[i] = cycles;
-    elprintf(EL_32X, "WDT cycles[%d] = %d", i, cycles);
-  }
 }
 
 static void do_pwm_irq(unsigned int m68k_cycles)
@@ -116,36 +99,6 @@ static void consume_fifo_do(unsigned int m68k_cycles, int sh2_cycles_diff)
 
   if (do_irq)
     do_pwm_irq(m68k_cycles);
-}
-
-void p32x_timers_do(unsigned int m68k_now, unsigned int m68k_slice)
-{
-  unsigned int cycles = m68k_slice * 3;
-  int cnt, i;
-
-  //consume_fifo(m68k_now);
-
-  // WDT timers
-  for (i = 0; i < 2; i++) {
-    void *pregs = Pico32xMem->sh2_peri_regs[i];
-    if (PREG8(pregs, 0x80) & 0x20) { // TME
-      timer_cycles[i] += cycles;
-      cnt = PREG8(pregs, 0x81);
-      while (timer_cycles[i] >= timer_tick_cycles[i]) {
-        timer_cycles[i] -= timer_tick_cycles[i];
-        cnt++;
-      }
-      if (cnt >= 0x100) {
-        int level = PREG8(pregs, 0xe3) >> 4;
-        int vector = PREG8(pregs, 0xe4) & 0x7f;
-        elprintf(EL_32X, "%csh2 WDT irq (%d, %d)",
-          i ? 's' : 'm', level, vector);
-        sh2_internal_irq(&sh2s[i], level, vector);
-        cnt &= 0xff;
-      }
-      PREG8(pregs, 0x81) = cnt;
-    }
-  }
 }
 
 static int p32x_pwm_schedule_(unsigned int m68k_now)
@@ -236,12 +189,12 @@ void p32x_pwm_write16(unsigned int a, unsigned int d,
     // supposedly we should stop FIFO when xMd is 0,
     // but mars test disagrees
     Pico32x.regs[0x30 / 2] = d;
-    p32x_timers_recalc();
+    p32x_pwm_ctl_changed();
     Pico32x.pwm_irq_cnt = pwm_irq_reload; // ?
   }
   else if (a == 2) { // cycle
     Pico32x.regs[0x32 / 2] = d & 0x0fff;
-    p32x_timers_recalc();
+    p32x_pwm_ctl_changed();
   }
   else if (a <= 8) {
     d = (d - 1) & 0x0fff;
@@ -332,7 +285,7 @@ void p32x_pwm_state_loaded(void)
 {
   int cycles_diff_sh2;
 
-  p32x_timers_recalc();
+  p32x_pwm_ctl_changed();
 
   // for old savestates
   cycles_diff_sh2 = SekCycleCntT * 3 - Pico32x.pwm_cycle_p;
