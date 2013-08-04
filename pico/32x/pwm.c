@@ -10,6 +10,7 @@
 static int pwm_cycles;
 static int pwm_mult;
 static int pwm_ptr;
+static int pwm_irq_reload;
 
 static int timer_cycles[2];
 static int timer_tick_cycles[2];
@@ -17,12 +18,19 @@ static int timer_tick_cycles[2];
 // timers. This includes PWM timer in 32x and internal SH2 timers
 void p32x_timers_recalc(void)
 {
+  int control = Pico32x.regs[0x30 / 2];
   int cycles = Pico32x.regs[0x32 / 2];
   int tmp, i;
 
   cycles = (cycles - 1) & 0x0fff;
   pwm_cycles = cycles;
   pwm_mult = 0x10000 / cycles;
+
+  pwm_irq_reload = (control & 0x0f00) >> 8;
+  pwm_irq_reload = ((pwm_irq_reload - 1) & 0x0f) + 1;
+
+  if (Pico32x.pwm_irq_cnt == 0)
+    Pico32x.pwm_irq_cnt = pwm_irq_reload;
 
   // SH2 timer step
   for (i = 0; i < 2; i++) {
@@ -37,29 +45,43 @@ void p32x_timers_recalc(void)
   }
 }
 
-#define consume_fifo(cycles) { \
-  int cycles_diff = (cycles) - Pico32x.pwm_cycle_p; \
-  if (cycles_diff >= pwm_cycles) \
-    consume_fifo_do((cycles), cycles_diff); \
+static void do_pwm_irq(unsigned int m68k_cycles)
+{
+  Pico32x.sh2irqs |= P32XI_PWM;
+  p32x_update_irls(NULL);
+
+  if (Pico32x.regs[0x30 / 2] & P32XP_RTP) {
+    p32x_event_schedule(m68k_cycles, P32X_EVENT_PWM, pwm_cycles / 3 + 1);
+    // note: might recurse
+    p32x_dreq1_trigger();
+  }
 }
 
-static void consume_fifo_do(unsigned int cycles, int cycles_diff)
+#define consume_fifo(m68k_cycles) { \
+  int cycles_diff = ((m68k_cycles) * 3) - Pico32x.pwm_cycle_p; \
+  if (cycles_diff >= pwm_cycles) \
+    consume_fifo_do(m68k_cycles, cycles_diff); \
+}
+
+static void consume_fifo_do(unsigned int m68k_cycles, int sh2_cycles_diff)
 {
+  int do_irq = 0;
+
   if (pwm_cycles == 0)
     return;
 
   elprintf(EL_PWM, "pwm: %u: consume %d/%d, %d,%d ptr %d",
-    cycles, cycles_diff, cycles_diff / pwm_cycles,
+    m68k_cycles, sh2_cycles_diff, sh2_cycles_diff / pwm_cycles,
     Pico32x.pwm_p[0], Pico32x.pwm_p[1], pwm_ptr);
 
-  if (cycles_diff > pwm_cycles * 9) {
+  if (sh2_cycles_diff >= pwm_cycles * 17) {
     // silence/skip
-    Pico32x.pwm_cycle_p = cycles;
+    Pico32x.pwm_cycle_p = m68k_cycles * 3;
     Pico32x.pwm_p[0] = Pico32x.pwm_p[1] = 0;
     return;
   }
 
-  for (; cycles_diff >= pwm_cycles; cycles_diff -= pwm_cycles) {
+  while (sh2_cycles_diff >= pwm_cycles) {
     struct Pico32xMem *mem = Pico32xMem;
     short *fifo_l = mem->pwm_fifo[0];
     short *fifo_r = mem->pwm_fifo[1];
@@ -80,8 +102,20 @@ static void consume_fifo_do(unsigned int cycles, int cycles_diff)
     mem->pwm[pwm_ptr * 2    ] = fifo_l[0];
     mem->pwm[pwm_ptr * 2 + 1] = fifo_r[0];
     pwm_ptr = (pwm_ptr + 1) & (PWM_BUFF_LEN - 1);
+
+    sh2_cycles_diff -= pwm_cycles;
+
+    if (--Pico32x.pwm_irq_cnt == 0) {
+      Pico32x.pwm_irq_cnt = pwm_irq_reload;
+      // irq also does dreq1, so call it after cycle update
+      do_irq = 1;
+      break;
+    }
   }
-  Pico32x.pwm_cycle_p = cycles - cycles_diff;
+  Pico32x.pwm_cycle_p = m68k_cycles * 3 - sh2_cycles_diff;
+
+  if (do_irq)
+    do_pwm_irq(m68k_cycles);
 }
 
 void p32x_timers_do(unsigned int m68k_now, unsigned int m68k_slice)
@@ -89,7 +123,7 @@ void p32x_timers_do(unsigned int m68k_now, unsigned int m68k_slice)
   unsigned int cycles = m68k_slice * 3;
   int cnt, i;
 
-  consume_fifo(m68k_now * 3);
+  //consume_fifo(m68k_now);
 
   // WDT timers
   for (i = 0; i < 2; i++) {
@@ -114,42 +148,52 @@ void p32x_timers_do(unsigned int m68k_now, unsigned int m68k_slice)
   }
 }
 
-static int p32x_pwm_schedule_(void)
+static int p32x_pwm_schedule_(unsigned int m68k_now)
 {
-  int tm;
+  unsigned int sh2_now = m68k_now * 3;
+  int cycles_diff_sh2;
 
-  if (Pico32x.emu_flags & P32XF_PWM_PEND)
-    return 0; // already scheduled
+  if (pwm_cycles == 0)
+    return 0;
+
+  cycles_diff_sh2 = sh2_now - Pico32x.pwm_cycle_p;
+  if (cycles_diff_sh2 >= pwm_cycles)
+    consume_fifo_do(m68k_now, cycles_diff_sh2);
+
   if (Pico32x.sh2irqs & P32XI_PWM)
     return 0; // previous not acked
   if (!((Pico32x.sh2irq_mask[0] | Pico32x.sh2irq_mask[1]) & 1))
     return 0; // masked by everyone
 
-  Pico32x.emu_flags |= P32XF_PWM_PEND;
-  tm = (Pico32x.regs[0x30 / 2] & 0x0f00) >> 8;
-  tm = ((tm - 1) & 0x0f) + 1;
-  return pwm_cycles * tm / 3;
+  cycles_diff_sh2 = sh2_now - Pico32x.pwm_cycle_p;
+  return (Pico32x.pwm_irq_cnt * pwm_cycles
+           - cycles_diff_sh2) / 3 + 1;
 }
 
-void p32x_pwm_schedule(unsigned int now)
+void p32x_pwm_schedule(unsigned int m68k_now)
 {
-  int after = p32x_pwm_schedule_();
+  int after = p32x_pwm_schedule_(m68k_now);
   if (after != 0)
-    p32x_event_schedule(now, P32X_EVENT_PWM, after);
+    p32x_event_schedule(m68k_now, P32X_EVENT_PWM, after);
 }
 
 void p32x_pwm_schedule_sh2(SH2 *sh2)
 {
-  int after = p32x_pwm_schedule_();
+  int after = p32x_pwm_schedule_(sh2_cycles_done_m68k(sh2));
   if (after != 0)
     p32x_event_schedule_sh2(sh2, P32X_EVENT_PWM, after);
 }
 
-unsigned int p32x_pwm_read16(unsigned int a, unsigned int cycles)
+void p32x_pwm_irq_event(unsigned int m68k_now)
+{
+  p32x_pwm_schedule(m68k_now);
+}
+
+unsigned int p32x_pwm_read16(unsigned int a, unsigned int m68k_cycles)
 {
   unsigned int d = 0;
 
-  consume_fifo(cycles);
+  consume_fifo(m68k_cycles);
 
   a &= 0x0e;
   switch (a) {
@@ -174,25 +218,30 @@ unsigned int p32x_pwm_read16(unsigned int a, unsigned int cycles)
       break;
   }
 
-  elprintf(EL_PWM, "pwm: read %02x %04x (p %d %d), c %u",
-    a, d, Pico32x.pwm_p[0], Pico32x.pwm_p[1], cycles);
+  elprintf(EL_PWM, "pwm: %u: r16 %02x %04x (p %d %d)",
+    m68k_cycles, a, d, Pico32x.pwm_p[0], Pico32x.pwm_p[1]);
   return d;
 }
 
-void p32x_pwm_write16(unsigned int a, unsigned int d, unsigned int cycles)
+void p32x_pwm_write16(unsigned int a, unsigned int d,
+  unsigned int m68k_cycles)
 {
-  consume_fifo(cycles);
+  elprintf(EL_PWM, "pwm: %u: w16 %02x %04x (p %d %d)",
+    m68k_cycles, a & 0x0e, d, Pico32x.pwm_p[0], Pico32x.pwm_p[1]);
+
+  consume_fifo(m68k_cycles);
 
   a &= 0x0e;
   if (a == 0) { // control
     // supposedly we should stop FIFO when xMd is 0,
     // but mars test disagrees
     Pico32x.regs[0x30 / 2] = d;
+    p32x_timers_recalc();
+    Pico32x.pwm_irq_cnt = pwm_irq_reload; // ?
   }
   else if (a == 2) { // cycle
     Pico32x.regs[0x32 / 2] = d & 0x0fff;
     p32x_timers_recalc();
-    Pico32x.pwm_irq_sample_cnt = 0; // resets?
   }
   else if (a <= 8) {
     d = (d - 1) & 0x0fff;
@@ -277,6 +326,21 @@ void p32x_pwm_update(int *buf32, int length, int stereo)
 
 out:
   pwm_ptr = 0;
+}
+
+void p32x_pwm_state_loaded(void)
+{
+  int cycles_diff_sh2;
+
+  p32x_timers_recalc();
+
+  // for old savestates
+  cycles_diff_sh2 = SekCycleCntT * 3 - Pico32x.pwm_cycle_p;
+  if (cycles_diff_sh2 >= pwm_cycles || cycles_diff_sh2 < 0) {
+    Pico32x.pwm_irq_cnt = pwm_irq_reload;
+    Pico32x.pwm_cycle_p = SekCycleCntT * 3;
+    p32x_pwm_schedule(SekCycleCntT);
+  }
 }
 
 // vim:shiftwidth=2:ts=2:expandtab
