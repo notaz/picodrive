@@ -74,6 +74,7 @@ void Pico32xStartup(void)
   ssh2.irq_callback = sh2_irq_cb;
 
   PicoMemSetup32x();
+  p32x_pwm_ctl_changed();
   p32x_timers_recalc();
 
   if (!Pico.m.pal)
@@ -172,6 +173,7 @@ void PicoReset32x(void)
     p32x_update_irls(NULL);
     p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES, 0);
     p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES, 0);
+    p32x_pwm_ctl_changed();
     p32x_timers_recalc();
   }
 }
@@ -433,7 +435,7 @@ void sync_sh2s_normal(unsigned int m68k_target)
       }
     }
 
-    p32x_timers_do(now, now - timer_cycles);
+    p32x_timers_do(now - timer_cycles);
     timer_cycles = now;
   }
 

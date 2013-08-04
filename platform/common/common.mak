@@ -92,7 +92,7 @@ SRCS_COMMON += $(R)pico/cd/pico.c $(R)pico/cd/memory.c $(R)pico/cd/sek.c \
 # 32X
 ifneq "$(no_32x)" "1"
 SRCS_COMMON += $(R)pico/32x/32x.c $(R)pico/32x/memory.c $(R)pico/32x/draw.c \
-	$(R)pico/32x/pwm.c
+	$(R)pico/32x/sh2soc.c $(R)pico/32x/pwm.c
 else
 DEFINES += NO_32X
 endif

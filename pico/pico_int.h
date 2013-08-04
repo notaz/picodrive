@@ -781,12 +781,24 @@ extern int Pico32xDrawMode;
 unsigned int p32x_pwm_read16(unsigned int a, unsigned int cycles);
 void p32x_pwm_write16(unsigned int a, unsigned int d, unsigned int cycles);
 void p32x_pwm_update(int *buf32, int length, int stereo);
-void p32x_timers_do(unsigned int m68k_now, unsigned int m68k_slice);
-void p32x_timers_recalc(void);
+void p32x_pwm_ctl_changed(void);
 void p32x_pwm_schedule(unsigned int m68k_now);
 void p32x_pwm_schedule_sh2(SH2 *sh2);
 void p32x_pwm_irq_event(unsigned int m68k_now);
 void p32x_pwm_state_loaded(void);
+
+// 32x/sh2soc.c
+void p32x_dreq0_trigger(void);
+void p32x_dreq1_trigger(void);
+void p32x_timers_recalc(void);
+void p32x_timers_do(unsigned int m68k_slice);
+unsigned int sh2_peripheral_read8(unsigned int a, int id);
+unsigned int sh2_peripheral_read16(unsigned int a, int id);
+unsigned int sh2_peripheral_read32(unsigned int a, int id);
+int sh2_peripheral_write8(unsigned int a, unsigned int d, int id);
+int sh2_peripheral_write16(unsigned int a, unsigned int d, int id);
+void sh2_peripheral_write32(unsigned int a, unsigned int d, int id);
+
 #else
 #define Pico32xInit()
 #define PicoPower32x()
@@ -839,6 +851,7 @@ static __inline int isspace_(int c)
 #define EL_CDREG3  0x00040000 /* MCD: register 3 only */
 #define EL_32X     0x00080000
 #define EL_PWM     0x00100000 /* 32X PWM stuff (LOTS of output) */
+#define EL_32XP    0x00200000 /* 32X peripherals */
 
 #define EL_STATUS  0x40000000 /* status messages */
 #define EL_ANOMALY 0x80000000 /* some unexpected conditions (during emulation) */
