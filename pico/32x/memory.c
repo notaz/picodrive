@@ -559,7 +559,7 @@ irls:
 }
 
 // ------------------------------------------------------------------
-// 32x handlers
+// 32x 68k handlers
 
 // after ADEN
 static u32 PicoRead8_32x_on(u32 a)
@@ -798,6 +798,45 @@ void PicoWrite16_32x(u32 a, u32 d)
   elprintf(EL_UIO, "m68k unmapped w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
 }
 
+/* quirk: in both normal and overwrite areas only nonzero values go through */
+#define sh2_write8_dramN(n) \
+  if ((d & 0xff) != 0) { \
+    u8 *dram = (u8 *)Pico32xMem->dram[n]; \
+    dram[(a & 0x1ffff) ^ 1] = d; \
+  }
+
+static void m68k_write8_dram0_ow(u32 a, u32 d)
+{
+  sh2_write8_dramN(0);
+}
+
+static void m68k_write8_dram1_ow(u32 a, u32 d)
+{
+  sh2_write8_dramN(1);
+}
+
+#define sh2_write16_dramN(n, ret) \
+  u16 *pd = &Pico32xMem->dram[n][(a & 0x1ffff) / 2]; \
+  if (!(a & 0x20000)) { \
+    *pd = d; \
+    return ret; \
+  } \
+  /* overwrite */ \
+  if (!(d & 0xff00)) d |= *pd & 0xff00; \
+  if (!(d & 0x00ff)) d |= *pd & 0x00ff; \
+  *pd = d; \
+  return ret
+
+static void m68k_write16_dram0_ow(u32 a, u32 d)
+{
+  sh2_write16_dramN(0,);
+}
+
+static void m68k_write16_dram1_ow(u32 a, u32 d)
+{
+  sh2_write16_dramN(1,);
+}
+
 // -----------------------------------------------------------------
 
 // hint vector is writeable
@@ -987,22 +1026,16 @@ static int REGPARM(3) sh2_write8_cs0(u32 a, u32 d, int id)
   return sh2_write8_unmapped(a, d, id);
 }
 
-/* quirk: in both normal and overwrite areas only nonzero values go through */
-#define sh2_write8_dramN(n) \
-  if ((d & 0xff) != 0) { \
-    u8 *dram = (u8 *)Pico32xMem->dram[n]; \
-    dram[(a & 0x1ffff) ^ 1] = d; \
-  } \
-  return 0;
-
 static int REGPARM(3) sh2_write8_dram0(u32 a, u32 d, int id)
 {
   sh2_write8_dramN(0);
+  return 0;
 }
 
 static int REGPARM(3) sh2_write8_dram1(u32 a, u32 d, int id)
 {
   sh2_write8_dramN(1);
+  return 0;
 }
 
 static int REGPARM(3) sh2_write8_sdram(u32 a, u32 d, int id)
@@ -1065,26 +1098,14 @@ static int REGPARM(3) sh2_write16_cs0(u32 a, u32 d, int id)
   return sh2_write16_unmapped(a, d, id);
 }
 
-#define sh2_write16_dramN(n) \
-  u16 *pd = &Pico32xMem->dram[n][(a & 0x1ffff) / 2]; \
-  if (!(a & 0x20000)) { \
-    *pd = d; \
-    return 0; \
-  } \
-  /* overwrite */ \
-  if (!(d & 0xff00)) d |= *pd & 0xff00; \
-  if (!(d & 0x00ff)) d |= *pd & 0x00ff; \
-  *pd = d; \
-  return 0
-
 static int REGPARM(3) sh2_write16_dram0(u32 a, u32 d, int id)
 {
-  sh2_write16_dramN(0);
+  sh2_write16_dramN(0, 0);
 }
 
 static int REGPARM(3) sh2_write16_dram1(u32 a, u32 d, int id)
 {
-  sh2_write16_dramN(1);
+  sh2_write16_dramN(1, 0);
 }
 
 static int REGPARM(3) sh2_write16_sdram(u32 a, u32 d, int id)
@@ -1340,8 +1361,12 @@ void Pico32xSwapDRAM(int b)
 {
   cpu68k_map_set(m68k_read8_map,   0x840000, 0x85ffff, Pico32xMem->dram[b], 0);
   cpu68k_map_set(m68k_read16_map,  0x840000, 0x85ffff, Pico32xMem->dram[b], 0);
-  cpu68k_map_set(m68k_write8_map,  0x840000, 0x85ffff, Pico32xMem->dram[b], 0);
-  cpu68k_map_set(m68k_write16_map, 0x840000, 0x85ffff, Pico32xMem->dram[b], 0);
+  cpu68k_map_set(m68k_read8_map,   0x860000, 0x87ffff, Pico32xMem->dram[b], 0);
+  cpu68k_map_set(m68k_read16_map,  0x860000, 0x87ffff, Pico32xMem->dram[b], 0);
+  cpu68k_map_set(m68k_write8_map,  0x840000, 0x87ffff,
+                 b ? m68k_write8_dram1_ow : m68k_write8_dram0_ow, 1);
+  cpu68k_map_set(m68k_write16_map, 0x840000, 0x87ffff,
+                 b ? m68k_write16_dram1_ow : m68k_write16_dram0_ow, 1);
 
   // SH2
   sh2_read8_map[2].addr   = sh2_read8_map[6].addr   =
