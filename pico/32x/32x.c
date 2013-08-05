@@ -29,11 +29,9 @@ static int REGPARM(2) sh2_irq_cb(SH2 *sh2, int level)
   }
 }
 
-// if !nested_call, must sync CPUs before calling this
-void p32x_update_irls(SH2 *active_sh2)
+void p32x_update_irls(SH2 *active_sh2, int m68k_cycles)
 {
   int irqs, mlvl = 0, slvl = 0;
-  int m68k_cycles = 0;
   int mrun, srun;
 
   if (active_sh2 != NULL)
@@ -170,7 +168,7 @@ void PicoReset32x(void)
 {
   if (PicoAHW & PAHW_32X) {
     Pico32x.sh2irqs |= P32XI_VRES;
-    p32x_update_irls(NULL);
+    p32x_update_irls(NULL, SekCyclesDoneT2());
     p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES, 0);
     p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES, 0);
     p32x_pwm_ctl_changed();
@@ -218,7 +216,7 @@ static void p32x_start_blank(void)
   }
 
   Pico32x.sh2irqs |= P32XI_VINT;
-  p32x_update_irls(NULL);
+  p32x_update_irls(NULL, SekCyclesDoneT2());
   p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, 0);
   p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, 0);
 }
@@ -517,7 +515,7 @@ void Pico32xStateLoaded(int is_early)
 
   SekCycleCnt = 0;
   sh2s[0].m68krcycles_done = sh2s[1].m68krcycles_done = SekCycleCntT;
-  p32x_update_irls(NULL);
+  p32x_update_irls(NULL, SekCycleCntT);
   p32x_pwm_state_loaded();
   run_events(SekCycleCntT);
 }

@@ -237,15 +237,21 @@ static void p32x_reg_write8(u32 a, u32 d)
       r[0] = (r[0] & ~P32XS_nRES) | (d & P32XS_nRES);
       return;
     case 3: // irq ctl
-      if ((d & 1) && !(Pico32x.sh2irqi[0] & P32XI_CMD)) {
+      if ((d & 1) != !!(Pico32x.sh2irqi[0] & P32XI_CMD)) {
         p32x_sync_sh2s(SekCyclesDoneT());
-        Pico32x.sh2irqi[0] |= P32XI_CMD;
-        p32x_update_irls(NULL);
+        if (d & 1)
+          Pico32x.sh2irqi[0] |= P32XI_CMD;
+        else
+          Pico32x.sh2irqi[0] &= ~P32XI_CMD;
+        p32x_update_irls(NULL, SekCyclesDoneT2());
       }
-      if ((d & 2) && !(Pico32x.sh2irqi[1] & P32XI_CMD)) {
+      if (!!(d & 2) != !!(Pico32x.sh2irqi[1] & P32XI_CMD)) {
         p32x_sync_sh2s(SekCyclesDoneT());
-        Pico32x.sh2irqi[1] |= P32XI_CMD;
-        p32x_update_irls(NULL);
+        if (d & 2)
+          Pico32x.sh2irqi[1] |= P32XI_CMD;
+        else
+          Pico32x.sh2irqi[1] &= ~P32XI_CMD;
+        p32x_update_irls(NULL, SekCyclesDoneT2());
       }
       return;
     case 5: // bank
@@ -481,7 +487,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, int cpuid)
       Pico32x.sh2_regs[0] |= d & 0x80;
       if (d & 1)
         p32x_pwm_schedule_sh2(&sh2s[cpuid]);
-      p32x_update_irls(&sh2s[cpuid]);
+      p32x_update_irls(&sh2s[cpuid], 0);
       return;
     case 5: // H count
       d &= 0xff;
@@ -555,7 +561,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, int cpuid)
   return;
 
 irls:
-  p32x_update_irls(&sh2s[cpuid]);
+  p32x_update_irls(&sh2s[cpuid], 0);
 }
 
 // ------------------------------------------------------------------
