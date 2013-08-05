@@ -746,7 +746,7 @@ void PicoFrame32x(void);
 void Pico32xStateLoaded(int is_early);
 void p32x_sync_sh2s(unsigned int m68k_target);
 void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target);
-void p32x_update_irls(SH2 *active_sh2);
+void p32x_update_irls(SH2 *active_sh2, int m68k_cycles);
 void p32x_reset_sh2s(void);
 void p32x_event_schedule(unsigned int now, enum p32x_event event, int after);
 void p32x_event_schedule_sh2(SH2 *sh2, enum p32x_event event, int after);

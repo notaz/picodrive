@@ -31,7 +31,7 @@ void p32x_pwm_ctl_changed(void)
 static void do_pwm_irq(unsigned int m68k_cycles)
 {
   Pico32x.sh2irqs |= P32XI_PWM;
-  p32x_update_irls(NULL);
+  p32x_update_irls(NULL, m68k_cycles);
 
   if (Pico32x.regs[0x30 / 2] & P32XP_RTP) {
     p32x_event_schedule(m68k_cycles, P32X_EVENT_PWM, pwm_cycles / 3 + 1);
