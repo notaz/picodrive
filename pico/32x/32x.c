@@ -29,6 +29,7 @@ static int REGPARM(2) sh2_irq_cb(SH2 *sh2, int level)
   }
 }
 
+// MUST specify active_sh2 when called from sh2 memhandlers
 void p32x_update_irls(SH2 *active_sh2, int m68k_cycles)
 {
   int irqs, mlvl = 0, slvl = 0;
@@ -49,13 +50,19 @@ void p32x_update_irls(SH2 *active_sh2, int m68k_cycles)
     slvl++;
   slvl *= 2;
 
-  mrun = sh2_irl_irq(&msh2, mlvl, active_sh2 != NULL);
-  if (mrun)
+  mrun = sh2_irl_irq(&msh2, mlvl, active_sh2 == &msh2);
+  if (mrun) {
     p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES, m68k_cycles);
+    if (active_sh2 == &msh2)
+      sh2_end_run(active_sh2, 1);
+  }
 
-  srun = sh2_irl_irq(&ssh2, slvl, active_sh2 != NULL);
-  if (srun)
+  srun = sh2_irl_irq(&ssh2, slvl, active_sh2 == &ssh2);
+  if (srun) {
     p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES, m68k_cycles);
+    if (active_sh2 == &ssh2)
+      sh2_end_run(active_sh2, 1);
+  }
 
   elprintf(EL_32X, "update_irls: m %d/%d, s %d/%d", mlvl, mrun, slvl, srun);
 }
@@ -268,8 +275,7 @@ void p32x_event_schedule_sh2(SH2 *sh2, enum p32x_event event, int after)
   p32x_event_schedule(now, event, after);
 
   left_to_next = (event_time_next - now) * 3;
-  if (sh2_cycles_left(sh2) > left_to_next)
-    sh2_end_run(sh2, left_to_next);
+  sh2_end_run(sh2, left_to_next);
 }
 
 static void run_events(unsigned int until)

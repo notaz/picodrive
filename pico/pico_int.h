@@ -240,7 +240,7 @@ extern SH2 sh2s[2];
 #ifndef DRC_SH2
 # define sh2_end_run(sh2, after_) do { \
   if ((sh2)->icount > (after_)) { \
-    (sh2)->cycles_timeslice -= (sh2)->icount; \
+    (sh2)->cycles_timeslice -= (sh2)->icount - (after_); \
     (sh2)->icount = after_; \
   } \
 } while (0)
@@ -250,7 +250,7 @@ extern SH2 sh2s[2];
 # define sh2_end_run(sh2, after_) do { \
   int left_ = (signed int)(sh2)->sr >> 12; \
   if (left_ > (after_)) { \
-    (sh2)->cycles_timeslice -= left_; \
+    (sh2)->cycles_timeslice -= left_ - (after_); \
     (sh2)->sr &= 0xfff; \
     (sh2)->sr |= (after_) << 12; \
   } \
@@ -778,8 +778,10 @@ enum {
 extern int Pico32xDrawMode;
 
 // 32x/pwm.c
-unsigned int p32x_pwm_read16(unsigned int a, unsigned int cycles);
-void p32x_pwm_write16(unsigned int a, unsigned int d, unsigned int cycles);
+unsigned int p32x_pwm_read16(unsigned int a, SH2 *sh2,
+  unsigned int m68k_cycles);
+void p32x_pwm_write16(unsigned int a, unsigned int d,
+  SH2 *sh2, unsigned int m68k_cycles);
 void p32x_pwm_update(int *buf32, int length, int stereo);
 void p32x_pwm_ctl_changed(void);
 void p32x_pwm_schedule(unsigned int m68k_now);

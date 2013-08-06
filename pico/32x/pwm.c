@@ -28,10 +28,10 @@ void p32x_pwm_ctl_changed(void)
     Pico32x.pwm_irq_cnt = pwm_irq_reload;
 }
 
-static void do_pwm_irq(unsigned int m68k_cycles)
+static void do_pwm_irq(SH2 *sh2, unsigned int m68k_cycles)
 {
   Pico32x.sh2irqs |= P32XI_PWM;
-  p32x_update_irls(NULL, m68k_cycles);
+  p32x_update_irls(sh2, m68k_cycles);
 
   if (Pico32x.regs[0x30 / 2] & P32XP_RTP) {
     p32x_event_schedule(m68k_cycles, P32X_EVENT_PWM, pwm_cycles / 3 + 1);
@@ -40,13 +40,14 @@ static void do_pwm_irq(unsigned int m68k_cycles)
   }
 }
 
-#define consume_fifo(m68k_cycles) { \
+#define consume_fifo(sh2, m68k_cycles) { \
   int cycles_diff = ((m68k_cycles) * 3) - Pico32x.pwm_cycle_p; \
   if (cycles_diff >= pwm_cycles) \
-    consume_fifo_do(m68k_cycles, cycles_diff); \
+    consume_fifo_do(sh2, m68k_cycles, cycles_diff); \
 }
 
-static void consume_fifo_do(unsigned int m68k_cycles, int sh2_cycles_diff)
+static void consume_fifo_do(SH2 *sh2, unsigned int m68k_cycles,
+  int sh2_cycles_diff)
 {
   int do_irq = 0;
 
@@ -98,10 +99,10 @@ static void consume_fifo_do(unsigned int m68k_cycles, int sh2_cycles_diff)
   Pico32x.pwm_cycle_p = m68k_cycles * 3 - sh2_cycles_diff;
 
   if (do_irq)
-    do_pwm_irq(m68k_cycles);
+    do_pwm_irq(sh2, m68k_cycles);
 }
 
-static int p32x_pwm_schedule_(unsigned int m68k_now)
+static int p32x_pwm_schedule_(SH2 *sh2, unsigned int m68k_now)
 {
   unsigned int sh2_now = m68k_now * 3;
   int cycles_diff_sh2;
@@ -111,7 +112,7 @@ static int p32x_pwm_schedule_(unsigned int m68k_now)
 
   cycles_diff_sh2 = sh2_now - Pico32x.pwm_cycle_p;
   if (cycles_diff_sh2 >= pwm_cycles)
-    consume_fifo_do(m68k_now, cycles_diff_sh2);
+    consume_fifo_do(sh2, m68k_now, cycles_diff_sh2);
 
   if (Pico32x.sh2irqs & P32XI_PWM)
     return 0; // previous not acked
@@ -125,14 +126,14 @@ static int p32x_pwm_schedule_(unsigned int m68k_now)
 
 void p32x_pwm_schedule(unsigned int m68k_now)
 {
-  int after = p32x_pwm_schedule_(m68k_now);
+  int after = p32x_pwm_schedule_(NULL, m68k_now);
   if (after != 0)
     p32x_event_schedule(m68k_now, P32X_EVENT_PWM, after);
 }
 
 void p32x_pwm_schedule_sh2(SH2 *sh2)
 {
-  int after = p32x_pwm_schedule_(sh2_cycles_done_m68k(sh2));
+  int after = p32x_pwm_schedule_(sh2, sh2_cycles_done_m68k(sh2));
   if (after != 0)
     p32x_event_schedule_sh2(sh2, P32X_EVENT_PWM, after);
 }
@@ -142,11 +143,12 @@ void p32x_pwm_irq_event(unsigned int m68k_now)
   p32x_pwm_schedule(m68k_now);
 }
 
-unsigned int p32x_pwm_read16(unsigned int a, unsigned int m68k_cycles)
+unsigned int p32x_pwm_read16(unsigned int a, SH2 *sh2,
+  unsigned int m68k_cycles)
 {
   unsigned int d = 0;
 
-  consume_fifo(m68k_cycles);
+  consume_fifo(sh2, m68k_cycles);
 
   a &= 0x0e;
   switch (a) {
@@ -177,12 +179,12 @@ unsigned int p32x_pwm_read16(unsigned int a, unsigned int m68k_cycles)
 }
 
 void p32x_pwm_write16(unsigned int a, unsigned int d,
-  unsigned int m68k_cycles)
+  SH2 *sh2, unsigned int m68k_cycles)
 {
   elprintf(EL_PWM, "pwm: %u: w16 %02x %04x (p %d %d)",
     m68k_cycles, a & 0x0e, d, Pico32x.pwm_p[0], Pico32x.pwm_p[1]);
 
-  consume_fifo(m68k_cycles);
+  consume_fifo(sh2, m68k_cycles);
 
   a &= 0x0e;
   if (a == 0) { // control
