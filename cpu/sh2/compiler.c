@@ -349,7 +349,7 @@ static u32  REGPARM(2) (*sh2_drc_read16)(u32 a, SH2 *sh2);
 static u32  REGPARM(2) (*sh2_drc_read32)(u32 a, SH2 *sh2);
 static void REGPARM(2) (*sh2_drc_write8)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write16)(u32 a, u32 d);
-static int  REGPARM(3) (*sh2_drc_write32)(u32 a, u32 d, SH2 *sh2);
+static void REGPARM(3) (*sh2_drc_write32)(u32 a, u32 d, SH2 *sh2);
 
 // address space stuff
 static int dr_ctx_get_mem_ptr(u32 a, u32 *mask)
@@ -363,6 +363,7 @@ static int dr_ctx_get_mem_ptr(u32 a, u32 *mask)
   }
   else if ((a & 0xfffff000) == 0xc0000000) {
     // data array
+    // FIXME: access sh2->data_array instead
     poffs = offsetof(SH2, p_da);
     *mask = 0xfff;
   }
@@ -3159,7 +3160,7 @@ void sh2_drc_mem_setup(SH2 *sh2)
 {
   // fill the convenience pointers
   sh2->p_bios = sh2->is_slave ? Pico32xMem->sh2_rom_s : Pico32xMem->sh2_rom_m;
-  sh2->p_da = Pico32xMem->data_array[sh2->is_slave];
+  sh2->p_da = sh2->data_array;
   sh2->p_sdram = Pico32xMem->sdram;
   sh2->p_rom = Pico.rom;
 }
@@ -3277,7 +3278,7 @@ static void *dr_get_pc_base(u32 pc, int is_slave)
   }
   else if ((pc & 0xfffff000) == 0xc0000000) {
     // data array
-    ret = Pico32xMem->data_array[is_slave];
+    ret = sh2s[is_slave].data_array;
     mask = 0xfff;
   }
   else if ((pc & 0xc6000000) == 0x06000000) {

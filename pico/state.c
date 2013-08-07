@@ -318,13 +318,13 @@ static int state_save(void *file)
 
     sh2_pack(&sh2s[0], cpubuff);
     CHECKED_WRITE_BUFF(CHUNK_MSH2,      cpubuff);
-    CHECKED_WRITE_BUFF(CHUNK_MSH2_DATA, Pico32xMem->data_array[0]);
-    CHECKED_WRITE_BUFF(CHUNK_MSH2_PERI, Pico32xMem->sh2_peri_regs[0]);
+    CHECKED_WRITE_BUFF(CHUNK_MSH2_DATA, sh2s[0].data_array);
+    CHECKED_WRITE_BUFF(CHUNK_MSH2_PERI, sh2s[0].peri_regs);
 
     sh2_pack(&sh2s[1], cpubuff);
     CHECKED_WRITE_BUFF(CHUNK_SSH2,      cpubuff);
-    CHECKED_WRITE_BUFF(CHUNK_SSH2_DATA, Pico32xMem->data_array[1]);
-    CHECKED_WRITE_BUFF(CHUNK_SSH2_PERI, Pico32xMem->sh2_peri_regs[1]);
+    CHECKED_WRITE_BUFF(CHUNK_SSH2_DATA, sh2s[1].data_array);
+    CHECKED_WRITE_BUFF(CHUNK_SSH2_PERI, sh2s[1].peri_regs);
 
     CHECKED_WRITE_BUFF(CHUNK_32XSYS,    Pico32x);
     CHECKED_WRITE_BUFF(CHUNK_M68K_BIOS, Pico32xMem->m68k_rom);
@@ -470,10 +470,10 @@ static int state_load(void *file)
         sh2_unpack(&sh2s[1], buff_sh2);
         break;
 
-      case CHUNK_MSH2_DATA:   CHECKED_READ_BUFF(Pico32xMem->data_array[0]); break;
-      case CHUNK_MSH2_PERI:   CHECKED_READ_BUFF(Pico32xMem->sh2_peri_regs[0]); break;
-      case CHUNK_SSH2_DATA:   CHECKED_READ_BUFF(Pico32xMem->data_array[1]); break;
-      case CHUNK_SSH2_PERI:   CHECKED_READ_BUFF(Pico32xMem->sh2_peri_regs[1]); break;
+      case CHUNK_MSH2_DATA:   CHECKED_READ_BUFF(sh2s[0].data_array); break;
+      case CHUNK_MSH2_PERI:   CHECKED_READ_BUFF(sh2s[0].peri_regs); break;
+      case CHUNK_SSH2_DATA:   CHECKED_READ_BUFF(sh2s[1].data_array); break;
+      case CHUNK_SSH2_PERI:   CHECKED_READ_BUFF(sh2s[1].peri_regs); break;
       case CHUNK_32XSYS:      CHECKED_READ_BUFF(Pico32x); break;
       case CHUNK_M68K_BIOS:   CHECKED_READ_BUFF(Pico32xMem->m68k_rom); break;
       case CHUNK_MSH2_BIOS:   CHECKED_READ_BUFF(Pico32xMem->sh2_rom_m); break;

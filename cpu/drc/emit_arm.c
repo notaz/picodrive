@@ -739,7 +739,7 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_sh2_wcall(a, tab) { \
 	emith_lsr(12, a, SH2_WRITE_SHIFT); \
 	EOP_LDR_REG_LSL(A_COND_AL,12,tab,12,2); \
-	emith_ctx_read(2, offsetof(SH2, is_slave)); \
+	emith_move_r_r(2, CONTEXT_REG); \
 	emith_jump_reg(12); \
 }
 

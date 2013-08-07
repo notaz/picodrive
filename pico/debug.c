@@ -83,7 +83,7 @@ char *PDebug32x(void)
     i*2, r[i+0], r[i+1], r[i+2], r[i+3], r[i+4], r[i+5], r[i+6], r[i+7]); MVP;
 
   sprintf(dstrp, "                   mSH2              sSH2\n"); MVP;
-  sprintf(dstrp, "PC,SR %08x,     %03x %08x,     %03x\n", sh2_pc(0), sh2_sr(0), sh2_pc(1), sh2_sr(1)); MVP;
+  sprintf(dstrp, "PC,SR %08x,     %03x %08x,     %03x\n", sh2_pc(&msh2), sh2_sr(0), sh2_pc(&ssh2), sh2_sr(1)); MVP;
   for (i = 0; i < 16/2; i++) {
     sprintf(dstrp, "R%d,%2d %08x,%08x %08x,%08x\n", i, i + 8,
       sh2_reg(0,i), sh2_reg(0,i+8), sh2_reg(1,i), sh2_reg(1,i+8)); MVP;
@@ -345,8 +345,8 @@ void PDebugDumpMem(void)
     dump_ram(Pico32xMem->dram[0], "dumps/dram0.bin");
     dump_ram(Pico32xMem->dram[1], "dumps/dram1.bin");
     dump_ram(Pico32xMem->pal, "dumps/pal32x.bin");
-    dump_ram(Pico32xMem->data_array[0], "dumps/data_array0.bin");
-    dump_ram(Pico32xMem->data_array[1], "dumps/data_array1.bin");
+    dump_ram(msh2.data_array, "dumps/data_array0.bin");
+    dump_ram(ssh2.data_array, "dumps/data_array1.bin");
   }
 #endif
 }

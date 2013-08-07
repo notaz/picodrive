@@ -14,12 +14,13 @@
 
 #define I 0xf0
 
-int sh2_init(SH2 *sh2, int is_slave)
+int sh2_init(SH2 *sh2, int is_slave, SH2 *other_sh2)
 {
 	int ret = 0;
 
 	memset(sh2, 0, offsetof(SH2, mult_m68k_to_sh2));
 	sh2->is_slave = is_slave;
+	sh2->other_sh2 = other_sh2;
 	pdb_register_cpu(sh2, PDBCT_SH2, is_slave ? "ssh2" : "msh2");
 #ifdef DRC_SH2
 	ret = sh2_drc_init(sh2);
@@ -145,16 +146,13 @@ enum ctl_byte {
 	CTL_CYCLES = 0x85,
 };
 
-#define SH2MAP_ADDR2OFFS_R(a) \
-  ((((a) >> 25) & 3) | (((a) >> 27) & 0x1c))
-
 static unsigned int local_read32(SH2 *sh2, u32 a)
 {
 	const sh2_memmap *sh2_map = sh2->read16_map;
 	u16 *pd;
 	uptr p;
 
-	sh2_map += SH2MAP_ADDR2OFFS_R(a);
+	sh2_map += (a >> 25);
 	p = sh2_map->addr;
 	if (!map_flag_set(p)) {
 		pd = (u16 *)((p << 1) + ((a & sh2_map->mask) & ~1));
@@ -163,8 +161,7 @@ static unsigned int local_read32(SH2 *sh2, u32 a)
 
 	if ((a & 0xfffff000) == 0xc0000000) {
 		// data array
-		pd = (u16 *)Pico32xMem->data_array[sh2->is_slave]
-			+ (a & 0xfff) / 2;
+		pd = (u16 *)sh2->data_array + (a & 0xfff) / 2;
 		return (pd[0] << 16) | pd[1];
 	}
 	if ((a & 0xdfffffc0) == 0x4000) {

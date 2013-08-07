@@ -63,10 +63,15 @@ typedef struct SH2_
 
 	unsigned int	cycles_timeslice;
 
+	struct SH2_	*other_sh2;
+
 	// we use 68k reference cycles for easier sync
 	unsigned int	m68krcycles_done;
 	unsigned int	mult_m68k_to_sh2;
 	unsigned int	mult_sh2_to_m68k;
+
+	unsigned char	data_array[0x1000]; // cache (can be used as RAM)
+	unsigned int	peri_regs[0x200/4]; // periphereal regs
 } SH2;
 
 #define CYCLE_MULT_SHIFT 10
@@ -75,7 +80,7 @@ typedef struct SH2_
 #define C_SH2_TO_M68K(xsh2, c) \
 	((int)((c + 3) * (xsh2).mult_sh2_to_m68k) >> CYCLE_MULT_SHIFT)
 
-int  sh2_init(SH2 *sh2, int is_slave);
+int  sh2_init(SH2 *sh2, int is_slave, SH2 *other_sh2);
 void sh2_finish(SH2 *sh2);
 void sh2_reset(SH2 *sh2);
 int  sh2_irl_irq(SH2 *sh2, int level, int nested_call);
@@ -94,9 +99,9 @@ int  sh2_execute(SH2 *sh2, int cycles);
 unsigned int REGPARM(2) p32x_sh2_read8(unsigned int a, SH2 *sh2);
 unsigned int REGPARM(2) p32x_sh2_read16(unsigned int a, SH2 *sh2);
 unsigned int REGPARM(2) p32x_sh2_read32(unsigned int a, SH2 *sh2);
-int REGPARM(3) p32x_sh2_write8 (unsigned int a, unsigned int d, SH2 *sh2);
-int REGPARM(3) p32x_sh2_write16(unsigned int a, unsigned int d, SH2 *sh2);
-int REGPARM(3) p32x_sh2_write32(unsigned int a, unsigned int d, SH2 *sh2);
+void REGPARM(3) p32x_sh2_write8 (unsigned int a, unsigned int d, SH2 *sh2);
+void REGPARM(3) p32x_sh2_write16(unsigned int a, unsigned int d, SH2 *sh2);
+void REGPARM(3) p32x_sh2_write32(unsigned int a, unsigned int d, SH2 *sh2);
 
 // debug
 #ifdef DRC_CMP
