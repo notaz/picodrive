@@ -245,7 +245,7 @@ extern SH2 sh2s[2];
   } \
 } while (0)
 # define sh2_cycles_left(sh2) (sh2)->icount
-# define sh2_pc(c)    (c) ? ssh2.ppc : msh2.ppc
+# define sh2_pc(sh2) (sh2)->ppc
 #else
 # define sh2_end_run(sh2, after_) do { \
   int left_ = (signed int)(sh2)->sr >> 12; \
@@ -256,7 +256,7 @@ extern SH2 sh2s[2];
   } \
 } while (0)
 # define sh2_cycles_left(sh2) ((signed int)(sh2)->sr >> 12)
-# define sh2_pc(c)    (c) ? ssh2.pc : msh2.pc
+# define sh2_pc(sh2) (sh2)->pc
 #endif
 
 #define sh2_cycles_done(sh2) ((int)(sh2)->cycles_timeslice - sh2_cycles_left(sh2))
@@ -490,6 +490,7 @@ typedef struct
 #define SH2_DRCBLK_RAM_SHIFT 1
 #define SH2_DRCBLK_DA_SHIFT  1
 
+#define SH2_READ_SHIFT 25
 #define SH2_WRITE_SHIFT 25
 
 struct Pico32x
@@ -526,7 +527,6 @@ struct Pico32xMem
     unsigned char  m68k_rom[0x100];
     unsigned char  m68k_rom_bank[0x10000]; // M68K_BANK_SIZE
   };
-  unsigned char  data_array[2][0x1000]; // cache in SH2s (can be used as RAM)
 #ifdef DRC_SH2
   unsigned short drcblk_da[2][1 << (12 - SH2_DRCBLK_DA_SHIFT)];
 #endif
@@ -534,7 +534,6 @@ struct Pico32xMem
   unsigned char  sh2_rom_s[0x400];
   unsigned short pal[0x100];
   unsigned short pal_native[0x100];     // converted to native (for renderer)
-  unsigned int   sh2_peri_regs[2][0x200/4]; // periphereal regs of SH2s
   signed short   pwm[2*PWM_BUFF_LEN];   // PWM buffer for current frame
   signed short   pwm_fifo[2][4];        // [0] - current, others - fifo entries
 };
@@ -794,12 +793,12 @@ void p32x_dreq0_trigger(void);
 void p32x_dreq1_trigger(void);
 void p32x_timers_recalc(void);
 void p32x_timers_do(unsigned int m68k_slice);
-unsigned int sh2_peripheral_read8(unsigned int a, int id);
-unsigned int sh2_peripheral_read16(unsigned int a, int id);
-unsigned int sh2_peripheral_read32(unsigned int a, int id);
-int sh2_peripheral_write8(unsigned int a, unsigned int d, int id);
-int sh2_peripheral_write16(unsigned int a, unsigned int d, int id);
-void sh2_peripheral_write32(unsigned int a, unsigned int d, int id);
+unsigned int sh2_peripheral_read8(unsigned int a, SH2 *sh2);
+unsigned int sh2_peripheral_read16(unsigned int a, SH2 *sh2);
+unsigned int sh2_peripheral_read32(unsigned int a, SH2 *sh2);
+void sh2_peripheral_write8(unsigned int a, unsigned int d, SH2 *sh2);
+void sh2_peripheral_write16(unsigned int a, unsigned int d, SH2 *sh2);
+void sh2_peripheral_write32(unsigned int a, unsigned int d, SH2 *sh2);
 
 #else
 #define Pico32xInit()

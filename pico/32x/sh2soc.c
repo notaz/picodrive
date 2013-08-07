@@ -59,7 +59,7 @@ struct dmac {
 
 static void dmac_te_irq(SH2 *sh2, struct dma_chan *chan)
 {
-  char *regs = (void *)Pico32xMem->sh2_peri_regs[sh2->is_slave];
+  char *regs = (void *)sh2->peri_regs;
   struct dmac *dmac = (void *)(regs + 0x180);
   int level = PREG8(regs, 0xe2) & 0x0f; // IPRA
   int vector = (chan == &dmac->chan[0]) ?
@@ -167,7 +167,7 @@ void p32x_timers_recalc(void)
 
   // SH2 timer step
   for (i = 0; i < 2; i++) {
-    tmp = PREG8(Pico32xMem->sh2_peri_regs[i], 0x80) & 7;
+    tmp = PREG8(sh2s[i].peri_regs, 0x80) & 7;
     // Sclk cycles per timer tick
     if (tmp)
       cycles = 0x20 << tmp;
@@ -186,7 +186,7 @@ void p32x_timers_do(unsigned int m68k_slice)
 
   // WDT timers
   for (i = 0; i < 2; i++) {
-    void *pregs = Pico32xMem->sh2_peri_regs[i];
+    void *pregs = sh2s[i].peri_regs;
     if (PREG8(pregs, 0x80) & 0x20) { // TME
       timer_cycles[i] += cycles;
       cnt = PREG8(pregs, 0x81);
@@ -211,44 +211,48 @@ void p32x_timers_do(unsigned int m68k_slice)
 // SH2 internal peripheral memhandlers
 // we keep them in little endian format
 
-u32 sh2_peripheral_read8(u32 a, int id)
+u32 sh2_peripheral_read8(u32 a, SH2 *sh2)
 {
-  u8 *r = (void *)Pico32xMem->sh2_peri_regs[id];
+  u8 *r = (void *)sh2->peri_regs;
   u32 d;
 
   a &= 0x1ff;
   d = PREG8(r, a);
 
-  elprintf(EL_32XP, "%csh2 peri r8  [%08x]       %02x @%06x", id ? 's' : 'm', a | ~0x1ff, d, sh2_pc(id));
+  elprintf(EL_32XP, "%csh2 peri r8  [%08x]       %02x @%06x",
+    sh2->is_slave ? 's' : 'm', a | ~0x1ff, d, sh2_pc(sh2));
   return d;
 }
 
-u32 sh2_peripheral_read16(u32 a, int id)
+u32 sh2_peripheral_read16(u32 a, SH2 *sh2)
 {
-  u16 *r = (void *)Pico32xMem->sh2_peri_regs[id];
+  u16 *r = (void *)sh2->peri_regs;
   u32 d;
 
   a &= 0x1ff;
   d = r[(a / 2) ^ 1];
 
-  elprintf(EL_32XP, "%csh2 peri r16 [%08x]     %04x @%06x", id ? 's' : 'm', a | ~0x1ff, d, sh2_pc(id));
+  elprintf(EL_32XP, "%csh2 peri r16 [%08x]     %04x @%06x",
+    sh2->is_slave ? 's' : 'm', a | ~0x1ff, d, sh2_pc(sh2));
   return d;
 }
 
-u32 sh2_peripheral_read32(u32 a, int id)
+u32 sh2_peripheral_read32(u32 a, SH2 *sh2)
 {
   u32 d;
   a &= 0x1fc;
-  d = Pico32xMem->sh2_peri_regs[id][a / 4];
+  d = sh2->peri_regs[a / 4];
 
-  elprintf(EL_32XP, "%csh2 peri r32 [%08x] %08x @%06x", id ? 's' : 'm', a | ~0x1ff, d, sh2_pc(id));
+  elprintf(EL_32XP, "%csh2 peri r32 [%08x] %08x @%06x",
+    sh2->is_slave ? 's' : 'm', a | ~0x1ff, d, sh2_pc(sh2));
   return d;
 }
 
-int REGPARM(3) sh2_peripheral_write8(u32 a, u32 d, int id)
+void REGPARM(3) sh2_peripheral_write8(u32 a, u32 d, SH2 *sh2)
 {
-  u8 *r = (void *)Pico32xMem->sh2_peri_regs[id];
-  elprintf(EL_32XP, "%csh2 peri w8  [%08x]       %02x @%06x", id ? 's' : 'm', a, d, sh2_pc(id));
+  u8 *r = (void *)sh2->peri_regs;
+  elprintf(EL_32XP, "%csh2 peri w8  [%08x]       %02x @%06x",
+    sh2->is_slave ? 's' : 'm', a, d, sh2_pc(sh2));
 
   a &= 0x1ff;
   PREG8(r, a) = d;
@@ -256,22 +260,23 @@ int REGPARM(3) sh2_peripheral_write8(u32 a, u32 d, int id)
   // X-men SCI hack
   if ((a == 2 &&  (d & 0x20)) || // transmiter enabled
       (a == 4 && !(d & 0x80))) { // valid data in TDR
-    void *oregs = Pico32xMem->sh2_peri_regs[id ^ 1];
+    void *oregs = sh2->other_sh2->peri_regs;
     if ((PREG8(oregs, 2) & 0x50) == 0x50) { // receiver + irq enabled
       int level = PREG8(oregs, 0x60) >> 4;
       int vector = PREG8(oregs, 0x63) & 0x7f;
-      elprintf(EL_32XP, "%csh2 SCI recv irq (%d, %d)", (id ^ 1) ? 's' : 'm', level, vector);
-      sh2_internal_irq(&sh2s[id ^ 1], level, vector);
-      return 1;
+      elprintf(EL_32XP, "%csh2 SCI recv irq (%d, %d)",
+        (sh2->is_slave ^ 1) ? 's' : 'm', level, vector);
+      sh2_internal_irq(sh2->other_sh2, level, vector);
+      return;
     }
   }
-  return 0;
 }
 
-int REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, int id)
+void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
 {
-  u16 *r = (void *)Pico32xMem->sh2_peri_regs[id];
-  elprintf(EL_32XP, "%csh2 peri w16 [%08x]     %04x @%06x", id ? 's' : 'm', a, d, sh2_pc(id));
+  u16 *r = (void *)sh2->peri_regs;
+  elprintf(EL_32XP, "%csh2 peri w16 [%08x]     %04x @%06x",
+    sh2->is_slave ? 's' : 'm', a, d, sh2_pc(sh2));
 
   a &= 0x1ff;
 
@@ -283,17 +288,17 @@ int REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, int id)
     }
     if ((d & 0xff00) == 0x5a00) // WTCNT
       PREG8(r, 0x81) = d;
-    return 0;
+    return;
   }
 
   r[(a / 2) ^ 1] = d;
-  return 0;
 }
 
-void sh2_peripheral_write32(u32 a, u32 d, int id)
+void sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
 {
-  u32 *r = Pico32xMem->sh2_peri_regs[id];
-  elprintf(EL_32XP, "%csh2 peri w32 [%08x] %08x @%06x", id ? 's' : 'm', a, d, sh2_pc(id));
+  u32 *r = sh2->peri_regs;
+  elprintf(EL_32XP, "%csh2 peri w32 [%08x] %08x @%06x",
+    sh2->is_slave ? 's' : 'm', a, d, sh2_pc(sh2));
 
   a &= 0x1fc;
   r[a / 4] = d;
@@ -301,7 +306,8 @@ void sh2_peripheral_write32(u32 a, u32 d, int id)
   switch (a) {
     // division unit (TODO: verify):
     case 0x104: // DVDNT: divident L, starts divide
-      elprintf(EL_32XP, "%csh2 divide %08x / %08x", id ? 's' : 'm', d, r[0x100 / 4]);
+      elprintf(EL_32XP, "%csh2 divide %08x / %08x",
+        sh2->is_slave ? 's' : 'm', d, r[0x100 / 4]);
       if (r[0x100 / 4]) {
         signed int divisor = r[0x100 / 4];
                        r[0x118 / 4] = r[0x110 / 4] = (signed int)d % divisor;
@@ -312,7 +318,7 @@ void sh2_peripheral_write32(u32 a, u32 d, int id)
       break;
     case 0x114:
       elprintf(EL_32XP, "%csh2 divide %08x%08x / %08x @%08x",
-        id ? 's' : 'm', r[0x110 / 4], d, r[0x100 / 4], sh2_pc(id));
+        sh2->is_slave ? 's' : 'm', r[0x110 / 4], d, r[0x100 / 4], sh2_pc(sh2));
       if (r[0x100 / 4]) {
         signed long long divident = (signed long long)r[0x110 / 4] << 32 | d;
         signed int divisor = r[0x100 / 4];
@@ -322,7 +328,8 @@ void sh2_peripheral_write32(u32 a, u32 d, int id)
         r[0x11c / 4] = r[0x114 / 4] = divident;
         divident >>= 31;
         if ((unsigned long long)divident + 1 > 1) {
-          //elprintf(EL_32XP, "%csh2 divide overflow! @%08x", id ? 's' : 'm', sh2_pc(id));
+          //elprintf(EL_32XP, "%csh2 divide overflow! @%08x",
+          //  sh2->is_slave ? 's' : 'm', sh2_pc(sh2));
           r[0x11c / 4] = r[0x114 / 4] = divident > 0 ? 0x7fffffff : 0x80000000; // overflow
         }
       }
@@ -333,14 +340,14 @@ void sh2_peripheral_write32(u32 a, u32 d, int id)
 
   // perhaps starting a DMA?
   if (a == 0x1b0 || a == 0x18c || a == 0x19c) {
-    struct dmac *dmac = (void *)&Pico32xMem->sh2_peri_regs[id][0x180 / 4];
+    struct dmac *dmac = (void *)&sh2->peri_regs[0x180 / 4];
     if (!(dmac->dmaor & DMA_DME))
       return;
 
     if ((dmac->chan[0].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
-      dmac_trigger(&sh2s[id], &dmac->chan[0]);
+      dmac_trigger(sh2, &dmac->chan[0]);
     if ((dmac->chan[1].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
-      dmac_trigger(&sh2s[id], &dmac->chan[1]);
+      dmac_trigger(sh2, &dmac->chan[1]);
   }
 }
 
@@ -401,8 +408,8 @@ static void dreq1_do(SH2 *sh2, struct dma_chan *chan)
 
 void p32x_dreq0_trigger(void)
 {
-  struct dmac *mdmac = (void *)&Pico32xMem->sh2_peri_regs[0][0x180 / 4];
-  struct dmac *sdmac = (void *)&Pico32xMem->sh2_peri_regs[1][0x180 / 4];
+  struct dmac *mdmac = (void *)&msh2.peri_regs[0x180 / 4];
+  struct dmac *sdmac = (void *)&ssh2.peri_regs[0x180 / 4];
 
   elprintf(EL_32XP, "dreq0_trigger");
   if ((mdmac->dmaor & DMA_DME) && (mdmac->chan[0].chcr & 3) == DMA_DE) {
@@ -415,8 +422,8 @@ void p32x_dreq0_trigger(void)
 
 void p32x_dreq1_trigger(void)
 {
-  struct dmac *mdmac = (void *)&Pico32xMem->sh2_peri_regs[0][0x180 / 4];
-  struct dmac *sdmac = (void *)&Pico32xMem->sh2_peri_regs[1][0x180 / 4];
+  struct dmac *mdmac = (void *)&msh2.peri_regs[0x180 / 4];
+  struct dmac *sdmac = (void *)&ssh2.peri_regs[0x180 / 4];
   int hit = 0;
 
   elprintf(EL_32XP, "dreq1_trigger");

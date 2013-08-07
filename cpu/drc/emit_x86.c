@@ -635,7 +635,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_lsr(xBX, a, SH2_WRITE_SHIFT); \
 	EMIT_OP_MODRM(0x8b, 0, xBX, 4); \
 	EMIT_SIB(2, xBX, tab); /* mov ebx, [tab + ebx * 4] */ \
-	emith_ctx_read(arg2_, offsetof(SH2, is_slave)); \
+	emith_move_r_r(arg2_, CONTEXT_REG); \
 	emith_jump_reg(xBX); \
 }
 

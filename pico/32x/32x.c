@@ -73,9 +73,9 @@ void Pico32xStartup(void)
 
   // TODO: OOM handling
   PicoAHW |= PAHW_32X;
-  sh2_init(&msh2, 0);
+  sh2_init(&msh2, 0, &ssh2);
   msh2.irq_callback = sh2_irq_cb;
-  sh2_init(&ssh2, 1);
+  sh2_init(&ssh2, 1, &msh2);
   ssh2.irq_callback = sh2_irq_cb;
 
   PicoMemSetup32x();
@@ -85,8 +85,8 @@ void Pico32xStartup(void)
   if (!Pico.m.pal)
     Pico32x.vdp_regs[0] |= P32XV_nPAL;
 
-  PREG8(Pico32xMem->sh2_peri_regs[0], 4) =
-  PREG8(Pico32xMem->sh2_peri_regs[1], 4) = 0x84; // SCI SSR
+  PREG8(msh2.peri_regs, 4) =
+  PREG8(ssh2.peri_regs, 4) = 0x84; // SCI SSR
 
   rendstatus_old = -1;
 
@@ -339,7 +339,7 @@ static inline void run_sh2(SH2 *sh2, int m68k_cycles)
 // note: recursive call
 void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target)
 {
-  SH2 *osh2 = &sh2s[sh2->is_slave ^ 1];
+  SH2 *osh2 = sh2->other_sh2;
   int left_to_event;
   int m68k_cycles;
 
