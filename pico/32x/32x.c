@@ -85,9 +85,6 @@ void Pico32xStartup(void)
   if (!Pico.m.pal)
     Pico32x.vdp_regs[0] |= P32XV_nPAL;
 
-  PREG8(msh2.peri_regs, 4) =
-  PREG8(ssh2.peri_regs, 4) = 0x84; // SCI SSR
-
   rendstatus_old = -1;
 
   emu_32x_startup();
@@ -100,6 +97,8 @@ void p32x_reset_sh2s(void)
 
   sh2_reset(&msh2);
   sh2_reset(&ssh2);
+  sh2_peripheral_reset(&msh2);
+  sh2_peripheral_reset(&ssh2);
 
   // if we don't have BIOS set, perform it's work here.
   // MSH2

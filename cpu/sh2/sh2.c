@@ -17,10 +17,15 @@
 int sh2_init(SH2 *sh2, int is_slave, SH2 *other_sh2)
 {
 	int ret = 0;
+	unsigned int mult_m68k_to_sh2 = sh2->mult_m68k_to_sh2;
+	unsigned int mult_sh2_to_m68k = sh2->mult_sh2_to_m68k;
 
-	memset(sh2, 0, offsetof(SH2, mult_m68k_to_sh2));
+	memset(sh2, 0, sizeof(*sh2));
 	sh2->is_slave = is_slave;
 	sh2->other_sh2 = other_sh2;
+	sh2->mult_m68k_to_sh2 = mult_m68k_to_sh2;
+	sh2->mult_sh2_to_m68k = mult_sh2_to_m68k;
+
 	pdb_register_cpu(sh2, PDBCT_SH2, is_slave ? "ssh2" : "msh2");
 #ifdef DRC_SH2
 	ret = sh2_drc_init(sh2);

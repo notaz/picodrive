@@ -804,6 +804,7 @@ void p32x_dreq0_trigger(void);
 void p32x_dreq1_trigger(void);
 void p32x_timers_recalc(void);
 void p32x_timers_do(unsigned int m68k_slice);
+void sh2_peripheral_reset(SH2 *sh2);
 unsigned int sh2_peripheral_read8(unsigned int a, SH2 *sh2);
 unsigned int sh2_peripheral_read16(unsigned int a, SH2 *sh2);
 unsigned int sh2_peripheral_read32(unsigned int a, SH2 *sh2);

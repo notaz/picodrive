@@ -207,6 +207,12 @@ void p32x_timers_do(unsigned int m68k_slice)
   }
 }
 
+void sh2_peripheral_reset(SH2 *sh2)
+{
+  memset(sh2->peri_regs, 0, sizeof(sh2->peri_regs)); // ?
+  PREG8(sh2->peri_regs, 4) = 0x84; // SCI SSR
+}
+
 // ------------------------------------------------------------------
 // SH2 internal peripheral memhandlers
 // we keep them in little endian format
