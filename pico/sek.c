@@ -420,6 +420,122 @@ void SekFinishIdleDet(void)
 }
 
 
+#if defined(CPU_CMP_R) || defined(CPU_CMP_W)
+#include "debug.h"
+
+struct ref_68k {
+  u32 dar[16];
+  u32 pc;
+  u32 sr;
+  u32 cycles;
+  u32 pc_prev;
+};
+struct ref_68k ref_68ks[2];
+static int current_68k;
+
+void SekTrace(int is_s68k)
+{
+  struct ref_68k *x68k = &ref_68ks[is_s68k];
+  u32 pc = is_s68k ? SekPcS68k : SekPc;
+  u32 sr = is_s68k ? SekSrS68k : SekSr;
+  u32 cycles = is_s68k ? SekCycleCntS68k : SekCycleCnt;
+  u32 r;
+  u8 cmd;
+#ifdef CPU_CMP_W
+  int i;
+
+  if (is_s68k != current_68k) {
+    current_68k = is_s68k;
+    cmd = CTL_68K_SLAVE | current_68k;
+    tl_write(&cmd, sizeof(cmd));
+  }
+  if (pc != x68k->pc) {
+    x68k->pc = pc;
+    tl_write_uint(CTL_68K_PC, x68k->pc);
+  }
+  if (sr != x68k->sr) {
+    x68k->sr = sr;
+    tl_write_uint(CTL_68K_SR, x68k->sr);
+  }
+  for (i = 0; i < 16; i++) {
+    r = is_s68k ? SekDarS68k(i) : SekDar(i);
+    if (r != x68k->dar[i]) {
+      x68k->dar[i] = r;
+      tl_write_uint(CTL_68K_R + i, r);
+    }
+  }
+  tl_write_uint(CTL_68K_CYCLES, cycles);
+#else
+  int i, bad = 0;
+
+  while (1)
+  {
+    int ret = tl_read(&cmd, sizeof(cmd));
+    if (ret == 0) {
+      elprintf(EL_STATUS, "EOF");
+      exit(1);
+    }
+    switch (cmd) {
+    case CTL_68K_SLAVE:
+    case CTL_68K_SLAVE + 1:
+      current_68k = cmd & 1;
+      break;
+    case CTL_68K_PC:
+      tl_read_uint(&x68k->pc);
+      break;
+    case CTL_68K_SR:
+      tl_read_uint(&x68k->sr);
+      break;
+    case CTL_68K_CYCLES:
+      tl_read_uint(&x68k->cycles);
+      goto breakloop;
+    default:
+      if (CTL_68K_R <= cmd && cmd < CTL_68K_R + 0x10)
+        tl_read_uint(&x68k->dar[cmd - CTL_68K_R]);
+      else
+        elprintf(EL_STATUS, "invalid cmd: %02x", cmd);
+    }
+  }
+
+breakloop:
+  if (is_s68k != current_68k) {
+		printf("bad 68k: %d %d\n", is_s68k, current_68k);
+    bad = 1;
+  }
+  if (cycles != x68k->cycles) {
+		printf("bad cycles: %u %u\n", cycles, x68k->cycles);
+    bad = 1;
+  }
+  if ((pc ^ x68k->pc) & 0xffffff) {
+		printf("bad PC: %08x %08x\n", pc, x68k->pc);
+    bad = 1;
+  }
+  if (sr != x68k->sr) {
+		printf("bad SR:  %03x %03x\n", sr, x68k->sr);
+    bad = 1;
+  }
+  for (i = 0; i < 16; i++) {
+    r = is_s68k ? SekDarS68k(i) : SekDar(i);
+    if (r != x68k->dar[i]) {
+		  printf("bad %c%d: %08x %08x\n", i < 8 ? 'D' : 'A', i & 7,
+        r, x68k->dar[i]);
+      bad = 1;
+    }
+  }
+  if (bad) {
+    for (i = 0; i < 8; i++)
+			printf("D%d: %08x  A%d: %08x\n", i, x68k->dar[i],
+        i, x68k->dar[i + 8]);
+		printf("PC: %08x, %08x\n", x68k->pc, x68k->pc_prev);
+
+    PDebugDumpMem();
+    exit(1);
+  }
+  x68k->pc_prev = x68k->pc;
+#endif
+}
+#endif // CPU_CMP_*
+
 #if defined(EMU_M68K) && M68K_INSTRUCTION_HOOK == OPT_SPECIFY_HANDLER
 static unsigned char op_flags[0x400000/2] = { 0, };
 static int atexit_set = 0;
@@ -447,3 +563,5 @@ void instruction_hook(void)
     op_flags[REG_PC/2] = 1;
 }
 #endif
+
+// vim:shiftwidth=2:ts=2:expandtab

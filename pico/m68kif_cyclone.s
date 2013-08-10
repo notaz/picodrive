@@ -24,16 +24,18 @@
 cyclone_checkpc:
     ldr     r1, [r7, #0x60]  @ membase
     sub     r0, r0, r1
-    bic     r0, r0, #0xff000000
-    bics    r0, r0, #1
+    and     r3, r0, #0xff000000
+    bic     r0, r0, #1
+    bics    r2, r0, #0xff000000
     beq     crashed
 
     ldr     r1, [r7, #0x6c]  @ read16 map
-    mov     r2, r0, lsr #M68K_MEM_SHIFT
+    mov     r2, r2, lsr #M68K_MEM_SHIFT
     ldr     r1, [r1, r2, lsl #2]
     movs    r1, r1, lsl #1
     bcs     crashed
 
+    sub     r1, r1, r3
     str     r1, [r7, #0x60]  @ membase
     add     r0, r0, r1
     bx      lr

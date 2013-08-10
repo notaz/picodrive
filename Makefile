@@ -6,7 +6,8 @@ CFLAGS += -O2 -DNDEBUG
 endif
 #CFLAGS += -DEVT_LOG
 #CFLAGS += -DDRC_CMP
-#drc_debug = 4
+#cpu_cmp = 1
+#drc_debug = 3
 #profile = 1
 
 

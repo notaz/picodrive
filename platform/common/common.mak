@@ -30,6 +30,13 @@ SRCS_COMMON += $(R)cpu/debug.c
  LDFLAGS += -lreadline
  endif
 endif
+ifeq "$(cpu_cmp)" "1"
+ifdef cpu_cmp_w
+DEFINES += CPU_CMP_W
+else
+DEFINES += CPU_CMP_R
+endif # cpu_cmp_w
+endif
 ifeq "$(pprof)" "1"
 DEFINES += PPROF
 SRCS_COMMON += $(R)platform/linux/pprof.c
@@ -157,10 +164,6 @@ SRCS_COMMON += $(R)cpu/sh2/mame/sh2dasm.c
 SRCS_COMMON += $(R)platform/libpicofe/linux/host_dasm.c
 LDFLAGS += -lbfd -lopcodes -liberty
 endif
-ifeq "$(drc_debug_interp)" "1"
-DEFINES += DRC_DEBUG_INTERP
-use_sh2mame = 1
-endif
 endif # use_sh2drc
 #
 ifeq "$(use_sh2mame)" "1"
@@ -183,7 +186,7 @@ $(FR)cpu/cyclone/Cyclone.h:
 
 $(FR)cpu/cyclone/Cyclone.s:
 	@echo building Cyclone...
-	@make -C $(R)cpu/cyclone/ CONFIG_FILE='\"../cyclone_config.h\"'
+	@make -C $(R)cpu/cyclone/ CONFIG_FILE=../cyclone_config.h
 
 $(FR)cpu/musashi/m68kops.c:
 	@make -C $(R)cpu/musashi

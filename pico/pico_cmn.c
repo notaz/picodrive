@@ -50,6 +50,7 @@ static __inline void SekRunM68k(int cyc)
 #endif
 
 out:
+  SekTrace(0);
   pevt_log_m68k_o(EVT_RUN_END);
   pprof_end(m68k);
 }

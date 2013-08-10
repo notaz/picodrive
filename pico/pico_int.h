@@ -46,8 +46,10 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekEndTimesliceS68k(after) PicoCpuCS68k.cycles=after
 #define SekPc (PicoCpuCM68k.pc-PicoCpuCM68k.membase)
 #define SekPcS68k (PicoCpuCS68k.pc-PicoCpuCS68k.membase)
-#define SekDar(x) (x < 8 ? PicoCpuCM68k.d[x] : PicoCpuCM68k.a[x - 8])
+#define SekDar(x)     (x < 8 ? PicoCpuCM68k.d[x] : PicoCpuCM68k.a[x - 8])
+#define SekDarS68k(x) (x < 8 ? PicoCpuCS68k.d[x] : PicoCpuCS68k.a[x - 8])
 #define SekSr     CycloneGetSr(&PicoCpuCM68k)
+#define SekSrS68k CycloneGetSr(&PicoCpuCS68k)
 #define SekSetStop(x) { PicoCpuCM68k.state_flags&=~1; if (x) { PicoCpuCM68k.state_flags|=1; PicoCpuCM68k.cycles=0; } }
 #define SekSetStopS68k(x) { PicoCpuCS68k.state_flags&=~1; if (x) { PicoCpuCS68k.state_flags|=1; PicoCpuCS68k.cycles=0; } }
 #define SekIsStoppedM68k() (PicoCpuCM68k.state_flags&1)
@@ -74,8 +76,10 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #define SekEndTimesliceS68k(after) PicoCpuFS68k.io_cycle_counter=after
 #define SekPc     fm68k_get_pc(&PicoCpuFM68k)
 #define SekPcS68k fm68k_get_pc(&PicoCpuFS68k)
-#define SekDar(x) (x < 8 ? PicoCpuFM68k.dreg[x].D : PicoCpuFM68k.areg[x - 8].D)
+#define SekDar(x)     (x < 8 ? PicoCpuFM68k.dreg[x].D : PicoCpuFM68k.areg[x - 8].D)
+#define SekDarS68k(x) (x < 8 ? PicoCpuFS68k.dreg[x].D : PicoCpuFS68k.areg[x - 8].D)
 #define SekSr     PicoCpuFM68k.sr
+#define SekSrS68k PicoCpuFS68k.sr
 #define SekSetStop(x) { \
 	PicoCpuFM68k.execinfo &= ~FM68K_HALTED; \
 	if (x) { PicoCpuFM68k.execinfo |= FM68K_HALTED; PicoCpuFM68k.io_cycle_counter = 0; } \
@@ -109,8 +113,10 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #define SekEndTimesliceS68k(after) PicoCpuMS68k.cyc_remaining_cycles=after
 #define SekPc m68k_get_reg(&PicoCpuMM68k, M68K_REG_PC)
 #define SekPcS68k m68k_get_reg(&PicoCpuMS68k, M68K_REG_PC)
-#define SekDar(x) PicoCpuMM68k.dar[x]
-#define SekSr m68k_get_reg(&PicoCpuMM68k, M68K_REG_SR)
+#define SekDar(x)     PicoCpuMM68k.dar[x]
+#define SekDarS68k(x) PicoCpuMS68k.dar[x]
+#define SekSr     m68k_get_reg(&PicoCpuMM68k, M68K_REG_SR)
+#define SekSrS68k m68k_get_reg(&PicoCpuMS68k, M68K_REG_SR)
 #define SekSetStop(x) { \
 	if(x) { SET_CYCLES(0); PicoCpuMM68k.stopped=STOP_LEVEL_STOP; } \
 	else PicoCpuMM68k.stopped=0; \
@@ -633,6 +639,11 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub);
 void SekStepM68k(void);
 void SekInitIdleDet(void);
 void SekFinishIdleDet(void);
+#if defined(CPU_CMP_R) || defined(CPU_CMP_W)
+void SekTrace(int is_s68k);
+#else
+#define SekTrace(x)
+#endif
 
 // cd/sek.c
 PICO_INTERNAL void SekInitS68k(void);

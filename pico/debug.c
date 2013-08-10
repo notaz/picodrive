@@ -40,7 +40,7 @@ char *PDebugMain(void)
   sprintf(dstrp, "mode set 4: %02x\n", (r=reg[0xC])); MVP;
   sprintf(dstrp, "interlace: %i%i, cells: %i, shadow: %i\n", bit(r,2), bit(r,1), (r&0x80) ? 40 : 32, bit(r,3)); MVP;
   sprintf(dstrp, "scroll size: w: %i, h: %i  SRAM: %i; eeprom: %i (%i)\n", reg[0x10]&3, (reg[0x10]&0x30)>>4,
-  	!!(SRam.flags & SRF_ENABLED), !!(SRam.flags & SRF_EEPROM), SRam.eeprom_type); MVP;
+    !!(SRam.flags & SRF_ENABLED), !!(SRam.flags & SRF_EEPROM), SRam.eeprom_type); MVP;
   sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); MVP;
   sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status); MVP;
   sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i, cycles: %i\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count, SekCyclesDoneT()); MVP;
@@ -532,6 +532,37 @@ void pevt_dump(void)
       break;
     }
   }
+}
+#endif
+
+#if defined(CPU_CMP_R) || defined(CPU_CMP_W) || defined(DRC_CMP)
+static FILE *tl_f;
+
+void tl_write(const void *ptr, size_t size)
+{
+  if (tl_f == NULL)
+    tl_f = fopen("tracelog", "wb");
+
+  fwrite(ptr, 1, size, tl_f);
+}
+
+void tl_write_uint(unsigned char ctl, unsigned int v)
+{
+  tl_write(&ctl, sizeof(ctl));
+  tl_write(&v, sizeof(v));
+}
+
+int tl_read(void *ptr, size_t size)
+{
+  if (tl_f == NULL)
+    tl_f = fopen("tracelog", "rb");
+
+  return fread(ptr, 1, size, tl_f);
+}
+
+int tl_read_uint(void *ptr)
+{
+  return tl_read(ptr, 4);
 }
 #endif
 

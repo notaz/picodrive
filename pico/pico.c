@@ -146,7 +146,7 @@ int PicoReset(void)
   if (Pico.romsize <= 0)
     return 1;
 
-#ifdef DRC_CMP
+#if defined(CPU_CMP_R) || defined(CPU_CMP_W) || defined(DRC_CMP)
   PicoOpt |= POPT_DIS_VDP_FIFO|POPT_DIS_IDLE_DET;
 #endif
 
