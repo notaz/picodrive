@@ -512,7 +512,8 @@ struct Pico32x
   unsigned int sh2irqs;          // common irqs
   unsigned short dmac_fifo[DMAC_FIFO_LEN];
   unsigned int dmac0_fifo_ptr;
-  unsigned int pad;
+  unsigned short vdp_fbcr_fake;
+  unsigned short pad;
   unsigned char comm_dirty_68k;
   unsigned char comm_dirty_sh2;
   unsigned char pwm_irq_cnt;

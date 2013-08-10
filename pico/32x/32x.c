@@ -155,7 +155,7 @@ void PicoPower32x(void)
   memset(&Pico32x, 0, sizeof(Pico32x));
 
   Pico32x.regs[0] = P32XS_REN|P32XS_nRES; // verified
-  Pico32x.vdp_regs[0x0a/2] = P32XV_VBLK|P32XV_HBLK|P32XV_PEN;
+  Pico32x.vdp_regs[0x0a/2] = P32XV_VBLK|P32XV_PEN;
   Pico32x.sh2_regs[0] = P32XS2_ADEN;
 }
 
@@ -322,8 +322,8 @@ static inline void run_sh2(SH2 *sh2, int m68k_cycles)
   pevt_log_sh2_o(sh2, EVT_RUN_START);
   sh2->state |= SH2_STATE_RUN;
   cycles = C_M68K_TO_SH2(*sh2, m68k_cycles);
-  elprintf(EL_32X, "%csh2 +run %u %d",
-    sh2->is_slave?'s':'m', sh2->m68krcycles_done, cycles);
+  elprintf(EL_32X, "%csh2 +run %u %d @%08x",
+    sh2->is_slave?'s':'m', sh2->m68krcycles_done, cycles, sh2->pc);
 
   done = sh2_execute(sh2, cycles);
 

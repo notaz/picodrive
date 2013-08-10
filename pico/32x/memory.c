@@ -93,12 +93,12 @@ void p32x_m68k_poll_event(u32 flags)
   m68k_poll.addr = m68k_poll.cnt = 0;
 }
 
-static void sh2_poll_detect(SH2 *sh2, u32 a, u32 flags)
+static void sh2_poll_detect(SH2 *sh2, u32 a, u32 flags, int maxcnt)
 {
   int cycles_left = sh2_cycles_left(sh2);
 
   if (a == sh2->poll_addr && sh2->poll_cycles - cycles_left <= 10) {
-    if (sh2->poll_cnt++ > 3) {
+    if (sh2->poll_cnt++ > maxcnt) {
       if (!(sh2->state & flags))
         elprintf(EL_32X, "%csh2 state: %02x->%02x", sh2->is_slave?'s':'m',
           sh2->state, sh2->state | flags);
@@ -321,6 +321,8 @@ static void p32x_reg_write16(u32 a, u32 d)
         if (Pico32x.dmac0_fifo_ptr == DMAC_FIFO_LEN)
           r[6 / 2] |= P32XS_FULL;
       }
+      else
+        elprintf(EL_32X|EL_ANOMALY, "DREQ FIFO overflow!");
       break;
   }
 
@@ -363,9 +365,22 @@ static void p32x_reg_write16(u32 a, u32 d)
 // VDP regs
 static u32 p32x_vdp_read16(u32 a)
 {
+  u32 d;
   a &= 0x0e;
 
-  return Pico32x.vdp_regs[a / 2];
+  d = Pico32x.vdp_regs[a / 2];
+  if (a == 0x0a) {
+    // tested: FEN seems to be randomly pulsing on hcnt 0x80-0xf0,
+    // most often at 0xb1-0xb5, even during vblank,
+    // what's the deal with that?
+    // we'll just fake it along with hblank for now
+    Pico32x.vdp_fbcr_fake++;
+    if (Pico32x.vdp_fbcr_fake & 4)
+      d |= P32XV_HBLK;
+    if ((Pico32x.vdp_fbcr_fake & 7) == 0)
+      d |= P32XV_nFEN;
+  }
+  return d;
 }
 
 static void p32x_vdp_write8(u32 a, u32 d)
@@ -442,7 +457,7 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
       return (r[0] & P32XS_FM) | Pico32x.sh2_regs[0]
         | Pico32x.sh2irq_mask[sh2->is_slave];
     case 0x04: // H count (often as comm too)
-      sh2_poll_detect(sh2, a, SH2_STATE_CPOLL);
+      sh2_poll_detect(sh2, a, SH2_STATE_CPOLL, 3);
       sh2s_sync_on_read(sh2);
       return Pico32x.sh2_regs[4 / 2];
     case 0x10: // DREQ len
@@ -458,7 +473,7 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
     if (Pico32x.comm_dirty_68k & comreg)
       Pico32x.comm_dirty_68k &= ~comreg;
     else
-      sh2_poll_detect(sh2, a, SH2_STATE_CPOLL);
+      sh2_poll_detect(sh2, a, SH2_STATE_CPOLL, 3);
     sh2s_sync_on_read(sh2);
     return r[a / 2];
   }
@@ -917,7 +932,7 @@ static u32 sh2_read8_cs0(u32 a, SH2 *sh2)
 
   if ((a & 0x3ff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    sh2_poll_detect(sh2, a, SH2_STATE_VPOLL);
+    sh2_poll_detect(sh2, a, SH2_STATE_VPOLL, 7);
     goto out_16to8;
   }
 
@@ -971,7 +986,7 @@ static u32 sh2_read16_cs0(u32 a, SH2 *sh2)
 
   if ((a & 0x3ff00) == 0x4100) {
     d = p32x_vdp_read16(a);
-    sh2_poll_detect(sh2, a, SH2_STATE_VPOLL);
+    sh2_poll_detect(sh2, a, SH2_STATE_VPOLL, 7);
     goto out;
   }
 
