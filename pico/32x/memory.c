@@ -198,7 +198,7 @@ static u32 p32x_reg_read16(u32 a)
       Pico32x.comm_dirty_sh2 &= ~comreg;
     else if (m68k_poll_detect(a, cycles, P32XF_68KCPOLL)) {
       SekSetStop(1);
-      SekEndTimeslice(16);
+      SekEndRun(16);
     }
     dr2 = SekDar(2);
     goto out;
