@@ -251,6 +251,7 @@ extern SH2 sh2s[2];
   } \
 } while (0)
 # define sh2_cycles_left(sh2) (sh2)->icount
+# define sh2_burn_cycles(sh2, n) (sh2)->icount -= n
 # define sh2_pc(sh2) (sh2)->ppc
 #else
 # define sh2_end_run(sh2, after_) do { \
@@ -262,6 +263,7 @@ extern SH2 sh2s[2];
   } \
 } while (0)
 # define sh2_cycles_left(sh2) ((signed int)(sh2)->sr >> 12)
+# define sh2_burn_cycles(sh2, n) (sh2)->sr -= ((n) << 12)
 # define sh2_pc(sh2) (sh2)->pc
 #endif
 

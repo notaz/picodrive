@@ -32,7 +32,7 @@
  * sys reg  0004000-00040ff    1    1
  * vdp reg  0004100-00041ff    5    5
  * vdp pal  0004200-00043ff    5    5
- * rom      2000000-23fffff     6-15
+ * cart     2000000-23fffff     6-15
  * dram/fb  4000000-401ffff 5-12  1-3
  * fb ovr   4020000-403ffff
  * sdram    6000000-603ffff   12    2  (cycles)
@@ -1063,6 +1063,8 @@ static u32 sh2_read8_cs0(u32 a, SH2 *sh2)
 {
   u32 d = 0;
 
+  sh2_burn_cycles(sh2, 1*2);
+
   // 0x3ff00 is veridied
   if ((a & 0x3ff00) == 0x4000) {
     d = p32x_sh2reg_read16(a, sh2);
@@ -1115,6 +1117,8 @@ static u32 sh2_read16_unmapped(u32 a, SH2 *sh2)
 static u32 sh2_read16_cs0(u32 a, SH2 *sh2)
 {
   u32 d = 0;
+
+  sh2_burn_cycles(sh2, 1*2);
 
   if ((a & 0x3ff00) == 0x4000) {
     d = p32x_sh2reg_read16(a, sh2);
@@ -1204,6 +1208,15 @@ static void REGPARM(3) sh2_write8_sdram(u32 a, u32 d, SH2 *sh2)
     sh2_drc_wcheck_ram(a, t, sh2->is_slave);
 #endif
   Pico32xMem->sdram[a1 ^ 1] = d;
+}
+
+static void REGPARM(3) sh2_write8_sdram_wt(u32 a, u32 d, SH2 *sh2)
+{
+  // xmen sync hack..
+  if (a < 0x26000200)
+    sh2_end_run(sh2, 32);
+
+  sh2_write8_sdram(a, d, sh2);
 }
 
 static void REGPARM(3) sh2_write8_da(u32 a, u32 d, SH2 *sh2)
@@ -1609,7 +1622,8 @@ void PicoMemSetup32x(void)
   // CS3 - SDRAM
   sh2_read8_map[0x06/2].addr   = sh2_read8_map[0x26/2].addr   =
   sh2_read16_map[0x06/2].addr  = sh2_read16_map[0x26/2].addr  = MAP_MEMORY(Pico32xMem->sdram);
-  sh2_write8_map[0x06/2]       = sh2_write8_map[0x26/2]       = sh2_write8_sdram;
+  sh2_write8_map[0x06/2]       = sh2_write8_sdram;
+  sh2_write8_map[0x26/2]       = sh2_write8_sdram_wt;
   sh2_write16_map[0x06/2]      = sh2_write16_map[0x26/2]      = sh2_write16_sdram;
   sh2_read8_map[0x06/2].mask   = sh2_read8_map[0x26/2].mask   =
   sh2_read16_map[0x06/2].mask  = sh2_read16_map[0x26/2].mask  = 0x03ffff;
