@@ -73,6 +73,7 @@ static struct in_default_bind in_evdev_defbinds[] =
 	{ KEY_S,	IN_BINDTYPE_PLAYER12, GBTN_B },
 	{ KEY_D,	IN_BINDTYPE_PLAYER12, GBTN_C },
 	{ KEY_ENTER,	IN_BINDTYPE_PLAYER12, GBTN_START },
+	{ KEY_F,	IN_BINDTYPE_EMU, PEVB_FF },
 	{ KEY_BACKSLASH, IN_BINDTYPE_EMU, PEVB_MENU },
 	{ KEY_SPACE,	IN_BINDTYPE_EMU, PEVB_MENU },
 	/* Pandora */
@@ -104,10 +105,13 @@ static void osd_text(int x, int y, const char *text)
 	int i, h;
 
 	len++;
+	if (x + len > g_screen_width)
+		len = g_screen_width - x;
+
 	for (h = 0; h < 8; h++) {
 		unsigned short *p;
 		p = (unsigned short *)g_screen_ptr + x + g_screen_width*(y + h);
-		for (i = len; i; i--, p++)
+		for (i = len; i > 0; i--, p++)
 			*p = (*p>>2) & 0x39e7;
 	}
 	emu_text_out16(x, y, text);
@@ -348,7 +352,7 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 
 	pnd_setup_layer(1, g_layer_x, g_layer_y, g_layer_w, g_layer_h);
 	vout_fbdev_clear(layer_fb);
-	vout_fbdev_resize(layer_fb, fb_w, fb_h, 16, fb_left, fb_right, fb_top, fb_bottom, 3);
+	vout_fbdev_resize(layer_fb, fb_w, fb_h, 16, fb_left, fb_right, fb_top, fb_bottom, 4);
 	plat_video_flip();
 
 	PicoDrawSetOutFormat(PDF_RGB555, 0);
@@ -447,7 +451,7 @@ void plat_init(void)
 	g_menuscreen_ptr = vout_fbdev_flip(main_fb);
 
 	w = 320; h = 240;
-	layer_fb = vout_fbdev_init(layer_fb_name, &w, &h, 16, 3);
+	layer_fb = vout_fbdev_init(layer_fb_name, &w, &h, 16, 4);
 	if (layer_fb == NULL) {
 		fprintf(stderr, "couldn't init fb: %s\n", layer_fb_name);
 		goto fail0;
