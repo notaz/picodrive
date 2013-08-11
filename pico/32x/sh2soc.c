@@ -360,13 +360,13 @@ void sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
 /* 32X specific */
 static void dreq0_do(SH2 *sh2, struct dma_chan *chan)
 {
-  unsigned short *dreqlen = &Pico32x.regs[0x10 / 2];
+  unsigned short dreqlen = Pico32x.regs[0x10 / 2];
   int i;
 
   // debug/sanity checks
-  if (chan->tcr != *dreqlen)
-    elprintf(EL_32XP|EL_ANOMALY, "dreq0: tcr0 and len differ: %d != %d",
-      chan->tcr, *dreqlen);
+  if (chan->tcr < dreqlen || chan->tcr > dreqlen + 4)
+    elprintf(EL_32XP|EL_ANOMALY, "dreq0: tcr0/len inconsistent: %d/%d",
+      chan->tcr, dreqlen);
   // note: DACK is not connected, single addr mode should not be used
   if ((chan->chcr & 0x3f08) != 0x0400)
     elprintf(EL_32XP|EL_ANOMALY, "dreq0: bad control: %04x", chan->chcr);
@@ -377,12 +377,11 @@ static void dreq0_do(SH2 *sh2, struct dma_chan *chan)
   sh2->state |= SH2_STATE_SLEEP;
 
   for (i = 0; i < Pico32x.dmac0_fifo_ptr && chan->tcr > 0; i++) {
-    elprintf(EL_32XP, "dmaw [%08x] %04x, left %d",
-      chan->dar, Pico32x.dmac_fifo[i], *dreqlen);
+    elprintf(EL_32XP, "dreq0 [%08x] %04x, dreq_len %d",
+      chan->dar, Pico32x.dmac_fifo[i], dreqlen);
     p32x_sh2_write16(chan->dar, Pico32x.dmac_fifo[i], sh2);
     chan->dar += 2;
     chan->tcr--;
-    (*dreqlen)--;
   }
 
   if (Pico32x.dmac0_fifo_ptr != i)
@@ -391,8 +390,6 @@ static void dreq0_do(SH2 *sh2, struct dma_chan *chan)
   Pico32x.dmac0_fifo_ptr -= i;
 
   Pico32x.regs[6 / 2] &= ~P32XS_FULL;
-  if (*dreqlen == 0)
-    Pico32x.regs[6 / 2] &= ~P32XS_68S; // transfer complete
   if (chan->tcr == 0)
     dmac_transfer_complete(sh2, chan);
   else

@@ -489,8 +489,7 @@ typedef struct
 // peripheral reg access
 #define PREG8(regs,offs) ((unsigned char *)regs)[offs ^ 3]
 
-// real one is 4*2, but we use more because we don't lockstep
-#define DMAC_FIFO_LEN (4*4)
+#define DMAC_FIFO_LEN (4*2)
 #define PWM_BUFF_LEN 1024 // in one channel samples
 
 #define SH2_DRCBLK_RAM_SHIFT 1
@@ -511,9 +510,10 @@ struct Pico32x
   unsigned char sh2irqi[2];      // individual
   unsigned int sh2irqs;          // common irqs
   unsigned short dmac_fifo[DMAC_FIFO_LEN];
+  unsigned int pad[4];
   unsigned int dmac0_fifo_ptr;
   unsigned short vdp_fbcr_fake;
-  unsigned short pad;
+  unsigned short pad2;
   unsigned char comm_dirty_68k;
   unsigned char comm_dirty_sh2;
   unsigned char pwm_irq_cnt;

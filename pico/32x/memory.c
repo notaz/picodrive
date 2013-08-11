@@ -9,17 +9,17 @@
  * a15100 F....... R.....EA  F.....AC N...VHMP 4000 // Fm Ren nrEs Aden Cart heN V H cMd Pwm
  * a15102 ........ ......SM  ?                 4002 // intS intM
  * a15104 ........ ......10  ........ hhhhhhhh 4004 // bk1 bk0 Hint
- * a15106 F....... .....SDR  UE...... .....SDR 4006 // Full 68S Dma Rv fUll[fb] Empt[fb]
+ * a15106 ........ F....SDR  UE...... .....SDR 4006 // Full 68S Dma Rv fUll[fb] Empt[fb]
  * a15108           (32bit DREQ src)           4008
  * a1510c           (32bit DREQ dst)           400c
  * a15110          llllllll llllll00           4010 // DREQ Len
  * a15112           (16bit FIFO reg)           4012
- * a15114 ?                  (16bit VRES clr)  4014
- * a15116 ?                  (16bit Vint clr)  4016
- * a15118 ?                  (16bit Hint clr)  4018
- * a1511a ........ .......C  (16bit CMD clr)   401a // Cm
- * a1511c ?                  (16bit PWM clr)   401c
- * a1511e ?                  ?                 401e
+ * a15114 0                  (16bit VRES clr)  4014
+ * a15116 0                  (16bit Vint clr)  4016
+ * a15118 0                  (16bit Hint clr)  4018
+ * a1511a .......? .......C  (16bit CMD clr)   401a // TV Cm
+ * a1511c 0                  (16bit PWM clr)   401c
+ * a1511e 0                  ?                 401e
  * a15120            (16 bytes comm)           2020
  * a15130                 (PWM)                2030
  *
@@ -48,6 +48,9 @@ void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 struct Pico32xMem *Pico32xMem;
 
 static void bank_switch(int b);
+
+// addressing byte in 16bit reg
+#define REG8IN16(ptr, offs) ((u8 *)ptr)[(offs) ^ 1]
 
 // poll detection
 #define POLL_THRESHOLD 3
@@ -219,6 +222,32 @@ out:
   return Pico32x.regs[a / 2];
 }
 
+static void dreq0_write(u16 *r, u32 d)
+{
+  if (!(r[6 / 2] & P32XS_68S)) {
+    elprintf(EL_32X|EL_ANOMALY, "DREQ FIFO w16 without 68S?");
+    return; // ignored - tested
+  }
+  if (Pico32x.dmac0_fifo_ptr < DMAC_FIFO_LEN) {
+    Pico32x.dmac_fifo[Pico32x.dmac0_fifo_ptr++] = d;
+    if (Pico32x.dmac0_fifo_ptr == DMAC_FIFO_LEN)
+      r[6 / 2] |= P32XS_FULL;
+    // tested: len register decrements and 68S clears
+    // even if SH2s/DMAC aren't active..
+    r[0x10 / 2]--;
+    if (r[0x10 / 2] == 0)
+      r[6 / 2] &= ~P32XS_68S;
+
+    if ((Pico32x.dmac0_fifo_ptr & 3) == 0) {
+      p32x_sync_sh2s(SekCyclesDoneT());
+      p32x_dreq0_trigger();
+    }
+  }
+  else
+    elprintf(EL_32X|EL_ANOMALY, "DREQ FIFO overflow!");
+}
+
+// writable bits tested
 static void p32x_reg_write8(u32 a, u32 d)
 {
   u16 *r = Pico32x.regs;
@@ -228,15 +257,18 @@ static void p32x_reg_write8(u32 a, u32 d)
   m68k_poll.cnt = 0;
 
   switch (a) {
-    case 0: // adapter ctl
-      r[0] = (r[0] & ~P32XS_FM) | ((d << 8) & P32XS_FM);
+    case 0x00: // adapter ctl: FM writable
+      REG8IN16(r, 0x00) = d & 0x80;
       return;
-    case 1: // adapter ctl, RES bit writeable
+    case 0x01: // adapter ctl: RES and ADEN writable
       if ((d ^ r[0]) & d & P32XS_nRES)
         p32x_reset_sh2s();
-      r[0] = (r[0] & ~P32XS_nRES) | (d & P32XS_nRES);
+      REG8IN16(r, 0x01) &= ~(P32XS_nRES|P32XS_ADEN);
+      REG8IN16(r, 0x01) |= d & (P32XS_nRES|P32XS_ADEN);
       return;
-    case 3: // irq ctl
+    case 0x02: // ignored, always 0
+      return;
+    case 0x03: // irq ctl
       if ((d & 1) != !!(Pico32x.sh2irqi[0] & P32XI_CMD)) {
         p32x_sync_sh2s(SekCyclesDoneT());
         if (d & 1)
@@ -254,34 +286,124 @@ static void p32x_reg_write8(u32 a, u32 d)
         p32x_update_irls(NULL, SekCyclesDoneT2());
       }
       return;
-    case 5: // bank
-      d &= 7;
-      if (r[4 / 2] != d) {
-        r[4 / 2] = d;
+    case 0x04: // ignored, always 0
+      return;
+    case 0x05: // bank
+      d &= 3;
+      if (r[0x04 / 2] != d) {
+        r[0x04 / 2] = d;
         bank_switch(d);
       }
       return;
-    case 7: // DREQ ctl
-      r[6 / 2] = (r[6 / 2] & P32XS_FULL) | (d & (P32XS_68S|P32XS_DMA|P32XS_RV));
+    case 0x06: // ignored, always 0
+      return;
+    case 0x07: // DREQ ctl
+      REG8IN16(r, 0x07) &= ~(P32XS_68S|P32XS_DMA|P32XS_RV);
+      if (!(d & P32XS_68S)) {
+        Pico32x.dmac0_fifo_ptr = 0;
+        REG8IN16(r, 0x07) &= ~P32XS_FULL;
+      }
+      REG8IN16(r, 0x07) |= d & (P32XS_68S|P32XS_DMA|P32XS_RV);
+      return;
+    case 0x08: // ignored, always 0
+      return;
+    case 0x09: // DREQ src
+      REG8IN16(r, 0x09) = d;
+      return;
+    case 0x0a:
+      REG8IN16(r, 0x0a) = d;
+      return;
+    case 0x0b:
+      REG8IN16(r, 0x0b) = d & 0xfe;
+      return;
+    case 0x0c: // ignored, always 0
+      return;
+    case 0x0d: // DREQ dest
+    case 0x0e:
+    case 0x0f:
+    case 0x10: // DREQ len
+      REG8IN16(r, a) = d;
+      return;
+    case 0x11:
+      REG8IN16(r, a) = d & 0xfc;
+      return;
+    // DREQ FIFO - writes to odd addr go to fifo
+    // do writes to even work? Reads return 0
+    case 0x12:
+      REG8IN16(r, a) = d;
+      return;
+    case 0x13:
+      d = (REG8IN16(r, 0x12) << 8) | (d & 0xff);
+      REG8IN16(r, 0x12) = 0;
+      dreq0_write(r, d);
+      return;
+    case 0x14: // ignored, always 0
+    case 0x15:
+    case 0x16:
+    case 0x17:
+    case 0x18:
+    case 0x19:
+      return;
+    case 0x1a: // what's this?
+      elprintf(EL_32X|EL_ANOMALY, "mystery w8 %02x %02x", a, d);
+      REG8IN16(r, a) = d & 0x01;
       return;
     case 0x1b: // TV
-      r[0x1a / 2] = d;
+      REG8IN16(r, a) = d & 0x01;
+      return;
+    case 0x1c: // ignored, always 0
+    case 0x1d:
+    case 0x1e:
+    case 0x1f:
+    case 0x30:
+      return;
+    case 0x31: // PWM control
+      REG8IN16(r, a) &= ~0x0f;
+      REG8IN16(r, a) |= d & 0x0f;
+      goto pwm_write;
+    case 0x32: // PWM cycle
+      REG8IN16(r, a) = d & 0x0f;
+      goto pwm_write;
+    case 0x33:
+      REG8IN16(r, a) = d;
+      goto pwm_write;
+    // PWM pulse regs.. Only writes to odd address send a value
+    // to FIFO; reads are 0 (except status bits)
+    case 0x34:
+    case 0x36:
+    case 0x38:
+      REG8IN16(r, a) = d;
+      return;
+    case 0x35:
+    case 0x37:
+    case 0x39:
+      d = (REG8IN16(r, a) << 8) | (d & 0xff);
+      REG8IN16(r, a) = 0;
+      goto pwm_write;
+    case 0x3a: // ignored, always 0
+    case 0x3b:
+    case 0x3c:
+    case 0x3d:
+    case 0x3e:
+    case 0x3f:
+      return;
+    pwm_write:
+      p32x_pwm_write16(a & ~1, r[a / 2], NULL, SekCyclesDoneT());
       return;
   }
 
   if ((a & 0x30) == 0x20) {
-    u8 *r8 = (u8 *)r;
     int cycles = SekCyclesDoneT();
     int comreg;
     
-    if (r8[a ^ 1] == d)
+    if (REG8IN16(r, a) == d)
       return;
 
     comreg = 1 << (a & 0x0f) / 2;
     if (Pico32x.comm_dirty_68k & comreg)
       p32x_sync_sh2s(cycles);
 
-    r8[a ^ 1] = d;
+    REG8IN16(r, a) = d;
     p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
     p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
     Pico32x.comm_dirty_68k |= comreg;
@@ -304,35 +426,34 @@ static void p32x_reg_write16(u32 a, u32 d)
     case 0x00: // adapter ctl
       if ((d ^ r[0]) & d & P32XS_nRES)
         p32x_reset_sh2s();
-      r[0] = (r[0] & ~(P32XS_FM|P32XS_nRES)) | (d & (P32XS_FM|P32XS_nRES));
+      r[0] &= ~(P32XS_FM|P32XS_nRES|P32XS_ADEN);
+      r[0] |= d & (P32XS_FM|P32XS_nRES|P32XS_ADEN);
+      return;
+    case 0x08: // DREQ src
+      r[a / 2] = d & 0xff;
+      return;
+    case 0x0a:
+      r[a / 2] = d & ~1;
+      return;
+    case 0x0c: // DREQ dest
+      r[a / 2] = d & 0xff;
+      return;
+    case 0x0e:
+      r[a / 2] = d;
       return;
     case 0x10: // DREQ len
       r[a / 2] = d & ~3;
       return;
     case 0x12: // FIFO reg
-      if (!(r[6 / 2] & P32XS_68S)) {
-        elprintf(EL_32X|EL_ANOMALY, "DREQ FIFO w16 without 68S?");
-        return;
-      }
-      if (Pico32x.dmac0_fifo_ptr < DMAC_FIFO_LEN) {
-        Pico32x.dmac_fifo[Pico32x.dmac0_fifo_ptr++] = d;
-        if ((Pico32x.dmac0_fifo_ptr & 3) == 0)
-          p32x_dreq0_trigger();
-        if (Pico32x.dmac0_fifo_ptr == DMAC_FIFO_LEN)
-          r[6 / 2] |= P32XS_FULL;
-      }
-      else
-        elprintf(EL_32X|EL_ANOMALY, "DREQ FIFO overflow!");
-      break;
+      dreq0_write(r, d);
+      return;
+    case 0x1a: // TV + mystery bit
+      r[a / 2] = d & 0x0101;
+      return;
   }
 
-  // DREQ src, dst
-  if      ((a & 0x38) == 0x08) {
-    r[a / 2] = d;
-    return;
-  }
   // comm port
-  else if ((a & 0x30) == 0x20) {
+  if ((a & 0x30) == 0x20) {
     int cycles = SekCyclesDoneT();
     int comreg;
     
@@ -460,13 +581,30 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
       sh2_poll_detect(sh2, a, SH2_STATE_CPOLL, 3);
       sh2s_sync_on_read(sh2);
       return Pico32x.sh2_regs[4 / 2];
+    case 0x06:
+      return (r[a / 2] & ~P32XS_FULL) | 0x4000;
+    case 0x08: // DREQ src
+    case 0x0a:
+    case 0x0c: // DREQ dst
+    case 0x0e:
     case 0x10: // DREQ len
       return r[a / 2];
+    case 0x12: // DREQ FIFO - does this work on hw?
+      if (Pico32x.dmac0_fifo_ptr > 0) {
+        Pico32x.dmac0_fifo_ptr--;
+        r[a / 2] = Pico32x.dmac_fifo[0];
+        memmove(&Pico32x.dmac_fifo[0], &Pico32x.dmac_fifo[1],
+          Pico32x.dmac0_fifo_ptr * 2);
+      }
+      return r[a / 2];
+    case 0x14:
+    case 0x16:
+    case 0x18:
+    case 0x1a:
+    case 0x1c:
+      return 0; // ?
   }
 
-  // DREQ src, dst
-  if ((a & 0x38) == 0x08)
-    return r[a / 2];
   // comm port
   if ((a & 0x30) == 0x20) {
     int comreg = 1 << (a & 0x0f) / 2;
@@ -477,10 +615,11 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
     sh2s_sync_on_read(sh2);
     return r[a / 2];
   }
-  if ((a & 0x30) == 0x30) {
+  if ((a & 0x30) == 0x30)
     return p32x_pwm_read16(a, sh2, sh2_cycles_done_m68k(sh2));
-  }
 
+  elprintf_sh2(sh2, EL_32X|EL_ANOMALY, 
+    "unhandled sysreg r16 [%06x] @%06x", a, SekPc);
   return 0;
 }
 
