@@ -128,7 +128,7 @@ static void dmac_transfer_one(SH2 *sh2, struct dma_chan *chan)
 // DMA trigger by SH2 register write
 static void dmac_trigger(SH2 *sh2, struct dma_chan *chan)
 {
-  elprintf(EL_32XP, "sh2 DMA %08x->%08x, cnt %d, chcr %04x @%06x",
+  elprintf_sh2(sh2, EL_32XP, "DMA %08x->%08x, cnt %d, chcr %04x @%06x",
     chan->sar, chan->dar, chan->tcr, chan->chcr, sh2->pc);
   chan->tcr &= 0xffffff;
 
@@ -279,7 +279,7 @@ static void sci_trigger(SH2 *sh2, u8 *r)
   if (PREG8(r, 2) & 0x80) { // TIE - tx irq enabled
     int level = PREG8(oregs, 0x60) >> 4;
     int vector = PREG8(oregs, 0x64) & 0x7f;
-    elprintf(EL_32XP, "SCI tx irq (%d, %d)",
+    elprintf_sh2(sh2, EL_32XP, "SCI tx irq (%d, %d)",
       level, vector);
     sh2_internal_irq(sh2, level, vector);
   }
@@ -287,7 +287,7 @@ static void sci_trigger(SH2 *sh2, u8 *r)
   if (PREG8(oregs, 2) & 0x40) { // RIE - rx irq enabled
     int level = PREG8(oregs, 0x60) >> 4;
     int vector = PREG8(oregs, 0x63) & 0x7f;
-    elprintf(EL_32XP, "SCI rx irq (%d, %d)",
+    elprintf_sh2(sh2->other_sh2, EL_32XP, "SCI rx irq (%d, %d)",
       level, vector);
     sh2_internal_irq(sh2->other_sh2, level, vector);
   }
@@ -298,8 +298,8 @@ void REGPARM(3) sh2_peripheral_write8(u32 a, u32 d, SH2 *sh2)
   u8 *r = (void *)sh2->peri_regs;
   u8 old;
 
-  elprintf(EL_32XP, "%csh2 peri w8  [%08x]       %02x @%06x",
-    sh2->is_slave ? 's' : 'm', a, d, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32XP, "peri w8  [%08x]       %02x @%06x",
+    a, d, sh2_pc(sh2));
 
   a &= 0x1ff;
   old = PREG8(r, a);
@@ -435,7 +435,7 @@ static void dreq0_do(SH2 *sh2, struct dma_chan *chan)
   sh2->state |= SH2_STATE_SLEEP;
 
   for (i = 0; i < Pico32x.dmac0_fifo_ptr && chan->tcr > 0; i++) {
-    elprintf(EL_32XP, "dreq0 [%08x] %04x, dreq_len %d",
+    elprintf_sh2(sh2, EL_32XP, "dreq0 [%08x] %04x, dreq_len %d",
       chan->dar, Pico32x.dmac_fifo[i], dreqlen);
     p32x_sh2_write16(chan->dar, Pico32x.dmac_fifo[i], sh2);
     chan->dar += 2;

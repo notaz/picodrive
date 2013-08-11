@@ -1552,8 +1552,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       if (delay_dep_bk & BITMASK1(SHR_PC)) {
         if (opd->op != OP_LOAD_POOL && opd->op != OP_MOVA) {
           // can only be those 2 really..
-          elprintf(EL_ANOMALY, "%csh2 drc: illegal slot insn %04x @ %08x?",
-            sh2->is_slave ? 's' : 'm', op, pc - 2);
+          elprintf_sh2(sh2, EL_ANOMALY,
+            "drc: illegal slot insn %04x @ %08x?", op, pc - 2);
         }
         if (opd->imm != 0)
           ; // addr already resolved somehow

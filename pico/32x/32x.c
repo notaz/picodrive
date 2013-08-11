@@ -17,12 +17,12 @@ SH2 sh2s[2];
 static int REGPARM(2) sh2_irq_cb(SH2 *sh2, int level)
 {
   if (sh2->pending_irl > sh2->pending_int_irq) {
-    elprintf(EL_32X, "%csh2 ack/irl %d @ %08x",
-      sh2->is_slave ? 's' : 'm', level, sh2->pc);
+    elprintf_sh2(sh2, EL_32X, "ack/irl %d @ %08x",
+      level, sh2_pc(sh2));
     return 64 + sh2->pending_irl / 2;
   } else {
-    elprintf(EL_32X, "%csh2 ack/int %d/%d @ %08x",
-      sh2->is_slave ? 's' : 'm', level, sh2->pending_int_vector, sh2->pc);
+    elprintf_sh2(sh2, EL_32X, "ack/int %d/%d @ %08x",
+      level, sh2->pending_int_vector, sh2_pc(sh2));
     sh2->pending_int_irq = 0; // auto-clear
     sh2->pending_level = sh2->pending_irl;
     return sh2->pending_int_vector;
@@ -323,16 +323,16 @@ static inline void run_sh2(SH2 *sh2, int m68k_cycles)
   pevt_log_sh2_o(sh2, EVT_RUN_START);
   sh2->state |= SH2_STATE_RUN;
   cycles = C_M68K_TO_SH2(*sh2, m68k_cycles);
-  elprintf(EL_32X, "%csh2 +run %u %d @%08x",
-    sh2->is_slave?'s':'m', sh2->m68krcycles_done, cycles, sh2->pc);
+  elprintf_sh2(sh2, EL_32X, "+run %u %d @%08x",
+    sh2->m68krcycles_done, cycles, sh2->pc);
 
   done = sh2_execute(sh2, cycles);
 
   sh2->m68krcycles_done += C_SH2_TO_M68K(*sh2, done);
   sh2->state &= ~SH2_STATE_RUN;
   pevt_log_sh2_o(sh2, EVT_RUN_END);
-  elprintf(EL_32X, "%csh2 -run %u %d",
-    sh2->is_slave?'s':'m', sh2->m68krcycles_done, done);
+  elprintf_sh2(sh2, EL_32X, "-run %u %d",
+    sh2->m68krcycles_done, done);
 }
 
 // sync other sh2 to this one
@@ -355,8 +355,8 @@ void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target)
     return;
   }
 
-  elprintf(EL_32X, "%csh2 sync to %u %d",
-    osh2->is_slave?'s':'m', m68k_target, m68k_cycles);
+  elprintf_sh2(osh2, EL_32X, "sync to %u %d",
+    m68k_target, m68k_cycles);
 
   run_sh2(osh2, m68k_cycles);
 

@@ -103,7 +103,7 @@ static void sh2_poll_detect(SH2 *sh2, u32 a, u32 flags, int maxcnt)
   if (a == sh2->poll_addr && sh2->poll_cycles - cycles_left <= 10) {
     if (sh2->poll_cnt++ > maxcnt) {
       if (!(sh2->state & flags))
-        elprintf(EL_32X, "%csh2 state: %02x->%02x", sh2->is_slave?'s':'m',
+        elprintf_sh2(sh2, EL_32X, "state: %02x->%02x",
           sh2->state, sh2->state | flags);
 
       sh2->state |= flags;
@@ -121,8 +121,8 @@ static void sh2_poll_detect(SH2 *sh2, u32 a, u32 flags, int maxcnt)
 void p32x_sh2_poll_event(SH2 *sh2, u32 flags, u32 m68k_cycles)
 {
   if (sh2->state & flags) {
-    elprintf(EL_32X, "%csh2 state: %02x->%02x", sh2->is_slave?'s':'m',
-      sh2->state, sh2->state & ~flags);
+    elprintf_sh2(sh2, EL_32X, "state: %02x->%02x", sh2->state,
+      sh2->state & ~flags);
 
     if (sh2->m68krcycles_done < m68k_cycles)
       sh2->m68krcycles_done = m68k_cycles;
@@ -1054,8 +1054,8 @@ static void bank_switch(int b)
 // read8
 static u32 sh2_read8_unmapped(u32 a, SH2 *sh2)
 {
-  elprintf(EL_UIO, "%csh2 unmapped r8  [%08x]       %02x @%06x",
-    sh2->is_slave ? 's' : 'm', a, 0, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32X, "unmapped r8  [%08x]       %02x @%06x",
+    a, 0, sh2_pc(sh2));
   return 0;
 }
 
@@ -1096,8 +1096,8 @@ out_16to8:
   else
     d >>= 8;
 
-  elprintf(EL_32X, "%csh2 r8  [%08x]       %02x @%06x",
-    sh2->is_slave ? 's' : 'm', a, d, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32X, "r8  [%08x]       %02x @%06x",
+    a, d, sh2_pc(sh2));
   return d;
 }
 
@@ -1109,8 +1109,8 @@ static u32 sh2_read8_da(u32 a, SH2 *sh2)
 // read16
 static u32 sh2_read16_unmapped(u32 a, SH2 *sh2)
 {
-  elprintf(EL_UIO, "%csh2 unmapped r16 [%08x]     %04x @%06x",
-    sh2->is_slave ? 's' : 'm', a, 0, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32X, "unmapped r16 [%08x]     %04x @%06x",
+    a, 0, sh2_pc(sh2));
   return 0;
 }
 
@@ -1146,8 +1146,8 @@ static u32 sh2_read16_cs0(u32 a, SH2 *sh2)
   return sh2_read16_unmapped(a, sh2);
 
 out:
-  elprintf(EL_32X, "%csh2 r16 [%08x]     %04x @%06x",
-    sh2->is_slave ? 's' : 'm', a, d, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32X, "r16 [%08x]     %04x @%06x",
+    a, d, sh2_pc(sh2));
   return d;
 }
 
@@ -1164,14 +1164,14 @@ static void REGPARM(3) sh2_write_ignore(u32 a, u32 d, SH2 *sh2)
 // write8
 static void REGPARM(3) sh2_write8_unmapped(u32 a, u32 d, SH2 *sh2)
 {
-  elprintf(EL_UIO, "%csh2 unmapped w8  [%08x]       %02x @%06x",
-    sh2->is_slave ? 's' : 'm', a, d & 0xff, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32X, "unmapped w8  [%08x]       %02x @%06x",
+    a, d & 0xff, sh2_pc(sh2));
 }
 
 static void REGPARM(3) sh2_write8_cs0(u32 a, u32 d, SH2 *sh2)
 {
-  elprintf(EL_32X, "%csh2 w8  [%08x]       %02x @%06x",
-    sh2->is_slave ? 's' : 'm', a, d & 0xff, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32X, "w8  [%08x]       %02x @%06x",
+    a, d & 0xff, sh2_pc(sh2));
 
   if (Pico32x.regs[0] & P32XS_FM) {
     if ((a & 0x3ff00) == 0x4100) {
@@ -1234,15 +1234,15 @@ static void REGPARM(3) sh2_write8_da(u32 a, u32 d, SH2 *sh2)
 // write16
 static void REGPARM(3) sh2_write16_unmapped(u32 a, u32 d, SH2 *sh2)
 {
-  elprintf(EL_UIO, "%csh2 unmapped w16 [%08x]     %04x @%06x",
-    sh2->is_slave ? 's' : 'm', a, d & 0xffff, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32X, "unmapped w16 [%08x]     %04x @%06x",
+    a, d & 0xffff, sh2_pc(sh2));
 }
 
 static void REGPARM(3) sh2_write16_cs0(u32 a, u32 d, SH2 *sh2)
 {
   if (((EL_LOGMASK & EL_PWM) || (a & 0x30) != 0x30)) // hide PWM
-    elprintf(EL_32X, "%csh2 w16 [%08x]     %04x @%06x",
-      sh2->is_slave ? 's' : 'm', a, d & 0xffff, sh2_pc(sh2));
+    elprintf_sh2(sh2, EL_32X, "w16 [%08x]     %04x @%06x",
+      a, d & 0xffff, sh2_pc(sh2));
 
   if (Pico32x.regs[0] & P32XS_FM) {
     if ((a & 0x3ff00) == 0x4100) {

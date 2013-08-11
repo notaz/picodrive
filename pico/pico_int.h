@@ -283,6 +283,9 @@ extern SH2 sh2s[2];
 #define sh2_set_vbr(c, v) \
   { if (c) ssh2.vbr = v; else msh2.vbr = v; }
 
+#define elprintf_sh2(sh2, w, f, ...) \
+	elprintf(w,"%csh2 "f,(sh2)->is_slave?'s':'m',##__VA_ARGS__)
+
 // ---------------------------------------------------------
 
 // main oscillator clock which controls timing
