@@ -173,6 +173,7 @@ void PicoUnload32x(void)
 void PicoReset32x(void)
 {
   if (PicoAHW & PAHW_32X) {
+    msh2.m68krcycles_done = ssh2.m68krcycles_done = SekCyclesDoneT();
     Pico32x.sh2irqs |= P32XI_VRES;
     p32x_update_irls(NULL, SekCyclesDoneT2());
     p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES, 0);

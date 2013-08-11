@@ -142,7 +142,7 @@ static void dmac_trigger(SH2 *sh2, struct dma_chan *chan)
 
   // DREQ0 is only sent after first 4 words are written.
   // we do multiple of 4 words to avoid messing up alignment
-  if (chan->sar == 0x20004012) {
+  if ((chan->sar & ~0x20000000) == 0x00004012) {
     if (Pico32x.dmac0_fifo_ptr && (Pico32x.dmac0_fifo_ptr & 3) == 0) {
       elprintf(EL_32XP, "68k -> sh2 DMA");
       p32x_dreq0_trigger();
@@ -210,7 +210,11 @@ void p32x_timers_do(unsigned int m68k_slice)
 void sh2_peripheral_reset(SH2 *sh2)
 {
   memset(sh2->peri_regs, 0, sizeof(sh2->peri_regs)); // ?
-  PREG8(sh2->peri_regs, 4) = 0x84; // SCI SSR
+  PREG8(sh2->peri_regs, 0x001) = 0xff; // SCI BRR
+  PREG8(sh2->peri_regs, 0x003) = 0xff; // SCI TDR
+  PREG8(sh2->peri_regs, 0x004) = 0x84; // SCI SSR
+  PREG8(sh2->peri_regs, 0x011) = 0x01; // TIER
+  PREG8(sh2->peri_regs, 0x017) = 0xe0; // TOCR
 }
 
 // ------------------------------------------------------------------
@@ -225,8 +229,8 @@ u32 sh2_peripheral_read8(u32 a, SH2 *sh2)
   a &= 0x1ff;
   d = PREG8(r, a);
 
-  elprintf(EL_32XP, "%csh2 peri r8  [%08x]       %02x @%06x",
-    sh2->is_slave ? 's' : 'm', a | ~0x1ff, d, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32XP, "peri r8  [%08x]       %02x @%06x",
+    a | ~0x1ff, d, sh2_pc(sh2));
   return d;
 }
 
@@ -238,8 +242,8 @@ u32 sh2_peripheral_read16(u32 a, SH2 *sh2)
   a &= 0x1ff;
   d = r[(a / 2) ^ 1];
 
-  elprintf(EL_32XP, "%csh2 peri r16 [%08x]     %04x @%06x",
-    sh2->is_slave ? 's' : 'm', a | ~0x1ff, d, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32XP, "peri r16 [%08x]     %04x @%06x",
+    a | ~0x1ff, d, sh2_pc(sh2));
   return d;
 }
 
@@ -249,40 +253,90 @@ u32 sh2_peripheral_read32(u32 a, SH2 *sh2)
   a &= 0x1fc;
   d = sh2->peri_regs[a / 4];
 
-  elprintf(EL_32XP, "%csh2 peri r32 [%08x] %08x @%06x",
-    sh2->is_slave ? 's' : 'm', a | ~0x1ff, d, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32XP, "peri r32 [%08x] %08x @%06x",
+    a | ~0x1ff, d, sh2_pc(sh2));
   return d;
+}
+
+static void sci_trigger(SH2 *sh2, u8 *r)
+{
+  u8 *oregs;
+
+  if (!(PREG8(r, 2) & 0x20))
+    return; // transmitter not enabled
+  if ((PREG8(r, 4) & 0x80)) // TDRE - TransmitDataR Empty
+    return;
+
+  oregs = (u8 *)sh2->other_sh2->peri_regs;
+  if (!(PREG8(oregs, 2) & 0x10))
+    return; // receiver not enabled
+
+  PREG8(oregs, 5) = PREG8(r, 3); // other.RDR = this.TDR
+  PREG8(r, 4) |= 0x80;     // TDRE - TDR empty
+  PREG8(oregs, 4) |= 0x40; // RDRF - RDR Full
+
+  // might need to delay these a bit..
+  if (PREG8(r, 2) & 0x80) { // TIE - tx irq enabled
+    int level = PREG8(oregs, 0x60) >> 4;
+    int vector = PREG8(oregs, 0x64) & 0x7f;
+    elprintf(EL_32XP, "SCI tx irq (%d, %d)",
+      level, vector);
+    sh2_internal_irq(sh2, level, vector);
+  }
+  // TODO: TEIE
+  if (PREG8(oregs, 2) & 0x40) { // RIE - rx irq enabled
+    int level = PREG8(oregs, 0x60) >> 4;
+    int vector = PREG8(oregs, 0x63) & 0x7f;
+    elprintf(EL_32XP, "SCI rx irq (%d, %d)",
+      level, vector);
+    sh2_internal_irq(sh2->other_sh2, level, vector);
+  }
 }
 
 void REGPARM(3) sh2_peripheral_write8(u32 a, u32 d, SH2 *sh2)
 {
   u8 *r = (void *)sh2->peri_regs;
+  u8 old;
+
   elprintf(EL_32XP, "%csh2 peri w8  [%08x]       %02x @%06x",
     sh2->is_slave ? 's' : 'm', a, d, sh2_pc(sh2));
 
   a &= 0x1ff;
-  PREG8(r, a) = d;
+  old = PREG8(r, a);
 
-  // X-men SCI hack
-  if ((a == 2 &&  (d & 0x20)) || // transmiter enabled
-      (a == 4 && !(d & 0x80))) { // valid data in TDR
-    void *oregs = sh2->other_sh2->peri_regs;
-    if ((PREG8(oregs, 2) & 0x50) == 0x50) { // receiver + irq enabled
-      int level = PREG8(oregs, 0x60) >> 4;
-      int vector = PREG8(oregs, 0x63) & 0x7f;
-      elprintf(EL_32XP, "%csh2 SCI recv irq (%d, %d)",
-        (sh2->is_slave ^ 1) ? 's' : 'm', level, vector);
-      sh2_internal_irq(sh2->other_sh2, level, vector);
-      return;
+  switch (a) {
+  case 0x002: // SCR - serial control
+    if (!(PREG8(r, a) & 0x20) && (d & 0x20)) { // TE being set
+      PREG8(r, a) = d;
+      sci_trigger(sh2, r);
     }
+    break;
+  case 0x003: // TDR - transmit data
+    break;
+  case 0x004: // SSR - serial status
+    d = (old & (d | 0x06)) | (d & 1);
+    PREG8(r, a) = d;
+    sci_trigger(sh2, r);
+    return;
+  case 0x005: // RDR - receive data
+    break;
+  case 0x010: // TIER
+    if (d & 0x8e)
+      elprintf(EL_32XP|EL_ANOMALY, "TIER: %02x", d);
+    d = (d & 0x8e) | 1;
+    break;
+  case 0x017: // TOCR
+    d |= 0xe0;
+    break;
   }
+  PREG8(r, a) = d;
 }
 
 void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
 {
   u16 *r = (void *)sh2->peri_regs;
-  elprintf(EL_32XP, "%csh2 peri w16 [%08x]     %04x @%06x",
-    sh2->is_slave ? 's' : 'm', a, d, sh2_pc(sh2));
+  elprintf_sh2(sh2, EL_32XP, "peri w16 [%08x]     %04x @%06x",
+    a, d, sh2_pc(sh2));
 
   a &= 0x1ff;
 
@@ -303,17 +357,20 @@ void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
 void sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
 {
   u32 *r = sh2->peri_regs;
-  elprintf(EL_32XP, "%csh2 peri w32 [%08x] %08x @%06x",
-    sh2->is_slave ? 's' : 'm', a, d, sh2_pc(sh2));
+  u32 old;
+
+  elprintf_sh2(sh2, EL_32XP, "peri w32 [%08x] %08x @%06x",
+    a, d, sh2_pc(sh2));
 
   a &= 0x1fc;
+  old = r[a / 4];
   r[a / 4] = d;
 
   switch (a) {
     // division unit (TODO: verify):
     case 0x104: // DVDNT: divident L, starts divide
-      elprintf(EL_32XP, "%csh2 divide %08x / %08x",
-        sh2->is_slave ? 's' : 'm', d, r[0x100 / 4]);
+      elprintf_sh2(sh2, EL_32XP, "divide %08x / %08x",
+        d, r[0x100 / 4]);
       if (r[0x100 / 4]) {
         signed int divisor = r[0x100 / 4];
                        r[0x118 / 4] = r[0x110 / 4] = (signed int)d % divisor;
@@ -323,8 +380,8 @@ void sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
         r[0x110 / 4] = r[0x114 / 4] = r[0x118 / 4] = r[0x11c / 4] = 0; // ?
       break;
     case 0x114:
-      elprintf(EL_32XP, "%csh2 divide %08x%08x / %08x @%08x",
-        sh2->is_slave ? 's' : 'm', r[0x110 / 4], d, r[0x100 / 4], sh2_pc(sh2));
+      elprintf_sh2(sh2, EL_32XP, "divide %08x%08x / %08x @%08x",
+        r[0x110 / 4], d, r[0x100 / 4], sh2_pc(sh2));
       if (r[0x100 / 4]) {
         signed long long divident = (signed long long)r[0x110 / 4] << 32 | d;
         signed int divisor = r[0x100 / 4];
@@ -334,8 +391,7 @@ void sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
         r[0x11c / 4] = r[0x114 / 4] = divident;
         divident >>= 31;
         if ((unsigned long long)divident + 1 > 1) {
-          //elprintf(EL_32XP, "%csh2 divide overflow! @%08x",
-          //  sh2->is_slave ? 's' : 'm', sh2_pc(sh2));
+          //elprintf_sh2(sh2, EL_32XP, "divide overflow! @%08x", sh2_pc(sh2));
           r[0x11c / 4] = r[0x114 / 4] = divident > 0 ? 0x7fffffff : 0x80000000; // overflow
         }
       }
@@ -347,6 +403,8 @@ void sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
   // perhaps starting a DMA?
   if (a == 0x1b0 || a == 0x18c || a == 0x19c) {
     struct dmac *dmac = (void *)&sh2->peri_regs[0x180 / 4];
+    if (a == 0x1b0 && !((old ^ d) & d & DMA_DME))
+      return;
     if (!(dmac->dmaor & DMA_DME))
       return;
 
@@ -370,8 +428,8 @@ static void dreq0_do(SH2 *sh2, struct dma_chan *chan)
   // note: DACK is not connected, single addr mode should not be used
   if ((chan->chcr & 0x3f08) != 0x0400)
     elprintf(EL_32XP|EL_ANOMALY, "dreq0: bad control: %04x", chan->chcr);
-  if (chan->sar != 0x20004012)
-    elprintf(EL_32XP|EL_ANOMALY, "dreq0: bad sar?: %08x\n", chan->sar);
+  if ((chan->sar & ~0x20000000) != 0x00004012)
+    elprintf(EL_32XP|EL_ANOMALY, "dreq0: bad sar?: %08x", chan->sar);
 
   // HACK: assume bus is busy and SH2 is halted
   sh2->state |= SH2_STATE_SLEEP;

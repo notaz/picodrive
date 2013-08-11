@@ -165,7 +165,7 @@ int PicoReset(void)
   SekReset();
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
   SekSetRealTAS(PicoAHW & PAHW_MCD);
-  SekCycleCntT=0;
+  SekCycleCntT = SekCycleCnt = SekCycleAim = 0;
 
   if (PicoAHW & PAHW_MCD)
     // needed for MCD to reset properly, probably some bug hides behind this..
