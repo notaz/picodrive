@@ -793,14 +793,17 @@ void p32x_dreq0_trigger(void);
 void p32x_dreq1_trigger(void);
 void p32x_timers_recalc(void);
 void p32x_timers_do(unsigned int m68k_slice);
-unsigned int sh2_peripheral_read8(unsigned int a, SH2 *sh2);
-unsigned int sh2_peripheral_read16(unsigned int a, SH2 *sh2);
-unsigned int sh2_peripheral_read32(unsigned int a, SH2 *sh2);
 #ifdef _WIN32
+u32 sh2_peripheral_read8(unsigned int a, SH2 *sh2);
+u32 sh2_peripheral_read16(unsigned int a, SH2 *sh2);
+u32 sh2_peripheral_read32(unsigned int a, SH2 *sh2);
 void REGPARM(3) sh2_peripheral_write8(unsigned int a, unsigned int d, SH2 *sh2);
 void REGPARM(3) sh2_peripheral_write16(unsigned int a, unsigned int d, SH2 *sh2);
 void REGPARM(3) sh2_peripheral_write32(unsigned int a, unsigned int d, SH2 *sh2);
 #else
+unsigned int sh2_peripheral_read8(unsigned int a, SH2 *sh2);
+unsigned int sh2_peripheral_read16(unsigned int a, SH2 *sh2);
+unsigned int sh2_peripheral_read32(unsigned int a, SH2 *sh2);
 void sh2_peripheral_write8(unsigned int a, unsigned int d, SH2 *sh2);
 void sh2_peripheral_write16(unsigned int a, unsigned int d, SH2 *sh2);
 void sh2_peripheral_write32(unsigned int a, unsigned int d, SH2 *sh2);
