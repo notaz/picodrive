@@ -10,7 +10,11 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#ifndef _WIN32
 #include <sys/mman.h>
+#else
+#include <windows.h>
+#endif
 #include <errno.h>
 #ifdef __MACH__
 #include <libkern/OSCacheControl.h>
@@ -66,27 +70,75 @@ void cache_flush_d_inval_i(void *start, void *end)
 #endif
 }
 
+#ifdef _WIN32
+void* mmap(void *desired_addr,
+	size_t len, 
+	int mmap_prot, 
+	int mmap_flags, 
+	HANDLE fd,
+	size_t off)
+{
+    HANDLE fmh;
+	void *base_addr;
+	SECURITY_ATTRIBUTES sa;
+	sa.nLength = sizeof(sa);
+	sa.lpSecurityDescriptor = NULL;
+	sa.bInheritHandle = TRUE;
+	fmh = CreateFileMapping(fd, &sa, PAGE_WRITECOPY , 0, len, NULL);
+	if (fmh == NULL){ return NULL; }
+    base_addr = MapViewOfFileEx(fmh, FILE_MAP_WRITE|FILE_MAP_READ, 0, off, len, desired_addr);
+	CloseHandle(fmh);
+	return base_addr;
+}
+
+void munmap(
+	void *base_addr,
+	size_t len
+)
+{
+	UnmapViewOfFile(base_addr);
+}
+#define MAP_FAILED 0
+#define PROT_READ 0
+#define PROT_WRITE 0
+#define MAP_PRIVATE 0 
+#define MAP_ANONYMOUS 0 
+#endif
 void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
 {
-	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-	void *req, *ret;
+#ifndef _WIN32
+   int flags = 0;
+   void *ret = mmap((void*)addr,size,PROT_READ | PROT_WRITE, flags, -1, 0);
+   if (addr != 0 && ret != (void *)addr) {
+      lprintf("warning: wanted to map @%08lx, got %p\n",
+            addr, ret);
 
-	req = (void *)addr;
-	ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
-	if (ret == MAP_FAILED) {
-		lprintf("mmap(%08lx, %zd) failed: %d\n", addr, size, errno);
-		return NULL;
-	}
+      if (is_fixed) {
+         munmap(ret, size);
+         return NULL;
+      }
+   }
+#else
+   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+   void *req, *ret;
 
-	if (addr != 0 && ret != (void *)addr) {
-		lprintf("warning: wanted to map @%08lx, got %p\n",
-			addr, ret);
+   req = (void *)addr;
+   ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
+   if (ret == MAP_FAILED) {
+      lprintf("mmap(%08lx, %zd) failed: %d\n", addr, size, errno);
+      return NULL;
+   }
 
-		if (is_fixed) {
-			munmap(ret, size);
-			return NULL;
-		}
-	}
+   if (addr != 0 && ret != (void *)addr) {
+      lprintf("warning: wanted to map @%08lx, got %p\n",
+            addr, ret);
+
+      if (is_fixed) {
+         munmap(ret, size);
+         return NULL;
+      }
+   }
+#endif
 
 	return ret;
 }
@@ -132,10 +184,15 @@ void plat_munmap(void *ptr, size_t size)
 
 int plat_mem_set_exec(void *ptr, size_t size)
 {
-	int ret = mprotect(ptr, size, PROT_READ | PROT_WRITE | PROT_EXEC);
-	if (ret != 0)
-		lprintf("mprotect(%p, %zd) failed: %d\n", ptr, size, errno);
-
+#ifdef _WIN32
+   int ret = VirtualProtect(ptr,size,PAGE_EXECUTE_READWRITE,0);
+   if (ret == 0)
+      lprintf("mprotect(%p, %zd) failed: %d\n", ptr, size, 0);
+#else
+   int ret = mprotect(ptr, size, PROT_READ | PROT_WRITE | PROT_EXEC);
+   if (ret != 0)
+      lprintf("mprotect(%p, %zd) failed: %d\n", ptr, size, errno);
+#endif
 	return ret;
 }
 
