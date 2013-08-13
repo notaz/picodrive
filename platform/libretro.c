@@ -78,17 +78,7 @@ void* mmap(void *desired_addr,
 	HANDLE fd,
 	size_t off)
 {
-    HANDLE fmh;
-	void *base_addr;
-	SECURITY_ATTRIBUTES sa;
-	sa.nLength = sizeof(sa);
-	sa.lpSecurityDescriptor = NULL;
-	sa.bInheritHandle = TRUE;
-	fmh = CreateFileMapping(fd, &sa, PAGE_WRITECOPY , 0, len, NULL);
-	if (fmh == NULL){ return NULL; }
-    base_addr = MapViewOfFileEx(fmh, FILE_MAP_WRITE|FILE_MAP_READ, 0, off, len, desired_addr);
-	CloseHandle(fmh);
-	return base_addr;
+   return malloc(len);
 }
 
 void munmap(
@@ -96,7 +86,7 @@ void munmap(
 	size_t len
 )
 {
-	UnmapViewOfFile(base_addr);
+   free(base_addr);
 }
 #define MAP_FAILED 0
 #define PROT_READ 0

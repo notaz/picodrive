@@ -1,3 +1,6 @@
+#ifndef _PICO_MEMORY_H
+#define _PICO_MEMORY_H
+
 // memory map related stuff
 
 typedef unsigned char  u8;
@@ -132,3 +135,5 @@ typedef struct {
   uptr addr; // stores (membase >> 1) or ((handler >> 1) | (1<<31))
   u32 mask;
 } sh2_memmap;
+
+#endif
