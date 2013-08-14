@@ -150,6 +150,10 @@ static void dmac_trigger(SH2 *sh2, struct dma_chan *chan)
     return;
   }
 
+  // DREQ1
+  if ((chan->dar & 0xc7fffff0) == 0x00004030)
+    return;
+
   elprintf(EL_32XP|EL_ANOMALY, "unhandled DMA: "
     "%08x->%08x, cnt %d, chcr %04x @%06x",
     chan->sar, chan->dar, chan->tcr, chan->chcr, sh2->pc);
@@ -497,8 +501,19 @@ void p32x_dreq1_trigger(void)
     hit = 1;
   }
 
-  if (!hit)
-    elprintf(EL_32XP|EL_ANOMALY, "dreq1: nobody cared");
+  // debug
+#if (EL_LOGMASK & (EL_32XP|EL_ANOMALY))
+  {
+    static int miss_count;
+    if (!hit) {
+      if (++miss_count == 4)
+        elprintf(EL_32XP|EL_ANOMALY, "dreq1: nobody cared");
+    }
+    else
+      miss_count = 0;
+  }
+#endif
+  (void)hit;
 }
 
 // vim:shiftwidth=2:ts=2:expandtab
