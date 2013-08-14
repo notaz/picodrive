@@ -228,6 +228,25 @@ static void p32x_start_blank(void)
   p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, 0);
 }
 
+void p32x_schedule_hint(SH2 *sh2, int m68k_cycles)
+{
+  // rather rough, 32x hint is useless in practice
+  int after;
+
+  if (!((Pico32x.sh2irq_mask[0] | Pico32x.sh2irq_mask[1]) & 4))
+    return; // nobody cares
+  // note: when Pico.m.scanline is 224, SH2s might
+  // still be at scanline 93 (or so)
+  if (!(Pico32x.sh2_regs[0] & 0x80) && Pico.m.scanline > 224)
+    return;
+
+  after = (Pico32x.sh2_regs[4 / 2] + 1) * 488;
+  if (sh2 != NULL)
+    p32x_event_schedule_sh2(sh2, P32X_EVENT_HINT, after);
+  else
+    p32x_event_schedule(m68k_cycles, P32X_EVENT_HINT, after);
+}
+
 // compare cycles, handling overflows
 // check if a > b
 #define CYCLES_GT(a, b) \
@@ -244,6 +263,13 @@ static void fillend_event(unsigned int now)
   p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, now);
 }
 
+static void hint_event(unsigned int now)
+{
+  Pico32x.sh2irqs |= P32XI_HINT;
+  p32x_update_irls(NULL, now);
+  p32x_schedule_hint(NULL, now);
+}
+
 typedef void (event_cb)(unsigned int now);
 
 unsigned int event_times[P32X_EVENT_COUNT];
@@ -251,6 +277,7 @@ static unsigned int event_time_next;
 static event_cb *event_cbs[] = {
   [P32X_EVENT_PWM]      = p32x_pwm_irq_event,
   [P32X_EVENT_FILLEND]  = fillend_event,
+  [P32X_EVENT_HINT]     = hint_event,
 };
 
 // schedule event at some time 'after', in m68k clocks
@@ -481,10 +508,14 @@ void sync_sh2s_lockstep(unsigned int m68k_target)
 
 void PicoFrame32x(void)
 {
+  Pico.m.scanline = 0;
+
   Pico32x.vdp_regs[0x0a/2] &= ~P32XV_VBLK; // get out of vblank
   if ((Pico32x.vdp_regs[0] & P32XV_Mx) != 0) // no forced blanking
     Pico32x.vdp_regs[0x0a/2] &= ~P32XV_PEN; // no palette access
 
+  if (!(Pico32x.sh2_regs[0] & 0x80))
+    p32x_schedule_hint(NULL, SekCyclesDoneT2());
   p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, 0);
   p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, 0);
 

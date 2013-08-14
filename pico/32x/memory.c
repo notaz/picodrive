@@ -635,13 +635,13 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
       Pico32x.regs[0] |= (d << 8) & P32XS_FM;
       return;
     case 1: // HEN/irq masks
-      if ((d ^ Pico32x.sh2_regs[0]) & 0x80)
-        elprintf(EL_ANOMALY|EL_32X, "HEN");
-      Pico32x.sh2irq_mask[sh2->is_slave] = d & 0x8f;
+      Pico32x.sh2irq_mask[sh2->is_slave] = d & 0x0f;
       Pico32x.sh2_regs[0] &= ~0x80;
       Pico32x.sh2_regs[0] |= d & 0x80;
       if (d & 1)
         p32x_pwm_schedule_sh2(sh2);
+      if (d & 4)
+        p32x_schedule_hint(sh2, 0); 
       p32x_update_irls(sh2, 0);
       return;
     case 5: // H count

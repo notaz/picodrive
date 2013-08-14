@@ -749,6 +749,7 @@ extern struct Pico32x Pico32x;
 enum p32x_event {
   P32X_EVENT_PWM,
   P32X_EVENT_FILLEND,
+  P32X_EVENT_HINT,
   P32X_EVENT_COUNT,
 };
 extern unsigned int event_times[P32X_EVENT_COUNT];
@@ -766,6 +767,7 @@ void p32x_update_irls(SH2 *active_sh2, int m68k_cycles);
 void p32x_reset_sh2s(void);
 void p32x_event_schedule(unsigned int now, enum p32x_event event, int after);
 void p32x_event_schedule_sh2(SH2 *sh2, enum p32x_event event, int after);
+void p32x_schedule_hint(SH2 *sh2, int m68k_cycles);
 
 // 32x/memory.c
 struct Pico32xMem *Pico32xMem;
