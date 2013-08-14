@@ -90,8 +90,9 @@ int mp3_get_bitrate(void *f_, int len)
 	if (ret <= 0) {
 		// try to read somewhere around the middle
 		fseek(f, len / 2, SEEK_SET);
-		fread(buf, 1, sizeof(buf), f);
-		ret = try_get_bitrate(buf, sizeof(buf));
+		ret = fread(buf, 1, sizeof(buf), f);
+		if (ret == sizeof(buf))
+			ret = try_get_bitrate(buf, sizeof(buf));
 	}
 	if (ret > 0)
 		retval = ret;

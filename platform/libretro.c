@@ -28,10 +28,6 @@
 #include "common/version.h"
 #include "libretro.h"
 
-#ifndef MAP_ANONYMOUS
-#define MAP_ANONYMOUS MAP_ANON
-#endif
-
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
@@ -167,6 +163,11 @@ static void munmap(void *addr, size_t length)
 	/* ruh-ro, we leaked handle from CreateFileMapping() ... */
 }
 #endif
+
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
 void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
 {
    int flags = MAP_PRIVATE | MAP_ANONYMOUS;
