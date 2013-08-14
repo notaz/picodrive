@@ -169,19 +169,6 @@ static void munmap(void *addr, size_t length)
 #endif
 void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
 {
-#ifndef _WIN32
-   int flags = 0;
-   void *ret = mmap((void*)addr,size,PROT_READ | PROT_WRITE, flags, -1, 0);
-   if (addr != 0 && ret != (void *)addr) {
-      lprintf("warning: wanted to map @%08lx, got %p\n",
-            addr, ret);
-
-      if (is_fixed) {
-         munmap(ret, size);
-         return NULL;
-      }
-   }
-#else
    int flags = MAP_PRIVATE | MAP_ANONYMOUS;
    void *req, *ret;
 
@@ -201,7 +188,6 @@ void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
          return NULL;
       }
    }
-#endif
 
 	return ret;
 }
