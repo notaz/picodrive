@@ -294,7 +294,7 @@ void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
   r[(a / 2) ^ 1] = d;
 }
 
-void sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
+void REGPARM(3) sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
 {
   u32 *r = sh2->peri_regs;
   elprintf(EL_32XP, "%csh2 peri w32 [%08x] %08x @%06x",

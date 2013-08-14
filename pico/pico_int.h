@@ -796,9 +796,9 @@ void p32x_timers_do(unsigned int m68k_slice);
 unsigned int sh2_peripheral_read8(unsigned int a, SH2 *sh2);
 unsigned int sh2_peripheral_read16(unsigned int a, SH2 *sh2);
 unsigned int sh2_peripheral_read32(unsigned int a, SH2 *sh2);
-void sh2_peripheral_write8(unsigned int a, unsigned int d, SH2 *sh2);
-void sh2_peripheral_write16(unsigned int a, unsigned int d, SH2 *sh2);
-void sh2_peripheral_write32(unsigned int a, unsigned int d, SH2 *sh2);
+void REGPARM(3) sh2_peripheral_write8(unsigned int a, unsigned int d, SH2 *sh2);
+void REGPARM(3) sh2_peripheral_write16(unsigned int a, unsigned int d, SH2 *sh2);
+void REGPARM(3) sh2_peripheral_write32(unsigned int a, unsigned int d, SH2 *sh2);
 
 #else
 #define Pico32xInit()
@@ -926,7 +926,7 @@ void pevt_dump(void);
 #define cdprintf(x...)
 #endif
 
-#ifdef __i386__
+#if defined(__GNUC__) && defined(__i386__)
 #define REGPARM(x) __attribute__((regparm(x)))
 #else
 #define REGPARM(x)
