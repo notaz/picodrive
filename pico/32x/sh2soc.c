@@ -248,7 +248,11 @@ u32 sh2_peripheral_read32(u32 a, SH2 *sh2)
   return d;
 }
 
+#ifdef _WIN32
 void REGPARM(3) sh2_peripheral_write8(u32 a, u32 d, SH2 *sh2)
+#else
+void sh2_peripheral_write8(u32 a, u32 d, SH2 *sh2)
+#endif
 {
   u8 *r = (void *)sh2->peri_regs;
   elprintf(EL_32XP, "%csh2 peri w8  [%08x]       %02x @%06x",
@@ -272,7 +276,11 @@ void REGPARM(3) sh2_peripheral_write8(u32 a, u32 d, SH2 *sh2)
   }
 }
 
+#ifdef _WIN32
 void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
+#else
+void sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
+#endif
 {
   u16 *r = (void *)sh2->peri_regs;
   elprintf(EL_32XP, "%csh2 peri w16 [%08x]     %04x @%06x",
