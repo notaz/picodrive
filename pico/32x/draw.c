@@ -43,7 +43,7 @@ static void convert_pal555(int invert_prio)
                                                                   \
   for (i = 320; i > 0; i--, pd++, p32x++, pmd++) {                \
     unsigned short t = *p32x;                                     \
-    if (*pmd != mdbg && !((t ^ inv) & 0x8000)) {                  \
+    if ((*pmd & 0x3f) != mdbg && !((t ^ inv) & 0x8000)) {         \
       pmd_draw_code;                                              \
       continue;                                                   \
     }                                                             \
@@ -59,7 +59,7 @@ static void convert_pal555(int invert_prio)
   int i;                                                          \
   for (i = 320; i > 0; i--, pd++, p32x++, pmd++) {                \
     t = pal[*(unsigned char *)((long)p32x ^ 1)];                  \
-    if ((t & 0x20) || *pmd == mdbg)                               \
+    if ((t & 0x20) || (*pmd & 0x3f) == mdbg)                      \
       *pd = t;                                                    \
     else                                                          \
       pmd_draw_code;                                              \
@@ -74,7 +74,7 @@ static void convert_pal555(int invert_prio)
   for (i = 320; i > 0; p32x++) {                                  \
     t = pal[*p32x & 0xff];                                        \
     for (len = (*p32x >> 8) + 1; len > 0 && i > 0; len--, i--, pd++, pmd++) { \
-      if (*pmd == mdbg || (t & 0x20))                             \
+      if ((*pmd & 0x3f) == mdbg || (t & 0x20))                    \
         *pd = t;                                                  \
       else                                                        \
         pmd_draw_code;                                            \

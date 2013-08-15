@@ -77,6 +77,7 @@ Pico32xNativePal:
     ldr     r9, =HighPal     @ palmd
     and     r4, r2, #0xff
     mov     r5, #328
+    lsl     r3, #26          @ mdbg << 26
     mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
     tst     r10,#P32XV_PRI
     moveq   r10,#0
@@ -107,7 +108,7 @@ Pico32xNativePal:
     subs    r6, r6, #1
     blt     0b @ loop_outer
     ldrh    r8, [r5], #2     @ 32x pixel
-    cmp     r7, r3           @ MD has bg pixel?
+    cmp     r3, r7, lsl #26  @ MD has bg pixel?
     beq     3f @ draw32x
     eor     r12,r8, r10
     ands    r12,r12,#0x8000  @ !((t ^ inv) & 0x8000)
@@ -145,6 +146,7 @@ Pico32xNativePal:
     ldr     r9, =HighPal     @ palmd
     and     r4, r2, #0xff
     mov     r5, #328
+    lsl     r3, #26          @ mdbg << 26
     mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
     call_scan_prep \call_scan
 
@@ -191,14 +193,14 @@ Pico32xNativePal:
     tst     r12,#0x20
     ldrneb  r12,[r11,#-2]    @ MD pixel 0
     eor     lr, r8, #0x20
-    cmpne   r12,r3           @ MD has bg pixel?
+    cmpne   r3, r12, lsl #26 @ MD has bg pixel?
 .if \do_md
     mov     r12,r12,lsl #1
     ldrneh  r7, [r9, r12]    @ t = palmd[pmd[0]]
     tst     lr, #0x20
     ldrneb  lr, [r11,#-1]    @ MD pixel 1
     strh    r7, [r0], #2
-    cmpne   lr, r3           @ MD has bg pixel?
+    cmpne   r3, lr, lsl #26  @ MD has bg pixel?
     mov     lr, lr, lsl #1
     ldrneh  r8, [r9, lr]     @ t = palmd[pmd[1]]
     strh    r8, [r0], #2
@@ -207,7 +209,7 @@ Pico32xNativePal:
     tst     lr, #0x20
     ldrneb  lr, [r11,#-1]    @ MD pixel 1
     add     r0, r0, #4
-    cmpne   lr, r3           @ MD has bg pixel?
+    cmpne   r3, lr, lsl #26  @ MD has bg pixel?
     streqh  r8, [r0, #-2]
 .endif
     b       2b @ loop_inner
@@ -265,12 +267,12 @@ Pico32xNativePal:
 9: @ bg_mode:
     ldrb    r12,[r11],#1     @ MD pixel
     ldrb    lr, [r11],#1
-    cmp     r12,r3           @ MD has bg pixel?
+    cmp     r3, lr, lsl #26  @ MD has bg pixel?
 .if \do_md
     mov     r12,r12,lsl #1
     ldrneh  r12,[r9, r12]    @ t = palmd[*pmd]
     moveq   r12,r7
-    cmp     lr, r3
+    cmp     r3, lr, lsl #26
     mov     lr, lr, lsl #1
     ldrneh  lr, [r9, lr]
     moveq   lr, r7
@@ -278,7 +280,7 @@ Pico32xNativePal:
     strh    lr, [r0], #2
 .else
     streqh  r7, [r0]
-    cmp     lr, r3
+    cmp     r3, lr, lsl #26
     streqh  r7, [r0, #2]
     add     r0, r0, #4
 .endif
@@ -302,6 +304,7 @@ Pico32xNativePal:
     ldr     r9, =HighPal     @ palmd
     and     r4, r2, #0xff
     mov     r5, #328
+    lsl     r3, #26          @ mdbg << 26
     mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
     call_scan_prep \call_scan
 
@@ -335,7 +338,7 @@ Pico32xNativePal:
     ldrb    r7, [r11], #1    @ MD pixel
     subs    r6, r6, #1
     blt     0b @ loop_outer
-    cmp     r7, r3           @ MD has bg pixel?
+    cmp     r3, r7, lsl #26  @ MD has bg pixel?
     mov     r7, r7, lsl #1
     tstne   lr, #0x20
 .if \do_md
