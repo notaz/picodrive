@@ -268,7 +268,7 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
 
 static unsigned short **idledet_ptrs = NULL;
 static int idledet_count = 0, idledet_bads = 0;
-int idledet_start_frame = 0;
+static int idledet_start_frame = 0;
 
 #if 0
 #define IDLE_STATS 1
@@ -312,6 +312,11 @@ void SekInitIdleDet(void)
 #endif
 }
 
+int SekIsIdleReady(void)
+{
+	return (Pico.m.frame_count >= idledet_start_frame);
+}
+
 int SekIsIdleCode(unsigned short *dst, int bytes)
 {
   // printf("SekIsIdleCode %04x %i\n", *dst, bytes);
@@ -322,11 +327,16 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
         return 1;
       break;
     case 4:
-      if (  (*dst & 0xfff8) == 0x4a10 || // tst.b ($aX)      // there should be no need to wait
-            (*dst & 0xfff8) == 0x4a28 || // tst.b ($xxxx,a0) // for byte change anywhere
-            (*dst & 0xff3f) == 0x4a38 || // tst.x ($xxxx.w); tas ($xxxx.w)
-            (*dst & 0xc1ff) == 0x0038 || // move.x ($xxxx.w), dX
-            (*dst & 0xf13f) == 0xb038)   // cmp.x ($xxxx.w), dX
+      if ( (*dst & 0xff3f) == 0x4a38 || // tst.x ($xxxx.w); tas ($xxxx.w)
+           (*dst & 0xc1ff) == 0x0038 || // move.x ($xxxx.w), dX
+           (*dst & 0xf13f) == 0xb038)   // cmp.x ($xxxx.w), dX
+        return 1;
+      if (PicoAHW & (PAHW_MCD|PAHW_32X))
+        break;
+      // with no addons, there should be no need to wait
+      // for byte change anywhere
+      if ( (*dst & 0xfff8) == 0x4a10 || // tst.b ($aX)
+           (*dst & 0xfff8) == 0x4a28)   // tst.b ($xxxx,a0)
         return 1;
       break;
     case 6:
@@ -348,7 +358,9 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
         return 1;
       break;
     case 12:
-       if ((*dst & 0xf1f8) == 0x3010 && // move.w (aX), dX
+      if (PicoAHW & (PAHW_MCD|PAHW_32X))
+        break;
+      if ( (*dst & 0xf1f8) == 0x3010 && // move.w (aX), dX
             (dst[1]&0xf100) == 0x0000 && // arithmetic
             (dst[3]&0xf100) == 0x0000)   // arithmetic
         return 1;
@@ -372,6 +384,7 @@ int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx)
   is_main68k = ctx == &PicoCpuFM68k;
 #endif
   pc &= ~0xff000000;
+  if (!(newop&0x200))
   elprintf(EL_IDLE, "idle: patch %06x %04x %04x %c %c #%i", pc, oldop, newop,
     (newop&0x200)?'n':'y', is_main68k?'m':'s', idledet_count);
 

@@ -7,7 +7,7 @@ endif
 #CFLAGS += -DEVT_LOG
 #CFLAGS += -DDRC_CMP
 #cpu_cmp = 1
-#drc_debug = 3
+#drc_debug = 7
 #profile = 1
 
 

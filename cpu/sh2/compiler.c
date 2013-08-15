@@ -3126,6 +3126,7 @@ int sh2_execute(SH2 *sh2c, int cycles)
   if (ret_cycles > 0)
     dbg(1, "warning: drc returned with cycles: %d", ret_cycles);
 
+  sh2c->sr &= 0x3f3;
   return sh2c->cycles_timeslice - ret_cycles;
 }
 

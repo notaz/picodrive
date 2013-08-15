@@ -353,7 +353,7 @@ struct Pico
   unsigned short vsram[0x40];  // 0x22180
 
   unsigned char *rom;          // 0x22200
-  unsigned int romsize;        // 0x22204
+  unsigned int romsize;        // 0x22204 (on 32bits)
 
   struct PicoMisc m;
   struct PicoVideo video;
