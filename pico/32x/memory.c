@@ -350,12 +350,15 @@ static void p32x_reg_write8(u32 a, u32 d)
     case 0x31: // PWM control
       REG8IN16(r, a) &= ~0x0f;
       REG8IN16(r, a) |= d & 0x0f;
+      d = r[0x30 / 2];
       goto pwm_write;
     case 0x32: // PWM cycle
       REG8IN16(r, a) = d & 0x0f;
+      d = r[0x32 / 2];
       goto pwm_write;
     case 0x33:
       REG8IN16(r, a) = d;
+      d = r[0x32 / 2];
       goto pwm_write;
     // PWM pulse regs.. Only writes to odd address send a value
     // to FIFO; reads are 0 (except status bits)
@@ -367,8 +370,8 @@ static void p32x_reg_write8(u32 a, u32 d)
     case 0x35:
     case 0x37:
     case 0x39:
-      d = (REG8IN16(r, a) << 8) | (d & 0xff);
-      REG8IN16(r, a) = 0;
+      d = (REG8IN16(r, a ^ 1) << 8) | (d & 0xff);
+      REG8IN16(r, a ^ 1) = 0;
       goto pwm_write;
     case 0x3a: // ignored, always 0
     case 0x3b:
@@ -378,7 +381,7 @@ static void p32x_reg_write8(u32 a, u32 d)
     case 0x3f:
       return;
     pwm_write:
-      p32x_pwm_write16(a & ~1, r[a / 2], NULL, SekCyclesDoneT());
+      p32x_pwm_write16(a & ~1, d, NULL, SekCyclesDoneT());
       return;
   }
 
@@ -439,6 +442,11 @@ static void p32x_reg_write16(u32 a, u32 d)
       return;
     case 0x1a: // TV + mystery bit
       r[a / 2] = d & 0x0101;
+      return;
+    case 0x30: // PWM control
+      d = (r[a / 2] & ~0x0f) | (d & 0x0f);
+      r[a / 2] = d;
+      p32x_pwm_write16(a, d, NULL, SekCyclesDoneT());
       return;
   }
 
@@ -609,23 +617,24 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
     return p32x_pwm_read16(a, sh2, sh2_cycles_done_m68k(sh2));
 
   elprintf_sh2(sh2, EL_32X|EL_ANOMALY, 
-    "unhandled sysreg r16 [%06x] @%06x", a, SekPc);
+    "unhandled sysreg r16 [%02x] @%08x", a, sh2_pc(sh2));
   return 0;
 }
 
 static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
 {
+  u16 *r = Pico32x.regs;
   u32 old;
 
   a &= 0xff;
   sh2->poll_addr = 0;
 
   switch (a) {
-    case 0: // FM
-      Pico32x.regs[0] &= ~P32XS_FM;
-      Pico32x.regs[0] |= (d << 8) & P32XS_FM;
+    case 0x00: // FM
+      r[0] &= ~P32XS_FM;
+      r[0] |= (d << 8) & P32XS_FM;
       return;
-    case 1: // HEN/irq masks
+    case 0x01: // HEN/irq masks
       old = Pico32x.sh2irq_mask[sh2->is_slave];
       if ((d ^ old) & 1)
         p32x_pwm_sync_to_sh2(sh2);
@@ -641,7 +650,9 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
       if ((old ^ d) & 4)
         p32x_schedule_hint(sh2, 0); 
       return;
-    case 5: // H count
+    case 0x04: // ignored?
+      return;
+    case 0x05: // H count
       d &= 0xff;
       if (Pico32x.sh2_regs[4 / 2] != d) {
         Pico32x.sh2_regs[4 / 2] = d;
@@ -650,15 +661,53 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
         sh2_end_run(sh2, 4);
       }
       return;
+    case 0x30:
+      REG8IN16(r, a) = d & 0x0f;
+      d = r[0x30 / 2];
+      goto pwm_write;
+    case 0x31: // PWM control
+      REG8IN16(r, a) = d & 0x8f;
+      d = r[0x30 / 2];
+      goto pwm_write;
+    case 0x32: // PWM cycle
+      REG8IN16(r, a) = d & 0x0f;
+      d = r[0x32 / 2];
+      goto pwm_write;
+    case 0x33:
+      REG8IN16(r, a) = d;
+      d = r[0x32 / 2];
+      goto pwm_write;
+    // PWM pulse regs.. Only writes to odd address send a value
+    // to FIFO; reads are 0 (except status bits)
+    case 0x34:
+    case 0x36:
+    case 0x38:
+      REG8IN16(r, a) = d;
+      return;
+    case 0x35:
+    case 0x37:
+    case 0x39:
+      d = (REG8IN16(r, a ^ 1) << 8) | (d & 0xff);
+      REG8IN16(r, a ^ 1) = 0;
+      goto pwm_write;
+    case 0x3a: // ignored, always 0?
+    case 0x3b:
+    case 0x3c:
+    case 0x3d:
+    case 0x3e:
+    case 0x3f:
+      return;
+    pwm_write:
+      p32x_pwm_write16(a & ~1, d, sh2, 0);
+      return;
   }
 
   if ((a & 0x30) == 0x20) {
-    u8 *r8 = (u8 *)Pico32x.regs;
     int comreg;
-    if (r8[a ^ 1] == d)
+    if (REG8IN16(r, a) == d)
       return;
 
-    r8[a ^ 1] = d;
+    REG8IN16(r, a) = d;
     p32x_m68k_poll_event(P32XF_68KCPOLL);
     p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL,
       sh2_cycles_done_m68k(sh2));
@@ -666,6 +715,9 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
     Pico32x.comm_dirty_sh2 |= comreg;
     return;
   }
+
+  elprintf(EL_32X|EL_ANOMALY,
+    "unhandled sysreg w8  [%02x] %02x @%08x", a, d, sh2_pc(sh2));
 }
 
 static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
@@ -816,6 +868,8 @@ static void PicoWrite8_32x_on(u32 a, u32 d)
 
   if ((a & 0xfc00) != 0x5000) {
     PicoWrite8_io(a, d);
+    if (a == 0xa130f1)
+      bank_switch(Pico32x.regs[4 / 2]);
     return;
   }
 
@@ -849,6 +903,8 @@ static void PicoWrite16_32x_on(u32 a, u32 d)
 
   if ((a & 0xfc00) != 0x5000) {
     PicoWrite16_io(a, d);
+    if (a == 0xa130f0)
+      bank_switch(Pico32x.regs[4 / 2]);
     return;
   }
 
@@ -1014,7 +1070,8 @@ static void PicoWrite8_hint(u32 a, u32 d)
     return;
   }
 
-  elprintf(EL_UIO, "m68k unmapped w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
+  elprintf(EL_UIO, "m68k unmapped w8  [%06x]   %02x @%06x",
+    a, d & 0xff, SekPc);
 }
 
 static void PicoWrite16_hint(u32 a, u32 d)
@@ -1024,7 +1081,64 @@ static void PicoWrite16_hint(u32 a, u32 d)
     return;
   }
 
-  elprintf(EL_UIO, "m68k unmapped w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
+  elprintf(EL_UIO, "m68k unmapped w16 [%06x] %04x @%06x",
+    a, d & 0xffff, SekPc);
+}
+
+// normally not writable, but somebody could make a RAM cart
+static void PicoWrite8_cart(u32 a, u32 d)
+{
+  elprintf(EL_UIO, "m68k w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
+
+  a &= 0xfffff;
+  m68k_write8(a, d);
+}
+
+static void PicoWrite16_cart(u32 a, u32 d)
+{
+  elprintf(EL_UIO, "m68k w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
+
+  a &= 0xfffff;
+  m68k_write16(a, d);
+}
+
+// same with bank, but save ram is sometimes here
+static u32 PicoRead8_bank(u32 a)
+{
+  a = (Pico32x.regs[4 / 2] << 20) | (a & 0xfffff);
+  return m68k_read8(a);
+}
+
+static u32 PicoRead16_bank(u32 a)
+{
+  a = (Pico32x.regs[4 / 2] << 20) | (a & 0xfffff);
+  return m68k_read16(a);
+}
+
+static void PicoWrite8_bank(u32 a, u32 d)
+{
+  if (!(Pico.m.sram_reg & SRR_MAPPED))
+    elprintf(EL_UIO, "m68k w8  [%06x]   %02x @%06x",
+      a, d & 0xff, SekPc);
+
+  a = (Pico32x.regs[4 / 2] << 20) | (a & 0xfffff);
+  m68k_write8(a, d);
+}
+
+static void PicoWrite16_bank(u32 a, u32 d)
+{
+  if (!(Pico.m.sram_reg & SRR_MAPPED))
+    elprintf(EL_UIO, "m68k w16 [%06x] %04x @%06x",
+      a, d & 0xffff, SekPc);
+
+  a = (Pico32x.regs[4 / 2] << 20) | (a & 0xfffff);
+  m68k_write16(a, d);
+}
+
+static void bank_map_handler(void)
+{
+  cpu68k_map_set(m68k_read8_map,   0x900000, 0x9fffff, PicoRead8_bank, 1);
+  cpu68k_map_set(m68k_read16_map,  0x900000, 0x9fffff, PicoRead16_bank, 1);
 }
 
 static void bank_switch(int b)
@@ -1032,8 +1146,14 @@ static void bank_switch(int b)
   unsigned int rs, bank;
 
   bank = b << 20;
+  if ((Pico.m.sram_reg & SRR_MAPPED) && bank == SRam.start) {
+    bank_map_handler();
+    return;
+  }
+
   if (bank >= Pico.romsize) {
     elprintf(EL_32X|EL_ANOMALY, "missing bank @ %06x", bank);
+    bank_map_handler();
     return;
   }
 
@@ -1358,7 +1478,7 @@ u32 REGPARM(2) p32x_sh2_read32(u32 a, SH2 *sh2)
     return (pd[0] << 16) | pd[1];
   }
 
-  if (offs == 0x1f)
+  if (offs == SH2MAP_ADDR2OFFS_R(0xffffc000))
     return sh2_peripheral_read32(a, sh2);
 
   handler = (sh2_read_handler *)(p << 1);
@@ -1579,6 +1699,8 @@ void PicoMemSetup32x(void)
     rs = 0x80000;
   cpu68k_map_set(m68k_read8_map,   0x880000, 0x880000 + rs - 1, Pico.rom, 0);
   cpu68k_map_set(m68k_read16_map,  0x880000, 0x880000 + rs - 1, Pico.rom, 0);
+  cpu68k_map_set(m68k_write8_map,  0x880000, 0x880000 + rs - 1, PicoWrite8_cart, 1);
+  cpu68k_map_set(m68k_write16_map, 0x880000, 0x880000 + rs - 1, PicoWrite16_cart, 1);
 #ifdef EMU_F68K
   // setup FAME fetchmap
   PicoCpuFM68k.Fetch[0] = (unsigned long)Pico32xMem->m68k_rom;
@@ -1588,6 +1710,8 @@ void PicoMemSetup32x(void)
 
   // 32X ROM (banked)
   bank_switch(0);
+  cpu68k_map_set(m68k_write8_map,  0x900000, 0x9fffff, PicoWrite8_bank, 1);
+  cpu68k_map_set(m68k_write16_map, 0x900000, 0x9fffff, PicoWrite16_bank, 1);
 
   // SYS regs
   cpu68k_map_set(m68k_read8_map,   0xa10000, 0xa1ffff, PicoRead8_32x_on, 1);

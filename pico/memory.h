@@ -26,6 +26,11 @@ extern uptr s68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
 typedef u32  (cpu68k_read_f)(u32 a);
 typedef void (cpu68k_write_f)(u32 a, u32 d);
 
+extern u32 m68k_read8(u32 a);
+extern u32 m68k_read16(u32 a);
+extern void m68k_write8(u32 a, u8 d);
+extern void m68k_write16(u32 a, u16 d);
+
 // z80
 #define Z80_MEM_SHIFT 13
 extern uptr z80_read_map [0x10000 >> Z80_MEM_SHIFT];
