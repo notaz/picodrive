@@ -523,6 +523,8 @@ void sync_sh2s_lockstep(unsigned int m68k_target)
 
 #define CPUS_RUN(m68k_cycles,s68k_cycles) do { \
   SekRunM68k(m68k_cycles); \
+  if (Pico32x.emu_flags & P32XF_Z80_32X_IO) \
+    PicoSyncZ80(SekCycleCnt); \
   if (Pico32x.emu_flags & (P32XF_68KCPOLL|P32XF_68KVPOLL)) \
     p32x_sync_sh2s(SekCyclesDoneT2()); \
 } while (0)

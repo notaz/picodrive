@@ -482,8 +482,9 @@ typedef struct
 #define P32XP_FULL  (1<<15) // PWM pulse
 #define P32XP_EMPTY (1<<14)
 
-#define P32XF_68KCPOLL  (1 << 0)
-#define P32XF_68KVPOLL  (1 << 1)
+#define P32XF_68KCPOLL   (1 << 0)
+#define P32XF_68KVPOLL   (1 << 1)
+#define P32XF_Z80_32X_IO (1 << 7) // z80 does 32x io
 
 #define P32XI_VRES (1 << 14/2) // IRL/2
 #define P32XI_VINT (1 << 12/2)

@@ -195,8 +195,10 @@ static u32 p32x_reg_read16(u32 a)
       m68k_poll.cnt = 0;
     dr2 = SekDar(2);
 
-    if (cycles - msh2.m68krcycles_done > 500)
+    if (cycles - msh2.m68krcycles_done > 244
+        || (Pico32x.comm_dirty_68k & comreg))
       p32x_sync_sh2s(cycles);
+
     if (Pico32x.comm_dirty_sh2 & comreg)
       Pico32x.comm_dirty_sh2 &= ~comreg;
     else if (m68k_poll_detect(a, cycles, P32XF_68KCPOLL)) {
@@ -1523,6 +1525,21 @@ void REGPARM(3) p32x_sh2_write32(u32 a, u32 d, SH2 *sh2)
 
 // -----------------------------------------------------------------
 
+static void z80_md_bank_write_32x(unsigned int a, unsigned char d)
+{
+  unsigned int addr68k;
+
+  addr68k = Pico.m.z80_bank68k << 15;
+  addr68k += a & 0x7fff;
+  if ((addr68k & 0xfff000) == 0xa15000)
+    Pico32x.emu_flags |= P32XF_Z80_32X_IO;
+
+  elprintf(EL_Z80BNK, "z80->68k w8 [%06x] %02x", addr68k, d);
+  m68k_write8(addr68k, d);
+}
+
+// -----------------------------------------------------------------
+
 static const u16 msh2_code[] = {
   // trap instructions
   0xaffe, // bra <self>
@@ -1779,6 +1796,9 @@ void PicoMemSetup32x(void)
 
   sh2_drc_mem_setup(&msh2);
   sh2_drc_mem_setup(&ssh2);
+
+  // z80 hack
+  z80_map_set(z80_write_map, 0x8000, 0xffff, z80_md_bank_write_32x, 1);
 }
 
 void Pico32xMemStateLoaded(void)
