@@ -31,8 +31,7 @@ void p32x_pwm_ctl_changed(void)
 
 static void do_pwm_irq(SH2 *sh2, unsigned int m68k_cycles)
 {
-  Pico32x.sh2irqs |= P32XI_PWM;
-  p32x_update_irls(sh2, m68k_cycles);
+  p32x_trigger_irq(sh2, m68k_cycles, P32XI_PWM);
 
   if (Pico32x.regs[0x30 / 2] & P32XP_RTP) {
     p32x_event_schedule(m68k_cycles, P32X_EVENT_PWM, pwm_cycles / 3 + 1);
@@ -105,8 +104,6 @@ static int p32x_pwm_schedule_(SH2 *sh2, unsigned int m68k_now)
   if (cycles_diff_sh2 >= pwm_cycles)
     consume_fifo_do(sh2, m68k_now, cycles_diff_sh2);
 
-  if (Pico32x.sh2irqs & P32XI_PWM)
-    return 0; // previous not acked
   if (!((Pico32x.sh2irq_mask[0] | Pico32x.sh2irq_mask[1]) & 1))
     return 0; // masked by everyone
 
@@ -127,6 +124,12 @@ void p32x_pwm_schedule_sh2(SH2 *sh2)
   int after = p32x_pwm_schedule_(sh2, sh2_cycles_done_m68k(sh2));
   if (after != 0)
     p32x_event_schedule_sh2(sh2, P32X_EVENT_PWM, after);
+}
+
+void p32x_pwm_sync_to_sh2(SH2 *sh2)
+{
+  int m68k_cycles = sh2_cycles_done_m68k(sh2);
+  consume_fifo(sh2, m68k_cycles);
 }
 
 void p32x_pwm_irq_event(unsigned int m68k_now)

@@ -212,7 +212,7 @@ static u32 p32x_reg_read16(u32 a)
     unsigned int cycles = SekCyclesDoneT();
     if (cycles - msh2.m68krcycles_done > 64)
       p32x_sync_sh2s(cycles);
-    return ((Pico32x.sh2irqi[0] & P32XI_CMD) >> 4) | ((Pico32x.sh2irqi[1] & P32XI_CMD) >> 3);
+    goto out;
   }
 
   if ((a & 0x30) == 0x30)
@@ -269,21 +269,11 @@ static void p32x_reg_write8(u32 a, u32 d)
     case 0x02: // ignored, always 0
       return;
     case 0x03: // irq ctl
-      if ((d & 1) != !!(Pico32x.sh2irqi[0] & P32XI_CMD)) {
-        p32x_sync_sh2s(SekCyclesDoneT());
-        if (d & 1)
-          Pico32x.sh2irqi[0] |= P32XI_CMD;
-        else
-          Pico32x.sh2irqi[0] &= ~P32XI_CMD;
-        p32x_update_irls(NULL, SekCyclesDoneT2());
-      }
-      if (!!(d & 2) != !!(Pico32x.sh2irqi[1] & P32XI_CMD)) {
-        p32x_sync_sh2s(SekCyclesDoneT());
-        if (d & 2)
-          Pico32x.sh2irqi[1] |= P32XI_CMD;
-        else
-          Pico32x.sh2irqi[1] &= ~P32XI_CMD;
-        p32x_update_irls(NULL, SekCyclesDoneT2());
+      if ((d ^ r[0x02 / 2]) & 3) {
+        int cycles = SekCyclesDoneT();
+        p32x_sync_sh2s(cycles);
+        r[0x02 / 2] = d & 3;
+        p32x_update_cmd_irq(NULL, cycles);
       }
       return;
     case 0x04: // ignored, always 0
@@ -625,8 +615,9 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
 
 static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
 {
-  a &= 0xff;
+  u32 old;
 
+  a &= 0xff;
   sh2->poll_addr = 0;
 
   switch (a) {
@@ -635,14 +626,20 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
       Pico32x.regs[0] |= (d << 8) & P32XS_FM;
       return;
     case 1: // HEN/irq masks
+      old = Pico32x.sh2irq_mask[sh2->is_slave];
+      if ((d ^ old) & 1)
+        p32x_pwm_sync_to_sh2(sh2);
+
       Pico32x.sh2irq_mask[sh2->is_slave] = d & 0x0f;
       Pico32x.sh2_regs[0] &= ~0x80;
       Pico32x.sh2_regs[0] |= d & 0x80;
-      if (d & 1)
+
+      if ((d ^ old) & 1)
         p32x_pwm_schedule_sh2(sh2);
-      if (d & 4)
+      if ((old ^ d) & 2)
+        p32x_update_cmd_irq(sh2, 0);
+      if ((old ^ d) & 4)
         p32x_schedule_hint(sh2, 0); 
-      p32x_update_irls(sh2, 0);
       return;
     case 5: // H count
       d &= 0xff;
@@ -702,12 +699,22 @@ static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
       Pico32x.regs[0] &= ~P32XS_FM;
       Pico32x.regs[0] |= d & P32XS_FM;
       break;
-    case 0x14: Pico32x.sh2irqs &= ~P32XI_VRES; goto irls;
-    case 0x16: Pico32x.sh2irqs &= ~P32XI_VINT; goto irls;
-    case 0x18: Pico32x.sh2irqs &= ~P32XI_HINT; goto irls;
-    case 0x1a: Pico32x.sh2irqi[sh2->is_slave] &= ~P32XI_CMD; goto irls;
+    case 0x14:
+      Pico32x.sh2irqs &= ~P32XI_VRES;
+      goto irls;
+    case 0x16:
+      Pico32x.sh2irqi[sh2->is_slave] &= ~P32XI_VINT;
+      goto irls;
+    case 0x18:
+      Pico32x.sh2irqi[sh2->is_slave] &= ~P32XI_HINT;
+      goto irls;
+    case 0x1a:
+      Pico32x.regs[2 / 2] &= ~(1 << sh2->is_slave);
+      p32x_update_cmd_irq(sh2, 0);
+      return;
     case 0x1c:
-      Pico32x.sh2irqs &= ~P32XI_PWM;
+      p32x_pwm_sync_to_sh2(sh2);
+      Pico32x.sh2irqi[sh2->is_slave] &= ~P32XI_PWM;
       p32x_pwm_schedule_sh2(sh2);
       goto irls;
   }

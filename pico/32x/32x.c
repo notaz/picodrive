@@ -39,13 +39,13 @@ void p32x_update_irls(SH2 *active_sh2, int m68k_cycles)
     m68k_cycles = sh2_cycles_done_m68k(active_sh2);
 
   // msh2
-  irqs = (Pico32x.sh2irqs | Pico32x.sh2irqi[0]) & ((Pico32x.sh2irq_mask[0] << 3) | P32XI_VRES);
+  irqs = Pico32x.sh2irqs | Pico32x.sh2irqi[0];
   while ((irqs >>= 1))
     mlvl++;
   mlvl *= 2;
 
   // ssh2
-  irqs = (Pico32x.sh2irqs | Pico32x.sh2irqi[1]) & ((Pico32x.sh2irq_mask[1] << 3) | P32XI_VRES);
+  irqs = Pico32x.sh2irqs | Pico32x.sh2irqi[1];
   while ((irqs >>= 1))
     slvl++;
   slvl *= 2;
@@ -65,6 +65,33 @@ void p32x_update_irls(SH2 *active_sh2, int m68k_cycles)
   }
 
   elprintf(EL_32X, "update_irls: m %d/%d, s %d/%d", mlvl, mrun, slvl, srun);
+}
+
+// the mask register is inconsistent, CMD is supposed to be a mask,
+// while others are actually irq trigger enables?
+// TODO: test on hw..
+void p32x_trigger_irq(SH2 *sh2, int m68k_cycles, unsigned int mask)
+{
+  Pico32x.sh2irqs |= mask & P32XI_VRES;
+  Pico32x.sh2irqi[0] |= mask & (Pico32x.sh2irq_mask[0] << 3);
+  Pico32x.sh2irqi[1] |= mask & (Pico32x.sh2irq_mask[1] << 3);
+
+  p32x_update_irls(sh2, m68k_cycles);
+}
+
+void p32x_update_cmd_irq(SH2 *sh2, int m68k_cycles)
+{
+  if ((Pico32x.sh2irq_mask[0] & 2) && (Pico32x.regs[2 / 2] & 1))
+    Pico32x.sh2irqi[0] |= P32XI_CMD;
+  else
+    Pico32x.sh2irqi[0] &= ~P32XI_CMD;
+
+  if ((Pico32x.sh2irq_mask[1] & 2) && (Pico32x.regs[2 / 2] & 2))
+    Pico32x.sh2irqi[1] |= P32XI_CMD;
+  else
+    Pico32x.sh2irqi[1] &= ~P32XI_CMD;
+
+  p32x_update_irls(sh2, m68k_cycles);
 }
 
 void Pico32xStartup(void)
@@ -174,8 +201,7 @@ void PicoReset32x(void)
 {
   if (PicoAHW & PAHW_32X) {
     msh2.m68krcycles_done = ssh2.m68krcycles_done = SekCyclesDoneT();
-    Pico32x.sh2irqs |= P32XI_VRES;
-    p32x_update_irls(NULL, SekCyclesDoneT2());
+    p32x_trigger_irq(NULL, SekCyclesDoneT2(), P32XI_VRES);
     p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES, 0);
     p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES, 0);
     p32x_pwm_ctl_changed();
@@ -222,8 +248,7 @@ static void p32x_start_blank(void)
     Pico32xSwapDRAM(Pico32x.pending_fb ^ 1);
   }
 
-  Pico32x.sh2irqs |= P32XI_VINT;
-  p32x_update_irls(NULL, SekCyclesDoneT2());
+  p32x_trigger_irq(NULL, SekCyclesDoneT2(), P32XI_VINT);
   p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, 0);
   p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, 0);
 }
@@ -265,8 +290,7 @@ static void fillend_event(unsigned int now)
 
 static void hint_event(unsigned int now)
 {
-  Pico32x.sh2irqs |= P32XI_HINT;
-  p32x_update_irls(NULL, now);
+  p32x_trigger_irq(NULL, now, P32XI_HINT);
   p32x_schedule_hint(NULL, now);
 }
 
