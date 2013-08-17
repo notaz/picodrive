@@ -355,12 +355,15 @@ static const char *mgn_dev_name(int id, int *offs)
 static int mh_saveloadcfg(int id, int keys);
 static const char *mgn_saveloadcfg(int id, int *offs);
 
+const char *indev_names[] = { "none", "3 button pad", "6 button pad", NULL };
+
 static menu_entry e_menu_keyconfig[] =
 {
 	mee_handler_id("Player 1",          MA_CTRL_PLAYER1,    key_config_loop_wrap),
 	mee_handler_id("Player 2",          MA_CTRL_PLAYER2,    key_config_loop_wrap),
 	mee_handler_id("Emulator controls", MA_CTRL_EMU,        key_config_loop_wrap),
-	mee_onoff     ("6 button pad",      MA_OPT_6BUTTON_PAD, PicoOpt, POPT_6BTN_PAD),
+	mee_enum      ("Input device 1",    MA_OPT_INPUT_DEV0,  currentConfig.input_dev0, indev_names),
+	mee_enum      ("Input device 2",    MA_OPT_INPUT_DEV1,  currentConfig.input_dev1, indev_names),
 	mee_range     ("Turbo rate",        MA_CTRL_TURBO_RATE, currentConfig.turbo_rate, 1, 30),
 	mee_range     ("Analog deadzone",   MA_CTRL_DEADZONE,   currentConfig.analog_deadzone, 1, 99),
 	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG, mh_saveloadcfg, mgn_saveloadcfg),
@@ -383,6 +386,10 @@ static int menu_loop_keyconfig(int id, int keys)
 
 	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, PicoGameLoaded);
 	me_loop(e_menu_keyconfig, &sel);
+
+	PicoSetInputDevice(0, currentConfig.input_dev0);
+	PicoSetInputDevice(1, currentConfig.input_dev1);
+
 	return 0;
 }
 

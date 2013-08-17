@@ -183,6 +183,8 @@ void retro_set_environment(retro_environment_t cb)
 {
 	static const struct retro_variable vars[] = {
 		//{ "region", "Region; Auto|NTSC|PAL" },
+		{ "picodrive_input1", "Input device 1; 3 button pad|6 button pad|None" },
+		{ "picodrive_input2", "Input device 2; 3 button pad|6 button pad|None" },
 		{ NULL, NULL },
 	};
 
@@ -545,7 +547,7 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
 	if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
-		lprintf("RGB565 suppot required, sorry\n");
+		lprintf("RGB565 support required, sorry\n");
 		return false;
 	}
 
@@ -660,13 +662,41 @@ static void snd_write(int len)
 	audio_batch_cb(PsndOut, len / 4);
 }
 
+static enum input_device input_name_to_val(const char *name)
+{
+	if (strcmp(name, "3 button pad") == 0)
+		return PICO_INPUT_PAD_3BTN;
+	if (strcmp(name, "6 button pad") == 0)
+		return PICO_INPUT_PAD_6BTN;
+	if (strcmp(name, "None") == 0)
+		return PICO_INPUT_NOTHING;
+
+	lprintf("invalid picodrive_input: '%s'\n", name);
+	return PICO_INPUT_PAD_3BTN;
+}
+
+static void update_variables(void)
+{
+	struct retro_variable var;
+
+	var.value = NULL;
+	var.key = "picodrive_input1";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+		PicoSetInputDevice(0, input_name_to_val(var.value));
+
+	var.value = NULL;
+	var.key = "picodrive_input2";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+		PicoSetInputDevice(1, input_name_to_val(var.value));
+}
+
 void retro_run(void) 
 {
 	bool updated = false;
 	int pad, i;
 
 	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
-		; //update_variables(true);
+		update_variables();
 
 	input_poll_cb();
 
@@ -720,6 +750,8 @@ void retro_init(void)
 	//PicoMessage = plat_status_msg_busy_next;
 	PicoMCDopenTray = disk_tray_open;
 	PicoMCDcloseTray = disk_tray_close;
+
+	update_variables();
 }
 
 void retro_deinit(void)

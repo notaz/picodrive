@@ -455,9 +455,11 @@ int emu_reload_rom(const char *rom_fname_in)
 	// additional movie stuff
 	if (movie_data)
 	{
-		if (movie_data[0x14] == '6')
-		     PicoOpt |=  POPT_6BTN_PAD; // 6 button pad
-		else PicoOpt &= ~POPT_6BTN_PAD;
+		enum input_device indev = (movie_data[0x14] == '6') ?
+			PICO_INPUT_PAD_6BTN : PICO_INPUT_PAD_3BTN;
+		PicoSetInputDevice(0, indev);
+		PicoSetInputDevice(1, indev);
+
 		PicoOpt |= POPT_DIS_VDP_FIFO; // no VDP fifo timing
 		if (movie_data[0xF] >= 'A') {
 			if (movie_data[0x16] & 0x80) {
@@ -550,6 +552,8 @@ void emu_prep_defconfig(void)
 	defaultConfig.s_PicoCDBuffers = 0;
 	defaultConfig.confirm_save = EOPT_CONFIRM_SAVE;
 	defaultConfig.Frameskip = -1; // auto
+	defaultConfig.input_dev0 = PICO_INPUT_PAD_3BTN;
+	defaultConfig.input_dev1 = PICO_INPUT_PAD_3BTN;
 	defaultConfig.volume = 50;
 	defaultConfig.gamma = 100;
 	defaultConfig.scaling = 0;

@@ -14,11 +14,10 @@
 #define CYCLES_S68K_ASD      241
 
 // pad delay (for 6 button pads)
-#define PAD_DELAY \
-  if (PicoOpt&POPT_6BTN_PAD) { \
-    if(Pico.m.padDelay[0]++ > 25) Pico.m.padTHPhase[0]=0; \
-    if(Pico.m.padDelay[1]++ > 25) Pico.m.padTHPhase[1]=0; \
-  }
+#define PAD_DELAY() { \
+  if(Pico.m.padDelay[0]++ > 25) Pico.m.padTHPhase[0]=0; \
+  if(Pico.m.padDelay[1]++ > 25) Pico.m.padTHPhase[1]=0; \
+}
 
 // CPUS_RUN
 #ifndef CPUS_RUN
@@ -114,7 +113,7 @@ static int PicoFrameHints(void)
       Pico.video.status|=0x200;
     }
 
-    PAD_DELAY
+    PAD_DELAY();
 #ifdef PICO_CD
     check_cd_dma();
 #endif
@@ -187,7 +186,7 @@ static int PicoFrameHints(void)
   Pico.video.status|=0x200;
 
   memcpy(PicoPadInt, PicoPad, sizeof(PicoPadInt));
-  PAD_DELAY
+  PAD_DELAY();
 #ifdef PICO_CD
   check_cd_dma();
 #endif
@@ -257,7 +256,7 @@ static int PicoFrameHints(void)
       pv->v_counter = (pv->v_counter << 1) | 1;
     pv->v_counter &= 0xff;
 
-    PAD_DELAY
+    PAD_DELAY();
 #ifdef PICO_CD
     check_cd_dma();
 #endif

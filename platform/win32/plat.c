@@ -64,7 +64,6 @@ int plat_wait_event(int *fds_hnds, int count, int timeout_ms)
 void pemu_prep_defconfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
-	defaultConfig.s_PicoOpt|= POPT_6BTN_PAD; // for xmen proto
 	defaultConfig.s_PicoCDBuffers = 0;
 	defaultConfig.Frameskip = 0;
 }

@@ -70,6 +70,9 @@ void PicoPower(void)
   Pico.video.pending_ints=0;
   z80_reset();
 
+  // my MD1 VA6 console has this in IO
+  Pico.ioports[1] = Pico.ioports[2] = Pico.ioports[3] = 0xff;
+
   // default VDP register values (based on Fusion)
   Pico.video.reg[0] = Pico.video.reg[1] = 0x04;
   Pico.video.reg[0xc] = 0x81;

@@ -186,62 +186,119 @@ void cyclone_crashed(u32 pc, struct Cyclone *context)
 // -----------------------------------------------------------------
 // memmap helpers
 
-#ifndef _ASM_MEMORY_C
-static
-#endif
-int PadRead(int i)
+static u32 read_pad_3btn(int i, u32 out_bits)
 {
-  int pad,value,data_reg;
-  pad=~PicoPadInt[i]; // Get inverse of pad MXYZ SACB RLDU
-  data_reg=Pico.ioports[i+1];
+  u32 pad = ~PicoPadInt[i]; // Get inverse of pad MXYZ SACB RLDU
+  u32 value;
 
-  // orr the bits, which are set as output
-  value = data_reg&(Pico.ioports[i+4]|0x80);
+  if (out_bits & 0x40) // TH
+    value = pad & 0x3f;                      // ?1CB RLDU
+  else
+    value = ((pad & 0xc0) >> 2) | (pad & 3); // ?0SA 00DU
 
-  if (PicoOpt & POPT_6BTN_PAD)
-  {
-    int phase = Pico.m.padTHPhase[i];
-
-    if(phase == 2 && !(data_reg&0x40)) { // TH
-      value|=(pad&0xc0)>>2;              // ?0SA 0000
-      return value;
-    } else if(phase == 3) {
-      if(data_reg&0x40)
-        value|=(pad&0x30)|((pad>>8)&0xf);  // ?1CB MXYZ
-      else
-        value|=((pad&0xc0)>>2)|0x0f;       // ?0SA 1111
-      return value;
-    }
-  }
-
-  if(data_reg&0x40) // TH
-       value|=(pad&0x3f);              // ?1CB RLDU
-  else value|=((pad&0xc0)>>2)|(pad&3); // ?0SA 00DU
-
-  return value; // will mirror later
+  value |= out_bits & 0x40;
+  return value;
 }
 
-#ifndef _ASM_MEMORY_C
+static u32 read_pad_6btn(int i, u32 out_bits)
+{
+  u32 pad = ~PicoPadInt[i]; // Get inverse of pad MXYZ SACB RLDU
+  int phase = Pico.m.padTHPhase[i];
+  u32 value;
 
-static u32 io_ports_read(u32 a)
+  if (phase == 2 && !(out_bits & 0x40)) {
+    value = (pad & 0xc0) >> 2;                   // ?0SA 0000
+    goto out;
+  }
+  else if(phase == 3) {
+    if (out_bits & 0x40)
+      return (pad & 0x30) | ((pad >> 8) & 0xf);  // ?1CB MXYZ
+    else
+      return ((pad & 0xc0) >> 2) | 0x0f;         // ?0SA 1111
+    goto out;
+  }
+
+  if (out_bits & 0x40) // TH
+    value = pad & 0x3f;                          // ?1CB RLDU
+  else
+    value = ((pad & 0xc0) >> 2) | (pad & 3);     // ?0SA 00DU
+
+out:
+  value |= out_bits & 0x40;
+  return value;
+}
+
+static u32 read_nothing(int i, u32 out_bits)
+{
+  return 0xff;
+}
+
+typedef u32 (port_read_func)(int index, u32 out_bits);
+
+static port_read_func *port_readers[3] = {
+  read_pad_3btn,
+  read_pad_3btn,
+  read_nothing
+};
+
+static NOINLINE u32 port_read(int i)
+{
+  u32 data_reg = Pico.ioports[i + 1];
+  u32 ctrl_reg = Pico.ioports[i + 4] | 0x80;
+  u32 in, out;
+
+  out = data_reg & ctrl_reg;
+  out |= 0x7f & ~ctrl_reg; // pull-ups
+
+  in = port_readers[i](i, out);
+
+  return (in & ~ctrl_reg) | (data_reg & ctrl_reg);
+}
+
+void PicoSetInputDevice(int port, enum input_device device)
+{
+  port_read_func *func;
+
+  if (port < 0 || port > 2)
+    return;
+
+  switch (device) {
+  case PICO_INPUT_PAD_3BTN:
+    func = read_pad_3btn;
+    break;
+
+  case PICO_INPUT_PAD_6BTN:
+    func = read_pad_6btn;
+    break;
+
+  default:
+    func = read_nothing;
+    break;
+  }
+
+  port_readers[port] = func;
+}
+
+NOINLINE u32 io_ports_read(u32 a)
 {
   u32 d;
   a = (a>>1) & 0xf;
   switch (a) {
     case 0:  d = Pico.m.hardware; break; // Hardware value (Version register)
-    case 1:  d = PadRead(0); break;
-    case 2:  d = PadRead(1); break;
+    case 1:  d = port_read(0); break;
+    case 2:  d = port_read(1); break;
+    case 3:  d = port_read(2); break;
     default: d = Pico.ioports[a]; break; // IO ports can be used as RAM
   }
   return d;
 }
 
-static void NOINLINE io_ports_write(u32 a, u32 d)
+NOINLINE void io_ports_write(u32 a, u32 d)
 {
   a = (a>>1) & 0xf;
 
   // 6 button gamepad: if TH went from 0 to 1, gamepad changes state
-  if (1 <= a && a <= 2 && (PicoOpt & POPT_6BTN_PAD))
+  if (1 <= a && a <= 2)
   {
     Pico.m.padDelay[a - 1] = 0;
     if (!(Pico.ioports[a] & 0x40) && (d & 0x40))
@@ -251,8 +308,6 @@ static void NOINLINE io_ports_write(u32 a, u32 d)
   // certain IO ports can be used as RAM
   Pico.ioports[a] = d;
 }
-
-#endif // _ASM_MEMORY_C
 
 void NOINLINE ctl_write_z80busreq(u32 d)
 {
@@ -1177,3 +1232,4 @@ static void z80_mem_setup(void)
 #endif
 }
 
+// vim:shiftwidth=2:ts=2:expandtab

@@ -57,6 +57,8 @@ typedef struct _currentConfig_t {
 	int s_PicoAutoRgnOrder;
 	int s_PicoCDBuffers;
 	int Frameskip;
+	int input_dev0;
+	int input_dev1;
 	int confirm_save;
 	int CPUclock;
 	int volume;

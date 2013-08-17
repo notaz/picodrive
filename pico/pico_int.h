@@ -598,7 +598,6 @@ unsigned int PicoRead8_io(unsigned int a);
 unsigned int PicoRead16_io(unsigned int a);
 void PicoWrite8_io(unsigned int a, unsigned int d);
 void PicoWrite16_io(unsigned int a, unsigned int d);
-void p32x_dreq1_trigger(void);
 
 // pico/memory.c
 PICO_INTERNAL void PicoMemSetupPico(void);
