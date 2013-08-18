@@ -12,6 +12,7 @@ static int pwm_mult;
 static int pwm_ptr;
 static int pwm_irq_reload;
 static int pwm_doing_fifo;
+static int pwm_silent;
 
 void p32x_pwm_ctl_changed(void)
 {
@@ -20,7 +21,12 @@ void p32x_pwm_ctl_changed(void)
 
   cycles = (cycles - 1) & 0x0fff;
   pwm_cycles = cycles;
-  pwm_mult = 0x10000 / cycles;
+
+  // supposedly we should stop FIFO when xMd is 0,
+  // but mars test disagrees
+  pwm_mult = 0;
+  if ((control & 0x0f) != 0)
+    pwm_mult = 0x10000 / cycles;
 
   pwm_irq_reload = (control & 0x0f00) >> 8;
   pwm_irq_reload = ((pwm_irq_reload - 1) & 0x0f) + 1;
@@ -40,6 +46,15 @@ static void do_pwm_irq(SH2 *sh2, unsigned int m68k_cycles)
   }
 }
 
+static int convert_sample(unsigned int v)
+{
+  if (v == 0)
+    return 0;
+  if (v > pwm_cycles)
+    v = pwm_cycles;
+  return ((int)v - pwm_cycles / 2) * pwm_mult;
+}
+
 #define consume_fifo(sh2, m68k_cycles) { \
   int cycles_diff = ((m68k_cycles) * 3) - Pico32x.pwm_cycle_p; \
   if (cycles_diff >= pwm_cycles) \
@@ -49,6 +64,11 @@ static void do_pwm_irq(SH2 *sh2, unsigned int m68k_cycles)
 static void consume_fifo_do(SH2 *sh2, unsigned int m68k_cycles,
   int sh2_cycles_diff)
 {
+  struct Pico32xMem *mem = Pico32xMem;
+  unsigned short *fifo_l = mem->pwm_fifo[0];
+  unsigned short *fifo_r = mem->pwm_fifo[1];
+  int sum = 0;
+
   if (pwm_cycles == 0 || pwm_doing_fifo)
     return;
 
@@ -59,29 +79,28 @@ static void consume_fifo_do(SH2 *sh2, unsigned int m68k_cycles,
   // this is for recursion from dreq1 writes
   pwm_doing_fifo = 1;
 
-  while (sh2_cycles_diff >= pwm_cycles) {
-    struct Pico32xMem *mem = Pico32xMem;
-    short *fifo_l = mem->pwm_fifo[0];
-    short *fifo_r = mem->pwm_fifo[1];
-
+  for (; sh2_cycles_diff >= pwm_cycles; sh2_cycles_diff -= pwm_cycles)
+  {
     if (Pico32x.pwm_p[0] > 0) {
       fifo_l[0] = fifo_l[1];
       fifo_l[1] = fifo_l[2];
       fifo_l[2] = fifo_l[3];
       Pico32x.pwm_p[0]--;
+      mem->pwm_current[0] = convert_sample(fifo_l[0]);
+      sum += mem->pwm_current[0];
     }
     if (Pico32x.pwm_p[1] > 0) {
       fifo_r[0] = fifo_r[1];
       fifo_r[1] = fifo_r[2];
       fifo_r[2] = fifo_r[3];
       Pico32x.pwm_p[1]--;
+      mem->pwm_current[1] = convert_sample(fifo_r[0]);
+      sum += mem->pwm_current[1];
     }
 
-    mem->pwm[pwm_ptr * 2    ] = fifo_l[0];
-    mem->pwm[pwm_ptr * 2 + 1] = fifo_r[0];
+    mem->pwm[pwm_ptr * 2    ] = mem->pwm_current[0];
+    mem->pwm[pwm_ptr * 2 + 1] = mem->pwm_current[1];
     pwm_ptr = (pwm_ptr + 1) & (PWM_BUFF_LEN - 1);
-
-    sh2_cycles_diff -= pwm_cycles;
 
     if (--Pico32x.pwm_irq_cnt == 0) {
       Pico32x.pwm_irq_cnt = pwm_irq_reload;
@@ -90,6 +109,8 @@ static void consume_fifo_do(SH2 *sh2, unsigned int m68k_cycles,
   }
   Pico32x.pwm_cycle_p = m68k_cycles * 3 - sh2_cycles_diff;
   pwm_doing_fifo = 0;
+  if (sum != 0)
+    pwm_silent = 0;
 }
 
 static int p32x_pwm_schedule_(SH2 *sh2, unsigned int m68k_now)
@@ -182,8 +203,9 @@ void p32x_pwm_write16(unsigned int a, unsigned int d,
 
   a &= 0x0e;
   if (a == 0) { // control
-    // supposedly we should stop FIFO when xMd is 0,
-    // but mars test disagrees
+    // avoiding pops..
+    if ((Pico32x.regs[0x30 / 2] & 0x0f) == 0)
+      Pico32xMem->pwm_fifo[0][0] = Pico32xMem->pwm_fifo[1][0] = 0;
     Pico32x.regs[0x30 / 2] = d;
     p32x_pwm_ctl_changed();
     Pico32x.pwm_irq_cnt = pwm_irq_reload; // ?
@@ -194,12 +216,9 @@ void p32x_pwm_write16(unsigned int a, unsigned int d,
   }
   else if (a <= 8) {
     d = (d - 1) & 0x0fff;
-    if (d > pwm_cycles)
-      d = pwm_cycles;
-    d = (d - pwm_cycles / 2) * pwm_mult;
 
     if (a == 4 || a == 8) { // L ch or MONO
-      short *fifo = Pico32xMem->pwm_fifo[0];
+      unsigned short *fifo = Pico32xMem->pwm_fifo[0];
       if (Pico32x.pwm_p[0] < 3)
         Pico32x.pwm_p[0]++;
       else {
@@ -209,7 +228,7 @@ void p32x_pwm_write16(unsigned int a, unsigned int d,
       fifo[Pico32x.pwm_p[0]] = d;
     }
     if (a == 6 || a == 8) { // R ch or MONO
-      short *fifo = Pico32xMem->pwm_fifo[1];
+      unsigned short *fifo = Pico32xMem->pwm_fifo[1];
       if (Pico32x.pwm_p[1] < 3)
         Pico32x.pwm_p[1]++;
       else {
@@ -233,6 +252,8 @@ void p32x_pwm_update(int *buf32, int length, int stereo)
   xmd = Pico32x.regs[0x30 / 2] & 0x0f;
   if (xmd == 0 || xmd == 0x06 || xmd == 0x09 || xmd == 0x0f)
     goto out; // invalid?
+  if (pwm_silent)
+    return;
 
   step = (pwm_ptr << 16) / length;
   pwmb = Pico32xMem->pwm;
@@ -294,6 +315,8 @@ void p32x_pwm_update(int *buf32, int length, int stereo)
 
 out:
   pwm_ptr = 0;
+  pwm_silent = Pico32xMem->pwm_current[0] == 0
+    && Pico32xMem->pwm_current[1] == 0;
 }
 
 void p32x_pwm_state_loaded(void)
