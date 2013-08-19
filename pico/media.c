@@ -212,6 +212,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
     Stop_CD();
   PicoCartUnload();
   PicoAHW = 0;
+  PicoQuirks = 0;
 
   if (media_type == PM_CD)
   {
@@ -295,6 +296,9 @@ enum media_type_e PicoLoadMedia(const char *filename,
       goto out;
     }
   }
+
+  if (PicoQuirks & PQUIRK_FORCE_6BTN)
+    PicoSetInputDevice(0, PICO_INPUT_PAD_6BTN);
 
 out:
   if (rom_data)

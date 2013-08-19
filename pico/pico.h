@@ -77,6 +77,10 @@ extern int PicoOpt; // bitfield
 #define PAHW_PICO (1<<3)
 #define PAHW_SMS  (1<<4)
 extern int PicoAHW;            // Pico active hw
+
+#define PQUIRK_FORCE_6BTN   (1<<0)
+extern int PicoQuirks;
+
 extern int PicoSkipFrame;      // skip rendering frame, but still do sound (if enabled) and emulation stuff
 extern int PicoRegionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 extern int PicoAutoRgnOrder;   // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP

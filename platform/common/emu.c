@@ -444,6 +444,10 @@ int emu_reload_rom(const char *rom_fname_in)
 		break;
 	}
 
+	// make quirks visible in UI
+	if (PicoQuirks & PQUIRK_FORCE_6BTN)
+		currentConfig.input_dev0 = PICO_INPUT_PAD_6BTN;
+
 	menu_romload_end();
 	menu_romload_started = 0;
 

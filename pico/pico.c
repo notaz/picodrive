@@ -16,6 +16,7 @@ int PicoSkipFrame;     // skip rendering frame?
 int PicoPad[2];        // Joypads, format is MXYZ SACB RLDU
 int PicoPadInt[2];     // internal copy
 int PicoAHW;           // active addon hardware: PAHW_*
+int PicoQuirks;        // game-specific quirks
 int PicoRegionOverride; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 int PicoAutoRgnOrder;
 
