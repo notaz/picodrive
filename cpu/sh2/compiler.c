@@ -3308,7 +3308,8 @@ static void *dr_get_pc_base(u32 pc, int is_slave)
   }
   else if ((pc & 0xc6000000) == 0x02000000) {
     // ROM
-    ret = Pico.rom;
+    if ((pc & 0x3fffff) < Pico.romsize)
+      ret = Pico.rom;
     mask = 0x3fffff;
   }
 

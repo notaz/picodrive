@@ -571,7 +571,7 @@ static void p32x_vdp_write16(u32 a, u32 d, SH2 *sh2)
 static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
 {
   u16 *r = Pico32x.regs;
-  a &= 0xfe; // ?
+  a &= 0x3e;
 
   switch (a) {
     case 0x00: // adapter/irq ctl
@@ -628,7 +628,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
   u16 *r = Pico32x.regs;
   u32 old;
 
-  a &= 0xff;
+  a &= 0x3f;
   sh2->poll_addr = 0;
 
   switch (a) {
@@ -724,7 +724,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
 
 static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
 {
-  a &= 0xfe;
+  a &= 0x3e;
 
   sh2->poll_addr = 0;
 
@@ -1194,13 +1194,13 @@ static u32 sh2_read8_cs0(u32 a, SH2 *sh2)
 
   sh2_burn_cycles(sh2, 1*2);
 
-  // 0x3ff00 is veridied
-  if ((a & 0x3ff00) == 0x4000) {
+  // 0x3ffc0 is veridied
+  if ((a & 0x3ffc0) == 0x4000) {
     d = p32x_sh2reg_read16(a, sh2);
     goto out_16to8;
   }
 
-  if ((a & 0x3ff00) == 0x4100) {
+  if ((a & 0x3fff0) == 0x4100) {
     d = p32x_vdp_read16(a);
     sh2_poll_detect(sh2, a, SH2_STATE_VPOLL, 7);
     goto out_16to8;
@@ -1249,14 +1249,14 @@ static u32 sh2_read16_cs0(u32 a, SH2 *sh2)
 
   sh2_burn_cycles(sh2, 1*2);
 
-  if ((a & 0x3ff00) == 0x4000) {
+  if ((a & 0x3ffc0) == 0x4000) {
     d = p32x_sh2reg_read16(a, sh2);
     if (!(EL_LOGMASK & EL_PWM) && (a & 0x30) == 0x30) // hide PWM
       return d;
     goto out;
   }
 
-  if ((a & 0x3ff00) == 0x4100) {
+  if ((a & 0x3fff0) == 0x4100) {
     d = p32x_vdp_read16(a);
     sh2_poll_detect(sh2, a, SH2_STATE_VPOLL, 7);
     goto out;
@@ -1303,14 +1303,14 @@ static void REGPARM(3) sh2_write8_cs0(u32 a, u32 d, SH2 *sh2)
     a, d & 0xff, sh2_pc(sh2));
 
   if (Pico32x.regs[0] & P32XS_FM) {
-    if ((a & 0x3ff00) == 0x4100) {
+    if ((a & 0x3fff0) == 0x4100) {
       sh2->poll_addr = 0;
       p32x_vdp_write8(a, d);
       return;
     }
   }
 
-  if ((a & 0x3ff00) == 0x4000) {
+  if ((a & 0x3ffc0) == 0x4000) {
     p32x_sh2reg_write8(a, d, sh2);
     return;
   }
@@ -1374,7 +1374,7 @@ static void REGPARM(3) sh2_write16_cs0(u32 a, u32 d, SH2 *sh2)
       a, d & 0xffff, sh2_pc(sh2));
 
   if (Pico32x.regs[0] & P32XS_FM) {
-    if ((a & 0x3ff00) == 0x4100) {
+    if ((a & 0x3fff0) == 0x4100) {
       sh2->poll_addr = 0;
       p32x_vdp_write16(a, d, sh2);
       return;
@@ -1387,7 +1387,7 @@ static void REGPARM(3) sh2_write16_cs0(u32 a, u32 d, SH2 *sh2)
     }
   }
 
-  if ((a & 0x3ff00) == 0x4000) {
+  if ((a & 0x3ffc0) == 0x4000) {
     p32x_sh2reg_write16(a, d, sh2);
     return;
   }
