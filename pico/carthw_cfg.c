@@ -2,9 +2,11 @@
 static const char builtin_carthw_cfg[] =
   "[]\n"
   "check_str=0x150,\"Virtua Racing\"\n"
+  "check_str=0x810,\"OHMP\"\n"
   "hw=svp\n"
   "[]\n"
   "check_str=0x150,\"VIRTUA RACING\"\n"
+  "check_str=0x810,\"OHMP\"\n"
   "hw=svp\n"
   "[]\n"
   "check_str=0x100,\"SEGA PICO\"\n"
