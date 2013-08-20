@@ -1110,8 +1110,11 @@ static void emit_or_t_if_eq(int srr)
 // reg cache must be clean before call
 static int emit_memhandler_read_(int size, int ram_check)
 {
-  int arg0, arg1;
+  int arg1;
+#if 0
+  int arg0;
   host_arg2reg(arg0, 0);
+#endif
 
   rcache_clean();
 
@@ -3179,7 +3182,7 @@ void sh2_drc_flush_all(void)
 void sh2_drc_mem_setup(SH2 *sh2)
 {
   // fill the convenience pointers
-  sh2->p_bios = sh2->is_slave ? Pico32xMem->sh2_rom_s : Pico32xMem->sh2_rom_m;
+  sh2->p_bios = sh2->is_slave ? Pico32xMem->sh2_rom_s.w : Pico32xMem->sh2_rom_m.w;
   sh2->p_da = sh2->data_array;
   sh2->p_sdram = Pico32xMem->sdram;
   sh2->p_rom = Pico.rom;
@@ -3293,7 +3296,7 @@ static void *dr_get_pc_base(u32 pc, int is_slave)
 
   if ((pc & ~0x7ff) == 0) {
     // BIOS
-    ret = is_slave ? Pico32xMem->sh2_rom_s : Pico32xMem->sh2_rom_m;
+    ret = is_slave ? Pico32xMem->sh2_rom_s.w : Pico32xMem->sh2_rom_m.w;
     mask = 0x7ff;
   }
   else if ((pc & 0xfffff000) == 0xc0000000) {

@@ -43,7 +43,7 @@ PICO_INTERNAL int PicoResetMCD(void)
   memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));
   memset(&Pico_mcd->m, 0, sizeof(Pico_mcd->m));
 
-  *(unsigned int *)(Pico_mcd->bios + 0x70) = 0xffffffff; // reset hint vector (simplest way to implement reg6)
+  memset(Pico_mcd->bios + 0x70, 0xff, 4); // reset hint vector (simplest way to implement reg6)
   Pico_mcd->m.state_flags |= 1; // s68k reset pending
   Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode with m68k access after reset
 

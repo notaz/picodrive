@@ -151,6 +151,16 @@ tools/textfilter: tools/textfilter.c
 .s.o:
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# special flags - perhaps fix this someday instead?
+pico/draw.o: CFLAGS += -fno-strict-aliasing
+pico/draw2.o: CFLAGS += -fno-strict-aliasing
+pico/mode4.o: CFLAGS += -fno-strict-aliasing
+pico/cd/memory.o: CFLAGS += -fno-strict-aliasing
+pico/cd/cd_file.o: CFLAGS += -fno-strict-aliasing
+pico/cd/pcm.o: CFLAGS += -fno-strict-aliasing
+pico/cd/LC89510.o: CFLAGS += -fno-strict-aliasing
+pico/cd/gfx_cd.o: CFLAGS += -fno-strict-aliasing
+
 # random deps
 pico/carthw/svp/compiler.o : cpu/drc/emit_$(ARCH).c
 cpu/sh2/compiler.o : cpu/drc/emit_$(ARCH).c

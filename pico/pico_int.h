@@ -441,6 +441,7 @@ typedef struct
 		unsigned char pcm_ram[0x10000];
 		unsigned char pcm_ram_b[0x10][0x1000];
 	};
+	// FIXME: should be short
 	unsigned char s68k_regs[0x200];			// 110000: GA, not CPU regs
 	unsigned char bram[0x2000];			// 110200: 8K
 	struct mcd_misc m;				// 112200: misc
@@ -543,8 +544,14 @@ struct Pico32xMem
 #ifdef DRC_SH2
   unsigned short drcblk_da[2][1 << (12 - SH2_DRCBLK_DA_SHIFT)];
 #endif
-  unsigned char  sh2_rom_m[0x800];
-  unsigned char  sh2_rom_s[0x400];
+  union {
+    unsigned char  b[0x800];
+    unsigned short w[0x800/2];
+  } sh2_rom_m;
+  union {
+    unsigned char  b[0x400];
+    unsigned short w[0x400/2];
+  } sh2_rom_s;
   unsigned short pal[0x100];
   unsigned short pal_native[0x100];     // converted to native (for renderer)
   signed short   pwm[2*PWM_BUFF_LEN];   // PWM buffer for current frame

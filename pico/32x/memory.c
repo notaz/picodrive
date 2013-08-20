@@ -1208,9 +1208,9 @@ static u32 sh2_read8_cs0(u32 a, SH2 *sh2)
 
   // TODO: mirroring?
   if (!sh2->is_slave && a < sizeof(Pico32xMem->sh2_rom_m))
-    return Pico32xMem->sh2_rom_m[a ^ 1];
+    return Pico32xMem->sh2_rom_m.b[a ^ 1];
   if (sh2->is_slave  && a < sizeof(Pico32xMem->sh2_rom_s))
-    return Pico32xMem->sh2_rom_s[a ^ 1];
+    return Pico32xMem->sh2_rom_s.b[a ^ 1];
 
   if ((a & 0x3fe00) == 0x4200) {
     d = Pico32xMem->pal[(a & 0x1ff) / 2];
@@ -1263,9 +1263,9 @@ static u32 sh2_read16_cs0(u32 a, SH2 *sh2)
   }
 
   if (!sh2->is_slave && a < sizeof(Pico32xMem->sh2_rom_m))
-    return *(u16 *)(Pico32xMem->sh2_rom_m + a);
+    return Pico32xMem->sh2_rom_m.w[a / 2];
   if (sh2->is_slave  && a < sizeof(Pico32xMem->sh2_rom_s))
-    return *(u16 *)(Pico32xMem->sh2_rom_s + a);
+    return Pico32xMem->sh2_rom_s.w[a / 2];
 
   if ((a & 0x3fe00) == 0x4200) {
     d = Pico32xMem->pal[(a & 0x1ff) / 2];
@@ -1619,17 +1619,17 @@ static void get_bios(void)
   // MSH2
   if (p32x_bios_m != NULL) {
     elprintf(EL_STATUS|EL_32X, "32x: using supplied master SH2 BIOS");
-    Byteswap(Pico32xMem->sh2_rom_m, p32x_bios_m, sizeof(Pico32xMem->sh2_rom_m));
+    Byteswap(&Pico32xMem->sh2_rom_m, p32x_bios_m, sizeof(Pico32xMem->sh2_rom_m));
   }
   else {
-    pl = (u32 *)Pico32xMem->sh2_rom_m;
+    pl = (u32 *)&Pico32xMem->sh2_rom_m;
 
     // fill exception vector table to our trap address
     for (i = 0; i < 128; i++)
       pl[i] = HWSWAP(0x200);
 
     // startup code
-    memcpy(Pico32xMem->sh2_rom_m + 0x200, msh2_code, sizeof(msh2_code));
+    memcpy(&Pico32xMem->sh2_rom_m.b[0x200], msh2_code, sizeof(msh2_code));
 
     // reset SP
     pl[1] = pl[3] = HWSWAP(0x6040000);
@@ -1640,17 +1640,17 @@ static void get_bios(void)
   // SSH2
   if (p32x_bios_s != NULL) {
     elprintf(EL_STATUS|EL_32X, "32x: using supplied slave SH2 BIOS");
-    Byteswap(Pico32xMem->sh2_rom_s, p32x_bios_s, sizeof(Pico32xMem->sh2_rom_s));
+    Byteswap(&Pico32xMem->sh2_rom_s, p32x_bios_s, sizeof(Pico32xMem->sh2_rom_s));
   }
   else {
-    pl = (u32 *)Pico32xMem->sh2_rom_s;
+    pl = (u32 *)&Pico32xMem->sh2_rom_s;
 
     // fill exception vector table to our trap address
     for (i = 0; i < 128; i++)
       pl[i] = HWSWAP(0x200);
 
     // startup code
-    memcpy(Pico32xMem->sh2_rom_s + 0x200, ssh2_code, sizeof(ssh2_code));
+    memcpy(&Pico32xMem->sh2_rom_s.b[0x200], ssh2_code, sizeof(ssh2_code));
 
     // reset SP
     pl[1] = pl[3] = HWSWAP(0x603f800);
