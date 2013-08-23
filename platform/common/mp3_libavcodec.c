@@ -91,7 +91,7 @@ int mp3dec_decode(FILE *f, int *file_pos, int file_len)
 	return 0;
 }
 
-int mp3dec_start(void)
+int mp3dec_start(FILE *f, int fpos_start)
 {
 	void (*avcodec_register_all)(void);
 	AVCodec *(*avcodec_find_decoder)(enum CodecID id);

@@ -1,66 +1,73 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <linux/input.h>
 
-#include "plat_gp2x.h"
-#include "soc.h"
-#include "warm.h"
-#include "../common/plat.h"
-#include "../common/readpng.h"
-#include "../common/menu.h"
 #include "../common/emu.h"
-#include "../common/input.h"
-#include "../linux/sndout_oss.h"
+#include "../common/menu_pico.h"
+#include "../common/input_pico.h"
+#include "../libpicofe/input.h"
+#include "../libpicofe/plat.h"
+#include "../libpicofe/linux/in_evdev.h"
+#include "../libpicofe/gp2x/soc.h"
+#include "../libpicofe/gp2x/plat_gp2x.h"
+#include "../libpicofe/gp2x/in_gp2x.h"
+#include "940ctl.h"
+#include "warm.h"
+#include "plat.h"
 
 #include <pico/pico.h>
 
 /* GP2X local */
-int default_cpu_clock;
-int gp2x_dev_id;
 int gp2x_current_bpp;
 void *gp2x_screens[4];
 
-#include <linux/input.h>
+void (*gp2x_video_flip)(void);
+void (*gp2x_video_flip2)(void);
+void (*gp2x_video_changemode_ll)(int bpp);
+void (*gp2x_video_setpalette)(int *pal, int len);
+void (*gp2x_video_RGB_setscaling)(int ln_offs, int W, int H);
+void (*gp2x_video_wait_vsync)(void);
 
-static const char * const caanoo_keys[KEY_MAX + 1] = {
-	[0 ... KEY_MAX] = NULL,
-	[KEY_UP]	= "Up",
-	[KEY_LEFT]	= "Left",
-	[KEY_RIGHT]	= "Right",
-	[KEY_DOWN]	= "Down",
-	[BTN_TRIGGER]	= "A",
-	[BTN_THUMB]	= "X",
-	[BTN_THUMB2]	= "B",
-	[BTN_TOP]	= "Y",
-	[BTN_TOP2]	= "L",
-	[BTN_PINKIE]	= "R",
-	[BTN_BASE]	= "Home",
-	[BTN_BASE2]	= "Lock",
-	[BTN_BASE3]	= "I",
-	[BTN_BASE4]	= "II",
-	[BTN_BASE5]	= "Push",
-};
-
-struct in_default_bind in_evdev_defbinds[] =
+static struct in_default_bind in_evdev_defbinds[] =
 {
 	/* MXYZ SACB RLDU */
-	{ KEY_UP,	IN_BINDTYPE_PLAYER12, 0 },
-	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, 1 },
-	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, 2 },
-	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, 3 },
-	{ KEY_S,	IN_BINDTYPE_PLAYER12, 4 },	/* B */
-	{ KEY_D,	IN_BINDTYPE_PLAYER12, 5 },	/* C */
-	{ KEY_A,	IN_BINDTYPE_PLAYER12, 6 },	/* A */
-	{ KEY_ENTER,	IN_BINDTYPE_PLAYER12, 7 },
+	{ KEY_UP,	IN_BINDTYPE_PLAYER12, GBTN_UP },
+	{ KEY_DOWN,	IN_BINDTYPE_PLAYER12, GBTN_DOWN },
+	{ KEY_LEFT,	IN_BINDTYPE_PLAYER12, GBTN_LEFT },
+	{ KEY_RIGHT,	IN_BINDTYPE_PLAYER12, GBTN_RIGHT },
+	{ KEY_A,	IN_BINDTYPE_PLAYER12, GBTN_A },
+	{ KEY_S,	IN_BINDTYPE_PLAYER12, GBTN_B },
+	{ KEY_D,	IN_BINDTYPE_PLAYER12, GBTN_C },
+	{ KEY_ENTER,	IN_BINDTYPE_PLAYER12, GBTN_START },
 	{ KEY_BACKSLASH, IN_BINDTYPE_EMU, PEVB_MENU },
 	/* Caanoo */
-	{ BTN_THUMB,	IN_BINDTYPE_PLAYER12, 4 },	/* B */
-	{ BTN_THUMB2,	IN_BINDTYPE_PLAYER12, 5 },	/* C */
-	{ BTN_TRIGGER,	IN_BINDTYPE_PLAYER12, 6 },	/* A */
-	{ BTN_BASE3,	IN_BINDTYPE_PLAYER12, 7 },
+	{ BTN_TRIGGER,	IN_BINDTYPE_PLAYER12, GBTN_A },
+	{ BTN_THUMB,	IN_BINDTYPE_PLAYER12, GBTN_B },
+	{ BTN_THUMB2,	IN_BINDTYPE_PLAYER12, GBTN_C },
+	{ BTN_BASE3,	IN_BINDTYPE_PLAYER12, GBTN_START },
 	{ BTN_TOP2,	IN_BINDTYPE_EMU, PEVB_STATE_SAVE },
 	{ BTN_PINKIE,	IN_BINDTYPE_EMU, PEVB_STATE_LOAD },
 	{ BTN_BASE,	IN_BINDTYPE_EMU, PEVB_MENU },
+	{ 0, 0, 0 }
+};
+
+static struct in_default_bind in_gp2x_defbinds[] =
+{
+	{ GP2X_BTN_UP,    IN_BINDTYPE_PLAYER12, GBTN_UP },
+	{ GP2X_BTN_DOWN,  IN_BINDTYPE_PLAYER12, GBTN_DOWN },
+	{ GP2X_BTN_LEFT,  IN_BINDTYPE_PLAYER12, GBTN_LEFT },
+	{ GP2X_BTN_RIGHT, IN_BINDTYPE_PLAYER12, GBTN_RIGHT },
+	{ GP2X_BTN_A,     IN_BINDTYPE_PLAYER12, GBTN_A },
+	{ GP2X_BTN_X,     IN_BINDTYPE_PLAYER12, GBTN_B },
+	{ GP2X_BTN_B,     IN_BINDTYPE_PLAYER12, GBTN_C },
+	{ GP2X_BTN_START, IN_BINDTYPE_PLAYER12, GBTN_START },
+	{ GP2X_BTN_Y,     IN_BINDTYPE_EMU, PEVB_SWITCH_RND },
+	{ GP2X_BTN_L,     IN_BINDTYPE_EMU, PEVB_STATE_SAVE },
+	{ GP2X_BTN_R,     IN_BINDTYPE_EMU, PEVB_STATE_LOAD },
+	{ GP2X_BTN_VOL_DOWN, IN_BINDTYPE_EMU, PEVB_VOL_DOWN },
+	{ GP2X_BTN_VOL_UP,   IN_BINDTYPE_EMU, PEVB_VOL_UP },
+	{ GP2X_BTN_SELECT,   IN_BINDTYPE_EMU, PEVB_MENU },
 	{ 0, 0, 0 }
 };
 
@@ -126,6 +133,7 @@ void plat_video_menu_enter(int is_rom_loaded)
 	// switch to 16bpp
 	gp2x_video_changemode_ll(16);
 	gp2x_video_RGB_setscaling(0, 320, 240);
+printf("menu_enter\n");
 }
 
 void plat_video_menu_begin(void)
@@ -138,36 +146,12 @@ void plat_video_menu_end(void)
 	gp2x_video_flip2();
 }
 
+void plat_video_menu_leave(void)
+{
+}
+
 void plat_early_init(void)
 {
-	gp2x_soc_t soc;
-	FILE *f;
-
-	soc = soc_detect();
-	switch (soc)
-	{
-	case SOCID_MMSP2:
-		default_cpu_clock = 200;
-		gp2x_dev_id = GP2X_DEV_GP2X;
-		break;
-	case SOCID_POLLUX:
-		default_cpu_clock = 533;
-		f = fopen("/dev/accel", "rb");
-		if (f) {
-			printf("detected Caanoo\n");
-			gp2x_dev_id = GP2X_DEV_CAANOO;
-			fclose(f);
-		}
-		else {
-			printf("detected Wiz\n");
-			gp2x_dev_id = GP2X_DEV_WIZ;
-		}
-		break;
-	default:
-		printf("could not recognize SoC, running in dummy mode.\n");
-		break;
-	}
-
 	// just use gettimeofday until plat_init()
 	gp2x_get_ticks_ms = plat_get_ticks_ms_good;
 	gp2x_get_ticks_us = plat_get_ticks_us_good;
@@ -175,55 +159,49 @@ void plat_early_init(void)
 
 void plat_init(void)
 {
-	gp2x_soc_t soc;
+	warm_init();
 
-	soc = soc_detect();
-	switch (soc)
-	{
-	case SOCID_MMSP2:
-		mmsp2_init();
+	switch (gp2x_dev_id) {
+	case GP2X_DEV_GP2X:
+		sharedmem940_init();
+		vid_mmsp2_init();
 		break;
-	case SOCID_POLLUX:
-		pollux_init();
-		break;
-	default:
-		dummy_init();
+	case GP2X_DEV_WIZ:
+	case GP2X_DEV_CAANOO:
+		vid_pollux_init();
 		break;
 	}
 
-	warm_init();
-
+	g_menuscreen_w = 320;
+	g_menuscreen_h = 240;
 	gp2x_memset_all_buffers(0, 0, 320*240*2);
+
+	gp2x_make_fb_bufferable(1);
 
 	// use buffer2 for menubg to save mem (using only buffers 0, 1 in menu)
 	g_menubg_ptr = gp2x_screens[2];
 
-	if (gp2x_dev_id == GP2X_DEV_CAANOO)
-		in_set_config(in_name_to_id("evdev:pollux-analog"), IN_CFG_KEY_NAMES,
-				caanoo_keys, sizeof(caanoo_keys));
-
 	flip_after_sync = 1;
 	gp2x_menu_init();
+
+	in_evdev_init(in_evdev_defbinds);
+	in_gp2x_init(in_gp2x_defbinds);
+	in_probe();
+	plat_target_setup_input();
 }
 
 void plat_finish(void)
 {
-	gp2x_soc_t soc;
-
 	warm_finish();
 
-	soc = soc_detect();
-	switch (soc)
-	{
-	case SOCID_MMSP2:
-		mmsp2_finish();
+	switch (gp2x_dev_id) {
+	case GP2X_DEV_GP2X:
+		sharedmem940_finish();
+		vid_mmsp2_finish();
 		break;
-	case SOCID_POLLUX:
-		pollux_finish();
-		break;
-	default:
-		dummy_finish();
+	case GP2X_DEV_WIZ:
+	case GP2X_DEV_CAANOO:
+		vid_pollux_finish();
 		break;
 	}
 }
-
