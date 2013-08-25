@@ -247,7 +247,7 @@ void p32x_pwm_update(int *buf32, int length, int stereo)
   int p = 0;
   int xmd;
 
-  consume_fifo(NULL, SekCyclesDoneT2());
+  consume_fifo(NULL, SekCyclesDone());
 
   xmd = Pico32x.regs[0x30 / 2] & 0x0f;
   if (xmd == 0 || xmd == 0x06 || xmd == 0x09 || xmd == 0x0f)
@@ -326,11 +326,11 @@ void p32x_pwm_state_loaded(void)
   p32x_pwm_ctl_changed();
 
   // for old savestates
-  cycles_diff_sh2 = SekCycleCntT * 3 - Pico32x.pwm_cycle_p;
+  cycles_diff_sh2 = SekCycleCnt * 3 - Pico32x.pwm_cycle_p;
   if (cycles_diff_sh2 >= pwm_cycles || cycles_diff_sh2 < 0) {
     Pico32x.pwm_irq_cnt = pwm_irq_reload;
-    Pico32x.pwm_cycle_p = SekCycleCntT * 3;
-    p32x_pwm_schedule(SekCycleCntT);
+    Pico32x.pwm_cycle_p = SekCycleCnt * 3;
+    p32x_pwm_schedule(SekCycleCnt);
   }
 }
 

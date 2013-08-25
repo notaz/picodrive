@@ -309,6 +309,13 @@ NOINLINE void io_ports_write(u32 a, u32 d)
   Pico.ioports[a] = d;
 }
 
+// lame..
+static int z80_cycles_from_68k(void)
+{
+  return z80_cycle_aim
+    + cycles_68k_to_z80(SekCyclesDone() - last_z80_sync);
+}
+
 void NOINLINE ctl_write_z80busreq(u32 d)
 {
   d&=1; d^=1;
@@ -317,14 +324,13 @@ void NOINLINE ctl_write_z80busreq(u32 d)
   {
     if (d)
     {
-      z80_cycle_cnt = cycles_68k_to_z80(SekCyclesDone());
+      z80_cycle_cnt = z80_cycles_from_68k();
     }
     else
     {
-      z80stopCycle = SekCyclesDone();
       if ((PicoOpt&POPT_EN_Z80) && !Pico.m.z80_reset) {
         pprof_start(m68k);
-        PicoSyncZ80(z80stopCycle);
+        PicoSyncZ80(SekCyclesDone());
         pprof_end_sub(m68k);
       }
     }
@@ -350,7 +356,7 @@ void NOINLINE ctl_write_z80reset(u32 d)
     }
     else
     {
-      z80_cycle_cnt = cycles_68k_to_z80(SekCyclesDone());
+      z80_cycle_cnt = z80_cycles_from_68k();
       z80_reset();
     }
     Pico.m.z80_reset = d;
@@ -486,7 +492,7 @@ static void PicoWrite8_z80(u32 a, u32 d)
   }
 
   if ((a & 0x4000) == 0x0000) { // z80 RAM
-    SekCyclesBurn(2); // hack
+    SekCyclesBurnRun(2); // FIXME hack
     Pico.zram[a & 0x1fff] = (u8)d;
     return;
   }
@@ -940,7 +946,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             timer_a_step = TIMER_A_TICK_ZCYCLES * (1024 - TAnew);
             if (ym2612.OPN.ST.mode & 1) {
               // this is not right, should really be done on overflow only
-              int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
+              int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
               timer_a_next_oflow = (cycles << 8) + timer_a_step;
             }
             elprintf(EL_YMTIMER, "timer a set to %i, %i", 1024 - TAnew, timer_a_next_oflow>>8);
@@ -955,7 +961,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             //ym2612.OPN.ST.TBT  = 0;
             timer_b_step = TIMER_B_TICK_ZCYCLES * (256 - d); // 262800
             if (ym2612.OPN.ST.mode & 2) {
-              int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
+              int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
               timer_b_next_oflow = (cycles << 8) + timer_b_step;
             }
             elprintf(EL_YMTIMER, "timer b set to %i, %i", 256 - d, timer_b_next_oflow>>8);
@@ -963,7 +969,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           return 0;
         case 0x27: { /* mode, timer control */
           int old_mode = ym2612.OPN.ST.mode;
-          int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
+          int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
           ym2612.OPN.ST.mode = d;
 
           elprintf(EL_YMTIMER, "st mode %02x", d);
@@ -1041,7 +1047,7 @@ static u32 ym2612_read_local_z80(void)
 
 static u32 ym2612_read_local_68k(void)
 {
-  int xcycles = cycles_68k_to_z80(SekCyclesDone()) << 8;
+  int xcycles = z80_cycles_from_68k() << 8;
 
   ym2612_read_local();
 

@@ -187,7 +187,7 @@ static u32 p32x_reg_read16(u32 a)
 #else
   if ((a & 0x30) == 0x20) {
     static u32 dr2 = 0;
-    unsigned int cycles = SekCyclesDoneT();
+    unsigned int cycles = SekCyclesDone();
     int comreg = 1 << (a & 0x0f) / 2;
 
     // evil X-Men proto polls in a dbra loop and expects it to expire..
@@ -211,14 +211,14 @@ static u32 p32x_reg_read16(u32 a)
 #endif
 
   if (a == 2) { // INTM, INTS
-    unsigned int cycles = SekCyclesDoneT();
+    unsigned int cycles = SekCyclesDone();
     if (cycles - msh2.m68krcycles_done > 64)
       p32x_sync_sh2s(cycles);
     goto out;
   }
 
   if ((a & 0x30) == 0x30)
-    return p32x_pwm_read16(a, NULL, SekCyclesDoneT());
+    return p32x_pwm_read16(a, NULL, SekCyclesDone());
 
 out:
   return Pico32x.regs[a / 2];
@@ -241,7 +241,7 @@ static void dreq0_write(u16 *r, u32 d)
       r[6 / 2] &= ~P32XS_68S;
 
     if ((Pico32x.dmac0_fifo_ptr & 3) == 0) {
-      p32x_sync_sh2s(SekCyclesDoneT());
+      p32x_sync_sh2s(SekCyclesDone());
       p32x_dreq0_trigger();
     }
   }
@@ -272,7 +272,7 @@ static void p32x_reg_write8(u32 a, u32 d)
       return;
     case 0x03: // irq ctl
       if ((d ^ r[0x02 / 2]) & 3) {
-        int cycles = SekCyclesDoneT();
+        int cycles = SekCyclesDone();
         p32x_sync_sh2s(cycles);
         r[0x02 / 2] = d & 3;
         p32x_update_cmd_irq(NULL, cycles);
@@ -383,12 +383,12 @@ static void p32x_reg_write8(u32 a, u32 d)
     case 0x3f:
       return;
     pwm_write:
-      p32x_pwm_write16(a & ~1, d, NULL, SekCyclesDoneT());
+      p32x_pwm_write16(a & ~1, d, NULL, SekCyclesDone());
       return;
   }
 
   if ((a & 0x30) == 0x20) {
-    int cycles = SekCyclesDoneT();
+    int cycles = SekCyclesDone();
     int comreg;
     
     if (REG8IN16(r, a) == d)
@@ -448,13 +448,13 @@ static void p32x_reg_write16(u32 a, u32 d)
     case 0x30: // PWM control
       d = (r[a / 2] & ~0x0f) | (d & 0x0f);
       r[a / 2] = d;
-      p32x_pwm_write16(a, d, NULL, SekCyclesDoneT());
+      p32x_pwm_write16(a, d, NULL, SekCyclesDone());
       return;
   }
 
   // comm port
   if ((a & 0x30) == 0x20) {
-    int cycles = SekCyclesDoneT();
+    int cycles = SekCyclesDone();
     int comreg;
     
     if (r[a / 2] == d)
@@ -475,7 +475,7 @@ static void p32x_reg_write16(u32 a, u32 d)
   }
   // PWM
   else if ((a & 0x30) == 0x30) {
-    p32x_pwm_write16(a, d, NULL, SekCyclesDoneT());
+    p32x_pwm_write16(a, d, NULL, SekCyclesDone());
     return;
   }
 

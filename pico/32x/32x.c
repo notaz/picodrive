@@ -166,7 +166,7 @@ void p32x_reset_sh2s(void)
     // program will set S_OK
   }
 
-  msh2.m68krcycles_done = ssh2.m68krcycles_done = SekCyclesDoneT();
+  msh2.m68krcycles_done = ssh2.m68krcycles_done = SekCyclesDone();
 }
 
 void Pico32xInit(void)
@@ -200,8 +200,8 @@ void PicoUnload32x(void)
 void PicoReset32x(void)
 {
   if (PicoAHW & PAHW_32X) {
-    msh2.m68krcycles_done = ssh2.m68krcycles_done = SekCyclesDoneT();
-    p32x_trigger_irq(NULL, SekCyclesDoneT2(), P32XI_VRES);
+    msh2.m68krcycles_done = ssh2.m68krcycles_done = SekCyclesDone();
+    p32x_trigger_irq(NULL, SekCyclesDone(), P32XI_VRES);
     p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES, 0);
     p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES, 0);
     p32x_pwm_ctl_changed();
@@ -248,7 +248,7 @@ static void p32x_start_blank(void)
     Pico32xSwapDRAM(Pico32x.pending_fb ^ 1);
   }
 
-  p32x_trigger_irq(NULL, SekCyclesDoneT2(), P32XI_VINT);
+  p32x_trigger_irq(NULL, SekCyclesDone(), P32XI_VINT);
   p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, 0);
   p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, 0);
 }
@@ -272,14 +272,6 @@ void p32x_schedule_hint(SH2 *sh2, int m68k_cycles)
     p32x_event_schedule(m68k_cycles, P32X_EVENT_HINT, after);
 }
 
-// compare cycles, handling overflows
-// check if a > b
-#define CYCLES_GT(a, b) \
-  ((int)((a) - (b)) > 0)
-// check if a >= b
-#define CYCLES_GE(a, b) \
-  ((int)((a) - (b)) >= 0)
-
 /* events */
 static void fillend_event(unsigned int now)
 {
@@ -296,9 +288,10 @@ static void hint_event(unsigned int now)
 
 typedef void (event_cb)(unsigned int now);
 
-unsigned int event_times[P32X_EVENT_COUNT];
+/* times are in m68k (7.6MHz) cycles */
+unsigned int p32x_event_times[P32X_EVENT_COUNT];
 static unsigned int event_time_next;
-static event_cb *event_cbs[] = {
+static event_cb *p32x_event_cbs[P32X_EVENT_COUNT] = {
   [P32X_EVENT_PWM]      = p32x_pwm_irq_event,
   [P32X_EVENT_FILLEND]  = fillend_event,
   [P32X_EVENT_HINT]     = hint_event,
@@ -311,8 +304,8 @@ void p32x_event_schedule(unsigned int now, enum p32x_event event, int after)
 
   when = (now + after) | 1;
 
-  elprintf(EL_32X, "new event #%u %u->%u", event, now, when);
-  event_times[event] = when;
+  elprintf(EL_32X, "32x: new event #%u %u->%u", event, now, when);
+  p32x_event_times[event] = when;
 
   if (event_time_next == 0 || CYCLES_GT(event_time_next, when))
     event_time_next = when;
@@ -329,7 +322,7 @@ void p32x_event_schedule_sh2(SH2 *sh2, enum p32x_event event, int after)
   sh2_end_run(sh2, left_to_next);
 }
 
-static void run_events(unsigned int until)
+static void p32x_run_events(unsigned int until)
 {
   int oldest, oldest_diff, time;
   int i, diff;
@@ -338,8 +331,8 @@ static void run_events(unsigned int until)
     oldest = -1, oldest_diff = 0x7fffffff;
 
     for (i = 0; i < P32X_EVENT_COUNT; i++) {
-      if (event_times[i]) {
-        diff = event_times[i] - until;
+      if (p32x_event_times[i]) {
+        diff = p32x_event_times[i] - until;
         if (diff < oldest_diff) {
           oldest_diff = diff;
           oldest = i;
@@ -348,13 +341,13 @@ static void run_events(unsigned int until)
     }
 
     if (oldest_diff <= 0) {
-      time = event_times[oldest];
-      event_times[oldest] = 0;
-      elprintf(EL_32X, "run event #%d %u", oldest, time);
-      event_cbs[oldest](time);
+      time = p32x_event_times[oldest];
+      p32x_event_times[oldest] = 0;
+      elprintf(EL_32X, "32x: run event #%d %u", oldest, time);
+      p32x_event_cbs[oldest](time);
     }
     else if (oldest_diff < 0x7fffffff) {
-      event_time_next = event_times[oldest];
+      event_time_next = p32x_event_times[oldest];
       break;
     }
     else {
@@ -364,7 +357,8 @@ static void run_events(unsigned int until)
   }
 
   if (oldest != -1)
-    elprintf(EL_32X, "next event #%d at %u", oldest, event_time_next);
+    elprintf(EL_32X, "32x: next event #%d at %u",
+      oldest, event_time_next);
 }
 
 static inline void run_sh2(SH2 *sh2, int m68k_cycles)
@@ -447,7 +441,7 @@ void sync_sh2s_normal(unsigned int m68k_target)
   while (CYCLES_GT(m68k_target, now))
   {
     if (event_time_next && CYCLES_GE(now, event_time_next))
-      run_events(now);
+      p32x_run_events(now);
 
     target = m68k_target;
     if (event_time_next && CYCLES_GT(target, event_time_next))
@@ -521,12 +515,13 @@ void sync_sh2s_lockstep(unsigned int m68k_target)
   }
 }
 
-#define CPUS_RUN(m68k_cycles,s68k_cycles) do { \
+#define CPUS_RUN(m68k_cycles) do { \
   SekRunM68k(m68k_cycles); \
-  if (Pico32x.emu_flags & P32XF_Z80_32X_IO) \
-    PicoSyncZ80(SekCycleCnt); \
+  if ((Pico32x.emu_flags & P32XF_Z80_32X_IO) && Pico.m.z80Run \
+      && !Pico.m.z80_reset && (PicoOpt & POPT_EN_Z80)) \
+    PicoSyncZ80(SekCyclesDone()); \
   if (Pico32x.emu_flags & (P32XF_68KCPOLL|P32XF_68KVPOLL)) \
-    p32x_sync_sh2s(SekCyclesDoneT2()); \
+    p32x_sync_sh2s(SekCyclesDone()); \
 } while (0)
 
 #define PICO_32X
@@ -541,7 +536,7 @@ void PicoFrame32x(void)
     Pico32x.vdp_regs[0x0a/2] &= ~P32XV_PEN; // no palette access
 
   if (!(Pico32x.sh2_regs[0] & 0x80))
-    p32x_schedule_hint(NULL, SekCyclesDoneT2());
+    p32x_schedule_hint(NULL, SekCyclesDone());
   p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, 0);
   p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, 0);
 
@@ -576,11 +571,10 @@ void Pico32xStateLoaded(int is_early)
     return;
   }
 
-  SekCycleCnt = 0;
-  sh2s[0].m68krcycles_done = sh2s[1].m68krcycles_done = SekCycleCntT;
-  p32x_update_irls(NULL, SekCycleCntT);
+  sh2s[0].m68krcycles_done = sh2s[1].m68krcycles_done = SekCyclesDone();
+  p32x_update_irls(NULL, SekCyclesDone());
   p32x_pwm_state_loaded();
-  run_events(SekCycleCntT);
+  p32x_run_events(SekCyclesDone());
 }
 
 // vim:shiftwidth=2:ts=2:expandtab

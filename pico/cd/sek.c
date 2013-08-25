@@ -9,8 +9,8 @@
 #include "../pico_int.h"
 
 
-int SekCycleCntS68k=0; // cycles done in this frame
-int SekCycleAimS68k=0; // cycle aim
+unsigned int SekCycleCntS68k;
+unsigned int SekCycleAimS68k;
 
 
 /* context */

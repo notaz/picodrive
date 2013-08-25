@@ -37,13 +37,8 @@ extern "C" {
 #ifdef EMU_C68K
 #include "../cpu/cyclone/Cyclone.h"
 extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
-#define SekCyclesLeftNoMCD PicoCpuCM68k.cycles // cycles left for this run
-#define SekCyclesLeft \
-	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
-#define SekCyclesLeftS68k \
-	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuCS68k.cycles)
-#define SekEndTimeslice(after) PicoCpuCM68k.cycles=after
-#define SekEndTimesliceS68k(after) PicoCpuCS68k.cycles=after
+#define SekCyclesLeft     PicoCpuCM68k.cycles // cycles left for this run
+#define SekCyclesLeftS68k PicoCpuCS68k.cycles
 #define SekPc (PicoCpuCM68k.pc-PicoCpuCM68k.membase)
 #define SekPcS68k (PicoCpuCS68k.pc-PicoCpuCS68k.membase)
 #define SekDar(x)     (x < 8 ? PicoCpuCM68k.d[x] : PicoCpuCM68k.a[x - 8])
@@ -59,21 +54,13 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekInterrupt(i) PicoCpuCM68k.irq=i
 #define SekIrqLevel     PicoCpuCM68k.irq
 
-#ifdef EMU_M68K
-#define EMU_CORE_DEBUG
-#endif
 #endif
 
 #ifdef EMU_F68K
 #include "../cpu/fame/fame.h"
 extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
-#define SekCyclesLeftNoMCD PicoCpuFM68k.io_cycle_counter
-#define SekCyclesLeft \
-	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
-#define SekCyclesLeftS68k \
-	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuFS68k.io_cycle_counter)
-#define SekEndTimeslice(after) PicoCpuFM68k.io_cycle_counter=after
-#define SekEndTimesliceS68k(after) PicoCpuFS68k.io_cycle_counter=after
+#define SekCyclesLeft     PicoCpuFM68k.io_cycle_counter
+#define SekCyclesLeftS68k PicoCpuFS68k.io_cycle_counter
 #define SekPc     fm68k_get_pc(&PicoCpuFM68k)
 #define SekPcS68k fm68k_get_pc(&PicoCpuFS68k)
 #define SekDar(x)     (x < 8 ? PicoCpuFM68k.dreg[x].D : PicoCpuFM68k.areg[x - 8].D)
@@ -95,22 +82,14 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #define SekInterrupt(irq) PicoCpuFM68k.interrupts[0]=irq
 #define SekIrqLevel       PicoCpuFM68k.interrupts[0]
 
-#ifdef EMU_M68K
-#define EMU_CORE_DEBUG
-#endif
 #endif
 
 #ifdef EMU_M68K
 #include "../cpu/musashi/m68kcpu.h"
 extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #ifndef SekCyclesLeft
-#define SekCyclesLeftNoMCD PicoCpuMM68k.cyc_remaining_cycles
-#define SekCyclesLeft \
-	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
-#define SekCyclesLeftS68k \
-	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuMS68k.cyc_remaining_cycles)
-#define SekEndTimeslice(after) SET_CYCLES(after)
-#define SekEndTimesliceS68k(after) PicoCpuMS68k.cyc_remaining_cycles=after
+#define SekCyclesLeft     PicoCpuMM68k.cyc_remaining_cycles
+#define SekCyclesLeftS68k PicoCpuMS68k.cyc_remaining_cycles
 #define SekPc m68k_get_reg(&PicoCpuMM68k, M68K_REG_PC)
 #define SekPcS68k m68k_get_reg(&PicoCpuMS68k, M68K_REG_PC)
 #define SekDar(x)     PicoCpuMM68k.dar[x]
@@ -140,52 +119,46 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #endif
 #endif // EMU_M68K
 
-extern int SekCycleCnt; // cycles done in this frame
-extern int SekCycleAim; // cycle aim
-extern unsigned int SekCycleCntT; // total cycle counter, updated once per frame
+// while running, cnt represents target of current timeslice
+// while not in SekRun(), it's actual cycles done
+// (but always use SekCyclesDone() if you need current position)
+// cnt may change if timeslice is ended prematurely or extended,
+// so we use SekCycleAim for the actual target
+extern unsigned int SekCycleCnt;
+extern unsigned int SekCycleAim;
 
-#define SekCyclesReset() { \
-	SekCycleCntT+=SekCycleAim; \
-	SekCycleCnt-=SekCycleAim; \
-	SekCycleAim=0; \
-}
-#define SekCyclesBurn(c)  SekCycleCnt+=c
-#define SekCyclesDone()  (SekCycleAim-SekCyclesLeft)    // number of cycles done in this frame (can be checked anywhere)
-#define SekCyclesDoneT() (SekCycleCntT+SekCyclesDone()) // total nuber of cycles done for this rom
-#define SekCyclesDoneT2() (SekCycleCntT + SekCycleCnt)  // same as above but not from memhandlers
+// number of cycles done (can be checked anywhere)
+#define SekCyclesDone()  (SekCycleCnt - SekCyclesLeft)
 
+// burn cycles while not in SekRun() and while in
+#define SekCyclesBurn(c)    SekCycleCnt += c
+#define SekCyclesBurnRun(c) SekCyclesLeft -= c
+
+// note: sometimes may extend timeslice to delay an irq
 #define SekEndRun(after) { \
-	SekCycleCnt -= SekCyclesLeft - (after); \
-	if (SekCycleCnt < 0) SekCycleCnt = 0; \
-	SekEndTimeslice(after); \
+  SekCycleCnt -= SekCyclesLeft - (after); \
+  SekCyclesLeft = after; \
 }
+
+extern unsigned int SekCycleCntS68k;
+extern unsigned int SekCycleAimS68k;
 
 #define SekEndRunS68k(after) { \
-	SekCycleCntS68k -= SekCyclesLeftS68k - (after); \
-	if (SekCycleCntS68k < 0) SekCycleCntS68k = 0; \
-	SekEndTimesliceS68k(after); \
+  if (SekCyclesLeftS68k > (after)) { \
+    SekCycleCntS68k -= SekCyclesLeftS68k - (after); \
+    SekCyclesLeftS68k = after; \
+  } \
 }
 
-extern int SekCycleCntS68k;
-extern int SekCycleAimS68k;
+#define SekCyclesDoneS68k()  (SekCycleCntS68k - SekCyclesLeftS68k)
 
-#define SekCyclesResetS68k() { \
-	SekCycleCntS68k-=SekCycleAimS68k; \
-	SekCycleAimS68k=0; \
-}
-#define SekCyclesDoneS68k()  (SekCycleAimS68k-SekCyclesLeftS68k)
-
-#ifdef EMU_CORE_DEBUG
-extern int dbg_irq_level;
-#undef SekEndTimeslice
-#undef SekCyclesBurn
-#undef SekEndRun
-#undef SekInterrupt
-#define SekEndTimeslice(c)
-#define SekCyclesBurn(c) c
-#define SekEndRun(c)
-#define SekInterrupt(irq) dbg_irq_level=irq
-#endif
+// compare cycles, handling overflows
+// check if a > b
+#define CYCLES_GT(a, b) \
+  ((int)((a) - (b)) > 0)
+// check if a >= b
+#define CYCLES_GE(a, b) \
+  ((int)((a) - (b)) >= 0)
 
 // ----------------------- Z80 CPU -----------------------
 
@@ -221,13 +194,14 @@ extern struct DrZ80 drZ80;
 
 #define Z80_STATE_SIZE 0x60
 
-extern int z80stopCycle;         /* in 68k cycles */
+extern unsigned int last_z80_sync;
 extern int z80_cycle_cnt;        /* 'done' z80 cycles before z80_run() */
 extern int z80_cycle_aim;
 extern int z80_scanline;
 extern int z80_scanline_cycles;  /* cycles done until z80_scanline */
 
 #define z80_resetCycles() \
+  last_z80_sync = SekCyclesDone(); \
   z80_cycle_cnt = z80_cycle_aim = z80_scanline = z80_scanline_cycles = 0;
 
 #define z80_cyclesDone() \
@@ -410,14 +384,12 @@ struct mcd_misc
 	unsigned char  busreq;
 	unsigned char  s68k_pend_ints;
 	unsigned int   state_flags;	// 04: emu state: reset_pending
-	unsigned int   counter75hz;
-	unsigned int   pad0;
-	int            timer_int3;	// 10
-	unsigned int   timer_stopwatch;
+	unsigned int   stopwatch_base_c;
+	unsigned int   pad[3];
 	unsigned char  bcram_reg;	// 18: battery-backed RAM cart register
 	unsigned char  pad2;
 	unsigned short pad3;
-	int pad[9];
+	int pad4[9];
 };
 
 typedef struct
@@ -613,7 +585,7 @@ PICO_INTERNAL void PicoMemSetupPico(void);
 
 // cd/memory.c
 PICO_INTERNAL void PicoMemSetupCD(void);
-void PicoMemStateLoaded(void);
+void pcd_state_loaded_mem(void);
 
 // pico.c
 extern struct Pico Pico;
@@ -625,14 +597,34 @@ extern void (*PicoResetHook)(void);
 extern void (*PicoLineHook)(void);
 PICO_INTERNAL int  CheckDMA(void);
 PICO_INTERNAL void PicoDetectRegion(void);
-PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done);
+PICO_INTERNAL void PicoSyncZ80(unsigned int m68k_cycles_done);
 
 // cd/pico.c
+#define PCDS_IEN1     (1<<1)
+#define PCDS_IEN2     (1<<2)
+#define PCDS_IEN3     (1<<3)
+#define PCDS_IEN4     (1<<4)
+#define PCDS_IEN5     (1<<5)
+#define PCDS_IEN6     (1<<6)
+
 PICO_INTERNAL void PicoInitMCD(void);
 PICO_INTERNAL void PicoExitMCD(void);
 PICO_INTERNAL void PicoPowerMCD(void);
 PICO_INTERNAL int  PicoResetMCD(void);
 PICO_INTERNAL void PicoFrameMCD(void);
+
+enum pcd_event {
+  PCD_EVENT_CDC,
+  PCD_EVENT_TIMER3,
+  PCD_EVENT_GFX,
+  PCD_EVENT_DMA,
+  PCD_EVENT_COUNT,
+};
+extern unsigned int pcd_event_times[PCD_EVENT_COUNT];
+void pcd_event_schedule(unsigned int now, enum pcd_event event, int after);
+void pcd_event_schedule_s68k(enum pcd_event event, int after);
+unsigned int pcd_cycles_m68k_to_s68k(unsigned int c);
+void pcd_state_loaded(void);
 
 // pico/pico.c
 PICO_INTERNAL void PicoInitPico(void);
@@ -760,7 +752,7 @@ enum p32x_event {
   P32X_EVENT_HINT,
   P32X_EVENT_COUNT,
 };
-extern unsigned int event_times[P32X_EVENT_COUNT];
+extern unsigned int p32x_event_times[P32X_EVENT_COUNT];
 
 void Pico32xInit(void);
 void PicoPower32x(void);
@@ -884,6 +876,7 @@ static __inline int isspace_(int c)
 #define EL_32X     0x00080000
 #define EL_PWM     0x00100000 /* 32X PWM stuff (LOTS of output) */
 #define EL_32XP    0x00200000 /* 32X peripherals */
+#define EL_CD      0x00400000 /* MCD */
 
 #define EL_STATUS  0x40000000 /* status messages */
 #define EL_ANOMALY 0x80000000 /* some unexpected conditions (during emulation) */

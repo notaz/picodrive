@@ -11,9 +11,8 @@
 #include "memory.h"
 
 
-int SekCycleCnt=0; // cycles done in this frame
-int SekCycleAim=0; // cycle aim
-unsigned int SekCycleCntT=0;
+unsigned int SekCycleCnt;
+unsigned int SekCycleAim;
 
 
 /* context */
@@ -220,7 +219,8 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
 #endif
 
   *(unsigned int *)(cpu+0x40) = pc;
-  *(unsigned int *)(cpu+0x50) = SekCycleCntT;
+  *(unsigned int *)(cpu+0x50) =
+    is_sub ? SekCycleCntS68k : SekCycleCnt;
 }
 
 PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
@@ -257,7 +257,10 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
   context->execinfo &= ~FM68K_HALTED;
   if (cpu[0x4d]&1) context->execinfo |= FM68K_HALTED;
 #endif
-  SekCycleCntT = *(unsigned int *)(cpu+0x50);
+  if (is_sub)
+    SekCycleCntS68k = *(unsigned int *)(cpu+0x50);
+  else
+    SekCycleCnt = *(unsigned int *)(cpu+0x50);
 }
 
 

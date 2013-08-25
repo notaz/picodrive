@@ -9,9 +9,6 @@
 #define CYCLES_M68K_LINE     488 // suitable for both PAL/NTSC
 #define CYCLES_M68K_VINT_LAG  68
 #define CYCLES_M68K_ASD      148
-#define CYCLES_S68K_LINE     795
-#define CYCLES_S68K_VINT_LAG 111
-#define CYCLES_S68K_ASD      241
 
 // pad delay (for 6 button pads)
 #define PAD_DELAY() { \
@@ -21,7 +18,7 @@
 
 // CPUS_RUN
 #ifndef CPUS_RUN
-#define CPUS_RUN(m68k_cycles,s68k_cycles) \
+#define CPUS_RUN(m68k_cycles) \
   SekRunM68k(m68k_cycles)
 #endif
 
@@ -31,24 +28,23 @@ static __inline void SekRunM68k(int cyc)
   pprof_start(m68k);
   pevt_log_m68k_o(EVT_RUN_START);
 
-  SekCycleAim+=cyc;
-  if ((cyc_do=SekCycleAim-SekCycleCnt) <= 0)
-    goto out;
+  SekCycleAim += cyc;
+  while ((cyc_do = SekCycleAim - SekCycleCnt) > 0) {
+    SekCycleCnt += cyc_do;
 
-#if defined(EMU_CORE_DEBUG)
-  // this means we do run-compare
-  SekCycleCnt+=CM_compareRun(cyc_do, 0);
-#elif defined(EMU_C68K)
-  PicoCpuCM68k.cycles=cyc_do;
-  CycloneRun(&PicoCpuCM68k);
-  SekCycleCnt+=cyc_do-PicoCpuCM68k.cycles;
+#if defined(EMU_C68K)
+    PicoCpuCM68k.cycles = cyc_do;
+    CycloneRun(&PicoCpuCM68k);
+    SekCycleCnt -= PicoCpuCM68k.cycles;
 #elif defined(EMU_M68K)
-  SekCycleCnt+=m68k_execute(cyc_do);
+    SekCycleCnt += m68k_execute(cyc_do) - cyc_do;
 #elif defined(EMU_F68K)
-  SekCycleCnt+=fm68k_emulate(cyc_do, 0, 0);
+    SekCycleCnt += fm68k_emulate(cyc_do, 0, 0) - cyc_do;
 #endif
+  }
 
-out:
+  SekCyclesLeft = 0;
+
   SekTrace(0);
   pevt_log_m68k_o(EVT_RUN_END);
   pprof_end(m68k);
@@ -58,6 +54,7 @@ static int PicoFrameHints(void)
 {
   struct PicoVideo *pv=&Pico.video;
   int lines, y, lines_vis = 224, line_sample, skip, vcnt_wrap;
+  unsigned int cycles;
   int hint; // Hint counter
 
   pevt_log_m68k_o(EVT_FRAME_START);
@@ -81,11 +78,7 @@ static int PicoFrameHints(void)
     line_sample = 93;
   }
 
-  SekCyclesReset();
   z80_resetCycles();
-#ifdef PICO_CD
-  SekCyclesResetS68k();
-#endif
   PsndDacLine = 0;
   emustatus &= ~1;
 
@@ -95,7 +88,7 @@ static int PicoFrameHints(void)
   //dprintf("-hint: %i", hint);
 
   // This is to make active scan longer (needed for Double Dragon 2, mainly)
-  CPUS_RUN(CYCLES_M68K_ASD, CYCLES_S68K_ASD);
+  CPUS_RUN(CYCLES_M68K_ASD);
 
   for (y = 0; y < lines_vis; y++)
   {
@@ -114,9 +107,6 @@ static int PicoFrameHints(void)
     }
 
     PAD_DELAY();
-#ifdef PICO_CD
-    check_cd_dma();
-#endif
 
     // H-Interrupts:
     if (--hint < 0) // y <= lines_vis: Comix Zone, Golden Axe
@@ -124,7 +114,7 @@ static int PicoFrameHints(void)
       hint=pv->reg[10]; // Reload H-Int counter
       pv->pending_ints|=0x10;
       if (pv->reg[0]&0x10) {
-        elprintf(EL_INTS, "hint: @ %06x [%i]", SekPc, SekCycleCnt);
+        elprintf(EL_INTS, "hint: @ %06x [%i]", SekPc, SekCyclesDone());
         SekInterrupt(4);
       }
     }
@@ -145,25 +135,26 @@ static int PicoFrameHints(void)
     // get samples from sound chips
     if ((y == 224 || y == line_sample) && PsndOut)
     {
+      cycles = SekCyclesDone();
+
       if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
-        PicoSyncZ80(SekCycleCnt);
+        PicoSyncZ80(cycles);
       if (ym2612.dacen && PsndDacLine <= y)
         PsndDoDAC(y);
+#ifdef PICO_CD
+      pcd_sync_s68k(cycles);
+#endif
 #ifdef PICO_32X
-      p32x_sync_sh2s(SekCyclesDoneT2());
+      p32x_sync_sh2s(cycles);
 #endif
       PsndGetSamples(y);
     }
 
     // Run scanline:
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
-    CPUS_RUN(CYCLES_M68K_LINE, CYCLES_S68K_LINE);
+    CPUS_RUN(CYCLES_M68K_LINE);
 
-#ifdef PICO_CD
-    update_chips();
-#else
     if (PicoLineHook) PicoLineHook();
-#endif
     pevt_log_m68k_o(EVT_NEXT_LINE);
   }
 
@@ -187,16 +178,13 @@ static int PicoFrameHints(void)
 
   memcpy(PicoPadInt, PicoPad, sizeof(PicoPadInt));
   PAD_DELAY();
-#ifdef PICO_CD
-  check_cd_dma();
-#endif
 
   // Last H-Int:
   if (--hint < 0)
   {
     hint=pv->reg[10]; // Reload H-Int counter
     pv->pending_ints|=0x10;
-    //printf("rhint: %i @ %06x [%i|%i]\n", hint, SekPc, y, SekCycleCnt);
+    //printf("rhint: %i @ %06x [%i|%i]\n", hint, SekPc, y, SekCyclesDone());
     if (pv->reg[0]&0x10) SekInterrupt(4);
   }
 
@@ -207,20 +195,25 @@ static int PicoFrameHints(void)
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
-  CPUS_RUN(CYCLES_M68K_VINT_LAG, CYCLES_S68K_VINT_LAG);
+  CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
   if (pv->reg[1]&0x20) {
-    elprintf(EL_INTS, "vint: @ %06x [%i]", SekPc, SekCycleCnt);
+    elprintf(EL_INTS, "vint: @ %06x [%i]", SekPc, SekCyclesDone());
     SekInterrupt(6);
   }
+
+  cycles = SekCyclesDone();
   if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80)) {
-    PicoSyncZ80(SekCycleCnt);
+    PicoSyncZ80(cycles);
     elprintf(EL_INTS, "zint");
     z80_int();
   }
 
+#ifdef PICO_CD
+  pcd_sync_s68k(cycles);
+#endif
 #ifdef PICO_32X
-  p32x_sync_sh2s(SekCyclesDoneT2());
+  p32x_sync_sh2s(cycles);
   p32x_start_blank();
 #endif
 
@@ -234,14 +227,9 @@ static int PicoFrameHints(void)
 
   // Run scanline:
   if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
-  CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG - CYCLES_M68K_ASD,
-    CYCLES_S68K_LINE - CYCLES_S68K_VINT_LAG - CYCLES_S68K_ASD);
+  CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG - CYCLES_M68K_ASD);
 
-#ifdef PICO_CD
-  update_chips();
-#else
   if (PicoLineHook) PicoLineHook();
-#endif
   pevt_log_m68k_o(EVT_NEXT_LINE);
 
   lines = scanlines_total;
@@ -257,30 +245,27 @@ static int PicoFrameHints(void)
     pv->v_counter &= 0xff;
 
     PAD_DELAY();
-#ifdef PICO_CD
-    check_cd_dma();
-#endif
 
     // Run scanline:
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
-    CPUS_RUN(CYCLES_M68K_LINE, CYCLES_S68K_LINE);
+    CPUS_RUN(CYCLES_M68K_LINE);
 
-#ifdef PICO_CD
-    update_chips();
-#else
     if (PicoLineHook) PicoLineHook();
-#endif
     pevt_log_m68k_o(EVT_NEXT_LINE);
   }
 
-  // sync z80
+  // sync cpus
+  cycles = SekCyclesDone();
   if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
-    PicoSyncZ80(Pico.m.pal ? 151809 : 127671); // cycles adjusted for converter
+    PicoSyncZ80(cycles);
   if (PsndOut && ym2612.dacen && PsndDacLine <= lines-1)
     PsndDoDAC(lines-1);
 
+#ifdef PICO_CD
+  pcd_sync_s68k(cycles);
+#endif
 #ifdef PICO_32X
-  p32x_sync_sh2s(SekCyclesDoneT2());
+  p32x_sync_sh2s(cycles);
 #endif
   timers_cycle();
 
@@ -290,3 +275,4 @@ static int PicoFrameHints(void)
 #undef PAD_DELAY
 #undef CPUS_RUN
 
+// vim:shiftwidth=2:ts=2:expandtab

@@ -1,6 +1,6 @@
 /*
  * PicoDrive
- * (C) notaz, 2007
+ * (C) notaz, 2007,2013
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -10,7 +10,8 @@
 #include "../sound/ym2612.h"
 
 extern unsigned char formatted_bram[4*0x10];
-extern unsigned int s68k_poll_adclk;
+
+static unsigned int m68k_cycle_mult;
 
 void (*PicoMCDopenTray)(void) = NULL;
 void (*PicoMCDcloseTray)(void) = NULL;
@@ -65,149 +66,191 @@ PICO_INTERNAL int PicoResetMCD(void)
   }
   SRam.start = SRam.end = 0; // unused
 
+  pcd_event_schedule(0, PCD_EVENT_CDC, 12500000/75);
+
   return 0;
 }
 
-static __inline void SekRunS68k(int cyc)
+static __inline void SekRunS68k(unsigned int to)
 {
   int cyc_do;
-  SekCycleAimS68k+=cyc;
-  if ((cyc_do=SekCycleAimS68k-SekCycleCntS68k) <= 0) return;
-#if defined(EMU_CORE_DEBUG)
-  SekCycleCntS68k+=CM_compareRun(cyc_do, 1);
-#elif defined(EMU_C68K)
-  PicoCpuCS68k.cycles=cyc_do;
+
+  SekCycleAimS68k = to;
+  if ((cyc_do = SekCycleAimS68k - SekCycleCntS68k) <= 0)
+    return;
+
+  SekCycleCntS68k += cyc_do;
+#if defined(EMU_C68K)
+  PicoCpuCS68k.cycles = cyc_do;
   CycloneRun(&PicoCpuCS68k);
-  SekCycleCntS68k+=cyc_do-PicoCpuCS68k.cycles;
+  SekCycleCntS68k -= PicoCpuCS68k.cycles;
 #elif defined(EMU_M68K)
   m68k_set_context(&PicoCpuMS68k);
-  SekCycleCntS68k+=m68k_execute(cyc_do);
+  SekCycleCntS68k += m68k_execute(cyc_do) - cyc_do;
   m68k_set_context(&PicoCpuMM68k);
 #elif defined(EMU_F68K)
-  g_m68kcontext=&PicoCpuFS68k;
-  SekCycleCntS68k+=fm68k_emulate(cyc_do, 0, 0);
-  g_m68kcontext=&PicoCpuFM68k;
+  g_m68kcontext = &PicoCpuFS68k;
+  SekCycleCntS68k += fm68k_emulate(cyc_do, 0, 0) - cyc_do;
+  g_m68kcontext = &PicoCpuFM68k;
 #endif
 }
 
-#define PS_STEP_M68K ((488<<16)/20) // ~24
-//#define PS_STEP_S68K 13
 
-#if defined(_ASM_CD_PICO_C)
-extern void SekRunPS(int cyc_m68k, int cyc_s68k);
-#elif defined(EMU_F68K)
-static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
+unsigned int pcd_cycles_m68k_to_s68k(unsigned int c)
 {
-  SekCycleAim+=cyc_m68k;
-  SekCycleAimS68k+=cyc_s68k;
-  fm68k_emulate(0, 1, 0);
+  return (long long)c * m68k_cycle_mult >> 16;
 }
-#else
-static __inline void SekRunPS(int cyc_m68k, int cyc_s68k)
+
+/* events */
+static void pcd_cdc_event(unsigned int now)
 {
-  int cycn, cycn_s68k, cyc_do;
-  SekCycleAim+=cyc_m68k;
-  SekCycleAimS68k+=cyc_s68k;
+  // 75Hz CDC update
+  Check_CD_Command();
+  pcd_event_schedule(now, PCD_EVENT_CDC, 12500000/75);
+}
 
-//  fprintf(stderr, "=== start %3i/%3i [%3i/%3i] {%05i.%i} ===\n", cyc_m68k, cyc_s68k,
-//  		SekCycleAim-SekCycleCnt, SekCycleAimS68k-SekCycleCntS68k, Pico.m.frame_count, Pico.m.scanline);
+static void pcd_int3_timer_event(unsigned int now)
+{
+  if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN3) {
+    elprintf(EL_INTS|EL_CD, "s68k: timer irq 3");
+    SekInterruptS68k(3);
+  }
 
-  /* loop 488 downto 0 in steps of PS_STEP */
-  for (cycn = (488<<16)-PS_STEP_M68K; cycn >= 0; cycn -= PS_STEP_M68K)
-  {
-    cycn_s68k = (cycn + cycn/2 + cycn/8) >> 16;
-    if ((cyc_do = SekCycleAim-SekCycleCnt-(cycn>>16)) > 0) {
-#if defined(EMU_C68K)
-      PicoCpuCM68k.cycles = cyc_do;
-      CycloneRun(&PicoCpuCM68k);
-      SekCycleCnt += cyc_do - PicoCpuCM68k.cycles;
-#elif defined(EMU_M68K)
-      m68k_set_context(&PicoCpuMM68k);
-      SekCycleCnt += m68k_execute(cyc_do);
-#elif defined(EMU_F68K)
-      g_m68kcontext = &PicoCpuFM68k;
-      SekCycleCnt += fm68k_emulate(cyc_do, 0, 0);
-#endif
-    }
-    if ((cyc_do = SekCycleAimS68k-SekCycleCntS68k-cycn_s68k) > 0) {
-#if defined(EMU_C68K)
-      PicoCpuCS68k.cycles = cyc_do;
-      CycloneRun(&PicoCpuCS68k);
-      SekCycleCntS68k += cyc_do - PicoCpuCS68k.cycles;
-#elif defined(EMU_M68K)
-      m68k_set_context(&PicoCpuMS68k);
-      SekCycleCntS68k += m68k_execute(cyc_do);
-#elif defined(EMU_F68K)
-      g_m68kcontext = &PicoCpuFS68k;
-      SekCycleCntS68k += fm68k_emulate(cyc_do, 0, 0);
-#endif
+  if (Pico_mcd->s68k_regs[0x31] != 0)
+    pcd_event_schedule(now, PCD_EVENT_TIMER3,
+      Pico_mcd->s68k_regs[0x31] * 384);
+}
+
+static void pcd_gfx_event(unsigned int now)
+{
+  // update gfx chip
+  if (Pico_mcd->rot_comp.Reg_58 & 0x8000) {
+    Pico_mcd->rot_comp.Reg_58 &= 0x7fff;
+    Pico_mcd->rot_comp.Reg_64  = 0;
+    if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN1) {
+      elprintf(EL_INTS  |EL_CD, "s68k: gfx_cd irq 1");
+      SekInterruptS68k(1);
     }
   }
 }
-#endif
 
-
-static __inline void check_cd_dma(void)
+static void pcd_dma_event(unsigned int now)
 {
-	int ddx;
-
-	if (!(Pico_mcd->scd.Status_CDC & 0x08)) return;
-
-	ddx = Pico_mcd->s68k_regs[4] & 7;
-	if (ddx <  2) return; // invalid
-	if (ddx <  4) {
-		Pico_mcd->s68k_regs[4] |= 0x40; // Data set ready in host port
-		return;
-	}
-	if (ddx == 6) return; // invalid
-
-	Update_CDC_TRansfer(ddx); // now go and do the actual transfer
+  int ddx = Pico_mcd->s68k_regs[4] & 7;
+	Update_CDC_TRansfer(ddx);
 }
 
-static __inline void update_chips(void)
+typedef void (event_cb)(unsigned int now);
+
+/* times are in s68k (12.5MHz) cycles */
+unsigned int pcd_event_times[PCD_EVENT_COUNT];
+static unsigned int event_time_next;
+static event_cb *pcd_event_cbs[PCD_EVENT_COUNT] = {
+  [PCD_EVENT_CDC]      = pcd_cdc_event,
+  [PCD_EVENT_TIMER3]   = pcd_int3_timer_event,
+  [PCD_EVENT_GFX]      = pcd_gfx_event,
+  [PCD_EVENT_DMA]      = pcd_dma_event,
+};
+
+void pcd_event_schedule(unsigned int now, enum pcd_event event, int after)
 {
-	int counter_timer, int3_set;
-	int counter75hz_lim = Pico.m.pal ? 2080 : 2096;
+  unsigned int when;
 
-	// 75Hz CDC update
-	if ((Pico_mcd->m.counter75hz+=10) >= counter75hz_lim) {
-		Pico_mcd->m.counter75hz -= counter75hz_lim;
-		Check_CD_Command();
-	}
+  when = now + after;
+  if (when == 0) {
+    // event cancelled
+    pcd_event_times[event] = 0;
+    return;
+  }
 
-	// update timers
-	counter_timer = Pico.m.pal ? 0x21630 : 0x2121c; // 136752 : 135708;
-	Pico_mcd->m.timer_stopwatch += counter_timer;
-	if ((int3_set = Pico_mcd->s68k_regs[0x31])) {
-		Pico_mcd->m.timer_int3 -= counter_timer;
-		if (Pico_mcd->m.timer_int3 < 0) {
-			if (Pico_mcd->s68k_regs[0x33] & (1<<3)) {
-				elprintf(EL_INTS, "s68k: timer irq 3");
-				SekInterruptS68k(3);
-				Pico_mcd->m.timer_int3 += int3_set << 16;
-			}
-			// is this really what happens if irq3 is masked out?
-			Pico_mcd->m.timer_int3 &= 0xffffff;
-		}
-	}
+  when |= 1;
 
-	// update gfx chip
-	if (Pico_mcd->rot_comp.Reg_58 & 0x8000)
-		gfx_cd_update();
+  elprintf(EL_CD, "cd: new event #%u %u->%u", event, now, when);
+  pcd_event_times[event] = when;
+
+  if (event_time_next == 0 || CYCLES_GT(event_time_next, when))
+    event_time_next = when;
 }
 
+void pcd_event_schedule_s68k(enum pcd_event event, int after)
+{
+  if (SekCyclesLeftS68k > after)
+    SekEndRunS68k(after);
+
+  pcd_event_schedule(SekCyclesDoneS68k(), event, after);
+}
+
+static void pcd_run_events(unsigned int until)
+{
+  int oldest, oldest_diff, time;
+  int i, diff;
+
+  while (1) {
+    oldest = -1, oldest_diff = 0x7fffffff;
+
+    for (i = 0; i < PCD_EVENT_COUNT; i++) {
+      if (pcd_event_times[i]) {
+        diff = pcd_event_times[i] - until;
+        if (diff < oldest_diff) {
+          oldest_diff = diff;
+          oldest = i;
+        }
+      }
+    }
+
+    if (oldest_diff <= 0) {
+      time = pcd_event_times[oldest];
+      pcd_event_times[oldest] = 0;
+      elprintf(EL_CD, "cd: run event #%d %u", oldest, time);
+      pcd_event_cbs[oldest](time);
+    }
+    else if (oldest_diff < 0x7fffffff) {
+      event_time_next = pcd_event_times[oldest];
+      break;
+    }
+    else {
+      event_time_next = 0;
+      break;
+    }
+  }
+
+  if (oldest != -1)
+    elprintf(EL_CD, "cd: next event #%d at %u",
+      oldest, event_time_next);
+}
+
+static void pcd_sync_s68k(unsigned int m68k_target)
+{
+  #define now SekCycleCntS68k
+  unsigned int s68k_target =
+    (unsigned long long)m68k_target * m68k_cycle_mult >> 16;
+  unsigned int target;
+
+  elprintf(EL_CD, "s68k sync to %u/%u", m68k_target, s68k_target);
+
+  if ((Pico_mcd->m.busreq & 3) != 1) { /* busreq/reset */
+    SekCycleCntS68k = SekCycleAimS68k = s68k_target;
+    pcd_run_events(m68k_target);
+    return;
+  }
+
+  while (CYCLES_GT(s68k_target, now)) {
+    if (event_time_next && CYCLES_GE(now, event_time_next))
+      pcd_run_events(now);
+
+    target = s68k_target;
+    if (event_time_next && CYCLES_GT(target, event_time_next))
+      target = event_time_next;
+
+    SekRunS68k(target);
+  }
+  #undef now
+}
 
 #define PICO_CD
-#define CPUS_RUN(m68k_cycles,s68k_cycles) \
-{ \
-    if ((PicoOpt&POPT_EN_MCD_PSYNC) && (Pico_mcd->m.busreq&3) == 1) { \
-      SekRunPS(m68k_cycles, s68k_cycles); /* "better/perfect sync" */ \
-    } else { \
-      SekRunM68k(m68k_cycles); \
-      if ((Pico_mcd->m.busreq&3) == 1) /* no busreq/no reset */ \
-        SekRunS68k(s68k_cycles); \
-    } \
-}
+#define CPUS_RUN(m68k_cycles) \
+  SekRunM68k(m68k_cycles)
+
 #include "../pico_cmn.c"
 
 
@@ -216,7 +259,44 @@ PICO_INTERNAL void PicoFrameMCD(void)
   if (!(PicoOpt&POPT_ALT_RENDERER))
     PicoFrameStart();
 
+  // ~1.63 for NTSC, ~1.645 for PAL
+  if (Pico.m.pal)
+    m68k_cycle_mult = ((12500000ull << 16) / (50*312*488));
+  else
+    m68k_cycle_mult = ((12500000ull << 16) / (60*262*488)) + 1;
+
   PicoFrameHints();
 }
 
+void pcd_state_loaded(void)
+{
+  unsigned int cycles;
+  int diff;
 
+  pcd_state_loaded_mem();
+
+  // old savestates..
+  cycles = pcd_cycles_m68k_to_s68k(SekCycleAim);
+  diff = cycles - SekCycleAimS68k;
+  if (diff < -1000 || diff > 1000) {
+    SekCycleCntS68k = SekCycleAimS68k = cycles;
+  }
+  if (pcd_event_times[PCD_EVENT_CDC] == 0) {
+    pcd_event_schedule(SekCycleAimS68k, PCD_EVENT_CDC, 12500000/75);
+
+    if (Pico_mcd->s68k_regs[0x31])
+      pcd_event_schedule(SekCycleAimS68k, PCD_EVENT_TIMER3,
+        Pico_mcd->s68k_regs[0x31] * 384);
+
+    if (Pico_mcd->rot_comp.Reg_58 & 0x8000) {
+      Pico_mcd->rot_comp.Reg_58 &= 0x7fff;
+      Pico_mcd->rot_comp.Reg_64  = 0;
+      if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN1)
+        SekInterruptS68k(1);
+    }
+    if (Pico_mcd->scd.Status_CDC & 0x08)
+	    Update_CDC_TRansfer(Pico_mcd->s68k_regs[4] & 7);
+  }
+}
+
+// vim:shiftwidth=2:ts=2:expandtab

@@ -43,7 +43,7 @@ char *PDebugMain(void)
     !!(SRam.flags & SRF_ENABLED), !!(SRam.flags & SRF_EEPROM), SRam.eeprom_type); MVP;
   sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); MVP;
   sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status); MVP;
-  sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i, cycles: %i\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count, SekCyclesDoneT()); MVP;
+  sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i, cycles: %i\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count, SekCyclesDone()); MVP;
   sprintf(dstrp, "M68k: PC: %06x, SR: %04x, irql: %i\n", SekPc, SekSr, SekIrqLevel); MVP;
 #if defined(EMU_C68K)
   sprintf(dstrp - 1, ", st_flg: %x\n", PicoCpuCM68k.state_flags); MVP;

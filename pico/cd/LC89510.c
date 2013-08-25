@@ -68,7 +68,7 @@ PICO_INTERNAL void Update_CDC_TRansfer(int which)
 	unsigned short *dest;
 	unsigned char  *src;
 
-	if (Pico_mcd->cdc.DBC.N <= (CDC_DMA_SPEED * 2))
+	if (1) //Pico_mcd->cdc.DBC.N <= (CDC_DMA_SPEED * 2))
 	{
 		length = (Pico_mcd->cdc.DBC.N + 1) >> 1;
 		Pico_mcd->scd.Status_CDC &= ~0x08;	// Last transfer
@@ -80,7 +80,7 @@ PICO_INTERNAL void Update_CDC_TRansfer(int which)
 		{
 			Pico_mcd->cdc.IFSTAT &= ~0x40;
 
-			if (Pico_mcd->s68k_regs[0x33] & (1<<5))
+			if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN5)
 			{
 				elprintf(EL_INTS, "cdc DTE irq 5");
 				SekInterruptS68k(5);
@@ -430,6 +430,19 @@ PICO_INTERNAL void CDC_Write_Reg(unsigned char Data)
 				cdprintf("************** Starting Data Transfer ***********");
 				cdprintf("RS0 = %.4X  DAC = %.4X  DBC = %.4X  DMA adr = %.4X\n\n", Pico_mcd->s68k_regs[4]<<8,
 					Pico_mcd->cdc.DAC.N, Pico_mcd->cdc.DBC.N, (Pico_mcd->s68k_regs[0xA]<<8) | Pico_mcd->s68k_regs[0xB]);
+
+				// tmp
+				{
+					int ddx = Pico_mcd->s68k_regs[4] & 7;
+					if (ddx <  2) break; // invalid
+					if (ddx <  4) {
+						Pico_mcd->s68k_regs[4] |= 0x40; // Data set ready in host port
+						break;
+					}
+					if (ddx == 6) break; // invalid
+
+					pcd_event_schedule_s68k(PCD_EVENT_DMA, Pico_mcd->cdc.DBC.N / 2);
+				}
 			}
 			break;
 
@@ -504,7 +517,7 @@ PICO_INTERNAL void CDD_Export_Status(void)
 
 	Pico_mcd->s68k_regs[0x37] &= 3; // CDD.Control
 
-	if (Pico_mcd->s68k_regs[0x33] & (1<<4))
+	if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4)
 	{
 		elprintf(EL_INTS, "cdd export irq 4");
 		SekInterruptS68k(4);

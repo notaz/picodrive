@@ -99,8 +99,11 @@ static u32 m68k_reg_read16(u32 a)
     case 0xA:
       elprintf(EL_UIO, "m68k FIXME: reserved read");
       goto end;
-    case 0xC:
-      d = Pico_mcd->m.timer_stopwatch >> 16;
+    case 0xC: // 384 cycle stopwatch timer
+      // ugh..
+      d = pcd_cycles_m68k_to_s68k(SekCyclesDone());
+      d = (d - Pico_mcd->m.stopwatch_base_c) / 384;
+      d &= 0x0fff;
       elprintf(EL_CDREGS, "m68k stopwatch timer read (%04x)", d);
       goto end;
   }
@@ -273,7 +276,9 @@ u32 s68k_reg_read16(u32 a)
     case 8:
       return Read_CDC_Host(1); // Gens returns 0 here on byte reads
     case 0xC:
-      d = Pico_mcd->m.timer_stopwatch >> 16;
+      d = SekCyclesDoneS68k() - Pico_mcd->m.stopwatch_base_c;
+      d /= 384;
+      d &= 0x0fff;
       elprintf(EL_CDREGS, "s68k stopwatch timer read (%04x)", d);
       return d;
     case 0x30:
@@ -363,21 +368,29 @@ void s68k_reg_write8(u32 a, u32 d)
       elprintf(EL_CDREGS, "s68k set CDC dma addr");
       break;
     case 0xc:
-    case 0xd:
-      elprintf(EL_CDREGS, "s68k set stopwatch timer");
-      Pico_mcd->m.timer_stopwatch = 0;
+    case 0xd: // 384 cycle stopwatch timer
+      elprintf(EL_CDREGS|EL_CD, "s68k clear stopwatch (%x)", d);
+      // does this also reset internal 384 cycle counter?
+      Pico_mcd->m.stopwatch_base_c = SekCyclesDoneS68k();
       return;
     case 0xe:
       Pico_mcd->s68k_regs[0xf] = (d>>1) | (d<<7); // ror8 1, Gens note: Dragons lair
       return;
-    case 0x31:
-      elprintf(EL_CDREGS, "s68k set int3 timer: %02x", d);
-      Pico_mcd->m.timer_int3 = (d & 0xff) << 16;
+    case 0x31: // 384 cycle int3 timer
+      d &= 0xff;
+      elprintf(EL_CDREGS|EL_CD, "s68k set int3 timer: %02x", d);
+      Pico_mcd->s68k_regs[a] = (u8) d;
+      if (d) // d or d+1??
+        pcd_event_schedule_s68k(PCD_EVENT_TIMER3, d * 384);
+      else
+        pcd_event_schedule(0, PCD_EVENT_TIMER3, 0);
       break;
     case 0x33: // IRQ mask
-      elprintf(EL_CDREGS, "s68k irq mask: %02x", d);
-      if ((d&(1<<4)) && (Pico_mcd->s68k_regs[0x37]&4) && !(Pico_mcd->s68k_regs[0x33]&(1<<4))) {
-        CDD_Export_Status();
+      elprintf(EL_CDREGS|EL_CD, "s68k irq mask: %02x", d);
+      d &= 0x7e;
+      if ((d ^ Pico_mcd->s68k_regs[0x33]) & d & PCDS_IEN4) {
+        if (Pico_mcd->s68k_regs[0x37] & 4)
+          CDD_Export_Status();
       }
       break;
     case 0x34: // fader
@@ -978,7 +991,7 @@ static void remap_word_ram(int r3)
 #endif
 }
 
-void PicoMemStateLoaded(void)
+void pcd_state_loaded_mem(void)
 {
   int r3 = Pico_mcd->s68k_regs[3];
 
@@ -1147,3 +1160,4 @@ static void m68k_mem_setup_cd(void)
 }
 #endif // EMU_M68K
 
+// vim:shiftwidth=2:ts=2:expandtab

@@ -73,7 +73,7 @@ static void dmac_transfer_complete(SH2 *sh2, struct dma_chan *chan)
 {
   chan->chcr |= DMA_TE; // DMA has ended normally
 
-  p32x_sh2_poll_event(sh2, SH2_STATE_SLEEP, SekCyclesDoneT());
+  p32x_sh2_poll_event(sh2, SH2_STATE_SLEEP, SekCyclesDone());
   if (chan->chcr & DMA_IE)
     dmac_te_irq(sh2, chan);
 }

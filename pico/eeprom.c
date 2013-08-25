@@ -21,7 +21,7 @@ static void EEPROM_write_do(unsigned int d) // ???? ??la (l=SCL, a=SDA)
   unsigned int scyc = Pico.m.eeprom_cycle, ssa = Pico.m.eeprom_slave;
 
   elprintf(EL_EEPROM, "eeprom: scl/sda: %i/%i -> %i/%i, newtime=%i", (sreg&2)>>1, sreg&1,
-    (d&2)>>1, d&1, SekCyclesDoneT() - last_write);
+    (d&2)>>1, d&1, SekCyclesDone() - last_write);
   saddr &= 0x1fff;
 
   if(sreg & d & 2) {
@@ -142,17 +142,17 @@ static void EEPROM_upd_pending(unsigned int d)
 void EEPROM_write16(unsigned int d)
 {
   // this diff must be at most 16 for NBA Jam to work
-  if (SekCyclesDoneT() - last_write < 16) {
+  if (SekCyclesDone() - last_write < 16) {
     // just update pending state
     elprintf(EL_EEPROM, "eeprom: skip because cycles=%i",
-        SekCyclesDoneT() - last_write);
+        SekCyclesDone() - last_write);
     EEPROM_upd_pending(d);
   } else {
     int srs = Pico.m.eeprom_status;
     EEPROM_write_do(srs >> 6); // execute pending
     EEPROM_upd_pending(d);
     if ((srs ^ Pico.m.eeprom_status) & 0xc0) // update time only if SDA/SCL changed
-      last_write = SekCyclesDoneT();
+      last_write = SekCyclesDone();
   }
 }
 
@@ -172,7 +172,7 @@ unsigned int EEPROM_read(void)
   EEPROM_write_do(Pico.m.eeprom_status>>6);
 
   sreg = Pico.m.eeprom_status; saddr = Pico.m.eeprom_addr&0x1fff; scyc = Pico.m.eeprom_cycle; ssa = Pico.m.eeprom_slave;
-  interval = SekCyclesDoneT() - last_write;
+  interval = SekCyclesDone() - last_write;
   d = (sreg>>6)&1; // use SDA as "open bus"
 
   // NBA Jam is nasty enough to read <before> raising the SCL and starting the new cycle.
