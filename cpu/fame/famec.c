@@ -24,7 +24,7 @@
 #define FAMEC_CHECK_BRANCHES
 #define FAMEC_EXTRA_INLINE
 // #define FAMEC_DEBUG
-#define FAMEC_NO_GOTOS
+// #define FAMEC_NO_GOTOS
 #define FAMEC_ADR_BITS  24
 // #define FAMEC_FETCHBITS 8
 #define FAMEC_DATABITS  8
@@ -528,22 +528,20 @@ M68K_CONTEXT *g_m68kcontext;
 #define m68kcontext (*g_m68kcontext)
 
 #ifdef FAMEC_NO_GOTOS
-static u32 Opcode;
-static s32 cycles_needed;
-static u16 *PC;
-static uptr BasePC;
-static u32 flag_C;
-static u32 flag_V;
-static u32 flag_NotZ;
-static u32 flag_N;
-static u32 flag_X;
+#define Opcode m68kcontext.Opcode
+#define cycles_needed m68kcontext.cycles_needed
+#define PC m68kcontext.PC
+#define BasePC m68kcontext.BasePC
+#define flag_C m68kcontext.flag_C
+#define flag_V m68kcontext.flag_V
+#define flag_NotZ m68kcontext.flag_NotZ
+#define flag_N m68kcontext.flag_N
+#define flag_X m68kcontext.flag_X
 #endif
 
-#ifdef FAMEC_EMULATE_TRACE
-static u32 flag_T;
-#endif
-static u32 flag_S;
-static u32 flag_I;
+#define flag_T m68kcontext.flag_T
+#define flag_S m68kcontext.flag_S
+#define flag_I m68kcontext.flag_I
 
 static u32 initialised = 0;
 
