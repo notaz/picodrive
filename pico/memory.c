@@ -49,7 +49,7 @@ static void xmap_set(uptr *map, int shift, int start_addr, int end_addr,
   for (i = start_addr >> shift; i <= end_addr >> shift; i++) {
     map[i] = addr >> 1;
     if (is_func)
-      map[i] |= (uptr)1 << (sizeof(addr) * 8 - 1);
+      map[i] |= MAP_FLAG;
   }
 }
 
@@ -126,19 +126,19 @@ void m68k_map_unmap(int start_addr, int end_addr)
 
   addr = (uptr)m68k_unmapped_read8;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_read8_map[i] = (addr >> 1) | (1 << 31);
+    m68k_read8_map[i] = (addr >> 1) | MAP_FLAG;
 
   addr = (uptr)m68k_unmapped_read16;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_read16_map[i] = (addr >> 1) | (1 << 31);
+    m68k_read16_map[i] = (addr >> 1) | MAP_FLAG;
 
   addr = (uptr)m68k_unmapped_write8;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_write8_map[i] = (addr >> 1) | (1 << 31);
+    m68k_write8_map[i] = (addr >> 1) | MAP_FLAG;
 
   addr = (uptr)m68k_unmapped_write16;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_write16_map[i] = (addr >> 1) | (1 << 31);
+    m68k_write16_map[i] = (addr >> 1) | MAP_FLAG;
 }
 
 MAKE_68K_READ8(m68k_read8, m68k_read8_map)

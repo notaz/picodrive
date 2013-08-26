@@ -45,7 +45,8 @@ void cpu68k_map_set(uptr *map, int start_addr, int end_addr,
 void cpu68k_map_all_ram(int start_addr, int end_addr, void *ptr, int is_sub);
 void m68k_map_unmap(int start_addr, int end_addr);
 
-#define map_flag_set(x) ((x) & ((uptr)1 << (sizeof(uptr) * 8 - 1)))
+#define MAP_FLAG ((uptr)1 << (sizeof(uptr) * 8 - 1))
+#define map_flag_set(x) ((x) & MAP_FLAG)
 
 #define MAKE_68K_READ8(name, map)               \
 u32 name(u32 a)                                 \
