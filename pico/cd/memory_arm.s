@@ -216,6 +216,9 @@ m_m68k_read8_r0d:
     mov     r0, r0, lsr #16
     bx      lr
 m_m68k_read8_hi:
+    push    {r0,r1,lr}
+    bl      m68k_comm_check
+    pop     {r0,r1,lr}
     cmp     r0, #0x30
     movge   r0, #0
     bxeq    lr

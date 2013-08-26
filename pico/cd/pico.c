@@ -45,7 +45,7 @@ PICO_INTERNAL int PicoResetMCD(void)
   memset(&Pico_mcd->m, 0, sizeof(Pico_mcd->m));
 
   memset(Pico_mcd->bios + 0x70, 0xff, 4); // reset hint vector (simplest way to implement reg6)
-  Pico_mcd->m.state_flags |= 1; // s68k reset pending
+  Pico_mcd->m.state_flags = 0;
   Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode with m68k access after reset
 
   Reset_CD();
@@ -219,7 +219,7 @@ static void pcd_run_events(unsigned int until)
       oldest, event_time_next);
 }
 
-static void pcd_sync_s68k(unsigned int m68k_target)
+void pcd_sync_s68k(unsigned int m68k_target)
 {
   #define now SekCycleCntS68k
   unsigned int s68k_target =

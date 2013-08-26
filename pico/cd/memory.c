@@ -73,6 +73,26 @@ static void remap_word_ram(int r3);
 #define POLL_CYCLES 124
 unsigned int s68k_poll_adclk, s68k_poll_cnt;
 
+void m68k_comm_check(u32 a)
+{
+  pcd_sync_s68k(SekCyclesDone());
+  /*if (Pico_mcd->m.m68k_comm_dirty & (1 << a/2)) {
+    Pico_mcd->m.m68k_comm_dirty &= ~(1 << a/2);
+    Pico_mcd->m.m68k_poll_a = Pico_mcd->m.m68k_poll_cnt = 0;
+    return;
+  }
+  if (a != Pico_mcd->m.m68k_poll_a) {
+    Pico_mcd->m.m68k_poll_a = a;
+    Pico_mcd->m.m68k_poll_cnt = 0;
+    return;
+  }
+  if (++Pico_mcd->m.m68k_poll_cnt > 5)
+    SekCyclesBurnRun(122);
+
+  elprintf(EL_CDPOLL, "m68k poll [%02x] %d %u", a,
+    Pico_mcd->m.m68k_poll_cnt, SekCyclesDone());*/
+}
+
 #ifndef _ASM_CD_MEMORY_C
 static u32 m68k_reg_read16(u32 a)
 {
@@ -84,6 +104,7 @@ static u32 m68k_reg_read16(u32 a)
       d = ((Pico_mcd->s68k_regs[0x33]<<13)&0x8000) | Pico_mcd->m.busreq; // here IFL2 is always 0, just like in Gens
       goto end;
     case 2:
+      m68k_comm_check(a);
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0xc7);
       elprintf(EL_CDREG3, "m68k_regs r3: %02x @%06x", (u8)d, SekPc);
       goto end;
@@ -110,6 +131,7 @@ static u32 m68k_reg_read16(u32 a)
 
   if (a < 0x30) {
     // comm flag/cmd/status (0xE-0x2F)
+    m68k_comm_check(a);
     d = (Pico_mcd->s68k_regs[a]<<8) | Pico_mcd->s68k_regs[a+1];
     goto end;
   }
@@ -130,6 +152,8 @@ void m68k_reg_write8(u32 a, u32 d)
   u32 dold;
   a &= 0x3f;
 
+  Pico_mcd->m.m68k_poll_a = 0;
+
   switch (a) {
     case 0:
       d &= 1;
@@ -137,18 +161,24 @@ void m68k_reg_write8(u32 a, u32 d)
       return;
     case 1:
       d &= 3;
-      if (!(d&1)) Pico_mcd->m.state_flags |= 1; // reset pending, needed to be sure we fetch the right vectors on reset
-      if ( (Pico_mcd->m.busreq&1) != (d&1)) elprintf(EL_INTSW, "m68k: s68k reset %i", !(d&1));
-      if ( (Pico_mcd->m.busreq&2) != (d&2)) elprintf(EL_INTSW, "m68k: s68k brq %i", (d&2)>>1);
-      if ((Pico_mcd->m.state_flags&1) && (d&3)==1) {
-        SekResetS68k(); // S68k comes out of RESET or BRQ state
-        Pico_mcd->m.state_flags&=~1;
-        elprintf(EL_CDREGS, "m68k: resetting s68k, cycles=%i", SekCyclesLeft);
+          elprintf(EL_CDREGS, "d m.busreq %u %u", d, Pico_mcd->m.busreq);
+      if (d == Pico_mcd->m.busreq)
+        return;
+      pcd_sync_s68k(SekCyclesDone());
+
+      if ((Pico_mcd->m.busreq ^ d) & 1) {
+        elprintf(EL_INTSW, "m68k: s68k reset %i", !(d&1));
+        if (!(d & 1))
+          d |= 2; // verified: reset also gives bus
+        else {
+          elprintf(EL_CDREGS, "m68k: resetting s68k");
+          SekResetS68k();
+        }
       }
-      if (!(d & 1))
-        d |= 2; // verified: reset also gives bus
-      if ((d ^ Pico_mcd->m.busreq) & 2)
+      if ((Pico_mcd->m.busreq ^ d) & 2) {
+        elprintf(EL_INTSW, "m68k: s68k brq %i", d >> 1);
         remap_prg_window();
+      }
       Pico_mcd->m.busreq = d;
       return;
     case 2:
@@ -193,8 +223,10 @@ void m68k_reg_write8(u32 a, u32 d)
     case 0xf:
       d = (d << 1) | ((d >> 7) & 1); // rol8 1 (special case)
     case 0xe:
-      //dprintf("m68k: comm flag: %02x", d);
-      Pico_mcd->s68k_regs[0xe] = d;
+      if (d != Pico_mcd->s68k_regs[0xe]) {
+        pcd_sync_s68k(SekCyclesDone());
+        Pico_mcd->s68k_regs[0xe] = d;
+      }
 #ifdef USE_POLL_DETECT
       if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(0); s68k_poll_adclk = 0;
@@ -374,8 +406,8 @@ void s68k_reg_write8(u32 a, u32 d)
       Pico_mcd->m.stopwatch_base_c = SekCyclesDoneS68k();
       return;
     case 0xe:
-      Pico_mcd->s68k_regs[0xf] = (d>>1) | (d<<7); // ror8 1, Gens note: Dragons lair
-      return;
+      d = (d>>1) | (d<<7); // ror8 1, Gens note: Dragons lair
+      break;
     case 0x31: // 384 cycle int3 timer
       d &= 0xff;
       elprintf(EL_CDREGS|EL_CD, "s68k set int3 timer: %02x", d);
@@ -417,6 +449,9 @@ void s68k_reg_write8(u32 a, u32 d)
     elprintf(EL_UIO, "s68k FIXME: invalid write @ %02x?", a);
     return;
   }
+
+  if (a < 0x30)
+    Pico_mcd->m.m68k_comm_dirty |= (1 << a/2);
 
   Pico_mcd->s68k_regs[a] = (u8) d;
 }

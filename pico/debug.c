@@ -45,9 +45,6 @@ char *PDebugMain(void)
   sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status); MVP;
   sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i, cycles: %i\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count, SekCyclesDone()); MVP;
   sprintf(dstrp, "M68k: PC: %06x, SR: %04x, irql: %i\n", SekPc, SekSr, SekIrqLevel); MVP;
-#if defined(EMU_C68K)
-  sprintf(dstrp - 1, ", st_flg: %x\n", PicoCpuCM68k.state_flags); MVP;
-#endif
   for (r = 0; r < 8; r++) {
     sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, SekDar(r), r, SekDar(r+8)); MVP;
   }

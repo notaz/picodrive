@@ -132,7 +132,11 @@ extern unsigned int SekCycleAim;
 
 // burn cycles while not in SekRun() and while in
 #define SekCyclesBurn(c)    SekCycleCnt += c
-#define SekCyclesBurnRun(c) SekCyclesLeft -= c
+#define SekCyclesBurnRun(c) { \
+  SekCyclesLeft -= c; \
+  if (SekCyclesLeft < 0) \
+    SekCyclesLeft = 0; \
+}
 
 // note: sometimes may extend timeslice to delay an irq
 #define SekEndRun(after) { \
@@ -383,9 +387,12 @@ struct mcd_misc
 	unsigned short hint_vector;
 	unsigned char  busreq;
 	unsigned char  s68k_pend_ints;
-	unsigned int   state_flags;	// 04: emu state: reset_pending
+	unsigned int   state_flags;	// 04
 	unsigned int   stopwatch_base_c;
-	unsigned int   pad[3];
+	unsigned int   m68k_comm_dirty;
+	unsigned short m68k_poll_a;
+	unsigned short m68k_poll_cnt;
+	unsigned int   pad;
 	unsigned char  bcram_reg;	// 18: battery-backed RAM cart register
 	unsigned char  pad2;
 	unsigned short pad3;
@@ -624,6 +631,7 @@ extern unsigned int pcd_event_times[PCD_EVENT_COUNT];
 void pcd_event_schedule(unsigned int now, enum pcd_event event, int after);
 void pcd_event_schedule_s68k(enum pcd_event event, int after);
 unsigned int pcd_cycles_m68k_to_s68k(unsigned int c);
+void pcd_sync_s68k(unsigned int m68k_target);
 void pcd_state_loaded(void);
 
 // pico/pico.c
