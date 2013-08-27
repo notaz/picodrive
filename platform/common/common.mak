@@ -63,7 +63,7 @@ SRCS_COMMON += $(R)pico/cd/misc_arm.s
 endif
 ifeq "$(asm_cdpico)" "1"
 DEFINES += _ASM_CD_PICO_C
-SRCS_COMMON += $(R)pico/cd/pico_arm.s
+SRCS_COMMON += $(R)pico/cd/mcd_arm.s
 endif
 ifeq "$(asm_cdmemory)" "1"
 DEFINES += _ASM_CD_MEMORY_C
@@ -92,7 +92,7 @@ else
 DEFINES += NO_SMS
 endif
 # CD
-SRCS_COMMON += $(R)pico/cd/pico.c $(R)pico/cd/memory.c $(R)pico/cd/sek.c \
+SRCS_COMMON += $(R)pico/cd/mcd.c $(R)pico/cd/memory.c $(R)pico/cd/sek.c \
 	$(R)pico/cd/LC89510.c $(R)pico/cd/cd_sys.c $(R)pico/cd/cd_file.c \
 	$(R)pico/cd/cue.c $(R)pico/cd/gfx_cd.c $(R)pico/cd/misc.c \
 	$(R)pico/cd/pcm.c $(R)pico/cd/buffering.c
@@ -184,9 +184,11 @@ $(FR)cpu/cyclone/Cyclone.h:
 	@echo "Cyclone submodule is missing, please run 'git submodule update --init'"
 	@false
 
-$(FR)cpu/cyclone/Cyclone.s:
+$(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/cyclone_config.h
 	@echo building Cyclone...
 	@make -C $(R)cpu/cyclone/ CONFIG_FILE=../cyclone_config.h
+
+$(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/cyclone/*.cpp $(FR)cpu/cyclone/*.h
 
 $(FR)cpu/musashi/m68kops.c:
 	@make -C $(R)cpu/musashi

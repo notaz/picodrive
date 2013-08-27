@@ -1,6 +1,6 @@
 /*
- * common code for pico.c and cd/pico.c
- * (C) notaz, 2007-2009
+ * common code for base/cd/32x
+ * (C) notaz, 2007-2009,2013
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

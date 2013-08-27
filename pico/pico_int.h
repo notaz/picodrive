@@ -607,7 +607,7 @@ PICO_INTERNAL int  CheckDMA(void);
 PICO_INTERNAL void PicoDetectRegion(void);
 PICO_INTERNAL void PicoSyncZ80(unsigned int m68k_cycles_done);
 
-// cd/pico.c
+// cd/mcd.c
 #define PCDS_IEN1     (1<<1)
 #define PCDS_IEN2     (1<<2)
 #define PCDS_IEN3     (1<<3)
