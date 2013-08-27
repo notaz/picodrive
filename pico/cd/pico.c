@@ -219,19 +219,20 @@ static void pcd_run_events(unsigned int until)
       oldest, event_time_next);
 }
 
-void pcd_sync_s68k(unsigned int m68k_target)
+int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
 {
   #define now SekCycleCntS68k
   unsigned int s68k_target =
     (unsigned long long)m68k_target * m68k_cycle_mult >> 16;
   unsigned int target;
 
-  elprintf(EL_CD, "s68k sync to %u/%u", m68k_target, s68k_target);
+  elprintf(EL_CD, "s68k sync to %u, %u->%u",
+    m68k_target, now, s68k_target);
 
   if ((Pico_mcd->m.busreq & 3) != 1) { /* busreq/reset */
     SekCycleCntS68k = SekCycleAimS68k = s68k_target;
     pcd_run_events(m68k_target);
-    return;
+    return 0;
   }
 
   while (CYCLES_GT(s68k_target, now)) {
@@ -243,13 +244,36 @@ void pcd_sync_s68k(unsigned int m68k_target)
       target = event_time_next;
 
     SekRunS68k(target);
+    if (m68k_poll_sync && Pico_mcd->m.m68k_poll_cnt == 0)
+      break;
   }
+
+  return s68k_target - now;
   #undef now
+}
+
+static void SekSyncM68k(void);
+
+static void pcd_run_cpus(int m68k_cycles)
+{
+  SekCycleAim += m68k_cycles;
+  if (Pico_mcd->m.m68k_poll_cnt >= 16 && !SekShouldInterrupt()) {
+    int s68k_left = pcd_sync_s68k(SekCycleAim, 1);
+    if (s68k_left <= 0) {
+      elprintf(EL_CDPOLL, "m68k poll [%02x] %d @%06x",
+        Pico_mcd->m.m68k_poll_a, Pico_mcd->m.m68k_poll_cnt, SekPc);
+      SekCycleCnt = SekCycleAim;
+      return;
+    }
+    SekCycleCnt = SekCycleAim - (s68k_left * 40220 >> 16);
+  }
+
+  SekSyncM68k();
 }
 
 #define PICO_CD
 #define CPUS_RUN(m68k_cycles) \
-  SekRunM68k(m68k_cycles)
+  pcd_run_cpus(m68k_cycles)
 
 #include "../pico_cmn.c"
 

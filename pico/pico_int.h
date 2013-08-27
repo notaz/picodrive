@@ -49,7 +49,7 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekSetStopS68k(x) { PicoCpuCS68k.state_flags&=~1; if (x) { PicoCpuCS68k.state_flags|=1; PicoCpuCS68k.cycles=0; } }
 #define SekIsStoppedM68k() (PicoCpuCM68k.state_flags&1)
 #define SekIsStoppedS68k() (PicoCpuCS68k.state_flags&1)
-#define SekShouldInterrupt (PicoCpuCM68k.irq > (PicoCpuCM68k.srh&7))
+#define SekShouldInterrupt() (PicoCpuCM68k.irq > (PicoCpuCM68k.srh&7))
 
 #define SekInterrupt(i) PicoCpuCM68k.irq=i
 #define SekIrqLevel     PicoCpuCM68k.irq
@@ -77,7 +77,7 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 }
 #define SekIsStoppedM68k() (PicoCpuFM68k.execinfo&FM68K_HALTED)
 #define SekIsStoppedS68k() (PicoCpuFS68k.execinfo&FM68K_HALTED)
-#define SekShouldInterrupt fm68k_would_interrupt()
+#define SekShouldInterrupt() fm68k_would_interrupt()
 
 #define SekInterrupt(irq) PicoCpuFM68k.interrupts[0]=irq
 #define SekIrqLevel       PicoCpuFM68k.interrupts[0]
@@ -106,7 +106,7 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 }
 #define SekIsStoppedM68k() (PicoCpuMM68k.stopped==STOP_LEVEL_STOP)
 #define SekIsStoppedS68k() (PicoCpuMS68k.stopped==STOP_LEVEL_STOP)
-#define SekShouldInterrupt (CPU_INT_LEVEL > FLAG_INT_MASK)
+#define SekShouldInterrupt() (CPU_INT_LEVEL > FLAG_INT_MASK)
 
 #define SekInterrupt(irq) { \
 	void *oldcontext = m68ki_cpu_p; \
@@ -389,10 +389,11 @@ struct mcd_misc
 	unsigned char  s68k_pend_ints;
 	unsigned int   state_flags;	// 04
 	unsigned int   stopwatch_base_c;
-	unsigned int   m68k_comm_dirty;
 	unsigned short m68k_poll_a;
 	unsigned short m68k_poll_cnt;
-	unsigned int   pad;
+	unsigned short s68k_poll_a;
+	unsigned short s68k_poll_cnt;
+	unsigned int   s68k_poll_clk;
 	unsigned char  bcram_reg;	// 18: battery-backed RAM cart register
 	unsigned char  pad2;
 	unsigned short pad3;
@@ -631,7 +632,7 @@ extern unsigned int pcd_event_times[PCD_EVENT_COUNT];
 void pcd_event_schedule(unsigned int now, enum pcd_event event, int after);
 void pcd_event_schedule_s68k(enum pcd_event event, int after);
 unsigned int pcd_cycles_m68k_to_s68k(unsigned int c);
-void pcd_sync_s68k(unsigned int m68k_target);
+int  pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync);
 void pcd_state_loaded(void);
 
 // pico/pico.c
@@ -935,9 +936,9 @@ void pevt_log(unsigned int cycles, enum evt_cpu c, enum evt e);
 void pevt_dump(void);
 
 #define pevt_log_m68k(e) \
-  pevt_log(SekCyclesDoneT(), EVT_M68K, e)
+  pevt_log(SekCyclesDone(), EVT_M68K, e)
 #define pevt_log_m68k_o(e) \
-  pevt_log(SekCyclesDoneT2(), EVT_M68K, e)
+  pevt_log(SekCyclesDone(), EVT_M68K, e)
 #define pevt_log_sh2(sh2, e) \
   pevt_log(sh2_cycles_done_m68k(sh2), EVT_MSH2 + (sh2)->is_slave, e)
 #define pevt_log_sh2_o(sh2, e) \

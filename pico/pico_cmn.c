@@ -22,13 +22,13 @@
   SekRunM68k(m68k_cycles)
 #endif
 
-static __inline void SekRunM68k(int cyc)
+// sync m68k to SekCycleAim
+static void SekSyncM68k(void)
 {
   int cyc_do;
   pprof_start(m68k);
   pevt_log_m68k_o(EVT_RUN_START);
 
-  SekCycleAim += cyc;
   while ((cyc_do = SekCycleAim - SekCycleCnt) > 0) {
     SekCycleCnt += cyc_do;
 
@@ -48,6 +48,12 @@ static __inline void SekRunM68k(int cyc)
   SekTrace(0);
   pevt_log_m68k_o(EVT_RUN_END);
   pprof_end(m68k);
+}
+
+static inline void SekRunM68k(int cyc)
+{
+  SekCycleAim += cyc;
+  SekSyncM68k();
 }
 
 static int PicoFrameHints(void)
@@ -142,7 +148,7 @@ static int PicoFrameHints(void)
       if (ym2612.dacen && PsndDacLine <= y)
         PsndDoDAC(y);
 #ifdef PICO_CD
-      pcd_sync_s68k(cycles);
+      pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X
       p32x_sync_sh2s(cycles);
@@ -210,7 +216,7 @@ static int PicoFrameHints(void)
   }
 
 #ifdef PICO_CD
-  pcd_sync_s68k(cycles);
+  pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X
   p32x_sync_sh2s(cycles);
@@ -262,7 +268,7 @@ static int PicoFrameHints(void)
     PsndDoDAC(lines-1);
 
 #ifdef PICO_CD
-  pcd_sync_s68k(cycles);
+  pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X
   p32x_sync_sh2s(cycles);

@@ -423,7 +423,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
 update_irq:
 #ifndef EMU_CORE_DEBUG
         // update IRQ level
-        if (!SekShouldInterrupt) // hack
+        if (!SekShouldInterrupt()) // hack
         {
           int lines, pints, irq=0;
           lines = (pvid->reg[1] & 0x20) | (pvid->reg[0] & 0x10);

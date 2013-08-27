@@ -65,32 +65,23 @@ void PicoWriteS68k16_dec_m1b1(u32 a, u32 d);
 void PicoWriteS68k16_dec_m2b1(u32 a, u32 d);
 #endif
 
-static void remap_prg_window(void);
+static void remap_prg_window(int r3);
 static void remap_word_ram(int r3);
 
 // poller detection
 #define POLL_LIMIT 16
 #define POLL_CYCLES 124
-unsigned int s68k_poll_adclk, s68k_poll_cnt;
 
-void m68k_comm_check(u32 a)
+u32 m68k_comm_check(u32 a, u32 d)
 {
-  pcd_sync_s68k(SekCyclesDone());
-  /*if (Pico_mcd->m.m68k_comm_dirty & (1 << a/2)) {
-    Pico_mcd->m.m68k_comm_dirty &= ~(1 << a/2);
-    Pico_mcd->m.m68k_poll_a = Pico_mcd->m.m68k_poll_cnt = 0;
-    return;
-  }
+  pcd_sync_s68k(SekCyclesDone(), 0);
   if (a != Pico_mcd->m.m68k_poll_a) {
     Pico_mcd->m.m68k_poll_a = a;
     Pico_mcd->m.m68k_poll_cnt = 0;
-    return;
+    return d;
   }
-  if (++Pico_mcd->m.m68k_poll_cnt > 5)
-    SekCyclesBurnRun(122);
-
-  elprintf(EL_CDPOLL, "m68k poll [%02x] %d %u", a,
-    Pico_mcd->m.m68k_poll_cnt, SekCyclesDone());*/
+  Pico_mcd->m.m68k_poll_cnt++;
+  return d;
 }
 
 #ifndef _ASM_CD_MEMORY_C
@@ -104,10 +95,9 @@ static u32 m68k_reg_read16(u32 a)
       d = ((Pico_mcd->s68k_regs[0x33]<<13)&0x8000) | Pico_mcd->m.busreq; // here IFL2 is always 0, just like in Gens
       goto end;
     case 2:
-      m68k_comm_check(a);
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0xc7);
       elprintf(EL_CDREG3, "m68k_regs r3: %02x @%06x", (u8)d, SekPc);
-      goto end;
+      goto end_comm;
     case 4:
       d = Pico_mcd->s68k_regs[4]<<8;
       goto end;
@@ -131,16 +121,17 @@ static u32 m68k_reg_read16(u32 a)
 
   if (a < 0x30) {
     // comm flag/cmd/status (0xE-0x2F)
-    m68k_comm_check(a);
     d = (Pico_mcd->s68k_regs[a]<<8) | Pico_mcd->s68k_regs[a+1];
-    goto end;
+    goto end_comm;
   }
 
   elprintf(EL_UIO, "m68k_regs FIXME invalid read @ %02x", a);
 
 end:
-
   return d;
+
+end_comm:
+  return m68k_comm_check(a, d);
 }
 #endif
 
@@ -152,19 +143,24 @@ void m68k_reg_write8(u32 a, u32 d)
   u32 dold;
   a &= 0x3f;
 
-  Pico_mcd->m.m68k_poll_a = 0;
+  Pico_mcd->m.m68k_poll_a =
+  Pico_mcd->m.m68k_poll_cnt = 0;
 
   switch (a) {
     case 0:
       d &= 1;
-      if ((d&1) && (Pico_mcd->s68k_regs[0x33]&(1<<2))) { elprintf(EL_INTS, "m68k: s68k irq 2"); SekInterruptS68k(2); }
+      if (d && (Pico_mcd->s68k_regs[0x33] & PCDS_IEN2)) {
+        elprintf(EL_INTS, "m68k: s68k irq 2");
+        pcd_sync_s68k(SekCyclesDone(), 0);
+        SekInterruptS68k(2);
+      }
       return;
     case 1:
       d &= 3;
           elprintf(EL_CDREGS, "d m.busreq %u %u", d, Pico_mcd->m.busreq);
       if (d == Pico_mcd->m.busreq)
         return;
-      pcd_sync_s68k(SekCyclesDone());
+      pcd_sync_s68k(SekCyclesDone(), 0);
 
       if ((Pico_mcd->m.busreq ^ d) & 1) {
         elprintf(EL_INTSW, "m68k: s68k reset %i", !(d&1));
@@ -177,7 +173,7 @@ void m68k_reg_write8(u32 a, u32 d)
       }
       if ((Pico_mcd->m.busreq ^ d) & 2) {
         elprintf(EL_INTSW, "m68k: s68k brq %i", d >> 1);
-        remap_prg_window();
+        remap_prg_window(Pico_mcd->s68k_regs[3]);
       }
       Pico_mcd->m.busreq = d;
       return;
@@ -194,24 +190,19 @@ void m68k_reg_write8(u32 a, u32 d)
       if (dold & 4) {   // 1M mode
         d ^= 2;         // writing 0 to DMNA actually sets it, 1 does nothing
       } else {
-	if ((d ^ dold) & d & 2) { // DMNA is being set
+        if ((d ^ dold) & d & 2) { // DMNA is being set
           dold &= ~1;   // return word RAM to s68k
           /* Silpheed hack: bset(w3), r3, btst, bne, r3 */
           SekEndRun(20+16+10+12+16);
         }
       }
-      Pico_mcd->s68k_regs[3] = (d & 0xc2) | (dold & 0x1f);
+      d = (d & 0xc2) | (dold & 0x1f);
       if ((d ^ dold) & 0xc0) {
-        elprintf(EL_CDREGS, "m68k: prg bank: %i -> %i", (Pico_mcd->s68k_regs[a]>>6), ((d>>6)&3));
-        remap_prg_window();
+        elprintf(EL_CDREGS, "m68k: prg bank: %i -> %i",
+          (Pico_mcd->s68k_regs[a]>>6), ((d>>6)&3));
+        remap_prg_window(d);
       }
-#ifdef USE_POLL_DETECT
-      if ((s68k_poll_adclk&0xfe) == 2 && s68k_poll_cnt > POLL_LIMIT) {
-        SekSetStopS68k(0); s68k_poll_adclk = 0;
-        elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
-      }
-#endif
-      return;
+      goto write_comm;
     case 6:
       Pico_mcd->bios[0x72 + 1] = d; // simple hint vector changer
       return;
@@ -220,34 +211,30 @@ void m68k_reg_write8(u32 a, u32 d)
       elprintf(EL_CDREGS, "hint vector set to %04x%04x",
         ((u16 *)Pico_mcd->bios)[0x70/2], ((u16 *)Pico_mcd->bios)[0x72/2]);
       return;
-    case 0xf:
+    case 0x0f:
       d = (d << 1) | ((d >> 7) & 1); // rol8 1 (special case)
-    case 0xe:
-      if (d != Pico_mcd->s68k_regs[0xe]) {
-        pcd_sync_s68k(SekCyclesDone());
-        Pico_mcd->s68k_regs[0xe] = d;
-      }
-#ifdef USE_POLL_DETECT
-      if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
-        SekSetStopS68k(0); s68k_poll_adclk = 0;
-        elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
-      }
-#endif
-      return;
+      a = 0x0e;
+    case 0x0e:
+      goto write_comm;
   }
 
-  if ((a&0xf0) == 0x10) {
-      Pico_mcd->s68k_regs[a] = d;
-#ifdef USE_POLL_DETECT
-      if ((a&0xfe) == (s68k_poll_adclk&0xfe) && s68k_poll_cnt > POLL_LIMIT) {
-        SekSetStopS68k(0); s68k_poll_adclk = 0;
-        elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
-      }
-#endif
-      return;
-  }
+  if ((a&0xf0) == 0x10)
+    goto write_comm;
 
   elprintf(EL_UIO, "m68k FIXME: invalid write? [%02x] %02x", a, d);
+  return;
+
+write_comm:
+  if (d == Pico_mcd->s68k_regs[a])
+    return;
+
+  Pico_mcd->s68k_regs[a] = d;
+  pcd_sync_s68k(SekCyclesDone(), 0);
+  if (Pico_mcd->m.s68k_poll_a == a && Pico_mcd->m.s68k_poll_cnt > POLL_LIMIT) {
+    SekSetStopS68k(0);
+    Pico_mcd->m.s68k_poll_a = 0;
+    elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
+  }
 }
 
 #ifndef _ASM_CD_MEMORY_C
@@ -256,24 +243,26 @@ static
 u32 s68k_poll_detect(u32 a, u32 d)
 {
 #ifdef USE_POLL_DETECT
-  // needed mostly for Cyclone, which doesn't always check it's cycle counter
-  if (SekIsStoppedS68k()) return d;
-  // polling detection
-  if (a == (s68k_poll_adclk&0xff)) {
-    unsigned int clkdiff = SekCyclesDoneS68k() - (s68k_poll_adclk>>8);
+  u32 cycles, cnt = 0;
+  if (SekIsStoppedS68k())
+    return d;
+
+  cycles = SekCyclesDoneS68k();
+  if (a == Pico_mcd->m.s68k_poll_a) {
+    u32 clkdiff = cycles - Pico_mcd->m.s68k_poll_clk;
     if (clkdiff <= POLL_CYCLES) {
-      s68k_poll_cnt++;
-      //printf("-- diff: %u, cnt = %i\n", clkdiff, s68k_poll_cnt);
-      if (s68k_poll_cnt > POLL_LIMIT) {
+      cnt = Pico_mcd->m.s68k_poll_cnt + 1;
+      //printf("-- diff: %u, cnt = %i\n", clkdiff, cnt);
+      if (Pico_mcd->m.s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(1);
-        elprintf(EL_CDPOLL, "s68k poll detected @ %06x, a=%02x", SekPcS68k, a);
+        elprintf(EL_CDPOLL, "s68k poll detected @ %06x, a=%02x",
+          SekPcS68k, a);
       }
-      s68k_poll_adclk = (SekCyclesDoneS68k() << 8) | a;
-      return d;
     }
   }
-  s68k_poll_adclk = (SekCyclesDoneS68k() << 8) | a;
-  s68k_poll_cnt = 0;
+  Pico_mcd->m.s68k_poll_a = a;
+  Pico_mcd->m.s68k_poll_clk = cycles;
+  Pico_mcd->m.s68k_poll_cnt = cnt;
 #endif
   return d;
 }
@@ -384,7 +373,7 @@ void s68k_reg_write8(u32 a, u32 d)
         if (d & 1)
           d &= ~2;                       // DMNA clears
       }
-      break;
+      goto write_comm;
     }
     case 4:
       elprintf(EL_CDREGS, "s68k CDC dest: %x", d&7);
@@ -405,9 +394,12 @@ void s68k_reg_write8(u32 a, u32 d)
       // does this also reset internal 384 cycle counter?
       Pico_mcd->m.stopwatch_base_c = SekCyclesDoneS68k();
       return;
-    case 0xe:
+    case 0x0e:
+      d &= 0xff;
       d = (d>>1) | (d<<7); // ror8 1, Gens note: Dragons lair
-      break;
+      a = 0x0f;
+    case 0x0f:
+      goto write_comm;
     case 0x31: // 384 cycle int3 timer
       d &= 0xff;
       elprintf(EL_CDREGS|EL_CD, "s68k set int3 timer: %02x", d);
@@ -444,16 +436,23 @@ void s68k_reg_write8(u32 a, u32 d)
       return;
   }
 
+  if ((a&0x1f0) == 0x20)
+    goto write_comm;
+
   if ((a&0x1f0) == 0x10 || (a >= 0x38 && a < 0x42))
   {
     elprintf(EL_UIO, "s68k FIXME: invalid write @ %02x?", a);
     return;
   }
 
-  if (a < 0x30)
-    Pico_mcd->m.m68k_comm_dirty |= (1 << a/2);
-
   Pico_mcd->s68k_regs[a] = (u8) d;
+  return;
+
+write_comm:
+  Pico_mcd->s68k_regs[a] = (u8) d;
+  if (Pico_mcd->m.m68k_poll_cnt)
+    SekEndRunS68k(0);
+  Pico_mcd->m.m68k_poll_cnt = 0;
 }
 
 // -----------------------------------------------------------------
@@ -611,20 +610,10 @@ static void PicoWriteM68k16_io(u32 a, u32 d)
 {
   if ((a & 0xff00) == 0x2000) { // a12000 - a120ff
     elprintf(EL_CDREGS, "m68k_regs w16: [%02x] %04x @%06x", a&0x3f, d, SekPc);
-/* TODO FIXME?
-    if (a == 0xe) { // special case, 2 byte writes would be handled differently
-      Pico_mcd->s68k_regs[0xe] = d >> 8;
-#ifdef USE_POLL_DETECT
-      if ((s68k_poll_adclk&0xfe) == 0xe && s68k_poll_cnt > POLL_LIMIT) {
-        SekSetStopS68k(0); s68k_poll_adclk = 0;
-        elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
-      }
-#endif
-      return;
-    }
-*/
+
     m68k_reg_write8(a,     d >> 8);
-    m68k_reg_write8(a + 1, d & 0xff);
+    if ((a & 0x3e) != 0x0e) // special case
+      m68k_reg_write8(a + 1, d & 0xff);
     return;
   }
 
@@ -965,11 +954,11 @@ static const void *s68k_dec_write16[2][4] = {
 
 // -----------------------------------------------------------------
 
-static void remap_prg_window(void)
+static void remap_prg_window(int r3)
 {
   // PRG RAM
   if (Pico_mcd->m.busreq & 2) {
-    void *bank = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3] >> 6];
+    void *bank = Pico_mcd->prg_ram_b[r3 >> 6];
     cpu68k_map_all_ram(0x020000, 0x03ffff, bank, 0);
   }
   else {
@@ -1034,7 +1023,7 @@ void pcd_state_loaded_mem(void)
   if (r3 & 4) // 1M mode?
     wram_2M_to_1M(Pico_mcd->word_ram2M);
   remap_word_ram(r3);
-  remap_prg_window();
+  remap_prg_window(r3);
 
   // restore hint vector
   *(unsigned short *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
@@ -1144,9 +1133,6 @@ PICO_INTERNAL void PicoMemSetupCD(void)
 #ifdef EMU_M68K
   m68k_mem_setup_cd();
 #endif
-
-  // m68k_poll_addr = m68k_poll_cnt = 0;
-  s68k_poll_adclk = s68k_poll_cnt = 0;
 }
 
 
