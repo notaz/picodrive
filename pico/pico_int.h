@@ -395,7 +395,7 @@ struct mcd_misc
 	unsigned short s68k_poll_cnt;
 	unsigned int   s68k_poll_clk;
 	unsigned char  bcram_reg;	// 18: battery-backed RAM cart register
-	unsigned char  pad2;
+	unsigned char  dmna_ret_2m;
 	unsigned short pad3;
 	int pad4[9];
 };

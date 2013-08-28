@@ -252,15 +252,18 @@ int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
   #undef now
 }
 
+#define pcd_run_cpus_normal pcd_run_cpus
+//#define pcd_run_cpus_lockstep pcd_run_cpus
+
 static void SekSyncM68k(void);
 
-static void pcd_run_cpus(int m68k_cycles)
+static inline void pcd_run_cpus_normal(int m68k_cycles)
 {
   SekCycleAim += m68k_cycles;
   if (Pico_mcd->m.m68k_poll_cnt >= 16 && !SekShouldInterrupt()) {
     int s68k_left = pcd_sync_s68k(SekCycleAim, 1);
     if (s68k_left <= 0) {
-      elprintf(EL_CDPOLL, "m68k poll [%02x] %d @%06x",
+      elprintf(EL_CDPOLL, "m68k poll [%02x] x%d @%06x",
         Pico_mcd->m.m68k_poll_a, Pico_mcd->m.m68k_poll_cnt, SekPc);
       SekCycleCnt = SekCycleAim;
       return;
@@ -269,6 +272,16 @@ static void pcd_run_cpus(int m68k_cycles)
   }
 
   SekSyncM68k();
+}
+
+static inline void pcd_run_cpus_lockstep(int m68k_cycles)
+{
+  unsigned int target = SekCycleAim + m68k_cycles;
+  do {
+    SekCycleAim += 8;
+    SekSyncM68k();
+    pcd_sync_s68k(SekCycleAim, 0);
+  } while (CYCLES_GT(target, SekCycleAim));
 }
 
 #define PICO_CD
