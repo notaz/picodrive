@@ -212,7 +212,6 @@ void m68k_reg_write8(u32 a, u32 d)
         ((u16 *)Pico_mcd->bios)[0x70/2], ((u16 *)Pico_mcd->bios)[0x72/2]);
       return;
     case 0x0f:
-      d = (d << 1) | ((d >> 7) & 1); // rol8 1 (special case)
       a = 0x0e;
     case 0x0e:
       goto write_comm;
@@ -394,8 +393,6 @@ void s68k_reg_write8(u32 a, u32 d)
       Pico_mcd->m.stopwatch_base_c = SekCyclesDoneS68k();
       return;
     case 0x0e:
-      d &= 0xff;
-      d = (d>>1) | (d<<7); // ror8 1, Gens note: Dragons lair
       a = 0x0f;
     case 0x0f:
       goto write_comm;
@@ -646,17 +643,17 @@ static void s68k_unmapped_write16(u32 a, u32 d)
   elprintf(EL_UIO, "s68k unmapped w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
 }
 
-// PRG RAM protected range (000000 - 00ff00)?
+// PRG RAM protected range (000000 - 01fdff)?
 // XXX verify: ff00 or 1fe00 max?
 static void PicoWriteS68k8_prgwp(u32 a, u32 d)
 {
-  if (a >= (Pico_mcd->s68k_regs[2] << 8))
+  if (a >= (Pico_mcd->s68k_regs[2] << 9))
     Pico_mcd->prg_ram[a ^ 1] = d;
 }
 
 static void PicoWriteS68k16_prgwp(u32 a, u32 d)
 {
-  if (a >= (Pico_mcd->s68k_regs[2] << 8))
+  if (a >= (Pico_mcd->s68k_regs[2] << 9))
     *(u16 *)(Pico_mcd->prg_ram + a) = d;
 }
 
@@ -1067,8 +1064,8 @@ PICO_INTERNAL void PicoMemSetupCD(void)
   cpu68k_map_set(s68k_read16_map,  0x000000, 0x07ffff, Pico_mcd->prg_ram, 0);
   cpu68k_map_set(s68k_write8_map,  0x000000, 0x07ffff, Pico_mcd->prg_ram, 0);
   cpu68k_map_set(s68k_write16_map, 0x000000, 0x07ffff, Pico_mcd->prg_ram, 0);
-  cpu68k_map_set(s68k_write8_map,  0x000000, 0x00ffff, PicoWriteS68k8_prgwp, 1);
-  cpu68k_map_set(s68k_write16_map, 0x000000, 0x00ffff, PicoWriteS68k16_prgwp, 1);
+  cpu68k_map_set(s68k_write8_map,  0x000000, 0x01ffff, PicoWriteS68k8_prgwp, 1);
+  cpu68k_map_set(s68k_write16_map, 0x000000, 0x01ffff, PicoWriteS68k16_prgwp, 1);
 
   // BRAM
   cpu68k_map_set(s68k_read8_map,   0xfe0000, 0xfeffff, PicoReadS68k8_bram, 1);

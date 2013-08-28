@@ -471,6 +471,10 @@ PICO_INTERNAL int Play_CDD_c3(void)
 	if (delay < 0) delay = -delay;
 	delay >>= 12;
 
+	// based on genplys GX
+	if (delay < 13)
+		delay = 13;
+
 	Pico_mcd->scd.Cur_LBA = new_lba;
 	CDC_Update_Header();
 
