@@ -35,19 +35,24 @@ PICO_INTERNAL void PicoPowerMCD(void)
   memset(Pico_mcd->word_ram2M, 0, sizeof(Pico_mcd->word_ram2M));
   memset(Pico_mcd->pcm_ram,    0, sizeof(Pico_mcd->pcm_ram));
   memset(Pico_mcd->bram, 0, sizeof(Pico_mcd->bram));
-  memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - fmt_size, formatted_bram, fmt_size);
-}
-
-PICO_INTERNAL int PicoResetMCD(void)
-{
+  memcpy(Pico_mcd->bram + sizeof(Pico_mcd->bram) - fmt_size,
+    formatted_bram, fmt_size);
   memset(Pico_mcd->s68k_regs, 0, sizeof(Pico_mcd->s68k_regs));
   memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));
   memset(&Pico_mcd->m, 0, sizeof(Pico_mcd->m));
 
-  memset(Pico_mcd->bios + 0x70, 0xff, 4); // reset hint vector (simplest way to implement reg6)
-  Pico_mcd->m.state_flags = 0;
-  Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode with m68k access after reset
+  // cold reset state (tested)
+  Pico_mcd->m.state_flags = PCD_ST_S68K_RST;
+  Pico_mcd->m.busreq = 2;     // busreq on, s68k in reset
+  Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode, m68k access
+  Pico_mcd->s68k_regs[6] = 0xff;
+  Pico_mcd->s68k_regs[7] = 0xff;
+  memset(Pico_mcd->bios + 0x70, 0xff, 4);
+}
 
+PICO_INTERNAL int PicoResetMCD(void)
+{
+  // ??
   Reset_CD();
   LC89510_Reset();
   gfx_cd_reset();
@@ -229,7 +234,7 @@ int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
   elprintf(EL_CD, "s68k sync to %u, %u->%u",
     m68k_target, now, s68k_target);
 
-  if ((Pico_mcd->m.busreq & 3) != 1) { /* busreq/reset */
+  if (Pico_mcd->m.busreq != 1) { /* busreq/reset */
     SekCycleCntS68k = SekCycleAimS68k = s68k_target;
     pcd_run_events(m68k_target);
     return 0;

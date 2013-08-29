@@ -171,10 +171,6 @@ int PicoReset(void)
   SekSetRealTAS(PicoAHW & PAHW_MCD);
   SekCycleCnt = SekCycleAim = 0;
 
-  if (PicoAHW & PAHW_MCD)
-    // needed for MCD to reset properly, probably some bug hides behind this..
-    memset(Pico.ioports,0,sizeof(Pico.ioports));
-
   Pico.m.dirtyPal = 1;
 
   Pico.m.z80_bank68k = 0;

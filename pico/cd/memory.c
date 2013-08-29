@@ -65,8 +65,8 @@ void PicoWriteS68k16_dec_m1b1(u32 a, u32 d);
 void PicoWriteS68k16_dec_m2b1(u32 a, u32 d);
 #endif
 
-static void remap_prg_window(int r3);
-static void remap_word_ram(int r3);
+static void remap_prg_window(u32 r1, u32 r3);
+static void remap_word_ram(u32 r3);
 
 // poller detection
 #define POLL_LIMIT 16
@@ -87,12 +87,14 @@ u32 m68k_comm_check(u32 a, u32 d)
 #ifndef _ASM_CD_MEMORY_C
 static u32 m68k_reg_read16(u32 a)
 {
-  u32 d=0;
+  u32 d = 0;
   a &= 0x3e;
 
   switch (a) {
     case 0:
-      d = ((Pico_mcd->s68k_regs[0x33]<<13)&0x8000) | Pico_mcd->m.busreq; // here IFL2 is always 0, just like in Gens
+      // here IFL2 is always 0, just like in Gens
+      d = ((Pico_mcd->s68k_regs[0x33] << 13) & 0x8000)
+        | Pico_mcd->m.busreq;
       goto end;
     case 2:
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0xc7);
@@ -157,23 +159,26 @@ void m68k_reg_write8(u32 a, u32 d)
       return;
     case 1:
       d &= 3;
-          elprintf(EL_CDREGS, "d m.busreq %u %u", d, Pico_mcd->m.busreq);
-      if (d == Pico_mcd->m.busreq)
+      dold = Pico_mcd->m.busreq;
+      if (!(d & 1))
+        d |= 2; // verified: can't release bus on reset
+      if (dold == d)
         return;
+
       pcd_sync_s68k(SekCyclesDone(), 0);
 
-      if ((Pico_mcd->m.busreq ^ d) & 1) {
+      if ((dold ^ d) & 1)
         elprintf(EL_INTSW, "m68k: s68k reset %i", !(d&1));
-        if (!(d & 1))
-          d |= 2; // verified: reset also gives bus
-        else {
-          elprintf(EL_CDREGS, "m68k: resetting s68k");
-          SekResetS68k();
-        }
+      if (!(d & 1))
+        Pico_mcd->m.state_flags |= PCD_ST_S68K_RST;
+      else if (d == 1 && (Pico_mcd->m.state_flags & PCD_ST_S68K_RST)) {
+        Pico_mcd->m.state_flags &= ~PCD_ST_S68K_RST;
+        elprintf(EL_CDREGS, "m68k: resetting s68k");
+        SekResetS68k();
       }
-      if ((Pico_mcd->m.busreq ^ d) & 2) {
+      if ((dold ^ d) & 2) {
         elprintf(EL_INTSW, "m68k: s68k brq %i", d >> 1);
-        remap_prg_window(Pico_mcd->s68k_regs[3]);
+        remap_prg_window(d, Pico_mcd->s68k_regs[3]);
       }
       Pico_mcd->m.busreq = d;
       return;
@@ -187,7 +192,7 @@ void m68k_reg_write8(u32 a, u32 d)
       if ((d ^ dold) & 0xc0) {
         elprintf(EL_CDREGS, "m68k: prg bank: %i -> %i",
           (Pico_mcd->s68k_regs[a]>>6), ((d>>6)&3));
-        remap_prg_window(d);
+        remap_prg_window(Pico_mcd->m.busreq, d);
       }
 
       // 2M mode state is tracked regardless of current mode
@@ -953,11 +958,11 @@ static const void *s68k_dec_write16[2][4] = {
 
 // -----------------------------------------------------------------
 
-static void remap_prg_window(int r3)
+static void remap_prg_window(u32 r1, u32 r3)
 {
   // PRG RAM
-  if (Pico_mcd->m.busreq & 2) {
-    void *bank = Pico_mcd->prg_ram_b[r3 >> 6];
+  if (r1 & 2) {
+    void *bank = Pico_mcd->prg_ram_b[(r3 >> 6) & 3];
     cpu68k_map_all_ram(0x020000, 0x03ffff, bank, 0);
   }
   else {
@@ -965,7 +970,7 @@ static void remap_prg_window(int r3)
   }
 }
 
-static void remap_word_ram(int r3)
+static void remap_word_ram(u32 r3)
 {
   void *bank;
 
@@ -1016,13 +1021,13 @@ static void remap_word_ram(int r3)
 
 void pcd_state_loaded_mem(void)
 {
-  int r3 = Pico_mcd->s68k_regs[3];
+  u32 r3 = Pico_mcd->s68k_regs[3];
 
   /* after load events */
   if (r3 & 4) // 1M mode?
     wram_2M_to_1M(Pico_mcd->word_ram2M);
   remap_word_ram(r3);
-  remap_prg_window(r3);
+  remap_prg_window(Pico_mcd->m.busreq, r3);
   Pico_mcd->m.dmna_ret_2m &= 3;
 
   // restore hint vector

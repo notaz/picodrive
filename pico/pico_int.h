@@ -382,10 +382,12 @@ struct mcd_pcm
 	} ch[8];
 };
 
+#define PCD_ST_S68K_RST 1
+
 struct mcd_misc
 {
 	unsigned short hint_vector;
-	unsigned char  busreq;
+	unsigned char  busreq;		// not s68k_regs[1]
 	unsigned char  s68k_pend_ints;
 	unsigned int   state_flags;	// 04
 	unsigned int   stopwatch_base_c;
