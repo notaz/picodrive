@@ -180,7 +180,7 @@ typedef enum {
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
 } chunk_name_e;
 
-static const char * const chunk_names[] = {
+static const char * const chunk_names[CHUNK_DEFAULT_COUNT] = {
   "INVALID!",
   "M68K state",
   "RAM",
@@ -237,7 +237,7 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 }
 
 #define CHECKED_WRITE(name,len,data) { \
-  if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT) { \
+  if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT && chunk_names[name]) { \
     strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff) - 9); \
     PicoStateProgressCB(sbuff); \
   } \
@@ -245,7 +245,7 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 }
 
 #define CHECKED_WRITE_BUFF(name,buff) { \
-  if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT) { \
+  if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT && chunk_names[name]) { \
     strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff) - 9); \
     PicoStateProgressCB(sbuff); \
   } \
