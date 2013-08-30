@@ -121,7 +121,7 @@ void  emu_set_defconfig(void);
 int   emu_read_config(const char *rom_fname, int no_defaults);
 int   emu_write_config(int game);
 
-char *emu_get_save_fname(int load, int is_sram, int slot);
+char *emu_get_save_fname(int load, int is_sram, int slot, int *time);
 int   emu_check_save_file(int slot, int *time);
 
 void  emu_text_out8 (int x, int y, const char *text);

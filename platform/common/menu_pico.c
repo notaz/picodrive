@@ -135,7 +135,7 @@ static void draw_savestate_bg(int slot)
 	const char *fname;
 	void *tmp_state;
 
-	fname = emu_get_save_fname(1, 0, slot);
+	fname = emu_get_save_fname(1, 0, slot, NULL);
 	if (!fname)
 		return;
 
@@ -1166,6 +1166,7 @@ void menu_update_msg(const char *msg)
 static menu_entry e_menu_hidden[] =
 {
 	mee_onoff("Accurate sprites", MA_OPT_ACC_SPRITES, PicoOpt, 0x080),
+	mee_onoff("autoload savestates", MA_OPT_AUTOLOAD_SAVE, g_autostateld_opt, 1),
 	mee_end,
 };
 

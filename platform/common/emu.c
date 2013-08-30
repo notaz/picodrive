@@ -490,6 +490,30 @@ int emu_reload_rom(const char *rom_fname_in)
 	if (currentConfig.EmuOpt & EOPT_EN_SRAM)
 		emu_save_load_game(1, 1);
 
+	// state autoload?
+	if (g_autostateld_opt) {
+		int time, newest = 0, newest_slot = -1;
+		int slot;
+
+		for (slot = 0; slot < 10; slot++) {
+			if (emu_check_save_file(slot, &time)) {
+				if (time > newest) {
+					newest = time;
+					newest_slot = slot;
+				}
+			}
+		}
+
+		if (newest_slot >= 0) {
+			lprintf("autoload slot %d\n", newest_slot);
+			state_slot = newest_slot;
+			emu_save_load_game(1, 0);
+		}
+		else {
+			lprintf("no save to autoload.\n");
+		}
+	}
+
 	retval = 1;
 out:
 	if (menu_romload_started)
@@ -736,19 +760,25 @@ void update_movie(void)
 	}
 }
 
-static int try_ropen_file(const char *fname)
+static int try_ropen_file(const char *fname, int *time)
 {
+	struct stat st;
 	FILE *f;
 
 	f = fopen(fname, "rb");
 	if (f) {
+		if (time != NULL) {
+			*time = 0;
+			if (fstat(fileno(f), &st) == 0)
+				*time = (int)st.st_mtime;
+		}
 		fclose(f);
 		return 1;
 	}
 	return 0;
 }
 
-char *emu_get_save_fname(int load, int is_sram, int slot)
+char *emu_get_save_fname(int load, int is_sram, int slot, int *time)
 {
 	char *saveFname = static_buff;
 	char ext[16];
@@ -761,11 +791,11 @@ char *emu_get_save_fname(int load, int is_sram, int slot)
 		if (!load)
 			return saveFname;
 
-		if (try_ropen_file(saveFname))
+		if (try_ropen_file(saveFname, time))
 			return saveFname;
 
 		romfname_ext(saveFname, sizeof(static_buff), NULL, ext);
-		if (try_ropen_file(saveFname))
+		if (try_ropen_file(saveFname, time))
 			return saveFname;
 	}
 	else
@@ -783,11 +813,11 @@ char *emu_get_save_fname(int load, int is_sram, int slot)
 		}
 		else {
 			romfname_ext(saveFname, sizeof(static_buff), "mds" PATH_SEP, ext);
-			if (try_ropen_file(saveFname))
+			if (try_ropen_file(saveFname, time))
 				return saveFname;
 
 			romfname_ext(saveFname, sizeof(static_buff), NULL, ext);
-			if (try_ropen_file(saveFname))
+			if (try_ropen_file(saveFname, time))
 				return saveFname;
 
 			// try the other ext
@@ -797,7 +827,7 @@ char *emu_get_save_fname(int load, int is_sram, int slot)
 			strcat(ext, ext_othr);
 
 			romfname_ext(saveFname, sizeof(static_buff), "mds"PATH_SEP, ext);
-			if (try_ropen_file(saveFname))
+			if (try_ropen_file(saveFname, time))
 				return saveFname;
 		}
 	}
@@ -807,7 +837,7 @@ char *emu_get_save_fname(int load, int is_sram, int slot)
 
 int emu_check_save_file(int slot, int *time)
 {
-	return emu_get_save_fname(1, 0, slot) ? 1 : 0;
+	return emu_get_save_fname(1, 0, slot, time) ? 1 : 0;
 }
 
 int emu_save_load_game(int load, int sram)
@@ -816,7 +846,7 @@ int emu_save_load_game(int load, int sram)
 	char *saveFname;
 
 	// make save filename
-	saveFname = emu_get_save_fname(load, sram, state_slot);
+	saveFname = emu_get_save_fname(load, sram, state_slot, NULL);
 	if (saveFname == NULL) {
 		if (!sram)
 			emu_status_msg(load ? "LOAD FAILED (missing file)" : "SAVE FAILED");

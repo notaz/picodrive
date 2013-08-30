@@ -41,6 +41,7 @@ typedef enum
 	MA_OPT_ROTATION,	/* uiq */
 	MA_OPT_TEARING_FIX,	/* wiz */
 	MA_OPT_VOUT_MODE,
+	MA_OPT_AUTOLOAD_SAVE,
 	MA_OPT2_GAMMA,
 	MA_OPT2_A_SN_GAMMA,
 	MA_OPT2_DBLBUFF,	/* giz */
