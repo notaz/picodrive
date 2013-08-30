@@ -174,6 +174,8 @@ extern struct DrZ80 drZ80;
 #define z80_run(cycles)    ((cycles) - DrZ80Run(&drZ80, cycles))
 #define z80_run_nr(cycles) DrZ80Run(&drZ80, cycles)
 #define z80_int()          drZ80.Z80_IRQ = 1
+#define z80_int()          drZ80.Z80_IRQ = 1
+#define z80_nmi()          drZ80.Z80IF |= 8
 
 #define z80_cyclesLeft     drZ80.cycles
 #define z80_pc()           (drZ80.Z80PC - drZ80.Z80PC_BASE)
@@ -184,6 +186,7 @@ extern struct DrZ80 drZ80;
 #define z80_run(cycles)    Cz80_Exec(&CZ80, cycles)
 #define z80_run_nr(cycles) Cz80_Exec(&CZ80, cycles)
 #define z80_int()          Cz80_Set_IRQ(&CZ80, 0, HOLD_LINE)
+#define z80_nmi()          Cz80_Set_IRQ(&CZ80, IRQ_LINE_NMI, 0)
 
 #define z80_cyclesLeft     (CZ80.ICount - CZ80.ExtraCycles)
 #define z80_pc()           Cz80_Get_Reg(&CZ80, CZ80_PC)
@@ -193,6 +196,7 @@ extern struct DrZ80 drZ80;
 #define z80_run(cycles)    (cycles)
 #define z80_run_nr(cycles)
 #define z80_int()
+#define z80_nmi()
 
 #endif
 
@@ -313,7 +317,8 @@ struct PicoMS
 {
   unsigned char carthw[0x10];
   unsigned char io_ctl;
-  unsigned char pad[0x4f];
+  unsigned char nmi_state;
+  unsigned char pad[0x4e];
 };
 
 // some assembly stuff depend on these, do not touch!
