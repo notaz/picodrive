@@ -77,7 +77,7 @@ typedef struct _currentConfig_t {
 } currentConfig_t;
 
 extern currentConfig_t currentConfig, defaultConfig;
-extern char *PicoConfigFile;
+extern const char *PicoConfigFile;
 extern int state_slot;
 extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;

@@ -43,7 +43,7 @@ void *g_screen_ptr;
 int g_screen_width  = 320;
 int g_screen_height = 240;
 
-char *PicoConfigFile = "config.cfg";
+const char *PicoConfigFile = "config2.cfg";
 currentConfig_t currentConfig, defaultConfig;
 int state_slot = 0;
 int config_slot = 0, config_slot_current = 0;
@@ -1276,16 +1276,10 @@ static void emu_loop_prep(void)
 		filter_old = currentConfig.filter;
 	}
 
+printf("-- gamma %d\n", currentConfig.gamma);
 	plat_target_gamma_set(currentConfig.gamma, 0);
 
 	pemu_loop_prep();
-}
-
-static void skip_frame(int do_audio)
-{
-	PicoSkipFrame = do_audio ? 1 : 2;
-	PicoFrame();
-	PicoSkipFrame = 0;
 }
 
 /* our tick here is 1 us right now */
@@ -1294,13 +1288,14 @@ static void skip_frame(int do_audio)
 
 void emu_loop(void)
 {
-	int pframes_done;		/* "period" frames, used for sync */
 	int frames_done, frames_shown;	/* actual frames for fps counter */
-	int target_fps, target_frametime;
-	unsigned int timestamp_base = 0, timestamp_fps;
+	int target_frametime_x3;
+	unsigned int timestamp_x3 = 0;
+	unsigned int timestamp_aim_x3 = 0;
+	unsigned int timestamp_fps_x3 = 0;
 	char *notice_msg = NULL;
 	char fpsbuff[24];
-	int i;
+	int fskip_cnt = 0;
 
 	fpsbuff[0] = 0;
 
@@ -1315,45 +1310,47 @@ void emu_loop(void)
 	pemu_sound_start();
 
 	/* number of ticks per frame */
-	if (Pico.m.pal) {
-		target_fps = 50;
-		target_frametime = ms_to_ticks(1000) / 50;
-	} else {
-		target_fps = 60;
-		target_frametime = ms_to_ticks(1000) / 60 + 1;
-	}
+	if (Pico.m.pal)
+		target_frametime_x3 = 3 * ms_to_ticks(1000) / 50;
+	else
+		target_frametime_x3 = 3 * ms_to_ticks(1000) / 60;
 
-	timestamp_fps = get_ticks();
 	reset_timing = 1;
-
-	frames_done = frames_shown = pframes_done = 0;
-
-	plat_video_wait_vsync();
+	frames_done = frames_shown = 0;
 
 	/* loop with resync every 1 sec. */
 	while (engineState == PGS_Running)
 	{
-		unsigned int timestamp;
-		int diff, diff_lim;
+		int skip = 0;
+		int diff;
 
 		pprof_start(main);
 
-		timestamp = get_ticks();
 		if (reset_timing) {
 			reset_timing = 0;
-			timestamp_base = timestamp;
-			pframes_done = 0;
+			plat_video_wait_vsync();
+			timestamp_aim_x3 = get_ticks() * 3;
+			timestamp_fps_x3 = timestamp_aim_x3;
+			fskip_cnt = 0;
 		}
+		else if (currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) {
+			timestamp_aim_x3 = get_ticks() * 3;
+		}
+
+		timestamp_x3 = get_ticks() * 3;
 
 		// show notice_msg message?
 		if (notice_msg_time != 0)
 		{
 			static int noticeMsgSum;
-			if (timestamp - ms_to_ticks(notice_msg_time) > ms_to_ticks(STATUS_MSG_TIMEOUT)) {
+			if (timestamp_x3 - ms_to_ticks(notice_msg_time) * 3
+			     > ms_to_ticks(STATUS_MSG_TIMEOUT) * 3)
+			{
 				notice_msg_time = 0;
 				plat_status_msg_clear();
 				notice_msg = NULL;
-			} else {
+			}
+			else {
 				int sum = noticeMsg[0] + noticeMsg[1] + noticeMsg[2];
 				if (sum != noticeMsgSum) {
 					plat_status_msg_clear();
@@ -1364,7 +1361,7 @@ void emu_loop(void)
 		}
 
 		// second changed?
-		if (timestamp - timestamp_fps >= ms_to_ticks(1000))
+		if (timestamp_x3 - timestamp_fps_x3 >= ms_to_ticks(1000) * 3)
 		{
 #ifdef BENCHMARK
 			static int bench = 0, bench_fps = 0, bench_fps_s = 0, bfp = 0, bf[4];
@@ -1382,85 +1379,78 @@ void emu_loop(void)
 				sprintf(fpsbuff, "%02i/%02i  ", frames_shown, frames_done);
 #endif
 			frames_shown = frames_done = 0;
-			timestamp_fps += ms_to_ticks(1000);
+			timestamp_fps_x3 += ms_to_ticks(1000) * 3;
 		}
 #ifdef PFRAMES
 		sprintf(fpsbuff, "%i", Pico.m.frame_count);
 #endif
 
-		if (timestamp - timestamp_base >= ms_to_ticks(1000))
+		diff = timestamp_aim_x3 - timestamp_x3;
+
+		if (currentConfig.Frameskip >= 0) // frameskip enabled (or 0)
 		{
-			if ((currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) && currentConfig.Frameskip >= 0)
-				pframes_done = 0;
-			else
-				pframes_done -= target_fps;
-			if (pframes_done < -2) {
-				/* don't drag more than 2 frames behind */
-				pframes_done = -2;
-				timestamp_base = timestamp - 2 * target_frametime;
+			if (fskip_cnt < currentConfig.Frameskip) {
+				fskip_cnt++;
+				skip = 1;
 			}
-			else
-				timestamp_base += ms_to_ticks(1000);
-		}
-
-		diff = timestamp - timestamp_base;
-		diff_lim = (pframes_done + 1) * target_frametime;
-
-		if (currentConfig.Frameskip >= 0) // frameskip enabled
-		{
-			for (i = 0; i < currentConfig.Frameskip; i++) {
-				emu_update_input();
-				skip_frame(1);
-				pframes_done++; frames_done++;
-				diff_lim += target_frametime;
-
-				if (!(currentConfig.EmuOpt & (EOPT_NO_FRMLIMIT|EOPT_EXT_FRMLIMIT))) {
-					timestamp = get_ticks();
-					diff = timestamp - timestamp_base;
-					if (!reset_timing && diff < diff_lim) // we are too fast
-						plat_wait_till_us(timestamp_base + diff_lim);
-				}
+			else {
+				fskip_cnt = 0;
 			}
 		}
-		else if (diff > diff_lim)
+		else if (diff < -target_frametime_x3)
 		{
 			/* no time left for this frame - skip */
 			/* limit auto frameskip to 8 */
-			if (frames_done / 8 <= frames_shown) {
-				emu_update_input();
-				skip_frame(diff < diff_lim + target_frametime * 16);
-				pframes_done++; frames_done++;
-				continue;
-			}
+			if (frames_done / 8 <= frames_shown)
+				skip = 1;
+		}
+
+		// don't go in debt too much
+		while (diff < -target_frametime_x3 * 3) {
+			timestamp_aim_x3 += target_frametime_x3;
+			diff = timestamp_aim_x3 - timestamp_x3;
 		}
 
 		emu_update_input();
-		PicoFrame();
-		pemu_finalize_frame(fpsbuff, notice_msg);
+		if (skip) {
+			int do_audio = diff > -target_frametime_x3 * 2;
+			PicoSkipFrame = do_audio ? 1 : 2;
+			PicoFrame();
+			PicoSkipFrame = 0;
+		}
+		else {
+			PicoFrame();
+			pemu_finalize_frame(fpsbuff, notice_msg);
+			frames_shown++;
+		}
+		frames_done++;
+		timestamp_aim_x3 += target_frametime_x3;
 
-		if (!flip_after_sync)
+		if (!skip && !flip_after_sync)
 			plat_video_flip();
 
 		/* frame limiter */
-		if (!reset_timing && !(currentConfig.EmuOpt & (EOPT_NO_FRMLIMIT|EOPT_EXT_FRMLIMIT)))
+		if (!skip && !reset_timing
+		    && !(currentConfig.EmuOpt & (EOPT_NO_FRMLIMIT|EOPT_EXT_FRMLIMIT)))
 		{
-			timestamp = get_ticks();
-			diff = timestamp - timestamp_base;
+			unsigned int timestamp = get_ticks();
+			diff = timestamp_aim_x3 - timestamp * 3;
 
 			// sleep or vsync if we are still too fast
-			if (diff < diff_lim)
-			{
+			if (diff > target_frametime_x3 && (currentConfig.EmuOpt & EOPT_VSYNC)) {
 				// we are too fast
-				plat_wait_till_us(timestamp_base + diff_lim - target_frametime / 4);
-				if (currentConfig.EmuOpt & EOPT_VSYNC)
-					plat_video_wait_vsync();
+				plat_video_wait_vsync();
+				timestamp = get_ticks();
+				diff = timestamp * 3 - timestamp_aim_x3;
+			}
+			if (diff > target_frametime_x3) {
+				// still too fast
+				plat_wait_till_us(timestamp + (diff - target_frametime_x3) / 3);
 			}
 		}
 
-		if (flip_after_sync)
+		if (!skip && flip_after_sync)
 			plat_video_flip();
-
-		pframes_done++; frames_done++; frames_shown++;
 
 		pprof_end(main);
 	}

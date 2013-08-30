@@ -927,7 +927,7 @@ static void debug_menu_loop(void)
 // ------------ main menu ------------
 
 static const char credits[] =
-	"PicoDrive v" VERSION " (c) notaz, 2006-2011\n\n\n"
+	"PicoDrive v" VERSION " (c) notaz, 2006-2013\n\n\n"
 	"Credits:\n"
 	"fDave: Cyclone 68000 core,\n"
 	"      base code of PicoDrive\n"
@@ -935,7 +935,6 @@ static const char credits[] =
 	"MAME devs: YM2612 and SN76496 cores\n"
 	"Inder, ketchupgun: graphics\n"
 #ifdef __GP2X__
-	"rlyeh and others: minimal SDK\n"
 	"Squidge: mmuhack\n"
 	"Dzz: ARM940 sample\n"
 #endif
@@ -944,7 +943,7 @@ static const char credits[] =
 	" Charles MacDonald, Haze,\n"
 	" Stephane Dallongeville,\n"
 	" Lordus, Exophase, Rokas,\n"
-	" Nemesis, Tasco Deluxe";
+	" Eke, Nemesis, Tasco Deluxe";
 
 static void menu_main_draw_status(void)
 {

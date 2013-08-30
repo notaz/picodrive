@@ -308,11 +308,6 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 				return 0;
 			return 1;
 
-		case MA_OPT2_GAMMA:
-			if (strcasecmp(var, "Gamma correction") != 0) return 0;
-			currentConfig.gamma = (int) (atof(val) * 100.0);
-			return 1;
-
 		case MA_CDOPT_READAHEAD:
 			if (strcasecmp(var, "ReadAhead buffer") != 0) return 0;
 			PicoCDBuffers = atoi(val) / 2;
