@@ -165,10 +165,7 @@ SRCS_COMMON += $(R)platform/libpicofe/linux/host_dasm.c
 LDFLAGS += -lbfd -lopcodes -liberty
 endif
 endif # use_sh2drc
-#
-ifeq "$(use_sh2mame)" "1"
 SRCS_COMMON += $(R)cpu/sh2/mame/sh2pico.c
-endif
 endif # !no_32x
 
 OBJS_COMMON := $(SRCS_COMMON:.c=.o)

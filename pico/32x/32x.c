@@ -371,7 +371,7 @@ static inline void run_sh2(SH2 *sh2, int m68k_cycles)
   elprintf_sh2(sh2, EL_32X, "+run %u %d @%08x",
     sh2->m68krcycles_done, cycles, sh2->pc);
 
-  done = sh2_execute(sh2, cycles);
+  done = sh2_execute(sh2, cycles, PicoOpt & POPT_EN_DRC);
 
   sh2->m68krcycles_done += C_SH2_TO_M68K(*sh2, done);
   sh2->state &= ~SH2_STATE_RUN;

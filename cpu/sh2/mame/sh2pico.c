@@ -17,12 +17,46 @@ typedef unsigned short UINT16;
 typedef unsigned char  UINT8;
 #endif
 
-#define RB(sh2, a) p32x_sh2_read8(a,sh2)
-#define RW(sh2, a) p32x_sh2_read16(a,sh2)
-#define RL(sh2, a) p32x_sh2_read32(a,sh2)
-#define WB(sh2, a, d) p32x_sh2_write8(a,d,sh2)
-#define WW(sh2, a, d) p32x_sh2_write16(a,d,sh2)
-#define WL(sh2, a, d) p32x_sh2_write32(a,d,sh2)
+#ifdef DRC_SH2
+
+// this nasty conversion is needed for drc-expecting memhandlers
+#define MAKE_READFUNC(name, cname) \
+static inline unsigned int name(SH2 *sh2, unsigned int a) \
+{ \
+	unsigned int ret; \
+	sh2->sr |= sh2->icount << 12; \
+	ret = cname(a, sh2); \
+	sh2->icount = (signed int)sh2->sr >> 12; \
+	sh2->sr &= 0x3f3; \
+	return ret; \
+}
+
+#define MAKE_WRITEFUNC(name, cname) \
+static inline void name(SH2 *sh2, unsigned int a, unsigned int d) \
+{ \
+	sh2->sr |= sh2->icount << 12; \
+	cname(a, d, sh2); \
+	sh2->icount = (signed int)sh2->sr >> 12; \
+	sh2->sr &= 0x3f3; \
+}
+
+MAKE_READFUNC(RB, p32x_sh2_read8)
+MAKE_READFUNC(RW, p32x_sh2_read16)
+MAKE_READFUNC(RL, p32x_sh2_read32)
+MAKE_WRITEFUNC(WB, p32x_sh2_write8)
+MAKE_WRITEFUNC(WW, p32x_sh2_write16)
+MAKE_WRITEFUNC(WL, p32x_sh2_write32)
+
+#else
+
+#define RB(sh2, a) p32x_sh2_read8(a, sh2)
+#define RW(sh2, a) p32x_sh2_read16(a, sh2)
+#define RL(sh2, a) p32x_sh2_read32(a, sh2)
+#define WB(sh2, a, d) p32x_sh2_write8(a, d, sh2)
+#define WW(sh2, a, d) p32x_sh2_write16(a, d, sh2)
+#define WL(sh2, a, d) p32x_sh2_write32(a, d, sh2)
+
+#endif
 
 // some stuff from sh2comn.h
 #define T	0x00000001
@@ -71,14 +105,13 @@ static unsigned int op_refs[0x10000];
 
 #include "sh2.c"
 
-#ifndef DRC_SH2
 #ifndef DRC_CMP
 
-int sh2_execute(SH2 *sh2, int cycles)
+int sh2_execute_interpreter(SH2 *sh2, int cycles)
 {
 	UINT32 opcode;
 
-	sh2->icount = sh2->cycles_timeslice = cycles;
+	sh2->icount = cycles;
 
 	if (sh2->icount <= 0)
 		goto out;
@@ -134,12 +167,12 @@ int sh2_execute(SH2 *sh2, int cycles)
 	while (sh2->icount > 0 || sh2->delay);	/* can't interrupt before delay */
 
 out:
-	return sh2->cycles_timeslice - sh2->icount;
+	return sh2->icount;
 }
 
 #else // if DRC_CMP
 
-int sh2_execute(SH2 *sh2, int cycles)
+int sh2_execute_interpreter(SH2 *sh2, int cycles)
 {
 	static unsigned int base_pc_[2] = { 0, 0 };
 	static unsigned int end_pc_[2] = { 0, 0 };
@@ -233,11 +266,10 @@ int sh2_execute(SH2 *sh2, int cycles)
 	while (1);
 
 out:
-	return sh2->cycles_timeslice - sh2->icount;
+	return sh2->icount;
 }
 
 #endif // DRC_CMP
-#endif // DRC_SH2
 
 #ifdef SH2_STATS
 #include <stdio.h>

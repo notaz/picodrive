@@ -45,7 +45,6 @@ asm_mix ?= 1
 else # if not arm
 use_fame ?= 1
 use_cz80 ?= 1
-use_sh2mame ?= 1
 endif
 
 -include Makefile.local
