@@ -95,7 +95,7 @@ static struct in_default_bind in_evdev_defbinds[] =
 void pemu_prep_defconfig(void)
 {
 	defaultConfig.EmuOpt |= EOPT_VSYNC|EOPT_16BPP;
-	defaultConfig.s_PicoOpt |= POPT_EN_MCD_GFX|POPT_EN_MCD_PSYNC;
+	defaultConfig.s_PicoOpt |= POPT_EN_MCD_GFX;
 	defaultConfig.scaling = SCALE_2x2_3x2;
 }
 

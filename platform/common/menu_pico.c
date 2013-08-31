@@ -438,7 +438,6 @@ static menu_entry e_menu_cd_options[] =
 	mee_cust   ("ReadAhead buffer",     MA_CDOPT_READAHEAD,     mh_cdopt_ra, mgn_cdopt_ra),
 	mee_onoff_h("SaveRAM cart",         MA_CDOPT_SAVERAM,       PicoOpt, POPT_EN_MCD_RAMCART, h_srcart),
 	mee_onoff_h("Scale/Rot. fx (slow)", MA_CDOPT_SCALEROT_CHIP, PicoOpt, POPT_EN_MCD_GFX, h_scfx),
-	mee_onoff_h("Better sync (slow)",   MA_CDOPT_BETTER_SYNC,   PicoOpt, POPT_EN_MCD_PSYNC, h_bsync),
 	mee_end,
 };
 
@@ -524,7 +523,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoOpt, POPT_DIS_IDLE_DET),
 	mee_onoff     ("Disable frame limiter",    MA_OPT2_NO_FRAME_LIMIT,currentConfig.EmuOpt, EOPT_NO_FRMLIMIT),
-	mee_onoff     ("Enable dynarecs",          MA_OPT2_SVP_DYNAREC,   PicoOpt, POPT_EN_SVP_DRC),
+	mee_onoff     ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoOpt, POPT_EN_DRC),
 	mee_onoff     ("Status line in main menu", MA_OPT2_STATUS_LINE,   currentConfig.EmuOpt, EOPT_SHOW_RTC),
 	MENU_OPTIONS_ADV
 	mee_end,
@@ -1222,7 +1221,7 @@ void menu_init(void)
 #if defined(_SVP_DRC) || defined(DRC_SH2)
 	i = 1;
 #endif
-	me_enable(e_menu_adv_options, MA_OPT2_SVP_DYNAREC, i);
+	me_enable(e_menu_adv_options, MA_OPT2_DYNARECS, i);
 
 	i = me_id2offset(e_menu_gfx_options, MA_OPT_VOUT_MODE);
 	e_menu_gfx_options[i].data = plat_target.vout_methods;

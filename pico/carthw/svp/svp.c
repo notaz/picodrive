@@ -57,7 +57,7 @@ static void PicoSVPReset(void)
 	memcpy(svp->iram_rom + 0x800, Pico.rom + 0x800, 0x20000 - 0x800);
 	ssp1601_reset(&svp->ssp1601);
 #ifdef _SVP_DRC
-	if ((PicoOpt&POPT_EN_SVP_DRC) && svp_dyn_ready)
+	if ((PicoOpt & POPT_EN_DRC) && svp_dyn_ready)
 		ssp1601_dyn_reset(&svp->ssp1601);
 #endif
 }
@@ -77,7 +77,7 @@ static void PicoSVPLine(void)
 #endif
 
 #ifdef _SVP_DRC
-	if ((PicoOpt&POPT_EN_SVP_DRC) && svp_dyn_ready)
+	if ((PicoOpt & POPT_EN_DRC) && svp_dyn_ready)
 		ssp1601_dyn_run(PicoSVPCycles * count);
 	else
 #endif
@@ -151,7 +151,7 @@ void PicoSVPStartup(void)
 	// init SVP compiler
 	svp_dyn_ready = 0;
 #ifdef _SVP_DRC
-	if (PicoOpt & POPT_EN_SVP_DRC) {
+	if (PicoOpt & POPT_EN_DRC) {
 		if (ssp1601_dyn_startup())
 			return;
 		svp_dyn_ready = 1;

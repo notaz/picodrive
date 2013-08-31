@@ -854,7 +854,7 @@ void retro_init(void)
 		| POPT_EN_32X|POPT_EN_PWM
 		| POPT_ACC_SPRITES|POPT_DIS_32C_BORDER;
 #ifdef __arm__
-	PicoOpt |= POPT_EN_SVP_DRC;
+	PicoOpt |= POPT_EN_DRC;
 #endif
 	PsndRate = 44100;
 	PicoAutoRgnOrder = 0x184; // US, EU, JP

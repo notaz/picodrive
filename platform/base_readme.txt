@@ -4,25 +4,15 @@ PicoDrive 1.xx
 About
 -----
 
-#ifdef PSP
-This is yet another Megadrive / Genesis emulator for PSP, but with
-Sega CD / Mega CD support. Although it has been originally written having
-ARM CPU based devices in mind, it has now been ported to PSP too, by
-replacing ARM specific parts with portable C code.
-The base code originates from Dave's (fdave, finalburn) PicoDrive 0.30 for
-Pocket PC. The Sega/Mega CD code is roughly based on Stephane Dallongeville's
-Gens.
-#else
 This is yet another Megadrive / Genesis / Sega CD / Mega CD / 32X / SMS
 emulator, which was written having ARM-based handheld devices in mind
-(such as PDAs, smartphones and handheld consoles like GP2X and Gizmondo
-of course).
+(such as smartphones and handheld consoles like GP2X and Pandora).
+
 The emulator is heavily optimized for ARM, features assembly cores for
 68k, Z80 and VDP chip emulation, also has dynamic recompilers for SH2 and
 SSP16 (for 32X and SVP emulation). It was started by Dave (aka fdave,
 finalburn author) as basic Genesis/Megadrive emulator for Pocket PC,
-then taken over by notaz and developed primarily for GPH devices.
-#endif
+then taken over and expanded by notaz.
 
 PicoDrive is the first emulator ever to properly emulate Virtua Racing and
 it's SVP chip.
@@ -54,35 +44,25 @@ which one GAME* directory to use).
 
 If you are on 1.5, there is a separate KXploited version for it.
 #endif
-#ifdef UIQ
-Copy SIS and some ROMs to any directory in your memory stick, and install the SIS.
-Then load a ROM and enjoy! ROMs can be in .smd or .bin format and can be zipped.
-#endif
 #ifdef PANDORA
 Just copy the .pnd to <sd card>/pandora/menu or <sd card>/pandora/desktop.
 #endif
-#ifndef UIQ
 
 This emulator has lots of options with various tweaks (for improved speed mostly),
-but it should have best compatibility in it's default config. If suddently you
+but it should have best compatibility in it's default config. If suddenly you
 start getting glitches or change something and forget what, use "Restore defaults"
 option.
-#endif
 
 
 How to run Sega/Mega CD games
 -----------------------------
 
-To play any game, you need BIOS files. These files must be copied to
-#ifdef UIQ
-D:\other\PicoDrive\ directory.
-#else
+To play any CD game, you need BIOS files. These files must be copied to
 #ifdef PANDORA
-<sd card>/pandora/appdata/PicoDrive/ directory
+<sd card>/pandora/appdata/picodrive/ directory
 (if you run PicoDrive once it will create that directory for you).
 #else
 the same directory as PicoDrive files.
-#endif
 #endif
 Files can be named as follows:
 
@@ -91,79 +71,31 @@ EU: eu_mcd1_9210.bin eu_mcd2_9303.bin eu_mcd2_9306.bin
 JP: jp_mcd1_9112.bin jp_mcd1_9111.bin
 these files can also be zipped.
 
-The game must be dumped to ISO/CSO+MP3/WAV or CUE+BIN format. When using
-CUE/BIN, you must load .cue file from the menu, or else the emu will not find
-audio tracks.
-CUE/BIN usually takes a lot of space, so it can be converted to cue/cso/mp3 by
-#ifdef PANDORA
-using bin_to_cso_mp3 tool, which can be downloaded from:
-http://notaz.gp2x.de/releases/misc/bin_to_cso_mp3.zip
-See readme in the bin_to_cso_mp3/ directory for details.
-#else
-using bin_to_cso_mp3 tool, which is included with the emulator. See readme in
-the bin_to_cso_mp3/ directory for details.
-#endif
-
-ISO+mp3 files can be named similarly as for other emus.
-Here are some examples:
-
-SonicCD.iso             data track
-SonicCD_02.mp3          audio track 1 (CD track 2)
-SonicCD_03.mp3
-...
-
-Sonic the Hedgehog CD (US) - Track 01.iso
-Sonic the Hedgehog CD (US) - Track 02.mp3
-Sonic the Hedgehog CD (US) - Track 03.mp3
-...
-
-In case there is a .cue file with properly specified files names in it,
-file naming doesn't matter. Just be sure to load .cue from the menu.
-
-It is very important to have the MP3s encoded at 44kHz sample rate and they
-must be stereo, or else they will play too fast/slow or won't play at all.
-Be sure NOT to use anything but classic mp3 format (don't use things like
-mp3pro).
-
-ISO files can also be .cso compressed or zipped (but not mp3 files, as they
-are already compressed). CSO will cause slightly longer loading times, and
-is not very good for FMV games. Zipping ISOs is not recommended, as it will
-cause very long (several minute) loading times, and make some games
-unplayable. File naming is similar as with uncompressed ISOs.
-Example:
-
-SonicCD.cso             data track
-SonicCD_02.mp3          audio track 1 (CD track 2)
-SonicCD_03.mp3
-...
+The game must be dumped to CUE+BIN or CUE+ISO format.
+ISO/CSO+MP3/WAV is also supported, but may cause problems.
+When using CUE/BIN, you must load .cue file from the menu, or else
+the emu will not find audio tracks.
 
 
 Other important stuff
 ---------------------
 
-* Sega/Mega CD: If the game hangs after Sega logo, you may need to enable
-  "better sync" and/or "Scale/Rot. fx" options, found in "Sega/Mega CD options"
-  submenu, and then reset the game. Some other games may also require
-  "CDDA audio" and "PCM audio" to be enabled to work (enabled by default).
-  Incorrectly named/missing mp3s may also be the cause.
-* Sega/Mega CD: If the background music is missing, you might have named your
-  MP3s incorrectly. Read "How to run Sega/Mega CD games" section again.
-* Sega/Mega CD: If the game music plays too fast/too slow/out of sync, you have
-  encoded your MP3s incorrectly. You will have to re-encode and/or resample them.
-  PicoDrive is not a mp3 player, so all mp3s MUST be encoded at 44.1kHz stereo.
-  Badly encoded mp3s can cause various kind of problems, like noises, incorrect
-  playback speeds, not repeating music or even prevent game from starting.
-  Some games (like Snatcher) may hang in certain scenes because of this.
-  Some mp3 rippers/encoders remove silence and beginning/end of audio tracks,
-  what causes audio desyncs and/or mentioned problems.
-  If you have cue/bin rip, you can use the bin_to_cso_mp3 tool (included with
-  the emulator) to make a proper iso/mp3 rip.
-* Sega/Mega CD: If your games hangs at the BIOS screen (with planets shown),
-  you may be using a bad BIOS dump. Try another from a different source.
-* Some Sega/Mega CD games don't use Z80 for anything, but they leave it active,
-  so disabling Z80 manually (in advanced options) improves performance.
-* Use lower bitrate for better performance (96 or 128kbps CBRs recommended).
+* Sega/Mega CD: If the background music is missing, the CD image format may be
+  wrong. Currently .cue/bin is recommended. Be aware that there are lots of bad
+  dumps on the web, and some use mp3 format for audio, which often causes
+  problems (see below).
+* While iso/mp3 format is supported, it's not recommended to use.
+  Some of many problems with mp3 are listed below:
+  * MP3s may be named incorrectly and will not play.
+  * The game music may play too fast/too slow/out of sync, which means they
+    are encoded incorrectly. PicoDrive is not a mp3 player, so all mp3s MUST
+    be encoded at 44.1kHz stereo.
+* Sega/Mega CD: If your games hang at the BIOS screen (with planets shown),
+  you may be using a bad BIOS dump. Try another from a different source,
+  like dumping it from your own console.
 #ifdef GP2X
+* What using mp3s, use lower bitrate for better performance (96 or 128kbps
+  CBRs recommended).
 * GP2X F100/F200: When you use both GP2X CPUs, keep in mind that you can't
   overclock as high as when using ARM920 only. For example my GP2X when run
   singlecore can reach 280MHz, but with both cores it's about 250MHz. When
@@ -177,9 +109,6 @@ Other important stuff
 Configuration
 -------------
 
-#ifdef UIQ
-#include "config.txt"
-#else
 @@0. "Save slot"
 This is a slot number to use for savestates, when done by a button press outside
 menu. This can also be configured to be changed with a button
@@ -213,18 +142,6 @@ Sound sample rate and stereo mode. Mono is not available in Sega/Mega CD mode.
 Allows to enable confirmation on savestate saving (to prevent savestate overwrites),
 on loading (to prevent destroying current game progress), and on both or none, when
 using shortcut buttons (not menu) for saving/loading.
-
-#ifdef GP2X
-@@0. "GP2X CPU clocks"
-Here you can change clocks of both GP2X's CPUs. Larger values increase performance.
-There is no separate option for the second CPU because both CPUs use the same clock
-source. Setting this option to 200 will cause PicoDrive NOT to change GP2X's clocks
-at all (this is if you use external program to set clock).
-#endif
-#ifdef PSP
-@@0. "CPU/bus clock"
-This allows to change CPU and bus clocks for PSP. 333MHz is recommended.
-#endif
 
 @@0. "[Display options]"
 Enters Display options menu (see below).
@@ -290,11 +207,6 @@ performance hit, but eliminates the tearing effect.
 @@1. "Gamma correction"
 F100/F200 only: Alters image gamma through GP2X hardware. Larger values make
 image to look brighter, lower - darker (default is 1.0).
-
-@@1. "A_SN's gamma curve"
-F100/F200 only: If this is enabled, different gamma adjustment method will be
-used (suggested by A_SN from gp32x boards). Intended to be used for F100, makes
-difference for dark and bright colors.
 
 @@1. "Vsync"
 This one adjusts the LCD refresh rate to better match game's refresh rate and
@@ -394,13 +306,8 @@ Here you can enable 64K RAM cart. Format it in BIOS if you do.
 
 @@2. "Scale/Rot. fx"
 The Sega/Mega CD had scaling/rotation chip, which allows effects similar to
-"Mode 7" effects in SNES. Disabling may improve performance but cause graphical
-glitches.
-
-@@2. "Better sync"
-This option is similar to "Perfect synchro" in Gens. Some games require it to run,
-for example most (all?) Wolfteam games, and some other ones. Don't use it for
-games which don't need it, it will just slow them down.
+"Mode 7" effects in SNES. On slow systems like GP2X, disabling may improve
+performance but cause graphical glitches.
 
 
 32X options
@@ -478,18 +385,10 @@ F100/F200: This option causes PicoDrive to use ARM940T core (GP2X's second CPU)
 for sound (i.e. to generate YM2612 samples) to improve performance noticeably.
 It also decodes MP3s in Sega/Mega CD mode.
 
-@@4. "RAM overclock"
-This overclocks the GP2X RAM chips for improved performance, but may cause
-instability. Keep it enabled if it doesn't cause problems.
-
-@@4. "MMU hack"
-Makes framebuffer bufferable for improved performance. There are no drawbacks
-so it should be left enabled.
-
+#endif
 @@4. "SVP dynarec"
 This enables dynamic recompilation for SVP chip emulated for Virtua Racing game,
 what improves it's emulation performance greatly.
-#endif
 
 
 Key configuration
@@ -498,14 +397,9 @@ Key configuration
 Select "Configure controls" from the main menu. Then select "Player 1" and you will
 see two columns. The left column lists names of Genesis/MD controller buttons, and
 the right column your handheld ones, which are assigned.
-#ifndef PANDORA
-If you bind 2 different buttons to the same action, you will get a combo
-(which means that you will have to press both buttons for that action to happen).
-#endif
 
 There is also option to enable 6 button pad (will allow you to configure XYZ
 buttons), and an option to set turbo rate (in Hz) for turbo buttons.
-#ifndef UIQ
 
 
 Cheat support
@@ -544,7 +438,6 @@ PATCH FILE: Sonic 2.bin.pat
 
 Put the file into your ROMs directory. Then load the .pat file as you would
 a ROM. Then Cheat Menu Option should appear in main menu.
-#endif
 
 
 What is emulated?
@@ -607,7 +500,6 @@ fDave
 one who started it all:
 Cyclone 68000 core and PicoDrive itself
 
-#ifdef PSP
 Chui
 FAME/C 68k interpreter core
 (based on C68K by Stephane Dallongeville)
@@ -615,12 +507,10 @@ FAME/C 68k interpreter core
 Stephane Dallongeville (written), NJ (optimized)
 CZ80 Z80 interpreter core
 
-#else
 Reesy & FluBBa
 DrZ80, the Z80 interpreter written in ARM assembly.
 Homepage: http://reesy.gp32x.de/
 
-#endif
 Tatsuyuki Satoh, Jarek Burczynski, MAME development
 software implementation of Yamaha FM sound generator
 
@@ -635,10 +525,6 @@ Gens, MD/Mega CD/32X emulator. Most Sega CD code is based on this emu.
 people @ ps2dev.org forums / PSPSDK crew
 libaudiocodec code (by cooleyes)
 other sample code
-#else
-
-Helix community
-Helix mp3 decoder
 #endif
 
 
@@ -653,6 +539,7 @@ Additional thanks
 * Haze for his research (http://haze.mameworld.info).
 * Lordus, Exophase and Rokas for various ideas.
 * Nemesis for his YM2612 research.
+* Eke
 * Many posters at spritesmind.net forums for valuable information.
 * Mark and Jean-loup for zlib library.
 * ketchupgun for the skin.
@@ -669,20 +556,14 @@ Additional thanks
 * Kingcdr's for the SDK and Reesy for the DLL and sound code.
 * jens.l for supplying the Gizmondo hardware and making this port possible.
 #endif
-#ifdef UIQ
-* Peter van Sebille for his various open-source Symbian projects to learn from.
-* Steve Fischer for his open-source Motorola projects.
-* The development team behind "Symbian GCC Improvement Project"
-  (http://www.inf.u-szeged.hu/symbian-gcc/) for their updated pre-SymbianOS9
-  compile tools.
-* AnotherGuest for all his Symbian stuff and support.
-#endif
 * Inder for some graphics.
 * Anyone else I forgot. You know who you are.
 
 
 Changelog
 ---------
+1.85
+
 1.80
   + Added Caanoo support. Now the GP2X binary supports GP2X F100/F200, Wiz
     and Caanoo. Lots of internal refactoring to support this.

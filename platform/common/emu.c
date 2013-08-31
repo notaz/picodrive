@@ -572,7 +572,7 @@ void emu_prep_defconfig(void)
 	defaultConfig.EmuOpt    = 0x9d | EOPT_EN_CD_LEDS;
 	defaultConfig.s_PicoOpt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80 |
 				  POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX |
-				  POPT_EN_SVP_DRC|POPT_ACC_SPRITES |
+				  POPT_EN_DRC|POPT_ACC_SPRITES |
 				  POPT_EN_32X|POPT_EN_PWM;
 	defaultConfig.s_PsndRate = 44100;
 	defaultConfig.s_PicoRegion = 0; // auto
@@ -1306,7 +1306,6 @@ static void emu_loop_prep(void)
 		filter_old = currentConfig.filter;
 	}
 
-printf("-- gamma %d\n", currentConfig.gamma);
 	plat_target_gamma_set(currentConfig.gamma, 0);
 
 	pemu_loop_prep();

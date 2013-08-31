@@ -31,7 +31,7 @@ void pemu_validate_config(void)
 {
 	extern int PicoOpt;
 //	PicoOpt &= ~POPT_EXT_FM;
-	PicoOpt &= ~POPT_EN_SVP_DRC;
+	PicoOpt &= ~POPT_EN_DRC;
 }
 
 // FIXME: dupes from GP2X, need cleanup
