@@ -17,10 +17,15 @@
 int sh2_init(SH2 *sh2, int is_slave, SH2 *other_sh2)
 {
 	int ret = 0;
+	unsigned int mult_m68k_to_sh2 = sh2->mult_m68k_to_sh2;
+	unsigned int mult_sh2_to_m68k = sh2->mult_sh2_to_m68k;
 
-	memset(sh2, 0, offsetof(SH2, mult_m68k_to_sh2));
+	memset(sh2, 0, sizeof(*sh2));
 	sh2->is_slave = is_slave;
 	sh2->other_sh2 = other_sh2;
+	sh2->mult_m68k_to_sh2 = mult_m68k_to_sh2;
+	sh2->mult_sh2_to_m68k = mult_sh2_to_m68k;
+
 	pdb_register_cpu(sh2, PDBCT_SH2, is_slave ? "ssh2" : "msh2");
 #ifdef DRC_SH2
 	ret = sh2_drc_init(sh2);
@@ -136,15 +141,6 @@ void sh2_unpack(SH2 *sh2, const unsigned char *buff)
 
 static SH2 sh2ref[2];
 static unsigned int mem_val;
-static FILE *f;
-
-enum ctl_byte {
-	CTL_MASTERSLAVE = 0x80,
-	CTL_EA = 0x82,
-	CTL_EAVAL = 0x83,
-	CTL_M68KPC = 0x84,
-	CTL_CYCLES = 0x85,
-};
 
 static unsigned int local_read32(SH2 *sh2, u32 a)
 {
@@ -176,12 +172,6 @@ static unsigned int local_read32(SH2 *sh2, u32 a)
 	return 0;
 }
 
-static void write_uint(unsigned char ctl, unsigned int v)
-{
-	fwrite(&ctl, 1, 1, f);
-	fwrite(&v, sizeof(v), 1, f);
-}
-
 void do_sh2_trace(SH2 *current, int cycles)
 {
 	static int current_slave = -1;
@@ -193,39 +183,36 @@ void do_sh2_trace(SH2 *current, int cycles)
 	u32 val;
 	int i;
 
-	if (f == NULL)
-		f = fopen("tracelog", "wb");
-
 	if (SekPc != current_m68k_pc) {
 		current_m68k_pc = SekPc;
-		write_uint(CTL_M68KPC, current_m68k_pc);
+		tl_write_uint(CTL_M68KPC, current_m68k_pc);
 	}
 
 	if (current->is_slave != current_slave) {
 		current_slave = current->is_slave;
 		v = CTL_MASTERSLAVE | current->is_slave;
-		fwrite(&v, 1, 1, f);
+		tl_write(&v, sizeof(v));
 	}
 
 	for (i = 0; i < offsetof(SH2, read8_map) / 4; i++) {
 		if (i == 17) // ppc
 			continue;
 		if (regs_a[i] != regs_o[i]) {
-			write_uint(i, regs_a[i]);
+			tl_write_uint(CTL_SH2_R + i, regs_a[i]);
 			regs_o[i] = regs_a[i];
 		}
 	}
 
 	if (current->ea != sh2o->ea) {
-		write_uint(CTL_EA, current->ea);
+		tl_write_uint(CTL_EA, current->ea);
 		sh2o->ea = current->ea;
 	}
 	val = local_read32(current, current->ea);
 	if (mem_val != val) {
-		write_uint(CTL_EAVAL, val);
+		tl_write_uint(CTL_EAVAL, val);
 		mem_val = val;
 	}
-	write_uint(CTL_CYCLES, cycles);
+	tl_write_uint(CTL_CYCLES, cycles);
 }
 
 static const char *regnames[] = {
@@ -264,17 +251,14 @@ void do_sh2_cmp(SH2 *current)
 	int cycles;
 	int i, ret;
 
-	if (f == NULL) {
-		f = fopen("tracelog", "rb");
-		sh2ref[1].is_slave = 1;
-	}
+	sh2ref[1].is_slave = 1;
 
 	while (1) {
-		ret = fread(&code, 1, 1, f);
+		ret = tl_read(&code, 1);
 		if (ret <= 0)
 			break;
 		if (code == CTL_CYCLES) {
-			fread(&cycles_o, 1, 4, f);
+			tl_read(&cycles_o, 4);
 			break;
 		}
 
@@ -284,23 +268,27 @@ void do_sh2_cmp(SH2 *current)
 			current_slave = code & 1;
 			break;
 		case CTL_EA:
-			fread(&sh2o->ea, 4, 1, f);
+			tl_read_uint(&sh2o->ea);
 			break;
 		case CTL_EAVAL:
-			fread(&current_val, 4, 1, f);
+			tl_read_uint(&current_val);
 			break;
 		case CTL_M68KPC:
-			fread(&val, 4, 1, f);
+			tl_read_uint(&val);
 			if (SekPc != val) {
 				printf("m68k: %08x %08x\n", SekPc, val);
 				bad = 1;
 			}
 			break;
 		default:
-			if (code < offsetof(SH2, read8_map) / 4)
-				fread(regs_o + code, 4, 1, f);
-			else {
-				printf("invalid code: %02x\n", code);
+			if (CTL_SH2_R <= code && code < CTL_SH2_R +
+			    offsetof(SH2, read8_map) / 4)
+			{
+				tl_read_uint(regs_o + code - CTL_SH2_R);
+			}
+			else
+			{
+				printf("wrong code: %02x\n", code);
 				goto end;
 			}
 			break;

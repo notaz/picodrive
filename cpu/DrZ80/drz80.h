@@ -52,7 +52,7 @@ struct DrZ80
   int cycles;		            /*0x44 - Cycles pending to be executed yet */
   int previouspc;	            /*0x48 - Previous PC */
   unsigned char Z80_IRQ;        /*0x4C - Set IRQ Number (must be halfword aligned) */   
-  unsigned char Z80IF;          /*0x4D - Interrupt Flags:  bit1=_IFF1, bit2=_IFF2, bit3=_HALT */
+  unsigned char Z80IF;          /*0x4D - Interrupt Flags:  bit0=_IFF1, bit1=_IFF2, bit2=_HALT, b3=NMI */
   unsigned char Z80IM;          /*0x4E - Set IRQ Mode */
   unsigned char spare;          /*0x4F - N/A */
   unsigned int z80irqvector;    /*0x50 - Set IRQ Vector i.e. 0xFF=RST */

@@ -1110,8 +1110,11 @@ static void emit_or_t_if_eq(int srr)
 // reg cache must be clean before call
 static int emit_memhandler_read_(int size, int ram_check)
 {
-  int arg0, arg1;
+  int arg1;
+#if 0
+  int arg0;
   host_arg2reg(arg0, 0);
+#endif
 
   rcache_clean();
 
@@ -1228,7 +1231,7 @@ static int emit_memhandler_read_rr(sh2_reg_e rd, sh2_reg_e rs, u32 offs, int siz
   return hr2;
 }
 
-static void emit_memhandler_write(int size, u32 pc)
+static void emit_memhandler_write(int size)
 {
   int ctxr;
   host_arg2reg(ctxr, 2);
@@ -1552,8 +1555,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       if (delay_dep_bk & BITMASK1(SHR_PC)) {
         if (opd->op != OP_LOAD_POOL && opd->op != OP_MOVA) {
           // can only be those 2 really..
-          elprintf(EL_ANOMALY, "%csh2 drc: illegal slot insn %04x @ %08x?",
-            sh2->is_slave ? 's' : 'm', op, pc - 2);
+          elprintf_sh2(sh2, EL_ANOMALY,
+            "drc: illegal slot insn %04x @ %08x?", op, pc - 2);
         }
         if (opd->imm != 0)
           ; // addr already resolved somehow
@@ -1718,7 +1721,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp2 = rcache_get_reg_arg(0, SHR_R0);
         tmp3 = rcache_get_reg(GET_Rn(), RC_GR_READ);
         emith_add_r_r(tmp2, tmp3);
-        emit_memhandler_write(op & 3, pc);
+        emit_memhandler_write(op & 3);
         goto end_op;
       case 0x07:
         // MUL.L     Rm,Rn      0000nnnnmmmm0111
@@ -1837,7 +1840,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       tmp2 = rcache_get_reg_arg(1, GET_Rm());
       if (op & 0x0f)
         emith_add_r_imm(tmp, (op & 0x0f) * 4);
-      emit_memhandler_write(2, pc);
+      emit_memhandler_write(2);
       goto end_op;
 
     case 0x02:
@@ -1849,7 +1852,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         rcache_clean();
         rcache_get_reg_arg(0, GET_Rn());
         rcache_get_reg_arg(1, GET_Rm());
-        emit_memhandler_write(op & 3, pc);
+        emit_memhandler_write(op & 3);
         goto end_op;
       case 0x04: // MOV.B Rm,@-Rn       0010nnnnmmmm0100
       case 0x05: // MOV.W Rm,@-Rn       0010nnnnmmmm0101
@@ -1859,7 +1862,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         emith_sub_r_imm(tmp, (1 << (op & 3)));
         rcache_clean();
         rcache_get_reg_arg(0, GET_Rn());
-        emit_memhandler_write(op & 3, pc);
+        emit_memhandler_write(op & 3);
         goto end_op;
       case 0x07: // DIV0S Rm,Rn         0010nnnnmmmm0111
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW);
@@ -2168,7 +2171,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp3 = rcache_get_reg_arg(1, tmp);
         if (tmp == SHR_SR)
           emith_clear_msb(tmp3, tmp3, 22); // reserved bits defined by ISA as 0
-        emit_memhandler_write(2, pc);
+        emit_memhandler_write(2);
         goto end_op;
       case 0x04:
       case 0x05:
@@ -2308,7 +2311,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_move_r_r(tmp2, tmp);
           rcache_free_tmp(tmp);
           rcache_get_reg_arg(0, GET_Rn());
-          emit_memhandler_write(0, pc);
+          emit_memhandler_write(0);
           break;
         default:
           goto default_;
@@ -2468,7 +2471,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp3 = (op & 0x100) >> 8;
         if (op & 0x0f)
           emith_add_r_imm(tmp, (op & 0x0f) << tmp3);
-        emit_memhandler_write(tmp3, pc);
+        emit_memhandler_write(tmp3);
         goto end_op;
       case 0x0400: // MOV.B @(disp,Rm),R0  10000100mmmmdddd
       case 0x0500: // MOV.W @(disp,Rm),R0  10000101mmmmdddd
@@ -2501,7 +2504,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp2 = rcache_get_reg_arg(1, SHR_R0);
         tmp3 = (op & 0x300) >> 8;
         emith_add_r_imm(tmp, (op & 0xff) << tmp3);
-        emit_memhandler_write(tmp3, pc);
+        emit_memhandler_write(tmp3);
         goto end_op;
       case 0x0400: // MOV.B @(disp,GBR),R0   11000100dddddddd
       case 0x0500: // MOV.W @(disp,GBR),R0   11000101dddddddd
@@ -2517,12 +2520,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         emith_add_r_imm(tmp, 4);
         tmp = rcache_get_reg_arg(1, SHR_SR);
         emith_clear_msb(tmp, tmp, 22);
-        emit_memhandler_write(2, pc);
+        emit_memhandler_write(2);
         // push PC
         rcache_get_reg_arg(0, SHR_SP);
         tmp = rcache_get_tmp_arg(1);
         emith_move_r_imm(tmp, pc);
-        emit_memhandler_write(2, pc);
+        emit_memhandler_write(2);
         // obtain new PC
         emit_memhandler_read_rr(SHR_PC, SHR_VBR, (op & 0xff) * 4, 2);
         // indirect jump -> back to dispatcher
@@ -2574,7 +2577,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp3 = rcache_get_reg_arg(0, SHR_GBR);
         tmp4 = rcache_get_reg(SHR_R0, RC_GR_READ);
         emith_add_r_r(tmp3, tmp4);
-        emit_memhandler_write(0, pc);
+        emit_memhandler_write(0);
         goto end_op;
       }
       goto default_;
@@ -2587,8 +2590,27 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
     default:
     default_:
-      elprintf(EL_ANOMALY, "%csh2 drc: unhandled op %04x @ %08x",
-        sh2->is_slave ? 's' : 'm', op, pc - 2);
+      elprintf_sh2(sh2, EL_ANOMALY,
+        "drc: illegal op %04x @ %08x", op, pc - 2);
+
+      tmp = rcache_get_reg(SHR_SP, RC_GR_RMW);
+      emith_sub_r_imm(tmp, 4*2);
+      // push SR
+      tmp = rcache_get_reg_arg(0, SHR_SP);
+      emith_add_r_imm(tmp, 4);
+      tmp = rcache_get_reg_arg(1, SHR_SR);
+      emith_clear_msb(tmp, tmp, 22);
+      emit_memhandler_write(2);
+      // push PC
+      rcache_get_reg_arg(0, SHR_SP);
+      tmp = rcache_get_tmp_arg(1);
+      emith_move_r_imm(tmp, pc - 2);
+      emit_memhandler_write(2);
+      // obtain new PC
+      emit_memhandler_read_rr(SHR_PC, SHR_VBR, 4 * 4, 2);
+      // indirect jump -> back to dispatcher
+      rcache_flush();
+      emith_jump(sh2_drc_dispatcher);
       break;
     }
 
@@ -3089,11 +3111,9 @@ void sh2_drc_wcheck_da(unsigned int a, int val, int cpuid)
     1 + cpuid, SH2_DRCBLK_DA_SHIFT, 0xfff);
 }
 
-int sh2_execute(SH2 *sh2c, int cycles)
+int sh2_execute_drc(SH2 *sh2c, int cycles)
 {
   int ret_cycles;
-
-  sh2c->cycles_timeslice = cycles;
 
   // cycles are kept in SHR_SR unused bits (upper 20)
   // bit11 contains T saved for delay slot
@@ -3107,7 +3127,8 @@ int sh2_execute(SH2 *sh2c, int cycles)
   if (ret_cycles > 0)
     dbg(1, "warning: drc returned with cycles: %d", ret_cycles);
 
-  return sh2c->cycles_timeslice - ret_cycles;
+  sh2c->sr &= 0x3f3;
+  return ret_cycles;
 }
 
 #if (DRC_DEBUG & 2)
@@ -3159,7 +3180,7 @@ void sh2_drc_flush_all(void)
 void sh2_drc_mem_setup(SH2 *sh2)
 {
   // fill the convenience pointers
-  sh2->p_bios = sh2->is_slave ? Pico32xMem->sh2_rom_s : Pico32xMem->sh2_rom_m;
+  sh2->p_bios = sh2->is_slave ? Pico32xMem->sh2_rom_s.w : Pico32xMem->sh2_rom_m.w;
   sh2->p_da = sh2->data_array;
   sh2->p_sdram = Pico32xMem->sdram;
   sh2->p_rom = Pico.rom;
@@ -3273,7 +3294,7 @@ static void *dr_get_pc_base(u32 pc, int is_slave)
 
   if ((pc & ~0x7ff) == 0) {
     // BIOS
-    ret = is_slave ? Pico32xMem->sh2_rom_s : Pico32xMem->sh2_rom_m;
+    ret = is_slave ? Pico32xMem->sh2_rom_s.w : Pico32xMem->sh2_rom_m.w;
     mask = 0x7ff;
   }
   else if ((pc & 0xfffff000) == 0xc0000000) {
@@ -3288,7 +3309,8 @@ static void *dr_get_pc_base(u32 pc, int is_slave)
   }
   else if ((pc & 0xc6000000) == 0x02000000) {
     // ROM
-    ret = Pico.rom;
+    if ((pc & 0x3fffff) < Pico.romsize)
+      ret = Pico.rom;
     mask = 0x3fffff;
   }
 

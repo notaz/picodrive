@@ -6,7 +6,8 @@ CFLAGS += -O2 -DNDEBUG
 endif
 #CFLAGS += -DEVT_LOG
 #CFLAGS += -DDRC_CMP
-#drc_debug = 4
+#cpu_cmp = 1
+#drc_debug = 7
 #profile = 1
 
 
@@ -44,7 +45,6 @@ asm_mix ?= 1
 else # if not arm
 use_fame ?= 1
 use_cz80 ?= 1
-use_sh2mame ?= 1
 endif
 
 -include Makefile.local
@@ -72,6 +72,23 @@ OBJS += platform/libpicofe/linux/fbdev.o
 OBJS += platform/libpicofe/linux/xenv.o
 OBJS += platform/libpicofe/pandora/plat.o
 USE_FRONTEND = 1
+endif
+ifeq "$(PLATFORM)" "gp2x"
+OBJS += platform/common/arm_utils.o 
+OBJS += platform/libpicofe/gp2x/in_gp2x.o
+OBJS += platform/libpicofe/gp2x/soc.o 
+OBJS += platform/libpicofe/gp2x/soc_mmsp2.o 
+OBJS += platform/libpicofe/gp2x/soc_pollux.o 
+OBJS += platform/libpicofe/gp2x/plat.o 
+OBJS += platform/libpicofe/gp2x/pollux_set.o 
+OBJS += platform/gp2x/940ctl.o 
+OBJS += platform/gp2x/plat.o 
+OBJS += platform/gp2x/emu.o 
+OBJS += platform/gp2x/vid_mmsp2.o 
+OBJS += platform/gp2x/vid_pollux.o 
+OBJS += platform/gp2x/warm.o 
+USE_FRONTEND = 1
+PLATFORM_MP3 = 1
 endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += platform/libretro.o 
@@ -110,7 +127,8 @@ endif
 endif # USE_FRONTEND
 
 OBJS += platform/common/mp3.o
-ifeq "$(HAVE_LIBAVCODEC)" "1"
+ifeq "$(PLATFORM_MP3)" "1"
+else ifeq "$(HAVE_LIBAVCODEC)" "1"
 OBJS += platform/common/mp3_libavcodec.o
 else
 OBJS += platform/common/mp3_dummy.o
@@ -150,11 +168,21 @@ tools/textfilter: tools/textfilter.c
 .s.o:
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# special flags - perhaps fix this someday instead?
+pico/draw.o: CFLAGS += -fno-strict-aliasing
+pico/draw2.o: CFLAGS += -fno-strict-aliasing
+pico/mode4.o: CFLAGS += -fno-strict-aliasing
+pico/cd/memory.o: CFLAGS += -fno-strict-aliasing
+pico/cd/cd_file.o: CFLAGS += -fno-strict-aliasing
+pico/cd/pcm.o: CFLAGS += -fno-strict-aliasing
+pico/cd/LC89510.o: CFLAGS += -fno-strict-aliasing
+pico/cd/gfx_cd.o: CFLAGS += -fno-strict-aliasing
+
 # random deps
 pico/carthw/svp/compiler.o : cpu/drc/emit_$(ARCH).c
 cpu/sh2/compiler.o : cpu/drc/emit_$(ARCH).c
 cpu/sh2/mame/sh2pico.o : cpu/sh2/mame/sh2.c
-pico/pico.o pico/cd/pico.o pico/32x/32x.o : pico/pico_cmn.c pico/pico_int.h
+pico/pico.o pico/cd/mcd.o pico/32x/32x.o : pico/pico_cmn.c pico/pico_int.h
 pico/memory.o pico/cd/memory.o : pico/pico_int.h pico/memory.h
 cpu/fame/famec.o: cpu/fame/famec.c cpu/fame/famec_opcodes.h
 

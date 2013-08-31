@@ -52,7 +52,7 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define POPT_EN_Z80         (1<< 2)
 #define POPT_EN_STEREO      (1<< 3)
 #define POPT_ALT_RENDERER   (1<< 4) // 00 00x0
-#define POPT_6BTN_PAD       (1<< 5)
+// unused                   (1<< 5)
 // unused                   (1<< 6)
 #define POPT_ACC_SPRITES    (1<< 7)
 #define POPT_DIS_32C_BORDER (1<< 8) // 00 0x00
@@ -77,6 +77,10 @@ extern int PicoOpt; // bitfield
 #define PAHW_PICO (1<<3)
 #define PAHW_SMS  (1<<4)
 extern int PicoAHW;            // Pico active hw
+
+#define PQUIRK_FORCE_6BTN   (1<<0)
+extern int PicoQuirks;
+
 extern int PicoSkipFrame;      // skip rendering frame, but still do sound (if enabled) and emulation stuff
 extern int PicoRegionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 extern int PicoAutoRgnOrder;   // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
@@ -95,7 +99,7 @@ typedef enum { PI_ROM, PI_ISPAL, PI_IS40_CELL, PI_IS240_LINES } pint_t;
 typedef union { int vint; void *vptr; } pint_ret_t;
 void PicoGetInternal(pint_t which, pint_ret_t *ret);
 
-// cd/Pico.c
+// cd/mcd.c
 extern void (*PicoMCDopenTray)(void);
 extern void (*PicoMCDcloseTray)(void);
 extern int PicoCDBuffers;
@@ -247,6 +251,14 @@ enum media_type_e PicoLoadMedia(const char *filename,
 int PicoCdCheck(const char *fname_in, int *pregion);
 
 extern unsigned char media_id_header[0x100];
+
+// memory.c
+enum input_device {
+  PICO_INPUT_NOTHING,
+  PICO_INPUT_PAD_3BTN,
+  PICO_INPUT_PAD_6BTN,
+};
+void PicoSetInputDevice(int port, enum input_device device);
 
 #ifdef __cplusplus
 } // End of extern "C"

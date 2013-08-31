@@ -1505,13 +1505,7 @@ void PicoDrawSync(int to, int blank_last_line)
 
   for (line = DrawScanline; line < to; line++)
   {
-    if (line >= 224) break;
     PicoLine(line, offs, sh, bgc);
-  }
-
-  if (line >= 224) {
-    DrawScanline = 240;
-    return;
   }
 
   // last line

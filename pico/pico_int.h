@@ -37,45 +37,36 @@ extern "C" {
 #ifdef EMU_C68K
 #include "../cpu/cyclone/Cyclone.h"
 extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
-#define SekCyclesLeftNoMCD PicoCpuCM68k.cycles // cycles left for this run
-#define SekCyclesLeft \
-	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
-#define SekCyclesLeftS68k \
-	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuCS68k.cycles)
-#define SekEndTimeslice(after) PicoCpuCM68k.cycles=after
-#define SekEndTimesliceS68k(after) PicoCpuCS68k.cycles=after
+#define SekCyclesLeft     PicoCpuCM68k.cycles // cycles left for this run
+#define SekCyclesLeftS68k PicoCpuCS68k.cycles
 #define SekPc (PicoCpuCM68k.pc-PicoCpuCM68k.membase)
 #define SekPcS68k (PicoCpuCS68k.pc-PicoCpuCS68k.membase)
-#define SekDar(x) (x < 8 ? PicoCpuCM68k.d[x] : PicoCpuCM68k.a[x - 8])
+#define SekDar(x)     (x < 8 ? PicoCpuCM68k.d[x] : PicoCpuCM68k.a[x - 8])
+#define SekDarS68k(x) (x < 8 ? PicoCpuCS68k.d[x] : PicoCpuCS68k.a[x - 8])
 #define SekSr     CycloneGetSr(&PicoCpuCM68k)
+#define SekSrS68k CycloneGetSr(&PicoCpuCS68k)
 #define SekSetStop(x) { PicoCpuCM68k.state_flags&=~1; if (x) { PicoCpuCM68k.state_flags|=1; PicoCpuCM68k.cycles=0; } }
 #define SekSetStopS68k(x) { PicoCpuCS68k.state_flags&=~1; if (x) { PicoCpuCS68k.state_flags|=1; PicoCpuCS68k.cycles=0; } }
 #define SekIsStoppedM68k() (PicoCpuCM68k.state_flags&1)
 #define SekIsStoppedS68k() (PicoCpuCS68k.state_flags&1)
-#define SekShouldInterrupt (PicoCpuCM68k.irq > (PicoCpuCM68k.srh&7))
+#define SekShouldInterrupt() (PicoCpuCM68k.irq > (PicoCpuCM68k.srh&7))
 
 #define SekInterrupt(i) PicoCpuCM68k.irq=i
 #define SekIrqLevel     PicoCpuCM68k.irq
 
-#ifdef EMU_M68K
-#define EMU_CORE_DEBUG
-#endif
 #endif
 
 #ifdef EMU_F68K
 #include "../cpu/fame/fame.h"
 extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
-#define SekCyclesLeftNoMCD PicoCpuFM68k.io_cycle_counter
-#define SekCyclesLeft \
-	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
-#define SekCyclesLeftS68k \
-	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuFS68k.io_cycle_counter)
-#define SekEndTimeslice(after) PicoCpuFM68k.io_cycle_counter=after
-#define SekEndTimesliceS68k(after) PicoCpuFS68k.io_cycle_counter=after
+#define SekCyclesLeft     PicoCpuFM68k.io_cycle_counter
+#define SekCyclesLeftS68k PicoCpuFS68k.io_cycle_counter
 #define SekPc     fm68k_get_pc(&PicoCpuFM68k)
 #define SekPcS68k fm68k_get_pc(&PicoCpuFS68k)
-#define SekDar(x) (x < 8 ? PicoCpuFM68k.dreg[x].D : PicoCpuFM68k.areg[x - 8].D)
+#define SekDar(x)     (x < 8 ? PicoCpuFM68k.dreg[x].D : PicoCpuFM68k.areg[x - 8].D)
+#define SekDarS68k(x) (x < 8 ? PicoCpuFS68k.dreg[x].D : PicoCpuFS68k.areg[x - 8].D)
 #define SekSr     PicoCpuFM68k.sr
+#define SekSrS68k PicoCpuFS68k.sr
 #define SekSetStop(x) { \
 	PicoCpuFM68k.execinfo &= ~FM68K_HALTED; \
 	if (x) { PicoCpuFM68k.execinfo |= FM68K_HALTED; PicoCpuFM68k.io_cycle_counter = 0; } \
@@ -86,31 +77,25 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 }
 #define SekIsStoppedM68k() (PicoCpuFM68k.execinfo&FM68K_HALTED)
 #define SekIsStoppedS68k() (PicoCpuFS68k.execinfo&FM68K_HALTED)
-#define SekShouldInterrupt fm68k_would_interrupt()
+#define SekShouldInterrupt() fm68k_would_interrupt()
 
 #define SekInterrupt(irq) PicoCpuFM68k.interrupts[0]=irq
 #define SekIrqLevel       PicoCpuFM68k.interrupts[0]
 
-#ifdef EMU_M68K
-#define EMU_CORE_DEBUG
-#endif
 #endif
 
 #ifdef EMU_M68K
 #include "../cpu/musashi/m68kcpu.h"
 extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #ifndef SekCyclesLeft
-#define SekCyclesLeftNoMCD PicoCpuMM68k.cyc_remaining_cycles
-#define SekCyclesLeft \
-	(((PicoAHW&1) && (PicoOpt & POPT_EN_MCD_PSYNC)) ? (SekCycleAim-SekCycleCnt) : SekCyclesLeftNoMCD)
-#define SekCyclesLeftS68k \
-	((PicoOpt & POPT_EN_MCD_PSYNC) ? (SekCycleAimS68k-SekCycleCntS68k) : PicoCpuMS68k.cyc_remaining_cycles)
-#define SekEndTimeslice(after) SET_CYCLES(after)
-#define SekEndTimesliceS68k(after) PicoCpuMS68k.cyc_remaining_cycles=after
+#define SekCyclesLeft     PicoCpuMM68k.cyc_remaining_cycles
+#define SekCyclesLeftS68k PicoCpuMS68k.cyc_remaining_cycles
 #define SekPc m68k_get_reg(&PicoCpuMM68k, M68K_REG_PC)
 #define SekPcS68k m68k_get_reg(&PicoCpuMS68k, M68K_REG_PC)
-#define SekDar(x) PicoCpuMM68k.dar[x]
-#define SekSr m68k_get_reg(&PicoCpuMM68k, M68K_REG_SR)
+#define SekDar(x)     PicoCpuMM68k.dar[x]
+#define SekDarS68k(x) PicoCpuMS68k.dar[x]
+#define SekSr     m68k_get_reg(&PicoCpuMM68k, M68K_REG_SR)
+#define SekSrS68k m68k_get_reg(&PicoCpuMS68k, M68K_REG_SR)
 #define SekSetStop(x) { \
 	if(x) { SET_CYCLES(0); PicoCpuMM68k.stopped=STOP_LEVEL_STOP; } \
 	else PicoCpuMM68k.stopped=0; \
@@ -121,7 +106,7 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 }
 #define SekIsStoppedM68k() (PicoCpuMM68k.stopped==STOP_LEVEL_STOP)
 #define SekIsStoppedS68k() (PicoCpuMS68k.stopped==STOP_LEVEL_STOP)
-#define SekShouldInterrupt (CPU_INT_LEVEL > FLAG_INT_MASK)
+#define SekShouldInterrupt() (CPU_INT_LEVEL > FLAG_INT_MASK)
 
 #define SekInterrupt(irq) { \
 	void *oldcontext = m68ki_cpu_p; \
@@ -134,52 +119,50 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #endif
 #endif // EMU_M68K
 
-extern int SekCycleCnt; // cycles done in this frame
-extern int SekCycleAim; // cycle aim
-extern unsigned int SekCycleCntT; // total cycle counter, updated once per frame
+// while running, cnt represents target of current timeslice
+// while not in SekRun(), it's actual cycles done
+// (but always use SekCyclesDone() if you need current position)
+// cnt may change if timeslice is ended prematurely or extended,
+// so we use SekCycleAim for the actual target
+extern unsigned int SekCycleCnt;
+extern unsigned int SekCycleAim;
 
-#define SekCyclesReset() { \
-	SekCycleCntT+=SekCycleAim; \
-	SekCycleCnt-=SekCycleAim; \
-	SekCycleAim=0; \
+// number of cycles done (can be checked anywhere)
+#define SekCyclesDone()  (SekCycleCnt - SekCyclesLeft)
+
+// burn cycles while not in SekRun() and while in
+#define SekCyclesBurn(c)    SekCycleCnt += c
+#define SekCyclesBurnRun(c) { \
+  SekCyclesLeft -= c; \
+  if (SekCyclesLeft < 0) \
+    SekCyclesLeft = 0; \
 }
-#define SekCyclesBurn(c)  SekCycleCnt+=c
-#define SekCyclesDone()  (SekCycleAim-SekCyclesLeft)    // number of cycles done in this frame (can be checked anywhere)
-#define SekCyclesDoneT() (SekCycleCntT+SekCyclesDone()) // total nuber of cycles done for this rom
-#define SekCyclesDoneT2() (SekCycleCntT + SekCycleCnt)  // same as above but not from memhandlers
 
+// note: sometimes may extend timeslice to delay an irq
 #define SekEndRun(after) { \
-	SekCycleCnt -= SekCyclesLeft - (after); \
-	if (SekCycleCnt < 0) SekCycleCnt = 0; \
-	SekEndTimeslice(after); \
+  SekCycleCnt -= SekCyclesLeft - (after); \
+  SekCyclesLeft = after; \
 }
+
+extern unsigned int SekCycleCntS68k;
+extern unsigned int SekCycleAimS68k;
 
 #define SekEndRunS68k(after) { \
-	SekCycleCntS68k -= SekCyclesLeftS68k - (after); \
-	if (SekCycleCntS68k < 0) SekCycleCntS68k = 0; \
-	SekEndTimesliceS68k(after); \
+  if (SekCyclesLeftS68k > (after)) { \
+    SekCycleCntS68k -= SekCyclesLeftS68k - (after); \
+    SekCyclesLeftS68k = after; \
+  } \
 }
 
-extern int SekCycleCntS68k;
-extern int SekCycleAimS68k;
+#define SekCyclesDoneS68k()  (SekCycleCntS68k - SekCyclesLeftS68k)
 
-#define SekCyclesResetS68k() { \
-	SekCycleCntS68k-=SekCycleAimS68k; \
-	SekCycleAimS68k=0; \
-}
-#define SekCyclesDoneS68k()  (SekCycleAimS68k-SekCyclesLeftS68k)
-
-#ifdef EMU_CORE_DEBUG
-extern int dbg_irq_level;
-#undef SekEndTimeslice
-#undef SekCyclesBurn
-#undef SekEndRun
-#undef SekInterrupt
-#define SekEndTimeslice(c)
-#define SekCyclesBurn(c) c
-#define SekEndRun(c)
-#define SekInterrupt(irq) dbg_irq_level=irq
-#endif
+// compare cycles, handling overflows
+// check if a > b
+#define CYCLES_GT(a, b) \
+  ((int)((a) - (b)) > 0)
+// check if a >= b
+#define CYCLES_GE(a, b) \
+  ((int)((a) - (b)) >= 0)
 
 // ----------------------- Z80 CPU -----------------------
 
@@ -191,6 +174,8 @@ extern struct DrZ80 drZ80;
 #define z80_run(cycles)    ((cycles) - DrZ80Run(&drZ80, cycles))
 #define z80_run_nr(cycles) DrZ80Run(&drZ80, cycles)
 #define z80_int()          drZ80.Z80_IRQ = 1
+#define z80_int()          drZ80.Z80_IRQ = 1
+#define z80_nmi()          drZ80.Z80IF |= 8
 
 #define z80_cyclesLeft     drZ80.cycles
 #define z80_pc()           (drZ80.Z80PC - drZ80.Z80PC_BASE)
@@ -201,6 +186,7 @@ extern struct DrZ80 drZ80;
 #define z80_run(cycles)    Cz80_Exec(&CZ80, cycles)
 #define z80_run_nr(cycles) Cz80_Exec(&CZ80, cycles)
 #define z80_int()          Cz80_Set_IRQ(&CZ80, 0, HOLD_LINE)
+#define z80_nmi()          Cz80_Set_IRQ(&CZ80, IRQ_LINE_NMI, 0)
 
 #define z80_cyclesLeft     (CZ80.ICount - CZ80.ExtraCycles)
 #define z80_pc()           Cz80_Get_Reg(&CZ80, CZ80_PC)
@@ -210,18 +196,20 @@ extern struct DrZ80 drZ80;
 #define z80_run(cycles)    (cycles)
 #define z80_run_nr(cycles)
 #define z80_int()
+#define z80_nmi()
 
 #endif
 
 #define Z80_STATE_SIZE 0x60
 
-extern int z80stopCycle;         /* in 68k cycles */
+extern unsigned int last_z80_sync;
 extern int z80_cycle_cnt;        /* 'done' z80 cycles before z80_run() */
 extern int z80_cycle_aim;
 extern int z80_scanline;
 extern int z80_scanline_cycles;  /* cycles done until z80_scanline */
 
 #define z80_resetCycles() \
+  last_z80_sync = SekCyclesDone(); \
   z80_cycle_cnt = z80_cycle_aim = z80_scanline = z80_scanline_cycles = 0;
 
 #define z80_cyclesDone() \
@@ -245,6 +233,7 @@ extern SH2 sh2s[2];
   } \
 } while (0)
 # define sh2_cycles_left(sh2) (sh2)->icount
+# define sh2_burn_cycles(sh2, n) (sh2)->icount -= n
 # define sh2_pc(sh2) (sh2)->ppc
 #else
 # define sh2_end_run(sh2, after_) do { \
@@ -256,6 +245,7 @@ extern SH2 sh2s[2];
   } \
 } while (0)
 # define sh2_cycles_left(sh2) ((signed int)(sh2)->sr >> 12)
+# define sh2_burn_cycles(sh2, n) (sh2)->sr -= ((n) << 12)
 # define sh2_pc(sh2) (sh2)->pc
 #endif
 
@@ -274,6 +264,9 @@ extern SH2 sh2s[2];
   { if (c) ssh2.gbr = v; else msh2.gbr = v; }
 #define sh2_set_vbr(c, v) \
   { if (c) ssh2.vbr = v; else msh2.vbr = v; }
+
+#define elprintf_sh2(sh2, w, f, ...) \
+	elprintf(w,"%csh2 "f,(sh2)->is_slave?'s':'m',##__VA_ARGS__)
 
 // ---------------------------------------------------------
 
@@ -324,7 +317,8 @@ struct PicoMS
 {
   unsigned char carthw[0x10];
   unsigned char io_ctl;
-  unsigned char pad[0x4f];
+  unsigned char nmi_state;
+  unsigned char pad[0x4e];
 };
 
 // some assembly stuff depend on these, do not touch!
@@ -342,7 +336,7 @@ struct Pico
   unsigned short vsram[0x40];  // 0x22180
 
   unsigned char *rom;          // 0x22200
-  unsigned int romsize;        // 0x22204
+  unsigned int romsize;        // 0x22204 (on 32bits)
 
   struct PicoMisc m;
   struct PicoVideo video;
@@ -393,20 +387,24 @@ struct mcd_pcm
 	} ch[8];
 };
 
+#define PCD_ST_S68K_RST 1
+
 struct mcd_misc
 {
 	unsigned short hint_vector;
-	unsigned char  busreq;
+	unsigned char  busreq;		// not s68k_regs[1]
 	unsigned char  s68k_pend_ints;
-	unsigned int   state_flags;	// 04: emu state: reset_pending
-	unsigned int   counter75hz;
-	unsigned int   pad0;
-	int            timer_int3;	// 10
-	unsigned int   timer_stopwatch;
+	unsigned int   state_flags;	// 04
+	unsigned int   stopwatch_base_c;
+	unsigned short m68k_poll_a;
+	unsigned short m68k_poll_cnt;
+	unsigned short s68k_poll_a;
+	unsigned short s68k_poll_cnt;
+	unsigned int   s68k_poll_clk;
 	unsigned char  bcram_reg;	// 18: battery-backed RAM cart register
-	unsigned char  pad2;
+	unsigned char  dmna_ret_2m;
 	unsigned short pad3;
-	int pad[9];
+	int pad4[9];
 };
 
 typedef struct
@@ -430,6 +428,7 @@ typedef struct
 		unsigned char pcm_ram[0x10000];
 		unsigned char pcm_ram_b[0x10][0x1000];
 	};
+	// FIXME: should be short
 	unsigned char s68k_regs[0x200];			// 110000: GA, not CPU regs
 	unsigned char bram[0x2000];			// 110200: 8K
 	struct mcd_misc m;				// 112200: misc
@@ -471,8 +470,9 @@ typedef struct
 #define P32XP_FULL  (1<<15) // PWM pulse
 #define P32XP_EMPTY (1<<14)
 
-#define P32XF_68KCPOLL  (1 << 0)
-#define P32XF_68KVPOLL  (1 << 1)
+#define P32XF_68KCPOLL   (1 << 0)
+#define P32XF_68KVPOLL   (1 << 1)
+#define P32XF_Z80_32X_IO (1 << 7) // z80 does 32x io
 
 #define P32XI_VRES (1 << 14/2) // IRL/2
 #define P32XI_VINT (1 << 12/2)
@@ -483,8 +483,7 @@ typedef struct
 // peripheral reg access
 #define PREG8(regs,offs) ((unsigned char *)regs)[offs ^ 3]
 
-// real one is 4*2, but we use more because we don't lockstep
-#define DMAC_FIFO_LEN (4*4)
+#define DMAC_FIFO_LEN (4*2)
 #define PWM_BUFF_LEN 1024 // in one channel samples
 
 #define SH2_DRCBLK_RAM_SHIFT 1
@@ -505,8 +504,10 @@ struct Pico32x
   unsigned char sh2irqi[2];      // individual
   unsigned int sh2irqs;          // common irqs
   unsigned short dmac_fifo[DMAC_FIFO_LEN];
+  unsigned int pad[4];
   unsigned int dmac0_fifo_ptr;
-  unsigned int pad;
+  unsigned short vdp_fbcr_fake;
+  unsigned short pad2;
   unsigned char comm_dirty_68k;
   unsigned char comm_dirty_sh2;
   unsigned char pwm_irq_cnt;
@@ -530,12 +531,19 @@ struct Pico32xMem
 #ifdef DRC_SH2
   unsigned short drcblk_da[2][1 << (12 - SH2_DRCBLK_DA_SHIFT)];
 #endif
-  unsigned char  sh2_rom_m[0x800];
-  unsigned char  sh2_rom_s[0x400];
+  union {
+    unsigned char  b[0x800];
+    unsigned short w[0x800/2];
+  } sh2_rom_m;
+  union {
+    unsigned char  b[0x400];
+    unsigned short w[0x400/2];
+  } sh2_rom_s;
   unsigned short pal[0x100];
   unsigned short pal_native[0x100];     // converted to native (for renderer)
   signed short   pwm[2*PWM_BUFF_LEN];   // PWM buffer for current frame
-  signed short   pwm_fifo[2][4];        // [0] - current, others - fifo entries
+  signed short   pwm_current[2];        // current converted samples
+  unsigned short pwm_fifo[2][4];        // [0] - current raw, others - fifo entries
 };
 
 // area.c
@@ -586,14 +594,13 @@ unsigned int PicoRead8_io(unsigned int a);
 unsigned int PicoRead16_io(unsigned int a);
 void PicoWrite8_io(unsigned int a, unsigned int d);
 void PicoWrite16_io(unsigned int a, unsigned int d);
-void p32x_dreq1_trigger(void);
 
 // pico/memory.c
 PICO_INTERNAL void PicoMemSetupPico(void);
 
 // cd/memory.c
 PICO_INTERNAL void PicoMemSetupCD(void);
-void PicoMemStateLoaded(void);
+void pcd_state_loaded_mem(void);
 
 // pico.c
 extern struct Pico Pico;
@@ -605,14 +612,35 @@ extern void (*PicoResetHook)(void);
 extern void (*PicoLineHook)(void);
 PICO_INTERNAL int  CheckDMA(void);
 PICO_INTERNAL void PicoDetectRegion(void);
-PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done);
+PICO_INTERNAL void PicoSyncZ80(unsigned int m68k_cycles_done);
 
-// cd/pico.c
+// cd/mcd.c
+#define PCDS_IEN1     (1<<1)
+#define PCDS_IEN2     (1<<2)
+#define PCDS_IEN3     (1<<3)
+#define PCDS_IEN4     (1<<4)
+#define PCDS_IEN5     (1<<5)
+#define PCDS_IEN6     (1<<6)
+
 PICO_INTERNAL void PicoInitMCD(void);
 PICO_INTERNAL void PicoExitMCD(void);
 PICO_INTERNAL void PicoPowerMCD(void);
 PICO_INTERNAL int  PicoResetMCD(void);
 PICO_INTERNAL void PicoFrameMCD(void);
+
+enum pcd_event {
+  PCD_EVENT_CDC,
+  PCD_EVENT_TIMER3,
+  PCD_EVENT_GFX,
+  PCD_EVENT_DMA,
+  PCD_EVENT_COUNT,
+};
+extern unsigned int pcd_event_times[PCD_EVENT_COUNT];
+void pcd_event_schedule(unsigned int now, enum pcd_event event, int after);
+void pcd_event_schedule_s68k(enum pcd_event event, int after);
+unsigned int pcd_cycles_m68k_to_s68k(unsigned int c);
+int  pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync);
+void pcd_state_loaded(void);
 
 // pico/pico.c
 PICO_INTERNAL void PicoInitPico(void);
@@ -633,6 +661,11 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub);
 void SekStepM68k(void);
 void SekInitIdleDet(void);
 void SekFinishIdleDet(void);
+#if defined(CPU_CMP_R) || defined(CPU_CMP_W)
+void SekTrace(int is_s68k);
+#else
+#define SekTrace(x)
+#endif
 
 // cd/sek.c
 PICO_INTERNAL void SekInitS68k(void);
@@ -732,9 +765,10 @@ extern struct Pico32x Pico32x;
 enum p32x_event {
   P32X_EVENT_PWM,
   P32X_EVENT_FILLEND,
+  P32X_EVENT_HINT,
   P32X_EVENT_COUNT,
 };
-extern unsigned int event_times[P32X_EVENT_COUNT];
+extern unsigned int p32x_event_times[P32X_EVENT_COUNT];
 
 void Pico32xInit(void);
 void PicoPower32x(void);
@@ -746,9 +780,12 @@ void Pico32xStateLoaded(int is_early);
 void p32x_sync_sh2s(unsigned int m68k_target);
 void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target);
 void p32x_update_irls(SH2 *active_sh2, int m68k_cycles);
+void p32x_trigger_irq(SH2 *sh2, int m68k_cycles, unsigned int mask);
+void p32x_update_cmd_irq(SH2 *sh2, int m68k_cycles);
 void p32x_reset_sh2s(void);
 void p32x_event_schedule(unsigned int now, enum p32x_event event, int after);
 void p32x_event_schedule_sh2(SH2 *sh2, enum p32x_event event, int after);
+void p32x_schedule_hint(SH2 *sh2, int m68k_cycles);
 
 // 32x/memory.c
 struct Pico32xMem *Pico32xMem;
@@ -785,6 +822,7 @@ void p32x_pwm_update(int *buf32, int length, int stereo);
 void p32x_pwm_ctl_changed(void);
 void p32x_pwm_schedule(unsigned int m68k_now);
 void p32x_pwm_schedule_sh2(SH2 *sh2);
+void p32x_pwm_sync_to_sh2(SH2 *sh2);
 void p32x_pwm_irq_event(unsigned int m68k_now);
 void p32x_pwm_state_loaded(void);
 
@@ -793,6 +831,7 @@ void p32x_dreq0_trigger(void);
 void p32x_dreq1_trigger(void);
 void p32x_timers_recalc(void);
 void p32x_timers_do(unsigned int m68k_slice);
+void sh2_peripheral_reset(SH2 *sh2);
 unsigned int sh2_peripheral_read8(unsigned int a, SH2 *sh2);
 unsigned int sh2_peripheral_read16(unsigned int a, SH2 *sh2);
 unsigned int sh2_peripheral_read32(unsigned int a, SH2 *sh2);
@@ -853,6 +892,7 @@ static __inline int isspace_(int c)
 #define EL_32X     0x00080000
 #define EL_PWM     0x00100000 /* 32X PWM stuff (LOTS of output) */
 #define EL_32XP    0x00200000 /* 32X peripherals */
+#define EL_CD      0x00400000 /* MCD */
 
 #define EL_STATUS  0x40000000 /* status messages */
 #define EL_ANOMALY 0x80000000 /* some unexpected conditions (during emulation) */
@@ -903,9 +943,9 @@ void pevt_log(unsigned int cycles, enum evt_cpu c, enum evt e);
 void pevt_dump(void);
 
 #define pevt_log_m68k(e) \
-  pevt_log(SekCyclesDoneT(), EVT_M68K, e)
+  pevt_log(SekCyclesDone(), EVT_M68K, e)
 #define pevt_log_m68k_o(e) \
-  pevt_log(SekCyclesDoneT2(), EVT_M68K, e)
+  pevt_log(SekCyclesDone(), EVT_M68K, e)
 #define pevt_log_sh2(sh2, e) \
   pevt_log(sh2_cycles_done_m68k(sh2), EVT_MSH2 + (sh2)->is_slave, e)
 #define pevt_log_sh2_o(sh2, e) \

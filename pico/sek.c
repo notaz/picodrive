@@ -11,9 +11,8 @@
 #include "memory.h"
 
 
-int SekCycleCnt=0; // cycles done in this frame
-int SekCycleAim=0; // cycle aim
-unsigned int SekCycleCntT=0;
+unsigned int SekCycleCnt;
+unsigned int SekCycleAim;
 
 
 /* context */
@@ -220,7 +219,8 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
 #endif
 
   *(unsigned int *)(cpu+0x40) = pc;
-  *(unsigned int *)(cpu+0x50) = SekCycleCntT;
+  *(unsigned int *)(cpu+0x50) =
+    is_sub ? SekCycleCntS68k : SekCycleCnt;
 }
 
 PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
@@ -257,7 +257,10 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
   context->execinfo &= ~FM68K_HALTED;
   if (cpu[0x4d]&1) context->execinfo |= FM68K_HALTED;
 #endif
-  SekCycleCntT = *(unsigned int *)(cpu+0x50);
+  if (is_sub)
+    SekCycleCntS68k = *(unsigned int *)(cpu+0x50);
+  else
+    SekCycleCnt = *(unsigned int *)(cpu+0x50);
 }
 
 
@@ -268,7 +271,7 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
 
 static unsigned short **idledet_ptrs = NULL;
 static int idledet_count = 0, idledet_bads = 0;
-int idledet_start_frame = 0;
+static int idledet_start_frame = 0;
 
 #if 0
 #define IDLE_STATS 1
@@ -312,6 +315,11 @@ void SekInitIdleDet(void)
 #endif
 }
 
+int SekIsIdleReady(void)
+{
+	return (Pico.m.frame_count >= idledet_start_frame);
+}
+
 int SekIsIdleCode(unsigned short *dst, int bytes)
 {
   // printf("SekIsIdleCode %04x %i\n", *dst, bytes);
@@ -322,11 +330,16 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
         return 1;
       break;
     case 4:
-      if (  (*dst & 0xfff8) == 0x4a10 || // tst.b ($aX)      // there should be no need to wait
-            (*dst & 0xfff8) == 0x4a28 || // tst.b ($xxxx,a0) // for byte change anywhere
-            (*dst & 0xff3f) == 0x4a38 || // tst.x ($xxxx.w); tas ($xxxx.w)
-            (*dst & 0xc1ff) == 0x0038 || // move.x ($xxxx.w), dX
-            (*dst & 0xf13f) == 0xb038)   // cmp.x ($xxxx.w), dX
+      if ( (*dst & 0xff3f) == 0x4a38 || // tst.x ($xxxx.w); tas ($xxxx.w)
+           (*dst & 0xc1ff) == 0x0038 || // move.x ($xxxx.w), dX
+           (*dst & 0xf13f) == 0xb038)   // cmp.x ($xxxx.w), dX
+        return 1;
+      if (PicoAHW & (PAHW_MCD|PAHW_32X))
+        break;
+      // with no addons, there should be no need to wait
+      // for byte change anywhere
+      if ( (*dst & 0xfff8) == 0x4a10 || // tst.b ($aX)
+           (*dst & 0xfff8) == 0x4a28)   // tst.b ($xxxx,a0)
         return 1;
       break;
     case 6:
@@ -348,7 +361,9 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
         return 1;
       break;
     case 12:
-       if ((*dst & 0xf1f8) == 0x3010 && // move.w (aX), dX
+      if (PicoAHW & (PAHW_MCD|PAHW_32X))
+        break;
+      if ( (*dst & 0xf1f8) == 0x3010 && // move.w (aX), dX
             (dst[1]&0xf100) == 0x0000 && // arithmetic
             (dst[3]&0xf100) == 0x0000)   // arithmetic
         return 1;
@@ -372,6 +387,7 @@ int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx)
   is_main68k = ctx == &PicoCpuFM68k;
 #endif
   pc &= ~0xff000000;
+  if (!(newop&0x200))
   elprintf(EL_IDLE, "idle: patch %06x %04x %04x %c %c #%i", pc, oldop, newop,
     (newop&0x200)?'n':'y', is_main68k?'m':'s', idledet_count);
 
@@ -420,6 +436,122 @@ void SekFinishIdleDet(void)
 }
 
 
+#if defined(CPU_CMP_R) || defined(CPU_CMP_W)
+#include "debug.h"
+
+struct ref_68k {
+  u32 dar[16];
+  u32 pc;
+  u32 sr;
+  u32 cycles;
+  u32 pc_prev;
+};
+struct ref_68k ref_68ks[2];
+static int current_68k;
+
+void SekTrace(int is_s68k)
+{
+  struct ref_68k *x68k = &ref_68ks[is_s68k];
+  u32 pc = is_s68k ? SekPcS68k : SekPc;
+  u32 sr = is_s68k ? SekSrS68k : SekSr;
+  u32 cycles = is_s68k ? SekCycleCntS68k : SekCycleCnt;
+  u32 r;
+  u8 cmd;
+#ifdef CPU_CMP_W
+  int i;
+
+  if (is_s68k != current_68k) {
+    current_68k = is_s68k;
+    cmd = CTL_68K_SLAVE | current_68k;
+    tl_write(&cmd, sizeof(cmd));
+  }
+  if (pc != x68k->pc) {
+    x68k->pc = pc;
+    tl_write_uint(CTL_68K_PC, x68k->pc);
+  }
+  if (sr != x68k->sr) {
+    x68k->sr = sr;
+    tl_write_uint(CTL_68K_SR, x68k->sr);
+  }
+  for (i = 0; i < 16; i++) {
+    r = is_s68k ? SekDarS68k(i) : SekDar(i);
+    if (r != x68k->dar[i]) {
+      x68k->dar[i] = r;
+      tl_write_uint(CTL_68K_R + i, r);
+    }
+  }
+  tl_write_uint(CTL_68K_CYCLES, cycles);
+#else
+  int i, bad = 0;
+
+  while (1)
+  {
+    int ret = tl_read(&cmd, sizeof(cmd));
+    if (ret == 0) {
+      elprintf(EL_STATUS, "EOF");
+      exit(1);
+    }
+    switch (cmd) {
+    case CTL_68K_SLAVE:
+    case CTL_68K_SLAVE + 1:
+      current_68k = cmd & 1;
+      break;
+    case CTL_68K_PC:
+      tl_read_uint(&x68k->pc);
+      break;
+    case CTL_68K_SR:
+      tl_read_uint(&x68k->sr);
+      break;
+    case CTL_68K_CYCLES:
+      tl_read_uint(&x68k->cycles);
+      goto breakloop;
+    default:
+      if (CTL_68K_R <= cmd && cmd < CTL_68K_R + 0x10)
+        tl_read_uint(&x68k->dar[cmd - CTL_68K_R]);
+      else
+        elprintf(EL_STATUS, "invalid cmd: %02x", cmd);
+    }
+  }
+
+breakloop:
+  if (is_s68k != current_68k) {
+		printf("bad 68k: %d %d\n", is_s68k, current_68k);
+    bad = 1;
+  }
+  if (cycles != x68k->cycles) {
+		printf("bad cycles: %u %u\n", cycles, x68k->cycles);
+    bad = 1;
+  }
+  if ((pc ^ x68k->pc) & 0xffffff) {
+		printf("bad PC: %08x %08x\n", pc, x68k->pc);
+    bad = 1;
+  }
+  if (sr != x68k->sr) {
+		printf("bad SR:  %03x %03x\n", sr, x68k->sr);
+    bad = 1;
+  }
+  for (i = 0; i < 16; i++) {
+    r = is_s68k ? SekDarS68k(i) : SekDar(i);
+    if (r != x68k->dar[i]) {
+		  printf("bad %c%d: %08x %08x\n", i < 8 ? 'D' : 'A', i & 7,
+        r, x68k->dar[i]);
+      bad = 1;
+    }
+  }
+  if (bad) {
+    for (i = 0; i < 8; i++)
+			printf("D%d: %08x  A%d: %08x\n", i, x68k->dar[i],
+        i, x68k->dar[i + 8]);
+		printf("PC: %08x, %08x\n", x68k->pc, x68k->pc_prev);
+
+    PDebugDumpMem();
+    exit(1);
+  }
+  x68k->pc_prev = x68k->pc;
+#endif
+}
+#endif // CPU_CMP_*
+
 #if defined(EMU_M68K) && M68K_INSTRUCTION_HOOK == OPT_SPECIFY_HANDLER
 static unsigned char op_flags[0x400000/2] = { 0, };
 static int atexit_set = 0;
@@ -447,3 +579,5 @@ void instruction_hook(void)
     op_flags[REG_PC/2] = 1;
 }
 #endif
+
+// vim:shiftwidth=2:ts=2:expandtab

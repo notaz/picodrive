@@ -104,7 +104,7 @@ out:
 	return retval;
 }
 
-void mp3_start_play(void *f_, int pos)
+void mp3_start_play(void *f_, int pos1024)
 {
 	unsigned char buf[2048];
 	FILE *f = f_;
@@ -118,13 +118,6 @@ void mp3_start_play(void *f_, int pos)
 	if (!(PicoOpt & POPT_EN_MCD_CDDA) || f == NULL) // cdda disabled or no file?
 		return;
 
-	ret = mp3dec_start();
-	if (ret != 0)
-		return;
-
-	decoder_active = 1;
-
-	mp3_current_file = f;
 	fseek(f, 0, SEEK_END);
 	mp3_file_len = ftell(f);
 
@@ -145,11 +138,19 @@ void mp3_start_play(void *f_, int pos)
 	}
 
 	// seek..
-	if (pos) {
+	if (pos1024 != 0) {
 		unsigned long long pos64 = mp3_file_len - mp3_file_pos;
-		pos64 *= pos;
+		pos64 *= pos1024;
 		mp3_file_pos += pos64 >> 10;
 	}
+
+	ret = mp3dec_start(f, mp3_file_pos);
+	if (ret != 0) {
+		return;
+	}
+
+	mp3_current_file = f;
+	decoder_active = 1;
 
 	mp3dec_decode(mp3_current_file, &mp3_file_pos, mp3_file_len);
 }
@@ -183,8 +184,9 @@ void mp3_update(int *buffer, int length, int stereo)
 	} else {
 		int ret, left = 1152 - cdda_out_pos;
 
-		mix_samples(buffer, cdda_out_buffer + cdda_out_pos * 2,
-			(left >> shr) * 2);
+		if (left > 0)
+			mix_samples(buffer, cdda_out_buffer + cdda_out_pos * 2,
+				(left >> shr) * 2);
 
 		ret = mp3dec_decode(mp3_current_file, &mp3_file_pos,
 			mp3_file_len);

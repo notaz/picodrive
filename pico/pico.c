@@ -16,6 +16,7 @@ int PicoSkipFrame;     // skip rendering frame?
 int PicoPad[2];        // Joypads, format is MXYZ SACB RLDU
 int PicoPadInt[2];     // internal copy
 int PicoAHW;           // active addon hardware: PAHW_*
+int PicoQuirks;        // game-specific quirks
 int PicoRegionOverride; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 int PicoAutoRgnOrder;
 
@@ -69,6 +70,9 @@ void PicoPower(void)
 
   Pico.video.pending_ints=0;
   z80_reset();
+
+  // my MD1 VA6 console has this in IO
+  Pico.ioports[1] = Pico.ioports[2] = Pico.ioports[3] = 0xff;
 
   // default VDP register values (based on Fusion)
   Pico.video.reg[0] = Pico.video.reg[1] = 0x04;
@@ -146,7 +150,7 @@ int PicoReset(void)
   if (Pico.romsize <= 0)
     return 1;
 
-#ifdef DRC_CMP
+#if defined(CPU_CMP_R) || defined(CPU_CMP_W) || defined(DRC_CMP)
   PicoOpt |= POPT_DIS_VDP_FIFO|POPT_DIS_IDLE_DET;
 #endif
 
@@ -165,11 +169,7 @@ int PicoReset(void)
   SekReset();
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
   SekSetRealTAS(PicoAHW & PAHW_MCD);
-  SekCycleCntT=0;
-
-  if (PicoAHW & PAHW_MCD)
-    // needed for MCD to reset properly, probably some bug hides behind this..
-    memset(Pico.ioports,0,sizeof(Pico.ioports));
+  SekCycleCnt = SekCycleAim = 0;
 
   Pico.m.dirtyPal = 1;
 
@@ -274,23 +274,25 @@ PICO_INTERNAL int CheckDMA(void)
 
 #include "pico_cmn.c"
 
-int z80stopCycle;
-int z80_cycle_cnt;        /* 'done' z80 cycles before z80_run() */
+unsigned int last_z80_sync; /* in 68k cycles */
+int z80_cycle_cnt;
 int z80_cycle_aim;
 int z80_scanline;
 int z80_scanline_cycles;  /* cycles done until z80_scanline */
 
 /* sync z80 to 68k */
-PICO_INTERNAL void PicoSyncZ80(int m68k_cycles_done)
+PICO_INTERNAL void PicoSyncZ80(unsigned int m68k_cycles_done)
 {
   int cnt;
-  z80_cycle_aim = cycles_68k_to_z80(m68k_cycles_done);
+  z80_cycle_aim += cycles_68k_to_z80(m68k_cycles_done - last_z80_sync);
   cnt = z80_cycle_aim - z80_cycle_cnt;
+  last_z80_sync = m68k_cycles_done;
 
   pprof_start(z80);
 
-  elprintf(EL_BUSREQ, "z80 sync %i (%i|%i -> %i|%i)", cnt, z80_cycle_cnt, z80_cycle_cnt / 228,
-    z80_cycle_aim, z80_cycle_aim / 228);
+  elprintf(EL_BUSREQ, "z80 sync %i (%u|%u -> %u|%u)", cnt,
+    z80_cycle_cnt, z80_cycle_cnt / 288,
+    z80_cycle_aim, z80_cycle_aim / 288);
 
   if (cnt > 0)
     z80_cycle_cnt += z80_run(cnt);

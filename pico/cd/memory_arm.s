@@ -53,7 +53,6 @@
 .extern m68k_reg_write8
 .extern s68k_reg_read16
 .extern s68k_reg_write8
-.extern s68k_poll_adclk
 .extern s68k_poll_detect
 .extern gfx_cd_read
 .extern gfx_cd_write16
@@ -62,6 +61,7 @@
 .extern PicoRead16_io
 .extern PicoWrite8_io
 .extern PicoWrite16_io
+.extern m68k_comm_check
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -174,17 +174,16 @@ m_m68k_read8_r02:
     add     r1, r1, #0x110000
     ldrb    r0, [r1, #2]
     bx      lr
-m_m68k_read8_r03:
-    add     r1, r1, #0x110000
-    ldrb    r0, [r1, #3]
-    add     r1, r1, #0x002200
-    ldr     r1, [r1, #4]
-    and     r0, r0, #0xc7
-    tst     r1, #2                    @ DMNA pending?
-    bxeq    lr
-    bic     r0, r0, #1
-    orr     r0, r0, #2
-    bx      lr
+m_m68k_read8_r03:                     @ FIXME: sync with C
+    add     r2, r1, #0x110000
+    ldrb    r1, [r2, #3]
+    add     r2, r2, #0x002200
+    ldr     r2, [r2, #4]
+    and     r1, r1, #0xc7
+    tst     r2, #2                    @ DMNA pending?
+    bicne   r1, r1, #1
+    orrne   r1, r1, #2
+    b       m68k_comm_check
 m_m68k_read8_r04:
     add     r1, r1, #0x110000
     ldrb    r0, [r1, #4]
@@ -220,8 +219,8 @@ m_m68k_read8_hi:
     movge   r0, #0
     bxeq    lr
     add     r1, r1, #0x110000
-    ldrb    r0, [r1, r0]
-    bx      lr
+    ldrb    r1, [r1, r0]
+    b       m68k_comm_check
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -270,19 +269,18 @@ m_m68k_read16_r00:
     and     r0, r0, #0x04000000       @ we need irq2 mask state
     orr     r0, r1, r0, lsr #11
     bx      lr
-m_m68k_read16_r02:
-    add     r1, r1, #0x110000
-    ldrb    r0, [r1, #2]
-    ldrb    r2, [r1, #3]
-    add     r1, r1, #0x002200
-    ldr     r1, [r1, #4]
+m_m68k_read16_r02:                    @ FIXME: out of sync from C
+    add     r3, r1, #0x110000
+    ldrb    r1, [r3, #2]
+    ldrb    r2, [r3, #3]
+    add     r3, r3, #0x002200
+    ldr     r3, [r3, #4]
     and     r2, r2, #0xc7
-    orr     r0, r2, r0, lsl #8
-    tst     r1, #2                    @ DMNA pending?
-    bxeq    lr
-    bic     r0, r0, #1
-    orr     r0, r0, #2
-    bx      lr
+    orr     r1, r2, r1, lsl #8
+    tst     r3, #2                    @ DMNA pending?
+    bicne   r1, r1, #1
+    orrne   r1, r1, #2
+    b       m68k_comm_check
 m_m68k_read16_r04:
     add     r1, r1, #0x110000
     ldrb    r0, [r1, #4]
@@ -306,10 +304,10 @@ m_m68k_read16_hi:
     ldrlth  r1, [r1, r0]
     movge   r0, #0
     bxge    lr
-    mov     r0, r1, lsr #8
+    mov     r2, r1, lsr #8
     and     r1, r1, #0xff
-    orr     r0, r0, r1, lsl #8
-    bx      lr
+    orr     r1, r2, r1, lsl #8
+    b       m68k_comm_check
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -377,22 +375,8 @@ m_m68k_write16_regs:
     b       m68k_reg_write8
 
 m_m68k_write16_regs_spec:               @ special case
-    ldr     r2, =(Pico+0x22200)
-    ldr     r3, =s68k_poll_adclk
-    mov     r0, #0x110000
-    ldr     r2, [r2]
-    add     r0, r0, #0x00000e
     mov     r1, r1, lsr #8
-    strb    r1, [r2, r0]                @ if (a == 0xe) s68k_regs[0x0e] = d >> 8;
-    ldr     r2, [r3]
-    mov     r1, #0
-    and     r2, r2, #0xfe
-    cmp     r2, #0x0e
-    bxne    lr
-    ldr     r0, =PicoCpuCS68k
-    str     r1, [r0, #0x58]             @ push s68k out of stopped state
-    str     r1, [r3]
-    bx      lr
+    b       m68k_reg_write8
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

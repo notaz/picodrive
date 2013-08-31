@@ -7,6 +7,7 @@
  */
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "emu.h"
 #include "menu_pico.h"
@@ -66,7 +67,6 @@ static const char *men_dummy[] = { NULL };
 #else
 #define MENU_OPTIONS_GFX
 #define MENU_OPTIONS_ADV
-#define menu_main_plat_draw NULL
 #endif
 
 static void make_bg(int no_scale)
@@ -135,7 +135,7 @@ static void draw_savestate_bg(int slot)
 	const char *fname;
 	void *tmp_state;
 
-	fname = emu_get_save_fname(1, 0, slot);
+	fname = emu_get_save_fname(1, 0, slot, NULL);
 	if (!fname)
 		return;
 
@@ -355,12 +355,15 @@ static const char *mgn_dev_name(int id, int *offs)
 static int mh_saveloadcfg(int id, int keys);
 static const char *mgn_saveloadcfg(int id, int *offs);
 
+const char *indev_names[] = { "none", "3 button pad", "6 button pad", NULL };
+
 static menu_entry e_menu_keyconfig[] =
 {
 	mee_handler_id("Player 1",          MA_CTRL_PLAYER1,    key_config_loop_wrap),
 	mee_handler_id("Player 2",          MA_CTRL_PLAYER2,    key_config_loop_wrap),
 	mee_handler_id("Emulator controls", MA_CTRL_EMU,        key_config_loop_wrap),
-	mee_onoff     ("6 button pad",      MA_OPT_6BUTTON_PAD, PicoOpt, POPT_6BTN_PAD),
+	mee_enum      ("Input device 1",    MA_OPT_INPUT_DEV0,  currentConfig.input_dev0, indev_names),
+	mee_enum      ("Input device 2",    MA_OPT_INPUT_DEV1,  currentConfig.input_dev1, indev_names),
 	mee_range     ("Turbo rate",        MA_CTRL_TURBO_RATE, currentConfig.turbo_rate, 1, 30),
 	mee_range     ("Analog deadzone",   MA_CTRL_DEADZONE,   currentConfig.analog_deadzone, 1, 99),
 	mee_cust_nosave("Save global config",       MA_OPT_SAVECFG, mh_saveloadcfg, mgn_saveloadcfg),
@@ -383,6 +386,10 @@ static int menu_loop_keyconfig(int id, int keys)
 
 	me_enable(e_menu_keyconfig, MA_OPT_SAVECFG_GAME, PicoGameLoaded);
 	me_loop(e_menu_keyconfig, &sel);
+
+	PicoSetInputDevice(0, currentConfig.input_dev0);
+	PicoSetInputDevice(1, currentConfig.input_dev1);
+
 	return 0;
 }
 
@@ -517,6 +524,8 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoOpt, POPT_DIS_IDLE_DET),
 	mee_onoff     ("Disable frame limiter",    MA_OPT2_NO_FRAME_LIMIT,currentConfig.EmuOpt, EOPT_NO_FRMLIMIT),
+	mee_onoff     ("Enable dynarecs",          MA_OPT2_SVP_DYNAREC,   PicoOpt, POPT_EN_SVP_DRC),
+	mee_onoff     ("Status line in main menu", MA_OPT2_STATUS_LINE,   currentConfig.EmuOpt, EOPT_SHOW_RTC),
 	MENU_OPTIONS_ADV
 	mee_end,
 };
@@ -530,14 +539,20 @@ static int menu_loop_adv_options(int id, int keys)
 
 // ------------ gfx options menu ------------
 
-static const char h_gamma[] = "Gamma/brightness adjustment (default 100)";
+static const char h_gamma[] = "Gamma/brightness adjustment (default 1.00)";
+
+static const char *mgn_aopt_gamma(int id, int *offs)
+{
+	sprintf(static_buff, "%i.%02i", currentConfig.gamma / 100, currentConfig.gamma % 100);
+	return static_buff;
+}
 
 static menu_entry e_menu_gfx_options[] =
 {
 	mee_enum   ("Video output mode", MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
 	mee_enum   ("Renderer",          MA_OPT_RENDERER, currentConfig.renderer, renderer_names),
 	mee_enum   ("Filter",            MA_OPT3_FILTERING, currentConfig.filter, men_dummy),
-	mee_range_h("Gamma adjustment",  MA_OPT3_GAMMA, currentConfig.gamma, 1, 200, h_gamma),
+	mee_range_cust_h("Gamma correction", MA_OPT2_GAMMA, currentConfig.gamma, 1, 300, mgn_aopt_gamma, h_gamma),
 	MENU_OPTIONS_GFX
 	mee_end,
 };
@@ -746,10 +761,7 @@ static menu_entry e_menu_options[] =
 static int menu_loop_options(int id, int keys)
 {
 	static int sel = 0;
-	int i;
 
-	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
-	e_menu_options[i].enabled = e_menu_options[i].name[0] ? 1 : 0;
 	me_enable(e_menu_options, MA_OPT_SAVECFG_GAME, PicoGameLoaded);
 	me_enable(e_menu_options, MA_OPT_LOADCFG, config_slot != config_slot_current);
 
@@ -915,7 +927,7 @@ static void debug_menu_loop(void)
 // ------------ main menu ------------
 
 static const char credits[] =
-	"PicoDrive v" VERSION " (c) notaz, 2006-2011\n\n\n"
+	"PicoDrive v" VERSION " (c) notaz, 2006-2013\n\n\n"
 	"Credits:\n"
 	"fDave: Cyclone 68000 core,\n"
 	"      base code of PicoDrive\n"
@@ -923,7 +935,6 @@ static const char credits[] =
 	"MAME devs: YM2612 and SN76496 cores\n"
 	"Inder, ketchupgun: graphics\n"
 #ifdef __GP2X__
-	"rlyeh and others: minimal SDK\n"
 	"Squidge: mmuhack\n"
 	"Dzz: ARM940 sample\n"
 #endif
@@ -932,7 +943,57 @@ static const char credits[] =
 	" Charles MacDonald, Haze,\n"
 	" Stephane Dallongeville,\n"
 	" Lordus, Exophase, Rokas,\n"
-	" Nemesis, Tasco Deluxe";
+	" Eke, Nemesis, Tasco Deluxe";
+
+static void menu_main_draw_status(void)
+{
+	static time_t last_bat_read = 0;
+	static int last_bat_val = -1;
+	unsigned short *bp = g_screen_ptr;
+	int bat_h = me_mfont_h * 2 / 3;
+	int i, u, w, wfill, batt_val;
+	struct tm *tmp;
+	time_t ltime;
+	char time_s[16];
+
+	if (!(currentConfig.EmuOpt & EOPT_SHOW_RTC))
+		return;
+
+	ltime = time(NULL);
+	tmp = gmtime(&ltime);
+	strftime(time_s, sizeof(time_s), "%H:%M", tmp);
+
+	text_out16(g_screen_width - me_mfont_w * 6, me_mfont_h + 2, time_s);
+
+	if (ltime - last_bat_read > 10) {
+		last_bat_read = ltime;
+		last_bat_val = batt_val = plat_target_bat_capacity_get();
+	}
+	else
+		batt_val = last_bat_val;
+
+	if (batt_val < 0 || batt_val > 100)
+		return;
+
+	/* battery info */
+	bp += (me_mfont_h * 2 + 2) * g_screen_width + g_screen_width - me_mfont_w * 3 - 3;
+	for (i = 0; i < me_mfont_w * 2; i++)
+		bp[i] = menu_text_color;
+	for (i = 0; i < me_mfont_w * 2; i++)
+		bp[i + g_screen_width * bat_h] = menu_text_color;
+	for (i = 0; i <= bat_h; i++)
+		bp[i * g_screen_width] =
+		bp[i * g_screen_width + me_mfont_w * 2] = menu_text_color;
+	for (i = 2; i < bat_h - 1; i++)
+		bp[i * g_screen_width - 1] =
+		bp[i * g_screen_width - 2] = menu_text_color;
+
+	w = me_mfont_w * 2 - 1;
+	wfill = batt_val * w / 100;
+	for (u = 1; u < bat_h; u++)
+		for (i = 0; i < wfill; i++)
+			bp[(w - i) + g_screen_width * u] = menu_text_color;
+}
 
 static int main_menu_handler(int id, int keys)
 {
@@ -1022,7 +1083,7 @@ void menu_loop(void)
 
 	menu_enter(PicoGameLoaded);
 	in_set_config_int(0, IN_CFG_BLOCKING, 1);
-	me_loop_d(e_menu_main, &sel, NULL, menu_main_plat_draw);
+	me_loop_d(e_menu_main, &sel, NULL, menu_main_draw_status);
 
 	if (PicoGameLoaded) {
 		if (engineState == PGS_Menu)
@@ -1105,6 +1166,7 @@ void menu_update_msg(const char *msg)
 static menu_entry e_menu_hidden[] =
 {
 	mee_onoff("Accurate sprites", MA_OPT_ACC_SPRITES, PicoOpt, 0x080),
+	mee_onoff("autoload savestates", MA_OPT_AUTOLOAD_SAVE, g_autostateld_opt, 1),
 	mee_end,
 };
 
@@ -1156,6 +1218,12 @@ void menu_init(void)
 
 	menu_init_base();
 
+	i = 0;
+#if defined(_SVP_DRC) || defined(DRC_SH2)
+	i = 1;
+#endif
+	me_enable(e_menu_adv_options, MA_OPT2_SVP_DYNAREC, i);
+
 	i = me_id2offset(e_menu_gfx_options, MA_OPT_VOUT_MODE);
 	e_menu_gfx_options[i].data = plat_target.vout_methods;
 	me_enable(e_menu_gfx_options, MA_OPT_VOUT_MODE,
@@ -1166,6 +1234,13 @@ void menu_init(void)
 	me_enable(e_menu_gfx_options, MA_OPT3_FILTERING,
 		plat_target.hwfilters != NULL);
 
-	me_enable(e_menu_gfx_options, MA_OPT3_GAMMA,
+	me_enable(e_menu_gfx_options, MA_OPT2_GAMMA,
                 plat_target.gamma_set != NULL);
+
+	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
+	e_menu_options[i].enabled = 0;
+	if (plat_target.cpu_clock_set != NULL) {
+		e_menu_options[i].name = "CPU clock";
+		e_menu_options[i].enabled = 1;
+	}
 }

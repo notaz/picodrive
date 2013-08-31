@@ -89,7 +89,23 @@ void sh2_do_irq(SH2 *sh2, int level, int vector);
 void sh2_pack(const SH2 *sh2, unsigned char *buff);
 void sh2_unpack(SH2 *sh2, const unsigned char *buff);
 
-int  sh2_execute(SH2 *sh2, int cycles);
+int  sh2_execute_drc(SH2 *sh2c, int cycles);
+int  sh2_execute_interpreter(SH2 *sh2c, int cycles);
+
+static inline int sh2_execute(SH2 *sh2, int cycles, int use_drc)
+{
+  int ret;
+
+  sh2->cycles_timeslice = cycles;
+#ifdef DRC_SH2
+  if (use_drc)
+    ret = sh2_execute_drc(sh2, cycles);
+  else
+#endif
+    ret = sh2_execute_interpreter(sh2, cycles);
+
+  return sh2->cycles_timeslice - ret;
+}
 
 // regs, pending_int*, cycles, reserved
 #define SH2_STATE_SIZE ((24 + 2 + 2 + 12) * 4)

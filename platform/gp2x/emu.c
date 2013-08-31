@@ -15,18 +15,17 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "plat_gp2x.h"
-#include "soc.h"
-#include "soc_pollux.h"
-#include "../common/plat.h"
-#include "../common/menu.h"
+#include "../libpicofe/gp2x/plat_gp2x.h"
+#include "../libpicofe/gp2x/soc.h"
+#include "../libpicofe/input.h"
+#include "../libpicofe/plat.h"
+#include "../libpicofe/gp2x/soc_pollux.h"
+#include "../common/menu_pico.h"
 #include "../common/arm_utils.h"
-#include "../common/fonts.h"
 #include "../common/emu.h"
-#include "../common/config.h"
-#include "../common/input.h"
-#include "../linux/sndout_oss.h"
-#include "version.h"
+#include "../common/config_file.h"
+#include "../common/version.h"
+#include "plat.h"
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
@@ -40,9 +39,8 @@
 #endif
 
 
-extern int crashed_940;
+//extern int crashed_940;
 
-static short __attribute__((aligned(4))) sndBuffer[2*(44100+100)/50];
 static int osd_fps_x, osd_y, doing_bg_frame;
 const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast", NULL };
 const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
@@ -50,8 +48,6 @@ enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 
 static int (*emu_scan_begin)(unsigned int num) = NULL;
 static int (*emu_scan_end)(unsigned int num) = NULL;
-
-extern void *gp2x_screens[4];
 
 
 void pemu_prep_defconfig(void)
@@ -670,8 +666,8 @@ static void RunEventsPico(unsigned int events)
 void plat_update_volume(int has_changed, int is_up)
 {
 	static int prev_frame = 0, wait_frames = 0;
-	int vol = currentConfig.volume;
 	int need_low_volume = 0;
+	int vol = currentConfig.volume;
 	gp2x_soc_t soc;
 
 	soc = soc_detect();
@@ -683,14 +679,9 @@ void plat_update_volume(int has_changed, int is_up)
 		if (need_low_volume && vol < 5 && prev_frame == Pico.m.frame_count - 1 && wait_frames < 12)
 			wait_frames++;
 		else {
-			if (is_up) {
-				if (vol < 99) vol++;
-			} else {
-				if (vol >  0) vol--;
-			}
 			wait_frames = 0;
-			sndout_oss_setvol(vol, vol);
-			currentConfig.volume = vol;
+			plat_target_step_volume(&currentConfig.volume, is_up ? 1 : -1);
+			vol = currentConfig.volume;
 		}
 		emu_status_msg("VOL: %02i", vol);
 		prev_frame = Pico.m.frame_count;
@@ -708,17 +699,13 @@ void plat_update_volume(int has_changed, int is_up)
 	}
 }
 
-static void oss_write_nonblocking(int len)
-{
-	// sndout_oss_can_write() is not reliable, only use with no_frmlimit
-	if ((currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) && !sndout_oss_can_write(len))
-		return;
-
-	sndout_oss_write_nb(PsndOut, len);
-}
-
 void pemu_sound_start(void)
 {
+	emu_sound_start();
+
+	plat_target_step_volume(&currentConfig.volume, 0);
+
+#if 0
 	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
 
 	PsndOut = NULL;
@@ -754,6 +741,7 @@ void pemu_sound_start(void)
 		PicoOpt_old  = PicoOpt;
 		pal_old = Pico.m.pal;
 	}
+#endif
 }
 
 static const int sound_rates[] = { 44100, 32000, 22050, 16000, 11025, 8000 };
@@ -770,11 +758,6 @@ void pemu_sound_stop(void)
 			break;
 		}
 	}
-}
-
-void pemu_sound_wait(void)
-{
-	// don't need to do anything, writes will block by themselves
 }
 
 void pemu_forced_frame(int no_scale, int do_emu)
@@ -794,110 +777,23 @@ void plat_debug_cat(char *str)
 {
 }
 
-#if 0
-static void tga_dump(void)
+void plat_video_loop_prepare(void) 
 {
-#define BYTE unsigned char
-#define WORD unsigned short
-	struct
-	{
-		BYTE IDLength;        /* 00h  Size of Image ID field */
-		BYTE ColorMapType;    /* 01h  Color map type */
-		BYTE ImageType;       /* 02h  Image type code */
-		WORD CMapStart;       /* 03h  Color map origin */
-		WORD CMapLength;      /* 05h  Color map length */
-		BYTE CMapDepth;       /* 07h  Depth of color map entries */
-		WORD XOffset;         /* 08h  X origin of image */
-		WORD YOffset;         /* 0Ah  Y origin of image */
-		WORD Width;           /* 0Ch  Width of image */
-		WORD Height;          /* 0Eh  Height of image */
-		BYTE PixelDepth;      /* 10h  Image pixel size */
-		BYTE ImageDescriptor; /* 11h  Image descriptor byte */
-	} __attribute__((packed)) TGAHEAD;
-	static unsigned short oldscr[320*240];
-	FILE *f; char name[128]; int i;
-
-	memset(&TGAHEAD, 0, sizeof(TGAHEAD));
-	TGAHEAD.ImageType = 2;
-	TGAHEAD.Width = 320;
-	TGAHEAD.Height = 240;
-	TGAHEAD.PixelDepth = 16;
-	TGAHEAD.ImageDescriptor = 2<<4; // image starts at top-left
-
-#define CONV(X) (((X>>1)&0x7fe0)|(X&0x1f)) // 555?
-
-	for (i = 0; i < 320*240; i++)
-		if(oldscr[i] != CONV(((unsigned short *)g_screen_ptr)[i])) break;
-	if (i < 320*240)
-	{
-		for (i = 0; i < 320*240; i++)
-			oldscr[i] = CONV(((unsigned short *)g_screen_ptr)[i]);
-		sprintf(name, "%05i.tga", Pico.m.frame_count);
-		f = fopen(name, "wb");
-		if (!f) { printf("!f\n"); exit(1); }
-		fwrite(&TGAHEAD, 1, sizeof(TGAHEAD), f);
-		fwrite(oldscr, 1, 320*240*2, f);
-		fclose(f);
-	}
-}
-#endif
-
-void pemu_loop_prep(void)
-{
-	static int gp2x_old_clock = -1, EmuOpt_old = 0, pal_old = 0;
-	static int gp2x_old_gamma = 100;
-	gp2x_soc_t soc;
-
-	soc = soc_detect();
-
-	if ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_RAM_TIMINGS) {
-		if (currentConfig.EmuOpt & EOPT_RAM_TIMINGS)
-			set_ram_timings();
-		else
-			unset_ram_timings();
-	}
-
-	if (gp2x_old_clock < 0)
-		gp2x_old_clock = default_cpu_clock;
-	if (gp2x_old_clock != currentConfig.CPUclock && gp2x_set_cpuclk != NULL) {
-		printf("changing clock to %i...", currentConfig.CPUclock); fflush(stdout);
-		gp2x_set_cpuclk(currentConfig.CPUclock);
-		gp2x_old_clock = currentConfig.CPUclock;
-		printf(" done\n");
-	}
-
-	if (gp2x_old_gamma != currentConfig.gamma || ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_A_SN_GAMMA)) {
-		set_lcd_gamma(currentConfig.gamma, !!(currentConfig.EmuOpt & EOPT_A_SN_GAMMA));
-		gp2x_old_gamma = currentConfig.gamma;
-		printf("updated gamma to %i, A_SN's curve: %i\n", currentConfig.gamma, !!(currentConfig.EmuOpt&0x1000));
-	}
-
-	if (((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_VSYNC) || Pico.m.pal != pal_old) {
-		if ((currentConfig.EmuOpt & EOPT_VSYNC) || soc == SOCID_POLLUX)
-			set_lcd_custom_rate(Pico.m.pal);
-		else if (EmuOpt_old & EOPT_VSYNC)
-			unset_lcd_custom_rate();
-	}
-
-	if (gp2x_dev_id == GP2X_DEV_CAANOO)
-		in_set_config_int(in_name_to_id("evdev:pollux-analog"), IN_CFG_ABS_DEAD_ZONE,
-				currentConfig.analog_deadzone);
-
-	if ((EmuOpt_old ^ currentConfig.EmuOpt) & EOPT_MMUHACK)
-		gp2x_make_fb_bufferable(currentConfig.EmuOpt & EOPT_MMUHACK);
-
-	EmuOpt_old = currentConfig.EmuOpt;
-	pal_old = Pico.m.pal;
-
 	// make sure we are in correct mode
 	change_renderer(0);
 	vid_reset_mode();
+}
+
+void pemu_loop_prep(void)
+{
+	if (gp2x_dev_id == GP2X_DEV_CAANOO)
+		in_set_config_int(in_name_to_id("evdev:pollux-analog"),
+			IN_CFG_ABS_DEAD_ZONE,
+			currentConfig.analog_deadzone);
 
 	// dirty buffers better go now than during gameplay
 	sync();
 	sleep(0);
-
-	pemu_sound_start();
 }
 
 void pemu_loop_end(void)

@@ -19,7 +19,6 @@
 #include <cpu/debug.h>
 
 
-extern char *PicoConfigFile;
 static int load_state_slot = -1;
 char **g_argv;
 

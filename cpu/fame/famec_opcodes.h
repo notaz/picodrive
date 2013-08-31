@@ -40012,20 +40012,18 @@ RET(8)
 }
 
 
+extern int SekIsIdleReady(void);
 extern int SekIsIdleCode(unsigned short *dst, int bytes);
 extern int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx);
 
 OPCODE(idle_detector_bcc8)
 {
-	extern int idledet_start_frame;
-	extern char Pico[];
 	int frame_count, cond_true, bytes, ret, newop;
 	u16 *dest_pc;
 
 	dest_pc = PC + (((s8)(Opcode & 0xFE)) >> 1);
 
-	frame_count = *(int *)(Pico+0x22208+0x1c); // Pico.m.frame_count
-	if (frame_count < idledet_start_frame)
+	if (!SekIsIdleReady())
 		goto end;
 
 	bytes = 0 - (s8)(Opcode & 0xFE) - 2;

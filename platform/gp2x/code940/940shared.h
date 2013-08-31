@@ -1,5 +1,4 @@
 #include "../../../pico/sound/ym2612.h"
-#include "../../common/helix/pub/mp3dec.h"
 
 // max 16 jobs, lower num means higher prio
 enum _940_job_t {
@@ -20,7 +19,7 @@ enum _940_job_t {
 typedef struct
 {
 	YM2612  ym2612;				/* current state of the emulated YM2612 */
-	HMP3Decoder mp3dec;			/* mp3 decoder's handle */
+	void	*mp3dec;			/* mp3 decoder's handle */
 	int     ym_buffer[44100/50*2];		/* this is where the YM2612 samples will be mixed to */
 	short   mp3_buffer[2][1152*2];		/* buffers for mp3 decoder's output */
 } _940_data_t;

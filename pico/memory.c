@@ -49,7 +49,7 @@ static void xmap_set(uptr *map, int shift, int start_addr, int end_addr,
   for (i = start_addr >> shift; i <= end_addr >> shift; i++) {
     map[i] = addr >> 1;
     if (is_func)
-      map[i] |= (uptr)1 << (sizeof(addr) * 8 - 1);
+      map[i] |= MAP_FLAG;
   }
 }
 
@@ -126,19 +126,19 @@ void m68k_map_unmap(int start_addr, int end_addr)
 
   addr = (uptr)m68k_unmapped_read8;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_read8_map[i] = (addr >> 1) | (1 << 31);
+    m68k_read8_map[i] = (addr >> 1) | MAP_FLAG;
 
   addr = (uptr)m68k_unmapped_read16;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_read16_map[i] = (addr >> 1) | (1 << 31);
+    m68k_read16_map[i] = (addr >> 1) | MAP_FLAG;
 
   addr = (uptr)m68k_unmapped_write8;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_write8_map[i] = (addr >> 1) | (1 << 31);
+    m68k_write8_map[i] = (addr >> 1) | MAP_FLAG;
 
   addr = (uptr)m68k_unmapped_write16;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_write16_map[i] = (addr >> 1) | (1 << 31);
+    m68k_write16_map[i] = (addr >> 1) | MAP_FLAG;
 }
 
 MAKE_68K_READ8(m68k_read8, m68k_read8_map)
@@ -186,62 +186,119 @@ void cyclone_crashed(u32 pc, struct Cyclone *context)
 // -----------------------------------------------------------------
 // memmap helpers
 
-#ifndef _ASM_MEMORY_C
-static
-#endif
-int PadRead(int i)
+static u32 read_pad_3btn(int i, u32 out_bits)
 {
-  int pad,value,data_reg;
-  pad=~PicoPadInt[i]; // Get inverse of pad MXYZ SACB RLDU
-  data_reg=Pico.ioports[i+1];
+  u32 pad = ~PicoPadInt[i]; // Get inverse of pad MXYZ SACB RLDU
+  u32 value;
 
-  // orr the bits, which are set as output
-  value = data_reg&(Pico.ioports[i+4]|0x80);
+  if (out_bits & 0x40) // TH
+    value = pad & 0x3f;                      // ?1CB RLDU
+  else
+    value = ((pad & 0xc0) >> 2) | (pad & 3); // ?0SA 00DU
 
-  if (PicoOpt & POPT_6BTN_PAD)
-  {
-    int phase = Pico.m.padTHPhase[i];
-
-    if(phase == 2 && !(data_reg&0x40)) { // TH
-      value|=(pad&0xc0)>>2;              // ?0SA 0000
-      return value;
-    } else if(phase == 3) {
-      if(data_reg&0x40)
-        value|=(pad&0x30)|((pad>>8)&0xf);  // ?1CB MXYZ
-      else
-        value|=((pad&0xc0)>>2)|0x0f;       // ?0SA 1111
-      return value;
-    }
-  }
-
-  if(data_reg&0x40) // TH
-       value|=(pad&0x3f);              // ?1CB RLDU
-  else value|=((pad&0xc0)>>2)|(pad&3); // ?0SA 00DU
-
-  return value; // will mirror later
+  value |= out_bits & 0x40;
+  return value;
 }
 
-#ifndef _ASM_MEMORY_C
+static u32 read_pad_6btn(int i, u32 out_bits)
+{
+  u32 pad = ~PicoPadInt[i]; // Get inverse of pad MXYZ SACB RLDU
+  int phase = Pico.m.padTHPhase[i];
+  u32 value;
 
-static u32 io_ports_read(u32 a)
+  if (phase == 2 && !(out_bits & 0x40)) {
+    value = (pad & 0xc0) >> 2;                   // ?0SA 0000
+    goto out;
+  }
+  else if(phase == 3) {
+    if (out_bits & 0x40)
+      return (pad & 0x30) | ((pad >> 8) & 0xf);  // ?1CB MXYZ
+    else
+      return ((pad & 0xc0) >> 2) | 0x0f;         // ?0SA 1111
+    goto out;
+  }
+
+  if (out_bits & 0x40) // TH
+    value = pad & 0x3f;                          // ?1CB RLDU
+  else
+    value = ((pad & 0xc0) >> 2) | (pad & 3);     // ?0SA 00DU
+
+out:
+  value |= out_bits & 0x40;
+  return value;
+}
+
+static u32 read_nothing(int i, u32 out_bits)
+{
+  return 0xff;
+}
+
+typedef u32 (port_read_func)(int index, u32 out_bits);
+
+static port_read_func *port_readers[3] = {
+  read_pad_3btn,
+  read_pad_3btn,
+  read_nothing
+};
+
+static NOINLINE u32 port_read(int i)
+{
+  u32 data_reg = Pico.ioports[i + 1];
+  u32 ctrl_reg = Pico.ioports[i + 4] | 0x80;
+  u32 in, out;
+
+  out = data_reg & ctrl_reg;
+  out |= 0x7f & ~ctrl_reg; // pull-ups
+
+  in = port_readers[i](i, out);
+
+  return (in & ~ctrl_reg) | (data_reg & ctrl_reg);
+}
+
+void PicoSetInputDevice(int port, enum input_device device)
+{
+  port_read_func *func;
+
+  if (port < 0 || port > 2)
+    return;
+
+  switch (device) {
+  case PICO_INPUT_PAD_3BTN:
+    func = read_pad_3btn;
+    break;
+
+  case PICO_INPUT_PAD_6BTN:
+    func = read_pad_6btn;
+    break;
+
+  default:
+    func = read_nothing;
+    break;
+  }
+
+  port_readers[port] = func;
+}
+
+NOINLINE u32 io_ports_read(u32 a)
 {
   u32 d;
   a = (a>>1) & 0xf;
   switch (a) {
     case 0:  d = Pico.m.hardware; break; // Hardware value (Version register)
-    case 1:  d = PadRead(0); break;
-    case 2:  d = PadRead(1); break;
+    case 1:  d = port_read(0); break;
+    case 2:  d = port_read(1); break;
+    case 3:  d = port_read(2); break;
     default: d = Pico.ioports[a]; break; // IO ports can be used as RAM
   }
   return d;
 }
 
-static void NOINLINE io_ports_write(u32 a, u32 d)
+NOINLINE void io_ports_write(u32 a, u32 d)
 {
   a = (a>>1) & 0xf;
 
   // 6 button gamepad: if TH went from 0 to 1, gamepad changes state
-  if (1 <= a && a <= 2 && (PicoOpt & POPT_6BTN_PAD))
+  if (1 <= a && a <= 2)
   {
     Pico.m.padDelay[a - 1] = 0;
     if (!(Pico.ioports[a] & 0x40) && (d & 0x40))
@@ -252,7 +309,12 @@ static void NOINLINE io_ports_write(u32 a, u32 d)
   Pico.ioports[a] = d;
 }
 
-#endif // _ASM_MEMORY_C
+// lame..
+static int z80_cycles_from_68k(void)
+{
+  return z80_cycle_aim
+    + cycles_68k_to_z80(SekCyclesDone() - last_z80_sync);
+}
 
 void NOINLINE ctl_write_z80busreq(u32 d)
 {
@@ -262,14 +324,13 @@ void NOINLINE ctl_write_z80busreq(u32 d)
   {
     if (d)
     {
-      z80_cycle_cnt = cycles_68k_to_z80(SekCyclesDone());
+      z80_cycle_cnt = z80_cycles_from_68k();
     }
     else
     {
-      z80stopCycle = SekCyclesDone();
       if ((PicoOpt&POPT_EN_Z80) && !Pico.m.z80_reset) {
         pprof_start(m68k);
-        PicoSyncZ80(z80stopCycle);
+        PicoSyncZ80(SekCyclesDone());
         pprof_end_sub(m68k);
       }
     }
@@ -295,7 +356,7 @@ void NOINLINE ctl_write_z80reset(u32 d)
     }
     else
     {
-      z80_cycle_cnt = cycles_68k_to_z80(SekCyclesDone());
+      z80_cycle_cnt = z80_cycles_from_68k();
       z80_reset();
     }
     Pico.m.z80_reset = d;
@@ -431,7 +492,7 @@ static void PicoWrite8_z80(u32 a, u32 d)
   }
 
   if ((a & 0x4000) == 0x0000) { // z80 RAM
-    SekCyclesBurn(2); // hack
+    SekCyclesBurnRun(2); // FIXME hack
     Pico.zram[a & 0x1fff] = (u8)d;
     return;
   }
@@ -885,7 +946,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             timer_a_step = TIMER_A_TICK_ZCYCLES * (1024 - TAnew);
             if (ym2612.OPN.ST.mode & 1) {
               // this is not right, should really be done on overflow only
-              int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
+              int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
               timer_a_next_oflow = (cycles << 8) + timer_a_step;
             }
             elprintf(EL_YMTIMER, "timer a set to %i, %i", 1024 - TAnew, timer_a_next_oflow>>8);
@@ -900,7 +961,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             //ym2612.OPN.ST.TBT  = 0;
             timer_b_step = TIMER_B_TICK_ZCYCLES * (256 - d); // 262800
             if (ym2612.OPN.ST.mode & 2) {
-              int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
+              int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
               timer_b_next_oflow = (cycles << 8) + timer_b_step;
             }
             elprintf(EL_YMTIMER, "timer b set to %i, %i", 256 - d, timer_b_next_oflow>>8);
@@ -908,7 +969,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           return 0;
         case 0x27: { /* mode, timer control */
           int old_mode = ym2612.OPN.ST.mode;
-          int cycles = is_from_z80 ? z80_cyclesDone() : cycles_68k_to_z80(SekCyclesDone());
+          int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
           ym2612.OPN.ST.mode = d;
 
           elprintf(EL_YMTIMER, "st mode %02x", d);
@@ -986,7 +1047,7 @@ static u32 ym2612_read_local_z80(void)
 
 static u32 ym2612_read_local_68k(void)
 {
-  int xcycles = cycles_68k_to_z80(SekCyclesDone()) << 8;
+  int xcycles = z80_cycles_from_68k() << 8;
 
   ym2612_read_local();
 
@@ -1177,3 +1238,4 @@ static void z80_mem_setup(void)
 #endif
 }
 
+// vim:shiftwidth=2:ts=2:expandtab

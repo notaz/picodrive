@@ -93,8 +93,7 @@ static void DmaSlow(int len)
     SekCyclesDone(), SekPc);
 
   Pico.m.dma_xfers += len;
-  if ((PicoAHW & PAHW_MCD) && (PicoOpt & POPT_EN_MCD_PSYNC)) SekCyclesBurn(CheckDMA());
-  else SekEndTimeslice(SekCyclesLeftNoMCD - CheckDMA());
+  SekCyclesBurnRun(CheckDMA());
 
   if ((source&0xe00000)==0xe00000) { // Ram
     pd=(u16 *)(Pico.ram+(source&0xfffe));
@@ -362,8 +361,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
         pvid->lwrite_cnt++;
         if (pvid->lwrite_cnt >= 4) pvid->status|=0x100; // FIFO full
         if (pvid->lwrite_cnt >  4) {
-          SekCyclesBurn(32); // penalty // 488/12-8
-          if (SekCycleCnt>=SekCycleAim) SekEndRun(0);
+          SekCyclesBurnRun(32); // penalty // 488/12-8
         }
         elprintf(EL_ASVDP, "VDP data write: %04x [%06x] {%i} #%i @ %06x", d, Pico.video.addr,
                  Pico.video.type, pvid->lwrite_cnt, SekPc);
@@ -425,7 +423,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
 update_irq:
 #ifndef EMU_CORE_DEBUG
         // update IRQ level
-        if (!SekShouldInterrupt) // hack
+        if (!SekShouldInterrupt()) // hack
         {
           int lines, pints, irq=0;
           lines = (pvid->reg[1] & 0x20) | (pvid->reg[0] & 0x10);

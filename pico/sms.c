@@ -11,7 +11,6 @@
  * - remaining status flags (OVR/COL)
  * - RAM support in mapper
  * - region support
- * - Pause button (NMI)
  * - SN76496 DAC-like usage
  * - H counter
  */
@@ -256,7 +255,13 @@ void PicoFrameMS(void)
   int skip = PicoSkipFrame;
   int lines_vis = 192;
   int hint; // Hint counter
+  int nmi;
   int y;
+
+  nmi = (PicoPad[0] >> 7) & 1;
+  if (!Pico.ms.nmi_state && nmi)
+    z80_nmi();
+  Pico.ms.nmi_state = nmi;
 
   PicoFrameStartMode4();
   hint = pv->reg[0x0a];

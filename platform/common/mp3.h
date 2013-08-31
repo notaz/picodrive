@@ -6,7 +6,7 @@
 int mp3_find_sync_word(const unsigned char *buf, int size);
 
 /* decoder */
-int mp3dec_start(void);
+int mp3dec_start(FILE *f, int fpos_start);
 int mp3dec_decode(FILE *f, int *file_pos, int file_len);
 
 extern unsigned short mpeg1_l3_bitrates[16];

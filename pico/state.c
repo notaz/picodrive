@@ -173,12 +173,14 @@ typedef enum {
   CHUNK_32X_EVT,
   CHUNK_32X_FIRST = CHUNK_MSH2,
   CHUNK_32X_LAST = CHUNK_32X_EVT,
+  // add new stuff here
+  CHUNK_CD_EVT = 50,
   //
   CHUNK_DEFAULT_COUNT,
-  CHUNK_CARTHW_ = CHUNK_CARTHW,  // defined in PicoInt
+  CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
 } chunk_name_e;
 
-static const char * const chunk_names[] = {
+static const char * const chunk_names[CHUNK_DEFAULT_COUNT] = {
   "INVALID!",
   "M68K state",
   "RAM",
@@ -235,7 +237,7 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 }
 
 #define CHECKED_WRITE(name,len,data) { \
-  if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT) { \
+  if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT && chunk_names[name]) { \
     strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff) - 9); \
     PicoStateProgressCB(sbuff); \
   } \
@@ -243,7 +245,7 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 }
 
 #define CHECKED_WRITE_BUFF(name,buff) { \
-  if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT) { \
+  if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT && chunk_names[name]) { \
     strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff) - 9); \
     PicoStateProgressCB(sbuff); \
   } \
@@ -290,7 +292,8 @@ static int state_save(void *file)
     SekPackCpu(buff, 1);
     if (Pico_mcd->s68k_regs[3] & 4) // 1M mode?
       wram_1M_to_2M(Pico_mcd->word_ram2M);
-    Pico_mcd->m.hint_vector = *(unsigned short *)(Pico_mcd->bios + 0x72);
+    memcpy(&Pico_mcd->m.hint_vector, Pico_mcd->bios + 0x72,
+      sizeof(Pico_mcd->m.hint_vector));
 
     CHECKED_WRITE_BUFF(CHUNK_S68K,     buff);
     CHECKED_WRITE_BUFF(CHUNK_PRG_RAM,  Pico_mcd->prg_ram);
@@ -304,6 +307,9 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_SCD,      Pico_mcd->scd);
     CHECKED_WRITE_BUFF(CHUNK_RC,       Pico_mcd->rot_comp);
     CHECKED_WRITE_BUFF(CHUNK_MISC_CD,  Pico_mcd->m);
+    memset(buff, 0, 0x40);
+    memcpy(buff, pcd_event_times, sizeof(pcd_event_times));
+    CHECKED_WRITE(CHUNK_CD_EVT, 0x40, buff);
 
     if (Pico_mcd->s68k_regs[3] & 4) // convert back
       wram_2M_to_1M(Pico_mcd->word_ram2M);
@@ -335,7 +341,7 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_32XPAL,    Pico32xMem->pal);
 
     memset(buff, 0, 0x40);
-    memcpy(buff, event_times, sizeof(event_times));
+    memcpy(buff, p32x_event_times, sizeof(p32x_event_times));
     CHECKED_WRITE(CHUNK_32X_EVT, 0x40, buff);
   }
 #endif
@@ -402,6 +408,9 @@ static int state_load(void *file)
     R_ERROR_RETURN("bad header");
   CHECKED_READ(4, &ver);
 
+  memset(pcd_event_times, 0, sizeof(pcd_event_times));
+  memset(p32x_event_times, 0, sizeof(p32x_event_times));
+
   while (!areaEof(file))
   {
     CHECKED_READ(1, &chunk);
@@ -458,6 +467,11 @@ static int state_load(void *file)
       case CHUNK_RC:       CHECKED_READ_BUFF(Pico_mcd->rot_comp); break;
       case CHUNK_MISC_CD:  CHECKED_READ_BUFF(Pico_mcd->m); break;
 
+      case CHUNK_CD_EVT:
+        CHECKED_READ_BUFF(buff);
+        memcpy(pcd_event_times, buff, sizeof(pcd_event_times));
+        break;
+
       // 32x stuff
 #ifndef NO_32X
       case CHUNK_MSH2:
@@ -484,7 +498,7 @@ static int state_load(void *file)
 
       case CHUNK_32X_EVT:
         CHECKED_READ_BUFF(buff);
-        memcpy(event_times, buff, sizeof(event_times));
+        memcpy(p32x_event_times, buff, sizeof(p32x_event_times));
         break;
 #endif
       default:
@@ -509,14 +523,6 @@ readend:
   if (PicoAHW & PAHW_SMS)
     PicoStateLoadedMS();
 
-  if (PicoAHW & PAHW_MCD)
-  {
-    PicoMemStateLoaded();
-
-    if (!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
-      cdda_start_play();
-  }
-
   if (PicoAHW & PAHW_32X)
     Pico32xStateLoaded(1);
 
@@ -529,8 +535,17 @@ readend:
   z80_unpack(buff_z80);
 
   // due to dep from 68k cycles..
+  SekCycleAim = SekCycleCnt;
   if (PicoAHW & PAHW_32X)
     Pico32xStateLoaded(0);
+  if (PicoAHW & PAHW_MCD)
+  {
+    SekCycleAimS68k = SekCycleCntS68k;
+    pcd_state_loaded();
+
+    if (!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
+      cdda_start_play();
+  }
 
   return 0;
 }

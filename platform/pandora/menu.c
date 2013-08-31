@@ -67,11 +67,7 @@ static int menu_loop_cscaler(int id, int keys)
 	mee_range_hide("layer_w",                  MA_OPT3_LAYER_W,       g_layer_cw, 160, 800), \
 	mee_range_hide("layer_h",                  MA_OPT3_LAYER_H,       g_layer_ch,  60, 480), \
 
-#define MENU_OPTIONS_ADV \
-	mee_onoff     ("SVP dynarec",              MA_OPT2_SVP_DYNAREC,   PicoOpt, POPT_EN_SVP_DRC), \
-	mee_onoff     ("Status line in main menu", MA_OPT2_STATUS_LINE,   currentConfig.EmuOpt, EOPT_SHOW_RTC),
-
-#define menu_main_plat_draw NULL
+#define MENU_OPTIONS_ADV
 
 static menu_entry e_menu_gfx_options[];
 static menu_entry e_menu_options[];
@@ -79,11 +75,6 @@ static menu_entry e_menu_keyconfig[];
 
 void pnd_menu_init(void)
 {
-	int i;
-
-	i = me_id2offset(e_menu_options, MA_OPT_CPU_CLOCKS);
-	e_menu_options[i].name = "Max CPU clock";
-
 	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, 0);
 }
 

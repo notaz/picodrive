@@ -21,10 +21,8 @@ extern int g_screen_height;
 #define EOPT_SHOW_FPS     (1<<1)
 #define EOPT_EN_SOUND     (1<<2)
 #define EOPT_GZIP_SAVES   (1<<3)
-#define EOPT_MMUHACK      (1<<4)
 #define EOPT_NO_AUTOSVCFG (1<<5)
 #define EOPT_16BPP        (1<<7)  // depreceted for .renderer
-#define EOPT_RAM_TIMINGS  (1<<8)
 #define EOPT_EN_CD_LEDS   (1<<10)
 #define EOPT_A_SN_GAMMA   (1<<12)
 #define EOPT_VSYNC        (1<<13)
@@ -57,6 +55,8 @@ typedef struct _currentConfig_t {
 	int s_PicoAutoRgnOrder;
 	int s_PicoCDBuffers;
 	int Frameskip;
+	int input_dev0;
+	int input_dev1;
 	int confirm_save;
 	int CPUclock;
 	int volume;
@@ -77,7 +77,7 @@ typedef struct _currentConfig_t {
 } currentConfig_t;
 
 extern currentConfig_t currentConfig, defaultConfig;
-extern char *PicoConfigFile;
+extern const char *PicoConfigFile;
 extern int state_slot;
 extern int config_slot, config_slot_current;
 extern unsigned char *movie_data;
@@ -121,7 +121,7 @@ void  emu_set_defconfig(void);
 int   emu_read_config(const char *rom_fname, int no_defaults);
 int   emu_write_config(int game);
 
-char *emu_get_save_fname(int load, int is_sram, int slot);
+char *emu_get_save_fname(int load, int is_sram, int slot, int *time);
 int   emu_check_save_file(int slot, int *time);
 
 void  emu_text_out8 (int x, int y, const char *text);

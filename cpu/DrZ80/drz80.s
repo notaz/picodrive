@@ -97,6 +97,7 @@ DrZ80Ver: .long 0x0001
 	.equ Z80_IF1, 1<<0
 	.equ Z80_IF2, 1<<1
 	.equ Z80_HALT, 1<<2
+	.equ Z80_NMI, 1<<3
 
 ;@---------------------------------------
 
@@ -1359,9 +1360,11 @@ DrZ80Run:
 
 .if INTERRUPT_MODE == 0
 	;@ check ints
+	tst r0,#(Z80_NMI<<8)
+	blne DoNMI
 	tst r0,#0xff
 	movne r0,r0,lsr #8
-	tstne r0,#1
+	tstne r0,#Z80_IF1
 	blne DoInterrupt
 .endif
 
@@ -1514,6 +1517,36 @@ DoInterrupt_end:
 	ldmfd sp!,{r3,r12}
 	ldmfd sp!,{pc} ;@ return
 .endif
+
+DoNMI:
+	stmfd sp!,{lr}
+
+	bic r0,r0,#((Z80_NMI|Z80_HALT|Z80_IF1)<<8)
+	strh r0,[cpucontext,#z80irq] @ 0x4C, irq and IFF bits
+
+	;@ push pc on stack
+	ldr r0,[cpucontext,#z80pc_base]
+	sub r2,z80pc,r0
+	opPUSHareg r2
+
+	;@ read new pc from vector address
+.if UPDATE_CONTEXT
+	str z80pc,[cpucontext,#z80pc_pointer]
+.endif
+	mov r0,#0x66
+.if DRZ80_XMAP
+	rebasepc
+.else
+	stmfd sp!,{r3,r12}
+	mov lr,pc
+	ldr pc,[cpucontext,#z80_rebasePC] ;@ r0=new pc - external function sets z80pc_base and returns new z80pc in r0
+	ldmfd sp!,{r3,r12}
+	mov z80pc,r0	
+.endif
+	ldrh r0,[cpucontext,#z80irq] @ 0x4C, irq and IFF bits
+	eatcycles 11
+	ldmfd sp!,{pc}
+
 
 .data
 .align 4
@@ -5615,7 +5648,7 @@ ei_return:
 	;@ check ints
 	tst r0,#0xff
 	movne r0,r0,lsr #8
-	tstne r0,#1
+	tstne r0,#Z80_IF1
 	blne DoInterrupt
 
 	;@ continue

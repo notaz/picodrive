@@ -643,6 +643,8 @@ static int rom_strcmp(int rom_offset, const char *s1)
 {
   int i, len = strlen(s1);
   const char *s_rom = (const char *)Pico.rom;
+  if (rom_offset + len > Pico.romsize)
+    return 0;
   for (i = 0; i < len; i++)
     if (s1[i] != s_rom[(i + rom_offset) ^ 1])
       return 1;
@@ -897,10 +899,13 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
         SRam.flags &= ~SRF_EEPROM;
       else if (strcmp(p, "filled_sram") == 0)
         *fill_sram = 1;
+      else if (strcmp(p, "force_6btn") == 0)
+        PicoQuirks |= PQUIRK_FORCE_6BTN;
       else {
         elprintf(EL_STATUS, "carthw:%d: unsupported prop: %s", line, p);
         goto bad_nomsg;
       }
+      elprintf(EL_STATUS, "game prop: %s", p);
       continue;
     }
     else if (is_expr("eeprom_type", &p)) {

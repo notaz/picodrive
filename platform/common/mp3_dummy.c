@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include "mp3.h"
 
-int mp3dec_start(void)
+int mp3dec_start(FILE *f, int fpos_start)
 {
 	return -1;
 }
