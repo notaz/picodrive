@@ -185,29 +185,3 @@ cpu/sh2/mame/sh2pico.o : cpu/sh2/mame/sh2.c
 pico/pico.o pico/cd/mcd.o pico/32x/32x.o : pico/pico_cmn.c pico/pico_int.h
 pico/memory.o pico/cd/memory.o : pico/pico_int.h pico/memory.h
 cpu/fame/famec.o: cpu/fame/famec.c cpu/fame/famec_opcodes.h
-
-# ----------- release -----------
-
-VER ?= $(shell head -n 1 platform/common/version.h | \
-	sed 's/.*"\(.*\)\.\(.*\)".*/\1\2/g')
-
-ifeq "$(PLATFORM)" "pandora"
-
-PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
-
-/tmp/readme.txt: tools/textfilter platform/base_readme.txt
-	tools/textfilter platform/base_readme.txt $@ PANDORA
-
-/tmp/PicoDrive.pxml: platform/pandora/PicoDrive.pxml.template
-	platform/pandora/make_pxml.sh $^ $@
-
-rel: PicoDrive platform/pandora/PicoDrive.run platform/pandora/picorestore \
-	pico/carthw.cfg /tmp/readme.txt platform/pandora/skin \
-	platform/pandora/PicoDrive.png platform/pandora/PicoDrive_p.png \
-	/tmp/PicoDrive.pxml
-	rm -rf out
-	mkdir out
-	cp -r $^ out/
-	$(PND_MAKE) -p PicoDrive_$(VER).pnd -d out -x out/PicoDrive.pxml -i out/PicoDrive.png -c
-
-endif

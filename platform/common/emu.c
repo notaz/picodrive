@@ -348,6 +348,8 @@ static void do_region_override(const char *media_fname)
 
 int emu_reload_rom(const char *rom_fname_in)
 {
+	// use setting before rom config is loaded
+	int autoload = g_autostateld_opt;
 	char *rom_fname = NULL;
 	char ext[5];
 	enum media_type_e media_type;
@@ -491,7 +493,7 @@ int emu_reload_rom(const char *rom_fname_in)
 		emu_save_load_game(1, 1);
 
 	// state autoload?
-	if (g_autostateld_opt) {
+	if (autoload) {
 		int time, newest = 0, newest_slot = -1;
 		int slot;
 

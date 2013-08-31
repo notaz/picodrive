@@ -562,9 +562,19 @@ Additional thanks
 
 Changelog
 ---------
-1.85
+1.85 (2013-08-31)
+  * Lots of 32X compatibility and accuracy improvements. All commercial games
+    are booting now, but some still have issues.
+  * Fixed some regressions in MegaCD code, like hang in jap BIOS.
+  * Implemented pause for SMS.
+  * Updated UI with improvements from PCSX ReARMed.
+  * Frontend timing has been rewritten, should no longer slowly desync from
+    LCD on pandora.
+  * Added libretro and SDL 32/64bit ports, fixed compatibility issues with
+    Android, iOS.
+  * Various other things I forgot (it has been a while since last release..)
 
-1.80
+1.80 (2010-09-19)
   + Added Caanoo support. Now the GP2X binary supports GP2X F100/F200, Wiz
     and Caanoo. Lots of internal refactoring to support this.
   + Enabled 32X and SMS code. It's still unfinished but better release something
@@ -581,7 +591,7 @@ Changelog
 1.80beta2
   * Pandora: updated documentation.
 
-1.80beta1
+1.80beta1 (2010-06-02)
   + Added pandora port.
   * Internal refactoring for 32x/SMS support.
   * Move mapper database to external file.
@@ -590,7 +600,7 @@ Changelog
   + ARM: Added new SH2 recompiler for 32x. Some unification with SVP one.
   - Disabled most of the above bacause I'm not yet happy with the results.
 
-1.56
+1.56 (2009-09-19)
   * Changed sync in Sega CD emulation again. Should fix games that
     broke after changes in 1.51a.
   * Fixed default keys rebinding when they shouldn't.
@@ -835,7 +845,7 @@ Changelog
   + GP2X: Added experimental Sega CD support.
   + GP2X: Added partial gmv movie playback support.
 
-0.964
+0.964 (2006-12-03)
   * GP2X: Fixed a sound buffer underflow issue on lower sample rate modes, which was
           happening for NTSC games and causing sound clicks.
   * GP2X: Redone key config to better support USB joysticks (now multiple joysticks
@@ -1016,7 +1026,7 @@ Changelog
     not from hardcoded paths.
   * Improved 'pause on call' feature, should hopefully work with Motorola phones.
 
-0.30
+0.30 (2006-01-07)
   Initial release.
 
 

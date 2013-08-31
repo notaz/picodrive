@@ -323,6 +323,10 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			Pico32xSetClocks(0, currentConfig.ssh2_khz * 1000);
 			return 1;
 
+		case MA_OPT2_GAMMA:
+			currentConfig.gamma = atoi(val);
+			return 1;
+
 		/* PSP */
 		case MA_OPT3_SCALE:
 			if (strcasecmp(var, "Scale factor") != 0) return 0;
