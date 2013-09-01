@@ -40,7 +40,6 @@ static int g_layer_x, g_layer_y;
 static int g_layer_w = 320, g_layer_h = 240;
 static int g_osd_fps_x, g_osd_y, doing_bg_frame;
 
-static const char pnd_script_base[] = "sudo -n /usr/pandora/scripts";
 static unsigned char __attribute__((aligned(4))) fb_copy[320 * 240 * 2];
 static void *temp_frame;
 const char *renderer_names[] = { NULL };
@@ -375,6 +374,8 @@ void plat_video_loop_prepare(void)
 void pemu_loop_prep(void)
 {
 	// dirty buffers better go now than during gameplay
+	fflush(stdout);
+	fflush(stderr);
 	sync();
 	sleep(0);
 }
