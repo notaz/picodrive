@@ -10,6 +10,7 @@
 #include "pico_int.h"
 #include "cd/gfx_cd.h"
 
+int line_base_cycles;
 extern const unsigned char  hcounts_32[];
 extern const unsigned char  hcounts_40[];
 
@@ -396,7 +397,8 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
           return;
         }
 
-        if (num == 1 && !(d&0x40) && SekCyclesLeft > 390) blank_on = 1;
+        if (num == 1 && !(d&0x40) && SekCyclesDone() - line_base_cycles <= 488-390)
+          blank_on = 1;
         DrawSync(blank_on);
         pvid->reg[num]=(unsigned char)d;
         switch (num)
@@ -457,7 +459,8 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
     unsigned int d;
     d=pv->status;
     //if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
-    if (SekCyclesLeft < 84+4)      d|=0x0004; // H-Blank (Sonic3 vs)
+    if (SekCyclesDone() - line_base_cycles >= 488-88)
+      d|=0x0004; // H-Blank (Sonic3 vs)
 
     d |= ((pv->reg[1]&0x40)^0x40) >> 3;  // set V-Blank if display is disabled
     d |= (pv->pending_ints&0x20)<<2;     // V-int pending?
@@ -487,12 +490,11 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
   if ((a&0x1c)==0x08)
   {
     unsigned int d;
-    int lineCycles;
 
-    lineCycles = (488-SekCyclesLeft)&0x1ff;
+    d = (SekCyclesDone() - line_base_cycles) & 0x1ff; // FIXME
     if (Pico.video.reg[12]&1)
-         d = hcounts_40[lineCycles];
-    else d = hcounts_32[lineCycles];
+         d = hcounts_40[d];
+    else d = hcounts_32[d];
 
     elprintf(EL_HVCNT, "hv: %02x %02x (%i) @ %06x", d, Pico.video.v_counter, SekCyclesDone(), SekPc);
     return d | (Pico.video.v_counter << 8);
@@ -526,7 +528,7 @@ unsigned int PicoVideoRead8(unsigned int a)
       //if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
       d |= ((Pico.video.reg[1]&0x40)^0x40) >> 3;  // set V-Blank if display is disabled
       d |= (Pico.video.pending_ints&0x20)<<2;     // V-int pending?
-      if (SekCyclesLeft < 84+4) d |= 4;    // H-Blank
+      if (SekCyclesDone() - line_base_cycles >= 488-88) d |= 4;    // H-Blank
       Pico.video.pending = 0;
       elprintf(EL_SR, "SR read (l): %02x @ %06x", d, SekPc);
       return d;
@@ -534,7 +536,7 @@ unsigned int PicoVideoRead8(unsigned int a)
       elprintf(EL_HVCNT, "vcounter: %02x (%i) @ %06x", Pico.video.v_counter, SekCyclesDone(), SekPc);
       return Pico.video.v_counter;
     case 9:
-      d = (488-SekCyclesLeft)&0x1ff;
+      d = (SekCyclesDone() - line_base_cycles) & 0x1ff; // FIXME
       if (Pico.video.reg[12]&1)
            d = hcounts_40[d];
       else d = hcounts_32[d];

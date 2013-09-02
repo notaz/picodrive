@@ -704,6 +704,7 @@ void ym2612_unpack_state(void);
 
 
 // videoport.c
+extern int line_base_cycles;
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead8(unsigned int a);

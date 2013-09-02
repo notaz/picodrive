@@ -157,6 +157,7 @@ static int PicoFrameHints(void)
     }
 
     // Run scanline:
+    line_base_cycles = SekCyclesDone();
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
     CPUS_RUN(CYCLES_M68K_LINE);
 
@@ -201,6 +202,7 @@ static int PicoFrameHints(void)
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
+  line_base_cycles = SekCyclesDone();
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
   if (pv->reg[1]&0x20) {
@@ -253,6 +255,7 @@ static int PicoFrameHints(void)
     PAD_DELAY();
 
     // Run scanline:
+    line_base_cycles = SekCyclesDone();
     if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
     CPUS_RUN(CYCLES_M68K_LINE);
 
