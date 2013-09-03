@@ -134,8 +134,6 @@ extern unsigned int SekCycleAim;
 #define SekCyclesBurn(c)    SekCycleCnt += c
 #define SekCyclesBurnRun(c) { \
   SekCyclesLeft -= c; \
-  if (SekCyclesLeft < 0) \
-    SekCyclesLeft = 0; \
 }
 
 // note: sometimes may extend timeslice to delay an irq

@@ -203,6 +203,7 @@ static int PicoFrameHints(void)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
   line_base_cycles = SekCyclesDone();
+  if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
   if (pv->reg[1]&0x20) {
@@ -234,7 +235,6 @@ static int PicoFrameHints(void)
   }
 
   // Run scanline:
-  if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
   CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG - CYCLES_M68K_ASD);
 
   if (PicoLineHook) PicoLineHook();
