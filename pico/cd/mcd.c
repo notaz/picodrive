@@ -45,8 +45,6 @@ PICO_INTERNAL void PicoPowerMCD(void)
   Pico_mcd->m.state_flags = PCD_ST_S68K_RST;
   Pico_mcd->m.busreq = 2;     // busreq on, s68k in reset
   Pico_mcd->s68k_regs[3] = 1; // 2M word RAM mode, m68k access
-  Pico_mcd->s68k_regs[6] = 0xff;
-  Pico_mcd->s68k_regs[7] = 0xff;
   memset(Pico_mcd->bios + 0x70, 0xff, 4);
 }
 
@@ -265,7 +263,9 @@ static void SekSyncM68k(void);
 static inline void pcd_run_cpus_normal(int m68k_cycles)
 {
   SekCycleAim += m68k_cycles;
-  if (Pico_mcd->m.m68k_poll_cnt >= 16 && !SekShouldInterrupt()) {
+  if (SekShouldInterrupt())
+    Pico_mcd->m.m68k_poll_cnt = 0;
+  else if (Pico_mcd->m.m68k_poll_cnt >= 16) {
     int s68k_left = pcd_sync_s68k(SekCycleAim, 1);
     if (s68k_left <= 0) {
       elprintf(EL_CDPOLL, "m68k poll [%02x] x%d @%06x",
@@ -287,6 +287,8 @@ static inline void pcd_run_cpus_lockstep(int m68k_cycles)
     SekSyncM68k();
     pcd_sync_s68k(SekCycleAim, 0);
   } while (CYCLES_GT(target, SekCycleAim));
+
+  SekCycleAim = target;
 }
 
 #define PICO_CD

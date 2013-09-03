@@ -72,16 +72,15 @@ static void remap_word_ram(u32 r3);
 #define POLL_LIMIT 16
 #define POLL_CYCLES 124
 
-u32 m68k_comm_check(u32 a, u32 d)
+void m68k_comm_check(u32 a)
 {
   pcd_sync_s68k(SekCyclesDone(), 0);
   if (a != Pico_mcd->m.m68k_poll_a) {
     Pico_mcd->m.m68k_poll_a = a;
     Pico_mcd->m.m68k_poll_cnt = 0;
-    return d;
+    return;
   }
   Pico_mcd->m.m68k_poll_cnt++;
-  return d;
 }
 
 #ifndef _ASM_CD_MEMORY_C
@@ -97,9 +96,10 @@ static u32 m68k_reg_read16(u32 a)
         | Pico_mcd->m.busreq;
       goto end;
     case 2:
+      m68k_comm_check(a);
       d = (Pico_mcd->s68k_regs[a]<<8) | (Pico_mcd->s68k_regs[a+1]&0xc7);
       elprintf(EL_CDREG3, "m68k_regs r3: %02x @%06x", (u8)d, SekPc);
-      goto end_comm;
+      goto end;
     case 4:
       d = Pico_mcd->s68k_regs[4]<<8;
       goto end;
@@ -123,17 +123,15 @@ static u32 m68k_reg_read16(u32 a)
 
   if (a < 0x30) {
     // comm flag/cmd/status (0xE-0x2F)
+    m68k_comm_check(a);
     d = (Pico_mcd->s68k_regs[a]<<8) | Pico_mcd->s68k_regs[a+1];
-    goto end_comm;
+    goto end;
   }
 
   elprintf(EL_UIO, "m68k_regs FIXME invalid read @ %02x", a);
 
 end:
   return d;
-
-end_comm:
-  return m68k_comm_check(a, d);
 }
 #endif
 
@@ -259,7 +257,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
       //printf("-- diff: %u, cnt = %i\n", clkdiff, cnt);
       if (Pico_mcd->m.s68k_poll_cnt > POLL_LIMIT) {
         SekSetStopS68k(1);
-        elprintf(EL_CDPOLL, "s68k poll detected @ %06x, a=%02x",
+        elprintf(EL_CDPOLL, "s68k poll detected @%06x, a=%02x",
           SekPcS68k, a);
       }
     }
@@ -820,7 +818,7 @@ static u32 PicoReadS68k8_pr(u32 a)
 
 regs_done:
     d &= 0xff;
-    elprintf(EL_CDREGS, "s68k_regs r8: [%02x] %02x @ %06x",
+    elprintf(EL_CDREGS, "s68k_regs r8: [%02x] %02x @%06x",
       a, d, SekPcS68k);
     return d;
   }
@@ -854,7 +852,7 @@ static u32 PicoReadS68k16_pr(u32 a)
          d = gfx_cd_read(a);
     else d = s68k_reg_read16(a);
 
-    elprintf(EL_CDREGS, "s68k_regs r16: [%02x] %04x @ %06x",
+    elprintf(EL_CDREGS, "s68k_regs r16: [%02x] %04x @%06x",
       a, d, SekPcS68k);
     return d;
   }
@@ -882,7 +880,7 @@ static void PicoWriteS68k8_pr(u32 a, u32 d)
   // regs
   if ((a & 0xfe00) == 0x8000) {
     a &= 0x1ff;
-    elprintf(EL_CDREGS, "s68k_regs w8: [%02x] %02x @ %06x", a, d, SekPcS68k);
+    elprintf(EL_CDREGS, "s68k_regs w8: [%02x] %02x @%06x", a, d, SekPcS68k);
     if (0x58 <= a && a < 0x68)
          gfx_cd_write16(a&~1, (d<<8)|d);
     else s68k_reg_write8(a,d);
@@ -907,7 +905,7 @@ static void PicoWriteS68k16_pr(u32 a, u32 d)
   // regs
   if ((a & 0xfe00) == 0x8000) {
     a &= 0x1fe;
-    elprintf(EL_CDREGS, "s68k_regs w16: [%02x] %04x @ %06x", a, d, SekPcS68k);
+    elprintf(EL_CDREGS, "s68k_regs w16: [%02x] %04x @%06x", a, d, SekPcS68k);
     if (a >= 0x58 && a < 0x68)
       gfx_cd_write16(a, d);
     else {

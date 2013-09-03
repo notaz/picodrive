@@ -174,16 +174,14 @@ m_m68k_read8_r02:
     add     r1, r1, #0x110000
     ldrb    r0, [r1, #2]
     bx      lr
-m_m68k_read8_r03:                     @ FIXME: sync with C
-    add     r2, r1, #0x110000
-    ldrb    r1, [r2, #3]
-    add     r2, r2, #0x002200
-    ldr     r2, [r2, #4]
-    and     r1, r1, #0xc7
-    tst     r2, #2                    @ DMNA pending?
-    bicne   r1, r1, #1
-    orrne   r1, r1, #2
-    b       m68k_comm_check
+m_m68k_read8_r03:
+    add     r1, r1, #0x110000
+    push    {r1, lr}
+    bl      m68k_comm_check
+    pop     {r1, lr}
+    ldrb    r0, [r1, #3]
+    and     r0, r0, #0xc7
+    bx      lr
 m_m68k_read8_r04:
     add     r1, r1, #0x110000
     ldrb    r0, [r1, #4]
@@ -216,11 +214,15 @@ m_m68k_read8_r0d:
     bx      lr
 m_m68k_read8_hi:
     cmp     r0, #0x30
-    movge   r0, #0
-    bxeq    lr
     add     r1, r1, #0x110000
-    ldrb    r1, [r1, r0]
-    b       m68k_comm_check
+    movge   r0, #0
+    bxge    lr
+    add     r1, r0
+    push    {r1, lr}
+    bl      m68k_comm_check
+    pop     {r1, lr}
+    ldrb    r0, [r1]
+    bx      lr
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -269,18 +271,16 @@ m_m68k_read16_r00:
     and     r0, r0, #0x04000000       @ we need irq2 mask state
     orr     r0, r1, r0, lsr #11
     bx      lr
-m_m68k_read16_r02:                    @ FIXME: out of sync from C
-    add     r3, r1, #0x110000
-    ldrb    r1, [r3, #2]
-    ldrb    r2, [r3, #3]
-    add     r3, r3, #0x002200
-    ldr     r3, [r3, #4]
+m_m68k_read16_r02:
+    add     r1, r1, #0x110000
+    push    {r1, lr}
+    bl      m68k_comm_check
+    pop     {r1, lr}
+    ldrb    r2, [r1, #3]
+    ldrb    r0, [r1, #2]
     and     r2, r2, #0xc7
-    orr     r1, r2, r1, lsl #8
-    tst     r3, #2                    @ DMNA pending?
-    bicne   r1, r1, #1
-    orrne   r1, r1, #2
-    b       m68k_comm_check
+    orr     r0, r2, r0, lsl #8
+    bx      lr
 m_m68k_read16_r04:
     add     r1, r1, #0x110000
     ldrb    r0, [r1, #4]
@@ -300,14 +300,19 @@ m_m68k_read16_r0c:
     bx      lr
 m_m68k_read16_hi:
     cmp     r0, #0x30
-    addlt   r1, r1, #0x110000
-    ldrlth  r1, [r1, r0]
+    add     r1, r1, #0x110000
     movge   r0, #0
     bxge    lr
-    mov     r2, r1, lsr #8
-    and     r1, r1, #0xff
-    orr     r1, r2, r1, lsl #8
-    b       m68k_comm_check
+
+    add     r1, r0, r1
+    push    {r1, lr}
+    bl      m68k_comm_check
+    pop     {r0, lr}
+    ldrh    r0, [r0]
+    mov     r1, r0, lsr #8
+    and     r0, r0, #0xff
+    orr     r0, r1, r0, lsl #8
+    bx      lr
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
