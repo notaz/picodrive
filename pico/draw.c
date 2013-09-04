@@ -1457,6 +1457,9 @@ static void DrawBlankedLine(int line, int offs, int sh, int bgc)
 
   if (PicoScanEnd != NULL)
     PicoScanEnd(line + offs);
+
+  HighCol += HighColIncrement;
+  DrawLineDest = (char *)DrawLineDest + DrawLineDestIncrement;
 }
 
 static void PicoLine(int line, int offs, int sh, int bgc)
