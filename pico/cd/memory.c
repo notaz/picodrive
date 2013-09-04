@@ -70,7 +70,7 @@ static void remap_word_ram(u32 r3);
 
 // poller detection
 #define POLL_LIMIT 16
-#define POLL_CYCLES 124
+#define POLL_CYCLES 64
 
 void m68k_comm_check(u32 a)
 {
@@ -142,9 +142,6 @@ void m68k_reg_write8(u32 a, u32 d)
 {
   u32 dold;
   a &= 0x3f;
-
-  Pico_mcd->m.m68k_poll_a =
-  Pico_mcd->m.m68k_poll_cnt = 0;
 
   switch (a) {
     case 0:
@@ -230,18 +227,17 @@ write_comm:
   if (d == Pico_mcd->s68k_regs[a])
     return;
 
-  Pico_mcd->s68k_regs[a] = d;
   pcd_sync_s68k(SekCyclesDone(), 0);
-  if (Pico_mcd->m.s68k_poll_a == a && Pico_mcd->m.s68k_poll_cnt > POLL_LIMIT) {
+  Pico_mcd->s68k_regs[a] = d;
+  if (Pico_mcd->m.s68k_poll_a == (a & ~1)
+      && Pico_mcd->m.s68k_poll_cnt > POLL_LIMIT)
+  {
     SekSetStopS68k(0);
     Pico_mcd->m.s68k_poll_a = 0;
     elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
   }
 }
 
-#ifndef _ASM_CD_MEMORY_C
-static
-#endif
 u32 s68k_poll_detect(u32 a, u32 d)
 {
 #ifdef USE_POLL_DETECT
@@ -807,7 +803,7 @@ static u32 PicoReadS68k8_pr(u32 a)
     a &= 0x1ff;
     if (a >= 0x0e && a < 0x30) {
       d = Pico_mcd->s68k_regs[a];
-      s68k_poll_detect(a, d);
+      s68k_poll_detect(a & ~1, d);
       goto regs_done;
     }
     else if (a >= 0x58 && a < 0x68)

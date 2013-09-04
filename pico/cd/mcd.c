@@ -82,6 +82,9 @@ static __inline void SekRunS68k(unsigned int to)
   if ((cyc_do = SekCycleAimS68k - SekCycleCntS68k) <= 0)
     return;
 
+  if (SekShouldInterrupt())
+    Pico_mcd->m.s68k_poll_a = 0;
+
   SekCycleCntS68k += cyc_do;
 #if defined(EMU_C68K)
   PicoCpuCS68k.cycles = cyc_do;
@@ -263,7 +266,7 @@ static void SekSyncM68k(void);
 static inline void pcd_run_cpus_normal(int m68k_cycles)
 {
   SekCycleAim += m68k_cycles;
-  if (SekShouldInterrupt())
+  if (SekShouldInterrupt() || Pico_mcd->m.m68k_poll_cnt < 12)
     Pico_mcd->m.m68k_poll_cnt = 0;
   else if (Pico_mcd->m.m68k_poll_cnt >= 16) {
     int s68k_left = pcd_sync_s68k(SekCycleAim, 1);
