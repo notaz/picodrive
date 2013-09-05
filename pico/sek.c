@@ -90,8 +90,14 @@ static int SekTasCallback(void)
 #ifdef EMU_F68K
 static void SekIntAckF68K(unsigned level)
 {
-  if     (level == 4) { Pico.video.pending_ints  =  0;    elprintf(EL_INTS, "hack: @ %06x [%i]", SekPc, SekCycleCnt); }
-  else if(level == 6) { Pico.video.pending_ints &= ~0x20; elprintf(EL_INTS, "vack: @ %06x [%i]", SekPc, SekCycleCnt); }
+  if     (level == 4) {
+    Pico.video.pending_ints = 0;
+    elprintf(EL_INTS, "hack: @ %06x [%i]", SekPc, SekCyclesDone());
+  }
+  else if(level == 6) {
+    Pico.video.pending_ints &= ~0x20;
+    elprintf(EL_INTS, "vack: @ %06x [%i]", SekPc, SekCyclesDone());
+  }
   PicoCpuFM68k.interrupts[0] = 0;
 }
 #endif

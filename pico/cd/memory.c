@@ -551,12 +551,14 @@ static void PicoWriteM68k8_ramc(u32 a, u32 d)
     return;
   }
 
-  elprintf(EL_UIO, "m68k unmapped w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
+  elprintf(EL_UIO, "m68k unmapped w8  [%06x]   %02x @%06x",
+    a, d & 0xff, SekPc);
 }
 
 static void PicoWriteM68k16_ramc(u32 a, u32 d)
 {
-  elprintf(EL_ANOMALY, "ramcart w16: [%06x] %04x @%06x", a, d, SekPcS68k);
+  elprintf(EL_ANOMALY, "ramcart w16: [%06x] %04x @%06x",
+    a, d, SekPcS68k);
   PicoWriteM68k8_ramc(a + 1, d);
 }
 
@@ -570,7 +572,8 @@ static u32 PicoReadM68k8_io(u32 a)
     if (!(a & 1))
       d >>= 8;
     d &= 0xff;
-    elprintf(EL_CDREGS, "m68k_regs r8:  [%02x]   %02x @%06x", a & 0x3f, d, SekPc);
+    elprintf(EL_CDREGS, "m68k_regs r8:  [%02x]   %02x @%06x",
+      a & 0x3f, d, SekPc);
     return d;
   }
 
@@ -583,7 +586,8 @@ static u32 PicoReadM68k16_io(u32 a)
   u32 d;
   if ((a & 0xff00) == 0x2000) {
     d = m68k_reg_read16(a);
-    elprintf(EL_CDREGS, "m68k_regs r16: [%02x] %04x @%06x", a & 0x3f, d, SekPc);
+    elprintf(EL_CDREGS, "m68k_regs r16: [%02x] %04x @%06x",
+      a & 0x3f, d, SekPc);
     return d;
   }
 
@@ -593,7 +597,8 @@ static u32 PicoReadM68k16_io(u32 a)
 static void PicoWriteM68k8_io(u32 a, u32 d)
 {
   if ((a & 0xff00) == 0x2000) { // a12000 - a120ff
-    elprintf(EL_CDREGS, "m68k_regs w8:  [%02x]   %02x @%06x", a&0x3f, d, SekPc);
+    elprintf(EL_CDREGS, "m68k_regs w8:  [%02x]   %02x @%06x",
+      a & 0x3f, d, SekPc);
     m68k_reg_write8(a, d);
     return;
   }
@@ -604,7 +609,8 @@ static void PicoWriteM68k8_io(u32 a, u32 d)
 static void PicoWriteM68k16_io(u32 a, u32 d)
 {
   if ((a & 0xff00) == 0x2000) { // a12000 - a120ff
-    elprintf(EL_CDREGS, "m68k_regs w16: [%02x] %04x @%06x", a&0x3f, d, SekPc);
+    elprintf(EL_CDREGS, "m68k_regs w16: [%02x] %04x @%06x",
+      a & 0x3f, d, SekPc);
 
     m68k_reg_write8(a,     d >> 8);
     if ((a & 0x3e) != 0x0e) // special case
@@ -634,12 +640,14 @@ static u32 s68k_unmapped_read16(u32 a)
 
 static void s68k_unmapped_write8(u32 a, u32 d)
 {
-  elprintf(EL_UIO, "s68k unmapped w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
+  elprintf(EL_UIO, "s68k unmapped w8  [%06x]   %02x @%06x",
+    a, d & 0xff, SekPc);
 }
 
 static void s68k_unmapped_write16(u32 a, u32 d)
 {
-  elprintf(EL_UIO, "s68k unmapped w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
+  elprintf(EL_UIO, "s68k unmapped w16 [%06x] %04x @%06x",
+    a, d & 0xffff, SekPc);
 }
 
 // PRG RAM protected range (000000 - 01fdff)?
