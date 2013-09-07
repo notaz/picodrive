@@ -132,14 +132,15 @@ int PicoCdCheck(const char *fname_in, int *pregion)
   cue_track_type type = CT_UNKNOWN;
   cue_data_t *cue_data = NULL;
 
-  get_ext(fname_in, ext);
-  if (strcasecmp(ext, ".cue") == 0) {
-    cue_data = cue_parse(fname_in);
-    if (cue_data != NULL) {
-      fname = cue_data->tracks[1].fname;
-      type  = cue_data->tracks[1].type;
-    }
-    else
+  // opens a cue, or searches for one
+  cue_data = cue_parse(fname_in);
+  if (cue_data != NULL) {
+    fname = cue_data->tracks[1].fname;
+    type  = cue_data->tracks[1].type;
+  }
+  else {
+    get_ext(fname_in, ext);
+    if (strcasecmp(ext, ".cue") == 0)
       return -1;
   }
 

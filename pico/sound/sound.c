@@ -12,6 +12,7 @@
 #include "sn76496.h"
 #include "../pico_int.h"
 #include "../cd/pcm.h"
+#include "../cd/cue.h"
 #include "mix.h"
 
 #define SIMPLE_WRITE_SOUND 0
@@ -260,7 +261,7 @@ PICO_INTERNAL void cdda_start_play(void)
     return;
   }
 
-  if (Pico_mcd->TOC.Tracks[i].ftype == TYPE_MP3)
+  if (Pico_mcd->TOC.Tracks[i].ftype == CT_MP3)
   {
     int pos1024 = 0;
 
@@ -280,7 +281,7 @@ PICO_INTERNAL void cdda_start_play(void)
   cdda_stream = Pico_mcd->TOC.Tracks[i].F;
   PicoCDBufferFlush(); // buffering relies on fp not being touched
   pm_seek(cdda_stream, lba_offset * 2352, SEEK_SET);
-  if (Pico_mcd->TOC.Tracks[i].ftype == TYPE_WAV)
+  if (Pico_mcd->TOC.Tracks[i].ftype == CT_WAV)
   {
     // skip headers, assume it's 44kHz stereo uncompressed
     pm_seek(cdda_stream, 44, SEEK_CUR);
@@ -358,7 +359,7 @@ static int PsndRender(int offset, int length)
     // note: only 44, 22 and 11 kHz supported, with forced stereo
     int index = Pico_mcd->scd.Cur_Track - 1;
 
-    if (Pico_mcd->TOC.Tracks[index].ftype == TYPE_MP3)
+    if (Pico_mcd->TOC.Tracks[index].ftype == CT_MP3)
       mp3_update(buf32, length, stereo);
     else
       cdda_raw_update(buf32, length);

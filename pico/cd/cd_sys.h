@@ -39,11 +39,9 @@ typedef struct
 
 typedef struct
 {
-//	unsigned char Type; // always 1 (data) for 1st track, 0 (audio) for others
-//	unsigned char Num; // unused
 	_msf MSF;
 	//
-	char ftype; // TYPE_ISO, TYPE_BIN, TYPE_MP3
+	char ftype; // cue_track_type
 	void *F;
 	int Length;
 	int Offset;  // sector offset, when single file is used for multiple virtual tracks

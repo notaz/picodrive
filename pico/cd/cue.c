@@ -62,49 +62,113 @@ static int get_token(const char *buff, char *dest, int len)
 	return d + skip;
 }
 
-static char *get_ext(char *fname)
+static int get_ext(const char *fname, char ext[4],
+	char *base, size_t base_size)
 {
-	int len = strlen(fname);
-	return (len >= 3) ? (fname + len - 3) : fname;
+	int len, pos = 0;
+	
+	len = strlen(fname);
+	if (len >= 3)
+		pos = len - 3;
+
+	strcpy(ext, fname + pos);
+
+	if (base != NULL) {
+		len = pos;
+		if (len + 1 < base_size)
+			len = base_size - 1;
+		memcpy(base, fname, len);
+		base[len] = 0;
+	}
+	return pos;
 }
 
+static void change_case(char *p, int to_upper)
+{
+	for (; *p != 0; p++) {
+		if (to_upper && 'a' <= *p && *p <= 'z')
+			*p += 'A' - 'a';
+		else if (!to_upper && 'A' <= *p && *p <= 'Z')
+			*p += 'a' - 'A';
+	}
+}
+
+static int file_openable(const char *fname)
+{
+	FILE *f = fopen(fname, "rb");
+	if (f == NULL)
+		return 0;
+	fclose(f);
+	return 1;
+}
 
 #define BEGINS(buff,str) (strncmp(buff,str,sizeof(str)-1) == 0)
 
 /* note: tracks[0] is not used */
 cue_data_t *cue_parse(const char *fname)
 {
-	char buff[256], current_file[256], buff2[32], *current_filep;
-	FILE *f, *tmpf;
+	char current_file[256], *current_filep, cue_base[256];
+	char buff[256], buff2[32], ext[4], *p;
 	int ret, count = 0, count_alloc = 2, pending_pregap = 0;
-	cue_data_t *data;
+	size_t current_filep_size, fname_len;
+	cue_data_t *data = NULL;
+	FILE *f = NULL;
 	void *tmp;
 
-	f = fopen(fname, "r");
-	if (f == NULL) return NULL;
+	if (fname == NULL || (fname_len = strlen(fname)) == 0)
+		return NULL;
+
+	ret = get_ext(fname, ext, cue_base, sizeof(cue_base));
+	if (strcasecmp(ext, "cue") == 0) {
+		f = fopen(fname, "r");
+	}
+	else {
+		// not a .cue, try one with the same base name
+		if (ret + 3 < sizeof(cue_base)) {
+			strcpy(cue_base + ret, "cue");
+			f = fopen(cue_base, "r");
+			if (f == NULL) {
+				strcpy(cue_base + ret, "CUE");
+				f = fopen(cue_base, "r");
+			}
+		}
+	}
+
+	if (f == NULL)
+		return NULL;
 
 	snprintf(current_file, sizeof(current_file), "%s", fname);
-	for (current_filep = current_file + strlen(current_file); current_filep > current_file; current_filep--)
-		if (current_filep[-1] == '/' || current_filep[-1] == '\\') break;
+	current_filep = current_file + strlen(current_file);
+	for (; current_filep > current_file; current_filep--)
+		if (current_filep[-1] == '/' || current_filep[-1] == '\\')
+			break;
+
+	current_filep_size = sizeof(current_file) - (current_filep - current_file);
+
+	// the basename of cuefile, no path
+	snprintf(cue_base, sizeof(cue_base), "%s", current_filep);
+	p = cue_base + strlen(cue_base);
+	if (p - 3 >= cue_base)
+		p[-3] = 0;
 
 	data = calloc(1, sizeof(*data) + count_alloc * sizeof(cue_track));
-	if (data == NULL) {
-		fclose(f);
-		return NULL;
-	}
+	if (data == NULL)
+		goto out;
 
 	while (!feof(f))
 	{
 		tmp = fgets(buff, sizeof(buff), f);
-		if (tmp == NULL) break;
+		if (tmp == NULL)
+			break;
 
 		mystrip(buff);
-		if (buff[0] == 0) continue;
+		if (buff[0] == 0)
+			continue;
 		if      (BEGINS(buff, "TITLE ") || BEGINS(buff, "PERFORMER ") || BEGINS(buff, "SONGWRITER "))
 			continue;	/* who would put those here? Ignore! */
 		else if (BEGINS(buff, "FILE "))
 		{
-			get_token(buff+5, current_filep, sizeof(current_file) - (current_filep - current_file));
+			get_token(buff + 5, current_filep, current_filep_size);
 		}
 		else if (BEGINS(buff, "TRACK "))
 		{
@@ -112,21 +176,48 @@ cue_data_t *cue_parse(const char *fname)
 			if (count >= count_alloc) {
 				count_alloc *= 2;
 				tmp = realloc(data, sizeof(*data) + count_alloc * sizeof(cue_track));
-				if (tmp == NULL) { count--; break; }
+				if (tmp == NULL) {
+					count--;
+					break;
+				}
 				data = tmp;
 			}
 			memset(&data->tracks[count], 0, sizeof(data->tracks[0]));
+
 			if (count == 1 || strcmp(data->tracks[1].fname, current_file) != 0)
 			{
-				data->tracks[count].fname = strdup(current_file);
-				if (data->tracks[count].fname == NULL) break;
+				if (file_openable(current_file))
+					goto file_ok;
 
-				tmpf = fopen(current_file, "rb");
-				if (tmpf == NULL) {
-					elprintf(EL_STATUS, "cue: bad/missing file: \"%s\"", current_file);
-					count--; break;
+				elprintf(EL_STATUS, "cue: bad/missing file: \"%s\"", current_file);
+				if (count == 1) {
+					int cue_ucase;
+					char v;
+
+					get_ext(current_file, ext, NULL, 0);
+					snprintf(current_filep, current_filep_size,
+						"%s%s", cue_base, ext);
+					if (file_openable(current_file))
+						goto file_ok;
+
+					// try with the same case (for unix)
+					v = fname[fname_len - 1];
+					cue_ucase = ('A' <= v && v <= 'Z');
+					change_case(ext, cue_ucase);
+
+					snprintf(current_filep, current_filep_size,
+						"%s%s", cue_base, ext);
+					if (file_openable(current_file))
+						goto file_ok;
 				}
-				fclose(tmpf);
+
+				count--;
+				break;
+
+file_ok:
+				data->tracks[count].fname = strdup(current_file);
+				if (data->tracks[count].fname == NULL)
+					break;
 			}
 			data->tracks[count].pregap = pending_pregap;
 			pending_pregap = 0;
@@ -146,7 +237,7 @@ cue_data_t *cue_parse(const char *fname)
 				if (data->tracks[count].fname != NULL)
 				{
 					// rely on extension, not type in cue..
-					char *ext = get_ext(data->tracks[count].fname);
+					get_ext(data->tracks[count].fname, ext, NULL, 0);
 					if      (strcasecmp(ext, "mp3") == 0)
 						data->tracks[count].type = CT_MP3;
 					else if (strcasecmp(ext, "wav") == 0)
@@ -233,10 +324,15 @@ cue_data_t *cue_parse(const char *fname)
 			if (data->tracks[count].fname != NULL)
 				free(data->tracks[count].fname);
 		free(data);
-		return NULL;
+		data = NULL;
+		goto out;
 	}
 
 	data->track_count = count;
+
+out:
+	if (f != NULL)
+		fclose(f);
 	return data;
 }
 

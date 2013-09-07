@@ -59,7 +59,7 @@ static int audio_track_mp3(const char *fname, int index)
 	Tracks[index].F = tmp_file;
 
 	// MP3 File
-	Tracks[index].ftype = TYPE_MP3;
+	Tracks[index].ftype = CT_MP3;
 	fs *= 75;
 	fs /= Tracks[index].KBtps * 1000;
 	Tracks[index].Length = fs;
@@ -70,9 +70,10 @@ static int audio_track_mp3(const char *fname, int index)
 
 PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 {
-	int i, j, num_track, Cur_LBA, index, ret, iso_name_len, missed, cd_img_sectors;
+	int i, j, num_track, Cur_LBA, index, ret;
+	int iso_name_len, missed, cd_img_sectors;
 	_scd_track *Tracks = Pico_mcd->TOC.Tracks;
-	char tmp_name[1024], tmp_ext[10], tmp_ext_u[10];
+	char tmp_name[256], tmp_ext[10], tmp_ext_u[10];
 	cue_data_t *cue_data = NULL;
 	pm_file *pmf;
 	static const char *exts[] = {
@@ -85,14 +86,14 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 
 	Unload_ISO();
 
-	/* is this .cue? */
-	ret = strlen(cd_img_name);
-	if (ret >= 3 && strcasecmp(cd_img_name + ret - 3, "cue") == 0)
-		cue_data = cue_parse(cd_img_name);
-	if (cue_data != NULL)
+	/* is this a .cue? */
+	cue_data = cue_parse(cd_img_name);
+	if (cue_data != NULL) {
 		cd_img_name = cue_data->tracks[1].fname;
-
-	Tracks[0].ftype = type == CIT_BIN ? TYPE_BIN : TYPE_ISO;
+		Tracks[0].ftype = cue_data->tracks[1].type;
+	}
+	else
+		Tracks[0].ftype = type == CIT_BIN ? CT_BIN : CT_ISO;
 
 	Tracks[0].F = pmf = pm_open(cd_img_name);
 	if (Tracks[0].F == NULL)
@@ -104,7 +105,7 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 		return -1;
 	}
 
-	if (Tracks[0].ftype == TYPE_ISO)
+	if (Tracks[0].ftype == CT_ISO)
 	     cd_img_sectors = pmf->size >>= 11;	// size in sectors
 	else cd_img_sectors = pmf->size /= 2352;
 	Tracks[0].Offset = 0;
@@ -113,8 +114,9 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 	Tracks[0].MSF.S = 2; // seconds
 	Tracks[0].MSF.F = 0; // frames
 
-	elprintf(EL_STATUS, "Track  1: %02d:%02d:%02d %9i DATA",
-		Tracks[0].MSF.M, Tracks[0].MSF.S, Tracks[0].MSF.F, Tracks[0].Length);
+	elprintf(EL_STATUS, "Track  1: %02d:%02d:%02d %9i DATA  %s",
+		Tracks[0].MSF.M, Tracks[0].MSF.S, Tracks[0].MSF.F,
+		Tracks[0].Length, cd_img_name);
 
 	Cur_LBA = Tracks[0].Length = cd_img_sectors;
 
@@ -173,7 +175,7 @@ PICO_INTERNAL int Load_CD_Image(const char *cd_img_name, cd_img_type type)
 			LBA_to_MSF(Cur_LBA, &Tracks[index].MSF);
 			Cur_LBA += Tracks[index].Length;
 
-			elprintf(EL_STATUS, "Track %2i: %02d:%02d:%02d %9i AUDIO - %s", num_track, Tracks[index].MSF.M,
+			elprintf(EL_STATUS, "Track %2i: %02d:%02d:%02d %9i AUDIO %s", num_track, Tracks[index].MSF.M,
 				Tracks[index].MSF.S, Tracks[index].MSF.F, Tracks[index].Length,
 				cue_data->tracks[num_track].fname);
 		}
@@ -267,7 +269,7 @@ PICO_INTERNAL void Unload_ISO(void)
 	{
 		if (Pico_mcd->TOC.Tracks[i].F != NULL)
 		{
-			if (Pico_mcd->TOC.Tracks[i].ftype == TYPE_MP3)
+			if (Pico_mcd->TOC.Tracks[i].ftype == CT_MP3)
 #ifdef _PSP_FW_VERSION
 				free(Pico_mcd->TOC.Tracks[i].F);
 #else

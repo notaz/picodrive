@@ -7,6 +7,7 @@
  */
 
 #include "../pico_int.h"
+#include "../cd/cue.h"
 
 int PicoCDBuffers = 0;
 static unsigned char *cd_buffer = NULL;
@@ -66,7 +67,7 @@ PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba)
 	int is_bin, offs, read_len, moved = 0;
 	reads++;
 
-	is_bin = Pico_mcd->TOC.Tracks[0].ftype == TYPE_BIN;
+	is_bin = Pico_mcd->TOC.Tracks[0].ftype == CT_BIN;
 
 	if (PicoCDBuffers <= 0)
 	{
