@@ -10,7 +10,7 @@
 
 #define USE_MS_SYNTAX               0
 #define CYCLONE_FOR_GENESIS         2
-#define COMPRESS_JUMPTABLE          1
+#define COMPRESS_JUMPTABLE          0
 #define MEMHANDLERS_ADDR_MASK       0
 
 #define MEMHANDLERS_NEED_PC         0

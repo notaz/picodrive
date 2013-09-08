@@ -65,7 +65,7 @@ static int m68k_poll_detect(u32 a, u32 cycles, u32 flags)
   int ret = 0;
 
   if (a - 2 <= m68k_poll.addr && m68k_poll.addr <= a + 2
-    && cycles - m68k_poll.cycles <= 64)
+    && cycles - m68k_poll.cycles <= 64 && !SekNotPolling)
   {
     if (m68k_poll.cnt++ > POLL_THRESHOLD) {
       if (!(Pico32x.emu_flags & flags)) {
@@ -79,6 +79,7 @@ static int m68k_poll_detect(u32 a, u32 cycles, u32 flags)
   else {
     m68k_poll.cnt = 0;
     m68k_poll.addr = a;
+    SekNotPolling = 0;
   }
   m68k_poll.cycles = cycles;
 
@@ -186,14 +187,8 @@ static u32 p32x_reg_read16(u32 a)
     return sh2_comm_faker(a);
 #else
   if ((a & 0x30) == 0x20) {
-    static u32 dr2 = 0;
     unsigned int cycles = SekCyclesDone();
     int comreg = 1 << (a & 0x0f) / 2;
-
-    // evil X-Men proto polls in a dbra loop and expects it to expire..
-    if (SekDar(2) != dr2)
-      m68k_poll.cnt = 0;
-    dr2 = SekDar(2);
 
     if (cycles - msh2.m68krcycles_done > 244
         || (Pico32x.comm_dirty_68k & comreg))
@@ -205,7 +200,6 @@ static u32 p32x_reg_read16(u32 a)
       SekSetStop(1);
       SekEndRun(16);
     }
-    dr2 = SekDar(2);
     goto out;
   }
 #endif

@@ -1,4 +1,10 @@
 
+#ifdef PICODRIVE_HACK
+#define NOT_POLLING g_m68kcontext->not_polling = 1;
+#else
+#define NOT_POLLING
+#endif
+
 // ORI
 OPCODE(0x0000)
 {
@@ -23298,6 +23304,8 @@ OPCODE(0x51C8)
 	u32 adr, res;
 	u32 src, dst;
 
+	NOT_POLLING
+
 	res = DREGu16((Opcode >> 0) & 7);
 	res--;
 	DREGu16((Opcode >> 0) & 7) = res;
@@ -23320,6 +23328,8 @@ OPCODE(0x52C8)
 {
 	u32 adr, res;
 	u32 src, dst;
+
+	NOT_POLLING
 
 	if ((!flag_NotZ) || (flag_C & 0x100))
 	{
@@ -23352,6 +23362,8 @@ OPCODE(0x53C8)
 	u32 adr, res;
 	u32 src, dst;
 
+	NOT_POLLING
+
 	if (flag_NotZ && (!(flag_C & 0x100)))
 	{
 	res = DREGu16((Opcode >> 0) & 7);
@@ -23382,6 +23394,8 @@ OPCODE(0x54C8)
 {
 	u32 adr, res;
 	u32 src, dst;
+
+	NOT_POLLING
 
 	if (flag_C & 0x100)
 	{
@@ -23414,6 +23428,8 @@ OPCODE(0x55C8)
 	u32 adr, res;
 	u32 src, dst;
 
+	NOT_POLLING
+
 	if (!(flag_C & 0x100))
 	{
 	res = DREGu16((Opcode >> 0) & 7);
@@ -23444,6 +23460,8 @@ OPCODE(0x56C8)
 {
 	u32 adr, res;
 	u32 src, dst;
+
+	NOT_POLLING
 
 	if (!flag_NotZ)
 	{
@@ -23476,6 +23494,8 @@ OPCODE(0x57C8)
 	u32 adr, res;
 	u32 src, dst;
 
+	NOT_POLLING
+
 	if (flag_NotZ)
 	{
 	res = DREGu16((Opcode >> 0) & 7);
@@ -23506,6 +23526,8 @@ OPCODE(0x58C8)
 {
 	u32 adr, res;
 	u32 src, dst;
+
+	NOT_POLLING
 
 	if (flag_V & 0x80)
 	{
@@ -23538,6 +23560,8 @@ OPCODE(0x59C8)
 	u32 adr, res;
 	u32 src, dst;
 
+	NOT_POLLING
+
 	if (!(flag_V & 0x80))
 	{
 	res = DREGu16((Opcode >> 0) & 7);
@@ -23568,6 +23592,8 @@ OPCODE(0x5AC8)
 {
 	u32 adr, res;
 	u32 src, dst;
+
+	NOT_POLLING
 
 	if (flag_N & 0x80)
 	{
@@ -23600,6 +23626,8 @@ OPCODE(0x5BC8)
 	u32 adr, res;
 	u32 src, dst;
 
+	NOT_POLLING
+
 	if (!(flag_N & 0x80))
 	{
 	res = DREGu16((Opcode >> 0) & 7);
@@ -23630,6 +23658,8 @@ OPCODE(0x5CC8)
 {
 	u32 adr, res;
 	u32 src, dst;
+
+	NOT_POLLING
 
 	if ((flag_N ^ flag_V) & 0x80)
 	{
@@ -23662,6 +23692,8 @@ OPCODE(0x5DC8)
 	u32 adr, res;
 	u32 src, dst;
 
+	NOT_POLLING
+
 	if (!((flag_N ^ flag_V) & 0x80))
 	{
 	res = DREGu16((Opcode >> 0) & 7);
@@ -23693,6 +23725,8 @@ OPCODE(0x5EC8)
 	u32 adr, res;
 	u32 src, dst;
 
+	NOT_POLLING
+
 	if ((!flag_NotZ) || ((flag_N ^ flag_V) & 0x80))
 	{
 	res = DREGu16((Opcode >> 0) & 7);
@@ -23723,6 +23757,8 @@ OPCODE(0x5FC8)
 {
 	u32 adr, res;
 	u32 src, dst;
+
+	NOT_POLLING
 
 	if (flag_NotZ && (!((flag_N ^ flag_V) & 0x80)))
 	{

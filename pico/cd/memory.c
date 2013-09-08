@@ -75,9 +75,10 @@ static void remap_word_ram(u32 r3);
 void m68k_comm_check(u32 a)
 {
   pcd_sync_s68k(SekCyclesDone(), 0);
-  if (a != Pico_mcd->m.m68k_poll_a) {
+  if (SekNotPolling || a != Pico_mcd->m.m68k_poll_a) {
     Pico_mcd->m.m68k_poll_a = a;
     Pico_mcd->m.m68k_poll_cnt = 0;
+    SekNotPolling = 0;
     return;
   }
   Pico_mcd->m.m68k_poll_cnt++;
@@ -246,7 +247,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
     return d;
 
   cycles = SekCyclesDoneS68k();
-  if (a == Pico_mcd->m.s68k_poll_a) {
+  if (!SekNotPolling && a == Pico_mcd->m.s68k_poll_a) {
     u32 clkdiff = cycles - Pico_mcd->m.s68k_poll_clk;
     if (clkdiff <= POLL_CYCLES) {
       cnt = Pico_mcd->m.s68k_poll_cnt + 1;
@@ -261,6 +262,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
   Pico_mcd->m.s68k_poll_a = a;
   Pico_mcd->m.s68k_poll_clk = cycles;
   Pico_mcd->m.s68k_poll_cnt = cnt;
+  SekNotPollingS68k = 0;
 #endif
   return d;
 }

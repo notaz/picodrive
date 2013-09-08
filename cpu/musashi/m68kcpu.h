@@ -919,6 +919,7 @@ typedef struct
 
 	// notaz
 	sint cyc_remaining_cycles;
+	sint not_polling;
 } m68ki_cpu_core;
 
 // notaz

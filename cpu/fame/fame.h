@@ -125,6 +125,7 @@ typedef struct
 
 	unsigned int   Opcode;
 	signed int     cycles_needed;
+
 	unsigned short *PC;
 	unsigned long  BasePC;
 	unsigned int   flag_C;
@@ -135,6 +136,9 @@ typedef struct
 	unsigned int   flag_T;
 	unsigned int   flag_S;
 	unsigned int   flag_I;
+
+	unsigned char  not_polling;
+	unsigned char  pad[3];
 
 	unsigned long  Fetch[M68K_FETCHBANK1];
 } M68K_CONTEXT;

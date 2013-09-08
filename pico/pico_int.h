@@ -51,6 +51,9 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekIsStoppedS68k() (PicoCpuCS68k.state_flags&1)
 #define SekShouldInterrupt() (PicoCpuCM68k.irq > (PicoCpuCM68k.srh&7))
 
+#define SekNotPolling     PicoCpuCM68k.not_pol
+#define SekNotPollingS68k PicoCpuCS68k.not_pol
+
 #define SekInterrupt(i) PicoCpuCM68k.irq=i
 #define SekIrqLevel     PicoCpuCM68k.irq
 
@@ -78,6 +81,9 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #define SekIsStoppedM68k() (PicoCpuFM68k.execinfo&FM68K_HALTED)
 #define SekIsStoppedS68k() (PicoCpuFS68k.execinfo&FM68K_HALTED)
 #define SekShouldInterrupt() fm68k_would_interrupt()
+
+#define SekNotPolling     PicoCpuFM68k.not_polling
+#define SekNotPollingS68k PicoCpuFS68k.not_polling
 
 #define SekInterrupt(irq) PicoCpuFM68k.interrupts[0]=irq
 #define SekIrqLevel       PicoCpuFM68k.interrupts[0]
@@ -107,6 +113,9 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #define SekIsStoppedM68k() (PicoCpuMM68k.stopped==STOP_LEVEL_STOP)
 #define SekIsStoppedS68k() (PicoCpuMS68k.stopped==STOP_LEVEL_STOP)
 #define SekShouldInterrupt() (CPU_INT_LEVEL > FLAG_INT_MASK)
+
+#define SekNotPolling     PicoCpuMM68k.not_polling
+#define SekNotPollingS68k PicoCpuMS68k.not_polling
 
 #define SekInterrupt(irq) { \
 	void *oldcontext = m68ki_cpu_p; \
