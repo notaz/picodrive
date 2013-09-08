@@ -4294,10 +4294,12 @@ opcode_0_7:
 	fetch 4
 ;@EX AF,AF'
 opcode_0_8:
-	add r1,cpucontext,#z80a2
-	swp z80a,z80a,[r1]
-	add r1,cpucontext,#z80f2
-	swp z80f,z80f,[r1]
+	ldr r0,[cpucontext,#z80a2]
+	ldr r1,[cpucontext,#z80f2]
+	str z80a,[cpucontext,#z80a2]
+	str z80f,[cpucontext,#z80f2]
+	mov z80a,r0
+	mov z80f,r1
 	fetch 4
 ;@ADD HL,BC
 opcode_0_9:
@@ -5336,12 +5338,15 @@ opcode_D_8:
 	fetch 5
 ;@EXX
 opcode_D_9:
-	add r1,cpucontext,#z80bc2
-	swp z80bc,z80bc,[r1]
-	add r1,cpucontext,#z80de2
-	swp z80de,z80de,[r1]
-	add r1,cpucontext,#z80hl2
-	swp z80hl,z80hl,[r1]
+	ldr r0,[cpucontext,#z80bc2]
+	ldr r1,[cpucontext,#z80de2]
+	ldr r2,[cpucontext,#z80hl2]
+	str z80bc,[cpucontext,#z80bc2]
+	str z80de,[cpucontext,#z80de2]
+	str z80hl,[cpucontext,#z80hl2]
+	mov z80bc,r0
+	mov z80de,r1
+	mov z80hl,r2
 	fetch 4
 ;@JP C,$+3
 opcode_D_A:
