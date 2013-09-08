@@ -20,12 +20,14 @@ typedef struct
 	unsigned int Draw_Speed;
 	unsigned int YD;
 
-	int pad[10];
+	unsigned int y_step;
+	int pad[9];
 } Rot_Comp;
 
 
 PICO_INTERNAL_ASM unsigned int gfx_cd_read(unsigned int a);
 PICO_INTERNAL_ASM void gfx_cd_write16(unsigned int a, unsigned int d);
+void gfx_cd_update(unsigned int cycles);
 
 PICO_INTERNAL void gfx_cd_reset(void);
 

@@ -10,6 +10,8 @@
 #undef dprintf
 #define dprintf(...)
 
+#define UPDATE_CYCLES 20000
+
 #define _rot_comp Pico_mcd->rot_comp
 
 static void gfx_do_line(unsigned int func, unsigned short *stamp_base,
@@ -17,7 +19,8 @@ static void gfx_do_line(unsigned int func, unsigned short *stamp_base,
 
 static void gfx_cd_start(void)
 {
-	int w, h;
+	int w, h, cycles;
+	int y_step;
 
 	w = _rot_comp.Reg_62;
 	h = _rot_comp.Reg_64;
@@ -33,10 +36,6 @@ static void gfx_cd_start(void)
 	// _rot_comp.Buffer_Adr = (_rot_comp.Reg_5E & 0xfff8) << 2; // unused?
 	_rot_comp.YD = (_rot_comp.Reg_60 >> 3) & 7;
 	_rot_comp.Vector_Adr = (_rot_comp.Reg_66 & 0xfffe) << 2;
-
-	_rot_comp.Reg_58 |= 0x8000;	// Stamp_Size,  we start a new GFX operation
-
-	pcd_event_schedule_s68k(PCD_EVENT_GFX, 5 * w * h);
 
 	switch (_rot_comp.Reg_58 & 6)	// Scr_16?
 	{
@@ -54,16 +53,56 @@ static void gfx_cd_start(void)
 			break;
 	}
 
+	_rot_comp.Reg_58 |= 0x8000;	// Stamp_Size,  we start a new GFX operation
+
+	cycles = 5 * w * h;
+	if (cycles > UPDATE_CYCLES)
+		y_step = (UPDATE_CYCLES + 5 * w - 1) / (5 * w);
+	else
+		y_step = h;
+
+	_rot_comp.y_step = y_step;
+	pcd_event_schedule_s68k(PCD_EVENT_GFX, 5 * w * y_step);
+}
+
+void gfx_cd_update(unsigned int cycles)
+{
+	int w = _rot_comp.Reg_62;
+	int h, next;
+
+	if (!(Pico_mcd->rot_comp.Reg_58 & 0x8000))
+		return;
+
+	h = _rot_comp.Reg_64;
+	_rot_comp.Reg_64 -= _rot_comp.y_step;
+
+	if ((int)_rot_comp.Reg_64 <= 0) {
+		Pico_mcd->rot_comp.Reg_58 &= 0x7fff;
+		Pico_mcd->rot_comp.Reg_64  = 0;
+		if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN1) {
+			elprintf(EL_INTS  |EL_CD, "s68k: gfx_cd irq 1");
+			SekInterruptS68k(1);
+		}
+	}
+	else {
+		next = _rot_comp.Reg_64;
+		if (next > _rot_comp.y_step)
+			next = _rot_comp.y_step;
+
+		pcd_event_schedule(cycles, PCD_EVENT_GFX, 5 * w * next);
+		h = _rot_comp.y_step;
+	}
+
 	if (PicoOpt & POPT_EN_MCD_GFX)
 	{
 		unsigned int func = _rot_comp.Function;
-		unsigned short *stamp_base = (unsigned short *) (Pico_mcd->word_ram2M + _rot_comp.Stamp_Map_Adr);
+		unsigned short *stamp_base = (unsigned short *)
+			(Pico_mcd->word_ram2M + _rot_comp.Stamp_Map_Adr);
 
 		while (h--)
 			gfx_do_line(func, stamp_base, w);
 	}
 }
-
 
 PICO_INTERNAL_ASM unsigned int gfx_cd_read(unsigned int a)
 {
@@ -76,12 +115,7 @@ PICO_INTERNAL_ASM unsigned int gfx_cd_read(unsigned int a)
 		case 0x5E: d = _rot_comp.Reg_5E; break;
 		case 0x60: d = _rot_comp.Reg_60; break;
 		case 0x62: d = _rot_comp.Reg_62; break;
-		case 0x64:
-			d = _rot_comp.Reg_64;
-			if (_rot_comp.Reg_64 > 1)
-				// fudge..
-				_rot_comp.Reg_64--;
-			break;
+		case 0x64: d = _rot_comp.Reg_64; break;
 		case 0x66: break;
 		default: dprintf("gfx_cd_read FIXME: unexpected address: %02x", a); break;
 	}

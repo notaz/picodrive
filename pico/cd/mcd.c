@@ -127,19 +127,6 @@ static void pcd_int3_timer_event(unsigned int now)
       Pico_mcd->s68k_regs[0x31] * 384);
 }
 
-static void pcd_gfx_event(unsigned int now)
-{
-  // update gfx chip
-  if (Pico_mcd->rot_comp.Reg_58 & 0x8000) {
-    Pico_mcd->rot_comp.Reg_58 &= 0x7fff;
-    Pico_mcd->rot_comp.Reg_64  = 0;
-    if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN1) {
-      elprintf(EL_INTS  |EL_CD, "s68k: gfx_cd irq 1");
-      SekInterruptS68k(1);
-    }
-  }
-}
-
 static void pcd_dma_event(unsigned int now)
 {
   int ddx = Pico_mcd->s68k_regs[4] & 7;
@@ -154,7 +141,7 @@ static unsigned int event_time_next;
 static event_cb *pcd_event_cbs[PCD_EVENT_COUNT] = {
   [PCD_EVENT_CDC]      = pcd_cdc_event,
   [PCD_EVENT_TIMER3]   = pcd_int3_timer_event,
-  [PCD_EVENT_GFX]      = pcd_gfx_event,
+  [PCD_EVENT_GFX]      = gfx_cd_update,
   [PCD_EVENT_DMA]      = pcd_dma_event,
 };
 
