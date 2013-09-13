@@ -148,7 +148,8 @@ static int PicoFrameHints(void)
       if (ym2612.dacen && PsndDacLine <= y)
         PsndDoDAC(y);
 #ifdef PICO_CD
-      pcd_sync_s68k(cycles, 0);
+      if (PicoAHW & PAHW_MCD)
+        pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X
       p32x_sync_sh2s(cycles);
@@ -219,7 +220,8 @@ static int PicoFrameHints(void)
   }
 
 #ifdef PICO_CD
-  pcd_sync_s68k(cycles, 0);
+  if (PicoAHW & PAHW_MCD)
+    pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X
   p32x_sync_sh2s(cycles);
@@ -271,7 +273,8 @@ static int PicoFrameHints(void)
     PsndDoDAC(lines-1);
 
 #ifdef PICO_CD
-  pcd_sync_s68k(cycles, 0);
+  if (PicoAHW & PAHW_MCD)
+    pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X
   p32x_sync_sh2s(cycles);

@@ -11,10 +11,10 @@
 .text
 .align 2
 
-.global PicoReadM68k8_io
-.global PicoReadM68k16_io
-.global PicoWriteM68k8_io
-.global PicoWriteM68k16_io
+.global PicoRead8_mcd_io
+.global PicoRead16_mcd_io
+.global PicoWrite8_mcd_io
+.global PicoWrite16_mcd_io
 
 .global PicoReadS68k8_pr
 .global PicoReadS68k16_pr
@@ -134,7 +134,7 @@ PicoReadM68k8_cell1:                    @ 0x220000 - 0x23ffff, cell arranged
     bx      lr
 
 
-PicoReadM68k8_io:
+PicoRead8_mcd_io:
     and     r1, r0, #0xff00
     cmp     r1, #0x2000	              @ a120xx?
     bne     PicoRead8_io
@@ -244,7 +244,7 @@ PicoReadM68k16_cell1:                   @ 0x220000 - 0x23ffff, cell arranged
     bx      lr
 
 
-PicoReadM68k16_io:
+PicoRead16_mcd_io:
     and     r1, r0, #0xff00
     cmp     r1, #0x2000	              @ a120xx
     bne     PicoRead16_io
@@ -335,7 +335,7 @@ PicoWriteM68k8_cell1:                   @ 0x220000 - 0x23ffff, cell arranged
     bx      lr
 
 
-PicoWriteM68k8_io:
+PicoWrite8_mcd_io:
     and     r2, r0, #0xff00
     cmp     r2, #0x2000                 @ a120xx?
     beq     m68k_reg_write8
@@ -362,7 +362,7 @@ PicoWriteM68k16_cell1:                   @ 0x220000 - 0x23ffff, cell arranged
     bx      lr
 
 
-PicoWriteM68k16_io:
+PicoWrite16_mcd_io:
     and     r2, r0, #0xff00
     cmp     r2, #0x2000                 @ a120xx?
     bne     PicoWrite16_io

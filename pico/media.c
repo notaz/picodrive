@@ -287,6 +287,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
     goto out;
   }
   rom_data = NULL; // now belongs to PicoCart
+  Pico.m.ncart_in = 0;
 
   // insert CD if it was detected
   if (cd_img_type != CIT_NOT_CD) {
@@ -296,6 +297,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
       media_type = PM_BAD_CD;
       goto out;
     }
+    Pico.m.ncart_in = 1;
   }
 
   if (PicoQuirks & PQUIRK_FORCE_6BTN)

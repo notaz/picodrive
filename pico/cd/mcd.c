@@ -250,7 +250,7 @@ int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
 
 static void SekSyncM68k(void);
 
-static inline void pcd_run_cpus_normal(int m68k_cycles)
+void pcd_run_cpus_normal(int m68k_cycles)
 {
   SekCycleAim += m68k_cycles;
   if (SekShouldInterrupt() || Pico_mcd->m.m68k_poll_cnt < 12)
@@ -269,7 +269,7 @@ static inline void pcd_run_cpus_normal(int m68k_cycles)
   SekSyncM68k();
 }
 
-static inline void pcd_run_cpus_lockstep(int m68k_cycles)
+void pcd_run_cpus_lockstep(int m68k_cycles)
 {
   unsigned int target = SekCycleAim + m68k_cycles;
   do {

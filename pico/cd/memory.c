@@ -28,11 +28,6 @@ MAKE_68K_WRITE32(s68k_write32, s68k_write16_map)
 
 // provided by ASM code:
 #ifdef _ASM_CD_MEMORY_C
-u32 PicoReadM68k8_io(u32 a);
-u32 PicoReadM68k16_io(u32 a);
-void PicoWriteM68k8_io(u32 a, u32 d);
-void PicoWriteM68k16_io(u32 a, u32 d);
-
 u32 PicoReadS68k8_pr(u32 a);
 u32 PicoReadS68k16_pr(u32 a);
 void PicoWriteS68k8_pr(u32 a, u32 d);
@@ -566,7 +561,7 @@ static void PicoWriteM68k16_ramc(u32 a, u32 d)
 
 // IO/control/cd registers (a10000 - ...)
 #ifndef _ASM_CD_MEMORY_C
-static u32 PicoReadM68k8_io(u32 a)
+u32 PicoRead8_mcd_io(u32 a)
 {
   u32 d;
   if ((a & 0xff00) == 0x2000) { // a12000 - a120ff
@@ -583,7 +578,7 @@ static u32 PicoReadM68k8_io(u32 a)
   return PicoRead8_io(a);
 }
 
-static u32 PicoReadM68k16_io(u32 a)
+u32 PicoRead16_mcd_io(u32 a)
 {
   u32 d;
   if ((a & 0xff00) == 0x2000) {
@@ -596,7 +591,7 @@ static u32 PicoReadM68k16_io(u32 a)
   return PicoRead16_io(a);
 }
 
-static void PicoWriteM68k8_io(u32 a, u32 d)
+void PicoWrite8_mcd_io(u32 a, u32 d)
 {
   if ((a & 0xff00) == 0x2000) { // a12000 - a120ff
     elprintf(EL_CDREGS, "m68k_regs w8:  [%02x]   %02x @%06x",
@@ -608,7 +603,7 @@ static void PicoWriteM68k8_io(u32 a, u32 d)
   PicoWrite16_io(a, d);
 }
 
-static void PicoWriteM68k16_io(u32 a, u32 d)
+void PicoWrite16_mcd_io(u32 a, u32 d)
 {
   if ((a & 0xff00) == 0x2000) { // a12000 - a120ff
     elprintf(EL_CDREGS, "m68k_regs w16: [%02x] %04x @%06x",
@@ -1057,10 +1052,10 @@ PICO_INTERNAL void PicoMemSetupCD(void)
   }
 
   // registers/IO:
-  cpu68k_map_set(m68k_read8_map,   0xa10000, 0xa1ffff, PicoReadM68k8_io, 1);
-  cpu68k_map_set(m68k_read16_map,  0xa10000, 0xa1ffff, PicoReadM68k16_io, 1);
-  cpu68k_map_set(m68k_write8_map,  0xa10000, 0xa1ffff, PicoWriteM68k8_io, 1);
-  cpu68k_map_set(m68k_write16_map, 0xa10000, 0xa1ffff, PicoWriteM68k16_io, 1);
+  cpu68k_map_set(m68k_read8_map,   0xa10000, 0xa1ffff, PicoRead8_mcd_io, 1);
+  cpu68k_map_set(m68k_read16_map,  0xa10000, 0xa1ffff, PicoRead16_mcd_io, 1);
+  cpu68k_map_set(m68k_write8_map,  0xa10000, 0xa1ffff, PicoWrite8_mcd_io, 1);
+  cpu68k_map_set(m68k_write16_map, 0xa10000, 0xa1ffff, PicoWrite16_mcd_io, 1);
 
   // sub68k map
   cpu68k_map_set(s68k_read8_map,   0x000000, 0xffffff, s68k_unmapped_read8, 1);

@@ -307,7 +307,7 @@ struct PicoMisc
   unsigned char sram_reg;      // 09 SRAM reg. See SRR_* below
   unsigned short z80_bank68k;  // 0a
   unsigned short pad0;
-  unsigned char  pad1;
+  unsigned char  ncart_in;     // 0e !cart_in
   unsigned char  z80_reset;    // 0f z80 reset held
   unsigned char  padDelay[2];  // 10 gamepad phase time outs, so we count a delay
   unsigned short eeprom_addr;  // EEPROM address register
@@ -452,6 +452,7 @@ typedef struct
 
 // 32X
 #define P32XS_FM    (1<<15)
+#define P32XS_nCART (1<< 8)
 #define P32XS_REN   (1<< 7)
 #define P32XS_nRES  (1<< 1)
 #define P32XS_ADEN  (1<< 0)
@@ -607,6 +608,10 @@ PICO_INTERNAL void PicoMemSetupPico(void);
 
 // cd/memory.c
 PICO_INTERNAL void PicoMemSetupCD(void);
+unsigned int PicoRead8_mcd_io(unsigned int a);
+unsigned int PicoRead16_mcd_io(unsigned int a);
+void PicoWrite8_mcd_io(unsigned int a, unsigned int d);
+void PicoWrite16_mcd_io(unsigned int a, unsigned int d);
 void pcd_state_loaded_mem(void);
 
 // pico.c
@@ -647,6 +652,7 @@ void pcd_event_schedule(unsigned int now, enum pcd_event event, int after);
 void pcd_event_schedule_s68k(enum pcd_event event, int after);
 unsigned int pcd_cycles_m68k_to_s68k(unsigned int c);
 int  pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync);
+void pcd_run_cpus(int m68k_cycles);
 void pcd_state_loaded(void);
 
 // pico/pico.c

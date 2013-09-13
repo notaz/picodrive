@@ -322,6 +322,10 @@ static void system_announce(void)
 #endif
 	} else if (PicoAHW & PAHW_PICO) {
 		sys_name = "Pico";
+	} else if ((PicoAHW & (PAHW_32X|PAHW_MCD)) == (PAHW_32X|PAHW_MCD)) {
+		sys_name = "32X + Mega CD";
+		if ((Pico.m.hardware & 0xc0) == 0x80)
+			sys_name = "32X + Sega CD";
 	} else if (PicoAHW & PAHW_MCD) {
 		sys_name = "Mega CD";
 		if ((Pico.m.hardware & 0xc0) == 0x80)

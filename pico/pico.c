@@ -313,14 +313,13 @@ void PicoFrame(void)
     goto end;
   }
 
-  // TODO: MCD+32X
-  if (PicoAHW & PAHW_MCD) {
-    PicoFrameMCD();
+  if (PicoAHW & PAHW_32X) {
+    PicoFrame32x(); // also does MCD+32X
     goto end;
   }
 
-  if (PicoAHW & PAHW_32X) {
-    PicoFrame32x();
+  if (PicoAHW & PAHW_MCD) {
+    PicoFrameMCD();
     goto end;
   }
 

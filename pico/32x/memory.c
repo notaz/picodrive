@@ -786,8 +786,12 @@ static u32 PicoRead8_32x_on(u32 a)
     goto out_16to8;
   }
 
-  if ((a & 0xfc00) != 0x5000)
-    return PicoRead8_io(a);
+  if ((a & 0xfc00) != 0x5000) {
+    if (PicoAHW & PAHW_MCD)
+      return PicoRead8_mcd_io(a);
+    else
+      return PicoRead8_io(a);
+  }
 
   if ((a & 0xfff0) == 0x5180) { // a15180
     d = p32x_vdp_read16(a);
@@ -826,8 +830,12 @@ static u32 PicoRead16_32x_on(u32 a)
     goto out;
   }
 
-  if ((a & 0xfc00) != 0x5000)
-    return PicoRead16_io(a);
+  if ((a & 0xfc00) != 0x5000) {
+    if (PicoAHW & PAHW_MCD)
+      return PicoRead16_mcd_io(a);
+    else
+      return PicoRead16_io(a);
+  }
 
   if ((a & 0xfff0) == 0x5180) { // a15180
     d = p32x_vdp_read16(a);
@@ -863,7 +871,10 @@ static void PicoWrite8_32x_on(u32 a, u32 d)
   }
 
   if ((a & 0xfc00) != 0x5000) {
-    PicoWrite8_io(a, d);
+    if (PicoAHW & PAHW_MCD)
+      PicoWrite8_mcd_io(a, d);
+    else
+      PicoWrite8_io(a, d);
     if (a == 0xa130f1)
       bank_switch(Pico32x.regs[4 / 2]);
     return;
@@ -898,7 +909,10 @@ static void PicoWrite16_32x_on(u32 a, u32 d)
   }
 
   if ((a & 0xfc00) != 0x5000) {
-    PicoWrite16_io(a, d);
+    if (PicoAHW & PAHW_MCD)
+      PicoWrite16_mcd_io(a, d);
+    else
+      PicoWrite16_io(a, d);
     if (a == 0xa130f0)
       bank_switch(Pico32x.regs[4 / 2]);
     return;
@@ -1140,6 +1154,9 @@ static void bank_map_handler(void)
 static void bank_switch(int b)
 {
   unsigned int rs, bank;
+
+  if (Pico.m.ncart_in)
+    return;
 
   bank = b << 20;
   if ((Pico.m.sram_reg & SRR_MAPPED) && bank == SRam.start) {
@@ -1536,42 +1553,94 @@ static void z80_md_bank_write_32x(unsigned int a, unsigned char d)
 
 static const u16 msh2_code[] = {
   // trap instructions
-  0xaffe, // bra <self>
-  0x0009, // nop
+  0xaffe, // 200 bra <self>
+  0x0009, // 202 nop
   // have to wait a bit until m68k initial program finishes clearing stuff
   // to avoid races with game SH2 code, like in Tempo
-  0xd004, // mov.l   @(_m_ok,pc), r0
-  0xd105, // mov.l   @(_cnt,pc), r1
-  0xd205, // mov.l   @(_start,pc), r2
-  0x71ff, // add     #-1, r1
-  0x4115, // cmp/pl  r1
-  0x89fc, // bt      -2
-  0xc208, // mov.l   r0, @(h'20,gbr)
-  0x6822, // mov.l   @r2, r8
-  0x482b, // jmp     @r8
-  0x0009, // nop
-  ('M'<<8)|'_', ('O'<<8)|'K',
-  0x0001, 0x0000,
-  0x2200, 0x03e0  // master start pointer in ROM
+  0xd406, // 204 mov.l   @(_m_ok,pc), r4
+  0xc400, // 206 mov.b   @(h'0,gbr),r0
+  0xc801, // 208 tst     #1, r0
+  0x8b0f, // 20a bf      cd_start
+  0xd105, // 20c mov.l   @(_cnt,pc), r1
+  0xd206, // 20e mov.l   @(_start,pc), r2
+  0x71ff, // 210 add     #-1, r1
+  0x4115, // 212 cmp/pl  r1
+  0x89fc, // 214 bt      -2
+  0x6043, // 216 mov     r4, r0
+  0xc208, // 218 mov.l   r0, @(h'20,gbr)
+  0x6822, // 21a mov.l   @r2, r8
+  0x482b, // 21c jmp     @r8
+  0x0009, // 21e nop
+  ('M'<<8)|'_', ('O'<<8)|'K', // 220 _m_ok
+  0x0001, 0x0000,             // 224 _cnt
+  0x2200, 0x03e0, // master start pointer in ROM
+  // cd_start:
+  0xd20d, // 22c mov.l   @(__cd_,pc), r2
+  0xc608, // 22e mov.l   @(h'20,gbr), r0
+  0x3200, // 230 cmp/eq  r0, r2
+  0x8bfc, // 232 bf      #-2
+  0xe000, // 234 mov     #0, r0
+  0xcf80, // 236 or.b    #0x80,@(r0,gbr)
+  0xd80b, // 238 mov.l   @(_start_cd,pc), r8 // 24000018
+  0xd30c, // 23a mov.l   @(_max_len,pc), r3
+  0x5b84, // 23c mov.l   @(h'10,r8), r11     // master vbr
+  0x5a82, // 23e mov.l   @(8,r8), r10        // entry
+  0x5081, // 240 mov.l   @(4,r8), r0         // len
+  0x5980, // 242 mov.l   @(0,r8), r9         // dst
+  0x3036, // 244 cmp/hi  r3,r0
+  0x8b00, // 246 bf      #1
+  0x6033, // 248 mov     r3,r0
+  0x7820, // 24a add     #0x20, r8
+  // ipl_copy:
+  0x6286, // 24c mov.l   @r8+, r2
+  0x2922, // 24e mov.l   r2, @r9
+  0x7904, // 250 add     #4, r9
+  0x70fc, // 252 add     #-4, r0
+  0x8800, // 254 cmp/eq  #0, r0
+  0x8bf9, // 256 bf      #-5
+  //
+  0x4b2e, // 258 ldc     r11, vbr
+  0x6043, // 25a mov     r4, r0              // M_OK
+  0xc208, // 25c mov.l   r0, @(h'20,gbr)
+  0x4a2b, // 25e jmp     @r10
+  0x0009, // 260 nop
+  0x0009, // 262 nop          //     pad
+  ('_'<<8)|'C', ('D'<<8)|'_', // 264 __cd_
+  0x2400, 0x0018,             // 268 _start_cd
+  0x0001, 0xffe0,             // 26c _max_len
 };
 
 static const u16 ssh2_code[] = {
-  0xaffe, // bra <self>
-  0x0009, // nop
+  0xaffe, // 200 bra <self>
+  0x0009, // 202 nop
   // code to wait for master, in case authentic master BIOS is used
-  0xd104, // mov.l   @(_m_ok,pc), r1
-  0xd206, // mov.l   @(_start,pc), r2
-  0xc608, // mov.l   @(h'20,gbr), r0
-  0x3100, // cmp/eq  r0, r1
-  0x8bfc, // bf      #-2
-  0xd003, // mov.l   @(_s_ok,pc), r0
-  0xc209, // mov.l   r0, @(h'24,gbr)
-  0x6822, // mov.l   @r2, r8
-  0x482b, // jmp     @r8
-  0x0009, // nop
-  ('M'<<8)|'_', ('O'<<8)|'K',
-  ('S'<<8)|'_', ('O'<<8)|'K',
-  0x2200, 0x03e4  // slave start pointer in ROM
+  0xd106, // 204 mov.l   @(_m_ok,pc), r1
+  0xd208, // 206 mov.l   @(_start,pc), r2
+  0xc608, // 208 mov.l   @(h'20,gbr), r0
+  0x3100, // 20a cmp/eq  r0, r1
+  0x8bfc, // 20c bf      #-2
+  0xc400, // 20e mov.b   @(h'0,gbr),r0
+  0xc801, // 210 tst     #1, r0
+  0xd004, // 212 mov.l   @(_s_ok,pc), r0
+  0x8b0a, // 214 bf      cd_start
+  0xc209, // 216 mov.l   r0, @(h'24,gbr)
+  0x6822, // 218 mov.l   @r2, r8
+  0x482b, // 21a jmp     @r8
+  0x0009, // 21c nop
+  0x0009, // 21e nop
+  ('M'<<8)|'_', ('O'<<8)|'K', // 220
+  ('S'<<8)|'_', ('O'<<8)|'K', // 224
+  0x2200, 0x03e4,  // slave start pointer in ROM
+  // cd_start:
+  0xd803, // 22c mov.l   @(_start_cd,pc), r8 // 24000018
+  0x5b85, // 22e mov.l   @(h'14,r8), r11     // slave vbr
+  0x5a83, // 230 mov.l   @(h'0c,r8), r10     // entry
+  0x4b2e, // 232 ldc     r11, vbr
+  0xc209, // 234 mov.l   r0, @(h'24,gbr)     // write S_OK
+  0x4a2b, // 236 jmp     @r10
+  0x0009, // 238 nop
+  0x0009, // 23a nop
+  0x2400, 0x0018, // 23c _start_cd
 };
 
 #define HWSWAP(x) (((u16)(x) << 16) | ((x) >> 16))
@@ -1622,13 +1691,13 @@ static void get_bios(void)
     for (i = 0; i < 128; i++)
       pl[i] = HWSWAP(0x200);
 
-    // startup code
-    memcpy(&Pico32xMem->sh2_rom_m.b[0x200], msh2_code, sizeof(msh2_code));
-
-    // reset SP
-    pl[1] = pl[3] = HWSWAP(0x6040000);
     // start
     pl[0] = pl[2] = HWSWAP(0x204);
+    // reset SP
+    pl[1] = pl[3] = HWSWAP(0x6040000);
+
+    // startup code
+    memcpy(&Pico32xMem->sh2_rom_m.b[0x200], msh2_code, sizeof(msh2_code));
   }
 
   // SSH2
@@ -1643,13 +1712,13 @@ static void get_bios(void)
     for (i = 0; i < 128; i++)
       pl[i] = HWSWAP(0x200);
 
-    // startup code
-    memcpy(&Pico32xMem->sh2_rom_s.b[0x200], ssh2_code, sizeof(ssh2_code));
-
-    // reset SP
-    pl[1] = pl[3] = HWSWAP(0x603f800);
     // start
     pl[0] = pl[2] = HWSWAP(0x204);
+    // reset SP
+    pl[1] = pl[3] = HWSWAP(0x603f800);
+
+    // startup code
+    memcpy(&Pico32xMem->sh2_rom_s.b[0x200], ssh2_code, sizeof(ssh2_code));
   }
 }
 
@@ -1697,32 +1766,34 @@ void PicoMemSetup32x(void)
   // so that we can avoid handling the RV bit.
   // m68k_map_unmap(0x000000, 0x3fffff);
 
-  // MD ROM area
-  rs = sizeof(Pico32xMem->m68k_rom_bank);
-  cpu68k_map_set(m68k_read8_map,   0x000000, rs - 1, Pico32xMem->m68k_rom_bank, 0);
-  cpu68k_map_set(m68k_read16_map,  0x000000, rs - 1, Pico32xMem->m68k_rom_bank, 0);
-  cpu68k_map_set(m68k_write8_map,  0x000000, rs - 1, PicoWrite8_hint, 1); // TODO verify
-  cpu68k_map_set(m68k_write16_map, 0x000000, rs - 1, PicoWrite16_hint, 1);
+  if (!Pico.m.ncart_in) {
+    // MD ROM area
+    rs = sizeof(Pico32xMem->m68k_rom_bank);
+    cpu68k_map_set(m68k_read8_map,   0x000000, rs - 1, Pico32xMem->m68k_rom_bank, 0);
+    cpu68k_map_set(m68k_read16_map,  0x000000, rs - 1, Pico32xMem->m68k_rom_bank, 0);
+    cpu68k_map_set(m68k_write8_map,  0x000000, rs - 1, PicoWrite8_hint, 1); // TODO verify
+    cpu68k_map_set(m68k_write16_map, 0x000000, rs - 1, PicoWrite16_hint, 1);
 
-  // 32X ROM (unbanked, XXX: consider mirroring?)
-  rs = (Pico.romsize + M68K_BANK_MASK) & ~M68K_BANK_MASK;
-  if (rs > 0x80000)
-    rs = 0x80000;
-  cpu68k_map_set(m68k_read8_map,   0x880000, 0x880000 + rs - 1, Pico.rom, 0);
-  cpu68k_map_set(m68k_read16_map,  0x880000, 0x880000 + rs - 1, Pico.rom, 0);
-  cpu68k_map_set(m68k_write8_map,  0x880000, 0x880000 + rs - 1, PicoWrite8_cart, 1);
-  cpu68k_map_set(m68k_write16_map, 0x880000, 0x880000 + rs - 1, PicoWrite16_cart, 1);
+    // 32X ROM (unbanked, XXX: consider mirroring?)
+    rs = (Pico.romsize + M68K_BANK_MASK) & ~M68K_BANK_MASK;
+    if (rs > 0x80000)
+      rs = 0x80000;
+    cpu68k_map_set(m68k_read8_map,   0x880000, 0x880000 + rs - 1, Pico.rom, 0);
+    cpu68k_map_set(m68k_read16_map,  0x880000, 0x880000 + rs - 1, Pico.rom, 0);
+    cpu68k_map_set(m68k_write8_map,  0x880000, 0x880000 + rs - 1, PicoWrite8_cart, 1);
+    cpu68k_map_set(m68k_write16_map, 0x880000, 0x880000 + rs - 1, PicoWrite16_cart, 1);
 #ifdef EMU_F68K
-  // setup FAME fetchmap
-  PicoCpuFM68k.Fetch[0] = (unsigned long)Pico32xMem->m68k_rom;
-  for (rs = 0x88; rs < 0x90; rs++)
-    PicoCpuFM68k.Fetch[rs] = (unsigned long)Pico.rom - 0x880000;
+    // setup FAME fetchmap
+    PicoCpuFM68k.Fetch[0] = (unsigned long)Pico32xMem->m68k_rom;
+    for (rs = 0x88; rs < 0x90; rs++)
+      PicoCpuFM68k.Fetch[rs] = (unsigned long)Pico.rom - 0x880000;
 #endif
 
-  // 32X ROM (banked)
-  bank_switch(0);
-  cpu68k_map_set(m68k_write8_map,  0x900000, 0x9fffff, PicoWrite8_bank, 1);
-  cpu68k_map_set(m68k_write16_map, 0x900000, 0x9fffff, PicoWrite16_bank, 1);
+    // 32X ROM (banked)
+    bank_switch(0);
+    cpu68k_map_set(m68k_write8_map,  0x900000, 0x9fffff, PicoWrite8_bank, 1);
+    cpu68k_map_set(m68k_write16_map, 0x900000, 0x9fffff, PicoWrite16_bank, 1);
+  }
 
   // SYS regs
   cpu68k_map_set(m68k_read8_map,   0xa10000, 0xa1ffff, PicoRead8_32x_on, 1);

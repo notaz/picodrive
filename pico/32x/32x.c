@@ -109,6 +109,10 @@ void Pico32xStartup(void)
   p32x_pwm_ctl_changed();
   p32x_timers_recalc();
 
+  Pico32x.sh2_regs[0] = P32XS2_ADEN;
+  if (Pico.m.ncart_in)
+    Pico32x.sh2_regs[0] |= P32XS_nCART;
+
   if (!Pico.m.pal)
     Pico32x.vdp_regs[0] |= P32XV_nPAL;
 
@@ -183,7 +187,6 @@ void PicoPower32x(void)
 
   Pico32x.regs[0] = P32XS_REN|P32XS_nRES; // verified
   Pico32x.vdp_regs[0x0a/2] = P32XV_VBLK|P32XV_PEN;
-  Pico32x.sh2_regs[0] = P32XS2_ADEN;
 }
 
 void PicoUnload32x(void)
@@ -516,7 +519,11 @@ void sync_sh2s_lockstep(unsigned int m68k_target)
 }
 
 #define CPUS_RUN(m68k_cycles) do { \
-  SekRunM68k(m68k_cycles); \
+  if (PicoAHW & PAHW_MCD) \
+    pcd_run_cpus(m68k_cycles); \
+  else \
+    SekRunM68k(m68k_cycles); \
+  \
   if ((Pico32x.emu_flags & P32XF_Z80_32X_IO) && Pico.m.z80Run \
       && !Pico.m.z80_reset && (PicoOpt & POPT_EN_Z80)) \
     PicoSyncZ80(SekCyclesDone()); \
@@ -525,6 +532,7 @@ void sync_sh2s_lockstep(unsigned int m68k_target)
 } while (0)
 
 #define PICO_32X
+#define PICO_CD
 #include "../pico_cmn.c"
 
 void PicoFrame32x(void)
