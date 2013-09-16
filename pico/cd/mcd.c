@@ -41,6 +41,8 @@ PICO_INTERNAL void PicoPowerMCD(void)
   memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));
   memset(&Pico_mcd->m, 0, sizeof(Pico_mcd->m));
 
+  Reset_CD();
+
   // cold reset state (tested)
   Pico_mcd->m.state_flags = PCD_ST_S68K_RST;
   Pico_mcd->m.busreq = 2;     // busreq on, s68k in reset
@@ -48,15 +50,24 @@ PICO_INTERNAL void PicoPowerMCD(void)
   memset(Pico_mcd->bios + 0x70, 0xff, 4);
 }
 
-PICO_INTERNAL int PicoResetMCD(void)
+void pcd_soft_reset(void)
 {
-  // ??
-  Reset_CD();
+  // Reset_CD(); // breaks Fahrenheit CD swap
+
   LC89510_Reset();
   gfx_cd_reset();
 #ifdef _ASM_CD_MEMORY_C
   //PicoMemResetCDdecode(1); // don't have to call this in 2M mode
 #endif
+
+  pcd_event_schedule_s68k(PCD_EVENT_CDC, 12500000/75);
+
+  // TODO: test if register state/timers change
+}
+
+PICO_INTERNAL int PicoResetMCD(void)
+{
+  // reset button doesn't affect MCD hardware
 
   // use SRam.data for RAM cart
   if (PicoOpt & POPT_EN_MCD_RAMCART) {
@@ -68,8 +79,6 @@ PICO_INTERNAL int PicoResetMCD(void)
     SRam.data = NULL;
   }
   SRam.start = SRam.end = 0; // unused
-
-  pcd_event_schedule(0, PCD_EVENT_CDC, 12500000/75);
 
   return 0;
 }

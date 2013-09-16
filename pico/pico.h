@@ -135,7 +135,7 @@ void PicoCDBufferFlush(void);
 
 // cd/cd_sys.c
 int Insert_CD(const char *cdimg_name, int type);
-void Stop_CD(void); // releases all resources taken when CD game was started.
+int Stop_CD(void); // unloads CD, returns 1 if there was cd loaded
 
 // Cart.c
 typedef enum

@@ -653,6 +653,7 @@ void pcd_event_schedule_s68k(enum pcd_event event, int after);
 unsigned int pcd_cycles_m68k_to_s68k(unsigned int c);
 int  pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync);
 void pcd_run_cpus(int m68k_cycles);
+void pcd_soft_reset(void);
 void pcd_state_loaded(void);
 
 // pico/pico.c

@@ -190,7 +190,8 @@ PICO_INTERNAL void Reset_CD(void)
 	Pico_mcd->scd.Cur_Track = 0;
 	Pico_mcd->scd.Cur_LBA = -150;
 	Pico_mcd->scd.Status_CDC &= ~1;
-	Pico_mcd->scd.Status_CDD = CD_Present ? READY : NOCD;
+	if (Pico_mcd->scd.Status_CDD != TRAY_OPEN)
+		Pico_mcd->scd.Status_CDD = CD_Present ? READY : NOCD;
 	Pico_mcd->scd.CDD_Complete = 0;
 	Pico_mcd->scd.File_Add_Delay = 0;
 }
@@ -201,27 +202,41 @@ int Insert_CD(const char *cdimg_name, int type)
 	int ret = 1;
 
 	CD_Present = 0;
-	Pico_mcd->scd.Status_CDD = NOCD;
 
 	if (cdimg_name != NULL && type != CIT_NOT_CD)
 	{
 		ret = Load_CD_Image(cdimg_name, type);
 		if (ret == 0) {
 			CD_Present = 1;
-			/* for open tray close command will handle Status_CDD */
-			if (Pico_mcd->scd.Status_CDD != TRAY_OPEN)
+
+			if (Pico_mcd->scd.Status_CDD == TRAY_OPEN)
+			{
+				if (Pico_mcd->bios[0x122 ^ 1] == '2')
+					Close_Tray_CDD_cC();
+				// else bios will issue it
+			}
+			else
+			{
 				Pico_mcd->scd.Status_CDD = READY;
+			}
 		}
 	}
+
+	if (Pico_mcd->scd.Status_CDD != TRAY_OPEN && !CD_Present)
+		Pico_mcd->scd.Status_CDD = NOCD;
 
 	return ret;
 }
 
 
-void Stop_CD(void)
+int Stop_CD(void)
 {
+	int ret = CD_Present;
+
 	Unload_ISO();
 	CD_Present = 0;
+
+	return ret;
 }
 
 
@@ -471,8 +486,8 @@ PICO_INTERNAL int Play_CDD_c3(void)
 	if (delay < 0) delay = -delay;
 	delay >>= 12;
 
-	// based on genplys GX
-	if (delay < 13)
+	if (Pico_mcd->scd.Cur_LBA > 0 && delay < 13)
+		// based on genplus GX
 		delay = 13;
 
 	Pico_mcd->scd.Cur_LBA = new_lba;

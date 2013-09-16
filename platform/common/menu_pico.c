@@ -1029,6 +1029,13 @@ static int main_menu_handler(int id, int keys)
 			return 1;
 		}
 		break;
+	case MA_MAIN_CHANGE_CD:
+		if (PicoAHW & PAHW_MCD) {
+			if (!Stop_CD())
+				menu_loop_tray();
+			return 1;
+		}
+		break;
 	case MA_MAIN_CREDITS:
 		draw_menu_message(credits, NULL);
 		in_menu_wait(PBTN_MOK|PBTN_MBACK, NULL, 70);
@@ -1062,6 +1069,7 @@ static menu_entry e_menu_main[] =
 	mee_handler_id("Load State",         MA_MAIN_LOAD_STATE,  main_menu_handler),
 	mee_handler_id("Reset game",         MA_MAIN_RESET_GAME,  main_menu_handler),
 	mee_handler_id("Load new ROM/ISO",   MA_MAIN_LOAD_ROM,    main_menu_handler),
+	mee_handler_id("Change CD/ISO",      MA_MAIN_CHANGE_CD,   main_menu_handler),
 	mee_handler   ("Change options",                          menu_loop_options),
 	mee_handler   ("Configure controls",                      menu_loop_keyconfig),
 	mee_handler_id("Credits",            MA_MAIN_CREDITS,     main_menu_handler),
@@ -1078,6 +1086,7 @@ void menu_loop(void)
 	me_enable(e_menu_main, MA_MAIN_SAVE_STATE,  PicoGameLoaded);
 	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  PicoGameLoaded);
 	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  PicoGameLoaded);
+	me_enable(e_menu_main, MA_MAIN_CHANGE_CD,   PicoAHW & PAHW_MCD);
 	me_enable(e_menu_main, MA_MAIN_PATCHES, PicoPatches != NULL);
 
 	menu_enter(PicoGameLoaded);

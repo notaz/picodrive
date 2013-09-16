@@ -331,6 +331,10 @@ void s68k_reg_write8(u32 a, u32 d)
 {
   // Warning: d might have upper bits set
   switch (a) {
+    case 1:
+      if (!(d & 1))
+        pcd_soft_reset();
+      return;
     case 2:
       return; // only m68k can change WP
     case 3: {
