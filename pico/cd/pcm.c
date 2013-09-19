@@ -1,137 +1,166 @@
 /*
  * Emulation routines for the RF5C164 PCM chip
- * (C) notaz, 2007
+ * (C) notaz, 2007, 2013
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
  */
 
+#include <assert.h>
 #include "../pico_int.h"
-#include "pcm.h"
 
-static unsigned int g_rate = 0; // 18.14 fixed point
+#define PCM_STEP_SHIFT 11
 
-PICO_INTERNAL_ASM void pcm_write(unsigned int a, unsigned int d)
+void pcd_pcm_write(unsigned int a, unsigned int d)
 {
-//printf("pcm_write(%i, %02x)\n", a, d);
+  unsigned int cycles = SekCyclesDoneS68k();
+  if ((int)(cycles - Pico_mcd->pcm.update_cycles) >= 384)
+    pcd_pcm_sync(cycles);
 
-	if (a < 7)
-	{
-		Pico_mcd->pcm.ch[Pico_mcd->pcm.cur_ch].regs[a] = d;
-	}
-	else if (a == 7) // control register
-	{
-		if (d & 0x40)	Pico_mcd->pcm.cur_ch = d & 7;
-		else		Pico_mcd->pcm.bank = d & 0xf;
-		Pico_mcd->pcm.control = d;
-		// dprintf("pcm control=%02x", Pico_mcd->pcm.control);
-	}
-	else if (a == 8) // sound on/off
-	{
-		if (!(Pico_mcd->pcm.enabled & 0x01)) Pico_mcd->pcm.ch[0].addr =
-			Pico_mcd->pcm.ch[0].regs[6] << (PCM_STEP_SHIFT + 8);
-		if (!(Pico_mcd->pcm.enabled & 0x02)) Pico_mcd->pcm.ch[1].addr =
-			Pico_mcd->pcm.ch[1].regs[6] << (PCM_STEP_SHIFT + 8);
-		if (!(Pico_mcd->pcm.enabled & 0x04)) Pico_mcd->pcm.ch[2].addr =
-			Pico_mcd->pcm.ch[2].regs[6] << (PCM_STEP_SHIFT + 8);
-		if (!(Pico_mcd->pcm.enabled & 0x08)) Pico_mcd->pcm.ch[3].addr =
-			Pico_mcd->pcm.ch[3].regs[6] << (PCM_STEP_SHIFT + 8);
-		if (!(Pico_mcd->pcm.enabled & 0x10)) Pico_mcd->pcm.ch[4].addr =
-			Pico_mcd->pcm.ch[4].regs[6] << (PCM_STEP_SHIFT + 8);
-		if (!(Pico_mcd->pcm.enabled & 0x20)) Pico_mcd->pcm.ch[5].addr =
-			Pico_mcd->pcm.ch[5].regs[6] << (PCM_STEP_SHIFT + 8);
-		if (!(Pico_mcd->pcm.enabled & 0x40)) Pico_mcd->pcm.ch[6].addr =
-			Pico_mcd->pcm.ch[6].regs[6] << (PCM_STEP_SHIFT + 8);
-		if (!(Pico_mcd->pcm.enabled & 0x80)) Pico_mcd->pcm.ch[7].addr =
-			Pico_mcd->pcm.ch[7].regs[6] << (PCM_STEP_SHIFT + 8);
-//		printf("addr %x %x %x %x %x %x %x %x\n", Pico_mcd->pcm.ch[0].addr, Pico_mcd->pcm.ch[1].addr
-//		, Pico_mcd->pcm.ch[2].addr, Pico_mcd->pcm.ch[3].addr, Pico_mcd->pcm.ch[4].addr, Pico_mcd->pcm.ch[5].addr
-//		, Pico_mcd->pcm.ch[6].addr, Pico_mcd->pcm.ch[7].addr);
+  if (a < 7)
+  {
+    Pico_mcd->pcm.ch[Pico_mcd->pcm.cur_ch].regs[a] = d;
+  }
+  else if (a == 7) // control register
+  {
+    if (d & 0x40)
+      Pico_mcd->pcm.cur_ch = d & 7;
+    else
+      Pico_mcd->pcm.bank = d & 0xf;
+    Pico_mcd->pcm.control = d;
+    elprintf(EL_CD, "pcm control %02x", Pico_mcd->pcm.control);
+  }
+  else if (a == 8 && Pico_mcd->pcm.enabled != (u_char)~d)
+  {
+    // sound on/off
+    int was_enabled = Pico_mcd->pcm.enabled;
+    int i;
 
-		Pico_mcd->pcm.enabled = ~d;
-//printf("enabled=%02x\n", Pico_mcd->pcm.enabled);
-	}
+    for (i = 0; i < 8; i++)
+      if (!(was_enabled & (1 << i)))
+        Pico_mcd->pcm.ch[i].addr =
+          Pico_mcd->pcm.ch[i].regs[6] << (PCM_STEP_SHIFT + 8);
+
+    Pico_mcd->pcm.enabled = ~d;
+  }
 }
 
-
-PICO_INTERNAL void pcm_set_rate(int rate)
+unsigned int pcd_pcm_read(unsigned int a)
 {
-	float step = 31.8 * 1024.0 / (float) rate; // max <4 @ 8000Hz
-	step *= 256*256/4;
-	g_rate = (unsigned int) step;
-	if (step - (float) g_rate >= 0.5) g_rate++;
-	elprintf(EL_STATUS, "g_rate: %f %08x\n", (double)step, g_rate);
+  unsigned int d, cycles = SekCyclesDoneS68k();
+  if ((int)(cycles - Pico_mcd->pcm.update_cycles) >= 384)
+    pcd_pcm_sync(cycles);
+
+  d = Pico_mcd->pcm.ch[(a >> 1) & 7].addr >> PCM_STEP_SHIFT;
+  if (a & 1)
+    d >>= 8;
+
+  return d & 0xff;
 }
 
-
-PICO_INTERNAL void pcm_update(int *buffer, int length, int stereo)
+void pcd_pcm_sync(unsigned int to)
 {
-	struct pcm_chan *ch;
-	unsigned int step, addr;
-	int mul_l, mul_r, smp;
-	int i, j, k;
-	int *out;
+  unsigned int cycles = Pico_mcd->pcm.update_cycles;
+  int mul_l, mul_r, inc, smp;
+  struct pcm_chan *ch;
+  unsigned int addr;
+  int c, s, steps;
+  int *out;
 
+  if ((int)(to - cycles) < 384)
+    return;
 
-	// PCM disabled or all channels off (to be checked by caller)
-	//if (!(Pico_mcd->pcm.control & 0x80) || !Pico_mcd->pcm.enabled) return;
+  steps = (to - cycles) / 384;
 
-//printf("-- upd %i\n", length);
+  // PCM disabled or all channels off
+  if (!(Pico_mcd->pcm.control & 0x80) || !Pico_mcd->pcm.enabled)
+    goto end;
 
-	for (i = 0; i < 8; i++)
-	{
-		if (!(Pico_mcd->pcm.enabled & (1 << i))) continue; // channel disabled
+  out = Pico_mcd->pcm_mixbuf + Pico_mcd->pcm_mixpos * 2;
+  Pico_mcd->pcm_mixbuf_dirty = 1;
+  if (Pico_mcd->pcm_mixpos + steps > PCM_MIXBUF_LEN)
+    // shouldn't happen
+    steps = PCM_MIXBUF_LEN - Pico_mcd->pcm_mixpos;
 
-		out = buffer;
-		ch = &Pico_mcd->pcm.ch[i];
+  for (c = 0; c < 8; c++)
+  {
+    if (!(Pico_mcd->pcm.enabled & (1 << c)))
+      continue; // channel disabled
 
-		addr = ch->addr; // >> PCM_STEP_SHIFT;
-		mul_l = ((int)ch->regs[0] * (ch->regs[1] & 0xf)) >> (5+1); // (env * pan) >> 5
-		mul_r = ((int)ch->regs[0] * (ch->regs[1] >>  4)) >> (5+1);
-		step  = ((unsigned int)(*(unsigned short *)&ch->regs[2]) * g_rate) >> 14; // freq step
-//		fprintf(stderr, "step=%i, cstep=%i, mul_l=%i, mul_r=%i, ch=%i, addr=%x, en=%02x\n",
-//			*(unsigned short *)&ch->regs[2], step, mul_l, mul_r, i, addr, Pico_mcd->pcm.enabled);
+    ch = &Pico_mcd->pcm.ch[c];
+    addr = ch->addr;
+    inc = *(unsigned short *)&ch->regs[2];
+    mul_l = ((int)ch->regs[0] * (ch->regs[1] & 0xf)) >> (5+1); 
+    mul_r = ((int)ch->regs[0] * (ch->regs[1] >>  4)) >> (5+1);
 
-		if (!stereo && mul_l < mul_r) mul_l = mul_r;
+    for (s = 0; s < steps; s++, addr = (addr + inc) & 0x7FFFFFF)
+    {
+      smp = Pico_mcd->pcm_ram[addr >> PCM_STEP_SHIFT];
 
-		for (j = 0; j < length; j++)
-		{
-//			printf("addr=%08x\n", addr);
-			smp = Pico_mcd->pcm_ram[addr >> PCM_STEP_SHIFT];
+      // test for loop signal
+      if (smp == 0xff)
+      {
+        addr = *(unsigned short *)&ch->regs[4]; // loop_addr
+        smp = Pico_mcd->pcm_ram[addr];
+        addr <<= PCM_STEP_SHIFT;
+        if (smp == 0xff)
+          break;
+      }
 
-			// test for loop signal
-			if (smp == 0xff)
-			{
-				addr = *(unsigned short *)&ch->regs[4]; // loop_addr
-				smp = Pico_mcd->pcm_ram[addr];
-				addr <<= PCM_STEP_SHIFT;
-				if (smp == 0xff) break;
-			}
+      if (smp & 0x80)
+        smp = -(smp & 0x7f);
 
-			if (smp & 0x80) smp = -(smp & 0x7f);
+      out[s*2  ] += smp * mul_l; // max 128 * 119 = 15232
+      out[s*2+1] += smp * mul_r;
+    }
+    ch->addr = addr;
+  }
 
-			*out++ += smp * mul_l; // max 128 * 119 = 15232
-			if(stereo)
-				*out++ += smp * mul_r;
-
-			// update address register
-			k = (addr >> PCM_STEP_SHIFT) + 1;
-			addr = (addr + step) & 0x7FFFFFF;
-
-			for(; k < (addr >> PCM_STEP_SHIFT); k++)
-			{
-				if (Pico_mcd->pcm_ram[k] == 0xff)
-				{
-					addr = (unsigned int)(*(unsigned short *)&ch->regs[4]) << PCM_STEP_SHIFT; // loop_addr
-					break;
-				}
-			}
-		}
-
-		if (Pico_mcd->pcm_ram[addr >> PCM_STEP_SHIFT] == 0xff)
-			addr = (unsigned int)(*(unsigned short *)&ch->regs[4]) << PCM_STEP_SHIFT; // loop_addr
-
-		ch->addr = addr;
-	}
+end:
+  Pico_mcd->pcm.update_cycles = cycles + steps * 384;
+  Pico_mcd->pcm_mixpos += steps;
 }
 
+void pcd_pcm_update(int *buf32, int length, int stereo)
+{
+  int step, *pcm;
+  int p = 0;
+
+  pcd_pcm_sync(SekCyclesDoneS68k());
+
+  if (!Pico_mcd->pcm_mixbuf_dirty || !(PicoOpt & POPT_EN_MCD_PCM))
+    goto out;
+
+  step = (Pico_mcd->pcm_mixpos << 16) / length;
+  pcm = Pico_mcd->pcm_mixbuf;
+
+  if (stereo) {
+    while (length-- > 0) {
+      *buf32++ += pcm[0];
+      *buf32++ += pcm[1];
+
+      p += step;
+      pcm += (p >> 16) * 2;
+      p &= 0xffff;
+    }
+  }
+  else {
+    while (length-- > 0) {
+      // mostly unused
+      *buf32++ += pcm[0];
+
+      p += step;
+      pcm += (p >> 16) * 2;
+      p &= 0xffff;
+    }
+  }
+
+  memset(Pico_mcd->pcm_mixbuf, 0,
+    Pico_mcd->pcm_mixpos * 2 * sizeof(Pico_mcd->pcm_mixbuf[0]));
+
+out:
+  Pico_mcd->pcm_mixbuf_dirty = 0;
+  Pico_mcd->pcm_mixpos = 0;
+}
+
+// vim:shiftwidth=2:ts=2:expandtab

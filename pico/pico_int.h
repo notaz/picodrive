@@ -378,13 +378,15 @@ struct PicoSRAM
 #include "cd/LC89510.h"
 #include "cd/gfx_cd.h"
 
+#define PCM_MIXBUF_LEN ((12500000 / 384) / 50 + 1)
+
 struct mcd_pcm
 {
 	unsigned char control; // reg7
 	unsigned char enabled; // reg8
 	unsigned char cur_ch;
 	unsigned char bank;
-	int pad1;
+	unsigned int update_cycles;
 
 	struct pcm_chan			// 08, size 0x10
 	{
@@ -445,6 +447,9 @@ typedef struct
 	CDC  cdc;
 	_scd scd;
 	Rot_Comp rot_comp;
+	int pcm_mixbuf[PCM_MIXBUF_LEN * 2];
+	int pcm_mixpos;
+	int pcm_mixbuf_dirty;
 } mcd_state;
 
 // XXX: this will need to be reworked for cart+cd support.
@@ -655,6 +660,12 @@ int  pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync);
 void pcd_run_cpus(int m68k_cycles);
 void pcd_soft_reset(void);
 void pcd_state_loaded(void);
+
+// cd/pcm.c
+void pcd_pcm_sync(unsigned int to);
+void pcd_pcm_update(int *buffer, int length, int stereo);
+void pcd_pcm_write(unsigned int a, unsigned int d);
+unsigned int pcd_pcm_read(unsigned int a);
 
 // pico/pico.c
 PICO_INTERNAL void PicoInitPico(void);

@@ -10,7 +10,6 @@
 #include "../memory.h"
 
 #include "gfx_cd.h"
-#include "pcm.h"
 
 uptr s68k_read8_map  [0x1000000 >> M68K_MEM_SHIFT];
 uptr s68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
@@ -834,13 +833,10 @@ regs_done:
     a &= 0x7fff;
     if (a >= 0x2000)
       d = Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a >> 1) & 0xfff];
-    else if (a >= 0x20) {
-      a &= 0x1e;
-      d = Pico_mcd->pcm.ch[a>>2].addr >> PCM_STEP_SHIFT;
-      if (a & 2)
-        d >>= 8;
-    }
-    return d & 0xff;
+    else if (a >= 0x20)
+      d = pcd_pcm_read(a >> 1);
+
+    return d;
   }
 
   return s68k_unmapped_read8(a);
@@ -864,16 +860,12 @@ static u32 PicoReadS68k16_pr(u32 a)
 
   // PCM
   if ((a & 0x8000) == 0x0000) {
-    //elprintf(EL_ANOMALY, "FIXME: s68k_pcm r16: [%06x] @%06x", a, SekPcS68k);
     a &= 0x7fff;
     if (a >= 0x2000)
-      d = Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a>>1)&0xfff];
-    else if (a >= 0x20) {
-      a &= 0x1e;
-      d = Pico_mcd->pcm.ch[a>>2].addr >> PCM_STEP_SHIFT;
-      if (a & 2) d >>= 8;
-    }
-    elprintf(EL_CDREGS, "ret = %04x", d);
+      d = Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a >> 1) & 0xfff];
+    else if (a >= 0x20)
+      d = pcd_pcm_read(a >> 1);
+
     return d;
   }
 
@@ -898,7 +890,7 @@ static void PicoWriteS68k8_pr(u32 a, u32 d)
     if (a >= 0x2000)
       Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a>>1)&0xfff] = d;
     else if (a < 0x12)
-      pcm_write(a>>1, d);
+      pcd_pcm_write(a>>1, d);
     return;
   }
 
@@ -932,7 +924,7 @@ static void PicoWriteS68k16_pr(u32 a, u32 d)
     if (a >= 0x2000)
       Pico_mcd->pcm_ram_b[Pico_mcd->pcm.bank][(a>>1)&0xfff] = d;
     else if (a < 0x12)
-      pcm_write(a>>1, d & 0xff);
+      pcd_pcm_write(a>>1, d & 0xff);
     return;
   }
 

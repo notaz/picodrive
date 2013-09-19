@@ -56,6 +56,8 @@
 .extern s68k_poll_detect
 .extern gfx_cd_read
 .extern gfx_cd_write16
+.extern pcd_pcm_write
+.extern pcd_pcm_read
 .extern PicoCpuCS68k
 .extern PicoRead8_io
 .extern PicoRead16_io
@@ -447,23 +449,15 @@ m_s68k_read8_pcm:
     @ must not trash r3 and r12
     ldr     r1, =(Pico+0x22200)
     bic     r0, r0, #0xff0000
-@    bic     r0, r0, #0x008000
     ldr     r1, [r1]
     mov     r2, #0x110000
     orr     r2, r2, #0x002200
     cmp     r0, #0x2000
     bge     m_s68k_read8_pcm_ram
     cmp     r0, #0x20
-    movlt   r0, #0
-    bxlt    lr
-    orr     r2, r2, #(0x48+8)           @ pcm.ch + addr_offset
-    add     r1, r1, r2
-    and     r2, r0, #0x1c
-    ldr     r1, [r1, r2, lsl #2]
-    tst     r0, #2
-    moveq   r0, r1, lsr #PCM_STEP_SHIFT
-    movne   r0, r1, lsr #(PCM_STEP_SHIFT+8)
-    and     r0, r0, #0xff
+    movge   r0, r0, lsr #1
+    bge     pcd_pcm_read
+    mov     r0, #0
     bx      lr
 
 m_s68k_read8_pcm_ram:
@@ -600,7 +594,7 @@ m_s68k_write8_pcm:
     bic     r0, r0, #0xff0000
     cmp     r0, #0x12
     movlt   r0, r0, lsr #1
-    blt     pcm_write
+    blt     pcd_pcm_write
 
     cmp     r0, #0x2000
     bxlt    lr

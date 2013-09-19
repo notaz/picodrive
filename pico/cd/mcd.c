@@ -318,6 +318,10 @@ void pcd_state_loaded(void)
 
   pcd_state_loaded_mem();
 
+  memset(Pico_mcd->pcm_mixbuf, 0, sizeof(Pico_mcd->pcm_mixbuf));
+  Pico_mcd->pcm_mixbuf_dirty = 0;
+  Pico_mcd->pcm_mixpos = 0;
+
   // old savestates..
   cycles = pcd_cycles_m68k_to_s68k(SekCycleAim);
   diff = cycles - SekCycleAimS68k;
@@ -340,6 +344,8 @@ void pcd_state_loaded(void)
     if (Pico_mcd->scd.Status_CDC & 0x08)
 	    Update_CDC_TRansfer(Pico_mcd->s68k_regs[4] & 7);
   }
+  if (Pico_mcd->pcm.update_cycles == 0)
+    Pico_mcd->pcm.update_cycles = cycles;
 }
 
 // vim:shiftwidth=2:ts=2:expandtab
