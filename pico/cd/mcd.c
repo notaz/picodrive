@@ -30,6 +30,8 @@ PICO_INTERNAL void PicoExitMCD(void)
 
 PICO_INTERNAL void PicoPowerMCD(void)
 {
+  SekCycleCntS68k = SekCycleAimS68k = 0;
+
   int fmt_size = sizeof(formatted_bram);
   memset(Pico_mcd->prg_ram,    0, sizeof(Pico_mcd->prg_ram));
   memset(Pico_mcd->word_ram2M, 0, sizeof(Pico_mcd->word_ram2M));
@@ -110,6 +112,14 @@ static __inline void SekRunS68k(unsigned int to)
 #endif
 }
 
+static void pcd_set_cycle_mult(void)
+{
+  // ~1.63 for NTSC, ~1.645 for PAL
+  if (Pico.m.pal)
+    m68k_cycle_mult = ((12500000ull << 16) / (50*312*488));
+  else
+    m68k_cycle_mult = ((12500000ull << 16) / (60*262*488)) + 1;
+}
 
 unsigned int pcd_cycles_m68k_to_s68k(unsigned int c)
 {
@@ -302,12 +312,7 @@ PICO_INTERNAL void PicoFrameMCD(void)
   if (!(PicoOpt&POPT_ALT_RENDERER))
     PicoFrameStart();
 
-  // ~1.63 for NTSC, ~1.645 for PAL
-  if (Pico.m.pal)
-    m68k_cycle_mult = ((12500000ull << 16) / (50*312*488));
-  else
-    m68k_cycle_mult = ((12500000ull << 16) / (60*262*488)) + 1;
-
+  pcd_set_cycle_mult();
   PicoFrameHints();
 }
 
@@ -316,6 +321,7 @@ void pcd_state_loaded(void)
   unsigned int cycles;
   int diff;
 
+  pcd_set_cycle_mult();
   pcd_state_loaded_mem();
 
   memset(Pico_mcd->pcm_mixbuf, 0, sizeof(Pico_mcd->pcm_mixbuf));
@@ -346,6 +352,10 @@ void pcd_state_loaded(void)
   }
   if (Pico_mcd->pcm.update_cycles == 0)
     Pico_mcd->pcm.update_cycles = cycles;
+
+  // reschedule
+  event_time_next = 0;
+  pcd_run_events(SekCycleCntS68k);
 }
 
 // vim:shiftwidth=2:ts=2:expandtab

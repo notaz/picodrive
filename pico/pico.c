@@ -61,6 +61,7 @@ void PicoExit(void)
 void PicoPower(void)
 {
   Pico.m.frame_count = 0;
+  SekCycleCnt = SekCycleAim = 0;
 
   // clear all memory of the emulated machine
   memset(&Pico.ram,0,(unsigned char *)&Pico.rom - Pico.ram);
@@ -167,15 +168,15 @@ int PicoReset(void)
   }
 
   SekReset();
+  // ..but do not reset SekCycle* to not desync with addons
+
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
   SekSetRealTAS(PicoAHW & PAHW_MCD);
-  SekCycleCnt = SekCycleAim = 0;
 
   Pico.m.dirtyPal = 1;
 
   Pico.m.z80_bank68k = 0;
   Pico.m.z80_reset = 1;
-  memset(Pico.zram, 0, sizeof(Pico.zram)); // ??
 
   PicoDetectRegion();
   Pico.video.status = 0x3428 | Pico.m.pal; // 'always set' bits | vblank | collision | pal
