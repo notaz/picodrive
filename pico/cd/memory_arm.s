@@ -433,6 +433,7 @@ m_s68k_read8_comm:
     ldr     r1, [r1]
     add     r1, r1, #0x110000
     ldrb    r1, [r1, r0]
+    bic     r0, r0, #1
     b       s68k_poll_detect
 
 

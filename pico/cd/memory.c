@@ -222,12 +222,13 @@ write_comm:
 
   pcd_sync_s68k(SekCyclesDone(), 0);
   Pico_mcd->s68k_regs[a] = d;
-  if (Pico_mcd->m.s68k_poll_a == (a & ~1)
-      && Pico_mcd->m.s68k_poll_cnt > POLL_LIMIT)
+  if (Pico_mcd->m.s68k_poll_a == (a & ~1))
   {
-    SekSetStopS68k(0);
+    if (Pico_mcd->m.s68k_poll_cnt > POLL_LIMIT) {
+      elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
+      SekSetStopS68k(0);
+    }
     Pico_mcd->m.s68k_poll_a = 0;
-    elprintf(EL_CDPOLL, "s68k poll release, a=%02x", a);
   }
 }
 
@@ -662,7 +663,7 @@ void PicoWrite8_mcd_io(u32 a, u32 d)
     return;
   }
 
-  PicoWrite16_io(a, d);
+  PicoWrite8_io(a, d);
 }
 
 void PicoWrite16_mcd_io(u32 a, u32 d)
@@ -671,7 +672,7 @@ void PicoWrite16_mcd_io(u32 a, u32 d)
     elprintf(EL_CDREGS, "m68k_regs w16: [%02x] %04x @%06x",
       a & 0x3f, d, SekPc);
 
-    m68k_reg_write8(a,     d >> 8);
+    m68k_reg_write8(a, d >> 8);
     if ((a & 0x3e) != 0x0e) // special case
       m68k_reg_write8(a + 1, d & 0xff);
     return;

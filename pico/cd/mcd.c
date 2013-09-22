@@ -345,7 +345,9 @@ void pcd_state_loaded(void)
     if (Pico_mcd->scd.Status_CDC & 0x08)
 	    Update_CDC_TRansfer(Pico_mcd->s68k_regs[4] & 7);
   }
-  if (Pico_mcd->pcm.update_cycles == 0)
+
+  diff = cycles - Pico_mcd->pcm.update_cycles;
+  if ((unsigned int)diff > 12500000/50)
     Pico_mcd->pcm.update_cycles = cycles;
 
   // reschedule
