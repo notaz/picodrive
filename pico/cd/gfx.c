@@ -50,7 +50,7 @@ typedef struct
   uint16 bufferOffset;              /* image buffer column offset */
   uint32 bufferStart;               /* image buffer start index */
   uint32 y_step;                    /* pico: render line step */
-  uint8 lut_prio[4][0x100][0x100];  /* WORD-RAM data writes priority lookup table */
+  uint8 lut_prio[4][0x10][0x10];    /* WORD-RAM data writes priority lookup table */
   uint8 lut_pixel[0x200];           /* Graphics operation dot offset lookup table */
   uint8 lut_cell[0x100];            /* Graphics operation stamp offset lookup table */
 } gfx_t;
@@ -71,16 +71,16 @@ void gfx_init(void)
   memset(&gfx, 0, sizeof(gfx));
 
   /* Initialize priority modes lookup table */
-  for (i=0; i<0x100; i++)
+  for (i = 0; i < 0x10; i++)
   {
-    for (j=0; j<0x100; j++)
+    for (j = 0; j < 0x10; j++)
     {
       /* normal */
       gfx.lut_prio[0][i][j] = j;
       /* underwrite */
-      gfx.lut_prio[1][i][j] = ((i & 0x0f) ? (i & 0x0f) : (j & 0x0f)) | ((i & 0xf0) ? (i & 0xf0) : (j & 0xf0));
+      gfx.lut_prio[1][i][j] = i ? i : j;
       /* overwrite */
-      gfx.lut_prio[2][i][j] = ((j & 0x0f) ? (j & 0x0f) : (i & 0x0f)) | ((j & 0xf0) ? (j & 0xf0) : (i & 0xf0));
+      gfx.lut_prio[2][i][j] = j ? j : i;
       /* invalid */
       gfx.lut_prio[3][i][j] = i;
     }
@@ -180,7 +180,7 @@ static void gfx_render(uint32 bufferIndex, uint32 width)
   uint8 pixel_in, pixel_out;
   uint16 stamp_data;
   uint32 stamp_index;
-  uint32 reg;
+  uint32 priority;
 
   /* pixel map start position for current line (13.3 format converted to 13.11) */
   uint32 xpos = *gfx.tracePtr++ << 8;
@@ -189,6 +189,9 @@ static void gfx_render(uint32 bufferIndex, uint32 width)
   /* pixel map offset values for current line (5.11 format) */
   uint32 xoffset = (int16) *gfx.tracePtr++;
   uint32 yoffset = (int16) *gfx.tracePtr++;
+
+  priority = (Pico_mcd->s68k_regs[2] << 8) | Pico_mcd->s68k_regs[3];
+  priority = (priority >> 3) & 0x03;
 
   /* process all dots */
   while (width--)
@@ -274,16 +277,18 @@ static void gfx_render(uint32 bufferIndex, uint32 width)
     /* update left or rigth pixel */
     if (bufferIndex & 1)
     {
+      /* priority mode write */
+      pixel_out = gfx.lut_prio[priority][pixel_in & 0x0f][pixel_out];
+
       pixel_out |= (pixel_in & 0xf0);
     }
     else
     {
+      /* priority mode write */
+      pixel_out = gfx.lut_prio[priority][pixel_in >> 4][pixel_out];
+
       pixel_out = (pixel_out << 4) | (pixel_in & 0x0f);
     }
-
-    /* priority mode write */
-    reg = (Pico_mcd->s68k_regs[2] << 8) | Pico_mcd->s68k_regs[3];
-    pixel_out = gfx.lut_prio[(reg >> 3) & 0x03][pixel_in][pixel_out];
 
     /* write data to image buffer */
     WRITE_BYTE(Pico_mcd->word_ram2M, bufferIndex >> 1, pixel_out);
