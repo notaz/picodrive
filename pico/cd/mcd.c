@@ -21,6 +21,7 @@ PICO_INTERNAL void PicoInitMCD(void)
 {
   SekInitS68k();
   Init_CD_Driver();
+  gfx_init();
 }
 
 PICO_INTERNAL void PicoExitMCD(void)
@@ -57,7 +58,6 @@ void pcd_soft_reset(void)
   // Reset_CD(); // breaks Fahrenheit CD swap
 
   LC89510_Reset();
-  gfx_cd_reset();
 #ifdef _ASM_CD_MEMORY_C
   //PicoMemResetCDdecode(1); // don't have to call this in 2M mode
 #endif
@@ -160,7 +160,7 @@ static unsigned int event_time_next;
 static event_cb *pcd_event_cbs[PCD_EVENT_COUNT] = {
   [PCD_EVENT_CDC]      = pcd_cdc_event,
   [PCD_EVENT_TIMER3]   = pcd_int3_timer_event,
-  [PCD_EVENT_GFX]      = gfx_cd_update,
+  [PCD_EVENT_GFX]      = gfx_update,
   [PCD_EVENT_DMA]      = pcd_dma_event,
 };
 
@@ -341,12 +341,6 @@ void pcd_state_loaded(void)
       pcd_event_schedule(SekCycleAimS68k, PCD_EVENT_TIMER3,
         Pico_mcd->s68k_regs[0x31] * 384);
 
-    if (Pico_mcd->rot_comp.Reg_58 & 0x8000) {
-      Pico_mcd->rot_comp.Reg_58 &= 0x7fff;
-      Pico_mcd->rot_comp.Reg_64  = 0;
-      if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN1)
-        SekInterruptS68k(1);
-    }
     if (Pico_mcd->scd.Status_CDC & 0x08)
 	    Update_CDC_TRansfer(Pico_mcd->s68k_regs[4] & 7);
   }

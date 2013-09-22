@@ -509,7 +509,7 @@ CZ80 Z80 interpreter core
 
 Reesy & FluBBa
 DrZ80, the Z80 interpreter written in ARM assembly.
-Homepage: http://reesy.gp32x.de/
+Homepage: http://reesy.gp32x.de/ (defunct)
 
 Tatsuyuki Satoh, Jarek Burczynski, MAME development
 software implementation of Yamaha FM sound generator
@@ -518,8 +518,11 @@ MAME development
 Texas Instruments SN76489 / SN76496 programmable tone/noise generator
 Homepage: http://www.mame.net/
 
+Eke
+CD graphics processor implementation (from Genesis Plus GX)
+
 Stephane Dallongeville
-Gens, MD/Mega CD/32X emulator. Most Sega CD code is based on this emu.
+Gens, MD/Mega CD/32X emulator. Some Sega CD code is based on this emu.
 #ifdef PSP
 
 people @ ps2dev.org forums / PSPSDK crew
@@ -562,6 +565,14 @@ Additional thanks
 
 Changelog
 ---------
+1.xx (2013-09-)
+  + 32X+CD emulation has been implemented.
+  + CD graphics processor code has been replaced with much cleaner Eke's
+    implamentation from Genesis Plus GX.
+  + CD PCM code has been completely rewritten
+  * Various CD compatibility issues have been solved. Hopefully no more
+    regressions this time.
+
 1.85 (2013-08-31)
   * Lots of 32X compatibility and accuracy improvements. All commercial games
     are booting now, but some still have issues.

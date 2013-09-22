@@ -175,6 +175,7 @@ typedef enum {
   CHUNK_32X_LAST = CHUNK_32X_EVT,
   // add new stuff here
   CHUNK_CD_EVT = 50,
+  CHUNK_CD_GFX,
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
@@ -258,6 +259,7 @@ static int state_save(void *file)
   unsigned char buff[0x60], buff_z80[Z80_STATE_SIZE];
   void *ym2612_regs = YM2612GetRegs();
   int ver = 0x0170; // not really used..
+  int len;
 
   areaWrite("PicoSEXT", 1, 8, file);
   areaWrite(&ver, 1, 4, file);
@@ -305,11 +307,12 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_CDD,      Pico_mcd->cdd);
     CHECKED_WRITE_BUFF(CHUNK_CDC,      Pico_mcd->cdc);
     CHECKED_WRITE_BUFF(CHUNK_SCD,      Pico_mcd->scd);
-    CHECKED_WRITE_BUFF(CHUNK_RC,       Pico_mcd->rot_comp);
     CHECKED_WRITE_BUFF(CHUNK_MISC_CD,  Pico_mcd->m);
     memset(buff, 0, 0x40);
     memcpy(buff, pcd_event_times, sizeof(pcd_event_times));
     CHECKED_WRITE(CHUNK_CD_EVT, 0x40, buff);
+    len = gfx_context_save(buff);
+    CHECKED_WRITE(CHUNK_CD_GFX, len, buff);
 
     if (Pico_mcd->s68k_regs[3] & 4) // convert back
       wram_2M_to_1M(Pico_mcd->word_ram2M);
@@ -464,12 +467,16 @@ static int state_load(void *file)
       case CHUNK_CDD:      CHECKED_READ_BUFF(Pico_mcd->cdd); break;
       case CHUNK_CDC:      CHECKED_READ_BUFF(Pico_mcd->cdc); break;
       case CHUNK_SCD:      CHECKED_READ_BUFF(Pico_mcd->scd); break;
-      case CHUNK_RC:       CHECKED_READ_BUFF(Pico_mcd->rot_comp); break;
       case CHUNK_MISC_CD:  CHECKED_READ_BUFF(Pico_mcd->m); break;
 
       case CHUNK_CD_EVT:
         CHECKED_READ_BUFF(buff);
         memcpy(pcd_event_times, buff, sizeof(pcd_event_times));
+        break;
+
+      case CHUNK_CD_GFX:
+        CHECKED_READ2(0x18, buff);
+        gfx_context_load(buff);
         break;
 
       // 32x stuff

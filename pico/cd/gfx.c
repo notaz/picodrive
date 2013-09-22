@@ -35,12 +35,13 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *
  ****************************************************************************************/
-#include "genplus_types.h"
+#include "../pico_int.h"
+#include "genplus_macros.h"
 
 typedef struct
 {
-  uint32 cycles;                    /* current cycles count for graphics operation */
-  uint32 cyclesPerLine;             /* current graphics operation timings */
+  //uint32 cycles;                    /* current cycles count for graphics operation */
+  //uint32 cyclesPerLine;             /* current graphics operation timings */
   uint32 dotMask;                   /* stamp map size mask */
   uint16 *tracePtr;                 /* trace vector pointer */
   uint16 *mapPtr;                   /* stamp map table base address */
@@ -48,12 +49,15 @@ typedef struct
   uint8 mapShift;                   /* stamp map table shift value (related to stamp map size) */
   uint16 bufferOffset;              /* image buffer column offset */
   uint32 bufferStart;               /* image buffer start index */
+  uint32 y_step;                    /* pico: render line step */
   uint8 lut_prio[4][0x100][0x100];  /* WORD-RAM data writes priority lookup table */
   uint8 lut_pixel[0x200];           /* Graphics operation dot offset lookup table */
   uint8 lut_cell[0x100];            /* Graphics operation stamp offset lookup table */
 } gfx_t;
 
 static gfx_t gfx;
+
+static void gfx_schedule(void);
 
 /***************************************************************/
 /*      Rotation / Scaling operation (2M Mode)                 */
@@ -62,7 +66,6 @@ static gfx_t gfx;
 void gfx_init(void)
 {
   int i, j;
-  uint16 offset;
   uint8 mask, row, col, temp;
 
   memset(&gfx, 0, sizeof(gfx));
@@ -124,41 +127,37 @@ void gfx_init(void)
   }
 }
 
-void gfx_reset(void)
-{ 
-  /* Reset cycle counter */
-  gfx.cycles = 0;
-}
-
 int gfx_context_save(uint8 *state)
 {
   uint32 tmp32;
   int bufferptr = 0;
 
-  save_param(&gfx.cycles, sizeof(gfx.cycles));
-  save_param(&gfx.cyclesPerLine, sizeof(gfx.cyclesPerLine));
+  //save_param(&gfx.cycles, sizeof(gfx.cycles));
+  //save_param(&gfx.cyclesPerLine, sizeof(gfx.cyclesPerLine));
   save_param(&gfx.dotMask, sizeof(gfx.dotMask));
   save_param(&gfx.stampShift, sizeof(gfx.stampShift));
   save_param(&gfx.mapShift, sizeof(gfx.mapShift));
   save_param(&gfx.bufferOffset, sizeof(gfx.bufferOffset));
   save_param(&gfx.bufferStart, sizeof(gfx.bufferStart));
 
-  tmp32 = (uint8 *)(gfx.tracePtr) - scd.word_ram_2M;
+  tmp32 = (uint8 *)(gfx.tracePtr) - Pico_mcd->word_ram2M;
   save_param(&tmp32, 4);
 
-  tmp32 = (uint8 *)(gfx.mapPtr) - scd.word_ram_2M;
+  tmp32 = (uint8 *)(gfx.mapPtr) - Pico_mcd->word_ram2M;
   save_param(&tmp32, 4);
+
+  save_param(&gfx.y_step, sizeof(gfx.y_step));
 
   return bufferptr;
 }
 
-int gfx_context_load(uint8 *state)
+int gfx_context_load(const uint8 *state)
 {
   uint32 tmp32;
   int bufferptr = 0;
 
-  load_param(&gfx.cycles, sizeof(gfx.cycles));
-  load_param(&gfx.cyclesPerLine, sizeof(gfx.cyclesPerLine));
+  //load_param(&gfx.cycles, sizeof(gfx.cycles));
+  //load_param(&gfx.cyclesPerLine, sizeof(gfx.cyclesPerLine));
   load_param(&gfx.dotMask, sizeof(gfx.dotMask));
   load_param(&gfx.stampShift, sizeof(gfx.stampShift));
   load_param(&gfx.mapShift, sizeof(gfx.mapShift));
@@ -166,19 +165,22 @@ int gfx_context_load(uint8 *state)
   load_param(&gfx.bufferStart, sizeof(gfx.bufferStart));
 
   load_param(&tmp32, 4);
-  gfx.tracePtr = (uint16 *)(scd.word_ram_2M + tmp32);
+  gfx.tracePtr = (uint16 *)(Pico_mcd->word_ram2M + tmp32);
 
   load_param(&tmp32, 4);
-  gfx.mapPtr = (uint16 *)(scd.word_ram_2M + tmp32);
+  gfx.mapPtr = (uint16 *)(Pico_mcd->word_ram2M + tmp32);
+
+  load_param(&gfx.y_step, sizeof(gfx.y_step));
 
   return bufferptr;
 }
 
-INLINE void gfx_render(uint32 bufferIndex, uint32 width)
+static void gfx_render(uint32 bufferIndex, uint32 width)
 {
   uint8 pixel_in, pixel_out;
   uint16 stamp_data;
   uint32 stamp_index;
+  uint32 reg;
 
   /* pixel map start position for current line (13.3 format converted to 13.11) */
   uint32 xpos = *gfx.tracePtr++ << 8;
@@ -192,7 +194,7 @@ INLINE void gfx_render(uint32 bufferIndex, uint32 width)
   while (width--)
   {
     /* check if stamp map is repeated */
-    if (scd.regs[0x58>>1].byte.l & 0x01)
+    if (Pico_mcd->s68k_regs[0x58+1] & 0x01)
     {
       /* stamp map range */
       xpos &= gfx.dotMask;
@@ -235,7 +237,9 @@ INLINE void gfx_render(uint32 bufferIndex, uint32 width)
         /*       xx = cell column (0-3) = (xpos >> (11 + 3)) & 3 */
         /*        s = stamp size (0=16x16, 1=32x32)              */
         /*      hrr = HFLIP & ROTATION bits                      */
-        stamp_index |= gfx.lut_cell[stamp_data | ((scd.regs[0x58>>1].byte.l & 0x02) << 2 ) | ((ypos >> 8) & 0xc0) | ((xpos >> 10) & 0x30)] << 6;
+        stamp_index |= gfx.lut_cell[
+          stamp_data | ((Pico_mcd->s68k_regs[0x58+1] & 0x02) << 2 )
+          | ((ypos >> 8) & 0xc0) | ((xpos >> 10) & 0x30)] << 6;
             
         /* pixel  offset (0-63)                              */
         /* table entry = yyyxxxhrr (9 bits)                  */
@@ -245,7 +249,7 @@ INLINE void gfx_render(uint32 bufferIndex, uint32 width)
         stamp_index |= gfx.lut_pixel[stamp_data | ((xpos >> 8) & 0x38) | ((ypos >> 5) & 0x1c0)];
 
         /* read pixel pair (2 pixels/byte) */
-        pixel_out = READ_BYTE(scd.word_ram_2M, stamp_index >> 1);
+        pixel_out = READ_BYTE(Pico_mcd->word_ram2M, stamp_index >> 1);
 
         /* extract left or rigth pixel */
         if (stamp_index & 1)
@@ -265,7 +269,7 @@ INLINE void gfx_render(uint32 bufferIndex, uint32 width)
     }
 
     /* read out paired pixel data */
-    pixel_in = READ_BYTE(scd.word_ram_2M, bufferIndex >> 1);
+    pixel_in = READ_BYTE(Pico_mcd->word_ram2M, bufferIndex >> 1);
 
     /* update left or rigth pixel */
     if (bufferIndex & 1)
@@ -278,10 +282,11 @@ INLINE void gfx_render(uint32 bufferIndex, uint32 width)
     }
 
     /* priority mode write */
-    pixel_out = gfx.lut_prio[(scd.regs[0x02>>1].w >> 3) & 0x03][pixel_in][pixel_out];
+    reg = (Pico_mcd->s68k_regs[2] << 8) | Pico_mcd->s68k_regs[3];
+    pixel_out = gfx.lut_prio[(reg >> 3) & 0x03][pixel_in][pixel_out];
 
     /* write data to image buffer */
-    WRITE_BYTE(scd.word_ram_2M, bufferIndex >> 1, pixel_out);
+    WRITE_BYTE(Pico_mcd->word_ram2M, bufferIndex >> 1, pixel_out);
 
     /* check current pixel position  */
     if ((bufferIndex & 7) != 7)
@@ -301,18 +306,19 @@ INLINE void gfx_render(uint32 bufferIndex, uint32 width)
   }
 }
 
-void gfx_start(unsigned int base, int cycles)
+void gfx_start(unsigned int base)
 {
   /* make sure 2M mode is enabled */
-  if (!(scd.regs[0x02>>1].byte.l & 0x04))
+  if (!(Pico_mcd->s68k_regs[3] & 0x04))
   {
     uint32 mask;
+    uint32 reg;
     
     /* trace vector pointer */
-    gfx.tracePtr = (uint16 *)(scd.word_ram_2M + ((base << 2) & 0x3fff8));
+    gfx.tracePtr = (uint16 *)(Pico_mcd->word_ram2M + ((base << 2) & 0x3fff8));
 
     /* stamps & stamp map size */
-    switch ((scd.regs[0x58>>1].byte.l >> 1) & 0x03)
+    switch ((Pico_mcd->s68k_regs[0x58+1] >> 1) & 0x03)
     {
       case 0:
         gfx.dotMask = 0x07ffff;   /* 256x256 dots/map  */
@@ -344,78 +350,97 @@ void gfx_start(unsigned int base, int cycles)
     }
 
     /* stamp map table base address */
-    gfx.mapPtr = (uint16 *)(scd.word_ram_2M + ((scd.regs[0x5a>>1].w << 2) & mask));
+    reg = (Pico_mcd->s68k_regs[0x5a] << 8) | Pico_mcd->s68k_regs[0x5b];
+    gfx.mapPtr = (uint16 *)(Pico_mcd->word_ram2M + ((reg << 2) & mask));
 
     /* image buffer column offset (64 pixels/cell, minus 7 pixels to restart at cell beginning) */
-    gfx.bufferOffset = (((scd.regs[0x5c>>1].byte.l & 0x1f) + 1) << 6) - 7;
+    gfx.bufferOffset = (((Pico_mcd->s68k_regs[0x5c+1] & 0x1f) + 1) << 6) - 7;
 
     /* image buffer start index in dot units (2 pixels/byte) */
-    gfx.bufferStart = (scd.regs[0x5e>>1].w << 3) & 0x7ffc0;
+    reg = (Pico_mcd->s68k_regs[0x5e] << 8) | Pico_mcd->s68k_regs[0x5f];
+    gfx.bufferStart = (reg << 3) & 0x7ffc0;
 
     /* add image buffer horizontal dot offset */
-    gfx.bufferStart += (scd.regs[0x60>>1].byte.l & 0x3f);
+    gfx.bufferStart += (Pico_mcd->s68k_regs[0x60+1] & 0x3f);
 
     /* reset GFX chip cycle counter */
-    gfx.cycles = cycles;
+    //gfx.cycles = cycles;
 
     /* update GFX chip timings (see AC3:Thunderhawk / Thunderstrike) */
-    gfx.cyclesPerLine = 4 * 5 * scd.regs[0x62>>1].w; 
+    //gfx.cyclesPerLine = 4 * 5 * scd.regs[0x62>>1].w;
 
     /* start graphics operation */
-    scd.regs[0x58>>1].byte.h = 0x80;
+    Pico_mcd->s68k_regs[0x58] = 0x80;
+
+    gfx_schedule();
   }
 }
 
-void gfx_update(int cycles)
+/* PicoDrive specific */
+#define UPDATE_CYCLES 20000
+
+static void gfx_schedule(void)
 {
-  /* synchronize GFX chip with SUB-CPU */
-  cycles -= gfx.cycles;
+  int w, h, cycles;
+  int y_step;
 
-  /* make sure SUB-CPU is ahead */
-  if (cycles > 0)
+  w = (Pico_mcd->s68k_regs[0x62] << 8) | Pico_mcd->s68k_regs[0x63];
+  h = (Pico_mcd->s68k_regs[0x64] << 8) | Pico_mcd->s68k_regs[0x65];
+
+  cycles = 5 * w * h;
+  if (cycles > UPDATE_CYCLES)
+    y_step = (UPDATE_CYCLES + 5 * w - 1) / (5 * w);
+  else
+    y_step = h;
+
+  gfx.y_step = y_step;
+  pcd_event_schedule_s68k(PCD_EVENT_GFX, 5 * w * y_step);
+}
+
+void gfx_update(unsigned int cycles)
+{
+  int lines, lines_reg;
+  int w;
+
+  if (!(Pico_mcd->s68k_regs[0x58] & 0x80))
+    return;
+
+  w = (Pico_mcd->s68k_regs[0x62] << 8) | Pico_mcd->s68k_regs[0x63];
+  lines = (Pico_mcd->s68k_regs[0x64] << 8) | Pico_mcd->s68k_regs[0x65];
+  lines_reg = lines - gfx.y_step;
+
+  if (lines_reg <= 0) {
+    Pico_mcd->s68k_regs[0x58] = 0;
+    Pico_mcd->s68k_regs[0x64] =
+    Pico_mcd->s68k_regs[0x65] = 0;
+
+    if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN1) {
+      elprintf(EL_INTS|EL_CD, "s68k: gfx_cd irq 1");
+      SekInterruptS68k(1);
+    }
+  }
+  else {
+    Pico_mcd->s68k_regs[0x64] = lines_reg >> 8;
+    Pico_mcd->s68k_regs[0x65] = lines_reg;
+
+    if (lines > gfx.y_step)
+      lines = gfx.y_step;
+
+    pcd_event_schedule(cycles, PCD_EVENT_GFX, 5 * w * lines);
+  }
+
+  if (PicoOpt & POPT_EN_MCD_GFX)
   {
-    /* number of lines to process */
-    unsigned int lines = (cycles + gfx.cyclesPerLine - 1) / gfx.cyclesPerLine;
-
-    /* check against remaining lines */
-    if (lines < scd.regs[0x64>>1].byte.l)
-    {
-      /* update Vdot remaining size */
-      scd.regs[0x64>>1].byte.l -= lines;
-
-      /* increment cycle counter */
-      gfx.cycles += lines * gfx.cyclesPerLine;
-    }
-    else
-    {
-      /* process remaining lines */
-      lines = scd.regs[0x64>>1].byte.l;
-
-      /* clear Vdot remaining size */
-      scd.regs[0x64>>1].byte.l = 0;
-
-      /* end of graphics operation */
-      scd.regs[0x58>>1].byte.h = 0;
- 
-      /* level 1 interrupt enabled ? */
-      if (scd.regs[0x32>>1].byte.l & 0x02)
-      {
-        /* trigger level 1 interrupt */
-        scd.pending |= (1 << 1);
-
-        /* update IRQ level */
-        s68k_update_irq((scd.pending & scd.regs[0x32>>1].byte.l) >> 1);
-      }
-    }
-
     /* render lines */
     while (lines--)
     {
       /* process dots to image buffer */
-      gfx_render(gfx.bufferStart, scd.regs[0x62>>1].w);
+      gfx_render(gfx.bufferStart, w);
 
       /* increment image buffer start index for next line (8 pixels/line) */
       gfx.bufferStart += 8;
     }
   }
 }
+
+// vim:shiftwidth=2:ts=2:expandtab

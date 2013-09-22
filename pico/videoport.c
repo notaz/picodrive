@@ -8,7 +8,6 @@
  */
 
 #include "pico_int.h"
-#include "cd/gfx_cd.h"
 
 int line_base_cycles;
 extern const unsigned char  hcounts_32[];

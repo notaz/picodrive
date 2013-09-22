@@ -9,8 +9,6 @@
 #include "../pico_int.h"
 #include "../memory.h"
 
-#include "gfx_cd.h"
-
 uptr s68k_read8_map  [0x1000000 >> M68K_MEM_SHIFT];
 uptr s68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
 uptr s68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
@@ -429,6 +427,8 @@ void s68k_reg_write8(u32 a, u32 d)
       Pico_mcd->s68k_regs[a] = (u8) d;
       CDD_Import_Command();
       return;
+    case 0x58:
+      return;
   }
 
   if ((a&0x1f0) == 0x20)
@@ -445,6 +445,65 @@ void s68k_reg_write8(u32 a, u32 d)
 
 write_comm:
   Pico_mcd->s68k_regs[a] = (u8) d;
+  if (Pico_mcd->m.m68k_poll_cnt)
+    SekEndRunS68k(0);
+  Pico_mcd->m.m68k_poll_cnt = 0;
+}
+
+void s68k_reg_write16(u32 a, u32 d)
+{
+  u8 *r = Pico_mcd->s68k_regs;
+
+  if ((a & 0x1f0) == 0x20)
+    goto write_comm;
+
+  switch (a) {
+    case 0x0e:
+      // special case, 2 byte writes would be handled differently
+      // TODO: verify
+      r[0xf] = d;
+      return;
+    case 0x58: // stamp data size
+      r[0x59] = d & 7;
+      return;
+    case 0x5a: // stamp map base address
+      r[0x5a] = d >> 8;
+      r[0x5b] = d & 0xe0;
+      return;
+    case 0x5c: // V cell size
+      r[0x5d] = d & 0x1f;
+      return;
+    case 0x5e: // image buffer start address
+      r[0x5e] = d >> 8;
+      r[0x5f] = d & 0xf8;
+      return;
+    case 0x60: // image buffer offset
+      r[0x61] = d & 0x3f;
+      return;
+    case 0x62: // h dot size
+      r[0x62] = (d >> 8) & 1;
+      r[0x63] = d;
+      return;
+    case 0x64: // v dot size
+      r[0x65] = d;
+      return;
+    case 0x66: // trace vector base address
+      d &= 0xfffe;
+      r[0x66] = d >> 8;
+      r[0x67] = d;
+      gfx_start(d);
+      return;
+    default:
+      break;
+  }
+
+  s68k_reg_write8(a,     d >> 8);
+  s68k_reg_write8(a + 1, d & 0xff);
+  return;
+
+write_comm:
+  r[a] = d >> 8;
+  r[a + 1] = d;
   if (Pico_mcd->m.m68k_poll_cnt)
     SekEndRunS68k(0);
   Pico_mcd->m.m68k_poll_cnt = 0;
@@ -814,9 +873,7 @@ static u32 PicoReadS68k8_pr(u32 a)
       s68k_poll_detect(a & ~1, d);
       goto regs_done;
     }
-    else if (a >= 0x58 && a < 0x68)
-         d = gfx_cd_read(a & ~1);
-    else d = s68k_reg_read16(a & ~1);
+    d = s68k_reg_read16(a & ~1);
     if (!(a & 1))
       d >>= 8;
 
@@ -849,9 +906,7 @@ static u32 PicoReadS68k16_pr(u32 a)
   // regs
   if ((a & 0xfe00) == 0x8000) {
     a &= 0x1fe;
-    if (0x58 <= a && a < 0x68)
-         d = gfx_cd_read(a);
-    else d = s68k_reg_read16(a);
+    d = s68k_reg_read16(a);
 
     elprintf(EL_CDREGS, "s68k_regs r16: [%02x] %04x @%06x",
       a, d, SekPcS68k);
@@ -878,9 +933,10 @@ static void PicoWriteS68k8_pr(u32 a, u32 d)
   if ((a & 0xfe00) == 0x8000) {
     a &= 0x1ff;
     elprintf(EL_CDREGS, "s68k_regs w8: [%02x] %02x @%06x", a, d, SekPcS68k);
-    if (0x58 <= a && a < 0x68)
-         gfx_cd_write16(a&~1, (d<<8)|d);
-    else s68k_reg_write8(a,d);
+    if (0x59 <= a && a < 0x68) // word regs
+      s68k_reg_write16(a & ~1, (d << 8) | d);
+    else
+      s68k_reg_write8(a, d);
     return;
   }
 
@@ -903,18 +959,7 @@ static void PicoWriteS68k16_pr(u32 a, u32 d)
   if ((a & 0xfe00) == 0x8000) {
     a &= 0x1fe;
     elprintf(EL_CDREGS, "s68k_regs w16: [%02x] %04x @%06x", a, d, SekPcS68k);
-    if (a >= 0x58 && a < 0x68)
-      gfx_cd_write16(a, d);
-    else {
-      if (a == 0xe) {
-        // special case, 2 byte writes would be handled differently
-        // TODO: verify
-        Pico_mcd->s68k_regs[0xf] = d;
-        return;
-      }
-      s68k_reg_write8(a,     d >> 8);
-      s68k_reg_write8(a + 1, d & 0xff);
-    }
+    s68k_reg_write16(a, d);
     return;
   }
 

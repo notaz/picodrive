@@ -376,7 +376,6 @@ struct PicoSRAM
 // MCD
 #include "cd/cd_sys.h"
 #include "cd/LC89510.h"
-#include "cd/gfx_cd.h"
 
 #define PCM_MIXBUF_LEN ((12500000 / 384) / 50 + 1)
 
@@ -446,7 +445,6 @@ typedef struct
 	CDD  cdd;
 	CDC  cdc;
 	_scd scd;
-	Rot_Comp rot_comp;
 	int pcm_mixbuf[PCM_MIXBUF_LEN * 2];
 	int pcm_mixpos;
 	int pcm_mixbuf_dirty;
@@ -610,6 +608,16 @@ void PicoWrite16_io(unsigned int a, unsigned int d);
 
 // pico/memory.c
 PICO_INTERNAL void PicoMemSetupPico(void);
+
+// cd/gfx.c
+void gfx_init(void);
+void gfx_start(unsigned int base);
+void gfx_update(unsigned int cycles);
+int gfx_context_save(unsigned char *state);
+int gfx_context_load(const unsigned char *state);
+
+// cd/gfx_dma.c
+void DmaSlowCell(unsigned int source, unsigned int a, int len, unsigned char inc);
 
 // cd/memory.c
 PICO_INTERNAL void PicoMemSetupCD(void);
