@@ -447,7 +447,8 @@ typedef struct
 	_scd scd;
 	int pcm_mixbuf[PCM_MIXBUF_LEN * 2];
 	int pcm_mixpos;
-	int pcm_mixbuf_dirty;
+	char pcm_mixbuf_dirty;
+	char pcm_regs_dirty;
 } mcd_state;
 
 // XXX: this will need to be reworked for cart+cd support.

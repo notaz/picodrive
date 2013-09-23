@@ -6,7 +6,6 @@
  * See COPYING file in the top-level directory.
  */
 
-#include <assert.h>
 #include "../pico_int.h"
 
 #define PCM_STEP_SHIFT 11
@@ -30,19 +29,11 @@ void pcd_pcm_write(unsigned int a, unsigned int d)
     Pico_mcd->pcm.control = d;
     elprintf(EL_CD, "pcm control %02x", Pico_mcd->pcm.control);
   }
-  else if (a == 8 && Pico_mcd->pcm.enabled != (u_char)~d)
+  else if (a == 8)
   {
-    // sound on/off
-    int was_enabled = Pico_mcd->pcm.enabled;
-    int i;
-
-    for (i = 0; i < 8; i++)
-      if (!(was_enabled & (1 << i)))
-        Pico_mcd->pcm.ch[i].addr =
-          Pico_mcd->pcm.ch[i].regs[6] << (PCM_STEP_SHIFT + 8);
-
     Pico_mcd->pcm.enabled = ~d;
   }
+  Pico_mcd->pcm_regs_dirty = 1;
 }
 
 unsigned int pcd_pcm_read(unsigned int a)
@@ -65,29 +56,37 @@ void pcd_pcm_sync(unsigned int to)
   struct pcm_chan *ch;
   unsigned int addr;
   int c, s, steps;
+  int enabled;
   int *out;
 
   if ((int)(to - cycles) < 384)
     return;
 
   steps = (to - cycles) / 384;
+  if (Pico_mcd->pcm_mixpos + steps > PCM_MIXBUF_LEN)
+    // shouldn't happen, but occasionally does
+    steps = PCM_MIXBUF_LEN - Pico_mcd->pcm_mixpos;
 
   // PCM disabled or all channels off
-  if (!(Pico_mcd->pcm.control & 0x80) || !Pico_mcd->pcm.enabled)
+  enabled = Pico_mcd->pcm.enabled;
+  if (!(Pico_mcd->pcm.control & 0x80))
+    enabled = 0;
+  if (!enabled && !Pico_mcd->pcm_regs_dirty)
     goto end;
 
   out = Pico_mcd->pcm_mixbuf + Pico_mcd->pcm_mixpos * 2;
   Pico_mcd->pcm_mixbuf_dirty = 1;
-  if (Pico_mcd->pcm_mixpos + steps > PCM_MIXBUF_LEN)
-    // shouldn't happen
-    steps = PCM_MIXBUF_LEN - Pico_mcd->pcm_mixpos;
+  Pico_mcd->pcm_regs_dirty = 0;
 
   for (c = 0; c < 8; c++)
   {
-    if (!(Pico_mcd->pcm.enabled & (1 << c)))
-      continue; // channel disabled
-
     ch = &Pico_mcd->pcm.ch[c];
+
+    if (!(enabled & (1 << c))) {
+      ch->addr = ch->regs[6] << (PCM_STEP_SHIFT + 8);
+      continue; // channel disabled
+    }
+
     addr = ch->addr;
     inc = *(unsigned short *)&ch->regs[2];
     mul_l = ((int)ch->regs[0] * (ch->regs[1] & 0xf)) >> (5+1); 

@@ -327,6 +327,7 @@ void pcd_state_loaded(void)
   memset(Pico_mcd->pcm_mixbuf, 0, sizeof(Pico_mcd->pcm_mixbuf));
   Pico_mcd->pcm_mixbuf_dirty = 0;
   Pico_mcd->pcm_mixpos = 0;
+  Pico_mcd->pcm_regs_dirty = 1;
 
   // old savestates..
   cycles = pcd_cycles_m68k_to_s68k(SekCycleAim);
