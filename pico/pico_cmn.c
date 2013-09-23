@@ -39,7 +39,7 @@ static void SekSyncM68k(void)
 #elif defined(EMU_M68K)
     SekCycleCnt += m68k_execute(cyc_do) - cyc_do;
 #elif defined(EMU_F68K)
-    SekCycleCnt += fm68k_emulate(cyc_do, 0, 0) - cyc_do;
+    SekCycleCnt += fm68k_emulate(cyc_do, 0) - cyc_do;
 #endif
   }
 

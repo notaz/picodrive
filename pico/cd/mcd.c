@@ -107,7 +107,7 @@ static __inline void SekRunS68k(unsigned int to)
   m68k_set_context(&PicoCpuMM68k);
 #elif defined(EMU_F68K)
   g_m68kcontext = &PicoCpuFS68k;
-  SekCycleCntS68k += fm68k_emulate(cyc_do, 0, 0) - cyc_do;
+  SekCycleCntS68k += fm68k_emulate(cyc_do, 0) - cyc_do;
   g_m68kcontext = &PicoCpuFM68k;
 #endif
 }
