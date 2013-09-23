@@ -565,13 +565,15 @@ Additional thanks
 
 Changelog
 ---------
-1.xx (2013-09-)
+1.90 (2013-09-24)
   + 32X+CD emulation has been implemented.
   + CD graphics processor code has been replaced with much cleaner Eke's
-    implamentation from Genesis Plus GX.
-  + CD PCM code has been completely rewritten
+    implementation from Genesis Plus GX.
+  + CD PCM code has been completely rewritten.
   * Various CD compatibility issues have been solved. Hopefully no more
     regressions this time.
+  * pandora: fixed tv-out (again), added automatic layer switching
+  * libretro: fixed crackling sound for some games, added some core options
 
 1.85 (2013-08-31)
   * Lots of 32X compatibility and accuracy improvements. All commercial games

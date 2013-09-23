@@ -925,13 +925,27 @@ static void debug_menu_loop(void)
 
 // ------------ main menu ------------
 
+static void draw_frame_credits(void)
+{
+	smalltext_out16(4, 1, "build: " __DATE__ " " __TIME__, 0xe7fc);
+}
+
 static const char credits[] =
 	"PicoDrive v" VERSION " (c) notaz, 2006-2013\n\n\n"
 	"Credits:\n"
-	"fDave: Cyclone 68000 core,\n"
-	"      base code of PicoDrive\n"
+	"fDave: initial code\n"
+#ifdef EMU_C68K
+	"      Cyclone 68000 core\n"
+#else
+	"Stef, Chui: FAME/C 68k core\n"
+#endif
+#ifdef _USE_DRZ80
 	"Reesy & FluBBa: DrZ80 core\n"
-	"MAME devs: YM2612 and SN76496 cores\n"
+#else
+	"Stef, NJ: CZ80 core\n"
+#endif
+	"MAME devs: SH2, YM2612 and SN76496 cores\n"
+	"Eke, Stef: some Sega CD code\n"
 	"Inder, ketchupgun: graphics\n"
 #ifdef __GP2X__
 	"Squidge: mmuhack\n"
@@ -1037,7 +1051,7 @@ static int main_menu_handler(int id, int keys)
 		}
 		break;
 	case MA_MAIN_CREDITS:
-		draw_menu_message(credits, NULL);
+		draw_menu_message(credits, draw_frame_credits);
 		in_menu_wait(PBTN_MOK|PBTN_MBACK, NULL, 70);
 		break;
 	case MA_MAIN_EXIT:
