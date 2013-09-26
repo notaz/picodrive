@@ -51,6 +51,7 @@ optimize_arm920="no"
 CC="${CC-${CROSS_COMPILE}gcc}"
 CXX="${CXX-${CROSS_COMPILE}g++}"
 AS="${AS-${CROSS_COMPILE}as}"
+SDL_CONFIG="`$CC --print-sysroot`/usr/bin/sdl-config"
 MAIN_LDLIBS="$LDLIBS -lm"
 config_mak="config.mak"
 
@@ -308,7 +309,7 @@ if [ "x$sound_drivers" = "x" ]; then
     sound_drivers="$sound_drivers alsa"
     MAIN_LDLIBS="-lasound $MAIN_LDLIBS"
   fi
-  if [ "$need_sdl" = "yes" ] || check_sdl `sdl-config --cflags --libs`; then
+  if [ "$need_sdl" = "yes" ] || check_sdl `$SDL_CONFIG --cflags --libs`; then
     sound_drivers="$sound_drivers sdl"
     need_sdl="yes"
   fi
@@ -323,11 +324,11 @@ else
 fi
 
 if [ "$need_sdl" = "yes" ]; then
-  which sdl-config > /dev/null || \
+  [ -x "$SDL_CONFIG" ] || \
     fail "sdl-config is missing; please install libsdl (libsdl1.2-dev)"
-  CFLAGS="$CFLAGS `sdl-config --cflags`"
-  MAIN_LDLIBS="`sdl-config --libs` $MAIN_LDLIBS"
-  check_sdl `sdl-config --libs` || fail "please install libsdl (libsdl1.2-dev)"
+  CFLAGS="$CFLAGS `$SDL_CONFIG --cflags`"
+  MAIN_LDLIBS="`$SDL_CONFIG --libs` $MAIN_LDLIBS"
+  check_sdl `$SDL_CONFIG --libs` || fail "please install libsdl (libsdl1.2-dev)"
 fi
 
 cat > $TMPC <<EOF
