@@ -2,7 +2,8 @@ TARGET ?= PicoDrive
 CFLAGS += -Wall -ggdb -falign-functions=2
 CFLAGS += -I.
 ifndef DEBUG
-CFLAGS += -O2 -DNDEBUG
+CFLAGS += -O2 -DNDEBUG -ffunction-sections
+LDFLAGS += -Wl,--gc-sections
 endif
 #CFLAGS += -DEVT_LOG
 #CFLAGS += -DDRC_CMP
