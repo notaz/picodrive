@@ -65,6 +65,7 @@ USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "pandora"
 platform/common/menu_pico.o: CFLAGS += -DPANDORA
+platform/libpicofe/linux/plat.o: CFLAGS += -DPANDORA
 OBJS += platform/pandora/plat.o
 OBJS += platform/pandora/asm_utils.o
 OBJS += platform/common/arm_utils.o 
