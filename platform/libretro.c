@@ -39,7 +39,7 @@ static FILE *emu_log;
 #define VOUT_MAX_WIDTH 320
 #define VOUT_MAX_HEIGHT 240
 static void *vout_buf;
-static int vout_width, vout_height;
+static int vout_width, vout_height, vout_offset;
 
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
 
@@ -251,6 +251,9 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 	memset(vout_buf, 0, 320 * 240 * 2);
 	vout_width = is_32cols ? 256 : 320;
 	PicoDrawSetOutBuf(vout_buf, vout_width * 2);
+
+	vout_height = line_count;
+	vout_offset = vout_width * start_line;
 }
 
 void emu_32x_startup(void)
@@ -335,10 +338,10 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 	info->timing.fps            = Pico.m.pal ? 50 : 60;
 	info->timing.sample_rate    = 44100;
 	info->geometry.base_width   = 320;
-	info->geometry.base_height  = 240;
+	info->geometry.base_height  = vout_height;
 	info->geometry.max_width    = VOUT_MAX_WIDTH;
 	info->geometry.max_height   = VOUT_MAX_HEIGHT;
-	info->geometry.aspect_ratio = 4.0 / 3.0;
+	info->geometry.aspect_ratio = 0.0f;
 }
 
 /* savestates */
@@ -849,7 +852,8 @@ void retro_run(void)
 
 	PicoFrame();
 
-	video_cb(vout_buf, vout_width, vout_height, vout_width * 2);
+	video_cb((short *)vout_buf + vout_offset,
+		vout_width, vout_height, vout_width * 2);
 }
 
 void retro_init(void)
