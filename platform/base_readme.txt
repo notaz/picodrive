@@ -574,6 +574,7 @@ Changelog
     regressions this time.
   * pandora: fixed tv-out (again), added automatic layer switching
   * libretro: fixed crackling sound for some games, added some core options
+  * sdl: multiple joystick support has been fixed (Victor Luchits)
 
 1.85 (2013-08-31)
   * Lots of 32X compatibility and accuracy improvements. All commercial games
