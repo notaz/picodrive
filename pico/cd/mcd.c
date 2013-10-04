@@ -11,7 +11,9 @@
 
 extern unsigned char formatted_bram[4*0x10];
 
-static unsigned int m68k_cycle_mult;
+static unsigned int mcd_m68k_cycle_mult;
+static unsigned int mcd_m68k_cycle_base;
+static unsigned int mcd_s68k_cycle_base;
 
 void (*PicoMCDopenTray)(void) = NULL;
 void (*PicoMCDcloseTray)(void) = NULL;
@@ -116,14 +118,14 @@ static void pcd_set_cycle_mult(void)
 {
   // ~1.63 for NTSC, ~1.645 for PAL
   if (Pico.m.pal)
-    m68k_cycle_mult = ((12500000ull << 16) / (50*312*488));
+    mcd_m68k_cycle_mult = ((12500000ull << 16) / (50*312*488));
   else
-    m68k_cycle_mult = ((12500000ull << 16) / (60*262*488)) + 1;
+    mcd_m68k_cycle_mult = ((12500000ull << 16) / (60*262*488)) + 1;
 }
 
 unsigned int pcd_cycles_m68k_to_s68k(unsigned int c)
 {
-  return (long long)c * m68k_cycle_mult >> 16;
+  return (long long)c * mcd_m68k_cycle_mult >> 16;
 }
 
 /* events */
@@ -234,9 +236,12 @@ static void pcd_run_events(unsigned int until)
 int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
 {
   #define now SekCycleCntS68k
-  unsigned int s68k_target =
-    (unsigned long long)m68k_target * m68k_cycle_mult >> 16;
+  unsigned int s68k_target;
   unsigned int target;
+
+  target = m68k_target - mcd_m68k_cycle_base;
+  s68k_target = mcd_s68k_cycle_base +
+    ((unsigned long long)target * mcd_m68k_cycle_mult >> 16);
 
   elprintf(EL_CD, "s68k sync to %u, %u->%u",
     m68k_target, now, s68k_target);
@@ -307,12 +312,21 @@ void pcd_run_cpus_lockstep(int m68k_cycles)
 #include "../pico_cmn.c"
 
 
+void pcd_prepare_frame(void)
+{
+  pcd_set_cycle_mult();
+
+  // need this because we can't have direct mapping between
+  // master<->slave cycle counters because of overflows
+  mcd_m68k_cycle_base = SekCycleAim;
+  mcd_s68k_cycle_base = SekCycleAimS68k;
+}
+
 PICO_INTERNAL void PicoFrameMCD(void)
 {
-  if (!(PicoOpt&POPT_ALT_RENDERER))
-    PicoFrameStart();
+  PicoFrameStart();
 
-  pcd_set_cycle_mult();
+  pcd_prepare_frame();
   PicoFrameHints();
 }
 

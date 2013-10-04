@@ -664,6 +664,7 @@ enum pcd_event {
 extern unsigned int pcd_event_times[PCD_EVENT_COUNT];
 void pcd_event_schedule(unsigned int now, enum pcd_event event, int after);
 void pcd_event_schedule_s68k(enum pcd_event event, int after);
+void pcd_prepare_frame(void);
 unsigned int pcd_cycles_m68k_to_s68k(unsigned int c);
 int  pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync);
 void pcd_run_cpus(int m68k_cycles);

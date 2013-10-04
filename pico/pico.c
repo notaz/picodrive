@@ -285,8 +285,11 @@ int z80_scanline_cycles;  /* cycles done until z80_scanline */
 /* sync z80 to 68k */
 PICO_INTERNAL void PicoSyncZ80(unsigned int m68k_cycles_done)
 {
+  int m68k_cnt;
   int cnt;
-  z80_cycle_aim += cycles_68k_to_z80(m68k_cycles_done - last_z80_sync);
+
+  m68k_cnt = m68k_cycles_done - last_z80_sync;
+  z80_cycle_aim += cycles_68k_to_z80(m68k_cnt);
   cnt = z80_cycle_aim - z80_cycle_cnt;
   last_z80_sync = m68k_cycles_done;
 

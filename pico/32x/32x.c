@@ -547,6 +547,9 @@ void PicoFrame32x(void)
   p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, 0);
   p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, 0);
 
+  if (PicoAHW & PAHW_MCD)
+    pcd_prepare_frame();
+
   PicoFrameStart();
   PicoFrameHints();
   sh2_drc_frame();
