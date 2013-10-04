@@ -121,15 +121,6 @@ void PsndRerate(int preserve_state)
   void *state = NULL;
   int target_fps = Pico.m.pal ? 50 : 60;
 
-  // not all rates are supported in MCD mode due to mp3 decoder limitations
-  if (PicoAHW & PAHW_MCD) {
-    if (!(11025-100 <= PsndRate && PsndRate <= 11025+100) &&
-        !(22050-100 <= PsndRate && PsndRate <= 22050+100) &&
-        !(44100-100 <= PsndRate && PsndRate <= 44100+100))
-      PsndRate = 22050;
-    PicoOpt |= POPT_EN_STEREO; // force stereo
-  }
-
   if (preserve_state) {
     state = malloc(0x204);
     if (state == NULL) return;
