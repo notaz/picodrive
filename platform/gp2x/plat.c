@@ -24,7 +24,7 @@ void *gp2x_screens[4];
 
 void (*gp2x_video_flip)(void);
 void (*gp2x_video_flip2)(void);
-void (*gp2x_video_changemode_ll)(int bpp);
+void (*gp2x_video_changemode_ll)(int bpp, int is_pal);
 void (*gp2x_video_setpalette)(int *pal, int len);
 void (*gp2x_video_RGB_setscaling)(int ln_offs, int W, int H);
 void (*gp2x_video_wait_vsync)(void);
@@ -71,9 +71,9 @@ static struct in_default_bind in_gp2x_defbinds[] =
 	{ 0, 0, 0 }
 };
 
-void gp2x_video_changemode(int bpp)
+void gp2x_video_changemode(int bpp, int is_pal)
 {
-	gp2x_video_changemode_ll(bpp);
+	gp2x_video_changemode_ll(bpp, is_pal);
 
 	gp2x_current_bpp = bpp < 0 ? -bpp : bpp;
 }
@@ -131,9 +131,8 @@ void plat_video_menu_enter(int is_rom_loaded)
 		gp2x_video_flip2();
 
 	// switch to 16bpp
-	gp2x_video_changemode_ll(16);
+	gp2x_video_changemode_ll(16, 0);
 	gp2x_video_RGB_setscaling(0, 320, 240);
-printf("menu_enter\n");
 }
 
 void plat_video_menu_begin(void)

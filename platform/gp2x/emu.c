@@ -407,7 +407,6 @@ void plat_video_flip(void)
 }
 
 /* XXX */
-#ifdef __GP2X__
 unsigned int plat_get_ticks_ms(void)
 {
 	return gp2x_get_ticks_ms();
@@ -417,7 +416,6 @@ unsigned int plat_get_ticks_us(void)
 {
 	return gp2x_get_ticks_us();
 }
-#endif
 
 void plat_wait_till_us(unsigned int us_to)
 {
@@ -562,7 +560,7 @@ static void vid_reset_mode(void)
 	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX)
 		gp2x_mode = -gp2x_mode;
 
-	gp2x_video_changemode(gp2x_mode);
+	gp2x_video_changemode(gp2x_mode, Pico.m.pal);
 
 	Pico.m.dirtyPal = 1;
 
@@ -701,47 +699,20 @@ void plat_update_volume(int has_changed, int is_up)
 
 void pemu_sound_start(void)
 {
+	gp2x_soc_t soc;
+
 	emu_sound_start();
 
-	plat_target_step_volume(&currentConfig.volume, 0);
-
-#if 0
-	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
-
-	PsndOut = NULL;
-
-	// prepare sound stuff
 	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
 	{
-		int is_stereo = (PicoOpt & POPT_EN_STEREO) ? 1 : 0;
-		int snd_rate_oss = PsndRate;
-		gp2x_soc_t soc;
-
-		memset(sndBuffer, 0, sizeof(sndBuffer));
-		PsndOut = sndBuffer;
-		PicoWriteSound = oss_write_nonblocking;
-		plat_update_volume(0, 0);
-
-		printf("starting audio: %i len: %i stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, is_stereo, Pico.m.pal);
-		sndout_oss_start(snd_rate_oss, is_stereo, 1);
-		sndout_oss_setvol(currentConfig.volume, currentConfig.volume);
-
 		soc = soc_detect();
-		if (soc == SOCID_POLLUX)
+		if (soc == SOCID_POLLUX) {
 			PsndRate = pollux_get_real_snd_rate(PsndRate);
-
-		#define SOUND_RERATE_FLAGS (POPT_EN_FM|POPT_EN_PSG|POPT_EN_STEREO|POPT_EXT_FM|POPT_EN_MCD_CDDA)
-		if (PsndRate != PsndRate_old || Pico.m.pal != pal_old || ((PicoOpt & POPT_EXT_FM) && crashed_940) ||
-				((PicoOpt ^ PicoOpt_old) & SOUND_RERATE_FLAGS)) {
 			PsndRerate(Pico.m.frame_count ? 1 : 0);
 		}
 
-		PsndRate_old = PsndRate;
-		PicoOpt_old  = PicoOpt;
-		pal_old = Pico.m.pal;
+		plat_target_step_volume(&currentConfig.volume, 0);
 	}
-#endif
 }
 
 static const int sound_rates[] = { 44100, 32000, 22050, 16000, 11025, 8000 };

@@ -34,31 +34,21 @@
 #include "../common/arm_utils.h"
 #include "plat.h"
 
-#define fb_buf_count 4
-static unsigned int fb_paddr[fb_buf_count];
+#define FB_BUF_COUNT 4
+#define FB_MEM_SIZE (320*240*2 * FB_BUF_COUNT)
+
+static unsigned int fb_paddr[FB_BUF_COUNT];
 static int fb_work_buf;
 static int fbdev = -1;
 
-static unsigned short memtimex_old[2];
-static int last_pal_setting = 0;
-
-
-/* misc */
-static void pollux_set_fromenv(const char *env_var)
-{
-	const char *set_string;
-	set_string = getenv(env_var);
-	if (set_string)
-		pollux_set(memregs, set_string);
-	else
-		printf("env var %s not defined.\n", env_var);
-}
 
 /* video stuff */
 static void pollux_video_flip(int buf_count)
 {
-	memregl[0x406C>>2] = fb_paddr[fb_work_buf];
+	memregl[0x406C>>2] = memregl[0x446C>>2] = fb_paddr[fb_work_buf];
 	memregl[0x4058>>2] |= 0x10;
+	memregl[0x4458>>2] |= 0x10;
+
 	fb_work_buf++;
 	if (fb_work_buf >= buf_count)
 		fb_work_buf = 0;
@@ -67,7 +57,7 @@ static void pollux_video_flip(int buf_count)
 
 static void gp2x_video_flip_(void)
 {
-	pollux_video_flip(fb_buf_count);
+	pollux_video_flip(FB_BUF_COUNT);
 }
 
 /* doulblebuffered flip */
@@ -76,7 +66,7 @@ static void gp2x_video_flip2_(void)
 	pollux_video_flip(2);
 }
 
-static void gp2x_video_changemode_ll_(int bpp)
+static void gp2x_video_changemode_ll_(int bpp, int is_pal)
 {
 	static int prev_bpp = 0;
 	int code = 0, bytes = 2;
@@ -100,8 +90,9 @@ static void gp2x_video_changemode_ll_(int bpp)
 	memregl[0x4000>>2] |= 1 << 3;
 
 	/* the above ioctl resets LCD timings, so set them here */
-	snprintf(buff, sizeof(buff), "POLLUX_LCD_TIMINGS_%s", last_pal_setting ? "PAL" : "NTSC");
-	pollux_set_fromenv(buff);
+	snprintf(buff, sizeof(buff), "POLLUX_LCD_TIMINGS_%s",
+		is_pal ? "PAL" : "NTSC");
+	pollux_set_fromenv(memregs, buff);
 
 	switch (abs(bpp))
 	{
@@ -121,12 +112,18 @@ static void gp2x_video_changemode_ll_(int bpp)
 			return;
 	}
 
-	memregl[0x405c>>2] = bytes;
-	memregl[0x4060>>2] = bytes * (bpp < 0 ? 240 : 320);
+	// program both MLCs so that TV-out works
+	memregl[0x405c>>2] = memregl[0x445c>>2] = bytes;
+	memregl[0x4060>>2] = memregl[0x4460>>2] =
+		bytes * (bpp < 0 ? 240 : 320);
 
 	r = memregl[0x4058>>2];
 	r = (r & 0xffff) | (code << 16) | 0x10;
 	memregl[0x4058>>2] = r;
+
+	r = memregl[0x4458>>2];
+	r = (r & 0xffff) | (code << 16) | 0x10;
+	memregl[0x4458>>2] = r;
 }
 
 static void gp2x_video_setpalette_(int *pal, int len)
@@ -153,26 +150,6 @@ static void gp2x_video_wait_vsync_(void)
 	memregl[0x308c>>2] |= 1 << 10;
 }
 
-/* RAM timings */
-static void set_ram_timings_(void)
-{
-	pollux_set_fromenv("POLLUX_RAM_TIMINGS");
-}
-
-static void unset_ram_timings_(void)
-{
-	int i;
-
-	memregs[0x14802>>1] = memtimex_old[0];
-	memregs[0x14804>>1] = memtimex_old[1] | 0x8000;
-
-	for (i = 0; i < 0x100000; i++)
-		if (!(memregs[0x14804>>1] & 0x8000))
-			break;
-
-	printf("RAM timings reset to startup values.\n");
-}
-
 void vid_pollux_init(void)
 {
 	struct fb_fix_screeninfo fbfix;
@@ -193,17 +170,17 @@ void vid_pollux_init(void)
 	printf("framebuffer: \"%s\" @ %08lx\n", fbfix.id, fbfix.smem_start);
 	fb_paddr[0] = fbfix.smem_start;
 
-	gp2x_screens[0] = mmap(0, 320*240*2*fb_buf_count, PROT_READ|PROT_WRITE,
+	gp2x_screens[0] = mmap(0, FB_MEM_SIZE, PROT_READ|PROT_WRITE,
 			MAP_SHARED, memdev, fb_paddr[0]);
 	if (gp2x_screens[0] == MAP_FAILED)
 	{
 		perror("mmap(gp2x_screens) failed");
 		exit(1);
 	}
-	memset(gp2x_screens[0], 0, 320*240*2*fb_buf_count);
+	memset(gp2x_screens[0], 0, FB_MEM_SIZE);
 
 	printf("  %p -> %08x\n", gp2x_screens[0], fb_paddr[0]);
-	for (i = 1; i < fb_buf_count; i++)
+	for (i = 1; i < FB_BUF_COUNT; i++)
 	{
 		fb_paddr[i] = fb_paddr[i-1] + 320*240*2;
 		gp2x_screens[i] = (char *)gp2x_screens[i-1] + 320*240*2;
@@ -211,8 +188,6 @@ void vid_pollux_init(void)
 	}
 	fb_work_buf = 0;
 	g_screen_ptr = gp2x_screens[0];
-
-	set_ram_timings_();
 
 	gp2x_video_flip = gp2x_video_flip_;
 	gp2x_video_flip2 = gp2x_video_flip2_;
@@ -224,9 +199,8 @@ void vid_pollux_init(void)
 
 void vid_pollux_finish(void)
 {
-	munmap(gp2x_screens[0], 320*240*2 * fb_buf_count);
+	memset(gp2x_screens[0], 0, FB_MEM_SIZE);
+	munmap(gp2x_screens[0], FB_MEM_SIZE);
 	close(fbdev);
 	fbdev = -1;
-
-	unset_ram_timings_();
 }

@@ -62,9 +62,8 @@ static void gp2x_video_flip2_(void)
 	g_screen_ptr = gp2x_screens[++screensel&1];
 }
 
-static void gp2x_video_changemode_ll_(int bpp)
+static void gp2x_video_changemode_ll_(int bpp, int is_pal)
 {
-printf("changemode %d\n", bpp);
   	memregs[0x28DA>>1] = (((bpp+1)/8)<<9)|0xAB; /*8/15/16/24bpp...*/
   	memregs[0x290C>>1] = 320*((bpp+1)/8); /*line width in bytes*/
 }
@@ -163,7 +162,7 @@ void vid_mmsp2_init(void)
 void vid_mmsp2_finish(void)
 {
 	gp2x_video_RGB_setscaling_(0, 320, 240);
-	gp2x_video_changemode_ll_(16);
+	gp2x_video_changemode_ll_(16, 0);
 
 	memregs[0x290E>>1] = gp2x_screenaddr_old[0];
 	memregs[0x2910>>1] = gp2x_screenaddr_old[1];
