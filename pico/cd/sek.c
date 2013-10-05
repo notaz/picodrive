@@ -189,3 +189,17 @@ PICO_INTERNAL int SekInterruptS68k(int irq)
   return 0;
 }
 
+void SekInterruptClearS68k(int irq)
+{
+  int level_new = new_irq_level(irq);
+
+#ifdef EMU_C68K
+  PicoCpuCS68k.irq = level_new;
+#endif
+#ifdef EMU_M68K
+  CPU_INT_LEVEL = level_new << 8;
+#endif
+#ifdef EMU_F68K
+  PicoCpuFS68k.interrupts[0] = level_new;
+#endif
+}

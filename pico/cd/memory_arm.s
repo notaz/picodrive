@@ -49,7 +49,7 @@
 
 @ externs, just for reference
 .extern Pico
-.extern Read_CDC_Host
+.extern cdc_host_r
 .extern m68k_reg_write8
 .extern s68k_reg_read16
 .extern s68k_reg_write8
@@ -195,12 +195,12 @@ m_m68k_read8_r07:
     bx      lr
 m_m68k_read8_r08:
     mov     r0, #0
-    bl      Read_CDC_Host             @ TODO: make it local
+    bl      cdc_host_r
     mov     r0, r0, lsr #8
     bx      lr
 m_m68k_read8_r09:
     mov     r0, #0
-    b       Read_CDC_Host
+    b       cdc_host_r
 m_m68k_read8_r0c:
     add     r1, r1, #0x110000
     add     r1, r1, #0x002200
@@ -292,7 +292,7 @@ m_m68k_read16_r06:
     bx      lr
 m_m68k_read16_r08:
     mov     r0, #0
-    b       Read_CDC_Host
+    b       cdc_host_r
 m_m68k_read16_r0c:
     add     r1, r1, #0x110000
     add     r1, r1, #0x002200
@@ -501,7 +501,7 @@ m_s68k_read16_regs:
     cmp     r0, #8
     bne     s68k_reg_read16
     mov     r0, #1
-    b       Read_CDC_Host
+    b       cdc_host_r
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

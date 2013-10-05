@@ -519,7 +519,7 @@ Texas Instruments SN76489 / SN76496 programmable tone/noise generator
 Homepage: http://www.mame.net/
 
 Eke
-CD graphics processor implementation (from Genesis Plus GX)
+CD graphics processor and CD controller implementation (from Genesis Plus GX)
 
 Stephane Dallongeville
 Gens, MD/Mega CD/32X emulator. Some Sega CD code is based on this emu.
@@ -565,6 +565,11 @@ Additional thanks
 
 Changelog
 ---------
+1.91 (2013-10-)
+  + Switched to CD controller code from Eke's Genesis Plus GX.
+  * Fixed overflow issue where cd emulation would break after
+    ~10 minutes of gameplay
+
 1.90 (2013-09-24)
   + 32X+CD emulation has been implemented.
   + CD graphics processor code has been replaced with much cleaner Eke's

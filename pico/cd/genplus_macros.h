@@ -12,6 +12,22 @@
 #define int16 signed short
 #define int32 signed int
 
+typedef union
+{
+    uint16 w;
+    struct
+    {
+#if 1
+        uint8 l;
+        uint8 h;
+#else
+        uint8 h;
+        uint8 l;
+#endif
+    } byte;
+
+} reg16_t;
+
 #define READ_BYTE(BASE, ADDR) (BASE)[(ADDR)^1]
 #define WRITE_BYTE(BASE, ADDR, VAL) (BASE)[(ADDR)^1] = (VAL)
 

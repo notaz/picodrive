@@ -23,6 +23,10 @@
 #define FAST_REV	0x10300		// FAST REVERSE track CDD status
 #define PLAYING		0x0100		// PLAYING audio track CDD status
 
+//#undef cdprintf
+//#define cdprintf(x, ...) elprintf(EL_STATUS, x, ##__VA_ARGS__)
+
+#define CDC_Update_Header()
 
 static int CD_Present = 0;
 
@@ -139,15 +143,32 @@ PICO_INTERNAL void Check_CD_Command(void)
 		cdprintf("Got a read command");
 
 		// DATA ?
-		if (Pico_mcd->scd.Cur_Track == 1)
+		if (Pico_mcd->scd.Cur_Track == 1) {
 		     Pico_mcd->s68k_regs[0x36] |=  0x01;
-		else Pico_mcd->s68k_regs[0x36] &= ~0x01;			// AUDIO
 
-		if (Pico_mcd->scd.File_Add_Delay == 0)
-		{
-			FILE_Read_One_LBA_CDC();
+		  if (Pico_mcd->scd.File_Add_Delay == 0)
+		  {
+			unsigned char header[4];
+			_msf MSF;
+
+			LBA_to_MSF(Pico_mcd->scd.Cur_LBA, &MSF);
+
+			header[0] = INT_TO_BCDB(MSF.M);
+			header[1] = INT_TO_BCDB(MSF.S);
+			header[2] = INT_TO_BCDB(MSF.F);
+			header[3] = 0x01;
+
+			//FILE_Read_One_LBA_CDC();
+			Pico_mcd->scd.Cur_LBA +=
+			  cdc_decoder_update(header);
+		  }
+		  else Pico_mcd->scd.File_Add_Delay--;
 		}
-		else Pico_mcd->scd.File_Add_Delay--;
+		else {
+			Pico_mcd->s68k_regs[0x36] &= ~0x01;			// AUDIO
+			unsigned char header[4] = { 0, };
+			cdc_decoder_update(header);
+		}
 	}
 
 	// Check CDD
@@ -752,6 +773,161 @@ PICO_INTERNAL int CDD_Def(void)
 	Pico_mcd->cdd.Ext = 0;
 
 	return 0;
+}
+
+
+static int bswapwrite(int a, unsigned short d)
+{
+	*(unsigned short *)(Pico_mcd->s68k_regs + a) = (d>>8)|(d<<8);
+	return d + (d >> 8);
+}
+
+PICO_INTERNAL void CDD_Export_Status(void)
+{
+	unsigned int csum;
+
+	csum  = bswapwrite( 0x38+0, Pico_mcd->cdd.Status);
+	csum += bswapwrite( 0x38+2, Pico_mcd->cdd.Minute);
+	csum += bswapwrite( 0x38+4, Pico_mcd->cdd.Seconde);
+	csum += bswapwrite( 0x38+6, Pico_mcd->cdd.Frame);
+	Pico_mcd->s68k_regs[0x38+8] = Pico_mcd->cdd.Ext;
+	csum += Pico_mcd->cdd.Ext;
+	Pico_mcd->s68k_regs[0x38+9] = ~csum & 0xf;
+
+	Pico_mcd->s68k_regs[0x37] &= 3; // CDD.Control
+
+	if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4)
+	{
+		elprintf(EL_INTS, "cdd export irq 4");
+		SekInterruptS68k(4);
+	}
+
+//	cdprintf("CDD exported status\n");
+	cdprintf("out:  Status=%.4X, Minute=%.4X, Second=%.4X, Frame=%.4X  Checksum=%.4X",
+		(Pico_mcd->s68k_regs[0x38+0] << 8) | Pico_mcd->s68k_regs[0x38+1],
+		(Pico_mcd->s68k_regs[0x38+2] << 8) | Pico_mcd->s68k_regs[0x38+3],
+		(Pico_mcd->s68k_regs[0x38+4] << 8) | Pico_mcd->s68k_regs[0x38+5],
+		(Pico_mcd->s68k_regs[0x38+6] << 8) | Pico_mcd->s68k_regs[0x38+7],
+		(Pico_mcd->s68k_regs[0x38+8] << 8) | Pico_mcd->s68k_regs[0x38+9]);
+}
+
+
+PICO_INTERNAL void CDD_Import_Command(void)
+{
+//	cdprintf("CDD importing command\n");
+	cdprintf("in:  Command=%.4X, Minute=%.4X, Second=%.4X, Frame=%.4X  Checksum=%.4X",
+		(Pico_mcd->s68k_regs[0x38+10+0] << 8) | Pico_mcd->s68k_regs[0x38+10+1],
+		(Pico_mcd->s68k_regs[0x38+10+2] << 8) | Pico_mcd->s68k_regs[0x38+10+3],
+		(Pico_mcd->s68k_regs[0x38+10+4] << 8) | Pico_mcd->s68k_regs[0x38+10+5],
+		(Pico_mcd->s68k_regs[0x38+10+6] << 8) | Pico_mcd->s68k_regs[0x38+10+7],
+		(Pico_mcd->s68k_regs[0x38+10+8] << 8) | Pico_mcd->s68k_regs[0x38+10+9]);
+
+	switch (Pico_mcd->s68k_regs[0x38+10+0])
+	{
+		case 0x0:	// STATUS (?)
+			Get_Status_CDD_c0();
+			break;
+
+		case 0x1:	// STOP ALL (?)
+			Stop_CDD_c1();
+			break;
+
+		case 0x2:	// GET TOC INFORMATIONS
+			switch(Pico_mcd->s68k_regs[0x38+10+3])
+			{
+				case 0x0:	// get current position (MSF format)
+					Pico_mcd->cdd.Status = (Pico_mcd->cdd.Status & 0xFF00);
+					Get_Pos_CDD_c20();
+					break;
+
+				case 0x1:	// get elapsed time of current track played/scanned (relative MSF format)
+					Pico_mcd->cdd.Status = (Pico_mcd->cdd.Status & 0xFF00) | 1;
+					Get_Track_Pos_CDD_c21();
+					break;
+
+				case 0x2:	// get current track in RS2-RS3
+					Pico_mcd->cdd.Status =  (Pico_mcd->cdd.Status & 0xFF00) | 2;
+					Get_Current_Track_CDD_c22();
+					break;
+
+				case 0x3:	// get total length (MSF format)
+					Pico_mcd->cdd.Status = (Pico_mcd->cdd.Status & 0xFF00) | 3;
+					Get_Total_Lenght_CDD_c23();
+					break;
+
+				case 0x4:	// first & last track number
+					Pico_mcd->cdd.Status = (Pico_mcd->cdd.Status & 0xFF00) | 4;
+					Get_First_Last_Track_CDD_c24();
+					break;
+
+				case 0x5:	// get track addresse (MSF format)
+					Pico_mcd->cdd.Status = (Pico_mcd->cdd.Status & 0xFF00) | 5;
+					Get_Track_Adr_CDD_c25();
+					break;
+
+				default :	// invalid, then we return status
+					Pico_mcd->cdd.Status = (Pico_mcd->cdd.Status & 0xFF00) | 0xF;
+					Get_Status_CDD_c0();
+					break;
+			}
+			break;
+
+		case 0x3:	// READ
+			Play_CDD_c3();
+			break;
+
+		case 0x4:	// SEEK
+			Seek_CDD_c4();
+			break;
+
+		case 0x6:	// PAUSE/STOP
+			Pause_CDD_c6();
+			break;
+
+		case 0x7:	// RESUME
+			Resume_CDD_c7();
+			break;
+
+		case 0x8:	// FAST FOWARD
+			Fast_Foward_CDD_c8();
+			break;
+
+		case 0x9:	// FAST REWIND
+			Fast_Rewind_CDD_c9();
+			break;
+
+		case 0xA:	// RECOVER INITIAL STATE (?)
+			CDD_cA();
+			break;
+
+		case 0xC:	// CLOSE TRAY
+			Close_Tray_CDD_cC();
+			break;
+
+		case 0xD:	// OPEN TRAY
+			Open_Tray_CDD_cD();
+			break;
+
+		default:	// UNKNOWN
+			CDD_Def();
+			break;
+	}
+}
+
+void CDD_Reset(void)
+{
+	// Reseting CDD
+
+	memset(Pico_mcd->s68k_regs+0x34, 0, 2*2); // CDD.Fader, CDD.Control
+	Pico_mcd->cdd.Status = 0;
+	Pico_mcd->cdd.Minute = 0;
+	Pico_mcd->cdd.Seconde = 0;
+	Pico_mcd->cdd.Frame = 0;
+	Pico_mcd->cdd.Ext = 0;
+
+	// clear receive status and transfer command
+	memset(Pico_mcd->s68k_regs+0x38, 0, 20);
+	Pico_mcd->s68k_regs[0x38+9] = 0xF;		// Default checksum
 }
 
 

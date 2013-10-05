@@ -100,7 +100,7 @@ static u32 m68k_reg_read16(u32 a)
       d = *(u16 *)(Pico_mcd->bios + 0x72);
       goto end;
     case 8:
-      d = Read_CDC_Host(0);
+      d = cdc_host_r();
       goto end;
     case 0xA:
       elprintf(EL_UIO, "m68k FIXME: reserved read");
@@ -286,9 +286,9 @@ u32 s68k_reg_read16(u32 a)
       elprintf(EL_CDREG3, "s68k_regs r3: %02x @%06x", (u8)d, SekPcS68k);
       return s68k_poll_detect(a, d);
     case 6:
-      return CDC_Read_Reg();
+      return cdc_reg_r();
     case 8:
-      return Read_CDC_Host(1); // Gens returns 0 here on byte reads
+      return cdc_host_r();
     case 0xC:
       d = SekCyclesDoneS68k() - Pico_mcd->m.stopwatch_base_c;
       d /= 384;
@@ -379,7 +379,7 @@ void s68k_reg_write8(u32 a, u32 d)
       //dprintf("s68k CDC reg addr: %x", d&0xf);
       break;
     case 7:
-      CDC_Write_Reg(d);
+      cdc_reg_w(d);
       return;
     case 0xa:
       elprintf(EL_CDREGS, "s68k set CDC dma addr");

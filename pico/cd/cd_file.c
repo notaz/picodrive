@@ -282,6 +282,7 @@ PICO_INTERNAL void Unload_ISO(void)
 	memset(Pico_mcd->TOC.Tracks, 0, sizeof(Pico_mcd->TOC.Tracks));
 }
 
+#if 1*0
 
 PICO_INTERNAL int FILE_Read_One_LBA_CDC(void)
 {
@@ -398,3 +399,4 @@ PICO_INTERNAL int FILE_Read_One_LBA_CDC(void)
 	return 0;
 }
 
+#endif

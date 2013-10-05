@@ -417,38 +417,44 @@ struct mcd_misc
 
 typedef struct
 {
-	unsigned char bios[0x20000];			// 000000: 128K
-	union {						// 020000: 512K
-		unsigned char prg_ram[0x80000];
-		unsigned char prg_ram_b[4][0x20000];
-	};
-	union {						// 0a0000: 256K
-		struct {
-			unsigned char word_ram2M[0x40000];
-			unsigned char unused0[0x20000];
-		};
-		struct {
-			unsigned char unused1[0x20000];
-			unsigned char word_ram1M[2][0x20000];
-		};
-	};
-	union {						// 100000: 64K
-		unsigned char pcm_ram[0x10000];
-		unsigned char pcm_ram_b[0x10][0x1000];
-	};
-	// FIXME: should be short
-	unsigned char s68k_regs[0x200];			// 110000: GA, not CPU regs
-	unsigned char bram[0x2000];			// 110200: 8K
-	struct mcd_misc m;				// 112200: misc
-	struct mcd_pcm pcm;				// 112240:
-	_scd_toc TOC;					// not to be saved
-	CDD  cdd;
-	CDC  cdc;
-	_scd scd;
-	int pcm_mixbuf[PCM_MIXBUF_LEN * 2];
-	int pcm_mixpos;
-	char pcm_mixbuf_dirty;
-	char pcm_regs_dirty;
+  unsigned char bios[0x20000];			// 000000: 128K
+  union {					// 020000: 512K
+    unsigned char prg_ram[0x80000];
+    unsigned char prg_ram_b[4][0x20000];
+  };
+  union {					// 0a0000: 256K
+    struct {
+      unsigned char word_ram2M[0x40000];
+      unsigned char unused0[0x20000];
+    };
+    struct {
+      unsigned char unused1[0x20000];
+      unsigned char word_ram1M[2][0x20000];
+    };
+  };
+  union {					// 100000: 64K
+    unsigned char pcm_ram[0x10000];
+    unsigned char pcm_ram_b[0x10][0x1000];
+  };
+  union {
+    unsigned char s68k_regs[0x200];		// 110000: GA, not CPU regs
+    union {
+      struct {
+        unsigned char h;
+        unsigned char l;
+      } byte;
+    } regs[0x200/2];
+  };
+  unsigned char bram[0x2000];			// 110200: 8K
+  struct mcd_misc m;				// 112200: misc
+  struct mcd_pcm pcm;				// 112240:
+  _scd_toc TOC;					// not to be saved
+  CDD  cdd;
+  _scd scd;
+  int pcm_mixbuf[PCM_MIXBUF_LEN * 2];
+  int pcm_mixpos;
+  char pcm_mixbuf_dirty;
+  char pcm_regs_dirty;
 } mcd_state;
 
 // XXX: this will need to be reworked for cart+cd support.
@@ -610,6 +616,18 @@ void PicoWrite16_io(unsigned int a, unsigned int d);
 // pico/memory.c
 PICO_INTERNAL void PicoMemSetupPico(void);
 
+// cd/cdc.c
+void cdc_init(void);
+void cdc_reset(void);
+int  cdc_context_save(unsigned char *state);
+int  cdc_context_load(unsigned char *state);
+int  cdc_context_load_old(unsigned char *state);
+void cdc_dma_update(void);
+int  cdc_decoder_update(unsigned char header[4]);
+void cdc_reg_w(unsigned char data);
+unsigned char  cdc_reg_r(void);
+unsigned short cdc_host_r(void);
+
 // cd/gfx.c
 void gfx_init(void);
 void gfx_start(unsigned int base);
@@ -706,6 +724,7 @@ void SekTrace(int is_s68k);
 PICO_INTERNAL void SekInitS68k(void);
 PICO_INTERNAL int  SekResetS68k(void);
 PICO_INTERNAL int  SekInterruptS68k(int irq);
+void SekInterruptClearS68k(int irq);
 
 // sound/sound.c
 PICO_INTERNAL void cdda_start_play();

@@ -46,6 +46,7 @@ PICO_INTERNAL void PicoPowerMCD(void)
   memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));
   memset(&Pico_mcd->m, 0, sizeof(Pico_mcd->m));
 
+  cdc_init();
   Reset_CD();
 
   // cold reset state (tested)
@@ -59,7 +60,9 @@ void pcd_soft_reset(void)
 {
   // Reset_CD(); // breaks Fahrenheit CD swap
 
-  LC89510_Reset();
+  Pico_mcd->m.s68k_pend_ints = 0;
+  cdc_reset();
+  CDD_Reset();
 #ifdef _ASM_CD_MEMORY_C
   //PicoMemResetCDdecode(1); // don't have to call this in 2M mode
 #endif
@@ -150,8 +153,7 @@ static void pcd_int3_timer_event(unsigned int now)
 
 static void pcd_dma_event(unsigned int now)
 {
-  int ddx = Pico_mcd->s68k_regs[4] & 7;
-	Update_CDC_TRansfer(ddx);
+  cdc_dma_update();
 }
 
 typedef void (event_cb)(unsigned int now);
@@ -355,9 +357,6 @@ void pcd_state_loaded(void)
     if (Pico_mcd->s68k_regs[0x31])
       pcd_event_schedule(SekCycleAimS68k, PCD_EVENT_TIMER3,
         Pico_mcd->s68k_regs[0x31] * 384);
-
-    if (Pico_mcd->scd.Status_CDC & 0x08)
-	    Update_CDC_TRansfer(Pico_mcd->s68k_regs[4] & 7);
   }
 
   diff = cycles - Pico_mcd->pcm.update_cycles;

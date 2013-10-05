@@ -148,10 +148,10 @@ typedef enum {
   CHUNK_BRAM,
   CHUNK_GA_REGS,
   CHUNK_PCM,
-  CHUNK_CDC,
+  CHUNK_CDC,     // old
   CHUNK_CDD,     // 20
   CHUNK_SCD,
-  CHUNK_RC,
+  CHUNK_RC,      // old
   CHUNK_MISC_CD,
   //
   CHUNK_IOPORTS, // versions < 1.70 did not save that..
@@ -176,6 +176,7 @@ typedef enum {
   // add new stuff here
   CHUNK_CD_EVT = 50,
   CHUNK_CD_GFX,
+  CHUNK_CD_CDC,
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
@@ -237,12 +238,17 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
   return (bwritten == len + 4 + 1);
 }
 
+#define CHUNK_LIMIT_W 18772 // sizeof(cdc)
+
 #define CHECKED_WRITE(name,len,data) { \
   if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT && chunk_names[name]) { \
     strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff) - 9); \
     PicoStateProgressCB(sbuff); \
   } \
-  if (!write_chunk(name, len, data, file)) return 1; \
+  if (data == buf2 && len > CHUNK_LIMIT_W) \
+    goto out; \
+  if (!write_chunk(name, len, data, file)) \
+    goto out; \
 }
 
 #define CHECKED_WRITE_BUFF(name,buff) { \
@@ -250,7 +256,8 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
     strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff) - 9); \
     PicoStateProgressCB(sbuff); \
   } \
-  if (!write_chunk(name, sizeof(buff), &buff, file)) return 1; \
+  if (!write_chunk(name, sizeof(buff), &buff, file)) \
+    goto out; \
 }
 
 static int state_save(void *file)
@@ -258,7 +265,9 @@ static int state_save(void *file)
   char sbuff[32] = "Saving.. ";
   unsigned char buff[0x60], buff_z80[Z80_STATE_SIZE];
   void *ym2612_regs = YM2612GetRegs();
-  int ver = 0x0170; // not really used..
+  void *buf2 = NULL;
+  int ver = 0x0191; // not really used..
+  int retval = -1;
   int len;
 
   areaWrite("PicoSEXT", 1, 8, file);
@@ -290,6 +299,10 @@ static int state_save(void *file)
 
   if (PicoAHW & PAHW_MCD)
   {
+    buf2 = malloc(CHUNK_LIMIT_W);
+    if (buf2 == NULL)
+      return -1;
+
     memset(buff, 0, sizeof(buff));
     SekPackCpu(buff, 1);
     if (Pico_mcd->s68k_regs[3] & 4) // 1M mode?
@@ -305,14 +318,16 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_GA_REGS,  Pico_mcd->s68k_regs); // GA regs, not CPU regs
     CHECKED_WRITE_BUFF(CHUNK_PCM,      Pico_mcd->pcm);
     CHECKED_WRITE_BUFF(CHUNK_CDD,      Pico_mcd->cdd);
-    CHECKED_WRITE_BUFF(CHUNK_CDC,      Pico_mcd->cdc);
     CHECKED_WRITE_BUFF(CHUNK_SCD,      Pico_mcd->scd);
     CHECKED_WRITE_BUFF(CHUNK_MISC_CD,  Pico_mcd->m);
     memset(buff, 0, 0x40);
     memcpy(buff, pcd_event_times, sizeof(pcd_event_times));
     CHECKED_WRITE(CHUNK_CD_EVT, 0x40, buff);
-    len = gfx_context_save(buff);
-    CHECKED_WRITE(CHUNK_CD_GFX, len, buff);
+
+    len = gfx_context_save(buf2);
+    CHECKED_WRITE(CHUNK_CD_GFX, len, buf2);
+    len = cdc_context_save(buf2);
+    CHECKED_WRITE(CHUNK_CD_CDC, len, buf2);
 
     if (Pico_mcd->s68k_regs[3] & 4) // convert back
       wram_2M_to_1M(Pico_mcd->word_ram2M);
@@ -358,7 +373,12 @@ static int state_save(void *file)
       CHECKED_WRITE(chwc->chunk, chwc->size, chwc->ptr);
   }
 
-  return 0;
+  retval = 0;
+
+out:
+  if (buf2 != NULL)
+    free(buf2);
+  return retval;
 }
 
 static int g_read_offs = 0;
@@ -366,7 +386,7 @@ static int g_read_offs = 0;
 #define R_ERROR_RETURN(error) \
 { \
   elprintf(EL_STATUS, "load_state @ %x: " error, g_read_offs); \
-  return 1; \
+  goto out; \
 }
 
 // when is eof really set?
@@ -374,7 +394,6 @@ static int g_read_offs = 0;
   if (areaRead(data, 1, len, file) != len) { \
     if (len == 1 && areaEof(file)) goto readend; \
     R_ERROR_RETURN("areaRead: premature EOF\n"); \
-    return 1; \
   } \
   g_read_offs += len; \
 }
@@ -390,20 +409,34 @@ static int g_read_offs = 0;
 
 #define CHECKED_READ_BUFF(buff) CHECKED_READ2(sizeof(buff), &buff);
 
+#define CHUNK_LIMIT_R 0x10960 // sizeof(old_cdc)
+
+#define CHECKED_READ_LIM(data) { \
+  if (len > CHUNK_LIMIT_R) \
+    R_ERROR_RETURN("chunk size over limit."); \
+  CHECKED_READ(len, data); \
+}
+
 static int state_load(void *file)
 {
   unsigned char buff_m68k[0x60], buff_s68k[0x60];
   unsigned char buff_z80[Z80_STATE_SIZE];
   unsigned char buff_sh2[SH2_STATE_SIZE];
-  unsigned char buff[0x40];
+  unsigned char *buf = NULL;
   unsigned char chunk;
   void *ym2612_regs;
+  int len_check;
+  int retval = -1;
   char header[8];
   int ver, len;
 
   memset(buff_m68k, 0, sizeof(buff_m68k));
   memset(buff_s68k, 0, sizeof(buff_s68k));
   memset(buff_z80, 0, sizeof(buff_z80));
+
+  buf = malloc(CHUNK_LIMIT_R);
+  if (buf == NULL)
+    return -1;
 
   g_read_offs = 0;
   CHECKED_READ(8, header);
@@ -416,6 +449,7 @@ static int state_load(void *file)
 
   while (!areaEof(file))
   {
+    len_check = 0;
     CHECKED_READ(1, &chunk);
     CHECKED_READ(4, &len);
     if (len < 0 || len > 1024*512) R_ERROR_RETURN("bad length");
@@ -465,18 +499,28 @@ static int state_load(void *file)
       case CHUNK_GA_REGS:  CHECKED_READ_BUFF(Pico_mcd->s68k_regs); break;
       case CHUNK_PCM:      CHECKED_READ_BUFF(Pico_mcd->pcm); break;
       case CHUNK_CDD:      CHECKED_READ_BUFF(Pico_mcd->cdd); break;
-      case CHUNK_CDC:      CHECKED_READ_BUFF(Pico_mcd->cdc); break;
       case CHUNK_SCD:      CHECKED_READ_BUFF(Pico_mcd->scd); break;
       case CHUNK_MISC_CD:  CHECKED_READ_BUFF(Pico_mcd->m); break;
 
       case CHUNK_CD_EVT:
-        CHECKED_READ_BUFF(buff);
-        memcpy(pcd_event_times, buff, sizeof(pcd_event_times));
+        CHECKED_READ2(0x40, buf);
+        memcpy(pcd_event_times, buf, sizeof(pcd_event_times));
         break;
 
       case CHUNK_CD_GFX:
-        CHECKED_READ2(0x18, buff);
-        gfx_context_load(buff);
+        CHECKED_READ_LIM(buf);
+        len_check = gfx_context_load(buf);
+        break;
+
+      case CHUNK_CD_CDC:
+        CHECKED_READ_LIM(buf);
+        len_check = cdc_context_load(buf);
+        break;
+
+      // old, to be removed:
+      case CHUNK_CDC:
+        CHECKED_READ_LIM(buf);
+        cdc_context_load_old(buf);
         break;
 
       // 32x stuff
@@ -504,8 +548,8 @@ static int state_load(void *file)
       case CHUNK_32XPAL:      CHECKED_READ_BUFF(Pico32xMem->pal); break;
 
       case CHUNK_32X_EVT:
-        CHECKED_READ_BUFF(buff);
-        memcpy(p32x_event_times, buff, sizeof(p32x_event_times));
+        CHECKED_READ2(0x40, buf);
+        memcpy(p32x_event_times, buf, sizeof(p32x_event_times));
         break;
 #endif
       default:
@@ -523,7 +567,10 @@ static int state_load(void *file)
         areaSeek(file, len, SEEK_CUR);
         break;
     }
-breakswitch:;
+breakswitch:
+    if (len_check != 0 && len_check != len)
+      elprintf(EL_STATUS, "load_state: chunk %d has bad len %d/%d",
+        len, len_check);
   }
 
 readend:
@@ -554,7 +601,11 @@ readend:
       cdda_start_play();
   }
 
-  return 0;
+  retval = 0;
+
+out:
+  free(buf);
+  return retval;
 }
 
 static int state_load_gfx(void *file)
@@ -608,6 +659,7 @@ static int state_load_gfx(void *file)
     }
   }
 
+out:
 readend:
   return 0;
 }
