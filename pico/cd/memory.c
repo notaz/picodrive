@@ -434,8 +434,23 @@ void s68k_reg_write8(u32 a, u32 d)
       return;
     }
     case 0x4b:
-      Pico_mcd->s68k_regs[a] = (u8) d;
+      Pico_mcd->s68k_regs[a] = 0; // (u8) d; ?
       cdd_process();
+      {
+        static const char *nm[] =
+          { "stat", "stop", "read_toc", "play",
+            "seek", "???",  "pause",    "resume",
+            "ff",   "fr",   "tjump",    "???",
+            "close","open", "???",      "???" };
+        u8 *c = &Pico_mcd->s68k_regs[0x42];
+        u8 *s = &Pico_mcd->s68k_regs[0x38];
+        elprintf(EL_CD,
+          "CDD command: %02x %02x %02x %02x %02x %02x %02x %02x %12s",
+          c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], nm[c[0] & 0x0f]);
+        elprintf(EL_CD,
+          "CDD status:  %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
+          s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9]);
+      }
       return;
     case 0x58:
       return;

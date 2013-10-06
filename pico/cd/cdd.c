@@ -163,8 +163,8 @@ void cdd_reset(void)
   cdd.lba = 0;
 
   /* reset status */
-  cdd.status = cdd.loaded ? CD_STOP : NO_DISC;
-  
+  cdd.status = NO_DISC;
+
   /* reset CD-DA fader (full volume) */
   cdd.volume = 0x400;
 
@@ -426,6 +426,10 @@ int cdd_load(const char *filename, int type)
 
   /* CD loaded */
   cdd.loaded = 1;
+
+  /* disc not scanned yet */
+  cdd.status = NO_DISC;
+
   return 0;
 }
 
@@ -473,6 +477,9 @@ int cdd_unload(void)
 
     /* CD unloaded */
     cdd.loaded = 0;
+
+    if (cdd.status != CD_OPEN)
+      cdd.status = NO_DISC;
   }
 
   /* reset TOC */
@@ -927,6 +934,9 @@ void cdd_process(void)
 
     case 0x02:  /* Read TOC */
     {
+      if (cdd.status == NO_DISC)
+        cdd.status = cdd.loaded ? CD_STOP : NO_DISC;
+
       /* Infos automatically retrieved by CDD processor from Q-Channel */
       /* commands 0x00-0x02 (current block) and 0x03-0x05 (Lead-In) */
       switch (Pico_mcd->regs[0x44>>1].byte.l)
@@ -1287,6 +1297,7 @@ void cdd_process(void)
 
       if (PicoMCDcloseTray)
         PicoMCDcloseTray();
+
       return;
     }
 

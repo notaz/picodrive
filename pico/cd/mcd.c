@@ -42,10 +42,8 @@ PICO_INTERNAL void PicoPowerMCD(void)
   memset(Pico_mcd->s68k_regs, 0, sizeof(Pico_mcd->s68k_regs));
   memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));
   memset(&Pico_mcd->m, 0, sizeof(Pico_mcd->m));
-  Pico_mcd->s68k_regs[0x38+9] = 0x0f;  // default checksum
 
   cdc_init();
-  cdd_reset();
   gfx_init();
 
   // cold reset state (tested)
@@ -57,7 +55,7 @@ PICO_INTERNAL void PicoPowerMCD(void)
 
 void pcd_soft_reset(void)
 {
-  // Reset_CD(); // breaks Fahrenheit CD swap
+  elprintf(EL_CD, "cd: soft reset");
 
   Pico_mcd->m.s68k_pend_ints = 0;
   cdc_reset();
@@ -65,6 +63,9 @@ void pcd_soft_reset(void)
 #ifdef _ASM_CD_MEMORY_C
   //PicoMemResetCDdecode(1); // don't have to call this in 2M mode
 #endif
+
+  memset(&Pico_mcd->s68k_regs[0x38], 0, 9);
+  Pico_mcd->s68k_regs[0x38+9] = 0x0f;  // default checksum
 
   pcd_event_schedule_s68k(PCD_EVENT_CDC, 12500000/75);
 
