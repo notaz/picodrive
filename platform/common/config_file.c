@@ -308,11 +308,6 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 				return 0;
 			return 1;
 
-		case MA_CDOPT_READAHEAD:
-			if (strcasecmp(var, "ReadAhead buffer") != 0) return 0;
-			PicoCDBuffers = atoi(val) / 2;
-			return 1;
-
 		case MA_32XOPT_MSH2_CYCLES:
 			currentConfig.msh2_khz = atoi(val);
 			Pico32xSetClocks(currentConfig.msh2_khz * 1000, 0);

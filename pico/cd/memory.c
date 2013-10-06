@@ -407,8 +407,11 @@ void s68k_reg_write8(u32 a, u32 d)
       elprintf(EL_CDREGS|EL_CD, "s68k irq mask: %02x", d);
       d &= 0x7e;
       if ((d ^ Pico_mcd->s68k_regs[0x33]) & d & PCDS_IEN4) {
-        if (Pico_mcd->s68k_regs[0x37] & 4)
-          CDD_Export_Status();
+        // XXX: emulate pending irq instead?
+        if (Pico_mcd->s68k_regs[0x37] & 4) {
+          elprintf(EL_INTS, "cdd export irq 4 (unmask)");
+          SekInterruptS68k(4);
+        }
       }
       break;
     case 0x34: // fader
@@ -418,15 +421,21 @@ void s68k_reg_write8(u32 a, u32 d)
       return; // d/m bit is unsetable
     case 0x37: {
       u32 d_old = Pico_mcd->s68k_regs[0x37];
-      Pico_mcd->s68k_regs[0x37] = d&7;
+      Pico_mcd->s68k_regs[0x37] = d & 7;
       if ((d&4) && !(d_old&4)) {
-        CDD_Export_Status();
+        // ??
+        pcd_event_schedule_s68k(PCD_EVENT_CDC, 12500000/75);
+
+        if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) {
+          elprintf(EL_INTS, "cdd export irq 4");
+          SekInterruptS68k(4);
+        }
       }
       return;
     }
     case 0x4b:
       Pico_mcd->s68k_regs[a] = (u8) d;
-      CDD_Import_Command();
+      cdd_process();
       return;
     case 0x58:
       return;

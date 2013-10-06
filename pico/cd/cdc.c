@@ -341,19 +341,6 @@ update_dma:
   Pico_mcd->s68k_regs[0x0b] = dma_addr;
 }
 
-// tmp
-static void cdd_read_data(uint8 *dst)
-{
-  int lba = Pico_mcd->scd.Cur_LBA;
-
-  /* only read DATA track sectors */
-  if (0 <= lba && lba < Pico_mcd->TOC.Tracks[0].Length)
-  {
-    /* read sector data (Mode 1 = 2048 bytes) */
-    PicoCDBufferRead(dst, lba);
-  }
-}
-
 void cdc_dma_update(void)
 {
   /* end of DMA transfer ? */

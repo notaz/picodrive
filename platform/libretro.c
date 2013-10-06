@@ -500,7 +500,7 @@ static unsigned int disk_get_image_index(void)
 
 static bool disk_set_image_index(unsigned int index)
 {
-	cd_img_type cd_type;
+	enum cd_img_type cd_type;
 	int ret;
 
 	if (index >= sizeof(disks) / sizeof(disks[0]))
@@ -521,7 +521,7 @@ static bool disk_set_image_index(unsigned int index)
 	ret = -1;
 	cd_type = PicoCdCheck(disks[index].fname, NULL);
 	if (cd_type != CIT_NOT_CD)
-		ret = Insert_CD(disks[index].fname, cd_type);
+		ret = cdd_load(disks[index].fname, cd_type);
 	if (ret != 0) {
 		lprintf("Load failed, invalid CD image?\n");
 		return 0;
@@ -882,7 +882,6 @@ void retro_init(void)
 #endif
 	PsndRate = 44100;
 	PicoAutoRgnOrder = 0x184; // US, EU, JP
-	PicoCDBuffers = 0;
 
 	vout_width = 320;
 	vout_height = 240;

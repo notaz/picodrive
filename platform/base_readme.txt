@@ -520,9 +520,6 @@ Homepage: http://www.mame.net/
 
 Eke
 CD graphics processor and CD controller implementation (from Genesis Plus GX)
-
-Stephane Dallongeville
-Gens, MD/Mega CD/32X emulator. Some Sega CD code is based on this emu.
 #ifdef PSP
 
 people @ ps2dev.org forums / PSPSDK crew
@@ -537,6 +534,7 @@ Additional thanks
 * Charles MacDonald (http://cgfm2.emuviews.com/) for old but still very useful
   info about genesis hardware.
 * Steve Snake for all that he has done for Genesis emulation scene.
+* Stephane Dallongeville for writing Gens and making it open source.
 * Tasco Deluxe for his reverse engineering work on SVP and some mappers.
 * Bart Trzynadlowski for his SSFII and 68000 docs.
 * Haze for his research (http://haze.mameworld.info).

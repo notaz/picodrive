@@ -22,13 +22,10 @@ void (*PicoMCDcloseTray)(void) = NULL;
 PICO_INTERNAL void PicoInitMCD(void)
 {
   SekInitS68k();
-  Init_CD_Driver();
-  gfx_init();
 }
 
 PICO_INTERNAL void PicoExitMCD(void)
 {
-  End_CD_Driver();
 }
 
 PICO_INTERNAL void PicoPowerMCD(void)
@@ -45,9 +42,11 @@ PICO_INTERNAL void PicoPowerMCD(void)
   memset(Pico_mcd->s68k_regs, 0, sizeof(Pico_mcd->s68k_regs));
   memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));
   memset(&Pico_mcd->m, 0, sizeof(Pico_mcd->m));
+  Pico_mcd->s68k_regs[0x38+9] = 0x0f;  // default checksum
 
   cdc_init();
-  Reset_CD();
+  cdd_reset();
+  gfx_init();
 
   // cold reset state (tested)
   Pico_mcd->m.state_flags = PCD_ST_S68K_RST;
@@ -62,7 +61,7 @@ void pcd_soft_reset(void)
 
   Pico_mcd->m.s68k_pend_ints = 0;
   cdc_reset();
-  CDD_Reset();
+  cdd_reset();
 #ifdef _ASM_CD_MEMORY_C
   //PicoMemResetCDdecode(1); // don't have to call this in 2M mode
 #endif
@@ -135,7 +134,20 @@ unsigned int pcd_cycles_m68k_to_s68k(unsigned int c)
 static void pcd_cdc_event(unsigned int now)
 {
   // 75Hz CDC update
-  Check_CD_Command();
+  cdd_update();
+
+  /* check if a new CDD command has been processed */
+  if (!(Pico_mcd->s68k_regs[0x4b] & 0xf0))
+  {
+    /* reset CDD command wait flag */
+    Pico_mcd->s68k_regs[0x4b] = 0xf0;
+
+    if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) {
+      elprintf(EL_INTS|EL_CD, "s68k: cdd irq 4");
+      SekInterruptS68k(4);
+    }
+  }
+
   pcd_event_schedule(now, PCD_EVENT_CDC, 12500000/75);
 }
 

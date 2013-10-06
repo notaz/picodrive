@@ -530,19 +530,20 @@ out:
 
 int emu_swap_cd(const char *fname)
 {
-	cd_img_type cd_type;
+	enum cd_img_type cd_type;
 	int ret = -1;
 
 	cd_type = PicoCdCheck(fname, NULL);
 	if (cd_type != CIT_NOT_CD)
-		ret = Insert_CD(fname, cd_type);
+		ret = cdd_load(fname, cd_type);
 	if (ret != 0) {
 		menu_update_msg("Load failed, invalid CD image?");
 		return 0;
 	}
 
 	strncpy(rom_fname_loaded, fname, sizeof(rom_fname_loaded)-1);
-	rom_fname_loaded[sizeof(rom_fname_loaded)-1] = 0;
+	rom_fname_loaded[sizeof(rom_fname_loaded) - 1] = 0;
+
 	return 1;
 }
 
@@ -606,7 +607,6 @@ void emu_set_defconfig(void)
 	PsndRate = currentConfig.s_PsndRate;
 	PicoRegionOverride = currentConfig.s_PicoRegion;
 	PicoAutoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
-	PicoCDBuffers = currentConfig.s_PicoCDBuffers;
 }
 
 int emu_read_config(const char *rom_fname, int no_defaults)
@@ -1336,10 +1336,6 @@ void emu_loop(void)
 
 	PicoLoopPrepare();
 
-	// prepare CD buffer
-	if (PicoAHW & PAHW_MCD)
-		PicoCDBufferInit();
-
 	plat_video_loop_prepare();
 	emu_loop_prep();
 	pemu_sound_start();
@@ -1501,10 +1497,4 @@ void emu_loop(void)
 
 	pemu_loop_end();
 	emu_sound_stop();
-
-	// pemu_loop_end() might want to do 1 frame for bg image,
-	// so free CD buffer here
-	if (PicoAHW & PAHW_MCD)
-		PicoCDBufferFree();
 }
-

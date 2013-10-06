@@ -157,7 +157,7 @@ zip_failed:
     if (f == NULL)
       goto cso_failed;
 
-#ifndef __EPOC32__
+#ifdef __GP2X__
     /* we use our own buffering */
     setvbuf(f, NULL, _IONBF, 0);
 #endif
@@ -227,7 +227,7 @@ cso_failed:
   strncpy(file->ext, ext, sizeof(file->ext) - 1);
   fseek(f, 0, SEEK_SET);
 
-#ifndef __EPOC32__ // makes things worse on Symbian
+#ifdef __GP2X__
   if (file->size > 0x400000)
     /* we use our own buffering */
     setvbuf(f, NULL, _IONBF, 0);

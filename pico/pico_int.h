@@ -374,9 +374,6 @@ struct PicoSRAM
 };
 
 // MCD
-#include "cd/cd_sys.h"
-#include "cd/LC89510.h"
-
 #define PCM_MIXBUF_LEN ((12500000 / 384) / 50 + 1)
 
 struct mcd_pcm
@@ -448,9 +445,8 @@ typedef struct
   unsigned char bram[0x2000];			// 110200: 8K
   struct mcd_misc m;				// 112200: misc
   struct mcd_pcm pcm;				// 112240:
-  _scd_toc TOC;					// not to be saved
-  CDD  cdd;
-  _scd scd;
+  void *cdda_stream;
+  int cdda_type;
   int pcm_mixbuf[PCM_MIXBUF_LEN * 2];
   int pcm_mixpos;
   char pcm_mixbuf_dirty;
@@ -628,6 +624,19 @@ void cdc_reg_w(unsigned char data);
 unsigned char  cdc_reg_r(void);
 unsigned short cdc_host_r(void);
 
+// cd/cdd.c
+void cdd_reset(void);
+int cdd_context_save(unsigned char *state);
+int cdd_context_load(unsigned char *state);
+int cdd_context_load_old(unsigned char *state);
+void cdd_read_data(unsigned char *dst);
+void cdd_read_audio(unsigned int samples);
+void cdd_update(void);
+void cdd_process(void);
+
+// cd/cd_image.c
+int load_cd_image(const char *cd_img_name, int *type);
+
 // cd/gfx.c
 void gfx_init(void);
 void gfx_start(unsigned int base);
@@ -727,12 +736,13 @@ PICO_INTERNAL int  SekInterruptS68k(int irq);
 void SekInterruptClearS68k(int irq);
 
 // sound/sound.c
-PICO_INTERNAL void cdda_start_play();
 extern short cdda_out_buffer[2*1152];
 extern int PsndLen_exc_cnt;
 extern int PsndLen_exc_add;
 extern int timer_a_next_oflow, timer_a_step; // in z80 cycles
 extern int timer_b_next_oflow, timer_b_step;
+
+void cdda_start_play(int lba_base, int lba_offset, int lb_len);
 
 void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new);
 void ym2612_pack_state(void);
@@ -785,9 +795,6 @@ PICO_INTERNAL void z80_exit(void);
 // cd/misc.c
 PICO_INTERNAL_ASM void wram_2M_to_1M(unsigned char *m);
 PICO_INTERNAL_ASM void wram_1M_to_2M(unsigned char *m);
-
-// cd/buffering.c
-PICO_INTERNAL void PicoCDBufferRead(void *dest, int lba);
 
 // sound/sound.c
 PICO_INTERNAL void PsndReset(void);

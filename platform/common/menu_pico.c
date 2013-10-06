@@ -395,31 +395,6 @@ static int menu_loop_keyconfig(int id, int keys)
 
 // ------------ SCD options menu ------------
 
-static const char *mgn_cdopt_ra(int id, int *offs)
-{
-	*offs = -5;
-	if (PicoCDBuffers <= 0)
-		return "     OFF";
-	sprintf(static_buff, "%5iK", PicoCDBuffers * 2);
-	return static_buff;
-}
-
-static int mh_cdopt_ra(int id, int keys)
-{
-	if (keys & PBTN_LEFT) {
-		PicoCDBuffers >>= 1;
-		if (PicoCDBuffers < 2)
-			PicoCDBuffers = 0;
-	} else {
-		if (PicoCDBuffers <= 0)
-			PicoCDBuffers = 1;
-		PicoCDBuffers <<= 1;
-		if (PicoCDBuffers > 8*1024)
-			PicoCDBuffers = 8*1024; // 16M
-	}
-	return 0;
-}
-
 static const char h_cdleds[] = "Show power/CD LEDs of emulated console";
 static const char h_cdda[]   = "Play audio tracks from mp3s/wavs/bins";
 static const char h_cdpcm[]  = "Emulate PCM audio chip for effects/voices/music";
@@ -435,7 +410,6 @@ static menu_entry e_menu_cd_options[] =
 	mee_onoff_h("CD LEDs",              MA_CDOPT_LEDS,          currentConfig.EmuOpt, EOPT_EN_CD_LEDS, h_cdleds),
 	mee_onoff_h("CDDA audio",           MA_CDOPT_CDDA,          PicoOpt, POPT_EN_MCD_CDDA, h_cdda),
 	mee_onoff_h("PCM audio",            MA_CDOPT_PCM,           PicoOpt, POPT_EN_MCD_PCM, h_cdpcm),
-	mee_cust   ("ReadAhead buffer",     MA_CDOPT_READAHEAD,     mh_cdopt_ra, mgn_cdopt_ra),
 	mee_onoff_h("SaveRAM cart",         MA_CDOPT_SAVERAM,       PicoOpt, POPT_EN_MCD_RAMCART, h_srcart),
 	mee_onoff_h("Scale/Rot. fx (slow)", MA_CDOPT_SCALEROT_CHIP, PicoOpt, POPT_EN_MCD_GFX, h_scfx),
 	mee_end,
@@ -1045,7 +1019,7 @@ static int main_menu_handler(int id, int keys)
 		break;
 	case MA_MAIN_CHANGE_CD:
 		if (PicoAHW & PAHW_MCD) {
-			if (!Stop_CD())
+			if (!cdd_unload())
 				menu_loop_tray();
 			return 1;
 		}

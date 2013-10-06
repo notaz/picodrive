@@ -242,6 +242,8 @@ file_ok:
 						data->tracks[count].type = CT_MP3;
 					else if (strcasecmp(ext, "wav") == 0)
 						data->tracks[count].type = CT_WAV;
+					else if (strcasecmp(ext, "bin") == 0)
+						data->tracks[count].type = CT_BIN;
 					else {
 						elprintf(EL_STATUS, "unhandled audio format: \"%s\"",
 							data->tracks[count].fname);

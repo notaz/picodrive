@@ -149,8 +149,8 @@ typedef enum {
   CHUNK_GA_REGS,
   CHUNK_PCM,
   CHUNK_CDC,     // old
-  CHUNK_CDD,     // 20
-  CHUNK_SCD,
+  CHUNK_CDD,     // 20 old
+  CHUNK_SCD,     // old
   CHUNK_RC,      // old
   CHUNK_MISC_CD,
   //
@@ -177,6 +177,7 @@ typedef enum {
   CHUNK_CD_EVT = 50,
   CHUNK_CD_GFX,
   CHUNK_CD_CDC,
+  CHUNK_CD_CDD,
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
@@ -317,8 +318,6 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_BRAM,     Pico_mcd->bram);
     CHECKED_WRITE_BUFF(CHUNK_GA_REGS,  Pico_mcd->s68k_regs); // GA regs, not CPU regs
     CHECKED_WRITE_BUFF(CHUNK_PCM,      Pico_mcd->pcm);
-    CHECKED_WRITE_BUFF(CHUNK_CDD,      Pico_mcd->cdd);
-    CHECKED_WRITE_BUFF(CHUNK_SCD,      Pico_mcd->scd);
     CHECKED_WRITE_BUFF(CHUNK_MISC_CD,  Pico_mcd->m);
     memset(buff, 0, 0x40);
     memcpy(buff, pcd_event_times, sizeof(pcd_event_times));
@@ -328,6 +327,8 @@ static int state_save(void *file)
     CHECKED_WRITE(CHUNK_CD_GFX, len, buf2);
     len = cdc_context_save(buf2);
     CHECKED_WRITE(CHUNK_CD_CDC, len, buf2);
+    len = cdd_context_save(buf2);
+    CHECKED_WRITE(CHUNK_CD_CDD, len, buf2);
 
     if (Pico_mcd->s68k_regs[3] & 4) // convert back
       wram_2M_to_1M(Pico_mcd->word_ram2M);
@@ -498,8 +499,6 @@ static int state_load(void *file)
       case CHUNK_BRAM:     CHECKED_READ_BUFF(Pico_mcd->bram); break;
       case CHUNK_GA_REGS:  CHECKED_READ_BUFF(Pico_mcd->s68k_regs); break;
       case CHUNK_PCM:      CHECKED_READ_BUFF(Pico_mcd->pcm); break;
-      case CHUNK_CDD:      CHECKED_READ_BUFF(Pico_mcd->cdd); break;
-      case CHUNK_SCD:      CHECKED_READ_BUFF(Pico_mcd->scd); break;
       case CHUNK_MISC_CD:  CHECKED_READ_BUFF(Pico_mcd->m); break;
 
       case CHUNK_CD_EVT:
@@ -517,10 +516,20 @@ static int state_load(void *file)
         len_check = cdc_context_load(buf);
         break;
 
+      case CHUNK_CD_CDD:
+        CHECKED_READ_LIM(buf);
+        len_check = cdd_context_load(buf);
+        break;
+
       // old, to be removed:
       case CHUNK_CDC:
         CHECKED_READ_LIM(buf);
         cdc_context_load_old(buf);
+        break;
+
+      case CHUNK_SCD:
+        CHECKED_READ_LIM(buf);
+        cdd_context_load_old(buf);
         break;
 
       // 32x stuff
@@ -596,9 +605,6 @@ readend:
   {
     SekCycleAimS68k = SekCycleCntS68k;
     pcd_state_loaded();
-
-    if (!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
-      cdda_start_play();
   }
 
   retval = 0;

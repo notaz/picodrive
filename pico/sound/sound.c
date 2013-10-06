@@ -132,8 +132,6 @@ void PsndRerate(int preserve_state)
     // feed it back it's own registers, just like after loading state
     memcpy(YM2612GetRegs(), state, 0x204);
     ym2612_unpack_state();
-    if ((PicoAHW & PAHW_MCD) && !(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
-      cdda_start_play();
   }
 
   if (preserve_state) memcpy(state, sn76496_regs, 28*4); // remember old state
@@ -191,23 +189,19 @@ PICO_INTERNAL void PsndDoDAC(int line_to)
 }
 
 // cdda
-static pm_file *cdda_stream = NULL;
-
 static void cdda_raw_update(int *buffer, int length)
 {
   int ret, cdda_bytes, mult = 1;
-  if (cdda_stream == NULL)
-    return;
 
   cdda_bytes = length*4;
   if (PsndRate <= 22050 + 100) mult = 2;
   if (PsndRate <  22050 - 100) mult = 4;
   cdda_bytes *= mult;
 
-  ret = pm_read(cdda_out_buffer, cdda_bytes, cdda_stream);
+  ret = pm_read(cdda_out_buffer, cdda_bytes, Pico_mcd->cdda_stream);
   if (ret < cdda_bytes) {
     memset((char *)cdda_out_buffer + ret, 0, cdda_bytes - ret);
-    cdda_stream = NULL;
+    Pico_mcd->cdda_stream = NULL;
     return;
   }
 
@@ -219,51 +213,24 @@ static void cdda_raw_update(int *buffer, int length)
   }
 }
 
-PICO_INTERNAL void cdda_start_play(void)
+void cdda_start_play(int lba_base, int lba_offset, int lb_len)
 {
-  int lba_offset, index, lba_length, i;
-
-  elprintf(EL_STATUS, "cdda play track #%i", Pico_mcd->scd.Cur_Track);
-
-  index = Pico_mcd->scd.Cur_Track - 1;
-
-  lba_offset = Pico_mcd->scd.Cur_LBA - Track_to_LBA(index + 1);
-  if (lba_offset < 0) lba_offset = 0;
-  lba_offset += Pico_mcd->TOC.Tracks[index].Offset;
-
-  // find the actual file for this track
-  for (i = index; i > 0; i--)
-    if (Pico_mcd->TOC.Tracks[i].F != NULL) break;
-
-  if (Pico_mcd->TOC.Tracks[i].F == NULL) {
-    elprintf(EL_STATUS|EL_ANOMALY, "no track?!");
-    return;
-  }
-
-  if (Pico_mcd->TOC.Tracks[i].ftype == CT_MP3)
+  if (Pico_mcd->cdda_type == CT_MP3)
   {
     int pos1024 = 0;
 
-    lba_length = Pico_mcd->TOC.Tracks[i].Length;
-    for (i++; i < Pico_mcd->TOC.Last_Track; i++) {
-      if (Pico_mcd->TOC.Tracks[i].F != NULL) break;
-      lba_length += Pico_mcd->TOC.Tracks[i].Length;
-    }
-
     if (lba_offset)
-      pos1024 = lba_offset * 1024 / lba_length;
+      pos1024 = lba_offset * 1024 / lb_len;
 
-    mp3_start_play(Pico_mcd->TOC.Tracks[index].F, pos1024);
+    mp3_start_play(Pico_mcd->cdda_stream, pos1024);
     return;
   }
 
-  cdda_stream = Pico_mcd->TOC.Tracks[i].F;
-  PicoCDBufferFlush(); // buffering relies on fp not being touched
-  pm_seek(cdda_stream, lba_offset * 2352, SEEK_SET);
-  if (Pico_mcd->TOC.Tracks[i].ftype == CT_WAV)
+  pm_seek(Pico_mcd->cdda_stream, (lba_base + lba_offset) * 2352, SEEK_SET);
+  if (Pico_mcd->cdda_type == CT_WAV)
   {
     // skip headers, assume it's 44kHz stereo uncompressed
-    pm_seek(cdda_stream, 44, SEEK_CUR);
+    pm_seek(Pico_mcd->cdda_stream, 44, SEEK_CUR);
   }
 }
 
@@ -330,13 +297,12 @@ static int PsndRender(int offset, int length)
 
   // CD: CDDA audio
   // CD mode, cdda enabled, not data track, CDC is reading
-  if ((PicoAHW & PAHW_MCD) && (PicoOpt & POPT_EN_MCD_CDDA) &&
-		!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
+  if ((PicoAHW & PAHW_MCD) && (PicoOpt & POPT_EN_MCD_CDDA)
+      && Pico_mcd->cdda_stream != NULL
+      && !(Pico_mcd->s68k_regs[0x36] & 1))
   {
     // note: only 44, 22 and 11 kHz supported, with forced stereo
-    int index = Pico_mcd->scd.Cur_Track - 1;
-
-    if (Pico_mcd->TOC.Tracks[index].ftype == CT_MP3)
+    if (Pico_mcd->cdda_type == CT_MP3)
       mp3_update(buf32, length, stereo);
     else
       cdda_raw_update(buf32, length);

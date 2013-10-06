@@ -102,7 +102,6 @@ void PicoGetInternal(pint_t which, pint_ret_t *ret);
 // cd/mcd.c
 extern void (*PicoMCDopenTray)(void);
 extern void (*PicoMCDcloseTray)(void);
-extern int PicoCDBuffers;
 
 // pico.c
 #define XPCM_BUFFER_SIZE (320+160)
@@ -128,14 +127,9 @@ void *PicoTmpStateSave(void);
 void  PicoTmpStateRestore(void *data);
 extern void (*PicoStateProgressCB)(const char *str);
 
-// cd/buffering.c
-void PicoCDBufferInit(void);
-void PicoCDBufferFree(void);
-void PicoCDBufferFlush(void);
-
-// cd/cd_sys.c
-int Insert_CD(const char *cdimg_name, int type);
-int Stop_CD(void); // unloads CD, returns 1 if there was cd loaded
+// cd/cdd.c
+int cdd_load(const char *filename, int type);
+int cdd_unload(void);
 
 // Cart.c
 typedef enum
@@ -244,6 +238,15 @@ enum media_type_e {
   PM_MARK3,
   PM_CD,
 };
+
+enum cd_img_type
+{
+  CIT_NOT_CD = 0,
+  CIT_ISO,
+  CIT_BIN,
+  CIT_CUE
+};
+
 enum media_type_e PicoLoadMedia(const char *filename,
   const char *carthw_cfg_fname,
   const char *(*get_bios_filename)(int *region, const char *cd_fname),
