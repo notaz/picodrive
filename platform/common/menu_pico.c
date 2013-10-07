@@ -119,11 +119,14 @@ static void menu_enter(int is_rom_loaded)
 	}
 	else
 	{
+		int pos;
 		char buff[256];
+		pos = plat_get_skin_dir(buff, 256);
+		strcpy(buff + pos, "background.png");
 
 		// should really only happen once, on startup..
-		emu_make_path(buff, "skin/background.png", sizeof(buff));
-		if (readpng(g_menubg_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h) < 0)
+		if (readpng(g_menubg_ptr, buff, READPNG_BG,
+						g_menuscreen_w, g_menuscreen_h) < 0)
 			memset(g_menubg_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
 	}
 

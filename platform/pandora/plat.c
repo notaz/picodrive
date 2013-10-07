@@ -93,6 +93,36 @@ static struct in_default_bind in_evdev_defbinds[] =
 	{ 0, 0, 0 }
 };
 
+static const struct menu_keymap key_pbtn_map[] =
+{
+	{ KEY_UP,	PBTN_UP },
+	{ KEY_DOWN,	PBTN_DOWN },
+	{ KEY_LEFT,	PBTN_LEFT },
+	{ KEY_RIGHT,	PBTN_RIGHT },
+	/* Pandora */
+	{ KEY_END,	PBTN_MOK },
+	{ KEY_PAGEDOWN,	PBTN_MBACK },
+	{ KEY_HOME,	PBTN_MA2 },
+	{ KEY_PAGEUP,	PBTN_MA3 },
+	{ KEY_LEFTCTRL,   PBTN_MENU },
+	{ KEY_RIGHTSHIFT, PBTN_L },
+	{ KEY_RIGHTCTRL,  PBTN_R },
+	/* "normal" keyboards */
+	{ KEY_ENTER,	PBTN_MOK },
+	{ KEY_ESC,	PBTN_MBACK },
+	{ KEY_SEMICOLON,  PBTN_MA2 },
+	{ KEY_APOSTROPHE, PBTN_MA3 },
+	{ KEY_BACKSLASH,  PBTN_MENU },
+	{ KEY_LEFTBRACE,  PBTN_L },
+	{ KEY_RIGHTBRACE, PBTN_R },
+};
+
+static const struct in_evdev_pdata pandora_evdev_pdata = {
+	.defbinds = in_evdev_defbinds,
+	.key_map = key_pbtn_map,
+	.kmap_size = sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]),
+};
+
 void pemu_prep_defconfig(void)
 {
 	defaultConfig.EmuOpt |= EOPT_VSYNC|EOPT_16BPP;
@@ -500,7 +530,7 @@ void plat_init(void)
 	// default ROM path
 	strcpy(rom_fname_loaded, "/media");
 
-	in_evdev_init(in_evdev_defbinds);
+	in_evdev_init(&pandora_evdev_pdata);
 	in_probe();
 	plat_target_setup_input();
 

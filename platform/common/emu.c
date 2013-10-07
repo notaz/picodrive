@@ -1073,9 +1073,9 @@ static void run_events_ui(unsigned int which)
 			char tmp[64];
 			int keys, len;
 
-			strcpy(tmp, (which & PEV_STATE_LOAD) ? "LOAD STATE?" : "OVERWRITE SAVE?");
+			strcpy(tmp, (which & PEV_STATE_LOAD) ? "LOAD STATE? " : "OVERWRITE SAVE? ");
 			len = strlen(tmp);
-			nm = in_get_key_name(-1, -PBTN_MA3);
+			nm = in_get_key_name(-1, -PBTN_MOK);
 			snprintf(tmp + len, sizeof(tmp) - len, "(%s=yes, ", nm);
 			len = strlen(tmp);
 			nm = in_get_key_name(-1, -PBTN_MBACK);
@@ -1084,13 +1084,13 @@ static void run_events_ui(unsigned int which)
 			plat_status_msg_busy_first(tmp);
 
 			in_set_config_int(0, IN_CFG_BLOCKING, 1);
-			while (in_menu_wait_any(NULL, 50) & (PBTN_MA3|PBTN_MBACK))
+			while (in_menu_wait_any(NULL, 50) & (PBTN_MOK | PBTN_MBACK))
 				;
-			while ( !((keys = in_menu_wait_any(NULL, 50)) & (PBTN_MA3|PBTN_MBACK)) )
+			while ( !((keys = in_menu_wait_any(NULL, 50)) & (PBTN_MOK | PBTN_MBACK)))
 				;
 			if (keys & PBTN_MBACK)
 				do_it = 0;
-			while (in_menu_wait_any(NULL, 50) & (PBTN_MA3|PBTN_MBACK))
+			while (in_menu_wait_any(NULL, 50) & (PBTN_MOK | PBTN_MBACK))
 				;
 			in_set_config_int(0, IN_CFG_BLOCKING, 0);
 		}
@@ -1383,6 +1383,8 @@ void emu_loop(void)
 			{
 				notice_msg_time = 0;
 				plat_status_msg_clear();
+				plat_video_flip();
+				plat_status_msg_clear(); /* Do it again in case of double buffering */
 				notice_msg = NULL;
 			}
 			else {

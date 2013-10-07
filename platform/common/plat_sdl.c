@@ -19,7 +19,7 @@
 
 static void *shadow_fb;
 
-static const struct in_default_bind in_sdl_defbinds[] = {
+const struct in_default_bind in_sdl_defbinds[] __attribute__((weak)) = {
 	{ SDLK_UP,     IN_BINDTYPE_PLAYER12, GBTN_UP },
 	{ SDLK_DOWN,   IN_BINDTYPE_PLAYER12, GBTN_DOWN },
 	{ SDLK_LEFT,   IN_BINDTYPE_PLAYER12, GBTN_LEFT },
@@ -43,6 +43,44 @@ static const struct in_default_bind in_sdl_defbinds[] = {
 	{ SDLK_F8,     IN_BINDTYPE_EMU, PEVB_PICO_SWINP },
 	{ SDLK_BACKSPACE, IN_BINDTYPE_EMU, PEVB_FF },
 	{ 0, 0, 0 }
+};
+
+const struct menu_keymap in_sdl_key_map[] __attribute__((weak)) =
+{
+	{ SDLK_UP,	PBTN_UP },
+	{ SDLK_DOWN,	PBTN_DOWN },
+	{ SDLK_LEFT,	PBTN_LEFT },
+	{ SDLK_RIGHT,	PBTN_RIGHT },
+	{ SDLK_RETURN,	PBTN_MOK },
+	{ SDLK_ESCAPE,	PBTN_MBACK },
+	{ SDLK_SEMICOLON,	PBTN_MA2 },
+	{ SDLK_QUOTE,	PBTN_MA3 },
+	{ SDLK_LEFTBRACKET,  PBTN_L },
+	{ SDLK_RIGHTBRACKET, PBTN_R },
+};
+
+const struct menu_keymap in_sdl_joy_map[] __attribute__((weak)) =
+{
+	{ SDLK_UP,	PBTN_UP },
+	{ SDLK_DOWN,	PBTN_DOWN },
+	{ SDLK_LEFT,	PBTN_LEFT },
+	{ SDLK_RIGHT,	PBTN_RIGHT },
+	/* joystick */
+	{ SDLK_WORLD_0,	PBTN_MOK },
+	{ SDLK_WORLD_1,	PBTN_MBACK },
+	{ SDLK_WORLD_2,	PBTN_MA2 },
+	{ SDLK_WORLD_3,	PBTN_MA3 },
+};
+
+extern const char * const in_sdl_key_names[] __attribute__((weak));
+
+static const struct in_pdata in_sdl_platform_data = {
+	.defbinds = in_sdl_defbinds,
+	.key_map = in_sdl_key_map,
+	.kmap_size = sizeof(in_sdl_key_map) / sizeof(in_sdl_key_map[0]),
+	.joy_map = in_sdl_joy_map,
+	.jmap_size = sizeof(in_sdl_joy_map) / sizeof(in_sdl_joy_map[0]),
+	.key_names = in_sdl_key_names,
 };
 
 /* YUV stuff */
@@ -125,9 +163,11 @@ void plat_video_flip(void)
 		gl_flip(shadow_fb, g_screen_width, g_screen_height);
 	}
 	else {
-		// XXX: no locking, but should be fine with SDL_SWSURFACE?
+		if (SDL_MUSTLOCK(plat_sdl_screen))
+			SDL_UnlockSurface(plat_sdl_screen);
 		SDL_Flip(plat_sdl_screen);
 		g_screen_ptr = plat_sdl_screen->pixels;
+		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 	}
 }
 
@@ -147,7 +187,8 @@ void plat_video_menu_begin(void)
 		g_menuscreen_ptr = shadow_fb;
 	}
 	else {
-		SDL_LockSurface(plat_sdl_screen);
+		if (SDL_MUSTLOCK(plat_sdl_screen))
+			SDL_LockSurface(plat_sdl_screen);
 		g_menuscreen_ptr = plat_sdl_screen->pixels;
 	}
 }
@@ -169,7 +210,8 @@ void plat_video_menu_end(void)
 		gl_flip(g_menuscreen_ptr, g_menuscreen_w, g_menuscreen_h);
 	}
 	else {
-		SDL_UnlockSurface(plat_sdl_screen);
+		if (SDL_MUSTLOCK(plat_sdl_screen))
+			SDL_UnlockSurface(plat_sdl_screen);
 		SDL_Flip(plat_sdl_screen);
 	}
 	g_menuscreen_ptr = NULL;
@@ -188,9 +230,11 @@ void plat_video_loop_prepare(void)
 		g_screen_ptr = shadow_fb;
 	}
 	else {
-		SDL_LockSurface(plat_sdl_screen);
+		if (SDL_MUSTLOCK(plat_sdl_screen))
+			SDL_LockSurface(plat_sdl_screen);
 		g_screen_ptr = plat_sdl_screen->pixels;
 	}
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 }
 
 void plat_early_init(void)
@@ -235,7 +279,7 @@ void plat_init(void)
 	g_screen_height = 240;
 	g_screen_ptr = shadow_fb;
 
-	in_sdl_init(in_sdl_defbinds, plat_sdl_event_handler);
+	in_sdl_init(&in_sdl_platform_data, plat_sdl_event_handler);
 	in_probe();
 
 	bgr_to_uyvy_init();

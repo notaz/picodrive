@@ -2,7 +2,8 @@ TARGET ?= PicoDrive
 CFLAGS += -Wall -ggdb -falign-functions=2
 CFLAGS += -I.
 ifndef DEBUG
-CFLAGS += -O2 -DNDEBUG
+CFLAGS += -O2 -DNDEBUG -ffunction-sections
+LDFLAGS += -Wl,--gc-sections
 endif
 #CFLAGS += -DEVT_LOG
 #CFLAGS += -DDRC_CMP
@@ -55,7 +56,21 @@ asm_cdpico = 0
 asm_cdmemory = 0
 endif
 
-# frontend
+ifeq "$(PLATFORM)" "opendingux"
+opk: $(TARGET).opk
+
+$(TARGET).opk: $(TARGET)
+	$(RM) -rf .opk_data
+	cp -r platform/opendingux/data .opk_data
+	cp $< .opk_data/PicoDrive
+	$(STRIP) .opk_data/PicoDrive
+	mksquashfs .opk_data $@ -all-root -noappend -no-exports -no-xattrs
+
+OBJS += platform/opendingux/inputmap.o
+
+# OpenDingux is a generic platform, really.
+PLATFORM := generic
+endif
 ifeq "$(PLATFORM)" "generic"
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
 OBJS += platform/common/plat_sdl.o
@@ -156,6 +171,7 @@ target_: $(TARGET)
 
 clean:
 	$(RM) $(TARGET) $(OBJS)
+	$(RM) -r .opk_data
 
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS)
