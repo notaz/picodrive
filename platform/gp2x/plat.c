@@ -71,6 +71,36 @@ static struct in_default_bind in_gp2x_defbinds[] =
 	{ 0, 0, 0 }
 };
 
+static const struct menu_keymap key_pbtn_map[] =
+{
+	{ KEY_UP,	PBTN_UP },
+	{ KEY_DOWN,	PBTN_DOWN },
+	{ KEY_LEFT,	PBTN_LEFT },
+	{ KEY_RIGHT,	PBTN_RIGHT },
+	/* Caanoo */
+	{ BTN_THUMB2,	PBTN_MOK },
+	{ BTN_THUMB,	PBTN_MBACK },
+	{ BTN_TRIGGER,	PBTN_MA2 },
+	{ BTN_TOP,	PBTN_MA3 },
+	{ BTN_BASE,	PBTN_MENU },
+	{ BTN_TOP2,	PBTN_L },
+	{ BTN_PINKIE,	PBTN_R },
+	/* "normal" keyboards */
+	{ KEY_ENTER,	PBTN_MOK },
+	{ KEY_ESC,	PBTN_MBACK },
+	{ KEY_SEMICOLON,  PBTN_MA2 },
+	{ KEY_APOSTROPHE, PBTN_MA3 },
+	{ KEY_BACKSLASH,  PBTN_MENU },
+	{ KEY_LEFTBRACE,  PBTN_L },
+	{ KEY_RIGHTBRACE, PBTN_R },
+};
+
+static const struct in_evdev_pdata gp2x_evdev_pdata = {
+	.defbinds = in_gp2x_defbinds,
+	.key_map = key_pbtn_map,
+	.kmap_size = sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]),
+};
+
 void gp2x_video_changemode(int bpp, int is_pal)
 {
 	gp2x_video_changemode_ll(bpp, is_pal);
@@ -183,7 +213,7 @@ void plat_init(void)
 	flip_after_sync = 1;
 	gp2x_menu_init();
 
-	in_evdev_init(in_evdev_defbinds);
+	in_evdev_init(&gp2x_evdev_pdata);
 	in_gp2x_init(in_gp2x_defbinds);
 	in_probe();
 	plat_target_setup_input();
