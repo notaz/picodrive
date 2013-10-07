@@ -1379,6 +1379,8 @@ void emu_loop(void)
 			{
 				notice_msg_time = 0;
 				plat_status_msg_clear();
+				plat_video_flip();
+				plat_status_msg_clear(); /* Do it again in case of double buffering */
 				notice_msg = NULL;
 			}
 			else {
