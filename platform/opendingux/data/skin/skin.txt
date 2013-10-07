@@ -1,0 +1,3 @@
+// html-style hex color codes, ex. ff0000 is red, 0000ff is blue, etc.
+text_color=ffffff
+selection_color=0000c0
