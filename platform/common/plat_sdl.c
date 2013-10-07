@@ -72,12 +72,15 @@ const struct menu_keymap in_sdl_joy_map[] __attribute__((weak)) =
 	{ SDLK_WORLD_3,	PBTN_MA3 },
 };
 
+extern const char * const in_sdl_key_names[] __attribute__((weak));
+
 static const struct in_pdata in_sdl_platform_data = {
 	.defbinds = in_sdl_defbinds,
 	.key_map = in_sdl_key_map,
 	.kmap_size = sizeof(in_sdl_key_map) / sizeof(in_sdl_key_map[0]),
 	.joy_map = in_sdl_joy_map,
 	.jmap_size = sizeof(in_sdl_joy_map) / sizeof(in_sdl_joy_map[0]),
+	.key_names = in_sdl_key_names,
 };
 
 /* YUV stuff */

@@ -31,7 +31,7 @@ check_define()
 # setting options to "yes" or "no" will make that choice default,
 # "" means "autodetect".
 
-platform_list="generic pandora gp2x"
+platform_list="generic pandora gp2x opendingux"
 platform="generic"
 sound_driver_list="oss alsa sdl"
 sound_drivers=""
@@ -51,6 +51,7 @@ optimize_arm920="no"
 CC="${CC-${CROSS_COMPILE}gcc}"
 CXX="${CXX-${CROSS_COMPILE}g++}"
 AS="${AS-${CROSS_COMPILE}as}"
+STRIP="${STRIP-${CROSS_COMPILE}strip}"
 SDL_CONFIG="`$CC --print-sysroot`/usr/bin/sdl-config"
 MAIN_LDLIBS="$LDLIBS -lm"
 config_mak="config.mak"
@@ -67,6 +68,9 @@ set_platform()
   platform=$1
   case "$platform" in
   generic)
+    ;;
+  opendingux)
+    sound_drivers="sdl"
     ;;
   pandora)
     sound_drivers="oss alsa"
@@ -111,7 +115,7 @@ if [ "$show_help" = "yes" ]; then
   echo "  --sound-drivers=LIST     sound output drivers [guessed]"
   echo "                           available: $sound_driver_list"
   echo "influential environment variables:"
-  echo "  CROSS_COMPILE CC CXX AS CFLAGS ASFLAGS LDFLAGS LDLIBS"
+  echo "  CROSS_COMPILE CC CXX AS STRIP CFLAGS ASFLAGS LDFLAGS LDLIBS"
   exit 1
 fi
 
@@ -225,7 +229,7 @@ arm*)
 esac
 
 case "$platform" in
-generic)
+generic | opendingux)
   need_sdl="yes"
   ;;
 esac
@@ -361,6 +365,7 @@ echo >> $config_mak
 echo "CC = $CC" >> $config_mak
 echo "CXX = $CXX" >> $config_mak
 echo "AS = $AS" >> $config_mak
+echo "STRIP = $STRIP" >> $config_mak
 echo "CFLAGS += $CFLAGS" >> $config_mak
 echo "ASFLAGS += $ASFLAGS" >> $config_mak
 echo "LDFLAGS += $LDFLAGS" >> $config_mak
