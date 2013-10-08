@@ -67,6 +67,12 @@ static void remap_word_ram(u32 r3);
 void m68k_comm_check(u32 a)
 {
   pcd_sync_s68k(SekCyclesDone(), 0);
+  if (a >= 0x0e && !Pico_mcd->m.need_sync) {
+    // there are cases when slave updates comm and only switches RAM
+    // over after that (mcd1b), so there must be a resync..
+    SekEndRun(64);
+    Pico_mcd->m.need_sync = 1;
+  }
   if (SekNotPolling || a != Pico_mcd->m.m68k_poll_a) {
     Pico_mcd->m.m68k_poll_a = a;
     Pico_mcd->m.m68k_poll_cnt = 0;

@@ -396,20 +396,21 @@ struct mcd_pcm
 
 struct mcd_misc
 {
-	unsigned short hint_vector;
-	unsigned char  busreq;		// not s68k_regs[1]
-	unsigned char  s68k_pend_ints;
-	unsigned int   state_flags;	// 04
-	unsigned int   stopwatch_base_c;
-	unsigned short m68k_poll_a;
-	unsigned short m68k_poll_cnt;
-	unsigned short s68k_poll_a;
-	unsigned short s68k_poll_cnt;
-	unsigned int   s68k_poll_clk;
-	unsigned char  bcram_reg;	// 18: battery-backed RAM cart register
-	unsigned char  dmna_ret_2m;
-	unsigned short pad3;
-	int pad4[9];
+  unsigned short hint_vector;
+  unsigned char  busreq;          // not s68k_regs[1]
+  unsigned char  s68k_pend_ints;
+  unsigned int   state_flags;     // 04
+  unsigned int   stopwatch_base_c;
+  unsigned short m68k_poll_a;
+  unsigned short m68k_poll_cnt;
+  unsigned short s68k_poll_a;
+  unsigned short s68k_poll_cnt;
+  unsigned int   s68k_poll_clk;
+  unsigned char  bcram_reg;       // 18: battery-backed RAM cart register
+  unsigned char  dmna_ret_2m;
+  unsigned char  need_sync;
+  unsigned char  pad3;
+  int pad4[9];
 };
 
 typedef struct

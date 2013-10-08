@@ -90,7 +90,32 @@ PICO_INTERNAL int PicoResetMCD(void)
   return 0;
 }
 
-static __inline void SekRunS68k(unsigned int to)
+static void SekRunM68kOnce(void)
+{
+  int cyc_do;
+  pevt_log_m68k_o(EVT_RUN_START);
+
+  if ((cyc_do = SekCycleAim - SekCycleCnt) > 0) {
+    SekCycleCnt += cyc_do;
+
+#if defined(EMU_C68K)
+    PicoCpuCM68k.cycles = cyc_do;
+    CycloneRun(&PicoCpuCM68k);
+    SekCycleCnt -= PicoCpuCM68k.cycles;
+#elif defined(EMU_M68K)
+    SekCycleCnt += m68k_execute(cyc_do) - cyc_do;
+#elif defined(EMU_F68K)
+    SekCycleCnt += fm68k_emulate(cyc_do, 0) - cyc_do;
+#endif
+  }
+
+  SekCyclesLeft = 0;
+
+  SekTrace(0);
+  pevt_log_m68k_o(EVT_RUN_END);
+}
+
+static void SekRunS68k(unsigned int to)
 {
   int cyc_do;
 
@@ -305,7 +330,13 @@ void pcd_run_cpus_normal(int m68k_cycles)
     SekCycleCnt = SekCycleAim - (s68k_left * 40220 >> 16);
   }
 
-  SekSyncM68k();
+  while (CYCLES_GT(SekCycleAim, SekCycleCnt)) {
+    SekRunM68kOnce();
+    if (Pico_mcd->m.need_sync) {
+      Pico_mcd->m.need_sync = 0;
+      pcd_sync_s68k(SekCycleCnt, 0);
+    }
+  }
 }
 
 void pcd_run_cpus_lockstep(int m68k_cycles)
