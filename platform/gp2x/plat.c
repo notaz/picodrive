@@ -95,8 +95,8 @@ static const struct menu_keymap key_pbtn_map[] =
 	{ KEY_RIGHTBRACE, PBTN_R },
 };
 
-static const struct in_evdev_pdata gp2x_evdev_pdata = {
-	.defbinds = in_gp2x_defbinds,
+static const struct in_pdata gp2x_evdev_pdata = {
+	.defbinds = in_evdev_defbinds,
 	.key_map = key_pbtn_map,
 	.kmap_size = sizeof(key_pbtn_map) / sizeof(key_pbtn_map[0]),
 };

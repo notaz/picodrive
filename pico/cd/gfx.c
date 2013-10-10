@@ -316,7 +316,7 @@ void gfx_start(unsigned int base)
   /* make sure 2M mode is enabled */
   if (!(Pico_mcd->s68k_regs[3] & 0x04))
   {
-    uint32 mask;
+    uint32 mask = 0;
     uint32 reg;
     
     /* trace vector pointer */
