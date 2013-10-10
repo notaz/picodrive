@@ -12,10 +12,10 @@ PND_MAKE ?= $(HOME)/dev/pnd/src/pandora-libraries/testdata/scripts/pnd_make.sh
 
 all: rel
 
-../../tools/textfilter:
+../../tools/textfilter: ../../tools/textfilter.c
 	make -C ../../tools/
 
-/tmp/readme.txt: ../../tools/textfilter ../base_readme.txt
+readme.txt: ../../tools/textfilter ../base_readme.txt ../../ChangeLog
 	../../tools/textfilter ../base_readme.txt $@ PANDORA
 
 /tmp/PicoDrive.pxml: PicoDrive.pxml.template FORCE
@@ -24,7 +24,7 @@ all: rel
 rel: ../../PicoDrive PicoDrive.sh picorestore \
 	PicoDrive.png PicoDrive_p.png \
 	../../pico/carthw.cfg skin \
-	/tmp/readme.txt /tmp/PicoDrive.pxml
+	readme.txt /tmp/PicoDrive.pxml
 	rm -rf out
 	mkdir out
 	cp -r $^ out/

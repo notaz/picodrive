@@ -1,5 +1,7 @@
-1.91 (2013-10-)
+1.91 (2013-10-12)
   + Added OpenDingux support (Paul Cercueil).
+  * Save directory changed to ~/.picodrive/ for generic platform build
+    (Paul Cercueil).
   + Revived GP2X/Caanoo/Wiz support.
   + Switched to cleaner CD controller code from Eke-Eke's Genesis Plus GX.
   * Fixed overflow issue where cd emulation would break after

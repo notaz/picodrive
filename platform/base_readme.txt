@@ -281,13 +281,6 @@ This option enables CD audio playback.
 This enables 8 channel PCM sound source. It is required for some games to run,
 because they monitor state of this audio chip.
 
-@@2. "ReadAhead buffer"
-This option can prefetch more data from the CD image than requested by game
-(to avoid accessing card later), what can improve performance in some cases.
-#ifndef PSP
-"OFF" is the recommended setting.
-#endif
-
 @@2. "Save RAM cart"
 Here you can enable 64K RAM cart. Format it in BIOS if you do.
 
@@ -373,9 +366,9 @@ for sound (i.e. to generate YM2612 samples) to improve performance noticeably.
 It also decodes MP3s in Sega/Mega CD mode.
 
 #endif
-@@4. "SVP dynarec"
-This enables dynamic recompilation for SVP chip emulated for Virtua Racing game,
-what improves it's emulation performance greatly.
+@@4. "Enable dynarecs"
+This enables dynamic recompilation for SH2 and SVP CPU code,
+what improves emulation performance greatly.
 
 
 Key configuration

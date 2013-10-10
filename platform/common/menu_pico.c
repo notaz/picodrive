@@ -414,7 +414,7 @@ static menu_entry e_menu_cd_options[] =
 	mee_onoff_h("CDDA audio",           MA_CDOPT_CDDA,          PicoOpt, POPT_EN_MCD_CDDA, h_cdda),
 	mee_onoff_h("PCM audio",            MA_CDOPT_PCM,           PicoOpt, POPT_EN_MCD_PCM, h_cdpcm),
 	mee_onoff_h("SaveRAM cart",         MA_CDOPT_SAVERAM,       PicoOpt, POPT_EN_MCD_RAMCART, h_srcart),
-	mee_onoff_h("Scale/Rot. fx (slow)", MA_CDOPT_SCALEROT_CHIP, PicoOpt, POPT_EN_MCD_GFX, h_scfx),
+	mee_onoff_h("Scale/Rot. fx",        MA_CDOPT_SCALEROT_CHIP, PicoOpt, POPT_EN_MCD_GFX, h_scfx),
 	mee_end,
 };
 

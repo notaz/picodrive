@@ -17,6 +17,8 @@
 #include "input_pico.h"
 #include "version.h"
 
+#include <pico/pico.h>
+
 static void *shadow_fb;
 
 const struct in_default_bind in_sdl_defbinds[] __attribute__((weak)) = {
