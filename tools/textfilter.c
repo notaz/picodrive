@@ -22,7 +22,6 @@ static int check_defines(const char **defs, int defcount, char *tdef)
 	return 0;
 }
 
-
 static void do_counters(char *str)
 {
 	static int counter_id = -1, counter;
@@ -42,12 +41,28 @@ static void do_counters(char *str)
 	}
 }
 
+static int my_fputs(char *s, FILE *stream)
+{
+	char *p;
+
+	for (p = s + strlen(s) - 1; p >= s; p--)
+		if (!isspace(*p))
+			break;
+	p++;
+
+	/* use DOS endings for better viewer compatibility */
+	memcpy(p, "\r\n", 3);
+
+	return fputs(s, stream);
+}
 
 int main(int argc, char *argv[])
 {
+	char path[256], path_file[256];
 	char buff[1024];
 	FILE *fi, *fo;
 	int skip_mode = 0, ifdef_level = 0, skip_level = 0, line = 0;
+	char *p;
 
 	if (argc < 3)
 	{
@@ -62,11 +77,19 @@ int main(int argc, char *argv[])
 		return 2;
 	}
 
-	fo = fopen(argv[2], "w");
+	fo = fopen(argv[2], "wb");
 	if (fo == NULL)
 	{
 		printf("failed to open: %s\n", argv[2]);
 		return 3;
+	}
+
+	snprintf(path, sizeof(path), "%s", argv[1]);
+	for (p = path + strlen(path) - 1; p > path; p--) {
+		if (*p == '/' || *p == '\\') {
+			p[1] = 0;
+			break;
+		}
 	}
 
 	for (++line; !feof(fi); line++)
@@ -112,12 +135,16 @@ int main(int argc, char *argv[])
 			{
 				char *pe, *p = buff + 9;
 				FILE *ftmp;
-				if (skip_mode) continue;
-				while (*p && (*p == ' ' || *p == '\"')) p++;
-				for (pe = p + strlen(p) - 1; pe > p; pe--)
+				if (skip_mode)
+					continue;
+				while (*p && (*p == ' ' || *p == '\"'))
+					p++;
+				for (pe = p + strlen(p) - 1; pe > p; pe--) {
 					if (isspace(*pe) || *pe == '\"') *pe = 0;
 					else break;
-				ftmp = fopen(p, "r");
+				}
+				snprintf(path_file, sizeof(path_file), "%s%s", path, p);
+				ftmp = fopen(path_file, "r");
 				if (ftmp == NULL) {
 					printf("%i: error: failed to include \"%s\"\n", line, p);
 					return 1;
@@ -125,8 +152,9 @@ int main(int argc, char *argv[])
 				while (!feof(ftmp))
 				{
 					fgs = fgets(buff, sizeof(buff), ftmp);
-					if (fgs == NULL) break;
-					fputs(buff, fo);
+					if (fgs == NULL)
+						break;
+					my_fputs(buff, fo);
 				}
 				fclose(ftmp);
 				continue;
@@ -138,7 +166,7 @@ int main(int argc, char *argv[])
 		if (!skip_mode)
 		{
 			do_counters(buff);
-			fputs(buff, fo);
+			my_fputs(buff, fo);
 		}
 	}
 
