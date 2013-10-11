@@ -434,15 +434,7 @@ typedef struct
     unsigned char pcm_ram[0x10000];
     unsigned char pcm_ram_b[0x10][0x1000];
   };
-  union {
-    unsigned char s68k_regs[0x200];		// 110000: GA, not CPU regs
-    union {
-      struct {
-        unsigned char h;
-        unsigned char l;
-      } byte;
-    } regs[0x200/2];
-  };
+  unsigned char s68k_regs[0x200];		// 110000: GA, not CPU regs
   unsigned char bram[0x2000];			// 110200: 8K
   struct mcd_misc m;				// 112200: misc
   struct mcd_pcm pcm;				// 112240:

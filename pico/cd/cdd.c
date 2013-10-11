@@ -519,7 +519,7 @@ void cdd_read_audio(unsigned int samples)
   samples = blip_clocks_needed(blip[0], samples);
 
   /* audio track playing ? */
-  if (!Pico_mcd->regs[0x36>>1].byte.h && cdd.toc.tracks[cdd.index].fd)
+  if (!Pico_mcd->s68k_regs[0x36+0] && cdd.toc.tracks[cdd.index].fd)
   {
     int i, mul, delta;
 
@@ -720,7 +720,7 @@ void cdd_update(void)
       if (cdd.lba >= cdd.toc.tracks[cdd.index].start)
       {
         /* audio track playing */
-        Pico_mcd->regs[0x36>>1].byte.h = 0x00;
+        Pico_mcd->s68k_regs[0x36+0] = 0x00;
       }
 
       /* audio blocks are still sent to CDC as well as CD DAC/Fader */
@@ -752,7 +752,7 @@ void cdd_update(void)
       cdd.index++;
 
       /* PAUSE between tracks */
-      Pico_mcd->regs[0x36>>1].byte.h = 0x01;
+      Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* seek to next audio track start */
 #ifdef USE_LIBTREMOR
@@ -806,7 +806,7 @@ void cdd_update(void)
       /* AUDIO track playing ? */
       if (cdd.status == CD_PLAY)
       {
-        Pico_mcd->regs[0x36>>1].byte.h = 0x00;
+        Pico_mcd->s68k_regs[0x36+0] = 0x00;
       }
     }
     else if (cdd.lba < cdd.toc.tracks[cdd.index].start)
@@ -837,7 +837,7 @@ void cdd_update(void)
     else if (cdd.index >= cdd.toc.last)
     {
       /* no AUDIO track playing */
-      Pico_mcd->regs[0x36>>1].byte.h = 0x01;
+      Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* end of disc */
       cdd.index = cdd.toc.last;
@@ -850,7 +850,7 @@ void cdd_update(void)
     if (!cdd.index)
     {
       /* no AUDIO track playing */
-      Pico_mcd->regs[0x36>>1].byte.h = 0x01;
+      Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* DATA track */
       pm_seek(cdd.toc.tracks[0].fd, cdd.lba * cdd.sectorSize, SEEK_SET);
@@ -894,21 +894,21 @@ void cdd_update(void)
 void cdd_process(void)
 {
   /* Process CDD command */
-  switch (Pico_mcd->regs[0x42>>1].byte.h & 0x0f)
+  switch (Pico_mcd->s68k_regs[0x42+0] & 0x0f)
   {
     case 0x00:  /* Drive Status */
     {
       /* RS1-RS8 normally unchanged */
-      Pico_mcd->regs[0x38>>1].byte.h = cdd.status;
+      Pico_mcd->s68k_regs[0x38+0] = cdd.status;
 
       /* unless RS1 indicated invalid track infos */
-      if (Pico_mcd->regs[0x38>>1].byte.l == 0x0f)
+      if (Pico_mcd->s68k_regs[0x38+1] == 0x0f)
       {
         /* and SEEK has ended */
         if (cdd.status != CD_SEEK)
         {
           /* then return valid track infos, e.g current track number in RS2-RS3 (fixes Lunar - The Silver Star) */
-          Pico_mcd->regs[0x38>>1].byte.l = 0x02;
+          Pico_mcd->s68k_regs[0x38+1] = 0x02;
           set_reg16(0x3a, (cdd.index < cdd.toc.last) ? lut_BCD_16[cdd.index + 1] : 0x0A0A);
         }
       }
@@ -921,7 +921,7 @@ void cdd_process(void)
       cdd.status = cdd.loaded ? CD_STOP : NO_DISC;
 
       /* no audio track playing */
-      Pico_mcd->regs[0x36>>1].byte.h = 0x01;
+      Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* RS1-RS8 ignored, expects 0x0 ("no disc" ?) in RS0 once */
       set_reg16(0x38, 0x0000);
@@ -939,7 +939,7 @@ void cdd_process(void)
 
       /* Infos automatically retrieved by CDD processor from Q-Channel */
       /* commands 0x00-0x02 (current block) and 0x03-0x05 (Lead-In) */
-      switch (Pico_mcd->regs[0x44>>1].byte.l)
+      switch (Pico_mcd->s68k_regs[0x44+1])
       {
         case 0x00:  /* Current Absolute Time (MM:SS:FF) */
         {
@@ -948,7 +948,7 @@ void cdd_process(void)
           set_reg16(0x3a, lut_BCD_16[(lba/75)/60]);
           set_reg16(0x3c, lut_BCD_16[(lba/75)%60]);
           set_reg16(0x3e, lut_BCD_16[(lba%75)]);
-          Pico_mcd->regs[0x40>>1].byte.h = cdd.index ? 0x00 : 0x04; /* Current block flags in RS8 (bit0 = mute status, bit1: pre-emphasis status, bit2: track type) */
+          Pico_mcd->s68k_regs[0x40+0] = cdd.index ? 0x00 : 0x04; /* Current block flags in RS8 (bit0 = mute status, bit1: pre-emphasis status, bit2: track type) */
           break;
         }
 
@@ -959,7 +959,7 @@ void cdd_process(void)
           set_reg16(0x3a, lut_BCD_16[(lba/75)/60]);
           set_reg16(0x3c, lut_BCD_16[(lba/75)%60]);
           set_reg16(0x3e, lut_BCD_16[(lba%75)]);
-          Pico_mcd->regs[0x40>>1].byte.h = cdd.index ? 0x00 : 0x04; /* Current block flags in RS8 (bit0 = mute status, bit1: pre-emphasis status, bit2: track type) */
+          Pico_mcd->s68k_regs[0x40+0] = cdd.index ? 0x00 : 0x04; /* Current block flags in RS8 (bit0 = mute status, bit1: pre-emphasis status, bit2: track type) */
           break;
         }
 
@@ -969,7 +969,7 @@ void cdd_process(void)
           set_reg16(0x3a, (cdd.index < cdd.toc.last) ? lut_BCD_16[cdd.index + 1] : 0x0A0A);
           set_reg16(0x3c, 0x0000);
           set_reg16(0x3e, 0x0000); /* Disk Control Code (?) in RS6 */
-          Pico_mcd->regs[0x40>>1].byte.h = 0x00;
+          Pico_mcd->s68k_regs[0x40+0] = 0x00;
           break;
         }
 
@@ -980,7 +980,7 @@ void cdd_process(void)
           set_reg16(0x3a, lut_BCD_16[(lba/75)/60]);
           set_reg16(0x3c, lut_BCD_16[(lba/75)%60]);
           set_reg16(0x3e, lut_BCD_16[(lba%75)]);
-          Pico_mcd->regs[0x40>>1].byte.h = 0x00;
+          Pico_mcd->s68k_regs[0x40+0] = 0x00;
           break;
         }
 
@@ -990,23 +990,23 @@ void cdd_process(void)
           set_reg16(0x3a, 0x0001);
           set_reg16(0x3c, lut_BCD_16[cdd.toc.last]);
           set_reg16(0x3e, 0x0000); /* Drive Version (?) in RS6-RS7 */
-          Pico_mcd->regs[0x40>>1].byte.h = 0x00;  /* Lead-In flags in RS8 (bit0 = mute status, bit1: pre-emphasis status, bit2: track type) */
+          Pico_mcd->s68k_regs[0x40+0] = 0x00;  /* Lead-In flags in RS8 (bit0 = mute status, bit1: pre-emphasis status, bit2: track type) */
           break;
         }
 
         case 0x05:  /* Track Start Time (MM:SS:FF) */
         {
-          int track = Pico_mcd->regs[0x46>>1].byte.h * 10 + Pico_mcd->regs[0x46>>1].byte.l;
+          int track = Pico_mcd->s68k_regs[0x46+0] * 10 + Pico_mcd->s68k_regs[0x46+1];
           int lba = cdd.toc.tracks[track-1].start + 150;
           set_reg16(0x38, (cdd.status << 8) | 0x05);
           set_reg16(0x3a, lut_BCD_16[(lba/75)/60]);
           set_reg16(0x3c, lut_BCD_16[(lba/75)%60]);
           set_reg16(0x3e, lut_BCD_16[(lba%75)]);
-          Pico_mcd->regs[0x40>>1].byte.h = track % 10;  /* Track Number (low digit) */
+          Pico_mcd->s68k_regs[0x40+0] = track % 10;  /* Track Number (low digit) */
           if (track == 1)
           {
             /* RS6 bit 3 is set for the first (DATA) track */
-            Pico_mcd->regs[0x3e>>1].byte.h |= 0x08;
+            Pico_mcd->s68k_regs[0x3e + 0] |= 0x08;
           }
           break;
         }
@@ -1014,7 +1014,7 @@ void cdd_process(void)
         default:
         {
 #ifdef LOG_ERROR
-          error("Unknown CDD Command %02X (%X)\n", Pico_mcd->regs[0x44>>1].byte.l, s68k.pc);
+          error("Unknown CDD Command %02X (%X)\n", Pico_mcd->s68k_regs[0x44+1], s68k.pc);
 #endif
           return;
         }
@@ -1028,9 +1028,9 @@ void cdd_process(void)
       int index = 0;
 
       /* new LBA position */
-      int lba = ((Pico_mcd->regs[0x44>>1].byte.h * 10 + Pico_mcd->regs[0x44>>1].byte.l) * 60 + 
-                 (Pico_mcd->regs[0x46>>1].byte.h * 10 + Pico_mcd->regs[0x46>>1].byte.l)) * 75 +
-                 (Pico_mcd->regs[0x48>>1].byte.h * 10 + Pico_mcd->regs[0x48>>1].byte.l) - 150;
+      int lba = ((Pico_mcd->s68k_regs[0x44+0] * 10 + Pico_mcd->s68k_regs[0x44+1]) * 60 + 
+                 (Pico_mcd->s68k_regs[0x46+0] * 10 + Pico_mcd->s68k_regs[0x46+1])) * 75 +
+                 (Pico_mcd->s68k_regs[0x48+0] * 10 + Pico_mcd->s68k_regs[0x48+1]) - 150;
 
       /* CD drive latency */
       if (!cdd.latency)
@@ -1119,7 +1119,7 @@ void cdd_process(void)
 #endif
 
       /* no audio track playing (yet) */
-      Pico_mcd->regs[0x36>>1].byte.h = 0x01;
+      Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* update status */
       cdd.status = CD_PLAY;
@@ -1129,7 +1129,7 @@ void cdd_process(void)
       set_reg16(0x3a, (cdd.index < cdd.toc.last) ? lut_BCD_16[index + 1] : 0x0A0A);
       set_reg16(0x3c, 0x0000);
       set_reg16(0x3e, 0x0000);
-      Pico_mcd->regs[0x40>>1].byte.h = 0x00;
+      Pico_mcd->s68k_regs[0x40+0] = 0x00;
       break;
     }
 
@@ -1139,9 +1139,9 @@ void cdd_process(void)
       int index = 0;
 
       /* new LBA position */
-      int lba = ((Pico_mcd->regs[0x44>>1].byte.h * 10 + Pico_mcd->regs[0x44>>1].byte.l) * 60 + 
-                 (Pico_mcd->regs[0x46>>1].byte.h * 10 + Pico_mcd->regs[0x46>>1].byte.l)) * 75 +
-                 (Pico_mcd->regs[0x48>>1].byte.h * 10 + Pico_mcd->regs[0x48>>1].byte.l) - 150;
+      int lba = ((Pico_mcd->s68k_regs[0x44+0] * 10 + Pico_mcd->s68k_regs[0x44+1]) * 60 + 
+                 (Pico_mcd->s68k_regs[0x46+0] * 10 + Pico_mcd->s68k_regs[0x46+1])) * 75 +
+                 (Pico_mcd->s68k_regs[0x48+0] * 10 + Pico_mcd->s68k_regs[0x48+1]) - 150;
 
       /* CD drive seek time  */
       /* We are using similar linear model as above, although still not exactly accurate, */
@@ -1213,7 +1213,7 @@ void cdd_process(void)
 #endif
 
       /* no audio track playing */
-      Pico_mcd->regs[0x36>>1].byte.h = 0x01;
+      Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* update status */
       cdd.status = CD_SEEK;
@@ -1230,17 +1230,17 @@ void cdd_process(void)
     case 0x06:  /* Pause */
     {
       /* no audio track playing */
-      Pico_mcd->regs[0x36>>1].byte.h = 0x01;
+      Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* update status (RS1-RS8 unchanged) */
-      cdd.status = Pico_mcd->regs[0x38>>1].byte.h = CD_READY;
+      cdd.status = Pico_mcd->s68k_regs[0x38+0] = CD_READY;
       break;
     }
 
     case 0x07:  /* Resume */
     {
       /* update status (RS1-RS8 unchanged) */
-      cdd.status = Pico_mcd->regs[0x38>>1].byte.h = CD_PLAY;
+      cdd.status = Pico_mcd->s68k_regs[0x38+0] = CD_PLAY;
       break;
     }
 
@@ -1250,7 +1250,7 @@ void cdd_process(void)
       cdd.scanOffset = CD_SCAN_SPEED;
 
       /* update status (RS1-RS8 unchanged) */
-      cdd.status = Pico_mcd->regs[0x38>>1].byte.h = CD_SCAN;
+      cdd.status = Pico_mcd->s68k_regs[0x38+0] = CD_SCAN;
       break;
     }
 
@@ -1260,7 +1260,7 @@ void cdd_process(void)
       cdd.scanOffset = -CD_SCAN_SPEED;
 
       /* update status (RS1-RS8 unchanged) */
-      cdd.status = Pico_mcd->regs[0x38>>1].byte.h = CD_SCAN;
+      cdd.status = Pico_mcd->s68k_regs[0x38+0] = CD_SCAN;
       break;
     }
 
@@ -1273,17 +1273,17 @@ void cdd_process(void)
       /* also see US Patent nr. 5222054 for a detailled description of seeking operation using Track Jump */
 
       /* no audio track playing */
-      Pico_mcd->regs[0x36>>1].byte.h = 0x01;
+      Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* update status (RS1-RS8 unchanged) */
-      cdd.status = Pico_mcd->regs[0x38>>1].byte.h = CD_READY;
+      cdd.status = Pico_mcd->s68k_regs[0x38+0] = CD_READY;
       break;
     }
 
     case 0x0c:  /* Close Tray */
     {
       /* no audio track playing */
-      Pico_mcd->regs[0x36>>1].byte.h = 0x01;
+      Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* update status */
       cdd.status = cdd.loaded ? CD_STOP : NO_DISC;
@@ -1304,7 +1304,7 @@ void cdd_process(void)
     case 0x0d:  /* Open Tray */
     {
       /* no audio track playing */
-      Pico_mcd->regs[0x36>>1].byte.h = 0x01;
+      Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* update status (RS1-RS8 ignored) */
       cdd.status = CD_OPEN;
@@ -1323,17 +1323,17 @@ void cdd_process(void)
 #ifdef LOG_CDD
       error("Unknown CDD Command !!!\n");
 #endif
-      Pico_mcd->regs[0x38>>1].byte.h = cdd.status;
+      Pico_mcd->s68k_regs[0x38+0] = cdd.status;
       break;
   }
 
   /* only compute checksum when necessary */
-  Pico_mcd->regs[0x40>>1].byte.l =
-    ~(Pico_mcd->regs[0x38>>1].byte.h + Pico_mcd->regs[0x38>>1].byte.l +
-    Pico_mcd->regs[0x3a>>1].byte.h + Pico_mcd->regs[0x3a>>1].byte.l +
-    Pico_mcd->regs[0x3c>>1].byte.h + Pico_mcd->regs[0x3c>>1].byte.l +
-    Pico_mcd->regs[0x3e>>1].byte.h + Pico_mcd->regs[0x3e>>1].byte.l +
-    Pico_mcd->regs[0x40>>1].byte.h) & 0x0f;
+  Pico_mcd->s68k_regs[0x40 + 1] =
+    ~(Pico_mcd->s68k_regs[0x38 + 0] + Pico_mcd->s68k_regs[0x38 + 1] +
+    Pico_mcd->s68k_regs[0x3a + 0] + Pico_mcd->s68k_regs[0x3a + 1] +
+    Pico_mcd->s68k_regs[0x3c + 0] + Pico_mcd->s68k_regs[0x3c + 1] +
+    Pico_mcd->s68k_regs[0x3e + 0] + Pico_mcd->s68k_regs[0x3e + 1] +
+    Pico_mcd->s68k_regs[0x40 + 0]) & 0x0f;
 }
 
 // vim:shiftwidth=2:ts=2:expandtab

@@ -385,7 +385,7 @@ void s68k_reg_write8(u32 a, u32 d)
       //dprintf("s68k CDC reg addr: %x", d&0xf);
       break;
     case 7:
-      cdc_reg_w(d);
+      cdc_reg_w(d & 0xff);
       return;
     case 0xa:
       elprintf(EL_CDREGS, "s68k set CDC dma addr");
