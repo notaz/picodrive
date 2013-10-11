@@ -183,7 +183,6 @@ int load_cd_image(const char *cd_img_name, int *type)
       elprintf(EL_STATUS, "Track %2i: %s %9i AUDIO %s",
         n, tmp_ext, length, cue_data->tracks[n].fname);
     }
-    cue_destroy(cue_data);
     goto finish;
   }
 
@@ -259,6 +258,9 @@ finish:
 
   if (PicoCDLoadProgressCB != NULL)
     PicoCDLoadProgressCB(cd_img_name, 100);
+
+  if (cue_data != NULL)
+    cue_destroy(cue_data);
 
   return 0;
 }
