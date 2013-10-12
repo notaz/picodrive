@@ -738,8 +738,26 @@ mk_text_out(emu_text_out16_rot, unsigned short, 0xffff,
 
 #undef mk_text_out
 
+void emu_osd_text16(int x, int y, const char *text)
+{
+	int len = strlen(text) * 8;
+	int i, h;
 
-void update_movie(void)
+	len++;
+	if (x + len > g_screen_width)
+		len = g_screen_width - x;
+
+	for (h = 0; h < 8; h++) {
+		unsigned short *p;
+		p = (unsigned short *)g_screen_ptr
+			+ x + g_screen_width * (y + h);
+		for (i = len; i > 0; i--, p++)
+			*p = (*p >> 2) & 0x39e7;
+	}
+	emu_text_out16(x, y, text);
+}
+
+static void update_movie(void)
 {
 	int offs = Pico.m.frame_count*3 + 0x40;
 	if (offs+3 > movie_size) {

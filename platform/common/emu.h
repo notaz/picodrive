@@ -129,6 +129,8 @@ void  emu_text_out16(int x, int y, const char *text);
 void  emu_text_out8_rot (int x, int y, const char *text);
 void  emu_text_out16_rot(int x, int y, const char *text);
 
+void  emu_osd_text16(int x, int y, const char *text);
+
 void  emu_make_path(char *buff, const char *end, int size);
 void  emu_update_input(void);
 void  emu_get_game_name(char *str150);

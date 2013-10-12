@@ -128,21 +128,6 @@ static void osd_text8(int x, int y, const char *text)
 	emu_text_out8(x, y, text);
 }
 
-static void osd_text16(int x, int y, const char *text)
-{
-	int len = strlen(text)*8;
-	int *p, i, h, offs;
-
-	len = (len+1) >> 1;
-	for (h = 0; h < 8; h++) {
-		offs = (x + g_screen_width * (y+h)) & ~1;
-		p = (int *) ((short *)g_screen_ptr + offs);
-		for (i = len; i; i--, p++)
-			*p = (*p >> 2) & 0x39e7;
-	}
-	emu_text_out16(x, y, text);
-}
-
 static void osd_text8_rot(int x, int y, const char *text)
 {
 	int len = strlen(text) * 8;
@@ -540,7 +525,7 @@ static void vid_reset_mode(void)
 	PicoDrawSetCallbacks(emu_scan_begin, emu_scan_end);
 
 	if (is_16bit_mode())
-		osd_text = (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) ? osd_text16_rot : osd_text16;
+		osd_text = (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) ? osd_text16_rot : emu_osd_text16;
 	else
 		osd_text = (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) ? osd_text8_rot : osd_text8;
 

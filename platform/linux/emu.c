@@ -34,41 +34,6 @@ void pemu_validate_config(void)
 	PicoOpt &= ~POPT_EN_DRC;
 }
 
-// FIXME: dupes from GP2X, need cleanup
-static void (*osd_text)(int x, int y, const char *text);
-
-/*
-static void osd_text8(int x, int y, const char *text)
-{
-	int len = strlen(text)*8;
-	int *p, i, h, offs;
-
-	len = (len+3) >> 2;
-	for (h = 0; h < 8; h++) {
-		offs = (x + g_screen_width * (y+h)) & ~3;
-		p = (int *) ((char *)g_screen_ptr + offs);
-		for (i = len; i; i--, p++)
-			*p = 0xe0e0e0e0;
-	}
-	emu_text_out8(x, y, text);
-}
-*/
-
-static void osd_text16(int x, int y, const char *text)
-{
-	int len = strlen(text)*8;
-	int *p, i, h, offs;
-
-	len = (len+1) >> 1;
-	for (h = 0; h < 8; h++) {
-		offs = (x + g_screen_width * (y+h)) & ~1;
-		p = (int *) ((short *)g_screen_ptr + offs);
-		for (i = len; i; i--, p++)
-			*p = (*p >> 2) & 0x39e7;
-	}
-	emu_text_out16(x, y, text);
-}
-
 static void draw_cd_leds(void)
 {
 	int led_reg, pitch, scr_offs, led_offs;
@@ -115,9 +80,9 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 
 	if (notice || (currentConfig.EmuOpt & EOPT_SHOW_FPS)) {
 		if (notice)
-			osd_text(4, g_screen_height - 8, notice);
+			emu_osd_text16(4, g_screen_height - 8, notice);
 		if (currentConfig.EmuOpt & EOPT_SHOW_FPS)
-			osd_text(g_screen_width - 60, g_screen_height - 8, fps);
+			emu_osd_text16(g_screen_width - 60, g_screen_height - 8, fps);
 	}
 	if ((PicoAHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
@@ -215,7 +180,6 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 void pemu_loop_prep(void)
 {
 	apply_renderer();
-	osd_text = osd_text16;
 }
 
 void pemu_loop_end(void)

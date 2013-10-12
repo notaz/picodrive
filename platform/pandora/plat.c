@@ -135,24 +135,6 @@ void pemu_validate_config(void)
 	currentConfig.CPUclock = plat_target_cpu_clock_get();
 }
 
-static void osd_text(int x, int y, const char *text)
-{
-	int len = strlen(text)*8;
-	int i, h;
-
-	len++;
-	if (x + len > g_screen_width)
-		len = g_screen_width - x;
-
-	for (h = 0; h < 8; h++) {
-		unsigned short *p;
-		p = (unsigned short *)g_screen_ptr + x + g_screen_width*(y + h);
-		for (i = len; i > 0; i--, p++)
-			*p = (*p>>2) & 0x39e7;
-	}
-	emu_text_out16(x, y, text);
-}
-
 static void draw_cd_leds(void)
 {
 	int old_reg;
@@ -182,9 +164,9 @@ static void draw_cd_leds(void)
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	if (notice && notice[0])
-		osd_text(2, g_osd_y, notice);
+		emu_osd_text16(2, g_osd_y, notice);
 	if (fps && fps[0] && (currentConfig.EmuOpt & EOPT_SHOW_FPS))
-		osd_text(g_osd_fps_x, g_osd_y, fps);
+		emu_osd_text16(g_osd_fps_x, g_osd_y, fps);
 	if ((PicoAHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
 }
