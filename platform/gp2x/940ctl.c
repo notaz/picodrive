@@ -284,6 +284,12 @@ void sharedmem940_finish(void)
 
 void YM2612Init_940(int baseclock, int rate)
 {
+	static int oldrate;
+
+	// HACK
+	if (Pico.m.frame_count > 0 && !crashed_940 && rate == oldrate)
+		return;
+
 	printf("YM2612Init_940()\n");
 	printf("Mem usage: shared_data: %i, shared_ctl: %i\n", sizeof(*shared_data), sizeof(*shared_ctl));
 
@@ -353,6 +359,8 @@ void YM2612Init_940(int baseclock, int rate)
 	shared_ctl->baseclock = baseclock;
 	shared_ctl->rate = rate;
 	add_job_940(JOB940_INITALL);
+
+	oldrate = rate;
 }
 
 
