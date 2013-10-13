@@ -741,14 +741,25 @@ void *retro_get_memory_data(unsigned id)
 
 size_t retro_get_memory_size(unsigned id)
 {
+	unsigned int i;
+	int sum;
+
 	if (id != RETRO_MEMORY_SAVE_RAM)
 		return 0;
 
 	if (PicoAHW & PAHW_MCD)
 		// bram
 		return 0x2000;
-	else
+
+	if (Pico.m.frame_count == 0)
 		return SRam.size;
+
+	// if game doesn't write to sram, don't report it to
+	// libretro so that RA doesn't write out zeroed .srm
+	for (i = 0, sum = 0; i < SRam.size; i++)
+		sum |= SRam.data[i];
+
+	return (sum != 0) ? SRam.size : 0;
 }
 
 void retro_reset(void)
