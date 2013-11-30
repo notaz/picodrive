@@ -39,12 +39,12 @@ else ifeq ($(platform), ios)
    TARGET := $(TARGET_NAME)_libretro_ios.dylib
    SHARED := -dynamiclib
 
-   CC = clang -arch armv7 -isysroot $(IOSSDK)
-   CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
-   CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
-   CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm
+   CC = clang -arch armv7 -isysroot $(IOSSDK) -miphoneos-version-min=5.0
+   CXX = clang++ -arch armv7 -isysroot $(IOSSDK) -miphoneos-version-min=5.0
+   CC_AS = perl ./tools/gas-preprocessor.pl $(CC) -miphoneos-version-min=5.0
+   CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm 
    ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
-   CFLAGS += -DIOS
+   CFLAGS += -DIOS -miphoneos-version-min=5.0
 
    ARCH := arm
 
