@@ -35,7 +35,17 @@
 #define PICODRIVE_HACK
 // Options //
 
-
+#ifndef FAMEC_NO_GOTOS
+// computed gotos is a GNU extension
+#ifndef __GNUC__
+#define FAMEC_NO_GOTOS
+#endif
+// as of 3.3, clang takes over 3h to compile this in computed goto mode..
+#ifdef __clang__
+#define FAMEC_NO_GOTOS
+#endif
+#endif
+ 
 #undef INLINE
 #ifdef _MSC_VER
 #define INLINE
