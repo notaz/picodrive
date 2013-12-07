@@ -73,8 +73,9 @@ LOCAL_SRC_FILES += $(R)unzip/unzip.c $(R)unzip/unzip_stream.c
 
 LOCAL_C_INCLUDES += $(R)
 
+# note: don't use -O3, causes some NDKs run out of memory while compiling FAME
+LOCAL_CFLAGS += -Wall -O2 -ffast-math -DNDEBUG
 LOCAL_CFLAGS += $(addprefix -D,$(DEFINES))
-LOCAL_CFLAGS += -Wall -O3 -ffast-math -DNDEBUG
 LOCAL_LDLIBS := -llog
 
 include $(BUILD_SHARED_LIBRARY)
