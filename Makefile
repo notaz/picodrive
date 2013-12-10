@@ -3,7 +3,9 @@ CFLAGS += -Wall -ggdb -falign-functions=2
 CFLAGS += -I.
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG -ffunction-sections
+ifeq ($(findstring clang,$(CC)),)
 LDFLAGS += -Wl,--gc-sections
+endif
 endif
 #CFLAGS += -DEVT_LOG
 #CFLAGS += -DDRC_CMP
