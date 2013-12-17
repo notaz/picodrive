@@ -28,13 +28,12 @@
 #include "common/version.h"
 #include "libretro.h"
 
+static retro_log_printf_t log_cb;
 static retro_video_refresh_t video_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
 static retro_environment_t environ_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
-
-static FILE *emu_log;
 
 #define VOUT_MAX_WIDTH 320
 #define VOUT_MAX_HEIGHT 240
@@ -176,13 +175,15 @@ void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
    req = (void *)addr;
    ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
    if (ret == MAP_FAILED) {
-      lprintf("mmap(%08lx, %zd) failed: %d\n", addr, size, errno);
+      if (log_cb)
+         log_cb(RETRO_LOG_ERROR, "mmap(%08lx, %zd) failed: %d\n", addr, size, errno);
       return NULL;
    }
 
    if (addr != 0 && ret != (void *)addr) {
-      lprintf("warning: wanted to map @%08lx, got %p\n",
-            addr, ret);
+      if (log_cb)
+         log_cb(RETRO_LOG_WARN, "warning: wanted to map @%08lx, got %p\n",
+               addr, ret);
 
       if (is_fixed) {
          munmap(ret, size);
@@ -236,12 +237,12 @@ int plat_mem_set_exec(void *ptr, size_t size)
 {
 #ifdef _WIN32
    int ret = VirtualProtect(ptr,size,PAGE_EXECUTE_READWRITE,0);
-   if (ret == 0)
-      lprintf("mprotect(%p, %zd) failed: %d\n", ptr, size, 0);
+   if (ret == 0 && log_cb)
+      log_cb(RETRO_LOG_ERROR, "mprotect(%p, %zd) failed: %d\n", ptr, size, 0);
 #else
    int ret = mprotect(ptr, size, PROT_READ | PROT_WRITE | PROT_EXEC);
-   if (ret != 0)
-      lprintf("mprotect(%p, %zd) failed: %d\n", ptr, size, errno);
+   if (ret != 0 && log_cb)
+      log_cb(RETRO_LOG_ERROR, "mprotect(%p, %zd) failed: %d\n", ptr, size, errno);
 #endif
 	return ret;
 }
@@ -260,33 +261,12 @@ void emu_32x_startup(void)
 {
 }
 
-#ifndef ANDROID
-
 void lprintf(const char *fmt, ...)
 {
-	va_list list;
-
-	va_start(list, fmt);
-	fprintf(emu_log, "PicoDrive: ");
-	vfprintf(emu_log, fmt, list);
-	va_end(list);
-	fflush(emu_log);
+   /* TODO - add 'level' param for warning/error messages? */
+   if (log_cb)
+      log_cb(RETRO_LOG_INFO, fmt);
 }
-
-#else
-
-#include <android/log.h>
-
-void lprintf(const char *fmt, ...)
-{
-	va_list list;
-
-	va_start(list, fmt);
-	__android_log_vprint(ANDROID_LOG_INFO, "PicoDrive", fmt, list);
-	va_end(list);
-}
-
-#endif
 
 /* libretro */
 void retro_set_environment(retro_environment_t cb)
@@ -358,8 +338,9 @@ size_t state_read(void *p, size_t size, size_t nmemb, void *file)
 	size_t bsize = size * nmemb;
 
 	if (state->pos + bsize > state->size) {
-		lprintf("savestate error: %u/%u\n",
-			state->pos + bsize, state->size);
+      if (log_cb)
+         log_cb(RETRO_LOG_ERROR, "savestate error: %u/%u\n",
+               state->pos + bsize, state->size);
 		bsize = state->size - state->pos;
 		if ((int)bsize <= 0)
 			return 0;
@@ -376,8 +357,9 @@ size_t state_write(void *p, size_t size, size_t nmemb, void *file)
 	size_t bsize = size * nmemb;
 
 	if (state->pos + bsize > state->size) {
-		lprintf("savestate error: %u/%u\n",
-			state->pos + bsize, state->size);
+      if (log_cb)
+         log_cb(RETRO_LOG_ERROR, "savestate error: %u/%u\n",
+               state->pos + bsize, state->size);
 		bsize = state->size - state->pos;
 		if ((int)bsize <= 0)
 			return 0;
@@ -507,7 +489,8 @@ static bool disk_set_image_index(unsigned int index)
 		return false;
 
 	if (disks[index].fname == NULL) {
-		lprintf("missing disk #%u\n", index);
+      if (log_cb)
+         log_cb(RETRO_LOG_ERROR, "missing disk #%u\n", index);
 
 		// RetroArch specifies "no disk" with index == count,
 		// so don't fail here..
@@ -515,15 +498,17 @@ static bool disk_set_image_index(unsigned int index)
 		return true;
 	}
 
-	lprintf("switching to disk %u: \"%s\"\n", index,
-		disks[index].fname);
+   if (log_cb)
+      log_cb(RETRO_LOG_INFO, "switching to disk %u: \"%s\"\n", index,
+            disks[index].fname);
 
 	ret = -1;
 	cd_type = PicoCdCheck(disks[index].fname, NULL);
 	if (cd_type != CIT_NOT_CD)
 		ret = cdd_load(disks[index].fname, cd_type);
 	if (ret != 0) {
-		lprintf("Load failed, invalid CD image?\n");
+      if (log_cb)
+         log_cb(RETRO_LOG_ERROR, "Load failed, invalid CD image?\n");
 		return 0;
 	}
 
@@ -578,13 +563,15 @@ static struct retro_disk_control_callback disk_control = {
 
 static void disk_tray_open(void)
 {
-	lprintf("cd tray open\n");
+   if (log_cb)
+      log_cb(RETRO_LOG_INFO, "cd tray open\n");
 	disk_ejected = 1;
 }
 
 static void disk_tray_close(void)
 {
-	lprintf("cd tray close\n");
+   if (log_cb)
+      log_cb(RETRO_LOG_INFO, "cd tray close\n");
 	disk_ejected = 0;
 }
 
@@ -646,7 +633,8 @@ static const char *find_bios(int *region, const char *cd_fname)
 	}
 
 	if (f != NULL) {
-		lprintf("using bios: %s\n", path);
+      if (log_cb)
+         log_cb(RETRO_LOG_INFO, "using bios: %s\n", path);
 		fclose(f);
 		return path;
 	}
@@ -662,12 +650,14 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
 	if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
-		lprintf("RGB565 support required, sorry\n");
+      if (log_cb)
+         log_cb(RETRO_LOG_ERROR, "RGB565 support required, sorry\n");
 		return false;
 	}
 
 	if (info == NULL || info->path == NULL) {
-		lprintf("info->path required\n");
+      if (log_cb)
+         log_cb(RETRO_LOG_ERROR, "info->path required\n");
 		return false;
 	}
 
@@ -689,16 +679,20 @@ bool retro_load_game(const struct retro_game_info *info)
 
 	switch (media_type) {
 	case PM_BAD_DETECT:
-		lprintf("Failed to detect ROM/CD image type.\n");
+      if (log_cb)
+         log_cb(RETRO_LOG_ERROR, "Failed to detect ROM/CD image type.\n");
 		return false;
 	case PM_BAD_CD:
-		lprintf("Invalid CD image\n");
+      if (log_cb)
+         log_cb(RETRO_LOG_ERROR, "Invalid CD image\n");
 		return false;
 	case PM_BAD_CD_NO_BIOS:
-		lprintf("Missing BIOS\n");
+      if (log_cb)
+         log_cb(RETRO_LOG_ERROR, "Missing BIOS\n");
 		return false;
 	case PM_ERROR:
-		lprintf("Load error\n");
+      if (log_cb)
+         log_cb(RETRO_LOG_ERROR, "Load error\n");
 		return false;
 	default:
 		break;
@@ -797,7 +791,8 @@ static enum input_device input_name_to_val(const char *name)
 	if (strcmp(name, "None") == 0)
 		return PICO_INPUT_NOTHING;
 
-	lprintf("invalid picodrive_input: '%s'\n", name);
+   if (log_cb)
+      log_cb(RETRO_LOG_WARN, "invalid picodrive_input: '%s'\n", name);
 	return PICO_INPUT_PAD_3BTN;
 }
 
@@ -869,18 +864,15 @@ void retro_run(void)
 
 void retro_init(void)
 {
+   struct retro_log_callback log;
 	int level;
-
-#ifdef IOS
-	emu_log = fopen("/User/Documents/PicoDrive.log", "w");
-	if (emu_log == NULL)
-		emu_log = fopen("PicoDrive.log", "w");
-	if (emu_log == NULL)
-#endif
-	emu_log = stdout;
 
 	level = 0;
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
+
+   environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log);
+   if (log.log)
+      log_cb = log.log;
 
 	environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_control);
 
