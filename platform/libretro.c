@@ -263,9 +263,13 @@ void emu_32x_startup(void)
 
 void lprintf(const char *fmt, ...)
 {
+   char buffer[256];
+   va_list ap;
+   va_start(ap, fmt);
+   vsprintf(buffer, fmt, ap);
    /* TODO - add 'level' param for warning/error messages? */
    if (log_cb)
-      log_cb(RETRO_LOG_INFO, fmt);
+      log_cb(RETRO_LOG_INFO, "%s\n", fmt);
 }
 
 /* libretro */
@@ -870,9 +874,10 @@ void retro_init(void)
 	level = 0;
 	environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
 
-   environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log);
-   if (log.log)
+   if (environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log))
       log_cb = log.log;
+   else
+      log_cb = NULL;
 
 	environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_control);
 
