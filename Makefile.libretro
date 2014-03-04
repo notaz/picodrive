@@ -193,6 +193,10 @@ else
    CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
 endif
 
+ifeq ($(DONT_COMPILE_IN_ZLIB),1)
+CFLAGS += -DNO_ZLIB
+endif
+
 ifeq ($(NO_MMAP),1)
 CFLAGS += -DNO_MMAP
 endif

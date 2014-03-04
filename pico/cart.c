@@ -100,6 +100,7 @@ pm_file *pm_open(const char *path)
     return NULL;
 
   ext = get_ext(path);
+#ifndef NO_ZLIB
   if (strcasecmp(ext, "zip") == 0)
   {
     struct zipent *zipentry;
@@ -149,7 +150,9 @@ zip_failed:
       return NULL;
     }
   }
-  else if (strcasecmp(ext, "cso") == 0)
+  else
+#endif
+  if (strcasecmp(ext, "cso") == 0)
   {
     cso_struct *cso = NULL, *tmp = NULL;
     int size;
@@ -244,6 +247,7 @@ size_t pm_read(void *ptr, size_t bytes, pm_file *stream)
   {
     ret = fread(ptr, 1, bytes, stream->file);
   }
+#ifndef NO_ZLIB
   else if (stream->type == PMT_ZIP)
   {
     gzFile gf = stream->param;
@@ -254,6 +258,7 @@ size_t pm_read(void *ptr, size_t bytes, pm_file *stream)
       /* we must reset stream pointer or else next seek/read fails */
       gzrewind(gf);
   }
+#endif
   else if (stream->type == PMT_CSO)
   {
     cso_struct *cso = stream->param;
@@ -329,6 +334,7 @@ int pm_seek(pm_file *stream, long offset, int whence)
     fseek(stream->file, offset, whence);
     return ftell(stream->file);
   }
+#ifndef NO_ZLIB
   else if (stream->type == PMT_ZIP)
   {
     if (PicoMessage != NULL && offset > 6*1024*1024) {
@@ -338,6 +344,7 @@ int pm_seek(pm_file *stream, long offset, int whence)
     }
     return gzseek((gzFile) stream->param, offset, whence);
   }
+#endif
   else if (stream->type == PMT_CSO)
   {
     cso_struct *cso = stream->param;
@@ -363,6 +370,7 @@ int pm_close(pm_file *fp)
   {
     fclose(fp->file);
   }
+#ifndef NO_ZLIB
   else if (fp->type == PMT_ZIP)
   {
     ZIP *zipfile = fp->file;
@@ -370,6 +378,7 @@ int pm_close(pm_file *fp)
     zipfile->fp = NULL; // gzclose() closed it
     closezip(zipfile);
   }
+#endif
   else if (fp->type == PMT_CSO)
   {
     free(fp->param);
