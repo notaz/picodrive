@@ -176,7 +176,11 @@ clean:
 	$(RM) -r .opk_data
 
 $(TARGET): $(OBJS)
+ifeq ($(STATIC_LINKING), 1)
+	$(AR) rcs $@ $(OBJS)
+else
 	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS)
+endif
 
 pprof: platform/linux/pprof.c
 	$(CC) -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@

@@ -6,12 +6,18 @@
  * See COPYING file in the top-level directory.
  */
 
+#ifdef PSP
+#define NO_MMAP
+#endif
+
 #define _GNU_SOURCE 1 // mremap
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 #ifndef _WIN32
+#ifndef NO_MMAP
 #include <sys/mman.h>
+#endif
 #else
 #include <io.h>
 #include <windows.h>
@@ -161,6 +167,30 @@ static void munmap(void *addr, size_t length)
 	UnmapViewOfFile(addr);
 	/* ruh-ro, we leaked handle from CreateFileMapping() ... */
 }
+#elif defined(NO_MMAP)
+#define 	PROT_EXEC   0x04
+#define MAP_FAILED 0
+#define PROT_READ 0
+#define PROT_WRITE 0
+#define MAP_PRIVATE 0
+#define MAP_ANONYMOUS 0
+
+void* mmap(void *desired_addr, size_t len, int mmap_prot, int mmap_flags, int fildes, size_t off)
+{
+   return malloc(len);
+}
+
+void munmap(void *base_addr, size_t len)
+{
+   free(base_addr);
+}
+
+int mprotect(void *addr, size_t len, int prot)
+{
+   /* stub - not really needed at this point since this codepath has no dynarecs */
+   return 0;
+}
+
 #endif
 
 #ifndef MAP_ANONYMOUS
