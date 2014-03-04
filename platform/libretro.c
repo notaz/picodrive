@@ -6,10 +6,6 @@
  * See COPYING file in the top-level directory.
  */
 
-#ifdef PSP
-#define NO_MMAP
-#endif
-
 #define _GNU_SOURCE 1 // mremap
 #include <stdio.h>
 #include <stdarg.h>

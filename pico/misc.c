@@ -99,7 +99,7 @@ typedef struct
 	int b7;
 } intblock;
 
-PICO_INTERNAL_ASM void memcpy16(unsigned short *dest, unsigned short *src, int count)
+PICO_INTERNAL_ASM void pmemcpy16(unsigned short *dest, unsigned short *src, int count)
 {
 	if ((((long)dest | (long)src) & 3) == 0)
 	{

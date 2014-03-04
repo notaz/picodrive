@@ -768,7 +768,7 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead8(unsigned int a);
 extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp);
 
 // misc.c
-PICO_INTERNAL_ASM void memcpy16(unsigned short *dest, unsigned short *src, int count);
+PICO_INTERNAL_ASM void pmemcpy16(unsigned short *dest, unsigned short *src, int count);
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);
 PICO_INTERNAL_ASM void memcpy32(int *dest, int *src, int count); // 32bit word count
 PICO_INTERNAL_ASM void memset32(int *dest, int c, int count);

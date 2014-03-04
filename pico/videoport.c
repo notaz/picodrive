@@ -156,7 +156,7 @@ static void DmaSlow(int len)
       if (inc == 2 && !(a&1) && a+len*2 < 0x10000)
       {
         // most used DMA mode
-        memcpy16(r + (a>>1), pd, len);
+        pmemcpy16(r + (a>>1), pd, len);
         a += len*2;
       }
       else

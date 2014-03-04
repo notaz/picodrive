@@ -6,9 +6,9 @@
  * See COPYING file in the top-level directory.
  */
 
-.global memcpy16 @ unsigned short *dest, unsigned short *src, int count
+.global pmemcpy16 @ unsigned short *dest, unsigned short *src, int count
 
-memcpy16:
+pmemcpy16:
     eor     r3, r0, r1
     tst     r3, #2
     bne     mcp16_cant_align
