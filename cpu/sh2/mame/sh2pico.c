@@ -21,7 +21,7 @@ typedef unsigned char  UINT8;
 
 // this nasty conversion is needed for drc-expecting memhandlers
 #define MAKE_READFUNC(name, cname) \
-static inline unsigned int name(SH2 *sh2, unsigned int a) \
+static INLINE unsigned int name(SH2 *sh2, unsigned int a) \
 { \
 	unsigned int ret; \
 	sh2->sr |= sh2->icount << 12; \
@@ -32,7 +32,7 @@ static inline unsigned int name(SH2 *sh2, unsigned int a) \
 }
 
 #define MAKE_WRITEFUNC(name, cname) \
-static inline void name(SH2 *sh2, unsigned int a, unsigned int d) \
+static INLINE void name(SH2 *sh2, unsigned int a, unsigned int d) \
 { \
 	sh2->sr |= sh2->icount << 12; \
 	cname(a, d, sh2); \

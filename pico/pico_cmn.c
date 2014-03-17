@@ -50,7 +50,7 @@ static void SekSyncM68k(void)
   pprof_end(m68k);
 }
 
-static inline void SekRunM68k(int cyc)
+static INLINE void SekRunM68k(int cyc)
 {
   SekCycleAim += cyc;
   SekSyncM68k();

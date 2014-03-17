@@ -216,7 +216,7 @@ void Cz80_Reset(cz80_struc *CPU)
 
 /* */
 #if PICODRIVE_HACKS
-static inline unsigned char picodrive_read(unsigned short a)
+static INLINE unsigned char picodrive_read(unsigned short a)
 {
 	uptr v = z80_read_map[a >> Z80_MEM_SHIFT];
 	if (map_flag_set(v))

@@ -907,7 +907,7 @@ void REGPARM(3) sh2_peripheral_write32(unsigned int a, unsigned int d, SH2 *sh2)
 #endif
 
 /* avoid dependency on newer glibc */
-static __inline int isspace_(int c)
+static INLINE int isspace_(int c)
 {
 	return (0x09 <= c && c <= 0x0d) || c == ' ';
 }

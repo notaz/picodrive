@@ -1,6 +1,6 @@
 TARGET ?= PicoDrive
 CFLAGS += -Wall -ggdb -falign-functions=2
-CFLAGS += -I.
+CFLAGS += -I. -DINLINE=inline
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG -ffunction-sections
 ifeq ($(findstring clang,$(CC)),)

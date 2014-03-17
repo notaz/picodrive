@@ -22,7 +22,7 @@ typedef unsigned int   u32;
 
 int (*PicoDmaHook)(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp) = NULL;
 
-static __inline void AutoIncrement(void)
+static INLINE void AutoIncrement(void)
 {
   Pico.video.addr=(unsigned short)(Pico.video.addr+Pico.video.reg[0xf]);
 }
