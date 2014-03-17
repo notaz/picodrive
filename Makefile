@@ -197,7 +197,7 @@ tools/textfilter: tools/textfilter.c
 pico/draw.o: CFLAGS += -fno-strict-aliasing
 pico/draw2.o: CFLAGS += -fno-strict-aliasing
 pico/mode4.o: CFLAGS += -fno-strict-aliasing
-pico/cd/memory.o: CFLAGS += -fno-strict-aliasing
+pico/cd/cd_memory.o: CFLAGS += -fno-strict-aliasing
 pico/cd/cd_file.o: CFLAGS += -fno-strict-aliasing
 pico/cd/pcm.o: CFLAGS += -fno-strict-aliasing
 pico/cd/LC89510.o: CFLAGS += -fno-strict-aliasing
@@ -208,5 +208,5 @@ pico/carthw/svp/compiler.o : cpu/drc/emit_$(ARCH).c
 cpu/sh2/compiler.o : cpu/drc/emit_$(ARCH).c
 cpu/sh2/mame/sh2pico.o : cpu/sh2/mame/sh2.c
 pico/pico.o pico/cd/mcd.o pico/32x/32x.o : pico/pico_cmn.c pico/pico_int.h
-pico/memory.o pico/cd/memory.o pico/32x/memory.o : pico/pico_int.h pico/memory.h
+pico/memory.o pico/cd/cd_memory.o pico/32x/32x_memory.o : pico/pico_int.h pico/memory.h
 cpu/fame/famec.o: cpu/fame/famec.c cpu/fame/famec_opcodes.h

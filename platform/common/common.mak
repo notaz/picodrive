@@ -92,13 +92,13 @@ else
 DEFINES += NO_SMS
 endif
 # CD
-SRCS_COMMON += $(R)pico/cd/mcd.c $(R)pico/cd/memory.c $(R)pico/cd/sek.c \
+SRCS_COMMON += $(R)pico/cd/mcd.c $(R)pico/cd/cd_memory.c $(R)pico/cd/cd_sek.c \
 	$(R)pico/cd/cdc.c $(R)pico/cd/cdd.c $(R)pico/cd/cd_image.c \
 	$(R)pico/cd/cue.c $(R)pico/cd/gfx.c $(R)pico/cd/gfx_dma.c \
-	$(R)pico/cd/misc.c $(R)pico/cd/pcm.c
+	$(R)pico/cd/cd_misc.c $(R)pico/cd/pcm.c
 # 32X
 ifneq "$(no_32x)" "1"
-SRCS_COMMON += $(R)pico/32x/32x.c $(R)pico/32x/memory.c $(R)pico/32x/draw.c \
+SRCS_COMMON += $(R)pico/32x/32x.c $(R)pico/32x/32x_memory.c $(R)pico/32x/32x_draw.c \
 	$(R)pico/32x/sh2soc.c $(R)pico/32x/pwm.c
 else
 DEFINES += NO_32X
@@ -108,7 +108,7 @@ SRCS_COMMON += $(R)pico/pico/pico.c $(R)pico/pico/memory.c $(R)pico/pico/xpcm.c
 # carthw
 SRCS_COMMON += $(R)pico/carthw/carthw.c
 # SVP
-SRCS_COMMON += $(R)pico/carthw/svp/svp.c $(R)pico/carthw/svp/memory.c \
+SRCS_COMMON += $(R)pico/carthw/svp/svp.c $(R)pico/carthw/svp/svp_memory.c \
 	$(R)pico/carthw/svp/ssp16.c
 ifeq "$(use_svpdrc)" "1"
 DEFINES += _SVP_DRC
