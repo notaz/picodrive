@@ -195,16 +195,16 @@
     <ClCompile Include="..\..\..\..\pico\cd\mcd.c">
       <Filter>Source Files\pico\cd</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\pico\cd\memory.c">
+    <ClCompile Include="..\..\..\..\pico\cd\cd_memory.c">
       <Filter>Source Files\pico\cd</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\pico\cd\misc.c">
+    <ClCompile Include="..\..\..\..\pico\cd\cd_misc.c">
       <Filter>Source Files\pico\cd</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\pico\cd\pcm.c">
       <Filter>Source Files\pico\cd</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\pico\cd\sek.c">
+    <ClCompile Include="..\..\..\..\pico\cd\cd_sek.c">
       <Filter>Source Files\pico\cd</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\pico\32x\32x.c">
@@ -213,7 +213,7 @@
     <ClCompile Include="..\..\..\..\pico\32x\draw.c">
       <Filter>Source Files\pico\32x</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\pico\32x\memory.c">
+    <ClCompile Include="..\..\..\..\pico\32x\32x_memory.c">
       <Filter>Source Files\pico\32x</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\pico\32x\pwm.c">
@@ -225,7 +225,7 @@
     <ClCompile Include="..\..\..\..\pico\carthw\carthw.c">
       <Filter>Source Files\pico\carthw</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\pico\carthw\svp\memory.c">
+    <ClCompile Include="..\..\..\..\pico\carthw\svp\svp_memory.c">
       <Filter>Source Files\pico\carthw\svp</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\pico\carthw\svp\ssp16.c">
