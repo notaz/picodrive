@@ -64,6 +64,9 @@
     <Filter Include="Source Files\cpu\sh2\mame">
       <UniqueIdentifier>{dd1911b8-6d08-42aa-ab21-0ba1154613e1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\pico\pico">
+      <UniqueIdentifier>{a635c355-0290-4923-84c6-8290ea8b0065}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\libretro.c">
@@ -210,9 +213,6 @@
     <ClCompile Include="..\..\..\..\pico\32x\32x.c">
       <Filter>Source Files\pico\32x</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\pico\32x\draw.c">
-      <Filter>Source Files\pico\32x</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\..\pico\32x\32x_memory.c">
       <Filter>Source Files\pico\32x</Filter>
     </ClCompile>
@@ -260,6 +260,18 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\cpu\sh2\mame\sh2pico.c">
       <Filter>Source Files\cpu\sh2\mame</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\pico\32x\32x_draw.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\pico\pico\pico_memory.c">
+      <Filter>Source Files\pico\pico</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\pico\pico\pico_pico.c">
+      <Filter>Source Files\pico\pico</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\pico\pico\xpcm.c">
+      <Filter>Source Files\pico\pico</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

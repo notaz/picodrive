@@ -116,6 +116,9 @@
     <ClCompile Include="..\..\..\..\pico\mode4.c" />
     <ClCompile Include="..\..\..\..\pico\patch.c" />
     <ClCompile Include="..\..\..\..\pico\pico.c" />
+    <ClCompile Include="..\..\..\..\pico\pico\pico_memory.c" />
+    <ClCompile Include="..\..\..\..\pico\pico\pico_pico.c" />
+    <ClCompile Include="..\..\..\..\pico\pico\xpcm.c" />
     <ClCompile Include="..\..\..\..\pico\sek.c" />
     <ClCompile Include="..\..\..\..\pico\sms.c" />
     <ClCompile Include="..\..\..\..\pico\sound\mix.c" />

@@ -104,7 +104,7 @@ else
 DEFINES += NO_32X
 endif
 # Pico
-SRCS_COMMON += $(R)pico/pico/pico.c $(R)pico/pico/memory.c $(R)pico/pico/xpcm.c
+SRCS_COMMON += $(R)pico/pico/pico_pico.c $(R)pico/pico/pico_memory.c $(R)pico/pico/xpcm.c
 # carthw
 SRCS_COMMON += $(R)pico/carthw/carthw.c
 # SVP
