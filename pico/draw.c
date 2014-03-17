@@ -1568,7 +1568,7 @@ void PicoDrawSetOutBuf(void *dest, int increment)
 {
   DrawLineDestBase = dest;
   DrawLineDestIncrement = increment;
-  DrawLineDest = DrawLineDestBase + DrawScanline * increment;
+  DrawLineDest = (unsigned char*)DrawLineDestBase + DrawScanline * increment;
 }
 
 void PicoDrawSetInternalBuf(void *dest, int increment)

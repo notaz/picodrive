@@ -30,9 +30,10 @@ PICO_INTERNAL void PicoExitMCD(void)
 
 PICO_INTERNAL void PicoPowerMCD(void)
 {
+  int fmt_size;
   SekCycleCntS68k = SekCycleAimS68k = 0;
 
-  int fmt_size = sizeof(formatted_bram);
+  fmt_size = sizeof(formatted_bram);
   memset(Pico_mcd->prg_ram,    0, sizeof(Pico_mcd->prg_ram));
   memset(Pico_mcd->word_ram2M, 0, sizeof(Pico_mcd->word_ram2M));
   memset(Pico_mcd->pcm_ram,    0, sizeof(Pico_mcd->pcm_ram));
@@ -200,10 +201,10 @@ typedef void (event_cb)(unsigned int now);
 unsigned int pcd_event_times[PCD_EVENT_COUNT];
 static unsigned int event_time_next;
 static event_cb *pcd_event_cbs[PCD_EVENT_COUNT] = {
-  [PCD_EVENT_CDC]      = pcd_cdc_event,
-  [PCD_EVENT_TIMER3]   = pcd_int3_timer_event,
-  [PCD_EVENT_GFX]      = gfx_update,
-  [PCD_EVENT_DMA]      = pcd_dma_event,
+  pcd_cdc_event,
+  pcd_int3_timer_event,
+  gfx_update,
+  pcd_dma_event,
 };
 
 void pcd_event_schedule(unsigned int now, enum pcd_event event, int after)

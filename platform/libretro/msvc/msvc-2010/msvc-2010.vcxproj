@@ -49,7 +49,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions);INLINE=_inline;_CRT_SECURE_NO_WARNINGS;EMU_F68K;_USE_CZ80;NO_ZLIB</PreprocessorDefinitions>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\..\..\;$(SolutionDIr)\..\..\..\pico;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -66,7 +66,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions);INLINE=_inline;_CRT_SECURE_NO_WARNINGS;EMU_F68K;_USE_CZ80;NO_ZLIB</PreprocessorDefinitions>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\..\..\;$(SolutionDIr)\..\..\..\pico;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -78,6 +78,70 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\..\cpu\cz80\cz80.c" />
+    <ClCompile Include="..\..\..\..\cpu\drc\cmn.c" />
+    <ClCompile Include="..\..\..\..\cpu\fame\famec.c" />
+    <ClCompile Include="..\..\..\..\cpu\sh2\mame\sh2pico.c" />
+    <ClCompile Include="..\..\..\..\cpu\sh2\sh2.c" />
+    <ClCompile Include="..\..\..\..\pico\32x\32x.c" />
+    <ClCompile Include="..\..\..\..\pico\32x\draw.c" />
+    <ClCompile Include="..\..\..\..\pico\32x\memory.c" />
+    <ClCompile Include="..\..\..\..\pico\32x\pwm.c" />
+    <ClCompile Include="..\..\..\..\pico\32x\sh2soc.c" />
+    <ClCompile Include="..\..\..\..\pico\cart.c" />
+    <ClCompile Include="..\..\..\..\pico\carthw\carthw.c" />
+    <ClCompile Include="..\..\..\..\pico\carthw\svp\memory.c" />
+    <ClCompile Include="..\..\..\..\pico\carthw\svp\ssp16.c" />
+    <ClCompile Include="..\..\..\..\pico\carthw\svp\svp.c" />
+    <ClCompile Include="..\..\..\..\pico\carthw_cfg.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\cdc.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\cdd.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\cd_image.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\cell_map.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\cue.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\gfx.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\gfx_dma.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\mcd.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\memory.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\misc.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\pcm.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\sek.c" />
+    <ClCompile Include="..\..\..\..\pico\debug.c" />
+    <ClCompile Include="..\..\..\..\pico\draw.c" />
+    <ClCompile Include="..\..\..\..\pico\draw2.c" />
+    <ClCompile Include="..\..\..\..\pico\eeprom.c" />
+    <ClCompile Include="..\..\..\..\pico\media.c" />
+    <ClCompile Include="..\..\..\..\pico\memory.c" />
+    <ClCompile Include="..\..\..\..\pico\misc.c" />
+    <ClCompile Include="..\..\..\..\pico\mode4.c" />
+    <ClCompile Include="..\..\..\..\pico\patch.c" />
+    <ClCompile Include="..\..\..\..\pico\pico.c" />
+    <ClCompile Include="..\..\..\..\pico\sek.c" />
+    <ClCompile Include="..\..\..\..\pico\sms.c" />
+    <ClCompile Include="..\..\..\..\pico\sound\mix.c" />
+    <ClCompile Include="..\..\..\..\pico\sound\sn76496.c" />
+    <ClCompile Include="..\..\..\..\pico\sound\sound.c" />
+    <ClCompile Include="..\..\..\..\pico\sound\ym2612.c" />
+    <ClCompile Include="..\..\..\..\pico\state.c" />
+    <ClCompile Include="..\..\..\..\pico\videoport.c" />
+    <ClCompile Include="..\..\..\..\pico\z80if.c" />
+    <ClCompile Include="..\..\..\..\unzip\unzip.c" />
+    <ClCompile Include="..\..\..\..\unzip\unzip_stream.c" />
+    <ClCompile Include="..\..\..\..\zlib\adler32.c" />
+    <ClCompile Include="..\..\..\..\zlib\compress.c" />
+    <ClCompile Include="..\..\..\..\zlib\crc32.c" />
+    <ClCompile Include="..\..\..\..\zlib\deflate.c" />
+    <ClCompile Include="..\..\..\..\zlib\example.c" />
+    <ClCompile Include="..\..\..\..\zlib\gzio.c" />
+    <ClCompile Include="..\..\..\..\zlib\infback.c" />
+    <ClCompile Include="..\..\..\..\zlib\inffast.c" />
+    <ClCompile Include="..\..\..\..\zlib\inflate.c" />
+    <ClCompile Include="..\..\..\..\zlib\inftrees.c" />
+    <ClCompile Include="..\..\..\..\zlib\trees.c" />
+    <ClCompile Include="..\..\..\..\zlib\uncompr.c" />
+    <ClCompile Include="..\..\..\..\zlib\zutil.c" />
+    <ClCompile Include="..\..\..\common\mp3.c" />
+    <ClCompile Include="..\..\..\common\mp3_dummy.c" />
     <ClCompile Include="..\..\libretro.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -42,7 +42,11 @@ static retro_audio_sample_batch_t audio_batch_cb;
 static void *vout_buf;
 static int vout_width, vout_height, vout_offset;
 
+#ifdef _MSC_VER
+static short sndBuffer[2*44100/50];
+#else
 static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
+#endif
 
 static void snd_write(int len);
 
@@ -109,6 +113,11 @@ void cache_flush_d_inval_i(void *start, void *end)
 
 static void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t offset)
 {
+	uint32_t flProtect, dwDesiredAccess;
+	off_t end;
+	HANDLE mmap_fd, h;
+	void *ret;
+
 	if (prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC))
 		return MAP_FAILED;
 	if (fd == -1) {
@@ -117,7 +126,6 @@ static void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t
 	} else if (flags & MAP_ANON)
 		return MAP_FAILED;
 
-	DWORD flProtect;
 	if (prot & PROT_WRITE) {
 		if (prot & PROT_EXEC)
 			flProtect = PAGE_EXECUTE_READWRITE;
@@ -131,8 +139,8 @@ static void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t
 	} else
 		flProtect = PAGE_READONLY;
 
-	off_t end = length + offset;
-	HANDLE mmap_fd, h;
+	end = length + offset;
+
 	if (fd == -1)
 		mmap_fd = INVALID_HANDLE_VALUE;
 	else
@@ -141,7 +149,6 @@ static void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t
 	if (h == NULL)
 		return MAP_FAILED;
 
-	DWORD dwDesiredAccess;
 	if (prot & PROT_WRITE)
 		dwDesiredAccess = FILE_MAP_WRITE;
 	else
@@ -150,7 +157,7 @@ static void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t
 		dwDesiredAccess |= FILE_MAP_EXECUTE;
 	if (flags & MAP_PRIVATE)
 		dwDesiredAccess |= FILE_MAP_COPY;
-	void *ret = MapViewOfFile(h, dwDesiredAccess, DWORD_HI(offset), DWORD_LO(offset), length);
+	ret = MapViewOfFile(h, dwDesiredAccess, DWORD_HI(offset), DWORD_LO(offset), length);
 	if (ret == NULL) {
 		CloseHandle(h);
 		ret = MAP_FAILED;
@@ -582,13 +589,13 @@ static bool disk_add_image_index(void)
 }
 
 static struct retro_disk_control_callback disk_control = {
-	.set_eject_state = disk_set_eject_state,
-	.get_eject_state = disk_get_eject_state,
-	.get_image_index = disk_get_image_index,
-	.set_image_index = disk_set_image_index,
-	.get_num_images = disk_get_num_images,
-	.replace_image_index = disk_replace_image_index,
-	.add_image_index = disk_add_image_index,
+	disk_set_eject_state,
+	disk_get_eject_state,
+	disk_get_image_index,
+	disk_set_image_index,
+	disk_get_num_images,
+	disk_replace_image_index,
+	disk_add_image_index,
 };
 
 static void disk_tray_open(void)
@@ -792,18 +799,18 @@ void retro_reset(void)
 }
 
 static const unsigned short retro_pico_map[] = {
-	[RETRO_DEVICE_ID_JOYPAD_B]	= 1 << GBTN_B,
-	[RETRO_DEVICE_ID_JOYPAD_Y]	= 1 << GBTN_A,
-	[RETRO_DEVICE_ID_JOYPAD_SELECT]	= 1 << GBTN_MODE,
-	[RETRO_DEVICE_ID_JOYPAD_START]	= 1 << GBTN_START,
-	[RETRO_DEVICE_ID_JOYPAD_UP]	= 1 << GBTN_UP,
-	[RETRO_DEVICE_ID_JOYPAD_DOWN]	= 1 << GBTN_DOWN,
-	[RETRO_DEVICE_ID_JOYPAD_LEFT]	= 1 << GBTN_LEFT,
-	[RETRO_DEVICE_ID_JOYPAD_RIGHT]	= 1 << GBTN_RIGHT,
-	[RETRO_DEVICE_ID_JOYPAD_A]	= 1 << GBTN_C,
-	[RETRO_DEVICE_ID_JOYPAD_X]	= 1 << GBTN_Y,
-	[RETRO_DEVICE_ID_JOYPAD_L]	= 1 << GBTN_X,
-	[RETRO_DEVICE_ID_JOYPAD_R]	= 1 << GBTN_Z,
+	1 << GBTN_B,
+	1 << GBTN_A,
+	1 << GBTN_MODE,
+	1 << GBTN_START,
+	1 << GBTN_UP,
+	1 << GBTN_DOWN,
+	1 << GBTN_LEFT,
+	1 << GBTN_RIGHT,
+	1 << GBTN_C,
+	1 << GBTN_Y,
+	1 << GBTN_X,
+	1 << GBTN_Z,
 };
 #define RETRO_PICO_MAP_LEN (sizeof(retro_pico_map) / sizeof(retro_pico_map[0]))
 

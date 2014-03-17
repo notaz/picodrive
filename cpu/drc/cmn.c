@@ -10,7 +10,11 @@
 #include <pico/pico_int.h>
 #include "cmn.h"
 
+#ifdef _MSC_VER
+u8 tcache[DRC_TCACHE_SIZE];
+#else
 u8 __attribute__((aligned(4096))) tcache[DRC_TCACHE_SIZE];
+#endif
 
 
 void drc_cmn_init(void)
