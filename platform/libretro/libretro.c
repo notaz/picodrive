@@ -26,8 +26,8 @@
 
 #include <pico/pico_int.h>
 #include <pico/state.h>
-#include "common/input_pico.h"
-#include "common/version.h"
+#include "../common/input_pico.h"
+#include "../common/version.h"
 #include "libretro.h"
 
 static retro_log_printf_t log_cb;
@@ -164,7 +164,7 @@ static void munmap(void *addr, size_t length)
 	/* ruh-ro, we leaked handle from CreateFileMapping() ... */
 }
 #elif defined(NO_MMAP)
-#define 	PROT_EXEC   0x04
+#define PROT_EXEC   0x04
 #define MAP_FAILED 0
 #define PROT_READ 0
 #define PROT_WRITE 0

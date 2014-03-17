@@ -109,7 +109,7 @@ USE_FRONTEND = 1
 PLATFORM_MP3 = 1
 endif
 ifeq "$(PLATFORM)" "libretro"
-OBJS += platform/libretro.o 
+OBJS += platform/libretro/libretro.o 
 endif
 
 ifeq "$(USE_FRONTEND)" "1"

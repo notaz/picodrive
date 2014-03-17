@@ -59,7 +59,7 @@ ARCH := $(TARGET_ARCH)
 include $(R)platform/common/common.mak
 
 LOCAL_SRC_FILES += $(SRCS_COMMON)
-LOCAL_SRC_FILES += $(R)platform/libretro.c
+LOCAL_SRC_FILES += $(R)platform/libretro/libretro.c
 LOCAL_SRC_FILES += $(R)platform/common/mp3.c
 LOCAL_SRC_FILES += $(R)platform/common/mp3_dummy.c
 
