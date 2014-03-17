@@ -121,8 +121,8 @@ static int z80_unpack_legacy(const void *data)
   }
 #elif defined(_USE_CZ80)
   if (*(int *)data == 0x00007a43) { // "Cz" save?
-    memcpy(&CZ80, data+8, offsetof(cz80_struc, BasePC));
-    Cz80_Set_Reg(&CZ80, CZ80_PC, *(int *)(data+4));
+    memcpy(&CZ80, (int*)data+8, offsetof(cz80_struc, BasePC));
+    Cz80_Set_Reg(&CZ80, CZ80_PC, *(int *)((int*)data+4));
     return 0;
   }
 #endif

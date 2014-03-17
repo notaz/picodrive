@@ -1044,6 +1044,7 @@ static void remap_prg_window(u32 r1, u32 r3)
 static void remap_word_ram(u32 r3)
 {
   void *bank;
+  int i;
 
   // WORD RAM
   if (!(r3 & 4)) {
@@ -1074,7 +1075,6 @@ static void remap_word_ram(u32 r3)
 
 #ifdef EMU_F68K
   // update fetchmap..
-  int i;
   if (!(r3 & 4))
   {
     for (i = M68K_FETCHBANK1*2/16; (i<<(24-FAMEC_FETCHBITS)) < 0x240000; i++)
