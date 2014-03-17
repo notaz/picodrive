@@ -32,6 +32,11 @@
 extern "C" {
 #endif
 
+#ifdef _MSC_VER
+#define snprintf _snprintf
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#endif
 
 // ----------------------- 68000 CPU -----------------------
 #ifdef EMU_C68K

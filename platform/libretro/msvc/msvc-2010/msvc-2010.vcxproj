@@ -49,7 +49,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions);INLINE=_inline;_CRT_SECURE_NO_WARNINGS;EMU_F68K;_USE_CZ80;NO_ZLIB</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions);INLINE=_inline;_CRT_SECURE_NO_WARNINGS;EMU_F68K;_USE_CZ80;NO_ZLIB;FAMEC_NO_GOTOS</PreprocessorDefinitions>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\..\..\;$(SolutionDIr)\..\..\..\pico;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -66,7 +66,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions);INLINE=_inline;_CRT_SECURE_NO_WARNINGS;EMU_F68K;_USE_CZ80;NO_ZLIB</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions);INLINE=_inline;_CRT_SECURE_NO_WARNINGS;EMU_F68K;_USE_CZ80;NO_ZLIB;FAMEC_NO_GOTOS</PreprocessorDefinitions>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\..\..\;$(SolutionDIr)\..\..\..\pico;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
