@@ -158,19 +158,19 @@ void plat_video_flip(void)
 
 		SDL_LockYUVOverlay(plat_sdl_overlay);
 		rgb565_to_uyvy(plat_sdl_overlay->pixels[0], shadow_fb,
-				g_screen_width * g_screen_height);
+				g_screen_ppitch * g_screen_height);
 		SDL_UnlockYUVOverlay(plat_sdl_overlay);
 		SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
 	}
 	else if (plat_sdl_gl_active) {
-		gl_flip(shadow_fb, g_screen_width, g_screen_height);
+		gl_flip(shadow_fb, g_screen_ppitch, g_screen_height);
 	}
 	else {
 		if (SDL_MUSTLOCK(plat_sdl_screen))
 			SDL_UnlockSurface(plat_sdl_screen);
 		SDL_Flip(plat_sdl_screen);
 		g_screen_ptr = plat_sdl_screen->pixels;
-		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
+		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 	}
 }
 
@@ -204,13 +204,13 @@ void plat_video_menu_end(void)
 
 		SDL_LockYUVOverlay(plat_sdl_overlay);
 		rgb565_to_uyvy(plat_sdl_overlay->pixels[0], shadow_fb,
-				g_menuscreen_w * g_menuscreen_h);
+				g_menuscreen_pp * g_menuscreen_h);
 		SDL_UnlockYUVOverlay(plat_sdl_overlay);
 
 		SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
 	}
 	else if (plat_sdl_gl_active) {
-		gl_flip(g_menuscreen_ptr, g_menuscreen_w, g_menuscreen_h);
+		gl_flip(g_menuscreen_ptr, g_menuscreen_pp, g_menuscreen_h);
 	}
 	else {
 		if (SDL_MUSTLOCK(plat_sdl_screen))
@@ -237,7 +237,7 @@ void plat_video_loop_prepare(void)
 			SDL_LockSurface(plat_sdl_screen);
 		g_screen_ptr = plat_sdl_screen->pixels;
 	}
-	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 }
 
 void plat_early_init(void)
@@ -265,6 +265,7 @@ void plat_init(void)
 
 	g_menuscreen_w = plat_sdl_screen->w;
 	g_menuscreen_h = plat_sdl_screen->h;
+	g_menuscreen_pp = g_menuscreen_w;
 	g_menuscreen_ptr = NULL;
 
 	shadow_size = g_menuscreen_w * g_menuscreen_h * 2;
@@ -280,6 +281,7 @@ void plat_init(void)
 
 	g_screen_width = 320;
 	g_screen_height = 240;
+	g_screen_ppitch = 320;
 	g_screen_ptr = shadow_fb;
 
 	in_sdl_init(&in_sdl_platform_data, plat_sdl_event_handler);

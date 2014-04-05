@@ -75,7 +75,7 @@ void pemu_validate_config(void)
 void pemu_loop_prep(void)
 {
 	PicoDrawSetOutFormat(PDF_RGB555, 1);
-	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 	pemu_sound_start();
 }
 

@@ -42,6 +42,7 @@ void *g_screen_ptr;
 
 int g_screen_width  = 320;
 int g_screen_height = 240;
+int g_screen_ppitch = 320; // pitch in pixels
 
 const char *PicoConfigFile = "config2.cfg";
 currentConfig_t currentConfig, defaultConfig;
@@ -730,12 +731,12 @@ void name(int x, int y, const char *text)				\
 	}								\
 }
 
-mk_text_out(emu_text_out8,      unsigned char,    0xf0, g_screen_ptr, 1, g_screen_width)
-mk_text_out(emu_text_out16,     unsigned short, 0xffff, g_screen_ptr, 1, g_screen_width)
+mk_text_out(emu_text_out8,      unsigned char,    0xf0, g_screen_ptr, 1, g_screen_ppitch)
+mk_text_out(emu_text_out16,     unsigned short, 0xffff, g_screen_ptr, 1, g_screen_ppitch)
 mk_text_out(emu_text_out8_rot,  unsigned char,    0xf0,
-	(char *)g_screen_ptr  + (g_screen_width - 1) * g_screen_height, -g_screen_height, 1)
+	(char *)g_screen_ptr  + (g_screen_ppitch - 1) * g_screen_height, -g_screen_height, 1)
 mk_text_out(emu_text_out16_rot, unsigned short, 0xffff,
-	(short *)g_screen_ptr + (g_screen_width - 1) * g_screen_height, -g_screen_height, 1)
+	(short *)g_screen_ptr + (g_screen_ppitch - 1) * g_screen_height, -g_screen_height, 1)
 
 #undef mk_text_out
 
@@ -751,7 +752,7 @@ void emu_osd_text16(int x, int y, const char *text)
 	for (h = 0; h < 8; h++) {
 		unsigned short *p;
 		p = (unsigned short *)g_screen_ptr
-			+ x + g_screen_width * (y + h);
+			+ x + g_screen_ppitch * (y + h);
 		for (i = len; i > 0; i--, p++)
 			*p = (*p >> 2) & 0x39e7;
 	}
@@ -1204,8 +1205,11 @@ static void mkdir_path(char *path_with_reserve, int pos, const char *name)
 void emu_cmn_forced_frame(int no_scale, int do_emu)
 {
 	int po_old = PicoIn.opt;
+	int y;
 
-	memset32(g_screen_ptr, 0, g_screen_width * g_screen_height * 2 / 4);
+	for (y = 0; y < g_screen_height; y++)
+		memset32((short *)g_screen_ptr + g_screen_ppitch * y, 0,
+			 g_screen_width * 2 / 4);
 
 	PicoIn.opt &= ~POPT_ALT_RENDERER;
 	PicoIn.opt |= POPT_ACC_SPRITES;

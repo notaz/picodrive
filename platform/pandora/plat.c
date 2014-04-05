@@ -488,7 +488,7 @@ void plat_init(void)
 		exit(1);
 	}
 
-	g_menuscreen_w = w;
+	g_menuscreen_w = g_menuscreen_pp = w;
 	g_menuscreen_h = h;
 	g_menuscreen_ptr = vout_fbdev_flip(main_fb);
 
