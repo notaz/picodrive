@@ -125,21 +125,26 @@ PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count)
 }
 
 #ifndef _ASM_MISC_C_AMIPS
-PICO_INTERNAL_ASM void memcpy32(int *dest, int *src, int count)
+PICO_INTERNAL_ASM void memcpy32(void *dest_in, const void *src_in, int count)
 {
-	intblock *bd = (intblock *) dest, *bs = (intblock *) src;
+	const intblock *bs = (intblock *) src_in;
+	intblock *bd = (intblock *) dest_in;
+	const int *src;
+	int *dest;
 
 	for (; count >= sizeof(*bd)/4; count -= sizeof(*bd)/4)
 		*bd++ = *bs++;
 
-	dest = (int *)bd; src = (int *)bs;
+	dest = (int *)bd; src = (const int *)bs;
 	while (count--)
 		*dest++ = *src++;
 }
 
 
-PICO_INTERNAL_ASM void memset32(int *dest, int c, int count)
+PICO_INTERNAL_ASM void memset32(void *dest_in, int c, int count)
 {
+	int *dest = dest_in;
+
 	for (; count >= 8; count -= 8, dest += 8)
 		dest[0] = dest[1] = dest[2] = dest[3] =
 		dest[4] = dest[5] = dest[6] = dest[7] = c;

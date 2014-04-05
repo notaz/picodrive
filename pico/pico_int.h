@@ -770,8 +770,8 @@ extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **srcp, u
 // misc.c
 PICO_INTERNAL_ASM void memcpy16(unsigned short *dest, unsigned short *src, int count);
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);
-PICO_INTERNAL_ASM void memcpy32(int *dest, int *src, int count); // 32bit word count
-PICO_INTERNAL_ASM void memset32(int *dest, int c, int count);
+PICO_INTERNAL_ASM void memcpy32(void *dest, const void *src, int count); // 32bit word count
+PICO_INTERNAL_ASM void memset32(void *dest, int c, int count);
 
 // eeprom.c
 void EEPROM_write8(unsigned int a, unsigned int d);
