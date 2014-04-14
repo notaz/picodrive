@@ -3,7 +3,7 @@ CFLAGS += -Wall -ggdb -falign-functions=2
 CFLAGS += -I. -DINLINE=inline
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG -ffunction-sections
-ifeq ($(findstring clang,$(CC)),)
+ifneq ($(APPLE),1)
 LDFLAGS += -Wl,--gc-sections
 endif
 endif
