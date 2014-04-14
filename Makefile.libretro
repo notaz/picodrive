@@ -47,6 +47,7 @@ ifeq ($(shell uname -p),powerpc)
 endif
 
 ifeq ($(arch),ppc)
+   CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__ -DFAMEC_NO_GOTOS
 else
    SHARED += -mmacosx-version-min=10.6
 endif
