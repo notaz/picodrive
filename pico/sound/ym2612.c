@@ -139,6 +139,10 @@ void memset32(int *dest, int c, int count);
 #define INLINE static __inline
 #endif
 
+#ifndef STRICTINLINE
+#define STRICTINLINE static inline
+#endif
+
 #ifndef M_PI
 #define M_PI    3.14159265358979323846
 #endif
@@ -742,7 +746,7 @@ INLINE int advance_lfo(int lfo_ampm, UINT32 lfo_cnt_old, UINT32 lfo_cnt)
 #define EG_INC_VAL() \
 	((1 << ((pack >> ((eg_cnt>>shift)&7)*3)&7)) >> 1)
 
-UINT32 update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt)
+STRICTINLINE UINT32 update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt)
 {
 	INT32 volume = SLOT->volume;
 
@@ -1201,7 +1205,7 @@ static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: s
 }
 
 /* update phase increment and envelope generator */
-void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
+STRICTINLINE void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
 {
 	int ksr, fdt;
 
