@@ -742,7 +742,7 @@ INLINE int advance_lfo(int lfo_ampm, UINT32 lfo_cnt_old, UINT32 lfo_cnt)
 #define EG_INC_VAL() \
 	((1 << ((pack >> ((eg_cnt>>shift)&7)*3)&7)) >> 1)
 
-INLINE UINT32 update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt)
+UINT32 update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt)
 {
 	INT32 volume = SLOT->volume;
 
@@ -1201,7 +1201,7 @@ static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: s
 }
 
 /* update phase increment and envelope generator */
-INLINE void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
+void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
 {
 	int ksr, fdt;
 
