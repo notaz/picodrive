@@ -48,20 +48,29 @@ endif
 
 ifeq ($(arch),ppc)
    CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__ -DFAMEC_NO_GOTOS
-else
-   SHARED += -mmacosx-version-min=10.6
+endif
+OSXVER = `sw_vers -productVersion | cut -c 4`
+ifneq ($(OSXVER),9)
+   SHARED += -mmacosx-version-min=10.5
 endif
 else ifeq ($(platform), ios)
    TARGET := $(TARGET_NAME)_libretro_ios.dylib
    SHARED := -dynamiclib
    APPLE := 1
 
-   CC = clang -arch armv7 -isysroot $(IOSSDK) -miphoneos-version-min=5.0
-   CXX = clang++ -arch armv7 -isysroot $(IOSSDK) -miphoneos-version-min=5.0
-   CC_AS = perl ./tools/gas-preprocessor.pl $(CC) -miphoneos-version-min=5.0
+   CC = clang -arch armv7 -isysroot $(IOSSDK)
+   CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
+   CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
    CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm 
    ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
-   CFLAGS += -DIOS -miphoneos-version-min=5.0
+   CFLAGS += -DIOS
+OSXVER = `sw_vers -productVersion | cut -c 4`
+ifneq ($(OSXVER),9)
+   CC += -miphoneos-version-min=5.0
+   CXX += -miphoneos-version-min=5.0
+   CC_AS += -miphoneos-version-min=5.0
+   CFLAGS += -miphoneos-version-min=5.0
+endif
 
    ARCH := arm
 
