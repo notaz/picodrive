@@ -899,6 +899,13 @@ void retro_run(void)
 		vout_width, vout_height, vout_width * 2);
 }
 
+static void check_system_specs(void)
+{
+   /* TODO - set different performance level for 32X - 6 for ARM dynarec, higher for interpreter core */
+   unsigned level = 5;
+   environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
+}
+
 void retro_init(void)
 {
    struct retro_log_callback log;
