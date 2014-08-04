@@ -126,7 +126,7 @@ ifneq (,$(findstring armasm,$(platform)))
 endif
    ARCH = arm
 else
-   TARGET := $(TARGET_NAME)_retro.dll
+   TARGET := $(TARGET_NAME)_libretro.dll
    CC = gcc
    LD_FLAGS := -fPIC
    SHARED := -shared -static-libgcc -static-libstdc++
