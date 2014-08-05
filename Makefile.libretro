@@ -36,6 +36,7 @@ asm_mix = 0
 ifeq ($(platform), unix)
    TARGET := $(TARGET_NAME)_libretro.so
    SHARED := -shared
+   DONT_COMPILE_IN_ZLIB = 1
 else ifeq ($(platform), osx)
    TARGET := $(TARGET_NAME)_libretro.dylib
    SHARED := -dynamiclib
