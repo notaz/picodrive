@@ -237,7 +237,9 @@ asm_mix = 1
 endif
 
 CFLAGS += -fPIC
-LDLIBS += -lm
+ifeq ($(findstring Haiku,$(shell uname -a)),)
+   LDLIBS += -lm
+endif
 SHARED ?= -shared
 LDFLAGS += $(SHARED)
 
