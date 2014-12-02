@@ -8,6 +8,7 @@
 **/
 
 
+#define HAVE_ARMv6                  1
 #define USE_MS_SYNTAX               0
 #define CYCLONE_FOR_GENESIS         2
 #define COMPRESS_JUMPTABLE          0
