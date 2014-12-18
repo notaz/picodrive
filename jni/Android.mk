@@ -2,11 +2,7 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-ifeq ($(NEON_BUILD)$(TARGET_ARCH_ABI),1armeabi-v7a)
-  LOCAL_MODULE := retro_picodrive-neon
-else
-  LOCAL_MODULE := retro_picodrive
-endif
+LOCAL_MODULE := retro
 
 R := ../
 FR := $(LOCAL_PATH)/$(R)
