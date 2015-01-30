@@ -1254,7 +1254,7 @@ STRICTINLINE void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
 }
 
 /* update phase increment counters */
-INLINE void refresh_fc_eg_chan(FM_CH *CH)
+void refresh_fc_eg_chan(FM_CH *CH)
 {
 	if( CH->SLOT[SLOT1].Incr==-1){
 		int fc = CH->fc;
@@ -1266,7 +1266,7 @@ INLINE void refresh_fc_eg_chan(FM_CH *CH)
 	}
 }
 
-INLINE void refresh_fc_eg_chan_sl3(void)
+void refresh_fc_eg_chan_sl3(void)
 {
 	if( ym2612.CH[2].SLOT[SLOT1].Incr==-1)
 	{
