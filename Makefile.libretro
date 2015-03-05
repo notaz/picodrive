@@ -37,6 +37,12 @@ ifeq ($(platform), unix)
    TARGET := $(TARGET_NAME)_libretro.so
    SHARED := -shared
    DONT_COMPILE_IN_ZLIB = 1
+	CFLAGS += -DFAMEC_NO_GOTOS
+else ifeq ($(platform), linux-portable)
+   TARGET := $(TARGET_NAME)_libretro.so
+   SHARED := -shared -nostdlib -L. -lmusl
+   DONT_COMPILE_IN_ZLIB = 1
+	CFLAGS += -DFAMEC_NO_GOTOS
 else ifeq ($(platform), osx)
    TARGET := $(TARGET_NAME)_libretro.dylib
    SHARED := -dynamiclib
