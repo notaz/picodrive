@@ -24,6 +24,7 @@ CC_AS ?= $(CC)
 CFLAGS ?=
 
 TARGET_NAME := picodrive
+LIBM := -lm
 
 asm_memory = 0
 asm_render = 0
@@ -41,6 +42,7 @@ ifeq ($(platform), unix)
 else ifeq ($(platform), linux-portable)
    TARGET := $(TARGET_NAME)_libretro.so
    SHARED := -shared -nostdlib -L. -lmusl
+	LIBM :=
    DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
 else ifeq ($(platform), osx)
@@ -250,7 +252,7 @@ endif
 
 CFLAGS += -fPIC
 ifeq ($(findstring Haiku,$(shell uname -a)),)
-   LDLIBS += -lm
+   LDLIBS += $(LIBM)
 endif
 SHARED ?= -shared
 LDFLAGS += $(SHARED)
