@@ -41,7 +41,7 @@ ifeq ($(platform), unix)
 	CFLAGS += -DFAMEC_NO_GOTOS
 else ifeq ($(platform), linux-portable)
    TARGET := $(TARGET_NAME)_libretro.so
-   SHARED := -shared -nostdlib -L. -lmusl
+   SHARED := -shared -nostdlib
 	LIBM :=
    DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
