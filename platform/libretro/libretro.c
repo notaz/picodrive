@@ -314,6 +314,7 @@ void retro_set_environment(retro_environment_t cb)
 		{ "picodrive_input2", "Input device 2; 3 button pad|6 button pad|None" },
 		{ "picodrive_sprlim", "No sprite limit; disabled|enabled" },
 		{ "picodrive_ramcart", "MegaCD RAM cart; disabled|enabled" },
+		{ "picodrive_region", "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
 #ifdef DRC_SH2
 		{ "picodrive_drc", "Dynamic recompilers; enabled|disabled" },
 #endif
@@ -973,6 +974,21 @@ static void update_variables(void)
 			PicoOpt |= POPT_EN_MCD_RAMCART;
 		else
 			PicoOpt &= ~POPT_EN_MCD_RAMCART;
+	}
+
+	var.value = NULL;
+	var.key = "picodrive_region";
+	if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+		if (strcmp(var.value, "Auto") == 0)
+			PicoRegionOverride = 0;
+		else if (strcmp(var.value, "Japan NTSC") == 0)
+			PicoRegionOverride = 1;
+		else if (strcmp(var.value, "Japan PAL") == 0)
+			PicoRegionOverride = 2;
+		else if (strcmp(var.value, "US") == 0)
+			PicoRegionOverride = 4;
+		else if (strcmp(var.value, "Europe") == 0)
+			PicoRegionOverride = 8;
 	}
 
 #ifdef DRC_SH2
