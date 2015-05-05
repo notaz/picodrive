@@ -359,7 +359,7 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 	info->geometry.base_height  = vout_height;
 	info->geometry.max_width    = VOUT_MAX_WIDTH;
 	info->geometry.max_height   = VOUT_MAX_HEIGHT;
-	info->geometry.aspect_ratio = 0.0f;
+	info->geometry.aspect_ratio = 4.0f / 3.0f;
 }
 
 /* savestates */
