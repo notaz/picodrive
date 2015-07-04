@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <pico/pico_int.h>
-#include <pico/sound/mix.h>
+#include "../../pico/pico_int.h"
+#include "../../pico/sound/mix.h"
 #include "mp3.h"
 
 static FILE *mp3_current_file;
