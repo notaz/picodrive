@@ -63,9 +63,7 @@ else ifeq ($(platform), osx)
 	endif
 	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
 	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
-	ifeq ($(OSX_LT_MAVERICKS),"YES")
-		SHARED += -mmacosx-version-min=10.5
-	endif
+	SHARED += -mmacosx-version-min=10.1
 
 # iOS
 else ifeq ($(platform), ios)
