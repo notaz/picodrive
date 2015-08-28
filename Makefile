@@ -197,6 +197,10 @@ pico/cd/pcm.o: CFLAGS += -fno-strict-aliasing
 pico/cd/LC89510.o: CFLAGS += -fno-strict-aliasing
 pico/cd/gfx_cd.o: CFLAGS += -fno-strict-aliasing
 
+# fame needs ~2GB of RAM to compile on gcc 4.8
+# on x86, this is reduced by ~300MB when debug info is off (but not on ARM)
+cpu/fame/famec.o: CFLAGS += -g0
+
 # random deps
 pico/carthw/svp/compiler.o : cpu/drc/emit_$(ARCH).c
 cpu/sh2/compiler.o : cpu/drc/emit_$(ARCH).c
