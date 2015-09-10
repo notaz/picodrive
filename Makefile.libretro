@@ -184,6 +184,37 @@ else ifeq ($(platform), psp1)
 	use_drz80 = 0
 	use_cz80 = 1
 
+
+
+# CTR (3DS)
+else ifeq ($(platform), ctr)
+   TARGET := $(TARGET_NAME)_libretro_ctr.a
+   CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
+   CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
+   AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
+   CFLAGS += -DARM11 -D_3DS
+   CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard
+   CFLAGS += -Wall -mword-relocations
+   CFLAGS += -fomit-frame-pointer -ffast-math
+   CFLAGS += -D_3DS
+   PLATFORM_DEFINES := -D_3DS
+   STATIC_LINKING = 1
+   NO_MMAP = 1
+   DONT_COMPILE_IN_ZLIB = 1
+
+        asm_memory = 0
+        asm_render = 0
+        asm_ym2612 = 0
+        asm_misc = 0
+        asm_cdpico = 0
+        asm_cdmemory = 0
+        asm_mix = 0
+        use_cyclone = 0
+        use_fame = 1
+        use_drz80 = 0
+        use_cz80 = 1
+
+
 # Vita
 else ifeq ($(platform), vita)
 	TARGET := $(TARGET_NAME)_libretro_vita.a
