@@ -270,6 +270,13 @@ else ifeq ($(platform), qnx)
 	ARCH = arm
 	ARM_ASM = 1
 
+	use_cyclone = 0
+	use_fame = 1
+	use_drz80 = 0
+	use_cz80 = 1
+	use_sh2drc = 1
+	use_svpdrc = 1
+
 # ARM
 else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
