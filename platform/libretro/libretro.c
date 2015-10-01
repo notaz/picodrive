@@ -26,13 +26,16 @@
 
 #ifdef _3DS
 #include "3ds/3ds_utils.h"
-#define MEMOP_PROT   6
+#define MEMOP_MAP     4
+#define MEMOP_UNMAP   5
+#define MEMOP_PROT    6
+
 int svcDuplicateHandle(unsigned int* out, unsigned int original);
 int svcCloseHandle(unsigned int handle);
 int svcControlProcessMemory(unsigned int process, void* addr0, void* addr1,
                             unsigned int size, unsigned int type, unsigned int perm);
-#define MEMOP_MAP     4
-#define MEMOP_UNMAP   5
+void* linearMemAlign(size_t size, size_t alignment);
+void linearFree(void* mem);
 
 static int ctr_svchack_successful = 0;
 #endif
@@ -1235,7 +1238,11 @@ void retro_init(void)
 
    vout_width = 320;
    vout_height = 240;
+#ifdef _3DS
+   vout_buf = linearMemAlign(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2, 0x80);
+#else
    vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
+#endif
 
    PicoInit();
    PicoDrawSetOutFormat(PDF_RGB555, 0);
@@ -1250,5 +1257,11 @@ void retro_init(void)
 
 void retro_deinit(void)
 {
+#ifdef _3DS
+   linearFree(vout_buf);
+#else
+   free(vout_buf);
+#endif
+   vout_buf = NULL;
    PicoExit();
 }
