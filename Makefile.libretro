@@ -34,9 +34,11 @@ asm_cdpico = 0
 asm_cdmemory = 0
 asm_mix = 0
 
+fpic :=
 # Unix
 ifeq ($(platform), unix)
 	TARGET := $(TARGET_NAME)_libretro.so
+   fpic := -fPIC
 	SHARED := -shared
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
@@ -45,6 +47,7 @@ ifeq ($(platform), unix)
 else ifeq ($(platform), linux-portable)
 	TARGET := $(TARGET_NAME)_libretro.so
 	SHARED := -shared -nostdlib
+   fpic := -fPIC
 	LIBM :=
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
@@ -53,6 +56,7 @@ else ifeq ($(platform), linux-portable)
 else ifeq ($(platform), osx)
 	TARGET := $(TARGET_NAME)_libretro.dylib
 	SHARED := -dynamiclib
+   fpic := -fPIC
 	APPLE := 1
 	arch = intel
 	ifeq ($(shell uname -p),powerpc)
@@ -69,6 +73,7 @@ else ifeq ($(platform), osx)
 else ifeq ($(platform), ios)
 	TARGET := $(TARGET_NAME)_libretro_ios.dylib
 	SHARED := -dynamiclib
+   fpic := -fPIC
 	APPLE := 1
 	ifeq ($(IOSSDK),)
 		IOSSDK := $(shell xcodebuild -version -sdk iphoneos Path)
@@ -267,6 +272,7 @@ else ifeq ($(platform), wii)
 # QNX
 else ifeq ($(platform), qnx)
 	TARGET := $(TARGET_NAME)_libretro_qnx.so
+   fpic := -fPIC
 	CC = qcc -Vgcc_ntoarmv7le
 	CC_AS = $(CC)
 	CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
@@ -285,6 +291,7 @@ else ifeq ($(platform), qnx)
 else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
 	SHARED := -shared -Wl,--no-undefined
+   fpic := -fPIC
 	ifneq (,$(findstring cortexa5,$(platform)))
 		CFLAGS += -marm -mcpu=cortex-a5
 		ASFLAGS += -mcpu=cortex-a5
@@ -320,7 +327,7 @@ else ifneq (,$(findstring armv,$(platform)))
 else
 	TARGET := $(TARGET_NAME)_libretro.dll
 	CC = gcc
-	LD_FLAGS := -fPIC
+	fpic := -fPIC
 	SHARED := -shared -static-libgcc -static-libstdc++
 	CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
 
@@ -342,13 +349,13 @@ ifeq ($(ARM_ASM),1)
 	asm_mix = 1
 endif
 
-CFLAGS += -fPIC
+CFLAGS += $(fpic)
 ifeq ($(findstring Haiku,$(shell uname -a)),)
 	LDLIBS += $(LIBM)
 endif
 
 SHARED ?= -shared
-LDFLAGS += $(SHARED)
+LDFLAGS += $(SHARED) $(fpic)
 
 PLATFORM = libretro
 NO_CONFIG_MAK = yes
