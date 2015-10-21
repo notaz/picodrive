@@ -228,6 +228,34 @@ else ifeq ($(platform), ctr)
 
    OBJS +=platform/libretro/3ds/3ds_utils.o
 
+# Raspberry Pi (original model) Raspbian
+else ifeq ($(platform), raspberrypi)
+   CFLAGS += -marm -mfpu=vfp -mfloat-abi=hard -march=armv6j
+   CFLAGS += -Wall -mword-relocations
+   CFLAGS += -fomit-frame-pointer -ffast-math
+   ARCH = arm
+   ARM_ASM = 1
+
+   TARGET := $(TARGET_NAME)_libretro.so
+   SHARED := -shared -nostdlib
+   fpic := -fPIC
+   DONT_COMPILE_IN_ZLIB = 1
+
+   asm_memory = 1
+   asm_render = 1
+   asm_ym2612 = 1
+   asm_misc = 1
+   asm_cdpico = 1
+   asm_cdmemory = 1
+   asm_mix = 1
+
+   use_cyclone = 1
+   use_fame = 0
+   use_drz80 = 1
+   use_cz80 = 0
+   use_sh2drc = 1
+   use_svpdrc = 1
+
 # Vita
 else ifeq ($(platform), vita)
 	TARGET := $(TARGET_NAME)_libretro_vita.a
