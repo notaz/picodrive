@@ -31,7 +31,9 @@ void pemu_validate_config(void)
 {
 	extern int PicoOpt;
 //	PicoOpt &= ~POPT_EXT_FM;
+#ifndef __arm__
 	PicoOpt &= ~POPT_EN_DRC;
+#endif
 }
 
 static void draw_cd_leds(void)
