@@ -469,7 +469,7 @@ void lprintf(const char *fmt, ...)
    vsprintf(buffer, fmt, ap);
    /* TODO - add 'level' param for warning/error messages? */
    if (log_cb)
-      log_cb(RETRO_LOG_INFO, "%s\n", fmt, ap);
+      log_cb(RETRO_LOG_INFO, "%s", buffer);
    va_end(ap);
 }
 
