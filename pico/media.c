@@ -244,7 +244,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
 
   rom = pm_open(rom_fname);
   if (rom == NULL) {
-    lprintf("Failed to open ROM");
+    lprintf("Failed to open ROM\n");
     media_type = PM_ERROR;
     goto out;
   }
@@ -252,9 +252,9 @@ enum media_type_e PicoLoadMedia(const char *filename,
   ret = PicoCartLoad(rom, &rom_data, &rom_size, (PicoAHW & PAHW_SMS) ? 1 : 0);
   pm_close(rom);
   if (ret != 0) {
-    if      (ret == 2) lprintf("Out of memory");
-    else if (ret == 3) lprintf("Read failed");
-    else               lprintf("PicoCartLoad() failed.");
+    if      (ret == 2) lprintf("Out of memory\n");
+    else if (ret == 3) lprintf("Read failed\n");
+    else               lprintf("PicoCartLoad() failed.\n");
     media_type = PM_ERROR;
     goto out;
   }
