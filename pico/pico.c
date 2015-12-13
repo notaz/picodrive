@@ -12,12 +12,13 @@
 
 struct Pico Pico;
 int PicoOpt;     
-int PicoSkipFrame;     // skip rendering frame?
-int PicoPad[2];        // Joypads, format is MXYZ SACB RLDU
-int PicoPadInt[2];     // internal copy
-int PicoAHW;           // active addon hardware: PAHW_*
-int PicoQuirks;        // game-specific quirks
-int PicoRegionOverride; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
+int PicoSkipFrame;          // skip rendering frame?
+int PicoPad[2];             // Joypads, format is MXYZ SACB RLDU
+int PicoPadInt[2];          // internal copy
+int PicoAHW;                // active addon hardware: PAHW_*
+int PicoQuirks;             // game-specific quirks
+int PicoRegionOverride;     // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
+int PicoRegionFPSOverride;  // override the refresh rate of the region 0: Auto, 1: NTSC, 2: PAL
 int PicoAutoRgnOrder;
 
 struct PicoSRAM SRam;
@@ -91,6 +92,10 @@ void PicoPower(void)
 
 PICO_INTERNAL void PicoDetectRegion(void)
 {
+  // PicoDetectRegion not ready yet
+  if (Pico.romsize <= 0)
+    return;
+
   int support=0, hw=0, i;
   unsigned char pal=0;
 
@@ -143,6 +148,10 @@ PICO_INTERNAL void PicoDetectRegion(void)
   else hw=0x80; // USA
 
   Pico.m.hardware=(unsigned char)(hw|0x20); // No disk attached
+
+  if (PicoRegionFPSOverride > 0)
+    pal = PicoRegionFPSOverride - 1; // pal - 0: NTSC, 1: PAL | PicoRegionFPSOverride - 0: Auto, 1: NTSC, 2: PAL
+    
   Pico.m.pal=pal;
 }
 
@@ -216,9 +225,16 @@ int PicoReset(void)
 // flush config changes before emu loop starts
 void PicoLoopPrepare(void)
 {
-  if (PicoRegionOverride)
+  if (PicoRegionFPSOverride) // PicoRegionFPSOverride is proprietary on PicoRegionOverride
+  {
+    // force setting possibly changed..
+    Pico.m.pal = PicoRegionFPSOverride - 1; // Pico.m.pal - 0: NTSC, 1: PAL | PicoRegionFPSOverride - 0: Auto, 1: NTSC, 2: PAL
+  }
+  else if (PicoRegionOverride)
+  {
     // force setting possibly changed..
     Pico.m.pal = (PicoRegionOverride == 2 || PicoRegionOverride == 8) ? 1 : 0;
+  }
 
   // FIXME: PAL has 313 scanlines..
   scanlines_total = Pico.m.pal ? 312 : 262;
