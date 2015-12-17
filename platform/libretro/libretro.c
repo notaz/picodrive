@@ -469,7 +469,7 @@ void lprintf(const char *fmt, ...)
    vsprintf(buffer, fmt, ap);
    /* TODO - add 'level' param for warning/error messages? */
    if (log_cb)
-      log_cb(RETRO_LOG_INFO, "%s\n", fmt, ap);
+      log_cb(RETRO_LOG_INFO, "%s", buffer);
    va_end(ap);
 }
 
@@ -477,12 +477,12 @@ void lprintf(const char *fmt, ...)
 void retro_set_environment(retro_environment_t cb)
 {
    static const struct retro_variable vars[] = {
-      //{ "region", "Region; Auto|NTSC|PAL" },
-      { "picodrive_input1", "Input device 1; 3 button pad|6 button pad|None" },
-      { "picodrive_input2", "Input device 2; 3 button pad|6 button pad|None" },
-      { "picodrive_sprlim", "No sprite limit; disabled|enabled" },
-      { "picodrive_ramcart", "MegaCD RAM cart; disabled|enabled" },
-      { "picodrive_region", "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
+      { "picodrive_input1",      "Input device 1; 3 button pad|6 button pad|None" },
+      { "picodrive_input2",      "Input device 2; 3 button pad|6 button pad|None" },
+      { "picodrive_sprlim",      "No sprite limit; disabled|enabled" },
+      { "picodrive_ramcart",     "MegaCD RAM cart; disabled|enabled" },
+      { "picodrive_region",      "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
+      { "picodrive_region_fps",  "Region FPS; Auto|NTSC|PAL"},
 #ifdef DRC_SH2
       { "picodrive_drc", "Dynamic recompilers; enabled|disabled" },
 #endif
@@ -1144,6 +1144,7 @@ static void update_variables(void)
          PicoOpt &= ~POPT_EN_MCD_RAMCART;
    }
 
+   int OldPicoRegionOverride = PicoRegionOverride;
    var.value = NULL;
    var.key = "picodrive_region";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
@@ -1159,6 +1160,27 @@ static void update_variables(void)
          PicoRegionOverride = 8;
    }
 
+   int OldPicoRegionFPSOverride = PicoRegionFPSOverride;
+   var.value = NULL;
+   var.key = "picodrive_region_fps";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "Auto") == 0)
+         PicoRegionFPSOverride = 0;
+      else if (strcmp(var.value, "NTSC") == 0)
+         PicoRegionFPSOverride = 1;
+      else if (strcmp(var.value, "PAL") == 0)
+         PicoRegionFPSOverride = 2;         
+   }
+   
+   // Update region, fps and sound flags if needed
+   if (PicoRegionOverride    != OldPicoRegionOverride ||
+       PicoRegionFPSOverride != OldPicoRegionFPSOverride)
+   {
+      PicoDetectRegion();
+      PicoLoopPrepare();
+      PsndRerate(1);
+   }
+      
 #ifdef DRC_SH2
    var.value = NULL;
    var.key = "picodrive_drc";

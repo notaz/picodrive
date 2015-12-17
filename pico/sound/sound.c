@@ -118,6 +118,10 @@ PICO_INTERNAL void PsndReset(void)
 // to be called after changing sound rate or chips
 void PsndRerate(int preserve_state)
 {
+  // PsndRerate not ready yet
+  if (Pico.romsize <= 0)
+    return;
+
   void *state = NULL;
   int target_fps = Pico.m.pal ? 50 : 60;
 
