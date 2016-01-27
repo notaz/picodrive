@@ -2,7 +2,7 @@ TARGET ?= PicoDrive
 CFLAGS += -Wall -ggdb -falign-functions=2
 CFLAGS += -I.
 ifndef DEBUG
-CFLAGS += -O2 -DNDEBUG -ffunction-sections
+CFLAGS += -O3 -DNDEBUG -ffunction-sections
 ifeq ($(findstring clang,$(CC)),)
 LDFLAGS += -Wl,--gc-sections
 endif
@@ -72,6 +72,18 @@ OBJS += platform/opendingux/inputmap.o
 
 # OpenDingux is a generic platform, really.
 PLATFORM := generic
+endif
+ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","rpi1" "rpi2"))
+CFLAGS += -DHAVE_GLES -DRASPBERRY
+CFLAGS += -I/opt/vc/include/ -I/opt/vc/include/interface/vcos/pthreads/ -I/opt/vc/include/interface/vmcs_host/linux/
+LDFLAGS += -ldl -lbcm_host -L/opt/vc/lib -lEGL -lGLESv2
+OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
+OBJS += platform/common/plat_sdl.o
+OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
+OBJS += platform/libpicofe/plat_dummy.o
+OBJS += platform/libpicofe/gl.o
+OBJS += platform/libpicofe/gl_platform.o
+USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "generic"
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
