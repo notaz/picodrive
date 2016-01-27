@@ -211,7 +211,9 @@ pico/cd/gfx_cd.o: CFLAGS += -fno-strict-aliasing
 
 # fame needs ~2GB of RAM to compile on gcc 4.8
 # on x86, this is reduced by ~300MB when debug info is off (but not on ARM)
-cpu/fame/famec.o: CFLAGS += -g0
+# not using O3 and -fno-expensive-optimizations seems to also help, but you may
+# want to remove this stuff for better performance if your compiler can handle it
+cpu/fame/famec.o: CFLAGS += -g0 -O2 -fno-expensive-optimizations
 
 # random deps
 pico/carthw/svp/compiler.o : cpu/drc/emit_$(ARCH).c
