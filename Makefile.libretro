@@ -193,7 +193,7 @@ else ifeq ($(platform), psp1)
 	use_drz80 = 0
 	use_cz80 = 1
 
-
+    OBJS +=platform/libretro/psp/draw_amips.o
 
 # CTR (3DS)
 else ifeq ($(platform), ctr)
