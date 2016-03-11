@@ -983,38 +983,64 @@ unsigned retro_get_region(void)
    return Pico.m.pal ? RETRO_REGION_PAL : RETRO_REGION_NTSC;
 }
 
-void *retro_get_memory_data(unsigned id)
+void *retro_get_memory_data(unsigned type)
 {
-   if (id != RETRO_MEMORY_SAVE_RAM)
-      return NULL;
+   uint8_t* data;
 
-   if (PicoAHW & PAHW_MCD)
-      return Pico_mcd->bram;
-   else
-      return SRam.data;
+   switch(type)
+   {
+      case RETRO_MEMORY_SAVE_RAM:
+         if (PicoAHW & PAHW_MCD)
+            data = Pico_mcd->bram;
+         else
+            data = SRam.data;
+         break;
+      case RETRO_MEMORY_SYSTEM_RAM:
+         if (PicoAHW & PAHW_SMS)
+            data = Pico.vramb;
+         else
+            data = Pico.ram;
+         break;
+      default:
+         data = NULL;
+         break;
+   }
+   
+   return data;
 }
 
-size_t retro_get_memory_size(unsigned id)
+size_t retro_get_memory_size(unsigned type)
 {
    unsigned int i;
    int sum;
+   
+   switch(type)
+   {
+      case RETRO_MEMORY_SAVE_RAM:
+         if (PicoAHW & PAHW_MCD)
+            // bram
+            return 0x2000;
 
-   if (id != RETRO_MEMORY_SAVE_RAM)
-      return 0;
+         if (Pico.m.frame_count == 0)
+            return SRam.size;
 
-   if (PicoAHW & PAHW_MCD)
-      // bram
-      return 0x2000;
+         // if game doesn't write to sram, don't report it to
+         // libretro so that RA doesn't write out zeroed .srm
+         for (i = 0, sum = 0; i < SRam.size; i++)
+            sum |= SRam.data[i];
 
-   if (Pico.m.frame_count == 0)
-      return SRam.size;
-
-   // if game doesn't write to sram, don't report it to
-   // libretro so that RA doesn't write out zeroed .srm
-   for (i = 0, sum = 0; i < SRam.size; i++)
-      sum |= SRam.data[i];
-
-   return (sum != 0) ? SRam.size : 0;
+         return (sum != 0) ? SRam.size : 0;
+            
+      case RETRO_MEMORY_SYSTEM_RAM:
+         if (PicoAHW & PAHW_SMS)
+            return sizeof(Pico.vramb);
+         else
+            return sizeof(Pico.ram);
+            
+      default:
+         return 0;
+   }
+   
 }
 
 void retro_reset(void)
