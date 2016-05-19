@@ -55,8 +55,14 @@ static retro_audio_sample_batch_t audio_batch_cb;
 
 #define VOUT_MAX_WIDTH 320
 #define VOUT_MAX_HEIGHT 240
+
+static const float VOUT_PAR = 0.0;
+static const float VOUT_4_3 = (224.0f * (4.0f / 3.0f));
+static const float VOUT_CRT = (224.0f * 1.29911f);
+
 static void *vout_buf;
 static int vout_width, vout_height, vout_offset;
+static float user_vout_width = 0.0;
 
 #ifdef _MSC_VER
 static short sndBuffer[2*44100/50];
@@ -455,6 +461,11 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 
    vout_height = line_count;
    vout_offset = vout_width * start_line;
+
+   // Update the geometry
+   struct retro_system_av_info av_info;
+   retro_get_system_av_info(&av_info);
+   environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
 }
 
 void emu_32x_startup(void)
@@ -483,6 +494,7 @@ void retro_set_environment(retro_environment_t cb)
       { "picodrive_ramcart",     "MegaCD RAM cart; disabled|enabled" },
       { "picodrive_region",      "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
       { "picodrive_region_fps",  "Region FPS; Auto|NTSC|PAL" },
+      { "picodrive_aspect",      "Core-provided aspect ratio; PAR|4/3|CRT" },
 #ifdef DRC_SH2
       { "picodrive_drc", "Dynamic recompilers; enabled|disabled" },
 #endif
@@ -523,11 +535,16 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    memset(info, 0, sizeof(*info));
    info->timing.fps            = Pico.m.pal ? 50 : 60;
    info->timing.sample_rate    = 44100;
-   info->geometry.base_width   = 320;
+   info->geometry.base_width   = vout_width;
    info->geometry.base_height  = vout_height;
-   info->geometry.max_width    = VOUT_MAX_WIDTH;
-   info->geometry.max_height   = VOUT_MAX_HEIGHT;
-   info->geometry.aspect_ratio = 4.0f / 3.0f;
+   info->geometry.max_width    = vout_width;
+   info->geometry.max_height   = vout_height;
+   
+   float common_width = vout_width;
+   if (user_vout_width != 0)
+      common_width = user_vout_width;
+   
+   info->geometry.aspect_ratio = common_width / vout_height;
 }
 
 /* savestates */
@@ -1150,6 +1167,26 @@ static void update_variables(void)
       PicoDetectRegion();
       PicoLoopPrepare();
       PsndRerate(1);
+   }
+
+   float old_user_vout_width = user_vout_width;
+   var.value = NULL;
+   var.key = "picodrive_aspect";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "4/3") == 0)
+         user_vout_width = VOUT_4_3;
+      else if (strcmp(var.value, "CRT") == 0)
+         user_vout_width = VOUT_CRT;
+      else
+         user_vout_width = VOUT_PAR;   
+   }
+
+   if (user_vout_width != old_user_vout_width)
+   {
+      // Update the geometry
+      struct retro_system_av_info av_info;
+      retro_get_system_av_info(&av_info);
+      environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
    }
 
 #ifdef DRC_SH2
