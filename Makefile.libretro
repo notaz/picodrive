@@ -238,7 +238,7 @@ else ifeq ($(platform), raspberrypi)
    ARM_ASM = 1
 
    TARGET := $(TARGET_NAME)_libretro.so
-   SHARED := -shared -nostdlib
+   SHARED := -shared
    fpic := -fPIC
    DONT_COMPILE_IN_ZLIB = 1
 
