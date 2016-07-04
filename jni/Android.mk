@@ -2,6 +2,9 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
+#fix stupid change in ndk r11 that breaks compiling even when the exe would run fine
+LOCAL_DISABLE_FATAL_LINKER_WARNINGS := true
+
 LOCAL_MODULE := retro
 
 R := ../
