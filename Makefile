@@ -13,7 +13,7 @@ endif
 #drc_debug = 7
 #profile = 1
 
-ifneq ($(platform),emscripten)
+ifeq ($(WANT_GDB),1)
 CFLAGS += ggdb -falign-functions=2
 endif
 
