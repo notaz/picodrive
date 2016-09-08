@@ -1,5 +1,5 @@
 TARGET ?= PicoDrive
-CFLAGS += -Wall -ggdb -falign-functions=2
+CFLAGS += -Wall 
 CFLAGS += -I. -DINLINE=inline
 ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG -ffunction-sections
@@ -12,6 +12,10 @@ endif
 #cpu_cmp = 1
 #drc_debug = 7
 #profile = 1
+
+ifneq ($(platform),emscripten)
+CFLAGS += ggdb -falign-functions=2
+endif
 
 
 all: config.mak target_
