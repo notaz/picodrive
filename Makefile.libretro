@@ -263,23 +263,26 @@ else ifeq ($(platform), vita)
 	CC = arm-vita-eabi-gcc$(EXE_EXT)
 	AR = arm-vita-eabi-ar$(EXE_EXT)
 	CFLAGS += -DVITA
+	CFLAGS += -mfloat-abi=hard -ffast-math -mword-relocations
+	CFLAGS += -marm -mfpu=neon -mcpu=cortex-a9 -march=armv7-a
 	STATIC_LINKING = 1
 	NO_MMAP = 1
 	DONT_COMPILE_IN_ZLIB = 1
 	ARCH = arm
-	ARM_ASM = 1
 
 	asm_memory = 1
 	asm_render = 1
 	asm_ym2612 = 1
-	asm_misc = 0
+	asm_misc = 1
 	asm_cdpico = 0
 	asm_cdmemory = 0
-	asm_mix = 0
-	use_cyclone = 0
-	use_fame = 1
+	asm_mix = 1
+	use_cyclone = 1
+	use_fame = 0
 	use_drz80 = 1
 	use_cz80 = 0
+	use_sh2drc = 0
+	use_svpdrc = 0
 
 # Xbox 360
 else ifeq ($(platform), xenon)
