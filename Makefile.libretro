@@ -263,7 +263,7 @@ else ifeq ($(platform), vita)
 	CC = arm-vita-eabi-gcc$(EXE_EXT)
 	AR = arm-vita-eabi-ar$(EXE_EXT)
 	CFLAGS += -DVITA
-	CFLAGS += -mfloat-abi=hard -ffast-math -mword-relocations
+	CFLAGS += -mfloat-abi=hard -ffast-math -mword-relocations -fno-optimize-sibling-calls
 	CFLAGS += -marm -mfpu=neon -mcpu=cortex-a9 -march=armv7-a
 	STATIC_LINKING = 1
 	NO_MMAP = 1

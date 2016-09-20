@@ -332,9 +332,7 @@ int pm_seek(pm_file *stream, long offset, int whence)
   if (stream->type == PMT_UNCOMPRESSED)
   {
     fseek(stream->file, offset, whence);
-    int ret = ftell(stream->file);
-    elprintf(EL_STATUS, "seeked ok."); //HACK for VITA
-    return ret;
+    return ftell(stream->file);
   }
 #ifndef NO_ZLIB
   else if (stream->type == PMT_ZIP)
