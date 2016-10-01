@@ -12,6 +12,11 @@
 
 #ifdef _MSC_VER
 u8 tcache[DRC_TCACHE_SIZE];
+#elif defined(VITA)
+#include <psp2/kernel/sysmem.h>
+u8 *tcache;
+static int sceBlock;
+int getVMBlock();
 #else
 u8 __attribute__((aligned(4096))) tcache[DRC_TCACHE_SIZE];
 #endif
@@ -19,6 +24,11 @@ u8 __attribute__((aligned(4096))) tcache[DRC_TCACHE_SIZE];
 
 void drc_cmn_init(void)
 {
+#ifdef VITA
+   sceBlock = getVMBlock();
+   sceKernelGetMemBlockBase(sceBlock, (void **)&tcache);
+#endif
+
   int ret = plat_mem_set_exec(tcache, sizeof(tcache));
   elprintf(EL_STATUS, "drc_cmn_init: %p, %zd bytes: %d",
     tcache, sizeof(tcache), ret);

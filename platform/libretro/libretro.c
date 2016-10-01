@@ -38,6 +38,15 @@ void* linearMemAlign(size_t size, size_t alignment);
 void linearFree(void* mem);
 
 static int ctr_svchack_successful = 0;
+
+#elif defined(VITA)
+#define TARGET_SIZE_2 24 // 2^24 = 16 megabytes
+
+#include <psp2/kernel/sysmem.h>
+static int sceBlock;
+int getVMBlock();
+int _newlib_vm_size_user = 1 << TARGET_SIZE_2;
+
 #endif
 
 #include <pico/pico_int.h>
@@ -83,14 +92,16 @@ static void snd_write(int len);
 void cache_flush_d_inval_i(void *start, void *end)
 {
 #ifdef __arm__
+   size_t len = (char *)end - (char *)start;
 #if defined(__BLACKBERRY_QNX__)
    msync(start, end - start, MS_SYNC | MS_CACHE_ONLY | MS_INVALIDATE_ICACHE);
 #elif defined(__MACH__)
-   size_t len = (char *)end - (char *)start;
    sys_dcache_flush(start, len);
    sys_icache_invalidate(start, len);
 #elif defined(_3DS)
    ctr_flush_invalidate_cache();
+#elif defined(VITA)
+   sceKernelSyncVMDomain(sceBlock, start, len);
 #else
    __clear_cache(start, end);
 #endif
@@ -444,7 +455,8 @@ int plat_mem_set_exec(void *ptr, size_t size)
       exit(1);
    }
 
-
+#elif defined(VITA)
+   int ret = sceKernelOpenVMDomain();
 #else
    int ret = mprotect(ptr, size, PROT_READ | PROT_WRITE | PROT_EXEC);
    if (ret != 0 && log_cb)
@@ -1251,6 +1263,8 @@ void retro_init(void)
 
 #ifdef _3DS
    ctr_svchack_successful = ctr_svchack_init();
+#elif defined(VITA)
+   sceBlock = getVMBlock();
 #endif
 
    PicoOpt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80

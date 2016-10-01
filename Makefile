@@ -2,7 +2,11 @@ TARGET ?= PicoDrive
 CFLAGS += -Wall 
 CFLAGS += -I. -DINLINE=inline
 ifndef DEBUG
+ifeq ($(platform), vita)
+CFLAGS += -O3 -DNDEBUG
+else
 CFLAGS += -O2 -DNDEBUG -ffunction-sections
+endif
 ifneq ($(APPLE),1)
 LDFLAGS += -Wl,--gc-sections
 endif
