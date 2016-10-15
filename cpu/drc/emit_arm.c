@@ -1,6 +1,8 @@
 /*
  * Basic macros to emit ARM instructions and some utils
  * Copyright (C) 2008,2009,2010 notaz
+ * Copyright (C) 2016      lentillog
+ * Copyright (C) 2016      Daniel De Matteis
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
