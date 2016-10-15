@@ -1,6 +1,7 @@
 /*
  * libretro core glue for PicoDrive
  * (C) notaz, 2013
+ * (C) Daniel De Matteis, 2013
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
