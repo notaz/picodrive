@@ -2,18 +2,21 @@ TARGET ?= PicoDrive
 DEBUG = 0
 CFLAGS += -Wall 
 CFLAGS += -I. -DINLINE=inline
-ifeq ($(DEBUG),0)
-ifeq ($(platform), vita)
-CFLAGS += -O3 -DNDEBUG
+
+ifeq ($(DEBUG),1)
+	CFLAGS += -g -O0
 else
-CFLAGS += -O2 -DNDEBUG -ffunction-sections
+	ifeq ($(platform), vita)
+		CFLAGS += -O3 -DNDEBUG
+	else
+		CFLAGS += -O2 -DNDEBUG -ffunction-sections
+	endif
 endif
-else
-CFLAGS += -g -O2
-endif
+
 ifneq ($(APPLE),1)
-LDFLAGS += -Wl,--gc-sections
+	LDFLAGS += -Wl,--gc-sections
 endif
+
 #CFLAGS += -DEVT_LOG
 #CFLAGS += -DDRC_CMP
 #cpu_cmp = 1
@@ -23,7 +26,6 @@ endif
 ifeq ($(WANT_GDB),1)
 CFLAGS += ggdb -falign-functions=2
 endif
-
 
 all: config.mak target_
 

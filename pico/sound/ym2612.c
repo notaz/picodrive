@@ -535,7 +535,7 @@ static int g_lfo_ampm = 0;
 
 
 /* OPN Mode Register Write */
-INLINE void set_timers( int v )
+static INLINE void set_timers( int v )
 {
 	/* b7 = CSM MODE */
 	/* b6 = 3 slot mode */
@@ -590,13 +590,13 @@ INLINE void set_det_mul(FM_CH *CH, FM_SLOT *SLOT, int v)
 }
 
 /* set total level */
-INLINE void set_tl(FM_SLOT *SLOT, int v)
+static INLINE void set_tl(FM_SLOT *SLOT, int v)
 {
 	SLOT->tl = (v&0x7f)<<(ENV_BITS-7); /* 7bit TL */
 }
 
 /* set attack rate & key scale  */
-INLINE void set_ar_ksr(FM_CH *CH, FM_SLOT *SLOT, int v)
+static INLINE void set_ar_ksr(FM_CH *CH, FM_SLOT *SLOT, int v)
 {
 	UINT8 old_KSR = SLOT->KSR;
 
@@ -628,7 +628,7 @@ INLINE void set_ar_ksr(FM_CH *CH, FM_SLOT *SLOT, int v)
 }
 
 /* set decay rate */
-INLINE void set_dr(FM_SLOT *SLOT, int v)
+static INLINE void set_dr(FM_SLOT *SLOT, int v)
 {
 	int eg_sh_d1r, eg_sel_d1r;
 
@@ -641,7 +641,7 @@ INLINE void set_dr(FM_SLOT *SLOT, int v)
 }
 
 /* set sustain rate */
-INLINE void set_sr(FM_SLOT *SLOT, int v)
+static INLINE void set_sr(FM_SLOT *SLOT, int v)
 {
 	int eg_sh_d2r, eg_sel_d2r;
 
@@ -654,7 +654,7 @@ INLINE void set_sr(FM_SLOT *SLOT, int v)
 }
 
 /* set release rate */
-INLINE void set_sl_rr(FM_SLOT *SLOT, int v)
+static INLINE void set_sl_rr(FM_SLOT *SLOT, int v)
 {
 	int eg_sh_rr, eg_sel_rr;
 
@@ -667,8 +667,6 @@ INLINE void set_sl_rr(FM_SLOT *SLOT, int v)
 
 	SLOT->eg_pack_rr = eg_inc_pack[eg_sel_rr] | (eg_sh_rr<<24);
 }
-
-
 
 INLINE signed int op_calc(UINT32 phase, unsigned int env, signed int pm)
 {
