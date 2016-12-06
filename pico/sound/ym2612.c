@@ -582,7 +582,7 @@ INLINE void FM_KEYOFF(int c , int s )
 
 
 /* set detune & multiple */
-INLINE void set_det_mul(FM_CH *CH, FM_SLOT *SLOT, int v)
+static INLINE void set_det_mul(FM_CH *CH, FM_SLOT *SLOT, int v)
 {
 	SLOT->mul = (v&0x0f)? (v&0x0f)*2 : 1;
 	SLOT->DT  = ym2612.OPN.ST.dt_tab[(v>>4)&7];
