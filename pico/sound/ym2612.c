@@ -557,7 +557,7 @@ static INLINE void set_timers( int v )
 }
 
 
-INLINE void FM_KEYON(int c , int s )
+static INLINE void FM_KEYON(int c , int s )
 {
 	FM_SLOT *SLOT = &ym2612.CH[c].SLOT[s];
 	if( !SLOT->key )
@@ -569,7 +569,7 @@ INLINE void FM_KEYON(int c , int s )
 	}
 }
 
-INLINE void FM_KEYOFF(int c , int s )
+static INLINE void FM_KEYOFF(int c , int s )
 {
 	FM_SLOT *SLOT = &ym2612.CH[c].SLOT[s];
 	if( SLOT->key )
@@ -668,7 +668,7 @@ static INLINE void set_sl_rr(FM_SLOT *SLOT, int v)
 	SLOT->eg_pack_rr = eg_inc_pack[eg_sel_rr] | (eg_sh_rr<<24);
 }
 
-INLINE signed int op_calc(UINT32 phase, unsigned int env, signed int pm)
+static INLINE signed int op_calc(UINT32 phase, unsigned int env, signed int pm)
 {
 	int ret, sin = (phase>>16) + (pm>>1);
 	int neg = sin & 0x200;
@@ -685,7 +685,7 @@ INLINE signed int op_calc(UINT32 phase, unsigned int env, signed int pm)
 	return neg ? -ret : ret;
 }
 
-INLINE signed int op_calc1(UINT32 phase, unsigned int env, signed int pm)
+static INLINE signed int op_calc1(UINT32 phase, unsigned int env, signed int pm)
 {
 	int ret, sin = (phase+pm)>>16;
 	int neg = sin & 0x200;
@@ -703,7 +703,7 @@ INLINE signed int op_calc1(UINT32 phase, unsigned int env, signed int pm)
 
 #if !defined(_ASM_YM2612_C) || defined(EXTERNAL_YM2612)
 /* advance LFO to next sample */
-INLINE int advance_lfo(int lfo_ampm, UINT32 lfo_cnt_old, UINT32 lfo_cnt)
+static INLINE int advance_lfo(int lfo_ampm, UINT32 lfo_cnt_old, UINT32 lfo_cnt)
 {
 	UINT8 pos;
 	UINT8 prev_pos;
