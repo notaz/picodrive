@@ -97,8 +97,8 @@ else ifeq ($(platform), staticios)
 	use_fame = 1
 	use_drz80 = 0
 	use_cz80 = 1
-	use_sh2drc = 1
-	use_svpdrc = 1
+	use_sh2drc = 0
+	use_svpdrc = 0
 
 # iOS
 else ifneq (,$(findstring ios,$(platform)))
