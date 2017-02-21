@@ -109,6 +109,35 @@ endif
 	use_sh2drc = 1
 	use_svpdrc = 1
 
+else ifneq (,$(findstring ios_static,$(platform)))
+	TARGET := $(TARGET_NAME)_libretro_ios.a
+	SHARED := -dynamiclib
+   fpic := -fPIC
+	APPLE := 1
+	ifeq ($(IOSSDK),)
+		IOSSDK := $(shell xcodebuild -version -sdk iphoneos Path)
+	endif
+	CC = clang -arch armv7 -isysroot $(IOSSDK)
+	CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
+	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
+	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm 
+	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+	CFLAGS += -DIOS
+
+	CC     += -miphoneos-version-min=8.0
+	CXX    += -miphoneos-version-min=8.0
+	CC_AS  += -miphoneos-version-min=8.0
+	CFLAGS += -miphoneos-version-min=8.0
+	ARCH := arm
+
+	STATIC_LINKING = 1
+	use_cyclone = 0
+	use_fame = 1
+	use_drz80 = 0
+	use_cz80 = 1
+	use_sh2drc = 1
+	use_svpdrc = 1
+
 # PS3
 else ifeq ($(platform), ps3)
 	TARGET := $(TARGET_NAME)_libretro_$(platform).a
