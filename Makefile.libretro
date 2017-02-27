@@ -79,11 +79,10 @@ else ifeq ($(platform), staticios)
 	ifeq ($(IOSSDK),)
 		IOSSDK := $(shell xcodebuild -version -sdk iphoneos Path)
 	endif
-	CC = clang -arch armv7 -isysroot $(IOSSDK)
-	CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
+	CC = clang -arch armv7 -arch arm64 -isysroot $(IOSSDK)
+	CXX = clang++ -arch armv7 -arch arm64 -isysroot $(IOSSDK)
 	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
-	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm 
-	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+	CFLAGS += -marm 
 	CFLAGS += -DIOS
 
 	CC     += -miphoneos-version-min=8.0
