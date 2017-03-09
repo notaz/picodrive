@@ -71,6 +71,8 @@ static const float VOUT_PAR = 0.0;
 static const float VOUT_4_3 = (224.0f * (4.0f / 3.0f));
 static const float VOUT_CRT = (224.0f * 1.29911f);
 
+bool show_overscan = false;
+
 static void *vout_buf;
 static int vout_width, vout_height, vout_offset;
 static float user_vout_width = 0.0;
@@ -472,6 +474,8 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
    memset(vout_buf, 0, 320 * 240 * 2);
    vout_width = is_32cols ? 256 : 320;
    PicoDrawSetOutBuf(vout_buf, vout_width * 2);
+   if (show_overscan == true) line_count += 16;
+   if (show_overscan == true) start_line -= 8;
 
    vout_height = line_count;
    vout_offset = vout_width * start_line;
@@ -509,6 +513,7 @@ void retro_set_environment(retro_environment_t cb)
       { "picodrive_region",      "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
       { "picodrive_region_fps",  "Region FPS; Auto|NTSC|PAL" },
       { "picodrive_aspect",      "Core-provided aspect ratio; PAR|4/3|CRT" },
+      { "picodrive_overscan",    "Show Overscan; disabled|enabled" },
 #ifdef DRC_SH2
       { "picodrive_drc", "Dynamic recompilers; enabled|disabled" },
 #endif
@@ -556,11 +561,11 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->geometry.base_height  = vout_height;
    info->geometry.max_width    = vout_width;
    info->geometry.max_height   = vout_height;
-   
+
    float common_width = vout_width;
    if (user_vout_width != 0)
       common_width = user_vout_width;
-   
+
    info->geometry.aspect_ratio = common_width / vout_height;
 }
 
@@ -1057,7 +1062,7 @@ void *retro_get_memory_data(unsigned type)
          data = NULL;
          break;
    }
-   
+
    return data;
 }
 
@@ -1065,7 +1070,7 @@ size_t retro_get_memory_size(unsigned type)
 {
    unsigned int i;
    int sum;
-   
+
    switch(type)
    {
       case RETRO_MEMORY_SAVE_RAM:
@@ -1082,17 +1087,17 @@ size_t retro_get_memory_size(unsigned type)
             sum |= SRam.data[i];
 
          return (sum != 0) ? SRam.size : 0;
-            
+
       case RETRO_MEMORY_SYSTEM_RAM:
          if (PicoAHW & PAHW_SMS)
             return sizeof(Pico.vramb);
          else
             return sizeof(Pico.ram);
-            
+
       default:
          return 0;
    }
-   
+
 }
 
 void retro_reset(void)
@@ -1192,7 +1197,7 @@ static void update_variables(void)
       else if (strcmp(var.value, "NTSC") == 0)
          PicoRegionFPSOverride = 1;
       else if (strcmp(var.value, "PAL") == 0)
-         PicoRegionFPSOverride = 2;         
+         PicoRegionFPSOverride = 2;
    }
 
    // Update region, fps and sound flags if needed
@@ -1213,7 +1218,16 @@ static void update_variables(void)
       else if (strcmp(var.value, "CRT") == 0)
          user_vout_width = VOUT_CRT;
       else
-         user_vout_width = VOUT_PAR;   
+         user_vout_width = VOUT_PAR;
+   }
+
+   var.value = NULL;
+   var.key = "picodrive_overscan";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "enabled") == 0)
+         show_overscan = true;
+      else
+         show_overscan = false;
    }
 
    if (user_vout_width != old_user_vout_width)
