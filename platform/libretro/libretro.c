@@ -722,11 +722,17 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 	} pt;
 	int array_len = 0;
 	char *buff;
+	bool multiline=0;
 
 	//TODO: Split multi-line codes properly
-	buff = strtok(code,"+");
+	if (strstr(code,"+")){
+		multiline=1;
+		buff = strtok(code,"+");
+	} else {
+		buff=code;
+	}
 
-	while (buff)
+	while (buff != NULL)
 	{
 		decode(buff, &pt);
 		if (pt.addr == (unsigned int)-1 || pt.data == (unsigned short)-1)
@@ -759,6 +765,9 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 		else
 			PicoPatches[PicoPatchCount].data_old = (unsigned short) m68k_read16(PicoPatches[PicoPatchCount].addr);
 		PicoPatchCount++;
+
+		if (!multiline)
+			break;
 	}
 }
 
