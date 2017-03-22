@@ -713,7 +713,7 @@ void retro_cheat_reset(void)
 	PicoPatchUnload();
 }
 
-void retro_cheat_set(unsigned index, bool enabled, const char *buff)
+void retro_cheat_set(unsigned index, bool enabled, const char *code)
 {
 	struct patch
 	{
@@ -721,11 +721,16 @@ void retro_cheat_set(unsigned index, bool enabled, const char *buff)
 		unsigned short data;
 	} pt;
 	int array_len = 0;
+	char *buff;
 
 	//TODO: Split multi-line codes properly
+	buff = strtok(code,"+");
 
+	while (buff)
+	{
 		decode(buff, &pt);
-		if (pt.addr == (unsigned int)-1 || pt.data == (unsigned short)-1){
+		if (pt.addr == (unsigned int)-1 || pt.data == (unsigned short)-1)
+		{
 			log_cb(RETRO_LOG_ERROR,"CHEATS: Invalid code: %s\n",buff);
 			return;
 		}
@@ -754,6 +759,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *buff)
 		else
 			PicoPatches[PicoPatchCount].data_old = (unsigned short) m68k_read16(PicoPatches[PicoPatchCount].addr);
 		PicoPatchCount++;
+	}
 }
 
 /* multidisk support */
