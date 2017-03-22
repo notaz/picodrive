@@ -211,7 +211,8 @@ bad_code:
 
 unsigned int PicoRead16(unsigned int a);
 void PicoWrite16(unsigned int a, unsigned short d);
-
+extern unsigned short m68k_read16(unsigned int a);
+extern void m68k_write16(int a, unsigned short d);
 
 void PicoPatchUnload(void)
 {

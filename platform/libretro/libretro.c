@@ -692,7 +692,15 @@ bool retro_unserialize(const void *data, size_t size)
    return ret == 0;
 }
 
-/* cheats - TODO */
+typedef struct patch
+{
+	unsigned int addr;
+	unsigned short data;
+} patch;
+
+extern void decode(char *buff, patch *dest);
+extern uint16_t m68k_read16(uint32_t a);
+extern void m68k_write16(uint32_t a, uint16_t d);
 
 void retro_cheat_reset(void)
 {
@@ -702,12 +710,13 @@ void retro_cheat_reset(void)
 	for (i = 0; i < PicoPatchCount; i++)
 	{
 		addr = PicoPatches[i].addr;
-		if (addr < Pico.romsize)
+		if (addr < Pico.romsize) {
 			if (PicoPatches[i].active)
 				*(unsigned short *)(Pico.rom + addr) = PicoPatches[i].data_old;
-		else
+		} else {
 			if (PicoPatches[i].active)
 				m68k_write16(PicoPatches[i].addr,PicoPatches[i].data_old);
+		}
 	}
 
 	PicoPatchUnload();
@@ -715,27 +724,25 @@ void retro_cheat_reset(void)
 
 void retro_cheat_set(unsigned index, bool enabled, const char *code)
 {
-	struct patch
-	{
-		unsigned int addr;
-		unsigned short data;
-	} pt;
+	patch pt;
 	int array_len = 0;
+	char codeCopy[256];
 	char *buff;
 	bool multiline=0;
 
-	//TODO: Split multi-line codes properly
+	strcpy(codeCopy,code);
+	
 	if (strstr(code,"+")){
 		multiline=1;
-		buff = strtok(code,"+");
+		buff = strtok(codeCopy,"+");
 	} else {
-		buff=code;
+		buff=codeCopy;
 	}
 
 	while (buff != NULL)
 	{
 		decode(buff, &pt);
-		if (pt.addr == (unsigned int)-1 || pt.data == (unsigned short)-1)
+		if (pt.addr == (uint32_t) -1 || pt.data == (uint16_t) -1)
 		{
 			log_cb(RETRO_LOG_ERROR,"CHEATS: Invalid code: %s\n",buff);
 			return;
@@ -756,14 +763,13 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 		}
 		strcpy(PicoPatches[PicoPatchCount].code, buff);
 
-		PicoPatches[PicoPatchCount].name[51] = "";
 		PicoPatches[PicoPatchCount].active = enabled;
 		PicoPatches[PicoPatchCount].addr = pt.addr;
 		PicoPatches[PicoPatchCount].data = pt.data;
 		if (PicoPatches[PicoPatchCount].addr < Pico.romsize)
-			PicoPatches[PicoPatchCount].data_old = *(unsigned short *)(Pico.rom + PicoPatches[PicoPatchCount].addr);
+			PicoPatches[PicoPatchCount].data_old = *(uint16_t *)(Pico.rom + PicoPatches[PicoPatchCount].addr);
 		else
-			PicoPatches[PicoPatchCount].data_old = (unsigned short) m68k_read16(PicoPatches[PicoPatchCount].addr);
+			PicoPatches[PicoPatchCount].data_old = (uint16_t) m68k_read16(PicoPatches[PicoPatchCount].addr);
 		PicoPatchCount++;
 
 		if (!multiline)
