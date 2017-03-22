@@ -53,6 +53,7 @@ int _newlib_vm_size_user = 1 << TARGET_SIZE_2;
 
 #include <pico/pico_int.h>
 #include <pico/state.h>
+#include <pico/patch.h>
 #include "../common/input_pico.h"
 #include "../common/version.h"
 #include "libretro.h"
@@ -692,12 +693,67 @@ bool retro_unserialize(const void *data, size_t size)
 }
 
 /* cheats - TODO */
+
 void retro_cheat_reset(void)
 {
+	int i=0;
+	unsigned int addr;
+
+	for (i = 0; i < PicoPatchCount; i++)
+	{
+		addr = PicoPatches[i].addr;
+		if (addr < Pico.romsize)
+			if (PicoPatches[i].active)
+				*(unsigned short *)(Pico.rom + addr) = PicoPatches[i].data_old;
+		else
+			if (PicoPatches[i].active)
+				m68k_write16(PicoPatches[i].addr,PicoPatches[i].data_old);
+	}
+
+	PicoPatchUnload();
 }
 
-void retro_cheat_set(unsigned index, bool enabled, const char *code)
+void retro_cheat_set(unsigned index, bool enabled, const char *buff)
 {
+	struct patch
+	{
+		unsigned int addr;
+		unsigned short data;
+	} pt;
+	int array_len = 0;
+
+	//TODO: Split multi-line codes properly
+
+		decode(buff, &pt);
+		if (pt.addr == (unsigned int)-1 || pt.data == (unsigned short)-1){
+			log_cb(RETRO_LOG_ERROR,"CHEATS: Invalid code: %s\n",buff);
+			return;
+		}
+
+		/* code was good, add it */
+		if (array_len < PicoPatchCount + 1)
+		{
+			void *ptr;
+			array_len *= 2;
+			array_len++;
+			ptr = realloc(PicoPatches, array_len * sizeof(PicoPatches[0]));
+			if (ptr == NULL) {
+				log_cb(RETRO_LOG_ERROR,"CHEATS: Failed to allocate memory for: %s\n",buff);
+				return;
+			}
+			PicoPatches = ptr;
+		}
+		strcpy(PicoPatches[PicoPatchCount].code, buff);
+
+		PicoPatches[PicoPatchCount].name[51] = "";
+		PicoPatches[PicoPatchCount].active = enabled;
+		PicoPatches[PicoPatchCount].addr = pt.addr;
+		PicoPatches[PicoPatchCount].data = pt.data;
+		if (PicoPatches[PicoPatchCount].addr < Pico.romsize)
+			PicoPatches[PicoPatchCount].data_old = *(unsigned short *)(Pico.rom + PicoPatches[PicoPatchCount].addr);
+		else
+			PicoPatches[PicoPatchCount].data_old = (unsigned short) m68k_read16(PicoPatches[PicoPatchCount].addr);
+		PicoPatchCount++;
 }
 
 /* multidisk support */
@@ -1270,6 +1326,7 @@ void retro_run(void)
          if (input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, i))
             PicoPad[pad] |= retro_pico_map[i];
 
+   PicoPatchApply();
    PicoFrame();
 
    video_cb((short *)vout_buf + vout_offset,

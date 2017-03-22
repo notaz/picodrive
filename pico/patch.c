@@ -142,7 +142,7 @@ static void hex_decode(const char *code, struct patch *result)
 /* THIS is the function you call from the MegaDrive or whatever. This figures
  * out whether it's a genie or hex code, depunctuates it, and calls the proper
  * decoder. */
-static void decode(const char* code, struct patch* result)
+void decode(const char* code, struct patch* result)
 {
   int len = strlen(code), i, j;
   char code_to_pass[16], *x;
@@ -299,6 +299,8 @@ void PicoPatchPrepare(void)
 		PicoPatches[i].addr &= ~1;
 		if (PicoPatches[i].addr < Pico.romsize)
 			PicoPatches[i].data_old = *(unsigned short *)(Pico.rom + PicoPatches[i].addr);
+		else
+			PicoPatches[i].data_old = (unsigned short) m68k_read16(PicoPatches[i].addr);
 		if (strstr(PicoPatches[i].name, "AUTO"))
 			PicoPatches[i].active = 1;
 	}
@@ -328,7 +330,15 @@ void PicoPatchApply(void)
 		}
 		else
 		{
-			/* TODO? */
+			if (PicoPatches[i].active)
+				m68k_write16(PicoPatches[i].addr,PicoPatches[i].data);
+			else {
+				// if current addr is not patched by older patch, write back original val
+				for (u = 0; u < i; u++)
+					if (PicoPatches[u].addr == addr) break;
+				if (u == i)
+					m68k_write16(PicoPatches[i].addr,PicoPatches[i].data_old);
+			}
 		}
 	}
 }
