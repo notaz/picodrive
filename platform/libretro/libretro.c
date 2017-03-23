@@ -741,7 +741,6 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 
 	while (buff != NULL)
 	{
-      log_cb(RETRO_LOG_INFO,"Buff: %s\n",buff);
 		decode(buff, &pt);
 		if (pt.addr == (uint32_t) -1 || pt.data == (uint16_t) -1)
 		{
