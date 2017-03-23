@@ -725,7 +725,7 @@ void retro_cheat_reset(void)
 void retro_cheat_set(unsigned index, bool enabled, const char *code)
 {
 	patch pt;
-	int array_len = 0;
+	int array_len = PicoPatchCount;
 	char codeCopy[256];
 	char *buff;
 	bool multiline=0;
@@ -741,6 +741,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 
 	while (buff != NULL)
 	{
+      log_cb(RETRO_LOG_INFO,"Buff: %s\n",buff);
 		decode(buff, &pt);
 		if (pt.addr == (uint32_t) -1 || pt.data == (uint16_t) -1)
 		{
@@ -774,6 +775,7 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 
 		if (!multiline)
 			break;
+		buff = strtok(NULL,"+");
 	}
 }
 
