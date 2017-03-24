@@ -23,6 +23,7 @@ AS ?= as
 CC_AS ?= $(CC)
 CFLAGS ?=
 
+STATIC_LINKING:= 0
 TARGET_NAME := picodrive
 LIBM := -lm
 GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
@@ -39,9 +40,15 @@ asm_cdmemory = 0
 asm_mix = 0
 
 fpic :=
+
+ifeq ($(STATIC_LINKING),1)
+EXT=a
+endif
+
 # Unix
 ifeq ($(platform), unix)
-	TARGET := $(TARGET_NAME)_libretro.so
+	EXT ?= so
+	TARGET := $(TARGET_NAME)_libretro.$(EXT)
    fpic := -fPIC
 	SHARED := -shared
 	DONT_COMPILE_IN_ZLIB = 1
@@ -49,7 +56,8 @@ ifeq ($(platform), unix)
 
 # Portable Linux
 else ifeq ($(platform), linux-portable)
-	TARGET := $(TARGET_NAME)_libretro.so
+	EXT ?= so
+	TARGET := $(TARGET_NAME)_libretro.$(EXT)
 	SHARED := -shared -nostdlib
    fpic := -fPIC
 	LIBM :=
@@ -58,7 +66,8 @@ else ifeq ($(platform), linux-portable)
 
 # OS X
 else ifeq ($(platform), osx)
-	TARGET := $(TARGET_NAME)_libretro.dylib
+	EXT ?= dylib
+	TARGET := $(TARGET_NAME)_libretro.$(EXT)
 	SHARED := -dynamiclib
    fpic := -fPIC
 	APPLE := 1
