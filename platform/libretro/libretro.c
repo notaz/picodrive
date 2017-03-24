@@ -53,6 +53,7 @@ int _newlib_vm_size_user = 1 << TARGET_SIZE_2;
 
 #include <pico/pico_int.h>
 #include <pico/state.h>
+#include <pico/patch.h>
 #include "../common/input_pico.h"
 #include "../common/version.h"
 #include "libretro.h"
@@ -70,6 +71,8 @@ static retro_audio_sample_batch_t audio_batch_cb;
 static const float VOUT_PAR = 0.0;
 static const float VOUT_4_3 = (224.0f * (4.0f / 3.0f));
 static const float VOUT_CRT = (224.0f * 1.29911f);
+
+bool show_overscan = false;
 
 static void *vout_buf;
 static int vout_width, vout_height, vout_offset;
@@ -472,6 +475,8 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
    memset(vout_buf, 0, 320 * 240 * 2);
    vout_width = is_32cols ? 256 : 320;
    PicoDrawSetOutBuf(vout_buf, vout_width * 2);
+   if (show_overscan == true) line_count += 16;
+   if (show_overscan == true) start_line -= 8;
 
    vout_height = line_count;
    vout_offset = vout_width * start_line;
@@ -509,6 +514,7 @@ void retro_set_environment(retro_environment_t cb)
       { "picodrive_region",      "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
       { "picodrive_region_fps",  "Region FPS; Auto|NTSC|PAL" },
       { "picodrive_aspect",      "Core-provided aspect ratio; PAR|4/3|CRT" },
+      { "picodrive_overscan",    "Show Overscan; disabled|enabled" },
 #ifdef DRC_SH2
       { "picodrive_drc", "Dynamic recompilers; enabled|disabled" },
 #endif
@@ -556,11 +562,11 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->geometry.base_height  = vout_height;
    info->geometry.max_width    = vout_width;
    info->geometry.max_height   = vout_height;
-   
+
    float common_width = vout_width;
    if (user_vout_width != 0)
       common_width = user_vout_width;
-   
+
    info->geometry.aspect_ratio = common_width / vout_height;
 }
 
@@ -686,13 +692,90 @@ bool retro_unserialize(const void *data, size_t size)
    return ret == 0;
 }
 
-/* cheats - TODO */
+typedef struct patch
+{
+	unsigned int addr;
+	unsigned short data;
+} patch;
+
+extern void decode(char *buff, patch *dest);
+extern uint16_t m68k_read16(uint32_t a);
+extern void m68k_write16(uint32_t a, uint16_t d);
+
 void retro_cheat_reset(void)
 {
+	int i=0;
+	unsigned int addr;
+
+	for (i = 0; i < PicoPatchCount; i++)
+	{
+		addr = PicoPatches[i].addr;
+		if (addr < Pico.romsize) {
+			if (PicoPatches[i].active)
+				*(unsigned short *)(Pico.rom + addr) = PicoPatches[i].data_old;
+		} else {
+			if (PicoPatches[i].active)
+				m68k_write16(PicoPatches[i].addr,PicoPatches[i].data_old);
+		}
+	}
+
+	PicoPatchUnload();
 }
 
 void retro_cheat_set(unsigned index, bool enabled, const char *code)
 {
+	patch pt;
+	int array_len = PicoPatchCount;
+	char codeCopy[256];
+	char *buff;
+	bool multiline=0;
+
+	strcpy(codeCopy,code);
+	
+	if (strstr(code,"+")){
+		multiline=1;
+		buff = strtok(codeCopy,"+");
+	} else {
+		buff=codeCopy;
+	}
+
+	while (buff != NULL)
+	{
+		decode(buff, &pt);
+		if (pt.addr == (uint32_t) -1 || pt.data == (uint16_t) -1)
+		{
+			log_cb(RETRO_LOG_ERROR,"CHEATS: Invalid code: %s\n",buff);
+			return;
+		}
+
+		/* code was good, add it */
+		if (array_len < PicoPatchCount + 1)
+		{
+			void *ptr;
+			array_len *= 2;
+			array_len++;
+			ptr = realloc(PicoPatches, array_len * sizeof(PicoPatches[0]));
+			if (ptr == NULL) {
+				log_cb(RETRO_LOG_ERROR,"CHEATS: Failed to allocate memory for: %s\n",buff);
+				return;
+			}
+			PicoPatches = ptr;
+		}
+		strcpy(PicoPatches[PicoPatchCount].code, buff);
+
+		PicoPatches[PicoPatchCount].active = enabled;
+		PicoPatches[PicoPatchCount].addr = pt.addr;
+		PicoPatches[PicoPatchCount].data = pt.data;
+		if (PicoPatches[PicoPatchCount].addr < Pico.romsize)
+			PicoPatches[PicoPatchCount].data_old = *(uint16_t *)(Pico.rom + PicoPatches[PicoPatchCount].addr);
+		else
+			PicoPatches[PicoPatchCount].data_old = (uint16_t) m68k_read16(PicoPatches[PicoPatchCount].addr);
+		PicoPatchCount++;
+
+		if (!multiline)
+			break;
+		buff = strtok(NULL,"+");
+	}
 }
 
 /* multidisk support */
@@ -1057,7 +1140,7 @@ void *retro_get_memory_data(unsigned type)
          data = NULL;
          break;
    }
-   
+
    return data;
 }
 
@@ -1065,7 +1148,7 @@ size_t retro_get_memory_size(unsigned type)
 {
    unsigned int i;
    int sum;
-   
+
    switch(type)
    {
       case RETRO_MEMORY_SAVE_RAM:
@@ -1082,17 +1165,17 @@ size_t retro_get_memory_size(unsigned type)
             sum |= SRam.data[i];
 
          return (sum != 0) ? SRam.size : 0;
-            
+
       case RETRO_MEMORY_SYSTEM_RAM:
          if (PicoAHW & PAHW_SMS)
             return sizeof(Pico.vramb);
          else
             return sizeof(Pico.ram);
-            
+
       default:
          return 0;
    }
-   
+
 }
 
 void retro_reset(void)
@@ -1192,7 +1275,7 @@ static void update_variables(void)
       else if (strcmp(var.value, "NTSC") == 0)
          PicoRegionFPSOverride = 1;
       else if (strcmp(var.value, "PAL") == 0)
-         PicoRegionFPSOverride = 2;         
+         PicoRegionFPSOverride = 2;
    }
 
    // Update region, fps and sound flags if needed
@@ -1213,7 +1296,16 @@ static void update_variables(void)
       else if (strcmp(var.value, "CRT") == 0)
          user_vout_width = VOUT_CRT;
       else
-         user_vout_width = VOUT_PAR;   
+         user_vout_width = VOUT_PAR;
+   }
+
+   var.value = NULL;
+   var.key = "picodrive_overscan";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "enabled") == 0)
+         show_overscan = true;
+      else
+         show_overscan = false;
    }
 
    if (user_vout_width != old_user_vout_width)
@@ -1256,6 +1348,7 @@ void retro_run(void)
          if (input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, i))
             PicoPad[pad] |= retro_pico_map[i];
 
+   PicoPatchApply();
    PicoFrame();
 
    video_cb((short *)vout_buf + vout_offset,
