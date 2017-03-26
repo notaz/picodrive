@@ -459,7 +459,7 @@ static void PicoWrite16_sram(u32 a, u32 d)
 
 // z80 area (0xa00000 - 0xa0ffff)
 // TODO: verify mirrors VDP and bank reg (bank area mirroring verified)
-static u32 PicoRead8_z80(u32 a)
+u32 PicoRead8_z80(u32 a)
 {
   u32 d = 0xff;
   if ((Pico.m.z80Run & 1) || Pico.m.z80_reset) {
@@ -483,7 +483,7 @@ static u32 PicoRead16_z80(u32 a)
   return d | (d << 8);
 }
 
-static void PicoWrite8_z80(u32 a, u32 d)
+void PicoWrite8_z80(u32 a, u32 d)
 {
   if ((Pico.m.z80Run & 1) || Pico.m.z80_reset) {
     // verified on real hw
