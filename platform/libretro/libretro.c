@@ -696,6 +696,7 @@ typedef struct patch
 {
 	unsigned int addr;
 	unsigned short data;
+	unsigned char comp;
 } patch;
 
 extern void decode(char *buff, patch *dest);
@@ -728,16 +729,10 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 	int array_len = PicoPatchCount;
 	char codeCopy[256];
 	char *buff;
-	bool multiline=0;
 
+	if (code=='\0') return;
 	strcpy(codeCopy,code);
-	
-	if (strstr(code,"+")){
-		multiline=1;
-		buff = strtok(codeCopy,"+");
-	} else {
-		buff=codeCopy;
-	}
+	buff = strtok(codeCopy,"+");
 
 	while (buff != NULL)
 	{
@@ -766,14 +761,13 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 		PicoPatches[PicoPatchCount].active = enabled;
 		PicoPatches[PicoPatchCount].addr = pt.addr;
 		PicoPatches[PicoPatchCount].data = pt.data;
+		PicoPatches[PicoPatchCount].comp = pt.comp;
 		if (PicoPatches[PicoPatchCount].addr < Pico.romsize)
 			PicoPatches[PicoPatchCount].data_old = *(uint16_t *)(Pico.rom + PicoPatches[PicoPatchCount].addr);
 		else
 			PicoPatches[PicoPatchCount].data_old = (uint16_t) m68k_read16(PicoPatches[PicoPatchCount].addr);
 		PicoPatchCount++;
 
-		if (!multiline)
-			break;
 		buff = strtok(NULL,"+");
 	}
 }
