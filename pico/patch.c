@@ -26,9 +26,9 @@
 
 struct patch
 {
-	unsigned int addr;
-	unsigned short data;
-	unsigned char comp;
+   unsigned int addr;
+   unsigned short data;
+   unsigned char comp;
 };
 
 struct patch_inst *PicoPatches = NULL;
@@ -173,14 +173,15 @@ void genie_decode_ms(const char *code, struct patch *result)
   /* Correct the address */
   result->addr = ((result->addr >> 4) | (result->addr << 12 & 0xF000)) ^ 0xF000;
   /* Optional: 3 digits for comp */
-  if (code[8]){
+  printf("CHEAT: code[8]==%c\n",code[8]);
+  if (code[7]=='-'){
     for(i=8;i<11;++i)
     {
       if (i==9) continue; /* 2nd character is ignored */
       if(!(x = strchr(hex_chars, code[i])))
       {
-	result->addr = result->data = -1;
-	return;
+         result->addr = result->data = -1;
+         return;
       }
       result->comp = (result->comp << 4) | ((x - hex_chars) >> 1);
     }
@@ -313,7 +314,7 @@ void decode(const char* code, struct patch* result)
     //If Master System
 
     //Genie
-    if(len == 11 && code[3] == '-' && code[7] == '-')
+    if(len >= 7 && code[3] == '-')
     {
       genie_decode_ms(code, result);
     }
@@ -364,161 +365,161 @@ extern void PicoWrite8_z80(unsigned short a, char d);
 
 void PicoPatchUnload(void)
 {
-	if (PicoPatches != NULL)
-	{
-		free(PicoPatches);
-		PicoPatches = NULL;
-	}
-	PicoPatchCount = 0;
+   if (PicoPatches != NULL)
+   {
+      free(PicoPatches);
+      PicoPatches = NULL;
+   }
+   PicoPatchCount = 0;
 }
 
 int PicoPatchLoad(const char *fname)
 {
-	FILE *f;
-	char buff[256];
-	struct patch pt;
-	int array_len = 0;
+   FILE *f;
+   char buff[256];
+   struct patch pt;
+   int array_len = 0;
 
-	PicoPatchUnload();
+   PicoPatchUnload();
 
-	f = fopen(fname, "r");
-	if (f == NULL)
-	{
-		return -1;
-	}
+   f = fopen(fname, "r");
+   if (f == NULL)
+   {
+      return -1;
+   }
 
-	while (fgets(buff, sizeof(buff), f))
-	{
-		int llen, clen;
+   while (fgets(buff, sizeof(buff), f))
+   {
+      int llen, clen;
 
-		llen = strlen(buff);
-		for (clen = 0; clen < llen; clen++)
-			if (isspace_(buff[clen]))
-				break;
-		buff[clen] = 0;
+      llen = strlen(buff);
+      for (clen = 0; clen < llen; clen++)
+         if (isspace_(buff[clen]))
+            break;
+      buff[clen] = 0;
 
-		if (clen > 11 || clen < 8)
-			continue;
+      if (clen > 11 || clen < 8)
+         continue;
 
-		decode(buff, &pt);
-		if (pt.addr == (unsigned int)-1 || pt.data == (unsigned short)-1)
-			continue;
+      decode(buff, &pt);
+      if (pt.addr == (unsigned int)-1 || pt.data == (unsigned short)-1)
+         continue;
 
-		/* code was good, add it */
-		if (array_len < PicoPatchCount + 1)
-		{
-			void *ptr;
-			array_len *= 2;
-			array_len++;
-			ptr = realloc(PicoPatches, array_len * sizeof(PicoPatches[0]));
-			if (ptr == NULL) break;
-			PicoPatches = ptr;
-		}
-		strcpy(PicoPatches[PicoPatchCount].code, buff);
-		/* strip */
-		for (clen++; clen < llen; clen++)
-			if (!isspace_(buff[clen]))
-				break;
-		for (llen--; llen > 0; llen--)
-			if (!isspace_(buff[llen]))
-				break;
-		buff[llen+1] = 0;
-		strncpy(PicoPatches[PicoPatchCount].name, buff + clen, 51);
-		PicoPatches[PicoPatchCount].name[51] = 0;
-		PicoPatches[PicoPatchCount].active = 0;
-		PicoPatches[PicoPatchCount].addr = pt.addr;
-		PicoPatches[PicoPatchCount].data = pt.data;
-		PicoPatches[PicoPatchCount].data_old = 0;
-		PicoPatchCount++;
-		// fprintf(stderr, "loaded patch #%i: %06x:%04x \"%s\"\n", PicoPatchCount-1, pt.addr, pt.data,
-		//	PicoPatches[PicoPatchCount-1].name);
-	}
-	fclose(f);
+      /* code was good, add it */
+      if (array_len < PicoPatchCount + 1)
+      {
+         void *ptr;
+         array_len *= 2;
+         array_len++;
+         ptr = realloc(PicoPatches, array_len * sizeof(PicoPatches[0]));
+         if (ptr == NULL) break;
+         PicoPatches = ptr;
+      }
+      strcpy(PicoPatches[PicoPatchCount].code, buff);
+      /* strip */
+      for (clen++; clen < llen; clen++)
+         if (!isspace_(buff[clen]))
+            break;
+      for (llen--; llen > 0; llen--)
+         if (!isspace_(buff[llen]))
+            break;
+      buff[llen+1] = 0;
+      strncpy(PicoPatches[PicoPatchCount].name, buff + clen, 51);
+      PicoPatches[PicoPatchCount].name[51] = 0;
+      PicoPatches[PicoPatchCount].active = 0;
+      PicoPatches[PicoPatchCount].addr = pt.addr;
+      PicoPatches[PicoPatchCount].data = pt.data;
+      PicoPatches[PicoPatchCount].data_old = 0;
+      PicoPatchCount++;
+      // fprintf(stderr, "loaded patch #%i: %06x:%04x \"%s\"\n", PicoPatchCount-1, pt.addr, pt.data,
+      // PicoPatches[PicoPatchCount-1].name);
+   }
+   fclose(f);
 
-	return 0;
+   return 0;
 }
 
 /* to be called when the Rom is loaded and byteswapped */
 void PicoPatchPrepare(void)
 {
-  int i;
-  int addr;
+   int i;
+   int addr;
 
-  for (i = 0; i < PicoPatchCount; i++)
-  {
-    addr=PicoPatches[i].addr;
-    addr &= ~1;
-    if (addr < Pico.romsize)
-      PicoPatches[i].data_old = *(unsigned short *)(Pico.rom + addr);
-    else
-    {
-      if(!(PicoAHW & PAHW_SMS))
-	PicoPatches[i].data_old = (unsigned short) m68k_read16(addr);
+   for (i = 0; i < PicoPatchCount; i++)
+   {
+      addr=PicoPatches[i].addr;
+      addr &= ~1;
+      if (addr < Pico.romsize)
+         PicoPatches[i].data_old = *(unsigned short *)(Pico.rom + addr);
       else
-	PicoPatches[i].data_old = (unsigned char) PicoRead8_z80(addr);
-    }
-    if (strstr(PicoPatches[i].name, "AUTO"))
-      PicoPatches[i].active = 1;
-  }
+      {
+         if(!(PicoAHW & PAHW_SMS))
+            PicoPatches[i].data_old = (unsigned short) m68k_read16(addr);
+         else
+            PicoPatches[i].data_old = (unsigned char) PicoRead8_z80(addr);
+      }
+      if (strstr(PicoPatches[i].name, "AUTO"))
+         PicoPatches[i].active = 1;
+   }
 }
 
 void PicoPatchApply(void)
 {
-  int i, u;
-  unsigned int addr;
+   int i, u;
+   unsigned int addr;
 
-  for (i = 0; i < PicoPatchCount; i++)
-  {
-    addr = PicoPatches[i].addr;
+   for (i = 0; i < PicoPatchCount; i++)
+   {
+      addr = PicoPatches[i].addr;
 
-    if (addr < Pico.romsize)
-    {
-      if (PicoPatches[i].active)
+      if (addr < Pico.romsize)
       {
-	if (!(PicoAHW & PAHW_SMS))
-	  *(unsigned short *)(Pico.rom + addr) = PicoPatches[i].data;
-	else if (!PicoPatches[i].comp || PicoPatches[i].comp == *(char *)(Pico.rom + addr))
-	  *(char *)(Pico.rom + addr) = (char) PicoPatches[i].data;
-      }
-      else
-      {
-	// if current addr is not patched by older patch, write back original val
-	for (u = 0; u < i; u++)
-	  if (PicoPatches[u].addr == addr) break;
-	if (u == i)
-	{
-	  if (!(PicoAHW & PAHW_SMS))
-	    *(unsigned short *)(Pico.rom + addr) = PicoPatches[i].data_old;
-	  else
-	    *(char *)(Pico.rom + addr) = (char) PicoPatches[i].data_old;
-	}
-      }
+         if (PicoPatches[i].active)
+         {
+            if (!(PicoAHW & PAHW_SMS))
+               *(unsigned short *)(Pico.rom + addr) = PicoPatches[i].data;
+            else if (!PicoPatches[i].comp || PicoPatches[i].comp == *(char *)(Pico.rom + addr))
+               *(char *)(Pico.rom + addr) = (char) PicoPatches[i].data;
+         }
+         else
+         {
+            // if current addr is not patched by older patch, write back original val
+            for (u = 0; u < i; u++)
+               if (PicoPatches[u].addr == addr) break;
+            if (u == i)
+            {
+               if (!(PicoAHW & PAHW_SMS))
+                  *(unsigned short *)(Pico.rom + addr) = PicoPatches[i].data_old;
+               else
+                  *(char *)(Pico.rom + addr) = (char) PicoPatches[i].data_old;
+            }
+         }
       // fprintf(stderr, "patched %i: %06x:%04x\n", PicoPatches[i].active, addr,
-      //	*(unsigned short *)(Pico.rom + addr));
-    }
-    else
-    {
-      if (PicoPatches[i].active)
-      {
-	if (!(PicoAHW & PAHW_SMS))
-	  m68k_write16(addr,PicoPatches[i].data);
-	else
-	  PicoWrite8_z80(addr,PicoPatches[i].data);
+      // *(unsigned short *)(Pico.rom + addr));
       }
       else
       {
-	// if current addr is not patched by older patch, write back original val
-	for (u = 0; u < i; u++)
-	  if (PicoPatches[u].addr == addr) break;
-	if (u == i)
-	{
-	  if (!(PicoAHW & PAHW_SMS))
-	    m68k_write16(PicoPatches[i].addr,PicoPatches[i].data_old);
-	  else
-	    PicoWrite8_z80(PicoPatches[i].addr,PicoPatches[i].data_old);
-	}
+         if (PicoPatches[i].active)
+         {
+            if (!(PicoAHW & PAHW_SMS))
+              m68k_write16(addr,PicoPatches[i].data);
+            else
+              PicoWrite8_z80(addr,PicoPatches[i].data);
+         }
+         else
+         {
+            // if current addr is not patched by older patch, write back original val
+            for (u = 0; u < i; u++)
+               if (PicoPatches[u].addr == addr) break;
+            if (u == i)
+            {
+               if (!(PicoAHW & PAHW_SMS))
+                  m68k_write16(PicoPatches[i].addr,PicoPatches[i].data_old);
+              else
+                PicoWrite8_z80(PicoPatches[i].addr,PicoPatches[i].data_old);
+            }
+         }
       }
-    }
-  }
+   }
 }
 
