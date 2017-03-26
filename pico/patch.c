@@ -173,7 +173,7 @@ void genie_decode_ms(const char *code, struct patch *result)
   /* Correct the address */
   result->addr = ((result->addr >> 4) | (result->addr << 12 & 0xF000)) ^ 0xF000;
   /* Optional: 3 digits for comp */
-  if (code[8]){
+  if (code[8]=='-'){
     for(i=8;i<11;++i)
     {
       if (i==9) continue; /* 2nd character is ignored */
@@ -313,7 +313,7 @@ void decode(const char* code, struct patch* result)
     //If Master System
 
     //Genie
-    if(len == 11 && code[3] == '-' && code[7] == '-')
+    if(len >= 7 && code[3] == '-')
     {
       genie_decode_ms(code, result);
     }
