@@ -168,7 +168,7 @@ endif
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o zlib/uncompr.o
 # unzip
-OBJS += unzip/unzip.o unzip/unzip_stream.o
+OBJS += unzip/unzip.o
 
 
 include platform/common/common.mak
