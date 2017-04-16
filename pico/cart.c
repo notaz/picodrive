@@ -513,7 +513,7 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms)
     bytes_read = pm_read(rom,size,f); // Load up the rom
   if (bytes_read <= 0) {
     elprintf(EL_STATUS, "read failed");
-    free(rom);
+    plat_munmap(rom, rom_alloc_size);
     return 3;
   }
 
