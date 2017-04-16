@@ -8,9 +8,9 @@
  */
 
 #include "pico_int.h"
-#include "../zlib/zlib.h"
 #include "../cpu/debug.h"
 #include "../unzip/unzip.h"
+#include <zlib.h>
 
 
 static int rom_alloc_size;

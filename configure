@@ -258,7 +258,7 @@ check_zlib()
   #include <zlib.h>
   int main(void) { uncompress(0, 0, 0, 0); }
 EOF
-  compile_binary
+  compile_binary "$@"
 }
 
 check_libpng()
@@ -308,8 +308,8 @@ EOF
   compile_object "$@"
 }
 
-#MAIN_LDLIBS="$MAIN_LDLIBS -lz"
-#check_zlib || fail "please install zlib (libz-dev)"
+MAIN_LDLIBS="$MAIN_LDLIBS -lz"
+check_zlib -lz || fail "please install zlib (libz-dev)"
 
 MAIN_LDLIBS="-lpng $MAIN_LDLIBS"
 check_libpng || fail "please install libpng (libpng-dev)"

@@ -164,9 +164,12 @@ else
 OBJS += platform/common/mp3_dummy.o
 endif
 
+ifeq "$(PLATFORM)" "libretro"
 # zlib
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o zlib/uncompr.o
+CFLAGS += -Izlib
+endif
 # unzip
 OBJS += unzip/unzip.o
 
