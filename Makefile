@@ -170,8 +170,7 @@ OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 CFLAGS += -Izlib
 endif
 # unzip
-OBJS += unzip/unzip.o unzip/unzip_stream.o
-endif
+OBJS += unzip/unzip.o
 
 
 include platform/common/common.mak

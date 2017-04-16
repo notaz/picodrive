@@ -89,6 +89,16 @@ static const char *get_ext(const char *path)
   return ext;
 }
 
+struct zip_file {
+  pm_file file;
+  ZIP *zip;
+  struct zipent *entry;
+  z_stream stream;
+  unsigned char inbuf[16384];
+  long start;
+  unsigned int pos;
+};
+
 pm_file *pm_open(const char *path)
 {
   pm_file *file = NULL;
@@ -102,10 +112,10 @@ pm_file *pm_open(const char *path)
 #ifndef NO_ZLIB
   if (strcasecmp(ext, "zip") == 0)
   {
+    struct zip_file *zfile = NULL;
     struct zipent *zipentry;
-    gzFile gzf = NULL;
     ZIP *zipfile;
-    int i;
+    int i, ret;
 
     zipfile = openzip(path);
     if (zipfile != NULL)
@@ -127,25 +137,29 @@ pm_file *pm_open(const char *path)
       goto zip_failed;
 
 found_rom_zip:
-      /* try to convert to gzip stream, so we could use standard gzio functions from zlib */
-      gzf = zip2gz(zipfile, zipentry);
-      if (gzf == NULL)  goto zip_failed;
-
-      file = calloc(1, sizeof(*file));
-      if (file == NULL) goto zip_failed;
-      file->file  = zipfile;
-      file->param = gzf;
-      file->size  = zipentry->uncompressed_size;
-      file->type  = PMT_ZIP;
-      strncpy(file->ext, ext, sizeof(file->ext) - 1);
-      return file;
+      zfile = calloc(1, sizeof(*zfile));
+      if (zfile == NULL)
+        goto zip_failed;
+      ret = seekcompresszip(zipfile, zipentry);
+      if (ret != 0)
+        goto zip_failed;
+      ret = inflateInit2(&zfile->stream, -15);
+      if (ret != Z_OK) {
+        elprintf(EL_STATUS, "zip: inflateInit2 %d", ret);
+        goto zip_failed;
+      }
+      zfile->zip = zipfile;
+      zfile->entry = zipentry;
+      zfile->start = ftell(zipfile->fp);
+      zfile->file.file = zfile;
+      zfile->file.size = zipentry->uncompressed_size;
+      zfile->file.type = PMT_ZIP;
+      strncpy(zfile->file.ext, ext, sizeof(zfile->file.ext) - 1);
+      return &zfile->file;
 
 zip_failed:
-      if (gzf) {
-        gzclose(gzf);
-        zipfile->fp = NULL; // gzclose() closed it
-      }
       closezip(zipfile);
+      free(zfile);
       return NULL;
     }
   }
@@ -249,13 +263,33 @@ size_t pm_read(void *ptr, size_t bytes, pm_file *stream)
 #ifndef NO_ZLIB
   else if (stream->type == PMT_ZIP)
   {
-    gzFile gf = stream->param;
-    int err;
-    ret = gzread(gf, ptr, bytes);
-    err = gzerror2(gf);
-    if (ret > 0 && (err == Z_DATA_ERROR || err == Z_STREAM_END))
-      /* we must reset stream pointer or else next seek/read fails */
-      gzrewind(gf);
+    struct zip_file *z = stream->file;
+
+    if (z->entry->compression_method == 0) {
+      int ret = fread(ptr, 1, bytes, z->zip->fp);
+      z->pos += ret;
+      return ret;
+    }
+
+    z->stream.next_out = ptr;
+    z->stream.avail_out = bytes;
+    while (z->stream.avail_out != 0) {
+      if (z->stream.avail_in == 0) {
+        z->stream.avail_in = fread(z->inbuf, 1, sizeof(z->inbuf), z->zip->fp);
+        if (z->stream.avail_in == 0)
+          break;
+        z->stream.next_in = z->inbuf;
+      }
+      ret = inflate(&z->stream, Z_NO_FLUSH);
+      if (ret == Z_STREAM_END)
+        break;
+      if (ret != Z_OK) {
+        elprintf(EL_STATUS, "zip: inflate: %d", ret);
+        return 0;
+      }
+    }
+    z->pos += bytes - z->stream.avail_out;
+    return bytes - z->stream.avail_out;
   }
 #endif
   else if (stream->type == PMT_CSO)
@@ -336,12 +370,45 @@ int pm_seek(pm_file *stream, long offset, int whence)
 #ifndef NO_ZLIB
   else if (stream->type == PMT_ZIP)
   {
-    if (PicoMessage != NULL && offset > 6*1024*1024) {
-      long pos = gztell((gzFile) stream->param);
-      if (offset < pos || offset - pos > 6*1024*1024)
-        PicoMessage("Decompressing data...");
+    struct zip_file *z = stream->file;
+    unsigned int pos = z->pos;
+    int ret;
+
+    switch (whence)
+    {
+      case SEEK_CUR: pos += offset; break;
+      case SEEK_SET: pos  = offset; break;
+      case SEEK_END: pos  = stream->size - offset; break;
     }
-    return gzseek((gzFile) stream->param, offset, whence);
+    if (z->entry->compression_method == 0) {
+      ret = fseek(z->zip->fp, z->start + pos, SEEK_SET);
+      if (ret == 0)
+        return (z->pos = pos);
+      return -1;
+    }
+    offset = pos - z->pos;
+    if (pos < z->pos) {
+      // full decompress from the start
+      fseek(z->zip->fp, z->start, SEEK_SET);
+      z->stream.avail_in = 0;
+      z->stream.next_in = z->inbuf;
+      inflateReset(&z->stream);
+      z->pos = 0;
+      offset = pos;
+    }
+
+    if (PicoMessage != NULL && offset > 4 * 1024 * 1024)
+      PicoMessage("Decompressing data...");
+
+    while (offset > 0) {
+      char buf[16 * 1024];
+      size_t l = offset > sizeof(buf) ? sizeof(buf) : offset;
+      ret = pm_read(buf, l, stream);
+      if (ret != l)
+        break;
+      offset -= l;
+    }
+    return z->pos;
   }
 #endif
   else if (stream->type == PMT_CSO)
@@ -372,10 +439,9 @@ int pm_close(pm_file *fp)
 #ifndef NO_ZLIB
   else if (fp->type == PMT_ZIP)
   {
-    ZIP *zipfile = fp->file;
-    gzclose((gzFile) fp->param);
-    zipfile->fp = NULL; // gzclose() closed it
-    closezip(zipfile);
+    struct zip_file *z = fp->file;
+    inflateEnd(&z->stream);
+    closezip(z->zip);
   }
 #endif
   else if (fp->type == PMT_CSO)
