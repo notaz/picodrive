@@ -30,7 +30,7 @@
 #include <pico/pico_int.h>
 #include <pico/patch.h>
 #include <pico/sound/mix.h>
-#include <zlib/zlib.h>
+#include <zlib.h>
 
 #ifdef BENCHMARK
 #define OSD_FPS_X 220

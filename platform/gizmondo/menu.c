@@ -32,7 +32,7 @@
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
-#include <zlib/zlib.h>
+#include <zlib.h>
 
 
 #define gizKeyUnkn "???"
