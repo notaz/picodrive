@@ -1126,7 +1126,7 @@ void *retro_get_memory_data(unsigned type)
          break;
       case RETRO_MEMORY_SYSTEM_RAM:
          if (PicoAHW & PAHW_SMS)
-            data = Pico.vramb;
+            data = Pico.zram;
          else
             data = Pico.ram;
          break;
@@ -1162,7 +1162,7 @@ size_t retro_get_memory_size(unsigned type)
 
       case RETRO_MEMORY_SYSTEM_RAM:
          if (PicoAHW & PAHW_SMS)
-            return sizeof(Pico.vramb);
+            return 0x2000;
          else
             return sizeof(Pico.ram);
 
