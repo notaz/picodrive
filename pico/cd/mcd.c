@@ -43,8 +43,8 @@ PICO_INTERNAL void PicoPowerMCD(void)
   memset(&Pico_mcd->pcm, 0, sizeof(Pico_mcd->pcm));
   memset(&Pico_mcd->m, 0, sizeof(Pico_mcd->m));
 
-  cdc_init();
-  gfx_init();
+/*  cdc_init();*/
+/*  gfx_init();*/
 
   // cold reset state (tested)
   Pico_mcd->m.state_flags = PCD_ST_S68K_RST;
@@ -58,8 +58,8 @@ void pcd_soft_reset(void)
   elprintf(EL_CD, "cd: soft reset");
 
   Pico_mcd->m.s68k_pend_ints = 0;
-  cdc_reset();
-  cdd_reset();
+/*  cdc_reset();*/
+/*  cdd_reset();*/
 #ifdef _ASM_CD_MEMORY_C
   //PicoMemResetCDdecode(1); // don't have to call this in 2M mode
 #endif
@@ -160,7 +160,7 @@ unsigned int pcd_cycles_m68k_to_s68k(unsigned int c)
 static void pcd_cdc_event(unsigned int now)
 {
   // 75Hz CDC update
-  cdd_update();
+/*  cdd_update();*/
 
   /* check if a new CDD command has been processed */
   if (!(Pico_mcd->s68k_regs[0x4b] & 0xf0))
@@ -191,7 +191,7 @@ static void pcd_int3_timer_event(unsigned int now)
 
 static void pcd_dma_event(unsigned int now)
 {
-  cdc_dma_update();
+/*  cdc_dma_update();*/
 }
 
 typedef void (event_cb)(unsigned int now);
@@ -202,7 +202,7 @@ static unsigned int event_time_next;
 static event_cb *pcd_event_cbs[PCD_EVENT_COUNT] = {
   [PCD_EVENT_CDC]      = pcd_cdc_event,
   [PCD_EVENT_TIMER3]   = pcd_int3_timer_event,
-  [PCD_EVENT_GFX]      = gfx_update,
+/*  [PCD_EVENT_GFX]      = gfx_update,*/
   [PCD_EVENT_DMA]      = pcd_dma_event,
 };
 

@@ -210,7 +210,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
     goto out;
 
   if ((PicoAHW & PAHW_MCD) && Pico_mcd != NULL)
-    cdd_unload();
+/*    cdd_unload();*/
   PicoCartUnload();
   PicoAHW = 0;
   PicoQuirks = 0;
@@ -291,7 +291,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
 
   // insert CD if it was detected
   if (cd_img_type != CIT_NOT_CD) {
-    ret = cdd_load(filename, cd_img_type);
+/*    ret = cdd_load(filename, cd_img_type);*/
     if (ret != 0) {
       PicoCartUnload();
       media_type = PM_BAD_CD;

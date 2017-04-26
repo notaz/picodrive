@@ -26,9 +26,6 @@ MAME development
 Texas Instruments SN76489 / SN76496 programmable tone/noise generator
 Homepage: http://www.mame.net/
 
-Eke-Eke
-CD graphics processor and CD controller implementation (from Genesis Plus GX)
-
 
 Additional thanks
 -----------------
@@ -42,7 +39,6 @@ Additional thanks
 * Haze for his research (http://mamedev.emulab.it/haze/).
 * Lordus, Exophase and Rokas for various ideas.
 * Nemesis for his YM2612, VDP research and docs.
-* Eke-Eke for sharing the knowledge and his work on Genesis Plus GX.
 * Many posters at spritesmind.net forums for valuable information.
 * Mark and Jean-loup for zlib library.
 * ketchupgun for the skin.
