@@ -56,6 +56,9 @@ else
   use_sh2mame = 1
 endif
 
+# PD is currently not strict aliasing safe
+LOCAL_CFLAGS += -fno-strict-aliasing
+
 # sources
 SRCS_COMMON :=
 DEFINES :=
@@ -73,7 +76,7 @@ LOCAL_SRC_FILES += $(R)zlib/gzio.c $(R)zlib/inffast.c $(R)zlib/inflate.c \
 	$(R)zlib/crc32.c $(R)zlib/adler32.c $(R)zlib/zutil.c \
 	$(R)zlib/compress.c $(R)zlib/uncompr.c
 
-LOCAL_SRC_FILES += $(R)unzip/unzip.c $(R)unzip/unzip_stream.c
+LOCAL_SRC_FILES += $(R)unzip/unzip.c
 
 LOCAL_C_INCLUDES += $(R)
 
