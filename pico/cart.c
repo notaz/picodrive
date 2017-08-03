@@ -50,7 +50,7 @@ typedef struct _cso_struct
 }
 cso_struct;
 
-static int uncompress2(void *dest, int destLen, void *source, int sourceLen)
+static int uncompress_buf(void *dest, int destLen, void *source, int sourceLen)
 {
     z_stream stream;
     int err;
@@ -298,7 +298,7 @@ size_t pm_read(void *ptr, size_t bytes, pm_file *stream)
           }
           cso->block_in_buff = block;
         }
-        rret = uncompress2(tmp_dst, 2048, cso->in_buff, read_len);
+        rret = uncompress_buf(tmp_dst, 2048, cso->in_buff, read_len);
         if (rret != 0) {
           elprintf(EL_STATUS, "cso: uncompress failed @ %08x with %i", read_pos, rret);
           break;
