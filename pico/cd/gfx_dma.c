@@ -37,7 +37,7 @@ PICO_INTERNAL void DmaSlowCell(unsigned int source, unsigned int a, int len, uns
         // AutoIncrement
         a=(u16)(a+inc);
       }
-      rendstatus |= PDRAW_SPRITES_MOVED;
+      Pico.est.rendstatus |= PDRAW_SPRITES_MOVED;
       break;
 
     case 3: // cram

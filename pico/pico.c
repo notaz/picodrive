@@ -36,6 +36,9 @@ void PicoInit(void)
   memset(&PicoPad,0,sizeof(PicoPad));
   memset(&PicoPadInt,0,sizeof(PicoPadInt));
 
+  Pico.est.Pico_video = &Pico.video;
+  Pico.est.Pico_vram = Pico.vram;
+
   // Init CPUs:
   SekInit();
   z80_init(); // init even if we aren't going to use it

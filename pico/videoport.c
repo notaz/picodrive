@@ -36,7 +36,7 @@ static void VideoWrite(u16 d)
     case 1: if(a&1) d=(u16)((d<<8)|(d>>8)); // If address is odd, bytes are swapped (which game needs this?)
             Pico.vram [(a>>1)&0x7fff]=d;
             if (a - ((unsigned)(Pico.video.reg[5]&0x7f) << 9) < 0x400)
-              rendstatus |= PDRAW_DIRTY_SPRITES;
+              Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
             break;
     case 3: Pico.m.dirtyPal = 1;
             Pico.cram [(a>>1)&0x003f]=d; break; // wraps (Desert Strike)
@@ -172,7 +172,7 @@ static void DmaSlow(int len)
           //if(pd >= pdend) pd-=0x8000; // should be good for RAM, bad for ROM
         }
       }
-      rendstatus |= PDRAW_DIRTY_SPRITES;
+      Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
       break;
 
     case 3: // cram
@@ -241,7 +241,7 @@ static void DmaCopy(int len)
   }
   // remember addr
   Pico.video.addr=a;
-  rendstatus |= PDRAW_DIRTY_SPRITES;
+  Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 }
 
 // check: Contra, Megaman
@@ -280,7 +280,7 @@ static void DmaFill(int data)
   // update length
   Pico.video.reg[0x13] = Pico.video.reg[0x14] = 0; // Dino Dini's Soccer (E) (by Haze)
 
-  rendstatus |= PDRAW_DIRTY_SPRITES;
+  Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 }
 
 static void CommandDma(void)
@@ -319,7 +319,7 @@ static void CommandChange(void)
 static void DrawSync(int blank_on)
 {
   if (Pico.m.scanline < 224 && !(PicoOpt & POPT_ALT_RENDERER) &&
-      !PicoSkipFrame && DrawScanline <= Pico.m.scanline) {
+      !PicoSkipFrame && Pico.est.DrawScanline <= Pico.m.scanline) {
     //elprintf(EL_ANOMALY, "sync");
     PicoDrawSync(Pico.m.scanline, blank_on);
   }
@@ -412,7 +412,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
             goto update_irq;
           case 0x05:
             //elprintf(EL_STATUS, "spritep moved to %04x", (unsigned)(Pico.video.reg[5]&0x7f) << 9);
-            if (d^dold) rendstatus |= PDRAW_SPRITES_MOVED;
+            if (d^dold) Pico.est.rendstatus |= PDRAW_SPRITES_MOVED;
             break;
           case 0x0c:
             // renderers should update their palettes if sh/hi mode is changed

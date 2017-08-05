@@ -83,7 +83,7 @@ static void convert_pal555(int invert_prio)
 }
 
 // this is almost never used (Wiz and menu bg gen only)
-void FinalizeLine32xRGB555(int sh, int line)
+void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
 {
   unsigned short *pd = DrawLineDest;
   unsigned short *pal = Pico32xMem->pal_native;
@@ -91,7 +91,7 @@ void FinalizeLine32xRGB555(int sh, int line)
   unsigned short *dram, *p32x;
   unsigned char   mdbg;
 
-  FinalizeLine555(sh, line);
+  FinalizeLine555(sh, line, est);
 
   if ((Pico32x.vdp_regs[0] & P32XV_Mx) == 0 || // 32x blanking
       // XXX: how is 32col mode hadled by real hardware?
