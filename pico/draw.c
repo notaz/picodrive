@@ -1197,46 +1197,6 @@ void PicoDoHighPal555(int sh)
   }
 }
 
-#if 0
-static void FinalizeLineBGR444(int sh, int line)
-{
-  unsigned short *pd=DrawLineDest;
-  unsigned char  *ps=HighCol+8;
-  unsigned short *pal=Pico.cram;
-  int len, i, t, mask=0xff;
-
-  if (Pico.video.reg[12]&1) {
-    len = 320;
-  } else {
-    if(!(PicoOpt&POPT_DIS_32C_BORDER)) pd+=32;
-    len = 256;
-  }
-
-  if(sh) {
-    pal=HighPal;
-    if(Pico.m.dirtyPal) {
-      blockcpy(pal, Pico.cram, 0x40*2);
-      // shadowed pixels
-      for(i = 0x3f; i >= 0; i--)
-        pal[0x40|i] = pal[0xc0|i] = (unsigned short)((pal[i]>>1)&0x0777);
-      // hilighted pixels
-      for(i = 0x3f; i >= 0; i--) {
-        t=pal[i]&0xeee;t+=0x444;if(t&0x10)t|=0xe;if(t&0x100)t|=0xe0;if(t&0x1000)t|=0xe00;t&=0xeee;
-        pal[0x80|i]=(unsigned short)t;
-      }
-      Pico.m.dirtyPal = 0;
-    }
-  }
-
-  if (!sh && (rendstatus & PDRAW_SPR_LO_ON_HI))
-    mask=0x3f; // accurate sprites
-
-  for(i = 0; i < len; i++)
-    pd[i] = pal[ps[i] & mask];
-}
-#endif
-
-
 void FinalizeLine555(int sh, int line)
 {
   unsigned short *pd=DrawLineDest;
