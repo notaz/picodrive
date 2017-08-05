@@ -100,6 +100,8 @@ typedef enum { PI_ROM, PI_ISPAL, PI_IS40_CELL, PI_IS240_LINES } pint_t;
 typedef union { int vint; void *vptr; } pint_ret_t;
 void PicoGetInternal(pint_t which, pint_ret_t *ret);
 
+struct PicoEState;
+
 // cd/mcd.c
 extern void (*PicoMCDopenTray)(void);
 extern void (*PicoMCDcloseTray)(void);
@@ -176,7 +178,7 @@ extern unsigned char *HighCol;
 #ifdef _ASM_DRAW_C
 void vidConvCpyRGB565(void *to, void *from, int pixels);
 #endif
-void PicoDoHighPal555(int sh);
+void PicoDoHighPal555(int sh, int line, struct PicoEState *est);
 extern int PicoDrawMask;
 #define PDRAW_LAYERB_ON      (1<<2)
 #define PDRAW_LAYERA_ON      (1<<3)
@@ -193,7 +195,7 @@ extern int PicoDrawMask;
 #define PDRAW_PLANE_HI_PRIO (1<<6) // have layer with all hi prio tiles (mk3)
 #define PDRAW_SHHI_DONE     (1<<7) // layer sh/hi already processed
 #define PDRAW_32_COLS       (1<<8) // 32 column mode
-extern int rendstatus, rendstatus_old;
+extern int rendstatus_old;
 extern int rendlines;
 extern unsigned short HighPal[0x100];
 

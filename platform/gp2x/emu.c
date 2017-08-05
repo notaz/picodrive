@@ -310,7 +310,7 @@ static int make_local_pal_md(int fast_mode)
 		localPal[0xf0] = 0x00ffffff;
 		pallen = 0x100;
 	}
-	else if (rendstatus & PDRAW_SONIC_MODE) { // mid-frame palette changes
+	else if (Pico.est.rendstatus & PDRAW_SONIC_MODE) { // mid-frame palette changes
 		bgr444_to_rgb32(localPal+0x40, HighPal);
 		bgr444_to_rgb32(localPal+0x80, HighPal+0x40);
 	}

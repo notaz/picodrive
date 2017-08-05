@@ -54,9 +54,8 @@ int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
 #define SPRL_LO_ABOVE_HI 0x10 // low priority sprites may be on top of hi
 unsigned char HighLnSpr[240][3 + MAX_LINE_SPRITES]; // sprite_count, ^flags, tile_count, [spritep]...
 
-int rendstatus, rendstatus_old;
+int rendstatus_old;
 int rendlines;
-int DrawScanline;
 int PicoDrawMask = -1;
 
 static int skip_next_line=0;
@@ -75,12 +74,15 @@ struct TileStrip
 
 // stuff available in asm:
 #ifdef _ASM_DRAW_C
-void DrawWindow(int tstart, int tend, int prio, int sh);
-void DrawAllSprites(unsigned char *sprited, int prio, int sh);
-void DrawTilesFromCache(int *hc, int sh, int rlim);
-void DrawSpritesSHi(unsigned char *sprited);
-void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
-void FinalizeLineBGR444(int sh, int line);
+void DrawWindow(int tstart, int tend, int prio, int sh,
+                struct PicoEState *est);
+void DrawAllSprites(unsigned char *sprited, int prio, int sh,
+                    struct PicoEState *est);
+void DrawTilesFromCache(int *hc, int sh, int rlim,
+                    struct PicoEState *est);
+void DrawSpritesSHi(unsigned char *sprited, struct PicoEState *est);
+void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
+               struct PicoEState *est);
 void *blockcpy(void *dst, const void *src, size_t n);
 void blockcpy_or(void *dst, void *src, size_t n, int pat);
 #else
@@ -258,7 +260,7 @@ static void DrawStrip(struct TileStrip *ts, int plane_sh, int cellskip)
   // terminate the cache list
   *ts->hc = 0;
   // if oldcode wasn't changed, it means all layer is hi priority
-  if (oldcode == -1) rendstatus |= PDRAW_PLANE_HI_PRIO;
+  if (oldcode == -1) Pico.est.rendstatus |= PDRAW_PLANE_HI_PRIO;
 }
 
 // this is messy
@@ -266,7 +268,7 @@ void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
 {
   int tilex,dx,code=0,addr=0,cell=0;
   int oldcode=-1,blank=-1; // The tile we know is blank
-  int pal=0,scan=DrawScanline;
+  int pal=0,scan=Pico.est.DrawScanline;
 
   // Draw tiles across screen:
   tilex=(-ts->hscroll)>>3;
@@ -317,7 +319,7 @@ void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
 
   // terminate the cache list
   *ts->hc = 0;
-  if (oldcode == -1) rendstatus |= PDRAW_PLANE_HI_PRIO;
+  if (oldcode == -1) Pico.est.rendstatus |= PDRAW_PLANE_HI_PRIO;
 }
 #endif
 
@@ -374,7 +376,8 @@ void DrawStripInterlace(struct TileStrip *ts)
 // --------------------------------------------
 
 #ifndef _ASM_DRAW_C
-static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells)
+static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
+  struct PicoEState *est)
 {
   struct PicoVideo *pvid=&Pico.video;
   const char shift[4]={5,6,5,7}; // 32,64 or 128 sized tilemaps (2 is invalid)
@@ -401,7 +404,7 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells)
   else            ts.nametab=(pvid->reg[2]&0x38)<< 9; // A
 
   htab=pvid->reg[13]<<9; // Horizontal scroll table address
-  if ( pvid->reg[11]&2)     htab+=DrawScanline<<1; // Offset by line
+  if ( pvid->reg[11]&2)     htab+=est->DrawScanline<<1; // Offset by line
   if ((pvid->reg[11]&1)==0) htab&=~0xf; // Offset by tile
   htab+=plane_sh&1; // A or B
 
@@ -413,7 +416,7 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells)
     vscroll=Pico.vsram[plane_sh&1]; // Get vertical scroll value
 
     // Find the line in the name table
-    ts.line=(vscroll+(DrawScanline<<1))&((ymask<<1)|1);
+    ts.line=(vscroll+(est->DrawScanline<<1))&((ymask<<1)|1);
     ts.nametab+=(ts.line>>4)<<shift[width];
 
     DrawStripInterlace(&ts);
@@ -426,7 +429,7 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells)
     vscroll=Pico.vsram[plane_sh&1]; // Get vertical scroll value
 
     // Find the line in the name table
-    ts.line=(vscroll+DrawScanline)&ymask;
+    ts.line=(vscroll+est->DrawScanline)&ymask;
     ts.nametab+=(ts.line>>3)<<shift[width];
 
     DrawStrip(&ts, plane_sh, cellskip);
@@ -437,7 +440,8 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells)
 // --------------------------------------------
 
 // tstart & tend are tile pair numbers
-static void DrawWindow(int tstart, int tend, int prio, int sh) // int *hcache
+static void DrawWindow(int tstart, int tend, int prio, int sh,
+                       struct PicoEState *est)
 {
   struct PicoVideo *pvid=&Pico.video;
   int tilex,ty,nametab,code=0;
@@ -447,17 +451,17 @@ static void DrawWindow(int tstart, int tend, int prio, int sh) // int *hcache
   if (pvid->reg[12]&1)
   {
     nametab=(pvid->reg[3]&0x3c)<<9; // 40-cell mode
-    nametab+=(DrawScanline>>3)<<6;
+    nametab+=(est->DrawScanline>>3)<<6;
   }
   else
   {
     nametab=(pvid->reg[3]&0x3e)<<9; // 32-cell mode
-    nametab+=(DrawScanline>>3)<<5;
+    nametab+=(est->DrawScanline>>3)<<5;
   }
 
   tilex=tstart<<1;
 
-  if (!(rendstatus & PDRAW_WND_DIFF_PRIO)) {
+  if (!(est->rendstatus & PDRAW_WND_DIFF_PRIO)) {
     // check the first tile code
     code=Pico.vram[nametab+tilex];
     // if the whole window uses same priority (what is often the case), we may be able to skip this field
@@ -465,7 +469,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh) // int *hcache
   }
 
   tend<<=1;
-  ty=(DrawScanline&7)<<1; // Y-Offset into tile
+  ty=(est->DrawScanline&7)<<1; // Y-Offset into tile
 
   // Draw tiles across screen:
   if (!sh)
@@ -478,7 +482,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh) // int *hcache
       code=Pico.vram[nametab+tilex];
       if (code==blank) continue;
       if ((code>>15) != prio) {
-        rendstatus |= PDRAW_WND_DIFF_PRIO;
+        est->rendstatus |= PDRAW_WND_DIFF_PRIO;
         continue;
       }
 
@@ -504,7 +508,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh) // int *hcache
       code=Pico.vram[nametab+tilex];
       if(code==blank) continue;
       if((code>>15) != prio) {
-        rendstatus |= PDRAW_WND_DIFF_PRIO;
+        est->rendstatus |= PDRAW_WND_DIFF_PRIO;
         continue;
       }
 
@@ -538,23 +542,23 @@ static void DrawTilesFromCacheShPrep(void)
   // we can process whole line and then act as if sh/hi mode was off,
   // but leave lo pri op sprite markers alone
   int c = 320/4, *zb = (int *)(HighCol+8);
-  rendstatus |= PDRAW_SHHI_DONE;
+  Pico.est.rendstatus |= PDRAW_SHHI_DONE;
   while (c--)
   {
     *zb++ &= 0xbfbfbfbf;
   }
 }
 
-static void DrawTilesFromCache(int *hc, int sh, int rlim)
+static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est)
 {
   int code, addr, dx;
   int pal;
 
   // *ts->hc++ = code | (dx<<16) | (ty<<25); // cache it
 
-  if (sh && (rendstatus & (PDRAW_SHHI_DONE|PDRAW_PLANE_HI_PRIO)))
+  if (sh && (est->rendstatus & (PDRAW_SHHI_DONE|PDRAW_PLANE_HI_PRIO)))
   {
-    if (!(rendstatus & PDRAW_SHHI_DONE))
+    if (!(est->rendstatus & PDRAW_SHHI_DONE))
       DrawTilesFromCacheShPrep();
     sh = 0;
   }
@@ -658,7 +662,7 @@ static void DrawSprite(int *sprite, int sh)
   height=(sy>>24)&7; // Width and height in tiles
   sy=(sy<<16)>>16; // Y
 
-  row=DrawScanline-sy; // Row of the sprite we are on
+  row=Pico.est.DrawScanline-sy; // Row of the sprite we are on
 
   if (code&0x1000) row=(height<<3)-1-row; // Flip Y
 
@@ -706,7 +710,7 @@ static void DrawSpriteInterlace(unsigned int *sprite)
   width=(height>>2)&3; height&=3;
   width++; height++; // Width and height in tiles
 
-  row=(DrawScanline<<1)-sy; // Row of the sprite we are on
+  row=(Pico.est.DrawScanline<<1)-sy; // Row of the sprite we are on
 
   code=sprite[1];
   sx=((code>>16)&0x1ff)-0x78; // X
@@ -738,7 +742,7 @@ static void DrawSpriteInterlace(unsigned int *sprite)
 static void DrawAllSpritesInterlace(int pri, int sh)
 {
   struct PicoVideo *pvid=&Pico.video;
-  int i,u,table,link=0,sline=DrawScanline<<1;
+  int i,u,table,link=0,sline=Pico.est.DrawScanline<<1;
   unsigned int *sprites[80]; // Sprite index
 
   table=pvid->reg[5]&0x7f;
@@ -790,7 +794,7 @@ static void DrawAllSpritesInterlace(int pri, int sh)
  * Index + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: vert./horiz. size
  * Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
  */
-static void DrawSpritesSHi(unsigned char *sprited)
+static void DrawSpritesSHi(unsigned char *sprited, const struct PicoEState *est)
 {
   int (*fTileFunc)(int sx,int addr,int pal);
   unsigned char *p;
@@ -835,7 +839,7 @@ static void DrawSpritesSHi(unsigned char *sprited)
     height=(sy>>24)&7; // Width and height in tiles
     sy=(sy<<16)>>16; // Y
 
-    row=DrawScanline-sy; // Row of the sprite we are on
+    row=est->DrawScanline-sy; // Row of the sprite we are on
 
     if (code&0x1000) row=(height<<3)-1-row; // Flip Y
 
@@ -867,7 +871,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
   cnt = sprited[0] & 0x7f;
   if (cnt == 0) return;
 
-  rendstatus |= PDRAW_SPR_LO_ON_HI;
+  Pico.est.rendstatus |= PDRAW_SPR_LO_ON_HI;
 
   p = &sprited[3];
 
@@ -906,7 +910,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
     height=(sy>>24)&7; // Width and height in tiles
     sy=(sy<<16)>>16; // Y
 
-    row=DrawScanline-sy; // Row of the sprite we are on
+    row=Pico.est.DrawScanline-sy; // Row of the sprite we are on
 
     if (code&0x1000) row=(height<<3)-1-row; // Flip Y
 
@@ -942,7 +946,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
 
   /* nasty 2: sh operator pass */
   sprited[0] = sh_cnt;
-  DrawSpritesSHi(sprited);
+  DrawSpritesSHi(sprited, &Pico.est);
 }
 
 
@@ -954,7 +958,8 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
 
 void PrepareSprites(int full)
 {
-  struct PicoVideo *pvid=&Pico.video;
+  const struct PicoVideo *pvid=&Pico.video;
+  const struct PicoEState *est=&Pico.est;
   int u,link=0,sh;
   int table=0;
   int *pd = HighPreSpr;
@@ -991,10 +996,11 @@ void PrepareSprites(int full)
       sy = (pack << 16) >> 16;
       height = (pack >> 24) & 0xf;
 
-      if (sy < max_lines && sy + (height<<3) > DrawScanline && // sprite onscreen (y)?
+      if (sy < max_lines &&
+	  sy + (height<<3) > est->DrawScanline && // sprite onscreen (y)?
           (sx > -24 || sx < max_width))                   // onscreen x
       {
-        int y = (sy >= DrawScanline) ? sy : DrawScanline;
+        int y = (sy >= est->DrawScanline) ? sy : est->DrawScanline;
         int entry = ((pd - HighPreSpr) / 2) | ((code2>>8)&0x80);
         for (; y < sy + (height<<3) && y < max_lines; y++)
         {
@@ -1047,7 +1053,7 @@ found:;
       sx = (code2>>16)&0x1ff;
       sx -= 0x78; // Get X coordinate + 8
 
-      if (sy < max_lines && sy + (height<<3) > DrawScanline) // sprite onscreen (y)?
+      if (sy < max_lines && sy + (height<<3) > est->DrawScanline) // sprite onscreen (y)?
       {
         int entry, y, sx_min, onscr_x, maybe_op = 0;
 
@@ -1057,7 +1063,7 @@ found:;
           maybe_op = SPRL_MAY_HAVE_OP;
 
         entry = ((pd - HighPreSpr) / 2) | ((code2>>8)&0x80);
-        y = (sy >= DrawScanline) ? sy : DrawScanline;
+        y = (sy >= est->DrawScanline) ? sy : est->DrawScanline;
         for (; y < sy + (height<<3) && y < max_lines; y++)
         {
 	  unsigned char *p = &HighLnSpr[y][0];
@@ -1110,16 +1116,17 @@ found:;
 }
 
 #ifndef _ASM_DRAW_C
-static void DrawAllSprites(unsigned char *sprited, int prio, int sh)
+static void DrawAllSprites(unsigned char *sprited, int prio, int sh,
+                           struct PicoEState *est)
 {
-  int rs = rendstatus;
+  int rs = est->rendstatus;
   unsigned char *p;
   int cnt;
 
   if (rs & (PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES)) {
     //elprintf(EL_STATUS, "PrepareSprites(%i)", (rs>>4)&1);
     PrepareSprites(rs & PDRAW_DIRTY_SPRITES);
-    rendstatus = rs & ~(PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES);
+    est->rendstatus = rs & ~(PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES);
   }
 
   cnt = sprited[0] & 0x7f;
@@ -1159,7 +1166,7 @@ void BackFill(int reg7, int sh)
 unsigned short HighPal[0x100];
 
 #ifndef _ASM_DRAW_C
-void PicoDoHighPal555(int sh)
+void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
 {
   unsigned int *spal, *dpal;
   unsigned int t, i;
@@ -1205,7 +1212,7 @@ void FinalizeLine555(int sh, int line)
   int len;
 
   if (Pico.m.dirtyPal)
-    PicoDoHighPal555(sh);
+    PicoDoHighPal555(sh, line, est);
 
   if (Pico.video.reg[12]&1) {
     len = 320;
@@ -1217,7 +1224,7 @@ void FinalizeLine555(int sh, int line)
   {
 #ifndef PSP
     int i, mask=0xff;
-    if (!sh && (rendstatus & PDRAW_SPR_LO_ON_HI))
+    if (!sh && (est->rendstatus & PDRAW_SPR_LO_ON_HI))
       mask=0x3f; // accurate sprites, upper bits are priority stuff
 
     for (i = 0; i < len; i++)
@@ -1225,7 +1232,7 @@ void FinalizeLine555(int sh, int line)
 #else
     extern void amips_clut(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
     extern void amips_clut_6bit(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
-    if (!sh && (rendstatus & PDRAW_SPR_LO_ON_HI))
+    if (!sh && (est->rendstatus & PDRAW_SPR_LO_ON_HI))
          amips_clut_6bit(pd, ps, pal, len);
     else amips_clut(pd, ps, pal, len);
 #endif
@@ -1233,10 +1240,10 @@ void FinalizeLine555(int sh, int line)
 }
 #endif
 
-static void FinalizeLine8bit(int sh, int line)
+static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
 {
   unsigned char *pd = DrawLineDest;
-  int len, rs = rendstatus;
+  int len, rs = est->rendstatus;
   static int dirty_count;
 
   if (!sh && Pico.m.dirtyPal == 1)
@@ -1246,7 +1253,7 @@ static void FinalizeLine8bit(int sh, int line)
          dirty_count = 1;
     else dirty_count++;
     rs |= PDRAW_SONIC_MODE;
-    rendstatus = rs;
+    est->rendstatus = rs;
     if (dirty_count == 3) {
       blockcpy(HighPal, Pico.cram, 0x40*2);
     } else if (dirty_count == 11) {
@@ -1273,18 +1280,19 @@ static void FinalizeLine8bit(int sh, int line)
   }
 }
 
-static void (*FinalizeLine)(int sh, int line);
+static void (*FinalizeLine)(int sh, int line, struct PicoEState *est);
 
 // --------------------------------------------
 
 static int DrawDisplay(int sh)
 {
-  unsigned char *sprited = &HighLnSpr[DrawScanline][0];
+  struct PicoEState *est=&Pico.est;
+  unsigned char *sprited = &HighLnSpr[est->DrawScanline][0];
   struct PicoVideo *pvid=&Pico.video;
   int win=0,edge=0,hvwind=0;
   int maxw,maxcells;
 
-  rendstatus &= ~(PDRAW_SHHI_DONE|PDRAW_PLANE_HI_PRIO);
+  est->rendstatus &= ~(PDRAW_SHHI_DONE|PDRAW_PLANE_HI_PRIO);
 
   if (pvid->reg[12]&1) {
     maxw = 328; maxcells = 40;
@@ -1296,8 +1304,8 @@ static int DrawDisplay(int sh)
   win=pvid->reg[0x12];
   edge=(win&0x1f)<<3;
 
-  if (win&0x80) { if (DrawScanline>=edge) hvwind=1; }
-  else          { if (DrawScanline< edge) hvwind=1; }
+  if (win&0x80) { if (est->DrawScanline>=edge) hvwind=1; }
+  else          { if (est->DrawScanline< edge) hvwind=1; }
 
   if (!hvwind) // we might have a vertical window here
   {
@@ -1315,53 +1323,56 @@ static int DrawDisplay(int sh)
 
   /* - layer B low - */
   if (PicoDrawMask & PDRAW_LAYERB_ON)
-    DrawLayer(1|(sh<<1), HighCacheB, 0, maxcells);
+    DrawLayer(1|(sh<<1), HighCacheB, 0, maxcells, est);
   /* - layer A low - */
   if (!(PicoDrawMask & PDRAW_LAYERA_ON));
   else if (hvwind == 1)
-    DrawWindow(0, maxcells>>1, 0, sh);
+    DrawWindow(0, maxcells>>1, 0, sh, est);
   else if (hvwind == 2) {
-    DrawLayer(0|(sh<<1), HighCacheA, (win&0x80) ?    0 : edge<<1, (win&0x80) ?     edge<<1 : maxcells);
-    DrawWindow(                      (win&0x80) ? edge :       0, (win&0x80) ? maxcells>>1 : edge, 0, sh);
+    DrawLayer(0|(sh<<1), HighCacheA, (win&0x80) ?    0 : edge<<1, (win&0x80) ?     edge<<1 : maxcells, est);
+    DrawWindow(                      (win&0x80) ? edge :       0, (win&0x80) ? maxcells>>1 : edge, 0, sh, est);
   } else
-    DrawLayer(0|(sh<<1), HighCacheA, 0, maxcells);
+    DrawLayer(0|(sh<<1), HighCacheA, 0, maxcells, est);
   /* - sprites low - */
   if (!(PicoDrawMask & PDRAW_SPRITES_LOW_ON));
-  else if (rendstatus & PDRAW_INTERLACE)
+  else if (Pico.est.rendstatus & PDRAW_INTERLACE)
     DrawAllSpritesInterlace(0, sh);
   else if (sprited[1] & SPRL_HAVE_LO)
-    DrawAllSprites(sprited, 0, sh);
+    DrawAllSprites(sprited, 0, sh, est);
 
   /* - layer B hi - */
   if ((PicoDrawMask & PDRAW_LAYERB_ON) && HighCacheB[0])
-    DrawTilesFromCache(HighCacheB, sh, maxw);
+    DrawTilesFromCache(HighCacheB, sh, maxw, est);
   /* - layer A hi - */
   if (!(PicoDrawMask & PDRAW_LAYERA_ON));
   else if (hvwind == 1)
-    DrawWindow(0, maxcells>>1, 1, sh);
+    DrawWindow(0, maxcells>>1, 1, sh, est);
   else if (hvwind == 2) {
-    if (HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, (win&0x80) ? edge<<4 : maxw);
-    DrawWindow((win&0x80) ? edge : 0, (win&0x80) ? maxcells>>1 : edge, 1, sh);
+    if (HighCacheA[0])
+      DrawTilesFromCache(HighCacheA, sh, (win&0x80) ? edge<<4 : maxw, est);
+    DrawWindow((win&0x80) ? edge : 0, (win&0x80) ? maxcells>>1 : edge, 1, sh, est);
   } else
-    if (HighCacheA[0]) DrawTilesFromCache(HighCacheA, sh, maxw);
+    if (HighCacheA[0])
+      DrawTilesFromCache(HighCacheA, sh, maxw, est);
   /* - sprites hi - */
   if (!(PicoDrawMask & PDRAW_SPRITES_HI_ON));
-  else if (rendstatus & PDRAW_INTERLACE)
+  else if (Pico.est.rendstatus & PDRAW_INTERLACE)
     DrawAllSpritesInterlace(1, sh);
   // have sprites without layer pri bit ontop of sprites with that bit
   else if ((sprited[1] & 0xd0) == 0xd0 && (PicoOpt & POPT_ACC_SPRITES))
     DrawSpritesHiAS(sprited, sh);
   else if (sh && (sprited[1] & SPRL_MAY_HAVE_OP))
-    DrawSpritesSHi(sprited);
+    DrawSpritesSHi(sprited, est);
   else if (sprited[1] & SPRL_HAVE_HI)
-    DrawAllSprites(sprited, 1, 0);
+    DrawAllSprites(sprited, 1, 0, est);
 
 #if 0
   {
     int *c, a, b;
     for (a = 0, c = HighCacheA; *c; c++, a++);
     for (b = 0, c = HighCacheB; *c; c++, b++);
-    printf("%i:%03i: a=%i, b=%i\n", Pico.m.frame_count, DrawScanline, a, b);
+    printf("%i:%03i: a=%i, b=%i\n", Pico.m.frame_count,
+           Pico.est.DrawScanline, a, b);
   }
 #endif
 
@@ -1374,27 +1385,27 @@ PICO_INTERNAL void PicoFrameStart(void)
   int offs = 8, lines = 224;
 
   // prepare to do this frame
-  rendstatus = 0;
+  Pico.est.rendstatus = 0;
   if ((Pico.video.reg[12] & 6) == 6)
-    rendstatus |= PDRAW_INTERLACE; // interlace mode
+    Pico.est.rendstatus |= PDRAW_INTERLACE; // interlace mode
   if (!(Pico.video.reg[12] & 1))
-    rendstatus |= PDRAW_32_COLS;
+    Pico.est.rendstatus |= PDRAW_32_COLS;
   if (Pico.video.reg[1] & 8) {
     offs = 0;
     lines = 240;
   }
 
-  if (rendstatus != rendstatus_old || lines != rendlines) {
+  if (Pico.est.rendstatus != rendstatus_old || lines != rendlines) {
     rendlines = lines;
     // mode_change() might reset rendstatus_old by calling SetColorFormat
     emu_video_mode_change((lines == 240) ? 0 : 8,
       lines, (Pico.video.reg[12] & 1) ? 0 : 1);
-    rendstatus_old = rendstatus;
+    rendstatus_old = Pico.est.rendstatus;
   }
 
   HighCol = HighColBase + offs * HighColIncrement;
   DrawLineDest = (char *)DrawLineDestBase + offs * DrawLineDestIncrement;
-  DrawScanline = 0;
+  Pico.est.DrawScanline = 0;
   skip_next_line = 0;
 
   if (PicoOpt & POPT_ALT_RENDERER)
@@ -1413,7 +1424,7 @@ static void DrawBlankedLine(int line, int offs, int sh, int bgc)
   BackFill(bgc, sh);
 
   if (FinalizeLine != NULL)
-    FinalizeLine(sh, line);
+    FinalizeLine(sh, line, &Pico.est);
 
   if (PicoScanEnd != NULL)
     PicoScanEnd(line + offs);
@@ -1431,7 +1442,7 @@ static void PicoLine(int line, int offs, int sh, int bgc)
     return;
   }
 
-  DrawScanline = line;
+  Pico.est.DrawScanline = line;
   if (PicoScanBegin != NULL)
     skip = PicoScanBegin(line + offs);
 
@@ -1446,7 +1457,7 @@ static void PicoLine(int line, int offs, int sh, int bgc)
     DrawDisplay(sh);
 
   if (FinalizeLine != NULL)
-    FinalizeLine(sh, line);
+    FinalizeLine(sh, line, &Pico.est);
 
   if (PicoScanEnd != NULL)
     skip_next_line = PicoScanEnd(line + offs);
@@ -1466,7 +1477,7 @@ void PicoDrawSync(int to, int blank_last_line)
   if (rendlines != 240)
     offs = 8;
 
-  for (line = DrawScanline; line < to; line++)
+  for (line = Pico.est.DrawScanline; line < to; line++)
   {
     PicoLine(line, offs, sh, bgc);
   }
@@ -1479,7 +1490,7 @@ void PicoDrawSync(int to, int blank_last_line)
     else PicoLine(line, offs, sh, bgc);
     line++;
   }
-  DrawScanline = line;
+  Pico.est.DrawScanline = line;
 
   pprof_end(draw);
 }
@@ -1491,8 +1502,8 @@ void PicoDrawUpdateHighPal(void)
   if (PicoOpt & POPT_ALT_RENDERER)
     sh = 0; // no s/h support
 
-  PicoDoHighPal555(sh);
-  if (rendstatus & PDRAW_SONIC_MODE) {
+  PicoDoHighPal555(sh, 0, &Pico.est);
+  if (Pico.est.rendstatus & PDRAW_SONIC_MODE) {
     // FIXME?
     memcpy(HighPal + 0x40, HighPal, 0x40*2);
     memcpy(HighPal + 0x80, HighPal, 0x40*2);
@@ -1528,7 +1539,7 @@ void PicoDrawSetOutBuf(void *dest, int increment)
 {
   DrawLineDestBase = dest;
   DrawLineDestIncrement = increment;
-  DrawLineDest = (unsigned char*)DrawLineDestBase + DrawScanline * increment;
+  DrawLineDest = (unsigned char*)DrawLineDestBase + Pico.est.DrawScanline * increment;
 }
 
 void PicoDrawSetInternalBuf(void *dest, int increment)
@@ -1536,7 +1547,7 @@ void PicoDrawSetInternalBuf(void *dest, int increment)
   if (dest != NULL) {
     HighColBase = dest;
     HighColIncrement = increment;
-    HighCol = HighColBase + DrawScanline * increment;
+    HighCol = HighColBase + Pico.est.DrawScanline * increment;
   }
   else {
     HighColBase = DefHighCol;
@@ -1560,3 +1571,5 @@ void PicoDrawSetCallbacks(int (*begin)(unsigned int num), int (*end)(unsigned in
     PicoScanEnd = end;
   }
 }
+
+// vim:ts=4:sw=4:expandtab

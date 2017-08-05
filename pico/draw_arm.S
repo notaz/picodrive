@@ -1,6 +1,6 @@
 /*
  * assembly optimized versions of most funtions from draw.c
- * (C) notaz, 2006-2010
+ * (C) notaz, 2006-2010,2017
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -8,12 +8,11 @@
  * this is highly specialized, be careful if changing related C code!
  */
 
-.extern Pico
+#include "pico_int_o32.h"
+
 .extern PicoOpt
 .extern HighCol
-.extern DrawScanline
 .extern HighSprZ
-.extern rendstatus
 .extern HighPreSpr
 .extern DrawLineDest
 .extern DrawStripInterlace
@@ -287,14 +286,16 @@
 @   int cells;   // 0x14
 @ };
 
-@ void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells);
+@ void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
+@                struct PicoEState *est)
 
 .global DrawLayer
 
 DrawLayer:
+    ldr     r12, [sp]             @ est
     stmfd   sp!, {r4-r11,lr}
 
-    ldr     r11, =(Pico+0x22228)  @ Pico.video
+    ldr     r11, [r12, #OFS_Pico_video]
     mov     r8, #1
 
     ldrb    r7, [r11, #16]        @ ??vv??hh
@@ -316,17 +317,17 @@ DrawLayer:
     cmp     r10, #7
     subge   r10, r10, #1          @ r10=shift[width] (5,6,6,7)
 
-    @ calculate xmask:
-    mov     r5, r8, lsl r10
-    sub     r5, r5, #1            @ r5=xmask
+    ldr     r2, [r12, #OFS_DrawScanline]
+    ldr     lr, [r12, #OFS_Pico_vram]
 
     @ Find name table:
     ands    r0,  r0, #1
     ldreqb  r12, [r11, #2]
     ldrneb  r12, [r11, #4]
 
-    ldr     r2, =DrawScanline     @ trying to make good use of pipeline here
-    ldr     lr, =(Pico+0x10000)   @ lr=Pico.vram
+    @ calculate xmask:
+    mov     r5, r8, lsl r10
+    sub     r5, r5, #1            @ r5=xmask
 
     moveq   r12, r12, lsl #10
     movne   r12, r12, lsl #13
@@ -334,7 +335,6 @@ DrawLayer:
 
     ldrh    r8, [r11, #12]
     ldrb    r7, [r11, #11]
-    ldr     r2, [r2]
 
     mov     r4, r8, lsr #8        @ pvid->reg[13]
     mov     r4, r4, lsl #10       @ htab=pvid->reg[13]<<9; (halfwords)
@@ -504,12 +504,12 @@ DrawLayer:
 
 .dsloop_exit:
     tst     r10, #1<<21 @ seen non hi-prio tile
-    ldreq   r1, =rendstatus
+    ldr     r1, [sp, #9*4]  @ est
     mov     r0, #0
-    ldreq   r2, [r1]
+    ldreq   r2, [r1, #OFS_rendstatus]
     str     r0, [r6]    @ terminate the cache list
     orreq   r2, r2, #PDRAW_PLANE_HI_PRIO @ had a layer with all hi-prio tiles
-    streq   r2, [r1]
+    streq   r2, [r1, #OFS_rendstatus]
 
     ldmfd   sp!, {r4-r11,lr}
     bx      lr
@@ -522,9 +522,9 @@ DrawLayer:
     bic     r8, r8, #0x3fc00000
     orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|had_output[24]|tilex[21:0])
 
-    ldr     r4, =DrawScanline
+    ldr     r11, [sp, #9*4]       @ est
     orr     r5, r1, r10, lsl #24
-    ldr     r4, [r4]
+    ldr     r4, [r11, #OFS_DrawScanline]
     sub     r1, r3, #1
     orr     r5, r5, r4, lsl #16   @ r5=(shift_width[31:24]|scanline[23:16]|ymask[15:0])
     and     r1, r1, #7
@@ -679,12 +679,12 @@ DrawLayer:
 
 .dsloop_vs_exit:
     tst     r8, #(1<<24) @ seen non hi-prio tile
-    ldreq   r1, =rendstatus
+    ldr     r1, [sp, #9*4]  @ est
     mov     r0, #0
-    ldreq   r2, [r1]
+    ldreq   r2, [r1, #OFS_rendstatus]
     str     r0, [r6]    @ terminate the cache list
     orreq   r2, r2, #PDRAW_PLANE_HI_PRIO @ had a layer with all hi-prio tiles
-    streq   r2, [r1]
+    streq   r2, [r1, #OFS_rendstatus]
 
     ldmfd   sp!, {r4-r11,lr}
     bx      lr
@@ -770,11 +770,12 @@ BackFill:
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+@ void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est)
 
-.global DrawTilesFromCache @ int *hc, int sh, int rlim
+.global DrawTilesFromCache
 
 DrawTilesFromCache:
-    stmfd   sp!, {r4-r8,r11,lr}
+    stmfd   sp!, {r4-r9,r11,lr}
 
     @ cache some stuff to avoid mem access
 .if OVERRIDE_HIGHCOL
@@ -785,7 +786,8 @@ DrawTilesFromCache:
     ldr     r11,=HighCol
     mov     r12,#0xf
 .endif
-    ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
+    ldr     lr, [r3, #OFS_Pico_vram]
+    mov     r9, r3         @ est
 
     mvn     r5, #0         @ r5=prevcode=-1
     ands    r8, r1, #1
@@ -796,7 +798,7 @@ DrawTilesFromCache:
 .dtfc_loop:
     ldr     r6, [r0], #4    @ read code
     movs    r1, r6, lsr #16 @ r1=dx;
-    ldmeqfd sp!, {r4-r8,r11,pc} @ dx is never zero, this must be a terminator, return
+    ldmeqfd sp!, {r4-r9,r11,pc} @ dx is never zero, this must be a terminator, return
     bic     r4, r1, #0xfe00
     add     r1, r11, r4     @ r1=pdest
 
@@ -915,15 +917,14 @@ DrawTilesFromCache:
 
 @ check if we have detected layer covered with hi-prio tiles:
 .dtfc_check_rendflags:
-    ldr     r1, =rendstatus
-    ldr     r2, [r1]
+    ldr     r2, [r9, #OFS_rendstatus]
     tst     r2, #(PDRAW_PLANE_HI_PRIO|PDRAW_SHHI_DONE)
     beq     .dtfc_loop
     bic     r8, r8, #1      @ sh/hi mode off
     tst     r2, #PDRAW_SHHI_DONE
     bne     .dtfc_loop      @ already processed
     orr     r2, r2, #PDRAW_SHHI_DONE
-    str     r2, [r1]
+    str     r2, [r9, #OFS_rendstatus]
 
     add     r1, r11,#8
     mov     r3, #320/4/4
@@ -948,7 +949,9 @@ DrawTilesFromCache:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-.global DrawSpritesSHi @ unsigned char *sprited
+@ void DrawSpritesSHi(unsigned char *sprited, struct PicoEState *est)
+
+.global DrawSpritesSHi
 
 DrawSpritesSHi:
     ldr     r3, [r0]
@@ -956,7 +959,7 @@ DrawSpritesSHi:
     ands    r3, r3, #0x7f
     bxeq    lr
 
-    stmfd   sp!, {r4-r11,lr}
+    stmfd   sp!, {r1,r4-r11,lr} @ +est
     strb    r12,[r0,#2]     @ set end marker
     add     r10,r0, #3      @ r10=HighLnSpr end
     add     r10,r10,r3      @ r10=HighLnSpr end
@@ -969,16 +972,16 @@ DrawSpritesSHi:
     ldr     r11,=HighCol
     mov     r12,#0xf
 .endif
-    ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
+    ldr     lr, [r1, #OFS_Pico_vram]
 
 
 DrawSpriteSHi:
     @ draw next sprite
     ldrb    r0, [r10,#-1]!
+    ldr     r7, [sp]        @ est
     ldr     r1, =HighPreSpr
-@    ldr     r8, [sp, #-4]
     cmp     r0, #0xff
-    ldmeqfd sp!, {r4-r11,pc} @ end of list
+    ldmeqfd sp!, {r1,r4-r11,pc} @ end of list
     and     r0, r0, #0x7f
     add     r0, r1, r0, lsl #3
 
@@ -997,15 +1000,14 @@ DrawSpriteSHi:
     bne     DrawSpriteSHi   @ non-operator low sprite, already drawn
 
     ldr     r3, [r0]        @ sprite[0]
-    ldr     r7, =DrawScanline
     mov     r6, r3, lsr #28
     sub     r6, r6, #1      @ r6=width-1 (inc later)
     mov     r5, r3, lsr #24
     and     r5, r5, #7      @ r5=height
 
+    ldr     r7, [r7, #OFS_DrawScanline]
     mov     r0, r3, lsl #16 @ r4=sy<<16 (tmp)
 
-    ldr     r7, [r7]
     sub     r7, r7, r0, asr #16 @ r7=row=DrawScanline-sy
 
     tst     r9, #0x1000
@@ -1128,34 +1130,34 @@ DrawSpriteSHi:
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-.global DrawAllSprites @ unsigned char *sprited, int prio, int sh
+@ void DrawAllSprites(unsigned char *sprited, int prio, int sh,
+@                     struct PicoEState *est)
+
+.global DrawAllSprites
 
 DrawAllSprites:
-    ldr     r3, =rendstatus
     orr     r1, r2, r1, lsl #1
-    ldr     r12,[r3]
+    ldr     r12,[r3, #OFS_rendstatus]
     tst     r12,#(PDRAW_DIRTY_SPRITES|PDRAW_SPRITES_MOVED)
     beq     das_no_prep
-    stmfd   sp!, {r0,r1,lr}
+    stmfd   sp!, {r0,r1,r3,lr}
     and     r0, r12,#PDRAW_DIRTY_SPRITES
     bic     r12,r12,#(PDRAW_DIRTY_SPRITES|PDRAW_SPRITES_MOVED)
-    str     r12,[r3]
+    str     r12,[r3, #OFS_rendstatus]
     bl      PrepareSprites
-    ldmfd   sp!, {r0,r1,lr}
+    ldmfd   sp!, {r0,r1,r3,lr}
 
 das_no_prep:
-    ldr     r3, [r0]
-    ands    r3, r3, #0x7f
+    ldr     r2, [r0]
+    ands    r2, r2, #0x7f
     bxeq    lr
 
     @ time to do some real work
-    stmfd   sp!, {r4-r11,lr}
+    stmfd   sp!, {r1,r3-r11,lr} @ +sh|prio<<1 +est
     mov     r12,#0xff
     strb    r12,[r0,#2]     @ set end marker
     add     r10,r0, #3
-    add     r10,r10,r3      @ r10=HighLnSpr end
-
-    str     r1, [sp, #-4]   @ no calls after this point
+    add     r10,r10,r2      @ r10=HighLnSpr end
 
 .if OVERRIDE_HIGHCOL
     ldr     r11,=HighCol
@@ -1165,29 +1167,27 @@ das_no_prep:
     ldr     r11,=HighCol
     mov     r12,#0xf
 .endif
-    ldr     lr, =(Pico+0x10000) @ lr=Pico.vram
+    ldr     lr, [r3, #OFS_Pico_vram]
 
 @ + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: horiz. size
 @ + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
+DrawSprite:
     @ draw next sprite
     ldrb    r0, [r10,#-1]!
-    ldr     r1, =HighPreSpr
-    ldr     r8, [sp, #-4]
+    ldr     r8, [sp]        @ sh|prio<<1
+    ldr     r7, [sp, #4]    @ est
     mov     r2, r0, lsr #7
     cmp     r0, #0xff
-    ldmeqfd sp!, {r4-r11,pc} @ end of list
+    ldmeqfd sp!, {r1,r3-r11,pc} @ end of list
     cmp     r2, r8, lsr #1
     bne     DrawSprite      @ wrong priority
+    ldr     r1, =HighPreSpr
     and     r0, r0, #0x7f
     add     r0, r1, r0, lsl #3
 
-@    stmfd   sp!, {r4-r9,r11,lr}
-@    orr     r8, r2, r1, lsl #4
-
     ldr     r3, [r0]        @ sprite[0]
-    ldr     r7, =DrawScanline
+    ldr     r7, [r7, #OFS_DrawScanline]
     mov     r6, r3, lsr #28
     sub     r6, r6, #1      @ r6=width-1 (inc later)
     mov     r5, r3, lsr #24
@@ -1195,7 +1195,6 @@ DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
 
     mov     r4, r3, lsl #16 @ r4=sy<<16 (tmp)
 
-    ldr     r7, [r7]
     ldr     r9, [r0, #4]
     sub     r7, r7, r4, asr #16 @ r7=row=DrawScanline-sy
 
@@ -1307,17 +1306,21 @@ DrawSprite: @ was: unsigned int *sprite, int sh, int acc_sprites
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-.global DrawWindow @ int tstart, int tend, int prio, int sh // int *hcache
+@ void DrawWindow(int tstart, int tend, int prio, int sh
+@                 struct PicoEState *est)
+
+.global DrawWindow
 
 DrawWindow:
+    ldr     r12, [sp]             @ est
     stmfd   sp!, {r4-r11,lr}
 
-    ldr     r11, =(Pico+0x22228)  @ Pico.video
-    ldr     r10, =DrawScanline
-    ldrb    r12, [r11, #3]        @ pvid->reg[3]
+    ldr     r6,  [r12, #OFS_Pico_video]
+    ldr     r10, [r12, #OFS_DrawScanline]
+    mov     r11, r12              @ est
+    ldrb    r12, [r6, #3]         @ pvid->reg[3]
 
-    ldr     r10, [r10]
-    ldr     r4,  [r11, #12]
+    ldr     r4,  [r6, #12]
     mov     r5,  r10, lsr #3
     and     r10, r10, #7
     mov     r10, r10, lsl #1      @ r10=ty
@@ -1331,9 +1334,8 @@ DrawWindow:
     addeq   r12, r12, r5, lsl #6  @ nametab
     add     r12, r12, r0, lsl #2  @ +starttile
 
-    ldr     r6, =rendstatus
-    ldr     lr, =(Pico+0x10000)   @ lr=Pico.vram
-    ldr     r6, [r6]
+    ldr     lr, [r11, #OFS_Pico_vram]
+    ldr     r6, [r11, #OFS_rendstatus]
 
     @ fetch the first code now
     ldrh    r7, [lr, r12]
@@ -1442,14 +1444,14 @@ DrawWindow:
     b       .dw_shadow_done
 
 .dwloop_end:
-    ldr     r0, =rendstatus
-    ldr     r1, [r0]
-    and     r6, r6, #PDRAW_WND_DIFF_PRIO
-    orr     r1, r1, r6
-    str     r1, [r0]
+    and     r2, r6, #PDRAW_WND_DIFF_PRIO
+    ldmfd   sp!, {r4-r11,lr}
+    ldr     r0, [sp]
+    ldr     r1, [r0, #OFS_rendstatus]
+    orr     r1, r1, r2
+    str     r1, [r0, #OFS_rendstatus]
 
-    ldmfd   sp!, {r4-r11,r12}
-    bx      r12
+    bx      lr
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1531,12 +1533,15 @@ vidConvCpyRGB565: @ void *to, void *from, int pixels
     bx      lr
 
 
-.global PicoDoHighPal555 @ int sh
+@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
+
+.global PicoDoHighPal555
 
 PicoDoHighPal555:
-    stmfd   sp!, {r4-r9,lr}
+    stmfd   sp!, {r4-r10,lr}
+    mov     r10,r2               @ est
     mov     r1, #0
-    ldr     r8, =(Pico+0x22228)  @ Pico.video
+    ldr     r8, [r10, #OFS_Pico_video]
 
 PicoDoHighPal555_nopush:
     orr     r9, r1, r0, lsl #31  @ 0:called from FinalizeLine555, 31: s/h
@@ -1598,17 +1603,20 @@ PicoDoHighPal555_nopush:
 
 PicoDoHighPal555_end:
     tst     r9, #1
-    ldmeqfd sp!, {r4-r9,pc}
+    ldmeqfd sp!, {r4-r10,pc}
 
-    ldr     r8, =(Pico+0x22228)  @ Pico.video
+    ldr     r8, [r10, #OFS_Pico_video]
     b       FinalizeLineRGB555_pal_done
 
 
-.global FinalizeLine555 @ int sh
+@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
+
+.global FinalizeLine555
 
 FinalizeLine555:
-    stmfd   sp!, {r4-r9,lr}
-    ldr     r8, =(Pico+0x22228)  @ Pico.video
+    stmfd   sp!, {r4-r10,lr}
+    mov     r10,r2               @ est
+    ldr     r8, [r10, #OFS_Pico_video]
 
     ldrb    r2, [r8, #-0x1a]     @ 0x2220e ~ dirtyPal
     mov     r1, #1
@@ -1618,9 +1626,8 @@ FinalizeLine555:
 FinalizeLineRGB555_pal_done:
     ldr     r3, =HighPal
 
-    ldr     r12,=rendstatus
+    ldr     r12, [r10, #OFS_rendstatus]
     eors    r0, r0, #1           @ sh is 0
-    ldr     r12,[r12]
     mov     lr, #0xff
     tstne   r12,#PDRAW_ACC_SPRITES
     movne   lr, #0x3f
@@ -1691,12 +1698,11 @@ FinalizeLineRGB555_pal_done:
     stmia   r0!, {r4,r5,r8,r12}
     bne     .fl_loopRGB555
 
-    ldmfd   sp!, {r4-r9,lr}
+    ldmfd   sp!, {r4-r10,lr}
     bx      lr
 
 
 .fl_32scale_RGB555:
-    stmfd   sp!, {r10}
     mov     r9, #0x3900 @ f800 07e0 001f | e000 0780 001c | 3800 01e0 0007
     orr     r9, r9, #0x00e7
 
@@ -1757,8 +1763,7 @@ FinalizeLineRGB555_pal_done:
     stmia   r0!, {r4,r5,r6,r8,r10}
     bne     .fl_loop32scale_RGB555
 
-    ldmfd   sp!, {r10}
-    ldmfd   sp!, {r4-r9,lr}
+    ldmfd   sp!, {r4-r10,lr}
     bx      lr
 
 #ifdef UNALIGNED_DRAWLINEDEST
@@ -1804,7 +1809,7 @@ FinalizeLineRGB555_pal_done:
 
     strh    r8, [r0], #2
 
-    ldmfd   sp!, {r4-r9,lr}
+    ldmfd   sp!, {r4-r10,lr}
     bx      lr
 
 
@@ -1870,8 +1875,7 @@ FinalizeLineRGB555_pal_done:
 
     strh    r4, [r0], #2
 
-    ldmfd   sp!, {r10}
-    ldmfd   sp!, {r4-r9,lr}
+    ldmfd   sp!, {r4-r10,lr}
     bx      lr
 
 #endif /* UNALIGNED_DRAWLINEDEST */

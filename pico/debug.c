@@ -203,7 +203,7 @@ void PDebugShowPalette(unsigned short *screen, int stride)
   if (PicoAHW & PAHW_SMS)
     PicoDoHighPal555M4();
   else
-    PicoDoHighPal555(1);
+    PicoDoHighPal555(1, 0, &Pico.est);
   Pico.m.dirtyPal = 1;
 
   screen += 16*stride+8;

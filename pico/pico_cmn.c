@@ -168,7 +168,7 @@ static int PicoFrameHints(void)
 
   if (!skip)
   {
-    if (DrawScanline < y)
+    if (Pico.est.DrawScanline < y)
       PicoDrawSync(y - 1, 0);
 #ifdef DRAW_FINISH_FUNC
     DRAW_FINISH_FUNC();

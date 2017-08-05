@@ -200,7 +200,7 @@ void PicoFrameStartMode4(void)
   int lines = 192;
   skip_next_line = 0;
   screen_offset = 24;
-  rendstatus = PDRAW_32_COLS;
+  Pico.est.rendstatus = PDRAW_32_COLS;
 
   if ((Pico.video.reg[0] & 6) == 6 && (Pico.video.reg[1] & 0x18)) {
     if (Pico.video.reg[1] & 0x08) {
@@ -213,9 +213,9 @@ void PicoFrameStartMode4(void)
     }
   }
 
-  if (rendstatus != rendstatus_old || lines != rendlines) {
+  if (Pico.est.rendstatus != rendstatus_old || lines != rendlines) {
     emu_video_mode_change(screen_offset, lines, 1);
-    rendstatus_old = rendstatus;
+    rendstatus_old = Pico.est.rendstatus;
     rendlines = lines;
   }
 
@@ -277,7 +277,7 @@ static void FinalizeLineRGB555M4(int line)
 
   // standard FinalizeLine can finish it for us,
   // with features like scaling and such
-  FinalizeLine555(0, line);
+  FinalizeLine555(0, line, &Pico.est);
 }
 
 static void FinalizeLine8bitM4(int line)

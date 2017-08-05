@@ -333,6 +333,15 @@ struct PicoMS
   unsigned char pad[0x4e];
 };
 
+// emu state and data for the asm code
+struct PicoEState
+{
+  int DrawScanline;
+  int rendstatus;
+  void *Pico_video;
+  void *Pico_vram;
+};
+
 // some assembly stuff depend on these, do not touch!
 struct Pico
 {
@@ -353,6 +362,7 @@ struct Pico
   struct PicoMisc m;
   struct PicoVideo video;
   struct PicoMS ms;
+  struct PicoEState est;
 };
 
 // sram
@@ -582,10 +592,9 @@ int CM_compareRun(int cyc, int is_sub);
 PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawSync(int to, int blank_last_line);
 void BackFill(int reg7, int sh);
-void FinalizeLine555(int sh, int line);
+void FinalizeLine555(int sh, int line, struct PicoEState *est);
 extern int (*PicoScanBegin)(unsigned int num);
 extern int (*PicoScanEnd)(unsigned int num);
-extern int DrawScanline;
 #define MAX_LINE_SPRITES 29
 extern unsigned char HighLnSpr[240][3 + MAX_LINE_SPRITES];
 extern void *DrawLineDestBase;
@@ -861,7 +870,7 @@ void p32x_sh2_poll_event(SH2 *sh2, unsigned int flags, unsigned int m68k_cycles)
 
 // 32x/draw.c
 void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode);
-void FinalizeLine32xRGB555(int sh, int line);
+void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est);
 void PicoDraw32xLayer(int offs, int lines, int mdbg);
 void PicoDraw32xLayerMdOnly(int offs, int lines);
 extern int (*PicoScan32xBegin)(unsigned int num);
