@@ -8,7 +8,6 @@ asm_memory = 0
 asm_render = 0
 asm_ym2612 = 0
 asm_misc = 0
-asm_cdpico = 0
 asm_cdmemory = 0
 asm_mix = 0
 endif
@@ -60,10 +59,6 @@ ifeq "$(asm_misc)" "1"
 DEFINES += _ASM_MISC_C
 SRCS_COMMON += $(R)pico/misc_arm.s
 SRCS_COMMON += $(R)pico/cd/misc_arm.s
-endif
-ifeq "$(asm_cdpico)" "1"
-DEFINES += _ASM_CD_PICO_C
-SRCS_COMMON += $(R)pico/cd/mcd_arm.s
 endif
 ifeq "$(asm_cdmemory)" "1"
 DEFINES += _ASM_CD_MEMORY_C

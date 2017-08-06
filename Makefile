@@ -55,7 +55,6 @@ asm_memory ?= 1
 asm_render ?= 1
 asm_ym2612 ?= 1
 asm_misc ?= 1
-asm_cdpico ?= 1
 asm_cdmemory ?= 1
 asm_mix ?= 1
 else # if not arm
@@ -67,7 +66,6 @@ endif
 
 ifneq "$(use_cyclone)" "1"
 # due to CPU stop flag access
-asm_cdpico = 0
 asm_cdmemory = 0
 endif
 
