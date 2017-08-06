@@ -338,12 +338,14 @@ struct PicoEState
 {
   int DrawScanline;
   int rendstatus;
-  void *DrawLineDest;          // draw estination
+  void *DrawLineDest;          // draw destination
   unsigned char *HighCol;
   int *HighPreSpr;
   void *Pico_video;
   void *Pico_vram;
   int  *PicoOpt;
+  unsigned char *Draw2FB;
+  unsigned short HighPal[0x100];
 };
 
 // some assembly stuff depend on these, do not touch!
@@ -606,6 +608,7 @@ extern void *DrawLineDestBase;
 extern int DrawLineDestIncrement;
 
 // draw2.c
+void PicoDraw2Init(void);
 PICO_INTERNAL void PicoFrameFull();
 
 // mode4.c

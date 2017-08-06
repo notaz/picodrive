@@ -29,6 +29,8 @@ int main(int argc, char *argv[])
   DUMP(f, Pico_video);
   DUMP(f, Pico_vram);
   DUMP(f, PicoOpt);
+  DUMP(f, Draw2FB);
+  DUMP(f, HighPal);
   fclose(f);
 
   return 0;

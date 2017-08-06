@@ -249,7 +249,7 @@ void PicoLineMode4(int line)
 void PicoDoHighPal555M4(void)
 {
   unsigned int *spal=(void *)Pico.cram;
-  unsigned int *dpal=(void *)HighPal;
+  unsigned int *dpal=(void *)Pico.est.HighPal;
   unsigned int t;
   int i;
 
@@ -267,7 +267,7 @@ void PicoDoHighPal555M4(void)
     t |= (t >> 4) & 0x08610861;
     *dpal = t;
   }
-  HighPal[0xe0] = 0;
+  Pico.est.HighPal[0xe0] = 0;
 }
 
 static void FinalizeLineRGB555M4(int line)

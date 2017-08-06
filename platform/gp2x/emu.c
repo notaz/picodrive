@@ -7,8 +7,8 @@
  * - 8bpp tile renderer
  * In 32x mode:
  * - 32x layer is overlayed on top of 16bpp one
- * - line internal one done on PicoDraw2FB, then mixed with 32x
- * - tile internal one done on PicoDraw2FB, then mixed with 32x
+ * - line internal one done on .Draw2FB, then mixed with 32x
+ * - tile internal one done on .Draw2FB, then mixed with 32x
  */
 
 #include <stdio.h>
@@ -311,8 +311,8 @@ static int make_local_pal_md(int fast_mode)
 		pallen = 0x100;
 	}
 	else if (Pico.est.rendstatus & PDRAW_SONIC_MODE) { // mid-frame palette changes
-		bgr444_to_rgb32(localPal+0x40, HighPal);
-		bgr444_to_rgb32(localPal+0x80, HighPal+0x40);
+		bgr444_to_rgb32(localPal+0x40, Pico.est.HighPal);
+		bgr444_to_rgb32(localPal+0x80, Pico.est.HighPal+0x40);
 	}
 	else
 		memcpy32(localPal+0x80, localPal, 0x40); // for spr prio mess
@@ -355,9 +355,9 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		}
 		// a hack for VR
 		if (PicoAHW & PAHW_SVP)
-			memset32((int *)(PicoDraw2FB+328*8+328*223), 0xe0e0e0e0, 328);
+			memset32((int *)(Pico.est.Draw2FB+328*8+328*223), 0xe0e0e0e0, 328);
 		// do actual copy
-		vidcpyM2(g_screen_ptr, PicoDraw2FB+328*8,
+		vidcpyM2(g_screen_ptr, Pico.est.Draw2FB+328*8,
 			!(Pico.video.reg[12] & 1), !(PicoOpt & POPT_DIS_32C_BORDER));
 	}
 	else if (get_renderer() == RT_8BIT_ACC)

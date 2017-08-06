@@ -36,7 +36,7 @@ int sceAudio_E0727056(int volume, void *buffer);	// blocking output
 int sceAudioOutput2GetRestSample();
 
 
-//unsigned char *PicoDraw2FB = (unsigned char *)VRAM_CACHED_STUFF + 8; // +8 to be able to skip border with 1 quadword..
+//unsigned char *Draw2FB = (unsigned char *)VRAM_CACHED_STUFF + 8; // +8 to be able to skip border with 1 quadword..
 int engineStateSuspend;
 
 #define PICO_PEN_ADJUST_X 4
@@ -400,9 +400,9 @@ void blit1(void)
 		int i;
 		unsigned char *pd;
 		// clear top and bottom trash
-		for (pd = PicoDraw2FB+8, i = 8; i > 0; i--, pd += 512)
+		for (pd = Pico.est.Draw2FB+8, i = 8; i > 0; i--, pd += 512)
 			memset32((int *)pd, 0xe0e0e0e0, 320/4);
-		for (pd = PicoDraw2FB+512*232+8, i = 8; i > 0; i--, pd += 512)
+		for (pd = Pico.est.Draw2FB+512*232+8, i = 8; i > 0; i--, pd += 512)
 			memset32((int *)pd, 0xe0e0e0e0, 320/4);
 	}
 

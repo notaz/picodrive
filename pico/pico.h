@@ -195,7 +195,6 @@ extern int PicoDrawMask;
 #define PDRAW_32_COLS       (1<<8) // 32 column mode
 extern int rendstatus_old;
 extern int rendlines;
-extern unsigned short HighPal[0x100];
 
 // draw.c
 void PicoDrawUpdateHighPal(void);
@@ -203,7 +202,6 @@ void PicoDrawSetInternalBuf(void *dest, int line_increment);
 
 // draw2.c
 // stuff below is optional
-extern unsigned char  *PicoDraw2FB;  // buffer for fast renderer in format (8+320)x(8+224+8) (eights for borders)
 extern unsigned short *PicoCramHigh; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 extern void (*PicoPrepareCram)();    // prepares PicoCramHigh for renderer to use
 

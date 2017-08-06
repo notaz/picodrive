@@ -1497,7 +1497,7 @@ PicoDoHighPal555:
 PicoDoHighPal555_nopush:
     orr     r9, r1, r0, lsl #31  @ 0:called from FinalizeLine555, 31: s/h
 
-    ldr     r0, =HighPal
+    add     r0, r10, #OFS_HighPal
 
     mov     r1, #0
     strb    r1, [r8, #-0x1a]     @ 0x2220e ~ dirtyPal
@@ -1513,7 +1513,7 @@ PicoDoHighPal555_nopush:
     tst     r9, #(1<<31)
     beq     PicoDoHighPal555_end
 
-    ldr     r3, =HighPal
+    add     r3, r10, #OFS_HighPal
 
     @ shadowed pixels:
     mov     r12,    #0x008e
@@ -1575,7 +1575,7 @@ FinalizeLine555:
     bne     PicoDoHighPal555_nopush
 
 FinalizeLineRGB555_pal_done:
-    ldr     r3, =HighPal
+    add     r3, r10, #OFS_HighPal
 
     ldr     r12, [r10, #OFS_rendstatus]
     eors    r0, r0, #1           @ sh is 0
