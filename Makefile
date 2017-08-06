@@ -200,6 +200,9 @@ tools/textfilter: tools/textfilter.c
 .s.o:
 	$(CC) $(CFLAGS) -c $< -o $@
 
+.S.o:
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # special flags - perhaps fix this someday instead?
 pico/draw.o: CFLAGS += -fno-strict-aliasing
 pico/draw2.o: CFLAGS += -fno-strict-aliasing

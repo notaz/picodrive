@@ -69,7 +69,7 @@ DEFINES += _ASM_32X_DRAW
 SRCS_COMMON += $(R)pico/32x/draw_arm.s
 endif
 ifeq "$(asm_mix)" "1"
-SRCS_COMMON += $(R)pico/sound/mix_arm.s
+SRCS_COMMON += $(R)pico/sound/mix_arm.S
 endif
 endif # ARCH=arm
 
