@@ -52,7 +52,7 @@ CC="${CC-${CROSS_COMPILE}gcc}"
 CXX="${CXX-${CROSS_COMPILE}g++}"
 AS="${AS-${CROSS_COMPILE}as}"
 STRIP="${STRIP-${CROSS_COMPILE}strip}"
-SDL_CONFIG="`$CC --print-sysroot 2> /dev/null || true`/usr/bin/sdl-config"
+test -n "$SDL_CONFIG" || SDL_CONFIG="`$CC --print-sysroot 2> /dev/null || true`/usr/bin/sdl-config"
 MAIN_LDLIBS="$LDLIBS -lm"
 config_mak="config.mak"
 
