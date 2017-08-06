@@ -24,7 +24,6 @@ asm_memory = 0
 asm_render = 0
 asm_ym2612 = 0
 asm_misc = 0
-asm_cdpico = 0
 asm_cdmemory = 0
 asm_mix = 0
 
@@ -43,7 +42,6 @@ ifeq ($(TARGET_ARCH),arm)
   asm_render = 1
   asm_ym2612 = 1
   asm_misc = 1
-  asm_cdpico = 1
   asm_cdmemory = 1
   asm_mix = 1
 else
