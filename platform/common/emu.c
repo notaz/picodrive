@@ -1427,7 +1427,7 @@ void emu_loop(void)
 			printf("%s\n", fpsbuff);
 #else
 			if (currentConfig.EmuOpt & EOPT_SHOW_FPS)
-				sprintf(fpsbuff, "%02i/%02i  ", frames_shown, frames_done);
+				snprintf(fpsbuff, 8, "%02i/%02i  ", frames_shown, frames_done);
 #endif
 			frames_shown = frames_done = 0;
 			timestamp_fps_x3 += ms_to_ticks(1000) * 3;
