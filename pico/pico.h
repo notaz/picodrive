@@ -172,8 +172,6 @@ typedef enum
 void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode);
 void PicoDrawSetOutBuf(void *dest, int increment);
 void PicoDrawSetCallbacks(int (*begin)(unsigned int num), int (*end)(unsigned int num));
-extern void *DrawLineDest;
-extern unsigned char *HighCol;
 // utility
 #ifdef _ASM_DRAW_C
 void vidConvCpyRGB565(void *to, void *from, int pixels);

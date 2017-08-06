@@ -39,6 +39,7 @@ void PicoInit(void)
 
   Pico.est.Pico_video = &Pico.video;
   Pico.est.Pico_vram = Pico.vram;
+  Pico.est.PicoOpt = &PicoOpt;
 
   // Init CPUs:
   SekInit();
@@ -47,6 +48,8 @@ void PicoInit(void)
   PicoInitMCD();
   PicoSVPInit();
   Pico32xInit();
+
+  PicoDrawInit();
 }
 
 // to be called once on emu exit

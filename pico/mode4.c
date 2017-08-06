@@ -28,7 +28,7 @@ static int screen_offset;
 
 static int TileNormM4(int sx, int addr, int pal)
 {
-  unsigned char *pd = HighCol + sx;
+  unsigned char *pd = Pico.est.HighCol + sx;
   unsigned int pack, t;
 
   pack = *(unsigned int *)(Pico.vram + addr); /* Get 4 bitplanes / 8 pixels */
@@ -50,7 +50,7 @@ static int TileNormM4(int sx, int addr, int pal)
 
 static int TileFlipM4(int sx,int addr,int pal)
 {
-  unsigned char *pd = HighCol + sx;
+  unsigned char *pd = Pico.est.HighCol + sx;
   unsigned int pack, t;
 
   pack = *(unsigned int *)(Pico.vram + addr); /* Get 4 bitplanes / 8 pixels */
@@ -192,7 +192,7 @@ static void DrawDisplayM4(int scanline)
 
   if (pv->reg[0] & 0x20)
     // first column masked
-    ((int *)HighCol)[2] = ((int *)HighCol)[3] = 0xe0e0e0e0;
+    ((int *)Pico.est.HighCol)[2] = ((int *)Pico.est.HighCol)[3] = 0xe0e0e0e0;
 }
 
 void PicoFrameStartMode4(void)
@@ -219,7 +219,7 @@ void PicoFrameStartMode4(void)
     rendlines = lines;
   }
 
-  DrawLineDest = (char *)DrawLineDestBase + screen_offset * DrawLineDestIncrement;
+  Pico.est.DrawLineDest = (char *)DrawLineDestBase + screen_offset * DrawLineDestIncrement;
 }
 
 void PicoLineMode4(int line)
@@ -233,7 +233,7 @@ void PicoLineMode4(int line)
     skip_next_line = PicoScanBegin(line + screen_offset);
 
   // Draw screen:
-  BackFill(Pico.video.reg[7] & 0x0f, 0);
+  BackFill(Pico.video.reg[7] & 0x0f, 0, &Pico.est);
   if (Pico.video.reg[1] & 0x40)
     DrawDisplayM4(line);
 
@@ -243,7 +243,7 @@ void PicoLineMode4(int line)
   if (PicoScanEnd != NULL)
     skip_next_line = PicoScanEnd(line + screen_offset);
 
-  DrawLineDest = (char *)DrawLineDest + DrawLineDestIncrement;
+  Pico.est.DrawLineDest = (char *)Pico.est.DrawLineDest + DrawLineDestIncrement;
 }
 
 void PicoDoHighPal555M4(void)
@@ -282,12 +282,12 @@ static void FinalizeLineRGB555M4(int line)
 
 static void FinalizeLine8bitM4(int line)
 {
-  unsigned char *pd = DrawLineDest;
+  unsigned char *pd = Pico.est.DrawLineDest;
 
   if (!(PicoOpt & POPT_DIS_32C_BORDER))
     pd += 32;
 
-  memcpy32((int *)pd, (int *)(HighCol+8), 256/4);
+  memcpy32((int *)pd, (int *)(Pico.est.HighCol+8), 256/4);
 }
 
 void PicoDrawSetOutputMode4(pdso_t which)

@@ -222,7 +222,7 @@ static unsigned char __attribute__((aligned(4))) rot_buff[320*4*2];
 
 static int EmuScanBegin16_rot(unsigned int num)
 {
-	DrawLineDest = rot_buff + (num & 3) * 320 * 2;
+	Pico.est.DrawLineDest = rot_buff + (num & 3) * 320 * 2;
 	return 0;
 }
 
@@ -237,7 +237,7 @@ static int EmuScanEnd16_rot(unsigned int num)
 
 static int EmuScanBegin8_rot(unsigned int num)
 {
-	DrawLineDest = rot_buff + (num & 3) * 320;
+	Pico.est.DrawLineDest = rot_buff + (num & 3) * 320;
 	return 0;
 }
 
@@ -262,14 +262,14 @@ static int EmuScanBegin16_ld(unsigned int num)
 	if (emu_scan_begin)
 		return emu_scan_begin(ld_counter);
 	else
-		DrawLineDest = (char *)g_screen_ptr + 320 * ld_counter * gp2x_current_bpp / 8;
+		Pico.est.DrawLineDest = (char *)g_screen_ptr + 320 * ld_counter * gp2x_current_bpp / 8;
 
 	return 0;
 }
 
 static int EmuScanEnd16_ld(unsigned int num)
 {
-	void *oldline = DrawLineDest;
+	void *oldline = Pico.est.DrawLineDest;
 
 	if (emu_scan_end)
 		emu_scan_end(ld_counter);
@@ -280,7 +280,7 @@ static int EmuScanEnd16_ld(unsigned int num)
 		ld_left = ld_lines;
 
 		EmuScanBegin16_ld(num);
-		memcpy32(DrawLineDest, oldline, 320 * gp2x_current_bpp / 8 / 4);
+		memcpy32(Pico.est.DrawLineDest, oldline, 320 * gp2x_current_bpp / 8 / 4);
 		if (emu_scan_end)
 			emu_scan_end(ld_counter);
 
