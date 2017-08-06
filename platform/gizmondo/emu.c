@@ -155,11 +155,11 @@ static void blit(const char *fps, const char *notice)
 		}
 		// a hack for VR
 		if (PicoAHW & PAHW_SVP)
-			memset32((int *)(PicoDraw2FB+328*8+328*223), 0xe0e0e0e0, 328);
+			memset32((int *)(Pico.est.Draw2FB+328*8+328*223), 0xe0e0e0e0, 328);
 		if (!(Pico.video.reg[12]&1)) lines_flags|=0x10000;
 		if (currentConfig.EmuOpt&0x4000)
 			lines_flags|=0x40000; // (Pico.m.frame_count&1)?0x20000:0x40000;
-		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, lines_flags);
+		vidCpy8to16((unsigned short *)giz_screen+321*8, Pico.est.Draw2FB+328*8, localPal, lines_flags);
 	}
 	else if (!(emu_opt&0x80))
 	{
@@ -187,7 +187,7 @@ static void blit(const char *fps, const char *notice)
 		if (!(Pico.video.reg[12]&1)) lines_flags|=0x10000;
 		if (currentConfig.EmuOpt&0x4000)
 			lines_flags|=0x40000; // (Pico.m.frame_count&1)?0x20000:0x40000;
-		vidCpy8to16((unsigned short *)giz_screen+321*8, PicoDraw2FB+328*8, localPal, lines_flags);
+		vidCpy8to16((unsigned short *)giz_screen+321*8, Pico.est.Draw2FB+328*8, localPal, lines_flags);
 	}
 
 	if (notice || (emu_opt & 2)) {

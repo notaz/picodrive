@@ -196,29 +196,30 @@ void PDebugShowSpriteStats(unsigned short *screen, int stride)
 
 void PDebugShowPalette(unsigned short *screen, int stride)
 {
+  struct PicoEState *est = &Pico.est;
   int x, y;
 
   Pico.m.dirtyPal = 1;
   if (PicoAHW & PAHW_SMS)
     PicoDoHighPal555M4();
   else
-    PicoDoHighPal555(1, 0, &Pico.est);
+    PicoDoHighPal555(1, 0, est);
   Pico.m.dirtyPal = 1;
 
   screen += 16*stride+8;
   for (y = 0; y < 8*4; y++)
     for (x = 0; x < 8*16; x++)
-      screen[x + y*stride] = HighPal[x/8 + (y/8)*16];
+      screen[x + y*stride] = est->HighPal[x/8 + (y/8)*16];
 
   screen += 160;
   for (y = 0; y < 8*4; y++)
     for (x = 0; x < 8*16; x++)
-      screen[x + y*stride] = HighPal[(x/8 + (y/8)*16) | 0x40];
+      screen[x + y*stride] = est->HighPal[(x/8 + (y/8)*16) | 0x40];
 
   screen += stride*48;
   for (y = 0; y < 8*4; y++)
     for (x = 0; x < 8*16; x++)
-      screen[x + y*stride] = HighPal[(x/8 + (y/8)*16) | 0x80];
+      screen[x + y*stride] = est->HighPal[(x/8 + (y/8)*16) | 0x80];
 }
 
 #if defined(DRAW2_OVERRIDE_LINE_WIDTH)
@@ -263,9 +264,9 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
   PicoFrameFull();
   for (y = 0; y < 8*4; y++)
   {
-    unsigned char *ps = PicoDraw2FB + DRAW2_LINE_WIDTH*y + 8;
+    unsigned char *ps = Pico.est.Draw2FB + DRAW2_LINE_WIDTH*y + 8;
     for (x = 0; x < 8*4; x++)
-      if (ps[x]) screen[x] = HighPal[ps[x]], ps[x] = 0;
+      if (ps[x]) screen[x] = Pico.est.HighPal[ps[x]], ps[x] = 0;
     screen += stride;
   }
 

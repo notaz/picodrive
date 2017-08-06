@@ -1161,8 +1161,6 @@ void BackFill(int reg7, int sh, struct PicoEState *est)
 
 // --------------------------------------------
 
-unsigned short HighPal[0x100];
-
 #ifndef _ASM_DRAW_C
 void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
 {
@@ -1172,7 +1170,7 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
   Pico.m.dirtyPal = 0;
 
   spal = (void *)Pico.cram;
-  dpal = (void *)HighPal;
+  dpal = (void *)est->HighPal;
 
   for (i = 0; i < 0x40 / 2; i++) {
     t = spal[i];
@@ -1206,7 +1204,7 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
 {
   unsigned short *pd=est->DrawLineDest;
   unsigned char  *ps=est->HighCol+8;
-  unsigned short *pal=HighPal;
+  unsigned short *pal=est->HighPal;
   int len;
 
   if (Pico.m.dirtyPal)
@@ -1253,9 +1251,9 @@ static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
     rs |= PDRAW_SONIC_MODE;
     est->rendstatus = rs;
     if (dirty_count == 3) {
-      blockcpy(HighPal, Pico.cram, 0x40*2);
+      blockcpy(est->HighPal, Pico.cram, 0x40*2);
     } else if (dirty_count == 11) {
-      blockcpy(HighPal+0x40, Pico.cram, 0x40*2);
+      blockcpy(est->HighPal+0x40, Pico.cram, 0x40*2);
     }
   }
 
@@ -1496,15 +1494,16 @@ void PicoDrawSync(int to, int blank_last_line)
 // also works for fast renderer
 void PicoDrawUpdateHighPal(void)
 {
+  struct PicoEState *est = &Pico.est;
   int sh = (Pico.video.reg[0xC] & 8) >> 3; // shadow/hilight?
   if (PicoOpt & POPT_ALT_RENDERER)
     sh = 0; // no s/h support
 
   PicoDoHighPal555(sh, 0, &Pico.est);
-  if (Pico.est.rendstatus & PDRAW_SONIC_MODE) {
+  if (est->rendstatus & PDRAW_SONIC_MODE) {
     // FIXME?
-    memcpy(HighPal + 0x40, HighPal, 0x40*2);
-    memcpy(HighPal + 0x80, HighPal, 0x40*2);
+    memcpy(est->HighPal + 0x40, est->HighPal, 0x40*2);
+    memcpy(est->HighPal + 0x80, est->HighPal, 0x40*2);
   }
 }
 

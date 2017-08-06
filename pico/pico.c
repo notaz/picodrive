@@ -49,6 +49,7 @@ void PicoInit(void)
   Pico32xInit();
 
   PicoDrawInit();
+  PicoDraw2Init();
 }
 
 // to be called once on emu exit

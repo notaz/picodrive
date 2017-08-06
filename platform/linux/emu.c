@@ -70,8 +70,8 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	if (currentConfig.renderer != RT_16BIT && !(PicoAHW & PAHW_32X)) {
 		unsigned short *pd = (unsigned short *)g_screen_ptr + 8 * g_screen_width;
-		unsigned char *ps = PicoDraw2FB + 328*8 + 8;
-		unsigned short *pal = HighPal;
+		unsigned char *ps = Pico.est.Draw2FB + 328*8 + 8;
+		unsigned short *pal = Pico.est.HighPal;
 		int i, x;
 		if (Pico.m.dirtyPal)
 			PicoDrawUpdateHighPal();
@@ -101,7 +101,7 @@ static void apply_renderer(void)
 	case RT_8BIT_ACC:
 		PicoOpt &= ~POPT_ALT_RENDERER;
 		PicoDrawSetOutFormat(PDF_8BIT, 0);
-		PicoDrawSetOutBuf(PicoDraw2FB + 8, 328);
+		PicoDrawSetOutBuf(Pico.est.Draw2FB + 8, 328);
 		break;
 	case RT_8BIT_FAST:
 		PicoOpt |=  POPT_ALT_RENDERER;

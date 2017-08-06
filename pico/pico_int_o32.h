@@ -7,3 +7,5 @@
 #define OFS_Pico_video       0x14
 #define OFS_Pico_vram        0x18
 #define OFS_PicoOpt          0x1c
+#define OFS_Draw2FB          0x20
+#define OFS_HighPal          0x24
