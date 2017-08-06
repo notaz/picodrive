@@ -242,8 +242,8 @@ static void do_slowmode_lines(int line_to)
 
 static void EmuScanPrepare(void)
 {
-	HighCol = (unsigned char *)VRAM_CACHED_STUFF + 8;
-	if (!(Pico.video.reg[1]&8)) HighCol += 8*512;
+	Pico.est.HighCol = (unsigned char *)VRAM_CACHED_STUFF + 8;
+	if (!(Pico.video.reg[1]&8)) Pico.est.HighCol += 8*512;
 
 	if (dynamic_palette > 0)
 		dynamic_palette--;
@@ -258,7 +258,7 @@ static void EmuScanPrepare(void)
 static int EmuScanSlowBegin(unsigned int num)
 {
 	if (!dynamic_palette)
-		HighCol = (unsigned char *)VRAM_CACHED_STUFF + num * 512 + 8;
+		Pico.est.HighCol = (unsigned char *)VRAM_CACHED_STUFF + num * 512 + 8;
 
 	return 0;
 }
@@ -276,7 +276,7 @@ static int EmuScanSlowEnd(unsigned int num)
 	if (dynamic_palette) {
 		int line_len = (Pico.video.reg[12]&1) ? 320 : 256;
 		void *dst = (char *)VRAM_STUFF + 512*240 + 512*2*num;
-		amips_clut_f(dst, HighCol + 8, localPal, line_len);
+		amips_clut_f(dst, Pico.est.HighCol + 8, localPal, line_len);
 	}
 
 	return 0;

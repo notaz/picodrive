@@ -20,13 +20,12 @@ char *PDebugMain(void)
 {
   struct PicoVideo *pv=&Pico.video;
   unsigned char *reg=pv->reg, r;
-  extern int HighPreSpr[];
   int i, sprites_lo, sprites_hi;
   char *dstrp;
 
   sprites_lo = sprites_hi = 0;
-  for (i = 0; HighPreSpr[i] != 0; i+=2)
-    if (HighPreSpr[i+1] & 0x8000)
+  for (i = 0; Pico.est.HighPreSpr[i] != 0; i+=2)
+    if (Pico.est.HighPreSpr[i+1] & 0x8000)
          sprites_hi++;
     else sprites_lo++;
 

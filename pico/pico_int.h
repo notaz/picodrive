@@ -333,8 +333,12 @@ struct PicoEState
 {
   int DrawScanline;
   int rendstatus;
+  void *DrawLineDest;          // draw estination
+  unsigned char *HighCol;
+  int *HighPreSpr;
   void *Pico_video;
   void *Pico_vram;
+  int  *PicoOpt;
 };
 
 // some assembly stuff depend on these, do not touch!
@@ -584,9 +588,10 @@ extern void (*PicoCartUnloadHook)(void);
 int CM_compareRun(int cyc, int is_sub);
 
 // draw.c
+void PicoDrawInit(void);
 PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawSync(int to, int blank_last_line);
-void BackFill(int reg7, int sh);
+void BackFill(int reg7, int sh, struct PicoEState *est);
 void FinalizeLine555(int sh, int line, struct PicoEState *est);
 extern int (*PicoScanBegin)(unsigned int num);
 extern int (*PicoScanEnd)(unsigned int num);

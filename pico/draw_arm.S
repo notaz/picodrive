@@ -10,15 +10,7 @@
 
 #include "pico_int_o32.h"
 
-.extern PicoOpt
-.extern HighCol
-.extern HighSprZ
-.extern HighPreSpr
-.extern DrawLineDest
 .extern DrawStripInterlace
-.extern HighCacheS_ptr
-
-.equiv OVERRIDE_HIGHCOL,  1
 
 .equ PDRAW_SPRITES_MOVED, (1<<0)
 .equ PDRAW_WND_DIFF_PRIO, (1<<1)
@@ -395,17 +387,12 @@ DrawLayer:
     sub     r10,r10,r9, lsl #16  @ cells-=cellskip
 
     @ cache some stuff to avoid mem access
-.if OVERRIDE_HIGHCOL
-    ldr     r11,=HighCol
+    ldr     r11,[sp, #9*4]       @ est
     mov     r0, #0xf
-    ldr     r11,[r11]
-.else
-    ldr     r11,=HighCol
-    mov     r0, #0xf
-.endif
+    ldr     r11,[r11, #OFS_HighCol]
 
     mvn     r9, #0               @ r9=prevcode=-1
-    add     r1, r11, r7         @ r1=pdest
+    add     r1, r11, r7          @ r1=pdest
 
 
     @ r4 & r7 are scratch in this loop
@@ -548,14 +535,9 @@ DrawLayer:
     add     r10,r10,r9, lsl #16  @ cell+=cellskip
 
     @ cache some stuff to avoid mem access
-.if OVERRIDE_HIGHCOL
-    ldr     r11,=HighCol
+    ldr     r11,[sp, #9*4]       @ est
     mov     r0, #0xf
-    ldr     r11,[r11]
-.else
-    ldr     r11,=HighCol
-    mov     r0, #0xf
-.endif
+    ldr     r11,[r11, #OFS_HighCol]
 
     mvn     r9, #0               @ r9=prevcode=-1
     add     r1, r11, r7          @ r1=pdest
@@ -722,23 +704,17 @@ DrawLayer:
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+@ void BackFill(int reg7, int sh, struct PicoEState *est)
 
-.global BackFill @ int reg7, int sh
+.global BackFill
 
 BackFill:
     stmfd   sp!, {r4-r9,lr}
 
-.if OVERRIDE_HIGHCOL
-    ldr     lr, =HighCol
     mov     r0, r0, lsl #26
-    ldr     lr, [lr]
+    ldr     lr, [r2, #OFS_HighCol]
     mov     r0, r0, lsr #26
     add     lr, lr, #8
-.else
-    ldr     lr, =(HighCol+8)
-    mov     r0, r0, lsl #26
-    mov     r0, r0, lsr #26
-.endif
 
     orr     r0, r0, r1, lsl #6
     orr     r0, r0, r0, lsl #8
@@ -764,8 +740,8 @@ BackFill:
     stmia   lr!, {r0-r7}
     stmia   lr!, {r0-r7}
 
-    ldmfd   sp!, {r4-r9,r12}
-    bx      r12
+    ldmfd   sp!, {r4-r9,lr}
+    bx      lr
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -778,14 +754,8 @@ DrawTilesFromCache:
     stmfd   sp!, {r4-r9,r11,lr}
 
     @ cache some stuff to avoid mem access
-.if OVERRIDE_HIGHCOL
-    ldr     r11,=HighCol
+    ldr     r11,[r3, #OFS_HighCol]
     mov     r12,#0xf
-    ldr     r11,[r11]
-.else
-    ldr     r11,=HighCol
-    mov     r12,#0xf
-.endif
     ldr     lr, [r3, #OFS_Pico_vram]
     mov     r9, r3         @ est
 
@@ -964,14 +934,8 @@ DrawSpritesSHi:
     add     r10,r0, #3      @ r10=HighLnSpr end
     add     r10,r10,r3      @ r10=HighLnSpr end
 
-.if OVERRIDE_HIGHCOL
-    ldr     r11,=HighCol
+    ldr     r11,[r1, #OFS_HighCol]
     mov     r12,#0xf
-    ldr     r11,[r11]
-.else
-    ldr     r11,=HighCol
-    mov     r12,#0xf
-.endif
     ldr     lr, [r1, #OFS_Pico_vram]
 
 
@@ -979,7 +943,7 @@ DrawSpriteSHi:
     @ draw next sprite
     ldrb    r0, [r10,#-1]!
     ldr     r7, [sp]        @ est
-    ldr     r1, =HighPreSpr
+    ldr     r1, [r7, #OFS_HighPreSpr]
     cmp     r0, #0xff
     ldmeqfd sp!, {r1,r4-r11,pc} @ end of list
     and     r0, r0, #0x7f
@@ -1159,14 +1123,8 @@ das_no_prep:
     add     r10,r0, #3
     add     r10,r10,r2      @ r10=HighLnSpr end
 
-.if OVERRIDE_HIGHCOL
-    ldr     r11,=HighCol
+    ldr     r11,[r3, #OFS_HighCol]
     mov     r12,#0xf
-    ldr     r11,[r11]
-.else
-    ldr     r11,=HighCol
-    mov     r12,#0xf
-.endif
     ldr     lr, [r3, #OFS_Pico_vram]
 
 @ + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: horiz. size
@@ -1182,7 +1140,7 @@ DrawSprite:
     ldmeqfd sp!, {r1,r3-r11,pc} @ end of list
     cmp     r2, r8, lsr #1
     bne     DrawSprite      @ wrong priority
-    ldr     r1, =HighPreSpr
+    ldr     r1, [r7, #OFS_HighPreSpr]
     and     r0, r0, #0x7f
     add     r0, r1, r0, lsl #3
 
@@ -1352,17 +1310,10 @@ DrawWindow:
     sub     r8, r1, r0
 
     @ cache some stuff to avoid mem access
-.if OVERRIDE_HIGHCOL
-    ldr     r11,=HighCol
+    ldr     r11, [r11, #OFS_HighCol]
     mov     r8, r8, lsl #1        @ cells
-    ldr     r11,[r11]
-    mvn     r9, #0                @ r9=prevcode=-1
     add     r11,r11,#8
-.else
-    ldr     r11,=(HighCol+8)
-    mov     r8, r8, lsl #1        @ cells
     mvn     r9, #0                @ r9=prevcode=-1
-.endif
     add     r1, r11, r0, lsl #4   @ r1=pdest
     mov     r0, #0xf
     b       .dwloop_enter
@@ -1632,17 +1583,9 @@ FinalizeLineRGB555_pal_done:
     tstne   r12,#PDRAW_ACC_SPRITES
     movne   lr, #0x3f
 
-.if OVERRIDE_HIGHCOL
-    ldr     r1, =HighCol
-    ldr     r0, =DrawLineDest
-    ldr     r1, [r1]
-    ldr     r0, [r0]
+    ldr     r1, [r10, #OFS_HighCol]
+    ldr     r0, [r10, #OFS_DrawLineDest]
     add     r1, r1, #8
-.else
-    ldr     r0, =DrawLineDest
-    ldr     r1, =(HighCol+8)
-    ldr     r0, [r0]
-.endif
 
     ldrb    r12, [r8, #12]
     mov     lr, lr, lsl #1
@@ -1650,7 +1593,7 @@ FinalizeLineRGB555_pal_done:
     tst     r12, #1
     movne   r2, #320/8           @ len
     bne     .fl_no32colRGB555
-    ldr     r4, =PicoOpt
+    ldr     r4, [r10, #OFS_PicoOpt]
     mov     r2, #256/8
     ldr     r4, [r4]
     tst     r4, #0x4000

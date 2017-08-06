@@ -35,18 +35,16 @@ int (*PicoScanBegin)(unsigned int num) = NULL;
 int (*PicoScanEnd)  (unsigned int num) = NULL;
 
 static unsigned char DefHighCol[8+320+8];
-unsigned char *HighCol = DefHighCol;
 static unsigned char *HighColBase = DefHighCol;
 static int HighColIncrement;
 
 static unsigned int DefOutBuff[320*2/2];
-void *DrawLineDest = DefOutBuff; // pointer to dest buffer where to draw this line to
 void *DrawLineDestBase = DefOutBuff;
 int DrawLineDestIncrement;
 
 static int  HighCacheA[41+1];   // caches for high layers
 static int  HighCacheB[41+1];
-int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
+static int  HighPreSpr[80*2+1]; // slightly preprocessed sprites
 
 #define SPRL_HAVE_HI     0x80 // have hi priority sprites
 #define SPRL_HAVE_LO     0x40 // *lo*
@@ -100,7 +98,7 @@ void blockcpy_or(void *dst, void *src, size_t n, int pat)
 #define TileNormMaker(funcname,pix_func)                     \
 static int funcname(int sx,int addr,int pal)                 \
 {                                                            \
-  unsigned char *pd = HighCol+sx;                            \
+  unsigned char *pd = Pico.est.HighCol+sx;                   \
   unsigned int pack=0; unsigned int t=0;                     \
                                                              \
   pack=*(unsigned int *)(Pico.vram+addr); /* Get 8 pixels */ \
@@ -124,7 +122,7 @@ static int funcname(int sx,int addr,int pal)                 \
 #define TileFlipMaker(funcname,pix_func)                     \
 static int funcname(int sx,int addr,int pal)                 \
 {                                                            \
-  unsigned char *pd = HighCol+sx;                            \
+  unsigned char *pd = Pico.est.HighCol+sx;                   \
   unsigned int pack=0; unsigned int t=0;                     \
                                                              \
   pack=*(unsigned int *)(Pico.vram+addr); /* Get 8 pixels */ \
@@ -515,7 +513,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       pal=((code>>9)&0x30);
 
       if (prio) {
-        int *zb = (int *)(HighCol+8+(tilex<<3));
+        int *zb = (int *)(est->HighCol+8+(tilex<<3));
         *zb++ &= 0xbfbfbfbf;
         *zb   &= 0xbfbfbfbf;
       } else {
@@ -541,7 +539,7 @@ static void DrawTilesFromCacheShPrep(void)
   // as some layer has covered whole line with hi priority tiles,
   // we can process whole line and then act as if sh/hi mode was off,
   // but leave lo pri op sprite markers alone
-  int c = 320/4, *zb = (int *)(HighCol+8);
+  int c = 320/4, *zb = (int *)(Pico.est.HighCol+8);
   Pico.est.rendstatus |= PDRAW_SHHI_DONE;
   while (c--)
   {
@@ -591,7 +589,7 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est
       addr=(code&0x7ff)<<4;
       addr+=(unsigned int)code>>25; // y offset into tile
       dx=(code>>16)&0x1ff;
-      zb = HighCol+dx;
+      zb = est->HighCol+dx;
       *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf;
       *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf;
 
@@ -607,7 +605,7 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est
 last_cut_tile:
   {
     unsigned int t, pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
-    unsigned char *pd = HighCol+dx;
+    unsigned char *pd = est->HighCol+dx;
     if (!pack) return;
     if (code&0x0800)
     {
@@ -812,7 +810,7 @@ static void DrawSpritesSHi(unsigned char *sprited, const struct PicoEState *est)
     int offs, delta, width, height, row;
 
     offs = (p[cnt] & 0x7f) * 2;
-    sprite = HighPreSpr + offs;
+    sprite = est->HighPreSpr + offs;
     code = sprite[1];
     pal = (code>>9)&0x30;
 
@@ -936,7 +934,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
 
   /* nasty 1: remove 'sprite' flags */
   {
-    int c = 320/4/4, *zb = (int *)(HighCol+8);
+    int c = 320/4/4, *zb = (int *)(Pico.est.HighCol+8);
     while (c--)
     {
       *zb++ &= 0x7f7f7f7f; *zb++ &= 0x7f7f7f7f;
@@ -1147,7 +1145,7 @@ static void DrawAllSprites(unsigned char *sprited, int prio, int sh,
 
 // --------------------------------------------
 
-void BackFill(int reg7, int sh)
+void BackFill(int reg7, int sh, struct PicoEState *est)
 {
   unsigned int back;
 
@@ -1157,7 +1155,7 @@ void BackFill(int reg7, int sh)
   back|=back<<8;
   back|=back<<16;
 
-  memset32((int *)(HighCol+8), back, 320/4);
+  memset32((int *)(est->HighCol+8), back, 320/4);
 }
 #endif
 
@@ -1204,10 +1202,10 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
   }
 }
 
-void FinalizeLine555(int sh, int line)
+void FinalizeLine555(int sh, int line, struct PicoEState *est)
 {
-  unsigned short *pd=DrawLineDest;
-  unsigned char  *ps=HighCol+8;
+  unsigned short *pd=est->DrawLineDest;
+  unsigned char  *ps=est->HighCol+8;
   unsigned short *pal=HighPal;
   int len;
 
@@ -1242,7 +1240,7 @@ void FinalizeLine555(int sh, int line)
 
 static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
 {
-  unsigned char *pd = DrawLineDest;
+  unsigned char *pd = est->DrawLineDest;
   int len, rs = est->rendstatus;
   static int dirty_count;
 
@@ -1271,12 +1269,12 @@ static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
 
   if (!sh && (rs & PDRAW_SONIC_MODE)) {
     if (dirty_count >= 11) {
-      blockcpy_or(pd, HighCol+8, len, 0x80);
+      blockcpy_or(pd, est->HighCol+8, len, 0x80);
     } else {
-      blockcpy_or(pd, HighCol+8, len, 0x40);
+      blockcpy_or(pd, est->HighCol+8, len, 0x40);
     }
   } else {
-    blockcpy(pd, HighCol+8, len);
+    blockcpy(pd, est->HighCol+8, len);
   }
 }
 
@@ -1403,8 +1401,8 @@ PICO_INTERNAL void PicoFrameStart(void)
     rendstatus_old = Pico.est.rendstatus;
   }
 
-  HighCol = HighColBase + offs * HighColIncrement;
-  DrawLineDest = (char *)DrawLineDestBase + offs * DrawLineDestIncrement;
+  Pico.est.HighCol = HighColBase + offs * HighColIncrement;
+  Pico.est.DrawLineDest = (char *)DrawLineDestBase + offs * DrawLineDestIncrement;
   Pico.est.DrawScanline = 0;
   skip_next_line = 0;
 
@@ -1421,7 +1419,7 @@ static void DrawBlankedLine(int line, int offs, int sh, int bgc)
   if (PicoScanBegin != NULL)
     PicoScanBegin(line + offs);
 
-  BackFill(bgc, sh);
+  BackFill(bgc, sh, &Pico.est);
 
   if (FinalizeLine != NULL)
     FinalizeLine(sh, line, &Pico.est);
@@ -1429,8 +1427,8 @@ static void DrawBlankedLine(int line, int offs, int sh, int bgc)
   if (PicoScanEnd != NULL)
     PicoScanEnd(line + offs);
 
-  HighCol += HighColIncrement;
-  DrawLineDest = (char *)DrawLineDest + DrawLineDestIncrement;
+  Pico.est.HighCol += HighColIncrement;
+  Pico.est.DrawLineDest = (char *)Pico.est.DrawLineDest + DrawLineDestIncrement;
 }
 
 static void PicoLine(int line, int offs, int sh, int bgc)
@@ -1452,7 +1450,7 @@ static void PicoLine(int line, int offs, int sh, int bgc)
   }
 
   // Draw screen:
-  BackFill(bgc, sh);
+  BackFill(bgc, sh, &Pico.est);
   if (Pico.video.reg[1]&0x40)
     DrawDisplay(sh);
 
@@ -1462,8 +1460,8 @@ static void PicoLine(int line, int offs, int sh, int bgc)
   if (PicoScanEnd != NULL)
     skip_next_line = PicoScanEnd(line + offs);
 
-  HighCol += HighColIncrement;
-  DrawLineDest = (char *)DrawLineDest + DrawLineDestIncrement;
+  Pico.est.HighCol += HighColIncrement;
+  Pico.est.DrawLineDest = (char *)Pico.est.DrawLineDest + DrawLineDestIncrement;
 }
 
 void PicoDrawSync(int to, int blank_last_line)
@@ -1539,7 +1537,7 @@ void PicoDrawSetOutBuf(void *dest, int increment)
 {
   DrawLineDestBase = dest;
   DrawLineDestIncrement = increment;
-  DrawLineDest = DrawLineDestBase + Pico.est.DrawScanline * increment;
+  Pico.est.DrawLineDest = DrawLineDestBase + Pico.est.DrawScanline * increment;
 }
 
 void PicoDrawSetInternalBuf(void *dest, int increment)
@@ -1547,7 +1545,7 @@ void PicoDrawSetInternalBuf(void *dest, int increment)
   if (dest != NULL) {
     HighColBase = dest;
     HighColIncrement = increment;
-    HighCol = HighColBase + Pico.est.DrawScanline * increment;
+    Pico.est.HighCol = HighColBase + Pico.est.DrawScanline * increment;
   }
   else {
     HighColBase = DefHighCol;
@@ -1572,4 +1570,12 @@ void PicoDrawSetCallbacks(int (*begin)(unsigned int num), int (*end)(unsigned in
   }
 }
 
-// vim:ts=4:sw=4:expandtab
+void PicoDrawInit(void)
+{
+  Pico.est.DrawLineDest = DefOutBuff;
+  Pico.est.HighCol = HighColBase;
+  Pico.est.HighPreSpr = HighPreSpr;
+  rendstatus_old = -1;
+}
+
+// vim:ts=2:sw=2:expandtab

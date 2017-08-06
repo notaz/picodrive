@@ -85,9 +85,9 @@ static void convert_pal555(int invert_prio)
 // this is almost never used (Wiz and menu bg gen only)
 void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
 {
-  unsigned short *pd = DrawLineDest;
+  unsigned short *pd = est->DrawLineDest;
   unsigned short *pal = Pico32xMem->pal_native;
-  unsigned char  *pmd = HighCol + 8;
+  unsigned char  *pmd = est->HighCol + 8;
   unsigned short *dram, *p32x;
   unsigned char   mdbg;
 
@@ -130,7 +130,7 @@ void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
 
 #define PICOSCAN_PRE \
   PicoScan32xBegin(l + (lines_sft_offs & 0xff)); \
-  dst = DrawLineDest; \
+  dst = Pico.est.DrawLineDest; \
 
 #define PICOSCAN_POST \
   PicoScan32xEnd(l + (lines_sft_offs & 0xff)); \
@@ -228,7 +228,7 @@ void PicoDraw32xLayer(int offs, int lines, int md_bg)
   int lines_sft_offs;
   int which_func;
 
-  DrawLineDest = (char *)DrawLineDestBase + offs * DrawLineDestIncrement;
+  Pico.est.DrawLineDest = (char *)DrawLineDestBase + offs * DrawLineDestIncrement;
   dram = Pico32xMem->dram[Pico32x.vdp_regs[0x0a/2] & P32XV_FS];
 
   if (Pico32xDrawMode == PDM32X_BOTH) {
@@ -266,7 +266,7 @@ do_it:
   if (Pico32x.vdp_regs[2 / 2] & P32XV_SFT)
     lines_sft_offs |= 1 << 8;
 
-  do_loop[which_func](DrawLineDest, dram, lines_sft_offs, md_bg);
+  do_loop[which_func](Pico.est.DrawLineDest, dram, lines_sft_offs, md_bg);
 }
 
 // mostly unused, games tend to keep 32X layer on
@@ -292,7 +292,7 @@ void PicoDraw32xLayerMdOnly(int offs, int lines)
   for (l = 0; l < lines; l++) {
     if (have_scan) {
       PicoScan32xBegin(l + offs);
-      dst = DrawLineDest + poffs;
+      dst = Pico.est.DrawLineDest + poffs;
     }
     for (p = 0; p < plen; p += 4) {
       dst[p + 0] = pal[*pmd++];
