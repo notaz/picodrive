@@ -38,15 +38,19 @@ ifeq ($(TARGET_ARCH),arm)
   endif
 
   use_cyclone = 1
-  use_drz80 = 1
+
+  # texrels, -perf ~~8%
+  use_drz80 = 0
+  use_cz80 = 1
+
   use_sh2drc = 1
   use_svpdrc = 1
 
-  asm_memory = 1
+#  asm_memory = 1 # texrels, -perf negligible
   asm_render = 1
-  asm_ym2612 = 1
+#  asm_ym2612 = 1 # texrels, -perf ~~4%
   asm_misc = 1
-  asm_cdmemory = 1
+#  asm_cdmemory = 1 # texrels
   asm_mix = 1
 else
   use_fame = 1
