@@ -14,9 +14,11 @@ uptr z80_read_map [0x10000 >> Z80_MEM_SHIFT];
 uptr z80_write_map[0x10000 >> Z80_MEM_SHIFT];
 
 #ifdef _USE_DRZ80
-struct DrZ80 drZ80;
+// this causes trouble in some cases, like doukutsu putting sp in bank area
+// no perf difference for most, upto 1-2% for some others
+//#define FAST_Z80SP
 
-static u32 drz80_sp_base;
+struct DrZ80 drZ80;
 
 static void drz80_load_pcsp(u32 pc, u32 sp)
 {
@@ -28,6 +30,8 @@ static void drz80_load_pcsp(u32 pc, u32 sp)
     drZ80.Z80PC_BASE <<= 1;
     drZ80.Z80PC = drZ80.Z80PC_BASE + pc;
   }
+  drZ80.Z80SP = sp;
+#ifdef FAST_Z80SP
   drZ80.Z80SP_BASE = z80_read_map[sp >> Z80_MEM_SHIFT];
   if (drZ80.Z80SP_BASE & (1<<31)) {
     elprintf(EL_STATUS|EL_ANOMALY, "load_pcsp: bad SP: %04x", sp);
@@ -37,6 +41,7 @@ static void drz80_load_pcsp(u32 pc, u32 sp)
     drZ80.Z80SP_BASE <<= 1;
     drZ80.Z80SP = drZ80.Z80SP_BASE + sp;
   }
+#endif
 }
 
 // called only if internal xmap rebase fails
@@ -47,13 +52,19 @@ static unsigned int dz80_rebase_pc(unsigned short pc)
   return drZ80.Z80PC_BASE;
 }
 
+#ifdef FAST_Z80SP
+static u32 drz80_sp_base;
+
 static unsigned int dz80_rebase_sp(unsigned short sp)
 {
   elprintf(EL_STATUS|EL_ANOMALY, "dz80_rebase_sp: fail on %04x", sp);
   drZ80.Z80SP_BASE = z80_read_map[drz80_sp_base >> Z80_MEM_SHIFT] << 1;
   return drZ80.Z80SP_BASE + (1 << Z80_MEM_SHIFT) - 0x100;
 }
+#else
+#define dz80_rebase_sp NULL
 #endif
+#endif // _USE_DRZ80
 
 
 void z80_init(void)
@@ -91,9 +102,11 @@ void z80_reset(void)
   drZ80.Z80IX = 0xFFFF << 16;
   drZ80.Z80IY = 0xFFFF << 16;
 */
+#ifdef FAST_Z80SP
   // drZ80 is locked in single bank
   drz80_sp_base = (PicoAHW & PAHW_SMS) ? 0xc000 : 0x0000;
   drZ80.Z80SP_BASE = z80_read_map[drz80_sp_base >> Z80_MEM_SHIFT] << 1;
+#endif
   if (PicoAHW & PAHW_SMS)
     drZ80.Z80SP = drZ80.Z80SP_BASE + 0xdff0; // simulate BIOS
   // XXX: since we use direct SP pointer, it might make sense to force it to RAM,
@@ -286,3 +299,5 @@ void z80_debug(char *dstr)
   sprintf(dstr, "Z80 state: PC: %04x SP: %04x\n", (unsigned int)(CZ80.PC - CZ80.BasePC), CZ80.SP.W);
 #endif
 }
+
+// vim:ts=2:sw=2:expandtab
