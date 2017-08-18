@@ -35,7 +35,7 @@ int (*PicoScanBegin)(unsigned int num) = NULL;
 int (*PicoScanEnd)  (unsigned int num) = NULL;
 
 static unsigned char DefHighCol[8+320+8];
-static unsigned char *HighColBase = DefHighCol;
+unsigned char *HighColBase = DefHighCol;
 static int HighColIncrement;
 
 static unsigned int DefOutBuff[320*2/2];
