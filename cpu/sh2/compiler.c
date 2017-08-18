@@ -2590,8 +2590,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
     default:
     default_:
-      elprintf_sh2(sh2, EL_ANOMALY,
-        "drc: illegal op %04x @ %08x", op, pc - 2);
+      if (!(op_flags[i] & OF_B_IN_DS))
+        elprintf_sh2(sh2, EL_ANOMALY,
+          "drc: illegal op %04x @ %08x", op, pc - 2);
 
       tmp = rcache_get_reg(SHR_SP, RC_GR_RMW);
       emith_sub_r_imm(tmp, 4*2);
@@ -2604,10 +2605,16 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       // push PC
       rcache_get_reg_arg(0, SHR_SP);
       tmp = rcache_get_tmp_arg(1);
-      emith_move_r_imm(tmp, pc - 2);
+      if (drcf.pending_branch_indirect) {
+        tmp2 = rcache_get_reg(SHR_PC, RC_GR_READ);
+        emith_move_r_r(tmp, tmp2);
+      }
+      else
+        emith_move_r_imm(tmp, pc - 2);
       emit_memhandler_write(2);
       // obtain new PC
-      emit_memhandler_read_rr(SHR_PC, SHR_VBR, 4 * 4, 2);
+      v = (op_flags[i] & OF_B_IN_DS) ? 6 : 4;
+      emit_memhandler_read_rr(SHR_PC, SHR_VBR, v * 4, 2);
       // indirect jump -> back to dispatcher
       rcache_flush();
       emith_jump(sh2_drc_dispatcher);
@@ -4061,6 +4068,22 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
       elprintf(EL_ANOMALY, "%csh2 drc: unhandled op %04x @ %08x",
         is_slave ? 's' : 'm', op, pc);
       break;
+    }
+
+    if (op_flags[i] & OF_DELAY_OP) {
+      switch (opd->op) {
+      case OP_BRANCH:
+      case OP_BRANCH_CT:
+      case OP_BRANCH_CF:
+      case OP_BRANCH_R:
+      case OP_BRANCH_RF:
+        elprintf(EL_ANOMALY, "%csh2 drc: branch in DS @ %08x",
+          is_slave ? 's' : 'm', pc);
+        opd->op = OP_UNHANDLED;
+        op_flags[i] |= OF_B_IN_DS;
+        next_is_delay = 0;
+        break;
+      }
     }
   }
   i_end = i;
