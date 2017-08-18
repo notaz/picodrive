@@ -117,11 +117,11 @@ amips_clut_loop6:
 .macro TileEndCode
     xori    $t8, $t9, 0xff
     beqz    $t8, tile11111111            # common case
-    lui     $v1, %hi(HighColBase)
+    lui     $v1, %hi(HighCol)
     lui     $t8, %hi(TileTable)
     ins     $t8, $t9, 2, 8
     lw      $t8, %lo(TileTable)($t8)
-    lw      $v1, %lo(HighColBase)($v1)
+    lw      $v1, %lo(HighCol)($v1)
     jr      $t8
     addu    $a0, $v1
 .endm
@@ -158,8 +158,8 @@ TileFlip:
 
 
 SingleColor:
-    lui     $t9, %hi(HighColBase)
-    lw      $t9, %lo(HighColBase)($t9)
+    lui     $t9, %hi(HighCol)
+    lw      $t9, %lo(HighCol)($t9)
     andi    $t0, $a1, 0xf
     or      $t0, $t0, $a2
     addu    $a0, $t9
@@ -178,7 +178,7 @@ TileEmpty:
     or      $v0, $0, 1                   # empty tile
 
 tile11111111:
-    lw      $v1, %lo(HighColBase)($v1)
+    lw      $v1, %lo(HighCol)($v1)
     or      $t0, $t0, $a2
     addu    $a0, $v1
     sb      $t0, 0($a0)
