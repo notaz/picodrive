@@ -323,11 +323,11 @@ static int state_save(void *file)
     memcpy(buff, pcd_event_times, sizeof(pcd_event_times));
     CHECKED_WRITE(CHUNK_CD_EVT, 0x40, buff);
 
-    len = gfx_context_save(buf2);
+/*    len = gfx_context_save(buf2);*/
     CHECKED_WRITE(CHUNK_CD_GFX, len, buf2);
-    len = cdc_context_save(buf2);
+/*    len = cdc_context_save(buf2);*/
     CHECKED_WRITE(CHUNK_CD_CDC, len, buf2);
-    len = cdd_context_save(buf2);
+/*    len = cdd_context_save(buf2);*/
     CHECKED_WRITE(CHUNK_CD_CDD, len, buf2);
 
     if (Pico_mcd->s68k_regs[3] & 4) // convert back
@@ -508,28 +508,28 @@ static int state_load(void *file)
 
       case CHUNK_CD_GFX:
         CHECKED_READ_LIM(buf);
-        len_check = gfx_context_load(buf);
+/*        len_check = gfx_context_load(buf);*/
         break;
 
       case CHUNK_CD_CDC:
         CHECKED_READ_LIM(buf);
-        len_check = cdc_context_load(buf);
+/*        len_check = cdc_context_load(buf);*/
         break;
 
       case CHUNK_CD_CDD:
         CHECKED_READ_LIM(buf);
-        len_check = cdd_context_load(buf);
+/*        len_check = cdd_context_load(buf);*/
         break;
 
       // old, to be removed:
       case CHUNK_CDC:
         CHECKED_READ_LIM(buf);
-        cdc_context_load_old(buf);
+/*        cdc_context_load_old(buf);*/
         break;
 
       case CHUNK_SCD:
         CHECKED_READ_LIM(buf);
-        cdd_context_load_old(buf);
+/*        cdd_context_load_old(buf);*/
         break;
 
       // 32x stuff

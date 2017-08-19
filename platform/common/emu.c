@@ -530,21 +530,21 @@ out:
 
 int emu_swap_cd(const char *fname)
 {
-	enum cd_img_type cd_type;
-	int ret = -1;
+/*	enum cd_img_type cd_type;*/
+/*	int ret = -1;*/
 
-	cd_type = PicoCdCheck(fname, NULL);
-	if (cd_type != CIT_NOT_CD)
-		ret = cdd_load(fname, cd_type);
-	if (ret != 0) {
+/*	cd_type = PicoCdCheck(fname, NULL);*/
+/*	if (cd_type != CIT_NOT_CD)*/
+/*		ret = cdd_load(fname, cd_type);*/
+/*	if (ret != 0) {*/
 		menu_update_msg("Load failed, invalid CD image?");
 		return 0;
-	}
+/*	}*/
 
-	strncpy(rom_fname_loaded, fname, sizeof(rom_fname_loaded)-1);
-	rom_fname_loaded[sizeof(rom_fname_loaded) - 1] = 0;
+/*	strncpy(rom_fname_loaded, fname, sizeof(rom_fname_loaded)-1);*/
+/*	rom_fname_loaded[sizeof(rom_fname_loaded) - 1] = 0;*/
 
-	return 1;
+/*	return 1;*/
 }
 
 // <base dir><end>

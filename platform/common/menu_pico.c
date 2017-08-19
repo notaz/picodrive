@@ -1024,8 +1024,8 @@ static int main_menu_handler(int id, int keys)
 		if (PicoAHW & PAHW_MCD) {
 			// if cd is loaded, cdd_unload() triggers eject and
 			// returns 1, else we'll select and load new CD here
-			if (!cdd_unload())
-				menu_loop_tray();
+/*			if (!cdd_unload())*/
+/*				menu_loop_tray();*/
 			return 1;
 		}
 		break;
