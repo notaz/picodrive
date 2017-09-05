@@ -366,7 +366,7 @@ else ifeq ($(platform), qnx)
 # ARM
 else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
-	SHARED := -shared -Wl,--no-undefined
+	SHARED := -shared -Wl,--no-undefined,-Bsymbolic
    fpic := -fPIC
 	ifneq (,$(findstring cortexa5,$(platform)))
 		CFLAGS += -marm -mcpu=cortex-a5
