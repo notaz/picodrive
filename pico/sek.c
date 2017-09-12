@@ -549,6 +549,7 @@ breakloop:
 			printf("D%d: %08x  A%d: %08x\n", i, x68k->dar[i],
         i, x68k->dar[i + 8]);
 		printf("PC: %08x, %08x\n", x68k->pc, x68k->pc_prev);
+		printf("SR: %04x\n", x68k->sr);
 
     PDebugDumpMem();
     exit(1);
