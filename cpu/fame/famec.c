@@ -742,6 +742,9 @@ static FAMEC_EXTRA_INLINE u32 execute_exception(s32 vect, u32 oldPC, u32 oldSR)
 	//u32 oldSR = GET_SR;
 
         m68kcontext.io_cycle_counter -= exception_cycle_table[vect];
+#ifdef FAMEC_EMULATE_TRACE
+	m68kcontext.execinfo &= ~FM68K_EMULATE_TRACE;
+#endif
 
 	PRE_IO
 
@@ -763,6 +766,7 @@ static FAMEC_EXTRA_INLINE u32 execute_exception(s32 vect, u32 oldPC, u32 oldSR)
 
 	/* adjust SR */
 	flag_S = M68K_SR_S;
+	flag_T = 0;
 
 #ifndef FAMEC_32BIT_PC
 	newPC&=M68K_ADR_MASK
@@ -916,12 +920,11 @@ famec_Exec:
 #ifdef FAMEC_EMULATE_TRACE
 	if (m68kcontext.execinfo & FM68K_EMULATE_TRACE)
 	{
-		m68kcontext.io_cycle_counter = cycles_needed;
+		m68kcontext.io_cycle_counter += cycles_needed;
 		cycles_needed = 0;
 		m68kcontext.execinfo &= ~FM68K_EMULATE_TRACE;
 		m68kcontext.execinfo |= FM68K_DO_TRACE;
 		SET_PC(execute_exception(M68K_TRACE_EX, GET_PC, GET_SR));
-		flag_T=0;
 		if (m68kcontext.io_cycle_counter > 0)
 		{
 			//NEXT
@@ -933,7 +936,7 @@ famec_Exec:
 		if (cycles_needed != 0)
 		{
 			u32 line;
-			m68kcontext.io_cycle_counter = cycles_needed;
+			m68kcontext.io_cycle_counter += cycles_needed;
 			cycles_needed = 0;
 			if (m68kcontext.io_cycle_counter <= 0) goto famec_End;
 			line=interrupt_chk__();
