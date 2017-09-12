@@ -27418,7 +27418,7 @@ OPCODE(0x80F9)
 	{
 		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(162)
+RET(152)
 #else
 RET(22)
 #endif
@@ -27434,7 +27434,7 @@ RET(22)
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(162)
+RET(152)
 #else
 	RET(82)
 #endif
@@ -27447,7 +27447,7 @@ RET(162)
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(162)
+RET(152)
 #else
 RET(102)
 #endif
@@ -27516,7 +27516,7 @@ OPCODE(0x80FB)
 	{
 		SET_PC(execute_exception(M68K_ZERO_DIVIDE_EX, GET_PC, GET_SR));
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(160)
+RET(150)
 #else
 RET(20)
 #endif
@@ -27532,7 +27532,7 @@ RET(20)
 		{
 			flag_V = M68K_SR_V;
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(160)
+RET(150)
 #else
 	RET(80)
 #endif
@@ -27545,7 +27545,7 @@ RET(160)
 	DREGu32((Opcode >> 9) & 7) = res;
 	}
 #ifdef USE_CYCLONE_TIMING_DIV
-RET(160)
+RET(150)
 #else
 RET(100)
 #endif
