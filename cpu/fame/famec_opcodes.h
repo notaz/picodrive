@@ -19573,12 +19573,11 @@ RET(14)
 // CHK
 OPCODE(0x4180)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
 
-	src = DREGu16((Opcode >> 0) & 7);
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	src = DREGs16((Opcode >> 0) & 7);
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19589,14 +19588,14 @@ RET(10)
 // CHK
 OPCODE(0x4190)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
 	adr = AREG((Opcode >> 0) & 7);
 	PRE_IO
-	READ_WORD_F(adr, src)
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	READSX_WORD_F(adr, src)
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19608,15 +19607,15 @@ RET(14)
 // CHK
 OPCODE(0x4198)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
 	adr = AREG((Opcode >> 0) & 7);
 	AREG((Opcode >> 0) & 7) += 2;
 	PRE_IO
-	READ_WORD_F(adr, src)
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	READSX_WORD_F(adr, src)
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19628,15 +19627,15 @@ RET(14)
 // CHK
 OPCODE(0x41A0)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
 	adr = AREG((Opcode >> 0) & 7) - 2;
 	AREG((Opcode >> 0) & 7) = adr;
 	PRE_IO
-	READ_WORD_F(adr, src)
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	READSX_WORD_F(adr, src)
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19648,15 +19647,15 @@ RET(16)
 // CHK
 OPCODE(0x41A8)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
 	FETCH_SWORD(adr);
 	adr += AREG((Opcode >> 0) & 7);
 	PRE_IO
-	READ_WORD_F(adr, src)
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	READSX_WORD_F(adr, src)
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19668,15 +19667,15 @@ RET(18)
 // CHK
 OPCODE(0x41B0)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
 	adr = AREG((Opcode >> 0) & 7);
 	DECODE_EXT_WORD
 	PRE_IO
-	READ_WORD_F(adr, src)
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	READSX_WORD_F(adr, src)
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19688,14 +19687,14 @@ RET(20)
 // CHK
 OPCODE(0x41B8)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
 	FETCH_SWORD(adr);
 	PRE_IO
-	READ_WORD_F(adr, src)
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	READSX_WORD_F(adr, src)
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19707,14 +19706,14 @@ RET(18)
 // CHK
 OPCODE(0x41B9)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
 	FETCH_LONG(adr);
 	PRE_IO
-	READ_WORD_F(adr, src)
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	READSX_WORD_F(adr, src)
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19726,15 +19725,15 @@ RET(22)
 // CHK
 OPCODE(0x41BA)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
 	adr = GET_SWORD + GET_PC;
 	PC++;
 	PRE_IO
-	READ_WORD_F(adr, src)
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	READSX_WORD_F(adr, src)
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19746,15 +19745,15 @@ RET(18)
 // CHK
 OPCODE(0x41BB)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
 	adr = GET_PC;
 	DECODE_EXT_WORD
 	PRE_IO
-	READ_WORD_F(adr, src)
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	READSX_WORD_F(adr, src)
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19766,12 +19765,12 @@ RET(20)
 // CHK
 OPCODE(0x41BC)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
-	FETCH_WORD(src);
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	FETCH_SWORD(src);
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19783,15 +19782,15 @@ RET(14)
 // CHK
 OPCODE(0x419F)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
 	adr = AREG(7);
 	AREG(7) += 2;
 	PRE_IO
-	READ_WORD_F(adr, src)
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	READSX_WORD_F(adr, src)
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
@@ -19803,15 +19802,15 @@ RET(14)
 // CHK
 OPCODE(0x41A7)
 {
-	u32 adr, res;
-	u32 src, dst;
+	s32 src, res;
+	u32 adr;
 
 	adr = AREG(7) - 2;
 	AREG(7) = adr;
 	PRE_IO
-	READ_WORD_F(adr, src)
-	res = DREGu16((Opcode >> 9) & 7);
-	if (((s32)res < 0) || (res > src))
+	READSX_WORD_F(adr, src)
+	res = DREGs16((Opcode >> 9) & 7);
+	if ((res < 0) || (res > src))
 	{
 		flag_N = res >> 8;
 		SET_PC(execute_exception(M68K_CHK_EX, GET_PC, GET_SR));
