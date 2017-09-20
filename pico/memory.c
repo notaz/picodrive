@@ -448,11 +448,14 @@ static void PicoWrite16_sram(u32 a, u32 d)
     EEPROM_write16(d);
   }
   else {
-    // XXX: hardware could easily use MSB too..
     u8 *pm = (u8 *)(SRam.data - SRam.start + a);
-    if (*pm != (u8)d) {
+    if (pm[0] != (u8)(d >> 8)) {
       SRam.changed = 1;
-      *pm = (u8)d;
+      pm[0] = (u8)(d >> 8);
+    }
+    if (pm[1] != (u8)d) {
+      SRam.changed = 1;
+      pm[1] = (u8)d;
     }
   }
 }
