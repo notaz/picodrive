@@ -18574,6 +18574,10 @@ RET(8)
 // ILLEGAL
 OPCODE(0x4AFC)
 {
+#ifdef PICODRIVE_HACK
+	extern void SekFinishIdleDet(void);
+	SekFinishIdleDet();
+#endif
 	SET_PC(execute_exception(M68K_ILLEGAL_INSTRUCTION_EX, GET_PC-2, GET_SR));
 RET(0)
 }

@@ -60,6 +60,8 @@ static int SekUnrecognizedOpcode()
     PicoCpuCM68k.state_flags |= 1;
     return 1;
   }
+  // happened once - may happen again
+  SekFinishIdleDet();
 #ifdef EMU_M68K // debugging cyclone
   {
     extern int have_illegal;
@@ -421,6 +423,8 @@ int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx)
 
 void SekFinishIdleDet(void)
 {
+  if (idledet_count < 0)
+    return;
 #ifdef EMU_C68K
   CycloneFinishIdle();
 #endif
@@ -439,6 +443,7 @@ void SekFinishIdleDet(void)
     else
       elprintf(EL_STATUS|EL_IDLE, "idle: don't know how to restore %04x", *op);
   }
+  idledet_count = -1;
 }
 
 
