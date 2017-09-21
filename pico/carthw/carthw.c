@@ -8,6 +8,7 @@
 
 #include "../pico_int.h"
 #include "../memory.h"
+#include "eeprom_spi.h"
 
 
 /* The SSFII mapper */
@@ -270,6 +271,7 @@ static carthw_state_chunk carthw_pier_state[] =
 {
   { CHUNK_CARTHW,     sizeof(pier_regs),      pier_regs },
   { CHUNK_CARTHW + 1, sizeof(pier_dump_prot), &pier_dump_prot },
+  { CHUNK_CARTHW + 2, 0,                      NULL }, // filled later
   { 0,                0,                      NULL }
 };
 
@@ -308,7 +310,8 @@ static void carthw_pier_write8(u32 a, u32 d)
       base = d << 19;
       goto do_map;
     case 0x09:
-      // TODO
+      SRam.changed = 1;
+      eeprom_spi_write(d);
       break;
     case 0x0b:
       // eeprom read
@@ -346,7 +349,7 @@ static u32 carthw_pier_read8(u32 a)
     return PicoRead8_io(a);
 
   if (a == 0xa1300b)
-    return 0; // TODO
+    return eeprom_spi_read(a);
 
   elprintf(EL_UIO, "pier r8  [%06x] @%06x", a, SekPc);
   return 0;
@@ -415,10 +418,13 @@ static void carthw_pier_reset(void)
   pier_regs[1] = pier_regs[2] = pier_regs[3] = 0;
   pier_dump_prot = 3;
   carthw_pier_statef();
+  eeprom_spi_init(NULL);
 }
 
 void carthw_pier_startup(void)
 {
+  void *eeprom_state;
+  int eeprom_size = 0;
   int i;
 
   elprintf(EL_STATUS, "Pier Solar mapper startup");
@@ -433,6 +439,16 @@ void carthw_pier_startup(void)
   // create dump protection bank
   for (i = 0; i < M68K_BANK_SIZE; i += 0x8000)
     memcpy(Pico.rom + Pico.romsize + i, Pico.rom, 0x8000);
+
+  // save EEPROM
+  eeprom_state = eeprom_spi_init(&eeprom_size);
+  SRam.flags = 0;
+  SRam.size = 0x10000;
+  SRam.data = calloc(1, SRam.size);
+  if (!SRam.data)
+    SRam.size = 0;
+  carthw_pier_state[2].ptr = eeprom_state;
+  carthw_pier_state[2].size = eeprom_size;
 
   PicoCartMemSetup  = carthw_pier_mem_setup;
   PicoResetHook     = carthw_pier_reset;
@@ -679,3 +695,4 @@ void carthw_prot_lk3_startup(void)
   PicoCartMemSetup = carthw_prot_lk3_mem_setup;
 }
 
+// vim:ts=2:sw=2:expandtab

@@ -36,7 +36,9 @@
  *
  ****************************************************************************************/
 
-#include "shared.h"
+#include "../pico_int.h"
+#include "../cd/genplus_macros.h"
+#include "eeprom_spi.h"
 
 /* max supported size 64KB (25x512/95x512) */
 #define SIZE_MASK 0xffff
@@ -72,16 +74,16 @@ typedef struct
 
 static T_EEPROM_SPI spi_eeprom;
 
-void eeprom_spi_init()
+void *eeprom_spi_init(int *size)
 {
   /* reset eeprom state */
   memset(&spi_eeprom, 0, sizeof(T_EEPROM_SPI));
   spi_eeprom.out = 1;
   spi_eeprom.state = GET_OPCODE;
 
-  /* enable backup RAM */
-  sram.custom = 2;
-  sram.on = 1;
+  if (size)
+    *size = sizeof(T_EEPROM_SPI);
+  return &spi_eeprom;
 }
 
 void eeprom_spi_write(unsigned char data)
@@ -208,7 +210,7 @@ void eeprom_spi_write(unsigned char data)
               if (spi_eeprom.opcode & 0x01)
               {
                 /* READ operation */
-                spi_eeprom.buffer = sram.sram[spi_eeprom.addr];
+                spi_eeprom.buffer = SRam.data[spi_eeprom.addr];
                 spi_eeprom.state = READ_BYTE;
               }
               else
@@ -264,7 +266,7 @@ void eeprom_spi_write(unsigned char data)
                       /* $C000-$FFFF (sector #3) is protected */
                       if (spi_eeprom.addr < 0xC000)
                       {
-                        sram.sram[spi_eeprom.addr] = spi_eeprom.buffer;
+                        SRam.data[spi_eeprom.addr] = spi_eeprom.buffer;
                       }
                       break;
                     }
@@ -274,7 +276,7 @@ void eeprom_spi_write(unsigned char data)
                       /* $8000-$FFFF (sectors #2 and #3) is protected */
                       if (spi_eeprom.addr < 0x8000)
                       {
-                        sram.sram[spi_eeprom.addr] = spi_eeprom.buffer;
+                        SRam.data[spi_eeprom.addr] = spi_eeprom.buffer;
                       }
                       break;
                     }
@@ -288,7 +290,7 @@ void eeprom_spi_write(unsigned char data)
                     default:
                     {
                       /* no sectors protected */
-                      sram.sram[spi_eeprom.addr] = spi_eeprom.buffer;
+                      SRam.data[spi_eeprom.addr] = spi_eeprom.buffer;
                       break;
                     }
                   }
@@ -330,7 +332,7 @@ void eeprom_spi_write(unsigned char data)
               {
                 /* read next array byte */
                 spi_eeprom.addr = (spi_eeprom.addr + 1) & SIZE_MASK;
-                spi_eeprom.buffer = sram.sram[spi_eeprom.addr];
+                spi_eeprom.buffer = SRam.data[spi_eeprom.addr];
               }
             }
           }

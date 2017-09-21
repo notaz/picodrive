@@ -102,6 +102,7 @@ endif
 SRCS_COMMON += $(R)pico/pico/pico.c $(R)pico/pico/memory.c $(R)pico/pico/xpcm.c
 # carthw
 SRCS_COMMON += $(R)pico/carthw/carthw.c
+SRCS_COMMON += $(R)pico/carthw/eeprom_spi.c
 # SVP
 SRCS_COMMON += $(R)pico/carthw/svp/svp.c $(R)pico/carthw/svp/memory.c \
 	$(R)pico/carthw/svp/ssp16.c
