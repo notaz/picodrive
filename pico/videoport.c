@@ -8,6 +8,7 @@
  */
 
 #include "pico_int.h"
+#include "memory.h"
 
 int line_base_cycles;
 extern const unsigned char  hcounts_32[];
@@ -134,10 +135,10 @@ static void DmaSlow(int len)
     // if we have DmaHook, let it handle ROM because of possible DMA delay
     if (PicoDmaHook && PicoDmaHook(source, len, &pd, &pdend));
     else if (source<Pico.romsize) { // Rom
-      pd=(u16 *)(Pico.rom+(source&~1));
+      pd=m68k_dma_source(source);
       pdend=(u16 *)(Pico.rom+Pico.romsize);
     }
-    else {
+    if (!pd) {
       elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: invalid src", Pico.video.type, source, a);
       return;
     }

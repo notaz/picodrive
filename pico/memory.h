@@ -133,6 +133,17 @@ void name(u32 a, u32 d)                         \
   }                                             \
 }
 
+static __inline void *m68k_dma_source(u32 a)
+{
+  uptr v;
+  a &= 0x00fffffe;
+  v = m68k_read16_map[a >> M68K_MEM_SHIFT];
+  if (map_flag_set(v))
+    return NULL;
+  else
+    return (void *)((v << 1) + a);
+}
+
 // 32x
 typedef struct {
   uptr addr; // stores (membase >> 1) or ((handler >> 1) | (1<<31))
