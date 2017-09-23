@@ -276,7 +276,8 @@ PICO_INTERNAL int CheckDMA(void)
     Pico.m.dma_xfers -= xfers_can;
   }
 
-  elprintf(EL_VDPDMA, "~Dma %i op=%i can=%i burn=%i [%i]", Pico.m.dma_xfers, dma_op1, xfers_can, burn, SekCyclesDone());
+  elprintf(EL_VDPDMA, "~Dma %i op=%i can=%i burn=%i [%u]",
+    Pico.m.dma_xfers, dma_op1, xfers_can, burn, SekCyclesDone());
   //dprintf("~aim: %i, cnt: %i", SekCycleAim, SekCycleCnt);
   return burn;
 }

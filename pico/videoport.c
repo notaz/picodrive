@@ -8,6 +8,7 @@
  */
 
 #include "pico_int.h"
+#define NEED_DMA_SOURCE
 #include "memory.h"
 
 int line_base_cycles;
@@ -21,7 +22,7 @@ typedef unsigned int   u32;
 #define UTYPES_DEFINED
 #endif
 
-int (*PicoDmaHook)(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp) = NULL;
+int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask) = NULL;
 
 static __inline void AutoIncrement(void)
 {
@@ -73,104 +74,92 @@ static int GetDmaLength(void)
   // 16-bit words to transfer:
   len =pvid->reg[0x13];
   len|=pvid->reg[0x14]<<8;
-  // Charles MacDonald:
-  if(!len) len = 0xffff;
+  len = ((len - 1) & 0xffff) + 1;
   return len;
 }
 
-static void DmaSlow(int len)
+static void DmaSlow(int len, unsigned int source)
 {
-  u16 *pd=0, *pdend, *r;
-  unsigned int a=Pico.video.addr, a2, d;
-  unsigned char inc=Pico.video.reg[0xf];
-  unsigned int source;
+  u32 inc = Pico.video.reg[0xf];
+  u32 a = Pico.video.addr;
+  u16 *r, *base = NULL;
+  u32 mask = 0x1ffff;
 
-  source =Pico.video.reg[0x15]<<1;
-  source|=Pico.video.reg[0x16]<<9;
-  source|=Pico.video.reg[0x17]<<17;
-
-  elprintf(EL_VDPDMA, "DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%i] @ %06x",
+  elprintf(EL_VDPDMA, "DmaSlow[%i] %06x->%04x len %i inc=%i blank %i [%u] @ %06x",
     Pico.video.type, source, a, len, inc, (Pico.video.status&8)||!(Pico.video.reg[1]&0x40),
     SekCyclesDone(), SekPc);
 
   Pico.m.dma_xfers += len;
+  if (Pico.m.dma_xfers < len) // lame 16bit var
+    Pico.m.dma_xfers = ~0;
   SekCyclesBurnRun(CheckDMA());
 
-  if ((source&0xe00000)==0xe00000) { // Ram
-    pd=(u16 *)(Pico.ram+(source&0xfffe));
-    pdend=(u16 *)(Pico.ram+0x10000);
+  if ((source & 0xe00000) == 0xe00000) { // Ram
+    base = (u16 *)Pico.ram;
+    mask = 0xffff;
   }
   else if (PicoAHW & PAHW_MCD)
   {
-    elprintf(EL_VDPDMA, "DmaSlow CD, r3=%02x", Pico_mcd->s68k_regs[3]);
-    if(source<0x20000) { // Bios area
-      pd=(u16 *)(Pico_mcd->bios+(source&~1));
-      pdend=(u16 *)(Pico_mcd->bios+0x20000);
-    } else if ((source&0xfc0000)==0x200000) { // Word Ram
-      source -= 2;
-      if (!(Pico_mcd->s68k_regs[3]&4)) { // 2M mode
-        pd=(u16 *)(Pico_mcd->word_ram2M+(source&0x3fffe));
-        pdend=(u16 *)(Pico_mcd->word_ram2M+0x40000);
+    u8 r3 = Pico_mcd->s68k_regs[3];
+    elprintf(EL_VDPDMA, "DmaSlow CD, r3=%02x", r3);
+    if (source < 0x20000) { // Bios area
+      base = (u16 *)Pico_mcd->bios;
+    } else if ((source & 0xfc0000) == 0x200000) { // Word Ram
+      if (!(r3 & 4)) { // 2M mode
+        base = (u16 *)(Pico_mcd->word_ram2M + (source & 0x20000));
       } else {
         if (source < 0x220000) { // 1M mode
-          int bank = Pico_mcd->s68k_regs[3]&1;
-          pd=(u16 *)(Pico_mcd->word_ram1M[bank]+(source&0x1fffe));
-          pdend=(u16 *)(Pico_mcd->word_ram1M[bank]+0x20000);
+          int bank = r3 & 1;
+          base = (u16 *)(Pico_mcd->word_ram1M[bank]);
         } else {
-          DmaSlowCell(source, a, len, inc);
+          DmaSlowCell(source - 2, a, len, inc);
           return;
         }
       }
-    } else if ((source&0xfe0000)==0x020000) { // Prg Ram
-      u8 *prg_ram = Pico_mcd->prg_ram_b[Pico_mcd->s68k_regs[3]>>6];
-      pd=(u16 *)(prg_ram+(source&0x1fffe));
-      pdend=(u16 *)(prg_ram+0x20000);
-    } else {
-      elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: FIXME: unsupported src", Pico.video.type, source, a);
-      return;
+      source -= 2;
+    } else if ((source & 0xfe0000) == 0x020000) { // Prg Ram
+      base = (u16 *)Pico_mcd->prg_ram_b[r3 >> 6];
+      source -= 2; // XXX: test
     }
   }
   else
   {
     // if we have DmaHook, let it handle ROM because of possible DMA delay
-    if (PicoDmaHook && PicoDmaHook(source, len, &pd, &pdend));
-    else if (source<Pico.romsize) { // Rom
-      pd=m68k_dma_source(source);
-      pdend=(u16 *)(Pico.rom+Pico.romsize);
-    }
-    if (!pd) {
-      elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: invalid src", Pico.video.type, source, a);
-      return;
-    }
+    u32 source2;
+    if (PicoDmaHook && (source2 = PicoDmaHook(source, len, &base, &mask)))
+      source = source2;
+    else // Rom
+      base = m68k_dma_source(source);
+  }
+  if (!base) {
+    elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow[%i] %06x->%04x: invalid src", Pico.video.type, source, a);
+    return;
   }
 
-  // overflow protection, might break something..
-  if (len > pdend - pd) {
-    len = pdend - pd;
-    elprintf(EL_VDPDMA|EL_ANOMALY, "DmaSlow overflow");
-  }
+  // operate in words
+  source >>= 1;
+  mask >>= 1;
 
   switch (Pico.video.type)
   {
     case 1: // vram
       r = Pico.vram;
-      if (inc == 2 && !(a&1) && a+len*2 < 0x10000)
+      if (inc == 2 && !(a & 1) && a + len * 2 < 0x10000
+          && !(((source + len - 1) ^ source) & ~mask))
       {
         // most used DMA mode
-        memcpy16(r + (a>>1), pd, len);
-        a += len*2;
+        memcpy((char *)r + a, base + (source & mask), len * 2);
+        a += len * 2;
       }
       else
       {
         for(; len; len--)
         {
-          d=*pd++;
-          if(a&1) d=(d<<8)|(d>>8);
-          r[a>>1] = (u16)d; // will drop the upper bits
+          u16 d = base[source++ & mask];
+          if(a & 1) d=(d<<8)|(d>>8);
+          r[a >> 1] = d;
           // AutoIncrement
-          a=(u16)(a+inc);
-          // didn't src overlap?
-          //if(pd >= pdend) pd-=0x8000; // should be good for RAM, bad for ROM
+          a = (u16)(a + inc);
         }
       }
       Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
@@ -179,32 +168,22 @@ static void DmaSlow(int len)
     case 3: // cram
       Pico.m.dirtyPal = 1;
       r = Pico.cram;
-      for(a2=a&0x7f; len; len--)
+      for (; len; len--)
       {
-        r[a2>>1] = (u16)*pd++; // bit 0 is ignored
+        r[(a / 2) & 0x3f] = base[source++ & mask];
         // AutoIncrement
-        a2+=inc;
-        // didn't src overlap?
-        //if(pd >= pdend) pd-=0x8000;
-        // good dest?
-        if(a2 >= 0x80) break; // Todds Adventures in Slime World / Andre Agassi tennis
+        a += inc;
       }
-      a=(a&0xff00)|a2;
       break;
 
-    case 5: // vsram[a&0x003f]=d;
+    case 5: // vsram
       r = Pico.vsram;
-      for(a2=a&0x7f; len; len--)
+      for (; len; len--)
       {
-        r[a2>>1] = (u16)*pd++;
+        r[(a / 2) & 0x3f] = base[source++ & mask];
         // AutoIncrement
-        a2+=inc;
-        // didn't src overlap?
-        //if(pd >= pdend) pd-=0x8000;
-        // good dest?
-        if(a2 >= 0x80) break;
+        a += inc;
       }
-      a=(a&0xff00)|a2;
       break;
 
     default:
@@ -220,23 +199,21 @@ static void DmaCopy(int len)
 {
   u16 a=Pico.video.addr;
   unsigned char *vr = (unsigned char *) Pico.vram;
-  unsigned char *vrs;
   unsigned char inc=Pico.video.reg[0xf];
   int source;
   elprintf(EL_VDPDMA, "DmaCopy len %i [%i]", len, SekCyclesDone());
 
   Pico.m.dma_xfers += len;
+  if (Pico.m.dma_xfers < len)
+    Pico.m.dma_xfers = ~0;
   Pico.video.status |= 2; // dma busy
 
   source =Pico.video.reg[0x15];
   source|=Pico.video.reg[0x16]<<8;
-  vrs=vr+source;
-
-  if (source+len > 0x10000) len=0x10000-source; // clip??
 
   for (; len; len--)
   {
-    vr[a] = *vrs++;
+    vr[a] = vr[source++ & 0xffff];
     // AutoIncrement
     a=(u16)(a+inc);
   }
@@ -245,57 +222,85 @@ static void DmaCopy(int len)
   Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 }
 
-// check: Contra, Megaman
-// note: this is still inaccurate
-static void DmaFill(int data)
+static NOINLINE void DmaFill(int data)
 {
-  int len;
   unsigned short a=Pico.video.addr;
   unsigned char *vr=(unsigned char *) Pico.vram;
   unsigned char high = (unsigned char) (data >> 8);
   unsigned char inc=Pico.video.reg[0xf];
+  int source;
+  int len, l;
 
-  len=GetDmaLength();
+  len = GetDmaLength();
   elprintf(EL_VDPDMA, "DmaFill len %i inc %i [%i]", len, inc, SekCyclesDone());
 
   Pico.m.dma_xfers += len;
+  if (Pico.m.dma_xfers < len) // lame 16bit var
+    Pico.m.dma_xfers = ~0;
   Pico.video.status |= 2; // dma busy
 
-  // from Charles MacDonald's genvdp.txt:
-  // Write lower byte to address specified
-  vr[a] = (unsigned char) data;
-  a=(u16)(a+inc);
+  switch (Pico.video.type)
+  {
+    case 1: // vram
+      for (l = len; l; l--) {
+        // Write upper byte to adjacent address
+        // (here we are byteswapped, so address is already 'adjacent')
+        vr[a] = high;
 
-  if (!inc) len=1;
-
-  for (; len; len--) {
-    // Write upper byte to adjacent address
-    // (here we are byteswapped, so address is already 'adjacent')
-    vr[a] = high;
-
-    // Increment address register
-    a=(u16)(a+inc);
+        // Increment address register
+        a = (u16)(a + inc);
+      }
+      break;
+    case 3:   // cram
+    case 5: { // vsram
+      // TODO: needs fifo; anyone using these?
+      static int once;
+      if (!once++)
+        elprintf(EL_STATUS|EL_ANOMALY|EL_VDPDMA, "TODO: cram/vsram fill");
+    }
+    default:
+      a += len * inc;
+      break;
   }
+
   // remember addr
-  Pico.video.addr=a;
-  // update length
-  Pico.video.reg[0x13] = Pico.video.reg[0x14] = 0; // Dino Dini's Soccer (E) (by Haze)
+  Pico.video.addr = a;
+  // register update
+  Pico.video.reg[0x13] = Pico.video.reg[0x14] = 0;
+  source  = Pico.video.reg[0x15];
+  source |= Pico.video.reg[0x16] << 8;
+  source += len;
+  Pico.video.reg[0x15] = source;
+  Pico.video.reg[0x16] = source >> 8;
 
   Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 }
 
-static void CommandDma(void)
+static NOINLINE void CommandDma(void)
 {
   struct PicoVideo *pvid=&Pico.video;
-  int len=0,method=0;
+  u32 len, method;
+  u32 source;
 
   if ((pvid->reg[1]&0x10)==0) return; // DMA not enabled
 
-  len=GetDmaLength();
+  len = GetDmaLength();
+  source =Pico.video.reg[0x15];
+  source|=Pico.video.reg[0x16] << 8;
+  source|=Pico.video.reg[0x17] << 16;
 
   method=pvid->reg[0x17]>>6;
-  if (method< 2) DmaSlow(len); // 68000 to VDP
-  if (method==3) DmaCopy(len); // VRAM Copy
+  if (method < 2)
+    DmaSlow(len, source << 1); // 68000 to VDP
+  else if (method == 3)
+    DmaCopy(len); // VRAM Copy
+  else
+    return;
+
+  source += len;
+  Pico.video.reg[0x13] = Pico.video.reg[0x14] = 0;
+  Pico.video.reg[0x15] = source;
+  Pico.video.reg[0x16] = source >> 8;
 }
 
 static void CommandChange(void)
@@ -312,9 +317,6 @@ static void CommandChange(void)
   addr =(cmd>>16)&0x3fff;
   addr|=(cmd<<14)&0xc000;
   pvid->addr=(unsigned short)addr;
-
-  // Check for dma:
-  if (cmd&0x80) CommandDma();
 }
 
 static void DrawSync(int blank_on)
@@ -348,27 +350,23 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
       pvid->pending=0;
     }
 
-    // If a DMA fill has been set up, do it
-    if ((pvid->command&0x80) && (pvid->reg[1]&0x10) && (pvid->reg[0x17]>>6)==2)
+    // preliminary FIFO emulation for Chaos Engine, The (E)
+    if (!(pvid->status&8) && (pvid->reg[1]&0x40) && !(PicoOpt&POPT_DIS_VDP_FIFO)) // active display?
     {
-      DmaFill(d);
-    }
-    else
-    {
-      // preliminary FIFO emulation for Chaos Engine, The (E)
-      if (!(pvid->status&8) && (pvid->reg[1]&0x40) && !(PicoOpt&POPT_DIS_VDP_FIFO)) // active display?
-      {
-        pvid->status&=~0x200; // FIFO no longer empty
-        pvid->lwrite_cnt++;
-        if (pvid->lwrite_cnt >= 4) pvid->status|=0x100; // FIFO full
-        if (pvid->lwrite_cnt >  4) {
-          SekCyclesBurnRun(32); // penalty // 488/12-8
-        }
-        elprintf(EL_ASVDP, "VDP data write: %04x [%06x] {%i} #%i @ %06x", d, Pico.video.addr,
-                 Pico.video.type, pvid->lwrite_cnt, SekPc);
+      pvid->status&=~0x200; // FIFO no longer empty
+      pvid->lwrite_cnt++;
+      if (pvid->lwrite_cnt >= 4) pvid->status|=0x100; // FIFO full
+      if (pvid->lwrite_cnt >  4) {
+        SekCyclesBurnRun(32); // penalty // 488/12-8
       }
-      VideoWrite(d);
+      elprintf(EL_ASVDP, "VDP data write: %04x [%06x] {%i} #%i @ %06x", d, Pico.video.addr,
+               Pico.video.type, pvid->lwrite_cnt, SekPc);
     }
+    VideoWrite(d);
+
+    if ((pvid->command&0x80) && (pvid->reg[1]&0x10) && (pvid->reg[0x17]>>6)==2)
+      DmaFill(d);
+
     return;
   }
 
@@ -376,12 +374,16 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
   {
     if (pvid->pending)
     {
-      if (d & 0x80) DrawSync(0); // only need sync for DMA
       // Low word of command:
-      pvid->command&=0xffff0000;
-      pvid->command|=d;
-      pvid->pending=0;
+      pvid->command &= 0xffff0000;
+      pvid->command |= d;
+      pvid->pending = 0;
       CommandChange();
+      // Check for dma:
+      if (d & 0x80) {
+        DrawSync(0);
+        CommandDma();
+      }
     }
     else
     {

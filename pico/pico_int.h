@@ -782,7 +782,7 @@ extern int line_base_cycles;
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead8(unsigned int a);
-extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp);
+extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask);
 
 // misc.c
 PICO_INTERNAL_ASM void memcpy16(unsigned short *dest, unsigned short *src, int count);

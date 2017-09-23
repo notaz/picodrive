@@ -91,23 +91,20 @@ static void PicoSVPLine(void)
 }
 
 
-static int PicoSVPDma(unsigned int source, int len, unsigned short **srcp, unsigned short **limitp)
+static int PicoSVPDma(unsigned int source, int len, unsigned short **base, unsigned int *mask)
 {
 	if (source < Pico.romsize) // Rom
 	{
-		source -= 2;
-		*srcp = (unsigned short *)(Pico.rom + (source&~1));
-		*limitp = (unsigned short *)(Pico.rom + Pico.romsize);
-		return 1;
+		*base = (unsigned short *)(Pico.rom + (source & 0xfe0000));
+		*mask = 0x1ffff;
+		return source - 2;
 	}
 	else if ((source & 0xfe0000) == 0x300000)
 	{
 		elprintf(EL_VDPDMA|EL_SVP, "SVP DmaSlow from %06x, len=%i", source, len);
-		source &= 0x1fffe;
-		source -= 2;
-		*srcp = (unsigned short *)(svp->dram + source);
-		*limitp = (unsigned short *)(svp->dram + sizeof(svp->dram));
-		return 1;
+		*base = (unsigned short *)svp->dram;
+		*mask = 0x1ffff;
+		return source - 2;
 	}
 	else
 		elprintf(EL_VDPDMA|EL_SVP|EL_ANOMALY, "SVP FIXME unhandled DmaSlow from %06x, len=%i", source, len);
