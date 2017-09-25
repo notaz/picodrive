@@ -1165,7 +1165,9 @@ void PicoWrite16_32x(u32 a, u32 d) {}
 
 static unsigned char z80_md_vdp_read(unsigned short a)
 {
-  // TODO?
+  if ((a & 0x00e0) == 0x0000)
+    return PicoVideoRead8(a); // FIXME: depends on 68k cycles
+
   elprintf(EL_ANOMALY, "z80 invalid r8 [%06x] %02x", a, 0xff);
   return 0xff;
 }
@@ -1192,13 +1194,13 @@ static void z80_md_ym2612_write(unsigned int a, unsigned char data)
 
 static void z80_md_vdp_br_write(unsigned int a, unsigned char data)
 {
-  // TODO: allow full VDP access
   if ((a&0xfff9) == 0x7f11) // 7f11 7f13 7f15 7f17
   {
     if (PicoOpt & POPT_EN_PSG)
       SN76496Write(data);
     return;
   }
+  // at least VDP data writes hang my machine
 
   if ((a>>8) == 0x60)
   {
