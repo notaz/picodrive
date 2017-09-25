@@ -954,7 +954,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
 // Index + 0  :    hhhhvvvv ----hhvv yyyyyyyy yyyyyyyy // v, h: vert./horiz. size
 // Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-void PrepareSprites(int full)
+static NOINLINE void PrepareSprites(int full)
 {
   const struct PicoVideo *pvid=&Pico.video;
   const struct PicoEState *est=&Pico.est;
@@ -1117,15 +1117,8 @@ found:;
 static void DrawAllSprites(unsigned char *sprited, int prio, int sh,
                            struct PicoEState *est)
 {
-  int rs = est->rendstatus;
   unsigned char *p;
   int cnt;
-
-  if (rs & (PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES)) {
-    //elprintf(EL_STATUS, "PrepareSprites(%i)", (rs>>4)&1);
-    PrepareSprites(rs & PDRAW_DIRTY_SPRITES);
-    est->rendstatus = rs & ~(PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES);
-  }
 
   cnt = sprited[0] & 0x7f;
   if (cnt == 0) return;
@@ -1288,6 +1281,12 @@ static int DrawDisplay(int sh)
   int win=0,edge=0,hvwind=0;
   int maxw,maxcells;
 
+  if (est->rendstatus & (PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES)) {
+    // elprintf(EL_STATUS, "PrepareSprites(%i)", (est->rendstatus>>4)&1);
+    PrepareSprites(est->rendstatus & PDRAW_DIRTY_SPRITES);
+    est->rendstatus &= ~(PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES);
+  }
+
   est->rendstatus &= ~(PDRAW_SHHI_DONE|PDRAW_PLANE_HI_PRIO);
 
   if (pvid->reg[12]&1) {
@@ -1331,7 +1330,7 @@ static int DrawDisplay(int sh)
     DrawLayer(0|(sh<<1), HighCacheA, 0, maxcells, est);
   /* - sprites low - */
   if (!(PicoDrawMask & PDRAW_SPRITES_LOW_ON));
-  else if (Pico.est.rendstatus & PDRAW_INTERLACE)
+  else if (est->rendstatus & PDRAW_INTERLACE)
     DrawAllSpritesInterlace(0, sh);
   else if (sprited[1] & SPRL_HAVE_LO)
     DrawAllSprites(sprited, 0, sh, est);
@@ -1352,7 +1351,7 @@ static int DrawDisplay(int sh)
       DrawTilesFromCache(HighCacheA, sh, maxw, est);
   /* - sprites hi - */
   if (!(PicoDrawMask & PDRAW_SPRITES_HI_ON));
-  else if (Pico.est.rendstatus & PDRAW_INTERLACE)
+  else if (est->rendstatus & PDRAW_INTERLACE)
     DrawAllSpritesInterlace(1, sh);
   // have sprites without layer pri bit ontop of sprites with that bit
   else if ((sprited[1] & 0xd0) == 0xd0 && (PicoOpt & POPT_ACC_SPRITES))

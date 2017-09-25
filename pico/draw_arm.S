@@ -1101,17 +1101,6 @@ DrawSpriteSHi:
 
 DrawAllSprites:
     orr     r1, r2, r1, lsl #1
-    ldr     r12,[r3, #OFS_rendstatus]
-    tst     r12,#(PDRAW_DIRTY_SPRITES|PDRAW_SPRITES_MOVED)
-    beq     das_no_prep
-    stmfd   sp!, {r0,r1,r3,lr}
-    and     r0, r12,#PDRAW_DIRTY_SPRITES
-    bic     r12,r12,#(PDRAW_DIRTY_SPRITES|PDRAW_SPRITES_MOVED)
-    str     r12,[r3, #OFS_rendstatus]
-    bl      PrepareSprites
-    ldmfd   sp!, {r0,r1,r3,lr}
-
-das_no_prep:
     ldr     r2, [r0]
     ands    r2, r2, #0x7f
     bxeq    lr
