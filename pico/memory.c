@@ -63,6 +63,17 @@ void cpu68k_map_set(uptr *map, int start_addr, int end_addr,
     const void *func_or_mh, int is_func)
 {
   xmap_set(map, M68K_MEM_SHIFT, start_addr, end_addr, func_or_mh, is_func);
+#ifdef EMU_F68K
+  // setup FAME fetchmap
+  if (!is_func)
+  {
+    int shiftout = 24 - FAMEC_FETCHBITS;
+    int i = start_addr >> shiftout;
+    uptr base = (uptr)func_or_mh - (i << shiftout);
+    for (; i <= (end_addr >> shiftout); i++)
+      PicoCpuFM68k.Fetch[i] = base;
+  }
+#endif
 }
 
 // more specialized/optimized function (does same as above)
@@ -89,6 +100,17 @@ void cpu68k_map_all_ram(int start_addr, int end_addr, void *ptr, int is_sub)
   addr >>= 1;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
     r8map[i] = r16map[i] = w8map[i] = w16map[i] = addr;
+#ifdef EMU_F68K
+  // setup FAME fetchmap
+  {
+    M68K_CONTEXT *ctx = is_sub ? &PicoCpuFS68k : &PicoCpuFM68k;
+    int shiftout = 24 - FAMEC_FETCHBITS;
+    i = start_addr >> shiftout;
+    addr = (uptr)ptr - (i << shiftout);
+    for (; i <= (end_addr >> shiftout); i++)
+      ctx->Fetch[i] = addr;
+  }
+#endif
 }
 
 static u32 m68k_unmapped_read8(u32 a)
@@ -799,14 +821,12 @@ PICO_INTERNAL void PicoMemSetup(void)
   {
     int i;
     // by default, point everything to first 64k of ROM
-    for (i = 0; i < M68K_FETCHBANK1; i++)
+    for (i = 0; i < M68K_FETCHBANK1 * 0xe0 / 0x100; i++)
       PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
     // now real ROM
     for (i = 0; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < Pico.romsize; i++)
       PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.rom;
-    // .. and RAM
-    for (i = M68K_FETCHBANK1*14/16; i < M68K_FETCHBANK1; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.ram - (i<<(24-FAMEC_FETCHBITS));
+    // RAM already set
   }
 #endif
 #ifdef EMU_M68K

@@ -1179,12 +1179,6 @@ static void bank_switch(int b)
   cpu68k_map_set(m68k_read16_map,  0x900000, 0x900000 + rs - 1, Pico.rom + bank, 0);
 
   elprintf(EL_32X, "bank %06x-%06x -> %06x", 0x900000, 0x900000 + rs - 1, bank);
-
-#ifdef EMU_F68K
-  // setup FAME fetchmap
-  for (rs = 0x90; rs < 0xa0; rs++)
-    PicoCpuFM68k.Fetch[rs] = (unsigned long)Pico.rom + bank - 0x900000;
-#endif
 }
 
 // -----------------------------------------------------------------

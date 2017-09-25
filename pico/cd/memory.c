@@ -1071,23 +1071,6 @@ static void remap_word_ram(u32 r3)
     cpu68k_map_set(s68k_write8_map,  0x080000, 0x0bffff, s68k_dec_write8[b0 ^ 1][m], 1);
     cpu68k_map_set(s68k_write16_map, 0x080000, 0x0bffff, s68k_dec_write16[b0 ^ 1][m], 1);
   }
-
-#ifdef EMU_F68K
-  // update fetchmap..
-  int i;
-  if (!(r3 & 4))
-  {
-    for (i = M68K_FETCHBANK1*2/16; (i<<(24-FAMEC_FETCHBITS)) < 0x240000; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico_mcd->word_ram2M - 0x200000;
-  }
-  else
-  {
-    for (i = M68K_FETCHBANK1*2/16; (i<<(24-FAMEC_FETCHBITS)) < 0x220000; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico_mcd->word_ram1M[r3 & 1] - 0x200000;
-    for (i = M68K_FETCHBANK1*0x0c/0x100; (i<<(24-FAMEC_FETCHBITS)) < 0x0e0000; i++)
-      PicoCpuFS68k.Fetch[i] = (unsigned long)Pico_mcd->word_ram1M[(r3&1)^1] - 0x0c0000;
-  }
-#endif
 }
 
 void pcd_state_loaded_mem(void)
