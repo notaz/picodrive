@@ -221,6 +221,9 @@ ifndef DEBUG
 cpu/fame/famec.o: CFLAGS += -g0 -O2 -fno-expensive-optimizations
 endif
 
+pico/carthw_cfg.c: pico/carthw.cfg
+	tools/make_carthw_c $< $@
+
 # random deps
 pico/carthw/svp/compiler.o : cpu/drc/emit_$(ARCH).c
 cpu/sh2/compiler.o : cpu/drc/emit_$(ARCH).c
