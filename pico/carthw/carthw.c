@@ -11,6 +11,16 @@
 #include "eeprom_spi.h"
 
 
+static int have_bank(u32 base)
+{
+  // the loader allocs in 512K quantities
+  if (base >= Pico.romsize) {
+    elprintf(EL_ANOMALY|EL_STATUS, "carthw: missing bank @ %06x", base);
+    return 0;
+  }
+  return 1;
+}
+
 /* The SSFII mapper */
 static unsigned char ssf2_banks[8];
 
@@ -36,10 +46,8 @@ static void carthw_ssf2_write8(u32 a, u32 d)
 	ssf2_banks[a >> 1] = d;
 	base = d << 19;
 	target = a << 18;
-	if (base + 0x80000 > Pico.romsize) {
-		elprintf(EL_ANOMALY|EL_STATUS, "ssf2: missing bank @ %06x", base);
+	if (!have_bank(base))
 		return;
-	}
 
 	cpu68k_map_set(m68k_read8_map,  target, target + 0x80000 - 1, Pico.rom + base, 0);
 	cpu68k_map_set(m68k_read16_map, target, target + 0x80000 - 1, Pico.rom + base, 0);
@@ -324,10 +332,9 @@ static void carthw_pier_write8(u32 a, u32 d)
   return;
 
 do_map:
-  if (base + 0x80000 > Pico.romsize) {
-    elprintf(EL_ANOMALY|EL_STATUS, "pier: missing bank @ %06x", base);
+  if (!have_bank(base))
     return;
-  }
+
   cpu68k_map_set(m68k_read8_map,  target, target + 0x80000 - 1, Pico.rom + base, 0);
   cpu68k_map_set(m68k_read16_map, target, target + 0x80000 - 1, Pico.rom + base, 0);
 }
