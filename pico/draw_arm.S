@@ -303,7 +303,9 @@ DrawLayer:
     cmp     r10, #1
     biclt   r1,  r1, #0xfc00
     biceq   r1,  r1, #0xfe00
-    bicgt   r1,  r1, #0xff00      @ r1=ymask=(height<<8)|0xff; ...; // Y Mask in pixels
+    cmp     r10, #2
+    moveq   r1,      #0x0007
+    movgt   r1,      #0x00ff      @ r1=ymask=(height<<8)|0xff; ...; // Y Mask in pixels
 
     add     r10, r10, #5
     cmp     r10, #7

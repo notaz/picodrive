@@ -394,8 +394,11 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
 
   ts.xmask=(1<<shift[width])-1; // X Mask in tiles (0x1f-0x7f)
   ymask=(height<<8)|0xff;       // Y Mask in pixels
-  if(width == 1)   ymask&=0x1ff;
-  else if(width>1) ymask =0x0ff;
+  switch (width) {
+    case 1: ymask &= 0x1ff; break;
+    case 2: ymask =  0x007; break;
+    case 3: ymask =  0x0ff; break;
+  }
 
   // Find name table:
   if (plane_sh&1) ts.nametab=(pvid->reg[4]&0x07)<<12; // B
