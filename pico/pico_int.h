@@ -292,7 +292,8 @@ struct PicoVideo
   unsigned char pending_ints; // pending interrupts: ??VH????
   signed char lwrite_cnt;     // VDP write count during active display line
   unsigned short v_counter;   // V-counter
-  unsigned char pad[0x10];
+  unsigned char addr_u;
+  unsigned char pad[0x0f];
 };
 
 struct PicoMisc

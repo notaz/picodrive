@@ -29,6 +29,13 @@ static __inline void AutoIncrement(void)
   Pico.video.addr=(unsigned short)(Pico.video.addr+Pico.video.reg[0xf]);
 }
 
+static NOINLINE void VideoWrite128(u32 a, u16 d)
+{
+  // nasty
+  a = ((a & 2) >> 1) | ((a & 0x400) >> 9) | (a & 0x3FC) | ((a & 0x1F800) >> 1);
+  ((u8 *)Pico.vram)[a] = d;
+}
+
 static void VideoWrite(u16 d)
 {
   unsigned int a=Pico.video.addr;
@@ -43,6 +50,10 @@ static void VideoWrite(u16 d)
     case 3: Pico.m.dirtyPal = 1;
             Pico.cram [(a>>1)&0x003f]=d; break; // wraps (Desert Strike)
     case 5: Pico.vsram[(a>>1)&0x003f]=d; break;
+    case 0x81:
+      a |= Pico.video.addr_u << 16;
+      VideoWrite128(a, d);
+      break;
     //default:elprintf(EL_ANOMALY, "VDP write %04x with bad type %i", d, Pico.video.type); break;
   }
 
@@ -186,6 +197,17 @@ static void DmaSlow(int len, unsigned int source)
       }
       break;
 
+    case 0x81: // vram 128k
+      a |= Pico.video.addr_u << 16;
+      for(; len; len--)
+      {
+        VideoWrite128(a, base[source++ & mask]);
+        // AutoIncrement
+        a = (a + inc) & 0x1ffff;
+      }
+      Pico.video.addr_u = a >> 16;
+      break;
+
     default:
       if (Pico.video.type != 0 || (EL_LOGMASK & EL_VDPDMA))
         elprintf(EL_VDPDMA|EL_ANOMALY, "DMA with bad type %i", Pico.video.type);
@@ -303,20 +325,23 @@ static NOINLINE void CommandDma(void)
   Pico.video.reg[0x16] = source >> 8;
 }
 
-static void CommandChange(void)
+static NOINLINE void CommandChange(void)
 {
-  struct PicoVideo *pvid=&Pico.video;
-  unsigned int cmd=0,addr=0;
+  struct PicoVideo *pvid = &Pico.video;
+  unsigned int cmd, addr;
 
-  cmd=pvid->command;
+  cmd = pvid->command;
 
   // Get type of transfer 0xc0000030 (v/c/vsram read/write)
-  pvid->type=(unsigned char)(((cmd>>2)&0xc)|(cmd>>30));
+  pvid->type = (u8)(((cmd >> 2) & 0xc) | (cmd >> 30));
+  if (pvid->type == 1) // vram
+    pvid->type |= pvid->reg[1] & 0x80; // 128k
 
   // Get address 0x3fff0003
-  addr =(cmd>>16)&0x3fff;
-  addr|=(cmd<<14)&0xc000;
-  pvid->addr=(unsigned short)addr;
+  addr  = (cmd >> 16) & 0x3fff;
+  addr |= (cmd << 14) & 0xc000;
+  pvid->addr = (u16)addr;
+  pvid->addr_u = (u8)((cmd >> 2) & 1);
 }
 
 static void DrawSync(int blank_on)
