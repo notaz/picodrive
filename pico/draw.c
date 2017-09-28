@@ -96,56 +96,41 @@ void blockcpy_or(void *dst, void *src, size_t n, int pat)
 
 
 #define TileNormMaker(funcname,pix_func)                     \
-static int funcname(int sx,int addr,int pal)                 \
+static void funcname(int sx, unsigned int pack, int pal)     \
 {                                                            \
-  unsigned char *pd = Pico.est.HighCol+sx;                   \
-  unsigned int pack=0; unsigned int t=0;                     \
+  unsigned char *pd = Pico.est.HighCol + sx;                 \
+  unsigned int t;                                            \
                                                              \
-  pack=*(unsigned int *)(Pico.vram+addr); /* Get 8 pixels */ \
-  if (pack)                                                  \
-  {                                                          \
-    t=(pack&0x0000f000)>>12; pix_func(0);                    \
-    t=(pack&0x00000f00)>> 8; pix_func(1);                    \
-    t=(pack&0x000000f0)>> 4; pix_func(2);                    \
-    t=(pack&0x0000000f)    ; pix_func(3);                    \
-    t=(pack&0xf0000000)>>28; pix_func(4);                    \
-    t=(pack&0x0f000000)>>24; pix_func(5);                    \
-    t=(pack&0x00f00000)>>20; pix_func(6);                    \
-    t=(pack&0x000f0000)>>16; pix_func(7);                    \
-    return 0;                                                \
-  }                                                          \
-                                                             \
-  return 1; /* Tile blank */                                 \
+  t = (pack&0x0000f000)>>12; pix_func(0);                    \
+  t = (pack&0x00000f00)>> 8; pix_func(1);                    \
+  t = (pack&0x000000f0)>> 4; pix_func(2);                    \
+  t = (pack&0x0000000f)    ; pix_func(3);                    \
+  t = (pack&0xf0000000)>>28; pix_func(4);                    \
+  t = (pack&0x0f000000)>>24; pix_func(5);                    \
+  t = (pack&0x00f00000)>>20; pix_func(6);                    \
+  t = (pack&0x000f0000)>>16; pix_func(7);                    \
 }
 
-
 #define TileFlipMaker(funcname,pix_func)                     \
-static int funcname(int sx,int addr,int pal)                 \
+static void funcname(int sx, unsigned int pack, int pal)     \
 {                                                            \
-  unsigned char *pd = Pico.est.HighCol+sx;                   \
-  unsigned int pack=0; unsigned int t=0;                     \
+  unsigned char *pd = Pico.est.HighCol + sx;                 \
+  unsigned int t;                                            \
                                                              \
-  pack=*(unsigned int *)(Pico.vram+addr); /* Get 8 pixels */ \
-  if (pack)                                                  \
-  {                                                          \
-    t=(pack&0x000f0000)>>16; pix_func(0);                    \
-    t=(pack&0x00f00000)>>20; pix_func(1);                    \
-    t=(pack&0x0f000000)>>24; pix_func(2);                    \
-    t=(pack&0xf0000000)>>28; pix_func(3);                    \
-    t=(pack&0x0000000f)    ; pix_func(4);                    \
-    t=(pack&0x000000f0)>> 4; pix_func(5);                    \
-    t=(pack&0x00000f00)>> 8; pix_func(6);                    \
-    t=(pack&0x0000f000)>>12; pix_func(7);                    \
-    return 0;                                                \
-  }                                                          \
-                                                             \
-  return 1; /* Tile blank */                                 \
+  t = (pack&0x000f0000)>>16; pix_func(0);                    \
+  t = (pack&0x00f00000)>>20; pix_func(1);                    \
+  t = (pack&0x0f000000)>>24; pix_func(2);                    \
+  t = (pack&0xf0000000)>>28; pix_func(3);                    \
+  t = (pack&0x0000000f)    ; pix_func(4);                    \
+  t = (pack&0x000000f0)>> 4; pix_func(5);                    \
+  t = (pack&0x00000f00)>> 8; pix_func(6);                    \
+  t = (pack&0x0000f000)>>12; pix_func(7);                    \
 }
 
 
 #ifdef _ASM_DRAW_C_AMIPS
-int TileNorm(int sx,int addr,int pal);
-int TileFlip(int sx,int addr,int pal);
+int TileNorm(int sx, unsigned int pack, int pal);
+int TileFlip(int sx, unsigned int pack, int pal);
 #else
 
 #define pix_just_write(x) \
@@ -228,7 +213,7 @@ static void DrawStrip(struct TileStrip *ts, int plane_sh, int cellskip)
 
   for (; cells > 0; dx+=8,tilex++,cells--)
   {
-    int zero=0;
+    unsigned int pack;
 
     code=Pico.vram[ts->nametab+(tilex&ts->xmask)];
     if (code==blank) continue;
@@ -249,10 +234,14 @@ static void DrawStrip(struct TileStrip *ts, int plane_sh, int cellskip)
       pal=((code>>9)&0x30)|sh;
     }
 
-    if (code&0x0800) zero=TileFlip(dx,addr,pal);
-    else             zero=TileNorm(dx,addr,pal);
+    pack = *(unsigned int *)(Pico.vram + addr);
+    if (!pack) {
+      blank = code;
+      continue;
+    }
 
-    if (zero) blank=code; // We know this tile is blank now
+    if (code & 0x0800) TileFlip(dx, pack, pal);
+    else               TileNorm(dx, pack, pal);
   }
 
   // terminate the cache list
@@ -262,7 +251,7 @@ static void DrawStrip(struct TileStrip *ts, int plane_sh, int cellskip)
 }
 
 // this is messy
-void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
+static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
 {
   int tilex,dx,code=0,addr=0,cell=0;
   int oldcode=-1,blank=-1; // The tile we know is blank
@@ -278,7 +267,8 @@ void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
 
   for (; cell < ts->cells; dx+=8,tilex++,cell++)
   {
-    int zero=0,nametabadd,ty;
+    int nametabadd, ty;
+    unsigned int pack;
 
     //if((cell&1)==0)
     {
@@ -309,10 +299,14 @@ void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
       pal=((code>>9)&0x30)|((plane_sh<<5)&0x40);
     }
 
-    if (code&0x0800) zero=TileFlip(dx,addr,pal);
-    else             zero=TileNorm(dx,addr,pal);
+    pack = *(unsigned int *)(Pico.vram + addr);
+    if (!pack) {
+      blank = code;
+      continue;
+    }
 
-    if (zero) blank=code; // We know this tile is blank now
+    if (code & 0x0800) TileFlip(dx, pack, pal);
+    else               TileNorm(dx, pack, pal);
   }
 
   // terminate the cache list
@@ -339,7 +333,7 @@ void DrawStripInterlace(struct TileStrip *ts)
 
   for (; cells; dx+=8,tilex++,cells--)
   {
-    int zero=0;
+    unsigned int pack;
 
     code=Pico.vram[ts->nametab+(tilex&ts->xmask)];
     if (code==blank) continue;
@@ -361,10 +355,14 @@ void DrawStripInterlace(struct TileStrip *ts)
       pal=((code>>9)&0x30);
     }
 
-    if (code&0x0800) zero=TileFlip(dx,addr,pal);
-    else             zero=TileNorm(dx,addr,pal);
+    pack = *(unsigned int *)(Pico.vram + addr);
+    if (!pack) {
+      blank = code;
+      continue;
+    }
 
-    if (zero) blank=code; // We know this tile is blank now
+    if (code & 0x0800) TileFlip(dx, pack, pal);
+    else               TileNorm(dx, pack, pal);
   }
 
   // terminate the cache list
@@ -477,7 +475,8 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
   {
     for (; tilex < tend; tilex++)
     {
-      int addr=0,zero=0;
+      unsigned int pack;
+      int dx, addr;
       int pal;
 
       code=Pico.vram[nametab+tilex];
@@ -487,23 +486,29 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
         continue;
       }
 
-      pal=((code>>9)&0x30);
-
       // Get tile address/2:
       addr=(code&0x7ff)<<4;
       if (code&0x1000) addr+=14-ty; else addr+=ty; // Y-flip
 
-      if (code&0x0800) zero=TileFlip(8+(tilex<<3),addr,pal);
-      else             zero=TileNorm(8+(tilex<<3),addr,pal);
+      pack = *(unsigned int *)(Pico.vram + addr);
+      if (!pack) {
+        blank = code;
+        continue;
+      }
 
-      if (zero) blank=code; // We know this tile is blank now
+      pal = ((code >> 9) & 0x30);
+      dx = 8 + (tilex << 3);
+
+      if (code & 0x0800) TileFlip(dx, pack, pal);
+      else               TileNorm(dx, pack, pal);
     }
   }
   else
   {
     for (; tilex < tend; tilex++)
     {
-      int addr=0,zero=0;
+      unsigned int pack;
+      int dx, addr;
       int pal;
 
       code=Pico.vram[nametab+tilex];
@@ -527,10 +532,16 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       addr=(code&0x7ff)<<4;
       if (code&0x1000) addr+=14-ty; else addr+=ty; // Y-flip
 
-      if (code&0x0800) zero=TileFlip(8+(tilex<<3),addr,pal);
-      else             zero=TileNorm(8+(tilex<<3),addr,pal);
+      pack = *(unsigned int *)(Pico.vram + addr);
+      if (!pack) {
+        blank = code;
+        continue;
+      }
 
-      if (zero) blank=code; // We know this tile is blank now
+      dx = 8 + (tilex << 3);
+
+      if (code & 0x0800) TileFlip(dx, pack, pal);
+      else               TileNorm(dx, pack, pal);
     }
   }
 }
@@ -553,6 +564,7 @@ static void DrawTilesFromCacheShPrep(void)
 static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est)
 {
   int code, addr, dx;
+  unsigned int pack;
   int pal;
 
   // *ts->hc++ = code | (dx<<16) | (ty<<25); // cache it
@@ -568,26 +580,31 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est
   {
     short blank=-1; // The tile we know is blank
     while ((code=*hc++)) {
-      int zero;
       if((short)code == blank) continue;
       // Get tile address/2:
       addr=(code&0x7ff)<<4;
       addr+=(unsigned int)code>>25; // y offset into tile
-      dx=(code>>16)&0x1ff;
 
-      pal=((code>>9)&0x30);
-      if (rlim-dx < 0) goto last_cut_tile;
+      pack = *(unsigned int *)(Pico.vram + addr);
+      if (!pack) {
+        blank = (short)code;
+        continue;
+      }
 
-      if (code&0x0800) zero=TileFlip(dx,addr,pal);
-      else             zero=TileNorm(dx,addr,pal);
+      dx = (code >> 16) & 0x1ff;
+      pal = ((code >> 9) & 0x30);
+      if (rlim-dx < 0)
+        goto last_cut_tile;
 
-      if (zero) blank=(short)code;
+      if (code & 0x0800) TileFlip(dx, pack, pal);
+      else               TileNorm(dx, pack, pal);
     }
   }
   else
   {
     while ((code=*hc++)) {
       unsigned char *zb;
+
       // Get tile address/2:
       addr=(code&0x7ff)<<4;
       addr+=(unsigned int)code>>25; // y offset into tile
@@ -596,20 +613,26 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est
       *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf;
       *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf;
 
-      pal=((code>>9)&0x30);
-      if (rlim-dx < 0) goto last_cut_tile;
+      pack = *(unsigned int *)(Pico.vram + addr);
+      if (!pack)
+        continue;
 
-      if (code&0x0800) TileFlip(dx,addr,pal);
-      else             TileNorm(dx,addr,pal);
+      pal = ((code >> 9) & 0x30);
+      if (rlim - dx < 0)
+        goto last_cut_tile;
+
+      if (code & 0x0800) TileFlip(dx, pack, pal);
+      else               TileNorm(dx, pack, pal);
     }
   }
   return;
 
 last_cut_tile:
+  // for vertical window cutoff
   {
-    unsigned int t, pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
-    unsigned char *pd = est->HighCol+dx;
-    if (!pack) return;
+    unsigned char *pd = est->HighCol + dx;
+    unsigned int t;
+
     if (code&0x0800)
     {
       switch (rlim-dx+8)
@@ -653,7 +676,7 @@ static void DrawSprite(int *sprite, int sh)
   int pal;
   int tile=0,delta=0;
   int sx, sy;
-  int (*fTileFunc)(int sx,int addr,int pal);
+  void (*fTileFunc)(int sx, unsigned int pack, int pal);
 
   // parse the sprite data
   sy=sprite[0];
@@ -687,11 +710,13 @@ static void DrawSprite(int *sprite, int sh)
 
   for (; width; width--,sx+=8,tile+=delta)
   {
+    unsigned int pack;
+
     if(sx<=0)   continue;
     if(sx>=328) break; // Offscreen
 
-    tile&=0x7fff; // Clip tile address
-    fTileFunc(sx,tile,pal);
+    pack = *(unsigned int *)(Pico.vram + (tile & 0x7fff));
+    fTileFunc(sx, pack, pal);
   }
 }
 #endif
@@ -730,12 +755,14 @@ static void DrawSpriteInterlace(unsigned int *sprite)
 
   for (; width; width--,sx+=8,tile+=delta)
   {
+    unsigned int pack;
+
     if(sx<=0)   continue;
     if(sx>=328) break; // Offscreen
 
-    tile&=0x7fff; // Clip tile address
-    if (code&0x0800) TileFlip(sx,tile,pal);
-    else             TileNorm(sx,tile,pal);
+    pack = *(unsigned int *)(Pico.vram + (tile & 0x7fff));
+    if (code & 0x0800) TileFlip(sx, pack, pal);
+    else               TileNorm(sx, pack, pal);
   }
 }
 
@@ -797,7 +824,7 @@ static void DrawAllSpritesInterlace(int pri, int sh)
  */
 static void DrawSpritesSHi(unsigned char *sprited, const struct PicoEState *est)
 {
-  int (*fTileFunc)(int sx,int addr,int pal);
+  void (*fTileFunc)(int sx, unsigned int pack, int pal);
   unsigned char *p;
   int cnt;
 
@@ -853,11 +880,13 @@ static void DrawSpritesSHi(unsigned char *sprited, const struct PicoEState *est)
 
     for (; width; width--,sx+=8,tile+=delta)
     {
+      unsigned int pack;
+
       if(sx<=0)   continue;
       if(sx>=328) break; // Offscreen
 
-      tile&=0x7fff; // Clip tile address
-      fTileFunc(sx,tile,pal);
+      pack = *(unsigned int *)(Pico.vram + (tile & 0x7fff));
+      fTileFunc(sx, pack, pal);
     }
   }
 }
@@ -865,7 +894,7 @@ static void DrawSpritesSHi(unsigned char *sprited, const struct PicoEState *est)
 
 static void DrawSpritesHiAS(unsigned char *sprited, int sh)
 {
-  int (*fTileFunc)(int sx,int addr,int pal);
+  void (*fTileFunc)(int sx, unsigned int pack, int pal);
   unsigned char *p;
   int entry, cnt, sh_cnt = 0;
 
@@ -925,11 +954,13 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
     pal |= 0x80;
     for (; width; width--,sx+=8,tile+=delta)
     {
+      unsigned int pack;
+
       if(sx<=0)   continue;
       if(sx>=328) break; // Offscreen
 
-      tile&=0x7fff; // Clip tile address
-      fTileFunc(sx,tile,pal);
+      pack = *(unsigned int *)(Pico.vram + (tile & 0x7fff));
+      fTileFunc(sx, pack, pal);
     }
   }
 
