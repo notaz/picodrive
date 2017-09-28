@@ -281,6 +281,15 @@ extern SH2 sh2s[2];
 #define OSC_NTSC 53693100
 #define OSC_PAL  53203424
 
+#define PVD_KILL_A    (1 << 0)
+#define PVD_KILL_B    (1 << 1)
+#define PVD_KILL_S_LO (1 << 2)
+#define PVD_KILL_S_HI (1 << 3)
+#define PVD_KILL_32X  (1 << 4)
+#define PVD_FORCE_A   (1 << 5)
+#define PVD_FORCE_B   (1 << 6)
+#define PVD_FORCE_S   (1 << 7)
+
 struct PicoVideo
 {
   unsigned char reg[0x20];
@@ -292,8 +301,10 @@ struct PicoVideo
   unsigned char pending_ints; // pending interrupts: ??VH????
   signed char lwrite_cnt;     // VDP write count during active display line
   unsigned short v_counter;   // V-counter
+  unsigned short debug;       // raw debug register
+  unsigned char debug_p;      // ... parsed: PVD_*
   unsigned char addr_u;
-  unsigned char pad[0x0f];
+  unsigned char pad[0x0c];
 };
 
 struct PicoMisc

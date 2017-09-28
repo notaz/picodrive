@@ -179,15 +179,15 @@ static void DrawDisplayM4(int scanline)
   dx += cellskip << 3;
 
   // low priority tiles
-  if (PicoDrawMask & PDRAW_LAYERB_ON)
+  if (!(pv->debug_p & PVD_KILL_B))
     draw_strip(nametab, dx, cells, tilex | 0x0000 | (ty << 16));
 
   // sprites
-  if (PicoDrawMask & PDRAW_SPRITES_LOW_ON)
+  if (!(pv->debug_p & PVD_KILL_S_LO))
     draw_sprites(scanline);
 
   // high priority tiles (use virtual layer switch just for fun)
-  if (PicoDrawMask & PDRAW_LAYERA_ON)
+  if (!(pv->debug_p & PVD_KILL_A))
     draw_strip(nametab, dx, cells, tilex | 0x1000 | (ty << 16));
 
   if (pv->reg[0] & 0x20)

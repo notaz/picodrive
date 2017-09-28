@@ -361,8 +361,9 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
   //  elprintf(EL_STATUS, "PicoVideoWrite [%06x] %04x", a, d);
   a&=0x1c;
 
-  if (a==0x00) // Data port 0 or 2
+  switch (a)
   {
+  case 0x00: // Data port 0 or 2
     // try avoiding the sync..
     if (Pico.m.scanline < 224 && (pvid->reg[1]&0x40) &&
         !(!pvid->pending &&
@@ -392,11 +393,9 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
     if ((pvid->command&0x80) && (pvid->reg[1]&0x10) && (pvid->reg[0x17]>>6)==2)
       DmaFill(d);
 
-    return;
-  }
+    break;
 
-  if (a==0x04) // Control (command) port 4 or 6
-  {
+  case 0x04: // Control (command) port 4 or 6
     if (pvid->pending)
     {
       // Low word of command:
@@ -473,6 +472,35 @@ update_irq:
         pvid->pending=1;
       }
     }
+    break;
+
+  // case 0x08: // 08 0a - HV counter - lock up
+  // case 0x0c: // 0c 0e - HV counter - lock up
+  // case 0x10: // 10 12 - PSG - handled by caller
+  // case 0x14: // 14 16 - PSG - handled by caller
+  // case 0x18: // 18 1a - no effect?
+  case 0x1c: // 1c 1e - debug
+    pvid->debug = d;
+    pvid->debug_p = 0;
+    if (d & (1 << 6)) {
+      pvid->debug_p |= PVD_KILL_A | PVD_KILL_B;
+      pvid->debug_p |= PVD_KILL_S_LO | PVD_KILL_S_HI;
+    }
+    switch ((d >> 7) & 3) {
+      case 1:
+        pvid->debug_p &= ~(PVD_KILL_S_LO | PVD_KILL_S_HI);
+        pvid->debug_p |= PVD_FORCE_S;
+        break;
+      case 2:
+        pvid->debug_p &= ~PVD_KILL_A;
+        pvid->debug_p |= PVD_FORCE_A;
+        break;
+      case 3:
+        pvid->debug_p &= ~PVD_KILL_B;
+        pvid->debug_p |= PVD_FORCE_B;
+        break;
+    }
+    break;
   }
 }
 

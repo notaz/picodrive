@@ -96,7 +96,7 @@ void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
   if ((Pico32x.vdp_regs[0] & P32XV_Mx) == 0 || // 32x blanking
       // XXX: how is 32col mode hadled by real hardware?
       !(Pico.video.reg[12] & 1) || // 32col mode
-      !(PicoDrawMask & PDRAW_32X_ON))
+      (Pico.video.debug_p & PVD_KILL_32X))
   {
     return;
   }

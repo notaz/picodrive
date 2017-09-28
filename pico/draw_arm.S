@@ -278,7 +278,7 @@
 @   int cells;   // 0x14
 @ };
 
-@ void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
+@ void DrawLayer(int lflags, int *hcache, int cellskip, int maxcells,
 @                struct PicoEState *est)
 
 .global DrawLayer
@@ -293,8 +293,8 @@ DrawLayer:
     ldrb    r7, [r11, #16]        @ ??vv??hh
 
     mov     r6, r1                @ hcache
-    orr     r9, r3, r0, lsl #30
-    orr     r9, r9, r2, lsl #8    @ r9=sh[31]|cellskip[15:8]|maxcells[7:0]  (tmp)
+    orr     r9, r3, r0, lsl #29   @ r9=force[31]|sh[30]|plane[29]
+    orr     r9, r9, r2, lsl #8    @    |cellskip[15:8]|maxcells[7:0]  (tmp)
 
     mov     r1, r7, lsl #4
     orr     r1, r1, #0x00ff
@@ -375,10 +375,11 @@ DrawLayer:
     and     r1, r1, #7
     add     r7, r1, #1      @ r7=dx=((ts->hscroll-1)&7)+1
 
-    tst     r9, #1<<31
+    movs    r3, r9, lsl #1  @ (force[31]|sh[30]) << 1
     mov     r3, #0
-    orrne   r10,r10, #1<<23 @ r10=(cells<<24|sh<<23|hi_not_empty<<22|had_output<<21|ty)
-    movne   r3, #0x40       @ default to shadowed pal on sh mode
+    orrmi   r10,r10, #1<<23 @ r10=cells[31:24]|sh[23]|hi_not_empty[22]
+    orrcs   r10,r10, #1<<20 @    |had_output[21]|force[20]|ty[15:0]
+    movmi   r3, #0x40       @ default to shadowed pal on sh mode
 
     cmp     r7, #8
     addne   r10,r10, #0x01000000 @ we will loop cells+1 times if there is scroll
@@ -413,6 +414,7 @@ DrawLayer:
     add     r8, r8, #1
 
     tst     r7, #0x8000
+    tsteq   r10, #1<<20     @ force?
     bne     .DrawStrip_hiprio
 
     cmp     r7, r9
@@ -480,7 +482,7 @@ DrawLayer:
     orr     r10, r10, #1<<22
 
 .DrawStrip_hiprio:
-    tst     r10, #0x00c00000
+    tst     r10, #0x00d00000 @ sh[23]|hi_not_empty[22]|force[20]
     beq     .DrawStrip_hiprio_maybempt
     sub     r0, r1, r11
     orr     r7, r7, r0,  lsl #16
@@ -774,7 +776,8 @@ DrawTilesFromCache:
     bic     r4, r1, #0xfe00
     add     r1, r11, r4     @ r1=pdest
 
-    mov     r7, r6, lsl #16
+    movs    r7, r6, lsl #16
+    bpl     .dtfc_loop      @ !(code & 0x8000)
     cmp     r5, r7, lsr #16
     beq     .dtfc_samecode  @ if (code==prevcode)
 

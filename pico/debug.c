@@ -233,6 +233,7 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
   struct PicoVideo *pvid=&Pico.video;
   int table=0,u,link=0,*sprite=0,*fsprite,oldsprite[2];
   int x,y,max_sprites = 80, oldcol, oldreg;
+  unsigned char olddbg;
 
   if (!(pvid->reg[12]&1))
     max_sprites = 64;
@@ -257,9 +258,10 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
   fsprite[1] = (sprite[1] & ~0x01ff8000) | 0x800000;
   oldreg = pvid->reg[7];
   oldcol = Pico.cram[0];
+  olddbg = pvid->debug_p;
   pvid->reg[7] = 0;
   Pico.cram[0] = 0;
-  PicoDrawMask = PDRAW_SPRITES_LOW_ON;
+  pvid->debug_p = PVD_KILL_A | PVD_KILL_B;
 
   PicoFrameFull();
   for (y = 0; y < 8*4; y++)
@@ -274,7 +276,7 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
   fsprite[1] = oldsprite[1];
   pvid->reg[7] = oldreg;
   Pico.cram[0] = oldcol;
-  PicoDrawMask = -1;
+  pvid->debug_p = olddbg;
 }
 
 #define dump_ram(ram,fname) \

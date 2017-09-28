@@ -551,9 +551,9 @@ static void DrawDisplayFull(void)
 	if (hvwin==1) { winend|=maxcolc<<16; planeend|=maxcolc<<16; }
 
 	HighCache2A[1] = HighCache2B[1] = 0;
-	if (PicoDrawMask & PDRAW_LAYERB_ON)
+	if (!(pvid->debug_p & PVD_KILL_B))
 		DrawLayerFull(1, HighCache2B, START_ROW, (maxcolc<<16)|END_ROW, est);
-	if (PicoDrawMask & PDRAW_LAYERA_ON) switch (hvwin)
+	if (!(pvid->debug_p & PVD_KILL_A)) switch (hvwin)
 	{
 		case 4:
 		// fullscreen window
@@ -579,12 +579,12 @@ static void DrawDisplayFull(void)
 		DrawLayerFull(0, HighCache2A, START_ROW, (maxcolc<<16)|END_ROW, est);
 		break;
 	}
-	if (PicoDrawMask & PDRAW_SPRITES_LOW_ON)
+	if (!(pvid->debug_p & PVD_KILL_S_LO))
 		DrawAllSpritesFull(0, maxw);
 
 	if (HighCache2B[1]) DrawTilesFromCacheF(HighCache2B, est);
 	if (HighCache2A[1]) DrawTilesFromCacheF(HighCache2A, est);
-	if (PicoDrawMask & PDRAW_LAYERA_ON) switch (hvwin)
+	if (!(pvid->debug_p & PVD_KILL_A)) switch (hvwin)
 	{
 		case 4:
 		// fullscreen window
@@ -603,7 +603,7 @@ static void DrawDisplayFull(void)
 		DrawWindowFull(winstart, winend, 1, est);
 		break;
 	}
-	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)
+	if (!(pvid->debug_p & PVD_KILL_S_HI))
 		DrawAllSpritesFull(1, maxw);
 }
 

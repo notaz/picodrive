@@ -14,7 +14,7 @@
 #include "input_pico.h"
 #include "version.h"
 
-#include <pico/pico.h>
+#include <pico/pico_int.h>
 #include <pico/patch.h>
 
 #ifdef PANDORA
@@ -803,11 +803,13 @@ static void draw_text_debug(const char *str, int skip, int from)
 static void draw_frame_debug(void)
 {
 	char layer_str[48] = "layers:                   ";
-	if (PicoDrawMask & PDRAW_LAYERB_ON)      memcpy(layer_str +  8, "B", 1);
-	if (PicoDrawMask & PDRAW_LAYERA_ON)      memcpy(layer_str + 10, "A", 1);
-	if (PicoDrawMask & PDRAW_SPRITES_LOW_ON) memcpy(layer_str + 12, "spr_lo", 6);
-	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)  memcpy(layer_str + 19, "spr_hi", 6);
-	if (PicoDrawMask & PDRAW_32X_ON)         memcpy(layer_str + 26, "32x", 4);
+	struct PicoVideo *pv = &Pico.video;
+
+	if (!(pv->debug_p & PVD_KILL_B))    memcpy(layer_str +  8, "B", 1);
+	if (!(pv->debug_p & PVD_KILL_A))    memcpy(layer_str + 10, "A", 1);
+	if (!(pv->debug_p & PVD_KILL_S_LO)) memcpy(layer_str + 12, "spr_lo", 6);
+	if (!(pv->debug_p & PVD_KILL_S_HI)) memcpy(layer_str + 19, "spr_hi", 6);
+	if (!(pv->debug_p & PVD_KILL_32X))  memcpy(layer_str + 26, "32x", 4);
 
 	pemu_forced_frame(1, 0);
 	make_bg(1);
@@ -818,6 +820,7 @@ static void draw_frame_debug(void)
 
 static void debug_menu_loop(void)
 {
+	struct PicoVideo *pv = &Pico.video;
 	int inp, mode = 0;
 	int spr_offs = 0, dumped = 0;
 	char *tmp;
@@ -878,11 +881,11 @@ static void debug_menu_loop(void)
 				}
 				break;
 			case 1:
-				if (inp & PBTN_LEFT)  PicoDrawMask ^= PDRAW_LAYERB_ON;
-				if (inp & PBTN_RIGHT) PicoDrawMask ^= PDRAW_LAYERA_ON;
-				if (inp & PBTN_DOWN)  PicoDrawMask ^= PDRAW_SPRITES_LOW_ON;
-				if (inp & PBTN_UP)    PicoDrawMask ^= PDRAW_SPRITES_HI_ON;
-				if (inp & PBTN_MA2)   PicoDrawMask ^= PDRAW_32X_ON;
+				if (inp & PBTN_LEFT)  pv->debug_p ^= PVD_KILL_B;
+				if (inp & PBTN_RIGHT) pv->debug_p ^= PVD_KILL_A;
+				if (inp & PBTN_DOWN)  pv->debug_p ^= PVD_KILL_S_LO;
+				if (inp & PBTN_UP)    pv->debug_p ^= PVD_KILL_S_HI;
+				if (inp & PBTN_MA2)   pv->debug_p ^= PVD_KILL_32X;
 				if (inp & PBTN_MOK) {
 					PsndOut = NULL; // just in case
 					PicoSkipFrame = 1;
