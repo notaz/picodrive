@@ -258,6 +258,8 @@ void PicoFrameMS(void)
   int nmi;
   int y;
 
+  PsndStartFrame();
+
   nmi = (PicoPad[0] >> 7) & 1;
   if (!Pico.ms.nmi_state && nmi)
     z80_nmi();

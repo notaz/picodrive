@@ -366,31 +366,31 @@ void PDebugZ80Frame(void)
   }
 
   z80_resetCycles();
-  emustatus &= ~1;
+  PsndStartFrame();
 
-  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
-    PicoSyncZ80(line_sample*488);
-  if (ym2612.dacen && PsndDacLine <= line_sample)
-    PsndDoDAC(line_sample);
+  if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
+    PicoSyncZ80(SekCycleCnt + line_sample * 488);
   if (PsndOut)
     PsndGetSamples(line_sample);
 
-  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80)) {
-    PicoSyncZ80(224*488);
+  if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80)) {
+    PicoSyncZ80(SekCycleCnt + 224 * 488);
     z80_int();
   }
-  if (ym2612.dacen && PsndDacLine <= 224)
-    PsndDoDAC(224);
   if (PsndOut)
     PsndGetSamples(224);
 
   // sync z80
-  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
-    PicoSyncZ80(Pico.m.pal ? 151809 : 127671); // cycles adjusted for converter
-  if (PsndOut && ym2612.dacen && PsndDacLine <= lines-1)
-    PsndDoDAC(lines-1);
+  if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80)) {
+    SekCycleCnt += Pico.m.pal ? 151809 : 127671; // cycles adjusted for converter
+    PicoSyncZ80(SekCycleCnt);
+  }
+  if (PsndOut && ym2612.dacen && PsndDacLine < lines)
+    PsndDoDAC(lines - 1);
+  PsndDoPSG(lines - 1);
 
   timers_cycle();
+  SekCycleAim = SekCycleCnt;
 }
 
 void PDebugCPUStep(void)

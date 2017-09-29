@@ -1679,6 +1679,7 @@ void YM2612ResetChip_(void)
 	for(i = 0x26 ; i >= 0x20 ; i-- ) OPNWriteReg(i,0);
 	/* DAC mode clear */
 	ym2612.dacen = 0;
+	ym2612.dacout = 0;
 	ym2612.addr_A1 = 0;
 }
 
