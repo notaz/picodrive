@@ -43,10 +43,16 @@ typedef struct
 	INT16	volume;		/* #0x1a envelope counter | need_save */
 	UINT32	sl;		/* #0x1c sustain level:sl_table[SL] */
 
-	UINT32	eg_pack_ar; 	/* #0x20 (attack state) */
-	UINT32	eg_pack_d1r;	/* #0x24 (decay state) */
-	UINT32	eg_pack_d2r;	/* #0x28 (sustain state) */
-	UINT32	eg_pack_rr; 	/* #0x2c (release state) */
+	/* asm relies on this order: */
+	union {
+		struct {
+			UINT32 eg_pack_rr;  /* #0x20 1 (release state) */
+			UINT32 eg_pack_d2r; /* #0x24 2 (sustain state) */
+			UINT32 eg_pack_d1r; /* #0x28 3 (decay state) */
+			UINT32 eg_pack_ar;  /* #0x2c 4 (attack state) */
+		};
+		UINT32 eg_pack[4];
+	};
 } FM_SLOT;
 
 

@@ -739,83 +739,57 @@ INLINE int advance_lfo(int lfo_ampm, UINT32 lfo_cnt_old, UINT32 lfo_cnt)
 	return lfo_ampm;
 }
 
-#define EG_INC_VAL() \
-	((1 << ((pack >> ((eg_cnt>>shift)&7)*3)&7)) >> 1)
-
-INLINE UINT32 update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt)
+INLINE void update_eg_phase(UINT16 *vol_out, FM_SLOT *SLOT, UINT32 eg_cnt)
 {
 	INT32 volume = SLOT->volume;
+	UINT32 pack = SLOT->eg_pack[SLOT->state - 1];
+	UINT32 shift = pack >> 24;
+	INT32 eg_inc_val;
 
-	switch(SLOT->state)
+	if (eg_cnt & ((1 << shift) - 1))
+		return;
+
+	eg_inc_val = pack >> ((eg_cnt >> shift) & 7) * 3;
+	eg_inc_val = (1 << (eg_inc_val & 7)) >> 1;
+
+	switch (SLOT->state)
 	{
-		case EG_ATT:		/* attack phase */
+	case EG_ATT:		/* attack phase */
+		volume += ( ~volume * eg_inc_val ) >> 4;
+		if ( volume <= MIN_ATT_INDEX )
 		{
-			UINT32 pack = SLOT->eg_pack_ar;
-			UINT32 shift = pack>>24;
-			if ( !(eg_cnt & ((1<<shift)-1) ) )
-			{
-				volume += ( ~volume * EG_INC_VAL() ) >>4;
-
-				if (volume <= MIN_ATT_INDEX)
-				{
-					volume = MIN_ATT_INDEX;
-					SLOT->state = EG_DEC;
-				}
-			}
-			break;
+			volume = MIN_ATT_INDEX;
+			SLOT->state = EG_DEC;
 		}
+		break;
 
-		case EG_DEC:	/* decay phase */
+	case EG_DEC:	/* decay phase */
+		volume += eg_inc_val;
+		if ( volume >= (INT32) SLOT->sl )
+			SLOT->state = EG_SUS;
+		break;
+
+	case EG_SUS:	/* sustain phase */
+		volume += eg_inc_val;
+		if ( volume >= MAX_ATT_INDEX )
 		{
-			UINT32 pack = SLOT->eg_pack_d1r;
-			UINT32 shift = pack>>24;
-			if ( !(eg_cnt & ((1<<shift)-1) ) )
-			{
-				volume += EG_INC_VAL();
-
-				if ( volume >= (INT32) SLOT->sl )
-					SLOT->state = EG_SUS;
-			}
-			break;
+			volume = MAX_ATT_INDEX;
+			/* do not change SLOT->state (verified on real chip) */
 		}
+		break;
 
-		case EG_SUS:	/* sustain phase */
+	case EG_REL:	/* release phase */
+		volume += eg_inc_val;
+		if ( volume >= MAX_ATT_INDEX )
 		{
-			UINT32 pack = SLOT->eg_pack_d2r;
-			UINT32 shift = pack>>24;
-			if ( !(eg_cnt & ((1<<shift)-1) ) )
-			{
-				volume += EG_INC_VAL();
-
-				if ( volume >= MAX_ATT_INDEX )
-				{
-					volume = MAX_ATT_INDEX;
-					/* do not change SLOT->state (verified on real chip) */
-				}
-			}
-			break;
+			volume = MAX_ATT_INDEX;
+			SLOT->state = EG_OFF;
 		}
-
-		case EG_REL:	/* release phase */
-		{
-			UINT32 pack = SLOT->eg_pack_rr;
-			UINT32 shift = pack>>24;
-			if ( !(eg_cnt & ((1<<shift)-1) ) )
-			{
-				volume += EG_INC_VAL();
-
-				if ( volume >= MAX_ATT_INDEX )
-				{
-					volume = MAX_ATT_INDEX;
-					SLOT->state = EG_OFF;
-				}
-			}
-			break;
-		}
+		break;
 	}
 
 	SLOT->volume = volume;
-	return SLOT->tl + ((UINT32)volume); /* tl is 7bit<<3, volume 0-1023 (0-2039 total) */
+	*vol_out = SLOT->tl + volume; /* tl is 7bit<<3, volume 0-1023 (0-2039 total) */
 }
 #endif
 
@@ -873,10 +847,10 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 			ct->eg_timer -= EG_TIMER_OVERFLOW;
 			ct->eg_cnt++;
 
-			if (ct->CH->SLOT[SLOT1].state != EG_OFF) ct->vol_out1 = update_eg_phase(&ct->CH->SLOT[SLOT1], ct->eg_cnt);
-			if (ct->CH->SLOT[SLOT2].state != EG_OFF) ct->vol_out2 = update_eg_phase(&ct->CH->SLOT[SLOT2], ct->eg_cnt);
-			if (ct->CH->SLOT[SLOT3].state != EG_OFF) ct->vol_out3 = update_eg_phase(&ct->CH->SLOT[SLOT3], ct->eg_cnt);
-			if (ct->CH->SLOT[SLOT4].state != EG_OFF) ct->vol_out4 = update_eg_phase(&ct->CH->SLOT[SLOT4], ct->eg_cnt);
+			if (ct->CH->SLOT[SLOT1].state != EG_OFF) update_eg_phase(&ct->vol_out1, &ct->CH->SLOT[SLOT1], ct->eg_cnt);
+			if (ct->CH->SLOT[SLOT2].state != EG_OFF) update_eg_phase(&ct->vol_out2, &ct->CH->SLOT[SLOT2], ct->eg_cnt);
+			if (ct->CH->SLOT[SLOT3].state != EG_OFF) update_eg_phase(&ct->vol_out3, &ct->CH->SLOT[SLOT3], ct->eg_cnt);
+			if (ct->CH->SLOT[SLOT4].state != EG_OFF) update_eg_phase(&ct->vol_out4, &ct->CH->SLOT[SLOT4], ct->eg_cnt);
 		}
 
 		if (ct->pack & 4) continue; /* output disabled */
@@ -1071,7 +1045,7 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 			} else {
 				buffer[scounter] += smp;
 			}
-			ct->algo = 8; // algo is only used in asm, here only bit3 is used
+			ct->algo |= 8;
 		}
 
 		/* update phase counters AFTER output calculations */
