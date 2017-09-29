@@ -589,6 +589,9 @@ readend:
   if (PicoAHW & PAHW_32X)
     Pico32xStateLoaded(1);
 
+  if (PicoLoadStateHook != NULL)
+    PicoLoadStateHook();
+
   // must unpack 68k and z80 after banks are set up
   if (!(PicoAHW & PAHW_SMS))
     SekUnpackCpu(buff_m68k, 0);
@@ -683,8 +686,6 @@ static int pico_state_internal(void *afile, int is_save)
       ret = state_load_legacy(afile);
     }
 
-    if (PicoLoadStateHook != NULL)
-      PicoLoadStateHook();
     Pico.m.dirtyPal = 1;
   }
 
