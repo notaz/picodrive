@@ -973,6 +973,9 @@ void emu_set_fastforward(int set_on)
 		currentConfig.EmuOpt = set_EmuOpt;
 		PsndRerate(1);
 		is_on = 0;
+		// mainly to unbreak pcm
+		if (PicoAHW & PAHW_MCD)
+			pcd_state_loaded();
 	}
 }
 
