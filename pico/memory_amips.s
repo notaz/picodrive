@@ -468,7 +468,7 @@ m_read8_vdp:
     or      $t0, $t1
     bnez    $t0, m_read_null # invalid address
     nop
-    j       PicoVideoRead8
+    j       PicoRead8_vdp
     nop
 
 m_read8_ram:

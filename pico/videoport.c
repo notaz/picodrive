@@ -563,43 +563,54 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
   return 0;
 }
 
-unsigned int PicoVideoRead8(unsigned int a)
+unsigned char PicoVideoRead8DataH(void)
 {
-  unsigned int d;
-  a&=0x1d;
+  return VideoRead() >> 8;
+}
 
-  switch (a)
-  {
-    case 0: return VideoRead() >> 8;
-    case 1: return VideoRead() & 0xff;
-    case 4: // control port/status reg
-      d = Pico.video.status >> 8;
-      if (d&1) Pico.video.status&=~0x100; // FIFO no longer full
-      Pico.video.pending = 0;
-      elprintf(EL_SR, "SR read (h): %02x @ %06x", d, SekPc);
-      return d;
-    case 5:
-      d = Pico.video.status & 0xff;
-      //if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
-      d |= ((Pico.video.reg[1]&0x40)^0x40) >> 3;  // set V-Blank if display is disabled
-      d |= (Pico.video.pending_ints&0x20)<<2;     // V-int pending?
-      if (SekCyclesDone() - line_base_cycles >= 488-88) d |= 4;    // H-Blank
-      Pico.video.pending = 0;
-      elprintf(EL_SR, "SR read (l): %02x @ %06x", d, SekPc);
-      return d;
-    case 8: // hv counter
-      elprintf(EL_HVCNT, "vcounter: %02x (%i) @ %06x", Pico.video.v_counter, SekCyclesDone(), SekPc);
-      return Pico.video.v_counter;
-    case 9:
-      d = (SekCyclesDone() - line_base_cycles) & 0x1ff; // FIXME
-      if (Pico.video.reg[12]&1)
-           d = hcounts_40[d];
-      else d = hcounts_32[d];
-      elprintf(EL_HVCNT, "hcounter: %02x (%i) @ %06x", d, SekCyclesDone(), SekPc);
-      return d;
-  }
+unsigned char PicoVideoRead8DataL(void)
+{
+  return VideoRead();
+}
 
-  return 0;
+// FIXME: broken mess
+unsigned char PicoVideoRead8CtlH(void)
+{
+  u8 d = (u8)(Pico.video.status >> 8);
+  if (d & 1)
+    Pico.video.status &= ~0x100; // FIFO no longer full
+  Pico.video.pending = 0;
+  elprintf(EL_SR, "SR read (h): %02x @ %06x", d, SekPc);
+  return d;
+}
+
+unsigned char PicoVideoRead8CtlL(void)
+{
+  u8 d = (u8)Pico.video.status;
+  //if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
+  d |= ((Pico.video.reg[1]&0x40)^0x40) >> 3;  // set V-Blank if display is disabled
+  d |= (Pico.video.pending_ints&0x20)<<2;     // V-int pending?
+  if (SekCyclesDone() - line_base_cycles >= 488-88) d |= 4;    // H-Blank
+  Pico.video.pending = 0;
+  elprintf(EL_SR, "SR read (l): %02x @ %06x", d, SekPc);
+  return d;
+}
+
+unsigned char PicoVideoRead8HV_H(void)
+{
+  elprintf(EL_HVCNT, "vcounter: %02x (%i) @ %06x", Pico.video.v_counter, SekCyclesDone(), SekPc);
+  return Pico.video.v_counter;
+}
+
+// FIXME: broken
+unsigned char PicoVideoRead8HV_L(void)
+{
+  u32 d = (SekCyclesDone() - line_base_cycles) & 0x1ff; // FIXME
+  if (Pico.video.reg[12]&1)
+       d = hcounts_40[d];
+  else d = hcounts_32[d];
+  elprintf(EL_HVCNT, "hcounter: %02x (%i) @ %06x", d, SekCyclesDone(), SekPc);
+  return d;
 }
 
 // vim:shiftwidth=2:ts=2:expandtab

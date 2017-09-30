@@ -703,10 +703,21 @@ void PicoWrite16_io(u32 a, u32 d)
 
 // VDP area (0xc00000 - 0xdfffff)
 // TODO: verify if lower byte goes to PSG on word writes
-static u32 PicoRead8_vdp(u32 a)
+u32 PicoRead8_vdp(u32 a)
 {
-  if ((a & 0x00e0) == 0x0000)
-    return PicoVideoRead8(a);
+  if ((a & 0x00f0) == 0x0000) {
+    switch (a & 0x0d)
+    {
+      case 0x00: return PicoVideoRead8DataH();
+      case 0x01: return PicoVideoRead8DataL();
+      case 0x04: return PicoVideoRead8CtlH();
+      case 0x05: return PicoVideoRead8CtlL();
+      case 0x08:
+      case 0x0c: return PicoVideoRead8HV_H();
+      case 0x09:
+      case 0x0d: return PicoVideoRead8HV_L();
+    }
+  }
 
   elprintf(EL_UIO|EL_ANOMALY, "68k bad read [%06x] @%06x", a, SekPc);
   return 0;
@@ -1184,8 +1195,19 @@ void PicoWrite16_32x(u32 a, u32 d) {}
 
 static unsigned char z80_md_vdp_read(unsigned short a)
 {
-  if ((a & 0x00e0) == 0x0000)
-    return PicoVideoRead8(a); // FIXME: depends on 68k cycles
+  if ((a & 0x00f0) == 0x0000) {
+    switch (a & 0x0d)
+    {
+      case 0x00: return PicoVideoRead8DataH();
+      case 0x01: return PicoVideoRead8DataL();
+      case 0x04: return PicoVideoRead8CtlH();
+      case 0x05: return PicoVideoRead8CtlL();
+      case 0x08:
+      case 0x0c: return get_scanline(1); // FIXME: make it proper
+      case 0x09:
+      case 0x0d: return Pico.m.rotate++;
+    }
+  }
 
   elprintf(EL_ANOMALY, "z80 invalid r8 [%06x] %02x", a, 0xff);
   return 0xff;

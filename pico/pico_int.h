@@ -793,7 +793,12 @@ void ym2612_unpack_state(void);
 extern int line_base_cycles;
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
-PICO_INTERNAL_ASM unsigned int PicoVideoRead8(unsigned int a);
+unsigned char PicoVideoRead8DataH(void);
+unsigned char PicoVideoRead8DataL(void);
+unsigned char PicoVideoRead8CtlH(void);
+unsigned char PicoVideoRead8CtlL(void);
+unsigned char PicoVideoRead8HV_H(void);
+unsigned char PicoVideoRead8HV_L(void);
 extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask);
 
 // misc.c
