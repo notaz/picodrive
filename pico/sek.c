@@ -302,7 +302,8 @@ void SekRegisterIdleHit(unsigned int pc)
 
 void SekInitIdleDet(void)
 {
-  unsigned short **tmp = realloc(idledet_ptrs, 0x200*4);
+  unsigned short **tmp;
+  tmp = realloc(idledet_ptrs, 0x200 * sizeof(tmp[0]));
   if (tmp == NULL) {
     free(idledet_ptrs);
     idledet_ptrs = NULL;
@@ -410,7 +411,8 @@ int SekRegisterIdlePatch(unsigned int pc, int oldop, int newop, void *ctx)
   }
 
   if (idledet_count >= 0x200 && (idledet_count & 0x1ff) == 0) {
-    unsigned short **tmp = realloc(idledet_ptrs, (idledet_count+0x200)*4);
+    unsigned short **tmp;
+    tmp = realloc(idledet_ptrs, (idledet_count+0x200) * sizeof(tmp[0]));
     if (tmp == NULL)
       return 1;
     idledet_ptrs = tmp;
