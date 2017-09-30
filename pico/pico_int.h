@@ -185,6 +185,7 @@ extern struct DrZ80 drZ80;
 #define z80_nmi()          drZ80.Z80IF |= 8
 
 #define z80_cyclesLeft     drZ80.cycles
+#define z80_subCLeft(c)    drZ80.cycles -= c
 #define z80_pc()           (drZ80.Z80PC - drZ80.Z80PC_BASE)
 
 #elif defined(_USE_CZ80)
@@ -196,6 +197,7 @@ extern struct DrZ80 drZ80;
 #define z80_nmi()          Cz80_Set_IRQ(&CZ80, IRQ_LINE_NMI, 0)
 
 #define z80_cyclesLeft     (CZ80.ICount - CZ80.ExtraCycles)
+#define z80_subCLeft(c)    CZ80.ICount -= c
 #define z80_pc()           Cz80_Get_Reg(&CZ80, CZ80_PC)
 
 #else

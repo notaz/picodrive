@@ -1195,6 +1195,8 @@ void PicoWrite16_32x(u32 a, u32 d) {}
 
 static unsigned char z80_md_vdp_read(unsigned short a)
 {
+  z80_subCLeft(2);
+
   if ((a & 0x00f0) == 0x0000) {
     switch (a & 0x0d)
     {
@@ -1218,8 +1220,10 @@ static unsigned char z80_md_bank_read(unsigned short a)
   unsigned int addr68k;
   unsigned char ret;
 
-  addr68k = Pico.m.z80_bank68k<<15;
-  addr68k += a & 0x7fff;
+  z80_subCLeft(3);
+
+  addr68k = Pico.m.z80_bank68k << 15;
+  addr68k |= a & 0x7fff;
 
   ret = m68k_read8(addr68k);
 
