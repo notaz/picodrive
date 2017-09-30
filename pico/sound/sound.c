@@ -19,7 +19,7 @@ void (*PsndMix_32_to_16l)(short *dest, int *src, int count) = mix_32_to_16l_ster
 // master int buffer to mix to
 static int PsndBuffer[2*(44100+100)/50];
 
-// dac
+// dac, psg
 static unsigned short dac_info[312+4]; // pos in sample buffer
 
 // cdda output buffer
@@ -30,7 +30,7 @@ int PsndRate=0;
 int PsndLen=0; // number of mono samples, multiply by 2 for stereo
 int PsndLen_exc_add=0; // this is for non-integer sample counts per line, eg. 22050/60
 int PsndLen_exc_cnt=0;
-int PsndDacLine=0;
+int PsndDacLine, PsndPsgLine;
 short *PsndOut=NULL; // PCM data buffer
 static int PsndLen_use;
 
@@ -158,7 +158,7 @@ PICO_INTERNAL void PsndStartFrame(void)
     PsndLen_use++;
   }
 
-  PsndDacLine = 0;
+  PsndDacLine = PsndPsgLine = 0;
   emustatus &= ~1;
   dac_info[224] = PsndLen_use;
 }
@@ -185,11 +185,40 @@ PICO_INTERNAL void PsndDoDAC(int line_to)
 
   if (PicoOpt & POPT_EN_STEREO) {
     short *d = PsndOut + pos*2;
-    for (; len > 0; len--, d+=2) *d = dout;
+    for (; len > 0; len--, d+=2) *d += dout;
   } else {
     short *d = PsndOut + pos;
-    for (; len > 0; len--, d++)  *d = dout;
+    for (; len > 0; len--, d++)  *d += dout;
   }
+}
+
+PICO_INTERNAL void PsndDoPSG(int line_to)
+{
+  int line_from = PsndPsgLine;
+  int pos, pos1, len;
+  int stereo = 0;
+
+  if (line_to >= 312)
+    line_to = 311;
+
+  pos  = dac_info[line_from];
+  pos1 = dac_info[line_to + 1];
+  len = pos1 - pos;
+  //elprintf(EL_STATUS, "%3d %3d %3d %3d %3d",
+  //  pos, pos1, len, line_from, line_to);
+  if (len <= 0)
+    return;
+
+  PsndPsgLine = line_to + 1;
+
+  if (!PsndOut || !(PicoOpt & POPT_EN_PSG))
+    return;
+
+  if (PicoOpt & POPT_EN_STEREO) {
+    stereo = 1;
+    pos <<= 1;
+  }
+  SN76496Update(PsndOut + pos, len, stereo);
 }
 
 // cdda
@@ -264,10 +293,6 @@ static int PsndRender(int offset, int length)
 
   pprof_start(sound);
 
-  // PSG
-  if (PicoOpt & POPT_EN_PSG)
-    SN76496Update(PsndOut+offset, length, stereo);
-
   if (PicoAHW & PAHW_PICO) {
     PicoPicoPCMUpdate(PsndOut+offset, length, stereo);
     return length;
@@ -319,6 +344,7 @@ PICO_INTERNAL void PsndGetSamples(int y)
 
   if (ym2612.dacen && PsndDacLine < y)
     PsndDoDAC(y - 1);
+  PsndDoPSG(y - 1);
 
   if (y == 224)
   {

@@ -822,10 +822,11 @@ PICO_INTERNAL_ASM void wram_1M_to_2M(unsigned char *m);
 PICO_INTERNAL void PsndReset(void);
 PICO_INTERNAL void PsndStartFrame(void);
 PICO_INTERNAL void PsndDoDAC(int line_to);
+PICO_INTERNAL void PsndDoPSG(int line_to);
 PICO_INTERNAL void PsndClear(void);
 PICO_INTERNAL void PsndGetSamples(int y);
 PICO_INTERNAL void PsndGetSamplesMS(void);
-extern int PsndDacLine;
+extern int PsndDacLine, PsndPsgLine;
 
 // sms.c
 #ifndef NO_SMS

@@ -385,6 +385,28 @@ void NOINLINE ctl_write_z80reset(u32 d)
   }
 }
 
+static int get_scanline(int is_from_z80);
+
+static void psg_write_68k(u32 d)
+{
+  // look for volume write and update if needed
+  if ((d & 0x90) == 0x90 && PsndPsgLine < Pico.m.scanline)
+    PsndDoPSG(Pico.m.scanline);
+
+  SN76496Write(d);
+}
+
+static void psg_write_z80(u32 d)
+{
+  if ((d & 0x90) == 0x90) {
+    int scanline = get_scanline(1);
+    if (PsndPsgLine < scanline)
+      PsndDoPSG(scanline);
+  }
+
+  SN76496Write(d);
+}
+
 // -----------------------------------------------------------------
 
 #ifndef _ASM_MEMORY_C
@@ -528,8 +550,7 @@ static void PicoWrite8_z80(u32 a, u32 d)
   }
   // TODO: probably other VDP access too? Maybe more mirrors?
   if ((a & 0x7ff9) == 0x7f11) { // PSG Sound
-    if (PicoOpt & POPT_EN_PSG)
-      SN76496Write(d);
+    psg_write_68k(d);
     return;
   }
   if ((a & 0x7f00) == 0x6000) // Z80 BANK register
@@ -703,8 +724,7 @@ static u32 PicoRead16_vdp(u32 a)
 static void PicoWrite8_vdp(u32 a, u32 d)
 {
   if ((a & 0x00f9) == 0x0011) { // PSG Sound
-    if (PicoOpt & POPT_EN_PSG)
-      SN76496Write(d);
+    psg_write_68k(d);
     return;
   }
   if ((a & 0x00e0) == 0x0000) {
@@ -718,11 +738,8 @@ static void PicoWrite8_vdp(u32 a, u32 d)
 
 static void PicoWrite16_vdp(u32 a, u32 d)
 {
-  if ((a & 0x00f9) == 0x0010) { // PSG Sound
-    if (PicoOpt & POPT_EN_PSG)
-      SN76496Write(d);
-    return;
-  }
+  if ((a & 0x00f9) == 0x0010) // PSG Sound
+    psg_write_68k(d);
   if ((a & 0x00e0) == 0x0000) {
     PicoVideoWrite(a, d);
     return;
@@ -1198,8 +1215,7 @@ static void z80_md_vdp_br_write(unsigned int a, unsigned char data)
 {
   if ((a&0xfff9) == 0x7f11) // 7f11 7f13 7f15 7f17
   {
-    if (PicoOpt & POPT_EN_PSG)
-      SN76496Write(data);
+    psg_write_z80(data);
     return;
   }
   // at least VDP data writes hang my machine

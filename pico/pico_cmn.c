@@ -264,6 +264,8 @@ static int PicoFrameHints(void)
     PicoSyncZ80(cycles);
   if (PsndOut && ym2612.dacen && PsndDacLine < lines)
     PsndDoDAC(lines - 1);
+  if (PsndOut && PsndPsgLine < lines)
+    PsndDoPSG(lines - 1);
 
 #ifdef PICO_CD
   if (PicoAHW & PAHW_MCD)
