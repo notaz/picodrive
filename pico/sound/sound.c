@@ -44,7 +44,7 @@ extern int *sn76496_regs;
 
 static void dac_recalculate(void)
 {
-  int i, dac_cnt, pos, len, lines = Pico.m.pal ? 312 : 262, mid = Pico.m.pal ? 68 : 93;
+  int i, dac_cnt, pos, len, lines = Pico.m.pal ? 313 : 262, mid = Pico.m.pal ? 68 : 93;
 
   if (PsndLen <= lines)
   {
@@ -169,8 +169,8 @@ PICO_INTERNAL void PsndDoDAC(int line_to)
   int dout = ym2612.dacout;
   int line_from = PsndDacLine;
 
-  if (line_to >= 312)
-    line_to = 311;
+  if (line_to >= 313)
+    line_to = 312;
 
   pos  = dac_info[line_from];
   pos1 = dac_info[line_to + 1];
@@ -198,8 +198,8 @@ PICO_INTERNAL void PsndDoPSG(int line_to)
   int pos, pos1, len;
   int stereo = 0;
 
-  if (line_to >= 312)
-    line_to = 311;
+  if (line_to >= 313)
+    line_to = 312;
 
   pos  = dac_info[line_from];
   pos1 = dac_info[line_to + 1];

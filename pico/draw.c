@@ -1553,13 +1553,14 @@ void PicoDrawSync(int to, int blank_last_line)
 
   pprof_start(draw);
 
-  if (rendlines != 240)
+  if (rendlines != 240) {
     offs = 8;
+    if (to > 223)
+      to = 223;
+  }
 
   for (line = Pico.est.DrawScanline; line < to; line++)
-  {
     PicoLine(line, offs, sh, bgc);
-  }
 
   // last line
   if (line <= to)

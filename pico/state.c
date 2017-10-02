@@ -687,6 +687,7 @@ static int pico_state_internal(void *afile, int is_save)
     }
 
     Pico.m.dirtyPal = 1;
+    Pico.video.status &= ~(SR_VB | SR_F);
   }
 
   return ret;

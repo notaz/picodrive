@@ -146,7 +146,7 @@ static void pcd_set_cycle_mult(void)
 {
   // ~1.63 for NTSC, ~1.645 for PAL
   if (Pico.m.pal)
-    mcd_m68k_cycle_mult = ((12500000ull << 16) / (50*312*488));
+    mcd_m68k_cycle_mult = ((12500000ull << 16) / (50*313*488));
   else
     mcd_m68k_cycle_mult = ((12500000ull << 16) / (60*262*488)) + 1;
 }

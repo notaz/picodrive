@@ -358,7 +358,7 @@ void PDebugZ80Frame(void)
     return;
 
   if (Pico.m.pal) {
-    lines = 312;
+    lines = 313;
     line_sample = 68;
   } else {
     lines = 262;

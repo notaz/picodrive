@@ -22,7 +22,6 @@ int PicoAutoRgnOrder;
 
 struct PicoSRAM SRam;
 int emustatus;         // rapid_ym2612, multi_ym_updates
-int scanlines_total;
 
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
@@ -227,29 +226,24 @@ void PicoLoopPrepare(void)
     // force setting possibly changed..
     Pico.m.pal = (PicoRegionOverride == 2 || PicoRegionOverride == 8) ? 1 : 0;
 
-  // FIXME: PAL has 313 scanlines..
-  scanlines_total = Pico.m.pal ? 312 : 262;
-
   Pico.m.dirtyPal = 1;
   rendstatus_old = -1;
 }
 
-
-// dma2vram settings are just hacks to unglitch Legend of Galahad (needs <= 104 to work)
-// same for Outrunners (92-121, when active is set to 24)
-// 96 is VR hack
+// this table is wrong and should be removed
+// keeping it for now to compensate wrong timing elswhere, mainly for Outrunners
 static const int dma_timings[] = {
-  167, 167, 166,  83, // vblank: 32cell: dma2vram dma2[vs|c]ram vram_fill vram_copy
-  102, 205, 204, 102, // vblank: 40cell:
-  16,   16,  15,   8, // active: 32cell:
-  24,   18,  17,   9  // ...
+   83, 166,  83,  83, // vblank: 32cell: dma2vram dma2[vs|c]ram vram_fill vram_copy
+  102, 204, 102, 102, // vblank: 40cell:
+    8,  16,   8,   8, // active: 32cell:
+   17,  18,   9,   9  // ...
 };
 
 static const int dma_bsycles[] = {
-  (488<<8)/167, (488<<8)/167, (488<<8)/166, (488<<8)/83,
-  (488<<8)/102, (488<<8)/233, (488<<8)/204, (488<<8)/102,
-  (488<<8)/16,  (488<<8)/16,  (488<<8)/15,  (488<<8)/8,
-  (488<<8)/24,  (488<<8)/18,  (488<<8)/17,  (488<<8)/9
+  (488<<8)/83,  (488<<8)/166, (488<<8)/83,  (488<<8)/83,
+  (488<<8)/102, (488<<8)/204, (488<<8)/102, (488<<8)/102,
+  (488<<8)/8,   (488<<8)/16,  (488<<8)/8,   (488<<8)/8,
+  (488<<8)/9,   (488<<8)/18,  (488<<8)/9,   (488<<8)/9
 };
 
 // grossly inaccurate.. FIXME FIXXXMEE
@@ -304,8 +298,8 @@ PICO_INTERNAL void PicoSyncZ80(unsigned int m68k_cycles_done)
   pprof_start(z80);
 
   elprintf(EL_BUSREQ, "z80 sync %i (%u|%u -> %u|%u)", cnt,
-    z80_cycle_cnt, z80_cycle_cnt / 288,
-    z80_cycle_aim, z80_cycle_aim / 288);
+    z80_cycle_cnt, z80_cycle_cnt / 228,
+    z80_cycle_aim, z80_cycle_aim / 228);
 
   if (cnt > 0)
     z80_cycle_cnt += z80_run(cnt);

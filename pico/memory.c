@@ -539,7 +539,6 @@ static void PicoWrite8_z80(u32 a, u32 d)
   }
 
   if ((a & 0x4000) == 0x0000) { // z80 RAM
-    SekCyclesBurnRun(2); // FIXME hack
     Pico.zram[a & 0x1fff] = (u8)d;
     return;
   }

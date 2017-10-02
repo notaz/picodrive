@@ -8,7 +8,6 @@
 
 #define CYCLES_M68K_LINE     488 // suitable for both PAL/NTSC
 #define CYCLES_M68K_VINT_LAG  68
-#define CYCLES_M68K_ASD      148
 
 // pad delay (for 6 button pads)
 #define PAD_DELAY() { \
@@ -53,13 +52,28 @@ static void SekSyncM68k(void)
 static inline void SekRunM68k(int cyc)
 {
   SekCycleAim += cyc;
+  cyc = SekCycleAim - SekCycleCnt;
+  if (cyc <= 0)
+    return;
+  SekCycleCnt += cyc >> 6; // refresh slowdowns
   SekSyncM68k();
+}
+
+static void do_hint(struct PicoVideo *pv)
+{
+  pv->pending_ints |= 0x10;
+  if (pv->reg[0] & 0x10) {
+    elprintf(EL_INTS, "hint: @ %06x [%u]", SekPc, SekCyclesDone());
+    SekInterrupt(4);
+  }
 }
 
 static int PicoFrameHints(void)
 {
-  struct PicoVideo *pv=&Pico.video;
-  int lines, y, lines_vis = 224, line_sample, skip, vcnt_wrap;
+  struct PicoVideo *pv = &Pico.video;
+  int line_sample = Pico.m.pal ? 68 : 93;
+  int lines, y, lines_vis, skip;
+  int vcnt_wrap, vcnt_adj;
   unsigned int cycles;
   int hint; // Hint counter
 
@@ -77,25 +91,15 @@ static int PicoFrameHints(void)
   }
   else skip=PicoSkipFrame;
 
-  if (Pico.m.pal) {
-    line_sample = 68;
-    if (pv->reg[1]&8) lines_vis = 240;
-  } else {
-    line_sample = 93;
-  }
-
   z80_resetCycles();
   PsndStartFrame();
 
-  pv->status&=~0x88; // clear V-Int, come out of vblank
+  // Load H-Int counter
+  hint = (pv->status & PVS_ACTIVE) ? pv->hint_cnt : pv->reg[10];
 
-  hint=pv->reg[10]; // Load H-Int counter
-  //dprintf("-hint: %i", hint);
+  pv->status |= PVS_ACTIVE;
 
-  // This is to make active scan longer (needed for Double Dragon 2, mainly)
-  CPUS_RUN(CYCLES_M68K_ASD);
-
-  for (y = 0; y < lines_vis; y++)
+  for (y = 0; ; y++)
   {
     pv->v_counter = Pico.m.scanline = y;
     if ((pv->reg[12]&6) == 6) { // interlace mode 2
@@ -104,24 +108,23 @@ static int PicoFrameHints(void)
       pv->v_counter &= 0xff;
     }
 
+    if ((y == 224 && !(pv->reg[1] & 8)) || y == 240)
+      break;
+
     // VDP FIFO
     pv->lwrite_cnt -= 12;
     if (pv->lwrite_cnt <= 0) {
-      pv->lwrite_cnt=0;
-      Pico.video.status|=0x200;
+      pv->lwrite_cnt = 0;
+      Pico.video.status |= SR_EMPT;
     }
 
     PAD_DELAY();
 
     // H-Interrupts:
-    if (--hint < 0) // y <= lines_vis: Comix Zone, Golden Axe
+    if (--hint < 0)
     {
-      hint=pv->reg[10]; // Reload H-Int counter
-      pv->pending_ints|=0x10;
-      if (pv->reg[0]&0x10) {
-        elprintf(EL_INTS, "hint: @ %06x [%i]", SekPc, SekCyclesDone());
-        SekInterrupt(4);
-      }
+      hint = pv->reg[10]; // Reload H-Int counter
+      do_hint(pv);
     }
 
     // decide if we draw this line
@@ -163,6 +166,10 @@ static int PicoFrameHints(void)
     pevt_log_m68k_o(EVT_NEXT_LINE);
   }
 
+  lines_vis = (pv->reg[1] & 8) ? 240 : 224;
+  if (y == lines_vis)
+    pv->status &= ~PVS_ACTIVE;
+
   if (!skip)
   {
     if (Pico.est.DrawScanline < y)
@@ -172,29 +179,22 @@ static int PicoFrameHints(void)
 #endif
   }
 
-  // V-int line (224 or 240)
-  Pico.m.scanline = y;
-  pv->v_counter = 0xe0; // bad for 240 mode
-  if ((pv->reg[12]&6) == 6) pv->v_counter = 0xc1;
-
   // VDP FIFO
-  pv->lwrite_cnt=0;
-  Pico.video.status|=0x200;
+  pv->lwrite_cnt = 0;
+  Pico.video.status |= SR_EMPT;
 
   memcpy(PicoPadInt, PicoPad, sizeof(PicoPadInt));
   PAD_DELAY();
 
-  // Last H-Int:
+  // Last H-Int (normally):
   if (--hint < 0)
   {
-    hint=pv->reg[10]; // Reload H-Int counter
-    pv->pending_ints|=0x10;
-    //printf("rhint: %i @ %06x [%i|%i]\n", hint, SekPc, y, SekCyclesDone());
-    if (pv->reg[0]&0x10) SekInterrupt(4);
+    hint = pv->reg[10]; // Reload H-Int counter
+    do_hint(pv);
   }
 
-  pv->status|=0x08; // go into vblank
-  pv->pending_ints|=0x20;
+  pv->status |= SR_VB; // go into vblank
+  pv->pending_ints |= 0x20;
 
   // the following SekRun is there for several reasons:
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
@@ -204,8 +204,8 @@ static int PicoFrameHints(void)
   if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
-  if (pv->reg[1]&0x20) {
-    elprintf(EL_INTS, "vint: @ %06x [%i]", SekPc, SekCyclesDone());
+  if (pv->reg[1] & 0x20) {
+    elprintf(EL_INTS, "vint: @ %06x [%u]", SekPc, SekCyclesDone());
     SekInterrupt(6);
   }
 
@@ -230,24 +230,38 @@ static int PicoFrameHints(void)
     PsndGetSamples(y);
 
   // Run scanline:
-  CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG - CYCLES_M68K_ASD);
+  CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG);
 
   if (PicoLineHook) PicoLineHook();
   pevt_log_m68k_o(EVT_NEXT_LINE);
 
-  lines = scanlines_total;
-  vcnt_wrap = Pico.m.pal ? 0x103 : 0xEB; // based on Gens, TODO: verify
+  if (Pico.m.pal) {
+    lines = 313;
+    vcnt_wrap = 0x103;
+    vcnt_adj = 57;
+  }
+  else {
+    lines = 262;
+    vcnt_wrap = 0xEB;
+    vcnt_adj = 6;
+  }
 
-  for (y++; y < lines; y++)
+  for (y++; y < lines - 1; y++)
   {
     pv->v_counter = Pico.m.scanline = y;
     if (y >= vcnt_wrap)
-      pv->v_counter -= Pico.m.pal ? 56 : 6;
+      pv->v_counter -= vcnt_adj;
     if ((pv->reg[12]&6) == 6)
       pv->v_counter = (pv->v_counter << 1) | 1;
     pv->v_counter &= 0xff;
 
     PAD_DELAY();
+
+    if ((pv->status & PVS_ACTIVE) && --hint < 0)
+    {
+      hint = pv->reg[10]; // Reload H-Int counter
+      do_hint(pv);
+    }
 
     // Run scanline:
     line_base_cycles = SekCyclesDone();
@@ -257,6 +271,28 @@ static int PicoFrameHints(void)
     if (PicoLineHook) PicoLineHook();
     pevt_log_m68k_o(EVT_NEXT_LINE);
   }
+
+  pv->status &= ~SR_VB;
+
+  // last scanline
+  Pico.m.scanline = y;
+  pv->v_counter = 0xff;
+
+  PAD_DELAY();
+
+  if ((pv->status & PVS_ACTIVE) && --hint < 0)
+  {
+    hint = pv->reg[10]; // Reload H-Int counter
+    do_hint(pv);
+  }
+
+  // Run scanline:
+  line_base_cycles = SekCyclesDone();
+  if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
+  CPUS_RUN(CYCLES_M68K_LINE);
+
+  if (PicoLineHook) PicoLineHook();
+  pevt_log_m68k_o(EVT_NEXT_LINE);
 
   // sync cpus
   cycles = SekCyclesDone();
@@ -275,6 +311,8 @@ static int PicoFrameHints(void)
   p32x_sync_sh2s(cycles);
 #endif
   timers_cycle();
+
+  pv->hint_cnt = hint;
 
   return 0;
 }

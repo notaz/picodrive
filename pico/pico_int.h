@@ -283,6 +283,7 @@ extern SH2 sh2s[2];
 #define OSC_NTSC 53693100
 #define OSC_PAL  53203424
 
+// PicoVideo.debug_p
 #define PVD_KILL_A    (1 << 0)
 #define PVD_KILL_B    (1 << 1)
 #define PVD_KILL_S_LO (1 << 2)
@@ -292,6 +293,20 @@ extern SH2 sh2s[2];
 #define PVD_FORCE_B   (1 << 6)
 #define PVD_FORCE_S   (1 << 7)
 
+// PicoVideo.status, not part of real SR
+#define SR_PAL        (1 << 0)
+#define SR_DMA        (1 << 1)
+#define SR_HB         (1 << 2)
+#define SR_VB         (1 << 3)
+#define SR_ODD        (1 << 4)
+#define SR_C          (1 << 5)
+#define SR_SOVR       (1 << 6)
+#define SR_F          (1 << 7)
+#define SR_FULL       (1 << 8)
+#define SR_EMPT       (1 << 9)
+// not part of real SR
+#define PVS_ACTIVE    (1 << 16)
+
 struct PicoVideo
 {
   unsigned char reg[0x20];
@@ -299,14 +314,15 @@ struct PicoVideo
   unsigned char pending;      // 1 if waiting for second half of 32-bit command
   unsigned char type;         // Command type (v/c/vsram read/write)
   unsigned short addr;        // Read/Write address
-  int status;                 // Status bits
+  unsigned int status;        // Status bits (SR) and extra flags
   unsigned char pending_ints; // pending interrupts: ??VH????
   signed char lwrite_cnt;     // VDP write count during active display line
   unsigned short v_counter;   // V-counter
   unsigned short debug;       // raw debug register
   unsigned char debug_p;      // ... parsed: PVD_*
-  unsigned char addr_u;
-  unsigned char pad[0x0c];
+  unsigned char addr_u;       // bit16 of .addr
+  unsigned char hint_cnt;
+  unsigned char pad[0x0b];
 };
 
 struct PicoMisc
@@ -684,7 +700,6 @@ extern struct Pico Pico;
 extern struct PicoSRAM SRam;
 extern int PicoPadInt[2];
 extern int emustatus;
-extern int scanlines_total;
 extern void (*PicoResetHook)(void);
 extern void (*PicoLineHook)(void);
 PICO_INTERNAL int  CheckDMA(void);
