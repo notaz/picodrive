@@ -312,6 +312,7 @@ me_bind_action emuctrl_actions[] =
 	{ "Volume Down      ", PEV_VOL_DOWN },
 	{ "Volume Up        ", PEV_VOL_UP },
 	{ "Fast forward     ", PEV_FF },
+	{ "Reset Game       ", PEV_RESET },
 	{ "Enter Menu       ", PEV_MENU },
 	{ "Pico Next page   ", PEV_PICO_PNEXT },
 	{ "Pico Prev page   ", PEV_PICO_PPREV },

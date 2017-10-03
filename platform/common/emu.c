@@ -1141,6 +1141,8 @@ static void run_events_ui(unsigned int which)
 		emu_status_msg("SAVE SLOT %i [%s]", state_slot,
 			emu_check_save_file(state_slot, NULL) ? "USED" : "FREE");
 	}
+	if (which & PEV_RESET)
+		emu_reset_game();
 	if (which & PEV_MENU)
 		engineState = PGS_Menu;
 }

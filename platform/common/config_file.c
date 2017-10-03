@@ -417,7 +417,7 @@ static void keys_parse_all(FILE *f)
 		acts = parse_bind_val(val, &type);
 		if (acts == -1) {
 			lprintf("config: unhandled action \"%s\"\n", val);
-			return;
+			continue;
 		}
 
 		mystrip(var + 5);
