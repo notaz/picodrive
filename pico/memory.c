@@ -331,11 +331,10 @@ NOINLINE void io_ports_write(u32 a, u32 d)
   Pico.ioports[a] = d;
 }
 
-// lame..
 static int z80_cycles_from_68k(void)
 {
-  return z80_cycle_aim
-    + cycles_68k_to_z80(SekCyclesDone() - last_z80_sync);
+  int m68k_cnt = SekCyclesDone() - timing.m68c_frame_start;
+  return cycles_68k_to_z80(m68k_cnt);
 }
 
 void NOINLINE ctl_write_z80busreq(u32 d)
@@ -346,7 +345,7 @@ void NOINLINE ctl_write_z80busreq(u32 d)
   {
     if (d)
     {
-      z80_cycle_cnt = z80_cycles_from_68k();
+      timing.z80c_cnt = z80_cycles_from_68k() + 2;
     }
     else
     {
@@ -378,7 +377,7 @@ void NOINLINE ctl_write_z80reset(u32 d)
     }
     else
     {
-      z80_cycle_cnt = z80_cycles_from_68k();
+      timing.z80c_cnt = z80_cycles_from_68k() + 2;
       z80_reset();
     }
     Pico.m.z80_reset = d;
@@ -896,10 +895,11 @@ static void m68k_mem_setup(void)
 static int get_scanline(int is_from_z80)
 {
   if (is_from_z80) {
-    int cycles = z80_cyclesDone();
-    while (cycles - z80_scanline_cycles >= 228)
-      z80_scanline++, z80_scanline_cycles += 228;
-    return z80_scanline;
+    int mclk_z80 = z80_cyclesDone() * 15;
+    int mclk_line = timing.z80_scanline * 488 * 7;
+    while (mclk_z80 - mclk_line >= 488 * 7)
+      timing.z80_scanline++, mclk_line += 488 * 7;
+    return timing.z80_scanline;
   }
 
   return Pico.m.scanline;

@@ -211,20 +211,13 @@ extern struct DrZ80 drZ80;
 
 #define Z80_STATE_SIZE 0x60
 
-extern unsigned int last_z80_sync;
-extern int z80_cycle_cnt;        /* 'done' z80 cycles before z80_run() */
-extern int z80_cycle_aim;
-extern int z80_scanline;
-extern int z80_scanline_cycles;  /* cycles done until z80_scanline */
-
 #define z80_resetCycles() \
-  last_z80_sync = SekCyclesDone(); \
-  z80_cycle_cnt = z80_cycle_aim = z80_scanline = z80_scanline_cycles = 0;
+  timing.z80c_cnt = timing.z80c_aim = timing.z80_scanline = 0
 
 #define z80_cyclesDone() \
-  (z80_cycle_aim - z80_cyclesLeft)
+  (timing.z80c_aim - z80_cyclesLeft)
 
-#define cycles_68k_to_z80(x) ((x)*957 >> 11)
+#define cycles_68k_to_z80(x) ((x) * 3823 >> 13)
 
 // ----------------------- SH2 CPU -----------------------
 
@@ -598,6 +591,15 @@ struct Pico32xMem
   signed short   pwm_current[2];        // current converted samples
   unsigned short pwm_fifo[2][4];        // [0] - current raw, others - fifo entries
 };
+
+struct PicoTiming
+{
+  unsigned int m68c_frame_start;        // m68k cycles
+  unsigned int z80c_cnt;                // z80 cycles done (this frame)
+  unsigned int z80c_aim;
+  int z80_scanline;
+};
+extern struct PicoTiming timing;
 
 // area.c
 extern void (*PicoLoadStateHook)(void);
@@ -1092,3 +1094,4 @@ void pevt_dump(void);
 
 #endif // PICO_INTERNAL_INCLUDED
 
+// vim:shiftwidth=2:ts=2:expandtab

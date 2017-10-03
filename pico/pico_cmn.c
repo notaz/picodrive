@@ -78,7 +78,6 @@ static int PicoFrameHints(void)
   int hint; // Hint counter
 
   pevt_log_m68k_o(EVT_FRAME_START);
-  pv->v_counter = Pico.m.scanline = 0;
 
   if ((PicoOpt&POPT_ALT_RENDERER) && !PicoSkipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
     // draw a frame just after vblank in alternative render mode
@@ -91,6 +90,8 @@ static int PicoFrameHints(void)
   }
   else skip=PicoSkipFrame;
 
+  timing.m68c_frame_start = SekCyclesDone();
+  pv->v_counter = Pico.m.scanline = 0;
   z80_resetCycles();
   PsndStartFrame();
 

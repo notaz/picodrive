@@ -23,6 +23,8 @@ int PicoAutoRgnOrder;
 struct PicoSRAM SRam;
 int emustatus;         // rapid_ym2612, multi_ym_updates
 
+struct PicoTiming timing;
+
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
 void (*PicoLineHook)(void) = NULL;
@@ -278,31 +280,24 @@ PICO_INTERNAL int CheckDMA(void)
 
 #include "pico_cmn.c"
 
-unsigned int last_z80_sync; /* in 68k cycles */
-int z80_cycle_cnt;
-int z80_cycle_aim;
-int z80_scanline;
-int z80_scanline_cycles;  /* cycles done until z80_scanline */
-
 /* sync z80 to 68k */
 PICO_INTERNAL void PicoSyncZ80(unsigned int m68k_cycles_done)
 {
   int m68k_cnt;
   int cnt;
 
-  m68k_cnt = m68k_cycles_done - last_z80_sync;
-  z80_cycle_aim += cycles_68k_to_z80(m68k_cnt);
-  cnt = z80_cycle_aim - z80_cycle_cnt;
-  last_z80_sync = m68k_cycles_done;
+  m68k_cnt = m68k_cycles_done - timing.m68c_frame_start;
+  timing.z80c_aim = cycles_68k_to_z80(m68k_cnt);
+  cnt = timing.z80c_aim - timing.z80c_cnt;
 
   pprof_start(z80);
 
   elprintf(EL_BUSREQ, "z80 sync %i (%u|%u -> %u|%u)", cnt,
-    z80_cycle_cnt, z80_cycle_cnt / 228,
-    z80_cycle_aim, z80_cycle_aim / 228);
+    timing.z80c_cnt, timing.z80c_cnt * 15 / 7 / 488,
+    timing.z80c_aim, timing.z80c_aim * 15 / 7 / 488);
 
   if (cnt > 0)
-    z80_cycle_cnt += z80_run(cnt);
+    timing.z80c_cnt += z80_run(cnt);
 
   pprof_end(z80);
 }
