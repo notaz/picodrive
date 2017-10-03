@@ -68,10 +68,28 @@ static void do_hint(struct PicoVideo *pv)
   }
 }
 
+static void do_timing_hacks_as(struct PicoVideo *pv, int vdp_slots)
+{
+  pv->lwrite_cnt += vdp_slots - Pico.m.dma_xfers * 2; // wrong *2
+  if (pv->lwrite_cnt > vdp_slots)
+    pv->lwrite_cnt = vdp_slots;
+  else if (pv->lwrite_cnt < 0)
+    pv->lwrite_cnt = 0;
+  if (Pico.m.dma_xfers)
+    SekCyclesBurn(CheckDMA());
+}
+
+static void do_timing_hacks_vb(void)
+{
+  if (Pico.m.dma_xfers)
+    SekCyclesBurn(CheckDMA());
+}
+
 static int PicoFrameHints(void)
 {
   struct PicoVideo *pv = &Pico.video;
   int line_sample = Pico.m.pal ? 68 : 93;
+  int vdp_slots = (Pico.video.reg[12] & 1) ? 18 : 16;
   int lines, y, lines_vis, skip;
   int vcnt_wrap, vcnt_adj;
   unsigned int cycles;
@@ -111,13 +129,6 @@ static int PicoFrameHints(void)
 
     if ((y == 224 && !(pv->reg[1] & 8)) || y == 240)
       break;
-
-    // VDP FIFO
-    pv->lwrite_cnt -= 12;
-    if (pv->lwrite_cnt <= 0) {
-      pv->lwrite_cnt = 0;
-      Pico.video.status |= SR_EMPT;
-    }
 
     PAD_DELAY();
 
@@ -160,7 +171,7 @@ static int PicoFrameHints(void)
 
     // Run scanline:
     line_base_cycles = SekCyclesDone();
-    if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
+    do_timing_hacks_as(pv, vdp_slots);
     CPUS_RUN(CYCLES_M68K_LINE);
 
     if (PicoLineHook) PicoLineHook();
@@ -202,7 +213,7 @@ static int PicoFrameHints(void)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
   line_base_cycles = SekCyclesDone();
-  if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
+  do_timing_hacks_vb();
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
   if (pv->reg[1] & 0x20) {
@@ -266,7 +277,7 @@ static int PicoFrameHints(void)
 
     // Run scanline:
     line_base_cycles = SekCyclesDone();
-    if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
+    do_timing_hacks_vb();
     CPUS_RUN(CYCLES_M68K_LINE);
 
     if (PicoLineHook) PicoLineHook();
@@ -278,6 +289,7 @@ static int PicoFrameHints(void)
   // last scanline
   Pico.m.scanline = y;
   pv->v_counter = 0xff;
+  pv->lwrite_cnt = 0;
 
   PAD_DELAY();
 
@@ -289,7 +301,7 @@ static int PicoFrameHints(void)
 
   // Run scanline:
   line_base_cycles = SekCyclesDone();
-  if (Pico.m.dma_xfers) SekCyclesBurn(CheckDMA());
+  do_timing_hacks_as(pv, vdp_slots);
   CPUS_RUN(CYCLES_M68K_LINE);
 
   if (PicoLineHook) PicoLineHook();

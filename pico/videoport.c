@@ -377,14 +377,12 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
     }
 
     // preliminary FIFO emulation for Chaos Engine, The (E)
-    if (!(pvid->status&8) && (pvid->reg[1]&0x40) && !(PicoOpt&POPT_DIS_VDP_FIFO)) // active display?
+    if (!(pvid->status & SR_VB) && (pvid->reg[1] & 0x40) && !(PicoOpt&POPT_DIS_VDP_FIFO)) // active display?
     {
-      pvid->status&=~0x200; // FIFO no longer empty
-      pvid->lwrite_cnt++;
-      if (pvid->lwrite_cnt >= 4) pvid->status|=0x100; // FIFO full
-      if (pvid->lwrite_cnt >  4) {
-        SekCyclesBurnRun(32); // penalty // 488/12-8
-      }
+      int use = pvid->type == 1 ? 2 : 1;
+      pvid->lwrite_cnt -= use;
+      if (pvid->lwrite_cnt < 0)
+        SekCyclesLeft = 0;
       elprintf(EL_ASVDP, "VDP data write: %04x [%06x] {%i} #%i @ %06x", d, Pico.video.addr,
                Pico.video.type, pvid->lwrite_cnt, SekPc);
     }
