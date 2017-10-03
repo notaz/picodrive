@@ -223,7 +223,7 @@ static void DmaCopy(int len)
   unsigned char *vr = (unsigned char *) Pico.vram;
   unsigned char inc=Pico.video.reg[0xf];
   int source;
-  elprintf(EL_VDPDMA, "DmaCopy len %i [%i]", len, SekCyclesDone());
+  elprintf(EL_VDPDMA, "DmaCopy len %i [%u]", len, SekCyclesDone());
 
   Pico.m.dma_xfers += len;
   if (Pico.m.dma_xfers < len)
@@ -254,7 +254,7 @@ static NOINLINE void DmaFill(int data)
   int len, l;
 
   len = GetDmaLength();
-  elprintf(EL_VDPDMA, "DmaFill len %i inc %i [%i]", len, inc, SekCyclesDone());
+  elprintf(EL_VDPDMA, "DmaFill len %i inc %i [%u]", len, inc, SekCyclesDone());
 
   Pico.m.dma_xfers += len;
   if (Pico.m.dma_xfers < len) // lame 16bit var
@@ -430,11 +430,11 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
         switch (num)
         {
           case 0x00:
-            elprintf(EL_INTSW, "hint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x10)>>4,
+            elprintf(EL_INTSW, "hint_onoff: %i->%i [%u] pend=%i @ %06x", (dold&0x10)>>4,
                     (d&0x10)>>4, SekCyclesDone(), (pvid->pending_ints&0x10)>>4, SekPc);
             goto update_irq;
           case 0x01:
-            elprintf(EL_INTSW, "vint_onoff: %i->%i [%i] pend=%i @ %06x", (dold&0x20)>>5,
+            elprintf(EL_INTSW, "vint_onoff: %i->%i [%u] pend=%i @ %06x", (dold&0x20)>>5,
                     (d&0x20)>>5, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
             goto update_irq;
           case 0x05:
@@ -551,7 +551,7 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
          d = hcounts_40[d];
     else d = hcounts_32[d];
 
-    elprintf(EL_HVCNT, "hv: %02x %02x (%i) @ %06x", d, Pico.video.v_counter, SekCyclesDone(), SekPc);
+    elprintf(EL_HVCNT, "hv: %02x %02x [%u] @ %06x", d, Pico.video.v_counter, SekCyclesDone(), SekPc);
     return d | (Pico.video.v_counter << 8);
   }
 
@@ -598,7 +598,7 @@ unsigned char PicoVideoRead8CtlL(void)
 
 unsigned char PicoVideoRead8HV_H(void)
 {
-  elprintf(EL_HVCNT, "vcounter: %02x (%i) @ %06x", Pico.video.v_counter, SekCyclesDone(), SekPc);
+  elprintf(EL_HVCNT, "vcounter: %02x [%u] @ %06x", Pico.video.v_counter, SekCyclesDone(), SekPc);
   return Pico.video.v_counter;
 }
 
@@ -609,7 +609,7 @@ unsigned char PicoVideoRead8HV_L(void)
   if (Pico.video.reg[12]&1)
        d = hcounts_40[d];
   else d = hcounts_32[d];
-  elprintf(EL_HVCNT, "hcounter: %02x (%i) @ %06x", d, SekCyclesDone(), SekPc);
+  elprintf(EL_HVCNT, "hcounter: %02x [%u] @ %06x", d, SekCyclesDone(), SekPc);
   return d;
 }
 

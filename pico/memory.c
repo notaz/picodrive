@@ -341,7 +341,7 @@ static int z80_cycles_from_68k(void)
 void NOINLINE ctl_write_z80busreq(u32 d)
 {
   d&=1; d^=1;
-  elprintf(EL_BUSREQ, "set_zrun: %i->%i [%i] @%06x", Pico.m.z80Run, d, SekCyclesDone(), SekPc);
+  elprintf(EL_BUSREQ, "set_zrun: %i->%i [%u] @%06x", Pico.m.z80Run, d, SekCyclesDone(), SekPc);
   if (d ^ Pico.m.z80Run)
   {
     if (d)
@@ -363,7 +363,7 @@ void NOINLINE ctl_write_z80busreq(u32 d)
 void NOINLINE ctl_write_z80reset(u32 d)
 {
   d&=1; d^=1;
-  elprintf(EL_BUSREQ, "set_zreset: %i->%i [%i] @%06x", Pico.m.z80_reset, d, SekCyclesDone(), SekPc);
+  elprintf(EL_BUSREQ, "set_zreset: %i->%i [%u] @%06x", Pico.m.z80_reset, d, SekCyclesDone(), SekPc);
   if (d ^ Pico.m.z80_reset)
   {
     if (d)
@@ -593,7 +593,7 @@ u32 PicoRead8_io(u32 a)
 
     if ((a & 0xff01) == 0x1100) { // z80 busreq (verified)
       d |= (Pico.m.z80Run | Pico.m.z80_reset) & 1;
-      elprintf(EL_BUSREQ, "get_zrun: %02x [%i] @%06x", d, SekCyclesDone(), SekPc);
+      elprintf(EL_BUSREQ, "get_zrun: %02x [%u] @%06x", d, SekCyclesDone(), SekPc);
     }
     goto end;
   }
@@ -628,7 +628,7 @@ u32 PicoRead16_io(u32 a)
 
     if ((a & 0xff00) == 0x1100) { // z80 busreq
       d |= ((Pico.m.z80Run | Pico.m.z80_reset) & 1) << 8;
-      elprintf(EL_BUSREQ, "get_zrun: %04x [%i] @%06x", d, SekCyclesDone(), SekPc);
+      elprintf(EL_BUSREQ, "get_zrun: %04x [%u] @%06x", d, SekCyclesDone(), SekPc);
     }
     goto end;
   }

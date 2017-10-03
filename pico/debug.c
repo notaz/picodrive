@@ -8,6 +8,7 @@
 
 #include "pico_int.h"
 #include "sound/ym2612.h"
+#include "memory.h"
 #include "debug.h"
 
 #define bit(r, x) ((r>>x)&1)
@@ -42,7 +43,7 @@ char *PDebugMain(void)
     !!(SRam.flags & SRF_ENABLED), !!(SRam.flags & SRF_EEPROM), SRam.eeprom_type); MVP;
   sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); MVP;
   sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status); MVP;
-  sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i, cycles: %i\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count, SekCyclesDone()); MVP;
+  sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i, cycles: %u\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count, SekCyclesDone()); MVP;
   sprintf(dstrp, "M68k: PC: %06x, SR: %04x, irql: %i\n", SekPc, SekSr, SekIrqLevel); MVP;
   for (r = 0; r < 8; r++) {
     sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, SekDar(r), r, SekDar(r+8)); MVP;
@@ -279,7 +280,7 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
   pvid->debug_p = olddbg;
 }
 
-#define dump_ram(ram,fname) \
+#define dump_ram_m(ram,fname,mode) \
 { \
   unsigned short *sram = (unsigned short *) ram; \
   FILE *f; \
@@ -287,7 +288,7 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
 \
   for (i = 0; i < sizeof(ram)/2; i++) \
     sram[i] = (sram[i]<<8) | (sram[i]>>8); \
-  f = fopen(fname, "wb"); \
+  f = fopen(fname, mode); \
   if (f) { \
     fwrite(ram, 1, sizeof(ram), f); \
     fclose(f); \
@@ -295,6 +296,9 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
   for (i = 0; i < sizeof(ram)/2; i++) \
     sram[i] = (sram[i]<<8) | (sram[i]>>8); \
 }
+
+#define dump_ram(ram,fname) \
+  dump_ram_m(ram,fname,"wb")
 
 #define dump_ram_noswab(ram,fname) \
 { \
@@ -308,6 +312,19 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
 
 void PDebugDumpMem(void)
 {
+#if 0
+  char buf[1 << M68K_MEM_SHIFT];
+  unsigned int a;
+  for (a = 0; ; a++) {
+    uptr v = m68k_read16_map[a];
+    if (map_flag_set(v))
+      break;
+    v <<= 1;
+    v += a << M68K_MEM_SHIFT;
+    memcpy(buf, (void *)v, sizeof(buf));
+    dump_ram_m(buf, "dumps/cart.bin", a ? "ab" : "wb");
+  }
+#endif
   dump_ram_noswab(Pico.zram, "dumps/zram.bin");
   dump_ram(Pico.cram, "dumps/cram.bin");
 
