@@ -33,7 +33,7 @@
   </licenses>
  
   <version major="@major@" minor="@minor@" release="0" build="@build@"/>
-  <info name="PicoDrive @major@.@minor@ readme" type="text/plain" src="readme.txt"/>
+  <info name="PicoDrive @major@.@minor@ readme" type="text/plain" src="README"/>
  
   <categories>
     <category name="Game">
