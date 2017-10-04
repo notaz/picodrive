@@ -23,7 +23,7 @@ static unsigned char vdp_data_read(void)
   struct PicoVideo *pv = &Pico.video;
   unsigned char d;
 
-  d = Pico.vramb[pv->addr];
+  d = PicoMem.vramb[pv->addr];
   pv->addr = (pv->addr + 1) & 0x3fff;
   pv->pending = 0;
   return d;
@@ -44,10 +44,10 @@ static void vdp_data_write(unsigned char d)
   struct PicoVideo *pv = &Pico.video;
 
   if (pv->type == 3) {
-    Pico.cram[pv->addr & 0x1f] = d;
+    PicoMem.cram[pv->addr & 0x1f] = d;
     Pico.m.dirtyPal = 1;
   } else {
-    Pico.vramb[pv->addr] = d;
+    PicoMem.vramb[pv->addr] = d;
   }
   pv->addr = (pv->addr + 1) & 0x3fff;
 
@@ -180,7 +180,7 @@ static void xwrite(unsigned int a, unsigned char d)
 {
   elprintf(EL_IO, "z80 write [%04x] %02x", a, d);
   if (a >= 0xc000)
-    Pico.zram[a & 0x1fff] = d;
+    PicoMem.zram[a & 0x1fff] = d;
   if (a >= 0xfff8)
     write_bank(a, d);
 }
@@ -195,7 +195,7 @@ void PicoPowerMS(void)
 {
   int s, tmp;
 
-  memset(&Pico.ram,0,(unsigned char *)&Pico.rom - Pico.ram);
+  memset(&PicoMem,0,sizeof(PicoMem));
   memset(&Pico.video,0,sizeof(Pico.video));
   memset(&Pico.m,0,sizeof(Pico.m));
   Pico.m.pal = 0;
@@ -219,11 +219,11 @@ void PicoPowerMS(void)
 void PicoMemSetupMS(void)
 {
   z80_map_set(z80_read_map, 0x0000, 0xbfff, Pico.rom, 0);
-  z80_map_set(z80_read_map, 0xc000, 0xdfff, Pico.zram, 0);
-  z80_map_set(z80_read_map, 0xe000, 0xffff, Pico.zram, 0);
+  z80_map_set(z80_read_map, 0xc000, 0xdfff, PicoMem.zram, 0);
+  z80_map_set(z80_read_map, 0xe000, 0xffff, PicoMem.zram, 0);
 
   z80_map_set(z80_write_map, 0x0000, 0xbfff, xwrite, 1);
-  z80_map_set(z80_write_map, 0xc000, 0xdfff, Pico.zram, 0);
+  z80_map_set(z80_write_map, 0xc000, 0xdfff, PicoMem.zram, 0);
   z80_map_set(z80_write_map, 0xe000, 0xffff, xwrite, 1);
  
 #ifdef _USE_DRZ80
@@ -232,8 +232,8 @@ void PicoMemSetupMS(void)
 #endif
 #ifdef _USE_CZ80
   Cz80_Set_Fetch(&CZ80, 0x0000, 0xbfff, (FPTR)Pico.rom);
-  Cz80_Set_Fetch(&CZ80, 0xc000, 0xdfff, (FPTR)Pico.zram);
-  Cz80_Set_Fetch(&CZ80, 0xe000, 0xffff, (FPTR)Pico.zram);
+  Cz80_Set_Fetch(&CZ80, 0xc000, 0xdfff, (FPTR)PicoMem.zram);
+  Cz80_Set_Fetch(&CZ80, 0xe000, 0xffff, (FPTR)PicoMem.zram);
   Cz80_Set_INPort(&CZ80, z80_sms_in);
   Cz80_Set_OUTPort(&CZ80, z80_sms_out);
 #endif

@@ -215,7 +215,7 @@ static void DrawStrip(struct TileStrip *ts, int lflags, int cellskip)
   {
     unsigned int pack;
 
-    code = Pico.vram[ts->nametab + (tilex & ts->xmask)];
+    code = PicoMem.vram[ts->nametab + (tilex & ts->xmask)];
     if (code == blank)
       continue;
     if ((code >> 15) | (lflags & LF_FORCE)) { // high priority tile
@@ -235,7 +235,7 @@ static void DrawStrip(struct TileStrip *ts, int lflags, int cellskip)
       pal=((code>>9)&0x30)|sh;
     }
 
-    pack = *(unsigned int *)(Pico.vram + addr);
+    pack = *(unsigned int *)(PicoMem.vram + addr);
     if (!pack) {
       blank = code;
       continue;
@@ -274,7 +274,7 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
     //if((cell&1)==0)
     {
       int line,vscroll;
-      vscroll=Pico.vsram[(plane_sh&1)+(cell&~1)];
+      vscroll=PicoMem.vsram[(plane_sh&1)+(cell&~1)];
 
       // Find the line in the name table
       line=(vscroll+scan)&ts->line&0xffff; // ts->line is really ymask ..
@@ -282,7 +282,7 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
       ty=(line&7)<<1; // Y-Offset into tile
     }
 
-    code=Pico.vram[ts->nametab+nametabadd+(tilex&ts->xmask)];
+    code=PicoMem.vram[ts->nametab+nametabadd+(tilex&ts->xmask)];
     if (code==blank) continue;
     if (code>>15) { // high priority tile
       int cval = code | (dx<<16) | (ty<<25);
@@ -300,7 +300,7 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
       pal=((code>>9)&0x30)|((plane_sh<<5)&0x40);
     }
 
-    pack = *(unsigned int *)(Pico.vram + addr);
+    pack = *(unsigned int *)(PicoMem.vram + addr);
     if (!pack) {
       blank = code;
       continue;
@@ -336,7 +336,7 @@ void DrawStripInterlace(struct TileStrip *ts)
   {
     unsigned int pack;
 
-    code=Pico.vram[ts->nametab+(tilex&ts->xmask)];
+    code = PicoMem.vram[ts->nametab + (tilex & ts->xmask)];
     if (code==blank) continue;
     if (code>>15) { // high priority tile
       int cval = (code&0xfc00) | (dx<<16) | (ty<<25);
@@ -356,7 +356,7 @@ void DrawStripInterlace(struct TileStrip *ts)
       pal=((code>>9)&0x30);
     }
 
-    pack = *(unsigned int *)(Pico.vram + addr);
+    pack = *(unsigned int *)(PicoMem.vram + addr);
     if (!pack) {
       blank = code;
       continue;
@@ -409,11 +409,11 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
   htab+=plane_sh&1; // A or B
 
   // Get horizontal scroll value, will be masked later
-  ts.hscroll=Pico.vram[htab&0x7fff];
+  ts.hscroll = PicoMem.vram[htab & 0x7fff];
 
   if((pvid->reg[12]&6) == 6) {
     // interlace mode 2
-    vscroll=Pico.vsram[plane_sh&1]; // Get vertical scroll value
+    vscroll = PicoMem.vsram[plane_sh & 1]; // Get vertical scroll value
 
     // Find the line in the name table
     ts.line=(vscroll+(est->DrawScanline<<1))&((ymask<<1)|1);
@@ -426,7 +426,7 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
     ts.line=ymask|(shift[width]<<24); // save some stuff instead of line
     DrawStripVSRam(&ts, plane_sh, cellskip);
   } else {
-    vscroll=Pico.vsram[plane_sh&1]; // Get vertical scroll value
+    vscroll = PicoMem.vsram[plane_sh & 1]; // Get vertical scroll value
 
     // Find the line in the name table
     ts.line=(vscroll+est->DrawScanline)&ymask;
@@ -463,7 +463,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
 
   if (!(est->rendstatus & PDRAW_WND_DIFF_PRIO)) {
     // check the first tile code
-    code=Pico.vram[nametab+tilex];
+    code = PicoMem.vram[nametab + tilex];
     // if the whole window uses same priority (what is often the case), we may be able to skip this field
     if ((code>>15) != prio) return;
   }
@@ -480,7 +480,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       int dx, addr;
       int pal;
 
-      code=Pico.vram[nametab+tilex];
+      code = PicoMem.vram[nametab + tilex];
       if (code==blank) continue;
       if ((code>>15) != prio) {
         est->rendstatus |= PDRAW_WND_DIFF_PRIO;
@@ -491,7 +491,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       addr=(code&0x7ff)<<4;
       if (code&0x1000) addr+=14-ty; else addr+=ty; // Y-flip
 
-      pack = *(unsigned int *)(Pico.vram + addr);
+      pack = *(unsigned int *)(PicoMem.vram + addr);
       if (!pack) {
         blank = code;
         continue;
@@ -512,7 +512,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       int dx, addr;
       int pal;
 
-      code=Pico.vram[nametab+tilex];
+      code = PicoMem.vram[nametab + tilex];
       if(code==blank) continue;
       if((code>>15) != prio) {
         est->rendstatus |= PDRAW_WND_DIFF_PRIO;
@@ -533,7 +533,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       addr=(code&0x7ff)<<4;
       if (code&0x1000) addr+=14-ty; else addr+=ty; // Y-flip
 
-      pack = *(unsigned int *)(Pico.vram + addr);
+      pack = *(unsigned int *)(PicoMem.vram + addr);
       if (!pack) {
         blank = code;
         continue;
@@ -587,7 +587,7 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est
       addr = (code & 0x7ff) << 4;
       addr += code >> 25; // y offset into tile
 
-      pack = *(unsigned int *)(Pico.vram + addr);
+      pack = *(unsigned int *)(PicoMem.vram + addr);
       if (!pack) {
         blank = (short)code;
         continue;
@@ -615,7 +615,7 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est
       *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf;
       *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf; *zb++ &= 0xbf;
 
-      pack = *(unsigned int *)(Pico.vram + addr);
+      pack = *(unsigned int *)(PicoMem.vram + addr);
       if (!pack)
         continue;
 
@@ -717,7 +717,7 @@ static void DrawSprite(int *sprite, int sh)
     if(sx<=0)   continue;
     if(sx>=328) break; // Offscreen
 
-    pack = *(unsigned int *)(Pico.vram + (tile & 0x7fff));
+    pack = *(unsigned int *)(PicoMem.vram + (tile & 0x7fff));
     fTileFunc(sx, pack, pal);
   }
 }
@@ -737,7 +737,7 @@ static NOINLINE void DrawTilesFromCacheForced(const int *hc)
 
     dx = (code >> 16) & 0x1ff;
     pal = ((code >> 9) & 0x30);
-    pack = *(unsigned int *)(Pico.vram + addr);
+    pack = *(unsigned int *)(PicoMem.vram + addr);
 
     if (code & 0x0800) TileFlip_and(dx, pack, pal);
     else               TileNorm_and(dx, pack, pal);
@@ -783,7 +783,7 @@ static void DrawSpriteInterlace(unsigned int *sprite)
     if(sx<=0)   continue;
     if(sx>=328) break; // Offscreen
 
-    pack = *(unsigned int *)(Pico.vram + (tile & 0x7fff));
+    pack = *(unsigned int *)(PicoMem.vram + (tile & 0x7fff));
     if (code & 0x0800) TileFlip(sx, pack, pal);
     else               TileNorm(sx, pack, pal);
   }
@@ -805,7 +805,7 @@ static NOINLINE void DrawAllSpritesInterlace(int pri, int sh)
     unsigned int *sprite;
     int code, sx, sy, height;
 
-    sprite=(unsigned int *)(Pico.vram+((table+(link<<2))&0x7ffc)); // Find sprite
+    sprite=(unsigned int *)(PicoMem.vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
     // get sprite info
     code = sprite[0];
@@ -908,7 +908,7 @@ static void DrawSpritesSHi(unsigned char *sprited, const struct PicoEState *est)
       if(sx<=0)   continue;
       if(sx>=328) break; // Offscreen
 
-      pack = *(unsigned int *)(Pico.vram + (tile & 0x7fff));
+      pack = *(unsigned int *)(PicoMem.vram + (tile & 0x7fff));
       fTileFunc(sx, pack, pal);
     }
   }
@@ -982,7 +982,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
       if(sx<=0)   continue;
       if(sx>=328) break; // Offscreen
 
-      pack = *(unsigned int *)(Pico.vram + (tile & 0x7fff));
+      pack = *(unsigned int *)(PicoMem.vram + (tile & 0x7fff));
       fTileFunc(sx, pack, pal);
     }
   }
@@ -1042,7 +1042,7 @@ static NOINLINE void PrepareSprites(int full)
       unsigned int *sprite;
       int code2, sx, sy, height;
 
-      sprite=(unsigned int *)(Pico.vram+((table+(link<<2))&0x7ffc)); // Find sprite
+      sprite=(unsigned int *)(PicoMem.vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
       // parse sprite info
       code2 = sprite[1];
@@ -1095,7 +1095,7 @@ found:;
       unsigned int *sprite;
       int code, code2, sx, sy, hv, height, width;
 
-      sprite=(unsigned int *)(Pico.vram+((table+(link<<2))&0x7ffc)); // Find sprite
+      sprite=(unsigned int *)(PicoMem.vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
       // parse sprite info
       code = sprite[0];
@@ -1219,7 +1219,7 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
 
   Pico.m.dirtyPal = 0;
 
-  spal = (void *)Pico.cram;
+  spal = (void *)PicoMem.cram;
   dpal = (void *)est->HighPal;
 
   for (i = 0; i < 0x40 / 2; i++) {
@@ -1301,9 +1301,9 @@ static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
     rs |= PDRAW_SONIC_MODE;
     est->rendstatus = rs;
     if (dirty_count == 3) {
-      blockcpy(est->HighPal, Pico.cram, 0x40*2);
+      blockcpy(est->HighPal, PicoMem.cram, 0x40*2);
     } else if (dirty_count == 11) {
-      blockcpy(est->HighPal+0x40, Pico.cram, 0x40*2);
+      blockcpy(est->HighPal+0x40, PicoMem.cram, 0x40*2);
     }
   }
 

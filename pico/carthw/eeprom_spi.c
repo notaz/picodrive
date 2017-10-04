@@ -210,7 +210,7 @@ void eeprom_spi_write(unsigned char data)
               if (spi_eeprom.opcode & 0x01)
               {
                 /* READ operation */
-                spi_eeprom.buffer = SRam.data[spi_eeprom.addr];
+                spi_eeprom.buffer = Pico.sv.data[spi_eeprom.addr];
                 spi_eeprom.state = READ_BYTE;
               }
               else
@@ -266,7 +266,7 @@ void eeprom_spi_write(unsigned char data)
                       /* $C000-$FFFF (sector #3) is protected */
                       if (spi_eeprom.addr < 0xC000)
                       {
-                        SRam.data[spi_eeprom.addr] = spi_eeprom.buffer;
+                        Pico.sv.data[spi_eeprom.addr] = spi_eeprom.buffer;
                       }
                       break;
                     }
@@ -276,7 +276,7 @@ void eeprom_spi_write(unsigned char data)
                       /* $8000-$FFFF (sectors #2 and #3) is protected */
                       if (spi_eeprom.addr < 0x8000)
                       {
-                        SRam.data[spi_eeprom.addr] = spi_eeprom.buffer;
+                        Pico.sv.data[spi_eeprom.addr] = spi_eeprom.buffer;
                       }
                       break;
                     }
@@ -290,7 +290,7 @@ void eeprom_spi_write(unsigned char data)
                     default:
                     {
                       /* no sectors protected */
-                      SRam.data[spi_eeprom.addr] = spi_eeprom.buffer;
+                      Pico.sv.data[spi_eeprom.addr] = spi_eeprom.buffer;
                       break;
                     }
                   }
@@ -332,7 +332,7 @@ void eeprom_spi_write(unsigned char data)
               {
                 /* read next array byte */
                 spi_eeprom.addr = (spi_eeprom.addr + 1) & SIZE_MASK;
-                spi_eeprom.buffer = SRam.data[spi_eeprom.addr];
+                spi_eeprom.buffer = Pico.sv.data[spi_eeprom.addr];
               }
             }
           }

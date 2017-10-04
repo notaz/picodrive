@@ -617,9 +617,9 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   Pico.rom=rom;
   Pico.romsize=romsize;
 
-  if (SRam.data) {
-    free(SRam.data);
-    SRam.data = NULL;
+  if (Pico.sv.data) {
+    free(Pico.sv.data);
+    Pico.sv.data = NULL;
   }
 
   if (PicoCartUnloadHook != NULL) {
@@ -949,8 +949,8 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
         elprintf(EL_STATUS, "carthw:%d: bad sram_range: %08x - %08x", line, start, end);
         goto bad_nomsg;
       }
-      SRam.start = start;
-      SRam.end = end;
+      Pico.sv.start = start;
+      Pico.sv.end = end;
       continue;
     }
     else if (is_expr("prop", &p)) {
@@ -959,9 +959,9 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
       rstrip(p);
 
       if      (strcmp(p, "no_sram") == 0)
-        SRam.flags &= ~SRF_ENABLED;
+        Pico.sv.flags &= ~SRF_ENABLED;
       else if (strcmp(p, "no_eeprom") == 0)
-        SRam.flags &= ~SRF_EEPROM;
+        Pico.sv.flags &= ~SRF_EEPROM;
       else if (strcmp(p, "filled_sram") == 0)
         *fill_sram = 1;
       else if (strcmp(p, "force_6btn") == 0)
@@ -982,8 +982,8 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
       type = strtoul(p, &r, 0);
       if (r == p || type < 0)
         goto bad;
-      SRam.eeprom_type = type;
-      SRam.flags |= SRF_EEPROM;
+      Pico.sv.eeprom_type = type;
+      Pico.sv.flags |= SRF_EEPROM;
       continue;
     }
     else if (is_expr("eeprom_lines", &p)) {
@@ -998,9 +998,9 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
           sda_out < 0 || sda_out > 15)
         goto bad;
 
-      SRam.eeprom_bit_cl = scl;
-      SRam.eeprom_bit_in = sda_in;
-      SRam.eeprom_bit_out= sda_out;
+      Pico.sv.eeprom_bit_cl = scl;
+      Pico.sv.eeprom_bit_in = sda_in;
+      Pico.sv.eeprom_bit_out= sda_out;
       continue;
     }
     else if ((tmp = is_expr("prot_ro_value16", &p)) || is_expr("prot_rw_value16", &p)) {
@@ -1040,54 +1040,54 @@ static void PicoCartDetect(const char *carthw_cfg)
 {
   int fill_sram = 0;
 
-  memset(&SRam, 0, sizeof(SRam));
+  memset(&Pico.sv, 0, sizeof(Pico.sv));
   if (Pico.rom[0x1B1] == 'R' && Pico.rom[0x1B0] == 'A')
   {
-    SRam.start =  rom_read32(0x1B4) & ~0xff000001; // align
-    SRam.end   = (rom_read32(0x1B8) & ~0xff000000) | 1;
+    Pico.sv.start =  rom_read32(0x1B4) & ~0xff000001; // align
+    Pico.sv.end   = (rom_read32(0x1B8) & ~0xff000000) | 1;
     if (Pico.rom[0x1B2] & 0x40)
       // EEPROM
-      SRam.flags |= SRF_EEPROM;
-    SRam.flags |= SRF_ENABLED;
+      Pico.sv.flags |= SRF_EEPROM;
+    Pico.sv.flags |= SRF_ENABLED;
   }
-  if (SRam.end == 0 || SRam.start > SRam.end)
+  if (Pico.sv.end == 0 || Pico.sv.start > Pico.sv.end)
   {
     // some games may have bad headers, like S&K and Sonic3
     // note: majority games use 0x200000 as starting address, but there are some which
     // use something else (0x300000 by HardBall '95). Luckily they have good headers.
-    SRam.start = 0x200000;
-    SRam.end   = 0x203FFF;
-    SRam.flags |= SRF_ENABLED;
+    Pico.sv.start = 0x200000;
+    Pico.sv.end   = 0x203FFF;
+    Pico.sv.flags |= SRF_ENABLED;
   }
 
   // set EEPROM defaults, in case it gets detected
-  SRam.eeprom_type   = 0; // 7bit (24C01)
-  SRam.eeprom_bit_cl = 1;
-  SRam.eeprom_bit_in = 0;
-  SRam.eeprom_bit_out= 0;
+  Pico.sv.eeprom_type   = 0; // 7bit (24C01)
+  Pico.sv.eeprom_bit_cl = 1;
+  Pico.sv.eeprom_bit_in = 0;
+  Pico.sv.eeprom_bit_out= 0;
 
   if (carthw_cfg != NULL)
     parse_carthw(carthw_cfg, &fill_sram);
 
-  if (SRam.flags & SRF_ENABLED)
+  if (Pico.sv.flags & SRF_ENABLED)
   {
-    if (SRam.flags & SRF_EEPROM)
-      SRam.size = 0x2000;
+    if (Pico.sv.flags & SRF_EEPROM)
+      Pico.sv.size = 0x2000;
     else
-      SRam.size = SRam.end - SRam.start + 1;
+      Pico.sv.size = Pico.sv.end - Pico.sv.start + 1;
 
-    SRam.data = calloc(SRam.size, 1);
-    if (SRam.data == NULL)
-      SRam.flags &= ~SRF_ENABLED;
+    Pico.sv.data = calloc(Pico.sv.size, 1);
+    if (Pico.sv.data == NULL)
+      Pico.sv.flags &= ~SRF_ENABLED;
 
-    if (SRam.eeprom_type == 1)	// 1 == 0 in PD EEPROM code
-      SRam.eeprom_type = 0;
+    if (Pico.sv.eeprom_type == 1)	// 1 == 0 in PD EEPROM code
+      Pico.sv.eeprom_type = 0;
   }
 
-  if ((SRam.flags & SRF_ENABLED) && fill_sram)
+  if ((Pico.sv.flags & SRF_ENABLED) && fill_sram)
   {
     elprintf(EL_STATUS, "SRAM fill");
-    memset(SRam.data, 0xff, SRam.size);
+    memset(Pico.sv.data, 0xff, Pico.sv.size);
   }
 
   // Unusual region 'code'

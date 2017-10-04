@@ -21,24 +21,24 @@
   SekRunM68k(m68k_cycles)
 #endif
 
-// sync m68k to SekCycleAim
+// sync m68k to Pico.t.m68c_aim
 static void SekSyncM68k(void)
 {
   int cyc_do;
   pprof_start(m68k);
   pevt_log_m68k_o(EVT_RUN_START);
 
-  while ((cyc_do = SekCycleAim - SekCycleCnt) > 0) {
-    SekCycleCnt += cyc_do;
+  while ((cyc_do = Pico.t.m68c_aim - Pico.t.m68c_cnt) > 0) {
+    Pico.t.m68c_cnt += cyc_do;
 
 #if defined(EMU_C68K)
     PicoCpuCM68k.cycles = cyc_do;
     CycloneRun(&PicoCpuCM68k);
-    SekCycleCnt -= PicoCpuCM68k.cycles;
+    Pico.t.m68c_cnt -= PicoCpuCM68k.cycles;
 #elif defined(EMU_M68K)
-    SekCycleCnt += m68k_execute(cyc_do) - cyc_do;
+    Pico.t.m68c_cnt += m68k_execute(cyc_do) - cyc_do;
 #elif defined(EMU_F68K)
-    SekCycleCnt += fm68k_emulate(cyc_do, 0) - cyc_do;
+    Pico.t.m68c_cnt += fm68k_emulate(cyc_do, 0) - cyc_do;
 #endif
   }
 
@@ -51,11 +51,11 @@ static void SekSyncM68k(void)
 
 static inline void SekRunM68k(int cyc)
 {
-  SekCycleAim += cyc;
-  cyc = SekCycleAim - SekCycleCnt;
+  Pico.t.m68c_aim += cyc;
+  cyc = Pico.t.m68c_aim - Pico.t.m68c_cnt;
   if (cyc <= 0)
     return;
-  SekCycleCnt += cyc >> 6; // refresh slowdowns
+  Pico.t.m68c_cnt += cyc >> 6; // refresh slowdowns
   SekSyncM68k();
 }
 
@@ -108,7 +108,7 @@ static int PicoFrameHints(void)
   }
   else skip=PicoSkipFrame;
 
-  timing.m68c_frame_start = SekCyclesDone();
+  Pico.t.m68c_frame_start = SekCyclesDone();
   pv->v_counter = Pico.m.scanline = 0;
   z80_resetCycles();
   PsndStartFrame();
@@ -170,7 +170,7 @@ static int PicoFrameHints(void)
     }
 
     // Run scanline:
-    line_base_cycles = SekCyclesDone();
+    Pico.t.m68c_line_start = SekCyclesDone();
     do_timing_hacks_as(pv, vdp_slots);
     CPUS_RUN(CYCLES_M68K_LINE);
 
@@ -212,7 +212,7 @@ static int PicoFrameHints(void)
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
-  line_base_cycles = SekCyclesDone();
+  Pico.t.m68c_line_start = SekCyclesDone();
   do_timing_hacks_vb();
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
@@ -276,7 +276,7 @@ static int PicoFrameHints(void)
     }
 
     // Run scanline:
-    line_base_cycles = SekCyclesDone();
+    Pico.t.m68c_line_start = SekCyclesDone();
     do_timing_hacks_vb();
     CPUS_RUN(CYCLES_M68K_LINE);
 
@@ -300,7 +300,7 @@ static int PicoFrameHints(void)
   }
 
   // Run scanline:
-  line_base_cycles = SekCyclesDone();
+  Pico.t.m68c_line_start = SekCyclesDone();
   do_timing_hacks_as(pv, vdp_slots);
   CPUS_RUN(CYCLES_M68K_LINE);
 

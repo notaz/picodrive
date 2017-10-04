@@ -353,10 +353,10 @@ DrawLayerFull:
 
     mov     r6, r1        @ hcache
 
-    ldr     r11, [r12, #OFS_Pico_video]
-    ldr     r10, [r12, #OFS_Pico_vram]
-    ldrb    r5, [r11, #13]        @ pvid->reg[13]
-    ldrb    r7, [r11, #11]
+    ldr     r11, [r12, #OFS_EST_Pico]
+    ldr     r10, [r12, #OFS_EST_PicoMem_vram]
+    ldrb    r5, [r11, #OFS_Pico_video_reg+13] @ pvid->reg[13]
+    ldrb    r7, [r11, #OFS_Pico_video_reg+11]
 
     sub     lr, r3, r2
     and     lr, lr, #0x00ff0000   @ lr=cells
@@ -366,7 +366,7 @@ DrawLayerFull:
     bic     r5, r5, #0x00ff0000   @ just in case
 
     tst     r7, #3                @ full screen scroll? (if ==0)
-    ldrb    r7, [r11, #16]        @ ??hh??ww
+    ldrb    r7, [r11, #OFS_Pico_video_reg+16] @ ??hh??ww
     ldreqh  r5, [r10, r5]
     biceq   r5, r5, #0x0000fc00   @ r5=hscroll (0-0x3ff)
     movne   r5, r5, lsr #1
@@ -397,15 +397,15 @@ DrawLayerFull:
 
     @ Find name table:
     tst     r0, r0
-    ldreqb  r4, [r11, #2]
+    ldreqb  r4, [r11, #OFS_Pico_video_reg+2]
     moveq   r4, r4, lsr #3
-    ldrneb  r4, [r11, #4]
+    ldrneb  r4, [r11, #OFS_Pico_video_reg+4]
     and     r4, r4, #7
     orr     lr, lr, r4, lsl #13   @ lr|=nametab_bits{3}<<13
 
     ldr     r11,[sp, #9*4]        @ est
     sub     r4, r9, #(START_ROW<<24)
-    ldr     r11, [r11, #OFS_Draw2FB]
+    ldr     r11, [r11, #OFS_EST_Draw2FB]
     mov     r4, r4, asr #24
     mov     r7, #328*8
     mla     r11, r4, r7, r11      @ scrpos+=8*328*(planestart-START_ROW);
@@ -582,13 +582,13 @@ DrawTilesFromCacheF:
     mov     r9, #0xff000000 @ r9=prevcode=-1
     mvn     r6, #0          @ r6=prevy=-1
 
-    ldr     r4, [r1, #OFS_Draw2FB]
+    ldr     r4, [r1, #OFS_EST_Draw2FB]
     ldr     r2, [r0], #4    @ read y offset
     mov     r7, #328
     mla     r2, r7, r2, r4
     sub     r12, r2, #(328*8*START_ROW) @ r12=scrpos
 
-    ldr     r10, [r1, #OFS_Pico_vram]
+    ldr     r10, [r1, #OFS_EST_PicoMem_vram]
     mov     r8, r0               @ hc
     mov     r0, #0xf
 
@@ -674,11 +674,11 @@ DrawTilesFromCacheF:
 DrawWindowFull:
     stmfd   sp!, {r4-r11,lr}
 
-    ldr     r11, [r3, #OFS_Pico_video]
-    ldrb    r12, [r11, #3]        @ pvid->reg[3]
+    ldr     r11, [r3, #OFS_EST_Pico]
+    ldrb    r12, [r11, #OFS_Pico_video_reg+3] @ pvid->reg[3]
     mov     r12, r12, lsl #10
 
-    ldr     r4, [r11, #12]
+    ldr     r4, [r11, #OFS_Pico_video_reg+12]
     mov     r5, #1                @ nametab_step
     tst     r4, #1                @ 40 cell mode?
     andne   r12, r12, #0xf000     @ 0x3c<<10
@@ -689,7 +689,7 @@ DrawWindowFull:
     and     r4, r0, #0xff
     mla     r12, r5, r4, r12      @ nametab += nametab_step*start;
 
-    ldr     r10, [r3, #OFS_Pico_vram]
+    ldr     r10, [r3, #OFS_EST_PicoMem_vram]
     mov     r4, r0, lsr #16       @ r4=start_cell_h
     add     r7, r12, r4, lsl #1
 
@@ -707,7 +707,7 @@ DrawWindowFull:
 
     mov     r9, #0xff000000       @ r9=prevcode=-1
 
-    ldr     r11, [r3, #OFS_Draw2FB]
+    ldr     r11, [r3, #OFS_EST_Draw2FB]
     and     r4, r0, #0xff
     add     r11, r11, #328*8
     sub     r4, r4, #START_ROW
@@ -760,7 +760,8 @@ DrawWindowFull:
     tst     r9, #0x080000       @ hflip?
     bne     .dwf_hflip
 
-    @ Tile (r1=pdest, r3=pal, r9=prevcode, r10=Pico.vram) r2,r4,r7: scratch, r0=0xf
+    @ Tile (r1=pdest, r3=pal, r9=prevcode, r10=PicoMem.vram)
+    @ r2,r4,r7: scratch, r0=0xf
     Tile 0, 0
     b       .dwfloop
 
@@ -870,7 +871,8 @@ DrawWindowFull:
     cmp     r6, #(END_ROW*8+8)
     bge     52b
 
-    @ Tile (r1=pdest, r3=pal, r9=prevcode, r10=Pico.vram) r2,r4,r7: scratch, r0=0xf
+    @ Tile (r1=pdest, r3=pal, r9=prevcode, r10=PicoMem.vram)
+    @ r2,r4,r7: scratch, r0=0xf
     Tile \hflip, \vflip
     b       52b
 .endm
@@ -905,8 +907,8 @@ DrawSpriteFull:
     and     r3, lr, #0x6000
     mov     r3, r3, lsr #9  @ r3=pal=((code>>9)&0x30);
 
-    ldr     r11, [r1, #OFS_Draw2FB]
-    ldr     r10, [r1, #OFS_Pico_vram]
+    ldr     r11, [r1, #OFS_EST_Draw2FB]
+    ldr     r10, [r1, #OFS_EST_PicoMem_vram]
     sub     r1, r12, #(START_ROW*8)
     mov     r0, #328
     mla     r11, r1, r0, r11      @ scrpos+=(sy-START_ROW*8)*328;

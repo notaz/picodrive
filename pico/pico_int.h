@@ -128,26 +128,18 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #endif
 #endif // EMU_M68K
 
-// while running, cnt represents target of current timeslice
-// while not in SekRun(), it's actual cycles done
-// (but always use SekCyclesDone() if you need current position)
-// cnt may change if timeslice is ended prematurely or extended,
-// so we use SekCycleAim for the actual target
-extern unsigned int SekCycleCnt;
-extern unsigned int SekCycleAim;
-
 // number of cycles done (can be checked anywhere)
-#define SekCyclesDone()  (SekCycleCnt - SekCyclesLeft)
+#define SekCyclesDone()  (Pico.t.m68c_cnt - SekCyclesLeft)
 
 // burn cycles while not in SekRun() and while in
-#define SekCyclesBurn(c)    SekCycleCnt += c
+#define SekCyclesBurn(c)    Pico.t.m68c_cnt += c
 #define SekCyclesBurnRun(c) { \
   SekCyclesLeft -= c; \
 }
 
 // note: sometimes may extend timeslice to delay an irq
 #define SekEndRun(after) { \
-  SekCycleCnt -= SekCyclesLeft - (after); \
+  Pico.t.m68c_cnt -= SekCyclesLeft - (after); \
   SekCyclesLeft = after; \
 }
 
@@ -212,10 +204,10 @@ extern struct DrZ80 drZ80;
 #define Z80_STATE_SIZE 0x60
 
 #define z80_resetCycles() \
-  timing.z80c_cnt = timing.z80c_aim = timing.z80_scanline = 0
+  Pico.t.z80c_cnt = Pico.t.z80c_aim = Pico.t.z80_scanline = 0
 
 #define z80_cyclesDone() \
-  (timing.z80c_aim - z80_cyclesLeft)
+  (Pico.t.z80c_aim - z80_cyclesLeft)
 
 #define cycles_68k_to_z80(x) ((x) * 3823 >> 13)
 
@@ -359,15 +351,16 @@ struct PicoEState
   void *DrawLineDest;          // draw destination
   unsigned char *HighCol;
   int *HighPreSpr;
-  void *Pico_video;
-  void *Pico_vram;
+  struct Pico *Pico;
+  void *PicoMem_vram;
+  void *PicoMem_cram;
   int  *PicoOpt;
   unsigned char *Draw2FB;
   unsigned short HighPal[0x100];
 };
 
-// some assembly stuff depend on these, do not touch!
-struct Pico
+// some assembly stuff still depends on these, do not touch!
+struct PicoMem
 {
   unsigned char ram[0x10000];  // 0x00000 scratch ram
   union {                      // vram is byteswapped for easier reads when drawing
@@ -379,14 +372,6 @@ struct Pico
   unsigned char pad[0xf0];     // unused
   unsigned short cram[0x40];   // 0x22100
   unsigned short vsram[0x40];  // 0x22180
-
-  unsigned char *rom;          // 0x22200
-  unsigned int romsize;        // 0x22204 (on 32bits)
-
-  struct PicoMisc m;
-  struct PicoVideo video;
-  struct PicoMS ms;
-  struct PicoEState est;
 };
 
 // sram
@@ -396,7 +381,7 @@ struct Pico
 #define SRF_ENABLED  (1 << 0)
 #define SRF_EEPROM   (1 << 1)
 
-struct PicoSRAM
+struct PicoCartSave
 {
   unsigned char *data;		// actual data
   unsigned int start;		// start address in 68k address space
@@ -410,6 +395,38 @@ struct PicoSRAM
   unsigned char eeprom_bit_in;  // bit number for in
   unsigned char eeprom_bit_out; // bit number for out
   unsigned int size;
+};
+
+struct PicoTiming
+{
+  // while running, cnt represents target of current timeslice
+  // while not in SekRun(), it's actual cycles done
+  // (but always use SekCyclesDone() if you need current position)
+  // _cnt may change if timeslice is ended prematurely or extended,
+  // so we use _aim for the actual target
+  unsigned int m68c_cnt;
+  unsigned int m68c_aim;
+  unsigned int m68c_frame_start;        // m68k cycles
+  unsigned int m68c_line_start;
+
+  unsigned int z80c_cnt;                // z80 cycles done (this frame)
+  unsigned int z80c_aim;
+  int z80_scanline;
+};
+
+// run tools/mkoffsets pico/pico_int_o32.h if you change these
+// careful with savestate compat
+struct Pico
+{
+  struct PicoVideo video;
+  struct PicoMisc m;
+  struct PicoTiming t;
+  struct PicoCartSave sv;
+  struct PicoEState est;
+  struct PicoMS ms;
+
+  unsigned char *rom;
+  unsigned int romsize;
 };
 
 // MCD
@@ -592,15 +609,6 @@ struct Pico32xMem
   unsigned short pwm_fifo[2][4];        // [0] - current raw, others - fifo entries
 };
 
-struct PicoTiming
-{
-  unsigned int m68c_frame_start;        // m68k cycles
-  unsigned int z80c_cnt;                // z80 cycles done (this frame)
-  unsigned int z80c_aim;
-  int z80_scanline;
-};
-extern struct PicoTiming timing;
-
 // area.c
 extern void (*PicoLoadStateHook)(void);
 
@@ -699,7 +707,7 @@ void pcd_state_loaded_mem(void);
 
 // pico.c
 extern struct Pico Pico;
-extern struct PicoSRAM SRam;
+extern struct PicoMem PicoMem;
 extern int PicoPadInt[2];
 extern int emustatus;
 extern void (*PicoResetHook)(void);
@@ -809,7 +817,6 @@ void ym2612_unpack_state(void);
 
 
 // videoport.c
-extern int line_base_cycles;
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
 unsigned char PicoVideoRead8DataH(void);
@@ -898,7 +905,7 @@ void p32x_event_schedule_sh2(SH2 *sh2, enum p32x_event event, int after);
 void p32x_schedule_hint(SH2 *sh2, int m68k_cycles);
 
 // 32x/memory.c
-struct Pico32xMem *Pico32xMem;
+extern struct Pico32xMem *Pico32xMem;
 unsigned int PicoRead8_32x(unsigned int a);
 unsigned int PicoRead16_32x(unsigned int a);
 void PicoWrite8_32x(unsigned int a, unsigned int d);

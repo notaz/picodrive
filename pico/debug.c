@@ -40,8 +40,8 @@ char *PDebugMain(void)
   sprintf(dstrp, "mode set 4: %02x\n", (r=reg[0xC])); MVP;
   sprintf(dstrp, "interlace: %i%i, cells: %i, shadow: %i\n", bit(r,2), bit(r,1), (r&0x80) ? 40 : 32, bit(r,3)); MVP;
   sprintf(dstrp, "scroll size: w: %i, h: %i  SRAM: %i; eeprom: %i (%i)\n", reg[0x10]&3, (reg[0x10]&0x30)>>4,
-    !!(SRam.flags & SRF_ENABLED), !!(SRam.flags & SRF_EEPROM), SRam.eeprom_type); MVP;
-  sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", SRam.start, SRam.end, Pico.m.sram_reg); MVP;
+    !!(Pico.sv.flags & SRF_ENABLED), !!(Pico.sv.flags & SRF_EEPROM), Pico.sv.eeprom_type); MVP;
+  sprintf(dstrp, "sram range: %06x-%06x, reg: %02x\n", Pico.sv.start, Pico.sv.end, Pico.m.sram_reg); MVP;
   sprintf(dstrp, "pend int: v:%i, h:%i, vdp status: %04x\n", bit(pv->pending_ints,5), bit(pv->pending_ints,4), pv->status); MVP;
   sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i, cycles: %u\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count, SekCyclesDone()); MVP;
   sprintf(dstrp, "M68k: PC: %06x, SR: %04x, irql: %i\n", SekPc, SekSr, SekIrqLevel); MVP;
@@ -117,7 +117,7 @@ char *PDebugSpriteList(void)
     unsigned int *sprite;
     int code, code2, sx, sy, height;
 
-    sprite=(unsigned int *)(Pico.vram+((table+(link<<2))&0x7ffc)); // Find sprite
+    sprite=(unsigned int *)(PicoMem.vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
     // get sprite info
     code = sprite[0];
@@ -245,23 +245,23 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
 
   for (u=0; u < max_sprites && u <= which; u++)
   {
-    sprite=(int *)(Pico.vram+((table+(link<<2))&0x7ffc)); // Find sprite
+    sprite=(int *)(PicoMem.vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
     link=(sprite[0]>>16)&0x7f;
     if (!link) break; // End of sprites
   }
   if (u >= max_sprites) return;
 
-  fsprite = (int *)(Pico.vram+(table&0x7ffc));
+  fsprite = (int *)(PicoMem.vram+(table&0x7ffc));
   oldsprite[0] = fsprite[0];
   oldsprite[1] = fsprite[1];
   fsprite[0] = (sprite[0] & ~0x007f01ff) | 0x000080;
   fsprite[1] = (sprite[1] & ~0x01ff8000) | 0x800000;
   oldreg = pvid->reg[7];
-  oldcol = Pico.cram[0];
+  oldcol = PicoMem.cram[0];
   olddbg = pvid->debug_p;
   pvid->reg[7] = 0;
-  Pico.cram[0] = 0;
+  PicoMem.cram[0] = 0;
   pvid->debug_p = PVD_KILL_A | PVD_KILL_B;
 
   PicoFrameFull();
@@ -276,7 +276,7 @@ void PDebugShowSprite(unsigned short *screen, int stride, int which)
   fsprite[0] = oldsprite[0];
   fsprite[1] = oldsprite[1];
   pvid->reg[7] = oldreg;
-  Pico.cram[0] = oldcol;
+  PicoMem.cram[0] = oldcol;
   pvid->debug_p = olddbg;
 }
 
@@ -325,18 +325,18 @@ void PDebugDumpMem(void)
     dump_ram_m(buf, "dumps/cart.bin", a ? "ab" : "wb");
   }
 #endif
-  dump_ram_noswab(Pico.zram, "dumps/zram.bin");
-  dump_ram(Pico.cram, "dumps/cram.bin");
+  dump_ram_noswab(PicoMem.zram, "dumps/zram.bin");
+  dump_ram(PicoMem.cram, "dumps/cram.bin");
 
   if (PicoAHW & PAHW_SMS)
   {
-    dump_ram_noswab(Pico.vramb, "dumps/vram.bin");
+    dump_ram_noswab(PicoMem.vramb, "dumps/vram.bin");
   }
   else
   {
-    dump_ram(Pico.ram,  "dumps/ram.bin");
-    dump_ram(Pico.vram, "dumps/vram.bin");
-    dump_ram(Pico.vsram,"dumps/vsram.bin");
+    dump_ram(PicoMem.ram,  "dumps/ram.bin");
+    dump_ram(PicoMem.vram, "dumps/vram.bin");
+    dump_ram(PicoMem.vsram,"dumps/vsram.bin");
   }
 
   if (PicoAHW & PAHW_MCD)
@@ -386,12 +386,12 @@ void PDebugZ80Frame(void)
   PsndStartFrame();
 
   if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
-    PicoSyncZ80(SekCycleCnt + line_sample * 488);
+    PicoSyncZ80(Pico.t.m68c_cnt + line_sample * 488);
   if (PsndOut)
     PsndGetSamples(line_sample);
 
   if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80)) {
-    PicoSyncZ80(SekCycleCnt + 224 * 488);
+    PicoSyncZ80(Pico.t.m68c_cnt + 224 * 488);
     z80_int();
   }
   if (PsndOut)
@@ -399,15 +399,15 @@ void PDebugZ80Frame(void)
 
   // sync z80
   if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80)) {
-    SekCycleCnt += Pico.m.pal ? 151809 : 127671; // cycles adjusted for converter
-    PicoSyncZ80(SekCycleCnt);
+    Pico.t.m68c_cnt += Pico.m.pal ? 151809 : 127671; // cycles adjusted for converter
+    PicoSyncZ80(Pico.t.m68c_cnt);
   }
   if (PsndOut && ym2612.dacen && PsndDacLine < lines)
     PsndDoDAC(lines - 1);
   PsndDoPSG(lines - 1);
 
   timers_cycle();
-  SekCycleAim = SekCycleCnt;
+  Pico.t.m68c_aim = Pico.t.m68c_cnt;
 }
 
 void PDebugCPUStep(void)

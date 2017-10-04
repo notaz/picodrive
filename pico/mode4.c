@@ -31,7 +31,7 @@ static int TileNormM4(int sx, int addr, int pal)
   unsigned char *pd = Pico.est.HighCol + sx;
   unsigned int pack, t;
 
-  pack = *(unsigned int *)(Pico.vram + addr); /* Get 4 bitplanes / 8 pixels */
+  pack = *(unsigned int *)(PicoMem.vram + addr); /* Get 4 bitplanes / 8 pixels */
   if (pack)
   {
     PLANAR_PIXEL(0, 0)
@@ -53,7 +53,7 @@ static int TileFlipM4(int sx,int addr,int pal)
   unsigned char *pd = Pico.est.HighCol + sx;
   unsigned int pack, t;
 
-  pack = *(unsigned int *)(Pico.vram + addr); /* Get 4 bitplanes / 8 pixels */
+  pack = *(unsigned int *)(PicoMem.vram + addr); /* Get 4 bitplanes / 8 pixels */
   if (pack)
   {
     PLANAR_PIXEL(0, 7)
@@ -83,7 +83,7 @@ static void draw_sprites(int scanline)
   if (pv->reg[0] & 8)
     xoff = 0;
 
-  sat = (unsigned char *)Pico.vram + ((pv->reg[5] & 0x7e) << 7);
+  sat = (unsigned char *)PicoMem.vram + ((pv->reg[5] & 0x7e) << 7);
   if (pv->reg[1] & 2) {
     addr_mask = 0xfe; h = 16;
   } else {
@@ -161,7 +161,7 @@ static void DrawDisplayM4(int scanline)
     line -= 224;
 
   // Find name table:
-  nametab = Pico.vram;
+  nametab = PicoMem.vram;
   nametab += (pv->reg[2] & 0x0e) << (10-1);
   nametab += (line>>3) << (6-1);
 
@@ -248,7 +248,7 @@ void PicoLineMode4(int line)
 
 void PicoDoHighPal555M4(void)
 {
-  unsigned int *spal=(void *)Pico.cram;
+  unsigned int *spal=(void *)PicoMem.cram;
   unsigned int *dpal=(void *)Pico.est.HighPal;
   unsigned int t;
   int i;

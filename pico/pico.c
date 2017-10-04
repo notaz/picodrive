@@ -11,6 +11,7 @@
 #include "sound/ym2612.h"
 
 struct Pico Pico;
+struct PicoMem PicoMem;
 int PicoOpt;     
 int PicoSkipFrame;     // skip rendering frame?
 int PicoPad[2];        // Joypads, format is MXYZ SACB RLDU
@@ -20,10 +21,7 @@ int PicoQuirks;        // game-specific quirks
 int PicoRegionOverride; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 int PicoAutoRgnOrder;
 
-struct PicoSRAM SRam;
 int emustatus;         // rapid_ym2612, multi_ym_updates
-
-struct PicoTiming timing;
 
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
@@ -34,11 +32,13 @@ void PicoInit(void)
 {
   // Blank space for state:
   memset(&Pico,0,sizeof(Pico));
+  memset(&PicoMem,0,sizeof(PicoMem));
   memset(&PicoPad,0,sizeof(PicoPad));
   memset(&PicoPadInt,0,sizeof(PicoPadInt));
 
-  Pico.est.Pico_video = &Pico.video;
-  Pico.est.Pico_vram = Pico.vram;
+  Pico.est.Pico = &Pico;
+  Pico.est.PicoMem_vram = PicoMem.vram;
+  Pico.est.PicoMem_cram = PicoMem.cram;
   Pico.est.PicoOpt = &PicoOpt;
 
   // Init CPUs:
@@ -61,18 +61,18 @@ void PicoExit(void)
   PicoCartUnload();
   z80_exit();
 
-  if (SRam.data)
-    free(SRam.data);
+  if (Pico.sv.data)
+    free(Pico.sv.data);
   pevt_dump();
 }
 
 void PicoPower(void)
 {
   Pico.m.frame_count = 0;
-  SekCycleCnt = SekCycleAim = 0;
+  Pico.t.m68c_cnt = Pico.t.m68c_aim = 0;
 
   // clear all memory of the emulated machine
-  memset(&Pico.ram,0,(unsigned char *)&Pico.rom - Pico.ram);
+  memset(&PicoMem,0,sizeof(PicoMem));
 
   memset(&Pico.video,0,sizeof(Pico.video));
   memset(&Pico.m,0,sizeof(Pico.m));
@@ -81,7 +81,7 @@ void PicoPower(void)
   z80_reset();
 
   // my MD1 VA6 console has this in IO
-  Pico.ioports[1] = Pico.ioports[2] = Pico.ioports[3] = 0xff;
+  PicoMem.ioports[1] = PicoMem.ioports[2] = PicoMem.ioports[3] = 0xff;
 
   // default VDP register values (based on Fusion)
   Pico.video.reg[0] = Pico.video.reg[1] = 0x04;
@@ -211,12 +211,12 @@ int PicoReset(void)
 
   // reset sram state; enable sram access by default if it doesn't overlap with ROM
   Pico.m.sram_reg = 0;
-  if ((SRam.flags & SRF_EEPROM) || Pico.romsize <= SRam.start)
+  if ((Pico.sv.flags & SRF_EEPROM) || Pico.romsize <= Pico.sv.start)
     Pico.m.sram_reg |= SRR_MAPPED;
 
-  if (SRam.flags & SRF_ENABLED)
-    elprintf(EL_STATUS, "sram: %06x - %06x; eeprom: %i", SRam.start, SRam.end,
-      !!(SRam.flags & SRF_EEPROM));
+  if (Pico.sv.flags & SRF_ENABLED)
+    elprintf(EL_STATUS, "sram: %06x - %06x; eeprom: %i", Pico.sv.start, Pico.sv.end,
+      !!(Pico.sv.flags & SRF_EEPROM));
 
   return 0;
 }
@@ -274,7 +274,7 @@ PICO_INTERNAL int CheckDMA(void)
 
   elprintf(EL_VDPDMA, "~Dma %i op=%i can=%i burn=%i [%u]",
     Pico.m.dma_xfers, dma_op1, xfers_can, burn, SekCyclesDone());
-  //dprintf("~aim: %i, cnt: %i", SekCycleAim, SekCycleCnt);
+  //dprintf("~aim: %i, cnt: %i", Pico.t.m68c_aim, Pico.t.m68c_cnt);
   return burn;
 }
 
@@ -286,18 +286,18 @@ PICO_INTERNAL void PicoSyncZ80(unsigned int m68k_cycles_done)
   int m68k_cnt;
   int cnt;
 
-  m68k_cnt = m68k_cycles_done - timing.m68c_frame_start;
-  timing.z80c_aim = cycles_68k_to_z80(m68k_cnt);
-  cnt = timing.z80c_aim - timing.z80c_cnt;
+  m68k_cnt = m68k_cycles_done - Pico.t.m68c_frame_start;
+  Pico.t.z80c_aim = cycles_68k_to_z80(m68k_cnt);
+  cnt = Pico.t.z80c_aim - Pico.t.z80c_cnt;
 
   pprof_start(z80);
 
   elprintf(EL_BUSREQ, "z80 sync %i (%u|%u -> %u|%u)", cnt,
-    timing.z80c_cnt, timing.z80c_cnt * 15 / 7 / 488,
-    timing.z80c_aim, timing.z80c_aim * 15 / 7 / 488);
+    Pico.t.z80c_cnt, Pico.t.z80c_cnt * 15 / 7 / 488,
+    Pico.t.z80c_aim, Pico.t.z80c_aim * 15 / 7 / 488);
 
   if (cnt > 0)
-    timing.z80c_cnt += z80_run(cnt);
+    Pico.t.z80c_cnt += z80_run(cnt);
 
   pprof_end(z80);
 }

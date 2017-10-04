@@ -602,14 +602,14 @@ static u32 PicoReadM68k8_ramc(u32 a)
 {
   u32 d = 0;
   if (a == 0x400001) {
-    if (SRam.data != NULL)
+    if (Pico.sv.data != NULL)
       d = 3; // 64k cart
     return d;
   }
 
   if ((a & 0xfe0000) == 0x600000) {
-    if (SRam.data != NULL)
-      d = SRam.data[((a >> 1) & 0xffff) + 0x2000];
+    if (Pico.sv.data != NULL)
+      d = Pico.sv.data[((a >> 1) & 0xffff) + 0x2000];
     return d;
   }
 
@@ -629,9 +629,9 @@ static u32 PicoReadM68k16_ramc(u32 a)
 static void PicoWriteM68k8_ramc(u32 a, u32 d)
 {
   if ((a & 0xfe0000) == 0x600000) {
-    if (SRam.data != NULL && (Pico_mcd->m.bcram_reg & 1)) {
-      SRam.data[((a>>1) & 0xffff) + 0x2000] = d;
-      SRam.changed = 1;
+    if (Pico.sv.data != NULL && (Pico_mcd->m.bcram_reg & 1)) {
+      Pico.sv.data[((a>>1) & 0xffff) + 0x2000] = d;
+      Pico.sv.changed = 1;
     }
     return;
   }
@@ -877,7 +877,7 @@ static u32 PicoReadS68k16_bram(u32 a)
 static void PicoWriteS68k8_bram(u32 a, u32 d)
 {
   Pico_mcd->bram[(a >> 1) & 0x1fff] = d;
-  SRam.changed = 1;
+  Pico.sv.changed = 1;
 }
 
 static void PicoWriteS68k16_bram(u32 a, u32 d)
@@ -886,7 +886,7 @@ static void PicoWriteS68k16_bram(u32 a, u32 d)
   a = (a >> 1) & 0x1fff;
   Pico_mcd->bram[a++] = d;
   Pico_mcd->bram[a++] = d >> 8; // TODO: verify..
-  SRam.changed = 1;
+  Pico.sv.changed = 1;
 }
 
 #ifndef _ASM_CD_MEMORY_C
@@ -1175,7 +1175,7 @@ PICO_INTERNAL void PicoMemSetupCD(void)
       PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.rom;
     // .. and RAM
     for (i = M68K_FETCHBANK1*14/16; i < M68K_FETCHBANK1; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.ram - (i<<(24-FAMEC_FETCHBITS));
+      PicoCpuFM68k.Fetch[i] = (unsigned long)PicoMem.ram - (i<<(24-FAMEC_FETCHBITS));
     // S68k
     // PRG RAM is default
     for (i = 0; i < M68K_FETCHBANK1; i++)

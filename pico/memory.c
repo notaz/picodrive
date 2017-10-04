@@ -265,8 +265,8 @@ static port_read_func *port_readers[3] = {
 
 static NOINLINE u32 port_read(int i)
 {
-  u32 data_reg = Pico.ioports[i + 1];
-  u32 ctrl_reg = Pico.ioports[i + 4] | 0x80;
+  u32 data_reg = PicoMem.ioports[i + 1];
+  u32 ctrl_reg = PicoMem.ioports[i + 4] | 0x80;
   u32 in, out;
 
   out = data_reg & ctrl_reg;
@@ -310,7 +310,7 @@ NOINLINE u32 io_ports_read(u32 a)
     case 1:  d = port_read(0); break;
     case 2:  d = port_read(1); break;
     case 3:  d = port_read(2); break;
-    default: d = Pico.ioports[a]; break; // IO ports can be used as RAM
+    default: d = PicoMem.ioports[a]; break; // IO ports can be used as RAM
   }
   return d;
 }
@@ -323,17 +323,17 @@ NOINLINE void io_ports_write(u32 a, u32 d)
   if (1 <= a && a <= 2)
   {
     Pico.m.padDelay[a - 1] = 0;
-    if (!(Pico.ioports[a] & 0x40) && (d & 0x40))
+    if (!(PicoMem.ioports[a] & 0x40) && (d & 0x40))
       Pico.m.padTHPhase[a - 1]++;
   }
 
   // certain IO ports can be used as RAM
-  Pico.ioports[a] = d;
+  PicoMem.ioports[a] = d;
 }
 
 static int z80_cycles_from_68k(void)
 {
-  int m68k_cnt = SekCyclesDone() - timing.m68c_frame_start;
+  int m68k_cnt = SekCyclesDone() - Pico.t.m68c_frame_start;
   return cycles_68k_to_z80(m68k_cnt);
 }
 
@@ -345,7 +345,7 @@ void NOINLINE ctl_write_z80busreq(u32 d)
   {
     if (d)
     {
-      timing.z80c_cnt = z80_cycles_from_68k() + 2;
+      Pico.t.z80c_cnt = z80_cycles_from_68k() + 2;
     }
     else
     {
@@ -377,7 +377,7 @@ void NOINLINE ctl_write_z80reset(u32 d)
     }
     else
     {
-      timing.z80c_cnt = z80_cycles_from_68k() + 2;
+      Pico.t.z80c_cnt = z80_cycles_from_68k() + 2;
       z80_reset();
     }
     Pico.m.z80_reset = d;
@@ -414,14 +414,14 @@ static void psg_write_z80(u32 d)
 static u32 PicoRead8_sram(u32 a)
 {
   u32 d;
-  if (SRam.start <= a && a <= SRam.end && (Pico.m.sram_reg & SRR_MAPPED))
+  if (Pico.sv.start <= a && a <= Pico.sv.end && (Pico.m.sram_reg & SRR_MAPPED))
   {
-    if (SRam.flags & SRF_EEPROM) {
+    if (Pico.sv.flags & SRF_EEPROM) {
       d = EEPROM_read();
       if (!(a & 1))
         d >>= 8;
     } else
-      d = *(u8 *)(SRam.data - SRam.start + a);
+      d = *(u8 *)(Pico.sv.data - Pico.sv.start + a);
     elprintf(EL_SRAMIO, "sram r8  [%06x]   %02x @ %06x", a, d, SekPc);
     return d;
   }
@@ -436,12 +436,12 @@ static u32 PicoRead8_sram(u32 a)
 static u32 PicoRead16_sram(u32 a)
 {
   u32 d;
-  if (SRam.start <= a && a <= SRam.end && (Pico.m.sram_reg & SRR_MAPPED))
+  if (Pico.sv.start <= a && a <= Pico.sv.end && (Pico.m.sram_reg & SRR_MAPPED))
   {
-    if (SRam.flags & SRF_EEPROM)
+    if (Pico.sv.flags & SRF_EEPROM)
       d = EEPROM_read();
     else {
-      u8 *pm = (u8 *)(SRam.data - SRam.start + a);
+      u8 *pm = (u8 *)(Pico.sv.data - Pico.sv.start + a);
       d  = pm[0] << 8;
       d |= pm[1];
     }
@@ -459,20 +459,20 @@ static u32 PicoRead16_sram(u32 a)
 
 static void PicoWrite8_sram(u32 a, u32 d)
 {
-  if (a > SRam.end || a < SRam.start || !(Pico.m.sram_reg & SRR_MAPPED)) {
+  if (a > Pico.sv.end || a < Pico.sv.start || !(Pico.m.sram_reg & SRR_MAPPED)) {
     m68k_unmapped_write8(a, d);
     return;
   }
 
   elprintf(EL_SRAMIO, "sram w8  [%06x]   %02x @ %06x", a, d & 0xff, SekPc);
-  if (SRam.flags & SRF_EEPROM)
+  if (Pico.sv.flags & SRF_EEPROM)
   {
     EEPROM_write8(a, d);
   }
   else {
-    u8 *pm = (u8 *)(SRam.data - SRam.start + a);
+    u8 *pm = (u8 *)(Pico.sv.data - Pico.sv.start + a);
     if (*pm != (u8)d) {
-      SRam.changed = 1;
+      Pico.sv.changed = 1;
       *pm = (u8)d;
     }
   }
@@ -480,24 +480,24 @@ static void PicoWrite8_sram(u32 a, u32 d)
 
 static void PicoWrite16_sram(u32 a, u32 d)
 {
-  if (a > SRam.end || a < SRam.start || !(Pico.m.sram_reg & SRR_MAPPED)) {
+  if (a > Pico.sv.end || a < Pico.sv.start || !(Pico.m.sram_reg & SRR_MAPPED)) {
     m68k_unmapped_write16(a, d);
     return;
   }
 
   elprintf(EL_SRAMIO, "sram w16 [%06x] %04x @ %06x", a, d & 0xffff, SekPc);
-  if (SRam.flags & SRF_EEPROM)
+  if (Pico.sv.flags & SRF_EEPROM)
   {
     EEPROM_write16(d);
   }
   else {
-    u8 *pm = (u8 *)(SRam.data - SRam.start + a);
+    u8 *pm = (u8 *)(Pico.sv.data - Pico.sv.start + a);
     if (pm[0] != (u8)(d >> 8)) {
-      SRam.changed = 1;
+      Pico.sv.changed = 1;
       pm[0] = (u8)(d >> 8);
     }
     if (pm[1] != (u8)d) {
-      SRam.changed = 1;
+      Pico.sv.changed = 1;
       pm[1] = (u8)d;
     }
   }
@@ -515,7 +515,7 @@ static u32 PicoRead8_z80(u32 a)
   }
 
   if ((a & 0x4000) == 0x0000)
-    d = Pico.zram[a & 0x1fff];
+    d = PicoMem.zram[a & 0x1fff];
   else if ((a & 0x6000) == 0x4000) // 0x4000-0x5fff
     d = ym2612_read_local_68k(); 
   else
@@ -538,7 +538,7 @@ static void PicoWrite8_z80(u32 a, u32 d)
   }
 
   if ((a & 0x4000) == 0x0000) { // z80 RAM
-    Pico.zram[a & 0x1fff] = (u8)d;
+    PicoMem.zram[a & 0x1fff] = (u8)d;
     return;
   }
   if ((a & 0x6000) == 0x4000) { // FM Sound
@@ -765,7 +765,7 @@ static void m68k_mem_setup(void);
 
 PICO_INTERNAL void PicoMemSetup(void)
 {
-  int mask, rs, a;
+  int mask, rs, sstart, a;
 
   // setup the memory map
   cpu68k_map_set(m68k_read8_map,   0x000000, 0xffffff, m68k_unmapped_read8, 1);
@@ -781,15 +781,16 @@ PICO_INTERNAL void PicoMemSetup(void)
   cpu68k_map_set(m68k_read16_map, 0x000000, rs - 1, Pico.rom, 0);
 
   // Common case of on-cart (save) RAM, usually at 0x200000-...
-  if ((SRam.flags & SRF_ENABLED) && SRam.data != NULL) {
-    rs = SRam.end - SRam.start;
+  if ((Pico.sv.flags & SRF_ENABLED) && Pico.sv.data != NULL) {
+    sstart = Pico.sv.start;
+    rs = Pico.sv.end - sstart;
     rs = (rs + mask) & ~mask;
-    if (SRam.start + rs >= 0x1000000)
-      rs = 0x1000000 - SRam.start;
-    cpu68k_map_set(m68k_read8_map,   SRam.start, SRam.start + rs - 1, PicoRead8_sram, 1);
-    cpu68k_map_set(m68k_read16_map,  SRam.start, SRam.start + rs - 1, PicoRead16_sram, 1);
-    cpu68k_map_set(m68k_write8_map,  SRam.start, SRam.start + rs - 1, PicoWrite8_sram, 1);
-    cpu68k_map_set(m68k_write16_map, SRam.start, SRam.start + rs - 1, PicoWrite16_sram, 1);
+    if (sstart + rs >= 0x1000000)
+      rs = 0x1000000 - sstart;
+    cpu68k_map_set(m68k_read8_map,   sstart, sstart + rs - 1, PicoRead8_sram, 1);
+    cpu68k_map_set(m68k_read16_map,  sstart, sstart + rs - 1, PicoRead16_sram, 1);
+    cpu68k_map_set(m68k_write8_map,  sstart, sstart + rs - 1, PicoWrite8_sram, 1);
+    cpu68k_map_set(m68k_write16_map, sstart, sstart + rs - 1, PicoWrite16_sram, 1);
   }
 
   // Z80 region
@@ -816,10 +817,10 @@ PICO_INTERNAL void PicoMemSetup(void)
 
   // RAM and it's mirrors
   for (a = 0xe00000; a < 0x1000000; a += 0x010000) {
-    cpu68k_map_set(m68k_read8_map,   a, a + 0xffff, Pico.ram, 0);
-    cpu68k_map_set(m68k_read16_map,  a, a + 0xffff, Pico.ram, 0);
-    cpu68k_map_set(m68k_write8_map,  a, a + 0xffff, Pico.ram, 0);
-    cpu68k_map_set(m68k_write16_map, a, a + 0xffff, Pico.ram, 0);
+    cpu68k_map_set(m68k_read8_map,   a, a + 0xffff, PicoMem.ram, 0);
+    cpu68k_map_set(m68k_read16_map,  a, a + 0xffff, PicoMem.ram, 0);
+    cpu68k_map_set(m68k_write8_map,  a, a + 0xffff, PicoMem.ram, 0);
+    cpu68k_map_set(m68k_write16_map, a, a + 0xffff, PicoMem.ram, 0);
   }
 
   // Setup memory callbacks:
@@ -896,10 +897,10 @@ static int get_scanline(int is_from_z80)
 {
   if (is_from_z80) {
     int mclk_z80 = z80_cyclesDone() * 15;
-    int mclk_line = timing.z80_scanline * 488 * 7;
+    int mclk_line = Pico.t.z80_scanline * 488 * 7;
     while (mclk_z80 - mclk_line >= 488 * 7)
-      timing.z80_scanline++, mclk_line += 488 * 7;
-    return timing.z80_scanline;
+      Pico.t.z80_scanline++, mclk_line += 488 * 7;
+    return Pico.t.z80_scanline;
   }
 
   return Pico.m.scanline;
@@ -1282,14 +1283,14 @@ static void z80_md_out(unsigned short p, unsigned char d)
 
 static void z80_mem_setup(void)
 {
-  z80_map_set(z80_read_map, 0x0000, 0x1fff, Pico.zram, 0);
-  z80_map_set(z80_read_map, 0x2000, 0x3fff, Pico.zram, 0);
+  z80_map_set(z80_read_map, 0x0000, 0x1fff, PicoMem.zram, 0);
+  z80_map_set(z80_read_map, 0x2000, 0x3fff, PicoMem.zram, 0);
   z80_map_set(z80_read_map, 0x4000, 0x5fff, ym2612_read_local_z80, 1);
   z80_map_set(z80_read_map, 0x6000, 0x7fff, z80_md_vdp_read, 1);
   z80_map_set(z80_read_map, 0x8000, 0xffff, z80_md_bank_read, 1);
 
-  z80_map_set(z80_write_map, 0x0000, 0x1fff, Pico.zram, 0);
-  z80_map_set(z80_write_map, 0x2000, 0x3fff, Pico.zram, 0);
+  z80_map_set(z80_write_map, 0x0000, 0x1fff, PicoMem.zram, 0);
+  z80_map_set(z80_write_map, 0x2000, 0x3fff, PicoMem.zram, 0);
   z80_map_set(z80_write_map, 0x4000, 0x5fff, z80_md_ym2612_write, 1);
   z80_map_set(z80_write_map, 0x6000, 0x7fff, z80_md_vdp_br_write, 1);
   z80_map_set(z80_write_map, 0x8000, 0xffff, z80_md_bank_write, 1);
@@ -1299,8 +1300,8 @@ static void z80_mem_setup(void)
   drZ80.z80_out = z80_md_out;
 #endif
 #ifdef _USE_CZ80
-  Cz80_Set_Fetch(&CZ80, 0x0000, 0x1fff, (FPTR)Pico.zram); // main RAM
-  Cz80_Set_Fetch(&CZ80, 0x2000, 0x3fff, (FPTR)Pico.zram); // mirror
+  Cz80_Set_Fetch(&CZ80, 0x0000, 0x1fff, (FPTR)PicoMem.zram); // main RAM
+  Cz80_Set_Fetch(&CZ80, 0x2000, 0x3fff, (FPTR)PicoMem.zram); // mirror
   Cz80_Set_INPort(&CZ80, z80_md_in);
   Cz80_Set_OUTPort(&CZ80, z80_md_out);
 #endif

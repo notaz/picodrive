@@ -49,7 +49,7 @@ SRCS_COMMON += $(R)pico/draw_arm.S $(R)pico/draw2_arm.S
 endif
 ifeq "$(asm_memory)" "1"
 DEFINES += _ASM_MEMORY_C
-SRCS_COMMON += $(R)pico/memory_arm.s
+SRCS_COMMON += $(R)pico/memory_arm.S
 endif
 ifeq "$(asm_ym2612)" "1"
 DEFINES += _ASM_YM2612_C
@@ -62,7 +62,7 @@ SRCS_COMMON += $(R)pico/cd/misc_arm.s
 endif
 ifeq "$(asm_cdmemory)" "1"
 DEFINES += _ASM_CD_MEMORY_C
-SRCS_COMMON += $(R)pico/cd/memory_arm.s
+SRCS_COMMON += $(R)pico/cd/memory_arm.S
 endif
 ifeq "$(asm_32xdraw)" "1"
 DEFINES += _ASM_32X_DRAW

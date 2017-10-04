@@ -11,7 +11,6 @@
 #define NEED_DMA_SOURCE
 #include "memory.h"
 
-int line_base_cycles;
 extern const unsigned char  hcounts_32[];
 extern const unsigned char  hcounts_40[];
 
@@ -33,23 +32,24 @@ static NOINLINE void VideoWrite128(u32 a, u16 d)
 {
   // nasty
   a = ((a & 2) >> 1) | ((a & 0x400) >> 9) | (a & 0x3FC) | ((a & 0x1F800) >> 1);
-  ((u8 *)Pico.vram)[a] = d;
+  ((u8 *)PicoMem.vram)[a] = d;
 }
 
 static void VideoWrite(u16 d)
 {
-  unsigned int a=Pico.video.addr;
+  unsigned int a = Pico.video.addr;
 
   switch (Pico.video.type)
   {
-    case 1: if(a&1) d=(u16)((d<<8)|(d>>8)); // If address is odd, bytes are swapped (which game needs this?)
-            Pico.vram [(a>>1)&0x7fff]=d;
+    case 1: if (a & 1)
+              d = (u16)((d << 8) | (d >> 8));
+            PicoMem.vram [(a >> 1) & 0x7fff] = d;
             if (a - ((unsigned)(Pico.video.reg[5]&0x7f) << 9) < 0x400)
               Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
             break;
     case 3: Pico.m.dirtyPal = 1;
-            Pico.cram [(a>>1)&0x003f]=d; break; // wraps (Desert Strike)
-    case 5: Pico.vsram[(a>>1)&0x003f]=d; break;
+            PicoMem.cram [(a >> 1) & 0x3f] = d; break;
+    case 5: PicoMem.vsram[(a >> 1) & 0x3f] = d; break;
     case 0x81:
       a |= Pico.video.addr_u << 16;
       VideoWrite128(a, d);
@@ -68,9 +68,9 @@ static unsigned int VideoRead(void)
 
   switch (Pico.video.type)
   {
-    case 0: d=Pico.vram [a&0x7fff]; break;
-    case 8: d=Pico.cram [a&0x003f]; break;
-    case 4: d=Pico.vsram[a&0x003f]; break;
+    case 0: d=PicoMem.vram [a & 0x7fff]; break;
+    case 8: d=PicoMem.cram [a & 0x003f]; break;
+    case 4: d=PicoMem.vsram[a & 0x003f]; break;
     default:elprintf(EL_ANOMALY, "VDP read with bad type %i", Pico.video.type); break;
   }
 
@@ -106,7 +106,7 @@ static void DmaSlow(int len, unsigned int source)
   SekCyclesBurnRun(CheckDMA());
 
   if ((source & 0xe00000) == 0xe00000) { // Ram
-    base = (u16 *)Pico.ram;
+    base = (u16 *)PicoMem.ram;
     mask = 0xffff;
   }
   else if (PicoAHW & PAHW_MCD)
@@ -154,7 +154,7 @@ static void DmaSlow(int len, unsigned int source)
   switch (Pico.video.type)
   {
     case 1: // vram
-      r = Pico.vram;
+      r = PicoMem.vram;
       if (inc == 2 && !(a & 1) && a + len * 2 < 0x10000
           && !(((source + len - 1) ^ source) & ~mask))
       {
@@ -178,7 +178,7 @@ static void DmaSlow(int len, unsigned int source)
 
     case 3: // cram
       Pico.m.dirtyPal = 1;
-      r = Pico.cram;
+      r = PicoMem.cram;
       for (; len; len--)
       {
         r[(a / 2) & 0x3f] = base[source++ & mask];
@@ -188,7 +188,7 @@ static void DmaSlow(int len, unsigned int source)
       break;
 
     case 5: // vsram
-      r = Pico.vsram;
+      r = PicoMem.vsram;
       for (; len; len--)
       {
         r[(a / 2) & 0x3f] = base[source++ & mask];
@@ -219,9 +219,9 @@ static void DmaSlow(int len, unsigned int source)
 
 static void DmaCopy(int len)
 {
-  u16 a=Pico.video.addr;
-  unsigned char *vr = (unsigned char *) Pico.vram;
-  unsigned char inc=Pico.video.reg[0xf];
+  u16 a = Pico.video.addr;
+  u8 *vr = (u8 *)PicoMem.vram;
+  u8 inc = Pico.video.reg[0xf];
   int source;
   elprintf(EL_VDPDMA, "DmaCopy len %i [%u]", len, SekCyclesDone());
 
@@ -246,10 +246,10 @@ static void DmaCopy(int len)
 
 static NOINLINE void DmaFill(int data)
 {
-  unsigned short a=Pico.video.addr;
-  unsigned char *vr=(unsigned char *) Pico.vram;
-  unsigned char high = (unsigned char) (data >> 8);
-  unsigned char inc=Pico.video.reg[0xf];
+  u16 a = Pico.video.addr;
+  u8 *vr = (u8 *)PicoMem.vram;
+  u8 high = (u8)(data >> 8);
+  u8 inc = Pico.video.reg[0xf];
   int source;
   int len, l;
 
@@ -367,7 +367,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
     // try avoiding the sync..
     if (Pico.m.scanline < 224 && (pvid->reg[1]&0x40) &&
         !(!pvid->pending &&
-          ((pvid->command & 0xc00000f0) == 0x40000010 && Pico.vsram[pvid->addr>>1] == d))
+          ((pvid->command & 0xc00000f0) == 0x40000010 && PicoMem.vsram[pvid->addr>>1] == d))
        )
       DrawSync(0);
 
@@ -421,7 +421,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
           return;
         }
 
-        if (num == 1 && !(d&0x40) && SekCyclesDone() - line_base_cycles <= 488-390)
+        if (num == 1 && !(d&0x40) && SekCyclesDone() - Pico.t.m68c_line_start <= 488-390)
           blank_on = 1;
         DrawSync(blank_on);
         pvid->reg[num]=(unsigned char)d;
@@ -512,7 +512,7 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
     unsigned int d;
     d=pv->status;
     //if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
-    if (SekCyclesDone() - line_base_cycles >= 488-88)
+    if (SekCyclesDone() - Pico.t.m68c_line_start >= 488-88)
       d|=0x0004; // H-Blank (Sonic3 vs)
 
     d |= ((pv->reg[1]&0x40)^0x40) >> 3;  // set V-Blank if display is disabled
@@ -544,7 +544,7 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
   {
     unsigned int d;
 
-    d = (SekCyclesDone() - line_base_cycles) & 0x1ff; // FIXME
+    d = (SekCyclesDone() - Pico.t.m68c_line_start) & 0x1ff; // FIXME
     if (Pico.video.reg[12]&1)
          d = hcounts_40[d];
     else d = hcounts_32[d];
@@ -588,7 +588,7 @@ unsigned char PicoVideoRead8CtlL(void)
   //if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
   d |= ((Pico.video.reg[1]&0x40)^0x40) >> 3;  // set V-Blank if display is disabled
   d |= (Pico.video.pending_ints&0x20)<<2;     // V-int pending?
-  if (SekCyclesDone() - line_base_cycles >= 488-88) d |= 4;    // H-Blank
+  if (SekCyclesDone() - Pico.t.m68c_line_start >= 488-88) d |= 4;    // H-Blank
   Pico.video.pending = 0;
   elprintf(EL_SR, "SR read (l): %02x @ %06x", d, SekPc);
   return d;
@@ -603,7 +603,7 @@ unsigned char PicoVideoRead8HV_H(void)
 // FIXME: broken
 unsigned char PicoVideoRead8HV_L(void)
 {
-  u32 d = (SekCyclesDone() - line_base_cycles) & 0x1ff; // FIXME
+  u32 d = (SekCyclesDone() - Pico.t.m68c_line_start) & 0x1ff; // FIXME
   if (Pico.video.reg[12]&1)
        d = hcounts_40[d];
   else d = hcounts_32[d];

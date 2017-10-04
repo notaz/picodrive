@@ -6,6 +6,8 @@
 @* See COPYING file in the top-level directory.
 @*
 
+#include "../pico_int_o32.h"
+
 .equiv PCM_STEP_SHIFT, 11
 
 .text
@@ -127,9 +129,9 @@ PicoReadM68k8_cell1:                    @ 0x220000 - 0x23ffff, cell arranged
     mov     r3, #0x0e0000
 0:
     cell_map
-    ldr     r1, =(Pico+0x22200)
+    ldr     r1, =Pico
     add     r0, r0, r3
-    ldr     r1, [r1]
+    ldr     r1, [r1, #OFS_Pico_rom]   @ Pico.mcd (used everywhere)
     eor     r0, r0, #1
     ldrb    r0, [r1, r0]
     bx      lr
@@ -140,9 +142,9 @@ PicoRead8_mcd_io:
     cmp     r1, #0x2000	              @ a120xx?
     bne     PicoRead8_io
 
-    ldr     r1, =(Pico+0x22200)
+    ldr     r1, =Pico
     and     r0, r0, #0x3f
-    ldr     r1, [r1]                  @ Pico.mcd (used everywhere)
+    ldr     r1, [r1, #OFS_Pico_rom]   @ Pico.mcd
     cmp     r0, #0x0e
     ldrlt   pc, [pc, r0, lsl #2]
     b       m_m68k_read8_hi
@@ -237,9 +239,9 @@ PicoReadM68k16_cell1:                   @ 0x220000 - 0x23ffff, cell arranged
     mov     r3, #0x0e0000
 0:
     cell_map
-    ldr     r1, =(Pico+0x22200)
+    ldr     r1, =Pico
     add     r0, r0, r3
-    ldr     r1, [r1]
+    ldr     r1, [r1, #OFS_Pico_rom]   @ Pico.mcd
     bic     r0, r0, #1
     ldrh    r0, [r1, r0]
     bx      lr
@@ -251,9 +253,9 @@ PicoRead16_mcd_io:
     bne     PicoRead16_io
 
 m_m68k_read16_m68k_regs:
-    ldr     r1, =(Pico+0x22200)
+    ldr     r1, =Pico
     and     r0, r0, #0x3e
-    ldr     r1, [r1]                  @ Pico.mcd (used everywhere)
+    ldr     r1, [r1, #OFS_Pico_rom]   @ Pico.mcd
     cmp     r0, #0x0e
     ldrlt   pc, [pc, r0, lsl #1]
     b       m_m68k_read16_hi
@@ -328,8 +330,9 @@ PicoWriteM68k8_cell1:                   @ 0x220000 - 0x23ffff, cell arranged
 0:
     mov     r3, r1
     cell_map
-    ldr     r2, =(Pico+0x22200)
+    ldr     r2, =Pico
     add     r0, r0, r12
+    ldr     r2, [r2, #OFS_Pico_rom]     @ Pico.mcd
     ldr     r2, [r2]
     eor     r0, r0, #1
     strb    r3, [r2, r0]
@@ -355,9 +358,9 @@ PicoWriteM68k16_cell1:                   @ 0x220000 - 0x23ffff, cell arranged
 0:
     mov     r3, r1
     cell_map
-    ldr     r1, =(Pico+0x22200)
+    ldr     r1, =Pico
     add     r0, r0, r12
-    ldr     r1, [r1]
+    ldr     r1, [r1, #OFS_Pico_rom]     @ Pico.mcd
     bic     r0, r0, #1
     strh    r3, [r1, r0]
     bx      lr
@@ -397,9 +400,9 @@ PicoReadS68k8_dec0:                     @ 0x080000 - 0x0bffff
 PicoReadS68k8_dec1:
     mov     r3, #0x0a0000               @ + ^ / 2
 0:
-    ldr     r2, =(Pico+0x22200)
+    ldr     r2, =Pico
     eor     r0, r0, #2
-    ldr     r2, [r2]
+    ldr     r2, [r2, #OFS_Pico_rom]     @ Pico.mcd
     movs    r0, r0, lsr #1              @ +4-6 <<16
     add     r2, r2, r3                  @ map to our address
     ldrb    r0, [r2, r0]
@@ -429,8 +432,8 @@ m_s68k_read8_regs:
     bx      lr
 
 m_s68k_read8_comm:
-    ldr     r1, =(Pico+0x22200)
-    ldr     r1, [r1]
+    ldr     r1, =Pico
+    ldr     r1, [r1, #OFS_Pico_rom]     @ Pico.mcd
     add     r1, r1, #0x110000
     ldrb    r1, [r1, r0]
     bic     r0, r0, #1
@@ -442,9 +445,9 @@ m_s68k_read8_pcm:
     bne     m_read_null
 
     @ must not trash r3 and r12
-    ldr     r1, =(Pico+0x22200)
+    ldr     r1, =Pico
     bic     r0, r0, #0xff0000
-    ldr     r1, [r1]
+    ldr     r1, [r1, #OFS_Pico_rom]     @ Pico.mcd
     mov     r2, #0x110000
     orr     r2, r2, #0x002200
     cmp     r0, #0x2000
@@ -477,9 +480,9 @@ PicoReadS68k16_dec0:                    @ 0x080000 - 0x0bffff
 PicoReadS68k16_dec1:
     mov     r3, #0x0a0000               @ + ^ / 2
 0:
-    ldr     r2, =(Pico+0x22200)
+    ldr     r2, =Pico
     eor     r0, r0, #2
-    ldr     r2, [r2]
+    ldr     r2, [r2, #OFS_Pico_rom]     @ Pico.mcd
     mov     r0, r0, lsr #1              @ +4-6 <<16
     add     r2, r2, r3                  @ map to our address
     ldrb    r0, [r2, r0]
@@ -508,9 +511,9 @@ m_s68k_read16_regs:
 
 
 .macro m_s68k_write8_2M_decode
-    ldr     r2, =(Pico+0x22200)
+    ldr     r2, =Pico
     eor     r0, r0, #2
-    ldr     r2, [r2]			@ Pico.rom
+    ldr     r2, [r2, #OFS_Pico_rom]     @ Pico.mcd
     movs    r0, r0, lsr #1              @ +4-6 <<16
     add     r2, r2, r3                  @ map to our address
 .endm
@@ -592,9 +595,9 @@ m_s68k_write8_pcm:
     bxlt    lr
 
 m_s68k_write8_pcm_ram:
-    ldr     r3, =(Pico+0x22200)
+    ldr     r3, =Pico
     bic     r0, r0, #0x00e000
-    ldr     r3, [r3]
+    ldr     r3, [r3, #OFS_Pico_rom]     @ Pico.mcd
     mov     r0, r0, lsr #1
     add     r2, r3, #0x110000
     add     r2, r2, #0x002200
@@ -611,9 +614,9 @@ m_s68k_write8_pcm_ram:
 
 
 .macro m_s68k_write16_2M_decode
-    ldr     r2, =(Pico+0x22200)
+    ldr     r2, =Pico
     eor     r0, r0, #2
-    ldr     r2, [r2]
+    ldr     r2, [r2, #OFS_Pico_rom]     @ Pico.mcd
     mov     r0, r0, lsr #1              @ +4-6 <<16
     add     r2, r2, r3                  @ map to our address
 .endm
@@ -692,9 +695,9 @@ m_s68k_write16_regs:
     bne     s68k_reg_write16
 
 m_s68k_write16_regs_spec:               @ special case
-    ldr     r2, =(Pico+0x22200)
+    ldr     r2, =Pico
     mov     r0, #0x110000
-    ldr     r2, [r2]
+    ldr     r2, [r2, #OFS_Pico_rom]     @ Pico.mcd
     add     r0, r0, #0x00000f
     strb    r1, [r2, r0]                @ if (a == 0xe) s68k_regs[0xf] = d;
     bx      lr

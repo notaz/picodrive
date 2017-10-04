@@ -318,7 +318,7 @@ static void carthw_pier_write8(u32 a, u32 d)
       base = d << 19;
       goto do_map;
     case 0x09:
-      SRam.changed = 1;
+      Pico.sv.changed = 1;
       eeprom_spi_write(d);
       break;
     case 0x0b:
@@ -449,11 +449,11 @@ void carthw_pier_startup(void)
 
   // save EEPROM
   eeprom_state = eeprom_spi_init(&eeprom_size);
-  SRam.flags = 0;
-  SRam.size = 0x10000;
-  SRam.data = calloc(1, SRam.size);
-  if (!SRam.data)
-    SRam.size = 0;
+  Pico.sv.flags = 0;
+  Pico.sv.size = 0x10000;
+  Pico.sv.data = calloc(1, Pico.sv.size);
+  if (!Pico.sv.data)
+    Pico.sv.size = 0;
   carthw_pier_state[2].ptr = eeprom_state;
   carthw_pier_state[2].size = eeprom_size;
 

@@ -889,7 +889,7 @@ int emu_save_load_game(int load, int sram)
 		{
 			if (PicoOpt & POPT_EN_MCD_RAMCART) {
 				sram_size = 0x12000;
-				sram_data = SRam.data;
+				sram_data = Pico.sv.data;
 				if (sram_data)
 					memcpy32((int *)sram_data, (int *)Pico_mcd->bram, 0x2000/4);
 			} else {
@@ -898,11 +898,11 @@ int emu_save_load_game(int load, int sram)
 				truncate  = 0; // the .brm may contain RAM cart data after normal brm
 			}
 		} else {
-			sram_size = SRam.size;
-			sram_data = SRam.data;
+			sram_size = Pico.sv.size;
+			sram_data = Pico.sv.data;
 		}
 		if (sram_data == NULL)
-			return 0; // SRam forcefully disabled for this game
+			return 0; // cart saves forcefully disabled for this game
 
 		if (load)
 		{
@@ -1262,9 +1262,9 @@ void emu_init(void)
 void emu_finish(void)
 {
 	// save SRAM
-	if ((currentConfig.EmuOpt & EOPT_EN_SRAM) && SRam.changed) {
+	if ((currentConfig.EmuOpt & EOPT_EN_SRAM) && Pico.sv.changed) {
 		emu_save_load_game(0, 1);
-		SRam.changed = 0;
+		Pico.sv.changed = 0;
 	}
 
 	if (!(currentConfig.EmuOpt & EOPT_NO_AUTOSVCFG)) {
@@ -1514,10 +1514,10 @@ void emu_loop(void)
 	emu_set_fastforward(0);
 
 	// save SRAM
-	if ((currentConfig.EmuOpt & EOPT_EN_SRAM) && SRam.changed) {
+	if ((currentConfig.EmuOpt & EOPT_EN_SRAM) && Pico.sv.changed) {
 		plat_status_msg_busy_first("Writing SRAM/BRAM...");
 		emu_save_load_game(0, 1);
-		SRam.changed = 0;
+		Pico.sv.changed = 0;
 	}
 
 	pemu_loop_end();

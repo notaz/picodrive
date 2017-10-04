@@ -230,9 +230,9 @@ static int state_save(void *file)
     memset(buff, 0, sizeof(buff));
     SekPackCpu(buff, 0);
     CHECKED_WRITE_BUFF(CHUNK_M68K,  buff);
-    CHECKED_WRITE_BUFF(CHUNK_RAM,   Pico.ram);
-    CHECKED_WRITE_BUFF(CHUNK_VSRAM, Pico.vsram);
-    CHECKED_WRITE_BUFF(CHUNK_IOPORTS, Pico.ioports);
+    CHECKED_WRITE_BUFF(CHUNK_RAM,   PicoMem.ram);
+    CHECKED_WRITE_BUFF(CHUNK_VSRAM, PicoMem.vsram);
+    CHECKED_WRITE_BUFF(CHUNK_IOPORTS, PicoMem.ioports);
     ym2612_pack_state();
     CHECKED_WRITE(CHUNK_FM, 0x200+4, ym2612_regs);
   }
@@ -240,9 +240,9 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_SMS, Pico.ms);
   }
 
-  CHECKED_WRITE_BUFF(CHUNK_VRAM,  Pico.vram);
-  CHECKED_WRITE_BUFF(CHUNK_ZRAM,  Pico.zram);
-  CHECKED_WRITE_BUFF(CHUNK_CRAM,  Pico.cram);
+  CHECKED_WRITE_BUFF(CHUNK_VRAM,  PicoMem.vram);
+  CHECKED_WRITE_BUFF(CHUNK_ZRAM,  PicoMem.zram);
+  CHECKED_WRITE_BUFF(CHUNK_CRAM,  PicoMem.cram);
   CHECKED_WRITE_BUFF(CHUNK_MISC,  Pico.m);
   CHECKED_WRITE_BUFF(CHUNK_VIDEO, Pico.video);
 
@@ -421,14 +421,14 @@ static int state_load(void *file)
         CHECKED_READ_BUFF(buff_z80);
         break;
 
-      case CHUNK_RAM:     CHECKED_READ_BUFF(Pico.ram); break;
-      case CHUNK_VRAM:    CHECKED_READ_BUFF(Pico.vram); break;
-      case CHUNK_ZRAM:    CHECKED_READ_BUFF(Pico.zram); break;
-      case CHUNK_CRAM:    CHECKED_READ_BUFF(Pico.cram); break;
-      case CHUNK_VSRAM:   CHECKED_READ_BUFF(Pico.vsram); break;
+      case CHUNK_RAM:     CHECKED_READ_BUFF(PicoMem.ram); break;
+      case CHUNK_VRAM:    CHECKED_READ_BUFF(PicoMem.vram); break;
+      case CHUNK_ZRAM:    CHECKED_READ_BUFF(PicoMem.zram); break;
+      case CHUNK_CRAM:    CHECKED_READ_BUFF(PicoMem.cram); break;
+      case CHUNK_VSRAM:   CHECKED_READ_BUFF(PicoMem.vsram); break;
       case CHUNK_MISC:    CHECKED_READ_BUFF(Pico.m); break;
       case CHUNK_VIDEO:   CHECKED_READ_BUFF(Pico.video); break;
-      case CHUNK_IOPORTS: CHECKED_READ_BUFF(Pico.ioports); break;
+      case CHUNK_IOPORTS: CHECKED_READ_BUFF(PicoMem.ioports); break;
       case CHUNK_PSG:     CHECKED_READ2(28*4, sn76496_regs); break;
       case CHUNK_FM:
         ym2612_regs = YM2612GetRegs();
@@ -553,7 +553,7 @@ readend:
   z80_unpack(buff_z80);
 
   // due to dep from 68k cycles..
-  SekCycleAim = SekCycleCnt;
+  Pico.t.m68c_aim = Pico.t.m68c_cnt;
   if (PicoAHW & PAHW_32X)
     Pico32xStateLoaded(0);
   if (PicoAHW & PAHW_MCD)
@@ -596,9 +596,9 @@ static int state_load_gfx(void *file)
 
     switch (buff[0])
     {
-      case CHUNK_VRAM:  CHECKED_READ_BUFF(Pico.vram);  found++; break;
-      case CHUNK_CRAM:  CHECKED_READ_BUFF(Pico.cram);  found++; break;
-      case CHUNK_VSRAM: CHECKED_READ_BUFF(Pico.vsram); found++; break;
+      case CHUNK_VRAM:  CHECKED_READ_BUFF(PicoMem.vram);  found++; break;
+      case CHUNK_CRAM:  CHECKED_READ_BUFF(PicoMem.cram);  found++; break;
+      case CHUNK_VSRAM: CHECKED_READ_BUFF(PicoMem.vsram); found++; break;
       case CHUNK_VIDEO: CHECKED_READ_BUFF(Pico.video); found++; break;
 
 #ifndef NO_32X
@@ -679,10 +679,10 @@ int PicoStateLoadGfx(const char *fname)
   if (ret != 0) {
     // assume legacy
     areaSeek(afile, 0x10020, SEEK_SET);  // skip header and RAM
-    areaRead(Pico.vram, 1, sizeof(Pico.vram), afile);
+    areaRead(PicoMem.vram, 1, sizeof(PicoMem.vram), afile);
     areaSeek(afile, 0x2000, SEEK_CUR);
-    areaRead(Pico.cram, 1, sizeof(Pico.cram), afile);
-    areaRead(Pico.vsram, 1, sizeof(Pico.vsram), afile);
+    areaRead(PicoMem.cram, 1, sizeof(PicoMem.cram), afile);
+    areaRead(PicoMem.vsram, 1, sizeof(PicoMem.vsram), afile);
     areaSeek(afile, 0x221a0, SEEK_SET);
     areaRead(&Pico.video, 1, sizeof(Pico.video), afile);
   }
@@ -715,9 +715,9 @@ void *PicoTmpStateSave(void)
   if (t == NULL)
     return NULL;
 
-  memcpy(t->vram, Pico.vram, sizeof(Pico.vram));
-  memcpy(t->cram, Pico.cram, sizeof(Pico.cram));
-  memcpy(t->vsram, Pico.vsram, sizeof(Pico.vsram));
+  memcpy(t->vram, PicoMem.vram, sizeof(PicoMem.vram));
+  memcpy(t->cram, PicoMem.cram, sizeof(PicoMem.cram));
+  memcpy(t->vsram, PicoMem.vsram, sizeof(PicoMem.vsram));
   memcpy(&t->video, &Pico.video, sizeof(Pico.video));
 
 #ifndef NO_32X
@@ -737,9 +737,9 @@ void PicoTmpStateRestore(void *data)
   if (t == NULL)
     return;
 
-  memcpy(Pico.vram, t->vram, sizeof(Pico.vram));
-  memcpy(Pico.cram, t->cram, sizeof(Pico.cram));
-  memcpy(Pico.vsram, t->vsram, sizeof(Pico.vsram));
+  memcpy(PicoMem.vram, t->vram, sizeof(PicoMem.vram));
+  memcpy(PicoMem.cram, t->cram, sizeof(PicoMem.cram));
+  memcpy(PicoMem.vsram, t->vsram, sizeof(PicoMem.vsram));
   memcpy(&Pico.video, &t->video, sizeof(Pico.video));
   Pico.m.dirtyPal = 1;
 

@@ -1159,7 +1159,7 @@ static void bank_switch(int b)
     return;
 
   bank = b << 20;
-  if ((Pico.m.sram_reg & SRR_MAPPED) && bank == SRam.start) {
+  if ((Pico.m.sram_reg & SRR_MAPPED) && bank == Pico.sv.start) {
     bank_map_handler();
     return;
   }
