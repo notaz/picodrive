@@ -129,18 +129,11 @@ static void funcname(int sx, unsigned int pack, int pal)     \
 }
 
 
-#ifdef _ASM_DRAW_C_AMIPS
-int TileNorm(int sx, unsigned int pack, int pal);
-int TileFlip(int sx, unsigned int pack, int pal);
-#else
-
 #define pix_just_write(x) \
   if (t) pd[x]=pal|t
 
 TileNormMaker(TileNorm,pix_just_write)
 TileFlipMaker(TileFlip,pix_just_write)
-
-#endif
 
 #ifndef _ASM_DRAW_C
 
