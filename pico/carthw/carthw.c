@@ -423,7 +423,6 @@ static void carthw_pier_reset(void)
 {
   pier_regs[0] = 1;
   pier_regs[1] = pier_regs[2] = pier_regs[3] = 0;
-  pier_dump_prot = 3;
   carthw_pier_statef();
   eeprom_spi_init(NULL);
 }
@@ -442,6 +441,8 @@ void carthw_pier_startup(void)
     elprintf(EL_STATUS, "OOM");
     return;
   }
+
+  pier_dump_prot = 3;
 
   // create dump protection bank
   for (i = 0; i < M68K_BANK_SIZE; i += 0x8000)
