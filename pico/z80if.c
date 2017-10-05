@@ -119,29 +119,6 @@ void z80_reset(void)
 #endif
 }
 
-/* save state stuff */
-static int z80_unpack_legacy(const void *data)
-{
-#if defined(_USE_DRZ80)
-  if (*(int *)data == 0x015A7244) { // "DrZ" v1 save?
-    u32 pc, sp;
-    memcpy(&drZ80, data+4, 0x54);
-    pc = (drZ80.Z80PC - drZ80.Z80PC_BASE) & 0xffff;
-    sp = (drZ80.Z80SP - drZ80.Z80SP_BASE) & 0xffff;
-    // update bases
-    drz80_load_pcsp(pc, sp);
-    return 0;
-  }
-#elif defined(_USE_CZ80)
-  if (*(int *)data == 0x00007a43) { // "Cz" save?
-    memcpy(&CZ80, data+8, offsetof(cz80_struc, BasePC));
-    Cz80_Set_Reg(&CZ80, CZ80_PC, *(int *)(data+4));
-    return 0;
-  }
-#endif
-  return -1;
-}
-
 struct z80sr_main {
   u8 a, f;
   u8 b, c;
@@ -226,9 +203,7 @@ int z80_unpack(const void *data)
 {
   const struct z80_state *s = data;
   if (strcmp(s->magic, "Z80") != 0) {
-    if (z80_unpack_legacy(data) != 0)
-      goto fail;
-    elprintf(EL_STATUS, "legacy z80 state");
+    elprintf(EL_STATUS, "legacy z80 state - ignored");
     return 0;
   }
 
@@ -278,13 +253,9 @@ int z80_unpack(const void *data)
     Cz80_Set_Reg(&CZ80, CZ80_IRQ, s->irq_pending ? HOLD_LINE : CLEAR_LINE);
     return 0;
   }
+#else
+  return 0;
 #endif
-
-fail:
-  elprintf(EL_STATUS|EL_ANOMALY, "z80_unpack failed");
-  z80_reset();
-  z80_int();
-  return -1;
 }
 
 void z80_exit(void)

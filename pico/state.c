@@ -78,54 +78,6 @@ static void *open_save_file(const char *fname, int is_save)
   return afile;
 }
 
-// legacy savestate loading
-#define SCANP(f, x) areaRead(&Pico.x, sizeof(Pico.x), 1, f)
-
-static int state_load_legacy(void *file)
-{
-  unsigned char head[32];
-  unsigned char cpu[0x60];
-  unsigned char cpu_z80[Z80_STATE_SIZE];
-  void *ym2612_regs;
-  int ok;
-
-  memset(&cpu,0,sizeof(cpu));
-  memset(&cpu_z80,0,sizeof(cpu_z80));
-
-  memset(head, 0, sizeof(head));
-  areaRead(head, sizeof(head), 1, file);
-  if (strcmp((char *)head, "Pico") != 0)
-    return -1;
-
-  elprintf(EL_STATUS, "legacy savestate");
-
-  // Scan all the memory areas:
-  SCANP(file, ram);
-  SCANP(file, vram);
-  SCANP(file, zram);
-  SCANP(file, cram);
-  SCANP(file, vsram);
-
-  // Pack, scan and unpack the cpu data:
-  areaRead(cpu, sizeof(cpu), 1, file);
-  SekUnpackCpu(cpu, 0);
-
-  SCANP(file, m);
-  SCANP(file, video);
-
-  ok = areaRead(cpu_z80, sizeof(cpu_z80), 1, file) == sizeof(cpu_z80);
-  // do not unpack if we fail to load z80 state
-  if (!ok) z80_reset();
-  else     z80_unpack(cpu_z80);
-
-  ym2612_regs = YM2612GetRegs();
-  areaRead(sn76496_regs, 28*4, 1, file);
-  areaRead(ym2612_regs, 0x200+4, 1, file);
-  ym2612_unpack_state();
-
-  return 0;
-}
-
 // ---------------------------------------------------------------------------
 
 typedef enum {
@@ -610,6 +562,9 @@ readend:
     pcd_state_loaded();
   }
 
+  Pico.m.dirtyPal = 1;
+  Pico.video.status &= ~(SR_VB | SR_F);
+
   retval = 0;
 
 out:
@@ -679,16 +634,8 @@ static int pico_state_internal(void *afile, int is_save)
 
   if (is_save)
     ret = state_save(afile);
-  else {
+  else
     ret = state_load(afile);
-    if (ret != 0) {
-      areaSeek(afile, 0, SEEK_SET);
-      ret = state_load_legacy(afile);
-    }
-
-    Pico.m.dirtyPal = 1;
-    Pico.video.status &= ~(SR_VB | SR_F);
-  }
 
   return ret;
 }
