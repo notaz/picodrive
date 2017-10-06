@@ -1693,22 +1693,19 @@ int YM2612Write_(unsigned int a, unsigned int v)
 
 	v &= 0xff;	/* adjust to 8 bit bus */
 
-	switch( a&3){
+	switch( a & 3 ){
 	case 0:	/* address port 0 */
+	case 2:	/* address port 1 */
 		ym2612.OPN.ST.address = v;
-		ym2612.addr_A1 = 0;
-		ret=0;
+		ym2612.addr_A1 = (a & 2) >> 1;
+		ret = 0;
 		break;
 
-	case 1:	/* data port 0    */
-		if (ym2612.addr_A1 != 0) {
-			ret=0;
-			break;	/* verified on real YM2608 */
-		}
+	case 1:
+	case 3:	/* data port */
+		addr = ym2612.OPN.ST.address | ((int)ym2612.addr_A1 << 8);
 
-		addr = ym2612.OPN.ST.address;
-
-		switch( addr & 0xf0 )
+		switch( addr & 0x1f0 )
 		{
 		case 0x20:	/* 0x20-0x2f Mode */
 			switch( addr )
@@ -1721,6 +1718,7 @@ int YM2612Write_(unsigned int a, unsigned int v)
 				else
 				{
 					ym2612.OPN.lfo_inc = 0;
+					ym2612.OPN.lfo_cnt = 0;
 				}
 				break;
 #if 0 // handled elsewhere
@@ -1789,23 +1787,6 @@ int YM2612Write_(unsigned int a, unsigned int v)
 			/* write register */
 			ret = OPNWriteReg(addr,v);
 		}
-		break;
-
-	case 2:	/* address port 1 */
-		ym2612.OPN.ST.address = v;
-		ym2612.addr_A1 = 1;
-		ret=0;
-		break;
-
-	case 3:	/* data port 1    */
-		if (ym2612.addr_A1 != 1) {
-			ret=0;
-			break;	/* verified on real YM2608 */
-		}
-
-		addr = ym2612.OPN.ST.address | 0x100;
-
-		ret = OPNWriteReg(addr, v);
 		break;
 	}
 
