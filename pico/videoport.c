@@ -357,10 +357,10 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
 {
   struct PicoVideo *pvid=&Pico.video;
 
-  //if (Pico.m.scanline < 224)
-  //  elprintf(EL_STATUS, "PicoVideoWrite [%06x] %04x", a, d);
-  a&=0x1c;
+  //elprintf(EL_STATUS, "PicoVideoWrite [%06x] %04x [%u] @ %06x",
+  //  a, d, SekCyclesDone(), SekPc);
 
+  a &= 0x1c;
   switch (a)
   {
   case 0x00: // Data port 0 or 2
@@ -383,8 +383,8 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
       pvid->lwrite_cnt -= use;
       if (pvid->lwrite_cnt < 0)
         SekCyclesLeft = 0;
-      elprintf(EL_ASVDP, "VDP data write: %04x [%06x] {%i} #%i @ %06x", d, Pico.video.addr,
-               Pico.video.type, pvid->lwrite_cnt, SekPc);
+      elprintf(EL_ASVDP, "VDP data write: [%04x] %04x [%u] {%i} #%i @ %06x",
+        Pico.video.addr, d, SekCyclesDone(), Pico.video.type, pvid->lwrite_cnt, SekPc);
     }
     VideoWrite(d);
 
@@ -451,14 +451,15 @@ update_irq:
         // update IRQ level
         if (!SekShouldInterrupt()) // hack
         {
-          int lines, pints, irq=0;
+          int lines, pints, irq = 0;
           lines = (pvid->reg[1] & 0x20) | (pvid->reg[0] & 0x10);
-          pints = (pvid->pending_ints&lines);
+          pints = pvid->pending_ints & lines;
                if (pints & 0x20) irq = 6;
           else if (pints & 0x10) irq = 4;
           SekInterrupt(irq); // update line
 
-          if (irq) SekEndRun(24); // make it delayed
+          // this is broken because cost of current insn isn't known here
+          if (irq) SekEndRun(21); // make it delayed
         }
 #endif
       }
@@ -521,7 +522,7 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
 
     pv->pending = 0; // ctrl port reads clear write-pending flag (Charles MacDonald)
 
-    elprintf(EL_SR, "SR read: %04x @ %06x", d, SekPc);
+    elprintf(EL_SR, "SR read: %04x [%u] @ %06x", d, SekCyclesDone(), SekPc);
     return d;
   }
 

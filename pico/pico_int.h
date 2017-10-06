@@ -117,13 +117,9 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #define SekNotPolling     PicoCpuMM68k.not_polling
 #define SekNotPollingS68k PicoCpuMS68k.not_polling
 
-#define SekInterrupt(irq) { \
-	void *oldcontext = m68ki_cpu_p; \
-	m68k_set_context(&PicoCpuMM68k); \
-	m68k_set_irq(irq); \
-	m68k_set_context(oldcontext); \
-}
-#define SekIrqLevel (PicoCpuMM68k.int_level >> 8)
+// avoid m68k_set_irq() for delaying to work
+#define SekInterrupt(irq)  PicoCpuMM68k.int_level = (irq) << 8
+#define SekIrqLevel        (PicoCpuMM68k.int_level >> 8)
 
 #endif
 #endif // EMU_M68K

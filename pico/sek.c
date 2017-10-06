@@ -25,15 +25,29 @@ M68K_CONTEXT PicoCpuFM68k;
 #endif
 
 
+static int do_ack(int level)
+{
+  struct PicoVideo *pv = &Pico.video;
+
+  elprintf(EL_INTS, "%cack: @ %06x [%u], p=%02x",
+    level == 6 ? 'v' : 'h', SekPc, SekCyclesDone(), pv->pending_ints);
+  // the VDP doesn't look at the 68k level
+  if (pv->pending_ints & pv->reg[1] & 0x20) {
+    pv->pending_ints &= ~0x20;
+    return (pv->reg[0] & pv->pending_ints & 0x10) >> 2;
+  }
+  else if (pv->pending_ints & pv->reg[0] & 0x10)
+    pv->pending_ints &= ~0x10;
+
+  return 0;
+}
+
 /* callbacks */
 #ifdef EMU_C68K
 // interrupt acknowledgment
 static int SekIntAck(int level)
 {
-  // try to emulate VDP's reaction to 68000 int ack
-  if     (level == 4) { Pico.video.pending_ints  =  0;    elprintf(EL_INTS, "hack: @ %06x [%u]", SekPc, Pico.t.m68c_cnt); }
-  else if(level == 6) { Pico.video.pending_ints &= ~0x20; elprintf(EL_INTS, "vack: @ %06x [%u]", SekPc, Pico.t.m68c_cnt); }
-  PicoCpuCM68k.irq = 0;
+  PicoCpuCM68k.irq = do_ack(level);
   return CYCLONE_INT_ACK_AUTOVECTOR;
 }
 
@@ -71,9 +85,7 @@ static int SekUnrecognizedOpcode()
 #ifdef EMU_M68K
 static int SekIntAckM68K(int level)
 {
-  if     (level == 4) { Pico.video.pending_ints  =  0;    elprintf(EL_INTS, "hack: @ %06x [%u]", SekPc, Pico.t.m68c_cnt); }
-  else if(level == 6) { Pico.video.pending_ints &= ~0x20; elprintf(EL_INTS, "vack: @ %06x [%u]", SekPc, Pico.t.m68c_cnt); }
-  CPU_INT_LEVEL = 0;
+  CPU_INT_LEVEL = do_ack(level) << 8;
   return M68K_INT_ACK_AUTOVECTOR;
 }
 
@@ -87,15 +99,7 @@ static int SekTasCallback(void)
 #ifdef EMU_F68K
 static void SekIntAckF68K(unsigned level)
 {
-  if     (level == 4) {
-    Pico.video.pending_ints = 0;
-    elprintf(EL_INTS, "hack: @ %06x [%u]", SekPc, SekCyclesDone());
-  }
-  else if(level == 6) {
-    Pico.video.pending_ints &= ~0x20;
-    elprintf(EL_INTS, "vack: @ %06x [%u]", SekPc, SekCyclesDone());
-  }
-  PicoCpuFM68k.interrupts[0] = 0;
+  PicoCpuFM68k.interrupts[0] = do_ack(level);
 }
 #endif
 

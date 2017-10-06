@@ -7,7 +7,7 @@
  */
 
 #define CYCLES_M68K_LINE     488 // suitable for both PAL/NTSC
-#define CYCLES_M68K_VINT_LAG  68
+#define CYCLES_M68K_VINT_LAG 112
 
 // pad delay (for 6 button pads)
 #define PAD_DELAY() { \
@@ -206,7 +206,6 @@ static int PicoFrameHints(void)
   }
 
   pv->status |= SR_VB; // go into vblank
-  pv->pending_ints |= 0x20;
 
   // the following SekRun is there for several reasons:
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
@@ -216,7 +215,10 @@ static int PicoFrameHints(void)
   do_timing_hacks_vb();
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
+  pv->pending_ints |= 0x20;
   if (pv->reg[1] & 0x20) {
+    Pico.t.m68c_aim = Pico.t.m68c_cnt + 11; // HACK
+    SekSyncM68k();
     elprintf(EL_INTS, "vint: @ %06x [%u]", SekPc, SekCyclesDone());
     SekInterrupt(6);
   }

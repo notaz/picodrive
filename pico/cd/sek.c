@@ -178,10 +178,8 @@ PICO_INTERNAL int SekInterruptS68k(int irq)
   PicoCpuCS68k.irq=real_irq;
 #endif
 #ifdef EMU_M68K
-  void *oldcontext = m68ki_cpu_p;
-  m68k_set_context(&PicoCpuMS68k);
-  m68k_set_irq(real_irq);
-  m68k_set_context(oldcontext);
+  // avoid m68k_set_irq() for delaying to work
+  PicoCpuMS68k.int_level = real_irq << 8;
 #endif
 #ifdef EMU_F68K
   PicoCpuFS68k.interrupts[0]=real_irq;
