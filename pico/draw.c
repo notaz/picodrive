@@ -261,7 +261,11 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
   // Draw tiles across screen:
   tilex=(-ts->hscroll)>>3;
   dx=((ts->hscroll-1)&7)+1;
-  if(dx != 8) cell--; // have hscroll, start with negative cell
+  if (ts->hscroll & 0x0f) {
+    int adj = ((ts->hscroll ^ dx) >> 3) & 1;
+    cell -= adj + 1;
+    ts->cells -= adj;
+  }
   cell+=cellskip;
   tilex+=cellskip;
   dx+=cellskip<<3;

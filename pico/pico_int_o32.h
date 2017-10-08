@@ -24,3 +24,5 @@
 #define OFS_EST_PicoOpt      0x20
 #define OFS_EST_Draw2FB      0x24
 #define OFS_EST_HighPal      0x28
+#define OFS_PMEM_vram        0x10000
+#define OFS_PMEM_vsram       0x22100

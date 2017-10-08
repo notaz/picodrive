@@ -73,8 +73,17 @@ BackFillFull:
 
 @ -------- some macros --------
 
+@ helpers
+.macro add_c24 d s c
+    add     \d, \s, #(\c & 0x00ff00)
+.if \c & 0x0000ff
+    add     \d, \d, #(\c & 0x0000ff)
+.endif
+.if \c & 0xff0000
+    add     \d, \d, #(\c & 0xff0000)
+.endif
+.endm
 
-@ helper
 @ TileLineSinglecol (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r0: pixels8_old
 .macro TileLineSinglecol notsinglecol=0
     and     r2, r2, #0xf        @ #0x0000000f
@@ -411,8 +420,7 @@ DrawLayerFull:
     mla     r11, r4, r7, r11      @ scrpos+=8*328*(planestart-START_ROW);
 
     @ Get vertical scroll value:
-    add     r7, r10, #0x012000
-    add     r7, r7,  #0x000180    @ r7=Pico.vsram (Pico+0x22180)
+    add_c24 r7, r10, (OFS_PMEM_vsram-OFS_PMEM_vram)
     ldr     r7, [r7]
     tst     r0, r0
     moveq   r7, r7, lsl #22

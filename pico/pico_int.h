@@ -356,7 +356,6 @@ struct PicoEState
   unsigned short HighPal[0x100];
 };
 
-// some assembly stuff still depends on these, do not touch!
 struct PicoMem
 {
   unsigned char ram[0x10000];  // 0x00000 scratch ram
@@ -366,9 +365,9 @@ struct PicoMem
   };
   unsigned char zram[0x2000];  // 0x20000 Z80 ram
   unsigned char ioports[0x10]; // XXX: fix asm and mv
-  unsigned char pad[0xf0];     // unused
-  unsigned short cram[0x40];   // 0x22100
-  unsigned short vsram[0x40];  // 0x22180
+  unsigned short cram[0x40];   // 0x22010
+  unsigned char pad[0x70];     // 0x22050 DrawStripVSRam reads 0 from here
+  unsigned short vsram[0x40];  // 0x22100
 };
 
 // sram

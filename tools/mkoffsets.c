@@ -18,6 +18,9 @@
 #define DUMP_EST(f, field) \
 	DUMP(f, "OFS_EST_", struct PicoEState, field)
 
+#define DUMP_PMEM(f, field) \
+	DUMP(f, "OFS_PMEM_", struct PicoMem, field)
+
 extern struct Pico p;
 
 int main(int argc, char *argv[])
@@ -58,6 +61,8 @@ int main(int argc, char *argv[])
   DUMP_EST(f, PicoOpt);
   DUMP_EST(f, Draw2FB);
   DUMP_EST(f, HighPal);
+  DUMP_PMEM(f, vram);
+  DUMP_PMEM(f, vsram);
   fclose(f);
 
   return 0;

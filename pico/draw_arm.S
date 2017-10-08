@@ -19,7 +19,17 @@
 .equ PDRAW_PLANE_HI_PRIO, (1<<6)
 .equ PDRAW_SHHI_DONE,     (1<<7)
 
-@ helper
+@ helpers
+.macro add_c24 d s c
+    add     \d, \s, #(\c & 0x00ff00)
+.if \c & 0x0000ff
+    add     \d, \d, #(\c & 0x0000ff)
+.endif
+.if \c & 0xff0000
+    add     \d, \d, #(\c & 0xff0000)
+.endif
+.endm
+
 .macro TilePixel pat lsrr offs
 .if !\lsrr
     ands    r4, \pat, r2
@@ -344,8 +354,7 @@ DrawLayer:
     bne     .DrawStrip_vsscroll
 
     @ Get vertical scroll value:
-    add     r7, lr,  #0x012000
-    add     r7, r7,  #0x000180    @ r7=PicoMem.vsram (PicoMem+0x22180)
+    add_c24 r7, lr, (OFS_PMEM_vsram-OFS_PMEM_vram)
     ldr     r7, [r7]
 
     tst     r8, #2
@@ -522,16 +531,21 @@ DrawLayer:
     add     r7, r1, #1            @ r7=dx=((ts->hscroll-1)&7)+1
 
     mov     r10,r9, lsl #16
+    orr     r10,r10, #0xff000000  @ will be adjusted on entering loop
     tst     r0, #1
     orrne   r10,r10, #0x8000
+    tst     r3, #0x0f             @ hscroll & 0x0f?
+    beq     0f
+    eor     r3, r3, r7
+    sub     r10,r10, #1<<24       @ cell--  // start from negative for hscroll
+    tst     r3, #0x08
+    subne   r10,r10, #1<<16       @ cells--
+    subne   r10,r10, #1<<24       @ cell--  // even more negative
+0:
     tst     r9, #1<<31
     mov     r3, #0
-    orr     r10,r10, #0xff000000 @ will be adjusted on entering loop
     orrne   r10,r10, #1<<23 @ r10=(cell[31:24]|sh[23]|hi_not_empty[22]|cells_max[21:16]|plane[15]|ty[14:0])
     movne   r3, #0x40       @ default to shadowed pal on sh mode
-
-    cmp     r7, #8
-    subne   r10,r10, #0x01000000 @ have hscroll, start with negative cell
 
     and     r9, r9, #0xff00
     add     r8, r8, r9, lsr #8   @ tilex+=cellskip
@@ -556,8 +570,7 @@ DrawLayer:
     ble     .dsloop_vs_exit
 
     @ calc offset and read tileline code to r7, also calc ty
-    add     r7, lr, #0x012000
-    add     r7, r7, #0x000180     @ r7=PicoMem.vsram (PicoMem+0x22180)
+    add_c24 r7, lr, (OFS_PMEM_vsram-OFS_PMEM_vram)
     add     r7, r7, r10,asr #23   @ vsram + ((cell&~1)<<1)
     bic     r7, r7, #3
     tst     r10,#0x8000           @ plane1?
