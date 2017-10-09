@@ -938,7 +938,7 @@ famec_Exec:
 			u32 line;
 			m68kcontext.io_cycle_counter += cycles_needed;
 			cycles_needed = 0;
-			if (m68kcontext.io_cycle_counter <= 0) goto famec_End;
+			//if (m68kcontext.io_cycle_counter <= 0) goto famec_End;
 			line=interrupt_chk__();
 			if (line>0)
 			{

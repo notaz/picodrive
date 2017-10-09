@@ -38009,7 +38009,7 @@ OPCODE(0xE0B0)
 		{
 			if (sft == 1) res = (src >> 1) | ((flag_X & M68K_SR_X) << (32 - (M68K_SR_X_SFT + 1)));
 			else res = (src >> sft) | (src << (33 - sft)) | (((flag_X & M68K_SR_X) << (32 - (M68K_SR_X_SFT + 1))) >> (sft - 1));
-			flag_X = (src >> (32 - sft)) << M68K_SR_X_SFT;
+			flag_X = (src >> (sft - 1)) << M68K_SR_X_SFT;
 		}
 		else res = src;
 		flag_C = flag_X;
