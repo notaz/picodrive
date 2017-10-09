@@ -287,6 +287,7 @@ extern SH2 sh2s[2];
 #define SR_EMPT       (1 << 9)
 // not part of real SR
 #define PVS_ACTIVE    (1 << 16)
+#define PVS_VB2       (1 << 17) // ignores forced blanking
 
 struct PicoVideo
 {

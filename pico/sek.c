@@ -34,6 +34,7 @@ static int do_ack(int level)
   // the VDP doesn't look at the 68k level
   if (pv->pending_ints & pv->reg[1] & 0x20) {
     pv->pending_ints &= ~0x20;
+    pv->status &= ~SR_F;
     return (pv->reg[0] & pv->pending_ints & 0x10) >> 2;
   }
   else if (pv->pending_ints & pv->reg[0] & 0x10)

@@ -376,8 +376,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
       pvid->pending=0;
     }
 
-    // preliminary FIFO emulation for Chaos Engine, The (E)
-    if (!(pvid->status & SR_VB) && (pvid->reg[1] & 0x40) && !(PicoOpt&POPT_DIS_VDP_FIFO)) // active display?
+    if (!(pvid->status & SR_VB) && !(PicoOpt&POPT_DIS_VDP_FIFO))
     {
       int use = pvid->type == 1 ? 2 : 1;
       pvid->lwrite_cnt -= use;
@@ -434,6 +433,9 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
           case 0x01:
             elprintf(EL_INTSW, "vint_onoff: %i->%i [%u] pend=%i @ %06x", (dold&0x20)>>5,
                     (d&0x20)>>5, SekCyclesDone(), (pvid->pending_ints&0x20)>>5, SekPc);
+            if (!(pvid->status & PVS_VB2))
+              pvid->status &= ~SR_VB;
+            pvid->status |= ((d >> 3) ^ SR_VB) & SR_VB; // forced blanking
             goto update_irq;
           case 0x05:
             //elprintf(EL_STATUS, "spritep moved to %04x", (unsigned)(Pico.video.reg[5]&0x7f) << 9);
@@ -503,25 +505,25 @@ update_irq:
   }
 }
 
+static u32 SrLow(const struct PicoVideo *pv)
+{
+  unsigned int c, d = pv->status;
+
+  c = SekCyclesDone() - Pico.t.m68c_line_start - 39;
+  if (c < 92)
+    d |= SR_HB;
+  return d;
+}
+
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
 {
-  a&=0x1c;
+  a &= 0x1c;
 
-  if (a==0x04) // control port
+  if (a == 0x04) // control port
   {
-    struct PicoVideo *pv=&Pico.video;
-    unsigned int d;
-    d=pv->status;
-    //if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
-    if (SekCyclesDone() - Pico.t.m68c_line_start >= 488-88)
-      d|=0x0004; // H-Blank (Sonic3 vs)
-
-    d |= ((pv->reg[1]&0x40)^0x40) >> 3;  // set V-Blank if display is disabled
-    d |= (pv->pending_ints&0x20)<<2;     // V-int pending?
-    if (d&0x100) pv->status&=~0x100; // FIFO no longer full
-
-    pv->pending = 0; // ctrl port reads clear write-pending flag (Charles MacDonald)
-
+    struct PicoVideo *pv = &Pico.video;
+    unsigned int d = SrLow(pv);
+    pv->pending = 0;
     elprintf(EL_SR, "SR read: %04x [%u] @ %06x", d, SekCyclesDone(), SekPc);
     return d;
   }
@@ -572,12 +574,9 @@ unsigned char PicoVideoRead8DataL(void)
   return VideoRead();
 }
 
-// FIXME: broken mess
 unsigned char PicoVideoRead8CtlH(void)
 {
   u8 d = (u8)(Pico.video.status >> 8);
-  if (d & 1)
-    Pico.video.status &= ~0x100; // FIFO no longer full
   Pico.video.pending = 0;
   elprintf(EL_SR, "SR read (h): %02x @ %06x", d, SekPc);
   return d;
@@ -585,11 +584,7 @@ unsigned char PicoVideoRead8CtlH(void)
 
 unsigned char PicoVideoRead8CtlL(void)
 {
-  u8 d = (u8)Pico.video.status;
-  //if (PicoOpt&POPT_ALT_RENDERER) d|=0x0020; // sprite collision (Shadow of the Beast)
-  d |= ((Pico.video.reg[1]&0x40)^0x40) >> 3;  // set V-Blank if display is disabled
-  d |= (Pico.video.pending_ints&0x20)<<2;     // V-int pending?
-  if (SekCyclesDone() - Pico.t.m68c_line_start >= 488-88) d |= 4;    // H-Blank
+  u8 d = SrLow(&Pico.video);
   Pico.video.pending = 0;
   elprintf(EL_SR, "SR read (l): %02x @ %06x", d, SekPc);
   return d;

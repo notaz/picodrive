@@ -108,7 +108,7 @@ static int PicoFrameHints(void)
   }
   else skip=PicoSkipFrame;
 
-  Pico.t.m68c_frame_start = SekCyclesDone();
+  Pico.t.m68c_frame_start = Pico.t.m68c_aim;
   pv->v_counter = Pico.m.scanline = 0;
   z80_resetCycles();
   PsndStartFrame();
@@ -170,7 +170,7 @@ static int PicoFrameHints(void)
     }
 
     // Run scanline:
-    Pico.t.m68c_line_start = SekCyclesDone();
+    Pico.t.m68c_line_start = Pico.t.m68c_aim;
     do_timing_hacks_as(pv, vdp_slots);
     CPUS_RUN(CYCLES_M68K_LINE);
 
@@ -205,16 +205,17 @@ static int PicoFrameHints(void)
     do_hint(pv);
   }
 
-  pv->status |= SR_VB; // go into vblank
+  pv->status |= SR_VB | PVS_VB2; // go into vblank
 
   // the following SekRun is there for several reasons:
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
-  Pico.t.m68c_line_start = SekCyclesDone();
+  Pico.t.m68c_line_start = Pico.t.m68c_aim;
   do_timing_hacks_vb();
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
+  pv->status |= SR_F;
   pv->pending_ints |= 0x20;
   if (pv->reg[1] & 0x20) {
     Pico.t.m68c_aim = Pico.t.m68c_cnt + 11; // HACK
@@ -278,7 +279,7 @@ static int PicoFrameHints(void)
     }
 
     // Run scanline:
-    Pico.t.m68c_line_start = SekCyclesDone();
+    Pico.t.m68c_line_start = Pico.t.m68c_aim;
     do_timing_hacks_vb();
     CPUS_RUN(CYCLES_M68K_LINE);
 
@@ -286,7 +287,8 @@ static int PicoFrameHints(void)
     pevt_log_m68k_o(EVT_NEXT_LINE);
   }
 
-  pv->status &= ~SR_VB;
+  pv->status &= ~(SR_VB | PVS_VB2);
+  pv->status |= ((pv->reg[1] >> 3) ^ SR_VB) & SR_VB; // forced blanking
 
   // last scanline
   Pico.m.scanline = y;
@@ -302,7 +304,7 @@ static int PicoFrameHints(void)
   }
 
   // Run scanline:
-  Pico.t.m68c_line_start = SekCyclesDone();
+  Pico.t.m68c_line_start = Pico.t.m68c_aim;
   do_timing_hacks_as(pv, vdp_slots);
   CPUS_RUN(CYCLES_M68K_LINE);
 
