@@ -2,10 +2,7 @@ TARGET ?= PicoDrive
 CFLAGS += -Wall -ggdb -falign-functions=2
 CFLAGS += -I.
 ifndef DEBUG
-CFLAGS += -O3 -DNDEBUG -ffunction-sections
-ifeq ($(findstring clang,$(CC)),)
-LDFLAGS += -Wl,--gc-sections
-endif
+CFLAGS += -O3 -DNDEBUG
 endif
 #CFLAGS += -DEVT_LOG
 #CFLAGS += -DDRC_CMP
