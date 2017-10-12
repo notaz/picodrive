@@ -2,11 +2,12 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-ifeq ($(NEON_BUILD)$(TARGET_ARCH_ABI),1armeabi-v7a)
-  LOCAL_MODULE := retro_picodrive-neon
-else
-  LOCAL_MODULE := retro_picodrive
+GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
+ifneq ($(GIT_VERSION)," unknown")
+	LOCAL_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 endif
+
+LOCAL_MODULE := retro
 
 R := ../
 FR := $(LOCAL_PATH)/$(R)
@@ -64,7 +65,7 @@ ARCH := $(TARGET_ARCH)
 include $(R)platform/common/common.mak
 
 LOCAL_SRC_FILES += $(SRCS_COMMON)
-LOCAL_SRC_FILES += $(R)platform/libretro.c
+LOCAL_SRC_FILES += $(R)platform/libretro/libretro.c
 LOCAL_SRC_FILES += $(R)platform/common/mp3.c
 LOCAL_SRC_FILES += $(R)platform/common/mp3_dummy.c
 

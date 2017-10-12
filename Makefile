@@ -111,7 +111,7 @@ USE_FRONTEND = 1
 PLATFORM_MP3 = 1
 endif
 ifeq "$(PLATFORM)" "libretro"
-OBJS += platform/libretro.o 
+OBJS += platform/libretro/libretro.o
 endif
 
 ifeq "$(USE_FRONTEND)" "1"
@@ -181,7 +181,11 @@ clean:
 	$(RM) -r .opk_data
 
 $(TARGET): $(OBJS)
+ifeq ($(STATIC_LINKING), 1)
+	$(AR) rcs $@ $^
+else
 	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS)
+endif
 
 pprof: platform/linux/pprof.c
 	$(CC) -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@
