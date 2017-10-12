@@ -59,7 +59,6 @@
 .extern s68k_poll_detect
 .extern pcd_pcm_write
 .extern pcd_pcm_read
-.extern PicoCpuCS68k
 .extern PicoRead8_io
 .extern PicoRead16_io
 .extern PicoWrite8_io

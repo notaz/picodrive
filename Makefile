@@ -1,15 +1,15 @@
 TARGET ?= PicoDrive
-CFLAGS += -Wall -ggdb -falign-functions=2
+CFLAGS += -Wall -g
 CFLAGS += -I.
 ifndef DEBUG
 CFLAGS += -O3 -DNDEBUG
 endif
-#CFLAGS += -DEVT_LOG
-#CFLAGS += -DDRC_CMP
-#cpu_cmp = 1
-#drc_debug = 7
-#profile = 1
 
+# This is actually needed, bevieve me.
+# If you really have to disable this, set NO_ALIGN_FUNCTIONS elsewhere.
+ifndef NO_ALIGN_FUNCTIONS
+CFLAGS += -falign-functions=2
+endif
 
 all: config.mak target_
 
@@ -47,11 +47,6 @@ use_cz80 ?= 1
 endif
 
 -include Makefile.local
-
-ifneq "$(use_cyclone)" "1"
-# due to CPU stop flag access
-asm_cdmemory = 0
-endif
 
 ifeq "$(PLATFORM)" "opendingux"
 opk: $(TARGET).opk
