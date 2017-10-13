@@ -512,7 +512,6 @@ void retro_set_environment(retro_environment_t cb)
       { "picodrive_sprlim",      "No sprite limit; disabled|enabled" },
       { "picodrive_ramcart",     "MegaCD RAM cart; disabled|enabled" },
       { "picodrive_region",      "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
-      { "picodrive_region_fps",  "Region FPS; Auto|NTSC|PAL" },
       { "picodrive_aspect",      "Core-provided aspect ratio; PAR|4/3|CRT" },
       { "picodrive_overscan",    "Show Overscan; disabled|enabled" },
 #ifdef DRC_SH2
@@ -1104,13 +1103,13 @@ void *retro_get_memory_data(unsigned type)
          if (PicoAHW & PAHW_MCD)
             data = Pico_mcd->bram;
          else
-            data = SRam.data;
+            data = Pico.sv.data;
          break;
       case RETRO_MEMORY_SYSTEM_RAM:
          if (PicoAHW & PAHW_SMS)
-            data = Pico.zram;
+            data = PicoMem.zram;
          else
-            data = Pico.ram;
+            data = PicoMem.ram;
          break;
       default:
          data = NULL;
@@ -1133,20 +1132,20 @@ size_t retro_get_memory_size(unsigned type)
             return 0x2000;
 
          if (Pico.m.frame_count == 0)
-            return SRam.size;
+            return Pico.sv.size;
 
          // if game doesn't write to sram, don't report it to
          // libretro so that RA doesn't write out zeroed .srm
-         for (i = 0, sum = 0; i < SRam.size; i++)
-            sum |= SRam.data[i];
+         for (i = 0, sum = 0; i < Pico.sv.size; i++)
+            sum |= Pico.sv.data[i];
 
-         return (sum != 0) ? SRam.size : 0;
+         return (sum != 0) ? Pico.sv.size : 0;
 
       case RETRO_MEMORY_SYSTEM_RAM:
          if (PicoAHW & PAHW_SMS)
             return 0x2000;
          else
-            return sizeof(Pico.ram);
+            return sizeof(PicoMem.ram);
 
       default:
          return 0;
@@ -1242,21 +1241,8 @@ static void update_variables(void)
          PicoRegionOverride = 8;
    }
 
-   int OldPicoRegionFPSOverride = PicoRegionFPSOverride;
-   var.value = NULL;
-   var.key = "picodrive_region_fps";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
-      if (strcmp(var.value, "Auto") == 0)
-         PicoRegionFPSOverride = 0;
-      else if (strcmp(var.value, "NTSC") == 0)
-         PicoRegionFPSOverride = 1;
-      else if (strcmp(var.value, "PAL") == 0)
-         PicoRegionFPSOverride = 2;
-   }
-
    // Update region, fps and sound flags if needed
-   if (PicoRegionOverride    != OldPicoRegionOverride ||
-       PicoRegionFPSOverride != OldPicoRegionFPSOverride)
+   if (Pico.rom && PicoRegionOverride != OldPicoRegionOverride)
    {
       PicoDetectRegion();
       PicoLoopPrepare();
@@ -1329,13 +1315,6 @@ void retro_run(void)
 
    video_cb((short *)vout_buf + vout_offset,
       vout_width, vout_height, vout_width * 2);
-}
-
-static void check_system_specs(void)
-{
-   /* TODO - set different performance level for 32X - 6 for ARM dynarec, higher for interpreter core */
-   unsigned level = 5;
-   environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
 }
 
 void retro_init(void)
