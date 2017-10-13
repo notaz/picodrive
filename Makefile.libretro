@@ -215,7 +215,7 @@ else ifeq ($(platform), psp1)
     CC = psp-gcc$(EXE_EXT)
     AR = psp-ar$(EXE_EXT)
     CFLAGS += -G0 -ftracer
-    CFLAGS += -DPSP -D_ASM_DRAW_C_AMIPS
+    CFLAGS += -DPSP
     STATIC_LINKING = 1
     NO_MMAP = 1
     DONT_COMPILE_IN_ZLIB = 1
@@ -231,8 +231,6 @@ else ifeq ($(platform), psp1)
     use_fame = 1
     use_drz80 = 0
     use_cz80 = 1
-
-    OBJS +=platform/libretro/psp/draw_amips.o
 
 # CTR (3DS)
 else ifeq ($(platform), ctr)
