@@ -959,22 +959,6 @@ static const char *find_bios(int *region, const char *cd_fname)
    return NULL;
 }
 
-static void sram_reset()
-{
-   SRam.data = NULL;
-   SRam.start = 0;
-   SRam.end = 0;
-   SRam.flags = '\0';
-   SRam.unused2 = '\0';
-   SRam.changed = '\0' ;
-   SRam.eeprom_type = '\0';
-   SRam.unused3 = '\0';
-   SRam.eeprom_bit_cl = '\0';
-   SRam.eeprom_bit_in = '\0';
-   SRam.eeprom_bit_out = '\0';
-   SRam.size = 0;
-}
-
 bool retro_load_game(const struct retro_game_info *info)
 {
    enum media_type_e media_type;
@@ -1030,8 +1014,6 @@ bool retro_load_game(const struct retro_game_info *info)
 
       { 0 },
    };
-
-   sram_reset();
 
    enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
    if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {

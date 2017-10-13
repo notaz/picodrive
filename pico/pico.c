@@ -61,8 +61,9 @@ void PicoExit(void)
   PicoCartUnload();
   z80_exit();
 
-  if (Pico.sv.data)
-    free(Pico.sv.data);
+  free(Pico.sv.data);
+  Pico.sv.data = NULL;
+  Pico.sv.start = Pico.sv.end = 0;
   pevt_dump();
 }
 
