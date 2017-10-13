@@ -406,8 +406,6 @@ static const char h_srcart[] = "Emulate the save RAM cartridge accessory\n"
 				"most games don't need this";
 static const char h_scfx[]   = "Emulate scale/rotate ASIC chip for graphics effects\n"
 				"disable to improve performance";
-static const char h_bsync[]  = "More accurate mode for CPUs (needed for some games)\n"
-				"disable to improve performance";
 
 static menu_entry e_menu_cd_options[] =
 {

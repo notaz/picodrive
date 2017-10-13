@@ -1165,7 +1165,12 @@ PICO_INTERNAL void PicoMemSetupCD(void)
 
   // setup FAME fetchmap
   {
+#ifdef __clang__
+    volatile // prevent strange relocs from clang
+#endif
+    unsigned long ptr_ram = (unsigned long)PicoMem.ram;
     int i;
+
     // M68k
     // by default, point everything to fitst 64k of ROM (BIOS)
     for (i = 0; i < M68K_FETCHBANK1; i++)
@@ -1175,7 +1180,7 @@ PICO_INTERNAL void PicoMemSetupCD(void)
       PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.rom;
     // .. and RAM
     for (i = M68K_FETCHBANK1*14/16; i < M68K_FETCHBANK1; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned long)PicoMem.ram - (i<<(24-FAMEC_FETCHBITS));
+      PicoCpuFM68k.Fetch[i] = ptr_ram - (i<<(24-FAMEC_FETCHBITS));
     // S68k
     // PRG RAM is default
     for (i = 0; i < M68K_FETCHBANK1; i++)
