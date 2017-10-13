@@ -49,6 +49,13 @@ ifeq ($(TARGET_ARCH),arm)
   asm_misc = 1
 #  asm_cdmemory = 1 # texrels
   asm_mix = 1
+
+# for armeabi to build...
+CYCLONE_CONFIG = cyclone_config_armv4.h
+
+$(cleantarget)::
+	$(MAKE) -C $(FR)cpu/cyclone/ clean
+
 else
   use_fame = 1
   use_cz80 = 1
