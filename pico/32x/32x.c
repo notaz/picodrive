@@ -366,7 +366,7 @@ static void p32x_run_events(unsigned int until)
       oldest, event_time_next);
 }
 
-static inline void run_sh2(SH2 *sh2, int m68k_cycles)
+static void run_sh2(SH2 *sh2, int m68k_cycles)
 {
   int cycles, done;
 

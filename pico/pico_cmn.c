@@ -49,7 +49,7 @@ static void SekSyncM68k(void)
   pprof_end(m68k);
 }
 
-static inline void SekRunM68k(int cyc)
+static __inline void SekRunM68k(int cyc)
 {
   Pico.t.m68c_aim += cyc;
   cyc = Pico.t.m68c_aim - Pico.t.m68c_cnt;

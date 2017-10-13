@@ -1017,7 +1017,7 @@ static void rcache_unlock_all(void)
     reg_temp[i].flags &= ~HRF_LOCKED;
 }
 
-static inline u32 rcache_used_hreg_mask(void)
+static u32 rcache_used_hreg_mask(void)
 {
   u32 mask = 0;
   int i;
