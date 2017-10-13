@@ -5,7 +5,7 @@ typedef unsigned int   u32;
 
 #define DRC_TCACHE_SIZE         (2*1024*1024)
 
-extern u8 tcache[DRC_TCACHE_SIZE];
+extern u8 *tcache;
 
 void drc_cmn_init(void);
 void drc_cmn_cleanup(void);

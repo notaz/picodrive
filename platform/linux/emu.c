@@ -203,3 +203,7 @@ void plat_wait_till_us(unsigned int us_to)
 	}
 }
 
+void *plat_mem_get_for_drc(size_t size)
+{
+	return NULL;
+}

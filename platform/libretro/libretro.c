@@ -98,6 +98,7 @@ void cache_flush_d_inval_i(void *start, void *end)
 {
 #ifdef __arm__
    size_t len = (char *)end - (char *)start;
+   (void)len;
 #if defined(__BLACKBERRY_QNX__)
    msync(start, end - start, MS_SYNC | MS_CACHE_ONLY | MS_INVALIDATE_ICACHE);
 #elif defined(__MACH__)
@@ -435,14 +436,25 @@ void plat_munmap(void *ptr, size_t size)
 }
 #endif
 
+// if NULL is returned, static buffer is used
+void *plat_mem_get_for_drc(size_t size)
+{
+   void *mem = NULL;
+#ifdef VITA
+   sceKernelGetMemBlockBase(sceBlock, &mem);
+#endif
+   return mem;
+}
+
 int plat_mem_set_exec(void *ptr, size_t size)
 {
-#ifdef _WIN32
-   int ret = VirtualProtect(ptr,size,PAGE_EXECUTE_READWRITE,0);
-   if (ret == 0 && log_cb)
-      log_cb(RETRO_LOG_ERROR, "mprotect(%p, %zd) failed: %d\n", ptr, size, 0);
-#elif defined(_3DS)
    int ret = -1;
+#ifdef _WIN32
+   ret = VirtualProtect(ptr, size, PAGE_EXECUTE_READWRITE, 0);
+   if (ret == 0 && log_cb)
+      log_cb(RETRO_LOG_ERROR, "VirtualProtect(%p, %d) failed: %d\n", ptr, (int)size,
+             GetLastError());
+#elif defined(_3DS)
    if (ctr_svchack_successful)
    {
       unsigned int currentHandle;
@@ -461,9 +473,9 @@ int plat_mem_set_exec(void *ptr, size_t size)
    }
 
 #elif defined(VITA)
-   int ret = sceKernelOpenVMDomain();
+   ret = sceKernelOpenVMDomain();
 #else
-   int ret = mprotect(ptr, size, PROT_READ | PROT_WRITE | PROT_EXEC);
+   ret = mprotect(ptr, size, PROT_READ | PROT_WRITE | PROT_EXEC);
    if (ret != 0 && log_cb)
       log_cb(RETRO_LOG_ERROR, "mprotect(%p, %zd) failed: %d\n", ptr, size, errno);
 #endif
@@ -1380,3 +1392,5 @@ void retro_deinit(void)
    vout_buf = NULL;
    PicoExit();
 }
+
+// vim:shiftwidth=3:ts=3:expandtab
