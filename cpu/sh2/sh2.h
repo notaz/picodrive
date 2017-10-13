@@ -1,11 +1,7 @@
 #ifndef __SH2_H__
 #define __SH2_H__
 
-#if !defined(REGPARM) && defined(__i386__) 
-#define REGPARM(x) __attribute__((regparm(x)))
-#else
-#define REGPARM(x)
-#endif
+#include "../../pico/pico_port.h"
 
 // registers - matches structure order
 typedef enum {

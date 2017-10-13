@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "pico_port.h"
 #include "pico.h"
 #include "carthw/carthw.h"
 
@@ -1070,25 +1071,6 @@ void pevt_dump(void);
 #define pevt_log_sh2(sh2, e)
 #define pevt_log_sh2_o(sh2, e)
 #define pevt_dump()
-#endif
-
-// misc
-#ifdef _MSC_VER
-#define cdprintf
-#else
-#define cdprintf(x...)
-#endif
-
-#if defined(__GNUC__) && defined(__i386__)
-#define REGPARM(x) __attribute__((regparm(x)))
-#else
-#define REGPARM(x)
-#endif
-
-#ifdef __GNUC__
-#define NOINLINE __attribute__((noinline))
-#else
-#define NOINLINE
 #endif
 
 #ifdef __cplusplus
