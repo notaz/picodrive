@@ -287,7 +287,7 @@ static void FinalizeLine8bitM4(int line)
   if (!(PicoOpt & POPT_DIS_32C_BORDER))
     pd += 32;
 
-  memcpy32((int *)pd, (int *)(Pico.est.HighCol+8), 256/4);
+  memcpy(pd, Pico.est.HighCol + 8, 256);
 }
 
 void PicoDrawSetOutputMode4(pdso_t which)

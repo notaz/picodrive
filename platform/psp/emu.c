@@ -225,7 +225,7 @@ static void do_pal_update(int allow_sh, int allow_as)
 	}
 	else if (allow_as && (Pico.est.rendstatus & PDRAW_SPR_LO_ON_HI))
 	{
-		memcpy32((int *)dpal+0x80/2, (void *)localPal, 0x40*2/4);
+		memcpy(dpal + 0x80/2, localPal, 0x40*2);
 	}
 }
 

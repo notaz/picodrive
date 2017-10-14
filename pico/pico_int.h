@@ -825,9 +825,7 @@ unsigned char PicoVideoRead8HV_L(void);
 extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask);
 
 // misc.c
-PICO_INTERNAL_ASM void memcpy16(unsigned short *dest, unsigned short *src, int count);
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);
-PICO_INTERNAL_ASM void memcpy32(void *dest, const void *src, int count); // 32bit word count
 PICO_INTERNAL_ASM void memset32(void *dest, int c, int count);
 
 // eeprom.c

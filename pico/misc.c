@@ -87,35 +87,6 @@ const unsigned char hcounts_32[] = {
 
 
 #ifndef _ASM_MISC_C
-typedef struct
-{
-	int b0;
-	int b1;
-	int b2;
-	int b3;
-	int b4;
-	int b5;
-	int b6;
-	int b7;
-} intblock;
-
-PICO_INTERNAL_ASM void memcpy16(unsigned short *dest, unsigned short *src, int count)
-{
-	if ((((long)dest | (long)src) & 3) == 0)
-	{
-		if (count >= 32) {
-			memcpy32((int *)dest, (int *)src, count/2);
-			count&=1;
-		} else {
-			for (; count >= 2; count -= 2, dest+=2, src+=2)
-				*(int *)dest = *(int *)src;
-		}
-	}
-	while (count--)
-		*dest++ = *src++;
-}
-
-
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count)
 {
 	unsigned char *src_ = src;
@@ -125,22 +96,6 @@ PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count)
 }
 
 #ifndef _ASM_MISC_C_AMIPS
-PICO_INTERNAL_ASM void memcpy32(void *dest_in, const void *src_in, int count)
-{
-	const intblock *bs = (intblock *) src_in;
-	intblock *bd = (intblock *) dest_in;
-	const int *src;
-	int *dest;
-
-	for (; count >= sizeof(*bd)/4; count -= sizeof(*bd)/4)
-		*bd++ = *bs++;
-
-	dest = (int *)bd; src = (const int *)bs;
-	while (count--)
-		*dest++ = *src++;
-}
-
-
 PICO_INTERNAL_ASM void memset32(void *dest_in, int c, int count)
 {
 	int *dest = dest_in;

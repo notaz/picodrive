@@ -391,7 +391,7 @@ int YM2612UpdateOne_940(int *buffer, int length, int stereo, int is_buf_empty)
 	ym_active_chs = shared_ctl->ym_active_chs;
 
 	// mix in ym buffer. is_buf_empty means nobody mixed there anything yet and it may contain trash
-	if (is_buf_empty && ym_active_chs) memcpy32(buffer, ym_buf, length<<stereo);
+	if (is_buf_empty && ym_active_chs) memcpy(buffer, ym_buf, length << (stereo + 2));
 	else memset32(buffer, 0, length<<stereo);
 
 	if (shared_ctl->writebuffsel == 1) {

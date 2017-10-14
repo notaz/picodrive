@@ -280,7 +280,7 @@ static int EmuScanEnd16_ld(unsigned int num)
 		ld_left = ld_lines;
 
 		EmuScanBegin16_ld(num);
-		memcpy32(Pico.est.DrawLineDest, oldline, 320 * gp2x_current_bpp / 8 / 4);
+		memcpy(Pico.est.DrawLineDest, oldline, 320 * gp2x_current_bpp / 8);
 		if (emu_scan_end)
 			emu_scan_end(ld_counter);
 
@@ -315,7 +315,7 @@ static int make_local_pal_md(int fast_mode)
 		bgr444_to_rgb32(localPal+0x80, Pico.est.HighPal+0x40);
 	}
 	else
-		memcpy32(localPal+0x80, localPal, 0x40); // for spr prio mess
+		memcpy(localPal + 0x80, localPal, 0x40 * 4); // for spr prio mess
 
 	return pallen;
 }

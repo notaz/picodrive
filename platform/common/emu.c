@@ -891,7 +891,7 @@ int emu_save_load_game(int load, int sram)
 				sram_size = 0x12000;
 				sram_data = Pico.sv.data;
 				if (sram_data)
-					memcpy32((int *)sram_data, (int *)Pico_mcd->bram, 0x2000/4);
+					memcpy(sram_data, Pico_mcd->bram, 0x2000);
 			} else {
 				sram_size = 0x2000;
 				sram_data = Pico_mcd->bram;
@@ -913,7 +913,7 @@ int emu_save_load_game(int load, int sram)
 			ret = ret > 0 ? 0 : -1;
 			fclose(sramFile);
 			if ((PicoAHW & PAHW_MCD) && (PicoOpt&POPT_EN_MCD_RAMCART))
-				memcpy32((int *)Pico_mcd->bram, (int *)sram_data, 0x2000/4);
+				memcpy(Pico_mcd->bram, sram_data, 0x2000);
 		} else {
 			// sram save needs some special processing
 			// see if we have anything to save
