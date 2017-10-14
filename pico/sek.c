@@ -157,10 +157,7 @@ PICO_INTERNAL int SekReset(void)
   REG_USP = 0; // ?
 #endif
 #ifdef EMU_F68K
-  {
-    g_m68kcontext = &PicoCpuFM68k;
-    fm68k_reset();
-  }
+  fm68k_reset(&PicoCpuFM68k);
 #endif
 
   return 0;
@@ -178,7 +175,7 @@ void SekStepM68k(void)
 #elif defined(EMU_M68K)
   Pico.t.m68c_cnt += m68k_execute(1);
 #elif defined(EMU_F68K)
-  Pico.t.m68c_cnt += fm68k_emulate(1, 0);
+  Pico.t.m68c_cnt += fm68k_emulate(&PicoCpuFM68k, 1, 0);
 #endif
 }
 
@@ -320,7 +317,7 @@ void SekInitIdleDet(void)
   CycloneInitIdle();
 #endif
 #ifdef EMU_F68K
-  fm68k_emulate(0, 1);
+  fm68k_idle_install();
 #endif
 }
 
@@ -431,7 +428,7 @@ void SekFinishIdleDet(void)
   CycloneFinishIdle();
 #endif
 #ifdef EMU_F68K
-  fm68k_emulate(0, 2);
+  fm68k_idle_remove();
 #endif
   while (idledet_count > 0)
   {

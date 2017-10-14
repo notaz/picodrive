@@ -107,7 +107,7 @@ static void SekRunM68kOnce(void)
 #elif defined(EMU_M68K)
     Pico.t.m68c_cnt += m68k_execute(cyc_do) - cyc_do;
 #elif defined(EMU_F68K)
-    Pico.t.m68c_cnt += fm68k_emulate(cyc_do, 0) - cyc_do;
+    Pico.t.m68c_cnt += fm68k_emulate(&PicoCpuFM68k, cyc_do, 0) - cyc_do;
 #endif
   }
 
@@ -138,8 +138,7 @@ static void SekRunS68k(unsigned int to)
   SekCycleCntS68k += m68k_execute(cyc_do) - cyc_do;
   m68k_set_context(&PicoCpuMM68k);
 #elif defined(EMU_F68K)
-  g_m68kcontext = &PicoCpuFS68k;
-  SekCycleCntS68k += fm68k_emulate(cyc_do, 0) - cyc_do;
+  SekCycleCntS68k += fm68k_emulate(&PicoCpuFS68k, cyc_do, 0) - cyc_do;
   g_m68kcontext = &PicoCpuFM68k;
 #endif
 }

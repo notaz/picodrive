@@ -151,8 +151,7 @@ PICO_INTERNAL int SekResetS68k(void)
 #ifdef EMU_F68K
   {
     void *oldcontext = g_m68kcontext;
-    g_m68kcontext = &PicoCpuFS68k;
-    fm68k_reset();
+    fm68k_reset(&PicoCpuFS68k);
     g_m68kcontext = oldcontext;
   }
 #endif

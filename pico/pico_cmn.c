@@ -38,7 +38,7 @@ static void SekSyncM68k(void)
 #elif defined(EMU_M68K)
     Pico.t.m68c_cnt += m68k_execute(cyc_do) - cyc_do;
 #elif defined(EMU_F68K)
-    Pico.t.m68c_cnt += fm68k_emulate(cyc_do, 0) - cyc_do;
+    Pico.t.m68c_cnt += fm68k_emulate(&PicoCpuFM68k, cyc_do, 0) - cyc_do;
 #endif
   }
 

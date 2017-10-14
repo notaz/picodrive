@@ -556,7 +556,7 @@ M68K_CONTEXT *g_m68kcontext;
 static u32 initialised = 0;
 
 #ifdef PICODRIVE_HACK
-extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
+extern M68K_CONTEXT PicoCpuFS68k;
 #endif
 
 /* Custom function handler */
@@ -640,6 +640,7 @@ static const s32 exception_cycle_table[256] =
 	  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4
 };
 
+static int init_jump_table(void);
 
 /***********************/
 /* core main functions */
@@ -656,8 +657,8 @@ void fm68k_init(void)
 	puts("Initializing FAME...");
 #endif
 
-    if (!initialised)
-	    fm68k_emulate(0, 0);
+	if (!initialised)
+		init_jump_table();
 
 #ifdef FAMEC_DEBUG
 	puts("FAME initialized.");
@@ -673,10 +674,12 @@ void fm68k_init(void)
 /*     M68K_NO_SUP_ADDR_SPACE (2):  No se puede resetear porque no hay mapa   */
 /*             de memoria supervisor de extraccion de opcodes                 */
 /******************************************************************************/
-int fm68k_reset(void)
+int fm68k_reset(M68K_CONTEXT *ctx)
 {
 	if (!initialised)
-		fm68k_emulate(0, 0);
+		init_jump_table();
+
+	g_m68kcontext = ctx;
 
 	// Si la CPU esta en ejecucion, salir con M68K_RUNNING
 	if (m68kcontext.execinfo & M68K_RUNNING)
@@ -731,7 +734,7 @@ static FAMEC_EXTRA_INLINE s32 interrupt_chk__(void)
 	return 0;
 }
 
-int fm68k_would_interrupt(void)
+int fm68k_would_interrupt(M68K_CONTEXT *ctx)
 {
 	return interrupt_chk__();
 }
@@ -808,7 +811,7 @@ static FAMEC_EXTRA_INLINE u32 execute_exception_group_0(s32 vect, s32 addr, u16 
 // main exec function
 //////////////////////
 
-int fm68k_emulate(s32 cycles, int idle_mode)
+int fm68k_emulate(M68K_CONTEXT *ctx, s32 cycles, fm68k_call_reason reason)
 {
 #ifndef FAMEC_NO_GOTOS
 	u32 Opcode;
@@ -820,17 +823,23 @@ int fm68k_emulate(s32 cycles, int idle_mode)
 	u32 flag_NotZ;
 	u32 flag_N;
 	u32 flag_X;
-#endif
 
-	if (!initialised)
+	switch (reason)
 	{
+	case fm68k_reason_init:
 		goto init_jump_table;
-	}
-
 #ifdef PICODRIVE_HACK
-	if      (idle_mode == 1) goto idle_install;
-	else if (idle_mode == 2) goto idle_remove;
+	case fm68k_reason_idle_install:
+		goto idle_install;
+	case fm68k_reason_idle_remove:
+		goto idle_remove;
 #endif
+	case fm68k_reason_emulate:
+		break;
+	}
+#endif // FAMEC_NO_GOTOS
+
+	g_m68kcontext = ctx;
 
 	// won't emulate double fault
 	// if (m68kcontext.execinfo & M68K_FAULTED) return -1;
@@ -975,7 +984,13 @@ famec_End:
 
 	return cycles - m68kcontext.io_cycle_counter;
 
+#ifndef FAMEC_NO_GOTOS
 init_jump_table:
+#else
+}
+
+static int init_jump_table(void)
+#endif
 {
 	u32 i, j;
 
@@ -5005,7 +5020,12 @@ init_jump_table:
 	JumpTable[fake_op_base] = JumpTable[fake_op_base|0x0200] = CAST_OP(0x4AFC); \
 	JumpTable[real_op] = CAST_OP(normal_handler)
 
+#ifndef FAMEC_NO_GOTOS
 idle_install:
+#else
+int fm68k_idle_install(void)
+#endif
+{
 	// printf("install..\n");
 	INSTALL_IDLE(0x71fa, 0x66fa, idle_detector_bcc8, 0x6601_idle, 0x6601);
 	INSTALL_IDLE(0x71f8, 0x66f8, idle_detector_bcc8, 0x6601_idle, 0x6601);
@@ -5018,8 +5038,14 @@ idle_install:
 	INSTALL_IDLE(0x7dfe, 0x60fe, idle_detector_bcc8, 0x6001_idle, 0x6001);
 	INSTALL_IDLE(0x7dfc, 0x60fc, idle_detector_bcc8, 0x6001_idle, 0x6001);
 	return 0;
+}
 
+#ifndef FAMEC_NO_GOTOS
 idle_remove:
+#else
+int fm68k_idle_remove(void)
+#endif
+{
 	// printf("remove..\n");
 	UNDO_IDLE(0x71fa, 0x66fa, 0x6601);
 	UNDO_IDLE(0x71f8, 0x66f8, 0x6601);
@@ -5032,9 +5058,26 @@ idle_remove:
 	UNDO_IDLE(0x7dfe, 0x60fe, 0x6001);
 	UNDO_IDLE(0x7dfc, 0x60fc, 0x6001);
 	return 0;
+}
+#endif // PICODRIVE_HACK
 
-#endif
+#ifndef FAMEC_NO_GOTOS
 }
 
-void *get_jumptab(void) { return JumpTable; }
+static int init_jump_table(void)
+{
+	return fm68k_emulate(NULL, 0, fm68k_reason_init);
+}
 
+#ifdef PICODRIVE_HACK
+int fm68k_idle_install(void)
+{
+	return fm68k_emulate(NULL, 0, fm68k_reason_idle_install);
+}
+
+int fm68k_idle_remove(void)
+{
+	return fm68k_emulate(NULL, 0, fm68k_reason_idle_remove);
+}
+#endif
+#endif // FAMEC_NO_GOTOS

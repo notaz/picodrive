@@ -49,7 +49,7 @@ static int otherRun(void)
   CycloneRun(currentC68k);
   return 1-currentC68k->cycles;
 #elif defined(EMU_F68K)
-  return fm68k_emulate(1, 0);
+  return fm68k_emulate(g_m68kcontext, 1, 0);
 #endif
 }
 

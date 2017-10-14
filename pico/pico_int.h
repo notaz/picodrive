@@ -81,7 +81,7 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 }
 #define SekIsStoppedM68k() (PicoCpuFM68k.execinfo&FM68K_HALTED)
 #define SekIsStoppedS68k() (PicoCpuFS68k.execinfo&FM68K_HALTED)
-#define SekShouldInterrupt() fm68k_would_interrupt()
+#define SekShouldInterrupt() fm68k_would_interrupt(&PicoCpuFM68k)
 
 #define SekNotPolling     PicoCpuFM68k.not_polling
 #define SekNotPollingS68k PicoCpuFS68k.not_polling

@@ -145,18 +145,29 @@ typedef struct
 
 extern M68K_CONTEXT *g_m68kcontext;
 
+typedef enum
+{
+	fm68k_reason_emulate = 0,
+	fm68k_reason_init,
+	fm68k_reason_idle_install,
+	fm68k_reason_idle_remove,
+} fm68k_call_reason;
+
 /************************/
 /* Function definition  */
 /************************/
 
 /* General purpose functions */
 void fm68k_init(void);
-int  fm68k_reset(void);
-int  fm68k_emulate(int n, int idle_mode);
-int  fm68k_would_interrupt(void); // to be called from fm68k_emulate()
+int  fm68k_reset(M68K_CONTEXT *ctx);
+int  fm68k_emulate(M68K_CONTEXT *ctx, int n, fm68k_call_reason reason);
+int  fm68k_would_interrupt(M68K_CONTEXT *ctx); // to be called from fm68k_emulate()
 
-unsigned fm68k_get_pc(M68K_CONTEXT *context);
+unsigned fm68k_get_pc(M68K_CONTEXT *ctx);
 
+// PICODRIVE_HACK
+int fm68k_idle_install(void);
+int fm68k_idle_remove(void);
 
 #ifdef __cplusplus
 }
