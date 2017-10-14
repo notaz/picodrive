@@ -292,7 +292,7 @@ void PicoDraw32xLayerMdOnly(int offs, int lines)
   for (l = 0; l < lines; l++) {
     if (have_scan) {
       PicoScan32xBegin(l + offs);
-      dst = Pico.est.DrawLineDest + poffs;
+      dst = (unsigned short *)Pico.est.DrawLineDest + poffs;
     }
     for (p = 0; p < plen; p += 4) {
       dst[p + 0] = pal[*pmd++];

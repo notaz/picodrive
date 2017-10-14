@@ -484,6 +484,8 @@ int plat_mem_set_exec(void *ptr, size_t size)
 
 void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
+   struct retro_system_av_info av_info;
+
    memset(vout_buf, 0, 320 * 240 * 2);
    vout_width = is_32cols ? 256 : 320;
    PicoDrawSetOutBuf(vout_buf, vout_width * 2);
@@ -494,7 +496,6 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
    vout_offset = vout_width * start_line;
 
    // Update the geometry
-   struct retro_system_av_info av_info;
    retro_get_system_av_info(&av_info);
    environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
 }
@@ -566,6 +567,8 @@ void retro_get_system_info(struct retro_system_info *info)
 
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
+   float common_width;
+
    memset(info, 0, sizeof(*info));
    info->timing.fps            = Pico.m.pal ? 50 : 60;
    info->timing.sample_rate    = 44100;
@@ -574,7 +577,7 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->geometry.max_width    = vout_width;
    info->geometry.max_height   = vout_height;
 
-   float common_width = vout_width;
+   common_width = vout_width;
    if (user_vout_width != 0)
       common_width = user_vout_width;
 
@@ -1208,6 +1211,8 @@ static enum input_device input_name_to_val(const char *name)
 static void update_variables(void)
 {
    struct retro_variable var;
+   int OldPicoRegionOverride;
+   float old_user_vout_width;
 
    var.value = NULL;
    var.key = "picodrive_input1";
@@ -1237,7 +1242,7 @@ static void update_variables(void)
          PicoOpt &= ~POPT_EN_MCD_RAMCART;
    }
 
-   int OldPicoRegionOverride = PicoRegionOverride;
+   OldPicoRegionOverride = PicoRegionOverride;
    var.value = NULL;
    var.key = "picodrive_region";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
@@ -1261,7 +1266,7 @@ static void update_variables(void)
       PsndRerate(1);
    }
 
-   float old_user_vout_width = user_vout_width;
+   old_user_vout_width = user_vout_width;
    var.value = NULL;
    var.key = "picodrive_aspect";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {

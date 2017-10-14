@@ -297,9 +297,9 @@ typedef void (event_cb)(unsigned int now);
 unsigned int p32x_event_times[P32X_EVENT_COUNT];
 static unsigned int event_time_next;
 static event_cb *p32x_event_cbs[P32X_EVENT_COUNT] = {
-  [P32X_EVENT_PWM]      = p32x_pwm_irq_event,
-  [P32X_EVENT_FILLEND]  = fillend_event,
-  [P32X_EVENT_HINT]     = hint_event,
+  p32x_pwm_irq_event, // P32X_EVENT_PWM
+  fillend_event,      // P32X_EVENT_FILLEND
+  hint_event,         // P32X_EVENT_HINT
 };
 
 // schedule event at some time 'after', in m68k clocks

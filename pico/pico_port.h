@@ -15,4 +15,11 @@
 #define ALIGNED(n)
 #endif
 
+#ifdef _MSC_VER
+#define snprintf _snprintf
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#define strdup _strdup
+#endif
+
 #endif // PICO_PORT_INCLUDED
