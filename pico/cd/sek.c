@@ -117,15 +117,10 @@ PICO_INTERNAL void SekInitS68k(void)
   }
 #endif
 #ifdef EMU_F68K
-  {
-    void *oldcontext = g_m68kcontext;
-    g_m68kcontext = &PicoCpuFS68k;
-    memset(&PicoCpuFS68k, 0, sizeof(PicoCpuFS68k));
-    fm68k_init();
-    PicoCpuFS68k.iack_handler = SekIntAckFS68k;
-    PicoCpuFS68k.sr = 0x2704; // Z flag
-    g_m68kcontext = oldcontext;
-  }
+  memset(&PicoCpuFS68k, 0, sizeof(PicoCpuFS68k));
+  fm68k_init();
+  PicoCpuFS68k.iack_handler = SekIntAckFS68k;
+  PicoCpuFS68k.sr = 0x2704; // Z flag
 #endif
 }
 
@@ -149,11 +144,7 @@ PICO_INTERNAL int SekResetS68k(void)
   }
 #endif
 #ifdef EMU_F68K
-  {
-    void *oldcontext = g_m68kcontext;
-    fm68k_reset(&PicoCpuFS68k);
-    g_m68kcontext = oldcontext;
-  }
+  fm68k_reset(&PicoCpuFS68k);
 #endif
 
   return 0;
