@@ -91,7 +91,7 @@ static void draw_sprites(int scanline)
   }
   sprite_base = (pv->reg[6] & 4) << (13-2-1);
 
-  for (i = s = 0; i < 64 && s < 8; i++)
+  for (i = s = 0; i < 64; i++)
   {
     int y;
     y = sat[i] + 1;
@@ -99,12 +99,20 @@ static void draw_sprites(int scanline)
       break;
     if (y + h <= scanline || scanline < y)
       continue; // not on this line
+    if (s >= 8) {
+      pv->status |= SR_SOVR;
+      break;
+    }
 
     sprites_x[s] = xoff + sat[0x80 + i*2];
     sprites_addr[s] = sprite_base + ((sat[0x80 + i*2 + 1] & addr_mask) << (5-1)) +
       ((scanline - y) << (2-1));
     s++;
   }
+
+  // really half-assed but better than nothing
+  if (s > 1)
+    pv->status |= SR_C;
 
   // now draw all sprites backwards
   for (--s; s >= 0; s--)
@@ -300,3 +308,4 @@ void PicoDrawSetOutputMode4(pdso_t which)
   }
 }
 
+// vim:shiftwidth=2:ts=2:expandtab

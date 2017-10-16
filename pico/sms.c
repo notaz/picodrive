@@ -31,9 +31,12 @@ static unsigned char vdp_data_read(void)
 
 static unsigned char vdp_ctl_read(void)
 {
-  unsigned char d = Pico.video.pending_ints << 7;
-  Pico.video.pending = 0;
-  Pico.video.pending_ints = 0;
+  struct PicoVideo *pv = &Pico.video;
+  unsigned char d;
+
+  d = pv->status | (pv->pending_ints << 7);
+  pv->pending = pv->pending_ints = 0;
+  pv->status = 0;
 
   elprintf(EL_SR, "VDP sr: %02x", d);
   return d;
