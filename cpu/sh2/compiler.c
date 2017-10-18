@@ -1017,6 +1017,7 @@ static void rcache_unlock_all(void)
     reg_temp[i].flags &= ~HRF_LOCKED;
 }
 
+#ifdef DRC_CMP
 static u32 rcache_used_hreg_mask(void)
 {
   u32 mask = 0;
@@ -1028,6 +1029,7 @@ static u32 rcache_used_hreg_mask(void)
 
   return mask;
 }
+#endif
 
 static void rcache_clean(void)
 {
