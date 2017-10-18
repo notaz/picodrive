@@ -109,7 +109,7 @@ static void DmaSlow(int len, unsigned int source)
     base = (u16 *)PicoMem.ram;
     mask = 0xffff;
   }
-  else if (PicoAHW & PAHW_MCD)
+  else if (PicoIn.AHW & PAHW_MCD)
   {
     u8 r3 = Pico_mcd->s68k_regs[3];
     elprintf(EL_VDPDMA, "DmaSlow CD, r3=%02x", r3);
@@ -346,8 +346,8 @@ static NOINLINE void CommandChange(void)
 
 static void DrawSync(int blank_on)
 {
-  if (Pico.m.scanline < 224 && !(PicoOpt & POPT_ALT_RENDERER) &&
-      !PicoSkipFrame && Pico.est.DrawScanline <= Pico.m.scanline) {
+  if (Pico.m.scanline < 224 && !(PicoIn.opt & POPT_ALT_RENDERER) &&
+      !PicoIn.skipFrame && Pico.est.DrawScanline <= Pico.m.scanline) {
     //elprintf(EL_ANOMALY, "sync");
     PicoDrawSync(Pico.m.scanline, blank_on);
   }
@@ -376,7 +376,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
       pvid->pending=0;
     }
 
-    if (!(pvid->status & SR_VB) && !(PicoOpt&POPT_DIS_VDP_FIFO))
+    if (!(pvid->status & SR_VB) && !(PicoIn.opt&POPT_DIS_VDP_FIFO))
     {
       int use = pvid->type == 1 ? 2 : 1;
       pvid->lwrite_cnt -= use;

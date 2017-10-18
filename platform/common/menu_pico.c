@@ -281,7 +281,7 @@ static void menu_loop_patches(void)
 
 // -------------- key config --------------
 
-// PicoPad[] format: MXYZ SACB RLDU
+// PicoIn.pad[] format: MXYZ SACB RLDU
 me_bind_action me_ctrl_actions[] =
 {
 	{ "UP     ", 0x0001 },
@@ -410,10 +410,10 @@ static const char h_scfx[]   = "Emulate scale/rotate ASIC chip for graphics effe
 static menu_entry e_menu_cd_options[] =
 {
 	mee_onoff_h("CD LEDs",              MA_CDOPT_LEDS,          currentConfig.EmuOpt, EOPT_EN_CD_LEDS, h_cdleds),
-	mee_onoff_h("CDDA audio",           MA_CDOPT_CDDA,          PicoOpt, POPT_EN_MCD_CDDA, h_cdda),
-	mee_onoff_h("PCM audio",            MA_CDOPT_PCM,           PicoOpt, POPT_EN_MCD_PCM, h_cdpcm),
-	mee_onoff_h("SaveRAM cart",         MA_CDOPT_SAVERAM,       PicoOpt, POPT_EN_MCD_RAMCART, h_srcart),
-	mee_onoff_h("Scale/Rot. fx",        MA_CDOPT_SCALEROT_CHIP, PicoOpt, POPT_EN_MCD_GFX, h_scfx),
+	mee_onoff_h("CDDA audio",           MA_CDOPT_CDDA,          PicoIn.opt, POPT_EN_MCD_CDDA, h_cdda),
+	mee_onoff_h("PCM audio",            MA_CDOPT_PCM,           PicoIn.opt, POPT_EN_MCD_PCM, h_cdpcm),
+	mee_onoff_h("SaveRAM cart",         MA_CDOPT_SAVERAM,       PicoIn.opt, POPT_EN_MCD_RAMCART, h_srcart),
+	mee_onoff_h("Scale/Rot. fx",        MA_CDOPT_SCALEROT_CHIP, PicoIn.opt, POPT_EN_MCD_GFX, h_scfx),
 	mee_end,
 };
 
@@ -464,9 +464,9 @@ static const char h_sh2cycles[]  = "Cycles/millisecond (similar to DOSBox)\n"
 
 static menu_entry e_menu_32x_options[] =
 {
-	mee_onoff_h   ("32X enabled",       MA_32XOPT_ENABLE_32X,  PicoOpt, POPT_EN_32X, h_32x_enable),
+	mee_onoff_h   ("32X enabled",       MA_32XOPT_ENABLE_32X,  PicoIn.opt, POPT_EN_32X, h_32x_enable),
 	mee_enum      ("32X renderer",      MA_32XOPT_RENDERER,    currentConfig.renderer32x, renderer_names32x),
-	mee_onoff_h   ("PWM sound",         MA_32XOPT_PWM,         PicoOpt, POPT_EN_PWM, h_pwm),
+	mee_onoff_h   ("PWM sound",         MA_32XOPT_PWM,         PicoIn.opt, POPT_EN_PWM, h_pwm),
 	mee_cust_h    ("Master SH2 cycles", MA_32XOPT_MSH2_CYCLES, mh_opt_sh2cycles, mgn_opt_sh2cycles, h_sh2cycles),
 	mee_cust_h    ("Slave SH2 cycles",  MA_32XOPT_SSH2_CYCLES, mh_opt_sh2cycles, mgn_opt_sh2cycles, h_sh2cycles),
 	mee_end,
@@ -491,15 +491,15 @@ static int menu_loop_32x_options(int id, int keys)
 static menu_entry e_menu_adv_options[] =
 {
 	mee_onoff     ("SRAM/BRAM saves",          MA_OPT_SRAM_STATES,    currentConfig.EmuOpt, EOPT_EN_SRAM),
-	mee_onoff     ("Disable sprite limit",     MA_OPT2_NO_SPRITE_LIM, PicoOpt, POPT_DIS_SPRITE_LIM),
-	mee_onoff     ("Emulate Z80",              MA_OPT2_ENABLE_Z80,    PicoOpt, POPT_EN_Z80),
-	mee_onoff     ("Emulate YM2612 (FM)",      MA_OPT2_ENABLE_YM2612, PicoOpt, POPT_EN_FM),
-	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoOpt, POPT_EN_PSG),
+	mee_onoff     ("Disable sprite limit",     MA_OPT2_NO_SPRITE_LIM, PicoIn.opt, POPT_DIS_SPRITE_LIM),
+	mee_onoff     ("Emulate Z80",              MA_OPT2_ENABLE_Z80,    PicoIn.opt, POPT_EN_Z80),
+	mee_onoff     ("Emulate YM2612 (FM)",      MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM),
+	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoIn.opt, POPT_EN_PSG),
 	mee_onoff     ("gzip savestates",          MA_OPT2_GZIP_STATES,   currentConfig.EmuOpt, EOPT_GZIP_SAVES),
 	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
-	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoOpt, POPT_DIS_IDLE_DET),
+	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoIn.opt, POPT_DIS_IDLE_DET),
 	mee_onoff     ("Disable frame limiter",    MA_OPT2_NO_FRAME_LIMIT,currentConfig.EmuOpt, EOPT_NO_FRMLIMIT),
-	mee_onoff     ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoOpt, POPT_EN_DRC),
+	mee_onoff     ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoIn.opt, POPT_EN_DRC),
 	mee_onoff     ("Status line in main menu", MA_OPT2_STATUS_LINE,   currentConfig.EmuOpt, EOPT_SHOW_RTC),
 	MENU_OPTIONS_ADV
 	mee_end,
@@ -556,15 +556,15 @@ static int sndrate_prevnext(int rate, int dir)
 
 	i += dir ? 1 : -1;
 	if (i > 4) {
-		if (!(PicoOpt & POPT_EN_STEREO)) {
-			PicoOpt |= POPT_EN_STEREO;
+		if (!(PicoIn.opt & POPT_EN_STEREO)) {
+			PicoIn.opt |= POPT_EN_STEREO;
 			return rates[0];
 		}
 		return rates[4];
 	}
 	if (i < 0) {
-		if (PicoOpt & POPT_EN_STEREO) {
-			PicoOpt &= ~POPT_EN_STEREO;
+		if (PicoIn.opt & POPT_EN_STEREO) {
+			PicoIn.opt &= ~POPT_EN_STEREO;
 			return rates[4];
 		}
 		return rates[0];
@@ -579,24 +579,24 @@ static void region_prevnext(int right)
 	int i;
 
 	if (right) {
-		if (!PicoRegionOverride) {
+		if (!PicoIn.regionOverride) {
 			for (i = 0; i < 6; i++)
-				if (rgn_orders[i] == PicoAutoRgnOrder) break;
-			if (i < 5) PicoAutoRgnOrder = rgn_orders[i+1];
-			else PicoRegionOverride=1;
+				if (rgn_orders[i] == PicoIn.autoRgnOrder) break;
+			if (i < 5) PicoIn.autoRgnOrder = rgn_orders[i+1];
+			else PicoIn.regionOverride=1;
 		}
 		else
-			PicoRegionOverride <<= 1;
-		if (PicoRegionOverride > 8)
-			PicoRegionOverride = 8;
+			PicoIn.regionOverride <<= 1;
+		if (PicoIn.regionOverride > 8)
+			PicoIn.regionOverride = 8;
 	} else {
-		if (!PicoRegionOverride) {
+		if (!PicoIn.regionOverride) {
 			for (i = 0; i < 6; i++)
-				if (rgn_orders[i] == PicoAutoRgnOrder) break;
-			if (i > 0) PicoAutoRgnOrder = rgn_orders[i-1];
+				if (rgn_orders[i] == PicoIn.autoRgnOrder) break;
+			if (i > 0) PicoIn.autoRgnOrder = rgn_orders[i-1];
 		}
 		else
-			PicoRegionOverride >>= 1;
+			PicoIn.regionOverride >>= 1;
 	}
 }
 
@@ -667,7 +667,7 @@ static const char *mgn_opt_sound(int id, int *offs)
 {
 	const char *str2;
 	*offs = -8;
-	str2 = (PicoOpt & POPT_EN_STEREO) ? "stereo" : "mono";
+	str2 = (PicoIn.opt & POPT_EN_STEREO) ? "stereo" : "mono";
 	sprintf(static_buff, "%5iHz %s", PsndRate, str2);
 	return static_buff;
 }
@@ -676,7 +676,7 @@ static const char *mgn_opt_region(int id, int *offs)
 {
 	static const char *names[] = { "Auto", "      Japan NTSC", "      Japan PAL", "      USA", "      Europe" };
 	static const char *names_short[] = { "", " JP", " JP", " US", " EU" };
-	int code = PicoRegionOverride;
+	int code = PicoIn.regionOverride;
 	int u, i = 0;
 
 	*offs = -6;
@@ -689,7 +689,7 @@ static const char *mgn_opt_region(int id, int *offs)
 	} else {
 		strcpy(static_buff, "Auto:");
 		for (u = 0; u < 3; u++) {
-			code = (PicoAutoRgnOrder >> u*4) & 0xf;
+			code = (PicoIn.autoRgnOrder >> u*4) & 0xf;
 			for (i = 0; code; code >>= 1, i++)
 				;
 			strcat(static_buff, names_short[i]);
@@ -887,9 +887,9 @@ static void debug_menu_loop(void)
 				if (inp & PBTN_MA2)   pv->debug_p ^= PVD_KILL_32X;
 				if (inp & PBTN_MOK) {
 					PsndOut = NULL; // just in case
-					PicoSkipFrame = 1;
+					PicoIn.skipFrame = 1;
 					PicoFrame();
-					PicoSkipFrame = 0;
+					PicoIn.skipFrame = 0;
 					while (inp & PBTN_MOK) inp = in_menu_wait_any(NULL, -1);
 				}
 				break;
@@ -1023,7 +1023,7 @@ static int main_menu_handler(int id, int keys)
 		}
 		break;
 	case MA_MAIN_CHANGE_CD:
-		if (PicoAHW & PAHW_MCD) {
+		if (PicoIn.AHW & PAHW_MCD) {
 			// if cd is loaded, cdd_unload() triggers eject and
 			// returns 1, else we'll select and load new CD here
 			if (!cdd_unload())
@@ -1081,7 +1081,7 @@ void menu_loop(void)
 	me_enable(e_menu_main, MA_MAIN_SAVE_STATE,  PicoGameLoaded);
 	me_enable(e_menu_main, MA_MAIN_LOAD_STATE,  PicoGameLoaded);
 	me_enable(e_menu_main, MA_MAIN_RESET_GAME,  PicoGameLoaded);
-	me_enable(e_menu_main, MA_MAIN_CHANGE_CD,   PicoAHW & PAHW_MCD);
+	me_enable(e_menu_main, MA_MAIN_CHANGE_CD,   PicoIn.AHW & PAHW_MCD);
 	me_enable(e_menu_main, MA_MAIN_PATCHES, PicoPatches != NULL);
 
 	menu_enter(PicoGameLoaded);
@@ -1168,7 +1168,7 @@ void menu_update_msg(const char *msg)
 /* hidden options for config engine only */
 static menu_entry e_menu_hidden[] =
 {
-	mee_onoff("Accurate sprites", MA_OPT_ACC_SPRITES, PicoOpt, 0x080),
+	mee_onoff("Accurate sprites", MA_OPT_ACC_SPRITES, PicoIn.opt, 0x080),
 	mee_onoff("autoload savestates", MA_OPT_AUTOLOAD_SAVE, g_autostateld_opt, 1),
 	mee_end,
 };

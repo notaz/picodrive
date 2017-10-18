@@ -123,7 +123,7 @@ static int sndbuff[2*44100/50/2 + 4];
 static void update_sound(int len)
 {
 	/* avoid writing audio when lagging behind to prevent audio lag */
-	if (PicoSkipFrame != 2)
+	if (PicoIn.skipFrame != 2)
 		DSoundUpdate(sndbuff, (currentConfig.EmuOpt & EOPT_NO_FRMLIMIT) ? 0 : 1);
 }
 
@@ -139,7 +139,7 @@ void pemu_sound_start(void)
 	{
 		PsndRerate(0);
 
-		ret = DSoundInit(FrameWnd, PsndRate, (PicoOpt & POPT_EN_STEREO) ? 1 : 0, PsndLen);
+		ret = DSoundInit(FrameWnd, PsndRate, (PicoIn.opt & POPT_EN_STEREO) ? 1 : 0, PsndLen);
 		if (ret != 0) {
 			lprintf("dsound init failed\n");
 			return;

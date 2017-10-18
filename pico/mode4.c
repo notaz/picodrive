@@ -284,7 +284,7 @@ static void FinalizeLine8bitM4(int line)
 {
   unsigned char *pd = Pico.est.DrawLineDest;
 
-  if (!(PicoOpt & POPT_DIS_32C_BORDER))
+  if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
     pd += 32;
 
   memcpy(pd, Pico.est.HighCol + 8, 256);

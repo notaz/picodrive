@@ -97,7 +97,7 @@ static int PicoFrameHints(void)
 
   pevt_log_m68k_o(EVT_FRAME_START);
 
-  if ((PicoOpt&POPT_ALT_RENDERER) && !PicoSkipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
+  if ((PicoIn.opt&POPT_ALT_RENDERER) && !PicoIn.skipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
     // draw a frame just after vblank in alternative render mode
     // yes, this will cause 1 frame lag, but this is inaccurate mode anyway.
     PicoFrameFull();
@@ -106,7 +106,7 @@ static int PicoFrameHints(void)
 #endif
     skip = 1;
   }
-  else skip=PicoSkipFrame;
+  else skip=PicoIn.skipFrame;
 
   Pico.t.m68c_frame_start = Pico.t.m68c_aim;
   pv->v_counter = Pico.m.scanline = 0;
@@ -140,7 +140,7 @@ static int PicoFrameHints(void)
     }
 
     // decide if we draw this line
-    if (!skip && (PicoOpt & POPT_ALT_RENDERER))
+    if (!skip && (PicoIn.opt & POPT_ALT_RENDERER))
     {
       // find the right moment for frame renderer, when display is no longer blanked
       if ((pv->reg[1]&0x40) || y > 100) {
@@ -157,10 +157,10 @@ static int PicoFrameHints(void)
     {
       cycles = SekCyclesDone();
 
-      if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
+      if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
         PicoSyncZ80(cycles);
 #ifdef PICO_CD
-      if (PicoAHW & PAHW_MCD)
+      if (PicoIn.AHW & PAHW_MCD)
         pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X
@@ -195,7 +195,7 @@ static int PicoFrameHints(void)
   pv->lwrite_cnt = 0;
   Pico.video.status |= SR_EMPT;
 
-  memcpy(PicoPadInt, PicoPad, sizeof(PicoPadInt));
+  memcpy(PicoIn.padInt, PicoIn.pad, sizeof(PicoIn.padInt));
   PAD_DELAY();
 
   // Last H-Int (normally):
@@ -225,14 +225,14 @@ static int PicoFrameHints(void)
   }
 
   cycles = SekCyclesDone();
-  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80)) {
+  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
     PicoSyncZ80(cycles);
     elprintf(EL_INTS, "zint");
     z80_int();
   }
 
 #ifdef PICO_CD
-  if (PicoAHW & PAHW_MCD)
+  if (PicoIn.AHW & PAHW_MCD)
     pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X
@@ -313,7 +313,7 @@ static int PicoFrameHints(void)
 
   // sync cpus
   cycles = SekCyclesDone();
-  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
+  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
     PicoSyncZ80(cycles);
   if (PsndOut && ym2612.dacen && PsndDacLine < lines)
     PsndDoDAC(lines - 1);
@@ -321,7 +321,7 @@ static int PicoFrameHints(void)
     PsndDoPSG(lines - 1);
 
 #ifdef PICO_CD
-  if (PicoAHW & PAHW_MCD)
+  if (PicoIn.AHW & PAHW_MCD)
     pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X

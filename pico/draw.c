@@ -1027,7 +1027,7 @@ static NOINLINE void PrepareSprites(int full)
 
   if (!(Pico.video.reg[12]&1))
     max_sprites = 64, max_line_sprites = 16, max_width = 264;
-  if (PicoOpt & POPT_DIS_SPRITE_LIM)
+  if (PicoIn.opt & POPT_DIS_SPRITE_LIM)
     max_line_sprites = MAX_LINE_SPRITES;
 
   if (pvid->reg[1]&8) max_lines = 240;
@@ -1267,7 +1267,7 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
   if (Pico.video.reg[12]&1) {
     len = 320;
   } else {
-    if (!(PicoOpt&POPT_DIS_32C_BORDER)) pd+=32;
+    if (!(PicoIn.opt&POPT_DIS_32C_BORDER)) pd+=32;
     len = 256;
   }
 
@@ -1314,7 +1314,7 @@ static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
   if (Pico.video.reg[12]&1) {
     len = 320;
   } else {
-    if (!(PicoOpt & POPT_DIS_32C_BORDER))
+    if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
       pd += 32;
     len = 256;
   }
@@ -1427,7 +1427,7 @@ static int DrawDisplay(int sh)
   else if (est->rendstatus & PDRAW_INTERLACE)
     DrawAllSpritesInterlace(1, sh);
   // have sprites without layer pri bit ontop of sprites with that bit
-  else if ((sprited[1] & 0xd0) == 0xd0 && (PicoOpt & POPT_ACC_SPRITES))
+  else if ((sprited[1] & 0xd0) == 0xd0 && (PicoIn.opt & POPT_ACC_SPRITES))
     DrawSpritesHiAS(sprited, sh);
   else if (sh && (sprited[1] & SPRL_MAY_HAVE_OP))
     DrawSpritesSHi(sprited, est);
@@ -1481,7 +1481,7 @@ PICO_INTERNAL void PicoFrameStart(void)
   Pico.est.DrawScanline = 0;
   skip_next_line = 0;
 
-  if (PicoOpt & POPT_ALT_RENDERER)
+  if (PicoIn.opt & POPT_ALT_RENDERER)
     return;
 
   if (Pico.m.dirtyPal)
@@ -1577,7 +1577,7 @@ void PicoDrawUpdateHighPal(void)
 {
   struct PicoEState *est = &Pico.est;
   int sh = (Pico.video.reg[0xC] & 8) >> 3; // shadow/hilight?
-  if (PicoOpt & POPT_ALT_RENDERER)
+  if (PicoIn.opt & POPT_ALT_RENDERER)
     sh = 0; // no s/h support
 
   PicoDoHighPal555(sh, 0, &Pico.est);
@@ -1597,7 +1597,7 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
       break;
 
     case PDF_RGB555:
-      if ((PicoAHW & PAHW_32X) && use_32x_line_mode)
+      if ((PicoIn.AHW & PAHW_32X) && use_32x_line_mode)
         FinalizeLine = FinalizeLine32xRGB555;
       else
         FinalizeLine = FinalizeLine555;
@@ -1640,7 +1640,7 @@ void PicoDrawSetCallbacks(int (*begin)(unsigned int num), int (*end)(unsigned in
   PicoScan32xBegin = NULL;
   PicoScan32xEnd = NULL;
 
-  if ((PicoAHW & PAHW_32X) && FinalizeLine != FinalizeLine32xRGB555) {
+  if ((PicoIn.AHW & PAHW_32X) && FinalizeLine != FinalizeLine32xRGB555) {
     PicoScan32xBegin = begin;
     PicoScan32xEnd = end;
   }

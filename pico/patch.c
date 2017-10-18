@@ -290,7 +290,7 @@ void decode(const char* code, struct patch* result)
   /* Initialize the result */
   result->addr = result->data = result->comp = 0;
 
-  if(!(PicoAHW & PAHW_SMS))
+  if(!(PicoIn.AHW & PAHW_SMS))
   {
     //If Genesis
 
@@ -445,7 +445,7 @@ void PicoPatchPrepare(void)
          PicoPatches[i].data_old = *(unsigned short *)(Pico.rom + addr);
       else
       {
-         if(!(PicoAHW & PAHW_SMS))
+         if(!(PicoIn.AHW & PAHW_SMS))
             PicoPatches[i].data_old = (unsigned short) m68k_read16(addr);
          else
             ;// wrong: PicoPatches[i].data_old = (unsigned char) PicoRead8_z80(addr);
@@ -468,7 +468,7 @@ void PicoPatchApply(void)
       {
          if (PicoPatches[i].active)
          {
-            if (!(PicoAHW & PAHW_SMS))
+            if (!(PicoIn.AHW & PAHW_SMS))
                *(unsigned short *)(Pico.rom + addr) = PicoPatches[i].data;
             else if (!PicoPatches[i].comp || PicoPatches[i].comp == *(char *)(Pico.rom + addr))
                *(char *)(Pico.rom + addr) = (char) PicoPatches[i].data;
@@ -480,7 +480,7 @@ void PicoPatchApply(void)
                if (PicoPatches[u].addr == addr) break;
             if (u == i)
             {
-               if (!(PicoAHW & PAHW_SMS))
+               if (!(PicoIn.AHW & PAHW_SMS))
                   *(unsigned short *)(Pico.rom + addr) = PicoPatches[i].data_old;
                else
                   *(char *)(Pico.rom + addr) = (char) PicoPatches[i].data_old;
@@ -493,7 +493,7 @@ void PicoPatchApply(void)
       {
          if (PicoPatches[i].active)
          {
-            if (!(PicoAHW & PAHW_SMS))
+            if (!(PicoIn.AHW & PAHW_SMS))
               m68k_write16(addr,PicoPatches[i].data);
             else
               ;// wrong: PicoWrite8_z80(addr,PicoPatches[i].data);
@@ -505,7 +505,7 @@ void PicoPatchApply(void)
                if (PicoPatches[u].addr == addr) break;
             if (u == i)
             {
-              if (!(PicoAHW & PAHW_SMS))
+              if (!(PicoIn.AHW & PAHW_SMS))
                  m68k_write16(PicoPatches[i].addr,PicoPatches[i].data_old);
               else
                 ;// wrong: PicoWrite8_z80(PicoPatches[i].addr,PicoPatches[i].data_old);

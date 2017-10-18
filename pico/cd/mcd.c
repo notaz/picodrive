@@ -79,7 +79,7 @@ PICO_INTERNAL int PicoResetMCD(void)
   // reset button doesn't affect MCD hardware
 
   // use Pico.sv.data for RAM cart
-  if (PicoOpt & POPT_EN_MCD_RAMCART) {
+  if (PicoIn.opt & POPT_EN_MCD_RAMCART) {
     if (Pico.sv.data == NULL)
       Pico.sv.data = calloc(1, 0x12000);
   }

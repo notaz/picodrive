@@ -26,7 +26,7 @@ void drc_cmn_init(void)
     tcache, DRC_TCACHE_SIZE, ret);
 
 #ifdef __arm__
-  if (PicoOpt & POPT_EN_DRC)
+  if (PicoIn.opt & POPT_EN_DRC)
   {
     static int test_done;
     if (!test_done)

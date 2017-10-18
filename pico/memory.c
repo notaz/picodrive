@@ -210,7 +210,7 @@ void cyclone_crashed(u32 pc, struct Cyclone *context)
 
 static u32 read_pad_3btn(int i, u32 out_bits)
 {
-  u32 pad = ~PicoPadInt[i]; // Get inverse of pad MXYZ SACB RLDU
+  u32 pad = ~PicoIn.padInt[i]; // Get inverse of pad MXYZ SACB RLDU
   u32 value;
 
   if (out_bits & 0x40) // TH
@@ -224,7 +224,7 @@ static u32 read_pad_3btn(int i, u32 out_bits)
 
 static u32 read_pad_6btn(int i, u32 out_bits)
 {
-  u32 pad = ~PicoPadInt[i]; // Get inverse of pad MXYZ SACB RLDU
+  u32 pad = ~PicoIn.padInt[i]; // Get inverse of pad MXYZ SACB RLDU
   int phase = Pico.m.padTHPhase[i];
   u32 value;
 
@@ -349,7 +349,7 @@ void NOINLINE ctl_write_z80busreq(u32 d)
     }
     else
     {
-      if ((PicoOpt&POPT_EN_Z80) && !Pico.m.z80_reset) {
+      if ((PicoIn.opt & POPT_EN_Z80) && !Pico.m.z80_reset) {
         pprof_start(m68k);
         PicoSyncZ80(SekCyclesDone());
         pprof_end_sub(m68k);
@@ -367,7 +367,7 @@ void NOINLINE ctl_write_z80reset(u32 d)
   {
     if (d)
     {
-      if ((PicoOpt&POPT_EN_Z80) && Pico.m.z80Run) {
+      if ((PicoIn.opt & POPT_EN_Z80) && Pico.m.z80Run) {
         pprof_start(m68k);
         PicoSyncZ80(SekCyclesDone());
         pprof_end_sub(m68k);
@@ -542,8 +542,8 @@ static void PicoWrite8_z80(u32 a, u32 d)
     return;
   }
   if ((a & 0x6000) == 0x4000) { // FM Sound
-    if (PicoOpt & POPT_EN_FM)
-      emustatus |= ym2612_write_local(a&3, d&0xff, 0)&1;
+    if (PicoIn.opt & POPT_EN_FM)
+      Pico.m.status |= ym2612_write_local(a & 3, d & 0xff, 0) & 1;
     return;
   }
   // TODO: probably other VDP access too? Maybe more mirrors?
@@ -597,12 +597,8 @@ u32 PicoRead8_io(u32 a)
     goto end;
   }
 
-  if (PicoOpt & POPT_EN_32X) {
-    d = PicoRead8_32x(a);
-    goto end;
-  }
+  d = PicoRead8_32x(a);
 
-  d = m68k_unmapped_read8(a);
 end:
   return d;
 }
@@ -632,12 +628,8 @@ u32 PicoRead16_io(u32 a)
     goto end;
   }
 
-  if (PicoOpt & POPT_EN_32X) {
-    d = PicoRead16_32x(a);
-    goto end;
-  }
+  d = PicoRead16_32x(a);
 
-  d = m68k_unmapped_read16(a);
 end:
   return d;
 }
@@ -662,12 +654,7 @@ void PicoWrite8_io(u32 a, u32 d)
     Pico.m.sram_reg |= (u8)(d & 3);
     return;
   }
-  if (PicoOpt & POPT_EN_32X) {
-    PicoWrite8_32x(a, d);
-    return;
-  }
-
-  m68k_unmapped_write8(a, d);
+  PicoWrite8_32x(a, d);
 }
 
 void PicoWrite16_io(u32 a, u32 d)
@@ -690,11 +677,7 @@ void PicoWrite16_io(u32 a, u32 d)
     Pico.m.sram_reg |= (u8)(d & 3);
     return;
   }
-  if (PicoOpt & POPT_EN_32X) {
-    PicoWrite16_32x(a, d);
-    return;
-  }
-  m68k_unmapped_write16(a, d);
+  PicoWrite16_32x(a, d);
 }
 
 #endif // _ASM_MEMORY_C
@@ -971,7 +954,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
       ym2612.OPN.ST.address = d;
       ym2612.addr_A1 = 0;
 #ifdef __GP2X__
-      if (PicoOpt & POPT_EXT_FM) YM2612Write_940(a, d, -1);
+      if (PicoIn.opt & POPT_EXT_FM) YM2612Write_940(a, d, -1);
 #endif
       return 0;
 
@@ -1036,7 +1019,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
 
           if ((d ^ old_mode) & 0xc0) {
 #ifdef __GP2X__
-            if (PicoOpt & POPT_EXT_FM) return YM2612Write_940(a, d, get_scanline(is_from_z80));
+            if (PicoIn.opt & POPT_EXT_FM) return YM2612Write_940(a, d, get_scanline(is_from_z80));
 #endif
             return 1;
           }
@@ -1049,7 +1032,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             PsndDacLine = scanline;
           }
 #ifdef __GP2X__
-          if (PicoOpt & POPT_EXT_FM) YM2612Write_940(a, d, scanline);
+          if (PicoIn.opt & POPT_EXT_FM) YM2612Write_940(a, d, scanline);
 #endif
           return 0;
         }
@@ -1060,7 +1043,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
       ym2612.OPN.ST.address = d;
       ym2612.addr_A1 = 1;
 #ifdef __GP2X__
-      if (PicoOpt & POPT_EXT_FM) YM2612Write_940(a, d, -1);
+      if (PicoIn.opt & POPT_EXT_FM) YM2612Write_940(a, d, -1);
 #endif
       return 0;
 
@@ -1074,7 +1057,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   }
 
 #ifdef __GP2X__
-  if (PicoOpt & POPT_EXT_FM)
+  if (PicoIn.opt & POPT_EXT_FM)
     return YM2612Write_940(a, d, get_scanline(is_from_z80));
 #endif
   return YM2612Write_(a, d);
@@ -1123,7 +1106,7 @@ void ym2612_pack_state(void)
   elprintf(EL_YMTIMER, "save: timer b %i/%i", tbt >> 16, tbc);
 
 #ifdef __GP2X__
-  if (PicoOpt & POPT_EXT_FM)
+  if (PicoIn.opt & POPT_EXT_FM)
     YM2612PicoStateSave2_940(tat, tbt);
   else
 #endif
@@ -1158,7 +1141,7 @@ void ym2612_unpack_state(void)
   }
 
 #ifdef __GP2X__
-  if (PicoOpt & POPT_EXT_FM)
+  if (PicoIn.opt & POPT_EXT_FM)
     ret = YM2612PicoStateLoad2_940(&tat, &tbt);
   else
 #endif
@@ -1233,8 +1216,8 @@ static unsigned char z80_md_bank_read(unsigned short a)
 
 static void z80_md_ym2612_write(unsigned int a, unsigned char data)
 {
-  if (PicoOpt & POPT_EN_FM)
-    emustatus |= ym2612_write_local(a, data, 1) & 1;
+  if (PicoIn.opt & POPT_EN_FM)
+    Pico.m.status |= ym2612_write_local(a, data, 1) & 1;
 }
 
 static void z80_md_vdp_br_write(unsigned int a, unsigned char data)

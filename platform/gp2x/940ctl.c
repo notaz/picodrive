@@ -424,7 +424,7 @@ int YM2612UpdateOne_940(int *buffer, int length, int stereo, int is_buf_empty)
 
 int mp3dec_decode(FILE *f, int *file_pos, int file_len)
 {
-	if (!(PicoOpt & POPT_EXT_FM)) {
+	if (!(PicoIn.opt & POPT_EXT_FM)) {
 		//mp3_update_local(buffer, length, stereo);
 		return 0;
 	}
@@ -456,7 +456,7 @@ int mp3dec_decode(FILE *f, int *file_pos, int file_len)
 
 int mp3dec_start(FILE *f, int fpos_start)
 {
-	if (!(PicoOpt & POPT_EXT_FM)) {
+	if (!(PicoIn.opt & POPT_EXT_FM)) {
 		//mp3_start_play_local(f, pos);
 		return -1;
 	}

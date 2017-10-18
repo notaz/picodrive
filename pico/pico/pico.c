@@ -86,7 +86,7 @@ PICO_INTERNAL void PicoInitPico(void)
   PicoLineHook = PicoLinePico;
   PicoResetHook = PicoResetPico;
 
-  PicoAHW = PAHW_PICO;
+  PicoIn.AHW = PAHW_PICO;
   memset(&PicoPicohw, 0, sizeof(PicoPicohw));
   PicoPicohw.pen_pos[0] = 0x03c + 320/2;
   PicoPicohw.pen_pos[1] = 0x200 + 240/2;

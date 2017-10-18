@@ -141,9 +141,9 @@ void PsndRerate(int preserve_state)
     PsndClear();
 
   // set mixer
-  PsndMix_32_to_16l = (PicoOpt & POPT_EN_STEREO) ? mix_32_to_16l_stereo : mix_32_to_16_mono;
+  PsndMix_32_to_16l = (PicoIn.opt & POPT_EN_STEREO) ? mix_32_to_16l_stereo : mix_32_to_16_mono;
 
-  if (PicoAHW & PAHW_PICO)
+  if (PicoIn.AHW & PAHW_PICO)
     PicoReratePico();
 }
 
@@ -159,7 +159,7 @@ PICO_INTERNAL void PsndStartFrame(void)
   }
 
   PsndDacLine = PsndPsgLine = 0;
-  emustatus &= ~1;
+  Pico.m.status &= ~1;
   dac_info[224] = PsndLen_use;
 }
 
@@ -183,7 +183,7 @@ PICO_INTERNAL void PsndDoDAC(int line_to)
   if (!PsndOut)
     return;
 
-  if (PicoOpt & POPT_EN_STEREO) {
+  if (PicoIn.opt & POPT_EN_STEREO) {
     short *d = PsndOut + pos*2;
     for (; len > 0; len--, d+=2) *d += dout;
   } else {
@@ -211,10 +211,10 @@ PICO_INTERNAL void PsndDoPSG(int line_to)
 
   PsndPsgLine = line_to + 1;
 
-  if (!PsndOut || !(PicoOpt & POPT_EN_PSG))
+  if (!PsndOut || !(PicoIn.opt & POPT_EN_PSG))
     return;
 
-  if (PicoOpt & POPT_EN_STEREO) {
+  if (PicoIn.opt & POPT_EN_STEREO) {
     stereo = 1;
     pos <<= 1;
   }
@@ -272,7 +272,7 @@ PICO_INTERNAL void PsndClear(void)
 {
   int len = PsndLen;
   if (PsndLen_exc_add) len++;
-  if (PicoOpt & POPT_EN_STEREO)
+  if (PicoIn.opt & POPT_EN_STEREO)
     memset32((int *) PsndOut, 0, len); // assume PsndOut to be aligned
   else {
     short *out = PsndOut;
@@ -287,19 +287,19 @@ static int PsndRender(int offset, int length)
 {
   int  buf32_updated = 0;
   int *buf32 = PsndBuffer+offset;
-  int stereo = (PicoOpt & 8) >> 3;
+  int stereo = (PicoIn.opt & 8) >> 3;
 
   offset <<= stereo;
 
   pprof_start(sound);
 
-  if (PicoAHW & PAHW_PICO) {
+  if (PicoIn.AHW & PAHW_PICO) {
     PicoPicoPCMUpdate(PsndOut+offset, length, stereo);
     return length;
   }
 
   // Add in the stereo FM buffer
-  if (PicoOpt & POPT_EN_FM) {
+  if (PicoIn.opt & POPT_EN_FM) {
     buf32_updated = YM2612UpdateOne(buf32, length, stereo, 1);
   } else
     memset32(buf32, 0, length<<stereo);
@@ -308,14 +308,14 @@ static int PsndRender(int offset, int length)
   (void)buf32_updated;
 
   // CD: PCM sound
-  if (PicoAHW & PAHW_MCD) {
+  if (PicoIn.AHW & PAHW_MCD) {
     pcd_pcm_update(buf32, length, stereo);
     //buf32_updated = 1;
   }
 
   // CD: CDDA audio
   // CD mode, cdda enabled, not data track, CDC is reading
-  if ((PicoAHW & PAHW_MCD) && (PicoOpt & POPT_EN_MCD_CDDA)
+  if ((PicoIn.AHW & PAHW_MCD) && (PicoIn.opt & POPT_EN_MCD_CDDA)
       && Pico_mcd->cdda_stream != NULL
       && !(Pico_mcd->s68k_regs[0x36] & 1))
   {
@@ -326,7 +326,7 @@ static int PsndRender(int offset, int length)
       cdda_raw_update(buf32, length);
   }
 
-  if ((PicoAHW & PAHW_32X) && (PicoOpt & POPT_EN_PWM))
+  if ((PicoIn.AHW & PAHW_32X) && (PicoIn.opt & POPT_EN_PWM))
     p32x_pwm_update(buf32, length, stereo);
 
   // convert + limit to normal 16bit output
@@ -348,33 +348,33 @@ PICO_INTERNAL void PsndGetSamples(int y)
 
   if (y == 224)
   {
-    if (emustatus & 2)
+    if (Pico.m.status & 2)
          curr_pos += PsndRender(curr_pos, PsndLen-PsndLen/2);
     else curr_pos  = PsndRender(0, PsndLen_use);
-    if (emustatus & 1)
-         emustatus |=  2;
-    else emustatus &= ~2;
+    if (Pico.m.status & 1)
+         Pico.m.status |=  2;
+    else Pico.m.status &= ~2;
     if (PicoWriteSound)
-      PicoWriteSound(curr_pos * ((PicoOpt & POPT_EN_STEREO) ? 4 : 2));
+      PicoWriteSound(curr_pos * ((PicoIn.opt & POPT_EN_STEREO) ? 4 : 2));
     // clear sound buffer
     PsndClear();
     PsndDacLine = 224;
     dac_info[224] = 0;
   }
-  else if (emustatus & 3) {
-    emustatus|= 2;
-    emustatus&=~1;
+  else if (Pico.m.status & 3) {
+    Pico.m.status |=  2;
+    Pico.m.status &= ~1;
     curr_pos = PsndRender(0, PsndLen/2);
   }
 }
 
 PICO_INTERNAL void PsndGetSamplesMS(void)
 {
-  int stereo = (PicoOpt & 8) >> 3;
+  int stereo = (PicoIn.opt & 8) >> 3;
   int length = PsndLen_use;
 
   // PSG
-  if (PicoOpt & POPT_EN_PSG)
+  if (PicoIn.opt & POPT_EN_PSG)
     SN76496Update(PsndOut, length, stereo);
 
   // upmix to "stereo" if needed
@@ -385,7 +385,7 @@ PICO_INTERNAL void PsndGetSamplesMS(void)
   }
 
   if (PicoWriteSound != NULL)
-    PicoWriteSound(length * ((PicoOpt & POPT_EN_STEREO) ? 4 : 2));
+    PicoWriteSound(length * ((PicoIn.opt & POPT_EN_STEREO) ? 4 : 2));
   PsndClear();
 }
 

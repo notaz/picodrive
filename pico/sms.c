@@ -108,12 +108,12 @@ static unsigned char z80_sms_in(unsigned short a)
       break;
 
     case 0xc0: /* I/O port A and B */
-      d = ~((PicoPad[0] & 0x3f) | (PicoPad[1] << 6));
+      d = ~((PicoIn.pad[0] & 0x3f) | (PicoIn.pad[1] << 6));
       break;
 
     case 0xc1: /* I/O port B and miscellaneous */
       d = (Pico.ms.io_ctl & 0x80) | ((Pico.ms.io_ctl << 1) & 0x40) | 0x30;
-      d |= ~(PicoPad[1] >> 2) & 0x0f;
+      d |= ~(PicoIn.pad[1] >> 2) & 0x0f;
       break;
   }
 
@@ -133,7 +133,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
 
     case 0x40:
     case 0x41:
-      if (PicoOpt & POPT_EN_PSG)
+      if (PicoIn.opt & POPT_EN_PSG)
         SN76496Write(d);
       break;
 
@@ -255,7 +255,7 @@ void PicoFrameMS(void)
   int lines = is_pal ? 313 : 262;
   int cycles_line = is_pal ? 58020 : 58293; /* (226.6 : 227.7) * 256 */
   int cycles_done = 0, cycles_aim = 0;
-  int skip = PicoSkipFrame;
+  int skip = PicoIn.skipFrame;
   int lines_vis = 192;
   int hint; // Hint counter
   int nmi;
@@ -263,7 +263,7 @@ void PicoFrameMS(void)
 
   PsndStartFrame();
 
-  nmi = (PicoPad[0] >> 7) & 1;
+  nmi = (PicoIn.pad[0] >> 7) & 1;
   if (!Pico.ms.nmi_state && nmi)
     z80_nmi();
   Pico.ms.nmi_state = nmi;

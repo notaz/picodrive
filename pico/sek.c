@@ -335,7 +335,7 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
            (*dst & 0xc1ff) == 0x0038 || // move.x ($xxxx.w), dX
            (*dst & 0xf13f) == 0xb038)   // cmp.x ($xxxx.w), dX
         return 1;
-      if (PicoAHW & (PAHW_MCD|PAHW_32X))
+      if (PicoIn.AHW & (PAHW_MCD|PAHW_32X))
         break;
       // with no addons, there should be no need to wait
       // for byte change anywhere
@@ -362,7 +362,7 @@ int SekIsIdleCode(unsigned short *dst, int bytes)
         return 1;
       break;
     case 12:
-      if (PicoAHW & (PAHW_MCD|PAHW_32X))
+      if (PicoIn.AHW & (PAHW_MCD|PAHW_32X))
         break;
       if ( (*dst & 0xf1f8) == 0x3010 && // move.w (aX), dX
             (dst[1]&0xf100) == 0x0000 && // arithmetic

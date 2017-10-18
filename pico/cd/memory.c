@@ -1099,7 +1099,7 @@ PICO_INTERNAL void PicoMemSetupCD(void)
 
   // main68k map (BIOS mapped by PicoMemSetup()):
   // RAM cart
-  if (PicoOpt & POPT_EN_MCD_RAMCART) {
+  if (PicoIn.opt & POPT_EN_MCD_RAMCART) {
     cpu68k_map_set(m68k_read8_map,   0x400000, 0x7fffff, PicoReadM68k8_ramc, 1);
     cpu68k_map_set(m68k_read16_map,  0x400000, 0x7fffff, PicoReadM68k16_ramc, 1);
     cpu68k_map_set(m68k_write8_map,  0x400000, 0x7fffff, PicoWriteM68k8_ramc, 1);

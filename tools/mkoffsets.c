@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
   DUMP_EST(f, Pico);
   DUMP_EST(f, PicoMem_vram);
   DUMP_EST(f, PicoMem_cram);
-  DUMP_EST(f, PicoOpt);
+  DUMP_EST(f, PicoIn.opt);
   DUMP_EST(f, Draw2FB);
   DUMP_EST(f, HighPal);
   DUMP_PMEM(f, vram);

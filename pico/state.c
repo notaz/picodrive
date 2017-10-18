@@ -226,7 +226,7 @@ static int state_save(void *file)
   areaWrite("PicoSEXT", 1, 8, file);
   areaWrite(&ver, 1, 4, file);
 
-  if (!(PicoAHW & PAHW_SMS)) {
+  if (!(PicoIn.AHW & PAHW_SMS)) {
     memset(buff, 0, sizeof(buff));
     SekPackCpu(buff, 0);
     CHECKED_WRITE_BUFF(CHUNK_M68K,  buff);
@@ -250,7 +250,7 @@ static int state_save(void *file)
   CHECKED_WRITE_BUFF(CHUNK_Z80, buff_z80);
   CHECKED_WRITE(CHUNK_PSG, 28*4, sn76496_regs);
 
-  if (PicoAHW & PAHW_MCD)
+  if (PicoIn.AHW & PAHW_MCD)
   {
     buf2 = malloc(CHUNK_LIMIT_W);
     if (buf2 == NULL)
@@ -287,7 +287,7 @@ static int state_save(void *file)
   }
 
 #ifndef NO_32X
-  if (PicoAHW & PAHW_32X)
+  if (PicoIn.AHW & PAHW_32X)
   {
     unsigned char cpubuff[SH2_STATE_SIZE];
 
@@ -406,9 +406,9 @@ static int state_load(void *file)
     CHECKED_READ(1, &chunk);
     CHECKED_READ(4, &len);
     if (len < 0 || len > 1024*512) R_ERROR_RETURN("bad length");
-    if (CHUNK_S68K <= chunk && chunk <= CHUNK_MISC_CD && !(PicoAHW & PAHW_MCD))
+    if (CHUNK_S68K <= chunk && chunk <= CHUNK_MISC_CD && !(PicoIn.AHW & PAHW_MCD))
       R_ERROR_RETURN("cd chunk in non CD state?");
-    if (CHUNK_32X_FIRST <= chunk && chunk <= CHUNK_32X_LAST && !(PicoAHW & PAHW_32X))
+    if (CHUNK_32X_FIRST <= chunk && chunk <= CHUNK_32X_LAST && !(PicoIn.AHW & PAHW_32X))
       Pico32xStartup();
 
     switch (chunk)
@@ -535,28 +535,28 @@ breakswitch:
   }
 
 readend:
-  if (PicoAHW & PAHW_SMS)
+  if (PicoIn.AHW & PAHW_SMS)
     PicoStateLoadedMS();
 
-  if (PicoAHW & PAHW_32X)
+  if (PicoIn.AHW & PAHW_32X)
     Pico32xStateLoaded(1);
 
   if (PicoLoadStateHook != NULL)
     PicoLoadStateHook();
 
   // must unpack 68k and z80 after banks are set up
-  if (!(PicoAHW & PAHW_SMS))
+  if (!(PicoIn.AHW & PAHW_SMS))
     SekUnpackCpu(buff_m68k, 0);
-  if (PicoAHW & PAHW_MCD)
+  if (PicoIn.AHW & PAHW_MCD)
     SekUnpackCpu(buff_s68k, 1);
 
   z80_unpack(buff_z80);
 
   // due to dep from 68k cycles..
   Pico.t.m68c_aim = Pico.t.m68c_cnt;
-  if (PicoAHW & PAHW_32X)
+  if (PicoIn.AHW & PAHW_32X)
     Pico32xStateLoaded(0);
-  if (PicoAHW & PAHW_MCD)
+  if (PicoIn.AHW & PAHW_MCD)
   {
     SekCycleAimS68k = SekCycleCntS68k;
     pcd_state_loaded();
@@ -579,7 +579,7 @@ static int state_load_gfx(void *file)
   int ver, len, found = 0, to_find = 4;
   char buff[8];
 
-  if (PicoAHW & PAHW_32X)
+  if (PicoIn.AHW & PAHW_32X)
     to_find += 2;
 
   g_read_offs = 0;
@@ -593,7 +593,7 @@ static int state_load_gfx(void *file)
     CHECKED_READ(1, buff);
     CHECKED_READ(4, &len);
     if (len < 0 || len > 1024*512) R_ERROR_RETURN("bad length");
-    if (buff[0] > CHUNK_FM && buff[0] <= CHUNK_MISC_CD && !(PicoAHW & PAHW_MCD))
+    if (buff[0] > CHUNK_FM && buff[0] <= CHUNK_MISC_CD && !(PicoIn.AHW & PAHW_MCD))
       R_ERROR_RETURN("cd chunk in non CD state?");
 
     switch (buff[0])
@@ -723,7 +723,7 @@ void *PicoTmpStateSave(void)
   memcpy(&t->video, &Pico.video, sizeof(Pico.video));
 
 #ifndef NO_32X
-  if (PicoAHW & PAHW_32X) {
+  if (PicoIn.AHW & PAHW_32X) {
     memcpy(&t->t32x.p32x, &Pico32x, sizeof(Pico32x));
     memcpy(t->t32x.dram, Pico32xMem->dram, sizeof(Pico32xMem->dram));
     memcpy(t->t32x.pal, Pico32xMem->pal, sizeof(Pico32xMem->pal));
@@ -746,7 +746,7 @@ void PicoTmpStateRestore(void *data)
   Pico.m.dirtyPal = 1;
 
 #ifndef NO_32X
-  if (PicoAHW & PAHW_32X) {
+  if (PicoIn.AHW & PAHW_32X) {
     memcpy(&Pico32x, &t->t32x.p32x, sizeof(Pico32x));
     memcpy(Pico32xMem->dram, t->t32x.dram, sizeof(Pico32xMem->dram));
     memcpy(Pico32xMem->pal, t->t32x.pal, sizeof(Pico32xMem->pal));
