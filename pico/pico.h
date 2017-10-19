@@ -96,6 +96,7 @@ typedef struct
 	unsigned short autoRgnOrder;   // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
 
 	unsigned short quirks;         // game-specific quirks: PQUIRK_*
+	unsigned short overclockM68k;  // overclock the emulated 68k, in %
 } PicoInterface;
 
 extern PicoInterface PicoIn;

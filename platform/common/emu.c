@@ -652,6 +652,7 @@ int emu_read_config(const char *rom_fname, int no_defaults)
 	}
 
 	pemu_validate_config();
+	PicoIn.overclockM68k = currentConfig.overclock_68k;
 
 	// some sanity checks
 #ifdef PSP

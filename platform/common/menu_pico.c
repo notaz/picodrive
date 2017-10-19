@@ -488,10 +488,13 @@ static int menu_loop_32x_options(int id, int keys)
 
 // ------------ adv options menu ------------
 
+static const char h_ovrclk[] = "Will break some games, keep at 0";
+
 static menu_entry e_menu_adv_options[] =
 {
 	mee_onoff     ("SRAM/BRAM saves",          MA_OPT_SRAM_STATES,    currentConfig.EmuOpt, EOPT_EN_SRAM),
 	mee_onoff     ("Disable sprite limit",     MA_OPT2_NO_SPRITE_LIM, PicoIn.opt, POPT_DIS_SPRITE_LIM),
+	mee_range_h   ("Overclock M68k (%)",       MA_OPT2_OVERCLOCK_M68K,currentConfig.overclock_68k, 0, 1000, h_ovrclk),
 	mee_onoff     ("Emulate Z80",              MA_OPT2_ENABLE_Z80,    PicoIn.opt, POPT_EN_Z80),
 	mee_onoff     ("Emulate YM2612 (FM)",      MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM),
 	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoIn.opt, POPT_EN_PSG),
@@ -508,7 +511,10 @@ static menu_entry e_menu_adv_options[] =
 static int menu_loop_adv_options(int id, int keys)
 {
 	static int sel = 0;
+
 	me_loop(e_menu_adv_options, &sel);
+	PicoIn.overclockM68k = currentConfig.overclock_68k; // int vs short
+
 	return 0;
 }
 

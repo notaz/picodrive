@@ -10,6 +10,7 @@
 
 #define _GNU_SOURCE 1 // mremap
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 #ifndef _WIN32
@@ -527,6 +528,7 @@ void retro_set_environment(retro_environment_t cb)
       { "picodrive_region",      "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
       { "picodrive_aspect",      "Core-provided aspect ratio; PAR|4/3|CRT" },
       { "picodrive_overscan",    "Show Overscan; disabled|enabled" },
+      { "picodrive_overclk68k",  "68k overclock; disabled|+25%|+50%|+75%|+100%|+200%|+400%" },
 #ifdef DRC_SH2
       { "picodrive_drc", "Dynamic recompilers; enabled|disabled" },
 #endif
@@ -1293,6 +1295,14 @@ static void update_variables(void)
       struct retro_system_av_info av_info;
       retro_get_system_av_info(&av_info);
       environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
+   }
+
+   var.value = NULL;
+   var.key = "picodrive_overclk68k";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      PicoIn.overclockM68k = 0;
+      if (var.value[0] == '+')
+         PicoIn.overclockM68k = atoi(var.value + 1);
    }
 
 #ifdef DRC_SH2

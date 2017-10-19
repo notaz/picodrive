@@ -81,7 +81,7 @@ static void do_timing_hacks_as(struct PicoVideo *pv, int vdp_slots)
 
 static void do_timing_hacks_vb(void)
 {
-  if (Pico.m.dma_xfers)
+  if (unlikely(Pico.m.dma_xfers))
     SekCyclesBurn(CheckDMA());
 }
 
@@ -272,7 +272,7 @@ static int PicoFrameHints(void)
 
     PAD_DELAY();
 
-    if ((pv->status & PVS_ACTIVE) && --hint < 0)
+    if (unlikely(pv->status & PVS_ACTIVE) && --hint < 0)
     {
       hint = pv->reg[10]; // Reload H-Int counter
       do_hint(pv);
@@ -285,6 +285,15 @@ static int PicoFrameHints(void)
 
     if (PicoLineHook) PicoLineHook();
     pevt_log_m68k_o(EVT_NEXT_LINE);
+  }
+
+  if (unlikely(PicoIn.overclockM68k)) {
+    unsigned int l = PicoIn.overclockM68k * lines / 100;
+    while (l-- > 0) {
+      Pico.t.m68c_cnt -= CYCLES_M68K_LINE;
+      do_timing_hacks_vb();
+      SekSyncM68k();
+    }
   }
 
   pv->status &= ~(SR_VB | PVS_VB2);
