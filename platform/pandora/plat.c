@@ -168,7 +168,7 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		emu_osd_text16(2, g_osd_y, notice);
 	if (fps && fps[0] && (currentConfig.EmuOpt & EOPT_SHOW_FPS))
 		emu_osd_text16(g_osd_fps_x, g_osd_y, fps);
-	if ((PicoAHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
+	if ((PicoIn.AHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
 }
 
@@ -440,6 +440,11 @@ void plat_wait_till_us(unsigned int us_to)
 		now = plat_get_ticks_us();
 	}
 */
+}
+
+void *plat_mem_get_for_drc(size_t size)
+{
+	return NULL;
 }
 
 void plat_early_init(void)

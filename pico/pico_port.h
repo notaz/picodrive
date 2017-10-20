@@ -10,9 +10,11 @@
 #ifdef __GNUC__
 #define NOINLINE    __attribute__((noinline))
 #define ALIGNED(n)  __attribute__((aligned(n)))
+#define unlikely(x) __builtin_expect((x), 0)
 #else
 #define NOINLINE
 #define ALIGNED(n)
+#define unlikely(x) (x)
 #endif
 
 #ifdef _MSC_VER

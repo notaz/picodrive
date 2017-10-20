@@ -787,7 +787,7 @@ static u32 PicoRead8_32x_on(u32 a)
   }
 
   if ((a & 0xfc00) != 0x5000) {
-    if (PicoAHW & PAHW_MCD)
+    if (PicoIn.AHW & PAHW_MCD)
       return PicoRead8_mcd_io(a);
     else
       return PicoRead8_io(a);
@@ -831,7 +831,7 @@ static u32 PicoRead16_32x_on(u32 a)
   }
 
   if ((a & 0xfc00) != 0x5000) {
-    if (PicoAHW & PAHW_MCD)
+    if (PicoIn.AHW & PAHW_MCD)
       return PicoRead16_mcd_io(a);
     else
       return PicoRead16_io(a);
@@ -871,7 +871,7 @@ static void PicoWrite8_32x_on(u32 a, u32 d)
   }
 
   if ((a & 0xfc00) != 0x5000) {
-    if (PicoAHW & PAHW_MCD)
+    if (PicoIn.AHW & PAHW_MCD)
       PicoWrite8_mcd_io(a, d);
     else
       PicoWrite8_io(a, d);
@@ -909,7 +909,7 @@ static void PicoWrite16_32x_on(u32 a, u32 d)
   }
 
   if ((a & 0xfc00) != 0x5000) {
-    if (PicoAHW & PAHW_MCD)
+    if (PicoIn.AHW & PAHW_MCD)
       PicoWrite16_mcd_io(a, d);
     else
       PicoWrite16_io(a, d);
@@ -938,15 +938,18 @@ static void PicoWrite16_32x_on(u32 a, u32 d)
 u32 PicoRead8_32x(u32 a)
 {
   u32 d = 0;
-  if ((a & 0xffc0) == 0x5100) { // a15100
-    // regs are always readable
-    d = ((u8 *)Pico32x.regs)[(a & 0x3f) ^ 1];
-    goto out;
-  }
 
-  if ((a & 0xfffc) == 0x30ec) { // a130ec
-    d = str_mars[a & 3];
-    goto out;
+  if (PicoIn.opt & POPT_EN_32X) {
+    if ((a & 0xffc0) == 0x5100) { // a15100
+      // regs are always readable
+      d = ((u8 *)Pico32x.regs)[(a & 0x3f) ^ 1];
+      goto out;
+    }
+
+    if ((a & 0xfffc) == 0x30ec) { // a130ec
+      d = str_mars[a & 3];
+      goto out;
+    }
   }
 
   elprintf(EL_UIO, "m68k unmapped r8  [%06x] @%06x", a, SekPc);
@@ -960,14 +963,17 @@ out:
 u32 PicoRead16_32x(u32 a)
 {
   u32 d = 0;
-  if ((a & 0xffc0) == 0x5100) { // a15100
-    d = Pico32x.regs[(a & 0x3f) / 2];
-    goto out;
-  }
 
-  if ((a & 0xfffc) == 0x30ec) { // a130ec
-    d = !(a & 2) ? ('M'<<8)|'A' : ('R'<<8)|'S';
-    goto out;
+  if (PicoIn.opt & POPT_EN_32X) {
+    if ((a & 0xffc0) == 0x5100) { // a15100
+      d = Pico32x.regs[(a & 0x3f) / 2];
+      goto out;
+    }
+
+    if ((a & 0xfffc) == 0x30ec) { // a130ec
+      d = !(a & 2) ? ('M'<<8)|'A' : ('R'<<8)|'S';
+      goto out;
+    }
   }
 
   elprintf(EL_UIO, "m68k unmapped r16 [%06x] @%06x", a, SekPc);
@@ -980,7 +986,8 @@ out:
 
 void PicoWrite8_32x(u32 a, u32 d)
 {
-  if ((a & 0xffc0) == 0x5100) { // a15100
+  if ((PicoIn.opt & POPT_EN_32X) && (a & 0xffc0) == 0x5100) // a15100
+  {
     u16 *r = Pico32x.regs;
 
     elprintf(EL_32X, "m68k 32x w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
@@ -1008,7 +1015,8 @@ void PicoWrite8_32x(u32 a, u32 d)
 
 void PicoWrite16_32x(u32 a, u32 d)
 {
-  if ((a & 0xffc0) == 0x5100) { // a15100
+  if ((PicoIn.opt & POPT_EN_32X) && (a & 0xffc0) == 0x5100) // a15100
+  {
     u16 *r = Pico32x.regs;
 
     elprintf(EL_UIO, "m68k 32x w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);

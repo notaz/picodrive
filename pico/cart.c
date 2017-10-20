@@ -576,9 +576,9 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms)
   if (!is_sms)
   {
     // maybe we are loading MegaCD BIOS?
-    if (!(PicoAHW & PAHW_MCD) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) ||
+    if (!(PicoIn.AHW & PAHW_MCD) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) ||
          !strncmp((char *)rom+0x128, "BOOT", 4))) {
-      PicoAHW |= PAHW_MCD;
+      PicoIn.AHW |= PAHW_MCD;
     }
 
     // Check for SMD:
@@ -628,7 +628,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   }
   pdb_cleanup();
 
-  PicoAHW &= PAHW_MCD|PAHW_SMS;
+  PicoIn.AHW &= PAHW_MCD|PAHW_SMS;
 
   PicoCartMemSetup = NULL;
   PicoDmaHook = NULL;
@@ -637,13 +637,13 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   PicoLoadStateHook = NULL;
   carthw_chunks = NULL;
 
-  if (!(PicoAHW & (PAHW_MCD|PAHW_SMS)))
+  if (!(PicoIn.AHW & (PAHW_MCD|PAHW_SMS)))
     PicoCartDetect(carthw_cfg);
 
   // setup correct memory map for loaded ROM
-  switch (PicoAHW) {
+  switch (PicoIn.AHW) {
     default:
-      elprintf(EL_STATUS|EL_ANOMALY, "starting in unknown hw configuration: %x", PicoAHW);
+      elprintf(EL_STATUS|EL_ANOMALY, "starting in unknown hw configuration: %x", PicoIn.AHW);
     case 0:
     case PAHW_SVP:  PicoMemSetup(); break;
     case PAHW_MCD:  PicoMemSetupCD(); break;
@@ -654,7 +654,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   if (PicoCartMemSetup != NULL)
     PicoCartMemSetup();
 
-  if (PicoAHW & PAHW_SMS)
+  if (PicoIn.AHW & PAHW_SMS)
     PicoPowerMS();
   else
     PicoPower();
@@ -681,7 +681,7 @@ void PicoCartUnload(void)
     PicoCartUnloadHook = NULL;
   }
 
-  if (PicoAHW & PAHW_32X)
+  if (PicoIn.AHW & PAHW_32X)
     PicoUnload32x();
 
   if (Pico.rom != NULL) {
@@ -965,7 +965,7 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
       else if (strcmp(p, "filled_sram") == 0)
         *fill_sram = 1;
       else if (strcmp(p, "force_6btn") == 0)
-        PicoQuirks |= PQUIRK_FORCE_6BTN;
+        PicoIn.quirks |= PQUIRK_FORCE_6BTN;
       else {
         elprintf(EL_STATUS, "carthw:%d: unsupported prop: %s", line, p);
         goto bad_nomsg;

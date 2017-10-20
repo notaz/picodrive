@@ -70,7 +70,7 @@ PicoRead8_io: @ u32 a
 m_read8_not_io:
     and     r2, r0, #0xfc00
     cmp     r2, #0x1000
-    bne     m_read8_not_brq
+    bne     PicoRead8_32x
 
     ldr     r3, =Pico
     mov     r1, r0
@@ -90,14 +90,6 @@ m_read8_not_io:
     ldrb    r2, [r3, #OFS_Pico_m_z80_reset]
     orr     r0, r0, r1
     orr     r0, r0, r2
-    bx      lr
-
-m_read8_not_brq:
-    ldr     r2, =PicoOpt
-    ldr     r2, [r2]
-    tst     r2, #POPT_EN_32X
-    bne     PicoRead8_32x
-    mov     r0, #0
     bx      lr
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -146,7 +138,7 @@ PicoRead16_io: @ u32 a, u32 d
 m_read16_not_io:
     and     r2, r0, #0xfc00
     cmp     r2, #0x1000
-    bne     m_read16_not_brq
+    bne     PicoRead16_32x
 
     ldr     r3, =Pico
     and     r2, r0, #0xff00
@@ -163,14 +155,6 @@ m_read16_not_io:
     ldrb    r2, [r3, #OFS_Pico_m_z80_reset]
     orr     r0, r0, r1, lsl #8
     orr     r0, r0, r2, lsl #8
-    bx      lr
-
-m_read16_not_brq:
-    ldr     r2, =PicoOpt
-    ldr     r2, [r2]
-    tst     r2, #POPT_EN_32X
-    bne     PicoRead16_32x
-    mov     r0, #0
     bx      lr
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -197,20 +181,13 @@ m_write8_not_z80ctl:
     eor     r2, r0, #0xa10000
     eor     r2, r2, #0x003000
     eors    r2, r2, #0x0000f1
-    bne     m_write8_not_sreg
+    bne     PicoWrite8_32x
     ldr     r3, =Pico
     ldrb    r2, [r3, #OFS_Pico_m_sram_reg]
     and     r1, r1, #(SRR_MAPPED|SRR_READONLY)
     bic     r2, r2, #(SRR_MAPPED|SRR_READONLY)
     orr     r2, r2, r1
     strb    r2, [r3, #OFS_Pico_m_sram_reg]
-    bx      lr
-
-m_write8_not_sreg:
-    ldr     r2, =PicoOpt
-    ldr     r2, [r2]
-    tst     r2, #POPT_EN_32X
-    bne     PicoWrite8_32x
     bx      lr
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -234,20 +211,13 @@ m_write16_not_z80ctl:
     eor     r2, r0, #0xa10000
     eor     r2, r2, #0x003000
     eors    r2, r2, #0x0000f0
-    bne     m_write16_not_sreg
+    bne     PicoWrite16_32x
     ldr     r3, =Pico
     ldrb    r2, [r3, #OFS_Pico_m_sram_reg]
     and     r1, r1, #(SRR_MAPPED|SRR_READONLY)
     bic     r2, r2, #(SRR_MAPPED|SRR_READONLY)
     orr     r2, r2, r1
     strb    r2, [r3, #OFS_Pico_m_sram_reg]
-    bx      lr
-
-m_write16_not_sreg:
-    ldr     r2, =PicoOpt
-    ldr     r2, [r2]
-    tst     r2, #POPT_EN_32X
-    bne     PicoWrite16_32x
     bx      lr
 
 .pool

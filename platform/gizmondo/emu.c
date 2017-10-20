@@ -145,7 +145,7 @@ static void blit(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
-	if (PicoOpt&0x10)
+	if (PicoIn.opt&0x10)
 	{
 		int lines_flags = 224;
 		// 8bit fast renderer
@@ -154,7 +154,7 @@ static void blit(const char *fps, const char *notice)
 			vidConvCpyRGB565(localPal, Pico.cram, 0x40);
 		}
 		// a hack for VR
-		if (PicoAHW & PAHW_SVP)
+		if (PicoIn.AHW & PAHW_SVP)
 			memset32((int *)(Pico.est.Draw2FB+328*8+328*223), 0xe0e0e0e0, 328);
 		if (!(Pico.video.reg[12]&1)) lines_flags|=0x10000;
 		if (currentConfig.EmuOpt&0x4000)
@@ -196,7 +196,7 @@ static void blit(const char *fps, const char *notice)
 		if (emu_opt & 2) osd_text(OSD_FPS_X, h, fps);
 	}
 
-	if ((emu_opt & 0x400) && (PicoAHW & PAHW_MCD))
+	if ((emu_opt & 0x400) && (PicoIn.AHW & PAHW_MCD))
 		cd_leds();
 }
 
@@ -220,7 +220,7 @@ static void vidResetMode(void)
 {
 	giz_screen = fb_lock(1);
 
-	if (PicoOpt&0x10) {
+	if (PicoIn.opt&0x10) {
 	} else if (currentConfig.EmuOpt&0x80) {
 		PicoDrawSetOutFormat(PDF_RGB555, 0);
 		PicoDrawSetCallbacks(EmuScanBegin16, NULL);
@@ -228,7 +228,7 @@ static void vidResetMode(void)
 		PicoDrawSetOutFormat(PDF_NONE, 0);
 		PicoDrawSetCallbacks(EmuScanBegin8, NULL);
 	}
-	if ((PicoOpt&0x10) || !(currentConfig.EmuOpt&0x80)) {
+	if ((PicoIn.opt&0x10) || !(currentConfig.EmuOpt&0x80)) {
 		// setup pal for 8-bit modes
 		localPal[0xc0] = 0x0600;
 		localPal[0xd0] = 0xc000;
@@ -278,21 +278,21 @@ static void updateSound(int len)
 
 static void SkipFrame(void)
 {
-	PicoSkipFrame=1;
+	PicoIn.skipFrame=1;
 	PicoFrame();
-	PicoSkipFrame=0;
+	PicoIn.skipFrame=0;
 }
 
 /* forced frame to front buffer */
 void pemu_forced_frame(int no_scale, int do_emu)
 {
-	int po_old = PicoOpt;
+	int po_old = PicoIn.opt;
 	int eo_old = currentConfig.EmuOpt;
 
-	PicoOpt &= ~0x10;
-	PicoOpt |= POPT_ACC_SPRITES;
+	PicoIn.opt &= ~0x10;
+	PicoIn.opt |= POPT_ACC_SPRITES;
 	if (!no_scale)
-		PicoOpt |= POPT_EN_SOFTSCALE;
+		PicoIn.opt |= POPT_EN_SOFTSCALE;
 	currentConfig.EmuOpt |= 0x80;
 
 	if (giz_screen == NULL)
@@ -306,7 +306,7 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	fb_unlock();
 	giz_screen = NULL;
 
-	PicoOpt = po_old;
+	PicoIn.opt = po_old;
 	currentConfig.EmuOpt = eo_old;
 }
 
@@ -350,12 +350,12 @@ static void RunEvents(unsigned int which)
 	}
 	if (which & 0x0400) // switch renderer
 	{
-		if (PicoOpt&0x10) { PicoOpt&=~0x10; currentConfig.EmuOpt |=  0x80; }
-		else              { PicoOpt|= 0x10; currentConfig.EmuOpt &= ~0x80; }
+		if (PicoIn.opt&0x10) { PicoIn.opt&=~0x10; currentConfig.EmuOpt |=  0x80; }
+		else              { PicoIn.opt|= 0x10; currentConfig.EmuOpt &= ~0x80; }
 
 		vidResetMode();
 
-		if (PicoOpt&0x10) {
+		if (PicoIn.opt&0x10) {
 			strcpy(noticeMsg, " 8bit fast renderer");
 		} else if (currentConfig.EmuOpt&0x80) {
 			strcpy(noticeMsg, "16bit accurate renderer");
@@ -392,11 +392,11 @@ static void updateKeys(void)
 
 	keys &= CONFIGURABLE_KEYS;
 
-	PicoPad[0] = allActions[0] & 0xfff;
-	PicoPad[1] = allActions[1] & 0xfff;
+	PicoIn.pad[0] = allActions[0] & 0xfff;
+	PicoIn.pad[1] = allActions[1] & 0xfff;
 
-	if (allActions[0] & 0x7000) emu_DoTurbo(&PicoPad[0], allActions[0]);
-	if (allActions[1] & 0x7000) emu_DoTurbo(&PicoPad[1], allActions[1]);
+	if (allActions[0] & 0x7000) emu_DoTurbo(&PicoIn.pad[0], allActions[0]);
+	if (allActions[1] & 0x7000) emu_DoTurbo(&PicoIn.pad[1], allActions[1]);
 
 	events = (allActions[0] | allActions[1]) >> 16;
 
@@ -455,8 +455,8 @@ void pemu_loop(void)
 
 	// make sure we are in correct mode
 	vidResetMode();
-	if (currentConfig.scaling) PicoOpt|=0x4000;
-	else PicoOpt&=~0x4000;
+	if (currentConfig.scaling) PicoIn.opt|=0x4000;
+	else PicoIn.opt&=~0x4000;
 	Pico.m.dirtyPal = 1;
 	oldmodes = ((Pico.video.reg[12]&1)<<2) ^ 0xc;
 
@@ -466,17 +466,17 @@ void pemu_loop(void)
 	reset_timing = 1;
 
 	// prepare CD buffer
-	if (PicoAHW & PAHW_MCD) PicoCDBufferInit();
+	if (PicoIn.AHW & PAHW_MCD) PicoCDBufferInit();
 
 	// prepare sound stuff
 	PsndOut = NULL;
 	if (currentConfig.EmuOpt & 4)
 	{
 		int ret, snd_excess_add, stereo;
-		if (PsndRate != PsndRate_old || (PicoOpt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
+		if (PsndRate != PsndRate_old || (PicoIn.opt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
 			PsndRerate(Pico.m.frame_count ? 1 : 0);
 		}
-		stereo=(PicoOpt&8)>>3;
+		stereo=(PicoIn.opt&8)>>3;
 		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
 		snd_cbuf_samples = (PsndRate<<stereo) * 16 / target_fps;
 		lprintf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
@@ -494,7 +494,7 @@ void pemu_loop(void)
 			PsndOut = snd_cbuff + snd_cbuf_samples / 2; // start writing at the middle
 			snd_all_samples = 0;
 			PsndRate_old = PsndRate;
-			PicoOpt_old  = PicoOpt;
+			PicoOpt_old  = PicoIn.opt;
 			pal_old = Pico.m.pal;
 		}
 	}
@@ -561,7 +561,7 @@ void pemu_loop(void)
 				audio_skew = snd_all_samples*2 - FrameworkAudio_BufferPos();
 				if (PsndRate == 22050) co = 10;
 				if (PsndRate  > 22050) co = 11;
-				if (PicoOpt&8) shift++;
+				if (PicoIn.opt&8) shift++;
 				if (audio_skew < 0) {
 					adj = -((-audio_skew) >> shift);
 					if (audio_skew > -(6<<co)) adj>>=1;
@@ -674,7 +674,7 @@ void pemu_loop(void)
 	}
 
 
-	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
+	if (PicoIn.AHW & PAHW_MCD) PicoCDBufferFree();
 
 	if (PsndOut != NULL) {
 		PsndOut = snd_cbuff = NULL;

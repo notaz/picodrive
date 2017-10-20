@@ -38,7 +38,7 @@ static void SekSyncM68k(void)
 #elif defined(EMU_M68K)
     Pico.t.m68c_cnt += m68k_execute(cyc_do) - cyc_do;
 #elif defined(EMU_F68K)
-    Pico.t.m68c_cnt += fm68k_emulate(cyc_do, 0) - cyc_do;
+    Pico.t.m68c_cnt += fm68k_emulate(&PicoCpuFM68k, cyc_do, 0) - cyc_do;
 #endif
   }
 
@@ -81,7 +81,7 @@ static void do_timing_hacks_as(struct PicoVideo *pv, int vdp_slots)
 
 static void do_timing_hacks_vb(void)
 {
-  if (Pico.m.dma_xfers)
+  if (unlikely(Pico.m.dma_xfers))
     SekCyclesBurn(CheckDMA());
 }
 
@@ -97,7 +97,7 @@ static int PicoFrameHints(void)
 
   pevt_log_m68k_o(EVT_FRAME_START);
 
-  if ((PicoOpt&POPT_ALT_RENDERER) && !PicoSkipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
+  if ((PicoIn.opt&POPT_ALT_RENDERER) && !PicoIn.skipFrame && (pv->reg[1]&0x40)) { // fast rend., display enabled
     // draw a frame just after vblank in alternative render mode
     // yes, this will cause 1 frame lag, but this is inaccurate mode anyway.
     PicoFrameFull();
@@ -106,7 +106,7 @@ static int PicoFrameHints(void)
 #endif
     skip = 1;
   }
-  else skip=PicoSkipFrame;
+  else skip=PicoIn.skipFrame;
 
   Pico.t.m68c_frame_start = Pico.t.m68c_aim;
   pv->v_counter = Pico.m.scanline = 0;
@@ -140,7 +140,7 @@ static int PicoFrameHints(void)
     }
 
     // decide if we draw this line
-    if (!skip && (PicoOpt & POPT_ALT_RENDERER))
+    if (!skip && (PicoIn.opt & POPT_ALT_RENDERER))
     {
       // find the right moment for frame renderer, when display is no longer blanked
       if ((pv->reg[1]&0x40) || y > 100) {
@@ -157,10 +157,10 @@ static int PicoFrameHints(void)
     {
       cycles = SekCyclesDone();
 
-      if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
+      if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
         PicoSyncZ80(cycles);
 #ifdef PICO_CD
-      if (PicoAHW & PAHW_MCD)
+      if (PicoIn.AHW & PAHW_MCD)
         pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X
@@ -195,7 +195,7 @@ static int PicoFrameHints(void)
   pv->lwrite_cnt = 0;
   Pico.video.status |= SR_EMPT;
 
-  memcpy(PicoPadInt, PicoPad, sizeof(PicoPadInt));
+  memcpy(PicoIn.padInt, PicoIn.pad, sizeof(PicoIn.padInt));
   PAD_DELAY();
 
   // Last H-Int (normally):
@@ -225,14 +225,14 @@ static int PicoFrameHints(void)
   }
 
   cycles = SekCyclesDone();
-  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80)) {
+  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
     PicoSyncZ80(cycles);
     elprintf(EL_INTS, "zint");
     z80_int();
   }
 
 #ifdef PICO_CD
-  if (PicoAHW & PAHW_MCD)
+  if (PicoIn.AHW & PAHW_MCD)
     pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X
@@ -272,7 +272,7 @@ static int PicoFrameHints(void)
 
     PAD_DELAY();
 
-    if ((pv->status & PVS_ACTIVE) && --hint < 0)
+    if (unlikely(pv->status & PVS_ACTIVE) && --hint < 0)
     {
       hint = pv->reg[10]; // Reload H-Int counter
       do_hint(pv);
@@ -285,6 +285,15 @@ static int PicoFrameHints(void)
 
     if (PicoLineHook) PicoLineHook();
     pevt_log_m68k_o(EVT_NEXT_LINE);
+  }
+
+  if (unlikely(PicoIn.overclockM68k)) {
+    unsigned int l = PicoIn.overclockM68k * lines / 100;
+    while (l-- > 0) {
+      Pico.t.m68c_cnt -= CYCLES_M68K_LINE;
+      do_timing_hacks_vb();
+      SekSyncM68k();
+    }
   }
 
   pv->status &= ~(SR_VB | PVS_VB2);
@@ -313,7 +322,7 @@ static int PicoFrameHints(void)
 
   // sync cpus
   cycles = SekCyclesDone();
-  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoOpt&POPT_EN_Z80))
+  if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
     PicoSyncZ80(cycles);
   if (PsndOut && ym2612.dacen && PsndDacLine < lines)
     PsndDoDAC(lines - 1);
@@ -321,7 +330,7 @@ static int PicoFrameHints(void)
     PsndDoPSG(lines - 1);
 
 #ifdef PICO_CD
-  if (PicoAHW & PAHW_MCD)
+  if (PicoIn.AHW & PAHW_MCD)
     pcd_sync_s68k(cycles, 0);
 #endif
 #ifdef PICO_32X

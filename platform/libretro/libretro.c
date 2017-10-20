@@ -10,6 +10,7 @@
 
 #define _GNU_SOURCE 1 // mremap
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 #ifndef _WIN32
@@ -527,6 +528,7 @@ void retro_set_environment(retro_environment_t cb)
       { "picodrive_region",      "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
       { "picodrive_aspect",      "Core-provided aspect ratio; PAR|4/3|CRT" },
       { "picodrive_overscan",    "Show Overscan; disabled|enabled" },
+      { "picodrive_overclk68k",  "68k overclock; disabled|+25%|+50%|+75%|+100%|+200%|+400%" },
 #ifdef DRC_SH2
       { "picodrive_drc", "Dynamic recompilers; enabled|disabled" },
 #endif
@@ -1115,13 +1117,13 @@ void *retro_get_memory_data(unsigned type)
    switch(type)
    {
       case RETRO_MEMORY_SAVE_RAM:
-         if (PicoAHW & PAHW_MCD)
+         if (PicoIn.AHW & PAHW_MCD)
             data = Pico_mcd->bram;
          else
             data = Pico.sv.data;
          break;
       case RETRO_MEMORY_SYSTEM_RAM:
-         if (PicoAHW & PAHW_SMS)
+         if (PicoIn.AHW & PAHW_SMS)
             data = PicoMem.zram;
          else
             data = PicoMem.ram;
@@ -1142,7 +1144,7 @@ size_t retro_get_memory_size(unsigned type)
    switch(type)
    {
       case RETRO_MEMORY_SAVE_RAM:
-         if (PicoAHW & PAHW_MCD)
+         if (PicoIn.AHW & PAHW_MCD)
             // bram
             return 0x2000;
 
@@ -1157,7 +1159,7 @@ size_t retro_get_memory_size(unsigned type)
          return (sum != 0) ? Pico.sv.size : 0;
 
       case RETRO_MEMORY_SYSTEM_RAM:
-         if (PicoAHW & PAHW_SMS)
+         if (PicoIn.AHW & PAHW_SMS)
             return 0x2000;
          else
             return sizeof(PicoMem.ram);
@@ -1228,38 +1230,38 @@ static void update_variables(void)
    var.key = "picodrive_sprlim";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "enabled") == 0)
-         PicoOpt |= POPT_DIS_SPRITE_LIM;
+         PicoIn.opt |= POPT_DIS_SPRITE_LIM;
       else
-         PicoOpt &= ~POPT_DIS_SPRITE_LIM;
+         PicoIn.opt &= ~POPT_DIS_SPRITE_LIM;
    }
 
    var.value = NULL;
    var.key = "picodrive_ramcart";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "enabled") == 0)
-         PicoOpt |= POPT_EN_MCD_RAMCART;
+         PicoIn.opt |= POPT_EN_MCD_RAMCART;
       else
-         PicoOpt &= ~POPT_EN_MCD_RAMCART;
+         PicoIn.opt &= ~POPT_EN_MCD_RAMCART;
    }
 
-   OldPicoRegionOverride = PicoRegionOverride;
+   OldPicoRegionOverride = PicoIn.regionOverride;
    var.value = NULL;
    var.key = "picodrive_region";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "Auto") == 0)
-         PicoRegionOverride = 0;
+         PicoIn.regionOverride = 0;
       else if (strcmp(var.value, "Japan NTSC") == 0)
-         PicoRegionOverride = 1;
+         PicoIn.regionOverride = 1;
       else if (strcmp(var.value, "Japan PAL") == 0)
-         PicoRegionOverride = 2;
+         PicoIn.regionOverride = 2;
       else if (strcmp(var.value, "US") == 0)
-         PicoRegionOverride = 4;
+         PicoIn.regionOverride = 4;
       else if (strcmp(var.value, "Europe") == 0)
-         PicoRegionOverride = 8;
+         PicoIn.regionOverride = 8;
    }
 
    // Update region, fps and sound flags if needed
-   if (Pico.rom && PicoRegionOverride != OldPicoRegionOverride)
+   if (Pico.rom && PicoIn.regionOverride != OldPicoRegionOverride)
    {
       PicoDetectRegion();
       PicoLoopPrepare();
@@ -1295,19 +1297,27 @@ static void update_variables(void)
       environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
    }
 
+   var.value = NULL;
+   var.key = "picodrive_overclk68k";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      PicoIn.overclockM68k = 0;
+      if (var.value[0] == '+')
+         PicoIn.overclockM68k = atoi(var.value + 1);
+   }
+
 #ifdef DRC_SH2
    var.value = NULL;
    var.key = "picodrive_drc";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "enabled") == 0)
-         PicoOpt |= POPT_EN_DRC;
+         PicoIn.opt |= POPT_EN_DRC;
       else
-         PicoOpt &= ~POPT_EN_DRC;
+         PicoIn.opt &= ~POPT_EN_DRC;
    }
 #endif
 #ifdef _3DS
    if(!ctr_svchack_successful)
-      PicoOpt &= ~POPT_EN_DRC;
+      PicoIn.opt &= ~POPT_EN_DRC;
 #endif
 }
 
@@ -1321,11 +1331,11 @@ void retro_run(void)
 
    input_poll_cb();
 
-   PicoPad[0] = PicoPad[1] = 0;
+   PicoIn.pad[0] = PicoIn.pad[1] = 0;
    for (pad = 0; pad < 2; pad++)
       for (i = 0; i < RETRO_PICO_MAP_LEN; i++)
          if (input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, i))
-            PicoPad[pad] |= retro_pico_map[i];
+            PicoIn.pad[pad] |= retro_pico_map[i];
 
    PicoPatchApply();
    PicoFrame();
@@ -1355,7 +1365,7 @@ void retro_init(void)
    sceBlock = getVMBlock();
 #endif
 
-   PicoOpt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80
+   PicoIn.opt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80
       | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX
       | POPT_EN_32X|POPT_EN_PWM
       | POPT_ACC_SPRITES|POPT_DIS_32C_BORDER;
@@ -1363,10 +1373,10 @@ void retro_init(void)
 #ifdef _3DS
    if (ctr_svchack_successful)
 #endif
-      PicoOpt |= POPT_EN_DRC;
+      PicoIn.opt |= POPT_EN_DRC;
 #endif
    PsndRate = 44100;
-   PicoAutoRgnOrder = 0x184; // US, EU, JP
+   PicoIn.autoRgnOrder = 0x184; // US, EU, JP
 
    vout_width = 320;
    vout_height = 240;

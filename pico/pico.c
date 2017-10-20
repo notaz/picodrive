@@ -12,16 +12,7 @@
 
 struct Pico Pico;
 struct PicoMem PicoMem;
-int PicoOpt;     
-int PicoSkipFrame;     // skip rendering frame?
-int PicoPad[2];        // Joypads, format is MXYZ SACB RLDU
-int PicoPadInt[2];     // internal copy
-int PicoAHW;           // active addon hardware: PAHW_*
-int PicoQuirks;        // game-specific quirks
-int PicoRegionOverride; // override the region detection 0: Auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
-int PicoAutoRgnOrder;
-
-int emustatus;         // rapid_ym2612, multi_ym_updates
+PicoInterface PicoIn;
 
 void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
@@ -33,13 +24,13 @@ void PicoInit(void)
   // Blank space for state:
   memset(&Pico,0,sizeof(Pico));
   memset(&PicoMem,0,sizeof(PicoMem));
-  memset(&PicoPad,0,sizeof(PicoPad));
-  memset(&PicoPadInt,0,sizeof(PicoPadInt));
+  memset(&PicoIn.pad,0,sizeof(PicoIn.pad));
+  memset(&PicoIn.padInt,0,sizeof(PicoIn.padInt));
 
   Pico.est.Pico = &Pico;
   Pico.est.PicoMem_vram = PicoMem.vram;
   Pico.est.PicoMem_cram = PicoMem.cram;
-  Pico.est.PicoOpt = &PicoOpt;
+  Pico.est.PicoOpt = &PicoIn.opt;
 
   // Init CPUs:
   SekInit();
@@ -56,7 +47,7 @@ void PicoInit(void)
 // to be called once on emu exit
 void PicoExit(void)
 {
-  if (PicoAHW & PAHW_MCD)
+  if (PicoIn.AHW & PAHW_MCD)
     PicoExitMCD();
   PicoCartUnload();
   z80_exit();
@@ -89,10 +80,10 @@ void PicoPower(void)
   Pico.video.reg[0xc] = 0x81;
   Pico.video.reg[0xf] = 0x02;
 
-  if (PicoAHW & PAHW_MCD)
+  if (PicoIn.AHW & PAHW_MCD)
     PicoPowerMCD();
 
-  if (PicoOpt & POPT_EN_32X)
+  if (PicoIn.opt & POPT_EN_32X)
     PicoPower32x();
 
   PicoReset();
@@ -103,9 +94,9 @@ PICO_INTERNAL void PicoDetectRegion(void)
   int support=0, hw=0, i;
   unsigned char pal=0;
 
-  if (PicoRegionOverride)
+  if (PicoIn.regionOverride)
   {
-    support = PicoRegionOverride;
+    support = PicoIn.regionOverride;
   }
   else
   {
@@ -138,10 +129,10 @@ PICO_INTERNAL void PicoDetectRegion(void)
   }
 
   // auto detection order override
-  if (PicoAutoRgnOrder) {
-         if (((PicoAutoRgnOrder>>0)&0xf) & support) support = (PicoAutoRgnOrder>>0)&0xf;
-    else if (((PicoAutoRgnOrder>>4)&0xf) & support) support = (PicoAutoRgnOrder>>4)&0xf;
-    else if (((PicoAutoRgnOrder>>8)&0xf) & support) support = (PicoAutoRgnOrder>>8)&0xf;
+  if (PicoIn.autoRgnOrder) {
+         if (((PicoIn.autoRgnOrder>>0)&0xf) & support) support = (PicoIn.autoRgnOrder>>0)&0xf;
+    else if (((PicoIn.autoRgnOrder>>4)&0xf) & support) support = (PicoIn.autoRgnOrder>>4)&0xf;
+    else if (((PicoIn.autoRgnOrder>>8)&0xf) & support) support = (PicoIn.autoRgnOrder>>8)&0xf;
   }
 
   // Try to pick the best hardware value for English/50hz:
@@ -161,17 +152,16 @@ int PicoReset(void)
     return 1;
 
 #if defined(CPU_CMP_R) || defined(CPU_CMP_W) || defined(DRC_CMP)
-  PicoOpt |= POPT_DIS_VDP_FIFO|POPT_DIS_IDLE_DET;
+  PicoIn.opt |= POPT_DIS_VDP_FIFO|POPT_DIS_IDLE_DET;
 #endif
 
   /* must call now, so that banking is reset, and correct vectors get fetched */
   if (PicoResetHook)
     PicoResetHook();
 
-  memset(&PicoPadInt,0,sizeof(PicoPadInt));
-  emustatus = 0;
+  memset(&PicoIn.padInt, 0, sizeof(PicoIn.padInt));
 
-  if (PicoAHW & PAHW_SMS) {
+  if (PicoIn.AHW & PAHW_SMS) {
     PicoResetMS();
     return 0;
   }
@@ -180,7 +170,7 @@ int PicoReset(void)
   // ..but do not reset SekCycle* to not desync with addons
 
   // s68k doesn't have the TAS quirk, so we just globally set normal TAS handler in MCD mode (used by Batman games).
-  SekSetRealTAS(PicoAHW & PAHW_MCD);
+  SekSetRealTAS(PicoIn.AHW & PAHW_MCD);
 
   Pico.m.dirtyPal = 1;
 
@@ -193,21 +183,21 @@ int PicoReset(void)
   PsndReset(); // pal must be known here
 
   // create an empty "dma" to cause 68k exec start at random frame location
-  if (Pico.m.dma_xfers == 0 && !(PicoOpt & POPT_DIS_VDP_FIFO))
+  if (Pico.m.dma_xfers == 0 && !(PicoIn.opt & POPT_DIS_VDP_FIFO))
     Pico.m.dma_xfers = rand() & 0x1fff;
 
   SekFinishIdleDet();
 
-  if (PicoAHW & PAHW_MCD) {
+  if (PicoIn.AHW & PAHW_MCD) {
     PicoResetMCD();
     return 0;
   }
 
   // reinit, so that checksum checks pass
-  if (!(PicoOpt & POPT_DIS_IDLE_DET))
+  if (!(PicoIn.opt & POPT_DIS_IDLE_DET))
     SekInitIdleDet();
 
-  if (PicoOpt & POPT_EN_32X)
+  if (PicoIn.opt & POPT_EN_32X)
     PicoReset32x();
 
   // reset sram state; enable sram access by default if it doesn't overlap with ROM
@@ -225,9 +215,9 @@ int PicoReset(void)
 // flush config changes before emu loop starts
 void PicoLoopPrepare(void)
 {
-  if (PicoRegionOverride)
+  if (PicoIn.regionOverride)
     // force setting possibly changed..
-    Pico.m.pal = (PicoRegionOverride == 2 || PicoRegionOverride == 8) ? 1 : 0;
+    Pico.m.pal = (PicoIn.regionOverride == 2 || PicoIn.regionOverride == 8) ? 1 : 0;
 
   Pico.m.dirtyPal = 1;
   rendstatus_old = -1;
@@ -263,10 +253,9 @@ PICO_INTERNAL int CheckDMA(void)
   xfers_can = dma_timings[dma_op];
   if(xfers <= xfers_can)
   {
-    if(dma_op&2) Pico.video.status&=~2; // dma no longer busy
-    else {
+    Pico.video.status &= ~SR_DMA;
+    if (!(dma_op & 2))
       burn = xfers * dma_bsycles[dma_op] >> 8; // have to be approximate because can't afford division..
-    }
     Pico.m.dma_xfers = 0;
   } else {
     if(!(dma_op&2)) burn = 488;
@@ -310,17 +299,17 @@ void PicoFrame(void)
 
   Pico.m.frame_count++;
 
-  if (PicoAHW & PAHW_SMS) {
+  if (PicoIn.AHW & PAHW_SMS) {
     PicoFrameMS();
     goto end;
   }
 
-  if (PicoAHW & PAHW_32X) {
+  if (PicoIn.AHW & PAHW_32X) {
     PicoFrame32x(); // also does MCD+32X
     goto end;
   }
 
-  if (PicoAHW & PAHW_MCD) {
+  if (PicoIn.AHW & PAHW_MCD) {
     PicoFrameMCD();
     goto end;
   }
@@ -336,7 +325,7 @@ end:
 
 void PicoFrameDrawOnly(void)
 {
-  if (!(PicoAHW & PAHW_SMS)) {
+  if (!(PicoIn.AHW & PAHW_SMS)) {
     PicoFrameStart();
     PicoDrawSync(223, 0);
   } else {

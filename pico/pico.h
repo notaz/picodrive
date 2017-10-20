@@ -72,22 +72,35 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define POPT_DIS_IDLE_DET   (1<<19)
 #define POPT_EN_32X         (1<<20)
 #define POPT_EN_PWM         (1<<21)
-extern int PicoOpt; // bitfield
 
 #define PAHW_MCD  (1<<0)
 #define PAHW_32X  (1<<1)
 #define PAHW_SVP  (1<<2)
 #define PAHW_PICO (1<<3)
 #define PAHW_SMS  (1<<4)
-extern int PicoAHW;            // Pico active hw
 
 #define PQUIRK_FORCE_6BTN   (1<<0)
-extern int PicoQuirks;
 
-extern int PicoSkipFrame;      // skip rendering frame, but still do sound (if enabled) and emulation stuff
-extern int PicoRegionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
-extern int PicoAutoRgnOrder;   // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
-extern int PicoSVPCycles;
+// the emulator is configured and some status is reported
+// through this global state (not saved in savestates)
+typedef struct
+{
+	unsigned int opt; // POPT_* bitfield
+
+	unsigned short pad[2];     // Joypads, format is MXYZ SACB RLDU
+	unsigned short padInt[2];  // internal copy
+	unsigned short AHW;        // active addon hardware: PAHW_* bitfield
+
+	unsigned short skipFrame;      // skip rendering frame, but still do sound (if enabled) and emulation stuff
+	unsigned short regionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
+	unsigned short autoRgnOrder;   // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
+
+	unsigned short quirks;         // game-specific quirks: PQUIRK_*
+	unsigned short overclockM68k;  // overclock the emulated 68k, in %
+} PicoInterface;
+
+extern PicoInterface PicoIn;
+
 void PicoInit(void);
 void PicoExit(void);
 void PicoPower(void);
@@ -95,7 +108,6 @@ int  PicoReset(void);
 void PicoLoopPrepare(void);
 void PicoFrame(void);
 void PicoFrameDrawOnly(void);
-extern int PicoPad[2]; // Joypads, format is MXYZ SACB RLDU
 extern void (*PicoWriteSound)(int bytes); // called once per frame at the best time to send sound buffer (PsndOut) to hardware
 extern void (*PicoMessage)(const char *msg); // callback to output text message from emu
 typedef enum { PI_ROM, PI_ISPAL, PI_IS40_CELL, PI_IS240_LINES } pint_t;

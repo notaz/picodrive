@@ -81,7 +81,7 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 }
 #define SekIsStoppedM68k() (PicoCpuFM68k.execinfo&FM68K_HALTED)
 #define SekIsStoppedS68k() (PicoCpuFS68k.execinfo&FM68K_HALTED)
-#define SekShouldInterrupt() fm68k_would_interrupt()
+#define SekShouldInterrupt() fm68k_would_interrupt(&PicoCpuFM68k)
 
 #define SekNotPolling     PicoCpuFM68k.not_polling
 #define SekNotPollingS68k PicoCpuFS68k.not_polling
@@ -327,7 +327,7 @@ struct PicoMisc
   unsigned char  eeprom_cycle; // EEPROM cycle number
   unsigned char  eeprom_slave; // EEPROM slave word for X24C02 and better SRAMs
   unsigned char  eeprom_status;
-  unsigned char  pad2;
+  unsigned char  status;       // rapid_ym2612, multi_ym_updates
   unsigned short dma_xfers;    // 18
   unsigned char  eeprom_wb[2]; // EEPROM latch/write buffer
   unsigned int  frame_count;   // 1c for movies and idle det
@@ -352,7 +352,7 @@ struct PicoEState
   struct Pico *Pico;
   void *PicoMem_vram;
   void *PicoMem_cram;
-  int  *PicoOpt;
+  unsigned int  *PicoOpt;
   unsigned char *Draw2FB;
   unsigned short HighPal[0x100];
 };
@@ -705,8 +705,6 @@ void pcd_state_loaded_mem(void);
 // pico.c
 extern struct Pico Pico;
 extern struct PicoMem PicoMem;
-extern int PicoPadInt[2];
-extern int emustatus;
 extern void (*PicoResetHook)(void);
 extern void (*PicoLineHook)(void);
 PICO_INTERNAL int  CheckDMA(void);

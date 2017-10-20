@@ -176,20 +176,20 @@ int  YM2612PicoStateLoad2(int *tat, int *tbt);
 #else
 /* GP2X specific */
 #include "../../platform/gp2x/940ctl.h"
-extern int PicoOpt;
+extern int PicoIn.opt;
 #define YM2612Init(baseclock,rate) { \
-	if (PicoOpt&0x200) YM2612Init_940(baseclock, rate); \
+	if (PicoIn.opt&0x200) YM2612Init_940(baseclock, rate); \
 	else               YM2612Init_(baseclock, rate); \
 }
 #define YM2612ResetChip() { \
-	if (PicoOpt&0x200) YM2612ResetChip_940(); \
+	if (PicoIn.opt&0x200) YM2612ResetChip_940(); \
 	else               YM2612ResetChip_(); \
 }
 #define YM2612UpdateOne(buffer,length,stereo,is_buf_empty) \
-	(PicoOpt&0x200) ? YM2612UpdateOne_940(buffer, length, stereo, is_buf_empty) : \
+	(PicoIn.opt&0x200) ? YM2612UpdateOne_940(buffer, length, stereo, is_buf_empty) : \
 				YM2612UpdateOne_(buffer, length, stereo, is_buf_empty);
 #define YM2612PicoStateLoad() { \
-	if (PicoOpt&0x200) YM2612PicoStateLoad_940(); \
+	if (PicoIn.opt&0x200) YM2612PicoStateLoad_940(); \
 	else               YM2612PicoStateLoad_(); \
 }
 #endif /* __GP2X__ */
