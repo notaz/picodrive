@@ -253,10 +253,9 @@ PICO_INTERNAL int CheckDMA(void)
   xfers_can = dma_timings[dma_op];
   if(xfers <= xfers_can)
   {
-    if(dma_op&2) Pico.video.status&=~2; // dma no longer busy
-    else {
+    Pico.video.status &= ~SR_DMA;
+    if (!(dma_op & 2))
       burn = xfers * dma_bsycles[dma_op] >> 8; // have to be approximate because can't afford division..
-    }
     Pico.m.dma_xfers = 0;
   } else {
     if(!(dma_op&2)) burn = 488;

@@ -100,7 +100,7 @@ static void DmaSlow(int len, unsigned int source)
     Pico.video.type, source, a, len, inc, (Pico.video.status&8)||!(Pico.video.reg[1]&0x40),
     SekCyclesDone(), SekPc);
 
-  Pico.m.dma_xfers += len;
+  Pico.m.dma_xfers = len;
   if (Pico.m.dma_xfers < len) // lame 16bit var
     Pico.m.dma_xfers = ~0;
   SekCyclesBurnRun(CheckDMA());
@@ -225,10 +225,10 @@ static void DmaCopy(int len)
   int source;
   elprintf(EL_VDPDMA, "DmaCopy len %i [%u]", len, SekCyclesDone());
 
-  Pico.m.dma_xfers += len;
+  Pico.m.dma_xfers = len;
   if (Pico.m.dma_xfers < len)
     Pico.m.dma_xfers = ~0;
-  Pico.video.status |= 2; // dma busy
+  Pico.video.status |= SR_DMA;
 
   source =Pico.video.reg[0x15];
   source|=Pico.video.reg[0x16]<<8;
@@ -256,10 +256,10 @@ static NOINLINE void DmaFill(int data)
   len = GetDmaLength();
   elprintf(EL_VDPDMA, "DmaFill len %i inc %i [%u]", len, inc, SekCyclesDone());
 
-  Pico.m.dma_xfers += len;
+  Pico.m.dma_xfers = len;
   if (Pico.m.dma_xfers < len) // lame 16bit var
     Pico.m.dma_xfers = ~0;
-  Pico.video.status |= 2; // dma busy
+  Pico.video.status |= SR_DMA;
 
   switch (Pico.video.type)
   {
@@ -305,6 +305,10 @@ static NOINLINE void CommandDma(void)
   u32 source;
 
   if ((pvid->reg[1]&0x10)==0) return; // DMA not enabled
+
+  if (Pico.m.dma_xfers)
+    elprintf(EL_VDPDMA|EL_ANOMALY, "Dma overlap, left=%d @ %06x",
+             Pico.m.dma_xfers, SekPc);
 
   len = GetDmaLength();
   source =Pico.video.reg[0x15];
