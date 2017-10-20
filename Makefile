@@ -1,8 +1,10 @@
 TARGET ?= PicoDrive
-CFLAGS += -Wall -g
+CFLAGS += -Wall
 CFLAGS += -I.
 ifndef DEBUG
 CFLAGS += -O3 -DNDEBUG
+else
+CFLAGS += -O0 -g
 endif
 
 # This is actually needed, bevieve me.
