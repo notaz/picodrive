@@ -1,11 +1,7 @@
 #ifndef __SH2_H__
 #define __SH2_H__
 
-#if !defined(REGPARM) && defined(__i386__) 
-#define REGPARM(x) __attribute__((regparm(x)))
-#else
-#define REGPARM(x)
-#endif
+#include "../../pico/pico_port.h"
 
 // registers - matches structure order
 typedef enum {
@@ -92,7 +88,7 @@ void sh2_unpack(SH2 *sh2, const unsigned char *buff);
 int  sh2_execute_drc(SH2 *sh2c, int cycles);
 int  sh2_execute_interpreter(SH2 *sh2c, int cycles);
 
-static INLINE int sh2_execute(SH2 *sh2, int cycles, int use_drc)
+static __inline int sh2_execute(SH2 *sh2, int cycles, int use_drc)
 {
   int ret;
 

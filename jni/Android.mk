@@ -7,9 +7,6 @@ ifneq ($(GIT_VERSION)," unknown")
 	LOCAL_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 endif
 
-#fix stupid change in ndk r11 that breaks compiling even when the exe would run fine
-LOCAL_DISABLE_FATAL_LINKER_WARNINGS := true
-
 LOCAL_MODULE := retro
 
 R := ../
@@ -52,6 +49,13 @@ ifeq ($(TARGET_ARCH),arm)
   asm_misc = 1
 #  asm_cdmemory = 1 # texrels
   asm_mix = 1
+
+# for armeabi to build...
+CYCLONE_CONFIG = cyclone_config_armv4.h
+
+$(cleantarget)::
+	$(MAKE) -C $(FR)cpu/cyclone/ clean
+
 else
   use_fame = 1
   use_cz80 = 1
@@ -83,7 +87,7 @@ LOCAL_SRC_FILES += $(R)unzip/unzip.c
 LOCAL_C_INCLUDES += $(R)
 
 # note: don't use -O3, causes some NDKs run out of memory while compiling FAME
-LOCAL_CFLAGS += -Wall -O2 -ffast-math -DNDEBUG -DINLINE=inline
+LOCAL_CFLAGS += -Wall -O2 -ffast-math -DNDEBUG
 LOCAL_CFLAGS += $(addprefix -D,$(DEFINES))
 LOCAL_LDLIBS := -llog
 

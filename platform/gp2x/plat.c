@@ -179,6 +179,11 @@ void plat_video_menu_leave(void)
 {
 }
 
+void *plat_mem_get_for_drc(size_t size)
+{
+	return NULL;
+}
+
 void plat_early_init(void)
 {
 	// just use gettimeofday until plat_init()

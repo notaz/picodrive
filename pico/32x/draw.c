@@ -96,7 +96,7 @@ void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
   if ((Pico32x.vdp_regs[0] & P32XV_Mx) == 0 || // 32x blanking
       // XXX: how is 32col mode hadled by real hardware?
       !(Pico.video.reg[12] & 1) || // 32col mode
-      !(PicoDrawMask & PDRAW_32X_ON))
+      (Pico.video.debug_p & PVD_KILL_32X))
   {
     return;
   }
@@ -292,7 +292,7 @@ void PicoDraw32xLayerMdOnly(int offs, int lines)
   for (l = 0; l < lines; l++) {
     if (have_scan) {
       PicoScan32xBegin(l + offs);
-      dst = (unsigned short*)Pico.est.DrawLineDest + poffs;
+      dst = (unsigned short *)Pico.est.DrawLineDest + poffs;
     }
     for (p = 0; p < plen; p += 4) {
       dst[p + 0] = pal[*pmd++];

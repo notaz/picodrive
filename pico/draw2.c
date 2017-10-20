@@ -25,7 +25,7 @@ static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
 static int HighCache2A[41*(TILE_ROWS+1)+1+1]; // caches for high layers
 static int HighCache2B[41*(TILE_ROWS+1)+1+1];
 
-unsigned short *PicoCramHigh=Pico.cram; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
+unsigned short *PicoCramHigh=PicoMem.cram; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 void (*PicoPrepareCram)()=0;            // prepares PicoCramHigh for renderer to use
 
 
@@ -46,7 +46,7 @@ static int TileXnormYnorm(unsigned char *pd,int addr,unsigned char pal)
 	int i;
 
 	for(i=8; i; i--, addr+=2, pd += LINE_WIDTH) {
-		pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
+		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
 		t=pack&0x0000f000; if (t) pd[0]=(unsigned char)((t>>12)|pal);
@@ -69,7 +69,7 @@ static int TileXflipYnorm(unsigned char *pd,int addr,unsigned char pal)
 	int i;
 
 	for(i=8; i; i--, addr+=2, pd += LINE_WIDTH) {
-		pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
+		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
 		t=pack&0x000f0000; if (t) pd[0]=(unsigned char)((t>>16)|pal);
@@ -92,7 +92,7 @@ static int TileXnormYflip(unsigned char *pd,int addr,unsigned char pal)
 
 	addr+=14;
 	for(i=8; i; i--, addr-=2, pd += LINE_WIDTH) {
-		pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
+		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
 		t=pack&0x0000f000; if (t) pd[0]=(unsigned char)((t>>12)|pal);
@@ -116,7 +116,7 @@ static int TileXflipYflip(unsigned char *pd,int addr,unsigned char pal)
 
 	addr+=14;
 	for(i=8; i; i--, addr-=2, pd += LINE_WIDTH) {
-		pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
+		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
 		t=pack&0x000f0000; if (t) pd[0]=(unsigned char)((t>>16)|pal);
@@ -161,7 +161,7 @@ static void DrawWindowFull(int start, int end, int prio, struct PicoEState *est)
 	nametab += nametab_step*start;
 
 	// check priority
-	code=Pico.vram[nametab+tile_start];
+	code=PicoMem.vram[nametab+tile_start];
 	if ((code>>15) != prio) return; // hack: just assume that whole window uses same priority
 
 	scrpos+=8*LINE_WIDTH+8;
@@ -175,7 +175,7 @@ static void DrawWindowFull(int start, int end, int prio, struct PicoEState *est)
 //			unsigned short *pal=NULL;
 			unsigned char pal;
 
-			code=Pico.vram[nametab+tilex];
+			code=PicoMem.vram[nametab+tilex];
 			if (code==blank) continue;
 
 			// Get tile address/2:
@@ -222,7 +222,7 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
 
 	if(!(pvid->reg[11]&3)) { // full screen scroll
 		// Get horizontal scroll value
-		hscroll=Pico.vram[htab&0x7fff];
+		hscroll=PicoMem.vram[htab&0x7fff];
 		htab = 0; // this marks that we don't have to update scroll value
 	}
 
@@ -243,7 +243,7 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
 	scrpos+=8*LINE_WIDTH*(planestart-START_ROW);
 
 	// Get vertical scroll value:
-	vscroll=Pico.vsram[plane]&0x1ff;
+	vscroll=PicoMem.vsram[plane]&0x1ff;
 	scrpos+=(8-(vscroll&7))*LINE_WIDTH;
 	if(vscroll&7) planeend++; // we have vertically clipped tiles due to vscroll, so we need 1 more row
 
@@ -262,7 +262,7 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
 		if(htab) {
 			int htaddr=htab+(trow<<4);
 			if(trow) htaddr-=(vscroll&7)<<1;
-			hscroll=Pico.vram[htaddr&0x7fff];
+			hscroll=PicoMem.vram[htaddr&0x7fff];
 		}
 
 		// Draw tiles across screen:
@@ -276,7 +276,7 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
 //			unsigned short *pal=NULL;
 			unsigned char pal;
 
-			code=Pico.vram[nametab_row+(tilex&xmask)];
+			code=PicoMem.vram[nametab_row+(tilex&xmask)];
 			if (code==blank) continue;
 
 			if (code>>15) { // high priority tile
@@ -422,7 +422,7 @@ static void DrawAllSpritesFull(int prio, int maxwidth)
 		unsigned int *sprite=NULL;
 		int code, code2, sx, sy, height;
 
-		sprite=(unsigned int *)(Pico.vram+((table+(link<<2))&0x7ffc)); // Find sprite
+		sprite=(unsigned int *)(PicoMem.vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
 		// get sprite info
 		code = sprite[0];
@@ -551,9 +551,9 @@ static void DrawDisplayFull(void)
 	if (hvwin==1) { winend|=maxcolc<<16; planeend|=maxcolc<<16; }
 
 	HighCache2A[1] = HighCache2B[1] = 0;
-	if (PicoDrawMask & PDRAW_LAYERB_ON)
+	if (!(pvid->debug_p & PVD_KILL_B))
 		DrawLayerFull(1, HighCache2B, START_ROW, (maxcolc<<16)|END_ROW, est);
-	if (PicoDrawMask & PDRAW_LAYERA_ON) switch (hvwin)
+	if (!(pvid->debug_p & PVD_KILL_A)) switch (hvwin)
 	{
 		case 4:
 		// fullscreen window
@@ -579,12 +579,12 @@ static void DrawDisplayFull(void)
 		DrawLayerFull(0, HighCache2A, START_ROW, (maxcolc<<16)|END_ROW, est);
 		break;
 	}
-	if (PicoDrawMask & PDRAW_SPRITES_LOW_ON)
+	if (!(pvid->debug_p & PVD_KILL_S_LO))
 		DrawAllSpritesFull(0, maxw);
 
 	if (HighCache2B[1]) DrawTilesFromCacheF(HighCache2B, est);
 	if (HighCache2A[1]) DrawTilesFromCacheF(HighCache2A, est);
-	if (PicoDrawMask & PDRAW_LAYERA_ON) switch (hvwin)
+	if (!(pvid->debug_p & PVD_KILL_A)) switch (hvwin)
 	{
 		case 4:
 		// fullscreen window
@@ -603,7 +603,7 @@ static void DrawDisplayFull(void)
 		DrawWindowFull(winstart, winend, 1, est);
 		break;
 	}
-	if (PicoDrawMask & PDRAW_SPRITES_HI_ON)
+	if (!(pvid->debug_p & PVD_KILL_S_HI))
 		DrawAllSpritesFull(1, maxw);
 }
 

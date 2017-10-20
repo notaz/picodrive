@@ -109,7 +109,6 @@ pm_file *pm_open(const char *path)
     return NULL;
 
   ext = get_ext(path);
-#ifndef NO_ZLIB
   if (strcasecmp(ext, "zip") == 0)
   {
     struct zip_file *zfile = NULL;
@@ -163,9 +162,7 @@ zip_failed:
       return NULL;
     }
   }
-  else
-#endif
-  if (strcasecmp(ext, "cso") == 0)
+  else if (strcasecmp(ext, "cso") == 0)
   {
     cso_struct *cso = NULL, *tmp = NULL;
     int size;
@@ -260,7 +257,6 @@ size_t pm_read(void *ptr, size_t bytes, pm_file *stream)
   {
     ret = fread(ptr, 1, bytes, stream->file);
   }
-#ifndef NO_ZLIB
   else if (stream->type == PMT_ZIP)
   {
     struct zip_file *z = stream->file;
@@ -291,7 +287,6 @@ size_t pm_read(void *ptr, size_t bytes, pm_file *stream)
     z->pos += bytes - z->stream.avail_out;
     return bytes - z->stream.avail_out;
   }
-#endif
   else if (stream->type == PMT_CSO)
   {
     cso_struct *cso = stream->param;
@@ -367,7 +362,6 @@ int pm_seek(pm_file *stream, long offset, int whence)
     fseek(stream->file, offset, whence);
     return ftell(stream->file);
   }
-#ifndef NO_ZLIB
   else if (stream->type == PMT_ZIP)
   {
     struct zip_file *z = stream->file;
@@ -410,7 +404,6 @@ int pm_seek(pm_file *stream, long offset, int whence)
     }
     return z->pos;
   }
-#endif
   else if (stream->type == PMT_CSO)
   {
     cso_struct *cso = stream->param;
@@ -436,14 +429,12 @@ int pm_close(pm_file *fp)
   {
     fclose(fp->file);
   }
-#ifndef NO_ZLIB
   else if (fp->type == PMT_ZIP)
   {
     struct zip_file *z = fp->file;
     inflateEnd(&z->stream);
     closezip(z->zip);
   }
-#endif
   else if (fp->type == PMT_CSO)
   {
     free(fp->param);
@@ -585,9 +576,9 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms)
   if (!is_sms)
   {
     // maybe we are loading MegaCD BIOS?
-    if (!(PicoAHW & PAHW_MCD) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) ||
+    if (!(PicoIn.AHW & PAHW_MCD) && size == 0x20000 && (!strncmp((char *)rom+0x124, "BOOT", 4) ||
          !strncmp((char *)rom+0x128, "BOOT", 4))) {
-      PicoAHW |= PAHW_MCD;
+      PicoIn.AHW |= PAHW_MCD;
     }
 
     // Check for SMD:
@@ -626,9 +617,9 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   Pico.rom=rom;
   Pico.romsize=romsize;
 
-  if (SRam.data) {
-    free(SRam.data);
-    SRam.data = NULL;
+  if (Pico.sv.data) {
+    free(Pico.sv.data);
+    Pico.sv.data = NULL;
   }
 
   if (PicoCartUnloadHook != NULL) {
@@ -637,7 +628,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   }
   pdb_cleanup();
 
-  PicoAHW &= PAHW_MCD|PAHW_SMS;
+  PicoIn.AHW &= PAHW_MCD|PAHW_SMS;
 
   PicoCartMemSetup = NULL;
   PicoDmaHook = NULL;
@@ -646,13 +637,13 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   PicoLoadStateHook = NULL;
   carthw_chunks = NULL;
 
-  if (!(PicoAHW & (PAHW_MCD|PAHW_SMS)))
+  if (!(PicoIn.AHW & (PAHW_MCD|PAHW_SMS)))
     PicoCartDetect(carthw_cfg);
 
   // setup correct memory map for loaded ROM
-  switch (PicoAHW) {
+  switch (PicoIn.AHW) {
     default:
-      elprintf(EL_STATUS|EL_ANOMALY, "starting in unknown hw configuration: %x", PicoAHW);
+      elprintf(EL_STATUS|EL_ANOMALY, "starting in unknown hw configuration: %x", PicoIn.AHW);
     case 0:
     case PAHW_SVP:  PicoMemSetup(); break;
     case PAHW_MCD:  PicoMemSetupCD(); break;
@@ -663,7 +654,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   if (PicoCartMemSetup != NULL)
     PicoCartMemSetup();
 
-  if (PicoAHW & PAHW_SMS)
+  if (PicoIn.AHW & PAHW_SMS)
     PicoPowerMS();
   else
     PicoPower();
@@ -690,7 +681,7 @@ void PicoCartUnload(void)
     PicoCartUnloadHook = NULL;
   }
 
-  if (PicoAHW & PAHW_32X)
+  if (PicoIn.AHW & PAHW_32X)
     PicoUnload32x();
 
   if (Pico.rom != NULL) {
@@ -958,8 +949,8 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
         elprintf(EL_STATUS, "carthw:%d: bad sram_range: %08x - %08x", line, start, end);
         goto bad_nomsg;
       }
-      SRam.start = start;
-      SRam.end = end;
+      Pico.sv.start = start;
+      Pico.sv.end = end;
       continue;
     }
     else if (is_expr("prop", &p)) {
@@ -968,13 +959,13 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
       rstrip(p);
 
       if      (strcmp(p, "no_sram") == 0)
-        SRam.flags &= ~SRF_ENABLED;
+        Pico.sv.flags &= ~SRF_ENABLED;
       else if (strcmp(p, "no_eeprom") == 0)
-        SRam.flags &= ~SRF_EEPROM;
+        Pico.sv.flags &= ~SRF_EEPROM;
       else if (strcmp(p, "filled_sram") == 0)
         *fill_sram = 1;
       else if (strcmp(p, "force_6btn") == 0)
-        PicoQuirks |= PQUIRK_FORCE_6BTN;
+        PicoIn.quirks |= PQUIRK_FORCE_6BTN;
       else {
         elprintf(EL_STATUS, "carthw:%d: unsupported prop: %s", line, p);
         goto bad_nomsg;
@@ -991,8 +982,8 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
       type = strtoul(p, &r, 0);
       if (r == p || type < 0)
         goto bad;
-      SRam.eeprom_type = type;
-      SRam.flags |= SRF_EEPROM;
+      Pico.sv.eeprom_type = type;
+      Pico.sv.flags |= SRF_EEPROM;
       continue;
     }
     else if (is_expr("eeprom_lines", &p)) {
@@ -1007,9 +998,9 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
           sda_out < 0 || sda_out > 15)
         goto bad;
 
-      SRam.eeprom_bit_cl = scl;
-      SRam.eeprom_bit_in = sda_in;
-      SRam.eeprom_bit_out= sda_out;
+      Pico.sv.eeprom_bit_cl = scl;
+      Pico.sv.eeprom_bit_in = sda_in;
+      Pico.sv.eeprom_bit_out= sda_out;
       continue;
     }
     else if ((tmp = is_expr("prot_ro_value16", &p)) || is_expr("prot_rw_value16", &p)) {
@@ -1049,54 +1040,54 @@ static void PicoCartDetect(const char *carthw_cfg)
 {
   int fill_sram = 0;
 
-  memset(&SRam, 0, sizeof(SRam));
+  memset(&Pico.sv, 0, sizeof(Pico.sv));
   if (Pico.rom[0x1B1] == 'R' && Pico.rom[0x1B0] == 'A')
   {
-    SRam.start =  rom_read32(0x1B4) & ~0xff000001; // align
-    SRam.end   = (rom_read32(0x1B8) & ~0xff000000) | 1;
+    Pico.sv.start =  rom_read32(0x1B4) & ~0xff000001; // align
+    Pico.sv.end   = (rom_read32(0x1B8) & ~0xff000000) | 1;
     if (Pico.rom[0x1B2] & 0x40)
       // EEPROM
-      SRam.flags |= SRF_EEPROM;
-    SRam.flags |= SRF_ENABLED;
+      Pico.sv.flags |= SRF_EEPROM;
+    Pico.sv.flags |= SRF_ENABLED;
   }
-  if (SRam.end == 0 || SRam.start > SRam.end)
+  if (Pico.sv.end == 0 || Pico.sv.start > Pico.sv.end)
   {
     // some games may have bad headers, like S&K and Sonic3
     // note: majority games use 0x200000 as starting address, but there are some which
     // use something else (0x300000 by HardBall '95). Luckily they have good headers.
-    SRam.start = 0x200000;
-    SRam.end   = 0x203FFF;
-    SRam.flags |= SRF_ENABLED;
+    Pico.sv.start = 0x200000;
+    Pico.sv.end   = 0x203FFF;
+    Pico.sv.flags |= SRF_ENABLED;
   }
 
   // set EEPROM defaults, in case it gets detected
-  SRam.eeprom_type   = 0; // 7bit (24C01)
-  SRam.eeprom_bit_cl = 1;
-  SRam.eeprom_bit_in = 0;
-  SRam.eeprom_bit_out= 0;
+  Pico.sv.eeprom_type   = 0; // 7bit (24C01)
+  Pico.sv.eeprom_bit_cl = 1;
+  Pico.sv.eeprom_bit_in = 0;
+  Pico.sv.eeprom_bit_out= 0;
 
   if (carthw_cfg != NULL)
     parse_carthw(carthw_cfg, &fill_sram);
 
-  if (SRam.flags & SRF_ENABLED)
+  if (Pico.sv.flags & SRF_ENABLED)
   {
-    if (SRam.flags & SRF_EEPROM)
-      SRam.size = 0x2000;
+    if (Pico.sv.flags & SRF_EEPROM)
+      Pico.sv.size = 0x2000;
     else
-      SRam.size = SRam.end - SRam.start + 1;
+      Pico.sv.size = Pico.sv.end - Pico.sv.start + 1;
 
-    SRam.data = calloc(SRam.size, 1);
-    if (SRam.data == NULL)
-      SRam.flags &= ~SRF_ENABLED;
+    Pico.sv.data = calloc(Pico.sv.size, 1);
+    if (Pico.sv.data == NULL)
+      Pico.sv.flags &= ~SRF_ENABLED;
 
-    if (SRam.eeprom_type == 1)	// 1 == 0 in PD EEPROM code
-      SRam.eeprom_type = 0;
+    if (Pico.sv.eeprom_type == 1)	// 1 == 0 in PD EEPROM code
+      Pico.sv.eeprom_type = 0;
   }
 
-  if ((SRam.flags & SRF_ENABLED) && fill_sram)
+  if ((Pico.sv.flags & SRF_ENABLED) && fill_sram)
   {
     elprintf(EL_STATUS, "SRAM fill");
-    memset(SRam.data, 0xff, SRam.size);
+    memset(Pico.sv.data, 0xff, Pico.sv.size);
   }
 
   // Unusual region 'code'

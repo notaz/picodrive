@@ -1,30 +1,14 @@
 TARGET ?= PicoDrive
-DEBUG = 0
-CFLAGS += -Wall 
-CFLAGS += -I. -DINLINE=inline
-
-ifeq ($(DEBUG),1)
-	CFLAGS += -g -O0
-else
-	ifeq ($(platform), vita)
-		CFLAGS += -O3 -DNDEBUG
-	else
-		CFLAGS += -O2 -DNDEBUG -ffunction-sections
-	endif
+CFLAGS += -Wall -g
+CFLAGS += -I.
+ifndef DEBUG
+CFLAGS += -O3 -DNDEBUG
 endif
 
-ifneq ($(APPLE),1)
-	LDFLAGS += -Wl,--gc-sections
-endif
-
-#CFLAGS += -DEVT_LOG
-#CFLAGS += -DDRC_CMP
-#cpu_cmp = 1
-#drc_debug = 7
-#profile = 1
-
-ifeq ($(WANT_GDB),1)
-CFLAGS += ggdb -falign-functions=2
+# This is actually needed, bevieve me.
+# If you really have to disable this, set NO_ALIGN_FUNCTIONS elsewhere.
+ifndef NO_ALIGN_FUNCTIONS
+CFLAGS += -falign-functions=2
 endif
 
 all: config.mak target_
@@ -64,11 +48,6 @@ endif
 
 -include Makefile.local
 
-ifneq "$(use_cyclone)" "1"
-# due to CPU stop flag access
-asm_cdmemory = 0
-endif
-
 ifeq "$(PLATFORM)" "opendingux"
 opk: $(TARGET).opk
 
@@ -83,6 +62,18 @@ OBJS += platform/opendingux/inputmap.o
 
 # OpenDingux is a generic platform, really.
 PLATFORM := generic
+endif
+ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","rpi1" "rpi2"))
+CFLAGS += -DHAVE_GLES -DRASPBERRY
+CFLAGS += -I/opt/vc/include/ -I/opt/vc/include/interface/vcos/pthreads/ -I/opt/vc/include/interface/vmcs_host/linux/
+LDFLAGS += -ldl -lbcm_host -L/opt/vc/lib -lEGL -lGLESv2
+OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
+OBJS += platform/common/plat_sdl.o
+OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
+OBJS += platform/libpicofe/plat_dummy.o
+OBJS += platform/libpicofe/gl.o
+OBJS += platform/libpicofe/gl_platform.o
+USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "generic"
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
@@ -120,7 +111,7 @@ USE_FRONTEND = 1
 PLATFORM_MP3 = 1
 endif
 ifeq "$(PLATFORM)" "libretro"
-OBJS += platform/libretro/libretro.o 
+OBJS += platform/libretro/libretro.o
 endif
 
 ifeq "$(USE_FRONTEND)" "1"
@@ -191,7 +182,7 @@ clean:
 
 $(TARGET): $(OBJS)
 ifeq ($(STATIC_LINKING), 1)
-	$(AR) rcs $@ $(OBJS)
+	$(AR) rcs $@ $^
 else
 	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS)
 endif
@@ -212,16 +203,27 @@ tools/textfilter: tools/textfilter.c
 pico/draw.o: CFLAGS += -fno-strict-aliasing
 pico/draw2.o: CFLAGS += -fno-strict-aliasing
 pico/mode4.o: CFLAGS += -fno-strict-aliasing
-pico/cd/cd_memory.o: CFLAGS += -fno-strict-aliasing
+pico/cd/memory.o: CFLAGS += -fno-strict-aliasing
 pico/cd/cd_file.o: CFLAGS += -fno-strict-aliasing
 pico/cd/pcm.o: CFLAGS += -fno-strict-aliasing
 pico/cd/LC89510.o: CFLAGS += -fno-strict-aliasing
 pico/cd/gfx_cd.o: CFLAGS += -fno-strict-aliasing
+
+# fame needs ~2GB of RAM to compile on gcc 4.8
+# on x86, this is reduced by ~300MB when debug info is off (but not on ARM)
+# not using O3 and -fno-expensive-optimizations seems to also help, but you may
+# want to remove this stuff for better performance if your compiler can handle it
+ifndef DEBUG
+cpu/fame/famec.o: CFLAGS += -g0 -O2 -fno-expensive-optimizations
+endif
+
+pico/carthw_cfg.c: pico/carthw.cfg
+	tools/make_carthw_c $< $@
 
 # random deps
 pico/carthw/svp/compiler.o : cpu/drc/emit_$(ARCH).c
 cpu/sh2/compiler.o : cpu/drc/emit_$(ARCH).c
 cpu/sh2/mame/sh2pico.o : cpu/sh2/mame/sh2.c
 pico/pico.o pico/cd/mcd.o pico/32x/32x.o : pico/pico_cmn.c pico/pico_int.h
-pico/memory.o pico/cd/cd_memory.o pico/32x/32x_memory.o : pico/pico_int.h pico/memory.h
+pico/memory.o pico/cd/memory.o pico/32x/memory.o : pico/pico_int.h pico/memory.h
 cpu/fame/famec.o: cpu/fame/famec.c cpu/fame/famec_opcodes.h

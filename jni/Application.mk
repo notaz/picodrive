@@ -1,1 +1,1 @@
-APP_ABI := armeabi-v7a mips x86
+APP_ABI := all

@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../../pico/pico_int.h"
-#include "../../pico/sound/mix.h"
+#include <pico/pico_int.h>
+#include <pico/sound/mix.h>
 #include "mp3.h"
 
 static FILE *mp3_current_file;
@@ -115,7 +115,7 @@ void mp3_start_play(void *f_, int pos1024)
 	cdda_out_pos = 0;
 	decoder_active = 0;
 
-	if (!(PicoOpt & POPT_EN_MCD_CDDA) || f == NULL) // cdda disabled or no file?
+	if (!(PicoIn.opt & POPT_EN_MCD_CDDA) || f == NULL) // cdda disabled or no file?
 		return;
 
 	fseek(f, 0, SEEK_END);

@@ -133,6 +133,25 @@ void name(u32 a, u32 d)                         \
   }                                             \
 }
 
+#ifdef NEED_DMA_SOURCE // meh
+
+static __inline void *m68k_dma_source(u32 a)
+{
+  u8 *base;
+  uptr v;
+  v = m68k_read16_map[a >> M68K_MEM_SHIFT];
+  if (map_flag_set(v)) {
+    if (a >= Pico.romsize) // Rom
+      return NULL;
+    base = Pico.rom;
+  }
+  else
+    base = (void *)(v << 1);
+  return base + (a & 0xfe0000);
+}
+
+#endif
+
 // 32x
 typedef struct {
   uptr addr; // stores (membase >> 1) or ((handler >> 1) | (1<<31))

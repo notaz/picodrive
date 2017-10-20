@@ -49,7 +49,7 @@ SRCS_COMMON += $(R)pico/draw_arm.S $(R)pico/draw2_arm.S
 endif
 ifeq "$(asm_memory)" "1"
 DEFINES += _ASM_MEMORY_C
-SRCS_COMMON += $(R)pico/memory_arm.s
+SRCS_COMMON += $(R)pico/memory_arm.S
 endif
 ifeq "$(asm_ym2612)" "1"
 DEFINES += _ASM_YM2612_C
@@ -62,7 +62,7 @@ SRCS_COMMON += $(R)pico/cd/misc_arm.s
 endif
 ifeq "$(asm_cdmemory)" "1"
 DEFINES += _ASM_CD_MEMORY_C
-SRCS_COMMON += $(R)pico/cd/memory_arm.s
+SRCS_COMMON += $(R)pico/cd/memory_arm.S
 endif
 ifeq "$(asm_32xdraw)" "1"
 DEFINES += _ASM_32X_DRAW
@@ -87,23 +87,24 @@ else
 DEFINES += NO_SMS
 endif
 # CD
-SRCS_COMMON += $(R)pico/cd/mcd.c $(R)pico/cd/cd_memory.c $(R)pico/cd/cd_sek.c \
+SRCS_COMMON += $(R)pico/cd/mcd.c $(R)pico/cd/memory.c $(R)pico/cd/sek.c \
 	$(R)pico/cd/cdc.c $(R)pico/cd/cdd.c $(R)pico/cd/cd_image.c \
 	$(R)pico/cd/cue.c $(R)pico/cd/gfx.c $(R)pico/cd/gfx_dma.c \
-	$(R)pico/cd/cd_misc.c $(R)pico/cd/pcm.c
+	$(R)pico/cd/misc.c $(R)pico/cd/pcm.c
 # 32X
 ifneq "$(no_32x)" "1"
-SRCS_COMMON += $(R)pico/32x/32x.c $(R)pico/32x/32x_memory.c $(R)pico/32x/32x_draw.c \
+SRCS_COMMON += $(R)pico/32x/32x.c $(R)pico/32x/memory.c $(R)pico/32x/draw.c \
 	$(R)pico/32x/sh2soc.c $(R)pico/32x/pwm.c
 else
 DEFINES += NO_32X
 endif
 # Pico
-SRCS_COMMON += $(R)pico/pico/pico_pico.c $(R)pico/pico/pico_memory.c $(R)pico/pico/xpcm.c
+SRCS_COMMON += $(R)pico/pico/pico.c $(R)pico/pico/memory.c $(R)pico/pico/xpcm.c
 # carthw
 SRCS_COMMON += $(R)pico/carthw/carthw.c
+SRCS_COMMON += $(R)pico/carthw/eeprom_spi.c
 # SVP
-SRCS_COMMON += $(R)pico/carthw/svp/svp.c $(R)pico/carthw/svp/svp_memory.c \
+SRCS_COMMON += $(R)pico/carthw/svp/svp.c $(R)pico/carthw/svp/memory.c \
 	$(R)pico/carthw/svp/ssp16.c
 ifeq "$(use_svpdrc)" "1"
 DEFINES += _SVP_DRC
@@ -172,13 +173,15 @@ ifeq "$(use_cyclone)" "1"
 $(FR)pico/pico.c: $(FR)cpu/cyclone/Cyclone.h
 endif
 
+CYCLONE_CONFIG ?= cyclone_config.h
+
 $(FR)cpu/cyclone/Cyclone.h:
 	@echo "Cyclone submodule is missing, please run 'git submodule update --init'"
 	@false
 
-$(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/cyclone_config.h
+$(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/$(CYCLONE_CONFIG)
 	@echo building Cyclone...
-	@make -C $(R)cpu/cyclone/ CONFIG_FILE=../cyclone_config.h
+	@make -C $(R)cpu/cyclone/ CONFIG_FILE=../$(CYCLONE_CONFIG)
 
 $(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/cyclone/*.cpp $(FR)cpu/cyclone/*.h
 

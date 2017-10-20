@@ -29,9 +29,9 @@ void pemu_prep_defconfig(void)
 
 void pemu_validate_config(void)
 {
-	extern int PicoOpt;
-//	PicoOpt &= ~POPT_EXT_FM;
-	PicoOpt &= ~POPT_EN_DRC;
+#ifndef __arm__
+	PicoIn.opt &= ~POPT_EN_DRC;
+#endif
 }
 
 static void draw_cd_leds(void)
@@ -66,7 +66,7 @@ static void draw_cd_leds(void)
 
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
-	if (currentConfig.renderer != RT_16BIT && !(PicoAHW & PAHW_32X)) {
+	if (currentConfig.renderer != RT_16BIT && !(PicoIn.AHW & PAHW_32X)) {
 		unsigned short *pd = (unsigned short *)g_screen_ptr + 8 * g_screen_width;
 		unsigned char *ps = Pico.est.Draw2FB + 328*8 + 8;
 		unsigned short *pal = Pico.est.HighPal;
@@ -84,7 +84,7 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		if (currentConfig.EmuOpt & EOPT_SHOW_FPS)
 			emu_osd_text16(g_screen_width - 60, g_screen_height - 8, fps);
 	}
-	if ((PicoAHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
+	if ((PicoIn.AHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
 }
 
@@ -92,22 +92,22 @@ static void apply_renderer(void)
 {
 	switch (currentConfig.renderer) {
 	case RT_16BIT:
-		PicoOpt &= ~POPT_ALT_RENDERER;
+		PicoIn.opt &= ~POPT_ALT_RENDERER;
 		PicoDrawSetOutFormat(PDF_RGB555, 0);
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 		break;
 	case RT_8BIT_ACC:
-		PicoOpt &= ~POPT_ALT_RENDERER;
+		PicoIn.opt &= ~POPT_ALT_RENDERER;
 		PicoDrawSetOutFormat(PDF_8BIT, 0);
 		PicoDrawSetOutBuf(Pico.est.Draw2FB + 8, 328);
 		break;
 	case RT_8BIT_FAST:
-		PicoOpt |=  POPT_ALT_RENDERER;
+		PicoIn.opt |=  POPT_ALT_RENDERER;
 		PicoDrawSetOutFormat(PDF_NONE, 0);
 		break;
 	}
 
-	if (PicoAHW & PAHW_32X)
+	if (PicoIn.AHW & PAHW_32X)
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 }
 
@@ -201,3 +201,7 @@ void plat_wait_till_us(unsigned int us_to)
 	}
 }
 
+void *plat_mem_get_for_drc(size_t size)
+{
+	return NULL;
+}

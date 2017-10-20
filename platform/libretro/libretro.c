@@ -10,6 +10,7 @@
 
 #define _GNU_SOURCE 1 // mremap
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 #ifndef _WIN32
@@ -98,6 +99,7 @@ void cache_flush_d_inval_i(void *start, void *end)
 {
 #ifdef __arm__
    size_t len = (char *)end - (char *)start;
+   (void)len;
 #if defined(__BLACKBERRY_QNX__)
    msync(start, end - start, MS_SYNC | MS_CACHE_ONLY | MS_INVALIDATE_ICACHE);
 #elif defined(__MACH__)
@@ -435,14 +437,25 @@ void plat_munmap(void *ptr, size_t size)
 }
 #endif
 
+// if NULL is returned, static buffer is used
+void *plat_mem_get_for_drc(size_t size)
+{
+   void *mem = NULL;
+#ifdef VITA
+   sceKernelGetMemBlockBase(sceBlock, &mem);
+#endif
+   return mem;
+}
+
 int plat_mem_set_exec(void *ptr, size_t size)
 {
-#ifdef _WIN32
-   int ret = VirtualProtect(ptr,size,PAGE_EXECUTE_READWRITE,0);
-   if (ret == 0 && log_cb)
-      log_cb(RETRO_LOG_ERROR, "mprotect(%p, %zd) failed: %d\n", ptr, size, 0);
-#elif defined(_3DS)
    int ret = -1;
+#ifdef _WIN32
+   ret = VirtualProtect(ptr, size, PAGE_EXECUTE_READWRITE, 0);
+   if (ret == 0 && log_cb)
+      log_cb(RETRO_LOG_ERROR, "VirtualProtect(%p, %d) failed: %d\n", ptr, (int)size,
+             GetLastError());
+#elif defined(_3DS)
    if (ctr_svchack_successful)
    {
       unsigned int currentHandle;
@@ -461,9 +474,9 @@ int plat_mem_set_exec(void *ptr, size_t size)
    }
 
 #elif defined(VITA)
-   int ret = sceKernelOpenVMDomain();
+   ret = sceKernelOpenVMDomain();
 #else
-   int ret = mprotect(ptr, size, PROT_READ | PROT_WRITE | PROT_EXEC);
+   ret = mprotect(ptr, size, PROT_READ | PROT_WRITE | PROT_EXEC);
    if (ret != 0 && log_cb)
       log_cb(RETRO_LOG_ERROR, "mprotect(%p, %zd) failed: %d\n", ptr, size, errno);
 #endif
@@ -472,6 +485,8 @@ int plat_mem_set_exec(void *ptr, size_t size)
 
 void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
+   struct retro_system_av_info av_info;
+
    memset(vout_buf, 0, 320 * 240 * 2);
    vout_width = is_32cols ? 256 : 320;
    PicoDrawSetOutBuf(vout_buf, vout_width * 2);
@@ -482,7 +497,6 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
    vout_offset = vout_width * start_line;
 
    // Update the geometry
-   struct retro_system_av_info av_info;
    retro_get_system_av_info(&av_info);
    environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
 }
@@ -512,9 +526,9 @@ void retro_set_environment(retro_environment_t cb)
       { "picodrive_sprlim",      "No sprite limit; disabled|enabled" },
       { "picodrive_ramcart",     "MegaCD RAM cart; disabled|enabled" },
       { "picodrive_region",      "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
-      { "picodrive_region_fps",  "Region FPS; Auto|NTSC|PAL" },
       { "picodrive_aspect",      "Core-provided aspect ratio; PAR|4/3|CRT" },
       { "picodrive_overscan",    "Show Overscan; disabled|enabled" },
+      { "picodrive_overclk68k",  "68k overclock; disabled|+25%|+50%|+75%|+100%|+200%|+400%" },
 #ifdef DRC_SH2
       { "picodrive_drc", "Dynamic recompilers; enabled|disabled" },
 #endif
@@ -555,6 +569,8 @@ void retro_get_system_info(struct retro_system_info *info)
 
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
+   float common_width;
+
    memset(info, 0, sizeof(*info));
    info->timing.fps            = Pico.m.pal ? 50 : 60;
    info->timing.sample_rate    = 44100;
@@ -563,7 +579,7 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->geometry.max_width    = vout_width;
    info->geometry.max_height   = vout_height;
 
-   float common_width = vout_width;
+   common_width = vout_width;
    if (user_vout_width != 0)
       common_width = user_vout_width;
 
@@ -959,22 +975,6 @@ static const char *find_bios(int *region, const char *cd_fname)
    return NULL;
 }
 
-static void sram_reset()
-{
-   SRam.data = NULL;
-   SRam.start = 0;
-   SRam.end = 0;
-   SRam.flags = '\0';
-   SRam.unused2 = '\0';
-   SRam.changed = '\0' ;
-   SRam.eeprom_type = '\0';
-   SRam.unused3 = '\0';
-   SRam.eeprom_bit_cl = '\0';
-   SRam.eeprom_bit_in = '\0';
-   SRam.eeprom_bit_out = '\0';
-   SRam.size = 0;
-}
-
 bool retro_load_game(const struct retro_game_info *info)
 {
    enum media_type_e media_type;
@@ -1030,8 +1030,6 @@ bool retro_load_game(const struct retro_game_info *info)
 
       { 0 },
    };
-
-   sram_reset();
 
    enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_RGB565;
    if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt)) {
@@ -1119,16 +1117,16 @@ void *retro_get_memory_data(unsigned type)
    switch(type)
    {
       case RETRO_MEMORY_SAVE_RAM:
-         if (PicoAHW & PAHW_MCD)
+         if (PicoIn.AHW & PAHW_MCD)
             data = Pico_mcd->bram;
          else
-            data = SRam.data;
+            data = Pico.sv.data;
          break;
       case RETRO_MEMORY_SYSTEM_RAM:
-         if (PicoAHW & PAHW_SMS)
-            data = Pico.zram;
+         if (PicoIn.AHW & PAHW_SMS)
+            data = PicoMem.zram;
          else
-            data = Pico.ram;
+            data = PicoMem.ram;
          break;
       default:
          data = NULL;
@@ -1146,25 +1144,25 @@ size_t retro_get_memory_size(unsigned type)
    switch(type)
    {
       case RETRO_MEMORY_SAVE_RAM:
-         if (PicoAHW & PAHW_MCD)
+         if (PicoIn.AHW & PAHW_MCD)
             // bram
             return 0x2000;
 
          if (Pico.m.frame_count == 0)
-            return SRam.size;
+            return Pico.sv.size;
 
          // if game doesn't write to sram, don't report it to
          // libretro so that RA doesn't write out zeroed .srm
-         for (i = 0, sum = 0; i < SRam.size; i++)
-            sum |= SRam.data[i];
+         for (i = 0, sum = 0; i < Pico.sv.size; i++)
+            sum |= Pico.sv.data[i];
 
-         return (sum != 0) ? SRam.size : 0;
+         return (sum != 0) ? Pico.sv.size : 0;
 
       case RETRO_MEMORY_SYSTEM_RAM:
-         if (PicoAHW & PAHW_SMS)
+         if (PicoIn.AHW & PAHW_SMS)
             return 0x2000;
          else
-            return sizeof(Pico.ram);
+            return sizeof(PicoMem.ram);
 
       default:
          return 0;
@@ -1215,6 +1213,8 @@ static enum input_device input_name_to_val(const char *name)
 static void update_variables(void)
 {
    struct retro_variable var;
+   int OldPicoRegionOverride;
+   float old_user_vout_width;
 
    var.value = NULL;
    var.key = "picodrive_input1";
@@ -1230,58 +1230,45 @@ static void update_variables(void)
    var.key = "picodrive_sprlim";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "enabled") == 0)
-         PicoOpt |= POPT_DIS_SPRITE_LIM;
+         PicoIn.opt |= POPT_DIS_SPRITE_LIM;
       else
-         PicoOpt &= ~POPT_DIS_SPRITE_LIM;
+         PicoIn.opt &= ~POPT_DIS_SPRITE_LIM;
    }
 
    var.value = NULL;
    var.key = "picodrive_ramcart";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "enabled") == 0)
-         PicoOpt |= POPT_EN_MCD_RAMCART;
+         PicoIn.opt |= POPT_EN_MCD_RAMCART;
       else
-         PicoOpt &= ~POPT_EN_MCD_RAMCART;
+         PicoIn.opt &= ~POPT_EN_MCD_RAMCART;
    }
 
-   int OldPicoRegionOverride = PicoRegionOverride;
+   OldPicoRegionOverride = PicoIn.regionOverride;
    var.value = NULL;
    var.key = "picodrive_region";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "Auto") == 0)
-         PicoRegionOverride = 0;
+         PicoIn.regionOverride = 0;
       else if (strcmp(var.value, "Japan NTSC") == 0)
-         PicoRegionOverride = 1;
+         PicoIn.regionOverride = 1;
       else if (strcmp(var.value, "Japan PAL") == 0)
-         PicoRegionOverride = 2;
+         PicoIn.regionOverride = 2;
       else if (strcmp(var.value, "US") == 0)
-         PicoRegionOverride = 4;
+         PicoIn.regionOverride = 4;
       else if (strcmp(var.value, "Europe") == 0)
-         PicoRegionOverride = 8;
-   }
-
-   int OldPicoRegionFPSOverride = PicoRegionFPSOverride;
-   var.value = NULL;
-   var.key = "picodrive_region_fps";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
-      if (strcmp(var.value, "Auto") == 0)
-         PicoRegionFPSOverride = 0;
-      else if (strcmp(var.value, "NTSC") == 0)
-         PicoRegionFPSOverride = 1;
-      else if (strcmp(var.value, "PAL") == 0)
-         PicoRegionFPSOverride = 2;
+         PicoIn.regionOverride = 8;
    }
 
    // Update region, fps and sound flags if needed
-   if (PicoRegionOverride    != OldPicoRegionOverride ||
-       PicoRegionFPSOverride != OldPicoRegionFPSOverride)
+   if (Pico.rom && PicoIn.regionOverride != OldPicoRegionOverride)
    {
       PicoDetectRegion();
       PicoLoopPrepare();
       PsndRerate(1);
    }
 
-   float old_user_vout_width = user_vout_width;
+   old_user_vout_width = user_vout_width;
    var.value = NULL;
    var.key = "picodrive_aspect";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
@@ -1310,19 +1297,27 @@ static void update_variables(void)
       environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
    }
 
+   var.value = NULL;
+   var.key = "picodrive_overclk68k";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      PicoIn.overclockM68k = 0;
+      if (var.value[0] == '+')
+         PicoIn.overclockM68k = atoi(var.value + 1);
+   }
+
 #ifdef DRC_SH2
    var.value = NULL;
    var.key = "picodrive_drc";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "enabled") == 0)
-         PicoOpt |= POPT_EN_DRC;
+         PicoIn.opt |= POPT_EN_DRC;
       else
-         PicoOpt &= ~POPT_EN_DRC;
+         PicoIn.opt &= ~POPT_EN_DRC;
    }
 #endif
 #ifdef _3DS
    if(!ctr_svchack_successful)
-      PicoOpt &= ~POPT_EN_DRC;
+      PicoIn.opt &= ~POPT_EN_DRC;
 #endif
 }
 
@@ -1336,24 +1331,17 @@ void retro_run(void)
 
    input_poll_cb();
 
-   PicoPad[0] = PicoPad[1] = 0;
+   PicoIn.pad[0] = PicoIn.pad[1] = 0;
    for (pad = 0; pad < 2; pad++)
       for (i = 0; i < RETRO_PICO_MAP_LEN; i++)
          if (input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, i))
-            PicoPad[pad] |= retro_pico_map[i];
+            PicoIn.pad[pad] |= retro_pico_map[i];
 
    PicoPatchApply();
    PicoFrame();
 
    video_cb((short *)vout_buf + vout_offset,
       vout_width, vout_height, vout_width * 2);
-}
-
-static void check_system_specs(void)
-{
-   /* TODO - set different performance level for 32X - 6 for ARM dynarec, higher for interpreter core */
-   unsigned level = 5;
-   environ_cb(RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL, &level);
 }
 
 void retro_init(void)
@@ -1377,7 +1365,7 @@ void retro_init(void)
    sceBlock = getVMBlock();
 #endif
 
-   PicoOpt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80
+   PicoIn.opt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80
       | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX
       | POPT_EN_32X|POPT_EN_PWM
       | POPT_ACC_SPRITES|POPT_DIS_32C_BORDER;
@@ -1385,10 +1373,10 @@ void retro_init(void)
 #ifdef _3DS
    if (ctr_svchack_successful)
 #endif
-      PicoOpt |= POPT_EN_DRC;
+      PicoIn.opt |= POPT_EN_DRC;
 #endif
    PsndRate = 44100;
-   PicoAutoRgnOrder = 0x184; // US, EU, JP
+   PicoIn.autoRgnOrder = 0x184; // US, EU, JP
 
    vout_width = 320;
    vout_height = 240;
@@ -1419,3 +1407,5 @@ void retro_deinit(void)
    vout_buf = NULL;
    PicoExit();
 }
+
+// vim:shiftwidth=3:ts=3:expandtab

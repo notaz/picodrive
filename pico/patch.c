@@ -22,6 +22,7 @@
  */
 
 #include "pico_int.h"
+#include "memory.h"
 #include "patch.h"
 
 struct patch
@@ -173,8 +174,8 @@ void genie_decode_ms(const char *code, struct patch *result)
   /* Correct the address */
   result->addr = ((result->addr >> 4) | (result->addr << 12 & 0xF000)) ^ 0xF000;
   /* Optional: 3 digits for comp */
-  printf("CHEAT: code[8]==%c\n",code[8]);
-  if (code[7]=='-'){
+  if (code[7]=='-')
+  {
     for(i=8;i<11;++i)
     {
       if (i==9) continue; /* 2nd character is ignored */
@@ -289,7 +290,7 @@ void decode(const char* code, struct patch* result)
   /* Initialize the result */
   result->addr = result->data = result->comp = 0;
 
-  if(!(PicoAHW & PAHW_SMS))
+  if(!(PicoIn.AHW & PAHW_SMS))
   {
     //If Genesis
 
@@ -353,15 +354,6 @@ void decode(const char* code, struct patch* result)
   result->data = result->addr = -1;
   return;
 }
-
-
-
-unsigned int PicoRead16(unsigned int a);
-void PicoWrite16(unsigned int a, unsigned short d);
-extern unsigned short m68k_read16(unsigned int a);
-extern void m68k_write16(unsigned int a, unsigned short d);
-extern char PicoRead8_z80(unsigned short a);
-extern void PicoWrite8_z80(unsigned short a, char d);
 
 void PicoPatchUnload(void)
 {
@@ -453,10 +445,10 @@ void PicoPatchPrepare(void)
          PicoPatches[i].data_old = *(unsigned short *)(Pico.rom + addr);
       else
       {
-         if(!(PicoAHW & PAHW_SMS))
+         if(!(PicoIn.AHW & PAHW_SMS))
             PicoPatches[i].data_old = (unsigned short) m68k_read16(addr);
          else
-            PicoPatches[i].data_old = (unsigned char) PicoRead8_z80(addr);
+            ;// wrong: PicoPatches[i].data_old = (unsigned char) PicoRead8_z80(addr);
       }
       if (strstr(PicoPatches[i].name, "AUTO"))
          PicoPatches[i].active = 1;
@@ -476,7 +468,7 @@ void PicoPatchApply(void)
       {
          if (PicoPatches[i].active)
          {
-            if (!(PicoAHW & PAHW_SMS))
+            if (!(PicoIn.AHW & PAHW_SMS))
                *(unsigned short *)(Pico.rom + addr) = PicoPatches[i].data;
             else if (!PicoPatches[i].comp || PicoPatches[i].comp == *(char *)(Pico.rom + addr))
                *(char *)(Pico.rom + addr) = (char) PicoPatches[i].data;
@@ -488,7 +480,7 @@ void PicoPatchApply(void)
                if (PicoPatches[u].addr == addr) break;
             if (u == i)
             {
-               if (!(PicoAHW & PAHW_SMS))
+               if (!(PicoIn.AHW & PAHW_SMS))
                   *(unsigned short *)(Pico.rom + addr) = PicoPatches[i].data_old;
                else
                   *(char *)(Pico.rom + addr) = (char) PicoPatches[i].data_old;
@@ -501,10 +493,10 @@ void PicoPatchApply(void)
       {
          if (PicoPatches[i].active)
          {
-            if (!(PicoAHW & PAHW_SMS))
+            if (!(PicoIn.AHW & PAHW_SMS))
               m68k_write16(addr,PicoPatches[i].data);
             else
-              PicoWrite8_z80(addr,PicoPatches[i].data);
+              ;// wrong: PicoWrite8_z80(addr,PicoPatches[i].data);
          }
          else
          {
@@ -513,10 +505,10 @@ void PicoPatchApply(void)
                if (PicoPatches[u].addr == addr) break;
             if (u == i)
             {
-               if (!(PicoAHW & PAHW_SMS))
-                  m68k_write16(PicoPatches[i].addr,PicoPatches[i].data_old);
+              if (!(PicoIn.AHW & PAHW_SMS))
+                 m68k_write16(PicoPatches[i].addr,PicoPatches[i].data_old);
               else
-                PicoWrite8_z80(PicoPatches[i].addr,PicoPatches[i].data_old);
+                ;// wrong: PicoWrite8_z80(PicoPatches[i].addr,PicoPatches[i].data_old);
             }
          }
       }

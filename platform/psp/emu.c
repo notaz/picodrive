@@ -225,7 +225,7 @@ static void do_pal_update(int allow_sh, int allow_as)
 	}
 	else if (allow_as && (Pico.est.rendstatus & PDRAW_SPR_LO_ON_HI))
 	{
-		memcpy32((int *)dpal+0x80/2, (void *)localPal, 0x40*2/4);
+		memcpy(dpal + 0x80/2, localPal, 0x40*2);
 	}
 }
 
@@ -309,7 +309,7 @@ static void blitscreen_clut(void)
 			blit_16bit_mode = 0;
 		}
 
-		if ((PicoOpt&0x10) && Pico.m.dirtyPal)
+		if ((PicoIn.opt&0x10) && Pico.m.dirtyPal)
 			do_pal_update(0, 0);
 
 		sceKernelDcacheWritebackAll();
@@ -395,7 +395,7 @@ static void dbg_text(void)
 /* called after rendering is done, but frame emulation is not finished */
 void blit1(void)
 {
-	if (PicoOpt&0x10)
+	if (PicoIn.opt&0x10)
 	{
 		int i;
 		unsigned char *pd;
@@ -406,7 +406,7 @@ void blit1(void)
 			memset32((int *)pd, 0xe0e0e0e0, 320/4);
 	}
 
-	if (PicoAHW & PAHW_PICO)
+	if (PicoIn.AHW & PAHW_PICO)
 		draw_pico_ptr();
 
 	blitscreen_clut();
@@ -424,7 +424,7 @@ static void blit2(const char *fps, const char *notice, int lagging_behind)
 
 	//dbg_text();
 
-	if ((emu_opt & 0x400) && (PicoAHW & PAHW_MCD))
+	if ((emu_opt & 0x400) && (PicoIn.AHW & PAHW_MCD))
 		cd_leds();
 
 	if (currentConfig.EmuOpt & 0x2000) { // want vsync
@@ -571,10 +571,10 @@ void pemu_sound_start(void)
 
 	samples_made = samples_done = 0;
 
-	if (PsndRate != PsndRate_old || (PicoOpt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
+	if (PsndRate != PsndRate_old || (PicoIn.opt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
 		PsndRerate(Pico.m.frame_count ? 1 : 0);
 	}
-	stereo=(PicoOpt&8)>>3;
+	stereo=(PicoIn.opt&8)>>3;
 
 	samples_block = Pico.m.pal ? SOUND_BLOCK_SIZE_PAL : SOUND_BLOCK_SIZE_NTSC;
 	if (PsndRate <= 22050) samples_block /= 2;
@@ -597,7 +597,7 @@ void pemu_sound_start(void)
 		samples_made = samples_block; // send 1 empty block first..
 		PsndOut = sndBuffer;
 		PsndRate_old = PsndRate;
-		PicoOpt_old  = PicoOpt;
+		PicoOpt_old  = PicoIn.opt;
 		pal_old = Pico.m.pal;
 	}
 }
@@ -664,20 +664,20 @@ static void writeSound(int len)
 
 static void SkipFrame(void)
 {
-	PicoSkipFrame=1;
+	PicoIn.skipFrame=1;
 	PicoFrame();
-	PicoSkipFrame=0;
+	PicoIn.skipFrame=0;
 }
 
 void pemu_forced_frame(int no_scale, int do_emu)
 {
-	int po_old = PicoOpt;
+	int po_old = PicoIn.opt;
 	int eo_old = currentConfig.EmuOpt;
 
-	PicoOpt &= ~POPT_ALT_RENDERER;
-	PicoOpt |= POPT_ACC_SPRITES;
+	PicoIn.opt &= ~POPT_ALT_RENDERER;
+	PicoIn.opt |= POPT_ACC_SPRITES;
 	if (!no_scale)
-		PicoOpt |= POPT_EN_SOFTSCALE;
+		PicoIn.opt |= POPT_EN_SOFTSCALE;
 	currentConfig.EmuOpt |= 0x80;
 
 	vidResetMode();
@@ -692,7 +692,7 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	blit1();
 	sceGuSync(0,0);
 
-	PicoOpt = po_old;
+	PicoIn.opt = po_old;
 	currentConfig.EmuOpt = eo_old;
 }
 
@@ -703,7 +703,7 @@ static void RunEventsPico(unsigned int events, unsigned int keys)
 
 	if (pico_inp_mode != 0)
 	{
-		PicoPad[0] &= ~0x0f; // release UDLR
+		PicoIn.pad[0] &= ~0x0f; // release UDLR
 		if (keys & PBTN_UP)   { pico_pen_y--; if (pico_pen_y < 8) pico_pen_y = 8; }
 		if (keys & PBTN_DOWN) { pico_pen_y++; if (pico_pen_y > 224-PICO_PEN_ADJUST_Y) pico_pen_y = 224-PICO_PEN_ADJUST_Y; }
 		if (keys & PBTN_LEFT) { pico_pen_x--; if (pico_pen_x < 0) pico_pen_x = 0; }
@@ -754,12 +754,12 @@ static void RunEvents(unsigned int which)
 	}
 	if (which & 0x0400) // switch renderer
 	{
-		if (PicoOpt&0x10) { PicoOpt&=~0x10; currentConfig.EmuOpt |=  0x80; }
-		else              { PicoOpt|= 0x10; currentConfig.EmuOpt &= ~0x80; }
+		if (PicoIn.opt&0x10) { PicoIn.opt&=~0x10; currentConfig.EmuOpt |=  0x80; }
+		else              { PicoIn.opt|= 0x10; currentConfig.EmuOpt &= ~0x80; }
 
 		vidResetMode();
 
-		if (PicoOpt & POPT_ALT_RENDERER)
+		if (PicoIn.opt & POPT_ALT_RENDERER)
 			emu_status_msg("fast renderer");
 		else if (currentConfig.EmuOpt&0x80)
 			emu_status_msg("accurate renderer");
@@ -794,11 +794,11 @@ static void updateKeys(void)
 
 	keys &= CONFIGURABLE_KEYS;
 
-	PicoPad[0] = allActions[0] & 0xfff;
-	PicoPad[1] = allActions[1] & 0xfff;
+	PicoIn.pad[0] = allActions[0] & 0xfff;
+	PicoIn.pad[1] = allActions[1] & 0xfff;
 
-	if (allActions[0] & 0x7000) emu_DoTurbo(&PicoPad[0], allActions[0]);
-	if (allActions[1] & 0x7000) emu_DoTurbo(&PicoPad[1], allActions[1]);
+	if (allActions[0] & 0x7000) emu_DoTurbo(&PicoIn.pad[0], allActions[0]);
+	if (allActions[1] & 0x7000) emu_DoTurbo(&PicoIn.pad[1], allActions[1]);
 
 	events = (allActions[0] | allActions[1]) >> 16;
 
@@ -809,7 +809,7 @@ static void updateKeys(void)
 
 	events &= ~prevEvents;
 
-	if (PicoAHW == PAHW_PICO)
+	if (PicoIn.AHW == PAHW_PICO)
 		RunEventsPico(events, keys);
 	if (events) RunEvents(events);
 	if (movie_data) emu_updateMovie();
@@ -861,7 +861,7 @@ void pemu_loop(void)
 	target_frametime = Pico.m.pal ? (1000000<<8)/50 : (1000000<<8)/60+1;
 	reset_timing = 1;
 
-	if (PicoAHW & PAHW_MCD) {
+	if (PicoIn.AHW & PAHW_MCD) {
 		// prepare CD buffer
 		PicoCDBufferInit();
 		// mp3...
@@ -986,7 +986,7 @@ void pemu_loop(void)
 
 		updateKeys();
 
-		if (!(PicoOpt&0x10))
+		if (!(PicoIn.opt&0x10))
 			EmuScanPrepare();
 
 		PicoFrame();
@@ -1019,7 +1019,7 @@ void pemu_loop(void)
 
 	emu_set_fastforward(0);
 
-	if (PicoAHW & PAHW_MCD) PicoCDBufferFree();
+	if (PicoIn.AHW & PAHW_MCD) PicoCDBufferFree();
 
 	if (PsndOut != NULL) {
 		pemu_sound_stop();
@@ -1039,7 +1039,7 @@ void pemu_loop(void)
 
 void emu_HandleResume(void)
 {
-	if (!(PicoAHW & PAHW_MCD)) return;
+	if (!(PicoIn.AHW & PAHW_MCD)) return;
 
 	// reopen first CD track
 	if (Pico_mcd->TOC.Tracks[0].F != NULL)

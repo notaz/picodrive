@@ -51,9 +51,10 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions);INLINE=_inline;_CRT_SECURE_NO_WARNINGS;EMU_F68K;_USE_CZ80;NO_ZLIB;FAMEC_NO_GOTOS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS;EMU_F68K;_USE_CZ80;FAMEC_NO_GOTOS</PreprocessorDefinitions>
       <CompileAs>CompileAsC</CompileAs>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\..\..\;$(SolutionDIr)\..\..\..\pico;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\..\..\;$(SolutionDIr)\..\..\..\pico;$(SolutionDIr)\..\..\..\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4018;4090;4101;4146;4244</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -69,9 +70,10 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions);INLINE=_inline;_CRT_SECURE_NO_WARNINGS;EMU_F68K;_USE_CZ80;NO_ZLIB;FAMEC_NO_GOTOS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;MSVC2010_EXPORTS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS;EMU_F68K;_USE_CZ80;FAMEC_NO_GOTOS</PreprocessorDefinitions>
       <CompileAs>CompileAsC</CompileAs>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\..\..\;$(SolutionDIr)\..\..\..\pico;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\..\..\;$(SolutionDIr)\..\..\..\pico;$(SolutionDIr)\..\..\..\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4018;4090;4101;4146;4244</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -88,13 +90,23 @@
     <ClCompile Include="..\..\..\..\cpu\sh2\mame\sh2pico.c" />
     <ClCompile Include="..\..\..\..\cpu\sh2\sh2.c" />
     <ClCompile Include="..\..\..\..\pico\32x\32x.c" />
-    <ClCompile Include="..\..\..\..\pico\32x\32x_draw.c" />
-    <ClCompile Include="..\..\..\..\pico\32x\32x_memory.c" />
+    <ClCompile Include="..\..\..\..\pico\32x\draw.c">
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\32x\</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\32x\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\pico\32x\memory.c">
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\32x\</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\32x\</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\pico\32x\pwm.c" />
     <ClCompile Include="..\..\..\..\pico\32x\sh2soc.c" />
     <ClCompile Include="..\..\..\..\pico\cart.c" />
     <ClCompile Include="..\..\..\..\pico\carthw\carthw.c" />
-    <ClCompile Include="..\..\..\..\pico\carthw\svp\svp_memory.c" />
+    <ClCompile Include="..\..\..\..\pico\carthw\eeprom_spi.c" />
+    <ClCompile Include="..\..\..\..\pico\carthw\svp\memory.c">
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\svp\</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\svp\</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\pico\carthw\svp\ssp16.c" />
     <ClCompile Include="..\..\..\..\pico\carthw\svp\svp.c" />
     <ClCompile Include="..\..\..\..\pico\carthw_cfg.c" />
@@ -106,10 +118,19 @@
     <ClCompile Include="..\..\..\..\pico\cd\gfx.c" />
     <ClCompile Include="..\..\..\..\pico\cd\gfx_dma.c" />
     <ClCompile Include="..\..\..\..\pico\cd\mcd.c" />
-    <ClCompile Include="..\..\..\..\pico\cd\cd_memory.c" />
-    <ClCompile Include="..\..\..\..\pico\cd\cd_misc.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\memory.c">
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\cd\</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\cd\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\pico\cd\misc.c">
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\cd\</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\cd\</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\pico\cd\pcm.c" />
-    <ClCompile Include="..\..\..\..\pico\cd\cd_sek.c" />
+    <ClCompile Include="..\..\..\..\pico\cd\sek.c">
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\cd\</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\cd\</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\pico\debug.c" />
     <ClCompile Include="..\..\..\..\pico\draw.c" />
     <ClCompile Include="..\..\..\..\pico\draw2.c" />
@@ -120,8 +141,14 @@
     <ClCompile Include="..\..\..\..\pico\mode4.c" />
     <ClCompile Include="..\..\..\..\pico\patch.c" />
     <ClCompile Include="..\..\..\..\pico\pico.c" />
-    <ClCompile Include="..\..\..\..\pico\pico\pico_memory.c" />
-    <ClCompile Include="..\..\..\..\pico\pico\pico_pico.c" />
+    <ClCompile Include="..\..\..\..\pico\pico\memory.c">
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\pico\</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\pico\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\pico\pico\pico.c">
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)\pico\</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)\pico\</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\pico\pico\xpcm.c" />
     <ClCompile Include="..\..\..\..\pico\sek.c" />
     <ClCompile Include="..\..\..\..\pico\sms.c" />
@@ -133,7 +160,6 @@
     <ClCompile Include="..\..\..\..\pico\videoport.c" />
     <ClCompile Include="..\..\..\..\pico\z80if.c" />
     <ClCompile Include="..\..\..\..\unzip\unzip.c" />
-    <ClCompile Include="..\..\..\..\unzip\unzip_stream.c" />
     <ClCompile Include="..\..\..\..\zlib\adler32.c" />
     <ClCompile Include="..\..\..\..\zlib\compress.c" />
     <ClCompile Include="..\..\..\..\zlib\crc32.c" />

@@ -1,8 +1,6 @@
 /*
  * PicoDrive
  * Copyright (C) 2009,2010 notaz
- * Copyright (C) 2016      lentillog
- * Copyright (C) 2016      Daniel De Matteis
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -12,31 +10,23 @@
 #include <pico/pico_int.h>
 #include "cmn.h"
 
-#ifdef _MSC_VER
-u8 tcache[DRC_TCACHE_SIZE];
-#elif defined(VITA)
-#include <psp2/kernel/sysmem.h>
+u8 ALIGNED(4096) tcache_default[DRC_TCACHE_SIZE];
 u8 *tcache;
-static int sceBlock;
-int getVMBlock();
-#else
-u8 __attribute__((aligned(4096))) tcache[DRC_TCACHE_SIZE];
-#endif
-
 
 void drc_cmn_init(void)
 {
-#ifdef VITA
-   sceBlock = getVMBlock();
-   sceKernelGetMemBlockBase(sceBlock, (void **)&tcache);
-#endif
+  int ret;
 
-  int ret = plat_mem_set_exec(tcache, sizeof(tcache));
+  tcache = plat_mem_get_for_drc(DRC_TCACHE_SIZE);
+  if (tcache == NULL)
+    tcache = tcache_default;
+
+  ret = plat_mem_set_exec(tcache, DRC_TCACHE_SIZE);
   elprintf(EL_STATUS, "drc_cmn_init: %p, %zd bytes: %d",
-    tcache, sizeof(tcache), ret);
+    tcache, DRC_TCACHE_SIZE, ret);
 
 #ifdef __arm__
-  if (PicoOpt & POPT_EN_DRC)
+  if (PicoIn.opt & POPT_EN_DRC)
   {
     static int test_done;
     if (!test_done)
