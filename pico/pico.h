@@ -97,6 +97,15 @@ typedef struct
 
 	unsigned short quirks;         // game-specific quirks: PQUIRK_*
 	unsigned short overclockM68k;  // overclock the emulated 68k, in %
+
+	int sndRate;                   // rate in Hz
+	short *sndOut;                 // PCM output buffer
+	void (*writeSound)(int len);   // write .sndOut callback, called once per frame
+
+	void (*osdMessage)(const char *msg); // output OSD message from emu, optional
+
+	void (*mcdTrayOpen)(void);
+	void (*mcdTrayClose)(void);
 } PicoInterface;
 
 extern PicoInterface PicoIn;
@@ -108,17 +117,11 @@ int  PicoReset(void);
 void PicoLoopPrepare(void);
 void PicoFrame(void);
 void PicoFrameDrawOnly(void);
-extern void (*PicoWriteSound)(int bytes); // called once per frame at the best time to send sound buffer (PsndOut) to hardware
-extern void (*PicoMessage)(const char *msg); // callback to output text message from emu
 typedef enum { PI_ROM, PI_ISPAL, PI_IS40_CELL, PI_IS240_LINES } pint_t;
 typedef union { int vint; void *vptr; } pint_ret_t;
 void PicoGetInternal(pint_t which, pint_ret_t *ret);
 
 struct PicoEState;
-
-// cd/mcd.c
-extern void (*PicoMCDopenTray)(void);
-extern void (*PicoMCDcloseTray)(void);
 
 // pico.c
 #define XPCM_BUFFER_SIZE (320+160)
@@ -230,8 +233,6 @@ void Pico32xSetClocks(int msh2_hz, int ssh2_hz);
 #define PICO_SSH2_HZ ((int)(7670442.0 * 2.4))
 
 // sound.c
-extern int PsndRate,PsndLen;
-extern short *PsndOut;
 extern void (*PsndMix_32_to_16l)(short *dest, int *src, int count);
 void PsndRerate(int preserve_state);
 

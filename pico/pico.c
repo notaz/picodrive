@@ -14,7 +14,6 @@ struct Pico Pico;
 struct PicoMem PicoMem;
 PicoInterface PicoIn;
 
-void (*PicoWriteSound)(int len) = NULL; // called at the best time to send sound buffer (PsndOut) to hardware
 void (*PicoResetHook)(void) = NULL;
 void (*PicoLineHook)(void) = NULL;
 
@@ -344,6 +343,4 @@ void PicoGetInternal(pint_t which, pint_ret_t *r)
   }
 }
 
-// callback to output message from emu
-void (*PicoMessage)(const char *msg)=NULL;
-
+// vim:ts=2:sw=2:expandtab

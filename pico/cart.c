@@ -391,8 +391,8 @@ int pm_seek(pm_file *stream, long offset, int whence)
       offset = pos;
     }
 
-    if (PicoMessage != NULL && offset > 4 * 1024 * 1024)
-      PicoMessage("Decompressing data...");
+    if (PicoIn.osdMessage != NULL && offset > 4 * 1024 * 1024)
+      PicoIn.osdMessage("Decompressing data...");
 
     while (offset > 0) {
       char buf[16 * 1024];

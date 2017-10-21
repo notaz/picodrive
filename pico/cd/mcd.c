@@ -15,9 +15,6 @@ static unsigned int mcd_m68k_cycle_mult;
 static unsigned int mcd_m68k_cycle_base;
 static unsigned int mcd_s68k_cycle_base;
 
-void (*PicoMCDopenTray)(void) = NULL;
-void (*PicoMCDcloseTray)(void) = NULL;
-
 
 PICO_INTERNAL void PicoInitMCD(void)
 {

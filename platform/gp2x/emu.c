@@ -692,7 +692,7 @@ void pemu_sound_start(void)
 	{
 		soc = soc_detect();
 		if (soc == SOCID_POLLUX) {
-			PsndRate = pollux_get_real_snd_rate(PsndRate);
+			PicoIn.sndRate = pollux_get_real_snd_rate(PicoIn.sndRate);
 			PsndRerate(Pico.m.frame_count ? 1 : 0);
 		}
 
@@ -707,10 +707,10 @@ void pemu_sound_stop(void)
 	int i;
 
 	/* get back from Pollux pain */
-	PsndRate += 1000;
+	PicoIn.sndRate += 1000;
 	for (i = 0; i < ARRAY_SIZE(sound_rates); i++) {
-		if (PsndRate >= sound_rates[i]) {
-			PsndRate = sound_rates[i];
+		if (PicoIn.sndRate >= sound_rates[i]) {
+			PicoIn.sndRate = sound_rates[i];
 			break;
 		}
 	}

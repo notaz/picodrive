@@ -402,9 +402,9 @@ int YM2612UpdateOne_940(int *buffer, int length, int stereo, int is_buf_empty)
 	writebuff_ptr = 0;
 
 	/* predict sample counter for next frame */
-	if (PsndLen_exc_add) {
-		length = PsndLen;
-		if (PsndLen_exc_cnt + PsndLen_exc_add >= 0x10000) length++;
+	if (Pico.snd.len_e_add) {
+		length = Pico.snd.len;
+		if (Pico.snd.len_e_cnt + Pico.snd.len_e_add >= 0x10000) length++;
 	}
 
 	/* give 940 ym job */
@@ -463,11 +463,11 @@ int mp3dec_start(FILE *f, int fpos_start)
 
 	if (loaded_mp3 != f)
 	{
-		if (PicoMessage != NULL)
+		if (PicoIn.osdMessage != NULL)
 		{
 			fseek(f, 0, SEEK_END);
 			if (ftell(f) > 2*1024*1024)
-				PicoMessage("Loading MP3...");
+				PicoIn.osdMessage("Loading MP3...");
 		}
 		fseek(f, 0, SEEK_SET);
 		fread(mp3_mem, 1, MP3_SIZE_MAX, f);

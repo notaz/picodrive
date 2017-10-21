@@ -1297,8 +1297,8 @@ void cdd_process(void)
       set_reg16(0x3e, 0x0000);
       set_reg16(0x40, 0x000f);
 
-      if (PicoMCDcloseTray)
-        PicoMCDcloseTray();
+      if (PicoIn.mcdTrayClose)
+        PicoIn.mcdTrayClose();
 
       return;
     }
@@ -1316,8 +1316,8 @@ void cdd_process(void)
       set_reg16(0x3e, 0x0000);
       set_reg16(0x40, ~CD_OPEN & 0x0f);
 
-      if (PicoMCDopenTray)
-        PicoMCDopenTray();
+      if (PicoIn.mcdTrayOpen)
+        PicoIn.mcdTrayOpen();
       return;
     }
 
