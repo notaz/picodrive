@@ -370,15 +370,12 @@ PICO_INTERNAL void PsndGetSamples(int y)
 
 PICO_INTERNAL void PsndGetSamplesMS(void)
 {
-  int stereo = (PicoIn.opt & 8) >> 3;
   int length = PsndLen_use;
 
-  // PSG
-  if (PicoIn.opt & POPT_EN_PSG)
-    SN76496Update(PsndOut, length, stereo);
+  PsndDoPSG(223);
 
   // upmix to "stereo" if needed
-  if (stereo) {
+  if (PicoIn.opt & POPT_EN_STEREO) {
     int i, *p;
     for (i = length, p = (void *)PsndOut; i > 0; i--, p++)
       *p |= *p << 16;
@@ -387,6 +384,8 @@ PICO_INTERNAL void PsndGetSamplesMS(void)
   if (PicoWriteSound != NULL)
     PicoWriteSound(length * ((PicoIn.opt & POPT_EN_STEREO) ? 4 : 2));
   PsndClear();
+
+  dac_info[224] = 0;
 }
 
 // vim:shiftwidth=2:ts=2:expandtab

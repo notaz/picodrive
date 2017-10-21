@@ -8,10 +8,8 @@
 /*
  * TODO:
  * - start in a state as if BIOS ran
- * - remaining status flags (OVR/COL)
  * - RAM support in mapper
  * - region support
- * - SN76496 DAC-like usage
  * - H counter
  */
 #include "pico_int.h"
@@ -133,8 +131,9 @@ static void z80_sms_out(unsigned short a, unsigned char d)
 
     case 0x40:
     case 0x41:
-      if (PicoIn.opt & POPT_EN_PSG)
-        SN76496Write(d);
+      if ((d & 0x90) == 0x90 && PsndPsgLine < Pico.m.scanline)
+        PsndDoPSG(Pico.m.scanline);
+      SN76496Write(d);
       break;
 
     case 0x80:
@@ -300,12 +299,16 @@ void PicoFrameMS(void)
       }
     }
 
+    // 224 because of how it's done for MD...
+    if (y == 224 && PsndOut)
+      PsndGetSamplesMS();
+
     cycles_aim += cycles_line;
     cycles_done += z80_run((cycles_aim - cycles_done) >> 8) << 8;
   }
 
-  if (PsndOut)
-    PsndGetSamplesMS();
+  if (PsndOut && PsndPsgLine < lines)
+    PsndDoPSG(lines - 1);
 }
 
 void PicoFrameDrawOnlyMS(void)
@@ -319,3 +322,4 @@ void PicoFrameDrawOnlyMS(void)
     PicoLineMode4(y);
 }
 
+// vim:ts=2:sw=2:expandtab
