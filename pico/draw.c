@@ -1272,7 +1272,7 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
   }
 
   {
-#ifndef PSP
+#if !defined(PSP) || defined(__LIBRETRO__)
     int i, mask=0xff;
     if (!sh && (est->rendstatus & PDRAW_SPR_LO_ON_HI))
       mask=0x3f; // accurate sprites, upper bits are priority stuff
