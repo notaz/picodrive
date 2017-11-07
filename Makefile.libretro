@@ -436,7 +436,7 @@ else
 
 endif
 
-CFLAGS += -DNO_ZLIB
+CFLAGS += -DNO_ZLIB -D__LIBRETRO__
 
 ifeq ($(NO_MMAP),1)
 	CFLAGS += -DNO_MMAP
