@@ -191,12 +191,10 @@ static u32 p32x_reg_read16(u32 a)
     int comreg = 1 << (a & 0x0f) / 2;
 
     if (cycles - msh2.m68krcycles_done > 244
-        || (Pico32x.comm_dirty_68k & comreg))
+        || (Pico32x.comm_dirty & comreg))
       p32x_sync_sh2s(cycles);
 
-    if (Pico32x.comm_dirty_sh2 & comreg)
-      Pico32x.comm_dirty_sh2 &= ~comreg;
-    else if (m68k_poll_detect(a, cycles, P32XF_68KCPOLL)) {
+    if (m68k_poll_detect(a, cycles, P32XF_68KCPOLL)) {
       SekSetStop(1);
       SekEndRun(16);
     }
@@ -388,14 +386,13 @@ static void p32x_reg_write8(u32 a, u32 d)
     if (REG8IN16(r, a) == d)
       return;
 
-    comreg = 1 << (a & 0x0f) / 2;
-    if (Pico32x.comm_dirty_68k & comreg)
-      p32x_sync_sh2s(cycles);
+    p32x_sync_sh2s(cycles);
 
     REG8IN16(r, a) = d;
     p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
     p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
-    Pico32x.comm_dirty_68k |= comreg;
+    comreg = 1 << (a & 0x0f) / 2;
+    Pico32x.comm_dirty |= comreg;
 
     if (cycles - (int)msh2.m68krcycles_done > 120)
       p32x_sync_sh2s(cycles);
@@ -451,20 +448,13 @@ static void p32x_reg_write16(u32 a, u32 d)
     int cycles = SekCyclesDone();
     int comreg;
     
-    if (r[a / 2] == d)
-      return;
-
-    comreg = 1 << (a & 0x0f) / 2;
-    if (Pico32x.comm_dirty_68k & comreg)
-      p32x_sync_sh2s(cycles);
+    p32x_sync_sh2s(cycles);
 
     r[a / 2] = d;
     p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
     p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
-    Pico32x.comm_dirty_68k |= comreg;
-
-    if (cycles - (int)msh2.m68krcycles_done > 120)
-      p32x_sync_sh2s(cycles);
+    comreg = 1 << (a & 0x0f) / 2;
+    Pico32x.comm_dirty |= comreg;
     return;
   }
   // PWM
@@ -601,11 +591,7 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
 
   // comm port
   if ((a & 0x30) == 0x20) {
-    int comreg = 1 << (a & 0x0f) / 2;
-    if (Pico32x.comm_dirty_68k & comreg)
-      Pico32x.comm_dirty_68k &= ~comreg;
-    else
-      sh2_poll_detect(sh2, a, SH2_STATE_CPOLL, 3);
+    sh2_poll_detect(sh2, a, SH2_STATE_CPOLL, 3);
     sh2s_sync_on_read(sh2);
     return r[a / 2];
   }
@@ -708,7 +694,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
     p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL,
       sh2_cycles_done_m68k(sh2));
     comreg = 1 << (a & 0x0f) / 2;
-    Pico32x.comm_dirty_sh2 |= comreg;
+    Pico32x.comm_dirty |= comreg;
     return;
   }
 
@@ -733,7 +719,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
     p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL,
       sh2_cycles_done_m68k(sh2));
     comreg = 1 << (a & 0x0f) / 2;
-    Pico32x.comm_dirty_sh2 |= comreg;
+    Pico32x.comm_dirty |= comreg;
     return;
   }
   // PWM

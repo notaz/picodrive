@@ -582,8 +582,8 @@ struct Pico32x
   unsigned int dmac0_fifo_ptr;
   unsigned short vdp_fbcr_fake;
   unsigned short pad2;
-  unsigned char comm_dirty_68k;
-  unsigned char comm_dirty_sh2;
+  unsigned char comm_dirty;
+  unsigned char pad3;            // was comm_dirty_sh2
   unsigned char pwm_irq_cnt;
   unsigned char pad1;
   unsigned short pwm_p[2];       // pwm pos in fifo

@@ -502,6 +502,9 @@ void sync_sh2s_normal(unsigned int m68k_target)
     if (CYCLES_GT(m68k_target, ssh2.m68krcycles_done))
       ssh2.m68krcycles_done = m68k_target;
   }
+
+  // everyone is in sync now
+  Pico32x.comm_dirty = 0;
 }
 
 #define STEP_68K 24
