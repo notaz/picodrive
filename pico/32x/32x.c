@@ -422,6 +422,9 @@ void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target)
   }
 }
 
+#define STEP_LS 24
+#define STEP_N 440
+
 #define sync_sh2s_normal p32x_sync_sh2s
 //#define sync_sh2s_lockstep p32x_sync_sh2s
 
@@ -451,6 +454,8 @@ void sync_sh2s_normal(unsigned int m68k_target)
     target = m68k_target;
     if (event_time_next && CYCLES_GT(target, event_time_next))
       target = event_time_next;
+    if (CYCLES_GT(target, now + STEP_N))
+      target = now + STEP_N;
 
     while (CYCLES_GT(target, now))
     {
@@ -507,8 +512,6 @@ void sync_sh2s_normal(unsigned int m68k_target)
   Pico32x.comm_dirty = 0;
 }
 
-#define STEP_68K 24
-
 void sync_sh2s_lockstep(unsigned int m68k_target)
 {
   unsigned int mcycles;
@@ -518,7 +521,7 @@ void sync_sh2s_lockstep(unsigned int m68k_target)
     mcycles = ssh2.m68krcycles_done;
 
   while (mcycles < m68k_target) {
-    mcycles += STEP_68K;
+    mcycles += STEP_LS;
     sync_sh2s_normal(mcycles);
   }
 }
