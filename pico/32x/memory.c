@@ -1644,23 +1644,37 @@ static void get_bios(void)
     Byteswap(Pico32xMem->m68k_rom, p32x_bios_g, sizeof(Pico32xMem->m68k_rom));
   }
   else {
+    static const u16 andb[] = { 0x0239, 0x00fe, 0x00a1, 0x5107 };
+    static const u16 p_d4[] = {
+      0x48e7, 0x8040,         //   movem.l d0/a1, -(sp)
+      0x227c, 0x00a1, 0x30f1, //   movea.l #0xa130f1, a1
+      0x7007,                 //   moveq.l #7, d0
+      0x12d8,                 //0: move.b (a0)+, (a1)+
+      0x5289,                 //   addq.l  #1, a1
+      0x51c8, 0xfffa,         //   dbra   d0, 0b
+      0x0239, 0x00fe, 0x00a1, //   and.b  #0xfe, (0xa15107).l
+                      0x5107,
+      0x4cdf, 0x0201          //   movem.l (sp)+, d0/a1
+    };
+
     // generate 68k ROM
     ps = (u16 *)Pico32xMem->m68k_rom;
     pl = (u32 *)ps;
     for (i = 1; i < 0xc0/4; i++)
       pl[i] = HWSWAP(0x880200 + (i - 1) * 6);
+    pl[0x70/4] = 0;
 
     // fill with nops
     for (i = 0xc0/2; i < 0x100/2; i++)
       ps[i] = 0x4e71;
 
-#if 0
-    ps[0xc0/2] = 0x46fc;
-    ps[0xc2/2] = 0x2700; // move #0x2700,sr
-    ps[0xfe/2] = 0x60fe; // jump to self
-#else
+    // c0: don't need to care about RV - not emulated
+    ps[0xc8/2] = 0x1280;                     // move.b d0, (a1)
+    memcpy(ps + 0xca/2, andb, sizeof(andb)); // and.b #0xfe, (a15107)
+    ps[0xd2/2] = 0x4e75;                     // rts
+    // d4:
+    memcpy(ps + 0xd4/2, p_d4, sizeof(p_d4));
     ps[0xfe/2] = 0x4e75; // rts
-#endif
   }
   // fill remaining m68k_rom page with game ROM
   memcpy(Pico32xMem->m68k_rom_bank + sizeof(Pico32xMem->m68k_rom),
