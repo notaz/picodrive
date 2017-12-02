@@ -419,7 +419,7 @@ static void add_to_block_list(struct block_list **blist, struct block_desc *bloc
 static void rm_from_block_list(struct block_list **blist, struct block_desc *block)
 {
   struct block_list *prev = NULL, *current = *blist;
-  for (; current != NULL; prev = current, current = current->next) {
+  for (; current != NULL; current = current->next) {
     if (current->block == block) {
       if (prev == NULL)
         *blist = current->next;
@@ -428,6 +428,7 @@ static void rm_from_block_list(struct block_list **blist, struct block_desc *blo
       free(current);
       return;
     }
+    prev = current;
   }
   dbg(1, "can't rm block %p (%08x-%08x)",
     block, block->addr, block->addr + block->size);
@@ -514,6 +515,29 @@ missing:
   dbg(1, "rm_from_hashlist: be %p %08x missing?", be, be->pc);
 }
 
+static void unregister_links(struct block_entry *be, int tcache_id)
+{
+  struct block_link *bl_unresolved = unresolved_links[tcache_id];
+  struct block_link *bl, *bl_next;
+
+  for (bl = be->links; bl != NULL; ) {
+    bl_next = bl->next;
+    bl->next = bl_unresolved;
+    bl_unresolved = bl;
+    bl = bl_next;
+  }
+  be->links = NULL;
+  unresolved_links[tcache_id] = bl_unresolved;
+}
+
+// unlike sh2_smc_rm_block, the block stays and can still be accessed
+// by other already directly linked blocks, just not preferred
+static void kill_block_entry(struct block_entry *be, int tcache_id)
+{
+  rm_from_hashlist(be, tcache_id);
+  unregister_links(be, tcache_id);
+}
+
 static struct block_desc *dr_add_block(u32 addr, u16 size_lit,
   u16 size_nolit, int is_slave, int *blk_id)
 {
@@ -524,8 +548,10 @@ static struct block_desc *dr_add_block(u32 addr, u16 size_lit,
 
   // do a lookup to get tcache_id and override check
   be = dr_get_entry(addr, is_slave, &tcache_id);
-  if (be != NULL)
-    dbg(1, "block override for %08x", addr);
+  if (be != NULL) {
+    dbg(1, "block override for %08x, was %p", addr, be->tcache_ptr);
+    kill_block_entry(be, tcache_id);
+  }
 
   bcount = &block_counts[tcache_id];
   if (*bcount >= block_max_counts[tcache_id]) {
@@ -1480,13 +1506,22 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
         // make block entry
         v = block->entry_count;
-        if (v < ARRAY_SIZE(block->entryp)) {
+        if (v < ARRAY_SIZE(block->entryp))
+        {
+          struct block_entry *be_old;
+
           block->entryp[v].pc = pc;
           block->entryp[v].tcache_ptr = tcache_ptr;
           block->entryp[v].links = NULL;
 #if (DRC_DEBUG & 2)
           block->entryp[v].block = block;
 #endif
+          be_old = dr_get_entry(pc, sh2->is_slave, &tcache_id);
+          if (be_old != NULL) {
+            dbg(1, "entry override for %08x, was %p", pc, be_old->tcache_ptr);
+            kill_block_entry(be_old, tcache_id);
+          }
+
           add_to_hashlist(&block->entryp[v], tcache_id);
           block->entry_count++;
 
@@ -2992,13 +3027,12 @@ static void sh2_generate_utils(void)
 #endif
 }
 
-static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 ram_mask)
+static void sh2_smc_rm_block(struct block_desc *bd, int tcache_id, u32 ram_mask)
 {
-  struct block_link *bl, *bl_next, *bl_unresolved;
   u32 i, addr, end_addr;
   void *tmp;
 
-  dbg(2, "  killing entry %08x-%08x-%08x, blkid %d,%d",
+  dbg(2, "  killing block %08x-%08x-%08x, blkid %d,%d",
     bd->addr, bd->addr + bd->size_nolit, bd->addr + bd->size,
     tcache_id, bd - block_tables[tcache_id]);
   if (bd->addr == 0 || bd->entry_count == 0) {
@@ -3015,7 +3049,6 @@ static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 ram
   }
 
   tmp = tcache_ptr;
-  bl_unresolved = unresolved_links[tcache_id];
 
   // remove from hash table, make incoming links unresolved
   // XXX: maybe patch branches w/flush instead?
@@ -3031,22 +3064,16 @@ static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 ram
 
     host_instructions_updated(bd->entryp[i].tcache_ptr, tcache_ptr);
 
-    for (bl = bd->entryp[i].links; bl != NULL; ) {
-      bl_next = bl->next;
-      bl->next = bl_unresolved;
-      bl_unresolved = bl;
-      bl = bl_next;
-    }
+    unregister_links(&bd->entryp[i], tcache_id);
   }
 
   tcache_ptr = tmp;
-  unresolved_links[tcache_id] = bl_unresolved;
 
   bd->addr = bd->size = bd->size_nolit = 0;
   bd->entry_count = 0;
 }
 
-static void sh2_smc_rm_block(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, u32 mask)
+static void sh2_smc_rm_blocks(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, u32 mask)
 {
   struct block_list **blist = NULL, *entry;
   u32 from = ~0, to = 0, end_addr, taddr, i;
@@ -3064,7 +3091,7 @@ static void sh2_smc_rm_block(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, 
       if (to < end_addr)
         to = end_addr;
 
-      sh2_smc_rm_block_entry(block, tcache_id, mask);
+      sh2_smc_rm_block(block, tcache_id, mask);
       if (a >= block->addr + block->size_nolit)
         literal_disabled_frames = 3;
 
@@ -3110,13 +3137,13 @@ static void sh2_smc_rm_block(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, 
 void sh2_drc_wcheck_ram(unsigned int a, int val, int cpuid)
 {
   dbg(2, "%csh2 smc check @%08x", cpuid ? 's' : 'm', a);
-  sh2_smc_rm_block(a, Pico32xMem->drcblk_ram, 0, SH2_DRCBLK_RAM_SHIFT, 0x3ffff);
+  sh2_smc_rm_blocks(a, Pico32xMem->drcblk_ram, 0, SH2_DRCBLK_RAM_SHIFT, 0x3ffff);
 }
 
 void sh2_drc_wcheck_da(unsigned int a, int val, int cpuid)
 {
   dbg(2, "%csh2 smc check @%08x", cpuid ? 's' : 'm', a);
-  sh2_smc_rm_block(a, Pico32xMem->drcblk_da[cpuid],
+  sh2_smc_rm_blocks(a, Pico32xMem->drcblk_da[cpuid],
     1 + cpuid, SH2_DRCBLK_DA_SHIFT, 0xfff);
 }
 
