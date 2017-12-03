@@ -243,6 +243,11 @@
 #define EOP_MSR_IMM(ror2,imm) EOP_C_MSR_IMM(A_COND_AL,ror2,imm)
 #define EOP_MSR_REG(rm)       EOP_C_MSR_REG(A_COND_AL,rm)
 
+#define EOP_MOVW(rd,imm) \
+	EMIT(0xe3000000 | ((rd)<<12) | ((imm)&0xfff) | (((imm)<<4)&0xf0000))
+
+#define EOP_MOVT(rd,imm) \
+	EMIT(0xe3400000 | ((rd)<<12) | (((imm)>>16)&0xfff) | (((imm)>>12)&0xf0000))
 
 // XXX: AND, RSB, *C, will break if 1 insn is not enough
 static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int imm)
@@ -257,6 +262,19 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 			imm = ~imm;
 			op = A_OP_MVN;
 		}
+#ifdef HAVE_ARMV7
+		for (v = imm, ror2 = 0; v && !(v & 3); v >>= 2)
+			ror2--;
+		if (v >> 8) {
+			/* 2+ insns needed - prefer movw/movt */
+			if (op == A_OP_MVN)
+				imm = ~imm;
+			EOP_MOVW(rd, imm);
+			if (imm & 0xffff0000)
+				EOP_MOVT(rd, imm);
+			return;
+		}
+#endif
 		break;
 
 	case A_OP_EOR:
