@@ -983,7 +983,7 @@ static __inline int isspace_(int c)
 // emulation event logging
 #ifndef EL_LOGMASK
 # ifdef __x86_64__ // HACK
-#  define EL_LOGMASK (EL_STATUS|EL_IDLE|EL_ANOMALY)
+#  define EL_LOGMASK (EL_STATUS|EL_ANOMALY)
 # else
 #  define EL_LOGMASK (EL_STATUS)
 # endif
