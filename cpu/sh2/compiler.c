@@ -3121,9 +3121,9 @@ static void sh2_smc_rm_blocks(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift,
       if (to < end_addr)
         to = end_addr;
 
-      sh2_smc_rm_block(block, tcache_id, mask);
       if (a >= start_addr + block->size_nolit)
         literal_disabled_frames = 3;
+      sh2_smc_rm_block(block, tcache_id, mask);
 
       // entry lost, restart search
       entry = *blist;
