@@ -47,10 +47,11 @@
 #define MAX_LOCAL_BRANCHES      32
 
 // debug stuff
-// 1 - warnings/errors
-// 2 - block info/smc
-// 4 - asm
-// 8 - runtime block entry log
+// 01 - warnings/errors
+// 02 - block info/smc
+// 04 - asm
+// 08 - runtime block entry log
+// 10 - smc self-check
 // {
 #ifndef DRC_DEBUG
 #define DRC_DEBUG 0
@@ -1548,6 +1549,22 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       // must update PC
       emit_move_r_imm32(SHR_PC, pc);
       rcache_clean();
+
+#if (DRC_DEBUG & 0x10)
+      rcache_get_reg_arg(0, SHR_PC);
+      tmp = emit_memhandler_read(2);
+      tmp2 = rcache_get_tmp();
+      tmp3 = rcache_get_tmp();
+      emith_move_r_imm(tmp2, FETCH32(pc));
+      emith_move_r_imm(tmp3, 0);
+      emith_cmp_r_r(tmp, tmp2);
+      EMITH_SJMP_START(DCOND_EQ);
+      emith_read_r_r_offs_c(DCOND_NE, tmp3, tmp3, 0); // crash
+      EMITH_SJMP_END(DCOND_EQ);
+      rcache_free_tmp(tmp);
+      rcache_free_tmp(tmp2);
+      rcache_free_tmp(tmp3);
+#endif
 
       // check cycles
       sr = rcache_get_reg(SHR_SR, RC_GR_READ);
@@ -3073,26 +3090,39 @@ static void sh2_smc_rm_block(struct block_desc *bd, int tcache_id, u32 ram_mask)
   bd->entry_count = 0;
 }
 
+/*
+04205:243: == msh2 block #0,200 060017a8-060017f0 -> 0x27cb9c
+ 060017a8 d11c MOV.L   @($70,PC),R1  ; @$0600181c
+
+04230:261: msh2 xsh w32 [260017a8] d225e304
+04230:261: msh2 smc check @260017a8
+04239:226: = ssh2 enter 060017a8 0x27cb9c, c=173
+*/
 static void sh2_smc_rm_blocks(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, u32 mask)
 {
   struct block_list **blist = NULL, *entry;
-  u32 from = ~0, to = 0, end_addr, taddr, i;
   struct block_desc *block;
+  u32 start_addr, end_addr, taddr, i;
+  u32 from = ~0, to = 0;
+
+  // ignore cache-through
+  a &= ~0x20000000;
 
   blist = &inval_lookup[tcache_id][(a & mask) / INVAL_PAGE_SIZE];
   entry = *blist;
   while (entry != NULL) {
     block = entry->block;
-    end_addr = block->addr + block->size;
-    if (block->addr <= a && a < end_addr) {
+    start_addr = block->addr & ~0x20000000;
+    end_addr = start_addr + block->size;
+    if (start_addr <= a && a < end_addr) {
       // get addr range that includes all removed blocks
-      if (from > block->addr)
-        from = block->addr;
+      if (from > start_addr)
+        from = start_addr;
       if (to < end_addr)
         to = end_addr;
 
       sh2_smc_rm_block(block, tcache_id, mask);
-      if (a >= block->addr + block->size_nolit)
+      if (a >= start_addr + block->size_nolit)
         literal_disabled_frames = 3;
 
       // entry lost, restart search
@@ -3115,12 +3145,13 @@ static void sh2_smc_rm_blocks(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift,
     for (; entry != NULL; entry = entry->next) {
       block = entry->block;
 
-      if (block->addr > a) {
-        if (to > block->addr)
-          to = block->addr;
+      start_addr = block->addr & ~0x20000000;
+      if (start_addr > a) {
+        if (to > start_addr)
+          to = start_addr;
       }
       else {
-        end_addr = block->addr + block->size;
+        end_addr = start_addr + block->size;
         if (from < end_addr)
           from = end_addr;
       }
