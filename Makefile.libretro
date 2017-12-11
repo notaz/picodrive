@@ -52,6 +52,7 @@ ifeq ($(platform), unix)
 	SHARED := -shared
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
+	use_sh2drc = 1
 
 # Portable Linux
 else ifeq ($(platform), linux-portable)
@@ -62,6 +63,7 @@ else ifeq ($(platform), linux-portable)
 	LIBM :=
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
+	use_sh2drc = 1
 
 # OS X
 else ifeq ($(platform), osx)

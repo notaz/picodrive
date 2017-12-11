@@ -326,6 +326,27 @@ static temp_reg_t reg_temp[] = {
   { xDX, },
 };
 
+#elif defined(__x86_64__)
+#include "../drc/emit_x86.c"
+
+static const int reg_map_g2h[] = {
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, -1,
+  -1, -1, -1, xBX,
+  -1, -1, -1, -1,
+};
+
+// ax, cx, dx are usually temporaries by convention
+static temp_reg_t reg_temp[] = {
+  { xAX, },
+  { xCX, },
+  { xDX, },
+  { xSI, },
+  { xDI, },
+};
+
 #else
 #error unsupported arch
 #endif
@@ -919,13 +940,12 @@ do_alloc:
   return tr->hreg;
 }
 
-static int rcache_get_arg_id(int arg)
+static int rcache_get_hr_id(int hr)
 {
-  int i, r = 0;
-  host_arg2reg(r, arg);
+  int i;
 
   for (i = 0; i < ARRAY_SIZE(reg_temp); i++)
-    if (reg_temp[i].hreg == r)
+    if (reg_temp[i].hreg == hr)
       break;
 
   if (i == ARRAY_SIZE(reg_temp)) // can't happen
@@ -938,7 +958,7 @@ static int rcache_get_arg_id(int arg)
     gconst_check_evict(reg_temp[i].greg);
   }
   else if (reg_temp[i].type == HR_TEMP) {
-    printf("arg %d reg %d already used, aborting\n", arg, r);
+    printf("host reg %d already used, aborting\n", hr);
     exit(1);
   }
 
@@ -948,10 +968,26 @@ static int rcache_get_arg_id(int arg)
   return i;
 }
 
+static int rcache_get_arg_id(int arg)
+{
+  int r = 0;
+  host_arg2reg(r, arg);
+  return rcache_get_hr_id(r);
+}
+
 // get a reg to be used as function arg
 static int rcache_get_tmp_arg(int arg)
 {
   int id = rcache_get_arg_id(arg);
+  reg_temp[id].type = HR_TEMP;
+
+  return reg_temp[id].hreg;
+}
+
+// ... as return value after a call
+static int rcache_get_tmp_ret(void)
+{
+  int id = rcache_get_hr_id(RET_REG);
   reg_temp[id].type = HR_TEMP;
 
   return reg_temp[id].hreg;
@@ -1104,8 +1140,8 @@ static int emit_get_rbase_and_offs(u32 a, u32 *offs)
 
   // XXX: could use some related reg
   hr = rcache_get_tmp();
-  emith_ctx_read(hr, poffs);
-  emith_add_r_imm(hr, a & mask & ~0xff);
+  emith_ctx_read_ptr(hr, poffs);
+  emith_add_r_r_ptr_imm(hr, hr, a & mask & ~0xff);
   *offs = a & 0xff; // XXX: ARM oriented..
   return hr;
 }
@@ -1154,7 +1190,7 @@ static int emit_memhandler_read_(int size, int ram_check)
     emith_ctx_write(reg_map_g2h[SHR_SR], SHR_SR * 4);
 
   arg1 = rcache_get_tmp_arg(1);
-  emith_move_r_r(arg1, CONTEXT_REG);
+  emith_move_r_r_ptr(arg1, CONTEXT_REG);
 
 #if 0 // can't do this because of unmapped reads
  // ndef PDB_NET
@@ -1208,8 +1244,7 @@ static int emit_memhandler_read_(int size, int ram_check)
   if (reg_map_g2h[SHR_SR] != -1)
     emith_ctx_read(reg_map_g2h[SHR_SR], SHR_SR * 4);
 
-  // assuming arg0 and retval reg matches
-  return rcache_get_tmp_arg(0);
+  return rcache_get_tmp_ret();
 }
 
 static int emit_memhandler_read(int size)
@@ -1279,7 +1314,7 @@ static void emit_memhandler_write(int size)
     emith_call(sh2_drc_write16);
     break;
   case 2: // 32
-    emith_move_r_r(ctxr, CONTEXT_REG);
+    emith_move_r_r_ptr(ctxr, CONTEXT_REG);
     emith_call(sh2_drc_write32);
     break;
   }
@@ -1351,26 +1386,23 @@ static void emit_do_static_regs(int is_write, int tmpr)
   }
 }
 
+/* just after lookup function, jump to address returned */
 static void emit_block_entry(void)
 {
-  int arg0;
-
-  host_arg2reg(arg0, 0);
-
 #if (DRC_DEBUG & 8) || defined(PDB)
   int arg1, arg2;
   host_arg2reg(arg1, 1);
   host_arg2reg(arg2, 2);
 
   emit_do_static_regs(1, arg2);
-  emith_move_r_r(arg1, CONTEXT_REG);
+  emith_move_r_r_ptr(arg1, CONTEXT_REG);
   emith_move_r_r(arg2, rcache_get_reg(SHR_SR, RC_GR_READ));
   emith_call(sh2_drc_log_entry);
   rcache_invalidate();
 #endif
-  emith_tst_r_r(arg0, arg0);
+  emith_tst_r_r(RET_REG, RET_REG);
   EMITH_SJMP_START(DCOND_EQ);
-  emith_jump_reg_c(DCOND_NE, arg0);
+  emith_jump_reg_c(DCOND_NE, RET_REG);
   EMITH_SJMP_END(DCOND_EQ);
 }
 
@@ -2703,14 +2735,18 @@ end_op:
       struct op_data *opd_b =
         (op_flags[i] & OF_DELAY_OP) ? &ops[i-1] : opd;
       u32 target_pc = opd_b->imm;
-      int cond = -1;
+      int cond = -1, ncond = -1;
       void *target = NULL;
+      EMITH_SJMP_DECL_();
 
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
       FLUSH_CYCLES(sr);
+      rcache_clean();
 
-      if (opd_b->op != OP_BRANCH)
+      if (opd_b->op != OP_BRANCH) {
         cond = (opd_b->op == OP_BRANCH_CF) ? DCOND_EQ : DCOND_NE;
+        ncond = (opd_b->op == OP_BRANCH_CF) ? DCOND_NE : DCOND_EQ;
+      }
       if (cond != -1) {
         int ctaken = (op_flags[i] & OF_DELAY_OP) ? 1 : 2;
 
@@ -2719,9 +2755,9 @@ end_op:
         else
           emith_tst_r_imm(sr, T);
 
+        EMITH_SJMP_START_(ncond);
         emith_sub_r_imm_c(cond, sr, ctaken<<12);
       }
-      rcache_clean();
 
 #if LINK_BRANCHES
       if (find_in_array(branch_target_pc, branch_target_count, target_pc) >= 0)
@@ -2750,8 +2786,10 @@ end_op:
           return NULL;
       }
 
-      if (cond != -1)
+      if (cond != -1) {
         emith_jump_cond_patchable(cond, target);
+        EMITH_SJMP_END_(ncond);
+      }
       else {
         emith_jump_patchable(target);
         rcache_invalidate();
@@ -2906,18 +2944,18 @@ static void sh2_generate_utils(void)
   rcache_invalidate();
   emith_ctx_read(arg0, SHR_PC * 4);
   emith_ctx_read(arg1, offsetof(SH2, is_slave));
-  emith_add_r_r_imm(arg2, CONTEXT_REG, offsetof(SH2, drc_tmp));
+  emith_add_r_r_ptr_imm(arg2, CONTEXT_REG, offsetof(SH2, drc_tmp));
   emith_call(dr_lookup_block);
   emit_block_entry();
   // lookup failed, call sh2_translate()
-  emith_move_r_r(arg0, CONTEXT_REG);
+  emith_move_r_r_ptr(arg0, CONTEXT_REG);
   emith_ctx_read(arg1, offsetof(SH2, drc_tmp)); // tcache_id
   emith_call(sh2_translate);
   emit_block_entry();
   // sh2_translate() failed, flush cache and retry
   emith_ctx_read(arg0, offsetof(SH2, drc_tmp));
   emith_call(flush_tcache);
-  emith_move_r_r(arg0, CONTEXT_REG);
+  emith_move_r_r_ptr(arg0, CONTEXT_REG);
   emith_ctx_read(arg1, offsetof(SH2, drc_tmp));
   emith_call(sh2_translate);
   emit_block_entry();
@@ -2944,13 +2982,13 @@ static void sh2_generate_utils(void)
   emith_add_r_imm(tmp, 4);
   tmp = rcache_get_reg_arg(1, SHR_SR);
   emith_clear_msb(tmp, tmp, 22);
-  emith_move_r_r(arg2, CONTEXT_REG);
+  emith_move_r_r_ptr(arg2, CONTEXT_REG);
   emith_call(p32x_sh2_write32); // XXX: use sh2_drc_write32?
   rcache_invalidate();
   // push PC
   rcache_get_reg_arg(0, SHR_SP);
   emith_ctx_read(arg1, SHR_PC * 4);
-  emith_move_r_r(arg2, CONTEXT_REG);
+  emith_move_r_r_ptr(arg2, CONTEXT_REG);
   emith_call(p32x_sh2_write32);
   rcache_invalidate();
   // update I, cycles, do callback
@@ -2960,16 +2998,16 @@ static void sh2_generate_utils(void)
   emith_or_r_r_lsl(sr, arg1, I_SHIFT);
   emith_sub_r_imm(sr, 13 << 12); // at least 13 cycles
   rcache_flush();
-  emith_move_r_r(arg0, CONTEXT_REG);
+  emith_move_r_r_ptr(arg0, CONTEXT_REG);
   emith_call_ctx(offsetof(SH2, irq_callback)); // vector = sh2->irq_callback(sh2, level);
   // obtain new PC
-  emith_lsl(arg0, arg0, 2);
+  emith_lsl(arg0, RET_REG, 2);
   emith_ctx_read(arg1, SHR_VBR * 4);
   emith_add_r_r(arg0, arg1);
-  emit_memhandler_read(2);
-  emith_ctx_write(arg0, SHR_PC * 4);
-#ifdef __i386__
-  emith_add_r_imm(xSP, 4); // fix stack
+  tmp = emit_memhandler_read(2);
+  emith_ctx_write(tmp, SHR_PC * 4);
+#if defined(__i386__) || defined(__x86_64__)
+  emith_add_r_r_ptr_imm(xSP, xSP, sizeof(void *)); // fix stack
 #endif
   emith_jump(sh2_drc_dispatcher);
   rcache_invalidate();
@@ -2977,19 +3015,19 @@ static void sh2_generate_utils(void)
   // sh2_drc_entry(SH2 *sh2)
   sh2_drc_entry = (void *)tcache_ptr;
   emith_sh2_drc_entry();
-  emith_move_r_r(CONTEXT_REG, arg0); // move ctx, arg0
+  emith_move_r_r_ptr(CONTEXT_REG, arg0); // move ctx, arg0
   emit_do_static_regs(0, arg2);
   emith_call(sh2_drc_test_irq);
   emith_jump(sh2_drc_dispatcher);
 
   // sh2_drc_write8(u32 a, u32 d)
   sh2_drc_write8 = (void *)tcache_ptr;
-  emith_ctx_read(arg2, offsetof(SH2, write8_tab));
+  emith_ctx_read_ptr(arg2, offsetof(SH2, write8_tab));
   emith_sh2_wcall(arg0, arg2);
 
   // sh2_drc_write16(u32 a, u32 d)
   sh2_drc_write16 = (void *)tcache_ptr;
-  emith_ctx_read(arg2, offsetof(SH2, write16_tab));
+  emith_ctx_read_ptr(arg2, offsetof(SH2, write16_tab));
   emith_sh2_wcall(arg0, arg2);
 
 #ifdef PDB_NET
@@ -3015,7 +3053,7 @@ static void sh2_generate_utils(void)
     emith_ctx_read(arg2, offsetof(SH2, pdb_io_csum[1]));  \
     emith_adc_r_imm(arg2, 0x01000000);                    \
     emith_ctx_write(arg2, offsetof(SH2, pdb_io_csum[1])); \
-    emith_move_r_r(arg2, CONTEXT_REG);                    \
+    emith_move_r_r_ptr(arg2, CONTEXT_REG);                \
     emith_jump(func); \
     func = tmp; \
   }

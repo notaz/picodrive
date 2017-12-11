@@ -6,6 +6,7 @@
  * See COPYING file in the top-level directory.
  */
 #define CONTEXT_REG 11
+#define RET_REG     0
 
 // XXX: tcache_ptr type for SVP and SH2 compilers differs..
 #define EMIT_PTR(ptr, x) \
@@ -369,6 +370,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define EMITH_NOTHING1(cond) \
 	(void)(cond)
 
+#define EMITH_SJMP_DECL_()
+#define EMITH_SJMP_START_(cond)	EMITH_NOTHING1(cond)
+#define EMITH_SJMP_END_(cond)	EMITH_NOTHING1(cond)
 #define EMITH_SJMP_START(cond)	EMITH_NOTHING1(cond)
 #define EMITH_SJMP_END(cond)	EMITH_NOTHING1(cond)
 #define EMITH_SJMP3_START(cond)	EMITH_NOTHING1(cond)
@@ -377,6 +381,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_move_r_r(d, s) \
 	EOP_MOV_REG_SIMPLE(d, s)
+
+#define emith_move_r_r_ptr(d, s) \
+	emith_move_r_r(d, s)
 
 #define emith_mvn_r_r(d, s) \
 	EOP_MVN_REG(A_COND_AL,0,d,s,A_AM1_LSL,0)
@@ -521,6 +528,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_add_r_r_imm(d, s, imm) \
 	emith_op_imm2(A_COND_AL, 0, A_OP_ADD, d, s, imm)
 
+#define emith_add_r_r_ptr_imm(d, s, imm) \
+	emith_add_r_r_imm(d, s, imm)
+
 #define emith_sub_r_r_imm(d, s, imm) \
 	emith_op_imm2(A_COND_AL, 0, A_OP_SUB, d, s, imm)
 
@@ -610,6 +620,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_ctx_read(r, offs) \
 	emith_read_r_r_offs(r, CONTEXT_REG, offs)
+
+#define emith_ctx_read_ptr(r, offs) \
+	emith_ctx_read(r, offs)
 
 #define emith_ctx_write(r, offs) \
 	EOP_STR_IMM(r, CONTEXT_REG, offs)
