@@ -69,7 +69,13 @@ endif
 ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","rpi1" "rpi2"))
 CFLAGS += -DHAVE_GLES -DRASPBERRY
 CFLAGS += -I/opt/vc/include/ -I/opt/vc/include/interface/vcos/pthreads/ -I/opt/vc/include/interface/vmcs_host/linux/
-LDFLAGS += -ldl -lbcm_host -L/opt/vc/lib -lEGL -lGLESv2
+LDFLAGS += -ldl -lbcm_host -L/opt/vc/lib
+# Stupid renaming occured in latest raspbian...
+ifneq (,$(wildcard /opt/vc/lib/libbrcmGLESv2.so))
+LDFLAGS += -lbrcmEGL -lbrcmGLESv2
+else
+LDFLAGS += -lEGL -lGLESv2
+endif
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
 OBJS += platform/common/plat_sdl.o
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
