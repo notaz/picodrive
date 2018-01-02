@@ -44,6 +44,9 @@ asm_mix ?= 1
 else # if not arm
 use_fame ?= 1
 use_cz80 ?= 1
+ifneq (,$(findstring 86,$(ARCH)))
+use_sh2drc ?= 1
+endif
 endif
 
 -include Makefile.local
@@ -66,7 +69,13 @@ endif
 ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","rpi1" "rpi2"))
 CFLAGS += -DHAVE_GLES -DRASPBERRY
 CFLAGS += -I/opt/vc/include/ -I/opt/vc/include/interface/vcos/pthreads/ -I/opt/vc/include/interface/vmcs_host/linux/
-LDFLAGS += -ldl -lbcm_host -L/opt/vc/lib -lEGL -lGLESv2
+LDFLAGS += -ldl -lbcm_host -L/opt/vc/lib
+# Stupid renaming occured in latest raspbian...
+ifneq (,$(wildcard /opt/vc/lib/libbrcmGLESv2.so))
+LDFLAGS += -lbrcmEGL -lbrcmGLESv2
+else
+LDFLAGS += -lEGL -lGLESv2
+endif
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
 OBJS += platform/common/plat_sdl.o
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
@@ -221,8 +230,9 @@ pico/carthw_cfg.c: pico/carthw.cfg
 	tools/make_carthw_c $< $@
 
 # random deps
-pico/carthw/svp/compiler.o : cpu/drc/emit_$(ARCH).c
-cpu/sh2/compiler.o : cpu/drc/emit_$(ARCH).c
+pico/carthw/svp/compiler.o : cpu/drc/emit_arm.c
+cpu/sh2/compiler.o : cpu/drc/emit_arm.c
+cpu/sh2/compiler.o : cpu/drc/emit_x86.c
 cpu/sh2/mame/sh2pico.o : cpu/sh2/mame/sh2.c
 pico/pico.o pico/cd/mcd.o pico/32x/32x.o : pico/pico_cmn.c pico/pico_int.h
 pico/memory.o pico/cd/memory.o pico/32x/memory.o : pico/pico_int.h pico/memory.h

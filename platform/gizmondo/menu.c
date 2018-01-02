@@ -1046,7 +1046,7 @@ static void menu_opt_cust_draw(const menu_entry *entry, int x, int y, void *para
 			break;
 		case MA_OPT_SOUND_QUALITY:
 			str = (PicoIn.opt&0x08)?"stereo":"mono";
-			text_out16(x, y, "Sound Quality:     %5iHz %s", PsndRate, str);
+			text_out16(x, y, "Sound Quality:     %5iHz %s", PicoIn.sndRate, str);
 			break;
 		case MA_OPT_REGION:
 			text_out16(x, y, "Region:              %s", me_region_name(PicoIn.regionOverride, PicoIn.autoRgnOrder));
@@ -1174,18 +1174,18 @@ static int menu_loop_options(void)
 						}
 						break;
 					case MA_OPT_SOUND_QUALITY:
-						if ((inp & PBTN_RIGHT) && PsndRate == 44100 &&
+						if ((inp & PBTN_RIGHT) && PicoIn.sndRate == 44100 &&
 								!(PicoIn.opt&0x08))
 						{
-							PsndRate =  11025;
+							PicoIn.sndRate =  11025;
 							PicoIn.opt |=  8;
-						} else if ((inp & PBTN_LEFT) && PsndRate == 11025 &&
+						} else if ((inp & PBTN_LEFT) && PicoIn.sndRate == 11025 &&
 								(PicoIn.opt&0x08) && !(PicoIn.AHW&1))
 						{
-							PsndRate =  44100;
+							PicoIn.sndRate =  44100;
 							PicoIn.opt &= ~8;
 						} else
-							PsndRate = sndrate_prevnext(PsndRate, inp & PBTN_RIGHT);
+							PicoIn.sndRate = sndrate_prevnext(PicoIn.sndRate, inp & PBTN_RIGHT);
 						break;
 					case MA_OPT_REGION:
 						region_prevnext(inp & PBTN_RIGHT);

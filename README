@@ -12,10 +12,3 @@ then taken over and expanded by notaz.
 
 PicoDrive was the first emulator ever to properly emulate Virtua Racing and
 it's SVP chip.
-
-How to compile on Raspbian Wheezy:
-
-export CC=gcc-4.8
-export CXX=g++-4.8
-./configure --platform=rpi2
-make

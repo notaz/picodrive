@@ -387,14 +387,14 @@ void PDebugZ80Frame(void)
 
   if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
     PicoSyncZ80(Pico.t.m68c_cnt + line_sample * 488);
-  if (PsndOut)
+  if (PicoIn.sndOut)
     PsndGetSamples(line_sample);
 
   if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
     PicoSyncZ80(Pico.t.m68c_cnt + 224 * 488);
     z80_int();
   }
-  if (PsndOut)
+  if (PicoIn.sndOut)
     PsndGetSamples(224);
 
   // sync z80
@@ -402,7 +402,7 @@ void PDebugZ80Frame(void)
     Pico.t.m68c_cnt += Pico.m.pal ? 151809 : 127671; // cycles adjusted for converter
     PicoSyncZ80(Pico.t.m68c_cnt);
   }
-  if (PsndOut && ym2612.dacen && PsndDacLine < lines)
+  if (PicoIn.sndOut && ym2612.dacen && Pico.snd.dac_line < lines)
     PsndDoDAC(lines - 1);
   PsndDoPSG(lines - 1);
 

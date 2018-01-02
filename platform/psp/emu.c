@@ -571,32 +571,32 @@ void pemu_sound_start(void)
 
 	samples_made = samples_done = 0;
 
-	if (PsndRate != PsndRate_old || (PicoIn.opt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
+	if (PicoIn.sndRate != PsndRate_old || (PicoIn.opt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
 		PsndRerate(Pico.m.frame_count ? 1 : 0);
 	}
 	stereo=(PicoIn.opt&8)>>3;
 
 	samples_block = Pico.m.pal ? SOUND_BLOCK_SIZE_PAL : SOUND_BLOCK_SIZE_NTSC;
-	if (PsndRate <= 22050) samples_block /= 2;
+	if (PicoIn.sndRate <= 22050) samples_block /= 2;
 	sndBuffer_endptr = &sndBuffer[samples_block*SOUND_BLOCK_COUNT];
 
 	lprintf("starting audio: %i, len: %i, stereo: %i, pal: %i, block samples: %i\n",
-			PsndRate, PsndLen, stereo, Pico.m.pal, samples_block);
+			PicoIn.sndRate, Pico.snd.len, stereo, Pico.m.pal, samples_block);
 
 	// while (sceAudioOutput2GetRestSample() > 0) psp_msleep(100);
 	// sceAudio_5C37C0AE();
-	ret = sceAudio_38553111(samples_block/2, PsndRate, 2); // seems to not need that stupid 64byte alignment
+	ret = sceAudio_38553111(samples_block/2, PicoIn.sndRate, 2); // seems to not need that stupid 64byte alignment
 	if (ret < 0) {
 		lprintf("sceAudio_38553111() failed: %i\n", ret);
 		emu_status_msg("sound init failed (%i), snd disabled", ret);
 		currentConfig.EmuOpt &= ~EOPT_EN_SOUND;
 	} else {
-		PicoWriteSound = writeSound;
+		PicoIn.writeSound = writeSound;
 		memset32((int *)(void *)sndBuffer, 0, sizeof(sndBuffer)/4);
 		snd_playptr = sndBuffer_endptr - samples_block;
 		samples_made = samples_block; // send 1 empty block first..
-		PsndOut = sndBuffer;
-		PsndRate_old = PsndRate;
+		PicoIn.sndOut = sndBuffer;
+		PsndRate_old = PicoIn.sndRate;
 		PicoOpt_old  = PicoIn.opt;
 		pal_old = Pico.m.pal;
 	}
@@ -641,16 +641,16 @@ static void writeSound(int len)
 {
 	int ret;
 
-	PsndOut += len / 2;
-	/*if (PsndOut > sndBuffer_endptr) {
-		memcpy32((int *)(void *)sndBuffer, (int *)endptr, (PsndOut - endptr + 1) / 2);
-		PsndOut = &sndBuffer[PsndOut - endptr];
+	PicoIn.sndOut += len / 2;
+	/*if (PicoIn.sndOut > sndBuffer_endptr) {
+		memcpy32((int *)(void *)sndBuffer, (int *)endptr, (PicoIn.sndOut - endptr + 1) / 2);
+		PicoIn.sndOut = &sndBuffer[PicoIn.sndOut - endptr];
 		lprintf("mov\n");
 	}
 	else*/
-	if (PsndOut > sndBuffer_endptr) lprintf("snd oflow %i!\n", PsndOut - sndBuffer_endptr);
-	if (PsndOut >= sndBuffer_endptr)
-		PsndOut = sndBuffer;
+	if (PicoIn.sndOut > sndBuffer_endptr) lprintf("snd oflow %i!\n", PicoIn.sndOut - sndBuffer_endptr);
+	if (PicoIn.sndOut >= sndBuffer_endptr)
+		PicoIn.sndOut = sndBuffer;
 
 	// signal the snd thread
 	samples_made += len / 2;
@@ -873,7 +873,7 @@ void pemu_loop(void)
 	}
 
 	// prepare sound stuff
-	PsndOut = NULL;
+	PicoIn.sndOut = NULL;
 	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
 	{
 		pemu_sound_start();
@@ -1021,9 +1021,9 @@ void pemu_loop(void)
 
 	if (PicoIn.AHW & PAHW_MCD) PicoCDBufferFree();
 
-	if (PsndOut != NULL) {
+	if (PicoIn.sndOut != NULL) {
 		pemu_sound_stop();
-		PsndOut = NULL;
+		PicoIn.sndOut = NULL;
 	}
 
 	// save SRAM

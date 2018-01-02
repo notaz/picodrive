@@ -227,6 +227,9 @@ static int state_save(void *file)
   areaWrite(&ver, 1, 4, file);
 
   if (!(PicoIn.AHW & PAHW_SMS)) {
+    // the patches can cause incompatible saves with no-idle
+    SekFinishIdleDet();
+
     memset(buff, 0, sizeof(buff));
     SekPackCpu(buff, 0);
     CHECKED_WRITE_BUFF(CHUNK_M68K,  buff);
@@ -235,6 +238,9 @@ static int state_save(void *file)
     CHECKED_WRITE_BUFF(CHUNK_IOPORTS, PicoMem.ioports);
     ym2612_pack_state();
     CHECKED_WRITE(CHUNK_FM, 0x200+4, ym2612_regs);
+
+    if (!(PicoIn.opt & POPT_DIS_IDLE_DET))
+      SekInitIdleDet();
   }
   else {
     CHECKED_WRITE_BUFF(CHUNK_SMS, Pico.ms);

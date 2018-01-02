@@ -1088,9 +1088,9 @@ bool retro_load_game(const struct retro_game_info *info)
 
    PicoLoopPrepare();
 
-   PicoWriteSound = snd_write;
+   PicoIn.writeSound = snd_write;
    memset(sndBuffer, 0, sizeof(sndBuffer));
-   PsndOut = sndBuffer;
+   PicoIn.sndOut = sndBuffer;
    PsndRerate(0);
 
    return true;
@@ -1193,7 +1193,7 @@ static const unsigned short retro_pico_map[] = {
 
 static void snd_write(int len)
 {
-   audio_batch_cb(PsndOut, len / 4);
+   audio_batch_cb(PicoIn.sndOut, len / 4);
 }
 
 static enum input_device input_name_to_val(const char *name)
@@ -1375,7 +1375,7 @@ void retro_init(void)
 #endif
       PicoIn.opt |= POPT_EN_DRC;
 #endif
-   PsndRate = 44100;
+   PicoIn.sndRate = 44100;
    PicoIn.autoRgnOrder = 0x184; // US, EU, JP
 
    vout_width = 320;
@@ -1390,9 +1390,9 @@ void retro_init(void)
    PicoDrawSetOutFormat(PDF_RGB555, 0);
    PicoDrawSetOutBuf(vout_buf, vout_width * 2);
 
-   //PicoMessage = plat_status_msg_busy_next;
-   PicoMCDopenTray = disk_tray_open;
-   PicoMCDcloseTray = disk_tray_close;
+   //PicoIn.osdMessage = plat_status_msg_busy_next;
+   PicoIn.mcdTrayOpen = disk_tray_open;
+   PicoIn.mcdTrayClose = disk_tray_close;
 
    update_variables();
 }

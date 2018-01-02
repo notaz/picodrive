@@ -191,12 +191,10 @@ static u32 p32x_reg_read16(u32 a)
     int comreg = 1 << (a & 0x0f) / 2;
 
     if (cycles - msh2.m68krcycles_done > 244
-        || (Pico32x.comm_dirty_68k & comreg))
+        || (Pico32x.comm_dirty & comreg))
       p32x_sync_sh2s(cycles);
 
-    if (Pico32x.comm_dirty_sh2 & comreg)
-      Pico32x.comm_dirty_sh2 &= ~comreg;
-    else if (m68k_poll_detect(a, cycles, P32XF_68KCPOLL)) {
+    if (m68k_poll_detect(a, cycles, P32XF_68KCPOLL)) {
       SekSetStop(1);
       SekEndRun(16);
     }
@@ -388,14 +386,13 @@ static void p32x_reg_write8(u32 a, u32 d)
     if (REG8IN16(r, a) == d)
       return;
 
-    comreg = 1 << (a & 0x0f) / 2;
-    if (Pico32x.comm_dirty_68k & comreg)
-      p32x_sync_sh2s(cycles);
+    p32x_sync_sh2s(cycles);
 
     REG8IN16(r, a) = d;
     p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
     p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
-    Pico32x.comm_dirty_68k |= comreg;
+    comreg = 1 << (a & 0x0f) / 2;
+    Pico32x.comm_dirty |= comreg;
 
     if (cycles - (int)msh2.m68krcycles_done > 120)
       p32x_sync_sh2s(cycles);
@@ -451,20 +448,13 @@ static void p32x_reg_write16(u32 a, u32 d)
     int cycles = SekCyclesDone();
     int comreg;
     
-    if (r[a / 2] == d)
-      return;
-
-    comreg = 1 << (a & 0x0f) / 2;
-    if (Pico32x.comm_dirty_68k & comreg)
-      p32x_sync_sh2s(cycles);
+    p32x_sync_sh2s(cycles);
 
     r[a / 2] = d;
     p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
     p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
-    Pico32x.comm_dirty_68k |= comreg;
-
-    if (cycles - (int)msh2.m68krcycles_done > 120)
-      p32x_sync_sh2s(cycles);
+    comreg = 1 << (a & 0x0f) / 2;
+    Pico32x.comm_dirty |= comreg;
     return;
   }
   // PWM
@@ -601,11 +591,7 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
 
   // comm port
   if ((a & 0x30) == 0x20) {
-    int comreg = 1 << (a & 0x0f) / 2;
-    if (Pico32x.comm_dirty_68k & comreg)
-      Pico32x.comm_dirty_68k &= ~comreg;
-    else
-      sh2_poll_detect(sh2, a, SH2_STATE_CPOLL, 3);
+    sh2_poll_detect(sh2, a, SH2_STATE_CPOLL, 3);
     sh2s_sync_on_read(sh2);
     return r[a / 2];
   }
@@ -708,7 +694,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
     p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL,
       sh2_cycles_done_m68k(sh2));
     comreg = 1 << (a & 0x0f) / 2;
-    Pico32x.comm_dirty_sh2 |= comreg;
+    Pico32x.comm_dirty |= comreg;
     return;
   }
 
@@ -733,7 +719,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
     p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL,
       sh2_cycles_done_m68k(sh2));
     comreg = 1 << (a & 0x0f) / 2;
-    Pico32x.comm_dirty_sh2 |= comreg;
+    Pico32x.comm_dirty |= comreg;
     return;
   }
   // PWM
@@ -1658,23 +1644,37 @@ static void get_bios(void)
     Byteswap(Pico32xMem->m68k_rom, p32x_bios_g, sizeof(Pico32xMem->m68k_rom));
   }
   else {
+    static const u16 andb[] = { 0x0239, 0x00fe, 0x00a1, 0x5107 };
+    static const u16 p_d4[] = {
+      0x48e7, 0x8040,         //   movem.l d0/a1, -(sp)
+      0x227c, 0x00a1, 0x30f1, //   movea.l #0xa130f1, a1
+      0x7007,                 //   moveq.l #7, d0
+      0x12d8,                 //0: move.b (a0)+, (a1)+
+      0x5289,                 //   addq.l  #1, a1
+      0x51c8, 0xfffa,         //   dbra   d0, 0b
+      0x0239, 0x00fe, 0x00a1, //   and.b  #0xfe, (0xa15107).l
+                      0x5107,
+      0x4cdf, 0x0201          //   movem.l (sp)+, d0/a1
+    };
+
     // generate 68k ROM
     ps = (u16 *)Pico32xMem->m68k_rom;
     pl = (u32 *)ps;
     for (i = 1; i < 0xc0/4; i++)
       pl[i] = HWSWAP(0x880200 + (i - 1) * 6);
+    pl[0x70/4] = 0;
 
     // fill with nops
     for (i = 0xc0/2; i < 0x100/2; i++)
       ps[i] = 0x4e71;
 
-#if 0
-    ps[0xc0/2] = 0x46fc;
-    ps[0xc2/2] = 0x2700; // move #0x2700,sr
-    ps[0xfe/2] = 0x60fe; // jump to self
-#else
+    // c0: don't need to care about RV - not emulated
+    ps[0xc8/2] = 0x1280;                     // move.b d0, (a1)
+    memcpy(ps + 0xca/2, andb, sizeof(andb)); // and.b #0xfe, (a15107)
+    ps[0xd2/2] = 0x4e75;                     // rts
+    // d4:
+    memcpy(ps + 0xd4/2, p_d4, sizeof(p_d4));
     ps[0xfe/2] = 0x4e75; // rts
-#endif
   }
   // fill remaining m68k_rom page with game ROM
   memcpy(Pico32xMem->m68k_rom_bank + sizeof(Pico32xMem->m68k_rom),

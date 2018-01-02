@@ -409,6 +409,19 @@ struct PicoTiming
   unsigned int z80c_cnt;                // z80 cycles done (this frame)
   unsigned int z80c_aim;
   int z80_scanline;
+
+  int timer_a_next_oflow, timer_a_step; // in z80 cycles
+  int timer_b_next_oflow, timer_b_step;
+};
+
+struct PicoSound
+{
+  short len;                            // number of mono samples
+  short len_use;                        // adjusted
+  int len_e_add;                        // for non-int samples/frame
+  int len_e_cnt;
+  short dac_line;
+  short psg_line;
 };
 
 // run tools/mkoffsets pico/pico_int_o32.h if you change these
@@ -419,6 +432,7 @@ struct Pico
   struct PicoMisc m;
   struct PicoTiming t;
   struct PicoCartSave sv;
+  struct PicoSound snd;
   struct PicoEState est;
   struct PicoMS ms;
 
@@ -568,8 +582,8 @@ struct Pico32x
   unsigned int dmac0_fifo_ptr;
   unsigned short vdp_fbcr_fake;
   unsigned short pad2;
-  unsigned char comm_dirty_68k;
-  unsigned char comm_dirty_sh2;
+  unsigned char comm_dirty;
+  unsigned char pad3;            // was comm_dirty_sh2
   unsigned char pwm_irq_cnt;
   unsigned char pad1;
   unsigned short pwm_p[2];       // pwm pos in fifo
@@ -781,10 +795,6 @@ void SekInterruptClearS68k(int irq);
 
 // sound/sound.c
 extern short cdda_out_buffer[2*1152];
-extern int PsndLen_exc_cnt;
-extern int PsndLen_exc_add;
-extern int timer_a_next_oflow, timer_a_step; // in z80 cycles
-extern int timer_b_next_oflow, timer_b_step;
 
 void cdda_start_play(int lba_base, int lba_offset, int lb_len);
 
@@ -799,16 +809,16 @@ void ym2612_unpack_state(void);
 #define TIMER_B_TICK_ZCYCLES 262800 // 275251 broken, see Dai Makaimura
 
 #define timers_cycle() \
-  if (timer_a_next_oflow > 0 && timer_a_next_oflow < TIMER_NO_OFLOW) \
-    timer_a_next_oflow -= Pico.m.pal ? 70938*256 : 59659*256; \
-  if (timer_b_next_oflow > 0 && timer_b_next_oflow < TIMER_NO_OFLOW) \
-    timer_b_next_oflow -= Pico.m.pal ? 70938*256 : 59659*256; \
+  if (Pico.t.timer_a_next_oflow > 0 && Pico.t.timer_a_next_oflow < TIMER_NO_OFLOW) \
+    Pico.t.timer_a_next_oflow -= Pico.m.pal ? 70938*256 : 59659*256; \
+  if (Pico.t.timer_b_next_oflow > 0 && Pico.t.timer_b_next_oflow < TIMER_NO_OFLOW) \
+    Pico.t.timer_b_next_oflow -= Pico.m.pal ? 70938*256 : 59659*256; \
   ym2612_sync_timers(0, ym2612.OPN.ST.mode, ym2612.OPN.ST.mode);
 
 #define timers_reset() \
-  timer_a_next_oflow = timer_b_next_oflow = TIMER_NO_OFLOW; \
-  timer_a_step = TIMER_A_TICK_ZCYCLES * 1024; \
-  timer_b_step = TIMER_B_TICK_ZCYCLES * 256;
+  Pico.t.timer_a_next_oflow = Pico.t.timer_b_next_oflow = TIMER_NO_OFLOW; \
+  Pico.t.timer_a_step = TIMER_A_TICK_ZCYCLES * 1024; \
+  Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * 256;
 
 
 // videoport.c
@@ -850,7 +860,6 @@ PICO_INTERNAL void PsndDoPSG(int line_to);
 PICO_INTERNAL void PsndClear(void);
 PICO_INTERNAL void PsndGetSamples(int y);
 PICO_INTERNAL void PsndGetSamplesMS(void);
-extern int PsndDacLine, PsndPsgLine;
 
 // sms.c
 #ifndef NO_SMS
@@ -974,7 +983,7 @@ static __inline int isspace_(int c)
 // emulation event logging
 #ifndef EL_LOGMASK
 # ifdef __x86_64__ // HACK
-#  define EL_LOGMASK (EL_STATUS|EL_IDLE|EL_ANOMALY)
+#  define EL_LOGMASK (EL_STATUS|EL_ANOMALY)
 # else
 #  define EL_LOGMASK (EL_STATUS)
 # endif

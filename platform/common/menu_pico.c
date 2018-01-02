@@ -610,7 +610,7 @@ static int mh_opt_misc(int id, int keys)
 {
 	switch (id) {
 	case MA_OPT_SOUND_QUALITY:
-		PsndRate = sndrate_prevnext(PsndRate, keys & PBTN_RIGHT);
+		PicoIn.sndRate = sndrate_prevnext(PicoIn.sndRate, keys & PBTN_RIGHT);
 		break;
 	case MA_OPT_REGION:
 		region_prevnext(keys & PBTN_RIGHT);
@@ -674,7 +674,7 @@ static const char *mgn_opt_sound(int id, int *offs)
 	const char *str2;
 	*offs = -8;
 	str2 = (PicoIn.opt & POPT_EN_STEREO) ? "stereo" : "mono";
-	sprintf(static_buff, "%5iHz %s", PsndRate, str2);
+	sprintf(static_buff, "%5iHz %s", PicoIn.sndRate, str2);
 	return static_buff;
 }
 
@@ -892,7 +892,7 @@ static void debug_menu_loop(void)
 				if (inp & PBTN_UP)    pv->debug_p ^= PVD_KILL_S_HI;
 				if (inp & PBTN_MA2)   pv->debug_p ^= PVD_KILL_32X;
 				if (inp & PBTN_MOK) {
-					PsndOut = NULL; // just in case
+					PicoIn.sndOut = NULL; // just in case
 					PicoIn.skipFrame = 1;
 					PicoFrame();
 					PicoIn.skipFrame = 0;

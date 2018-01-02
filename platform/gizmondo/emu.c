@@ -266,12 +266,12 @@ static void stdbg(const char *fmt, ...)
 static void updateSound(int len)
 {
 	snd_all_samples += len / 2;
-	PsndOut += len / 2;
-	if (PsndOut - snd_cbuff >= snd_cbuf_samples)
+	PicoIn.sndOut += len / 2;
+	if (PicoIn.sndOut - snd_cbuff >= snd_cbuf_samples)
 	{
-		//if (PsndOut - snd_cbuff != snd_cbuf_samples)
-		//	stdbg("snd diff is %i, not %i", PsndOut - snd_cbuff, snd_cbuf_samples);
-		PsndOut = snd_cbuff;
+		//if (PicoIn.sndOut - snd_cbuff != snd_cbuf_samples)
+		//	stdbg("snd diff is %i, not %i", PicoIn.sndOut - snd_cbuff, snd_cbuf_samples);
+		PicoIn.sndOut = snd_cbuff;
 	}
 }
 
@@ -317,7 +317,7 @@ static void RunEvents(unsigned int which)
 	{
 		int do_it = 1;
 
-		if (PsndOut != NULL)
+		if (PicoIn.sndOut != NULL)
 			FrameworkAudio_SetPause(1);
 		if (giz_screen == NULL)
 			giz_screen = fb_lock(1);
@@ -344,7 +344,7 @@ static void RunEvents(unsigned int which)
 			Sleep(0);
 		}
 
-		if (PsndOut != NULL)
+		if (PicoIn.sndOut != NULL)
 			FrameworkAudio_SetPause(0);
 		reset_timing = 1;
 	}
@@ -401,7 +401,7 @@ static void updateKeys(void)
 	events = (allActions[0] | allActions[1]) >> 16;
 
 	// volume is treated in special way and triggered every frame
-	if ((events & 0x6000) && PsndOut != NULL)
+	if ((events & 0x6000) && PicoIn.sndOut != NULL)
 	{
 		int vol = currentConfig.volume;
 		if (events & 0x2000) {
@@ -469,19 +469,19 @@ void pemu_loop(void)
 	if (PicoIn.AHW & PAHW_MCD) PicoCDBufferInit();
 
 	// prepare sound stuff
-	PsndOut = NULL;
+	PicoIn.sndOut = NULL;
 	if (currentConfig.EmuOpt & 4)
 	{
 		int ret, snd_excess_add, stereo;
-		if (PsndRate != PsndRate_old || (PicoIn.opt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
+		if (PicoIn.sndRate != PsndRate_old || (PicoIn.opt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
 			PsndRerate(Pico.m.frame_count ? 1 : 0);
 		}
 		stereo=(PicoIn.opt&8)>>3;
-		snd_excess_add = ((PsndRate - PsndLen*target_fps)<<16) / target_fps;
-		snd_cbuf_samples = (PsndRate<<stereo) * 16 / target_fps;
+		snd_excess_add = ((PicoIn.sndRate - Pico.snd.len*target_fps)<<16) / target_fps;
+		snd_cbuf_samples = (PicoIn.sndRate<<stereo) * 16 / target_fps;
 		lprintf("starting audio: %i len: %i (ex: %04x) stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, snd_excess_add, stereo, Pico.m.pal);
-		ret = FrameworkAudio_Init(PsndRate, snd_cbuf_samples, stereo);
+			PicoIn.sndRate, Pico.snd.len, snd_excess_add, stereo, Pico.m.pal);
+		ret = FrameworkAudio_Init(PicoIn.sndRate, snd_cbuf_samples, stereo);
 		if (ret != 0) {
 			lprintf("FrameworkAudio_Init() failed: %i\n", ret);
 			sprintf(noticeMsg, "sound init failed (%i), snd disabled", ret);
@@ -489,11 +489,11 @@ void pemu_loop(void)
 			currentConfig.EmuOpt &= ~4;
 		} else {
 			FrameworkAudio_SetVolume(currentConfig.volume, currentConfig.volume);
-			PicoWriteSound = updateSound;
+			PicoIn.writeSound = updateSound;
 			snd_cbuff = FrameworkAudio_56448Buffer();
-			PsndOut = snd_cbuff + snd_cbuf_samples / 2; // start writing at the middle
+			PicoIn.sndOut = snd_cbuff + snd_cbuf_samples / 2; // start writing at the middle
 			snd_all_samples = 0;
-			PsndRate_old = PsndRate;
+			PsndRate_old = PicoIn.sndRate;
 			PicoOpt_old  = PicoIn.opt;
 			pal_old = Pico.m.pal;
 		}
@@ -553,14 +553,14 @@ void pemu_loop(void)
 			//tval_thissec += 1000;
 			tval_thissec += sec_ms;
 
-			if (PsndOut != NULL)
+			if (PicoIn.sndOut != NULL)
 			{
 				/* some code which tries to sync things to audio clock, the dirty way */
 				static int audio_skew_prev = 0;
 				int audio_skew, adj, co = 9, shift = 7;
 				audio_skew = snd_all_samples*2 - FrameworkAudio_BufferPos();
-				if (PsndRate == 22050) co = 10;
-				if (PsndRate  > 22050) co = 11;
+				if (PicoIn.sndRate == 22050) co = 10;
+				if (PicoIn.sndRate  > 22050) co = 11;
 				if (PicoIn.opt&8) shift++;
 				if (audio_skew < 0) {
 					adj = -((-audio_skew) >> shift);
@@ -600,7 +600,7 @@ void pemu_loop(void)
 			for (i = 0; i < currentConfig.Frameskip; i++) {
 				updateKeys();
 				SkipFrame(); frames_done++;
-				if (PsndOut) { // do framelimitting if sound is enabled
+				if (PicoIn.sndOut) { // do framelimitting if sound is enabled
 					int tval_diff;
 					tval = GetTickCount();
 					tval_diff = (int)(tval - tval_thissec) << 8;
@@ -660,7 +660,7 @@ void pemu_loop(void)
 
 		if (currentConfig.Frameskip < 0 && tval_diff - lim_time >= (300<<8)) // slowdown detection
 			reset_timing = 1;
-		else if (PsndOut != NULL || currentConfig.Frameskip < 0)
+		else if (PicoIn.sndOut != NULL || currentConfig.Frameskip < 0)
 		{
 			// sleep if we are still too fast
 			if (tval_diff < lim_time)
@@ -676,8 +676,8 @@ void pemu_loop(void)
 
 	if (PicoIn.AHW & PAHW_MCD) PicoCDBufferFree();
 
-	if (PsndOut != NULL) {
-		PsndOut = snd_cbuff = NULL;
+	if (PicoIn.sndOut != NULL) {
+		PicoIn.sndOut = snd_cbuff = NULL;
 		FrameworkAudio_Close();
 	}
 

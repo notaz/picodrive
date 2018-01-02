@@ -131,7 +131,7 @@ void pemu_sound_start(void)
 {
 	int ret;
 
-	PsndOut = NULL;
+	PicoIn.sndOut = NULL;
 	currentConfig.EmuOpt &= ~EOPT_EXT_FRMLIMIT;
 
 	// prepare sound stuff
@@ -139,14 +139,14 @@ void pemu_sound_start(void)
 	{
 		PsndRerate(0);
 
-		ret = DSoundInit(FrameWnd, PsndRate, (PicoIn.opt & POPT_EN_STEREO) ? 1 : 0, PsndLen);
+		ret = DSoundInit(FrameWnd, PicoIn.sndRate, (PicoIn.opt & POPT_EN_STEREO) ? 1 : 0, Pico.snd.len);
 		if (ret != 0) {
 			lprintf("dsound init failed\n");
 			return;
 		}
 
-		PsndOut = (void *)sndbuff;
-		PicoWriteSound = update_sound;
+		PicoIn.sndOut = (void *)sndbuff;
+		PicoIn.writeSound = update_sound;
 		currentConfig.EmuOpt |= EOPT_EXT_FRMLIMIT;
 	}
 }

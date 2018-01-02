@@ -389,7 +389,7 @@ static int get_scanline(int is_from_z80);
 static void psg_write_68k(u32 d)
 {
   // look for volume write and update if needed
-  if ((d & 0x90) == 0x90 && PsndPsgLine < Pico.m.scanline)
+  if ((d & 0x90) == 0x90 && Pico.snd.psg_line < Pico.m.scanline)
     PsndDoPSG(Pico.m.scanline);
 
   SN76496Write(d);
@@ -399,7 +399,7 @@ static void psg_write_z80(u32 d)
 {
   if ((d & 0x90) == 0x90) {
     int scanline = get_scanline(1);
-    if (PsndPsgLine < scanline)
+    if (Pico.snd.psg_line < scanline)
       PsndDoPSG(scanline);
   }
 
@@ -895,41 +895,41 @@ void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new)
   int xcycles = z80_cycles << 8;
 
   /* check for overflows */
-  if ((mode_old & 4) && xcycles > timer_a_next_oflow)
+  if ((mode_old & 4) && xcycles > Pico.t.timer_a_next_oflow)
     ym2612.OPN.ST.status |= 1;
 
-  if ((mode_old & 8) && xcycles > timer_b_next_oflow)
+  if ((mode_old & 8) && xcycles > Pico.t.timer_b_next_oflow)
     ym2612.OPN.ST.status |= 2;
 
   /* update timer a */
   if (mode_old & 1)
-    while (xcycles > timer_a_next_oflow)
-      timer_a_next_oflow += timer_a_step;
+    while (xcycles > Pico.t.timer_a_next_oflow)
+      Pico.t.timer_a_next_oflow += Pico.t.timer_a_step;
 
   if ((mode_old ^ mode_new) & 1) // turning on/off
   {
     if (mode_old & 1)
-      timer_a_next_oflow = TIMER_NO_OFLOW;
+      Pico.t.timer_a_next_oflow = TIMER_NO_OFLOW;
     else
-      timer_a_next_oflow = xcycles + timer_a_step;
+      Pico.t.timer_a_next_oflow = xcycles + Pico.t.timer_a_step;
   }
   if (mode_new & 1)
-    elprintf(EL_YMTIMER, "timer a upd to %i @ %i", timer_a_next_oflow>>8, z80_cycles);
+    elprintf(EL_YMTIMER, "timer a upd to %i @ %i", Pico.t.timer_a_next_oflow>>8, z80_cycles);
 
   /* update timer b */
   if (mode_old & 2)
-    while (xcycles > timer_b_next_oflow)
-      timer_b_next_oflow += timer_b_step;
+    while (xcycles > Pico.t.timer_b_next_oflow)
+      Pico.t.timer_b_next_oflow += Pico.t.timer_b_step;
 
   if ((mode_old ^ mode_new) & 2)
   {
     if (mode_old & 2)
-      timer_b_next_oflow = TIMER_NO_OFLOW;
+      Pico.t.timer_b_next_oflow = TIMER_NO_OFLOW;
     else
-      timer_b_next_oflow = xcycles + timer_b_step;
+      Pico.t.timer_b_next_oflow = xcycles + Pico.t.timer_b_step;
   }
   if (mode_new & 2)
-    elprintf(EL_YMTIMER, "timer b upd to %i @ %i", timer_b_next_oflow>>8, z80_cycles);
+    elprintf(EL_YMTIMER, "timer b upd to %i @ %i", Pico.t.timer_b_next_oflow>>8, z80_cycles);
 }
 
 // ym2612 DAC and timer I/O handlers for z80
@@ -941,7 +941,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   if (a == 1 && ym2612.OPN.ST.address == 0x2a) /* DAC data */
   {
     int scanline = get_scanline(is_from_z80);
-    //elprintf(EL_STATUS, "%03i -> %03i dac w %08x z80 %i", PsndDacLine, scanline, d, is_from_z80);
+    //elprintf(EL_STATUS, "%03i -> %03i dac w %08x z80 %i", Pico.snd.dac_line, scanline, d, is_from_z80);
     ym2612.dacout = ((int)d - 0x80) << 6;
     if (ym2612.dacen)
       PsndDoDAC(scanline);
@@ -977,13 +977,13 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             ym2612.OPN.ST.TA = TAnew;
             //ym2612.OPN.ST.TAC = (1024-TAnew)*18;
             //ym2612.OPN.ST.TAT = 0;
-            timer_a_step = TIMER_A_TICK_ZCYCLES * (1024 - TAnew);
+            Pico.t.timer_a_step = TIMER_A_TICK_ZCYCLES * (1024 - TAnew);
             if (ym2612.OPN.ST.mode & 1) {
               // this is not right, should really be done on overflow only
               int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
-              timer_a_next_oflow = (cycles << 8) + timer_a_step;
+              Pico.t.timer_a_next_oflow = (cycles << 8) + Pico.t.timer_a_step;
             }
-            elprintf(EL_YMTIMER, "timer a set to %i, %i", 1024 - TAnew, timer_a_next_oflow>>8);
+            elprintf(EL_YMTIMER, "timer a set to %i, %i", 1024 - TAnew, Pico.t.timer_a_next_oflow>>8);
           }
           return 0;
         }
@@ -993,12 +993,12 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
             ym2612.OPN.ST.TB = d;
             //ym2612.OPN.ST.TBC = (256-d) * 288;
             //ym2612.OPN.ST.TBT  = 0;
-            timer_b_step = TIMER_B_TICK_ZCYCLES * (256 - d); // 262800
+            Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * (256 - d); // 262800
             if (ym2612.OPN.ST.mode & 2) {
               int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
-              timer_b_next_oflow = (cycles << 8) + timer_b_step;
+              Pico.t.timer_b_next_oflow = (cycles << 8) + Pico.t.timer_b_step;
             }
-            elprintf(EL_YMTIMER, "timer b set to %i, %i", 256 - d, timer_b_next_oflow>>8);
+            elprintf(EL_YMTIMER, "timer b set to %i, %i", 256 - d, Pico.t.timer_b_next_oflow>>8);
           }
           return 0;
         case 0x27: { /* mode, timer control */
@@ -1029,7 +1029,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           int scanline = get_scanline(is_from_z80);
           if (ym2612.dacen != (d & 0x80)) {
             ym2612.dacen = d & 0x80;
-            PsndDacLine = scanline;
+            Pico.snd.dac_line = scanline;
           }
 #ifdef __GP2X__
           if (PicoIn.opt & POPT_EXT_FM) YM2612Write_940(a, d, scanline);
@@ -1065,9 +1065,9 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
 
 
 #define ym2612_read_local() \
-  if (xcycles >= timer_a_next_oflow) \
+  if (xcycles >= Pico.t.timer_a_next_oflow) \
     ym2612.OPN.ST.status |= (ym2612.OPN.ST.mode >> 2) & 1; \
-  if (xcycles >= timer_b_next_oflow) \
+  if (xcycles >= Pico.t.timer_b_next_oflow) \
     ym2612.OPN.ST.status |= (ym2612.OPN.ST.mode >> 2) & 2
 
 static u32 ym2612_read_local_z80(void)
@@ -1076,8 +1076,9 @@ static u32 ym2612_read_local_z80(void)
 
   ym2612_read_local();
 
-  elprintf(EL_YMTIMER, "timer z80 read %i, sched %i, %i @ %i|%i", ym2612.OPN.ST.status,
-      timer_a_next_oflow>>8, timer_b_next_oflow>>8, xcycles >> 8, (xcycles >> 8) / 228);
+  elprintf(EL_YMTIMER, "timer z80 read %i, sched %i, %i @ %i|%i",
+    ym2612.OPN.ST.status, Pico.t.timer_a_next_oflow >> 8,
+    Pico.t.timer_b_next_oflow >> 8, xcycles >> 8, (xcycles >> 8) / 228);
   return ym2612.OPN.ST.status;
 }
 
@@ -1087,8 +1088,9 @@ static u32 ym2612_read_local_68k(void)
 
   ym2612_read_local();
 
-  elprintf(EL_YMTIMER, "timer 68k read %i, sched %i, %i @ %i|%i", ym2612.OPN.ST.status,
-      timer_a_next_oflow>>8, timer_b_next_oflow>>8, xcycles >> 8, (xcycles >> 8) / 228);
+  elprintf(EL_YMTIMER, "timer 68k read %i, sched %i, %i @ %i|%i",
+    ym2612.OPN.ST.status, Pico.t.timer_a_next_oflow >> 8,
+    Pico.t.timer_b_next_oflow >> 8, xcycles >> 8, (xcycles >> 8) / 228);
   return ym2612.OPN.ST.status;
 }
 
@@ -1098,10 +1100,12 @@ void ym2612_pack_state(void)
   int tac, tat = 0, tbc, tbt = 0;
   tac = 1024 - ym2612.OPN.ST.TA;
   tbc = 256  - ym2612.OPN.ST.TB;
-  if (timer_a_next_oflow != TIMER_NO_OFLOW)
-    tat = (int)((double)(timer_a_step - timer_a_next_oflow) / (double)timer_a_step * tac * 65536);
-  if (timer_b_next_oflow != TIMER_NO_OFLOW)
-    tbt = (int)((double)(timer_b_step - timer_b_next_oflow) / (double)timer_b_step * tbc * 65536);
+  if (Pico.t.timer_a_next_oflow != TIMER_NO_OFLOW)
+    tat = (int)((double)(Pico.t.timer_a_step - Pico.t.timer_a_next_oflow)
+          / (double)Pico.t.timer_a_step * tac * 65536);
+  if (Pico.t.timer_b_next_oflow != TIMER_NO_OFLOW)
+    tbt = (int)((double)(Pico.t.timer_b_step - Pico.t.timer_b_next_oflow)
+          / (double)Pico.t.timer_b_step * tbc * 65536);
   elprintf(EL_YMTIMER, "save: timer a %i/%i", tat >> 16, tac);
   elprintf(EL_YMTIMER, "save: timer b %i/%i", tbt >> 16, tbc);
 
@@ -1154,15 +1158,15 @@ void ym2612_unpack_state(void)
   tac = (1024 - ym2612.OPN.ST.TA) << 16;
   tbc = (256  - ym2612.OPN.ST.TB) << 16;
   if (ym2612.OPN.ST.mode & 1)
-    timer_a_next_oflow = (int)((double)(tac - tat) / (double)tac * timer_a_step);
+    Pico.t.timer_a_next_oflow = (int)((double)(tac - tat) / (double)tac * Pico.t.timer_a_step);
   else
-    timer_a_next_oflow = TIMER_NO_OFLOW;
+    Pico.t.timer_a_next_oflow = TIMER_NO_OFLOW;
   if (ym2612.OPN.ST.mode & 2)
-    timer_b_next_oflow = (int)((double)(tbc - tbt) / (double)tbc * timer_b_step);
+    Pico.t.timer_b_next_oflow = (int)((double)(tbc - tbt) / (double)tbc * Pico.t.timer_b_step);
   else
-    timer_b_next_oflow = TIMER_NO_OFLOW;
-  elprintf(EL_YMTIMER, "load: %i/%i, timer_a_next_oflow %i", tat>>16, tac>>16, timer_a_next_oflow >> 8);
-  elprintf(EL_YMTIMER, "load: %i/%i, timer_b_next_oflow %i", tbt>>16, tbc>>16, timer_b_next_oflow >> 8);
+    Pico.t.timer_b_next_oflow = TIMER_NO_OFLOW;
+  elprintf(EL_YMTIMER, "load: %i/%i, timer_a_next_oflow %i", tat>>16, tac>>16, Pico.t.timer_a_next_oflow >> 8);
+  elprintf(EL_YMTIMER, "load: %i/%i, timer_b_next_oflow %i", tbt>>16, tbc>>16, Pico.t.timer_b_next_oflow >> 8);
 }
 
 #if defined(NO_32X) && defined(_ASM_MEMORY_C)

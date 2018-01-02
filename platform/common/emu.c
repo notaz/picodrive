@@ -604,7 +604,7 @@ void emu_set_defconfig(void)
 {
 	memcpy(&currentConfig, &defaultConfig, sizeof(currentConfig));
 	PicoIn.opt = currentConfig.s_PicoOpt;
-	PsndRate = currentConfig.s_PsndRate;
+	PicoIn.sndRate = currentConfig.s_PsndRate;
 	PicoIn.regionOverride = currentConfig.s_PicoRegion;
 	PicoIn.autoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
 }
@@ -958,10 +958,10 @@ void emu_set_fastforward(int set_on)
 	static int set_Frameskip, set_EmuOpt, is_on = 0;
 
 	if (set_on && !is_on) {
-		set_PsndOut = PsndOut;
+		set_PsndOut = PicoIn.sndOut;
 		set_Frameskip = currentConfig.Frameskip;
 		set_EmuOpt = currentConfig.EmuOpt;
-		PsndOut = NULL;
+		PicoIn.sndOut = NULL;
 		currentConfig.Frameskip = 8;
 		currentConfig.EmuOpt &= ~4;
 		currentConfig.EmuOpt |= 0x40000;
@@ -969,7 +969,7 @@ void emu_set_fastforward(int set_on)
 		emu_status_msg("FAST FORWARD");
 	}
 	else if (!set_on && is_on) {
-		PsndOut = set_PsndOut;
+		PicoIn.sndOut = set_PsndOut;
 		currentConfig.Frameskip = set_Frameskip;
 		currentConfig.EmuOpt = set_EmuOpt;
 		PsndRerate(1);
@@ -1253,9 +1253,9 @@ void emu_init(void)
 	config_readlrom(path);
 
 	PicoInit();
-	PicoMessage = plat_status_msg_busy_next;
-	PicoMCDopenTray = emu_tray_open;
-	PicoMCDcloseTray = emu_tray_close;
+	PicoIn.osdMessage = plat_status_msg_busy_next;
+	PicoIn.mcdTrayOpen = emu_tray_open;
+	PicoIn.mcdTrayClose = emu_tray_close;
 
 	sndout_init();
 }
@@ -1285,12 +1285,12 @@ void emu_finish(void)
 
 static void snd_write_nonblocking(int len)
 {
-	sndout_write_nb(PsndOut, len);
+	sndout_write_nb(PicoIn.sndOut, len);
 }
 
 void emu_sound_start(void)
 {
-	PsndOut = NULL;
+	PicoIn.sndOut = NULL;
 
 	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
 	{
@@ -1299,12 +1299,12 @@ void emu_sound_start(void)
 		PsndRerate(Pico.m.frame_count ? 1 : 0);
 
 		printf("starting audio: %i len: %i stereo: %i, pal: %i\n",
-			PsndRate, PsndLen, is_stereo, Pico.m.pal);
-		sndout_start(PsndRate, is_stereo);
-		PicoWriteSound = snd_write_nonblocking;
+			PicoIn.sndRate, Pico.snd.len, is_stereo, Pico.m.pal);
+		sndout_start(PicoIn.sndRate, is_stereo);
+		PicoIn.writeSound = snd_write_nonblocking;
 		plat_update_volume(0, 0);
 		memset(sndBuffer, 0, sizeof(sndBuffer));
-		PsndOut = sndBuffer;
+		PicoIn.sndOut = sndBuffer;
 	}
 }
 
