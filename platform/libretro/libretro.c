@@ -451,7 +451,8 @@ int plat_mem_set_exec(void *ptr, size_t size)
 {
    int ret = -1;
 #ifdef _WIN32
-   ret = VirtualProtect(ptr, size, PAGE_EXECUTE_READWRITE, 0);
+   DWORD oldProtect = 0;
+   ret = VirtualProtect(ptr, size, PAGE_EXECUTE_READWRITE, &oldProtect);
    if (ret == 0 && log_cb)
       log_cb(RETRO_LOG_ERROR, "VirtualProtect(%p, %d) failed: %d\n", ptr, (int)size,
              GetLastError());
