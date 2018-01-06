@@ -432,6 +432,7 @@ else ifeq ($(platform), gcw0)
 
 # Windows
 else
+	use_sh2drc = 0
 	TARGET := $(TARGET_NAME)_libretro.dll
 	CC = gcc
 	fpic := -fPIC
