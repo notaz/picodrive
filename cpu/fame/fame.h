@@ -9,6 +9,12 @@
 #ifndef __FAME_H__
 #define __FAME_H__
 
+// uintptr_t
+#include <stdlib.h>
+#ifndef _MSC_VER
+#include <stdint.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -127,7 +133,7 @@ typedef struct
 	signed int     cycles_needed;
 
 	unsigned short *PC;
-	unsigned long  BasePC;
+	uintptr_t      BasePC;
 	unsigned int   flag_C;
 	unsigned int   flag_V;
 	unsigned int   flag_NotZ;
@@ -140,7 +146,7 @@ typedef struct
 	unsigned char  not_polling;
 	unsigned char  pad[3];
 
-	unsigned long  Fetch[M68K_FETCHBANK1];
+	uintptr_t      Fetch[M68K_FETCHBANK1];
 } M68K_CONTEXT;
 
 typedef enum

@@ -1168,29 +1168,29 @@ PICO_INTERNAL void PicoMemSetupCD(void)
 #ifdef __clang__
     volatile // prevent strange relocs from clang
 #endif
-    unsigned long ptr_ram = (unsigned long)PicoMem.ram;
+    unsigned long ptr_ram = (uptr)PicoMem.ram;
     int i;
 
     // M68k
     // by default, point everything to fitst 64k of ROM (BIOS)
     for (i = 0; i < M68K_FETCHBANK1; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
+      PicoCpuFM68k.Fetch[i] = (uptr)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
     // now real ROM (BIOS)
     for (i = 0; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < Pico.romsize; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.rom;
+      PicoCpuFM68k.Fetch[i] = (uptr)Pico.rom;
     // .. and RAM
     for (i = M68K_FETCHBANK1*14/16; i < M68K_FETCHBANK1; i++)
       PicoCpuFM68k.Fetch[i] = ptr_ram - (i<<(24-FAMEC_FETCHBITS));
     // S68k
     // PRG RAM is default
     for (i = 0; i < M68K_FETCHBANK1; i++)
-      PicoCpuFS68k.Fetch[i] = (unsigned long)Pico_mcd->prg_ram - (i<<(24-FAMEC_FETCHBITS));
+      PicoCpuFS68k.Fetch[i] = (uptr)Pico_mcd->prg_ram - (i<<(24-FAMEC_FETCHBITS));
     // real PRG RAM
     for (i = 0; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < 0x80000; i++)
-      PicoCpuFS68k.Fetch[i] = (unsigned long)Pico_mcd->prg_ram;
+      PicoCpuFS68k.Fetch[i] = (uptr)Pico_mcd->prg_ram;
     // WORD RAM 2M area
     for (i = M68K_FETCHBANK1*0x08/0x100; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < 0xc0000; i++)
-      PicoCpuFS68k.Fetch[i] = (unsigned long)Pico_mcd->word_ram2M - 0x80000;
+      PicoCpuFS68k.Fetch[i] = (uptr)Pico_mcd->word_ram2M - 0x80000;
     // remap_word_ram() will setup word ram for both
   }
 #endif

@@ -832,10 +832,10 @@ PICO_INTERNAL void PicoMemSetup(void)
     int i;
     // by default, point everything to first 64k of ROM
     for (i = 0; i < M68K_FETCHBANK1 * 0xe0 / 0x100; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
+      PicoCpuFM68k.Fetch[i] = (uptr)Pico.rom - (i<<(24-FAMEC_FETCHBITS));
     // now real ROM
     for (i = 0; i < M68K_FETCHBANK1 && (i<<(24-FAMEC_FETCHBITS)) < Pico.romsize; i++)
-      PicoCpuFM68k.Fetch[i] = (unsigned long)Pico.rom;
+      PicoCpuFM68k.Fetch[i] = (uptr)Pico.rom;
     // RAM already set
   }
 #endif

@@ -11,7 +11,6 @@
 #define PICO_INTERNAL_INCLUDED
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "pico_port.h"
 #include "pico.h"

@@ -1786,9 +1786,9 @@ void PicoMemSetup32x(void)
     cpu68k_map_set(m68k_write16_map, 0x880000, 0x880000 + rs - 1, PicoWrite16_cart, 1);
 #ifdef EMU_F68K
     // setup FAME fetchmap
-    PicoCpuFM68k.Fetch[0] = (unsigned long)Pico32xMem->m68k_rom;
+    PicoCpuFM68k.Fetch[0] = (uptr)Pico32xMem->m68k_rom;
     for (rs = 0x88; rs < 0x90; rs++)
-      PicoCpuFM68k.Fetch[rs] = (unsigned long)Pico.rom - 0x880000;
+      PicoCpuFM68k.Fetch[rs] = (uptr)Pico.rom - 0x880000;
 #endif
 
     // 32X ROM (banked)
