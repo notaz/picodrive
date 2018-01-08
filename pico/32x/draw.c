@@ -58,7 +58,7 @@ static void convert_pal555(int invert_prio)
   unsigned short t;                                               \
   int i;                                                          \
   for (i = 320; i > 0; i--, pd++, p32x++, pmd++) {                \
-    t = pal[*(unsigned char *)((long)p32x ^ 1)];                  \
+    t = pal[*(unsigned char *)((uintptr_t)p32x ^ 1)];             \
     if ((t & 0x20) || (*pmd & 0x3f) == mdbg)                      \
       *pd = t;                                                    \
     else                                                          \

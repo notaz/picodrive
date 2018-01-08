@@ -436,6 +436,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_tst_r_r(d, s) \
 	EOP_TST_REG(A_COND_AL,d,s,A_AM1_LSL,0)
 
+#define emith_tst_r_r_ptr(d, s) \
+	emith_tst_r_r(d, s)
+
 #define emith_teq_r_r(d, s) \
 	EOP_TEQ_REG(A_COND_AL,d,s,A_AM1_LSL,0)
 

@@ -107,7 +107,7 @@ static void make_bg(int no_scale)
 		(g_menuscreen_w / 2 - w / 2);
 
 	// darken the active framebuffer
-	for (; h > 0; dst += g_menuscreen_w, src += g_screen_width, h--)
+	for (; h > 0; dst += g_menuscreen_w, src += g_screen_ppitch, h--)
 		menu_darken_bg(dst, src, w, 1);
 }
 
@@ -167,8 +167,8 @@ static void load_progress_cb(int percent)
 		len = g_menuscreen_w;
 
 	menu_draw_begin(0, 1);
-	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_w * me_sfont_h * 2;
-	for (ln = me_sfont_h - 2; ln > 0; ln--, dst += g_menuscreen_w)
+	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_pp * me_sfont_h * 2;
+	for (ln = me_sfont_h - 2; ln > 0; ln--, dst += g_menuscreen_pp)
 		memset(dst, 0xff, len * 2);
 	menu_draw_end();
 }
@@ -179,17 +179,18 @@ static void cdload_progress_cb(const char *fname, int percent)
 	unsigned short *dst;
 
 	menu_draw_begin(0, 1);
-	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_w * me_sfont_h * 2;
-	memset(dst, 0xff, g_menuscreen_w * (me_sfont_h - 2) * 2);
+	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_pp * me_sfont_h * 2;
+
+	menuscreen_memset_lines(dst, 0xff, me_sfont_h - 2);
 
 	smalltext_out16(1, 3 * me_sfont_h, "Processing CD image / MP3s", 0xffff);
 	smalltext_out16(1, 4 * me_sfont_h, fname, 0xffff);
-	dst += g_menuscreen_w * me_sfont_h * 3;
+	dst += g_menuscreen_pp * me_sfont_h * 3;
 
 	if (len > g_menuscreen_w)
 		len = g_menuscreen_w;
 
-	for (ln = (me_sfont_h - 2); ln > 0; ln--, dst += g_menuscreen_w)
+	for (ln = (me_sfont_h - 2); ln > 0; ln--, dst += g_menuscreen_pp)
 		memset(dst, 0xff, len * 2);
 	menu_draw_end();
 
@@ -848,13 +849,15 @@ static void debug_menu_loop(void)
 				break;
 			case 2: pemu_forced_frame(1, 0);
 				make_bg(1);
-				PDebugShowSpriteStats((unsigned short *)g_menuscreen_ptr + (g_menuscreen_h/2 - 240/2)*g_menuscreen_w +
-					g_menuscreen_w/2 - 320/2, g_menuscreen_w);
+				PDebugShowSpriteStats((unsigned short *)g_menuscreen_ptr
+					+ (g_menuscreen_h/2 - 240/2) * g_menuscreen_pp
+					+ g_menuscreen_w/2 - 320/2, g_menuscreen_pp);
 				break;
-			case 3: memset(g_menuscreen_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
-				PDebugShowPalette(g_menuscreen_ptr, g_menuscreen_w);
-				PDebugShowSprite((unsigned short *)g_menuscreen_ptr + g_menuscreen_w*120 + g_menuscreen_w/2 + 16,
-					g_menuscreen_w, spr_offs);
+			case 3: menuscreen_memset_lines(g_menuscreen_ptr, 0, g_menuscreen_h);
+				PDebugShowPalette(g_menuscreen_ptr, g_menuscreen_pp);
+				PDebugShowSprite((unsigned short *)g_menuscreen_ptr
+					+ g_menuscreen_pp * 120 + g_menuscreen_w / 2 + 16,
+					g_menuscreen_pp, spr_offs);
 				draw_text_debug(PDebugSpriteList(), spr_offs, 6);
 				break;
 			case 4: tmp = PDebug32x();
@@ -974,23 +977,23 @@ static void menu_main_draw_status(void)
 		return;
 
 	/* battery info */
-	bp += (me_mfont_h * 2 + 2) * g_screen_width + g_screen_width - me_mfont_w * 3 - 3;
+	bp += (me_mfont_h * 2 + 2) * g_screen_ppitch + g_screen_width - me_mfont_w * 3 - 3;
 	for (i = 0; i < me_mfont_w * 2; i++)
 		bp[i] = menu_text_color;
 	for (i = 0; i < me_mfont_w * 2; i++)
-		bp[i + g_screen_width * bat_h] = menu_text_color;
+		bp[i + g_screen_ppitch * bat_h] = menu_text_color;
 	for (i = 0; i <= bat_h; i++)
-		bp[i * g_screen_width] =
-		bp[i * g_screen_width + me_mfont_w * 2] = menu_text_color;
+		bp[i * g_screen_ppitch] =
+		bp[i * g_screen_ppitch + me_mfont_w * 2] = menu_text_color;
 	for (i = 2; i < bat_h - 1; i++)
-		bp[i * g_screen_width - 1] =
-		bp[i * g_screen_width - 2] = menu_text_color;
+		bp[i * g_screen_ppitch - 1] =
+		bp[i * g_screen_ppitch - 2] = menu_text_color;
 
 	w = me_mfont_w * 2 - 1;
 	wfill = batt_val * w / 100;
 	for (u = 1; u < bat_h; u++)
 		for (i = 0; i < wfill; i++)
-			bp[(w - i) + g_screen_width * u] = menu_text_color;
+			bp[(w - i) + g_screen_ppitch * u] = menu_text_color;
 }
 
 static int main_menu_handler(int id, int keys)

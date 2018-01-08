@@ -313,9 +313,9 @@ static const int reg_map_g2h[] = {
   xSI,-1, -1, -1,
   -1, -1, -1, -1,
   -1, -1, -1, -1,
-  -1, -1, -1, -1,
-  -1, -1, -1, xDI,
-  -1, -1, -1, -1,
+  -1, -1, -1, -1,  // r12 .. sp
+  -1, -1, -1, xDI, // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
+  -1, -1, -1, -1,  // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
 };
 
 // ax, cx, dx are usually temporaries by convention
@@ -330,12 +330,21 @@ static temp_reg_t reg_temp[] = {
 #include "../drc/emit_x86.c"
 
 static const int reg_map_g2h[] = {
+#ifndef _WIN32
   -1, -1, -1, -1,
   -1, -1, -1, -1,
   -1, -1, -1, -1,
+  -1, -1, -1, -1,  // r12 .. sp
+  -1, -1, -1, xBX, // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
+  -1, -1, -1, -1,  // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
+#else
+  xDI,-1, -1, -1,
   -1, -1, -1, -1,
-  -1, -1, -1, xBX,
   -1, -1, -1, -1,
+  -1, -1, -1, -1,  // r12 .. sp
+  -1, -1, -1, xBX, // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
+  -1, -1, -1, -1,  // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
+#endif
 };
 
 // ax, cx, dx are usually temporaries by convention
@@ -344,7 +353,9 @@ static temp_reg_t reg_temp[] = {
   { xCX, },
   { xDX, },
   { xSI, },
+#ifndef _WIN32
   { xDI, },
+#endif
 };
 
 #else
@@ -1400,7 +1411,7 @@ static void emit_block_entry(void)
   emith_call(sh2_drc_log_entry);
   rcache_invalidate();
 #endif
-  emith_tst_r_r(RET_REG, RET_REG);
+  emith_tst_r_r_ptr(RET_REG, RET_REG);
   EMITH_SJMP_START(DCOND_EQ);
   emith_jump_reg_c(DCOND_NE, RET_REG);
   EMITH_SJMP_END(DCOND_EQ);

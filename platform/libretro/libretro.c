@@ -79,11 +79,7 @@ static void *vout_buf;
 static int vout_width, vout_height, vout_offset;
 static float user_vout_width = 0.0;
 
-#ifdef _MSC_VER
-static short sndBuffer[2*44100/50];
-#else
-static short __attribute__((aligned(4))) sndBuffer[2*44100/50];
-#endif
+static short ALIGNED(4) sndBuffer[2*44100/50];
 
 static void snd_write(int len);
 
@@ -375,7 +371,7 @@ void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
    int flags = MAP_PRIVATE | MAP_ANONYMOUS;
    void *req, *ret;
 
-   req = (void *)addr;
+   req = (void *)(uintptr_t)addr;
    ret = mmap(req, size, PROT_READ | PROT_WRITE, flags, -1, 0);
    if (ret == MAP_FAILED) {
       if (log_cb)
@@ -383,7 +379,7 @@ void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
       return NULL;
    }
 
-   if (addr != 0 && ret != (void *)addr) {
+   if (addr != 0 && ret != (void *)(uintptr_t)addr) {
       if (log_cb)
          log_cb(RETRO_LOG_WARN, "warning: wanted to map @%08lx, got %p\n",
                addr, ret);

@@ -16,6 +16,7 @@ extern void *g_screen_ptr;
 
 extern int g_screen_width;
 extern int g_screen_height;
+extern int g_screen_ppitch; // pitch in pixels
 
 #define EOPT_EN_SRAM      (1<<0)
 #define EOPT_SHOW_FPS     (1<<1)

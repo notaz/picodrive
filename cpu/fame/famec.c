@@ -94,7 +94,7 @@
 #define s16	signed short
 #define u32	unsigned int
 #define s32	signed int
-#define uptr	unsigned long
+#define uptr	uintptr_t
 
 /*
 typedef unsigned char	u8;

@@ -265,7 +265,7 @@ PICO_INTERNAL void PsndClear(void)
     memset32((int *) PicoIn.sndOut, 0, len); // assume PicoIn.sndOut to be aligned
   else {
     short *out = PicoIn.sndOut;
-    if ((long)out & 2) { *out++ = 0; len--; }
+    if ((uintptr_t)out & 2) { *out++ = 0; len--; }
     memset32((int *) out, 0, len/2);
     if (len & 1) out[len-1] = 0;
   }
