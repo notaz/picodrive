@@ -404,7 +404,6 @@ else ifneq (,$(findstring armv,$(platform)))
 # Emscripten
 else ifeq ($(platform), emscripten) 
 	TARGET := $(TARGET_NAME)_libretro_$(platform).bc
-	STATIC_LINKING = 1
 	DONT_COMPILE_IN_ZLIB = 1
 
 # GCW0
