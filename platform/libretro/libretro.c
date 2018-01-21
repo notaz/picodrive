@@ -395,7 +395,7 @@ void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
 
 void *plat_mremap(void *ptr, size_t oldsize, size_t newsize)
 {
-#ifdef __linux__
+#if defined(__linux__) && !defined(__SWITCH__)
    void *ret = mremap(ptr, oldsize, newsize, 0);
    if (ret == MAP_FAILED)
       return NULL;
