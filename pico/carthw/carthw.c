@@ -21,63 +21,76 @@ static int have_bank(u32 base)
   return 1;
 }
 
-/* The SSFII mapper */
-static unsigned char ssf2_banks[8];
+/* standard/ssf2 mapper */
+int carthw_ssf2_active;
+unsigned char carthw_ssf2_banks[8];
 
 static carthw_state_chunk carthw_ssf2_state[] =
 {
-	{ CHUNK_CARTHW, sizeof(ssf2_banks), &ssf2_banks },
-	{ 0,            0,                  NULL }
+  { CHUNK_CARTHW, sizeof(carthw_ssf2_banks), &carthw_ssf2_banks },
+  { 0,            0,                         NULL }
 };
 
 static void carthw_ssf2_write8(u32 a, u32 d)
 {
-	u32 target, base;
+  u32 target, base;
 
-	if ((a & 0xfffff0) != 0xa130f0) {
-		PicoWrite8_io(a, d);
-		return;
-	}
+  if ((a & 0xfffff0) != 0xa130f0) {
+    PicoWrite8_io(a, d);
+    return;
+  }
 
-	a &= 0x0e;
-	if (a == 0)
-		return;
+  a &= 0x0e;
+  if (a == 0)
+    return;
+  if (carthw_ssf2_banks[a >> 1] == d)
+    return;
 
-	ssf2_banks[a >> 1] = d;
-	base = d << 19;
-	target = a << 18;
-	if (!have_bank(base))
-		return;
+  base = d << 19;
+  target = a << 18;
+  if (!have_bank(base))
+    return;
+  carthw_ssf2_banks[a >> 1] = d;
 
-	cpu68k_map_set(m68k_read8_map,  target, target + 0x80000 - 1, Pico.rom + base, 0);
-	cpu68k_map_set(m68k_read16_map, target, target + 0x80000 - 1, Pico.rom + base, 0);
+  cpu68k_map_set(m68k_read8_map,  target, target + 0x80000 - 1, Pico.rom + base, 0);
+  cpu68k_map_set(m68k_read16_map, target, target + 0x80000 - 1, Pico.rom + base, 0);
+  if (PicoIn.AHW & PAHW_32X)
+    p32x_update_banks();
 }
 
 static void carthw_ssf2_mem_setup(void)
 {
-	cpu68k_map_set(m68k_write8_map, 0xa10000, 0xa1ffff, carthw_ssf2_write8, 1);
+  cpu68k_map_set(m68k_write8_map, 0xa10000, 0xa1ffff, carthw_ssf2_write8, 1);
 }
 
 static void carthw_ssf2_statef(void)
 {
-	int i;
-	for (i = 1; i < 8; i++)
-		carthw_ssf2_write8(0xa130f0 | (i << 1), ssf2_banks[i]);
+  int i;
+  for (i = 1; i < 8; i++)
+    carthw_ssf2_write8(0xa130f0 | (i << 1), carthw_ssf2_banks[i]);
+}
+
+static void carthw_ssf2_unload(void)
+{
+  memset(carthw_ssf2_banks, 0, sizeof(carthw_ssf2_banks));
+  carthw_ssf2_active = 0;
 }
 
 void carthw_ssf2_startup(void)
 {
-	int i;
+  int i;
 
-	elprintf(EL_STATUS, "SSF2 mapper startup");
+  elprintf(EL_STATUS, "SSF2 mapper startup");
 
-	// default map
-	for (i = 0; i < 8; i++)
-		ssf2_banks[i] = i;
+  // default map
+  for (i = 0; i < 8; i++)
+    carthw_ssf2_banks[i] = i;
 
-	PicoCartMemSetup  = carthw_ssf2_mem_setup;
-	PicoLoadStateHook = carthw_ssf2_statef;
-	carthw_chunks     = carthw_ssf2_state;
+  PicoCartMemSetup   = carthw_ssf2_mem_setup;
+  PicoLoadStateHook  = carthw_ssf2_statef;
+  PicoCartUnloadHook = carthw_ssf2_unload;
+  carthw_chunks      = carthw_ssf2_state;
+  carthw_ssf2_active = 1;
 }
 
 

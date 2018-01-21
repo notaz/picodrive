@@ -778,7 +778,8 @@ static int is_expr(const char *expr, char **pr)
 
 #include "carthw_cfg.c"
 
-static void parse_carthw(const char *carthw_cfg, int *fill_sram)
+static void parse_carthw(const char *carthw_cfg, int *fill_sram,
+  int *hw_detected)
 {
   int line = 0, any_checks_passed = 0, skip_sect = 0;
   const char *s, *builtin = builtin_carthw_cfg;
@@ -902,6 +903,7 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
     if (is_expr("hw", &p)) {
       if (!any_checks_passed)
         goto no_checks;
+      *hw_detected = 1;
       rstrip(p);
 
       if      (strcmp(p, "svp") == 0)
@@ -925,6 +927,7 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram)
       else {
         elprintf(EL_STATUS, "carthw:%d: unsupported mapper: %s", line, p);
         skip_sect = 1;
+        *hw_detected = 0;
       }
       continue;
     }
@@ -1038,6 +1041,7 @@ no_checks:
  */
 static void PicoCartDetect(const char *carthw_cfg)
 {
+  int carthw_detected = 0;
   int fill_sram = 0;
 
   memset(&Pico.sv, 0, sizeof(Pico.sv));
@@ -1067,7 +1071,11 @@ static void PicoCartDetect(const char *carthw_cfg)
   Pico.sv.eeprom_bit_out= 0;
 
   if (carthw_cfg != NULL)
-    parse_carthw(carthw_cfg, &fill_sram);
+    parse_carthw(carthw_cfg, &fill_sram, &carthw_detected);
+
+  // assume the standard mapper for large roms
+  if (!carthw_detected && Pico.romsize > 0x400000)
+    carthw_ssf2_startup();
 
   if (Pico.sv.flags & SRF_ENABLED)
   {

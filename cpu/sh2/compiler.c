@@ -2912,8 +2912,10 @@ end_op:
     tcache_id, blkid_main,
     tcache_ptr - tcache_bases[tcache_id], tcache_sizes[tcache_id],
     insns_compiled, host_insn_count, (float)host_insn_count / insns_compiled);
-  if ((sh2->pc & 0xc6000000) == 0x02000000) // ROM
+  if ((sh2->pc & 0xc6000000) == 0x02000000) { // ROM
     dbg(2, "  hash collisions %d/%d", hash_collisions, block_counts[tcache_id]);
+    Pico32x.emu_flags |= P32XF_DRC_ROM_C;
+  }
 /*
  printf("~~~\n");
  tcache_dsm_ptrs[tcache_id] = block_entry_ptr;
@@ -3292,6 +3294,7 @@ void sh2_drc_flush_all(void)
   flush_tcache(0);
   flush_tcache(1);
   flush_tcache(2);
+  Pico32x.emu_flags &= ~P32XF_DRC_ROM_C;
 }
 
 void sh2_drc_mem_setup(SH2 *sh2)

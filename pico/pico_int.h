@@ -546,6 +546,7 @@ typedef struct
 #define P32XF_68KCPOLL   (1 << 0)
 #define P32XF_68KVPOLL   (1 << 1)
 #define P32XF_Z80_32X_IO (1 << 7) // z80 does 32x io
+#define P32XF_DRC_ROM_C  (1 << 8) // cached code from ROM
 
 #define P32XI_VRES (1 << 14/2) // IRL/2
 #define P32XI_VINT (1 << 12/2)
@@ -914,6 +915,7 @@ void PicoWrite16_32x(unsigned int a, unsigned int d);
 void PicoMemSetup32x(void);
 void Pico32xSwapDRAM(int b);
 void Pico32xMemStateLoaded(void);
+void p32x_update_banks(void);
 void p32x_m68k_poll_event(unsigned int flags);
 void p32x_sh2_poll_event(SH2 *sh2, unsigned int flags, unsigned int m68k_cycles);
 
