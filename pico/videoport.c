@@ -307,7 +307,7 @@ static NOINLINE void CommandDma(void)
   if ((pvid->reg[1]&0x10)==0) return; // DMA not enabled
 
   if (Pico.m.dma_xfers)
-    elprintf(EL_VDPDMA|EL_ANOMALY, "Dma overlap, left=%d @ %06x",
+    elprintf(EL_VDPDMA, "Dma overlap, left=%d @ %06x",
              Pico.m.dma_xfers, SekPc);
 
   len = GetDmaLength();
