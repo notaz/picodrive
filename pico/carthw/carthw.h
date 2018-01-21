@@ -14,8 +14,12 @@ void PicoSVPInit(void);
 void PicoSVPStartup(void);
 void PicoSVPMemSetup(void);
 
-/* misc */
+/* standard/ssf2 mapper */
+extern int carthw_ssf2_active;
+extern unsigned char carthw_ssf2_banks[8];
 void carthw_ssf2_startup(void);
+
+/* misc */
 void carthw_Xin1_startup(void);
 void carthw_realtec_startup(void);
 void carthw_radica_startup(void);
