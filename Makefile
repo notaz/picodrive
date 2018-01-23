@@ -179,9 +179,10 @@ OBJS += $(OBJS_COMMON)
 CFLAGS += $(addprefix -D,$(DEFINES))
 
 ifneq ($(findstring gcc,$(CC)),)
+ifneq ($(findstring SunOS,$(shell uname -a)),SunOS)
 LDFLAGS += -Wl,-Map=$(TARGET).map
 endif
-
+endif
 
 target_: $(TARGET)
 

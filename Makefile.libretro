@@ -53,6 +53,9 @@ ifeq ($(platform), unix)
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
 	use_sh2drc = 1
+ifneq ($(findstring SunOS,$(shell uname -a)),)
+	CC=gcc
+endif
 
 # Portable Linux
 else ifeq ($(platform), linux-portable)
