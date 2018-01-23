@@ -49,6 +49,9 @@ struct Pico32xMem *Pico32xMem;
 
 static void bank_switch_rom_68k(int b);
 
+static void (*m68k_write8_io)(u32 a, u32 d);
+static void (*m68k_write16_io)(u32 a, u32 d);
+
 // addressing byte in 16bit reg
 #define REG8IN16(ptr, offs) ((u8 *)ptr)[(offs) ^ 1]
 
@@ -857,12 +860,7 @@ static void PicoWrite8_32x_on(u32 a, u32 d)
   }
 
   if ((a & 0xfc00) != 0x5000) {
-    if (PicoIn.AHW & PAHW_MCD)
-      PicoWrite8_mcd_io(a, d);
-    else
-      PicoWrite8_io(a, d);
-    if (a == 0xa130f1)
-      bank_switch_rom_68k(Pico32x.regs[4 / 2]);
+    m68k_write8_io(a, d);
     return;
   }
 
@@ -884,6 +882,27 @@ static void PicoWrite8_32x_on(u32 a, u32 d)
   elprintf(EL_UIO, "m68k unmapped w8  [%06x]   %02x @%06x", a, d & 0xff, SekPc);
 }
 
+static void PicoWrite8_32x_on_io(u32 a, u32 d)
+{
+  PicoWrite8_io(a, d);
+  if (a == 0xa130f1)
+    bank_switch_rom_68k(Pico32x.regs[4 / 2]);
+}
+
+static void PicoWrite8_32x_on_io_cd(u32 a, u32 d)
+{
+  PicoWrite8_mcd_io(a, d);
+  if (a == 0xa130f1)
+    bank_switch_rom_68k(Pico32x.regs[4 / 2]);
+}
+
+static void PicoWrite8_32x_on_io_ssf2(u32 a, u32 d)
+{
+  carthw_ssf2_write8(a, d);
+  if ((a & ~0x0e) == 0xa130f1)
+    bank_switch_rom_68k(Pico32x.regs[4 / 2]);
+}
+
 static void PicoWrite16_32x_on(u32 a, u32 d)
 {
   if ((a & 0xfc00) == 0x5000)
@@ -895,12 +914,7 @@ static void PicoWrite16_32x_on(u32 a, u32 d)
   }
 
   if ((a & 0xfc00) != 0x5000) {
-    if (PicoIn.AHW & PAHW_MCD)
-      PicoWrite16_mcd_io(a, d);
-    else
-      PicoWrite16_io(a, d);
-    if (a == 0xa130f0)
-      bank_switch_rom_68k(Pico32x.regs[4 / 2]);
+    m68k_write16_io(a, d);
     return;
   }
 
@@ -918,6 +932,29 @@ static void PicoWrite16_32x_on(u32 a, u32 d)
   }
 
   elprintf(EL_UIO, "m68k unmapped w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
+}
+
+static void PicoWrite16_32x_on_io(u32 a, u32 d)
+{
+  PicoWrite16_io(a, d);
+  if (a == 0xa130f0)
+    bank_switch_rom_68k(Pico32x.regs[4 / 2]);
+}
+
+static void PicoWrite16_32x_on_io_cd(u32 a, u32 d)
+{
+  PicoWrite16_mcd_io(a, d);
+  if (a == 0xa130f0)
+    bank_switch_rom_68k(Pico32x.regs[4 / 2]);
+}
+
+static void PicoWrite16_32x_on_io_ssf2(u32 a, u32 d)
+{
+  PicoWrite16_io(a, d);
+  if ((a & ~0x0f) == 0xa130f0) {
+    carthw_ssf2_write8(a + 1, d);
+    bank_switch_rom_68k(Pico32x.regs[4 / 2]);
+  }
 }
 
 // before ADEN
@@ -1832,6 +1869,20 @@ void PicoMemSetup32x(void)
   cpu68k_map_set(m68k_read16_map,  0xa10000, 0xa1ffff, PicoRead16_32x_on, 1);
   cpu68k_map_set(m68k_write8_map,  0xa10000, 0xa1ffff, PicoWrite8_32x_on, 1);
   cpu68k_map_set(m68k_write16_map, 0xa10000, 0xa1ffff, PicoWrite16_32x_on, 1);
+
+  // TODO: cd + carthw
+  if (PicoIn.AHW & PAHW_MCD) {
+    m68k_write8_io  = PicoWrite8_32x_on_io_cd;
+    m68k_write16_io = PicoWrite16_32x_on_io_cd;
+  }
+  else if (carthw_ssf2_active) {
+    m68k_write8_io  = PicoWrite8_32x_on_io_ssf2;
+    m68k_write16_io = PicoWrite16_32x_on_io_ssf2;
+  }
+  else {
+    m68k_write8_io  = PicoWrite8_32x_on_io;
+    m68k_write16_io = PicoWrite16_32x_on_io;
+  }
 
   // SH2 maps: A31,A30,A29,CS1,CS0
   // all unmapped by default

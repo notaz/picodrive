@@ -31,11 +31,11 @@ static carthw_state_chunk carthw_ssf2_state[] =
   { 0,            0,                         NULL }
 };
 
-static void carthw_ssf2_write8(u32 a, u32 d)
+void carthw_ssf2_write8(u32 a, u32 d)
 {
   u32 target, base;
 
-  if ((a & 0xfffff0) != 0xa130f0) {
+  if ((a & ~0x0e) != 0xa130f1) {
     PicoWrite8_io(a, d);
     return;
   }
@@ -54,13 +54,19 @@ static void carthw_ssf2_write8(u32 a, u32 d)
 
   cpu68k_map_set(m68k_read8_map,  target, target + 0x80000 - 1, Pico.rom + base, 0);
   cpu68k_map_set(m68k_read16_map, target, target + 0x80000 - 1, Pico.rom + base, 0);
-  if (PicoIn.AHW & PAHW_32X)
-    p32x_update_banks();
+}
+
+void carthw_ssf2_write16(u32 a, u32 d)
+{
+  PicoWrite16_io(a, d);
+  if ((a & ~0x0f) == 0xa130f0)
+    carthw_ssf2_write8(a + 1, d);
 }
 
 static void carthw_ssf2_mem_setup(void)
 {
-  cpu68k_map_set(m68k_write8_map, 0xa10000, 0xa1ffff, carthw_ssf2_write8, 1);
+  cpu68k_map_set(m68k_write8_map,  0xa10000, 0xa1ffff, carthw_ssf2_write8, 1);
+  cpu68k_map_set(m68k_write16_map, 0xa10000, 0xa1ffff, carthw_ssf2_write16, 1);
 }
 
 static void carthw_ssf2_statef(void)
