@@ -32,6 +32,7 @@ static unsigned char vdp_ctl_read(void)
   struct PicoVideo *pv = &Pico.video;
   unsigned char d;
 
+  z80_int_assert(0);
   d = pv->status | (pv->pending_ints << 7);
   pv->pending = pv->pending_ints = 0;
   pv->status = 0;
@@ -55,14 +56,34 @@ static void vdp_data_write(unsigned char d)
   pv->pending = 0;
 }
 
-static void vdp_ctl_write(unsigned char d)
+static NOINLINE void vdp_reg_write(struct PicoVideo *pv, u8 a, u8 d)
+{
+  int l;
+
+  pv->reg[a] = d;
+  switch (a) {
+  case 0:
+    l = pv->pending_ints & (d >> 3) & 2;
+    elprintf(EL_INTS, "hint %d", l);
+    z80_int_assert(l);
+    break;
+  case 1:
+    l = pv->pending_ints & (d >> 5) & 1;
+    elprintf(EL_INTS, "vint %d", l);
+    z80_int_assert(l);
+    break;
+  }
+}
+
+static void vdp_ctl_write(u8 d)
 {
   struct PicoVideo *pv = &Pico.video;
 
   if (pv->pending) {
     if ((d >> 6) == 2) {
-      pv->reg[d & 0x0f] = pv->addr;
       elprintf(EL_IO, "  VDP r%02x=%02x", d & 0x0f, pv->addr & 0xff);
+      if (pv->reg[d & 0x0f] != (u8)pv->addr)
+        vdp_reg_write(pv, d & 0x0f, pv->addr);
     }
     pv->type = d >> 6;
     pv->addr &= 0x00ff;
@@ -287,7 +308,7 @@ void PicoFrameMS(void)
         pv->pending_ints |= 2;
         if (pv->reg[0] & 0x10) {
           elprintf(EL_INTS, "hint");
-          z80_int();
+          z80_int_assert(1);
         }
       }
     }
@@ -295,7 +316,7 @@ void PicoFrameMS(void)
       pv->pending_ints |= 1;
       if (pv->reg[1] & 0x20) {
         elprintf(EL_INTS, "vint");
-        z80_int();
+        z80_int_assert(1);
       }
     }
 
