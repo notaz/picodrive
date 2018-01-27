@@ -52,6 +52,8 @@ static unsigned int dz80_rebase_pc(unsigned short pc)
   return drZ80.Z80PC_BASE;
 }
 
+static void dz80_noop_irq_ack(void) {}
+
 #ifdef FAST_Z80SP
 static u32 drz80_sp_base;
 
@@ -107,8 +109,11 @@ void z80_reset(void)
   drz80_sp_base = (PicoIn.AHW & PAHW_SMS) ? 0xc000 : 0x0000;
   drZ80.Z80SP_BASE = z80_read_map[drz80_sp_base >> Z80_MEM_SHIFT] << 1;
 #endif
-  if (PicoIn.AHW & PAHW_SMS)
+  drZ80.z80_irq_callback = NULL; // use auto-clear
+  if (PicoIn.AHW & PAHW_SMS) {
     drZ80.Z80SP = drZ80.Z80SP_BASE + 0xdff0; // simulate BIOS
+    drZ80.z80_irq_callback = dz80_noop_irq_ack;
+  }
   // XXX: since we use direct SP pointer, it might make sense to force it to RAM,
   // but we'll rely on built-in stack protection for now
 #endif
