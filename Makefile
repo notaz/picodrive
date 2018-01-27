@@ -237,4 +237,5 @@ cpu/sh2/compiler.o : cpu/drc/emit_x86.c
 cpu/sh2/mame/sh2pico.o : cpu/sh2/mame/sh2.c
 pico/pico.o pico/cd/mcd.o pico/32x/32x.o : pico/pico_cmn.c pico/pico_int.h
 pico/memory.o pico/cd/memory.o pico/32x/memory.o : pico/pico_int.h pico/memory.h
+# pico/cart.o : pico/carthw_cfg.c
 cpu/fame/famec.o: cpu/fame/famec.c cpu/fame/famec_opcodes.h
