@@ -197,7 +197,6 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est);
 // internals
 #define PDRAW_SPRITES_MOVED (1<<0) // (asm)
 #define PDRAW_WND_DIFF_PRIO (1<<1) // not all window tiles use same priority
-#define PDRAW_SPR_LO_ON_HI  (1<<2) // seen sprites without layer pri bit ontop spr. with that bit
 #define PDRAW_INTERLACE     (1<<3)
 #define PDRAW_DIRTY_SPRITES (1<<4) // (asm)
 #define PDRAW_SONIC_MODE    (1<<5) // mid-frame palette changes for 8bit renderer
