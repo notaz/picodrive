@@ -73,6 +73,7 @@ static void make_bg(int no_scale)
 {
 	unsigned short *src = (void *)g_menubg_src_ptr;
 	int w = g_screen_width, h = g_screen_height;
+	int pp = g_screen_ppitch;
 	short *dst;
 	int x, y;
 
@@ -87,7 +88,7 @@ static void make_bg(int no_scale)
 		d += (g_menuscreen_h / 2 - h * 2 / 2)
 			* g_menuscreen_w / 2;
 		d += (g_menuscreen_w / 2 - w * 2 / 2) / 2;
-		for (y = 0; y < h; y++, src += w, d += g_menuscreen_w*2/2) {
+		for (y = 0; y < h; y++, src += pp, d += g_menuscreen_w*2/2) {
 			for (x = 0; x < w; x++) {
 				t = src[x];
 				t = ((t & 0xf79e)>>1) - ((t & 0xc618)>>3);
@@ -107,7 +108,7 @@ static void make_bg(int no_scale)
 		(g_menuscreen_w / 2 - w / 2);
 
 	// darken the active framebuffer
-	for (; h > 0; dst += g_menuscreen_w, src += g_screen_ppitch, h--)
+	for (; h > 0; dst += g_menuscreen_w, src += pp, h--)
 		menu_darken_bg(dst, src, w, 1);
 }
 

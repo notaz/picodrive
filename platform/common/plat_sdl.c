@@ -273,7 +273,7 @@ void plat_init(void)
 		shadow_size = 320 * 480 * 2;
 
 	shadow_fb = malloc(shadow_size);
-	g_menubg_ptr = malloc(shadow_size);
+	g_menubg_ptr = calloc(1, shadow_size);
 	if (shadow_fb == NULL || g_menubg_ptr == NULL) {
 		fprintf(stderr, "OOM\n");
 		exit(1);
