@@ -113,9 +113,7 @@ static int PicoFrameHints(void)
   z80_resetCycles();
   PsndStartFrame();
 
-  // Load H-Int counter
-  hint = (pv->status & PVS_ACTIVE) ? pv->hint_cnt : pv->reg[10];
-
+  hint = pv->hint_cnt;
   pv->status |= PVS_ACTIVE;
 
   for (y = 0; ; y++)
@@ -306,11 +304,14 @@ static int PicoFrameHints(void)
 
   PAD_DELAY();
 
-  if ((pv->status & PVS_ACTIVE) && --hint < 0)
-  {
-    hint = pv->reg[10]; // Reload H-Int counter
-    do_hint(pv);
+  if (unlikely(pv->status & PVS_ACTIVE)) {
+    if (--hint < 0) {
+      hint = pv->reg[10]; // Reload H-Int counter
+      do_hint(pv);
+    }
   }
+  else
+    hint = pv->reg[10];
 
   // Run scanline:
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
