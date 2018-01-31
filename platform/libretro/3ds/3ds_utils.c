@@ -20,48 +20,29 @@ static void ctr_enable_all_svc_kernel(void)
    svc_access_control[3]=0x3FFFFFFF;
 }
 
-
-static void ctr_invalidate_ICache_kernel(void)
-{
-   __asm__ volatile(
-      "cpsid aif\n\t"
-      "mov r0, #0\n\t"
-      "mcr p15, 0, r0, c7, c5, 0\n\t");
-}
-
-static void ctr_flush_DCache_kernel(void)
-{
-   __asm__ volatile(
-      "cpsid aif\n\t"
-      "mov r0, #0\n\t"
-      "mcr p15, 0, r0, c7, c10, 0\n\t");
-
-}
-
-
 static void ctr_enable_all_svc(void)
 {
    svcBackdoor((ctr_callback_type)ctr_enable_all_svc_kernel);
 }
 
-void ctr_invalidate_ICache(void)
+static void ctr_clean_invalidate_kernel(void)
 {
-//   __asm__ volatile("svc 0x2E\n\t");
-   svcBackdoor((ctr_callback_type)ctr_invalidate_ICache_kernel);
-
+   __asm__ volatile(
+      "mrs r1, cpsr\n"
+      "cpsid aif\n"                  // disable interrupts
+      "mov r0, #0\n"
+      "mcr p15, 0, r0, c7, c10, 0\n" // clean dcache
+      "mcr p15, 0, r0, c7, c10, 4\n" // DSB
+      "mcr p15, 0, r0, c7, c5, 0\n"  // invalidate icache+BTAC
+      "msr cpsr_cx, r1\n"            // restore interrupts
+      ::: "r0", "r1");
 }
-
-void ctr_flush_DCache(void)
-{
-//   __asm__ volatile("svc 0x4B\n\t");
-   svcBackdoor((ctr_callback_type)ctr_flush_DCache_kernel);
-}
-
 
 void ctr_flush_invalidate_cache(void)
 {
-   ctr_flush_DCache();
-   ctr_invalidate_ICache();
+//   __asm__ volatile("svc 0x2E\n\t");
+//   __asm__ volatile("svc 0x4B\n\t");
+   svcBackdoor((ctr_callback_type)ctr_clean_invalidate_kernel);
 }
 
 int ctr_svchack_init(void)
