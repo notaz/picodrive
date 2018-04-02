@@ -1,7 +1,8 @@
 TARGET ?= PicoDrive
+DEBUG  = 0
 CFLAGS += -Wall -g
 CFLAGS += -I.
-ifndef DEBUG
+ifeq "$(DEBUG)" "0"
 CFLAGS += -O3 -DNDEBUG
 endif
 
