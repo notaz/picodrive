@@ -52,8 +52,8 @@ SOURCES_C := $(LIBRETRO_DIR)/libretro.c \
 
 COREFLAGS := $(addprefix -D,$(DEFINES)) -fno-strict-aliasing
 
-GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
-ifneq ($(GIT_VERSION)," unknown")
+GIT_VERSION := $(shell git rev-parse --short HEAD || echo unknown)
+ifneq ($(GIT_VERSION),"unknown")
   COREFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 endif
 

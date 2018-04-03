@@ -41,7 +41,7 @@ CFLAGS += -I platform/libretro/libretro-common/include/vfs
 STATIC_LINKING:= 0
 TARGET_NAME := picodrive
 LIBM := -lm
-GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
+GIT_VERSION ?= " $(shell git rev-parse --short HEAD || echo unknown)"
 ifneq ($(GIT_VERSION)," unknown")
 	CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 endif
