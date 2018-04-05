@@ -223,7 +223,7 @@ pico/cd/gfx_cd.o: CFLAGS += -fno-strict-aliasing
 # on x86, this is reduced by ~300MB when debug info is off (but not on ARM)
 # not using O3 and -fno-expensive-optimizations seems to also help, but you may
 # want to remove this stuff for better performance if your compiler can handle it
-ifndef DEBUG
+ifeq "$(DEBUG)" "0"
 cpu/fame/famec.o: CFLAGS += -g0 -O2 -fno-expensive-optimizations
 endif
 
