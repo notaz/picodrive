@@ -63,6 +63,7 @@ LOCAL_CFLAGS     := $(COREFLAGS)
 LOCAL_C_INCLUDES := $(CORE_DIR)
 LOCAL_LDFLAGS    := -Wl,-version-script=$(LIBRETRO_DIR)/link.T
 LOCAL_LDLIBS     := -llog -lz
+LOCAL_ARM_MODE   := arm
 
 ifeq ($(TARGET_ARCH_ABI),armeabi-v7a)
   LOCAL_ARM_NEON := true
