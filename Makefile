@@ -1,14 +1,20 @@
+$(LD) ?= $(CC)
 TARGET ?= PicoDrive
-CFLAGS += -Wall -g
 CFLAGS += -I.
-ifndef DEBUG
-CFLAGS += -O3 -DNDEBUG
+
+ifneq ("$(PLATFORM)", "libretro")
+	CFLAGS += -Wall -g
+	ifndef DEBUG
+	CFLAGS += -O3 -DNDEBUG
+	endif
 endif
 
 # This is actually needed, bevieve me.
 # If you really have to disable this, set NO_ALIGN_FUNCTIONS elsewhere.
 ifndef NO_ALIGN_FUNCTIONS
-CFLAGS += -falign-functions=2
+	ifeq (,$(findstring msvc,$(platform)))
+		CFLAGS += -falign-functions=2
+	endif
 endif
 
 all: config.mak target_
@@ -192,9 +198,9 @@ clean:
 
 $(TARGET): $(OBJS)
 ifeq ($(STATIC_LINKING), 1)
-	$(AR) rcs $@ $^
+	$(AR) rcs $@ $(OBJS)
 else
-	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS)
+	$(LD) $(LINKOUT)$@ $^ $(LDFLAGS) $(LDLIBS)
 endif
 
 pprof: platform/linux/pprof.c
@@ -202,6 +208,9 @@ pprof: platform/linux/pprof.c
 
 tools/textfilter: tools/textfilter.c
 	make -C tools/ textfilter
+
+%.o: %.c
+	$(CC) -c $(OBJOUT)$@ $< $(CFLAGS)
 
 .s.o:
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -224,7 +233,11 @@ pico/cd/gfx_cd.o: CFLAGS += -fno-strict-aliasing
 # not using O3 and -fno-expensive-optimizations seems to also help, but you may
 # want to remove this stuff for better performance if your compiler can handle it
 ifndef DEBUG
+ifeq (,$(findstring msvc,$(platform)))
 cpu/fame/famec.o: CFLAGS += -g0 -O2 -fno-expensive-optimizations
+else
+cpu/fame/famec.o: CFLAGS += -Od
+endif
 endif
 
 pico/carthw_cfg.c: pico/carthw.cfg
