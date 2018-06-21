@@ -470,7 +470,7 @@ else ifneq (,$(findstring windows_msvc2017,$(platform)))
 
 	SHARED :=
 	LIBM :=
-	NO_MMAP = 1
+	USE_LIBRETRO_VFS = 1
 	NO_ALIGN_FUNCTIONS = 1
 	
 	CFLAGS += -DHAVE_VSNPRINTF
@@ -560,6 +560,11 @@ else
 endif
 
 CFLAGS += -DNO_ZLIB -D__LIBRETRO__
+
+ifeq ($(USE_LIBRETRO_VFS),1)
+	NO_MMAP = 1
+	CFLAGS += -DUSE_LIBRETRO_VFS
+endif
 
 ifeq ($(NO_MMAP),1)
 	CFLAGS += -DNO_MMAP
