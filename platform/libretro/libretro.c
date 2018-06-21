@@ -521,6 +521,8 @@ void lprintf(const char *fmt, ...)
 /* libretro */
 void retro_set_environment(retro_environment_t cb)
 {
+   struct retro_vfs_interface_info vfs_iface_info;
+
    static const struct retro_variable vars[] = {
       { "picodrive_input1",      "Input device 1; 3 button pad|6 button pad|None" },
       { "picodrive_input2",      "Input device 2; 3 button pad|6 button pad|None" },
@@ -539,6 +541,13 @@ void retro_set_environment(retro_environment_t cb)
    environ_cb = cb;
 
    cb(RETRO_ENVIRONMENT_SET_VARIABLES, (void *)vars);
+
+   vfs_iface_info.required_interface_version = 1;
+   vfs_iface_info.iface = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VFS_INTERFACE, &vfs_iface_info))
+   {
+      filestream_vfs_init(&vfs_iface_info);
+   }
 }
 
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
