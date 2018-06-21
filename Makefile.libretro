@@ -467,8 +467,9 @@ else ifneq (,$(findstring windows_msvc2017,$(platform)))
 
 	SHARED :=
 	LIBM :=
+	NO_MMAP = 1
 	NO_ALIGN_FUNCTIONS = 1
-
+	
 	CFLAGS += -DHAVE_VSNPRINTF
 	CFLAGS += $(MSVC2017CompileFlags)
 	CXXFLAGS += $(MSVC2017CompileFlags)
