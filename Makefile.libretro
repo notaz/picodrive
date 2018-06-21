@@ -31,7 +31,12 @@ CC_AS ?= $(CC)
 CFLAGS ?=
 
 #libretro includes
-CFLAGS += -I platform/libretro/libretro-common/include -I platform/libretro/libretro-common/include/compat
+CFLAGS += -I platform/libretro/libretro-common/include
+CFLAGS += -I platform/libretro/libretro-common/include/compat
+CFLAGS += -I platform/libretro/libretro-common/include/encodings
+CFLAGS += -I platform/libretro/libretro-common/include/streams
+CFLAGS += -I platform/libretro/libretro-common/include/string
+CFLAGS += -I platform/libretro/libretro-common/include/vfs
 
 STATIC_LINKING:= 0
 TARGET_NAME := picodrive
