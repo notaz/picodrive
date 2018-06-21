@@ -28,6 +28,10 @@
 #include <pico/pico_int.h>
 #include <pico/patch.h>
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
 #ifndef _WIN32
 #define PATH_SEP      "/"
 #define PATH_SEP_C    '/'

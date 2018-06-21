@@ -27,6 +27,10 @@
 #include <libkern/OSCacheControl.h>
 #endif
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
 #ifdef _3DS
 #include "3ds/3ds_utils.h"
 #define MEMOP_MAP     4

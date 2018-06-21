@@ -13,6 +13,10 @@
 #include "../pico_int.h"
 // #define elprintf(w,f,...) printf(f "\n",##__VA_ARGS__);
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
 #ifdef _MSC_VER
 #define snprintf _snprintf
 #endif
