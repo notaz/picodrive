@@ -11,6 +11,10 @@
 #include "cdd.h"
 #include "cue.h"
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
 static int handle_mp3(const char *fname, int index)
 {
   track_t *track = &cdd.toc.tracks[index];

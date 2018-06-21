@@ -12,6 +12,9 @@
 #include "../unzip/unzip.h"
 #include <zlib.h>
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
 
 static int rom_alloc_size;
 static const char *rom_exts[] = { "bin", "gen", "smd", "iso", "sms", "gg", "sg" };

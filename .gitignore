@@ -1,5 +1,13 @@
 *.o
 *.swp
+*.dll
+*.lib
+*.pdb
+*.manifest
+*.dll.map
+*.exp
+*.dylib
+*.so
 tags
 cscope.out
 PicoDrive.map

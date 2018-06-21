@@ -13,6 +13,10 @@
 #include "sound/ym2612.h"
 #include "state.h"
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
 // sn76496
 extern int *sn76496_regs;
 
