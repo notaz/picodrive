@@ -12,9 +12,7 @@ endif
 # This is actually needed, bevieve me.
 # If you really have to disable this, set NO_ALIGN_FUNCTIONS elsewhere.
 ifndef NO_ALIGN_FUNCTIONS
-	ifeq (,$(findstring msvc,$(platform)))
-		CFLAGS += -falign-functions=2
-	endif
+CFLAGS += -falign-functions=2
 endif
 
 all: config.mak target_
