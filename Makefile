@@ -125,12 +125,14 @@ PLATFORM_MP3 = 1
 endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += platform/libretro/libretro.o
+ifeq "$(USE_LIBRETRO_VFS)" "1"
 OBJS += platform/libretro/libretro-common/compat/compat_strl.o
 OBJS += platform/libretro/libretro-common/compat/fopen_utf8.o
 OBJS += platform/libretro/libretro-common/encodings/encoding_utf.o
 OBJS += platform/libretro/libretro-common/streams/file_stream.o
 OBJS += platform/libretro/libretro-common/streams/file_stream_transforms.o
 OBJS += platform/libretro/libretro-common/vfs/vfs_implementation.o
+endif
 endif
 
 ifeq "$(USE_FRONTEND)" "1"
