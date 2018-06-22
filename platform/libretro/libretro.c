@@ -61,7 +61,7 @@ int _newlib_vm_size_user = 1 << TARGET_SIZE_2;
 #include <pico/patch.h>
 #include "../common/input_pico.h"
 #include "../common/version.h"
-#include "libretro.h"
+#include <libretro.h>
 
 static retro_log_printf_t log_cb;
 static retro_video_refresh_t video_cb;
