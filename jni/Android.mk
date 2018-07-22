@@ -3,6 +3,7 @@ LOCAL_PATH := $(call my-dir)
 CORE_DIR     := $(LOCAL_PATH)/..
 COMMON_DIR   := $(CORE_DIR)/platform/common
 LIBRETRO_DIR := $(CORE_DIR)/platform/libretro
+LIBRETRO_COMM_DIR := $(LIBRETRO_DIR)/libretro-common
 UNZIP_DIR    := $(CORE_DIR)/unzip
 R            := $(CORE_DIR)/
 FR           := $(R)
@@ -60,7 +61,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE     := retro
 LOCAL_SRC_FILES  := $(SRCS_COMMON) $(SOURCES_C)
 LOCAL_CFLAGS     := $(COREFLAGS)
-LOCAL_C_INCLUDES := $(CORE_DIR)
+LOCAL_C_INCLUDES := $(CORE_DIR) $(LIBRETRO_COMM_DIR)/include
 LOCAL_LDFLAGS    := -Wl,-version-script=$(LIBRETRO_DIR)/link.T
 LOCAL_LDLIBS     := -llog -lz
 LOCAL_ARM_MODE   := arm
