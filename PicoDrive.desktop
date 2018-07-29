@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Picodrive
+Comment=A megadrive/genesis emulator
+Keywords=game;console;
+Exec=PicoDrive
+Icon=PicoDrive
+Terminal=false
+Type=Application
+Categories=GNOME;GTK;Game;
+StartupNotify=false
+X-Ubuntu-Gettext-Domain=picodrive

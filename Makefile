@@ -86,10 +86,14 @@ OBJS += platform/libpicofe/gl_platform.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "generic"
+CFLAGS += -DHAVE_GLES
+LDFLAGS += -ldl -lpthread -lGL -lGLU -lglut -lEGL -lGLESv2
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
 OBJS += platform/common/plat_sdl.o
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
 OBJS += platform/libpicofe/plat_dummy.o
+OBJS += platform/libpicofe/gl.o
+OBJS += platform/libpicofe/gl_platform.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "pandora"
@@ -239,3 +243,21 @@ pico/pico.o pico/cd/mcd.o pico/32x/32x.o : pico/pico_cmn.c pico/pico_int.h
 pico/memory.o pico/cd/memory.o pico/32x/memory.o : pico/pico_int.h pico/memory.h
 # pico/cart.o : pico/carthw_cfg.c
 cpu/fame/famec.o: cpu/fame/famec.c cpu/fame/famec_opcodes.h
+
+# paths
+prefix := /usr
+name := PicoDrive
+bindir := $(prefix)/share/$(name)
+skin := platform/pandora/skin
+
+install:
+	mkdir -p $(prefix)/bin/
+	mkdir -p $(prefix)/share/applications/
+	mkdir -p $(prefix)/share/icons/hicolor/scalable/apps/
+	mkdir -p $(bindir)/skin/
+	cp $(name) $(bindir)/$(name)
+	cp $(name).desktop $(prefix)/share/applications/$(name).desktop
+	convert platform/opendingux/data/megadrive.png $(prefix)/share/icons/hicolor/scalable/apps/$(name).svg
+	cp pico/carthw.cfg $(bindir)/carthw.cfg
+	cp $(skin)/* $(bindir)/skin/
+	ln -rsf $(bindir)/$(name) $(prefix)/bin/$(name)
