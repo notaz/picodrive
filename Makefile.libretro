@@ -254,6 +254,29 @@ else ifeq ($(platform), psp1)
     use_drz80 = 0
     use_cz80 = 1
 
+# PS2
+else ifeq ($(platform), ps2)
+    TARGET := $(TARGET_NAME)_libretro_$(platform).a
+    CC = ee-gcc$(EXE_EXT)
+    AR = ee-ar$(EXE_EXT)
+    CFLAGS += -G0 -DPS2 -DUTYPES_DEFINED -fsingle-precision-constant
+	CFLAGS += -I$(PS2SDK)/ports/include -I$(PS2DEV)/gsKit/include -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include -Iplatform/ps2
+    STATIC_LINKING = 1
+    NO_MMAP = 1
+    DONT_COMPILE_IN_ZLIB = 1
+
+    asm_memory = 0
+    asm_render = 1
+    asm_ym2612 = 0
+    asm_misc = 0
+    asm_cdpico = 0
+    asm_cdmemory = 0
+    asm_mix = 0
+    use_cyclone = 0
+    use_fame = 1
+    use_drz80 = 0
+    use_cz80 = 1
+
 # CTR (3DS)
 else ifeq ($(platform), ctr)
    TARGET := $(TARGET_NAME)_libretro_$(platform).a
