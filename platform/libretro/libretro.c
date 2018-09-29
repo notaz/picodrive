@@ -15,7 +15,11 @@
 #include <string.h>
 #ifndef _WIN32
 #ifndef NO_MMAP
+#ifdef __SWITCH__
+#include "../switch/mman.h"
+#else
 #include <sys/mman.h>
+#endif
 #endif
 #else
 #include <io.h>
