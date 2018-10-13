@@ -667,7 +667,7 @@ else
 	LD = link.exe
 endif
 else
-	LD = $(CXX)
+	LD = $(CC)
 endif
 
 include Makefile
