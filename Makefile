@@ -203,11 +203,13 @@ clean:
 	$(RM) -r .opk_data
 
 $(TARGET): $(OBJS)
+	@echo "** BUILDING $(TARGET) FOR PLATFORM $(platform) **"
 ifeq ($(STATIC_LINKING), 1)
 	$(AR) rcs $@ $(OBJS)
 else
 	$(LD) $(LINKOUT)$@ $^ $(LDFLAGS) $(LDLIBS)
 endif
+	@echo "** BUILD SUCCESSFUL! GG NO RE **"
 
 pprof: platform/linux/pprof.c
 	$(CC) -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@
