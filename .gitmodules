@@ -3,4 +3,4 @@
 	url = git://notaz.gp2x.de/~notaz/libpicofe.git
 [submodule "cpu/cyclone"]
 	path = cpu/cyclone
-	url = git://notaz.gp2x.de/~notaz/cyclone68000.git
+	url = git://github.com/notaz/cyclone68000.git
