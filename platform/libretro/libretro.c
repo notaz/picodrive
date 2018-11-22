@@ -541,6 +541,8 @@ void retro_set_environment(retro_environment_t cb)
 #ifdef DRC_SH2
       { "picodrive_drc", "Dynamic recompilers; enabled|disabled" },
 #endif
+      { "picodrive_audio_filter", "Audio filter; disabled|low-pass" },
+      { "picodrive_lowpass_range", "Low-pass filter %; 60|65|70|75|80|85|90|95|5|10|15|20|25|30|35|40|45|50|55"},
       { NULL, NULL },
    };
 
@@ -1337,6 +1339,21 @@ static void update_variables(void)
    if(!ctr_svchack_successful)
       PicoIn.opt &= ~POPT_EN_DRC;
 #endif
+
+   var.value = NULL;
+   var.key = "picodrive_audio_filter";
+   PicoIn.sndFilter = 0;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "low-pass") == 0)
+         PicoIn.sndFilter = 1;
+   }
+
+   var.value = NULL;
+   var.key = "picodrive_lowpass_range";
+   PicoIn.sndFilterRange = (60 * 65536) / 100;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      PicoIn.sndFilterRange = (atoi(var.value) * 65536) / 100;
+   }
 }
 
 void retro_run(void)

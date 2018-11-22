@@ -28,6 +28,9 @@ short cdda_out_buffer[2*1152];
 // sn76496
 extern int *sn76496_regs;
 
+// Low pass filter 'previous' samples
+static int32_t lpf_lp;
+static int32_t lpf_rp;
 
 static void dac_recalculate(void)
 {
@@ -86,6 +89,10 @@ PICO_INTERNAL void PsndReset(void)
   // PsndRerate calls YM2612Init, which also resets
   PsndRerate(0);
   timers_reset();
+
+  // Reset low pass filter
+  lpf_lp = 0;
+  lpf_rp = 0;
 }
 
 
@@ -317,6 +324,40 @@ static int PsndRender(int offset, int length)
 
   if ((PicoIn.AHW & PAHW_32X) && (PicoIn.opt & POPT_EN_PWM))
     p32x_pwm_update(buf32, length, stereo);
+
+  // Apply low pass filter, if required
+  if (PicoIn.sndFilter == 1)
+  {
+    int samples = length;
+    int *out32 = buf32;
+    // Restore previous samples
+    int32_t lpf_l = lpf_lp;
+    int32_t lpf_r = lpf_rp;
+
+    // Single-pole low-pass filter (6 dB/octave)
+    int32_t factor_a = PicoIn.sndFilterRange;
+    int32_t factor_b = 0x10000 - factor_a;
+
+    do
+    {
+      // Apply low-pass filter
+      lpf_l = (lpf_l * factor_a) + (out32[0] * factor_b);
+      lpf_r = (lpf_r * factor_a) + (out32[1] * factor_b);
+
+      // 16.16 fixed point
+      lpf_l >>= 16;
+      lpf_r >>= 16;
+
+      // Update sound buffer
+      *out32++ = lpf_l;
+      *out32++ = lpf_r;
+    }
+    while (--samples);
+
+    // Save last samples for next frame
+    lpf_lp = lpf_l;
+    lpf_rp = lpf_r;
+  }
 
   // convert + limit to normal 16bit output
   PsndMix_32_to_16l(PicoIn.sndOut+offset, buf32, length);
