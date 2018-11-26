@@ -32,6 +32,69 @@ extern int *sn76496_regs;
 static int32_t lpf_lp;
 static int32_t lpf_rp;
 
+static void low_pass_filter_stereo(int *buf32, int length)
+{
+  int samples = length;
+  int *out32 = buf32;
+  // Restore previous samples
+  int32_t lpf_l = lpf_lp;
+  int32_t lpf_r = lpf_rp;
+
+  // Single-pole low-pass filter (6 dB/octave)
+  int32_t factor_a = PicoIn.sndFilterRange;
+  int32_t factor_b = 0x10000 - factor_a;
+
+  do
+  {
+    // Apply low-pass filter
+    lpf_l = (lpf_l * factor_a) + (out32[0] * factor_b);
+    lpf_r = (lpf_r * factor_a) + (out32[1] * factor_b);
+
+    // 16.16 fixed point
+    lpf_l >>= 16;
+    lpf_r >>= 16;
+
+    // Update sound buffer
+    *out32++ = lpf_l;
+    *out32++ = lpf_r;
+  }
+  while (--samples);
+
+  // Save last samples for next frame
+  lpf_lp = lpf_l;
+  lpf_rp = lpf_r;
+}
+
+static void low_pass_filter_mono(int *buf32, int length)
+{
+  int samples = length;
+  int *out32 = buf32;
+  // Restore previous sample
+  int32_t lpf_l = lpf_lp;
+
+  // Single-pole low-pass filter (6 dB/octave)
+  int32_t factor_a = PicoIn.sndFilterRange;
+  int32_t factor_b = 0x10000 - factor_a;
+
+  do
+  {
+    // Apply low-pass filter
+    lpf_l = (lpf_l * factor_a) + (out32[0] * factor_b);
+
+    // 16.16 fixed point
+    lpf_l >>= 16;
+
+    // Update sound buffer
+    *out32++ = lpf_l;
+  }
+  while (--samples);
+
+  // Save last sample for next frame
+  lpf_lp = lpf_l;
+}
+
+void (*low_pass_filter)(int *buf32, int length) = low_pass_filter_stereo;
+
 static void dac_recalculate(void)
 {
   int lines = Pico.m.pal ? 313 : 262;
@@ -138,6 +201,9 @@ void PsndRerate(int preserve_state)
 
   // set mixer
   PsndMix_32_to_16l = (PicoIn.opt & POPT_EN_STEREO) ? mix_32_to_16l_stereo : mix_32_to_16_mono;
+
+  // set low pass filter
+  low_pass_filter = (PicoIn.opt & POPT_EN_STEREO) ? low_pass_filter_stereo : low_pass_filter_mono;
 
   if (PicoIn.AHW & PAHW_PICO)
     PicoReratePico();
@@ -326,37 +392,8 @@ static int PsndRender(int offset, int length)
     p32x_pwm_update(buf32, length, stereo);
 
   // Apply low pass filter, if required
-  if (PicoIn.sndFilter == 1)
-  {
-    int samples = length;
-    int *out32 = buf32;
-    // Restore previous samples
-    int32_t lpf_l = lpf_lp;
-    int32_t lpf_r = lpf_rp;
-
-    // Single-pole low-pass filter (6 dB/octave)
-    int32_t factor_a = PicoIn.sndFilterRange;
-    int32_t factor_b = 0x10000 - factor_a;
-
-    do
-    {
-      // Apply low-pass filter
-      lpf_l = (lpf_l * factor_a) + (out32[0] * factor_b);
-      lpf_r = (lpf_r * factor_a) + (out32[1] * factor_b);
-
-      // 16.16 fixed point
-      lpf_l >>= 16;
-      lpf_r >>= 16;
-
-      // Update sound buffer
-      *out32++ = lpf_l;
-      *out32++ = lpf_r;
-    }
-    while (--samples);
-
-    // Save last samples for next frame
-    lpf_lp = lpf_l;
-    lpf_rp = lpf_r;
+  if (PicoIn.sndFilter == 1) {
+    low_pass_filter(buf32, length);
   }
 
   // convert + limit to normal 16bit output
