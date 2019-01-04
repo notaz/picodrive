@@ -610,6 +610,7 @@ ifeq ($(findstring Haiku,$(shell uname -a)),)
 	LDLIBS += $(LIBM)
 endif
 
+
 SHARED ?= -shared
 LDFLAGS += $(SHARED) $(fpic)
 
