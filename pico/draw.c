@@ -1253,7 +1253,7 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
   for (i = 0; i < 0x40 / 2; i++) {
     t = spal[i];
 #ifdef USE_BGR555
-    t = ((t & 0x000e000e)<< 1) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)<<4);
+    t = ((t & 0x0e000e00)<< 3) | ((t & 0x00e000e0)<<2) | ((t & 0x000e000e)<<1);
 #else
     t = ((t & 0x000e000e)<<12) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)>>7);
 #endif
