@@ -259,7 +259,7 @@ else ifeq ($(platform), ps2)
     TARGET := $(TARGET_NAME)_libretro_$(platform).a
     CC = ee-gcc$(EXE_EXT)
     AR = ee-ar$(EXE_EXT)
-    CFLAGS += -G0 -DPS2 -DUTYPES_DEFINED -fsingle-precision-constant
+    CFLAGS += -G0 -Wall -DPS2 -DUSE_BGR555 -DUTYPES_DEFINED -DFAMEC_NO_GOTOS -fsingle-precision-constant
 	CFLAGS += -I$(PS2SDK)/ports/include -I$(PS2DEV)/gsKit/include -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include -Iplatform/ps2
     STATIC_LINKING = 1
     NO_MMAP = 1
