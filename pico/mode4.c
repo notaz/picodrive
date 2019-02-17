@@ -284,10 +284,16 @@ static void FinalizeLine8bitM4(int line)
 {
   unsigned char *pd = Pico.est.DrawLineDest;
 
-  if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
+#if defined(RENDER_GSKIT_PS2)
+  memcpy(pd, Pico.est.HighCol, 328);
+#else
+  if (!(PicoIn.opt & POPT_DIS_32C_BORDER)) {
     pd += 32;
-
-  memcpy(pd, Pico.est.HighCol + 8, 256);
+    memcpy(pd, Pico.est.HighCol + 8, 256);
+  } else {
+    memcpy(pd, Pico.est.HighCol + 8, 320);
+  }
+#endif
 }
 
 void PicoDrawSetOutputMode4(pdso_t which)

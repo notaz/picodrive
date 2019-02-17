@@ -35,6 +35,11 @@
 #include "file_stream_transforms.h"
 #endif
 
+#if defined(RENDER_GSKIT_PS2)
+#include "libretro-common/include/libretro_gskit_ps2.h"
+#include "../ps2/asm.h"
+#endif
+
 #ifdef _3DS
 #include "3ds/3ds_utils.h"
 #define MEMOP_MAP     4
@@ -74,8 +79,14 @@ static retro_input_state_t input_state_cb;
 static retro_environment_t environ_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
 
+#if defined(RENDER_GSKIT_PS2)
+#define VOUT_MAX_WIDTH 328
+#else
 #define VOUT_MAX_WIDTH 320
+#define VOUT_32BIT_WIDTH 256
+#endif
 #define VOUT_MAX_HEIGHT 240
+#define SND_RATE 44100
 
 static const float VOUT_PAR = 0.0;
 static const float VOUT_4_3 = (224.0f * (4.0f / 3.0f));
@@ -87,7 +98,13 @@ static void *vout_buf;
 static int vout_width, vout_height, vout_offset;
 static float user_vout_width = 0.0;
 
-static short ALIGNED(4) sndBuffer[2*44100/50];
+#if defined(RENDER_GSKIT_PS2)
+RETRO_HW_RENDER_INTEFACE_GSKIT_PS2 *ps2 = NULL;
+static void *retro_palette;
+static struct retro_hw_ps2_insets padding;
+#endif
+
+static short ALIGNED(4) sndBuffer[2*SND_RATE/50];
 
 static void snd_write(int len);
 
@@ -492,14 +509,33 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
    struct retro_system_av_info av_info;
 
-   memset(vout_buf, 0, 320 * 240 * 2);
-   vout_width = is_32cols ? 256 : 320;
+#if defined(RENDER_GSKIT_PS2)
+   if (is_32cols) {
+      padding = (struct retro_hw_ps2_insets){start_line, 16.0f, VOUT_MAX_HEIGHT - line_count - start_line, 64.0f};
+   } else {
+      padding = (struct retro_hw_ps2_insets){start_line, 16.0f, VOUT_MAX_HEIGHT - line_count - start_line, 0.0f};
+   }
+
+   vout_width = VOUT_MAX_WIDTH;
+   vout_height = VOUT_MAX_HEIGHT;
+   memset(vout_buf, 0, vout_width * VOUT_MAX_HEIGHT);
+   memset(retro_palette, 0, gsKit_texture_size_ee(16, 16, GS_PSM_CT16));
+   PicoDrawSetOutBuf(vout_buf, vout_width);
+
+   if (ps2) {
+      ps2->clearTexture = true;
+   }
+#else
+   vout_width = is_32cols ? VOUT_32BIT_WIDTH : VOUT_MAX_WIDTH;
+   memset(vout_buf, 0, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);  
    PicoDrawSetOutBuf(vout_buf, vout_width * 2);
-   if (show_overscan == true) line_count += 16;
+
+      if (show_overscan == true) line_count += 16;
    if (show_overscan == true) start_line -= 8;
 
    vout_height = line_count;
    vout_offset = vout_width * start_line;
+#endif
 
    // Update the geometry
    retro_get_system_av_info(&av_info);
@@ -593,7 +629,7 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 
    memset(info, 0, sizeof(*info));
    info->timing.fps            = Pico.m.pal ? 50 : 60;
-   info->timing.sample_rate    = 44100;
+   info->timing.sample_rate    = SND_RATE;
    info->geometry.base_width   = vout_width;
    info->geometry.base_height  = vout_height;
    info->geometry.max_width    = vout_width;
@@ -1360,6 +1396,7 @@ void retro_run(void)
 {
    bool updated = false;
    int pad, i;
+   static void *buff;
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
       update_variables();
@@ -1375,7 +1412,93 @@ void retro_run(void)
    PicoPatchApply();
    PicoFrame();
 
-   video_cb((short *)vout_buf + vout_offset,
+#if defined(RENDER_GSKIT_PS2)
+   buff = (uint32_t *)RETRO_HW_FRAME_BUFFER_VALID;
+
+   if (!ps2) {
+      if (!environ_cb(RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE, (void **)&ps2) || !ps2) {
+         printf("Failed to get HW rendering interface!\n");
+         return;
+	   }
+
+      if (ps2->interface_version != RETRO_HW_RENDER_INTERFACE_GSKIT_PS2_VERSION) {
+         printf("HW render interface mismatch, expected %u, got %u!\n", 
+                  RETRO_HW_RENDER_INTERFACE_GSKIT_PS2_VERSION, ps2->interface_version);
+         return;
+      }
+
+      ps2->coreTexture->Width = vout_width;
+      ps2->coreTexture->Height = vout_height;
+      ps2->coreTexture->PSM = GS_PSM_T8;
+      ps2->coreTexture->ClutPSM = GS_PSM_CT16;
+      ps2->coreTexture->Filter = GS_FILTER_LINEAR;
+      ps2->coreTexture->Clut = retro_palette;
+   }
+
+   if (Pico.m.dirtyPal) {
+      int i;
+      unsigned short int *pal=(void *)ps2->coreTexture->Clut;
+
+      if (PicoIn.AHW & PAHW_SMS) {
+         // SMS
+         unsigned int *spal=(void *)PicoMem.cram;
+         unsigned int *dpal=(void *)pal;
+         unsigned int t;
+
+         /* cram is always stored as shorts, even though real hardware probably uses bytes */
+         for (i = 0x20/2; i > 0; i--, spal++, dpal++) {
+            t = *spal;
+            t = ((t & 0x00030003)<< 3) | ((t & 0x000c000c)<<6) | ((t & 0x00300030)<<9);
+            t |= t >> 2;
+            t |= (t >> 4) & 0x08610861;
+            *dpal = t;
+         }
+         pal[0xe0] = 0;
+
+
+      } else if (PicoIn.AHW & PAHW_32X) {
+         // MCD+32X
+      } else if (PicoIn.AHW & PAHW_MCD) {
+         // MCD
+      } else {
+         // MD
+         if(Pico.video.reg[0xC]&8){
+            do_pal_convert_with_shadows(pal, PicoMem.cram);
+         } else {
+            do_pal_convert(pal, PicoMem.cram);
+            if (Pico.est.rendstatus & PDRAW_SONIC_MODE) {
+               memcpy(&pal[0x80], pal, 0x40*2);
+            }
+         }
+      }
+
+
+  	   //Rotate CLUT.
+      for (i = 0; i < 256; i++) {
+         if ((i&0x18) == 8) {
+            unsigned short int tmp = pal[i];
+            pal[i] = pal[i+8];
+            pal[i+8] = tmp;
+         }
+      }
+
+      Pico.m.dirtyPal = 0;
+      ps2->updatedPalette = true;
+   }
+
+   if (PicoIn.AHW & PAHW_SMS) {
+      ps2->coreTexture->Mem = vout_buf;
+   } else {
+      ps2->coreTexture->Mem = Pico.est.Draw2FB;
+   }
+
+   ps2->padding = padding;
+
+#else
+   buff = vout_buf + vout_offset;
+#endif
+
+   video_cb((short *)buff,
       vout_width, vout_height, vout_width * 2);
 }
 
@@ -1410,20 +1533,29 @@ void retro_init(void)
 #endif
       PicoIn.opt |= POPT_EN_DRC;
 #endif
-   PicoIn.sndRate = 44100;
+   PicoIn.sndRate = SND_RATE;
    PicoIn.autoRgnOrder = 0x184; // US, EU, JP
 
-   vout_width = 320;
-   vout_height = 240;
+   vout_width = VOUT_MAX_WIDTH;
+   vout_height = VOUT_MAX_HEIGHT;
 #ifdef _3DS
    vout_buf = linearMemAlign(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2, 0x80);
+#elif defined(RENDER_GSKIT_PS2)
+   vout_buf = memalign(128, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT);
+   retro_palette = memalign(128, gsKit_texture_size_ee(16, 16, GS_PSM_CT16));
 #else
    vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #endif
 
    PicoInit();
+#if defined(RENDER_GSKIT_PS2)
+   PicoDrawSetOutFormat(PDF_NONE, 0);
+	PicoDrawSetOutBuf(vout_buf, vout_width);
+   PicoDrawSetOutputMode4(PDF_8BIT);
+#else
    PicoDrawSetOutFormat(PDF_RGB555, 0);
    PicoDrawSetOutBuf(vout_buf, vout_width * 2);
+#endif
 
    //PicoIn.osdMessage = plat_status_msg_busy_next;
    PicoIn.mcdTrayOpen = disk_tray_open;
@@ -1436,11 +1568,13 @@ void retro_deinit(void)
 {
 #ifdef _3DS
    linearFree(vout_buf);
+#elif defined(RENDER_GSKIT_PS2)
+   free(vout_buf);
+   free(retro_palette);
+   ps2 = NULL;
 #else
    free(vout_buf);
 #endif
    vout_buf = NULL;
    PicoExit();
 }
-
-// vim:shiftwidth=3:ts=3:expandtab
