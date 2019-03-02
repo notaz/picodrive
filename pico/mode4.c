@@ -259,7 +259,7 @@ void PicoDoHighPal555M4(void)
   for (i = 0x20/2; i > 0; i--, spal++, dpal++) {
     t = *spal;
 #ifdef USE_BGR555
-    t = ((t & 0x00030003)<< 3) | ((t & 0x000c000c)<<7) | ((t & 0x00300030)<<10);
+    t = ((t & 0x00030003)<< 3) | ((t & 0x000c000c)<<6) | ((t & 0x00300030)<<9);
 #else
     t = ((t & 0x00030003)<<14) | ((t & 0x000c000c)<<7) | ((t & 0x00300030)>>1);
 #endif
@@ -284,10 +284,16 @@ static void FinalizeLine8bitM4(int line)
 {
   unsigned char *pd = Pico.est.DrawLineDest;
 
-  if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
+#if defined(RENDER_GSKIT_PS2)
+  memcpy(pd, Pico.est.HighCol, 328);
+#else
+  if (!(PicoIn.opt & POPT_DIS_32C_BORDER)) {
     pd += 32;
-
-  memcpy(pd, Pico.est.HighCol + 8, 256);
+    memcpy(pd, Pico.est.HighCol + 8, 256);
+  } else {
+    memcpy(pd, Pico.est.HighCol + 8, 320);
+  }
+#endif
 }
 
 void PicoDrawSetOutputMode4(pdso_t which)

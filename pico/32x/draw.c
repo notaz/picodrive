@@ -27,7 +27,12 @@ static void convert_pal555(int invert_prio)
   // place prio to LS green bit
   for (i = 0x100/2; i > 0; i--, ps++, pd++) {
     unsigned int t = *ps;
+#if defined(USE_BGR555)
+    *pd = t ^ inv;
+#else
     *pd = (((t & m1) << 11) | ((t & m2) << 1) | ((t & m3) >> 10)) ^ inv;
+#endif
+    
   }
 
   Pico32x.dirty_pal = 0;
