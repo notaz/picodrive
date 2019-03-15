@@ -298,12 +298,12 @@ static int make_local_pal_md(int fast_mode)
 {
 	int pallen = 0xc0;
 
-	bgr444_to_rgb32(localPal, Pico.cram);
+	bgr444_to_rgb32(localPal, PicoMem.cram);
 	if (fast_mode)
 		return 0x40;
 
 	if (Pico.video.reg[0xC] & 8) { // shadow/hilight mode
-		bgr444_to_rgb32_sh(localPal, Pico.cram);
+		bgr444_to_rgb32_sh(localPal, PicoMem.cram);
 		localPal[0xc0] = 0x0000c000;
 		localPal[0xd0] = 0x00c00000;
 		localPal[0xe0] = 0x00000000; // reserved pixels for OSD
@@ -322,7 +322,7 @@ static int make_local_pal_md(int fast_mode)
 
 static int make_local_pal_sms(int fast_mode)
 {
-	unsigned short *spal = Pico.cram;
+	unsigned short *spal = PicoMem.cram;
 	unsigned int *dpal = (void *)localPal;
 	unsigned int i, t;
 

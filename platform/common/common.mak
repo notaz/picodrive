@@ -181,7 +181,7 @@ $(FR)cpu/cyclone/Cyclone.h:
 
 $(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/$(CYCLONE_CONFIG)
 	@echo building Cyclone...
-	@make CC=$(CYCLONE_CC) CXX=$(CYCLONE_CXX) -C $(R)cpu/cyclone/ CONFIG_FILE=../$(CYCLONE_CONFIG)
+	@make CC=$(CYCLONE_CC) CXX=$(CYCLONE_CXX) -C $(R)cpu/cyclone/ CONFIG_FILE=../$(CYCLONE_CONFIG) HAVE_ARMv6=$(HAVE_ARMv6)
 
 $(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/cyclone/*.cpp $(FR)cpu/cyclone/*.h
 
