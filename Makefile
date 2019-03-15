@@ -119,9 +119,12 @@ OBJS += platform/gp2x/vid_pollux.o
 OBJS += platform/gp2x/warm.o 
 USE_FRONTEND = 1
 PLATFORM_MP3 = 1
+PLATFORM_ZLIB = 1
+HAVE_ARMv6 = 0
 endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += platform/libretro/libretro.o
+PLATFORM_ZLIB = 1
 endif
 
 ifeq "$(USE_FRONTEND)" "1"
@@ -164,7 +167,7 @@ else
 OBJS += platform/common/mp3_dummy.o
 endif
 
-ifeq "$(PLATFORM)" "libretro"
+ifeq "$(PLATFORM_ZLIB)" "1"
 # zlib
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o zlib/uncompr.o
