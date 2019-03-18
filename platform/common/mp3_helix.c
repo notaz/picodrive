@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <dlfcn.h>
 
 #include <pico/pico_int.h>
 #include <pico/sound/mix.h>
@@ -20,9 +21,14 @@ static HMP3Decoder mp3dec;
 static unsigned char mp3_input_buffer[2 * 1024];
 
 #ifdef __GP2X__
-#define mp3_update mp3_update_local
-#define mp3_start_play mp3_start_play_local
+#define mp3dec_decode _mp3dec_decode
+#define mp3dec_start _mp3dec_start
 #endif
+
+static void *libhelix;
+HMP3Decoder (*p_MP3InitDecoder)(void);
+void (*p_MP3FreeDecoder)(HMP3Decoder);
+int (*p_MP3Decode)(HMP3Decoder, unsigned char **, int *, short *, int);
 
 int mp3dec_decode(FILE *f, int *file_pos, int file_len)
 {
@@ -51,7 +57,7 @@ int mp3dec_decode(FILE *f, int *file_pos, int file_len)
 		bytesLeft -= offset;
 
 		had_err = err;
-		err = MP3Decode(mp3dec, &readPtr, &bytesLeft, cdda_out_buffer, 0);
+		err = p_MP3Decode(mp3dec, &readPtr, &bytesLeft, cdda_out_buffer, 0);
 		if (err) {
 			if (err == ERR_MP3_MAINDATA_UNDERFLOW && !had_err) {
 				// just need another frame
@@ -86,10 +92,31 @@ int mp3dec_decode(FILE *f, int *file_pos, int file_len)
 
 int mp3dec_start(FILE *f, int fpos_start)
 {
+	if (libhelix == NULL) {
+		libhelix = dlopen("./libhelix.so", RTLD_NOW);
+		if (libhelix == NULL) {
+			lprintf("mp3dec: load libhelix.so: %s\n", dlerror());
+			return -1;
+		}
+
+		p_MP3InitDecoder = dlsym(libhelix, "MP3InitDecoder");
+		p_MP3FreeDecoder = dlsym(libhelix, "MP3FreeDecoder");
+		p_MP3Decode = dlsym(libhelix, "MP3Decode");
+
+		if (p_MP3InitDecoder == NULL || p_MP3FreeDecoder == NULL
+		    || p_MP3Decode == NULL)
+		{
+			lprintf("mp3dec: missing symbol(s) in libhelix.so\n");
+			dlclose(libhelix);
+			libhelix = NULL;
+			return -1;
+		}
+	}
+
 	// must re-init decoder for new track
 	if (mp3dec)
-		MP3FreeDecoder(mp3dec);
-	mp3dec = MP3InitDecoder();
+		p_MP3FreeDecoder(mp3dec);
+	mp3dec = p_MP3InitDecoder();
 
 	return (mp3dec == 0) ? -1 : 0;
 }
