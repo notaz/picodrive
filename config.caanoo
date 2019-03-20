@@ -9,7 +9,7 @@ CFLAGS += -fno-gcse -funswitch-loops -fweb -ftree-loop-im #-fpredictive-commonin
 CFLAGS += -I/home/build/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/arm-gph-linux-gnueabi/sys-root/usr/include -I/home/build/src/gp2x/armroot-eabi/include
 ASFLAGS += -mfloat-abi=soft -mcpu=arm920t
 LDFLAGS += -B/home/build/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/lib/gcc/arm-gph-linux-gnueabi/4.2.4 -B/home/build/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/arm-gph-linux-gnueabi/sys-root/usr/lib -L/home/build/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/arm-gph-linux-gnueabi/sys-root/usr/lib -L/home/build/src/gp2x/armroot-eabi/lib -static
-LDLIBS += -lpng -lm -ldl -lprofiler -lstdc++
+LDLIBS += -lpng -lm -ldl
 
 ARCH = arm
 PLATFORM = gp2x

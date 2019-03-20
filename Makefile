@@ -13,6 +13,10 @@ CFLAGS += -falign-functions=2
 endif
 LDFLAGS += -Wl,--gc-sections
 
+# profiling
+pprof ?= 0
+gperf ?= 0
+
 all: config.mak target_
 
 ifndef NO_CONFIG_MAK
@@ -118,6 +122,8 @@ OBJS += platform/gp2x/emu.o
 OBJS += platform/gp2x/vid_mmsp2.o 
 OBJS += platform/gp2x/vid_pollux.o 
 OBJS += platform/gp2x/warm.o 
+OBJS += platform/gp2x/host_dasm.o
+OBJS += cpu/sh2/mame/sh2dasm.o
 USE_FRONTEND = 1
 PLATFORM_MP3 = 1
 PLATFORM_ZLIB = 1
@@ -204,7 +210,7 @@ else
 endif
 
 pprof: platform/linux/pprof.c
-	$(CC) -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@
+	$(CC) $(CFLAGS) -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 tools/textfilter: tools/textfilter.c
 	make -C tools/ textfilter

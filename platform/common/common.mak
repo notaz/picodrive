@@ -40,6 +40,10 @@ ifeq "$(pprof)" "1"
 DEFINES += PPROF
 SRCS_COMMON += $(R)platform/linux/pprof.c
 endif
+ifeq "$(gperf)" "1"
+DEFINES += GPERF
+LDFLAGS += -lprofiler -lstdc++
+endif
 
 # ARM asm stuff
 ifeq "$(ARCH)" "arm"
