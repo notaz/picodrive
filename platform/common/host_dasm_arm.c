@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../common/disarm.c"
+#include "disarm.c"
 
 
 /* symbols */
