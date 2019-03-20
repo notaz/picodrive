@@ -14,12 +14,14 @@ uptr s68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
 uptr s68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
 uptr s68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
 
+#ifndef _ASM_CD_MEMORY_C
 MAKE_68K_READ8(s68k_read8, s68k_read8_map)
 MAKE_68K_READ16(s68k_read16, s68k_read16_map)
 MAKE_68K_READ32(s68k_read32, s68k_read16_map)
 MAKE_68K_WRITE8(s68k_write8, s68k_write8_map)
 MAKE_68K_WRITE16(s68k_write16, s68k_write16_map)
 MAKE_68K_WRITE32(s68k_write32, s68k_write16_map)
+#endif
 
 // -----------------------------------------------------------------
 
