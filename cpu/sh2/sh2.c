@@ -84,7 +84,7 @@ int sh2_irl_irq(SH2 *sh2, int level, int nested_call)
 			// do this to avoid missing irqs that other SH2 might clear
 			int vector = sh2->irq_callback(sh2, level);
 			sh2_do_irq(sh2, level, vector);
-			sh2->m68krcycles_done += C_SH2_TO_M68K(*sh2, 13);
+			sh2->m68krcycles_done += C_SH2_TO_M68K(sh2, 13);
 		}
 		else
 			sh2->test_irq = 1;

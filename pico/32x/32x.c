@@ -254,8 +254,8 @@ static void p32x_start_blank(void)
   }
 
   p32x_trigger_irq(NULL, SekCyclesDone(), P32XI_VINT);
-  p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, 0);
-  p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, 0);
+  p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, SekCyclesDone());
+  p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, SekCyclesDone());
 }
 
 void p32x_schedule_hint(SH2 *sh2, int m68k_cycles)
@@ -323,8 +323,12 @@ void p32x_event_schedule_sh2(SH2 *sh2, enum p32x_event event, int after)
 
   p32x_event_schedule(now, event, after);
 
-  left_to_next = (event_time_next - now) * 3;
-  sh2_end_run(sh2, left_to_next);
+  left_to_next = C_M68K_TO_SH2(sh2, (int)(event_time_next - now));
+  if (sh2_cycles_left(sh2) > left_to_next) {
+    if (left_to_next < 1)
+      left_to_next = 1;
+    sh2_end_run(sh2, left_to_next);
+  }
 }
 
 static void p32x_run_events(unsigned int until)
@@ -372,13 +376,13 @@ static void run_sh2(SH2 *sh2, int m68k_cycles)
 
   pevt_log_sh2_o(sh2, EVT_RUN_START);
   sh2->state |= SH2_STATE_RUN;
-  cycles = C_M68K_TO_SH2(*sh2, m68k_cycles);
+  cycles = C_M68K_TO_SH2(sh2, m68k_cycles);
   elprintf_sh2(sh2, EL_32X, "+run %u %d @%08x",
     sh2->m68krcycles_done, cycles, sh2->pc);
 
   done = sh2_execute(sh2, cycles, PicoIn.opt & POPT_EN_DRC);
 
-  sh2->m68krcycles_done += C_SH2_TO_M68K(*sh2, done);
+  sh2->m68krcycles_done += C_SH2_TO_M68K(sh2, done);
   sh2->state &= ~SH2_STATE_RUN;
   pevt_log_sh2_o(sh2, EVT_RUN_END);
   elprintf_sh2(sh2, EL_32X, "-run %u %d",
@@ -412,8 +416,7 @@ void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target)
 
   // there might be new event to schedule current sh2 to
   if (event_time_next) {
-    left_to_event = event_time_next - m68k_target;
-    left_to_event *= 3;
+    left_to_event = C_M68K_TO_SH2(sh2, (int)(event_time_next - m68k_target));
     if (sh2_cycles_left(sh2) > left_to_event) {
       if (left_to_event < 1)
         left_to_event = 1;
@@ -446,6 +449,7 @@ void sync_sh2s_normal(unsigned int m68k_target)
     now = ssh2.m68krcycles_done;
   timer_cycles = now;
 
+  pprof_start(m68k);
   while (CYCLES_GT(m68k_target, now))
   {
     if (event_time_next && CYCLES_GE(now, event_time_next))
@@ -463,6 +467,7 @@ void sync_sh2s_normal(unsigned int m68k_target)
         target - msh2.m68krcycles_done, target - ssh2.m68krcycles_done,
         m68k_target - now, Pico32x.emu_flags);
 
+      pprof_start(ssh2);
       if (!(ssh2.state & SH2_IDLE_STATES)) {
         cycles = target - ssh2.m68krcycles_done;
         if (cycles > 0) {
@@ -472,7 +477,9 @@ void sync_sh2s_normal(unsigned int m68k_target)
             target = event_time_next;
         }
       }
+      pprof_end(ssh2);
 
+      pprof_start(msh2);
       if (!(msh2.state & SH2_IDLE_STATES)) {
         cycles = target - msh2.m68krcycles_done;
         if (cycles > 0) {
@@ -482,6 +489,7 @@ void sync_sh2s_normal(unsigned int m68k_target)
             target = event_time_next;
         }
       }
+      pprof_end(msh2);
 
       now = target;
       if (!(msh2.state & SH2_IDLE_STATES)) {
@@ -497,6 +505,7 @@ void sync_sh2s_normal(unsigned int m68k_target)
     p32x_timers_do(now - timer_cycles);
     timer_cycles = now;
   }
+  pprof_end_sub(m68k);
 
   // advance idle CPUs
   if (msh2.state & SH2_IDLE_STATES) {
@@ -553,8 +562,8 @@ void PicoFrame32x(void)
 
   if (!(Pico32x.sh2_regs[0] & 0x80))
     p32x_schedule_hint(NULL, SekCyclesDone());
-  p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, 0);
-  p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, 0);
+  p32x_sh2_poll_event(&msh2, SH2_STATE_VPOLL, SekCyclesDone());
+  p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, SekCyclesDone());
 
   if (PicoIn.AHW & PAHW_MCD)
     pcd_prepare_frame();

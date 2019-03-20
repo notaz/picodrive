@@ -241,11 +241,11 @@ extern SH2 sh2s[2];
 # define sh2_pc(sh2) (sh2)->pc
 #endif
 
-#define sh2_cycles_done(sh2) ((int)(sh2)->cycles_timeslice - sh2_cycles_left(sh2))
+#define sh2_cycles_done(sh2) ((unsigned)(sh2)->cycles_timeslice - sh2_cycles_left(sh2))
 #define sh2_cycles_done_t(sh2) \
-  ((sh2)->m68krcycles_done * 3 + sh2_cycles_done(sh2))
+  (unsigned)(C_M68K_TO_SH2(sh2, (sh2)->m68krcycles_done) + sh2_cycles_done(sh2))
 #define sh2_cycles_done_m68k(sh2) \
-  ((sh2)->m68krcycles_done + (sh2_cycles_done(sh2) / 3))
+  (unsigned)((sh2)->m68krcycles_done + C_SH2_TO_M68K(sh2, sh2_cycles_done(sh2)))
 
 #define sh2_reg(c, x) (c) ? ssh2.r[x] : msh2.r[x]
 #define sh2_gbr(c)    (c) ? ssh2.gbr : msh2.gbr

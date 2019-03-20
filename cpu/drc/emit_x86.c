@@ -421,13 +421,10 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 		rmr = s2; \
 	} \
 	EMIT_OP_MODRM(0xf7, 3, op, rmr); /* xMUL rmr */ \
-	/* XXX: using push/pop for the case of edx->eax; eax->edx */ \
-	if (dhi != xDX && dhi != -1) \
-		emith_push(xDX); \
 	if (dlo != xAX) \
-		emith_move_r_r(dlo, xAX); \
-	if (dhi != xDX && dhi != -1) \
-		emith_pop(dhi); \
+		EMIT_OP(0x90 + (dlo)); /* XCHG eax, dlo */ \
+	if (dhi != xDX && dhi != -1 && !(dhi == xAX && dlo == xDX)) \
+		emith_move_r_r(dhi, (dlo == xDX ? xAX : xDX)); \
 	if (dlo != xDX && dhi != xDX) \
 		emith_pop(xDX); \
 	if (dlo != xAX && dhi != xAX) \
@@ -474,12 +471,12 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_deref_op(op, r, rs, offs) do { \
 	/* mov r <-> [ebp+#offs] */ \
-	if ((offs) >= 0x80) { \
+	if (abs(offs) >= 0x80) { \
 		EMIT_OP_MODRM64(op, 2, r, rs); \
 		EMIT(offs, u32); \
 	} else { \
 		EMIT_OP_MODRM64(op, 1, r, rs); \
-		EMIT(offs, u8); \
+		EMIT((u8)offs, u8); \
 	} \
 } while (0)
 
@@ -496,7 +493,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	int r_ = r; \
 	if (!is_abcdx(r)) \
 		r_ = rcache_get_tmp(); \
-	emith_deref_op(0x8a, r_, rs, offs); \
+	EMIT(0x0f, u8); \
+	emith_deref_op(0xb6, r_, rs, offs); \
 	if ((r) != r_) { \
 		emith_move_r_r(r, r_); \
 		rcache_free_tmp(r_); \
@@ -515,8 +513,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 } while (0)
 
 #define emith_read16_r_r_offs(r, rs, offs) do { \
-	EMIT(0x66, u8); /* operand override */ \
-	emith_read_r_r_offs(r, rs, offs); \
+	EMIT(0x0f, u8); \
+	emith_deref_op(0xb7, r, rs, offs); \
 } while (0)
 
 #define emith_write16_r_r_offs(r, rs, offs) do { \
@@ -688,6 +686,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	case 0: rd = xDI; break; \
 	case 1: rd = xSI; break; \
 	case 2: rd = xDX; break; \
+	case 2: rd = xBX; break; \
 	}
 
 #define emith_sh2_drc_entry() { \
