@@ -2744,7 +2744,7 @@ end_op:
     if (drcf.pending_branch_direct)
     {
       struct op_data *opd_b =
-        (op_flags[i] & OF_DELAY_OP) ? &ops[i-1] : opd;
+        (op_flags[i] & OF_DELAY_OP) ? opd-1 : opd;
       u32 target_pc = opd_b->imm;
       int cond = -1, ncond = -1;
       void *target = NULL;

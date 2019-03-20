@@ -15,16 +15,17 @@
 	else if ( val < min ) val = min; \
 }
 
+int mix_32_to_16l_level;
 
-void mix_32_to_16l_stereo(short *dest, int *src, int count)
+void mix_32_to_16l_stereo_core(short *dest, int *src, int count, int level)
 {
 	int l, r;
 
 	for (; count > 0; count--)
 	{
 		l = r = *dest;
-		l += *src++;
-		r += *src++;
+		l += *src++ >> level;
+		r += *src++ >> level;
 		Limit( l, MAXOUT, MINOUT );
 		Limit( r, MAXOUT, MINOUT );
 		*dest++ = l;
@@ -32,6 +33,15 @@ void mix_32_to_16l_stereo(short *dest, int *src, int count)
 	}
 }
 
+void mix_32_to_16l_stereo_lvl(short *dest, int *src, int count)
+{
+	mix_32_to_16l_stereo_core(dest, src, count, mix_32_to_16l_level);
+}
+
+void mix_32_to_16l_stereo(short *dest, int *src, int count)
+{
+	mix_32_to_16l_stereo_core(dest, src, count, 0);
+}
 
 void mix_32_to_16_mono(short *dest, int *src, int count)
 {

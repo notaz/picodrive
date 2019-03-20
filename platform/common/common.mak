@@ -161,8 +161,16 @@ SRCS_COMMON += $(R)cpu/sh2/compiler.c
 ifdef drc_debug
 DEFINES += DRC_DEBUG=$(drc_debug)
 SRCS_COMMON += $(R)cpu/sh2/mame/sh2dasm.c
-SRCS_COMMON += $(R)platform/libpicofe/linux/host_dasm.c
-LDFLAGS += -lbfd -lopcodes -liberty
+DASM = $(R)platform/libpicofe/linux/host_dasm.c
+DASMLIBS = -lbfd -lopcodes -liberty
+ifeq "$(ARCH)" "arm"
+ifeq ($(filter_out $(shell $(CC) --print-file-name=libbfd.so),"/"),)
+DASM = $(R)platform/common/host_dasm_arm.c
+DASMLIBS =
+endif
+endif
+SRCS_COMMON += $(DASM)
+LDFLAGS += $(DASMLIBS)
 endif
 endif # use_sh2drc
 SRCS_COMMON += $(R)cpu/sh2/mame/sh2pico.c
