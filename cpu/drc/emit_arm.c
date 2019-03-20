@@ -86,7 +86,7 @@
 #define A_OP_TST 0x8
 #define A_OP_TEQ 0x9
 #define A_OP_CMP 0xa
-#define A_OP_CMN 0xa
+#define A_OP_CMN 0xb
 #define A_OP_ORR 0xc
 #define A_OP_MOV 0xd
 #define A_OP_BIC 0xe
@@ -250,7 +250,16 @@
 #define EOP_MOVT(rd,imm) \
 	EMIT(0xe3400000 | ((rd)<<12) | (((imm)>>16)&0xfff) | (((imm)>>12)&0xf0000))
 
-// XXX: AND, RSB, *C, will break if 1 insn is not enough
+static int count_bits(unsigned val)
+{
+	val = (val & 0x55555555) + ((val >> 1) & 0x55555555);
+	val = (val & 0x33333333) + ((val >> 2) & 0x33333333);
+	val = (val & 0x0f0f0f0f) + ((val >> 4) & 0x0f0f0f0f);
+	val = (val & 0x00ff00ff) + ((val >> 8) & 0x00ff00ff);
+	return (val & 0xffff) + (val >> 16);
+}
+
+// XXX: RSB, *S will break if 1 insn is not enough
 static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int imm)
 {
 	int ror2;
@@ -259,23 +268,11 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 	switch (op) {
 	case A_OP_MOV:
 		rn = 0;
-		if (~imm < 0x10000) {
+		// count bits in imm and use MVN if more bits 1 than 0
+		if (count_bits(imm) > 16) {
 			imm = ~imm;
 			op = A_OP_MVN;
 		}
-#ifdef HAVE_ARMV7
-		for (v = imm, ror2 = 0; v && !(v & 3); v >>= 2)
-			ror2--;
-		if (v >> 8) {
-			/* 2+ insns needed - prefer movw/movt */
-			if (op == A_OP_MVN)
-				imm = ~imm;
-			EOP_MOVW(rd, imm);
-			if (imm & 0xffff0000)
-				EOP_MOVT(rd, imm);
-			return;
-		}
-#endif
 		break;
 
 	case A_OP_EOR:
@@ -283,27 +280,37 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 	case A_OP_ADD:
 	case A_OP_ORR:
 	case A_OP_BIC:
-		if (s == 0 && imm == 0)
+		if (s == 0 && imm == 0 && rd == rn)
 			return;
 		break;
 	}
 
-	for (v = imm, ror2 = 0; ; ror2 -= 8/2) {
-		/* shift down to get 'best' rot2 */
-		for (; v && !(v & 3); v >>= 2)
-			ror2--;
-
-		EOP_C_DOP_IMM(cond, op, s, rn, rd, ror2 & 0x0f, v & 0xff);
-
-		v >>= 8;
-		if (v == 0)
-			break;
-		if (op == A_OP_MOV)
-			op = A_OP_ORR;
-		if (op == A_OP_MVN)
+	again:
+	v = imm, ror2 = 32/2; // arm imm shift is ROR, so rotate for best fit
+	while ((v >> 24) && !(v & 0xc0))
+		v = (v << 2) | (v >> 30), ror2++;
+	do {
+		// shift down to get 'best' rot2
+		while (v > 0xff && !(v & 3))
+			v >>= 2, ror2--;
+		// AND must fit into 1 insn. if not, use BIC
+		if (op == A_OP_AND && v != (v & 0xff)) {
+			imm = ~imm;
 			op = A_OP_BIC;
+			goto again;
+		}
+		EOP_C_DOP_IMM(cond, op, s, rn, rd, ror2 & 0xf, v & 0xff);
+
+		switch (op) {
+		case A_OP_MOV:	op = A_OP_ORR; break;
+		case A_OP_MVN:	op = A_OP_BIC; break;
+		case A_OP_ADC:	op = A_OP_ADD; break;
+		case A_OP_SBC:	op = A_OP_SUB; break;
+		}
 		rn = rd;
-	}
+
+		v >>= 8, ror2 -= 8/2;
+	} while (v);
 }
 
 #define emith_op_imm(cond, s, op, r, imm) \
@@ -491,7 +498,7 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_cmp_r_imm(r, imm) { \
 	u32 op = A_OP_CMP, imm_ = imm; \
 	if (~imm_ < 0x100) { \
-		imm_ = ~imm_; \
+		imm_ = -imm_; \
 		op = A_OP_CMN; \
 	} \
 	emith_top_imm(A_COND_AL, op, r, imm); \
@@ -652,12 +659,10 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	if ((count) <= 8) { \
 		t = (count) - 8; \
 		t = (0xff << t) & 0xff; \
-		EOP_BIC_IMM(d,s,8/2,t); \
 		EOP_C_DOP_IMM(cond,A_OP_BIC,0,s,d,8/2,t); \
 	} else if ((count) >= 24) { \
 		t = (count) - 24; \
 		t = 0xff >> t; \
-		EOP_AND_IMM(d,s,0,t); \
 		EOP_C_DOP_IMM(cond,A_OP_AND,0,s,d,0,t); \
 	} else { \
 		EOP_MOV_REG(cond,0,d,s,A_AM1_LSL,count); \

@@ -125,6 +125,7 @@ static void SekRunS68k(unsigned int to)
   if (SekShouldInterrupt())
     Pico_mcd->m.s68k_poll_a = 0;
 
+  pprof_start(s68k);
   SekCycleCntS68k += cyc_do;
 #if defined(EMU_C68K)
   PicoCpuCS68k.cycles = cyc_do;
@@ -137,6 +138,7 @@ static void SekRunS68k(unsigned int to)
 #elif defined(EMU_F68K)
   SekCycleCntS68k += fm68k_emulate(&PicoCpuFS68k, cyc_do, 0) - cyc_do;
 #endif
+  pprof_end(s68k);
 }
 
 static void pcd_set_cycle_mult(void)

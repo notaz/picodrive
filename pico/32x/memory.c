@@ -146,7 +146,7 @@ static void sh2s_sync_on_read(SH2 *sh2)
 
   cycles = sh2_cycles_done(sh2);
   if (cycles > 600)
-    p32x_sync_other_sh2(sh2, sh2->m68krcycles_done + cycles / 3);
+    p32x_sync_other_sh2(sh2, sh2->m68krcycles_done + C_SH2_TO_M68K(sh2, cycles));
 }
 
 // SH2 faking
