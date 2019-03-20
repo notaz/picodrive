@@ -87,6 +87,7 @@ static void dmac_transfer_one(SH2 *sh2, struct dma_chan *chan)
   case 0:
     d = p32x_sh2_read8(chan->sar, sh2);
     p32x_sh2_write8(chan->dar, d, sh2);
+    break;
   case 1:
     d = p32x_sh2_read16(chan->sar, sh2);
     p32x_sh2_write16(chan->dar, d, sh2);
