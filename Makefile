@@ -1,9 +1,9 @@
 TARGET ?= PicoDrive
 DEBUG ?= 0
-CFLAGS += -Wall -g
+CFLAGS += -Wall -ggdb -ffunction-sections -fdata-sections
 CFLAGS += -I.
 ifeq "$(DEBUG)" "0"
-CFLAGS += -O3 -DNDEBUG
+CFLAGS += -O2 -finline-functions -DNDEBUG
 endif
 
 # This is actually needed, bevieve me.
@@ -11,6 +11,7 @@ endif
 ifndef NO_ALIGN_FUNCTIONS
 CFLAGS += -falign-functions=2
 endif
+LDFLAGS += -Wl,--gc-sections
 
 all: config.mak target_
 
