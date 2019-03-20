@@ -163,12 +163,14 @@ void m68k_map_unmap(int start_addr, int end_addr)
     m68k_write16_map[i] = (addr >> 1) | MAP_FLAG;
 }
 
+#ifndef _ASM_MEMORY_C
 MAKE_68K_READ8(m68k_read8, m68k_read8_map)
 MAKE_68K_READ16(m68k_read16, m68k_read16_map)
 MAKE_68K_READ32(m68k_read32, m68k_read16_map)
 MAKE_68K_WRITE8(m68k_write8, m68k_write8_map)
 MAKE_68K_WRITE16(m68k_write16, m68k_write16_map)
 MAKE_68K_WRITE32(m68k_write32, m68k_write16_map)
+#endif
 
 // -----------------------------------------------------------------
 
@@ -420,6 +422,7 @@ static u32 PicoRead8_sram(u32 a)
       d = EEPROM_read();
       if (!(a & 1))
         d >>= 8;
+      d &= 0xff;
     } else
       d = *(u8 *)(Pico.sv.data - Pico.sv.start + a);
     elprintf(EL_SRAMIO, "sram r8  [%06x]   %02x @ %06x", a, d, SekPc);

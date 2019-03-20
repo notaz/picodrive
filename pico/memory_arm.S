@@ -59,6 +59,7 @@ m_read8_eeprom:
     ldmfd   sp!,{r1,lr}
     tst     r1, #1
     moveq   r0, r0, lsr #8
+    and     r0, r0, #0xff
     bx      lr
 
 
@@ -219,6 +220,101 @@ m_write16_not_z80ctl:
     orr     r2, r2, r1
     strb    r2, [r3, #OFS_Pico_m_sram_reg]
     bx      lr
+
+.global m68k_read8
+.global m68k_read16
+.global m68k_write8
+.global m68k_write16
+
+m68k_read8:
+    ldr     r3, =m68k_read8_map
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    eor     r2, r0, #1
+    movs    r3, r3, lsl #1
+    ldrccb  r0, [r3, r2]
+    bxcc    lr
+    bx      r3
+
+m68k_read16:
+    ldr     r3, =m68k_read16_map
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    bic     r0, r0, #1
+    movs    r3, r3, lsl #1
+    ldrcch  r0, [r3, r0]
+    bxcc    lr
+    bx      r3
+
+m68k_read32:
+    ldr     r3, =m68k_read16_map
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    bic     r0, r0, #1
+    movs    r3, r3, lsl #1
+    ldrcch  r1, [r3, r0]!
+    ldrcch  r0, [r3, #2]
+    orrcc   r0, r0, r1, lsl #16
+    bxcc    lr
+
+    stmfd   sp!, {r0, r3, r4, lr}
+    mov     lr, pc
+    bx      r3
+    ldmfd   sp!, {r1, r3}
+    str     r0, [sp]
+    add     r0, r1, #2
+    mov     lr, pc
+    bx      r3
+    ldmfd   sp!, {r1, lr}
+    mov     r0, r0, lsl #16
+    mov     r1, r1, lsl #16
+    orr     r0, r1, r0, lsr #16
+    bx      lr
+
+m68k_write8:
+    ldr     r3, =m68k_write8_map
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    eor     r2, r0, #1
+    movs    r3, r3, lsl #1
+    strccb  r1, [r3, r2]
+    bxcc    lr
+    bx      r3
+
+m68k_write16:
+    ldr     r3, =m68k_write16_map
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    bic     r0, r0, #1
+    movs    r3, r3, lsl #1
+    strcch  r1, [r3, r0]
+    bxcc    lr
+    bx      r3
+
+m68k_write32:
+    ldr     r3, =m68k_write16_map
+    bic     r0, r0, #0xff000000
+    mov     r2, r0, lsr #16
+    ldr     r3, [r3, r2, lsl #2]
+    bic     r0, r0, #1
+    movs    r3, r3, lsl #1
+    movcc   r2, r1, lsr #16
+    strcch  r2, [r3, r0]!
+    strcch  r1, [r3, #2]
+    bxcc    lr
+
+    stmfd   sp!, {r0, r1, r3, lr}
+    mov     r1, r1, lsr #16
+    mov     lr, pc
+    bx      r3
+    ldmfd   sp!, {r0, r1, r3, lr}
+    add     r0, r0, #2
+    bx      r3
 
 .pool
 
