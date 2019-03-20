@@ -1,6 +1,6 @@
 $(LD) ?= $(CC)
 TARGET ?= PicoDrive
-CFLAGS += -Wall -g
+CFLAGS += -Wall -ggdb -ffunction-sections -fdata-sections
 CFLAGS += -I.
 CYCLONE_CC ?= gcc
 CYCLONE_CXX ?= g++
@@ -17,6 +17,7 @@ endif
 ifndef NO_ALIGN_FUNCTIONS
 CFLAGS += -falign-functions=2
 endif
+LDFLAGS += -Wl,--gc-sections
 
 all: config.mak target_
 
