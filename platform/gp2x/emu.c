@@ -291,32 +291,45 @@ static int EmuScanEnd16_ld(unsigned int num)
 }
 
 static int localPal[0x100];
+static int localPalSize;
+
 static void (*vidcpyM2)(void *dest, void *src, int m32col, int with_32c_border);
 static int (*make_local_pal)(int fast_mode);
 
 static int make_local_pal_md(int fast_mode)
 {
-	int pallen = 0xc0;
+	int pallen = 0x100;
 
-	bgr444_to_rgb32(localPal, PicoMem.cram);
-	if (fast_mode)
-		return 0x40;
-
-	if (Pico.video.reg[0xC] & 8) { // shadow/hilight mode
-		bgr444_to_rgb32_sh(localPal, PicoMem.cram);
-		localPal[0xc0] = 0x0000c000;
-		localPal[0xd0] = 0x00c00000;
-		localPal[0xe0] = 0x00000000; // reserved pixels for OSD
-		localPal[0xf0] = 0x00ffffff;
-		pallen = 0x100;
+	if (fast_mode) {
+		bgr444_to_rgb32(localPal, PicoMem.cram);
+		pallen = 0x40;
+		Pico.m.dirtyPal = 0;
 	}
 	else if (Pico.est.rendstatus & PDRAW_SONIC_MODE) { // mid-frame palette changes
-		bgr444_to_rgb32(localPal+0x40, Pico.est.HighPal);
-		bgr444_to_rgb32(localPal+0x80, Pico.est.HighPal+0x40);
+		switch (Pico.est.SonicPalCount) {
+		case 3: bgr444_to_rgb32(localPal+0xc0, Pico.est.SonicPal+0xc0);
+		case 2: bgr444_to_rgb32(localPal+0x80, Pico.est.SonicPal+0x80);
+		case 1: bgr444_to_rgb32(localPal+0x40, Pico.est.SonicPal+0x40);
+		default:bgr444_to_rgb32(localPal, Pico.est.SonicPal);
+		}
+		pallen = (Pico.est.SonicPalCount+1)*0x40;
 	}
-	else
-		memcpy(localPal + 0x80, localPal, 0x40 * 4); // for spr prio mess
+	else if (Pico.video.reg[0xC] & 8) { // shadow/hilight mode
+		bgr444_to_rgb32(localPal, Pico.est.SonicPal);
+		bgr444_to_rgb32_sh(localPal, Pico.est.SonicPal);
+	}
+	else {
+		bgr444_to_rgb32(localPal, Pico.est.SonicPal);
+		memcpy(localPal+0x40, localPal, 0x40*4); // for spr prio mess
+		memcpy(localPal+0x80, localPal, 0x80*4); // for spr prio mess
+	}
+	localPal[0xc0] = 0x0000c000;
+	localPal[0xd0] = 0x00c00000;
+	localPal[0xe0] = 0x00000000; // reserved pixels for OSD
+	localPal[0xf0] = 0x00ffffff;
 
+        if (Pico.m.dirtyPal == 2)
+		Pico.m.dirtyPal = 0;
 	return pallen;
 }
 
@@ -334,25 +347,21 @@ static int make_local_pal_sms(int fast_mode)
 		*dpal++ = t;
 	}
 
+	Pico.m.dirtyPal = 0;
 	return 0x40;
 }
 
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
-	int ret;
 
 	if (PicoIn.AHW & PAHW_32X)
-		; // nothing to do
+		localPalSize = 0; // nothing to do
 	else if (get_renderer() == RT_8BIT_FAST)
 	{
 		// 8bit fast renderer
-		if (Pico.m.dirtyPal) {
-			Pico.m.dirtyPal = 0;
-			ret = make_local_pal(1);
-			// feed new palette to our device
-			gp2x_video_setpalette(localPal, ret);
-		}
+		if (Pico.m.dirtyPal)
+			localPalSize = make_local_pal(1);
 		// a hack for VR
 		if (PicoIn.AHW & PAHW_SVP)
 			memset32((int *)(Pico.est.Draw2FB+328*8+328*223), 0xe0e0e0e0, 328);
@@ -364,12 +373,9 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 	{
 		// 8bit accurate renderer
 		if (Pico.m.dirtyPal)
-		{
-			Pico.m.dirtyPal = 0;
-			ret = make_local_pal(0);
-			gp2x_video_setpalette(localPal, ret);
-		}
+			localPalSize = make_local_pal(0);
 	}
+	else	localPalSize = 0; // no palette in 16bit mode
 
 	if (notice)
 		osd_text(4, osd_y, notice);
@@ -385,6 +391,10 @@ void plat_video_flip(void)
 {
 	int stride = g_screen_width;
 	gp2x_video_flip();
+	// switching the palette takes immediate effect, whilst flipping only
+	// takes effect with the next vsync; unavoidable flicker may occur!
+	if (localPalSize)
+		gp2x_video_setpalette(localPal, localPalSize);
 
 	if (is_16bit_mode())
 		stride *= 2;
@@ -502,9 +512,6 @@ static void vid_reset_mode(void)
 		if (renderer == RT_16BIT && (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX)) {
 			PicoDrawSetOutFormat(PDF_RGB555, 1);
 		}
-		else {
-			PicoDrawSetOutFormat(PDF_NONE, 0);
-		}
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 		gp2x_mode = 16;
 	}
@@ -537,10 +544,7 @@ static void vid_reset_mode(void)
 		localPal[0xe0] = 0x00000000; // reserved pixels for OSD
 		localPal[0xf0] = 0x00ffffff;
 		gp2x_video_setpalette(localPal, 0x100);
-		gp2x_memset_all_buffers(0, 0xe0, 320*240);
 	}
-	else
-		gp2x_memset_all_buffers(0, 0, 320*240*2);
 
 	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX)
 		gp2x_mode = -gp2x_mode;
@@ -723,6 +727,8 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
 
+	if (!no_scale)
+		no_scale = currentConfig.scaling == EOPT_SCALE_NONE;
 	emu_cmn_forced_frame(no_scale, do_emu);
 
 	g_menubg_src_ptr = g_screen_ptr;

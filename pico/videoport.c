@@ -41,7 +41,7 @@ static void VideoWrite(u16 d)
             if (a - ((unsigned)(Pico.video.reg[5]&0x7f) << 9) < 0x400)
               Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
             break;
-    case 3: Pico.m.dirtyPal = 1;
+    case 3: if (PicoMem.cram [(a >> 1) & 0x3f] != d) Pico.m.dirtyPal = 1;
             PicoMem.cram [(a >> 1) & 0x3f] = d; break;
     case 5: PicoMem.vsram[(a >> 1) & 0x3f] = d; break;
     case 0x81:
@@ -441,7 +441,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
             break;
           case 0x0c:
             // renderers should update their palettes if sh/hi mode is changed
-            if ((d^dold)&8) Pico.m.dirtyPal = 2;
+            if ((d^dold)&8) Pico.m.dirtyPal = 1;
             break;
         }
         return;

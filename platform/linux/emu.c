@@ -71,8 +71,8 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		unsigned char *ps = Pico.est.Draw2FB + 328*8 + 8;
 		unsigned short *pal = Pico.est.HighPal;
 		int i, x;
-		if (Pico.m.dirtyPal)
-			PicoDrawUpdateHighPal();
+
+		PicoDrawUpdateHighPal();
 		for (i = 0; i < 224; i++, ps += 8)
 			for (x = 0; x < 320; x++)
 				*pd++ = pal[*ps++];
@@ -109,6 +109,8 @@ static void apply_renderer(void)
 
 	if (PicoIn.AHW & PAHW_32X)
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
+
+	Pico.m.dirtyPal = 1;
 }
 
 void plat_video_toggle_renderer(int change, int is_menu)

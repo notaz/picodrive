@@ -201,13 +201,22 @@ static void do_pal_update(int allow_sh, int allow_as)
 
 	//for (i = 0x3f/2; i >= 0; i--)
 	//	dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
-	do_pal_convert(localPal, Pico.cram, currentConfig.gamma, currentConfig.gamma2);
-
-	Pico.m.dirtyPal = 0;
-	need_pal_upload = 1;
-
-	if (allow_sh && (Pico.video.reg[0xC]&8)) // shadow/hilight?
+	if ((currentConfig.EmuOpt&0x80) || (PicoOpt&0x10)) {
+		do_pal_convert(localPal, Pico.cram, currentConfig.gamma, currentConfig.gamma2);
+		Pico.m.dirtyPal = 0;
+	}
+	else if (Pico.est.rendstatus&0x20)
 	{
+		switch (Pico.est.SonicPalCount) {
+		case 3: do_pal_convert(localPal+0xc0, Pico.est.SonicPal+0xc0, currentConfig.gamma, currentConfig.gamma2);
+		case 2: do_pal_convert(localPal+0x80, Pico.est.SonicPal+0x80, currentConfig.gamma, currentConfig.gamma2);
+		case 1:	do_pal_convert(localPal+0x40, Pico.est.SonicPal+0x40, currentConfig.gamma, currentConfig.gamma2);
+		default:do_pal_convert(localPal, Pico.est.SonicPal, currentConfig.gamma, currentConfig.gamma2);
+		}
+	}
+	else if (allow_sh && (Pico.video.reg[0xC]&8)) // shadow/hilight?
+	{
+		do_pal_convert(localPal, Pico.est.SonicPal, currentConfig.gamma, currentConfig.gamma2);
 		// shadowed pixels
 		for (i = 0x3f/2; i >= 0; i--)
 			dpal[0x20|i] = dpal[0x60|i] = (dpal[i]>>1)&0x7bcf7bcf;
@@ -223,6 +232,16 @@ static void do_pal_update(int allow_sh, int allow_as)
 		localPal[0xe0] = 0;
 		localPal[0xf0] = 0x001f;
 	}
+ 	else if (allow_as)
+ 	{
+		do_pal_convert(localPal, Pico.est.SonicPal, currentConfig.gamma, currentConfig.gamma2);
+		memcpy((int *)dpal+0x40/2, (void *)localPal, 0x40*2);
+		memcpy((int *)dpal+0x80/2, (void *)localPal, 0x80*2);
+	}
+
+	if (Pico.m.dirtyPal == 2)
+		Pico.m.dirtyPal = 0;
+	need_pal_upload = 1;
 }
 
 static void do_slowmode_lines(int line_to)
@@ -639,7 +658,7 @@ static void writeSound(int len)
 
 	PicoIn.sndOut += len / 2;
 	/*if (PicoIn.sndOut > sndBuffer_endptr) {
-		memcpy32((int *)(void *)sndBuffer, (int *)endptr, (PicoIn.sndOut - endptr + 1) / 2);
+		memcpy((int *)(void *)sndBuffer, (int *)endptr, (PicoIn.sndOut - endptr + 1) * 2);
 		PicoIn.sndOut = &sndBuffer[PicoIn.sndOut - endptr];
 		lprintf("mov\n");
 	}
