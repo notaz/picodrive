@@ -47,6 +47,7 @@ asm_ym2612 ?= 1
 asm_misc ?= 1
 asm_cdmemory ?= 1
 asm_mix ?= 1
+asm_32xdraw ?= 0 # currently defunct
 else # if not arm
 use_fame ?= 1
 use_cz80 ?= 1
@@ -194,10 +195,10 @@ LDFLAGS += -Wl,-Map=$(TARGET).map
 endif
 
 
-target_: $(TARGET)
+target_: pico/pico_int_o32.h $(TARGET)
 
 clean:
-	$(RM) $(TARGET) $(OBJS)
+	$(RM) $(TARGET) $(OBJS) pico/pico_int_o32.h
 	$(RM) -r .opk_data
 
 $(TARGET): $(OBJS)
@@ -210,8 +211,8 @@ endif
 pprof: platform/linux/pprof.c
 	$(CC) $(CFLAGS) -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
-tools/textfilter: tools/textfilter.c
-	make -C tools/ textfilter
+pico/pico_int_o32.h:: tools/mkoffsets.sh
+	make -C tools/ XCC="$(CC)" XCFLAGS="$(CFLAGS)"
 
 .s.o:
 	$(CC) $(CFLAGS) -c $< -o $@
