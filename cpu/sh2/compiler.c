@@ -4233,6 +4233,14 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
       if (opd->imm < end_pc + MAX_LITERAL_OFFSET) {
         if (end_literals < opd->imm + opd->size * 2)
           end_literals = opd->imm + opd->size * 2;
+        if (opd->size == 2) {
+          // tweak for NFL: treat a 32bit literal as an address and check if it
+          // points to the literal space. In that case handle it like MOVA. 
+          tmp = FETCH32(opd->imm) & ~0x20000000; // MUST ignore wt bit here
+          if (tmp >= end_pc && tmp < end_pc + MAX_LITERAL_OFFSET)
+            if (lowest_mova == 0 || tmp < lowest_mova)
+              lowest_mova = tmp;
+        }
       }
     }
   }

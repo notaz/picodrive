@@ -1487,6 +1487,20 @@ static void REGPARM(3) sh2_write16_da(u32 a, u32 d, SH2 *sh2)
   ((u16 *)sh2->data_array)[a1 / 2] = d;
 }
 
+static void REGPARM(3) sh2_write16_rom(u32 a, u32 d, SH2 *sh2)
+{
+  u32 a1 = a & 0x3fffff;
+  // tweak for WWF Raw: does writes to ROM area, and it doesn't work without
+  // allowing this.
+  // Presumably the write goes to the CPU cache and is read back from there,
+  // but it would be extremely costly to emulate cache behaviour. Just allow
+  // writes to that region, hoping that the original ROM values are never used.
+  if ((a1 & 0x3e0000) == 0x3e0000)
+    ((u16 *)sh2->p_rom)[a1 / 2] = d;
+  else
+    sh2_write16_unmapped(a, d, sh2);
+}
+
 
 typedef u32 (sh2_read_handler)(u32 a, SH2 *sh2);
 typedef void REGPARM(3) (sh2_write_handler)(u32 a, u32 d, SH2 *sh2);
@@ -1911,6 +1925,7 @@ void PicoMemSetup32x(void)
   bank_switch_rom_sh2();
   sh2_read8_map[0x02/2].mask  = sh2_read8_map[0x22/2].mask  =
   sh2_read16_map[0x02/2].mask = sh2_read16_map[0x22/2].mask = 0x3fffff; // FIXME
+  sh2_write16_map[0x02/2] = sh2_write16_map[0x22/2] = sh2_write16_rom;
   // CS2 - DRAM - done by Pico32xSwapDRAM()
   sh2_read8_map[0x04/2].mask  = sh2_read8_map[0x24/2].mask  =
   sh2_read16_map[0x04/2].mask = sh2_read16_map[0x24/2].mask = 0x01ffff;
