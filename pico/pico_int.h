@@ -356,6 +356,8 @@ struct PicoEState
   unsigned int  *PicoOpt;
   unsigned char *Draw2FB;
   unsigned short HighPal[0x100];
+  unsigned short SonicPal[0x100];
+  int SonicPalCount;
 };
 
 struct PicoMem
@@ -923,6 +925,7 @@ void p32x_sh2_poll_event(SH2 *sh2, unsigned int flags, unsigned int m68k_cycles)
 
 // 32x/draw.c
 void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode);
+void PicoDrawSetOutBuf32X(void *dest, int increment);
 void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est);
 void PicoDraw32xLayer(int offs, int lines, int mdbg);
 void PicoDraw32xLayerMdOnly(int offs, int lines);

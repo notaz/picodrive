@@ -59,7 +59,7 @@ void menu_draw_begin(void)
 	// int i;
 
 	// for (i = 272; i >= 0; i--, dst += 512, src += 480)
-	//	memcpy32((int *)dst, (int *)src, 480*2/4);
+	//	memcpy((int *)dst, (int *)src, 480*2);
 
 	sceGuSync(0,0); // sync with prev
 	sceGuStart(GU_DIRECT, guCmdList);

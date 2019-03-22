@@ -1498,11 +1498,9 @@ vidConvCpyRGB565: @ void *to, void *from, int pixels
 PicoDoHighPal555:
     stmfd   sp!, {r4-r10,lr}
     mov     r10,r2               @ est
-    mov     r1, #0
     ldr     r8, [r10, #OFS_EST_Pico]
 
-PicoDoHighPal555_nopush:
-    orr     r9, r1, r0, lsl #31  @ 0:called from FinalizeLine555, 31: s/h
+    mov     r9, r0
 
     add     r0, r10, #OFS_EST_HighPal
 
@@ -1517,7 +1515,7 @@ PicoDoHighPal555_nopush:
 
     vidConvCpyRGB565_local
 
-    tst     r9, #(1<<31)
+    cmp     r9, #0
     beq     PicoDoHighPal555_end
 
     add     r3, r10, #OFS_EST_HighPal
@@ -1560,11 +1558,7 @@ PicoDoHighPal555_nopush:
     mov     r0, #1
 
 PicoDoHighPal555_end:
-    tst     r9, #1
-    ldmeqfd sp!, {r4-r10,pc}
-
-    ldr     r8, [r10, #OFS_EST_Pico]
-    b       FinalizeLineRGB555_pal_done
+    ldmfd   sp!, {r4-r10,pc}
 
 
 @ void FinalizeLine555(int sh, int line, struct PicoEState *est)
@@ -1576,19 +1570,11 @@ FinalizeLine555:
     mov     r10,r2               @ est
     ldr     r8, [r10, #OFS_EST_Pico]
 
-    ldrb    r2, [r8, #OFS_Pico_m_dirtyPal]
-    mov     r1, #1
-    tst     r2, r2
-    bne     PicoDoHighPal555_nopush
+    bl      PicoDrawUpdateHighPal
 
-FinalizeLineRGB555_pal_done:
     add     r3, r10, #OFS_EST_HighPal
 
-    ldr     r12, [r10, #OFS_EST_rendstatus]
-    eors    r0, r0, #1           @ sh is 0
     mov     lr, #0xff
-    tstne   r12,#PDRAW_ACC_SPRITES
-    movne   lr, #0x3f
 
     ldr     r1, [r10, #OFS_EST_HighCol]
     ldr     r0, [r10, #OFS_EST_DrawLineDest]

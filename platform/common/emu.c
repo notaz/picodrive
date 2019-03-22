@@ -1407,8 +1407,10 @@ void emu_loop(void)
 			{
 				notice_msg_time = 0;
 				plat_status_msg_clear();
+#ifndef __GP2X__
 				plat_video_flip();
 				plat_status_msg_clear(); /* Do it again in case of double buffering */
+#endif
 				notice_msg = NULL;
 			}
 			else {

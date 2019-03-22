@@ -54,7 +54,7 @@ static unsigned int inp_prev = 0;
 void menu_draw_begin(int use_bgbuff)
 {
 	if (use_bgbuff)
-		memcpy32((int *)menu_screen, (int *)bg_buffer, 321*240*2/4);
+		memcpy((int *)menu_screen, (int *)bg_buffer, 321*240*2);
 }
 
 
@@ -66,7 +66,7 @@ void menu_draw_end(void)
 		lprintf("%s: Framework2D_LockBuffer() returned NULL\n", __FUNCTION__);
 		return;
 	}
-	memcpy32(giz_screen, (int *)menu_screen, 321*240*2/4);
+	memcpy(giz_screen, (int *)menu_screen, 321*240*2);
 	fb_unlock();
 	giz_screen = NULL;
 	fb_flip();
