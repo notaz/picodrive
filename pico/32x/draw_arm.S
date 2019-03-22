@@ -6,9 +6,10 @@
 @* See COPYING file in the top-level directory.
 @*
 
+#include "pico/pico_int_o32.h"
+
 .extern Pico32x
-.extern PicoDraw2FB
-.extern HighPal
+.extern Pico
 
 .equiv P32XV_PRI,  (1<< 7)
 
@@ -22,11 +23,11 @@ Pico32xNativePal:
 .align 2
 
 
-.macro call_scan_prep cond
+.macro call_scan_prep cond est   @ &Pico.est
 .if \cond
     ldr     r4, =PicoScan32xBegin
     ldr     r5, =PicoScan32xEnd
-    ldr     r6, =DrawLineDest
+    ldr     r6, [\est, #OFS_EST_DrawLineDest]
     ldr     r4, [r4]
     ldr     r5, [r5]
     stmfd   sp!, {r4,r5,r6}
@@ -70,19 +71,20 @@ Pico32xNativePal:
 \name:
     stmfd   sp!, {r4-r11,lr}
 
+    ldr     lr,=Pico
     ldr     r10,=Pico32x
-    ldr     r11,=PicoDraw2FB
+    ldr     r11, [lr, #OFS_Pico_est+OFS_EST_Draw2FB]
     ldr     r10,[r10, #0x40] @ Pico32x.vdp_regs[0]
-    ldr     r11,[r11]
-    ldr     r9, =HighPal     @ palmd
+    add     r9, lr, #OFS_Pico_est+OFS_EST_HighPal   @ palmd
+
     and     r4, r2, #0xff
     mov     r5, #328
-    lsl     r3, #26          @ mdbg << 26
+    mov     r3, r3, lsl #26  @ mdbg << 26
     mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
     tst     r10,#P32XV_PRI
     moveq   r10,#0
     movne   r10,#0x8000      @ r10 = inv_bit
-    call_scan_prep \call_scan
+    call_scan_prep \call_scan lr
 
     mov     r4, #0           @ line
     b       1f @ loop_outer_entry
@@ -139,16 +141,17 @@ Pico32xNativePal:
 \name:
     stmfd   sp!, {r4-r11,lr}
 
-    ldr     r11,=PicoDraw2FB
+    ldr     lr,=Pico
     ldr     r10,=Pico32xNativePal
-    ldr     r11,[r11]
+    ldr     r11, [lr, #OFS_Pico_est+OFS_EST_Draw2FB]
     ldr     r10,[r10]
-    ldr     r9, =HighPal     @ palmd
+    add     r9, lr, #OFS_Pico_est+OFS_EST_HighPal   @ palmd
+
     and     r4, r2, #0xff
     mov     r5, #328
-    lsl     r3, #26          @ mdbg << 26
+    mov     r3, r3, lsl #26  @ mdbg << 26
     mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
-    call_scan_prep \call_scan
+    call_scan_prep \call_scan lr
 
     mov     r4, #0           @ line
     b       1f @ loop_outer_entry
@@ -179,8 +182,8 @@ Pico32xNativePal:
     ldrneb  r8, [r5, #2]!    @ r7,r8 - pixel 0,1 index
     subs    r6, r6, #1
     blt     0b @ loop_outer
-    cmp     r7, r8
-    beq     5f @ check_fill @ +8
+@    cmp     r7, r8            @ is this really improving things?
+@    beq     5f @ check_fill @ +8
 
 3: @ no_fill:
     mov     r12,r7, lsl #1
@@ -297,16 +300,17 @@ Pico32xNativePal:
 \name:
     stmfd   sp!, {r4-r11,lr}
 
-    ldr     r11,=PicoDraw2FB
+    ldr     lr,=Pico
     ldr     r10,=Pico32xNativePal
-    ldr     r11,[r11]
+    ldr     r11, [lr, #OFS_Pico_est+OFS_EST_Draw2FB]
     ldr     r10,[r10]
-    ldr     r9, =HighPal     @ palmd
+    add     r9, lr, #OFS_Pico_est+OFS_EST_HighPal   @ palmd
+
     and     r4, r2, #0xff
     mov     r5, #328
-    lsl     r3, #26          @ mdbg << 26
+    mov     r3, r3, lsl #26  @ mdbg << 26
     mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
-    call_scan_prep \call_scan
+    call_scan_prep \call_scan lr
 
     mov     r4, #0           @ line
     b       1f @ loop_outer_entry
