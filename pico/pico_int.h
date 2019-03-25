@@ -241,7 +241,7 @@ extern SH2 sh2s[2];
 # define sh2_pc(sh2) (sh2)->pc
 #endif
 
-#define sh2_cycles_done(sh2) ((unsigned)(sh2)->cycles_timeslice - sh2_cycles_left(sh2))
+#define sh2_cycles_done(sh2) (unsigned)((int)(sh2)->cycles_timeslice - sh2_cycles_left(sh2))
 #define sh2_cycles_done_t(sh2) \
   (unsigned)(C_M68K_TO_SH2(sh2, (sh2)->m68krcycles_done) + sh2_cycles_done(sh2))
 #define sh2_cycles_done_m68k(sh2) \
@@ -650,6 +650,7 @@ PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawSync(int to, int blank_last_line);
 void BackFill(int reg7, int sh, struct PicoEState *est);
 void FinalizeLine555(int sh, int line, struct PicoEState *est);
+void PicoDrawSetOutBufMD(void *dest, int increment);
 extern int (*PicoScanBegin)(unsigned int num);
 extern int (*PicoScanEnd)(unsigned int num);
 #define MAX_LINE_SPRITES 29

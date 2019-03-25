@@ -1,16 +1,21 @@
-# usage: mkoffsets <output dir>
 # automatically compute structure offsets for gcc targets in ELF format
+# (C) 2018 Kai-Uwe Bloem. This work is placed in the public domain.
+#
+# usage: mkoffsets <output dir>
 
 CC=${CC:-gcc}
 
 # endianess of target (automagically determined below)
 ENDIAN=
 
+# compile with target C compiler and extract value from .rodata section
 compile_rodata ()
 {
 	$CC $CFLAGS -I .. -c /tmp/getoffs.c -o /tmp/getoffs.o || exit 1
+	# find the name of the .rodata section (in case -fdata-sections is used)
 	rosect=$(readelf -S /tmp/getoffs.o | grep '\.rodata' |
 						sed 's/^[^.]*././;s/ .*//')
+	# read out .rodata section as hex string (should be only 4 or 8 bytes)
 	objcopy --dump-section $rosect=/tmp/getoffs.ro /tmp/getoffs.o || exit 1
 	ro=$(xxd -ps /tmp/getoffs.ro)
 	if [ "$ENDIAN" = "le" ]; then
@@ -22,9 +27,11 @@ compile_rodata ()
 	else
 		hex=$ro
 	fi
+	# extract decimal value from hex string
 	rodata=$(printf "%d" 0x$hex)
 }
 
+# determine member offset and create #define
 get_define () # prefix struct member member...
 {
 	prefix=$1; shift
