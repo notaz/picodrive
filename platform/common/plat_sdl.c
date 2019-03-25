@@ -89,6 +89,7 @@ static const struct in_pdata in_sdl_platform_data = {
 /* YUV stuff */
 static int yuv_ry[32], yuv_gy[32], yuv_by[32];
 static unsigned char yuv_u[32 * 2], yuv_v[32 * 2];
+static int yuv_y[256];
 
 void bgr_to_uyvy_init(void)
 {
@@ -119,6 +120,10 @@ void bgr_to_uyvy_init(void)
       v = 255;
     yuv_v[i + 32] = v;
   }
+  // valid Y range seems to be 16..235
+  for (i = 0; i < 256; i++) {
+    yuv_y[i] = 16 + 219 * i / 32;
+  }
 }
 
 void rgb565_to_uyvy(void *d, const void *s, int pixels)
@@ -143,8 +148,8 @@ void rgb565_to_uyvy(void *d, const void *s, int pixels)
     u = yu[b0 - y0];
     v = yv[r0 - y0];
     // valid Y range seems to be 16..235
-    y0 = 16 + 219 * y0 / 31;
-    y1 = 16 + 219 * y1 / 31;
+    y0 = yuv_y[y0];
+    y1 = yuv_y[y1];
 
     *dst = (y1 << 24) | (v << 16) | (y0 << 8) | u;
   }

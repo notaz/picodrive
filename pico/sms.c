@@ -46,8 +46,8 @@ static void vdp_data_write(unsigned char d)
   struct PicoVideo *pv = &Pico.video;
 
   if (pv->type == 3) {
+    if (PicoMem.cram[pv->addr & 0x1f] != d) Pico.m.dirtyPal = 1;
     PicoMem.cram[pv->addr & 0x1f] = d;
-    Pico.m.dirtyPal = 1;
   } else {
     PicoMem.vramb[pv->addr] = d;
   }

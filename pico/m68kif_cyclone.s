@@ -87,19 +87,19 @@ cyclone_fetch32:
     orrcc   r0, r1, r0, lsl #16
     bxcc    lr
 
-    stmfd   sp!,{r0,r1,lr}
+    stmfd   sp!,{r0,r1,r2,lr}
     mov     lr, pc
     bx      r1
     mov     r2, r0, lsl #16
-    ldmia   sp, {r0,r1}
+    ldmfd   sp!, {r0,r1}
     str     r2, [sp]
     add     r0, r0, #2
     mov     lr, pc
     bx      r1
-    ldr     r1, [sp]
+    ldmfd   sp!, {r1,lr}
     mov     r0, r0, lsl #16
     orr     r0, r1, r0, lsr #16
-    ldmfd   sp!,{r1,r2,pc}
+    bx      lr
 
 
 cyclone_write8: @ u32 a, u8 d

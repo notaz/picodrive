@@ -194,11 +194,11 @@ void PicoPower32x(void)
 
 void PicoUnload32x(void)
 {
+  sh2_finish(&msh2);
+  sh2_finish(&ssh2);
   if (Pico32xMem != NULL)
     plat_munmap(Pico32xMem, sizeof(*Pico32xMem));
   Pico32xMem = NULL;
-  sh2_finish(&msh2);
-  sh2_finish(&ssh2);
 
   PicoIn.AHW &= ~PAHW_32X;
 }
