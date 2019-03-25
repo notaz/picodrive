@@ -686,7 +686,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	case 0: rd = xDI; break; \
 	case 1: rd = xSI; break; \
 	case 2: rd = xDX; break; \
-	case 2: rd = xBX; break; \
+	case 3: rd = xBX; break; \
 	}
 
 #define emith_sh2_drc_entry() { \
