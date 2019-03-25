@@ -7,7 +7,7 @@ typedef unsigned int   u32;
 typedef signed int     s32;
 #endif
 
-#define DRC_TCACHE_SIZE         (2*1024*1024)
+#define DRC_TCACHE_SIZE         (4*1024*1024)
 
 extern u8 *tcache;
 
