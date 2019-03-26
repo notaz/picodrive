@@ -241,14 +241,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_and_r_imm(r, imm) \
 	emith_arith_r_imm(4, r, imm)
 
-/* used for sub cycles after test, so retain flags with lea */
-#define emith_sub_r_imm(r, imm) do { \
-	assert(r != xSP); \
-	EMIT_OP_MODRM(0x8d, 2, r, r); \
-	EMIT(-(s32)(imm), s32); \
-} while (0)
-
-#define emith_subf_r_imm(r, imm) \
+#define emith_sub_r_imm(r, imm) \
 	emith_arith_r_imm(5, r, imm)
 
 #define emith_eor_r_imm(r, imm) \
@@ -454,6 +447,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 } while (0)
 
 // "flag" instructions are the same
+#define emith_adcf_r_imm emith_adc_r_imm
+#define emith_subf_r_imm emith_sub_r_imm
 #define emith_addf_r_r   emith_add_r_r
 #define emith_subf_r_r   emith_sub_r_r
 #define emith_adcf_r_r   emith_adc_r_r
@@ -501,6 +496,18 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	} \
 } while (0)
 
+#define emith_read8s_r_r_offs(r, rs, offs) do { \
+	int r_ = r; \
+	if (!is_abcdx(r)) \
+		r_ = rcache_get_tmp(); \
+	EMIT(0x0f, u8); \
+	emith_deref_op(0xbe, r_, rs, offs); \
+	if ((r) != r_) { \
+		emith_move_r_r(r, r_); \
+		rcache_free_tmp(r_); \
+	} \
+} while (0)
+
 #define emith_write8_r_r_offs(r, rs, offs) do {\
 	int r_ = r; \
 	if (!is_abcdx(r)) { \
@@ -515,6 +522,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_read16_r_r_offs(r, rs, offs) do { \
 	EMIT(0x0f, u8); \
 	emith_deref_op(0xb7, r, rs, offs); \
+} while (0)
+
+#define emith_read16s_r_r_offs(r, rs, offs) do { \
+	EMIT(0x0f, u8); \
+	emith_deref_op(0xbf, r, rs, offs); \
 } while (0)
 
 #define emith_write16_r_r_offs(r, rs, offs) do { \
@@ -652,6 +664,13 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define EMITH_SJMP3_START EMITH_JMP3_START
 #define EMITH_SJMP3_MID EMITH_JMP3_MID
 #define EMITH_SJMP3_END EMITH_JMP3_END
+
+#define EMITH_SJMP2_START(cond) \
+	EMITH_SJMP3_START(cond)
+#define EMITH_SJMP2_MID(cond) \
+	EMITH_SJMP3_MID(cond)
+#define EMITH_SJMP2_END(cond) \
+	EMITH_SJMP3_END()
 
 #define emith_pass_arg_r(arg, reg) do { \
 	int rd = 7; \
@@ -854,3 +873,54 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	rcache_free_tmp(tmp_);                    \
 }
 
+/* mh:ml += rn*rm, does saturation if required by S bit. rn, rm must be TEMP */
+#define emith_sh2_macl(ml, mh, rn, rm, sr) do {   \
+	emith_tst_r_imm(sr, S);                   \
+	EMITH_SJMP_START(DCOND_EQ);               \
+	/* MACH top 16 bits unused if saturated. sign ext for overfl detect */ \
+	emith_sext(mh, mh, 16);                   \
+	EMITH_SJMP_END(DCOND_EQ);                 \
+	emith_mula_s64(ml, mh, rn, rm);           \
+	emith_tst_r_imm(sr, S);                   \
+	EMITH_SJMP_START(DCOND_EQ);               \
+	/* overflow if top 17 bits of MACH aren't all 1 or 0 */ \
+	/* to check: add MACH[15] to MACH[31:16]. this is 0 if no overflow */ \
+	emith_asrf(rn, mh, 16); /* sum = (MACH>>16) + ((MACH>>15)&1) */ \
+	emith_adcf_r_imm(rn, 0); /* (MACH>>15) is in carry after shift */ \
+	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> ov */ \
+	emith_move_r_imm_c(DCOND_NE, ml, 0x0000); /* -overflow */ \
+	emith_move_r_imm_c(DCOND_NE, mh, 0x8000); \
+	EMITH_SJMP_START(DCOND_LE); /* sum > 0 -> +ovl */ \
+	emith_sub_r_imm_c(DCOND_GT, ml, 1); /* 0xffffffff */ \
+	emith_sub_r_imm_c(DCOND_GT, mh, 1); /* 0x00007fff */ \
+	EMITH_SJMP_END(DCOND_LE);                 \
+	EMITH_SJMP_END(DCOND_EQ);                 \
+	EMITH_SJMP_END(DCOND_EQ);                 \
+} while (0)
+
+/* mh:ml += rn*rm, does saturation if required by S bit. rn, rm must be TEMP */
+#define emith_sh2_macw(ml, mh, rn, rm, sr) do {   \
+	emith_sext(rn, rn, 16);                   \
+	emith_sext(rm, rm, 16);                   \
+	emith_tst_r_imm(sr, S);                   \
+	EMITH_SJMP_START(DCOND_EQ);               \
+	/* XXX: MACH should be untouched when S is set? */ \
+	emith_asr(mh, ml, 31); /* sign ext MACL to MACH for ovrfl check */ \
+	EMITH_SJMP_END(DCOND_EQ);                 \
+	emith_mula_s64(ml, mh, rn, rm);           \
+	emith_tst_r_imm(sr, S);                   \
+	EMITH_SJMP_START(DCOND_EQ);               \
+	/* overflow if top 33 bits of MACH:MACL aren't all 1 or 0 */ \
+	/* to check: add MACL[31] to MACH. this is 0 if no overflow */ \
+	emith_lsr(rn, ml, 31);                    \
+	emith_addf_r_r(rn, mh); /* sum = MACH + ((MACL>>31)&1) */ \
+	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> overflow */ \
+	/* XXX: LSB signalling only in SH1, or in SH2 too? */ \
+	emith_move_r_imm_c(DCOND_NE, mh, 0x00000001); /* LSB of MACH */ \
+	emith_move_r_imm_c(DCOND_NE, ml, 0x80000000); /* negative ovrfl */ \
+	EMITH_SJMP_START(DCOND_LE); /* sum > 0 -> positive ovrfl */ \
+	emith_sub_r_imm_c(DCOND_GT, ml, 1); /* 0x7fffffff */ \
+	EMITH_SJMP_END(DCOND_LE);                 \
+	EMITH_SJMP_END(DCOND_EQ);                 \
+	EMITH_SJMP_END(DCOND_EQ);                 \
+} while (0)
