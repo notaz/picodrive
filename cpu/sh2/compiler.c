@@ -102,6 +102,7 @@ static int insns_compiled, hash_collisions, host_insn_count;
 
 #define SHR_T	SHR_SR // might make them separate someday
 #define SHR_MEM	31
+#define SHR_TMP -1
 
 static struct op_data {
   u8 op;
@@ -391,6 +392,12 @@ static void REGPARM(2) (*sh2_drc_write16)(u32 a, u32 d);
 static void REGPARM(3) (*sh2_drc_write32)(u32 a, u32 d, SH2 *sh2);
 
 // address space stuff
+static int dr_is_rom(u32 a)
+{
+  // tweak for WWF Raw which writes data to some high ROM addresses
+  return (a & 0xc6000000) == 0x02000000 && (a & 0x3f0000) < 0x3e0000;
+}
+
 static int dr_ctx_get_mem_ptr(u32 a, u32 *mask)
 {
   int poffs = -1;
@@ -1162,6 +1169,26 @@ static int emit_get_rbase_and_offs(u32 a, u32 *offs)
   return hr;
 }
 
+// read const data from const ROM address
+static int emit_get_rom_data(sh2_reg_e r, u32 offs, int size, u32 *val)
+{
+  u32 tmp;
+
+  *val = 0;
+  if (gconst_get(r, &tmp)) {
+    tmp += offs;
+    if (dr_is_rom(tmp)) {
+      switch (size) {
+      case 0:   *val = (s8)p32x_sh2_read8(tmp, sh2s);   break;  // 8
+      case 1:   *val = (s16)p32x_sh2_read16(tmp, sh2s); break;  // 16
+      case 2:   *val = p32x_sh2_read32(tmp, sh2s);      break;  // 32
+      }
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static void emit_move_r_imm32(sh2_reg_e dst, u32 imm)
 {
 #if PROPAGATE_CONSTANTS
@@ -1174,10 +1201,19 @@ static void emit_move_r_imm32(sh2_reg_e dst, u32 imm)
 
 static void emit_move_r_r(sh2_reg_e dst, sh2_reg_e src)
 {
-  int hr_d = rcache_get_reg(dst, RC_GR_WRITE);
-  int hr_s = rcache_get_reg(src, RC_GR_READ);
+  int hr_d, hr_s;
+  u32 val;
 
-  emith_move_r_r(hr_d, hr_s);
+#if PROPAGATE_CONSTANTS
+  if  (gconst_get(src, &val))
+    gconst_new(dst, val);
+  else
+#endif
+  {
+    hr_s = rcache_get_reg(src, RC_GR_READ);
+    hr_d = rcache_get_reg(dst, RC_GR_WRITE);
+    emith_move_r_r(hr_d, hr_s);
+  }
 }
 
 // T must be clear, and comparison done just before this
@@ -1188,15 +1224,10 @@ static void emit_or_t_if_eq(int srr)
   EMITH_SJMP_END(DCOND_NE);
 }
 
-// arguments must be ready
-// reg cache must be clean before call
-static int emit_memhandler_read_(int size, int ram_check)
+// rd = @(arg0)
+static int emit_memhandler_read(int size)
 {
   int arg1;
-#if 0
-  int arg0;
-  host_arg2reg(arg0, 0);
-#endif
 
   rcache_clean();
 
@@ -1207,53 +1238,10 @@ static int emit_memhandler_read_(int size, int ram_check)
 
   arg1 = rcache_get_tmp_arg(1);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
-
-#if 0 // can't do this because of unmapped reads
- // ndef PDB_NET
-  if (ram_check && Pico.rom == (void *)0x02000000 && Pico32xMem->sdram == (void *)0x06000000) {
-    int tmp = rcache_get_tmp();
-    emith_and_r_r_imm(tmp, arg0, 0xfb000000);
-    emith_cmp_r_imm(tmp, 0x02000000);
-    switch (size) {
-    case 0: // 8
-      EMITH_SJMP3_START(DCOND_NE);
-      emith_eor_r_imm_c(DCOND_EQ, arg0, 1);
-      emith_read8_r_r_offs_c(DCOND_EQ, arg0, arg0, 0);
-      EMITH_SJMP3_MID(DCOND_NE);
-      emith_call_cond(DCOND_NE, sh2_drc_read8);
-      EMITH_SJMP3_END();
-      break;
-    case 1: // 16
-      EMITH_SJMP3_START(DCOND_NE);
-      emith_read16_r_r_offs_c(DCOND_EQ, arg0, arg0, 0);
-      EMITH_SJMP3_MID(DCOND_NE);
-      emith_call_cond(DCOND_NE, sh2_drc_read16);
-      EMITH_SJMP3_END();
-      break;
-    case 2: // 32
-      EMITH_SJMP3_START(DCOND_NE);
-      emith_read_r_r_offs_c(DCOND_EQ, arg0, arg0, 0);
-      emith_ror_c(DCOND_EQ, arg0, arg0, 16);
-      EMITH_SJMP3_MID(DCOND_NE);
-      emith_call_cond(DCOND_NE, sh2_drc_read32);
-      EMITH_SJMP3_END();
-      break;
-    }
-  }
-  else
-#endif
-  {
-    switch (size) {
-    case 0: // 8
-      emith_call(sh2_drc_read8);
-      break;
-    case 1: // 16
-      emith_call(sh2_drc_read16);
-      break;
-    case 2: // 32
-      emith_call(sh2_drc_read32);
-      break;
-    }
+  switch (size) {
+  case 0:   emith_call(sh2_drc_read8);      break; // 8
+  case 1:   emith_call(sh2_drc_read16);     break; // 16
+  case 2:   emith_call(sh2_drc_read32);     break; // 32
   }
   rcache_invalidate();
 
@@ -1263,15 +1251,45 @@ static int emit_memhandler_read_(int size, int ram_check)
   return rcache_get_tmp_ret();
 }
 
-static int emit_memhandler_read(int size)
+// @(arg0) = arg1
+static void emit_memhandler_write(int size)
 {
-  return emit_memhandler_read_(size, 1);
+  int arg2;
+
+  if (reg_map_g2h[SHR_SR] != -1)
+    emith_ctx_write(reg_map_g2h[SHR_SR], SHR_SR * 4);
+
+  rcache_clean();
+
+  arg2 = rcache_get_tmp_arg(2);
+  emith_move_r_r_ptr(arg2, CONTEXT_REG);
+  switch (size) {
+  case 0:   emith_call(sh2_drc_write8);     break;  // 8
+  case 1:   emith_call(sh2_drc_write16);    break;  // 16
+  case 2:   emith_call(sh2_drc_write32);    break;  // 32
+  }
+
+  rcache_invalidate();
+  if (reg_map_g2h[SHR_SR] != -1)
+    emith_ctx_read(reg_map_g2h[SHR_SR], SHR_SR * 4);
 }
 
+// rd = @(Rs,#offs)
 static int emit_memhandler_read_rr(sh2_reg_e rd, sh2_reg_e rs, u32 offs, int size)
 {
-  int hr, hr2, ram_check = 1;
+  int hr, hr2;
   u32 val, offs2;
+
+  if (emit_get_rom_data(rs, offs, size, &val)) {
+    if (rd == SHR_TMP) {
+      hr2 = rcache_get_tmp();
+      emith_move_r_imm(hr2, val);
+    } else {
+      gconst_new(rd, val);
+      hr2 = rcache_get_reg(rd, RC_GR_RMW);
+    }
+    return hr2;
+  }
 
   if (gconst_get(rs, &val)) {
     hr = emit_get_rbase_and_offs(val + offs, &offs2);
@@ -1279,12 +1297,10 @@ static int emit_memhandler_read_rr(sh2_reg_e rd, sh2_reg_e rs, u32 offs, int siz
       hr2 = rcache_get_reg(rd, RC_GR_WRITE);
       switch (size) {
       case 0: // 8
-        emith_read8_r_r_offs(hr2, hr, offs2 ^ 1);
-        emith_sext(hr2, hr2, 8);
+        emith_read8s_r_r_offs(hr2, hr, offs2 ^ 1);
         break;
       case 1: // 16
-        emith_read16_r_r_offs(hr2, hr, offs2);
-        emith_sext(hr2, hr2, 16);
+        emith_read16s_r_r_offs(hr2, hr, offs2);
         break;
       case 2: // 32
         emith_read_r_r_offs(hr2, hr, offs2);
@@ -1294,14 +1310,17 @@ static int emit_memhandler_read_rr(sh2_reg_e rd, sh2_reg_e rs, u32 offs, int siz
       rcache_free_tmp(hr);
       return hr2;
     }
-
-    ram_check = 0;
   }
 
-  hr = rcache_get_reg_arg(0, rs);
-  if (offs != 0)
-    emith_add_r_imm(hr, offs);
-  hr  = emit_memhandler_read_(size, ram_check);
+  if (gconst_get(rs, &val)) {
+    hr = rcache_get_tmp_arg(0);
+    emith_move_r_imm(hr, val + offs);
+  } else {
+    hr = rcache_get_reg_arg(0, rs);
+    if (offs)
+      emith_add_r_imm(hr, offs);
+  }
+  hr  = emit_memhandler_read(size);
   hr2 = rcache_get_reg(rd, RC_GR_WRITE);
   if (size != 2) {
     emith_sext(hr2, hr, (size == 1) ? 16 : 8);
@@ -1312,45 +1331,78 @@ static int emit_memhandler_read_rr(sh2_reg_e rd, sh2_reg_e rs, u32 offs, int siz
   return hr2;
 }
 
-static void emit_memhandler_write(int size)
+// @(Rs,#offs) = rd
+static void emit_memhandler_write_rr(sh2_reg_e rd, sh2_reg_e rs, u32 offs, int size)
 {
-  int ctxr;
-  host_arg2reg(ctxr, 2);
-  if (reg_map_g2h[SHR_SR] != -1)
-    emith_ctx_write(reg_map_g2h[SHR_SR], SHR_SR * 4);
+  int hr;
+  u32 val;
 
-  rcache_clean();
+  rcache_get_reg_arg(1, rd);
 
-  switch (size) {
-  case 0: // 8
-    // XXX: consider inlining sh2_drc_write8
-    emith_call(sh2_drc_write8);
-    break;
-  case 1: // 16
-    emith_call(sh2_drc_write16);
-    break;
-  case 2: // 32
-    emith_move_r_r_ptr(ctxr, CONTEXT_REG);
-    emith_call(sh2_drc_write32);
-    break;
-  }
+  if (gconst_get(rs, &val)) {
+    hr = rcache_get_tmp_arg(0);
+    emith_move_r_imm(hr, val + offs);
+  } else if (offs) {
+    hr = rcache_get_reg_arg(0, rs);
+    emith_add_r_imm(hr, offs);
+  } else
+    rcache_get_reg_arg(0, rs);
 
-  rcache_invalidate();
-  if (reg_map_g2h[SHR_SR] != -1)
-    emith_ctx_read(reg_map_g2h[SHR_SR], SHR_SR * 4);
+  emit_memhandler_write(size);
 }
 
-// @(Rx,Ry)
-static int emit_indirect_indexed_read(int rx, int ry, int size)
+// rd = @(Rx,Ry)
+static int emit_indirect_indexed_read(sh2_reg_e rd, sh2_reg_e rx, sh2_reg_e ry, int size)
 {
+  int hr, hr2;
   int a0, t;
+#if PROPAGATE_CONSTANTS
+  u32 offs;
+
+  if (gconst_get(ry, &offs))
+    return emit_memhandler_read_rr(rd, rx, offs, size);
+  if (gconst_get(rx, &offs))
+    return emit_memhandler_read_rr(rd, ry, offs, size);
+#endif
   a0 = rcache_get_reg_arg(0, rx);
   t  = rcache_get_reg(ry, RC_GR_READ);
   emith_add_r_r(a0, t);
-  return emit_memhandler_read(size);
+  hr = emit_memhandler_read(size);
+  if (rd != SHR_TMP)
+    hr2 = rcache_get_reg(rd, RC_GR_WRITE);
+  else
+    hr2 = hr;
+
+  if (size != 2) {  // 16, 8
+    emith_sext(hr2, hr, size ? 16 : 8);
+  } else if (hr != hr2) // 32
+    emith_move_r_r(hr2, hr);
+
+  if (hr != hr2)
+    rcache_free_tmp(hr);
+  return hr2;
 }
 
-// read @Rn, @rm
+// @(Rx,Ry) = rd
+static void emit_indirect_indexed_write(sh2_reg_e rd, sh2_reg_e rx, sh2_reg_e ry, int size)
+{
+  int a0, t;
+#if PROPAGATE_CONSTANTS
+  u32 offs;
+
+  if (gconst_get(ry, &offs))
+    return emit_memhandler_write_rr(rd, rx, offs, size);
+  if (gconst_get(rx, &offs))
+    return emit_memhandler_write_rr(rd, ry, offs, size);
+#endif
+  rcache_get_reg_arg(1, rd);
+  a0 = rcache_get_reg_arg(0, rx);
+  t  = rcache_get_reg(ry, RC_GR_READ);
+  emith_add_r_r(a0, t);
+  emit_memhandler_write(size);
+}
+
+// @Rn+,@Rm+
 static void emit_indirect_read_double(u32 *rnr, u32 *rmr, int rn, int rm, int size)
 {
   int tmp;
@@ -1670,8 +1722,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             break;
           case OP_BRANCH_CT:
           case OP_BRANCH_CF:
-            tmp = rcache_get_reg(SHR_PC, RC_GR_WRITE);
             sr = rcache_get_reg(SHR_SR, RC_GR_READ);
+            tmp = rcache_get_reg(SHR_PC, RC_GR_WRITE);
             emith_move_r_imm(tmp, pc);
             emith_tst_r_imm(sr, T);
             tmp2 = ops[i-1].op == OP_BRANCH_CT ? DCOND_NE : DCOND_EQ;
@@ -1706,23 +1758,34 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     case OP_BRANCH_R:
       if (opd->dest & BITMASK1(SHR_PR))
         emit_move_r_imm32(SHR_PR, pc + 2);
-      emit_move_r_r(SHR_PC, opd->rm);
-      drcf.pending_branch_indirect = 1;
+      if (gconst_get(opd->rm, &tmp)) {
+        opd->imm = tmp;
+        drcf.pending_branch_direct = 1;
+      } else {
+        emit_move_r_r(SHR_PC, opd->rm);
+        ops[i+1].source |= SHR_PC;      // need PC for jump after delay slot
+        drcf.pending_branch_indirect = 1;
+      }
       goto end_op;
 
     case OP_BRANCH_RF:
-      tmp  = rcache_get_reg(SHR_PC, RC_GR_WRITE);
-      tmp2 = rcache_get_reg(GET_Rn(), RC_GR_READ);
-      if (opd->dest & BITMASK1(SHR_PR)) {
-        tmp3 = rcache_get_reg(SHR_PR, RC_GR_WRITE);
-        emith_move_r_imm(tmp3, pc + 2);
-        emith_add_r_r_r(tmp, tmp2, tmp3);
+      if (gconst_get(GET_Rn(), &tmp)) {
+        if (opd->dest & BITMASK1(SHR_PR))
+          emit_move_r_imm32(SHR_PR, pc + 2);
+        opd->imm = pc + 2 + tmp;
+        drcf.pending_branch_direct = 1;
+      } else {
+        tmp2 = rcache_get_reg(GET_Rn(), RC_GR_READ);
+        tmp  = rcache_get_reg(SHR_PC, RC_GR_WRITE);
+        emith_move_r_imm(tmp, pc + 2);
+        if (opd->dest & BITMASK1(SHR_PR)) {
+          tmp3 = rcache_get_reg(SHR_PR, RC_GR_WRITE);
+          emith_move_r_r(tmp3, tmp);
+        }
+        emith_add_r_r(tmp, tmp2);
+        ops[i+1].source |= SHR_PC;      // need PC for jump after delay slot
+        drcf.pending_branch_indirect = 1;
       }
-      else {
-        emith_move_r_r(tmp, tmp2);
-        emith_add_r_imm(tmp, pc + 2);
-      }
-      drcf.pending_branch_indirect = 1;
       goto end_op;
 
     case OP_SLEEP:
@@ -1767,6 +1830,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       // obtain new PC
       emit_memhandler_read_rr(SHR_PC, SHR_VBR, opd->imm * 4, 2);
       // indirect jump -> back to dispatcher
+      sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
+      FLUSH_CYCLES(sr);
       rcache_flush();
       emith_jump(sh2_drc_dispatcher);
       goto end_op;
@@ -1780,7 +1845,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         if (opd->size == 2)
           tmp = FETCH32(opd->imm);
         else
-          tmp = (u32)(int)(signed short)FETCH_OP(opd->imm);
+          tmp = (s16)FETCH_OP(opd->imm);
         gconst_new(GET_Rn(), tmp);
       }
       else
@@ -1812,9 +1877,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     case OP_MOVA:
       if (opd->imm != 0)
         emit_move_r_imm32(SHR_R0, opd->imm);
-      else {
-        tmp = rcache_get_reg(SHR_R0, RC_GR_WRITE);
+      else { // delay slot case, pc can have either value
         tmp2 = rcache_get_reg(SHR_PC, RC_GR_READ);
+        tmp = rcache_get_reg(SHR_R0, RC_GR_WRITE);
         emith_add_r_r_imm(tmp, tmp2, 2 + (op & 0xff) * 4);
         emith_bic_r_imm(tmp, 3);
       }
@@ -1828,7 +1893,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       switch (op & 0x0f)
       {
       case 0x02:
-        tmp = rcache_get_reg(GET_Rn(), RC_GR_WRITE);
         switch (GET_Fx())
         {
         case 0: // STC SR,Rn  0000nnnn00000010
@@ -1844,6 +1908,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           goto default_;
         }
         tmp3 = rcache_get_reg(tmp2, RC_GR_READ);
+        tmp = rcache_get_reg(GET_Rn(), RC_GR_WRITE);
         emith_move_r_r(tmp, tmp3);
         if (tmp2 == SHR_SR)
           emith_clear_msb(tmp, tmp, 22); // reserved bits defined by ISA as 0
@@ -1851,12 +1916,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x04: // MOV.B Rm,@(R0,Rn)   0000nnnnmmmm0100
       case 0x05: // MOV.W Rm,@(R0,Rn)   0000nnnnmmmm0101
       case 0x06: // MOV.L Rm,@(R0,Rn)   0000nnnnmmmm0110
-        rcache_clean();
-        tmp  = rcache_get_reg_arg(1, GET_Rm());
-        tmp2 = rcache_get_reg_arg(0, SHR_R0);
-        tmp3 = rcache_get_reg(GET_Rn(), RC_GR_READ);
-        emith_add_r_r(tmp2, tmp3);
-        emit_memhandler_write(op & 3);
+        emit_indirect_indexed_write(GET_Rm(), SHR_R0, GET_Rn(), op & 3);
         goto end_op;
       case 0x07:
         // MUL.L     Rm,Rn      0000nnnnmmmm0111
@@ -1903,7 +1963,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         }
         goto end_op;
       case 0x0a:
-        tmp = rcache_get_reg(GET_Rn(), RC_GR_WRITE);
         switch (GET_Fx())
         {
         case 0: // STS      MACH,Rn   0000nnnn00001010
@@ -1918,50 +1977,21 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         default:
           goto default_;
         }
-        tmp2 = rcache_get_reg(tmp2, RC_GR_READ);
-        emith_move_r_r(tmp, tmp2);
+        emit_move_r_r(GET_Rn(), tmp2);
         goto end_op;
       case 0x0c: // MOV.B    @(R0,Rm),Rn      0000nnnnmmmm1100
       case 0x0d: // MOV.W    @(R0,Rm),Rn      0000nnnnmmmm1101
       case 0x0e: // MOV.L    @(R0,Rm),Rn      0000nnnnmmmm1110
-        tmp = emit_indirect_indexed_read(SHR_R0, GET_Rm(), op & 3);
-        tmp2 = rcache_get_reg(GET_Rn(), RC_GR_WRITE);
-        if ((op & 3) != 2) {
-          emith_sext(tmp2, tmp, (op & 1) ? 16 : 8);
-        } else
-          emith_move_r_r(tmp2, tmp);
-        rcache_free_tmp(tmp);
+        emit_indirect_indexed_read(GET_Rn(), SHR_R0, GET_Rm(), op & 3);
         goto end_op;
       case 0x0f: // MAC.L   @Rm+,@Rn+  0000nnnnmmmm1111
         emit_indirect_read_double(&tmp, &tmp2, GET_Rn(), GET_Rm(), 2);
-        tmp4 = rcache_get_reg(SHR_MACH, RC_GR_RMW);
-        /* MS 16 MAC bits unused if saturated */
+
         sr = rcache_get_reg(SHR_SR, RC_GR_READ);
-        emith_tst_r_imm(sr, S);
-        EMITH_SJMP_START(DCOND_EQ);
-        emith_clear_msb_c(DCOND_NE, tmp4, tmp4, 16);
-        EMITH_SJMP_END(DCOND_EQ);
-        rcache_unlock(sr);
-        tmp3 = rcache_get_reg(SHR_MACL, RC_GR_RMW); // might evict SR
-        emith_mula_s64(tmp3, tmp4, tmp, tmp2);
+        tmp3 = rcache_get_reg(SHR_MACL, RC_GR_RMW);
+        tmp4 = rcache_get_reg(SHR_MACH, RC_GR_RMW);
+        emith_sh2_macl(tmp3, tmp4, tmp, tmp2, sr);
         rcache_free_tmp(tmp2);
-        sr = rcache_get_reg(SHR_SR, RC_GR_READ); // reget just in case
-        emith_tst_r_imm(sr, S);
-
-        EMITH_JMP_START(DCOND_EQ);
-        emith_asr(tmp, tmp4, 15);
-        emith_cmp_r_imm(tmp, -1); // negative overflow (0x80000000..0xffff7fff)
-        EMITH_SJMP_START(DCOND_GE);
-        emith_move_r_imm_c(DCOND_LT, tmp4, 0x8000);
-        emith_move_r_imm_c(DCOND_LT, tmp3, 0x0000);
-        EMITH_SJMP_END(DCOND_GE);
-        emith_cmp_r_imm(tmp, 0); // positive overflow (0x00008000..0x7fffffff)
-        EMITH_SJMP_START(DCOND_LE);
-        emith_move_r_imm_c(DCOND_GT, tmp4, 0x00007fff);
-        emith_move_r_imm_c(DCOND_GT, tmp3, 0xffffffff);
-        EMITH_SJMP_END(DCOND_LE);
-        EMITH_JMP_END(DCOND_EQ);
-
         rcache_free_tmp(tmp);
         goto end_op;
       }
@@ -1970,12 +2000,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     /////////////////////////////////////////////
     case 0x01:
       // MOV.L Rm,@(disp,Rn) 0001nnnnmmmmdddd
-      rcache_clean();
-      tmp  = rcache_get_reg_arg(0, GET_Rn());
-      tmp2 = rcache_get_reg_arg(1, GET_Rm());
-      if (op & 0x0f)
-        emith_add_r_imm(tmp, (op & 0x0f) * 4);
-      emit_memhandler_write(2);
+      emit_memhandler_write_rr(GET_Rm(), GET_Rn(), (op & 0x0f) * 4, 2);
       goto end_op;
 
     case 0x02:
@@ -1984,20 +2009,14 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x00: // MOV.B Rm,@Rn        0010nnnnmmmm0000
       case 0x01: // MOV.W Rm,@Rn        0010nnnnmmmm0001
       case 0x02: // MOV.L Rm,@Rn        0010nnnnmmmm0010
-        rcache_clean();
-        rcache_get_reg_arg(0, GET_Rn());
-        rcache_get_reg_arg(1, GET_Rm());
-        emit_memhandler_write(op & 3);
+        emit_memhandler_write_rr(GET_Rm(), GET_Rn(), 0, op & 3);
         goto end_op;
       case 0x04: // MOV.B Rm,@-Rn       0010nnnnmmmm0100
       case 0x05: // MOV.W Rm,@-Rn       0010nnnnmmmm0101
       case 0x06: // MOV.L Rm,@-Rn       0010nnnnmmmm0110
-        rcache_get_reg_arg(1, GET_Rm()); // for Rm == Rn
         tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
         emith_sub_r_imm(tmp, (1 << (op & 3)));
-        rcache_clean();
-        rcache_get_reg_arg(0, GET_Rn());
-        emit_memhandler_write(op & 3);
+        emit_memhandler_write_rr(GET_Rm(), GET_Rn(), 0, op & 3);
         goto end_op;
       case 0x07: // DIV0S Rm,Rn         0010nnnnmmmm0111
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW);
@@ -2132,8 +2151,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         //   Q2 = carry(Rn -= Rm)
         // Q = M ^ Q1 ^ Q2
         // T = (Q == M) = !(Q ^ M) = !(Q1 ^ Q2)
-        tmp2 = rcache_get_reg(GET_Rn(), RC_GR_RMW);
         tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ);
+        tmp2 = rcache_get_reg(GET_Rn(), RC_GR_RMW);
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW);
         emith_tpop_carry(sr, 0);
         emith_adcf_r_r(tmp2, tmp2);
@@ -2228,20 +2247,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           goto end_op;
         case 1: // DT Rn      0100nnnn00010000
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW);
-#if 0 // scheduling needs tuning
-          if (FETCH_OP(pc) == 0x8bfd) { // BF #-2
-            if (gconst_get(GET_Rn(), &tmp)) {
-              // XXX: limit burned cycles
-              emit_move_r_imm32(GET_Rn(), 0);
-              emith_or_r_imm(sr, T);
-              cycles += tmp * 4 + 1; // +1 syncs with noconst version, not sure why
-              skip_op = 1;
-            }
-            else
-              emith_sh2_dtbf_loop();
-            goto end_op;
-          }
-#endif
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
           emith_bic_r_imm(sr, T);
           emith_subf_r_imm(tmp, 1);
@@ -2370,17 +2375,14 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         default:
           goto default_;
         }
-        rcache_get_reg_arg(0, GET_Rn());
-        tmp2 = emit_memhandler_read(2);
         if (tmp == SHR_SR) {
+	  tmp2 = emit_memhandler_read_rr(SHR_TMP, GET_Rn(), 0, 2);
           sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
           emith_write_sr(sr, tmp2);
+          rcache_free_tmp(tmp2);
           drcf.test_irq = 1;
-        } else {
-          tmp = rcache_get_reg(tmp, RC_GR_WRITE);
-          emith_move_r_r(tmp, tmp2);
-        }
-        rcache_free_tmp(tmp2);
+        } else
+          emit_memhandler_read_rr(tmp, GET_Rn(), 0, 2);
         tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW);
         emith_add_r_imm(tmp, 4);
         goto end_op;
@@ -2440,7 +2442,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_bic_r_imm(sr, T);
           emith_cmp_r_imm(tmp, 0);
           emit_or_t_if_eq(sr);
-          rcache_clean();
           emith_or_r_imm(tmp, 0x80);
           tmp2 = rcache_get_tmp_arg(1); // assuming it differs to tmp
           emith_move_r_r(tmp2, tmp);
@@ -2480,28 +2481,11 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x0f:
         // MAC.W @Rm+,@Rn+  0100nnnnmmmm1111
         emit_indirect_read_double(&tmp, &tmp2, GET_Rn(), GET_Rm(), 1);
-        emith_sext(tmp, tmp, 16);
-        emith_sext(tmp2, tmp2, 16);
+        sr = rcache_get_reg(SHR_SR, RC_GR_READ);
         tmp3 = rcache_get_reg(SHR_MACL, RC_GR_RMW);
         tmp4 = rcache_get_reg(SHR_MACH, RC_GR_RMW);
-        emith_mula_s64(tmp3, tmp4, tmp, tmp2);
+        emith_sh2_macw(tmp3, tmp4, tmp, tmp2, sr);
         rcache_free_tmp(tmp2);
-        // XXX: MACH should be untouched when S is set?
-        sr = rcache_get_reg(SHR_SR, RC_GR_READ);
-        emith_tst_r_imm(sr, S);
-        EMITH_JMP_START(DCOND_EQ);
-
-        emith_asr(tmp, tmp3, 31);
-        emith_eorf_r_r(tmp, tmp4); // tmp = ((signed)macl >> 31) ^ mach
-        EMITH_JMP_START(DCOND_EQ);
-        emith_move_r_imm(tmp3, 0x80000000);
-        emith_tst_r_r(tmp4, tmp4);
-        EMITH_SJMP_START(DCOND_MI);
-        emith_sub_r_imm_c(DCOND_PL, tmp3, 1); // positive
-        EMITH_SJMP_END(DCOND_MI);
-        EMITH_JMP_END(DCOND_EQ);
-
-        EMITH_JMP_END(DCOND_EQ);
         rcache_free_tmp(tmp);
         goto end_op;
       }
@@ -2600,13 +2584,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       {
       case 0x0000: // MOV.B R0,@(disp,Rn)  10000000nnnndddd
       case 0x0100: // MOV.W R0,@(disp,Rn)  10000001nnnndddd
-        rcache_clean();
-        tmp  = rcache_get_reg_arg(0, GET_Rm());
-        tmp2 = rcache_get_reg_arg(1, SHR_R0);
-        tmp3 = (op & 0x100) >> 8;
-        if (op & 0x0f)
-          emith_add_r_imm(tmp, (op & 0x0f) << tmp3);
-        emit_memhandler_write(tmp3);
+        tmp = (op & 0x100) >> 8;
+        emit_memhandler_write_rr(SHR_R0, GET_Rm(), (op & 0x0f) << tmp, tmp);
         goto end_op;
       case 0x0400: // MOV.B @(disp,Rm),R0  10000100mmmmdddd
       case 0x0500: // MOV.W @(disp,Rm),R0  10000101mmmmdddd
@@ -2615,14 +2594,11 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         goto end_op;
       case 0x0800: // CMP/EQ #imm,R0       10001000iiiiiiii
         // XXX: could use cmn
-        tmp  = rcache_get_tmp();
         tmp2 = rcache_get_reg(0, RC_GR_READ);
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW);
-        emith_move_r_imm_s8(tmp, op & 0xff);
         emith_bic_r_imm(sr, T);
-        emith_cmp_r_r(tmp2, tmp);
+        emith_cmp_r_imm(tmp2, (s8)(op & 0xff));
         emit_or_t_if_eq(sr);
-        rcache_free_tmp(tmp);
         goto end_op;
       }
       goto default_;
@@ -2634,12 +2610,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x0000: // MOV.B R0,@(disp,GBR)   11000000dddddddd
       case 0x0100: // MOV.W R0,@(disp,GBR)   11000001dddddddd
       case 0x0200: // MOV.L R0,@(disp,GBR)   11000010dddddddd
-        rcache_clean();
-        tmp  = rcache_get_reg_arg(0, SHR_GBR);
-        tmp2 = rcache_get_reg_arg(1, SHR_R0);
-        tmp3 = (op & 0x300) >> 8;
-        emith_add_r_imm(tmp, (op & 0xff) << tmp3);
-        emit_memhandler_write(tmp3);
+        tmp = (op & 0x300) >> 8;
+        emit_memhandler_write_rr(SHR_R0, SHR_GBR, (op & 0xff) << tmp, tmp);
         goto end_op;
       case 0x0400: // MOV.B @(disp,GBR),R0   11000100dddddddd
       case 0x0500: // MOV.W @(disp,GBR),R0   11000101dddddddd
@@ -2667,7 +2639,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         emith_or_r_imm(tmp, op & 0xff);
         goto end_op;
       case 0x0c00: // TST.B #imm,@(R0,GBR)  11001100iiiiiiii
-        tmp = emit_indirect_indexed_read(SHR_R0, SHR_GBR, 0);
+        tmp = emit_indirect_indexed_read(SHR_TMP, SHR_R0, SHR_GBR, 0);
         sr  = rcache_get_reg(SHR_SR, RC_GR_RMW);
         emith_bic_r_imm(sr, T);
         emith_tst_r_imm(tmp, op & 0xff);
@@ -2675,15 +2647,15 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         rcache_free_tmp(tmp);
         goto end_op;
       case 0x0d00: // AND.B #imm,@(R0,GBR)  11001101iiiiiiii
-        tmp = emit_indirect_indexed_read(SHR_R0, SHR_GBR, 0);
+        tmp = emit_indirect_indexed_read(SHR_TMP, SHR_R0, SHR_GBR, 0);
         emith_and_r_imm(tmp, op & 0xff);
         goto end_rmw_op;
       case 0x0e00: // XOR.B #imm,@(R0,GBR)  11001110iiiiiiii
-        tmp = emit_indirect_indexed_read(SHR_R0, SHR_GBR, 0);
+        tmp = emit_indirect_indexed_read(SHR_TMP, SHR_R0, SHR_GBR, 0);
         emith_eor_r_imm(tmp, op & 0xff);
         goto end_rmw_op;
       case 0x0f00: // OR.B  #imm,@(R0,GBR)  11001111iiiiiiii
-        tmp = emit_indirect_indexed_read(SHR_R0, SHR_GBR, 0);
+        tmp = emit_indirect_indexed_read(SHR_TMP, SHR_R0, SHR_GBR, 0);
         emith_or_r_imm(tmp, op & 0xff);
       end_rmw_op:
         tmp2 = rcache_get_tmp_arg(1);
@@ -2708,32 +2680,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       if (!(op_flags[i] & OF_B_IN_DS))
         elprintf_sh2(sh2, EL_ANOMALY,
           "drc: illegal op %04x @ %08x", op, pc - 2);
-
-      tmp = rcache_get_reg(SHR_SP, RC_GR_RMW);
-      emith_sub_r_imm(tmp, 4*2);
-      // push SR
-      tmp = rcache_get_reg_arg(0, SHR_SP);
-      emith_add_r_imm(tmp, 4);
-      tmp = rcache_get_reg_arg(1, SHR_SR);
-      emith_clear_msb(tmp, tmp, 22);
-      emit_memhandler_write(2);
-      // push PC
-      rcache_get_reg_arg(0, SHR_SP);
-      tmp = rcache_get_tmp_arg(1);
-      if (drcf.pending_branch_indirect) {
-        tmp2 = rcache_get_reg(SHR_PC, RC_GR_READ);
-        emith_move_r_r(tmp, tmp2);
-      }
-      else
-        emith_move_r_imm(tmp, pc - 2);
-      emit_memhandler_write(2);
-      // obtain new PC
-      v = (op_flags[i] & OF_B_IN_DS) ? 6 : 4;
-      emit_memhandler_read_rr(SHR_PC, SHR_VBR, v * 4, 2);
-      // indirect jump -> back to dispatcher
-      rcache_flush();
-      emith_jump(sh2_drc_dispatcher);
-      break;
+	exit(1);
     }
 
 end_op:
@@ -2754,6 +2701,8 @@ end_op:
         emit_move_r_imm32(SHR_PC, pc);
       rcache_flush();
       emith_call(sh2_drc_test_irq);
+      if (pc < end_pc) // mark next insns as entry point for RTE
+        op_flags[i+1] |= OF_BTARGET;
       drcf.test_irq = 0;
     }
 
@@ -2763,36 +2712,37 @@ end_op:
       struct op_data *opd_b =
         (op_flags[i] & OF_DELAY_OP) ? opd-1 : opd;
       u32 target_pc = opd_b->imm;
-      int cond = -1, ncond = -1;
+      int cond = -1;
       void *target = NULL;
-      EMITH_SJMP_DECL_();
+      int ctaken = 0;
 
+      if (opd_b->op == OP_BRANCH_CT || opd_b->op == OP_BRANCH_CF) {
+        ctaken = (op_flags[i] & OF_DELAY_OP) ? 1 : 2;
+      }
+      cycles += ctaken; // assume branch taken
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW);
       FLUSH_CYCLES(sr);
       rcache_clean();
 
-      if (opd_b->op != OP_BRANCH) {
+      // emit condition test for conditional branch
+      if (opd_b->op == OP_BRANCH_CT || opd_b->op == OP_BRANCH_CF) {
         cond = (opd_b->op == OP_BRANCH_CF) ? DCOND_EQ : DCOND_NE;
-        ncond = (opd_b->op == OP_BRANCH_CF) ? DCOND_NE : DCOND_EQ;
-      }
-      if (cond != -1) {
-        int ctaken = (op_flags[i] & OF_DELAY_OP) ? 1 : 2;
-
         if (delay_dep_fw & BITMASK1(SHR_T))
           emith_tst_r_imm(sr, T_save);
         else
           emith_tst_r_imm(sr, T);
-
-        EMITH_SJMP_START_(ncond);
-        emith_sub_r_imm_c(cond, sr, ctaken<<12);
       }
+      // no modification of host status/flags between here and branching!
 
 #if LINK_BRANCHES
-      if (find_in_array(branch_target_pc, branch_target_count, target_pc) >= 0)
+      v = find_in_array(branch_target_pc, branch_target_count, target_pc);
+      if (v >= 0)
       {
         // local branch
-        // XXX: jumps back can be linked already
-        if (branch_patch_count < MAX_LOCAL_BRANCHES) {
+        if (branch_target_ptr[v]) {
+          // jumps back can be linked here since host PC is already known
+          target = branch_target_ptr[v];
+        } else if (branch_patch_count < MAX_LOCAL_BRANCHES) {
           target = tcache_ptr;
           branch_patch_pc[branch_patch_count] = target_pc;
           branch_patch_ptr[branch_patch_count] = target;
@@ -2801,9 +2751,8 @@ end_op:
         else
           dbg(1, "warning: too many local branches");
       }
-
-      if (target == NULL)
 #endif
+      if (target == NULL)
       {
         // can't resolve branch locally, make a block exit
         emit_move_r_imm32(SHR_PC, target_pc);
@@ -2816,12 +2765,15 @@ end_op:
 
       if (cond != -1) {
         emith_jump_cond_patchable(cond, target);
-        EMITH_SJMP_END_(ncond);
       }
       else {
         emith_jump_patchable(target);
         rcache_invalidate();
       }
+
+      // branch not taken, correct cycle count
+      if (ctaken)
+        emith_add_r_imm(sr, ctaken << 12);
 
       drcf.pending_branch_direct = 0;
     }
@@ -2850,6 +2802,9 @@ end_op:
       && opd->op != OP_BRANCH_RF && opd->op != OP_RTE)
   {
     void *target;
+
+    s32 tmp = rcache_get_reg(SHR_SR, RC_GR_RMW);
+    FLUSH_CYCLES(tmp);
 
     emit_move_r_imm32(SHR_PC, pc);
     rcache_flush();

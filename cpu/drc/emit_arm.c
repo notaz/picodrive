@@ -193,6 +193,11 @@
 #define EOP_STRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,0,rn,rd,0,1,0)
 #define EOP_STRH_REG(   rd,rn,rm)        EOP_C_AM3_REG(A_COND_AL,1,0,rn,rd,0,1,rm)
 
+#define EOP_LDRSB_IMM2(cond,rd,rn,offset_8) EOP_C_AM3_IMM(cond,(offset_8) >= 0,1,rn,rd,1,0,abs(offset_8))
+#define EOP_LDRSB_REG2(cond,rd,rn,rm)       EOP_C_AM3_REG(cond,1,1,rn,rd,1,0,rm)
+#define EOP_LDRSH_IMM2(cond,rd,rn,offset_8) EOP_C_AM3_IMM(cond,(offset_8) >= 0,1,rn,rd,1,1,abs(offset_8))
+#define EOP_LDRSH_REG2(cond,rd,rn,rm)       EOP_C_AM3_REG(cond,1,1,rn,rd,1,1,rm)
+
 /* ldm and stm */
 #define EOP_XXM(cond,p,u,s,w,l,rn,list) \
 	EMIT(((cond)<<28) | (1<<27) | ((p)<<24) | ((u)<<23) | ((s)<<22) | ((w)<<21) | ((l)<<20) | ((rn)<<16) | (list))
@@ -382,6 +387,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define EMITH_SJMP_END_(cond)	EMITH_NOTHING1(cond)
 #define EMITH_SJMP_START(cond)	EMITH_NOTHING1(cond)
 #define EMITH_SJMP_END(cond)	EMITH_NOTHING1(cond)
+#define EMITH_SJMP2_START(cond)	EMITH_NOTHING1(cond)
+#define EMITH_SJMP2_MID(cond)	EMITH_JMP_START((cond)^1) // inverse cond
+#define EMITH_SJMP2_END(cond)	EMITH_JMP_END((cond)^1)
 #define EMITH_SJMP3_START(cond)	EMITH_NOTHING1(cond)
 #define EMITH_SJMP3_MID(cond)	EMITH_NOTHING1(cond)
 #define EMITH_SJMP3_END()
@@ -397,6 +405,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_add_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_ADD_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
+
+#define emith_addf_r_r_r_lsr(d, s1, s2, lslimm) \
+	EOP_ADD_REG(A_COND_AL,1,d,s1,s2,A_AM1_LSR,lslimm)
 
 #define emith_or_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_ORR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
@@ -475,6 +486,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_adc_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_ADC, r, imm)
+
+#define emith_adcf_r_imm(r, imm) \
+	emith_op_imm(A_COND_AL, 1, A_OP_ADC, r, (imm))
 
 #define emith_sub_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_SUB, r, imm)
@@ -606,6 +620,8 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_mul_s64(dlo, dhi, s1, s2) \
 	EOP_C_SMULL(A_COND_AL,0,dhi,dlo,s1,s2)
 
+#define emith_mula_s64_c(cond, dlo, dhi, s1, s2) \
+	EOP_C_SMLAL(cond,0,dhi,dlo,s1,s2)
 #define emith_mula_s64(dlo, dhi, s1, s2) \
 	EOP_C_SMLAL(A_COND_AL,0,dhi,dlo,s1,s2)
 
@@ -622,9 +638,13 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_read_r_r_offs(r, rs, offs) \
 	emith_read_r_r_offs_c(A_COND_AL, r, rs, offs)
 
+#define emith_read8s_r_r_offs(r, rs, offs) \
+	EOP_LDRSB_IMM2(A_COND_AL, r, rs, offs)
 #define emith_read8_r_r_offs(r, rs, offs) \
 	emith_read8_r_r_offs_c(A_COND_AL, r, rs, offs)
 
+#define emith_read16s_r_r_offs(r, rs, offs) \
+	EOP_LDRSH_IMM2(A_COND_AL, r, rs, offs)
 #define emith_read16_r_r_offs(r, rs, offs) \
 	emith_read16_r_r_offs_c(A_COND_AL, r, rs, offs)
 
@@ -850,4 +870,53 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	emith_eor_r_imm_c(A_COND_CC, sr, T);      \
 	JMP_EMIT(A_COND_AL, jmp1); /* done: */    \
 }
+
+/* mh:ml += rn*rm, does saturation if required by S bit. rn, rm must be TEMP */
+#define emith_sh2_macl(ml, mh, rn, rm, sr) do { \
+	emith_tst_r_imm(sr, S);                   \
+	EMITH_SJMP2_START(DCOND_NE);              \
+	emith_mula_s64_c(DCOND_EQ, ml, mh, rn, rm); \
+	EMITH_SJMP2_MID(DCOND_NE);                \
+	/* MACH top 16 bits unused if saturated. sign ext for overfl detect */ \
+	emith_sext(mh, mh, 16);                   \
+	emith_mula_s64(ml, mh, rn, rm);           \
+	/* overflow if top 17 bits of MACH aren't all 1 or 0 */ \
+	/* to check: add MACH[15] to MACH[31:16]. this is 0 if no overflow */ \
+	emith_asrf(rn, mh, 16); /* sum = (MACH>>16) + ((MACH>>15)&1) */ \
+	emith_adcf_r_imm(rn, 0); /* (MACH>>15) is in carry after shift */ \
+	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> ov */ \
+	emith_move_r_imm_c(DCOND_NE, ml, 0x0000); /* -overflow */ \
+	emith_move_r_imm_c(DCOND_NE, mh, 0x8000); \
+	EMITH_SJMP_START(DCOND_LE); /* sum > 0 -> +ovl */ \
+	emith_sub_r_imm_c(DCOND_GT, ml, 1); /* 0xffffffff */ \
+	emith_sub_r_imm_c(DCOND_GT, mh, 1); /* 0x00007fff */ \
+	EMITH_SJMP_END(DCOND_LE);                 \
+	EMITH_SJMP_END(DCOND_EQ);                 \
+	EMITH_SJMP2_END(DCOND_NE);                \
+} while (0)
+
+/* mh:ml += rn*rm, does saturation if required by S bit. rn, rm must be TEMP */
+#define emith_sh2_macw(ml, mh, rn, rm, sr) do { \
+	emith_sext(rn, rn, 16);                   \
+	emith_sext(rm, rm, 16);                   \
+	emith_tst_r_imm(sr, S);                   \
+	EMITH_SJMP2_START(DCOND_NE);              \
+	emith_mula_s64_c(DCOND_EQ, ml, mh, rn, rm); \
+	EMITH_SJMP2_MID(DCOND_NE);                \
+	/* XXX: MACH should be untouched when S is set? */ \
+	emith_asr(mh, ml, 31); /* sign ext MACL to MACH for ovrfl check */ \
+	emith_mula_s64(ml, mh, rn, rm);           \
+	/* overflow if top 33 bits of MACH:MACL aren't all 1 or 0 */ \
+	/* to check: add MACL[31] to MACH. this is 0 if no overflow */ \
+	emith_addf_r_r_r_lsr(mh, mh, ml, 31); /* sum = MACH + ((MACL>>31)&1) */\
+	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> overflow */ \
+	/* XXX: LSB signalling only in SH1, or in SH2 too? */ \
+	emith_move_r_imm_c(DCOND_NE, mh, 0x00000001); /* LSB of MACH */ \
+	emith_move_r_imm_c(DCOND_NE, ml, 0x80000000); /* negative ovrfl */ \
+	EMITH_SJMP_START(DCOND_LE); /* sum > 0 -> positive ovrfl */ \
+	emith_sub_r_imm_c(DCOND_GT, ml, 1); /* 0x7fffffff */ \
+	EMITH_SJMP_END(DCOND_LE);                 \
+	EMITH_SJMP_END(DCOND_EQ);                 \
+	EMITH_SJMP2_END(DCOND_NE);                \
+} while (0)
 
