@@ -40,7 +40,9 @@
  */
 #include "../pico_int.h"
 #include "../memory.h"
+
 #include "../../cpu/sh2/compiler.h"
+DRC_DECLARE_SR;
 
 static const char str_mars[] = "MARS";
 
@@ -1237,6 +1239,7 @@ static u32 sh2_read8_unmapped(u32 a, SH2 *sh2)
 static u32 sh2_read8_cs0(u32 a, SH2 *sh2)
 {
   u32 d = 0;
+  DRC_SAVE_SR(sh2);
 
   sh2_burn_cycles(sh2, 1*2);
 
@@ -1252,18 +1255,19 @@ static u32 sh2_read8_cs0(u32 a, SH2 *sh2)
     goto out_16to8;
   }
 
-  // TODO: mirroring?
-  if (!sh2->is_slave && a < sizeof(Pico32xMem->sh2_rom_m))
-    return Pico32xMem->sh2_rom_m.b[a ^ 1];
-  if (sh2->is_slave  && a < sizeof(Pico32xMem->sh2_rom_s))
-    return Pico32xMem->sh2_rom_s.b[a ^ 1];
-
   if ((a & 0x3fe00) == 0x4200) {
     d = Pico32xMem->pal[(a & 0x1ff) / 2];
     goto out_16to8;
   }
 
-  return sh2_read8_unmapped(a, sh2);
+  // TODO: mirroring?
+  if (!sh2->is_slave && a < sizeof(Pico32xMem->sh2_rom_m))
+    d = Pico32xMem->sh2_rom_m.b[a ^ 1];
+  else if (sh2->is_slave  && a < sizeof(Pico32xMem->sh2_rom_s))
+    d = Pico32xMem->sh2_rom_s.b[a ^ 1];
+  else
+    d = sh2_read8_unmapped(a, sh2);
+  goto out;
 
 out_16to8:
   if (a & 1)
@@ -1271,8 +1275,10 @@ out_16to8:
   else
     d >>= 8;
 
+out:
   elprintf_sh2(sh2, EL_32X, "r8  [%08x]       %02x @%06x",
     a, d, sh2_pc(sh2));
+  DRC_RESTORE_SR(sh2);
   return d;
 }
 
@@ -1299,13 +1305,14 @@ static u32 sh2_read16_unmapped(u32 a, SH2 *sh2)
 static u32 sh2_read16_cs0(u32 a, SH2 *sh2)
 {
   u32 d = 0;
+  DRC_SAVE_SR(sh2);
 
   sh2_burn_cycles(sh2, 1*2);
 
   if ((a & 0x3ffc0) == 0x4000) {
     d = p32x_sh2reg_read16(a, sh2);
     if (!(EL_LOGMASK & EL_PWM) && (a & 0x30) == 0x30) // hide PWM
-      return d;
+      goto out_noprint;
     goto out;
   }
 
@@ -1315,21 +1322,23 @@ static u32 sh2_read16_cs0(u32 a, SH2 *sh2)
     goto out;
   }
 
-  if (!sh2->is_slave && a < sizeof(Pico32xMem->sh2_rom_m))
-    return Pico32xMem->sh2_rom_m.w[a / 2];
-  if (sh2->is_slave  && a < sizeof(Pico32xMem->sh2_rom_s))
-    return Pico32xMem->sh2_rom_s.w[a / 2];
-
   if ((a & 0x3fe00) == 0x4200) {
     d = Pico32xMem->pal[(a & 0x1ff) / 2];
     goto out;
   }
 
-  return sh2_read16_unmapped(a, sh2);
+  if (!sh2->is_slave && a < sizeof(Pico32xMem->sh2_rom_m))
+    d = Pico32xMem->sh2_rom_m.w[a / 2];
+  else if (sh2->is_slave  && a < sizeof(Pico32xMem->sh2_rom_s))
+    d = Pico32xMem->sh2_rom_s.w[a / 2];
+  else
+    d = sh2_read16_unmapped(a, sh2);
 
 out:
   elprintf_sh2(sh2, EL_32X, "r16 [%08x]     %04x @%06x",
     a, d, sh2_pc(sh2));
+out_noprint:
+  DRC_RESTORE_SR(sh2);
   return d;
 }
 
@@ -1383,6 +1392,7 @@ static void REGPARM(3) sh2_write8_unmapped(u32 a, u32 d, SH2 *sh2)
 
 static void REGPARM(3) sh2_write8_cs0(u32 a, u32 d, SH2 *sh2)
 {
+  DRC_SAVE_SR(sh2);
   elprintf_sh2(sh2, EL_32X, "w8  [%08x]       %02x @%06x",
     a, d & 0xff, sh2_pc(sh2));
 
@@ -1390,16 +1400,24 @@ static void REGPARM(3) sh2_write8_cs0(u32 a, u32 d, SH2 *sh2)
     if ((a & 0x3fff0) == 0x4100) {
       sh2->poll_addr = 0;
       p32x_vdp_write8(a, d);
-      return;
+      goto out;
+    }
+
+    if ((a & 0x3fe00) == 0x4200) {
+      ((u8 *)Pico32xMem->pal)[(a & 0x1ff) ^ 1] = d;
+      Pico32x.dirty_pal = 1;
+      goto out;
     }
   }
 
   if ((a & 0x3ffc0) == 0x4000) {
     p32x_sh2reg_write8(a, d, sh2);
-    return;
+    goto out;
   }
 
   sh2_write8_unmapped(a, d, sh2);
+out:
+  DRC_RESTORE_SR(sh2);
 }
 
 static void REGPARM(3) sh2_write8_dram0(u32 a, u32 d, SH2 *sh2)
@@ -1426,8 +1444,11 @@ static void REGPARM(3) sh2_write8_sdram(u32 a, u32 d, SH2 *sh2)
 static void REGPARM(3) sh2_write8_sdram_wt(u32 a, u32 d, SH2 *sh2)
 {
   // xmen sync hack..
-  if (a < 0x26000200)
+  if (a < 0x26000200) {
+    DRC_SAVE_SR(sh2);
     sh2_end_run(sh2, 32);
+    DRC_RESTORE_SR(sh2);
+  }
 
   sh2_write8_sdram(a, d, sh2);
 }
@@ -1453,6 +1474,7 @@ static void REGPARM(3) sh2_write16_unmapped(u32 a, u32 d, SH2 *sh2)
 
 static void REGPARM(3) sh2_write16_cs0(u32 a, u32 d, SH2 *sh2)
 {
+  DRC_SAVE_SR(sh2);
   if (((EL_LOGMASK & EL_PWM) || (a & 0x30) != 0x30)) // hide PWM
     elprintf_sh2(sh2, EL_32X, "w16 [%08x]     %04x @%06x",
       a, d & 0xffff, sh2_pc(sh2));
@@ -1461,22 +1483,24 @@ static void REGPARM(3) sh2_write16_cs0(u32 a, u32 d, SH2 *sh2)
     if ((a & 0x3fff0) == 0x4100) {
       sh2->poll_addr = 0;
       p32x_vdp_write16(a, d, sh2);
-      return;
+      goto out;
     }
 
     if ((a & 0x3fe00) == 0x4200) {
       Pico32xMem->pal[(a & 0x1ff) / 2] = d;
       Pico32x.dirty_pal = 1;
-      return;
+      goto out;
     }
   }
 
   if ((a & 0x3ffc0) == 0x4000) {
     p32x_sh2reg_write16(a, d, sh2);
-    return;
+    goto out;
   }
 
   sh2_write16_unmapped(a, d, sh2);
+out:
+  DRC_RESTORE_SR(sh2);
 }
 
 static void REGPARM(3) sh2_write16_dram0(u32 a, u32 d, SH2 *sh2)

@@ -1231,11 +1231,11 @@ static int emit_memhandler_read(int size)
 
   rcache_clean();
 
+#ifndef DCR_SR_REG
   // must writeback cycles for poll detection stuff
-  // FIXME: rm
   if (reg_map_g2h[SHR_SR] != -1)
     emith_ctx_write(reg_map_g2h[SHR_SR], SHR_SR * 4);
-
+#endif
   arg1 = rcache_get_tmp_arg(1);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
   switch (size) {
@@ -1244,10 +1244,10 @@ static int emit_memhandler_read(int size)
   case 2:   emith_call(sh2_drc_read32);     break; // 32
   }
   rcache_invalidate();
-
+#ifndef DCR_SR_REG
   if (reg_map_g2h[SHR_SR] != -1)
     emith_ctx_read(reg_map_g2h[SHR_SR], SHR_SR * 4);
-
+#endif
   return rcache_get_tmp_ret();
 }
 
@@ -1255,10 +1255,10 @@ static int emit_memhandler_read(int size)
 static void emit_memhandler_write(int size)
 {
   int arg2;
-
+#ifndef DCR_SR_REG
   if (reg_map_g2h[SHR_SR] != -1)
     emith_ctx_write(reg_map_g2h[SHR_SR], SHR_SR * 4);
-
+#endif
   rcache_clean();
 
   arg2 = rcache_get_tmp_arg(2);
@@ -1270,8 +1270,10 @@ static void emit_memhandler_write(int size)
   }
 
   rcache_invalidate();
+#ifndef DCR_SR_REG
   if (reg_map_g2h[SHR_SR] != -1)
     emith_ctx_read(reg_map_g2h[SHR_SR], SHR_SR * 4);
+#endif
 }
 
 // rd = @(Rs,#offs)

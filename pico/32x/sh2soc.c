@@ -25,6 +25,9 @@
 #include "../pico_int.h"
 #include "../memory.h"
 
+#include "../../cpu/sh2/compiler.h"
+DRC_DECLARE_SR;
+
 // DMAC handling
 struct dma_chan {
   unsigned int sar, dar;  // src, dst addr
@@ -413,10 +416,12 @@ void REGPARM(3) sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
     if (!(dmac->dmaor & DMA_DME))
       return;
 
+    DRC_SAVE_SR(sh2);
     if ((dmac->chan[0].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
       dmac_trigger(sh2, &dmac->chan[0]);
     if ((dmac->chan[1].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
       dmac_trigger(sh2, &dmac->chan[1]);
+    DRC_RESTORE_SR(sh2);
   }
 }
 
