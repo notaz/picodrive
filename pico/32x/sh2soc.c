@@ -244,7 +244,7 @@ u32 sh2_peripheral_read16(u32 a, SH2 *sh2)
   u16 *r = (void *)sh2->peri_regs;
   u32 d;
 
-  a &= 0x1ff;
+  a &= 0x1fe;
   d = r[(a / 2) ^ 1];
 
   elprintf_sh2(sh2, EL_32XP, "peri r16 [%08x]     %04x @%06x",
@@ -343,7 +343,7 @@ void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
   elprintf_sh2(sh2, EL_32XP, "peri w16 [%08x]     %04x @%06x",
     a, d, sh2_pc(sh2));
 
-  a &= 0x1ff;
+  a &= 0x1fe;
 
   // evil WDT
   if (a == 0x80) {

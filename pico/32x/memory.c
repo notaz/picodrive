@@ -1087,8 +1087,8 @@ static void m68k_write8_dram1_ow(u32 a, u32 d)
     return; \
   } \
   /* overwrite */ \
-  if (!(d & 0xff00)) d |= *pd & 0xff00; \
   if (!(d & 0x00ff)) d |= *pd & 0x00ff; \
+  if (!(d & 0xff00)) d |= *pd & 0xff00; \
   *pd = d;
 
 static void m68k_write16_dram0_ow(u32 a, u32 d)
@@ -1344,6 +1344,31 @@ static u32 sh2_read16_rom(u32 a, SH2 *sh2)
   return *(u16 *)(Pico.rom + bank + (a & 0x7fffe));
 }
 
+static u32 sh2_read32_unmapped(u32 a, SH2 *sh2)
+{
+  elprintf_sh2(sh2, EL_32X, "unmapped r32 [%08x]     %08x @%06x",
+    a, 0, sh2_pc(sh2));
+  return 0;
+}
+
+static u32 sh2_read32_cs0(u32 a, SH2 *sh2)
+{
+  return (sh2_read16_cs0(a, sh2) << 16) | sh2_read16_cs0(a + 2, sh2);
+}
+
+static u32 sh2_read32_da(u32 a, SH2 *sh2)
+{
+  u32 d = *(u32 *)(sh2->data_array + (a & 0xfff));
+  return (d << 16) | (d >> 16);
+}
+
+static u32 sh2_read32_rom(u32 a, SH2 *sh2)
+{
+  u32 bank = carthw_ssf2_banks[(a >> 19) & 7] << 19;
+  u32 d = *(u32 *)(Pico.rom + bank + (a & 0x7fffc));
+  return (d << 16) | (d >> 16);
+}
+
 // writes
 static void REGPARM(3) sh2_write_ignore(u32 a, u32 d, SH2 *sh2)
 {
@@ -1501,6 +1526,73 @@ static void REGPARM(3) sh2_write16_rom(u32 a, u32 d, SH2 *sh2)
     sh2_write16_unmapped(a, d, sh2);
 }
 
+static void REGPARM(3) sh2_write32_unmapped(u32 a, u32 d, SH2 *sh2)
+{
+  elprintf_sh2(sh2, EL_32X, "unmapped w32 [%08x]     %08x @%06x",
+      a, d, sh2_pc(sh2));
+}
+
+static void REGPARM(3) sh2_write32_cs0(u32 a, u32 d, SH2 *sh2)
+{
+  sh2_write16_cs0(a, d >> 16, sh2);
+  sh2_write16_cs0(a + 2, d, sh2);
+}
+
+#define sh2_write32_dramN(n) \
+  u32 *pd = (u32 *)&Pico32xMem->dram[n][(a & 0x1ffff) / 2]; \
+  if (!(a & 0x20000)) { \
+    *pd = (d << 16) | (d >> 16); \
+    return; \
+  } \
+  /* overwrite */ \
+  u8 *pb = (u8 *)pd; \
+  if (d & 0x000000ff) pb[2] = d; \
+  if (d & 0x0000ff00) pb[3] = d >> 8; \
+  if (d & 0x00ff0000) pb[0] = d >> 16; \
+  if (d & 0xff000000) pb[1] = d >> 24; \
+
+static void REGPARM(3) sh2_write32_dram0(u32 a, u32 d, SH2 *sh2)
+{
+  sh2_write32_dramN(0);
+}
+
+static void REGPARM(3) sh2_write32_dram1(u32 a, u32 d, SH2 *sh2)
+{
+  sh2_write32_dramN(1);
+}
+
+static void REGPARM(3) sh2_write32_sdram(u32 a, u32 d, SH2 *sh2)
+{
+  u32 a1 = a & 0x3ffff;
+  *(u32 *)(sh2->p_sdram + a1) = (d << 16) | (d >> 16);
+#ifdef DRC_SH2
+  unsigned short *p = &Pico32xMem->drcblk_ram[a1 >> SH2_DRCBLK_RAM_SHIFT];
+  if (p[0])
+    sh2_drc_wcheck_ram(a, p[0], sh2->is_slave);
+  if (p[1])
+    sh2_drc_wcheck_ram(a, p[1], sh2->is_slave);
+#endif
+}
+
+static void REGPARM(3) sh2_write32_da(u32 a, u32 d, SH2 *sh2)
+{
+  u32 a1 = a & 0xfff;
+  *(u32 *)(sh2->data_array + a1) = (d << 16) | (d >> 16);
+#ifdef DRC_SH2
+  int id = sh2->is_slave;
+  unsigned short *p = &Pico32xMem->drcblk_da[id][a1 >> SH2_DRCBLK_DA_SHIFT];
+  if (p[0])
+    sh2_drc_wcheck_da(a, p[0], id);
+  if (p[1])
+    sh2_drc_wcheck_da(a, p[1], id);
+#endif
+}
+
+static void REGPARM(3) sh2_write32_rom(u32 a, u32 d, SH2 *sh2)
+{
+  sh2_write16_rom(a, d >> 16, sh2);
+  sh2_write16_rom(a + 2, d, sh2);
+}
 
 typedef u32 (sh2_read_handler)(u32 a, SH2 *sh2);
 typedef void REGPARM(3) (sh2_write_handler)(u32 a, u32 d, SH2 *sh2);
@@ -1534,30 +1626,21 @@ u32 REGPARM(2) p32x_sh2_read16(u32 a, SH2 *sh2)
   if (map_flag_set(p))
     return ((sh2_read_handler *)(p << 1))(a, sh2);
   else
-    return *(u16 *)((p << 1) + ((a & sh2_map->mask) & ~1));
+    return *(u16 *)((p << 1) + (a & sh2_map->mask));
 }
 
 u32 REGPARM(2) p32x_sh2_read32(u32 a, SH2 *sh2)
 {
-  const sh2_memmap *sh2_map = sh2->read16_map;
-  sh2_read_handler *handler;
-  u32 offs;
+  const sh2_memmap *sh2_map = sh2->read32_map;
   uptr p;
 
-  offs = SH2MAP_ADDR2OFFS_R(a);
-  sh2_map += offs;
+  sh2_map += SH2MAP_ADDR2OFFS_R(a);
   p = sh2_map->addr;
   if (!map_flag_set(p)) {
-    // XXX: maybe 32bit access instead with ror?
-    u16 *pd = (u16 *)((p << 1) + ((a & sh2_map->mask) & ~1));
-    return (pd[0] << 16) | pd[1];
-  }
-
-  if (offs == SH2MAP_ADDR2OFFS_R(0xffffc000))
-    return sh2_peripheral_read32(a, sh2);
-
-  handler = (sh2_read_handler *)(p << 1);
-  return (handler(a, sh2) << 16) | handler(a + 2, sh2);
+    u32 *pd = (u32 *)((p << 1) + (a & sh2_map->mask));
+    return (*pd << 16) | (*pd >> 16);
+  } else
+    return ((sh2_read_handler *)(p << 1))(a, sh2);
 }
 
 void REGPARM(3) p32x_sh2_write8(u32 a, u32 d, SH2 *sh2)
@@ -1580,20 +1663,11 @@ void REGPARM(3) p32x_sh2_write16(u32 a, u32 d, SH2 *sh2)
 
 void REGPARM(3) p32x_sh2_write32(u32 a, u32 d, SH2 *sh2)
 {
-  const void **sh2_wmap = sh2->write16_tab;
+  const void **sh2_wmap = sh2->write32_tab;
   sh2_write_handler *wh;
-  u32 offs;
 
-  offs = SH2MAP_ADDR2OFFS_W(a);
-
-  if (offs == SH2MAP_ADDR2OFFS_W(0xffffc000)) {
-    sh2_peripheral_write32(a, d, sh2);
-    return;
-  }
-
-  wh = sh2_wmap[offs];
-  wh(a, d >> 16, sh2);
-  wh(a + 2, d, sh2);
+  wh = sh2_wmap[SH2MAP_ADDR2OFFS_W(a)];
+  wh(a, d, sh2);
 }
 
 // -----------------------------------------------------------------
@@ -1801,9 +1875,9 @@ static void get_bios(void)
 #define MAP_MEMORY(m) ((uptr)(m) >> 1)
 #define MAP_HANDLER(h) ( ((uptr)(h) >> 1) | ((uptr)1 << (sizeof(uptr) * 8 - 1)) )
 
-static sh2_memmap sh2_read8_map[0x80], sh2_read16_map[0x80];
+static sh2_memmap sh2_read8_map[0x80], sh2_read16_map[0x80],  sh2_read32_map[0x80];
 // for writes we are using handlers only
-static sh2_write_handler *sh2_write8_map[0x80], *sh2_write16_map[0x80];
+static sh2_write_handler *sh2_write8_map[0x80], *sh2_write16_map[0x80], *sh2_write32_map[0x80];
 
 void Pico32xSwapDRAM(int b)
 {
@@ -1818,10 +1892,12 @@ void Pico32xSwapDRAM(int b)
 
   // SH2
   sh2_read8_map[0x04/2].addr  = sh2_read8_map[0x24/2].addr  =
-  sh2_read16_map[0x04/2].addr = sh2_read16_map[0x24/2].addr = MAP_MEMORY(Pico32xMem->dram[b]);
+  sh2_read16_map[0x04/2].addr = sh2_read16_map[0x24/2].addr =
+  sh2_read32_map[0x04/2].addr = sh2_read32_map[0x24/2].addr = MAP_MEMORY(Pico32xMem->dram[b]);
 
   sh2_write8_map[0x04/2]  = sh2_write8_map[0x24/2]  = b ? sh2_write8_dram1 : sh2_write8_dram0;
   sh2_write16_map[0x04/2] = sh2_write16_map[0x24/2] = b ? sh2_write16_dram1 : sh2_write16_dram0;
+  sh2_write32_map[0x04/2] = sh2_write32_map[0x24/2] = b ? sh2_write32_dram1 : sh2_write32_dram0;
 }
 
 static void bank_switch_rom_sh2(void)
@@ -1829,11 +1905,13 @@ static void bank_switch_rom_sh2(void)
   if (!carthw_ssf2_active) {
     // easy
     sh2_read8_map[0x02/2].addr  = sh2_read8_map[0x22/2].addr  =
-    sh2_read16_map[0x02/2].addr = sh2_read16_map[0x22/2].addr = MAP_MEMORY(Pico.rom);
+    sh2_read16_map[0x02/2].addr = sh2_read16_map[0x22/2].addr =
+    sh2_read32_map[0x02/2].addr = sh2_read32_map[0x22/2].addr = MAP_MEMORY(Pico.rom);
   }
   else {
     sh2_read8_map[0x02/2].addr  = sh2_read8_map[0x22/2].addr  = MAP_HANDLER(sh2_read8_rom);
     sh2_read16_map[0x02/2].addr = sh2_read16_map[0x22/2].addr = MAP_HANDLER(sh2_read16_rom);
+    sh2_read32_map[0x02/2].addr = sh2_read32_map[0x22/2].addr = MAP_HANDLER(sh2_read32_rom);
   }
 }
 
@@ -1903,58 +1981,75 @@ void PicoMemSetup32x(void)
   for (i = 0; i < ARRAY_SIZE(sh2_read8_map); i++) {
     sh2_read8_map[i].addr   = MAP_HANDLER(sh2_read8_unmapped);
     sh2_read16_map[i].addr  = MAP_HANDLER(sh2_read16_unmapped);
+    sh2_read32_map[i].addr  = MAP_HANDLER(sh2_read32_unmapped);
   }
 
   for (i = 0; i < ARRAY_SIZE(sh2_write8_map); i++) {
     sh2_write8_map[i]       = sh2_write8_unmapped;
     sh2_write16_map[i]      = sh2_write16_unmapped;
+    sh2_write32_map[i]      = sh2_write32_unmapped;
   }
 
   // "purge area"
   for (i = 0x40; i <= 0x5f; i++) {
     sh2_write8_map[i >> 1]  =
-    sh2_write16_map[i >> 1] = sh2_write_ignore;
+    sh2_write16_map[i >> 1] =
+    sh2_write32_map[i >> 1] = sh2_write_ignore;
   }
 
   // CS0
   sh2_read8_map[0x00/2].addr  = sh2_read8_map[0x20/2].addr  = MAP_HANDLER(sh2_read8_cs0);
   sh2_read16_map[0x00/2].addr = sh2_read16_map[0x20/2].addr = MAP_HANDLER(sh2_read16_cs0);
+  sh2_read32_map[0x00/2].addr = sh2_read32_map[0x20/2].addr = MAP_HANDLER(sh2_read32_cs0);
   sh2_write8_map[0x00/2]  = sh2_write8_map[0x20/2]  = sh2_write8_cs0;
   sh2_write16_map[0x00/2] = sh2_write16_map[0x20/2] = sh2_write16_cs0;
+  sh2_write32_map[0x00/2] = sh2_write32_map[0x20/2] = sh2_write32_cs0;
   // CS1 - ROM
   bank_switch_rom_sh2();
-  sh2_read8_map[0x02/2].mask  = sh2_read8_map[0x22/2].mask  =
-  sh2_read16_map[0x02/2].mask = sh2_read16_map[0x22/2].mask = 0x3fffff; // FIXME
+  sh2_read8_map[0x02/2].mask  = sh2_read8_map[0x22/2].mask  = 0x3fffff; // FIXME
+  sh2_read16_map[0x02/2].mask = sh2_read16_map[0x22/2].mask = 0x3ffffe; // FIXME
+  sh2_read32_map[0x02/2].mask = sh2_read32_map[0x22/2].mask = 0x3ffffc; // FIXME
   sh2_write16_map[0x02/2] = sh2_write16_map[0x22/2] = sh2_write16_rom;
+  sh2_write32_map[0x02/2] = sh2_write32_map[0x22/2] = sh2_write32_rom;
   // CS2 - DRAM - done by Pico32xSwapDRAM()
-  sh2_read8_map[0x04/2].mask  = sh2_read8_map[0x24/2].mask  =
-  sh2_read16_map[0x04/2].mask = sh2_read16_map[0x24/2].mask = 0x01ffff;
+  sh2_read8_map[0x04/2].mask  = sh2_read8_map[0x24/2].mask  = 0x01ffff;
+  sh2_read16_map[0x04/2].mask = sh2_read16_map[0x24/2].mask = 0x01fffe;
+  sh2_read32_map[0x04/2].mask = sh2_read32_map[0x24/2].mask = 0x01fffc;
   // CS3 - SDRAM
   sh2_read8_map[0x06/2].addr   = sh2_read8_map[0x26/2].addr   =
-  sh2_read16_map[0x06/2].addr  = sh2_read16_map[0x26/2].addr  = MAP_MEMORY(Pico32xMem->sdram);
+  sh2_read16_map[0x06/2].addr  = sh2_read16_map[0x26/2].addr  =
+  sh2_read32_map[0x06/2].addr  = sh2_read32_map[0x26/2].addr  = MAP_MEMORY(Pico32xMem->sdram);
   sh2_write8_map[0x06/2]       = sh2_write8_sdram;
   sh2_write8_map[0x26/2]       = sh2_write8_sdram_wt;
   sh2_write16_map[0x06/2]      = sh2_write16_map[0x26/2]      = sh2_write16_sdram;
-  sh2_read8_map[0x06/2].mask   = sh2_read8_map[0x26/2].mask   =
-  sh2_read16_map[0x06/2].mask  = sh2_read16_map[0x26/2].mask  = 0x03ffff;
+  sh2_write32_map[0x06/2]      = sh2_write32_map[0x26/2]      = sh2_write32_sdram;
+  sh2_read8_map[0x06/2].mask   = sh2_read8_map[0x26/2].mask   = 0x03ffff;
+  sh2_read16_map[0x06/2].mask  = sh2_read16_map[0x26/2].mask  = 0x03fffe;
+  sh2_read32_map[0x06/2].mask  = sh2_read32_map[0x26/2].mask  = 0x03fffc;
   // SH2 data array
   sh2_read8_map[0xc0/2].addr  = MAP_HANDLER(sh2_read8_da);
   sh2_read16_map[0xc0/2].addr = MAP_HANDLER(sh2_read16_da);
+  sh2_read32_map[0xc0/2].addr = MAP_HANDLER(sh2_read32_da);
   sh2_write8_map[0xc0/2]      = sh2_write8_da;
   sh2_write16_map[0xc0/2]     = sh2_write16_da;
+  sh2_write32_map[0xc0/2]     = sh2_write32_da;
   // SH2 IO
   sh2_read8_map[0xff/2].addr  = MAP_HANDLER(sh2_peripheral_read8);
   sh2_read16_map[0xff/2].addr = MAP_HANDLER(sh2_peripheral_read16);
+  sh2_read32_map[0xff/2].addr = MAP_HANDLER(sh2_peripheral_read32);
   sh2_write8_map[0xff/2]      = sh2_peripheral_write8;
   sh2_write16_map[0xff/2]     = sh2_peripheral_write16;
+  sh2_write32_map[0xff/2]     = sh2_peripheral_write32;
 
   // map DRAM area, both 68k and SH2
   Pico32xSwapDRAM(1);
 
   msh2.read8_map   = ssh2.read8_map   = sh2_read8_map;
   msh2.read16_map  = ssh2.read16_map  = sh2_read16_map;
+  msh2.read32_map  = ssh2.read32_map  = sh2_read32_map;
   msh2.write8_tab  = ssh2.write8_tab  = (const void **)(void *)sh2_write8_map;
   msh2.write16_tab = ssh2.write16_tab = (const void **)(void *)sh2_write16_map;
+  msh2.write32_tab = ssh2.write32_tab = (const void **)(void *)sh2_write32_map;
 
   sh2_drc_mem_setup(&msh2);
   sh2_drc_mem_setup(&ssh2);
