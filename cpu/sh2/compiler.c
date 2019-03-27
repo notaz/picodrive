@@ -2906,7 +2906,6 @@ static void sh2_generate_utils(void)
 {
   int arg0, arg1, arg2, sr, tmp;
 
-  sh2_drc_write32 = p32x_sh2_write32;
   sh2_drc_read8  = p32x_sh2_read8;
   sh2_drc_read16 = p32x_sh2_read16;
   sh2_drc_read32 = p32x_sh2_read32;
@@ -3015,6 +3014,11 @@ static void sh2_generate_utils(void)
   emith_ctx_read_ptr(arg2, offsetof(SH2, write16_tab));
   emith_sh2_wcall(arg0, arg2);
 
+  // sh2_drc_write32(u32 a, u32 d)
+  sh2_drc_write32 = (void *)tcache_ptr;
+  emith_ctx_read_ptr(arg2, offsetof(SH2, write32_tab));
+  emith_sh2_wcall(arg0, arg2);
+
 #ifdef PDB_NET
   // debug
   #define MAKE_READ_WRAPPER(func) { \
@@ -3053,7 +3057,6 @@ static void sh2_generate_utils(void)
   host_dasm_new_symbol(sh2_drc_read8);
   host_dasm_new_symbol(sh2_drc_read16);
   host_dasm_new_symbol(sh2_drc_read32);
-  host_dasm_new_symbol(sh2_drc_write32);
 #endif
 #endif
 
@@ -3065,6 +3068,7 @@ static void sh2_generate_utils(void)
   host_dasm_new_symbol(sh2_drc_test_irq);
   host_dasm_new_symbol(sh2_drc_write8);
   host_dasm_new_symbol(sh2_drc_write16);
+  host_dasm_new_symbol(sh2_drc_write32);
 #endif
 }
 

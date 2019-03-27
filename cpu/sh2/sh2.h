@@ -12,6 +12,7 @@ typedef enum {
 
 typedef struct SH2_
 {
+	// registers. this MUST correlate with enum sh2_reg_e.
 	unsigned int	r[16];		// 00
 	unsigned int	pc;		// 40
 	unsigned int	ppc;
@@ -21,17 +22,19 @@ typedef struct SH2_
 	unsigned int	mach, macl;	// 58
 
 	// common
-	const void	*read8_map;	// 60
+	const void	*read8_map;
 	const void	*read16_map;
+	const void	*read32_map;
 	const void	**write8_tab;
 	const void	**write16_tab;
+	const void	**write32_tab;
 
 	// drc stuff
-	int		drc_tmp;	// 70
+	int		drc_tmp;
 	int		irq_cycles;
 	void		*p_bios;	// convenience pointers
 	void		*p_da;
-	void		*p_sdram;	// 80
+	void		*p_sdram;
 	void		*p_rom;
 	unsigned int	pdb_io_csum[2];
 
