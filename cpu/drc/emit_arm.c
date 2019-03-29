@@ -510,12 +510,12 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	emith_top_imm(A_COND_AL, A_OP_TST, r, imm)
 
 #define emith_cmp_r_imm(r, imm) { \
-	u32 op = A_OP_CMP, imm_ = imm; \
-	if (~imm_ < 0x100) { \
-		imm_ = -imm_; \
-		op = A_OP_CMN; \
+	u32 op_ = A_OP_CMP, imm_ = (u8)imm; \
+	if ((s8)imm_ < 0) { \
+		imm_ = (u8)-imm_; \
+		op_ = A_OP_CMN; \
 	} \
-	emith_top_imm(A_COND_AL, op, r, imm); \
+	emith_top_imm(A_COND_AL, op_, r, imm_); \
 }
 
 #define emith_subf_r_imm(r, imm) \
