@@ -29,9 +29,9 @@ void scan_block(unsigned int base_pc, int is_slave,
 #if defined(DRC_SH2)
 // direct access to some host CPU registers used by the DRC
 // XXX MUST match definitions in cpu/sh2/compiler.c
-#if defined(_arm__)
+#if defined(__arm__)
 #define	DRC_SR_REG	r10
-#elif defined(__i386__)
+#elif defined(__i386__) || defined(__x86_64__)
 #define	DRC_SR_REG	edi
 #else
 #warning "direct DRC register access not available for this host"

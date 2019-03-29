@@ -1344,7 +1344,7 @@ out_noprint:
 
 static u32 sh2_read16_da(u32 a, SH2 *sh2)
 {
-  return ((u16 *)sh2->data_array)[(a & 0xfff) / 2];
+  return ((u16 *)sh2->data_array)[(a & 0xffe) / 2];
 }
 
 static u32 sh2_read16_rom(u32 a, SH2 *sh2)
@@ -1367,7 +1367,7 @@ static u32 sh2_read32_cs0(u32 a, SH2 *sh2)
 
 static u32 sh2_read32_da(u32 a, SH2 *sh2)
 {
-  u32 d = *(u32 *)(sh2->data_array + (a & 0xfff));
+  u32 d = *((u32 *)sh2->data_array + (a & 0xffc)/4);
   return (d << 16) | (d >> 16);
 }
 
@@ -1587,28 +1587,28 @@ static void REGPARM(3) sh2_write32_dram1(u32 a, u32 d, SH2 *sh2)
 
 static void REGPARM(3) sh2_write32_sdram(u32 a, u32 d, SH2 *sh2)
 {
-  u32 a1 = a & 0x3ffff;
+  u32 a1 = a & 0x3fffc;
   *(u32 *)(sh2->p_sdram + a1) = (d << 16) | (d >> 16);
 #ifdef DRC_SH2
   unsigned short *p = &Pico32xMem->drcblk_ram[a1 >> SH2_DRCBLK_RAM_SHIFT];
   if (p[0])
     sh2_drc_wcheck_ram(a, p[0], sh2->is_slave);
   if (p[1])
-    sh2_drc_wcheck_ram(a, p[1], sh2->is_slave);
+    sh2_drc_wcheck_ram(a+2, p[1], sh2->is_slave);
 #endif
 }
 
 static void REGPARM(3) sh2_write32_da(u32 a, u32 d, SH2 *sh2)
 {
-  u32 a1 = a & 0xfff;
-  *(u32 *)(sh2->data_array + a1) = (d << 16) | (d >> 16);
+  u32 a1 = a & 0xffc;
+  *((u32 *)sh2->data_array + a1/4) = (d << 16) | (d >> 16);
 #ifdef DRC_SH2
   int id = sh2->is_slave;
   unsigned short *p = &Pico32xMem->drcblk_da[id][a1 >> SH2_DRCBLK_DA_SHIFT];
   if (p[0])
     sh2_drc_wcheck_da(a, p[0], id);
   if (p[1])
-    sh2_drc_wcheck_da(a, p[1], id);
+    sh2_drc_wcheck_da(a+2, p[1], id);
 #endif
 }
 
