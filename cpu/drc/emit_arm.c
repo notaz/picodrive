@@ -5,6 +5,7 @@
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
  */
+#define HOST_REGS   16
 #define CONTEXT_REG 11
 #define RET_REG     0
 
@@ -406,8 +407,23 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_add_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_ADD_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
 
+#define emith_addf_r_r_r_lsl(d, s1, s2, lslimm) \
+	EOP_ADD_REG(A_COND_AL,1,d,s1,s2,A_AM1_LSL,lslimm)
+
 #define emith_addf_r_r_r_lsr(d, s1, s2, lslimm) \
 	EOP_ADD_REG(A_COND_AL,1,d,s1,s2,A_AM1_LSR,lslimm)
+
+#define emith_adcf_r_r_r_lsl(d, s1, s2, lslimm) \
+	EOP_ADC_REG(A_COND_AL,1,d,s1,s2,A_AM1_LSL,lslimm)
+
+#define emith_sub_r_r_r_lsl(d, s1, s2, lslimm) \
+	EOP_SUB_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
+
+#define emith_subf_r_r_r_lsl(d, s1, s2, lslimm) \
+	EOP_SUB_REG(A_COND_AL,1,d,s1,s2,A_AM1_LSL,lslimm)
+
+#define emith_sbcf_r_r_r_lsl(d, s1, s2, lslimm) \
+	EOP_SBC_REG(A_COND_AL,1,d,s1,s2,A_AM1_LSL,lslimm)
 
 #define emith_or_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_ORR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
@@ -418,6 +434,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_eor_r_r_r_lsr(d, s1, s2, lsrimm) \
 	EOP_EOR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSR,lsrimm)
 
+#define emith_and_r_r_r_lsl(d, s1, s2, lslimm) \
+	EOP_AND_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
+
 #define emith_or_r_r_lsl(d, s, lslimm) \
 	emith_or_r_r_r_lsl(d, d, s, lslimm)
 
@@ -427,11 +446,29 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_add_r_r_r(d, s1, s2) \
 	emith_add_r_r_r_lsl(d, s1, s2, 0)
 
+#define emith_addf_r_r_r(d, s1, s2) \
+	emith_addf_r_r_r_lsl(d, s1, s2, 0)
+
+#define emith_adcf_r_r_r(d, s1, s2) \
+	emith_adcf_r_r_r_lsl(d, s1, s2, 0)
+
+#define emith_sub_r_r_r(d, s1, s2) \
+	emith_sub_r_r_r_lsl(d, s1, s2, 0)
+
+#define emith_subf_r_r_r(d, s1, s2) \
+	emith_subf_r_r_r_lsl(d, s1, s2, 0)
+
+#define emith_sbcf_r_r_r(d, s1, s2) \
+	emith_sbcf_r_r_r_lsl(d, s1, s2, 0)
+
 #define emith_or_r_r_r(d, s1, s2) \
 	emith_or_r_r_r_lsl(d, s1, s2, 0)
 
 #define emith_eor_r_r_r(d, s1, s2) \
 	emith_eor_r_r_r_lsl(d, s1, s2, 0)
+
+#define emith_and_r_r_r(d, s1, s2) \
+	emith_and_r_r_r_lsl(d, s1, s2, 0)
 
 #define emith_add_r_r(d, s) \
 	emith_add_r_r_r(d, d, s)
@@ -539,11 +576,14 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_bic_r_imm_c(cond, r, imm) \
 	emith_op_imm(cond, 0, A_OP_BIC, r, imm)
 
+#define emith_tst_r_imm_c(cond, r, imm) \
+	emith_top_imm(cond, A_OP_TST, r, imm)
+
 #define emith_move_r_imm_s8(r, imm) { \
-	if ((imm) & 0x80) \
-		EOP_MVN_IMM(r, 0, ((imm) ^ 0xff)); \
+	if ((s8)(imm) < 0) \
+		EOP_MVN_IMM(r, 0, ((u8)(imm) ^ 0xff)); \
 	else \
-		EOP_MOV_IMM(r, 0, imm); \
+		EOP_MOV_IMM(r, 0, (u8)imm); \
 }
 
 #define emith_and_r_r_imm(d, s, imm) \
@@ -557,6 +597,15 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_sub_r_r_imm(d, s, imm) \
 	emith_op_imm2(A_COND_AL, 0, A_OP_SUB, d, s, imm)
+
+#define emith_subf_r_r_imm(d, s, imm) \
+	emith_op_imm2(A_COND_AL, 1, A_OP_SUB, d, s, (imm))
+
+#define emith_or_r_r_imm(d, s, imm) \
+	emith_op_imm2(A_COND_AL, 0, A_OP_ORR, d, s, (imm))
+
+#define emith_eor_r_r_imm(d, s, imm) \
+	emith_op_imm2(A_COND_AL, 0, A_OP_EOR, d, s, (imm))
 
 #define emith_neg_r_r(d, s) \
 	EOP_RSB_IMM(d, s, 0, 0)

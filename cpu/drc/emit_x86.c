@@ -15,6 +15,7 @@
 
 enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
+#define HOST_REGS   8
 #define CONTEXT_REG xBP
 #define RET_REG     xAX
 
@@ -185,6 +186,61 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	} \
 } while (0)
 
+#define emith_sub_r_r_r(d, s1, s2) do { \
+	if (d == s1) { \
+		emith_sub_r_r(d, s2); \
+	} else if (d == s2) { \
+		emith_sub_r_r(d, s1); \
+	} else { \
+		emith_move_r_r(d, s1); \
+		emith_sub_r_r(d, s2); \
+	} \
+} while (0)
+
+#define emith_adc_r_r_r(d, s1, s2) do { \
+	if (d == s1) { \
+		emith_adc_r_r(d, s2); \
+	} else if (d == s2) { \
+		emith_adc_r_r(d, s1); \
+	} else { \
+		emith_move_r_r(d, s1); \
+		emith_adc_r_r(d, s2); \
+	} \
+} while (0)
+
+#define emith_sbc_r_r_r(d, s1, s2) do { \
+	if (d == s1) { \
+		emith_sbc_r_r(d, s2); \
+	} else if (d == s2) { \
+		emith_sbc_r_r(d, s1); \
+	} else { \
+		emith_move_r_r(d, s1); \
+		emith_sbc_r_r(d, s2); \
+	} \
+} while (0)
+
+#define emith_and_r_r_r(d, s1, s2) do { \
+	if (d == s1) { \
+		emith_and_r_r(d, s2); \
+	} else if (d == s2) { \
+		emith_and_r_r(d, s1); \
+	} else { \
+		emith_move_r_r(d, s1); \
+		emith_and_r_r(d, s2); \
+	} \
+} while (0)
+
+#define emith_or_r_r_r(d, s1, s2) do { \
+	if (d == s1) { \
+		emith_or_r_r(d, s2); \
+	} else if (d == s2) { \
+		emith_or_r_r(d, s1); \
+	} else { \
+		emith_move_r_r(d, s1); \
+		emith_or_r_r(d, s2); \
+	} \
+} while (0)
+
 #define emith_eor_r_r_r(d, s1, s2) do { \
 	if (d == s1) { \
 		emith_eor_r_r(d, s2); \
@@ -281,6 +337,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_eor_r_imm(r, imm)
 #define emith_bic_r_imm_c(cond, r, imm) \
 	emith_bic_r_imm(r, imm)
+#define emith_tst_r_imm_c(cond, r, imm) \
+	emith_tst_r_imm(r, imm)
 #define emith_ror_c(cond, d, s, cnt) \
 	emith_ror(d, s, cnt)
 
@@ -324,10 +382,31 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT(imm, s32); \
 } while (0)
 
+#define emith_sub_r_r_imm(d, s, imm) do { \
+	if (d != s) \
+		emith_move_r_r(d, s); \
+	if (imm) \
+		emith_sub_r_imm(d, imm); \
+} while (0)
+
 #define emith_and_r_r_imm(d, s, imm) do { \
 	if (d != s) \
 		emith_move_r_r(d, s); \
 	emith_and_r_imm(d, imm); \
+} while (0)
+
+#define emith_or_r_r_imm(d, s, imm) do { \
+	if (d != s) \
+		emith_move_r_r(d, s); \
+	if ((s32)imm != 0) \
+		emith_or_r_imm(d, imm); \
+} while (0)
+
+#define emith_eor_r_r_imm(d, s, imm) do { \
+	if (d != s) \
+		emith_move_r_r(d, s); \
+	if ((s32)imm != 0) \
+		emith_eor_r_imm(d, imm); \
 } while (0)
 
 // shift
@@ -455,6 +534,14 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_sbcf_r_r   emith_sbc_r_r
 #define emith_eorf_r_r   emith_eor_r_r
 #define emith_negcf_r_r  emith_negc_r_r
+
+#define emith_subf_r_r_imm emith_sub_r_r_imm
+#define emith_addf_r_r_r emith_add_r_r_r
+#define emith_subf_r_r_r emith_sub_r_r_r
+#define emith_adcf_r_r_r emith_adc_r_r_r
+#define emith_sbcf_r_r_r emith_sbc_r_r_r
+#define emith_eorf_r_r_r emith_eor_r_r_r
+#define emith_addf_r_r_r_lsr emith_add_r_r_r_lsr
 
 #define emith_lslf  emith_lsl
 #define emith_lsrf  emith_lsr
@@ -705,7 +792,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	case 0: rd = xDI; break; \
 	case 1: rd = xSI; break; \
 	case 2: rd = xDX; break; \
-	case 3: rd = xBX; break; \
+	default: rd = xCX; break; \
 	}
 
 #define emith_sh2_drc_entry() { \
@@ -728,6 +815,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	case 0: rd = xCX; break; \
 	case 1: rd = xDX; break; \
 	case 2: rd = 8; break; \
+	default: rd = 9; break; \
 	}
 
 #define emith_sh2_drc_entry() { \
@@ -764,6 +852,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	case 0: rd = xAX; break; \
 	case 1: rd = xDX; break; \
 	case 2: rd = xCX; break; \
+	default: rd = xBX; break; \
 	}
 
 #define emith_sh2_drc_entry() { \
