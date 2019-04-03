@@ -65,6 +65,9 @@
 #define DCOND_VS A_COND_VS
 #define DCOND_VC A_COND_VC
 
+#define DCOND_CS A_COND_HS
+#define DCOND_CC A_COND_LO
+
 /* addressing mode 1 */
 #define A_AM1_LSL 0
 #define A_AM1_LSR 1
@@ -184,8 +187,10 @@
 #define EOP_STR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,0)
 
 #define EOP_LDR_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,1,rn,rd,shift_imm,A_AM1_LSL,rm)
+#define EOP_LDRB_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,1,1,rn,rd,shift_imm,A_AM1_LSL,rm);
 
 #define EOP_LDRH_IMM2(cond,rd,rn,offset_8)  EOP_C_AM3_IMM(cond,1,1,rn,rd,0,1,offset_8)
+#define EOP_LDRH_REG2(cond,rd,rn,rm)        EOP_C_AM3_REG(cond,1,1,rn,rd,0,1,rm)
 
 #define EOP_LDRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,offset_8)
 #define EOP_LDRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,0)
@@ -479,6 +484,8 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_adc_r_r(d, s) \
 	EOP_ADC_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
 
+#define emith_and_r_r_c(cond, d, s) \
+	EOP_AND_REG(cond,0,d,d,s,A_AM1_LSL,0)
 #define emith_and_r_r(d, s) \
 	EOP_AND_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
 
@@ -677,12 +684,24 @@ static int emith_xbranch(int cond, void *target, int is_call)
 // misc
 #define emith_read_r_r_offs_c(cond, r, rs, offs) \
 	EOP_LDR_IMM2(cond, r, rs, offs)
+#define emith_read_r_r_r_c(cond, r, rs, rm) \
+	EOP_LDR_REG_LSL(cond, r, rs, rm, 0)
+#define emith_read_r_r_r(r, rs, rm) \
+	EOP_LDR_REG_LSL(A_COND_AL, r, rs, rm, 0)
 
 #define emith_read8_r_r_offs_c(cond, r, rs, offs) \
 	EOP_LDRB_IMM2(cond, r, rs, offs)
+#define emith_read8_r_r_r_c(cond, r, rs, rm) \
+	EOP_LDRB_REG_LSL(cond, r, rs, rm, 0)
+#define emith_read8_r_r_r(r, rs, rm) \
+	EOP_LDRB_REG_LSL(A_COND_AL, r, rs, rm, 0)
 
 #define emith_read16_r_r_offs_c(cond, r, rs, offs) \
 	EOP_LDRH_IMM2(cond, r, rs, offs)
+#define emith_read16_r_r_r_c(cond, r, rs, rm) \
+	EOP_LDRH_REG2(cond, r, rs, rm)
+#define emith_read16_r_r_r(r, rs, rm) \
+	EOP_LDRH_REG2(A_COND_AL, r, rs, rm)
 
 #define emith_read_r_r_offs(r, rs, offs) \
 	emith_read_r_r_offs_c(A_COND_AL, r, rs, offs)
@@ -844,11 +863,20 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_sh2_drc_exit() \
 	EOP_LDMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R12M|A_R15M)
 
-#define emith_sh2_wcall(a, tab) { \
-	emith_lsr(12, a, SH2_WRITE_SHIFT); \
-	EOP_LDR_REG_LSL(A_COND_AL,12,tab,12,2); \
-	emith_move_r_r(2, CONTEXT_REG); \
-	emith_jump_reg(12); \
+// assumes a is in arg0, tab, func and mask are temp
+#define emith_sh2_rcall(a, tab, func, mask) { \
+	emith_lsr(mask, a, SH2_READ_SHIFT); \
+	EOP_ADD_REG_LSL(tab, tab, mask, 3); \
+	EOP_LDMIA(tab, (1<<func)|(1<<mask)); \
+	emith_addf_r_r_r(func,func,func); \
+}
+
+// assumes a, val are in arg0 and arg1, tab and func are temp
+#define emith_sh2_wcall(a, val, tab, func) { \
+	emith_lsr(func, a, SH2_WRITE_SHIFT); \
+	EOP_LDR_REG_LSL(A_COND_AL,func,tab,func,2); \
+	emith_move_r_r(2, CONTEXT_REG); /* arg2 */ \
+	emith_jump_reg(func); \
 }
 
 #define emith_sh2_dtbf_loop() { \

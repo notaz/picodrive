@@ -229,7 +229,7 @@ void sh2_peripheral_reset(SH2 *sh2)
 // SH2 internal peripheral memhandlers
 // we keep them in little endian format
 
-u32 sh2_peripheral_read8(u32 a, SH2 *sh2)
+u32 REGPARM(2) sh2_peripheral_read8(u32 a, SH2 *sh2)
 {
   u8 *r = (void *)sh2->peri_regs;
   u32 d;
@@ -242,7 +242,7 @@ u32 sh2_peripheral_read8(u32 a, SH2 *sh2)
   return d;
 }
 
-u32 sh2_peripheral_read16(u32 a, SH2 *sh2)
+u32 REGPARM(2) sh2_peripheral_read16(u32 a, SH2 *sh2)
 {
   u16 *r = (void *)sh2->peri_regs;
   u32 d;
@@ -255,7 +255,7 @@ u32 sh2_peripheral_read16(u32 a, SH2 *sh2)
   return d;
 }
 
-u32 sh2_peripheral_read32(u32 a, SH2 *sh2)
+u32 REGPARM(2) sh2_peripheral_read32(u32 a, SH2 *sh2)
 {
   u32 d;
   a &= 0x1fc;

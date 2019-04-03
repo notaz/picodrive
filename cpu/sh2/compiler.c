@@ -328,7 +328,7 @@ struct block_list {
 static struct block_list **inval_lookup[TCACHE_BUFFERS];
 
 static const int hash_table_sizes[TCACHE_BUFFERS] = {
-  0x1000,
+  0x4000,
   0x100,
   0x100,
 };
@@ -498,12 +498,12 @@ static void            (*sh2_drc_dispatcher)(void);
 static void            (*sh2_drc_exit)(void);
 static void            (*sh2_drc_test_irq)(void);
 
-static u32  REGPARM(2) (*sh2_drc_read8)(u32 a, SH2 *sh2);
-static u32  REGPARM(2) (*sh2_drc_read16)(u32 a, SH2 *sh2);
-static u32  REGPARM(2) (*sh2_drc_read32)(u32 a, SH2 *sh2);
+static u32  REGPARM(1) (*sh2_drc_read8)(u32 a);
+static u32  REGPARM(1) (*sh2_drc_read16)(u32 a);
+static u32  REGPARM(1) (*sh2_drc_read32)(u32 a);
 static void REGPARM(2) (*sh2_drc_write8)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write16)(u32 a, u32 d);
-static void REGPARM(3) (*sh2_drc_write32)(u32 a, u32 d, SH2 *sh2);
+static void REGPARM(2) (*sh2_drc_write32)(u32 a, u32 d);
 
 // flags for memory access
 #define MF_SIZEMASK 0x03        // size of access
@@ -787,7 +787,7 @@ static void *dr_prepare_ext_branch(u32 pc, int is_slave, int tcache_id)
   cnt = i + 1;
   if (cnt >= block_link_pool_max_counts[tcache_id]) {
     dbg(1, "bl overflow for tcache %d", tcache_id);
-    return NULL;
+    return sh2_drc_dispatcher;
   }
   bl += cnt;
   block_link_pool_counts[tcache_id]++;
@@ -848,7 +848,7 @@ static void dr_link_blocks(struct block_entry *be, int tcache_id)
     dbg(1, "warning: " #array " overflow"); \
     failcode; \
   } else \
-  array[count++] = item; \
+    array[count++] = item; \
 }
 
 static int find_in_array(u32 *array, size_t size, u32 what)
@@ -1806,7 +1806,7 @@ static int emit_get_rbase_and_offs(SH2 *sh2, u32 a, u32 *offs)
   hr = rcache_get_tmp();
   if (mask < 0x1000) {
     // can't access data array or BIOS directly from ROM or SDRAM,
-    // since code may run on both SH2s (if the tcache_id would be known...)
+    // since code may run on both SH2s (tcache_id of translation block needed))
     emith_ctx_read(hr, poffs);
     if (a & mask & ~omask)
       emith_add_r_imm(hr, a & mask & ~omask);
@@ -1896,8 +1896,6 @@ static void emit_or_t_if_eq(int srr)
 // rd = @(arg0)
 static int emit_memhandler_read(int size)
 {
-  int arg1;
-
   rcache_clean_tmp();
 #ifndef DRC_SR_REG
   // must writeback cycles for poll detection stuff
@@ -1905,8 +1903,6 @@ static int emit_memhandler_read(int size)
     rcache_evict_vreg(guest_regs[SHR_SR].vreg);
 #endif
 
-  arg1 = rcache_get_tmp_arg(1);
-  emith_move_r_r_ptr(arg1, CONTEXT_REG);
   switch (size & MF_SIZEMASK) {
   case 0:   emith_call(sh2_drc_read8);      break; // 8
   case 1:   emith_call(sh2_drc_read16);     break; // 16
@@ -1920,16 +1916,12 @@ static int emit_memhandler_read(int size)
 // @(arg0) = arg1
 static void emit_memhandler_write(int size)
 {
-  int arg2;
-
   rcache_clean_tmp();
 #ifndef DRC_SR_REG
   if (guest_regs[SHR_SR].vreg != -1)
     rcache_evict_vreg(guest_regs[SHR_SR].vreg);
 #endif
 
-  arg2 = rcache_get_tmp_arg(2);
-  emith_move_r_r_ptr(arg2, CONTEXT_REG);
   switch (size & MF_SIZEMASK) {
   case 0:   emith_call(sh2_drc_write8);     break;  // 8
   case 1:   emith_call(sh2_drc_write16);    break;  // 16
@@ -2372,7 +2364,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       rcache_unlock_all();
 
 #if (DRC_DEBUG & (8|256|512|1024))
-      emit_move_r_imm32(SHR_PC, pc);
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
       FLUSH_CYCLES(sr);
       rcache_clean();
@@ -2392,7 +2383,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
 #ifdef DRC_CMP
     if (!(op_flags[i] & OF_DELAY_OP)) {
-      emit_move_r_imm32(SHR_PC, pc);
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
       FLUSH_CYCLES(sr);
       rcache_clean();
@@ -3666,16 +3656,69 @@ end_op:
 
 static void sh2_generate_utils(void)
 {
-  int arg0, arg1, arg2, sr, tmp;
-
-  sh2_drc_read8  = p32x_sh2_read8;
-  sh2_drc_read16 = p32x_sh2_read16;
-  sh2_drc_read32 = p32x_sh2_read32;
+  int arg0, arg1, arg2, arg3, sr, tmp;
 
   host_arg2reg(arg0, 0);
   host_arg2reg(arg1, 1);
   host_arg2reg(arg2, 2);
+  host_arg2reg(arg3, 3);
   emith_move_r_r(arg0, arg0); // nop
+  emith_move_r_r(arg1, arg1); // nop
+  emith_move_r_r(arg2, arg2); // nop
+  emith_move_r_r(arg3, arg3); // nop
+
+  // sh2_drc_write8(u32 a, u32 d)
+  sh2_drc_write8 = (void *)tcache_ptr;
+  emith_ctx_read_ptr(arg2, offsetof(SH2, write8_tab));
+  emith_sh2_wcall(arg0, arg1, arg2, arg3);
+
+  // sh2_drc_write16(u32 a, u32 d)
+  sh2_drc_write16 = (void *)tcache_ptr;
+  emith_ctx_read_ptr(arg2, offsetof(SH2, write16_tab));
+  emith_sh2_wcall(arg0, arg1, arg2, arg3);
+
+  // sh2_drc_write32(u32 a, u32 d)
+  sh2_drc_write32 = (void *)tcache_ptr;
+  emith_ctx_read_ptr(arg2, offsetof(SH2, write32_tab));
+  emith_sh2_wcall(arg0, arg1, arg2, arg3);
+
+  // d = sh2_drc_read8(u32 a)
+  sh2_drc_read8 = (void *)tcache_ptr;
+  emith_ctx_read_ptr(arg1, offsetof(SH2, read8_map));
+  emith_sh2_rcall(arg0, arg1, arg2, arg3);
+  EMITH_SJMP_START(DCOND_CS);
+  emith_and_r_r_c(DCOND_CC, arg0, arg3);
+  emith_eor_r_imm_c(DCOND_CC, arg0, 1);
+  emith_read8_r_r_r_c(DCOND_CC, RET_REG, arg0, arg2);
+  emith_ret_c(DCOND_CC);
+  EMITH_SJMP_END(DCOND_CS);
+  emith_move_r_r_ptr(arg1, CONTEXT_REG);
+  emith_jump_reg(arg2);
+
+  // d = sh2_drc_read16(u32 a)
+  sh2_drc_read16 = (void *)tcache_ptr;
+  emith_ctx_read_ptr(arg1, offsetof(SH2, read16_map));
+  emith_sh2_rcall(arg0, arg1, arg2, arg3);
+  EMITH_SJMP_START(DCOND_CS);
+  emith_and_r_r_c(DCOND_CC, arg0, arg3);
+  emith_read16_r_r_r_c(DCOND_CC, RET_REG, arg0, arg2);
+  emith_ret_c(DCOND_CC);
+  EMITH_SJMP_END(DCOND_CS);
+  emith_move_r_r_ptr(arg1, CONTEXT_REG);
+  emith_jump_reg(arg2);
+
+  // d = sh2_drc_read32(u32 a)
+  sh2_drc_read32 = (void *)tcache_ptr;
+  emith_ctx_read_ptr(arg1, offsetof(SH2, read32_map));
+  emith_sh2_rcall(arg0, arg1, arg2, arg3);
+  EMITH_SJMP_START(DCOND_CS);
+  emith_and_r_r_c(DCOND_CC, arg0, arg3);
+  emith_read_r_r_r_c(DCOND_CC, RET_REG, arg0, arg2);
+  emith_ror_c(DCOND_CC, RET_REG, RET_REG, 16);
+  emith_ret_c(DCOND_CC);
+  EMITH_SJMP_END(DCOND_CS);
+  emith_move_r_r_ptr(arg1, CONTEXT_REG);
+  emith_jump_reg(arg2);
 
   // sh2_drc_exit(void)
   sh2_drc_exit = (void *)tcache_ptr;
@@ -3766,21 +3809,6 @@ static void sh2_generate_utils(void)
   emith_call(sh2_drc_test_irq);
   emith_jump(sh2_drc_dispatcher);
 
-  // sh2_drc_write8(u32 a, u32 d)
-  sh2_drc_write8 = (void *)tcache_ptr;
-  emith_ctx_read_ptr(arg2, offsetof(SH2, write8_tab));
-  emith_sh2_wcall(arg0, arg2);
-
-  // sh2_drc_write16(u32 a, u32 d)
-  sh2_drc_write16 = (void *)tcache_ptr;
-  emith_ctx_read_ptr(arg2, offsetof(SH2, write16_tab));
-  emith_sh2_wcall(arg0, arg2);
-
-  // sh2_drc_write32(u32 a, u32 d)
-  sh2_drc_write32 = (void *)tcache_ptr;
-  emith_ctx_read_ptr(arg2, offsetof(SH2, write32_tab));
-  emith_sh2_wcall(arg0, arg2);
-
 #ifdef PDB_NET
   // debug
   #define MAKE_READ_WRAPPER(func) { \
@@ -3815,11 +3843,6 @@ static void sh2_generate_utils(void)
   MAKE_WRITE_WRAPPER(sh2_drc_write8);
   MAKE_WRITE_WRAPPER(sh2_drc_write16);
   MAKE_WRITE_WRAPPER(sh2_drc_write32);
-#if (DRC_DEBUG & 4)
-  host_dasm_new_symbol(sh2_drc_read8);
-  host_dasm_new_symbol(sh2_drc_read16);
-  host_dasm_new_symbol(sh2_drc_read32);
-#endif
 #endif
 
   rcache_invalidate();
@@ -3831,6 +3854,9 @@ static void sh2_generate_utils(void)
   host_dasm_new_symbol(sh2_drc_write8);
   host_dasm_new_symbol(sh2_drc_write16);
   host_dasm_new_symbol(sh2_drc_write32);
+  host_dasm_new_symbol(sh2_drc_read8);
+  host_dasm_new_symbol(sh2_drc_read16);
+  host_dasm_new_symbol(sh2_drc_read32);
 #endif
 }
 
@@ -3955,14 +3981,15 @@ static void sh2_smc_rm_blocks(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift,
   }
 }
 
-void sh2_drc_wcheck_ram(unsigned int a, int val, int cpuid)
+void sh2_drc_wcheck_ram(unsigned int a, int val, SH2 *sh2)
 {
-  dbg(2, "%csh2 smc check @%08x", cpuid ? 's' : 'm', a);
+  dbg(2, "%csh2 smc check @%08x", sh2->is_slave ? 's' : 'm', a);
   sh2_smc_rm_blocks(a, Pico32xMem->drcblk_ram, 0, SH2_DRCBLK_RAM_SHIFT, 0x3ffff);
 }
 
-void sh2_drc_wcheck_da(unsigned int a, int val, int cpuid)
+void sh2_drc_wcheck_da(unsigned int a, int val, SH2 *sh2)
 {
+  int cpuid = sh2->is_slave;
   dbg(2, "%csh2 smc check @%08x", cpuid ? 's' : 'm', a);
   sh2_smc_rm_blocks(a, Pico32xMem->drcblk_da[cpuid],
     1 + cpuid, SH2_DRCBLK_DA_SHIFT, 0xfff);
@@ -4051,6 +4078,9 @@ void sh2_drc_mem_setup(SH2 *sh2)
   sh2->p_da = sh2->data_array;
   sh2->p_sdram = Pico32xMem->sdram;
   sh2->p_rom = Pico.rom;
+  // sh2->p_dram filled in dram bank switching
+  sh2->p_drcblk_da = Pico32xMem->drcblk_da[!!sh2->is_slave];
+  sh2->p_drcblk_ram = Pico32xMem->drcblk_ram;
 }
 
 void sh2_drc_frame(void)
@@ -4103,6 +4133,7 @@ int sh2_drc_init(SH2 *sh2)
     // disasm the utils
     tcache_dsm_ptrs[0] = tcache;
     do_host_disasm(0);
+    fflush(stdout);
 #endif
 #if (DRC_DEBUG & 1)
     hash_collisions = 0;
