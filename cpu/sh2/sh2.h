@@ -36,6 +36,9 @@ typedef struct SH2_
 	void		*p_da;
 	void		*p_sdram;
 	void		*p_rom;
+	void		*p_dram;
+	void		*p_drcblk_da;
+	void		*p_drcblk_ram;
 	unsigned int	pdb_io_csum[2];
 
 #define SH2_STATE_RUN   (1 << 0)	// to prevent recursion

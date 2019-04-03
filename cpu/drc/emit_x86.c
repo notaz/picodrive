@@ -52,6 +52,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define DCOND_VS ICOND_JO      // oVerflow Set
 #define DCOND_VC ICOND_JNO     // oVerflow Clear
 
+#define DCOND_CS ICOND_JB      // carry set
+#define DCOND_CC ICOND_JAE     // carry clear
+
 #define EMIT_PTR(ptr, val, type) \
 	*(type *)(ptr) = val
 
@@ -117,6 +120,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_add_r_r(d, s) \
 	EMIT_OP_MODRM(0x01, 3, s, d)
+
+#define emith_add_r_r_ptr(d, s) do { \
+	EMIT_REX_IF(1, dst, src); \
+	EMIT_OP_MODRM64(0x01, 3, s, d); \
+} while (0)
 
 #define emith_sub_r_r(d, s) \
 	EMIT_OP_MODRM(0x29, 3, s, d)
@@ -341,6 +349,15 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_tst_r_imm(r, imm)
 #define emith_ror_c(cond, d, s, cnt) \
 	emith_ror(d, s, cnt)
+#define emith_and_r_r_c(cond, d, s) \
+	emith_and_r_r(d, s);
+
+#define emith_read8_r_r_r_c(cond, r, rs, rm) \
+	emith_read8_r_r_r(r, rs, rm)
+#define emith_read16_r_r_r_c(cond, r, rs, rm) \
+	emith_read16_r_r_r(r, rs, rm)
+#define emith_read_r_r_r_c(cond, r, rs, rm) \
+	emith_read_r_r_r(r, rs, rm)
 
 #define emith_read_r_r_offs_c(cond, r, rs, offs) \
 	emith_read_r_r_offs(r, rs, offs)
@@ -621,6 +638,30 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_write_r_r_offs(r, rs, offs); \
 } while (0)
 
+#define emith_read8_r_r_r(r, rs, rm) do { \
+	int r_ = r; \
+	if (!is_abcdx(r)) \
+		r_ = rcache_get_tmp(); \
+	EMIT(0x0f, u8); \
+	EMIT_OP_MODRM(0xb6, 0, r, 4); \
+	EMIT_SIB(0, rs, rm); /* mov r, [rm + rs * 1] */ \
+	if ((r) != r_) { \
+		emith_move_r_r(r, r_); \
+		rcache_free_tmp(r_); \
+	} \
+} while (0)
+
+#define emith_read16_r_r_r(r, rs, rm) do { \
+	EMIT(0x0f, u8); \
+	EMIT_OP_MODRM(0xb7, 0, r, 4); \
+	EMIT_SIB(0, rs, rm); /* mov r, [rm + rs * 1] */ \
+} while (0)
+
+#define emith_read_r_r_r(r, rs, rm) do { \
+	EMIT_OP_MODRM(0x8b, 0, r, 4); \
+	EMIT_SIB(0, rs, rm); /* mov r, [rm + rs * 1] */ \
+} while (0)
+
 #define emith_ctx_read(r, offs) \
 	emith_read_r_r_offs(r, CONTEXT_REG, offs)
 
@@ -888,15 +929,30 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	if ((mask) & (1 << xAX)) emith_pop(xAX); \
 } while (0)
 
-#define emith_sh2_wcall(a, tab) { \
+#define emith_sh2_rcall(a, tab, func, mask) { \
+	emith_lsr(mask, a, SH2_READ_SHIFT); \
+	EMIT_REX_IF(1, mask, tab); \
+	EMIT_OP_MODRM64(0x8d, 0, tab, 4); \
+	EMIT_SIB64(PTR_SCALE, mask, tab); /* lea tab, [tab + mask * {4,8}] */ \
+	EMIT_REX_IF(1, mask, tab); \
+	EMIT_OP_MODRM64(0x8d, 0, tab, 4); \
+	EMIT_SIB64(PTR_SCALE, mask, tab); /* lea tab, [tab + mask * {4,8}] */ \
+	EMIT_REX_IF(1, func, tab); \
+	EMIT_OP_MODRM64(0x8b, 0, func, tab); /* mov func, [tab] */ \
+	EMIT_OP_MODRM64(0x8b, 1, mask, tab); \
+	EMIT(1 << PTR_SCALE, u8); /* mov mask, [tab + {4,8}] */ \
+	emith_add_r_r_ptr(func, func); \
+}
+
+#define emith_sh2_wcall(a, val, tab, func) { \
 	int arg2_; \
 	host_arg2reg(arg2_, 2); \
-	emith_lsr(NA_TMP_REG, a, SH2_WRITE_SHIFT); \
-	EMIT_REX_IF(1, NA_TMP_REG, tab); \
-	EMIT_OP_MODRM64(0x8b, 0, NA_TMP_REG, 4); \
-	EMIT_SIB64(PTR_SCALE, NA_TMP_REG, tab); /* mov tmp, [tab + tmp * {4,8}] */ \
+	emith_lsr(func, a, SH2_WRITE_SHIFT); /* tmp = a >> WRT_SHIFT */ \
+	EMIT_REX_IF(1, func, tab); \
+	EMIT_OP_MODRM64(0x8b, 0, func, 4); \
+	EMIT_SIB64(PTR_SCALE, func, tab); /* mov tmp, [tab + tmp * {4,8}] */ \
 	emith_move_r_r_ptr(arg2_, CONTEXT_REG); \
-	emith_jump_reg(NA_TMP_REG); \
+	emith_jump_reg(func); \
 }
 
 #define emith_sh2_dtbf_loop() { \
