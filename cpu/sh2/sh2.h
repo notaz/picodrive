@@ -50,6 +50,9 @@ typedef struct SH2_
 	int		poll_cycles;
 	int		poll_cnt;
 
+	// DRC branch cache. size must be 2^n and <=128
+	struct { unsigned int pc; void *code; } branch_cache[128];
+
 	// interpreter stuff
 	int		icount;		// cycles left in current timeslice
 	unsigned int	ea;
