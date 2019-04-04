@@ -38,6 +38,7 @@
 // features
 #define PROPAGATE_CONSTANTS     1
 #define LINK_BRANCHES           1
+#define BRANCH_CACHE            1
 #define ALIAS_REGISTERS         1
 #define REMAP_REGISTER          1
 
@@ -57,10 +58,11 @@
 // 10 - smc self-check
 // 100 - write trace
 // 200 - compare trace
-// 400 - print block entry backtrace
+// 400 - block entry backtraceA on exit
+// 800 - state dump on exit
 // {
 #ifndef DRC_DEBUG
-#define DRC_DEBUG 0
+#define DRC_DEBUG 0x800
 #endif
 
 #if DRC_DEBUG
@@ -159,8 +161,6 @@ static char sh2dasm_buff[64];
 #define do_host_disasm(x)
 #endif
 
-#if (DRC_DEBUG & (8|256|512|1024)) || defined(PDB)
-
 #define SH2_DUMP(sh2, reason) { \
 	char ms = (sh2)->is_slave ? 's' : 'm'; \
 	printf("%csh2 %s %08x\n", ms, reason, (sh2)->pc); \
@@ -178,6 +178,8 @@ static char sh2dasm_buff[64];
 		(sh2)->pdb_io_csum[0], (sh2)->pdb_io_csum[1], (sh2)->state, \
 		(sh2)->poll_addr, (sh2)->poll_cycles, (sh2)->poll_cnt); \
 }
+
+#if (DRC_DEBUG & (8|256|512|1024)) || defined(PDB)
 static SH2 csh2[2][4];
 static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
 {
@@ -631,6 +633,14 @@ static void REGPARM(1) flush_tcache(int tcid)
       memset(Pico32xMem->drcblk_da[tcid - 1], 0,
              sizeof(Pico32xMem->drcblk_da[0]));
   }
+#if BRANCH_CACHE
+    if (tcid)
+      memset32(sh2s[tcid-1].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
+    else {
+      memset32(sh2s[0].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
+      memset32(sh2s[1].branch_cache, -1, sizeof(sh2s[1].branch_cache)/4);
+    }
+#endif
 #if (DRC_DEBUG & 4)
   tcache_dsm_ptrs[tcid] = tcache_bases[tcid];
 #endif
@@ -3727,14 +3737,35 @@ static void sh2_generate_utils(void)
 
   // sh2_drc_dispatcher(void)
   sh2_drc_dispatcher = (void *)tcache_ptr;
-  sr = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
-  emith_cmp_r_imm(sr, 0);
-  emith_jump_cond(DCOND_LT, sh2_drc_exit);
-  rcache_invalidate();
   emith_ctx_read(arg0, SHR_PC * 4);
+#if BRANCH_CACHE
+  // check if PC is in branch target cache
+  emith_and_r_r_imm(arg1, arg0, (ARRAY_SIZE(sh2s->branch_cache)-1)*4);
+  // TODO implement emith_add_r_r_r_lsl_ptr, saves one insn on 32bit ARM
+  emith_lsl(arg1, arg1, sizeof(void *) == 8 ? 2 : 1);
+  emith_add_r_r_ptr(arg1, CONTEXT_REG);
+  emith_read_r_r_offs(arg2, arg1, offsetof(SH2, branch_cache));
+  emith_cmp_r_r(arg2, arg0);
+  EMITH_SJMP_START(DCOND_NE);
+  emith_read_r_r_offs_ptr_c(DCOND_EQ, RET_REG, arg1, offsetof(SH2, branch_cache) + sizeof(void *));
+  emith_jump_reg_c(DCOND_EQ, RET_REG);
+  EMITH_SJMP_END(DCOND_NE);
+#endif
   emith_ctx_read(arg1, offsetof(SH2, is_slave));
   emith_add_r_r_ptr_imm(arg2, CONTEXT_REG, offsetof(SH2, drc_tmp));
   emith_call(dr_lookup_block);
+#if BRANCH_CACHE
+  // store PC and block entry ptr (in arg0) in branch target cache
+  emith_tst_r_r_ptr(RET_REG, RET_REG);
+  EMITH_SJMP_START(DCOND_EQ);
+  emith_ctx_read_c(DCOND_NE, arg2, SHR_PC * 4);
+  emith_and_r_r_imm(arg1, arg2, (ARRAY_SIZE(sh2s->branch_cache)-1)*4);
+  emith_lsl(arg1, arg1, sizeof(void *) == 8 ? 2 : 1);
+  emith_add_r_r_ptr(arg1, CONTEXT_REG);
+  emith_write_r_r_offs_c(DCOND_NE, arg2, arg1, offsetof(SH2, branch_cache));
+  emith_write_r_r_offs_ptr_c(DCOND_NE, RET_REG, arg1, offsetof(SH2, branch_cache) + sizeof(void *));
+  EMITH_SJMP_END(DCOND_EQ);
+#endif
   emit_block_entry();
   // lookup failed, call sh2_translate()
   emith_move_r_r_ptr(arg0, CONTEXT_REG);
@@ -3904,6 +3935,15 @@ static void sh2_smc_rm_block(struct block_desc *bd, int tcache_id, u32 ram_mask)
 
   bd->addr = bd->size = bd->size_nolit = 0;
   bd->entry_count = 0;
+
+#if BRANCH_CACHE
+  if (tcache_id)
+    memset32(sh2s[tcache_id-1].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
+  else {
+    memset32(sh2s[0].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
+    memset32(sh2s[1].branch_cache, -1, sizeof(sh2s[1].branch_cache)/4);
+  }
+#endif
 }
 
 /*
@@ -4015,9 +4055,9 @@ int sh2_execute_drc(SH2 *sh2c, int cycles)
   return ret_cycles;
 }
 
-#if (DRC_DEBUG & 2)
-void block_stats(void)
+static void block_stats(void)
 {
+#if (DRC_DEBUG & 2)
   int c, b, i, total = 0;
 
   printf("block stats:\n");
@@ -4048,12 +4088,10 @@ void block_stats(void)
   for (b = 0; b < ARRAY_SIZE(block_tables); b++)
     for (i = 0; i < block_counts[b]; i++)
       block_tables[b][i].refcount = 0;
-}
-#else
-#define block_stats()
 #endif
+}
 
-void sh2_drc_flush_all(void)
+static void backtrace(void)
 {
 #if (DRC_DEBUG & 1024)
   int i;
@@ -4064,6 +4102,52 @@ void sh2_drc_flush_all(void)
   for (i = 0; i < ARRAY_SIZE(csh2[1]); i++)
     SH2_DUMP(&csh2[1][i], "bt ssh2");
 #endif
+}
+
+static void state_dump(void)
+{
+#if (DRC_DEBUG & 2048)
+  int i;
+
+  SH2_DUMP(&sh2s[0], "master");
+  printf("VBR msh2: %x\n", sh2s[0].vbr);
+  for (i = 0; i < 0x60; i++) {
+    printf("%08x ",p32x_sh2_read32(sh2s[0].vbr + i*4, &sh2s[0]));
+    if ((i+1) % 8 == 0) printf("\n");
+  }
+  printf("stack msh2: %x\n", sh2s[0].r[15]);
+  for (i = -0x30; i < 0x30; i++) {
+    printf("%08x ",p32x_sh2_read32(sh2s[0].r[15] + i*4, &sh2s[0]));
+    if ((i+1) % 8 == 0) printf("\n");
+  }
+  printf("branch cache master:\n");
+  for (i = 0; i < ARRAY_SIZE(sh2s[0].branch_cache); i++) {
+    printf("%08x ",sh2s[0].branch_cache[i].pc);
+    if ((i+1) % 8 == 0) printf("\n");
+  }
+  SH2_DUMP(&sh2s[1], "slave");
+  printf("VBR ssh2: %x\n", sh2s[1].vbr);
+  for (i = 0; i < 0x60; i++) {
+    printf("%08x ",p32x_sh2_read32(sh2s[1].vbr + i*4, &sh2s[1]));
+    if ((i+1) % 8 == 0) printf("\n");
+  }
+  printf("stack ssh2: %x\n", sh2s[1].r[15]);
+  for (i = -0x30; i < 0x30; i++) {
+    printf("%08x ",p32x_sh2_read32(sh2s[1].r[15] + i*4, &sh2s[1]));
+    if ((i+1) % 8 == 0) printf("\n");
+  }
+  printf("branch cache slave:\n");
+  for (i = 0; i < ARRAY_SIZE(sh2s[1].branch_cache); i++) {
+    printf("%08x ",sh2s[1].branch_cache[i].pc);
+    if ((i+1) % 8 == 0) printf("\n");
+  }
+#endif
+}
+
+void sh2_drc_flush_all(void)
+{
+  backtrace();
+  state_dump();
   block_stats();
   flush_tcache(0);
   flush_tcache(1);

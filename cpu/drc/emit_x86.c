@@ -122,7 +122,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_OP_MODRM(0x01, 3, s, d)
 
 #define emith_add_r_r_ptr(d, s) do { \
-	EMIT_REX_IF(1, dst, src); \
+	EMIT_REX_IF(1, s, d); \
 	EMIT_OP_MODRM64(0x01, 3, s, d); \
 } while (0)
 
@@ -260,6 +260,21 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	} \
 } while (0)
 
+// _r_r_r_shift
+#define emith_add_r_r_r_lsl(d, s1, s2, lslimm) do { \
+	int tmp_ = rcache_get_tmp(); \
+	emith_lsl(tmp_, s2, lslimm); \
+	emith_add_r_r_r(d, s1, tmp_); \
+	rcache_free_tmp(tmp_); \
+} while (0)
+
+#define emith_add_r_r_r_lsr(d, s1, s2, lslimm) do { \
+	int tmp_ = rcache_get_tmp(); \
+	emith_lsr(tmp_, s2, lslimm); \
+	emith_add_r_r_r(d, s1, tmp_); \
+	rcache_free_tmp(tmp_); \
+} while (0)
+
 // _r_r_shift
 #define emith_or_r_r_lsl(d, s, lslimm) do { \
 	int tmp_ = rcache_get_tmp(); \
@@ -361,8 +376,12 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_read_r_r_offs_c(cond, r, rs, offs) \
 	emith_read_r_r_offs(r, rs, offs)
+#define emith_read_r_r_offs_ptr_c(cond, r, rs, offs) \
+	emith_read_r_r_offs_ptr(r, rs, offs)
 #define emith_write_r_r_offs_c(cond, r, rs, offs) \
 	emith_write_r_r_offs(r, rs, offs)
+#define emith_write_r_r_offs_ptr_c(cond, r, rs, offs) \
+	emith_write_r_r_offs_ptr(r, rs, offs)
 #define emith_read8_r_r_offs_c(cond, r, rs, offs) \
 	emith_read8_r_r_offs(r, rs, offs)
 #define emith_write8_r_r_offs_c(cond, r, rs, offs) \
@@ -583,8 +602,14 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_read_r_r_offs(r, rs, offs) \
 	emith_deref_op(0x8b, r, rs, offs)
+#define emith_read_r_r_offs_ptr(r, rs, offs) \
+	EMIT_REX_IF(1, r, rs); \
+	emith_deref_op(0x8b, r, rs, offs)
 
 #define emith_write_r_r_offs(r, rs, offs) \
+	emith_deref_op(0x89, r, rs, offs)
+#define emith_write_r_r_offs_ptr(r, rs, offs) \
+	EMIT_REX_IF(1, r, rs); \
 	emith_deref_op(0x89, r, rs, offs)
 
 // note: don't use prefixes on this
@@ -664,6 +689,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_ctx_read(r, offs) \
 	emith_read_r_r_offs(r, CONTEXT_REG, offs)
+#define emith_ctx_read_c(cond, r, offs) \
+	emith_ctx_read(r, offs)
 
 #define emith_ctx_read_ptr(r, offs) do { \
 	EMIT_REX_IF(1, r, CONTEXT_REG); \

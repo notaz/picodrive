@@ -179,6 +179,7 @@
 /* ldr and str */
 #define EOP_LDR_IMM2(cond,rd,rn,offset_12)  EOP_C_AM2_IMM(cond,1,0,1,rn,rd,offset_12)
 #define EOP_LDRB_IMM2(cond,rd,rn,offset_12) EOP_C_AM2_IMM(cond,1,1,1,rn,rd,offset_12)
+#define EOP_STR_IMM2(cond,rd,rn,offset_12)  EOP_C_AM2_IMM(cond,(offset_12) >= 0,0,0,rn,rd,abs(offset_12))
 
 #define EOP_LDR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,1,0,1,rn,rd,offset_12)
 #define EOP_LDR_NEGIMM(rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,0,0,1,rn,rd,offset_12)
@@ -478,6 +479,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_add_r_r(d, s) \
 	emith_add_r_r_r(d, d, s)
 
+#define emith_add_r_r_ptr(d, s) \
+	emith_add_r_r_r(d, d, s)
+
 #define emith_sub_r_r(d, s) \
 	EOP_SUB_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
 
@@ -684,6 +688,8 @@ static int emith_xbranch(int cond, void *target, int is_call)
 // misc
 #define emith_read_r_r_offs_c(cond, r, rs, offs) \
 	EOP_LDR_IMM2(cond, r, rs, offs)
+#define emith_read_r_r_offs_ptr_c(cond, r, rs, offs) \
+	emith_read_r_r_offs_c(cond, r, rs, offs)
 #define emith_read_r_r_r_c(cond, r, rs, rm) \
 	EOP_LDR_REG_LSL(cond, r, rs, rm, 0)
 #define emith_read_r_r_r(r, rs, rm) \
@@ -716,8 +722,15 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_read16_r_r_offs(r, rs, offs) \
 	emith_read16_r_r_offs_c(A_COND_AL, r, rs, offs)
 
+#define emith_write_r_r_offs_c(cond, r, rs, offs) \
+	EOP_STR_IMM2(cond, r, rs, offs)
+#define emith_write_r_r_offs_ptr_c(cond, r, rs, offs) \
+	emith_write_r_r_offs_c(cond, r, rs, offs)
+
+#define emith_ctx_read_c(cond, r, offs) \
+	emith_read_r_r_offs_c(cond, r, CONTEXT_REG, offs)
 #define emith_ctx_read(r, offs) \
-	emith_read_r_r_offs(r, CONTEXT_REG, offs)
+	emith_ctx_read_c(A_COND_AL, r, offs)
 
 #define emith_ctx_read_ptr(r, offs) \
 	emith_ctx_read(r, offs)
