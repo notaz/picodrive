@@ -1432,7 +1432,7 @@ static void REGPARM(3) sh2_write8_sdram(u32 a, u32 d, SH2 *sh2)
 {
   u32 a1 = a & 0x3ffff;
 #ifdef DRC_SH2
-  u16 *p = sh2->p_drcblk_ram;
+  u8 *p = sh2->p_drcblk_ram;
   int t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
   if (t)
     sh2_drc_wcheck_ram(a, t, sh2);
@@ -1456,7 +1456,7 @@ static void REGPARM(3) sh2_write8_da(u32 a, u32 d, SH2 *sh2)
 {
   u32 a1 = a & 0xfff;
 #ifdef DRC_SH2
-  u16 *p = sh2->p_drcblk_da;
+  u8 *p = sh2->p_drcblk_da;
   int t = p[a1 >> SH2_DRCBLK_DA_SHIFT];
   if (t)
     sh2_drc_wcheck_da(a, t, sh2);
@@ -1511,7 +1511,7 @@ static void REGPARM(3) sh2_write16_sdram(u32 a, u32 d, SH2 *sh2)
 {
   u32 a1 = a & 0x3fffe;
 #ifdef DRC_SH2
-  u16 *p = sh2->p_drcblk_ram;
+  u8 *p = sh2->p_drcblk_ram;
   int t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
   if (t)
     sh2_drc_wcheck_ram(a, t, sh2);
@@ -1523,7 +1523,7 @@ static void REGPARM(3) sh2_write16_da(u32 a, u32 d, SH2 *sh2)
 {
   u32 a1 = a & 0xffe;
 #ifdef DRC_SH2
-  u16 *p = sh2->p_drcblk_da;
+  u8 *p = sh2->p_drcblk_da;
   int t = p[a1 >> SH2_DRCBLK_DA_SHIFT];
   if (t)
     sh2_drc_wcheck_da(a, t, sh2);
@@ -1580,7 +1580,7 @@ static void REGPARM(3) sh2_write32_sdram(u32 a, u32 d, SH2 *sh2)
 {
   u32 a1 = a & 0x3fffc;
 #ifdef DRC_SH2
-  u16 *p = sh2->p_drcblk_ram;
+  u8 *p = sh2->p_drcblk_ram;
   int t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
   if (t)
     sh2_drc_wcheck_ram(a, t, sh2);
@@ -1595,7 +1595,7 @@ static void REGPARM(3) sh2_write32_da(u32 a, u32 d, SH2 *sh2)
 {
   u32 a1 = a & 0xffc;
 #ifdef DRC_SH2
-  u16 *p = sh2->p_drcblk_da;
+  u8 *p = sh2->p_drcblk_da;
   int t = p[a1 >> SH2_DRCBLK_DA_SHIFT];
   if (t)
     sh2_drc_wcheck_da(a, t, sh2);

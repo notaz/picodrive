@@ -62,7 +62,7 @@
 // 800 - state dump on exit
 // {
 #ifndef DRC_DEBUG
-#define DRC_DEBUG 0x800
+#define DRC_DEBUG 0
 #endif
 
 #if DRC_DEBUG
@@ -148,8 +148,6 @@ enum op_types {
 #define OP_ISBRACND(op) (BITMASK2(OP_BRANCH_CT, OP_BRANCH_CF) & BITMASK1(op))
 
 #ifdef DRC_SH2
-
-static int literal_disabled_frames;
 
 #if (DRC_DEBUG & 4)
 static u8 *tcache_dsm_ptrs[3];
@@ -261,6 +259,7 @@ static const int tcache_sizes[TCACHE_BUFFERS] = {
 
 static u8 *tcache_bases[TCACHE_BUFFERS];
 static u8 *tcache_ptrs[TCACHE_BUFFERS];
+static u8 *tcache_limit[TCACHE_BUFFERS];
 
 // ptr for code emiters
 static u8 *tcache_ptr;
@@ -270,14 +269,21 @@ static u8 *tcache_ptr;
 struct block_link {
   u32 target_pc;
   void *jump;                // insn address
-  struct block_link *next;   // either in block_entry->links or 
+  struct block_link *next;   // either in block_entry->links or unresolved
+  struct block_link *o_next; //     ...in block_entry->o_links
+  struct block_link *prev;
+  struct block_link *o_prev;
+  struct block_entry *target;// target block this is linked in (be->links)
+  int tcache_id;
 };
 
 struct block_entry {
   u32 pc;
-  void *tcache_ptr;          // translated block for above PC
-  struct block_entry *next;  // next block in hash_table with same pc hash
-  struct block_link *links;  // links to this entry
+  u8 *tcache_ptr;            // translated block for above PC
+  struct block_entry *next;  // chain in hash_table with same pc hash
+  struct block_entry *prev;
+  struct block_link *links;  // incoming links to this entry
+  struct block_link *o_links;// outgoing links from this entry
 #if (DRC_DEBUG & 2)
   struct block_desc *block;
 #endif
@@ -285,8 +291,12 @@ struct block_entry {
 
 struct block_desc {
   u32 addr;                  // block start SH2 PC address
-  u16 size;                  // ..of recompiled insns+lit. pool
-  u16 size_nolit;            // same without literals
+  u32 addr_lit;              // block start SH2 literal pool addr
+  int size;                  // ..of recompiled insns
+  int size_lit;              // ..of (insns+)literal pool
+  u8 *tcache_ptr;            // start address of block in cache
+  u16 active;                // actively used or deactivated?
+  struct block_list *list;
 #if (DRC_DEBUG & 2)
   int refcount;
 #endif
@@ -301,6 +311,7 @@ static const int block_max_counts[TCACHE_BUFFERS] = {
 };
 static struct block_desc *block_tables[TCACHE_BUFFERS];
 static int block_counts[TCACHE_BUFFERS];
+static int block_limit[TCACHE_BUFFERS];
 
 // we have block_link_pool to avoid using mallocs
 static const int block_link_pool_max_counts[TCACHE_BUFFERS] = {
@@ -310,7 +321,8 @@ static const int block_link_pool_max_counts[TCACHE_BUFFERS] = {
 };
 static struct block_link *block_link_pool[TCACHE_BUFFERS]; 
 static int block_link_pool_counts[TCACHE_BUFFERS];
-static struct block_link *unresolved_links[TCACHE_BUFFERS];
+static struct block_link **unresolved_links[TCACHE_BUFFERS];
+static struct block_link *blink_free[TCACHE_BUFFERS];
 
 // used for invalidation
 static const int ram_sizes[TCACHE_BUFFERS] = {
@@ -323,7 +335,11 @@ static const int ram_sizes[TCACHE_BUFFERS] = {
 struct block_list {
   struct block_desc *block;
   struct block_list *next;
+  struct block_list *prev;
+  struct block_list **head;
+  struct block_list *l_next;
 };
+struct block_list *blist_free;
 
 // array of pointers to block_lists for RAM and 2 data arrays
 // each array has len: sizeof(mem) / INVAL_PAGE_SIZE 
@@ -573,41 +589,59 @@ static struct block_entry *dr_get_entry(u32 pc, int is_slave, int *tcache_id)
 // block management
 static void add_to_block_list(struct block_list **blist, struct block_desc *block)
 {
-  struct block_list *added = malloc(sizeof(*added));
+  struct block_list *added;
+
+  if (blist_free) {
+    added = blist_free;
+    blist_free = added->next;
+  } else {
+    added = malloc(sizeof(*added));
+  }
   if (!added) {
     elprintf(EL_ANOMALY, "drc OOM (1)");
     return;
   }
   added->block = block;
+  added->l_next = block->list;
+  block->list = added;
+  added->head = blist;
+
+  added->prev = NULL;
+  if (*blist)
+    (*blist)->prev = added;
   added->next = *blist;
   *blist = added;
 }
 
-static void rm_from_block_list(struct block_list **blist, struct block_desc *block)
+static void rm_from_block_lists(struct block_desc *block)
 {
-  struct block_list *prev = NULL, *current = *blist;
-  for (; current != NULL; current = current->next) {
-    if (current->block == block) {
-      if (prev == NULL)
-        *blist = current->next;
-      else
-        prev->next = current->next;
-      free(current);
-      return;
-    }
-    prev = current;
+  struct block_list *entry;
+
+  entry = block->list;
+  while (entry != NULL) {
+    if (entry->prev != NULL)
+      entry->prev->next = entry->next;
+    else
+      *(entry->head) = entry->next;
+    if (entry->next != NULL)
+      entry->next->prev = entry->prev;
+
+    entry->next = blist_free;
+    blist_free = entry;
+
+    entry = entry->l_next;
   }
-  dbg(1, "can't rm block %p (%08x-%08x)",
-    block, block->addr, block->addr + block->size);
+  block->list = NULL;
 }
 
 static void rm_block_list(struct block_list **blist)
 {
-  struct block_list *tmp, *current = *blist;
+  struct block_list *next, *current = *blist;
   while (current != NULL) {
-    tmp = current;
-    current = current->next;
-    free(tmp);
+    next = current->next;
+    current->next = blist_free;
+    blist_free = current;
+    current = next;
   }
   *blist = NULL;
 }
@@ -615,32 +649,37 @@ static void rm_block_list(struct block_list **blist)
 static void REGPARM(1) flush_tcache(int tcid)
 {
   int i;
+#if (DRC_DEBUG & 1)
+  int tc_used, bl_used;
 
-  dbg(1, "tcache #%d flush! (%d/%d, bds %d/%d)", tcid,
-    tcache_ptrs[tcid] - tcache_bases[tcid], tcache_sizes[tcid],
-    block_counts[tcid], block_max_counts[tcid]);
+  tc_used = tcache_sizes[tcid] - (tcache_limit[tcid] - tcache_ptrs[tcid]);
+  bl_used = block_max_counts[tcid] - (block_limit[tcid] - block_counts[tcid]);
+  elprintf(EL_STATUS, "tcache #%d flush! (%d/%d, bds %d/%d)", tcid, tc_used,
+    tcache_sizes[tcid], bl_used, block_max_counts[tcid]);
+#endif
 
   block_counts[tcid] = 0;
+  block_limit[tcid] = block_max_counts[tcid] - 1;
   block_link_pool_counts[tcid] = 0;
-  unresolved_links[tcid] = NULL;
+  blink_free[tcid] = NULL;
+  memset(unresolved_links[tcid], 0, sizeof(*unresolved_links[0]) * hash_table_sizes[tcid]);
   memset(hash_tables[tcid], 0, sizeof(*hash_tables[0]) * hash_table_sizes[tcid]);
   tcache_ptrs[tcid] = tcache_bases[tcid];
-  if (Pico32xMem != NULL) {
-    if (tcid == 0) // ROM, RAM
-      memset(Pico32xMem->drcblk_ram, 0,
-             sizeof(Pico32xMem->drcblk_ram));
-    else
-      memset(Pico32xMem->drcblk_da[tcid - 1], 0,
-             sizeof(Pico32xMem->drcblk_da[0]));
-  }
-#if BRANCH_CACHE
-    if (tcid)
-      memset32(sh2s[tcid-1].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
-    else {
-      memset32(sh2s[0].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
-      memset32(sh2s[1].branch_cache, -1, sizeof(sh2s[1].branch_cache)/4);
+  tcache_limit[tcid] = tcache_bases[tcid] + tcache_sizes[tcid];
+  if (Pico32xMem->sdram != NULL) {
+    if (tcid == 0) { // ROM, RAM
+      memset(Pico32xMem->drcblk_ram, 0, sizeof(Pico32xMem->drcblk_ram));
+      memset(Pico32xMem->drclit_ram, 0, sizeof(Pico32xMem->drclit_ram));
+      memset(sh2s[0].branch_cache, -1, sizeof(sh2s[0].branch_cache));
+      memset(sh2s[1].branch_cache, -1, sizeof(sh2s[1].branch_cache));
+    } else {
+      memset(Pico32xMem->drcblk_ram, 0, sizeof(Pico32xMem->drcblk_ram));
+      memset(Pico32xMem->drclit_ram, 0, sizeof(Pico32xMem->drclit_ram));
+      memset(Pico32xMem->drcblk_da[tcid - 1], 0, sizeof(Pico32xMem->drcblk_da[tcid - 1]));
+      memset(Pico32xMem->drclit_da[tcid - 1], 0, sizeof(Pico32xMem->drclit_da[tcid - 1]));
+      memset(sh2s[tcid - 1].branch_cache, -1, sizeof(sh2s[0].branch_cache));
     }
-#endif
+  }
 #if (DRC_DEBUG & 4)
   tcache_dsm_ptrs[tcid] = tcache_bases[tcid];
 #endif
@@ -652,69 +691,222 @@ static void REGPARM(1) flush_tcache(int tcid)
 static void add_to_hashlist(struct block_entry *be, int tcache_id)
 {
   u32 tcmask = hash_table_sizes[tcache_id] - 1;
+  struct block_entry **head = &HASH_FUNC(hash_tables[tcache_id], be->pc, tcmask);
 
-  be->next = HASH_FUNC(hash_tables[tcache_id], be->pc, tcmask);
-  HASH_FUNC(hash_tables[tcache_id], be->pc, tcmask) = be;
-
-#if (DRC_DEBUG & 2)
-  if (be->next != NULL) {
-    printf(" %08x: hash collision with %08x\n",
-      be->pc, be->next->pc);
-    hash_collisions++;
-  }
-#endif
+  be->prev = NULL;
+  if (*head)
+    (*head)->prev = be;
+  be->next = *head;
+  *head = be;
 }
 
 static void rm_from_hashlist(struct block_entry *be, int tcache_id)
 {
   u32 tcmask = hash_table_sizes[tcache_id] - 1;
-  struct block_entry *cur, *prev;
-  
-  cur = HASH_FUNC(hash_tables[tcache_id], be->pc, tcmask);
-  if (cur == NULL)
-    goto missing;
+  struct block_entry **head = &HASH_FUNC(hash_tables[tcache_id], be->pc, tcmask);
 
-  if (be == cur) { // first
-    HASH_FUNC(hash_tables[tcache_id], be->pc, tcmask) = be->next;
-    return;
+#if DRC_DEBUG & 1
+  struct block_entry *current = be;
+  while (current->prev != NULL)
+    current = current->prev;
+  if (current != *head)
+    dbg(1, "rm_from_hashlist @%p: be %p %08x missing?", head, be, be->pc);
+#endif
+
+  if (be->prev != NULL)
+    be->prev->next = be->next;
+  else
+    *head = be->next;
+  if (be->next != NULL)
+    be->next->prev = be->prev;
+}
+
+
+static void add_to_hashlist_unresolved(struct block_link *bl, int tcache_id)
+{
+  u32 tcmask = hash_table_sizes[tcache_id] - 1;
+  struct block_link **head = &HASH_FUNC(unresolved_links[tcache_id], bl->target_pc, tcmask);
+
+  bl->target = NULL; // marker for not resolved
+  bl->prev = NULL;
+  if (*head)
+    (*head)->prev = bl;
+  bl->next = *head;
+  *head = bl;
+}
+
+static void rm_from_hashlist_unresolved(struct block_link *bl, int tcache_id)
+{
+  u32 tcmask = hash_table_sizes[tcache_id] - 1;
+  struct block_link **head = &HASH_FUNC(unresolved_links[tcache_id], bl->target_pc, tcmask);
+
+#if DRC_DEBUG & 1
+  struct block_link *current = bl;
+  while (current->prev != NULL)
+    current = current->prev;
+  if (current != *head)
+    dbg(1, "rm_from_hashlist unresolved @%p: bl %p %p %08x missing?", head, bl, bl->target, bl->target_pc);
+#endif
+
+  if (bl->prev != NULL)
+    bl->prev->next = bl->next;
+  else
+    *head = bl->next;
+  if (bl->next != NULL)
+    bl->next->prev = bl->prev;
+}
+
+static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit);
+static void dr_free_oldest_block(int tcache_id)
+{
+  struct block_desc *bd;
+
+  if (block_limit[tcache_id] >= block_max_counts[tcache_id]) {
+    // block desc wrap around
+    block_limit[tcache_id] = 0;
+  }
+  bd = &block_tables[tcache_id][block_limit[tcache_id]];
+
+  if (bd->tcache_ptr && bd->tcache_ptr < tcache_ptrs[tcache_id]) {
+    // cache wrap around
+    tcache_ptrs[tcache_id] = bd->tcache_ptr;
   }
 
-  for (prev = cur, cur = cur->next; cur != NULL; cur = cur->next) {
-    if (cur == be) {
-      prev->next = cur->next;
-      return;
+  if (bd->addr && bd->entry_count)
+    sh2_smc_rm_block_entry(bd, tcache_id, 0);
+
+  block_limit[tcache_id]++;
+  if (block_limit[tcache_id] >= block_max_counts[tcache_id])
+    block_limit[tcache_id] = 0;
+  bd = &block_tables[tcache_id][block_limit[tcache_id]];
+  if (bd->tcache_ptr >= tcache_ptrs[tcache_id])
+    tcache_limit[tcache_id] = bd->tcache_ptr;
+  else
+    tcache_limit[tcache_id] = tcache_bases[tcache_id] + tcache_sizes[tcache_id];
+}
+
+static u8 *dr_prepare_cache(int tcache_id, int insn_count)
+{
+#if BRANCH_CACHE
+  u8 *limit = tcache_limit[tcache_id];
+#endif
+
+  // if no block desc available
+  if (block_counts[tcache_id] == block_limit[tcache_id])
+    dr_free_oldest_block(tcache_id);
+
+  // while not enough cache space left (limit - tcache_ptr < max space needed)
+  while (tcache_limit[tcache_id] - tcache_ptrs[tcache_id] < insn_count * 128)
+    dr_free_oldest_block(tcache_id);
+
+#if BRANCH_CACHE
+  if (limit != tcache_limit[tcache_id]) {
+    if (tcache_id)
+      memset32(sh2s[tcache_id-1].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
+    else {
+      memset32(sh2s[0].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
+      memset32(sh2s[1].branch_cache, -1, sizeof(sh2s[1].branch_cache)/4);
     }
   }
-
-missing:
-  dbg(1, "rm_from_hashlist: be %p %08x missing?", be, be->pc);
+#endif
+  return (u8 *)tcache_ptrs[tcache_id];
 }
 
-static void unregister_links(struct block_entry *be, int tcache_id)
+static void dr_mark_memory(int mark, struct block_desc *block, int tcache_id, u32 nolit)
 {
-  struct block_link *bl_unresolved = unresolved_links[tcache_id];
-  struct block_link *bl, *bl_next;
+  u8 *drc_ram_blk = NULL, *lit_ram_blk = NULL;
+  u32 addr, end, mask = 0, shift = 0, idx;
 
-  for (bl = be->links; bl != NULL; ) {
-    bl_next = bl->next;
-    bl->next = bl_unresolved;
-    bl_unresolved = bl;
-    bl = bl_next;
+  // mark memory blocks as containing compiled code
+  if ((block->addr & 0xc7fc0000) == 0x06000000
+      || (block->addr & 0xfffff000) == 0xc0000000)
+  {
+    if (tcache_id != 0) {
+      // data array
+      drc_ram_blk = Pico32xMem->drcblk_da[tcache_id-1];
+      lit_ram_blk = Pico32xMem->drclit_da[tcache_id-1];
+      shift = SH2_DRCBLK_DA_SHIFT;
+    }
+    else {
+      // SDRAM
+      drc_ram_blk = Pico32xMem->drcblk_ram;
+      lit_ram_blk = Pico32xMem->drclit_ram;
+      shift = SH2_DRCBLK_RAM_SHIFT;
+    }
+    mask = ram_sizes[tcache_id] - 1;
+
+    // mark recompiled insns
+    addr = block->addr & ~((1 << shift) - 1);
+    end = block->addr + block->size;
+    for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
+      drc_ram_blk[idx++] += mark;
+
+    // mark literal pool
+    if (addr < (block->addr_lit & ~((1 << shift) - 1)))
+      addr = block->addr_lit & ~((1 << shift) - 1);
+    end = block->addr_lit + block->size_lit;
+    for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
+      drc_ram_blk[idx++] += mark;
+
+    // mark for literals disabled
+    if (nolit) {
+      addr = nolit & ~((1 << shift) - 1);
+      end = block->addr_lit + block->size_lit;
+      for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
+        lit_ram_blk[idx++] = 1;
+    }
+
+    if (mark < 0)
+      rm_from_block_lists(block);
+    else {
+      // add to invalidation lookup lists
+      addr = block->addr & ~(INVAL_PAGE_SIZE - 1);
+      end = block->addr + block->size;
+      for (idx = (addr & mask) / INVAL_PAGE_SIZE; addr < end; addr += INVAL_PAGE_SIZE)
+        add_to_block_list(&inval_lookup[tcache_id][idx++], block);
+
+      if (addr < (block->addr_lit & ~(INVAL_PAGE_SIZE - 1)))
+        addr = block->addr_lit & ~(INVAL_PAGE_SIZE - 1);
+      end = block->addr_lit + block->size_lit;
+      for (idx = (addr & mask) / INVAL_PAGE_SIZE; addr < end; addr += INVAL_PAGE_SIZE)
+        add_to_block_list(&inval_lookup[tcache_id][idx++], block);
+    }
   }
-  be->links = NULL;
-  unresolved_links[tcache_id] = bl_unresolved;
 }
 
-// unlike sh2_smc_rm_block, the block stays and can still be accessed
-// by other already directly linked blocks, just not preferred
-static void kill_block_entry(struct block_entry *be, int tcache_id)
+static u32 dr_check_nolit(u32 start, u32 end, int tcache_id)
 {
-  rm_from_hashlist(be, tcache_id);
-  unregister_links(be, tcache_id);
+  u8 *lit_ram_blk = NULL;
+  u32 mask = 0, shift = 0, addr, idx;
+
+  if ((start & 0xc7fc0000) == 0x06000000
+      || (start & 0xfffff000) == 0xc0000000)
+  {
+    if (tcache_id != 0) {
+      // data array
+      lit_ram_blk = Pico32xMem->drclit_da[tcache_id-1];
+      shift = SH2_DRCBLK_DA_SHIFT;
+    }
+    else {
+      // SDRAM
+      lit_ram_blk = Pico32xMem->drclit_ram;
+      shift = SH2_DRCBLK_RAM_SHIFT;
+    }
+    mask = ram_sizes[tcache_id] - 1;
+
+    addr = start & ~((1 << shift) - 1);
+    for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
+      if (lit_ram_blk[idx++])
+        break;
+
+    return (addr < start ? start : addr > end ? end : addr);
+  }
+
+  return end;
 }
 
-static struct block_desc *dr_add_block(u32 addr, u16 size_lit,
-  u16 size_nolit, int is_slave, int *blk_id)
+static struct block_desc *dr_add_block(u32 addr, int size,
+  u32 addr_lit, int size_lit, int is_slave, int *blk_id)
 {
   struct block_entry *be;
   struct block_desc *bd;
@@ -723,26 +915,27 @@ static struct block_desc *dr_add_block(u32 addr, u16 size_lit,
 
   // do a lookup to get tcache_id and override check
   be = dr_get_entry(addr, is_slave, &tcache_id);
-  if (be != NULL) {
-    dbg(1, "block override for %08x, was %p", addr, be->tcache_ptr);
-    kill_block_entry(be, tcache_id);
-  }
+  if (be != NULL)
+    dbg(1, "block override for %08x", addr);
 
   bcount = &block_counts[tcache_id];
-  if (*bcount >= block_max_counts[tcache_id]) {
+  if (*bcount == block_limit[tcache_id]) {
     dbg(1, "bd overflow for tcache %d", tcache_id);
     return NULL;
   }
 
   bd = &block_tables[tcache_id][*bcount];
   bd->addr = addr;
-  bd->size = size_lit;
-  bd->size_nolit = size_nolit;
+  bd->size = size;
+  bd->addr_lit = addr_lit;
+  bd->size_lit = size_lit;
+  bd->tcache_ptr = tcache_ptr;
+  bd->active = 1;
 
   bd->entry_count = 1;
   bd->entryp[0].pc = addr;
   bd->entryp[0].tcache_ptr = tcache_ptr;
-  bd->entryp[0].links = NULL;
+  bd->entryp[0].links = bd->entryp[0].o_links = NULL;
 #if (DRC_DEBUG & 2)
   bd->entryp[0].block = bd;
   bd->refcount = 0;
@@ -751,6 +944,8 @@ static struct block_desc *dr_add_block(u32 addr, u16 size_lit,
 
   *blk_id = *bcount;
   (*bcount)++;
+  if (*bcount >= block_max_counts[tcache_id])
+    *bcount = 0;
 
   return bd;
 }
@@ -777,43 +972,47 @@ static void *dr_failure(void)
   exit(1);
 }
 
-static void *dr_prepare_ext_branch(u32 pc, int is_slave, int tcache_id)
+static void *dr_prepare_ext_branch(struct block_entry *owner, u32 pc, int is_slave, int tcache_id)
 {
 #if LINK_BRANCHES
   struct block_link *bl = block_link_pool[tcache_id];
   int cnt = block_link_pool_counts[tcache_id];
   struct block_entry *be = NULL;
   int target_tcache_id;
-  int i;
 
   be = dr_get_entry(pc, is_slave, &target_tcache_id);
-  if (target_tcache_id != tcache_id)
+  if (target_tcache_id && target_tcache_id != tcache_id)
     return sh2_drc_dispatcher;
 
-  // if pool has been freed, reuse
-  for (i = cnt - 1; i >= 0; i--)
-    if (bl[i].target_pc != 0)
-      break;
-  cnt = i + 1;
-  if (cnt >= block_link_pool_max_counts[tcache_id]) {
+  if (blink_free[tcache_id] != NULL) {
+    bl = blink_free[tcache_id];
+    blink_free[tcache_id] = bl->next;
+  } else if (cnt >= block_link_pool_max_counts[tcache_id]) {
     dbg(1, "bl overflow for tcache %d", tcache_id);
     return sh2_drc_dispatcher;
+  } else {
+    bl += cnt;
+    block_link_pool_counts[tcache_id] = cnt+1;
   }
-  bl += cnt;
-  block_link_pool_counts[tcache_id]++;
 
+  bl->tcache_id = tcache_id;
   bl->target_pc = pc;
   bl->jump = tcache_ptr;
+  bl->o_next = owner->o_links;
+  owner->o_links = bl;
 
   if (be != NULL) {
-    dbg(2, "- early link from %p to pc %08x", bl->jump, pc);
+    dbg(2, "- early link from %p to pc %08x entry %p", bl->jump, pc, be->tcache_ptr);
+    bl->target = be;
+    bl->prev = NULL;
+    if (be->links)
+      be->links->prev = bl;
     bl->next = be->links;
     be->links = bl;
     return be->tcache_ptr;
   }
   else {
-    bl->next = unresolved_links[tcache_id];
-    unresolved_links[tcache_id] = bl;
+    add_to_hashlist_unresolved(bl, tcache_id);
     return sh2_drc_dispatcher;
   }
 #else
@@ -824,30 +1023,28 @@ static void *dr_prepare_ext_branch(u32 pc, int is_slave, int tcache_id)
 static void dr_link_blocks(struct block_entry *be, int tcache_id)
 {
 #if LINK_BRANCHES
-  struct block_link *first = unresolved_links[tcache_id];
-  struct block_link *bl, *prev, *tmp;
+  u32 tcmask = hash_table_sizes[tcache_id] - 1;
   u32 pc = be->pc;
+  struct block_link **head = &HASH_FUNC(unresolved_links[tcache_id], pc, tcmask);
+  struct block_link *bl = *head, *next;
 
-  for (bl = prev = first; bl != NULL; ) {
+  while (bl != NULL) {
+    next = bl->next;
     if (bl->target_pc == pc) {
-      dbg(2, "- link from %p to pc %08x", bl->jump, pc);
-      emith_jump_patch(bl->jump, tcache_ptr);
-
+      dbg(2, "- link from %p to pc %08x entry %p", bl->jump, pc, be->tcache_ptr);
       // move bl from unresolved_links to block_entry
-      tmp = bl->next;
+      rm_from_hashlist_unresolved(bl, tcache_id);
+
+      emith_jump_patch(bl->jump, be->tcache_ptr);
+      bl->target = be;
+      bl->prev = NULL;
+      if (be->links)
+        be->links->prev = bl;
       bl->next = be->links;
       be->links = bl;
-
-      if (bl == first)
-        first = prev = bl = tmp;
-      else
-        prev->next = bl = tmp;
-      continue;
     }
-    prev = bl;
-    bl = bl->next;
+    bl = next;
   }
-  unresolved_links[tcache_id] = first;
 
   // could sync arm caches here, but that's unnecessary
 #endif
@@ -1954,7 +2151,7 @@ static int emit_memhandler_read_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, u32 off
       emith_move_r_imm(hr2, val);
     } else {
       emit_move_r_imm32(rd, val);
-      hr2 = rcache_get_reg(rd, RC_GR_READ, NULL);
+      hr2 = rcache_get_reg(rd, RC_GR_RMW, NULL);
     }
     if ((size & MF_POSTINCR) && gconst_get(rs, &val))
       gconst_new(rs, val + (1 << (size & MF_SIZEMASK)));
@@ -2202,14 +2399,14 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     u32 test_irq:1;
     u32 pending_branch_direct:1;
     u32 pending_branch_indirect:1;
-    u32 literals_disabled:1;
   } drcf = { 0, };
 
   // PC of current, first, last SH2 insn
   u32 pc, base_pc, end_pc;
-  u32 end_literals;
+  u32 base_literals, end_literals;
   void *block_entry_ptr;
   struct block_desc *block;
+  struct block_entry *entry;
   u16 *dr_pc_base;
   struct op_data *opd;
   int blkid_main = 0;
@@ -2221,7 +2418,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   int op;
 
   base_pc = sh2->pc;
-  drcf.literals_disabled = literal_disabled_frames != 0;
 
   // get base/validate PC
   dr_pc_base = dr_get_pc_base(base_pc, sh2->is_slave);
@@ -2231,31 +2427,11 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     exit(1);
   }
 
-  tcache_ptr = tcache_ptrs[tcache_id];
-
-  // predict tcache overflow
-  u = tcache_ptr - tcache_bases[tcache_id];
-  if (u > tcache_sizes[tcache_id] - MAX_BLOCK_SIZE) {
-    dbg(1, "tcache %d overflow", tcache_id);
-    return NULL;
-  }
-
   // initial passes to disassemble and analyze the block
-  scan_block(base_pc, sh2->is_slave, op_flags, &end_pc, &end_literals);
-
-  if (drcf.literals_disabled)
-    end_literals = end_pc;
-
-  block = dr_add_block(base_pc, end_literals - base_pc,
-    end_pc - base_pc, sh2->is_slave, &blkid_main);
-  if (block == NULL)
-    return NULL;
-
-  block_entry_ptr = tcache_ptr;
-  dbg(2, "== %csh2 block #%d,%d %08x-%08x -> %p", sh2->is_slave ? 's' : 'm',
-    tcache_id, blkid_main, base_pc, end_pc, block_entry_ptr);
-
-  dr_link_blocks(&block->entryp[0], tcache_id);
+  scan_block(base_pc, sh2->is_slave, op_flags, &end_pc, &base_literals, &end_literals);
+  end_literals = dr_check_nolit(base_literals, end_literals, tcache_id);
+  if (base_literals == end_literals) // map empty lit section to end of code
+    base_literals = end_literals = end_pc;
 
   // collect branch_targets that don't land on delay slots
   for (pc = base_pc, i = 0; pc < end_pc; i++, pc += 2) {
@@ -2271,6 +2447,20 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   if (branch_target_count > 0) {
     memset(branch_target_ptr, 0, sizeof(branch_target_ptr[0]) * branch_target_count);
   }
+
+  tcache_ptr = dr_prepare_cache(tcache_id, (end_pc - base_pc) / 2);
+#if (DRC_DEBUG & 4)
+  tcache_dsm_ptrs[tcache_id] = tcache_ptr;
+#endif
+
+  block = dr_add_block(base_pc, end_pc - base_pc, base_literals,
+    end_literals - base_literals, sh2->is_slave, &blkid_main);
+  if (block == NULL)
+    return NULL;
+
+  block_entry_ptr = tcache_ptr;
+  dbg(2, "== %csh2 block #%d,%d %08x-%08x -> %p", sh2->is_slave ? 's' : 'm',
+    tcache_id, blkid_main, base_pc, end_pc, block_entry_ptr);
 
   // clear stale state after compile errors
   rcache_invalidate();
@@ -2307,40 +2497,35 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
         // make block entry
         v = block->entry_count;
+        entry = &block->entryp[v];
         if (v < ARRAY_SIZE(block->entryp))
         {
-          struct block_entry *be_old;
-
-          block->entryp[v].pc = pc;
-          block->entryp[v].tcache_ptr = tcache_ptr;
-          block->entryp[v].links = NULL;
+          entry = &block->entryp[v];
+          entry->pc = pc;
+          entry->tcache_ptr = tcache_ptr;
+          entry->links = entry->o_links = NULL;
 #if (DRC_DEBUG & 2)
-          block->entryp[v].block = block;
+          entry->block = block;
 #endif
-          be_old = dr_get_entry(pc, sh2->is_slave, &tcache_id);
-          if (be_old != NULL) {
-            dbg(1, "entry override for %08x, was %p", pc, be_old->tcache_ptr);
-            kill_block_entry(be_old, tcache_id);
-          }
-
-          add_to_hashlist(&block->entryp[v], tcache_id);
+          add_to_hashlist(entry, tcache_id);
           block->entry_count++;
 
           dbg(2, "-- %csh2 block #%d,%d entry %08x -> %p",
             sh2->is_slave ? 's' : 'm', tcache_id, blkid_main,
             pc, tcache_ptr);
-
-          // since we made a block entry, link any other blocks
-          // that jump to current pc
-          dr_link_blocks(&block->entryp[v], tcache_id);
         }
         else {
           dbg(1, "too many entryp for block #%d,%d pc=%08x",
             tcache_id, blkid_main, pc);
         }
-
-        do_host_disasm(tcache_id);
+      } else {
+        entry = block->entryp;
       }
+
+      // since we made a block entry, link any other blocks that jump to it
+      dr_link_blocks(entry, tcache_id);
+      if (!tcache_id) // can safely link from cpu-local to global memory
+        dr_link_blocks(entry, sh2->is_slave?2:1);
 
       v = find_in_array(branch_target_pc, branch_target_count, pc);
       if (v >= 0)
@@ -2370,8 +2555,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       sr = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
       emith_cmp_r_imm(sr, 0);
       emith_jump_cond(DCOND_LE, sh2_drc_exit);
-      do_host_disasm(tcache_id);
-      rcache_unlock_all();
 
 #if (DRC_DEBUG & (8|256|512|1024))
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
@@ -2389,6 +2572,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       emith_restore_caller_regs(tmp);
       rcache_invalidate_tmp();
 #endif
+
+      do_host_disasm(tcache_id);
+      rcache_unlock_all();
     }
 
 #ifdef DRC_CMP
@@ -2556,8 +2742,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       goto end_op;
 
     case OP_UNDEFINED:
-      elprintf_sh2(sh2, EL_ANOMALY,
-        "drc: illegal op %04x @ %08x", op, pc - 2);
+      elprintf_sh2(sh2, EL_ANOMALY, "drc: unhandled op %04x @ %08x", op, pc-2);
       opd->imm = (op_flags[i] & OF_B_IN_DS) ? 6 : 4;
       // fallthrough
     case OP_TRAPA: // TRAPA #imm      11000011iiiiiiii
@@ -3525,7 +3710,7 @@ end_op:
         emit_move_r_imm32(SHR_PC, target_pc);
         rcache_clean();
 
-        target = dr_prepare_ext_branch(target_pc, sh2->is_slave, tcache_id);
+        target = dr_prepare_ext_branch(block->entryp, target_pc, sh2->is_slave, tcache_id);
         if (target == NULL)
           return NULL;
       }
@@ -3571,7 +3756,7 @@ end_op:
     emit_move_r_imm32(SHR_PC, pc);
     rcache_flush();
 
-    target = dr_prepare_ext_branch(pc, sh2->is_slave, tcache_id);
+    target = dr_prepare_ext_branch(block->entryp, pc, sh2->is_slave, tcache_id);
     if (target == NULL)
       return NULL;
     emith_jump_patchable(target);
@@ -3594,45 +3779,7 @@ end_op:
     emith_jump_patch(branch_patch_ptr[i], target);
   }
 
-  // mark memory blocks as containing compiled code
-  // override any overlay blocks as they become unreachable anyway
-  if ((block->addr & 0xc7fc0000) == 0x06000000
-      || (block->addr & 0xfffff000) == 0xc0000000)
-  {
-    u16 *drc_ram_blk = NULL;
-    u32 addr, mask = 0, shift = 0;
-
-    if (tcache_id != 0) {
-      // data array, BIOS
-      drc_ram_blk = Pico32xMem->drcblk_da[sh2->is_slave];
-      shift = SH2_DRCBLK_DA_SHIFT;
-      mask = 0xfff;
-    }
-    else {
-      // SDRAM
-      drc_ram_blk = Pico32xMem->drcblk_ram;
-      shift = SH2_DRCBLK_RAM_SHIFT;
-      mask = 0x3ffff;
-    }
-
-    // mark recompiled insns
-    drc_ram_blk[(base_pc & mask) >> shift] = 1;
-    for (pc = base_pc; pc < end_pc; pc += 2)
-      drc_ram_blk[(pc & mask) >> shift] = 1;
-
-    // mark literals
-    for (i = 0; i < literal_addr_count; i++) {
-      u = literal_addr[i];
-      drc_ram_blk[(u & mask) >> shift] = 1;
-    }
-
-    // add to invalidation lookup lists
-    addr = base_pc & ~(INVAL_PAGE_SIZE - 1);
-    for (; addr < end_literals; addr += INVAL_PAGE_SIZE) {
-      i = (addr & mask) / INVAL_PAGE_SIZE;
-      add_to_block_list(&inval_lookup[tcache_id][i], block);
-    }
-  }
+  dr_mark_memory(1, block, tcache_id, 0);
 
   tcache_ptrs[tcache_id] = tcache_ptr;
 
@@ -3640,10 +3787,8 @@ end_op:
 
   do_host_disasm(tcache_id);
 
-  if (drcf.literals_disabled && literal_addr_count)
-    dbg(1, "literals_disabled && literal_addr_count?");
-  dbg(2, " block #%d,%d tcache %d/%d, insns %d -> %d %.3f",
-    tcache_id, blkid_main,
+  dbg(2, " block #%d,%d -> %p tcache %d/%d, insns %d -> %d %.3f",
+    tcache_id, blkid_main, tcache_ptr,
     tcache_ptr - tcache_bases[tcache_id], tcache_sizes[tcache_id],
     insns_compiled, host_insn_count, (float)host_insn_count / insns_compiled);
   if ((sh2->pc & 0xc6000000) == 0x02000000) { // ROM
@@ -3657,7 +3802,7 @@ end_op:
  printf("~~~\n");
 */
 
-#if (DRC_DEBUG & 4)
+#if (DRC_DEBUG)
   fflush(stdout);
 #endif
 
@@ -3772,13 +3917,6 @@ static void sh2_generate_utils(void)
   emith_ctx_read(arg1, offsetof(SH2, drc_tmp)); // tcache_id
   emith_call(sh2_translate);
   emit_block_entry();
-  // sh2_translate() failed, flush cache and retry
-  emith_ctx_read(arg0, offsetof(SH2, drc_tmp));
-  emith_call(flush_tcache);
-  emith_move_r_r_ptr(arg0, CONTEXT_REG);
-  emith_ctx_read(arg1, offsetof(SH2, drc_tmp));
-  emith_call(sh2_translate);
-  emit_block_entry();
   // XXX: can't translate, fail
   emith_call(dr_failure);
 
@@ -3891,51 +4029,105 @@ static void sh2_generate_utils(void)
 #endif
 }
 
-static void sh2_smc_rm_block(struct block_desc *bd, int tcache_id, u32 ram_mask)
+static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit)
 {
-  u32 i, addr, end_addr;
-  void *tmp;
+  struct block_link *bl;
+  u32 i;
 
-  dbg(2, "  killing block %08x-%08x-%08x, blkid %d,%d",
-    bd->addr, bd->addr + bd->size_nolit, bd->addr + bd->size,
+  dbg(2, "  killing entry %08x-%08x,%08x-%08x, blkid %d,%d",
+    bd->addr, bd->addr + bd->size, bd->addr_lit, bd->addr_lit + bd->size_lit,
     tcache_id, bd - block_tables[tcache_id]);
   if (bd->addr == 0 || bd->entry_count == 0) {
     dbg(1, "  killing dead block!? %08x", bd->addr);
     return;
   }
 
-  // remove from inval_lookup
-  addr = bd->addr & ~(INVAL_PAGE_SIZE - 1);
-  end_addr = bd->addr + bd->size;
-  for (; addr < end_addr; addr += INVAL_PAGE_SIZE) {
-    i = (addr & ram_mask) / INVAL_PAGE_SIZE;
-    rm_from_block_list(&inval_lookup[tcache_id][i], bd);
-  }
-
-  tmp = tcache_ptr;
-
-  // remove from hash table, make incoming links unresolved
-  // XXX: maybe patch branches w/flush instead?
+  // remove from hash table, make incoming links unresolved, revoke outgoing links
   for (i = 0; i < bd->entry_count; i++) {
-    rm_from_hashlist(&bd->entryp[i], tcache_id);
+    if (bd->active)
+      rm_from_hashlist(&bd->entryp[i], tcache_id);
 
-    // since we never reuse tcache space of dead blocks,
-    // insert jump to dispatcher for blocks that are linked to this
-    tcache_ptr = bd->entryp[i].tcache_ptr;
-    emit_move_r_imm32(SHR_PC, bd->entryp[i].pc);
-    rcache_flush();
-    emith_jump(sh2_drc_dispatcher);
+    for (bl = bd->entryp[i].o_links; bl != NULL; ) {
+      struct block_link *bl_next = bl->o_next;
+      if (bl->target) {
+        if (bl->prev)
+          bl->prev->next = bl->next;
+        else
+          bl->target->links = bl->next;
+        if (bl->next)
+          bl->next->prev = bl->prev;
+        bl->target = NULL;
+      } else if (bd->active)
+        rm_from_hashlist_unresolved(bl, tcache_id);
+      // free bl
+      bl->jump = NULL;
+      bl->next = blink_free[bl->tcache_id];
+      blink_free[bl->tcache_id] = bl;
+      bl = bl_next;
+    }
+    bd->entryp[i].o_links = NULL;
 
-    host_instructions_updated(bd->entryp[i].tcache_ptr, tcache_ptr);
+    for (bl = bd->entryp[i].links; bl != NULL; ) {
+      struct block_link *bl_next = bl->next;
+      dbg(2, "- unlink from %p to pc %08x", bl->jump, bl->target_pc);
+      emith_jump_patch(bl->jump, sh2_drc_dispatcher);
+      // update cpu caches since the previous jump target doesn't exist anymore
+      host_instructions_updated(bl->jump, bl->jump+4);
 
-    unregister_links(&bd->entryp[i], tcache_id);
+      add_to_hashlist_unresolved(bl, tcache_id);
+      bl = bl_next;
+    }
+    bd->entryp[i].links = NULL;
   }
 
-  tcache_ptr = tmp;
+  if (bd->active)
+    dr_mark_memory(-1, bd, tcache_id, nolit);
 
-  bd->addr = bd->size = bd->size_nolit = 0;
+  bd->addr = bd->size = bd->addr_lit = bd->size_lit = 0;
   bd->entry_count = 0;
+  bd->active = 0;
+  rm_from_block_lists(bd);
+}
 
+static void sh2_smc_rm_blocks(u32 a, int tcache_id, u32 shift)
+{
+  struct block_list **blist, *entry, *next;
+  u32 mask = ram_sizes[tcache_id] - 1;
+  u32 wtmask = ~0x20000000; // writethrough area mask
+  u32 start_addr, end_addr;
+  u32 start_lit, end_lit;
+  struct block_desc *block;
+#if (DRC_DEBUG & 2)
+  int removed = 0;
+#endif
+
+  // need to check cached and writethrough area
+  a &= wtmask;
+  blist = &inval_lookup[tcache_id][(a & mask) / INVAL_PAGE_SIZE];
+  entry = *blist;
+  while (entry != NULL) {
+    next = entry->next;
+    block = entry->block;
+    start_addr = block->addr & wtmask;
+    end_addr = start_addr + block->size;
+    start_lit = block->addr_lit & wtmask;
+    end_lit = start_lit + block->size_lit;
+    if ((start_addr <= a && a < end_addr) ||
+        (start_lit <= a && a < end_lit))
+    {
+      dbg(2, "smc remove @%08x", a);
+      end_addr = (start_lit <= a && block->size_lit ? a : 0);
+      sh2_smc_rm_block_entry(block, tcache_id, end_addr);
+#if (DRC_DEBUG & 2)
+      removed = 1;
+#endif
+    }
+    entry = next;
+  }
+#if (DRC_DEBUG & 2)
+  if (!removed)
+    dbg(2, "rm_blocks called @%08x, no work?", a);
+#endif
 #if BRANCH_CACHE
   if (tcache_id)
     memset32(sh2s[tcache_id-1].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
@@ -3946,93 +4138,17 @@ static void sh2_smc_rm_block(struct block_desc *bd, int tcache_id, u32 ram_mask)
 #endif
 }
 
-/*
-04205:243: == msh2 block #0,200 060017a8-060017f0 -> 0x27cb9c
- 060017a8 d11c MOV.L   @($70,PC),R1  ; @$0600181c
-
-04230:261: msh2 xsh w32 [260017a8] d225e304
-04230:261: msh2 smc check @260017a8
-04239:226: = ssh2 enter 060017a8 0x27cb9c, c=173
-*/
-static void sh2_smc_rm_blocks(u32 a, u16 *drc_ram_blk, int tcache_id, u32 shift, u32 mask)
-{
-  struct block_list **blist = NULL, *entry;
-  struct block_desc *block;
-  u32 start_addr, end_addr, taddr, i;
-  u32 from = ~0, to = 0;
-
-  // ignore cache-through
-  a &= ~0x20000000;
-
-  blist = &inval_lookup[tcache_id][(a & mask) / INVAL_PAGE_SIZE];
-  entry = *blist;
-  while (entry != NULL) {
-    block = entry->block;
-    start_addr = block->addr & ~0x20000000;
-    end_addr = start_addr + block->size;
-    if (start_addr <= a && a < end_addr) {
-      // get addr range that includes all removed blocks
-      if (from > start_addr)
-        from = start_addr;
-      if (to < end_addr)
-        to = end_addr;
-
-      if (a >= start_addr + block->size_nolit)
-        literal_disabled_frames = 3;
-      sh2_smc_rm_block(block, tcache_id, mask);
-
-      // entry lost, restart search
-      entry = *blist;
-      continue;
-    }
-    entry = entry->next;
-  }
-
-  if (from >= to)
-    return;
-
-  // update range around a to match latest state
-  from &= ~(INVAL_PAGE_SIZE - 1);
-  to |= (INVAL_PAGE_SIZE - 1);
-  for (taddr = from; taddr < to; taddr += INVAL_PAGE_SIZE) {
-    i = (taddr & mask) / INVAL_PAGE_SIZE;
-    entry = inval_lookup[tcache_id][i];
-
-    for (; entry != NULL; entry = entry->next) {
-      block = entry->block;
-
-      start_addr = block->addr & ~0x20000000;
-      if (start_addr > a) {
-        if (to > start_addr)
-          to = start_addr;
-      }
-      else {
-        end_addr = start_addr + block->size;
-        if (from < end_addr)
-          from = end_addr;
-      }
-    }
-  }
-
-  // clear code marks
-  if (from < to) {
-    u16 *p = drc_ram_blk + ((from & mask) >> shift);
-    memset(p, 0, (to - from) >> (shift - 1));
-  }
-}
-
 void sh2_drc_wcheck_ram(unsigned int a, int val, SH2 *sh2)
 {
-  dbg(2, "%csh2 smc check @%08x", sh2->is_slave ? 's' : 'm', a);
-  sh2_smc_rm_blocks(a, Pico32xMem->drcblk_ram, 0, SH2_DRCBLK_RAM_SHIFT, 0x3ffff);
+  dbg(2, "%csh2 smc check @%08x v=%d", sh2->is_slave ? 's' : 'm', a, val);
+  sh2_smc_rm_blocks(a, 0, SH2_DRCBLK_RAM_SHIFT);
 }
 
 void sh2_drc_wcheck_da(unsigned int a, int val, SH2 *sh2)
 {
   int cpuid = sh2->is_slave;
-  dbg(2, "%csh2 smc check @%08x", cpuid ? 's' : 'm', a);
-  sh2_smc_rm_blocks(a, Pico32xMem->drcblk_da[cpuid],
-    1 + cpuid, SH2_DRCBLK_DA_SHIFT, 0xfff);
+  dbg(2, "%csh2 smc check @%08x v=%d", cpuid ? 's' : 'm', a, val);
+  sh2_smc_rm_blocks(a, 1 + cpuid, SH2_DRCBLK_DA_SHIFT);
 }
 
 int sh2_execute_drc(SH2 *sh2c, int cycles)
@@ -4061,10 +4177,14 @@ static void block_stats(void)
   int c, b, i, total = 0;
 
   printf("block stats:\n");
-  for (b = 0; b < ARRAY_SIZE(block_tables); b++)
+  for (b = 0; b < ARRAY_SIZE(block_tables); b++) {
     for (i = 0; i < block_counts[b]; i++)
       if (block_tables[b][i].addr != 0)
         total += block_tables[b][i].refcount;
+    for (i = block_limit[b]; i < block_max_counts[b]; i++)
+      if (block_tables[b][i].addr != 0)
+        total += block_tables[b][i].refcount;
+  }
 
   for (c = 0; c < 10; c++) {
     struct block_desc *blk, *maxb = NULL;
@@ -4077,17 +4197,27 @@ static void block_stats(void)
           maxb = blk;
         }
       }
+      for (i = block_limit[b]; i < block_max_counts[b]; i++) {
+        blk = &block_tables[b][i];
+        if (blk->addr != 0 && blk->refcount > max) {
+          max = blk->refcount;
+          maxb = blk;
+        }
+      }
     }
     if (maxb == NULL)
       break;
-    printf("%08x %9d %2.3f%%\n", maxb->addr, maxb->refcount,
+    printf("%08x %p %9d %2.3f%%\n", maxb->addr, maxb->tcache_ptr, maxb->refcount,
       (double)maxb->refcount / total * 100.0);
     maxb->refcount = 0;
   }
 
-  for (b = 0; b < ARRAY_SIZE(block_tables); b++)
+  for (b = 0; b < ARRAY_SIZE(block_tables); b++) {
     for (i = 0; i < block_counts[b]; i++)
       block_tables[b][i].refcount = 0;
+    for (i = block_limit[b]; i < block_max_counts[b]; i++)
+      block_tables[b][i].refcount = 0;
+  }
 #endif
 }
 
@@ -4169,8 +4299,6 @@ void sh2_drc_mem_setup(SH2 *sh2)
 
 void sh2_drc_frame(void)
 {
-  if (literal_disabled_frames > 0)
-    literal_disabled_frames--;
 }
 
 int sh2_drc_init(SH2 *sh2)
@@ -4197,9 +4325,19 @@ int sh2_drc_init(SH2 *sh2)
       hash_tables[i] = calloc(hash_table_sizes[i], sizeof(*hash_tables[0]));
       if (hash_tables[i] == NULL)
         goto fail;
+
+      unresolved_links[i] = calloc(hash_table_sizes[i], sizeof(*unresolved_links[0]));
+      if (unresolved_links[i] == NULL)
+        goto fail;
     }
     memset(block_counts, 0, sizeof(block_counts));
+    for (i = 0; i < ARRAY_SIZE(block_counts); i++) {
+      block_limit[i] = block_max_counts[i] - 1;
+    }
     memset(block_link_pool_counts, 0, sizeof(block_link_pool_counts));
+    for (i = 0; i < ARRAY_SIZE(blink_free); i++) {
+      blink_free[i] = NULL;
+    }
 
     drc_cmn_init();
     rcache_init();
@@ -4208,8 +4346,11 @@ int sh2_drc_init(SH2 *sh2)
     host_instructions_updated(tcache, tcache_ptr);
 
     tcache_bases[0] = tcache_ptrs[0] = tcache_ptr;
-    for (i = 1; i < ARRAY_SIZE(tcache_bases); i++)
+    tcache_limit[0] = tcache_bases[0] + tcache_sizes[0] - (tcache_ptr-tcache);
+    for (i = 1; i < ARRAY_SIZE(tcache_bases); i++) {
       tcache_bases[i] = tcache_ptrs[i] = tcache_bases[i - 1] + tcache_sizes[i - 1];
+      tcache_limit[i] = tcache_bases[i] + tcache_sizes[i];
+    }
 
 #if (DRC_DEBUG & 4)
     for (i = 0; i < ARRAY_SIZE(block_tables); i++)
@@ -4233,6 +4374,7 @@ fail:
 
 void sh2_drc_finish(SH2 *sh2)
 {
+  struct block_list *bl, *bn;
   int i;
 
   if (block_tables[0] == NULL)
@@ -4243,19 +4385,28 @@ void sh2_drc_finish(SH2 *sh2)
   for (i = 0; i < TCACHE_BUFFERS; i++) {
 #if (DRC_DEBUG & 4)
     printf("~~~ tcache %d\n", i);
+#if 0
     tcache_dsm_ptrs[i] = tcache_bases[i];
     tcache_ptr = tcache_ptrs[i];
     do_host_disasm(i);
+    if (tcache_limit[i] < tcache_bases[i] + tcache_sizes[i]) {
+      tcache_dsm_ptrs[i] = tcache_limit[i];
+      tcache_ptr = tcache_bases[i] + tcache_sizes[i];
+      do_host_disasm(i);
+    }
+#endif
+    printf("max links: %d\n", block_link_pool_counts[i]);
 #endif
 
     if (block_tables[i] != NULL)
       free(block_tables[i]);
     block_tables[i] = NULL;
-    if (block_link_pool[i] == NULL)
+    if (block_link_pool[i] != NULL)
       free(block_link_pool[i]);
     block_link_pool[i] = NULL;
+    blink_free[i] = NULL;
 
-    if (inval_lookup[i] == NULL)
+    if (inval_lookup[i] != NULL)
       free(inval_lookup[i]);
     inval_lookup[i] = NULL;
 
@@ -4264,6 +4415,12 @@ void sh2_drc_finish(SH2 *sh2)
       hash_tables[i] = NULL;
     }
   }
+
+  for (bl = blist_free; bl; bl = bn) {
+    bn = bl->next;
+    free(bl);
+  }
+  blist_free = NULL;
 
   drc_cmn_cleanup();
 }
@@ -4304,7 +4461,7 @@ static void *dr_get_pc_base(u32 pc, int is_slave)
 }
 
 void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
-  u32 *end_literals_out)
+  u32 *base_literals_out, u32 *end_literals_out)
 {
   u16 *dr_pc_base;
   u32 pc, op, tmp;
@@ -5073,8 +5230,6 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
 
     default:
     undefined:
-      elprintf(EL_ANOMALY, "%csh2 drc: unhandled op %04x @ %08x",
-        is_slave ? 's' : 'm', op, pc);
       opd->op = OP_UNDEFINED;
       // an unhandled instruction is probably not code if it's not the 1st insn
       if (!(op_flags[i] & OF_DELAY_OP) && pc != base_pc)
@@ -5187,6 +5342,8 @@ end:
     lowest_literal = end_literals;
 
   *end_pc_out = end_pc;
+  if (base_literals_out != NULL)
+    *base_literals_out = (lowest_literal ?: end_pc);
   if (end_literals_out != NULL)
     *end_literals_out = (end_literals ?: end_pc);
 }
