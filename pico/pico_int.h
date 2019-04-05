@@ -599,7 +599,8 @@ struct Pico32xMem
 {
   unsigned char  sdram[0x40000];
 #ifdef DRC_SH2
-  unsigned short drcblk_ram[1 << (18 - SH2_DRCBLK_RAM_SHIFT)];
+  unsigned char drcblk_ram[1 << (18 - SH2_DRCBLK_RAM_SHIFT)];
+  unsigned char drclit_ram[1 << (18 - SH2_DRCBLK_RAM_SHIFT)];
 #endif
   unsigned short dram[2][0x20000/2];    // AKA fb
   union {
@@ -607,7 +608,8 @@ struct Pico32xMem
     unsigned char  m68k_rom_bank[0x10000]; // M68K_BANK_SIZE
   };
 #ifdef DRC_SH2
-  unsigned short drcblk_da[2][1 << (12 - SH2_DRCBLK_DA_SHIFT)];
+  unsigned char drcblk_da[2][1 << (12 - SH2_DRCBLK_DA_SHIFT)];
+  unsigned char drclit_da[2][1 << (12 - SH2_DRCBLK_DA_SHIFT)];
 #endif
   union {
     unsigned char  b[0x800];

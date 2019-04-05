@@ -24,7 +24,7 @@ void sh2_drc_frame(void);
 
 void scan_block(unsigned int base_pc, int is_slave,
 		unsigned char *op_flags, unsigned int *end_pc,
-		unsigned int *end_literals);
+		unsigned int *base_literals, unsigned int *end_literals);
 
 #if defined(DRC_SH2)
 // direct access to some host CPU registers used by the DRC
@@ -39,13 +39,15 @@ void scan_block(unsigned int base_pc, int is_slave,
 #warning "direct DRC register access not available for this host"
 #endif
 
-#ifdef DCR_SR_REG
-#define	DRC_DECLARE_SR	register int sh2_sr asm(#DCR_SR_REG)
+#ifdef DRC_SR_REG
+#define	__DRC_DECLARE_SR(SR)	register int sh2_sr asm(#SR)
+#define	_DRC_DECLARE_SR(SR)	__DRC_DECLARE_SR(SR)
+#define	DRC_DECLARE_SR	_DRC_DECLARE_SR(DRC_SR_REG)
 #define DRC_SAVE_SR(sh2) \
-    if ((sh2->state & (SH2_STATE_RUN|SH2_STATE_BUSY)) == SH2_STATE_RUN) \
+    if ((sh2->state & (SH2_STATE_RUN)) == SH2_STATE_RUN) \
         sh2->sr = sh2_sr;
 #define DRC_RESTORE_SR(sh2) \
-    if ((sh2->state & (SH2_STATE_RUN|SH2_STATE_BUSY)) == SH2_STATE_RUN) \
+    if ((sh2->state & (SH2_STATE_RUN)) == SH2_STATE_RUN) \
         sh2_sr = sh2->sr;
 #else
 #define	DRC_DECLARE_SR
