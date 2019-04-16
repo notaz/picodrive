@@ -6,7 +6,7 @@
  * See COPYING file in the top-level directory.
  */
 
-#include "../pico_int_o32.h"
+#include "../pico_int_offs.h"
 
 @ 32X bank sizes... TODO this should somehow come from an include file
 .equ SH2_ROM_SHIFT, 10      @ 0x003fffff
@@ -46,92 +46,92 @@
 sh2_read8_rom:
     ldr     ip, [r1, #OFS_SH2_p_rom]
     eor     r0, r0, #1
-    lsl     r0, #SH2_ROM_SHIFT
+    mov     r0, r0, lsl #SH2_ROM_SHIFT
     ldrb    r0, [ip, r0, lsr #SH2_ROM_SHIFT]
     bx      lr
 
 sh2_read8_sdram:
     ldr     ip, [r1, #OFS_SH2_p_sdram]
     eor     r0, r0, #1
-    lsl     r0, #SH2_RAM_SHIFT
+    mov     r0, r0, lsl #SH2_RAM_SHIFT
     ldrb    r0, [ip, r0, lsr #SH2_RAM_SHIFT]
     bx      lr
 
 sh2_read8_da:
     ldr     ip, [r1, #OFS_SH2_p_da]
     eor     r0, r0, #1
-    lsl     r0, #SH2_DA_SHIFT
+    mov     r0, r0, lsl #SH2_DA_SHIFT
     ldrb    r0, [ip, r0, lsr #SH2_DA_SHIFT]
     bx      lr
 
 sh2_read8_dram:
     ldr     ip, [r1, #OFS_SH2_p_dram]
     eor     r0, r0, #1
-    lsl     r0, #SH2_DRAM_SHIFT
+    mov     r0, r0, lsl #SH2_DRAM_SHIFT
     ldrb    r0, [ip, r0, lsr #SH2_DRAM_SHIFT]
     bx      lr
 
 sh2_read16_rom:
     ldr     ip, [r1, #OFS_SH2_p_rom]
-    lsl     r0, #SH2_ROM_SHIFT
-    lsr     r0, #SH2_ROM_SHIFT
+    mov     r0, r0, lsl #SH2_ROM_SHIFT
+    mov     r0, r0, lsr #SH2_ROM_SHIFT
     ldrh    r0, [ip, r0]
     bx      lr
 
 sh2_read16_sdram:
     ldr     ip, [r1, #OFS_SH2_p_sdram]
-    lsl     r0, #SH2_RAM_SHIFT
-    lsr     r0, #SH2_RAM_SHIFT
+    mov     r0, r0, lsl #SH2_RAM_SHIFT
+    mov     r0, r0, lsr #SH2_RAM_SHIFT
     ldrh    r0, [ip, r0]
     bx      lr
 
 sh2_read16_da:
     ldr     ip, [r1, #OFS_SH2_p_da]
-    lsl     r0, #SH2_DA_SHIFT
-    lsr     r0, #SH2_DA_SHIFT
+    mov     r0, r0, lsl #SH2_DA_SHIFT
+    mov     r0, r0, lsr #SH2_DA_SHIFT
     ldrh    r0, [ip, r0]
     bx      lr
 
 sh2_read16_dram:
     ldr     ip, [r1, #OFS_SH2_p_dram]
-    lsl     r0, #SH2_DRAM_SHIFT
-    lsr     r0, #SH2_DRAM_SHIFT
+    mov     r0, r0, lsl #SH2_DRAM_SHIFT
+    mov     r0, r0, lsr #SH2_DRAM_SHIFT
     ldrh    r0, [ip, r0]
     bx      lr
 
 sh2_read32_rom:
     ldr     ip, [r1, #OFS_SH2_p_rom]
-    lsl     r0, #SH2_ROM_SHIFT
+    mov     r0, r0, lsl #SH2_ROM_SHIFT
     ldr     r0, [ip, r0, lsr #SH2_ROM_SHIFT]
-    ror     r0, r0, #16
+    mov     r0, r0, ror #16
     bx      lr
 
 sh2_read32_sdram:
     ldr     ip, [r1, #OFS_SH2_p_sdram]
-    lsl     r0, #SH2_RAM_SHIFT
+    mov     r0, r0, lsl #SH2_RAM_SHIFT
     ldr     r0, [ip, r0, lsr #SH2_RAM_SHIFT]
-    ror     r0, r0, #16
+    mov     r0, r0, ror #16
     bx      lr
 
 sh2_read32_da:
     ldr     ip, [r1, #OFS_SH2_p_da]
-    lsl     r0, #SH2_DA_SHIFT
+    mov     r0, r0, lsl #SH2_DA_SHIFT
     ldr     r0, [ip, r0, lsr #SH2_DA_SHIFT]
-    ror     r0, r0, #16
+    mov     r0, r0, ror #16
     bx      lr
 
 sh2_read32_dram:
     ldr     ip, [r1, #OFS_SH2_p_dram]
-    lsl     r0, #SH2_DRAM_SHIFT
+    mov     r0, r0, lsl #SH2_DRAM_SHIFT
     ldr     r0, [ip, r0, lsr #SH2_DRAM_SHIFT]
-    ror     r0, r0, #16
+    mov     r0, r0, ror #16
     bx      lr
 
 sh2_write8_sdram:
     @ preserve r0 and r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_sdram]
     eor     r3, r0, #1
-    lsl     r3, #SH2_RAM_SHIFT
+    mov     r3, r3, lsl #SH2_RAM_SHIFT
     strb    r1, [ip, r3, lsr #SH2_RAM_SHIFT]
 #ifdef DRC_SH2
     ldr     ip, [r2, #OFS_SH2_p_drcblk_ram]
@@ -148,7 +148,7 @@ sh2_write8_da:
     @ preserve r0 and r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_da]
     eor     r3, r0, #1
-    lsl     r3, #SH2_DA_SHIFT
+    mov     r3, r3, lsl #SH2_DA_SHIFT
     strb    r1, [ip, r3, lsr #SH2_DA_SHIFT]
 #ifdef DRC_SH2
     ldr     ip, [r2, #OFS_SH2_p_drcblk_da]
@@ -165,15 +165,15 @@ sh2_write8_dram:
     tst     r1, #0xff
     ldrne   ip, [r2, #OFS_SH2_p_dram]
     eorne   r3, r0, #1
-    lslne   r3, #SH2_DRAM_SHIFT
+    movne   r3, r3, lsl #SH2_DRAM_SHIFT
     strneb  r1, [ip, r3, lsr #SH2_DRAM_SHIFT]
     bx      lr
 
 sh2_write16_sdram:
     @ preserve r0 and r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_sdram]
-    lsl     r3, r0, #SH2_RAM_SHIFT
-    lsr     r3, r3, #SH2_RAM_SHIFT
+    mov     r3, r0, lsl #SH2_RAM_SHIFT
+    mov     r3, r3, lsr #SH2_RAM_SHIFT
     strh    r1, [ip, r3]
 #ifdef DRC_SH2
     ldr     ip, [r2, #OFS_SH2_p_drcblk_ram]
@@ -188,8 +188,8 @@ sh2_write16_sdram:
 sh2_write16_da:
     @ preserve r0 and r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_da]
-    lsl     r3, r0, #SH2_DA_SHIFT
-    lsr     r3, r3, #SH2_DA_SHIFT
+    mov     r3, r0, lsl #SH2_DA_SHIFT
+    mov     r3, r3, lsr #SH2_DA_SHIFT
     strh    r1, [ip, r3]
 #ifdef DRC_SH2
     ldr     ip, [r2, #OFS_SH2_p_drcblk_da]
@@ -204,23 +204,23 @@ sh2_write16_da:
 sh2_write16_dram:
     ldr     ip, [r2, #OFS_SH2_p_dram]
     tst     r0, #SH2_DRAM_OW
-    lsl     r3, r0, #SH2_DRAM_SHIFT
-    lsr     r3, r3, #SH2_DRAM_SHIFT
+    mov     r3, r0, lsl #SH2_DRAM_SHIFT
+    mov     r3, r3, lsr #SH2_DRAM_SHIFT
     streqh  r1, [ip, r3]
     bxeq    lr
     add     ip, ip, r3
     tst     r1, #0xff
     strneb  r1, [ip, #0]
     tst     r1, #0xff00
-    lsrne   r1, r1, #8
+    movne   r1, r1, lsr #8
     strneb  r1, [ip, #1]
     bx      lr
 
 sh2_write32_sdram:
     @ preserve r0 and r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_sdram]
-    ror     r1, r1, #16
-    lsl     r3, r0, #SH2_RAM_SHIFT
+    mov     r1, r1, ror #16
+    mov     r3, r0, lsl #SH2_RAM_SHIFT
     str     r1, [ip, r3, lsr #SH2_RAM_SHIFT]
 #ifdef DRC_SH2
     ldr     ip, [r2, #OFS_SH2_p_drcblk_ram]
@@ -242,8 +242,8 @@ sh2_write32_sdram:
 sh2_write32_da:
     @ preserve r0 and r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_da]
-    ror     r1, r1, #16
-    lsl     r3, r0, #SH2_DA_SHIFT
+    mov     r1, r1, ror #16
+    mov     r3, r0, lsl #SH2_DA_SHIFT
     str     r1, [ip, r3, lsr #SH2_DA_SHIFT]
 #ifdef DRC_SH2
     ldr     ip, [r2, #OFS_SH2_p_drcblk_da]
@@ -265,13 +265,13 @@ sh2_write32_da:
 sh2_write32_dram:
     ldr     ip, [r2, #OFS_SH2_p_dram]
     tst     r0, #SH2_DRAM_OW
-    lsl     r3, r0, #SH2_DRAM_SHIFT
-    roreq   r1, r1, #16
+    mov     r3, r0, lsl #SH2_DRAM_SHIFT
+    moveq   r1, r1, ror #16
     streq   r1, [ip, r3, lsr #SH2_DRAM_SHIFT]
     bxeq    lr
 #if 1
     ldr     r0, [ip, r3, lsr #SH2_DRAM_SHIFT]
-    ror     r1, r1, #16
+    mov     r1, r1, ror #16
     mov     r2, #0
     tst     r1, #0x00ff0000
     orrne   r2, r2, #0x00ff0000

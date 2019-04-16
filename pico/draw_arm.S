@@ -8,7 +8,7 @@
  * this is highly specialized, be careful if changing related C code!
  */
 
-#include "pico_int_o32.h"
+#include "pico_int_offs.h"
 
 .extern DrawStripInterlace
 

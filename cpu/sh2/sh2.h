@@ -81,9 +81,9 @@ typedef struct SH2_
 
 #define CYCLE_MULT_SHIFT 10
 #define C_M68K_TO_SH2(xsh2, c) \
-	((int)((long long)(c) * (xsh2)->mult_m68k_to_sh2) >> CYCLE_MULT_SHIFT)
+	(int)(((unsigned long long)(c) * (xsh2)->mult_m68k_to_sh2) >> CYCLE_MULT_SHIFT)
 #define C_SH2_TO_M68K(xsh2, c) \
-	((int)((long long)(c+3) * (xsh2)->mult_sh2_to_m68k) >> CYCLE_MULT_SHIFT)
+	(int)(((unsigned long long)(c+3U) * (xsh2)->mult_sh2_to_m68k) >> CYCLE_MULT_SHIFT)
 
 int  sh2_init(SH2 *sh2, int is_slave, SH2 *other_sh2);
 void sh2_finish(SH2 *sh2);

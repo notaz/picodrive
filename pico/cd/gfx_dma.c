@@ -10,10 +10,6 @@
 
 #include "cell_map.c"
 
-#ifndef UTYPES_DEFINED
-typedef unsigned short u16;
-#endif
-
 // check: Heart of the alien, jaguar xj 220
 PICO_INTERNAL void DmaSlowCell(unsigned int source, unsigned int a, int len, unsigned char inc)
 {

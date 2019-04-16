@@ -9,6 +9,7 @@ asm_render = 0
 asm_ym2612 = 0
 asm_misc = 0
 asm_cdmemory = 0
+asm_32xdraw = 0
 asm_mix = 0
 endif
 
