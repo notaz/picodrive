@@ -214,7 +214,7 @@ int sh2_execute_interpreter(SH2 *sh2, int cycles)
 			if (sh2->pc < *base_pc || sh2->pc >= *end_pc) {
 				*base_pc = sh2->pc;
 				scan_block(*base_pc, sh2->is_slave,
-					op_flags, end_pc, NULL);
+					op_flags, end_pc, NULL, NULL);
 			}
 			if ((op_flags[(sh2->pc - *base_pc) / 2]
 				& OF_BTARGET) || sh2->pc == *base_pc

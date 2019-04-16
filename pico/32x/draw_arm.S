@@ -6,7 +6,7 @@
 @* See COPYING file in the top-level directory.
 @*
 
-#include "pico/pico_int_o32.h"
+#include "pico/pico_int_offs.h"
 
 .extern Pico32x
 .extern Pico
@@ -74,7 +74,7 @@ Pico32xNativePal:
     ldr     lr,=Pico
     ldr     r10,=Pico32x
     ldr     r11, [lr, #OFS_Pico_est+OFS_EST_Draw2FB]
-    ldr     r10,[r10, #0x40] @ Pico32x.vdp_regs[0]
+    ldrh    r10,[r10, #0x40] @ Pico32x.vdp_regs[0]
     add     r9, lr, #OFS_Pico_est+OFS_EST_HighPal   @ palmd
 
     and     r4, r2, #0xff
@@ -118,6 +118,8 @@ Pico32xNativePal:
     mov     r7, r7, lsl #1
     ldreqh  r12,[r9, r7]
     streqh  r12,[r0], #2     @ *dst++ = palmd[*pmd]
+.else
+    addeq   r0, r0, #2
 .endif
     beq     2b @ loop_inner
 
@@ -182,8 +184,8 @@ Pico32xNativePal:
     ldrneb  r8, [r5, #2]!    @ r7,r8 - pixel 0,1 index
     subs    r6, r6, #1
     blt     0b @ loop_outer
-@    cmp     r7, r8            @ is this really improving things?
-@    beq     5f @ check_fill @ +8
+    cmp     r7, r8            @ is this really improving things?
+    beq     5f @ check_fill @ +8
 
 3: @ no_fill:
     mov     r12,r7, lsl #1
@@ -242,7 +244,7 @@ Pico32xNativePal:
     beq     6b
 
 7: @ count_done
-    sub     r5, r5, #4      @ undo readahead
+    sub     r5, r5, #4       @ undo readahead
 
     @ fix alignment and check type
     sub     r8, r5, lr
@@ -268,14 +270,14 @@ Pico32xNativePal:
     b       2b @ loop_inner
 
 9: @ bg_mode:
-    ldrb    r12,[r11],#1     @ MD pixel
+    ldrb    r12,[r11],#1     @ MD pixel 0,1
     ldrb    lr, [r11],#1
-    cmp     r3, lr, lsl #26  @ MD has bg pixel?
+    cmp     r3, r12,lsl #26  @ MD pixel 0 has bg?
 .if \do_md
     mov     r12,r12,lsl #1
     ldrneh  r12,[r9, r12]    @ t = palmd[*pmd]
     moveq   r12,r7
-    cmp     r3, lr, lsl #26
+    cmp     r3, lr, lsl #26  @ MD pixel 1 has bg?
     mov     lr, lr, lsl #1
     ldrneh  lr, [r9, lr]
     moveq   lr, r7
@@ -283,7 +285,7 @@ Pico32xNativePal:
     strh    lr, [r0], #2
 .else
     streqh  r7, [r0]
-    cmp     r3, lr, lsl #26
+    cmp     r3, lr, lsl #26  @ MD pixel 1 has bg?
     streqh  r7, [r0, #2]
     add     r0, r0, #4
 .endif

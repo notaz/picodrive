@@ -195,10 +195,10 @@ LDFLAGS += -Wl,-Map=$(TARGET).map
 endif
 
 
-target_: pico/pico_int_o32.h $(TARGET)
+target_: pico/pico_int_offs.h $(TARGET)
 
 clean:
-	$(RM) $(TARGET) $(OBJS) pico/pico_int_o32.h
+	$(RM) $(TARGET) $(OBJS) pico/pico_int_offs.h
 	$(RM) -r .opk_data
 
 $(TARGET): $(OBJS)
@@ -211,7 +211,7 @@ endif
 pprof: platform/linux/pprof.c
 	$(CC) $(CFLAGS) -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
-pico/pico_int_o32.h:: tools/mkoffsets.sh
+pico/pico_int_offs.h:: tools/mkoffsets.sh
 	make -C tools/ XCC="$(CC)" XCFLAGS="$(CFLAGS)"
 
 .s.o:

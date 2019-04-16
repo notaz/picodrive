@@ -398,9 +398,6 @@ static void p32x_reg_write8(u32 a, u32 d)
     p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
     comreg = 1 << (a & 0x0f) / 2;
     Pico32x.comm_dirty |= comreg;
-
-    if (cycles - (int)msh2.m68krcycles_done > 120)
-      p32x_sync_sh2s(cycles);
     return;
   }
 }
@@ -453,6 +450,9 @@ static void p32x_reg_write16(u32 a, u32 d)
     int cycles = SekCyclesDone();
     int comreg;
     
+    if (r[a / 2] == d)
+       return;
+
     p32x_sync_sh2s(cycles);
 
     r[a / 2] = d;
@@ -685,7 +685,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
     case 0x3f:
       return;
     pwm_write:
-      p32x_pwm_write16(a & ~1, d, sh2, 0);
+      p32x_pwm_write16(a & ~1, d, sh2, sh2_cycles_done_m68k(sh2));
       return;
   }
 

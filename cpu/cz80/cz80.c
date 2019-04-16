@@ -14,6 +14,7 @@
 #include "cz80.h"
 
 #if PICODRIVE_HACKS
+#include <pico/pico_int.h>
 #include <pico/memory.h>
 #endif
 

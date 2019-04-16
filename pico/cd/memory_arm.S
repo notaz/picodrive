@@ -6,7 +6,7 @@
 @* See COPYING file in the top-level directory.
 @*
 
-#include "../pico_int_o32.h"
+#include "../pico_int_offs.h"
 
 .equiv PCM_STEP_SHIFT, 11
 

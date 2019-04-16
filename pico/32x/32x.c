@@ -30,7 +30,7 @@ static int REGPARM(2) sh2_irq_cb(SH2 *sh2, int level)
 }
 
 // MUST specify active_sh2 when called from sh2 memhandlers
-void p32x_update_irls(SH2 *active_sh2, int m68k_cycles)
+void p32x_update_irls(SH2 *active_sh2, unsigned int m68k_cycles)
 {
   int irqs, mlvl = 0, slvl = 0;
   int mrun, srun;
@@ -50,18 +50,18 @@ void p32x_update_irls(SH2 *active_sh2, int m68k_cycles)
     slvl++;
   slvl *= 2;
 
-  mrun = sh2_irl_irq(&msh2, mlvl, active_sh2 == &msh2);
+  mrun = sh2_irl_irq(&msh2, mlvl, msh2.state & SH2_STATE_RUN);
   if (mrun) {
     p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES, m68k_cycles);
-    if (active_sh2 == &msh2)
-      sh2_end_run(active_sh2, 1);
+    if (msh2.state & SH2_STATE_RUN)
+      sh2_end_run(&msh2, 1);
   }
 
-  srun = sh2_irl_irq(&ssh2, slvl, active_sh2 == &ssh2);
+  srun = sh2_irl_irq(&ssh2, slvl, ssh2.state & SH2_STATE_RUN);
   if (srun) {
     p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES, m68k_cycles);
-    if (active_sh2 == &ssh2)
-      sh2_end_run(active_sh2, 1);
+    if (ssh2.state & SH2_STATE_RUN)
+      sh2_end_run(&ssh2, 1);
   }
 
   elprintf(EL_32X, "update_irls: m %d/%d, s %d/%d", mlvl, mrun, slvl, srun);
@@ -70,7 +70,7 @@ void p32x_update_irls(SH2 *active_sh2, int m68k_cycles)
 // the mask register is inconsistent, CMD is supposed to be a mask,
 // while others are actually irq trigger enables?
 // TODO: test on hw..
-void p32x_trigger_irq(SH2 *sh2, int m68k_cycles, unsigned int mask)
+void p32x_trigger_irq(SH2 *sh2, unsigned int m68k_cycles, unsigned int mask)
 {
   Pico32x.sh2irqs |= mask & P32XI_VRES;
   Pico32x.sh2irqi[0] |= mask & (Pico32x.sh2irq_mask[0] << 3);
@@ -79,7 +79,7 @@ void p32x_trigger_irq(SH2 *sh2, int m68k_cycles, unsigned int mask)
   p32x_update_irls(sh2, m68k_cycles);
 }
 
-void p32x_update_cmd_irq(SH2 *sh2, int m68k_cycles)
+void p32x_update_cmd_irq(SH2 *sh2, unsigned int m68k_cycles)
 {
   if ((Pico32x.sh2irq_mask[0] & 2) && (Pico32x.regs[2 / 2] & 1))
     Pico32x.sh2irqi[0] |= P32XI_CMD;
@@ -207,8 +207,8 @@ void PicoReset32x(void)
 {
   if (PicoIn.AHW & PAHW_32X) {
     p32x_trigger_irq(NULL, SekCyclesDone(), P32XI_VRES);
-    p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES, 0);
-    p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES, 0);
+    p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES, SekCyclesDone());
+    p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES, SekCyclesDone());
     p32x_pwm_ctl_changed();
     p32x_timers_recalc();
   }
@@ -258,7 +258,7 @@ static void p32x_start_blank(void)
   p32x_sh2_poll_event(&ssh2, SH2_STATE_VPOLL, SekCyclesDone());
 }
 
-void p32x_schedule_hint(SH2 *sh2, int m68k_cycles)
+void p32x_schedule_hint(SH2 *sh2, unsigned int m68k_cycles)
 {
   // rather rough, 32x hint is useless in practice
   int after;
@@ -370,9 +370,9 @@ static void p32x_run_events(unsigned int until)
       oldest, event_time_next);
 }
 
-static void run_sh2(SH2 *sh2, int m68k_cycles)
+static void run_sh2(SH2 *sh2, unsigned int m68k_cycles)
 {
-  int cycles, done;
+  unsigned int cycles, done;
 
   pevt_log_sh2_o(sh2, EVT_RUN_START);
   sh2->state |= SH2_STATE_RUN;

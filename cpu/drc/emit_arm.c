@@ -177,26 +177,25 @@
 #define EOP_C_AM3_REG(cond,u,l,rn,rd,s,h,rm)       EOP_C_AM3(cond,u,0,l,rn,rd,s,h,rm)
 
 /* ldr and str */
-#define EOP_LDR_IMM2(cond,rd,rn,offset_12)  EOP_C_AM2_IMM(cond,1,0,1,rn,rd,offset_12)
-#define EOP_LDRB_IMM2(cond,rd,rn,offset_12) EOP_C_AM2_IMM(cond,1,1,1,rn,rd,offset_12)
+#define EOP_LDR_IMM2(cond,rd,rn,offset_12)  EOP_C_AM2_IMM(cond,(offset_12) >= 0,0,1,rn,rd,abs(offset_12))
+#define EOP_LDRB_IMM2(cond,rd,rn,offset_12) EOP_C_AM2_IMM(cond,(offset_12) >= 0,1,1,rn,rd,abs(offset_12))
 #define EOP_STR_IMM2(cond,rd,rn,offset_12)  EOP_C_AM2_IMM(cond,(offset_12) >= 0,0,0,rn,rd,abs(offset_12))
 
-#define EOP_LDR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,1,0,1,rn,rd,offset_12)
-#define EOP_LDR_NEGIMM(rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,0,0,1,rn,rd,offset_12)
+#define EOP_LDR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,(offset_12) >= 0,0,1,rn,rd,abs(offset_12))
 #define EOP_LDR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,1,rn,rd,0)
-#define EOP_STR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,offset_12)
+#define EOP_STR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,(offset_12) >= 0,0,0,rn,rd,abs(offset_12))
 #define EOP_STR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,0)
 
 #define EOP_LDR_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,1,rn,rd,shift_imm,A_AM1_LSL,rm)
 #define EOP_LDRB_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,1,1,rn,rd,shift_imm,A_AM1_LSL,rm);
 
-#define EOP_LDRH_IMM2(cond,rd,rn,offset_8)  EOP_C_AM3_IMM(cond,1,1,rn,rd,0,1,offset_8)
+#define EOP_LDRH_IMM2(cond,rd,rn,offset_8)  EOP_C_AM3_IMM(cond,(offset_8) >= 0,1,rn,rd,0,1,abs(offset_8))
 #define EOP_LDRH_REG2(cond,rd,rn,rm)        EOP_C_AM3_REG(cond,1,1,rn,rd,0,1,rm)
 
-#define EOP_LDRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,offset_8)
+#define EOP_LDRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,(offset_8) >= 0,1,rn,rd,0,1,abs(offset_8))
 #define EOP_LDRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,0)
 #define EOP_LDRH_REG(   rd,rn,rm)        EOP_C_AM3_REG(A_COND_AL,1,1,rn,rd,0,1,rm)
-#define EOP_STRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,1,0,rn,rd,0,1,offset_8)
+#define EOP_STRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,(offset_8) >= 0,0,rn,rd,0,1,abs(offset_8))
 #define EOP_STRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,0,rn,rd,0,1,0)
 #define EOP_STRH_REG(   rd,rn,rm)        EOP_C_AM3_REG(A_COND_AL,1,0,rn,rd,0,1,rm)
 
@@ -285,11 +284,29 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 			imm = ~imm;
 			op = A_OP_MVN;
 		}
+#ifdef HAVE_ARMV7
+		for (v = imm, ror2 = 0; v && !(v & 3); v >>= 2)
+			ror2--;
+		if (v >> 8) {
+			/* 2+ insns needed - prefer movw/movt */
+			if (op == A_OP_MVN)
+				imm = ~imm;
+			EOP_MOVW(rd, imm);
+			if (imm & 0xffff0000)
+				EOP_MOVT(rd, imm);
+			return;
+		}
+#endif
 		break;
 
-	case A_OP_EOR:
 	case A_OP_SUB:
 	case A_OP_ADD:
+		// count bits in imm and swap ADD and SUB if more bits 1 than 0
+		if (s == 0 && count_bits(imm) > 16) {
+			imm = -imm;
+			op ^= (A_OP_ADD^A_OP_SUB);
+		}
+	case A_OP_EOR:
 	case A_OP_ORR:
 	case A_OP_BIC:
 		if (s == 0 && imm == 0 && rd == rn)
@@ -412,6 +429,8 @@ static int emith_xbranch(int cond, void *target, int is_call)
 
 #define emith_add_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_ADD_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
+#define emith_add_r_r_r_lsl_ptr(d, s1, s2, lslimm) \
+	emith_add_r_r_r_lsl(d, s1, s2, lslimm)
 
 #define emith_addf_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_ADD_REG(A_COND_AL,1,d,s1,s2,A_AM1_LSL,lslimm)
@@ -483,7 +502,7 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	emith_add_r_r_r(d, d, s)
 
 #define emith_sub_r_r(d, s) \
-	EOP_SUB_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
+	emith_sub_r_r_r(d, d, s)
 
 #define emith_adc_r_r(d, s) \
 	EOP_ADC_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
@@ -529,6 +548,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_move_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_MOV, r, imm)
 
+#define emith_move_r_ptr_imm(r, imm) \
+	emith_move_r_imm(r, (u32)(imm))
+
 #define emith_add_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_ADD, r, imm)
 
@@ -536,7 +558,7 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	emith_op_imm(A_COND_AL, 0, A_OP_ADC, r, imm)
 
 #define emith_adcf_r_imm(r, imm) \
-	emith_op_imm(A_COND_AL, 1, A_OP_ADC, r, (imm))
+	emith_op_imm(A_COND_AL, 1, A_OP_ADC, r, imm)
 
 #define emith_sub_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_SUB, r, imm)
@@ -610,13 +632,13 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	emith_op_imm2(A_COND_AL, 0, A_OP_SUB, d, s, imm)
 
 #define emith_subf_r_r_imm(d, s, imm) \
-	emith_op_imm2(A_COND_AL, 1, A_OP_SUB, d, s, (imm))
+	emith_op_imm2(A_COND_AL, 1, A_OP_SUB, d, s, imm)
 
 #define emith_or_r_r_imm(d, s, imm) \
-	emith_op_imm2(A_COND_AL, 0, A_OP_ORR, d, s, (imm))
+	emith_op_imm2(A_COND_AL, 0, A_OP_ORR, d, s, imm)
 
 #define emith_eor_r_r_imm(d, s, imm) \
-	emith_op_imm2(A_COND_AL, 0, A_OP_EOR, d, s, (imm))
+	emith_op_imm2(A_COND_AL, 0, A_OP_EOR, d, s, imm)
 
 #define emith_neg_r_r(d, s) \
 	EOP_RSB_IMM(d, s, 0, 0)
@@ -758,7 +780,7 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_clear_msb_c(cond, d, s, count) { \
 	u32 t; \
 	if ((count) <= 8) { \
-		t = (count) - 8; \
+		t = 8 - (count); \
 		t = (0xff << t) & 0xff; \
 		EOP_C_DOP_IMM(cond,A_OP_BIC,0,s,d,8/2,t); \
 	} else if ((count) >= 24) { \
@@ -880,7 +902,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #define emith_sh2_rcall(a, tab, func, mask) { \
 	emith_lsr(mask, a, SH2_READ_SHIFT); \
 	EOP_ADD_REG_LSL(tab, tab, mask, 3); \
-	EOP_LDMIA(tab, (1<<func)|(1<<mask)); \
+	if (func < mask) EOP_LDMIA(tab, (1<<func)|(1<<mask)); /* ldm if possible */ \
+	else {	emith_read_r_r_offs(func, tab, 0); \
+		emith_read_r_r_offs(mask, tab, 4); } \
 	emith_addf_r_r_r(func,func,func); \
 }
 

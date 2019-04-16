@@ -2,11 +2,6 @@
 
 #include "pico_port.h"
 
-typedef unsigned char  u8;
-typedef unsigned short u16;
-typedef unsigned int   u32;
-typedef uintptr_t      uptr; // unsigned pointer-sized int
-
 #define M68K_MEM_SHIFT 16
 // minimum size we can map
 #define M68K_BANK_SIZE (1 << M68K_MEM_SHIFT)

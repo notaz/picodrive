@@ -6,7 +6,7 @@
  * See COPYING file in the top-level directory.
  */
 
-#include "pico_int_o32.h"
+#include "pico_int_offs.h"
 
 .equ SRR_MAPPED,    (1 <<  0)
 .equ SRR_READONLY,  (1 <<  1)

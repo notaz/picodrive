@@ -194,6 +194,17 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	} \
 } while (0)
 
+#define emith_add_r_r_r_ptr(d, s1, s2) do { \
+	if (d == s1) { \
+		emith_add_r_r_ptr(d, s2); \
+	} else if (d == s2) { \
+		emith_add_r_r_ptr(d, s1); \
+	} else { \
+		emith_move_r_r_ptr(d, s1); \
+		emith_add_r_r_ptr(d, s2); \
+	} \
+} while (0)
+
 #define emith_sub_r_r_r(d, s1, s2) do { \
 	if (d == s1) { \
 		emith_sub_r_r(d, s2); \
@@ -268,9 +279,16 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	rcache_free_tmp(tmp_); \
 } while (0)
 
-#define emith_add_r_r_r_lsr(d, s1, s2, lslimm) do { \
+#define emith_add_r_r_r_lsl_ptr(d, s1, s2, lslimm) do { \
 	int tmp_ = rcache_get_tmp(); \
-	emith_lsr(tmp_, s2, lslimm); \
+	emith_lsl(tmp_, s2, lslimm); \
+	emith_add_r_r_r_ptr(d, s1, tmp_); \
+	rcache_free_tmp(tmp_); \
+} while (0)
+
+#define emith_add_r_r_r_lsr(d, s1, s2, lsrimm) do { \
+	int tmp_ = rcache_get_tmp(); \
+	emith_lsr(tmp_, s2, lsrimm); \
 	emith_add_r_r_r(d, s1, tmp_); \
 	rcache_free_tmp(tmp_); \
 } while (0)
@@ -295,6 +313,16 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_move_r_imm(r, imm) do { \
 	EMIT_OP(0xb8 + (r)); \
 	EMIT(imm, u32); \
+} while (0)
+
+#define emith_move_r_ptr_imm(r, imm) do { \
+	if ((uint64_t)(imm) <= UINT32_MAX) \
+		emith_move_r_imm(r, (uintptr_t)(imm)); \
+	else { \
+		EMIT_REX_IF(1, 0, r); \
+		EMIT_OP(0xb8 + (r)); \
+		EMIT((uint64_t)(imm), uint64_t); \
+	} \
 } while (0)
 
 #define emith_move_r_imm_s8(r, imm) \
@@ -421,27 +449,28 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_sub_r_r_imm(d, s, imm) do { \
 	if (d != s) \
 		emith_move_r_r(d, s); \
-	if (imm) \
+	if ((s32)(imm) != 0) \
 		emith_sub_r_imm(d, imm); \
 } while (0)
 
 #define emith_and_r_r_imm(d, s, imm) do { \
 	if (d != s) \
 		emith_move_r_r(d, s); \
-	emith_and_r_imm(d, imm); \
+	if ((s32)(imm) != -1) \
+		emith_and_r_imm(d, imm); \
 } while (0)
 
 #define emith_or_r_r_imm(d, s, imm) do { \
 	if (d != s) \
 		emith_move_r_r(d, s); \
-	if ((s32)imm != 0) \
+	if ((s32)(imm) != 0) \
 		emith_or_r_imm(d, imm); \
 } while (0)
 
 #define emith_eor_r_r_imm(d, s, imm) do { \
 	if (d != s) \
 		emith_move_r_r(d, s); \
-	if ((s32)imm != 0) \
+	if ((s32)(imm) != 0) \
 		emith_eor_r_imm(d, imm); \
 } while (0)
 
@@ -612,31 +641,17 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_REX_IF(1, r, rs); \
 	emith_deref_op(0x89, r, rs, offs)
 
-// note: don't use prefixes on this
 #define emith_read8_r_r_offs(r, rs, offs) do { \
-	int r_ = r; \
-	if (!is_abcdx(r)) \
-		r_ = rcache_get_tmp(); \
 	EMIT(0x0f, u8); \
-	emith_deref_op(0xb6, r_, rs, offs); \
-	if ((r) != r_) { \
-		emith_move_r_r(r, r_); \
-		rcache_free_tmp(r_); \
-	} \
+	emith_deref_op(0xb6, r, rs, offs); \
 } while (0)
 
 #define emith_read8s_r_r_offs(r, rs, offs) do { \
-	int r_ = r; \
-	if (!is_abcdx(r)) \
-		r_ = rcache_get_tmp(); \
 	EMIT(0x0f, u8); \
-	emith_deref_op(0xbe, r_, rs, offs); \
-	if ((r) != r_) { \
-		emith_move_r_r(r, r_); \
-		rcache_free_tmp(r_); \
-	} \
+	emith_deref_op(0xbe, r, rs, offs); \
 } while (0)
 
+// note: don't use prefixes on this
 #define emith_write8_r_r_offs(r, rs, offs) do {\
 	int r_ = r; \
 	if (!is_abcdx(r)) { \
@@ -664,16 +679,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 } while (0)
 
 #define emith_read8_r_r_r(r, rs, rm) do { \
-	int r_ = r; \
-	if (!is_abcdx(r)) \
-		r_ = rcache_get_tmp(); \
 	EMIT(0x0f, u8); \
 	EMIT_OP_MODRM(0xb6, 0, r, 4); \
 	EMIT_SIB(0, rs, rm); /* mov r, [rm + rs * 1] */ \
-	if ((r) != r_) { \
-		emith_move_r_r(r, r_); \
-		rcache_free_tmp(r_); \
-	} \
 } while (0)
 
 #define emith_read16_r_r_r(r, rs, rm) do { \
