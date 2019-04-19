@@ -92,7 +92,13 @@ static const float VOUT_PAR = 0.0;
 static const float VOUT_4_3 = (224.0f * (4.0f / 3.0f));
 static const float VOUT_CRT = (224.0f * 1.29911f);
 
-bool show_overscan = false;
+static bool show_overscan = false;
+static bool old_show_overscan = false;
+
+/* Required to allow on the fly changes to 'show overscan' */
+static int vm_current_start_line = -1;
+static int vm_current_line_count = -1;
+static int vm_current_is_32cols = -1;
 
 static void *vout_buf;
 static int vout_width, vout_height, vout_offset;
@@ -509,6 +515,10 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
    struct retro_system_av_info av_info;
 
+   vm_current_start_line = start_line;
+   vm_current_line_count = line_count;
+   vm_current_is_32cols = is_32cols;
+
 #if defined(RENDER_GSKIT_PS2)
    if (is_32cols) {
       padding = (struct retro_hw_ps2_insets){start_line, 16.0f, VOUT_MAX_HEIGHT - line_count - start_line, 64.0f};
@@ -530,11 +540,24 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
    memset(vout_buf, 0, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);  
    PicoDrawSetOutBuf(vout_buf, vout_width * 2);
 
-      if (show_overscan == true) line_count += 16;
-   if (show_overscan == true) start_line -= 8;
+   if (show_overscan)
+   {
+      vout_height = line_count + (start_line * 2);
+      vout_offset = 0;
+   }
+   else
+   {
+      vout_height = line_count;
+      /* Note: We multiply by 2 here to account for pitch */
+      vout_offset = vout_width * start_line * 2;
+   }
 
-   vout_height = line_count;
-   vout_offset = vout_width * start_line;
+   /* Redundant sanity check... */
+   vout_height = (vout_height > VOUT_MAX_HEIGHT) ?
+         VOUT_MAX_HEIGHT : vout_height;
+   vout_offset = (vout_offset > vout_width * (VOUT_MAX_HEIGHT - 1) * 2) ?
+         vout_width * (VOUT_MAX_HEIGHT - 1) * 2 : vout_offset;
+
 #endif
 
    // Update the geometry
@@ -1336,21 +1359,32 @@ static void update_variables(void)
          user_vout_width = VOUT_PAR;
    }
 
-   var.value = NULL;
-   var.key = "picodrive_overscan";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
-      if (strcmp(var.value, "enabled") == 0)
-         show_overscan = true;
-      else
-         show_overscan = false;
-   }
-
    if (user_vout_width != old_user_vout_width)
    {
       // Update the geometry
       struct retro_system_av_info av_info;
       retro_get_system_av_info(&av_info);
       environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
+   }
+
+   old_show_overscan = show_overscan;
+   var.value = NULL;
+   var.key = "picodrive_overscan";
+   show_overscan = false;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "enabled") == 0)
+         show_overscan = true;
+   }
+
+   if (show_overscan != old_show_overscan)
+   {
+      if ((vm_current_start_line != -1) &&
+          (vm_current_line_count != -1) &&
+          (vm_current_is_32cols != -1))
+         emu_video_mode_change(
+               vm_current_start_line,
+               vm_current_line_count,
+               vm_current_is_32cols);
    }
 
    var.value = NULL;
