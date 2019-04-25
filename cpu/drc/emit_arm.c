@@ -261,13 +261,30 @@
 #define EOP_MOVT(rd,imm) \
 	EMIT(0xe3400000 | ((rd)<<12) | (((imm)>>16)&0xfff) | (((imm)>>12)&0xf0000))
 
-static int count_bits(unsigned val)
+static inline int count_bits(unsigned val)
 {
-	val = (val & 0x55555555) + ((val >> 1) & 0x55555555);
+	val = val - ((val >> 1) & 0x55555555);
 	val = (val & 0x33333333) + ((val >> 2) & 0x33333333);
-	val = (val & 0x0f0f0f0f) + ((val >> 4) & 0x0f0f0f0f);
-	val = (val & 0x00ff00ff) + ((val >> 8) & 0x00ff00ff);
-	return (val & 0xffff) + (val >> 16);
+	return (((val + (val >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
+}
+
+// host literal pool; must be significantly smaller than 1024 (max LDR offset = 4096)
+#define MAX_HOST_LITERALS	128
+static u32 literal_pool[MAX_HOST_LITERALS];
+static u32 *literal_insn[MAX_HOST_LITERALS];
+static int literal_pindex, literal_iindex;
+
+static int emith_pool_literal(u32 imm, int *offs)
+{
+	int idx = literal_pindex - 8; // max look behind in pool
+	// see if one of the last literals was the same (or close enough)
+	for (idx = (idx < 0 ? 0 : idx); idx < literal_pindex; idx++)
+		if (abs((int)(imm - literal_pool[idx])) <= 0xff)
+			break;
+	if (idx == literal_pindex)	// store new literal
+		literal_pool[literal_pindex++] = imm;
+	*offs = imm - literal_pool[idx];
+	return idx;
 }
 
 // XXX: RSB, *S will break if 1 insn is not enough
@@ -275,6 +292,7 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 {
 	int ror2;
 	u32 v;
+	int i;
 
 	switch (op) {
 	case A_OP_MOV:
@@ -284,19 +302,48 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 			imm = ~imm;
 			op = A_OP_MVN;
 		}
-#ifdef HAVE_ARMV7
-		for (v = imm, ror2 = 0; v && !(v & 3); v >>= 2)
-			ror2--;
-		if (v >> 8) {
-			/* 2+ insns needed - prefer movw/movt */
+		// count insns needed for mov/orr #imm
+		for (v = imm, ror2 = 0; (v >> 24) && ror2 < 32/2; ror2++)
+			v = (v << 2) | (v >> 30);
+		for (i = 2; i > 0; i--, v >>= 8)
+			while (v > 0xff && !(v & 3))
+				v >>= 2;
+		if (v) { // 3+ insns needed...
 			if (op == A_OP_MVN)
 				imm = ~imm;
+#ifdef HAVE_ARMV7
+			// ...prefer movw/movt
 			EOP_MOVW(rd, imm);
 			if (imm & 0xffff0000)
 				EOP_MOVT(rd, imm);
+#else
+			// ...emit literal load
+			int idx, o;
+			if (literal_iindex >= MAX_HOST_LITERALS) {
+				elprintf(EL_STATUS|EL_SVP|EL_ANOMALY,
+					"pool overflow");
+				exit(1);
+			}
+			idx = emith_pool_literal(imm, &o);
+			literal_insn[literal_iindex++] = (u32 *)tcache_ptr;
+			EOP_LDR_IMM2(cond, rd, 15, idx * sizeof(u32));
+			if (o > 0)
+				EOP_C_DOP_IMM(cond, A_OP_ADD, 0, rd, rd, 0, o);
+			else if (o < 0)
+				EOP_C_DOP_IMM(cond, A_OP_SUB, 0, rd, rd, 0, -o);
+#endif
 			return;
 		}
-#endif
+		break;
+
+	case A_OP_AND:
+		// AND must fit into 1 insn. if not, use BIC
+		for (v = imm, ror2 = 0; (v >> 8) && ror2 < 32/2; ror2++)
+			v = (v << 2) | (v >> 30);
+		if (v >> 8) {
+			imm = ~imm;
+			op = A_OP_BIC;
+		}
 		break;
 
 	case A_OP_SUB:
@@ -314,20 +361,13 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 		break;
 	}
 
-	again:
-	v = imm, ror2 = 32/2; // arm imm shift is ROR, so rotate for best fit
-	while ((v >> 24) && !(v & 0xc0))
-		v = (v << 2) | (v >> 30), ror2++;
+	// try to get the topmost byte empty to possibly save an insn
+	for (v = imm, ror2 = 0; (v >> 24) && ror2 < 32/2; ror2++)
+		v = (v << 2) | (v >> 30);
 	do {
 		// shift down to get 'best' rot2
 		while (v > 0xff && !(v & 3))
 			v >>= 2, ror2--;
-		// AND must fit into 1 insn. if not, use BIC
-		if (op == A_OP_AND && v != (v & 0xff)) {
-			imm = ~imm;
-			op = A_OP_BIC;
-			goto again;
-		}
 		EOP_C_DOP_IMM(cond, op, s, rn, rd, ror2 & 0xf, v & 0xff);
 
 		switch (op) {
@@ -383,6 +423,47 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	}
 
 	return (u32 *)tcache_ptr - start_ptr;
+}
+
+static void emith_pool_commit(int jumpover)
+{
+	int i, sz = literal_pindex * sizeof(u32);
+	u8 *pool = (u8 *)tcache_ptr;
+
+	// nothing to commit if pool is empty
+	if (sz == 0)
+		return;
+	// need branch over pool if not at block end
+	if (jumpover) {
+		pool += sizeof(u32);
+		emith_xbranch(A_COND_AL, (u8 *)pool + sz, 0);
+	}
+	// safety check - pool must be after insns and reachable
+	if ((u32)(pool - (u8 *)literal_insn[0] + 8) > 0xfff) {
+		elprintf(EL_STATUS|EL_SVP|EL_ANOMALY,
+			"pool offset out of range");
+		exit(1);
+	}
+	// copy pool and adjust addresses in insns accessing the pool
+	memcpy(pool, literal_pool, sz);
+	for (i = 0; i < literal_iindex; i++) {
+		*literal_insn[i] += (u8 *)pool - ((u8 *)literal_insn[i] + 8);
+	}
+	// count pool constants as insns for statistics
+	for (i = 0; i < literal_pindex; i++)
+		COUNT_OP;
+
+	tcache_ptr = (void *)((u8 *)pool + sz);
+	literal_pindex = literal_iindex = 0;
+}
+
+static inline void emith_pool_check(void)
+{
+	// check if pool must be committed
+	if (literal_iindex > MAX_HOST_LITERALS-4 ||
+		    (u8 *)tcache_ptr - (u8 *)literal_insn[0] > 0xe00)
+		// pool full, or displacement is approaching the limit
+		emith_pool_commit(1);
 }
 
 #define JMP_POS(ptr) \
@@ -769,7 +850,7 @@ static int emith_xbranch(int cond, void *target, int is_call)
 		b_ = tmpr;                                   \
 	}                                                    \
 	op(b_,v_);                                           \
-} while(0)
+} while (0)
 
 #define emith_ctx_read_multiple(r, offs, count, tmpr) \
 	emith_ctx_do_multiple(EOP_LDMIA, r, offs, count, tmpr)
