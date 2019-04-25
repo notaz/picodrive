@@ -300,6 +300,7 @@ struct block_desc {
   int size;                  // ..of recompiled insns
   int size_lit;              // ..of (insns+)literal pool
   u8 *tcache_ptr;            // start address of block in cache
+  u16 crc;                   // crc of insns and literals
   u16 active;                // actively used or deactivated?
   struct block_list *list;
 #if (DRC_DEBUG & 2)
@@ -345,6 +346,8 @@ struct block_list {
   struct block_list *l_next;
 };
 struct block_list *blist_free;
+
+static struct block_list *inactive_blocks[TCACHE_BUFFERS];
 
 // array of pointers to block_lists for RAM and 2 data arrays
 // each array has len: sizeof(mem) / INVAL_PAGE_SIZE 
@@ -691,6 +694,7 @@ static void REGPARM(1) flush_tcache(int tcid)
 
   for (i = 0; i < ram_sizes[tcid] / INVAL_PAGE_SIZE; i++)
     rm_block_list(&inval_lookup[tcid][i]);
+  rm_block_list(&inactive_blocks[tcid]);
 }
 
 static void add_to_hashlist(struct block_entry *be, int tcache_id)
@@ -777,7 +781,7 @@ static void rm_from_hashlist_unresolved(struct block_link *bl, int tcache_id)
     bl->next->prev = bl->prev;
 }
 
-static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit);
+static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit, int free);
 static void dr_free_oldest_block(int tcache_id)
 {
   struct block_desc *bd;
@@ -794,7 +798,7 @@ static void dr_free_oldest_block(int tcache_id)
   }
 
   if (bd->addr && bd->entry_count)
-    sh2_smc_rm_block_entry(bd, tcache_id, 0);
+    sh2_smc_rm_block_entry(bd, tcache_id, 0, 1);
 
   block_limit[tcache_id]++;
   if (block_limit[tcache_id] >= block_max_counts[tcache_id])
@@ -926,8 +930,32 @@ static u32 dr_check_nolit(u32 start, u32 end, int tcache_id)
   return end;
 }
 
+static struct block_desc *dr_find_inactive_block(int tcache_id, u16 crc,
+  u32 addr, int size, u32 addr_lit, int size_lit)
+{
+  struct block_list **head = &inactive_blocks[tcache_id];
+  struct block_list *prev = NULL, *current = *head;
+
+  for (; current != NULL; prev = current, current = current->next) {
+    struct block_desc *block = current->block;
+    if (block->crc == crc && block->addr == addr && block->size == size &&
+        block->addr_lit == addr_lit && block->size_lit == size_lit)
+    {
+      if (prev == NULL)
+        *head = current->next;
+      else
+        prev->next = current->next;
+      block->list = NULL; // should now be empty
+      current->next = blist_free;
+      blist_free = current;
+      return block;
+    }
+  }
+  return NULL;
+}
+
 static struct block_desc *dr_add_block(u32 addr, int size,
-  u32 addr_lit, int size_lit, int is_slave, int *blk_id)
+  u32 addr_lit, int size_lit, u16 crc, int is_slave, int *blk_id)
 {
   struct block_entry *be;
   struct block_desc *bd;
@@ -951,6 +979,7 @@ static struct block_desc *dr_add_block(u32 addr, int size,
   bd->addr_lit = addr_lit;
   bd->size_lit = size_lit;
   bd->tcache_ptr = tcache_ptr;
+  bd->crc = crc;
   bd->active = 1;
 
   bd->entry_count = 1;
@@ -1071,6 +1100,34 @@ static void dr_link_blocks(struct block_entry *be, int tcache_id)
   }
 
   // could sync arm caches here, but that's unnecessary
+#endif
+}
+
+static void dr_link_outgoing(struct block_entry *be, int tcache_id, int is_slave)
+{
+#if LINK_BRANCHES
+  struct block_link *bl;
+  int target_tcache_id;
+
+  for (bl = be->o_links; bl; bl = bl->o_next) {
+    be = dr_get_entry(bl->target_pc, is_slave, &target_tcache_id);
+    if (!target_tcache_id || target_tcache_id == tcache_id) {
+      if (be) {
+        dbg(2, "- link from %p to pc %08x entry %p", bl->jump, bl->target_pc, be->tcache_ptr);
+        emith_jump_patch(bl->jump, be->tcache_ptr);
+        bl->target = be;
+        bl->prev = NULL;
+        if (be->links)
+          be->links->prev = bl;
+        bl->next = be->links;
+        be->links = bl;
+      } else {
+        emith_jump_patch(bl->jump, sh2_drc_dispatcher);
+        add_to_hashlist_unresolved(bl, tcache_id);
+      }
+      host_instructions_updated(bl->jump, bl->jump+4);
+    }
+  }
 #endif
 }
 
@@ -2442,6 +2499,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   int i, v;
   u32 u;
   int op;
+  u16 crc;
 
   base_pc = sh2->pc;
 
@@ -2454,10 +2512,36 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   }
 
   // initial passes to disassemble and analyze the block
-  scan_block(base_pc, sh2->is_slave, op_flags, &end_pc, &base_literals, &end_literals);
+  crc = scan_block(base_pc, sh2->is_slave, op_flags, &end_pc, &base_literals, &end_literals);
   end_literals = dr_check_nolit(base_literals, end_literals, tcache_id);
   if (base_literals == end_literals) // map empty lit section to end of code
     base_literals = end_literals = end_pc;
+
+  // if there is already a translated but inactive block, reuse it
+  block = dr_find_inactive_block(tcache_id, crc, base_pc, end_pc - base_pc,
+    base_literals, end_literals - base_literals);
+
+  if (block) {
+    // connect branches
+    dbg(2, "== %csh2 reuse block %08x-%08x,%08x-%08x -> %p", sh2->is_slave ? 's' : 'm',
+      base_pc, end_pc, base_literals, end_literals, block->entryp->tcache_ptr);
+    for (i = 0; i < block->entry_count; i++) {
+      entry = &block->entryp[i];
+      add_to_hashlist(entry, tcache_id);
+#if LINK_BRANCHES
+      // incoming branches
+      dr_link_blocks(entry, tcache_id);
+      if (!tcache_id)
+        dr_link_blocks(entry, sh2->is_slave?2:1);
+      // outgoing branches
+      dr_link_outgoing(entry, tcache_id, sh2->is_slave);
+#endif
+    }
+    // mark memory for overwrite detection
+    dr_mark_memory(1, block, tcache_id, 0);
+    block->active = 1;
+    return block->entryp[0].tcache_ptr;
+  }
 
   // collect branch_targets that don't land on delay slots
   for (pc = base_pc, i = 0; pc < end_pc; i++, pc += 2) {
@@ -2480,13 +2564,14 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #endif
 
   block = dr_add_block(base_pc, end_pc - base_pc, base_literals,
-    end_literals - base_literals, sh2->is_slave, &blkid_main);
+    end_literals - base_literals, crc, sh2->is_slave, &blkid_main);
   if (block == NULL)
     return NULL;
 
   block_entry_ptr = tcache_ptr;
-  dbg(2, "== %csh2 block #%d,%d %08x-%08x -> %p", sh2->is_slave ? 's' : 'm',
-    tcache_id, blkid_main, base_pc, end_pc, block_entry_ptr);
+  dbg(2, "== %csh2 block #%d,%d crc %04x %08x-%08x,%08x-%08x -> %p", sh2->is_slave ? 's' : 'm',
+    tcache_id, blkid_main, crc, base_pc, end_pc, base_literals, end_literals, block_entry_ptr);
+
 
   // clear stale state after compile errors
   rcache_invalidate();
@@ -4054,7 +4139,7 @@ static void sh2_generate_utils(void)
 #endif
 }
 
-static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit)
+static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit, int free)
 {
   struct block_link *bl;
   u32 i;
@@ -4066,6 +4151,7 @@ static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nol
     dbg(1, "  killing dead block!? %08x", bd->addr);
     return;
   }
+  free = free || nolit; // block is invalid if literals are overwritten
 
   // remove from hash table, make incoming links unresolved, revoke outgoing links
   for (i = 0; i < bd->entry_count; i++) {
@@ -4073,7 +4159,6 @@ static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nol
       rm_from_hashlist(&bd->entryp[i], tcache_id);
 
     for (bl = bd->entryp[i].o_links; bl != NULL; ) {
-      struct block_link *bl_next = bl->o_next;
       if (bl->target) {
         if (bl->prev)
           bl->prev->next = bl->next;
@@ -4084,13 +4169,8 @@ static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nol
         bl->target = NULL;
       } else if (bd->active)
         rm_from_hashlist_unresolved(bl, tcache_id);
-      // free bl
-      bl->jump = NULL;
-      bl->next = blink_free[bl->tcache_id];
-      blink_free[bl->tcache_id] = bl;
-      bl = bl_next;
+      bl = bl->o_next;
     }
-    bd->entryp[i].o_links = NULL;
 
     for (bl = bd->entryp[i].links; bl != NULL; ) {
       struct block_link *bl_next = bl->next;
@@ -4108,10 +4188,21 @@ static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nol
   if (bd->active)
     dr_mark_memory(-1, bd, tcache_id, nolit);
 
-  bd->addr = bd->size = bd->addr_lit = bd->size_lit = 0;
-  bd->entry_count = 0;
+  if (free) {
+    while ((bl = bd->entryp[0].o_links) != NULL) {
+      bd->entryp[0].o_links = bl->next;
+      bl->jump = NULL;
+      bl->next = blink_free[bl->tcache_id];
+      blink_free[bl->tcache_id] = bl;
+    }
+    bd->entryp[0].o_links = NULL;
+    rm_from_block_lists(bd);
+    bd->addr = bd->size = bd->addr_lit = bd->size_lit = 0;
+    bd->entry_count = 0;
+  } else {
+    add_to_block_list(&inactive_blocks[tcache_id], bd);
+  }
   bd->active = 0;
-  rm_from_block_lists(bd);
 }
 
 static void sh2_smc_rm_blocks(u32 a, int tcache_id, u32 shift)
@@ -4142,7 +4233,7 @@ static void sh2_smc_rm_blocks(u32 a, int tcache_id, u32 shift)
     {
       dbg(2, "smc remove @%08x", a);
       end_addr = (start_lit <= a && block->size_lit ? a : 0);
-      sh2_smc_rm_block_entry(block, tcache_id, end_addr);
+      sh2_smc_rm_block_entry(block, tcache_id, end_addr, 0);
 #if (DRC_DEBUG & 2)
       removed = 1;
 #endif
@@ -4546,7 +4637,7 @@ static void *dr_get_pc_base(u32 pc, int is_slave)
   return (char *)ret - (pc & ~mask);
 }
 
-void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
+u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
   u32 *base_literals_out, u32 *end_literals_out)
 {
   u16 *dr_pc_base;
@@ -4558,6 +4649,7 @@ void scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
   int next_is_delay = 0;
   int end_block = 0;
   int i, i_end;
+  u32 crc = 0;
 
   memset(op_flags, 0, sizeof(*op_flags) * BLOCK_INSN_LIMIT);
   op_flags[0] |= OF_BTARGET; // block start is always a target
@@ -5346,8 +5438,9 @@ end:
 
   // 2nd pass: some analysis
   lowest_literal = end_literals = lowest_mova = 0;
-  for (i = 0; i < i_end; i++) {
+  for (i = 0, pc = base_pc; i < i_end; i++, pc += 2) {
     opd = &ops[i];
+    crc += FETCH_OP(pc);
 
     // propagate T (TODO: DIV0U)
     if ((opd->op == OP_SETCLRT && !opd->imm) || opd->op == OP_BRANCH_CT)
@@ -5427,11 +5520,20 @@ end:
   if (lowest_literal >= end_literals)
     lowest_literal = end_literals;
 
+  if (lowest_literal && end_literals)
+    for (pc = lowest_literal; pc < end_literals; pc += 2)
+      crc += FETCH_OP(pc);
+
   *end_pc_out = end_pc;
   if (base_literals_out != NULL)
     *base_literals_out = (lowest_literal ?: end_pc);
   if (end_literals_out != NULL)
     *end_literals_out = (end_literals ?: end_pc);
+
+  // crc overflow handling, twice to collect all overflows
+  crc = (crc & 0xffff) + (crc >> 16);
+  crc = (crc & 0xffff) + (crc >> 16);
+  return crc;
 }
 
 // vim:shiftwidth=2:ts=2:expandtab
