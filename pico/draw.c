@@ -1364,8 +1364,8 @@ static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
   {
     // a hack for mid-frame palette changes
     if (!(est->rendstatus & PDRAW_SONIC_MODE) || line - dirty_line > 4) {
-      // store a maximum of 3 additional palettes in SonicPal
-      if (est->SonicPalCount < 3)
+      // store a maximum of 2 additional palettes in SonicPal
+      if (est->SonicPalCount < 2)
         est->SonicPalCount ++;
       dirty_line = line;
       est->rendstatus |= PDRAW_SONIC_MODE;

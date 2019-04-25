@@ -84,6 +84,7 @@ get_define OFS_EST_ PicoEState HighPal		; echo "$line" >>$fn
 
 get_define OFS_PMEM_ PicoMem vram		; echo "$line" >>$fn
 get_define OFS_PMEM_ PicoMem vsram		; echo "$line" >>$fn
+get_define OFS_PMEM32x_ Pico32xMem pal_native	; echo "$line" >>$fn
 
 get_define OFS_SH2_ SH2_ is_slave		; echo "$line" >>$fn
 get_define OFS_SH2_ SH2_ p_bios			; echo "$line" >>$fn

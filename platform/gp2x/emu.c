@@ -328,7 +328,7 @@ static int make_local_pal_md(int fast_mode)
 	localPal[0xe0] = 0x00000000; // reserved pixels for OSD
 	localPal[0xf0] = 0x00ffffff;
 
-        if (Pico.m.dirtyPal == 2)
+	if (Pico.m.dirtyPal == 2)
 		Pico.m.dirtyPal = 0;
 	return pallen;
 }
