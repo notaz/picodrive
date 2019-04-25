@@ -316,11 +316,6 @@ void PicoDraw32xLayerMdOnly(int offs, int lines)
 
 void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode)
 {
-#ifdef _ASM_32X_DRAW
-  extern void *Pico32xNativePal;
-  Pico32xNativePal = Pico32xMem->pal_native;
-#endif
-
   if (which == PDF_RGB555) {
     // need CLUT pixels in PicoDraw2FB for layer transparency
     PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328);
