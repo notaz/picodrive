@@ -395,10 +395,10 @@ enum {
 } guest_reg_flags;
 
 typedef struct {
-  u16 flags;    // guest flags: is constant, is dirty?
+  u8 flags;     // guest flags: is constant, is dirty?
   s8 sreg;      // cache reg for static mapping
   s8 vreg;      // cache_reg this is currently mapped to, -1 if not mapped
-  u32 val;      // value if this is constant
+  s8 cnst;      // const index if this is constant
 } guest_reg_t;
 
 
@@ -1153,7 +1153,7 @@ static int find_in_array(u32 *array, size_t size, u32 what)
 
 // NB rcache allocation dependencies:
 // - get_reg_arg/get_tmp_arg first (might evict other regs just allocated)
-// - get_reg(..., NULL) before get_reg(..., &x) if it might get the same reg
+// - get_reg(..., NULL) before get_reg(..., &hr) if it might get the same reg
 // - get_reg(..., RC_GR_READ/RMW, ...) before WRITE (might evict needed reg)
 
 // register cache / constant propagation stuff
@@ -1163,7 +1163,15 @@ typedef enum {
   RC_GR_RMW,
 } rc_gr_mode;
 
+typedef struct {
+  u32 gregs;
+  u32 val;
+} gconst_t;
+
+gconst_t gconsts[ARRAY_SIZE(guest_regs)];
+
 static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr);
+static void rcache_add_vreg_alias(int x, sh2_reg_e r);
 static void rcache_remove_vreg_alias(int x, sh2_reg_e r);
 
 #define RCACHE_DUMP(msg) { \
@@ -1185,101 +1193,6 @@ static void rcache_remove_vreg_alias(int x, sh2_reg_e r);
   } \
 }
 
-#if PROPAGATE_CONSTANTS
-static void gconst_set(sh2_reg_e r, u32 val)
-{
-  guest_regs[r].flags |= GRF_CONST;
-  guest_regs[r].val = val;
-}
-
-static void gconst_new(sh2_reg_e r, u32 val)
-{
-  gconst_set(r, val);
-  guest_regs[r].flags |= GRF_CDIRTY;
-
-  // throw away old r that we might have cached
-  if (guest_regs[r].vreg >= 0)
-    rcache_remove_vreg_alias(guest_regs[r].vreg, r);
-}
-
-static void gconst_copy(sh2_reg_e rd, sh2_reg_e rs)
-{
-  guest_regs[rd].flags &= ~(GRF_CONST|GRF_CDIRTY);
-  if (guest_regs[rs].flags & GRF_CONST)
-    gconst_set(rd, guest_regs[rs].val);
-}
-#endif
-
-static int gconst_get(sh2_reg_e r, u32 *val)
-{
-  if (guest_regs[r].flags & GRF_CONST) {
-    *val = guest_regs[r].val;
-    return 1;
-  }
-  return 0;
-}
-
-static int gconst_check(sh2_reg_e r)
-{
-  if (guest_regs[r].flags & (GRF_CONST|GRF_CDIRTY))
-    return 1;
-  return 0;
-}
-
-// update hr if dirty, else do nothing
-static int gconst_try_read(int hr, sh2_reg_e r)
-{
-  if (guest_regs[r].flags & GRF_CDIRTY) {
-    emith_move_r_imm(hr, guest_regs[r].val);
-    guest_regs[r].flags &= ~GRF_CDIRTY;
-    return 1;
-  }
-  return 0;
-}
-
-static u32 gconst_dirty_mask(void)
-{
-  u32 mask = 0;
-  int i;
-
-  for (i = 0; i < ARRAY_SIZE(guest_regs); i++)
-    if (guest_regs[i].flags & GRF_CDIRTY)
-      mask |= (1 << i);
-  return mask;
-}
-
-static void gconst_kill(sh2_reg_e r)
-{
-  guest_regs[r].flags &= ~(GRF_CONST|GRF_CDIRTY);
-}
-
-static void gconst_clean(void)
-{
-  int i;
-
-  for (i = 0; i < ARRAY_SIZE(guest_regs); i++)
-    if (guest_regs[i].flags & GRF_CDIRTY) {
-      // using RC_GR_READ here: it will call gconst_try_read,
-      // cache the reg and mark it dirty.
-      rcache_get_reg_(i, RC_GR_READ, 0, NULL);
-    }
-}
-
-static void gconst_invalidate(void)
-{
-  int i;
-
-  for (i = 0; i < ARRAY_SIZE(guest_regs); i++)
-    guest_regs[i].flags &= ~(GRF_CONST|GRF_CDIRTY);
-}
-
-static u16 rcache_counter;
-static u32 rcache_static;
-static u32 rcache_locked;
-static u32 rcache_hint_soon;
-static u32 rcache_hint_late;
-#define rcache_hint (rcache_hint_soon|rcache_hint_late)
-
 // binary search approach, since we don't have CLZ on ARM920T
 #define FOR_ALL_BITS_SET_DO(mask, bit, code) { \
   u32 __mask = mask; \
@@ -1299,6 +1212,142 @@ static u32 rcache_hint_late;
     } \
   } \
 }
+
+#if PROPAGATE_CONSTANTS
+static inline int gconst_alloc(sh2_reg_e r)
+{
+  int i, n = -1;
+
+  for (i = 0; i < ARRAY_SIZE(gconsts); i++) {
+    if (gconsts[i].gregs & (1 << r))
+      gconsts[i].gregs &= ~(1 << r);
+    if (gconsts[i].gregs == 0 && n < 0)
+      n = i;
+  }
+  if (n >= 0)
+    gconsts[n].gregs = (1 << r);
+  else
+    exit(1); // cannot happen - more constants than guest regs?
+  return n;
+}
+
+static void gconst_set(sh2_reg_e r, u32 val)
+{
+  int i = gconst_alloc(r);
+
+  guest_regs[r].flags |= GRF_CONST;
+  guest_regs[r].cnst = i;
+  gconsts[i].val = val;
+}
+
+static void gconst_new(sh2_reg_e r, u32 val)
+{
+  gconst_set(r, val);
+  guest_regs[r].flags |= GRF_CDIRTY;
+
+  // throw away old r that we might have cached
+  if (guest_regs[r].vreg >= 0)
+    rcache_remove_vreg_alias(guest_regs[r].vreg, r);
+}
+
+static void gconst_copy(sh2_reg_e rd, sh2_reg_e rs)
+{
+  if (guest_regs[rd].flags & GRF_CONST) {
+    guest_regs[rd].flags &= ~(GRF_CONST|GRF_CDIRTY);
+    gconsts[guest_regs[rd].cnst].gregs &= ~(1 << rd);
+  }
+  if (guest_regs[rs].flags & GRF_CONST) {
+    guest_regs[rd].flags |= GRF_CONST;
+    guest_regs[rd].cnst = guest_regs[rs].cnst;
+    gconsts[guest_regs[rd].cnst].gregs |= (1 << rd);
+  }
+}
+#endif
+
+static int gconst_get(sh2_reg_e r, u32 *val)
+{
+  if (guest_regs[r].flags & GRF_CONST) {
+    *val = gconsts[guest_regs[r].cnst].val;
+    return 1;
+  }
+  return 0;
+}
+
+static int gconst_check(sh2_reg_e r)
+{
+  if (guest_regs[r].flags & (GRF_CONST|GRF_CDIRTY))
+    return 1;
+  return 0;
+}
+
+// update hr if dirty, else do nothing
+static int gconst_try_read(int vreg, sh2_reg_e r)
+{
+  int i, x;
+  if (guest_regs[r].flags & GRF_CDIRTY) {
+    x = guest_regs[r].cnst;
+    emith_move_r_imm(cache_regs[vreg].hreg, gconsts[x].val);
+    FOR_ALL_BITS_SET_DO(gconsts[x].gregs, i,
+      {
+        if (guest_regs[i].vreg >= 0 && i != r)
+          rcache_remove_vreg_alias(guest_regs[i].vreg, i);
+        rcache_add_vreg_alias(vreg, i);
+        guest_regs[i].flags &= ~GRF_CDIRTY;
+        guest_regs[i].flags |= GRF_DIRTY;
+      });
+    return 1;
+  }
+  return 0;
+}
+
+static u32 gconst_dirty_mask(void)
+{
+  u32 mask = 0;
+  int i;
+
+  for (i = 0; i < ARRAY_SIZE(guest_regs); i++)
+    if (guest_regs[i].flags & GRF_CDIRTY)
+      mask |= (1 << i);
+  return mask;
+}
+
+static void gconst_kill(sh2_reg_e r)
+{
+  if (guest_regs[r].flags &= ~(GRF_CONST|GRF_CDIRTY))
+    gconsts[guest_regs[r].cnst].gregs &= ~(1 << r);
+  guest_regs[r].flags &= ~(GRF_CONST|GRF_CDIRTY);
+}
+
+static void gconst_clean(void)
+{
+  int i;
+
+  for (i = 0; i < ARRAY_SIZE(guest_regs); i++)
+    if (guest_regs[i].flags & GRF_CDIRTY) {
+      // using RC_GR_READ here: it will call gconst_try_read,
+      // cache the reg and mark it dirty.
+      rcache_get_reg_(i, RC_GR_READ, 0, NULL);
+    }
+}
+
+static void gconst_invalidate(void)
+{
+  int i;
+
+  for (i = 0; i < ARRAY_SIZE(guest_regs); i++) {
+    if (guest_regs[i].flags & (GRF_CONST|GRF_CDIRTY))
+      gconsts[guest_regs[i].cnst].gregs &= ~(1 << i);
+    guest_regs[i].flags &= ~(GRF_CONST|GRF_CDIRTY);
+  }
+}
+
+static u16 rcache_counter;
+static u32 rcache_static;
+static u32 rcache_locked;
+static u32 rcache_hint_soon;
+static u32 rcache_hint_late;
+static u32 rcache_hint_write;
+#define rcache_hint (rcache_hint_soon|rcache_hint_late)
 
 static void rcache_unmap_vreg(int x)
 {
@@ -1328,8 +1377,7 @@ static void rcache_clean_vreg(int x)
                 rcache_unmap_vreg(guest_regs[r].sreg);
                 emith_move_r_r(cache_regs[guest_regs[r].sreg].hreg, cache_regs[guest_regs[r].vreg].hreg);
                 rcache_remove_vreg_alias(x, r);
-                cache_regs[guest_regs[r].sreg].gregs = (1 << r);
-                guest_regs[r].vreg = guest_regs[r].sreg;
+                rcache_add_vreg_alias(guest_regs[r].sreg, r);
               } else {
                 // must evict since sreg is locked
                 emith_ctx_write(cache_regs[x].hreg, r * 4);
@@ -1341,6 +1389,12 @@ static void rcache_clean_vreg(int x)
         }
         guest_regs[r].flags &= ~GRF_DIRTY;)
   }
+}
+
+static void rcache_add_vreg_alias(int x, sh2_reg_e r)
+{
+  cache_regs[x].gregs |= (1 << r);
+  guest_regs[r].vreg = x;
 }
 
 static void rcache_remove_vreg_alias(int x, sh2_reg_e r)
@@ -1396,9 +1450,12 @@ static cache_reg_t *rcache_evict(void)
       else if (rcache_hint_late & cache_regs[i].gregs)
         // REGs needed in some future insn
         i_prio = 3;
-      else
+      else if ((rcache_hint_write & cache_regs[i].gregs) != cache_regs[i].gregs)
         // REGs not needed soon
         i_prio = 4;
+      else
+        // REGs soon overwritten anyway
+        i_prio = 5;
 
       if (prio < i_prio || (prio == i_prio && cache_regs[i].stamp < min_stamp)) {
         min_stamp = cache_regs[i].stamp;
@@ -1549,6 +1606,7 @@ static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr
     h = guest_regs[r].sreg;
     rcache_evict_vreg(h);
     tr = &cache_regs[h];
+    tr->gregs = 1 << r;
     if (i >= 0) {
       if (mode != RC_GR_WRITE) {
         if (hr)
@@ -1559,14 +1617,13 @@ static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr
       }
       rcache_remove_vreg_alias(guest_regs[r].vreg, r);
     } else if (mode != RC_GR_WRITE) {
-      if (gconst_try_read(tr->hreg, r)) {
+      if (gconst_try_read(h, r)) {
         tr->flags |= HRF_DIRTY;
         guest_regs[r].flags |= GRF_DIRTY;
       } else
         emith_ctx_read(tr->hreg, r * 4);
     }
     guest_regs[r].vreg = guest_regs[r].sreg;
-    tr->gregs = 1 << r;
     goto end;
   } else if (i >= 0) {
     if (mode == RC_GR_READ || !(cache_regs[i].gregs & ~(1 << r))) {
@@ -1608,7 +1665,7 @@ static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr
   guest_regs[r].vreg = tr - cache_regs;
 
   if (mode != RC_GR_WRITE) {
-    if (gconst_try_read(tr->hreg, r)) {
+    if (gconst_try_read(guest_regs[r].vreg, r)) {
       tr->flags |= HRF_DIRTY;
       guest_regs[r].flags |= GRF_DIRTY;
     } else if (split >= 0) {
@@ -1747,7 +1804,7 @@ static int rcache_get_reg_arg(int arg, sh2_reg_e r, int *hr)
     srcr = dstr;
     if (rcache_static & (1 << r))
       srcr = rcache_get_reg_(r, RC_GR_READ, 0, NULL);
-    else if (gconst_try_read(srcr, r))
+    else if (gconst_try_read(guest_regs[r].vreg, r))
       dirty = 1;
     else
       emith_ctx_read(srcr, r * 4);
@@ -1780,8 +1837,10 @@ static int rcache_get_reg_arg(int arg, sh2_reg_e r, int *hr)
       emith_move_r_r(dstr, srcr);
   } else if (hr != NULL) {
     // caller will modify arg, so it will soon be out of sync with r
-    if (dirty || src_dirty)
+    if (dirty || src_dirty) {
       emith_ctx_write(dstr, r * 4); // must clean since arg will be modified
+      guest_regs[r].flags &= ~GRF_DIRTY;
+    }
   } else if (guest_regs[r].vreg < 0) {
     // keep arg as vreg for r
     cache_regs[dstid].type = HR_CACHED;
@@ -1907,6 +1966,11 @@ static inline void rcache_set_hint_soon(u32 mask)
 static inline void rcache_set_hint_late(u32 mask)
 {
   rcache_hint_late = mask & ~rcache_static;
+}
+
+static inline void rcache_set_hint_write(u32 mask)
+{
+  rcache_hint_write = mask & ~rcache_static;
 }
 
 static inline int rcache_is_hinted(sh2_reg_e r)
@@ -2038,7 +2102,7 @@ static void rcache_invalidate(void)
   }
 
   rcache_counter = 0;
-  rcache_hint_soon = rcache_hint_late = 0;
+  rcache_hint_soon = rcache_hint_late = rcache_hint_write = 0;
 
   gconst_invalidate();
 }
@@ -2155,10 +2219,9 @@ static void emit_move_r_r(sh2_reg_e dst, sh2_reg_e src)
       if (guest_regs[dst].vreg >= 0)
         rcache_remove_vreg_alias(guest_regs[dst].vreg, dst);
       // make dst an alias of src
-      cache_regs[i].gregs |= (1 << dst);
+      rcache_add_vreg_alias(i, dst);
       cache_regs[i].flags |= HRF_DIRTY;
       guest_regs[dst].flags |= GRF_DIRTY;
-      guest_regs[dst].vreg = i;
       gconst_kill(dst);
 #if PROPAGATE_CONSTANTS
       gconst_copy(dst, src);
@@ -2772,6 +2835,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         dbg(1, "unhandled delay_dep_bk: %x", delay_dep_bk);
       rcache_set_hint_soon(0);
       rcache_set_hint_late(0);
+      rcache_set_hint_write(0);
     }
     else
     {
@@ -2802,6 +2866,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       }
       rcache_set_hint_soon(late);           // insns 1-3
       rcache_set_hint_late(late & ~soon);   // insns 4-9
+      rcache_set_hint_write(write & ~(late|soon)); // next access is write
     }
     rcache_set_locked(opd[0].source); // try not to evict src regs for this op
 
