@@ -369,7 +369,7 @@ enum {
   HR_STATIC, // vreg has a static mapping
   HR_CACHED, // vreg has sh2_reg_e
   HR_TEMP,   // reg used for temp storage
-} cach_reg_type;
+} cache_reg_type;
 
 enum {
   HRF_DIRTY  = 1 << 0, // has "dirty" value to be written to ctx
@@ -2569,8 +2569,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     return NULL;
 
   block_entry_ptr = tcache_ptr;
-  dbg(2, "== %csh2 block #%d,%d crc %04x %08x-%08x,%08x-%08x -> %p", sh2->is_slave ? 's' : 'm',
-    tcache_id, blkid_main, crc, base_pc, end_pc, base_literals, end_literals, block_entry_ptr);
+  dbg(2, "== %csh2 block #%d,%d %08x-%08x,%08x-%08x -> %p", sh2->is_slave ? 's' : 'm',
+    tcache_id, blkid_main, base_pc, end_pc, base_literals, end_literals, block_entry_ptr);
 
 
   // clear stale state after compile errors
@@ -2715,6 +2715,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     }
 #endif
 
+    emith_pool_check();
     pc += 2;
 
     if (skip_op > 0) {
@@ -3892,6 +3893,8 @@ end_op:
     emith_jump_patch(branch_patch_ptr[i], target);
   }
 
+  emith_pool_commit(0);
+
   dr_mark_memory(1, block, tcache_id, 0);
 
   tcache_ptrs[tcache_id] = tcache_ptr;
@@ -4124,6 +4127,7 @@ static void sh2_generate_utils(void)
   MAKE_WRITE_WRAPPER(sh2_drc_write32);
 #endif
 
+  emith_pool_commit(0);
   rcache_invalidate();
 #if (DRC_DEBUG & 4)
   host_dasm_new_symbol(sh2_drc_entry);

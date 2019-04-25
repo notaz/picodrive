@@ -1104,3 +1104,6 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMITH_SJMP_END(DCOND_EQ);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
 } while (0)
+
+#define emith_pool_check()	/**/
+#define emith_pool_commit(j)	/**/
