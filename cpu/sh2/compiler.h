@@ -22,7 +22,7 @@ void sh2_drc_frame(void);
 #define OF_T_CLEAR    (1 << 3) // ... clear
 #define OF_B_IN_DS    (1 << 4)
 
-void scan_block(unsigned int base_pc, int is_slave,
+unsigned short scan_block(unsigned int base_pc, int is_slave,
 		unsigned char *op_flags, unsigned int *end_pc,
 		unsigned int *base_literals, unsigned int *end_literals);
 
