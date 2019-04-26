@@ -2354,17 +2354,15 @@ static int emit_memhandler_read_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, u32 off
     hr2 = hr;
   else
 #if REMAP_REGISTER
-    hr2 = rcache_map_reg(rd, hr, size != 2 ? RC_GR_RMW : RC_GR_WRITE);
+    hr2 = rcache_map_reg(rd, hr, RC_GR_WRITE);
 #else
     hr2 = rcache_get_reg(rd, RC_GR_WRITE, NULL);
 #endif
 
-  if (rd != SHR_TMP && size != 2) { // 16, 8
-    emith_sext(hr2, hr, size ? 16 : 8);
-  } else if (hr != hr2) // 32
+  if (hr != hr2) {
     emith_move_r_r(hr2, hr);
-  if (hr != hr2)
     rcache_free_tmp(hr);
+  }
   return hr2;
 }
 
@@ -2422,21 +2420,19 @@ static int emit_indirect_indexed_read(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rx, sh2_
   hr = emit_memhandler_read(size);
 
   size &= MF_SIZEMASK;
-  if (rd != SHR_TMP)
+  if (rd == SHR_TMP)
+    hr2 = hr;
+  else
 #if REMAP_REGISTER
-    hr2 = rcache_map_reg(rd, hr, size != 2 ? RC_GR_RMW : RC_GR_WRITE);
+    hr2 = rcache_map_reg(rd, hr, RC_GR_WRITE);
 #else
     hr2 = rcache_get_reg(rd, RC_GR_WRITE, NULL);
 #endif
-  else
-    hr2 = hr;
 
-  if (rd != SHR_TMP && size != 2) { // 16, 8
-    emith_sext(hr2, hr, size ? 16 : 8);
-  } else if (hr != hr2) // 32
+  if (hr != hr2) {
     emith_move_r_r(hr2, hr);
-  if (hr != hr2)
     rcache_free_tmp(hr);
+  }
   return hr2;
 }
 
@@ -2991,16 +2987,14 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         }
         tmp2 = emit_memhandler_read(opd->size);
 #if REMAP_REGISTER
-        tmp3 = rcache_map_reg(GET_Rn(), tmp2, opd->size != 2 ? RC_GR_RMW : RC_GR_WRITE);
+        tmp3 = rcache_map_reg(GET_Rn(), tmp2, RC_GR_WRITE);
 #else
         tmp3 = rcache_get_reg(GET_Rn(), RC_GR_WRITE, NULL);
 #endif
-        if (opd->size != 2) {
-          emith_sext(tmp3, tmp2, 16);
-        } else if (tmp3 != tmp2)
+        if (tmp3 != tmp2) {
           emith_move_r_r(tmp3, tmp2);
-        if (tmp3 != tmp2)
           rcache_free_tmp(tmp2);
+        }
       }
       goto end_op;
 
@@ -4025,7 +4019,7 @@ static void sh2_generate_utils(void)
   EMITH_SJMP_START(DCOND_CS);
   emith_and_r_r_c(DCOND_CC, arg0, arg3);
   emith_eor_r_imm_c(DCOND_CC, arg0, 1);
-  emith_read8_r_r_r_c(DCOND_CC, RET_REG, arg0, arg2);
+  emith_read8s_r_r_r_c(DCOND_CC, RET_REG, arg0, arg2);
   emith_ret_c(DCOND_CC);
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
@@ -4037,7 +4031,7 @@ static void sh2_generate_utils(void)
   emith_sh2_rcall(arg0, arg1, arg2, arg3);
   EMITH_SJMP_START(DCOND_CS);
   emith_and_r_r_c(DCOND_CC, arg0, arg3);
-  emith_read16_r_r_r_c(DCOND_CC, RET_REG, arg0, arg2);
+  emith_read16s_r_r_r_c(DCOND_CC, RET_REG, arg0, arg2);
   emith_ret_c(DCOND_CC);
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);

@@ -1279,19 +1279,19 @@ out:
   elprintf_sh2(sh2, EL_32X, "r8  [%08x]       %02x @%06x",
     a, d, sh2_pc(sh2));
   DRC_RESTORE_SR(sh2);
-  return d;
+  return (s8)d;
 }
 
 static u32 REGPARM(2) sh2_read8_da(u32 a, SH2 *sh2)
 {
-  return sh2->data_array[(a & 0xfff) ^ 1];
+  return (s8)sh2->data_array[(a & 0xfff) ^ 1];
 }
 
 // for ssf2
 static u32 REGPARM(2) sh2_read8_rom(u32 a, SH2 *sh2)
 {
   u32 bank = carthw_ssf2_banks[(a >> 19) & 7] << 19;
-  u8 *p = sh2->p_rom;
+  s8 *p = sh2->p_rom;
   return p[(bank + (a & 0x7ffff)) ^ 1];
 }
 
@@ -1340,18 +1340,18 @@ out:
     a, d, sh2_pc(sh2));
 out_noprint:
   DRC_RESTORE_SR(sh2);
-  return d;
+  return (s16)d;
 }
 
 static u32 REGPARM(2) sh2_read16_da(u32 a, SH2 *sh2)
 {
-  return ((u16 *)sh2->data_array)[(a & 0xffe) / 2];
+  return ((s16 *)sh2->data_array)[(a & 0xffe) / 2];
 }
 
 static u32 REGPARM(2) sh2_read16_rom(u32 a, SH2 *sh2)
 {
   u32 bank = carthw_ssf2_banks[(a >> 19) & 7] << 19;
-  u16 *p = sh2->p_rom;
+  s16 *p = sh2->p_rom;
   return p[(bank + (a & 0x7fffe)) / 2];
 }
 
@@ -1364,7 +1364,8 @@ static u32 REGPARM(2) sh2_read32_unmapped(u32 a, SH2 *sh2)
 
 static u32 REGPARM(2) sh2_read32_cs0(u32 a, SH2 *sh2)
 {
-  return (sh2_read16_cs0(a, sh2) << 16) | sh2_read16_cs0(a + 2, sh2);
+  u32 d1 = sh2_read16_cs0(a, sh2) << 16, d2 = sh2_read16_cs0(a + 2, sh2) << 16;
+  return d1 | (d2 >> 16);
 }
 
 static u32 REGPARM(2) sh2_read32_da(u32 a, SH2 *sh2)
@@ -1631,7 +1632,7 @@ u32 REGPARM(2) p32x_sh2_read8(u32 a, SH2 *sh2)
   if (map_flag_set(p))
     return ((sh2_read_handler *)(p << 1))(a, sh2);
   else
-    return *(u8 *)((p << 1) + ((a & sh2_map->mask) ^ 1));
+    return *(s8 *)((p << 1) + ((a & sh2_map->mask) ^ 1));
 }
 
 u32 REGPARM(2) p32x_sh2_read16(u32 a, SH2 *sh2)
@@ -1644,7 +1645,7 @@ u32 REGPARM(2) p32x_sh2_read16(u32 a, SH2 *sh2)
   if (map_flag_set(p))
     return ((sh2_read_handler *)(p << 1))(a, sh2);
   else
-    return *(u16 *)((p << 1) + (a & sh2_map->mask));
+    return *(s16 *)((p << 1) + (a & sh2_map->mask));
 }
 
 u32 REGPARM(2) p32x_sh2_read32(u32 a, SH2 *sh2)

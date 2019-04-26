@@ -795,6 +795,8 @@ static inline void emith_pool_check(void)
 	emith_read_r_r_offs_c(cond, r, rs, offs)
 #define emith_read_r_r_r_c(cond, r, rs, rm) \
 	EOP_LDR_REG_LSL(cond, r, rs, rm, 0)
+#define emith_read_r_r_offs(r, rs, offs) \
+	emith_read_r_r_offs_c(A_COND_AL, r, rs, offs)
 #define emith_read_r_r_r(r, rs, rm) \
 	EOP_LDR_REG_LSL(A_COND_AL, r, rs, rm, 0)
 
@@ -802,28 +804,37 @@ static inline void emith_pool_check(void)
 	EOP_LDRB_IMM2(cond, r, rs, offs)
 #define emith_read8_r_r_r_c(cond, r, rs, rm) \
 	EOP_LDRB_REG_LSL(cond, r, rs, rm, 0)
+#define emith_read8_r_r_offs(r, rs, offs) \
+	emith_read8_r_r_offs_c(A_COND_AL, r, rs, offs)
 #define emith_read8_r_r_r(r, rs, rm) \
-	EOP_LDRB_REG_LSL(A_COND_AL, r, rs, rm, 0)
+	emith_read8_r_r_r_c(A_COND_AL, r, rs, rm)
 
 #define emith_read16_r_r_offs_c(cond, r, rs, offs) \
 	EOP_LDRH_IMM2(cond, r, rs, offs)
 #define emith_read16_r_r_r_c(cond, r, rs, rm) \
 	EOP_LDRH_REG2(cond, r, rs, rm)
-#define emith_read16_r_r_r(r, rs, rm) \
-	EOP_LDRH_REG2(A_COND_AL, r, rs, rm)
-
-#define emith_read_r_r_offs(r, rs, offs) \
-	emith_read_r_r_offs_c(A_COND_AL, r, rs, offs)
-
-#define emith_read8s_r_r_offs(r, rs, offs) \
-	EOP_LDRSB_IMM2(A_COND_AL, r, rs, offs)
-#define emith_read8_r_r_offs(r, rs, offs) \
-	emith_read8_r_r_offs_c(A_COND_AL, r, rs, offs)
-
-#define emith_read16s_r_r_offs(r, rs, offs) \
-	EOP_LDRSH_IMM2(A_COND_AL, r, rs, offs)
 #define emith_read16_r_r_offs(r, rs, offs) \
 	emith_read16_r_r_offs_c(A_COND_AL, r, rs, offs)
+#define emith_read16_r_r_r(r, rs, rm) \
+	emith_read16_r_r_r_c(A_COND_AL, r, rs, rm)
+
+#define emith_read8s_r_r_offs_c(cond, r, rs, offs) \
+	EOP_LDRSB_IMM2(cond, r, rs, offs)
+#define emith_read8s_r_r_r_c(cond, r, rs, rm) \
+	EOP_LDRSB_REG2(cond, r, rs, rm)
+#define emith_read8s_r_r_offs(r, rs, offs) \
+	emith_read8s_r_r_offs_c(A_COND_AL, r, rs, offs)
+#define emith_read8s_r_r_r(r, rs, rm) \
+	emith_read8s_r_r_r_c(A_COND_AL, r, rs, rm)
+
+#define emith_read16s_r_r_offs_c(cond, r, rs, offs) \
+	EOP_LDRSH_IMM2(cond, r, rs, offs)
+#define emith_read16s_r_r_r_c(cond, r, rs, rm) \
+	EOP_LDRSH_REG2(cond, r, rs, rm)
+#define emith_read16s_r_r_offs(r, rs, offs) \
+	emith_read16s_r_r_offs_c(A_COND_AL, r, rs, offs)
+#define emith_read16s_r_r_r(r, rs, rm) \
+	emith_read16s_r_r_r_c(A_COND_AL, r, rs, rm)
 
 #define emith_write_r_r_offs_c(cond, r, rs, offs) \
 	EOP_STR_IMM2(cond, r, rs, offs)
@@ -944,6 +955,11 @@ static inline void emith_pool_check(void)
 
 #define emith_call(target) \
 	emith_call_cond(A_COND_AL, target)
+
+#define emith_call_reg(r) { \
+        emith_move_r_r(14, 15); \
+        EOP_C_BX(A_COND_AL, r); \
+}
 
 #define emith_call_ctx(offs) { \
 	emith_move_r_r(14, 15); \
@@ -1091,9 +1107,7 @@ static inline void emith_pool_check(void)
 } while (0)
 
 /* mh:ml += rn*rm, does saturation if required by S bit. rn, rm must be TEMP */
-#define emith_sh2_macw(ml, mh, rn, rm, sr) do { \
-	emith_sext(rn, rn, 16);                   \
-	emith_sext(rm, rm, 16);                   \
+#define emith_sh2_macw(ml, mh, rn, rm, sr) do {   \
 	emith_tst_r_imm(sr, S);                   \
 	EMITH_SJMP2_START(DCOND_NE);              \
 	emith_mula_s64_c(DCOND_EQ, ml, mh, rn, rm); \
