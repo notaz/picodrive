@@ -44,10 +44,10 @@ unsigned short scan_block(unsigned int base_pc, int is_slave,
 #define	_DRC_DECLARE_SR(SR)	__DRC_DECLARE_SR(SR)
 #define	DRC_DECLARE_SR	_DRC_DECLARE_SR(DRC_SR_REG)
 #define DRC_SAVE_SR(sh2) \
-    if ((sh2->state & (SH2_STATE_RUN)) == SH2_STATE_RUN) \
+    if ((sh2->state & (SH2_STATE_RUN|SH2_STATE_SLEEP)) == SH2_STATE_RUN) \
         sh2->sr = sh2_sr;
 #define DRC_RESTORE_SR(sh2) \
-    if ((sh2->state & (SH2_STATE_RUN)) == SH2_STATE_RUN) \
+    if ((sh2->state & (SH2_STATE_RUN|SH2_STATE_SLEEP)) == SH2_STATE_RUN) \
         sh2_sr = sh2->sr;
 #else
 #define	DRC_DECLARE_SR

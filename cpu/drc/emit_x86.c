@@ -397,8 +397,12 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_read8_r_r_r_c(cond, r, rs, rm) \
 	emith_read8_r_r_r(r, rs, rm)
+#define emith_read8s_r_r_r_c(cond, r, rs, rm) \
+	emith_read8s_r_r_r(r, rs, rm)
 #define emith_read16_r_r_r_c(cond, r, rs, rm) \
 	emith_read16_r_r_r(r, rs, rm)
+#define emith_read16s_r_r_r_c(cond, r, rs, rm) \
+	emith_read16s_r_r_r(r, rs, rm)
 #define emith_read_r_r_r_c(cond, r, rs, rm) \
 	emith_read_r_r_r(r, rs, rm)
 
@@ -684,9 +688,21 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_SIB(0, rs, rm); /* mov r, [rm + rs * 1] */ \
 } while (0)
 
+#define emith_read8s_r_r_r(r, rs, rm) do { \
+	EMIT(0x0f, u8); \
+	EMIT_OP_MODRM(0xbe, 0, r, 4); \
+	EMIT_SIB(0, rs, rm); /* mov r, [rm + rs * 1] */ \
+} while (0)
+
 #define emith_read16_r_r_r(r, rs, rm) do { \
 	EMIT(0x0f, u8); \
 	EMIT_OP_MODRM(0xb7, 0, r, 4); \
+	EMIT_SIB(0, rs, rm); /* mov r, [rm + rs * 1] */ \
+} while (0)
+
+#define emith_read16s_r_r_r(r, rs, rm) do { \
+	EMIT(0x0f, u8); \
+	EMIT_OP_MODRM(0xbf, 0, r, 4); \
 	EMIT_SIB(0, rs, rm); /* mov r, [rm + rs * 1] */ \
 } while (0)
 
@@ -785,9 +801,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT(offs, u32); \
 } while (0)
 
-#define emith_push_ret()
+#define emith_push_ret() \
+	emith_push(xSI); /* to align */
 
 #define emith_pop_and_ret() \
+	emith_pop(xSI); \
 	emith_ret()
 
 #define EMITH_JMP_START(cond) { \
@@ -1080,8 +1098,6 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 /* mh:ml += rn*rm, does saturation if required by S bit. rn, rm must be TEMP */
 #define emith_sh2_macw(ml, mh, rn, rm, sr) do {   \
-	emith_sext(rn, rn, 16);                   \
-	emith_sext(rm, rm, 16);                   \
 	emith_tst_r_imm(sr, S);                   \
 	EMITH_SJMP_START(DCOND_EQ);               \
 	/* XXX: MACH should be untouched when S is set? */ \
