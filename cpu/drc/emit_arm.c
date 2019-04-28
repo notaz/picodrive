@@ -14,22 +14,130 @@
 	do { \
 		*(u32 *)ptr = x; \
 		ptr = (void *)((u8 *)ptr + sizeof(u32)); \
-		COUNT_OP; \
 	} while (0)
 
-#define EMIT(x) EMIT_PTR(tcache_ptr, x)
+// ARM special registers and peephole optimization flags
+#define SP		13	// stack pointer
+#define LR		14	// link (return address)
+#define PC		15	// program counter
+#define SR		16	// CPSR, status register
+#define MEM		17	// memory access (src=LDR, dst=STR)
+#define CYC1		20	// 1 cycle interlock (LDR, reg-cntrld shift)
+#define CYC2		21	// 2+ cycles interlock (LDR[BH], MUL/MLA etc)
+#define SWAP		31	// swapped
+#define NO		32	// token for "no register"
 
-#define A_R4M  (1 << 4)
-#define A_R5M  (1 << 5)
-#define A_R6M  (1 << 6)
-#define A_R7M  (1 << 7)
-#define A_R8M  (1 << 8)
-#define A_R9M  (1 << 9)
-#define A_R10M (1 << 10)
-#define A_R11M (1 << 11)
-#define A_R12M (1 << 12)
-#define A_R14M (1 << 14)
-#define A_R15M (1 << 15)
+// bitmask builders
+#define M1(x)		(u32)(1ULL<<(x)) // u32 to have NO evaluate to 0
+#define M2(x,y)		(M1(x)|M1(y))
+#define M3(x,y,z)	(M2(x,y)|M1(z))
+#define M4(x,y,z,a)	(M3(x,y,z)|M1(a))
+#define M5(x,y,z,a,b)	(M4(x,y,z,a)|M1(b))
+#define M10(a,b,c,d,e,f,g,h,i,j) (M5(a,b,c,d,e)|M5(f,g,h,i,j))
+
+// peephole optimizer. ATM only tries to reduce interlock
+#define EMIT_CACHE_SIZE 3
+struct emit_op {
+	u32 op;
+	u32 src, dst;
+};
+
+// peephole cache, last commited insn + cache + next insn + empty insn = size+3
+static struct emit_op emit_cache[EMIT_CACHE_SIZE+3];
+static int emit_index;
+#define emith_insn_ptr()	(u8 *)((u32 *)tcache_ptr-emit_index)
+
+static int emith_pool_index(int tcache_offs);
+static void emith_pool_adjust(int pool_index, int move_offs);
+
+static NOINLINE void EMIT(u32 op, u32 dst, u32 src)
+{
+	void *emit_ptr = (u32 *)tcache_ptr - emit_index;
+	int i;
+
+	EMIT_PTR(tcache_ptr, op); // emit to keep tcache_ptr current
+	COUNT_OP;
+	// for conditional execution SR is always source
+	if (op < 0xe0000000 /*A_COND_AL << 28*/)
+		src |= M1(SR);
+	// put insn on back of queue
+	emit_cache[emit_index+1].op = op;
+	emit_cache[emit_index+1].src = src & ~M1(NO); // mask away the NO token
+	emit_cache[emit_index+1].dst = dst & ~M1(NO);
+	// move insn down in the queue as long as permitted by dependencies
+	for (i = emit_index-1; i > 0; i--) {
+		struct emit_op *ptr = &emit_cache[i];
+		int deps = 0;
+		// never swap branch insns (changes semantics)
+		if ((ptr[0].dst | ptr[1].dst) & M1(PC))
+			continue;
+		// dst deps between 0 and 1 must not be swapped, since any deps
+		// but [0].src & [1].src lead to changed semantics if swapped.
+		if ((ptr[0].dst & ptr[1].src) || (ptr[1].dst & ptr[0].src) ||
+		      (ptr[0].dst & ptr[1].dst))
+			continue;
+#if 1
+		// just move loads as far up as possible
+		deps -= !!(ptr[1].src & M1(MEM));
+		deps += !!(ptr[0].src & M1(MEM));
+#elif 0
+		// treat all dest->src deps as a potential interlock
+#define		DEP_INSN(x,y)	!!(ptr[x].dst & ptr[y].src)
+		//   insn sequence: -1, 0, 1, 2
+		deps -= DEP_INSN(1,2) + DEP_INSN(-1,0);
+		deps -= !!(ptr[1].src & M1(MEM));   // favour moving LDR's down
+		//   insn sequence: -1, 1, 0, 2
+		deps += DEP_INSN(0,2) + DEP_INSN(-1,1);
+		deps += !!(ptr[0].src & M1(SWAP));  // penalise if swapped
+#else
+		// calculate ARM920T interlock cycles
+#define	DEP_CYC1(x,y)	((ptr[x].dst & ptr[y].src)&&(ptr[x].src & M1(CYC1)))
+#define	DEP_CYC2(x,y)	((ptr[x].dst & ptr[y].src)&&(ptr[x].src & M1(CYC2)))
+#define DEP_INSN(x,y,z)	DEP_CYC1(x,y)+DEP_CYC1(y,z)+2*DEP_CYC2(x,y)+DEP_CYC2(x,z)
+		//   insn sequence: -1, 0, 1, 2
+		deps -= DEP_INSN(0,1,2) + DEP_INSN(-1,0,1);
+		deps -= !!(ptr[1].src & M1(MEM));   // favour moving LDR's down
+		//   insn sequence: -1, 1, 0, 2
+		deps += DEP_INSN(0,2,1) + DEP_INSN(-1,1,0);
+		deps += !!(ptr[0].src & M1(SWAP));  // penalise multiple swaps
+#endif
+		// swap if fewer depencies
+		if (deps < 0) {
+			// swap insn reading PC only if uncomitted pool load
+			struct emit_op tmp;
+			int i0 = -1, i1 = -1;
+			if ((!(ptr[0].src & M1(PC)) ||
+			     (i0 = emith_pool_index(emit_index+2 - i)) >= 0) &&
+			    (!(ptr[1].src & M1(PC)) ||
+			     (i1 = emith_pool_index(emit_index+1 - i)) >= 0)) {
+				// not using PC, or pool load
+				emith_pool_adjust(i0, 1);
+				emith_pool_adjust(i1, -1);
+				tmp = ptr[0], ptr[0] = ptr[1], ptr[1] = tmp;
+				ptr[0].src |= M1(SWAP);
+			}
+		}
+	}
+	if (emit_index <= EMIT_CACHE_SIZE) {
+		// queue not yet full
+		emit_index++;
+	} else {
+		// commit oldest insn from cache
+		EMIT_PTR(emit_ptr, emit_cache[1].op);
+		for (i = 0; i <= emit_index; i++)
+			emit_cache[i] = emit_cache[i+1];
+	}
+}
+ 
+static void emith_flush(void)
+{
+	int i;
+	void *emit_ptr = tcache_ptr - emit_index*sizeof(u32);
+
+	for (i = 1; i <= emit_index; i++)
+		EMIT_PTR(emit_ptr, emit_cache[i].op);
+	emit_index = 0;
+}
 
 #define A_COND_AL 0xe
 #define A_COND_EQ 0x0
@@ -96,12 +204,20 @@
 #define A_OP_BIC 0xe
 #define A_OP_MVN 0xf
 
-#define EOP_C_DOP_X(cond,op,s,rn,rd,shifter_op) \
-	EMIT(((cond)<<28) | ((op)<< 21) | ((s)<<20) | ((rn)<<16) | ((rd)<<12) | (shifter_op))
+// operation specific register usage in DOP
+#define A_Rn(op,rn)	(((op)&0xd)!=0xd ? rn:NO) // no rn for MOV,MVN
+#define A_Rd(op,rd)	(((op)&0xc)!=0x8 ? rd:NO) // no rd for TST,TEQ,CMP,CMN
+// CSPR is dst if S set, CSPR is src if op is ADC/SBC/RSC or shift is RRX
+#define A_Sd(s)		((s) ? SR:NO)
+#define A_Sr(op,sop)	(((op)>=0x5 && (op)<=0x7) || (sop)>>4==A_AM1_ROR<<1 ? SR:NO)
 
-#define EOP_C_DOP_IMM(     cond,op,s,rn,rd,ror2,imm8)             EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_IMM(ror2,imm8))
-#define EOP_C_DOP_REG_XIMM(cond,op,s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_REG_XIMM(shift_imm,shift_op,rm))
-#define EOP_C_DOP_REG_XREG(cond,op,s,rn,rd,rs,       shift_op,rm) EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_REG_XREG(rs,       shift_op,rm))
+#define EOP_C_DOP_X(cond,op,s,rn,rd,sop,rm,rs) \
+	EMIT(((cond)<<28) | ((op)<< 21) | ((s)<<20) | ((rn)<<16) | ((rd)<<12) | (sop), \
+		M2(A_Rd(op,rd),A_Sd(s)), M5(A_Sr(op,sop),A_Rn(op,rn),rm,rs,rs==NO?NO:CYC1))
+
+#define EOP_C_DOP_IMM(     cond,op,s,rn,rd,ror2,imm8)             EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_IMM(ror2,imm8), NO, NO)
+#define EOP_C_DOP_REG_XIMM(cond,op,s,rn,rd,shift_imm,shift_op,rm) EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_REG_XIMM(shift_imm,shift_op,rm), rm, NO)
+#define EOP_C_DOP_REG_XREG(cond,op,s,rn,rd,rs,       shift_op,rm) EOP_C_DOP_X(cond,op,s,rn,rd,A_AM1_REG_XREG(rs,       shift_op,rm), rm, rs)
 
 #define EOP_MOV_IMM(rd,   ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_MOV,0, 0,rd,ror2,imm8)
 #define EOP_MVN_IMM(rd,   ror2,imm8) EOP_C_DOP_IMM(A_COND_AL,A_OP_MVN,0, 0,rd,ror2,imm8)
@@ -161,16 +277,17 @@
 
 /* addressing mode 2 */
 #define EOP_C_AM2_IMM(cond,u,b,l,rn,rd,offset_12) \
-	EMIT(((cond)<<28) | 0x05000000 | ((u)<<23) | ((b)<<22) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | (offset_12))
+	EMIT(((cond)<<28) | 0x05000000 | ((u)<<23) | ((b)<<22) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | \
+		((offset_12) & 0xfff), M1(l?rd:MEM), M3(rn,l?MEM:rd,l?b?CYC2:CYC1:NO))
 
 #define EOP_C_AM2_REG(cond,u,b,l,rn,rd,shift_imm,shift_op,rm) \
 	EMIT(((cond)<<28) | 0x07000000 | ((u)<<23) | ((b)<<22) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | \
-		((shift_imm)<<7) | ((shift_op)<<5) | (rm))
+		A_AM1_REG_XIMM(shift_imm, shift_op, rm), M1(l?rd:MEM), M4(rn,rm,l?MEM:rd,l?b?CYC2:CYC1:NO))
 
 /* addressing mode 3 */
 #define EOP_C_AM3(cond,u,r,l,rn,rd,s,h,immed_reg) \
 	EMIT(((cond)<<28) | 0x01000090 | ((u)<<23) | ((r)<<22) | ((l)<<20) | ((rn)<<16) | ((rd)<<12) | \
-			((s)<<6) | ((h)<<5) | (immed_reg))
+		((s)<<6) | ((h)<<5) | (immed_reg), M1(l?rd:MEM), M4(rn,r?NO:immed_reg,l?MEM:rd,l?CYC2:NO))
 
 #define EOP_C_AM3_IMM(cond,u,l,rn,rd,s,h,offset_8) EOP_C_AM3(cond,u,1,l,rn,rd,s,h,(((offset_8)&0xf0)<<4)|((offset_8)&0xf))
 
@@ -206,60 +323,61 @@
 
 /* ldm and stm */
 #define EOP_XXM(cond,p,u,s,w,l,rn,list) \
-	EMIT(((cond)<<28) | (1<<27) | ((p)<<24) | ((u)<<23) | ((s)<<22) | ((w)<<21) | ((l)<<20) | ((rn)<<16) | (list))
+	EMIT(((cond)<<28) | (1<<27) | ((p)<<24) | ((u)<<23) | ((s)<<22) | ((w)<<21) | ((l)<<20) | ((rn)<<16) | (list), \
+		M2(rn,l?NO:MEM)|(l?list:0), M3(rn,l?MEM:NO,l?CYC2:NO)|(l?0:list))
 
 #define EOP_STMIA(rb,list) EOP_XXM(A_COND_AL,0,1,0,0,0,rb,list)
 #define EOP_LDMIA(rb,list) EOP_XXM(A_COND_AL,0,1,0,0,1,rb,list)
 
-#define EOP_STMFD_SP(list) EOP_XXM(A_COND_AL,1,0,0,1,0,13,list)
-#define EOP_LDMFD_SP(list) EOP_XXM(A_COND_AL,0,1,0,1,1,13,list)
+#define EOP_STMFD_SP(list) EOP_XXM(A_COND_AL,1,0,0,1,0,SP,list)
+#define EOP_LDMFD_SP(list) EOP_XXM(A_COND_AL,0,1,0,1,1,SP,list)
 
 /* branches */
 #define EOP_C_BX(cond,rm) \
-	EMIT(((cond)<<28) | 0x012fff10 | (rm))
+	EMIT(((cond)<<28) | 0x012fff10 | (rm), M1(PC), M1(rm))
 
 #define EOP_C_B_PTR(ptr,cond,l,signed_immed_24) \
 	EMIT_PTR(ptr, ((cond)<<28) | 0x0a000000 | ((l)<<24) | (signed_immed_24))
 
 #define EOP_C_B(cond,l,signed_immed_24) \
-	EOP_C_B_PTR(tcache_ptr,cond,l,signed_immed_24)
+	EMIT(((cond)<<28) | 0x0a000000 | ((l)<<24) | (signed_immed_24), M2(PC,l?LR:NO), M1(PC))
 
 #define EOP_B( signed_immed_24) EOP_C_B(A_COND_AL,0,signed_immed_24)
 #define EOP_BL(signed_immed_24) EOP_C_B(A_COND_AL,1,signed_immed_24)
 
 /* misc */
 #define EOP_C_MUL(cond,s,rd,rs,rm) \
-	EMIT(((cond)<<28) | ((s)<<20) | ((rd)<<16) | ((rs)<<8) | 0x90 | (rm))
+	EMIT(((cond)<<28) | ((s)<<20) | ((rd)<<16) | ((rs)<<8) | 0x90 | (rm), M2(rd,s?SR:NO), M3(rs,rm,CYC2))
 
 #define EOP_C_UMULL(cond,s,rdhi,rdlo,rs,rm) \
-	EMIT(((cond)<<28) | 0x00800000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm))
+	EMIT(((cond)<<28) | 0x00800000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm), M3(rdhi,rdlo,s?SR:NO), M3(rs,rm,CYC2))
 
 #define EOP_C_SMULL(cond,s,rdhi,rdlo,rs,rm) \
-	EMIT(((cond)<<28) | 0x00c00000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm))
+	EMIT(((cond)<<28) | 0x00c00000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm), M3(rdhi,rdlo,s?SR:NO), M3(rs,rm,CYC2))
 
 #define EOP_C_SMLAL(cond,s,rdhi,rdlo,rs,rm) \
-	EMIT(((cond)<<28) | 0x00e00000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm))
+	EMIT(((cond)<<28) | 0x00e00000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm), M3(rdhi,rdlo,s?SR:NO), M5(rs,rm,rdlo,rdhi,CYC2))
 
 #define EOP_MUL(rd,rm,rs) EOP_C_MUL(A_COND_AL,0,rd,rs,rm) // note: rd != rm
 
 #define EOP_C_MRS(cond,rd) \
-	EMIT(((cond)<<28) | 0x010f0000 | ((rd)<<12))
+	EMIT(((cond)<<28) | 0x010f0000 | ((rd)<<12), M1(rd), M1(SR))
 
 #define EOP_C_MSR_IMM(cond,ror2,imm) \
-	EMIT(((cond)<<28) | 0x0328f000 | ((ror2)<<8) | (imm)) // cpsr_f
+	EMIT(((cond)<<28) | 0x0328f000 | ((ror2)<<8) | (imm), M1(SR), 0) // cpsr_f
 
 #define EOP_C_MSR_REG(cond,rm) \
-	EMIT(((cond)<<28) | 0x0128f000 | (rm)) // cpsr_f
+	EMIT(((cond)<<28) | 0x0128f000 | (rm), M1(SR), M1(rm)) // cpsr_f
 
 #define EOP_MRS(rd)           EOP_C_MRS(A_COND_AL,rd)
 #define EOP_MSR_IMM(ror2,imm) EOP_C_MSR_IMM(A_COND_AL,ror2,imm)
 #define EOP_MSR_REG(rm)       EOP_C_MSR_REG(A_COND_AL,rm)
 
 #define EOP_MOVW(rd,imm) \
-	EMIT(0xe3000000 | ((rd)<<12) | ((imm)&0xfff) | (((imm)<<4)&0xf0000))
+	EMIT(0xe3000000 | ((rd)<<12) | ((imm)&0xfff) | (((imm)<<4)&0xf0000), M1(rd), NO)
 
 #define EOP_MOVT(rd,imm) \
-	EMIT(0xe3400000 | ((rd)<<12) | (((imm)>>16)&0xfff) | (((imm)>>12)&0xf0000))
+	EMIT(0xe3400000 | ((rd)<<12) | (((imm)>>16)&0xfff) | (((imm)>>12)&0xf0000), M1(rd), NO)
 
 static inline int count_bits(unsigned val)
 {
@@ -326,7 +444,7 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 			}
 			idx = emith_pool_literal(imm, &o);
 			literal_insn[literal_iindex++] = (u32 *)tcache_ptr;
-			EOP_LDR_IMM2(cond, rd, 15, idx * sizeof(u32));
+			EOP_LDR_IMM2(cond, rd, PC, idx * sizeof(u32));
 			if (o > 0)
 				EOP_C_DOP_IMM(cond, A_OP_ADD, 0, rd, rd, 0, o);
 			else if (o < 0)
@@ -411,10 +529,10 @@ static int emith_xbranch(int cond, void *target, int is_call)
 #ifdef __EPOC32__
 //		elprintf(EL_SVP, "emitting indirect jmp %08x->%08x", tcache_ptr, target);
 		if (is_call)
-			EOP_ADD_IMM(14,15,0,8);			// add lr,pc,#8
-		EOP_C_AM2_IMM(cond,1,0,1,15,15,0);		// ldrcc pc,[pc]
-		EOP_MOV_REG_SIMPLE(15,15);			// mov pc, pc
-		EMIT((u32)target);
+			EOP_ADD_IMM(LR,PC,0,8);			// add lr,pc,#8
+		EOP_C_AM2_IMM(cond,1,0,1,PC,PC,0);		// ldrcc pc,[pc]
+		EOP_MOV_REG_SIMPLE(PC,PC);			// mov pc, pc
+		EMIT((u32)target,M1(PC),0);
 #else
 		// should never happen
 		elprintf(EL_STATUS|EL_SVP|EL_ANOMALY, "indirect jmp %08x->%08x", target, tcache_ptr);
@@ -438,6 +556,7 @@ static void emith_pool_commit(int jumpover)
 		pool += sizeof(u32);
 		emith_xbranch(A_COND_AL, (u8 *)pool + sz, 0);
 	}
+	emith_flush();
 	// safety check - pool must be after insns and reachable
 	if ((u32)(pool - (u8 *)literal_insn[0] + 8) > 0xfff) {
 		elprintf(EL_STATUS|EL_SVP|EL_ANOMALY,
@@ -466,12 +585,30 @@ static inline void emith_pool_check(void)
 		emith_pool_commit(1);
 }
 
+static inline int emith_pool_index(int tcache_offs)
+{
+	u32 *ptr = (u32 *)tcache_ptr - tcache_offs;
+	int i;
+
+	for (i = literal_iindex-1; i >= 0 && literal_insn[i] >= ptr; i--)
+		if (literal_insn[i] == ptr)
+			return i;
+	return -1;
+}
+
+static inline void emith_pool_adjust(int pool_index, int move_offs)
+{
+	if (pool_index >= 0)
+		literal_insn[pool_index] += move_offs;
+}
+
 #define JMP_POS(ptr) \
 	ptr = tcache_ptr; \
-	tcache_ptr += sizeof(u32)
+	EMIT(0,M1(PC),0);
 
 #define JMP_EMIT(cond, ptr) { \
 	u32 val_ = (u32 *)tcache_ptr - (u32 *)(ptr) - 2; \
+	emith_flush(); \
 	EOP_C_B_PTR(ptr, cond, 0, val_ & 0xffffff); \
 }
 
@@ -660,14 +797,14 @@ static inline void emith_pool_check(void)
 #define emith_tst_r_imm(r, imm) \
 	emith_top_imm(A_COND_AL, A_OP_TST, r, imm)
 
-#define emith_cmp_r_imm(r, imm) { \
+#define emith_cmp_r_imm(r, imm) do { \
 	u32 op_ = A_OP_CMP, imm_ = (u8)imm; \
 	if ((s8)imm_ < 0) { \
 		imm_ = (u8)-imm_; \
 		op_ = A_OP_CMN; \
 	} \
 	emith_top_imm(A_COND_AL, op_, r, imm_); \
-}
+} while (0)
 
 #define emith_subf_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 1, A_OP_SUB, r, imm)
@@ -693,12 +830,12 @@ static inline void emith_pool_check(void)
 #define emith_tst_r_imm_c(cond, r, imm) \
 	emith_top_imm(cond, A_OP_TST, r, imm)
 
-#define emith_move_r_imm_s8(r, imm) { \
+#define emith_move_r_imm_s8(r, imm) do { \
 	if ((s8)(imm) < 0) \
 		EOP_MVN_IMM(r, 0, ((u8)(imm) ^ 0xff)); \
 	else \
 		EOP_MOV_IMM(r, 0, (u8)imm); \
-}
+} while (0)
 
 #define emith_and_r_r_imm(d, s, imm) \
 	emith_op_imm2(A_COND_AL, 0, A_OP_AND, d, s, imm)
@@ -752,11 +889,11 @@ static inline void emith_pool_check(void)
 	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_ASR,cnt)
 
 // note: only C flag updated correctly
-#define emith_rolf(d, s, cnt) { \
+#define emith_rolf(d, s, cnt) do { \
 	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_ROR,32-(cnt)); \
 	/* we don't have ROL so we shift to get the right carry */ \
 	EOP_TST_REG(A_COND_AL,d,d,A_AM1_LSR,1); \
-}
+} while (0)
 
 #define emith_rorf(d, s, cnt) \
 	EOP_MOV_REG(A_COND_AL,1,d,s,A_AM1_ROR,cnt)
@@ -770,12 +907,12 @@ static inline void emith_pool_check(void)
 #define emith_negcf_r_r(d, s) \
 	EOP_C_DOP_IMM(A_COND_AL,A_OP_RSC,1,s,d,0,0)
 
-#define emith_mul(d, s1, s2) { \
+#define emith_mul(d, s1, s2) do { \
 	if ((d) != (s1)) /* rd != rm limitation */ \
 		EOP_MUL(d, s1, s2); \
 	else \
 		EOP_MUL(d, s2, s1); \
-}
+} while (0)
 
 #define emith_mul_u64(dlo, dhi, s1, s2) \
 	EOP_C_UMULL(A_COND_AL,0,dhi,dlo,s1,s2)
@@ -855,7 +992,7 @@ static inline void emith_pool_check(void)
 #define emith_ctx_do_multiple(op, r, offs, count, tmpr) do { \
 	int v_, r_ = r, c_ = count, b_ = CONTEXT_REG;        \
 	for (v_ = 0; c_; c_--, r_++)                         \
-		v_ |= 1 << r_;                               \
+		v_ |= M1(r_);                                \
 	if ((offs) != 0) {                                   \
 		EOP_ADD_IMM(tmpr,CONTEXT_REG,30/2,(offs)>>2);\
 		b_ = tmpr;                                   \
@@ -869,7 +1006,7 @@ static inline void emith_pool_check(void)
 #define emith_ctx_write_multiple(r, offs, count, tmpr) \
 	emith_ctx_do_multiple(EOP_STMIA, r, offs, count, tmpr)
 
-#define emith_clear_msb_c(cond, d, s, count) { \
+#define emith_clear_msb_c(cond, d, s, count) do { \
 	u32 t; \
 	if ((count) <= 8) { \
 		t = 8 - (count); \
@@ -883,24 +1020,24 @@ static inline void emith_pool_check(void)
 		EOP_MOV_REG(cond,0,d,s,A_AM1_LSL,count); \
 		EOP_MOV_REG(cond,0,d,d,A_AM1_LSR,count); \
 	} \
-}
+} while (0)
 
 #define emith_clear_msb(d, s, count) \
 	emith_clear_msb_c(A_COND_AL, d, s, count)
 
-#define emith_sext(d, s, bits) { \
+#define emith_sext(d, s, bits) do { \
 	EOP_MOV_REG_LSL(d,s,32 - (bits)); \
 	EOP_MOV_REG_ASR(d,d,32 - (bits)); \
-}
+} while (0)
 
-#define emith_do_caller_regs(mask, func) { \
+#define emith_do_caller_regs(mask, func) do { \
 	u32 _reg_mask = (mask) & 0x500f; \
 	if (_reg_mask) { \
 		if (__builtin_parity(_reg_mask) == 1) \
 			_reg_mask |= 0x10; /* eabi align */ \
 		func(_reg_mask); \
 	} \
-}
+} while (0)
 
 #define emith_save_caller_regs(mask) \
 	emith_do_caller_regs(mask, EOP_STMFD_SP)
@@ -933,10 +1070,11 @@ static inline void emith_pool_check(void)
 	*ptr_ = (*ptr_ & 0xff000000) | (val_ & 0x00ffffff); \
 } while (0)
 
-#define emith_jump_at(ptr, target) { \
+#define emith_jump_at(ptr, target) do { \
 	u32 val_ = (u32 *)(target) - (u32 *)(ptr) - 2; \
+	emith_flush(); \
 	EOP_C_B_PTR(ptr, A_COND_AL, 0, val_ & 0xffffff); \
-}
+} while (0)
 
 #define emith_jump_reg_c(cond, r) \
 	EOP_C_BX(cond, r)
@@ -945,7 +1083,7 @@ static inline void emith_pool_check(void)
 	emith_jump_reg_c(A_COND_AL, r)
 
 #define emith_jump_ctx_c(cond, offs) \
-	EOP_LDR_IMM2(cond,15,CONTEXT_REG,offs)
+	EOP_LDR_IMM2(cond,PC,CONTEXT_REG,offs)
 
 #define emith_jump_ctx(offs) \
 	emith_jump_ctx_c(A_COND_AL, offs)
@@ -956,30 +1094,30 @@ static inline void emith_pool_check(void)
 #define emith_call(target) \
 	emith_call_cond(A_COND_AL, target)
 
-#define emith_call_reg(r) { \
-        emith_move_r_r(14, 15); \
+#define emith_call_reg(r) do { \
+        emith_move_r_r(LR, PC); \
         EOP_C_BX(A_COND_AL, r); \
-}
+} while (0)
 
-#define emith_call_ctx(offs) { \
-	emith_move_r_r(14, 15); \
+#define emith_call_ctx(offs) do { \
+	emith_move_r_r(LR, PC); \
 	emith_jump_ctx(offs); \
-}
+} while (0)
 
 #define emith_ret_c(cond) \
-	emith_jump_reg_c(cond, 14)
+	emith_jump_reg_c(cond, LR)
 
 #define emith_ret() \
 	emith_ret_c(A_COND_AL)
 
 #define emith_ret_to_ctx(offs) \
-	emith_ctx_write(14, offs)
+	emith_ctx_write(LR, offs)
 
 #define emith_push_ret() \
-	EOP_STMFD_SP(A_R14M)
+	EOP_STMFD_SP(M1(LR))
 
 #define emith_pop_and_ret() \
-	EOP_LDMFD_SP(A_R15M)
+	EOP_LDMFD_SP(M1(PC))
 
 #define host_instructions_updated(base, end) \
 	cache_flush_d_inval_i(base, end)
@@ -990,30 +1128,30 @@ static inline void emith_pool_check(void)
 /* SH2 drc specific */
 /* pushes r12 for eabi alignment */
 #define emith_sh2_drc_entry() \
-	EOP_STMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R12M|A_R14M)
+	EOP_STMFD_SP(M10(4,5,6,7,8,9,10,11,12,LR))
 
 #define emith_sh2_drc_exit() \
-	EOP_LDMFD_SP(A_R4M|A_R5M|A_R6M|A_R7M|A_R8M|A_R9M|A_R10M|A_R11M|A_R12M|A_R15M)
+	EOP_LDMFD_SP(M10(4,5,6,7,8,9,10,11,12,PC))
 
 // assumes a is in arg0, tab, func and mask are temp
-#define emith_sh2_rcall(a, tab, func, mask) { \
+#define emith_sh2_rcall(a, tab, func, mask) do { \
 	emith_lsr(mask, a, SH2_READ_SHIFT); \
 	EOP_ADD_REG_LSL(tab, tab, mask, 3); \
-	if (func < mask) EOP_LDMIA(tab, (1<<func)|(1<<mask)); /* ldm if possible */ \
+	if (func < mask) EOP_LDMIA(tab, M2(func,mask)); /* ldm if possible */ \
 	else {	emith_read_r_r_offs(func, tab, 0); \
 		emith_read_r_r_offs(mask, tab, 4); } \
 	emith_addf_r_r_r(func,func,func); \
-}
+} while (0)
 
 // assumes a, val are in arg0 and arg1, tab and func are temp
-#define emith_sh2_wcall(a, val, tab, func) { \
+#define emith_sh2_wcall(a, val, tab, func) do { \
 	emith_lsr(func, a, SH2_WRITE_SHIFT); \
 	EOP_LDR_REG_LSL(A_COND_AL,func,tab,func,2); \
 	emith_move_r_r(2, CONTEXT_REG); /* arg2 */ \
 	emith_jump_reg(func); \
-}
+} while (0)
 
-#define emith_sh2_dtbf_loop() { \
+#define emith_sh2_dtbf_loop() do { \
 	int cr, rn;                                                          \
 	int tmp_ = rcache_get_tmp();                                         \
 	cr = rcache_get_reg(SHR_SR, RC_GR_RMW);                              \
@@ -1032,15 +1170,15 @@ static inline void emith_pool_check(void)
 	EOP_ORR_IMM_C(A_COND_LS,cr,cr,0,1);    /* orrls cr, #1 */            \
 	EOP_MOV_IMM_C(A_COND_LS,rn,0,0);       /* movls rn, #0 */            \
 	rcache_free_tmp(tmp_);                                               \
-}
+} while (0)
 
-#define emith_write_sr(sr, srcr) { \
+#define emith_write_sr(sr, srcr) do { \
 	emith_lsr(sr, sr, 10); \
 	emith_or_r_r_r_lsl(sr, sr, srcr, 22); \
 	emith_ror(sr, sr, 22); \
-}
+} while (0)
 
-#define emith_carry_to_t(srr, is_sub) { \
+#define emith_carry_to_t(srr, is_sub) do { \
 	if (is_sub) { /* has inverted C on ARM */ \
 		emith_or_r_imm_c(A_COND_CC, srr, 1); \
 		emith_bic_r_imm_c(A_COND_CS, srr, 1); \
@@ -1048,19 +1186,19 @@ static inline void emith_pool_check(void)
 		emith_or_r_imm_c(A_COND_CS, srr, 1); \
 		emith_bic_r_imm_c(A_COND_CC, srr, 1); \
 	} \
-}
+} while (0)
 
-#define emith_tpop_carry(sr, is_sub) {  \
+#define emith_tpop_carry(sr, is_sub) do { \
 	if (is_sub)                     \
 		emith_eor_r_imm(sr, 1); \
 	emith_lsrf(sr, sr, 1);          \
-}
+} while (0)
 
-#define emith_tpush_carry(sr, is_sub) { \
+#define emith_tpush_carry(sr, is_sub) do { \
 	emith_adc_r_r(sr, sr);          \
 	if (is_sub)                     \
 		emith_eor_r_imm(sr, 1); \
-}
+} while (0)
 
 /*
  * if Q
@@ -1069,7 +1207,7 @@ static inline void emith_pool_check(void)
  *   t = carry(Rn -= Rm)
  * T ^= t
  */
-#define emith_sh2_div1_step(rn, rm, sr) {         \
+#define emith_sh2_div1_step(rn, rm, sr) do {      \
 	void *jmp0, *jmp1;                        \
 	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
 	JMP_POS(jmp0);           /* beq do_sub */ \
@@ -1080,10 +1218,10 @@ static inline void emith_pool_check(void)
 	emith_subf_r_r(rn, rm);                   \
 	emith_eor_r_imm_c(A_COND_CC, sr, T);      \
 	JMP_EMIT(A_COND_AL, jmp1); /* done: */    \
-}
+} while (0)
 
 /* mh:ml += rn*rm, does saturation if required by S bit. rn, rm must be TEMP */
-#define emith_sh2_macl(ml, mh, rn, rm, sr) do { \
+#define emith_sh2_macl(ml, mh, rn, rm, sr) do {   \
 	emith_tst_r_imm(sr, S);                   \
 	EMITH_SJMP2_START(DCOND_NE);              \
 	emith_mula_s64_c(DCOND_EQ, ml, mh, rn, rm); \

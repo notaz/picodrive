@@ -1796,6 +1796,7 @@ void *ssp_translate_block(int pc)
 	tr_flush_dirty_pmcrs();
 	block_end = emit_block_epilogue(ccount, end_cond, jump_pc, pc);
 	emith_pool_commit(0);
+	emith_flush();
 
 	if (tcache_ptr - (u32 *)tcache > DRC_TCACHE_SIZE/4) {
 		elprintf(EL_ANOMALY|EL_STATUS|EL_SVP, "tcache overflow!\n");

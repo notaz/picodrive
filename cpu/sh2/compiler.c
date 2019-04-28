@@ -154,8 +154,8 @@ enum op_types {
 static u8 *tcache_dsm_ptrs[3];
 static char sh2dasm_buff[64];
 #define do_host_disasm(tcid) \
-  host_dasm(tcache_dsm_ptrs[tcid], tcache_ptr - tcache_dsm_ptrs[tcid]); \
-  tcache_dsm_ptrs[tcid] = tcache_ptr
+  host_dasm(tcache_dsm_ptrs[tcid], emith_insn_ptr() - tcache_dsm_ptrs[tcid]); \
+  tcache_dsm_ptrs[tcid] = emith_insn_ptr()
 #else
 #define do_host_disasm(x)
 #endif
@@ -2664,6 +2664,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
         FLUSH_CYCLES(sr);
         rcache_flush();
+        emith_flush();
 
         // make block entry
         v = block->entry_count;
@@ -3933,7 +3934,9 @@ end_op:
     if (target == NULL)
       return NULL;
     emith_jump_patchable(target);
-  }
+  } else
+    rcache_flush();
+  emith_flush();
 
   // link local branches
   for (i = 0; i < branch_patch_count; i++) {
@@ -3996,21 +3999,25 @@ static void sh2_generate_utils(void)
   emith_move_r_r(arg1, arg1); // nop
   emith_move_r_r(arg2, arg2); // nop
   emith_move_r_r(arg3, arg3); // nop
+  emith_flush();
 
   // sh2_drc_write8(u32 a, u32 d)
   sh2_drc_write8 = (void *)tcache_ptr;
   emith_ctx_read_ptr(arg2, offsetof(SH2, write8_tab));
   emith_sh2_wcall(arg0, arg1, arg2, arg3);
+  emith_flush();
 
   // sh2_drc_write16(u32 a, u32 d)
   sh2_drc_write16 = (void *)tcache_ptr;
   emith_ctx_read_ptr(arg2, offsetof(SH2, write16_tab));
   emith_sh2_wcall(arg0, arg1, arg2, arg3);
+  emith_flush();
 
   // sh2_drc_write32(u32 a, u32 d)
   sh2_drc_write32 = (void *)tcache_ptr;
   emith_ctx_read_ptr(arg2, offsetof(SH2, write32_tab));
   emith_sh2_wcall(arg0, arg1, arg2, arg3);
+  emith_flush();
 
   // d = sh2_drc_read8(u32 a)
   sh2_drc_read8 = (void *)tcache_ptr;
@@ -4024,6 +4031,7 @@ static void sh2_generate_utils(void)
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
   emith_jump_reg(arg2);
+  emith_flush();
 
   // d = sh2_drc_read16(u32 a)
   sh2_drc_read16 = (void *)tcache_ptr;
@@ -4036,6 +4044,7 @@ static void sh2_generate_utils(void)
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
   emith_jump_reg(arg2);
+  emith_flush();
 
   // d = sh2_drc_read32(u32 a)
   sh2_drc_read32 = (void *)tcache_ptr;
@@ -4049,11 +4058,13 @@ static void sh2_generate_utils(void)
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
   emith_jump_reg(arg2);
+  emith_flush();
 
   // sh2_drc_exit(void)
   sh2_drc_exit = (void *)tcache_ptr;
   emit_do_static_regs(1, arg2);
   emith_sh2_drc_exit();
+  emith_flush();
 
   // sh2_drc_dispatcher(void)
   sh2_drc_dispatcher = (void *)tcache_ptr;
@@ -4091,6 +4102,7 @@ static void sh2_generate_utils(void)
   emit_block_entry();
   // XXX: can't translate, fail
   emith_call(dr_failure);
+  emith_flush();
 
   // sh2_drc_test_irq(void)
   // assumes it's called from main function (may jump to dispatcher)
@@ -4141,6 +4153,7 @@ static void sh2_generate_utils(void)
 #endif
   emith_jump(sh2_drc_dispatcher);
   rcache_invalidate();
+  emith_flush();
 
   // sh2_drc_entry(SH2 *sh2)
   sh2_drc_entry = (void *)tcache_ptr;
@@ -4149,6 +4162,7 @@ static void sh2_generate_utils(void)
   emit_do_static_regs(0, arg2);
   emith_call(sh2_drc_test_irq);
   emith_jump(sh2_drc_dispatcher);
+  emith_flush();
 
 #ifdef PDB_NET
   // debug
@@ -4163,6 +4177,7 @@ static void sh2_generate_utils(void)
     emith_adc_r_imm(arg2, 0x01000000);                    \
     emith_ctx_write(arg2, offsetof(SH2, pdb_io_csum[1])); \
     emith_pop_and_ret(); \
+    emith_flush(); \
     func = tmp; \
   }
   #define MAKE_WRITE_WRAPPER(func) { \
@@ -4175,6 +4190,7 @@ static void sh2_generate_utils(void)
     emith_ctx_write(arg2, offsetof(SH2, pdb_io_csum[1])); \
     emith_move_r_r_ptr(arg2, CONTEXT_REG);                \
     emith_jump(func); \
+    emith_flush(); \
     func = tmp; \
   }
 

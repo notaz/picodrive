@@ -522,23 +522,23 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_neg_r(r) \
 	EMIT_OP_MODRM(0xf7, 3, 3, r)
 
-#define emith_clear_msb(d, s, count) { \
+#define emith_clear_msb(d, s, count) do { \
 	u32 t = (u32)-1; \
 	t >>= count; \
 	if (d != s) \
 		emith_move_r_r(d, s); \
 	emith_and_r_imm(d, t); \
-}
+} while (0)
 
-#define emith_clear_msb_c(cond, d, s, count) { \
+#define emith_clear_msb_c(cond, d, s, count) do { \
 	(void)(cond); \
 	emith_clear_msb(d, s, count); \
-}
+} while (0)
 
-#define emith_sext(d, s, bits) { \
+#define emith_sext(d, s, bits) do { \
 	emith_lsl(d, s, 32 - (bits)); \
 	emith_asr(d, d, 32 - (bits)); \
-}
+} while (0)
 
 #define emith_setc(r) do { \
 	assert(is_abcdx(r)); \
@@ -737,16 +737,16 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 } while (0)
 
 // assumes EBX is free
-#define emith_ret_to_ctx(offs) { \
+#define emith_ret_to_ctx(offs) do { \
 	emith_pop(xBX); \
 	emith_ctx_write(xBX, offs); \
-}
+} while (0)
 
-#define emith_jump(ptr) { \
+#define emith_jump(ptr) do { \
 	u32 disp = (u8 *)(ptr) - ((u8 *)tcache_ptr + 5); \
 	EMIT_OP(0xe9); \
 	EMIT(disp, u32); \
-}
+} while (0)
 
 #define emith_jump_patchable(target) \
 	emith_jump(target)
@@ -767,17 +767,17 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_PTR((u8 *)(ptr) + offs_, disp_ - offs_, u32); \
 } while (0)
 
-#define emith_jump_at(ptr, target) { \
+#define emith_jump_at(ptr, target) do { \
 	u32 disp_ = (u8 *)(target) - ((u8 *)(ptr) + 5); \
 	EMIT_PTR(ptr, 0xe9, u8); \
 	EMIT_PTR((u8 *)(ptr) + 1, disp_, u32); \
-}
+} while (0)
 
-#define emith_call(ptr) { \
+#define emith_call(ptr) do { \
 	u32 disp = (u8 *)(ptr) - ((u8 *)tcache_ptr + 5); \
 	EMIT_OP(0xe8); \
 	EMIT(disp, u32); \
-}
+} while (0)
 
 #define emith_call_cond(cond, ptr) \
 	emith_call(ptr)
@@ -889,18 +889,18 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	default: rd = xCX; break; \
 	}
 
-#define emith_sh2_drc_entry() { \
+#define emith_sh2_drc_entry() do { \
 	emith_push(xBX); \
 	emith_push(xBP); \
 	emith_push(xSI); /* to align */ \
-}
+} while (0)
 
-#define emith_sh2_drc_exit() {  \
+#define emith_sh2_drc_exit() do {  \
 	emith_pop(xSI); \
 	emith_pop(xBP); \
 	emith_pop(xBX); \
 	emith_ret(); \
-}
+} while (0)
 
 #else // _WIN32
 
@@ -912,22 +912,22 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	default: rd = 9; break; \
 	}
 
-#define emith_sh2_drc_entry() { \
+#define emith_sh2_drc_entry() do { \
 	emith_push(xBX); \
 	emith_push(xBP); \
 	emith_push(xSI); \
 	emith_push(xDI); \
 	emith_add_r_r_ptr_imm(xSP, xSP, -8*5); \
-}
+} while (0)
 
-#define emith_sh2_drc_exit() {  \
+#define emith_sh2_drc_exit() do {  \
 	emith_add_r_r_ptr_imm(xSP, xSP, 8*5); \
 	emith_pop(xDI); \
 	emith_pop(xSI); \
 	emith_pop(xBP); \
 	emith_pop(xBX); \
 	emith_ret(); \
-}
+} while (0)
 
 #endif // _WIN32
 
@@ -949,20 +949,20 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	default: rd = xBX; break; \
 	}
 
-#define emith_sh2_drc_entry() { \
+#define emith_sh2_drc_entry() do { \
 	emith_push(xBX);        \
 	emith_push(xBP);        \
 	emith_push(xSI);        \
 	emith_push(xDI);        \
-}
+} while (0)
 
-#define emith_sh2_drc_exit() {  \
+#define emith_sh2_drc_exit() do { \
 	emith_pop(xDI);         \
 	emith_pop(xSI);         \
 	emith_pop(xBP);         \
 	emith_pop(xBX);         \
 	emith_ret();            \
-}
+} while (0)
 
 #endif
 
@@ -982,7 +982,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	if ((mask) & (1 << xAX)) emith_pop(xAX); \
 } while (0)
 
-#define emith_sh2_rcall(a, tab, func, mask) { \
+#define emith_sh2_rcall(a, tab, func, mask) do { \
 	emith_lsr(mask, a, SH2_READ_SHIFT); \
 	EMIT_REX_IF(1, mask, tab); \
 	EMIT_OP_MODRM64(0x8d, 0, tab, 4); \
@@ -995,9 +995,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_OP_MODRM64(0x8b, 1, mask, tab); \
 	EMIT(1 << PTR_SCALE, u8); /* mov mask, [tab + {4,8}] */ \
 	emith_add_r_r_ptr(func, func); \
-}
+} while (0)
 
-#define emith_sh2_wcall(a, val, tab, func) { \
+#define emith_sh2_wcall(a, val, tab, func) do { \
 	int arg2_; \
 	host_arg2reg(arg2_, 2); \
 	emith_lsr(func, a, SH2_WRITE_SHIFT); /* tmp = a >> WRT_SHIFT */ \
@@ -1006,9 +1006,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_SIB64(PTR_SCALE, func, tab); /* mov tmp, [tab + tmp * {4,8}] */ \
 	emith_move_r_r_ptr(arg2_, CONTEXT_REG); \
 	emith_jump_reg(func); \
-}
+} while (0)
 
-#define emith_sh2_dtbf_loop() { \
+#define emith_sh2_dtbf_loop() do { \
 	u8 *jmp0; /* negative cycles check */            \
 	u8 *jmp1; /* unsinged overflow check */          \
 	int cr, rn;                                      \
@@ -1032,15 +1032,15 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_move_r_imm(rn, 0);                         \
 	JMP8_EMIT(ICOND_JA, jmp1);                       \
 	rcache_free_tmp(tmp_);                           \
-}
+} while (0)
 
-#define emith_write_sr(sr, srcr) { \
+#define emith_write_sr(sr, srcr) do { \
 	int tmp_ = rcache_get_tmp(); \
 	emith_clear_msb(tmp_, srcr, 22); \
 	emith_bic_r_imm(sr, 0x3ff); \
 	emith_or_r_r(sr, tmp_); \
 	rcache_free_tmp(tmp_); \
-}
+} while (0)
 
 #define emith_tpop_carry(sr, is_sub) \
 	emith_lsr(sr, sr, 1)
@@ -1055,7 +1055,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
  *   t = carry(Rn -= Rm)
  * T ^= t
  */
-#define emith_sh2_div1_step(rn, rm, sr) {         \
+#define emith_sh2_div1_step(rn, rm, sr) do {      \
 	u8 *jmp0, *jmp1;                          \
 	int tmp_ = rcache_get_tmp();              \
 	emith_eor_r_r(tmp_, tmp_);                \
@@ -1069,7 +1069,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_adc_r_r(tmp_, tmp_);                \
 	emith_eor_r_r(sr, tmp_);                  \
 	rcache_free_tmp(tmp_);                    \
-}
+} while (0)
 
 /* mh:ml += rn*rm, does saturation if required by S bit. rn, rm must be TEMP */
 #define emith_sh2_macl(ml, mh, rn, rm, sr) do {   \
@@ -1123,3 +1123,5 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 
 #define emith_pool_check()	/**/
 #define emith_pool_commit(j)	/**/
+#define emith_insn_ptr()	((u8 *)tcache_ptr)
+#define	emith_flush()		/**/
