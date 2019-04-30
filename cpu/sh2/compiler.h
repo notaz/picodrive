@@ -18,9 +18,14 @@ void sh2_drc_frame(void);
 /* op_flags */
 #define OF_DELAY_OP   (1 << 0)
 #define OF_BTARGET    (1 << 1)
-#define OF_T_SET      (1 << 2) // T is known to be set
-#define OF_T_CLEAR    (1 << 3) // ... clear
+#define OF_LOOP       (3 << 2) // NONE, IDLE, DELAY, POLL loop
 #define OF_B_IN_DS    (1 << 4)
+#define OF_DELAY_INSN (1 << 5) // DT, (TODO ADD+CMP?)
+#define OF_POLL_INSN  (1 << 6) // MOV @(...),Rn (no post increment), TST @(...)
+
+#define OF_IDLE_LOOP  (1 << 2)
+#define OF_DELAY_LOOP (2 << 2)
+#define OF_POLL_LOOP  (3 << 2)
 
 unsigned short scan_block(unsigned int base_pc, int is_slave,
 		unsigned char *op_flags, unsigned int *end_pc,

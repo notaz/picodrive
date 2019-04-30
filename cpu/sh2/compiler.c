@@ -41,6 +41,7 @@
 #define BRANCH_CACHE            1
 #define ALIAS_REGISTERS         1
 #define REMAP_REGISTER          1
+#define LOOP_DETECTION          1
 
 // limits (per block)
 #define MAX_BLOCK_SIZE          (BLOCK_INSN_LIMIT * 6 * 6)
@@ -135,6 +136,7 @@ enum op_types {
   OP_BRANCH_RF, // indirect far (PC + Rm)
   OP_SETCLRT,   // T flag set/clear
   OP_MOVE,      // register move
+  OP_LOAD_CONST,// load const to register
   OP_LOAD_POOL, // literal pool load, imm is address
   OP_MOVA,
   OP_SLEEP,
@@ -147,6 +149,9 @@ enum op_types {
 #define OP_ISBRAUC(op) (BITMASK4(OP_BRANCH, OP_BRANCH_R, OP_BRANCH_RF, OP_RTE) \
                                 & BITMASK1(op))
 #define OP_ISBRACND(op) (BITMASK2(OP_BRANCH_CT, OP_BRANCH_CF) & BITMASK1(op))
+#define OP_ISBRAIMM(op) (BITMASK3(OP_BRANCH, OP_BRANCH_CT, OP_BRANCH_CF) \
+				& BITMASK1(op))
+#define OP_ISBRAIND(op) (BITMASK2(OP_BRANCH_R, OP_BRANCH_RF) & BITMASK1(op))
 
 #ifdef DRC_SH2
 
@@ -2537,7 +2542,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   u32 branch_patch_pc[MAX_LOCAL_BRANCHES];
   int branch_patch_count = 0;
   u8 op_flags[BLOCK_INSN_LIMIT];
-  struct {
+  struct drcf {
+    int delay_reg:8;
+    u32 loop_type:8;
     u32 test_irq:1;
     u32 pending_branch_direct:1;
     u32 pending_branch_indirect:1;
@@ -2556,7 +2563,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   int tmp, tmp2;
   int cycles;
   int i, v;
-  u32 u;
+  u32 u, m1, m2;
   int op;
   u16 crc;
 
@@ -2603,14 +2610,64 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   }
 
   // collect branch_targets that don't land on delay slots
+  m1 = m2 = v = op = 0;
   for (pc = base_pc, i = 0; pc < end_pc; i++, pc += 2) {
-    if (!(op_flags[i] & OF_BTARGET))
-      continue;
-    if (op_flags[i] & OF_DELAY_OP) {
+    if (op_flags[i] & OF_DELAY_OP)
       op_flags[i] &= ~OF_BTARGET;
-      continue;
+    if (op_flags[i] & OF_BTARGET)
+      ADD_TO_ARRAY(branch_target_pc, branch_target_count, pc, );
+#if LOOP_DETECTION
+    // loop types detected:
+    // 1. target: ... BRA target -> idle loop
+    // 2. target: ... delay insn ... BF target -> delay loop
+    // 3. target: ... poll  insn ... BF/BT target -> poll loop
+    // 4. target: ... poll  insn ... BF/BT exit ... BRA target, exit: -> poll
+    // conditions:
+    // a. no further branch targets between target and back jump.
+    // b. no unconditional branch insn inside the loop.
+    // c. exactly one poll or delay insn is allowed inside a delay/poll loop
+    // (scan_block marks loops only if they meet conditions a through c)
+    // d. idle loops do not modify anything but PC,SR and contain no branches
+    // e. delay/poll loops do not modify anything but the concerned reg,PC,SR
+    // f. loading constants into registers inside the loop is allowed
+    // g. a delay/poll loop must have a conditional branch somewhere
+    // h. an idle loop must not have a conditional branch
+    if (op_flags[i] & OF_BTARGET) {
+      // possible loop entry point
+      drcf.loop_type = op_flags[i] & OF_LOOP;
+      drcf.pending_branch_direct = drcf.pending_branch_indirect = 0;
+      op = OF_IDLE_LOOP; // loop type
+      v = i;
+      m1 = m2 = 0;
     }
-    ADD_TO_ARRAY(branch_target_pc, branch_target_count, pc, break);
+    if (drcf.loop_type) {
+      // detect loop type, and store poll/delay register
+      if (op_flags[i] & OF_POLL_INSN) {
+        op = OF_POLL_LOOP;
+        m1 |= ops[i].dest;   // loop poll/delay regs
+      } else if (op_flags[i] & OF_DELAY_INSN) {
+        op = OF_DELAY_LOOP;
+        m1 |= ops[i].dest;
+      } else if (ops[i].op != OP_LOAD_POOL && ops[i].op != OP_LOAD_CONST
+              && (ops[i].op != OP_MOVE || op != OF_POLL_LOOP)) {
+        // not (MOV @(PC) or MOV # or (MOV reg and poll)),   condition f
+        m2 |= ops[i].dest;   // regs modified by other insns
+      }
+      // branch detector
+      if (OP_ISBRAIMM(ops[i].op) && ops[i].imm == base_pc + 2*v)
+        drcf.pending_branch_direct = 1;         // backward branch detected
+      if (OP_ISBRACND(ops[i].op))
+        drcf.pending_branch_indirect = 1;       // conditions g,h - cond.branch
+      // poll/idle loops terminate with their backwards branch to the loop start
+      if (drcf.pending_branch_direct && !(op_flags[i+1] & OF_DELAY_OP)) {
+        m2 &= ~(m1 | BITMASK2(SHR_PC, SHR_SR)); // conditions d,e + g,h
+        if (m2 || ((op == OF_IDLE_LOOP) == (drcf.pending_branch_indirect)))
+          op = 0;                               // conditions not met
+        op_flags[v] = (op_flags[v] & ~OF_LOOP) | op; // set loop type
+        drcf.loop_type = 0;
+      }
+    }
+#endif
   }
 
   if (branch_target_count > 0) {
@@ -2634,6 +2691,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
   // clear stale state after compile errors
   rcache_invalidate();
+  drcf = (struct drcf) { 0 };
 
   // -------------------------------------------------
   // 3rd pass: actual compilation
@@ -2653,8 +2711,14 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #endif
 #if (DRC_DEBUG & 4)
     DasmSH2(sh2dasm_buff, pc, op);
-    printf("%c%08x %04x %s\n", (op_flags[i] & OF_BTARGET) ? '*' : ' ',
-      pc, op, sh2dasm_buff);
+    if (op_flags[i] & OF_BTARGET) {
+      if ((op_flags[i] & OF_LOOP) == OF_DELAY_LOOP)     tmp3 = '+';
+      else if ((op_flags[i] & OF_LOOP) == OF_POLL_LOOP) tmp3 = '=';
+      else if ((op_flags[i] & OF_LOOP) == OF_IDLE_LOOP) tmp3 = '~';
+      else                                              tmp3 = '*';
+    } else if (drcf.loop_type)                          tmp3 = '.';
+    else                                                tmp3 = ' ';
+    printf("%c%08x %04x %s\n", tmp3, pc, op, sh2dasm_buff);
 #endif
 
     if (op_flags[i] & OF_BTARGET)
@@ -2702,6 +2766,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       v = find_in_array(branch_target_pc, branch_target_count, pc);
       if (v >= 0)
         branch_target_ptr[v] = tcache_ptr;
+#if LOOP_DETECTION
+      drcf.loop_type = op_flags[i] & OF_LOOP;
+      drcf.delay_reg = -1;
+#endif
 
       // must update PC
       emit_move_r_imm32(SHR_PC, pc);
@@ -3388,6 +3456,14 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           goto end_op;
         case 1: // DT Rn      0100nnnn00010000
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+#if LOOP_DETECTION
+          if (drcf.loop_type == OF_DELAY_LOOP) {
+            if (drcf.delay_reg == -1)
+              drcf.delay_reg = GET_Rn();
+            else
+              drcf.loop_type = 0;
+          }
+#endif
           emith_bic_r_imm(sr, T);
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp2);
           emith_subf_r_r_imm(tmp, tmp2, 1);
@@ -3832,7 +3908,7 @@ end_op:
       drcf.test_irq = 0;
     }
 
-    // branch handling (with/without delay)
+    // branch handling
     if (drcf.pending_branch_direct)
     {
       struct op_data *opd_b =
@@ -3846,6 +3922,16 @@ end_op:
         ctaken = (op_flags[i] & OF_DELAY_OP) ? 1 : 2;
       }
       cycles += ctaken; // assume branch taken
+#if LOOP_DETECTION
+      if ((drcf.loop_type == OF_IDLE_LOOP ||
+          (drcf.loop_type == OF_DELAY_LOOP && drcf.delay_reg >= 0)))
+      {
+        // idle or delay loop
+        emith_sh2_delay_loop(cycles, drcf.delay_reg);
+        drcf.loop_type = 0;
+      }
+#endif
+
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
       FLUSH_CYCLES(sr);
       rcache_clean();
@@ -3902,6 +3988,8 @@ end_op:
         emith_add_r_imm(sr, ctaken << 12);
 
       drcf.pending_branch_direct = 0;
+      if (target_pc >= base_pc && target_pc < pc)
+        drcf.loop_type = 0;
     }
     else if (drcf.pending_branch_indirect) {
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
@@ -3909,6 +3997,7 @@ end_op:
       rcache_flush();
       emith_jump(sh2_drc_dispatcher);
       drcf.pending_branch_indirect = 0;
+      drcf.loop_type = 0;
     }
 
     do_host_disasm(tcache_id);
@@ -4729,6 +4818,9 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
   int end_block = 0;
   int i, i_end;
   u32 crc = 0;
+  // 2nd pass stuff
+  int last_btarget; // loop detector 
+  enum { T_UNKNOWN, T_CLEAR, T_SET } t; // T propagation state
 
   memset(op_flags, 0, sizeof(*op_flags) * BLOCK_INSN_LIMIT);
   op_flags[0] |= OF_BTARGET; // block start is always a target
@@ -4903,6 +4995,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
       case 0x0e: // MOV.L    @(R0,Rm),Rn      0000nnnnmmmm1110
         opd->source = BITMASK3(GET_Rm(), SHR_R0, SHR_MEM);
         opd->dest = BITMASK1(GET_Rn());
+        op_flags[i] |= OF_POLL_INSN;
         break;
       case 0x0f: // MAC.L   @Rm+,@Rn+  0000nnnnmmmm1111
         opd->source = BITMASK6(GET_Rm(), GET_Rn(), SHR_SR, SHR_MACL, SHR_MACH, SHR_MEM);
@@ -5027,6 +5120,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
         case 1: // DT Rn      0100nnnn00010000
           opd->source = BITMASK1(GET_Rn());
           opd->dest = BITMASK2(GET_Rn(), SHR_T);
+          op_flags[i] |= OF_DELAY_INSN;
           break;
         default:
           goto undefined;
@@ -5235,6 +5329,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
       opd->source = BITMASK2(GET_Rm(), SHR_MEM);
       opd->dest = BITMASK1(GET_Rn());
       opd->imm = (op & 0x0f) * 4;
+      op_flags[i] |= OF_POLL_INSN;
       break;
 
     /////////////////////////////////////////////
@@ -5252,6 +5347,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
       case 0x02: // MOV.L @Rm,Rn        0110nnnnmmmm0010
         opd->dest = BITMASK1(GET_Rn());
         opd->source = BITMASK2(GET_Rm(), SHR_MEM);
+        op_flags[i] |= OF_POLL_INSN;
         break;
       case 0x0a: // NEGC   Rm,Rn        0110nnnnmmmm1010
         opd->source = BITMASK2(GET_Rm(), SHR_T);
@@ -5394,6 +5490,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
         opd->dest = BITMASK1(SHR_R0);
         opd->size = (op & 0x300) >> 8;
         opd->imm = (op & 0xff) << opd->size;
+        op_flags[i] |= OF_POLL_INSN;
         break;
       case 0x0300: // TRAPA #imm      11000011iiiiiiii
         opd->op = OP_TRAPA;
@@ -5481,6 +5578,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
     /////////////////////////////////////////////
     case 0x0e:
       // MOV #imm,Rn   1110nnnniiiiiiii
+      opd->op = OP_LOAD_CONST;
       opd->dest = BITMASK1(GET_Rn());
       opd->imm = (s8)op;
       break;
@@ -5517,32 +5615,29 @@ end:
 
   // 2nd pass: some analysis
   lowest_literal = end_literals = lowest_mova = 0;
+  t = T_UNKNOWN;
+  last_btarget = 0;
+  op = 0; // delay/poll insns counter
   for (i = 0, pc = base_pc; i < i_end; i++, pc += 2) {
     opd = &ops[i];
     crc += FETCH_OP(pc);
 
     // propagate T (TODO: DIV0U)
-    if ((opd->op == OP_SETCLRT && !opd->imm) || opd->op == OP_BRANCH_CT)
-      op_flags[i + 1] |= OF_T_CLEAR;
-    else if ((opd->op == OP_SETCLRT && opd->imm) || opd->op == OP_BRANCH_CF)
-      op_flags[i + 1] |= OF_T_SET;
-
     if ((op_flags[i] & OF_BTARGET) || (opd->dest & BITMASK1(SHR_T)))
-      op_flags[i] &= ~(OF_T_SET | OF_T_CLEAR);
-    else
-      op_flags[i + 1] |= op_flags[i] & (OF_T_SET | OF_T_CLEAR);
+      t = T_UNKNOWN;
 
-    if ((opd->op == OP_BRANCH_CT && (op_flags[i] & OF_T_CLEAR)) ||
-        (opd->op == OP_BRANCH_CF && (op_flags[i] & OF_T_SET)))
-      opd->op = OP_BRANCH_N;
-    else if ((opd->op == OP_BRANCH_CT && (op_flags[i] & OF_T_SET)) ||
-             (opd->op == OP_BRANCH_CF && (op_flags[i] & OF_T_CLEAR))) {
+    if ((opd->op == OP_BRANCH_CT && t == T_SET) ||
+        (opd->op == OP_BRANCH_CF && t == T_CLEAR)) {
       opd->op = OP_BRANCH;
-      if (op_flags[i + 1] & OF_DELAY_OP)
-        opd->cycles = 2;
-      else
-        opd->cycles = 3;
-    }
+      opd->cycles = (op_flags[i + 1] & OF_DELAY_OP) ? 2 : 3;
+    } else if ((opd->op == OP_BRANCH_CT && t == T_CLEAR) ||
+               (opd->op == OP_BRANCH_CF && t == T_SET))
+      opd->op = OP_BRANCH_N;
+    else if ((opd->op == OP_SETCLRT && !opd->imm) || opd->op == OP_BRANCH_CT)
+      t = T_CLEAR;
+    else if ((opd->op == OP_SETCLRT && opd->imm) || opd->op == OP_BRANCH_CF)
+      t = T_SET;
+
     // "overscan" detection: unreachable code after unconditional branch
     // this can happen if the insn after a forward branch isn't a local target
     if (OP_ISBRAUC(opd->op)) {
@@ -5575,6 +5670,32 @@ end:
         }
       }
     }
+#if LOOP_DETECTION
+    // inner loop detection
+    // 1. a loop always starts with a branch target (for the backwards jump)
+    // 2. it doesn't contain more than one polling and/or delaying insn
+    // 3. it doesn't contain unconditional jumps
+    // 4. no overlapping of loops
+    if (op_flags[i] & OF_BTARGET) {
+      last_btarget = i;         // possible loop starting point
+      op = 0;
+    }
+    // XXX let's hope nobody is putting a delay or poll insn in a delay slot :-/
+    if (OP_ISBRAIMM(opd->op)) {
+      // BSR, BRA, BT, BF with immediate target
+      int i_tmp = (opd->imm - base_pc) / 2; // branch target, index in ops
+      if (i_tmp == last_btarget && op <= 1) {
+        op_flags[i_tmp] |= OF_LOOP; // conditions met -> mark loop
+        last_btarget = i+1;     // condition 4
+      } else if (opd->op == OP_BRANCH)
+        last_btarget = i+1;     // condition 3
+    }
+    else if (OP_ISBRAIND(opd->op))
+      // BRAF, BSRF, JMP, JSR, register indirect. treat it as off-limits jump
+      last_btarget = i+1;       // condition 3
+    else if (op_flags[i] & (OF_POLL_INSN|OF_DELAY_INSN))
+      op ++;                    // condition 2 
+#endif
   }
   end_pc = base_pc + i_end * 2;
 

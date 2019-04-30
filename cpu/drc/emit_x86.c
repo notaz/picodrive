@@ -293,6 +293,20 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	rcache_free_tmp(tmp_); \
 } while (0)
 
+#define emith_sub_r_r_r_lsl(d, s1, s2, lslimm) do { \
+	int tmp_ = rcache_get_tmp(); \
+	emith_lsl(tmp_, s2, lslimm); \
+	emith_sub_r_r_r(d, s1, tmp_); \
+	rcache_free_tmp(tmp_); \
+} while (0)
+
+#define emith_or_r_r_r_lsl(d, s1, s2, lslimm) do { \
+	int tmp_ = rcache_get_tmp(); \
+	emith_lsl(tmp_, s2, lslimm); \
+	emith_or_r_r_r(d, s1, tmp_); \
+	rcache_free_tmp(tmp_); \
+} while (0)
+
 // _r_r_shift
 #define emith_or_r_r_lsl(d, s, lslimm) do { \
 	int tmp_ = rcache_get_tmp(); \
@@ -394,6 +408,10 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_ror(d, s, cnt)
 #define emith_and_r_r_c(cond, d, s) \
 	emith_and_r_r(d, s);
+#define emith_add_r_r_imm_c(cond, d, s, imm) \
+	emith_add_r_r_imm(d, s, imm);
+#define emith_sub_r_r_imm_c(cond, d, s, imm) \
+	emith_sub_r_r_imm(d, s, imm);
 
 #define emith_read8_r_r_r_c(cond, r, rs, rm) \
 	emith_read8_r_r_r(r, rs, rm)
@@ -1032,6 +1050,44 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_move_r_imm(rn, 0);                         \
 	JMP8_EMIT(ICOND_JA, jmp1);                       \
 	rcache_free_tmp(tmp_);                           \
+} while (0)
+
+#define emith_sh2_delay_loop(cycles, reg) do {			\
+	int sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);	\
+	int t1 = rcache_get_tmp();				\
+	int t2 = rcache_get_tmp();				\
+	int t3 = rcache_get_tmp();				\
+	if (t3 == xAX) { t3 = t1; t1 = xAX; } /* for MUL */	\
+	if (t3 == xDX) { t3 = t2; t2 = xDX; }			\
+	/* if (sr < 0) return */				\
+	emith_asrf(t2, sr, 12);					\
+	EMITH_JMP_START(DCOND_LE);				\
+	/* turns = sr.cycles / cycles */			\
+	emith_move_r_imm(t3, (u32)((1ULL<<32) / (cycles)) + 1);	\
+	emith_mul_u64(t1, t2, t2, t3); /* multiply by 1/x */	\
+	rcache_free_tmp(t3);					\
+	if (reg >= 0) {						\
+		/* if (reg <= turns) turns = reg-1 */		\
+		t3 = rcache_get_reg(reg, RC_GR_RMW, NULL);	\
+		emith_cmp_r_r(t3, t2);				\
+		EMITH_SJMP_START(DCOND_GT);			\
+		emith_sub_r_r_imm_c(DCOND_LE, t2, t3, 1);	\
+		EMITH_SJMP_END(DCOND_GT);			\
+		/* if (reg <= 1) turns = 0 */			\
+		emith_cmp_r_imm(t3, 1);				\
+		EMITH_SJMP_START(DCOND_GT);			\
+		emith_move_r_imm_c(DCOND_LE, t2, 0);		\
+		EMITH_SJMP_END(DCOND_GT);			\
+		/* reg -= turns */				\
+		emith_sub_r_r(t3, t2);				\
+	}							\
+	/* sr.cycles -= turns * cycles; */			\
+	emith_move_r_imm(t1, cycles);				\
+	emith_mul_u64(t1, t2, t1, t2);				\
+	emith_sub_r_r_r_lsl(sr, sr, t1, 12);			\
+	EMITH_JMP_END(DCOND_LE);				\
+	rcache_free_tmp(t1);					\
+	rcache_free_tmp(t2);					\
 } while (0)
 
 #define emith_write_sr(sr, srcr) do { \

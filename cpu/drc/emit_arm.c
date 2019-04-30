@@ -846,6 +846,9 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define emith_add_r_r_ptr_imm(d, s, imm) \
 	emith_add_r_r_imm(d, s, imm)
 
+#define emith_sub_r_r_imm_c(cond, d, s, imm) \
+	emith_op_imm2(cond, 0, A_OP_SUB, d, s, (imm))
+
 #define emith_sub_r_r_imm(d, s, imm) \
 	emith_op_imm2(A_COND_AL, 0, A_OP_SUB, d, s, imm)
 
@@ -1170,6 +1173,38 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	EOP_ORR_IMM_C(A_COND_LS,cr,cr,0,1);    /* orrls cr, #1 */            \
 	EOP_MOV_IMM_C(A_COND_LS,rn,0,0);       /* movls rn, #0 */            \
 	rcache_free_tmp(tmp_);                                               \
+} while (0)
+
+#define emith_sh2_delay_loop(cycles, reg) do {			\
+	int sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);	\
+	int t1 = rcache_get_tmp();				\
+	int t2 = rcache_get_tmp();				\
+	int t3 = rcache_get_tmp();				\
+	/* if (sr < 0) return */				\
+	emith_asrf(t2, sr, 12);					\
+	EMITH_JMP_START(DCOND_LE);				\
+	/* turns = sr.cycles / cycles */			\
+	emith_move_r_imm(t3, (u32)((1ULL<<32) / (cycles)) + 1);	\
+	emith_mul_u64(t1, t2, t2, t3); /* multiply by 1/x */	\
+	rcache_free_tmp(t3);					\
+	if (reg >= 0) {						\
+		/* if (reg <= turns) turns = reg-1 */		\
+		t3 = rcache_get_reg(reg, RC_GR_RMW, NULL);	\
+		emith_cmp_r_r(t3, t2);				\
+		emith_sub_r_r_imm_c(DCOND_LE, t2, t3, 1);	\
+		/* if (reg <= 1) turns = 0 */			\
+		emith_cmp_r_imm(t3, 1);				\
+		emith_move_r_imm_c(DCOND_LE, t2, 0);		\
+		/* reg -= turns */				\
+		emith_sub_r_r(t3, t2);				\
+	}							\
+	/* sr.cycles -= turns * cycles; */			\
+	emith_move_r_imm(t1, cycles);				\
+	emith_mul(t1, t2, t1);					\
+	emith_sub_r_r_r_lsl(sr, sr, t1, 12);			\
+	EMITH_JMP_END(DCOND_LE);				\
+	rcache_free_tmp(t1);					\
+	rcache_free_tmp(t2);					\
 } while (0)
 
 #define emith_write_sr(sr, srcr) do { \
