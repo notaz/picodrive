@@ -636,9 +636,13 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define EMITH_SJMP3_MID(cond)	EMITH_NOTHING1(cond)
 #define EMITH_SJMP3_END()
 
+#define emith_move_r_r_c(cond, d, s) \
+	EOP_MOV_REG(cond,0,d,s,A_AM1_LSL,0)
 #define emith_move_r_r(d, s) \
-	EOP_MOV_REG_SIMPLE(d, s)
+	emith_move_r_r_c(A_COND_AL, d, s)
 
+#define emith_move_r_r_ptr_c(cond, d, s) \
+	emith_move_r_r_c(cond, d, s)
 #define emith_move_r_r_ptr(d, s) \
 	emith_move_r_r(d, s)
 
@@ -1116,11 +1120,16 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define emith_ret_to_ctx(offs) \
 	emith_ctx_write(LR, offs)
 
-#define emith_push_ret() \
-	EOP_STMFD_SP(M1(LR))
+/* pushes r12 for eabi alignment */
+#define emith_push_ret(r) do { \
+	int r_ = (r >= 0 ? r : 12); \
+	EOP_STMFD_SP(M2(r_,LR)); \
+} while (0)
 
-#define emith_pop_and_ret() \
-	EOP_LDMFD_SP(M1(PC))
+#define emith_pop_and_ret(r) do { \
+	int r_ = (r >= 0 ? r : 12); \
+	EOP_LDMFD_SP(M2(r_,PC)); \
+} while (0)
 
 #define host_instructions_updated(base, end) \
 	cache_flush_d_inval_i(base, end)
