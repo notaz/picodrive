@@ -227,9 +227,9 @@ sh2_write32_sdram:
     ldrb    r1, [ip, r3, lsr #SH2_RAM_SHIFT+1]!
     cmp     r1, #0
     beq     1f
-    stmfd   sp!, {r0, r1, r2, ip}
+    stmfd   sp!, {r0, r2, ip, lr}
     bl      sh2_drc_wcheck_ram
-    ldmfd   sp!, {r0, r1, r2, ip}
+    ldmfd   sp!, {r0, r2, ip, lr}
 1:  ldrb    r1, [ip, #1]
     cmp     r1, #0
     bxeq    lr
@@ -250,9 +250,9 @@ sh2_write32_da:
     ldrb    r1, [ip, r3, lsr #SH2_DA_SHIFT+1]!
     cmp     r1, #0
     beq     1f
-    stmfd   sp!, {r0, r1, r2, ip}
+    stmfd   sp!, {r0, r2, ip, lr}
     bl      sh2_drc_wcheck_da
-    ldmfd   sp!, {r0, r1, r2, ip}
+    ldmfd   sp!, {r0, r2, ip, lr}
 1:  ldrb    r1, [ip, #1]
     cmp     r1, #0
     bxeq    lr
@@ -269,7 +269,6 @@ sh2_write32_dram:
     moveq   r1, r1, ror #16
     streq   r1, [ip, r3, lsr #SH2_DRAM_SHIFT]
     bxeq    lr
-#if 1
     ldr     r0, [ip, r3, lsr #SH2_DRAM_SHIFT]
     mov     r1, r1, ror #16
     mov     r2, #0
@@ -284,20 +283,6 @@ sh2_write32_dram:
     bic     r0, r0, r2
     orr     r0, r0, r1
     str     r0, [ip, r3, lsr #SH2_DRAM_SHIFT]
-#else
-    add     ip, ip, r3, lsr #SH2_DRAM_SHIFT
-    tst     r1, #0x00ff0000
-    lsrne   r3, r1, #16
-    strneb  r3, [ip, #0]
-    tst     r1, #0xff000000
-    lsrne   r3, r1, #24
-    strneb  r3, [ip, #1]
-    tst     r1, #0x000000ff
-    strneb  r1, [ip, #2]
-    tst     r1, #0x0000ff00
-    lsrne   r3, r1, #8
-    strneb  r3, [ip, #3]
-#endif
     bx      lr
 
 .pool

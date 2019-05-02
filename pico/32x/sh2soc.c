@@ -138,6 +138,7 @@ static void dmac_trigger(SH2 *sh2, struct dma_chan *chan)
 
   if (chan->chcr & DMA_AR) {
     // auto-request transfer
+    sh2->state |= SH2_STATE_SLEEP;
     while ((int)chan->tcr > 0)
       dmac_transfer_one(sh2, chan);
     dmac_transfer_complete(sh2, chan);
@@ -237,6 +238,7 @@ u32 REGPARM(2) sh2_peripheral_read8(u32 a, SH2 *sh2)
   a &= 0x1ff;
   d = PREG8(r, a);
 
+  sh2->poll_cnt = 0;
   elprintf_sh2(sh2, EL_32XP, "peri r8  [%08x]       %02x @%06x",
     a | ~0x1ff, d, sh2_pc(sh2));
   return d;
@@ -250,6 +252,7 @@ u32 REGPARM(2) sh2_peripheral_read16(u32 a, SH2 *sh2)
   a &= 0x1fe;
   d = r[(a / 2) ^ 1];
 
+  sh2->poll_cnt = 0;
   elprintf_sh2(sh2, EL_32XP, "peri r16 [%08x]     %04x @%06x",
     a | ~0x1ff, d, sh2_pc(sh2));
   return d;
@@ -258,9 +261,11 @@ u32 REGPARM(2) sh2_peripheral_read16(u32 a, SH2 *sh2)
 u32 REGPARM(2) sh2_peripheral_read32(u32 a, SH2 *sh2)
 {
   u32 d;
+
   a &= 0x1fc;
   d = sh2->peri_regs[a / 4];
 
+  sh2->poll_cnt = 0;
   elprintf_sh2(sh2, EL_32XP, "peri r32 [%08x] %08x @%06x",
     a | ~0x1ff, d, sh2_pc(sh2));
   return d;
@@ -472,6 +477,7 @@ static void dreq1_do(SH2 *sh2, struct dma_chan *chan)
   if ((chan->dar & ~0xf) != 0x20004030)
     elprintf(EL_32XP|EL_ANOMALY, "dreq1: bad dar?: %08x\n", chan->dar);
 
+  sh2->state |= SH2_STATE_SLEEP;
   dmac_transfer_one(sh2, chan);
   if (chan->tcr == 0)
     dmac_transfer_complete(sh2, chan);

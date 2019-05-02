@@ -381,21 +381,12 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_arith_r_imm(4, r, ~(imm))
 
 // fake conditionals (using SJMP instead)
-#define emith_move_r_imm_c(cond, r, imm) do { \
-	(void)(cond); \
-	emith_move_r_imm(r, imm); \
-} while (0)
-
-#define emith_add_r_imm_c(cond, r, imm) do { \
-	(void)(cond); \
-	emith_add_r_imm(r, imm); \
-} while (0)
-
-#define emith_sub_r_imm_c(cond, r, imm) do { \
-	(void)(cond); \
-	emith_sub_r_imm(r, imm); \
-} while (0)
-
+#define emith_move_r_imm_c(cond, r, imm) \
+	emith_move_r_imm(r, imm);
+#define emith_add_r_imm_c(cond, r, imm) \
+	emith_add_r_imm(r, imm);
+#define emith_sub_r_imm_c(cond, r, imm) \
+	emith_sub_r_imm(r, imm);
 #define emith_or_r_imm_c(cond, r, imm) \
 	emith_or_r_imm(r, imm)
 #define emith_eor_r_imm_c(cond, r, imm) \
@@ -404,6 +395,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	emith_bic_r_imm(r, imm)
 #define emith_tst_r_imm_c(cond, r, imm) \
 	emith_tst_r_imm(r, imm)
+#define emith_move_r_r_ptr_c(cond, d, s) \
+	emith_move_r_r_ptr(d, s)
 #define emith_ror_c(cond, d, s, cnt) \
 	emith_ror(d, s, cnt)
 #define emith_and_r_r_c(cond, d, s) \
@@ -819,12 +812,16 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT(offs, u32); \
 } while (0)
 
-#define emith_push_ret() \
-	emith_push(xSI); /* to align */
+#define emith_push_ret(r) do { \
+	int r_ = (r >= 0 ? r : xSI); \
+	emith_push(r_); /* always push to align */ \
+} while (0)
 
-#define emith_pop_and_ret() \
-	emith_pop(xSI); \
-	emith_ret()
+#define emith_pop_and_ret(r) do { \
+	int r_ = (r >= 0 ? r : xSI); \
+	emith_pop(r_); \
+	emith_ret(); \
+} while (0)
 
 #define EMITH_JMP_START(cond) { \
 	u8 *cond_ptr; \

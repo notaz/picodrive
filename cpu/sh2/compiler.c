@@ -532,6 +532,9 @@ static void            (*sh2_drc_test_irq)(void);
 static u32  REGPARM(1) (*sh2_drc_read8)(u32 a);
 static u32  REGPARM(1) (*sh2_drc_read16)(u32 a);
 static u32  REGPARM(1) (*sh2_drc_read32)(u32 a);
+static u32  REGPARM(1) (*sh2_drc_read8_poll)(u32 a);
+static u32  REGPARM(1) (*sh2_drc_read16_poll)(u32 a);
+static u32  REGPARM(1) (*sh2_drc_read32_poll)(u32 a);
 static void REGPARM(2) (*sh2_drc_write8)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write16)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write32)(u32 a, u32 d);
@@ -540,6 +543,7 @@ static void REGPARM(2) (*sh2_drc_write32)(u32 a, u32 d);
 #define MF_SIZEMASK 0x03        // size of access
 #define MF_POSTINCR 0x10        // post increment (for read_rr)
 #define MF_PREDECR  MF_POSTINCR // pre decrement (for write_rr)
+#define MF_POLLING  0x20	// include polling check in read
 
 // address space stuff
 static int dr_is_rom(u32 a)
@@ -2263,11 +2267,18 @@ static int emit_memhandler_read(int size)
     rcache_evict_vreg(guest_regs[SHR_SR].vreg);
 #endif
 
-  switch (size & MF_SIZEMASK) {
-  case 0:   emith_call(sh2_drc_read8);      break; // 8
-  case 1:   emith_call(sh2_drc_read16);     break; // 16
-  case 2:   emith_call(sh2_drc_read32);     break; // 32
-  }
+  if (size & MF_POLLING)
+    switch (size & MF_SIZEMASK) {
+    case 0:   emith_call(sh2_drc_read8_poll);   break; // 8
+    case 1:   emith_call(sh2_drc_read16_poll);  break; // 16
+    case 2:   emith_call(sh2_drc_read32_poll);  break; // 32
+    }
+  else
+    switch (size & MF_SIZEMASK) {
+    case 0:   emith_call(sh2_drc_read8);        break; // 8
+    case 1:   emith_call(sh2_drc_read16);       break; // 16
+    case 2:   emith_call(sh2_drc_read32);       break; // 32
+    }
 
   rcache_invalidate_tmp();
   return rcache_get_tmp_ret();
@@ -2545,6 +2556,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   struct drcf {
     int delay_reg:8;
     u32 loop_type:8;
+    u32 polling:8;
     u32 test_irq:1;
     u32 pending_branch_direct:1;
     u32 pending_branch_indirect:1;
@@ -2769,6 +2781,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #if LOOP_DETECTION
       drcf.loop_type = op_flags[i] & OF_LOOP;
       drcf.delay_reg = -1;
+      drcf.polling = (drcf.loop_type == OF_POLL_LOOP ? MF_POLLING : 0);
 #endif
 
       // must update PC
@@ -3176,7 +3189,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x0c: // MOV.B    @(R0,Rm),Rn      0000nnnnmmmm1100
       case 0x0d: // MOV.W    @(R0,Rm),Rn      0000nnnnmmmm1101
       case 0x0e: // MOV.L    @(R0,Rm),Rn      0000nnnnmmmm1110
-        emit_indirect_indexed_read(sh2, GET_Rn(), SHR_R0, GET_Rm(), op & 3);
+        emit_indirect_indexed_read(sh2, GET_Rn(), SHR_R0, GET_Rm(), (op & 3) | drcf.polling);
         goto end_op;
       case 0x0f: // MAC.L   @Rm+,@Rn+  0000nnnnmmmm1111
         emit_indirect_read_double(sh2, &tmp, &tmp2, GET_Rn(), GET_Rm(), 2);
@@ -3700,7 +3713,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
     /////////////////////////////////////////////
     case 0x05: // MOV.L @(disp,Rm),Rn 0101nnnnmmmmdddd
-      emit_memhandler_read_rr(sh2, GET_Rn(), GET_Rm(), (op & 0x0f) * 4, 2);
+      emit_memhandler_read_rr(sh2, GET_Rn(), GET_Rm(), (op & 0x0f) * 4, 2 | drcf.polling);
       goto end_op;
 
     /////////////////////////////////////////////
@@ -3713,7 +3726,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x04: // MOV.B @Rm+,Rn       0110nnnnmmmm0100
       case 0x05: // MOV.W @Rm+,Rn       0110nnnnmmmm0101
       case 0x06: // MOV.L @Rm+,Rn       0110nnnnmmmm0110
-        tmp = ((op & 7) >= 4 && GET_Rn() != GET_Rm()) ? MF_POSTINCR : 0;
+        tmp = ((op & 7) >= 4 && GET_Rn() != GET_Rm()) ? MF_POSTINCR : drcf.polling;
         emit_memhandler_read_rr(sh2, GET_Rn(), GET_Rm(), 0, (op & 3) | tmp);
         goto end_op;
       case 0x03: // MOV    Rm,Rn        0110nnnnmmmm0011
@@ -3791,7 +3804,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x0400: // MOV.B @(disp,Rm),R0  10000100mmmmdddd
       case 0x0500: // MOV.W @(disp,Rm),R0  10000101mmmmdddd
         tmp = (op & 0x100) >> 8;
-        emit_memhandler_read_rr(sh2, SHR_R0, GET_Rm(), (op & 0x0f) << tmp, tmp);
+        emit_memhandler_read_rr(sh2, SHR_R0, GET_Rm(), (op & 0x0f) << tmp, tmp | drcf.polling);
         goto end_op;
       case 0x0800: // CMP/EQ #imm,R0       10001000iiiiiiii
         tmp2 = rcache_get_reg(SHR_R0, RC_GR_READ, NULL);
@@ -3817,7 +3830,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x0500: // MOV.W @(disp,GBR),R0   11000101dddddddd
       case 0x0600: // MOV.L @(disp,GBR),R0   11000110dddddddd
         tmp = (op & 0x300) >> 8;
-        emit_memhandler_read_rr(sh2, SHR_R0, SHR_GBR, (op & 0xff) << tmp, tmp);
+        emit_memhandler_read_rr(sh2, SHR_R0, SHR_GBR, (op & 0xff) << tmp, tmp | drcf.polling);
         goto end_op;
       case 0x0800: // TST #imm,R0           11001000iiiiiiii
         tmp = rcache_get_reg(SHR_R0, RC_GR_READ, NULL);
@@ -3843,7 +3856,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         }
         goto end_op;
       case 0x0c00: // TST.B #imm,@(R0,GBR)  11001100iiiiiiii
-        tmp = emit_indirect_indexed_read(sh2, SHR_TMP, SHR_R0, SHR_GBR, 0);
+        tmp = emit_indirect_indexed_read(sh2, SHR_TMP, SHR_R0, SHR_GBR, 0 | drcf.polling);
         sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
         emith_bic_r_imm(sr, T);
         emith_tst_r_imm(tmp, op & 0xff);
@@ -4149,6 +4162,56 @@ static void sh2_generate_utils(void)
   emith_jump_reg(arg2);
   emith_flush();
 
+  // d = sh2_drc_read8_poll(u32 a)
+  sh2_drc_read8_poll = (void *)tcache_ptr;
+  emith_ctx_read_ptr(arg1, offsetof(SH2, read8_map));
+  emith_sh2_rcall(arg0, arg1, arg2, arg3);
+  EMITH_SJMP_START(DCOND_CC);
+  emith_move_r_r_ptr_c(DCOND_CS, arg1, CONTEXT_REG);
+  emith_jump_reg_c(DCOND_CS, arg2);
+  EMITH_SJMP_END(DCOND_CC);
+  emith_and_r_r_r(arg1, arg0, arg3);
+  emith_eor_r_imm(arg1, 1);
+  emith_read8s_r_r_r(arg1, arg1, arg2);
+  emith_push_ret(arg1);
+  emith_move_r_r_ptr(arg1, CONTEXT_REG);
+  emith_call(p32x_sh2_poll_memory);
+  emith_pop_and_ret(RET_REG);
+  emith_flush();
+
+  // d = sh2_drc_read16_poll(u32 a)
+  sh2_drc_read16_poll = (void *)tcache_ptr;
+  emith_ctx_read_ptr(arg1, offsetof(SH2, read16_map));
+  emith_sh2_rcall(arg0, arg1, arg2, arg3);
+  EMITH_SJMP_START(DCOND_CC);
+  emith_move_r_r_ptr_c(DCOND_CS, arg1, CONTEXT_REG);
+  emith_jump_reg_c(DCOND_CS, arg2);
+  EMITH_SJMP_END(DCOND_CC);
+  emith_and_r_r_r(arg1, arg0, arg3);
+  emith_read16s_r_r_r(arg1, arg1, arg2);
+  emith_push_ret(arg1);
+  emith_move_r_r_ptr(arg1, CONTEXT_REG);
+  emith_call(p32x_sh2_poll_memory);
+  emith_pop_and_ret(RET_REG);
+  emith_flush();
+
+  // d = sh2_drc_read32_poll(u32 a)
+  sh2_drc_read32_poll = (void *)tcache_ptr;
+  emith_ctx_read_ptr(arg1, offsetof(SH2, read32_map));
+  emith_sh2_rcall(arg0, arg1, arg2, arg3);
+  EMITH_SJMP_START(DCOND_CC);
+  emith_move_r_r_ptr_c(DCOND_CS, arg1, CONTEXT_REG);
+  emith_jump_reg_c(DCOND_CS, arg2);
+  EMITH_SJMP_END(DCOND_CC);
+  emith_and_r_r_r(arg1, arg0, arg3);
+  emith_read_r_r_r(arg1, arg1, arg2);
+  emith_ror(arg1, arg1, 16);
+  emith_push_ret(arg1);
+  emith_move_r_r_ptr(arg1, CONTEXT_REG);
+  emith_call(p32x_sh2_poll_memory);
+  emith_pop_and_ret(RET_REG);
+  emith_flush();
+
   // sh2_drc_exit(void)
   sh2_drc_exit = (void *)tcache_ptr;
   emit_do_static_regs(1, arg2);
@@ -4289,6 +4352,9 @@ static void sh2_generate_utils(void)
   MAKE_WRITE_WRAPPER(sh2_drc_write8);
   MAKE_WRITE_WRAPPER(sh2_drc_write16);
   MAKE_WRITE_WRAPPER(sh2_drc_write32);
+  MAKE_READ_WRAPPER(sh2_drc_read8_poll);
+  MAKE_READ_WRAPPER(sh2_drc_read16_poll);
+  MAKE_READ_WRAPPER(sh2_drc_read32_poll);
 #endif
 
   emith_pool_commit(0);
@@ -4304,6 +4370,9 @@ static void sh2_generate_utils(void)
   host_dasm_new_symbol(sh2_drc_read8);
   host_dasm_new_symbol(sh2_drc_read16);
   host_dasm_new_symbol(sh2_drc_read32);
+  host_dasm_new_symbol(sh2_drc_read8_poll);
+  host_dasm_new_symbol(sh2_drc_read16_poll);
+  host_dasm_new_symbol(sh2_drc_read32_poll);
 #endif
 }
 
@@ -5396,11 +5465,13 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
         opd->source = BITMASK2(GET_Rm(), SHR_MEM);
         opd->dest = BITMASK1(SHR_R0);
         opd->imm = (op & 0x0f);
+        op_flags[i] |= OF_POLL_INSN;
         break;
       case 0x0500: // MOV.W @(disp,Rm),R0  10000101mmmmdddd
         opd->source = BITMASK2(GET_Rm(), SHR_MEM);
         opd->dest = BITMASK1(SHR_R0);
         opd->imm = (op & 0x0f) * 2;
+        op_flags[i] |= OF_POLL_INSN;
         break;
       case 0x0800: // CMP/EQ #imm,R0       10001000iiiiiiii
         opd->source = BITMASK1(SHR_R0);
@@ -5539,6 +5610,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
         opd->source = BITMASK3(SHR_GBR, SHR_R0, SHR_MEM);
         opd->dest = BITMASK1(SHR_T);
         opd->imm = op & 0xff;
+        op_flags[i] |= OF_POLL_INSN;
         opd->cycles = 3;
         break;
       case 0x0d00: // AND.B #imm,@(R0,GBR)  11001101iiiiiiii
