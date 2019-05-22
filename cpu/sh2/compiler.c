@@ -4220,9 +4220,9 @@ static void sh2_generate_utils(void)
   emith_eor_r_imm(arg1, 1);
   emith_read8s_r_r_r(arg1, arg1, arg2);
   emith_push_ret(arg1);
-  emith_move_r_r_ptr(arg1, CONTEXT_REG);
-  emith_call(p32x_sh2_poll_memory);
-  emith_pop_and_ret(RET_REG);
+  emith_move_r_r_ptr(arg2, CONTEXT_REG);
+  emith_call(p32x_sh2_poll_memory8);
+  emith_pop_and_ret(arg1);
   emith_flush();
 
   // d = sh2_drc_read16_poll(u32 a)
@@ -4236,9 +4236,9 @@ static void sh2_generate_utils(void)
   emith_and_r_r_r(arg1, arg0, arg3);
   emith_read16s_r_r_r(arg1, arg1, arg2);
   emith_push_ret(arg1);
-  emith_move_r_r_ptr(arg1, CONTEXT_REG);
-  emith_call(p32x_sh2_poll_memory);
-  emith_pop_and_ret(RET_REG);
+  emith_move_r_r_ptr(arg2, CONTEXT_REG);
+  emith_call(p32x_sh2_poll_memory16);
+  emith_pop_and_ret(arg1);
   emith_flush();
 
   // d = sh2_drc_read32_poll(u32 a)
@@ -4253,9 +4253,9 @@ static void sh2_generate_utils(void)
   emith_read_r_r_r(arg1, arg1, arg2);
   emith_ror(arg1, arg1, 16);
   emith_push_ret(arg1);
-  emith_move_r_r_ptr(arg1, CONTEXT_REG);
-  emith_call(p32x_sh2_poll_memory);
-  emith_pop_and_ret(RET_REG);
+  emith_move_r_r_ptr(arg2, CONTEXT_REG);
+  emith_call(p32x_sh2_poll_memory32);
+  emith_pop_and_ret(arg1);
   emith_flush();
 
   // sh2_drc_exit(void)

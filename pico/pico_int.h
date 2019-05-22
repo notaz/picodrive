@@ -932,7 +932,9 @@ void Pico32xSwapDRAM(int b);
 void Pico32xMemStateLoaded(void);
 void p32x_update_banks(void);
 void p32x_m68k_poll_event(unsigned int flags);
-void p32x_sh2_poll_memory(unsigned int a, SH2 *sh2);
+unsigned int REGPARM(3) p32x_sh2_poll_memory8(unsigned int a, unsigned int d, SH2 *sh2);
+unsigned int REGPARM(3) p32x_sh2_poll_memory16(unsigned int a, unsigned int d, SH2 *sh2);
+unsigned int REGPARM(3) p32x_sh2_poll_memory32(unsigned int a, unsigned int d, SH2 *sh2);
 void *p32x_sh2_get_mem_ptr(unsigned int a, unsigned int *mask, SH2 *sh2);
 void p32x_sh2_poll_event(SH2 *sh2, unsigned int flags, unsigned int m68k_cycles);
 
