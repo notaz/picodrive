@@ -43,6 +43,7 @@
 .global sh2_write32_da
 .global sh2_write32_dram
 
+#if 0
 sh2_read8_rom:
     ldr     ip, [r1, #OFS_SH2_p_rom]
     eor     r0, r0, #1
@@ -126,9 +127,10 @@ sh2_read32_dram:
     ldr     r0, [ip, r0, lsr #SH2_DRAM_SHIFT]
     mov     r0, r0, ror #16
     bx      lr
+#endif
 
 sh2_write8_sdram:
-    @ preserve r0 and r2 for tail call
+    @ preserve r0,r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_sdram]
     eor     r3, r0, #1
     mov     r3, r3, lsl #SH2_RAM_SHIFT
@@ -139,7 +141,7 @@ sh2_write8_sdram:
     bic     r0, r0, #1
     cmp     r1, #0
     bxeq    lr
-    b       sh2_drc_wcheck_ram
+    b       sh2_sdram_checks
 #else
     bx      lr
 #endif
@@ -170,7 +172,7 @@ sh2_write8_dram:
     bx      lr
 
 sh2_write16_sdram:
-    @ preserve r0 and r2 for tail call
+    @ preserve r0,r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_sdram]
     mov     r3, r0, lsl #SH2_RAM_SHIFT
     mov     r3, r3, lsr #SH2_RAM_SHIFT
@@ -180,7 +182,7 @@ sh2_write16_sdram:
     ldrb    r1, [ip, r3, lsr #1]
     cmp     r1, #0
     bxeq    lr
-    b       sh2_drc_wcheck_ram
+    b       sh2_sdram_checks
 #else
     bx      lr
 #endif
@@ -217,7 +219,7 @@ sh2_write16_dram:
     bx      lr
 
 sh2_write32_sdram:
-    @ preserve r0 and r2 for tail call
+    @ preserve r0,r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_sdram]
     mov     r1, r1, ror #16
     mov     r3, r0, lsl #SH2_RAM_SHIFT
@@ -228,13 +230,13 @@ sh2_write32_sdram:
     cmp     r1, #0
     beq     1f
     stmfd   sp!, {r0, r2, ip, lr}
-    bl      sh2_drc_wcheck_ram
+    b       sh2_sdram_checks
     ldmfd   sp!, {r0, r2, ip, lr}
 1:  ldrb    r1, [ip, #1]
+    add     r0, r0, #2
     cmp     r1, #0
     bxeq    lr
-    add     r0, r0, #2
-    b       sh2_drc_wcheck_ram
+    b       sh2_sdram_checks
 #else
     bx      lr
 #endif
@@ -254,9 +256,9 @@ sh2_write32_da:
     bl      sh2_drc_wcheck_da
     ldmfd   sp!, {r0, r2, ip, lr}
 1:  ldrb    r1, [ip, #1]
+    add     r0, r0, #2
     cmp     r1, #0
     bxeq    lr
-    add     r0, r0, #2
     b       sh2_drc_wcheck_da
 #else
     bx      lr
@@ -266,11 +268,10 @@ sh2_write32_dram:
     ldr     ip, [r2, #OFS_SH2_p_dram]
     tst     r0, #SH2_DRAM_OW
     mov     r3, r0, lsl #SH2_DRAM_SHIFT
-    moveq   r1, r1, ror #16
+    mov     r1, r1, ror #16
     streq   r1, [ip, r3, lsr #SH2_DRAM_SHIFT]
     bxeq    lr
     ldr     r0, [ip, r3, lsr #SH2_DRAM_SHIFT]
-    mov     r1, r1, ror #16
     mov     r2, #0
     tst     r1, #0x00ff0000
     orrne   r2, r2, #0x00ff0000
