@@ -721,6 +721,20 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 	EMIT_OP_MODRM(0x8b, 0, r, 4); \
 	EMIT_SIB(0, rs, rm); /* mov r, [rm + rs * 1] */ \
 } while (0)
+#define emith_read_r_r_r_wb(r, rs, rm) do { \
+	emith_read_r_r_r(r, rs, rm); \
+	emith_add_r_r_ptr(rs, rm); \
+} while (0)
+
+#define emith_write_r_r_r(r, rs, rm) do { \
+	EMIT_OP_MODRM(0x89, 0, r, 4); \
+	EMIT_SIB(0, rs, rm); /* mov [rm + rs * 1], r */ \
+} while (0)
+#define emith_write_r_r_r_wb(r, rs, rm) do { \
+	emith_write_r_r_r(r, rs, rm); \
+	emith_add_r_r_ptr(rs, rm); \
+} while (0)
+
 
 #define emith_ctx_read(r, offs) \
 	emith_read_r_r_offs(r, CONTEXT_REG, offs)
@@ -799,6 +813,14 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_call_ctx(offs) do { \
 	EMIT_OP_MODRM(0xff, 2, 2, CONTEXT_REG); \
 	EMIT(offs, u32); \
+} while (0)
+
+#define emith_call_link(r, target) do { \
+	EMIT_OP(0xe8); \
+	EMIT(0, u32); /* call pc+0 */ \
+	emith_pop(r); \
+	emith_add_r_r_ptr_imm(r, r, 13); \
+	emith_jump(target); \
 } while (0)
 
 #define emith_ret() \
