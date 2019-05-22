@@ -138,10 +138,11 @@ enum op_types {
   OP_MOVE,      // register move
   OP_LOAD_CONST,// load const to register
   OP_LOAD_POOL, // literal pool load, imm is address
-  OP_MOVA,
-  OP_SLEEP,
-  OP_RTE,
-  OP_TRAPA,
+  OP_MOVA,      // MOVA instruction
+  OP_SLEEP,     // SLEEP instruction
+  OP_RTE,       // RTE instruction
+  OP_TRAPA,     // TRAPA instruction
+  OP_LDC,       // LDC instruction
   OP_UNDEFINED,
 };
 
@@ -552,31 +553,25 @@ static int dr_is_rom(u32 a)
   return (a & 0xc6000000) == 0x02000000 && (a & 0x3f0000) < 0x3e0000;
 }
 
-static int dr_ctx_get_mem_ptr(u32 a, u32 *mask)
+static int dr_ctx_get_mem_ptr(SH2 *sh2, u32 a, u32 *mask)
 {
+  void *memptr;
   int poffs = -1;
 
-  if ((a & ~0x7ff) == 0) {
-    // BIOS
+  // check if region is mapped memory
+  memptr = p32x_sh2_get_mem_ptr(a, mask, sh2);
+  if (memptr == NULL /*|| (a & ((1 << SH2_READ_SHIFT)-1) & ~*mask) != 0*/)
+    return poffs;
+
+  if (memptr == sh2->p_bios)        // BIOS
     poffs = offsetof(SH2, p_bios);
-    *mask = 0x7ff;
-  }
-  else if ((a & 0xfffff000) == 0xc0000000) {
-    // data array
+  else if (memptr == sh2->p_da)     // data array
     // FIXME: access sh2->data_array instead
     poffs = offsetof(SH2, p_da);
-    *mask = 0xfff;
-  }
-  else if ((a & 0xc6000000) == 0x06000000) {
-    // SDRAM
+  else if (memptr == sh2->p_sdram)  // SDRAM
     poffs = offsetof(SH2, p_sdram);
-    *mask = 0x03ffff;
-  }
-  else if ((a & 0xc6000000) == 0x02000000) {
-    // ROM
+  else if (memptr == sh2->p_rom)    // ROM
     poffs = offsetof(SH2, p_rom);
-    *mask = 0x3fffff;
-  }
 
   return poffs;
 }
@@ -1365,6 +1360,7 @@ static u32 rcache_locked;
 static u32 rcache_hint_soon;
 static u32 rcache_hint_late;
 static u32 rcache_hint_write;
+static u32 rcache_hint_clean;
 #define rcache_hint (rcache_hint_soon|rcache_hint_late)
 
 static void rcache_unmap_vreg(int x)
@@ -1396,16 +1392,19 @@ static void rcache_clean_vreg(int x)
                 emith_move_r_r(cache_regs[guest_regs[r].sreg].hreg, cache_regs[guest_regs[r].vreg].hreg);
                 rcache_remove_vreg_alias(x, r);
                 rcache_add_vreg_alias(guest_regs[r].sreg, r);
+                cache_regs[guest_regs[r].sreg].flags |= HRF_DIRTY;
               } else {
                 // must evict since sreg is locked
                 emith_ctx_write(cache_regs[x].hreg, r * 4);
+                guest_regs[r].flags &= ~GRF_DIRTY;
                 guest_regs[r].vreg = -1;
               }
             }
-          } else
+          } else if (~rcache_hint_write & (1 << r)) {
             emith_ctx_write(cache_regs[x].hreg, r * 4);
-        }
-        guest_regs[r].flags &= ~GRF_DIRTY;)
+            guest_regs[r].flags &= ~GRF_DIRTY;
+          }
+        })
   }
 }
 
@@ -1654,7 +1653,7 @@ static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr
         (cache_regs[i].flags & HRF_LOCKED) ||
         (cache_regs[i].type == HR_STATIC && !(guest_regs[r].flags & GRF_STATIC))) {
       // need to split up. take reg out here to avoid unnecessary writebacks
-      cache_regs[i].gregs &= ~(1 << r);
+      rcache_remove_vreg_alias(i, r);
       split = i;
     } else {
       // aliases not needed anytime soon, remove them
@@ -1809,7 +1808,8 @@ static int rcache_get_reg_arg(int arg, sh2_reg_e r, int *hr)
     // r is needed later on anyway
     srcr = rcache_get_reg_(r, RC_GR_READ, 0, NULL);
     is_cached = (cache_regs[reg_map_host[srcr]].type == HR_CACHED);
-  } else if ((guest_regs[r].flags & GRF_CDIRTY) && gconst_get(r, &val)) {
+  } else if (!(rcache_hint_clean & (1 << r)) &&
+             (guest_regs[r].flags & GRF_CDIRTY) && gconst_get(r, &val)) {
     // r has an uncomitted const - load into arg, but keep constant uncomitted
     srcr = dstr;
     is_const = 1;
@@ -1822,7 +1822,7 @@ static int rcache_get_reg_arg(int arg, sh2_reg_e r, int *hr)
     srcr = dstr;
     if (rcache_static & (1 << r))
       srcr = rcache_get_reg_(r, RC_GR_READ, 0, NULL);
-    else if (gconst_try_read(guest_regs[r].vreg, r))
+    else if (gconst_try_read(dstid, r))
       dirty = 1;
     else
       emith_ctx_read(srcr, r * 4);
@@ -1856,14 +1856,18 @@ static int rcache_get_reg_arg(int arg, sh2_reg_e r, int *hr)
   } else if (hr != NULL) {
     // caller will modify arg, so it will soon be out of sync with r
     if (dirty || src_dirty) {
-      emith_ctx_write(dstr, r * 4); // must clean since arg will be modified
-      guest_regs[r].flags &= ~GRF_DIRTY;
+      if (~rcache_hint_write & (1 << r)) {
+        emith_ctx_write(dstr, r * 4); // must clean since arg will be modified
+        guest_regs[r].flags &= ~GRF_DIRTY;
+      }
     }
-  } else if (guest_regs[r].vreg < 0) {
+  } else {
     // keep arg as vreg for r
     cache_regs[dstid].type = HR_CACHED;
-    cache_regs[dstid].gregs = 1 << r;
-    guest_regs[r].vreg = dstid;
+    if (guest_regs[r].vreg < 0) {
+      cache_regs[dstid].gregs = 1 << r;
+      guest_regs[r].vreg = dstid;
+    }
     if (dirty || src_dirty) { // mark as modifed for cleaning later on
       cache_regs[dstid].flags |= HRF_DIRTY;
       guest_regs[r].flags |= GRF_DIRTY;
@@ -2057,9 +2061,9 @@ static void rcache_clean_mask(u32 mask)
 {
   int i;
 
-  // XXX consider gconst?
-  if (!(mask &= ~rcache_static & ~gconst_dirty_mask()))
+  if (!(mask &= ~rcache_static))
     return;
+  rcache_hint_clean |= mask;
 
   // clean only vregs where all aliases are covered by the mask
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++)
@@ -2120,7 +2124,7 @@ static void rcache_invalidate(void)
   }
 
   rcache_counter = 0;
-  rcache_hint_soon = rcache_hint_late = rcache_hint_write = 0;
+  rcache_hint_soon = rcache_hint_late = rcache_hint_write = rcache_hint_clean = 0;
 
   gconst_invalidate();
 }
@@ -2164,48 +2168,76 @@ static void rcache_init(void)
 
 // ---------------------------------------------------------------
 
-static int emit_get_rbase_and_offs(SH2 *sh2, u32 a, u32 *offs)
+// NB may return either REG or TEMP
+static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmod, u32 *offs)
 {
-  u32 omask = 0xff; // offset mask, XXX: ARM oriented..
+  uptr omask = 0xff; // offset mask, XXX: ARM oriented..
   u32 mask = 0;
+  u32 a;
   int poffs;
-  int hr;
-  unsigned long la;
+  int hr, hr2;
+  uptr la;
 
-  poffs = dr_ctx_get_mem_ptr(a, &mask);
+  // is r constant and points to a memory region?
+  if (! gconst_get(r, &a))
+    return -1;
+  poffs = dr_ctx_get_mem_ptr(sh2, a, &mask);
   if (poffs == -1)
     return -1;
 
-  hr = rcache_get_tmp();
   if (mask < 0x1000) {
-    // can't access data array or BIOS directly from ROM or SDRAM,
-    // since code may run on both SH2s (tcache_id of translation block needed))
+    // data array or BIOS, can't safely access directly since translated code
+    // may run on both SH2s
+    hr = rcache_get_tmp();
     emith_ctx_read_ptr(hr, poffs);
+    a += *offs;
     if (a & mask & ~omask)
       emith_add_r_r_ptr_imm(hr, hr, a & mask & ~omask);
     *offs = a & omask;
+    return hr;
+  }
+
+  la = (uptr)*(void **)((char *)sh2 + poffs);
+  // accessing ROM or SDRAM, code location doesn't matter. The host address
+  // for these should be mmapped to be equal to the SH2 address.
+  // if r is in rcache or needed soon anyway, and offs is relative to region
+  // use rcached const to avoid loading a literal on ARM
+  if ((guest_regs[r].vreg >= 0 || ((guest_regs[r].flags & GRF_CDIRTY) &&
+      ((rcache_hint_soon|rcache_hint_clean) & (1 << r)))) && !(*offs & ~mask)) {
+    u32 odd = a & 1; // need to fix odd address for correct byte addressing
+    la -= (s32)((a & ~mask) - *offs - odd); // diff between reg and memory
+    // if reg is modified later on, allocate it RMW to remove aliases here
+    // else the aliases vreg stays locked and a vreg shortage may occur.
+    hr = hr2 = rcache_get_reg(r, rmod ? RC_GR_RMW : RC_GR_READ, NULL);
+    if ((la & ~omask) - odd) {
+      hr = rcache_get_tmp();
+      emith_add_r_r_ptr_imm(hr, hr2, (la & ~omask) - odd);
+    }
+    *offs = (la & omask);
   } else {
     // known fixed host address
-    la = (unsigned long)*(void **)((char *)sh2 + poffs) + (a & mask);
-    *offs = la & omask;
+    la += (a + *offs) & mask;
+    hr = rcache_get_tmp();
     emith_move_r_ptr_imm(hr, la & ~omask);
+    *offs = la & omask;
   }
   return hr;
 }
 
 // read const data from const ROM address
-static int emit_get_rom_data(sh2_reg_e r, u32 offs, int size, u32 *val)
+static int emit_get_rom_data(SH2 *sh2, sh2_reg_e r, u32 offs, int size, u32 *val)
 {
-  u32 tmp;
+  u32 a, mask;
 
   *val = 0;
-  if (gconst_get(r, &tmp)) {
-    tmp += offs;
-    if (dr_is_rom(tmp)) {
+  if (gconst_get(r, &a)) {
+    a += offs;
+    // check if rom is memory mapped (not bank switched), and address is in rom
+    if (dr_is_rom(a) && p32x_sh2_get_mem_ptr(a, &mask, sh2)) {
       switch (size & MF_SIZEMASK) {
-      case 0:   *val = (s8)p32x_sh2_read8(tmp, sh2s);   break;  // 8
-      case 1:   *val = (s16)p32x_sh2_read16(tmp, sh2s); break;  // 16
-      case 2:   *val = p32x_sh2_read32(tmp, sh2s);      break;  // 32
+      case 0:   *val = (s8)p32x_sh2_read8(a, sh2s);   break;  // 8
+      case 1:   *val = (s16)p32x_sh2_read16(a, sh2s); break;  // 16
+      case 2:   *val = p32x_sh2_read32(a, sh2s);      break;  // 32
       }
       return 1;
     }
@@ -2315,10 +2347,10 @@ static void emit_memhandler_write(int size)
 static int emit_memhandler_read_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, u32 offs, int size)
 {
   int hr, hr2;
-  u32 val, offs2;
+  u32 val;
 
 #if PROPAGATE_CONSTANTS
-  if (emit_get_rom_data(rs, offs, size, &val)) {
+  if (emit_get_rom_data(sh2, rs, offs, size, &val)) {
     if (rd == SHR_TMP) {
       hr2 = rcache_get_tmp();
       emith_move_r_imm(hr2, val);
@@ -2331,47 +2363,49 @@ static int emit_memhandler_read_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, u32 off
     return hr2;
   }
 
-  if (gconst_get(rs, &val)) {
-    hr = emit_get_rbase_and_offs(sh2, val + offs, &offs2);
-    if (hr != -1) {
-      if (rd == SHR_TMP)
-        hr2 = rcache_get_tmp();
-      else
-        hr2 = rcache_get_reg(rd, RC_GR_WRITE, NULL);
-      switch (size & MF_SIZEMASK) {
-      case 0: // 8
-        emith_read8s_r_r_offs(hr2, hr, offs2 ^ 1);
-        break;
-      case 1: // 16
-        emith_read16s_r_r_offs(hr2, hr, offs2);
-        break;
-      case 2: // 32
-        emith_read_r_r_offs(hr2, hr, offs2);
-        emith_ror(hr2, hr2, 16);
-        break;
-      }
-      rcache_free_tmp(hr);
-      if (size & MF_POSTINCR)
-        gconst_new(rs, val + (1 << (size & MF_SIZEMASK)));
-      return hr2;
+  hr = emit_get_rbase_and_offs(sh2, rs, size & MF_POSTINCR, &offs);
+  if (hr != -1) {
+    if (rd == SHR_TMP)
+      hr2 = rcache_get_tmp();
+    else
+      hr2 = rcache_get_reg(rd, RC_GR_WRITE, NULL);
+    switch (size & MF_SIZEMASK) {
+    case 0: emith_read8s_r_r_offs(hr2, hr, offs ^ 1);  break; // 8
+    case 1: emith_read16s_r_r_offs(hr2, hr, offs);     break; // 16
+    case 2: emith_read_r_r_offs(hr2, hr, offs); emith_ror(hr2, hr2, 16); break;
     }
+    if (cache_regs[reg_map_host[hr]].type == HR_TEMP) // may also return REG
+      rcache_free_tmp(hr);
+    if (size & MF_POSTINCR) {
+      int isgc = gconst_get(rs, &val);
+      if (!isgc || guest_regs[rs].vreg >= 0) {
+        // already loaded
+        hr = rcache_get_reg(rs, RC_GR_RMW, NULL);
+        emith_add_r_r_imm(hr, hr, 1 << (size & MF_SIZEMASK));
+        if (isgc)
+          gconst_set(rs, val + (1 << (size & MF_SIZEMASK)));
+      } else
+        gconst_new(rs, val + (1 << (size & MF_SIZEMASK)));
+    }
+    return hr2;
   }
 #endif
-  if (gconst_get(rs, &val) && (!(size & MF_POSTINCR) /*|| !(rcache_hint_soon & (1 << rs))*/)) {
+
+  if (gconst_get(rs, &val) && guest_regs[rs].vreg < 0 && !(rcache_hint_soon & (1 << rs))) {
     hr = rcache_get_tmp_arg(0);
     emith_move_r_imm(hr, val + offs);
     if (size & MF_POSTINCR)
       gconst_new(rs, val + (1 << (size & MF_SIZEMASK)));
-  } else if (offs || (size & MF_POSTINCR)) {
+  } else if (size & MF_POSTINCR) {
+    hr = rcache_get_tmp_arg(0);
+    hr2 = rcache_get_reg(rs, RC_GR_RMW, NULL);
+    emith_add_r_r_imm(hr, hr2, offs);
+    emith_add_r_imm(hr2, 1 << (size & MF_SIZEMASK));
+  } else {
     hr = rcache_get_reg_arg(0, rs, &hr2);
     if (offs || hr != hr2)
       emith_add_r_r_imm(hr, hr2, offs);
-    if (size & MF_POSTINCR) {
-      hr = rcache_get_reg(rs, RC_GR_WRITE, NULL);
-      emith_add_r_r_imm(hr, hr2, 1 << (size & MF_SIZEMASK));
-    }
-  } else
-    rcache_get_reg_arg(0, rs, NULL);
+  }
   hr = emit_memhandler_read(size);
 
   size &= MF_SIZEMASK;
@@ -2405,7 +2439,7 @@ static void emit_memhandler_write_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, u32 o
   } else
     hr2 = rcache_get_reg_arg(1, rd, NULL);
 
-  if (gconst_get(rs, &val) && (!(size & MF_PREDECR) /*|| !(rcache_hint_soon & (1 << rs))*/)) {
+  if (gconst_get(rs, &val) && guest_regs[rs].vreg < 0 && !(rcache_hint_soon & (1 << rs))) {
     if (size & MF_PREDECR) {
       val -= 1 << (size & MF_SIZEMASK);
       gconst_new(rs, val);
@@ -2551,7 +2585,7 @@ static void emit_block_entry(void)
     cycles = 0; \
   }
 
-static void *dr_get_pc_base(u32 pc, int is_slave);
+static void *dr_get_pc_base(u32 pc, SH2 *sh2);
 
 static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 {
@@ -2591,7 +2625,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   base_pc = sh2->pc;
 
   // get base/validate PC
-  dr_pc_base = dr_get_pc_base(base_pc, sh2->is_slave);
+  dr_pc_base = dr_get_pc_base(base_pc, sh2);
   if (dr_pc_base == (void *)-1) {
     printf("invalid PC, aborting: %08x\n", base_pc);
     // FIXME: be less destructive
@@ -2637,6 +2671,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       op_flags[i] &= ~OF_BTARGET;
     if (op_flags[i] & OF_BTARGET)
       ADD_TO_ARRAY(branch_target_pc, branch_target_count, pc, );
+    if (ops[i].op == OP_LDC && (ops[i].dest & BITMASK1(SHR_SR)) && pc+2 < end_pc)
+      op_flags[i+1] |= OF_BTARGET; // RTE entrypoint in case of SR(IMASK) change
 #if LOOP_DETECTION
     // loop types detected:
     // 1. target: ... BRA target -> idle loop
@@ -2930,7 +2966,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       u32 late = 0;             // regs read by future ops
       u32 write = 0;            // regs written to (to detect write before read)
       u32 soon = 0;             // regs read soon
-      tmp = OP_ISBRANCH(opd[0].op); // branch insn detected
+      tmp = (OP_ISBRANCH(opd[0].op) || opd[0].op == OP_RTE || // branching insns
+              opd[0].op == OP_TRAPA || opd[0].op == OP_UNDEFINED);
       for (v = 1; v <= 9; v++) {
         // no sense in looking any further than the next rcache flush
         if (pc + 2*v < end_pc && !(op_flags[i+v] & OF_BTARGET) &&
@@ -2944,7 +2981,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           rcache_clean_mask(rcache_dirty_mask() & ~tmp2);
           break;
         }
-        // XXX must also include test-irq locations!
         tmp |= (OP_ISBRANCH(opd[v].op) || opd[v].op == OP_RTE ||
                 opd[v].op == OP_TRAPA || opd[v].op == OP_UNDEFINED);
         // regs needed in the next few instructions
@@ -2953,7 +2989,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       }
       rcache_set_hint_soon(late);           // insns 1-3
       rcache_set_hint_late(late & ~soon);   // insns 4-9
-      rcache_set_hint_write(write & ~(late|soon)); // next access is write
+      rcache_set_hint_write(write & ~(late|soon) & ~opd[0].source);
+                                            // overwritten without being used
     }
     rcache_set_locked(opd[0].source); // try not to evict src regs for this op
 
@@ -2973,32 +3010,22 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     case OP_BRANCH_R:
       if (opd->dest & BITMASK1(SHR_PR))
         emit_move_r_imm32(SHR_PR, pc + 2);
-      if (gconst_get(opd->rm, &u)) {
-        opd->imm = u;
-        drcf.pending_branch_direct = 1;
-      } else {
-        emit_move_r_r(SHR_PC, opd->rm);
-        drcf.pending_branch_indirect = 1;
-      }
+      emit_move_r_r(SHR_PC, opd->rm);
+      drcf.pending_branch_indirect = 1;
       goto end_op;
 
     case OP_BRANCH_RF:
-      if (gconst_get(GET_Rn(), &u)) {
-        if (opd->dest & BITMASK1(SHR_PR))
-          emit_move_r_imm32(SHR_PR, pc + 2);
-        opd->imm = pc + 2 + u;
-        drcf.pending_branch_direct = 1;
-      } else {
-        tmp2 = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
-        tmp  = rcache_get_reg(SHR_PC, RC_GR_WRITE, NULL);
-        emith_move_r_imm(tmp, pc + 2);
-        if (opd->dest & BITMASK1(SHR_PR)) {
-          tmp3 = rcache_get_reg(SHR_PR, RC_GR_WRITE, NULL);
-          emith_move_r_r(tmp3, tmp);
-        }
-        emith_add_r_r(tmp, tmp2);
-        drcf.pending_branch_indirect = 1;
+      tmp2 = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
+      tmp  = rcache_get_reg(SHR_PC, RC_GR_WRITE, NULL);
+      emith_move_r_imm(tmp, pc + 2);
+      if (opd->dest & BITMASK1(SHR_PR)) {
+        tmp3 = rcache_get_reg(SHR_PR, RC_GR_WRITE, NULL);
+        emith_move_r_r(tmp3, tmp);
       }
+      emith_add_r_r(tmp, tmp2);
+      if (gconst_get(GET_Rn(), &u))
+        gconst_set(SHR_PC, pc + 2 + u);
+      drcf.pending_branch_indirect = 1;
       goto end_op;
 
     case OP_SLEEP: // SLEEP      0000000000011011
@@ -3041,10 +3068,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       // obtain new PC
       emit_memhandler_read_rr(sh2, SHR_PC, SHR_VBR, opd->imm * 4, 2);
       // indirect jump -> back to dispatcher
-      sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-      FLUSH_CYCLES(sr);
-      rcache_flush();
-      emith_jump(sh2_drc_dispatcher);
+      drcf.pending_branch_indirect = 1;
       goto end_op;
 
     case OP_LOAD_POOL:
@@ -3483,7 +3507,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             if (drcf.delay_reg == -1)
               drcf.delay_reg = GET_Rn();
             else
-              drcf.loop_type = 0;
+              drcf.polling = drcf.loop_type = 0;
           }
 #endif
           emith_bic_r_imm(sr, T);
@@ -3925,8 +3949,6 @@ end_op:
         emit_move_r_imm32(SHR_PC, pc);
       rcache_flush();
       emith_call(sh2_drc_test_irq);
-      if (pc < end_pc) // mark next insns as entry point for RTE
-        op_flags[i+1] |= OF_BTARGET;
       drcf.test_irq = 0;
     }
 
@@ -3950,7 +3972,7 @@ end_op:
       {
         // idle or delay loop
         emith_sh2_delay_loop(cycles, drcf.delay_reg);
-        drcf.loop_type = 0;
+        drcf.polling = drcf.loop_type = 0;
       }
 #endif
 
@@ -4011,15 +4033,30 @@ end_op:
 
       drcf.pending_branch_direct = 0;
       if (target_pc >= base_pc && target_pc < pc)
-        drcf.loop_type = 0;
+        drcf.polling = drcf.loop_type = 0;
     }
     else if (drcf.pending_branch_indirect) {
+      struct op_data *opd_b =
+        (op_flags[i] & OF_DELAY_OP) ? opd-1 : opd;
+      void *target;
+      u32 target_pc;
+
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
       FLUSH_CYCLES(sr);
-      rcache_flush();
-      emith_jump(sh2_drc_dispatcher);
+      rcache_clean();
+      if (gconst_get(SHR_PC, &target_pc)) {
+        // JMP const, treat like unconditional direct branch
+        target = dr_prepare_ext_branch(block->entryp, target_pc, sh2->is_slave, tcache_id);
+        if (target == NULL)
+          return NULL;
+        emith_jump_patchable(target);
+      } else {
+        // JMP
+        emith_jump(sh2_drc_dispatcher);
+      }
+      rcache_invalidate();
       drcf.pending_branch_indirect = 0;
-      drcf.loop_type = 0;
+      drcf.polling = drcf.loop_type = 0;
     }
 
     do_host_disasm(tcache_id);
@@ -4836,33 +4873,12 @@ void sh2_drc_finish(SH2 *sh2)
 
 #endif /* DRC_SH2 */
 
-static void *dr_get_pc_base(u32 pc, int is_slave)
+static void *dr_get_pc_base(u32 pc, SH2 *sh2)
 {
   void *ret = NULL;
   u32 mask = 0;
 
-  if ((pc & ~0x7ff) == 0) {
-    // BIOS
-    ret = is_slave ? Pico32xMem->sh2_rom_s.w : Pico32xMem->sh2_rom_m.w;
-    mask = 0x7ff;
-  }
-  else if ((pc & 0xfffff000) == 0xc0000000) {
-    // data array
-    ret = sh2s[is_slave].data_array;
-    mask = 0xfff;
-  }
-  else if ((pc & 0xc6000000) == 0x06000000) {
-    // SDRAM
-    ret = Pico32xMem->sdram;
-    mask = 0x03ffff;
-  }
-  else if ((pc & 0xc6000000) == 0x02000000) {
-    // ROM
-    if ((pc & 0x3fffff) < Pico.romsize)
-      ret = Pico.rom;
-    mask = 0x3fffff;
-  }
-
+  ret = p32x_sh2_get_mem_ptr(pc, &mask, sh2);
   if (ret == NULL)
     return (void *)-1; // NULL is valid value
 
@@ -4889,7 +4905,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
   memset(op_flags, 0, sizeof(*op_flags) * BLOCK_INSN_LIMIT);
   op_flags[0] |= OF_BTARGET; // block start is always a target
 
-  dr_pc_base = dr_get_pc_base(base_pc, is_slave);
+  dr_pc_base = dr_get_pc_base(base_pc, &sh2s[!!is_slave]);
 
   // 1st pass: disassemble
   for (i = 0, pc = base_pc; ; i++, pc += 2) {
@@ -5274,14 +5290,17 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
           break;
         case 0x07: // LDC.L @Rm+,SR   0100mmmm00000111
           tmp = SHR_SR;
+          opd->op = OP_LDC;
           opd->cycles = 3;
           break;
         case 0x17: // LDC.L @Rm+,GBR  0100mmmm00010111
           tmp = SHR_GBR;
+          opd->op = OP_LDC;
           opd->cycles = 3;
           break;
         case 0x27: // LDC.L @Rm+,VBR  0100mmmm00100111
           tmp = SHR_VBR;
+          opd->op = OP_LDC;
           opd->cycles = 3;
           break;
         default:
@@ -5372,7 +5391,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
         default:
           goto undefined;
         }
-        opd->op = OP_MOVE;
+        opd->op = OP_LDC;
         opd->source = BITMASK1(GET_Rn());
         opd->dest = BITMASK1(tmp);
         break;
