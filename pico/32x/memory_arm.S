@@ -130,17 +130,21 @@ sh2_read32_dram:
 #endif
 
 sh2_write8_sdram:
-    @ preserve r0,r2 for tail call
+    @ preserve r0-r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_sdram]
     eor     r3, r0, #1
     mov     r3, r3, lsl #SH2_RAM_SHIFT
     strb    r1, [ip, r3, lsr #SH2_RAM_SHIFT]
 #ifdef DRC_SH2
     ldr     ip, [r2, #OFS_SH2_p_drcblk_ram]
-    ldrb    r1, [ip, r3, lsr #SH2_RAM_SHIFT+1]
-    bic     r0, r0, #1
-    cmp     r1, #0
+    ldrb    r3, [ip, r3, lsr #SH2_RAM_SHIFT+1]
+    cmp     r3, #0
     bxeq    lr
+    ldr     ip, [r2, #OFS_SH2_p_sdram]
+    bic     r0, r0, #1
+    mov     r3, r0, lsl #SH2_RAM_SHIFT
+    mov     r3, r3, lsr #SH2_RAM_SHIFT
+    ldrh    r1, [ip, r3]
     b       sh2_sdram_checks
 #else
     bx      lr
@@ -172,15 +176,15 @@ sh2_write8_dram:
     bx      lr
 
 sh2_write16_sdram:
-    @ preserve r0,r2 for tail call
+    @ preserve r0-r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_sdram]
     mov     r3, r0, lsl #SH2_RAM_SHIFT
     mov     r3, r3, lsr #SH2_RAM_SHIFT
     strh    r1, [ip, r3]
 #ifdef DRC_SH2
     ldr     ip, [r2, #OFS_SH2_p_drcblk_ram]
-    ldrb    r1, [ip, r3, lsr #1]
-    cmp     r1, #0
+    ldrb    r3, [ip, r3, lsr #1]
+    cmp     r3, #0
     bxeq    lr
     b       sh2_sdram_checks
 #else
@@ -219,24 +223,19 @@ sh2_write16_dram:
     bx      lr
 
 sh2_write32_sdram:
-    @ preserve r0,r2 for tail call
+    @ preserve r0-r2 for tail call
     ldr     ip, [r2, #OFS_SH2_p_sdram]
     mov     r1, r1, ror #16
     mov     r3, r0, lsl #SH2_RAM_SHIFT
     str     r1, [ip, r3, lsr #SH2_RAM_SHIFT]
 #ifdef DRC_SH2
     ldr     ip, [r2, #OFS_SH2_p_drcblk_ram]
-    ldrb    r1, [ip, r3, lsr #SH2_RAM_SHIFT+1]!
-    cmp     r1, #0
-    beq     1f
-    stmfd   sp!, {r0, r2, ip, lr}
-    b       sh2_sdram_checks
-    ldmfd   sp!, {r0, r2, ip, lr}
-1:  ldrb    r1, [ip, #1]
-    add     r0, r0, #2
-    cmp     r1, #0
+    ldrb    r3, [ip, r3, lsr #SH2_RAM_SHIFT+1]!
+    ldrb    ip, [ip, #1]
+    orrs    r3, r3, ip, lsl #16
     bxeq    lr
-    b       sh2_sdram_checks
+    mov     r1, r1, ror #16
+    b       sh2_sdram_checks_l
 #else
     bx      lr
 #endif
@@ -250,15 +249,14 @@ sh2_write32_da:
 #ifdef DRC_SH2
     ldr     ip, [r2, #OFS_SH2_p_drcblk_da]
     ldrb    r1, [ip, r3, lsr #SH2_DA_SHIFT+1]!
-    cmp     r1, #0
-    beq     1f
+    ldrb    ip, [ip, #1]
+    orrs    r3, r1, ip, lsl #16
+    bxeq    lr
     stmfd   sp!, {r0, r2, ip, lr}
     bl      sh2_drc_wcheck_da
     ldmfd   sp!, {r0, r2, ip, lr}
-1:  ldrb    r1, [ip, #1]
     add     r0, r0, #2
-    cmp     r1, #0
-    bxeq    lr
+    mov     r1, ip
     b       sh2_drc_wcheck_da
 #else
     bx      lr

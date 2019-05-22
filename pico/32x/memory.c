@@ -58,7 +58,7 @@ static void (*m68k_write16_io)(u32 a, u32 d);
 #define REG8IN16(ptr, offs) ((u8 *)ptr)[(offs) ^ 1]
 
 // poll detection
-#define POLL_THRESHOLD 3
+#define POLL_THRESHOLD 5
 
 static struct {
   u32 addr1, addr2, cycles;
@@ -74,7 +74,7 @@ static int m68k_poll_detect(u32 a, u32 cycles, u32 flags)
   if (match && cycles - m68k_poll.cycles <= 64 && !SekNotPolling)
   {
     // detect split 32bit access by same cycle count, and ignore those
-    if (cycles != m68k_poll.cycles && m68k_poll.cnt++ > POLL_THRESHOLD) {
+    if (cycles != m68k_poll.cycles && ++m68k_poll.cnt > POLL_THRESHOLD) {
       if (!(Pico32x.emu_flags & flags)) {
         elprintf(EL_32X, "m68k poll addr %08x, cyc %u",
           a, cycles - m68k_poll.cycles);
@@ -114,8 +114,11 @@ static void NOINLINE sh2_poll_detect(u32 a, SH2 *sh2, u32 flags, int maxcnt)
 {
   u32 cycles_done = sh2_cycles_done_t(sh2);
 
+  // reading 2 consecutive 16bit values is probably a 32bit access. detect this
+  // by checking address (max 2 bytes away) and cycles (max 2 cycles later).
+  // no polling if more than 20 cycles have passed since last detect call.
   if (a - sh2->poll_addr <= 2 && CYCLES_GE(sh2->poll_cycles+20, cycles_done)) {
-    if (sh2->poll_cycles != cycles_done && ++sh2->poll_cnt >= maxcnt) {
+    if (CYCLES_GT(cycles_done,sh2->poll_cycles+2) && ++sh2->poll_cnt > maxcnt) {
       if (!(sh2->state & flags))
         elprintf_sh2(sh2, EL_32X, "state: %02x->%02x",
           sh2->state, sh2->state | flags);
@@ -124,6 +127,7 @@ static void NOINLINE sh2_poll_detect(u32 a, SH2 *sh2, u32 flags, int maxcnt)
       sh2_end_run(sh2, 1);
       pevt_log_sh2(sh2, EVT_POLL_START);
 #ifdef DRC_SH2
+      // mark this as an address used for polling if SDRAM
       if ((a & 0xc6000000) == 0x06000000) {
         unsigned char *p = sh2->p_drcblk_ram;
         p[(a & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT] |= 0x80;
@@ -149,12 +153,6 @@ void NOINLINE p32x_sh2_poll_event(SH2 *sh2, u32 flags, u32 m68k_cycles)
 
     pevt_log_sh2_o(sh2, EVT_POLL_END);
     sh2->state &= ~flags;
-#ifdef DRC_SH2
-    if ((sh2->poll_addr & 0xc6000000) == 0x06000000) {
-      unsigned char *p = sh2->p_drcblk_ram;
-      p[(sh2->poll_addr & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT] &= ~0x80;
-    }
-#endif
   }
 
   if (!(sh2->state & (SH2_STATE_CPOLL|SH2_STATE_VPOLL|SH2_STATE_RPOLL)))
@@ -172,12 +170,123 @@ static void sh2s_sync_on_read(SH2 *sh2)
     p32x_sync_other_sh2(sh2, sh2->m68krcycles_done + C_SH2_TO_M68K(sh2, cycles));
 }
 
-void p32x_sh2_poll_memory(unsigned int a, SH2 *sh2)
+// poll fifo, stores writes to potential addresses used for polling.
+// This is used to correctly deliver syncronisation data to the 3 cpus. The
+// fifo stores 16 bit values, 8/32 bit accesses must be adapted accordingly.
+#define PFIFO_SZ	4
+#define PFIFO_CNT	4
+struct sh2_poll_fifo {
+  u32 cycles;
+  u32 a;
+  u16 d;
+  u16 cpu;
+} sh2_poll_fifo[PFIFO_CNT][PFIFO_SZ];
+unsigned sh2_poll_rd[PFIFO_CNT], sh2_poll_wr[PFIFO_CNT]; // ringbuffer pointers
+
+static NOINLINE u32 sh2_poll_read(u32 a, u32 d, unsigned int cycles, SH2* sh2)
 {
+  int hix = (a >> 1) % PFIFO_CNT;
+  struct sh2_poll_fifo *fifo = sh2_poll_fifo[hix];
+  struct sh2_poll_fifo *p;
+  int cpu = sh2 ? sh2->is_slave+1 : 0;
+  unsigned idx;
+
+  // fetch oldest write to address from fifo, but stop when reaching the present
+  idx = sh2_poll_rd[hix];
+  while (idx != sh2_poll_wr[hix] && CYCLES_GE(cycles, fifo[idx].cycles)) {
+//    int oidx = idx;
+    p = &fifo[idx];
+    idx = (idx+1) % PFIFO_SZ;
+
+    if (CYCLES_GT(cycles, p->cycles+80)) {
+      // drop older fifo stores that may cause synchronisation problems.
+      // NB unfortunately this cycle diff is quite sensitive:
+      // observed in Brutal Unleashed: min 80, observed in Afterburner: max 110
+      sh2_poll_rd[hix] = idx;
+    } else if (p->a == a) {
+      // replace current data with fifo value and discard fifo entry
+      if (cpu != p->cpu) {
+        d = p->d;
+        p->a = -1;
+//        if (oidx == sh2_poll_rd[hix])
+//          sh2_poll_rd[hix] = idx;
+      }
+      break;
+    }
+  }
+  return d;
+}
+
+static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
+{
+  int hix = (a >> 1) % PFIFO_CNT;
+  struct sh2_poll_fifo *fifo = sh2_poll_fifo[hix];
+  struct sh2_poll_fifo *p = &fifo[sh2_poll_wr[hix]];
+  struct sh2_poll_fifo *q = &fifo[(sh2_poll_wr[hix]-1) % PFIFO_SZ];
+  int cpu = sh2 ? sh2->is_slave+1 : 0;
+
+  // fold 2 consecutive writes to the same address to avoid reading of
+  // intermediate values that may cause synchronisation problems.
+  // NB this can take an eternity on m68k: mov.b <addr1.l>,<addr2.l> needs
+  // 28 m68k-cycles (~80 sh2-cycles) to complete (observed in Metal Head)
+  if (q->a == a && !CYCLES_GT(cycles,q->cycles+30)) {
+    q->d = d;
+  } else {
+    // store write to poll address in fifo
+    sh2_poll_wr[hix] = (sh2_poll_wr[hix]+1) % PFIFO_SZ;
+    if (sh2_poll_wr[hix] == sh2_poll_rd[hix])
+      // fifo overflow, discard oldest value
+      sh2_poll_rd[hix] = (sh2_poll_rd[hix]+1) % PFIFO_SZ;
+    *p = (struct sh2_poll_fifo){ .cycles = cycles, .a = a, .d = d, .cpu = cpu };
+  }
+}
+
+u32 REGPARM(3) p32x_sh2_poll_memory8(unsigned int a, u32 d, SH2 *sh2)
+{
+  int shift = (a & 1 ? 0 : 8);
+  d = (s8)(p32x_sh2_poll_memory16(a & ~1, d << shift, sh2) >> shift);
+  return d;
+}
+
+u32 REGPARM(3) p32x_sh2_poll_memory16(unsigned int a, u32 d, SH2 *sh2)
+{
+  unsigned char *p = sh2->p_drcblk_ram;
+  unsigned int cycles;
+
   DRC_SAVE_SR(sh2);
+  // is this a synchronisation address?
+  if(p[(a & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT] & 0x80) {
+    sh2s_sync_on_read(sh2);
+    cycles = sh2_cycles_done_m68k(sh2);
+    // check poll fifo and sign-extend the result correctly
+    d = (s16)sh2_poll_read(a, d, cycles, sh2);
+  }
+
   sh2_poll_detect(a, sh2, SH2_STATE_RPOLL, 5);
-  sh2s_sync_on_read(sh2);
+
   DRC_RESTORE_SR(sh2);
+  return d;
+}
+
+u32 REGPARM(3) p32x_sh2_poll_memory32(unsigned int a, u32 d, SH2 *sh2)
+{
+  unsigned char *p = sh2->p_drcblk_ram;
+  unsigned int cycles;
+
+  DRC_SAVE_SR(sh2);
+  // is this a synchronisation address?
+  if(p[(a & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT] & 0x80) {
+    sh2s_sync_on_read(sh2);
+    cycles = sh2_cycles_done_m68k(sh2);
+    // check poll fifo and sign-extend the result correctly
+    d = sh2_poll_read(a, d, cycles, sh2) |
+        (sh2_poll_read(a+2, d >> 16, cycles, sh2) << 16);
+  }
+
+  sh2_poll_detect(a, sh2, SH2_STATE_RPOLL, 5);
+
+  DRC_RESTORE_SR(sh2);
+  return d;
 }
 
 // SH2 faking
@@ -222,17 +331,15 @@ static u32 p32x_reg_read16(u32 a)
 #else
   if ((a & 0x30) == 0x20) {
     unsigned int cycles = SekCyclesDone();
-    int comreg = 1 << (a & 0x0f) / 2;
 
-    if (cycles - msh2.m68krcycles_done > 244
-        || (Pico32x.comm_dirty & comreg))
+    if (cycles - msh2.m68krcycles_done > 244)
       p32x_sync_sh2s(cycles);
 
     if (m68k_poll_detect(a, cycles, P32XF_68KCPOLL)) {
       SekSetStop(1);
       SekEndRun(16);
     }
-    goto out;
+    return sh2_poll_read(a, Pico32x.regs[a / 2], cycles, NULL);
   }
 #endif
 
@@ -415,18 +522,17 @@ static void p32x_reg_write8(u32 a, u32 d)
 
   if ((a & 0x30) == 0x20) {
     int cycles = SekCyclesDone();
-    int comreg;
     
     if (REG8IN16(r, a) == d)
       return;
 
-    p32x_sync_sh2s(cycles);
+    if (cycles - (int)msh2.m68krcycles_done > 30)
+      p32x_sync_sh2s(cycles);
 
     REG8IN16(r, a) = d;
     p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
     p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
-    comreg = 1 << (a & 0x0f) / 2;
-    Pico32x.comm_dirty |= comreg;
+    sh2_poll_write(a & ~1, r[a / 2], cycles, NULL);
     return;
   }
 }
@@ -477,18 +583,17 @@ static void p32x_reg_write16(u32 a, u32 d)
   // comm port
   if ((a & 0x30) == 0x20) {
     int cycles = SekCyclesDone();
-    int comreg;
-    
+
     if (r[a / 2] == d)
        return;
 
-    p32x_sync_sh2s(cycles);
+    if (cycles - (int)msh2.m68krcycles_done > 30)
+      p32x_sync_sh2s(cycles);
 
     r[a / 2] = d;
     p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
     p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
-    comreg = 1 << (a & 0x0f) / 2;
-    Pico32x.comm_dirty |= comreg;
+    sh2_poll_write(a, (u16)d, cycles, NULL);
     return;
   }
   // PWM
@@ -596,9 +701,9 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
       return (r[0] & P32XS_FM) | Pico32x.sh2_regs[0]
         | Pico32x.sh2irq_mask[sh2->is_slave];
     case 0x04: // H count (often as comm too)
-      sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 7);
+      sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 9);
       sh2s_sync_on_read(sh2);
-      return Pico32x.sh2_regs[4 / 2];
+      return sh2_poll_read(a, Pico32x.sh2_regs[4 / 2], sh2_cycles_done_m68k(sh2), sh2);
     case 0x06:
       return (r[a / 2] & ~P32XS_FULL) | 0x4000;
     case 0x08: // DREQ src
@@ -625,9 +730,9 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
 
   // comm port
   if ((a & 0x30) == 0x20) {
-    sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 7);
+    sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 9);
     sh2s_sync_on_read(sh2);
-    return r[a / 2];
+    return sh2_poll_read(a, r[a / 2], sh2_cycles_done_m68k(sh2), sh2);
   }
   if ((a & 0x30) == 0x30)
     return p32x_pwm_read16(a, sh2, sh2_cycles_done_m68k(sh2));
@@ -671,10 +776,11 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
     case 0x05: // H count
       d &= 0xff;
       if (Pico32x.sh2_regs[4 / 2] != d) {
+        unsigned int cycles = sh2_cycles_done_m68k(sh2);
         Pico32x.sh2_regs[4 / 2] = d;
-        p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL,
-          sh2_cycles_done_m68k(sh2));
         sh2_end_run(sh2, 4);
+        p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
+        sh2_poll_write(a & ~1, d, cycles, sh2);
       }
       return;
     case 0x30:
@@ -719,17 +825,16 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
   }
 
   if ((a & 0x30) == 0x20) {
-    int comreg;
+    unsigned int cycles;
     if (REG8IN16(r, a) == d)
       return;
 
     REG8IN16(r, a) = d;
+    cycles = sh2_cycles_done_m68k(sh2);
     sh2_end_run(sh2, 1);
     p32x_m68k_poll_event(P32XF_68KCPOLL);
-    p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL,
-      sh2_cycles_done_m68k(sh2));
-    comreg = 1 << (a & 0x0f) / 2;
-    Pico32x.comm_dirty |= comreg;
+    p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
+    sh2_poll_write(a & ~1, r[a / 2], cycles, sh2);
     return;
   }
 
@@ -745,17 +850,16 @@ static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
 
   // comm
   if ((a & 0x30) == 0x20) {
-    int comreg;
+    unsigned int cycles;
     if (Pico32x.regs[a / 2] == d)
       return;
 
     Pico32x.regs[a / 2] = d;
+    cycles = sh2_cycles_done_m68k(sh2);
     sh2_end_run(sh2, 1);
     p32x_m68k_poll_event(P32XF_68KCPOLL);
-    p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL,
-      sh2_cycles_done_m68k(sh2));
-    comreg = 1 << (a & 0x0f) / 2;
-    Pico32x.comm_dirty |= comreg;
+    p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
+    sh2_poll_write(a, d, cycles, sh2);
     return;
   }
   // PWM
@@ -1399,25 +1503,42 @@ static u32 REGPARM(2) sh2_read32_rom(u32 a, SH2 *sh2)
 
 // writes
 #ifdef DRC_SH2
-void NOINLINE sh2_sdram_checks(u32 a, int t, SH2 *sh2)
+static void NOINLINE sh2_sdram_poll(u32 a, u16 d, SH2 *sh2)
 {
-  int v = t & ~0x80;
+  unsigned cycles;
 
-  if (v)
-    sh2_drc_wcheck_ram(a, v, sh2);
-  if (t & 0x80) {
-    DRC_SAVE_SR(sh2);
-    sh2_end_run(sh2, 1);
-    p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_RPOLL, sh2_cycles_done_m68k(sh2));
-    DRC_RESTORE_SR(sh2);
-  }
+  DRC_SAVE_SR(sh2);
+  sh2_end_run(sh2, 1);
+  cycles = sh2_cycles_done_m68k(sh2);
+  sh2_poll_write(a, d, cycles, sh2);
+  p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_RPOLL, cycles);
+  DRC_RESTORE_SR(sh2);
+}
+
+void NOINLINE sh2_sdram_checks(u32 a, u32 d, SH2 *sh2, int t)
+{
+  if (t & 0x80)
+    sh2_sdram_poll(a, d, sh2);
+  if (t & 0x7f)
+    sh2_drc_wcheck_ram(a, t & 0x7f, sh2);
+}
+
+void NOINLINE sh2_sdram_checks_l(u32 a, u32 d, SH2 *sh2, int t)
+{
+  sh2_sdram_checks(a, d, sh2, t);
+  sh2_sdram_checks(a+2, d>>16, sh2, t>>16);
 }
 
 #ifndef _ASM_32X_MEMORY_C
 static void sh2_da_checks(u32 a, int t, SH2 *sh2)
 {
-  if (t)
-    sh2_drc_wcheck_da(a, t, sh2);
+  sh2_drc_wcheck_da(a, t, sh2);
+}
+
+static void NOINLINE sh2_da_checks_l(u32 a, int t, SH2 *sh2)
+{
+  sh2_da_checks(a, t, sh2);
+  sh2_da_checks(a+2, t>>16, sh2);
 }
 #endif
 #endif
@@ -1481,7 +1602,7 @@ static void REGPARM(3) sh2_write8_sdram(u32 a, u32 d, SH2 *sh2)
   u8 *p = sh2->p_drcblk_ram;
   int t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
   if (t)
-    sh2_sdram_checks(a, t, sh2);
+    sh2_sdram_checks(a & ~1, ((u16 *)sh2->p_sdram)[a1 / 2], sh2, t);
 #endif
 }
 
@@ -1554,7 +1675,7 @@ static void REGPARM(3) sh2_write16_sdram(u32 a, u32 d, SH2 *sh2)
   u8 *p = sh2->p_drcblk_ram;
   int t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
   if (t)
-    sh2_sdram_checks(a, t, sh2);
+    sh2_sdram_checks(a, d, sh2, t);
 #endif
 }
 
@@ -1628,11 +1749,9 @@ static void REGPARM(3) sh2_write32_sdram(u32 a, u32 d, SH2 *sh2)
 #ifdef DRC_SH2
   u8 *p = sh2->p_drcblk_ram;
   int t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
-  if (t)
-    sh2_sdram_checks(a, t, sh2);
   int u = p[(a1+2) >> SH2_DRCBLK_RAM_SHIFT];
-  if (u)
-    sh2_sdram_checks(a+2, u, sh2);
+  if (t|(u<<16))
+    sh2_sdram_checks_l(a, d, sh2, t|(u<<16));
 #endif
 }
 
@@ -1643,11 +1762,9 @@ static void REGPARM(3) sh2_write32_da(u32 a, u32 d, SH2 *sh2)
 #ifdef DRC_SH2
   u8 *p = sh2->p_drcblk_da;
   int t = p[a1 >> SH2_DRCBLK_DA_SHIFT];
-  if (t)
-    sh2_da_checks(a, t, sh2);
   int u = p[(a1+2) >> SH2_DRCBLK_DA_SHIFT];
-  if (u)
-    sh2_da_checks(a+2, u, sh2);
+  if (t|(u<<16))
+    sh2_da_checks_l(a, t|(u<<16), sh2);
 #endif
 }
 #endif
