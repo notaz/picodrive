@@ -943,20 +943,14 @@ static struct block_desc *dr_find_inactive_block(int tcache_id, u16 crc,
   u32 addr, int size, u32 addr_lit, int size_lit)
 {
   struct block_list **head = &inactive_blocks[tcache_id];
-  struct block_list *prev = NULL, *current = *head;
+  struct block_list *current;
 
-  for (; current != NULL; prev = current, current = current->next) {
+  for (current = *head; current != NULL; current = current->next) {
     struct block_desc *block = current->block;
     if (block->crc == crc && block->addr == addr && block->size == size &&
         block->addr_lit == addr_lit && block->size_lit == size_lit)
     {
-      if (prev == NULL)
-        *head = current->next;
-      else
-        prev->next = current->next;
-      block->list = NULL; // should now be empty
-      current->next = blist_free;
-      blist_free = current;
+      rm_from_block_lists(block);
       return block;
     }
   }
@@ -1031,6 +1025,47 @@ static void *dr_failure(void)
   exit(1);
 }
 
+#if LINK_BRANCHES
+static void dr_block_link(struct block_entry *be, struct block_link *bl, int emit_jump)
+{
+  dbg(2, "- %slink from %p to pc %08x entry %p", emit_jump ? "":"early ",
+    bl->jump, bl->target_pc, be->tcache_ptr);
+
+  if (emit_jump)
+    emith_jump_patch(bl->jump, be->tcache_ptr);
+    // could sync arm caches here, but that's unnecessary
+
+  // move bl to block_entry
+  bl->target = be;
+  bl->prev = NULL;
+  if (be->links)
+    be->links->prev = bl;
+  bl->next = be->links;
+  be->links = bl;
+}
+
+static void dr_block_unlink(struct block_link *bl, int emit_jump)
+{
+  dbg(2,"- unlink from %p to pc %08x", bl->jump, bl->target_pc);
+
+  if (bl->target) {
+    if (emit_jump) {
+      emith_jump_patch(bl->jump, sh2_drc_dispatcher);
+      // update cpu caches since the previous jump target doesn't exist anymore
+      host_instructions_updated(bl->jump, bl->jump+4);
+    }
+
+    if (bl->prev)
+      bl->prev->next = bl->next;
+    else
+      bl->target->links = bl->next;
+    if (bl->next)
+      bl->next->prev = bl->prev;
+    bl->target = NULL;
+  }
+}
+#endif
+
 static void *dr_prepare_ext_branch(struct block_entry *owner, u32 pc, int is_slave, int tcache_id)
 {
 #if LINK_BRANCHES
@@ -1064,13 +1099,7 @@ static void *dr_prepare_ext_branch(struct block_entry *owner, u32 pc, int is_sla
   owner->o_links = bl;
 
   if (be != NULL) {
-    dbg(2, "- early link from %p to pc %08x entry %p", bl->jump, pc, be->tcache_ptr);
-    bl->target = be;
-    bl->prev = NULL;
-    if (be->links)
-      be->links->prev = bl;
-    bl->next = be->links;
-    be->links = bl;
+    dr_block_link(be, bl, 0); // jump not yet emitted by translate()
     return be->tcache_ptr;
   }
   else {
@@ -1092,23 +1121,12 @@ static void dr_link_blocks(struct block_entry *be, int tcache_id)
 
   while (bl != NULL) {
     next = bl->next;
-    if (bl->target_pc == pc) {
-      dbg(2, "- link from %p to pc %08x entry %p", bl->jump, pc, be->tcache_ptr);
-      // move bl from unresolved_links to block_entry
-      rm_from_hashlist_unresolved(bl, tcache_id);
-
-      emith_jump_patch(bl->jump, be->tcache_ptr);
-      bl->target = be;
-      bl->prev = NULL;
-      if (be->links)
-        be->links->prev = bl;
-      bl->next = be->links;
-      be->links = bl;
+    if (bl->target_pc == pc && (!bl->tcache_id || bl->tcache_id == tcache_id)) {
+      rm_from_hashlist_unresolved(bl, bl->tcache_id);
+      dr_block_link(be, bl, 1);
     }
     bl = next;
   }
-
-  // could sync arm caches here, but that's unnecessary
 #endif
 }
 
@@ -1119,22 +1137,13 @@ static void dr_link_outgoing(struct block_entry *be, int tcache_id, int is_slave
   int target_tcache_id;
 
   for (bl = be->o_links; bl; bl = bl->o_next) {
-    be = dr_get_entry(bl->target_pc, is_slave, &target_tcache_id);
-    if (!target_tcache_id || target_tcache_id == tcache_id) {
-      if (be) {
-        dbg(2, "- link from %p to pc %08x entry %p", bl->jump, bl->target_pc, be->tcache_ptr);
-        emith_jump_patch(bl->jump, be->tcache_ptr);
-        bl->target = be;
-        bl->prev = NULL;
-        if (be->links)
-          be->links->prev = bl;
-        bl->next = be->links;
-        be->links = bl;
-      } else {
-        emith_jump_patch(bl->jump, sh2_drc_dispatcher);
-        add_to_hashlist_unresolved(bl, tcache_id);
+    if (bl->target == NULL) {
+      be = dr_get_entry(bl->target_pc, is_slave, &target_tcache_id);
+      if (be != NULL && (!target_tcache_id || target_tcache_id == tcache_id)) {
+        // remove bl from unresolved_links (must've been since target was NULL)
+        rm_from_hashlist_unresolved(bl, bl->tcache_id);
+        dr_block_link(be, bl, 1);
       }
-      host_instructions_updated(bl->jump, bl->jump+4);
     }
   }
 #endif
@@ -4381,65 +4390,48 @@ static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nol
   struct block_link *bl;
   u32 i;
 
-  dbg(2, "  killing entry %08x-%08x,%08x-%08x, blkid %d,%d",
+  free = free || nolit; // block is invalid if literals are overwritten
+  dbg(2,"  %sing block %08x-%08x,%08x-%08x, blkid %d,%d", free?"delet":"disabl",
     bd->addr, bd->addr + bd->size, bd->addr_lit, bd->addr_lit + bd->size_lit,
     tcache_id, bd - block_tables[tcache_id]);
   if (bd->addr == 0 || bd->entry_count == 0) {
     dbg(1, "  killing dead block!? %08x", bd->addr);
     return;
   }
-  free = free || nolit; // block is invalid if literals are overwritten
 
-  // remove from hash table, make incoming links unresolved, revoke outgoing links
-  for (i = 0; i < bd->entry_count; i++) {
-    if (bd->active)
+  // remove from hash table, make incoming links unresolved
+  if (bd->active) {
+    for (i = 0; i < bd->entry_count; i++) {
       rm_from_hashlist(&bd->entryp[i], tcache_id);
 
-    for (bl = bd->entryp[i].o_links; bl != NULL; ) {
-      if (bl->target) {
-        if (bl->prev)
-          bl->prev->next = bl->next;
-        else
-          bl->target->links = bl->next;
-        if (bl->next)
-          bl->next->prev = bl->prev;
-        bl->target = NULL;
-      } else if (bd->active)
-        rm_from_hashlist_unresolved(bl, tcache_id);
-      bl = bl->o_next;
+      while ((bl = bd->entryp[i].links) != NULL) {
+        dr_block_unlink(bl, 1);
+        add_to_hashlist_unresolved(bl, tcache_id);
+      }
     }
 
-    for (bl = bd->entryp[i].links; bl != NULL; ) {
-      struct block_link *bl_next = bl->next;
-      dbg(2, "- unlink from %p to pc %08x", bl->jump, bl->target_pc);
-      emith_jump_patch(bl->jump, sh2_drc_dispatcher);
-      // update cpu caches since the previous jump target doesn't exist anymore
-      host_instructions_updated(bl->jump, bl->jump+4);
-
-      add_to_hashlist_unresolved(bl, tcache_id);
-      bl = bl_next;
-    }
-    bd->entryp[i].links = NULL;
-  }
-
-  if (bd->active)
     dr_mark_memory(-1, bd, tcache_id, nolit);
+    add_to_block_list(&inactive_blocks[tcache_id], bd);
+  }
+  bd->active = 0;
 
   if (free) {
-    while ((bl = bd->entryp[0].o_links) != NULL) {
-      bd->entryp[0].o_links = bl->next;
+    // revoke outgoing links
+    for (bl = bd->entryp[0].o_links; bl != NULL; bl = bl->o_next) {
+      if (bl->target)
+        dr_block_unlink(bl, 0);
+      else
+        rm_from_hashlist_unresolved(bl, tcache_id);
       bl->jump = NULL;
       bl->next = blink_free[bl->tcache_id];
       blink_free[bl->tcache_id] = bl;
     }
     bd->entryp[0].o_links = NULL;
+    // invalidate block
     rm_from_block_lists(bd);
     bd->addr = bd->size = bd->addr_lit = bd->size_lit = 0;
     bd->entry_count = 0;
-  } else {
-    add_to_block_list(&inactive_blocks[tcache_id], bd);
   }
-  bd->active = 0;
 }
 
 static void sh2_smc_rm_blocks(u32 a, int tcache_id, u32 shift)
@@ -4454,10 +4446,12 @@ static void sh2_smc_rm_blocks(u32 a, int tcache_id, u32 shift)
   int removed = 0;
 #endif
 
-  // need to check cached and writethrough area
+  // ignore cache-through
   a &= wtmask;
+
   blist = &inval_lookup[tcache_id][(a & mask) / INVAL_PAGE_SIZE];
   entry = *blist;
+  // go through the block list for this range
   while (entry != NULL) {
     next = entry->next;
     block = entry->block;
@@ -4465,6 +4459,7 @@ static void sh2_smc_rm_blocks(u32 a, int tcache_id, u32 shift)
     end_addr = start_addr + block->size;
     start_lit = block->addr_lit & wtmask;
     end_lit = start_lit + block->size_lit;
+    // disable/delete block if it covers the modified address
     if ((start_addr <= a && a < end_addr) ||
         (start_lit <= a && a < end_lit))
     {
