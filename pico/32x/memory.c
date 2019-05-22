@@ -1730,6 +1730,32 @@ void REGPARM(3) p32x_sh2_write32(u32 a, u32 d, SH2 *sh2)
   wh(a, d, sh2);
 }
 
+void *p32x_sh2_get_mem_ptr(u32 a, u32 *mask, SH2 *sh2)
+{
+  const sh2_memmap *mm = sh2->read8_map;
+  void *ret = (void *)-1;
+  u32 am;
+
+  mm += a >> SH2_READ_SHIFT;
+  am = a & ((1 << SH2_READ_SHIFT)-1);
+  if (!map_flag_set(mm->addr) && !(am & ~mm->mask)) {
+    // directly mapped memory (SDRAM, ROM, data array)
+    ret = (void *)(mm->addr << 1);
+    *mask = mm->mask;
+  } else if ((a & ~0x7ff) == 0) {
+    // BIOS, has handler function since it shares its segment with I/O
+    ret = sh2->is_slave ? Pico32xMem->sh2_rom_s.w : Pico32xMem->sh2_rom_m.w;
+    *mask = 0x7ff;
+  } else if ((a & 0xc6000000) == 0x02000000) {
+    // banked ROM. Return bank address
+    u32 bank = carthw_ssf2_banks[(a >> 19) & 7] << 19;
+    ret = sh2->p_rom + bank;
+    *mask = 0x07ffff;
+  }
+
+  return ret;
+}
+
 // -----------------------------------------------------------------
 
 static void z80_md_bank_write_32x(unsigned int a, unsigned char d)
