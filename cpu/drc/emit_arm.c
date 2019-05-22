@@ -304,7 +304,9 @@ static void emith_flush(void)
 #define EOP_STR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,0)
 
 #define EOP_LDR_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,1,rn,rd,shift_imm,A_AM1_LSL,rm)
+#define EOP_LDR_REG_LSL_WB(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,3,rn,rd,shift_imm,A_AM1_LSL,rm)
 #define EOP_LDRB_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,1,1,rn,rd,shift_imm,A_AM1_LSL,rm);
+#define EOP_STR_REG_LSL_WB(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,2,rn,rd,shift_imm,A_AM1_LSL,rm)
 
 #define EOP_LDRH_IMM2(cond,rd,rn,offset_8)  EOP_C_AM3_IMM(cond,(offset_8) >= 0,1,rn,rd,0,1,abs(offset_8))
 #define EOP_LDRH_REG2(cond,rd,rn,rm)        EOP_C_AM3_REG(cond,1,1,rn,rd,0,1,rm)
@@ -941,8 +943,12 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	EOP_LDR_REG_LSL(cond, r, rs, rm, 0)
 #define emith_read_r_r_offs(r, rs, offs) \
 	emith_read_r_r_offs_c(A_COND_AL, r, rs, offs)
+#define emith_read_r_r_offs_ptr(r, rs, offs) \
+	emith_read_r_r_offs_c(A_COND_AL, r, rs, offs)
 #define emith_read_r_r_r(r, rs, rm) \
 	EOP_LDR_REG_LSL(A_COND_AL, r, rs, rm, 0)
+#define emith_read_r_r_r_wb(r, rs, rm) \
+	EOP_LDR_REG_LSL_WB(A_COND_AL, r, rs, rm, 0)
 
 #define emith_read8_r_r_offs_c(cond, r, rs, offs) \
 	EOP_LDRB_IMM2(cond, r, rs, offs)
@@ -984,6 +990,12 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	EOP_STR_IMM2(cond, r, rs, offs)
 #define emith_write_r_r_offs_ptr_c(cond, r, rs, offs) \
 	emith_write_r_r_offs_c(cond, r, rs, offs)
+#define emith_write_r_r_offs(r, rs, offs) \
+	emith_write_r_r_offs_c(A_COND_AL, r, rs, offs)
+#define emith_write_r_r_offs_ptr(r, rs, offs) \
+	emith_write_r_r_offs_c(A_COND_AL, r, rs, offs)
+#define emith_write_r_r_r_wb(r, rs, rm) \
+	EOP_STR_REG_LSL_WB(A_COND_AL, r, rs, rm, 0)
 
 #define emith_ctx_read_c(cond, r, offs) \
 	emith_read_r_r_offs_c(cond, r, CONTEXT_REG, offs)
@@ -1109,6 +1121,11 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define emith_call_ctx(offs) do { \
 	emith_move_r_r(LR, PC); \
 	emith_jump_ctx(offs); \
+} while (0)
+
+#define emith_call_link(r, target) do { \
+	emith_move_r_r(r, PC); \
+	emith_jump(target); \
 } while (0)
 
 #define emith_ret_c(cond) \

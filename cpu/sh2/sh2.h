@@ -52,6 +52,8 @@ typedef struct SH2_
 	int		poll_cnt;
 
 	// DRC branch cache. size must be 2^n and <=128
+	int rts_cache_idx;
+	struct { unsigned int pc; void *code; } rts_cache[16];
 	struct { unsigned int pc; void *code; } branch_cache[128];
 
 	// interpreter stuff
