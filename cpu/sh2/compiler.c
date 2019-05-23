@@ -117,6 +117,17 @@ static int insns_compiled, hash_collisions, host_insn_count;
 #define SHR_MEM	31
 #define SHR_TMP -1
 
+#define T	0x00000001
+#define S	0x00000002
+#define I	0x000000f0
+#define Q	0x00000100
+#define M	0x00000200
+#define T_save	0x00000800
+
+#define I_SHIFT 4
+#define Q_SHIFT 8
+#define M_SHIFT 9
+
 static struct op_data {
   u8 op;
   u8 cycles;
@@ -524,17 +535,6 @@ static cache_reg_t cache_regs[] = {
 #endif
 
 static signed char reg_map_host[HOST_REGS];
-
-#define T	0x00000001
-#define S	0x00000002
-#define I	0x000000f0
-#define Q	0x00000100
-#define M	0x00000200
-#define T_save	0x00000800
-
-#define I_SHIFT 4
-#define Q_SHIFT 8
-#define M_SHIFT 9
 
 static void REGPARM(1) (*sh2_drc_entry)(SH2 *sh2);
 static void            (*sh2_drc_dispatcher)(void);
@@ -2318,17 +2318,19 @@ static void emit_move_r_r(sh2_reg_e dst, sh2_reg_e src)
   }
 }
 
-// T must be clear, and comparison done just before this
-static void emit_or_t_if_eq(int srr)
+static void emit_sync_t_to_sr(void)
 {
-  EMITH_SJMP_START(DCOND_NE);
-  emith_or_r_imm_c(DCOND_EQ, srr, T);
-  EMITH_SJMP_END(DCOND_NE);
+  // avoid reloading SR from context if there's nothing to do
+  if (emith_get_t_cond() >= 0) {
+    int sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+    emith_sync_t(sr);
+  }
 }
 
 // rd = @(arg0)
 static int emit_memhandler_read(int size)
 {
+  emit_sync_t_to_sr();
   rcache_clean_tmp();
 #ifndef DRC_SR_REG
   // must writeback cycles for poll detection stuff
@@ -2356,6 +2358,7 @@ static int emit_memhandler_read(int size)
 // @(arg0) = arg1
 static void emit_memhandler_write(int size)
 {
+  emit_sync_t_to_sr();
   rcache_clean_tmp();
 #ifndef DRC_SR_REG
   if (guest_regs[SHR_SR].vreg != -1)
@@ -2776,6 +2779,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
   // clear stale state after compile errors
   rcache_invalidate();
+  emith_invalidate_t();
   drcf = (struct drcf) { 0 };
 
   // -------------------------------------------------
@@ -2812,6 +2816,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       {
         sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
         FLUSH_CYCLES(sr);
+        emith_sync_t(sr);
         rcache_flush();
         emith_flush();
 
@@ -2896,6 +2901,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
 #if (DRC_DEBUG & (8|256|512|1024))
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+      emith_sync_t(sr);
       rcache_clean();
       tmp = rcache_used_hreg_mask();
       emith_save_caller_regs(tmp);
@@ -2918,6 +2924,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     if (!(op_flags[i] & OF_DELAY_OP)) {
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
       FLUSH_CYCLES(sr);
+      emith_sync_t(sr);
       rcache_clean();
 
       tmp = rcache_used_hreg_mask();
@@ -2944,6 +2951,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       delay_dep_bk = opd->source & ops[i-1].dest;
       if (delay_dep_fw & BITMASK1(SHR_T)) {
         sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+        emith_sync_t(sr);
         DELAY_SAVE_T(sr);
       }
       if (delay_dep_bk & BITMASK1(SHR_PC)) {
@@ -2965,9 +2973,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             sr = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
             tmp = rcache_get_reg(SHR_PC, RC_GR_WRITE, NULL);
             emith_move_r_imm(tmp, pc);
-            emith_tst_r_imm(sr, T);
-            tmp2 = ops[i-1].op == OP_BRANCH_CT ? DCOND_NE : DCOND_EQ;
-            tmp3 = ops[i-1].op == OP_BRANCH_CT ? DCOND_EQ : DCOND_NE;
+            tmp2 = emith_tst_t(sr, (ops[i-1].op == OP_BRANCH_CT));
+            tmp3 = emith_invert_cond(tmp2);
             EMITH_SJMP_START(tmp3);
             emith_move_r_imm_c(tmp2, tmp, ops[i-1].imm);
             EMITH_SJMP_END(tmp3);
@@ -3061,6 +3068,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       goto end_op;
 
     case OP_RTE: // RTE        0000000000101011
+      emith_invalidate_t();
       // pop PC
       emit_memhandler_read_rr(sh2, SHR_PC, SHR_SP, 0, 2 | MF_POSTINCR);
       // pop SR
@@ -3079,6 +3087,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     case OP_TRAPA: // TRAPA #imm      11000011iiiiiiii
       // push SR
       tmp  = rcache_get_reg_arg(1, SHR_SR, &tmp2);
+      emith_sync_t(tmp2);
       emith_clear_msb(tmp, tmp2, 22);
       emit_memhandler_write_rr(sh2, SHR_TMP, SHR_SP, 0, 2 | MF_PREDECR);
       // push PC
@@ -3177,6 +3186,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         }
         if (tmp2 == SHR_SR) {
           sr = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
+          emith_sync_t(sr);
           tmp = rcache_get_reg(GET_Rn(), RC_GR_WRITE, NULL);
           emith_clear_msb(tmp, sr, 22); // reserved bits defined by ISA as 0
         } else
@@ -3198,11 +3208,11 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         {
         case 0: // CLRT               0000000000001000
           sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-          emith_bic_r_imm(sr, T);
+          emith_set_t(sr, 0);
           break;
         case 1: // SETT               0000000000011000
           sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-          emith_or_r_imm(sr, T);
+          emith_set_t(sr, 1);
           break;
         case 2: // CLRMAC             0000000000101000
           emit_move_r_imm32(SHR_MACL, 0);
@@ -3219,10 +3229,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           break;
         case 1: // DIV0U      0000000000011001
           sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+          emith_invalidate_t();
           emith_bic_r_imm(sr, M|Q|T);
           break;
         case 2: // MOVT Rn    0000nnnn00101001
           sr   = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
+          emith_sync_t(sr);
           tmp2 = rcache_get_reg(GET_Rn(), RC_GR_WRITE, NULL);
           emith_clear_msb(tmp2, sr, 31);
           break;
@@ -3286,6 +3298,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
         tmp2 = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
         tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
+        emith_invalidate_t();
         emith_bic_r_imm(sr, M|Q|T);
         emith_tst_r_imm(tmp2, (1<<31));
         EMITH_SJMP_START(DCOND_EQ);
@@ -3304,9 +3317,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
         tmp2 = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
         tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
-        emith_bic_r_imm(sr, T);
+        emith_clr_t_cond(sr);
         emith_tst_r_r(tmp2, tmp3);
-        emit_or_t_if_eq(sr);
+        emith_set_t_cond(sr, DCOND_EQ);
         goto end_op;
       case 0x09: // AND Rm,Rn           0010nnnnmmmm1001
         if (GET_Rm() != GET_Rn()) {
@@ -3339,7 +3352,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
         emith_eor_r_r_r(tmp, tmp2, tmp3);
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-        emith_bic_r_imm(sr, T);
+        emith_clr_t_cond(sr);
         emith_tst_r_imm(tmp, 0x000000ff);
         EMITH_SJMP_START(DCOND_EQ);
         emith_tst_r_imm_c(DCOND_NE, tmp, 0x0000ff00);
@@ -3350,7 +3363,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         EMITH_SJMP_END(DCOND_EQ);
         EMITH_SJMP_END(DCOND_EQ);
         EMITH_SJMP_END(DCOND_EQ);
-        emit_or_t_if_eq(sr);
+        emith_set_t_cond(sr, DCOND_EQ);
         rcache_free_tmp(tmp);
         goto end_op;
       case 0x0d: // XTRCT  Rm,Rn        0010nnnnmmmm1101
@@ -3391,32 +3404,24 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
         tmp2 = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
         tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
-        emith_bic_r_imm(sr, T);
+        emith_clr_t_cond(sr);
         emith_cmp_r_r(tmp2, tmp3);
         switch (op & 0x07)
         {
         case 0x00: // CMP/EQ
-          emit_or_t_if_eq(sr);
+          emith_set_t_cond(sr, DCOND_EQ);
           break;
         case 0x02: // CMP/HS
-          EMITH_SJMP_START(DCOND_LO);
-          emith_or_r_imm_c(DCOND_HS, sr, T);
-          EMITH_SJMP_END(DCOND_LO);
+          emith_set_t_cond(sr, DCOND_HS);
           break;
         case 0x03: // CMP/GE
-          EMITH_SJMP_START(DCOND_LT);
-          emith_or_r_imm_c(DCOND_GE, sr, T);
-          EMITH_SJMP_END(DCOND_LT);
+          emith_set_t_cond(sr, DCOND_GE);
           break;
         case 0x06: // CMP/HI
-          EMITH_SJMP_START(DCOND_LS);
-          emith_or_r_imm_c(DCOND_HI, sr, T);
-          EMITH_SJMP_END(DCOND_LS);
+          emith_set_t_cond(sr, DCOND_HI);
           break;
         case 0x07: // CMP/GT
-          EMITH_SJMP_START(DCOND_LE);
-          emith_or_r_imm_c(DCOND_GT, sr, T);
-          EMITH_SJMP_END(DCOND_LE);
+          emith_set_t_cond(sr, DCOND_GT);
           break;
         }
         goto end_op;
@@ -3431,6 +3436,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
         tmp2 = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp);
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+        emith_sync_t(sr);
         emith_tpop_carry(sr, 0);
         emith_adcf_r_r_r(tmp2, tmp, tmp);
         emith_tpush_carry(sr, 0);            // keep Q1 in T for now
@@ -3479,6 +3485,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp2 = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
         tmp  = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp3);
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+        emith_sync_t(sr);
         if (op & 4) { // adc
           emith_tpop_carry(sr, 0);
           emith_adcf_r_r_r(tmp, tmp3, tmp2);
@@ -3494,14 +3501,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp2 = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
         tmp  = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp3);
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-        emith_bic_r_imm(sr, T);
+        emith_clr_t_cond(sr);
         if (op & 4) {
           emith_addf_r_r_r(tmp, tmp3, tmp2);
         } else
           emith_subf_r_r_r(tmp, tmp3, tmp2);
-        EMITH_SJMP_START(DCOND_VC);
-        emith_or_r_imm_c(DCOND_VS, sr, T);
-        EMITH_SJMP_END(DCOND_VC);
+        emith_set_t_cond(sr, DCOND_VS);
         goto end_op;
       case 0x0d: // DMULS.L Rm,Rn       0011nnnnmmmm1101
         tmp  = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
@@ -3524,6 +3529,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         case 2: // SHAL Rn    0100nnnn00100000
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp2);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+          emith_sync_t(sr);
           emith_tpop_carry(sr, 0); // dummy
           emith_lslf(tmp, tmp2, 1);
           emith_tpush_carry(sr, 0);
@@ -3538,10 +3544,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
               drcf.polling = drcf.loop_type = 0;
           }
 #endif
-          emith_bic_r_imm(sr, T);
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp2);
+          emith_clr_t_cond(sr);
           emith_subf_r_r_imm(tmp, tmp2, 1);
-          emit_or_t_if_eq(sr);
+          emith_set_t_cond(sr, DCOND_EQ);
           goto end_op;
         }
         goto default_;
@@ -3552,6 +3558,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         case 2: // SHAR Rn    0100nnnn00100001
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp2);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+          emith_sync_t(sr);
           emith_tpop_carry(sr, 0); // dummy
           if (op & 0x20) {
             emith_asrf(tmp, tmp2, 1);
@@ -3562,11 +3569,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         case 1: // CMP/PZ Rn  0100nnnn00010001
           tmp = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-          emith_bic_r_imm(sr, T);
+          emith_clr_t_cond(sr);
           emith_cmp_r_imm(tmp, 0);
-          EMITH_SJMP_START(DCOND_LT);
-          emith_or_r_imm_c(DCOND_GE, sr, T);
-          EMITH_SJMP_END(DCOND_LT);
+          emith_set_t_cond(sr, DCOND_GE);
           goto end_op;
         }
         goto default_;
@@ -3597,6 +3602,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         }
         tmp3 = rcache_get_reg_arg(1, tmp, &tmp4);
         if (tmp == SHR_SR) {
+          emith_sync_t(tmp4);
           emith_clear_msb(tmp3, tmp4, 22); // reserved bits defined by ISA as 0
         } else if (tmp3 != tmp4)
           emith_move_r_r(tmp3, tmp4);
@@ -3610,6 +3616,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         case 0x05: // ROTR   Rn          0100nnnn00000101
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp2);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+          emith_sync_t(sr);
           emith_tpop_carry(sr, 0); // dummy
           if (op & 1) {
             emith_rorf(tmp, tmp2, 1);
@@ -3621,6 +3628,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         case 0x25: // ROTCR  Rn          0100nnnn00100101
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, NULL);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+          emith_sync_t(sr);
           emith_tpop_carry(sr, 0);
           if (op & 1) {
             emith_rorcf(tmp);
@@ -3631,11 +3639,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         case 0x15: // CMP/PL Rn          0100nnnn00010101
           tmp = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-          emith_bic_r_imm(sr, T);
+          emith_clr_t_cond(sr);
           emith_cmp_r_imm(tmp, 0);
-          EMITH_SJMP_START(DCOND_LE);
-          emith_or_r_imm_c(DCOND_GT, sr, T);
-          EMITH_SJMP_END(DCOND_LE);
+          emith_set_t_cond(sr, DCOND_GT);
           goto end_op;
         }
         goto default_;
@@ -3665,6 +3671,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           goto default_;
         }
         if (tmp == SHR_SR) {
+          emith_invalidate_t();
           tmp2 = emit_memhandler_read_rr(sh2, SHR_TMP, GET_Rn(), 0, 2 | MF_POSTINCR);
           sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
           emith_write_sr(sr, tmp2);
@@ -3723,9 +3730,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           rcache_get_reg_arg(0, GET_Rn(), NULL);
           tmp = emit_memhandler_read(0);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-          emith_bic_r_imm(sr, T);
+          emith_clr_t_cond(sr);
           emith_cmp_r_imm(tmp, 0);
-          emit_or_t_if_eq(sr);
+          emith_set_t_cond(sr, DCOND_EQ);
           emith_or_r_imm(tmp, 0x80);
           tmp2 = rcache_get_tmp_arg(1); // assuming it differs to tmp
           emith_move_r_r(tmp2, tmp);
@@ -3753,6 +3760,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           goto default_;
         }
         if (tmp2 == SHR_SR) {
+          emith_invalidate_t();
           sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
           tmp = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
           emith_write_sr(sr, tmp);
@@ -3820,6 +3828,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           break;
         case 0x0a: // NEGC   Rm,Rn        0110nnnnmmmm1010
           sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+          emith_sync_t(sr);
           emith_tpop_carry(sr, 1);
           emith_negcf_r_r(tmp2, tmp);
           emith_tpush_carry(sr, 1);
@@ -3870,9 +3879,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x0800: // CMP/EQ #imm,R0       10001000iiiiiiii
         tmp2 = rcache_get_reg(SHR_R0, RC_GR_READ, NULL);
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-        emith_bic_r_imm(sr, T);
+        emith_clr_t_cond(sr);
         emith_cmp_r_imm(tmp2, (s8)(op & 0xff));
-        emit_or_t_if_eq(sr);
+        emith_set_t_cond(sr, DCOND_EQ);
         goto end_op;
       }
       goto default_;
@@ -3896,9 +3905,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x0800: // TST #imm,R0           11001000iiiiiiii
         tmp = rcache_get_reg(SHR_R0, RC_GR_READ, NULL);
         sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-        emith_bic_r_imm(sr, T);
+        emith_clr_t_cond(sr);
         emith_tst_r_imm(tmp, op & 0xff);
-        emit_or_t_if_eq(sr);
+        emith_set_t_cond(sr, DCOND_EQ);
         goto end_op;
       case 0x0900: // AND #imm,R0           11001001iiiiiiii
         tmp = rcache_get_reg(SHR_R0, RC_GR_RMW, &tmp2);
@@ -3919,9 +3928,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x0c00: // TST.B #imm,@(R0,GBR)  11001100iiiiiiii
         tmp = emit_indirect_indexed_read(sh2, SHR_TMP, SHR_R0, SHR_GBR, 0 | drcf.polling);
         sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-        emith_bic_r_imm(sr, T);
+        emith_clr_t_cond(sr);
         emith_tst_r_imm(tmp, op & 0xff);
-        emit_or_t_if_eq(sr);
+        emith_set_t_cond(sr, DCOND_EQ);
         rcache_free_tmp(tmp);
         goto end_op;
       case 0x0d00: // AND.B #imm,@(R0,GBR)  11001101iiiiiiii
@@ -3955,7 +3964,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       if (!(op_flags[i] & OF_B_IN_DS)) {
         elprintf_sh2(sh2, EL_ANOMALY,
           "drc: illegal op %04x @ %08x", op, pc - 2);
-	exit(1);
+        exit(1);
       }
     }
 
@@ -3973,6 +3982,7 @@ end_op:
     if (drcf.test_irq && !drcf.pending_branch_direct) {
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
       FLUSH_CYCLES(sr);
+      emith_sync_t(sr);
       if (!drcf.pending_branch_indirect)
         emit_move_r_imm32(SHR_PC, pc);
       rcache_flush();
@@ -3997,6 +4007,7 @@ end_op:
           (drcf.loop_type == OF_DELAY_LOOP && drcf.delay_reg >= 0)))
       {
         // idle or delay loop
+        emit_sync_t_to_sr();
         emith_sh2_delay_loop(cycles, drcf.delay_reg);
         drcf.polling = drcf.loop_type = 0;
       }
@@ -4009,11 +4020,20 @@ end_op:
       // emit condition test for conditional branch
       if (OP_ISBRACND(opd_b->op)) {
         cond = (opd_b->op == OP_BRANCH_CF) ? DCOND_EQ : DCOND_NE;
-        if (delay_dep_fw & BITMASK1(SHR_T))
+        if (delay_dep_fw & BITMASK1(SHR_T)) {
+          emith_sync_t(sr);
           emith_tst_r_imm(sr, T_save);
-        else
-          emith_tst_r_imm(sr, T);
-      }
+        } else {
+          cond = emith_tst_t(sr, (opd_b->op == OP_BRANCH_CT));
+          if (emith_get_t_cond() >= 0) {
+            if (opd_b->op == OP_BRANCH_CT)
+              emith_or_r_imm_c(cond, sr, T);
+            else
+              emith_bic_r_imm_c(cond, sr, T);
+          }
+        }
+      } else
+        emith_sync_t(sr);
       // no modification of host status/flags between here and branching!
 
 #if LINK_BRANCHES
@@ -4062,6 +4082,9 @@ end_op:
       // branch not taken, correct cycle count
       if (ctaken)
         emith_add_r_imm(sr, ctaken << 12);
+      // set T bit to reflect branch not taken for OP_BRANCH_CT/CF
+      if (emith_get_t_cond() >= 0) // T is synced for all other cases
+        emith_set_t(sr, opd_b->op == OP_BRANCH_CF);
 
       drcf.pending_branch_direct = 0;
       if (target_pc >= base_pc && target_pc < pc)
@@ -4073,6 +4096,7 @@ end_op:
 
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
       FLUSH_CYCLES(sr);
+      emith_sync_t(sr);
       rcache_clean();
 #if CALL_STACK
       struct op_data *opd_b = (op_flags[i] & OF_DELAY_OP) ? opd-1 : opd;
@@ -4113,6 +4137,7 @@ end_op:
 
     s32 tmp = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
     FLUSH_CYCLES(tmp);
+    emith_sync_t(tmp);
 
     emit_move_r_imm32(SHR_PC, pc);
     rcache_flush();
@@ -5553,7 +5578,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
       case 0x06: // MOV.L @Rm+,Rn       0110nnnnmmmm0110
         opd->dest = BITMASK2(GET_Rm(), GET_Rn());
         opd->source = BITMASK2(GET_Rm(), SHR_MEM);
-	break;
+        break;
       case 0x00: // MOV.B @Rm,Rn        0110nnnnmmmm0000
       case 0x01: // MOV.W @Rm,Rn        0110nnnnmmmm0001
       case 0x02: // MOV.L @Rm,Rn        0110nnnnmmmm0010
@@ -5596,12 +5621,12 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
       {
       case 0x0000: // MOV.B R0,@(disp,Rn)  10000000nnnndddd
         opd->source = BITMASK2(GET_Rm(), SHR_R0);
-	opd->dest = BITMASK1(SHR_MEM);
+        opd->dest = BITMASK1(SHR_MEM);
         opd->imm = (op & 0x0f);
         break;
       case 0x0100: // MOV.W R0,@(disp,Rn)  10000001nnnndddd
         opd->source = BITMASK2(GET_Rm(), SHR_R0);
-	opd->dest = BITMASK1(SHR_MEM);
+        opd->dest = BITMASK1(SHR_MEM);
         opd->imm = (op & 0x0f) * 2;
         break;
       case 0x0400: // MOV.B @(disp,Rm),R0  10000100mmmmdddd
@@ -5760,7 +5785,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
       case 0x0e00: // XOR.B #imm,@(R0,GBR)  11001110iiiiiiii
       case 0x0f00: // OR.B  #imm,@(R0,GBR)  11001111iiiiiiii
         opd->source = BITMASK3(SHR_GBR, SHR_R0, SHR_MEM);
-	opd->dest = BITMASK1(SHR_MEM);
+        opd->dest = BITMASK1(SHR_MEM);
         opd->imm = op & 0xff;
         opd->cycles = 3;
         break;

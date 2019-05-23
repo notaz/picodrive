@@ -1200,3 +1200,41 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI };
 #define emith_pool_commit(j)	/**/
 #define emith_insn_ptr()	((u8 *)tcache_ptr)
 #define	emith_flush()		/**/
+
+#ifdef T
+// T bit handling
+#define emith_invert_cond(cond) \
+	((cond) ^ 1)
+
+static void emith_clr_t_cond(int sr)
+{
+  emith_bic_r_imm(sr, T);
+}
+
+static void emith_set_t_cond(int sr, int cond)
+{
+  EMITH_SJMP_START(emith_invert_cond(cond));
+  emith_or_r_imm_c(cond, sr, T);
+  EMITH_SJMP_END(emith_invert_cond(cond));
+}
+
+#define emith_get_t_cond()      -1
+
+#define emith_sync_t(sr)	((void)sr)
+
+#define emith_invalidate_t()
+
+static void emith_set_t(int sr, int val)
+{
+  if (val) 
+    emith_or_r_imm(sr, T);
+  else
+    emith_bic_r_imm(sr, T);
+}
+
+static int emith_tst_t(int sr, int tf)
+{
+  emith_tst_r_imm(sr, T);
+  return tf ? DCOND_NE: DCOND_EQ;
+}
+#endif
