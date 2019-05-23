@@ -128,7 +128,7 @@ static NOINLINE void EMIT(u32 op, u32 dst, u32 src)
 			emit_cache[i] = emit_cache[i+1];
 	}
 }
- 
+
 static void emith_flush(void)
 {
 	int i;
@@ -156,6 +156,7 @@ static void emith_flush(void)
 #define A_COND_LE 0xd
 #define A_COND_CS A_COND_HS
 #define A_COND_CC A_COND_LO
+#define A_COND_NV 0xf // Not Valid (aka NeVer :-) - ATTN: not a real condition!
 
 /* unified conditions */
 #define DCOND_EQ A_COND_EQ
@@ -414,6 +415,9 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 	u32 v;
 	int i;
 
+	if (cond == A_COND_NV)
+		return;
+
 	switch (op) {
 	case A_OP_MOV:
 		rn = 0;
@@ -521,6 +525,9 @@ static int emith_xbranch(int cond, void *target, int is_call)
 	int val = (u32 *)target - (u32 *)tcache_ptr - 2;
 	int direct = is_offset_24(val);
 	u32 *start_ptr = (u32 *)tcache_ptr;
+
+	if (cond == A_COND_NV)
+		return 0; // never taken
 
 	if (direct)
 	{
@@ -1328,3 +1335,52 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	EMITH_SJMP2_END(DCOND_NE);                \
 } while (0)
 
+#ifdef T
+// T bit handling
+static int tcond = -1;
+
+#define emith_invert_cond(cond) \
+	((cond) ^ 1)
+
+#define emith_clr_t_cond(sr) \
+	(void)sr
+
+#define emith_set_t_cond(sr, cond) \
+	tcond = cond
+
+#define emith_get_t_cond() \
+	tcond
+
+#define emith_invalidate_t() \
+	tcond = -1
+
+#define emith_set_t(sr, val) \
+	tcond = ((val) ? A_COND_AL: A_COND_NV)
+
+static void emith_sync_t(sr)
+{
+	if (tcond == A_COND_AL)
+		emith_or_r_imm(sr, T);
+	else if (tcond == A_COND_NV)
+		emith_bic_r_imm(sr, T);
+	else if (tcond >= 0) {
+		emith_bic_r_imm_c(emith_invert_cond(tcond),sr, T);
+		emith_or_r_imm_c(tcond, sr, T);
+	}
+	tcond = -1;
+}
+
+static int emith_tst_t(int sr, int tf)
+{
+	if (tcond < 0) {
+		emith_tst_r_imm(sr, T);
+		return tf ? DCOND_NE: DCOND_EQ;
+	} else if (tcond >= A_COND_AL) {
+		// MUST sync because A_COND_NV isn't a real condition
+		emith_sync_t(sr);
+		emith_tst_r_imm(sr, T);
+		return tf ? DCOND_NE: DCOND_EQ;
+	} else
+		return tf ? tcond : emith_invert_cond(tcond);
+}
+#endif
