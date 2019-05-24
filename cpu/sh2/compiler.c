@@ -537,12 +537,12 @@ static cache_reg_t cache_regs[] = {
 static signed char reg_map_host[HOST_REGS];
 
 static void REGPARM(1) (*sh2_drc_entry)(SH2 *sh2);
-static void            (*sh2_drc_dispatcher)(void);
+static void REGPARM(1) (*sh2_drc_dispatcher)(u32 pc);
 #if CALL_STACK
-static void REGPARM(1) (*sh2_drc_dispatcher_call)(uptr host_pc);
-static void            (*sh2_drc_dispatcher_return)(void);
+static void REGPARM(2) (*sh2_drc_dispatcher_call)(u32 pc, uptr host_pr);
+static void REGPARM(1) (*sh2_drc_dispatcher_return)(u32 pc);
 #endif
-static void            (*sh2_drc_exit)(void);
+static void REGPARM(1) (*sh2_drc_exit)(u32 pc);
 static void            (*sh2_drc_test_irq)(void);
 
 static u32  REGPARM(1) (*sh2_drc_read8)(u32 a);
@@ -2862,8 +2862,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       drcf.polling = (drcf.loop_type == OF_POLL_LOOP ? MF_POLLING : 0);
 #endif
 
+#if DRC_DEBUG
       // must update PC
       emit_move_r_imm32(SHR_PC, pc);
+#endif
       rcache_clean();
 
 #if (DRC_DEBUG & 0x10)
@@ -2883,9 +2885,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #endif
 
       // check cycles
+      tmp = rcache_get_tmp_arg(0);
       sr = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
       emith_cmp_r_imm(sr, 0);
+      emith_move_r_imm(tmp, pc);
       emith_jump_cond(DCOND_LE, sh2_drc_exit);
+      rcache_free_tmp(tmp);
 
 #if (DRC_DEBUG & 32)
       // block hit counter
@@ -4057,13 +4062,15 @@ end_op:
       if (target == NULL)
       {
         // can't resolve branch locally, make a block exit
-        emit_move_r_imm32(SHR_PC, target_pc);
         rcache_clean();
+        tmp = rcache_get_tmp_arg(0);
+        emith_move_r_imm(tmp, target_pc);
+        rcache_free_tmp(tmp);
 
 #if CALL_STACK
         if ((opd_b->dest & BITMASK1(SHR_PR)) && pc+2 < end_pc) {
           // BSR
-          tmp = rcache_get_tmp_arg(0);
+          tmp = rcache_get_tmp_arg(1);
           emith_call_link(tmp, sh2_drc_dispatcher_call);
           rcache_free_tmp(tmp);
         } else
@@ -4098,6 +4105,7 @@ end_op:
       FLUSH_CYCLES(sr);
       emith_sync_t(sr);
       rcache_clean();
+      tmp = rcache_get_reg_arg(0, SHR_PC, NULL);
 #if CALL_STACK
       struct op_data *opd_b = (op_flags[i] & OF_DELAY_OP) ? opd-1 : opd;
       if (opd_b->rm == SHR_PR) {
@@ -4105,7 +4113,7 @@ end_op:
         emith_jump(sh2_drc_dispatcher_return);
       } else if ((opd_b->dest & BITMASK1(SHR_PR)) && pc+2 < end_pc) {
         // JSR/BSRF
-        tmp = rcache_get_tmp_arg(0);
+        tmp = rcache_get_tmp_arg(1);
         emith_call_link(tmp, sh2_drc_dispatcher_call);
       } else
 #endif
@@ -4139,13 +4147,15 @@ end_op:
     FLUSH_CYCLES(tmp);
     emith_sync_t(tmp);
 
-    emit_move_r_imm32(SHR_PC, pc);
-    rcache_flush();
+    rcache_clean();
+    tmp = rcache_get_tmp_arg(0);
+    emith_move_r_imm(tmp, pc);
 
     target = dr_prepare_ext_branch(block->entryp, pc, sh2->is_slave, tcache_id);
     if (target == NULL)
       return NULL;
     emith_jump_patchable(target);
+    rcache_invalidate();
   } else
     rcache_flush();
   emith_flush();
@@ -4160,7 +4170,8 @@ end_op:
       // flush pc and go back to dispatcher (this should no longer happen)
       dbg(1, "stray branch to %08x %p", branch_patch_pc[i], tcache_ptr);
       target = tcache_ptr;
-      emit_move_r_imm32(SHR_PC, branch_patch_pc[i]);
+      tmp = rcache_get_tmp_arg(0);
+      emith_move_r_imm(tmp, branch_patch_pc[i]);
       rcache_flush();
       emith_jump(sh2_drc_dispatcher);
     }
@@ -4322,33 +4333,34 @@ static void sh2_generate_utils(void)
   emith_pop_and_ret(arg1);
   emith_flush();
 
-  // sh2_drc_exit(void)
+  // sh2_drc_exit(u32 pc)
   sh2_drc_exit = (void *)tcache_ptr;
+  emith_ctx_write(arg0, SHR_PC * 4);
   emit_do_static_regs(1, arg2);
   emith_sh2_drc_exit();
   emith_flush();
 
 #if CALL_STACK
-  // sh2_drc_dispatcher_call(uptr host_pc)
+  // sh2_drc_dispatcher_call(u32 pc, uptr host_pr)
   sh2_drc_dispatcher_call = (void *)tcache_ptr;
   emith_ctx_read(arg2, offsetof(SH2, rts_cache_idx));
   emith_add_r_imm(arg2, 2*sizeof(void *));
   emith_and_r_imm(arg2, (ARRAY_SIZE(sh2s->rts_cache)-1) * 2*sizeof(void *));
   emith_ctx_write(arg2, offsetof(SH2, rts_cache_idx));
-  emith_add_r_r_ptr_imm(arg1, CONTEXT_REG, offsetof(SH2, rts_cache));
-  emith_ctx_read(arg3, offsetof(SH2, pr));
-  emith_write_r_r_r_wb(arg3, arg1, arg2);
-  emith_write_r_r_offs_ptr(arg0, arg1, sizeof(void *));
+  emith_add_r_r_ptr_imm(arg3, CONTEXT_REG, offsetof(SH2, rts_cache) + sizeof(void *));
+  emith_write_r_r_r_ptr_wb(arg1, arg2, arg3);
+  emith_ctx_read(arg3, SHR_PR * 4);
+  emith_write_r_r_offs(arg3, arg2, (s8)-sizeof(void *));
   emith_flush();
   // FALLTHROUGH
 #endif
-  // sh2_drc_dispatcher(void)
+  // sh2_drc_dispatcher(u32 pc)
   sh2_drc_dispatcher = (void *)tcache_ptr;
-  emith_ctx_read(arg0, SHR_PC * 4);
+  emith_ctx_write(arg0, SHR_PC * 4);
 #if BRANCH_CACHE
   // check if PC is in branch target cache
-  emith_and_r_r_imm(arg1, arg0, (ARRAY_SIZE(sh2s->branch_cache)-1)*4);
-  emith_add_r_r_r_lsl_ptr(arg1, CONTEXT_REG, arg1, sizeof(void *) == 8 ? 2 : 1);
+  emith_and_r_r_imm(arg1, arg0, (ARRAY_SIZE(sh2s->branch_cache)-1)*8);
+  emith_add_r_r_r_lsl_ptr(arg1, CONTEXT_REG, arg1, sizeof(void *) == 8 ? 1 : 0);
   emith_read_r_r_offs(arg2, arg1, offsetof(SH2, branch_cache));
   emith_cmp_r_r(arg2, arg0);
   EMITH_SJMP_START(DCOND_NE);
@@ -4376,8 +4388,8 @@ static void sh2_generate_utils(void)
   emith_write_r_r_offs_c(DCOND_NE, arg3, arg2, 0);
 #endif
   emith_ctx_read_c(DCOND_NE, arg2, SHR_PC * 4);
-  emith_and_r_r_imm(arg1, arg2, (ARRAY_SIZE(sh2s->branch_cache)-1)*4);
-  emith_add_r_r_r_lsl_ptr(arg1, CONTEXT_REG, arg1, sizeof(void *) == 8 ? 2 : 1);
+  emith_and_r_r_imm(arg1, arg2, (ARRAY_SIZE(sh2s->branch_cache)-1)*8);
+  emith_add_r_r_r_lsl_ptr(arg1, CONTEXT_REG, arg1, sizeof(void *) == 8 ? 1 : 0);
   emith_write_r_r_offs_c(DCOND_NE, arg2, arg1, offsetof(SH2, branch_cache));
   emith_write_r_r_offs_ptr_c(DCOND_NE, RET_REG, arg1, offsetof(SH2, branch_cache) + sizeof(void *));
   EMITH_SJMP_END(DCOND_EQ);
@@ -4393,11 +4405,10 @@ static void sh2_generate_utils(void)
   emith_flush();
 
 #if CALL_STACK
-  // sh2_drc_dispatcher_return(void)
+  // sh2_drc_dispatcher_return(u32 pc)
   sh2_drc_dispatcher_return = (void *)tcache_ptr;
   emith_ctx_read(arg2, offsetof(SH2, rts_cache_idx));
   emith_add_r_r_ptr_imm(arg1, CONTEXT_REG, offsetof(SH2, rts_cache));
-  emith_ctx_read(arg0, offsetof(SH2, pc));
   emith_read_r_r_r_wb(arg3, arg1, arg2);
   emith_cmp_r_r(arg0, arg3);
 #if (DRC_DEBUG & 128)
@@ -4462,11 +4473,11 @@ static void sh2_generate_utils(void)
   emith_move_r_r_ptr(arg0, CONTEXT_REG);
   emith_call_ctx(offsetof(SH2, irq_callback)); // vector = sh2->irq_callback(sh2, level);
   // obtain new PC
-  emith_lsl(arg0, RET_REG, 2);
   emith_ctx_read(arg1, SHR_VBR * 4);
-  emith_add_r_r(arg0, arg1);
-  tmp = emit_memhandler_read(2);
-  emith_ctx_write(tmp, SHR_PC * 4);
+  emith_add_r_r_r_lsl(arg0, arg1, RET_REG, 2);
+  emith_call(sh2_drc_read32);
+  if (arg0 != RET_REG)
+    emith_move_r_r(arg0, RET_REG);
 #if defined(__i386__) || defined(__x86_64__)
   emith_add_r_r_ptr_imm(xSP, xSP, sizeof(void *)); // fix stack
 #endif
@@ -4480,6 +4491,7 @@ static void sh2_generate_utils(void)
   emith_move_r_r_ptr(CONTEXT_REG, arg0); // move ctx, arg0
   emit_do_static_regs(0, arg2);
   emith_call(sh2_drc_test_irq);
+  emith_ctx_read(arg0, SHR_PC * 4);
   emith_jump(sh2_drc_dispatcher);
   emith_flush();
 
