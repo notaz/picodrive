@@ -956,6 +956,8 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	EOP_LDR_REG_LSL(A_COND_AL, r, rs, rm, 0)
 #define emith_read_r_r_r_wb(r, rs, rm) \
 	EOP_LDR_REG_LSL_WB(A_COND_AL, r, rs, rm, 0)
+#define emith_read_r_r_r_ptr_wb(r, rs, rm) \
+	emith_read_r_r_r_wb(r, rs, rm)
 
 #define emith_read8_r_r_offs_c(cond, r, rs, offs) \
 	EOP_LDRB_IMM2(cond, r, rs, offs)
@@ -1003,6 +1005,8 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	emith_write_r_r_offs_c(A_COND_AL, r, rs, offs)
 #define emith_write_r_r_r_wb(r, rs, rm) \
 	EOP_STR_REG_LSL_WB(A_COND_AL, r, rs, rm, 0)
+#define emith_write_r_r_r_ptr_wb(r, rs, rm) \
+	emith_write_r_r_r_wb(r, rs, rm)
 
 #define emith_ctx_read_c(cond, r, offs) \
 	emith_read_r_r_offs_c(cond, r, CONTEXT_REG, offs)
