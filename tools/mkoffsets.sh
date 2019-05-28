@@ -89,7 +89,7 @@ get_define OFS_PMEM32x_ Pico32xMem pal_native	; echo "$line" >>$fn
 get_define OFS_SH2_ SH2_ is_slave		; echo "$line" >>$fn
 get_define OFS_SH2_ SH2_ p_bios			; echo "$line" >>$fn
 get_define OFS_SH2_ SH2_ p_da			; echo "$line" >>$fn
-get_define OFS_SH2_ SH2_ p_sdram			; echo "$line" >>$fn
+get_define OFS_SH2_ SH2_ p_sdram		; echo "$line" >>$fn
 get_define OFS_SH2_ SH2_ p_rom			; echo "$line" >>$fn
 get_define OFS_SH2_ SH2_ p_dram			; echo "$line" >>$fn
 get_define OFS_SH2_ SH2_ p_drcblk_da		; echo "$line" >>$fn

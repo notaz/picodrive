@@ -937,6 +937,7 @@ unsigned int REGPARM(3) p32x_sh2_poll_memory16(unsigned int a, unsigned int d, S
 unsigned int REGPARM(3) p32x_sh2_poll_memory32(unsigned int a, unsigned int d, SH2 *sh2);
 void *p32x_sh2_get_mem_ptr(unsigned int a, unsigned int *mask, SH2 *sh2);
 void p32x_sh2_poll_event(SH2 *sh2, unsigned int flags, unsigned int m68k_cycles);
+int p32x_sh2_memcpy(unsigned int dst, unsigned int src, int count, int size, SH2 *sh2);
 
 // 32x/draw.c
 void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode);
