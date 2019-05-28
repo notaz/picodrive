@@ -129,6 +129,24 @@ static void dmac_transfer_one(SH2 *sh2, struct dma_chan *chan)
     chan->sar += size;
 }
 
+// optimization for copying around memory with SH2 DMA
+static void dmac_memcpy(struct dma_chan *chan, SH2 *sh2)
+{
+  u32 size = (chan->chcr >> 10) & 3, up = chan->chcr & (1 << 14);
+  int count;
+
+  if (!up || chan->tcr < 4)
+    return;
+  if (size == 3) size = 2;  // 4-word xfer mode still counts in words
+  // XXX check TCR being a multiple of 4 in 4-word xfer mode?
+  // XXX check alignment of sar/dar, generating a bus error if unaligned?
+  count = p32x_sh2_memcpy(chan->dar, chan->sar, chan->tcr, 1 << size, sh2);
+
+  chan->sar += count << size;
+  chan->dar += count << size;
+  chan->tcr -= count;
+}
+
 // DMA trigger by SH2 register write
 static void dmac_trigger(SH2 *sh2, struct dma_chan *chan)
 {
@@ -139,6 +157,11 @@ static void dmac_trigger(SH2 *sh2, struct dma_chan *chan)
   if (chan->chcr & DMA_AR) {
     // auto-request transfer
     sh2->state |= SH2_STATE_SLEEP;
+    if ((((chan->chcr >> 12) ^ (chan->chcr >> 14)) & 3) == 0 &&
+        (((chan->chcr >> 14) ^ (chan->chcr >> 15)) & 1) == 1) {
+      // SM == DM and either DM0 or DM1 are set. check for mem to mem copy
+      dmac_memcpy(chan, sh2);
+    }
     while ((int)chan->tcr > 0)
       dmac_transfer_one(sh2, chan);
     dmac_transfer_complete(sh2, chan);

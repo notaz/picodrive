@@ -2261,7 +2261,7 @@ static int emit_get_rom_data(SH2 *sh2, sh2_reg_e r, u32 offs, int size, u32 *val
   if (gconst_get(r, &a)) {
     a += offs;
     // check if rom is memory mapped (not bank switched), and address is in rom
-    if (dr_is_rom(a) && p32x_sh2_get_mem_ptr(a, &mask, sh2)) {
+    if (dr_is_rom(a) && p32x_sh2_get_mem_ptr(a, &mask, sh2) != (void *)-1) {
       switch (size & MF_SIZEMASK) {
       case 0:   *val = (s8)p32x_sh2_read8(a, sh2s);   break;  // 8
       case 1:   *val = (s16)p32x_sh2_read16(a, sh2s); break;  // 16
@@ -4896,12 +4896,7 @@ void sh2_drc_flush_all(void)
 
 void sh2_drc_mem_setup(SH2 *sh2)
 {
-  // fill the convenience pointers
-  sh2->p_bios = sh2->is_slave ? Pico32xMem->sh2_rom_s.w : Pico32xMem->sh2_rom_m.w;
-  sh2->p_da = sh2->data_array;
-  sh2->p_sdram = Pico32xMem->sdram;
-  sh2->p_rom = Pico.rom;
-  // sh2->p_dram filled in dram bank switching
+  // fill the DRC-only convenience pointers
   sh2->p_drcblk_da = Pico32xMem->drcblk_da[!!sh2->is_slave];
   sh2->p_drcblk_ram = Pico32xMem->drcblk_ram;
 }

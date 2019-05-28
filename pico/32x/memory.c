@@ -1855,17 +1855,15 @@ void *p32x_sh2_get_mem_ptr(u32 a, u32 *mask, SH2 *sh2)
 {
   const sh2_memmap *mm = sh2->read8_map;
   void *ret = (void *)-1;
-  u32 am;
 
-  mm += a >> SH2_READ_SHIFT;
-  am = a & ((1 << SH2_READ_SHIFT)-1);
-  if (!map_flag_set(mm->addr) && !(am & ~mm->mask)) {
+  mm += SH2MAP_ADDR2OFFS_R(a);
+  if (!map_flag_set(mm->addr)) {
     // directly mapped memory (SDRAM, ROM, data array)
     ret = (void *)(mm->addr << 1);
     *mask = mm->mask;
   } else if ((a & ~0x7ff) == 0) {
     // BIOS, has handler function since it shares its segment with I/O
-    ret = sh2->is_slave ? Pico32xMem->sh2_rom_s.w : Pico32xMem->sh2_rom_m.w;
+    ret = sh2->p_bios;
     *mask = 0x7ff;
   } else if ((a & 0xc6000000) == 0x02000000) {
     // banked ROM. Return bank address
@@ -1875,6 +1873,75 @@ void *p32x_sh2_get_mem_ptr(u32 a, u32 *mask, SH2 *sh2)
   }
 
   return ret;
+}
+
+int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
+{
+  u32 mask;
+  void *ps, *pd;
+  int len, i;
+
+  // check if src and dst points to memory (rom/sdram/dram/da)
+  if ((pd = p32x_sh2_get_mem_ptr(dst, &mask, sh2)) == (void *)-1)
+    return 0;
+  if ((ps = p32x_sh2_get_mem_ptr(src, &mask, sh2)) == (void *)-1)
+    return 0;
+  ps += src & mask;
+  len = count * size;
+
+  // DRAM in byte access is always in overwrite mode
+  if (pd == sh2->p_dram && size == 1)
+    dst |= 0x20000;
+
+  // align dst to halfword
+  if (dst & 1) {
+    p32x_sh2_write8(dst, *(u8 *)((uptr)ps ^ 1), sh2);
+    ps++, dst++, len --;
+  }
+
+  // copy data
+  if ((uptr)ps & 1) {
+    // unaligned, use halfword copy mode to reduce memory bandwidth
+    u16 *sp = (u16 *)(ps - 1);
+    u16 dl, dh = *sp++;
+    for (i = 0; i < (len & ~1); i += 2, dst += 2, sp++) {
+      dl = dh, dh = *sp;
+      p32x_sh2_write16(dst, (dh >> 8) | (dl << 8), sh2);
+    }
+    if (len & 1)
+      p32x_sh2_write8(dst, dh, sh2);
+  } else {
+    // dst and src at least halfword aligned
+    u16 *sp = (u16 *)ps;
+    // align dst to word
+    if ((dst & 2) && len >= 2) {
+      p32x_sh2_write16(dst, *sp++, sh2);
+      dst += 2, len -= 2;
+    }
+    if ((uptr)sp & 2) {
+      // halfword copy, using word writes to reduce memory bandwidth
+      u16 dl, dh;
+      for (i = 0; i < (len & ~3); i += 4, dst += 4, sp += 2) {
+        dl = sp[0], dh = sp[1];
+        p32x_sh2_write32(dst, (dl << 16) | dh, sh2);
+      }
+    } else {
+      // word copy
+      u32 d;
+      for (i = 0; i < (len & ~3); i += 4, dst += 4, sp += 2) {
+        d = *(u32 *)sp;
+        p32x_sh2_write32(dst, (d << 16) | (d >> 16), sh2);
+      }
+    }
+    if (len & 2) {
+      p32x_sh2_write16(dst, *sp++, sh2);
+      dst += 2;
+    }
+    if (len & 1)
+      p32x_sh2_write8(dst, *sp >> 8, sh2);
+  }
+
+  return count;
 }
 
 // -----------------------------------------------------------------
@@ -2107,8 +2174,12 @@ void Pico32xSwapDRAM(int b)
   ssh2_read16_map[0x04/2].addr = ssh2_read16_map[0x24/2].addr =
   ssh2_read32_map[0x04/2].addr = ssh2_read32_map[0x24/2].addr = MAP_MEMORY(Pico32xMem->dram[b]);
 
-  msh2.p_dram = ssh2.p_dram = Pico32xMem->dram[b]; // DRC conveniance ptr
-  msh2.p_rom  = ssh2.p_rom  = Pico.rom;
+  // convenience ptrs
+  msh2.p_sdram = ssh2.p_sdram = Pico32xMem->sdram;
+  msh2.p_dram  = ssh2.p_dram  = Pico32xMem->dram[b];
+  msh2.p_rom   = ssh2.p_rom   = Pico.rom;
+  msh2.p_bios  = Pico32xMem->sh2_rom_m.w; msh2.p_da = msh2.data_array;
+  ssh2.p_bios  = Pico32xMem->sh2_rom_s.w; ssh2.p_da = ssh2.data_array;
 }
 
 static void bank_switch_rom_sh2(void)
