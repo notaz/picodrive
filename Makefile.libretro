@@ -492,15 +492,9 @@ else ifeq ($(platform), classic_armv8_a35)
 	ARCH = arm
 	BUILTIN_GPU = neon
 	USE_DYNAREC = 1
-	ifeq ($(shell echo `$(CC) -dumpversion` "< 4.9" | bc -l), 1)
 	CFLAGS += -march=armv8-a
-	else
-	  CFLAGS += -march=armv8-a
-	  # If gcc is 5.0 or later
-	  ifeq ($(shell echo `$(CC) -dumpversion` ">= 5" | bc -l), 1)
-	    LDFLAGS += -static-libgcc -static-libstdc++
-	  endif
-	endif
+	LDFLAGS += -static-libgcc -static-libstdc++
+	
 #######################################
 
 # ARM
