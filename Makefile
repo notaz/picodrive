@@ -203,6 +203,7 @@ clean:
 	$(RM) -r .opk_data
 
 $(TARGET): $(OBJS)
+	
 ifeq ($(STATIC_LINKING), 1)
 	$(AR) rcs $@ $(OBJS)
 else
