@@ -63,7 +63,7 @@ endif
 ifeq ($(platform), unix)
 	EXT ?= so
 	TARGET := $(TARGET_NAME)_libretro.$(EXT)
-   fpic := -fPIC
+	fpic := -fPIC
 	SHARED := -shared
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
@@ -77,7 +77,7 @@ else ifeq ($(platform), linux-portable)
 	EXT ?= so
 	TARGET := $(TARGET_NAME)_libretro.$(EXT)
 	SHARED := -shared -nostdlib
-   fpic := -fPIC
+	fpic := -fPIC
 	LIBM :=
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
@@ -88,7 +88,7 @@ else ifeq ($(platform), osx)
 	EXT ?= dylib
 	TARGET := $(TARGET_NAME)_libretro.$(EXT)
 	SHARED := -dynamiclib
-   fpic := -fPIC
+	fpic := -fPIC
 	APPLE := 1
 	arch = intel
 	ifeq ($(shell uname -p),powerpc)
@@ -133,7 +133,7 @@ else ifeq ($(platform), staticios)
 else ifneq (,$(findstring ios,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro_ios.dylib
 	SHARED := -dynamiclib
-   fpic := -fPIC
+	fpic := -fPIC
 	APPLE := 1
 	ifeq ($(IOSSDK),)
 		IOSSDK := $(shell xcodebuild -version -sdk iphoneos Path)
@@ -425,7 +425,7 @@ else ifeq ($(platform), libnx)
 # QNX
 else ifeq ($(platform), qnx)
 	TARGET := $(TARGET_NAME)_libretro_$(platform).so
-   fpic := -fPIC
+	fpic := -fPIC
 	CC = qcc -Vgcc_ntoarmv7le
 	CC_AS = $(CC)
 	CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
@@ -497,11 +497,20 @@ else ifeq ($(platform), classic_armv8_a35)
 	
 #######################################
 
+# ARM-64
+else ifeq ($(platform), arm64)
+	EXT ?= so
+	TARGET := $(TARGET_NAME)_libretro.$(EXT)
+	fpic := -fPIC
+	SHARED := -shared
+	DONT_COMPILE_IN_ZLIB = 1
+	CFLAGS += -DFAMEC_NO_GOTOS
+
 # ARM
 else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
 	SHARED := -shared -Wl,--no-undefined,-Bsymbolic
-   fpic := -fPIC
+	fpic := -fPIC
 	ifneq (,$(findstring cortexa5,$(platform)))
 		CFLAGS += -marm -mcpu=cortex-a5
 		ASFLAGS += -mcpu=cortex-a5
