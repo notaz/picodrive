@@ -1,6 +1,7 @@
 /*
  * SH2 recompiler
  * (C) notaz, 2009,2010,2013
+ * (C) kub, 2018,2019
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -430,13 +431,16 @@ typedef struct {
 } guest_reg_t;
 
 
-// note: cache_regs[] must have at least the amount of
-// HRF_REG registers used by handlers in worst case (currently 4)
+// Note: cache_regs[] must have at least the amount of REG and TEMP registers
+// used by handlers in worst case (currently 4). 
+// Register assignment goes by ABI convention. Caller save registers are TEMP,
+// the others are either static or REG. SR must be static, R0 very recommended.
+// TEMP registers first, REG last. alloc/evict algorithm depends on this.
+// The 1st TEMP must not be RET_REG on x86 (it uses temps for some insns).
+// XXX shouldn't this be somehow defined in the code emitters?
 #ifdef __arm__
 #include "../drc/emit_arm.c"
 
-// register assigment goes by ABI convention. All caller save registers are TEMP
-// the others are either static or REG. SR must be static, R0 very recommended
 static guest_reg_t guest_regs[] = {
   // SHR_R0 .. SHR_SP
 #ifndef __MACH__ // no r9..
@@ -453,20 +457,21 @@ static guest_reg_t guest_regs[] = {
   { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
 };
 
-// NB first TEMP, then REG. alloc/evict algorithm depends on this
+// OABI/EABI: params: r0-r3, return: r0-r1, temp: r12,r14, saved: r4-r8,r10,r11
+// SP,PC: r13,r15 must not be used. saved: r9 (for platform use, e.g. on OSx)
 static cache_reg_t cache_regs[] = {
-  { 12, HRF_TEMP },
+  { 12, HRF_TEMP }, // temps
   { 14, HRF_TEMP },
-  {  0, HRF_TEMP },
-  {  1, HRF_TEMP },
+  {  3, HRF_TEMP }, // params
   {  2, HRF_TEMP },
-  {  3, HRF_TEMP },
-  {  8, HRF_LOCKED },
+  {  1, HRF_TEMP },
+  {  0, HRF_TEMP }, // RET_REG
+  {  8, HRF_LOCKED }, // statics
 #ifndef __MACH__ // no r9..
   {  9, HRF_LOCKED },
 #endif
   { 10, HRF_LOCKED },
-  {  4, HRF_REG },
+  {  4, HRF_REG }, // other regs
   {  5, HRF_REG },
   {  6, HRF_REG },
   {  7, HRF_REG },
@@ -489,11 +494,11 @@ static guest_reg_t guest_regs[] = {
 
 // ax, cx, dx are usually temporaries by convention
 static cache_reg_t cache_regs[] = {
-  { xBX, HRF_REG|HRF_TEMP },
+  { xBX, HRF_REG|HRF_TEMP }, // params
   { xCX, HRF_REG|HRF_TEMP },
   { xDX, HRF_REG|HRF_TEMP },
-  { xAX, HRF_REG|HRF_TEMP },
-  { xSI, HRF_LOCKED },
+  { xAX, HRF_REG|HRF_TEMP }, // return value
+  { xSI, HRF_LOCKED }, // statics
   { xDI, HRF_LOCKED },
 };
 
@@ -502,11 +507,7 @@ static cache_reg_t cache_regs[] = {
 
 static guest_reg_t guest_regs[] = {
   // SHR_R0 .. SHR_SP
-#ifndef _WIN32
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-#else
-  {GRF_STATIC, xDI}, { 0 }            , { 0 }            , { 0 }            ,
-#endif
+  {GRF_STATIC,xR12}, { 0 }            , { 0 }            , { 0 }            ,
   { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
   { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
   { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
@@ -516,18 +517,25 @@ static guest_reg_t guest_regs[] = {
   { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
 };
 
-// ax, cx, dx are usually temporaries by convention
+// M$/SystemV ABI conventions:
+// rbx,rbp,r12-r15 are preserved, rcx,rdx,rax,r8,r9,r10,r11 are temporaries
+// rsi,rdi are preserved in M$ ABI, temporary in SystemV ABI
+// parameters in rcx,rdx,r8,r9, SystemV ABI additionally uses rsi,rdi
 static cache_reg_t cache_regs[] = {
-  { xCX, HRF_REG|HRF_TEMP },
-  { xDX, HRF_REG|HRF_TEMP },
-  { xAX, HRF_REG|HRF_TEMP },
+  { xR10,HRF_TEMP }, // temps
+  { xR11,HRF_TEMP },
+  { xAX, HRF_TEMP }, // RET_REG
+  { xR8, HRF_TEMP }, // params
+  { xR9, HRF_TEMP },
+  { xCX, HRF_TEMP },
+  { xDX, HRF_TEMP },
   { xSI, HRF_REG|HRF_TEMP },
-#ifndef _WIN32
   { xDI, HRF_REG|HRF_TEMP },
-#else
-  { xDI, HRF_LOCKED },
-#endif
-  { xBX, HRF_LOCKED },
+  { xBX, HRF_LOCKED }, // statics
+  { xR12,HRF_LOCKED },
+  { xR13,HRF_REG }, // other regs
+  { xR14,HRF_REG },
+  { xR15,HRF_REG },
 };
 
 #else
