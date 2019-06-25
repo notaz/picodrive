@@ -43,6 +43,7 @@ unsigned short scan_block(unsigned int base_pc, int is_slave,
 #else
 #warning "direct DRC register access not available for this host"
 #endif
+#endif
 
 #ifdef DRC_SR_REG
 #define	__DRC_DECLARE_SR(SR)	register int sh2_sr asm(#SR)
@@ -58,5 +59,4 @@ unsigned short scan_block(unsigned int base_pc, int is_slave,
 #define	DRC_DECLARE_SR
 #define DRC_SAVE_SR(sh2)
 #define DRC_RESTORE_SR(sh2)
-#endif
 #endif

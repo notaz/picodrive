@@ -396,6 +396,12 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 #define emith_cmp_r_imm(r, imm) \
 	emith_arith_r_imm(7, r, imm)
 
+#define emith_eor_r_imm_ptr(r, imm) do { \
+	EMIT_REX_IF(1, 0, r); \
+	EMIT_OP_MODRM64(0x81, 3, 6, r); \
+	EMIT(imm, u32); \
+} while (0)
+
 #define emith_tst_r_imm(r, imm) do { \
 	EMIT_REX_IF(0, 0, r); \
 	EMIT_OP_MODRM64(0xf7, 3, 0, r); \
@@ -417,6 +423,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	emith_or_r_imm(r, imm)
 #define emith_eor_r_imm_c(cond, r, imm) \
 	emith_eor_r_imm(r, imm)
+#define emith_eor_r_imm_ptr_c(cond, r, imm) \
+	emith_eor_r_imm_ptr(r, imm)
 #define emith_bic_r_imm_c(cond, r, imm) \
 	emith_bic_r_imm(r, imm)
 #define emith_tst_r_imm_c(cond, r, imm) \
@@ -589,9 +597,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 // XXX: stupid mess
 #define emith_mul_(op, dlo, dhi, s1, s2) do { \
 	int rmr; \
-	if (dlo != xAX && dhi != xAX) \
+	if (dlo != xAX && dhi != xAX && rcache_is_hreg_used(xAX)) \
 		emith_push(xAX); \
-	if (dlo != xDX && dhi != xDX) \
+	if (dlo != xDX && dhi != xDX && rcache_is_hreg_used(xDX)) \
 		emith_push(xDX); \
 	if ((s1) == xAX) \
 		rmr = s2; \
@@ -609,9 +617,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	} \
 	if (dhi != xDX && dhi != -1 && !(dhi == xAX && dlo == xDX)) \
 		emith_move_r_r(dhi, (dlo == xDX ? xAX : xDX)); \
-	if (dlo != xDX && dhi != xDX) \
+	if (dlo != xDX && dhi != xDX && rcache_is_hreg_used(xDX)) \
 		emith_pop(xDX); \
-	if (dlo != xAX && dhi != xAX) \
+	if (dlo != xAX && dhi != xAX && rcache_is_hreg_used(xAX)) \
 		emith_pop(xAX); \
 } while (0)
 
@@ -898,6 +906,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	emith_jump(target); \
 } while (0)
 
+#define emith_call_cleanup() \
+	emith_add_r_r_ptr_imm(xSP, xSP, sizeof(void *)); // remove return addr
+
 #define emith_ret() \
 	EMIT_OP(0xc3)
 
@@ -912,10 +923,12 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 #define emith_push_ret(r) do { \
 	int r_ = (r >= 0 ? r : xSI); \
 	emith_push(r_); /* always push to align */ \
+	emith_add_r_r_ptr_imm(xSP, xSP, -8*4); /* args shadow space */ \
 } while (0)
 
 #define emith_pop_and_ret(r) do { \
 	int r_ = (r >= 0 ? r : xSI); \
+	emith_add_r_r_ptr_imm(xSP, xSP,  8*4); /* args shadow space */ \
 	emith_pop(r_); \
 	emith_ret(); \
 } while (0)
@@ -942,15 +955,6 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 // "simple" jump (no more then a few insns)
 // ARM will use conditional instructions here
-#define EMITH_SJMP_DECL_() \
-	u8 *cond_ptr
-
-#define EMITH_SJMP_START_(cond) \
-	JMP8_POS(cond_ptr)
-
-#define EMITH_SJMP_END_(cond) \
-	JMP8_EMIT(cond, cond_ptr)
-
 #define EMITH_SJMP_START EMITH_JMP_START
 #define EMITH_SJMP_END EMITH_JMP_END
 
@@ -1046,7 +1050,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	emith_push(xR15); \
 	emith_push(xSI); \
 	emith_push(xDI); \
-	emith_add_r_r_ptr_imm(xSP, xSP, -8*5); /* align + ABI param area */ \
+	emith_add_r_r_ptr_imm(xSP, xSP, -8*5); /* align + args shadow space */ \
 } while (0)
 
 #define emith_sh2_drc_exit() do {  \
@@ -1106,19 +1110,17 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 #endif
 
 #define emith_save_caller_regs(mask) do { \
-	if ((mask) & (1 << xAX)) emith_push(xAX); \
-	if ((mask) & (1 << xCX)) emith_push(xCX); \
-	if ((mask) & (1 << xDX)) emith_push(xDX); \
-	if ((mask) & (1 << xSI)) emith_push(xSI); \
-	if ((mask) & (1 << xDI)) emith_push(xDI); \
+	int _c; u32 _m = mask & 0xfc7; /* AX, CX, DX, SI, DI, 8, 9, 10, 11 */ \
+	if (__builtin_parity(_m) == 1) _m |= 0x8; /* BX for ABI align */ \
+	for (_c = HOST_REGS; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
+		if (_m & (1 << _c)) emith_push(_c); \
 } while (0)
 
 #define emith_restore_caller_regs(mask) do { \
-	if ((mask) & (1 << xDI)) emith_pop(xDI); \
-	if ((mask) & (1 << xSI)) emith_pop(xSI); \
-	if ((mask) & (1 << xDX)) emith_pop(xDX); \
-	if ((mask) & (1 << xCX)) emith_pop(xCX); \
-	if ((mask) & (1 << xAX)) emith_pop(xAX); \
+	int _c; u32 _m = mask & 0xfc7; \
+	if (__builtin_parity(_m) == 1) _m |= 0x8; /* BX for ABI align */ \
+	for (_c = 0; _m && _c < HOST_REGS; _m &= ~(1 << _c), _c++) \
+		if (_m & (1 << _c)) emith_pop(_c); \
 } while (0)
 
 #define emith_sh2_rcall(a, tab, func, mask) do { \
@@ -1192,14 +1194,14 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 		/* if (reg <= turns) turns = reg-1 */		\
 		t3 = rcache_get_reg(reg, RC_GR_RMW, NULL);	\
 		emith_cmp_r_r(t3, t2);				\
-		EMITH_SJMP_START(DCOND_GT);			\
-		emith_sub_r_r_imm_c(DCOND_LE, t2, t3, 1);	\
-		EMITH_SJMP_END(DCOND_GT);			\
+		EMITH_SJMP_START(DCOND_HI);			\
+		emith_sub_r_r_imm_c(DCOND_LS, t2, t3, 1);	\
+		EMITH_SJMP_END(DCOND_HI);			\
 		/* if (reg <= 1) turns = 0 */			\
 		emith_cmp_r_imm(t3, 1);				\
-		EMITH_SJMP_START(DCOND_GT);			\
-		emith_move_r_imm_c(DCOND_LE, t2, 0);		\
-		EMITH_SJMP_END(DCOND_GT);			\
+		EMITH_SJMP_START(DCOND_HI);			\
+		emith_move_r_imm_c(DCOND_LS, t2, 0);		\
+		EMITH_SJMP_END(DCOND_HI);			\
 		/* reg -= turns */				\
 		emith_sub_r_r(t3, t2);				\
 	}							\

@@ -171,7 +171,7 @@ DASM = $(R)platform/libpicofe/linux/host_dasm.c
 DASMLIBS = -lbfd -lopcodes -liberty
 ifeq "$(ARCH)" "arm"
 ifeq ($(filter_out $(shell $(CC) --print-file-name=libbfd.so),"/"),)
-DASM = $(R)platform/common/host_dasm_arm.c
+DASM = $(R)platform/common/host_dasm.c
 DASMLIBS =
 endif
 endif

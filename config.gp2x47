@@ -4,9 +4,10 @@ CC = arm-linux-gnueabi-gcc
 CXX = arm-linux-gnueabi-g++
 AS = arm-linux-gnueabi-as
 STRIP = arm-linux-gnueabi-strip
-CFLAGS += -mabi=apcs-gnu -mno-thumb-interwork -mfloat-abi=soft -mfpu=fpa -mcpu=arm920t -mtune=arm920t -Wno-unused-result -fno-stack-protector -D__GP2X__
+CFLAGS += -mabi=apcs-gnu -mfloat-abi=soft -mfpu=fpa -mcpu=arm920t -mtune=arm920t
+CFLAGS += -Wno-unused-result -D__GP2X__ -mno-thumb-interwork -fno-stack-protector -fno-common
 CFLAGS += -I${HOME}/opt/open2x/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/include -I${HOME}/src/gp2x/armroot/include
-CFLAGS += -fno-gcse -funswitch-loops -fweb -ftree-loop-im #-fpredictive-commoning -ftree-loop-distribution -frename-registers
+CFLAGS += -finline-limit=42 -fipa-pta -fno-ipa-sra -fno-ipa-pure-const
 ASFLAGS += -mabi=apcs-gnu -mfloat-abi=soft -mfpu=fpa -mcpu=arm920t
 LDFLAGS += -mabi=apcs-gnu -mfpu=fpa -B${HOME}/opt/open2x/gcc-4.1.1-glibc-2.3.6/lib/gcc/arm-open2x-linux/4.1.1 -B${HOME}/opt/open2x/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/lib -L${HOME}/opt/open2x/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/lib -L${HOME}/src/gp2x/armroot/lib -static
 LDLIBS += -lpng -lm -ldl

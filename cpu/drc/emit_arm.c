@@ -382,13 +382,6 @@ static void emith_flush(void)
 #define EOP_MOVT(rd,imm) \
 	EMIT(0xe3400000 | ((rd)<<12) | (((imm)>>16)&0xfff) | (((imm)>>12)&0xf0000), M1(rd), NO)
 
-static inline int count_bits(unsigned val)
-{
-	val = val - ((val >> 1) & 0x55555555);
-	val = (val & 0x33333333) + ((val >> 2) & 0x33333333);
-	return (((val + (val >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
-}
-
 // host literal pool; must be significantly smaller than 1024 (max LDR offset = 4096)
 #define MAX_HOST_LITERALS	128
 static u32 literal_pool[MAX_HOST_LITERALS];
@@ -429,18 +422,26 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 		// count insns needed for mov/orr #imm
 		for (v = imm, ror2 = 0; (v >> 24) && ror2 < 32/2; ror2++)
 			v = (v << 2) | (v >> 30);
+#ifdef HAVE_ARMV7
 		for (i = 2; i > 0; i--, v >>= 8)
 			while (v > 0xff && !(v & 3))
 				v >>= 2;
 		if (v) { // 3+ insns needed...
 			if (op == A_OP_MVN)
 				imm = ~imm;
-#ifdef HAVE_ARMV7
 			// ...prefer movw/movt
 			EOP_MOVW(rd, imm);
 			if (imm & 0xffff0000)
 				EOP_MOVT(rd, imm);
+			return;
+		}
 #else
+		for (i = 3; i > 0; i--, v >>= 8)
+			while (v > 0xff && !(v & 3))
+				v >>= 2;
+		if (v) { // 4 insns needed...
+			if (op == A_OP_MVN)
+				imm = ~imm;
 			// ...emit literal load
 			int idx, o;
 			if (literal_iindex >= MAX_HOST_LITERALS) {
@@ -455,9 +456,9 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 				EOP_C_DOP_IMM(cond, A_OP_ADD, 0, rd, rd, 0, o);
 			else if (o < 0)
 				EOP_C_DOP_IMM(cond, A_OP_SUB, 0, rd, rd, 0, -o);
-#endif
 			return;
 		}
+#endif
 		break;
 
 	case A_OP_AND:
@@ -544,7 +545,7 @@ static int emith_xbranch(int cond, void *target, int is_call)
 		EMIT((u32)target,M1(PC),0);
 #else
 		// should never happen
-		elprintf(EL_STATUS|EL_SVP|EL_ANOMALY, "indirect jmp %08x->%08x", target, tcache_ptr);
+		elprintf(EL_STATUS|EL_SVP|EL_ANOMALY, "indirect jmp %8p->%8p", target, tcache_ptr);
 		exit(1);
 #endif
 	}
@@ -633,9 +634,6 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define EMITH_NOTHING1(cond) \
 	(void)(cond)
 
-#define EMITH_SJMP_DECL_()
-#define EMITH_SJMP_START_(cond)	EMITH_NOTHING1(cond)
-#define EMITH_SJMP_END_(cond)	EMITH_NOTHING1(cond)
 #define EMITH_SJMP_START(cond)	EMITH_NOTHING1(cond)
 #define EMITH_SJMP_END(cond)	EMITH_NOTHING1(cond)
 #define EMITH_SJMP2_START(cond)	EMITH_NOTHING1(cond)
@@ -806,6 +804,9 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define emith_eor_r_imm(r, imm) \
 	emith_op_imm(A_COND_AL, 0, A_OP_EOR, r, imm)
 
+#define emith_eor_r_imm_ptr(r, imm) \
+	emith_eor_r_imm(r, imm)
+
 // note: only use 8bit imm for these
 #define emith_tst_r_imm(r, imm) \
 	emith_top_imm(A_COND_AL, A_OP_TST, r, imm)
@@ -836,6 +837,9 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 
 #define emith_eor_r_imm_c(cond, r, imm) \
 	emith_op_imm(cond, 0, A_OP_EOR, r, imm)
+
+#define emith_eor_r_imm_ptr_c(cond, r, imm) \
+	emith_eor_r_imm_c(cond, r, imm)
 
 #define emith_bic_r_imm_c(cond, r, imm) \
 	emith_op_imm(cond, 0, A_OP_BIC, r, imm)
@@ -1139,6 +1143,8 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	emith_jump(target); \
 } while (0)
 
+#define emith_call_cleanup()	/**/
+
 #define emith_ret_c(cond) \
 	emith_jump_reg_c(cond, LR)
 
@@ -1228,10 +1234,10 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 		/* if (reg <= turns) turns = reg-1 */		\
 		t3 = rcache_get_reg(reg, RC_GR_RMW, NULL);	\
 		emith_cmp_r_r(t3, t2);				\
-		emith_sub_r_r_imm_c(DCOND_LE, t2, t3, 1);	\
+		emith_sub_r_r_imm_c(DCOND_LS, t2, t3, 1);	\
 		/* if (reg <= 1) turns = 0 */			\
 		emith_cmp_r_imm(t3, 1);				\
-		emith_move_r_imm_c(DCOND_LE, t2, 0);		\
+		emith_move_r_imm_c(DCOND_LS, t2, 0);		\
 		/* reg -= turns */				\
 		emith_sub_r_r(t3, t2);				\
 	}							\
@@ -1361,7 +1367,7 @@ static int tcond = -1;
 #define emith_set_t(sr, val) \
 	tcond = ((val) ? A_COND_AL: A_COND_NV)
 
-static void emith_sync_t(sr)
+static void emith_sync_t(int sr)
 {
 	if (tcond == A_COND_AL)
 		emith_or_r_imm(sr, T);

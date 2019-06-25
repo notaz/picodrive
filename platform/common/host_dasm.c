@@ -1,9 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
+#ifdef __mips__
+#include "dismips.c"
+#define disasm dismips
+#else
 #include "disarm.c"
-
+#define disasm disarm
+#endif
 
 /* symbols */
 typedef struct { const char *name; void *value; } asymbol;
@@ -40,7 +46,8 @@ void host_dasm(void *addr, int len)
 
     insn = *(long *)addr;
     printf("   %08lx %08lx ", (long)addr, insn);
-    if(disarm((unsigned)addr, insn, buf, sizeof(buf))) {
+    if(disasm((unsigned)addr, insn, buf, sizeof(buf)))
+    {
       symaddr = 0;
       if ((insn & 0xe000000) == 0xa000000) {
         symaddr = (long)addr + 8 + ((long)(insn << 8) >> 6);
@@ -53,7 +60,7 @@ void host_dasm(void *addr, int len)
       else
         printf("%s\n", buf);
     } else
-      printf("unknown\n");
+      printf("unknown (0x%08lx)\n", insn);
     addr = (char *)addr + sizeof(long);
   }
 }
