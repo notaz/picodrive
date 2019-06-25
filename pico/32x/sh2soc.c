@@ -137,6 +137,11 @@ static void dmac_memcpy(struct dma_chan *chan, SH2 *sh2)
 
   if (!up || chan->tcr < 4)
     return;
+  // XXX Mars Check Program fills a 64K buffer, then copies 32K longwords from
+  // DRAM to SDRAM in 4-longword mode, which is 128K. This overwrites a comm
+  // area in SDRAM, which is why the check fails.
+  // Is this a buswidth mismatch problem? As a kludge, usw 16-bit width xfers
+  if (size == 3 && (chan->sar & 0xdf000000) == 0x04000000) size = 1;
   if (size == 3) size = 2;  // 4-word xfer mode still counts in words
   // XXX check TCR being a multiple of 4 in 4-word xfer mode?
   // XXX check alignment of sar/dar, generating a bus error if unaligned?
@@ -500,7 +505,6 @@ static void dreq1_do(SH2 *sh2, struct dma_chan *chan)
   if ((chan->dar & ~0xf) != 0x20004030)
     elprintf(EL_32XP|EL_ANOMALY, "dreq1: bad dar?: %08x\n", chan->dar);
 
-  sh2->state |= SH2_STATE_SLEEP;
   dmac_transfer_one(sh2, chan);
   if (chan->tcr == 0)
     dmac_transfer_complete(sh2, chan);

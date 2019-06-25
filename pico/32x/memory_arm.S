@@ -18,7 +18,7 @@
 
 .text
 
-@ u32 a
+@ u32 a, SH2 *sh2
 .global sh2_read8_rom
 .global sh2_read8_sdram
 .global sh2_read8_da
@@ -32,7 +32,7 @@
 .global sh2_read32_da
 .global sh2_read32_dram
 
-@ u32 a, u32 d
+@ u32 a, u32 d, SH2 *sh2
 .global sh2_write8_sdram
 .global sh2_write8_da
 .global sh2_write8_dram
@@ -270,16 +270,14 @@ sh2_write32_dram:
     streq   r1, [ip, r3, lsr #SH2_DRAM_SHIFT]
     bxeq    lr
     ldr     r0, [ip, r3, lsr #SH2_DRAM_SHIFT]
-    mov     r2, #0
     tst     r1, #0x00ff0000
-    orrne   r2, r2, #0x00ff0000
+    bicne   r0, r0, #0x00ff0000
     tst     r1, #0xff000000
-    orrne   r2, r2, #0xff000000
+    bicne   r0, r0, #0xff000000
     tst     r1, #0x000000ff
-    orrne   r2, r2, #0x000000ff
+    bicne   r0, r0, #0x000000ff
     tst     r1, #0x0000ff00
-    orrne   r2, r2, #0x0000ff00
-    bic     r0, r0, r2
+    bicne   r0, r0, #0x0000ff00
     orr     r0, r0, r1
     str     r0, [ip, r3, lsr #SH2_DRAM_SHIFT]
     bx      lr

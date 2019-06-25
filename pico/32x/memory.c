@@ -74,7 +74,7 @@ static int m68k_poll_detect(u32 a, u32 cycles, u32 flags)
   if (match && cycles - m68k_poll.cycles <= 64 && !SekNotPolling)
   {
     // detect split 32bit access by same cycle count, and ignore those
-    if (cycles != m68k_poll.cycles && ++m68k_poll.cnt > POLL_THRESHOLD) {
+    if (cycles != m68k_poll.cycles && ++m68k_poll.cnt >= POLL_THRESHOLD) {
       if (!(Pico32x.emu_flags & flags)) {
         elprintf(EL_32X, "m68k poll addr %08x, cyc %u",
           a, cycles - m68k_poll.cycles);
@@ -118,7 +118,7 @@ static void NOINLINE sh2_poll_detect(u32 a, SH2 *sh2, u32 flags, int maxcnt)
   // by checking address (max 2 bytes away) and cycles (max 2 cycles later).
   // no polling if more than 20 cycles have passed since last detect call.
   if (a - sh2->poll_addr <= 2 && CYCLES_GE(sh2->poll_cycles+20, cycles_done)) {
-    if (CYCLES_GT(cycles_done,sh2->poll_cycles+2) && ++sh2->poll_cnt > maxcnt) {
+    if (CYCLES_GT(cycles_done,sh2->poll_cycles+2) && ++sh2->poll_cnt >= maxcnt) {
       if (!(sh2->state & flags))
         elprintf_sh2(sh2, EL_32X, "state: %02x->%02x",
           sh2->state, sh2->state | flags);
@@ -131,6 +131,8 @@ static void NOINLINE sh2_poll_detect(u32 a, SH2 *sh2, u32 flags, int maxcnt)
       if ((a & 0xc6000000) == 0x06000000) {
         unsigned char *p = sh2->p_drcblk_ram;
         p[(a & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT] |= 0x80;
+        // mark next word too to enable poll fifo for 32bit access
+        p[((a+2) & 0x3ffff) >> SH2_DRCBLK_RAM_SHIFT] |= 0x80;
       }
 #endif
     }
@@ -148,7 +150,7 @@ void NOINLINE p32x_sh2_poll_event(SH2 *sh2, u32 flags, u32 m68k_cycles)
     elprintf_sh2(sh2, EL_32X, "state: %02x->%02x", sh2->state,
       sh2->state & ~flags);
 
-    if (sh2->m68krcycles_done < m68k_cycles)
+    if (sh2->m68krcycles_done < m68k_cycles && !(sh2->state & SH2_STATE_RUN))
       sh2->m68krcycles_done = m68k_cycles;
 
     pevt_log_sh2_o(sh2, EVT_POLL_END);
@@ -174,12 +176,12 @@ static void sh2s_sync_on_read(SH2 *sh2)
 // This is used to correctly deliver syncronisation data to the 3 cpus. The
 // fifo stores 16 bit values, 8/32 bit accesses must be adapted accordingly.
 #define PFIFO_SZ	4
-#define PFIFO_CNT	4
+#define PFIFO_CNT	8
 struct sh2_poll_fifo {
   u32 cycles;
   u32 a;
   u16 d;
-  u16 cpu;
+  int cpu;
 } sh2_poll_fifo[PFIFO_CNT][PFIFO_SZ];
 unsigned sh2_poll_rd[PFIFO_CNT], sh2_poll_wr[PFIFO_CNT]; // ringbuffer pointers
 
@@ -191,6 +193,7 @@ static NOINLINE u32 sh2_poll_read(u32 a, u32 d, unsigned int cycles, SH2* sh2)
   int cpu = sh2 ? sh2->is_slave+1 : 0;
   unsigned idx;
 
+  a &= ~0x20000000; // ignore writethrough bit
   // fetch oldest write to address from fifo, but stop when reaching the present
   idx = sh2_poll_rd[hix];
   while (idx != sh2_poll_wr[hix] && CYCLES_GE(cycles, fifo[idx].cycles)) {
@@ -225,6 +228,7 @@ static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
   struct sh2_poll_fifo *q = &fifo[(sh2_poll_wr[hix]-1) % PFIFO_SZ];
   int cpu = sh2 ? sh2->is_slave+1 : 0;
 
+  a &= ~0x20000000; // ignore writethrough bit
   // fold 2 consecutive writes to the same address to avoid reading of
   // intermediate values that may cause synchronisation problems.
   // NB this can take an eternity on m68k: mov.b <addr1.l>,<addr2.l> needs
@@ -279,8 +283,8 @@ u32 REGPARM(3) p32x_sh2_poll_memory32(unsigned int a, u32 d, SH2 *sh2)
     sh2s_sync_on_read(sh2);
     cycles = sh2_cycles_done_m68k(sh2);
     // check poll fifo and sign-extend the result correctly
-    d = sh2_poll_read(a, d, cycles, sh2) |
-        (sh2_poll_read(a+2, d >> 16, cycles, sh2) << 16);
+    d = (sh2_poll_read(a, d >> 16, cycles, sh2) << 16) |
+        ((u16)sh2_poll_read(a+2, d, cycles, sh2));
   }
 
   sh2_poll_detect(a, sh2, SH2_STATE_RPOLL, 5);
@@ -1503,7 +1507,7 @@ static u32 REGPARM(2) sh2_read32_rom(u32 a, SH2 *sh2)
 
 // writes
 #ifdef DRC_SH2
-static void NOINLINE sh2_sdram_poll(u32 a, u16 d, SH2 *sh2)
+static void NOINLINE sh2_sdram_poll(u32 a, u32 d, SH2 *sh2)
 {
   unsigned cycles;
 
@@ -1525,8 +1529,8 @@ void NOINLINE sh2_sdram_checks(u32 a, u32 d, SH2 *sh2, int t)
 
 void NOINLINE sh2_sdram_checks_l(u32 a, u32 d, SH2 *sh2, int t)
 {
-  sh2_sdram_checks(a, d, sh2, t);
-  sh2_sdram_checks(a+2, d>>16, sh2, t>>16);
+  sh2_sdram_checks(a, d>>16, sh2, t);
+  sh2_sdram_checks(a+2, d, sh2, t>>16);
 }
 
 #ifndef _ASM_32X_MEMORY_C
@@ -1568,6 +1572,7 @@ static void REGPARM(3) sh2_write8_cs0(u32 a, u32 d, SH2 *sh2)
     }
 
     if ((a & 0x3fe00) == 0x4200) {
+      sh2->poll_cnt = 0;
       ((u8 *)Pico32xMem->pal)[(a & 0x1ff) ^ 1] = d;
       Pico32x.dirty_pal = 1;
       goto out;
@@ -1641,6 +1646,7 @@ static void REGPARM(3) sh2_write16_cs0(u32 a, u32 d, SH2 *sh2)
     }
 
     if ((a & 0x3fe00) == 0x4200) {
+      sh2->poll_cnt = 0;
       Pico32xMem->pal[(a & 0x1ff) / 2] = d;
       Pico32x.dirty_pal = 1;
       goto out;
@@ -2175,11 +2181,7 @@ void Pico32xSwapDRAM(int b)
   ssh2_read32_map[0x04/2].addr = ssh2_read32_map[0x24/2].addr = MAP_MEMORY(Pico32xMem->dram[b]);
 
   // convenience ptrs
-  msh2.p_sdram = ssh2.p_sdram = Pico32xMem->sdram;
   msh2.p_dram  = ssh2.p_dram  = Pico32xMem->dram[b];
-  msh2.p_rom   = ssh2.p_rom   = Pico.rom;
-  msh2.p_bios  = Pico32xMem->sh2_rom_m.w; msh2.p_da = msh2.data_array;
-  ssh2.p_bios  = Pico32xMem->sh2_rom_s.w; ssh2.p_da = ssh2.data_array;
 }
 
 static void bank_switch_rom_sh2(void)
@@ -2358,6 +2360,12 @@ void PicoMemSetup32x(void)
   ssh2.write8_tab  = (const void **)(void *)ssh2_write8_map;
   ssh2.write16_tab = (const void **)(void *)ssh2_write16_map;
   ssh2.write32_tab = (const void **)(void *)ssh2_write32_map;
+
+  // convenience ptrs
+  msh2.p_sdram = ssh2.p_sdram = Pico32xMem->sdram;
+  msh2.p_rom   = ssh2.p_rom   = Pico.rom;
+  msh2.p_bios  = Pico32xMem->sh2_rom_m.w; msh2.p_da = msh2.data_array;
+  ssh2.p_bios  = Pico32xMem->sh2_rom_s.w; ssh2.p_da = ssh2.data_array;
 
   sh2_drc_mem_setup(&msh2);
   sh2_drc_mem_setup(&ssh2);
