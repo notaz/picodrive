@@ -65,6 +65,8 @@ int _newlib_vm_size_user = 1 << TARGET_SIZE_2;
 
 #endif
 
+#include "libretro_core_options.h"
+
 #include <pico/pico_int.h>
 #include <pico/state.h>
 #include <pico/patch.h>
@@ -588,34 +590,15 @@ void retro_set_environment(retro_environment_t cb)
    struct retro_vfs_interface_info vfs_iface_info;
 #endif
 
-   static const struct retro_variable vars[] = {
-      { "picodrive_input1",      "Input device 1; 3 button pad|6 button pad|None" },
-      { "picodrive_input2",      "Input device 2; 3 button pad|6 button pad|None" },
-      { "picodrive_sprlim",      "No sprite limit; disabled|enabled" },
-      { "picodrive_ramcart",     "MegaCD RAM cart; disabled|enabled" },
-      { "picodrive_region",      "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
-      { "picodrive_aspect",      "Core-provided aspect ratio; PAR|4/3|CRT" },
-      { "picodrive_overscan",    "Show Overscan; disabled|enabled" },
-      { "picodrive_overclk68k",  "68k overclock; disabled|+25%|+50%|+75%|+100%|+200%|+400%" },
-#ifdef DRC_SH2
-      { "picodrive_drc", "Dynamic recompilers; enabled|disabled" },
-#endif
-      { "picodrive_audio_filter", "Audio filter; disabled|low-pass" },
-      { "picodrive_lowpass_range", "Low-pass filter %; 60|65|70|75|80|85|90|95|5|10|15|20|25|30|35|40|45|50|55"},
-      { NULL, NULL },
-   };
-
    environ_cb = cb;
 
-   cb(RETRO_ENVIRONMENT_SET_VARIABLES, (void *)vars);
+   libretro_set_core_options(environ_cb);
 
 #ifdef USE_LIBRETRO_VFS
    vfs_iface_info.required_interface_version = 1;
    vfs_iface_info.iface = NULL;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VFS_INTERFACE, &vfs_iface_info))
-   {
       filestream_vfs_init(&vfs_iface_info);
-   }
 #endif
 }
 
@@ -825,8 +808,9 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 	char codeCopy[256];
 	char *buff;
 
-	if (code=='\0') return;
-	strcpy(codeCopy,code);
+	if (*code == '\0')
+      return;
+	strcpy(codeCopy, code);
 	buff = strtok(codeCopy,"+");
 
 	while (buff != NULL)
