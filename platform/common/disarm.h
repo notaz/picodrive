@@ -23,6 +23,6 @@
 #ifndef DISARM_H
 #define DISARM_H
 
-int disarm(unsigned int pc, unsigned int insn, char *buf, unsigned int buf_len);
+int disarm(uintptr_t long pc, uint32_t, char *buf, unsigned int buf_len);
 
 #endif /* DISARM_H */

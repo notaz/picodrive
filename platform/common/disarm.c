@@ -435,7 +435,7 @@ static int software_interrupt(unsigned int pc, unsigned int insn, char *buf, siz
 	return 1;
 }
 
-int disarm(unsigned int pc, unsigned int insn, char *buf, size_t buf_len)
+int disarm(uintptr_t pc, uint32_t insn, char *buf, size_t buf_len)
 {
 	if ((insn & 0x0fffffd0) == 0x012fff10)
 		return branch_and_exchange(pc, insn, buf, buf_len);

@@ -869,11 +869,14 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 #define emith_jump_cond_patchable(cond, target) \
 	emith_jump_cond(cond, target)
 
-#define emith_jump_patch(ptr, target) do { \
+#define emith_jump_patch(ptr, target) ({ \
 	u32 disp_ = (u8 *)(target) - ((u8 *)(ptr) + 4); \
 	u32 offs_ = (*(u8 *)(ptr) == 0x0f) ? 2 : 1; \
 	EMIT_PTR((u8 *)(ptr) + offs_, disp_ - offs_, u32); \
-} while (0)
+	ptr; \
+})
+
+#define emith_jump_patch_size() 6
 
 #define emith_jump_at(ptr, target) do { \
 	u32 disp_ = (u8 *)(target) - ((u8 *)(ptr) + 5); \

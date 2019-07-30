@@ -466,6 +466,47 @@ static cache_reg_t cache_regs[] = {
   {  7, HRF_REG },
 };
 
+#elif defined(__mips__)
+#include "../drc/emit_mips.c"
+
+static guest_reg_t guest_regs[] = {
+  // SHR_R0 .. SHR_SP
+  {GRF_STATIC, 20} , {GRF_STATIC, 21} , { 0 }            , { 0 }            ,
+  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
+  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
+  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
+  // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
+  // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
+  { 0 }            , { 0 }            , { 0 }            , {GRF_STATIC, 22} ,
+  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
+};
+
+// MIPS ABI: params: r4-r7, return: r2-r3, temp: r1(at),r8-r15,r24-r25,r31(ra),
+// saved: r16-r23,r30, reserved: r0(zero), r26-r27(irq), r28(gp), r29(sp)
+// r1,r15,r24,r25 are used internally by the code emitter
+static cache_reg_t cache_regs[] = {
+  { 14, HRF_TEMP }, // temps
+  { 13, HRF_TEMP },
+  { 12, HRF_TEMP },
+  { 11, HRF_TEMP },
+  { 10, HRF_TEMP },
+  {  9, HRF_TEMP },
+  {  8, HRF_TEMP },
+  {  7, HRF_TEMP }, // params
+  {  6, HRF_TEMP },
+  {  5, HRF_TEMP },
+  {  4, HRF_TEMP },
+  {  3, HRF_TEMP }, // RET_REG
+  {  2, HRF_TEMP },
+  { 22, HRF_LOCKED }, // statics
+  { 21, HRF_LOCKED },
+  { 20, HRF_LOCKED },
+  { 19, HRF_REG }, // other regs
+  { 18, HRF_REG },
+  { 17, HRF_REG },
+  { 16, HRF_REG },
+};
+
 #elif defined(__i386__)
 #include "../drc/emit_x86.c"
 
@@ -1050,9 +1091,12 @@ static void dr_block_link(struct block_entry *be, struct block_link *bl, int emi
   dbg(2, "- %slink from %p to pc %08x entry %p", emit_jump ? "":"early ",
     bl->jump, bl->target_pc, be->tcache_ptr);
 
-  if (emit_jump)
-    emith_jump_patch(bl->jump, be->tcache_ptr);
-    // could sync arm caches here, but that's unnecessary
+  if (emit_jump) {
+    u8 *jump = emith_jump_patch(bl->jump, be->tcache_ptr);
+    // only needs sync if patch is possibly crossing cacheline (assume 16 byte)
+    if ((uintptr_t)jump >>4 != ((uintptr_t)jump+emith_jump_patch_size()-1) >>4)
+      host_instructions_updated(jump, jump+emith_jump_patch_size());
+  }
 
   // move bl to block_entry
   bl->target = be;
@@ -1069,9 +1113,9 @@ static void dr_block_unlink(struct block_link *bl, int emit_jump)
 
   if (bl->target) {
     if (emit_jump) {
-      emith_jump_patch(bl->jump, sh2_drc_dispatcher);
+      u8 *jump = emith_jump_patch(bl->jump, sh2_drc_dispatcher);
       // update cpu caches since the previous jump target doesn't exist anymore
-      host_instructions_updated(bl->jump, bl->jump+4);
+      host_instructions_updated(jump, jump+emith_jump_patch_size());
     }
 
     if (bl->prev)
@@ -4128,8 +4172,9 @@ end_op:
       struct op_data *opd_b = (op_flags[i] & OF_DELAY_OP) ? opd-1 : opd;
       u32 target_pc = opd_b->imm;
       int cond = -1;
-      void *target = NULL;
       int ctaken = 0;
+      void *target = NULL;
+      int patchable = 0;
 
       if (OP_ISBRACND(opd_b->op))
         ctaken = (op_flags[i] & OF_DELAY_OP) ? 1 : 2;
@@ -4182,11 +4227,12 @@ end_op:
           branch_patch_pc[branch_patch_count] = target_pc;
           branch_patch_ptr[branch_patch_count] = target;
           branch_patch_count++;
-        }
-        else
+          patchable = 1;
+        } else
           dbg(1, "warning: too many local branches");
       }
 #endif
+
       if (target == NULL)
       {
         // can't resolve branch locally, make a block exit
@@ -4204,14 +4250,24 @@ end_op:
         } else
 #endif
           target = dr_prepare_ext_branch(block->entryp, target_pc, sh2->is_slave, tcache_id);
+        patchable = 1;
       }
 
-      if (cond != -1) {
-        emith_jump_cond_patchable(cond, target);
-      }
-      else if (target != NULL) {
-        rcache_invalidate();
-        emith_jump_patchable(target);
+      // create branch
+      if (patchable) {
+        if (cond != -1)
+          emith_jump_cond_patchable(cond, target);
+        else if (target != NULL) {
+          rcache_invalidate();
+          emith_jump_patchable(target);
+        }
+      } else {
+        if (cond != -1)
+          emith_jump_cond(cond, target);
+        else if (target != NULL) {
+          rcache_invalidate();
+          emith_jump(target);
+        }
       }
 
       // branch not taken, correct cycle count
