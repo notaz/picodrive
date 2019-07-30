@@ -466,6 +466,56 @@ static cache_reg_t cache_regs[] = {
   {  7, HRF_REG },
 };
 
+#elif defined(__aarch64__)
+#include "../drc/emit_arm64.c"
+
+static guest_reg_t guest_regs[] = {
+  // SHR_R0 .. SHR_SP
+  { GRF_STATIC,20 }, { GRF_STATIC,21 }, { 0 }            , { 0 }            ,
+  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
+  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
+  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
+  // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
+  // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
+  { 0 }            , { 0 }            , { 0 }            , { GRF_STATIC, 22 },
+  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
+};
+
+// AAPCS64: params: r0-r7, return: r0-r1, temp: r8-r17, saved: r19-r29
+// saved: r18 (for platform use)
+// since drc never needs more than 4 parameters, r4-r7 are treated as temp.
+static cache_reg_t cache_regs[] = {
+  { 17, HRF_TEMP }, // temps
+  { 16, HRF_TEMP },
+  { 15, HRF_TEMP },
+  { 14, HRF_TEMP },
+  { 13, HRF_TEMP },
+  { 12, HRF_TEMP },
+  { 11, HRF_TEMP },
+  { 10, HRF_TEMP },
+  {  9, HRF_TEMP },
+  {  8, HRF_TEMP },
+  {  7, HRF_TEMP },
+  {  6, HRF_TEMP },
+  {  5, HRF_TEMP },
+  {  4, HRF_TEMP },
+  {  3, HRF_TEMP }, // params
+  {  2, HRF_TEMP },
+  {  1, HRF_TEMP },
+  {  0, HRF_TEMP }, // RET_REG
+  { 22, HRF_LOCKED }, // statics
+  { 21, HRF_LOCKED },
+  { 20, HRF_LOCKED },
+  { 29, HRF_REG }, // other regs
+  { 28, HRF_REG },
+  { 27, HRF_REG },
+  { 26, HRF_REG },
+  { 25, HRF_REG },
+  { 24, HRF_REG },
+  { 23, HRF_REG },
+  { 22, HRF_REG },
+};
+
 #elif defined(__mips__)
 #include "../drc/emit_mips.c"
 
