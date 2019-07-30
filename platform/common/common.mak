@@ -169,7 +169,7 @@ DEFINES += DRC_DEBUG=$(drc_debug)
 SRCS_COMMON += $(R)cpu/sh2/mame/sh2dasm.c
 DASM = $(R)platform/libpicofe/linux/host_dasm.c
 DASMLIBS = -lbfd -lopcodes -liberty
-ifeq "$(ARCH)" "arm"
+ifeq ("$(ARCH)",$(filter "$(ARCH)","arm" "mipsel"))
 ifeq ($(filter_out $(shell $(CC) --print-file-name=libbfd.so),"/"),)
 DASM = $(R)platform/common/host_dasm.c
 DASMLIBS =

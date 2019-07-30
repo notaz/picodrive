@@ -1098,11 +1098,14 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define emith_jump_cond_patchable(cond, target) \
 	emith_jump_cond(cond, target)
 
-#define emith_jump_patch(ptr, target) do { \
+#define emith_jump_patch(ptr, target) ({ \
 	u32 *ptr_ = ptr; \
 	u32 val_ = (u32 *)(target) - ptr_ - 2; \
 	*ptr_ = (*ptr_ & 0xff000000) | (val_ & 0x00ffffff); \
-} while (0)
+	(u8 *)ptr; \
+})
+
+#define emith_jump_patch_size() 4
 
 #define emith_jump_at(ptr, target) do { \
 	u32 val_ = (u32 *)(target) - (u32 *)(ptr) - 2; \

@@ -36,6 +36,8 @@ unsigned short scan_block(unsigned int base_pc, int is_slave,
 // XXX MUST match definitions in cpu/sh2/compiler.c
 #if defined(__arm__)
 #define	DRC_SR_REG	r10
+#elif defined(__mips__)
+#define	DRC_SR_REG	s6
 #elif defined(__i386__)
 #define	DRC_SR_REG	edi
 #elif defined(__x86_64__)
