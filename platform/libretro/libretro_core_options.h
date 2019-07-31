@@ -185,120 +185,6 @@ struct retro_core_option_definition option_defs_us[] = {
 
 /* RETRO_LANGUAGE_FRENCH */
 
-struct retro_core_option_definition option_defs_fr[] = {
-   {
-      "pokemini_video_scale",
-      "Échelle vidéo (redémarrer)",
-      "Définir le facteur d'échelle vidéo interne. L'augmentation du facteur d'échelle améliore l'apparence du filtre LCD interne «Matrice de Points».",
-      {
-         { NULL, NULL }, /* Scale factors do not require translation */
-      },
-      NULL
-   },
-   {
-      "pokemini_lcdfilter",
-      "Filtre LCD",
-      "Sélectionnez le filtre d'écran interne. «Matrice de Points» produit un effet LCD qui imite le matériel réel. Les filtres LCD sont désactivés lorsque «Échelle vidéo» est défini sur «1x».",
-      {
-         { "dotmatrix", "Matrice de Points" },
-         { "scanline",  "Lignes de Balayage" },
-         { "none",      "Aucun" },
-         { NULL, NULL },
-      },
-      NULL
-   },
-   {
-      "pokemini_lcdmode",
-      "Mode LCD",
-      "Spécifiez les caractéristiques de reproduction 'couleur' en niveaux de gris de l'affichage à cristaux liquides émulé. «Analogique» imite le matériel réel. «2 Nuances» supprime les images fantômes, mais provoque un scintillement dans la plupart des jeux.",
-      {
-         { "analog",  "Analogique" },
-         { "3shades", "3 Nuances" },
-         { "2shades", "2 Nuances" },
-         { NULL, NULL },
-      },
-      NULL
-   },
-   {
-      "pokemini_lcdcontrast",
-      "Contraste LCD",
-      "Réglez le niveau de contraste de l'écran à cristaux liquides émulé.",
-      {
-         { NULL, NULL }, /* Numbers do not require translation */
-      },
-      NULL
-   },
-   {
-      "pokemini_lcdbright",
-      "Luminosité de l'écran LCD",
-      "Définissez le décalage de luminosité de l'affichage à cristaux liquides émulé.",
-      {
-         { NULL, NULL }, /* Numbers do not require translation */
-      },
-      NULL
-   },
-   {
-      "pokemini_palette",
-      "Palette",
-      "Spécifiez la palette utilisée pour 'coloriser' l'affichage à cristaux liquides émulé. «Défaut» imite le matériel réel.",
-      {
-         { "Default",           "Défaut" },
-         { "Old",               "Vieux" },
-         { "Monochrome",        "Noir et Blanc" },
-         { "Green",             "Vert" },
-         { "Green Vector",      "Vert Inversé" },
-         { "Red",               "Rouge" },
-         { "Red Vector",        "Rouge Inversé" },
-         { "Blue LCD",          "LCD Bleu" },
-         { "LEDBacklight",      "Rétro-éclairage LED" },
-         { "Girl Power",        "Pouvoir des Filles" },
-         { "Blue",              "Bleu" },
-         { "Blue Vector",       "Bleu Inversé" },
-         { "Sepia",             "Sépia" },
-         { "Monochrome Vector", "Noir et Blanc Inversé" },
-         { NULL, NULL },
-      },
-      NULL
-   },
-   {
-      "pokemini_piezofilter",
-      "Filtre Piézo",
-      "Utilisez un filtre audio pour simuler les caractéristiques du haut-parleur piézoélectrique du Pokemon Mini.",
-      {
-         { NULL, NULL }, /* enabled/disabled strings do not require translation */
-      },
-      NULL
-   },
-   {
-      "pokemini_rumblelvl",
-      "Niveau de Rumble (écran + contrôleur)",
-      "Spécifiez l'ampleur de l'effet de retour de force, à la fois virtuel et physique.",
-      {
-         { NULL, NULL }, /* Numbers do not require translation */
-      },
-      NULL
-   },
-   {
-      "pokemini_controller_rumble",
-      "Contrôleur Rumble",
-      "Activer l'effet de retour de force physique via le roulement du contrôleur.",
-      {
-         { NULL, NULL }, /* enabled/disabled strings do not require translation */
-      },
-      NULL
-   },
-   {
-      "pokemini_screen_shake",
-      "Secousse de l'écran",
-      "Activez l'effet de retour de force virtuel en 'secouant' l'écran.",
-      {
-         { NULL, NULL }, /* enabled/disabled strings do not require translation */
-      },
-      NULL
-   },
-   { NULL, NULL, NULL, {{0}}, NULL },
-};
-
 /* RETRO_LANGUAGE_SPANISH */
 
 /* RETRO_LANGUAGE_GERMAN */
@@ -331,6 +217,161 @@ struct retro_core_option_definition option_defs_fr[] = {
 
 /* RETRO_LANGUAGE_TURKISH */
 
+struct retro_core_option_definition option_defs_tr[] = {
+   {
+      "picodrive_input1",
+      "Giriş cihazı 1",
+      "Hangi tür kontrolör'ün yuva 1'e takılı olduğunu seçin.",
+      {
+         { "3 button pad", NULL },
+         { "6 button pad", NULL },
+         { "None", "hiçbiri" },
+         { NULL, NULL },
+      },
+      "3 button pad"
+   },
+   {
+      "picodrive_input2",
+      "Giriş cihazı 2",
+      "Hangi tür kontrolör'ün yuva 2'e takılı olduğunu seçin",
+      {
+         { "3 button pad", NULL },
+         { "6 button pad", NULL },
+         { "None", "hiçbiri" },
+         { NULL, NULL },
+      },
+      "3 button pad"
+   },
+   {
+      "picodrive_sprlim",
+      "Sprite sınırı yok",
+      "Sprite sınırını kaldırmak için bunu etkinleştirin.",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled"
+   },
+   {
+      "picodrive_ramcart",
+      "Sega CD RAM Kartuşu",
+      "Oyun verilerini kaydetmek için kullanılan bir MegaCD RAM kartuşunu taklit edin.",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled"
+   },
+   {
+      "picodrive_region",
+      "Bölge",
+      "Belirli bir bölgeye zorlayın.",
+      {
+         { "Auto",  "Otomatik" },
+         { "Japan NTSC", "Japonya NTSC" },
+         { "Japan PAL", "Japonya PAL" },
+         { "US", NULL },
+         { "Europe", "Avrupa" },
+         { NULL, NULL },
+      },
+      "Auto"
+   },
+   {
+      "picodrive_aspect",
+      "Core tarafından belirlenen en boy oranı",
+      "Core tarafından sağlanan en boy oranını seçin. RetroArch'ın en boy oranı, Video ayarlarında sağlanan Core olarak ayarlanmalıdır.",
+      {
+         { "PAR", NULL },
+         { "4/3", NULL },
+         { "CRT", NULL },
+         { NULL, NULL },
+      },
+      "PAR"
+   },
+   {
+      "picodrive_overscan",
+      "Tarama Taşmasını Göster",
+      "Standart tanımlı bir televizyon ekranının kenar çevresinde, çerçeve tarafından gizlenmiş olabilecek rastgele video çıkışını kesin.",
+      {
+         { "disabled",          NULL },
+         { "enabled",           NULL },
+         { NULL, NULL },
+      },
+      "disabled"
+   },
+   {
+      "picodrive_overclk68k",
+      "68K Hızaşırtma",
+      "Öykünülmüş 68K yongasına Hızaşırtma uygulayın.",
+      {
+         { "disabled", NULL },
+         { "+25%", NULL },
+         { "+50%", NULL },
+         { "+75%", NULL },
+         { "+100%", NULL },
+         { "+200%", NULL },
+         { "+400%", NULL },
+         { NULL, NULL },
+      },
+      "disabled"
+   },
+#ifdef DRC_SH2
+   {
+      "picodrive_drc",
+      "Dinamik Yeniden Derleyici",
+      "Performansı artırmaya yardımcı olan dinamik yeniden derleyicileri etkinleştirin. Tercüman CPU çekirdeğinden daha az hassas, ancak çok daha hızlıdır.",
+      {
+         { "enabled", NULL },
+         { "disabled", NULL },
+         { NULL, NULL },
+      },
+      "enabled"
+   },
+#endif
+   {
+      "picodrive_audio_filter",
+      "Ses Filtresi",
+      "Model 1 Genesis'in karakteristik sesini daha iyi simüle etmek için düşük geçişli bir ses filtresini etkinleştirin. Master System ve PICO başlıkları kullanılırken bu seçenek yoksayılır. Sadece Genesis ve eklenti donanımı (Sega CD, 32X) fiziksel düşük geçiş filtresi kullanır.",
+      {
+         { "disabled", "devre dışı" },
+         { "low-pass",  "alçak geçiş" },
+         { NULL, NULL },
+      },
+      "disabled"
+   },
+   {
+      "picodrive_lowpass_range",
+      "Alçak geçiş filtresi %",
+      "Ses düşük geçiş filtresinin kesme frekansını belirtin. Daha yüksek bir değer, yüksek frekans spektrumunun daha geniş bir aralığı azaltıldığı için filtrenin algılanan gücünü arttırır.",
+      {
+         { "5",  NULL },
+         { "10", NULL },
+         { "15", NULL },
+         { "20", NULL },
+         { "25", NULL },
+         { "30", NULL },
+         { "35", NULL },
+         { "40", NULL },
+         { "45", NULL },
+         { "50", NULL },
+         { "55", NULL },
+         { "60", NULL },
+         { "65", NULL },
+         { "70", NULL },
+         { "75", NULL },
+         { "80", NULL },
+         { "85", NULL },
+         { "90", NULL },
+         { "95", NULL },
+         { NULL, NULL },
+      },
+      "60"
+   },
+   { NULL, NULL, NULL, {{0}}, NULL },
+};
+
 /*
  ********************************
  * Language Mapping
@@ -356,7 +397,7 @@ struct retro_core_option_definition *option_defs_intl[RETRO_LANGUAGE_LAST] = {
    NULL,           /* RETRO_LANGUAGE_VIETNAMESE */
    NULL,           /* RETRO_LANGUAGE_ARABIC */
    NULL,           /* RETRO_LANGUAGE_GREEK */
-   NULL,           /* RETRO_LANGUAGE_TURKISH */
+   option_defs_tr, /* RETRO_LANGUAGE_TURKISH */
 };
 
 /*
