@@ -506,6 +506,15 @@ else ifeq ($(platform), arm64)
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
 
+# AARCH64 generic
+else ifeq ($(platform), aarch64)
+	TARGET := $(TARGET_NAME)_libretro.so
+	ARCH = aarch64
+        fpic := -fPIC
+	SHARED := -shared
+	DONT_COMPILE_IN_ZLIB = 1
+	CFLAGS += -DFAMEC_NO_GOTOS
+
 # ARM
 else ifneq (,$(findstring armv,$(platform)))
 	TARGET := $(TARGET_NAME)_libretro.so
