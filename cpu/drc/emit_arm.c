@@ -1174,6 +1174,8 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define host_arg2reg(rd, arg) \
 	rd = arg
 
+#define emith_rw_offs_max()	0xff
+
 /* SH2 drc specific */
 /* pushes r12 for eabi alignment */
 #define emith_sh2_drc_entry() \

@@ -41,7 +41,7 @@ CFLAGS += -I platform/libretro/libretro-common/include/vfs
 STATIC_LINKING:= 0
 TARGET_NAME := picodrive
 LIBM := -lm
-GIT_VERSION ?= " $(shell git rev-parse --short HEAD || echo unknown)"
+GIT_VERSION ?= $(shell git rev-parse --short HEAD || echo unknown)
 ifneq ($(GIT_VERSION)," unknown")
 	CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 endif
@@ -616,6 +616,7 @@ else ifeq ($(platform), gcw0)
 	use_fame = 1
 	use_drz80 = 0
 	use_cz80 = 1
+	use_sh2drc = 1
 
 # Windows MSVC 2017 all architectures
 else ifneq (,$(findstring windows_msvc2017,$(platform)))

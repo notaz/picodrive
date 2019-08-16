@@ -419,8 +419,8 @@ typedef struct {
 static int rcache_get_tmp(void);
 static void rcache_free_tmp(int hr);
 
-// Note: cache_regs[] must have at least the amount of REG and TEMP registers
-// used by handlers in worst case (currently 4). 
+// Note: cache_regs[] must have at least the amount of HRF_REG registers used
+// by handlers in worst case (currently 4). 
 // Register assignment goes by ABI convention. Caller save registers are TEMP,
 // the others are either static or REG. SR must be static, R0 very recommended.
 // VBR, PC, PR must not be static (read from context in utils).
@@ -2418,7 +2418,7 @@ static void rcache_init(void)
 // NB may return either REG or TEMP
 static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmode, u32 *offs)
 {
-  uptr omask = 0xff; // offset mask, XXX: ARM oriented..
+  uptr omask = emith_rw_offs_max(); // offset mask
   u32 mask = 0;
   u32 a;
   int poffs;
@@ -4447,7 +4447,7 @@ end_op:
 
 static void sh2_generate_utils(void)
 {
-  int arg0, arg1, arg2, arg3, sr, tmp;
+  int arg0, arg1, arg2, arg3, sr, tmp, tmp2;
 
   host_arg2reg(arg0, 0);
   host_arg2reg(arg1, 1);
@@ -4689,18 +4689,18 @@ static void sh2_generate_utils(void)
   emith_sub_r_imm(tmp, 4*2);
   rcache_clean();
   // push SR
-  tmp = rcache_get_reg_arg(0, SHR_SP, NULL);
-  emith_add_r_imm(tmp, 4);
+  tmp = rcache_get_reg_arg(0, SHR_SP,&tmp2);
+  emith_add_r_r_imm(tmp, tmp2, 4);
   tmp = rcache_get_reg_arg(1, SHR_SR, NULL);
   emith_clear_msb(tmp, tmp, 22);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
-  rcache_invalidate();
+  rcache_invalidate_tmp();
   emith_call(p32x_sh2_write32); // XXX: use sh2_drc_write32?
   // push PC
   rcache_get_reg_arg(0, SHR_SP, NULL);
   emith_ctx_read(arg1, SHR_PC * 4);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
-  rcache_invalidate();
+  rcache_invalidate_tmp();
   emith_call(p32x_sh2_write32);
   // update I, cycles, do callback
   emith_ctx_read(arg1, offsetof(SH2, pending_level));

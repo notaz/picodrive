@@ -1117,6 +1117,7 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 #define	emith_flush()		/**/
 #define host_instructions_updated(base, end) __builtin___clear_cache(base, end)
 #define emith_jump_patch_size()	8
+#define emith_rw_offs_max()	0xff
 
 
 // SH2 drc specific

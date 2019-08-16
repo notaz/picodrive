@@ -11,7 +11,7 @@ ENDIAN=
 # compile with target C compiler and extract value from .rodata section
 compile_rodata ()
 {
-	$CC $CFLAGS -I .. -c /tmp/getoffs.c -o /tmp/getoffs.o || exit 1
+	$CC $CFLAGS -I .. -shared /tmp/getoffs.c -o /tmp/getoffs.o || exit 1
 	# find the name of the .rodata section (in case -fdata-sections is used)
 	rosect=$(readelf -S /tmp/getoffs.o | grep '\.rodata' |
 						sed 's/^[^.]*././;s/ .*//')

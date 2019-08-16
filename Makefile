@@ -254,6 +254,14 @@ pico/cd/cd_file.o: CFLAGS += -fno-strict-aliasing
 pico/cd/pcm.o: CFLAGS += -fno-strict-aliasing
 pico/cd/LC89510.o: CFLAGS += -fno-strict-aliasing
 pico/cd/gfx_cd.o: CFLAGS += -fno-strict-aliasing
+ifeq (1,$(use_sh2drc))
+ifneq (,$(findstring -flto,$(CFLAGS)))
+# if using the DRC, memory and sh2soc use a global register variable to avoid
+# saving and reloading the SH2 SR. However, this collides with the use of LTO.
+pico/32x/memory.o: CFLAGS += -fno-lto
+pico/32x/sh2soc.o: CFLAGS += -fno-lto
+endif
+endif
 
 # fame needs ~2GB of RAM to compile on gcc 4.8
 # on x86, this is reduced by ~300MB when debug info is off (but not on ARM)

@@ -394,7 +394,7 @@ int emith_flg_noV;		// V flag known not to be set
 // NB: for adcf and sbcf, carry-in must be dealt with separately (see there)
 static void emith_set_arith_flags(int rd, int rt, int rs, s32 imm, int sub)
 {
-	if (sub && rd == FNZ && rt && rs)	// is this cmp_r_r?
+	if (sub && rd == FNZ && rt > AT && rs > AT)	// is this cmp_r_r?
 		emith_flg_rs = rs, emith_flg_rt = rt;
 	else	emith_flg_rs = emith_flg_rt = 0;
 
@@ -858,7 +858,7 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 // NB: mips32r2 has EXT and INS
 #define emith_clear_msb(d, s, count) /* bits to clear */ do { \
 	u32 t; \
-	if ((count) > 16) { \
+	if ((count) >= 16) { \
 		t = (count) - 16; \
 		t = 0xffff >> t; \
 		emith_and_r_r_imm(d, s, t); \
@@ -1262,6 +1262,7 @@ static int emith_cond_check(int cond, int *r)
 // NB: mips32r2 has SYNCI
 #define host_instructions_updated(base, end) __builtin___clear_cache(base, end)
 #define emith_jump_patch_size()	4
+#define emith_rw_offs_max()	0x7fff
 
 // SH2 drc specific
 #define emith_sh2_drc_entry() do { \
