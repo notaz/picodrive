@@ -16,8 +16,8 @@ compile_rodata ()
 	rosect=$(readelf -S /tmp/getoffs.o | grep '\.rodata' |
 						sed 's/^[^.]*././;s/ .*//')
 	# read out .rodata section as hex string (should be only 4 or 8 bytes)
-	objcopy --dump-section $rosect=/tmp/getoffs.ro /tmp/getoffs.o || exit 1
-	ro=$(xxd -ps /tmp/getoffs.ro)
+	ro=$(readelf -x $rosect /tmp/getoffs.o | grep '0x' | cut -c14-48 |
+						tr -d ' \n')
 	if [ "$ENDIAN" = "le" ]; then
 		# swap needed for le target
 		hex=""
