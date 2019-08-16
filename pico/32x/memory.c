@@ -197,24 +197,19 @@ static NOINLINE u32 sh2_poll_read(u32 a, u32 d, unsigned int cycles, SH2* sh2)
   // fetch oldest write to address from fifo, but stop when reaching the present
   idx = sh2_poll_rd[hix];
   while (idx != sh2_poll_wr[hix] && CYCLES_GE(cycles, fifo[idx].cycles)) {
-//    int oidx = idx;
     p = &fifo[idx];
     idx = (idx+1) % PFIFO_SZ;
 
-    if (CYCLES_GT(cycles, p->cycles+80)) {
-      // drop older fifo stores that may cause synchronisation problems.
-      // NB unfortunately this cycle diff is quite sensitive:
-      // observed in Brutal Unleashed: min 80, observed in Afterburner: max 110
-      sh2_poll_rd[hix] = idx;
-    } else if (p->a == a) {
-      // replace current data with fifo value and discard fifo entry
-      if (cpu != p->cpu) {
+    if (cpu != p->cpu) {
+      if (CYCLES_GT(cycles, p->cycles+80)) {
+        // drop older fifo stores that may cause synchronisation problems.
+        sh2_poll_rd[hix] = idx;
+      } else if (p->a == a) {
+        // replace current data with fifo value and discard fifo entry
         d = p->d;
         p->a = -1;
-//        if (oidx == sh2_poll_rd[hix])
-//          sh2_poll_rd[hix] = idx;
+        break;
       }
-      break;
     }
   }
   return d;
@@ -224,7 +219,6 @@ static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
 {
   int hix = (a >> 1) % PFIFO_CNT;
   struct sh2_poll_fifo *fifo = sh2_poll_fifo[hix];
-  struct sh2_poll_fifo *p = &fifo[sh2_poll_wr[hix]];
   struct sh2_poll_fifo *q = &fifo[(sh2_poll_wr[hix]-1) % PFIFO_SZ];
   int cpu = sh2 ? sh2->is_slave+1 : 0;
 
@@ -233,15 +227,16 @@ static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
   // intermediate values that may cause synchronisation problems.
   // NB this can take an eternity on m68k: mov.b <addr1.l>,<addr2.l> needs
   // 28 m68k-cycles (~80 sh2-cycles) to complete (observed in Metal Head)
-  if (q->a == a && !CYCLES_GT(cycles,q->cycles+30)) {
+  if (q->a == a && sh2_poll_wr[hix] != sh2_poll_rd[hix] && !CYCLES_GT(cycles,q->cycles+30)) {
     q->d = d;
   } else {
     // store write to poll address in fifo
+    fifo[sh2_poll_wr[hix]] =
+        (struct sh2_poll_fifo){ .cycles = cycles, .a = a, .d = d, .cpu = cpu };
     sh2_poll_wr[hix] = (sh2_poll_wr[hix]+1) % PFIFO_SZ;
     if (sh2_poll_wr[hix] == sh2_poll_rd[hix])
       // fifo overflow, discard oldest value
       sh2_poll_rd[hix] = (sh2_poll_rd[hix]+1) % PFIFO_SZ;
-    *p = (struct sh2_poll_fifo){ .cycles = cycles, .a = a, .d = d, .cpu = cpu };
   }
 }
 
@@ -2369,6 +2364,8 @@ void PicoMemSetup32x(void)
 
   sh2_drc_mem_setup(&msh2);
   sh2_drc_mem_setup(&ssh2);
+  memset(sh2_poll_rd, 0, sizeof(sh2_poll_rd));
+  memset(sh2_poll_wr, 0, sizeof(sh2_poll_wr));
 
   // z80 hack
   z80_map_set(z80_write_map, 0x8000, 0xffff, z80_md_bank_write_32x, 1);

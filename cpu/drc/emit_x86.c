@@ -986,6 +986,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 #define host_instructions_updated(base, end)
 
+#define emith_rw_offs_max()	0xffffffff
+
 #ifdef __x86_64__
 
 #define HOST_REGS 16
