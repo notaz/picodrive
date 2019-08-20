@@ -4,11 +4,11 @@ CC = arm-linux-gnueabi-gcc
 CXX = arm-linux-gnueabi-g++
 AS = arm-linux-gnueabi-as
 STRIP = arm-linux-gnueabi-strip
-CFLAGS += -mfloat-abi=soft -mcpu=arm920t -mtune=arm920t -Wno-unused-result -fno-stack-protector -D__GP2X__
-CFLAGS += -fno-gcse -funswitch-loops -fweb -ftree-loop-im #-fpredictive-commoning -ftree-loop-distribution -frename-registers
-CFLAGS += -I${HOME}/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/arm-gph-linux-gnueabi/sys-root/usr/include -I${HOME}/src/gp2x/armroot-eabi/include
+CFLAGS += -I${HOME}/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/arm-gph-linux-gnueabi/sys-root/usr/include -I${HOME}/src/gp2x/armroot-eabi/include  -D__GP2X__  -Wno-unused-result
+CFLAGS += -mfloat-abi=soft -mcpu=arm920t -mtune=arm920t -mno-thumb-interwork -fno-stack-protector -fno-common
+CFLAGS += -finline-limit=42 -fipa-pta -fno-ipa-sra -fno-ipa-pure-const
 ASFLAGS += -mfloat-abi=soft -mcpu=arm920t
-LDFLAGS += -B${HOME}/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/lib/gcc/arm-gph-linux-gnueabi/4.2.4 -B${HOME}/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/arm-gph-linux-gnueabi/sys-root/usr/lib -L${HOME}/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/arm-gph-linux-gnueabi/sys-root/usr/lib -static
+LDFLAGS += -B${HOME}/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/lib/gcc/arm-gph-linux-gnueabi/4.2.4 -B${HOME}/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/arm-gph-linux-gnueabi/sys-root/usr/lib -L${HOME}/opt/GPH_SDK/tools/gcc-4.2.4-glibc-2.7-eabi/arm-gph-linux-gnueabi/sys-root/usr/lib -L${HOME}/src/gp2x/armroot-eabi/lib -static
 LDLIBS += -lpng -lm -ldl
 
 ARCH = arm
