@@ -11,7 +11,10 @@ ENDIAN=
 # compile with target C compiler and extract value from .rodata section
 compile_rodata ()
 {
-	$CC $CFLAGS -I .. -shared /tmp/getoffs.c -o /tmp/getoffs.o || exit 1
+	# $CC $CFLAGS -I .. -shared /tmp/getoffs.c -o /tmp/getoffs.o || exit 1
+	echo 'void dummy(void) { asm(""::"r" (&val)); }' >> /tmp/getoffs.c
+	$CC $CFLAGS -I .. -nostdlib -Wl,-edummy /tmp/getoffs.c \
+						-o /tmp/getoffs.o || exit 1
 	# find the name of the .rodata section (in case -fdata-sections is used)
 	rosect=$(readelf -S /tmp/getoffs.o | grep '\.rodata' |
 						sed 's/^[^.]*././;s/ .*//')
@@ -40,13 +43,13 @@ get_define () # prefix struct member member...
 	name=$(echo $* | sed 's/ /_/g')
 	echo '#include "pico/pico_int.h"' > /tmp/getoffs.c
 	echo "static const struct $struct p;" >> /tmp/getoffs.c
-	echo "const int offs = (char *)&p.$field - (char*)&p;" >>/tmp/getoffs.c
+	echo "const int val = (char *)&p.$field - (char*)&p;" >>/tmp/getoffs.c
 	compile_rodata
 	line=$(printf "#define %-20s 0x%04x" $prefix$name $rodata)
 }
 
 # determine endianess
-echo "const int one = 1;" >/tmp/getoffs.c
+echo "const int val = 1;" >/tmp/getoffs.c
 compile_rodata
 ENDIAN=$(if [ "$rodata" -eq 1 ]; then echo be; else echo le; fi)
 # output header

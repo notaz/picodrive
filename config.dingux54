@@ -4,12 +4,11 @@ CC = mipsel-linux-gnu-gcc
 CXX = mipsel-linux-gnu-g++
 AS = mipsel-linux-gnu-as
 STRIP = mipsel-linux-gnu-strip
-CFLAGS += -I${HOME}/opt/opendingux-toolchain/usr/include/
-CFLAGS += -I${HOME}/opt/opendingux-toolchain/usr/include/SDL
+CFLAGS += -I${HOME}/opt/opendingux-toolchain/usr/include/ -I${HOME}/opt/opendingux-toolchain/usr/include/SDL
 CFLAGS += -D_GNU_SOURCE=1 -D_REENTRANT -Wno-unused-result -fno-stack-protector
 ASFLAGS += 
-LDFLAGS += 
-LDLIBS += -B${HOME}/opt/opendingux-toolchain/usr/lib -B${HOME}/opt/opendingux-toolchain/lib -Wl,-rpath-link=${HOME}/opt/opendingux-toolchain/usr/lib -Wl,-rpath-link=${HOME}/opt/opendingux-toolchain/lib -lSDL -lasound -lpng -lz -lm -lstdc++ -ldl
+LDFLAGS += -B${HOME}/opt/opendingux-toolchain/usr/lib -B${HOME}/opt/opendingux-toolchain/lib -Wl,-rpath-link=${HOME}/opt/opendingux-toolchain/usr/lib -Wl,-rpath-link=${HOME}/opt/opendingux-toolchain/lib
+LDLIBS += -lSDL -lasound -lpng -lz -lm -ldl
 
 ARCH = mipsel
 PLATFORM = opendingux
