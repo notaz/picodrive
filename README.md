@@ -36,48 +36,9 @@ opendingux|opendingux with ubuntu mips gcc 5.4|CROSS_COMPILE=mipsel-linux-gnu- C
 gcw0|gcw0|CROSS_COMPILE=mipsel-gcw0-linux-uclibc- CFLAGS="-I$TC/usr/mipsel-gcw0-linux-uclibc/sysroot/usr/include -I$TC/usr/mipsel-gcw0-linux-uclibc/sysroot/usr/include/SDL -fno-stack-protector -fno-common -finline-limit=42 -fipa-pta" LDFLAGS="--sysroot $TC/usr/mipsel-gcw0-linux-uclibc/sysroot" ./configure --platform=gcw0
 
 For gp2x, wiz, and caanoo you may need to compile libpng first, and additionally
-this patch may need to be applied to the cpu/cyclone submodule:
-> diff --git a/OpArith.cpp b/OpArith.cpp
-> index 96c7e0d..09517b8 100644
-> --- a/OpArith.cpp
-> +++ b/OpArith.cpp
-> @@ -425,7 +425,7 @@ int OpAbcd(int op)
->      ot("  add r1,r1,r0\n");
->      ot("  add r1,r1,r6\n");
->      ot("  mov r12,r1\n");
-> -    ot("  addhi r12,#6 ;@ Decimal adjust units\n");
-> +    ot("  addhi r12,r12,#6 ;@ Decimal adjust units\n");
->      ot("  tst r1,#0x80\n");
->      ot("  orreq r10,r10,#0x10000000 ;@ Undefined V behavior\n");
->      ot("  cmp r12,#0x9f\n");
-> @@ -452,7 +452,7 @@ int OpAbcd(int op)
->      ot("  cmp r1,r12\n");
->      ot("  orrlt r10,r10,#0x20000000 ;@ C\n");
->      ot("  cmp r1,#0xff\n");
-> -    ot("  addhi r1,#0xa0\n");
-> +    ot("  addhi r1,r1,#0xa0\n");
->      ot("  sub r12,r1,r12\n");
->      ot("  movs r0,r12,lsl #24\n");
->      ot("  bicmi r10,r10,#0x10000000 ;@ Undefined V behavior part II\n");
-> diff --git a/OpLogic.cpp b/OpLogic.cpp
-> index 012e35a..d40d814 100644
-> --- a/OpLogic.cpp
-> +++ b/OpLogic.cpp
-> @@ -74,12 +74,12 @@ const char *TestCond(int m68k_cc, int invert)
->        break;
->      case 0x0e: // gt
->        ot("  eor r0,r10,r10,lsl #3 ;@ gt: !Z && N == V\n");
-> -      ot("  orrs r0,r10,lsl #1\n");
-> +      ot("  orrs r0,r0,r10,lsl #1\n");
->        cond="pl", icond="mi";
->        break;
->      case 0x0f: // le
->        ot("  eor r0,r10,r10,lsl #3 ;@ le: Z || N != V\n");
-> -      ot("  orrs r0,r10,lsl #1\n");
-> +      ot("  orrs r0,r0,r10,lsl #1\n");
->        cond="mi", icond="pl";
->        break;
->      default:
+cyclone_gp2x.patch may need to be applied to the cpu/cyclone submodule:
+
+> patch -d cpu/cyclone -p1 <cyclone_gp2x.patch
 
 After configure, compile with
 
