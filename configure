@@ -22,6 +22,13 @@ compile_binary()
   $c >> config.log 2>&1
 }
 
+check_option()
+{
+  echo 'void test(void) { }' >$TMPC
+  compile_object $1 || return 1
+  return 0
+}
+
 check_define()
 {
   $CC -E -dD $CFLAGS pico/arm_features.h | grep -q $1 || return 1
@@ -31,17 +38,18 @@ check_define()
 # setting options to "yes" or "no" will make that choice default,
 # "" means "autodetect".
 
-platform_list="generic pandora gp2x opendingux rpi1 rpi2"
+platform_list="generic pandora gp2x wiz caanoo opendingux gcw0 rpi1 rpi2"
 platform="generic"
 sound_driver_list="oss alsa sdl"
 sound_drivers=""
 have_armv5=""
 have_armv6=""
 have_armv7=""
+have_arm_oabi=""
 have_arm_neon=""
 have_libavcodec=""
 need_sdl="no"
-need_xlib="no"
+need_zlib="no"
 # these are for known platforms
 optimize_cortexa8="no"
 optimize_cortexa7="no"
@@ -54,7 +62,7 @@ CC="${CC-${CROSS_COMPILE}gcc}"
 CXX="${CXX-${CROSS_COMPILE}g++}"
 AS="${AS-${CROSS_COMPILE}as}"
 STRIP="${STRIP-${CROSS_COMPILE}strip}"
-test -n "$SDL_CONFIG" || SDL_CONFIG="`$CC --print-sysroot 2> /dev/null || true`/usr/bin/sdl-config"
+test -n "$SDL_CONFIG" || SDL_CONFIG="`$CC $CFLAGS $LDFLAGS --print-sysroot 2> /dev/null || true`/usr/bin/sdl-config"
 MAIN_LDLIBS="$LDLIBS -lm"
 config_mak="config.mak"
 
@@ -78,23 +86,27 @@ set_platform()
     ;;
   generic)
     ;;
-  opendingux)
+  opendingux | gcw0)
     sound_drivers="sdl"
+    # both are really an opendingux
+    platform="opendingux"
     ;;
   pandora)
     sound_drivers="oss alsa"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
     ;;
-  gp2x)
+  gp2x | wiz | caanoo)
     sound_drivers="oss"
     optimize_arm920="yes"
+    # compile for OABI if toolchain provides it (faster code on caanoo)
+    have_arm_oabi="yes"
+    # always use static linking, since caanoo doesn't have OABI libs. Moreover,
+    # dynamic linking slows Wiz 1-10%, and libm on F100 isn't compatible
+    LDFLAGS="$LDFLAGS -static"
+    # unified binary for all of them
     CFLAGS="$CFLAGS -D__GP2X__"
-    if [ "$CROSS_COMPILE" = "arm-linux-" ]; then
-      # still using static, dynamic linking slows Wiz 1-10%
-      # also libm on F100 is not compatible
-      MAIN_LDLIBS="$MAIN_LDLIBS -static"
-    fi
+    platform="gp2x"
     ;;
   *)
     fail "unsupported platform: $platform"
@@ -147,18 +159,11 @@ fi
 #  fi
 #fi
 
-# basic compiler test
-cat > $TMPC <<EOF
-int main(void) { return 0; }
-EOF
-if ! compile_binary; then
-  fail "compiler test failed, please check config.log"
-fi
-
 if [ -z "$ARCH" ]; then
   ARCH=`$CC -dumpmachine | awk -F '-' '{print $1}'`
 fi
 
+# CPU/ABI stuff first, else compile test may fail
 case "$ARCH" in
 arm*)
   # ARM stuff
@@ -206,26 +211,40 @@ arm*)
     have_armv5=`check_define HAVE_ARMV5 && echo yes` || true
   fi
 
-  # automatically set mfpu and mfloat-abi if they are not set
-  if [ "$have_arm_neon" = "yes" ]; then
-    fpu="neon"
-  elif [ "$have_armv6" = "yes" ]; then
-    fpu="vfp"
-  fi
-  if [ "x$fpu" != "x" ]; then
-    echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=$fpu"
-    echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=$fpu"
-    floatabi_set_by_gcc=`$CC -v 2>&1 | grep -q -- --with-float= && echo yes` || true
-    if [ "$floatabi_set_by_gcc" != "yes" ]; then
-      echo "$CFLAGS" | grep -q -- '-mfloat-abi=' || CFLAGS="$CFLAGS -mfloat-abi=softfp"
-      echo "$ASFLAGS" | grep -q -- '-mfloat-abi=' || ASFLAGS="$ASFLAGS -mfloat-abi=softfp"
-    fi
-  fi
-
   # must disable thumb as recompiler can't handle it
   if check_define __thumb__; then
     CFLAGS="$CFLAGS -marm"
   fi
+  # OABI/EABI selection
+  if [ "$have_arm_oabi" = "yes" ] &&  check_option -mabi=apcs-gnu; then
+    echo "$CFLAGS" | grep -q -- '-mabi=' || CFLAGS="$CFLAGS -mabi=apcs-gnu"
+    echo "$CFLAGS" | grep -q -- '-m\(no-\)*thumb-interwork' || CFLAGS="$CFLAGS -mno-thumb-interwork"
+    echo "$ASFLAGS" | grep -q -- '-mabi=' || ASFLAGS="$ASFLAGS -mabi=apcs-gnu"
+  fi
+
+  # automatically set mfpu and mfloat-abi if they are not set
+  if [ "$have_arm_neon" = "yes" ]; then
+    fpu="neon"
+    abi="hard"
+  elif [ "$have_armv6" = "yes" ]; then
+    fpu="vfp"
+    abi="softfp"
+  elif check_option -mfpu=fpa; then
+    fpu="fpa" # compatibility option for arm-linux-gnueabi-gcc on ubuntu
+    abi="soft"
+  fi
+  if [ "x$fpu" != "x" ]; then
+    echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=$fpu"
+    echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=$fpu"
+    echo "$CFLAGS" | grep -q -- '-mfloat-abi=' || CFLAGS="$CFLAGS -mfloat-abi=$abi"
+    echo "$ASFLAGS" | grep -q -- '-mfloat-abi=' || ASFLAGS="$ASFLAGS -mfloat-abi=$abi"
+  fi
+
+  # add -ldl for helix support
+  case "$MAIN_LDLIBS" in
+    *"-ldl"*) ;;
+    *) MAIN_LDLIBS="-ldl $MAIN_LDLIBS" ;;
+  esac
 
   # warn about common mistakes
   if [ "$platform" != "gp2x" -a "$have_armv5" != "yes" ]; then
@@ -250,6 +269,14 @@ rpi1 | rpi2 | generic | opendingux)
   need_sdl="yes"
   ;;
 esac
+
+# basic compiler test
+cat > $TMPC <<EOF
+int main(void) { return 0; }
+EOF
+if ! compile_binary; then
+  fail "compiler test failed, please check config.log"
+fi
 
 # header/library presence tests
 check_zlib()
@@ -308,8 +335,7 @@ EOF
   compile_object "$@"
 }
 
-MAIN_LDLIBS="$MAIN_LDLIBS -lz"
-check_zlib -lz || fail "please install zlib (libz-dev)"
+check_zlib -lz &&MAIN_LDLIBS="$MAIN_LDLIBS -lz" || need_zlib="yes"
 
 MAIN_LDLIBS="-lpng $MAIN_LDLIBS"
 check_libpng || fail "please install libpng (libpng-dev)"
@@ -352,10 +378,7 @@ if [ "$need_sdl" = "yes" ]; then
   check_sdl `$SDL_CONFIG --libs` || fail "please install libsdl (libsdl1.2-dev)"
 fi
 
-cat > $TMPC <<EOF
-void test(void *f, void *d) { fread(d, 1, 1, f); }
-EOF
-if compile_object -Wno-unused-result; then
+if check_option -Wno-unused_result; then
   CFLAGS="$CFLAGS -Wno-unused-result"
 fi
 
@@ -395,15 +418,18 @@ echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
 if [ "$have_libavcodec" = "yes" ]; then
   echo "HAVE_LIBAVCODEC = 1" >> $config_mak
 fi
+if [ "$need_zlib" = "yes" ]; then
+  echo "PLATFORM_ZLIB = 1" >> $config_mak
+fi
 
 # GP2X toolchains are too old for UAL asm,
 # so add this here to not litter main Makefile
-if [ "$platform" = "g1p2x" ]; then
-  echo >> $config_mak
-  echo "%.o: %.S" >> $config_mak
-  echo "        $(CC) $(CFLAGS) -E -c $^ -o /tmp/$(notdir $@).s" >> $config_mak
-  echo "        $(AS) $(ASFLAGS) /tmp/$(notdir $@).s -o $@" >> $config_mak
-fi
+#if [ "$platform" = "gp2x" ]; then
+#  echo >> $config_mak
+#  echo '%.o: %.S' >> $config_mak
+#  echo '	$(CC) $(CFLAGS) -E -c $^ -o /tmp/$(notdir $@).s' >> $config_mak
+#  echo '	$(AS) $(ASFLAGS) /tmp/$(notdir $@).s -o $@' >> $config_mak
+#fi
 
 # use pandora's skin (for now)
 test -e skin || ln -s platform/pandora/skin skin

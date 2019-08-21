@@ -4,8 +4,8 @@ CC = arm-open2x-linux-gcc
 CXX = arm-open2x-linux-g++
 AS = arm-open2x-linux-as
 STRIP = arm-open2x-linux-strip
-CFLAGS += -I${HOME}/opt/open2x/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/include -I${HOME}/src/gp2x/armroot/include  -D__GP2X__ -Wno-unused-result
-CFLAGS += -msoft-float -mcpu=arm920t -mtune=arm920t
+CFLAGS += -I${HOME}/opt/open2x/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/include -I${HOME}/src/gp2x/armroot/include  -D__GP2X__
+CFLAGS += -mfloat-abi=soft -mcpu=arm920t -mtune=arm920t -mno-thumb-interwork -fno-stack-protector -fno-common
 CFLAGS += -finline-limit=42 -fipa-cp -fno-ipa-pure-const
 ASFLAGS += -mcpu=arm920t -mfloat-abi=soft
 LDFLAGS += --sysroot ${HOME}/opt/open2x/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux -L${HOME}/opt/open2x/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/lib -L${HOME}/src/gp2x/armroot/lib -static

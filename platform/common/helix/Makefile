@@ -4,6 +4,7 @@ CC = $(CROSS)gcc
 AS = $(CROSS)as
 AR = $(CROSS)ar
 TOOLCHAIN = $(notdir $(CROSS))
+LIBGCC ?= ${HOME}/opt/open2x/gcc-4.1.1-glibc-2.3.6/lib/gcc/arm-open2x-linux/4.1.1/libgcc.a
 
 CFLAGS += -Ipub -O2 -Wall -fstrict-aliasing -ffast-math
 ifneq ($(findstring arm-,$(TOOLCHAIN)),)
@@ -34,7 +35,7 @@ real/arm/asmpoly_gcc.o: real/arm/asmpoly_gcc.s
 
 $(LIB) : $(OBJS)
 	$(AR) r $@ $^
-$(SHLIB) : $(OBJS) /home/build/opt/open2x/gcc-4.1.1-glibc-2.3.6/lib/gcc/arm-open2x-linux/4.1.1/libgcc.a
+$(SHLIB) : $(OBJS) $(LIBGCC)
 	$(CC) -o $@ -nostdlib -shared $(CFLAGS) $^
 
 clean:
