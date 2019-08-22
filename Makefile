@@ -3,7 +3,7 @@ DEBUG ?= 0
 CFLAGS += -Wall -ggdb -ffunction-sections -fdata-sections
 CFLAGS += -I.
 ifeq "$(DEBUG)" "0"
-CFLAGS += -O2 -finline-functions -DNDEBUG
+CFLAGS += -O3 -DNDEBUG
 endif
 
 # This is actually needed, bevieve me.
