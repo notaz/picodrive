@@ -191,7 +191,7 @@ static NOINLINE u32 sh2_poll_read(u32 a, u32 d, unsigned int cycles, SH2* sh2)
   int hix = (a >> 1) % PFIFO_CNT;
   struct sh2_poll_fifo *fifo = sh2_poll_fifo[hix];
   struct sh2_poll_fifo *p;
-  int cpu = sh2 ? sh2->is_slave+1 : 0;
+  int cpu = sh2 ? sh2->is_slave : -1;
   unsigned idx;
 
   a &= ~0x20000000; // ignore writethrough bit
@@ -204,7 +204,7 @@ static NOINLINE u32 sh2_poll_read(u32 a, u32 d, unsigned int cycles, SH2* sh2)
     if (cpu != p->cpu) {
       if (CYCLES_GT(cycles, p->cycles+80)) {
         // drop older fifo stores that may cause synchronisation problems.
-        sh2_poll_rd[hix] = idx;
+        p->a = -1;
       } else if (p->a == a) {
         // replace current data with fifo value and discard fifo entry
         d = p->d;
@@ -221,24 +221,37 @@ static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
   int hix = (a >> 1) % PFIFO_CNT;
   struct sh2_poll_fifo *fifo = sh2_poll_fifo[hix];
   struct sh2_poll_fifo *q = &fifo[(sh2_poll_wr[hix]-1) % PFIFO_SZ];
-  int cpu = sh2 ? sh2->is_slave+1 : 0;
+  int cpu = sh2 ? sh2->is_slave : -1;
+  unsigned rd = sh2_poll_rd[hix], wr = sh2_poll_wr[hix];
+  unsigned idx, nrd;
 
   a &= ~0x20000000; // ignore writethrough bit
+
+  // throw out any values written by other cpus, plus heading cancelled stuff
+  for (idx = nrd = wr; idx != rd; ) {
+    idx = (idx-1) % PFIFO_SZ;
+    if (fifo[idx].a == a && fifo[idx].cpu != cpu)	{ fifo[idx].a = -1; }
+    if (fifo[idx].a != -1)				{ nrd = idx; }
+  }
+  rd = nrd;
+
   // fold 2 consecutive writes to the same address to avoid reading of
   // intermediate values that may cause synchronisation problems.
   // NB this can take an eternity on m68k: mov.b <addr1.l>,<addr2.l> needs
   // 28 m68k-cycles (~80 sh2-cycles) to complete (observed in Metal Head)
-  if (q->a == a && sh2_poll_wr[hix] != sh2_poll_rd[hix] && !CYCLES_GT(cycles,q->cycles+30)) {
+  if (q->a == a && rd != wr && !CYCLES_GT(cycles,q->cycles+30)) {
     q->d = d;
   } else {
     // store write to poll address in fifo
-    fifo[sh2_poll_wr[hix]] =
+    fifo[wr] =
         (struct sh2_poll_fifo){ .cycles = cycles, .a = a, .d = d, .cpu = cpu };
-    sh2_poll_wr[hix] = (sh2_poll_wr[hix]+1) % PFIFO_SZ;
-    if (sh2_poll_wr[hix] == sh2_poll_rd[hix])
+    wr = (wr+1) % PFIFO_SZ;
+    if (wr == rd)
       // fifo overflow, discard oldest value
-      sh2_poll_rd[hix] = (sh2_poll_rd[hix]+1) % PFIFO_SZ;
+      rd = (rd+1) % PFIFO_SZ;
   }
+
+  sh2_poll_rd[hix] = rd; sh2_poll_wr[hix] = wr;
 }
 
 u32 REGPARM(3) p32x_sh2_poll_memory8(unsigned int a, u32 d, SH2 *sh2)
@@ -2367,6 +2380,7 @@ void PicoMemSetup32x(void)
   sh2_drc_mem_setup(&ssh2);
   memset(sh2_poll_rd, 0, sizeof(sh2_poll_rd));
   memset(sh2_poll_wr, 0, sizeof(sh2_poll_wr));
+  memset(sh2_poll_fifo, -1, sizeof(sh2_poll_fifo));
 
   // z80 hack
   z80_map_set(z80_write_map, 0x8000, 0xffff, z80_md_bank_write_32x, 1);
