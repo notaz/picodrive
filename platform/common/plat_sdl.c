@@ -89,7 +89,8 @@ static const struct in_pdata in_sdl_platform_data = {
 /* YUV stuff */
 static int yuv_ry[32], yuv_gy[32], yuv_by[32];
 static unsigned char yuv_u[32 * 2], yuv_v[32 * 2];
-static int yuv_y[256];
+static unsigned char yuv_y[256];
+static struct uyvy {  unsigned int y:8; unsigned int vyu:24; } yuv_uyvy[65536];
 
 void bgr_to_uyvy_init(void)
 {
@@ -124,34 +125,26 @@ void bgr_to_uyvy_init(void)
   for (i = 0; i < 256; i++) {
     yuv_y[i] = 16 + 219 * i / 32;
   }
+  // everything combined into one large array for speed
+  for (i = 0; i < 65536; i++) {
+     int r = (i >> 11) & 0x1f, g = (i >> 6) & 0x1f, b = (i >> 0) & 0x1f;
+     int y = (yuv_ry[r] + yuv_gy[g] + yuv_by[b]) >> 16;
+     yuv_uyvy[i].y = yuv_y[y];
+     yuv_uyvy[i].vyu = (yuv_v[r-y + 32] << 16) | (yuv_y[y] << 8) | yuv_u[b-y + 32];
+  }
 }
 
 void rgb565_to_uyvy(void *d, const void *s, int pixels)
 {
   unsigned int *dst = d;
   const unsigned short *src = s;
-  const unsigned char *yu = yuv_u + 32;
-  const unsigned char *yv = yuv_v + 32;
-  int r0, g0, b0, r1, g1, b1;
-  int y0, y1, u, v;
 
-  for (; pixels > 0; src += 2, dst++, pixels -= 2)
+  for (; pixels > 0; src += 4, dst += 2, pixels -= 4)
   {
-    r0 = (src[0] >> 11) & 0x1f;
-    g0 = (src[0] >> 6) & 0x1f;
-    b0 =  src[0] & 0x1f;
-    r1 = (src[1] >> 11) & 0x1f;
-    g1 = (src[1] >> 6) & 0x1f;
-    b1 =  src[1] & 0x1f;
-    y0 = (yuv_ry[r0] + yuv_gy[g0] + yuv_by[b0]) >> 16;
-    y1 = (yuv_ry[r1] + yuv_gy[g1] + yuv_by[b1]) >> 16;
-    u = yu[b0 - y0];
-    v = yv[r0 - y0];
-    // valid Y range seems to be 16..235
-    y0 = yuv_y[y0];
-    y1 = yuv_y[y1];
-
-    *dst = (y1 << 24) | (v << 16) | (y0 << 8) | u;
+    struct uyvy *uyvy0 = yuv_uyvy + src[0], *uyvy1 = yuv_uyvy + src[1];
+    struct uyvy *uyvy2 = yuv_uyvy + src[2], *uyvy3 = yuv_uyvy + src[3];
+    dst[0] = (uyvy1->y << 24) | uyvy0->vyu;
+    dst[1] = (uyvy3->y << 24) | uyvy2->vyu;
   }
 }
 
