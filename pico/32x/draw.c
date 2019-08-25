@@ -42,16 +42,21 @@ static void convert_pal555(int invert_prio)
   const unsigned int m1 = 0x001f;                                 \
   const unsigned int m2 = 0x03e0;                                 \
   const unsigned int m3 = 0x7c00;                                 \
-  int i;                                                          \
+  unsigned short t;                                               \
+  int i = 320;                                                    \
                                                                   \
-  for (i = 320; i > 0; i--, pd++, p32x++, pmd++) {                \
-    unsigned short t = *p32x;                                     \
-    if ((*pmd & 0x3f) != mdbg && !((t ^ inv) & 0x8000)) {         \
-      pmd_draw_code;                                              \
-      continue;                                                   \
+  while (i > 0) {                                                 \
+    for (; i > 0 && (*pmd & 0x3f) == mdbg; pd++, pmd++, i--) {    \
+      t = *p32x++;                                                \
+      *pd = ((t&m1) << 11) | ((t&m2) << 1) | ((t&m3) >> 10);      \
     }                                                             \
-                                                                  \
-    *pd = ((t & m1) << 11) | ((t & m2) << 1) | ((t & m3) >> 10);  \
+    for (; i > 0 && (*pmd & 0x3f) != mdbg; pd++, pmd++, i--) {    \
+      t = *p32x++;                                                \
+      if ((t ^ inv) & 0x8000)                                     \
+        *pd = ((t&m1) << 11) | ((t&m2) << 1) | ((t&m3) >> 10);    \
+      else                                                        \
+        pmd_draw_code;                                            \
+    }                                                             \
   }                                                               \
 }
 
@@ -59,15 +64,21 @@ static void convert_pal555(int invert_prio)
 #define do_line_pp(pd, p32x, pmd, pmd_draw_code)                  \
 {                                                                 \
   unsigned short t;                                               \
-  int i;                                                          \
-  for (i = 320; i > 0; i--, pd++, p32x++, pmd++) {                \
-    t = pal[*(unsigned char *)((uintptr_t)p32x ^ 1)];             \
-    if ((t & 0x20) || (*pmd & 0x3f) == mdbg)                      \
+  int i = 320;                                                    \
+  while (i > 0) {                                                 \
+    for (; i > 0 && (*pmd & 0x3f) == mdbg; pd++, pmd++, i--) {    \
+      t = pal[*(unsigned char *)((uintptr_t)(p32x++) ^ 1)];       \
       *pd = t;                                                    \
-    else                                                          \
-      pmd_draw_code;                                              \
+    }                                                             \
+    for (; i > 0 && (*pmd & 0x3f) != mdbg; pd++, pmd++, i--) {    \
+      t = pal[*(unsigned char *)((uintptr_t)(p32x++) ^ 1)];       \
+      if (t & 0x20)                                               \
+        *pd = t;                                                  \
+      else                                                        \
+        pmd_draw_code;                                            \
+    }                                                             \
   }                                                               \
-} 
+}
 
 // run length mode
 #define do_line_rl(pd, p32x, pmd, pmd_draw_code)                  \

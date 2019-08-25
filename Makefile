@@ -5,6 +5,10 @@ CFLAGS += -I.
 ifeq "$(DEBUG)" "0"
 CFLAGS += -O3 -DNDEBUG
 endif
+ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","gp2x" "opendingux" "rpi1"))
+# very small caches, avoid optimization options making the binary much bigger
+CFLAGS += -finline-limit=42 -fno-unroll-loops -fno-ipa-cp-clone # -fno-ipa-cp
+endif
 
 # This is actually needed, bevieve me.
 # If you really have to disable this, set NO_ALIGN_FUNCTIONS elsewhere.
