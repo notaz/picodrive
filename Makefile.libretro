@@ -263,6 +263,7 @@ else ifeq ($(platform), ps2)
 	CFLAGS += -Dmemcpy=mips_memcpy -Dmemset=mips_memset
 	# CFLAGS += -D_ASM_MISC_C_AMIPS -D_ASM_DRAW_C_AMIPS -D_ASM_MEMORY_C_AMIPS
 	CFLAGS += -I$(PS2SDK)/ports/include -I$(PS2DEV)/gsKit/include -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include -Iplatform/ps2
+	CFLAGS += -DHAVE_NO_LANGEXTRA
     STATIC_LINKING = 1
     NO_MMAP = 1
     DONT_COMPILE_IN_ZLIB = 1
