@@ -1,7 +1,7 @@
 /*
  * Basic macros to emit x86 instructions and some utils
  * Copyright (C) 2008,2009,2010 notaz
- * Copyright (C) 2019 kuv
+ * Copyright (C) 2019 kub
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

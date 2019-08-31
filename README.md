@@ -29,8 +29,8 @@ assuming $TC points to the appropriate cross compile toolchain directory:
 
 platform|toolchain|configure command
 --------|---------|-----------------
-gp2x,wiz,caanoo|open2x|CROSS_COMPILE=arm-open2x-linux- CFLAGS="-I$TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/include -fno-stack-protector -fno-common" LDFLAGS="--sysroot $TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux -L$TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/lib" ./configure --platform=gp2x
-gp2x,wiz,caanoo|open2x with ubuntu arm gcc 4.7|CROSS_COMPILE=arm-linux-gnueabi- CFLAGS="-I$TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/include -fno-stack-protector -fno-common" LDFLAGS="-B$TC/gcc-4.1.1-glibc-2.3.6/lib/gcc/arm-open2x-linux/4.1.1 -B$TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/lib -L$TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/lib" ./configure --platform=gp2x
+gp2x,wiz,caanoo|open2x|CROSS_COMPILE=arm-open2x-linux- CFLAGS="-I$TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/include" LDFLAGS="--sysroot $TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux -L$TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/lib" ./configure --platform=gp2x
+gp2x,wiz,caanoo|open2x with ubuntu arm gcc 4.7|CROSS_COMPILE=arm-linux-gnueabi- CFLAGS="-I$TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/include" LDFLAGS="-B$TC/gcc-4.1.1-glibc-2.3.6/lib/gcc/arm-open2x-linux/4.1.1 -B$TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/lib -L$TC/gcc-4.1.1-glibc-2.3.6/arm-open2x-linux/lib" ./configure --platform=gp2x
 opendingux|opendingux|CROSS_COMPILE=mipsel-linux- CFLAGS="-I$TC/usr/include -I$TC/usr/include/SDL" LDFLAGS="--sysroot $TC -L$TC/lib" ./configure --platform=opendingux
 opendingux|opendingux with ubuntu mips gcc 5.4|CROSS_COMPILE=mipsel-linux-gnu- CFLAGS="-I$TC/usr/include -I$TC/usr/include/SDL" LDFLAGS="-B$TC/usr/lib -B$TC/lib -Wl,-rpath-link=$TC/usr/lib -Wl,-rpath-link=$TC/lib" ./configure --platform=opendingux
 gcw0|gcw0|CROSS_COMPILE=mipsel-gcw0-linux-uclibc- CFLAGS="-I$TC/usr/mipsel-gcw0-linux-uclibc/sysroot/usr/include -I$TC/usr/mipsel-gcw0-linux-uclibc/sysroot/usr/include/SDL" LDFLAGS="--sysroot $TC/usr/mipsel-gcw0-linux-uclibc/sysroot" ./configure --platform=gcw0

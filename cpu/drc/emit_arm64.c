@@ -1163,9 +1163,10 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	int t2 = rcache_get_tmp();				\
 	int t3 = rcache_get_tmp();				\
 	/* if (sr < 0) return */				\
-	emith_asrf(t2, sr, 12);					\
+	emith_cmp_r_imm(sr, 0);					\
 	EMITH_JMP_START(DCOND_LE);				\
 	/* turns = sr.cycles / cycles */			\
+	emith_asr(t2, sr, 12);					\
 	emith_move_r_imm(t3, (u32)((1ULL<<32) / (cycles)) + 1);	\
 	emith_mul_u64(t1, t2, t2, t3); /* multiply by 1/x */	\
 	rcache_free_tmp(t3);					\

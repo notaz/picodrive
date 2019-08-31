@@ -399,6 +399,7 @@ void REGPARM(3) sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
 {
   u32 *r = sh2->peri_regs;
   u32 old;
+  struct dmac *dmac;
 
   elprintf_sh2(sh2, EL_32XP, "peri w32 [%08x] %08x @%06x",
     a, d, sh2_pc(sh2));
@@ -439,22 +440,23 @@ void REGPARM(3) sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
       else
         r[0x110 / 4] = r[0x114 / 4] = r[0x118 / 4] = r[0x11c / 4] = 0; // ?
       break;
-  }
+    // perhaps starting a DMA?
+    case 0x18c:
+    case 0x19c:
+    case 0x1b0:
+      dmac = (void *)&sh2->peri_regs[0x180 / 4];
+      if (a == 0x1b0 && !((old ^ d) & d & DMA_DME))
+        return;
+      if (!(dmac->dmaor & DMA_DME))
+        return;
 
-  // perhaps starting a DMA?
-  if (a == 0x1b0 || a == 0x18c || a == 0x19c) {
-    struct dmac *dmac = (void *)&sh2->peri_regs[0x180 / 4];
-    if (a == 0x1b0 && !((old ^ d) & d & DMA_DME))
-      return;
-    if (!(dmac->dmaor & DMA_DME))
-      return;
-
-    DRC_SAVE_SR(sh2);
-    if ((dmac->chan[0].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
-      dmac_trigger(sh2, &dmac->chan[0]);
-    if ((dmac->chan[1].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
-      dmac_trigger(sh2, &dmac->chan[1]);
-    DRC_RESTORE_SR(sh2);
+      DRC_SAVE_SR(sh2);
+      if ((dmac->chan[0].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
+        dmac_trigger(sh2, &dmac->chan[0]);
+      if ((dmac->chan[1].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
+        dmac_trigger(sh2, &dmac->chan[1]);
+      DRC_RESTORE_SR(sh2);
+      break;
   }
 }
 

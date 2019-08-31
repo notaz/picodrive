@@ -560,8 +560,8 @@ static void emith_set_arith_flags(int rd, int rt, int rs, s32 imm, int sub)
 #define emith_adc_r_r(d, s) \
 	emith_adc_r_r_r(d, d, s)
 
-// NB: the incoming C can cause its own outgoing C if s2+C=0 (or s1+C=0 FWIW)
-// moreover, s2 is 0 if there is C, so no other C can be generated.
+// NB: the incoming carry Cin can cause Cout if s2+Cin=0 (or s1+Cin=0 FWIW)
+// moreover, if s2+Cin=0 caused Cout, s1+s2+Cin=s1+0 can't cause another Cout
 #define emith_adcf_r_r_r(d, s1, s2) do { \
 	emith_add_r_r_r(FNZ, s2, FC); \
 	EMIT(MIPS_SLTU_REG(AT, FNZ, FC)); \
