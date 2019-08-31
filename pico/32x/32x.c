@@ -426,7 +426,7 @@ void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target)
 }
 
 #define STEP_LS 24
-#define STEP_N 440
+#define STEP_N 488 // one line
 
 #define sync_sh2s_normal p32x_sync_sh2s
 //#define sync_sh2s_lockstep p32x_sync_sh2s

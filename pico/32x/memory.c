@@ -220,7 +220,7 @@ static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
 {
   int hix = (a >> 1) % PFIFO_CNT;
   struct sh2_poll_fifo *fifo = sh2_poll_fifo[hix];
-  struct sh2_poll_fifo *q = &fifo[(sh2_poll_wr[hix]-1) % PFIFO_SZ];
+  struct sh2_poll_fifo *q;
   int cpu = sh2 ? sh2->is_slave : -1;
   unsigned rd = sh2_poll_rd[hix], wr = sh2_poll_wr[hix];
   unsigned idx, nrd;
@@ -230,8 +230,9 @@ static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
   // throw out any values written by other cpus, plus heading cancelled stuff
   for (idx = nrd = wr; idx != rd; ) {
     idx = (idx-1) % PFIFO_SZ;
-    if (fifo[idx].a == a && fifo[idx].cpu != cpu)	{ fifo[idx].a = -1; }
-    if (fifo[idx].a != -1)				{ nrd = idx; }
+    q = &fifo[idx];
+    if (q->cpu != cpu && q->a == a)	{ q->a = -1; }
+    if (q->a != -1)			{ nrd = idx; }
   }
   rd = nrd;
 
@@ -239,7 +240,8 @@ static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
   // intermediate values that may cause synchronisation problems.
   // NB this can take an eternity on m68k: mov.b <addr1.l>,<addr2.l> needs
   // 28 m68k-cycles (~80 sh2-cycles) to complete (observed in Metal Head)
-  if (q->a == a && rd != wr && !CYCLES_GT(cycles,q->cycles+30)) {
+  q = &fifo[(sh2_poll_wr[hix]-1) % PFIFO_SZ];
+  if (rd != wr && q->a == a && !CYCLES_GT(cycles,q->cycles+30)) {
     q->d = d;
   } else {
     // store write to poll address in fifo
@@ -493,6 +495,35 @@ static void p32x_reg_write8(u32 a, u32 d)
     case 0x1d:
     case 0x1e:
     case 0x1f:
+      return;
+    case 0x20: // comm port
+    case 0x21:
+    case 0x22:
+    case 0x23:
+    case 0x24:
+    case 0x25:
+    case 0x26:
+    case 0x27:
+    case 0x28:
+    case 0x29:
+    case 0x2a:
+    case 0x2b:
+    case 0x2c:
+    case 0x2d:
+    case 0x2e:
+    case 0x2f:
+      if (REG8IN16(r, a) != d) {
+        int cycles = SekCyclesDone();
+
+        if (cycles - (int)msh2.m68krcycles_done > 30)
+          p32x_sync_sh2s(cycles);
+
+        REG8IN16(r, a) = d;
+        p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
+        p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
+        sh2_poll_write(a & ~1, r[a / 2], cycles, NULL);
+      }
+      return;
     case 0x30:
       return;
     case 0x31: // PWM control
@@ -532,22 +563,6 @@ static void p32x_reg_write8(u32 a, u32 d)
       p32x_pwm_write16(a & ~1, d, NULL, SekCyclesDone());
       return;
   }
-
-  if ((a & 0x30) == 0x20) {
-    int cycles = SekCyclesDone();
-    
-    if (REG8IN16(r, a) == d)
-      return;
-
-    if (cycles - (int)msh2.m68krcycles_done > 30)
-      p32x_sync_sh2s(cycles);
-
-    REG8IN16(r, a) = d;
-    p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
-    p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
-    sh2_poll_write(a & ~1, r[a / 2], cycles, NULL);
-    return;
-  }
 }
 
 static void p32x_reg_write16(u32 a, u32 d)
@@ -558,61 +573,68 @@ static void p32x_reg_write16(u32 a, u32 d)
   // for things like bset on comm port
   m68k_poll.cnt = 0;
 
-  switch (a) {
-    case 0x00: // adapter ctl
+  switch (a/2) {
+    case 0x00/2: // adapter ctl
       if ((d ^ r[0]) & d & P32XS_nRES)
         p32x_reset_sh2s();
       r[0] &= ~(P32XS_FM|P32XS_nRES|P32XS_ADEN);
       r[0] |= d & (P32XS_FM|P32XS_nRES|P32XS_ADEN);
       return;
-    case 0x08: // DREQ src
+    case 0x08/2: // DREQ src
       r[a / 2] = d & 0xff;
       return;
-    case 0x0a:
+    case 0x0a/2:
       r[a / 2] = d & ~1;
       return;
-    case 0x0c: // DREQ dest
+    case 0x0c/2: // DREQ dest
       r[a / 2] = d & 0xff;
       return;
-    case 0x0e:
+    case 0x0e/2:
       r[a / 2] = d;
       return;
-    case 0x10: // DREQ len
+    case 0x10/2: // DREQ len
       r[a / 2] = d & ~3;
       return;
-    case 0x12: // FIFO reg
+    case 0x12/2: // FIFO reg
       dreq0_write(r, d);
       return;
-    case 0x1a: // TV + mystery bit
+    case 0x1a/2: // TV + mystery bit
       r[a / 2] = d & 0x0101;
       return;
-    case 0x30: // PWM control
+    case 0x20/2: // comm port
+    case 0x22/2:
+    case 0x24/2:
+    case 0x26/2:
+    case 0x28/2:
+    case 0x2a/2:
+    case 0x2c/2:
+    case 0x2e/2:
+      if (r[a / 2] != d) {
+        int cycles = SekCyclesDone();
+
+        if (cycles - (int)msh2.m68krcycles_done > 30)
+          p32x_sync_sh2s(cycles);
+
+        r[a / 2] = d;
+        p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
+        p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
+        sh2_poll_write(a, (u16)d, cycles, NULL);
+      }
+      return;
+    case 0x30/2: // PWM control
       d = (r[a / 2] & ~0x0f) | (d & 0x0f);
       r[a / 2] = d;
       p32x_pwm_write16(a, d, NULL, SekCyclesDone());
       return;
-  }
-
-  // comm port
-  if ((a & 0x30) == 0x20) {
-    int cycles = SekCyclesDone();
-
-    if (r[a / 2] == d)
-       return;
-
-    if (cycles - (int)msh2.m68krcycles_done > 30)
-      p32x_sync_sh2s(cycles);
-
-    r[a / 2] = d;
-    p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
-    p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
-    sh2_poll_write(a, (u16)d, cycles, NULL);
-    return;
-  }
-  // PWM
-  else if ((a & 0x30) == 0x30) {
-    p32x_pwm_write16(a, d, NULL, SekCyclesDone());
-    return;
+    case 0x32/2:
+    case 0x34/2:
+    case 0x36/2:
+    case 0x38/2:
+    case 0x3a/2:
+    case 0x3c/2:
+    case 0x3e/2:
+      p32x_pwm_write16(a, d, NULL, SekCyclesDone());
+      return;
   }
 
   p32x_reg_write8(a + 1, d);
@@ -709,23 +731,23 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
   u16 *r = Pico32x.regs;
   a &= 0x3e;
 
-  switch (a) {
-    case 0x00: // adapter/irq ctl
+  switch (a/2) {
+    case 0x00/2: // adapter/irq ctl
       return (r[0] & P32XS_FM) | Pico32x.sh2_regs[0]
         | Pico32x.sh2irq_mask[sh2->is_slave];
-    case 0x04: // H count (often as comm too)
+    case 0x04/2: // H count (often as comm too)
       sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 9);
       sh2s_sync_on_read(sh2);
       return sh2_poll_read(a, Pico32x.sh2_regs[4 / 2], sh2_cycles_done_m68k(sh2), sh2);
-    case 0x06:
+    case 0x06/2:
       return (r[a / 2] & ~P32XS_FULL) | 0x4000;
-    case 0x08: // DREQ src
-    case 0x0a:
-    case 0x0c: // DREQ dst
-    case 0x0e:
-    case 0x10: // DREQ len
+    case 0x08/2: // DREQ src
+    case 0x0a/2:
+    case 0x0c/2: // DREQ dst
+    case 0x0e/2:
+    case 0x10/2: // DREQ len
       return r[a / 2];
-    case 0x12: // DREQ FIFO - does this work on hw?
+    case 0x12/2: // DREQ FIFO - does this work on hw?
       if (Pico32x.dmac0_fifo_ptr > 0) {
         Pico32x.dmac0_fifo_ptr--;
         r[a / 2] = Pico32x.dmac_fifo[0];
@@ -733,22 +755,33 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
           Pico32x.dmac0_fifo_ptr * 2);
       }
       return r[a / 2];
-    case 0x14:
-    case 0x16:
-    case 0x18:
-    case 0x1a:
-    case 0x1c:
+    case 0x14/2:
+    case 0x16/2:
+    case 0x18/2:
+    case 0x1a/2:
+    case 0x1c/2:
       return 0; // ?
+    case 0x20/2: // comm port
+    case 0x22/2:
+    case 0x24/2:
+    case 0x26/2:
+    case 0x28/2:
+    case 0x2a/2:
+    case 0x2c/2:
+    case 0x2e/2:
+      sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 9);
+      sh2s_sync_on_read(sh2);
+      return sh2_poll_read(a, r[a / 2], sh2_cycles_done_m68k(sh2), sh2);
+    case 0x30/2: // PWM
+    case 0x32/2:
+    case 0x34/2:
+    case 0x36/2:
+    case 0x38/2:
+    case 0x3a/2:
+    case 0x3c/2:
+    case 0x3e/2:
+      return p32x_pwm_read16(a, sh2, sh2_cycles_done_m68k(sh2));
   }
-
-  // comm port
-  if ((a & 0x30) == 0x20) {
-    sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 9);
-    sh2s_sync_on_read(sh2);
-    return sh2_poll_read(a, r[a / 2], sh2_cycles_done_m68k(sh2), sh2);
-  }
-  if ((a & 0x30) == 0x30)
-    return p32x_pwm_read16(a, sh2, sh2_cycles_done_m68k(sh2));
 
   elprintf_sh2(sh2, EL_32X|EL_ANOMALY, 
     "unhandled sysreg r16 [%02x] @%08x", a, sh2_pc(sh2));
@@ -796,6 +829,32 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
         sh2_poll_write(a & ~1, d, cycles, sh2);
       }
       return;
+    case 0x20: // comm port
+    case 0x21:
+    case 0x22:
+    case 0x23:
+    case 0x24:
+    case 0x25:
+    case 0x26:
+    case 0x27:
+    case 0x28:
+    case 0x29:
+    case 0x2a:
+    case 0x2b:
+    case 0x2c:
+    case 0x2d:
+    case 0x2e:
+    case 0x2f:
+      if (REG8IN16(r, a) != d) {
+        unsigned int cycles = sh2_cycles_done_m68k(sh2);
+
+        REG8IN16(r, a) = d;
+        sh2_end_run(sh2, 1);
+        p32x_m68k_poll_event(P32XF_68KCPOLL);
+        p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
+        sh2_poll_write(a & ~1, r[a / 2], cycles, sh2);
+      }
+      return;
     case 0x30:
       REG8IN16(r, a) = d & 0x0f;
       d = r[0x30 / 2];
@@ -837,20 +896,6 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
       return;
   }
 
-  if ((a & 0x30) == 0x20) {
-    unsigned int cycles;
-    if (REG8IN16(r, a) == d)
-      return;
-
-    REG8IN16(r, a) = d;
-    cycles = sh2_cycles_done_m68k(sh2);
-    sh2_end_run(sh2, 1);
-    p32x_m68k_poll_event(P32XF_68KCPOLL);
-    p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
-    sh2_poll_write(a & ~1, r[a / 2], cycles, sh2);
-    return;
-  }
-
   elprintf(EL_32X|EL_ANOMALY,
     "unhandled sysreg w8  [%02x] %02x @%08x", a, d, sh2_pc(sh2));
 }
@@ -861,49 +906,57 @@ static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
 
   sh2->poll_cnt = 0;
 
-  // comm
-  if ((a & 0x30) == 0x20) {
-    unsigned int cycles;
-    if (Pico32x.regs[a / 2] == d)
-      return;
-
-    Pico32x.regs[a / 2] = d;
-    cycles = sh2_cycles_done_m68k(sh2);
-    sh2_end_run(sh2, 1);
-    p32x_m68k_poll_event(P32XF_68KCPOLL);
-    p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
-    sh2_poll_write(a, d, cycles, sh2);
-    return;
-  }
-  // PWM
-  else if ((a & 0x30) == 0x30) {
-    p32x_pwm_write16(a, d, sh2, sh2_cycles_done_m68k(sh2));
-    return;
-  }
-
-  switch (a) {
-    case 0: // FM
+  switch (a/2) {
+    case 0x00/2: // FM
       Pico32x.regs[0] &= ~P32XS_FM;
       Pico32x.regs[0] |= d & P32XS_FM;
       break;
-    case 0x14:
+    case 0x14/2:
       Pico32x.sh2irqs &= ~P32XI_VRES;
       goto irls;
-    case 0x16:
+    case 0x16/2:
       Pico32x.sh2irqi[sh2->is_slave] &= ~P32XI_VINT;
       goto irls;
-    case 0x18:
+    case 0x18/2:
       Pico32x.sh2irqi[sh2->is_slave] &= ~P32XI_HINT;
       goto irls;
-    case 0x1a:
+    case 0x1a/2:
       Pico32x.regs[2 / 2] &= ~(1 << sh2->is_slave);
       p32x_update_cmd_irq(sh2, 0);
       return;
-    case 0x1c:
+    case 0x1c/2:
       p32x_pwm_sync_to_sh2(sh2);
       Pico32x.sh2irqi[sh2->is_slave] &= ~P32XI_PWM;
       p32x_pwm_schedule_sh2(sh2);
       goto irls;
+    case 0x20/2: // comm port
+    case 0x22/2:
+    case 0x24/2:
+    case 0x26/2:
+    case 0x28/2:
+    case 0x2a/2:
+    case 0x2c/2:
+    case 0x2e/2:
+      if (Pico32x.regs[a / 2] != d) {
+        unsigned int cycles = sh2_cycles_done_m68k(sh2);
+
+        Pico32x.regs[a / 2] = d;
+        sh2_end_run(sh2, 1);
+        p32x_m68k_poll_event(P32XF_68KCPOLL);
+        p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
+        sh2_poll_write(a, d, cycles, sh2);
+      }
+      return;
+    case 0x30/2: // PWM
+    case 0x32/2:
+    case 0x34/2:
+    case 0x36/2:
+    case 0x38/2:
+    case 0x3a/2:
+    case 0x3c/2:
+    case 0x3e/2:
+      p32x_pwm_write16(a, d, sh2, sh2_cycles_done_m68k(sh2));
+      return;
   }
 
   p32x_sh2reg_write8(a | 1, d, sh2);
@@ -1391,7 +1444,7 @@ static u32 REGPARM(2) sh2_read8_cs0(u32 a, SH2 *sh2)
 
   sh2_burn_cycles(sh2, 1*2);
 
-  // 0x3ffc0 is veridied
+  // 0x3ffc0 is verified
   if ((a & 0x3ffc0) == 0x4000) {
     d = p32x_sh2reg_read16(a, sh2);
     goto out_16to8;
@@ -1573,6 +1626,11 @@ static void REGPARM(3) sh2_write8_cs0(u32 a, u32 d, SH2 *sh2)
   elprintf_sh2(sh2, EL_32X, "w8  [%08x]       %02x @%06x",
     a, d & 0xff, sh2_pc(sh2));
 
+  if ((a & 0x3ffc0) == 0x4000) {
+    p32x_sh2reg_write8(a, d, sh2);
+    goto out;
+  }
+
   if (Pico32x.regs[0] & P32XS_FM) {
     if ((a & 0x3fff0) == 0x4100) {
       sh2->poll_cnt = 0;
@@ -1586,11 +1644,6 @@ static void REGPARM(3) sh2_write8_cs0(u32 a, u32 d, SH2 *sh2)
       Pico32x.dirty_pal = 1;
       goto out;
     }
-  }
-
-  if ((a & 0x3ffc0) == 0x4000) {
-    p32x_sh2reg_write8(a, d, sh2);
-    goto out;
   }
 
   sh2_write8_unmapped(a, d, sh2);
@@ -1647,6 +1700,11 @@ static void REGPARM(3) sh2_write16_cs0(u32 a, u32 d, SH2 *sh2)
     elprintf_sh2(sh2, EL_32X, "w16 [%08x]     %04x @%06x",
       a, d & 0xffff, sh2_pc(sh2));
 
+  if ((a & 0x3ffc0) == 0x4000) {
+    p32x_sh2reg_write16(a, d, sh2);
+    goto out;
+  }
+
   if (Pico32x.regs[0] & P32XS_FM) {
     if ((a & 0x3fff0) == 0x4100) {
       sh2->poll_cnt = 0;
@@ -1660,11 +1718,6 @@ static void REGPARM(3) sh2_write16_cs0(u32 a, u32 d, SH2 *sh2)
       Pico32x.dirty_pal = 1;
       goto out;
     }
-  }
-
-  if ((a & 0x3ffc0) == 0x4000) {
-    p32x_sh2reg_write16(a, d, sh2);
-    goto out;
   }
 
   sh2_write16_unmapped(a, d, sh2);

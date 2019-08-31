@@ -630,8 +630,8 @@ struct Pico32xMem
   unsigned short pal[0x100];
   unsigned short pal_native[0x100];     // converted to native (for renderer)
   signed short   pwm[2*PWM_BUFF_LEN];   // PWM buffer for current frame
-  signed short   pwm_current[2];        // current converted samples
   unsigned short pwm_fifo[2][4];        // [0] - current raw, others - fifo entries
+  unsigned       pwm_index[2];          // ringbuffer index for pwm_fifo
 };
 
 // area.c

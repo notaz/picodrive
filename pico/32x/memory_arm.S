@@ -18,6 +18,7 @@
 
 .text
 
+#if 0
 @ u32 a, SH2 *sh2
 .global sh2_read8_rom
 .global sh2_read8_sdram
@@ -31,6 +32,7 @@
 .global sh2_read32_sdram
 .global sh2_read32_da
 .global sh2_read32_dram
+#endif
 
 @ u32 a, u32 d, SH2 *sh2
 .global sh2_write8_sdram

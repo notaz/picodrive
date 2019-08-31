@@ -1347,8 +1347,6 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
       *pd++ = pal[*ps++];
       *pd++ = pal[*ps++];
     }
-//    for (i = 0; i < len; i++)
-//      pd[i] = pal[ps[i]];
 #else
     extern void amips_clut(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
     extern void amips_clut_6bit(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
