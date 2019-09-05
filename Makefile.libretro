@@ -138,14 +138,20 @@ else ifneq (,$(findstring ios,$(platform)))
 	ifeq ($(IOSSDK),)
 		IOSSDK := $(shell xcodebuild -version -sdk iphoneos Path)
 	endif
-	CC = clang -arch armv7 -isysroot $(IOSSDK)
-	CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
+	ifeq ($(platform),ios-arm64)
+	  CC = clang -arch arm64 -isysroot $(IOSSDK)
+	  CXX = clang++ -arch arm64 -isysroot $(IOSSDK)
+      CFLAGS += -marm -DARM -D__aarch64__=1 
+	else
+	  CC = clang -arch armv7 -isysroot $(IOSSDK)
+	  CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
+  	  CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm 
+	  ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+	endif
 	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
-	CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm 
-	ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
 	CFLAGS += -DIOS
 
-ifeq ($(platform),ios9)
+ifeq ($(platform),$(filter $(platform),ios9 ios-arm64))
 	CC     += -miphoneos-version-min=8.0
 	CXX    += -miphoneos-version-min=8.0
 	CC_AS  += -miphoneos-version-min=8.0
@@ -162,8 +168,32 @@ endif
 	use_fame = 1
 	use_drz80 = 0
 	use_cz80 = 1
-	use_sh2drc = 1
-	use_svpdrc = 1
+	ifeq ($(platform),ios-arm64)
+		use_sh2drc = 0
+		use_svpdrc = 0
+	else
+		use_sh2drc = 1
+		use_svpdrc = 1
+	endif
+
+# tvOS
+else ifeq ($(platform), tvos-arm64)
+	ARCH := arm
+	use_cyclone = 0
+	use_fame = 1
+	use_drz80 = 0
+	use_cz80 = 1
+	use_sh2drc = 0
+	use_svpdrc = 0
+	TARGET := $(TARGET_NAME)_libretro_tvos.dylib
+	SHARED := -dynamiclib
+	fpic := -fPIC
+	APPLE := 1
+	ifeq ($(IOSSDK),)
+		IOSSDK := $(shell xcodebuild -version -sdk appletvos Path)
+	endif
+	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
+	CFLAGS += -DIOS
 
 # PS3
 else ifeq ($(platform), ps3)
