@@ -22,6 +22,7 @@ void sh2_drc_frame(void);
 #define OF_B_IN_DS    (1 << 4)
 #define OF_DELAY_INSN (1 << 5) // DT, (TODO ADD+CMP?)
 #define OF_POLL_INSN  (1 << 6) // MOV @(...),Rn (no post increment), TST @(...)
+#define OF_BASIC_LOOP (1 << 7) // pinnable loop without any branches in it
 
 #define OF_IDLE_LOOP  (1 << 2)
 #define OF_DELAY_LOOP (2 << 2)
@@ -39,7 +40,7 @@ unsigned short scan_block(unsigned int base_pc, int is_slave,
 #elif defined(__aarch64__)
 #define	DRC_SR_REG	"r22"
 #elif defined(__mips__)
-#define	DRC_SR_REG	"s6"
+#define	DRC_SR_REG	"s2"
 #elif defined(__i386__)
 #define	DRC_SR_REG	"edi"
 #elif defined(__x86_64__)

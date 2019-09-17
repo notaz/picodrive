@@ -44,6 +44,7 @@
 #define ALIAS_REGISTERS         1
 #define REMAP_REGISTER          1
 #define LOOP_DETECTION          1
+#define LOOP_OPTIMIZER          1
 
 // limits (per block)
 #define MAX_BLOCK_SIZE          (BLOCK_INSN_LIMIT * 6 * 6)
@@ -376,36 +377,41 @@ int rchit, rcmiss;
 #endif
 
 // host register tracking
-enum {
+enum cache_reg_htype {
+  HRT_TEMP   = 1, // is for temps and args
+  HRT_REG    = 2, // is for sh2 regs
+  HRT_STATIC = 2, // is for static mappings (same as HRT_REG)
+};
+
+enum cache_reg_flags {
+  HRF_DIRTY  = 1 << 0, // has "dirty" value to be written to ctx
+  HRF_PINNED = 1 << 1, // has a pinned mapping
+};
+
+enum cache_reg_type {
   HR_FREE,
-  HR_STATIC, // vreg has a static mapping
   HR_CACHED, // vreg has sh2_reg_e
   HR_TEMP,   // reg used for temp storage
-} cache_reg_type;
-
-enum {
-  HRF_DIRTY  = 1 << 0, // has "dirty" value to be written to ctx
-  HRF_LOCKED = 1 << 1, // can't be evicted
-  HRF_TEMP   = 1 << 2, // is for temps and args
-  HRF_REG    = 1 << 3, // is for sh2 regs
-} cache_reg_flags;
+};
 
 typedef struct {
   u8 hreg;      // "host" reg
-  u8 flags:4;   // TEMP or REG?
+  u8 htype:2;   // TEMP or REG?
+  u8 flags:2;   // DIRTY, PINNED?
   u8 type:2;    // CACHED or TEMP?
-  u8 ref:2;     // ref counter
+  u8 locked:2;  // LOCKED reference counter
   u16 stamp;    // kind of a timestamp
   u32 gregs;    // "guest" reg mask
 } cache_reg_t;
 
 // guest register tracking
-enum {
+enum guest_reg_flags {
   GRF_DIRTY  = 1 << 0, // reg has "dirty" value to be written to ctx
   GRF_CONST  = 1 << 1, // reg has a constant
   GRF_CDIRTY = 1 << 2, // constant not yet written to ctx
   GRF_STATIC = 1 << 3, // reg has static mapping to vreg
-} guest_reg_flags;
+  GRF_PINNED = 1 << 4, // reg has pinned mapping to vreg
+};
 
 typedef struct {
   u8 flags;     // guest flags: is constant, is dirty?
@@ -419,13 +425,14 @@ typedef struct {
 static int rcache_get_tmp(void);
 static void rcache_free_tmp(int hr);
 
-// Note: cache_regs[] must have at least the amount of HRF_REG registers used
+// Note: cache_regs[] must have at least the amount of REG/TEMP registers used
 // by handlers in worst case (currently 4). 
 // Register assignment goes by ABI convention. Caller save registers are TEMP,
 // the others are either static or REG. SR must be static, R0 very recommended.
+// XXX the static definition of SR MUST match that in compiler.h
 // VBR, PC, PR must not be static (read from context in utils).
-// TEMP registers first, REG last. alloc/evict algorithm depends on this.
-// The 1st TEMP must not be RET_REG on platforms using temps in insns (eg. x86).
+// RET_REG/params should be first TEMPs to avoid allocation conflicts in calls.
+// There MUST be at least 3 params and one non-RET_REG/param TEMP.
 // XXX shouldn't this be somehow defined in the code emitters?
 #ifdef __arm__
 #include "../drc/emit_arm.c"
@@ -449,21 +456,21 @@ static guest_reg_t guest_regs[] = {
 // OABI/EABI: params: r0-r3, return: r0-r1, temp: r12,r14, saved: r4-r8,r10,r11
 // SP,PC: r13,r15 must not be used. saved: r9 (for platform use, e.g. on ios)
 static cache_reg_t cache_regs[] = {
-  { 12, HRF_TEMP }, // temps
-  { 14, HRF_TEMP },
-  {  3, HRF_TEMP }, // params
-  {  2, HRF_TEMP },
-  {  1, HRF_TEMP },
-  {  0, HRF_TEMP }, // RET_REG
-  {  8, HRF_LOCKED }, // statics
+  {  0, HRT_TEMP }, // RET_REG, params
+  {  1, HRT_TEMP },
+  {  2, HRT_TEMP }, // params
+  {  3, HRT_TEMP },
+  { 12, HRT_TEMP }, // temps
+  { 14, HRT_TEMP },
+  {  8, HRT_STATIC }, // statics
 #ifndef __MACH__ // no r9..
-  {  9, HRF_LOCKED },
+  {  9, HRT_STATIC },
 #endif
-  { 10, HRF_LOCKED },
-  {  4, HRF_REG }, // other regs
-  {  5, HRF_REG },
-  {  6, HRF_REG },
-  {  7, HRF_REG },
+  { 10, HRT_STATIC },
+  {  4, HRT_REG }, // other regs
+  {  5, HRT_REG },
+  {  6, HRT_REG },
+  {  7, HRT_REG },
 };
 
 #elif defined(__aarch64__)
@@ -485,35 +492,34 @@ static guest_reg_t guest_regs[] = {
 // saved: r18 (for platform use)
 // since drc never needs more than 4 parameters, r4-r7 are treated as temp.
 static cache_reg_t cache_regs[] = {
-  { 17, HRF_TEMP }, // temps
-  { 16, HRF_TEMP },
-  { 15, HRF_TEMP },
-  { 14, HRF_TEMP },
-  { 13, HRF_TEMP },
-  { 12, HRF_TEMP },
-  { 11, HRF_TEMP },
-  { 10, HRF_TEMP },
-  {  9, HRF_TEMP },
-  {  8, HRF_TEMP },
-  {  7, HRF_TEMP },
-  {  6, HRF_TEMP },
-  {  5, HRF_TEMP },
-  {  4, HRF_TEMP },
-  {  3, HRF_TEMP }, // params
-  {  2, HRF_TEMP },
-  {  1, HRF_TEMP },
-  {  0, HRF_TEMP }, // RET_REG
-  { 22, HRF_LOCKED }, // statics
-  { 21, HRF_LOCKED },
-  { 20, HRF_LOCKED },
-  { 29, HRF_REG }, // other regs
-  { 28, HRF_REG },
-  { 27, HRF_REG },
-  { 26, HRF_REG },
-  { 25, HRF_REG },
-  { 24, HRF_REG },
-  { 23, HRF_REG },
-  { 22, HRF_REG },
+  {  0, HRT_TEMP }, // RET_REG, params
+  {  1, HRT_TEMP },
+  {  2, HRT_TEMP }, // params
+  {  3, HRT_TEMP },
+  {  4, HRT_TEMP }, // temps
+  {  5, HRT_TEMP },
+  {  6, HRT_TEMP },
+  {  7, HRT_TEMP },
+  {  8, HRT_TEMP },
+  {  9, HRT_TEMP },
+  { 10, HRT_TEMP },
+  { 11, HRT_TEMP },
+  { 12, HRT_TEMP },
+  { 13, HRT_TEMP },
+  { 14, HRT_TEMP },
+  { 15, HRT_TEMP },
+  { 16, HRT_TEMP },
+  { 17, HRT_TEMP },
+  { 20, HRT_STATIC }, // statics
+  { 21, HRT_STATIC },
+  { 22, HRT_STATIC },
+  { 23, HRT_REG }, // other regs
+  { 24, HRT_REG },
+  { 25, HRT_REG },
+  { 26, HRT_REG },
+  { 27, HRT_REG },
+  { 28, HRT_REG },
+  { 29, HRT_REG },
 };
 
 #elif defined(__mips__)
@@ -521,13 +527,13 @@ static cache_reg_t cache_regs[] = {
 
 static guest_reg_t guest_regs[] = {
   // SHR_R0 .. SHR_SP
-  {GRF_STATIC, 20} , {GRF_STATIC, 21} , { 0 }            , { 0 }            ,
+  {GRF_STATIC, 16} , {GRF_STATIC, 17} , { 0 }            , { 0 }            ,
   { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
   { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
   { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
   // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
   // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
-  { 0 }            , { 0 }            , { 0 }            , {GRF_STATIC, 22} ,
+  { 0 }            , { 0 }            , { 0 }            , {GRF_STATIC, 18} ,
   { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
 };
 
@@ -535,26 +541,26 @@ static guest_reg_t guest_regs[] = {
 // saved: r16-r23,r30, reserved: r0(zero), r26-r27(irq), r28(gp), r29(sp)
 // r1,r15,r24,r25 are used internally by the code emitter
 static cache_reg_t cache_regs[] = {
-  { 14, HRF_TEMP }, // temps
-  { 13, HRF_TEMP },
-  { 12, HRF_TEMP },
-  { 11, HRF_TEMP },
-  { 10, HRF_TEMP },
-  {  9, HRF_TEMP },
-  {  8, HRF_TEMP },
-  {  7, HRF_TEMP }, // params
-  {  6, HRF_TEMP },
-  {  5, HRF_TEMP },
-  {  4, HRF_TEMP },
-  {  3, HRF_TEMP }, // RET_REG
-  {  2, HRF_TEMP },
-  { 22, HRF_LOCKED }, // statics
-  { 21, HRF_LOCKED },
-  { 20, HRF_LOCKED },
-  { 19, HRF_REG }, // other regs
-  { 18, HRF_REG },
-  { 17, HRF_REG },
-  { 16, HRF_REG },
+  {  2, HRT_TEMP }, // RET_REG (v0-v1)
+  {  3, HRT_TEMP },
+  {  4, HRT_TEMP }, // params (a0-a3)
+  {  5, HRT_TEMP },
+  {  6, HRT_TEMP },
+  {  7, HRT_TEMP },
+  {  8, HRT_TEMP }, // temps (t0-t6)
+  {  9, HRT_TEMP },
+  { 10, HRT_TEMP },
+  { 11, HRT_TEMP },
+  { 12, HRT_TEMP },
+  { 13, HRT_TEMP },
+  { 14, HRT_TEMP },
+  { 16, HRT_STATIC }, // statics (s0-s2)
+  { 17, HRT_STATIC },
+  { 18, HRT_STATIC },
+  { 19, HRT_REG }, // other regs (s3-s6)
+  { 20, HRT_REG },
+  { 21, HRT_REG },
+  { 22, HRT_REG },
 };
 
 #elif defined(__i386__)
@@ -572,14 +578,16 @@ static guest_reg_t guest_regs[] = {
   { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
 };
 
-// ax, cx, dx are usually temporaries by convention
+// MS/SystemV ABI: ebx,esi,edi,ebp are preserved, eax,ecx,edx are temporaries
+// DRC uses REGPARM to pass upto 3 parameters in registers eax,ecx,edx.
+// To avoid conflicts with param passing ebx must be declared temp here.
 static cache_reg_t cache_regs[] = {
-  { xBX, HRF_REG|HRF_TEMP }, // params
-  { xCX, HRF_REG|HRF_TEMP },
-  { xDX, HRF_REG|HRF_TEMP },
-  { xAX, HRF_REG|HRF_TEMP }, // return value
-  { xSI, HRF_LOCKED }, // statics
-  { xDI, HRF_LOCKED },
+  { xAX, HRT_TEMP }, // RET_REG, param
+  { xDX, HRT_TEMP }, // params
+  { xCX, HRT_TEMP },
+  { xBX, HRT_TEMP }, // temp
+  { xSI, HRT_STATIC }, // statics
+  { xDI, HRT_STATIC },
 };
 
 #elif defined(__x86_64__)
@@ -602,20 +610,20 @@ static guest_reg_t guest_regs[] = {
 // rsi,rdi are preserved in M$ ABI, temporary in SystemV ABI
 // parameters in rcx,rdx,r8,r9, SystemV ABI additionally uses rsi,rdi
 static cache_reg_t cache_regs[] = {
-  { xR10,HRF_TEMP }, // temps
-  { xR11,HRF_TEMP },
-  { xAX, HRF_TEMP }, // RET_REG
-  { xR8, HRF_TEMP }, // params
-  { xR9, HRF_TEMP },
-  { xCX, HRF_TEMP },
-  { xDX, HRF_TEMP },
-  { xSI, HRF_REG|HRF_TEMP },
-  { xDI, HRF_REG|HRF_TEMP },
-  { xBX, HRF_LOCKED }, // statics
-  { xR12,HRF_LOCKED },
-  { xR13,HRF_REG }, // other regs
-  { xR14,HRF_REG },
-  { xR15,HRF_REG },
+  { xAX, HRT_TEMP }, // RET_REG
+  { xDX, HRT_TEMP }, // params
+  { xCX, HRT_TEMP },
+  { xDI, HRT_TEMP },
+  { xSI, HRT_TEMP },
+  { xR8, HRT_TEMP },
+  { xR9, HRT_TEMP },
+  { xR10,HRT_TEMP }, // temps
+  { xR11,HRT_TEMP },
+  { xBX, HRT_STATIC }, // statics
+  { xR12,HRT_STATIC },
+  { xR13,HRT_REG }, // other regs
+  { xR14,HRT_REG },
+  { xR15,HRT_REG },
 };
 
 #else
@@ -1333,8 +1341,8 @@ static void rcache_remap_vreg(int x);
   printf(" cache_regs:\n"); \
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++) { \
     cp = &cache_regs[i]; \
-    if (cp->type != HR_FREE || cp->gregs || (cp->flags & ~(HRF_REG|HRF_TEMP))) \
-      printf("  %d: hr=%d t=%d f=%x c=%d m=%x\n", i, cp->hreg, cp->type, cp->flags, cp->ref, cp->gregs); \
+    if (cp->type != HR_FREE || cp->gregs || cp->locked || cp->flags) \
+      printf("  %d: hr=%d t=%d f=%x c=%d m=%x\n", i, cp->hreg, cp->type, cp->flags, cp->locked, cp->gregs); \
   } \
   printf(" guest_regs:\n"); \
   for (i = 0; i < ARRAY_SIZE(guest_regs); i++) { \
@@ -1352,9 +1360,10 @@ static void rcache_remap_vreg(int x);
 #define RCACHE_CHECK(msg) { \
   cache_reg_t *cp; \
   guest_reg_t *gp; \
-  int i, x, d = 0; \
+  int i, x, m = 0, d = 0; \
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++) { \
     cp = &cache_regs[i]; \
+    if (cp->flags & HRF_PINNED) m |= (1 << i); \
     if (cp->type == HR_FREE || cp->type == HR_TEMP) continue; \
     /* check connectivity greg->vreg */ \
     FOR_ALL_BITS_SET_DO(cp->gregs, x, \
@@ -1366,12 +1375,17 @@ static void rcache_remap_vreg(int x);
     gp = &guest_regs[i]; \
     if (gp->vreg != -1 && !(cache_regs[gp->vreg].gregs & (1 << i))) \
       { d = 1; printf("cache check r=%d v=%d not connected?\n", i, gp->vreg); }\
-    if (gp->vreg != -1 && cache_regs[gp->vreg].type != HR_STATIC && cache_regs[gp->vreg].type != HR_CACHED) \
+    if (gp->vreg != -1 && cache_regs[gp->vreg].type != HR_CACHED) \
       { d = 1; printf("cache check r=%d v=%d wrong type?\n", i, gp->vreg); }\
     if ((gp->flags & GRF_CONST) && !(gconsts[gp->cnst].gregs & (1 << i))) \
       { d = 1; printf("cache check r=%d c=%d not connected?\n", i, gp->cnst); }\
-    if ((gp->flags & GRF_CDIRTY) && (gp->vreg != -1 || !(gp->flags & GRF_CONST)) )\
+    if ((gp->flags & GRF_CDIRTY) && (gp->vreg != -1 || !(gp->flags & GRF_CONST)))\
       { d = 1; printf("cache check r=%d CDIRTY?\n", i); } \
+    if (gp->flags & GRF_PINNED) { \
+      if (gp->sreg == -1 || !(cache_regs[gp->sreg].flags & HRF_PINNED))\
+        { d = 1; printf("cache check r=%d v=%d not pinned?\n", i, gp->vreg); } \
+      else m &= ~(1 << gp->sreg); \
+    } \
   } \
   for (i = 0; i < ARRAY_SIZE(gconsts); i++) { \
     FOR_ALL_BITS_SET_DO(gconsts[i].gregs, x, \
@@ -1379,13 +1393,15 @@ static void rcache_remap_vreg(int x);
         { d = 1; printf("cache check c=%d v=%d not connected?\n",i,x); } \
     ) \
   } \
+  if (m) \
+    { d = 1; printf("cache check m=%x pinning wrong?\n",m); } \
   if (d) RCACHE_DUMP(msg) \
 /*  else { \
     printf("locked regs %s:\n",msg); \
     for (i = 0; i < ARRAY_SIZE(cache_regs); i++) { \
       cp = &cache_regs[i]; \
-      if (cp->flags & HRF_LOCKED) \
-        printf("  %d: hr=%d t=%d f=%x c=%d m=%x\n", i, cp->hreg, cp->type, cp->flags, cp->ref, cp->gregs); \
+      if (cp->locked) \
+        printf("  %d: hr=%d t=%d f=%x c=%d m=%x\n", i, cp->hreg, cp->type, cp->flags, cp->locked, cp->gregs); \
     } \
   } */ \
 }
@@ -1463,8 +1479,7 @@ static int gconst_try_read(int vreg, sh2_reg_e r)
         guest_regs[i].flags &= ~GRF_CDIRTY;
         guest_regs[i].flags |= GRF_DIRTY;
       });
-    if (cache_regs[vreg].type != HR_STATIC)
-      cache_regs[vreg].type = HR_CACHED;
+    cache_regs[vreg].type = HR_CACHED;
     cache_regs[vreg].flags |= HRF_DIRTY;
     return 1;
   }
@@ -1527,6 +1542,7 @@ static void gconst_invalidate(void)
 
 static u16 rcache_counter;
 // SH2 register usage bitmasks
+static u32 rcache_hregs_reg;     // regs of type HRT_REG (for pinning)
 static u32 rcache_regs_static;   // statically allocated regs
 static u32 rcache_regs_now;      // regs used in current insn
 static u32 rcache_regs_soon;     // regs used in the next few insns
@@ -1539,28 +1555,33 @@ static u32 rcache_regs_clean;    // regs needing cleaning
 #define rcache_regs_nowsoon (rcache_regs_now|rcache_regs_soon)
 #define rcache_regs_soonclean (rcache_regs_soon|rcache_regs_clean)
 
-static void rcache_ref_vreg(int x)
+static void rcache_lock_vreg(int x)
 {
   if (x >= 0) {
-    cache_regs[x].ref ++;
-    cache_regs[x].flags |= HRF_LOCKED;
+    if (cache_regs[x].type == HR_FREE) {
+      printf("locking free vreg %x, aborting\n", x);
+      exit(1);
+    }
+    cache_regs[x].locked ++;
   }
 }
 
-static void rcache_unref_vreg(int x)
+static void rcache_unlock_vreg(int x)
 {
-  if (x >= 0 && -- cache_regs[x].ref == 0) {
-    cache_regs[x].flags &= ~HRF_LOCKED;
+  if (x >= 0) {
+    if (cache_regs[x].type == HR_FREE) {
+      printf("unlocking free vreg %x, aborting\n", x);
+      exit(1);
+    }
+    cache_regs[x].locked --;
   }
 }
 
 static void rcache_free_vreg(int x)
 {
-  if (cache_regs[x].type != HR_STATIC)
-    cache_regs[x].type = HR_FREE;
-  cache_regs[x].flags &= (HRF_REG|HRF_TEMP);
+  cache_regs[x].type = cache_regs[x].locked ? HR_TEMP : HR_FREE;
+  cache_regs[x].flags &= HRF_PINNED;
   cache_regs[x].gregs = 0;
-  cache_regs[x].ref = 0;
 }
 
 static void rcache_unmap_vreg(int x)
@@ -1582,12 +1603,11 @@ static void rcache_move_vreg(int d, int x)
 {
   int i;
 
-  if (cache_regs[d].type != HR_STATIC)
-    cache_regs[d].type = HR_CACHED;
+  cache_regs[d].type = HR_CACHED;
   cache_regs[d].gregs = cache_regs[x].gregs;
-  cache_regs[d].flags &= (HRF_TEMP|HRF_REG);
-  cache_regs[d].flags |= cache_regs[x].flags & ~(HRF_TEMP|HRF_REG);
-  cache_regs[d].ref = 0;
+  cache_regs[d].flags &= HRF_PINNED;
+  cache_regs[d].flags |= cache_regs[x].flags & ~HRF_PINNED;
+  cache_regs[d].locked = 0;
   cache_regs[d].stamp = cache_regs[x].stamp;
   emith_move_r_r(cache_regs[d].hreg, cache_regs[x].hreg);
   for (i = 0; i < ARRAY_SIZE(guest_regs); i++)
@@ -1602,12 +1622,12 @@ static void rcache_clean_vreg(int x)
 
   if (cache_regs[x].flags & HRF_DIRTY) { // writeback
     cache_regs[x].flags &= ~HRF_DIRTY;
-    rcache_ref_vreg(x);
+    rcache_lock_vreg(x);
     FOR_ALL_BITS_SET_DO(cache_regs[x].gregs, r,
         if (guest_regs[r].flags & GRF_DIRTY) {
-          if (guest_regs[r].flags & GRF_STATIC) {
+          if (guest_regs[r].flags & (GRF_STATIC|GRF_PINNED)) {
             if (guest_regs[r].vreg != guest_regs[r].sreg) {
-              if (!(cache_regs[guest_regs[r].sreg].flags & HRF_LOCKED)) {
+              if (!(cache_regs[guest_regs[r].sreg].locked)) {
                 // statically mapped reg not in its sreg. move back to sreg
                 rcache_evict_vreg(guest_regs[r].sreg);
                 emith_move_r_r(cache_regs[guest_regs[r].sreg].hreg,
@@ -1623,7 +1643,7 @@ static void rcache_clean_vreg(int x)
                 rcache_remove_vreg_alias(x, r);
               }
             } else
-               cache_regs[x].flags |= HRF_DIRTY;
+              cache_regs[x].flags |= HRF_DIRTY;
           } else {
             if (~rcache_regs_discard & (1 << r))
               emith_ctx_write(cache_regs[x].hreg, r * 4);
@@ -1631,8 +1651,9 @@ static void rcache_clean_vreg(int x)
           }
           rcache_regs_clean &= ~(1 << r);
         })
-    rcache_unref_vreg(x);
+    rcache_unlock_vreg(x);
   }
+
 #if DRC_DEBUG & 64
   RCACHE_CHECK("after clean");
 #endif
@@ -1642,16 +1663,19 @@ static void rcache_add_vreg_alias(int x, sh2_reg_e r)
 {
   cache_regs[x].gregs |= (1 << r);
   guest_regs[r].vreg = x;
-  if (cache_regs[x].type != HR_STATIC)
-    cache_regs[x].type = HR_CACHED;
+  cache_regs[x].type = HR_CACHED;
 }
 
 static void rcache_remove_vreg_alias(int x, sh2_reg_e r)
 {
   cache_regs[x].gregs &= ~(1 << r);
-  if (!cache_regs[x].gregs)
+  if (!cache_regs[x].gregs) {
     // no reg mapped -> free vreg
-    rcache_free_vreg(x);
+    if (cache_regs[x].locked)
+      cache_regs[x].type = HR_TEMP;
+    else
+      rcache_free_vreg(x);
+  }
   guest_regs[r].vreg = -1;
 }
 
@@ -1674,17 +1698,17 @@ static void rcache_evict_vreg_aliases(int x, sh2_reg_e r)
 
 static int rcache_allocate(int what, int minprio)
 {
-  // evict reg with oldest stamp (only for HRF_REG, no temps)
+  // evict reg with oldest stamp (only for HRT_REG, no temps)
   int i, i_prio, oldest = -1, prio = 0;
   u16 min_stamp = (u16)-1;
 
-  for (i = 0; i < ARRAY_SIZE(cache_regs); i++) {
-    // consider only unlocked REG or non-TEMP
-    if (cache_regs[i].flags == 0 || (cache_regs[i].flags & HRF_LOCKED))
+  for (i = ARRAY_SIZE(cache_regs)-1; i >= 0; i--) {
+    // consider only non-static, unpinned, unlocked REG or TEMP
+    if ((cache_regs[i].flags & HRF_PINNED) || cache_regs[i].locked)
       continue;
-    if ((what > 0 && !(cache_regs[i].flags & HRF_REG)) ||
-        (what == 0 && (cache_regs[i].flags & HRF_TEMP)) ||
-        (what < 0 && !(cache_regs[i].flags & HRF_TEMP)))
+    if ((what > 0 && !(cache_regs[i].htype & HRT_REG)) ||   // get a REG
+        (what == 0 && (cache_regs[i].htype & HRT_TEMP)) ||  // get a non-TEMP
+        (what < 0 && !(cache_regs[i].htype & HRT_TEMP)))    // get a TEMP
       continue;
     if (cache_regs[i].type == HR_FREE || cache_regs[i].type == HR_TEMP) {
       // REG is free
@@ -1731,17 +1755,18 @@ static int rcache_allocate(int what, int minprio)
 static int rcache_allocate_vreg(int needed)
 {
   int x;
-
-  // get a free reg, but use temps only if r is not needed soon
-  for (x = ARRAY_SIZE(cache_regs) - 1; x >= 0; x--) {
-    if (cache_regs[x].flags && (cache_regs[x].type == HR_FREE ||
-        (cache_regs[x].type == HR_TEMP && !(cache_regs[x].flags & HRF_LOCKED))) &&
-        (!needed || (cache_regs[x].flags & HRF_REG)))
-      break;
-  }
-
-  if (x < 0)
+  
+  if (needed) {
+    // needed soon, try getting a REG 1st, use a TEMP only if none is available
     x = rcache_allocate(1, 0);
+    if (x < 0)
+      x = rcache_allocate(-1, 1);
+  } else {
+    // not needed, try getting a TEMP 1st, use a REG only if none is available
+    x = rcache_allocate(-1, 1);
+    if (x < 0)
+      x = rcache_allocate(1, 0);
+  }
   return x;
 }
 
@@ -1753,17 +1778,7 @@ static int rcache_allocate_nontemp(void)
 
 static int rcache_allocate_temp(void)
 {
-  int x;
-
-  // use any free reg, but prefer TEMP regs
-  for (x = 0; x < ARRAY_SIZE(cache_regs); x++) {
-    if (cache_regs[x].flags && (cache_regs[x].type == HR_FREE ||
-        (cache_regs[x].type == HR_TEMP && !(cache_regs[x].flags & HRF_LOCKED))))
-      break;
-  }
-
-  if (x >= ARRAY_SIZE(cache_regs))
-    x = rcache_allocate(-1, 1);
+  int x = rcache_allocate(-1, 1);
   if (x < 0) {
     printf("no temp register available, aborting\n");
     exit(1);
@@ -1788,14 +1803,14 @@ static int rcache_map_reg(sh2_reg_e r, int hr, int mode)
   }
 
   // deal with statically mapped regs
-  if (mode == RC_GR_RMW && (guest_regs[r].flags & GRF_STATIC)) {
+  if (mode == RC_GR_RMW && (guest_regs[r].flags & (GRF_STATIC|GRF_PINNED))) {
     x = guest_regs[r].sreg;
     if (guest_regs[r].vreg == x) { 
       // STATIC in its sreg with no aliases, and some processing pending
       if (cache_regs[x].gregs == 1 << r)
         return cache_regs[x].hreg;
     } else if (cache_regs[x].type == HR_FREE ||
-        (cache_regs[x].type == HR_TEMP && !(cache_regs[x].flags & HRF_LOCKED)))
+        (cache_regs[x].type == HR_TEMP && !cache_regs[x].locked))
       // STATIC not in its sreg, with sreg available -> move it
       i = guest_regs[r].sreg;
   }
@@ -1806,14 +1821,13 @@ static int rcache_map_reg(sh2_reg_e r, int hr, int mode)
   if (cache_regs[i].type == HR_CACHED)
     rcache_evict_vreg(i);
   // set new mappping
-  if (cache_regs[i].type != HR_STATIC)
-    cache_regs[i].type = HR_CACHED;
+  cache_regs[i].type = HR_CACHED;
   cache_regs[i].gregs = 1 << r;
-  cache_regs[i].flags &= (HRF_TEMP|HRF_REG);
-  cache_regs[i].ref = 0;
+  cache_regs[i].flags &= HRF_PINNED;
+  cache_regs[i].locked = 0;
   cache_regs[i].stamp = ++rcache_counter;
   cache_regs[i].flags |= HRF_DIRTY;
-  rcache_ref_vreg(i);
+  rcache_lock_vreg(i);
   guest_regs[r].flags |= GRF_DIRTY;
   guest_regs[r].vreg = i;
 #if DRC_DEBUG & 64
@@ -1828,25 +1842,25 @@ static void rcache_remap_vreg(int x)
   int d;
 
   // x must be a cached vreg
-  if (cache_regs[x].type != HR_CACHED && cache_regs[x].type != HR_STATIC)
+  if (cache_regs[x].type != HR_CACHED)
     return;
   // don't do it if x is already a REG or isn't used or to be cleaned anyway
-  if ((cache_regs[x].flags & HRF_REG) ||
+  if ((cache_regs[x].htype & HRT_REG) ||
       !(rcache_regs_used & ~rcache_regs_clean & cache_regs[x].gregs)) {
     // clean here to avoid data loss on invalidation
     rcache_clean_vreg(x);
     return;
   }
 
-  if (cache_regs[x].flags & HRF_LOCKED) {
+  if (cache_regs[x].locked) {
     printf("remap vreg %d is locked\n", x);
     exit(1);
   }
 
   // allocate a non-TEMP vreg
-  rcache_ref_vreg(x); // lock to avoid evicting x
+  rcache_lock_vreg(x); // lock to avoid evicting x
   d = rcache_allocate_nontemp();
-  rcache_unref_vreg(x);
+  rcache_unlock_vreg(x);
   if (d < 0) {
     rcache_clean_vreg(x);
     return;
@@ -1901,10 +1915,10 @@ static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr
 
   dst = src = guest_regs[r].vreg;
 
-  rcache_ref_vreg(src); // lock to avoid evicting src
+  rcache_lock_vreg(src); // lock to avoid evicting src
   // good opportunity to relocate a remapped STATIC?
-  if ((guest_regs[r].flags & GRF_STATIC) && src != guest_regs[r].sreg &&
-      !(cache_regs[guest_regs[r].sreg].flags & HRF_LOCKED) &&
+  if ((guest_regs[r].flags & (GRF_STATIC|GRF_PINNED)) && src != guest_regs[r].sreg &&
+      !cache_regs[guest_regs[r].sreg].locked &&
       (src < 0 || mode != RC_GR_READ) &&
       !(rcache_regs_nowsoon & cache_regs[guest_regs[r].sreg].gregs)) {
     dst = guest_regs[r].sreg;
@@ -1918,10 +1932,10 @@ static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr
   }
   tr = &cache_regs[dst];
   tr->stamp = rcache_counter;
-  rcache_unref_vreg(src);
   // remove r from src
   if (src >= 0 && src != dst)
     rcache_remove_vreg_alias(src, r);
+  rcache_unlock_vreg(src);
 
   // if r has a constant it may have aliases
   if (mode != RC_GR_WRITE && gconst_try_read(dst, r))
@@ -1932,24 +1946,26 @@ static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr
   if (mode != RC_GR_READ && src == dst && ali) {
     int x = -1;
     if (rcache_regs_nowsoon & ali) {
-      if (tr->type == HR_STATIC && guest_regs[r].sreg == dst &&
-          !(tr->flags & HRF_LOCKED)) {
+      if ((guest_regs[r].flags & (GRF_STATIC|GRF_PINNED)) &&
+          guest_regs[r].sreg == dst && !tr->locked) {
         // split aliases if r is STATIC in sreg and dst isn't already locked
-        rcache_ref_vreg(dst); // lock to avoid evicting dst
-        if ((x = rcache_allocate_vreg(rcache_regs_nowsoon & ali)) >= 0) {
+        rcache_lock_vreg(dst); // lock to avoid evicting dst
+        x = rcache_allocate_vreg(rcache_regs_nowsoon & ali);
+        rcache_unlock_vreg(dst);
+        if (x >= 0) {
           src = x;
           rcache_move_vreg(src, dst);
         }
-        rcache_unref_vreg(dst);
       } else {
         // split r
-        rcache_ref_vreg(src); // lock to avoid evicting src
-        if ((x = rcache_allocate_vreg(rcache_regs_nowsoon & (1 << r))) >= 0) {
+        rcache_lock_vreg(src); // lock to avoid evicting src
+        x = rcache_allocate_vreg(rcache_regs_nowsoon & (1 << r));
+        rcache_unlock_vreg(src);
+        if (x >= 0) {
           dst = x;
           tr = &cache_regs[dst];
           tr->stamp = rcache_counter;
         }
-        rcache_unref_vreg(src);
       }
     }
     if (x < 0)
@@ -1967,13 +1983,13 @@ static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr
     emith_ctx_read(tr->hreg, r * 4);
   if (hr) {
     *hr = (src >= 0 ? cache_regs[src].hreg : tr->hreg);
-    rcache_ref_vreg(reg_map_host[*hr]);
-  } else if (src >= 0 && cache_regs[src].hreg != tr->hreg)
+    rcache_lock_vreg(src >= 0 ? src : dst);
+  } else if (src >= 0 && mode != RC_GR_WRITE && cache_regs[src].hreg != tr->hreg)
     emith_move_r_r(tr->hreg, cache_regs[src].hreg);
 
   // housekeeping
   if (do_locking)
-    rcache_ref_vreg(dst);
+    rcache_lock_vreg(dst);
   if (mode != RC_GR_READ) {
     tr->flags |= HRF_DIRTY;
     guest_regs[r].flags |= GRF_DIRTY;
@@ -1990,14 +2006,42 @@ static int rcache_get_reg(sh2_reg_e r, rc_gr_mode mode, int *hr)
   return rcache_get_reg_(r, mode, 1, hr);
 }
 
+static void rcache_pin_reg(sh2_reg_e r)
+{
+  int hr, x;
+
+  // don't pin if static or already pinned
+  if (guest_regs[r].flags & (GRF_STATIC|GRF_PINNED))
+    return;
+
+  rcache_regs_soon |= (1 << r); // kludge to prevent allocation of a temp
+  hr = rcache_get_reg_(r, RC_GR_RMW, 0, NULL);
+  x = reg_map_host[hr];
+
+  // can only pin non-TEMPs
+  if (!(cache_regs[x].htype & HRT_TEMP)) {
+    guest_regs[r].flags |= GRF_PINNED;
+    cache_regs[x].flags |= HRF_PINNED;
+    guest_regs[r].sreg = x;
+  }
+#if DRC_DEBUG & 64
+  RCACHE_CHECK("after pin");
+#endif
+}
+
 static int rcache_get_tmp(void)
 {
   int i;
 
   i = rcache_allocate_temp();
-  rcache_ref_vreg(i);
+  if (i < 0) {
+    printf("cannot allocate temp\n");
+    exit(1);
+  }
 
   cache_regs[i].type = HR_TEMP;
+  rcache_lock_vreg(i);
+
   return cache_regs[i].hreg;
 }
 
@@ -2006,14 +2050,14 @@ static int rcache_get_vreg_hr(int hr)
   int i;
 
   i = reg_map_host[hr];
-  if (i < 0 || (cache_regs[i].flags & HRF_LOCKED)) {
+  if (i < 0 || cache_regs[i].locked) {
     printf("host register %d is locked\n", hr);
     exit(1);
   }
 
   if (cache_regs[i].type == HR_CACHED)
     rcache_evict_vreg(i);
-  else if (cache_regs[i].type == HR_TEMP && (cache_regs[i].flags & HRF_LOCKED)) {
+  else if (cache_regs[i].type == HR_TEMP && cache_regs[i].locked) {
     printf("host reg %d already used, aborting\n", hr);
     exit(1);
   }
@@ -2034,7 +2078,7 @@ static int rcache_get_tmp_arg(int arg)
 {
   int x = rcache_get_vreg_arg(arg);
   cache_regs[x].type = HR_TEMP;
-  rcache_ref_vreg(x);
+  rcache_lock_vreg(x);
 
   return cache_regs[x].hreg;
 }
@@ -2044,7 +2088,7 @@ static int rcache_get_tmp_ret(void)
 {
   int x = rcache_get_vreg_hr(RET_REG);
   cache_regs[x].type = HR_TEMP;
-  rcache_ref_vreg(x);
+  rcache_lock_vreg(x);
 
   return cache_regs[x].hreg;
 }
@@ -2094,11 +2138,11 @@ static int rcache_get_reg_arg(int arg, sh2_reg_e r, int *hr)
   } else {
     *hr = srcr;
     if (dstr != srcr) // must lock srcr if not copied here
-      rcache_ref_vreg(reg_map_host[srcr]);
+      rcache_lock_vreg(reg_map_host[srcr]);
   }
 
   cache_regs[dstid].stamp = ++rcache_counter;
-  rcache_ref_vreg(dstid);
+  rcache_lock_vreg(dstid);
 #if DRC_DEBUG & 64
   RCACHE_CHECK("after getarg");
 #endif
@@ -2114,7 +2158,7 @@ static void rcache_free_tmp(int hr)
     exit(1);
   }
 
-  rcache_free_vreg(i);
+  rcache_unlock_vreg(i);
 }
 
 // saves temporary result either in REG or in drctmp
@@ -2133,10 +2177,10 @@ static int rcache_save_tmp(int hr)
 
   cache_regs[i].type = HR_CACHED;
   cache_regs[i].gregs = 0; // not storing any guest register
-  cache_regs[i].flags &= (HRF_TEMP|HRF_REG);
-  cache_regs[i].ref = 0;
+  cache_regs[i].flags &= HRF_PINNED;
+  cache_regs[i].locked = 0;
   cache_regs[i].stamp = ++rcache_counter;
-  rcache_ref_vreg(i);
+  rcache_lock_vreg(i);
   emith_move_r_r(cache_regs[i].hreg, hr);
   rcache_free_tmp(hr);
   return i;
@@ -2167,17 +2211,13 @@ static int rcache_restore_tmp(int x)
 static void rcache_free(int hr)
 {
   int x = reg_map_host[hr];
-  if (cache_regs[x].type == HR_TEMP)
-    rcache_free_tmp(hr);
-  else
-    rcache_unref_vreg(x);
+  rcache_unlock_vreg(x);
 }
 
 static void rcache_unlock(int x)
 {
   if (x >= 0) {
-    cache_regs[x].flags &= ~HRF_LOCKED;
-    cache_regs[x].ref = 0;
+    cache_regs[x].locked = 0;
 //    rcache_regs_now &= ~cache_regs[x].gregs;
   }
 }
@@ -2185,10 +2225,34 @@ static void rcache_unlock(int x)
 static void rcache_unlock_all(void)
 {
   int i;
-  for (i = 0; i < ARRAY_SIZE(cache_regs); i++) {
-    cache_regs[i].flags &= ~HRF_LOCKED;
-    cache_regs[i].ref = 0;
+  for (i = 0; i < ARRAY_SIZE(cache_regs); i++)
+    cache_regs[i].locked = 0;
+}
+
+static void rcache_unpin_all(void)
+{
+  int i;
+
+  for (i = 0; i < ARRAY_SIZE(guest_regs); i++) {
+    if (guest_regs[i].flags & GRF_PINNED) {
+      guest_regs[i].flags &= ~GRF_PINNED;
+      cache_regs[guest_regs[i].sreg].flags &= ~HRF_PINNED;
+      guest_regs[i].sreg = -1;
+    }
   }
+#if DRC_DEBUG & 64
+  RCACHE_CHECK("after unpin");
+#endif
+}
+
+static void rcache_save_pinned(void)
+{
+  int i;
+
+  // save pinned regs to context
+  for (i = 0; i < ARRAY_SIZE(guest_regs); i++)
+    if ((guest_regs[i].flags & GRF_PINNED) && guest_regs[i].vreg >= 0)
+      emith_ctx_write(cache_regs[guest_regs[i].vreg].hreg, i * 4);
 }
 
 static inline void rcache_set_usage_now(u32 mask)
@@ -2222,7 +2286,7 @@ static inline int rcache_is_hreg_used(int hr)
   int x = reg_map_host[hr];
   // is hr in use?
   return cache_regs[x].type != HR_FREE &&
-        (cache_regs[x].type != HR_TEMP || (cache_regs[x].flags & HRF_LOCKED));
+        (cache_regs[x].type != HR_TEMP || cache_regs[x].locked);
 }
 
 static inline u32 rcache_used_hregs_mask(void)
@@ -2231,8 +2295,8 @@ static inline u32 rcache_used_hregs_mask(void)
   int i;
 
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++)
-    if ((cache_regs[i].flags & HRF_TEMP) && cache_regs[i].type != HR_FREE &&
-        (cache_regs[i].type != HR_TEMP || (cache_regs[i].flags & HRF_LOCKED)))
+    if ((cache_regs[i].htype & HRT_TEMP) && cache_regs[i].type != HR_FREE &&
+        (cache_regs[i].type != HR_TEMP || cache_regs[i].locked))
       mask |= 1 << cache_regs[i].hreg;
 
   return mask;
@@ -2257,7 +2321,7 @@ static inline u32 rcache_cached_mask(void)
   int i;
 
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++)
-    if (cache_regs[i].type == HR_CACHED || cache_regs[i].type == HR_STATIC)
+    if (cache_regs[i].type == HR_CACHED)
       mask |= cache_regs[i].gregs;
 
   return mask;
@@ -2269,7 +2333,7 @@ static void rcache_clean_tmp(void)
 
   rcache_regs_clean = (1 << ARRAY_SIZE(guest_regs)) - 1;
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++)
-    if (cache_regs[i].type == HR_CACHED && (cache_regs[i].flags & HRF_TEMP)) {
+    if (cache_regs[i].type == HR_CACHED && (cache_regs[i].htype & HRT_TEMP)) {
       rcache_unlock(i);
 #if REMAP_REGISTER
       rcache_remap_vreg(i);
@@ -2300,7 +2364,7 @@ static void rcache_clean_masked(u32 mask)
     }
   // clean vregs where all aliases are covered by the mask
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++)
-    if ((cache_regs[i].type == HR_CACHED || cache_regs[i].type == HR_STATIC) &&
+    if (cache_regs[i].type == HR_CACHED &&
         (cache_regs[i].gregs & mask) && !(cache_regs[i].gregs & ~mask))
       rcache_clean_vreg(i);
 }
@@ -2312,23 +2376,24 @@ static void rcache_clean(void)
 
   rcache_regs_clean = (1 << ARRAY_SIZE(guest_regs)) - 1;
   for (i = ARRAY_SIZE(cache_regs)-1; i >= 0; i--)
-    if (cache_regs[i].type == HR_CACHED || cache_regs[i].type == HR_STATIC)
+    if (cache_regs[i].type == HR_CACHED)
       rcache_clean_vreg(i);
 
   // relocate statics to their sregs (necessary before conditional jumps)
   for (i = 0; i < ARRAY_SIZE(guest_regs); i++) {
-    if ((guest_regs[i].flags & GRF_STATIC) &&
+    if ((guest_regs[i].flags & (GRF_STATIC|GRF_PINNED)) &&
           guest_regs[i].vreg != guest_regs[i].sreg) {
-      rcache_ref_vreg(guest_regs[i].vreg);
+      rcache_lock_vreg(guest_regs[i].vreg);
       rcache_evict_vreg(guest_regs[i].sreg);
-      rcache_unref_vreg(guest_regs[i].vreg);
+      rcache_unlock_vreg(guest_regs[i].vreg);
       if (guest_regs[i].vreg < 0)
         emith_ctx_read(cache_regs[guest_regs[i].sreg].hreg, i*4);
       else
         emith_move_r_r(cache_regs[guest_regs[i].sreg].hreg,
                         cache_regs[guest_regs[i].vreg].hreg);
       cache_regs[guest_regs[i].sreg].gregs = 1 << i;
-      cache_regs[guest_regs[i].sreg].flags |= HRF_DIRTY;
+      cache_regs[guest_regs[i].sreg].type = HR_CACHED;
+      cache_regs[guest_regs[i].sreg].flags |= HRF_DIRTY|HRF_PINNED;
       guest_regs[i].flags |= GRF_DIRTY;
       guest_regs[i].vreg = guest_regs[i].sreg;
     }
@@ -2341,7 +2406,7 @@ static void rcache_invalidate_tmp(void)
   int i;
 
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++) {
-    if (cache_regs[i].flags & HRF_TEMP) {
+    if (cache_regs[i].htype & HRT_TEMP) {
       rcache_unlock(i);
       if (cache_regs[i].type == HR_CACHED)
         rcache_evict_vreg(i);
@@ -2365,7 +2430,8 @@ static void rcache_invalidate(void)
       guest_regs[i].vreg = -1;
     else {
       cache_regs[guest_regs[i].sreg].gregs = 1 << i;
-      cache_regs[guest_regs[i].sreg].flags |= HRF_DIRTY;
+      cache_regs[guest_regs[i].sreg].type = HR_CACHED;
+      cache_regs[guest_regs[i].sreg].flags |= HRF_DIRTY|HRF_PINNED;
       guest_regs[i].flags |= GRF_DIRTY;
       guest_regs[i].vreg = guest_regs[i].sreg;
     }
@@ -2391,26 +2457,26 @@ static void rcache_init(void)
   // init is executed on every rom load, but this must only be executed once...
   if (once) {
     memset(reg_map_host, -1, sizeof(reg_map_host));
-    for (i = 0; i < ARRAY_SIZE(cache_regs); i++)
+    for (i = 0; i < ARRAY_SIZE(cache_regs); i++) {
       reg_map_host[cache_regs[i].hreg] = i;
+      if (cache_regs[i].htype == HRT_REG)
+        rcache_hregs_reg |= (1 << i);
+    }
 
     for (i = 0; i < ARRAY_SIZE(guest_regs); i++)
       if (guest_regs[i].flags & GRF_STATIC) {
         rcache_regs_static |= (1 << i);
         guest_regs[i].sreg = reg_map_host[guest_regs[i].sreg];
-        cache_regs[guest_regs[i].sreg].type = HR_STATIC;
+        rcache_hregs_reg &= ~(1 << guest_regs[i].sreg);
       } else
         guest_regs[i].sreg = -1;
     once = 0;
   }
 
-  for (i = 0; i < ARRAY_SIZE(guest_regs); i++)
-    if (guest_regs[i].flags & GRF_STATIC) {
-      guest_regs[i].vreg = guest_regs[i].sreg;
-      cache_regs[guest_regs[i].sreg].gregs = (1 << i);
-    }
-
   rcache_invalidate();
+#if DRC_DEBUG & 64
+  RCACHE_CHECK("after init");
+#endif
 }
 
 // ---------------------------------------------------------------
@@ -2802,13 +2868,13 @@ static void emit_do_static_regs(int is_write, int tmpr)
   int i, r, count;
 
   for (i = 0; i < ARRAY_SIZE(guest_regs); i++) {
-    if (guest_regs[i].flags & GRF_STATIC)
+    if (guest_regs[i].flags & (GRF_STATIC|GRF_PINNED))
       r = cache_regs[guest_regs[i].vreg].hreg;
     else
       continue;
 
     for (count = 1; i < ARRAY_SIZE(guest_regs) - 1; i++, r++) {
-      if ((guest_regs[i + 1].flags & GRF_STATIC) &&
+      if ((guest_regs[i + 1].flags & (GRF_STATIC|GRF_PINNED)) &&
           cache_regs[guest_regs[i + 1].vreg].hreg == r + 1)
         count++;
       else
@@ -2863,6 +2929,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     u32 pending_branch_direct:1;
     u32 pending_branch_indirect:1;
   } drcf = { 0, };
+#if LOOP_OPTIMIZER
+  void *pinned_loop_ptr[MAX_LOCAL_BRANCHES/16];
+  u32 pinned_loop_pc[MAX_LOCAL_BRANCHES/16];
+  u32 pinned_loop_mask[MAX_LOCAL_BRANCHES/16];
+  int pinned_loop_count = 0;
+#endif
 
   // PC of current, first, last SH2 insn
   u32 pc, base_pc, end_pc;
@@ -2877,7 +2949,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   int tmp, tmp2;
   int cycles;
   int i, v;
-  u32 u, m1, m2;
+  u32 u, m1, m2, m3, m4;
   int op;
   u16 crc;
 
@@ -2925,7 +2997,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   }
 
   // collect branch_targets that don't land on delay slots
-  m1 = m2 = v = op = 0;
+  m1 = m2 = m3 = m4 = v = op = 0;
   for (pc = base_pc, i = 0; pc < end_pc; i++, pc += 2) {
     if (op_flags[i] & OF_DELAY_OP)
       op_flags[i] &= ~OF_BTARGET;
@@ -2955,9 +3027,14 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       drcf.pending_branch_direct = drcf.pending_branch_indirect = 0;
       op = OF_IDLE_LOOP; // loop type
       v = i;
-      m1 = m2 = 0;
+      m1 = m2 = m3 = m4 = 0;
+      if (!drcf.loop_type)   // reset basic loop it it isn't recognized as loop
+        op_flags[i] &= ~OF_BASIC_LOOP;
     }
     if (drcf.loop_type) {
+      // calculate reg masks for loop pinning
+      m4 |= ops[i].source & ~m3;
+      m3 |= ops[i].dest;
       // detect loop type, and store poll/delay register
       if (op_flags[i] & OF_POLL_INSN) {
         op = OF_POLL_LOOP;
@@ -2971,8 +3048,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         m2 |= ops[i].dest;   // regs modified by other insns
       }
       // branch detector
-      if (OP_ISBRAIMM(ops[i].op) && ops[i].imm == base_pc + 2*v)
-        drcf.pending_branch_direct = 1;         // backward branch detected
+      if (OP_ISBRAIMM(ops[i].op)) {
+        if (ops[i].imm == base_pc + 2*v)
+          drcf.pending_branch_direct = 1;       // backward branch detected
+        else
+          op_flags[v] &= ~OF_BASIC_LOOP;        // no basic loop
+      }
       if (OP_ISBRACND(ops[i].op))
         drcf.pending_branch_indirect = 1;       // conditions g,h - cond.branch
       // poll/idle loops terminate with their backwards branch to the loop start
@@ -2982,6 +3063,17 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           op = 0;                               // conditions not met
         op_flags[v] = (op_flags[v] & ~OF_LOOP) | op; // set loop type
         drcf.loop_type = 0;
+#if LOOP_OPTIMIZER
+        if (op_flags[v] & OF_BASIC_LOOP) {
+          m3 &= ~rcache_regs_static & ~BITMASK4(SHR_PC, SHR_PR, SHR_SR, SHR_MEM);
+          if (m3 && count_bits(m3) < count_bits(rcache_hregs_reg) &&
+              pinned_loop_count < ARRAY_SIZE(pinned_loop_pc)) {
+            pinned_loop_mask[pinned_loop_count] = m3;
+            pinned_loop_pc[pinned_loop_count++] = base_pc + 2*v;
+          } else
+            op_flags[v] &= ~OF_BASIC_LOOP;
+        }
+#endif
       }
     }
 #endif
@@ -3007,9 +3099,13 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
 
   // clear stale state after compile errors
+  rcache_unlock_all();
   rcache_invalidate();
   emith_invalidate_t();
   drcf = (struct drcf) { 0 };
+#if LOOP_OPTIMIZER
+  pinned_loop_count = 0;
+#endif
 
   // -------------------------------------------------
   // 3rd pass: actual compilation
@@ -3110,10 +3206,31 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       rcache_free_tmp(tmp3);
 #endif
 
+#if LOOP_OPTIMIZER
+      if (op_flags[i] & OF_BASIC_LOOP) {
+        if (pinned_loop_pc[pinned_loop_count] == pc) {
+          // pin needed regs on loop entry 
+          FOR_ALL_BITS_SET_DO(pinned_loop_mask[pinned_loop_count], v, rcache_pin_reg(v));
+          pinned_loop_ptr[pinned_loop_count] = tcache_ptr;
+        } else
+          op_flags[i] &= ~OF_BASIC_LOOP;
+      }
+#endif
+
       // check cycles
       tmp = rcache_get_tmp_arg(0);
       sr = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
       emith_cmp_r_imm(sr, 0);
+#if LOOP_OPTIMIZER
+      // on drc exit pinned registers must be saved
+      if (op_flags[i] & OF_BASIC_LOOP) {
+        EMITH_JMP_START(DCOND_GT);
+        rcache_save_pinned();
+        emith_move_r_imm(tmp, pc);
+        emith_jump(sh2_drc_exit);
+        EMITH_JMP_END(DCOND_GT);
+      } else
+#endif
       if (emith_jump_cond_inrange(sh2_drc_exit)) {
         emith_move_r_imm_c(DCOND_LE, tmp, pc);
         emith_jump_cond(DCOND_LE, sh2_drc_exit);
@@ -4237,14 +4354,13 @@ end_op:
       if (OP_ISBRACND(opd_b->op))
         ctaken = (op_flags[i] & OF_DELAY_OP) ? 1 : 2;
       cycles += ctaken; // assume branch taken
-#if LOOP_DETECTION
+#if LOOP_OPTIMIZER
       if ((drcf.loop_type == OF_IDLE_LOOP ||
           (drcf.loop_type == OF_DELAY_LOOP && drcf.delay_reg >= 0)))
       {
         // idle or delay loop
         emit_sync_t_to_sr();
         emith_sh2_delay_loop(cycles, drcf.delay_reg);
-        rcache_unlock_all(); // may lock delay_reg
         drcf.polling = drcf.loop_type = 0;
       }
 #endif
@@ -4288,6 +4404,15 @@ end_op:
           patchable = 1;
         } else
           dbg(1, "warning: too many local branches");
+      }
+#endif
+
+      rcache_unlock_all(); // may lock delay_reg
+#if LOOP_OPTIMIZER
+      if (target && pinned_loop_pc[pinned_loop_count] == target_pc) {
+        rcache_unpin_all();
+        target = pinned_loop_ptr[pinned_loop_count];
+        pinned_loop_count ++;
       }
 #endif
 
@@ -4372,6 +4497,7 @@ end_op:
       drcf.pending_branch_indirect = 0;
       drcf.polling = drcf.loop_type = 0;
     }
+    rcache_unlock_all();
 
     do_host_disasm(tcache_id);
   }
@@ -6198,6 +6324,8 @@ end:
     if (OP_ISBRAIMM(opd->op)) {
       // BSR, BRA, BT, BF with immediate target
       int i_tmp = (opd->imm - base_pc) / 2; // branch target, index in ops
+      if (i_tmp == last_btarget) // candidate for basic loop optimizer
+        op_flags[i_tmp] |= OF_BASIC_LOOP;
       if (i_tmp == last_btarget && op <= 1) {
         op_flags[i_tmp] |= OF_LOOP; // conditions met -> mark loop
         last_btarget = i+1;     // condition 4
