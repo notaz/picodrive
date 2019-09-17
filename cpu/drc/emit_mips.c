@@ -209,20 +209,25 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 
 // FIFO for 2 instructions, for delay slot handling
 u32 emith_last_insns[2] = { -1,-1 };
-int emith_last_idx;
+int emith_last_idx, emith_last_cnt;
 
 #define EMIT_PUSHOP() \
 	do { \
 		emith_last_idx ^= 1; \
-		if (emith_last_insns[emith_last_idx] != -1) \
-			EMIT_PTR(tcache_ptr, emith_last_insns[emith_last_idx]);\
+		if (emith_last_insns[emith_last_idx] != -1) { \
+			u32 *p = (u32 *)tcache_ptr - emith_last_cnt; \
+			EMIT_PTR(p, emith_last_insns[emith_last_idx]);\
+			emith_last_cnt --; \
+		} \
 		emith_last_insns[emith_last_idx] = -1; \
 	} while (0)
 
 #define EMIT(op) \
 	do { \
 		EMIT_PUSHOP(); \
+		tcache_ptr = (void *)((u32 *)tcache_ptr + 1); \
 		emith_last_insns[emith_last_idx] = op; \
+		emith_last_cnt ++; \
 		COUNT_OP; \
 	} while (0)
 
@@ -231,8 +236,7 @@ int emith_last_idx;
 		int i; for (i = 0; i < 2; i++) EMIT_PUSHOP(); \
 	} while (0)
 
-#define emith_insn_ptr()	(u8 *)((u32 *)tcache_ptr + \
-		(emith_last_insns[0] != -1) + (emith_last_insns[1] != -1))
+#define emith_insn_ptr()	(u8 *)((u32 *)tcache_ptr - emith_last_cnt)
 
 // delay slot stuff
 static int emith_is_j(u32 op)	// J, JAL
@@ -305,12 +309,14 @@ static void *emith_branch(u32 op)
 	}
 
 	if (bop) { // can swap
+		tcache_ptr = (void *)((u32 *)tcache_ptr - emith_last_cnt);
 		if (emith_last_insns[idx^1] != -1)
 			EMIT_PTR(tcache_ptr, emith_last_insns[idx^1]);
 		bp = tcache_ptr;
 		EMIT_PTR(tcache_ptr, bop); COUNT_OP;
 		EMIT_PTR(tcache_ptr, emith_last_insns[idx]);
 		emith_last_insns[0] = emith_last_insns[1] = -1;
+		emith_last_cnt = 0;
 	} else { // can't swap
 		emith_flush();
 		bp = tcache_ptr;
@@ -325,13 +331,13 @@ static void *emith_branch(u32 op)
 	ptr = emith_branch(MIPS_BCONDZ(cond_m, cond_r, 0));
 
 #define JMP_EMIT(cond, ptr) { \
-	u32 val_ = emith_insn_ptr() - (u8 *)(ptr) - 4; \
+	u32 val_ = (u8 *)tcache_ptr - (u8 *)(ptr) - 4; \
 	EMIT_PTR(ptr, MIPS_BCONDZ(cond_m, cond_r, val_ & 0x0003ffff)); \
 	emith_flush(); /* NO delay slot handling across jump targets */ \
 }
 
 #define JMP_EMIT_NC(ptr) { \
-	u32 val_ = emith_insn_ptr() - (u8 *)(ptr) - 4; \
+	u32 val_ = (u8 *)tcache_ptr - (u8 *)(ptr) - 4; \
 	EMIT_PTR(ptr, MIPS_B(val_ & 0x0003ffff)); \
 	emith_flush(); \
 }
@@ -881,14 +887,14 @@ static u8 *last_lohi;
 static void emith_lohi_nops(void)
 {
 	u32 d;
-	while ((d = emith_insn_ptr() - last_lohi) < 8 && d >= 0) EMIT(MIPS_NOP);
+	while ((d = (u8 *)tcache_ptr - last_lohi) < 8 && d >= 0) EMIT(MIPS_NOP);
 }
 
 #define emith_mul(d, s1, s2) do { \
 	emith_lohi_nops(); \
 	EMIT(MIPS_MULTU(s1, s2)); \
 	EMIT(MIPS_MFLO(d)); \
-	last_lohi = emith_insn_ptr(); \
+	last_lohi = (u8 *)tcache_ptr; \
 } while (0)
 
 #define emith_mul_u64(dlo, dhi, s1, s2) do { \
@@ -896,7 +902,7 @@ static void emith_lohi_nops(void)
 	EMIT(MIPS_MULTU(s1, s2)); \
 	EMIT(MIPS_MFLO(dlo)); \
 	EMIT(MIPS_MFHI(dhi)); \
-	last_lohi = emith_insn_ptr(); \
+	last_lohi = (u8 *)tcache_ptr; \
 } while (0)
 
 #define emith_mul_s64(dlo, dhi, s1, s2) do { \
@@ -904,7 +910,7 @@ static void emith_lohi_nops(void)
 	EMIT(MIPS_MULT(s1, s2)); \
 	EMIT(MIPS_MFLO(dlo)); \
 	EMIT(MIPS_MFHI(dhi)); \
-	last_lohi = emith_insn_ptr(); \
+	last_lohi = (u8 *)tcache_ptr; \
 } while (0)
 
 #define emith_mula_s64(dlo, dhi, s1, s2) do { \
@@ -915,7 +921,7 @@ static void emith_lohi_nops(void)
 	emith_add_r_r(dlo, AT); \
 	EMIT(MIPS_SLTU_REG(t_, dlo, AT)); \
 	EMIT(MIPS_MFHI(AT)); \
-	last_lohi = emith_insn_ptr(); \
+	last_lohi = (u8 *)tcache_ptr; \
 	emith_add_r_r(dhi, AT); \
 	emith_add_r_r(dhi, t_); \
 	rcache_free_tmp(t_); \
@@ -1174,14 +1180,14 @@ static int emith_cond_check(int cond, int *r)
 // NB: MIPS conditional branches have only +/- 128KB range
 #define emith_jump_cond(cond, target) do { \
 	int r_, mcond_ = emith_cond_check(cond, &r_); \
-	u32 disp_ = (u8 *)target - emith_insn_ptr() - 4; \
+	u32 disp_ = (u8 *)target - (u8 *)tcache_ptr - 4; \
 	if (disp_ >= 0xfffe0000 || disp_ <= 0x0001ffff) { /* can use near B */ \
 		emith_branch(MIPS_BCONDZ(mcond_,r_,disp_ & 0x0003ffff)); \
 	} else { /* far branch if near branch isn't possible */ \
 		mcond_ = emith_invert_branch(mcond_); \
 		u8 *bp = emith_branch(MIPS_BCONDZ(mcond_, r_, 0)); \
 		emith_branch(MIPS_J((uintptr_t)target & 0x0fffffff)); \
-		EMIT_PTR(bp, MIPS_BCONDZ(mcond_, r_, emith_insn_ptr()-bp-4)); \
+		EMIT_PTR(bp, MIPS_BCONDZ(mcond_, r_, (u8 *)tcache_ptr-bp-4)); \
 	} \
 } while (0)
 
@@ -1190,8 +1196,11 @@ static int emith_cond_check(int cond, int *r)
 	mcond_ = emith_invert_branch(mcond_); \
 	u8 *bp = emith_branch(MIPS_BCONDZ(mcond_, r_, 0));\
 	emith_branch(MIPS_J((uintptr_t)target & 0x0fffffff)); \
-	EMIT_PTR(bp, MIPS_BCONDZ(mcond_, r_, emith_insn_ptr()-bp-4)); \
+	EMIT_PTR(bp, MIPS_BCONDZ(mcond_, r_, (u8 *)tcache_ptr-bp-4)); \
 } while (0)
+
+#define emith_jump_cond_inrange(target) \
+	!(((u8 *)target - (u8 *)tcache_ptr + 0x10000) >> 18)
 
 // NB: returns position of patch for cache maintenance
 #define emith_jump_patch(ptr, target) ({ \
@@ -1261,6 +1270,7 @@ static int emith_cond_check(int cond, int *r)
 #define emith_pool_commit(j)	/**/
 // NB: mips32r2 has SYNCI
 #define host_instructions_updated(base, end) __builtin___clear_cache(base, end)
+#define	emith_update_cache()	/**/
 #define emith_jump_patch_size()	4
 #define emith_rw_offs_max()	0x7fff
 

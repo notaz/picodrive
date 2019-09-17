@@ -877,6 +877,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	ptr; \
 })
 
+#define emith_jump_cond_inrange(ptr) !0
 #define emith_jump_patch_size() 6
 
 #define emith_jump_at(ptr, target) do { \
@@ -986,6 +987,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 } while (0)
 
 #define host_instructions_updated(base, end)
+#define	emith_update_cache()	/**/
 
 #define emith_rw_offs_max()	0xffffffff
 
@@ -993,7 +995,6 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 #define HOST_REGS 16
 #define PTR_SCALE 3
-#define NA_TMP_REG xAX // non-arg tmp from reg_temp[]
 
 #define EMIT_XREX_IF(w, r, rm, rs) do { \
 	int xr_ = (r) > 7 ? 1 : 0; \
@@ -1078,7 +1079,6 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 #define HOST_REGS 8
 #define PTR_SCALE 2
-#define NA_TMP_REG xBX // non-arg tmp from reg_temp[]
 
 #define EMIT_REX_IF(w, r, rm) do { \
 	assert((u32)(r) < 8u); \

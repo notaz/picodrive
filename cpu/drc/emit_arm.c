@@ -36,6 +36,47 @@
 #define M5(x,y,z,a,b)	(M4(x,y,z,a)|M1(b))
 #define M10(a,b,c,d,e,f,g,h,i,j) (M5(a,b,c,d,e)|M5(f,g,h,i,j))
 
+// sys_cacheflush always flushes whole pages, and it's rather expensive on ARMs
+// hold a list of pending cache updates and merge requests to reduce cacheflush
+static struct { void *base, *end; } pageflush[4];
+static unsigned pagesize = 4096;
+
+static void emith_update_cache(void)
+{
+	int i;
+
+	for (i = 0; i < 4 && pageflush[i].base; i++) {
+		cache_flush_d_inval_i(pageflush[i].base, pageflush[i].end + pagesize-1);
+		pageflush[i].base = NULL;
+	}
+}
+
+static inline void emith_update_add(void *base, void *end)
+{
+	void *p_base = (void *)((uintptr_t)(base) & ~(pagesize-1));
+	void *p_end  = (void *)((uintptr_t)(end ) & ~(pagesize-1));
+	int i;
+
+	for (i = 0; i < 4 && pageflush[i].base; i++) {
+		if (p_base <= pageflush[i].end+pagesize && p_end >= pageflush[i].end) {
+			if (p_base < pageflush[i].base) pageflush[i].base = p_base;
+			pageflush[i].end = p_end;
+			return;
+		}
+		if (p_base <= pageflush[i].base && p_end >= pageflush[i].base-pagesize) {
+			if (p_end > pageflush[i].end) pageflush[i].end = p_end;
+			pageflush[i].base = p_base;
+			return;
+		}
+	}
+	if (i == 4) {
+		/* list full and not mergeable -> flush list */
+		emith_update_cache();
+		i = 0;
+	}
+	pageflush[i].base = p_base, pageflush[i].end = p_end;
+}
+
 // peephole optimizer. ATM only tries to reduce interlock
 #define EMIT_CACHE_SIZE 3
 struct emit_op {
@@ -48,8 +89,8 @@ static struct emit_op emit_cache[EMIT_CACHE_SIZE+3];
 static int emit_index;
 #define emith_insn_ptr()	(u8 *)((u32 *)tcache_ptr-emit_index)
 
-static int emith_pool_index(int tcache_offs);
-static void emith_pool_adjust(int pool_index, int move_offs);
+static inline int emith_pool_index(int tcache_offs);
+static inline void emith_pool_adjust(int pool_index, int move_offs);
 
 static NOINLINE void EMIT(u32 op, u32 dst, u32 src)
 {
@@ -1106,6 +1147,7 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	(u8 *)ptr; \
 })
 
+#define emith_jump_cond_inrange(target) !0
 #define emith_jump_patch_size() 4
 
 #define emith_jump_at(ptr, target) do { \
@@ -1170,7 +1212,7 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 } while (0)
 
 #define host_instructions_updated(base, end) \
-	cache_flush_d_inval_i(base, end)
+	emith_update_add(base, end)
 
 #define host_arg2reg(rd, arg) \
 	rd = arg

@@ -471,7 +471,7 @@ void sync_sh2s_normal(unsigned int m68k_target)
       if (!(ssh2.state & SH2_IDLE_STATES)) {
         cycles = target - ssh2.m68krcycles_done;
         if (cycles > 0) {
-          run_sh2(&ssh2, cycles > 20 ? cycles : 20);
+          run_sh2(&ssh2, cycles > 20U ? cycles : 20U);
 
           if (event_time_next && CYCLES_GT(target, event_time_next))
             target = event_time_next;
@@ -483,7 +483,7 @@ void sync_sh2s_normal(unsigned int m68k_target)
       if (!(msh2.state & SH2_IDLE_STATES)) {
         cycles = target - msh2.m68krcycles_done;
         if (cycles > 0) {
-          run_sh2(&msh2, cycles > 20 ? cycles : 20);
+          run_sh2(&msh2, cycles > 20U ? cycles : 20U);
 
           if (event_time_next && CYCLES_GT(target, event_time_next))
             target = event_time_next;

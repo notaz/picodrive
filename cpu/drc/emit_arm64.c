@@ -1038,6 +1038,9 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 #define emith_jump_cond_patchable(cond, target) \
 	emith_bcond(tcache_ptr, 1, cond, target)
 
+#define emith_jump_cond_inrange(target) \
+	!(((u8 *)target - (u8 *)tcache_ptr + 0x100000) >> 22)
+
 #define emith_jump_patch(ptr, target) ({ \
 	u32 *ptr_ = (u32 *)ptr; \
 	u32 disp_ = (u8 *)(target) - (u8 *)(ptr_); \
@@ -1116,6 +1119,7 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 #define emith_insn_ptr()	((u8 *)tcache_ptr)
 #define	emith_flush()		/**/
 #define host_instructions_updated(base, end) __builtin___clear_cache(base, end)
+#define	emith_update_cache()	/**/
 #define emith_jump_patch_size()	8
 #define emith_rw_offs_max()	0xff
 
