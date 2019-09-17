@@ -2920,6 +2920,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     // mark memory for overwrite detection
     dr_mark_memory(1, block, tcache_id, 0);
     block->active = 1;
+    emith_update_cache();
     return block->entryp[0].tcache_ptr;
   }
 
@@ -3113,8 +3114,15 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       tmp = rcache_get_tmp_arg(0);
       sr = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
       emith_cmp_r_imm(sr, 0);
-      emith_move_r_imm_c(DCOND_LE, tmp, pc);
-      emith_jump_cond(DCOND_LE, sh2_drc_exit);
+      if (emith_jump_cond_inrange(sh2_drc_exit)) {
+        emith_move_r_imm_c(DCOND_LE, tmp, pc);
+        emith_jump_cond(DCOND_LE, sh2_drc_exit);
+      } else {
+        EMITH_JMP_START(DCOND_GT);
+        emith_move_r_imm(tmp, pc);
+        emith_jump(sh2_drc_exit);
+        EMITH_JMP_END(DCOND_GT);
+      }
       rcache_free_tmp(tmp);
 
 #if (DRC_DEBUG & 32)
@@ -3249,7 +3257,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       }
     }
     rcache_set_usage_now(opd[0].source);   // current insn
-    rcache_set_usage_soon(late);           // insns 1-3
+    rcache_set_usage_soon(soon);           // insns 1-3
     rcache_set_usage_late(late & ~soon);   // insns 4-9
     rcache_set_usage_discard(write & ~(late|soon) & ~opd[0].source);
 
@@ -4442,12 +4450,16 @@ end_op:
   fflush(stdout);
 #endif
 
+  emith_update_cache();
   return block_entry_ptr;
 }
 
 static void sh2_generate_utils(void)
 {
   int arg0, arg1, arg2, arg3, sr, tmp, tmp2;
+#if DRC_DEBUG
+  int hic = host_insn_count; // don't count utils for insn statistics
+#endif
 
   host_arg2reg(arg0, 0);
   host_arg2reg(arg1, 1);
@@ -4794,6 +4806,10 @@ static void sh2_generate_utils(void)
   host_dasm_new_symbol(sh2_drc_read16_poll);
   host_dasm_new_symbol(sh2_drc_read32_poll);
 #endif
+
+#if DRC_DEBUG
+  host_insn_count = hic;
+#endif
 }
 
 static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit, int free)
@@ -4847,6 +4863,7 @@ static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nol
     bd->addr = bd->size = bd->addr_lit = bd->size_lit = 0;
     bd->entry_count = 0;
   }
+  emith_update_cache();
 }
 
 static void sh2_smc_rm_blocks(u32 a, int tcache_id, u32 shift)
@@ -5197,6 +5214,7 @@ int sh2_drc_init(SH2 *sh2)
     tcache_ptr = tcache;
     sh2_generate_utils();
     host_instructions_updated(tcache, tcache_ptr);
+    emith_update_cache();
 
     tcache_bases[0] = tcache_ptrs[0] = tcache_ptr;
     tcache_limit[0] = tcache_bases[0] + tcache_sizes[0] - (tcache_ptr-tcache);

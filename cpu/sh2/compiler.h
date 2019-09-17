@@ -33,26 +33,24 @@ unsigned short scan_block(unsigned int base_pc, int is_slave,
 
 #if defined(DRC_SH2)
 // direct access to some host CPU registers used by the DRC
-// XXX MUST match definitions in cpu/sh2/compiler.c
+// XXX MUST match definitions for SHR_SR in cpu/sh2/compiler.c
 #if defined(__arm__)
-#define	DRC_SR_REG	r10
+#define	DRC_SR_REG	"r10"
 #elif defined(__aarch64__)
-#define	DRC_SR_REG	r22
+#define	DRC_SR_REG	"r22"
 #elif defined(__mips__)
-#define	DRC_SR_REG	s6
+#define	DRC_SR_REG	"s6"
 #elif defined(__i386__)
-#define	DRC_SR_REG	edi
+#define	DRC_SR_REG	"edi"
 #elif defined(__x86_64__)
-#define	DRC_SR_REG	ebx
+#define	DRC_SR_REG	"ebx"
 #else
 #warning "direct DRC register access not available for this host"
 #endif
 #endif
 
 #ifdef DRC_SR_REG
-#define	__DRC_DECLARE_SR(SR)	register int sh2_sr asm(#SR)
-#define	_DRC_DECLARE_SR(SR)	__DRC_DECLARE_SR(SR)
-#define	DRC_DECLARE_SR	_DRC_DECLARE_SR(DRC_SR_REG)
+#define	DRC_DECLARE_SR	register int sh2_sr asm(DRC_SR_REG)
 #define DRC_SAVE_SR(sh2) \
     if ((sh2->state & (SH2_STATE_RUN|SH2_STATE_SLEEP)) == SH2_STATE_RUN) \
         sh2->sr = sh2_sr;
