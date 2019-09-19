@@ -865,15 +865,6 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 #define emith_read_r_r_r_c(cond, r, rs, rm) \
 	emith_read_r_r_r(r, rs, rm)
 
-#define emith_read_r_r_r_ptr_wb(r, rs, rm) do { \
-	emith_read_r_r_r_ptr(r, rs, rm); \
-	emith_add_r_r_ptr(rs, rm); \
-} while (0)
-#define emith_read_r_r_r_wb(r, rs, rm) do { \
-	emith_read_r_r_r(r, rs, rm); \
-	emith_add_r_r_ptr(rs, rm); \
-} while (0)
-
 #define emith_read8_r_r_offs(r, rs, offs) \
 	emith_ldst_offs(AM_B, r, rs, offs, LT_LD, AM_IDX)
 #define emith_read8_r_r_offs_c(cond, r, rs, offs) \
@@ -934,15 +925,6 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	EMIT(A64_LDST_REG(r, rs, rm, LT_ST, XT_SXTW))
 #define emith_write_r_r_r_c(cond, r, rs, rm) \
 	emith_write_r_r_r(r, rs, rm)
-
-#define emith_write_r_r_r_ptr_wb(r, rs, rm) do { \
-	emith_write_r_r_r_ptr(r, rs, rm); \
-	emith_add_r_r_ptr(rs, rm); \
-} while (0)
-#define emith_write_r_r_r_wb(r, rs, rm) do { \
-	emith_write_r_r_r(r, rs, rm); \
-	emith_add_r_r_ptr(rs, rm); \
-} while (0)
 
 #define emith_ctx_read_ptr(r, offs) \
 	emith_read_r_r_offs_ptr(r, CONTEXT_REG, offs)
@@ -1031,6 +1013,7 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 
 #define emith_jump_patchable(target) \
 	emith_jump(target)
+#define emith_jump_patchable_size() 4
 
 #define emith_jump_cond(cond, target) \
 	emith_bcond(tcache_ptr, 0, cond, target)
@@ -1039,9 +1022,9 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	emith_bcond(tcache_ptr, 1, cond, target)
 
 #define emith_jump_cond_inrange(target) \
-	!(((u8 *)target - (u8 *)tcache_ptr + 0x100000) >> 22)
+	!(((u8 *)target - (u8 *)tcache_ptr + 0x100000) >> 21)
 
-#define emith_jump_patch(ptr, target) ({ \
+#define emith_jump_patch(ptr, target, pos) do { \
 	u32 *ptr_ = (u32 *)ptr; \
 	u32 disp_ = (u8 *)(target) - (u8 *)(ptr_); \
 	int cond_ = ptr_[0] & 0xf; \
@@ -1051,8 +1034,9 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	} else if (ptr_[0] & 0x80000000) \
 		EMIT_PTR(ptr_, A64_BL((disp_) & 0x0fffffff)); \
 	else	EMIT_PTR(ptr_, A64_B((disp_) & 0x0fffffff)); \
-	(u8 *)ptr; \
-})
+	if ((void *)(pos) != NULL) *(u8 **)(pos) = (u8 *)ptr; \
+} while (0)
+#define emith_jump_patch_size()	8
 
 #define emith_jump_reg(r) \
 	EMIT(A64_BR(r))
@@ -1085,11 +1069,6 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	rcache_free_tmp(_t); \
 } while (0)
 
-#define emith_call_link(r, target) do { \
-	EMIT(A64_ADRXLIT_IMM(r, 8)); \
-	emith_jump(target); \
-} while (0)
-
 #define emith_call_cleanup()	/**/
 
 #define emith_ret() \
@@ -1099,6 +1078,9 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 
 #define emith_ret_to_ctx(offs) \
 	emith_ctx_write_ptr(LR, offs)
+
+#define emith_add_r_ret_imm(r, imm) \
+	emith_add_r_r_ptr_imm(r, LR, imm)
 
 // NB: pushes r or r18 for SP hardware alignment
 #define emith_push_ret(r) do { \
@@ -1120,7 +1102,6 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 #define	emith_flush()		/**/
 #define host_instructions_updated(base, end) __builtin___clear_cache(base, end)
 #define	emith_update_cache()	/**/
-#define emith_jump_patch_size()	8
 #define emith_rw_offs_max()	0xff
 
 

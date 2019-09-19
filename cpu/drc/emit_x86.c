@@ -297,54 +297,61 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 // _r_r_r_shift
 #define emith_add_r_r_r_lsl(d, s1, s2, lslimm) do { \
-	int tmp_ = rcache_get_tmp(); \
-	emith_lsl(tmp_, s2, lslimm); \
-	emith_add_r_r_r(d, s1, tmp_); \
-	rcache_free_tmp(tmp_); \
+	if (lslimm) { \
+		int tmp_ = rcache_get_tmp(); \
+		emith_lsl(tmp_, s2, lslimm); \
+		emith_add_r_r_r(d, s1, tmp_); \
+		rcache_free_tmp(tmp_); \
+	} else	emith_add_r_r_r(d, s1, s2); \
 } while (0)
 
 #define emith_add_r_r_r_lsl_ptr(d, s1, s2, lslimm) do { \
-	int tmp_ = rcache_get_tmp(); \
-	emith_lsl(tmp_, s2, lslimm); \
-	emith_add_r_r_r_ptr(d, s1, tmp_); \
-	rcache_free_tmp(tmp_); \
+	if (lslimm) { \
+		int tmp_ = rcache_get_tmp(); \
+		emith_lsl(tmp_, s2, lslimm); \
+		emith_add_r_r_r_ptr(d, s1, tmp_); \
+		rcache_free_tmp(tmp_); \
+	} else	emith_add_r_r_r_ptr(d, s1, s2); \
 } while (0)
 
 #define emith_add_r_r_r_lsr(d, s1, s2, lsrimm) do { \
-	int tmp_ = rcache_get_tmp(); \
-	emith_lsr(tmp_, s2, lsrimm); \
-	emith_add_r_r_r(d, s1, tmp_); \
-	rcache_free_tmp(tmp_); \
+	if (lsrimm) { \
+		int tmp_ = rcache_get_tmp(); \
+		emith_lsr(tmp_, s2, lsrimm); \
+		emith_add_r_r_r(d, s1, tmp_); \
+		rcache_free_tmp(tmp_); \
+	} else	emith_add_r_r_r(d, s1, s2); \
 } while (0)
 
 #define emith_sub_r_r_r_lsl(d, s1, s2, lslimm) do { \
-	int tmp_ = rcache_get_tmp(); \
-	emith_lsl(tmp_, s2, lslimm); \
-	emith_sub_r_r_r(d, s1, tmp_); \
-	rcache_free_tmp(tmp_); \
+	if (lslimm) { \
+		int tmp_ = rcache_get_tmp(); \
+		emith_lsl(tmp_, s2, lslimm); \
+		emith_sub_r_r_r(d, s1, tmp_); \
+		rcache_free_tmp(tmp_); \
+	} else	emith_sub_r_r_r(d, s1, s2); \
 } while (0)
 
 #define emith_or_r_r_r_lsl(d, s1, s2, lslimm) do { \
-	int tmp_ = rcache_get_tmp(); \
-	emith_lsl(tmp_, s2, lslimm); \
-	emith_or_r_r_r(d, s1, tmp_); \
-	rcache_free_tmp(tmp_); \
+	if (lslimm) { \
+		int tmp_ = rcache_get_tmp(); \
+		emith_lsl(tmp_, s2, lslimm); \
+		emith_or_r_r_r(d, s1, tmp_); \
+		rcache_free_tmp(tmp_); \
+	} else	emith_or_r_r_r(d, s1, s2); \
 } while (0)
 
 // _r_r_shift
-#define emith_or_r_r_lsl(d, s, lslimm) do { \
-	int tmp_ = rcache_get_tmp(); \
-	emith_lsl(tmp_, s, lslimm); \
-	emith_or_r_r(d, tmp_); \
-	rcache_free_tmp(tmp_); \
-} while (0)
+#define emith_or_r_r_lsl(d, s, lslimm) \
+	emith_or_r_r_r_lsl(d, d, s, lslimm)
 
-// d != s
 #define emith_eor_r_r_lsr(d, s, lsrimm) do { \
-	emith_push(s); \
-	emith_lsr(s, s, lsrimm); \
-	emith_eor_r_r(d, s); \
-	emith_pop(s); \
+	if (lsrimm) { \
+		int tmp_ = rcache_get_tmp(); \
+		emith_lsr(tmp_, s, lsrimm); \
+		emith_eor_r_r(d, tmp_); \
+		rcache_free_tmp(tmp_); \
+	} else	emith_eor_r_r(d, s); \
 } while (0)
 
 // _r_imm
@@ -792,14 +799,6 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	EMIT_OP_MODRM64(0x8b, 0, r, 4); \
 	EMIT_SIB64(0, rs, rm); /* mov r, [rm + rs * 1] */ \
 } while (0)
-#define emith_read_r_r_r_wb(r, rs, rm) do { \
-	emith_read_r_r_r(r, rs, rm); \
-	emith_add_r_r_ptr(rs, rm); \
-} while (0)
-#define emith_read_r_r_r_ptr_wb(r, rs, rm) do { \
-	emith_read_r_r_r_ptr(r, rs, rm); \
-	emith_add_r_r_ptr(rs, rm); \
-} while (0)
 
 #define emith_write_r_r_r(r, rs, rm) do { \
 	EMIT_XREX_IF(0, r, rm, rs); \
@@ -811,15 +810,6 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	EMIT_OP_MODRM64(0x89, 0, r, 4); \
 	EMIT_SIB64(0, rs, rm); /* mov [rm + rs * 1], r */ \
 } while (0)
-#define emith_write_r_r_r_wb(r, rs, rm) do { \
-	emith_write_r_r_r(r, rs, rm); \
-	emith_add_r_r_ptr(rs, rm); \
-} while (0)
-#define emith_write_r_r_r_ptr_wb(r, rs, rm) do { \
-	emith_write_r_r_r_ptr(r, rs, rm); \
-	emith_add_r_r_ptr(rs, rm); \
-} while (0)
-
 
 #define emith_ctx_read(r, offs) \
 	emith_read_r_r_offs(r, CONTEXT_REG, offs)
@@ -846,10 +836,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 		emith_ctx_write(r_, offs_);       \
 } while (0)
 
-// assumes EBX is free
 #define emith_ret_to_ctx(offs) do { \
-	emith_pop(xBX); \
-	emith_ctx_write(xBX, offs); \
+	int tmp_ = rcache_get_tmp(); \
+	emith_pop(tmp_); \
+	emith_ctx_write(tmp_, offs); \
+	rcache_free_tmp(tmp_); \
 } while (0)
 
 #define emith_jump(ptr) do { \
@@ -860,24 +851,24 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 #define emith_jump_patchable(target) \
 	emith_jump(target)
+#define emith_jump_patchable_size() 5 /* JMP rel32 */
 
 #define emith_jump_cond(cond, ptr) do { \
 	u32 disp = (u8 *)(ptr) - ((u8 *)tcache_ptr + 6); \
 	EMIT_OP(0x0f80 | (cond)); \
 	EMIT(disp, u32); \
 } while (0)
+#define emith_jump_cond_inrange(ptr) !0
 
 #define emith_jump_cond_patchable(cond, target) \
 	emith_jump_cond(cond, target)
 
-#define emith_jump_patch(ptr, target) ({ \
+#define emith_jump_patch(ptr, target, pos) do { \
 	u32 disp_ = (u8 *)(target) - ((u8 *)(ptr) + 4); \
 	u32 offs_ = (*(u8 *)(ptr) == 0x0f) ? 2 : 1; \
 	EMIT_PTR((u8 *)(ptr) + offs_, disp_ - offs_, u32); \
-	ptr; \
-})
-
-#define emith_jump_cond_inrange(ptr) !0
+	if ((void *)(pos) != NULL) *(u8 **)(pos) = (u8 *)ptr; \
+} while (0)
 #define emith_jump_patch_size() 6
 
 #define emith_jump_at(ptr, target) do { \
@@ -903,19 +894,16 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	EMIT(offs, u32); \
 } while (0)
 
-#define emith_call_link(r, target) do { \
-	EMIT_OP(0xe8); \
-	EMIT(0, u32); /* call pc+0 */ \
-	emith_pop(r); \
-	emith_add_r_r_ptr_imm(r, r, 13); \
-	emith_jump(target); \
-} while (0)
-
 #define emith_call_cleanup() \
 	emith_add_r_r_ptr_imm(xSP, xSP, sizeof(void *)); // remove return addr
 
 #define emith_ret() \
 	EMIT_OP(0xc3)
+
+#define emith_add_r_ret_imm(r, imm) do { \
+	emith_read_r_r_offs_ptr(r, xSP, 0); \
+	emith_add_r_r_ptr_imm(r, r, imm); \
+} while (0)
 
 #define emith_jump_reg(r) \
 	EMIT_OP_MODRM(0xff, 3, 4, r)
