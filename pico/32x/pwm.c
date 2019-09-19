@@ -88,7 +88,7 @@ static void consume_fifo_do(SH2 *sh2, unsigned int m68k_cycles,
       mem->pwm_index[0] = (mem->pwm_index[0]+1) % 4;
       Pico32x.pwm_p[0]--;
       pwm.current[0] = convert_sample(fifo_l[mem->pwm_index[0]]);
-      sum |=pwm.current[0];
+      sum |= pwm.current[0];
     }
     if (Pico32x.pwm_p[1] > 0) {
       mem->pwm_index[1] = (mem->pwm_index[1]+1) % 4;

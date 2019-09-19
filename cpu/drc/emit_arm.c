@@ -1000,10 +1000,6 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	emith_read_r_r_offs_c(A_COND_AL, r, rs, offs)
 #define emith_read_r_r_r(r, rs, rm) \
 	EOP_LDR_REG_LSL(A_COND_AL, r, rs, rm, 0)
-#define emith_read_r_r_r_wb(r, rs, rm) \
-	EOP_LDR_REG_LSL_WB(A_COND_AL, r, rs, rm, 0)
-#define emith_read_r_r_r_ptr_wb(r, rs, rm) \
-	emith_read_r_r_r_wb(r, rs, rm)
 
 #define emith_read8_r_r_offs_c(cond, r, rs, offs) \
 	EOP_LDRB_IMM2(cond, r, rs, offs)
@@ -1049,10 +1045,6 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	emith_write_r_r_offs_c(A_COND_AL, r, rs, offs)
 #define emith_write_r_r_offs_ptr(r, rs, offs) \
 	emith_write_r_r_offs_c(A_COND_AL, r, rs, offs)
-#define emith_write_r_r_r_wb(r, rs, rm) \
-	EOP_STR_REG_LSL_WB(A_COND_AL, r, rs, rm, 0)
-#define emith_write_r_r_r_ptr_wb(r, rs, rm) \
-	emith_write_r_r_r_wb(r, rs, rm)
 
 #define emith_ctx_read_c(cond, r, offs) \
 	emith_read_r_r_offs_c(cond, r, CONTEXT_REG, offs)
@@ -1133,21 +1125,21 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 
 #define emith_jump_patchable(target) \
 	emith_jump(target)
+#define emith_jump_patchable_size() 4
 
 #define emith_jump_cond(cond, target) \
 	emith_xbranch(cond, target, 0)
+#define emith_jump_cond_inrange(target) !0
 
 #define emith_jump_cond_patchable(cond, target) \
 	emith_jump_cond(cond, target)
 
-#define emith_jump_patch(ptr, target) ({ \
+#define emith_jump_patch(ptr, target, pos) do { \
 	u32 *ptr_ = ptr; \
 	u32 val_ = (u32 *)(target) - ptr_ - 2; \
 	*ptr_ = (*ptr_ & 0xff000000) | (val_ & 0x00ffffff); \
-	(u8 *)ptr; \
-})
-
-#define emith_jump_cond_inrange(target) !0
+	if ((void *)(pos) != NULL) *(u8 **)(pos) = (u8 *)ptr; \
+} while (0)
 #define emith_jump_patch_size() 4
 
 #define emith_jump_at(ptr, target) do { \
@@ -1184,11 +1176,6 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	emith_jump_ctx(offs); \
 } while (0)
 
-#define emith_call_link(r, target) do { \
-	emith_move_r_r(r, PC); \
-	emith_jump(target); \
-} while (0)
-
 #define emith_call_cleanup()	/**/
 
 #define emith_ret_c(cond) \
@@ -1199,6 +1186,9 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 
 #define emith_ret_to_ctx(offs) \
 	emith_ctx_write(LR, offs)
+
+#define emith_add_r_ret_imm(r, imm) \
+	emith_add_r_r_ptr_imm(r, LR, imm)
 
 /* pushes r12 for eabi alignment */
 #define emith_push_ret(r) do { \
