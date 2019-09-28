@@ -3270,7 +3270,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       emith_cmp_r_imm(sr, 0);
 
 #if LOOP_OPTIMIZER
-      u8 *jp = NULL;
+      void *jp = NULL;
       if (op_flags[i] & OF_BASIC_LOOP) {
         // if exiting a pinned loop pinned regs must be written back to ctx
         // since they are reloaded in the loop entry code
@@ -3292,8 +3292,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       }
       emith_jump_cond_patchable(DCOND_LE, tcache_ptr);
 #if LOOP_OPTIMIZER
-      if (op_flags[i] & OF_BASIC_LOOP)
+      if (op_flags[i] & OF_BASIC_LOOP) {
+        emith_flush();
         emith_jump_patch(jp, tcache_ptr, NULL);
+      }
 #endif
 
 #if (DRC_DEBUG & 32)
