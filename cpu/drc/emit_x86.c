@@ -371,8 +371,16 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	} \
 } while (0)
 
-#define emith_move_r_imm_s8(r, imm) \
-	emith_move_r_imm(r, (u32)(signed int)(signed char)(imm))
+#define emith_move_r_imm_s8_patchable(r, imm) do { \
+	EMIT_REX_IF(0, 0, r); \
+	EMIT_OP(0xb8 + ((r)&7)); \
+	EMIT((s8)(imm), u32); \
+} while (0)
+#define emith_move_r_imm_s8_patch(ptr, imm) do { \
+	u8 *ptr_ = ptr; \
+	while ((*ptr_ & 0xf8) != 0xb8) ptr_++; \
+	EMIT_PTR(ptr_ + 1, (s8)(imm), u32); \
+} while (0)
 
 #define emith_arith_r_imm(op, r, imm) do { \
 	EMIT_REX_IF(0, 0, r); \
@@ -851,7 +859,6 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 #define emith_jump_patchable(target) \
 	emith_jump(target)
-#define emith_jump_patchable_size() 5 /* JMP rel32 */
 
 #define emith_jump_cond(cond, ptr) do { \
 	u32 disp = (u8 *)(ptr) - ((u8 *)tcache_ptr + 6); \
@@ -867,15 +874,17 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	u32 disp_ = (u8 *)(target) - ((u8 *)(ptr) + 4); \
 	u32 offs_ = (*(u8 *)(ptr) == 0x0f) ? 2 : 1; \
 	EMIT_PTR((u8 *)(ptr) + offs_, disp_ - offs_, u32); \
-	if ((void *)(pos) != NULL) *(u8 **)(pos) = (u8 *)ptr; \
+	if ((void *)(pos) != NULL) *(u8 **)(pos) = (u8 *)ptr + offs_; \
 } while (0)
-#define emith_jump_patch_size() 6
+#define emith_jump_patch_size() 4
+#define emith_jump_patch_inrange(ptr, target) !0
 
 #define emith_jump_at(ptr, target) do { \
 	u32 disp_ = (u8 *)(target) - ((u8 *)(ptr) + 5); \
 	EMIT_PTR(ptr, 0xe9, u8); \
 	EMIT_PTR((u8 *)(ptr) + 1, disp_, u32); \
 } while (0)
+#define emith_jump_at_size() 5
 
 #define emith_call(ptr) do { \
 	u32 disp = (u8 *)(ptr) - ((u8 *)tcache_ptr + 5); \
@@ -900,9 +909,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 #define emith_ret() \
 	EMIT_OP(0xc3)
 
-#define emith_add_r_ret_imm(r, imm) do { \
-	emith_read_r_r_offs_ptr(r, xSP, 0); \
-	emith_add_r_r_ptr_imm(r, r, imm); \
+#define emith_add_r_ret(r) do { \
+	EMIT_REX_IF(1, r, xSP); \
+	emith_deref_modrm(0x03, 0, r, xSP); /* add r, [xsp] */ \
 } while (0)
 
 #define emith_jump_reg(r) \
@@ -974,7 +983,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	emith_move_r_imm(rd, imm); \
 } while (0)
 
-#define host_instructions_updated(base, end)
+#define host_instructions_updated(base, end)	(void)(base),(void)(end)
 #define	emith_update_cache()	/**/
 
 #define emith_rw_offs_max()	0xffffffff

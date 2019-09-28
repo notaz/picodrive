@@ -447,6 +447,8 @@ enum { AM_IDX, AM_IDXPOST, AM_IDXREG, AM_IDXPRE };
 #define emith_eor_r_r_r(d, s1, s2) \
 	emith_eor_r_r_r_lsl(d, s1, s2, 0)
 
+#define emith_add_r_r_r_ptr(d, s1, s2) \
+	emith_add_r_r_r_lsl_ptr(d, s1, s2, 0)
 #define emith_and_r_r_r(d, s1, s2) \
 	emith_and_r_r_r_lsl(d, s1, s2, 0)
 
@@ -546,6 +548,20 @@ static void emith_move_imm64(int r, int wx, int64_t imm)
 #define emith_move_r_imm_c(cond, r, imm) \
 	emith_move_r_imm(r, imm)
 
+#define emith_move_r_imm_s8_patchable(r, imm) do { \
+	if ((s8)(imm) < 0) \
+		EMIT(A64_MOVN_IMM(r, ~(s8)(imm), 0)); \
+	else \
+		EMIT(A64_MOVZ_IMM(r, (s8)(imm), 0)); \
+} while (0)
+#define emith_move_r_imm_s8_patch(ptr, imm) do { \
+	u32 *ptr_ = (u32 *)ptr; \
+	int r_ = *ptr_ & 0x1f; \
+	if ((s8)(imm) < 0) \
+		EMIT_PTR(ptr_, A64_MOVN_IMM(r_, ~(s8)(imm), 0)); \
+	else \
+		EMIT_PTR(ptr_, A64_MOVZ_IMM(r_, (s8)(imm), 0)); \
+} while (0)
 
 // arithmetic, immediate
 static void emith_arith_imm(int op, int wx, int rd, int rn, s32 imm)
@@ -995,16 +1011,6 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	emith_move_r_imm(arg, imm)
 
 // branching; NB: A64 B.cond has only +/- 1MB range
-#define emith_bcond(ptr, patch, cond, target) do { \
-	u32 disp_ = (u8 *)target - (u8 *)ptr; \
-	if (disp_ >= 0xfff00000 || disp_ <= 0x000fffff) { /* can use near B.c */ \
-		EMIT_PTR(ptr, A64_BCOND(cond, disp_ & 0x001fffff)); \
-		if (patch) EMIT_PTR(ptr, A64_NOP); /* reserve space for far B */ \
-	} else { /* far branch if near branch isn't possible */ \
-		EMIT_PTR(ptr, A64_BCOND(emith_invert_cond(cond), 8)); \
-		EMIT_PTR(ptr, A64_B((disp_ - 4) & 0x0fffffff)); \
-	} \
-} while (0)
 
 #define emith_jump(target) do {\
 	u32 disp_ = (u8 *)target - (u8 *)tcache_ptr; \
@@ -1013,30 +1019,37 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 
 #define emith_jump_patchable(target) \
 	emith_jump(target)
-#define emith_jump_patchable_size() 4
 
-#define emith_jump_cond(cond, target) \
-	emith_bcond(tcache_ptr, 0, cond, target)
+#define emith_jump_cond(cond, target) do { \
+	u32 disp_ = (u8 *)target - (u8 *)tcache_ptr; \
+	EMIT(A64_BCOND(cond, disp_ & 0x001fffff)); \
+} while (0)
 
 #define emith_jump_cond_patchable(cond, target) \
-	emith_bcond(tcache_ptr, 1, cond, target)
+	emith_jump_cond(cond, target)
 
 #define emith_jump_cond_inrange(target) \
 	!(((u8 *)target - (u8 *)tcache_ptr + 0x100000) >> 21)
 
 #define emith_jump_patch(ptr, target, pos) do { \
 	u32 *ptr_ = (u32 *)ptr; \
-	u32 disp_ = (u8 *)(target) - (u8 *)(ptr_); \
-	int cond_ = ptr_[0] & 0xf; \
-	if ((ptr_[0] & 0xff000000) == 0x54000000) { /* B.cond */ \
-		if (ptr_[1] != A64_NOP)	cond_ = emith_invert_cond(cond_); \
-		emith_bcond(ptr_, 1, cond_, target); \
-	} else if (ptr_[0] & 0x80000000) \
-		EMIT_PTR(ptr_, A64_BL((disp_) & 0x0fffffff)); \
-	else	EMIT_PTR(ptr_, A64_B((disp_) & 0x0fffffff)); \
-	if ((void *)(pos) != NULL) *(u8 **)(pos) = (u8 *)ptr; \
+	u32 disp_ = (u8 *)target - (u8 *)ptr, mask_; \
+	if ((*ptr_ & 0xff000000) == 0x54000000) \
+		mask_ = 0xff00001f, disp_ <<= 5; /* B.cond, range 21 bit */ \
+	else	mask_ = 0xfc000000;		 /* B[L], range 28 bit */ \
+	EMIT_PTR(ptr_, (*ptr_ & mask_) | ((disp_ >> 2) & ~mask_)); \
+	if ((void *)(pos) != NULL) *(u8 **)(pos) = (u8 *)(ptr_-1); \
 } while (0)
-#define emith_jump_patch_size()	8
+
+#define emith_jump_patch_inrange(ptr, target) \
+	!(((u8 *)target - (u8 *)ptr + 0x100000) >> 21)
+#define emith_jump_patch_size()	4
+
+#define emith_jump_at(ptr, target) do { \
+	u32 disp_ = (u8 *)target - (u8 *)ptr; \
+	EMIT_PTR(ptr, A64_B(disp_ & 0x0fffffff)); \
+} while (0)
+#define emith_jump_at_size() 4
 
 #define emith_jump_reg(r) \
 	EMIT(A64_BR(r))
@@ -1079,8 +1092,8 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 #define emith_ret_to_ctx(offs) \
 	emith_ctx_write_ptr(LR, offs)
 
-#define emith_add_r_ret_imm(r, imm) \
-	emith_add_r_r_ptr_imm(r, LR, imm)
+#define emith_add_r_ret(r) \
+	emith_add_r_r_r_ptr(r, LR, r)
 
 // NB: pushes r or r18 for SP hardware alignment
 #define emith_push_ret(r) do { \

@@ -69,7 +69,7 @@
 // 800 - state dump on exit
 // {
 #ifndef DRC_DEBUG
-#define DRC_DEBUG 0//x8e7
+#define DRC_DEBUG 0//x8c7
 #endif
 
 #if DRC_DEBUG
@@ -288,15 +288,19 @@ static u8 *tcache_ptr;
 
 #define MAX_BLOCK_ENTRIES (BLOCK_INSN_LIMIT / 6)
 
+enum { BL_JMP=1, BL_LDJMP, BL_JCCBLX };
 struct block_link {
+  short tcache_id;
+  short type;                // BL_JMP et al
   u32 target_pc;
   void *jump;                // insn address
+  void *blx;                 // block link/exit  area if any
+  u8 jdisp[8];               // jump backup buffer
   struct block_link *next;   // either in block_entry->links or unresolved
   struct block_link *o_next; //     ...in block_entry->o_links
   struct block_link *prev;
   struct block_link *o_prev;
   struct block_entry *target;// target block this is linked in (be->links)
-  int tcache_id;
 };
 
 struct block_entry {
@@ -686,18 +690,24 @@ static int dr_ctx_get_mem_ptr(SH2 *sh2, u32 a, u32 *mask)
   return poffs;
 }
 
-static struct block_entry *dr_get_entry(u32 pc, int is_slave, int *tcache_id)
+static int dr_get_tcache_id(u32 pc, int is_slave)
 {
-  struct block_entry *be;
   u32 tcid = 0;
  
   if ((pc & 0xe0000000) == 0xc0000000)
     tcid = 1 + is_slave; // data array
   if ((pc & ~0xfff) == 0)
     tcid = 1 + is_slave; // BIOS
-  *tcache_id = tcid;
+  return tcid;
+}
 
-  be = HASH_FUNC(hash_tables[tcid], pc, HASH_TABLE_SIZE(tcid) - 1);
+static struct block_entry *dr_get_entry(u32 pc, int is_slave, int *tcache_id)
+{
+  struct block_entry *be;
+ 
+  *tcache_id = dr_get_tcache_id(pc, is_slave);
+
+  be = HASH_FUNC(hash_tables[*tcache_id], pc, HASH_TABLE_SIZE(*tcache_id) - 1);
   if (be != NULL) // don't ask... gcc code generation hint
   for (; be != NULL; be = be->next)
     if (be->pc == pc)
@@ -1101,17 +1111,11 @@ static struct block_desc *dr_add_block(u32 addr, int size,
   bd->size_lit = size_lit;
   bd->tcache_ptr = tcache_ptr;
   bd->crc = crc;
-  bd->active = 1;
-
-  bd->entry_count = 1;
-  bd->entryp[0].pc = addr;
-  bd->entryp[0].tcache_ptr = tcache_ptr;
-  bd->entryp[0].links = bd->entryp[0].o_links = NULL;
+  bd->active = 0;
+  bd->entry_count = 0;
 #if (DRC_DEBUG & 2)
-  bd->entryp[0].block = bd;
   bd->refcount = 0;
 #endif
-  add_to_hashlist(&bd->entryp[0], tcache_id);
 
   *blk_id = *bcount;
   (*bcount)++;
@@ -1150,11 +1154,33 @@ static void dr_block_link(struct block_entry *be, struct block_link *bl, int emi
     bl->jump, bl->target_pc, be->tcache_ptr);
 
   if (emit_jump) {
-    u8 *jump;
-    emith_jump_patch(bl->jump, be->tcache_ptr, &jump);
+    u8 *jump = bl->jump;
+    int jsz = emith_jump_patch_size();
+    if (bl->type == BL_JMP) { // patch: jump @entry
+      // inlined: @jump far jump to target
+      emith_jump_patch(jump, be->tcache_ptr, &jump);
+    } else if (bl->type == BL_LDJMP) { // write: jump @entry
+      // inlined: @jump far jump to target
+      emith_jump_at(jump, be->tcache_ptr);
+      jsz = emith_jump_at_size();
+    } else if (bl->type == BL_JCCBLX) { // patch: jump cond -> jump @entry
+      if (emith_jump_patch_inrange(bl->jump, be->tcache_ptr)) {
+        // inlined: @jump near jumpcc to target
+        emith_jump_patch(jump, be->tcache_ptr, &jump);
+      } else { // dispatcher cond immediate
+        // via blx: @jump near jumpcc to blx; @blx far jump
+        emith_jump_patch(jump, bl->blx, &jump);
+        emith_jump_at(bl->blx, be->tcache_ptr);
+        if ((((uintptr_t)bl->blx & 0xf) + emith_jump_at_size()-1) > 0xf)
+          host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size()-1);
+      }
+    } else {
+      printf("unknown BL type %d\n", bl->type);
+      exit(1);
+    }
     // only needs sync if patch is possibly crossing cacheline (assume 16 byte)
-    if ((uintptr_t)jump >>4 != ((uintptr_t)jump+emith_jump_patch_size()-1) >>4)
-      host_instructions_updated(jump, jump+emith_jump_patch_size());
+    if ((((uintptr_t)jump & 0xf) + jsz-1) > 0xf)
+      host_instructions_updated(jump, jump + jsz-1);
   }
 
   // move bl to block_entry
@@ -1172,10 +1198,26 @@ static void dr_block_unlink(struct block_link *bl, int emit_jump)
 
   if (bl->target) {
     if (emit_jump) {
-      u8 *jump;
-      emith_jump_patch(bl->jump, sh2_drc_dispatcher, &jump);
+      u8 *jump = bl->jump;
+      int jsz = emith_jump_patch_size();
+      if (bl->type == BL_JMP) { // jump_patch @dispatcher
+        // inlined: @jump far jump to dispatcher
+        emith_jump_patch(jump, sh2_drc_dispatcher, &jump);
+      } else if (bl->type == BL_LDJMP) { // restore: load pc, jump @dispatcher
+        // inlined: @jump load target_pc, far jump to dispatcher
+        memcpy(jump, bl->jdisp, emith_jump_at_size());
+        jsz = emith_jump_at_size();
+      } else if (bl->type == BL_JCCBLX) { // jump cond @blx; @blx: load pc, jump
+        // via blx: @jump near jumpcc to blx; @blx load target_pc, far jump
+        emith_jump_patch(bl->jump, bl->blx, &jump);
+        memcpy(bl->blx, bl->jdisp, emith_jump_at_size());
+        host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size()-1);
+      } else {
+        printf("unknown BL type %d\n", bl->type);
+        exit(1);
+      }
       // update cpu caches since the previous jump target doesn't exist anymore
-      host_instructions_updated(jump, jump+emith_jump_patch_size());
+      host_instructions_updated(jump, jump + jsz-1);
     }
 
     if (bl->prev)
@@ -1189,18 +1231,17 @@ static void dr_block_unlink(struct block_link *bl, int emit_jump)
 }
 #endif
 
-static void *dr_prepare_ext_branch(struct block_entry *owner, u32 pc, int is_slave, int tcache_id)
+static struct block_link *dr_prepare_ext_branch(struct block_entry *owner, u32 pc, int is_slave, int tcache_id)
 {
 #if LINK_BRANCHES
   struct block_link *bl = block_link_pool[tcache_id];
   int cnt = block_link_pool_counts[tcache_id];
-  struct block_entry *be = NULL;
   int target_tcache_id;
 
   // get the target block entry
-  be = dr_get_entry(pc, is_slave, &target_tcache_id);
+  target_tcache_id = dr_get_tcache_id(pc, is_slave);
   if (target_tcache_id && target_tcache_id != tcache_id)
-    return sh2_drc_dispatcher;
+    return NULL;
 
   // get a block link
   if (blink_free[tcache_id] != NULL) {
@@ -1208,29 +1249,24 @@ static void *dr_prepare_ext_branch(struct block_entry *owner, u32 pc, int is_sla
     blink_free[tcache_id] = bl->next;
   } else if (cnt >= BLOCK_LINK_MAX_COUNT(tcache_id)) {
     dbg(1, "bl overflow for tcache %d", tcache_id);
-    return sh2_drc_dispatcher;
+    return NULL;
   } else {
     bl += cnt;
     block_link_pool_counts[tcache_id] = cnt+1;
   }
 
-  // prepare link and add to ougoing list of owner
+  // prepare link and add to outgoing list of owner
   bl->tcache_id = tcache_id;
   bl->target_pc = pc;
   bl->jump = tcache_ptr;
+  bl->blx = NULL;
   bl->o_next = owner->o_links;
   owner->o_links = bl;
 
-  if (be != NULL) {
-    dr_block_link(be, bl, 0); // jump not yet emitted by translate()
-    return be->tcache_ptr;
-  }
-  else {
-    add_to_hashlist_unresolved(bl, tcache_id);
-    return sh2_drc_dispatcher;
-  }
+  add_to_hashlist_unresolved(bl, tcache_id);
+  return bl;
 #else
-  return sh2_drc_dispatcher;
+  return NULL;
 #endif
 }
 
@@ -1270,6 +1306,27 @@ static void dr_link_outgoing(struct block_entry *be, int tcache_id, int is_slave
     }
   }
 #endif
+}
+
+static void dr_activate_block(struct block_desc *bd, int tcache_id, int is_slave)
+{
+  int i;
+
+  // connect branches
+  for (i = 0; i < bd->entry_count; i++) {
+    struct block_entry *entry = &bd->entryp[i];
+    add_to_hashlist(entry, tcache_id);
+    // incoming branches
+    dr_link_blocks(entry, tcache_id);
+    if (!tcache_id)
+      dr_link_blocks(entry, is_slave?2:1);
+    // outgoing branches
+    dr_link_outgoing(entry, tcache_id, is_slave);
+  }
+
+  // mark memory for overwrite detection
+  dr_mark_memory(1, bd, tcache_id, 0);
+  bd->active = 1;
 }
 
 #define ADD_TO_ARRAY(array, count, item, failcode) { \
@@ -2422,6 +2479,7 @@ static void rcache_invalidate(void)
 {
   int i;
   gconst_invalidate();
+  rcache_unlock_all();
 
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++)
     rcache_free_vreg(i);
@@ -2446,7 +2504,6 @@ static void rcache_invalidate(void)
 
 static void rcache_flush(void)
 {
-  rcache_unlock_all();
   rcache_clean();
   rcache_invalidate();
 }
@@ -2916,13 +2973,22 @@ static void *dr_get_pc_base(u32 pc, SH2 *sh2);
 
 static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 {
+  // branch targets in current block
   u32 branch_target_pc[MAX_LOCAL_BRANCHES];
   void *branch_target_ptr[MAX_LOCAL_BRANCHES];
   int branch_target_count = 0;
-  void *branch_patch_ptr[MAX_LOCAL_BRANCHES];
+  // unresolved local forward branches, for fixup at block end
   u32 branch_patch_pc[MAX_LOCAL_BRANCHES];
+  void *branch_patch_ptr[MAX_LOCAL_BRANCHES];
   int branch_patch_count = 0;
+  // external branch targets with a block link/exit area
+  u32 blx_target_pc[MAX_LOCAL_BRANCHES];
+  void *blx_target_ptr[MAX_LOCAL_BRANCHES];
+  struct block_link *blx_target_bl[MAX_LOCAL_BRANCHES];
+  int blx_target_count = 0;
+
   u8 op_flags[BLOCK_INSN_LIMIT];
+
   struct drcf {
     int delay_reg:8;
     u32 loop_type:8;
@@ -2931,9 +2997,12 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     u32 pending_branch_direct:1;
     u32 pending_branch_indirect:1;
   } drcf = { 0, };
+
 #if LOOP_OPTIMIZER
-  void *pinned_loop_ptr[MAX_LOCAL_BRANCHES/16];
+  // loops with pinned registers for optimzation
+  // pinned regs are like statics and don't need saving/restoring inside a loop
   u32 pinned_loop_pc[MAX_LOCAL_BRANCHES/16];
+  void *pinned_loop_ptr[MAX_LOCAL_BRANCHES/16];
   u32 pinned_loop_mask[MAX_LOCAL_BRANCHES/16];
   int pinned_loop_count = 0;
 #endif
@@ -2976,24 +3045,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     base_literals, end_literals - base_literals);
 
   if (block) {
-    // connect branches
     dbg(2, "== %csh2 reuse block %08x-%08x,%08x-%08x -> %p", sh2->is_slave ? 's' : 'm',
       base_pc, end_pc, base_literals, end_literals, block->entryp->tcache_ptr);
-    for (i = 0; i < block->entry_count; i++) {
-      entry = &block->entryp[i];
-      add_to_hashlist(entry, tcache_id);
-#if LINK_BRANCHES
-      // incoming branches
-      dr_link_blocks(entry, tcache_id);
-      if (!tcache_id)
-        dr_link_blocks(entry, sh2->is_slave?2:1);
-      // outgoing branches
-      dr_link_outgoing(entry, tcache_id, sh2->is_slave);
-#endif
-    }
-    // mark memory for overwrite detection
-    dr_mark_memory(1, block, tcache_id, 0);
-    block->active = 1;
+    dr_activate_block(block, tcache_id, sh2->is_slave);
     emith_update_cache();
     return block->entryp[0].tcache_ptr;
   }
@@ -3069,7 +3123,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         if (op_flags[v] & OF_BASIC_LOOP) {
           m3 &= ~rcache_regs_static & ~BITMASK4(SHR_PC, SHR_PR, SHR_SR, SHR_MEM);
           if (m3 && count_bits(m3) < count_bits(rcache_hregs_reg) &&
-              pinned_loop_count < ARRAY_SIZE(pinned_loop_pc)) {
+              pinned_loop_count < ARRAY_SIZE(pinned_loop_pc)-1) {
             pinned_loop_mask[pinned_loop_count] = m3;
             pinned_loop_pc[pinned_loop_count++] = base_pc + 2*v;
           } else
@@ -3080,6 +3134,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     }
 #endif
   }
+  pinned_loop_pc[pinned_loop_count] = -1;
 
   if (branch_target_count > 0) {
     memset(branch_target_ptr, 0, sizeof(branch_target_ptr[0]) * branch_target_count);
@@ -3101,7 +3156,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
 
   // clear stale state after compile errors
-  rcache_unlock_all();
   rcache_invalidate();
   emith_invalidate_t();
   drcf = (struct drcf) { 0 };
@@ -3146,39 +3200,31 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         emith_sync_t(sr);
         rcache_flush();
         emith_flush();
-
-        // make block entry
-        v = block->entry_count;
-        entry = &block->entryp[v];
-        if (v < ARRAY_SIZE(block->entryp))
-        {
-          entry = &block->entryp[v];
-          entry->pc = pc;
-          entry->tcache_ptr = tcache_ptr;
-          entry->links = entry->o_links = NULL;
-#if (DRC_DEBUG & 2)
-          entry->block = block;
-#endif
-          add_to_hashlist(entry, tcache_id);
-          block->entry_count++;
-
-          dbg(2, "-- %csh2 block #%d,%d entry %08x -> %p",
-            sh2->is_slave ? 's' : 'm', tcache_id, blkid_main,
-            pc, tcache_ptr);
-        }
-        else {
-          dbg(1, "too many entryp for block #%d,%d pc=%08x",
-            tcache_id, blkid_main, pc);
-          break;
-        }
-      } else {
-        entry = block->entryp;
       }
 
-      // since we made a block entry, link any other blocks that jump to it
-      dr_link_blocks(entry, tcache_id);
-      if (!tcache_id) // can safely link from cpu-local to global memory
-        dr_link_blocks(entry, sh2->is_slave?2:1);
+      // make block entry
+      v = block->entry_count;
+      entry = &block->entryp[v];
+      if (v < ARRAY_SIZE(block->entryp))
+      {
+        entry = &block->entryp[v];
+        entry->pc = pc;
+        entry->tcache_ptr = tcache_ptr;
+        entry->links = entry->o_links = NULL;
+#if (DRC_DEBUG & 2)
+        entry->block = block;
+#endif
+        block->entry_count++;
+
+        dbg(2, "-- %csh2 block #%d,%d entry %08x -> %p",
+          sh2->is_slave ? 's' : 'm', tcache_id, blkid_main,
+          pc, tcache_ptr);
+      }
+      else {
+        dbg(1, "too many entryp for block #%d,%d pc=%08x",
+          tcache_id, blkid_main, pc);
+        break;
+      }
 
       v = find_in_sorted_array(branch_target_pc, branch_target_count, pc);
       if (v >= 0)
@@ -3220,29 +3266,35 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #endif
 
       // check cycles
-      tmp = rcache_get_tmp_arg(0);
       sr = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
       emith_cmp_r_imm(sr, 0);
+
 #if LOOP_OPTIMIZER
-      // on drc exit pinned registers must be saved
+      u8 *jp = NULL;
       if (op_flags[i] & OF_BASIC_LOOP) {
-        EMITH_JMP_START(DCOND_GT);
+        // if exiting a pinned loop pinned regs must be written back to ctx
+        // since they are reloaded in the loop entry code
+        jp = tcache_ptr;
+        emith_jump_cond_patchable(DCOND_GT, jp); // XXX need API for JMP_POS
         rcache_save_pinned();
-        emith_move_r_imm(tmp, pc);
-        emith_jump(sh2_drc_exit);
-        EMITH_JMP_END(DCOND_GT);
-      } else
-#endif
-      if (emith_jump_cond_inrange(sh2_drc_exit)) {
-        emith_move_r_imm_c(DCOND_LE, tmp, pc);
-        emith_jump_cond(DCOND_LE, sh2_drc_exit);
-      } else {
-        EMITH_JMP_START(DCOND_GT);
-        emith_move_r_imm(tmp, pc);
-        emith_jump(sh2_drc_exit);
-        EMITH_JMP_END(DCOND_GT);
       }
-      rcache_free_tmp(tmp);
+#endif
+      if (blx_target_count < ARRAY_SIZE(blx_target_pc)) {
+        // exit via stub in blx table (saves some 1-3 insns in the main flow)
+        blx_target_pc[blx_target_count] = pc|1;
+        blx_target_bl[blx_target_count] = NULL;
+        blx_target_ptr[blx_target_count++] = tcache_ptr;
+      } else {
+        // blx table full, must inline exit code
+        tmp = rcache_get_tmp_arg(0);
+        emith_move_r_imm_c(DCOND_LE, tmp, pc);
+        rcache_free_tmp(tmp);
+      }
+      emith_jump_cond_patchable(DCOND_LE, tcache_ptr);
+#if LOOP_OPTIMIZER
+      if (op_flags[i] & OF_BASIC_LOOP)
+        emith_jump_patch(jp, tcache_ptr, NULL);
+#endif
 
 #if (DRC_DEBUG & 32)
       // block hit counter
@@ -3880,7 +3932,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         case 2: // SHAL Rn    0100nnnn00100000
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp2);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-          emith_sync_t(sr);
+          emith_invalidate_t();
           emith_tpop_carry(sr, 0); // dummy
           emith_lslf(tmp, tmp2, 1);
           emith_tpush_carry(sr, 0);
@@ -3909,7 +3961,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         case 2: // SHAR Rn    0100nnnn00100001
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp2);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-          emith_sync_t(sr);
+          emith_invalidate_t();
           emith_tpop_carry(sr, 0); // dummy
           if (op & 0x20) {
             emith_asrf(tmp, tmp2, 1);
@@ -3967,7 +4019,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         case 0x05: // ROTR   Rn          0100nnnn00000101
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp2);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-          emith_sync_t(sr);
+          emith_invalidate_t();
           emith_tpop_carry(sr, 0); // dummy
           if (op & 1) {
             emith_rorf(tmp, tmp2, 1);
@@ -4351,11 +4403,12 @@ end_op:
       int cond = -1;
       int ctaken = 0;
       void *target = NULL;
-      int patchable = 0;
+      struct block_link *bl = NULL;
 
       if (OP_ISBRACND(opd_b->op))
         ctaken = (op_flags[i] & OF_DELAY_OP) ? 1 : 2;
       cycles += ctaken; // assume branch taken
+
 #if LOOP_OPTIMIZER
       if ((drcf.loop_type == OF_IDLE_LOOP ||
           (drcf.loop_type == OF_DELAY_LOOP && drcf.delay_reg >= 0)))
@@ -4365,14 +4418,35 @@ end_op:
         emith_sh2_delay_loop(cycles, drcf.delay_reg);
         drcf.polling = drcf.loop_type = 0;
       }
+
+      if (target_pc < pc && pinned_loop_pc[pinned_loop_count] == target_pc) {
+        // backward jump at end of optimized loop
+        rcache_unpin_all();
+        target = pinned_loop_ptr[pinned_loop_count];
+        pinned_loop_count ++;
+      }
 #endif
 
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
       FLUSH_CYCLES(sr);
+      rcache_unlock_all();
       rcache_clean();
 
-      // emit condition test for conditional branch
+#if CALL_STACK
+      void *rtsadd = NULL, *rtsret = NULL;
+      if ((opd_b->dest & BITMASK1(SHR_PR)) && pc+2 < end_pc) {
+        // BSR - save rts data
+        tmp = rcache_get_tmp_arg(1);
+        rtsadd = tcache_ptr;
+        emith_move_r_imm_s8_patchable(tmp, 0);
+        rcache_invalidate_tmp();
+        emith_call(sh2_drc_dispatcher_call);
+        rtsret = tcache_ptr;
+      }
+#endif
+
       if (OP_ISBRACND(opd_b->op)) {
+        // BT[S], BF[S] - emit condition test
         cond = (opd_b->op == OP_BRANCH_CF) ? DCOND_EQ : DCOND_NE;
         if (delay_dep_fw & BITMASK1(SHR_T)) {
           emith_sync_t(sr);
@@ -4396,60 +4470,117 @@ end_op:
       {
         // local branch
         if (branch_target_ptr[v]) {
-          // jumps back can be linked here since host PC is already known
+          // local backward jump, link here now since host PC is already known
           target = branch_target_ptr[v];
+          if (cond != -1)
+            emith_jump_cond(cond, target);
+          else {
+            emith_jump(target);
+            rcache_invalidate();
+          }
         } else if (branch_patch_count < MAX_LOCAL_BRANCHES) {
+          // local forward jump
           target = tcache_ptr;
           branch_patch_pc[branch_patch_count] = target_pc;
           branch_patch_ptr[branch_patch_count] = target;
           branch_patch_count++;
-          patchable = 1;
+          if (cond != -1)
+            emith_jump_cond_patchable(cond, target);
+          else {
+            emith_jump_patchable(target);
+            rcache_invalidate();
+          }
         } else
           dbg(1, "warning: too many local branches");
-      }
-#endif
-
-      rcache_unlock_all();
-#if LOOP_OPTIMIZER
-      if (target && pinned_loop_pc[pinned_loop_count] == target_pc) {
-        rcache_unpin_all();
-        target = pinned_loop_ptr[pinned_loop_count];
-        pinned_loop_count ++;
       }
 #endif
 
       if (target == NULL)
       {
         // can't resolve branch locally, make a block exit
-        rcache_clean();
-        tmp = rcache_get_tmp_arg(0);
-        emith_move_r_imm(tmp, target_pc);
-        rcache_free_tmp(tmp);
+        bl = dr_prepare_ext_branch(block->entryp, target_pc, sh2->is_slave, tcache_id);
+        if (cond != -1) {
+#if 1
+          if (bl) {
+            if (blx_target_count < ARRAY_SIZE(blx_target_pc)) {
+              // conditional jumps get a blx stub for the far jump
+              blx_target_pc[blx_target_count] = target_pc;
+              blx_target_bl[blx_target_count] = bl;
+              blx_target_ptr[blx_target_count++] = tcache_ptr;
+              bl->type = BL_JCCBLX;
+              target = tcache_ptr;
+            } else {
+              // blx table full, patch jump only
+              tmp = rcache_get_tmp_arg(0);
+              emith_move_r_imm(tmp, target_pc);
+              rcache_free_tmp(tmp);
+              bl->jump = tcache_ptr;
+              bl->type = BL_JMP;
+              target = sh2_drc_dispatcher;
+            }
+            emith_jump_cond_patchable(cond, target);
+          } else {
+            // cannot link, inline jump @dispatcher
+            EMITH_JMP_START(emith_invert_cond(cond));
+            tmp = rcache_get_tmp_arg(0);
+            emith_move_r_imm(tmp, target_pc);
+            rcache_free_tmp(tmp);
+            target = sh2_drc_dispatcher;
 
-#if CALL_STACK
-        if ((opd_b->dest & BITMASK1(SHR_PR)) && pc+2 < end_pc) {
-          // BSR
-          emith_call(sh2_drc_dispatcher_call);
-        }
-#endif
+            emith_jump(target);
+            EMITH_JMP_END(emith_invert_cond(cond));
+          }
+#elif 1
+          // jump @dispatcher - ARM 32bit version with conditional execution
+          EMITH_SJMP_START(emith_invert_cond(cond));
+          tmp = rcache_get_tmp_arg(0);
+          emith_move_r_imm_c(cond, tmp, target_pc);
+          rcache_free_tmp(tmp);
+          target = sh2_drc_dispatcher;
 
-        target = dr_prepare_ext_branch(block->entryp, target_pc, sh2->is_slave, tcache_id);
-        patchable = 1;
-      }
-
-      // create branch
-      if (cond != -1) {
-        if (patchable)
+          if (bl) {
+            bl->jump = tcache_ptr;
+            bl->type = BL_JMP;
+          }
           emith_jump_cond_patchable(cond, target);
-        else
-          emith_jump_cond(cond, target);
-      } else {
-        rcache_invalidate();
-        if (patchable)
+          EMITH_SJMP_END(emith_invert_cond(cond));
+#else
+          // jump @dispatcher - generic version (jump !cond @over, jump @trgt)
+          EMITH_JMP_START(emith_invert_cond(cond));
+          if (bl) {
+            bl->jump = tcache_ptr;
+            bl->type = BL_LDJMP;
+          }
+          tmp = rcache_get_tmp_arg(0);
+          emith_move_r_imm(tmp, target_pc);
+          rcache_free_tmp(tmp);
+          target = sh2_drc_dispatcher;
+
           emith_jump_patchable(target);
-        else
-          emith_jump(target);
+          EMITH_JMP_END(emith_invert_cond(cond));
+#endif
+        } else {
+          // unconditional, has the far jump inlined
+          if (bl)
+            bl->type = BL_LDJMP;
+
+          tmp = rcache_get_tmp_arg(0);
+          emith_move_r_imm(tmp, target_pc);
+          rcache_free_tmp(tmp);
+          target = sh2_drc_dispatcher;
+
+          emith_jump_patchable(target);
+          rcache_invalidate();
+        }
       }
+
+      emith_flush();
+      if (bl)
+        memcpy(bl->jdisp, bl->jump, emith_jump_at_size());
+#if CALL_STACK
+      if (rtsadd)
+        emith_move_r_imm_s8_patch(rtsadd, tcache_ptr - (u8 *)rtsret);
+#endif
 
       // branch not taken, correct cycle count
       if (ctaken)
@@ -4463,35 +4594,57 @@ end_op:
         drcf.polling = drcf.loop_type = 0;
     }
     else if (drcf.pending_branch_indirect) {
-      void *target;
       u32 target_pc;
+      struct block_link *bl = NULL;
 
       sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
       FLUSH_CYCLES(sr);
       emith_sync_t(sr);
       rcache_clean();
+
       tmp = rcache_get_reg_arg(0, SHR_PC, NULL);
-      rcache_invalidate();
+
 #if CALL_STACK
       struct op_data *opd_b = (op_flags[i] & OF_DELAY_OP) ? opd-1 : opd;
-      if ((opd_b->dest & BITMASK1(SHR_PR)) && pc+2 < end_pc) {
-        // JSR/BSRF
-        emith_call(sh2_drc_dispatcher_call);
-      }
+      void *rtsadd = NULL, *rtsret = NULL;
 
+      if ((opd_b->dest & BITMASK1(SHR_PR)) && pc+2 < end_pc) {
+        // JSR, BSRF - save rts data
+        tmp = rcache_get_tmp_arg(1);
+        rtsadd = tcache_ptr;
+        emith_move_r_imm_s8_patchable(tmp, 0);
+        rcache_invalidate_tmp();
+        emith_call(sh2_drc_dispatcher_call);
+        rtsret = tcache_ptr;
+      }
+#endif
+
+#if CALL_STACK
       if (opd_b->rm == SHR_PR) {
-        // RTS
+        // RTS - restore rts data, else jump to dispatcher
         emith_jump(sh2_drc_dispatcher_return);
       } else
 #endif
       if (gconst_get(SHR_PC, &target_pc)) {
-        // JMP const, treat like unconditional direct branch
-        target = dr_prepare_ext_branch(block->entryp, target_pc, sh2->is_slave, tcache_id);
-        emith_jump_patchable(target);
+        // JMP, JSR, BRAF, BSRF const - treat like unconditional direct branch
+        bl = dr_prepare_ext_branch(block->entryp, target_pc, sh2->is_slave, tcache_id);
+        if (bl) { // pc already loaded somewhere else, can patch jump only
+          bl->type = BL_JMP;
+          bl->jump = tcache_ptr;
+        }
+        emith_jump_patchable(sh2_drc_dispatcher);
       } else {
-        // JMP
+        // JMP, JSR, BRAF, BSRF not const
         emith_jump(sh2_drc_dispatcher);
       }
+      rcache_invalidate();
+
+      emith_flush();
+#if CALL_STACK
+      if (rtsadd)
+        emith_move_r_imm_s8_patch(rtsadd, tcache_ptr - (u8 *)rtsret);
+#endif
+
       drcf.pending_branch_indirect = 0;
       drcf.polling = drcf.loop_type = 0;
     }
@@ -4508,24 +4661,48 @@ end_op:
 
   if (! OP_ISBRAUC(opd->op))
   {
-    void *target;
+    struct block_link *bl;
 
     tmp = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
     FLUSH_CYCLES(tmp);
     emith_sync_t(tmp);
 
     rcache_clean();
+    bl = dr_prepare_ext_branch(block->entryp, pc, sh2->is_slave, tcache_id);
+    if (bl)
+      bl->type = BL_LDJMP;
     tmp = rcache_get_tmp_arg(0);
     emith_move_r_imm(tmp, pc);
-
-    target = dr_prepare_ext_branch(block->entryp, pc, sh2->is_slave, tcache_id);
-    if (target == NULL)
-      return NULL;
+    emith_jump_patchable(sh2_drc_dispatcher);
     rcache_invalidate();
-    emith_jump_patchable(target);
+    emith_flush();
+    if (bl)
+      memcpy(bl->jdisp, bl->jump, emith_jump_at_size());
   } else
     rcache_flush();
+
+  // emit blx area
+  for (i = 0; i < blx_target_count; i++) {
+    void *target = (blx_target_pc[i] & 1 ? sh2_drc_exit : sh2_drc_dispatcher);
+    struct block_link *bl = blx_target_bl[i];
+
+    emith_pool_check();
+    if (bl)
+      bl->blx = tcache_ptr;
+    emith_jump_patch(blx_target_ptr[i], tcache_ptr, NULL);
+    tmp = rcache_get_tmp_arg(0);
+    emith_move_r_imm(tmp, blx_target_pc[i] & ~1);
+    emith_jump(target);
+    rcache_invalidate();
+    emith_flush();
+    if (bl)
+      memcpy(bl->jdisp, bl->blx, emith_jump_at_size());
+  }
+
   emith_flush();
+  do_host_disasm(tcache_id);
+
+  emith_pool_commit(0);
 
   // link local branches
   for (i = 0; i < branch_patch_count; i++) {
@@ -4539,19 +4716,17 @@ end_op:
       target = tcache_ptr;
       tmp = rcache_get_tmp_arg(0);
       emith_move_r_imm(tmp, branch_patch_pc[i]);
-      rcache_flush();
       emith_jump(sh2_drc_dispatcher);
+      rcache_flush();
     }
     emith_jump_patch(branch_patch_ptr[i], target, NULL);
   }
 
-  emith_pool_commit(0);
-
-  dr_mark_memory(1, block, tcache_id, 0);
-
   tcache_ptrs[tcache_id] = tcache_ptr;
-
   host_instructions_updated(block_entry_ptr, tcache_ptr);
+
+  dr_activate_block(block, tcache_id, sh2->is_slave);
+  emith_update_cache();
 
   do_host_disasm(tcache_id);
 
@@ -4574,7 +4749,6 @@ end_op:
   fflush(stdout);
 #endif
 
-  emith_update_cache();
   return block_entry_ptr;
 }
 
@@ -4769,14 +4943,14 @@ static void sh2_generate_utils(void)
   // pc = sh2_drc_dispatcher_call(u32 pc)
   sh2_drc_dispatcher_call = (void *)tcache_ptr;
   emith_ctx_read(arg2, offsetof(SH2, rts_cache_idx));
-  emith_ctx_read(arg1, SHR_PR * 4);
   emith_add_r_imm(arg2, 2*sizeof(void *));
   emith_and_r_imm(arg2, (ARRAY_SIZE(sh2s->rts_cache)-1) * 2*sizeof(void *));
   emith_ctx_write(arg2, offsetof(SH2, rts_cache_idx));
   emith_add_r_r_r_lsl_ptr(arg2, CONTEXT_REG, arg2, 0);
-  emith_write_r_r_offs(arg1, arg2, offsetof(SH2, rts_cache));
-  emith_add_r_ret_imm(arg1, emith_jump_patchable_size()); // skip jump_patchable for rts host address
-  emith_write_r_r_offs_ptr(arg1, arg2, offsetof(SH2, rts_cache) + sizeof(void *));
+  emith_ctx_read(arg3, SHR_PR * 4);
+  emith_add_r_ret(arg1);
+  emith_write_r_r_offs_ptr(arg1, arg2, offsetof(SH2, rts_cache)+sizeof(void *));
+  emith_write_r_r_offs(arg3, arg2, offsetof(SH2, rts_cache));
   emith_ret();
   emith_flush();
 
@@ -5378,10 +5552,8 @@ void sh2_drc_finish(SH2 *sh2)
   if (block_tables[0] == NULL)
     return;
 
-  sh2_drc_flush_all();
-
-  for (i = 0; i < TCACHE_BUFFERS; i++) {
 #if (DRC_DEBUG & 4)
+  for (i = 0; i < TCACHE_BUFFERS; i++) {
     printf("~~~ tcache %d\n", i);
 #if 0
     tcache_dsm_ptrs[i] = tcache_bases[i];
@@ -5394,8 +5566,12 @@ void sh2_drc_finish(SH2 *sh2)
     }
 #endif
     printf("max links: %d\n", block_link_pool_counts[i]);
+  }
 #endif
 
+  sh2_drc_flush_all();
+
+  for (i = 0; i < TCACHE_BUFFERS; i++) {
     if (block_tables[i] != NULL)
       free(block_tables[i]);
     block_tables[i] = NULL;

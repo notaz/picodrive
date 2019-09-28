@@ -285,7 +285,7 @@ static int emith_b_isswap(u32 bop, u32 lop)
 		return bop;
 	else if (emith_is_b(bop) &&  emith_rd(lop) != emith_rs(bop))
 		if ((bop & 0xffff) != 0x7fff)	// displacement overflow?
-			return (bop & 0xffff0000) | ((bop & 0xffff)+1);
+			return (bop & 0xffff0000) | ((bop+1) & 0x0000ffff);
 	return 0;
 }
 
@@ -332,14 +332,14 @@ static void *emith_branch(u32 op)
 
 #define JMP_EMIT(cond, ptr) { \
 	u32 val_ = (u8 *)tcache_ptr - (u8 *)(ptr) - 4; \
-	EMIT_PTR(ptr, MIPS_BCONDZ(cond_m, cond_r, val_ & 0x0003ffff)); \
 	emith_flush(); /* NO delay slot handling across jump targets */ \
+	EMIT_PTR(ptr, MIPS_BCONDZ(cond_m, cond_r, val_ & 0x0003ffff)); \
 }
 
 #define JMP_EMIT_NC(ptr) { \
 	u32 val_ = (u8 *)tcache_ptr - (u8 *)(ptr) - 4; \
-	EMIT_PTR(ptr, MIPS_B(val_ & 0x0003ffff)); \
 	emith_flush(); \
+	EMIT_PTR(ptr, MIPS_B(val_ & 0x0003ffff)); \
 }
 
 #define EMITH_JMP_START(cond) { \
@@ -645,6 +645,13 @@ static void emith_move_imm(int r, uintptr_t imm)
 #define emith_move_r_imm_c(cond, r, imm) \
 	emith_move_r_imm(r, imm)
 
+#define emith_move_r_imm_s8_patchable(r, imm) \
+	EMIT(MIPS_ADD_IMM(r, Z0, (s8)(imm)))
+#define emith_move_r_imm_s8_patch(ptr, imm) do { \
+	u32 *ptr_ = (u32 *)ptr; \
+	while (*ptr_ >> 26 != OP_ADDIU) ptr_++; \
+	EMIT_PTR(ptr_, (*ptr_ & 0xffff0000) | (u16)(s8)(imm)); \
+} while (0)
 
 // arithmetic, immediate
 static void emith_arith_imm(int op, int rd, int rs, u32 imm)
@@ -1162,40 +1169,43 @@ static int emith_cond_check(int cond, int *r)
 	emith_branch(MIPS_J((uintptr_t)target & 0x0fffffff))
 #define emith_jump_patchable(target) \
 	emith_jump(target)
-#define emith_jump_patchable_size() 8 /* J+delayslot */
 
 // NB: MIPS conditional branches have only +/- 128KB range
 #define emith_jump_cond(cond, target) do { \
 	int r_, mcond_ = emith_cond_check(cond, &r_); \
 	u32 disp_ = (u8 *)target - (u8 *)tcache_ptr - 4; \
-	if (disp_ >= 0xfffe0000 || disp_ <= 0x0001ffff) { /* can use near B */ \
-		emith_branch(MIPS_BCONDZ(mcond_,r_,disp_ & 0x0003ffff)); \
-	} else { /* far branch if near branch isn't possible */ \
-		mcond_ = emith_invert_branch(mcond_); \
-		u8 *bp = emith_branch(MIPS_BCONDZ(mcond_, r_, 0)); \
-		emith_branch(MIPS_J((uintptr_t)target & 0x0fffffff)); \
-		EMIT_PTR(bp, MIPS_BCONDZ(mcond_, r_, (u8 *)tcache_ptr-bp-4)); \
-	} \
+	emith_branch(MIPS_BCONDZ(mcond_,r_,disp_ & 0x0003ffff)); \
 } while (0)
-#define emith_jump_cond_inrange(target) \
-	!(((u8 *)target - (u8 *)tcache_ptr + 0x20000) >> 18)
+#define emith_jump_cond_patchable(cond, target) \
+	emith_jump_cond(cond, target)
 
-#define emith_jump_cond_patchable(cond, target) do { \
-	int r_, mcond_ = emith_cond_check(cond, &r_); \
-	mcond_ = emith_invert_branch(mcond_); \
-	u8 *bp = emith_branch(MIPS_BCONDZ(mcond_, r_, 0));\
-	emith_branch(MIPS_J((uintptr_t)target & 0x0fffffff)); \
-	EMIT_PTR(bp, MIPS_BCONDZ(mcond_, r_, (u8 *)tcache_ptr-bp-4)); \
-} while (0)
+#define emith_jump_cond_inrange(target) \
+	((u8 *)target - (u8 *)tcache_ptr - 4 <  0x00020000U || \
+	 (u8 *)target - (u8 *)tcache_ptr - 4 >= 0xfffe0010U) // mind cond_check
 
 // NB: returns position of patch for cache maintenance
 #define emith_jump_patch(ptr, target, pos) do { \
 	u32 *ptr_ = (u32 *)ptr-1; /* must skip condition check code */ \
-	while ((ptr_[0] & 0xf8000000) != OP_J << 26) ptr_ ++; \
-	EMIT_PTR(ptr_, MIPS_J((uintptr_t)target & 0x0fffffff)); \
+	u32 disp_, mask_; \
+	while (!emith_is_j(*ptr_) && !emith_is_b(*ptr_)) ptr_ ++; \
+	if (emith_is_b(*ptr_)) \
+		mask_ = 0xffff0000, disp_ = (u8 *)target - (u8 *)ptr_ - 4; \
+	else	mask_ = 0xfc000000, disp_ = (uintptr_t)target; \
+	EMIT_PTR(ptr_, (*ptr_ & mask_) | ((disp_ >> 2) & ~mask_)); \
 	if ((void *)(pos) != NULL) *(u8 **)(pos) = (u8 *)(ptr_-1); \
 } while (0)
+
+#define emith_jump_patch_inrange(ptr, target) \
+	((u8 *)target - (u8 *)ptr - 4 <  0x00020000U || \
+	 (u8 *)target - (u8 *)ptr - 4 >= 0xfffe0010U) // mind cond_check
 #define emith_jump_patch_size() 4
+
+#define emith_jump_at(ptr, target) do { \
+	u32 *ptr_ = (u32 *)ptr; \
+	EMIT_PTR(ptr_, MIPS_J((uintptr_t)target & 0x0fffffff)); \
+	EMIT_PTR(ptr_, MIPS_NOP); \
+} while (0)
+#define emith_jump_at_size() 8
 
 #define emith_jump_reg(r) \
 	emith_branch(MIPS_JR(r))
@@ -1232,8 +1242,8 @@ static int emith_cond_check(int cond, int *r)
 #define emith_ret_to_ctx(offs) \
 	emith_ctx_write_ptr(LR, offs)
 
-#define emith_add_r_ret_imm(r, imm) \
-	emith_add_r_r_ptr_imm(r, LR, imm)
+#define emith_add_r_ret(r) \
+	emith_add_r_r_ptr(r, LR)
 
 // NB: ABI SP alignment is 8 for compatibility with MIPS IV
 #define emith_push_ret(r) do { \
