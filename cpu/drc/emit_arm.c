@@ -631,8 +631,8 @@ static void emith_pool_commit(int jumpover)
 static inline void emith_pool_check(void)
 {
 	// check if pool must be committed
-	if (literal_iindex > MAX_HOST_LITERALS-4 ||
-		    (u8 *)tcache_ptr - (u8 *)literal_insn[0] > 0xe00)
+	if (literal_iindex > MAX_HOST_LITERALS-4 || (literal_pindex &&
+		    (u8 *)tcache_ptr - (u8 *)literal_insn[0] > 0xe00))
 		// pool full, or displacement is approaching the limit
 		emith_pool_commit(1);
 }
@@ -889,11 +889,19 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define emith_tst_r_imm_c(cond, r, imm) \
 	emith_top_imm(cond, A_OP_TST, r, imm)
 
-#define emith_move_r_imm_s8(r, imm) do { \
+#define emith_move_r_imm_s8_patchable(r, imm) do { \
+	emith_flush(); \
 	if ((s8)(imm) < 0) \
-		EOP_MVN_IMM(r, 0, ((u8)(imm) ^ 0xff)); \
+		EOP_MVN_IMM(r, 0, (u8)~(imm)); \
 	else \
-		EOP_MOV_IMM(r, 0, (u8)imm); \
+		EOP_MOV_IMM(r, 0, (u8)(imm)); \
+} while (0)
+#define emith_move_r_imm_s8_patch(ptr, imm) do { \
+	u32 *ptr_ = (u32 *)ptr; u32 op_ = *ptr_ & 0xfe1ff000; \
+	if ((s8)(imm) < 0) \
+		EMIT_PTR(ptr_, op_ | (A_OP_MVN<<21) | (u8)~(imm));\
+	else \
+		EMIT_PTR(ptr_, op_ | (A_OP_MOV<<21) | (u8)(imm));\
 } while (0)
 
 #define emith_and_r_r_imm(d, s, imm) \
@@ -1125,7 +1133,6 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 
 #define emith_jump_patchable(target) \
 	emith_jump(target)
-#define emith_jump_patchable_size() 4
 
 #define emith_jump_cond(cond, target) \
 	emith_xbranch(cond, target, 0)
@@ -1135,18 +1142,19 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	emith_jump_cond(cond, target)
 
 #define emith_jump_patch(ptr, target, pos) do { \
-	u32 *ptr_ = ptr; \
+	u32 *ptr_ = (u32 *)ptr; \
 	u32 val_ = (u32 *)(target) - ptr_ - 2; \
 	*ptr_ = (*ptr_ & 0xff000000) | (val_ & 0x00ffffff); \
 	if ((void *)(pos) != NULL) *(u8 **)(pos) = (u8 *)ptr; \
 } while (0)
+#define emith_jump_patch_inrange(ptr, target) !0
 #define emith_jump_patch_size() 4
 
 #define emith_jump_at(ptr, target) do { \
 	u32 val_ = (u32 *)(target) - (u32 *)(ptr) - 2; \
-	emith_flush(); \
 	EOP_C_B_PTR(ptr, A_COND_AL, 0, val_ & 0xffffff); \
 } while (0)
+#define emith_jump_at_size() 4
 
 #define emith_jump_reg_c(cond, r) \
 	EOP_C_BX(cond, r)
@@ -1187,8 +1195,8 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define emith_ret_to_ctx(offs) \
 	emith_ctx_write(LR, offs)
 
-#define emith_add_r_ret_imm(r, imm) \
-	emith_add_r_r_ptr_imm(r, LR, imm)
+#define emith_add_r_ret(r) \
+	emith_add_r_r_ptr(r, LR)
 
 /* pushes r12 for eabi alignment */
 #define emith_push_ret(r) do { \
