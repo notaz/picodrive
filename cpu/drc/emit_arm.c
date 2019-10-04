@@ -160,7 +160,12 @@ static NOINLINE void EMIT(u32 op, u32 dst, u32 src)
 			}
 		}
 	}
-	if (emit_index <= EMIT_CACHE_SIZE) {
+	if (dst & M1(PC)) {
+		// commit everything if a branch insn is emitted
+		for (i = 1; i <= emit_index+1; i++)
+			EMIT_PTR(emit_ptr, emit_cache[i].op);
+		emit_index = 0;
+	} else if (emit_index <= EMIT_CACHE_SIZE) {
 		// queue not yet full
 		emit_index++;
 	} else {
@@ -654,13 +659,14 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 		literal_insn[pool_index] += move_offs;
 }
 
-#define JMP_POS(ptr) \
+#define JMP_POS(ptr) { \
 	ptr = tcache_ptr; \
-	EMIT(0,M1(PC),0);
+	EMIT(0,M1(PC),0); \
+}
 
 #define JMP_EMIT(cond, ptr) { \
 	u32 val_ = (u32 *)tcache_ptr - (u32 *)(ptr) - 2; \
-	emith_flush(); \
+	emith_flush(); /* NO insn swapping across jump targets */ \
 	EOP_C_B_PTR(ptr, cond, 0, val_ & 0xffffff); \
 }
 
@@ -890,7 +896,6 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	emith_top_imm(cond, A_OP_TST, r, imm)
 
 #define emith_move_r_imm_s8_patchable(r, imm) do { \
-	emith_flush(); \
 	if ((s8)(imm) < 0) \
 		EOP_MVN_IMM(r, 0, (u8)~(imm)); \
 	else \
