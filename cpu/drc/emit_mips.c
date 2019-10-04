@@ -1249,11 +1249,11 @@ static int emith_cond_check(int cond, int *r)
 #define emith_push_ret(r) do { \
 	emith_sub_r_imm(SP, 8+16); /* reserve new arg save area (16) */ \
 	emith_write_r_r_offs(LR, SP, 4+16); \
-	if ((r) >= 0) emith_write_r_r_offs(r, SP, 0+16); \
+	if ((r) > 0) emith_write_r_r_offs(r, SP, 0+16); \
 } while (0)
 
 #define emith_pop_and_ret(r) do { \
-	if ((r) >= 0) emith_read_r_r_offs(r, SP, 0+16); \
+	if ((r) > 0) emith_read_r_r_offs(r, SP, 0+16); \
 	emith_read_r_r_offs(LR, SP, 4+16); \
 	emith_add_r_imm(SP, 8+16); \
 	emith_ret(); \

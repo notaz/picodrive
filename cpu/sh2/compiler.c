@@ -172,7 +172,6 @@ enum op_types {
 static u8 *tcache_dsm_ptrs[3];
 static char sh2dasm_buff[64];
 #define do_host_disasm(tcid) \
-  emith_flush(); \
   host_dasm(tcache_dsm_ptrs[tcid], emith_insn_ptr() - tcache_dsm_ptrs[tcid]); \
   tcache_dsm_ptrs[tcid] = emith_insn_ptr()
 #else
@@ -200,6 +199,7 @@ static char sh2dasm_buff[64];
 #if (DRC_DEBUG & (8|256|512|1024)) || defined(PDB)
 #if (DRC_DEBUG & (256|512|1024))
 static SH2 csh2[2][8];
+static FILE *trace[2];
 #endif
 static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
 {
@@ -210,7 +210,6 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
     pdb_step(sh2, sh2->pc);
 #elif (DRC_DEBUG & 256)
   {
-    static FILE *trace[2];
     int idx = sh2->is_slave;
     if (!trace[0]) {
       trace[0] = fopen("pico.trace0", "wb");
@@ -225,7 +224,6 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
   }
 #elif (DRC_DEBUG & 512)
   {
-    static FILE *trace[2];
     static SH2 fsh2;
     int idx = sh2->is_slave;
     if (!trace[0]) {
@@ -1603,16 +1601,12 @@ static u16 rcache_counter;
 // SH2 register usage bitmasks
 static u32 rcache_hregs_reg;     // regs of type HRT_REG (for pinning)
 static u32 rcache_regs_static;   // statically allocated regs
+static u32 rcache_regs_pinned;   // pinned regs
 static u32 rcache_regs_now;      // regs used in current insn
 static u32 rcache_regs_soon;     // regs used in the next few insns
 static u32 rcache_regs_late;     // regs used in later insns
 static u32 rcache_regs_discard;  // regs overwritten without being used
 static u32 rcache_regs_clean;    // regs needing cleaning
-// combination masks XXX this seems obscure
-#define rcache_regs_used   (rcache_regs_soon|rcache_regs_late|rcache_regs_clean)
-#define rcache_regs_nowused (rcache_regs_now|rcache_regs_used)
-#define rcache_regs_nowsoon (rcache_regs_now|rcache_regs_soon)
-#define rcache_regs_soonclean (rcache_regs_soon|rcache_regs_clean)
 
 static void rcache_lock_vreg(int x)
 {
@@ -1677,6 +1671,7 @@ static void rcache_move_vreg(int d, int x)
 
 static void rcache_clean_vreg(int x)
 {
+  u32 rns = rcache_regs_now | rcache_regs_soon;
   int r;
 
   if (cache_regs[x].flags & HRF_DIRTY) { // writeback
@@ -1685,23 +1680,18 @@ static void rcache_clean_vreg(int x)
     FOR_ALL_BITS_SET_DO(cache_regs[x].gregs, r,
         if (guest_regs[r].flags & GRF_DIRTY) {
           if (guest_regs[r].flags & (GRF_STATIC|GRF_PINNED)) {
-            if (guest_regs[r].vreg != guest_regs[r].sreg) {
-              if (!(cache_regs[guest_regs[r].sreg].locked)) {
-                // statically mapped reg not in its sreg. move back to sreg
-                rcache_evict_vreg(guest_regs[r].sreg);
-                emith_move_r_r(cache_regs[guest_regs[r].sreg].hreg,
-                               cache_regs[guest_regs[r].vreg].hreg);
-                rcache_remove_vreg_alias(x, r);
-                rcache_add_vreg_alias(guest_regs[r].sreg, r);
-                cache_regs[guest_regs[r].sreg].flags |= HRF_DIRTY;
-              } else {
-                // must evict since sreg is locked
-                if (~rcache_regs_discard & (1 << r))
-                  emith_ctx_write(cache_regs[x].hreg, r * 4);
-                guest_regs[r].flags &= ~GRF_DIRTY;
-                rcache_remove_vreg_alias(x, r);
-              }
+            if (guest_regs[r].vreg != guest_regs[r].sreg &&
+                !cache_regs[guest_regs[r].sreg].locked &&
+                !(rns & cache_regs[guest_regs[r].sreg].gregs)) {
+              // statically mapped reg not in its sreg. move back to sreg
+              rcache_evict_vreg(guest_regs[r].sreg);
+              emith_move_r_r(cache_regs[guest_regs[r].sreg].hreg,
+                             cache_regs[guest_regs[r].vreg].hreg);
+              rcache_remove_vreg_alias(x, r);
+              rcache_add_vreg_alias(guest_regs[r].sreg, r);
+              cache_regs[guest_regs[r].sreg].flags |= HRF_DIRTY;
             } else
+              // cannot remap. keep dirty for writeback in unmap
               cache_regs[x].flags |= HRF_DIRTY;
           } else {
             if (~rcache_regs_discard & (1 << r))
@@ -1815,17 +1805,9 @@ static int rcache_allocate_vreg(int needed)
 {
   int x;
   
-  if (needed) {
-    // needed soon, try getting a REG 1st, use a TEMP only if none is available
-    x = rcache_allocate(1, 0);
-    if (x < 0)
-      x = rcache_allocate(-1, 1);
-  } else {
-    // not needed, try getting a TEMP 1st, use a REG only if none is available
+  x = rcache_allocate(1, needed ? 0 : 3);
+  if (x < 0)
     x = rcache_allocate(-1, 1);
-    if (x < 0)
-      x = rcache_allocate(1, 0);
-  }
   return x;
 }
 
@@ -1838,10 +1820,6 @@ static int rcache_allocate_nontemp(void)
 static int rcache_allocate_temp(void)
 {
   int x = rcache_allocate(-1, 1);
-  if (x < 0) {
-    printf("no temp register available, aborting\n");
-    exit(1);
-  }
   return x;
 }
 
@@ -1898,6 +1876,7 @@ static int rcache_map_reg(sh2_reg_e r, int hr, int mode)
 // remap vreg from a TEMP to a REG if it will be used (upcoming TEMP invalidation)
 static void rcache_remap_vreg(int x)
 {
+  u32 rsl_d = rcache_regs_soon | rcache_regs_late;
   int d;
 
   // x must be a cached vreg
@@ -1905,7 +1884,7 @@ static void rcache_remap_vreg(int x)
     return;
   // don't do it if x is already a REG or isn't used or to be cleaned anyway
   if ((cache_regs[x].htype & HRT_REG) ||
-      !(rcache_regs_used & ~rcache_regs_clean & cache_regs[x].gregs)) {
+      !(rsl_d & cache_regs[x].gregs)) {
     // clean here to avoid data loss on invalidation
     rcache_clean_vreg(x);
     return;
@@ -1971,20 +1950,22 @@ static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr
 {
   int src, dst, ali;
   cache_reg_t *tr;
+  u32 rsp_d = (rcache_regs_now | rcache_regs_soon |
+               rcache_regs_static | rcache_regs_pinned) & ~rcache_regs_discard;
 
   dst = src = guest_regs[r].vreg;
 
   rcache_lock_vreg(src); // lock to avoid evicting src
   // good opportunity to relocate a remapped STATIC?
-  if ((guest_regs[r].flags & (GRF_STATIC|GRF_PINNED)) && src != guest_regs[r].sreg &&
+  if ((guest_regs[r].flags & (GRF_STATIC|GRF_PINNED)) &&
+      src != guest_regs[r].sreg && (src < 0 || mode != RC_GR_READ) &&
       !cache_regs[guest_regs[r].sreg].locked &&
-      (src < 0 || mode != RC_GR_READ) &&
-      !(rcache_regs_nowsoon & cache_regs[guest_regs[r].sreg].gregs)) {
+      !(rsp_d & cache_regs[guest_regs[r].sreg].gregs)) {
     dst = guest_regs[r].sreg;
     rcache_evict_vreg(dst);
   } else if (dst < 0) {
     // allocate a cache register
-    if ((dst = rcache_allocate_vreg(rcache_regs_nowsoon & (1 << r))) < 0) {
+    if ((dst = rcache_allocate_vreg(rsp_d & (1 << r))) < 0) {
       printf("no registers to evict, aborting\n");
       exit(1);
     }
@@ -2004,12 +1985,12 @@ static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr
   ali = tr->gregs & ~(1 << r);
   if (mode != RC_GR_READ && src == dst && ali) {
     int x = -1;
-    if (rcache_regs_nowsoon & ali) {
+    if (rsp_d & ali) {
       if ((guest_regs[r].flags & (GRF_STATIC|GRF_PINNED)) &&
           guest_regs[r].sreg == dst && !tr->locked) {
         // split aliases if r is STATIC in sreg and dst isn't already locked
         rcache_lock_vreg(dst); // lock to avoid evicting dst
-        x = rcache_allocate_vreg(rcache_regs_nowsoon & ali);
+        x = rcache_allocate_vreg(rsp_d & ali);
         rcache_unlock_vreg(dst);
         if (x >= 0) {
           src = x;
@@ -2018,7 +1999,7 @@ static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr
       } else {
         // split r
         rcache_lock_vreg(src); // lock to avoid evicting src
-        x = rcache_allocate_vreg(rcache_regs_nowsoon & (1 << r));
+        x = rcache_allocate_vreg(rsp_d & (1 << r));
         rcache_unlock_vreg(src);
         if (x >= 0) {
           dst = x;
@@ -2082,6 +2063,7 @@ static void rcache_pin_reg(sh2_reg_e r)
     guest_regs[r].flags |= GRF_PINNED;
     cache_regs[x].flags |= HRF_PINNED;
     guest_regs[r].sreg = x;
+    rcache_regs_pinned |= (1 << r);
   }
 #if DRC_DEBUG & 64
   RCACHE_CHECK("after pin");
@@ -2275,10 +2257,8 @@ static void rcache_free(int hr)
 
 static void rcache_unlock(int x)
 {
-  if (x >= 0) {
+  if (x >= 0)
     cache_regs[x].locked = 0;
-//    rcache_regs_now &= ~cache_regs[x].gregs;
-  }
 }
 
 static void rcache_unlock_all(void)
@@ -2297,6 +2277,7 @@ static void rcache_unpin_all(void)
       guest_regs[i].flags &= ~GRF_PINNED;
       cache_regs[guest_regs[i].sreg].flags &= ~HRF_PINNED;
       guest_regs[i].sreg = -1;
+      rcache_regs_pinned &= ~(1 << i);
     }
   }
 #if DRC_DEBUG & 64
@@ -2337,7 +2318,8 @@ static inline void rcache_set_usage_discard(u32 mask)
 static inline int rcache_is_cached(sh2_reg_e r)
 {
   // is r in cache or needed RSN?
-  return (guest_regs[r].vreg >= 0 || (rcache_regs_soonclean & (1 << r)));
+  u32 rsc = rcache_regs_soon | rcache_regs_clean;
+  return (guest_regs[r].vreg >= 0 || (rsc & (1 << r)));
 }
 
 static inline int rcache_is_hreg_used(int hr)
@@ -2407,9 +2389,8 @@ static void rcache_clean_masked(u32 mask)
 {
   int i, r, hr;
 
-  if (!(mask &= ~rcache_regs_static))
-    return;
   rcache_regs_clean |= mask;
+  mask = rcache_regs_clean;
 
   // clean constants where all aliases are covered by the mask
   for (i = 0; i < ARRAY_SIZE(gconsts); i++)
@@ -2447,9 +2428,11 @@ static void rcache_clean(void)
       rcache_unlock_vreg(guest_regs[i].vreg);
       if (guest_regs[i].vreg < 0)
         emith_ctx_read(cache_regs[guest_regs[i].sreg].hreg, i*4);
-      else
+      else {
         emith_move_r_r(cache_regs[guest_regs[i].sreg].hreg,
                         cache_regs[guest_regs[i].vreg].hreg);
+        rcache_remove_vreg_alias(guest_regs[i].vreg, i);
+      }
       cache_regs[guest_regs[i].sreg].gregs = 1 << i;
       cache_regs[guest_regs[i].sreg].type = HR_CACHED;
       cache_regs[guest_regs[i].sreg].flags |= HRF_DIRTY|HRF_PINNED;
@@ -3134,7 +3117,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     }
 #endif
   }
-  pinned_loop_pc[pinned_loop_count] = -1;
 
   if (branch_target_count > 0) {
     memset(branch_target_ptr, 0, sizeof(branch_target_ptr[0]) * branch_target_count);
@@ -3160,6 +3142,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   emith_invalidate_t();
   drcf = (struct drcf) { 0 };
 #if LOOP_OPTIMIZER
+  pinned_loop_pc[pinned_loop_count] = -1;
   pinned_loop_count = 0;
 #endif
 
@@ -3292,10 +3275,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       }
       emith_jump_cond_patchable(DCOND_LE, tcache_ptr);
 #if LOOP_OPTIMIZER
-      if (op_flags[i] & OF_BASIC_LOOP) {
-        emith_flush();
+      if (op_flags[i] & OF_BASIC_LOOP)
         emith_jump_patch(jp, tcache_ptr, NULL);
-      }
 #endif
 
 #if (DRC_DEBUG & 32)
@@ -3425,14 +3406,14 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           soon = late;
       } else {
         // upcoming rcache_flush, start writing back unused dirty stuff
+        rcache_set_usage_discard(write & ~(late|soon|opd[0].source));
         rcache_clean_masked(rcache_dirty_mask() & ~(write|opd[0].dest));
         break;
       }
     }
     rcache_set_usage_now(opd[0].source);   // current insn
-    rcache_set_usage_soon(soon);           // insns 1-3
-    rcache_set_usage_late(late & ~soon);   // insns 4-9
-    rcache_set_usage_discard(write & ~(late|soon) & ~opd[0].source);
+    rcache_set_usage_soon(soon);           // insns 1-4
+    rcache_set_usage_late(late & ~soon);   // insns 5-9
 
     switch (opd->op)
     {
@@ -4374,6 +4355,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
 end_op:
     rcache_unlock_all();
+    rcache_set_usage_now(0);
 #if DRC_DEBUG & 64
     RCACHE_CHECK("after insn");
 #endif
@@ -4418,21 +4400,10 @@ end_op:
         // idle or delay loop
         emit_sync_t_to_sr();
         emith_sh2_delay_loop(cycles, drcf.delay_reg);
+        rcache_unlock_all(); // may lock delay_reg
         drcf.polling = drcf.loop_type = 0;
       }
-
-      if (target_pc < pc && pinned_loop_pc[pinned_loop_count] == target_pc) {
-        // backward jump at end of optimized loop
-        rcache_unpin_all();
-        target = pinned_loop_ptr[pinned_loop_count];
-        pinned_loop_count ++;
-      }
 #endif
-
-      sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-      FLUSH_CYCLES(sr);
-      rcache_unlock_all();
-      rcache_clean();
 
 #if CALL_STACK
       void *rtsadd = NULL, *rtsret = NULL;
@@ -4441,11 +4412,17 @@ end_op:
         tmp = rcache_get_tmp_arg(1);
         rtsadd = tcache_ptr;
         emith_move_r_imm_s8_patchable(tmp, 0);
+        rcache_clean_tmp();
         rcache_invalidate_tmp();
         emith_call(sh2_drc_dispatcher_call);
         rtsret = tcache_ptr;
       }
 #endif
+
+      // XXX move below cond test if not changing host cond (MIPS delay slot)?
+      sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+      FLUSH_CYCLES(sr);
+      rcache_clean();
 
       if (OP_ISBRACND(opd_b->op)) {
         // BT[S], BF[S] - emit condition test
@@ -4466,7 +4443,6 @@ end_op:
         emith_sync_t(sr);
       // no modification of host status/flags between here and branching!
 
-#if LINK_BRANCHES
       v = find_in_sorted_array(branch_target_pc, branch_target_count, target_pc);
       if (v >= 0)
       {
@@ -4474,6 +4450,14 @@ end_op:
         if (branch_target_ptr[v]) {
           // local backward jump, link here now since host PC is already known
           target = branch_target_ptr[v];
+#if LOOP_OPTIMIZER
+          if (pinned_loop_pc[pinned_loop_count] == target_pc) {
+            // backward jump at end of optimized loop
+            rcache_unpin_all();
+            target = pinned_loop_ptr[pinned_loop_count];
+            pinned_loop_count ++;
+          }
+#endif
           if (cond != -1)
             emith_jump_cond(cond, target);
           else {
@@ -4495,7 +4479,6 @@ end_op:
         } else
           dbg(1, "warning: too many local branches");
       }
-#endif
 
       if (target == NULL)
       {
@@ -4503,36 +4486,30 @@ end_op:
         bl = dr_prepare_ext_branch(block->entryp, target_pc, sh2->is_slave, tcache_id);
         if (cond != -1) {
 #if 1
-          if (bl) {
-            if (blx_target_count < ARRAY_SIZE(blx_target_pc)) {
-              // conditional jumps get a blx stub for the far jump
-              blx_target_pc[blx_target_count] = target_pc;
-              blx_target_bl[blx_target_count] = bl;
-              blx_target_ptr[blx_target_count++] = tcache_ptr;
-              bl->type = BL_JCCBLX;
-              target = tcache_ptr;
-            } else {
-              // blx table full, patch jump only
-              tmp = rcache_get_tmp_arg(0);
-              emith_move_r_imm(tmp, target_pc);
-              rcache_free_tmp(tmp);
-              bl->jump = tcache_ptr;
-              bl->type = BL_JMP;
-              target = sh2_drc_dispatcher;
-            }
+          if (bl && blx_target_count < ARRAY_SIZE(blx_target_pc)) {
+            // conditional jumps get a blx stub for the far jump
+            blx_target_pc[blx_target_count] = target_pc;
+            blx_target_bl[blx_target_count] = bl;
+            blx_target_ptr[blx_target_count++] = tcache_ptr;
+            bl->type = BL_JCCBLX;
+            target = tcache_ptr;
             emith_jump_cond_patchable(cond, target);
           } else {
-            // cannot link, inline jump @dispatcher
+            // not linkable, or blx table full; inline jump @dispatcher
             EMITH_JMP_START(emith_invert_cond(cond));
+            if (bl) {
+              bl->jump = tcache_ptr;
+              bl->type = BL_LDJMP;
+            }
             tmp = rcache_get_tmp_arg(0);
             emith_move_r_imm(tmp, target_pc);
             rcache_free_tmp(tmp);
             target = sh2_drc_dispatcher;
 
-            emith_jump(target);
+            emith_jump_patchable(target);
             EMITH_JMP_END(emith_invert_cond(cond));
           }
-#elif 1
+#else
           // jump @dispatcher - ARM 32bit version with conditional execution
           EMITH_SJMP_START(emith_invert_cond(cond));
           tmp = rcache_get_tmp_arg(0);
@@ -4546,25 +4523,13 @@ end_op:
           }
           emith_jump_cond_patchable(cond, target);
           EMITH_SJMP_END(emith_invert_cond(cond));
-#else
-          // jump @dispatcher - generic version (jump !cond @over, jump @trgt)
-          EMITH_JMP_START(emith_invert_cond(cond));
-          if (bl) {
-            bl->jump = tcache_ptr;
-            bl->type = BL_LDJMP;
-          }
-          tmp = rcache_get_tmp_arg(0);
-          emith_move_r_imm(tmp, target_pc);
-          rcache_free_tmp(tmp);
-          target = sh2_drc_dispatcher;
-
-          emith_jump_patchable(target);
-          EMITH_JMP_END(emith_invert_cond(cond));
 #endif
         } else {
           // unconditional, has the far jump inlined
-          if (bl)
+          if (bl) {
+            emith_flush(); // flush to inhibit insn swapping
             bl->type = BL_LDJMP;
+          }
 
           tmp = rcache_get_tmp_arg(0);
           emith_move_r_imm(tmp, target_pc);
@@ -4576,7 +4541,6 @@ end_op:
         }
       }
 
-      emith_flush();
       if (bl)
         memcpy(bl->jdisp, bl->jump, emith_jump_at_size());
 #if CALL_STACK
@@ -4599,11 +4563,6 @@ end_op:
       u32 target_pc;
       struct block_link *bl = NULL;
 
-      sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-      FLUSH_CYCLES(sr);
-      emith_sync_t(sr);
-      rcache_clean();
-
       tmp = rcache_get_reg_arg(0, SHR_PC, NULL);
 
 #if CALL_STACK
@@ -4615,11 +4574,17 @@ end_op:
         tmp = rcache_get_tmp_arg(1);
         rtsadd = tcache_ptr;
         emith_move_r_imm_s8_patchable(tmp, 0);
+        rcache_clean_tmp();
         rcache_invalidate_tmp();
         emith_call(sh2_drc_dispatcher_call);
         rtsret = tcache_ptr;
       }
 #endif
+
+      sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
+      FLUSH_CYCLES(sr);
+      emith_sync_t(sr);
+      rcache_clean();
 
 #if CALL_STACK
       if (opd_b->rm == SHR_PR) {
@@ -4630,10 +4595,8 @@ end_op:
       if (gconst_get(SHR_PC, &target_pc)) {
         // JMP, JSR, BRAF, BSRF const - treat like unconditional direct branch
         bl = dr_prepare_ext_branch(block->entryp, target_pc, sh2->is_slave, tcache_id);
-        if (bl) { // pc already loaded somewhere else, can patch jump only
+        if (bl) // pc already loaded somewhere else, can patch jump only
           bl->type = BL_JMP;
-          bl->jump = tcache_ptr;
-        }
         emith_jump_patchable(sh2_drc_dispatcher);
       } else {
         // JMP, JSR, BRAF, BSRF not const
@@ -4641,7 +4604,6 @@ end_op:
       }
       rcache_invalidate();
 
-      emith_flush();
 #if CALL_STACK
       if (rtsadd)
         emith_move_r_imm_s8_patch(rtsadd, tcache_ptr - (u8 *)rtsret);
@@ -4671,13 +4633,15 @@ end_op:
 
     rcache_clean();
     bl = dr_prepare_ext_branch(block->entryp, pc, sh2->is_slave, tcache_id);
-    if (bl)
+    if (bl) {
+      emith_flush(); // flush to inhibit insn swapping
       bl->type = BL_LDJMP;
+    }
     tmp = rcache_get_tmp_arg(0);
     emith_move_r_imm(tmp, pc);
     emith_jump_patchable(sh2_drc_dispatcher);
     rcache_invalidate();
-    emith_flush();
+
     if (bl)
       memcpy(bl->jdisp, bl->jump, emith_jump_at_size());
   } else
@@ -4696,7 +4660,7 @@ end_op:
     emith_move_r_imm(tmp, blx_target_pc[i] & ~1);
     emith_jump(target);
     rcache_invalidate();
-    emith_flush();
+
     if (bl)
       memcpy(bl->jdisp, bl->blx, emith_jump_at_size());
   }
@@ -5553,6 +5517,12 @@ void sh2_drc_finish(SH2 *sh2)
 
   if (block_tables[0] == NULL)
     return;
+
+#if (DRC_DEBUG & (256|512))
+   if (trace[0]) fclose(trace[0]);
+   if (trace[1]) fclose(trace[1]);
+   trace[0] = trace[1] = NULL;
+#endif
 
 #if (DRC_DEBUG & 4)
   for (i = 0; i < TCACHE_BUFFERS; i++) {
