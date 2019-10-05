@@ -1682,6 +1682,7 @@ static void rcache_clean_vreg(int x)
           if (guest_regs[r].flags & (GRF_STATIC|GRF_PINNED)) {
             if (guest_regs[r].vreg != guest_regs[r].sreg &&
                 !cache_regs[guest_regs[r].sreg].locked &&
+                (~rcache_regs_discard & (1 << r)) &&
                 !(rns & cache_regs[guest_regs[r].sreg].gregs)) {
               // statically mapped reg not in its sreg. move back to sreg
               rcache_evict_vreg(guest_regs[r].sreg);
@@ -1820,6 +1821,8 @@ static int rcache_allocate_nontemp(void)
 static int rcache_allocate_temp(void)
 {
   int x = rcache_allocate(-1, 1);
+  if (x < 0)
+    x = rcache_allocate(0, 0);
   return x;
 }
 
@@ -3404,16 +3407,16 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         // regs needed in the next few instructions
         if (v <= 4)
           soon = late;
-      } else {
-        // upcoming rcache_flush, start writing back unused dirty stuff
-        rcache_set_usage_discard(write & ~(late|soon|opd[0].source));
-        rcache_clean_masked(rcache_dirty_mask() & ~(write|opd[0].dest));
+      } else
         break;
-      }
     }
     rcache_set_usage_now(opd[0].source);   // current insn
     rcache_set_usage_soon(soon);           // insns 1-4
     rcache_set_usage_late(late & ~soon);   // insns 5-9
+    rcache_set_usage_discard(write & ~(late|soon|opd[0].source));
+    if (v <= 9)
+      // upcoming rcache_flush, start writing back unused dirty stuff
+      rcache_clean_masked(rcache_dirty_mask() & ~(write|opd[0].dest));
 
     switch (opd->op)
     {
@@ -3826,6 +3829,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         emith_tpop_carry(sr, 0);
         emith_adcf_r_r_r(tmp2, tmp, tmp);
         emith_tpush_carry(sr, 0);            // keep Q1 in T for now
+        rcache_free(tmp);
         tmp4 = rcache_get_tmp();
         emith_and_r_r_imm(tmp4, sr, M);
         emith_eor_r_r_lsr(sr, tmp4, M_SHIFT - Q_SHIFT); // Q ^= M
