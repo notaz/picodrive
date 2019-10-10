@@ -14,13 +14,18 @@ static struct {
   int irq_reload;
   int doing_fifo;
   int silent;
+  int irq_timer;
+  int irq_state;
   short current[2];
 } pwm;
+
+enum { PWM_IRQ_LOCKED, PWM_IRQ_STOPPED, PWM_IRQ_LOW, PWM_IRQ_HIGH };
 
 void p32x_pwm_ctl_changed(void)
 {
   int control = Pico32x.regs[0x30 / 2];
   int cycles = Pico32x.regs[0x32 / 2];
+  int pwm_irq_opt = PicoIn.opt & POPT_PWM_IRQ_OPT;
 
   cycles = (cycles - 1) & 0x0fff;
   pwm.cycles = cycles;
@@ -31,8 +36,10 @@ void p32x_pwm_ctl_changed(void)
   if ((control & 0x0f) != 0)
     pwm.mult = 0x10000 / cycles;
 
-  pwm.irq_reload = (control & 0x0f00) >> 8;
-  pwm.irq_reload = ((pwm.irq_reload - 1) & 0x0f) + 1;
+  pwm.irq_timer = (control & 0x0f00) >> 8;
+  pwm.irq_timer = ((pwm.irq_timer - 1) & 0x0f) + 1;
+  pwm.irq_reload = pwm.irq_timer;
+  pwm.irq_state = pwm_irq_opt ? PWM_IRQ_STOPPED: PWM_IRQ_LOCKED;
 
   if (Pico32x.pwm_irq_cnt == 0)
     Pico32x.pwm_irq_cnt = pwm.irq_reload;
@@ -104,6 +111,11 @@ static void consume_fifo_do(SH2 *sh2, unsigned int m68k_cycles,
     if (--Pico32x.pwm_irq_cnt == 0) {
       Pico32x.pwm_irq_cnt = pwm.irq_reload;
       do_pwm_irq(sh2, m68k_cycles);
+    } else if (Pico32x.pwm_p[1] == 0 && pwm.irq_state >= PWM_IRQ_LOW) {
+      // buffer underrun. Reduce reload rate if above programmed setting.
+      if (pwm.irq_reload > pwm.irq_timer)
+        pwm.irq_reload--;
+      pwm.irq_state = PWM_IRQ_LOW;
     }
   }
   Pico32x.pwm_cycle_p = m68k_cycles * 3 - sh2_cycles_diff;
@@ -221,10 +233,22 @@ void p32x_pwm_write16(unsigned int a, unsigned int d,
     case 6/2: // R ch
       fifo = Pico32xMem->pwm_fifo[1];
       idx = Pico32xMem->pwm_index[1];
-      if (Pico32x.pwm_p[1] < 3)
+      if (Pico32x.pwm_p[1] < 3) {
+        if (pwm.irq_state == PWM_IRQ_STOPPED)
+          pwm.irq_state = PWM_IRQ_LOW;
+        if (Pico32x.pwm_p[1] == 2 && pwm.irq_state >= PWM_IRQ_LOW) {
+          // buffer full. If there was no buffer underrun after last fill,
+          // try increasing reload rate to reduce IRQs
+          if (pwm.irq_reload < 3 && pwm.irq_state == PWM_IRQ_HIGH)
+            pwm.irq_reload ++;
+          pwm.irq_state = PWM_IRQ_HIGH;
+        }
         Pico32x.pwm_p[1]++;
-      else {
-//        fifo[(idx+1) % 4] = fifo[idx];
+      } else {
+        // buffer overflow. Some roms always fill the complete buffer even if
+        // reload rate is set below max. Lock reload rate to programmed setting.
+        pwm.irq_reload = pwm.irq_timer;
+        pwm.irq_state = PWM_IRQ_LOCKED;
         idx = (idx+1) % 4;
         Pico32xMem->pwm_index[0] = idx;
       }
@@ -236,7 +260,6 @@ void p32x_pwm_write16(unsigned int a, unsigned int d,
       if (Pico32x.pwm_p[0] < 3)
         Pico32x.pwm_p[0]++;
       else {
-//        fifo[(idx+1) % 4] = fifo[idx];
         idx = (idx+1) % 4;
         Pico32xMem->pwm_index[0] = idx;
       }
