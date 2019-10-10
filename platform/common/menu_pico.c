@@ -506,6 +506,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Disable frame limiter",    MA_OPT2_NO_FRAME_LIMIT,currentConfig.EmuOpt, EOPT_NO_FRMLIMIT),
 	mee_onoff     ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoIn.opt, POPT_EN_DRC),
 	mee_onoff     ("Status line in main menu", MA_OPT2_STATUS_LINE,   currentConfig.EmuOpt, EOPT_SHOW_RTC),
+	mee_range     ("Max auto frameskip",       MA_OPT2_MAX_FRAMESKIP, currentConfig.max_skip, 1, 10),
 	mee_onoff     ("PWM IRQ optimization",     MA_OPT2_PWM_IRQ_OPT,   PicoIn.opt, POPT_PWM_IRQ_OPT),
 	MENU_OPTIONS_ADV
 	mee_end,

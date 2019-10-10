@@ -596,6 +596,7 @@ void emu_prep_defconfig(void)
 	defaultConfig.turbo_rate = 15;
 	defaultConfig.msh2_khz = PICO_MSH2_HZ / 1000;
 	defaultConfig.ssh2_khz = PICO_SSH2_HZ / 1000;
+	defaultConfig.max_skip = 4;
 
 	// platform specific overrides
 	pemu_prep_defconfig();
@@ -1463,10 +1464,16 @@ void emu_loop(void)
 		else if (diff < -target_frametime_x3)
 		{
 			/* no time left for this frame - skip */
-			/* limit auto frameskip to 8 */
-			if (frames_done / 8 <= frames_shown)
+			/* limit auto frameskip to max_skip */
+			if (fskip_cnt < currentConfig.max_skip) {
+				fskip_cnt++;
 				skip = 1;
-		}
+			}
+			else {
+				fskip_cnt = 0;
+			}
+		} else
+			fskip_cnt = 0;
 
 		// don't go in debt too much
 		while (diff < -target_frametime_x3 * 3) {
