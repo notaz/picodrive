@@ -21,7 +21,7 @@
 #define AT		1  // used to hold intermediate results
 #define FNZ		15 // emulated processor flags: N (bit 31) ,Z (all bits)
 #define FC		24 // emulated processor flags: C (bit 0), others 0
-#define FV		25 // emulated processor flags: Nt^Ns (bit 31). others ?
+#define FV		25 // emulated processor flags: Nt^Ns (bit 31). others x
 
 
 // unified conditions; virtual, not corresponding to anything real on MIPS
@@ -208,8 +208,8 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 	} while (0)
 
 // FIFO for 2 instructions, for delay slot handling
-u32 emith_last_insns[2] = { -1,-1 };
-int emith_last_idx, emith_last_cnt;
+static u32 emith_last_insns[2] = { -1,-1 };
+static int emith_last_idx, emith_last_cnt;
 
 #define EMIT_PUSHOP() \
 	do { \
@@ -248,7 +248,7 @@ static int emith_is_b(u32 op)	// B
 			 ((op>>26) == OP__RT && ((op>>16) & 036) == RT_BLTZ); }
 // register usage for dependency evaluation XXX better do this as in emit_arm?
 static uint64_t emith_has_rs[3] = // OP__FN, OP__RT, others
-	{  0x00fffffffffa0ff0ULL, 0x000fff0fUL, 0xffffffff0f007f30ULL };
+	{  0x00fffffffffa0ff0ULL, 0x000fff0fUL, 0xffffffff0f007ff0ULL };
 static uint64_t emith_has_rt[3] = // OP__FN, OP__RT, others
 	{  0xff00fffffff00cffULL, 0x00000000UL, 0x8000ff0000000030ULL };
 static uint64_t emith_has_rd[3] = // OP__FN, OP__RT, others (rt instead of rd)
@@ -308,21 +308,23 @@ static void *emith_branch(u32 op)
 		bop = emith_b_isswap(op, op2);
 	}
 
+	// flush FIFO and branch
+	tcache_ptr = (void *)((u32 *)tcache_ptr - emith_last_cnt);
+	if (emith_last_insns[idx^1] != -1)
+		EMIT_PTR(tcache_ptr, emith_last_insns[idx^1]);
 	if (bop) { // can swap
-		tcache_ptr = (void *)((u32 *)tcache_ptr - emith_last_cnt);
-		if (emith_last_insns[idx^1] != -1)
-			EMIT_PTR(tcache_ptr, emith_last_insns[idx^1]);
 		bp = tcache_ptr;
 		EMIT_PTR(tcache_ptr, bop); COUNT_OP;
 		EMIT_PTR(tcache_ptr, emith_last_insns[idx]);
-		emith_last_insns[0] = emith_last_insns[1] = -1;
-		emith_last_cnt = 0;
 	} else { // can't swap
-		emith_flush();
+		if (emith_last_insns[idx] != -1)
+			EMIT_PTR(tcache_ptr, emith_last_insns[idx]);
 		bp = tcache_ptr;
 		EMIT_PTR(tcache_ptr, op); COUNT_OP;
 		EMIT_PTR(tcache_ptr, MIPS_NOP); COUNT_OP;
 	}
+	emith_last_insns[0] = emith_last_insns[1] = -1;
+	emith_last_cnt = 0;
 	return bp;
 }
 
@@ -392,8 +394,8 @@ static void *emith_branch(u32 op)
 
 // flag emulation creates 2 (ie cmp #0/beq) up to 9 (ie adcf/ble) extra insns.
 // flag handling shortcuts may reduce this by 1-4 insns, see emith_cond_check()
-int emith_flg_rs, emith_flg_rt;	// registers used in FNZ=rs-rt (aka cmp_r_r)
-int emith_flg_noV;		// V flag known not to be set
+static int emith_flg_rs, emith_flg_rt;	// registers used in FNZ=rs-rt (cmp_r_r)
+static int emith_flg_noV;		// V flag known not to be set
 
 // store minimal cc information: rd, rt^rs, carry
 // NB: the result *must* first go to FNZ, in case rd == rs or rd == rt.
@@ -625,7 +627,11 @@ static void emith_set_arith_flags(int rd, int rt, int rs, s32 imm, int sub)
 // move immediate
 static void emith_move_imm(int r, uintptr_t imm)
 {
-	if ((s16)imm != imm) {
+	if ((s16)imm == imm) {
+		EMIT(MIPS_ADD_IMM(r, Z0, imm));
+	} else if (!(imm >> 16)) {
+		EMIT(MIPS_OR_IMM(r, Z0, imm));
+	} else {
 		int s = Z0;
 		if (imm >> 16) {
 			EMIT(MIPS_MOVT_IMM(r, imm >> 16));
@@ -633,8 +639,7 @@ static void emith_move_imm(int r, uintptr_t imm)
 		}
 		if ((u16)imm)
 			EMIT(MIPS_OR_IMM(r, s, (u16)imm));
-	} else
-		EMIT(MIPS_ADD_IMM(r, Z0, imm));
+	}
 }
 
 #define emith_move_r_ptr_imm(r, imm) \
@@ -1372,16 +1377,17 @@ static int emith_cond_check(int cond, int *r)
 	emith_tst_r_imm(sr, S);                   \
 	EMITH_SJMP_START(DCOND_EQ);               \
 	/* overflow if top 17 bits of MACH aren't all 1 or 0 */ \
-	/* to check: add MACH[15] to MACH[31:16]. this is 0 if no overflow */ \
-	emith_asrf(rn, mh, 16); /* sum = (MACH>>16) + ((MACH>>15)&1) */ \
-	emith_adcf_r_imm(rn, 0); /* (MACH>>15) is in carry after shift */ \
+	/* to check: add MACH >> 31 to MACH >> 15. this is 0 if no overflow */ \
+	emith_asr(rn, mh, 15);                    \
+	emith_add_r_r_r_lsr(rn, rn, mh, 31); /* sum = (MACH>>31)+(MACH>>15) */ \
+	emith_teq_r_r(rn, Z0); /* (need only N and Z flags) */ \
 	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> ov */ \
 	emith_move_r_imm_c(DCOND_NE, ml, 0x0000); /* -overflow */ \
 	emith_move_r_imm_c(DCOND_NE, mh, 0x8000); \
-	EMITH_SJMP_START(DCOND_LE); /* sum > 0 -> +ovl */ \
-	emith_sub_r_imm_c(DCOND_GT, ml, 1); /* 0xffffffff */ \
-	emith_sub_r_imm_c(DCOND_GT, mh, 1); /* 0x00007fff */ \
-	EMITH_SJMP_END(DCOND_LE);                 \
+	EMITH_SJMP_START(DCOND_PL); /* sum > 0 -> +ovl */ \
+	emith_sub_r_imm_c(DCOND_MI, ml, 1); /* 0xffffffff */ \
+	emith_sub_r_imm_c(DCOND_MI, mh, 1); /* 0x00007fff */ \
+	EMITH_SJMP_END(DCOND_PL);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
 } while (0)
@@ -1399,14 +1405,15 @@ static int emith_cond_check(int cond, int *r)
 	/* overflow if top 33 bits of MACH:MACL aren't all 1 or 0 */ \
 	/* to check: add MACL[31] to MACH. this is 0 if no overflow */ \
 	emith_lsr(rn, ml, 31);                    \
-	emith_addf_r_r(rn, mh); /* sum = MACH + ((MACL>>31)&1) */ \
+	emith_add_r_r(rn, mh); /* sum = MACH + ((MACL>>31)&1) */ \
+	emith_teq_r_r(rn, Z0); /* (need only N and Z flags) */ \
 	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> overflow */ \
 	/* XXX: LSB signalling only in SH1, or in SH2 too? */ \
 	emith_move_r_imm_c(DCOND_NE, mh, 0x00000001); /* LSB of MACH */ \
 	emith_move_r_imm_c(DCOND_NE, ml, 0x80000000); /* negative ovrfl */ \
-	EMITH_SJMP_START(DCOND_LE); /* sum > 0 -> positive ovrfl */ \
-	emith_sub_r_imm_c(DCOND_GT, ml, 1); /* 0x7fffffff */ \
-	EMITH_SJMP_END(DCOND_LE);                 \
+	EMITH_SJMP_START(DCOND_PL); /* sum > 0 -> positive ovrfl */ \
+	emith_sub_r_imm_c(DCOND_MI, ml, 1); /* 0x7fffffff */ \
+	EMITH_SJMP_END(DCOND_PL);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
 } while (0)

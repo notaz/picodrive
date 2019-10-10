@@ -160,7 +160,7 @@ enum { XT_UXTW=0x4, XT_UXTX=0x6, XT_LSL=0x7, XT_SXTW=0xc, XT_SXTX=0xe };
 #define A64_ROR_REG(rd, rn, rm) \
 	A64_INSN(0xd,0x0,0x3,_,rm,_,0xb,rn,rd)
 
-// rd = REVERSE(n) rn
+// rd = REVERSE(rn)
 #define A64_RBIT_REG(rd, rn) \
 	A64_INSN(0xd,0x2,0x3,_,_,_,_,rn,rd)
 
@@ -327,9 +327,10 @@ enum { AM_IDX, AM_IDXPOST, AM_IDXREG, AM_IDXPRE };
 
 
 // if-then-else conditional execution helpers
-#define JMP_POS(ptr) \
+#define JMP_POS(ptr) { \
 	ptr = tcache_ptr; \
-	EMIT(A64_B(0));
+	EMIT(A64_B(0)); \
+}
 
 #define JMP_EMIT(cond, ptr) { \
 	u32 val_ = (u8 *)tcache_ptr - (u8 *)(ptr); \
@@ -1225,9 +1226,9 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	emith_tst_r_imm(sr, S);                   \
 	EMITH_SJMP_START(DCOND_EQ);               \
 	/* overflow if top 17 bits of MACH aren't all 1 or 0 */ \
-	/* to check: add MACH[15] to MACH[31:16]. this is 0 if no overflow */ \
-	emith_asrf(rn, mh, 16); /* sum = (MACH>>16) + ((MACH>>15)&1) */ \
-	emith_adcf_r_imm(rn, 0); /* (MACH>>15) is in carry after shift */ \
+	/* to check: add MACH >> 31 to MACH >> 15. this is 0 if no overflow */ \
+	emith_asr(rn, mh, 15);                    \
+	emith_addf_r_r_r_lsr(rn, rn, mh, 31);     \
 	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> ov */ \
 	emith_move_r_imm_c(DCOND_NE, ml, 0x0000); /* -overflow */ \
 	emith_move_r_imm_c(DCOND_NE, mh, 0x8000); \
@@ -1280,11 +1281,12 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 #define emith_tpop_carry(sr, is_sub) do { \
 	if (is_sub)                     \
 		emith_eor_r_imm(sr, 1); \
-	emith_lsrf(sr, sr, 1);          \
+	emith_ror(sr, sr, 1); \
+	emith_addf_r_r(sr, sr); \
 } while (0)
 
 #define emith_tpush_carry(sr, is_sub) do { \
-	emith_adc_r_r(sr, sr);          \
+	emith_adc_r_r(sr, Z0);          \
 	if (is_sub)                     \
 		emith_eor_r_imm(sr, 1); \
 } while (0)

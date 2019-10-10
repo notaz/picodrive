@@ -69,7 +69,7 @@
 // 800 - state dump on exit
 // {
 #ifndef DRC_DEBUG
-#define DRC_DEBUG 0//x8c7
+#define DRC_DEBUG 0//x847
 #endif
 
 #if DRC_DEBUG
@@ -2999,6 +2999,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   void *block_entry_ptr;
   struct block_desc *block;
   struct block_entry *entry;
+  struct block_link *bl;
   u16 *dr_pc_base;
   struct op_data *opd;
   int blkid_main = 0;
@@ -3245,6 +3246,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         if (pinned_loop_pc[pinned_loop_count] == pc) {
           // pin needed regs on loop entry 
           FOR_ALL_BITS_SET_DO(pinned_loop_mask[pinned_loop_count], v, rcache_pin_reg(v));
+          emith_flush();
           pinned_loop_ptr[pinned_loop_count] = tcache_ptr;
         } else
           op_flags[i] &= ~OF_BASIC_LOOP;
@@ -3920,9 +3922,8 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp2);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
           emith_invalidate_t();
-          emith_tpop_carry(sr, 0); // dummy
           emith_lslf(tmp, tmp2, 1);
-          emith_tpush_carry(sr, 0);
+          emith_carry_to_t(sr, 0);
           goto end_op;
         case 1: // DT Rn      0100nnnn00010000
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
@@ -3949,12 +3950,11 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp2);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
           emith_invalidate_t();
-          emith_tpop_carry(sr, 0); // dummy
           if (op & 0x20) {
             emith_asrf(tmp, tmp2, 1);
           } else
             emith_lsrf(tmp, tmp2, 1);
-          emith_tpush_carry(sr, 0);
+          emith_carry_to_t(sr, 0);
           goto end_op;
         case 1: // CMP/PZ Rn  0100nnnn00010001
           tmp = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
@@ -4007,12 +4007,11 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           tmp = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp2);
           sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
           emith_invalidate_t();
-          emith_tpop_carry(sr, 0); // dummy
           if (op & 1) {
             emith_rorf(tmp, tmp2, 1);
           } else
             emith_rolf(tmp, tmp2, 1);
-          emith_tpush_carry(sr, 0);
+          emith_carry_to_t(sr, 0);
           goto end_op;
         case 0x24: // ROTCL  Rn          0100nnnn00100100
         case 0x25: // ROTCR  Rn          0100nnnn00100101
@@ -4391,7 +4390,6 @@ end_op:
       int cond = -1;
       int ctaken = 0;
       void *target = NULL;
-      struct block_link *bl = NULL;
 
       if (OP_ISBRACND(opd_b->op))
         ctaken = (op_flags[i] & OF_DELAY_OP) ? 1 : 2;
@@ -4545,8 +4543,6 @@ end_op:
         }
       }
 
-      if (bl)
-        memcpy(bl->jdisp, bl->jump, emith_jump_at_size());
 #if CALL_STACK
       if (rtsadd)
         emith_move_r_imm_s8_patch(rtsadd, tcache_ptr - (u8 *)rtsret);
@@ -4565,7 +4561,6 @@ end_op:
     }
     else if (drcf.pending_branch_indirect) {
       u32 target_pc;
-      struct block_link *bl = NULL;
 
       tmp = rcache_get_reg_arg(0, SHR_PC, NULL);
 
@@ -4629,8 +4624,6 @@ end_op:
 
   if (! OP_ISBRAUC(opd->op))
   {
-    struct block_link *bl;
-
     tmp = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
     FLUSH_CYCLES(tmp);
     emith_sync_t(tmp);
@@ -4645,18 +4638,15 @@ end_op:
     emith_move_r_imm(tmp, pc);
     emith_jump_patchable(sh2_drc_dispatcher);
     rcache_invalidate();
-
-    if (bl)
-      memcpy(bl->jdisp, bl->jump, emith_jump_at_size());
   } else
     rcache_flush();
 
   // emit blx area
   for (i = 0; i < blx_target_count; i++) {
     void *target = (blx_target_pc[i] & 1 ? sh2_drc_exit : sh2_drc_dispatcher);
-    struct block_link *bl = blx_target_bl[i];
 
     emith_pool_check();
+    bl = blx_target_bl[i];
     if (bl)
       bl->blx = tcache_ptr;
     emith_jump_patch(blx_target_ptr[i], tcache_ptr, NULL);
@@ -4664,9 +4654,6 @@ end_op:
     emith_move_r_imm(tmp, blx_target_pc[i] & ~1);
     emith_jump(target);
     rcache_invalidate();
-
-    if (bl)
-      memcpy(bl->jdisp, bl->blx, emith_jump_at_size());
   }
 
   emith_flush();
@@ -4691,6 +4678,11 @@ end_op:
     }
     emith_jump_patch(branch_patch_ptr[i], target, NULL);
   }
+
+  // fill blx backup; do this last to backup final patched code
+  for (i = 0; i < block->entry_count; i++)
+    for (bl = block->entryp[i].o_links; bl; bl = bl->o_next)
+      memcpy(bl->jdisp, bl->blx ?: bl->jump, emith_jump_at_size());
 
   tcache_ptrs[tcache_id] = tcache_ptr;
   host_instructions_updated(block_entry_ptr, tcache_ptr);

@@ -12,7 +12,7 @@ ifneq ("$(PLATFORM)", "libretro")
 	endif
 endif
 
-# This is actually needed, bevieve me.
+# This is actually needed, believe me.
 # If you really have to disable this, set NO_ALIGN_FUNCTIONS elsewhere.
 ifndef NO_ALIGN_FUNCTIONS
 CFLAGS += -falign-functions=2
