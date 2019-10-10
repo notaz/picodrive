@@ -326,6 +326,10 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			currentConfig.gamma = atoi(val);
 			return 1;
 
+		case MA_OPT2_MAX_FRAMESKIP:
+			currentConfig.max_skip = atoi(val);
+			return 1;
+
 		/* PSP */
 		case MA_OPT3_SCALE:
 			if (strcasecmp(var, "Scale factor") != 0) return 0;
