@@ -1225,6 +1225,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	rcache_free_tmp(tmp_); \
 } while (0)
 
+#define emith_carry_to_t(sr, is_sub) do { \
+	emith_rorc(sr); \
+	emith_rol(sr, sr, 1); \
+} while (0)
+
 #define emith_tpop_carry(sr, is_sub) \
 	emith_lsr(sr, sr, 1)
 
