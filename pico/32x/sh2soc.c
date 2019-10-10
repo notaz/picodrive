@@ -193,8 +193,9 @@ static void dmac_trigger(SH2 *sh2, struct dma_chan *chan)
 }
 
 // timer state - FIXME
-static int timer_cycles[2];
-static int timer_tick_cycles[2];
+static u32 timer_cycles[2];
+static u32 timer_tick_cycles[2];
+static u32 timer_tick_factor[2];
 
 // timers
 void p32x_timers_recalc(void)
@@ -211,6 +212,7 @@ void p32x_timers_recalc(void)
     else
       cycles = 2;
     timer_tick_cycles[i] = cycles;
+    timer_tick_factor[i] = (1ULL << 32) / cycles;
     timer_cycles[i] = 0;
     elprintf(EL_32XP, "WDT cycles[%d] = %d", i, cycles);
   }
@@ -226,11 +228,12 @@ void p32x_timers_do(unsigned int m68k_slice)
     void *pregs = sh2s[i].peri_regs;
     if (PREG8(pregs, 0x80) & 0x20) { // TME
       timer_cycles[i] += cycles;
-      cnt = PREG8(pregs, 0x81);
-      while (timer_cycles[i] >= timer_tick_cycles[i]) {
-        timer_cycles[i] -= timer_tick_cycles[i];
-        cnt++;
-      }
+      // cnt = timer_cycles[i] / timer_tick_cycles[i];
+      cnt = (1ULL * timer_cycles[i] * timer_tick_factor[i]) >> 32;
+      timer_cycles[i] -= timer_tick_cycles[i] * cnt;
+      if (timer_cycles[i] > timer_tick_cycles[i])
+        timer_cycles[i] -= timer_tick_cycles[i], cnt++;
+      cnt += PREG8(pregs, 0x81);
       if (cnt >= 0x100) {
         int level = PREG8(pregs, 0xe3) >> 4;
         int vector = PREG8(pregs, 0xe4) & 0x7f;

@@ -426,7 +426,7 @@ void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target)
 }
 
 #define STEP_LS 24
-#define STEP_N 488 // one line
+#define STEP_N 528 // at least one line (488)
 
 #define sync_sh2s_normal p32x_sync_sh2s
 //#define sync_sh2s_lockstep p32x_sync_sh2s
@@ -434,7 +434,7 @@ void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target)
 /* most timing is in 68k clock */
 void sync_sh2s_normal(unsigned int m68k_target)
 {
-  unsigned int now, target, timer_cycles;
+  unsigned int now, target, next, timer_cycles;
   int cycles;
 
   elprintf(EL_32X, "sh2 sync to %u", m68k_target);
@@ -458,40 +458,44 @@ void sync_sh2s_normal(unsigned int m68k_target)
     target = m68k_target;
     if (event_time_next && CYCLES_GT(target, event_time_next))
       target = event_time_next;
-    if (CYCLES_GT(target, now + STEP_N))
-      target = now + STEP_N;
-
     while (CYCLES_GT(target, now))
     {
-      elprintf(EL_32X, "sh2 exec to %u %d,%d/%d, flags %x", target,
-        target - msh2.m68krcycles_done, target - ssh2.m68krcycles_done,
+      next = target;
+      if (CYCLES_GT(target, now + STEP_N))
+        next = now + STEP_N;
+      elprintf(EL_32X, "sh2 exec to %u %d,%d/%d, flags %x", next,
+        next - msh2.m68krcycles_done, next - ssh2.m68krcycles_done,
         m68k_target - now, Pico32x.emu_flags);
 
       pprof_start(ssh2);
       if (!(ssh2.state & SH2_IDLE_STATES)) {
-        cycles = target - ssh2.m68krcycles_done;
+        cycles = next - ssh2.m68krcycles_done;
         if (cycles > 0) {
           run_sh2(&ssh2, cycles > 20U ? cycles : 20U);
 
           if (event_time_next && CYCLES_GT(target, event_time_next))
             target = event_time_next;
+          if (CYCLES_GT(next, target))
+            next = target;
         }
       }
       pprof_end(ssh2);
 
       pprof_start(msh2);
       if (!(msh2.state & SH2_IDLE_STATES)) {
-        cycles = target - msh2.m68krcycles_done;
+        cycles = next - msh2.m68krcycles_done;
         if (cycles > 0) {
           run_sh2(&msh2, cycles > 20U ? cycles : 20U);
 
           if (event_time_next && CYCLES_GT(target, event_time_next))
             target = event_time_next;
+          if (CYCLES_GT(next, target))
+            next = target;
         }
       }
       pprof_end(msh2);
 
-      now = target;
+      now = next;
       if (!(msh2.state & SH2_IDLE_STATES)) {
         if (CYCLES_GT(now, msh2.m68krcycles_done))
           now = msh2.m68krcycles_done;
@@ -499,6 +503,10 @@ void sync_sh2s_normal(unsigned int m68k_target)
       if (!(ssh2.state & SH2_IDLE_STATES)) {
         if (CYCLES_GT(now, ssh2.m68krcycles_done))
           now = ssh2.m68krcycles_done;
+      }
+      if (now - timer_cycles >= STEP_N) {
+        p32x_timers_do(now - timer_cycles);
+        timer_cycles = now;
       }
     }
 
