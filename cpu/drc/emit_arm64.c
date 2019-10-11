@@ -979,7 +979,7 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 #define emith_save_caller_regs(mask) do { \
 	int _c, _r1, _r2; u32 _m = mask & 0x3ffff; \
 	if (__builtin_parity(_m) == 1) _m |= 0x40000; /* hardware align */ \
-	for (_c = HOST_REGS, _r1 = -1; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
+	for (_c = HOST_REGS-1, _r1 = -1; _m && _c >= 0; _m &= ~(1 << _c), _c--)\
 		if (_m & (1 << _c)) { \
 			_r2 = _r1, _r1 = _c; \
 			if (_r2 != -1) { \

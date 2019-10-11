@@ -225,7 +225,7 @@ endif
 pprof: platform/linux/pprof.c
 	$(CC) $(CFLAGS) -O2 -ggdb -DPPROF -DPPROF_TOOL -I../../ -I. $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
-pico/pico_int_offs.h:: tools/mkoffsets.sh
+pico/pico_int_offs.h: tools/mkoffsets.sh
 	make -C tools/ XCC="$(CC)" XCFLAGS="$(CFLAGS)"
 
 .s.o:

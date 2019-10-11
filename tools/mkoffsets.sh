@@ -11,10 +11,10 @@ ENDIAN=
 # compile with target C compiler and extract value from .rodata section
 compile_rodata ()
 {
-	# $CC $CFLAGS -I .. -shared /tmp/getoffs.c -o /tmp/getoffs.o || exit 1
-	echo 'void dummy(void) { asm(""::"r" (&val)); }' >> /tmp/getoffs.c
-	$CC $CFLAGS -I .. -nostdlib -Wl,-edummy /tmp/getoffs.c \
-						-o /tmp/getoffs.o || exit 1
+	$CC $CFLAGS -I .. -c /tmp/getoffs.c -o /tmp/getoffs.o || exit 1
+	# echo 'void dummy(void) { asm(""::"r" (&val)); }' >> /tmp/getoffs.c
+	# $CC $CFLAGS -I .. -nostdlib -Wl,-edummy /tmp/getoffs.c \
+	#					-o /tmp/getoffs.o || exit 1
 	# find the name of the .rodata section (in case -fdata-sections is used)
 	rosect=$(readelf -S /tmp/getoffs.o | grep '\.rodata' |
 						sed 's/^[^.]*././;s/ .*//')
@@ -48,6 +48,7 @@ get_define () # prefix struct member member...
 	line=$(printf "#define %-20s 0x%04x" $prefix$name $rodata)
 }
 
+CFLAGS="$CFLAGS -fno-lto"
 # determine endianess
 echo "const int val = 1;" >/tmp/getoffs.c
 compile_rodata

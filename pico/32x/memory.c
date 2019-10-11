@@ -347,7 +347,7 @@ static u32 p32x_reg_read16(u32 a)
   if ((a & 0x30) == 0x20) {
     unsigned int cycles = SekCyclesDone();
 
-    if (cycles - msh2.m68krcycles_done > 244)
+    if (CYCLES_GT(cycles - msh2.m68krcycles_done, 244))
       p32x_sync_sh2s(cycles);
 
     if (m68k_poll_detect(a, cycles, P32XF_68KCPOLL)) {
@@ -360,7 +360,7 @@ static u32 p32x_reg_read16(u32 a)
 
   if (a == 2) { // INTM, INTS
     unsigned int cycles = SekCyclesDone();
-    if (cycles - msh2.m68krcycles_done > 64)
+    if (CYCLES_GT(cycles - msh2.m68krcycles_done, 64))
       p32x_sync_sh2s(cycles);
     goto out;
   }
@@ -420,7 +420,7 @@ static void p32x_reg_write8(u32 a, u32 d)
       return;
     case 0x03: // irq ctl
       if ((d ^ r[0x02 / 2]) & 3) {
-        int cycles = SekCyclesDone();
+        unsigned int cycles = SekCyclesDone();
         p32x_sync_sh2s(cycles);
         r[0x02 / 2] = d & 3;
         p32x_update_cmd_irq(NULL, cycles);
@@ -610,9 +610,9 @@ static void p32x_reg_write16(u32 a, u32 d)
     case 0x2c/2:
     case 0x2e/2:
       if (r[a / 2] != d) {
-        int cycles = SekCyclesDone();
+        unsigned int cycles = SekCyclesDone();
 
-        if (cycles - (int)msh2.m68krcycles_done > 30)
+        if (CYCLES_GT(cycles - msh2.m68krcycles_done, 64))
           p32x_sync_sh2s(cycles);
 
         r[a / 2] = d;
@@ -712,7 +712,7 @@ static void p32x_vdp_write16(u32 a, u32 d, SH2 *sh2)
     }
     Pico32x.vdp_regs[0x06 / 2] = a;
     Pico32x.vdp_regs[0x08 / 2] = d;
-    if (sh2 != NULL && len > 4) {
+    if (sh2 != NULL && len > 8) {
       Pico32x.vdp_regs[0x0a / 2] |= P32XV_nFEN;
       // supposedly takes 3 bus/6 sh2 cycles? or 3 sh2 cycles?
       p32x_event_schedule_sh2(sh2, P32X_EVENT_FILLEND, 3 + len);
@@ -824,8 +824,8 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
       if (Pico32x.sh2_regs[4 / 2] != d) {
         unsigned int cycles = sh2_cycles_done_m68k(sh2);
         Pico32x.sh2_regs[4 / 2] = d;
-        sh2_end_run(sh2, 4);
         p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
+        sh2_end_run(sh2, 4);
         sh2_poll_write(a & ~1, d, cycles, sh2);
       }
       return;
@@ -849,9 +849,9 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
         unsigned int cycles = sh2_cycles_done_m68k(sh2);
 
         REG8IN16(r, a) = d;
-        sh2_end_run(sh2, 1);
         p32x_m68k_poll_event(P32XF_68KCPOLL);
         p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
+        sh2_end_run(sh2, 1);
         sh2_poll_write(a & ~1, r[a / 2], cycles, sh2);
       }
       return;
@@ -941,9 +941,9 @@ static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
         unsigned int cycles = sh2_cycles_done_m68k(sh2);
 
         Pico32x.regs[a / 2] = d;
-        sh2_end_run(sh2, 1);
         p32x_m68k_poll_event(P32XF_68KCPOLL);
         p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
+        sh2_end_run(sh2, 1);
         sh2_poll_write(a, d, cycles, sh2);
       }
       return;
@@ -1574,10 +1574,10 @@ static void NOINLINE sh2_sdram_poll(u32 a, u32 d, SH2 *sh2)
   unsigned cycles;
 
   DRC_SAVE_SR(sh2);
-  sh2_end_run(sh2, 1);
   cycles = sh2_cycles_done_m68k(sh2);
   sh2_poll_write(a, d, cycles, sh2);
   p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_RPOLL, cycles);
+  sh2_end_run(sh2, 1);
   DRC_RESTORE_SR(sh2);
 }
 
