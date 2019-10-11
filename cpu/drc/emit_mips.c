@@ -1065,7 +1065,7 @@ static void emith_lohi_nops(void)
 	if (__builtin_parity(_m) == 1) _m |= 0x1; /* ABI align */ \
 	int _s = count_bits(_m) * 4, _o = _s; \
 	if (_s) emith_sub_r_imm(SP, _s); \
-	for (_c = HOST_REGS; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
+	for (_c = HOST_REGS-1; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
 		if (_m & (1 << _c)) \
 			{ _o -= 4; if (_c) emith_write_r_r_offs(_c, SP, _o); } \
 } while (0)
@@ -1279,7 +1279,7 @@ static int emith_cond_check(int cond, int *r)
 	if (__builtin_parity(_m) == 1) _m |= 0x1; /* ABI align for SP is 8 */ \
 	int _s = count_bits(_m) * 4 + 16, _o = _s; /* 16 byte arg save area */ \
 	if (_s) emith_sub_r_imm(SP, _s); \
-	for (_c = HOST_REGS; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
+	for (_c = HOST_REGS-1; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
 		if (_m & (1 << _c)) \
 			{ _o -= 4; if (_c) emith_write_r_r_offs(_c, SP, _o); } \
 } while (0)

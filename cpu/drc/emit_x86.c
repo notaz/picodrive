@@ -1115,7 +1115,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 #define emith_save_caller_regs(mask) do { \
 	int _c; u32 _m = mask & 0xfc7; /* AX, CX, DX, SI, DI, 8, 9, 10, 11 */ \
 	if (__builtin_parity(_m) == 1) _m |= 0x8; /* BX for ABI align */ \
-	for (_c = HOST_REGS; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
+	for (_c = HOST_REGS-1; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
 		if (_m & (1 << _c)) emith_push(_c); \
 } while (0)
 
