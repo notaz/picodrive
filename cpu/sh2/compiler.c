@@ -766,13 +766,8 @@ static void rm_from_block_lists(struct block_desc *block)
 
 static void rm_block_list(struct block_list **blist)
 {
-  struct block_list *next, *current = *blist;
-  while (current != NULL) {
-    next = current->next;
-    rm_from_block_lists(current->block);
-    current = next;
-  }
-  *blist = NULL;
+  while (*blist != NULL)
+    rm_from_block_lists((*blist)->block);
 }
 
 static void REGPARM(1) flush_tcache(int tcid)
