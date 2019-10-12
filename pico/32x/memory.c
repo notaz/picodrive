@@ -513,9 +513,9 @@ static void p32x_reg_write8(u32 a, u32 d)
     case 0x2e:
     case 0x2f:
       if (REG8IN16(r, a) != d) {
-        int cycles = SekCyclesDone();
+        unsigned int cycles = SekCyclesDone();
 
-        if (cycles - (int)msh2.m68krcycles_done > 30)
+        if (CYCLES_GT(cycles - msh2.m68krcycles_done, 64))
           p32x_sync_sh2s(cycles);
 
         REG8IN16(r, a) = d;
