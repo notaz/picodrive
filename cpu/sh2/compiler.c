@@ -769,8 +769,7 @@ static void rm_block_list(struct block_list **blist)
   struct block_list *next, *current = *blist;
   while (current != NULL) {
     next = current->next;
-    current->next = blist_free;
-    blist_free = current;
+    rm_from_block_lists(current->block);
     current = next;
   }
   *blist = NULL;
@@ -5441,7 +5440,6 @@ int sh2_drc_init(SH2 *sh2)
       block_tables[i] = calloc(BLOCK_MAX_COUNT(i), sizeof(*block_tables[0]));
       if (block_tables[i] == NULL)
         goto fail;
-      // max 2 block links (exits) per block
       block_link_pool[i] = calloc(BLOCK_LINK_MAX_COUNT(i),
                           sizeof(*block_link_pool[0]));
       if (block_link_pool[i] == NULL)
