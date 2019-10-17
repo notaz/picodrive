@@ -17,6 +17,7 @@
 .equ SH2_DRAM_OW, 1<<(32-SH2_DRAM_SHIFT) @ DRAM overwrite mode bit
 
 .text
+.align 5
 
 #if 0
 @ u32 a, SH2 *sh2
@@ -142,11 +143,12 @@ sh2_write8_sdram:
     ldrb    r3, [ip, r3, lsr #SH2_RAM_SHIFT+1]
     cmp     r3, #0
     bxeq    lr
+    @ need to load aligned 16 bit data for check
     ldr     ip, [r2, #OFS_SH2_p_sdram]
     bic     r0, r0, #1
-    mov     r3, r0, lsl #SH2_RAM_SHIFT
-    mov     r3, r3, lsr #SH2_RAM_SHIFT
-    ldrh    r1, [ip, r3]
+    mov     r1, r0, lsl #SH2_RAM_SHIFT
+    mov     r1, r1, lsr #SH2_RAM_SHIFT
+    ldrh    r1, [ip, r1]
     b       sh2_sdram_checks
 #else
     bx      lr
@@ -252,13 +254,8 @@ sh2_write32_da:
     ldr     ip, [r2, #OFS_SH2_p_drcblk_da]
     ldrb    r1, [ip, r3, lsr #SH2_DA_SHIFT+1]!
     ldrb    ip, [ip, #1]
-    orrs    r3, r1, ip, lsl #16
+    orrs    r1, r1, ip, lsl #16
     bxeq    lr
-    stmfd   sp!, {r0, r2, ip, lr}
-    bl      sh2_drc_wcheck_da
-    ldmfd   sp!, {r0, r2, ip, lr}
-    add     r0, r0, #2
-    mov     r1, ip
     b       sh2_drc_wcheck_da
 #else
     bx      lr
