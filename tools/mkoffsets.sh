@@ -48,7 +48,7 @@ get_define () # prefix struct member member...
 	line=$(printf "#define %-20s 0x%04x" $prefix$name $rodata)
 }
 
-CFLAGS="$CFLAGS -fno-lto"
+if echo $CFLAGS | grep -qe -flto; then CFLAGS="$CFLAGS -fno-lto"; fi
 # determine endianess
 echo "const int val = 1;" >/tmp/getoffs.c
 compile_rodata
