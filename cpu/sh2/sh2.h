@@ -13,7 +13,7 @@ typedef enum {
 typedef struct SH2_
 {
 	// registers. this MUST correlate with enum sh2_reg_e.
-	unsigned int	r[16];		// 00
+	unsigned int	r[16] ALIGNED(32);
 	unsigned int	pc;		// 40
 	unsigned int	ppc;
 	unsigned int	pr;
@@ -80,7 +80,7 @@ typedef struct SH2_
 
 	unsigned char	data_array[0x1000]; // cache (can be used as RAM)
 	unsigned int	peri_regs[0x200/4]; // periphereal regs
-} SH2 ALIGNED(32);
+} SH2;
 
 #define CYCLE_MULT_SHIFT 10
 #define C_M68K_TO_SH2(xsh2, c) \

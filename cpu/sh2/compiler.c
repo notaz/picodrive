@@ -1248,7 +1248,7 @@ static void dr_activate_block(struct block_desc *bd, int tcache_id, int is_slave
   bd->active = 1;
 }
 
-static void REGPARM(3) ALIGNED(32) *dr_lookup_block(u32 pc, SH2 *sh2, int *tcache_id)
+static void REGPARM(3) *dr_lookup_block(u32 pc, SH2 *sh2, int *tcache_id)
 {
   struct block_entry *be = NULL;
   void *block = NULL;
