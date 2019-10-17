@@ -764,58 +764,16 @@ static void rm_from_block_lists(struct block_desc *block)
   block->list = NULL;
 }
 
-static void rm_block_list(struct block_list **blist)
+static void discard_block_list(struct block_list **blist)
 {
-  while (*blist != NULL)
-    rm_from_block_lists((*blist)->block);
-}
-
-static void REGPARM(1) flush_tcache(int tcid)
-{
-  int i;
-#if (DRC_DEBUG & 1)
-  int tc_used, bl_used;
-
-  tc_used = tcache_sizes[tcid] - (tcache_limit[tcid] - tcache_ptrs[tcid]);
-  bl_used = BLOCK_MAX_COUNT(tcid) - (block_limit[tcid] - block_counts[tcid]);
-  elprintf(EL_STATUS, "tcache #%d flush! (%d/%d, bds %d/%d)", tcid, tc_used,
-    tcache_sizes[tcid], bl_used, BLOCK_MAX_COUNT(tcid));
-#endif
-
-  block_counts[tcid] = 0;
-  block_limit[tcid] = BLOCK_MAX_COUNT(tcid) - 1;
-  block_link_pool_counts[tcid] = 0;
-  blink_free[tcid] = NULL;
-  memset(unresolved_links[tcid], 0, sizeof(*unresolved_links[0]) * HASH_TABLE_SIZE(tcid));
-  memset(hash_tables[tcid], 0, sizeof(*hash_tables[0]) * HASH_TABLE_SIZE(tcid));
-  tcache_ptrs[tcid] = tcache_bases[tcid];
-  tcache_limit[tcid] = tcache_bases[tcid] + tcache_sizes[tcid];
-  if (Pico32xMem->sdram != NULL) {
-    if (tcid == 0) { // ROM, RAM
-      memset(Pico32xMem->drcblk_ram, 0, sizeof(Pico32xMem->drcblk_ram));
-      memset(Pico32xMem->drclit_ram, 0, sizeof(Pico32xMem->drclit_ram));
-      memset(sh2s[0].branch_cache, -1, sizeof(sh2s[0].branch_cache));
-      memset(sh2s[1].branch_cache, -1, sizeof(sh2s[1].branch_cache));
-      memset(sh2s[0].rts_cache, -1, sizeof(sh2s[0].rts_cache));
-      memset(sh2s[1].rts_cache, -1, sizeof(sh2s[1].rts_cache));
-      sh2s[0].rts_cache_idx = sh2s[1].rts_cache_idx = 0;
-    } else {
-      memset(Pico32xMem->drcblk_ram, 0, sizeof(Pico32xMem->drcblk_ram));
-      memset(Pico32xMem->drclit_ram, 0, sizeof(Pico32xMem->drclit_ram));
-      memset(Pico32xMem->drcblk_da[tcid - 1], 0, sizeof(Pico32xMem->drcblk_da[tcid - 1]));
-      memset(Pico32xMem->drclit_da[tcid - 1], 0, sizeof(Pico32xMem->drclit_da[tcid - 1]));
-      memset(sh2s[tcid - 1].branch_cache, -1, sizeof(sh2s[0].branch_cache));
-      memset(sh2s[tcid - 1].rts_cache, -1, sizeof(sh2s[0].rts_cache));
-      sh2s[tcid - 1].rts_cache_idx = 0;
-    }
+  struct block_list *next, *current = *blist;
+  while (current != NULL) {
+    next = current->next;
+    current->next = blist_free;
+    blist_free = current;
+    current = next;
   }
-#if (DRC_DEBUG & 4)
-  tcache_dsm_ptrs[tcid] = tcache_bases[tcid];
-#endif
-
-  for (i = 0; i < RAM_SIZE(tcid) / INVAL_PAGE_SIZE; i++)
-    rm_block_list(&inval_lookup[tcid][i]);
-  rm_block_list(&inactive_blocks[tcid]);
+  *blist = NULL;
 }
 
 static void add_to_hashlist(struct block_entry *be, int tcache_id)
@@ -900,243 +858,6 @@ static void rm_from_hashlist_unresolved(struct block_link *bl, int tcache_id)
     *head = bl->next;
   if (bl->next != NULL)
     bl->next->prev = bl->prev;
-}
-
-static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit, int free);
-static void dr_free_oldest_block(int tcache_id)
-{
-  struct block_desc *bd;
-
-  if (block_limit[tcache_id] >= BLOCK_MAX_COUNT(tcache_id)) {
-    // block desc wrap around
-    block_limit[tcache_id] = 0;
-  }
-  bd = &block_tables[tcache_id][block_limit[tcache_id]];
-
-  if (bd->tcache_ptr && bd->tcache_ptr < tcache_ptrs[tcache_id]) {
-    // cache wrap around
-    tcache_ptrs[tcache_id] = bd->tcache_ptr;
-  }
-
-  if (bd->addr && bd->entry_count)
-    sh2_smc_rm_block_entry(bd, tcache_id, 0, 1);
-
-  block_limit[tcache_id]++;
-  if (block_limit[tcache_id] >= BLOCK_MAX_COUNT(tcache_id))
-    block_limit[tcache_id] = 0;
-  bd = &block_tables[tcache_id][block_limit[tcache_id]];
-  if (bd->tcache_ptr >= tcache_ptrs[tcache_id])
-    tcache_limit[tcache_id] = bd->tcache_ptr;
-  else
-    tcache_limit[tcache_id] = tcache_bases[tcache_id] + tcache_sizes[tcache_id];
-}
-
-static u8 *dr_prepare_cache(int tcache_id, int insn_count)
-{
-  u8 *limit = tcache_limit[tcache_id];
-
-  // if no block desc available
-  if (block_counts[tcache_id] == block_limit[tcache_id])
-    dr_free_oldest_block(tcache_id);
-
-  // while not enough cache space left (limit - tcache_ptr < max space needed)
-  while (tcache_limit[tcache_id] - tcache_ptrs[tcache_id] < insn_count * 128)
-    dr_free_oldest_block(tcache_id);
-
-  if (limit != tcache_limit[tcache_id]) {
-#if BRANCH_CACHE
-    if (tcache_id)
-      memset32(sh2s[tcache_id-1].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
-    else {
-      memset32(sh2s[0].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
-      memset32(sh2s[1].branch_cache, -1, sizeof(sh2s[1].branch_cache)/4);
-    }
-#endif
-#if CALL_STACK
-    if (tcache_id) {
-      memset32(sh2s[tcache_id-1].rts_cache, -1, sizeof(sh2s[0].rts_cache)/4);
-      sh2s[tcache_id-1].rts_cache_idx = 0;
-    } else {
-      memset32(sh2s[0].rts_cache, -1, sizeof(sh2s[0].rts_cache)/4);
-      memset32(sh2s[1].rts_cache, -1, sizeof(sh2s[1].rts_cache)/4);
-      sh2s[0].rts_cache_idx = sh2s[1].rts_cache_idx = 0;
-    }
-#endif
-  }
-  return (u8 *)tcache_ptrs[tcache_id];
-}
-
-static void dr_mark_memory(int mark, struct block_desc *block, int tcache_id, u32 nolit)
-{
-  u8 *drc_ram_blk = NULL, *lit_ram_blk = NULL;
-  u32 addr, end, mask = 0, shift = 0, idx;
-
-  // mark memory blocks as containing compiled code
-  if ((block->addr & 0xc7fc0000) == 0x06000000
-      || (block->addr & 0xfffff000) == 0xc0000000)
-  {
-    if (tcache_id != 0) {
-      // data array
-      drc_ram_blk = Pico32xMem->drcblk_da[tcache_id-1];
-      lit_ram_blk = Pico32xMem->drclit_da[tcache_id-1];
-      shift = SH2_DRCBLK_DA_SHIFT;
-    }
-    else {
-      // SDRAM
-      drc_ram_blk = Pico32xMem->drcblk_ram;
-      lit_ram_blk = Pico32xMem->drclit_ram;
-      shift = SH2_DRCBLK_RAM_SHIFT;
-    }
-    mask = RAM_SIZE(tcache_id) - 1;
-
-    // mark recompiled insns
-    addr = block->addr & ~((1 << shift) - 1);
-    end = block->addr + block->size;
-    for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
-      drc_ram_blk[idx++] += mark;
-
-    // mark literal pool
-    if (addr < (block->addr_lit & ~((1 << shift) - 1)))
-      addr = block->addr_lit & ~((1 << shift) - 1);
-    end = block->addr_lit + block->size_lit;
-    for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
-      drc_ram_blk[idx++] += mark;
-
-    // mark for literals disabled
-    if (nolit) {
-      addr = nolit & ~((1 << shift) - 1);
-      end = block->addr_lit + block->size_lit;
-      for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
-        lit_ram_blk[idx++] = 1;
-    }
-
-    if (mark < 0)
-      rm_from_block_lists(block);
-    else {
-      // add to invalidation lookup lists
-      addr = block->addr & ~(INVAL_PAGE_SIZE - 1);
-      end = block->addr + block->size;
-      for (idx = (addr & mask) / INVAL_PAGE_SIZE; addr < end; addr += INVAL_PAGE_SIZE)
-        add_to_block_list(&inval_lookup[tcache_id][idx++], block);
-
-      if (addr < (block->addr_lit & ~(INVAL_PAGE_SIZE - 1)))
-        addr = block->addr_lit & ~(INVAL_PAGE_SIZE - 1);
-      end = block->addr_lit + block->size_lit;
-      for (idx = (addr & mask) / INVAL_PAGE_SIZE; addr < end; addr += INVAL_PAGE_SIZE)
-        add_to_block_list(&inval_lookup[tcache_id][idx++], block);
-    }
-  }
-}
-
-static u32 dr_check_nolit(u32 start, u32 end, int tcache_id)
-{
-  u8 *lit_ram_blk = NULL;
-  u32 mask = 0, shift = 0, addr, idx;
-
-  if ((start & 0xc7fc0000) == 0x06000000
-      || (start & 0xfffff000) == 0xc0000000)
-  {
-    if (tcache_id != 0) {
-      // data array
-      lit_ram_blk = Pico32xMem->drclit_da[tcache_id-1];
-      shift = SH2_DRCBLK_DA_SHIFT;
-    }
-    else {
-      // SDRAM
-      lit_ram_blk = Pico32xMem->drclit_ram;
-      shift = SH2_DRCBLK_RAM_SHIFT;
-    }
-    mask = RAM_SIZE(tcache_id) - 1;
-
-    addr = start & ~((1 << shift) - 1);
-    for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
-      if (lit_ram_blk[idx++])
-        break;
-
-    return (addr < start ? start : addr > end ? end : addr);
-  }
-
-  return end;
-}
-
-static struct block_desc *dr_find_inactive_block(int tcache_id, u16 crc,
-  u32 addr, int size, u32 addr_lit, int size_lit)
-{
-  struct block_list **head = &inactive_blocks[tcache_id];
-  struct block_list *current;
-
-  for (current = *head; current != NULL; current = current->next) {
-    struct block_desc *block = current->block;
-    if (block->crc == crc && block->addr == addr && block->size == size &&
-        block->addr_lit == addr_lit && block->size_lit == size_lit)
-    {
-      rm_from_block_lists(block);
-      return block;
-    }
-  }
-  return NULL;
-}
-
-static struct block_desc *dr_add_block(u32 addr, int size,
-  u32 addr_lit, int size_lit, u16 crc, int is_slave, int *blk_id)
-{
-  struct block_entry *be;
-  struct block_desc *bd;
-  int tcache_id;
-  int *bcount;
-
-  // do a lookup to get tcache_id and override check
-  be = dr_get_entry(addr, is_slave, &tcache_id);
-  if (be != NULL)
-    dbg(1, "block override for %08x", addr);
-
-  bcount = &block_counts[tcache_id];
-  if (*bcount == block_limit[tcache_id]) {
-    dbg(1, "bd overflow for tcache %d", tcache_id);
-    return NULL;
-  }
-
-  bd = &block_tables[tcache_id][*bcount];
-  bd->addr = addr;
-  bd->size = size;
-  bd->addr_lit = addr_lit;
-  bd->size_lit = size_lit;
-  bd->tcache_ptr = tcache_ptr;
-  bd->crc = crc;
-  bd->active = 0;
-  bd->entry_count = 0;
-#if (DRC_DEBUG & 2)
-  bd->refcount = 0;
-#endif
-
-  *blk_id = *bcount;
-  (*bcount)++;
-  if (*bcount >= BLOCK_MAX_COUNT(tcache_id))
-    *bcount = 0;
-
-  return bd;
-}
-
-static void REGPARM(3) *dr_lookup_block(u32 pc, SH2 *sh2, int *tcache_id)
-{
-  struct block_entry *be = NULL;
-  void *block = NULL;
-
-  be = dr_get_entry(pc, sh2->is_slave, tcache_id);
-  if (be != NULL)
-    block = be->tcache_ptr;
-
-#if (DRC_DEBUG & 2)
-  if (be != NULL)
-    be->block->refcount++;
-#endif
-  return block;
-}
-
-static void *dr_failure(void)
-{
-  lprintf("recompilation failed\n");
-  exit(1);
 }
 
 #if LINK_BRANCHES
@@ -1262,6 +983,212 @@ static struct block_link *dr_prepare_ext_branch(struct block_entry *owner, u32 p
 #endif
 }
 
+static void dr_mark_memory(int mark, struct block_desc *block, int tcache_id, u32 nolit)
+{
+  u8 *drc_ram_blk = NULL, *lit_ram_blk = NULL;
+  u32 addr, end, mask = 0, shift = 0, idx;
+
+  // mark memory blocks as containing compiled code
+  if ((block->addr & 0xc7fc0000) == 0x06000000
+      || (block->addr & 0xfffff000) == 0xc0000000)
+  {
+    if (tcache_id != 0) {
+      // data array
+      drc_ram_blk = Pico32xMem->drcblk_da[tcache_id-1];
+      lit_ram_blk = Pico32xMem->drclit_da[tcache_id-1];
+      shift = SH2_DRCBLK_DA_SHIFT;
+    }
+    else {
+      // SDRAM
+      drc_ram_blk = Pico32xMem->drcblk_ram;
+      lit_ram_blk = Pico32xMem->drclit_ram;
+      shift = SH2_DRCBLK_RAM_SHIFT;
+    }
+    mask = RAM_SIZE(tcache_id) - 1;
+
+    // mark recompiled insns
+    addr = block->addr & ~((1 << shift) - 1);
+    end = block->addr + block->size;
+    for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
+      drc_ram_blk[idx++] += mark;
+
+    // mark literal pool
+    if (addr < (block->addr_lit & ~((1 << shift) - 1)))
+      addr = block->addr_lit & ~((1 << shift) - 1);
+    end = block->addr_lit + block->size_lit;
+    for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
+      drc_ram_blk[idx++] += mark;
+
+    // mark for literals disabled
+    if (nolit) {
+      addr = nolit & ~((1 << shift) - 1);
+      end = block->addr_lit + block->size_lit;
+      for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
+        lit_ram_blk[idx++] = 1;
+    }
+
+    if (mark < 0)
+      rm_from_block_lists(block);
+    else {
+      // add to invalidation lookup lists
+      addr = block->addr & ~(INVAL_PAGE_SIZE - 1);
+      end = block->addr + block->size;
+      for (idx = (addr & mask) / INVAL_PAGE_SIZE; addr < end; addr += INVAL_PAGE_SIZE)
+        add_to_block_list(&inval_lookup[tcache_id][idx++], block);
+
+      if (addr < (block->addr_lit & ~(INVAL_PAGE_SIZE - 1)))
+        addr = block->addr_lit & ~(INVAL_PAGE_SIZE - 1);
+      end = block->addr_lit + block->size_lit;
+      for (idx = (addr & mask) / INVAL_PAGE_SIZE; addr < end; addr += INVAL_PAGE_SIZE)
+        add_to_block_list(&inval_lookup[tcache_id][idx++], block);
+    }
+  }
+}
+
+static u32 dr_check_nolit(u32 start, u32 end, int tcache_id)
+{
+  u8 *lit_ram_blk = NULL;
+  u32 mask = 0, shift = 0, addr, idx;
+
+  if ((start & 0xc7fc0000) == 0x06000000
+      || (start & 0xfffff000) == 0xc0000000)
+  {
+    if (tcache_id != 0) {
+      // data array
+      lit_ram_blk = Pico32xMem->drclit_da[tcache_id-1];
+      shift = SH2_DRCBLK_DA_SHIFT;
+    }
+    else {
+      // SDRAM
+      lit_ram_blk = Pico32xMem->drclit_ram;
+      shift = SH2_DRCBLK_RAM_SHIFT;
+    }
+    mask = RAM_SIZE(tcache_id) - 1;
+
+    addr = start & ~((1 << shift) - 1);
+    for (idx = (addr & mask) >> shift; addr < end; addr += (1 << shift))
+      if (lit_ram_blk[idx++])
+        break;
+
+    return (addr < start ? start : addr > end ? end : addr);
+  }
+
+  return end;
+}
+
+static void dr_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit, int free)
+{
+  struct block_link *bl;
+  u32 i;
+
+  free = free || nolit; // block is invalid if literals are overwritten
+  dbg(2,"  %sing block %08x-%08x,%08x-%08x, blkid %d,%d", free?"delet":"disabl",
+    bd->addr, bd->addr + bd->size, bd->addr_lit, bd->addr_lit + bd->size_lit,
+    tcache_id, bd - block_tables[tcache_id]);
+  if (bd->addr == 0 || bd->entry_count == 0) {
+    dbg(1, "  killing dead block!? %08x", bd->addr);
+    return;
+  }
+
+#if LINK_BRANCHES
+  // remove from hash table, make incoming links unresolved
+  if (bd->active) {
+    for (i = 0; i < bd->entry_count; i++) {
+      rm_from_hashlist(&bd->entryp[i], tcache_id);
+
+      while ((bl = bd->entryp[i].links) != NULL) {
+        dr_block_unlink(bl, 1);
+        add_to_hashlist_unresolved(bl, tcache_id);
+      }
+    }
+
+    dr_mark_memory(-1, bd, tcache_id, nolit);
+    add_to_block_list(&inactive_blocks[tcache_id], bd);
+  }
+  bd->active = 0;
+#endif
+
+  if (free) {
+#if LINK_BRANCHES
+    // revoke outgoing links
+    for (bl = bd->entryp[0].o_links; bl != NULL; bl = bl->o_next) {
+      if (bl->target)
+        dr_block_unlink(bl, 0);
+      else
+        rm_from_hashlist_unresolved(bl, tcache_id);
+      bl->jump = NULL;
+      bl->next = blink_free[bl->tcache_id];
+      blink_free[bl->tcache_id] = bl;
+    }
+    bd->entryp[0].o_links = NULL;
+#endif
+    // invalidate block
+    rm_from_block_lists(bd);
+    bd->addr = bd->size = bd->addr_lit = bd->size_lit = 0;
+    bd->entry_count = 0;
+  }
+  emith_update_cache();
+}
+
+static struct block_desc *dr_find_inactive_block(int tcache_id, u16 crc,
+  u32 addr, int size, u32 addr_lit, int size_lit)
+{
+  struct block_list **head = &inactive_blocks[tcache_id];
+  struct block_list *current;
+
+  for (current = *head; current != NULL; current = current->next) {
+    struct block_desc *block = current->block;
+    if (block->crc == crc && block->addr == addr && block->size == size &&
+        block->addr_lit == addr_lit && block->size_lit == size_lit)
+    {
+      rm_from_block_lists(block);
+      return block;
+    }
+  }
+  return NULL;
+}
+
+static struct block_desc *dr_add_block(u32 addr, int size,
+  u32 addr_lit, int size_lit, u16 crc, int is_slave, int *blk_id)
+{
+  struct block_entry *be;
+  struct block_desc *bd;
+  int tcache_id;
+  int *bcount;
+
+  // do a lookup to get tcache_id and override check
+  be = dr_get_entry(addr, is_slave, &tcache_id);
+  if (be != NULL)
+    dbg(1, "block override for %08x", addr);
+
+  bcount = &block_counts[tcache_id];
+  if (*bcount == block_limit[tcache_id]) {
+    dbg(1, "bd overflow for tcache %d", tcache_id);
+    return NULL;
+  }
+
+  bd = &block_tables[tcache_id][*bcount];
+  bd->addr = addr;
+  bd->size = size;
+  bd->addr_lit = addr_lit;
+  bd->size_lit = size_lit;
+  bd->tcache_ptr = tcache_ptr;
+  bd->crc = crc;
+  bd->active = 0;
+  bd->list = NULL;
+  bd->entry_count = 0;
+#if (DRC_DEBUG & 2)
+  bd->refcount = 0;
+#endif
+
+  *blk_id = *bcount;
+  (*bcount)++;
+  if (*bcount >= BLOCK_MAX_COUNT(tcache_id))
+    *bcount = 0;
+
+  return bd;
+}
+
 static void dr_link_blocks(struct block_entry *be, int tcache_id)
 {
 #if LINK_BRANCHES
@@ -1319,6 +1246,139 @@ static void dr_activate_block(struct block_desc *bd, int tcache_id, int is_slave
   // mark memory for overwrite detection
   dr_mark_memory(1, bd, tcache_id, 0);
   bd->active = 1;
+}
+
+static void REGPARM(3) ALIGNED(32) *dr_lookup_block(u32 pc, SH2 *sh2, int *tcache_id)
+{
+  struct block_entry *be = NULL;
+  void *block = NULL;
+
+  be = dr_get_entry(pc, sh2->is_slave, tcache_id);
+  if (be != NULL)
+    block = be->tcache_ptr;
+
+#if (DRC_DEBUG & 2)
+  if (be != NULL)
+    be->block->refcount++;
+#endif
+  return block;
+}
+
+static void dr_free_oldest_block(int tcache_id)
+{
+  struct block_desc *bd;
+
+  if (block_limit[tcache_id] >= BLOCK_MAX_COUNT(tcache_id)) {
+    // block desc wrap around
+    block_limit[tcache_id] = 0;
+  }
+  bd = &block_tables[tcache_id][block_limit[tcache_id]];
+
+  if (bd->tcache_ptr && bd->tcache_ptr < tcache_ptrs[tcache_id]) {
+    // cache wrap around
+    tcache_ptrs[tcache_id] = bd->tcache_ptr;
+  }
+
+  if (bd->addr && bd->entry_count)
+    dr_rm_block_entry(bd, tcache_id, 0, 1);
+
+  block_limit[tcache_id]++;
+  if (block_limit[tcache_id] >= BLOCK_MAX_COUNT(tcache_id))
+    block_limit[tcache_id] = 0;
+  bd = &block_tables[tcache_id][block_limit[tcache_id]];
+  if (bd->tcache_ptr >= tcache_ptrs[tcache_id])
+    tcache_limit[tcache_id] = bd->tcache_ptr;
+  else
+    tcache_limit[tcache_id] = tcache_bases[tcache_id] + tcache_sizes[tcache_id];
+}
+
+static u8 *dr_prepare_cache(int tcache_id, int insn_count)
+{
+  u8 *limit = tcache_limit[tcache_id];
+
+  // if no block desc available
+  if (block_counts[tcache_id] == block_limit[tcache_id])
+    dr_free_oldest_block(tcache_id);
+
+  // while not enough cache space left (limit - tcache_ptr < max space needed)
+  while (tcache_limit[tcache_id] - tcache_ptrs[tcache_id] < insn_count * 128)
+    dr_free_oldest_block(tcache_id);
+
+  if (limit != tcache_limit[tcache_id]) {
+#if BRANCH_CACHE
+    if (tcache_id)
+      memset32(sh2s[tcache_id-1].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
+    else {
+      memset32(sh2s[0].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
+      memset32(sh2s[1].branch_cache, -1, sizeof(sh2s[1].branch_cache)/4);
+    }
+#endif
+#if CALL_STACK
+    if (tcache_id) {
+      memset32(sh2s[tcache_id-1].rts_cache, -1, sizeof(sh2s[0].rts_cache)/4);
+      sh2s[tcache_id-1].rts_cache_idx = 0;
+    } else {
+      memset32(sh2s[0].rts_cache, -1, sizeof(sh2s[0].rts_cache)/4);
+      memset32(sh2s[1].rts_cache, -1, sizeof(sh2s[1].rts_cache)/4);
+      sh2s[0].rts_cache_idx = sh2s[1].rts_cache_idx = 0;
+    }
+#endif
+  }
+  return (u8 *)tcache_ptrs[tcache_id];
+}
+
+static void dr_flush_tcache(int tcid)
+{
+  int i;
+#if (DRC_DEBUG & 1)
+  int tc_used, bl_used;
+
+  tc_used = tcache_sizes[tcid] - (tcache_limit[tcid] - tcache_ptrs[tcid]);
+  bl_used = BLOCK_MAX_COUNT(tcid) - (block_limit[tcid] - block_counts[tcid]);
+  elprintf(EL_STATUS, "tcache #%d flush! (%d/%d, bds %d/%d)", tcid, tc_used,
+    tcache_sizes[tcid], bl_used, BLOCK_MAX_COUNT(tcid));
+#endif
+
+  block_counts[tcid] = 0;
+  block_limit[tcid] = BLOCK_MAX_COUNT(tcid) - 1;
+  block_link_pool_counts[tcid] = 0;
+  blink_free[tcid] = NULL;
+  memset(unresolved_links[tcid], 0, sizeof(*unresolved_links[0]) * HASH_TABLE_SIZE(tcid));
+  memset(hash_tables[tcid], 0, sizeof(*hash_tables[0]) * HASH_TABLE_SIZE(tcid));
+  tcache_ptrs[tcid] = tcache_bases[tcid];
+  tcache_limit[tcid] = tcache_bases[tcid] + tcache_sizes[tcid];
+  if (Pico32xMem->sdram != NULL) {
+    if (tcid == 0) { // ROM, RAM
+      memset(Pico32xMem->drcblk_ram, 0, sizeof(Pico32xMem->drcblk_ram));
+      memset(Pico32xMem->drclit_ram, 0, sizeof(Pico32xMem->drclit_ram));
+      memset(sh2s[0].branch_cache, -1, sizeof(sh2s[0].branch_cache));
+      memset(sh2s[1].branch_cache, -1, sizeof(sh2s[1].branch_cache));
+      memset(sh2s[0].rts_cache, -1, sizeof(sh2s[0].rts_cache));
+      memset(sh2s[1].rts_cache, -1, sizeof(sh2s[1].rts_cache));
+      sh2s[0].rts_cache_idx = sh2s[1].rts_cache_idx = 0;
+    } else {
+      memset(Pico32xMem->drcblk_ram, 0, sizeof(Pico32xMem->drcblk_ram));
+      memset(Pico32xMem->drclit_ram, 0, sizeof(Pico32xMem->drclit_ram));
+      memset(Pico32xMem->drcblk_da[tcid - 1], 0, sizeof(Pico32xMem->drcblk_da[tcid - 1]));
+      memset(Pico32xMem->drclit_da[tcid - 1], 0, sizeof(Pico32xMem->drclit_da[tcid - 1]));
+      memset(sh2s[tcid - 1].branch_cache, -1, sizeof(sh2s[0].branch_cache));
+      memset(sh2s[tcid - 1].rts_cache, -1, sizeof(sh2s[0].rts_cache));
+      sh2s[tcid - 1].rts_cache_idx = 0;
+    }
+  }
+#if (DRC_DEBUG & 4)
+  tcache_dsm_ptrs[tcid] = tcache_bases[tcid];
+#endif
+
+  for (i = 0; i < RAM_SIZE(tcid) / INVAL_PAGE_SIZE; i++)
+    discard_block_list(&inval_lookup[tcid][i]);
+  discard_block_list(&inactive_blocks[tcid]);
+}
+
+static void *dr_failure(void)
+{
+  lprintf("recompilation failed\n");
+  exit(1);
 }
 
 #define ADD_TO_ARRAY(array, count, item, failcode) { \
@@ -5066,61 +5126,7 @@ static void sh2_generate_utils(void)
 #endif
 }
 
-static void sh2_smc_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit, int free)
-{
-  struct block_link *bl;
-  u32 i;
-
-  free = free || nolit; // block is invalid if literals are overwritten
-  dbg(2,"  %sing block %08x-%08x,%08x-%08x, blkid %d,%d", free?"delet":"disabl",
-    bd->addr, bd->addr + bd->size, bd->addr_lit, bd->addr_lit + bd->size_lit,
-    tcache_id, bd - block_tables[tcache_id]);
-  if (bd->addr == 0 || bd->entry_count == 0) {
-    dbg(1, "  killing dead block!? %08x", bd->addr);
-    return;
-  }
-
-#if LINK_BRANCHES
-  // remove from hash table, make incoming links unresolved
-  if (bd->active) {
-    for (i = 0; i < bd->entry_count; i++) {
-      rm_from_hashlist(&bd->entryp[i], tcache_id);
-
-      while ((bl = bd->entryp[i].links) != NULL) {
-        dr_block_unlink(bl, 1);
-        add_to_hashlist_unresolved(bl, tcache_id);
-      }
-    }
-
-    dr_mark_memory(-1, bd, tcache_id, nolit);
-    add_to_block_list(&inactive_blocks[tcache_id], bd);
-  }
-  bd->active = 0;
-#endif
-
-  if (free) {
-#if LINK_BRANCHES
-    // revoke outgoing links
-    for (bl = bd->entryp[0].o_links; bl != NULL; bl = bl->o_next) {
-      if (bl->target)
-        dr_block_unlink(bl, 0);
-      else
-        rm_from_hashlist_unresolved(bl, tcache_id);
-      bl->jump = NULL;
-      bl->next = blink_free[bl->tcache_id];
-      blink_free[bl->tcache_id] = bl;
-    }
-    bd->entryp[0].o_links = NULL;
-#endif
-    // invalidate block
-    rm_from_block_lists(bd);
-    bd->addr = bd->size = bd->addr_lit = bd->size_lit = 0;
-    bd->entry_count = 0;
-  }
-  emith_update_cache();
-}
-
-static void sh2_smc_rm_blocks(u32 a, int tcache_id, u32 shift)
+static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, u32 shift)
 {
   struct block_list **blist, *entry, *next;
   u32 mask = RAM_SIZE(tcache_id) - 1;
@@ -5146,12 +5152,12 @@ static void sh2_smc_rm_blocks(u32 a, int tcache_id, u32 shift)
     start_lit = block->addr_lit & wtmask;
     end_lit = start_lit + block->size_lit;
     // disable/delete block if it covers the modified address
-    if ((start_addr <= a && a < end_addr) ||
-        (start_lit <= a && a < end_lit))
+    if ((start_addr <= a+len && a < end_addr) ||
+        (start_lit <= a+len && a < end_lit))
     {
       dbg(2, "smc remove @%08x", a);
-      end_addr = (start_lit <= a && block->size_lit ? a : 0);
-      sh2_smc_rm_block_entry(block, tcache_id, end_addr, 0);
+      end_addr = (start_lit <= a+len && block->size_lit ? a : 0);
+      dr_rm_block_entry(block, tcache_id, end_addr, 0);
 #if (DRC_DEBUG & 2)
       removed = 1;
 #endif
@@ -5182,17 +5188,20 @@ static void sh2_smc_rm_blocks(u32 a, int tcache_id, u32 shift)
 #endif
 }
 
-void sh2_drc_wcheck_ram(unsigned int a, int val, SH2 *sh2)
+void sh2_drc_wcheck_ram(unsigned int a, unsigned t, SH2 *sh2)
 {
-  dbg(2, "%csh2 smc check @%08x v=%d", sh2->is_slave ? 's' : 'm', a, val);
-  sh2_smc_rm_blocks(a, 0, SH2_DRCBLK_RAM_SHIFT);
+  int off = ((u16) t ? 0 : 2);
+  int len = ((u16) t ? 2 : 0) + (t >> 16 ? 2 : 0);
+
+  sh2_smc_rm_blocks(a + off, len, 0, SH2_DRCBLK_RAM_SHIFT);
 }
 
-void sh2_drc_wcheck_da(unsigned int a, int val, SH2 *sh2)
+void sh2_drc_wcheck_da(unsigned int a, unsigned t, SH2 *sh2)
 {
-  int cpuid = sh2->is_slave;
-  dbg(2, "%csh2 smc check @%08x v=%d", cpuid ? 's' : 'm', a, val);
-  sh2_smc_rm_blocks(a, 1 + cpuid, SH2_DRCBLK_DA_SHIFT);
+  int off = ((u16) t ? 0 : 2);
+  int len = ((u16) t ? 2 : 0) + (t >> 16 ? 2 : 0);
+
+  sh2_smc_rm_blocks(a + off, len, 1 + sh2->is_slave, SH2_DRCBLK_DA_SHIFT);
 }
 
 int sh2_execute_drc(SH2 *sh2c, int cycles)
@@ -5408,9 +5417,9 @@ void sh2_drc_flush_all(void)
   block_stats();
   entry_stats();
   bcache_stats();
-  flush_tcache(0);
-  flush_tcache(1);
-  flush_tcache(2);
+  dr_flush_tcache(0);
+  dr_flush_tcache(1);
+  dr_flush_tcache(2);
   Pico32x.emu_flags &= ~P32XF_DRC_ROM_C;
 }
 

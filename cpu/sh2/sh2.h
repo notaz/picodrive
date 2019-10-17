@@ -80,7 +80,7 @@ typedef struct SH2_
 
 	unsigned char	data_array[0x1000]; // cache (can be used as RAM)
 	unsigned int	peri_regs[0x200/4]; // periphereal regs
-} SH2;
+} SH2 ALIGNED(32);
 
 #define CYCLE_MULT_SHIFT 10
 #define C_M68K_TO_SH2(xsh2, c) \

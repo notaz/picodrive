@@ -231,7 +231,7 @@ static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
   for (idx = nrd = wr; idx != rd; ) {
     idx = (idx-1) % PFIFO_SZ;
     q = &fifo[idx];
-    if (q->cpu != cpu && q->a == a)	{ q->a = -1; }
+    if (q->a == a && q->cpu != cpu)	{ q->a = -1; }
     if (q->a != -1)			{ nrd = idx; }
   }
   rd = nrd;
@@ -825,7 +825,8 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
         unsigned int cycles = sh2_cycles_done_m68k(sh2);
         Pico32x.sh2_regs[4 / 2] = d;
         p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
-        sh2_end_run(sh2, 4);
+        if (p32x_sh2_ready(sh2->other_sh2, cycles+16))
+          sh2_end_run(sh2, 4);
         sh2_poll_write(a & ~1, d, cycles, sh2);
       }
       return;
@@ -851,7 +852,8 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
         REG8IN16(r, a) = d;
         p32x_m68k_poll_event(P32XF_68KCPOLL);
         p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
-        sh2_end_run(sh2, 1);
+        if (p32x_sh2_ready(sh2->other_sh2, cycles+16))
+          sh2_end_run(sh2, 1);
         sh2_poll_write(a & ~1, r[a / 2], cycles, sh2);
       }
       return;
@@ -943,7 +945,8 @@ static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
         Pico32x.regs[a / 2] = d;
         p32x_m68k_poll_event(P32XF_68KCPOLL);
         p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
-        sh2_end_run(sh2, 1);
+        if (p32x_sh2_ready(sh2->other_sh2, cycles+16))
+          sh2_end_run(sh2, 1);
         sh2_poll_write(a, d, cycles, sh2);
       }
       return;
@@ -1569,7 +1572,7 @@ static u32 REGPARM(2) sh2_read32_rom(u32 a, SH2 *sh2)
 
 // writes
 #ifdef DRC_SH2
-static void NOINLINE sh2_sdram_poll(u32 a, u32 d, SH2 *sh2)
+static void sh2_sdram_poll(u32 a, u32 d, SH2 *sh2)
 {
   unsigned cycles;
 
@@ -1577,34 +1580,35 @@ static void NOINLINE sh2_sdram_poll(u32 a, u32 d, SH2 *sh2)
   cycles = sh2_cycles_done_m68k(sh2);
   sh2_poll_write(a, d, cycles, sh2);
   p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_RPOLL, cycles);
-  sh2_end_run(sh2, 1);
+  if (p32x_sh2_ready(sh2->other_sh2, cycles+16))
+    sh2_end_run(sh2, 1);
   DRC_RESTORE_SR(sh2);
 }
 
-void NOINLINE sh2_sdram_checks(u32 a, u32 d, SH2 *sh2, int t)
+void sh2_sdram_checks(u32 a, u32 d, SH2 *sh2, u32 t)
 {
-  if (t & 0x80)
-    sh2_sdram_poll(a, d, sh2);
-  if (t & 0x7f)
-    sh2_drc_wcheck_ram(a, t & 0x7f, sh2);
+  if (t & 0x80)         sh2_sdram_poll(a, d, sh2);
+  if (t & 0x7f)         sh2_drc_wcheck_ram(a, t & 0x7f, sh2);
 }
 
-void NOINLINE sh2_sdram_checks_l(u32 a, u32 d, SH2 *sh2, int t)
+void sh2_sdram_checks_l(u32 a, u32 d, SH2 *sh2, u32 t)
 {
-  sh2_sdram_checks(a, d>>16, sh2, t);
-  sh2_sdram_checks(a+2, d, sh2, t>>16);
+  u32 m = 0x80 | 0x800000;
+
+  if (t & 0x000080)     sh2_sdram_poll(a, d>>16, sh2);
+  if (t & 0x800000)     sh2_sdram_poll(a+2, d, sh2);
+  if (t & ~m)           sh2_drc_wcheck_ram(a, t & ~m, sh2);
 }
 
 #ifndef _ASM_32X_MEMORY_C
-static void sh2_da_checks(u32 a, int t, SH2 *sh2)
+static void sh2_da_checks(u32 a, u32 t, SH2 *sh2)
 {
   sh2_drc_wcheck_da(a, t, sh2);
 }
 
-static void NOINLINE sh2_da_checks_l(u32 a, int t, SH2 *sh2)
+static void sh2_da_checks_l(u32 a, u32 t, SH2 *sh2)
 {
-  sh2_da_checks(a, t, sh2);
-  sh2_da_checks(a+2, t>>16, sh2);
+  sh2_drc_wcheck_da(a, t, sh2);
 }
 #endif
 #endif
@@ -1667,7 +1671,7 @@ static void REGPARM(3) sh2_write8_sdram(u32 a, u32 d, SH2 *sh2)
   ((u8 *)sh2->p_sdram)[a1] = d;
 #ifdef DRC_SH2
   u8 *p = sh2->p_drcblk_ram;
-  int t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
+  u32 t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
   if (t)
     sh2_sdram_checks(a & ~1, ((u16 *)sh2->p_sdram)[a1 / 2], sh2, t);
 #endif
@@ -1679,7 +1683,7 @@ static void REGPARM(3) sh2_write8_da(u32 a, u32 d, SH2 *sh2)
   sh2->data_array[a1] = d;
 #ifdef DRC_SH2
   u8 *p = sh2->p_drcblk_da;
-  int t = p[a1 >> SH2_DRCBLK_DA_SHIFT];
+  u32 t = p[a1 >> SH2_DRCBLK_DA_SHIFT];
   if (t)
     sh2_da_checks(a, t, sh2);
 #endif
@@ -1741,7 +1745,7 @@ static void REGPARM(3) sh2_write16_sdram(u32 a, u32 d, SH2 *sh2)
   ((u16 *)sh2->p_sdram)[a1 / 2] = d;
 #ifdef DRC_SH2
   u8 *p = sh2->p_drcblk_ram;
-  int t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
+  u32 t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
   if (t)
     sh2_sdram_checks(a, d, sh2, t);
 #endif
@@ -1753,7 +1757,7 @@ static void REGPARM(3) sh2_write16_da(u32 a, u32 d, SH2 *sh2)
   ((u16 *)sh2->data_array)[a1 / 2] = d;
 #ifdef DRC_SH2
   u8 *p = sh2->p_drcblk_da;
-  int t = p[a1 >> SH2_DRCBLK_DA_SHIFT];
+  u32 t = p[a1 >> SH2_DRCBLK_DA_SHIFT];
   if (t)
     sh2_da_checks(a, t, sh2);
 #endif
@@ -1816,8 +1820,8 @@ static void REGPARM(3) sh2_write32_sdram(u32 a, u32 d, SH2 *sh2)
   *(u32 *)(sh2->p_sdram + a1) = (d << 16) | (d >> 16);
 #ifdef DRC_SH2
   u8 *p = sh2->p_drcblk_ram;
-  int t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
-  int u = p[(a1+2) >> SH2_DRCBLK_RAM_SHIFT];
+  u32 t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
+  u32 u = p[(a1+2) >> SH2_DRCBLK_RAM_SHIFT];
   if (t|(u<<16))
     sh2_sdram_checks_l(a, d, sh2, t|(u<<16));
 #endif
@@ -1829,8 +1833,8 @@ static void REGPARM(3) sh2_write32_da(u32 a, u32 d, SH2 *sh2)
   *((u32 *)sh2->data_array + a1/4) = (d << 16) | (d >> 16);
 #ifdef DRC_SH2
   u8 *p = sh2->p_drcblk_da;
-  int t = p[a1 >> SH2_DRCBLK_DA_SHIFT];
-  int u = p[(a1+2) >> SH2_DRCBLK_DA_SHIFT];
+  u32 t = p[a1 >> SH2_DRCBLK_DA_SHIFT];
+  u32 u = p[(a1+2) >> SH2_DRCBLK_DA_SHIFT];
   if (t|(u<<16))
     sh2_da_checks_l(a, t|(u<<16), sh2);
 #endif
