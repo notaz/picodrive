@@ -139,12 +139,11 @@ sh2_write8_sdram:
     mov     r3, r3, lsl #SH2_RAM_SHIFT
     strb    r1, [ip, r3, lsr #SH2_RAM_SHIFT]
 #ifdef DRC_SH2
-    ldr     ip, [r2, #OFS_SH2_p_drcblk_ram]
-    ldrb    r3, [ip, r3, lsr #SH2_RAM_SHIFT+1]
+    ldr     r1, [r2, #OFS_SH2_p_drcblk_ram]
+    ldrb    r3, [r1, r3, lsr #SH2_RAM_SHIFT+1]
     cmp     r3, #0
     bxeq    lr
     @ need to load aligned 16 bit data for check
-    ldr     ip, [r2, #OFS_SH2_p_sdram]
     bic     r0, r0, #1
     mov     r1, r0, lsl #SH2_RAM_SHIFT
     mov     r1, r1, lsr #SH2_RAM_SHIFT
@@ -166,6 +165,7 @@ sh2_write8_da:
     bic     r0, r0, #1
     cmp     r1, #0
     bxeq    lr
+    mov     r1, #2
     b       sh2_drc_wcheck_da
 #else
     bx      lr
@@ -206,6 +206,7 @@ sh2_write16_da:
     ldrb    r1, [ip, r3, lsr #1]
     cmp     r1, #0
     bxeq    lr
+    mov     r1, #2
     b       sh2_drc_wcheck_da
 #else
     bx      lr
@@ -256,6 +257,7 @@ sh2_write32_da:
     ldrb    ip, [ip, #1]
     orrs    r1, r1, ip, lsl #16
     bxeq    lr
+    mov     r1, #4
     b       sh2_drc_wcheck_da
 #else
     bx      lr

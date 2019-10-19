@@ -272,9 +272,9 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
 // and can be discarded early
 // XXX: need to tune sizes
 static const int tcache_sizes[TCACHE_BUFFERS] = {
-  DRC_TCACHE_SIZE * 14 / 16, // ROM (rarely used), DRAM
-  DRC_TCACHE_SIZE / 16, // BIOS, data array in master sh2
-  DRC_TCACHE_SIZE / 16, // ... slave
+  DRC_TCACHE_SIZE * 30 / 32, // ROM (rarely used), DRAM
+  DRC_TCACHE_SIZE / 32, // BIOS, data array in master sh2
+  DRC_TCACHE_SIZE / 32, // ... slave
 };
 
 static u8 *tcache_bases[TCACHE_BUFFERS];
@@ -332,13 +332,13 @@ struct block_desc {
   struct block_entry entryp[MAX_BLOCK_ENTRIES];
 };
 
-#define BLOCK_MAX_COUNT(tcid)		((tcid) ? 256 : 16*256)
+#define BLOCK_MAX_COUNT(tcid)		((tcid) ? 256 : 32*256)
 static struct block_desc *block_tables[TCACHE_BUFFERS];
 static int block_counts[TCACHE_BUFFERS];
 static int block_limit[TCACHE_BUFFERS];
 
 // we have block_link_pool to avoid using mallocs
-#define BLOCK_LINK_MAX_COUNT(tcid)	((tcid) ? 1024 : 16*1024)
+#define BLOCK_LINK_MAX_COUNT(tcid)	((tcid) ? 512 : 32*512)
 static struct block_link *block_link_pool[TCACHE_BUFFERS]; 
 static int block_link_pool_counts[TCACHE_BUFFERS];
 static struct block_link **unresolved_links[TCACHE_BUFFERS];
@@ -363,7 +363,7 @@ static struct block_list *inactive_blocks[TCACHE_BUFFERS];
 // each array has len: sizeof(mem) / INVAL_PAGE_SIZE 
 static struct block_list **inval_lookup[TCACHE_BUFFERS];
 
-#define HASH_TABLE_SIZE(tcid)		((tcid) ? 256 : 64*256)
+#define HASH_TABLE_SIZE(tcid)		((tcid) ? 512 : 64*512)
 static struct block_entry **hash_tables[TCACHE_BUFFERS];
 
 #define HASH_FUNC(hash_tab, addr, mask) \
@@ -5188,20 +5188,14 @@ static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, u32 shift)
 #endif
 }
 
-void sh2_drc_wcheck_ram(unsigned int a, unsigned t, SH2 *sh2)
+void sh2_drc_wcheck_ram(unsigned int a, unsigned len, SH2 *sh2)
 {
-  int off = ((u16) t ? 0 : 2);
-  int len = ((u16) t ? 2 : 0) + (t >> 16 ? 2 : 0);
-
-  sh2_smc_rm_blocks(a + off, len, 0, SH2_DRCBLK_RAM_SHIFT);
+  sh2_smc_rm_blocks(a, len, 0, SH2_DRCBLK_RAM_SHIFT);
 }
 
-void sh2_drc_wcheck_da(unsigned int a, unsigned t, SH2 *sh2)
+void sh2_drc_wcheck_da(unsigned int a, unsigned len, SH2 *sh2)
 {
-  int off = ((u16) t ? 0 : 2);
-  int len = ((u16) t ? 2 : 0) + (t >> 16 ? 2 : 0);
-
-  sh2_smc_rm_blocks(a + off, len, 1 + sh2->is_slave, SH2_DRCBLK_DA_SHIFT);
+  sh2_smc_rm_blocks(a, len, 1 + sh2->is_slave, SH2_DRCBLK_DA_SHIFT);
 }
 
 int sh2_execute_drc(SH2 *sh2c, int cycles)
@@ -6403,6 +6397,9 @@ end:
   last_btarget = 0;
   op = 0; // delay/poll insns counter
   for (i = 0, pc = base_pc; i < i_end; i++, pc += 2) {
+    int null;
+    if ((op_flags[i] & OF_BTARGET) && dr_get_entry(pc, is_slave, &null))
+      break; // branch target already compiled
     opd = &ops[i];
     crc += FETCH_OP(pc);
 
@@ -6483,7 +6480,7 @@ end:
       op ++;                    // condition 2 
 #endif
   }
-  end_pc = base_pc + i_end * 2;
+  end_pc = pc;
 
   // end_literals is used to decide to inline a literal or not
   // XXX: need better detection if this actually is used in write
