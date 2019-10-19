@@ -98,6 +98,7 @@ platform/libpicofe/linux/plat.o: CFLAGS += -DPANDORA
 OBJS += platform/pandora/plat.o
 OBJS += platform/pandora/asm_utils.o
 OBJS += platform/common/arm_utils.o 
+OBJS += platform/libpicofe/linux/in_evdev.o
 OBJS += platform/libpicofe/linux/fbdev.o 
 OBJS += platform/libpicofe/linux/xenv.o
 OBJS += platform/libpicofe/pandora/plat.o
@@ -105,6 +106,7 @@ USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "gp2x"
 OBJS += platform/common/arm_utils.o 
+OBJS += platform/libpicofe/linux/in_evdev.o
 OBJS += platform/libpicofe/gp2x/in_gp2x.o
 OBJS += platform/libpicofe/gp2x/soc.o 
 OBJS += platform/libpicofe/gp2x/soc_mmsp2.o 
@@ -132,8 +134,7 @@ OBJS += platform/common/main.o platform/common/emu.o \
 
 # libpicofe
 OBJS += platform/libpicofe/input.o platform/libpicofe/readpng.o \
-	platform/libpicofe/fonts.o platform/libpicofe/linux/in_evdev.o \
-	platform/libpicofe/linux/plat.o
+	platform/libpicofe/fonts.o platform/libpicofe/linux/plat.o
 
 # libpicofe - sound
 OBJS += platform/libpicofe/sndout.o
