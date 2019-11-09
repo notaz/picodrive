@@ -6,8 +6,17 @@
  * See COPYING file in the top-level directory.
  */
 #define HOST_REGS	32
+
+// MIPS ABI: params: r4-r7, return: r2-r3, temp: r1(at),r8-r15,r24-r25,r31(ra),
+// saved: r16-r23,r30, reserved: r0(zero), r26-r27(irq), r28(gp), r29(sp)
+// r1,r15,r24,r25(at,t7-t9) are used internally by the code emitter
+#define RET_REG		2 // v0
+#define PARAM_REGS	{ 4, 5, 6, 7 } // a0-a3
+#define	PRESERVED_REGS	{ 16, 17, 18, 19, 20, 21, 22, 23 } // s0-s7
+#define	TEMPORARY_REGS	{ 2, 3, 8, 9, 10, 11, 12, 13, 14 } // v0-v1,t0-t6
+
 #define CONTEXT_REG	23 // s7
-#define RET_REG		2  // v0
+#define STATIC_SH2_REGS	{ SHR_SR,22 , SHR_R0,21 , SHR_R0+1,20 }
 
 // NB: the ubiquitous JZ74[46]0 uses MIPS32 Release 1, a slight MIPS II superset
 
@@ -73,7 +82,7 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 #define MIPS_OP_IMM(op, rt, rs, imm) \
 	MIPS_INSN(op, rs, rt, _, _, (u16)(imm))	// I-type
 
-// rd = rt OP rs
+// rd = rs OP rt
 #define MIPS_ADD_REG(rd, rs, rt) \
 	MIPS_OP_REG(FN_ADDU, rd, rs, rt)
 #define MIPS_SUB_REG(rd, rs, rt) \
@@ -334,7 +343,7 @@ static void *emith_branch(u32 op)
 
 #define JMP_EMIT(cond, ptr) { \
 	u32 val_ = (u8 *)tcache_ptr - (u8 *)(ptr) - 4; \
-	emith_flush(); /* NO delay slot handling across jump targets */ \
+	emith_flush(); /* prohibit delay slot switching across jump targets */ \
 	EMIT_PTR(ptr, MIPS_BCONDZ(cond_m, cond_r, val_ & 0x0003ffff)); \
 }
 
@@ -658,14 +667,19 @@ static void emith_move_imm(int r, uintptr_t imm)
 	EMIT_PTR(ptr_, (*ptr_ & 0xffff0000) | (u16)(s8)(imm)); \
 } while (0)
 
-// arithmetic, immediate
+// arithmetic, immediate - can only be ADDI[U], since SUBI[U] doesn't exist
 static void emith_arith_imm(int op, int rd, int rs, u32 imm)
 {
-	if ((s16)imm != imm) {
+	if ((s16)imm == imm) {
+		if (imm || rd != rs)
+			EMIT(MIPS_OP_IMM(op, rd, rs, imm));
+	} else if ((s32)imm  < 0) {
+		emith_move_r_imm(AT, -imm);
+		EMIT(MIPS_OP_REG(FN_SUB + (op-OP_ADDI), rd, rs, AT));
+	} else {
 		emith_move_r_imm(AT, imm);
 		EMIT(MIPS_OP_REG(FN_ADD + (op-OP_ADDI), rd, rs, AT));
-	} else if (imm || rd != rs)
-		EMIT(MIPS_OP_IMM(op, rd, rs, imm));
+	}
 }
 
 #define emith_add_r_imm(r, imm) \
@@ -1137,7 +1151,7 @@ static int emith_cond_check(int cond, int *r)
 	// conditions using CZ
 	case DCOND_LS:						// C || Z
 	case DCOND_HI:						// !C && !Z
-		EMIT(MIPS_ADD_IMM(AT, FC, (u16)-1)); // !C && !Z
+		EMIT(MIPS_ADD_IMM(AT, FC, -1)); // !C && !Z
 		EMIT(MIPS_AND_REG(AT, FNZ, AT));
 		*r = AT, b = (cond == DCOND_HI ? MIPS_BNE : MIPS_BEQ);
 		break;
@@ -1161,7 +1175,7 @@ static int emith_cond_check(int cond, int *r)
 	case DCOND_GT:						// !(N^V) && !Z
 		EMIT(MIPS_LSR_IMM(AT, FV, 31)); // Nd^V = Nt^Ns^C
 		EMIT(MIPS_XOR_REG(AT, FC, AT));
-		EMIT(MIPS_ADD_IMM(AT, AT, (u16)-1)); // !(Nd^V) && !Z
+		EMIT(MIPS_ADD_IMM(AT, AT, -1)); // !(Nd^V) && !Z
 		EMIT(MIPS_AND_REG(AT, FNZ, AT));
 		*r = AT, b = (cond == DCOND_GT ? MIPS_BNE : MIPS_BEQ);
 		break;

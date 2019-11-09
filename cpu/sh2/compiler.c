@@ -427,212 +427,41 @@ typedef struct {
 static int rcache_get_tmp(void);
 static void rcache_free_tmp(int hr);
 
-// Note: cache_regs[] must have at least the amount of REG/TEMP registers used
-// by handlers in worst case (currently 4). 
-// Register assignment goes by ABI convention. Caller save registers are TEMP,
-// the others are either static or REG. SR must be static, R0 very recommended.
+// Note: Register assignment goes by ABI convention. Caller save registers are
+// TEMPORARY, the others are PRESERVED. Unusable regs are omitted.
+// there must be at least the free (not context or statically mapped) amount of
+// PRESERVED/TEMPORARY registers used by handlers in worst case (currently 4). 
+// there must be at least 3 PARAM, and PARAM+TEMPORARY must be at least 4.
+// SR and R0 should by all means be statically mapped.
 // XXX the static definition of SR MUST match that in compiler.h
-// VBR, PC, PR must not be static (read from context in utils).
-// RET_REG/params should be first TEMPs to avoid allocation conflicts in calls.
-// There MUST be at least 3 params and one non-RET_REG/param TEMP.
-// XXX shouldn't this be somehow defined in the code emitters?
+// PC and PR must not be statically mapped (accessed in context by utils).
+
 #ifdef __arm__
 #include "../drc/emit_arm.c"
-
-static guest_reg_t guest_regs[] = {
-  // SHR_R0 .. SHR_SP
-#ifndef __MACH__ // no r9..
-  { GRF_STATIC, 8 }, { GRF_STATIC, 9 }, { 0 }            , { 0 }            ,
-#else
-  { GRF_STATIC, 8 }, { 0 }            , { 0 }            , { 0 }            ,
-#endif
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
-  // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
-  { 0 }            , { 0 }            , { 0 }            , { GRF_STATIC, 10 },
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-};
-
-// OABI/EABI: params: r0-r3, return: r0-r1, temp: r12,r14, saved: r4-r8,r10,r11
-// SP,PC: r13,r15 must not be used. saved: r9 (for platform use, e.g. on ios)
-static cache_reg_t cache_regs[] = {
-  {  0, HRT_TEMP }, // RET_REG, params
-  {  1, HRT_TEMP },
-  {  2, HRT_TEMP }, // params
-  {  3, HRT_TEMP },
-  { 12, HRT_TEMP }, // temps
-  { 14, HRT_TEMP },
-  {  8, HRT_STATIC }, // statics
-#ifndef __MACH__ // no r9..
-  {  9, HRT_STATIC },
-#endif
-  { 10, HRT_STATIC },
-  {  4, HRT_REG }, // other regs
-  {  5, HRT_REG },
-  {  6, HRT_REG },
-  {  7, HRT_REG },
-};
-
 #elif defined(__aarch64__)
 #include "../drc/emit_arm64.c"
-
-static guest_reg_t guest_regs[] = {
-  // SHR_R0 .. SHR_SP
-  { GRF_STATIC,20 }, { GRF_STATIC,21 }, { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
-  // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
-  { 0 }            , { 0 }            , { 0 }            , { GRF_STATIC, 22 },
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-};
-
-// AAPCS64: params: r0-r7, return: r0-r1, temp: r8-r17, saved: r19-r29
-// saved: r18 (for platform use)
-// since drc never needs more than 4 parameters, r4-r7 are treated as temp.
-static cache_reg_t cache_regs[] = {
-  {  0, HRT_TEMP }, // RET_REG, params
-  {  1, HRT_TEMP },
-  {  2, HRT_TEMP }, // params
-  {  3, HRT_TEMP },
-  {  4, HRT_TEMP }, // temps
-  {  5, HRT_TEMP },
-  {  6, HRT_TEMP },
-  {  7, HRT_TEMP },
-  {  8, HRT_TEMP },
-  {  9, HRT_TEMP },
-  { 10, HRT_TEMP },
-  { 11, HRT_TEMP },
-  { 12, HRT_TEMP },
-  { 13, HRT_TEMP },
-  { 14, HRT_TEMP },
-  { 15, HRT_TEMP },
-  { 16, HRT_TEMP },
-  { 17, HRT_TEMP },
-  { 20, HRT_STATIC }, // statics
-  { 21, HRT_STATIC },
-  { 22, HRT_STATIC },
-  { 23, HRT_REG }, // other regs
-  { 24, HRT_REG },
-  { 25, HRT_REG },
-  { 26, HRT_REG },
-  { 27, HRT_REG },
-  { 28, HRT_REG },
-  { 29, HRT_REG },
-};
-
 #elif defined(__mips__)
 #include "../drc/emit_mips.c"
-
-static guest_reg_t guest_regs[] = {
-  // SHR_R0 .. SHR_SP
-  {GRF_STATIC, 16} , {GRF_STATIC, 17} , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
-  // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
-  { 0 }            , { 0 }            , { 0 }            , {GRF_STATIC, 18} ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-};
-
-// MIPS ABI: params: r4-r7, return: r2-r3, temp: r1(at),r8-r15,r24-r25,r31(ra),
-// saved: r16-r23,r30, reserved: r0(zero), r26-r27(irq), r28(gp), r29(sp)
-// r1,r15,r24,r25 are used internally by the code emitter
-static cache_reg_t cache_regs[] = {
-  {  2, HRT_TEMP }, // RET_REG (v0-v1)
-  {  3, HRT_TEMP },
-  {  4, HRT_TEMP }, // params (a0-a3)
-  {  5, HRT_TEMP },
-  {  6, HRT_TEMP },
-  {  7, HRT_TEMP },
-  {  8, HRT_TEMP }, // temps (t0-t6)
-  {  9, HRT_TEMP },
-  { 10, HRT_TEMP },
-  { 11, HRT_TEMP },
-  { 12, HRT_TEMP },
-  { 13, HRT_TEMP },
-  { 14, HRT_TEMP },
-  { 16, HRT_STATIC }, // statics (s0-s2)
-  { 17, HRT_STATIC },
-  { 18, HRT_STATIC },
-  { 19, HRT_REG }, // other regs (s3-s6)
-  { 20, HRT_REG },
-  { 21, HRT_REG },
-  { 22, HRT_REG },
-};
-
 #elif defined(__i386__)
 #include "../drc/emit_x86.c"
-
-static guest_reg_t guest_regs[] = {
-  // SHR_R0 .. SHR_SP
-  {GRF_STATIC, xSI}, { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
-  // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
-  { 0 }            , { 0 }            , { 0 }            , {GRF_STATIC, xDI},
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-};
-
-// MS/SystemV ABI: ebx,esi,edi,ebp are preserved, eax,ecx,edx are temporaries
-// DRC uses REGPARM to pass upto 3 parameters in registers eax,ecx,edx.
-// To avoid conflicts with param passing ebx must be declared temp here.
-static cache_reg_t cache_regs[] = {
-  { xAX, HRT_TEMP }, // RET_REG, param
-  { xDX, HRT_TEMP }, // params
-  { xCX, HRT_TEMP },
-  { xBX, HRT_TEMP }, // temp
-  { xSI, HRT_STATIC }, // statics
-  { xDI, HRT_STATIC },
-};
-
 #elif defined(__x86_64__)
 #include "../drc/emit_x86.c"
-
-static guest_reg_t guest_regs[] = {
-  // SHR_R0 .. SHR_SP
-  {GRF_STATIC,xR12}, { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-  // SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
-  // SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
-  { 0 }            , { 0 }            , { 0 }            , {GRF_STATIC, xBX},
-  { 0 }            , { 0 }            , { 0 }            , { 0 }            ,
-};
-
-// M$/SystemV ABI conventions:
-// rbx,rbp,r12-r15 are preserved, rcx,rdx,rax,r8,r9,r10,r11 are temporaries
-// rsi,rdi are preserved in M$ ABI, temporary in SystemV ABI
-// parameters in rcx,rdx,r8,r9, SystemV ABI additionally uses rsi,rdi
-static cache_reg_t cache_regs[] = {
-  { xAX, HRT_TEMP }, // RET_REG
-  { xDX, HRT_TEMP }, // params
-  { xCX, HRT_TEMP },
-  { xDI, HRT_TEMP },
-  { xSI, HRT_TEMP },
-  { xR8, HRT_TEMP },
-  { xR9, HRT_TEMP },
-  { xR10,HRT_TEMP }, // temps
-  { xR11,HRT_TEMP },
-  { xBX, HRT_STATIC }, // statics
-  { xR12,HRT_STATIC },
-  { xR13,HRT_REG }, // other regs
-  { xR14,HRT_REG },
-  { xR15,HRT_REG },
-};
-
 #else
 #error unsupported arch
 #endif
 
+static const signed char hregs_param[] = PARAM_REGS;
+static const signed char hregs_temp [] = TEMPORARY_REGS;
+static const signed char hregs_saved[] = PRESERVED_REGS;
+static const signed char regs_static[] = STATIC_SH2_REGS;
+
+#define CACHE_REGS \
+    (ARRAY_SIZE(hregs_param)+ARRAY_SIZE(hregs_temp)+ARRAY_SIZE(hregs_saved)-1)
+static cache_reg_t cache_regs[CACHE_REGS];
+
 static signed char reg_map_host[HOST_REGS];
+
+static guest_reg_t guest_regs[SH2_REGS];
 
 static void REGPARM(1) (*sh2_drc_entry)(SH2 *sh2);
 static void REGPARM(1) (*sh2_drc_dispatcher)(u32 pc);
@@ -884,15 +713,15 @@ static void dr_block_link(struct block_entry *be, struct block_link *bl, int emi
         // via blx: @jump near jumpcc to blx; @blx far jump
         emith_jump_patch(jump, bl->blx, &jump);
         emith_jump_at(bl->blx, be->tcache_ptr);
-        if ((((uintptr_t)bl->blx & 0xf) + emith_jump_at_size()-1) > 0xf)
+        if ((((uintptr_t)bl->blx & 0x1f) + emith_jump_at_size()-1) > 0x1f)
           host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size()-1);
       }
     } else {
       printf("unknown BL type %d\n", bl->type);
       exit(1);
     }
-    // only needs sync if patch is possibly crossing cacheline (assume 16 byte)
-    if ((((uintptr_t)jump & 0xf) + jsz-1) > 0xf)
+    // only needs sync if patch is possibly crossing cacheline (assume 32 byte)
+    if ((((uintptr_t)jump & 0x1f) + jsz-1) > 0x1f)
       host_instructions_updated(jump, jump + jsz-1);
   }
 
@@ -1653,7 +1482,7 @@ static void gconst_invalidate(void)
 
 static u16 rcache_counter;
 // SH2 register usage bitmasks
-static u32 rcache_hregs_reg;     // regs of type HRT_REG (for pinning)
+static u32 rcache_vregs_reg;     // regs of type HRT_REG (for pinning)
 static u32 rcache_regs_static;   // statically allocated regs
 static u32 rcache_regs_pinned;   // pinned regs
 static u32 rcache_regs_now;      // regs used in current insn
@@ -2548,29 +2377,59 @@ static void rcache_flush(void)
   rcache_invalidate();
 }
 
+static void rcache_create(void)
+{
+  int x = 0, i;
+
+  // create cache_regs as host register representation
+  // RET_REG/params should be first TEMPs to avoid allocation conflicts in calls
+  cache_regs[x++] = (cache_reg_t) {.hreg = RET_REG, .htype = HRT_TEMP};
+  for (i = 0; i < ARRAY_SIZE(hregs_param); i++)
+    if (hregs_param[i] != RET_REG)
+      cache_regs[x++] = (cache_reg_t){.hreg = hregs_param[i],.htype = HRT_TEMP};
+
+  for (i = 0; i < ARRAY_SIZE(hregs_temp); i++)
+    if (hregs_temp[i] != RET_REG)
+      cache_regs[x++] = (cache_reg_t){.hreg = hregs_temp[i], .htype = HRT_TEMP};
+
+  for (i = ARRAY_SIZE(hregs_saved)-1; i >= 0; i--)
+    if (hregs_saved[i] != CONTEXT_REG)
+      cache_regs[x++] = (cache_reg_t){.hreg = hregs_saved[i], .htype = HRT_REG};
+
+  if (x != ARRAY_SIZE(cache_regs)) {
+    printf("rcache_create failed (conflicting register count)\n");
+    exit(1);
+  }
+
+  // mapping from host_register to cache regs index
+  memset(reg_map_host, -1, sizeof(reg_map_host));
+  for (i = 0; i < ARRAY_SIZE(cache_regs); i++) {
+    if (cache_regs[i].htype)
+      reg_map_host[cache_regs[i].hreg] = i;
+    if (cache_regs[i].htype == HRT_REG)
+      rcache_vregs_reg |= (1 << i);
+  }
+
+  // create static host register mapping for SH2 regs
+  for (i = 0; i < ARRAY_SIZE(regs_static); i += 2) {
+    for (x = ARRAY_SIZE(cache_regs)-1; x >= 0; x--)
+      if (cache_regs[x].hreg == regs_static[i+1])	break;
+    if (x >= 0) {
+      guest_regs[regs_static[i]] = (guest_reg_t){.flags = GRF_STATIC,.sreg = x};
+      rcache_regs_static |= (1 << regs_static[i]);
+      rcache_vregs_reg &= ~(1 << x);
+    } else
+      guest_regs[regs_static[i]] = (guest_reg_t){.sreg = -1};
+  }
+
+  printf("DRC registers created, %ld host regs (%d REG, %d STATIC, 1 CTX)\n",
+    CACHE_REGS+1L, count_bits(rcache_vregs_reg),count_bits(rcache_regs_static));
+}
+
 static void rcache_init(void)
 {
-  static int once = 1;
-  int i;
-
-  // init is executed on every rom load, but this must only be executed once...
-  if (once) {
-    memset(reg_map_host, -1, sizeof(reg_map_host));
-    for (i = 0; i < ARRAY_SIZE(cache_regs); i++) {
-      reg_map_host[cache_regs[i].hreg] = i;
-      if (cache_regs[i].htype == HRT_REG)
-        rcache_hregs_reg |= (1 << i);
-    }
-
-    for (i = 0; i < ARRAY_SIZE(guest_regs); i++)
-      if (guest_regs[i].flags & GRF_STATIC) {
-        rcache_regs_static |= (1 << i);
-        guest_regs[i].sreg = reg_map_host[guest_regs[i].sreg];
-        rcache_hregs_reg &= ~(1 << guest_regs[i].sreg);
-      } else
-        guest_regs[i].sreg = -1;
-    once = 0;
-  }
+  // create DRC data structures
+  rcache_create();
 
   rcache_invalidate();
 #if DRC_DEBUG & 64
@@ -5038,8 +4897,8 @@ static void sh2_generate_utils(void)
   emith_move_r_r_ptr(arg0, CONTEXT_REG);
   emith_call_ctx(offsetof(SH2, irq_callback)); // vector = sh2->irq_callback(sh2, level);
   // obtain new PC
-  emith_ctx_read(arg1, SHR_VBR * 4);
-  emith_add_r_r_r_lsl(arg0, arg1, RET_REG, 2);
+  tmp = rcache_get_reg_arg(1, SHR_VBR, &tmp2);
+  emith_add_r_r_r_lsl(arg0, tmp2, RET_REG, 2);
   emith_call(sh2_drc_read32);
   if (arg0 != RET_REG)
     emith_move_r_r(arg0, RET_REG);

@@ -17,8 +17,8 @@
 enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
        xR8, xR9, xR10, xR11, xR12, xR13, xR14, xR15 };	// x86-64 only
 
-#define CONTEXT_REG xBP
-#define RET_REG     xAX
+#define CONTEXT_REG	xBP
+#define RET_REG		xAX
 
 #define ICOND_JO  0x00
 #define ICOND_JNO 0x01
@@ -935,6 +935,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	emith_ret(); \
 } while (0)
 
+
 #define EMITH_JMP_START(cond) { \
 	u8 *cond_ptr; \
 	JMP8_POS(cond_ptr)
@@ -1006,6 +1007,14 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 #ifndef _WIN32
 
+// SystemV ABI conventions:
+// rbx,rbp,r12-r15 are preserved, rax,rcx,rdx,rsi,rdi,r8-r11 are temporaries
+// parameters in rdi,rsi,rdx,rcx,r8,r9, return values in rax,rdx
+#define PARAM_REGS	{ xDI, xSI, xDX, xCX, xR8, xR9 }
+#define	PRESERVED_REGS	{ xR12, xR13, xR14, xR15, xBX, xBP }
+#define TEMPORARY_REGS	{ xAX, xR10, xR11 }
+#define STATIC_SH2_REGS { SHR_SR,xBX , SHR_R0,xR15 }
+
 #define host_arg2reg(rd, arg) \
 	switch (arg) { \
 	case 0: rd = xDI; break; \
@@ -1036,6 +1045,14 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 } while (0)
 
 #else // _WIN32
+
+// M$ ABI conventions:
+// rbx,rbp,rsi,rdi,r12-r15 are preserved, rcx,rdx,rax,r8,r9,r10,r11 temporaries
+// parameters in rcx,rdx,r8,r9, return values in rax,rdx
+#define PARAM_REGS	{ xCX, xDX, xR8, xR9 }
+#define	PRESERVED_REGS	{ xSI, xDI, xR12, xR13, xR14, xR15, xBX, xBP }
+#define TEMPORARY_REGS	{ xAX, xR10, xR11 }
+#define STATIC_SH2_REGS { SHR_SR,xBX , SHR_R0,xR15 , SH2_R0+1,xR14 }
 
 #define host_arg2reg(rd, arg) \
 	switch (arg) { \
@@ -1086,6 +1103,14 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	assert((u32)(rs) < 8u); \
 	assert((u32)(rm) < 8u); \
 } while (0)
+
+// MS/SystemV ABI: ebx,esi,edi,ebp are preserved, eax,ecx,edx are temporaries
+// DRC uses REGPARM to pass upto 3 parameters in registers eax,ecx,edx.
+// To avoid conflicts with param passing ebx must be declared temp here.
+#define PARAM_REGS	{ xAX, xDX, xCX }
+#define	PRESERVED_REGS	{ xSI, xDI, xBP }
+#define TEMPORARY_REGS	{ xBX }
+#define STATIC_SH2_REGS { SHR_SR,xDI , SHR_R0,xSI }
 
 #define host_arg2reg(rd, arg) \
 	switch (arg) { \

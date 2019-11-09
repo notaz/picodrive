@@ -6,9 +6,21 @@
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
  */
-#define HOST_REGS   16
-#define CONTEXT_REG 11
-#define RET_REG     0
+#define HOST_REGS	16
+
+// OABI/EABI: params: r0-r3, return: r0-r1, temp: r12,r14, saved: r4-r8,r10,r11
+// SP,PC: r13,r15 must not be used. saved: r9 (for platform use, e.g. on ios)
+#define RET_REG		0
+#define PARAM_REGS	{ 0, 1, 2, 3 }
+#ifndef __MACH__
+#define	PRESERVED_REGS	{ 4, 5, 6, 7, 8, 9, 10, 11 }
+#else
+#define	PRESERVED_REGS	{ 4, 5, 6, 7, 8,    10, 11 } // no r9..
+#endif
+#define TEMPORARY_REGS	{ 12, 14 }
+
+#define CONTEXT_REG	11
+#define STATIC_SH2_REGS	{ SHR_SR,10 , SHR_R0,8 , SHR_R0+1,9 }
 
 // XXX: tcache_ptr type for SVP and SH2 compilers differs..
 #define EMIT_PTR(ptr, x) \

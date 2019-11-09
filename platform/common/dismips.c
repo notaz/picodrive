@@ -274,7 +274,7 @@ static unsigned long j_target(unsigned long pc, uint32_t insn)
 }
 
 // main disassembler function
-int dismips(uintptr_t pc, uint32_t insn, char *buf, unsigned int buflen)
+int dismips(uintptr_t pc, uint32_t insn, char *buf, size_t buflen, uintptr_t *sym)
 {
 	const struct insn *pi = decode_insn(insn);
 	char *rs = register_names[(insn >> 21) & 0x1f];
@@ -283,6 +283,7 @@ int dismips(uintptr_t pc, uint32_t insn, char *buf, unsigned int buflen)
 	int sa = (insn >> 6) & 0x1f;
 	int imm = (int16_t) insn;
 
+	*sym = 0;
 	if (pi == NULL) {
 		snprintf(buf, buflen, "0x%x", insn);
 		return 0;
@@ -314,13 +315,16 @@ int dismips(uintptr_t pc, uint32_t insn, char *buf, unsigned int buflen)
 			snprintf(buf, buflen, "%s %s, %s, %d", pi->name, rd, rt, sa);
 		break;
 	case B_IMM_S:
-		snprintf(buf, buflen, "%s %s, 0x%lx", pi->name, rs, b_target(pc, insn));
+		*sym = b_target(pc, insn);
+		snprintf(buf, buflen, "%s %s, 0x%lx", pi->name, rs, *sym);
 		break;
 	case B_IMM_TS:
-		snprintf(buf, buflen, "%s %s, %s, 0x%lx", pi->name, rs, rt, b_target(pc, insn));
+		*sym = b_target(pc, insn);
+		snprintf(buf, buflen, "%s %s, %s, 0x%lx", pi->name, rs, rt, *sym);
 		break;
 	case J_IMM:
-		snprintf(buf, buflen, "%s 0x%lx", pi->name, j_target(pc, insn));
+		*sym = j_target(pc, insn);
+		snprintf(buf, buflen, "%s 0x%lx", pi->name, *sym);
 		break;
 	case A_IMM_TS:
 		if (abs(imm) < 1000)
