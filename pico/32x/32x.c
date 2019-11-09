@@ -38,17 +38,19 @@ void p32x_update_irls(SH2 *active_sh2, unsigned int m68k_cycles)
   if (active_sh2 != NULL)
     m68k_cycles = sh2_cycles_done_m68k(active_sh2);
 
+  // find top bit = highest irq number (0 <= irl <= 14/2) by binary search
+
   // msh2
   irqs = Pico32x.sh2irqs | Pico32x.sh2irqi[0];
-  while ((irqs >>= 1))
-    mlvl++;
-  mlvl *= 2;
+  if (irqs >= 0x10)     mlvl += 8, irqs >>= 4;
+  if (irqs >= 0x04)     mlvl += 4, irqs >>= 2;
+  if (irqs >= 0x02)     mlvl += 2, irqs >>= 1;
 
   // ssh2
   irqs = Pico32x.sh2irqs | Pico32x.sh2irqi[1];
-  while ((irqs >>= 1))
-    slvl++;
-  slvl *= 2;
+  if (irqs >= 0x10)     slvl += 8, irqs >>= 4;
+  if (irqs >= 0x04)     slvl += 4, irqs >>= 2;
+  if (irqs >= 0x02)     slvl += 2, irqs >>= 1;
 
   mrun = sh2_irl_irq(&msh2, mlvl, msh2.state & SH2_STATE_RUN);
   if (mrun) {

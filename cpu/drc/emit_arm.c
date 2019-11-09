@@ -671,6 +671,8 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 		literal_insn[pool_index] += move_offs;
 }
 
+#define EMITH_HINT_COND(cond)	/**/
+
 #define JMP_POS(ptr) { \
 	ptr = tcache_ptr; \
 	EMIT(0,M1(PC),0); \
@@ -721,9 +723,11 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define emith_add_r_r_r_lsl_ptr(d, s1, s2, lslimm) \
 	emith_add_r_r_r_lsl(d, s1, s2, lslimm)
 
+#define emith_adc_r_r_r_lsl(d, s1, s2, lslimm) \
+	EOP_ADC_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
+
 #define emith_addf_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_ADD_REG(A_COND_AL,1,d,s1,s2,A_AM1_LSL,lslimm)
-
 #define emith_addf_r_r_r_lsr(d, s1, s2, lslimm) \
 	EOP_ADD_REG(A_COND_AL,1,d,s1,s2,A_AM1_LSR,lslimm)
 
@@ -733,6 +737,9 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define emith_sub_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_SUB_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
 
+#define emith_sbc_r_r_r_lsl(d, s1, s2, lslimm) \
+	EOP_SBC_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
+
 #define emith_subf_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_SUB_REG(A_COND_AL,1,d,s1,s2,A_AM1_LSL,lslimm)
 
@@ -741,10 +748,11 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 
 #define emith_or_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_ORR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
+#define emith_or_r_r_r_lsr(d, s1, s2, lsrimm) \
+	EOP_ORR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSR,lsrimm)
 
 #define emith_eor_r_r_r_lsl(d, s1, s2, lslimm) \
 	EOP_EOR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSL,lslimm)
-
 #define emith_eor_r_r_r_lsr(d, s1, s2, lsrimm) \
 	EOP_EOR_REG(A_COND_AL,0,d,s1,s2,A_AM1_LSR,lsrimm)
 
@@ -753,12 +761,19 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 
 #define emith_or_r_r_lsl(d, s, lslimm) \
 	emith_or_r_r_r_lsl(d, d, s, lslimm)
+#define emith_or_r_r_lsr(d, s, lsrimm) \
+	emith_or_r_r_r_lsr(d, d, s, lsrimm)
 
+#define emith_eor_r_r_lsl(d, s, lslimm) \
+	emith_eor_r_r_r_lsl(d, d, s, lslimm)
 #define emith_eor_r_r_lsr(d, s, lsrimm) \
 	emith_eor_r_r_r_lsr(d, d, s, lsrimm)
 
 #define emith_add_r_r_r(d, s1, s2) \
 	emith_add_r_r_r_lsl(d, s1, s2, 0)
+
+#define emith_adc_r_r_r(d, s1, s2) \
+	emith_adc_r_r_r_lsl(d, s1, s2, 0)
 
 #define emith_addf_r_r_r(d, s1, s2) \
 	emith_addf_r_r_r_lsl(d, s1, s2, 0)
@@ -768,6 +783,9 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 
 #define emith_sub_r_r_r(d, s1, s2) \
 	emith_sub_r_r_r_lsl(d, s1, s2, 0)
+
+#define emith_sbc_r_r_r(d, s1, s2) \
+	emith_sbc_r_r_r_lsl(d, s1, s2, 0)
 
 #define emith_subf_r_r_r(d, s1, s2) \
 	emith_subf_r_r_r_lsl(d, s1, s2, 0)
@@ -790,11 +808,17 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 #define emith_add_r_r_ptr(d, s) \
 	emith_add_r_r_r(d, d, s)
 
+#define emith_adc_r_r(d, s) \
+	emith_adc_r_r_r(d, d, s)
+
 #define emith_sub_r_r(d, s) \
 	emith_sub_r_r_r(d, d, s)
 
-#define emith_adc_r_r(d, s) \
-	EOP_ADC_REG(A_COND_AL,0,d,d,s,A_AM1_LSL,0)
+#define emith_sbc_r_r(d, s) \
+	emith_sbc_r_r_r(d, d, s)
+
+#define emith_negc_r_r(d, s) \
+	EOP_C_DOP_IMM(A_COND_AL,A_OP_RSC,0,s,d,0,0)
 
 #define emith_and_r_r_c(cond, d, s) \
 	EOP_AND_REG(cond,0,d,d,s,A_AM1_LSL,0)
@@ -987,9 +1011,13 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 
 #define emith_rolcf(d) \
 	emith_adcf_r_r(d, d)
+#define emith_rolc(d) \
+	emith_adc_r_r(d, d)
 
 #define emith_rorcf(d) \
 	EOP_MOV_REG(A_COND_AL,1,d,d,A_AM1_ROR,0) /* ROR #0 -> RRX */
+#define emith_rorc(d) \
+	EOP_MOV_REG(A_COND_AL,0,d,d,A_AM1_ROR,0) /* ROR #0 -> RRX */
 
 #define emith_negcf_r_r(d, s) \
 	EOP_C_DOP_IMM(A_COND_AL,A_OP_RSC,1,s,d,0,0)
@@ -1326,6 +1354,18 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	} else { \
 		emith_or_r_imm_c(A_COND_CS, srr, 1); \
 		emith_bic_r_imm_c(A_COND_CC, srr, 1); \
+	} \
+} while (0)
+
+#define emith_t_to_carry(srr, is_sub) do { \
+	if (is_sub) { \
+		int t_ = rcache_get_tmp(); \
+		emith_eor_r_r_imm(t_, srr, 1); \
+		emith_rorf(t_, t_, 1); \
+		rcache_free_tmp(t_); \
+	} else { \
+		emith_rorf(srr, srr, 1); \
+		emith_rol(srr, srr, 1); \
 	} \
 } while (0)
 
