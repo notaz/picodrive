@@ -340,11 +340,29 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 		rcache_free_tmp(tmp_); \
 	} else	emith_or_r_r_r(d, s1, s2); \
 } while (0)
+#define emith_or_r_r_r_lsr(d, s1, s2, lsrimm) do { \
+	if (lsrimm) { \
+		int tmp_ = rcache_get_tmp(); \
+		emith_lsr(tmp_, s2, lsrimm); \
+		emith_or_r_r_r(d, s1, tmp_); \
+		rcache_free_tmp(tmp_); \
+	} else	emith_or_r_r_r(d, s1, s2); \
+} while (0)
 
 // _r_r_shift
 #define emith_or_r_r_lsl(d, s, lslimm) \
 	emith_or_r_r_r_lsl(d, d, s, lslimm)
+#define emith_or_r_r_lsr(d, s, lsrimm) \
+	emith_or_r_r_r_lsr(d, d, s, lsrimm)
 
+#define emith_eor_r_r_lsl(d, s, lslimm) do { \
+	if (lslimm) { \
+		int tmp_ = rcache_get_tmp(); \
+		emith_lsl(tmp_, s, lslimm); \
+		emith_eor_r_r(d, tmp_); \
+		rcache_free_tmp(tmp_); \
+	} else	emith_eor_r_r(d, s); \
+} while (0)
 #define emith_eor_r_r_lsr(d, s, lsrimm) do { \
 	if (lsrimm) { \
 		int tmp_ = rcache_get_tmp(); \
@@ -972,6 +990,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 #define EMITH_SJMP2_END(cond) \
 	EMITH_SJMP3_END()
 
+#define EMITH_HINT_COND(cond)	/**/
+
 #define emith_pass_arg_r(arg, reg) do { \
 	int rd = 7; \
 	host_arg2reg(rd, arg); \
@@ -1252,6 +1272,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 #define emith_carry_to_t(sr, is_sub) do { \
 	emith_rorc(sr); \
+	emith_rol(sr, sr, 1); \
+} while (0)
+
+#define emith_t_to_carry(sr, is_sub) do { \
+	emith_ror(sr, sr, 1); \
 	emith_rol(sr, sr, 1); \
 } while (0)
 

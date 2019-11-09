@@ -173,15 +173,17 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 	MIPS_OP_REG(FN_JALR,rd,rs,_)
 
 // conditional branches; no condition code, these compare rs against rt or Z0
-#define MIPS_BEQ (OP_BEQ  << 5)
-#define MIPS_BNE (OP_BNE  << 5)
-#define MIPS_BLE (OP_BLEZ << 5)
-#define MIPS_BGT (OP_BGTZ << 5)
-#define MIPS_BLT ((OP__RT << 5)|RT_BLTZ)
-#define MIPS_BGE ((OP__RT << 5)|RT_BGEZ)
-#define MIPS_BGTL ((OP__RT << 5)|RT_BLTZAL)
-#define MIPS_BGEL ((OP__RT << 5)|RT_BGEZAL)
+#define MIPS_BEQ (OP_BEQ  << 5)			// rs == rt (rt in lower 5 bits)
+#define MIPS_BNE (OP_BNE  << 5)			// rs != rt (ditto)
+#define MIPS_BLE (OP_BLEZ << 5)			// rs <= 0
+#define MIPS_BGT (OP_BGTZ << 5)			// rs >  0
+#define MIPS_BLT ((OP__RT << 5)|RT_BLTZ)	// rs <  0
+#define MIPS_BGE ((OP__RT << 5)|RT_BGEZ)	// rs >= 0
+#define MIPS_BGTL ((OP__RT << 5)|RT_BLTZAL)	// rs >  0, link $ra if jumping
+#define MIPS_BGEL ((OP__RT << 5)|RT_BGEZAL)	// rs >= 0, link $ra if jumping
 
+#define MIPS_BCOND(cond, rs, rt, offs16) \
+	MIPS_OP_IMM((cond >> 5), rt, rs, (offs16) >> 2)
 #define MIPS_BCONDZ(cond, rs, offs16) \
 	MIPS_OP_IMM((cond >> 5), (cond & 0x1f), rs, (offs16) >> 2)
 #define MIPS_B(offs16) \
@@ -216,25 +218,26 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 		ptr = (void *)((u8 *)(ptr) + sizeof(u32)); \
 	} while (0)
 
-// FIFO for 2 instructions, for delay slot handling
-static u32 emith_last_insns[2] = { -1,-1 };
-static int emith_last_idx, emith_last_cnt;
+// FIFO for some instructions, for delay slot handling
+#define	FSZ	4
+static u32 emith_last_insns[FSZ];
+static unsigned emith_last_idx, emith_last_cnt;
 
 #define EMIT_PUSHOP() \
 	do { \
-		emith_last_idx ^= 1; \
-		if (emith_last_insns[emith_last_idx] != -1) { \
+		if (emith_last_cnt > 0) { \
 			u32 *p = (u32 *)tcache_ptr - emith_last_cnt; \
-			EMIT_PTR(p, emith_last_insns[emith_last_idx]);\
+			int idx = (emith_last_idx - emith_last_cnt+1) %FSZ; \
+			EMIT_PTR(p, emith_last_insns[idx]);\
 			emith_last_cnt --; \
 		} \
-		emith_last_insns[emith_last_idx] = -1; \
 	} while (0)
 
 #define EMIT(op) \
 	do { \
-		EMIT_PUSHOP(); \
+		if (emith_last_cnt >= FSZ) EMIT_PUSHOP(); \
 		tcache_ptr = (void *)((u32 *)tcache_ptr + 1); \
+		emith_last_idx = (emith_last_idx+1) %FSZ; \
 		emith_last_insns[emith_last_idx] = op; \
 		emith_last_cnt ++; \
 		COUNT_OP; \
@@ -242,7 +245,8 @@ static int emith_last_idx, emith_last_cnt;
 
 #define emith_flush() \
 	do { \
-		int i; for (i = 0; i < 2; i++) EMIT_PUSHOP(); \
+		while (emith_last_cnt) EMIT_PUSHOP(); \
+		emith_flg_hint = _FHV|_FHC; \
 	} while (0)
 
 #define emith_insn_ptr()	(u8 *)((u32 *)tcache_ptr - emith_last_cnt)
@@ -279,11 +283,12 @@ static int emith_rt(u32 op)
 		  return	emith_has_(rt,2,op,26,0x3f) ? (op>>16)&0x1f : 0;
 		}
 static int emith_rd(u32 op)
-		{ if ((op>>26) == OP__FN)
-			return	emith_has_(rd,0,op, 0,0x3f) ? (op>>11)&0x1f :-1;
+		{ int ret =	emith_has_(rd,2,op,26,0x3f) ? (op>>16)&0x1f :-1;
+		  if ((op>>26) == OP__FN)
+			ret =	emith_has_(rd,0,op, 0,0x3f) ? (op>>11)&0x1f :-1;
 		  if ((op>>26) == OP__RT)
-		  	return -1;
-		  return	emith_has_(rd,2,op,26,0x3f) ? (op>>16)&0x1f :-1;
+		  	ret =	-1;
+		  return (ret ?: -1);	// Z0 doesn't have dependencies
 		}
 
 static int emith_b_isswap(u32 bop, u32 lop)
@@ -292,48 +297,56 @@ static int emith_b_isswap(u32 bop, u32 lop)
 		return bop;
 	else if (emith_is_jr(bop) && emith_rd(lop) != emith_rs(bop))
 		return bop;
-	else if (emith_is_b(bop) &&  emith_rd(lop) != emith_rs(bop))
+	else if (emith_is_b(bop) &&  emith_rd(lop) != emith_rs(bop) &&
+				     emith_rd(lop) != emith_rt(bop))
 		if ((bop & 0xffff) != 0x7fff)	// displacement overflow?
 			return (bop & 0xffff0000) | ((bop+1) & 0x0000ffff);
+	return 0;
+}
+
+static int emith_insn_swappable(u32 op1, u32 op2)
+{
+	if (emith_rd(op1) != emith_rd(op2) &&
+	    emith_rs(op1) != emith_rd(op2) && emith_rt(op1) != emith_rd(op2) &&
+	    emith_rs(op2) != emith_rd(op1) && emith_rt(op2) != emith_rd(op1))
+		return 1;
 	return 0;
 }
 
 // emit branch, trying to fill the delay slot with one of the last insns
 static void *emith_branch(u32 op)
 {
-	int idx = emith_last_idx;
-	u32 op1 = emith_last_insns[idx], op2 = emith_last_insns[idx^1];
-	u32 bop = 0;
+	unsigned idx = emith_last_idx, ds = idx;
+	u32 bop = 0, sop;
 	void *bp;
+	int i, j, s;
 
-	// check last insn (op1)
-	if (op1 != -1 && op1)
-		bop = emith_b_isswap(op, op1);
-	// if not, check older insn (op2); mustn't interact with op1 to overtake
-	if (!bop && op2 != -1 && op2 && emith_rd(op1) != emith_rd(op2) &&
-	    emith_rs(op1) != emith_rd(op2) && emith_rt(op1) != emith_rd(op2) &&
-	    emith_rs(op2) != emith_rd(op1) && emith_rt(op2) != emith_rd(op1)) {
-		idx ^= 1;
-		bop = emith_b_isswap(op, op2);
+	// check for ds insn; older mustn't interact with newer ones to overtake
+	for (i = 0; i < emith_last_cnt && !bop; i++) {
+		ds = (idx-i)%FSZ;
+		sop = emith_last_insns[ds];
+		for (j = i, s = 1; j > 0 && s; j--)
+			s = emith_insn_swappable(emith_last_insns[(ds+j)%FSZ], sop);
+		if (s)
+			bop = emith_b_isswap(op, sop);
 	}
 
-	// flush FIFO and branch
+	// flush FIFO, but omit delay slot insn
 	tcache_ptr = (void *)((u32 *)tcache_ptr - emith_last_cnt);
-	if (emith_last_insns[idx^1] != -1)
-		EMIT_PTR(tcache_ptr, emith_last_insns[idx^1]);
-	if (bop) { // can swap
-		bp = tcache_ptr;
-		EMIT_PTR(tcache_ptr, bop); COUNT_OP;
-		EMIT_PTR(tcache_ptr, emith_last_insns[idx]);
-	} else { // can't swap
-		if (emith_last_insns[idx] != -1)
+	idx = (idx-emith_last_cnt+1)%FSZ;
+	for (i = emith_last_cnt; i > 0; i--, idx = (idx+1)%FSZ)
+		if (!bop || idx != ds)
 			EMIT_PTR(tcache_ptr, emith_last_insns[idx]);
-		bp = tcache_ptr;
+	emith_last_cnt = 0;
+	// emit branch and delay slot
+	bp = tcache_ptr;
+	if (bop) { // can swap
+		EMIT_PTR(tcache_ptr, bop); COUNT_OP;
+		EMIT_PTR(tcache_ptr, emith_last_insns[ds]);
+	} else { // can't swap
 		EMIT_PTR(tcache_ptr, op); COUNT_OP;
 		EMIT_PTR(tcache_ptr, MIPS_NOP); COUNT_OP;
 	}
-	emith_last_insns[0] = emith_last_insns[1] = -1;
-	emith_last_cnt = 0;
 	return bp;
 }
 
@@ -403,34 +416,56 @@ static void *emith_branch(u32 op)
 
 // flag emulation creates 2 (ie cmp #0/beq) up to 9 (ie adcf/ble) extra insns.
 // flag handling shortcuts may reduce this by 1-4 insns, see emith_cond_check()
-static int emith_flg_rs, emith_flg_rt;	// registers used in FNZ=rs-rt (cmp_r_r)
+static int emith_cmp_rs, emith_cmp_rt;	// registers used in cmp_r_r/cmp_r_imm
+static s32 emith_cmp_imm;		// immediate value used in cmp_r_imm
+enum { _FHC=1, _FHV=2 } emith_flg_hint;	// C/V flag usage hinted by compiler
 static int emith_flg_noV;		// V flag known not to be set
+
+#define EMITH_HINT_COND(cond) do { \
+	/* only need to check cond>>1 since the lowest bit inverts the cond */ \
+	unsigned _mv = BITMASK3(DCOND_VS>>1,DCOND_GE>>1,DCOND_GT>>1); \
+	unsigned _mc = _mv | BITMASK2(DCOND_HS>>1,DCOND_HI>>1); \
+	emith_flg_hint  = (_mv & BITMASK1(cond >> 1) ? _FHV : 0); \
+	emith_flg_hint |= (_mc & BITMASK1(cond >> 1) ? _FHC : 0); \
+} while (0)
 
 // store minimal cc information: rd, rt^rs, carry
 // NB: the result *must* first go to FNZ, in case rd == rs or rd == rt.
 // NB: for adcf and sbcf, carry-in must be dealt with separately (see there)
-static void emith_set_arith_flags(int rd, int rt, int rs, s32 imm, int sub)
+static void emith_set_arith_flags(int rd, int rs, int rt, s32 imm, int sub)
 {
-	if (sub && rd == FNZ && rt > AT && rs > AT)	// is this cmp_r_r?
-		emith_flg_rs = rs, emith_flg_rt = rt;
-	else	emith_flg_rs = emith_flg_rt = 0;
+	if (emith_flg_hint & _FHC) {
+		if (sub)			// C = sub:rt<rd, add:rd<rt
+			EMIT(MIPS_SLTU_REG(FC, rs, FNZ));
+		else	EMIT(MIPS_SLTU_REG(FC, FNZ, rs));// C in FC, bit 0 
+	}
 
-        if (sub)				// C = sub:rt<rd, add:rd<rt
-		EMIT(MIPS_SLTU_REG(FC, rt, FNZ));
-	else	EMIT(MIPS_SLTU_REG(FC, FNZ, rt));// C in FC, bit 0 
-
-	emith_flg_noV = 0;
-	if (rs > 0)				// Nt^Ns
-		EMIT(MIPS_XOR_REG(FV, rt, rs));
-	else if (imm < 0)
-		EMIT(MIPS_NOR_REG(FV, rt, Z0));
-	else if (imm > 0)
-		EMIT(MIPS_OR_REG(FV, rt, Z0));	// Nt^Ns in FV, bit 31
-	else	emith_flg_noV = 1;		// imm #0, never overflows
+	if (emith_flg_hint & _FHV) {
+		emith_flg_noV = 0;
+		if (rt >= 0)				// Nt^Ns in FV, bit 31
+			EMIT(MIPS_XOR_REG(FV, rs, rt));
+		else if (imm == 0)
+			emith_flg_noV = 1;		// imm #0 can't overflow
+		else if ((imm < 0) == !sub)
+			EMIT(MIPS_NOR_REG(FV, rs, Z0));
+		else if ((imm > 0) == !sub)
+			EMIT(MIPS_OR_REG(FV, rs, Z0));
+	}
 	// full V = Nd^Nt^Ns^C calculation is deferred until really needed
 
-	if (rd != FNZ)
+	if (rd && rd != FNZ)
 		EMIT(MIPS_MOVE_REG(rd, FNZ));	// N,Z via result value in FNZ
+	emith_cmp_rs = emith_cmp_rt = -1;
+}
+
+// since MIPS has less-than and compare-branch insns, handle cmp separately by
+// storing the involved regs for later use in one of those MIPS insns.
+// This works for all conditions but VC/VS, but this is fortunately never used.
+static void emith_set_compare_flags(int rs, int rt, s32 imm)
+{
+	emith_cmp_rt = rt;
+	emith_cmp_rs = rs;
+	emith_cmp_imm = imm;
 }
 
 // data processing, register
@@ -510,6 +545,13 @@ static void emith_set_arith_flags(int rd, int rt, int rs, s32 imm, int sub)
 	} else	EMIT(MIPS_OR_REG(d, s1, s2)); \
 } while (0)
 
+#define emith_or_r_r_r_lsr(d, s1, s2, simm) do { \
+	if (simm) { \
+		EMIT(MIPS_LSR_IMM(AT, s2, simm)); \
+		EMIT(MIPS_OR_REG(d, s1, AT)); \
+	} else  EMIT(MIPS_OR_REG(d, s1, s2)); \
+} while (0)
+
 #define emith_eor_r_r_r_lsl(d, s1, s2, simm) do { \
 	if (simm) { \
 		EMIT(MIPS_LSL_IMM(AT, s2, simm)); \
@@ -533,7 +575,11 @@ static void emith_set_arith_flags(int rd, int rt, int rs, s32 imm, int sub)
 
 #define emith_or_r_r_lsl(d, s, lslimm) \
 	emith_or_r_r_r_lsl(d, d, s, lslimm)
+#define emith_or_r_r_lsr(d, s, lsrimm) \
+	emith_or_r_r_r_lsr(d, d, s, lsrimm)
 
+#define emith_eor_r_r_lsl(d, s, lslimm) \
+	emith_eor_r_r_r_lsl(d, d, s, lslimm)
 #define emith_eor_r_r_lsr(d, s, lsrimm) \
 	emith_eor_r_r_r_lsr(d, d, s, lsrimm)
 
@@ -570,12 +616,20 @@ static void emith_set_arith_flags(int rd, int rt, int rs, s32 imm, int sub)
 	EMIT(MIPS_NEG_REG(d, s))
 
 #define emith_adc_r_r_r(d, s1, s2) do { \
-	emith_add_r_r_r(AT, s1, FC); \
-	emith_add_r_r_r(d, AT, s2); \
+	emith_add_r_r_r(AT, s2, FC); \
+	emith_add_r_r_r(d, s1, AT); \
+} while (0)
+
+#define emith_sbc_r_r_r(d, s1, s2) do { \
+	emith_add_r_r_r(AT, s2, FC); \
+	emith_sub_r_r_r(d, s1, AT); \
 } while (0)
 
 #define emith_adc_r_r(d, s) \
 	emith_adc_r_r_r(d, d, s)
+
+#define emith_negc_r_r(d, s) \
+	emith_sbc_r_r_r(d, Z0, s)
 
 // NB: the incoming carry Cin can cause Cout if s2+Cin=0 (or s1+Cin=0 FWIW)
 // moreover, if s2+Cin=0 caused Cout, s1+s2+Cin=s1+0 can't cause another Cout
@@ -606,16 +660,23 @@ static void emith_set_arith_flags(int rd, int rt, int rs, s32 imm, int sub)
 #define emith_eor_r_r(d, s) \
 	emith_eor_r_r_r(d, d, s)
 
-#define emith_tst_r_r_ptr(d, s) \
-	emith_and_r_r_r(FNZ, d, s)
+#define emith_tst_r_r_ptr(d, s) do { \
+	if (d != s) { \
+		emith_and_r_r_r(FNZ, d, s); \
+		emith_cmp_rs = emith_cmp_rt = -1; \
+	} else	emith_cmp_rs = s, emith_cmp_rt = Z0; \
+} while (0)
 #define emith_tst_r_r(d, s) \
 	emith_tst_r_r_ptr(d, s)
 
-#define emith_teq_r_r(d, s) \
-	emith_eor_r_r_r(FNZ, d, s)
+#define emith_teq_r_r(d, s) do { \
+	emith_eor_r_r_r(FNZ, d, s); \
+	emith_cmp_rs = emith_cmp_rt = -1; \
+} while (0)
 
 #define emith_cmp_r_r(d, s) \
-	emith_subf_r_r_r(FNZ, d, s)
+	emith_set_compare_flags(d, s, 0)
+//	emith_subf_r_r_r(FNZ, d, s)
 
 #define emith_addf_r_r(d, s) \
 	emith_addf_r_r_r(d, d, s)
@@ -705,8 +766,8 @@ static void emith_arith_imm(int op, int rd, int rs, u32 imm)
 	emith_adcf_r_r_imm(r, r, imm)
 
 #define emith_cmp_r_imm(r, imm) \
-	emith_subf_r_r_imm(FNZ, r, (s16)imm)
-
+	emith_set_compare_flags(r, -1, imm)
+//	emith_subf_r_r_imm(FNZ, r, (s16)imm)
 
 #define emith_add_r_r_ptr_imm(d, s, imm) \
 	emith_arith_imm(OP_ADDIU, d, s, imm)
@@ -716,7 +777,7 @@ static void emith_arith_imm(int op, int rd, int rs, u32 imm)
 
 #define emith_addf_r_r_imm(d, s, imm) do { \
 	emith_add_r_r_imm(FNZ, s, imm); \
-	emith_set_arith_flags(d, s, 0, imm, 0); \
+	emith_set_arith_flags(d, s, -1, imm, 0); \
 } while (0)
 
 #define emith_adc_r_r_imm(d, s, imm) do { \
@@ -725,11 +786,16 @@ static void emith_arith_imm(int op, int rd, int rs, u32 imm)
 } while (0)
 
 #define emith_adcf_r_r_imm(d, s, imm) do { \
-	emith_add_r_r_r(FNZ, s, FC); \
-	EMIT(MIPS_SLTU_REG(AT, FNZ, FC)); \
-	emith_add_r_r_imm(FNZ, FNZ, imm); \
-	emith_set_arith_flags(d, s, 0, imm, 0); \
-	emith_or_r_r(FC, AT); \
+	if (imm == 0) { \
+		emith_add_r_r_r(FNZ, s, FC); \
+		emith_set_arith_flags(d, s, -1, 1, 0); \
+	} else { \
+		emith_add_r_r_r(FNZ, s, FC); \
+		EMIT(MIPS_SLTU_REG(AT, FNZ, FC)); \
+		emith_add_r_r_imm(FNZ, FNZ, imm); \
+		emith_set_arith_flags(d, s, -1, imm, 0); \
+		emith_or_r_r(FC, AT); \
+	} \
 } while (0)
 
 // NB: no SUBI in MIPS II, since ADDI takes a signed imm
@@ -740,7 +806,7 @@ static void emith_arith_imm(int op, int rd, int rs, u32 imm)
 
 #define emith_subf_r_r_imm(d, s, imm) do { \
 	emith_sub_r_r_imm(FNZ, s, imm); \
-	emith_set_arith_flags(d, s, 0, imm, 1); \
+	emith_set_arith_flags(d, s, -1, imm, 1); \
 } while (0)
 
 // logical, immediate
@@ -777,8 +843,10 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 #define emith_bic_r_imm_c(cond, r, imm) \
 	emith_bic_r_imm(r, imm)
 
-#define emith_tst_r_imm(r, imm) \
-	emith_log_imm(OP_ANDI, FNZ, r, imm)
+#define emith_tst_r_imm(r, imm) do { \
+	emith_log_imm(OP_ANDI, FNZ, r, imm); \
+	emith_cmp_rs = emith_cmp_rt = -1; \
+} while (0)
 #define emith_tst_r_imm_c(cond, r, imm) \
 	emith_tst_r_imm(r, imm)
 
@@ -816,6 +884,17 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 	EMIT(MIPS_OR_REG(d, d, AT)); \
 } while (0)
 
+#define emith_rorc(d) do { \
+	emith_lsr(d, d, 1); \
+	emith_lsl(AT, FC, 31); \
+	emith_or_r_r(d, AT); \
+} while (0)
+
+#define emith_rolc(d) do { \
+	emith_lsl(d, d, 1); \
+	emith_or_r_r(d, FC); \
+} while (0)
+
 // NB: all flag setting shifts make V undefined
 // NB: mips32r2 has EXT (useful for extracting C)
 #define emith_lslf(d, s, cnt) do { \
@@ -829,6 +908,7 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 		emith_lsl(d, _s, 1); \
 	} \
 	emith_move_r_r(FNZ, d); \
+	emith_cmp_rs = emith_cmp_rt = -1; \
 } while (0)
 
 #define emith_lsrf(d, s, cnt) do { \
@@ -842,6 +922,7 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 		emith_lsr(d, _s, 1); \
 	} \
 	emith_move_r_r(FNZ, d); \
+	emith_cmp_rs = emith_cmp_rt = -1; \
 } while (0)
 
 #define emith_asrf(d, s, cnt) do { \
@@ -855,18 +936,21 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 		emith_asr(d, _s, 1); \
 	} \
 	emith_move_r_r(FNZ, d); \
+	emith_cmp_rs = emith_cmp_rt = -1; \
 } while (0)
 
 #define emith_rolf(d, s, cnt) do { \
 	emith_rol(d, s, cnt); \
 	emith_and_r_r_imm(FC, d, 1); \
 	emith_move_r_r(FNZ, d); \
+	emith_cmp_rs = emith_cmp_rt = -1; \
 } while (0)
 
 #define emith_rorf(d, s, cnt) do { \
 	emith_ror(d, s, cnt); \
 	emith_lsr(FC, d, 31); \
 	emith_move_r_r(FNZ, d); \
+	emith_cmp_rs = emith_cmp_rt = -1; \
 } while (0)
 
 #define emith_rolcf(d) do { \
@@ -875,6 +959,7 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 	emith_or_r_r(d, FC); \
 	emith_move_r_r(FC, AT); \
 	emith_move_r_r(FNZ, d); \
+	emith_cmp_rs = emith_cmp_rt = -1; \
 } while (0)
 
 #define emith_rorcf(d) do { \
@@ -884,6 +969,7 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 	emith_or_r_r(d, FC); \
 	emith_move_r_r(FC, AT); \
 	emith_move_r_r(FNZ, d); \
+	emith_cmp_rs = emith_cmp_rt = -1; \
 } while (0)
 
 // signed/unsigned extend
@@ -1108,24 +1194,82 @@ static void emith_lohi_nops(void)
 	(((cond) >> 5) == OP__RT ? (cond) ^ 0x01 : (cond) ^ 0x20)
 
 // evaluate the emulated condition, returns a register/branch type pair
+static int emith_cmpr_check(int rs, int rt, int cond, int *r)
+{
+	int b = 0;
+
+	// condition check for comparing 2 registers
+	switch (cond) {
+	case DCOND_EQ:	*r = rs; b = MIPS_BEQ|rt; break;
+	case DCOND_NE:	*r = rs; b = MIPS_BNE|rt; break;
+	case DCOND_LO:	EMIT(MIPS_SLTU_REG(AT, rs, rt));
+			*r = AT, b = MIPS_BNE; break;	// s <  t unsigned
+	case DCOND_HS:	EMIT(MIPS_SLTU_REG(AT, rs, rt));
+			*r = AT, b = MIPS_BEQ; break;	// s >= t unsigned
+	case DCOND_LS:	EMIT(MIPS_SLTU_REG(AT, rt, rs));
+			*r = AT, b = MIPS_BEQ; break;	// s <= t unsigned
+	case DCOND_HI:	EMIT(MIPS_SLTU_REG(AT, rt, rs));
+			*r = AT, b = MIPS_BNE; break;	// s >  t unsigned
+	case DCOND_LT:	if (rt == 0) { *r = rs, b = MIPS_BLT; break; } // s <  0
+			EMIT(MIPS_SLT_REG(AT, rs, rt));
+			*r = AT, b = MIPS_BNE; break;	// s <  t
+	case DCOND_GE:	if (rt == 0) { *r = rs, b = MIPS_BGE; break; } // s >= 0
+			EMIT(MIPS_SLT_REG(AT, rs, rt));
+			*r = AT, b = MIPS_BEQ; break;	// s >= t
+	case DCOND_LE:	if (rt == 0) { *r = rs, b = MIPS_BLE; break; } // s <= 0
+			EMIT(MIPS_SLT_REG(AT, rt, rs));
+			*r = AT, b = MIPS_BEQ; break;	// s <= t
+	case DCOND_GT:	if (rt == 0) { *r = rs, b = MIPS_BGT; break; } // s >  0
+			EMIT(MIPS_SLT_REG(AT, rt, rs));
+			*r = AT, b = MIPS_BNE; break;	// s >  t
+	}
+
+	return b;
+}
+
+static int emith_cmpi_check(int rs, s32 imm, int cond, int *r)
+{
+	int b = 0;
+
+	// condition check for comparing register with immediate
+	if (imm == 0) return emith_cmpr_check(rs, Z0, cond, r);
+	switch (cond) {
+	case DCOND_EQ:	emith_move_r_imm(AT, imm);
+			*r = rs; b = MIPS_BEQ|AT; break;
+	case DCOND_NE:	emith_move_r_imm(AT, imm);
+			*r = rs; b = MIPS_BNE|AT; break;
+	case DCOND_LO:	EMIT(MIPS_SLTU_IMM(AT, rs, imm));
+			*r = AT, b = MIPS_BNE; break;	// s <  imm unsigned
+	case DCOND_HS:	EMIT(MIPS_SLTU_IMM(AT, rs, imm));
+			*r = AT, b = MIPS_BEQ; break;	// s >= imm unsigned
+	case DCOND_LS:	emith_move_r_imm(AT, imm);
+			EMIT(MIPS_SLTU_REG(AT, AT, rs));
+			*r = AT, b = MIPS_BEQ; break;	// s <= imm unsigned
+	case DCOND_HI:	emith_move_r_imm(AT, imm);
+			EMIT(MIPS_SLTU_REG(AT, AT, rs));
+			*r = AT, b = MIPS_BNE; break;	// s >  imm unsigned
+	case DCOND_LT:	EMIT(MIPS_SLT_IMM(AT, rs, imm));
+			*r = AT, b = MIPS_BNE; break;	// s <  imm
+	case DCOND_GE: 	EMIT(MIPS_SLT_IMM(AT, rs, imm));
+			*r = AT, b = MIPS_BEQ; break;	// s >= imm
+	case DCOND_LE:	emith_move_r_imm(AT, imm);
+			EMIT(MIPS_SLT_REG(AT, AT, rs));
+			*r = AT, b = MIPS_BEQ; break;	// s <= imm
+	case DCOND_GT:	emith_move_r_imm(AT, imm);
+			EMIT(MIPS_SLT_REG(AT, AT, rs));
+			*r = AT, b = MIPS_BNE; break;	// s >  imm
+	}
+	return b;
+}
+
 static int emith_cond_check(int cond, int *r)
 {
 	int b = 0;
 
-	// shortcut for comparing 2 registers
-	if (emith_flg_rs || emith_flg_rt) switch (cond) {
-	case DCOND_LS:	EMIT(MIPS_SLTU_REG(AT, emith_flg_rs, emith_flg_rt));
-			*r = AT, b = MIPS_BEQ; break;	// s <= t unsigned
-	case DCOND_HI:	EMIT(MIPS_SLTU_REG(AT, emith_flg_rs, emith_flg_rt));
-			*r = AT, b = MIPS_BNE; break;	// s >  t unsigned
-	case DCOND_LT:	EMIT(MIPS_SLT_REG(AT, emith_flg_rt, emith_flg_rs));
-			*r = AT, b = MIPS_BNE; break;	// s <  t
-	case DCOND_GE:	EMIT(MIPS_SLT_REG(AT, emith_flg_rt, emith_flg_rs));
-			*r = AT, b = MIPS_BEQ; break;	// s >= t
-	case DCOND_LE:	EMIT(MIPS_SLT_REG(AT, emith_flg_rs, emith_flg_rt));
-			*r = AT, b = MIPS_BEQ; break;	// s <= t
-	case DCOND_GT:	EMIT(MIPS_SLT_REG(AT, emith_flg_rs, emith_flg_rt));
-			*r = AT, b = MIPS_BNE; break;	// s >  t
+	if (emith_cmp_rs >= 0) {
+		if (emith_cmp_rt != -1)
+			b = emith_cmpr_check(emith_cmp_rs,emith_cmp_rt, cond,r);
+		else	b = emith_cmpi_check(emith_cmp_rs,emith_cmp_imm,cond,r);
 	}
 
 	// shortcut for V known to be 0
@@ -1373,8 +1517,10 @@ static int emith_cond_check(int cond, int *r)
 #define emith_sh2_div1_step(rn, rm, sr) do {      \
 	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
 	EMITH_JMP3_START(DCOND_EQ);               \
+	EMITH_HINT_COND(DCOND_CS);                 \
 	emith_addf_r_r(rn, rm);                   \
 	EMITH_JMP3_MID(DCOND_EQ);                 \
+	EMITH_HINT_COND(DCOND_CS);                 \
 	emith_subf_r_r(rn, rm);                   \
 	EMITH_JMP3_END();                         \
 	emith_eor_r_r(sr, FC);                    \
@@ -1433,23 +1579,27 @@ static int emith_cond_check(int cond, int *r)
 } while (0)
 
 #define emith_write_sr(sr, srcr) do { \
-	emith_lsr(sr, sr, 10); \
-	emith_or_r_r_r_lsl(sr, sr, srcr, 22); \
-	emith_ror(sr, sr, 22); \
+	emith_lsr(sr, sr  , 10); emith_lsl(sr, sr, 10); \
+	emith_lsl(AT, srcr, 22); emith_lsr(AT, AT, 22); \
+	emith_or_r_r(sr, AT); \
 } while (0)
 
-#define emith_carry_to_t(srr, is_sub) do { \
-	emith_lsr(sr, sr, 1); \
-	emith_adc_r_r(sr, sr); \
+#define emith_carry_to_t(sr, is_sub) do { \
+	emith_and_r_imm(sr, 0xfffffffe); \
+	emith_or_r_r(sr, FC); \
+} while (0)
+
+#define emith_t_to_carry(sr, is_sub) do { \
+	emith_and_r_r_imm(FC, sr, 1); \
 } while (0)
 
 #define emith_tpop_carry(sr, is_sub) do { \
 	emith_and_r_r_imm(FC, sr, 1); \
-	emith_lsr(sr, sr, 1); \
+	emith_eor_r_r(sr, FC); \
 } while (0)
 
 #define emith_tpush_carry(sr, is_sub) \
-	emith_adc_r_r(sr, sr)
+	emith_or_r_r(sr, FC)
 
 #ifdef T
 // T bit handling
@@ -1463,9 +1613,61 @@ static void emith_clr_t_cond(int sr)
 
 static void emith_set_t_cond(int sr, int cond)
 {
-  EMITH_SJMP_START(emith_invert_cond(cond));
-  emith_or_r_imm_c(cond, sr, T);
-  EMITH_SJMP_END(emith_invert_cond(cond));
+  int b, r;
+  u8 *ptr;
+  u32 val = 0, inv = 0;
+
+  // try to avoid jumping around if possible
+  if (emith_cmp_rs >= 0) {
+    if (emith_cmp_rt >= 0)
+      b = emith_cmpr_check(emith_cmp_rs, emith_cmp_rt,  cond, &r);
+    else
+      b = emith_cmpi_check(emith_cmp_rs, emith_cmp_imm, cond, &r);
+
+    // XXX this relies on the inner workings of cmp_check...
+    if (r == AT)
+      // result of slt check which returns either 0 or 1 in AT
+      val++, inv = (b == MIPS_BEQ);
+  } else {
+    b = emith_cond_check(cond, &r);
+    if (r == Z0) {
+      if (b == MIPS_BEQ || b == MIPS_BLE || b == MIPS_BGE)
+        emith_or_r_imm(sr, T);
+      return;
+    } else if (r == FC)
+      val++, inv = (b == MIPS_BEQ);
+  }
+
+  if (!val) switch (b) { // cases: b..z r, aka cmp r,Z0 or cmp r,#0
+  case MIPS_BEQ:  EMIT(MIPS_SLTU_IMM(AT, r, 1)); r=AT; val++; break;
+  case MIPS_BNE:  EMIT(MIPS_SLTU_REG(AT,Z0, r)); r=AT; val++; break;
+  case MIPS_BLT:  EMIT(MIPS_SLT_REG(AT, r, Z0)); r=AT; val++; break;
+  case MIPS_BGE:  EMIT(MIPS_SLT_REG(AT, r, Z0)); r=AT; val++; inv++; break;
+  case MIPS_BLE:  EMIT(MIPS_SLT_REG(AT, Z0, r)); r=AT; val++; inv++; break;
+  case MIPS_BGT:  EMIT(MIPS_SLT_REG(AT, Z0, r)); r=AT; val++; break;
+  default: // cases: beq/bne r,s, aka cmp r,s
+      if ((b>>5) == OP_BEQ) {
+                  EMIT(MIPS_XOR_REG(AT, r, b&0x1f));
+                  EMIT(MIPS_SLTU_IMM(AT,AT, 1)); r=AT; val++; break;
+      } else if ((b>>5) == OP_BNE) {
+                  EMIT(MIPS_XOR_REG(AT, r, b&0x1f));
+                  EMIT(MIPS_SLTU_IMM(AT,Z0,AT)); r=AT; val++; break;
+      }
+  }
+  if (val) {
+    emith_or_r_r(sr, r);
+    if (inv)
+      emith_eor_r_imm(sr, T);
+    return;
+  }
+
+  // can't obtain result directly, use presumably slower jump !cond + or sr,T
+  b = emith_invert_branch(b);
+  ptr = emith_branch(MIPS_BCONDZ(b, r, 0));
+  emith_or_r_imm(sr, T);
+  emith_flush(); // prohibit delay slot switching across jump targets
+  val = (u8 *)tcache_ptr - (u8 *)(ptr) - 4;
+  EMIT_PTR(ptr, MIPS_BCONDZ(b, r, val & 0x0003ffff));
 }
 
 #define emith_get_t_cond()      -1

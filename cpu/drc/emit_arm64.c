@@ -370,6 +370,8 @@ enum { AM_IDX, AM_IDXPOST, AM_IDXREG, AM_IDXPRE };
 	JMP_EMIT_NC(else_ptr); \
 }
 
+#define EMITH_HINT_COND(cond)   /**/
+
 // "simple" jump (no more then a few insns)
 // ARM32 will use conditional instructions here
 #define EMITH_SJMP_START EMITH_JMP_START
@@ -414,6 +416,24 @@ enum { AM_IDX, AM_IDXPOST, AM_IDXREG, AM_IDXPRE };
 #define emith_addf_r_r_r_lsr(d, s1, s2, simm) \
 	EMIT(A64_ADDS_REG(d, s1, s2, ST_LSR, simm))
 
+#define emith_adc_r_r_r_lsl(d, s1, s2, simm) \
+	if (simm) {	int _t = rcache_get_tmp(); \
+			emith_lsl(_t, s2, simm); \
+			emith_adc_r_r_r(d, s1, _t); \
+			rcache_free_tmp(_t); \
+	} else \
+			emith_adc_r_r_r(d, s1, s2); \
+} while (0)
+
+#define emith_sbc_r_r_r_lsl(d, s1, s2, simm) \
+	if (simm) {	int _t = rcache_get_tmp(); \
+			emith_lsl(_t, s2, simm); \
+			emith_sbc_r_r_r(d, s1, _t); \
+			rcache_free_tmp(_t); \
+	} else \
+			emith_sbc_r_r_r(d, s1, s2); \
+} while (0)
+
 #define emith_sub_r_r_r_lsl(d, s1, s2, simm) \
 	EMIT(A64_SUB_REG(d, s1, s2, ST_LSL, simm))
 
@@ -422,10 +442,11 @@ enum { AM_IDX, AM_IDXPOST, AM_IDXREG, AM_IDXPRE };
 
 #define emith_or_r_r_r_lsl(d, s1, s2, simm) \
 	EMIT(A64_OR_REG(d, s1, s2, ST_LSL, simm))
+#define emith_or_r_r_r_lsr(d, s1, s2, simm) \
+	EMIT(A64_OR_REG(d, s1, s2, ST_LSR, simm))
 
 #define emith_eor_r_r_r_lsl(d, s1, s2, simm) \
 	EMIT(A64_EOR_REG(d, s1, s2, ST_LSL, simm))
-
 #define emith_eor_r_r_r_lsr(d, s1, s2, simm) \
 	EMIT(A64_EOR_REG(d, s1, s2, ST_LSR, simm))
 
@@ -434,7 +455,11 @@ enum { AM_IDX, AM_IDXPOST, AM_IDXREG, AM_IDXPRE };
 
 #define emith_or_r_r_lsl(d, s, lslimm) \
 	emith_or_r_r_r_lsl(d, d, s, lslimm)
+#define emith_or_r_r_lsr(d, s, lsrimm) \
+	emith_or_r_r_r_lsr(d, d, s, lsrimm)
 
+#define emith_eor_r_r_lsl(d, s, lslimm) \
+	emith_eor_r_r_r_lsl(d, d, s, lslimm)
 #define emith_eor_r_r_lsr(d, s, lsrimm) \
 	emith_eor_r_r_r_lsr(d, d, s, lsrimm)
 
@@ -472,6 +497,9 @@ enum { AM_IDX, AM_IDXPOST, AM_IDXREG, AM_IDXPRE };
 #define emith_neg_r_r(d, s) \
 	EMIT(A64_NEG_REG(d, s, ST_LSL, 0))
 
+#define emith_negc_r_r(d, s) \
+	EMIT(A64_NEGC_REG(d, s))
+
 #define emith_adc_r_r_r(d, s1, s2) \
 	EMIT(A64_ADC_REG(d, s1, s2))
 
@@ -480,6 +508,9 @@ enum { AM_IDX, AM_IDXPOST, AM_IDXREG, AM_IDXPRE };
 
 #define emith_adcf_r_r_r(d, s1, s2) \
 	EMIT(A64_ADCS_REG(d, s1, s2))
+
+#define emith_sbc_r_r_r(d, s1, s2) \
+	EMIT(A64_SBC_REG(d, s1, s2))
 
 #define emith_sbcf_r_r_r(d, s1, s2) \
 	EMIT(A64_SBCS_REG(d, s1, s2))
@@ -806,10 +837,17 @@ static void emith_log_imm(int op, int wx, int rd, int rn, u32 imm)
 
 #define emith_rolcf(d) \
 	emith_adcf_r_r(d, d)
+#define emith_rolc(d) \
+	emith_adc_r_r(d, d)
 
 #define emith_rorcf(d) do { \
 	EMIT(A64_RBIT_REG(d, d)); \
 	emith_adcf_r_r(d, d); \
+	EMIT(A64_RBIT_REG(d, d)); \
+} while (0)
+#define emith_rorc(d) do { \
+	EMIT(A64_RBIT_REG(d, d)); \
+	emith_adc_r_r(d, d); \
 	EMIT(A64_RBIT_REG(d, d)); \
 } while (0)
 
@@ -1284,6 +1322,18 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	emith_adc_r_r(sr, sr); \
 	if (is_sub) /* SUB has inverted C on ARM */ \
 		emith_eor_r_imm(sr, 1); \
+} while (0)
+
+#define emith_t_to_carry(srr, is_sub) do { \
+	if (is_sub) { \
+		int t_ = rcache_get_tmp(); \
+		emith_eor_r_r_imm(t_, srr, 1); \
+		emith_rorf(t_, t_, 1); \
+		rcache_free_tmp(t_); \
+	} else { \
+		emith_rorf(srr, srr, 1); \
+		emith_rol(srr, srr, 1); \
+	} \
 } while (0)
 
 #define emith_tpop_carry(sr, is_sub) do { \
