@@ -38,9 +38,9 @@ unsigned short scan_block(unsigned int base_pc, int is_slave,
 #if defined(__arm__)
 #define	DRC_SR_REG	"r10"
 #elif defined(__aarch64__)
-#define	DRC_SR_REG	"r22"
+#define	DRC_SR_REG	"r28"
 #elif defined(__mips__)
-#define	DRC_SR_REG	"s2"
+#define	DRC_SR_REG	"s6"
 #elif defined(__i386__)
 #define	DRC_SR_REG	"edi"
 #elif defined(__x86_64__)

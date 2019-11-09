@@ -6,8 +6,16 @@
  * See COPYING file in the top-level directory.
  */
 #define HOST_REGS	32
-#define CONTEXT_REG	19
+
+// AAPCS64: params: r0-r7, return: r0-r1, temp: r8-r17, saved: r19-r29
+// reserved: r18 (for platform use)
 #define RET_REG		0
+#define PARAM_REGS	{ 0, 1, 2, 3, 4, 5, 6, 7 }
+#define PRESERVED_REGS	{ 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29 }
+#define TEMPORARY_REGS	{ 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
+
+#define CONTEXT_REG	29
+#define STATIC_SH2_REGS	{ SHR_SR,28 , SHR_R0,27 , SHR_R0+1,26 }
 
 // R31 doesn't exist, it aliases either with zero or SP
 #define	SP		31 // stack pointer
@@ -100,9 +108,9 @@ enum { XT_UXTW=0x4, XT_UXTX=0x6, XT_LSL=0x7, XT_SXTW=0xc, XT_SXTX=0xe };
 #define A64_NEGS_REG(rd, rm, stype, simm) \
 	A64_SUBS_REG(rd,Z0,rm,stype,simm)
 #define A64_NEGC_REG(rd, rm) \
-	A64_SBC_REG(rd,Z0,rm,stype,simm)
+	A64_SBC_REG(rd,Z0,rm)
 #define A64_NEGCS_REG(rd, rm) \
-	A64_SBCS_REG(rd,Z0,rm,stype,simm)
+	A64_SBCS_REG(rd,Z0,rm)
 #define A64_CMP_REG(rn, rm, stype, simm) \
 	A64_SUBS_REG(Z0, rn, rm, stype, simm)
 #define A64_CMN_REG(rn, rm, stype, simm) \
@@ -145,7 +153,7 @@ enum { XT_UXTW=0x4, XT_UXTX=0x6, XT_LSL=0x7, XT_SXTW=0xc, XT_SXTX=0xe };
 	A64_INSN(0xd,OP_ADD &3,0x0,_,rm,_,_,rn,rd)
 #define A64_ADCS_REG(rd, rn, rm) \
 	A64_INSN(0xd,OP_ADDS&3,0x0,_,rm,_,_,rn,rd)
-#define A64_SBC_REG(rd, rn, rm, s) \
+#define A64_SBC_REG(rd, rn, rm) \
 	A64_INSN(0xd,OP_SUB &3,0x0,_,rm,_,_,rn,rd)
 #define A64_SBCS_REG(rd, rn, rm) \
 	A64_INSN(0xd,OP_SUBS&3,0x0,_,rm,_,_,rn,rd)
