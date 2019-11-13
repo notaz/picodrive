@@ -127,7 +127,7 @@ static const struct insn special_insns[] = {
 	{0x38, S_IMM_DT, "dsll"},
 	{0x3A, S_IMM_DT, "dsrl"},
 	{0x3B, S_IMM_DT, "dsra"},
-	{0x3D, S_IMM_DT, "dsll32"},
+	{0x3C, S_IMM_DT, "dsll32"},
 	{0x3E, S_IMM_DT, "dsrl32"},
 	{0x3F, S_IMM_DT, "dsra32"},
 };

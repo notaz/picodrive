@@ -448,11 +448,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 // fake conditionals (using SJMP instead)
 #define emith_move_r_imm_c(cond, r, imm) \
-	emith_move_r_imm(r, imm);
+	emith_move_r_imm(r, imm)
 #define emith_add_r_imm_c(cond, r, imm) \
-	emith_add_r_imm(r, imm);
+	emith_add_r_imm(r, imm)
 #define emith_sub_r_imm_c(cond, r, imm) \
-	emith_sub_r_imm(r, imm);
+	emith_sub_r_imm(r, imm)
 #define emith_or_r_imm_c(cond, r, imm) \
 	emith_or_r_imm(r, imm)
 #define emith_eor_r_imm_c(cond, r, imm) \
@@ -468,11 +468,11 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 #define emith_ror_c(cond, d, s, cnt) \
 	emith_ror(d, s, cnt)
 #define emith_and_r_r_c(cond, d, s) \
-	emith_and_r_r(d, s);
+	emith_and_r_r(d, s)
 #define emith_add_r_r_imm_c(cond, d, s, imm) \
-	emith_add_r_r_imm(d, s, imm);
+	emith_add_r_r_imm(d, s, imm)
 #define emith_sub_r_r_imm_c(cond, d, s, imm) \
-	emith_sub_r_r_imm(d, s, imm);
+	emith_sub_r_r_imm(d, s, imm)
 
 #define emith_read8_r_r_r_c(cond, r, rs, rm) \
 	emith_read8_r_r_r(r, rs, rm)

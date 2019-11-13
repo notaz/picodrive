@@ -47,13 +47,9 @@
 #define LOOP_OPTIMIZER          1
 #define T_OPTIMIZER             1
 
-// limits (per block)
-#define MAX_BLOCK_SIZE          (BLOCK_INSN_LIMIT * 6 * 6)
-
-// max literal offset from the block end
 #define MAX_LITERAL_OFFSET      0x200	// max. MOVA, MOV @(PC) offset
-#define MAX_LITERALS            (BLOCK_INSN_LIMIT / 4)
-#define MAX_LOCAL_BRANCHES      (BLOCK_INSN_LIMIT / 4)
+#define MAX_LOCAL_TARGETS       (BLOCK_INSN_LIMIT / 4)
+#define MAX_LOCAL_BRANCHES      (BLOCK_INSN_LIMIT / 2)
 
 // debug stuff
 // 01 - warnings/errors
@@ -294,7 +290,7 @@ struct block_link {
   u32 target_pc;
   void *jump;                // insn address
   void *blx;                 // block link/exit  area if any
-  u8 jdisp[8];               // jump backup buffer
+  u8 jdisp[12];              // jump backup buffer
   struct block_link *next;   // either in block_entry->links or unresolved
   struct block_link *o_next; //     ...in block_entry->o_links
   struct block_link *prev;
@@ -443,6 +439,8 @@ static void rcache_free_tmp(int hr);
 #include "../drc/emit_arm64.c"
 #elif defined(__mips__)
 #include "../drc/emit_mips.c"
+#elif defined(__riscv__) || defined(__riscv)
+#include "../drc/emit_riscv.c"
 #elif defined(__i386__)
 #include "../drc/emit_x86.c"
 #elif defined(__x86_64__)
@@ -1207,43 +1205,8 @@ static void dr_flush_tcache(int tcid)
 
 static void *dr_failure(void)
 {
-  lprintf("recompilation failed\n");
+  printf("recompilation failed\n");
   exit(1);
-}
-
-#define ADD_TO_ARRAY(array, count, item, failcode) { \
-  if (count >= ARRAY_SIZE(array)) { \
-    dbg(1, "warning: " #array " overflow"); \
-    failcode; \
-  } else \
-    array[count++] = item; \
-}
-
-static inline int find_in_array(u32 *array, size_t size, u32 what)
-{
-  size_t i;
-  for (i = 0; i < size; i++)
-    if (what == array[i])
-      return i;
-
-  return -1;
-}
-
-static int find_in_sorted_array(u32 *array, size_t size, u32 what)
-{
-  // binary search in sorted array
-  int left = 0, right = size-1;
-  while (left <= right)
-  {
-    int middle = (left + right) / 2;
-    if (array[middle] == what)
-      return middle;
-    else if (array[middle] < what)
-      left = middle + 1;
-    else
-      right = middle - 1;
-  }
-  return -1;
 }
 
 // ---------------------------------------------------------------
@@ -2868,6 +2831,88 @@ static void emit_do_static_regs(int is_write, int tmpr)
   }
 }
 
+// block local link stuff
+struct linkage {
+  u32 pc;
+  void *ptr;
+  struct block_link *bl;
+  u32 mask;
+};
+
+static inline int find_in_linkage(const struct linkage *array, int size, u32 pc)
+{
+  size_t i;
+  for (i = 0; i < size; i++)
+    if (pc == array[i].pc)
+      return i;
+
+  return -1;
+}
+
+static int find_in_sorted_linkage(const struct linkage *array, int size, u32 pc)
+{
+  // binary search in sorted array
+  int left = 0, right = size-1;
+  while (left <= right)
+  {
+    int middle = (left + right) / 2;
+    if (array[middle].pc == pc)
+      return middle;
+    else if (array[middle].pc < pc)
+      left = middle + 1;
+    else
+      right = middle - 1;
+  }
+  return -1;
+}
+
+static void emit_branch_linkage_code(SH2 *sh2, struct block_desc *block, int tcache_id,
+                                const struct linkage *targets, int target_count,
+                                const struct linkage *links, int link_count)
+{
+  struct block_link *bl;
+  int u, v, tmp;
+
+  for (u = 0; u < link_count; u++) {
+    emith_pool_check();
+    // look up local branch targets
+    v = find_in_sorted_linkage(targets, target_count, links[u].pc);
+    if (v >= 0) {
+      if (! targets[v].ptr) {
+        // forward branch not yet resolved, prepare external linking
+        emith_jump_patch(links[u].ptr, tcache_ptr, NULL);
+        bl = dr_prepare_ext_branch(block->entryp, links[u].pc, sh2->is_slave, tcache_id);
+        if (bl) {
+          emith_flush(); // flush to inhibit insn swapping
+          bl->type = BL_LDJMP;
+        }
+
+        tmp = rcache_get_tmp_arg(0);
+        emith_move_r_imm(tmp, links[u].pc);
+        rcache_free_tmp(tmp);
+        emith_jump_patchable(sh2_drc_dispatcher);
+      } else if (emith_jump_patch_inrange(links[u].ptr, targets[v].ptr)) {
+        // inrange local branch
+        emith_jump_patch(links[u].ptr, targets[v].ptr, NULL);
+      } else {
+        // far local branch
+        emith_jump_patch(links[u].ptr, tcache_ptr, NULL);
+        emith_jump(targets[v].ptr);
+      }
+    } else {
+      // external or exit, emit blx area entry
+      void *target = (links[u].pc & 1 ? sh2_drc_exit : sh2_drc_dispatcher);
+      if (links[u].bl)
+        links[u].bl->blx = tcache_ptr;
+      emith_jump_patch(links[u].ptr, tcache_ptr, NULL);
+      tmp = rcache_get_tmp_arg(0);
+      emith_move_r_imm(tmp, links[u].pc & ~1);
+      rcache_free_tmp(tmp);
+      emith_jump(target);
+    }
+  }
+}
+
 #define DELAY_SAVE_T(sr) { \
   int t_ = rcache_get_tmp(); \
   emith_bic_r_imm(sr, T_save); \
@@ -2887,17 +2932,10 @@ static void *dr_get_pc_base(u32 pc, SH2 *sh2);
 static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 {
   // branch targets in current block
-  u32 branch_target_pc[MAX_LOCAL_BRANCHES];
-  void *branch_target_ptr[MAX_LOCAL_BRANCHES];
+  struct linkage branch_targets[MAX_LOCAL_TARGETS];
   int branch_target_count = 0;
-  // unresolved local forward branches, for fixup at block end
-  u32 branch_patch_pc[MAX_LOCAL_BRANCHES];
-  void *branch_patch_ptr[MAX_LOCAL_BRANCHES];
-  int branch_patch_count = 0;
-  // external branch targets with a block link/exit area
-  u32 blx_target_pc[MAX_LOCAL_BRANCHES];
-  void *blx_target_ptr[MAX_LOCAL_BRANCHES];
-  struct block_link *blx_target_bl[MAX_LOCAL_BRANCHES];
+  // unresolved local or external targets with block link/exit area if needed
+  struct linkage blx_targets[MAX_LOCAL_BRANCHES];
   int blx_target_count = 0;
 
   u8 op_flags[BLOCK_INSN_LIMIT];
@@ -2906,6 +2944,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     int delay_reg:8;
     u32 loop_type:8;
     u32 polling:8;
+    u32 pinning:1;
     u32 test_irq:1;
     u32 pending_branch_direct:1;
     u32 pending_branch_indirect:1;
@@ -2914,23 +2953,20 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #if LOOP_OPTIMIZER
   // loops with pinned registers for optimzation
   // pinned regs are like statics and don't need saving/restoring inside a loop
-  u32 pinned_loop_pc[MAX_LOCAL_BRANCHES/16];
-  void *pinned_loop_ptr[MAX_LOCAL_BRANCHES/16];
-  u32 pinned_loop_mask[MAX_LOCAL_BRANCHES/16];
+  struct linkage pinned_loops[MAX_LOCAL_TARGETS/16];
   int pinned_loop_count = 0;
 #endif
 
   // PC of current, first, last SH2 insn
   u32 pc, base_pc, end_pc;
   u32 base_literals, end_literals;
-  void *block_entry_ptr;
+  u8 *block_entry_ptr;
   struct block_desc *block;
   struct block_entry *entry;
   struct block_link *bl;
   u16 *dr_pc_base;
   struct op_data *opd;
   int blkid_main = 0;
-  int skip_op = 0;
   int tmp, tmp2;
   int cycles;
   int i, v;
@@ -2971,8 +3007,15 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   for (pc = base_pc, i = 0; pc < end_pc; i++, pc += 2) {
     if (op_flags[i] & OF_DELAY_OP)
       op_flags[i] &= ~OF_BTARGET;
-    if (op_flags[i] & OF_BTARGET)
-      ADD_TO_ARRAY(branch_target_pc, branch_target_count, pc, );
+    if (op_flags[i] & OF_BTARGET) {
+      if (branch_target_count < ARRAY_SIZE(branch_targets))
+        branch_targets[branch_target_count++] = (struct linkage) { .pc = pc };
+      else {
+        printf("warning: linkage overflow\n");
+        end_pc = pc;
+        break;
+      }
+    }
     if (ops[i].op == OP_LDC && (ops[i].dest & BITMASK1(SHR_SR)) && pc+2 < end_pc)
       op_flags[i+1] |= OF_BTARGET; // RTE entrypoint in case of SR.IMASK change
     // unify T and SR since rcache doesn't know about "virtual" guest regs
@@ -3040,9 +3083,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         if (op_flags[v] & OF_BASIC_LOOP) {
           m3 &= ~rcache_regs_static & ~BITMASK5(SHR_PC, SHR_PR, SHR_SR, SHR_T, SHR_MEM);
           if (m3 && count_bits(m3) < count_bits(rcache_vregs_reg) &&
-              pinned_loop_count < ARRAY_SIZE(pinned_loop_pc)-1) {
-            pinned_loop_mask[pinned_loop_count] = m3;
-            pinned_loop_pc[pinned_loop_count++] = base_pc + 2*v;
+              pinned_loop_count < ARRAY_SIZE(pinned_loops)-1) {
+            pinned_loops[pinned_loop_count++] =
+                (struct linkage) { .mask = m3, .pc = base_pc + 2*v };
           } else
             op_flags[v] &= ~OF_BASIC_LOOP;
         }
@@ -3050,10 +3093,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       }
     }
 #endif
-  }
-
-  if (branch_target_count > 0) {
-    memset(branch_target_ptr, 0, sizeof(branch_target_ptr[0]) * branch_target_count);
   }
 
   tcache_ptr = dr_prepare_cache(tcache_id, (end_pc - base_pc) / 2);
@@ -3076,7 +3115,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   emith_invalidate_t();
   drcf = (struct drcf) { 0 };
 #if LOOP_OPTIMIZER
-  pinned_loop_pc[pinned_loop_count] = -1;
+  pinned_loops[pinned_loop_count].pc = -1;
   pinned_loop_count = 0;
 #endif
 
@@ -3089,24 +3128,6 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     u32 delay_dep_fw = 0, delay_dep_bk = 0;
     int tmp3, tmp4;
     int sr;
-
-    opd = &ops[i];
-    op = FETCH_OP(pc);
-
-#if (DRC_DEBUG & 2)
-    insns_compiled++;
-#endif
-#if (DRC_DEBUG & 4)
-    DasmSH2(sh2dasm_buff, pc, op);
-    if (op_flags[i] & OF_BTARGET) {
-      if ((op_flags[i] & OF_LOOP) == OF_DELAY_LOOP)     tmp3 = '+';
-      else if ((op_flags[i] & OF_LOOP) == OF_POLL_LOOP) tmp3 = '=';
-      else if ((op_flags[i] & OF_LOOP) == OF_IDLE_LOOP) tmp3 = '~';
-      else                                              tmp3 = '*';
-    } else if (drcf.loop_type)                          tmp3 = '.';
-    else                                                tmp3 = ' ';
-    printf("%c%08x %04x %s\n", tmp3, pc, op, sh2dasm_buff);
-#endif
 
     if (op_flags[i] & OF_BTARGET)
     {
@@ -3143,9 +3164,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         break;
       }
 
-      v = find_in_sorted_array(branch_target_pc, branch_target_count, pc);
+      v = find_in_sorted_linkage(branch_targets, branch_target_count, pc);
       if (v >= 0)
-        branch_target_ptr[v] = tcache_ptr;
+        branch_targets[v].ptr = tcache_ptr;
 #if LOOP_DETECTION
       drcf.loop_type = op_flags[i] & OF_LOOP;
       drcf.delay_reg = -1;
@@ -3176,12 +3197,13 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
 #if LOOP_OPTIMIZER
       if (op_flags[i] & OF_BASIC_LOOP) {
-        if (pinned_loop_pc[pinned_loop_count] == pc) {
+        if (pinned_loops[pinned_loop_count].pc == pc) {
           // pin needed regs on loop entry 
-          FOR_ALL_BITS_SET_DO(pinned_loop_mask[pinned_loop_count], v, rcache_pin_reg(v));
+          FOR_ALL_BITS_SET_DO(pinned_loops[pinned_loop_count].mask, v, rcache_pin_reg(v));
           emith_flush();
           // store current PC as loop target
-          pinned_loop_ptr[pinned_loop_count] = tcache_ptr;
+          pinned_loops[pinned_loop_count].ptr = tcache_ptr;
+          drcf.pinning = 1;
         } else
           op_flags[i] &= ~OF_BASIC_LOOP;
       }
@@ -3193,11 +3215,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         EMITH_JMP_START(DCOND_GT);
         rcache_save_pinned();
 
-        if (blx_target_count < ARRAY_SIZE(blx_target_pc)) {
+        if (blx_target_count < ARRAY_SIZE(blx_targets)) {
           // exit via stub in blx table (saves some 1-3 insns in the main flow)
-          blx_target_ptr[blx_target_count] = tcache_ptr;
-          blx_target_pc[blx_target_count] = pc|1;
-          blx_target_bl[blx_target_count++] = NULL;
+          blx_targets[blx_target_count++] =
+              (struct linkage) { .ptr = tcache_ptr, .pc = pc|1, .bl = NULL };
           emith_jump_patchable(tcache_ptr);
         } else {
           // blx table full, must inline exit code
@@ -3210,12 +3231,11 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       } else
 #endif
       {
-        if (blx_target_count < ARRAY_SIZE(blx_target_pc)) {
+        if (blx_target_count < ARRAY_SIZE(blx_targets)) {
           // exit via stub in blx table (saves some 1-3 insns in the main flow)
-          blx_target_pc[blx_target_count] = pc|1;
-          blx_target_bl[blx_target_count] = NULL;
           emith_cmp_r_imm(sr, 0);
-          blx_target_ptr[blx_target_count++] = tcache_ptr;
+          blx_targets[blx_target_count++] =
+              (struct linkage) { .ptr = tcache_ptr, .pc = pc|1, .bl = NULL };
           emith_jump_cond_patchable(DCOND_LE, tcache_ptr);
         } else {
           // blx table full, must inline exit code
@@ -3282,13 +3302,40 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     }
 #endif
 
-    emith_pool_check();
-    pc += 2;
-
-    if (skip_op > 0) {
-      skip_op--;
-      continue;
+    // emit blx area if limits are approached
+    if (blx_target_count && (blx_target_count > ARRAY_SIZE(blx_targets)-4 || 
+        !emith_jump_patch_inrange(blx_targets[0].ptr, tcache_ptr+0x100))) {
+      u8 *jp;
+      rcache_invalidate_tmp();
+      jp = tcache_ptr;
+      emith_jump_patchable(tcache_ptr);
+      emit_branch_linkage_code(sh2, block, tcache_id, branch_targets,
+                          branch_target_count, blx_targets, blx_target_count);
+      blx_target_count = 0;
+      do_host_disasm(tcache_id);
+      emith_jump_patch(jp, tcache_ptr, NULL);
     }
+
+    emith_pool_check();
+
+    opd = &ops[i];
+    op = FETCH_OP(pc);
+#if (DRC_DEBUG & 4)
+    DasmSH2(sh2dasm_buff, pc, op);
+    if (op_flags[i] & OF_BTARGET) {
+      if ((op_flags[i] & OF_LOOP) == OF_DELAY_LOOP)     tmp3 = '+';
+      else if ((op_flags[i] & OF_LOOP) == OF_POLL_LOOP) tmp3 = '=';
+      else if ((op_flags[i] & OF_LOOP) == OF_IDLE_LOOP) tmp3 = '~';
+      else                                              tmp3 = '*';
+    } else if (drcf.loop_type)                          tmp3 = '.';
+    else                                                tmp3 = ' ';
+    printf("%c%08x %04x %s\n", tmp3, pc, op, sh2dasm_buff);
+#endif
+
+    pc += 2;
+#if (DRC_DEBUG & 2)
+    insns_compiled++;
+#endif
 
     if (op_flags[i] & OF_DELAY_OP)
     {
@@ -4422,7 +4469,7 @@ end_op:
         emit_sync_t_to_sr();
         emith_sh2_delay_loop(cycles, drcf.delay_reg);
         rcache_unlock_all(); // may lock delay_reg
-        drcf.polling = drcf.loop_type = 0;
+        drcf.polling = drcf.loop_type = drcf.pinning = 0;
       }
 #endif
 
@@ -4464,33 +4511,39 @@ end_op:
         emith_sync_t(sr);
       // no modification of host status/flags between here and branching!
 
-      v = find_in_sorted_array(branch_target_pc, branch_target_count, target_pc);
+      v = find_in_sorted_linkage(branch_targets, branch_target_count, target_pc);
       if (v >= 0)
       {
         // local branch
-        if (branch_target_ptr[v]) {
+        if (branch_targets[v].ptr) {
           // local backward jump, link here now since host PC is already known
-          target = branch_target_ptr[v];
+          target = branch_targets[v].ptr;
 #if LOOP_OPTIMIZER
-          if (pinned_loop_pc[pinned_loop_count] == target_pc) {
+          if (pinned_loops[pinned_loop_count].pc == target_pc) {
             // backward jump at end of optimized loop
             rcache_unpin_all();
-            target = pinned_loop_ptr[pinned_loop_count];
+            target = pinned_loops[pinned_loop_count].ptr;
             pinned_loop_count ++;
           }
 #endif
-          if (cond != -1)
-            emith_jump_cond(cond, target);
-          else {
+          if (cond != -1) {
+            if (emith_jump_patch_inrange(tcache_ptr, target)) {
+              emith_jump_cond(cond, target);
+            } else {
+              // not reachable directly, must use far branch
+              EMITH_JMP_START(emith_invert_cond(cond));
+              emith_jump(target);
+              EMITH_JMP_END(emith_invert_cond(cond));
+            }
+          } else {
             emith_jump(target);
             rcache_invalidate();
           }
-        } else if (branch_patch_count < MAX_LOCAL_BRANCHES) {
+        } else if (blx_target_count < MAX_LOCAL_BRANCHES) {
           // local forward jump
           target = tcache_ptr;
-          branch_patch_pc[branch_patch_count] = target_pc;
-          branch_patch_ptr[branch_patch_count] = target;
-          branch_patch_count++;
+          blx_targets[blx_target_count++] =
+              (struct linkage) { .pc = target_pc, .ptr = target, .bl = NULL };
           if (cond != -1)
             emith_jump_cond_patchable(cond, target);
           else {
@@ -4498,7 +4551,7 @@ end_op:
             rcache_invalidate();
           }
         } else
-          dbg(1, "warning: too many local branches");
+          dbg(1, "warning: too many unresolved branches");
       }
 
       if (target == NULL)
@@ -4507,13 +4560,12 @@ end_op:
         bl = dr_prepare_ext_branch(block->entryp, target_pc, sh2->is_slave, tcache_id);
         if (cond != -1) {
 #if 1
-          if (bl && blx_target_count < ARRAY_SIZE(blx_target_pc)) {
+          if (bl && blx_target_count < ARRAY_SIZE(blx_targets)) {
             // conditional jumps get a blx stub for the far jump
-            blx_target_pc[blx_target_count] = target_pc;
-            blx_target_bl[blx_target_count] = bl;
-            blx_target_ptr[blx_target_count++] = tcache_ptr;
             bl->type = BL_JCCBLX;
             target = tcache_ptr;
+            blx_targets[blx_target_count++] =
+                (struct linkage) { .pc = target_pc, .ptr = target, .bl = bl };
             emith_jump_cond_patchable(cond, target);
           } else {
             // not linkable, or blx table full; inline jump @dispatcher
@@ -4660,43 +4712,14 @@ end_op:
   } else
     rcache_flush();
 
-  // emit blx area
-  for (i = 0; i < blx_target_count; i++) {
-    void *target = (blx_target_pc[i] & 1 ? sh2_drc_exit : sh2_drc_dispatcher);
-
-    emith_pool_check();
-    bl = blx_target_bl[i];
-    if (bl)
-      bl->blx = tcache_ptr;
-    emith_jump_patch(blx_target_ptr[i], tcache_ptr, NULL);
-    tmp = rcache_get_tmp_arg(0);
-    emith_move_r_imm(tmp, blx_target_pc[i] & ~1);
-    emith_jump(target);
-    rcache_invalidate();
-  }
+  // link unresolved branches, emitting blx area entries as needed
+  emit_branch_linkage_code(sh2, block, tcache_id, branch_targets,
+                      branch_target_count, blx_targets, blx_target_count);
 
   emith_flush();
   do_host_disasm(tcache_id);
 
   emith_pool_commit(0);
-
-  // link local branches
-  for (i = 0; i < branch_patch_count; i++) {
-    void *target;
-    int t;
-    t = find_in_sorted_array(branch_target_pc, branch_target_count, branch_patch_pc[i]);
-    target = branch_target_ptr[t];
-    if (target == NULL) {
-      // flush pc and go back to dispatcher (this should no longer happen)
-      dbg(1, "stray branch to %08x %p", branch_patch_pc[i], tcache_ptr);
-      target = tcache_ptr;
-      tmp = rcache_get_tmp_arg(0);
-      emith_move_r_imm(tmp, branch_patch_pc[i]);
-      emith_jump(sh2_drc_dispatcher);
-      rcache_flush();
-    }
-    emith_jump_patch(branch_patch_ptr[i], target, NULL);
-  }
 
   // fill blx backup; do this last to backup final patched code
   for (i = 0; i < block->entry_count; i++)
@@ -4927,7 +4950,7 @@ static void sh2_generate_utils(void)
   // pc = sh2_drc_dispatcher_call(u32 pc)
   sh2_drc_dispatcher_call = (void *)tcache_ptr;
   emith_ctx_read(arg2, offsetof(SH2, rts_cache_idx));
-  emith_add_r_imm(arg2, 2*sizeof(void *));
+  emith_add_r_imm(arg2, (u32)(2*sizeof(void *)));
   emith_and_r_imm(arg2, (ARRAY_SIZE(sh2s->rts_cache)-1) * 2*sizeof(void *));
   emith_ctx_write(arg2, offsetof(SH2, rts_cache_idx));
   emith_add_r_r_r_lsl_ptr(arg2, CONTEXT_REG, arg2, 0);
@@ -4957,7 +4980,7 @@ static void sh2_generate_utils(void)
   emith_jump_cond(DCOND_NE, sh2_drc_dispatcher);
 #endif
   emith_read_r_r_offs_ptr(arg0, arg1, offsetof(SH2, rts_cache) + sizeof(void *));
-  emith_sub_r_imm(arg2, 2*sizeof(void *));
+  emith_sub_r_imm(arg2, (u32)(2*sizeof(void *)));
   emith_and_r_imm(arg2, (ARRAY_SIZE(sh2s->rts_cache)-1) * 2*sizeof(void *));
   emith_ctx_write(arg2, offsetof(SH2, rts_cache_idx));
 #if (DRC_DEBUG & 128)
