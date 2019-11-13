@@ -62,14 +62,17 @@
 // opcode field (encoded in op)
 enum { OP__FN=000, OP__RT, OP_J, OP_JAL, OP_BEQ, OP_BNE, OP_BLEZ, OP_BGTZ };
 enum { OP_ADDI=010, OP_ADDIU, OP_SLTI, OP_SLTIU, OP_ANDI, OP_ORI, OP_XORI, OP_LUI };
-enum { OP_LB=040, OP_LH, OP_LWL, OP_LW, OP_LBU, OP_LHU, OP_LWR };
-enum { OP_SB=050, OP_SH, OP_SWL, OP_SW, __(54), __(55), OP_SWR };
+enum { OP_LB=040, OP_LH, OP_LWL, OP_LW, OP_LBU, OP_LHU, OP_LWR, OP_LWU };
+enum { OP_SB=050, OP_SH, OP_SWL, OP_SW, OP_SDL, OP_SDR, OP_SWR };
+enum { OP_DADDI=030, OP_DADDIU, OP_LDL, OP_LDR, OP_SD=067, OP_LD=077 };
 // function field (encoded in fn if opcode = OP__FN)
 enum { FN_SLL=000, __(01), FN_SRL, FN_SRA, FN_SLLV, __(05), FN_SRLV, FN_SRAV };
-enum { FN_MFHI=020, FN_MTHI, FN_MFLO, FN_MTLO };
-enum { FN_MULT=030, FN_MULTU, FN_DIV, FN_DIVU };
+enum { FN_JR=010, FN_JALR, FN_MOVZ, FN_MOVN, FN_SYNC=017 };
+enum { FN_MFHI=020, FN_MTHI, FN_MFLO, FN_MTLO, FN_DSSLV, __(25), FN_DSLRV, FN_DSRAV };
+enum { FN_MULT=030, FN_MULTU, FN_DIV, FN_DIVU, FN_DMULT, FN_DMULTU, FN_DDIV, FN_DDIVU };
 enum { FN_ADD=040, FN_ADDU, FN_SUB, FN_SUBU, FN_AND, FN_OR, FN_XOR, FN_NOR };
-enum { FN_JR=010, FN_JALR, FN_MOVZ, FN_MOVN, FN_SYNC=017, FN_SLT=052, FN_SLTU };
+enum { FN_SLT=052, FN_SLTU, FN_DADD, FN_DADDU, FN_DSUB, FN_DSUBU };
+enum { FN_DSLL=070, __(71), FN_DSRL, FN_DSRA, FN_DSLL32, __(75), FN_DSRL32, FN_DSRA32 };
 // rt field (encoded in rt if opcode = OP__RT)
 enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 
@@ -85,8 +88,12 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 // rd = rs OP rt
 #define MIPS_ADD_REG(rd, rs, rt) \
 	MIPS_OP_REG(FN_ADDU, rd, rs, rt)
+#define MIPS_DADD_REG(rd, rs, rt) \
+	MIPS_OP_REG(FN_DADDU, rd, rs, rt)
 #define MIPS_SUB_REG(rd, rs, rt) \
 	MIPS_OP_REG(FN_SUBU, rd, rs, rt)
+#define MIPS_DSUB_REG(rd, rs, rt) \
+	MIPS_OP_REG(FN_DSUBU, rd, rs, rt)
 
 #define MIPS_NEG_REG(rd, rt) \
 	MIPS_SUB_REG(rd, Z0, rt)
@@ -122,6 +129,8 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 // rt = rs OP imm16
 #define MIPS_ADD_IMM(rt, rs, imm16) \
 	MIPS_OP_IMM(OP_ADDIU, rt, rs, imm16)
+#define MIPS_DADD_IMM(rt, rs, imm16) \
+	MIPS_OP_IMM(OP_DADDIU, rt, rs, imm16)
 
 #define MIPS_XOR_IMM(rt, rs, imm16) \
 	MIPS_OP_IMM(OP_XORI, rt, rs, imm16)
@@ -143,6 +152,11 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 	MIPS_INSN(OP__FN, _, rt, rd, bits, FN_SRL)
 #define MIPS_ASR_IMM(rd, rt, bits) \
 	MIPS_INSN(OP__FN, _, rt, rd, bits, FN_SRA)
+
+#define MIPS_DLSL_IMM(rd, rt, bits) \
+	MIPS_INSN(OP__FN, _, rt, rd, bits, FN_DSLL)
+#define MIPS_DLSL32_IMM(rd, rt, bits) \
+	MIPS_INSN(OP__FN, _, rt, rd, bits, FN_DSLL32)
 
 // rt = (rs < imm16)
 #define MIPS_SLT_IMM(rt, rs, imm16) \
@@ -193,23 +207,45 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 
 // load/store indexed base
 
+#define MIPS_LD(rt, rs, offs16) \
+	MIPS_OP_IMM(OP_LD, rt, rs, (u16)(offs16))
 #define MIPS_LW(rt, rs, offs16) \
-	MIPS_INSN(OP_LW, rs, rt, _,_, (u16)(offs16))
+	MIPS_OP_IMM(OP_LW, rt, rs, (u16)(offs16))
 #define MIPS_LH(rt, rs, offs16) \
-	MIPS_INSN(OP_LH, rs, rt, _,_, (u16)(offs16))
+	MIPS_OP_IMM(OP_LH, rt, rs, (u16)(offs16))
 #define MIPS_LB(rt, rs, offs16) \
-	MIPS_INSN(OP_LB, rs, rt, _,_, (u16)(offs16))
+	MIPS_OP_IMM(OP_LB, rt, rs, (u16)(offs16))
 #define MIPS_LHU(rt, rs, offs16) \
-	MIPS_INSN(OP_LHU, rs, rt, _,_, (u16)(offs16))
+	MIPS_OP_IMM(OP_LHU, rt, rs, (u16)(offs16))
 #define MIPS_LBU(rt, rs, offs16) \
-	MIPS_INSN(OP_LBU, rs, rt, _,_, (u16)(offs16))
+	MIPS_OP_IMM(OP_LBU, rt, rs, (u16)(offs16))
 
+#define MIPS_SD(rt, rs, offs16) \
+	MIPS_OP_IMM(OP_SD, rt, rs, (u16)(offs16))
 #define MIPS_SW(rt, rs, offs16) \
-	MIPS_INSN(OP_SW, rs, rt, _,_, (u16)(offs16))
+	MIPS_OP_IMM(OP_SW, rt, rs, (u16)(offs16))
 #define MIPS_SH(rt, rs, offs16) \
-	MIPS_INSN(OP_SH, rs, rt, _,_, (u16)(offs16))
+	MIPS_OP_IMM(OP_SH, rt, rs, (u16)(offs16))
 #define MIPS_SB(rt, rs, offs16) \
-	MIPS_INSN(OP_SB, rs, rt, _,_, (u16)(offs16))
+	MIPS_OP_IMM(OP_SB, rt, rs, (u16)(offs16))
+
+// pointer operations
+
+#if __mips == 4 || __mips == 64
+#define OP_LP				OP_LD
+#define OP_SP				OP_SD
+#define OP_PADDIU			OP_DADDIU
+#define FN_PADDU			FN_DADDU
+#define FN_PSUBU			FN_DSUBU
+#define PTR_SCALE			3
+#else
+#define OP_LP				OP_LW
+#define OP_SP				OP_SW
+#define OP_PADDIU			OP_ADDIU
+#define FN_PADDU			FN_ADDU
+#define FN_PSUBU			FN_SUBU
+#define PTR_SCALE			2
+#endif
 
 // XXX: tcache_ptr type for SVP and SH2 compilers differs..
 #define EMIT_PTR(ptr, x) \
@@ -442,14 +478,14 @@ static void emith_set_arith_flags(int rd, int rs, int rt, s32 imm, int sub)
 
 	if (emith_flg_hint & _FHV) {
 		emith_flg_noV = 0;
-		if (rt >= 0)				// Nt^Ns in FV, bit 31
+		if (rt > Z0)				// Nt^Ns in FV, bit 31
 			EMIT(MIPS_XOR_REG(FV, rs, rt));
-		else if (imm == 0)
+		else if (rt == Z0 || imm == 0)
 			emith_flg_noV = 1;		// imm #0 can't overflow
 		else if ((imm < 0) == !sub)
 			EMIT(MIPS_NOR_REG(FV, rs, Z0));
 		else if ((imm > 0) == !sub)
-			EMIT(MIPS_OR_REG(FV, rs, Z0));
+			EMIT(MIPS_XOR_REG(FV, rs, Z0));
 	}
 	// full V = Nd^Nt^Ns^C calculation is deferred until really needed
 
@@ -485,11 +521,15 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 #define emith_add_r_r_r_lsl_ptr(d, s1, s2, simm) do { \
 	if (simm) { \
 		EMIT(MIPS_LSL_IMM(AT, s2, simm)); \
+		EMIT(MIPS_OP_REG(FN_PADDU, d, s1, AT)); \
+	} else	EMIT(MIPS_OP_REG(FN_PADDU, d, s1, s2)); \
+} while (0)
+#define emith_add_r_r_r_lsl(d, s1, s2, simm) do { \
+	if (simm) { \
+		EMIT(MIPS_LSL_IMM(AT, s2, simm)); \
 		EMIT(MIPS_ADD_REG(d, s1, AT)); \
 	} else	EMIT(MIPS_ADD_REG(d, s1, s2)); \
 } while (0)
-#define emith_add_r_r_r_lsl(d, s1, s2, simm) \
-	emith_add_r_r_r_lsl_ptr(d, s1, s2, simm)
 
 #define emith_add_r_r_r_lsr(d, s1, s2, simm) do { \
 	if (simm) { \
@@ -498,6 +538,16 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 	} else	EMIT(MIPS_ADD_REG(d, s1, s2)); \
 } while (0)
 
+#define emith_addf_r_r_r_lsl_ptr(d, s1, s2, simm) do { \
+	if (simm) { \
+		EMIT(MIPS_LSL_IMM(AT, s2, simm)); \
+		EMIT(MIPS_OP_REG(FN_PADDU, FNZ, s1, AT)); \
+		emith_set_arith_flags(d, s1, AT, 0, 0); \
+	} else { \
+		EMIT(MIPS_OP_REG(FN_PADDU, FNZ, s1, s2)); \
+		emith_set_arith_flags(d, s1, s2, 0, 0); \
+	} \
+} while (0)
 #define emith_addf_r_r_r_lsl(d, s1, s2, simm) do { \
 	if (simm) { \
 		EMIT(MIPS_LSL_IMM(AT, s2, simm)); \
@@ -586,6 +636,8 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 #define emith_add_r_r_r(d, s1, s2) \
 	emith_add_r_r_r_lsl(d, s1, s2, 0)
 
+#define emith_addf_r_r_r_ptr(d, s1, s2) \
+	emith_addf_r_r_r_lsl_ptr(d, s1, s2, 0)
 #define emith_addf_r_r_r(d, s1, s2) \
 	emith_addf_r_r_r_lsl(d, s1, s2, 0)
 
@@ -697,14 +749,26 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 // move immediate
 static void emith_move_imm(int r, uintptr_t imm)
 {
-	if ((s16)imm == imm) {
+#if __mips == 4 || __mips == 64
+	if ((s32)imm != imm) {
+		emith_move_imm(r, imm >> 32);
+		if (imm & 0xffff0000) {
+			EMIT(MIPS_DLSL_IMM(r, r, 16));
+			EMIT(MIPS_OR_IMM(r, r, (imm >> 16) & 0xffff));
+			EMIT(MIPS_DLSL_IMM(r, r, 16));
+		} else	EMIT(MIPS_DLSL32_IMM(r, r, 0));
+		if (imm & 0x0000ffff)
+			EMIT(MIPS_OR_IMM(r, r, imm & 0xffff));
+	} else
+#endif
+	 if ((s16)imm == imm) {
 		EMIT(MIPS_ADD_IMM(r, Z0, imm));
-	} else if (!(imm >> 16)) {
+	} else if (!((u32)imm >> 16)) {
 		EMIT(MIPS_OR_IMM(r, Z0, imm));
 	} else {
 		int s = Z0;
-		if (imm >> 16) {
-			EMIT(MIPS_MOVT_IMM(r, imm >> 16));
+		if ((u32)imm >> 16) {
+			EMIT(MIPS_MOVT_IMM(r, (u32)imm >> 16));
 			s = r;
 		}
 		if ((u16)imm)
@@ -729,17 +793,17 @@ static void emith_move_imm(int r, uintptr_t imm)
 } while (0)
 
 // arithmetic, immediate - can only be ADDI[U], since SUBI[U] doesn't exist
-static void emith_arith_imm(int op, int rd, int rs, u32 imm)
+static void emith_add_imm(int ptr, int rd, int rs, u32 imm)
 {
 	if ((s16)imm == imm) {
 		if (imm || rd != rs)
-			EMIT(MIPS_OP_IMM(op, rd, rs, imm));
+			EMIT(MIPS_OP_IMM(ptr ? OP_PADDIU:OP_ADDIU, rd,rs,imm));
 	} else if ((s32)imm  < 0) {
 		emith_move_r_imm(AT, -imm);
-		EMIT(MIPS_OP_REG(FN_SUB + (op-OP_ADDI), rd, rs, AT));
+		EMIT(MIPS_OP_REG((ptr ? FN_PSUBU:FN_SUBU), rd,rs,AT));
 	} else {
 		emith_move_r_imm(AT, imm);
-		EMIT(MIPS_OP_REG(FN_ADD + (op-OP_ADDI), rd, rs, AT));
+		EMIT(MIPS_OP_REG((ptr ? FN_PADDU:FN_ADDU), rd,rs,AT));
 	}
 }
 
@@ -760,7 +824,7 @@ static void emith_arith_imm(int op, int rd, int rs, u32 imm)
 	emith_subf_r_r_imm(r, r, imm)
 
 #define emith_adc_r_imm(r, imm) \
-	emith_adc_r_r_imm(r, r, imm);
+	emith_adc_r_r_imm(r, r, imm)
 
 #define emith_adcf_r_imm(r, imm) \
 	emith_adcf_r_r_imm(r, r, imm)
@@ -770,10 +834,10 @@ static void emith_arith_imm(int op, int rd, int rs, u32 imm)
 //	emith_subf_r_r_imm(FNZ, r, (s16)imm)
 
 #define emith_add_r_r_ptr_imm(d, s, imm) \
-	emith_arith_imm(OP_ADDIU, d, s, imm)
+	emith_add_imm(1, d, s, imm)
 
 #define emith_add_r_r_imm(d, s, imm) \
-	emith_add_r_r_ptr_imm(d, s, imm)
+	emith_add_imm(0, d, s, imm)
 
 #define emith_addf_r_r_imm(d, s, imm) do { \
 	emith_add_r_r_imm(FNZ, s, imm); \
@@ -1043,22 +1107,24 @@ static void emith_lohi_nops(void)
 
 // load/store. offs has 16 bits signed, which is currently sufficient
 #define emith_read_r_r_offs_ptr(r, rs, offs) \
-	EMIT(MIPS_LW(r, rs, offs))
+	EMIT(MIPS_OP_IMM(OP_LP, r, rs, offs))
 #define emith_read_r_r_offs_ptr_c(cond, r, rs, offs) \
 	emith_read_r_r_offs_ptr(r, rs, offs)
 
 #define emith_read_r_r_offs(r, rs, offs) \
-	emith_read_r_r_offs_ptr(r, rs, offs)
+	EMIT(MIPS_LW(r, rs, offs))
 #define emith_read_r_r_offs_c(cond, r, rs, offs) \
 	emith_read_r_r_offs(r, rs, offs)
  
 #define emith_read_r_r_r_ptr(r, rs, rm) do { \
 	emith_add_r_r_r(AT, rs, rm); \
-	EMIT(MIPS_LW(r, AT, 0)); \
+	EMIT(MIPS_OP_IMM(OP_LP, r, AT, 0)); \
 } while (0)
 
-#define emith_read_r_r_r(r, rs, rm) \
-	emith_read_r_r_r_ptr(r, rs, rm)
+#define emith_read_r_r_r(r, rs, rm) do { \
+	emith_add_r_r_r(AT, rs, rm); \
+	EMIT(MIPS_LW(r, AT, 0)); \
+} while (0)
 #define emith_read_r_r_r_c(cond, r, rs, rm) \
 	emith_read_r_r_r(r, rs, rm)
 
@@ -1112,24 +1178,26 @@ static void emith_lohi_nops(void)
 
 
 #define emith_write_r_r_offs_ptr(r, rs, offs) \
-	EMIT(MIPS_SW(r, rs, offs))
+	EMIT(MIPS_OP_IMM(OP_SP, r, rs, offs))
 #define emith_write_r_r_offs_ptr_c(cond, r, rs, offs) \
 	emith_write_r_r_offs_ptr(r, rs, offs)
 
 #define emith_write_r_r_r_ptr(r, rs, rm) do { \
 	emith_add_r_r_r(AT, rs, rm); \
-	EMIT(MIPS_SW(r, AT, 0)); \
+	EMIT(MIPS_OP_IMM(OP_SP, r, AT, 0)); \
 } while (0)
 #define emith_write_r_r_r_ptr_c(cond, r, rs, rm) \
 	emith_write_r_r_r_ptr(r, rs, rm)
 
 #define emith_write_r_r_offs(r, rs, offs) \
-	emith_write_r_r_offs_ptr(r, rs, offs)
+	EMIT(MIPS_SW(r, rs, offs))
 #define emith_write_r_r_offs_c(cond, r, rs, offs) \
 	emith_write_r_r_offs(r, rs, offs)
 
-#define emith_write_r_r_r(r, rs, rm) \
-	emith_write_r_r_r_ptr(r, rs, rm)
+#define emith_write_r_r_r(r, rs, rm) do { \
+	emith_add_r_r_r(AT, rs, rm); \
+	EMIT(MIPS_SW(r, AT, 0)); \
+} while (0)
 #define emith_write_r_r_r_c(cond, r, rs, rm) \
 	emith_write_r_r_r(r, rs, rm)
 
@@ -1164,7 +1232,7 @@ static void emith_lohi_nops(void)
 	int _c; u32 _m = mask & 0x300fffc; /* r2-r15,r24-r25 */ \
 	if (__builtin_parity(_m) == 1) _m |= 0x1; /* ABI align */ \
 	int _s = count_bits(_m) * 4, _o = _s; \
-	if (_s) emith_sub_r_imm(SP, _s); \
+	if (_s) emith_add_r_r_ptr_imm(SP, SP, -_s); \
 	for (_c = HOST_REGS-1; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
 		if (_m & (1 << _c)) \
 			{ _o -= 4; if (_c) emith_write_r_r_offs(_c, SP, _o); } \
@@ -1177,7 +1245,7 @@ static void emith_lohi_nops(void)
 	for (_c = 0; _m && _c < HOST_REGS; _m &= ~(1 << _c), _c++) \
 		if (_m & (1 << _c)) \
 			{ if (_c) emith_read_r_r_offs(_c, SP, _o); _o += 4; } \
-	if (_s) emith_add_r_imm(SP, _s); \
+	if (_s) emith_add_r_r_ptr_imm(SP, SP, _s); \
 } while (0)
 
 #define host_arg2reg(rd, arg) \
@@ -1343,8 +1411,8 @@ static int emith_cond_check(int cond, int *r)
 	emith_jump_cond(cond, target)
 
 #define emith_jump_cond_inrange(target) \
-	((u8 *)target - (u8 *)tcache_ptr - 4 <  0x00020000U || \
-	 (u8 *)target - (u8 *)tcache_ptr - 4 >= 0xfffe0010U) // mind cond_check
+	((u8 *)target - (u8 *)tcache_ptr - 4 <   0x20000 && \
+	 (u8 *)target - (u8 *)tcache_ptr - 4 >= -0x20000+0x10) //mind cond_check
 
 // NB: returns position of patch for cache maintenance
 #define emith_jump_patch(ptr, target, pos) do { \
@@ -1359,8 +1427,8 @@ static int emith_cond_check(int cond, int *r)
 } while (0)
 
 #define emith_jump_patch_inrange(ptr, target) \
-	((u8 *)target - (u8 *)ptr - 4 <  0x00020000U || \
-	 (u8 *)target - (u8 *)ptr - 4 >= 0xfffe0010U) // mind cond_check
+	((u8 *)target - (u8 *)ptr - 4 <   0x20000 && \
+	 (u8 *)target - (u8 *)ptr - 4 >= -0x20000+0x10) // mind cond_check
 #define emith_jump_patch_size() 4
 
 #define emith_jump_at(ptr, target) do { \
@@ -1410,7 +1478,7 @@ static int emith_cond_check(int cond, int *r)
 
 // NB: ABI SP alignment is 8 for compatibility with MIPS IV
 #define emith_push_ret(r) do { \
-	emith_sub_r_imm(SP, 8+16); /* reserve new arg save area (16) */ \
+	emith_add_r_r_ptr_imm(SP, SP, -8-16); /* ABI: 16 byte arg save area */ \
 	emith_write_r_r_offs(LR, SP, 4+16); \
 	if ((r) > 0) emith_write_r_r_offs(r, SP, 0+16); \
 } while (0)
@@ -1418,7 +1486,7 @@ static int emith_cond_check(int cond, int *r)
 #define emith_pop_and_ret(r) do { \
 	if ((r) > 0) emith_read_r_r_offs(r, SP, 0+16); \
 	emith_read_r_r_offs(LR, SP, 4+16); \
-	emith_add_r_imm(SP, 8+16); \
+	emith_add_r_r_ptr_imm(SP, SP, 8+16); \
 	emith_ret(); \
 } while (0)
 
@@ -1436,7 +1504,7 @@ static int emith_cond_check(int cond, int *r)
 	int _c; u32 _m = 0xd0ff0000; \
 	if (__builtin_parity(_m) == 1) _m |= 0x1; /* ABI align for SP is 8 */ \
 	int _s = count_bits(_m) * 4 + 16, _o = _s; /* 16 byte arg save area */ \
-	if (_s) emith_sub_r_imm(SP, _s); \
+	if (_s) emith_add_r_r_ptr_imm(SP, SP, -_s); \
 	for (_c = HOST_REGS-1; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
 		if (_m & (1 << _c)) \
 			{ _o -= 4; if (_c) emith_write_r_r_offs(_c, SP, _o); } \
@@ -1448,23 +1516,23 @@ static int emith_cond_check(int cond, int *r)
 	for (_c = 0; _m && _c < HOST_REGS; _m &= ~(1 << _c), _c++) \
 		if (_m & (1 << _c)) \
 			{ if (_c) emith_read_r_r_offs(_c, SP, _o); _o += 4; } \
-	if (_s) emith_add_r_imm(SP, _s); \
+	if (_s) emith_add_r_r_ptr_imm(SP, SP, _s); \
 	emith_ret(); \
 } while (0)
 
 // NB: assumes a is in arg0, tab, func and mask are temp
 #define emith_sh2_rcall(a, tab, func, mask) do { \
 	emith_lsr(mask, a, SH2_READ_SHIFT); \
-	emith_add_r_r_r_lsl_ptr(tab, tab, mask, 3); \
+	emith_add_r_r_r_lsl_ptr(tab, tab, mask, PTR_SCALE+1); \
 	emith_read_r_r_offs_ptr(func, tab, 0); \
-	emith_read_r_r_offs(mask, tab, 4); \
-	emith_addf_r_r_r/*_ptr*/(func, func, func); \
+	emith_read_r_r_offs(mask, tab, (1 << PTR_SCALE)); \
+	emith_addf_r_r_r_ptr(func, func, func); \
 } while (0)
 
 // NB: assumes a, val are in arg0 and arg1, tab and func are temp
 #define emith_sh2_wcall(a, val, tab, func) do { \
 	emith_lsr(func, a, SH2_WRITE_SHIFT); \
-	emith_lsl(func, func, 2); \
+	emith_lsl(func, func, PTR_SCALE); \
 	emith_read_r_r_r_ptr(func, tab, func); \
 	emith_move_r_r_ptr(6, CONTEXT_REG); /* arg2 */ \
 	emith_jump_reg(func); \

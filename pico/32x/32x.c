@@ -506,7 +506,7 @@ void sync_sh2s_normal(unsigned int m68k_target)
         if (CYCLES_GT(now, ssh2.m68krcycles_done))
           now = ssh2.m68krcycles_done;
       }
-      if (now - timer_cycles >= STEP_N) {
+      if (CYCLES_GT(now, timer_cycles+STEP_N)) {
         p32x_timers_do(now - timer_cycles);
         timer_cycles = now;
       }

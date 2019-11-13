@@ -41,6 +41,8 @@ unsigned short scan_block(unsigned int base_pc, int is_slave,
 #define	DRC_SR_REG	"r28"
 #elif defined(__mips__)
 #define	DRC_SR_REG	"s6"
+#elif defined(__riscv__) || defined(__riscv)
+#define	DRC_SR_REG	"s11"
 #elif defined(__i386__)
 #define	DRC_SR_REG	"edi"
 #elif defined(__x86_64__)

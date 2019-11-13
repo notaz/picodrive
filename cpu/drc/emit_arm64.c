@@ -134,9 +134,9 @@ enum { XT_UXTW=0x4, XT_UXTX=0x6, XT_LSL=0x7, XT_SXTW=0xc, XT_SXTX=0xe };
 #define A64_TST_REG(rn, rm, stype, simm) \
 	A64_ANDS_REG(Z0, rn, rm, stype, simm)
 #define A64_MOV_REG(rd, rm, stype, simm) \
-	A64_OR_REG(rd, Z0, rm, stype, simm);
+	A64_OR_REG(rd, Z0, rm, stype, simm)
 #define A64_MVN_REG(rd, rm, stype, simm) \
-	A64_ORN_REG(rd, Z0, rm, stype, simm);
+	A64_ORN_REG(rd, Z0, rm, stype, simm)
 
 // rd = rn OP (rm EXTEND simm)
 #define A64_ADD_XREG(rd, rn, rm, xtopt, simm) \

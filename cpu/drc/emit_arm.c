@@ -365,7 +365,7 @@ static void emith_flush(void)
 
 #define EOP_LDR_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,1,rn,rd,shift_imm,A_AM1_LSL,rm)
 #define EOP_LDR_REG_LSL_WB(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,3,rn,rd,shift_imm,A_AM1_LSL,rm)
-#define EOP_LDRB_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,1,1,rn,rd,shift_imm,A_AM1_LSL,rm);
+#define EOP_LDRB_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,1,1,rn,rd,shift_imm,A_AM1_LSL,rm)
 #define EOP_STR_REG_LSL_WB(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,2,rn,rd,shift_imm,A_AM1_LSL,rm)
 
 #define EOP_LDRH_IMM2(cond,rd,rn,offset_8)  EOP_C_AM3_IMM(cond,(offset_8) >= 0,1,rn,rd,0,1,abs(offset_8))
@@ -470,84 +470,89 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 	if (cond == A_COND_NV)
 		return;
 
-	switch (op) {
-	case A_OP_MOV:
-		rn = 0;
-		// count bits in imm and use MVN if more bits 1 than 0
-		if (count_bits(imm) > 16) {
-			imm = ~imm;
-			op = A_OP_MVN;
-		}
-		// count insns needed for mov/orr #imm
+	do {
+		u32 u;
+		// try to get the topmost byte empty to possibly save an insn
 		for (v = imm, ror2 = 0; (v >> 24) && ror2 < 32/2; ror2++)
 			v = (v << 2) | (v >> 30);
-#ifdef HAVE_ARMV7
-		for (i = 2; i > 0; i--, v >>= 8)
-			while (v > 0xff && !(v & 3))
-				v >>= 2;
-		if (v) { // 3+ insns needed...
-			if (op == A_OP_MVN)
+
+		switch (op) {
+		case A_OP_MOV:
+			rn = 0;
+			// use MVN if more bits 1 than 0
+			if (count_bits(imm) > 16) {
 				imm = ~imm;
-			// ...prefer movw/movt
-			EOP_MOVW(rd, imm);
-			if (imm & 0xffff0000)
-				EOP_MOVT(rd, imm);
-			return;
-		}
-#else
-		for (i = 3; i > 0; i--, v >>= 8)
-			while (v > 0xff && !(v & 3))
-				v >>= 2;
-		if (v) { // 4 insns needed...
-			if (op == A_OP_MVN)
-				imm = ~imm;
-			// ...emit literal load
-			int idx, o;
-			if (literal_iindex >= MAX_HOST_LITERALS) {
-				elprintf(EL_STATUS|EL_SVP|EL_ANOMALY,
-					"pool overflow");
-				exit(1);
+				op = A_OP_MVN;
+				ror2 = -1;
+				break;
 			}
-			idx = emith_pool_literal(imm, &o);
-			literal_insn[literal_iindex++] = (u32 *)tcache_ptr;
-			EOP_LDR_IMM2(cond, rd, PC, idx * sizeof(u32));
-			if (o > 0)
-				EOP_C_DOP_IMM(cond, A_OP_ADD, 0, rd, rd, 0, o);
-			else if (o < 0)
-				EOP_C_DOP_IMM(cond, A_OP_SUB, 0, rd, rd, 0, -o);
+			// count insns needed for mov/orr #imm
+#ifdef HAVE_ARMV7
+			for (i = 2, u = v; i > 0; i--, u >>= 8)
+				while (u > 0xff && !(u & 3))
+					u >>= 2;
+			if (u) { // 3+ insns needed...
+				if (op == A_OP_MVN)
+					imm = ~imm;
+				// ...prefer movw/movt
+				EOP_MOVW(rd, imm);
+				if (imm & 0xffff0000)
+					EOP_MOVT(rd, imm);
+				return;
+			}
+#else
+			for (i = 2, u = v; i > 0; i--, u >>= 8)
+				while (u > 0xff && !(u & 3))
+					u >>= 2;
+			if (u) { // 4 insns needed...
+				if (op == A_OP_MVN)
+					imm = ~imm;
+				// ...emit literal load
+				int idx, o;
+				if (literal_iindex >= MAX_HOST_LITERALS) {
+					elprintf(EL_STATUS|EL_SVP|EL_ANOMALY,
+						"pool overflow");
+					exit(1);
+				}
+				idx = emith_pool_literal(imm, &o);
+				literal_insn[literal_iindex++] = (u32 *)tcache_ptr;
+				EOP_LDR_IMM2(cond, rd, PC, idx * sizeof(u32));
+				if (o > 0)
+				    EOP_C_DOP_IMM(cond, A_OP_ADD, 0,rd,rd,0,o);
+				else if (o < 0)
+				    EOP_C_DOP_IMM(cond, A_OP_SUB, 0,rd,rd,0,-o);
 			return;
-		}
+			}
 #endif
-		break;
+			break;
 
-	case A_OP_AND:
-		// AND must fit into 1 insn. if not, use BIC
-		for (v = imm, ror2 = 0; (v >> 8) && ror2 < 32/2; ror2++)
-			v = (v << 2) | (v >> 30);
-		if (v >> 8) {
-			imm = ~imm;
-			op = A_OP_BIC;
+		case A_OP_AND:
+			// AND must fit into 1 insn. if not, use BIC
+			for (u = v; u > 0xff && !(u & 3); u >>= 2) ;
+			if (u >> 8) {
+				imm = ~imm;
+				op = A_OP_BIC;
+				ror2 = -1;
+			}
+			break;
+
+		case A_OP_SUB:
+		case A_OP_ADD:
+			// swap ADD and SUB if more bits 1 than 0
+			if (s == 0 && count_bits(imm) > 16) {
+				imm = -imm;
+				op ^= (A_OP_ADD^A_OP_SUB);
+				ror2 = -1;
+			}
+		case A_OP_EOR:
+		case A_OP_ORR:
+		case A_OP_BIC:
+			if (s == 0 && imm == 0 && rd == rn)
+				return;
+			break;
 		}
-		break;
+	} while (ror2 < 0);
 
-	case A_OP_SUB:
-	case A_OP_ADD:
-		// count bits in imm and swap ADD and SUB if more bits 1 than 0
-		if (s == 0 && count_bits(imm) > 16) {
-			imm = -imm;
-			op ^= (A_OP_ADD^A_OP_SUB);
-		}
-	case A_OP_EOR:
-	case A_OP_ORR:
-	case A_OP_BIC:
-		if (s == 0 && imm == 0 && rd == rn)
-			return;
-		break;
-	}
-
-	// try to get the topmost byte empty to possibly save an insn
-	for (v = imm, ror2 = 0; (v >> 24) && ror2 < 32/2; ror2++)
-		v = (v << 2) | (v >> 30);
 	do {
 		// shift down to get 'best' rot2
 		while (v > 0xff && !(v & 3))

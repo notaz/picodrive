@@ -16,7 +16,7 @@ compile_rodata ()
 	# $CC $CFLAGS -I .. -nostdlib -Wl,-edummy /tmp/getoffs.c \
 	#					-o /tmp/getoffs.o || exit 1
 	# find the name of the .rodata section (in case -fdata-sections is used)
-	rosect=$(readelf -S /tmp/getoffs.o | grep '\.rodata' |
+	rosect=$(readelf -S /tmp/getoffs.o | grep '\.rodata\|\.sdata' |
 						sed 's/^[^.]*././;s/ .*//')
 	# read out .rodata section as hex string (should be only 4 or 8 bytes)
 	ro=$(readelf -x $rosect /tmp/getoffs.o | grep '0x' | cut -c14-48 |
