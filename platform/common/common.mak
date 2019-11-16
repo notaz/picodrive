@@ -181,7 +181,7 @@ $(FR)cpu/cyclone/Cyclone.h:
 
 $(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/$(CYCLONE_CONFIG)
 	@echo building Cyclone...
-	@make -C $(R)cpu/cyclone/ CONFIG_FILE=../$(CYCLONE_CONFIG)
+	@make CC=$(HOST_CC) CXX=$(HOST_CXX) -C $(R)cpu/cyclone/ CONFIG_FILE=../$(CYCLONE_CONFIG)
 
 $(FR)cpu/cyclone/Cyclone.s: $(FR)cpu/cyclone/*.cpp $(FR)cpu/cyclone/*.h
 
