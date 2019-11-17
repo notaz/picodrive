@@ -1,8 +1,8 @@
 $(LD) ?= $(CC)
 TARGET ?= PicoDrive
 CFLAGS += -I.
-HOST_CC ?= gcc
-HOST_CXX ?= g++
+CYCLONE_CC ?= gcc
+CYCLONE_CXX ?= g++
 
 ifneq ("$(PLATFORM)", "libretro")
 	CFLAGS += -Wall -g
