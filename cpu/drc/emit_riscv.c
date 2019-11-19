@@ -7,7 +7,7 @@
  */
 #define HOST_REGS	32
 
-// RISC-V ABI: params: x10-x17, return: r10-x11, temp: x1(ra),x5-x7,x28-x31
+// RISC-V ABI: params: x10-x17, return: x10-x11, temp: x1(ra),x5-x7,x28-x31
 // saved: x8(fp),x9,x18-x27, reserved: x0(zero), x4(tp), x3(gp), x2(sp)
 // x28-x31(t3-t6) are used internally by the code emitter
 #define RET_REG		10 // a0
@@ -74,13 +74,14 @@
 		_CB(imm,8,12,0), rd, op)
 
 // opcode
-enum { OP_LUI=0x37, OP_JAL=0x6f, OP_JALR=0x67, OP_BCOND=0x63, OP_LD=0x03,
-       OP_ST=0x23, OP_IMM=0x13, OP_IMM32=0x1b, OP_REG=0x33, OP_REG32=0x3b };
+enum { OP_LUI=0x37, OP_AUIPC=0x17, OP_JAL=0x6f, // 20-bit immediate
+       OP_JALR=0x67, OP_BCOND=0x63, OP_LD=0x03, OP_ST=0x23, // 12-bit immediate
+       OP_IMM=0x13, OP_REG=0x33, OP_IMM32=0x1b, OP_REG32=0x3b };
 // func3
-enum { F1_ADD, F1_SL, F1_SLT, F1_SLTU, F1_XOR, F1_SR, F1_OR, F1_AND };
-enum { F1_BEQ, F1_BNE, F1_BLT=4, F1_BGE, F1_BLTU, F1_BGEU };
-enum { F1_B, F1_H, F1_W, F1_D, F1_BU, F1_HU, F1_WU };
+enum { F1_ADD, F1_SL, F1_SLT, F1_SLTU, F1_XOR, F1_SR, F1_OR, F1_AND };// IMM/REG
 enum { F1_MUL, F1_MULH, F1_MULHSU, F1_MULHU, F1_DIV, F1_DIVU, F1_REM, F1_REMU };
+enum { F1_BEQ, F1_BNE, F1_BLT=4, F1_BGE, F1_BLTU, F1_BGEU }; // BCOND
+enum { F1_B, F1_H, F1_W, F1_D, F1_BU, F1_HU, F1_WU }; // LD/ST
 // func7
 enum { F2_ALT=0x20, F2_MULDIV=0x01 };
 
@@ -141,6 +142,8 @@ enum { F2_ALT=0x20, F2_MULDIV=0x01 };
 	R5_OR_IMM(rd, Z0, imm12)
 #define R5_MOVT_IMM(rd, imm20) \
 	R5_U_INSN(OP_LUI, rd, imm20)
+#define R5_MOVA_IMM(rd, imm20) \
+	R5_U_INSN(OP_AUIPC, rd, imm20)
 
 // rd = rs SHIFT imm5/imm6
 #define R5_LSL_IMM(rd, rs, bits) \
@@ -212,8 +215,10 @@ enum { F2_ALT=0x20, F2_MULDIV=0x01 };
 #define PTR_SCALE			3
 
 // NB: must split 64 bit result into 2 32 bit registers
-// NB: this expects 32 bit values in s1+s2, correctly sign extended to 64 bits
+// NB: expects 32 bit values in s1+s2, correctly sign extended to 64 bits
 #define EMIT_R5_MULLU_REG(dlo, dhi, s1, s2) do { \
+	/*EMIT(R5_ADDW_IMM(s1, s1, 0));*/ \
+	/*EMIT(R5_ADDW_IMM(s2, s2, 0));*/ \
 	EMIT(R5_MUL(dlo, s1, s2)); \
 	EMIT(R5_LSR_IMM(dhi, dlo, 32)); \
 	EMIT(R5_LSL_IMM(dlo, dlo, 32)); \
@@ -307,7 +312,7 @@ enum { F2_ALT=0x20, F2_MULDIV=0x01 };
 	JMP_EMIT_NC(else_ptr); \
 }
 
-// "simple" jump (no more then a few insns)
+// "simple" jump (no more than a few insns)
 // ARM32 will use conditional instructions here
 #define EMITH_SJMP_START EMITH_JMP_START
 #define EMITH_SJMP_END EMITH_JMP_END
@@ -620,6 +625,67 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 
 
 // move immediate
+#define MAX_HOST_LITERALS	32	// pool must be smaller than 4 KB
+static uintptr_t literal_pool[MAX_HOST_LITERALS];
+static u32 *literal_insn[MAX_HOST_LITERALS];
+static int literal_pindex, literal_iindex;
+
+static inline int emith_pool_literal(uintptr_t imm)
+{
+	int idx = literal_pindex - 8; // max look behind in pool
+	// see if one of the last literals was the same (or close enough)
+	for (idx = (idx < 0 ? 0 : idx); idx < literal_pindex; idx++)
+		if (imm == literal_pool[idx])
+			break;
+	if (idx == literal_pindex)	// store new literal
+		literal_pool[literal_pindex++] = imm;
+	return idx;
+}
+
+static void emith_pool_commit(int jumpover)
+{
+	int i, sz = literal_pindex * sizeof(uintptr_t);
+	u8 *pool = (u8 *)tcache_ptr;
+
+	// nothing to commit if pool is empty
+	if (sz == 0)
+		return;
+	// align pool to pointer size
+	if (jumpover)
+		pool += sizeof(u32);
+	i = (uintptr_t)pool & (sizeof(void *)-1);
+	pool += (i ? sizeof(void *)-i : 0);
+	// need branch over pool if not at block end
+	if (jumpover)
+		EMIT(R5_B(sz + (pool-(u8 *)tcache_ptr)));
+	// safety check - pool must be after insns and reachable
+	if ((u32)(pool - (u8 *)literal_insn[0] + 8) > 0x7ff) {
+		elprintf(EL_STATUS|EL_SVP|EL_ANOMALY,
+			"pool offset out of range");
+		exit(1);
+	}
+	// copy pool and adjust addresses in insns accessing the pool
+	memcpy(pool, literal_pool, sz);
+	for (i = 0; i < literal_iindex; i++) {
+		*literal_insn[i] += ((u8 *)pool - (u8 *)literal_insn[i]) << 20;
+	}
+	// count pool constants as insns for statistics
+	for (i = 0; i < literal_pindex * sizeof(uintptr_t)/sizeof(u32); i++)
+		COUNT_OP;
+
+	tcache_ptr = (void *)((u8 *)pool + sz);
+	literal_pindex = literal_iindex = 0;
+}
+
+static void emith_pool_check(void)
+{
+	// check if pool must be committed
+	if (literal_iindex > MAX_HOST_LITERALS-4 || (literal_pindex &&
+		    (u8 *)tcache_ptr - (u8 *)literal_insn[0] > 0x700))
+		// pool full, or displacement is approaching the limit
+		emith_pool_commit(1);
+}
+
 static void emith_move_imm(int r, uintptr_t imm)
 {
 	u32 lui = imm + _CB(imm,1,11,12);
@@ -632,8 +698,24 @@ static void emith_move_imm(int r, uintptr_t imm)
 		EMIT(R5_ADD_IMM(r, Z0, imm));
 }
 
+static void emith_move_ptr_imm(int r, uintptr_t imm)
+{
+#if __riscv_xlen == 64
+	if ((s32)imm != imm) {
+		int idx;
+		if (literal_iindex >= MAX_HOST_LITERALS)
+			emith_pool_commit(1);
+		idx = emith_pool_literal(imm);
+		EMIT(R5_MOVA_IMM(AT, 0)); // loads PC of MOVA insn... + 4 in LD
+		literal_insn[literal_iindex++] = (u32 *)tcache_ptr;
+		EMIT(R5_I_INSN(OP_LD, F1_P, r, AT, idx*sizeof(uintptr_t) + 4));
+	} else
+#endif
+		emith_move_imm(r, imm);
+}
+
 #define emith_move_r_ptr_imm(r, imm) \
-	emith_move_imm(r, (uintptr_t)(imm))
+	emith_move_ptr_imm(r, (uintptr_t)(imm))
 
 #define emith_move_r_imm(r, imm) \
 	emith_move_imm(r, (u32)(imm))
@@ -644,7 +726,6 @@ static void emith_move_imm(int r, uintptr_t imm)
 	EMIT(R5_ADD_IMM(r, Z0, (s8)(imm)))
 #define emith_move_r_imm_s8_patch(ptr, imm) do { \
 	u32 *ptr_ = (u32 *)ptr; \
-	while ((*ptr_ & 0xff07f) != R5_ADD_IMM(Z0, Z0, 0)) ptr_++; \
 	EMIT_PTR(ptr_, (*ptr_ & 0x000fffff) | ((u16)(s8)(imm)<<20)); \
 } while (0)
 
@@ -1235,7 +1316,6 @@ static int emith_cond_check(int cond, int *r, int *s)
 // NB: returns position of patch for cache maintenance
 #define emith_jump_patch(ptr, target, pos) do { \
 	u32 *ptr_ = (u32 *)ptr; /* must skip condition check code */ \
-	while ((*ptr_&0x77) != OP_JALR && (*ptr_&0x77) != OP_BCOND) ptr_ ++; \
 	if ((*ptr_&0x77) == OP_BCOND) { \
 		u32 *p_ = ptr_, disp_ = (u8 *)target - (u8 *)ptr_; \
 		u32 f1_ = _CB(*ptr_,3,12,0); \
@@ -1319,8 +1399,6 @@ static int emith_cond_check(int cond, int *r, int *s)
 
 
 // emitter ABI stuff
-#define emith_pool_check()	/**/
-#define emith_pool_commit(j)	/**/
 #define emith_insn_ptr()	((u8 *)tcache_ptr)
 #define	emith_flush()		/**/
 #define host_instructions_updated(base, end) __builtin___clear_cache(base, end)
@@ -1404,22 +1482,31 @@ static int emith_cond_check(int cond, int *r, int *s)
 } while (0)
 
 /*
+ * T = !carry(Rn = (Rn << 1) | T)
  * if Q
- *   t = carry(Rn += Rm)
+ *   C = carry(Rn += Rm)
  * else
- *   t = carry(Rn -= Rm)
- * T ^= t
+ *   C = carry(Rn -= Rm)
+ * T ^= C
  */
 #define emith_sh2_div1_step(rn, rm, sr) do {      \
+	int t_ = rcache_get_tmp();                \
+	emith_and_r_r_imm(AT, sr, T);             \
+	emith_lsr(FC, rn, 31); /*Rn = (Rn<<1)+T*/ \
+	emith_lsl(t_, rn, 1);                     \
+	emith_or_r_r(t_, AT);                     \
+	emith_or_r_imm(sr, T); /* T = !carry */   \
+	emith_eor_r_r(sr, FC);                    \
 	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
 	EMITH_JMP3_START(DCOND_EQ);               \
-	EMITH_HINT_COND(DCOND_CS);                 \
-	emith_addf_r_r(rn, rm);                   \
+	emith_add_r_r_r(rn, t_, rm);              \
+	EMIT(R5_SLTU_REG(FC, rn, t_));          \
 	EMITH_JMP3_MID(DCOND_EQ);                 \
-	EMITH_HINT_COND(DCOND_CS);                 \
-	emith_subf_r_r(rn, rm);                   \
+	emith_sub_r_r_r(rn, t_, rm);              \
+	EMIT(R5_SLTU_REG(FC, t_, rn));          \
 	EMITH_JMP3_END();                         \
-	emith_eor_r_r(sr, FC);                    \
+	emith_eor_r_r(sr, FC); /* T ^= carry */   \
+	rcache_free_tmp(t_);                      \
 } while (0)
 
 /* mh:ml += rn*rm, does saturation if required by S bit. rn, rm must be TEMP */

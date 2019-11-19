@@ -7,9 +7,10 @@
  */
 #define HOST_REGS	32
 
-// MIPS ABI: params: r4-r7, return: r2-r3, temp: r1(at),r8-r15,r24-r25,r31(ra),
+// MIPS32 ABI: params: r4-r7, return: r2-r3, temp: r1(at),r8-r15,r24-r25,r31(ra)
 // saved: r16-r23,r30, reserved: r0(zero), r26-r27(irq), r28(gp), r29(sp)
 // r1,r15,r24,r25(at,t7-t9) are used internally by the code emitter
+// MIPSN32/MIPS64 ABI: params: r4-r11, no caller-reserved save area on stack
 #define RET_REG		2 // v0
 #define PARAM_REGS	{ 4, 5, 6, 7 } // a0-a3
 #define	PRESERVED_REGS	{ 16, 17, 18, 19, 20, 21, 22, 23 } // s0-s7
@@ -424,7 +425,7 @@ static void *emith_branch(u32 op)
 	JMP_EMIT_NC(else_ptr); \
 }
 
-// "simple" jump (no more then a few insns)
+// "simple" jump (no more than a few insns)
 // ARM32 will use conditional instructions here
 #define EMITH_SJMP_START EMITH_JMP_START
 #define EMITH_SJMP_END EMITH_JMP_END
@@ -761,7 +762,7 @@ static void emith_move_imm(int r, uintptr_t imm)
 			EMIT(MIPS_OR_IMM(r, r, imm & 0xffff));
 	} else
 #endif
-	 if ((s16)imm == imm) {
+	if ((s16)imm == imm) {
 		EMIT(MIPS_ADD_IMM(r, Z0, imm));
 	} else if (!((u32)imm >> 16)) {
 		EMIT(MIPS_OR_IMM(r, Z0, imm));
@@ -1576,22 +1577,31 @@ static int emith_cond_check(int cond, int *r)
 } while (0)
 
 /*
+ * T = !carry(Rn = (Rn << 1) | T)
  * if Q
- *   t = carry(Rn += Rm)
+ *   C = carry(Rn += Rm)
  * else
- *   t = carry(Rn -= Rm)
- * T ^= t
+ *   C = carry(Rn -= Rm)
+ * T ^= C
  */
 #define emith_sh2_div1_step(rn, rm, sr) do {      \
+	int t_ = rcache_get_tmp();                \
+	emith_and_r_r_imm(AT, sr, T);             \
+	emith_lsr(FC, rn, 31); /*Rn = (Rn<<1)+T*/ \
+	emith_lsl(t_, rn, 1);                     \
+	emith_or_r_r(t_, AT);                     \
+	emith_or_r_imm(sr, T); /* T = !carry */   \
+	emith_eor_r_r(sr, FC);                    \
 	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
 	EMITH_JMP3_START(DCOND_EQ);               \
-	EMITH_HINT_COND(DCOND_CS);                 \
-	emith_addf_r_r(rn, rm);                   \
+	emith_add_r_r_r(rn, t_, rm);              \
+	EMIT(MIPS_SLTU_REG(FC, rn, t_));          \
 	EMITH_JMP3_MID(DCOND_EQ);                 \
-	EMITH_HINT_COND(DCOND_CS);                 \
-	emith_subf_r_r(rn, rm);                   \
+	emith_sub_r_r_r(rn, t_, rm);              \
+	EMIT(MIPS_SLTU_REG(FC, t_, rn));          \
 	EMITH_JMP3_END();                         \
-	emith_eor_r_r(sr, FC);                    \
+	emith_eor_r_r(sr, FC); /* T ^= carry */   \
+	rcache_free_tmp(t_);                      \
 } while (0)
 
 /* mh:ml += rn*rm, does saturation if required by S bit. rn, rm must be TEMP */

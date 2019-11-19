@@ -974,7 +974,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	JMP8_EMIT_NC(else_ptr); \
 }
 
-// "simple" jump (no more then a few insns)
+// "simple" jump (no more than a few insns)
 // ARM will use conditional instructions here
 #define EMITH_SJMP_START EMITH_JMP_START
 #define EMITH_SJMP_END EMITH_JMP_END
@@ -1287,15 +1287,19 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	emith_adc_r_r(sr, sr)
 
 /*
+ * T = carry(Rn = (Rn << 1) | T)
  * if Q
  *   t = carry(Rn += Rm)
  * else
  *   t = carry(Rn -= Rm)
- * T ^= t
+ * T = !(T ^ t)
  */
 #define emith_sh2_div1_step(rn, rm, sr) do {      \
 	u8 *jmp0, *jmp1;                          \
 	int tmp_ = rcache_get_tmp();              \
+	emith_tpop_carry(sr, 0); /* Rn = 2*Rn+T */\
+	emith_adcf_r_r_r(rn, rn, rn);             \
+	emith_tpush_carry(sr, 0); /* T = C1 */    \
 	emith_eor_r_r(tmp_, tmp_);                \
 	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
 	JMP8_POS(jmp0);          /* je do_sub */  \
@@ -1305,7 +1309,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	emith_sub_r_r(rn, rm);                    \
 	JMP8_EMIT_NC(jmp1);      /* done: */      \
 	emith_adc_r_r(tmp_, tmp_);                \
-	emith_eor_r_r(sr, tmp_);                  \
+	emith_eor_r_r(sr, tmp_);/* T = !(C1^C2) */\
+	emith_eor_r_imm(sr, T);                   \
 	rcache_free_tmp(tmp_);                    \
 } while (0)
 

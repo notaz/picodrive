@@ -478,6 +478,7 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 
 		switch (op) {
 		case A_OP_MOV:
+		case A_OP_MVN:
 			rn = 0;
 			// use MVN if more bits 1 than 0
 			if (count_bits(imm) > 16) {
@@ -501,7 +502,7 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 				return;
 			}
 #else
-			for (i = 2, u = v; i > 0; i--, u >>= 8)
+			for (i = 3, u = v; i > 0; i--, u >>= 8)
 				while (u > 0xff && !(u & 3))
 					u >>= 2;
 			if (u) { // 4 insns needed...
@@ -1387,22 +1388,25 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 } while (0)
 
 /*
+ * T = carry(Rn = (Rn << 1) | T)
  * if Q
- *   t = carry(Rn += Rm)
+ *   T ^= !carry(Rn += Rm)
  * else
- *   t = carry(Rn -= Rm)
- * T ^= t
+ *   T ^= !carry(Rn -= Rm)
  */
 #define emith_sh2_div1_step(rn, rm, sr) do {      \
 	void *jmp0, *jmp1;                        \
+	emith_tpop_carry(sr, 0); /* Rn = 2*Rn+T */\
+	emith_adcf_r_r_r(rn, rn, rn);             \
+	emith_tpush_carry(sr, 0);                 \
 	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
 	JMP_POS(jmp0);           /* beq do_sub */ \
-	emith_addf_r_r(rn, rm);                   \
-	emith_eor_r_imm_c(A_COND_CS, sr, T);      \
+	emith_addf_r_r(rn, rm);  /* Rn += Rm */   \
+	emith_eor_r_imm_c(A_COND_CC, sr, T);      \
 	JMP_POS(jmp1);           /* b done */     \
 	JMP_EMIT(A_COND_EQ, jmp0); /* do_sub: */  \
-	emith_subf_r_r(rn, rm);                   \
-	emith_eor_r_imm_c(A_COND_CC, sr, T);      \
+	emith_subf_r_r(rn, rm);  /* Rn -= Rm */   \
+	emith_eor_r_imm_c(A_COND_CS, sr, T);      \
 	JMP_EMIT(A_COND_AL, jmp1); /* done: */    \
 } while (0)
 
