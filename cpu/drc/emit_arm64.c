@@ -372,7 +372,7 @@ enum { AM_IDX, AM_IDXPOST, AM_IDXREG, AM_IDXPRE };
 
 #define EMITH_HINT_COND(cond)   /**/
 
-// "simple" jump (no more then a few insns)
+// "simple" jump (no more than a few insns)
 // ARM32 will use conditional instructions here
 #define EMITH_SJMP_START EMITH_JMP_START
 #define EMITH_SJMP_END EMITH_JMP_END
@@ -1240,22 +1240,26 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 } while (0)
 
 /*
+ * T = carry(Rn = (Rn << 1) | T)
  * if Q
- *   t = carry(Rn += Rm)
+ *   t = !carry(Rn += Rm)
  * else
- *   t = carry(Rn -= Rm)
+ *   t = !carry(Rn -= Rm)
  * T ^= t
  */
 #define emith_sh2_div1_step(rn, rm, sr) do {      \
 	int tmp_ = rcache_get_tmp();              \
-	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
+	emith_tpop_carry(sr, 0);                  \
+	emith_adcf_r_r_r(rn, rn, rn);             \
+	emith_tpush_carry(sr, 0);                 \
+	emith_tst_r_imm(sr, Q);                   \
 	EMITH_SJMP3_START(DCOND_EQ);              \
 	emith_addf_r_r(rn, rm);                   \
 	emith_adc_r_r_r(tmp_, Z0, Z0);            \
+	emith_eor_r_imm(tmp_, 1);                 \
 	EMITH_SJMP3_MID(DCOND_EQ);                \
 	emith_subf_r_r(rn, rm);                   \
 	emith_adc_r_r_r(tmp_, Z0, Z0);            \
-	emith_eor_r_imm(tmp_, 1);                 \
 	EMITH_SJMP3_END();                        \
 	emith_eor_r_r(sr, tmp_);                  \
 	rcache_free_tmp(tmp_);                    \

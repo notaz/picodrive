@@ -2957,20 +2957,18 @@ static void emit_branch_linkage_code(SH2 *sh2, struct block_desc *block, int tca
   struct block_link *bl;
   int u, v, tmp;
 
+  emith_flush();
   for (u = 0; u < link_count; u++) {
     emith_pool_check();
     // look up local branch targets
-    v = find_in_sorted_linkage(targets, target_count, links[u].pc);
-    if (v >= 0) {
-      if (! targets[v].ptr) {
+    if (links[u].mask & 0x2) {
+      v = find_in_sorted_linkage(targets, target_count, links[u].pc);
+      if (v < 0 || ! targets[v].ptr) {
         // forward branch not yet resolved, prepare external linking
         emith_jump_patch(links[u].ptr, tcache_ptr, NULL);
         bl = dr_prepare_ext_branch(block->entryp, links[u].pc, sh2->is_slave, tcache_id);
-        if (bl) {
-          emith_flush(); // flush to inhibit insn swapping
+        if (bl)
           bl->type = BL_LDJMP;
-        }
-
         tmp = rcache_get_tmp_arg(0);
         emith_move_r_imm(tmp, links[u].pc);
         rcache_free_tmp(tmp);
@@ -2985,7 +2983,7 @@ static void emit_branch_linkage_code(SH2 *sh2, struct block_desc *block, int tca
       }
     } else {
       // external or exit, emit blx area entry
-      void *target = (links[u].pc & 1 ? sh2_drc_exit : sh2_drc_dispatcher);
+      void *target = (links[u].mask & 0x1 ? sh2_drc_exit : sh2_drc_dispatcher);
       if (links[u].bl)
         links[u].bl->blx = tcache_ptr;
       emith_jump_patch(links[u].ptr, tcache_ptr, NULL);
@@ -3024,6 +3022,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 
   u8 op_flags[BLOCK_INSN_LIMIT];
 
+  enum flg_states { FLG_UNKNOWN, FLG_UNUSED, FLG_0, FLG_1 };
   struct drcf {
     int delay_reg:8;
     u32 loop_type:8;
@@ -3032,6 +3031,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     u32 test_irq:1;
     u32 pending_branch_direct:1;
     u32 pending_branch_indirect:1;
+    u32 Tflag:2, Mflag:2;
   } drcf = { 0, };
 
 #if LOOP_OPTIMIZER
@@ -3169,7 +3169,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           if (m3 && count_bits(m3) < count_bits(rcache_vregs_reg) &&
               pinned_loop_count < ARRAY_SIZE(pinned_loops)-1) {
             pinned_loops[pinned_loop_count++] =
-                (struct linkage) { .mask = m3, .pc = base_pc + 2*v };
+                (struct linkage) { .pc = base_pc + 2*v, .mask = m3 };
           } else
             op_flags[v] &= ~OF_BASIC_LOOP;
         }
@@ -3220,6 +3220,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
         FLUSH_CYCLES(sr);
         emith_sync_t(sr);
+        drcf.Mflag = FLG_UNKNOWN;
         rcache_flush();
         emith_flush();
       }
@@ -3302,7 +3303,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         if (blx_target_count < ARRAY_SIZE(blx_targets)) {
           // exit via stub in blx table (saves some 1-3 insns in the main flow)
           blx_targets[blx_target_count++] =
-              (struct linkage) { .ptr = tcache_ptr, .pc = pc|1, .bl = NULL };
+              (struct linkage) { .pc = pc, .ptr = tcache_ptr, .mask = 0x1 };
           emith_jump_patchable(tcache_ptr);
         } else {
           // blx table full, must inline exit code
@@ -3319,7 +3320,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           // exit via stub in blx table (saves some 1-3 insns in the main flow)
           emith_cmp_r_imm(sr, 0);
           blx_targets[blx_target_count++] =
-              (struct linkage) { .ptr = tcache_ptr, .pc = pc|1, .bl = NULL };
+              (struct linkage) { .pc = pc, .ptr = tcache_ptr, .mask = 0x1 };
           emith_jump_cond_patchable(DCOND_LE, tcache_ptr);
         } else {
           // blx table full, must inline exit code
@@ -3704,6 +3705,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
           emith_invalidate_t();
           emith_bic_r_imm(sr, M|Q|T);
+          drcf.Mflag = FLG_0;
           break;
         case 2: // MOVT Rn    0000nnnn00101001
           sr   = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
@@ -3781,6 +3783,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         emith_eor_r_r_lsr(tmp, tmp2, 31);
         emith_or_r_r(sr, tmp);          // T = Q^M
         rcache_free(tmp);
+        drcf.Mflag = FLG_UNKNOWN;
         goto end_op;
       case 0x08: // TST Rm,Rn           0010nnnnmmmm1000
         sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
@@ -3846,17 +3849,16 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         tmp2 = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
         tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
         tmp  = rcache_get_reg(SHR_MACL, RC_GR_WRITE, NULL);
+        tmp4 = rcache_get_tmp();
         if (op & 1) {
           emith_sext(tmp, tmp2, 16);
-        } else
+          emith_sext(tmp4, tmp3, 16);
+        } else {
           emith_clear_msb(tmp, tmp2, 16);
-        tmp2 = rcache_get_tmp();
-        if (op & 1) {
-          emith_sext(tmp2, tmp3, 16);
-        } else
-          emith_clear_msb(tmp2, tmp3, 16);
-        emith_mul(tmp, tmp, tmp2);
-        rcache_free_tmp(tmp2);
+          emith_clear_msb(tmp4, tmp3, 16);
+        }
+        emith_mul(tmp, tmp, tmp4);
+        rcache_free_tmp(tmp4);
         goto end_op;
       }
       goto default_;
@@ -3904,28 +3906,27 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         // Q = M ^ Q1 ^ Q2
         // T = (Q == M) = !(Q ^ M) = !(Q1 ^ Q2)
         tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
-        tmp2 = rcache_get_reg(GET_Rn(), RC_GR_RMW, &tmp4);
+        tmp2 = rcache_get_reg(GET_Rn(), RC_GR_RMW, NULL);
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
         emith_sync_t(sr);
-        EMITH_HINT_COND(DCOND_CS);
-        emith_tpop_carry(sr, 0);
-        emith_adcf_r_r_r(tmp2, tmp4, tmp4);
-        emith_tpush_carry(sr, 0);            // keep Q1 in T for now
-        rcache_free(tmp4);
         tmp = rcache_get_tmp();
-        emith_and_r_r_imm(tmp, sr, M);
-        emith_eor_r_r_lsr(sr, tmp, M_SHIFT - Q_SHIFT); // Q ^= M
+        if (drcf.Mflag != FLG_0) {
+          emith_and_r_r_imm(tmp, sr, M);
+          emith_eor_r_r_lsr(sr, tmp, M_SHIFT - Q_SHIFT); // Q ^= M
+        }
         rcache_free_tmp(tmp);
-        // add or sub, invert T if carry to get Q1 ^ Q2
-        // in: (Q ^ M) passed in Q, Q1 in T
+        // shift Rn, add T, add or sub Rm, set T = !(Q1 ^ Q2)
+        // in: (Q ^ M) passed in Q
         emith_sh2_div1_step(tmp2, tmp3, sr);
         tmp = rcache_get_tmp();
-        emith_bic_r_imm(sr, Q);             // Q = M
-        emith_and_r_r_imm(tmp, sr, M);
-        emith_or_r_r_lsr(sr, tmp, M_SHIFT - Q_SHIFT);
-        emith_and_r_r_imm(tmp, sr, T);      // Q = M ^ Q1 ^ Q2
+        emith_or_r_imm(sr, Q);              // Q = !T
+        emith_and_r_r_imm(tmp, sr, T);
         emith_eor_r_r_lsl(sr, tmp, Q_SHIFT);
-        emith_eor_r_imm(sr, T);             // T = !(Q1 ^ Q2)
+        if (drcf.Mflag != FLG_0) {          // Q = M ^ !T = M ^ Q1 ^ Q2
+          emith_and_r_r_imm(tmp, sr, M);
+          emith_eor_r_r_lsr(sr, tmp, M_SHIFT - Q_SHIFT);
+        }
+        rcache_free_tmp(tmp);
         goto end_op;
       case 0x05: // DMULU.L Rm,Rn       0011nnnnmmmm0101
         tmp  = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
@@ -4627,7 +4628,7 @@ end_op:
           // local forward jump
           target = tcache_ptr;
           blx_targets[blx_target_count++] =
-              (struct linkage) { .pc = target_pc, .ptr = target, .bl = NULL };
+              (struct linkage) { .pc = target_pc, .ptr = target, .mask = 0x2 };
           if (cond != -1)
             emith_jump_cond_patchable(cond, target);
           else {
