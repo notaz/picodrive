@@ -262,26 +262,20 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
 }
 #endif
 
-#define TCACHE_BUFFERS 3
 
 // we have 3 translation cache buffers, split from one drc/cmn buffer.
 // BIOS shares tcache with data array because it's only used for init
 // and can be discarded early
-// XXX: need to tune sizes
-static const int tcache_sizes[TCACHE_BUFFERS] = {
-  DRC_TCACHE_SIZE * 30 / 32, // ROM (rarely used), DRAM
-  DRC_TCACHE_SIZE / 32, // BIOS, data array in master sh2
-  DRC_TCACHE_SIZE / 32, // ... slave
+#define TCACHE_BUFFERS 3
+
+
+struct ring_buffer {
+  u8 *base;                  // ring buffer memory
+  unsigned item_sz;          // size of one buffer item
+  unsigned size;             // number of itmes in ring
+  int first, next;           // read and write pointers
+  int used;                  // number of used items in ring
 };
-
-static u8 *tcache_bases[TCACHE_BUFFERS];
-static u8 *tcache_ptrs[TCACHE_BUFFERS];
-static u8 *tcache_limit[TCACHE_BUFFERS];
-
-// ptr for code emiters
-static u8 *tcache_ptr;
-
-#define MAX_BLOCK_ENTRIES (BLOCK_INSN_LIMIT / 6)
 
 enum { BL_JMP=1, BL_LDJMP, BL_JCCBLX };
 struct block_link {
@@ -326,13 +320,35 @@ struct block_desc {
   int refcount;
 #endif
   int entry_count;
-  struct block_entry entryp[MAX_BLOCK_ENTRIES];
+  struct block_entry *entryp;
+};
+
+struct block_list {
+  struct block_desc *block;  // block reference
+  struct block_list *next;   // pointers for doubly linked list
+  struct block_list *prev;
+  struct block_list **head;  // list head (for removing from list)
+  struct block_list *l_next;
+};
+
+static u8 *tcache_ptr;       // ptr for code emitters
+
+// XXX: need to tune sizes
+
+static struct ring_buffer tcache_ring[TCACHE_BUFFERS];
+static const int tcache_sizes[TCACHE_BUFFERS] = {
+  DRC_TCACHE_SIZE * 30 / 32, // ROM (rarely used), DRAM
+  DRC_TCACHE_SIZE / 32, // BIOS, data array in master sh2
+  DRC_TCACHE_SIZE / 32, // ... slave
 };
 
 #define BLOCK_MAX_COUNT(tcid)		((tcid) ? 256 : 32*256)
+static struct ring_buffer block_ring[TCACHE_BUFFERS];
 static struct block_desc *block_tables[TCACHE_BUFFERS];
-static int block_counts[TCACHE_BUFFERS];
-static int block_limit[TCACHE_BUFFERS];
+
+#define ENTRY_MAX_COUNT(tcid)		((tcid) ? 8*512 : 256*512)
+static struct ring_buffer entry_ring[TCACHE_BUFFERS];
+static struct block_entry *entry_tables[TCACHE_BUFFERS];
 
 // we have block_link_pool to avoid using mallocs
 #define BLOCK_LINK_MAX_COUNT(tcid)	((tcid) ? 512 : 32*512)
@@ -345,15 +361,6 @@ static struct block_link *blink_free[TCACHE_BUFFERS];
 #define RAM_SIZE(tcid) 			((tcid) ? 0x1000 : 0x40000)
 #define INVAL_PAGE_SIZE 0x100
 
-struct block_list {
-  struct block_desc *block;
-  struct block_list *next;
-  struct block_list *prev;
-  struct block_list **head;
-  struct block_list *l_next;
-};
-struct block_list *blist_free;
-
 static struct block_list *inactive_blocks[TCACHE_BUFFERS];
 
 // array of pointers to block_lists for RAM and 2 data arrays
@@ -365,6 +372,11 @@ static struct block_entry **hash_tables[TCACHE_BUFFERS];
 
 #define HASH_FUNC(hash_tab, addr, mask) \
   (hash_tab)[((addr) >> 1) & (mask)]
+
+#define BLOCK_LIST_MAX_COUNT		(64*1024)
+static struct block_list *block_list_pool; 
+static int block_list_pool_count;
+static struct block_list *blist_free;
 
 #if (DRC_DEBUG & 128)
 #if BRANCH_CACHE
@@ -429,7 +441,7 @@ static void rcache_free_tmp(int hr);
 // there must be at least the free (not context or statically mapped) amount of
 // PRESERVED/TEMPORARY registers used by handlers in worst case (currently 4). 
 // there must be at least 3 PARAM, and PARAM+TEMPORARY must be at least 4.
-// SR and R0 should by all means be statically mapped.
+// SR must and R0 should by all means be statically mapped.
 // XXX the static definition of SR MUST match that in compiler.h
 // PC and PR must not be statically mapped (accessed in context by utils).
 
@@ -544,6 +556,72 @@ static struct block_entry *dr_get_entry(u32 pc, int is_slave, int *tcache_id)
 
 // ---------------------------------------------------------------
 
+// ring buffer management
+#define RING_INIT(r,m,n)    *(r) = (struct ring_buffer) { .base = (u8 *)m, \
+                                        .item_sz = sizeof(*(m)), .size = n };
+
+static void *ring_alloc(struct ring_buffer *rb, int count)
+{
+  // allocate space in ring buffer
+  void *p;
+
+  p = rb->base + rb->next * rb->item_sz;
+  if (rb->next+count > rb->size) {
+    rb->used += rb->size - rb->next;
+    p = rb->base; // wrap if overflow at end
+    rb->next = count;
+  } else {
+    rb->next += count;
+    if (rb->next == rb->size) rb->next = 0;
+  }
+
+  rb->used += count;
+  return p;
+}
+
+static void ring_wrap(struct ring_buffer *rb)
+{
+  // insufficient space at end of buffer memory, wrap around
+  rb->used += rb->size - rb->next;
+  rb->next = 0;
+}
+
+static void ring_free(struct ring_buffer *rb, int count)
+{
+  // free oldest space in ring buffer
+  rb->first += count;
+  if (rb->first >= rb->size) rb->first -= rb->size;
+
+  rb->used -= count;
+}
+
+static void ring_free_p(struct ring_buffer *rb, void *p)
+{
+  // free ring buffer space upto given pointer
+  rb->first = ((u8 *)p - rb->base) / rb->item_sz;
+
+  rb->used = rb->next - rb->first;
+  if (rb->used < 0) rb->used += rb->size;
+}
+
+static void *ring_reset(struct ring_buffer *rb)
+{
+  // reset to initial state
+  rb->first = rb->next = rb->used = 0;
+  return rb->base + rb->next * rb->item_sz;
+}
+
+static void *ring_first(struct ring_buffer *rb)
+{
+  return rb->base + rb->first * rb->item_sz;
+}
+
+static void *ring_next(struct ring_buffer *rb)
+{
+  return rb->base + rb->next * rb->item_sz;
+}
+
+
 // block management
 static void add_to_block_list(struct block_list **blist, struct block_desc *block)
 {
@@ -552,13 +630,14 @@ static void add_to_block_list(struct block_list **blist, struct block_desc *bloc
   if (blist_free) {
     added = blist_free;
     blist_free = added->next;
+  } else if (block_list_pool_count >= BLOCK_LIST_MAX_COUNT) {
+    printf( "block list overflow\n");
+    exit(1);
   } else {
-    added = malloc(sizeof(*added));
+    added = block_list_pool + block_list_pool_count;
+    block_list_pool_count ++;
   }
-  if (!added) {
-    elprintf(EL_ANOMALY, "drc OOM (1)");
-    return;
-  }
+
   added->block = block;
   added->l_next = block->list;
   block->list = added;
@@ -954,6 +1033,7 @@ static void dr_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit, i
     rm_from_block_lists(bd);
     bd->addr = bd->size = bd->addr_lit = bd->size_lit = 0;
     bd->entry_count = 0;
+    bd->entryp = NULL;
   }
   emith_update_cache();
 }
@@ -976,26 +1056,28 @@ static struct block_desc *dr_find_inactive_block(int tcache_id, u16 crc,
   return NULL;
 }
 
-static struct block_desc *dr_add_block(u32 addr, int size,
+static struct block_desc *dr_add_block(int entries, u32 addr, int size,
   u32 addr_lit, int size_lit, u16 crc, int is_slave, int *blk_id)
 {
   struct block_entry *be;
   struct block_desc *bd;
   int tcache_id;
-  int *bcount;
 
   // do a lookup to get tcache_id and override check
   be = dr_get_entry(addr, is_slave, &tcache_id);
   if (be != NULL)
     dbg(1, "block override for %08x", addr);
 
-  bcount = &block_counts[tcache_id];
-  if (*bcount == block_limit[tcache_id]) {
+  if (block_ring[tcache_id].used  + 1 > block_ring[tcache_id].size ||
+      entry_ring[tcache_id].used + entries > entry_ring[tcache_id].size) {
     dbg(1, "bd overflow for tcache %d", tcache_id);
     return NULL;
   }
 
-  bd = &block_tables[tcache_id][*bcount];
+  *blk_id = block_ring[tcache_id].next;
+  bd = ring_alloc(&block_ring[tcache_id], 1);
+  bd->entryp = ring_alloc(&entry_ring[tcache_id], entries);
+
   bd->addr = addr;
   bd->size = size;
   bd->addr_lit = addr_lit;
@@ -1008,11 +1090,6 @@ static struct block_desc *dr_add_block(u32 addr, int size,
 #if (DRC_DEBUG & 2)
   bd->refcount = 0;
 #endif
-
-  *blk_id = *bcount;
-  (*bcount)++;
-  if (*bcount >= BLOCK_MAX_COUNT(tcache_id))
-    *bcount = 0;
 
   return bd;
 }
@@ -1094,45 +1171,54 @@ static void REGPARM(3) *dr_lookup_block(u32 pc, SH2 *sh2, int *tcache_id)
 
 static void dr_free_oldest_block(int tcache_id)
 {
-  struct block_desc *bd;
+  struct block_desc *bf;
 
-  if (block_limit[tcache_id] >= BLOCK_MAX_COUNT(tcache_id)) {
-    // block desc wrap around
-    block_limit[tcache_id] = 0;
+  bf = ring_first(&block_ring[tcache_id]);
+  if (bf->addr && bf->entry_count)
+    dr_rm_block_entry(bf, tcache_id, 0, 1);
+  ring_free(&block_ring[tcache_id], 1);
+
+  if (block_ring[tcache_id].used) {
+    bf = ring_first(&block_ring[tcache_id]);
+    ring_free_p(&entry_ring[tcache_id], bf->entryp);
+    ring_free_p(&tcache_ring[tcache_id], bf->tcache_ptr);
+  } else {
+    // reset since size of code block isn't known if no successor block exists
+    ring_reset(&block_ring[tcache_id]);
+    ring_reset(&entry_ring[tcache_id]);
+    ring_reset(&tcache_ring[tcache_id]);
   }
-  bd = &block_tables[tcache_id][block_limit[tcache_id]];
-
-  if (bd->tcache_ptr && bd->tcache_ptr < tcache_ptrs[tcache_id]) {
-    // cache wrap around
-    tcache_ptrs[tcache_id] = bd->tcache_ptr;
-  }
-
-  if (bd->addr && bd->entry_count)
-    dr_rm_block_entry(bd, tcache_id, 0, 1);
-
-  block_limit[tcache_id]++;
-  if (block_limit[tcache_id] >= BLOCK_MAX_COUNT(tcache_id))
-    block_limit[tcache_id] = 0;
-  bd = &block_tables[tcache_id][block_limit[tcache_id]];
-  if (bd->tcache_ptr >= tcache_ptrs[tcache_id])
-    tcache_limit[tcache_id] = bd->tcache_ptr;
-  else
-    tcache_limit[tcache_id] = tcache_bases[tcache_id] + tcache_sizes[tcache_id];
 }
 
-static u8 *dr_prepare_cache(int tcache_id, int insn_count)
+static inline void dr_reserve_cache(int tcache_id, struct ring_buffer *rb, int count)
 {
-  u8 *limit = tcache_limit[tcache_id];
-
-  // if no block desc available
-  if (block_counts[tcache_id] == block_limit[tcache_id])
+  // while not enough space available
+  if (rb->next + count >= rb->size){
+    // not enough space in rest of buffer -> wrap around
+    while (rb->first >= rb->next && rb->used)
+      dr_free_oldest_block(tcache_id);
+    if (rb->first == 0 && rb->used)
+      dr_free_oldest_block(tcache_id);
+    ring_wrap(rb);
+  }
+  while (rb->first >= rb->next && rb->next + count > rb->first && rb->used)
     dr_free_oldest_block(tcache_id);
+}
 
-  // while not enough cache space left (limit - tcache_ptr < max space needed)
-  while (tcache_limit[tcache_id] - tcache_ptrs[tcache_id] < insn_count * 128)
+static u8 *dr_prepare_cache(int tcache_id, int insn_count, int entry_count)
+{
+  int bf = block_ring[tcache_id].first;
+
+  // reserve one block desc
+  if (block_ring[tcache_id].used >= block_ring[tcache_id].size)
     dr_free_oldest_block(tcache_id);
+  // reserve block entries
+  dr_reserve_cache(tcache_id, &entry_ring[tcache_id], entry_count);
+  // reserve cache space
+  dr_reserve_cache(tcache_id, &tcache_ring[tcache_id], insn_count*128);
 
-  if (limit != tcache_limit[tcache_id]) {
+  if (bf != block_ring[tcache_id].first) {
+    // deleted some block(s), clear branch cache and return stack
 #if BRANCH_CACHE
     if (tcache_id)
       memset32(sh2s[tcache_id-1].branch_cache, -1, sizeof(sh2s[0].branch_cache)/4);
@@ -1152,29 +1238,27 @@ static u8 *dr_prepare_cache(int tcache_id, int insn_count)
     }
 #endif
   }
-  return (u8 *)tcache_ptrs[tcache_id];
+
+  return ring_next(&tcache_ring[tcache_id]);
 }
 
 static void dr_flush_tcache(int tcid)
 {
   int i;
 #if (DRC_DEBUG & 1)
-  int tc_used, bl_used;
-
-  tc_used = tcache_sizes[tcid] - (tcache_limit[tcid] - tcache_ptrs[tcid]);
-  bl_used = BLOCK_MAX_COUNT(tcid) - (block_limit[tcid] - block_counts[tcid]);
-  elprintf(EL_STATUS, "tcache #%d flush! (%d/%d, bds %d/%d)", tcid, tc_used,
-    tcache_sizes[tcid], bl_used, BLOCK_MAX_COUNT(tcid));
+  elprintf(EL_STATUS, "tcache #%d flush! (%d/%d, bds %d/%d bes %d/%d)", tcid,
+    tcache_ring[tcid].used, tcache_ring[tcid].size, block_ring[tcid].used,
+    block_ring[tcid].size, entry_ring[tcid].used, entry_ring[tcid].size);
 #endif
 
-  block_counts[tcid] = 0;
-  block_limit[tcid] = BLOCK_MAX_COUNT(tcid) - 1;
+  ring_reset(&tcache_ring[tcid]);
+  ring_reset(&block_ring[tcid]);
+  ring_reset(&entry_ring[tcid]);
+
   block_link_pool_counts[tcid] = 0;
   blink_free[tcid] = NULL;
   memset(unresolved_links[tcid], 0, sizeof(*unresolved_links[0]) * HASH_TABLE_SIZE(tcid));
   memset(hash_tables[tcid], 0, sizeof(*hash_tables[0]) * HASH_TABLE_SIZE(tcid));
-  tcache_ptrs[tcid] = tcache_bases[tcid];
-  tcache_limit[tcid] = tcache_bases[tcid] + tcache_sizes[tcid];
   if (Pico32xMem->sdram != NULL) {
     if (tcid == 0) { // ROM, RAM
       memset(Pico32xMem->drcblk_ram, 0, sizeof(Pico32xMem->drcblk_ram));
@@ -1195,7 +1279,7 @@ static void dr_flush_tcache(int tcid)
     }
   }
 #if (DRC_DEBUG & 4)
-  tcache_dsm_ptrs[tcid] = tcache_bases[tcid];
+  tcache_dsm_ptrs[tcid] = tcache_ring[tcid].base;
 #endif
 
   for (i = 0; i < RAM_SIZE(tcid) / INVAL_PAGE_SIZE; i++)
@@ -3095,13 +3179,13 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #endif
   }
 
-  tcache_ptr = dr_prepare_cache(tcache_id, (end_pc - base_pc) / 2);
+  tcache_ptr = dr_prepare_cache(tcache_id, (end_pc - base_pc) / 2, branch_target_count);
 #if (DRC_DEBUG & 4)
   tcache_dsm_ptrs[tcache_id] = tcache_ptr;
 #endif
 
-  block = dr_add_block(base_pc, end_pc - base_pc, base_literals,
-    end_literals - base_literals, crc, sh2->is_slave, &blkid_main);
+  block = dr_add_block(branch_target_count, base_pc, end_pc - base_pc,
+    base_literals, end_literals-base_literals, crc, sh2->is_slave, &blkid_main);
   if (block == NULL)
     return NULL;
 
@@ -3143,7 +3227,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       // make block entry
       v = block->entry_count;
       entry = &block->entryp[v];
-      if (v < ARRAY_SIZE(block->entryp))
+      if (v < branch_target_count)
       {
         entry = &block->entryp[v];
         entry->pc = pc;
@@ -4726,7 +4810,7 @@ end_op:
     for (bl = block->entryp[i].o_links; bl; bl = bl->o_next)
       memcpy(bl->jdisp, bl->blx ?: bl->jump, emith_jump_at_size());
 
-  tcache_ptrs[tcache_id] = tcache_ptr;
+  ring_alloc(&tcache_ring[tcache_id], tcache_ptr - block_entry_ptr);
   host_instructions_updated(block_entry_ptr, tcache_ptr);
 
   dr_activate_block(block, tcache_id, sh2->is_slave);
@@ -4736,10 +4820,10 @@ end_op:
 
   dbg(2, " block #%d,%d -> %p tcache %d/%d, insns %d -> %d %.3f",
     tcache_id, blkid_main, tcache_ptr,
-    tcache_ptr - tcache_bases[tcache_id], tcache_sizes[tcache_id],
+    tcache_ring[tcache_id].used, tcache_ring[tcache_id].size,
     insns_compiled, host_insn_count, (float)host_insn_count / insns_compiled);
   if ((sh2->pc & 0xc6000000) == 0x02000000) { // ROM
-    dbg(2, "  hash collisions %d/%d", hash_collisions, block_counts[tcache_id]);
+    dbg(2, "  hash collisions %d/%d", hash_collisions, block_ring[tcache_id].used);
     Pico32x.emu_flags |= P32XF_DRC_ROM_C;
   }
 /*
@@ -5220,10 +5304,7 @@ static void block_stats(void)
 
   printf("block stats:\n");
   for (b = 0; b < ARRAY_SIZE(block_tables); b++) {
-    for (i = 0; i < block_counts[b]; i++)
-      if (block_tables[b][i].addr != 0)
-        total += block_tables[b][i].refcount;
-    for (i = block_limit[b]; i < BLOCK_MAX_COUNT(b); i++)
+    for (i = block_ring[b].first; i != block_ring[b].next; i = (i+1)%block_ring[b].size)
       if (block_tables[b][i].addr != 0)
         total += block_tables[b][i].refcount;
   }
@@ -5233,20 +5314,11 @@ static void block_stats(void)
     struct block_desc *blk, *maxb = NULL;
     int max = 0;
     for (b = 0; b < ARRAY_SIZE(block_tables); b++) {
-      for (i = 0; i < block_counts[b]; i++) {
-        blk = &block_tables[b][i];
-        if (blk->addr != 0 && blk->refcount > max) {
+      for (i = block_ring[b].first; i != block_ring[b].next; i = (i+1)%block_ring[b].size)
+        if ((blk = &block_tables[b][i])->addr != 0 && blk->refcount > max) {
           max = blk->refcount;
           maxb = blk;
         }
-      }
-      for (i = block_limit[b]; i < BLOCK_MAX_COUNT(b); i++) {
-        blk = &block_tables[b][i];
-        if (blk->addr != 0 && blk->refcount > max) {
-          max = blk->refcount;
-          maxb = blk;
-        }
-      }
     }
     if (maxb == NULL)
       break;
@@ -5255,12 +5327,9 @@ static void block_stats(void)
     maxb->refcount = 0;
   }
 
-  for (b = 0; b < ARRAY_SIZE(block_tables); b++) {
-    for (i = 0; i < block_counts[b]; i++)
+  for (b = 0; b < ARRAY_SIZE(block_tables); b++) 
+    for (i = block_ring[b].first; i != block_ring[b].next; i = (i+1)%block_ring[b].size)
       block_tables[b][i].refcount = 0;
-    for (i = block_limit[b]; i < BLOCK_MAX_COUNT(b); i++)
-      block_tables[b][i].refcount = 0;
-  }
 #endif
 }
 
@@ -5272,10 +5341,7 @@ void entry_stats(void)
 
   printf("block entry stats:\n");
   for (b = 0; b < ARRAY_SIZE(block_tables); b++) {
-    for (i = 0; i < block_counts[b]; i++)
-      for (j = 0; j < block_tables[b][i].entry_count; j++)
-        total += block_tables[b][i].entryp[j].entry_count;
-    for (i = block_limit[b]; i < BLOCK_MAX_COUNT(b); i++)
+    for (i = block_ring[b].first; i != block_ring[b].next; i = (i+1)%block_ring[b].size)
       for (j = 0; j < block_tables[b][i].entry_count; j++)
         total += block_tables[b][i].entryp[j].entry_count;
   }
@@ -5286,15 +5352,7 @@ void entry_stats(void)
     struct block_entry *maxb = NULL;
     int max = 0;
     for (b = 0; b < ARRAY_SIZE(block_tables); b++) {
-      for (i = 0; i < block_counts[b]; i++) {
-        blk = &block_tables[b][i];
-        for (j = 0; j < blk->entry_count; j++)
-          if (blk->entryp[j].entry_count > max) {
-            max = blk->entryp[j].entry_count;
-            maxb = &blk->entryp[j];
-          }
-      }
-      for (i = block_limit[b]; i < BLOCK_MAX_COUNT(b); i++) {
+      for (i = block_ring[b].first; i != block_ring[b].next; i = (i+1)%block_ring[b].size) {
         blk = &block_tables[b][i];
         for (j = 0; j < blk->entry_count; j++)
           if (blk->entryp[j].entry_count > max) {
@@ -5311,10 +5369,7 @@ void entry_stats(void)
   }
 
   for (b = 0; b < ARRAY_SIZE(block_tables); b++) {
-    for (i = 0; i < block_counts[b]; i++)
-      for (j = 0; j < block_tables[b][i].entry_count; j++)
-        block_tables[b][i].entryp[j].entry_count = 0;
-    for (i = block_limit[b]; i < BLOCK_MAX_COUNT(b); i++)
+    for (i = block_ring[b].first; i != block_ring[b].next; i = (i+1)%block_ring[b].size)
       for (j = 0; j < block_tables[b][i].entry_count; j++)
         block_tables[b][i].entryp[j].entry_count = 0;
   }
@@ -5432,6 +5487,9 @@ int sh2_drc_init(SH2 *sh2)
       block_tables[i] = calloc(BLOCK_MAX_COUNT(i), sizeof(*block_tables[0]));
       if (block_tables[i] == NULL)
         goto fail;
+      entry_tables[i] = calloc(ENTRY_MAX_COUNT(i), sizeof(*entry_tables[0]));
+      if (entry_tables[i] == NULL)
+        goto fail;
       block_link_pool[i] = calloc(BLOCK_LINK_MAX_COUNT(i),
                           sizeof(*block_link_pool[0]));
       if (block_link_pool[i] == NULL)
@@ -5449,33 +5507,39 @@ int sh2_drc_init(SH2 *sh2)
       unresolved_links[i] = calloc(HASH_TABLE_SIZE(i), sizeof(*unresolved_links[0]));
       if (unresolved_links[i] == NULL)
         goto fail;
+//atexit(sh2_drc_finish);
+
+      RING_INIT(&block_ring[i], block_tables[i], BLOCK_MAX_COUNT(i));
+      RING_INIT(&entry_ring[i], entry_tables[i], ENTRY_MAX_COUNT(i));
     }
-    memset(block_counts, 0, sizeof(block_counts));
-    for (i = 0; i < ARRAY_SIZE(block_counts); i++) {
-      block_limit[i] = BLOCK_MAX_COUNT(i) - 1;
-    }
+
+    block_list_pool = calloc(BLOCK_LIST_MAX_COUNT, sizeof(*block_list_pool));
+    if (block_list_pool == NULL)
+      goto fail;
+    block_list_pool_count = 0;
+    blist_free = NULL;
+
     memset(block_link_pool_counts, 0, sizeof(block_link_pool_counts));
-    for (i = 0; i < ARRAY_SIZE(blink_free); i++) {
-      blink_free[i] = NULL;
-    }
+    memset(blink_free, 0, sizeof(blink_free));
 
     drc_cmn_init();
     rcache_init();
+
     tcache_ptr = tcache;
     sh2_generate_utils();
     host_instructions_updated(tcache, tcache_ptr);
     emith_update_cache();
 
-    tcache_bases[0] = tcache_ptrs[0] = tcache_ptr;
-    tcache_limit[0] = tcache_bases[0] + tcache_sizes[0] - (tcache_ptr-tcache);
-    for (i = 1; i < ARRAY_SIZE(tcache_bases); i++) {
-      tcache_bases[i] = tcache_ptrs[i] = tcache_bases[i - 1] + tcache_sizes[i - 1];
-      tcache_limit[i] = tcache_bases[i] + tcache_sizes[i];
+    i = tcache_ptr - tcache;
+    RING_INIT(&tcache_ring[0], tcache_ptr, tcache_sizes[0] - i);
+    for (i = 1; i < ARRAY_SIZE(tcache_ring); i++) {
+      RING_INIT(&tcache_ring[i], tcache_ring[i-1].base + tcache_sizes[i-1],
+                  tcache_sizes[i]);
     }
 
 #if (DRC_DEBUG & 4)
     for (i = 0; i < ARRAY_SIZE(block_tables); i++)
-      tcache_dsm_ptrs[i] = tcache_bases[i];
+      tcache_dsm_ptrs[i] = tcache_ring[i].base;
     // disasm the utils
     tcache_dsm_ptrs[0] = tcache;
     do_host_disasm(0);
@@ -5498,7 +5562,6 @@ fail:
 
 void sh2_drc_finish(SH2 *sh2)
 {
-  struct block_list *bl, *bn;
   int i;
 
   if (block_tables[0] == NULL)
@@ -5514,17 +5577,22 @@ void sh2_drc_finish(SH2 *sh2)
   for (i = 0; i < TCACHE_BUFFERS; i++) {
     printf("~~~ tcache %d\n", i);
 #if 0
-    tcache_dsm_ptrs[i] = tcache_bases[i];
-    tcache_ptr = tcache_ptrs[i];
-    do_host_disasm(i);
-    if (tcache_limit[i] < tcache_bases[i] + tcache_sizes[i]) {
-      tcache_dsm_ptrs[i] = tcache_limit[i];
-      tcache_ptr = tcache_bases[i] + tcache_sizes[i];
+    if (tcache_ring[i].first < tcache_ring[i].next) {
+      tcache_dsm_ptrs[i] = tcache_ring[i].first;
+      tcache_ptr = tcache_ring[i].next;
+      do_host_disasm(i);
+    } else if (tcache_ring[i].used) {
+      tcache_dsm_ptrs[i] = tcache_ring[i].first;
+      tcache_ptr = tcache_ring[i].base + tcache_ring[i].size;
+      do_host_disasm(i);
+      tcache_dsm_ptrs[i] = tcache_ring[i].base;
+      tcache_ptr = tcache_ring[i].next;
       do_host_disasm(i);
     }
 #endif
     printf("max links: %d\n", block_link_pool_counts[i]);
   }
+  printf("max block list: %d\n", block_list_pool_count);
 #endif
 
   sh2_drc_flush_all();
@@ -5533,6 +5601,9 @@ void sh2_drc_finish(SH2 *sh2)
     if (block_tables[i] != NULL)
       free(block_tables[i]);
     block_tables[i] = NULL;
+    if (entry_tables[i] != NULL)
+      free(entry_tables[i]);
+    entry_tables[i] = NULL;
     if (block_link_pool[i] != NULL)
       free(block_link_pool[i]);
     block_link_pool[i] = NULL;
@@ -5548,10 +5619,9 @@ void sh2_drc_finish(SH2 *sh2)
     }
   }
 
-  for (bl = blist_free; bl; bl = bn) {
-    bn = bl->next;
-    free(bl);
-  }
+  if (block_list_pool != NULL)
+    free(block_list_pool);
+  block_list_pool = NULL;
   blist_free = NULL;
 
   drc_cmn_cleanup();
