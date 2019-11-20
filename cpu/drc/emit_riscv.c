@@ -220,9 +220,9 @@ enum { F2_ALT=0x20, F2_MULDIV=0x01 };
 	/*EMIT(R5_ADDW_IMM(s1, s1, 0));*/ \
 	/*EMIT(R5_ADDW_IMM(s2, s2, 0));*/ \
 	EMIT(R5_MUL(dlo, s1, s2)); \
-	EMIT(R5_LSR_IMM(dhi, dlo, 32)); \
+	EMIT(R5_ASR_IMM(dhi, dlo, 32)); \
 	EMIT(R5_LSL_IMM(dlo, dlo, 32)); \
-	EMIT(R5_LSR_IMM(dlo, dlo, 32)); \
+	EMIT(R5_ASR_IMM(dlo, dlo, 32)); \
 } while (0)
 
 #define EMIT_R5_MULLS_REG(dlo, dhi, s1, s2) \
@@ -1322,7 +1322,7 @@ static int emith_cond_check(int cond, int *r, int *s)
 		u32 r_ = _CB(*ptr_,5,15,0), s_ = _CB(*ptr_,5,20,0); \
 		EMIT_PTR(p_, R5_BCOND(f1_, r_, s_, disp_ & 0x00001fff)); \
 	} else { \
-		u32 *p_ = -- ptr_; \
+		u32 *p_ = ptr_; \
 		uintptr_t target_ = (uintptr_t)(target); \
 		EMIT_PTR(p_, R5_MOVT_IMM(AT, target_ + _CB(target_,1,11,12))); \
 		EMIT_PTR(p_, R5_JR(AT, target_));  \
