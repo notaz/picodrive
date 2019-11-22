@@ -1431,6 +1431,15 @@ static void update_variables(void)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       PicoIn.sndFilterRange = (atoi(var.value) * 65536) / 100;
    }
+
+   var.value = NULL;
+   var.key = "picodrive_renderer";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "fast") == 0)
+         PicoIn.opt |= POPT_ALT_RENDERER;
+      else
+         PicoIn.opt &= ~POPT_ALT_RENDERER;
+   }
 }
 
 void retro_run(void)
