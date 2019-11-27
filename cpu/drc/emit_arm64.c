@@ -25,7 +25,7 @@
 #define	PR		18 // platform register
 
 // All operations but ptr ops are using the lower 32 bits of the A64 registers.
-// The upper 32 bits are only used in ptr ops.
+// The upper 32 bits are only used in ptr ops and are zeroed by A64 32 bit ops.
 
 
 #define A64_COND_EQ 0x0

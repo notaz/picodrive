@@ -30,6 +30,8 @@
 #define FC		29 // emulated processor flags: C (bit 0), others 0
 #define FV		28 // emulated processor flags: Nt^Ns (bit 31). others x
 
+// All operations but ptr ops are using the lower 32 bits of the registers.
+// The upper 32 bits always contain the sign extension from the lower 32 bits.
 
 // unified conditions; virtual, not corresponding to anything real on RISC-V
 #define DCOND_EQ 0x0
@@ -217,12 +219,9 @@ enum { F2_ALT=0x20, F2_MULDIV=0x01 };
 // NB: must split 64 bit result into 2 32 bit registers
 // NB: expects 32 bit values in s1+s2, correctly sign extended to 64 bits
 #define EMIT_R5_MULLU_REG(dlo, dhi, s1, s2) do { \
-	/*EMIT(R5_ADDW_IMM(s1, s1, 0));*/ \
-	/*EMIT(R5_ADDW_IMM(s2, s2, 0));*/ \
 	EMIT(R5_MUL(dlo, s1, s2)); \
 	EMIT(R5_ASR_IMM(dhi, dlo, 32)); \
-	EMIT(R5_LSL_IMM(dlo, dlo, 32)); \
-	EMIT(R5_ASR_IMM(dlo, dlo, 32)); \
+	EMIT(R5_ADDW_IMM(dlo, dlo, 0)); \
 } while (0)
 
 #define EMIT_R5_MULLS_REG(dlo, dhi, s1, s2) \
@@ -633,7 +632,7 @@ static int literal_pindex, literal_iindex;
 static inline int emith_pool_literal(uintptr_t imm)
 {
 	int idx = literal_pindex - 8; // max look behind in pool
-	// see if one of the last literals was the same (or close enough)
+	// see if one of the last literals was the same
 	for (idx = (idx < 0 ? 0 : idx); idx < literal_pindex; idx++)
 		if (imm == literal_pool[idx])
 			break;
