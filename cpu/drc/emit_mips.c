@@ -33,6 +33,8 @@
 #define FC		24 // emulated processor flags: C (bit 0), others 0
 #define FV		25 // emulated processor flags: Nt^Ns (bit 31). others x
 
+// All operations but ptr ops are using the lower 32 bits of the registers.
+// The upper 32 bits always contain the sign extension from the lower 32 bits.
 
 // unified conditions; virtual, not corresponding to anything real on MIPS
 #define DCOND_EQ 0x0
@@ -1095,10 +1097,10 @@ static void emith_lohi_nops(void)
 	emith_lohi_nops(); \
 	EMIT(MIPS_MULT(s1, s2)); \
 	EMIT(MIPS_MFLO(AT)); \
-	emith_add_r_r(dlo, AT); \
-	EMIT(MIPS_SLTU_REG(t_, dlo, AT)); \
-	EMIT(MIPS_MFHI(AT)); \
+	EMIT(MIPS_MFHI(t_)); \
 	last_lohi = (u8 *)tcache_ptr; \
+	emith_add_r_r(dlo, AT); \
+	EMIT(MIPS_SLTU_REG(AT, dlo, AT)); \
 	emith_add_r_r(dhi, AT); \
 	emith_add_r_r(dhi, t_); \
 	rcache_free_tmp(t_); \
@@ -1479,7 +1481,7 @@ static int emith_cond_check(int cond, int *r)
 
 // NB: ABI SP alignment is 8 for compatibility with MIPS IV
 #define emith_push_ret(r) do { \
-	emith_add_r_r_ptr_imm(SP, SP, -8-16); /* ABI: 16 byte arg save area */ \
+	emith_add_r_r_ptr_imm(SP, SP, -8-16); /* O32: 16 byte arg save area */ \
 	emith_write_r_r_offs(LR, SP, 4+16); \
 	if ((r) > 0) emith_write_r_r_offs(r, SP, 0+16); \
 } while (0)

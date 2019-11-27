@@ -7,21 +7,24 @@
  * See COPYING file in the top-level directory.
  *
  * notes:
- * - tcache, block descriptor, link buffer overflows result in sh2_translate()
- *   failure, followed by full tcache invalidation for that region
+ * - tcache, block descriptor, block entry buffer overflows result in oldest
+ *   blocks being deleted until enough space is available
+ * - link and list element buffer overflows result in failure and exit
  * - jumps between blocks are tracked for SMC handling (in block_entry->links),
- *   except jumps between different tcaches
+ *   except jumps from global to CPU-local tcaches
  *
  * implemented:
  * - static register allocation
  * - remaining register caching and tracking in temporaries
  * - block-local branch linking
- * - block linking (except between tcaches)
+ * - block linking
  * - some constant propagation
+ * - call stack caching for host block entry address
+ * - delay, poll, and idle loop detection and handling
+ * - some T/M flag optimizations where the value is known or isn't used
  *
  * TODO:
  * - better constant propagation
- * - stack caching?
  * - bug fixing
  */
 #include <stddef.h>
@@ -1068,7 +1071,7 @@ static struct block_desc *dr_add_block(int entries, u32 addr, int size,
   if (be != NULL)
     dbg(1, "block override for %08x", addr);
 
-  if (block_ring[tcache_id].used  + 1 > block_ring[tcache_id].size ||
+  if (block_ring[tcache_id].used + 1 > block_ring[tcache_id].size ||
       entry_ring[tcache_id].used + entries > entry_ring[tcache_id].size) {
     dbg(1, "bd overflow for tcache %d", tcache_id);
     return NULL;
@@ -3014,13 +3017,13 @@ static void *dr_get_pc_base(u32 pc, SH2 *sh2);
 static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 {
   // branch targets in current block
-  struct linkage branch_targets[MAX_LOCAL_TARGETS];
+  static struct linkage branch_targets[MAX_LOCAL_TARGETS];
   int branch_target_count = 0;
   // unresolved local or external targets with block link/exit area if needed
-  struct linkage blx_targets[MAX_LOCAL_BRANCHES];
+  static struct linkage blx_targets[MAX_LOCAL_BRANCHES];
   int blx_target_count = 0;
 
-  u8 op_flags[BLOCK_INSN_LIMIT];
+  static u8 op_flags[BLOCK_INSN_LIMIT];
 
   enum flg_states { FLG_UNKNOWN, FLG_UNUSED, FLG_0, FLG_1 };
   struct drcf {
@@ -3037,7 +3040,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #if LOOP_OPTIMIZER
   // loops with pinned registers for optimzation
   // pinned regs are like statics and don't need saving/restoring inside a loop
-  struct linkage pinned_loops[MAX_LOCAL_TARGETS/16];
+  static struct linkage pinned_loops[MAX_LOCAL_TARGETS/16];
   int pinned_loop_count = 0;
 #endif
 
@@ -3479,6 +3482,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       // no sense in looking any further than the next rcache flush
       tmp = ((op_flags[i+v] & OF_BTARGET) || (op_flags[i+v-1] & OF_DELAY_OP) ||
                 (OP_ISBRACND(opd[v-1].op) && !(op_flags[i+v] & OF_DELAY_OP)));
+      // XXX looking behind cond branch to avoid evicting regs used later?
       if (pc + 2*v <= end_pc && !tmp) { // (pc already incremented above)
         late |= opd[v].source & ~write;
         // ignore source regs after they have been written to
@@ -4636,6 +4640,7 @@ end_op:
             rcache_invalidate();
           }
         } else
+          // no space for resolving forward branch, handle it as external
           dbg(1, "warning: too many unresolved branches");
       }
 
@@ -4657,6 +4662,7 @@ end_op:
             EMITH_JMP_START(emith_invert_cond(cond));
             if (bl) {
               bl->jump = tcache_ptr;
+              emith_flush(); // flush to inhibit insn swapping
               bl->type = BL_LDJMP;
             }
             tmp = rcache_get_tmp_arg(0);
@@ -5534,7 +5540,7 @@ int sh2_drc_init(SH2 *sh2)
     i = tcache_ptr - tcache;
     RING_INIT(&tcache_ring[0], tcache_ptr, tcache_sizes[0] - i);
     for (i = 1; i < ARRAY_SIZE(tcache_ring); i++) {
-      RING_INIT(&tcache_ring[i], tcache_ring[i-1].base + tcache_sizes[i-1],
+      RING_INIT(&tcache_ring[i], tcache_ring[i-1].base + tcache_ring[i-1].size,
                   tcache_sizes[i]);
     }
 
