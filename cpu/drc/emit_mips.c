@@ -1,5 +1,5 @@
 /*
- * Basic macros to emit MIPS II/MIPS32 Release 1 instructions and some utils
+ * Basic macros to emit MIPS32/MIPS64 Release 1 or 2 instructions and some utils
  * Copyright (C) 2019 kub
  *
  * This work is licensed under the terms of MAME license.
@@ -65,9 +65,10 @@
 // opcode field (encoded in op)
 enum { OP__FN=000, OP__RT, OP_J, OP_JAL, OP_BEQ, OP_BNE, OP_BLEZ, OP_BGTZ };
 enum { OP_ADDI=010, OP_ADDIU, OP_SLTI, OP_SLTIU, OP_ANDI, OP_ORI, OP_XORI, OP_LUI };
+enum { OP_DADDI=030, OP_DADDIU, OP_LDL, OP_LDR, OP__FN2=034, OP__FN3=037 };
 enum { OP_LB=040, OP_LH, OP_LWL, OP_LW, OP_LBU, OP_LHU, OP_LWR, OP_LWU };
 enum { OP_SB=050, OP_SH, OP_SWL, OP_SW, OP_SDL, OP_SDR, OP_SWR };
-enum { OP_DADDI=030, OP_DADDIU, OP_LDL, OP_LDR, OP_SD=067, OP_LD=077 };
+enum { OP_SD=067, OP_LD=077 };
 // function field (encoded in fn if opcode = OP__FN)
 enum { FN_SLL=000, __(01), FN_SRL, FN_SRA, FN_SLLV, __(05), FN_SRLV, FN_SRAV };
 enum { FN_JR=010, FN_JALR, FN_MOVZ, FN_MOVN, FN_SYNC=017 };
@@ -76,39 +77,54 @@ enum { FN_MULT=030, FN_MULTU, FN_DIV, FN_DIVU, FN_DMULT, FN_DMULTU, FN_DDIV, FN_
 enum { FN_ADD=040, FN_ADDU, FN_SUB, FN_SUBU, FN_AND, FN_OR, FN_XOR, FN_NOR };
 enum { FN_SLT=052, FN_SLTU, FN_DADD, FN_DADDU, FN_DSUB, FN_DSUBU };
 enum { FN_DSLL=070, __(71), FN_DSRL, FN_DSRA, FN_DSLL32, __(75), FN_DSRL32, FN_DSRA32 };
+// function field (encoded in fn if opcode = OP__FN2)
+enum { FN2_MADD=000, FN2_MADDU, FN2_MUL, __(03), FN2_MSUB, FN2_MSUBU };
+enum { FN2_CLZ=040, FN2_CLO, FN2_DCLZ=044, FN2_DCLO };
+// function field (encoded in fn if opcode = OP__FN3)
+enum { FN3_EXT=000, FN3_DEXTM, FN3_DEXTU, FN3_DEXT, FN3_INS, FN3_DINSM, FN3_DINSU, FN3_DINS };
+enum { FN3_BSHFL=040, FN3_DBSHFL=044 };
 // rt field (encoded in rt if opcode = OP__RT)
 enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
+
+// bit shuffle function (encoded in sa if function = FN3_BSHFL)
+enum { BS_SBH=002, BS_SHD=005, BS_SEB=020, BS_SEH=030 };
+// r (rotate) bit function (encoded in rs/sa if function = FN_SRL/FN_SRLV)
+enum { RB_SRL=0, RB_ROTR=1 };
 
 #define	MIPS_NOP 000	// null operation: SLL r0, r0, #0
 
 // arithmetic/logical
 
-#define MIPS_OP_REG(op, rd, rs, rt) \
-	MIPS_INSN(OP__FN, rs, rt, rd, _, op)	// R-type, SPECIAL
+#define MIPS_OP_REG(op, sa, rd, rs, rt) \
+	MIPS_INSN(OP__FN, rs, rt, rd, sa, op)	// R-type, SPECIAL
+#define MIPS_OP2_REG(op, sa, rd, rs, rt) \
+	MIPS_INSN(OP__FN2, rs, rt, rd, sa, op)	// R-type, SPECIAL2
+#define MIPS_OP3_REG(op, sa, rd, rs, rt) \
+	MIPS_INSN(OP__FN3, rs, rt, rd, sa, op)	// R-type, SPECIAL3
 #define MIPS_OP_IMM(op, rt, rs, imm) \
 	MIPS_INSN(op, rs, rt, _, _, (u16)(imm))	// I-type
 
 // rd = rs OP rt
 #define MIPS_ADD_REG(rd, rs, rt) \
-	MIPS_OP_REG(FN_ADDU, rd, rs, rt)
+	MIPS_OP_REG(FN_ADDU,_, rd, rs, rt)
 #define MIPS_DADD_REG(rd, rs, rt) \
-	MIPS_OP_REG(FN_DADDU, rd, rs, rt)
+	MIPS_OP_REG(FN_DADDU,_, rd, rs, rt)
 #define MIPS_SUB_REG(rd, rs, rt) \
-	MIPS_OP_REG(FN_SUBU, rd, rs, rt)
+	MIPS_OP_REG(FN_SUBU,_, rd, rs, rt)
 #define MIPS_DSUB_REG(rd, rs, rt) \
-	MIPS_OP_REG(FN_DSUBU, rd, rs, rt)
+	MIPS_OP_REG(FN_DSUBU,_, rd, rs, rt)
 
 #define MIPS_NEG_REG(rd, rt) \
 	MIPS_SUB_REG(rd, Z0, rt)
 
 #define MIPS_XOR_REG(rd, rs, rt) \
-	MIPS_OP_REG(FN_XOR, rd, rs, rt)
+	MIPS_OP_REG(FN_XOR,_, rd, rs, rt)
 #define MIPS_OR_REG(rd, rs, rt) \
-	MIPS_OP_REG(FN_OR, rd, rs, rt)
+	MIPS_OP_REG(FN_OR,_, rd, rs, rt)
 #define MIPS_AND_REG(rd, rs, rt) \
-	MIPS_OP_REG(FN_AND, rd, rs, rt)
+	MIPS_OP_REG(FN_AND,_, rd, rs, rt)
 #define MIPS_NOR_REG(rd, rs, rt) \
-	MIPS_OP_REG(FN_NOR, rd, rs, rt)
+	MIPS_OP_REG(FN_NOR,_, rd, rs, rt)
 
 #define MIPS_MOVE_REG(rd, rs) \
 	MIPS_OR_REG(rd, rs, Z0)
@@ -117,17 +133,29 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 
 // rd = rt SHIFT rs
 #define MIPS_LSL_REG(rd, rt, rs) \
-	MIPS_OP_REG(FN_SLLV, rd, rs, rt)
+	MIPS_OP_REG(FN_SLLV,_, rd, rs, rt)
 #define MIPS_LSR_REG(rd, rt, rs) \
-	MIPS_OP_REG(FN_SRLV, rd, rs, rt)
+	MIPS_OP_REG(FN_SRLV,RB_SRL, rd, rs, rt)
 #define MIPS_ASR_REG(rd, rt, rs) \
-	MIPS_OP_REG(FN_SRAV, rd, rs, rt)
+	MIPS_OP_REG(FN_SRAV,_, rd, rs, rt)
+#define MIPS_ROR_REG(rd, rt, rs) \
+	MIPS_OP_REG(FN_SRLV,RB_ROTR, rd, rs, rt)
+
+#define MIPS_SEB_REG(rd, rt) \
+	MIPS_OP3_REG(FN3_BSHFL, BS_SEB, rd, _, rt)
+#define MIPS_SEH_REG(rd, rt) \
+	MIPS_OP3_REG(FN3_BSHFL, BS_SEH, rd, _, rt)
+
+#define MIPS_EXT_IMM(rt, rs, lsb, sz) \
+	MIPS_OP3_REG(FN3_EXT, lsb, (sz)-1, rs, rt)
+#define MIPS_INS_IMM(rt, rs, lsb, sz) \
+	MIPS_OP3_REG(FN3_INS, lsb, (lsb)+(sz)-1, rs, rt)
 
 // rd = (rs < rt)
 #define MIPS_SLT_REG(rd, rs, rt) \
-	MIPS_OP_REG(FN_SLT, rd, rs, rt)
+	MIPS_OP_REG(FN_SLT,_, rd, rs, rt)
 #define MIPS_SLTU_REG(rd, rs, rt) \
-	MIPS_OP_REG(FN_SLTU, rd, rs, rt)
+	MIPS_OP_REG(FN_SLTU,_, rd, rs, rt)
 
 // rt = rs OP imm16
 #define MIPS_ADD_IMM(rt, rs, imm16) \
@@ -152,9 +180,11 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 #define MIPS_LSL_IMM(rd, rt, bits) \
 	MIPS_INSN(OP__FN, _, rt, rd, bits, FN_SLL)
 #define MIPS_LSR_IMM(rd, rt, bits) \
-	MIPS_INSN(OP__FN, _, rt, rd, bits, FN_SRL)
+	MIPS_INSN(OP__FN, RB_SRL, rt, rd, bits, FN_SRL)
 #define MIPS_ASR_IMM(rd, rt, bits) \
 	MIPS_INSN(OP__FN, _, rt, rd, bits, FN_SRA)
+#define MIPS_ROR_IMM(rd, rt, bits) \
+	MIPS_INSN(OP__FN, RB_ROTR, rt, rd, bits, FN_SRL)
 
 #define MIPS_DLSL_IMM(rd, rt, bits) \
 	MIPS_INSN(OP__FN, _, rt, rd, bits, FN_DSLL)
@@ -170,13 +200,17 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 // multiplication
 
 #define MIPS_MULT(rt, rs) \
-	MIPS_OP_REG(FN_MULT, _, rs, rt)
+	MIPS_OP_REG(FN_MULT,_, _, rs, rt)
 #define MIPS_MULTU(rt, rs) \
-	MIPS_OP_REG(FN_MULTU, _, rs, rt)
+	MIPS_OP_REG(FN_MULTU,_, _, rs, rt)
+#define MIPS_MADD(rt, rs) \
+	MIPS_OP2_REG(FN_MADD,_, _, rs, rt)
+#define MIPS_MADDU(rt, rs) \
+	MIPS_OP2_REG(FN_MADDU,_, _, rs, rt)
 #define MIPS_MFLO(rd) \
-	MIPS_OP_REG(FN_MFLO, rd, _, _)
+	MIPS_OP_REG(FN_MFLO,_, rd, _, _)
 #define MIPS_MFHI(rd) \
-	MIPS_OP_REG(FN_MFHI, rd, _, _)
+	MIPS_OP_REG(FN_MFHI,_, rd, _, _)
 
 // branching
 
@@ -185,9 +219,9 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 #define MIPS_JAL(abs26) \
 	MIPS_INSN(OP_JAL, _,_,_,_, (abs26) >> 2)
 #define MIPS_JR(rs) \
-	MIPS_OP_REG(FN_JR,_,rs,_)
+	MIPS_OP_REG(FN_JR,_, _,rs,_)
 #define MIPS_JALR(rd, rs) \
-	MIPS_OP_REG(FN_JALR,rd,rs,_)
+	MIPS_OP_REG(FN_JALR,_, rd,rs,_)
 
 // conditional branches; no condition code, these compare rs against rt or Z0
 #define MIPS_BEQ (OP_BEQ  << 5)			// rs == rt (rt in lower 5 bits)
@@ -234,7 +268,7 @@ enum { RT_BLTZ=000, RT_BGEZ, RT_BLTZAL=020, RT_BGEZAL, RT_SYNCI=037 };
 
 // pointer operations
 
-#if __mips == 4 || __mips == 64
+#if _MIPS_SZPTR == 64
 #define OP_LP				OP_LD
 #define OP_SP				OP_SD
 #define OP_PADDIU			OP_DADDIU
@@ -524,8 +558,8 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 #define emith_add_r_r_r_lsl_ptr(d, s1, s2, simm) do { \
 	if (simm) { \
 		EMIT(MIPS_LSL_IMM(AT, s2, simm)); \
-		EMIT(MIPS_OP_REG(FN_PADDU, d, s1, AT)); \
-	} else	EMIT(MIPS_OP_REG(FN_PADDU, d, s1, s2)); \
+		EMIT(MIPS_OP_REG(FN_PADDU,_, d, s1, AT)); \
+	} else	EMIT(MIPS_OP_REG(FN_PADDU,_, d, s1, s2)); \
 } while (0)
 #define emith_add_r_r_r_lsl(d, s1, s2, simm) do { \
 	if (simm) { \
@@ -544,10 +578,10 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 #define emith_addf_r_r_r_lsl_ptr(d, s1, s2, simm) do { \
 	if (simm) { \
 		EMIT(MIPS_LSL_IMM(AT, s2, simm)); \
-		EMIT(MIPS_OP_REG(FN_PADDU, FNZ, s1, AT)); \
+		EMIT(MIPS_OP_REG(FN_PADDU,_, FNZ, s1, AT)); \
 		emith_set_arith_flags(d, s1, AT, 0, 0); \
 	} else { \
-		EMIT(MIPS_OP_REG(FN_PADDU, FNZ, s1, s2)); \
+		EMIT(MIPS_OP_REG(FN_PADDU,_, FNZ, s1, s2)); \
 		emith_set_arith_flags(d, s1, s2, 0, 0); \
 	} \
 } while (0)
@@ -752,7 +786,7 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 // move immediate
 static void emith_move_imm(int r, uintptr_t imm)
 {
-#if __mips == 4 || __mips == 64
+#if _MIPS_SZPTR == 64
 	if ((s32)imm != imm) {
 		emith_move_imm(r, imm >> 32);
 		if (imm & 0xffff0000) {
@@ -803,10 +837,10 @@ static void emith_add_imm(int ptr, int rd, int rs, u32 imm)
 			EMIT(MIPS_OP_IMM(ptr ? OP_PADDIU:OP_ADDIU, rd,rs,imm));
 	} else if ((s32)imm  < 0) {
 		emith_move_r_imm(AT, -imm);
-		EMIT(MIPS_OP_REG((ptr ? FN_PSUBU:FN_SUBU), rd,rs,AT));
+		EMIT(MIPS_OP_REG((ptr ? FN_PSUBU:FN_SUBU),_, rd,rs,AT));
 	} else {
 		emith_move_r_imm(AT, imm);
-		EMIT(MIPS_OP_REG((ptr ? FN_PADDU:FN_ADDU), rd,rs,AT));
+		EMIT(MIPS_OP_REG((ptr ? FN_PADDU:FN_ADDU),_, rd,rs,AT));
 	}
 }
 
@@ -881,7 +915,7 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 {
 	if (imm >> 16) {
 		emith_move_r_imm(AT, imm);
-		EMIT(MIPS_OP_REG(FN_AND + (op-OP_ANDI), rd, rs, AT));
+		EMIT(MIPS_OP_REG(FN_AND + (op-OP_ANDI),_, rd, rs, AT));
 	} else if (op == OP_ANDI || imm || rd != rs)
 		EMIT(MIPS_OP_IMM(op, rd, rs, imm));
 }
@@ -936,20 +970,31 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 #define emith_asr(d, s, cnt) \
 	EMIT(MIPS_ASR_IMM(d, s, cnt))
 
-// NB: mips32r2 has ROT (SLR with R bit set)
+#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
+#define emith_ror(d, s, cnt) do { \
+	EMIT(MIPS_ROR_IMM(d, s, cnt)); \
+} while (0)
+#else
 #define emith_ror(d, s, cnt) do { \
 	EMIT(MIPS_LSL_IMM(AT, s, 32-(cnt))); \
 	EMIT(MIPS_LSR_IMM(d, s, cnt)); \
 	EMIT(MIPS_OR_REG(d, d, AT)); \
 } while (0)
+#endif
 #define emith_ror_c(cond, d, s, cnt) \
 	emith_ror(d, s, cnt)
 
+#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
+#define emith_rol(d, s, cnt) do { \
+	EMIT(MIPS_ROR_IMM(d, s, 32-(cnt))); \
+} while (0)
+#else
 #define emith_rol(d, s, cnt) do { \
 	EMIT(MIPS_LSR_IMM(AT, s, 32-(cnt))); \
 	EMIT(MIPS_LSL_IMM(d, s, cnt)); \
 	EMIT(MIPS_OR_REG(d, d, AT)); \
 } while (0)
+#endif
 
 #define emith_rorc(d) do { \
 	emith_lsr(d, d, 1); \
@@ -963,7 +1008,6 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 } while (0)
 
 // NB: all flag setting shifts make V undefined
-// NB: mips32r2 has EXT (useful for extracting C)
 #define emith_lslf(d, s, cnt) do { \
 	int _s = s; \
 	if ((cnt) > 1) { \
@@ -1040,7 +1084,10 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 } while (0)
 
 // signed/unsigned extend
-// NB: mips32r2 has EXT and INS
+#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
+#define emith_clear_msb(d, s, count) /* bits to clear */ \
+	EMIT(MIPS_EXT_IMM(d, s, 0, 32-(count)))
+#else
 #define emith_clear_msb(d, s, count) /* bits to clear */ do { \
 	u32 t; \
 	if ((count) >= 16) { \
@@ -1052,14 +1099,27 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 		emith_lsr(d, d, count); \
 	} \
 } while (0)
+#endif
 #define emith_clear_msb_c(cond, d, s, count) \
 	emith_clear_msb(d, s, count)
 
-// NB: mips32r2 has SE[BH]H
+#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
+#define emith_sext(d, s, count) /* bits to keep */ do { \
+	if (count == 8) \
+		EMIT(MIPS_SEB_REG(d, s)); \
+	else if (count == 16) \
+		EMIT(MIPS_SEH_REG(d, s)); \
+	else { \
+		emith_lsl(d, s, 32-(count)); \
+		emith_asr(d, d, 32-(count)); \
+	} \
+} while (0)
+#else
 #define emith_sext(d, s, count) /* bits to keep */ do { \
 	emith_lsl(d, s, 32-(count)); \
 	emith_asr(d, d, 32-(count)); \
 } while (0)
+#endif
 
 // multiply Rd = Rn*Rm (+ Ra); NB: next 2 insns after MFLO/MFHI mustn't be MULT
 static u8 *last_lohi;
@@ -1658,16 +1718,26 @@ static int emith_cond_check(int cond, int *r)
 	EMITH_SJMP_END(DCOND_EQ);                 \
 } while (0)
 
+#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
+#define emith_write_sr(sr, srcr) \
+	EMIT(MIPS_INS_IMM(sr, srcr, 0, 10))
+#else
 #define emith_write_sr(sr, srcr) do { \
 	emith_lsr(sr, sr  , 10); emith_lsl(sr, sr, 10); \
 	emith_lsl(AT, srcr, 22); emith_lsr(AT, AT, 22); \
 	emith_or_r_r(sr, AT); \
 } while (0)
+#endif
 
+#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
+#define emith_carry_to_t(sr, is_sub) \
+	EMIT(MIPS_INS_IMM(sr, FC, 0, 1))
+#else
 #define emith_carry_to_t(sr, is_sub) do { \
 	emith_and_r_imm(sr, 0xfffffffe); \
 	emith_or_r_r(sr, FC); \
 } while (0)
+#endif
 
 #define emith_t_to_carry(sr, is_sub) do { \
 	emith_and_r_r_imm(FC, sr, 1); \

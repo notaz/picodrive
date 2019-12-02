@@ -221,10 +221,15 @@ enum { XT_UXTW=0x4, XT_UXTX=0x6, XT_LSL=0x7, XT_SXTW=0xc, XT_SXTX=0xe };
 #define A64_ROR_IMM(rd, rn, bits) /* EXTR */ \
 	A64_INSN(0x9,0x0,0x6,_,rn,_,bits,rn,rd)
 
-#define A64_SXT_IMM(rd, rn, bits) \
-	A64_INSN(0x9,0x0,0x4,0,0,_,bits-1,rn,rd)
-#define A64_UXT_IMM(rd, rn, bits) \
-	A64_INSN(0x9,0x2,0x4,0,0,_,bits-1,rn,rd)
+#define A64_SXT_IMM(rd, rn, bits) /* SBFM */ \
+	A64_INSN(0x9,0x0,0x4,_,0,_,bits-1,rn,rd)
+#define A64_UXT_IMM(rd, rn, bits) /* UBFM */ \
+	A64_INSN(0x9,0x2,0x4,_,0,_,bits-1,rn,rd)
+
+#define A64_BFX_IMM(rd, rn, lsb, bits) /* UBFM */ \
+	A64_INSN(0x9,0x2,0x4,_,lsb,_,bits-1,rn,rd)
+#define A64_BFI_IMM(rd, rn, lsb, bits) /* BFM */ \
+	A64_INSN(0x9,0x1,0x4,_,(32-lsb)&31,_,bits-1,rn,rd)
 
 // multiplication
 
@@ -1302,8 +1307,7 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	EMITH_SJMP_START(DCOND_EQ);               \
 	/* overflow if top 33 bits of MACH:MACL aren't all 1 or 0 */ \
 	/* to check: add MACL[31] to MACH. this is 0 if no overflow */ \
-	emith_lsr(rn, ml, 31);                    \
-	emith_addf_r_r(rn, mh); /* sum = MACH + ((MACL>>31)&1) */ \
+	emith_addf_r_r_r_lsr(rn, mh, ml, 31); /* sum = MACH + (MACL>>31) */ \
 	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> overflow */ \
 	/* XXX: LSB signalling only in SH1, or in SH2 too? */ \
 	emith_move_r_imm_c(DCOND_NE, mh, 0x00000001); /* LSB of MACH */ \
@@ -1315,11 +1319,8 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 	EMITH_SJMP_END(DCOND_EQ);                 \
 } while (0)
 
-#define emith_write_sr(sr, srcr) do { \
-	emith_lsr(sr, sr, 10); \
-	emith_or_r_r_r_lsl(sr, sr, srcr, 22); \
-	emith_ror(sr, sr, 22); \
-} while (0)
+#define emith_write_sr(sr, srcr) \
+	EMIT(A64_BFI_IMM(sr, srcr, 0, 10))
 
 #define emith_carry_to_t(srr, is_sub) do { \
 	emith_lsr(sr, sr, 1); \

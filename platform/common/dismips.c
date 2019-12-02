@@ -56,13 +56,15 @@ static char *const register_names[32] = {
 
 enum insn_type {
 	REG_DTS, REG_TS,	// 3, 2, or 1 regs
-	REG_DS, REG_D, REG_S,
+	REG_DS, REG_DT, REG_D, REG_S,
 	S_IMM_DT,		// 2 regs with shift amount
+	F_IMM_TS,		// 2 regs with bitfield spec
 	B_IMM_S, B_IMM_TS,	// pc-relative branches with 1 or 2 regs
 	J_IMM,			// region-relative jump
-	A_IMM_TS,		// arithmetic immediate with 1 or 2 regs
-	L_IMM_T, L_IMM_TS,	// logical immediate with 2 regs
+	A_IMM_TS,		// arithmetic immediate with 2 regs
+	L_IMM_T, L_IMM_TS,	// logical immediate with 1 or 2 regs
 	M_IMM_TS,		// memory indexed with 2 regs
+	SR_BIT = 0x80		// shift right with R-bit
 };
 
 struct insn {
@@ -77,10 +79,10 @@ struct insn {
 #define OP_SPECIAL	0x00
 static const struct insn special_insns[] = {
 	{0x00, S_IMM_DT, "sll"},
-	{0x02, S_IMM_DT, "srl"},
+	{0x02, S_IMM_DT|SR_BIT, "srl\0rotr"},
 	{0x03, S_IMM_DT, "sra"},
 	{0x04, REG_DTS, "sllv"},
-	{0x06, REG_DTS, "srlv"},
+	{0x06, REG_DTS|SR_BIT, "srlv\0rotrv"},
 	{0x07, REG_DTS, "srav"},
 	{0x08, REG_S,   "jr"},
 	{0x09, REG_DS,  "jalr"},
@@ -94,7 +96,7 @@ static const struct insn special_insns[] = {
 	{0x12, REG_D,   "mflo"},
 	{0x13, REG_S,   "mtlo"},
 	{0x14, REG_DTS, "dsllv"},
-	{0x16, REG_DTS, "dslrv"},
+	{0x16, REG_DTS|SR_BIT, "dsrlv\0drotrv"},
 	{0x17, REG_DTS, "dsrav"},
 	{0x18, REG_TS,  "mult"},
 	{0x19, REG_TS,  "multu"},
@@ -125,10 +127,10 @@ static const struct insn special_insns[] = {
 //	{0x34, REG_TS,  "teq" },
 //	{0x36, REG_TS,  "tne" },
 	{0x38, S_IMM_DT, "dsll"},
-	{0x3A, S_IMM_DT, "dsrl"},
+	{0x3A, S_IMM_DT|SR_BIT, "dsrl\0drotrv"},
 	{0x3B, S_IMM_DT, "dsra"},
 	{0x3C, S_IMM_DT, "dsll32"},
-	{0x3E, S_IMM_DT, "dsrl32"},
+	{0x3E, S_IMM_DT|SR_BIT, "dsrl32\0drotr32"},
 	{0x3F, S_IMM_DT, "dsra32"},
 };
 
@@ -144,6 +146,32 @@ static const struct insn special2_insns[] = {
 	{0x21, REG_DS,  "clo" },
 	{0x24, REG_DS,  "dclz" },
 	{0x25, REG_DS,  "dclo" },
+};
+
+// instructions with opcode SPECIAL3 (R-type)
+#define OP_SPECIAL3	0x1F
+static const struct insn special3_insns[] = {
+	{0x00, F_IMM_TS, "ext" },
+	{0x01, F_IMM_TS, "dextm" },
+	{0x02, F_IMM_TS, "dextu" },
+	{0x03, F_IMM_TS, "dext" },
+	{0x04, F_IMM_TS, "ins" },
+	{0x05, F_IMM_TS, "dinsm" },
+	{0x06, F_IMM_TS, "dinsu" },
+	{0x07, F_IMM_TS, "dins" },
+};
+
+// instruction with opcode SPECIAL3 and function *BSHFL
+#define FN_BSHFL	0x20
+static const struct insn bshfl_insns[] = {
+	{0x02, REG_DT,  "wsbh" },
+	{0x10, REG_DT,  "seb" },
+	{0x18, REG_DT,  "seh" },
+};
+#define FN_DBSHFL	0x24
+static const struct insn dbshfl_insns[] = {
+	{0x02, REG_DT,  "dsbh" },
+	{0x05, REG_DT,  "dshd" },
 };
 
 // instructions with opcode REGIMM (I-type)
@@ -240,6 +268,20 @@ static const struct insn *decode_insn(uint32_t insn)
 		op = insn & 0x3f;
 		pi = special2_insns;
 		r = ARRAY_SIZE(special2_insns)-1;
+	} else if (op == OP_SPECIAL3) {
+		op = insn & 0x3f;
+		if (op == FN_BSHFL) {
+			op = (insn >> 6) & 0x1f;
+			pi = bshfl_insns;
+			r = ARRAY_SIZE(bshfl_insns)-1;
+		} else if (op == FN_DBSHFL) {
+			op = (insn >> 6) & 0x1f;
+			pi = dbshfl_insns;
+			r = ARRAY_SIZE(dbshfl_insns)-1;
+		} else {
+			pi = special3_insns;
+			r = ARRAY_SIZE(special3_insns)-1;
+		}
 	} else if (op == OP_REGIMM) {
 		op = (insn>>16) & 0x1f;
 		pi = regimm_insns;
@@ -280,7 +322,7 @@ int dismips(uintptr_t pc, uint32_t insn, char *buf, size_t buflen, uintptr_t *sy
 	char *rs = register_names[(insn >> 21) & 0x1f];
 	char *rt = register_names[(insn >> 16) & 0x1f];
 	char *rd = register_names[(insn >> 11) & 0x1f];
-	int sa = (insn >> 6) & 0x1f;
+	int sa = (insn >> 6) & 0x1f, sb = (insn >> 11) & 0x1f;
 	int imm = (int16_t) insn;
 
 	*sym = 0;
@@ -289,10 +331,12 @@ int dismips(uintptr_t pc, uint32_t insn, char *buf, size_t buflen, uintptr_t *sy
 		return 0;
 	}
 
-	switch (pi->type) {
+	switch (pi->type & ~SR_BIT) {
 	case REG_DTS:
 		if ((insn & 0x3f) == 0x25 /*OR*/ && (insn & 0x1f0000) == 0 /*zero*/)
 			snprintf(buf, buflen, "move %s, %s", rd, rs);
+		else if ((pi->type & SR_BIT) && (insn & (1<<6)))
+			snprintf(buf, buflen, "%s %s, %s, %s", pi->name+strlen(pi->name)+1, rd, rs, rt);
 		else
 			snprintf(buf, buflen, "%s %s, %s, %s", pi->name, rd, rs, rt);
 		break;
@@ -301,6 +345,9 @@ int dismips(uintptr_t pc, uint32_t insn, char *buf, size_t buflen, uintptr_t *sy
 		break;
 	case REG_DS:
 		snprintf(buf, buflen, "%s %s, %s", pi->name, rd, rs);
+		break;
+	case REG_DT:
+		snprintf(buf, buflen, "%s %s, %s", pi->name, rd, rt);
 		break;
 	case REG_D:
 		snprintf(buf, buflen, "%s %s", pi->name, rd);
@@ -311,8 +358,16 @@ int dismips(uintptr_t pc, uint32_t insn, char *buf, size_t buflen, uintptr_t *sy
 	case S_IMM_DT:
 		if (insn == 0x00000000)
 			snprintf(buf, buflen, "nop");
+		else if ((pi->type & SR_BIT) && (insn & (1<<21)))
+			snprintf(buf, buflen, "%s %s, %s, %d", pi->name+strlen(pi->name)+1, rd, rt, sa);
 		else
 			snprintf(buf, buflen, "%s %s, %s, %d", pi->name, rd, rt, sa);
+		break;
+	case F_IMM_TS:
+		if (insn & 0x01)	sb+=32;
+		if (insn & 0x02)	sa+=32;
+		if (insn & 0x04)	sb-=sa;
+		snprintf(buf, buflen, "%s %s, %s, %d, %d", pi->name, rt, rs, sa, sb+1);
 		break;
 	case B_IMM_S:
 		*sym = b_target(pc, insn);

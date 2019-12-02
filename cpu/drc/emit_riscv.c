@@ -1499,10 +1499,10 @@ static int emith_cond_check(int cond, int *r, int *s)
 	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
 	EMITH_JMP3_START(DCOND_EQ);               \
 	emith_add_r_r_r(rn, t_, rm);              \
-	EMIT(R5_SLTU_REG(FC, rn, t_));          \
+	EMIT(R5_SLTU_REG(FC, rn, t_));            \
 	EMITH_JMP3_MID(DCOND_EQ);                 \
 	emith_sub_r_r_r(rn, t_, rm);              \
-	EMIT(R5_SLTU_REG(FC, t_, rn));          \
+	EMIT(R5_SLTU_REG(FC, t_, rn));            \
 	EMITH_JMP3_END();                         \
 	emith_eor_r_r(sr, FC); /* T ^= carry */   \
 	rcache_free_tmp(t_);                      \
