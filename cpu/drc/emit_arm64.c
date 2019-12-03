@@ -211,7 +211,7 @@ enum { XT_UXTW=0x4, XT_UXTX=0x6, XT_LSL=0x7, XT_SXTW=0xc, XT_SXTX=0xe };
 #define A64_MOVT_IMM(rd, imm16, lsl16) \
 	A64_INSN(0x9,0x3,0x2,lsl16,_,_,_,(imm16)&0xffff,rd)
 
-// rd = rn SHIFT imm6
+// rd = rn SHIFT imm5/imm6 (for Wn/Xn)
 #define A64_LSL_IMM(rd, rn, bits) /* UBFM */ \
 	A64_INSN(0x9,0x2,0x4,_,32-(bits),_,31-(bits),rn,rd)
 #define A64_LSR_IMM(rd, rn, bits) /* UBFM */ \
@@ -229,7 +229,7 @@ enum { XT_UXTW=0x4, XT_UXTX=0x6, XT_LSL=0x7, XT_SXTW=0xc, XT_SXTX=0xe };
 #define A64_BFX_IMM(rd, rn, lsb, bits) /* UBFM */ \
 	A64_INSN(0x9,0x2,0x4,_,lsb,_,bits-1,rn,rd)
 #define A64_BFI_IMM(rd, rn, lsb, bits) /* BFM */ \
-	A64_INSN(0x9,0x1,0x4,_,(32-lsb)&31,_,bits-1,rn,rd)
+	A64_INSN(0x9,0x1,0x4,_,-(lsb)&0x1f,_,bits-1,rn,rd)
 
 // multiplication
 
