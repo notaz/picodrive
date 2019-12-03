@@ -5,6 +5,8 @@
 
 ;@ For commercial use, separate licencing terms must be obtained.
 
+#include "../../pico/arm_features.h"
+
       .data
       .align 4
 
@@ -102,6 +104,7 @@ DrZ80Ver: .long 0x0001
 ;@---------------------------------------
 
 .text
+    PIC_LDR_INIT()
 
 .if DRZ80_XMAP
 
@@ -1370,7 +1373,7 @@ DrZ80Run:
 	blne DoInterrupt
 .endif
 
-	ldr opcodes,MAIN_opcodes_POINTER2
+	PIC_LDR(opcodes, r0, MAIN_opcodes)
 
 	cmp z80_icount,#0     ;@ irq might have used all cycles
 	ldrplb r0,[z80pc],#1
@@ -1382,11 +1385,7 @@ z80_execute_end:
 	stmia cpucontext,{z80pc-z80sp}			;@ save Z80 registers
 	mov r0,z80_icount
 	ldmia sp!,{r4-r12,pc}					;@ restore registers from stack and return to C code
-
-MAIN_opcodes_POINTER2: .word MAIN_opcodes
-.if INTERRUPT_MODE
-Interrupt_local: .word Interrupt
-.endif
+.pool
 
 DoInterrupt:
 .if INTERRUPT_MODE
@@ -1395,8 +1394,9 @@ DoInterrupt:
 	;@ save everything back into DrZ80 context
 	stmia cpucontext,{z80pc-z80sp}			;@ save Z80 registers
 	stmfd sp!,{r3,r4,r5,lr}					;@ save rest of regs on stack
+	PIC_LDR(r2, r3, Interrupt)
 	mov lr,pc
-	ldr pc,Interrupt_local
+	bx r2
 	ldmfd sp!,{r3,r4,r5,lr}					;@ load regs from stack
 	;@ reload regs from DrZ80 context
 	ldmia cpucontext,{z80pc-z80sp}			;@ load Z80 registers
@@ -4469,7 +4469,6 @@ opcode_2_6:
 	and z80hl,z80hl,#0xFF<<16
 	orr z80hl,z80hl,r1, lsl #24
 	fetch 7
-DAATABLE_LOCAL: .word DAATable
 ;@DAA
 opcode_2_7:
 	mov r1,z80a, lsr #24
@@ -4479,13 +4478,14 @@ opcode_2_7:
 	orrne r1,r1,#512
 	tst z80f,#1<<NFlag
 	orrne r1,r1,#1024
-	ldr r2,DAATABLE_LOCAL
+	PIC_LDR(r2, r0, DAATable)
 	add r2,r2,r1, lsl #1
 	ldrh r1,[r2]
 	and z80f,r1,#0xFF
 	and r2,r1,#0xFF<<8
 	mov z80a,r2, lsl #16
 	fetch 4
+.pool
 ;@JR Z,$+2
 opcode_2_8:
 	tst z80f,#1<<ZFlag
@@ -5230,40 +5230,40 @@ opcode_C_A:
 ;@the CB sub for the intruction and then branches to that location
 opcode_C_B:
 	ldrb r0,[z80pc],#1
-	ldr pc,[pc,r0, lsl #2]
+	PIC_XB(,r0, lsl #2)
 opcodes_CB:	.word 0x00000000
-			.word opcode_CB_00,opcode_CB_01,opcode_CB_02,opcode_CB_03,opcode_CB_04,opcode_CB_05,opcode_CB_06,opcode_CB_07
-			.word opcode_CB_08,opcode_CB_09,opcode_CB_0A,opcode_CB_0B,opcode_CB_0C,opcode_CB_0D,opcode_CB_0E,opcode_CB_0F
-			.word opcode_CB_10,opcode_CB_11,opcode_CB_12,opcode_CB_13,opcode_CB_14,opcode_CB_15,opcode_CB_16,opcode_CB_17
-			.word opcode_CB_18,opcode_CB_19,opcode_CB_1A,opcode_CB_1B,opcode_CB_1C,opcode_CB_1D,opcode_CB_1E,opcode_CB_1F
-			.word opcode_CB_20,opcode_CB_21,opcode_CB_22,opcode_CB_23,opcode_CB_24,opcode_CB_25,opcode_CB_26,opcode_CB_27
-			.word opcode_CB_28,opcode_CB_29,opcode_CB_2A,opcode_CB_2B,opcode_CB_2C,opcode_CB_2D,opcode_CB_2E,opcode_CB_2F
-			.word opcode_CB_30,opcode_CB_31,opcode_CB_32,opcode_CB_33,opcode_CB_34,opcode_CB_35,opcode_CB_36,opcode_CB_37
-			.word opcode_CB_38,opcode_CB_39,opcode_CB_3A,opcode_CB_3B,opcode_CB_3C,opcode_CB_3D,opcode_CB_3E,opcode_CB_3F
-			.word opcode_CB_40,opcode_CB_41,opcode_CB_42,opcode_CB_43,opcode_CB_44,opcode_CB_45,opcode_CB_46,opcode_CB_47
-			.word opcode_CB_48,opcode_CB_49,opcode_CB_4A,opcode_CB_4B,opcode_CB_4C,opcode_CB_4D,opcode_CB_4E,opcode_CB_4F
-			.word opcode_CB_50,opcode_CB_51,opcode_CB_52,opcode_CB_53,opcode_CB_54,opcode_CB_55,opcode_CB_56,opcode_CB_57
-			.word opcode_CB_58,opcode_CB_59,opcode_CB_5A,opcode_CB_5B,opcode_CB_5C,opcode_CB_5D,opcode_CB_5E,opcode_CB_5F
-			.word opcode_CB_60,opcode_CB_61,opcode_CB_62,opcode_CB_63,opcode_CB_64,opcode_CB_65,opcode_CB_66,opcode_CB_67
-			.word opcode_CB_68,opcode_CB_69,opcode_CB_6A,opcode_CB_6B,opcode_CB_6C,opcode_CB_6D,opcode_CB_6E,opcode_CB_6F
-			.word opcode_CB_70,opcode_CB_71,opcode_CB_72,opcode_CB_73,opcode_CB_74,opcode_CB_75,opcode_CB_76,opcode_CB_77
-			.word opcode_CB_78,opcode_CB_79,opcode_CB_7A,opcode_CB_7B,opcode_CB_7C,opcode_CB_7D,opcode_CB_7E,opcode_CB_7F
-			.word opcode_CB_80,opcode_CB_81,opcode_CB_82,opcode_CB_83,opcode_CB_84,opcode_CB_85,opcode_CB_86,opcode_CB_87
-			.word opcode_CB_88,opcode_CB_89,opcode_CB_8A,opcode_CB_8B,opcode_CB_8C,opcode_CB_8D,opcode_CB_8E,opcode_CB_8F
-			.word opcode_CB_90,opcode_CB_91,opcode_CB_92,opcode_CB_93,opcode_CB_94,opcode_CB_95,opcode_CB_96,opcode_CB_97
-			.word opcode_CB_98,opcode_CB_99,opcode_CB_9A,opcode_CB_9B,opcode_CB_9C,opcode_CB_9D,opcode_CB_9E,opcode_CB_9F
-			.word opcode_CB_A0,opcode_CB_A1,opcode_CB_A2,opcode_CB_A3,opcode_CB_A4,opcode_CB_A5,opcode_CB_A6,opcode_CB_A7
-			.word opcode_CB_A8,opcode_CB_A9,opcode_CB_AA,opcode_CB_AB,opcode_CB_AC,opcode_CB_AD,opcode_CB_AE,opcode_CB_AF
-			.word opcode_CB_B0,opcode_CB_B1,opcode_CB_B2,opcode_CB_B3,opcode_CB_B4,opcode_CB_B5,opcode_CB_B6,opcode_CB_B7
-			.word opcode_CB_B8,opcode_CB_B9,opcode_CB_BA,opcode_CB_BB,opcode_CB_BC,opcode_CB_BD,opcode_CB_BE,opcode_CB_BF
-			.word opcode_CB_C0,opcode_CB_C1,opcode_CB_C2,opcode_CB_C3,opcode_CB_C4,opcode_CB_C5,opcode_CB_C6,opcode_CB_C7
-			.word opcode_CB_C8,opcode_CB_C9,opcode_CB_CA,opcode_CB_CB,opcode_CB_CC,opcode_CB_CD,opcode_CB_CE,opcode_CB_CF
-			.word opcode_CB_D0,opcode_CB_D1,opcode_CB_D2,opcode_CB_D3,opcode_CB_D4,opcode_CB_D5,opcode_CB_D6,opcode_CB_D7
-			.word opcode_CB_D8,opcode_CB_D9,opcode_CB_DA,opcode_CB_DB,opcode_CB_DC,opcode_CB_DD,opcode_CB_DE,opcode_CB_DF
-			.word opcode_CB_E0,opcode_CB_E1,opcode_CB_E2,opcode_CB_E3,opcode_CB_E4,opcode_CB_E5,opcode_CB_E6,opcode_CB_E7
-			.word opcode_CB_E8,opcode_CB_E9,opcode_CB_EA,opcode_CB_EB,opcode_CB_EC,opcode_CB_ED,opcode_CB_EE,opcode_CB_EF
-			.word opcode_CB_F0,opcode_CB_F1,opcode_CB_F2,opcode_CB_F3,opcode_CB_F4,opcode_CB_F5,opcode_CB_F6,opcode_CB_F7
-			.word opcode_CB_F8,opcode_CB_F9,opcode_CB_FA,opcode_CB_FB,opcode_CB_FC,opcode_CB_FD,opcode_CB_FE,opcode_CB_FF
+		PIC_BT(opcode_CB_00);PIC_BT(opcode_CB_01);PIC_BT(opcode_CB_02);PIC_BT(opcode_CB_03);PIC_BT(opcode_CB_04);PIC_BT(opcode_CB_05);PIC_BT(opcode_CB_06);PIC_BT(opcode_CB_07)
+		PIC_BT(opcode_CB_08);PIC_BT(opcode_CB_09);PIC_BT(opcode_CB_0A);PIC_BT(opcode_CB_0B);PIC_BT(opcode_CB_0C);PIC_BT(opcode_CB_0D);PIC_BT(opcode_CB_0E);PIC_BT(opcode_CB_0F)
+		PIC_BT(opcode_CB_10);PIC_BT(opcode_CB_11);PIC_BT(opcode_CB_12);PIC_BT(opcode_CB_13);PIC_BT(opcode_CB_14);PIC_BT(opcode_CB_15);PIC_BT(opcode_CB_16);PIC_BT(opcode_CB_17)
+		PIC_BT(opcode_CB_18);PIC_BT(opcode_CB_19);PIC_BT(opcode_CB_1A);PIC_BT(opcode_CB_1B);PIC_BT(opcode_CB_1C);PIC_BT(opcode_CB_1D);PIC_BT(opcode_CB_1E);PIC_BT(opcode_CB_1F)
+		PIC_BT(opcode_CB_20);PIC_BT(opcode_CB_21);PIC_BT(opcode_CB_22);PIC_BT(opcode_CB_23);PIC_BT(opcode_CB_24);PIC_BT(opcode_CB_25);PIC_BT(opcode_CB_26);PIC_BT(opcode_CB_27)
+		PIC_BT(opcode_CB_28);PIC_BT(opcode_CB_29);PIC_BT(opcode_CB_2A);PIC_BT(opcode_CB_2B);PIC_BT(opcode_CB_2C);PIC_BT(opcode_CB_2D);PIC_BT(opcode_CB_2E);PIC_BT(opcode_CB_2F)
+		PIC_BT(opcode_CB_30);PIC_BT(opcode_CB_31);PIC_BT(opcode_CB_32);PIC_BT(opcode_CB_33);PIC_BT(opcode_CB_34);PIC_BT(opcode_CB_35);PIC_BT(opcode_CB_36);PIC_BT(opcode_CB_37)
+		PIC_BT(opcode_CB_38);PIC_BT(opcode_CB_39);PIC_BT(opcode_CB_3A);PIC_BT(opcode_CB_3B);PIC_BT(opcode_CB_3C);PIC_BT(opcode_CB_3D);PIC_BT(opcode_CB_3E);PIC_BT(opcode_CB_3F)
+		PIC_BT(opcode_CB_40);PIC_BT(opcode_CB_41);PIC_BT(opcode_CB_42);PIC_BT(opcode_CB_43);PIC_BT(opcode_CB_44);PIC_BT(opcode_CB_45);PIC_BT(opcode_CB_46);PIC_BT(opcode_CB_47)
+		PIC_BT(opcode_CB_48);PIC_BT(opcode_CB_49);PIC_BT(opcode_CB_4A);PIC_BT(opcode_CB_4B);PIC_BT(opcode_CB_4C);PIC_BT(opcode_CB_4D);PIC_BT(opcode_CB_4E);PIC_BT(opcode_CB_4F)
+		PIC_BT(opcode_CB_50);PIC_BT(opcode_CB_51);PIC_BT(opcode_CB_52);PIC_BT(opcode_CB_53);PIC_BT(opcode_CB_54);PIC_BT(opcode_CB_55);PIC_BT(opcode_CB_56);PIC_BT(opcode_CB_57)
+		PIC_BT(opcode_CB_58);PIC_BT(opcode_CB_59);PIC_BT(opcode_CB_5A);PIC_BT(opcode_CB_5B);PIC_BT(opcode_CB_5C);PIC_BT(opcode_CB_5D);PIC_BT(opcode_CB_5E);PIC_BT(opcode_CB_5F)
+		PIC_BT(opcode_CB_60);PIC_BT(opcode_CB_61);PIC_BT(opcode_CB_62);PIC_BT(opcode_CB_63);PIC_BT(opcode_CB_64);PIC_BT(opcode_CB_65);PIC_BT(opcode_CB_66);PIC_BT(opcode_CB_67)
+		PIC_BT(opcode_CB_68);PIC_BT(opcode_CB_69);PIC_BT(opcode_CB_6A);PIC_BT(opcode_CB_6B);PIC_BT(opcode_CB_6C);PIC_BT(opcode_CB_6D);PIC_BT(opcode_CB_6E);PIC_BT(opcode_CB_6F)
+		PIC_BT(opcode_CB_70);PIC_BT(opcode_CB_71);PIC_BT(opcode_CB_72);PIC_BT(opcode_CB_73);PIC_BT(opcode_CB_74);PIC_BT(opcode_CB_75);PIC_BT(opcode_CB_76);PIC_BT(opcode_CB_77)
+		PIC_BT(opcode_CB_78);PIC_BT(opcode_CB_79);PIC_BT(opcode_CB_7A);PIC_BT(opcode_CB_7B);PIC_BT(opcode_CB_7C);PIC_BT(opcode_CB_7D);PIC_BT(opcode_CB_7E);PIC_BT(opcode_CB_7F)
+		PIC_BT(opcode_CB_80);PIC_BT(opcode_CB_81);PIC_BT(opcode_CB_82);PIC_BT(opcode_CB_83);PIC_BT(opcode_CB_84);PIC_BT(opcode_CB_85);PIC_BT(opcode_CB_86);PIC_BT(opcode_CB_87)
+		PIC_BT(opcode_CB_88);PIC_BT(opcode_CB_89);PIC_BT(opcode_CB_8A);PIC_BT(opcode_CB_8B);PIC_BT(opcode_CB_8C);PIC_BT(opcode_CB_8D);PIC_BT(opcode_CB_8E);PIC_BT(opcode_CB_8F)
+		PIC_BT(opcode_CB_90);PIC_BT(opcode_CB_91);PIC_BT(opcode_CB_92);PIC_BT(opcode_CB_93);PIC_BT(opcode_CB_94);PIC_BT(opcode_CB_95);PIC_BT(opcode_CB_96);PIC_BT(opcode_CB_97)
+		PIC_BT(opcode_CB_98);PIC_BT(opcode_CB_99);PIC_BT(opcode_CB_9A);PIC_BT(opcode_CB_9B);PIC_BT(opcode_CB_9C);PIC_BT(opcode_CB_9D);PIC_BT(opcode_CB_9E);PIC_BT(opcode_CB_9F)
+		PIC_BT(opcode_CB_A0);PIC_BT(opcode_CB_A1);PIC_BT(opcode_CB_A2);PIC_BT(opcode_CB_A3);PIC_BT(opcode_CB_A4);PIC_BT(opcode_CB_A5);PIC_BT(opcode_CB_A6);PIC_BT(opcode_CB_A7)
+		PIC_BT(opcode_CB_A8);PIC_BT(opcode_CB_A9);PIC_BT(opcode_CB_AA);PIC_BT(opcode_CB_AB);PIC_BT(opcode_CB_AC);PIC_BT(opcode_CB_AD);PIC_BT(opcode_CB_AE);PIC_BT(opcode_CB_AF)
+		PIC_BT(opcode_CB_B0);PIC_BT(opcode_CB_B1);PIC_BT(opcode_CB_B2);PIC_BT(opcode_CB_B3);PIC_BT(opcode_CB_B4);PIC_BT(opcode_CB_B5);PIC_BT(opcode_CB_B6);PIC_BT(opcode_CB_B7)
+		PIC_BT(opcode_CB_B8);PIC_BT(opcode_CB_B9);PIC_BT(opcode_CB_BA);PIC_BT(opcode_CB_BB);PIC_BT(opcode_CB_BC);PIC_BT(opcode_CB_BD);PIC_BT(opcode_CB_BE);PIC_BT(opcode_CB_BF)
+		PIC_BT(opcode_CB_C0);PIC_BT(opcode_CB_C1);PIC_BT(opcode_CB_C2);PIC_BT(opcode_CB_C3);PIC_BT(opcode_CB_C4);PIC_BT(opcode_CB_C5);PIC_BT(opcode_CB_C6);PIC_BT(opcode_CB_C7)
+		PIC_BT(opcode_CB_C8);PIC_BT(opcode_CB_C9);PIC_BT(opcode_CB_CA);PIC_BT(opcode_CB_CB);PIC_BT(opcode_CB_CC);PIC_BT(opcode_CB_CD);PIC_BT(opcode_CB_CE);PIC_BT(opcode_CB_CF)
+		PIC_BT(opcode_CB_D0);PIC_BT(opcode_CB_D1);PIC_BT(opcode_CB_D2);PIC_BT(opcode_CB_D3);PIC_BT(opcode_CB_D4);PIC_BT(opcode_CB_D5);PIC_BT(opcode_CB_D6);PIC_BT(opcode_CB_D7)
+		PIC_BT(opcode_CB_D8);PIC_BT(opcode_CB_D9);PIC_BT(opcode_CB_DA);PIC_BT(opcode_CB_DB);PIC_BT(opcode_CB_DC);PIC_BT(opcode_CB_DD);PIC_BT(opcode_CB_DE);PIC_BT(opcode_CB_DF)
+		PIC_BT(opcode_CB_E0);PIC_BT(opcode_CB_E1);PIC_BT(opcode_CB_E2);PIC_BT(opcode_CB_E3);PIC_BT(opcode_CB_E4);PIC_BT(opcode_CB_E5);PIC_BT(opcode_CB_E6);PIC_BT(opcode_CB_E7)
+		PIC_BT(opcode_CB_E8);PIC_BT(opcode_CB_E9);PIC_BT(opcode_CB_EA);PIC_BT(opcode_CB_EB);PIC_BT(opcode_CB_EC);PIC_BT(opcode_CB_ED);PIC_BT(opcode_CB_EE);PIC_BT(opcode_CB_EF)
+		PIC_BT(opcode_CB_F0);PIC_BT(opcode_CB_F1);PIC_BT(opcode_CB_F2);PIC_BT(opcode_CB_F3);PIC_BT(opcode_CB_F4);PIC_BT(opcode_CB_F5);PIC_BT(opcode_CB_F6);PIC_BT(opcode_CB_F7)
+		PIC_BT(opcode_CB_F8);PIC_BT(opcode_CB_F9);PIC_BT(opcode_CB_FA);PIC_BT(opcode_CB_FB);PIC_BT(opcode_CB_FC);PIC_BT(opcode_CB_FD);PIC_BT(opcode_CB_FE);PIC_BT(opcode_CB_FF)
 
 ;@CALL Z,NN
 opcode_C_C:
@@ -5378,40 +5378,40 @@ opcode_F_D:
 	add z80xx,cpucontext,#z80iy
 opcode_D_D_F_D:
 	ldrb r0,[z80pc],#1
-	ldr pc,[pc,r0, lsl #2]
+	PIC_XB(,r0, lsl #2)
 opcodes_DD:	.word 0x00000000
-			.word opcode_0_0,  opcode_0_1,  opcode_0_2,  opcode_0_3,  opcode_0_4,  opcode_0_5,  opcode_0_6,  opcode_0_7
-			.word opcode_0_8,  opcode_DD_09,opcode_0_A,  opcode_0_B,  opcode_0_C,  opcode_0_D,  opcode_0_E,  opcode_0_F
-			.word opcode_1_0,  opcode_1_1,  opcode_1_2,  opcode_1_3,  opcode_1_4,  opcode_1_5,  opcode_1_6,  opcode_1_7
-			.word opcode_1_8,  opcode_DD_19,opcode_1_A,  opcode_1_B,  opcode_1_C,  opcode_1_D,  opcode_1_E,  opcode_1_F
-			.word opcode_2_0,  opcode_DD_21,opcode_DD_22,opcode_DD_23,opcode_DD_24,opcode_DD_25,opcode_DD_26,opcode_2_7
-			.word opcode_2_8,  opcode_DD_29,opcode_DD_2A,opcode_DD_2B,opcode_DD_2C,opcode_DD_2D,opcode_DD_2E,opcode_2_F
-			.word opcode_3_0,  opcode_3_1,  opcode_3_2,  opcode_3_3,  opcode_DD_34,opcode_DD_35,opcode_DD_36,opcode_3_7
-			.word opcode_3_8,  opcode_DD_39,opcode_3_A,  opcode_3_B,  opcode_3_C,  opcode_3_D,  opcode_3_E,  opcode_3_F
-			.word opcode_4_0,  opcode_4_1,  opcode_4_2,  opcode_4_3,  opcode_DD_44,opcode_DD_45,opcode_DD_46,opcode_4_7
-			.word opcode_4_8,  opcode_4_9,  opcode_4_A,  opcode_4_B,  opcode_DD_4C,opcode_DD_4D,opcode_DD_4E,opcode_4_F
-			.word opcode_5_0,  opcode_5_1,  opcode_5_2,  opcode_5_3,  opcode_DD_54,opcode_DD_55,opcode_DD_56,opcode_5_7
-			.word opcode_5_8,  opcode_5_9,  opcode_5_A,  opcode_5_B,  opcode_DD_5C,opcode_DD_5D,opcode_DD_5E,opcode_5_F
-			.word opcode_DD_60,opcode_DD_61,opcode_DD_62,opcode_DD_63,opcode_DD_64,opcode_DD_65,opcode_DD_66,opcode_DD_67
-			.word opcode_DD_68,opcode_DD_69,opcode_DD_6A,opcode_DD_6B,opcode_DD_6C,opcode_DD_6D,opcode_DD_6E,opcode_DD_6F
-			.word opcode_DD_70,opcode_DD_71,opcode_DD_72,opcode_DD_73,opcode_DD_74,opcode_DD_75,opcode_7_6,  opcode_DD_77
-			.word opcode_7_8,  opcode_7_9,  opcode_7_A,  opcode_7_B,  opcode_DD_7C,opcode_DD_7D,opcode_DD_7E,opcode_7_F
-			.word opcode_8_0,  opcode_8_1,  opcode_8_2,  opcode_8_3,  opcode_DD_84,opcode_DD_85,opcode_DD_86,opcode_8_7
-			.word opcode_8_8,  opcode_8_9,  opcode_8_A,  opcode_8_B,  opcode_DD_8C,opcode_DD_8D,opcode_DD_8E,opcode_8_F
-			.word opcode_9_0,  opcode_9_1,  opcode_9_2,  opcode_9_3,  opcode_DD_94,opcode_DD_95,opcode_DD_96,opcode_9_7
-			.word opcode_9_8,  opcode_9_9,  opcode_9_A,  opcode_9_B,  opcode_DD_9C,opcode_DD_9D,opcode_DD_9E,opcode_9_F
-			.word opcode_A_0,  opcode_A_1,  opcode_A_2,  opcode_A_3,  opcode_DD_A4,opcode_DD_A5,opcode_DD_A6,opcode_A_7
-			.word opcode_A_8,  opcode_A_9,  opcode_A_A,  opcode_A_B,  opcode_DD_AC,opcode_DD_AD,opcode_DD_AE,opcode_A_F
-			.word opcode_B_0,  opcode_B_1,  opcode_B_2,  opcode_B_3,  opcode_DD_B4,opcode_DD_B5,opcode_DD_B6,opcode_B_7
-			.word opcode_B_8,  opcode_B_9,  opcode_B_A,  opcode_B_B,  opcode_DD_BC,opcode_DD_BD,opcode_DD_BE,opcode_B_F
-			.word opcode_C_0,  opcode_C_1,  opcode_C_2,  opcode_C_3,  opcode_C_4,  opcode_C_5,  opcode_C_6,  opcode_C_7
-			.word opcode_C_8,  opcode_C_9,  opcode_C_A,  opcode_DD_CB,opcode_C_C,  opcode_C_D,  opcode_C_E,  opcode_C_F
-			.word opcode_D_0,  opcode_D_1,  opcode_D_2,  opcode_D_3,  opcode_D_4,  opcode_D_5,  opcode_D_6,  opcode_D_7
-			.word opcode_D_8,  opcode_D_9,  opcode_D_A,  opcode_D_B,  opcode_D_C,  opcode_D_D,  opcode_D_E,  opcode_D_F
-			.word opcode_E_0,  opcode_DD_E1,opcode_E_2,  opcode_DD_E3,opcode_E_4,  opcode_DD_E5,opcode_E_6,  opcode_E_7
-			.word opcode_E_8,  opcode_DD_E9,opcode_E_A,  opcode_E_B,  opcode_E_C,  opcode_E_D,  opcode_E_E,  opcode_E_F
-			.word opcode_F_0,  opcode_F_1,  opcode_F_2,  opcode_F_3,  opcode_F_4,  opcode_F_5,  opcode_F_6,  opcode_F_7
-			.word opcode_F_8,  opcode_DD_F9,opcode_F_A,  opcode_F_B,  opcode_F_C,  opcode_F_D,  opcode_F_E,  opcode_F_F
+		PIC_BT(  opcode_0_0);PIC_BT(  opcode_0_1);PIC_BT(  opcode_0_2);PIC_BT(  opcode_0_3);PIC_BT(  opcode_0_4);PIC_BT(  opcode_0_5);PIC_BT(  opcode_0_6);PIC_BT(  opcode_0_7)
+		PIC_BT(  opcode_0_8);PIC_BT(  opcode_DD_09);PIC_BT(opcode_0_A);PIC_BT(  opcode_0_B);PIC_BT(  opcode_0_C);PIC_BT(  opcode_0_D);PIC_BT(  opcode_0_E);PIC_BT(  opcode_0_F)
+		PIC_BT(  opcode_1_0);PIC_BT(  opcode_1_1);PIC_BT(  opcode_1_2);PIC_BT(  opcode_1_3);PIC_BT(  opcode_1_4);PIC_BT(  opcode_1_5);PIC_BT(  opcode_1_6);PIC_BT(  opcode_1_7)
+		PIC_BT(  opcode_1_8);PIC_BT(  opcode_DD_19);PIC_BT(opcode_1_A);PIC_BT(  opcode_1_B);PIC_BT(  opcode_1_C);PIC_BT(  opcode_1_D);PIC_BT(  opcode_1_E);PIC_BT(  opcode_1_F)
+		PIC_BT(  opcode_2_0);PIC_BT(  opcode_DD_21);PIC_BT(opcode_DD_22);PIC_BT(opcode_DD_23);PIC_BT(opcode_DD_24);PIC_BT(opcode_DD_25);PIC_BT(opcode_DD_26);PIC_BT(opcode_2_7)
+		PIC_BT(  opcode_2_8);PIC_BT(  opcode_DD_29);PIC_BT(opcode_DD_2A);PIC_BT(opcode_DD_2B);PIC_BT(opcode_DD_2C);PIC_BT(opcode_DD_2D);PIC_BT(opcode_DD_2E);PIC_BT(opcode_2_F)
+		PIC_BT(  opcode_3_0);PIC_BT(  opcode_3_1);PIC_BT(  opcode_3_2);PIC_BT(  opcode_3_3);PIC_BT(  opcode_DD_34);PIC_BT(opcode_DD_35);PIC_BT(opcode_DD_36);PIC_BT(opcode_3_7)
+		PIC_BT(  opcode_3_8);PIC_BT(  opcode_DD_39);PIC_BT(opcode_3_A);PIC_BT(  opcode_3_B);PIC_BT(  opcode_3_C);PIC_BT(  opcode_3_D);PIC_BT(  opcode_3_E);PIC_BT(  opcode_3_F)
+		PIC_BT(  opcode_4_0);PIC_BT(  opcode_4_1);PIC_BT(  opcode_4_2);PIC_BT(  opcode_4_3);PIC_BT(  opcode_DD_44);PIC_BT(opcode_DD_45);PIC_BT(opcode_DD_46);PIC_BT(opcode_4_7)
+		PIC_BT(  opcode_4_8);PIC_BT(  opcode_4_9);PIC_BT(  opcode_4_A);PIC_BT(  opcode_4_B);PIC_BT(  opcode_DD_4C);PIC_BT(opcode_DD_4D);PIC_BT(opcode_DD_4E);PIC_BT(opcode_4_F)
+		PIC_BT(  opcode_5_0);PIC_BT(  opcode_5_1);PIC_BT(  opcode_5_2);PIC_BT(  opcode_5_3);PIC_BT(  opcode_DD_54);PIC_BT(opcode_DD_55);PIC_BT(opcode_DD_56);PIC_BT(opcode_5_7)
+		PIC_BT(  opcode_5_8);PIC_BT(  opcode_5_9);PIC_BT(  opcode_5_A);PIC_BT(  opcode_5_B);PIC_BT(  opcode_DD_5C);PIC_BT(opcode_DD_5D);PIC_BT(opcode_DD_5E);PIC_BT(opcode_5_F)
+		PIC_BT(opcode_DD_60);PIC_BT(opcode_DD_61);PIC_BT(opcode_DD_62);PIC_BT(opcode_DD_63);PIC_BT(opcode_DD_64);PIC_BT(opcode_DD_65);PIC_BT(opcode_DD_66);PIC_BT(opcode_DD_67)
+		PIC_BT(opcode_DD_68);PIC_BT(opcode_DD_69);PIC_BT(opcode_DD_6A);PIC_BT(opcode_DD_6B);PIC_BT(opcode_DD_6C);PIC_BT(opcode_DD_6D);PIC_BT(opcode_DD_6E);PIC_BT(opcode_DD_6F)
+		PIC_BT(opcode_DD_70);PIC_BT(opcode_DD_71);PIC_BT(opcode_DD_72);PIC_BT(opcode_DD_73);PIC_BT(opcode_DD_74);PIC_BT(opcode_DD_75);PIC_BT(opcode_7_6);PIC_BT(  opcode_DD_77)
+		PIC_BT(  opcode_7_8);PIC_BT(  opcode_7_9);PIC_BT(  opcode_7_A);PIC_BT(  opcode_7_B);PIC_BT(  opcode_DD_7C);PIC_BT(opcode_DD_7D);PIC_BT(opcode_DD_7E);PIC_BT(opcode_7_F)
+		PIC_BT(  opcode_8_0);PIC_BT(  opcode_8_1);PIC_BT(  opcode_8_2);PIC_BT(  opcode_8_3);PIC_BT(  opcode_DD_84);PIC_BT(opcode_DD_85);PIC_BT(opcode_DD_86);PIC_BT(opcode_8_7)
+		PIC_BT(  opcode_8_8);PIC_BT(  opcode_8_9);PIC_BT(  opcode_8_A);PIC_BT(  opcode_8_B);PIC_BT(  opcode_DD_8C);PIC_BT(opcode_DD_8D);PIC_BT(opcode_DD_8E);PIC_BT(opcode_8_F)
+		PIC_BT(  opcode_9_0);PIC_BT(  opcode_9_1);PIC_BT(  opcode_9_2);PIC_BT(  opcode_9_3);PIC_BT(  opcode_DD_94);PIC_BT(opcode_DD_95);PIC_BT(opcode_DD_96);PIC_BT(opcode_9_7)
+		PIC_BT(  opcode_9_8);PIC_BT(  opcode_9_9);PIC_BT(  opcode_9_A);PIC_BT(  opcode_9_B);PIC_BT(  opcode_DD_9C);PIC_BT(opcode_DD_9D);PIC_BT(opcode_DD_9E);PIC_BT(opcode_9_F)
+		PIC_BT(  opcode_A_0);PIC_BT(  opcode_A_1);PIC_BT(  opcode_A_2);PIC_BT(  opcode_A_3);PIC_BT(  opcode_DD_A4);PIC_BT(opcode_DD_A5);PIC_BT(opcode_DD_A6);PIC_BT(opcode_A_7)
+		PIC_BT(  opcode_A_8);PIC_BT(  opcode_A_9);PIC_BT(  opcode_A_A);PIC_BT(  opcode_A_B);PIC_BT(  opcode_DD_AC);PIC_BT(opcode_DD_AD);PIC_BT(opcode_DD_AE);PIC_BT(opcode_A_F)
+		PIC_BT(  opcode_B_0);PIC_BT(  opcode_B_1);PIC_BT(  opcode_B_2);PIC_BT(  opcode_B_3);PIC_BT(  opcode_DD_B4);PIC_BT(opcode_DD_B5);PIC_BT(opcode_DD_B6);PIC_BT(opcode_B_7)
+		PIC_BT(  opcode_B_8);PIC_BT(  opcode_B_9);PIC_BT(  opcode_B_A);PIC_BT(  opcode_B_B);PIC_BT(  opcode_DD_BC);PIC_BT(opcode_DD_BD);PIC_BT(opcode_DD_BE);PIC_BT(opcode_B_F)
+		PIC_BT(  opcode_C_0);PIC_BT(  opcode_C_1);PIC_BT(  opcode_C_2);PIC_BT(  opcode_C_3);PIC_BT(  opcode_C_4);PIC_BT(  opcode_C_5);PIC_BT(  opcode_C_6);PIC_BT(  opcode_C_7)
+		PIC_BT(  opcode_C_8);PIC_BT(  opcode_C_9);PIC_BT(  opcode_C_A);PIC_BT(  opcode_DD_CB);PIC_BT(opcode_C_C);PIC_BT(  opcode_C_D);PIC_BT(  opcode_C_E);PIC_BT(  opcode_C_F)
+		PIC_BT(  opcode_D_0);PIC_BT(  opcode_D_1);PIC_BT(  opcode_D_2);PIC_BT(  opcode_D_3);PIC_BT(  opcode_D_4);PIC_BT(  opcode_D_5);PIC_BT(  opcode_D_6);PIC_BT(  opcode_D_7)
+		PIC_BT(  opcode_D_8);PIC_BT(  opcode_D_9);PIC_BT(  opcode_D_A);PIC_BT(  opcode_D_B);PIC_BT(  opcode_D_C);PIC_BT(  opcode_D_D);PIC_BT(  opcode_D_E);PIC_BT(  opcode_D_F)
+		PIC_BT(  opcode_E_0);PIC_BT(  opcode_DD_E1);PIC_BT(opcode_E_2);PIC_BT(  opcode_DD_E3);PIC_BT(opcode_E_4);PIC_BT(  opcode_DD_E5);PIC_BT(opcode_E_6);PIC_BT(  opcode_E_7)
+		PIC_BT(  opcode_E_8);PIC_BT(  opcode_DD_E9);PIC_BT(opcode_E_A);PIC_BT(  opcode_E_B);PIC_BT(  opcode_E_C);PIC_BT(  opcode_E_D);PIC_BT(  opcode_E_E);PIC_BT(  opcode_E_F)
+		PIC_BT(  opcode_F_0);PIC_BT(  opcode_F_1);PIC_BT(  opcode_F_2);PIC_BT(  opcode_F_3);PIC_BT(  opcode_F_4);PIC_BT(  opcode_F_5);PIC_BT(  opcode_F_6);PIC_BT(  opcode_F_7)
+		PIC_BT(  opcode_F_8);PIC_BT(  opcode_DD_F9);PIC_BT(opcode_F_A);PIC_BT(  opcode_F_B);PIC_BT(  opcode_F_C);PIC_BT(  opcode_F_D);PIC_BT(  opcode_F_E);PIC_BT(  opcode_F_F)
 
 ;@SBC A,N
 opcode_D_E:
@@ -5509,40 +5509,40 @@ opcode_E_C:
 ;@This should be caught at start
 opcode_E_D:
 	ldrb r1,[z80pc],#1
-	ldr pc,[pc,r1, lsl #2]
+	PIC_XB(,r1, lsl #2)
 opcodes_ED:	.word 0x00000000
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_40,opcode_ED_41,opcode_ED_42,opcode_ED_43,opcode_ED_44,opcode_ED_45,opcode_ED_46,opcode_ED_47
-			.word opcode_ED_48,opcode_ED_49,opcode_ED_4A,opcode_ED_4B,opcode_ED_44,opcode_ED_4D,opcode_ED_46,opcode_ED_4F
-			.word opcode_ED_50,opcode_ED_51,opcode_ED_52,opcode_ED_53,opcode_ED_44,opcode_ED_45,opcode_ED_56,opcode_ED_57
-			.word opcode_ED_58,opcode_ED_59,opcode_ED_5A,opcode_ED_5B,opcode_ED_44,opcode_ED_45,opcode_ED_5E,opcode_ED_5F
-			.word opcode_ED_60,opcode_ED_61,opcode_ED_62,opcode_ED_63,opcode_ED_44,opcode_ED_45,opcode_ED_46,opcode_ED_67
-			.word opcode_ED_68,opcode_ED_69,opcode_ED_6A,opcode_ED_6B,opcode_ED_44,opcode_ED_45,opcode_ED_46,opcode_ED_6F
-			.word opcode_ED_70,opcode_ED_71,opcode_ED_72,opcode_ED_73,opcode_ED_44,opcode_ED_45,opcode_ED_56,opcode_ED_NF
-			.word opcode_ED_78,opcode_ED_79,opcode_ED_7A,opcode_ED_7B,opcode_ED_44,opcode_ED_45,opcode_ED_5E,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_A0,opcode_ED_A1,opcode_ED_A2,opcode_ED_A3,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_A8,opcode_ED_A9,opcode_ED_AA,opcode_ED_AB,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_B0,opcode_ED_B1,opcode_ED_B2,opcode_ED_B3,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_B8,opcode_ED_B9,opcode_ED_BA,opcode_ED_BB,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
-			.word opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF,opcode_ED_NF
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_40);PIC_BT(opcode_ED_41);PIC_BT(opcode_ED_42);PIC_BT(opcode_ED_43);PIC_BT(opcode_ED_44);PIC_BT(opcode_ED_45);PIC_BT(opcode_ED_46);PIC_BT(opcode_ED_47)
+		PIC_BT(opcode_ED_48);PIC_BT(opcode_ED_49);PIC_BT(opcode_ED_4A);PIC_BT(opcode_ED_4B);PIC_BT(opcode_ED_44);PIC_BT(opcode_ED_4D);PIC_BT(opcode_ED_46);PIC_BT(opcode_ED_4F)
+		PIC_BT(opcode_ED_50);PIC_BT(opcode_ED_51);PIC_BT(opcode_ED_52);PIC_BT(opcode_ED_53);PIC_BT(opcode_ED_44);PIC_BT(opcode_ED_45);PIC_BT(opcode_ED_56);PIC_BT(opcode_ED_57)
+		PIC_BT(opcode_ED_58);PIC_BT(opcode_ED_59);PIC_BT(opcode_ED_5A);PIC_BT(opcode_ED_5B);PIC_BT(opcode_ED_44);PIC_BT(opcode_ED_45);PIC_BT(opcode_ED_5E);PIC_BT(opcode_ED_5F)
+		PIC_BT(opcode_ED_60);PIC_BT(opcode_ED_61);PIC_BT(opcode_ED_62);PIC_BT(opcode_ED_63);PIC_BT(opcode_ED_44);PIC_BT(opcode_ED_45);PIC_BT(opcode_ED_46);PIC_BT(opcode_ED_67)
+		PIC_BT(opcode_ED_68);PIC_BT(opcode_ED_69);PIC_BT(opcode_ED_6A);PIC_BT(opcode_ED_6B);PIC_BT(opcode_ED_44);PIC_BT(opcode_ED_45);PIC_BT(opcode_ED_46);PIC_BT(opcode_ED_6F)
+		PIC_BT(opcode_ED_70);PIC_BT(opcode_ED_71);PIC_BT(opcode_ED_72);PIC_BT(opcode_ED_73);PIC_BT(opcode_ED_44);PIC_BT(opcode_ED_45);PIC_BT(opcode_ED_56);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_78);PIC_BT(opcode_ED_79);PIC_BT(opcode_ED_7A);PIC_BT(opcode_ED_7B);PIC_BT(opcode_ED_44);PIC_BT(opcode_ED_45);PIC_BT(opcode_ED_5E);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_A0);PIC_BT(opcode_ED_A1);PIC_BT(opcode_ED_A2);PIC_BT(opcode_ED_A3);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_A8);PIC_BT(opcode_ED_A9);PIC_BT(opcode_ED_AA);PIC_BT(opcode_ED_AB);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_B0);PIC_BT(opcode_ED_B1);PIC_BT(opcode_ED_B2);PIC_BT(opcode_ED_B3);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_B8);PIC_BT(opcode_ED_B9);PIC_BT(opcode_ED_BA);PIC_BT(opcode_ED_BB);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
+		PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF);PIC_BT(opcode_ED_NF)
 
 ;@XOR N
 opcode_E_E:
@@ -5631,8 +5631,6 @@ opcode_F_A:
 	bne opcode_C_3		;@unconditional JP
 	add z80pc,z80pc,#2
 	fetch 10
-MAIN_opcodes_POINTER: .word MAIN_opcodes
-EI_DUMMY_opcodes_POINTER: .word EI_DUMMY_opcodes
 ;@EI
 opcode_F_B:
 	ldrb r1,[cpucontext,#z80if]
@@ -5642,8 +5640,9 @@ opcode_F_B:
 
 	ldrb r0,[z80pc],#1
 	eatcycles 4
-	ldr opcodes,EI_DUMMY_opcodes_POINTER
-	ldr pc,[r2,r0, lsl #2]
+	PIC_LDR(opcodes, r1, EI_DUMMY_opcodes)
+	ldr pc,[r2, r0, lsl #2]
+.pool
 
 ei_return:
 	;@point that program returns from EI to check interupts
@@ -5651,7 +5650,7 @@ ei_return:
 	;@ reset z80pc and opcode pointer
 	ldrh r0,[cpucontext,#z80irq] @ 0x4C, irq and IFF bits
 	sub z80pc,z80pc,#1
-	ldr opcodes,MAIN_opcodes_POINTER
+	PIC_LDR(opcodes, r1, MAIN_opcodes)
 	;@ check ints
 	tst r0,#0xff
 	movne r0,r0,lsr #8
@@ -5660,6 +5659,7 @@ ei_return:
 
 	;@ continue
 	fetch 0
+.pool
 
 ;@CALL M,NN
 opcode_F_C:
@@ -7231,7 +7231,6 @@ opcode_DD_BE:
 	fetch 19
 
 
-opcodes_DD_CB_LOCAL: .word opcodes_DD_CB
 opcode_DD_CB:
 ;@Looks up the opcode on the opcodes_DD_CB table and then 
 ;@moves the PC to the location of the subroutine
@@ -7241,41 +7240,41 @@ opcode_DD_CB:
 	mov r0,r0,lsr #16
 
 	ldrb r1,[z80pc],#1
-	ldr pc,[pc,r1, lsl #2]
+	PIC_XB(,r1, lsl #2)
 		.word 0x00
 opcodes_DD_CB:
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_06,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_0E,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_16,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_1E,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_26,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_2E,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_36,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_3E,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_46,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_4E,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_56,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_5E,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_66,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_6E,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_76,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_7E,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_86,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_8E,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_96,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_9E,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_A6,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_AE,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_B6,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_BE,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_C6,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_CE,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_D6,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_DE,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_E6,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_EE,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_F6,opcode_DD_NF2
-		.word opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_NF2,opcode_DD_CB_FE,opcode_DD_NF2
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_06);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_0E);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_16);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_1E);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_26);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_2E);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_36);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_3E);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_46);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_4E);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_56);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_5E);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_66);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_6E);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_76);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_7E);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_86);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_8E);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_96);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_9E);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_A6);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_AE);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_B6);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_BE);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_C6);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_CE);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_D6);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_DE);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_E6);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_EE);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_F6);PIC_BT(opcode_DD_NF2)
+	PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_NF2);PIC_BT(opcode_DD_CB_FE);PIC_BT(opcode_DD_NF2)
 
 ;@RLC (IX+N) 
 opcode_DD_CB_06:

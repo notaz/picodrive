@@ -59,7 +59,7 @@ SRCS_COMMON += $(R)pico/memory_arm.S
 endif
 ifeq "$(asm_ym2612)" "1"
 DEFINES += _ASM_YM2612_C
-SRCS_COMMON += $(R)pico/sound/ym2612_arm.s
+SRCS_COMMON += $(R)pico/sound/ym2612_arm.S
 endif
 ifeq "$(asm_misc)" "1"
 DEFINES += _ASM_MISC_C
@@ -148,7 +148,7 @@ endif
 # --- Z80 ---
 ifeq "$(use_drz80)" "1"
 DEFINES += _USE_DRZ80
-SRCS_COMMON += $(R)cpu/DrZ80/drz80.s
+SRCS_COMMON += $(R)cpu/DrZ80/drz80.S
 endif
 #
 ifeq "$(use_cz80)" "1"

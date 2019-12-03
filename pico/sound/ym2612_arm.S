@@ -12,6 +12,8 @@
 
 @ vim:filetype=armasm
 
+#include "../arm_features.h"
+
 .equiv SLOT1, 0
 .equiv SLOT2, 2
 .equiv SLOT3, 1
@@ -34,6 +36,7 @@
 
 .text
 .align 2
+    PIC_LDR_INIT()
 
 @ r5=slot, r1=eg_cnt, trashes: r0,r2,r3
 @ writes output to routp, but only if vol_out changes
@@ -556,8 +559,8 @@ upd_algo0:
     stmfd   sp!, {r4-r10,lr}
     mov     lr, r0
 
-    ldr     r3, =ym_sin_tab
-    ldr     r5, =ym_tl_tab
+    PIC_LDR(r3, ip, ym_sin_tab)
+    PIC_LDR(r5, ip, ym_tl_tab)
     ldmia   lr, {r6-r7}
     ldr     r10, [lr, #0x54]
     ldr     r12, [lr, #0x4c]
@@ -573,8 +576,8 @@ upd_algo1:
     stmfd   sp!, {r4-r10,lr}
     mov     lr, r0
 
-    ldr     r3, =ym_sin_tab
-    ldr     r5, =ym_tl_tab
+    PIC_LDR(r3, ip, ym_sin_tab)
+    PIC_LDR(r5, ip, ym_tl_tab)
     ldmia   lr, {r6-r7}
     ldr     r10, [lr, #0x54]
     ldr     r12, [lr, #0x4c]
@@ -590,8 +593,8 @@ upd_algo2:
     stmfd   sp!, {r4-r10,lr}
     mov     lr, r0
 
-    ldr     r3, =ym_sin_tab
-    ldr     r5, =ym_tl_tab
+    PIC_LDR(r3, ip, ym_sin_tab)
+    PIC_LDR(r5, ip, ym_tl_tab)
     ldmia   lr, {r6-r7}
     ldr     r10, [lr, #0x54]
     ldr     r12, [lr, #0x4c]
@@ -607,8 +610,8 @@ upd_algo3:
     stmfd   sp!, {r4-r10,lr}
     mov     lr, r0
 
-    ldr     r3, =ym_sin_tab
-    ldr     r5, =ym_tl_tab
+    PIC_LDR(r3, ip, ym_sin_tab)
+    PIC_LDR(r5, ip, ym_tl_tab)
     ldmia   lr, {r6-r7}
     ldr     r10, [lr, #0x54]
     ldr     r12, [lr, #0x4c]
@@ -624,8 +627,8 @@ upd_algo4:
     stmfd   sp!, {r4-r10,lr}
     mov     lr, r0
 
-    ldr     r3, =ym_sin_tab
-    ldr     r5, =ym_tl_tab
+    PIC_LDR(r3, ip, ym_sin_tab)
+    PIC_LDR(r5, ip, ym_tl_tab)
     ldmia   lr, {r6-r7}
     ldr     r10, [lr, #0x54]
     ldr     r12, [lr, #0x4c]
@@ -641,8 +644,8 @@ upd_algo5:
     stmfd   sp!, {r4-r10,lr}
     mov     lr, r0
 
-    ldr     r3, =ym_sin_tab
-    ldr     r5, =ym_tl_tab
+    PIC_LDR(r3, ip, ym_sin_tab)
+    PIC_LDR(r5, ip, ym_tl_tab)
     ldmia   lr, {r6-r7}
     ldr     r10, [lr, #0x54]
     ldr     r12, [lr, #0x4c]
@@ -658,8 +661,8 @@ upd_algo6:
     stmfd   sp!, {r4-r10,lr}
     mov     lr, r0
 
-    ldr     r3, =ym_sin_tab
-    ldr     r5, =ym_tl_tab
+    PIC_LDR(r3, ip, ym_sin_tab)
+    PIC_LDR(r5, ip, ym_tl_tab)
     ldmia   lr, {r6-r7}
     ldr     r10, [lr, #0x54]
     ldr     r12, [lr, #0x4c]
@@ -675,8 +678,8 @@ upd_algo7:
     stmfd   sp!, {r4-r10,lr}
     mov     lr, r0
 
-    ldr     r3, =ym_sin_tab
-    ldr     r5, =ym_tl_tab
+    PIC_LDR(r3, ip, ym_sin_tab)
+    PIC_LDR(r5, ip, ym_tl_tab)
     ldmia   lr, {r6-r7}
     ldr     r10, [lr, #0x54]
     ldr     r12, [lr, #0x4c]
@@ -692,8 +695,8 @@ upd_slot1:
     stmfd   sp!, {r4-r10,lr}
     mov     lr, r0
 
-    ldr     r3, =ym_sin_tab
-    ldr     r5, =ym_tl_tab
+    PIC_LDR(r3, ip, ym_sin_tab)
+    PIC_LDR(r5, ip, ym_tl_tab)
     ldmia   lr, {r6-r7}
     ldr     r10, [lr, #0x54]
     ldr     r12, [lr, #0x4c]
@@ -781,7 +784,7 @@ eg_done:
     beq     crl_loop
 
     @ -- SLOT1 --
-    ldr     r3, =ym_tl_tab
+    PIC_LDR(r3, r2, ym_tl_tab)
 
     @ lr=context, r12=pack (stereo, lastchan, disabled, lfo_enabled | pan_r, pan_l, ams[2] | AMmasks[4] | FB[4] | lfo_ampm[16])
     @ r0-r2=scratch, r3=tl_tab, r5=scratch, r6-r7=vol_out[4], r10=op1_out
@@ -789,16 +792,16 @@ eg_done:
 
     @ -- SLOT2+ --
     and     r0, r4, #7
-    ldr     pc, [pc, r0, lsl #2]
+    PIC_XB(,r0, lsl #2)
     nop
-    .word   crl_algo0
-    .word   crl_algo1
-    .word   crl_algo2
-    .word   crl_algo3
-    .word   crl_algo4
-    .word   crl_algo5
-    .word   crl_algo6
-    .word   crl_algo7
+    PIC_BT(crl_algo0)
+    PIC_BT(crl_algo1)
+    PIC_BT(crl_algo2)
+    PIC_BT(crl_algo3)
+    PIC_BT(crl_algo4)
+    PIC_BT(crl_algo5)
+    PIC_BT(crl_algo6)
+    PIC_BT(crl_algo7)
     .pool
 
 crl_algo0:

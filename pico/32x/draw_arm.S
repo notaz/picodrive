@@ -7,6 +7,7 @@
 @* See COPYING file in the top-level directory.
 @*
 
+#include "pico/arm_features.h"
 #include "pico/pico_int_offs.h"
 
 .extern Pico32x
@@ -17,11 +18,12 @@
 .text
 .align 2
 
+    PIC_LDR_INIT()
 
 .macro call_scan_prep cond est   @ &Pico.est
 .if \cond
-    ldr     r4, =PicoScan32xBegin
-    ldr     r5, =PicoScan32xEnd
+    PIC_LDR(r4, r6, PicoScan32xBegin)
+    PIC_LDR(r5, r6, PicoScan32xEnd)
     ldr     r6, [\est, #OFS_EST_DrawLineDest]
     ldr     r4, [r4]
     ldr     r5, [r5]
@@ -66,8 +68,8 @@
 \name:
     stmfd   sp!, {r4-r11,lr}
 
-    ldr     lr,=Pico
-    ldr     r10,=Pico32x
+    PIC_LDR(lr, r9, Pico)
+    PIC_LDR(r10,r9, Pico32x)
     ldr     r11, [lr, #OFS_Pico_est+OFS_EST_Draw2FB]
     ldrh    r10,[r10, #0x40] @ Pico32x.vdp_regs[0]
     add     r9, lr, #OFS_Pico_est+OFS_EST_HighPal   @ palmd
@@ -192,8 +194,8 @@
 \name:
     stmfd   sp!, {r4-r11,lr}
 
-    ldr     lr,=Pico
-    ldr     r10,=Pico32xMem
+    PIC_LDR(lr, r9, Pico)
+    PIC_LDR(r10,r9, Pico32xMem)
     ldr     r9,=OFS_PMEM32x_pal_native
     ldr     r10, [r10]
     ldr     r11, [lr, #OFS_Pico_est+OFS_EST_Draw2FB]
@@ -361,8 +363,8 @@
 \name:
     stmfd   sp!, {r4-r11,lr}
 
-    ldr     lr,=Pico
-    ldr     r10,=Pico32xMem
+    PIC_LDR(lr, r9, Pico)
+    PIC_LDR(r10,r9, Pico32xMem)
     ldr     r9,=OFS_PMEM32x_pal_native
     ldr     r10, [r10]
     ldr     r11, [lr, #OFS_Pico_est+OFS_EST_Draw2FB]

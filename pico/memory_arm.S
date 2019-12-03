@@ -7,6 +7,7 @@
  * See COPYING file in the top-level directory.
  */
 
+#include "arm_features.h"
 #include "pico_int_offs.h"
 
 .equ SRR_MAPPED,    (1 <<  0)
@@ -24,8 +25,10 @@
 .global PicoWrite8_io
 .global PicoWrite16_io
 
+    PIC_LDR_INIT()
+
 PicoRead8_sram: @ u32 a
-    ldr     r3, =Pico
+    PIC_LDR(r3, r1, Pico)
     ldr     r1, [r3, #OFS_Pico_sv_end]
     cmp     r0, r1
     bgt     m_read8_nosram
@@ -74,7 +77,7 @@ m_read8_not_io:
     cmp     r2, #0x1000
     bne     PicoRead8_32x
 
-    ldr     r3, =Pico
+    PIC_LDR(r3, r1, Pico)
     mov     r1, r0
     ldr     r0, [r3, #OFS_Pico_m_rotate]
     add     r0, r0, #1
@@ -97,7 +100,7 @@ m_read8_not_io:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 PicoRead16_sram: @ u32 a, u32 d
-    ldr     r3, =Pico
+    PIC_LDR(r3, r1, Pico)
     ldr     r1, [r3, #OFS_Pico_sv_end]
     cmp     r0, r1
     bgt     m_read16_nosram
@@ -142,7 +145,7 @@ m_read16_not_io:
     cmp     r2, #0x1000
     bne     PicoRead16_32x
 
-    ldr     r3, =Pico
+    PIC_LDR(r3, r2, Pico)
     and     r2, r0, #0xff00
     ldr     r0, [r3, #OFS_Pico_m_rotate]
     add     r0, r0, #1
@@ -184,7 +187,7 @@ m_write8_not_z80ctl:
     eor     r2, r2, #0x003000
     eors    r2, r2, #0x0000f1
     bne     PicoWrite8_32x
-    ldr     r3, =Pico
+    PIC_LDR(r3, r2, Pico)
     ldrb    r2, [r3, #OFS_Pico_m_sram_reg]
     and     r1, r1, #(SRR_MAPPED|SRR_READONLY)
     bic     r2, r2, #(SRR_MAPPED|SRR_READONLY)
@@ -214,7 +217,7 @@ m_write16_not_z80ctl:
     eor     r2, r2, #0x003000
     eors    r2, r2, #0x0000f0
     bne     PicoWrite16_32x
-    ldr     r3, =Pico
+    PIC_LDR(r3, r2, Pico)
     ldrb    r2, [r3, #OFS_Pico_m_sram_reg]
     and     r1, r1, #(SRR_MAPPED|SRR_READONLY)
     bic     r2, r2, #(SRR_MAPPED|SRR_READONLY)
@@ -228,7 +231,7 @@ m_write16_not_z80ctl:
 .global m68k_write16
 
 m68k_read8:
-    ldr     r3, =m68k_read8_map
+    PIC_LDR(r3, r2, m68k_read8_map)
     bic     r0, r0, #0xff000000
     mov     r2, r0, lsr #16
     ldr     r3, [r3, r2, lsl #2]
@@ -239,7 +242,7 @@ m68k_read8:
     bx      r3
 
 m68k_read16:
-    ldr     r3, =m68k_read16_map
+    PIC_LDR(r3, r2, m68k_read16_map)
     bic     r0, r0, #0xff000000
     mov     r2, r0, lsr #16
     ldr     r3, [r3, r2, lsl #2]
@@ -250,7 +253,7 @@ m68k_read16:
     bx      r3
 
 m68k_read32:
-    ldr     r3, =m68k_read16_map
+    PIC_LDR(r3, r2, m68k_read16_map)
     bic     r0, r0, #0xff000000
     mov     r2, r0, lsr #16
     ldr     r3, [r3, r2, lsl #2]
@@ -276,7 +279,7 @@ m68k_read32:
     bx      lr
 
 m68k_write8:
-    ldr     r3, =m68k_write8_map
+    PIC_LDR(r3, r2, m68k_write8_map)
     bic     r0, r0, #0xff000000
     mov     r2, r0, lsr #16
     ldr     r3, [r3, r2, lsl #2]
@@ -287,7 +290,7 @@ m68k_write8:
     bx      r3
 
 m68k_write16:
-    ldr     r3, =m68k_write16_map
+    PIC_LDR(r3, r2, m68k_write16_map)
     bic     r0, r0, #0xff000000
     mov     r2, r0, lsr #16
     ldr     r3, [r3, r2, lsl #2]
@@ -298,7 +301,7 @@ m68k_write16:
     bx      r3
 
 m68k_write32:
-    ldr     r3, =m68k_write16_map
+    PIC_LDR(r3, r2, m68k_write16_map)
     bic     r0, r0, #0xff000000
     mov     r2, r0, lsr #16
     ldr     r3, [r3, r2, lsl #2]

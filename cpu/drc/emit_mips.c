@@ -971,9 +971,8 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 	EMIT(MIPS_ASR_IMM(d, s, cnt))
 
 #if defined(__mips_isa_rev) && __mips_isa_rev >= 2
-#define emith_ror(d, s, cnt) do { \
-	EMIT(MIPS_ROR_IMM(d, s, cnt)); \
-} while (0)
+#define emith_ror(d, s, cnt) \
+	EMIT(MIPS_ROR_IMM(d, s, cnt))
 #else
 #define emith_ror(d, s, cnt) do { \
 	EMIT(MIPS_LSL_IMM(AT, s, 32-(cnt))); \
@@ -985,9 +984,8 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 	emith_ror(d, s, cnt)
 
 #if defined(__mips_isa_rev) && __mips_isa_rev >= 2
-#define emith_rol(d, s, cnt) do { \
-	EMIT(MIPS_ROR_IMM(d, s, 32-(cnt))); \
-} while (0)
+#define emith_rol(d, s, cnt) \
+	EMIT(MIPS_ROR_IMM(d, s, 32-(cnt)))
 #else
 #define emith_rol(d, s, cnt) do { \
 	EMIT(MIPS_LSR_IMM(AT, s, 32-(cnt))); \
