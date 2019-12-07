@@ -28,6 +28,10 @@
 #include <pico/pico_int.h>
 #include <pico/patch.h>
 
+#if defined(__GNUC__) && __GNUC__ >= 7
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+
 #ifndef _WIN32
 #define PATH_SEP      "/"
 #define PATH_SEP_C    '/'
