@@ -20,6 +20,9 @@
 #define STATIC_SH2_REGS	{ SHR_SR,22 , SHR_R0,21 , SHR_R0+1,20 }
 
 // NB: the ubiquitous JZ74[46]0 uses MIPS32 Release 1, a slight MIPS II superset
+#ifndef __mips_isa_rev
+#define __mips_isa_rev	1  // surprisingly not always defined
+#endif
 
 // registers usable for user code: r1-r25, others reserved or special
 #define Z0		0  // zero register
@@ -333,32 +336,49 @@ static int emith_is_b(u32 op)	// B
 		{ return ((op>>26) & 074) == OP_BEQ ||
 			 ((op>>26) == OP__RT && ((op>>16) & 036) == RT_BLTZ); }
 // register usage for dependency evaluation XXX better do this as in emit_arm?
-static uint64_t emith_has_rs[3] = // OP__FN, OP__RT, others
-	{  0x00fffffffffa0ff0ULL, 0x000fff0fUL, 0xffffffff0f007ff0ULL };
-static uint64_t emith_has_rt[3] = // OP__FN, OP__RT, others
-	{  0xff00fffffff00cffULL, 0x00000000UL, 0x8000ff0000000030ULL };
-static uint64_t emith_has_rd[3] = // OP__FN, OP__RT, others (rt instead of rd)
-	{  0xff00fffffff50fffULL, 0x00000000UL, 0x119100ff0f00ff00ULL };
+static uint64_t emith_has_rs[5] = // OP__FN1-3, OP__RT, others
+	{  0x005ffcffffda0fd2ULL, 0x0000003300000037ULL, 0x00000000000000ffULL,
+		0x800f5f0fUL, 0xf7ffffff0ff07ff0ULL };
+static uint64_t emith_has_rt[5] = // OP__FN1-3, OP__RT, others
+	{  0xdd5ffcffffd00cddULL, 0x0000000000000037ULL, 0x0000001100000000ULL,
+		0x00000000UL, 0x80007f440c300030ULL };
+static uint64_t emith_has_rd[5] = // OP__FN1-3, OP__RT, others(rt instead of rd)
+	{  0xdd00fcff00d50edfULL, 0x0000003300000004ULL, 0x08000011000000ffULL,
+		0x00000000UL, 0x119100ff0f00ff00ULL };
 #define emith_has_(rx,ix,op,sa,m) \
 	(emith_has_##rx[ix] & (1ULL << (((op)>>(sa)) & (m))))
 static int emith_rs(u32 op)
 		{ if ((op>>26) == OP__FN)
 			return	emith_has_(rs,0,op, 0,0x3f) ? (op>>21)&0x1f : 0;
+		  if ((op>>26) == OP__FN2)
+			return	emith_has_(rs,1,op, 0,0x3f) ? (op>>21)&0x1f : 0;
+		  if ((op>>26) == OP__FN3)
+			return	emith_has_(rs,2,op, 0,0x3f) ? (op>>21)&0x1f : 0;
 		  if ((op>>26) == OP__RT)
-			return	emith_has_(rs,1,op,16,0x1f) ? (op>>21)&0x1f : 0;
-		  return	emith_has_(rs,2,op,26,0x3f) ? (op>>21)&0x1f : 0;
+			return	emith_has_(rs,3,op,16,0x1f) ? (op>>21)&0x1f : 0;
+		  return	emith_has_(rs,4,op,26,0x3f) ? (op>>21)&0x1f : 0;
 		}
 static int emith_rt(u32 op)
 		{ if ((op>>26) == OP__FN)
 			return	emith_has_(rt,0,op, 0,0x3f) ? (op>>16)&0x1f : 0;
+		  if ((op>>26) == OP__FN2)
+			return	emith_has_(rt,1,op, 0,0x3f) ? (op>>16)&0x1f : 0;
+		  if ((op>>26) == OP__FN3)
+			return	emith_has_(rt,2,op, 0,0x3f) ? (op>>16)&0x1f : 0;
 		  if ((op>>26) == OP__RT)
 		  	return 0;
-		  return	emith_has_(rt,2,op,26,0x3f) ? (op>>16)&0x1f : 0;
+		  return	emith_has_(rt,4,op,26,0x3f) ? (op>>16)&0x1f : 0;
 		}
 static int emith_rd(u32 op)
-		{ int ret =	emith_has_(rd,2,op,26,0x3f) ? (op>>16)&0x1f :-1;
+		{ int ret =	emith_has_(rd,4,op,26,0x3f) ? (op>>16)&0x1f :-1;
 		  if ((op>>26) == OP__FN)
 			ret =	emith_has_(rd,0,op, 0,0x3f) ? (op>>11)&0x1f :-1;
+		  if ((op>>26) == OP__FN2)
+			ret =	emith_has_(rd,1,op, 0,0x3f) ? (op>>11)&0x1f :-1;
+		  if ((op>>26) == OP__FN3 && (op&0x3f) == FN3_BSHFL)
+			ret =	emith_has_(rd,2,op, 0,0x3f) ? (op>>11)&0x1f :-1;
+		  if ((op>>26) == OP__FN3 && (op&0x3f) != FN3_BSHFL)
+			ret =	emith_has_(rd,2,op, 0,0x3f) ? (op>>16)&0x1f :-1;
 		  if ((op>>26) == OP__RT)
 		  	ret =	-1;
 		  return (ret ?: -1);	// Z0 doesn't have dependencies
@@ -970,29 +990,23 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 #define emith_asr(d, s, cnt) \
 	EMIT(MIPS_ASR_IMM(d, s, cnt))
 
-#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
-#define emith_ror(d, s, cnt) \
-	EMIT(MIPS_ROR_IMM(d, s, cnt))
-#else
 #define emith_ror(d, s, cnt) do { \
-	EMIT(MIPS_LSL_IMM(AT, s, 32-(cnt))); \
-	EMIT(MIPS_LSR_IMM(d, s, cnt)); \
-	EMIT(MIPS_OR_REG(d, d, AT)); \
+	if (__mips_isa_rev < 2) { \
+		EMIT(MIPS_LSL_IMM(AT, s, 32-(cnt))); \
+		EMIT(MIPS_LSR_IMM(d, s, cnt)); \
+		EMIT(MIPS_OR_REG(d, d, AT)); \
+	} else	EMIT(MIPS_ROR_IMM(d, s, cnt)); \
 } while (0)
-#endif
 #define emith_ror_c(cond, d, s, cnt) \
 	emith_ror(d, s, cnt)
 
-#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
-#define emith_rol(d, s, cnt) \
-	EMIT(MIPS_ROR_IMM(d, s, 32-(cnt)))
-#else
 #define emith_rol(d, s, cnt) do { \
-	EMIT(MIPS_LSR_IMM(AT, s, 32-(cnt))); \
-	EMIT(MIPS_LSL_IMM(d, s, cnt)); \
-	EMIT(MIPS_OR_REG(d, d, AT)); \
+	if (__mips_isa_rev < 2) { \
+		EMIT(MIPS_LSR_IMM(AT, s, 32-(cnt))); \
+		EMIT(MIPS_LSL_IMM(d, s, cnt)); \
+		EMIT(MIPS_OR_REG(d, d, AT)); \
+	} else	EMIT(MIPS_ROR_IMM(d, s, 32-(cnt))); \
 } while (0)
-#endif
 
 #define emith_rorc(d) do { \
 	emith_lsr(d, d, 1); \
@@ -1082,13 +1096,11 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 } while (0)
 
 // signed/unsigned extend
-#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
-#define emith_clear_msb(d, s, count) /* bits to clear */ \
-	EMIT(MIPS_EXT_IMM(d, s, 0, 32-(count)))
-#else
 #define emith_clear_msb(d, s, count) /* bits to clear */ do { \
 	u32 t; \
-	if ((count) >= 16) { \
+	if (__mips_isa_rev >= 2) \
+		EMIT(MIPS_EXT_IMM(d, s, 0, 32-(count))); \
+	else if ((count) >= 16) { \
 		t = (count) - 16; \
 		t = 0xffff >> t; \
 		emith_and_r_r_imm(d, s, t); \
@@ -1097,27 +1109,19 @@ static void emith_log_imm(int op, int rd, int rs, u32 imm)
 		emith_lsr(d, d, count); \
 	} \
 } while (0)
-#endif
 #define emith_clear_msb_c(cond, d, s, count) \
 	emith_clear_msb(d, s, count)
 
-#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
 #define emith_sext(d, s, count) /* bits to keep */ do { \
-	if (count == 8) \
+	if (__mips_isa_rev >= 2 && count == 8) \
 		EMIT(MIPS_SEB_REG(d, s)); \
-	else if (count == 16) \
+	else if (__mips_isa_rev >= 2 && count == 16) \
 		EMIT(MIPS_SEH_REG(d, s)); \
 	else { \
 		emith_lsl(d, s, 32-(count)); \
 		emith_asr(d, d, 32-(count)); \
 	} \
 } while (0)
-#else
-#define emith_sext(d, s, count) /* bits to keep */ do { \
-	emith_lsl(d, s, 32-(count)); \
-	emith_asr(d, d, 32-(count)); \
-} while (0)
-#endif
 
 // multiply Rd = Rn*Rm (+ Ra); NB: next 2 insns after MFLO/MFHI mustn't be MULT
 static u8 *last_lohi;
@@ -1716,26 +1720,20 @@ static int emith_cond_check(int cond, int *r)
 	EMITH_SJMP_END(DCOND_EQ);                 \
 } while (0)
 
-#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
-#define emith_write_sr(sr, srcr) \
-	EMIT(MIPS_INS_IMM(sr, srcr, 0, 10))
-#else
 #define emith_write_sr(sr, srcr) do { \
-	emith_lsr(sr, sr  , 10); emith_lsl(sr, sr, 10); \
-	emith_lsl(AT, srcr, 22); emith_lsr(AT, AT, 22); \
-	emith_or_r_r(sr, AT); \
+	if (__mips_isa_rev < 2) { \
+		emith_lsr(sr, sr  , 10); emith_lsl(sr, sr, 10); \
+		emith_lsl(AT, srcr, 22); emith_lsr(AT, AT, 22); \
+		emith_or_r_r(sr, AT); \
+	} else	EMIT(MIPS_INS_IMM(sr, srcr, 0, 10)); \
 } while (0)
-#endif
 
-#if defined(__mips_isa_rev) && __mips_isa_rev >= 2
-#define emith_carry_to_t(sr, is_sub) \
-	EMIT(MIPS_INS_IMM(sr, FC, 0, 1))
-#else
 #define emith_carry_to_t(sr, is_sub) do { \
-	emith_and_r_imm(sr, 0xfffffffe); \
-	emith_or_r_r(sr, FC); \
+	if (__mips_isa_rev < 2) { \
+		emith_and_r_imm(sr, 0xfffffffe); \
+		emith_or_r_r(sr, FC); \
+	} else	EMIT(MIPS_INS_IMM(sr, FC, 0, 1)); \
 } while (0)
-#endif
 
 #define emith_t_to_carry(sr, is_sub) do { \
 	emith_and_r_r_imm(FC, sr, 1); \

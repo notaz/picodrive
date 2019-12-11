@@ -6,8 +6,9 @@
  * See COPYING file in the top-level directory.
  */
 
-// XXX unimplemented: SYSCALL, BREAK, SYNC, SDBBP, T*, CACHE, PREF,
-// MOVF/MOVT, LWC*/LDC*, SWC*/SDC*, COP*. 
+// unimplemented insns: MOV[FT], SYSCALL, BREAK, SYNC, SYNCI, T*, SDBBP, RDHWR,
+// CACHE, PREF, LWC*/LDC*, SWC*/SDC*, and all of COP* (fpu, mmu, irq, exc, ...)
+// unimplemented variants of insns: EHB, SSNOP (both SLL zero), JALR.HB, JR.HB
 // however, it's certainly good enough for anything picodrive DRC throws at it.
 
 #include <stdio.h>
@@ -79,6 +80,7 @@ struct insn {
 #define OP_SPECIAL	0x00
 static const struct insn special_insns[] = {
 	{0x00, S_IMM_DT, "sll"},
+//	{0x01,         , "movf\0movt"},
 	{0x02, S_IMM_DT|SR_BIT, "srl\0rotr"},
 	{0x03, S_IMM_DT, "sra"},
 	{0x04, REG_DTS, "sllv"},
@@ -146,6 +148,7 @@ static const struct insn special2_insns[] = {
 	{0x21, REG_DS,  "clo" },
 	{0x24, REG_DS,  "dclz" },
 	{0x25, REG_DS,  "dclo" },
+//	{0x37,       ,  "sdbbp" },
 };
 
 // instructions with opcode SPECIAL3 (R-type)
@@ -159,6 +162,7 @@ static const struct insn special3_insns[] = {
 	{0x05, F_IMM_TS, "dinsm" },
 	{0x06, F_IMM_TS, "dinsu" },
 	{0x07, F_IMM_TS, "dins" },
+//	{0x3b,         , "rdhwr" },
 };
 
 // instruction with opcode SPECIAL3 and function *BSHFL
@@ -192,6 +196,7 @@ static const struct insn regimm_insns[] = {
 	{0x12, B_IMM_S, "bltzall"},
 	{0x13, B_IMM_S, "bgezall"},
 	{0x13, B_IMM_S, "bgezall"},
+//	{0x1f,        , "synci" },
 };
 
 // instructions with other opcodes (I-type)
@@ -316,7 +321,7 @@ static unsigned long j_target(unsigned long pc, uint32_t insn)
 }
 
 // main disassembler function
-int dismips(uintptr_t pc, uint32_t insn, char *buf, size_t buflen, uintptr_t *sym)
+int dismips(uintptr_t pc, uint32_t insn, char *buf, size_t buflen, unsigned long *sym)
 {
 	const struct insn *pi = decode_insn(insn);
 	char *rs = register_names[(insn >> 21) & 0x1f];

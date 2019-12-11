@@ -14,13 +14,13 @@ typedef enum {
 typedef struct SH2_
 {
 	// registers. this MUST correlate with enum sh2_reg_e.
-	unsigned int	r[16] ALIGNED(32);
-	unsigned int	pc;		// 40
-	unsigned int	ppc;
-	unsigned int	pr;
-	unsigned int	sr;
-	unsigned int	gbr, vbr;	// 50
-	unsigned int	mach, macl;	// 58
+	uint32_t	r[16] ALIGNED(32);
+	uint32_t	pc;		// 40
+	uint32_t	ppc;
+	uint32_t	pr;
+	uint32_t	sr;
+	uint32_t	gbr, vbr;	// 50
+	uint32_t	mach, macl;	// 58
 
 	// common
 	const void	*read8_map;
@@ -48,14 +48,14 @@ typedef struct SH2_
 #define SH2_STATE_VPOLL (1 << 3)	// polling VDP
 #define SH2_STATE_RPOLL (1 << 4)	// polling address in SDRAM
 	unsigned int	state;
-	unsigned int	poll_addr;
+	uint32_t	poll_addr;
 	int		poll_cycles;
 	int		poll_cnt;
 
 	// DRC branch cache. size must be 2^n and <=128
 	int rts_cache_idx;
-	struct { unsigned int pc; void *code; } rts_cache[16];
-	struct { unsigned int pc; void *code; } branch_cache[128];
+	struct { uint32_t pc; void *code; } rts_cache[16];
+	struct { uint32_t pc; void *code; } branch_cache[128];
 
 	// interpreter stuff
 	int		icount;		// cycles left in current timeslice
@@ -79,15 +79,15 @@ typedef struct SH2_
 	unsigned int	mult_m68k_to_sh2;
 	unsigned int	mult_sh2_to_m68k;
 
-	unsigned char	data_array[0x1000]; // cache (can be used as RAM)
-	unsigned int	peri_regs[0x200/4]; // periphereal regs
+	uint8_t		data_array[0x1000]; // cache (can be used as RAM)
+	uint32_t	peri_regs[0x200/4]; // periphereal regs
 } SH2;
 
 #define CYCLE_MULT_SHIFT 10
 #define C_M68K_TO_SH2(xsh2, c) \
-	(int)(((unsigned long long)(c) * (xsh2)->mult_m68k_to_sh2) >> CYCLE_MULT_SHIFT)
+	(int)(((uint64_t)(c) * (xsh2)->mult_m68k_to_sh2) >> CYCLE_MULT_SHIFT)
 #define C_SH2_TO_M68K(xsh2, c) \
-	(int)(((unsigned long long)(c+3U) * (xsh2)->mult_sh2_to_m68k) >> CYCLE_MULT_SHIFT)
+	(int)(((uint64_t)(c+3U) * (xsh2)->mult_sh2_to_m68k) >> CYCLE_MULT_SHIFT)
 
 int  sh2_init(SH2 *sh2, int is_slave, SH2 *other_sh2);
 void sh2_finish(SH2 *sh2);

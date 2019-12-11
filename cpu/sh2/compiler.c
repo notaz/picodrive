@@ -440,7 +440,7 @@ static int rcache_get_tmp(void);
 static void rcache_free_tmp(int hr);
 
 // Note: Register assignment goes by ABI convention. Caller save registers are
-// TEMPORARY, the others are PRESERVED. Unusable regs are omitted.
+// TEMPORARY, callee save registers are PRESERVED. Unusable regs are omitted.
 // there must be at least the free (not context or statically mapped) amount of
 // PRESERVED/TEMPORARY registers used by handlers in worst case (currently 4). 
 // there must be at least 3 PARAM, and PARAM+TEMPORARY must be at least 4.
@@ -495,6 +495,11 @@ static u32  REGPARM(1) (*sh2_drc_read32_poll)(u32 a);
 static void REGPARM(2) (*sh2_drc_write8)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write16)(u32 a, u32 d);
 static void REGPARM(2) (*sh2_drc_write32)(u32 a, u32 d);
+
+#ifdef DRC_SR_REG
+void REGPARM(1) (*sh2_drc_save_sr)(SH2 *sh2);
+void REGPARM(1) (*sh2_drc_restore_sr)(SH2 *sh2);
+#endif
 
 // flags for memory access
 #define MF_SIZEMASK 0x03        // size of access
@@ -1578,7 +1583,7 @@ static void rcache_unmap_vreg(int x)
   FOR_ALL_BITS_SET_DO(cache_regs[x].gregs, i,
       if (guest_regs[i].flags & GRF_DIRTY) {
         // if a dirty reg is unmapped save its value to context
-        if ((~rcache_regs_discard | rcache_regs_now) & (1 << i))
+        if (~rcache_regs_discard & (1 << i))
           emith_ctx_write(cache_regs[x].hreg, i * 4);
         guest_regs[i].flags &= ~GRF_DIRTY;
       }
@@ -3107,6 +3112,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       op_flags[i+1] |= OF_BTARGET; // RTE entrypoint in case of SR.IMASK change
     // unify T and SR since rcache doesn't know about "virtual" guest regs
     if (ops[i].source & BITMASK1(SHR_T))  ops[i].source |= BITMASK1(SHR_SR);
+    if (ops[i].dest   & BITMASK1(SHR_T))  ops[i].source |= BITMASK1(SHR_SR);
     if (ops[i].dest   & BITMASK1(SHR_T))  ops[i].dest   |= BITMASK1(SHR_SR);
 #if LOOP_DETECTION
     // loop types detected:
@@ -5028,7 +5034,6 @@ static void sh2_generate_utils(void)
   emith_move_r_r_ptr(arg0, CONTEXT_REG);
   emith_ctx_read(arg1, offsetof(SH2, drc_tmp)); // tcache_id
   emith_call(sh2_translate);
-/* just after lookup function, jump to address returned */
   emith_tst_r_r_ptr(RET_REG, RET_REG);
   EMITH_SJMP_START(DCOND_EQ);
   emith_jump_reg_c(DCOND_NE, RET_REG);
@@ -5057,8 +5062,8 @@ static void sh2_generate_utils(void)
   emith_ctx_read(arg2, offsetof(SH2, rts_cache_idx));
   emith_add_r_r_r_lsl_ptr(arg1, CONTEXT_REG, arg2, 0);
   emith_read_r_r_offs(arg3, arg1, offsetof(SH2, rts_cache));
-#if (DRC_DEBUG & 128)
   emith_cmp_r_r(arg0, arg3);
+#if (DRC_DEBUG & 128)
   EMITH_SJMP_START(DCOND_EQ);
   emith_move_r_ptr_imm(arg3, (uptr)&rcmiss);
   emith_read_r_r_offs_c(DCOND_NE, arg1, arg3, 0);
@@ -5067,7 +5072,6 @@ static void sh2_generate_utils(void)
   emith_jump_cond(DCOND_NE, sh2_drc_dispatcher);
   EMITH_SJMP_END(DCOND_EQ);
 #else
-  emith_cmp_r_r(arg0, arg3);
   emith_jump_cond(DCOND_NE, sh2_drc_dispatcher);
 #endif
   emith_read_r_r_offs_ptr(arg0, arg1, offsetof(SH2, rts_cache) + sizeof(void *));
@@ -5109,7 +5113,7 @@ static void sh2_generate_utils(void)
   emith_call(p32x_sh2_write32); // XXX: use sh2_drc_write32?
   // push PC
   rcache_get_reg_arg(0, SHR_SP, NULL);
-  emith_ctx_read(arg1, SHR_PC * 4);
+  rcache_get_reg_arg(1, SHR_PC, NULL);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
   rcache_invalidate_tmp();
   emith_call(p32x_sh2_write32);
@@ -5142,6 +5146,24 @@ static void sh2_generate_utils(void)
   emith_ctx_read(arg0, SHR_PC * 4);
   emith_jump(sh2_drc_dispatcher);
   emith_flush();
+
+#ifdef DRC_SR_REG
+  // sh2_drc_save_sr(SH2 *sh2)
+  sh2_drc_save_sr = (void *)tcache_ptr;
+  tmp = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
+  emith_write_r_r_offs(tmp, arg0, SHR_SR * 4);
+  rcache_invalidate();
+  emith_ret();
+  emith_flush();
+
+  // sh2_drc_restore_sr(SH2 *sh2)
+  sh2_drc_restore_sr = (void *)tcache_ptr;
+  tmp = rcache_get_reg(SHR_SR, RC_GR_WRITE, NULL);
+  emith_read_r_r_offs(tmp, arg0, SHR_SR * 4);
+  rcache_flush();
+  emith_ret();
+  emith_flush();
+#endif
 
 #ifdef PDB_NET
   // debug
@@ -5204,6 +5226,10 @@ static void sh2_generate_utils(void)
   host_dasm_new_symbol(sh2_drc_read8_poll);
   host_dasm_new_symbol(sh2_drc_read16_poll);
   host_dasm_new_symbol(sh2_drc_read32_poll);
+#ifdef DRC_SR_REG
+  host_dasm_new_symbol(sh2_drc_save_sr);
+  host_dasm_new_symbol(sh2_drc_restore_sr);
+#endif
 #endif
 
 #if DRC_DEBUG
@@ -5273,12 +5299,12 @@ static void sh2_smc_rm_blocks(u32 a, int len, int tcache_id, u32 shift)
 #endif
 }
 
-void sh2_drc_wcheck_ram(unsigned int a, unsigned len, SH2 *sh2)
+void sh2_drc_wcheck_ram(u32 a, unsigned len, SH2 *sh2)
 {
   sh2_smc_rm_blocks(a, len, 0, SH2_DRCBLK_RAM_SHIFT);
 }
 
-void sh2_drc_wcheck_da(unsigned int a, unsigned len, SH2 *sh2)
+void sh2_drc_wcheck_da(u32 a, unsigned len, SH2 *sh2)
 {
   sh2_smc_rm_blocks(a, len, 1 + sh2->is_slave, SH2_DRCBLK_DA_SHIFT);
 }
@@ -5295,7 +5321,7 @@ int sh2_execute_drc(SH2 *sh2c, int cycles)
   sh2_drc_entry(sh2c);
 
   // TODO: irq cycles
-  ret_cycles = (signed int)sh2c->sr >> 12;
+  ret_cycles = (int32_t)sh2c->sr >> 12;
   if (ret_cycles > 0)
     dbg(1, "warning: drc returned with cycles: %d", ret_cycles);
 
@@ -5777,6 +5803,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
           break;
         case 1: // DIV0U      0000000000011001
           CHECK_UNHANDLED_BITS(0xf00, undefined);
+          opd->source = BITMASK1(SHR_SR);
           opd->dest = BITMASK2(SHR_SR, SHR_T);
           break;
         case 2: // MOVT Rn    0000nnnn00101001
@@ -5877,7 +5904,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
         opd->dest = BITMASK2(GET_Rn(), SHR_MEM);
         break;
       case 0x07: // DIV0S Rm,Rn         0010nnnnmmmm0111
-        opd->source = BITMASK2(GET_Rm(), GET_Rn());
+        opd->source = BITMASK3(SHR_SR, GET_Rm(), GET_Rn());
         opd->dest = BITMASK2(SHR_SR, SHR_T);
         break;
       case 0x08: // TST Rm,Rn           0010nnnnmmmm1000
@@ -6470,6 +6497,9 @@ end:
   last_btarget = 0;
   op = 0; // delay/poll insns counter
   for (i = 0, pc = base_pc; i < i_end; i++, pc += 2) {
+    int null;
+    if ((op_flags[i] & OF_BTARGET) && dr_get_entry(pc, is_slave, &null))
+      break; // branch target already compiled
     opd = &ops[i];
     crc += FETCH_OP(pc);
 
