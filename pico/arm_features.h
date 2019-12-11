@@ -60,9 +60,8 @@
 
 // load data address (LDR) either via literal pool or via GOT
 #ifdef __PIC__
-// can't use pool loads since ldr= only allows symbol or constants, not expr :-(
+// can't use pool loads since ldr= only allows a symbol or a constant expr :-(
 #define PIC_LDR_INIT() \
-  .ifndef PIC_LDR_DEF; PIC_LDR_DEF=1; \
   .macro pic_ldr	r t a; \
 	ldr	\r, [pc, $.LD\@-.-8]; \
 	ldr	\t, [pc, $.LD\@-.-4]; \
@@ -71,14 +70,11 @@
 	add	pc, $4; \
   .LD\@:.word	_GLOBAL_OFFSET_TABLE_-.LP\@-8; \
 	.word	\a(GOT); \
-  .endm; \
-  .endif;
-#define PIC_LDR(r,t,a) \
-	pic_ldr	r, t, a
+  .endm;
+#define PIC_LDR(r,t,a)	pic_ldr	r, t, a
 #else
 #define PIC_LDR_INIT()
-#define PIC_LDR(r,t,a) \
-	ldr	r, =a
+#define PIC_LDR(r,t,a)	ldr	r, =a
 #endif
 
 #endif /* __ARM_FEATURES_H__ */

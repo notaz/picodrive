@@ -12,15 +12,12 @@ ENDIAN=
 compile_rodata ()
 {
 	$CC $CFLAGS -I .. -c /tmp/getoffs.c -o /tmp/getoffs.o || exit 1
-	# echo 'void dummy(void) { asm(""::"r" (&val)); }' >> /tmp/getoffs.c
-	# $CC $CFLAGS -I .. -nostdlib -Wl,-edummy /tmp/getoffs.c \
-	#					-o /tmp/getoffs.o || exit 1
 	# find the name of the .rodata section (in case -fdata-sections is used)
 	rosect=$(readelf -S /tmp/getoffs.o | grep '\.rodata\|\.sdata' |
 						sed 's/^[^.]*././;s/ .*//')
-	# read out .rodata section as hex string (should be only 4 or 8 bytes)
+	# read out .rodata section as hex string (should be only 4 bytes)
 	ro=$(readelf -x $rosect /tmp/getoffs.o | grep '0x' | cut -c14-48 |
-						tr -d ' \n')
+						tr -d ' \n' | cut -c1-8)
 	if [ "$ENDIAN" = "le" ]; then
 		# swap needed for le target
 		hex=""
@@ -41,16 +38,18 @@ get_define () # prefix struct member member...
 	struct=$1; shift
 	field=$(echo $* | sed 's/ /./g')
 	name=$(echo $* | sed 's/ /_/g')
-	echo '#include "pico/pico_int.h"' > /tmp/getoffs.c
+	echo '#include <stdint.h>' > /tmp/getoffs.c
+	echo '#include "pico/pico_int.h"' >> /tmp/getoffs.c
 	echo "static const struct $struct p;" >> /tmp/getoffs.c
-	echo "const int val = (char *)&p.$field - (char*)&p;" >>/tmp/getoffs.c
+	echo "const int32_t val = (char *)&p.$field - (char*)&p;" >>/tmp/getoffs.c
 	compile_rodata
 	line=$(printf "#define %-20s 0x%04x" $prefix$name $rodata)
 }
 
 if echo $CFLAGS | grep -qe -flto; then CFLAGS="$CFLAGS -fno-lto"; fi
 # determine endianess
-echo "const int val = 1;" >/tmp/getoffs.c
+echo '#include <stdint.h>' >/tmp/getoffs.c
+echo "const int32_t val = 1;" >>/tmp/getoffs.c
 compile_rodata
 ENDIAN=$(if [ "$rodata" -eq 1 ]; then echo be; else echo le; fi)
 # output header

@@ -37,14 +37,14 @@ void host_dasm(void *addr, int len)
   void *end = (char *)addr + len;
   const char *name;
   char buf[64];
-  long insn, symaddr;
+  unsigned long insn, symaddr;
 
   while (addr < end) {
     name = lookup_name(addr);
     if (name != NULL)
       printf("%s:\n", name);
 
-    insn = *(long *)addr;
+    insn = *(unsigned long *)addr;
     printf("   %08lx %08lx ", (long)addr, insn);
     if(disasm((unsigned)addr, insn, buf, sizeof(buf), &symaddr))
     {

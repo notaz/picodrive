@@ -435,7 +435,7 @@ static int software_interrupt(unsigned int pc, unsigned int insn, char *buf, siz
 	return 1;
 }
 
-int disarm(uintptr_t pc, uint32_t insn, char *buf, size_t buf_len, uintptr_t *addr)
+int disarm(uintptr_t pc, uint32_t insn, char *buf, size_t buf_len, unsigned long *addr)
 {
 	*addr = 0;
 
@@ -467,7 +467,7 @@ int disarm(uintptr_t pc, uint32_t insn, char *buf, size_t buf_len, uintptr_t *ad
 		return block_data_transfer(pc, insn, buf, buf_len);
 
 	if ((insn & 0x0e000000) == 0x0a000000) {
-		*addr = (long)pc + 8 + ((long)(insn << 8) >> 6);
+		*addr = (unsigned long)pc+8 + ((unsigned long)(insn << 8) >> 6);
 		return branch(pc, insn, buf, buf_len);
 	}
 
