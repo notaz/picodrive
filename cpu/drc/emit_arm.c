@@ -20,7 +20,7 @@
 #define TEMPORARY_REGS	{ 12, 14 }
 
 #define CONTEXT_REG	11
-#define STATIC_SH2_REGS	{ SHR_SR,10 , SHR_R0,8 , SHR_R0+1,9 }
+#define STATIC_SH2_REGS	{ SHR_SR,10 , SHR_R(0),8 , SHR_R(1),9 }
 
 // XXX: tcache_ptr type for SVP and SH2 compilers differs..
 #define EMIT_PTR(ptr, x) \

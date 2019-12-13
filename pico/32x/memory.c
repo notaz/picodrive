@@ -254,14 +254,14 @@ static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
   sh2_poll_rd[hix] = rd; sh2_poll_wr[hix] = wr;
 }
 
-u32 REGPARM(3) p32x_sh2_poll_memory8(unsigned int a, u32 d, SH2 *sh2)
+u32 REGPARM(3) p32x_sh2_poll_memory8(u32 a, u32 d, SH2 *sh2)
 {
   int shift = (a & 1 ? 0 : 8);
   d = (s8)(p32x_sh2_poll_memory16(a & ~1, d << shift, sh2) >> shift);
   return d;
 }
 
-u32 REGPARM(3) p32x_sh2_poll_memory16(unsigned int a, u32 d, SH2 *sh2)
+u32 REGPARM(3) p32x_sh2_poll_memory16(u32 a, u32 d, SH2 *sh2)
 {
   unsigned char *p = sh2->p_drcblk_ram;
   unsigned int cycles;
@@ -281,7 +281,7 @@ u32 REGPARM(3) p32x_sh2_poll_memory16(unsigned int a, u32 d, SH2 *sh2)
   return d;
 }
 
-u32 REGPARM(3) p32x_sh2_poll_memory32(unsigned int a, u32 d, SH2 *sh2)
+u32 REGPARM(3) p32x_sh2_poll_memory32(u32 a, u32 d, SH2 *sh2)
 {
   unsigned char *p = sh2->p_drcblk_ram;
   unsigned int cycles;
@@ -2017,9 +2017,9 @@ int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
 
 // -----------------------------------------------------------------
 
-static void z80_md_bank_write_32x(unsigned int a, unsigned char d)
+static void z80_md_bank_write_32x(u32 a, unsigned char d)
 {
-  unsigned int addr68k;
+  u32 addr68k;
 
   addr68k = Pico.m.z80_bank68k << 15;
   addr68k += a & 0x7fff;

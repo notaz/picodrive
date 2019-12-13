@@ -17,7 +17,7 @@
 #define	TEMPORARY_REGS	{ 2, 3, 8, 9, 10, 11, 12, 13, 14 } // v0-v1,t0-t6
 
 #define CONTEXT_REG	23 // s7
-#define STATIC_SH2_REGS	{ SHR_SR,22 , SHR_R0,21 , SHR_R0+1,20 }
+#define STATIC_SH2_REGS	{ SHR_SR,22 , SHR_R(0),21 , SHR_R(1),20 }
 
 // NB: the ubiquitous JZ74[46]0 uses MIPS32 Release 1, a slight MIPS II superset
 #ifndef __mips_isa_rev

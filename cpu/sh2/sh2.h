@@ -10,6 +10,7 @@ typedef enum {
   SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
   SH2_REGS // register set size
 } sh2_reg_e;
+#define	SHR_R(n)	(SHR_R0+(n))
 
 typedef struct SH2_
 {
