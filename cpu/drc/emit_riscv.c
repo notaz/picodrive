@@ -16,7 +16,7 @@
 #define	TEMPORARY_REGS	{ 5, 6, 7 } // t0-t2
 
 #define CONTEXT_REG	9 // s1
-#define STATIC_SH2_REGS	{ SHR_SR,27 , SHR_R0,26 , SHR_R0+1,25 }
+#define STATIC_SH2_REGS	{ SHR_SR,27 , SHR_R(0),26 , SHR_R(1),25 }
 
 // registers usable for user code: r1-r25, others reserved or special
 #define Z0		0  // zero register

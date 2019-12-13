@@ -33,34 +33,50 @@ unsigned short scan_block(uint32_t base_pc, int is_slave,
 		uint32_t *base_literals, uint32_t *end_literals);
 
 #if defined(DRC_SH2) && defined(__GNUC__)
-// direct access to some host CPU registers used by the DRC 
-// XXX MUST match definitions for SHR_SR in cpu/drc/emit_*.c
+// direct access to some host CPU registers used by the DRC if gcc is used.
+// XXX MUST match SHR_SR definitions in cpu/drc/emit_*.c; should be moved there
+// XXX yuck, there's no portable way to determine register size. Use long long
+//     if target is 64 bit and data model is ILP32 or LLP64(windows), else long
 #if defined(__arm__)
 #define	DRC_SR_REG	"r10"
+#define DRC_REG_LL	0	// 32 bit
 #elif defined(__aarch64__)
 #define	DRC_SR_REG	"r28"
+#define DRC_REG_LL	(__ILP32__ || _WIN32)
 #elif defined(__mips__)
 #define	DRC_SR_REG	"s6"
+#define DRC_REG_LL	(_MIPS_SIM == _ABIN32)
 #elif defined(__riscv__) || defined(__riscv)
 #define	DRC_SR_REG	"s11"
+#define DRC_REG_LL	0	// no ABI for (__ILP32__ && __riscv_xlen != 32)
 #elif defined(__i386__)
 #define	DRC_SR_REG	"edi"
+#define DRC_REG_LL	0	// 32 bit
 #elif defined(__x86_64__)
-#define	DRC_SR_REG	"ebx"
+#define	DRC_SR_REG	"rbx"
+#define DRC_REG_LL	(__ILP32__ || _WIN32)
 #endif
 #endif
 
 #ifdef DRC_SR_REG
+// XXX this is more clear but produces too much overhead for slow platforms
 extern void REGPARM(1) (*sh2_drc_save_sr)(SH2 *sh2);
 extern void REGPARM(1) (*sh2_drc_restore_sr)(SH2 *sh2);
 
-#define	DRC_DECLARE_SR	register int32_t sh2_sr asm(DRC_SR_REG)
+// NB: sh2_sr MUST have register size if optimizing with -O3 (-fif-conversion)
+#if DRC_REG_LL
+#define	DRC_DECLARE_SR	register long long	_sh2_sr asm(DRC_SR_REG)
+#else
+#define	DRC_DECLARE_SR	register long		_sh2_sr asm(DRC_SR_REG)
+#endif
 #define DRC_SAVE_SR(sh2) \
-    if (likely((sh2->state & (SH2_STATE_RUN|SH2_STATE_SLEEP)) == SH2_STATE_RUN)) \
-        sh2_drc_save_sr(sh2)
+    if (likely((sh2->state&(SH2_STATE_RUN|SH2_STATE_SLEEP)) == SH2_STATE_RUN)) \
+	sh2->sr = (s32)_sh2_sr
+//      sh2_drc_save_sr(sh2)
 #define DRC_RESTORE_SR(sh2) \
-    if (likely((sh2->state & (SH2_STATE_RUN|SH2_STATE_SLEEP)) == SH2_STATE_RUN)) \
-        sh2_drc_restore_sr(sh2)
+    if (likely((sh2->state&(SH2_STATE_RUN|SH2_STATE_SLEEP)) == SH2_STATE_RUN)) \
+	_sh2_sr = (s32)sh2->sr
+//      sh2_drc_restore_sr(sh2)
 #else
 #define	DRC_DECLARE_SR
 #define DRC_SAVE_SR(sh2)

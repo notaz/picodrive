@@ -15,7 +15,7 @@
 #define TEMPORARY_REGS	{ 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
 
 #define CONTEXT_REG	29
-#define STATIC_SH2_REGS	{ SHR_SR,28 , SHR_R0,27 , SHR_R0+1,26 }
+#define STATIC_SH2_REGS	{ SHR_SR,28 , SHR_R(0),27 , SHR_R(1),26 }
 
 // R31 doesn't exist, it aliases either with zero or SP
 #define	SP		31 // stack pointer

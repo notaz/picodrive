@@ -1072,7 +1072,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 #define PARAM_REGS	{ xCX, xDX, xR8, xR9 }
 #define	PRESERVED_REGS	{ xSI, xDI, xR12, xR13, xR14, xR15, xBX, xBP }
 #define TEMPORARY_REGS	{ xAX, xR10, xR11 }
-#define STATIC_SH2_REGS { SHR_SR,xBX , SHR_R0,xR15 , SH2_R0+1,xR14 }
+#define STATIC_SH2_REGS { SHR_SR,xBX , SHR_R(0),xR15 , SH2_R(1),xR14 }
 
 #define host_arg2reg(rd, arg) \
 	switch (arg) { \
