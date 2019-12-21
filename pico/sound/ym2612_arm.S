@@ -30,7 +30,7 @@
 
 .equiv EG_SH,			  16             @ 16.16 fixed point (envelope generator timing)
 .equiv EG_TIMER_OVERFLOW, (3*(1<<EG_SH)) @ envelope generator timer overflows every 3 samples (on real chip)
-.equiv LFO_SH,            25  /*  7.25 fixed point (LFO calculations)       */
+.equiv LFO_SH,            24  /*  8.24 fixed point (LFO calculations)       */
 
 .equiv ENV_QUIET,		  (2*13*256/8)
 
@@ -87,9 +87,13 @@
     mov     r2, r2, lsl r3
     add     r0, r0, r2, asr #4
     cmp     r0, #0               @ if (volume <= MIN_ATT_INDEX)
-    movle   r3, #EG_DEC
-    strleb  r3, [r5,#0x17]       @ state
-    movle   r0, #0
+    bgt     10f
+    ldr     r2, [r5,#0x1c]
+    mov     r0, #0
+    cmp     r2, #0
+    movne   r3, #EG_DEC
+    moveq   r3, #EG_SUS
+    strb    r3, [r5,#0x17]       @ state
     b       10f
 
 2:  @ EG_SUS
@@ -141,7 +145,7 @@
     beq     0f
     and     r3, r2, #0x3f
     cmp     r2, #0x40
-    rsbge   r3, r3, #0x3f
+    eorlt   r3, r3, #0x3f
     bic     r12,r12, #0xff000000          @ lfo_ampm &= 0xff
     orr     r12,r12, r3, lsl #1+24
 

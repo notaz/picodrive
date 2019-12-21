@@ -5,6 +5,8 @@
 **
 ** SSG-EG was also removed, because it's rarely used, Sega2.doc even does not
 ** document it ("proprietary") and tells to write 0 to SSG-EG control register.
+**
+** updated with fixes from mame 0.216 (file version 1.5.1) (kub)
 */
 
 /*
@@ -148,7 +150,7 @@ void memset32(int *dest, int c, int count);
 
 #define FREQ_SH			16  /* 16.16 fixed point (frequency calculations) */
 #define EG_SH			16  /* 16.16 fixed point (envelope generator timing) */
-#define LFO_SH			25  /*  7.25 fixed point (LFO calculations)       */
+#define LFO_SH			24  /*  8.24 fixed point (LFO calculations)       */
 #define TIMER_SH		16  /* 16.16 fixed point (timers calculations)    */
 
 #define ENV_BITS		10
@@ -287,8 +289,8 @@ O(18),O(18),O(18),O(18),O(18),O(18),O(18),O(18),
 O(18),O(18),O(18),O(18),O(18),O(18),O(18),O(18),
 
 /* rates 00-11 */
-O( 0),O( 1),O( 2),O( 3),
-O( 0),O( 1),O( 2),O( 3),
+O(18),O(18),O( 0),O( 0),
+O( 0),O( 0),O( 2),O( 2),
 O( 0),O( 1),O( 2),O( 3),
 O( 0),O( 1),O( 2),O( 3),
 O( 0),O( 1),O( 2),O( 3),
@@ -328,10 +330,10 @@ O(16),O(16),O(16),O(16),O(16),O(16),O(16),O(16)
 #define O(a) (a*1)
 static const UINT8 eg_rate_shift[32+64+32]={	/* Envelope Generator counter shifts (32 + 64 rates + 32 RKS) */
 /* 32 infinite time rates */
-O(0),O(0),O(0),O(0),O(0),O(0),O(0),O(0),
-O(0),O(0),O(0),O(0),O(0),O(0),O(0),O(0),
-O(0),O(0),O(0),O(0),O(0),O(0),O(0),O(0),
-O(0),O(0),O(0),O(0),O(0),O(0),O(0),O(0),
+O(11),O(11),O(11),O(11),O(11),O(11),O(11),O(11),
+O(11),O(11),O(11),O(11),O(11),O(11),O(11),O(11),
+O(11),O(11),O(11),O(11),O(11),O(11),O(11),O(11),
+O(11),O(11),O(11),O(11),O(11),O(11),O(11),O(11),
 
 /* rates 00-11 */
 O(11),O(11),O(11),O(11),
@@ -560,7 +562,13 @@ INLINE void FM_KEYON(int c , int s )
 	{
 		SLOT->key = 1;
 		SLOT->phase = 0;		/* restart Phase Generator */
-		SLOT->state = EG_ATT;	/* phase -> Attack */
+		if (SLOT->ar + SLOT->ksr < 32+62) {
+			SLOT->state = (SLOT->volume > MIN_ATT_INDEX) ? EG_ATT :
+				((SLOT->sl == MIN_ATT_INDEX) ? EG_SUS : EG_DEC);
+		} else {
+			SLOT->volume = MIN_ATT_INDEX;
+			SLOT->state = (SLOT->sl == MIN_ATT_INDEX) ? EG_SUS : EG_DEC;
+		}
 		ym2612.slot_mask |= (1<<s) << (c*4);
 	}
 }
@@ -616,7 +624,7 @@ INLINE void set_ar_ksr(FM_CH *CH, FM_SLOT *SLOT, int v)
 		else
 		{
 			eg_sh_ar  = 0;
-			eg_sel_ar = 17;
+			eg_sel_ar = 18;
 		}
 
 		SLOT->eg_pack_ar = eg_inc_pack[eg_sel_ar] | (eg_sh_ar<<24);
@@ -655,6 +663,9 @@ INLINE void set_sl_rr(FM_SLOT *SLOT, int v)
 	int eg_sh_rr, eg_sel_rr;
 
 	SLOT->sl = sl_table[ v>>4 ];
+
+	if (SLOT->state == EG_DEC && (SLOT->volume >= (INT32)(SLOT->sl)))
+		SLOT->state = EG_SUS;
 
 	SLOT->rr  = 34 + ((v&0x0f)<<2);
 
@@ -715,12 +726,12 @@ INLINE int advance_lfo(int lfo_ampm, UINT32 lfo_cnt_old, UINT32 lfo_cnt)
 	if (prev_pos != pos)
 	{
 		lfo_ampm &= 0xff;
-		/* triangle */
+		/* triangle (inverted) */
 		/* AM: 0 to 126 step +2, 126 to 0 step -2 */
 		if (pos<64)
-			lfo_ampm |= ((pos&63) * 2) << 8;           /* 0 - 126 */
+			lfo_ampm |= ((pos^63) * 2) << 8;           /* 0 - 126 */
 		else
-			lfo_ampm |= (126 - (pos&63)*2) << 8;
+			lfo_ampm |= ((pos&63) * 2) << 8;
 	}
 	else
 	{
@@ -759,7 +770,7 @@ INLINE void update_eg_phase(UINT16 *vol_out, FM_SLOT *SLOT, UINT32 eg_cnt)
 		if ( volume <= MIN_ATT_INDEX )
 		{
 			volume = MIN_ATT_INDEX;
-			SLOT->state = EG_DEC;
+			SLOT->state = (SLOT->sl == MIN_ATT_INDEX) ? EG_SUS: EG_DEC;
 		}
 		break;
 
@@ -1124,22 +1135,29 @@ static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: s
 		{
 			UINT8  blk;
 			UINT32 fn;
-			int kc,fc;
+			int kc,fc,fdt;
 
-			blk = block_fnum >> 11;
 			block_fnum = block_fnum*2 + lfo_fn_table_index_offset;
-
+			blk = (block_fnum&0x7000) >> 12;
 			fn  = block_fnum & 0xfff;
 
 			/* keyscale code */
-			kc = (blk<<2) | opn_fktable[fn >> 8];
+			kc = (blk<<2) | opn_fktable[(fn >> 7) & 0xf];
 			/* phase increment counter */
-			fc = fn_table[fn]>>(7-blk);
+			fc = (fn_table[fn]>>(7-blk));
 
-			crct.incr1 = ((fc+crct.CH->SLOT[SLOT1].DT[kc])*crct.CH->SLOT[SLOT1].mul) >> 1;
-			crct.incr2 = ((fc+crct.CH->SLOT[SLOT2].DT[kc])*crct.CH->SLOT[SLOT2].mul) >> 1;
-			crct.incr3 = ((fc+crct.CH->SLOT[SLOT3].DT[kc])*crct.CH->SLOT[SLOT3].mul) >> 1;
-			crct.incr4 = ((fc+crct.CH->SLOT[SLOT4].DT[kc])*crct.CH->SLOT[SLOT4].mul) >> 1;
+			fdt = fc + crct.CH->SLOT[SLOT1].DT[kc];
+			if (fdt < 0) fdt += fn_table[0x7ff*2] >> 2;
+			crct.incr1 = (fdt*crct.CH->SLOT[SLOT1].mul) >> 1;
+			fdt = fc + crct.CH->SLOT[SLOT2].DT[kc];
+			if (fdt < 0) fdt += fn_table[0x7ff*2] >> 2;
+			crct.incr2 = (fdt*crct.CH->SLOT[SLOT2].mul) >> 1;
+			fdt = fc + crct.CH->SLOT[SLOT3].DT[kc];
+			if (fdt < 0) fdt += fn_table[0x7ff*2] >> 2;
+			crct.incr3 = (fdt*crct.CH->SLOT[SLOT3].mul) >> 1;
+			fdt = fc + crct.CH->SLOT[SLOT4].DT[kc];
+			if (fdt < 0) fdt += fn_table[0x7ff*2] >> 2;
+			crct.incr4 = (fdt*crct.CH->SLOT[SLOT4].mul) >> 1;
 		}
 		else	/* LFO phase modulation  = zero */
 		{
@@ -1201,7 +1219,7 @@ INLINE void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
 		else
 		{
 			eg_sh  = 0;
-			eg_sel = 17;
+			eg_sel = 18;
 		}
 
 		SLOT->eg_pack_ar = eg_inc_pack[eg_sel] | (eg_sh<<24);
@@ -1256,7 +1274,7 @@ static void init_timetables(const UINT8 *dttable)
 	/* DeTune table */
 	for (d = 0;d <= 3;d++){
 		for (i = 0;i <= 31;i++){
-			rate = ((double)dttable[d*32 + i]) * SIN_LEN  * ym2612.OPN.ST.freqbase  * (1<<FREQ_SH) / ((double)(1<<20));
+			rate = ((double)dttable[d*32 + i]) * ym2612.OPN.ST.freqbase  * (1<<(FREQ_SH-10));
 			ym2612.OPN.ST.dt_tab[d][i]   = (INT32) rate;
 			ym2612.OPN.ST.dt_tab[d+4][i] = -ym2612.OPN.ST.dt_tab[d][i];
 		}
@@ -1661,6 +1679,9 @@ void YM2612ResetChip_(void)
 
 	ym2612.OPN.eg_timer = 0;
 	ym2612.OPN.eg_cnt   = 0;
+	ym2612.OPN.lfo_inc = 0;
+	ym2612.OPN.lfo_cnt = 0;
+	g_lfo_ampm = 126 << 8;
 	ym2612.OPN.ST.status = 0;
 
 	reset_channels( &ym2612.CH[0] );
@@ -1720,6 +1741,7 @@ int YM2612Write_(unsigned int a, unsigned int v)
 				{
 					ym2612.OPN.lfo_inc = 0;
 					ym2612.OPN.lfo_cnt = 0;
+					g_lfo_ampm = 126 << 8;
 				}
 				break;
 #if 0 // handled elsewhere

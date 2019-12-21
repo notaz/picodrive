@@ -55,7 +55,7 @@ void pemu_prep_defconfig(void)
 	gp2x_soc_t soc;
 
 	defaultConfig.CPUclock = default_cpu_clock;
-	defaultConfig.renderer32x = RT_8BIT_FAST;
+	defaultConfig.renderer32x = RT_8BIT_ACC;
 	defaultConfig.analog_deadzone = 50;
 
 	soc = soc_detect();
