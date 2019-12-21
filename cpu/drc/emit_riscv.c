@@ -87,8 +87,6 @@ enum { F1_B, F1_H, F1_W, F1_D, F1_BU, F1_HU, F1_WU }; // LD/ST
 // func7
 enum { F2_ALT=0x20, F2_MULDIV=0x01 };
 
-#define __(n)	o##n // enum marker for "undefined"
-
 #define	R5_NOP R5_I_INSN(OP_IMM, F1_ADD, Z0, Z0, 0) // nop: ADDI r0, r0, #0
 
 // arithmetic/logical
@@ -687,9 +685,8 @@ static void emith_pool_check(void)
 
 static void emith_move_imm(int r, uintptr_t imm)
 {
-	u32 lui = imm + _CB(imm,1,11,12);
+	u32 lui = imm + _CB(imm,1,11,12); // compensate for ADDI sign extension
 	if (lui >> 12) {
-			// take out the effect of the sign extension of ADDI
 		EMIT(R5_MOVT_IMM(r, lui));
 		if (imm & 0xfff)
 			EMIT(R5_ADD_IMM(r, r, imm));

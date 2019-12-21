@@ -36,10 +36,11 @@ endif
 
 ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","gp2x" "opendingux" "rpi1"))
 # very small caches, avoid optimization options making the binary much bigger
-CFLAGS += -finline-limit=42 -fno-unroll-loops -fno-ipa-cp
+CFLAGS += -finline-limit=43 -fno-unroll-loops -fno-ipa-cp -ffast-math
 # this gets you about 20% better execution speed on 32bit arm/mips
-CFLAGS += -fno-common -fno-stack-protector -fno-guess-branch-probability -fno-caller-saves -fno-tree-loop-if-convert -ffast-math
+CFLAGS += -fno-common -fno-stack-protector -fno-guess-branch-probability -fno-caller-saves -fno-tree-loop-if-convert -fno-regmove
 endif
+#OBJS += align.o
 
 # default settings
 ifeq "$(ARCH)" "arm"
