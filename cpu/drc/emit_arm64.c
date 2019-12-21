@@ -44,10 +44,11 @@
 #define A64_COND_LE 0xd
 #define A64_COND_CS A64_COND_HS
 #define A64_COND_CC A64_COND_LO
+// "fake" conditions for T bit handling
 #define A64_COND_AL 0xe
 #define A64_COND_NV 0xf
 
-/* unified conditions */
+// DRC conditions
 #define DCOND_EQ A64_COND_EQ
 #define DCOND_NE A64_COND_NE
 #define DCOND_MI A64_COND_MI
@@ -260,6 +261,13 @@ enum { XT_UXTW=0x4, XT_UXTX=0x6, XT_LSL=0x7, XT_SXTW=0xc, XT_SXTX=0xe };
 	A64_INSN(0xb,0x6,_,_,0x5f,_,_,rn,_)
 #define A64_BCOND(cond, offs19) \
 	A64_INSN(0xa,0x2,_,_,_,_,_,(offs19) >> 2,(cond))
+
+// conditional select
+
+#define	A64_CINC(cond, rn, rm) \
+	A64_INSN(0xd,0x0,0x2,0,rm,(cond)^1,0x1,rm,rn) /* CSINC */
+#define	A64_CSET(cond, rn) \
+	A64_CINC(cond, rn, Z0)
 
 // load pc-relative
 
@@ -1356,38 +1364,52 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 
 #ifdef T
 // T bit handling
+static int tcond = -1;
+
 #define emith_invert_cond(cond) \
 	((cond) ^ 1)
 
-static void emith_clr_t_cond(int sr)
+#define emith_clr_t_cond(sr) \
+	(void)sr
+
+#define emith_set_t_cond(sr, cond) \
+	tcond = cond
+
+#define emith_get_t_cond() \
+	tcond
+
+#define emith_invalidate_t() \
+	tcond = -1
+
+#define emith_set_t(sr, val) \
+	tcond = ((val) ? A64_COND_AL: A64_COND_NV)
+
+static void emith_sync_t(int sr)
 {
-  emith_bic_r_imm(sr, T);
-}
-
-static void emith_set_t_cond(int sr, int cond)
-{
-  EMITH_SJMP_START(emith_invert_cond(cond));
-  emith_or_r_imm_c(cond, sr, T);
-  EMITH_SJMP_END(emith_invert_cond(cond));
-}
-
-#define emith_get_t_cond()      -1
-
-#define emith_sync_t(sr)	((void)sr)
-
-#define emith_invalidate_t()
-
-static void emith_set_t(int sr, int val)
-{
-  if (val) 
-    emith_or_r_imm(sr, T);
-  else
-    emith_bic_r_imm(sr, T);
+	if (tcond == A64_COND_AL)
+		emith_or_r_imm(sr, T);
+	else if (tcond == A64_COND_NV)
+		emith_bic_r_imm(sr, T);
+	else if (tcond >= 0) {
+		int tmp = rcache_get_tmp();
+		EMIT(A64_CSET(tcond, tmp));
+		EMIT(A64_BFI_IMM(sr, tmp, 0, 1)); // assumes SR.T = bit 0
+		rcache_free_tmp(tmp);
+	}
+	tcond = -1;
 }
 
 static int emith_tst_t(int sr, int tf)
 {
-  emith_tst_r_imm(sr, T);
-  return tf ? DCOND_NE: DCOND_EQ;
+	if (tcond < 0) {
+		emith_tst_r_imm(sr, T);
+		return tf ? DCOND_NE: DCOND_EQ;
+	} else if (tcond >= A64_COND_AL) {
+		// MUST sync because A64_COND_AL/NV isn't a real condition
+		emith_sync_t(sr);
+		emith_tst_r_imm(sr, T);
+		return tf ? DCOND_NE: DCOND_EQ;
+	} else
+		return tf ? tcond : emith_invert_cond(tcond);
 }
 #endif

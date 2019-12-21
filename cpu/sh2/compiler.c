@@ -446,7 +446,6 @@ static void rcache_free_tmp(int hr);
 // there must be at least 3 PARAM, and PARAM+TEMPORARY must be at least 4.
 // SR must and R0 should by all means be statically mapped.
 // XXX the static definition of SR MUST match that in compiler.h
-// PC and PR must not be statically mapped (accessed in context by utils).
 
 #ifdef __arm__
 #include "../drc/emit_arm.c"
@@ -3365,7 +3364,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       rcache_get_reg_arg(2, SHR_SR, NULL);
       tmp2 = rcache_get_tmp_arg(0);
       tmp3 = rcache_get_tmp_arg(1);
-      tmp4 = rcache_get_tmp_arg(3);
+      tmp4 = rcache_get_tmp();
       emith_move_r_ptr_imm(tmp2, tcache_ptr);
       emith_move_r_r_ptr(tmp3, CONTEXT_REG);
       emith_move_r_imm(tmp4, pc);
@@ -5049,11 +5048,12 @@ static void sh2_generate_utils(void)
   emith_add_r_imm(arg2, (u32)(2*sizeof(void *)));
   emith_and_r_imm(arg2, (ARRAY_SIZE(sh2s->rts_cache)-1) * 2*sizeof(void *));
   emith_ctx_write(arg2, offsetof(SH2, rts_cache_idx));
-  emith_add_r_r_r_lsl_ptr(arg2, CONTEXT_REG, arg2, 0);
-  emith_ctx_read(arg3, SHR_PR * 4);
+  emith_add_r_r_r_lsl_ptr(arg3, CONTEXT_REG, arg2, 0);
+  rcache_get_reg_arg(2, SHR_PR, NULL);
   emith_add_r_ret(arg1);
-  emith_write_r_r_offs_ptr(arg1, arg2, offsetof(SH2, rts_cache)+sizeof(void *));
-  emith_write_r_r_offs(arg3, arg2, offsetof(SH2, rts_cache));
+  emith_write_r_r_offs_ptr(arg1, arg3, offsetof(SH2, rts_cache)+sizeof(void *));
+  emith_write_r_r_offs(arg2, arg3, offsetof(SH2, rts_cache));
+  rcache_flush();
   emith_ret();
   emith_flush();
 
