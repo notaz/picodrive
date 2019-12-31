@@ -156,6 +156,8 @@ PICO_INTERNAL void PsndReset(void)
   // Reset low pass filter
   lpf_lp = 0;
   lpf_rp = 0;
+
+  mix_reset();
 }
 
 
