@@ -8,3 +8,4 @@ void mix_32_to_16_mono(short *dest, int *src, int count);
 
 extern int mix_32_to_16l_level;
 void mix_32_to_16l_stereo_lvl(short *dest, int *src, int count);
+void mix_reset(void);

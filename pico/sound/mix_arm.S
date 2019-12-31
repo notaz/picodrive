@@ -166,13 +166,6 @@ m16_32_s2_no_unal2:
 @ limit and shift up by 16
 @ reg=int_sample, lr=1, r3=tmp, kills flags
 .macro Limitsh reg
-@    movs    r4, r3, asr #16
-@    cmnne   r4, #1
-@    beq     c32_16_no_overflow
-@    tst     r4, r4
-@    mov     r3, #0x8000
-@    subpl   r3, r3, #1
-
     add     r3, lr, \reg, asr #15
     bics    r3, r3, #1			@ in non-overflow conditions r3 is 0 or 1
     moveq   \reg, \reg, lsl #16
@@ -180,19 +173,29 @@ m16_32_s2_no_unal2:
     subpl   \reg, \reg, #0x00010000
 .endm
 
+@ filter out DC offset
+@ in=int_sample (max 20 bit), y=filter memory, r3=tmp
+.macro DCfilt in y
+    rsb     r3, \y, \in, asl #12		@ fixpoint 20.12
+    add     \y, \y, r3, asr #13
+    sub     \in, \in, \y, asr #12
+    sub     \in, \in, \in, asr #2		@ reduce audio lvl some
+.endm
 
 @ mix 32bit audio (with 16bits really used, upper bits indicate overflow) with normal 16 bit audio with left channel only
 @ warning: this function assumes dest is word aligned
 .global mix_32_to_16l_stereo @ short *dest, int *src, int count
 
 mix_32_to_16l_stereo:
-    stmfd   sp!, {r4-r8,lr}
-
-    mov     lr, #1
+    stmfd   sp!, {r4-r8,r10-r11,lr}
 
     mov     r2, r2, lsl #1
     subs    r2, r2, #4
     bmi     m32_16l_st_end
+
+    mov     lr, #1
+    ldr     r12, =filter
+    ldmia   r12, {r10-r11}
 
 m32_16l_st_loop:
     ldmia   r0,  {r8,r12}
@@ -203,6 +206,10 @@ m32_16l_st_loop:
     add     r5, r5, r8, asr #16
     add     r6, r6, r12,asr #16
     add     r7, r7, r12,asr #16
+    DCfilt  r4, r10
+    DCfilt  r5, r11
+    DCfilt  r6, r10
+    DCfilt  r7, r11
     Limitsh r4
     Limitsh r5
     Limitsh r6
@@ -221,13 +228,17 @@ m32_16l_st_end:
     ldmia   r1!,{r4,r5}
     add     r4, r4, r6
     add     r5, r5, r6
+    DCfilt  r4, r10
+    DCfilt  r5, r11
     Limitsh r4
     Limitsh r5
     orr     r4, r5, r4, lsr #16
     str     r4, [r0], #4
 
 m32_16l_st_no_unal2:
-    ldmfd   sp!, {r4-r8,lr}
+    ldr     r12, =filter
+    stmia   r12, {r10-r11}
+    ldmfd   sp!, {r4-r8,r10-r11,lr}
     bx      lr
 
 
@@ -235,9 +246,11 @@ m32_16l_st_no_unal2:
 .global mix_32_to_16_mono @ short *dest, int *src, int count
 
 mix_32_to_16_mono:
-    stmfd   sp!, {r4-r8,lr}
+    stmfd   sp!, {r4-r8,r10-r11,lr}
 
     mov     lr, #1
+    ldr     r12, =filter
+    ldr     r10, [r12]
 
     @ check if dest is word aligned
     tst     r0, #2
@@ -262,6 +275,10 @@ m32_16_mo_loop:
     add     r7, r7, r12,asr #16
     mov     r12,r12,lsl #16
     add     r6, r6, r12,asr #16
+    DCfilt  r4, r10
+    DCfilt  r5, r10
+    DCfilt  r6, r10
+    DCfilt  r7, r10
     Limitsh r4
     Limitsh r5
     Limitsh r6
@@ -281,6 +298,8 @@ m32_16_mo_end:
     add     r5, r5, r6, asr #16
     mov     r6, r6, lsl #16
     add     r4, r4, r6, asr #16
+    DCfilt  r4, r10
+    DCfilt  r5, r10
     Limitsh r4
     Limitsh r5
     orr     r4, r5, r4, lsr #16
@@ -288,14 +307,18 @@ m32_16_mo_end:
 
 m32_16_mo_no_unal2:
     tst     r2, #1
-    ldmeqfd sp!, {r4-r8,pc}
+    beq     m32_16_mo_no_unal
     ldrsh   r5, [r0]
     ldr     r4, [r1], #4
     add     r4, r4, r5
+    DCfilt  r4, r10
     Limit   r4
     strh    r4, [r0], #2
 
-    ldmfd   sp!, {r4-r8,lr}
+m32_16_mo_no_unal:
+    ldr     r12, =filter
+    str     r10, [r12]
+    ldmfd   sp!, {r4-r8,r10-r11,lr}
     bx      lr
 
 
@@ -315,11 +338,13 @@ mix_32_to_16l_level:
 .global mix_32_to_16l_stereo_lvl @ short *dest, int *src, int count
 
 mix_32_to_16l_stereo_lvl:
-    stmfd   sp!, {r4-r9,lr}
+    stmfd   sp!, {r4-r11,lr}
 
     ldr     r9, =mix_32_to_16l_level
     mov     lr, #1
     ldr     r9, [r9]
+    ldr     r12, =filter
+    ldm     r12, {r10-r11}
 
     mov     r2, r2, lsl #1
     subs    r2, r2, #4
@@ -338,6 +363,10 @@ m32_16l_st_l_loop:
     mov     r5, r5, asr r9
     mov     r6, r6, asr r9
     mov     r7, r7, asr r9
+    DCfilt  r4, r10
+    DCfilt  r5, r11
+    DCfilt  r6, r10
+    DCfilt  r7, r11
     Limitsh r4
     Limitsh r5
     Limitsh r6
@@ -358,14 +387,32 @@ m32_16l_st_l_end:
     add     r5, r5, r6
     mov     r4, r4, asr r9
     mov     r5, r5, asr r9
+    DCfilt  r4, r10
+    DCfilt  r5, r11
     Limitsh r4
     Limitsh r5
     orr     r4, r5, r4, lsr #16
     str     r4, [r0], #4
 
 m32_16l_st_l_no_unal2:
-    ldmfd   sp!, {r4-r9,lr}
+    ldr     r12, =filter
+    stmia   r12, {r10-r11}
+    ldmfd   sp!, {r4-r11,lr}
     bx      lr
+
+.global mix_reset @ void
+mix_reset:
+    ldr     r0, =filter
+    mov     r1, #0
+    str     r1, [r0]
+    str     r1, [r0, #4]
+    bx      lr
+
+.data
+    DCfilt  r4, r10
+    DCfilt  r5, r11
+filter:
+    .ds     8
 
 #endif /* __GP2X__ */
 

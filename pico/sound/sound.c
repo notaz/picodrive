@@ -86,6 +86,7 @@ PICO_INTERNAL void PsndReset(void)
   // PsndRerate calls YM2612Init, which also resets
   PsndRerate(0);
   timers_reset();
+  mix_reset();
 }
 
 

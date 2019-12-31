@@ -6,41 +6,72 @@
  * See COPYING file in the top-level directory.
  */
 
+#include "string.h"
+
 #define MAXOUT		(+32767)
 #define MINOUT		(-32768)
 
 /* limitter */
-#define Limit(val, max,min) { \
-	if ( val > max )      val = max; \
-	else if ( val < min ) val = min; \
+#define Limit16(val) { \
+	val -= (val >> 2); \
+	if ((short)val != val) val = (val < 0 ? MINOUT : MAXOUT); \
 }
 
 int mix_32_to_16l_level;
 
-void mix_32_to_16l_stereo_core(short *dest, int *src, int count, int level)
-{
-	int l, r;
+static struct iir2 { // 2-pole IIR
+	int	x[2];		// sample buffer
+	int	y[2];		// filter intermediates
+} lfi2, rfi2;
 
-	for (; count > 0; count--)
-	{
-		l = r = *dest;
-		l += *src++ >> level;
-		r += *src++ >> level;
-		Limit( l, MAXOUT, MINOUT );
-		Limit( r, MAXOUT, MINOUT );
-		*dest++ = l;
-		*dest++ = r;
-	}
+// NB ">>" rounds to -infinity, "/" to 0. To compensate the effect possibly use
+// "-(-y>>n)" (round to +infinity) instead of "y>>n" in places.
+
+// NB uses Q12 fixpoint; samples mustn't have more than 20 bits for this.
+#define QB	12
+
+
+// exponential moving average filter for DC filtering
+// y[n] = (x[n]-y[n-1])*(1/8192) (corner approx. 20Hz, gain 1)
+static inline int filter_exp(struct iir2 *fi2, int x)
+{
+	int xf = (x<<QB) - fi2->y[0];
+	fi2->y[0] += xf >> 13;
+	xf -= xf >> 2;	// level reduction to avoid clipping from overshoot
+	return xf>>QB;
+}
+
+// unfiltered (for testing)
+static inline int filter_null(struct iir2 *fi2, int x)
+{
+	return x;
+}
+
+#define mix_32_to_16l_stereo_core(dest, src, count, lv, fl) {	\
+	int l, r;						\
+								\
+	for (; count > 0; count--)				\
+	{							\
+		l = r = *dest;					\
+		l += *src++ >> lv;				\
+		r += *src++ >> lv;				\
+		l = fl(&lfi2, l);				\
+		r = fl(&rfi2, r);				\
+		Limit16(l);					\
+		Limit16(r);					\
+		*dest++ = l;					\
+		*dest++ = r;					\
+	}							\
 }
 
 void mix_32_to_16l_stereo_lvl(short *dest, int *src, int count)
 {
-	mix_32_to_16l_stereo_core(dest, src, count, mix_32_to_16l_level);
+	mix_32_to_16l_stereo_core(dest, src, count, mix_32_to_16l_level, filter_exp);
 }
 
 void mix_32_to_16l_stereo(short *dest, int *src, int count)
 {
-	mix_32_to_16l_stereo_core(dest, src, count, 0);
+	mix_32_to_16l_stereo_core(dest, src, count, 0, filter_exp);
 }
 
 void mix_32_to_16_mono(short *dest, int *src, int count)
@@ -51,7 +82,8 @@ void mix_32_to_16_mono(short *dest, int *src, int count)
 	{
 		l = *dest;
 		l += *src++;
-		Limit( l, MAXOUT, MINOUT );
+		l = filter_exp(&lfi2, l);
+		Limit16(l);
 		*dest++ = l;
 	}
 }
@@ -87,3 +119,8 @@ void mix_16h_to_32_s2(int *dest_buf, short *mp3_buf, int count)
 	}
 }
 
+void mix_reset(void)
+{
+	memset(&lfi2, 0, sizeof(lfi2));
+	memset(&rfi2, 0, sizeof(rfi2));
+}
