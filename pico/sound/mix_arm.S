@@ -400,6 +400,8 @@ m32_16l_st_l_no_unal2:
     ldmfd   sp!, {r4-r11,lr}
     bx      lr
 
+#endif /* __GP2X__ */
+
 .global mix_reset @ void
 mix_reset:
     ldr     r0, =filter
@@ -409,11 +411,7 @@ mix_reset:
     bx      lr
 
 .data
-    DCfilt  r4, r10
-    DCfilt  r5, r11
 filter:
     .ds     8
-
-#endif /* __GP2X__ */
 
 @ vim:filetype=armasm

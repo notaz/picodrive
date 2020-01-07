@@ -320,16 +320,12 @@ void PicoFrameMS(void)
       }
     }
 
-    // 224 because of how it's done for MD...
-    if (y == 224 && PicoIn.sndOut)
-      PsndGetSamplesMS();
-
     cycles_aim += cycles_line;
     cycles_done += z80_run((cycles_aim - cycles_done) >> 8) << 8;
   }
 
-  if (PicoIn.sndOut && Pico.snd.psg_line < lines)
-    PsndDoPSG(lines - 1);
+  if (PicoIn.sndOut)
+    PsndGetSamplesMS(lines);
 }
 
 void PicoFrameDrawOnlyMS(void)

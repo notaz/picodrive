@@ -546,7 +546,7 @@ static void PicoWrite8_z80(u32 a, u32 d)
   }
   if ((a & 0x6000) == 0x4000) { // FM Sound
     if (PicoIn.opt & POPT_EN_FM)
-      Pico.m.status |= ym2612_write_local(a & 3, d & 0xff, 0) & 1;
+      ym2612_write_local(a & 3, d & 0xff, 0);
     return;
   }
   // TODO: probably other VDP access too? Maybe more mirrors?
@@ -1059,6 +1059,8 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
       break;
   }
 
+  int scanline = get_scanline(is_from_z80);
+  PsndDoFM(scanline);
 #ifdef __GP2X__
   if (PicoIn.opt & POPT_EXT_FM)
     return YM2612Write_940(a, d, get_scanline(is_from_z80));
@@ -1224,7 +1226,7 @@ static unsigned char z80_md_bank_read(unsigned short a)
 static void z80_md_ym2612_write(unsigned int a, unsigned char data)
 {
   if (PicoIn.opt & POPT_EN_FM)
-    Pico.m.status |= ym2612_write_local(a, data, 1) & 1;
+    ym2612_write_local(a, data, 1);
 }
 
 static void z80_md_vdp_br_write(unsigned int a, unsigned char data)
