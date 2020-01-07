@@ -88,7 +88,6 @@ static void do_timing_hacks_vb(void)
 static int PicoFrameHints(void)
 {
   struct PicoVideo *pv = &Pico.video;
-  int line_sample = Pico.m.pal ? 68 : 93;
   int vdp_slots = (Pico.video.reg[12] & 1) ? 18 : 16;
   int lines, y, lines_vis, skip;
   int vcnt_wrap, vcnt_adj;
@@ -148,23 +147,6 @@ static int PicoFrameHints(void)
 #endif
         skip = 1;
       }
-    }
-
-    // get samples from sound chips
-    if ((y == 224 || y == line_sample) && PicoIn.sndOut)
-    {
-      cycles = SekCyclesDone();
-
-      if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
-        PicoSyncZ80(cycles);
-#ifdef PICO_CD
-      if (PicoIn.AHW & PAHW_MCD)
-        pcd_sync_s68k(cycles, 0);
-#endif
-#ifdef PICO_32X
-      p32x_sync_sh2s(cycles);
-#endif
-      PsndGetSamples(y);
     }
 
     // Run scanline:
@@ -238,10 +220,6 @@ static int PicoFrameHints(void)
   p32x_start_blank();
 #endif
 
-  // get samples from sound chips
-  if (y == 224 && PicoIn.sndOut)
-    PsndGetSamples(y);
-
   // Run scanline:
   CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG);
 
@@ -298,7 +276,7 @@ static int PicoFrameHints(void)
   pv->status |= ((pv->reg[1] >> 3) ^ SR_VB) & SR_VB; // forced blanking
 
   // last scanline
-  Pico.m.scanline = y;
+  Pico.m.scanline = y++;
   pv->v_counter = 0xff;
   pv->lwrite_cnt = 0;
 
@@ -337,6 +315,11 @@ static int PicoFrameHints(void)
 #ifdef PICO_32X
   p32x_sync_sh2s(cycles);
 #endif
+
+  // get samples from sound chips
+  if (PicoIn.sndOut)
+    PsndGetSamples(y);
+
   timers_cycle();
 
   pv->hint_cnt = hint;

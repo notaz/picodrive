@@ -53,6 +53,11 @@ typedef struct
 		};
 		UINT32 eg_pack[4];
 	};
+
+	UINT8	ssg;		/* 0x30 SSG-EG waveform */
+	UINT8	ssgn;
+	UINT16	vol_out;	/* 0x32 current output from EG (without LFO) */
+	UINT16  vol_ipol;       /* 0x34 interpolator memory */
 } FM_SLOT;
 
 
@@ -176,21 +181,22 @@ int  YM2612PicoStateLoad2(int *tat, int *tbt);
 #else
 /* GP2X specific */
 #include "../../platform/gp2x/940ctl.h"
-#define YM2612Init(baseclock,rate) { \
+#define YM2612Init(baseclock,rate) do { \
 	if (PicoIn.opt&POPT_EXT_FM) YM2612Init_940(baseclock, rate); \
 	else               YM2612Init_(baseclock, rate); \
-}
-#define YM2612ResetChip() { \
+} while (0)
+#define YM2612ResetChip() do { \
 	if (PicoIn.opt&POPT_EXT_FM) YM2612ResetChip_940(); \
 	else               YM2612ResetChip_(); \
-}
-#define YM2612UpdateOne(buffer,length,stereo,is_buf_empty) \
+} while (0)
+#define YM2612UpdateOne(buffer,length,stereo,is_buf_empty) do { \
 	(PicoIn.opt&POPT_EXT_FM) ? YM2612UpdateOne_940(buffer, length, stereo, is_buf_empty) : \
-				YM2612UpdateOne_(buffer, length, stereo, is_buf_empty);
-#define YM2612PicoStateLoad() { \
+				YM2612UpdateOne_(buffer, length, stereo, is_buf_empty); \
+} while (0)
+#define YM2612PicoStateLoad() do { \
 	if (PicoIn.opt&POPT_EXT_FM) YM2612PicoStateLoad_940(); \
 	else               YM2612PicoStateLoad_(); \
-}
+} while (0)
 #endif /* __GP2X__ */
 
 

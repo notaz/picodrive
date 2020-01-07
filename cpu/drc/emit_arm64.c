@@ -1393,7 +1393,7 @@ static void emith_sync_t(int sr)
 	else if (tcond >= 0) {
 		int tmp = rcache_get_tmp();
 		EMIT(A64_CSET(tcond, tmp));
-		EMIT(A64_BFI_IMM(sr, tmp, 0, 1)); // assumes SR.T = bit 0
+		EMIT(A64_BFI_IMM(sr, tmp, __builtin_ffs(T)-1, 1));
 		rcache_free_tmp(tmp);
 	}
 	tcond = -1;

@@ -70,7 +70,7 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define POPT_EN_DRC         (1<<17)
 #define POPT_DIS_SPRITE_LIM (1<<18)
 #define POPT_DIS_IDLE_DET   (1<<19)
-#define POPT_EN_32X         (1<<20)
+#define POPT_EN_32X         (1<<20) // x0 0000
 #define POPT_EN_PWM         (1<<21)
 #define POPT_PWM_IRQ_OPT    (1<<22)
 

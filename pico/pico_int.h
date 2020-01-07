@@ -336,7 +336,7 @@ struct PicoMisc
   unsigned char  eeprom_cycle; // EEPROM cycle number
   unsigned char  eeprom_slave; // EEPROM slave word for X24C02 and better SRAMs
   unsigned char  eeprom_status;
-  unsigned char  status;       // rapid_ym2612, multi_ym_updates
+  unsigned char  pad1;         // was ym2612 status
   unsigned short dma_xfers;    // 18
   unsigned char  eeprom_wb[2]; // EEPROM latch/write buffer
   unsigned int  frame_count;   // 1c for movies and idle det
@@ -433,6 +433,8 @@ struct PicoSound
   int len_e_cnt;
   short dac_line;
   short psg_line;
+  unsigned int fm_mult;                 // samples per line in Q16
+  unsigned int fm_pos;                  // last FM position in Q16
 };
 
 // run tools/mkoffsets pico/pico_int_offs.h if you change these
@@ -872,9 +874,10 @@ PICO_INTERNAL void PsndReset(void);
 PICO_INTERNAL void PsndStartFrame(void);
 PICO_INTERNAL void PsndDoDAC(int line_to);
 PICO_INTERNAL void PsndDoPSG(int line_to);
+PICO_INTERNAL void PsndDoFM(int line_to);
 PICO_INTERNAL void PsndClear(void);
 PICO_INTERNAL void PsndGetSamples(int y);
-PICO_INTERNAL void PsndGetSamplesMS(void);
+PICO_INTERNAL void PsndGetSamplesMS(int y);
 
 // sms.c
 #ifndef NO_SMS

@@ -12,16 +12,15 @@
 #define MINOUT		(-32768)
 
 /* limitter */
-#define Limit16(val) { \
-	val -= (val >> 2); \
-	if ((short)val != val) val = (val < 0 ? MINOUT : MAXOUT); \
-}
+#define Limit16(val) \
+	if ((short)val != val) val = (val < 0 ? MINOUT : MAXOUT)
 
 int mix_32_to_16l_level;
 
 static struct iir2 { // 2-pole IIR
 	int	x[2];		// sample buffer
 	int	y[2];		// filter intermediates
+	int	i;
 } lfi2, rfi2;
 
 // NB ">>" rounds to -infinity, "/" to 0. To compensate the effect possibly use
