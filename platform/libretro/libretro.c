@@ -1513,7 +1513,7 @@ void retro_run(void)
    ps2->padding = padding;
 
 #else
-   buff = vout_buf + vout_offset;
+   buff = (char*)vout_buf + vout_offset;
 #endif
 
    video_cb((short *)buff,
