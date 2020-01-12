@@ -77,7 +77,7 @@ static INLINE bool bits_any_set(uint32_t* ptr, uint32_t count)
 #ifndef PATH_MAX_LENGTH
 #if defined(__CELLOS_LV2__)
 #define PATH_MAX_LENGTH CELL_FS_MAX_FS_PATH_LENGTH
-#elif defined(_XBOX1) || defined(_3DS) || defined(PSP) || defined(GEKKO)|| defined(WIIU)
+#elif defined(_XBOX1) || defined(_3DS) || defined(PSP) || defined(PS2) || defined(GEKKO)|| defined(WIIU) || defined(ORBIS)
 #define PATH_MAX_LENGTH 512
 #else
 #define PATH_MAX_LENGTH 4096
@@ -154,5 +154,29 @@ typedef struct
 {
    uint32_t data[8];
 } retro_bits_t;
+
+#ifdef _WIN32
+#  ifdef _WIN64
+#    define PRI_SIZET PRIu64
+#  else
+#    if _MSC_VER == 1800
+#      define PRI_SIZET PRIu32
+#    else
+#      define PRI_SIZET "u"
+#    endif
+#  endif
+#elif PS2
+#  define PRI_SIZET "u"
+#else
+#  if (SIZE_MAX == 0xFFFF)
+#    define PRI_SIZET "hu"
+#  elif (SIZE_MAX == 0xFFFFFFFF)
+#    define PRI_SIZET "u"
+#  elif (SIZE_MAX == 0xFFFFFFFFFFFFFFFF)
+#    define PRI_SIZET "lu"
+#  else
+#    error PRI_SIZET: unknown SIZE_MAX
+#  endif
+#endif
 
 #endif
