@@ -1038,6 +1038,26 @@ static const char *find_bios(int *region, const char *cd_fname)
    return NULL;
 }
 
+static void set_memory_maps(void)
+{
+   if (PicoIn.AHW & PAHW_MCD)
+   {
+      const size_t SCD_BIT = 1ULL << 31ULL;
+      const uint64_t mem = RETRO_MEMDESC_SYSTEM_RAM;
+      struct retro_memory_map mmaps;
+      struct retro_memory_descriptor descs[] = {
+         { mem, PicoMem.ram,        0,           0xFF0000, 0, 0, 0x10000, "68KRAM" },
+         /* virtual address using SCD_BIT so all 512M of prg_ram can be accessed */
+         /* at address $80020000 */
+         { mem, Pico_mcd->prg_ram,  0, SCD_BIT | 0x020000, 0, 0, 0x80000, "PRGRAM" },
+      };
+
+      mmaps.descriptors = descs;
+      mmaps.num_descriptors = sizeof(descs) / sizeof(descs[0]);
+      environ_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &mmaps);
+   }
+}
+
 bool retro_load_game(const struct retro_game_info *info)
 {
    enum media_type_e media_type;
@@ -1155,6 +1175,9 @@ bool retro_load_game(const struct retro_game_info *info)
    memset(sndBuffer, 0, sizeof(sndBuffer));
    PicoIn.sndOut = sndBuffer;
    PsndRerate(0);
+
+   /* Setup retro memory maps */
+   set_memory_maps();
 
    return true;
 }
