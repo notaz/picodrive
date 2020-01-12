@@ -89,7 +89,9 @@ typedef int ssize_t;
 /* C++11 says this one isn't needed, but apparently (some versions of) mingw require it anyways */
 /* https://stackoverflow.com/questions/8132399/how-to-printf-uint64-t-fails-with-spurious-trailing-in-format */
 /* https://github.com/libretro/RetroArch/issues/6009 */
-#define __STDC_FORMAT_MACROS
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS 1
+#endif
 #include <inttypes.h>
 #endif
 #ifndef PRId64
@@ -112,7 +114,6 @@ then you should pay the price everywhere, so you can see how much grief it will 
 Of course, another school of thought is that you should do as little damage as possible
 in as few places as possible...
 */
-
 
 /* _LIBRETRO_COMMON_RETRO_COMMON_API_H */
 #endif
