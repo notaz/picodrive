@@ -368,10 +368,12 @@ int dismips(uintptr_t pc, uint32_t insn, char *buf, size_t buflen, unsigned long
 		else
 			snprintf(buf, buflen, "%s %s, %s, %d", pi->name, rd, rt, sa);
 		break;
+	//dext: pos,size-1	dextm: pos,size-33	dextu: pos-32,size-1
+	//dins: pos,pos+size-1	dinsm: pos,pos+size-33	dinsu: pos-32,pos+size-33
 	case F_IMM_TS:
-		if (insn & 0x01)	sb+=32;
-		if (insn & 0x02)	sa+=32;
-		if (insn & 0x04)	sb-=sa;
+		if (insn & 0x01)	sb+=32;	// ...m
+		if (insn & 0x02)	sa+=32; // ...u
+		if (insn & 0x04)	sb-=sa; // ins
 		snprintf(buf, buflen, "%s %s, %s, %d, %d", pi->name, rt, rs, sa, sb+1);
 		break;
 	case B_IMM_S:

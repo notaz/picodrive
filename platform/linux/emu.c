@@ -176,7 +176,10 @@ void plat_debug_cat(char *str)
 void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
 	// clear whole screen in all buffers
-	memset32(g_screen_ptr, 0, g_screen_ppitch * g_screen_height * 2 / 4);
+	if (currentConfig.renderer != RT_16BIT && !(PicoIn.AHW & PAHW_32X))
+		memset32(Pico.est.Draw2FB, 0, (320+8) * (8+240+8) / 4);
+	else
+		memset32(g_screen_ptr, 0, g_screen_ppitch * g_screen_height * 2 / 4);
 }
 
 void pemu_loop_prep(void)

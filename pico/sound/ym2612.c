@@ -564,7 +564,7 @@ INLINE void FM_KEYON(int c , int s )
 		SLOT->ssg ^= SLOT->ssgn;
 		SLOT->ssgn = 0;
 		SLOT->state = (SLOT->sl == MIN_ATT_INDEX) ? EG_SUS : EG_DEC;
-		if (SLOT->ar + SLOT->ksr < 32+62) {
+		if (SLOT->ar_ksr < 32+62) {
 			if (SLOT->volume > MIN_ATT_INDEX) SLOT->state = EG_ATT;
 		} else {
 			SLOT->volume = MIN_ATT_INDEX;
@@ -619,6 +619,7 @@ INLINE void set_ar_ksr(FM_CH *CH, FM_SLOT *SLOT, int v)
 	int eg_sh_ar, eg_sel_ar;
 
 	SLOT->ar = (v&0x1f) ? 32 + ((v&0x1f)<<1) : 0;
+	SLOT->ar_ksr = SLOT->ar + SLOT->ksr;
 
 	SLOT->KSR = 3-(v>>6);
 	if (SLOT->KSR != old_KSR)
@@ -627,10 +628,10 @@ INLINE void set_ar_ksr(FM_CH *CH, FM_SLOT *SLOT, int v)
 	}
 
 	/* refresh Attack rate */
-	if ((SLOT->ar + SLOT->ksr) < 32+62)
+	if ((SLOT->ar_ksr) < 32+62)
 	{
-		eg_sh_ar  = eg_rate_shift [SLOT->ar  + SLOT->ksr ];
-		eg_sel_ar = eg_rate_select[SLOT->ar  + SLOT->ksr ];
+		eg_sh_ar  = eg_rate_shift [SLOT->ar_ksr];
+		eg_sel_ar = eg_rate_select[SLOT->ar_ksr];
 	}
 	else
 	{
@@ -872,7 +873,7 @@ INLINE void update_ssg_eg_phase(FM_SLOT *SLOT)
 
 		if (SLOT->state != EG_ATT) {
 			SLOT->state = (SLOT->sl == MIN_ATT_INDEX) ? EG_SUS : EG_DEC;
-			if (SLOT->ar + SLOT->ksr < 32+62) {
+			if (SLOT->ar_ksr < 32+62) {
 				if (SLOT->volume > MIN_ATT_INDEX) SLOT->state = EG_ATT;
 			} else {
 				SLOT->volume = MIN_ATT_INDEX;
@@ -972,7 +973,7 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 		ct->vol_out3 = (SLOT->vol_ipol*ifrac1 + SLOT->vol_out*ifrac0) >> EG_SH;
 		SLOT = &ct->CH->SLOT[SLOT4];
 		ct->vol_out4 = (SLOT->vol_ipol*ifrac1 + SLOT->vol_out*ifrac0) >> EG_SH;
-#else
+#elif 1
 		switch (ct->eg_timer >> EG_SH)
 		{
 			case 0:
@@ -997,6 +998,23 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 				ct->vol_out4 =  (ct->CH->SLOT[SLOT4].vol_ipol +
 					ct->CH->SLOT[SLOT4].vol_out) >> 1;
 		}
+#elif 0
+		if (ct->eg_timer >> (EG_SH-1) < EG_TIMER_OVERFLOW >> EG_SH) {
+			ct->vol_out1 =  ct->CH->SLOT[SLOT1].vol_ipol;
+			ct->vol_out2 =  ct->CH->SLOT[SLOT2].vol_ipol;
+			ct->vol_out3 =  ct->CH->SLOT[SLOT3].vol_ipol;
+			ct->vol_out4 =  ct->CH->SLOT[SLOT4].vol_ipol;
+		} else {
+			ct->vol_out1 =  ct->CH->SLOT[SLOT1].vol_out;
+			ct->vol_out2 =  ct->CH->SLOT[SLOT2].vol_out;
+			ct->vol_out3 =  ct->CH->SLOT[SLOT3].vol_out;
+			ct->vol_out4 =  ct->CH->SLOT[SLOT4].vol_out;
+		}
+#else
+		ct->vol_out1 =  ct->CH->SLOT[SLOT1].vol_out;
+		ct->vol_out2 =  ct->CH->SLOT[SLOT2].vol_out;
+		ct->vol_out3 =  ct->CH->SLOT[SLOT3].vol_out;
+		ct->vol_out4 =  ct->CH->SLOT[SLOT4].vol_out;
 #endif
 
 		if (ct->pack & 4) continue; /* output disabled */
@@ -1335,12 +1353,13 @@ INLINE void refresh_fc_eg_slot(FM_SLOT *SLOT, int fc, int kc)
 	{
 		int eg_sh, eg_sel;
 		SLOT->ksr = ksr;
+		SLOT->ar_ksr = SLOT->ar + ksr;
 
 		/* calculate envelope generator rates */
-		if ((SLOT->ar + ksr) < 32+62)
+		if ((SLOT->ar_ksr) < 32+62)
 		{
-			eg_sh  = eg_rate_shift [SLOT->ar  + ksr ];
-			eg_sel = eg_rate_select[SLOT->ar  + ksr ];
+			eg_sh  = eg_rate_shift [SLOT->ar_ksr];
+			eg_sel = eg_rate_select[SLOT->ar_ksr];
 		}
 		else
 		{

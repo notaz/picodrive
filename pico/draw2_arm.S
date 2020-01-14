@@ -414,7 +414,10 @@ DrawLayerFull:
 
     ldr     r11,[sp, #9*4]        @ est
     sub     r4, r9, #(START_ROW<<24)
+    ldr     r7, [r11, #OFS_EST_rendstatus]
     ldr     r11, [r11, #OFS_EST_Draw2FB]
+    tst     r7, #0x100            @ H32 border mode?
+    addne   r11, r11, #32
     mov     r4, r4, asr #24
     mov     r7, #328*8
     mla     r11, r4, r7, r11      @ scrpos+=8*328*(planestart-START_ROW);
@@ -590,8 +593,11 @@ DrawTilesFromCacheF:
     mov     r9, #0xff000000 @ r9=prevcode=-1
     mvn     r6, #0          @ r6=prevy=-1
 
+    ldr     r7, [r1, #OFS_EST_rendstatus]
     ldr     r4, [r1, #OFS_EST_Draw2FB]
     ldr     r2, [r0], #4    @ read y offset
+    tst     r7, #0x100      @ H32 border mode?
+    addne   r4, r4, #32
     mov     r7, #328
     mla     r2, r7, r2, r4
     sub     r12, r2, #(328*8*START_ROW) @ r12=scrpos
@@ -688,13 +694,18 @@ DrawWindowFull:
 
     ldr     r4, [r11, #OFS_Pico_video_reg+12]
     mov     r5, #1                @ nametab_step
+    ldr     r11, [r3, #OFS_EST_Draw2FB]
     tst     r4, #1                @ 40 cell mode?
     andne   r12, r12, #0xf000     @ 0x3c<<10
-    andeq   r12, r12, #0xf800
     movne   r5, r5, lsl #7
-    moveq   r5, r5, lsl #6        @ nametab_step
+    bne     0f
+    ldr     r7, [r3, #OFS_EST_rendstatus]
+    and     r12, r12, #0xf800
+    mov     r5, r5, lsl #6        @ nametab_step
+    tst     r7, #0x100
+    addne   r11, r11, #32         @ center screen in H32 mode
 
-    and     r4, r0, #0xff
+0:  and     r4, r0, #0xff
     mla     r12, r5, r4, r12      @ nametab += nametab_step*start;
 
     ldr     r10, [r3, #OFS_EST_PicoMem_vram]
@@ -715,7 +726,6 @@ DrawWindowFull:
 
     mov     r9, #0xff000000       @ r9=prevcode=-1
 
-    ldr     r11, [r3, #OFS_EST_Draw2FB]
     and     r4, r0, #0xff
     add     r11, r11, #328*8
     sub     r4, r4, #START_ROW
@@ -915,8 +925,11 @@ DrawSpriteFull:
     and     r3, lr, #0x6000
     mov     r3, r3, lsr #9  @ r3=pal=((code>>9)&0x30);
 
+    ldr     r0, [r1,  #OFS_EST_rendstatus]
     ldr     r11, [r1, #OFS_EST_Draw2FB]
     ldr     r10, [r1, #OFS_EST_PicoMem_vram]
+    tst     r0, #0x100      @ H32 border mode?
+    addne   r11, r11, #32
     sub     r1, r12, #(START_ROW*8)
     mov     r0, #328
     mla     r11, r1, r0, r11      @ scrpos+=(sy-START_ROW*8)*328;

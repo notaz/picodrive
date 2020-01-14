@@ -104,7 +104,7 @@ static void dac_recalculate(void)
 
   for(i = 0; i <= lines; i++)
   {
-    dac_info[i] = ((pos+(1<<15)) >> 16); // round to nearest
+    dac_info[i] = ((pos+0x8000) >> 16); // round to nearest
     pos += Pico.snd.fm_mult;
   }
   for (i = lines+1; i < sizeof(dac_info) / sizeof(dac_info[0]); i++)
@@ -156,10 +156,10 @@ void PsndRerate(int preserve_state)
   // calculate Pico.snd.len
   Pico.snd.len = PicoIn.sndRate / target_fps;
   Pico.snd.len_e_add = ((PicoIn.sndRate - Pico.snd.len * target_fps) << 16) / target_fps;
-  Pico.snd.len_e_cnt = 0;
+  Pico.snd.len_e_cnt = 0; // Q16
 
-  // samples per line
-  Pico.snd.fm_mult = 65536.0 * PicoIn.sndRate / (target_fps*target_lines);
+  // samples per line (Q16)
+  Pico.snd.fm_mult = 65536LL * PicoIn.sndRate / (target_fps*target_lines);
 
   // recalculate dac info
   dac_recalculate();
@@ -250,7 +250,7 @@ PICO_INTERNAL void PsndDoFM(int line_to)
   int pos, len;
   int stereo = 0;
 
-  // Q16, number of samples to fill in buffer
+  // Q16, number of samples since last call
   len = ((line_to-1) * Pico.snd.fm_mult) - Pico.snd.fm_pos;
 
   // don't do this too often (no more than 256 per sec)
@@ -258,9 +258,9 @@ PICO_INTERNAL void PsndDoFM(int line_to)
     return;
 
   // update position and calculate buffer offset and length
-  pos = Pico.snd.fm_pos >> 16;
+  pos = (Pico.snd.fm_pos+0x8000) >> 16;
   Pico.snd.fm_pos += len;
-  len = (Pico.snd.fm_pos >> 16) - pos;
+  len = ((Pico.snd.fm_pos+0x8000) >> 16) - pos;
 
   // fill buffer
   if (PicoIn.opt & POPT_EN_STEREO) {
@@ -269,8 +269,6 @@ PICO_INTERNAL void PsndDoFM(int line_to)
   }
   if (PicoIn.opt & POPT_EN_FM)
     YM2612UpdateOne(PsndBuffer + pos, len, stereo, 1);
-  else
-    memset32(PsndBuffer + pos, 0, len<<stereo);
 }
 
 // cdda
@@ -332,6 +330,8 @@ PICO_INTERNAL void PsndClear(void)
     memset32((int *) out, 0, len/2);
     if (len & 1) out[len-1] = 0;
   }
+  if (!(PicoIn.opt & POPT_EN_FM))
+    memset32(PsndBuffer, 0, PicoIn.opt & POPT_EN_STEREO ? len*2 : len);
 }
 
 
@@ -339,7 +339,7 @@ static int PsndRender(int offset, int length)
 {
   int *buf32;
   int stereo = (PicoIn.opt & 8) >> 3;
-  int fmlen = (Pico.snd.fm_pos >> 16) - offset;
+  int fmlen = ((Pico.snd.fm_pos+0x8000) >> 16) - offset;
 
   offset <<= stereo;
   buf32 = PsndBuffer+offset;
@@ -356,15 +356,11 @@ static int PsndRender(int offset, int length)
     int *fmbuf = buf32 + (fmlen << stereo);
     if (PicoIn.opt & POPT_EN_FM)
       YM2612UpdateOne(fmbuf, length-fmlen, stereo, 1);
-    else
-      memset32(fmbuf, 0, (length-fmlen)<<stereo);
-    Pico.snd.fm_pos += (length-fmlen)<<16;
   }
 
   // CD: PCM sound
   if (PicoIn.AHW & PAHW_MCD) {
     pcd_pcm_update(buf32, length, stereo);
-    //buf32_updated = 1;
   }
 
   // CD: CDDA audio

@@ -580,7 +580,6 @@ void PicoFrame32x(void)
 
   PicoFrameStart();
   PicoFrameHints();
-  sh2_drc_frame();
 
   elprintf(EL_32X, "poll: %02x %02x %02x",
     Pico32x.emu_flags & 3, msh2.state, ssh2.state);

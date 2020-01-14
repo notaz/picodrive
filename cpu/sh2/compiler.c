@@ -703,8 +703,8 @@ static void add_to_hashlist(struct block_entry *be, int tcache_id)
 
 #if (DRC_DEBUG & 2)
   if (be->next != NULL) {
-    printf(" %08x: entry hash collision with %08x\n",
-      be->pc, be->next->pc);
+    printf(" %08x@%p: entry hash collision with %08x@%p\n",
+      be->pc, be->tcache_ptr, be->next->pc, be->next->tcache_ptr);
     hash_collisions++;
   }
 #endif
@@ -5323,7 +5323,7 @@ int sh2_execute_drc(SH2 *sh2c, int cycles)
   // TODO: irq cycles
   ret_cycles = (int32_t)sh2c->sr >> 12;
   if (ret_cycles > 0)
-    dbg(1, "warning: drc returned with cycles: %d", ret_cycles);
+    dbg(1, "warning: drc returned with cycles: %d, pc %08x", ret_cycles, sh2c->pc);
 
   sh2c->sr &= 0x3f3;
   return ret_cycles;
@@ -5504,10 +5504,6 @@ void sh2_drc_mem_setup(SH2 *sh2)
   // fill the DRC-only convenience pointers
   sh2->p_drcblk_da = Pico32xMem->drcblk_da[!!sh2->is_slave];
   sh2->p_drcblk_ram = Pico32xMem->drcblk_ram;
-}
-
-void sh2_drc_frame(void)
-{
 }
 
 int sh2_drc_init(SH2 *sh2)
@@ -5716,8 +5712,6 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
     else if ((lowest_mova && lowest_mova <= pc) ||
               (lowest_literal && lowest_literal <= pc))
       break; // text area collides with data area
-    else if ((op_flags[i] & OF_BTARGET) && dr_get_entry(pc, is_slave, &i_end))
-      break; // branch target already compiled
 
     op = FETCH_OP(pc);
     switch ((op & 0xf000) >> 12)
@@ -6497,9 +6491,6 @@ end:
   last_btarget = 0;
   op = 0; // delay/poll insns counter
   for (i = 0, pc = base_pc; i < i_end; i++, pc += 2) {
-    int null;
-    if ((op_flags[i] & OF_BTARGET) && dr_get_entry(pc, is_slave, &null))
-      break; // branch target already compiled
     opd = &ops[i];
     crc += FETCH_OP(pc);
 
