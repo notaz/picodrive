@@ -97,7 +97,7 @@ static void DmaSlow(int len, unsigned int source)
   Pico.m.dma_xfers = len;
   if (Pico.m.dma_xfers < len) // lame 16bit var
     Pico.m.dma_xfers = ~0;
-  SekCyclesBurnRun(CheckDMA());
+  SekCyclesBurnRun(CheckDMA(488 - (SekCyclesDone()-Pico.t.m68c_line_start)));
 
   if ((source & 0xe00000) == 0xe00000) { // Ram
     base = (u16 *)PicoMem.ram;
@@ -344,7 +344,8 @@ static NOINLINE void CommandChange(void)
 
 static void DrawSync(int blank_on)
 {
-  if (Pico.m.scanline < 224 && !(PicoIn.opt & POPT_ALT_RENDERER) &&
+  int lines = Pico.video.reg[1]&0x08 ? 240 : 224;
+  if (Pico.m.scanline < lines && !(PicoIn.opt & POPT_ALT_RENDERER) &&
       !PicoIn.skipFrame && Pico.est.DrawScanline <= Pico.m.scanline) {
     //elprintf(EL_ANOMALY, "sync");
     PicoDrawSync(Pico.m.scanline, blank_on);
@@ -363,7 +364,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
   {
   case 0x00: // Data port 0 or 2
     // try avoiding the sync..
-    if (Pico.m.scanline < 224 && (pvid->reg[1]&0x40) &&
+    if (Pico.m.scanline < (pvid->reg[1]&0x08 ? 240 : 224) && (pvid->reg[1]&0x40) &&
         !(!pvid->pending &&
           ((pvid->command & 0xc00000f0) == 0x40000010 && PicoMem.vsram[pvid->addr>>1] == d))
        )

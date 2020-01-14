@@ -193,7 +193,7 @@ extern struct DrZ80 drZ80;
 #define z80_int_assert(a)  Cz80_Set_IRQ(&CZ80, 0, (a) ? ASSERT_LINE : CLEAR_LINE)
 #define z80_nmi()          Cz80_Set_IRQ(&CZ80, IRQ_LINE_NMI, 0)
 
-#define z80_cyclesLeft     (CZ80.ICount - CZ80.ExtraCycles)
+#define z80_cyclesLeft     CZ80.ICount
 #define z80_subCLeft(c)    CZ80.ICount -= c
 #define z80_pc()           Cz80_Get_Reg(&CZ80, CZ80_PC)
 
@@ -431,7 +431,9 @@ struct PicoSound
   short len_use;                        // adjusted
   int len_e_add;                        // for non-int samples/frame
   int len_e_cnt;
-  short dac_line;
+  int dac_val, dac_val2;                // last DAC sample
+  unsigned int dac_mult;                // z80 clocks per line in Q16
+  unsigned int dac_pos;                 // last DAC position in Q16
   short psg_line;
   unsigned int fm_mult;                 // samples per line in Q16
   unsigned int fm_pos;                  // last FM position in Q16
@@ -738,7 +740,7 @@ extern struct Pico Pico;
 extern struct PicoMem PicoMem;
 extern void (*PicoResetHook)(void);
 extern void (*PicoLineHook)(void);
-PICO_INTERNAL int  CheckDMA(void);
+PICO_INTERNAL int  CheckDMA(int cycles);
 PICO_INTERNAL void PicoDetectRegion(void);
 PICO_INTERNAL void PicoSyncZ80(unsigned int m68k_cycles_done);
 
@@ -872,7 +874,7 @@ PICO_INTERNAL_ASM void wram_1M_to_2M(unsigned char *m);
 // sound/sound.c
 PICO_INTERNAL void PsndReset(void);
 PICO_INTERNAL void PsndStartFrame(void);
-PICO_INTERNAL void PsndDoDAC(int line_to);
+PICO_INTERNAL void PsndDoDAC(int cycle_to);
 PICO_INTERNAL void PsndDoPSG(int line_to);
 PICO_INTERNAL void PsndDoFM(int line_to);
 PICO_INTERNAL void PsndClear(void);

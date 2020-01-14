@@ -369,42 +369,32 @@ void PDebugDumpMem(void)
 
 void PDebugZ80Frame(void)
 {
-  int lines, line_sample;
+  int lines;
 
   if (PicoIn.AHW & PAHW_SMS)
     return;
 
-  if (Pico.m.pal) {
+  if (Pico.m.pal)
     lines = 313;
-    line_sample = 68;
-  } else {
+  else
     lines = 262;
-    line_sample = 93;
-  }
 
   z80_resetCycles();
   PsndStartFrame();
-
-  if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
-    PicoSyncZ80(Pico.t.m68c_cnt + line_sample * 488);
-  if (PicoIn.sndOut)
-    PsndGetSamples(line_sample);
 
   if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
     PicoSyncZ80(Pico.t.m68c_cnt + 224 * 488);
     z80_int();
   }
-  if (PicoIn.sndOut)
-    PsndGetSamples(224);
 
   // sync z80
   if (/*Pico.m.z80Run &&*/ !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
     Pico.t.m68c_cnt += Pico.m.pal ? 151809 : 127671; // cycles adjusted for converter
     PicoSyncZ80(Pico.t.m68c_cnt);
   }
-  if (PicoIn.sndOut && ym2612.dacen && Pico.snd.dac_line < lines)
-    PsndDoDAC(lines - 1);
-  PsndDoPSG(lines - 1);
+
+  if (PicoIn.sndOut)
+    PsndGetSamples(lines);
 
   timers_cycle();
   Pico.t.m68c_aim = Pico.t.m68c_cnt;

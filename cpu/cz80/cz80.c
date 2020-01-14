@@ -288,6 +288,8 @@ Cz80_Exec_End:
 #if CZ80_ENCRYPTED_ROM
 	CPU->OPBase = OPBase;
 #endif
+	if (CPU->HaltState)
+		CPU->ICount = 0;
 	cycles -= CPU->ICount;
 #if !CZ80_EMULATE_R_EXACTLY
 	zR = (zR + (cycles >> 2)) & 0x7f;

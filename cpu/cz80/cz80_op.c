@@ -687,13 +687,14 @@ OP_CCF:
 	OP(0x76):   // HALT
 OP_HALT:
 		CPU->HaltState = 1;
-		CPU->ICount = 0;
+//		CPU->ICount = 0;
 		goto Cz80_Check_Interrupt;
 
 	OP(0xf3):   // DI
 OP_DI:
 		zIFF = 0;
-		RET(4)
+		USE_CYCLES(4)
+		goto Cz80_Exec_nocheck;
 
 	OP(0xfb):   // EI
 OP_EI:
@@ -712,8 +713,6 @@ OP_EI:
 			if (CPU->IRQState)
 			{
 				afterEI = 1;
-				CPU->ExtraCycles += 1 - CPU->ICount;
-				CPU->ICount = 1;
 			}
 		}
 		else zIFF2 = (1 << 2);
