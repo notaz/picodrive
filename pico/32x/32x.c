@@ -269,7 +269,8 @@ void p32x_schedule_hint(SH2 *sh2, unsigned int m68k_cycles)
     return; // nobody cares
   // note: when Pico.m.scanline is 224, SH2s might
   // still be at scanline 93 (or so)
-  if (!(Pico32x.sh2_regs[0] & 0x80) && Pico.m.scanline > 224)
+  if (!(Pico32x.sh2_regs[0] & 0x80) &&
+      Pico.m.scanline > (Pico.video.reg[1] & 0x08 ? 240 : 224))
     return;
 
   after = (Pico32x.sh2_regs[4 / 2] + 1) * 488;

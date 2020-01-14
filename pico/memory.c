@@ -943,11 +943,11 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   a &= 3;
   if (a == 1 && ym2612.OPN.ST.address == 0x2a) /* DAC data */
   {
-    int scanline = get_scanline(is_from_z80);
-    //elprintf(EL_STATUS, "%03i -> %03i dac w %08x z80 %i", Pico.snd.dac_line, scanline, d, is_from_z80);
+    int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
+    //elprintf(EL_STATUS, "%03i dac w %08x z80 %i", cycles, d, is_from_z80);
     ym2612.dacout = ((int)d - 0x80) << 6;
     if (ym2612.dacen)
-      PsndDoDAC(scanline);
+      PsndDoDAC(cycles);
     return 0;
   }
 
@@ -1029,13 +1029,9 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           return 0;
         }
         case 0x2b: { /* DAC Sel  (YM2612) */
-          int scanline = get_scanline(is_from_z80);
-          if (ym2612.dacen != (d & 0x80)) {
-            ym2612.dacen = d & 0x80;
-            Pico.snd.dac_line = scanline;
-          }
+          ym2612.dacen = d & 0x80;
 #ifdef __GP2X__
-          if (PicoIn.opt & POPT_EXT_FM) YM2612Write_940(a, d, scanline);
+          if (PicoIn.opt & POPT_EXT_FM) YM2612Write_940(a, d, get_scanline(is_from_z80));
 #endif
           return 0;
         }
@@ -1059,8 +1055,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
       break;
   }
 
-  int scanline = get_scanline(is_from_z80);
-  PsndDoFM(scanline);
+  PsndDoFM(get_scanline(is_from_z80));
 #ifdef __GP2X__
   if (PicoIn.opt & POPT_EXT_FM)
     return YM2612Write_940(a, d, get_scanline(is_from_z80));

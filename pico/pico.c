@@ -224,40 +224,45 @@ void PicoLoopPrepare(void)
 
 // this table is wrong and should be removed
 // keeping it for now to compensate wrong timing elswhere, mainly for Outrunners
-static const int dma_timings[] = {
-   83, 166,  83,  83, // vblank: 32cell: dma2vram dma2[vs|c]ram vram_fill vram_copy
-  102, 204, 102, 102, // vblank: 40cell:
-    8,  16,   8,   8, // active: 32cell:
-   17,  18,   9,   9  // ...
+static const int dma_timings[] = { // Q16
+  // dma2vram    dma2[vs|c]ram  vram_fill      vram_copy
+  // VRAM has half the width of VSRAM/CRAM, thus half the performance
+  ( 83<<16)/488, (166<<16)/488, (165<<16)/488, ( 83<<16)/488, // vblank 32cell
+  (102<<16)/488, (204<<16)/488, (203<<16)/488, (102<<16)/488, // vblank 40cell
+  (  8<<16)/488, ( 16<<16)/488, ( 15<<16)/488, (  8<<16)/488, // active 32cell
+  (  9<<16)/488, ( 18<<16)/488, ( 17<<16)/488, (  9<<16)/488  // active 40cell
 };
 
-static const int dma_bsycles[] = {
-  (488<<8)/83,  (488<<8)/166, (488<<8)/83,  (488<<8)/83,
-  (488<<8)/102, (488<<8)/204, (488<<8)/102, (488<<8)/102,
-  (488<<8)/8,   (488<<8)/16,  (488<<8)/8,   (488<<8)/8,
-  (488<<8)/9,   (488<<8)/18,  (488<<8)/9,   (488<<8)/9
+static const int dma_bsycles[] = { // Q16
+  (488<<16)/83,  (488<<16)/166, (488<<16)/165, (488<<16)/83,
+  (488<<16)/102, (488<<16)/204, (488<<16)/203, (488<<16)/102,
+  (488<<16)/8,   (488<<16)/16,  (488<<16)/15,  (488<<16)/8,
+  (488<<16)/9,   (488<<16)/18,  (488<<16)/17,  (488<<16)/9
 };
 
 // grossly inaccurate.. FIXME FIXXXMEE
-PICO_INTERNAL int CheckDMA(void)
+PICO_INTERNAL int CheckDMA(int cycles)
 {
   int burn = 0, xfers_can, dma_op = Pico.video.reg[0x17]>>6; // see gens for 00 and 01 modes
   int xfers = Pico.m.dma_xfers;
   int dma_op1;
 
+  // safety pin
+  if (cycles <= 0) return 0;
+
   if(!(dma_op&2)) dma_op = (Pico.video.type==1) ? 0 : 1; // setting dma_timings offset here according to Gens
   dma_op1 = dma_op;
   if(Pico.video.reg[12] & 1) dma_op |= 4; // 40 cell mode?
   if(!(Pico.video.status&8)&&(Pico.video.reg[1]&0x40)) dma_op|=8; // active display?
-  xfers_can = dma_timings[dma_op];
+  xfers_can = (dma_timings[dma_op] * cycles + 0xff) >> 16;
   if(xfers <= xfers_can)
   {
     Pico.video.status &= ~SR_DMA;
     if (!(dma_op & 2))
-      burn = xfers * dma_bsycles[dma_op] >> 8; // have to be approximate because can't afford division..
+      burn = xfers * dma_bsycles[dma_op] >> 16;
     Pico.m.dma_xfers = 0;
   } else {
-    if(!(dma_op&2)) burn = 488;
+    if(!(dma_op&2)) burn = cycles;
     Pico.m.dma_xfers -= xfers_can;
   }
 
