@@ -6,7 +6,6 @@ void sh2_drc_wcheck_da(uint32_t a, unsigned len, SH2 *sh2);
 #ifdef DRC_SH2
 void sh2_drc_mem_setup(SH2 *sh2);
 void sh2_drc_flush_all(void);
-void sh2_drc_frame(void);
 #else
 #define sh2_drc_mem_setup(x)
 #define sh2_drc_flush_all()

@@ -42,10 +42,10 @@
 @ r5=slot, r1=eg_cnt, trashes: r0,r2,r3
 @ writes output to routp, but only if vol_out changes
 .macro update_eg_phase_slot slot
-    ldrh    r0, [r5,#0x32]       @ vol_out
+    ldrh    r0, [r5,#0x34]       @ vol_out
     ldrb    r2, [r5,#0x17]       @ state
     add     r3, r5, #0x1c
-    strh    r0, [r5,#0x34]       @ vol_ipol
+    strh    r0, [r5,#0x36]       @ vol_ipol
     tst     r2, r2
     beq     0f                   @ EG_OFF
 
@@ -182,7 +182,7 @@
 11:
     ldrh    r3, [r5,#0x18]       @ tl
     add     r0, r0, r3           @ volume += tl
-    strh    r0, [r5,#0x32]       @ vol_out
+    strh    r0, [r5,#0x34]       @ vol_out
 .if     \slot == SLOT1
     mov     r6, r6, lsr #16
     orr     r6, r0, r6, lsl #16
@@ -207,11 +207,9 @@
     ldrh    r0, [r5,#0x30]                @ ssg+ssgn
     ldrb    r2, [r5,#0x17]                @ state
     ldrh    r3, [r5,#0x1a]                @ volume
-    tst     r0, #0x08                     @ ssg enabled?
-    beq     9f
-    cmp     r2, #EG_REL                   @ state > EG_REL?
-    ble     9f
-    cmp     r3, #0x200                    @ volume >= 0x200?
+    cmp     r0, #0x08                     @ ssg enabled &&
+    cmpge   r2, #EG_REL+1                 @   state > EG_REL &&
+    cmpge   r3, #0x200                    @   volume >= 0x200?
     blt     9f
 
     tst     r0, #0x01
@@ -226,35 +224,33 @@
     eor     r0, r0, #0x4                  @ if ( !(ssg&0x04 )
     tst     r0, #0x4
     cmpne   r2, #EG_ATT                   @ if ( state != EG_ATT )
-    movne   r0, #0x400
-    subne   r0, r0, #1
-    strneh  r0, [r5,#0x1a]                @ volume = MAX_ATT
+    movne   r3, #0x400
+    subne   r3, r3, #1
+    strneh  r3, [r5,#0x1a]                @ volume = MAX_ATT
     b       9f
 
 1:  tst     r0, #0x02
     eorne   r0, r0, #0x4                  @ ssg ^= 4
     eorne   r0, r0, #0x400                @ ssgn ^= 4
     strneh  r0, [r5,#0x30]
-    moveq   r3, #0
-    streq   r3, [r5,#0x0c]                @ phase = 0
+    moveq   r0, #0
+    streq   r0, [r5,#0x0c]                @ phase = 0
 
     cmp     r2, #EG_ATT                   @ if ( state != EG_ATT )
     beq     9f
 
-    ldr     r3, [r5,#0x1c]                @ sl
+    ldr     r0, [r5,#0x1c]                @ sl
     mov     r2, #EG_SUS                   @ state = sl==MIN_ATT ? EG_SUS:EG_DEC
-    cmp     r3, #0
-
-    ldr     r0, [r5,#0x04]                @ ar
-    ldr     r3, [r5,#0x14]                @ ksr
-    movne   r2, #EG_DEC
-    add     r0, r0, r3
-    cmp     r0, #32+62                    @ if ( ar+ksr >= 32+62 )
-    ldrlt   r0, [r5,#0x1a]
-    movge   r0, #0
-    strgeh  r0, [r5,#0x1a]                @ volume = MIN_ATT
-
     cmp     r0, #0
+
+    ldrh    r0, [r5,#0x32]                @ ar+ksr
+    movne   r2, #EG_DEC
+    cmp     r0, #32+62                    @ if ( ar+ksr >= 32+62 )
+    movge   r3, #0
+    strgeh  r3, [r5,#0x1a]                @ volume = MIN_ATT
+    bge     9f
+
+    cmp     r3, #0
     movgt   r2, #EG_ATT
     strb    r2, [r5,#0x17]                @ state
 9:
@@ -673,10 +669,10 @@ chan_render_loop:
     ldr     r10, [lr, #0x54]     @ op1_out
 @   ldmia   lr,  {r6,r7}         @ load volumes
     ldr     r5, [lr, #0x40]      @ CH
-    ldrh    r6, [r5, #0x32]      @ vol_out values for all slots
-    ldrh    r2, [r5, #0x32+SLOT_STRUCT_SIZE*2]
-    ldrh    r7, [r5, #0x32+SLOT_STRUCT_SIZE]
-    ldrh    r3, [r5, #0x32+SLOT_STRUCT_SIZE*3]
+    ldrh    r6, [r5, #0x34]      @ vol_out values for all slots
+    ldrh    r2, [r5, #0x34+SLOT_STRUCT_SIZE*2]
+    ldrh    r7, [r5, #0x34+SLOT_STRUCT_SIZE]
+    ldrh    r3, [r5, #0x34+SLOT_STRUCT_SIZE*3]
     orr     r6, r6, r2, lsl #16
     orr     r7, r7, r3, lsl #16
 
@@ -756,28 +752,28 @@ eg_done:
     cmp     r3, #(EG_TIMER_OVERFLOW>>EG_SH)/2
     bgt     0f                      @ mix is vol_out
 
-    ldrh    r0, [r5,#0x34]          @ SLOT1 vol_ipol
+    ldrh    r0, [r5,#0x36]          @ SLOT1 vol_ipol
     lsleq   r2, r6, #16
     addeq   r0, r0, r2, lsr #16
     lsreq   r0, r0, #1
     mov     r6, r6, lsr #16
     orr     r6, r0, r6, lsl #16
 
-    ldrh    r0, [r5,#0x34+SLOT_STRUCT_SIZE*2] @ SLOT2 vol_ipol
+    ldrh    r0, [r5,#0x36+SLOT_STRUCT_SIZE*2] @ SLOT2 vol_ipol
     addeq   r0, r0, r6, lsr #16
     lsreq   r0, r0, #1
     mov     r6, r6, lsl #16
     orr     r6, r6, r0
     ror     r6, r6, #16
 
-    ldrh    r0, [r5,#0x34+SLOT_STRUCT_SIZE]   @ SLOT3 vol_ipol
+    ldrh    r0, [r5,#0x36+SLOT_STRUCT_SIZE]   @ SLOT3 vol_ipol
     lsleq   r2, r7, #16
     addeq   r0, r0, r2, lsr #16
     lsreq   r0, r0, #1
     mov     r7, r7, lsr #16
     orr     r7, r0, r7, lsl #16
 
-    ldrh    r0, [r5,#0x34+SLOT_STRUCT_SIZE*3] @ SLOT4 vol_ipol
+    ldrh    r0, [r5,#0x36+SLOT_STRUCT_SIZE*3] @ SLOT4 vol_ipol
     addeq   r0, r0, r7, lsr #16
     lsreq   r0, r0, #1
     mov     r7, r7, lsl #16
@@ -787,22 +783,22 @@ eg_done:
     @ super-basic... just take value closest to sample point
     mov     r3, r8, lsr #EG_SH-1    @ eg_timer, [0..3<<EG_SH) after loop
     cmp     r3, #(EG_TIMER_OVERFLOW>>EG_SH)
-    bgt     0f                      @ mix is vol_out
+    bge     0f                      @ mix is vol_out
 
-    ldrh    r0, [r5,#0x34]          @ SLOT1 vol_ipol
+    ldrh    r0, [r5,#0x36]          @ SLOT1 vol_ipol
     mov     r6, r6, lsr #16
     orr     r6, r0, r6, lsl #16
 
-    ldrh    r0, [r5,#0x34+SLOT_STRUCT_SIZE*2] @ SLOT2 vol_ipol
+    ldrh    r0, [r5,#0x36+SLOT_STRUCT_SIZE*2] @ SLOT2 vol_ipol
     mov     r6, r6, lsl #16
     orr     r6, r6, r0
     ror     r6, r6, #16
 
-    ldrh    r0, [r5,#0x34+SLOT_STRUCT_SIZE]   @ SLOT3 vol_ipol
+    ldrh    r0, [r5,#0x36+SLOT_STRUCT_SIZE]   @ SLOT3 vol_ipol
     mov     r7, r7, lsr #16
     orr     r7, r0, r7, lsl #16
 
-    ldrh    r0, [r5,#0x34+SLOT_STRUCT_SIZE*3] @ SLOT4 vol_ipol
+    ldrh    r0, [r5,#0x36+SLOT_STRUCT_SIZE*3] @ SLOT4 vol_ipol
     mov     r7, r7, lsl #16
     orr     r7, r7, r0
     ror     r7, r7, #16

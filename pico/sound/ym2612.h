@@ -56,8 +56,9 @@ typedef struct
 
 	UINT8	ssg;		/* 0x30 SSG-EG waveform */
 	UINT8	ssgn;
-	UINT16	vol_out;	/* 0x32 current output from EG (without LFO) */
-	UINT16  vol_ipol;       /* 0x34 interpolator memory */
+	UINT16	ar_ksr;		/* 0x32 ar+ksr */
+	UINT16	vol_out;	/* 0x34 current output from EG (without LFO) */
+	UINT16	vol_ipol;	/* 0x36 interpolator memory */
 } FM_SLOT;
 
 

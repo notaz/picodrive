@@ -176,10 +176,10 @@ m16_32_s2_no_unal2:
 @ filter out DC offset
 @ in=int_sample (max 20 bit), y=filter memory, r3=tmp
 .macro DCfilt in y
-    rsb     r3, \y, \in, asl #12		@ fixpoint 20.12
+    rsb     r3, \y, \in, lsl #12		@ fixpoint 20.12
     add     \y, \y, r3, asr #13
-    sub     \in, \in, \y, asr #12
-    sub     \in, \in, \in, asr #2		@ reduce audio lvl some
+    sub     r3, r3, r3, asr #2			@ reduce audio lvl some
+    asr     \in, r3, #12
 .endm
 
 @ mix 32bit audio (with 16bits really used, upper bits indicate overflow) with normal 16 bit audio with left channel only

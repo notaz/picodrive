@@ -157,6 +157,8 @@ static void DrawWindowFull(int start, int end, int prio, struct PicoEState *est)
 	{
 		nametab=(pvid->reg[3]&0x3e)<<9; // 32-cell mode
 		nametab_step = 1<<5;
+		if (!(PicoIn.opt&POPT_DIS_32C_BORDER))
+			scrpos += 32;
 	}
 	nametab += nametab_step*start;
 
@@ -240,6 +242,8 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
 	else          nametab=(pvid->reg[4]&0x07)<<12; // B
 
 	scrpos = est->Draw2FB;
+	if (!(pvid->reg[12]&1) && !(PicoIn.opt&POPT_DIS_32C_BORDER))
+		scrpos += 32;
 	scrpos+=8*LINE_WIDTH*(planestart-START_ROW);
 
 	// Get vertical scroll value:
@@ -315,6 +319,8 @@ static void DrawTilesFromCacheF(int *hc, struct PicoEState *est)
 	short blank=-1; // The tile we know is blank
 	unsigned char *scrpos = est->Draw2FB, *pd = 0;
 
+	if (!(Pico.video.reg[12]&1) && !(PicoIn.opt&POPT_DIS_32C_BORDER))
+		scrpos += 32;
 	// *hcache++ = code|(dx<<16)|(trow<<27); // cache it
 	scrpos+=(*hc++)*LINE_WIDTH - START_ROW*LINE_WIDTH*8;
 
@@ -377,6 +383,8 @@ static void DrawSpriteFull(unsigned int *sprite, struct PicoEState *est)
 	while(sy <= START_ROW*8) { sy+=8; tile+=tdeltay; height--; }
 
 	scrpos = est->Draw2FB;
+	if (!(Pico.video.reg[12]&1) && !(PicoIn.opt&POPT_DIS_32C_BORDER))
+		scrpos += 32;
 	scrpos+=(sy-START_ROW*8)*LINE_WIDTH;
 
 	for (; height > 0; height--, sy+=8, tile+=tdeltay)
@@ -501,6 +509,11 @@ static void DrawDisplayFull(void)
 	} else {
 		maxw = 264; maxcolc = 32;
 	}
+
+	// 32C border for centering? (for asm)
+	est->rendstatus &= ~PDRAW_BORDER_32;
+	if ((est->rendstatus&PDRAW_32_COLS) && !(PicoIn.opt&POPT_DIS_32C_BORDER))
+		est->rendstatus |= PDRAW_BORDER_32;
 
 	// horizontal window?
 	if ((win=pvid->reg[0x12]))
