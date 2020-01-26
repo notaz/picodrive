@@ -376,12 +376,12 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
       pvid->pending=0;
     }
 
-    if (!(pvid->status & SR_VB) && !(PicoIn.opt&POPT_DIS_VDP_FIFO))
+    if (!(pvid->status & SR_VB) && (pvid->reg[1]&0x40) && !(PicoIn.opt&POPT_DIS_VDP_FIFO))
     {
       int use = pvid->type == 1 ? 2 : 1;
       pvid->lwrite_cnt -= use;
       if (pvid->lwrite_cnt < 0)
-        SekCyclesLeft = 0;
+        SekCyclesBurnRun(488 - (SekCyclesDone()-Pico.t.m68c_line_start));
       elprintf(EL_ASVDP, "VDP data write: [%04x] %04x [%u] {%i} #%i @ %06x",
         Pico.video.addr, d, SekCyclesDone(), Pico.video.type, pvid->lwrite_cnt, SekPc);
     }
@@ -509,9 +509,11 @@ static u32 SrLow(const struct PicoVideo *pv)
 {
   unsigned int c, d = pv->status;
 
-  c = SekCyclesDone() - Pico.t.m68c_line_start - 39;
-  if (c < 92)
+  c = SekCyclesDone();
+  if (c - Pico.t.m68c_line_start - 39 < 92)
     d |= SR_HB;
+  if (CYCLES_GT(c, Pico.t.dma_end))
+    d &= ~SR_DMA;
   return d;
 }
 

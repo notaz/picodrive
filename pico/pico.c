@@ -254,7 +254,7 @@ PICO_INTERNAL int CheckDMA(int cycles)
   dma_op1 = dma_op;
   if(Pico.video.reg[12] & 1) dma_op |= 4; // 40 cell mode?
   if(!(Pico.video.status&8)&&(Pico.video.reg[1]&0x40)) dma_op|=8; // active display?
-  xfers_can = (dma_timings[dma_op] * cycles + 0xff) >> 16;
+  xfers_can = (dma_timings[dma_op] * cycles + 0x8000) >> 16;
   if(xfers <= xfers_can)
   {
     Pico.video.status &= ~SR_DMA;
@@ -265,6 +265,7 @@ PICO_INTERNAL int CheckDMA(int cycles)
     if(!(dma_op&2)) burn = cycles;
     Pico.m.dma_xfers -= xfers_can;
   }
+  Pico.t.dma_end = SekCyclesDone() + burn;
 
   elprintf(EL_VDPDMA, "~Dma %i op=%i can=%i burn=%i [%u]",
     Pico.m.dma_xfers, dma_op1, xfers_can, burn, SekCyclesDone());

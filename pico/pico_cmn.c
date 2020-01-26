@@ -56,10 +56,10 @@ static void SekSyncM68k(void)
 static __inline void SekRunM68k(int cyc)
 {
   Pico.t.m68c_aim += cyc;
+  Pico.t.m68c_cnt += cyc >> 6; // refresh slowdowns
   cyc = Pico.t.m68c_aim - Pico.t.m68c_cnt;
   if (cyc <= 0)
     return;
-  Pico.t.m68c_cnt += cyc >> 6; // refresh slowdowns
   SekSyncM68k();
 }
 
