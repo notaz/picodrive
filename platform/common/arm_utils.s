@@ -141,6 +141,7 @@ vidcpy_m2:
     movne   lr, #64
     tstne   r3, r3
     addne   r0, r0, #32
+    addne   r1, r1, #32
 
 vidCpyM2_loop_out:
     mov     r6, #10

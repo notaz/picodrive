@@ -61,10 +61,11 @@ void vidcpy_m2(void *dest, void *src, int m32col, int with_32c_border)
 		for (i = 0; i < 224; i++)
 		{
 			ps += 8;
+			ps += 32;
 			pd += 32;
 			for (u = 0; u < 256; u++)
 				*pd++ = *ps++;
-			ps += 64;
+			ps += 32;
 			pd += 32;
 		}
 	} else {
