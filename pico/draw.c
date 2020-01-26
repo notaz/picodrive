@@ -223,6 +223,14 @@ TileFlipMakerAS(TileFlipAS_onlymark, pix_sh_as_onlymark)
 TileNormMaker(TileNorm_and, pix_and)
 TileFlipMaker(TileFlip_and, pix_and)
 
+// forced sprite draw (through debug reg)
+#define pix_sh_and(x) /* XXX is there S/H with forced draw? */ \
+  if (t>=0xe) pd[x]=(pd[x]&0x3f)|(t<<6); /* c0 shadow, 80 hilight */ \
+  else pd[x] = (pd[x] & 0xc0) | (pd[x] & (pal | t))
+ 
+TileNormMaker(TileNormSH_and, pix_sh_and)
+TileFlipMaker(TileFlipSH_and, pix_sh_and)
+
 // --------------------------------------------
 
 #ifndef _ASM_DRAW_C
@@ -1045,6 +1053,66 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
   }
 }
 
+static void DrawSpritesForced(unsigned char *sprited)
+{
+  void (*fTileFunc)(unsigned char *pd, unsigned int pack, int pal);
+  unsigned char *pd = Pico.est.HighCol;
+  unsigned char *p;
+  int entry, cnt;
+
+  cnt = sprited[0] & 0x7f;
+  if (cnt == 0) return;
+
+  p = &sprited[4];
+  if ((sprited[1] & (SPRL_TILE_OVFL|SPRL_HAVE_MASK0)) == (SPRL_TILE_OVFL|SPRL_HAVE_MASK0))
+    return; // masking effective due to tile overflow
+
+  // Go through sprites:
+  for (entry = 0; entry < cnt; entry++)
+  {
+    int *sprite, code, pal, tile, sx, sy;
+    int offs, delta, width, height, row;
+
+    offs = (p[entry] & 0x7f) * 2;
+    sprite = HighPreSpr + offs;
+    code = sprite[1];
+    pal = (code>>9)&0x30;
+
+    if (code&0x800) fTileFunc = TileFlipSH_and;
+    else            fTileFunc = TileNormSH_and;
+
+    // parse remaining sprite data
+    sy=sprite[0];
+    sx=code>>16; // X
+    width=sy>>28;
+    height=(sy>>24)&7; // Width and height in tiles
+    sy=(sy<<16)>>16; // Y
+
+    row=Pico.est.DrawScanline-sy; // Row of the sprite we are on
+
+    if (code&0x1000) row=(height<<3)-1-row; // Flip Y
+
+    tile=code + (row>>3); // Tile number increases going down
+    delta=height; // Delta to increase tile by going right
+    if (code&0x0800) { tile+=delta*(width-1); delta=-delta; } // Flip X
+
+    tile &= 0x7ff; tile<<=4; tile+=(row&7)<<1; // Tile address
+    delta<<=4; // Delta of address
+
+    if (entry+1 == cnt) width = p[entry+1]; // last sprite width limited?
+    for (; width; width--,sx+=8,tile+=delta)
+    {
+      unsigned int pack;
+
+      if(sx<=0)   continue;
+      if(sx>=328) break; // Offscreen
+
+      pack = *(unsigned int *)(PicoMem.vram + (tile & 0x7fff));
+      fTileFunc(pd + sx, pack, pal);
+    }
+  }
+}
+
 
 // Index + 0  :    ----hhvv -lllllll -------y yyyyyyyy
 // Index + 4  :    -------x xxxxxxxx pccvhnnn nnnnnnnn
@@ -1529,6 +1597,8 @@ static int DrawDisplay(int sh)
     DrawTilesFromCacheForced(HighCacheB);
   else if (pvid->debug_p & PVD_FORCE_A)
     DrawTilesFromCacheForced(HighCacheA);
+  else if (pvid->debug_p & PVD_FORCE_S)
+    DrawSpritesForced(sprited);
 
 #if 0
   {
@@ -1621,7 +1691,7 @@ static void PicoLine(int line, int offs, int sh, int bgc)
     return;
   }
 
-  if (Pico.video.debug_p & (PVD_FORCE_A | PVD_FORCE_B))
+  if (Pico.video.debug_p & (PVD_FORCE_A | PVD_FORCE_B | PVD_FORCE_S))
     bgc = 0x3f;
 
   // Draw screen:
