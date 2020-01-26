@@ -942,17 +942,23 @@ DrawTilesFromCache:
 .global DrawSpritesSHi
 
 DrawSpritesSHi:
-    ldr     r3, [r0]
+    ldrb    r3, [r0]
     mov     r12,#0xff
     ands    r3, r3, #0x7f
     bxeq    lr
 
-    stmfd   sp!, {r1,r4-r11,lr} @ +est
-    strb    r12,[r0,#2]     @ set end marker
-    add     r10,r0, #3      @ r10=HighLnSpr end
+    stmfd   sp!, {r1,r3-r11,lr} @ +est
+    strb    r12,[r0,#3]     @ set end marker
+    ldrb    r12,[r0,#1]
+    add     r10,r0, #4      @ r10=HighLnSpr end
+    mvn     r12,r12
+    tst     r12,#0x6        @ masking in slot 1 and tile ovfl?
+    ldmeqfd sp!, {r1,r3-r11,pc}
     add     r10,r10,r3      @ r10=HighLnSpr end
 
+    ldrb    r12,[r10,#0]    @ width of last sprite
     ldr     r11,[r1, #OFS_EST_HighCol]
+    str     r12,[sp, #4]
     mov     r12,#0xf
     ldr     lr, [r1, #OFS_EST_PicoMem_vram]
 
@@ -963,7 +969,7 @@ DrawSpriteSHi:
     ldr     r7, [sp]        @ est
     ldr     r1, [r7, #OFS_EST_HighPreSpr]
     cmp     r0, #0xff
-    ldmeqfd sp!, {r1,r4-r11,pc} @ end of list
+    ldmeqfd sp!, {r1,r3-r11,pc} @ end of list
     and     r0, r0, #0x7f
     add     r0, r1, r0, lsl #3
 
@@ -1007,10 +1013,16 @@ DrawSpriteSHi:
     and     r7, r7, #7
     add     r8, r8, r7, lsl #1 @ tile+=(row&7)<<1; // Tile address
 
+    ldr     r0, [sp, #4]
+    add     r6, r6, #1         @ inc now
+    cmp     r0, #0             @ check width of last sprite
+    movne   r6, r0
+    movne   r0, #0
+    strne   r0, [sp, #4]
+
     mov     r5, r5, lsl #4     @ delta<<=4; // Delta of address
     mov     r3, r4, lsr #9     @ r3=pal=((code>>9)&0x30);
 
-    add     r6, r6, #1         @ inc now
     adds    r0, r2, #0         @ mov sx to r0 and set ZV flags
     b       .dsprShi_loop_enter
 
@@ -1126,11 +1138,18 @@ DrawAllSprites:
     @ time to do some real work
     stmfd   sp!, {r1,r3-r11,lr} @ +sh|prio<<1 +est
     mov     r12,#0xff
-    strb    r12,[r0,#2]     @ set end marker
-    add     r10,r0, #3
+    strb    r12,[r0,#3]     @ set end marker
+    ldrb    r12,[r0,#1]
+    add     r10,r0 ,#4
+    mvn     r12,r12
+    tst     r12,#0x6        @ masking in slot 1 and tile ovfl?
+    ldmeqfd sp!, {r1,r3-r11,pc}
     add     r10,r10,r2      @ r10=HighLnSpr end
 
+    ldrb    r12,[r10,#0]    @ width of last sprite
     ldr     r11,[r3, #OFS_EST_HighCol]
+    orr     r1 ,r1 ,r12,lsl #24
+    str     r1, [sp]
     mov     r12,#0xf
     ldr     lr, [r3, #OFS_EST_PicoMem_vram]
 
@@ -1140,13 +1159,13 @@ DrawAllSprites:
 DrawSprite:
     @ draw next sprite
     ldrb    r0, [r10,#-1]!
-    ldr     r8, [sp]        @ sh|prio<<1
+    ldr     r4, [sp]        @ sh|prio<<1|lastw<<24
     ldr     r7, [sp, #4]    @ est
-    mov     r2, r0, lsr #7
+    mov     r2, r0, lsl #24
     cmp     r0, #0xff
     ldmeqfd sp!, {r1,r3-r11,pc} @ end of list
-    cmp     r2, r8, lsr #1
-    bne     DrawSprite      @ wrong priority
+    eor     r2, r2, r4, lsl #30
+    bmi     DrawSprite      @ wrong priority
     ldr     r1, [r7, #OFS_EST_HighPreSpr]
     and     r0, r0, #0x7f
     add     r0, r1, r0, lsl #3
@@ -1158,20 +1177,20 @@ DrawSprite:
     mov     r5, r3, lsr #24
     and     r5, r5, #7      @ r5=height
 
-    mov     r4, r3, lsl #16 @ r4=sy<<16 (tmp)
+    mov     r8, r3, lsl #16 @ r8=sy<<16 (tmp)
 
     ldr     r9, [r0, #4]
-    sub     r7, r7, r4, asr #16 @ r7=row=DrawScanline-sy
+    sub     r7, r7, r8, asr #16 @ r7=row=DrawScanline-sy
 
     mov     r2, r9, asr #16 @ r2=sx
     mov     r9, r9, lsl #16
     mov     r9, r9, lsr #16
-    orr     r9, r9, r8, lsl #31 @ r9=code|sh[31]
+    orr     r9, r9, r4, lsl #31 @ r9=code|sh[31]
 
     tst     r9, #0x1000
-    movne   r4, r5, lsl #3
-    subne   r4, r4, #1
-    subne   r7, r4, r7      @ if (code&0x1000) row=(height<<3)-1-row; // Flip Y
+    movne   r8, r5, lsl #3
+    subne   r8, r8, #1
+    subne   r7, r8, r7      @ if (code&0x1000) row=(height<<3)-1-row; // Flip Y
 
     add     r8, r9, r7, lsr #3 @ tile+=row>>3; // Tile number increases going down
     tst     r9, #0x0800
@@ -1183,7 +1202,12 @@ DrawSprite:
     and     r7, r7, #7
     add     r8, r8, r7, lsl #1 @ tile+=(row&7)<<1; // Tile address
 
-.dspr_continue:
+    add     r6, r6, #1         @ inc now
+    cmp     r4, #0x1000000     @ check width of last sprite
+    movhs   r6, r4, lsr #24
+    bichs   r4, r4, #0xff000000
+    strhs   r4, [sp]
+
     @ cache some stuff to avoid mem access
     mov     r5, r5, lsl #4     @ delta<<=4; // Delta of address
     and     r4, r9, #0x6000
@@ -1193,7 +1217,6 @@ DrawSprite:
     mov     r3, r4, lsr #9     @ r3=pal=((code>>9)&0x30);
     orrmi   r3, r3, #0x40      @ for sh/hi
 
-    add     r6, r6, #1         @ inc now
     adds    r0, r2, #0         @ mov sx to r0 and set ZV flags
     b       .dspr_loop_enter
 

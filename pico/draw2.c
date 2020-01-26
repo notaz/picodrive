@@ -420,12 +420,13 @@ static void DrawAllSpritesFull(int prio, int maxwidth)
 	int i,u,link=0;
 	unsigned int *sprites[80]; // Sprites
 	int y_min=START_ROW*8, y_max=END_ROW*8; // for a simple sprite masking
+	int max_sprites = Pico.video.reg[12]&1 ? 80 : 64;
 
 	table=pvid->reg[5]&0x7f;
 	if (pvid->reg[12]&1) table&=0x7e; // Lowest bit 0 in 40-cell mode
 	table<<=8; // Get sprite table address/2
 
-	for (i=u=0; u < 80; u++)
+	for (i = u = 0; u < max_sprites && link < max_sprites; u++)
 	{
 		unsigned int *sprite=NULL;
 		int code, code2, sx, sy, height;
