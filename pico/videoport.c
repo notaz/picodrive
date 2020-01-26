@@ -22,11 +22,12 @@ static __inline void AutoIncrement(void)
   Pico.video.addr=(unsigned short)(Pico.video.addr+Pico.video.reg[0xf]);
 }
 
-static NOINLINE void VideoWrite128(u32 a, u16 d)
+static NOINLINE unsigned int VideoWrite128(u32 a, u16 d)
 {
   // nasty
   a = ((a & 2) >> 1) | ((a & 0x400) >> 9) | (a & 0x3FC) | ((a & 0x1F800) >> 1);
   ((u8 *)PicoMem.vram)[a] = d;
+  return a;
 }
 
 static void VideoWrite(u16 d)
@@ -38,16 +39,19 @@ static void VideoWrite(u16 d)
     case 1: if (a & 1)
               d = (u16)((d << 8) | (d >> 8));
             PicoMem.vram [(a >> 1) & 0x7fff] = d;
-            if (a - ((unsigned)(Pico.video.reg[5]&0x7f) << 9) < 0x400)
+            if ((unsigned)(a - ((Pico.video.reg[5]&0x7f) << 9)) < 0x400)
               Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
             break;
     case 3: if (PicoMem.cram [(a >> 1) & 0x3f] != d) Pico.m.dirtyPal = 1;
             PicoMem.cram [(a >> 1) & 0x3f] = d; break;
     case 5: PicoMem.vsram[(a >> 1) & 0x3f] = d; break;
-    case 0x81:
-      a |= Pico.video.addr_u << 16;
-      VideoWrite128(a, d);
-      break;
+    case 0x81: if (a & 1)
+              d = (u16)((d << 8) | (d >> 8));
+            a |= Pico.video.addr_u << 16;
+            a = VideoWrite128(a, d);
+            if ((unsigned)(a - ((Pico.video.reg[5]&0x7f) << 9)) < 0x400)
+              Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
+            break;
     //default:elprintf(EL_ANOMALY, "VDP write %04x with bad type %i", d, Pico.video.type); break;
   }
 
@@ -276,6 +280,16 @@ static NOINLINE void DmaFill(int data)
       if (!once++)
         elprintf(EL_STATUS|EL_ANOMALY|EL_VDPDMA, "TODO: cram/vsram fill");
     }
+    case 0x81:
+      for (l = len; l; l--) {
+        VideoWrite128(a, data);
+
+        // Increment address register
+        a = (a + inc) & 0x1ffff;
+      }
+      Pico.video.addr_u = a >> 16;
+      Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
+      break;
     default:
       a += len * inc;
       break;
