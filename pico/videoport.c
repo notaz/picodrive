@@ -200,6 +200,7 @@ static void DmaSlow(int len, unsigned int source)
         a = (a + inc) & 0x1ffff;
       }
       Pico.video.addr_u = a >> 16;
+      Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
       break;
 
     default:
@@ -266,6 +267,7 @@ static NOINLINE void DmaFill(int data)
         // Increment address register
         a = (u16)(a + inc);
       }
+      Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
       break;
     case 3:   // cram
     case 5: { // vsram
@@ -289,7 +291,6 @@ static NOINLINE void DmaFill(int data)
   Pico.video.reg[0x15] = source;
   Pico.video.reg[0x16] = source >> 8;
 
-  Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 }
 
 static NOINLINE void CommandDma(void)
