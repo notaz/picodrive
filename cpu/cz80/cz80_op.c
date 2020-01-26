@@ -687,7 +687,6 @@ OP_CCF:
 	OP(0x76):   // HALT
 OP_HALT:
 		CPU->HaltState = 1;
-//		CPU->ICount = 0;
 		goto Cz80_Check_Interrupt;
 
 	OP(0xf3):   // DI

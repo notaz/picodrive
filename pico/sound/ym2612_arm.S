@@ -206,8 +206,9 @@
 .macro update_ssg_eg
     ldrh    r0, [r5,#0x30]                @ ssg+ssgn
     ldrb    r2, [r5,#0x17]                @ state
+    and     r3, r0, #0x08
+    cmp     r3, #0x08                     @ ssg enabled &&
     ldrh    r3, [r5,#0x1a]                @ volume
-    cmp     r0, #0x08                     @ ssg enabled &&
     cmpge   r2, #EG_REL+1                 @   state > EG_REL &&
     cmpge   r3, #0x200                    @   volume >= 0x200?
     blt     9f
