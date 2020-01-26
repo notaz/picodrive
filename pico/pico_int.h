@@ -137,9 +137,7 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 
 // burn cycles while not in SekRun() and while in
 #define SekCyclesBurn(c)    Pico.t.m68c_cnt += c
-#define SekCyclesBurnRun(c) { \
-  SekCyclesLeft -= c; \
-}
+#define SekCyclesBurnRun(c) SekCyclesLeft -= c
 
 // note: sometimes may extend timeslice to delay an irq
 #define SekEndRun(after) { \
@@ -421,6 +419,7 @@ struct PicoTiming
   unsigned int z80c_aim;
   int z80_scanline;
 
+  unsigned int dma_end;                 // end of current DMA op (m68k cycles)
   int timer_a_next_oflow, timer_a_step; // in z80 cycles
   int timer_b_next_oflow, timer_b_step;
 };
