@@ -278,7 +278,8 @@ Cz80_Check_Interrupt:
 				CPU->ICount -= CPU->ExtraCycles;
 				CPU->ExtraCycles = 0;
 			}
-			goto Cz80_Exec;
+			if (!CPU->HaltState)
+				goto Cz80_Exec;
 		}
 	}
 	else CPU->ICount = 0;

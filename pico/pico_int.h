@@ -822,10 +822,10 @@ void ym2612_pack_state(void);
 void ym2612_unpack_state(void);
 
 #define TIMER_NO_OFLOW 0x70000000
-// tA =   72 * (1024 - NA) / M
-#define TIMER_A_TICK_ZCYCLES  17203
-// tB = 1152 * (256 - NA) / M
-#define TIMER_B_TICK_ZCYCLES 262800 // 275251 broken, see Dai Makaimura
+// tA =   72 * (1024 - NA) / M, with M = mclock/2 -> tick = 72 * 2/mclock
+#define TIMER_A_TICK_ZCYCLES  17203 // zcycles = Q8*tick*zclock = Q8*77*2*7/15
+// tB = 1152 * (256 - NA) / M,
+#define TIMER_B_TICK_ZCYCLES 275251 // zcycles = Q8*1152*2*7/15
 
 #define timers_cycle() \
   if (Pico.t.timer_a_next_oflow > 0 && Pico.t.timer_a_next_oflow < TIMER_NO_OFLOW) \
@@ -837,7 +837,8 @@ void ym2612_unpack_state(void);
 #define timers_reset() \
   Pico.t.timer_a_next_oflow = Pico.t.timer_b_next_oflow = TIMER_NO_OFLOW; \
   Pico.t.timer_a_step = TIMER_A_TICK_ZCYCLES * 1024; \
-  Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * 256;
+  Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * 256; \
+  ym2612.OPN.ST.status &= ~3;
 
 
 // videoport.c

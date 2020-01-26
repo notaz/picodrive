@@ -733,8 +733,10 @@ static void PicoWrite8_vdp(u32 a, u32 d)
 
 static void PicoWrite16_vdp(u32 a, u32 d)
 {
-  if ((a & 0x00f9) == 0x0010) // PSG Sound
+  if ((a & 0x00f9) == 0x0010) { // PSG Sound
     psg_write_68k(d);
+    return;
+  }
   if ((a & 0x00e0) == 0x0000) {
     PicoVideoWrite(a, d);
     return;
@@ -898,10 +900,10 @@ void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new)
   int xcycles = z80_cycles << 8;
 
   /* check for overflows */
-  if ((mode_old & 4) && xcycles > Pico.t.timer_a_next_oflow)
+  if ((mode_old & 4) && xcycles >= Pico.t.timer_a_next_oflow)
     ym2612.OPN.ST.status |= 1;
 
-  if ((mode_old & 8) && xcycles > Pico.t.timer_b_next_oflow)
+  if ((mode_old & 8) && xcycles >= Pico.t.timer_b_next_oflow)
     ym2612.OPN.ST.status |= 2;
 
   /* update timer a */
