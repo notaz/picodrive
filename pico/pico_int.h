@@ -296,6 +296,10 @@ extern SH2 sh2s[2];
 // not part of real SR
 #define PVS_ACTIVE    (1 << 16)
 #define PVS_VB2       (1 << 17) // ignores forced blanking
+#define PVS_CPUWR     (1 << 18) // CPU hold by FIFO full
+#define PVS_CPURD     (1 << 19) // CPU hold by FIFO full
+#define PVS_DMAPEND   (1 << 20) // DMA operation waiting for start
+#define PVS_DMAFILL   (1 << 21) // DMA fill is in progress
 
 struct PicoVideo
 {
@@ -306,7 +310,7 @@ struct PicoVideo
   unsigned short addr;        // Read/Write address
   unsigned int status;        // Status bits (SR) and extra flags
   unsigned char pending_ints; // pending interrupts: ??VH????
-  signed char lwrite_cnt;     // VDP write count during active display line
+  signed char pad1;           // was VDP write count
   unsigned short v_counter;   // V-counter
   unsigned short debug;       // raw debug register
   unsigned char debug_p;      // ... parsed: PVD_*
@@ -335,7 +339,7 @@ struct PicoMisc
   unsigned char  eeprom_slave; // EEPROM slave word for X24C02 and better SRAMs
   unsigned char  eeprom_status;
   unsigned char  pad1;         // was ym2612 status
-  unsigned short dma_xfers;    // 18
+  unsigned short pad2;         // 18 was dma_xfers
   unsigned char  eeprom_wb[2]; // EEPROM latch/write buffer
   unsigned int  frame_count;   // 1c for movies and idle det
 };
@@ -419,7 +423,6 @@ struct PicoTiming
   unsigned int z80c_aim;
   int z80_scanline;
 
-  unsigned int dma_end;                 // end of current DMA op (m68k cycles)
   int timer_a_next_oflow, timer_a_step; // in z80 cycles
   int timer_b_next_oflow, timer_b_step;
 };
@@ -850,6 +853,9 @@ unsigned char PicoVideoRead8CtlL(void);
 unsigned char PicoVideoRead8HV_H(void);
 unsigned char PicoVideoRead8HV_L(void);
 extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask);
+void PicoVideoFIFOSync(int cycles);
+int PicoVideoFIFOHint(void);
+int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask, unsigned sr_flags);
 
 // misc.c
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);
