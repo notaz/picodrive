@@ -72,27 +72,19 @@ static void do_hint(struct PicoVideo *pv)
   }
 }
 
-static void do_timing_hacks_as(struct PicoVideo *pv, int vdp_slots, int cycles)
+static void do_timing_hacks_end(struct PicoVideo *pv)
 {
-  pv->lwrite_cnt += vdp_slots - Pico.m.dma_xfers * 2; // wrong *2
-  if (pv->lwrite_cnt > vdp_slots)
-    pv->lwrite_cnt = vdp_slots;
-  else if (pv->lwrite_cnt < 0)
-    pv->lwrite_cnt = 0;
-  if (Pico.m.dma_xfers)
-    SekCyclesBurn(CheckDMA(cycles));
+  PicoVideoFIFOSync(488);
 }
 
-static void do_timing_hacks_vb(int cycles)
+static void do_timing_hacks_start(struct PicoVideo *pv)
 {
-  if (unlikely(Pico.m.dma_xfers))
-    SekCyclesBurn(CheckDMA(cycles));
+  SekCyclesBurn(PicoVideoFIFOHint()); // prolong cpu HOLD if necessary
 }
 
 static int PicoFrameHints(void)
 {
   struct PicoVideo *pv = &Pico.video;
-  int vdp_slots = (Pico.video.reg[12] & 1) ? 18 : 16;
   int lines, y, lines_vis, skip;
   int vcnt_wrap, vcnt_adj;
   unsigned int cycles;
@@ -155,8 +147,9 @@ static int PicoFrameHints(void)
 
     // Run scanline:
     Pico.t.m68c_line_start = Pico.t.m68c_aim;
-    do_timing_hacks_as(pv, vdp_slots, CYCLES_M68K_LINE);
+    do_timing_hacks_start(pv);
     CPUS_RUN(CYCLES_M68K_LINE);
+    do_timing_hacks_end(pv);
 
     if (PicoLineHook) PicoLineHook();
     pevt_log_m68k_o(EVT_NEXT_LINE);
@@ -175,10 +168,6 @@ static int PicoFrameHints(void)
 #endif
   }
 
-  // VDP FIFO
-  pv->lwrite_cnt = 0;
-  Pico.video.status |= SR_EMPT;
-
   memcpy(PicoIn.padInt, PicoIn.pad, sizeof(PicoIn.padInt));
   PAD_DELAY();
 
@@ -196,7 +185,7 @@ static int PicoFrameHints(void)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
-  do_timing_hacks_vb(CYCLES_M68K_VINT_LAG);
+  do_timing_hacks_start(pv);
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
   pv->status |= SR_F;
@@ -224,8 +213,8 @@ static int PicoFrameHints(void)
 #endif
 
   // Run scanline:
-  do_timing_hacks_vb(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG);
   CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG);
+  do_timing_hacks_end(pv);
 
   if (PicoLineHook) PicoLineHook();
   pevt_log_m68k_o(EVT_NEXT_LINE);
@@ -260,8 +249,9 @@ static int PicoFrameHints(void)
 
     // Run scanline:
     Pico.t.m68c_line_start = Pico.t.m68c_aim;
-    do_timing_hacks_vb(CYCLES_M68K_LINE);
+    do_timing_hacks_start(pv);
     CPUS_RUN(CYCLES_M68K_LINE);
+    do_timing_hacks_end(pv);
 
     if (PicoLineHook) PicoLineHook();
     pevt_log_m68k_o(EVT_NEXT_LINE);
@@ -271,8 +261,9 @@ static int PicoFrameHints(void)
     unsigned int l = PicoIn.overclockM68k * lines / 100;
     while (l-- > 0) {
       Pico.t.m68c_cnt -= CYCLES_M68K_LINE;
-      do_timing_hacks_vb(CYCLES_M68K_LINE);
+      do_timing_hacks_start(pv);
       SekSyncM68k();
+      do_timing_hacks_end(pv);
     }
   }
 
@@ -282,7 +273,6 @@ static int PicoFrameHints(void)
   // last scanline
   Pico.m.scanline = y++;
   pv->v_counter = 0xff;
-  pv->lwrite_cnt = 0;
 
   PAD_DELAY();
 
@@ -297,8 +287,9 @@ static int PicoFrameHints(void)
 
   // Run scanline:
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
-  do_timing_hacks_as(pv, vdp_slots, CYCLES_M68K_LINE);
+  do_timing_hacks_start(pv);
   CPUS_RUN(CYCLES_M68K_LINE);
+  do_timing_hacks_end(pv);
 
   if (PicoLineHook) PicoLineHook();
   pevt_log_m68k_o(EVT_NEXT_LINE);
