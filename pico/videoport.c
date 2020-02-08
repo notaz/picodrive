@@ -26,7 +26,7 @@ int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned
  * fifo_cnt: #slots remaining for active FIFO write (#writes<<#bytep)
  * fifo_total: #total FIFO entries pending
  * fifo_data: last values transferred through fifo
- * fifo_queue: fifo transfer queue (#writes, VRAM_byte_p)
+ * fifo_queue: fifo transfer queue (#writes, flags)
  *
  * FIFO states:		empty	total=0
  *			inuse	total>0 && total<4
@@ -95,42 +95,66 @@ const unsigned char vdpsl2cyc_40[] = { // slot # to 68k cycles/4 since HINT
 // last transferred FIFO data, ...x = index  XXX currently only CPU
 static short fifo_data[4], fifo_dx;
 // queued FIFO transfers, ...x = index, ...l = queue length
-// each entry has 2 values: [n]>>1=#writes, [n]&1=is VRAM byte access
+// each entry has 2 values: [n]>>2=#writes, [n]&3=flags:2=DMA fill 1=byte access
 static int fifo_queue[8], fifo_qx, fifo_ql;
 
 signed int fifo_cnt;            // pending slots for current queue entry
 unsigned short fifo_slot;       // last executed slot in current scanline
 unsigned int fifo_total;        // total# of pending FIFO entries
 
+// do the FIFO math
+static __inline int AdvanceFIFOEntry(int slots)
+{
+  int l = slots, b = fifo_queue[fifo_qx&7] & 1;
+
+  if (l > fifo_cnt)
+    l = fifo_cnt;
+  fifo_total -= ((fifo_cnt & b) + l) >> b;
+  fifo_cnt -= l;
+
+  if (fifo_cnt == 0) {
+    fifo_qx ++, fifo_ql --;
+    fifo_cnt= (fifo_queue[fifo_qx&7] >> 2) << (fifo_queue[fifo_qx&7] & 1);
+  }
+  return l;
+}
+
+static __inline int GetFIFOSlot(struct PicoVideo *pv, int cycles)
+{
+  int active = !(pv->status & SR_VB) && (pv->reg[1] & 0x40);
+  int h40 = pv->reg[12] & 1;
+  const unsigned char *cs = h40 ? vdpcyc2sl_40 : vdpcyc2sl_32;
+
+  if (active)	return cs[cycles/4];
+  else		return (cycles * vdpcyc2sl_bl[h40] + cycles) >> 16;
+}
+
+static inline int GetFIFOCycles(struct PicoVideo *pv, int slot)
+{
+  int active = !(pv->status & SR_VB) && (pv->reg[1] & 0x40);
+  int h40 = pv->reg[12] & 1;
+  const unsigned char *sc = h40 ? vdpsl2cyc_40 : vdpsl2cyc_32;
+
+  if (active)	return sc[slot]*4;
+  else		return ((slot * vdpsl2cyc_bl[h40] + slot) >> 16);
+}
+
 // sync FIFO to cycles
 void PicoVideoFIFOSync(int cycles)
 {
   struct PicoVideo *pv = &Pico.video;
-  int active = !(pv->status & SR_VB) && (pv->reg[1] & 0x40);
-  int h40 = pv->reg[12] & 1;
-  const unsigned char *cs = h40 ? vdpcyc2sl_40 : vdpcyc2sl_32;
   int slots, done;
 
   // calculate #slots since last executed slot
-  if (active)	slots = cs[cycles/4];
-  else		slots = (cycles * vdpcyc2sl_bl[h40] + cycles) >> 16;
+  slots = GetFIFOSlot(pv, cycles);
   slots -= fifo_slot;
 
   // advance FIFO queue by #done slots
   done = slots;
   while (done > 0 && fifo_ql) {
-    int l = done, b = fifo_queue[fifo_qx&7] & 1;
-    if (l > fifo_cnt)
-      l = fifo_cnt;
-    fifo_total -= ((fifo_cnt & b) + l) >> b;
+    int l = AdvanceFIFOEntry(done);
     fifo_slot += l;
-    fifo_cnt -= l;
     done -= l;
-
-    if (fifo_cnt == 0) {
-      fifo_qx ++, fifo_ql --;
-      fifo_cnt= (fifo_queue[fifo_qx&7] >> 1) << (fifo_queue[fifo_qx&7] & 1);
-    }
   }
 
   // release CPU and terminate DMA if FIFO isn't blocking the 68k anymore
@@ -150,7 +174,6 @@ int PicoVideoFIFODrain(int level, int cycles)
   struct PicoVideo *pv = &Pico.video;
   int active = !(pv->status & SR_VB) && (pv->reg[1] & 0x40);
   int h40 = pv->reg[12] & 1;
-  const unsigned char *sc = h40 ? vdpsl2cyc_40 : vdpsl2cyc_32;
   int maxsl = vdpslots[h40 + 2*active]; // max xfer slots in this scanline
   int burn = 0;
 
@@ -169,19 +192,11 @@ int PicoVideoFIFODrain(int level, int cycles)
     } else {
       // advance FIFO to target slot and CPU to cycles at that slot
       fifo_slot = slot;
-      if (active)	cycles = sc[slot]*4;
-      else		cycles = ((slot * vdpsl2cyc_bl[h40] + slot) >> 16);
+      cycles = GetFIFOCycles(pv, slot);
     }
     burn += cycles - ocyc;
 
-    slot -= last;
-    fifo_total -= ((fifo_cnt & b) + slot) >> b;
-    fifo_cnt -= slot;
-
-    if (fifo_cnt == 0) {
-      fifo_qx ++, fifo_ql --;
-      fifo_cnt= (fifo_queue[fifo_qx&7] >> 1) << (fifo_queue[fifo_qx&7] & 1);
-    }
+    AdvanceFIFOEntry(slot - last);
   }
 
   // release CPU and terminate DMA if FIFO isn't blocking the bus anymore
@@ -201,10 +216,6 @@ int PicoVideoFIFODrain(int level, int cycles)
 int PicoVideoFIFORead(void)
 {
   struct PicoVideo *pv = &Pico.video;
-  int active = !(pv->status & SR_VB) && (pv->reg[1] & 0x40);
-  int h40 = pv->reg[12] & 1;
-  const unsigned char *cs = h40 ? vdpcyc2sl_40 : vdpcyc2sl_32;
-  const unsigned char *sc = h40 ? vdpsl2cyc_40 : vdpsl2cyc_32;
   int lc = SekCyclesDone()-Pico.t.m68c_line_start+4;
   int burn = 0;
 
@@ -217,43 +228,33 @@ int PicoVideoFIFORead(void)
     pv->status |= PVS_CPURD; // target slot is in later scanline
   else {
     // use next VDP access slot for reading, block 68k until then
-    if (active) {
-          fifo_slot = cs[lc/4] + 1;
-          burn += sc[fifo_slot]*4;
-    } else {
-          fifo_slot = ((lc * vdpcyc2sl_bl[h40] + lc) >> 16) + 1;
-          burn += ((fifo_slot * vdpsl2cyc_bl[h40] + fifo_slot) >> 16);
-    }
-    burn -= lc;
+    fifo_slot = GetFIFOSlot(pv, lc) + 1;
+    burn += GetFIFOCycles(pv, fifo_slot) - lc;
   }
 
   return burn;
 }
  
 // write VDP data port
-int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask,unsigned sr_flags)
+int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
 {
   struct PicoVideo *pv = &Pico.video;
-  int active = !(pv->status & SR_VB) && (pv->reg[1] & 0x40);
-  int h40 = pv->reg[12] & 1;
-  const unsigned char *cs = h40 ? vdpcyc2sl_40 : vdpcyc2sl_32;
   int lc = SekCyclesDone()-Pico.t.m68c_line_start+4;
   int burn = 0;
 
   PicoVideoFIFOSync(lc);
   pv->status = (pv->status & ~sr_mask) | sr_flags;
 
-  if (count) {
+  if (count && fifo_ql < 8) {
     // update FIFO state if it was empty
     if (fifo_total == 0 && count) {
-      if (active)	fifo_slot = cs[lc/4];
-      else		fifo_slot = (lc * vdpcyc2sl_bl[h40] + lc) >> 16;
-      fifo_cnt = count << byte_p;
+      fifo_slot = GetFIFOSlot(pv, lc);
+      fifo_cnt = count << (flags&1);
     }
 
     // create xfer queue entry
     int x = (fifo_qx + fifo_ql) & 7;
-    fifo_queue[x] = (count << 1) | byte_p;
+    fifo_queue[x] = (count << 2) | flags;
     fifo_ql ++;
     fifo_total += count;
   }
@@ -261,6 +262,11 @@ int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask,unsigned sr_flags
   // if CPU is waiting for the bus, advance CPU and FIFO until bus is free
   if ((pv->status & (PVS_CPUWR|PVS_DMAFILL)) == PVS_CPUWR)
     burn = PicoVideoFIFODrain(4, lc);
+  else if (fifo_queue[fifo_qx&7]&2) {
+    // if interrupting a DMA fill terminate it
+    AdvanceFIFOEntry(fifo_cnt);
+    pv->status &= ~PVS_DMAFILL;
+  }
 
   return burn;
 }
@@ -515,7 +521,7 @@ static void DmaCopy(int len)
   int source;
   elprintf(EL_VDPDMA, "DmaCopy len %i [%u]", len, SekCyclesDone());
 
-  SekCyclesBurnRun(PicoVideoFIFOWrite(len, 1, PVS_CPUWR|PVS_DMAPEND, SR_DMA));
+  SekCyclesBurnRun(PicoVideoFIFOWrite(len, 1, PVS_CPUWR | PVS_DMAPEND, SR_DMA));
 
   source =Pico.video.reg[0x15];
   source|=Pico.video.reg[0x16]<<8;
@@ -544,7 +550,8 @@ static NOINLINE void DmaFill(int data)
   len = GetDmaLength();
   elprintf(EL_VDPDMA, "DmaFill len %i inc %i [%u]", len, inc, SekCyclesDone());
 
-  SekCyclesBurnRun(PicoVideoFIFOWrite(len, Pico.video.type == 1, PVS_CPUWR|PVS_DMAPEND, SR_DMA));
+  SekCyclesBurnRun(PicoVideoFIFOWrite(len, 2|(Pico.video.type == 1),
+                                          PVS_CPUWR | PVS_DMAPEND, SR_DMA));
 
   switch (Pico.video.type)
   {
