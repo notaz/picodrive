@@ -1007,7 +1007,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 #define host_instructions_updated(base, end)	(void)(base),(void)(end)
 #define	emith_update_cache()	/**/
 
-#define emith_rw_offs_max()	0xffffffff
+// NB this MUST be <0x40000000 to avoid overflow in address calculations
+#define emith_rw_offs_max()	0xfffffff // for better perfomance: <0x10000000
 
 #ifdef __x86_64__
 
