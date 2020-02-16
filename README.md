@@ -35,10 +35,7 @@ opendingux|opendingux|CROSS_COMPILE=mipsel-linux- CFLAGS="-I$TC/usr/include -I$T
 opendingux|opendingux with ubuntu mips gcc 5.4|CROSS_COMPILE=mipsel-linux-gnu- CFLAGS="-I$TC/usr/include -I$TC/usr/include/SDL" LDFLAGS="-B$TC/usr/lib -B$TC/lib -Wl,-rpath-link=$TC/usr/lib -Wl,-rpath-link=$TC/lib" ./configure --platform=opendingux
 gcw0|gcw0|CROSS_COMPILE=mipsel-gcw0-linux-uclibc- CFLAGS="-I$TC/usr/mipsel-gcw0-linux-uclibc/sysroot/usr/include -I$TC/usr/mipsel-gcw0-linux-uclibc/sysroot/usr/include/SDL" LDFLAGS="--sysroot $TC/usr/mipsel-gcw0-linux-uclibc/sysroot" ./configure --platform=gcw0
 
-For gp2x, wiz, and caanoo you may need to compile libpng first, and additionally
-cyclone_gp2x.patch may need to be applied to the cpu/cyclone submodule:
-
-> patch -d cpu/cyclone -p1 <cyclone_gp2x.patch
+For gp2x, wiz, and caanoo you may need to compile libpng first.
 
 After configure, compile with
 
