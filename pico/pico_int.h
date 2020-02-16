@@ -676,6 +676,7 @@ extern int (*PicoScanEnd)(unsigned int num);
 extern unsigned char HighLnSpr[240][4+MAX_LINE_SPRITES+1];
 extern void *DrawLineDestBase;
 extern int DrawLineDestIncrement;
+extern unsigned int VdpSATCache[128];
 
 // draw2.c
 void PicoDraw2Init(void);
