@@ -20,7 +20,7 @@
 #define LINE_WIDTH 328
 #endif
 
-static unsigned char PicoDraw2FB_[(8+320) * (8+240+8)];
+static unsigned char PicoDraw2FB_[(8+320) * (8+240+8) + 8];
 
 static int HighCache2A[41*(TILE_ROWS+1)+1+1]; // caches for high layers
 static int HighCache2B[41*(TILE_ROWS+1)+1+1];
