@@ -316,7 +316,10 @@ struct PicoVideo
   unsigned char debug_p;      // ... parsed: PVD_*
   unsigned char addr_u;       // bit16 of .addr
   unsigned char hint_cnt;
-  unsigned char pad[0x0b];
+  unsigned char pad2;
+  unsigned short hv_latch;    // latched hvcounter value
+  signed int fifo_cnt;        // pending xfers for current FIFO queue entry
+  unsigned char pad[0x04];
 };
 
 struct PicoMisc
@@ -339,7 +342,7 @@ struct PicoMisc
   unsigned char  eeprom_slave; // EEPROM slave word for X24C02 and better SRAMs
   unsigned char  eeprom_status;
   unsigned char  pad1;         // was ym2612 status
-  unsigned short pad2;         // 18 was dma_xfers
+  unsigned short dma_xfers;    // 18 unused (was VDP DMA transfer count)
   unsigned char  eeprom_wb[2]; // EEPROM latch/write buffer
   unsigned int  frame_count;   // 1c for movies and idle det
 };
@@ -856,6 +859,8 @@ extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, u
 void PicoVideoFIFOSync(int cycles);
 int PicoVideoFIFOHint(void);
 int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask, unsigned sr_flags);
+void PicoVideoSave(void);
+void PicoVideoLoad(void);
 
 // misc.c
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);
