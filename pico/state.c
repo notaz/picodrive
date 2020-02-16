@@ -250,6 +250,8 @@ static int state_save(void *file)
   CHECKED_WRITE_BUFF(CHUNK_ZRAM,  PicoMem.zram);
   CHECKED_WRITE_BUFF(CHUNK_CRAM,  PicoMem.cram);
   CHECKED_WRITE_BUFF(CHUNK_MISC,  Pico.m);
+
+  PicoVideoSave();
   CHECKED_WRITE_BUFF(CHUNK_VIDEO, Pico.video);
 
   z80_pack(buff_z80);
@@ -433,7 +435,11 @@ static int state_load(void *file)
       case CHUNK_CRAM:    CHECKED_READ_BUFF(PicoMem.cram); break;
       case CHUNK_VSRAM:   CHECKED_READ_BUFF(PicoMem.vsram); break;
       case CHUNK_MISC:    CHECKED_READ_BUFF(Pico.m); break;
-      case CHUNK_VIDEO:   CHECKED_READ_BUFF(Pico.video); break;
+      case CHUNK_VIDEO:
+        CHECKED_READ_BUFF(Pico.video);
+        PicoVideoLoad();
+        break;
+
       case CHUNK_IOPORTS: CHECKED_READ_BUFF(PicoMem.ioports); break;
       case CHUNK_PSG:     CHECKED_READ2(28*4, sn76496_regs); break;
       case CHUNK_FM:

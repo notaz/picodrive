@@ -14,7 +14,6 @@
 extern const unsigned char  hcounts_32[];
 extern const unsigned char  hcounts_40[];
 
-static unsigned hvlatch;        // latched hvcounter value
 static int blankline;           // display disabled for this line
 
 int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask) = NULL;
@@ -70,7 +69,7 @@ const unsigned char vdpcyc2sl_32[] = { // 68k cycles/4 since HINT to slot #
 14,14,14,14,14,14,14,14,15,16,16,16,16,16,16,16,
 };
 const unsigned char vdpsl2cyc_32[] = { // slot # to 68k cycles/4 since HINT
-  0,  9, 19, 30, 35, 41, 52, 58, 64, 75, 81, 87, 98,104,110,120,121,123,123
+  0,  9, 19, 30, 35, 41, 52, 58, 64, 75, 81, 87, 98,104,110,120,121,123
 };
 
 // VDP transfer slots in active display 40col mode. 1 slot is 488/210 = 2.3238
@@ -88,33 +87,37 @@ const unsigned char vdpcyc2sl_40[] = { // 68k cycles/4 since HINT to slot #
 16,16,16,16,16,16,16,16,17,18,18,18,18,18,18,18,
 };
 const unsigned char vdpsl2cyc_40[] = { // slot # to 68k cycles/4 since HINT
-  0, 13, 28, 33, 37, 47, 51, 56, 65, 70, 74, 84, 88, 93,102,107,112,120,121,123,123
+  0, 13, 28, 33, 37, 47, 51, 56, 65, 70, 74, 84, 88, 93,102,107,112,120,121,123
 };
 
 // NB code assumes fifo_* arrays have size 2^n
 // last transferred FIFO data, ...x = index  XXX currently only CPU
-static short fifo_data[4], fifo_dx;
+static short fifo_data[4], fifo_dx; // XXX must go into save?
+
 // queued FIFO transfers, ...x = index, ...l = queue length
 // each entry has 2 values: [n]>>2=#writes, [n]&3=flags:2=DMA fill 1=byte access
-static int fifo_queue[8], fifo_qx, fifo_ql;
-
-signed int fifo_cnt;            // pending slots for current queue entry
-unsigned short fifo_slot;       // last executed slot in current scanline
+static int fifo_queue[8], fifo_qx, fifo_ql; // XXX must go into save?
 unsigned int fifo_total;        // total# of pending FIFO entries
 
+unsigned short fifo_slot;       // last executed slot in current scanline
+
 // do the FIFO math
-static __inline int AdvanceFIFOEntry(int slots)
+static __inline int AdvanceFIFOEntry(struct PicoVideo *pv, int slots)
 {
   int l = slots, b = fifo_queue[fifo_qx&7] & 1;
 
-  if (l > fifo_cnt)
-    l = fifo_cnt;
-  fifo_total -= ((fifo_cnt & b) + l) >> b;
-  fifo_cnt -= l;
+  if (l > pv->fifo_cnt)
+    l = pv->fifo_cnt;
+  fifo_total -= ((pv->fifo_cnt & b) + l) >> b;
+  pv->fifo_cnt -= l;
 
-  if (fifo_cnt == 0) {
-    fifo_qx ++, fifo_ql --;
-    fifo_cnt= (fifo_queue[fifo_qx&7] >> 2) << (fifo_queue[fifo_qx&7] & 1);
+  if (pv->fifo_cnt == 0) {
+    if (fifo_ql)
+      fifo_qx ++, fifo_ql --;
+    if (fifo_ql)
+      pv->fifo_cnt= (fifo_queue[fifo_qx&7] >> 2) << (fifo_queue[fifo_qx&7] & 1);
+    else
+      fifo_total = 0;
   }
   return l;
 }
@@ -129,7 +132,7 @@ static __inline int GetFIFOSlot(struct PicoVideo *pv, int cycles)
   else		return (cycles * vdpcyc2sl_bl[h40] + cycles) >> 16;
 }
 
-static inline int GetFIFOCycles(struct PicoVideo *pv, int slot)
+static __inline int GetFIFOCycles(struct PicoVideo *pv, int slot)
 {
   int active = !(pv->status & SR_VB) && (pv->reg[1] & 0x40);
   int h40 = pv->reg[12] & 1;
@@ -146,13 +149,12 @@ void PicoVideoFIFOSync(int cycles)
   int slots, done;
 
   // calculate #slots since last executed slot
-  slots = GetFIFOSlot(pv, cycles);
-  slots -= fifo_slot;
+  slots = GetFIFOSlot(pv, cycles) - fifo_slot;
 
   // advance FIFO queue by #done slots
   done = slots;
-  while (done > 0 && fifo_ql) {
-    int l = AdvanceFIFOEntry(done);
+  while (done > 0 && pv->fifo_cnt) {
+    int l = AdvanceFIFOEntry(pv, done);
     fifo_slot += l;
     done -= l;
   }
@@ -181,7 +183,7 @@ int PicoVideoFIFODrain(int level, int cycles)
     int b = fifo_queue[fifo_qx&7] & 1;
     int cnt = (fifo_total-level) << b;
     int last = fifo_slot;
-    int slot = (fifo_cnt<cnt?fifo_cnt:cnt) + last; // target slot
+    int slot = (pv->fifo_cnt<cnt?pv->fifo_cnt:cnt) + last; // target slot
     unsigned ocyc = cycles;
 
     if (slot > maxsl) {
@@ -196,7 +198,7 @@ int PicoVideoFIFODrain(int level, int cycles)
     }
     burn += cycles - ocyc;
 
-    AdvanceFIFOEntry(slot - last);
+    AdvanceFIFOEntry(pv, slot - last);
   }
 
   // release CPU and terminate DMA if FIFO isn't blocking the bus anymore
@@ -249,7 +251,7 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
     // update FIFO state if it was empty
     if (fifo_total == 0 && count) {
       fifo_slot = GetFIFOSlot(pv, lc);
-      fifo_cnt = count << (flags&1);
+      pv->fifo_cnt = count << (flags&1);
     }
 
     // create xfer queue entry
@@ -263,8 +265,8 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
   if ((pv->status & (PVS_CPUWR|PVS_DMAFILL)) == PVS_CPUWR)
     burn = PicoVideoFIFODrain(4, lc);
   else if (fifo_queue[fifo_qx&7]&2) {
-    // if interrupting a DMA fill terminate it
-    AdvanceFIFOEntry(fifo_cnt);
+    // if interrupting a DMA fill terminate it XXX wrong, changes fill data
+    AdvanceFIFOEntry(pv, pv->fifo_cnt);
     pv->status &= ~PVS_DMAFILL;
   }
 
@@ -699,9 +701,9 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
     // try avoiding the sync..
     if (Pico.m.scanline < (pvid->reg[1]&0x08 ? 240 : 224) && (pvid->reg[1]&0x40) &&
         !(!pvid->pending &&
-          ((pvid->command & 0xc00000f0) == 0x40000010 && PicoMem.vsram[pvid->addr>>1] == d))
+          ((pvid->command & 0xc00000f0) == 0x40000010 && PicoMem.vsram[pvid->addr>>1] == (d & 0x7ff)))
        )
-      DrawSync(0);
+      DrawSync(SekCyclesDone() - Pico.t.m68c_line_start <= 488-440);
 
     if (pvid->pending) {
       CommandChange();
@@ -736,7 +738,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
       CommandChange();
       // Check for dma:
       if (d & 0x80) {
-        DrawSync(0);
+        DrawSync(SekCyclesDone() - Pico.t.m68c_line_start <= 488-390);
         CommandDma();
       }
     }
@@ -747,7 +749,6 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
         // Register write:
         int num=(d>>8)&0x1f;
         int dold=pvid->reg[num];
-        int skip=0;
         pvid->type=0; // register writes clear command (else no Sega logo in Golden Axe II)
         if (num > 0x0a && !(pvid->reg[1]&4)) {
           elprintf(EL_ANOMALY, "%02x written to reg %02x in SMS mode @ %06x", d, num, SekPc);
@@ -755,16 +756,14 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
         }
 
         if (num == 0 && !(pvid->reg[0]&2) && (d&2))
-          hvlatch = PicoVideoRead(0x08);
+          pvid->hv_latch = PicoVideoRead(0x08);
         if (num == 1 && ((pvid->reg[1]^d)&0x40)) {
           PicoVideoFIFOMode(d & 0x40);
           // handle line blanking before line rendering
-          if (SekCyclesDone() - Pico.t.m68c_line_start <= 488-390) {
-            skip = 1;
+          if (SekCyclesDone() - Pico.t.m68c_line_start <= 488-390)
             blankline = d&0x40 ? -1 : Pico.m.scanline;
-          }
         }
-        DrawSync(skip);
+        DrawSync(SekCyclesDone() - Pico.t.m68c_line_start <= 488-390);
         pvid->reg[num]=(unsigned char)d;
         switch (num)
         {
@@ -904,7 +903,7 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
 
     d = (SekCyclesDone() - Pico.t.m68c_line_start) & 0x1ff; // FIXME
     if (Pico.video.reg[0]&2)
-         d = hvlatch;
+         d = Pico.video.hv_latch;
     else if (Pico.video.reg[12]&1)
          d = hcounts_40[d] | (Pico.video.v_counter << 8);
     else d = hcounts_32[d] | (Pico.video.v_counter << 8);
@@ -968,6 +967,35 @@ unsigned char PicoVideoRead8HV_L(void)
   else d = hcounts_32[d];
   elprintf(EL_HVCNT, "hcounter: %02x [%u] @ %06x", d, SekCyclesDone(), SekPc);
   return d;
+}
+
+void PicoVideoSave(void)
+{
+  struct PicoVideo *pv = &Pico.video;
+  int l, x;
+
+  // account for all outstanding xfers XXX kludge, entry attr's not saved
+  for (l = fifo_ql, x = fifo_qx + l-1; l > 1; l--, x--)
+    pv->fifo_cnt += (fifo_queue[x&7] >> 2) << (fifo_queue[x&7] & 1);
+}
+
+void PicoVideoLoad(void)
+{
+  struct PicoVideo *pv = &Pico.video;
+  int l;
+
+  // convert former dma_xfers (why was this in PicoMisc anyway?)
+  if (Pico.m.dma_xfers) {
+    pv->fifo_cnt = Pico.m.dma_xfers * (pv->type == 1 ? 2 : 1);
+    fifo_total = Pico.m.dma_xfers;
+    Pico.m.dma_xfers = 0;
+  }
+
+  // rebuild SAT cache XXX wrong since cache and memory can differ
+  for (l = 0; l < 80; l++) {
+    *((u16 *)VdpSATCache + 2*l  ) = PicoMem.vram[(sat>>1) + l*4    ];
+    *((u16 *)VdpSATCache + 2*l+1) = PicoMem.vram[(sat>>1) + l*4 + 1];
+  }
 }
 
 // vim:shiftwidth=2:ts=2:expandtab
