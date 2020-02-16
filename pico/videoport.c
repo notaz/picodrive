@@ -15,6 +15,8 @@ extern const unsigned char  hcounts_32[];
 extern const unsigned char  hcounts_40[];
 
 static int blankline;           // display disabled for this line
+static unsigned sat;            // VRAM addr of sprite attribute table
+static int satxbits;            // index bits in SAT address
 
 int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask) = NULL;
 
@@ -315,14 +317,37 @@ void PicoVideoFIFOMode(int active)
 static __inline void AutoIncrement(void)
 {
   Pico.video.addr=(unsigned short)(Pico.video.addr+Pico.video.reg[0xf]);
+  if (Pico.video.addr < Pico.video.reg[0xf]) Pico.video.addr_u ^= 1;
 }
 
-static NOINLINE unsigned int VideoWrite128(u32 a, u16 d)
+static __inline void UpdateSAT(u32 a, u32 d)
+{
+  Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
+  if (!((a^sat) >> satxbits) && !(a & 4)) {
+    int num = (a >> 3) & 0x7f;
+    ((u16 *)&VdpSATCache[num])[(a&3) >> 1] = d;
+  }
+}
+
+static NOINLINE void VideoWriteVRAM128(u32 a, u16 d)
 {
   // nasty
-  a = ((a & 2) >> 1) | ((a & 0x400) >> 9) | (a & 0x3FC) | ((a & 0x1F800) >> 1);
-  ((u8 *)PicoMem.vram)[a] = d;
-  return a;
+  u32 b = ((a & 2) >> 1) | ((a & 0x400) >> 9) | (a & 0x3FC) | ((a & 0x1F800) >> 1);
+
+  ((u8 *)PicoMem.vram)[b] = d;
+  if (!((u16)(b^sat) >> satxbits))
+    Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
+
+  if (!((u16)(a^sat) >> satxbits))
+    UpdateSAT(a, d);
+}
+
+static void VideoWriteVRAM(u32 a, u16 d)
+{
+  PicoMem.vram [(u16)a >> 1] = d;
+
+  if (!((u16)(a^sat) >> satxbits))
+    UpdateSAT(a, d);
 }
 
 static void VideoWrite(u16 d)
@@ -333,19 +358,15 @@ static void VideoWrite(u16 d)
   {
     case 1: if (a & 1)
               d = (u16)((d << 8) | (d >> 8));
-            PicoMem.vram [(a >> 1) & 0x7fff] = d;
-            if ((unsigned)(a - ((Pico.video.reg[5]&0x7f) << 9)) < 0x400)
-              Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
+            a |= Pico.video.addr_u << 16;
+            VideoWriteVRAM(a, d);
             break;
     case 3: if (PicoMem.cram [(a >> 1) & 0x3f] != d) Pico.m.dirtyPal = 1;
-            PicoMem.cram [(a >> 1) & 0x3f] = d; break;
-    case 5: PicoMem.vsram[(a >> 1) & 0x3f] = d; break;
-    case 0x81: if (a & 1)
-              d = (u16)((d << 8) | (d >> 8));
+            PicoMem.cram [(a >> 1) & 0x3f] = d & 0xeee; break;
+    case 5: PicoMem.vsram[(a >> 1) & 0x3f] = d & 0x7ff; break;
+    case 0x81:
             a |= Pico.video.addr_u << 16;
-            a = VideoWrite128(a, d);
-            if ((unsigned)(a - ((Pico.video.reg[5]&0x7f) << 9)) < 0x400)
-              Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
+            VideoWriteVRAM128(a, d);
             break;
     //default:elprintf(EL_ANOMALY, "VDP write %04x with bad type %i", d, Pico.video.type); break;
   }
@@ -363,9 +384,10 @@ static unsigned int VideoRead(void)
   switch (Pico.video.type)
   {
     case 0: d=PicoMem.vram [a & 0x7fff]; break;
-    case 8: d=(PicoMem.cram [a & 0x003f] & 0x0eee) | (d & ~0x0eee); break;
+    case 8: d=PicoMem.cram [a & 0x003f] | (d & ~0x0eee); break;
+
     case 4: if ((a & 0x3f) >= 0x28) a = 0;
-            d=(PicoMem.vsram [a & 0x003f] & 0x07ff) | (d & ~0x07ff); break;
+            d=PicoMem.vsram [a & 0x003f] | (d & ~0x07ff); break;
     case 12:a=PicoMem.vram [a & 0x7fff]; if (Pico.video.addr&1) a >>= 8;
             d=(a & 0x00ff) | (d & ~0x00ff); break;
     default:elprintf(EL_ANOMALY, "VDP read with bad type %i", Pico.video.type); break;
@@ -391,7 +413,7 @@ static int GetDmaLength(void)
 static void DmaSlow(int len, unsigned int source)
 {
   u32 inc = Pico.video.reg[0xf];
-  u32 a = Pico.video.addr;
+  u32 a = Pico.video.addr | (Pico.video.addr_u << 16);
   u16 *r, *base = NULL;
   u32 mask = 0x1ffff;
 
@@ -451,26 +473,28 @@ static void DmaSlow(int len, unsigned int source)
   switch (Pico.video.type)
   {
     case 1: // vram
+#if 0
       r = PicoMem.vram;
-      if (inc == 2 && !(a & 1) && a + len * 2 < 0x10000
-          && !(((source + len - 1) ^ source) & ~mask))
+      if (inc == 2 && !(a & 1) && (a >> 16) == ((a + len*2) >> 16) &&
+          (source & ~mask) == ((source + len-1) & ~mask) &&
+          (a << 16 >= (sat+0x280) << 16 || (a + len*2) << 16 <= sat << 16))
       {
         // most used DMA mode
         memcpy((char *)r + a, base + (source & mask), len * 2);
         a += len * 2;
       }
       else
+#endif
       {
         for(; len; len--)
         {
           u16 d = base[source++ & mask];
           if(a & 1) d=(d<<8)|(d>>8);
-          r[a >> 1] = d;
+          VideoWriteVRAM(a, d);
           // AutoIncrement
-          a = (u16)(a + inc);
+          a = (a+inc) & ~0x20000;
         }
       }
-      Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
       break;
 
     case 3: // cram
@@ -478,9 +502,9 @@ static void DmaSlow(int len, unsigned int source)
       r = PicoMem.cram;
       for (; len; len--)
       {
-        r[(a / 2) & 0x3f] = base[source++ & mask];
+        r[(a / 2) & 0x3f] = base[source++ & mask] & 0xeee;
         // AutoIncrement
-        a += inc;
+        a = (a+inc) & ~0x20000;
       }
       break;
 
@@ -488,22 +512,20 @@ static void DmaSlow(int len, unsigned int source)
       r = PicoMem.vsram;
       for (; len; len--)
       {
-        r[(a / 2) & 0x3f] = base[source++ & mask];
+        r[(a / 2) & 0x3f] = base[source++ & mask] & 0x7ff;
         // AutoIncrement
-        a += inc;
+        a = (a+inc) & ~0x20000;
       }
       break;
 
     case 0x81: // vram 128k
-      a |= Pico.video.addr_u << 16;
       for(; len; len--)
       {
-        VideoWrite128(a, base[source++ & mask]);
+        u16 d = base[source++ & mask];
+        VideoWriteVRAM128(a, d);
         // AutoIncrement
-        a = (a + inc) & 0x1ffff;
+        a = (a+inc) & ~0x20000;
       }
-      Pico.video.addr_u = a >> 16;
-      Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
       break;
 
     default:
@@ -512,12 +534,13 @@ static void DmaSlow(int len, unsigned int source)
       break;
   }
   // remember addr
-  Pico.video.addr=(u16)a;
+  Pico.video.addr = a;
+  Pico.video.addr_u = a >> 16;
 }
 
 static void DmaCopy(int len)
 {
-  u16 a = Pico.video.addr;
+  u32 a = Pico.video.addr | (Pico.video.addr_u << 16);
   u8 *vr = (u8 *)PicoMem.vram;
   u8 inc = Pico.video.reg[0xf];
   int source;
@@ -528,21 +551,23 @@ static void DmaCopy(int len)
   source =Pico.video.reg[0x15];
   source|=Pico.video.reg[0x16]<<8;
 
-  // XXX implement VRAM 128k? Is this even working?
+  // XXX implement VRAM 128k? Is this even working? count still in bytes?
   for (; len; len--)
   {
-    vr[a] = vr[source++ & 0xffff];
+    vr[(u16)a] = vr[(u16)(source++)];
+    if (!((u16)(a^sat) >> satxbits))
+      UpdateSAT(a, ((u16 *)vr)[(u16)a >> 1]);
     // AutoIncrement
-    a=(u16)(a+inc);
+    a = (a+inc) & ~0x20000;
   }
   // remember addr
-  Pico.video.addr=a;
-  Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
+  Pico.video.addr = a;
+  Pico.video.addr_u = a >> 16;
 }
 
 static NOINLINE void DmaFill(int data)
 {
-  u16 a = Pico.video.addr;
+  u32 a = Pico.video.addr | (Pico.video.addr_u << 16);
   u8 *vr = (u8 *)PicoMem.vram;
   u8 high = (u8)(data >> 8);
   u8 inc = Pico.video.reg[0xf];
@@ -561,40 +586,41 @@ static NOINLINE void DmaFill(int data)
       for (l = len; l; l--) {
         // Write upper byte to adjacent address
         // (here we are byteswapped, so address is already 'adjacent')
-        vr[a] = high;
+        vr[(u16)a] = high;
+        if (!((u16)(a^sat) >> satxbits))
+          UpdateSAT(a, ((u16 *)vr)[(u16)a >> 1]);
 
         // Increment address register
-        a = (u16)(a + inc);
+        a = (a+inc) & ~0x20000;
       }
-      Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
       break;
     case 3:   // cram
       Pico.m.dirtyPal = 1;
+      data &= 0xeee;
       for (l = len; l; l--) {
         PicoMem.cram[(a/2) & 0x3f] = data;
 
         // Increment address register
-        a += inc;
+        a = (a+inc) & ~0x20000;
       }
       break;
     case 5: { // vsram
+      data &= 0x7ff;
       for (l = len; l; l--) {
         PicoMem.vsram[(a/2) & 0x3f] = data;
 
         // Increment address register
-        a += inc;
+        a = (a+inc) & ~0x20000;
       }
       break;
     }
     case 0x81: // vram 128k
       for (l = len; l; l--) {
-        VideoWrite128(a, data);
+        VideoWriteVRAM128(a, data);
 
         // Increment address register
-        a = (a + inc) & 0x1ffff;
+        a = (a+inc) & ~0x20000;
       }
-      Pico.video.addr_u = a >> 16;
-      Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
       break;
     default:
       a += len * inc;
@@ -603,6 +629,7 @@ static NOINLINE void DmaFill(int data)
 
   // remember addr
   Pico.video.addr = a;
+  Pico.video.addr_u = a >> 16;
   // register update
   Pico.video.reg[0x13] = Pico.video.reg[0x14] = 0;
   source  = Pico.video.reg[0x15];
@@ -779,14 +806,21 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
             pvid->status |= ((d >> 3) ^ SR_VB) & SR_VB; // forced blanking
             goto update_irq;
           case 0x05:
-            //elprintf(EL_STATUS, "spritep moved to %04x", (unsigned)(Pico.video.reg[5]&0x7f) << 9);
+          case 0x06:
             if (d^dold) Pico.est.rendstatus |= PDRAW_SPRITES_MOVED;
             break;
           case 0x0c:
             // renderers should update their palettes if sh/hi mode is changed
             if ((d^dold)&8) Pico.m.dirtyPal = 1;
             break;
+          default:
+            return;
         }
+        sat = ((pvid->reg[5]&0x7f) << 9) | ((pvid->reg[6]&0x20) << 11);
+        satxbits = 9;
+        if (Pico.video.reg[12]&1)
+          sat &= ~0x200, satxbits = 10; // H40, zero lowest SAT bit
+        //elprintf(EL_STATUS, "spritep moved to %04x", sat);
         return;
 
 update_irq:
@@ -990,6 +1024,11 @@ void PicoVideoLoad(void)
     fifo_total = Pico.m.dma_xfers;
     Pico.m.dma_xfers = 0;
   }
+
+  sat = ((pv->reg[5]&0x7f) << 9) | ((pv->reg[6]&0x20) << 11);
+  satxbits = 9;
+  if (pv->reg[12]&1)
+    sat &= ~0x200, satxbits = 10; // H40, zero lowest SAT bit
 
   // rebuild SAT cache XXX wrong since cache and memory can differ
   for (l = 0; l < 80; l++) {
