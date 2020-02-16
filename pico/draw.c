@@ -339,12 +339,13 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
       oldcode = code;
       // Get tile address/2:
       addr=(code&0x7ff)<<4;
-      if (code&0x1000) addr+=14-ty; else addr+=ty; // Y-flip
 
       pal=((code>>9)&0x30)|((plane_sh<<5)&0x40);
     }
 
-    pack = *(unsigned int *)(PicoMem.vram + addr);
+    if (code & 0x1000) ty ^= 0xe; // Y-flip
+    pack = *(unsigned int *)(PicoMem.vram + addr+ty);
+
     if (!pack) {
       blank = code;
       continue;
@@ -394,7 +395,7 @@ void DrawStripInterlace(struct TileStrip *ts)
     if (code!=oldcode) {
       oldcode = code;
       // Get tile address/2:
-      addr=(code&0x7ff)<<5;
+      addr=(code&0x3ff)<<5;
       if (code&0x1000) addr+=30-ty; else addr+=ty; // Y-flip
 
 //      pal=Pico.cram+((code>>9)&0x30);
@@ -449,8 +450,11 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
   else            ts.nametab=(pvid->reg[2]&0x38)<< 9; // A
 
   htab=pvid->reg[13]<<9; // Horizontal scroll table address
-  if ( pvid->reg[11]&2)     htab+=est->DrawScanline<<1; // Offset by line
-  if ((pvid->reg[11]&1)==0) htab&=~0xf; // Offset by tile
+  switch (pvid->reg[11]&3) {
+    case 1: htab += (est->DrawScanline<<1) &  0x0f; break;
+    case 2: htab += (est->DrawScanline<<1) & ~0x0f; break; // Offset by tile
+    case 3: htab += (est->DrawScanline<<1);         break; // Offset by line
+  }
   htab+=plane_sh&1; // A or B
 
   // Get horizontal scroll value, will be masked later
@@ -626,9 +630,9 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est
 
   if (!sh)
   {
-    short blank=-1; // The tile we know is blank
+    int blank=-1; // The tile we know is blank
     while ((code=*hc++)) {
-      if (!(code & 0x8000) || (short)code == blank)
+      if (!(code & 0x8000) || (unsigned short)code == blank)
         continue;
       // Get tile address/2:
       addr = (code & 0x7ff) << 4;
@@ -636,7 +640,7 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est
 
       pack = *(unsigned int *)(PicoMem.vram + addr);
       if (!pack) {
-        blank = (short)code;
+        blank = (unsigned short)code;
         continue;
       }
 

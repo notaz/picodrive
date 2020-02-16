@@ -342,11 +342,15 @@ DrawLayer:
 
     mov     r4, r8, lsr #8        @ pvid->reg[13]
     mov     r4, r4, lsl #10       @ htab=pvid->reg[13]<<9; (halfwords)
-    tst     r7, #2
-    addne   r4, r4, r2, lsl #2    @ htab+=DrawScanline<<1; // Offset by line
-    tst     r7, #1
-    biceq   r4, r4, #0x1f         @ htab&=~0xf; // Offset by tile
-    add     r4, r4, r0, lsl #1    @ htab+=plane
+
+    ands    r3, r7, #0x03
+    beq     0f
+    cmp     r3, #2
+    mov     r3, r2, lsl #2        @ htab+=DrawScanline<<1; // Offset by line
+    biceq   r3, #0x1f             @ htab&=~0xf; // Offset by tile
+    andlt   r3, #0x1f
+    add     r4, r4, r3
+0:  add     r4, r4, r0, lsl #1    @ htab+=plane
     bic     r4, r4, #0x00ff0000   @ just in case
     ldrh    r3, [lr, r4]          @ r3=hscroll
 
@@ -599,6 +603,7 @@ DrawLayer:
     tst     r7, #0x8000
     bne     .DrawStrip_vs_hiprio
 
+    orr     r7, r7, r10, lsl #24  @ code | (ty << 24)
     cmp     r7, r9
     beq     .DrawStrip_vs_samecode @ we know stuff about this tile already
 
