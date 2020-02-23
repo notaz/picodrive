@@ -341,7 +341,7 @@ static __inline void UpdateSAT(u32 a, u32 d)
 {
   Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
   if (!((a^sat) >> satxbits) && !(a & 4)) {
-    int num = (a >> 3) & 0x7f;
+    int num = (a-sat) >> 3;
     ((u16 *)&VdpSATCache[num])[(a&3) >> 1] = d;
   }
 }
