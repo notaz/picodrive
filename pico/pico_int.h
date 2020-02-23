@@ -296,10 +296,9 @@ extern SH2 sh2s[2];
 // not part of real SR
 #define PVS_ACTIVE    (1 << 16)
 #define PVS_VB2       (1 << 17) // ignores forced blanking
-#define PVS_CPUWR     (1 << 18) // CPU hold by FIFO full
-#define PVS_CPURD     (1 << 19) // CPU hold by FIFO full
-#define PVS_DMAPEND   (1 << 20) // DMA operation waiting for start
-#define PVS_DMAFILL   (1 << 21) // DMA fill is in progress
+#define PVS_CPUWR     (1 << 18) // CPU write blocked by FIFO full
+#define PVS_CPURD     (1 << 19) // CPU read blocked by FIFO not empty
+#define PVS_DMAFILL   (1 << 20) // DMA fill is waiting for fill data
 
 struct PicoVideo
 {
