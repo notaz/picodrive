@@ -19,3 +19,7 @@ obj/
 .opk_data
 PicoDrive
 PicoDrive.opk
+pico_int_offs.h
+amalgamate
+textfilter
+

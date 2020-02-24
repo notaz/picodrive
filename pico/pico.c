@@ -38,6 +38,7 @@ void PicoInit(void)
   PicoInitMCD();
   PicoSVPInit();
   Pico32xInit();
+  PsndInit();
 
   PicoDrawInit();
   PicoDraw2Init();
@@ -50,6 +51,7 @@ void PicoExit(void)
     PicoExitMCD();
   PicoCartUnload();
   z80_exit();
+  PsndExit();
 
   free(Pico.sv.data);
   Pico.sv.data = NULL;

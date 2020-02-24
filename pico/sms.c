@@ -15,6 +15,13 @@
 #include "pico_int.h"
 #include "memory.h"
 #include "sound/sn76496.h"
+#include "sound/emu2413/emu2413.h"
+
+extern void YM2413_regWrite(unsigned reg);
+extern void YM2413_dataWrite(unsigned data);
+
+
+static unsigned short ymflag = 0xffff;
 
 static unsigned char vdp_data_read(void)
 {
@@ -100,42 +107,61 @@ static unsigned char z80_sms_in(unsigned short a)
   unsigned char d = 0;
 
   elprintf(EL_IO, "z80 port %04x read", a);
-  a &= 0xc1;
-  switch (a)
-  {
-    case 0x00:
-    case 0x01:
-      d = 0xff;
+  if((a&0xff)>= 0xf0){
+    switch((a&0xff))
+    {
+    case 0xf0:
+      // FM reg port
       break;
-
-    case 0x40: /* V counter */
-      d = Pico.video.v_counter;
-      elprintf(EL_HVCNT, "V counter read: %02x", d);
+    case 0xf1:
+      // FM data port
       break;
-
-    case 0x41: /* H counter */
-      d = Pico.m.rotate++;
-      elprintf(EL_HVCNT, "H counter read: %02x", d);
+    case 0xf2:
+      // bit 0 = 1 active FM Pac
+      if (PicoIn.opt & POPT_EN_YM2413){
+        d = ymflag;
+        //printf("read FM Check = %02x\n", d);
+      }
       break;
-
-    case 0x80:
-      d = vdp_data_read();
-      break;
-
-    case 0x81:
-      d = vdp_ctl_read();
-      break;
-
-    case 0xc0: /* I/O port A and B */
-      d = ~((PicoIn.pad[0] & 0x3f) | (PicoIn.pad[1] << 6));
-      break;
-
-    case 0xc1: /* I/O port B and miscellaneous */
-      d = (Pico.ms.io_ctl & 0x80) | ((Pico.ms.io_ctl << 1) & 0x40) | 0x30;
-      d |= ~(PicoIn.pad[1] >> 2) & 0x0f;
-      break;
+    }
   }
+  else{
+    a &= 0xc1;
+    switch (a)
+    {
+      case 0x00:
+      case 0x01:
+        d = 0xff;
+        break;
 
+      case 0x40: /* V counter */
+        d = Pico.video.v_counter;
+        elprintf(EL_HVCNT, "V counter read: %02x", d);
+        break;
+
+      case 0x41: /* H counter */
+        d = Pico.m.rotate++;
+        elprintf(EL_HVCNT, "H counter read: %02x", d);
+        break;
+
+      case 0x80:
+        d = vdp_data_read();
+        break;
+
+      case 0x81:
+        d = vdp_ctl_read();
+        break;
+
+      case 0xc0: /* I/O port A and B */
+        d = ~((PicoIn.pad[0] & 0x3f) | (PicoIn.pad[1] << 6));
+        break;
+
+      case 0xc1: /* I/O port B and miscellaneous */
+        d = (Pico.ms.io_ctl & 0x80) | ((Pico.ms.io_ctl << 1) & 0x40) | 0x30;
+        d |= ~(PicoIn.pad[1] >> 2) & 0x0f;
+        break;
+    }
+  }
   elprintf(EL_IO, "ret = %02x", d);
   return d;
 }
@@ -143,27 +169,52 @@ static unsigned char z80_sms_in(unsigned short a)
 static void z80_sms_out(unsigned short a, unsigned char d)
 {
   elprintf(EL_IO, "z80 port %04x write %02x", a, d);
-  a &= 0xc1;
-  switch (a)
-  {
-    case 0x01:
-      Pico.ms.io_ctl = d;
-      break;
 
-    case 0x40:
-    case 0x41:
-      if ((d & 0x90) == 0x90)
-        PsndDoPSG(Pico.m.scanline);
-      SN76496Write(d);
-      break;
+  if((a&0xff)>= 0xf0){
+    switch((a&0xff))
+    {
+      case 0xf0:
+        // FM reg port
+        YM2413_regWrite(d);
+        //printf("write FM register = %02x\n", d);
+        break;
+      case 0xf1:
+        // FM data port
+        YM2413_dataWrite(d);
+        //printf("write FM data = %02x\n", d);
+        break;
+      case 0xf2:
+        // bit 0 = 1 active FM Pac
+        if (PicoIn.opt & POPT_EN_YM2413){
+          ymflag = d;
+          //printf("write FM Check = %02x\n", d);
+        }
+        break;
+    }
+  }
+  else{
+    a &= 0xc1;
+    switch (a)
+    {
+      case 0x01:
+        Pico.ms.io_ctl = d;
+        break;
 
-    case 0x80:
-      vdp_data_write(d);
-      break;
+      case 0x40:
+      case 0x41:
+        if ((d & 0x90) == 0x90)
+          PsndDoPSG(Pico.m.scanline);
+        SN76496Write(d);
+        break;
 
-    case 0x81:
-      vdp_ctl_write(d);
-      break;
+      case 0x80:
+        vdp_data_write(d);
+        break;
+
+      case 0x81:
+        vdp_ctl_write(d);
+        break;
+    }
   }
 }
 
@@ -212,6 +263,7 @@ void PicoResetMS(void)
 {
   z80_reset();
   PsndReset(); // pal must be known here
+  ymflag = 0xffff;
 }
 
 void PicoPowerMS(void)

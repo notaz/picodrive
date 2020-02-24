@@ -931,6 +931,7 @@ menu_entry opt2_entries[] =
 	{ "Emulate Z80",               MB_ONOFF, MA_OPT2_ENABLE_Z80,    &PicoIn.opt, 0x00004, 0, 0, 1, 1 },
 	{ "Emulate YM2612 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2612, &PicoIn.opt, 0x00001, 0, 0, 1, 1 },
 	{ "Emulate SN76496 (PSG)",     MB_ONOFF, MA_OPT2_ENABLE_SN76496,&PicoIn.opt, 0x00002, 0, 0, 1, 1 },
+	{ "Emulate YM2413 (FM)",       MB_ONOFF, MA_OPT2_ENABLE_YM2413, &PicoIn.opt, 0x00020, 0, 0, 1, 1 },
 	{ "Double buffering",          MB_ONOFF, MA_OPT2_DBLBUFF,       &currentConfig.EmuOpt, 0x8000, 0, 0, 1, 1 },
 	{ "Wait for V-sync (slow)",    MB_ONOFF, MA_OPT2_VSYNC,         &currentConfig.EmuOpt, 0x2000, 0, 0, 1, 1 },
 	{ "gzip savestates",           MB_ONOFF, MA_OPT2_GZIP_STATES,   &currentConfig.EmuOpt, 0x0008, 0, 0, 1, 1 },

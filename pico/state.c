@@ -11,10 +11,12 @@
 
 #include "../cpu/sh2/sh2.h"
 #include "sound/ym2612.h"
+#include "sound/emu2413/emu2413.h"
 #include "state.h"
 
-// sn76496
+// sn76496 & ym2413
 extern int *sn76496_regs;
+extern OPLL old_opll;
 
 static arearw    *areaRead;
 static arearw    *areaWrite;
@@ -123,6 +125,8 @@ typedef enum {
   CHUNK_DRAM,
   CHUNK_32XPAL,
   CHUNK_32X_EVT,
+  CHUNK_YM2413,   //40
+  //rename
   CHUNK_32X_FIRST = CHUNK_MSH2,
   CHUNK_32X_LAST = CHUNK_32X_EVT,
   // add new stuff here
@@ -133,6 +137,7 @@ typedef enum {
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
+
 } chunk_name_e;
 
 static const char * const chunk_names[CHUNK_DEFAULT_COUNT] = {
@@ -179,6 +184,7 @@ static const char * const chunk_names[CHUNK_DEFAULT_COUNT] = {
   "DRAM",
   "PAL",
   "events",
+  "YM2413",   //40
 };
 
 static int write_chunk(chunk_name_e name, int len, void *data, void *file)
@@ -282,6 +288,8 @@ static int state_save(void *file)
     memset(buff, 0, 0x40);
     memcpy(buff, pcd_event_times, sizeof(pcd_event_times));
     CHECKED_WRITE(CHUNK_CD_EVT, 0x40, buff);
+
+    CHECKED_WRITE(CHUNK_YM2413, sizeof(OPLL), &old_opll);
 
     len = gfx_context_save(buf2);
     CHECKED_WRITE(CHUNK_CD_GFX, len, buf2);
@@ -442,6 +450,7 @@ static int state_load(void *file)
 
       case CHUNK_IOPORTS: CHECKED_READ_BUFF(PicoMem.ioports); break;
       case CHUNK_PSG:     CHECKED_READ2(28*4, sn76496_regs); break;
+      case CHUNK_YM2413:  CHECKED_READ2(sizeof(OPLL), &old_opll); break;
       case CHUNK_FM:
         ym2612_regs = YM2612GetRegs();
         CHECKED_READ2(0x200+4, ym2612_regs);

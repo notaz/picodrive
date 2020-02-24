@@ -434,6 +434,7 @@ struct PicoSound
   unsigned int dac_pos;                 // last DAC position in Q20
   unsigned int fm_pos;                  // last FM position in Q20
   unsigned int psg_pos;                 // last PSG position in Q16
+  unsigned int ym2413_pos;              // last YM2413 position
 };
 
 // run tools/mkoffsets pico/pico_int_offs.h if you change these
@@ -897,10 +898,13 @@ PICO_INTERNAL_ASM void wram_2M_to_1M(unsigned char *m);
 PICO_INTERNAL_ASM void wram_1M_to_2M(unsigned char *m);
 
 // sound/sound.c
+PICO_INTERNAL void PsndInit(void);
+PICO_INTERNAL void PsndExit(void);
 PICO_INTERNAL void PsndReset(void);
 PICO_INTERNAL void PsndStartFrame(void);
 PICO_INTERNAL void PsndDoDAC(int cycle_to);
 PICO_INTERNAL void PsndDoPSG(int line_to);
+PICO_INTERNAL void PsndDoYM2413(int line_to);
 PICO_INTERNAL void PsndDoFM(int line_to);
 PICO_INTERNAL void PsndClear(void);
 PICO_INTERNAL void PsndGetSamples(int y);
