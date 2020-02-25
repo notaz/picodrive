@@ -200,6 +200,19 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "60"
    },
+#if !defined(RENDER_GSKIT_PS2)
+   {
+      "picodrive_renderer",
+      "Renderer",
+      "Fast renderer can't render any mid-frame image changes so it is useful only for some games.",
+      {
+         { "accurate", NULL },
+         { "fast",  NULL },
+         { NULL, NULL },
+      },
+      "accurate"
+   },
+#endif
    { NULL, NULL, NULL, {{0}}, NULL },
 };
 
