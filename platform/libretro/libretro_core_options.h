@@ -200,6 +200,7 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "60"
    },
+#if !defined(RENDER_GSKIT_PS2)
    {
       "picodrive_renderer",
       "Renderer",
@@ -211,6 +212,7 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "accurate"
    },
+#endif
    { NULL, NULL, NULL, {{0}}, NULL },
 };
 

@@ -1545,6 +1545,25 @@ void retro_run(void)
    ps2->padding = padding;
 
 #else
+   if (PicoIn.opt & POPT_ALT_RENDERER) {
+      /* In retro_init, PicoDrawSetOutBuf is called to make sure the output gets written to vout_buf, but this only
+       * applies to the line renderer (pico/draw.c). The faster tile-based renderer (pico/draw2.c) enabled by
+       * POPT_ALT_RENDERER writes to Pico.est.Draw2FB, so we need to manually copy that to vout_buf.
+       */
+      /* This section is mostly copied from pemu_finalize_frame in platform/linux/emu.c */
+      unsigned short *pd = (unsigned short *)vout_buf;
+      /* Skip the leftmost 8 columns (it seems to be used as some sort of caching or overscan area) */
+      unsigned char *ps = Pico.est.Draw2FB + 8;
+      unsigned short *pal = Pico.est.HighPal;
+      int x;
+      if (Pico.m.dirtyPal)
+         PicoDrawUpdateHighPal();
+      /* Copy up to the max height to include the overscan area, and skip the leftmost 8 columns again */
+      for (i = 0; i < VOUT_MAX_HEIGHT; i++, ps += 8)
+         for (x = 0; x < vout_width; x++)
+            *pd++ = pal[*ps++];
+   }
+
    buff = (char*)vout_buf + vout_offset;
 #endif
 
