@@ -2,6 +2,7 @@
  * PicoDrive
  * (c) Copyright Dave, 2004
  * (C) notaz, 2006-2009
+ * (C) kub, 2020
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -58,38 +59,38 @@ static const int vdpsl2cyc_bl[] = { (488<<16)/166, (488<<16)/204 };
 
 // VDP transfer slots in active display 32col mode. 1 slot is 488/171 = 2.8538
 // 68k cycles. Only 16 of the 171 slots in a scanline can be used by CPU/DMA:
-// (HINT=slot 0): 13,27,42,50,58,74,82,90,106,114,122,138,146,154,169,170
+// (HINT=slot 0): 11,25,40,48,56,72,80,88,104,112,120,136,144,152,167,168
 static const unsigned char vdpcyc2sl_32[] = { // 68k cycles/4 to slot #
 //  4  8 12 16 20 24 28 32 36 40 44 48 52 56 60
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
- 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3,
- 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5,
- 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7,
- 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9,
- 9,10,10,10,10,10,10,11,11,11,11,11,11,11,11,11,
-11,11,12,12,12,12,12,12,13,13,13,13,13,13,14,14,
-14,14,14,14,14,14,14,14,15,16,16,16,16,16,16,16,
+ 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+ 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3,
+ 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+ 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 8, 8,
+ 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9,10,
+10,10,10,10,10,11,11,11,11,11,11,11,11,11,11,11,
+11,12,12,12,12,12,13,13,13,13,13,13,14,14,14,14,
+14,14,14,14,14,14,14,15,16,16,16,16,16,16,16,16,
 };
 static const unsigned char vdpsl2cyc_32[] = { // slot # to 68k cycles/4
-  0,  9, 19, 30, 35, 41, 52, 58, 64, 75, 81, 87, 98,104,110,120,121,131
+  0,  8, 18, 28, 33, 39, 51, 56, 62, 74, 79, 85, 97,102,108,119,120,130
 };
 
 // VDP transfer slots in active display 40col mode. 1 slot is 488/210 = 2.3238
 // 68k cycles. Only 18 of the 210 slots in a scanline can be used by CPU/DMA:
-// (HINT=0): 23,49,57,65,81,89,97,113,121,129,145,153,161,177,185,193,208,209
+// (HINT=0): 21,47,55,63,79,87,95,111,119,127,143,151,159,175,183,191,206,207,
 static const unsigned char vdpcyc2sl_40[] = { // 68k cycles/4 to slot #
 //  4  8 12 16 20 24 28 32 36 40 44 48 52 56 60
- 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
- 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2,
- 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5,
- 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7,
- 7, 8, 8, 8, 8, 8, 9, 9, 9, 9,10,10,10,10,10,10,
-10,10,10,10,11,11,11,11,12,12,12,12,12,13,13,13,
-13,13,13,13,13,13,14,14,14,14,14,15,15,15,15,15,
-16,16,16,16,16,16,16,16,17,18,18,18,18,18,18,18,
+ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2,
+ 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5,
+ 5, 5, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+ 8, 8, 8, 8, 8, 9, 9, 9, 9,10,10,10,10,10,10,10,
+10,10,10,11,11,11,11,12,12,12,12,12,13,13,13,13,
+13,13,13,13,13,14,14,14,14,14,15,15,15,15,15,16,
+16,16,16,16,16,16,16,17,18,18,18,18,18,18,18,18,
 };
 static const unsigned char vdpsl2cyc_40[] = { // slot # to 68k cycles/4
-  0, 13, 28, 33, 37, 47, 51, 56, 65, 70, 74, 84, 88, 93,102,107,112,120,121,135
+  0, 12, 27, 32, 36, 46, 50, 55, 64, 69, 73, 83, 87, 92,101,106,111,119,120,134
 };
 
 // NB code assumes fifo_* arrays have size 2^n
@@ -164,7 +165,7 @@ static __inline void SetFIFOState(struct PicoVideo *pv)
   if (fifo_total <= 4) {
     int x = (fifo_qx + fifo_ql - 1) & 7;
     if ((pv->status & SR_DMA) && !(pv->status & PVS_DMAFILL) &&
-                fifo_ql && !(fifo_queue[x] & FQ_BGDMA)) {
+                (!fifo_ql || !(fifo_queue[x] & FQ_BGDMA))) {
       pv->status &= ~SR_DMA;
       pv->command &= ~0x80;
     }
@@ -263,7 +264,7 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
   if (count && fifo_ql < 8) {
     // update FIFO state if it was empty
     if (fifo_ql == 0) {
-      fifo_slot = GetFIFOSlot(pv, lc+10); // FIFO latency ~4 vdp slots
+      fifo_slot = GetFIFOSlot(pv, lc+9); // FIFO latency ~3 vdp slots
       pv->fifo_cnt = count << (flags & FQ_BYTE);
     }
 
@@ -340,7 +341,7 @@ static __inline void AutoIncrement(void)
 static __inline void UpdateSAT(u32 a, u32 d)
 {
   Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
-  if (!((a^sat) >> satxbits) && !(a & 4)) {
+  if (!(a & 4)) {
     int num = (a-sat) >> 3;
     ((u16 *)&VdpSATCache[num])[(a&3) >> 1] = d;
   }
@@ -672,7 +673,6 @@ static NOINLINE void CommandDma(void)
              fifo_total, SekPc);
     fifo_total = fifo_ql = 0;
   }
-  pvid->status |= SR_DMA;
 
   len = GetDmaLength();
   source =Pico.video.reg[0x15];
@@ -685,7 +685,7 @@ static NOINLINE void CommandDma(void)
   else if (method == 3)
     DmaCopy(len); // VRAM Copy
   else {
-    pvid->status |= PVS_DMAFILL;
+    pvid->status |= SR_DMA|PVS_DMAFILL;
     return;
   }
   source += len;
@@ -747,7 +747,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
         !(!pvid->pending &&
           ((pvid->command & 0xc00000f0) == 0x40000010 && PicoMem.vsram[pvid->addr>>1] == (d & 0x7ff)))
        )
-      DrawSync(SekCyclesDone() - Pico.t.m68c_line_start <= 488-440);
+      DrawSync(0); // XXX  it's unclear when vscroll data is fetched from vsram?
 
     if (pvid->pending) {
       CommandChange();
@@ -902,8 +902,8 @@ update_irq:
 static u32 VideoSr(const struct PicoVideo *pv)
 {
   unsigned int c, d = pv->status;
-  unsigned int hp = pv->reg[12]&1 ? 32:40; // HBLANK start
-  unsigned int hl = pv->reg[12]&1 ? 94:84; // HBLANK length
+  unsigned int hp = pv->reg[12]&1 ? 15*488/210+1 : 15*488/171+1; // HBLANK start
+  unsigned int hl = pv->reg[12]&1 ? 37*488/210+1 : 28*488/171+1; // HBLANK len
 
   c = SekCyclesDone() - Pico.t.m68c_line_start;
   if (c - hp < hl)
@@ -1013,7 +1013,9 @@ unsigned char PicoVideoRead8HV_H(void)
 unsigned char PicoVideoRead8HV_L(void)
 {
   u32 d = (SekCyclesDone() - Pico.t.m68c_line_start) & 0x1ff; // FIXME
-  if (Pico.video.reg[12]&1)
+  if (Pico.video.reg[0]&2)
+       d = Pico.video.hv_latch;
+  else if (Pico.video.reg[12]&1)
        d = hcounts_40[d];
   else d = hcounts_32[d];
   elprintf(EL_HVCNT, "hcounter: %02x [%u] @ %06x", d, SekCyclesDone(), SekPc);
