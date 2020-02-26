@@ -19,6 +19,41 @@ static void (*FinalizeLineM4)(int line);
 static int skip_next_line;
 static int screen_offset;
 
+#define PLANAR_PIXELL(x,p) \
+  t = pack & (0x80808080 >> p); \
+  t = ((t >> (7-p)) | (t >> (14-p)) | (t >> (21-p)) | (t >> (28-p))) & 0x0f; \
+  pd[x] = pal|t;
+
+static void TileNormM4Low(int sx, unsigned int pack, int pal)
+{
+  unsigned char *pd = Pico.est.HighCol + sx;
+  unsigned int t;
+
+  PLANAR_PIXELL(0, 0)
+  PLANAR_PIXELL(1, 1)
+  PLANAR_PIXELL(2, 2)
+  PLANAR_PIXELL(3, 3)
+  PLANAR_PIXELL(4, 4)
+  PLANAR_PIXELL(5, 5)
+  PLANAR_PIXELL(6, 6)
+  PLANAR_PIXELL(7, 7)
+}
+
+static void TileFlipM4Low(int sx, unsigned int pack, int pal)
+{
+  unsigned char *pd = Pico.est.HighCol + sx;
+  unsigned int t;
+
+  PLANAR_PIXELL(0, 7)
+  PLANAR_PIXELL(1, 6)
+  PLANAR_PIXELL(2, 5)
+  PLANAR_PIXELL(3, 4)
+  PLANAR_PIXELL(4, 3)
+  PLANAR_PIXELL(5, 2)
+  PLANAR_PIXELL(6, 1)
+  PLANAR_PIXELL(7, 0)
+}
+
 #define PLANAR_PIXEL(x,p) \
   t = pack & (0x80808080 >> p); \
   if (t) { \
@@ -111,7 +146,49 @@ static void draw_sprites(int scanline)
 }
 
 // tilex_ty_prio merged to reduce register pressure
-static void draw_strip(const unsigned short *nametab, int dx, int cells, int tilex_ty_prio)
+static void draw_strip_low(const unsigned short *nametab, int dx, int cells, int tilex_ty_prio)
+{
+  int oldcode = -1, blank = -1; // The tile we know is blank
+  int addr = 0, pal = 0;
+
+  // Draw tiles across screen:
+  for (; cells > 0; dx += 8, tilex_ty_prio++, cells--)
+  {
+    unsigned int pack;
+    int code;
+
+    code = nametab[tilex_ty_prio & 0x1f];
+    if (code == blank)
+      continue;
+      /*
+    if ((code ^ tilex_ty_prio) & 0x1000) // priority differs?
+      continue;
+      */
+
+    if (code != oldcode) {
+      oldcode = code;
+      // Get tile address/2:
+      addr = (code & 0x1ff) << 4;
+      addr += tilex_ty_prio >> 16;
+      if (code & 0x0400)
+        addr ^= 0xe; // Y-flip
+
+      pal = (code>>7) & 0x10;
+    }
+
+    pack = *(unsigned int *)(PicoMem.vram + addr); /* Get 4 bitplanes / 8 pixels */
+    /*
+    if (pack == 0) {
+      blank = code;
+      continue;
+    }
+    */
+    if (code & 0x0200) TileFlipM4Low(dx, pack, pal);
+    else               TileNormM4Low(dx, pack, pal);
+  }
+}
+// tilex_ty_prio merged to reduce register pressure
+static void draw_strip_high(const unsigned short *nametab, int dx, int cells, int tilex_ty_prio)
 {
   int oldcode = -1, blank = -1; // The tile we know is blank
   int addr = 0, pal = 0;
@@ -184,7 +261,7 @@ static void DrawDisplayM4(int scanline)
 
   // low priority tiles
   if (!(pv->debug_p & PVD_KILL_B))
-    draw_strip(nametab, dx, cells, tilex | 0x0000 | (ty << 16));
+    draw_strip_low(nametab, dx, cells, tilex | 0x0000 | (ty << 16));
 
   // sprites
   if (!(pv->debug_p & PVD_KILL_S_LO))
@@ -192,7 +269,7 @@ static void DrawDisplayM4(int scanline)
 
   // high priority tiles (use virtual layer switch just for fun)
   if (!(pv->debug_p & PVD_KILL_A))
-    draw_strip(nametab, dx, cells, tilex | 0x1000 | (ty << 16));
+    draw_strip_high(nametab, dx, cells, tilex | 0x1000 | (ty << 16));
 
   if (pv->reg[0] & 0x20) {
     // first column masked, caculate offset to start of line
