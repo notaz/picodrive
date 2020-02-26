@@ -1243,7 +1243,7 @@ static void DrawAllSprites(unsigned char *sprited, int prio, int sh,
                            struct PicoEState *est)
 {
   unsigned char *p;
-  int cnt, w = sprited[2];
+  int cnt, w;
 
   cnt = sprited[0] & 0x7f;
   if (cnt == 0) return;
