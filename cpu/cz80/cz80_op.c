@@ -712,6 +712,8 @@ OP_EI:
 			if (CPU->IRQState)
 			{
 				afterEI = 1;
+				CPU->ExtraCycles += 1 - CPU->ICount;
+				CPU->ICount = 1;
 			}
 		}
 		else zIFF2 = (1 << 2);
