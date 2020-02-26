@@ -1169,7 +1169,9 @@ DrawSprite:
     mov     r2, r0, lsl #24
     cmp     r0, #0xff
     ldmeqfd sp!, {r1,r3-r11,pc} @ end of list
-    eor     r2, r2, r4, lsl #30
+    eors    r2, r2, r4, lsl #30
+    bic     r2, r4, #0xff000000
+    str     r2, [sp]
     bmi     DrawSprite      @ wrong priority
     ldr     r1, [r7, #OFS_EST_HighPreSpr]
     and     r0, r0, #0x7f
@@ -1210,8 +1212,6 @@ DrawSprite:
     add     r6, r6, #1         @ inc now
     cmp     r4, #0x1000000     @ check width of last sprite
     movhs   r6, r4, lsr #24
-    bichs   r4, r4, #0xff000000
-    strhs   r4, [sp]
 
     @ cache some stuff to avoid mem access
     mov     r5, r5, lsl #4     @ delta<<=4; // Delta of address
