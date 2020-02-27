@@ -101,9 +101,9 @@ static short fifo_data[4], fifo_dx; // XXX must go into save?
 // each entry has 2 values: [n]>>3 = #writes, [n]&7 = flags
 static int fifo_queue[8], fifo_qx, fifo_ql; // XXX must go into save?
 enum { FQ_BYTE = 1, FQ_BGDMA = 2, FQ_FGDMA = 4 }; // queue flags, NB: BYTE = 1!
-unsigned int fifo_total;        // total# of pending FIFO entries (w/o BGDMA)
+static unsigned int fifo_total;    // total# of pending FIFO entries (w/o BGDMA)
 
-unsigned short fifo_slot;       // last executed slot in current scanline
+static unsigned short fifo_slot;   // last executed slot in current scanline
 
 // map cycles to FIFO slot
 static __inline int GetFIFOSlot(struct PicoVideo *pv, int cycles)
@@ -313,7 +313,7 @@ int PicoVideoFIFOHint(void)
 }
 
 // switch FIFO mode between active/inactive display
-void PicoVideoFIFOMode(int active)
+static void PicoVideoFIFOMode(int active)
 {
   struct PicoVideo *pv = &Pico.video;
   int h40 = pv->reg[12] & 1;
@@ -671,7 +671,7 @@ static NOINLINE void CommandDma(void)
   if (pvid->status & SR_DMA) {
     elprintf(EL_VDPDMA, "Dma overlap, left=%d @ %06x",
              fifo_total, SekPc);
-    fifo_total = fifo_ql = 0;
+    pvid->fifo_cnt = fifo_total = fifo_ql = 0;
   }
 
   len = GetDmaLength();
@@ -1029,7 +1029,7 @@ void PicoVideoSave(void)
 
   // account for all outstanding xfers XXX kludge, entry attr's not saved
   for (l = fifo_ql, x = fifo_qx + l-1; l > 1; l--, x--)
-    pv->fifo_cnt += (fifo_queue[x&7] >> 2) << (fifo_queue[x&7] & FQ_BYTE);
+    pv->fifo_cnt += (fifo_queue[x&7] >> 3) << (fifo_queue[x&7] & FQ_BYTE);
 }
 
 void PicoVideoLoad(void)
