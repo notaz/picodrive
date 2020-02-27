@@ -191,7 +191,8 @@ static int PicoFrameHints(void)
   pv->status |= SR_F;
   pv->pending_ints |= 0x20;
   if (pv->reg[1] & 0x20) {
-    SekExecM68k(11); // HACK
+    if (Pico.t.m68c_cnt - Pico.t.m68c_aim < 60) // CPU blocked?
+      SekExecM68k(11); // HACK
     elprintf(EL_INTS, "vint: @ %06x [%u]", SekPc, SekCyclesDone());
     SekInterrupt(6);
   }
