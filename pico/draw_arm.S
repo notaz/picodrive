@@ -317,9 +317,10 @@ DrawLayer:
     moveq   r1,      #0x0007
     movgt   r1,      #0x00ff      @ r1=ymask=(height<<8)|0xff; ...; // Y Mask in pixels
 
-    add     r10, r10, #5
-    cmp     r10, #7
-    subge   r10, r10, #1          @ r10=shift[width] (5,6,6,7)
+    cmp     r10, #2
+    addlt   r10, r10, #5
+    moveq   r10, #5
+    movgt   r10, #7               @ r10=shift[width] (5,6,5,7)
 
     ldr     r2, [r12, #OFS_EST_DrawScanline]
     ldr     lr, [r12, #OFS_EST_PicoMem_vram]
@@ -366,7 +367,8 @@ DrawLayer:
     bne     .DrawStrip_interlace
 
     tst     r0, r0
-    movne   r7, r7, lsr #16
+    moveq   r7, r7, lsl #16
+    mov     r7, r7, lsr #16
 
     @ Find the line in the name table
     add     r2, r2, r7
@@ -699,8 +701,8 @@ DrawLayer:
 @ interlace mode 2? Sonic 2?
 .DrawStrip_interlace:
     tst     r0, r0
-    moveq   r7, r7, lsl #21
-    movne   r7, r7, lsl #5
+    movne   r7, r7, lsr #16
+    mov     r7, r7, lsl #21
 
     @ Find the line in the name table
     add     r2, r7, r2, lsl #22    @ r2=(vscroll+(DrawScanline<<1))<<21 (11 bits);
