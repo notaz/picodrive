@@ -333,7 +333,7 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
     }
 
     code=PicoMem.vram[ts->nametab+nametabadd+(tilex&ts->xmask)];
-    if (code==blank) continue;
+    if ((code<<16|ty)==blank) continue;
     if (code>>15) { // high priority tile
       int cval = code | (dx<<16) | (ty<<25);
       if(code&0x1000) cval^=7<<26;
@@ -353,7 +353,7 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
     pack = *(unsigned int *)(PicoMem.vram + addr+ty);
 
     if (!pack) {
-      blank = code;
+      blank = code<<16|ty;
       continue;
     }
 
@@ -638,7 +638,7 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est
   {
     int blank=-1; // The tile we know is blank
     while ((code=*hc++)) {
-      if (!(code & 0x8000) || (unsigned short)code == blank)
+      if ((code<<16|code>>25) == blank)
         continue;
       // Get tile address/2:
       addr = (code & 0x7ff) << 4;
@@ -646,7 +646,7 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est
 
       pack = *(unsigned int *)(PicoMem.vram + addr);
       if (!pack) {
-        blank = (unsigned short)code;
+        blank = code<<16|code>>25;
         continue;
       }
 
@@ -1026,7 +1026,8 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
     delta<<=4; // Delta of address
 
     if (entry+1 == cnt) width = p[entry+1]; // last sprite width limited?
-    for (; width; width--,sx+=8,tile+=delta)
+    mp = mb+(sx>>3);
+    for (m = *mp << 8; width; width--, sx+=8, *mp++ = m, tile+=delta)
     {
       unsigned int pack;
 
@@ -1090,8 +1091,7 @@ static void DrawSpritesForced(unsigned char *sprited)
     delta<<=4; // Delta of address
 
     if (entry+1 == cnt) width = p[entry+1]; // last sprite width limited?
-    mp = mb+(sx>>3);
-    for (m = *mp << 8; width; width--, sx+=8, *mp++ = m, tile+=delta)
+    for (; width; width--,sx+=8,tile+=delta)
     {
       unsigned int pack;
 
