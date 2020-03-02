@@ -796,6 +796,7 @@ DrawTilesFromCache:
     bic     r4, r1, #0xfe00
     add     r1, r11, r4     @ r1=pdest
 
+    movs    r7, r6, lsl #16
     cmp     r5, r7, lsr #16
     beq     .dtfc_samecode  @ if (code==prevcode)
 
