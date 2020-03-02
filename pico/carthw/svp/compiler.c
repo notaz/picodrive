@@ -1438,12 +1438,9 @@ static int translate_op(unsigned int op, int *pc, int imm, int *end_cond, int *j
 			}
 			tr_mov16(0, *pc);
 			tr_r0_to_STACK(*pc);
-			if (tmpv != A_COND_AL) {
-				u32 *real_ptr = tcache_ptr;
-				tcache_ptr = jump_op;
-				EOP_C_B(tr_neg_cond(tmpv),0,real_ptr - jump_op - 2);
-				tcache_ptr = real_ptr;
-			}
+			if (tmpv != A_COND_AL)
+				EOP_C_B_PTR(jump_op, tr_neg_cond(tmpv), 0,
+						tcache_ptr - jump_op - 2);
 			tr_mov16_cond(tmpv, 0, imm);
 			if (tmpv != A_COND_AL)
 				tr_mov16_cond(tr_neg_cond(tmpv), 0, *pc);
@@ -1712,12 +1709,8 @@ static void *emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 			ssp_block_table[pc];
 		if (target != NULL)
 			emith_jump(target);
-		else {
-			int ops = emith_jump(ssp_drc_next);
-			end_ptr = tcache_ptr;
-			// cause the next block to be emitted over jump instruction
-			tcache_ptr -= ops;
-		}
+		else
+			emith_jump(ssp_drc_next);
 	}
 	else {
 		u32 *target1 = (pc     < 0x400) ?
