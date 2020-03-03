@@ -636,19 +636,14 @@ static void DrawTilesFromCache(int *hc, int sh, int rlim, struct PicoEState *est
 
   if (!sh)
   {
-    int blank=-1; // The tile we know is blank
     while ((code=*hc++)) {
-      if ((code<<16|code>>25) == blank)
-        continue;
       // Get tile address/2:
       addr = (code & 0x7ff) << 4;
       addr += code >> 25; // y offset into tile
 
       pack = *(unsigned int *)(PicoMem.vram + addr);
-      if (!pack) {
-        blank = code<<16|code>>25;
+      if (!pack)
         continue;
-      }
 
       dx = (code >> 16) & 0x1ff;
       pal = ((code >> 9) & 0x30);
