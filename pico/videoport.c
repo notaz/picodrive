@@ -53,6 +53,8 @@ int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned
  * FIFORead executes a 68k read. 68k is blocked until the next transfer slot.
  */
 
+// FIFO transfer slots per line: [active][h40]
+static const short vdpslots[2][2] = {{ 166, 204 },{ 16, 18 }};
 // mapping between slot# and 68k cycles in a blanked scanline [H32, H40]
 static const int vdpcyc2sl_bl[] = { (166<<16)/488, (204<<16)/488 };
 static const int vdpsl2cyc_bl[] = { (488<<16)/166, (488<<16)/204 };
@@ -115,6 +117,14 @@ static __inline int GetFIFOSlot(struct PicoVideo *pv, int cycles)
   else		return (cycles * vdpcyc2sl_bl[h40] + cycles) >> 16;
 }
 
+static __inline int GetMaxFIFOSlot(struct PicoVideo *pv)
+{
+  int active = !(pv->status & SR_VB) && (pv->reg[1] & 0x40);
+  int h40 = pv->reg[12] & 1;
+
+  return vdpslots[active][h40];
+}
+
 // map FIFO slot to cycles
 static __inline int GetFIFOCycles(struct PicoVideo *pv, int slot)
 {
@@ -150,7 +160,7 @@ static __inline int AdvanceFIFOEntry(struct PicoVideo *pv, int slots)
     }
     // start processing for next entry if there is one
     if (fifo_ql)
-      pv->fifo_cnt= (fifo_queue[fifo_qx] >> 3) << (fifo_queue[fifo_qx] & FQ_BYTE);
+      pv->fifo_cnt = (fifo_queue[fifo_qx] >> 3) << (fifo_queue[fifo_qx] & FQ_BYTE);
     else
       fifo_total = 0;
   }
@@ -190,14 +200,15 @@ void PicoVideoFIFOSync(int cycles)
     done -= l;
   }
 
-  SetFIFOState(pv);
+  if (done != slots)
+    SetFIFOState(pv);
 }
 
 // drain FIFO, blocking 68k on the way. FIFO must be synced prior to drain.
 int PicoVideoFIFODrain(int level, int cycles, int bgdma)
 {
   struct PicoVideo *pv = &Pico.video;
-  int maxsl = GetFIFOSlot(pv, 488); // max xfer slots in this scanline
+  int maxsl = GetMaxFIFOSlot(pv); // max xfer slots in this scanline
   int burn = 0;
 
   // process FIFO entries until low level is reached
@@ -279,10 +290,17 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
         fifo_queue[(x+1) & 7] = (pv->fifo_cnt >> (f & FQ_BYTE) << 3) | f;
         pv->fifo_cnt = count << (flags & FQ_BYTE);
       }
-    } else
+      x = (x-1) & 7;
+    }
+    if (fifo_ql && (fifo_queue[x] & 7) == flags) {
+      // amalgamate entries if of same type
+      fifo_queue[x] += (count << 3);
+      if (fifo_ql == 1) pv->fifo_cnt += count << (flags & FQ_BYTE);
+    } else {
+      fifo_ql ++;
       x = (x+1) & 7;
-    fifo_queue[x] = (count << 3) | flags;
-    fifo_ql ++;
+      fifo_queue[x] = (count << 3) | flags;
+    }
     if (!(flags & FQ_BGDMA))
       fifo_total += count;
   }
@@ -340,9 +358,10 @@ static __inline void AutoIncrement(void)
 
 static __inline void UpdateSAT(u32 a, u32 d)
 {
+  unsigned num = (a-sat) >> 3;
+
   Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
-  if (!(a & 4)) {
-    int num = (a-sat) >> 3;
+  if (!(a & 4) && num < 128) {
     ((u16 *)&VdpSATCache[num])[(a&3) >> 1] = d;
   }
 }
