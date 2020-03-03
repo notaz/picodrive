@@ -239,7 +239,7 @@ static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
   // NB this can take an eternity on m68k: mov.b <addr1.l>,<addr2.l> needs
   // 28 m68k-cycles (~80 sh2-cycles) to complete (observed in Metal Head)
   q = &fifo[(sh2_poll_wr[hix]-1) % PFIFO_SZ];
-  if (cpu < 0 && rd != wr && q->a == a && !CYCLES_GT(cycles,q->cycles+30)) {
+  if (rd != wr && q->a == a && !CYCLES_GT(cycles,q->cycles + (cpu<0 ? 30:4))) {
     q->d = d;
   } else {
     // store write to poll address in fifo
