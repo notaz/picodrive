@@ -35,7 +35,7 @@ static char *mystrip(char *str);
 
 static int seek_sect(FILE *f, const char *section)
 {
-	char line[128], *tmp;
+	char line[640], *tmp;
 	int len;
 
 	len = strlen(section);
@@ -96,7 +96,7 @@ int config_write(const char *fname)
 	FILE *fn = NULL;
 	menu_entry *me;
 	int t;
-	char line[128];
+	char line[640];
 
 	fn = fopen(fname, "w");
 	if (fn == NULL)
@@ -165,7 +165,7 @@ write_line:
 
 int config_writelrom(const char *fname)
 {
-	char line[128], *tmp, *optr = NULL;
+	char line[640], *tmp, *optr = NULL;
 	char *old_data = NULL;
 	int size;
 	FILE *f;
@@ -212,7 +212,7 @@ int config_writelrom(const char *fname)
 
 int config_readlrom(const char *fname)
 {
-	char line[128], *tmp;
+	char line[640], *tmp;
 	int i, len, ret = -1;
 	FILE *f;
 
@@ -503,7 +503,7 @@ bad_val:
 
 int config_readsect(const char *fname, const char *section)
 {
-	char line[128], *var, *val;
+	char line[640], *var, *val;
 	int keys_encountered = 0;
 	FILE *f;
 	int ret;
