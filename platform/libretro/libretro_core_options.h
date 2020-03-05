@@ -213,6 +213,19 @@ struct retro_core_option_definition option_defs_us[] = {
       "accurate"
    },
 #endif
+   {
+      "picodrive_sound_rate",
+      "Sound quality",
+      "Sound quality (in Hz). A lower value may increase performance.",
+      {
+         { "16000", NULL },
+         { "22050", NULL },
+         { "32000", NULL },
+         { "44100", NULL },
+         { NULL, NULL },
+      },
+      "44100"
+   },
    { NULL, NULL, NULL, {{0}}, NULL },
 };
 
