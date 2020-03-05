@@ -88,7 +88,7 @@ static retro_audio_sample_batch_t audio_batch_cb;
 #define VOUT_32BIT_WIDTH 256
 #endif
 #define VOUT_MAX_HEIGHT 240
-#define SND_RATE 44100
+#define INITIAL_SND_RATE 44100
 
 static const float VOUT_PAR = 0.0;
 static const float VOUT_4_3 = (224.0f * (4.0f / 3.0f));
@@ -112,7 +112,7 @@ static void *retro_palette;
 static struct retro_hw_ps2_insets padding;
 #endif
 
-static short ALIGNED(4) sndBuffer[2*SND_RATE/50];
+static short ALIGNED(4) sndBuffer[2*INITIAL_SND_RATE/50];
 
 static void snd_write(int len);
 
@@ -635,7 +635,7 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 
    memset(info, 0, sizeof(*info));
    info->timing.fps            = Pico.m.pal ? 50 : 60;
-   info->timing.sample_rate    = SND_RATE;
+   info->timing.sample_rate    = PicoIn.sndRate;
    info->geometry.base_width   = vout_width;
    info->geometry.base_height  = vout_height;
    info->geometry.max_width    = vout_width;
@@ -1301,6 +1301,7 @@ static void update_variables(void)
    struct retro_variable var;
    int OldPicoRegionOverride;
    float old_user_vout_width;
+   double new_sound_rate;
 
    var.value = NULL;
    var.key = "picodrive_input1";
@@ -1439,6 +1440,20 @@ static void update_variables(void)
          PicoIn.opt |= POPT_ALT_RENDERER;
       else
          PicoIn.opt &= ~POPT_ALT_RENDERER;
+   }
+
+   var.value = NULL;
+   var.key = "picodrive_sound_rate";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      new_sound_rate = atoi(var.value);
+      if (new_sound_rate != PicoIn.sndRate) {
+         /* Update the sound rate */
+         PicoIn.sndRate = new_sound_rate;
+         PsndRerate(1);
+         struct retro_system_av_info av_info;
+         retro_get_system_av_info(&av_info);
+         environ_cb(RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &av_info);
+      }
    }
 }
 
@@ -1602,7 +1617,13 @@ void retro_init(void)
 #endif
       PicoIn.opt |= POPT_EN_DRC;
 #endif
-   PicoIn.sndRate = SND_RATE;
+
+   struct retro_variable var = { .key = "picodrive_sound_rate" };
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      PicoIn.sndRate = atoi(var.value);
+   else
+      PicoIn.sndRate = INITIAL_SND_RATE;
+
    PicoIn.autoRgnOrder = 0x184; // US, EU, JP
 
    vout_width = VOUT_MAX_WIDTH;
