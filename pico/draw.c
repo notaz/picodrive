@@ -324,7 +324,7 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
     //if((cell&1)==0)
     {
       int line,vscroll;
-      vscroll=PicoMem.vsram[(plane_sh&1)+(cell&~1)];
+      vscroll=PicoMem.vsram[(plane_sh&1)+(cell&0x3e)];
 
       // Find the line in the name table
       line=(vscroll+scan)&ts->line&0xffff; // ts->line is really ymask ..
@@ -479,6 +479,7 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
     // shit, we have 2-cell column based vscroll
     // luckily this doesn't happen too often
     ts.line=ymask|(shift[width]<<24); // save some stuff instead of line
+    PicoMem.vsram[(plane_sh & 1)+0x3e] = PicoMem.vsram[0x27]; // XXX really?
     DrawStripVSRam(&ts, plane_sh, cellskip);
   } else {
     vscroll = PicoMem.vsram[plane_sh & 1]; // Get vertical scroll value
@@ -1022,7 +1023,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
 
     if (entry+1 == cnt) width = p[entry+1]; // last sprite width limited?
     mp = mb+(sx>>3);
-    for (m = *mp << 8; width; width--, sx+=8, *mp++ = m, tile+=delta)
+    for (m = *mp; width; width--, sx+=8, *mp++ = m, m >>= 8, tile+=delta)
     {
       unsigned int pack;
 
@@ -1031,11 +1032,11 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
 
       pack = *(unsigned int *)(PicoMem.vram + (tile & 0x7fff));
 
-      m = (m >> 8) | mp[1] << 8; // next mask byte
+      m |= mp[1] << 8; // next mask byte
       // shift mask bits to bits 8-15 for easier load/store handling
       m = fTileFunc(pd + sx, m << (8-(sx&0x7)), pack, pal) >> (8-(sx&0x7));
     } 
-    *mp = m >> 8; // write last mask byte
+    *mp = m; // write last mask byte
   }
 }
 
@@ -1428,10 +1429,6 @@ static int DrawDisplay(int sh)
   int win=0, edge=0, hvwind=0, lflags;
   int maxw, maxcells;
 
-  if (!(est->DrawScanline & 15) ||
-      (est->rendstatus & (PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES)))
-    PrepareSprites((est->DrawScanline+16) & ~15);
-
   est->rendstatus &= ~(PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES);
   est->rendstatus &= ~(PDRAW_SHHI_DONE|PDRAW_PLANE_HI_PRIO);
 
@@ -1646,6 +1643,8 @@ void PicoDrawSync(int to, int blank_last_line)
     if (to > 223)
       to = 223;
   }
+  if (Pico.est.DrawScanline <= to - blank_last_line)
+    PrepareSprites(to - blank_last_line + 1);
 
   for (line = Pico.est.DrawScanline; line < to; line++)
     PicoLine(line, offs, sh, bgc);
