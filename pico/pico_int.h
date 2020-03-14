@@ -299,6 +299,8 @@ extern SH2 sh2s[2];
 #define PVS_CPUWR     (1 << 18) // CPU write blocked by FIFO full
 #define PVS_CPURD     (1 << 19) // CPU read blocked by FIFO not empty
 #define PVS_DMAFILL   (1 << 20) // DMA fill is waiting for fill data
+#define PVS_DMABG     (1 << 21) // background DMA operation is running
+#define PVS_FIFORUN   (1 << 22) // FIFO is processing
 
 struct PicoVideo
 {
@@ -858,6 +860,7 @@ unsigned char PicoVideoRead8HV_L(void);
 extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask);
 void PicoVideoFIFOSync(int cycles);
 int PicoVideoFIFOHint(void);
+void PicoVideoFIFOMode(int active, int h40);
 int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask, unsigned sr_flags);
 void PicoVideoSave(void);
 void PicoVideoLoad(void);
