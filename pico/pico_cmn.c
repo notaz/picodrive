@@ -179,6 +179,7 @@ static int PicoFrameHints(void)
   }
 
   pv->status |= SR_VB | PVS_VB2; // go into vblank
+  PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
 
   // the following SekRun is there for several reasons:
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
@@ -270,6 +271,7 @@ static int PicoFrameHints(void)
 
   pv->status &= ~(SR_VB | PVS_VB2);
   pv->status |= ((pv->reg[1] >> 3) ^ SR_VB) & SR_VB; // forced blanking
+  PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
 
   // last scanline
   Pico.m.scanline = y++;
