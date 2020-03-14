@@ -975,8 +975,8 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
     if (Pico.video.reg[0]&2)
          d = Pico.video.hv_latch;
     else if (Pico.video.reg[12]&1)
-         d = hcounts_40[d] | (Pico.video.v_counter << 8);
-    else d = hcounts_32[d] | (Pico.video.v_counter << 8);
+         d = hcounts_40[d/2] | (Pico.video.v_counter << 8);
+    else d = hcounts_32[d/2] | (Pico.video.v_counter << 8);
 
     elprintf(EL_HVCNT, "hv: %02x %02x [%u] @ %06x", d, Pico.video.v_counter, SekCyclesDone(), SekPc);
     return d;
@@ -1035,8 +1035,8 @@ unsigned char PicoVideoRead8HV_L(void)
   if (Pico.video.reg[0]&2)
        d = Pico.video.hv_latch;
   else if (Pico.video.reg[12]&1)
-       d = hcounts_40[d];
-  else d = hcounts_32[d];
+       d = hcounts_40[d/2];
+  else d = hcounts_32[d/2];
   elprintf(EL_HVCNT, "hcounter: %02x [%u] @ %06x", d, SekCyclesDone(), SekPc);
   return d;
 }
