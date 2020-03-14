@@ -411,6 +411,7 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
 {
   struct PicoVideo *pvid=&Pico.video;
   const char shift[4]={5,6,5,7}; // 32,64 or 128 sized tilemaps (2 is invalid)
+  const unsigned char h_masks[4] = { 0x00, 0x07, 0xf8, 0xff };
   struct TileStrip ts;
   int width, height, ymask;
   int vscroll, htab;
@@ -437,8 +438,7 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
   else            ts.nametab=(pvid->reg[2]&0x38)<< 9; // A
 
   htab=pvid->reg[13]<<9; // Horizontal scroll table address
-  if ( pvid->reg[11]&2)     htab+=est->DrawScanline<<1; // Offset by line
-  if ((pvid->reg[11]&1)==0) htab&=~0xf; // Offset by tile
+  htab+=(est->DrawScanline&h_masks[pvid->reg[11]&3])<<1; // Point to line (masked)
   htab+=plane_sh&1; // A or B
 
   // Get horizontal scroll value, will be masked later
