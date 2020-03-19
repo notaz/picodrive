@@ -545,8 +545,12 @@ DrawLayer:
     eor     r3, r3, r7
     sub     r10,r10, #1<<24       @ cell--  // start from negative for hscroll
     tst     r3, #0x08
+    add_c24 r1, lr, (OFS_PMEM_vsram-OFS_PMEM_vram)
+    ldr     r3, [r1, #0x4c]       @ r3=vsram[0x26..0x27]
     subne   r10,r10, #1<<16       @ cells--
     subne   r10,r10, #1<<24       @ cell--  // even more negative
+    ror     r3, r3, #16
+    str     r3, [r1, #0x7c]       @ vsram[0x3e..0x3f]=r3
 0:
     tst     r9, #1<<31
     mov     r3, #0
@@ -577,8 +581,8 @@ DrawLayer:
 
     @ calc offset and read tileline code to r7, also calc ty
     add_c24 r7, lr, (OFS_PMEM_vsram-OFS_PMEM_vram)
-    add     r7, r7, r10,asr #23   @ vsram + ((cell&~1)<<1)
-    bic     r7, r7, #3
+    and     r4, r10, #0x3e000000
+    add     r7, r7, r4, asr #23   @ vsram + ((cell&0x3e)<<1)
     tst     r10,#0x8000           @ plane1?
     addne   r7, r7, #2
     ldrh    r7, [r7]              @ r7=vscroll
