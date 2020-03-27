@@ -523,6 +523,9 @@ DrawLayer:
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 .DrawStrip_vsscroll:
+    tst     r8, #1                @ if h40: lflags |= 0x10000
+    orrne   r0, r0, #0x10000
+
     rsb     r8, r3, #0
     mov     r8, r8, lsr #3        @ r8=tilex=(-ts->hscroll)>>3
     bic     r8, r8, #0x3fc00000
@@ -545,11 +548,13 @@ DrawLayer:
     eor     r3, r3, r7
     sub     r10,r10, #1<<24       @ cell--  // start from negative for hscroll
     tst     r3, #0x08
-    add_c24 r1, lr, (OFS_PMEM_vsram-OFS_PMEM_vram)
-    ldr     r3, [r1, #0x4c]       @ r3=vsram[0x26..0x27]
     subne   r10,r10, #1<<16       @ cells--
     subne   r10,r10, #1<<24       @ cell--  // even more negative
-    ror     r3, r3, #16
+
+    add_c24 r1, lr, (OFS_PMEM_vsram-OFS_PMEM_vram)
+    tst     r0, #0x10000          @ h40?
+    ldrne   r3, [r1, #0x00]       @ r3=vsram[0x00..0x01]
+    ldreq   r3, [r1, #0x40]       @ r3=vsram[0x20..0x21]
     str     r3, [r1, #0x7c]       @ vsram[0x3e..0x3f]=r3
 0:
     tst     r9, #1<<31
