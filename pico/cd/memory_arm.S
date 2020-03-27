@@ -703,8 +703,10 @@ m_s68k_write16_regs_spec:               @ special case
 
 .global s68k_read8
 .global s68k_read16
+.global s68k_read32
 .global s68k_write8
 .global s68k_write16
+.global s68k_write32
 
 s68k_read8:
     PIC_LDR(r3, r2, s68k_read8_map)
