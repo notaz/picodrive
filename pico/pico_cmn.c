@@ -35,6 +35,7 @@ static void SekExecM68k(int cyc_do)
 #elif defined(EMU_F68K)
   Pico.t.m68c_cnt += fm68k_emulate(&PicoCpuFM68k, cyc_do, 0) - cyc_do;
 #endif
+  SekCyclesLeft = 0;
 }
 
 static void SekSyncM68k(void)
@@ -45,8 +46,6 @@ static void SekSyncM68k(void)
 
   while ((cyc_do = Pico.t.m68c_aim - Pico.t.m68c_cnt) > 0)
     SekExecM68k(cyc_do);
-
-  SekCyclesLeft = 0;
 
   SekTrace(0);
   pevt_log_m68k_o(EVT_RUN_END);
