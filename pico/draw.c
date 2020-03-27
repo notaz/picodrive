@@ -486,7 +486,10 @@ static void DrawLayer(int plane_sh, int *hcache, int cellskip, int maxcells,
     // shit, we have 2-cell column based vscroll
     // luckily this doesn't happen too often
     ts.line=ymask|(shift[width]<<24); // save some stuff instead of line
-    plane_sh |= PicoMem.vsram[0x26+(~plane_sh&1)] << 16;
+    // vscroll value for leftmost cells in case of hscroll not on 16px boundary
+    // XXX it's unclear what exactly the hw is doing. Continue reading where it
+    // stopped last seems to work best (H40: 0x50 (wrap->0x00), H32 0x40).
+    plane_sh |= PicoMem.vsram[(pvid->reg[12]&1?0x00:0x20) + (plane_sh&1)] << 16;
     DrawStripVSRam(&ts, plane_sh, cellskip);
   } else {
     vscroll = PicoMem.vsram[plane_sh & 1]; // Get vertical scroll value
@@ -1173,7 +1176,10 @@ static void DrawLayerForced(int plane_sh, int cellskip, int maxcells,
     // shit, we have 2-cell column based vscroll
     // luckily this doesn't happen too often
     ts.line=ymask|(shift[width]<<24); // save some stuff instead of line
-    plane_sh |= PicoMem.vsram[0x26+(~plane_sh&1)] << 16;
+    // vscroll value for leftmost cells in case of hscroll not on 16px boundary
+    // XXX it's unclear what exactly the hw is doing. Continue reading where it
+    // stopped last seems to work best (H40: 0x50 (wrap->0x00), H32 0x40).
+    plane_sh |= PicoMem.vsram[(pvid->reg[12]&1?0x00:0x20) + (plane_sh&1)] << 16;
     DrawStripVSRamForced(&ts, plane_sh, cellskip);
   } else {
     vscroll = PicoMem.vsram[plane_sh & 1]; // Get vertical scroll value
@@ -1191,7 +1197,7 @@ static void DrawSpritesForced(unsigned char *sprited)
 {
   unsigned (*fTileFunc)(unsigned char *pd, unsigned m, unsigned int pack, int pal);
   unsigned char *pd = Pico.est.HighCol;
-  unsigned char mb[1+320+1];
+  unsigned char mb[1+320/8+1];
   unsigned char *p, *mp;
   unsigned m;
   int entry, cnt;
