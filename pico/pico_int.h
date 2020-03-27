@@ -849,6 +849,24 @@ void ym2612_unpack_state(void);
 
 
 // videoport.c
+extern unsigned SATaddr, SATmask;
+static __inline void UpdateSAT(u32 a, u32 d)
+{
+  unsigned num = (a-SATaddr) >> 3;
+
+  Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
+  if (!(a & 4) && num < 128) {
+    ((u16 *)&VdpSATCache[num])[(a&3) >> 1] = d;
+  }
+}
+static __inline void VideoWriteVRAM(u32 a, u16 d)
+{
+  PicoMem.vram [(u16)a >> 1] = d;
+
+  if (!((u16)(a^SATaddr) & SATmask))
+    UpdateSAT(a, d);
+}
+
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
 unsigned char PicoVideoRead8DataH(void);

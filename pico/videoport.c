@@ -19,8 +19,8 @@ extern const unsigned short vdpsl2cyc_32_bl[], vdpsl2cyc_40_bl[];
 extern const unsigned short vdpsl2cyc_32[], vdpsl2cyc_40[];
 
 static int blankline;           // display disabled for this line
-static unsigned sat;            // VRAM addr of sprite attribute table
-static int satxbits;            // index bits in SAT address
+
+unsigned SATaddr, SATmask;      // VRAM addr of sprite attribute table
 
 int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask) = NULL;
 
@@ -303,34 +303,16 @@ static __inline void AutoIncrement(void)
   if (Pico.video.addr < Pico.video.reg[0xf]) Pico.video.addr_u ^= 1;
 }
 
-static __inline void UpdateSAT(u32 a, u32 d)
-{
-  unsigned num = (a-sat) >> 3;
-
-  Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
-  if (!(a & 4) && num < 128) {
-    ((u16 *)&VdpSATCache[num])[(a&3) >> 1] = d;
-  }
-}
-
 static NOINLINE void VideoWriteVRAM128(u32 a, u16 d)
 {
   // nasty
   u32 b = ((a & 2) >> 1) | ((a & 0x400) >> 9) | (a & 0x3FC) | ((a & 0x1F800) >> 1);
 
   ((u8 *)PicoMem.vram)[b] = d;
-  if (!((u16)(b^sat) >> satxbits))
+  if (!((u16)(b^SATaddr) & SATmask))
     Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 
-  if (!((u16)(a^sat) >> satxbits))
-    UpdateSAT(a, d);
-}
-
-static void VideoWriteVRAM(u32 a, u16 d)
-{
-  PicoMem.vram [(u16)a >> 1] = d;
-
-  if (!((u16)(a^sat) >> satxbits))
+  if (!((u16)(a^SATaddr) & SATmask))
     UpdateSAT(a, d);
 }
 
@@ -461,7 +443,7 @@ static void DmaSlow(int len, unsigned int source)
       r = PicoMem.vram;
       if (inc == 2 && !(a & 1) && (a >> 16) == ((a + len*2) >> 16) &&
           (source & ~mask) == ((source + len-1) & ~mask) &&
-          (a << 16 >= (sat+0x280) << 16 || (a + len*2) << 16 <= sat << 16))
+          (a << 16 >= (SATaddr+0x280)<<16 || (a + len*2) << 16 <= SATaddr<<16))
       {
         // most used DMA mode
         memcpy((char *)r + a, base + (source & mask), len * 2);
@@ -540,7 +522,7 @@ static void DmaCopy(int len)
   for (; len; len--)
   {
     vr[(u16)a] = vr[(u16)(source++)];
-    if (!((u16)(a^sat) >> satxbits))
+    if (!((u16)(a^SATaddr) & SATmask))
       UpdateSAT(a, ((u16 *)vr)[(u16)a >> 1]);
     // AutoIncrement
     a = (a+inc) & ~0x20000;
@@ -572,7 +554,7 @@ static NOINLINE void DmaFill(int data)
         // Write upper byte to adjacent address
         // (here we are byteswapped, so address is already 'adjacent')
         vr[(u16)a] = high;
-        if (!((u16)(a^sat) >> satxbits))
+        if (!((u16)(a^SATaddr) & SATmask))
           UpdateSAT(a, ((u16 *)vr)[(u16)a >> 1]);
 
         // Increment address register
@@ -803,11 +785,11 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
           default:
             return;
         }
-        sat = ((pvid->reg[5]&0x7f) << 9) | ((pvid->reg[6]&0x20) << 11);
-        satxbits = 9;
+        SATaddr = ((pvid->reg[5]&0x7f) << 9) | ((pvid->reg[6]&0x20) << 11);
+        SATmask = ~0x1ff;
         if (Pico.video.reg[12]&1)
-          sat &= ~0x200, satxbits = 10; // H40, zero lowest SAT bit
-        //elprintf(EL_STATUS, "spritep moved to %04x", sat);
+          SATaddr &= ~0x200, SATmask &= ~0x200; // H40, zero lowest SAT bit
+        //elprintf(EL_STATUS, "spritep moved to %04x", SATaddr);
         return;
 
 update_irq:
@@ -1013,15 +995,15 @@ void PicoVideoLoad(void)
     Pico.m.dma_xfers = 0;
   }
 
-  sat = ((pv->reg[5]&0x7f) << 9) | ((pv->reg[6]&0x20) << 11);
-  satxbits = 9;
+  SATaddr = ((pv->reg[5]&0x7f) << 9) | ((pv->reg[6]&0x20) << 11);
+  SATmask = ~0x1ff;
   if (pv->reg[12]&1)
-    sat &= ~0x200, satxbits = 10; // H40, zero lowest SAT bit
+    SATaddr &= ~0x200, SATmask &= ~0x200; // H40, zero lowest SAT bit
 
   // rebuild SAT cache XXX wrong since cache and memory can differ
   for (l = 0; l < 80; l++) {
-    *((u16 *)VdpSATCache + 2*l  ) = PicoMem.vram[(sat>>1) + l*4    ];
-    *((u16 *)VdpSATCache + 2*l+1) = PicoMem.vram[(sat>>1) + l*4 + 1];
+    *((u16 *)VdpSATCache + 2*l  ) = PicoMem.vram[(SATaddr>>1) + l*4    ];
+    *((u16 *)VdpSATCache + 2*l+1) = PicoMem.vram[(SATaddr>>1) + l*4 + 1];
   }
 }
 
