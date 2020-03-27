@@ -227,8 +227,10 @@ m_write16_not_z80ctl:
 
 .global m68k_read8
 .global m68k_read16
+.global m68k_read32
 .global m68k_write8
 .global m68k_write16
+.global m68k_write32
 
 m68k_read8:
     PIC_LDR(r3, r2, m68k_read8_map)
