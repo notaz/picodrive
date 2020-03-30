@@ -267,8 +267,8 @@ PICO_INTERNAL void PsndDoFM(int line_to)
   // Q16, number of samples since last call
   len = ((line_to-1) * Pico.snd.fm_mult) - Pico.snd.fm_pos;
 
-  // don't do this too often (no more than 256 per sec)
-  if (len >> 16 <= PicoIn.sndRate >> 9)
+  // don't do this too often (about every 4th scanline)
+  if (len >> 16 <= PicoIn.sndRate >> 12)
     return;
 
   // update position and calculate buffer offset and length
@@ -355,22 +355,22 @@ static int PsndRender(int offset, int length)
 {
   int *buf32;
   int stereo = (PicoIn.opt & 8) >> 3;
-  int fmlen = ((Pico.snd.fm_pos+0x8000) >> 16) - offset;
-  int daclen = ((Pico.snd.dac_pos+0x80000) >> 20) - offset;
+  int fmlen = ((Pico.snd.fm_pos+0x8000) >> 16);
+  int daclen = ((Pico.snd.dac_pos+0x80000) >> 20);
 
-  offset <<= stereo;
-  buf32 = PsndBuffer+offset;
+  buf32 = PsndBuffer+(offset<<stereo);
 
   pprof_start(sound);
 
   if (PicoIn.AHW & PAHW_PICO) {
-    PicoPicoPCMUpdate(PicoIn.sndOut+offset, length, stereo);
+    PicoPicoPCMUpdate(PicoIn.sndOut+(offset<<stereo), length-offset, stereo);
     return length;
   }
 
   // Fill up DAC output in case of missing samples (Q16 rounding errors)
   if (length-daclen > 0) {
     short *dacbuf = PicoIn.sndOut + (daclen << stereo);
+    Pico.snd.dac_pos += (length-daclen) << 20;
     for (; length-daclen > 0; daclen++) {
       *dacbuf++ += Pico.snd.dac_val;
       if (stereo) dacbuf++;
@@ -379,14 +379,15 @@ static int PsndRender(int offset, int length)
 
   // Add in parts of the FM buffer not yet done
   if (length-fmlen > 0) {
-    int *fmbuf = buf32 + (fmlen << stereo);
+    int *fmbuf = buf32 + ((fmlen-offset) << stereo);
+    Pico.snd.fm_pos += (length-fmlen) << 16;
     if (PicoIn.opt & POPT_EN_FM)
       YM2612UpdateOne(fmbuf, length-fmlen, stereo, 1);
   }
 
   // CD: PCM sound
   if (PicoIn.AHW & PAHW_MCD) {
-    pcd_pcm_update(buf32, length, stereo);
+    pcd_pcm_update(buf32, length-offset, stereo);
   }
 
   // CD: CDDA audio
@@ -397,13 +398,13 @@ static int PsndRender(int offset, int length)
   {
     // note: only 44, 22 and 11 kHz supported, with forced stereo
     if (Pico_mcd->cdda_type == CT_MP3)
-      mp3_update(buf32, length, stereo);
+      mp3_update(buf32, length-offset, stereo);
     else
-      cdda_raw_update(buf32, length);
+      cdda_raw_update(buf32, length-offset);
   }
 
   if ((PicoIn.AHW & PAHW_32X) && (PicoIn.opt & POPT_EN_PWM))
-    p32x_pwm_update(buf32, length, stereo);
+    p32x_pwm_update(buf32, length-offset, stereo);
 
   // Apply low pass filter, if required
   if (PicoIn.sndFilter == 1) {
@@ -411,7 +412,7 @@ static int PsndRender(int offset, int length)
   }
 
   // convert + limit to normal 16bit output
-  PsndMix_32_to_16l(PicoIn.sndOut+offset, buf32, length);
+  PsndMix_32_to_16l(PicoIn.sndOut+(offset<<stereo), buf32, length-offset);
 
   pprof_end(sound);
 
