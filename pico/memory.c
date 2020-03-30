@@ -1057,11 +1057,11 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
       break;
   }
 
-  PsndDoFM(get_scanline(is_from_z80));
 #ifdef __GP2X__
   if (PicoIn.opt & POPT_EXT_FM)
     return YM2612Write_940(a, d, get_scanline(is_from_z80));
 #endif
+  PsndDoFM(get_scanline(is_from_z80));
   return YM2612Write_(a, d);
 }
 

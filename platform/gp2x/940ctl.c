@@ -100,10 +100,10 @@ int YM2612Write_940(unsigned int a, unsigned int v, int scanline)
 		UINT16 *writebuff = shared_ctl->writebuffsel ? shared_ctl->writebuff0 : shared_ctl->writebuff1;
 
 		/* detect rapid ym updates */
-		if (upd && !(writebuff_ptr & 0x80000000) && scanline < 224)
+		if (upd && !(writebuff_ptr & 0x80000000))
 		{
-			int mid = Pico.m.pal ? 68 : 93;
-			if (scanline > mid) {
+			int mid = (Pico.m.pal ? 313 : 262) / 2;
+			if (scanline >= mid) {
 				//printf("%05i:%03i: rapid ym\n", Pico.m.frame_count, scanline);
 				writebuff[writebuff_ptr++ & 0xffff] = 0xfffe;
 				writebuff_ptr |= 0x80000000;
