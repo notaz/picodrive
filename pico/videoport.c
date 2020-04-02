@@ -163,7 +163,7 @@ static int PicoVideoFIFODrain(int level, int cycles, int bgdma)
 
   // process FIFO entries until low level is reached
   while (vf->fifo_slot < vf->fifo_maxslot && cycles < 488 &&
-         (vf->fifo_total > level || (vf->fifo_queue[vf->fifo_qx] & bgdma))) {
+         ((vf->fifo_total > level) | (vf->fifo_queue[vf->fifo_qx] & bgdma))) {
     int b = vf->fifo_queue[vf->fifo_qx] & FQ_BYTE;
     int cnt = bgdma ? pv->fifo_cnt : ((vf->fifo_total-level)<<b) - (pv->fifo_cnt&b);
     int slot = (pv->fifo_cnt<cnt ? pv->fifo_cnt:cnt) + vf->fifo_slot;
@@ -283,10 +283,10 @@ int PicoVideoFIFOHint(void)
   vf->fifo_slot = 0;
  
   // if CPU is waiting for the bus, advance CPU and FIFO until bus is free
-  if (pv->status & PVS_CPURD)
-    burn = PicoVideoFIFORead();
-  else if (pv->status & PVS_CPUWR)
+  if (pv->status & PVS_CPUWR)
     burn = PicoVideoFIFOWrite(0, 0, 0, 0);
+  else if (pv->status & PVS_CPURD)
+    burn = PicoVideoFIFORead();
 
   return burn;
 }
@@ -458,27 +458,23 @@ static void DmaSlow(int len, unsigned int source)
   switch (Pico.video.type)
   {
     case 1: // vram
-#if 0
       r = PicoMem.vram;
-      if (inc == 2 && !(a & 1) && (a >> 16) == ((a + len*2) >> 16) &&
-          (source & ~mask) == ((source + len-1) & ~mask) &&
-          (a << 16 >= (SATaddr+0x280)<<16 || (a + len*2) << 16 <= SATaddr<<16))
+      if (inc == 2 && !(a & 1) && (a & ~0xffff) == ((a + len*2-1) & ~0xffff) &&
+          ((a >= SATaddr+0x280) | ((a + len*2-1) < SATaddr)) &&
+          (source & ~mask) == ((source + len-1) & ~mask))
       {
         // most used DMA mode
         memcpy((char *)r + a, base + (source & mask), len * 2);
         a += len * 2;
+        break;
       }
-      else
-#endif
+      for(; len; len--)
       {
-        for(; len; len--)
-        {
-          u16 d = base[source++ & mask];
-          if(a & 1) d=(d<<8)|(d>>8);
-          VideoWriteVRAM(a, d);
-          // AutoIncrement
-          a = (a+inc) & ~0x20000;
-        }
+        u16 d = base[source++ & mask];
+        if(a & 1) d=(d<<8)|(d>>8);
+        VideoWriteVRAM(a, d);
+        // AutoIncrement
+        a = (a+inc) & ~0x20000;
       }
       break;
 
@@ -569,6 +565,14 @@ static NOINLINE void DmaFill(int data)
   switch (Pico.video.type)
   {
     case 1: // vram
+      if (inc == 1 && (a & ~0xffff) == ((a + len-1) & ~0xffff) &&
+          ((a >= SATaddr+0x280) | ((a + len-1) < SATaddr)))
+      {
+        // most used DMA mode
+        memset(vr + (u16)a, high, len);
+        a += len;
+        break;
+      }
       for (l = len; l; l--) {
         // Write upper byte to adjacent address
         // (here we are byteswapped, so address is already 'adjacent')
@@ -662,9 +666,8 @@ static NOINLINE void CommandDma(void)
   Pico.video.reg[0x16] = source >> 8;
 }
 
-static NOINLINE void CommandChange(void)
+static NOINLINE void CommandChange(struct PicoVideo *pvid)
 {
-  struct PicoVideo *pvid = &Pico.video;
   unsigned int cmd, addr;
 
   cmd = pvid->command;
@@ -718,7 +721,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
       DrawSync(0); // XXX  it's unclear when vscroll data is fetched from vsram?
 
     if (pvid->pending) {
-      CommandChange();
+      CommandChange(pvid);
       pvid->pending=0;
     }
 
@@ -749,7 +752,7 @@ PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
       pvid->command &= 0xffff0000;
       pvid->command |= d;
       pvid->pending = 0;
-      CommandChange();
+      CommandChange(pvid);
       // Check for dma:
       if (d & 0x80) {
         DrawSync(SekCyclesDone() - Pico.t.m68c_line_start <= 488-390);
@@ -896,7 +899,7 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
     struct PicoVideo *pv = &Pico.video;
     unsigned int d = VideoSr(pv);
     if (pv->pending) {
-      CommandChange();
+      CommandChange(pv);
       pv->pending = 0;
     }
     elprintf(EL_SR, "SR read: %04x [%u] @ %06x", d, SekCyclesDone(), SekPc);
@@ -953,10 +956,11 @@ unsigned char PicoVideoRead8DataL(void)
 
 unsigned char PicoVideoRead8CtlH(void)
 {
-  u8 d = VideoSr(&Pico.video) >> 8;
-  if (Pico.video.pending) {
-    CommandChange();
-    Pico.video.pending = 0;
+  struct PicoVideo *pv = &Pico.video;
+  u8 d = VideoSr(pv) >> 8;
+  if (pv->pending) {
+    CommandChange(pv);
+    pv->pending = 0;
   }
   elprintf(EL_SR, "SR read (h): %02x @ %06x", d, SekPc);
   return d;
@@ -964,10 +968,11 @@ unsigned char PicoVideoRead8CtlH(void)
 
 unsigned char PicoVideoRead8CtlL(void)
 {
-  u8 d = VideoSr(&Pico.video);
-  if (Pico.video.pending) {
-    CommandChange();
-    Pico.video.pending = 0;
+  struct PicoVideo *pv = &Pico.video;
+  u8 d = VideoSr(pv);
+  if (pv->pending) {
+    CommandChange(pv);
+    pv->pending = 0;
   }
   elprintf(EL_SR, "SR read (l): %02x @ %06x", d, SekPc);
   return d;
