@@ -15,6 +15,9 @@
 
 #include "../arm_features.h"
 
+@ very simple adaption YM2612 output rate to sample rate (~1M cycles @44100)
+//#define INTERPOL
+
 .equiv SLOT1, 0
 .equiv SLOT2, 2
 .equiv SLOT3, 1
@@ -42,10 +45,14 @@
 @ r5=slot, r1=eg_cnt, trashes: r0,r2,r3
 @ writes output to routp, but only if vol_out changes
 .macro update_eg_phase_slot slot
+#if defined(INTERPOL)
     ldrh    r0, [r5,#0x34]       @ vol_out
+#endif
     ldrb    r2, [r5,#0x17]       @ state
     add     r3, r5, #0x1c
+#if defined(INTERPOL)
     strh    r0, [r5,#0x36]       @ vol_ipol
+#endif
     tst     r2, r2
     beq     0f                   @ EG_OFF
 
@@ -59,11 +66,11 @@
     bne     0f                   @ no volume change
 
     mov     r3, r1, lsr r0
+    ldrb    r0, [r5,#0x30]       @ ssg
     and     r3, r3, #7
     add     r3, r3, r3, lsl #1
     mov     r3, r2, lsr r3
     and     r3, r3, #7           @ eg_inc_val shift, may be 0
-    ldrb    r0, [r5,#0x30]       @ ssg
     ldrb    r2, [r5,#0x17]       @ state
 
     tst     r0, #0x08            @ ssg enabled?
@@ -124,8 +131,8 @@
     b       11f
 
 9:  @ SSG-EG mode
-    cmp     r2, #4               @ EG_ATT
     ldrh    r0, [r5,#0x1a]       @ volume, unsigned (0-1023)
+    cmp     r2, #4               @ EG_ATT
     beq     4f
 
     cmp     r0, #0x200           @ if ( volume < 0x200 )
@@ -170,9 +177,9 @@
     strgeb  r3, [r5,#0x17]       @ state
 
 10: @ finish
-    strh    r0, [r5,#0x1a]       @ volume
     ldrb    r2, [r5,#0x30]       @ ssg
     ldrb    r3, [r5,#0x17]       @ state
+    strh    r0, [r5,#0x1a]       @ volume
     cmp     r2, #0x0c            @ if ( ssg&0x04 && state > EG_REL )
     cmpge   r3, #EG_REL+1
     rsbge   r0, r0, #0x200       @ volume = (0x200-volume) & MAX_ATT
@@ -206,10 +213,10 @@
 .macro update_ssg_eg
     ldrh    r0, [r5,#0x30]                @ ssg+ssgn
     ldrb    r2, [r5,#0x17]                @ state
-    and     r3, r0, #0x08
-    cmp     r3, #0x08                     @ ssg enabled &&
     ldrh    r3, [r5,#0x1a]                @ volume
-    cmpge   r2, #EG_REL+1                 @   state > EG_REL &&
+    tst     r0, #0x08                     @ ssg enabled &&
+    beq     9f
+    cmp     r2, #EG_REL+1                 @   state > EG_REL &&
     cmpge   r3, #0x200                    @   volume >= 0x200?
     blt     9f
 
@@ -222,7 +229,7 @@
     orrne   r0, r0, #0x400                @ ssgn = 4
     strneh  r0, [r5,#0x30]
 
-    eor     r0, r0, #0x4                  @ if ( !(ssg&0x04 )
+    eor     r0, r0, #0x4                  @ if ( !(ssg&0x04) )
     tst     r0, #0x4
     cmpne   r2, #EG_ATT                   @ if ( state != EG_ATT )
     movne   r3, #0x400
@@ -747,7 +754,7 @@ eg_done:
     beq     crl_loop
 
     @ output interpolation
-#if 0
+#if 0 // too expensive on slow platforms
     @ basic interpolator, interpolate in middle region, else use closer value
     mov     r3, r8, lsr #EG_SH      @ eg_timer, [0..3<<EG_SH) after loop
     cmp     r3, #(EG_TIMER_OVERFLOW>>EG_SH)/2
@@ -780,7 +787,7 @@ eg_done:
     mov     r7, r7, lsl #16
     orr     r7, r7, r0
     ror     r7, r7, #16
-#elif 0
+#elif defined(INTERPOL)
     @ super-basic... just take value closest to sample point
     mov     r3, r8, lsr #EG_SH-1    @ eg_timer, [0..3<<EG_SH) after loop
     cmp     r3, #(EG_TIMER_OVERFLOW>>EG_SH)
