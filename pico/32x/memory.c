@@ -111,7 +111,7 @@ void p32x_m68k_poll_event(u32 flags)
   m68k_poll.addr1 = m68k_poll.addr2 = m68k_poll.cnt = 0;
 }
 
-static void NOINLINE sh2_poll_detect(u32 a, SH2 *sh2, u32 flags, int maxcnt)
+void NOINLINE p32x_sh2_poll_detect(u32 a, SH2 *sh2, u32 flags, int maxcnt)
 {
   u32 cycles_done = sh2_cycles_done_t(sh2);
 
@@ -275,7 +275,7 @@ u32 REGPARM(3) p32x_sh2_poll_memory16(u32 a, u32 d, SH2 *sh2)
     d = (s16)sh2_poll_read(a, d, cycles, sh2);
   }
 
-  sh2_poll_detect(a, sh2, SH2_STATE_RPOLL, 5);
+  p32x_sh2_poll_detect(a, sh2, SH2_STATE_RPOLL, 5);
 
   DRC_RESTORE_SR(sh2);
   return d;
@@ -296,7 +296,7 @@ u32 REGPARM(3) p32x_sh2_poll_memory32(u32 a, u32 d, SH2 *sh2)
         ((u16)sh2_poll_read(a+2, d, cycles, sh2));
   }
 
-  sh2_poll_detect(a, sh2, SH2_STATE_RPOLL, 5);
+  p32x_sh2_poll_detect(a, sh2, SH2_STATE_RPOLL, 5);
 
   DRC_RESTORE_SR(sh2);
   return d;
@@ -735,7 +735,7 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
       return (r[0] & P32XS_FM) | Pico32x.sh2_regs[0]
         | Pico32x.sh2irq_mask[sh2->is_slave];
     case 0x04/2: // H count (often as comm too)
-      sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 9);
+      p32x_sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 9);
       cycles = sh2_cycles_done_m68k(sh2);
       sh2s_sync_on_read(sh2, cycles);
       return sh2_poll_read(a, Pico32x.sh2_regs[4 / 2], cycles, sh2);
@@ -769,7 +769,7 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
     case 0x2a/2:
     case 0x2c/2:
     case 0x2e/2:
-      sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 9);
+      p32x_sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 9);
       cycles = sh2_cycles_done_m68k(sh2);
       sh2s_sync_on_read(sh2, cycles);
       return sh2_poll_read(a, r[a / 2], cycles, sh2);
@@ -1456,7 +1456,7 @@ static u32 REGPARM(2) sh2_read8_cs0(u32 a, SH2 *sh2)
 
   if ((a & 0x3fff0) == 0x4100) {
     d = p32x_vdp_read16(a);
-    sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 9);
+    p32x_sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 9);
     goto out_16to8;
   }
 
@@ -1519,7 +1519,7 @@ static u32 REGPARM(2) sh2_read16_cs0(u32 a, SH2 *sh2)
 
   if ((a & 0x3fff0) == 0x4100) {
     d = p32x_vdp_read16(a);
-    sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 9);
+    p32x_sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 9);
     goto out;
   }
 
