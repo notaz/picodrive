@@ -9,7 +9,7 @@
 
 static struct {
   int cycles;
-  int mult;
+  unsigned mult;
   int ptr;
   int irq_reload;
   int doing_fifo;
@@ -58,11 +58,11 @@ static void do_pwm_irq(SH2 *sh2, unsigned int m68k_cycles)
 
 static int convert_sample(unsigned int v)
 {
-  if (v == 0)
-    return 0;
   if (v > pwm.cycles)
     v = pwm.cycles;
-  return (v * 2 - pwm.cycles) / 2 * pwm.mult;
+  if (v == 0)
+    return 0;
+  return v * pwm.mult - 0x10000/2;
 }
 
 #define consume_fifo(sh2, m68k_cycles) { \
@@ -89,19 +89,21 @@ static void consume_fifo_do(SH2 *sh2, unsigned int m68k_cycles,
   // this is for recursion from dreq1 writes
   pwm.doing_fifo = 1;
 
-  for (; sh2_cycles_diff >= pwm.cycles; sh2_cycles_diff -= pwm.cycles)
+  while (sh2_cycles_diff >= pwm.cycles)
   {
+    sh2_cycles_diff -= pwm.cycles;
+
     if (Pico32x.pwm_p[0] > 0) {
       mem->pwm_index[0] = (mem->pwm_index[0]+1) % 4;
       Pico32x.pwm_p[0]--;
       pwm.current[0] = convert_sample(fifo_l[mem->pwm_index[0]]);
-      sum |= pwm.current[0];
+      sum |= (u16)pwm.current[0];
     }
     if (Pico32x.pwm_p[1] > 0) {
       mem->pwm_index[1] = (mem->pwm_index[1]+1) % 4;
       Pico32x.pwm_p[1]--;
       pwm.current[1] = convert_sample(fifo_r[mem->pwm_index[1]]);
-      sum |= pwm.current[1];
+      sum |= (u16)pwm.current[1];
     }
 
     mem->pwm[pwm.ptr * 2    ] = pwm.current[0];
@@ -234,9 +236,7 @@ void p32x_pwm_write16(unsigned int a, unsigned int d,
       fifo = Pico32xMem->pwm_fifo[1];
       idx = Pico32xMem->pwm_index[1];
       if (Pico32x.pwm_p[1] < 3) {
-        if (pwm.irq_state == PWM_IRQ_STOPPED)
-          pwm.irq_state = PWM_IRQ_LOW;
-        if (Pico32x.pwm_p[1] == 2 && pwm.irq_state >= PWM_IRQ_LOW) {
+        if (Pico32x.pwm_p[1] == 2 && pwm.irq_state >= PWM_IRQ_STOPPED) {
           // buffer full. If there was no buffer underrun after last fill,
           // try increasing reload rate to reduce IRQs
           if (pwm.irq_reload < 3 && pwm.irq_state == PWM_IRQ_HIGH)
@@ -250,7 +250,7 @@ void p32x_pwm_write16(unsigned int a, unsigned int d,
         pwm.irq_reload = pwm.irq_timer;
         pwm.irq_state = PWM_IRQ_LOCKED;
         idx = (idx+1) % 4;
-        Pico32xMem->pwm_index[0] = idx;
+        Pico32xMem->pwm_index[1] = idx;
       }
       fifo[(idx+Pico32x.pwm_p[1]) % 4] = (d - 1) & 0x0fff;
       if (a != 8) break; // fallthrough if MONO
