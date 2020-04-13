@@ -273,9 +273,14 @@ u32 REGPARM(2) sh2_peripheral_read8(u32 a, SH2 *sh2)
   a &= 0x1ff;
   d = PREG8(r, a);
 
-  sh2->poll_cnt = 0;
   elprintf_sh2(sh2, EL_32XP, "peri r8  [%08x]       %02x @%06x",
     a | ~0x1ff, d, sh2_pc(sh2));
+  if ((a & 0x1c0) == 0x140) {
+    // abused as comm area
+    DRC_SAVE_SR(sh2);
+    p32x_sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 3);
+    DRC_RESTORE_SR(sh2);
+  }
   return d;
 }
 
@@ -287,9 +292,14 @@ u32 REGPARM(2) sh2_peripheral_read16(u32 a, SH2 *sh2)
   a &= 0x1fe;
   d = r[(a / 2) ^ 1];
 
-  sh2->poll_cnt = 0;
   elprintf_sh2(sh2, EL_32XP, "peri r16 [%08x]     %04x @%06x",
     a | ~0x1ff, d, sh2_pc(sh2));
+  if ((a & 0x1c0) == 0x140) {
+    // abused as comm area
+    DRC_SAVE_SR(sh2);
+    p32x_sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 3);
+    DRC_RESTORE_SR(sh2);
+  }
   return d;
 }
 
@@ -300,9 +310,14 @@ u32 REGPARM(2) sh2_peripheral_read32(u32 a, SH2 *sh2)
   a &= 0x1fc;
   d = sh2->peri_regs[a / 4];
 
-  sh2->poll_cnt = 0;
   elprintf_sh2(sh2, EL_32XP, "peri r32 [%08x] %08x @%06x",
     a | ~0x1ff, d, sh2_pc(sh2));
+  if ((a & 0x1c0) == 0x140) {
+    // abused as comm area
+    DRC_SAVE_SR(sh2);
+    p32x_sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 3);
+    DRC_RESTORE_SR(sh2);
+  }
   return d;
 }
 
@@ -378,6 +393,9 @@ void REGPARM(3) sh2_peripheral_write8(u32 a, u32 d, SH2 *sh2)
     break;
   }
   PREG8(r, a) = d;
+
+  if ((a & 0x1c0) == 0x140)
+    p32x_sh2_poll_event(sh2, SH2_STATE_CPOLL, SekCyclesDone());
 }
 
 void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
@@ -400,6 +418,8 @@ void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
   }
 
   r[(a / 2) ^ 1] = d;
+  if ((a & 0x1c0) == 0x140)
+    p32x_sh2_poll_event(sh2, SH2_STATE_CPOLL, SekCyclesDone());
 }
 
 void REGPARM(3) sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
@@ -457,14 +477,15 @@ void REGPARM(3) sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
       if (!(dmac->dmaor & DMA_DME))
         return;
 
-      DRC_SAVE_SR(sh2);
       if ((dmac->chan[0].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
         dmac_trigger(sh2, &dmac->chan[0]);
       if ((dmac->chan[1].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
         dmac_trigger(sh2, &dmac->chan[1]);
-      DRC_RESTORE_SR(sh2);
       break;
   }
+
+  if ((a & 0x1c0) == 0x140)
+    p32x_sh2_poll_event(sh2, SH2_STATE_CPOLL, SekCyclesDone());
 }
 
 /* 32X specific */
