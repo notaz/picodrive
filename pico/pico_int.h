@@ -977,6 +977,7 @@ unsigned int REGPARM(3) p32x_sh2_poll_memory8(unsigned int a, unsigned int d, SH
 unsigned int REGPARM(3) p32x_sh2_poll_memory16(unsigned int a, unsigned int d, SH2 *sh2);
 unsigned int REGPARM(3) p32x_sh2_poll_memory32(unsigned int a, unsigned int d, SH2 *sh2);
 void *p32x_sh2_get_mem_ptr(unsigned int a, unsigned int *mask, SH2 *sh2);
+void p32x_sh2_poll_detect(unsigned int a, SH2 *sh2, unsigned int flags, int maxcnt);
 void p32x_sh2_poll_event(SH2 *sh2, unsigned int flags, unsigned int m68k_cycles);
 int p32x_sh2_memcpy(unsigned int dst, unsigned int src, int count, int size, SH2 *sh2);
 
@@ -1012,7 +1013,7 @@ void p32x_pwm_state_loaded(void);
 void p32x_dreq0_trigger(void);
 void p32x_dreq1_trigger(void);
 void p32x_timers_recalc(void);
-void p32x_timers_do(unsigned int m68k_slice);
+void p32x_timer_do(SH2 *sh2, unsigned int m68k_slice);
 void sh2_peripheral_reset(SH2 *sh2);
 unsigned int REGPARM(2) sh2_peripheral_read8(unsigned int a, SH2 *sh2);
 unsigned int REGPARM(2) sh2_peripheral_read16(unsigned int a, SH2 *sh2);

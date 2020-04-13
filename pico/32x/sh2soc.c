@@ -209,6 +209,9 @@ void p32x_timers_recalc(void)
 
   // SH2 timer step
   for (i = 0; i < 2; i++) {
+    sh2s[i].state &= ~SH2_TIMER_RUN;
+    if (PREG8(sh2s[i].peri_regs, 0x80) & 0x20) // TME
+      sh2s[i].state |= SH2_TIMER_RUN;
     tmp = PREG8(sh2s[i].peri_regs, 0x80) & 7;
     // Sclk cycles per timer tick
     if (tmp)
@@ -222,32 +225,29 @@ void p32x_timers_recalc(void)
   }
 }
 
-void p32x_timers_do(unsigned int m68k_slice)
+NOINLINE void p32x_timer_do(SH2 *sh2, unsigned int m68k_slice)
 {
   unsigned int cycles = m68k_slice * 3;
-  int cnt, i;
+  void *pregs = sh2->peri_regs;
+  int cnt; int i = sh2->is_slave;
 
-  // WDT timers
-  for (i = 0; i < 2; i++) {
-    void *pregs = sh2s[i].peri_regs;
-    if (PREG8(pregs, 0x80) & 0x20) { // TME
-      timer_cycles[i] += cycles;
-      // cnt = timer_cycles[i] / timer_tick_cycles[i];
-      cnt = (1ULL * timer_cycles[i] * timer_tick_factor[i]) >> 32;
-      timer_cycles[i] -= timer_tick_cycles[i] * cnt;
-      if (timer_cycles[i] > timer_tick_cycles[i])
-        timer_cycles[i] -= timer_tick_cycles[i], cnt++;
-      cnt += PREG8(pregs, 0x81);
-      if (cnt >= 0x100) {
-        int level = PREG8(pregs, 0xe3) >> 4;
-        int vector = PREG8(pregs, 0xe4) & 0x7f;
-        elprintf(EL_32XP, "%csh2 WDT irq (%d, %d)",
-          i ? 's' : 'm', level, vector);
-        sh2_internal_irq(&sh2s[i], level, vector);
-        cnt &= 0xff;
-      }
-      PREG8(pregs, 0x81) = cnt;
+  // WDT timer
+  timer_cycles[i] += cycles;
+  if (timer_cycles[i] > timer_tick_cycles[i]) {
+    // cnt = timer_cycles[i] / timer_tick_cycles[i];
+    cnt = (1ULL * timer_cycles[i] * timer_tick_factor[i]) >> 32;
+    timer_cycles[i] -= timer_tick_cycles[i] * cnt;
+
+    cnt += PREG8(pregs, 0x81);
+    if (cnt >= 0x100) {
+      int level = PREG8(pregs, 0xe3) >> 4;
+      int vector = PREG8(pregs, 0xe4) & 0x7f;
+      elprintf(EL_32XP, "%csh2 WDT irq (%d, %d)",
+        i ? 's' : 'm', level, vector);
+      sh2_internal_irq(sh2, level, vector);
+      cnt &= 0xff;
     }
+    PREG8(pregs, 0x81) = cnt;
   }
 }
 

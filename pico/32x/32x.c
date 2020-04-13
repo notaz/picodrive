@@ -508,12 +508,18 @@ void sync_sh2s_normal(unsigned int m68k_target)
           now = ssh2.m68krcycles_done;
       }
       if (CYCLES_GT(now, timer_cycles+STEP_N)) {
-        p32x_timers_do(now - timer_cycles);
+        if  (msh2.state & SH2_TIMER_RUN)
+          p32x_timer_do(&msh2, now - timer_cycles);
+        if  (ssh2.state & SH2_TIMER_RUN)
+          p32x_timer_do(&ssh2, now - timer_cycles);
         timer_cycles = now;
       }
     }
 
-    p32x_timers_do(now - timer_cycles);
+    if  (msh2.state & SH2_TIMER_RUN)
+      p32x_timer_do(&msh2, now - timer_cycles);
+    if  (ssh2.state & SH2_TIMER_RUN)
+      p32x_timer_do(&ssh2, now - timer_cycles);
     timer_cycles = now;
   }
   pprof_end_sub(m68k);
