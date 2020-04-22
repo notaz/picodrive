@@ -91,8 +91,10 @@ static __inline int AdvanceFIFOEntry(struct VdpFIFO *vf, struct PicoVideo *pv, i
   // if entry has been processed...
   if (cnt == 0) {
     // remove entry from FIFO
-    if (vf->fifo_ql)
+    if (vf->fifo_ql) {
+      vf->fifo_queue[vf->fifo_qx] = 0;
       vf->fifo_qx = (vf->fifo_qx+1) & 7, vf->fifo_ql --;
+    }
     // start processing for next entry if there is one
     if (vf->fifo_ql) {
       b = vf->fifo_queue[vf->fifo_qx] & FQ_BYTE;
@@ -230,7 +232,7 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
   if (count && vf->fifo_ql < 8) {
     // determine queue position for entry
     int x = (vf->fifo_qx + vf->fifo_ql - 1) & 7;
-    if (unlikely(vf->fifo_ql && (vf->fifo_queue[x] & FQ_BGDMA))) {
+    if (unlikely(vf->fifo_queue[x] & FQ_BGDMA)) {
       // CPU FIFO writes have priority over a background DMA Fill/Copy
       // XXX if interrupting a DMA fill, fill data changes
       if (x == vf->fifo_qx) { // overtaking to queue head?
