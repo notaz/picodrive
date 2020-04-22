@@ -235,11 +235,10 @@ extern SH2 sh2s[2];
 # define sh2_pc(sh2) (sh2)->ppc
 #else
 # define sh2_end_run(sh2, after_) do { \
-  int left_ = (signed int)(sh2)->sr >> 12; \
-  if (left_ > (after_)) { \
-    (sh2)->cycles_timeslice -= left_ - (after_); \
-    (sh2)->sr &= 0xfff; \
-    (sh2)->sr |= (after_) << 12; \
+  int left_ = ((signed int)(sh2)->sr >> 12) - (after_); \
+  if (left_ > 0) { \
+    (sh2)->cycles_timeslice -= left_; \
+    (sh2)->sr -= (left_ << 12); \
   } \
 } while (0)
 # define sh2_cycles_left(sh2) ((signed int)(sh2)->sr >> 12)
