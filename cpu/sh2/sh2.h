@@ -75,6 +75,7 @@ typedef struct SH2_
 	unsigned int	cycles_timeslice;
 
 	struct SH2_	*other_sh2;
+	int		(*run)(struct SH2_ *, int);
 
 	// we use 68k reference cycles for easier sync
 	unsigned int	m68krcycles_done;
@@ -82,7 +83,7 @@ typedef struct SH2_
 	unsigned int	mult_sh2_to_m68k;
 
 	uint8_t		data_array[0x1000]; // cache (can be used as RAM)
-	uint32_t	peri_regs[0x200/4]; // periphereal regs
+	uint32_t	peri_regs[0x200/4]; // peripheral regs
 } SH2;
 
 #define CYCLE_MULT_SHIFT 10
@@ -103,17 +104,17 @@ void sh2_unpack(SH2 *sh2, const unsigned char *buff);
 int  sh2_execute_drc(SH2 *sh2c, int cycles);
 int  sh2_execute_interpreter(SH2 *sh2c, int cycles);
 
-static __inline int sh2_execute(SH2 *sh2, int cycles, int use_drc)
+static __inline void sh2_execute_prepare(SH2 *sh2, int use_drc)
+{
+  sh2->run = use_drc ? sh2_execute_drc : sh2_execute_interpreter;
+}
+
+static __inline int sh2_execute(SH2 *sh2, int cycles)
 {
   int ret;
 
   sh2->cycles_timeslice = cycles;
-#ifdef DRC_SH2
-  if (use_drc)
-    ret = sh2_execute_drc(sh2, cycles);
-  else
-#endif
-    ret = sh2_execute_interpreter(sh2, cycles);
+  ret = sh2->run(sh2, cycles);
 
   return sh2->cycles_timeslice - ret;
 }
