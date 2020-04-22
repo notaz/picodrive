@@ -17,6 +17,7 @@
 
 @ very simple YM2612 output rate to sample rate adaption (~500k cycles @44100)
 #define INTERPOL
+#define SSG_EG
 
 .equiv SLOT1, 0
 .equiv SLOT2, 2
@@ -73,8 +74,11 @@
     and     r3, r3, #7           @ eg_inc_val shift, may be 0
     ldrb    r2, [r5,#0x17]       @ state
 
+#if defined(SSG_EG)
     tst     r0, #0x08            @ ssg enabled?
+    tstne   r12, #0x02
     bne     9f
+#endif
 
     @ non-SSG-EG mode
     cmp     r2, #4               @ EG_ATT
@@ -127,7 +131,9 @@
     strgeb  r3, [r5,#0x17]       @ state
 
 10: @ finish
+    ldrh    r3, [r5,#0x18]       @ tl
     strh    r0, [r5,#0x1a]       @ volume
+#if defined(SSG_EG)
     b       11f
 
 9:  @ SSG-EG mode
@@ -140,7 +146,7 @@
     movlt   r3, r0, lsl r3
     ldrlth  r0, [r5,#0x1a]       @ volume, unsigned (0-1023)
     movlt   r3, r3, lsr #1       @ eg_inc_val
-    addlt   r0, r0, r3, lsr #2
+    addlt   r0, r0, r3, lsl #2
 
     cmp     r2, #2
     blt     1f                   @ EG_REL
@@ -182,18 +188,20 @@
     strh    r0, [r5,#0x1a]       @ volume
     cmp     r2, #0x0c            @ if ( ssg&0x04 && state > EG_REL )
     cmpge   r3, #EG_REL+1
+    ldrh    r3, [r5,#0x18]       @ tl
     rsbge   r0, r0, #0x200       @ volume = (0x200-volume) & MAX_ATT
-    lslge   r0, r0, #10
-    lsrge   r0, r0, #10
+    lslge   r0, r0, #22
+    lsrge   r0, r0, #22
 
 11:
-    ldrh    r3, [r5,#0x18]       @ tl
+#endif
     add     r0, r0, r3           @ volume += tl
     strh    r0, [r5,#0x34]       @ vol_out
 
 0: @ EG_OFF
 .endm
 
+#if defined(SSG_EG)
 @ r5=slot, trashes: r0,r2,r3
 .macro update_ssg_eg
     ldrh    r0, [r5,#0x30]                @ ssg+ssgn
@@ -204,6 +212,7 @@
     cmp     r2, #EG_REL+1                 @   state > EG_REL &&
     cmpge   r3, #0x200                    @   volume >= 0x200?
     blt     9f
+    orr     r4, r4, #0x10                 @ ssg_update
 
     tst     r0, #0x01
     beq     1f
@@ -248,6 +257,33 @@
     strb    r2, [r5,#0x17]                @ state
 9:
 .endm
+
+@ r5=slot, trashes: r0,r2,r3
+.macro recalc_volout
+#if defined(INTERPOL)
+    ldrh    r0, [r5,#0x34]                @ vol_out
+#endif
+    ldrb    r2, [r5,#0x30]                @ ssg
+    ldrb    r3, [r5,#0x17]                @ state
+#if defined(INTERPOL)
+    strh    r0, [r5,#0x36]                @ vol_ipol
+#endif
+    ldrh    r0, [r5,#0x1a]                @ volume
+
+@    and     r2, r2, #0x0c
+    cmp     r2, #0x0c                     @ if ( ~ssg&0x0c && state > EG_REL )
+    cmpge   r3, #EG_REL+1
+    ldrh    r3, [r5,#0x18]                @ tl
+    rsbge   r0, r0, #0x200                @ volume = (0x200-volume) & MAX_ATT
+    lslge   r0, r0, #22
+    lsrge   r0, r0, #22
+    ldrh    r0, [r5,#0x1a]                @ volume
+    ldrh    r3, [r5,#0x18]                @ tl
+
+    add     r0, r0, r3                    @ volume += tl
+    strh    r0, [r5,#0x34]                @ vol_out
+.endm
+#endif
 
 @ r12=lfo_ampm[31:16], r1=lfo_cnt_old, r2=lfo_cnt, r3=scratch
 .macro advance_lfo_m
@@ -305,7 +341,7 @@
 .endm
 
 
-@ lr=context, r12=pack (stereo, lastchan, disabled, lfo_enabled | pan_r, pan_l, ams[2] | AMmasks[4] | FB[4] | lfo_ampm[16])
+@ lr=context, r12=pack (stereo, ssg_enabled, disabled, lfo_enabled | pan_r, pan_l, ams[2] | AMmasks[4] | FB[4] | lfo_ampm[16])
 @ r0-r2=scratch, r3=sin_tab, r5=scratch, r6-r7=vol_out[4], r10=op1_out
 .macro upd_algo0_m
 
@@ -643,8 +679,8 @@
 .endm
 
 
-@ lr=context, r12=pack (stereo, lastchan, disabled, lfo_enabled | pan_r, pan_l, ams[2] | AMmasks[4] | FB[4] | lfo_ampm[16])
-@ r0-r2=scratch, r3=sin_tab/scratch, r4=(length<<8)|unused[4],was_update,algo[3], r5=tl_tab/slot,
+@ lr=context, r12=pack (stereo, ssg_enabled, disabled, lfo_enabled | pan_r, pan_l, ams[2] | AMmasks[4] | FB[4] | lfo_ampm[16])
+@ r0-r2=scratch, r3=sin_tab/scratch, r4=(length<<8)|unused[3],ssg_update,was_update,algo[3], r5=tl_tab/slot,
 @ r6-r7=vol_out[4], r8=eg_timer, r9=eg_timer_add[31:16], r10=op1_out, r11=buffer
 .global chan_render_loop @ chan_rend_context *ct, int *buffer, int length
 
@@ -683,10 +719,17 @@ crl_loop:
     subs    r4, r4, #0x100
     bmi     crl_loop_end
 
-    @ -- SSG --
     ldr     r5, [lr, #0x40]      @ CH
+#if defined(SSG_EG)
+    tst     r12, #0x02              @ ssg_enabled?
+    beq     ssg_done
+    @ -- SSG --
+    lsl     r7, r8, #EG_SH
+    add     r7, r9, r7, lsr #EG_SH
+    subs    r7, r7, #1<<EG_SH
+    blt     ssg_done
 
-    @ r5=slot, trashes: r0,r2,r3
+ssg_loop:
     mov     r6, #4
 ssg_upd_loop:
     update_ssg_eg
@@ -702,10 +745,15 @@ ssg_upd_loop:
     bne     ssg_upd_loop
     sub     r5, r5, #SLOT_STRUCT_SIZE*3
 
+    subs    r7, r7, #1<<EG_SH
+    bge     ssg_loop
+ssg_done:
+#endif
+
     @ -- EG --
     add     r8, r8, r9
     cmp     r8, #EG_TIMER_OVERFLOW
-    bcc     eg_done
+    bcc     volout_upd
     ldr     r1, [lr, #0x3c]     @ eg_cnt
 eg_loop:
     sub     r8, r8, #EG_TIMER_OVERFLOW
@@ -731,9 +779,31 @@ eg_upd_loop:
     sub     r5, r5, #SLOT_STRUCT_SIZE*3
     bhs     eg_loop
     str     r1, [lr, #0x3c]
+    b       eg_done
+
+volout_upd:
+#if defined(SSG_EG)
+    tst     r4, #0x10               @ ssg_update?
+    beq     eg_done
+
+    @ recalc vol_out
+    mov     r6, #4
+volout_loop:
+    recalc_volout
+#if 0
+    subs    r6, r6, #1
+    addne   r5, r5, #SLOT_STRUCT_SIZE
+#else
+    add     r5, r5, #SLOT_STRUCT_SIZE*2
+    recalc_volout
+    subs    r6, r6, #2
+    subne   r5, r5, #SLOT_STRUCT_SIZE
+#endif
+    bne     volout_loop
+    sub     r5, r5, #SLOT_STRUCT_SIZE*3
+#endif
 
 eg_done:
-
     @ -- disabled? --
     and     r0, r12, #0xC
     cmp     r0, #0xC
@@ -789,7 +859,7 @@ eg_done:
     @ -- SLOT1 --
     PIC_LDR(r3, r2, ym_tl_tab)
 
-    @ lr=context, r12=pack (stereo, lastchan, disabled, lfo_enabled | pan_r, pan_l, ams[2] | AMmasks[4] | FB[4] | lfo_ampm[16])
+    @ lr=context, r12=pack (stereo, ssg_enabled, disabled, lfo_enabled | pan_r, pan_l, ams[2] | AMmasks[4] | FB[4] | lfo_ampm[16])
     @ r0-r2=scratch, r3=tl_tab, r5=scratch, r6-r7=vol_out[4], r10=op1_out
     upd_slot1_m
 
