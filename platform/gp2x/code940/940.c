@@ -167,7 +167,7 @@ void Main940(void)
 			case JOB940_INITALL:
 				/* ym2612 */
 				shared_ctl->writebuff0[0] = shared_ctl->writebuff1[0] = 0xffff;
-				YM2612Init_(shared_ctl->baseclock, shared_ctl->rate);
+				YM2612Init_(shared_ctl->baseclock, shared_ctl->rate, 0);
 				/* Helix mp3 decoder */
 				__malloc_init();
 				shared_data->mp3dec = MP3InitDecoder();
