@@ -19,9 +19,6 @@ void (*PsndMix_32_to_16l)(short *dest, int *src, int count) = mix_32_to_16l_ster
 // master int buffer to mix to
 static int PsndBuffer[2*(44100+100)/50];
 
-// dac, psg
-static unsigned short dac_info[312+4]; // pos in sample buffer
-
 // cdda output buffer
 short cdda_out_buffer[2*1152];
 
@@ -95,23 +92,6 @@ static void low_pass_filter_mono(int *buf32, int length)
 
 void (*low_pass_filter)(int *buf32, int length) = low_pass_filter_stereo;
 
-static void dac_recalculate(void)
-{
-  int lines = Pico.m.pal ? 313 : 262;
-  int i, pos;
-
-  pos = 0; // Q16
-
-  for(i = 0; i <= lines; i++)
-  {
-    dac_info[i] = ((pos+0x8000) >> 16); // round to nearest
-    pos += Pico.snd.fm_mult;
-  }
-  for (i = lines+1; i < sizeof(dac_info) / sizeof(dac_info[0]); i++)
-    dac_info[i] = dac_info[i-1];
-}
-
-
 PICO_INTERNAL void PsndReset(void)
 {
   // PsndRerate calls YM2612Init, which also resets
@@ -159,12 +139,9 @@ void PsndRerate(int preserve_state)
   Pico.snd.len_e_cnt = 0; // Q16
 
   // samples per line (Q16)
-  Pico.snd.fm_mult = 65536LL * PicoIn.sndRate / (target_fps*target_lines);
+  Pico.snd.smpl_mult = 65536LL * PicoIn.sndRate / (target_fps*target_lines);
   // samples per z80 clock (Q20)
-  Pico.snd.dac_mult = 16 * Pico.snd.fm_mult * 15/7 / 488;
-
-  // recalculate dac info
-  dac_recalculate();
+  Pico.snd.clkl_mult = 16 * Pico.snd.smpl_mult * 15/7 / 488;
 
   // clear all buffers
   memset32(PsndBuffer, 0, sizeof(PsndBuffer)/4);
@@ -192,8 +169,6 @@ PICO_INTERNAL void PsndStartFrame(void)
     Pico.snd.len_e_cnt -= 0x10000;
     Pico.snd.len_use++;
   }
-
-  Pico.snd.psg_line = 0;
 }
 
 PICO_INTERNAL void PsndDoDAC(int cyc_to)
@@ -202,7 +177,7 @@ PICO_INTERNAL void PsndDoDAC(int cyc_to)
   int dout = ym2612.dacout;
 
   // number of samples to fill in buffer (Q20)
-  len = (cyc_to * Pico.snd.dac_mult) - Pico.snd.dac_pos;
+  len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.dac_pos;
 
   // update position and calculate buffer offset and length
   pos = (Pico.snd.dac_pos+0x80000) >> 20;
@@ -237,17 +212,18 @@ PICO_INTERNAL void PsndDoDAC(int cyc_to)
 
 PICO_INTERNAL void PsndDoPSG(int line_to)
 {
-  int line_from = Pico.snd.psg_line;
-  int pos, pos1, len;
+  int pos, len;
   int stereo = 0;
 
-  pos  = dac_info[line_from];
-  pos1 = dac_info[line_to + 1];
-  len = pos1 - pos;
+  // Q16, number of samples since last call
+  len = ((line_to+1) * Pico.snd.smpl_mult) - Pico.snd.psg_pos;
   if (len <= 0)
     return;
 
-  Pico.snd.psg_line = line_to + 1;
+  // update position and calculate buffer offset and length
+  pos = (Pico.snd.psg_pos+0x8000) >> 16;
+  Pico.snd.psg_pos += len;
+  len = ((Pico.snd.psg_pos+0x8000) >> 16) - pos;
 
   if (!PicoIn.sndOut || !(PicoIn.opt & POPT_EN_PSG))
     return;
@@ -259,22 +235,22 @@ PICO_INTERNAL void PsndDoPSG(int line_to)
   SN76496Update(PicoIn.sndOut + pos, len, stereo);
 }
 
-PICO_INTERNAL void PsndDoFM(int line_to)
+PICO_INTERNAL void PsndDoFM(int cyc_to)
 {
   int pos, len;
   int stereo = 0;
 
   // Q16, number of samples since last call
-  len = ((line_to-1) * Pico.snd.fm_mult) - Pico.snd.fm_pos;
+  len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.fm_pos;
 
   // don't do this too often (about every 4th scanline)
-  if (len >> 16 <= PicoIn.sndRate >> 12)
+  if (len >> 20 <= PicoIn.sndRate >> 12)
     return;
 
   // update position and calculate buffer offset and length
-  pos = (Pico.snd.fm_pos+0x8000) >> 16;
+  pos = (Pico.snd.fm_pos+0x80000) >> 20;
   Pico.snd.fm_pos += len;
-  len = ((Pico.snd.fm_pos+0x8000) >> 16) - pos;
+  len = ((Pico.snd.fm_pos+0x80000) >> 20) - pos;
 
   // fill buffer
   if (PicoIn.opt & POPT_EN_STEREO) {
@@ -347,7 +323,7 @@ PICO_INTERNAL void PsndClear(void)
   if (!(PicoIn.opt & POPT_EN_FM))
     memset32(PsndBuffer, 0, PicoIn.opt & POPT_EN_STEREO ? len*2 : len);
   // drop pos remainder to avoid rounding errors (not entirely correct though)
-  Pico.snd.dac_pos = Pico.snd.fm_pos = 0;
+  Pico.snd.dac_pos = Pico.snd.fm_pos = Pico.snd.psg_pos = 0;
 }
 
 
@@ -355,7 +331,7 @@ static int PsndRender(int offset, int length)
 {
   int *buf32;
   int stereo = (PicoIn.opt & 8) >> 3;
-  int fmlen = ((Pico.snd.fm_pos+0x8000) >> 16);
+  int fmlen = ((Pico.snd.fm_pos+0x80000) >> 20);
   int daclen = ((Pico.snd.dac_pos+0x80000) >> 20);
 
   buf32 = PsndBuffer+(offset<<stereo);
@@ -371,16 +347,19 @@ static int PsndRender(int offset, int length)
   if (length-daclen > 0) {
     short *dacbuf = PicoIn.sndOut + (daclen << stereo);
     Pico.snd.dac_pos += (length-daclen) << 20;
-    for (; length-daclen > 0; daclen++) {
+    *dacbuf++ += Pico.snd.dac_val2;
+    if (stereo) dacbuf++;
+    for (daclen++; length-daclen > 0; daclen++) {
       *dacbuf++ += Pico.snd.dac_val;
       if (stereo) dacbuf++;
     }
+    Pico.snd.dac_val2 = Pico.snd.dac_val;
   }
 
   // Add in parts of the FM buffer not yet done
   if (length-fmlen > 0) {
     int *fmbuf = buf32 + ((fmlen-offset) << stereo);
-    Pico.snd.fm_pos += (length-fmlen) << 16;
+    Pico.snd.fm_pos += (length-fmlen) << 20;
     if (PicoIn.opt & POPT_EN_FM)
       YM2612UpdateOne(fmbuf, length-fmlen, stereo, 1);
   }
@@ -423,8 +402,6 @@ PICO_INTERNAL void PsndGetSamples(int y)
 {
   static int curr_pos = 0;
 
-  if (ym2612.dacen)
-    PsndDoDAC(cycles_68k_to_z80(Pico.t.m68c_aim - Pico.t.m68c_frame_start));
   PsndDoPSG(y - 1);
 
   curr_pos  = PsndRender(0, Pico.snd.len_use);

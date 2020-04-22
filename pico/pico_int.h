@@ -436,12 +436,12 @@ struct PicoSound
   short len_use;                        // adjusted
   int len_e_add;                        // for non-int samples/frame
   int len_e_cnt;
-  int dac_val, dac_val2;                // last DAC sample
-  unsigned int dac_mult;                // z80 clocks per line in Q16
-  unsigned int dac_pos;                 // last DAC position in Q16
-  short psg_line;
-  unsigned int fm_mult;                 // samples per line in Q16
-  unsigned int fm_pos;                  // last FM position in Q16
+  unsigned int clkl_mult;               // z80 clocks per line in Q20
+  unsigned int smpl_mult;               // samples per line in Q16
+  short dac_val, dac_val2;              // last DAC sample
+  unsigned int dac_pos;                 // last DAC position in Q20
+  unsigned int fm_pos;                  // last FM position in Q20
+  unsigned int psg_pos;                 // last PSG position in Q16
 };
 
 // run tools/mkoffsets pico/pico_int_offs.h if you change these
