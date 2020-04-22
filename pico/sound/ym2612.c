@@ -128,7 +128,7 @@ extern YM2612 *ym2612_940;
 
 #endif
 
-void memset32(int *dest, int c, int count);
+void memset32(void *dest, int c, int count);
 
 
 #ifndef __GNUC__
@@ -511,7 +511,7 @@ static INT32 lfo_pm_table[128*8*32]; /* 128 combinations of 7 bits meaningful (o
 	but LFO works with one more bit of a precision so we really need 4096 elements */
 static UINT32 fn_table[4096];	/* fnumber->increment counter */
 
-static int g_lfo_ampm = 0;
+static int g_lfo_ampm;
 
 /* register number to channel number , slot offset */
 #define OPN_CHAN(N) (N&3)
@@ -569,7 +569,7 @@ INLINE void FM_KEYON(int c , int s )
 		} else {
 			SLOT->volume = MIN_ATT_INDEX;
 		}
-		recalc_volout(SLOT);
+//		recalc_volout(SLOT);
 		ym2612.slot_mask |= (1<<s) << (c*4);
 	}
 }
@@ -608,8 +608,8 @@ INLINE void set_det_mul(FM_CH *CH, FM_SLOT *SLOT, int v)
 INLINE void set_tl(FM_SLOT *SLOT, int v)
 {
 	SLOT->tl = (v&0x7f)<<(ENV_BITS-7); /* 7bit TL */
-	if (SLOT->state > EG_REL)
-		recalc_volout(SLOT);
+//	if (SLOT->state > EG_REL)
+//		recalc_volout(SLOT);
 }
 
 /* set attack rate & key scale  */
@@ -761,7 +761,7 @@ INLINE int advance_lfo(int lfo_ampm, UINT32 lfo_cnt_old, UINT32 lfo_cnt)
 	return lfo_ampm;
 }
 
-INLINE void update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt)
+INLINE void update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt, UINT32 ssg_en)
 {
 	INT32 volume = SLOT->volume;
 	UINT32 pack = SLOT->eg_pack[SLOT->state - 1];
@@ -774,7 +774,7 @@ INLINE void update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt)
 	eg_inc_val = pack >> ((eg_cnt >> shift) & 7) * 3;
 	eg_inc_val = (1 << (eg_inc_val & 7)) >> 1;
 
-	if (SLOT->ssg&0x08) {
+	if ((SLOT->ssg&0x08) && ssg_en) {
 		switch (SLOT->state)
 		{
 		case EG_ATT:	/* attack phase */
@@ -854,7 +854,7 @@ INLINE void update_eg_phase(FM_SLOT *SLOT, UINT32 eg_cnt)
 	SLOT->volume = volume;
 }
 
-INLINE void update_ssg_eg_phase(FM_SLOT *SLOT)
+INLINE UINT32 update_ssg_eg_phase(FM_SLOT *SLOT, UINT32 phase)
 {
 	if (SLOT->ssg&0x01) {
 		if (SLOT->ssg&0x02) {
@@ -869,7 +869,7 @@ INLINE void update_ssg_eg_phase(FM_SLOT *SLOT)
 			SLOT->ssg ^= 4;
 			SLOT->ssgn ^= 4;
 		} else
-			SLOT->phase = 0;
+			phase = 0;
 
 		if (SLOT->state != EG_ATT) {
 			SLOT->state = (SLOT->sl == MIN_ATT_INDEX) ? EG_SUS : EG_DEC;
@@ -880,7 +880,8 @@ INLINE void update_ssg_eg_phase(FM_SLOT *SLOT)
 			}
 		}
 	}
-	recalc_volout(SLOT);
+//	recalc_volout(SLOT);
+	return phase;
 }
 #endif
 
@@ -927,15 +928,23 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 		int smp = 0;		/* produced sample */
 		unsigned int eg_out, eg_out2, eg_out4;
 		FM_SLOT *SLOT;
+		UINT32 cnt = ct->eg_timer_add+(ct->eg_timer & ((1<<EG_SH)-1));
 
-		SLOT = &ct->CH->SLOT[SLOT1];
-		if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200) update_ssg_eg_phase(SLOT);
-		SLOT = &ct->CH->SLOT[SLOT2];
-		if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200) update_ssg_eg_phase(SLOT);
-		SLOT = &ct->CH->SLOT[SLOT3];
-		if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200) update_ssg_eg_phase(SLOT);
-		SLOT = &ct->CH->SLOT[SLOT4];
-		if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200) update_ssg_eg_phase(SLOT);
+		if (ct->pack & 2) while (cnt >= 1<<EG_SH) {
+			cnt -= 1<<EG_SH;
+			SLOT = &ct->CH->SLOT[SLOT1];
+			if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
+				ct->phase1 = update_ssg_eg_phase(SLOT, ct->phase1);
+			SLOT = &ct->CH->SLOT[SLOT2];
+			if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
+				ct->phase2 = update_ssg_eg_phase(SLOT, ct->phase2);
+			SLOT = &ct->CH->SLOT[SLOT3];
+			if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
+				ct->phase3 = update_ssg_eg_phase(SLOT, ct->phase3);
+			SLOT = &ct->CH->SLOT[SLOT4];
+			if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
+				ct->phase4 = update_ssg_eg_phase(SLOT, ct->phase4);
+		}
 
 		if (ct->pack & 8) { /* LFO enabled ? (test Earthworm Jim in between demo 1 and 2) */
 			ct->pack = (ct->pack&0xffff) | (advance_lfo(ct->pack >> 16, ct->lfo_cnt, ct->lfo_cnt + ct->lfo_inc) << 16);
@@ -943,7 +952,21 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 		}
 
 		ct->eg_timer += ct->eg_timer_add;
-		while (ct->eg_timer >= EG_TIMER_OVERFLOW)
+		if (ct->eg_timer < EG_TIMER_OVERFLOW) {
+			SLOT = &ct->CH->SLOT[SLOT1];
+			SLOT->vol_ipol = SLOT->vol_out;
+			if (SLOT->state > EG_REL) recalc_volout(SLOT);
+			SLOT = &ct->CH->SLOT[SLOT2];
+			SLOT->vol_ipol = SLOT->vol_out;
+			if (SLOT->state > EG_REL) recalc_volout(SLOT);
+			SLOT = &ct->CH->SLOT[SLOT3];
+			SLOT->vol_ipol = SLOT->vol_out;
+			if (SLOT->state > EG_REL) recalc_volout(SLOT);
+			SLOT = &ct->CH->SLOT[SLOT4];
+			SLOT->vol_ipol = SLOT->vol_out;
+			if (SLOT->state > EG_REL) recalc_volout(SLOT);
+		}
+		else while (ct->eg_timer >= EG_TIMER_OVERFLOW)
 		{
 			ct->eg_timer -= EG_TIMER_OVERFLOW;
 			ct->eg_cnt++;
@@ -951,17 +974,18 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 
 			SLOT = &ct->CH->SLOT[SLOT1];
 			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt);
+			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
 			SLOT = &ct->CH->SLOT[SLOT2];
 			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt);
+			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
 			SLOT = &ct->CH->SLOT[SLOT3];
 			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt);
+			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
 			SLOT = &ct->CH->SLOT[SLOT4];
 			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt);
+			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
 		}
+
 #if 0
 		UINT32 ifrac0 = ct->eg_timer / (EG_TIMER_OVERFLOW>>EG_SH);
 		UINT32 ifrac1 = (1<<EG_SH) - ifrac0;
@@ -997,6 +1021,7 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 					ct->CH->SLOT[SLOT3].vol_out) >> 1;
 				ct->vol_out4 =  (ct->CH->SLOT[SLOT4].vol_ipol +
 					ct->CH->SLOT[SLOT4].vol_out) >> 1;
+				break;
 		}
 #elif 0
 		if (ct->eg_timer >> (EG_SH-1) < EG_TIMER_OVERFLOW >> EG_SH) {
@@ -1272,7 +1297,7 @@ static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: s
 	crct.mem = crct.CH->mem_value;		/* one sample delay memory */
 	crct.lfo_cnt = ym2612.OPN.lfo_cnt;
 
-	flags &= 0x35;
+	flags &= 0x37;
 
 	if (crct.lfo_inc) {
 		flags |= 8;
@@ -1453,6 +1478,7 @@ static void reset_channels(FM_CH *CH)
 		CH[c].mem_value = CH[c].op1_out = 0;
 	}
 	ym2612.slot_mask = 0;
+	ym2612.ssg_mask = 0;
 }
 
 /* initialize generic tables */
@@ -1655,8 +1681,10 @@ static int OPNWriteReg(int r, int v)
 	case 0x90:	/* SSG-EG */
 		SLOT->ssg =  v&0x0f;
 		SLOT->ssg ^= SLOT->ssgn;
-		if (SLOT->state > EG_REL)
-			recalc_volout(SLOT);
+		if (v&0x08) ym2612.ssg_mask |=   1<<(OPN_SLOT(r) + c*4);
+		else        ym2612.ssg_mask &= ~(1<<(OPN_SLOT(r) + c*4));
+//		if (SLOT->state > EG_REL)
+//			recalc_volout(SLOT);
 		break;
 
 	case 0xa0:
@@ -1751,6 +1779,7 @@ int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 {
 	int pan;
 	int active_chs = 0;
+	int flags = stereo ? 1:0;
 
 	// if !is_buf_empty, it means it has valid samples to mix with, else it may contain trash
 	if (is_buf_empty) memset32(buffer, 0, length<<stereo);
@@ -1786,17 +1815,24 @@ int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 	refresh_fc_eg_chan( &ym2612.CH[5] );
 
 	pan = ym2612.OPN.pan;
-	if (stereo) stereo = 1;
 
 	/* mix to 32bit dest */
-	// flags: stereo, ?, disabled, ?, pan_r, pan_l
+	// flags: stereo, ssg_enabled, disabled, _, pan_r, pan_l
 	chan_render_prep();
-	if (ym2612.slot_mask & 0x00000f) active_chs |= chan_render(buffer, length, 0, stereo|((pan&0x003)<<4)) << 0;
-	if (ym2612.slot_mask & 0x0000f0) active_chs |= chan_render(buffer, length, 1, stereo|((pan&0x00c)<<2)) << 1;
-	if (ym2612.slot_mask & 0x000f00) active_chs |= chan_render(buffer, length, 2, stereo|((pan&0x030)   )) << 2;
-	if (ym2612.slot_mask & 0x00f000) active_chs |= chan_render(buffer, length, 3, stereo|((pan&0x0c0)>>2)) << 3;
-	if (ym2612.slot_mask & 0x0f0000) active_chs |= chan_render(buffer, length, 4, stereo|((pan&0x300)>>4)) << 4;
-	if (ym2612.slot_mask & 0xf00000) active_chs |= chan_render(buffer, length, 5, stereo|((pan&0xc00)>>6)|(ym2612.dacen<<2)) << 5;
+#define	BIT_IF(v,b,c)	{ v &= ~(1<<(b)); if (c) v |= 1<<(b); }
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x00000f));
+	if (ym2612.slot_mask & 0x00000f) active_chs |= chan_render(buffer, length, 0, flags|((pan&0x003)<<4)) << 0;
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x0000f0));
+	if (ym2612.slot_mask & 0x0000f0) active_chs |= chan_render(buffer, length, 1, flags|((pan&0x00c)<<2)) << 1;
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x000f00));
+	if (ym2612.slot_mask & 0x000f00) active_chs |= chan_render(buffer, length, 2, flags|((pan&0x030)   )) << 2;
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x00f000));
+	if (ym2612.slot_mask & 0x00f000) active_chs |= chan_render(buffer, length, 3, flags|((pan&0x0c0)>>2)) << 3;
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x0f0000));
+	if (ym2612.slot_mask & 0x0f0000) active_chs |= chan_render(buffer, length, 4, flags|((pan&0x300)>>4)) << 4;
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0xf00000));
+	if (ym2612.slot_mask & 0xf00000) active_chs |= chan_render(buffer, length, 5, flags|((pan&0xc00)>>6)|(!!ym2612.dacen<<2)) << 5;
+#undef	BIT_IF
 	chan_render_finish();
 
 	return active_chs; // 1 if buffer updated
