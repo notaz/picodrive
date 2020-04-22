@@ -391,7 +391,7 @@ static int get_scanline(int is_from_z80);
 static void psg_write_68k(u32 d)
 {
   // look for volume write and update if needed
-  if ((d & 0x90) == 0x90 && Pico.snd.psg_line < Pico.m.scanline)
+  if ((d & 0x90) == 0x90)
     PsndDoPSG(Pico.m.scanline);
 
   SN76496Write(d);
@@ -401,8 +401,7 @@ static void psg_write_z80(u32 d)
 {
   if ((d & 0x90) == 0x90) {
     int scanline = get_scanline(1);
-    if (Pico.snd.psg_line < scanline)
-      PsndDoPSG(scanline);
+    PsndDoPSG(scanline);
   }
 
   SN76496Write(d);
@@ -1061,7 +1060,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   if (PicoIn.opt & POPT_EXT_FM)
     return YM2612Write_940(a, d, get_scanline(is_from_z80));
 #endif
-  PsndDoFM(get_scanline(is_from_z80));
+  PsndDoFM(is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k());
   return YM2612Write_(a, d);
 }
 
