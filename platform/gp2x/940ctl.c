@@ -282,7 +282,7 @@ void sharedmem940_finish(void)
 }
 
 
-void YM2612Init_940(int baseclock, int rate)
+void YM2612Init_940(int baseclock, int rate, int ssg)
 {
 	static int oldrate;
 
@@ -339,7 +339,7 @@ void YM2612Init_940(int baseclock, int rate)
 	memset(shared_ctl,  0, sizeof(*shared_ctl));
 
 	/* cause local ym2612 to init REGS */
-	YM2612Init_(baseclock, rate);
+	YM2612Init_(baseclock, rate, ssg);
 
 	internal_reset();
 

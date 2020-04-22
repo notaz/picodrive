@@ -95,7 +95,7 @@ typedef struct
 	UINT8	address;	/* 10 address register | need_save     */
 	UINT8	status;		/* 11 status flag | need_save          */
 	UINT8	mode;		/* mode  CSM / 3SLOT    */
-	UINT8	pad;
+	UINT8	flags;		/* operational flags	*/
 	int		TA;			/* timer a              */
 	int		TAC;		/* timer a maxval       */
 	int		TAT;		/* timer a ticker | need_save */
@@ -161,7 +161,7 @@ typedef struct
 extern YM2612 ym2612;
 #endif
 
-void YM2612Init_(int baseclock, int rate);
+void YM2612Init_(int baseclock, int rate, int ssg);
 void YM2612ResetChip_(void);
 int  YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty);
 
@@ -183,9 +183,9 @@ int  YM2612PicoStateLoad2(int *tat, int *tbt);
 #else
 /* GP2X specific */
 #include "../../platform/gp2x/940ctl.h"
-#define YM2612Init(baseclock,rate) do { \
-	if (PicoIn.opt&POPT_EXT_FM) YM2612Init_940(baseclock, rate); \
-	else               YM2612Init_(baseclock, rate); \
+#define YM2612Init(baseclock,rate,ssg) do { \
+	if (PicoIn.opt&POPT_EXT_FM) YM2612Init_940(baseclock, rate, ssg); \
+	else               YM2612Init_(baseclock, rate, ssg); \
 } while (0)
 #define YM2612ResetChip() do { \
 	if (PicoIn.opt&POPT_EXT_FM) YM2612ResetChip_940(); \

@@ -1820,17 +1820,17 @@ int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 	// flags: stereo, ssg_enabled, disabled, _, pan_r, pan_l
 	chan_render_prep();
 #define	BIT_IF(v,b,c)	{ v &= ~(1<<(b)); if (c) v |= 1<<(b); }
-	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x00000f));
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x00000f) && (ym2612.OPN.ST.flags & 1));
 	if (ym2612.slot_mask & 0x00000f) active_chs |= chan_render(buffer, length, 0, flags|((pan&0x003)<<4)) << 0;
-	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x0000f0));
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x0000f0) && (ym2612.OPN.ST.flags & 1));
 	if (ym2612.slot_mask & 0x0000f0) active_chs |= chan_render(buffer, length, 1, flags|((pan&0x00c)<<2)) << 1;
-	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x000f00));
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x000f00) && (ym2612.OPN.ST.flags & 1));
 	if (ym2612.slot_mask & 0x000f00) active_chs |= chan_render(buffer, length, 2, flags|((pan&0x030)   )) << 2;
-	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x00f000));
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x00f000) && (ym2612.OPN.ST.flags & 1));
 	if (ym2612.slot_mask & 0x00f000) active_chs |= chan_render(buffer, length, 3, flags|((pan&0x0c0)>>2)) << 3;
-	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x0f0000));
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0x0f0000) && (ym2612.OPN.ST.flags & 1));
 	if (ym2612.slot_mask & 0x0f0000) active_chs |= chan_render(buffer, length, 4, flags|((pan&0x300)>>4)) << 4;
-	BIT_IF(flags, 1, (ym2612.ssg_mask & 0xf00000));
+	BIT_IF(flags, 1, (ym2612.ssg_mask & 0xf00000) && (ym2612.OPN.ST.flags & 1));
 	if (ym2612.slot_mask & 0xf00000) active_chs |= chan_render(buffer, length, 5, flags|((pan&0xc00)>>6)|(!!ym2612.dacen<<2)) << 5;
 #undef	BIT_IF
 	chan_render_finish();
@@ -1840,13 +1840,14 @@ int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 
 
 /* initialize YM2612 emulator */
-void YM2612Init_(int clock, int rate)
+void YM2612Init_(int clock, int rate, int ssg)
 {
 	memset(&ym2612, 0, sizeof(ym2612));
 	init_tables();
 
 	ym2612.OPN.ST.clock = clock;
 	ym2612.OPN.ST.rate = rate;
+	ym2612.OPN.ST.flags = (ssg ? 1:0);
 
 	OPNSetPres( 6*24 );
 

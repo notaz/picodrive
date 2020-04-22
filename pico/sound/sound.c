@@ -119,7 +119,7 @@ void PsndRerate(int preserve_state)
     ym2612_pack_state();
     memcpy(state, YM2612GetRegs(), 0x204);
   }
-  YM2612Init(Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7, PicoIn.sndRate);
+  YM2612Init(Pico.m.pal ? OSC_PAL/7 : OSC_NTSC/7, PicoIn.sndRate, !(PicoIn.opt&POPT_DIS_FM_SSGEG));
   if (preserve_state) {
     // feed it back it's own registers, just like after loading state
     memcpy(YM2612GetRegs(), state, 0x204);
