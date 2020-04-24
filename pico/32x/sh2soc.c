@@ -312,7 +312,10 @@ u32 REGPARM(2) sh2_peripheral_read32(u32 a, SH2 *sh2)
 
   elprintf_sh2(sh2, EL_32XP, "peri r32 [%08x] %08x @%06x",
     a | ~0x1ff, d, sh2_pc(sh2));
-  if ((a & 0x1c0) == 0x140) {
+  if (a == 0x18c)
+    // kludge for polling COMM while polling for end of DMA
+    sh2->poll_cnt = 0;
+  else if ((a & 0x1c0) == 0x140) {
     // abused as comm area
     DRC_SAVE_SR(sh2);
     p32x_sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 3);
