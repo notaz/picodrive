@@ -883,7 +883,7 @@ static void m68k_mem_setup(void)
 static int get_scanline(int is_from_z80)
 {
   if (is_from_z80) {
-    int mclk_z80 = z80_cyclesDone() * 15;
+    int mclk_z80 = (z80_cyclesLeft<0 ? Pico.t.z80c_aim : z80_cyclesDone()) * 15;
     int mclk_line = Pico.t.z80_scanline * 488 * 7;
     while (mclk_z80 - mclk_line >= 488 * 7)
       Pico.t.z80_scanline++, mclk_line += 488 * 7;
