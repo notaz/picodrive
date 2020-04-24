@@ -333,6 +333,7 @@ static int PsndRender(int offset, int length)
   int stereo = (PicoIn.opt & 8) >> 3;
   int fmlen = ((Pico.snd.fm_pos+0x80000) >> 20);
   int daclen = ((Pico.snd.dac_pos+0x80000) >> 20);
+  int psglen = ((Pico.snd.psg_pos+0x8000) >> 16);
 
   buf32 = PsndBuffer+(offset<<stereo);
 
@@ -354,6 +355,14 @@ static int PsndRender(int offset, int length)
       if (stereo) dacbuf++;
     }
     Pico.snd.dac_val2 = Pico.snd.dac_val;
+  }
+
+  // Add in parts of the PSG output not yet done
+  if (length-psglen > 0) {
+    short *psgbuf = PicoIn.sndOut + (psglen << stereo);
+    Pico.snd.psg_pos += (length-psglen) << 16;
+    if (PicoIn.opt & POPT_EN_PSG)
+      SN76496Update(psgbuf, length-psglen, stereo);
   }
 
   // Add in parts of the FM buffer not yet done
@@ -402,8 +411,6 @@ PICO_INTERNAL void PsndGetSamples(int y)
 {
   static int curr_pos = 0;
 
-  PsndDoPSG(y - 1);
-
   curr_pos  = PsndRender(0, Pico.snd.len_use);
 
   if (PicoIn.writeSound)
@@ -412,11 +419,20 @@ PICO_INTERNAL void PsndGetSamples(int y)
   PsndClear();
 }
 
-PICO_INTERNAL void PsndGetSamplesMS(int y)
+static int PsndRenderMS(int offset, int length)
 {
-  int length = Pico.snd.len_use;
+  int stereo = (PicoIn.opt & 8) >> 3;
+  int psglen = ((Pico.snd.psg_pos+0x8000) >> 16);
 
-  PsndDoPSG(y - 1);
+  pprof_start(sound);
+
+  // Add in parts of the PSG output not yet done
+  if (length-psglen > 0) {
+    short *psgbuf = PicoIn.sndOut + (psglen << stereo);
+    Pico.snd.psg_pos += (length-psglen) << 16;
+    if (PicoIn.opt & POPT_EN_PSG)
+      SN76496Update(psgbuf, length-psglen, stereo);
+  }
 
   // upmix to "stereo" if needed
   if (PicoIn.opt & POPT_EN_STEREO) {
@@ -425,8 +441,19 @@ PICO_INTERNAL void PsndGetSamplesMS(int y)
       *p |= *p << 16;
   }
 
+  pprof_end(sound);
+
+  return length;
+}
+
+PICO_INTERNAL void PsndGetSamplesMS(int y)
+{
+  static int curr_pos = 0;
+
+  curr_pos  = PsndRenderMS(0, Pico.snd.len_use);
+
   if (PicoIn.writeSound != NULL)
-    PicoIn.writeSound(length * ((PicoIn.opt & POPT_EN_STEREO) ? 4 : 2));
+    PicoIn.writeSound(curr_pos * ((PicoIn.opt & POPT_EN_STEREO) ? 4 : 2));
   PsndClear();
 }
 

@@ -213,7 +213,7 @@ extern struct DrZ80 drZ80;
 #define z80_cyclesDone() \
   (Pico.t.z80c_aim - z80_cyclesLeft)
 
-#define cycles_68k_to_z80(x) ((x) * 3823 >> 13)
+#define cycles_68k_to_z80(x) ((x) * 3822 >> 13)
 
 // ----------------------- SH2 CPU -----------------------
 
