@@ -160,7 +160,7 @@ enum op_types {
                                 & BITMASK1(op))
 #define OP_ISBRAUC(op) (BITMASK4(OP_BRANCH, OP_BRANCH_R, OP_BRANCH_RF, OP_RTE) \
                                 & BITMASK1(op))
-#define OP_ISBRACND(op) (BITMASK3(OP_BRANCH_CT, OP_BRANCH_CF, OP_BRANCH_N) \
+#define OP_ISBRACND(op) (BITMASK2(OP_BRANCH_CT, OP_BRANCH_CF) \
                                 & BITMASK1(op))
 #define OP_ISBRAIMM(op) (BITMASK3(OP_BRANCH, OP_BRANCH_CT, OP_BRANCH_CF) \
                                 & BITMASK1(op))
@@ -3501,7 +3501,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
     rcache_set_usage_now(opd[0].source);   // current insn
     rcache_set_usage_soon(soon);           // insns 1-4
     rcache_set_usage_late(late & ~soon);   // insns 5-9
-    rcache_set_usage_discard(write & ~(late|soon));
+    rcache_set_usage_discard(write & ~(late|soon|opd[0].source));
     if (v <= 9)
       // upcoming rcache_flush, start writing back unused dirty stuff
       rcache_clean_masked(rcache_dirty_mask() & ~(write|opd[0].dest));
