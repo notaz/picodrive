@@ -17,18 +17,18 @@ void drc_cmn_cleanup(void);
 // binary search approach, since we don't have CLZ on ARM920T
 #define FOR_ALL_BITS_SET_DO(mask, bit, code) { \
   u32 __mask = mask; \
-  for (bit = 31; bit >= 0 && mask; bit--, __mask <<= 1) { \
-    if (!(__mask & (0xffff << 16))) \
-      bit -= 16, __mask <<= 16; \
-    if (!(__mask & (0xff << 24))) \
-      bit -= 8, __mask <<= 8; \
-    if (!(__mask & (0xf << 28))) \
-      bit -= 4, __mask <<= 4; \
-    if (!(__mask & (0x3 << 30))) \
-      bit -= 2, __mask <<= 2; \
-    if (!(__mask & (0x1 << 31))) \
-      bit -= 1, __mask <<= 1; \
-    if (__mask & (0x1 << 31)) { \
+  for (bit = 0; bit < 32 && mask; bit++, __mask >>= 1) { \
+    if (!(__mask & 0xffff)) \
+      bit += 16,__mask >>= 16; \
+    if (!(__mask & 0xff)) \
+      bit += 8, __mask >>= 8; \
+    if (!(__mask & 0xf)) \
+      bit += 4, __mask >>= 4; \
+    if (!(__mask & 0x3)) \
+      bit += 2, __mask >>= 2; \
+    if (!(__mask & 0x1)) \
+      bit += 1, __mask >>= 1; \
+    if (__mask & 0x1) { \
       code; \
     } \
   } \
