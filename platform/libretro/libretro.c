@@ -83,6 +83,8 @@ static short ALIGNED(4) sndBuffer[2*44100/50];
 
 static void snd_write(int len);
 
+char **g_argv;
+
 #ifdef _WIN32
 #define SLASH '\\'
 #else
@@ -500,6 +502,8 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 
 void emu_32x_startup(void)
 {
+   PicoDrawSetOutFormat(PDF_RGB555, 0);
+   PicoDrawSetOutBuf(vout_buf, vout_width * 2);
 }
 
 void lprintf(const char *fmt, ...)
