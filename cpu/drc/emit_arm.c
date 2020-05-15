@@ -36,8 +36,7 @@
 #define SR		16	// CPSR, status register
 #define MEM		17	// memory access (src=LDR, dst=STR)
 #define CYC1		20	// 1 cycle interlock (LDR, reg-cntrld shift)
-#define CYC2		21	// 2+ cycles interlock (LDR[BH], MUL/MLA etc)
-#define SWAP		31	// swapped
+#define CYC2		(CYC1+1)// 2+ cycles interlock (LDR[BH], MUL/MLA etc)
 #define NO		32	// token for "no register"
 
 // bitmask builders
@@ -46,6 +45,7 @@
 #define M3(x,y,z)	(M2(x,y)|M1(z))
 #define M4(x,y,z,a)	(M3(x,y,z)|M1(a))
 #define M5(x,y,z,a,b)	(M4(x,y,z,a)|M1(b))
+#define M6(x,y,z,a,b,c)	(M5(x,y,z,a,b)|M1(c))
 #define M10(a,b,c,d,e,f,g,h,i,j) (M5(a,b,c,d,e)|M5(f,g,h,i,j))
 
 // sys_cacheflush always flushes whole pages, and it's rather expensive on ARMs
@@ -90,94 +90,81 @@ static inline void emith_update_add(void *base, void *end)
 }
 
 // peephole optimizer. ATM only tries to reduce interlock
-#define EMIT_CACHE_SIZE 3
+#define EMIT_CACHE_SIZE 6
 struct emit_op {
 	u32 op;
 	u32 src, dst;
 };
 
-// peephole cache, last commited insn + cache + next insn + empty insn = size+3
-static struct emit_op emit_cache[EMIT_CACHE_SIZE+3];
+// peephole cache, last commited insn + cache + next insn = size+2
+static struct emit_op emit_cache[EMIT_CACHE_SIZE+2];
 static int emit_index;
 #define emith_insn_ptr()	(u8 *)((u32 *)tcache_ptr-emit_index)
 
-static inline int emith_pool_index(int tcache_offs);
-static inline void emith_pool_adjust(int pool_index, int move_offs);
+static inline void emith_pool_adjust(int tcache_offs, int move_offs);
 
 static NOINLINE void EMIT(u32 op, u32 dst, u32 src)
 {
-	void *emit_ptr = (u32 *)tcache_ptr - emit_index;
-	int i;
+	void * emit_ptr = (u32 *)tcache_ptr - emit_index;
+	struct emit_op *const ptr = emit_cache;
+	const int n = emit_index+1;
+	int i, bi, bd = 0;
 
-	EMIT_PTR(tcache_ptr, op); // emit to keep tcache_ptr current
+	// account for new insn in tcache
+	tcache_ptr = (void *)((u32 *)tcache_ptr + 1);
 	COUNT_OP;
 	// for conditional execution SR is always source
 	if (op < 0xe0000000 /*A_COND_AL << 28*/)
 		src |= M1(SR);
-	// put insn on back of queue
-	emit_cache[emit_index+1].op = op;
-	emit_cache[emit_index+1].src = src & ~M1(NO); // mask away the NO token
-	emit_cache[emit_index+1].dst = dst & ~M1(NO);
-	// move insn down in the queue as long as permitted by dependencies
-	for (i = emit_index-1; i > 0; i--) {
-		struct emit_op *ptr = &emit_cache[i];
+	// put insn on back of queue // mask away the NO token
+	emit_cache[n] = (struct emit_op)
+			{ .op=op, .src=src & ~M1(NO), .dst=dst & ~M1(NO) };
+	// check insns down the queue as long as permitted by dependencies
+	for (bd = bi = 0, i = emit_index; i > 1 && !(dst & M1(PC)); i--) {
 		int deps = 0;
-		// never swap branch insns (changes semantics)
-		if ((ptr[0].dst | ptr[1].dst) & M1(PC))
-			continue;
-		// dst deps between 0 and 1 must not be swapped, since any deps
-		// but [0].src & [1].src lead to changed semantics if swapped.
-		if ((ptr[0].dst & ptr[1].src) || (ptr[1].dst & ptr[0].src) ||
-		      (ptr[0].dst & ptr[1].dst))
-			continue;
-#if 1
-		// just move loads as far up as possible
-		deps -= !!(ptr[1].src & M1(MEM));
-		deps += !!(ptr[0].src & M1(MEM));
-#elif 0
-		// treat all dest->src deps as a potential interlock
-#define		DEP_INSN(x,y)	!!(ptr[x].dst & ptr[y].src)
-		//   insn sequence: -1, 0, 1, 2
-		deps -= DEP_INSN(1,2) + DEP_INSN(-1,0);
-		deps -= !!(ptr[1].src & M1(MEM));   // favour moving LDR's down
-		//   insn sequence: -1, 1, 0, 2
-		deps += DEP_INSN(0,2) + DEP_INSN(-1,1);
-		deps += !!(ptr[0].src & M1(SWAP));  // penalise if swapped
-#else
-		// calculate ARM920T interlock cycles
-#define	DEP_CYC1(x,y)	((ptr[x].dst & ptr[y].src)&&(ptr[x].src & M1(CYC1)))
-#define	DEP_CYC2(x,y)	((ptr[x].dst & ptr[y].src)&&(ptr[x].src & M1(CYC2)))
-#define DEP_INSN(x,y,z)	DEP_CYC1(x,y)+DEP_CYC1(y,z)+2*DEP_CYC2(x,y)+DEP_CYC2(x,z)
-		//   insn sequence: -1, 0, 1, 2
-		deps -= DEP_INSN(0,1,2) + DEP_INSN(-1,0,1);
-		deps -= !!(ptr[1].src & M1(MEM));   // favour moving LDR's down
-		//   insn sequence: -1, 1, 0, 2
-		deps += DEP_INSN(0,2,1) + DEP_INSN(-1,1,0);
-		deps += !!(ptr[0].src & M1(SWAP));  // penalise multiple swaps
-#endif
-		// swap if fewer depencies
-		if (deps < 0) {
-			// swap insn reading PC only if uncomitted pool load
-			struct emit_op tmp;
-			int i0 = -1, i1 = -1;
-			if ((!(ptr[0].src & M1(PC)) ||
-			     (i0 = emith_pool_index(emit_index+2 - i)) >= 0) &&
-			    (!(ptr[1].src & M1(PC)) ||
-			     (i1 = emith_pool_index(emit_index+1 - i)) >= 0)) {
-				// not using PC, or pool load
-				emith_pool_adjust(i0, 1);
-				emith_pool_adjust(i1, -1);
-				tmp = ptr[0], ptr[0] = ptr[1], ptr[1] = tmp;
-				ptr[0].src |= M1(SWAP);
-			}
+		// dst deps between i and n must not be swapped, since any deps
+		// but [i].src & [n].src lead to changed semantics if swapped.
+		if ((ptr[i].dst & ptr[n].src) || (ptr[n].dst & ptr[i].src) ||
+		      (ptr[i].dst & ptr[n].dst))
+			break;
+		// don't swap insns reading PC if it's not a word pool load
+		//	(ptr[i].op&0xf700000) != EOP_C_AM2_IMM(0,0,0,1,0,0,0))
+		if ((ptr[i].src & M1(PC)) && (ptr[i].op&0xf700000) != 0x5100000)
+			break;
+
+		// calculate ARM920T interlock cycles (differences only)
+#define	D2(x,y)	((ptr[x].dst & ptr[y].src)?((ptr[x].src >> CYC2) & 1):0)
+#define	D1(x,y)	((ptr[x].dst & ptr[y].src)?((ptr[x].src >> CYC1) & 3):0)
+		//   insn sequence: [..., i-2, i-1, i, i+1, ..., n-2, n-1, n]
+		deps -= D2(i-2,i)+D2(i-1,i+1)+D2(n-2,n  ) + D1(i-1,i)+D1(n-1,n);
+		deps -= !!(ptr[n].src & M2(CYC1,CYC2));// favour moving LDR down
+		//   insn sequence: [..., i-2, i-1, n, i, i+1, ..., n-2, n-1]
+		deps += D2(i-2,n)+D2(i-1,i  )+D2(n  ,i+1) + D1(i-1,n)+D1(n  ,i);
+		deps += !!(ptr[i].src & M2(CYC1,CYC2));// penalize moving LDR up
+		// remember best match found
+		if (bd > deps)
+			bd = deps, bi = i;
+	}
+	// swap if fewer depencies
+	if (bd < 0) {
+		// make room for new insn at bi
+		struct emit_op tmp = ptr[n];
+		for (i = n-1; i >= bi; i--) {
+			ptr[i+1] = ptr[i];
+			if (ptr[i].src & M1(PC))
+				emith_pool_adjust(n-i+1, 1);
 		}
+		// insert new insn at bi
+		ptr[bi] = tmp;
+		if (ptr[bi].src & M1(PC))
+			emith_pool_adjust(1, bi-n);
 	}
 	if (dst & M1(PC)) {
 		// commit everything if a branch insn is emitted
 		for (i = 1; i <= emit_index+1; i++)
 			EMIT_PTR(emit_ptr, emit_cache[i].op);
 		emit_index = 0;
-	} else if (emit_index <= EMIT_CACHE_SIZE) {
+	} else if (emit_index < EMIT_CACHE_SIZE) {
 		// queue not yet full
 		emit_index++;
 	} else {
@@ -412,13 +399,13 @@ static void emith_flush(void)
 	EMIT(((cond)<<28) | ((s)<<20) | ((rd)<<16) | ((rs)<<8) | 0x90 | (rm), M2(rd,s?SR:NO), M3(rs,rm,CYC2))
 
 #define EOP_C_UMULL(cond,s,rdhi,rdlo,rs,rm) \
-	EMIT(((cond)<<28) | 0x00800000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm), M3(rdhi,rdlo,s?SR:NO), M3(rs,rm,CYC2))
+	EMIT(((cond)<<28) | 0x00800000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm), M3(rdhi,rdlo,s?SR:NO), M4(rs,rm,CYC1,CYC2))
 
 #define EOP_C_SMULL(cond,s,rdhi,rdlo,rs,rm) \
-	EMIT(((cond)<<28) | 0x00c00000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm), M3(rdhi,rdlo,s?SR:NO), M3(rs,rm,CYC2))
+	EMIT(((cond)<<28) | 0x00c00000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm), M3(rdhi,rdlo,s?SR:NO), M4(rs,rm,CYC1,CYC2))
 
 #define EOP_C_SMLAL(cond,s,rdhi,rdlo,rs,rm) \
-	EMIT(((cond)<<28) | 0x00e00000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm), M3(rdhi,rdlo,s?SR:NO), M5(rs,rm,rdlo,rdhi,CYC2))
+	EMIT(((cond)<<28) | 0x00e00000 | ((s)<<20) | ((rdhi)<<16) | ((rdlo)<<12) | ((rs)<<8) | 0x90 | (rm), M3(rdhi,rdlo,s?SR:NO), M6(rs,rm,rdlo,rdhi,CYC1,CYC2))
 
 #define EOP_MUL(rd,rm,rs) EOP_C_MUL(A_COND_AL,0,rd,rs,rm) // note: rd != rm
 
@@ -502,10 +489,10 @@ static void emith_op_imm2(int cond, int s, int op, int rd, int rn, unsigned int 
 				return;
 			}
 #else
-			for (i = 3, u = v; i > 0; i--, u >>= 8)
+			for (i = 2, u = v; i > 0; i--, u >>= 8)
 				while (u > 0xff && !(u & 3))
 					u >>= 2;
-			if (u) { // 4 insns needed...
+			if (u) { // 3+ insns needed...
 				if (op == A_OP_MVN)
 					imm = ~imm;
 				// ...emit literal load
@@ -660,21 +647,14 @@ static inline void emith_pool_check(void)
 		emith_pool_commit(1);
 }
 
-static inline int emith_pool_index(int tcache_offs)
+static inline void emith_pool_adjust(int tcache_offs, int move_offs)
 {
 	u32 *ptr = (u32 *)tcache_ptr - tcache_offs;
 	int i;
 
 	for (i = literal_iindex-1; i >= 0 && literal_insn[i] >= ptr; i--)
 		if (literal_insn[i] == ptr)
-			return i;
-	return -1;
-}
-
-static inline void emith_pool_adjust(int pool_index, int move_offs)
-{
-	if (pool_index >= 0)
-		literal_insn[pool_index] += move_offs;
+			literal_insn[i] += move_offs;
 }
 
 #define EMITH_HINT_COND(cond)	/**/
@@ -938,6 +918,7 @@ static inline void emith_pool_adjust(int pool_index, int move_offs)
 	emith_top_imm(cond, A_OP_TST, r, imm)
 
 #define emith_move_r_imm_s8_patchable(r, imm) do { \
+	emith_flush(); /* pin insn at current tcache_ptr for patching */ \
 	if ((s8)(imm) < 0) \
 		EOP_MVN_IMM(r, 0, (u8)~(imm)); \
 	else \
