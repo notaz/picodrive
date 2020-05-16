@@ -1,6 +1,7 @@
 /*
  * rarely used EEPROM code
  * (C) notaz, 2006-2008
+ * (C) kub, 2020
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.

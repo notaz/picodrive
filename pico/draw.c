@@ -2,6 +2,7 @@
  * line renderer
  * (c) Copyright Dave, 2004
  * (C) notaz, 2006-2010
+ * (C) kub, 2019-2020
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
