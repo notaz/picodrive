@@ -1,6 +1,7 @@
 /*
  * PicoDrive
  * (C) notaz, 2009,2010
+ * (C) kub, 2019
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
