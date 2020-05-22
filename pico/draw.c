@@ -1011,12 +1011,12 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
     delta<<=4; // Delta of address
 
     if (entry+1 == cnt) width = p[entry+1]; // last sprite width limited?
+    while (sx <= 0 && width) width--, sx+=8, tile+=delta; // Offscreen
     mp = mb+(sx>>3);
-    for (m = *mp; width; width--, sx+=8, *mp++ = m, m >>= 8, tile+=delta)
+    for (m = *mp; width; width--, sx+=8, tile+=delta, *mp++ = m, m >>= 8)
     {
       unsigned int pack;
 
-      if(sx<=0)   continue;
       if(sx>=328) break; // Offscreen
 
       pack = *(unsigned int *)(PicoMem.vram + (tile & 0x7fff));
@@ -1244,12 +1244,12 @@ static void DrawSpritesForced(unsigned char *sprited)
     delta<<=4; // Delta of address
 
     if (entry+1 == cnt) width = p[entry+1]; // last sprite width limited?
+    while (sx <= 0 && width) width--, sx+=8, tile+=delta; // Offscreen
     mp = mb+(sx>>3);
-    for (m = *mp; width; width--, sx+=8, *mp++ = m, m >>= 8, tile+=delta)
+    for (m = *mp; width; width--, sx+=8, tile+=delta, *mp++ = m, m >>= 8)
     {
       unsigned int pack;
 
-      if(sx<=0)   continue;
       if(sx>=328) break; // Offscreen
 
       pack = *(unsigned int *)(PicoMem.vram + (tile & 0x7fff));
