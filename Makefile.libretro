@@ -93,6 +93,7 @@ else ifeq ($(platform), osx)
 	arch = intel
 	ifeq ($(shell uname -p),powerpc)
 		arch = ppc
+		CFLAGS += -DHAVE_NO_LANGEXTRA
 	endif
 	ifeq ($(arch),ppc)
 		CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__ -DFAMEC_NO_GOTOS
