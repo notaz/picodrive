@@ -48,6 +48,9 @@ unsigned short scan_block(uint32_t base_pc, int is_slave,
 #elif defined(__riscv__) || defined(__riscv)
 #define	DRC_SR_REG	"s11"
 #define DRC_REG_LL	0	// no ABI for (__ILP32__ && __riscv_xlen != 32)
+#elif defined(__powerpc__)
+#define	DRC_SR_REG	"r30"
+#define DRC_REG_LL	0	// no ABI for __ILP32__
 #elif defined(__i386__)
 #define	DRC_SR_REG	"edi"
 #define DRC_REG_LL	0	// 32 bit

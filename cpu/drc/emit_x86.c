@@ -622,6 +622,8 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	emith_asr(d, d, 32 - (bits)); \
 } while (0)
 
+#define emith_uext_ptr(r)	/**/
+
 #define emith_setc(r) do { \
 	assert(is_abcdx(r)); \
 	EMIT_REX_IF(0, 0, r); \

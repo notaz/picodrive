@@ -1138,6 +1138,8 @@ static inline void emith_pool_adjust(int tcache_offs, int move_offs)
 	EOP_MOV_REG_ASR(d,d,32 - (bits)); \
 } while (0)
 
+#define emith_uext_ptr(r)	/**/
+
 #define emith_do_caller_regs(mask, func) do { \
 	u32 _reg_mask = (mask) & 0x500f; \
 	if (_reg_mask) { \

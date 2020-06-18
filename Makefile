@@ -73,6 +73,10 @@ else ifneq (,$(findstring riscv,$(ARCH)))
 use_fame ?= 1
 use_cz80 ?= 1
 use_sh2drc ?= 1
+else ifneq (,$(findstring powerpc,$(ARCH)))
+use_fame ?= 1
+use_cz80 ?= 1
+use_sh2drc ?= 1
 endif
 
 -include Makefile.local
@@ -270,7 +274,7 @@ pico/carthw_cfg.c: pico/carthw.cfg
 
 # random deps
 pico/carthw/svp/compiler.o : cpu/drc/emit_arm.c
-cpu/sh2/compiler.o : cpu/drc/emit_arm.c cpu/drc/emit_arm64.c
+cpu/sh2/compiler.o : cpu/drc/emit_arm.c cpu/drc/emit_arm64.c cpu/drc/emit_ppc.c
 cpu/sh2/compiler.o : cpu/drc/emit_x86.c cpu/drc/emit_mips.c cpu/drc/emit_riscv.c
 cpu/sh2/mame/sh2pico.o : cpu/sh2/mame/sh2.c
 pico/pico.o pico/cd/mcd.o pico/32x/32x.o : pico/pico_cmn.c pico/pico_int.h
