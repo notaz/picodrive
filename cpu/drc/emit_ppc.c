@@ -6,8 +6,6 @@
  * See COPYING file in the top-level directory.
  */
 
-// WARNING: unfinished, neither thoroughly tested nor optimized. little endian only!
-
 // NB bit numbers are reversed in PPC (MSB is bit 0). The emith_* functions and
 // macros must take this into account.
 
@@ -34,7 +32,7 @@
 // use CA and OV.
 // Moreover, there's no easy possibility to get CA and OV for 32 bit arithmetic
 // since all arithmetic/logical insns use 64 bit.
-// For now, use the "no flags" code from the RISCV backend.
+// For now, use the "no flags" code from the RISC-V backend.
 
 #define HOST_REGS	32
 
@@ -42,7 +40,7 @@
 // reserved: r0(zero), r1(stack), r2(TOC), r13(TID)
 #define RET_REG		3
 #define PARAM_REGS	{ 3, 4, 5, 6, 7, 8, 9, 10 }
-#define PRESERVED_REGS	{ 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,31 }
+#define PRESERVED_REGS	{ 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 }
 #define TEMPORARY_REGS	{ 11, 12 }
 
 #define CONTEXT_REG	31
@@ -50,26 +48,17 @@
 
 // if RA is 0 in non-update memory insns, ADDI/ADDIS, ISEL, it aliases with zero
 #define Z0		0  // zero register
-#define	SP		1  // stack pointer
+#define SP		1  // stack pointer
 // SPR registers
-#define	XER		-1 // exception register
-#define	LR		-8 // link register
-#define	CTR		-9 // counter register
+#define XER		-1 // exception register
+#define LR		-8 // link register
+#define CTR		-9 // counter register
 // internally used by code emitter:
-#define	AT		0  // emitter temporary (can't be fully used anyway)
+#define AT		0  // emitter temporary (can't be fully used anyway)
 #define FNZ		14 // emulated processor flags: N (bit 31) ,Z (all bits)
 #define FC		15 // emulated processor flags: C (bit 0), others 0
 #define FV		16 // emulated processor flags: Nt^Ns (bit 31). others x
 
-
-// PPC conditions, BO0-BO4:BI2-BI4 since we only need CR0
-#define PPC_LT   0x60
-#define PPC_GE   0x20
-#define PPC_GT   0x61
-#define PPC_LE   0x21
-#define	PPC_EQ   0x62
-#define	PPC_NE   0x22
-#define PPC_AL   0xa0
 
 // unified conditions; virtual, not corresponding to anything real on PPC
 #define DCOND_EQ 0x0
@@ -94,8 +83,8 @@
 #define PPC_INSN(op, b10, b15, b20, b31) \
 	(((op)<<26)|((b10)<<21)|((b15)<<16)|((b20)<<11)|((b31)<<0))
 
-#define _	0 // marker for "field unused"
-#define __(n)	o##n // enum marker for "undefined"
+#define _		0 // marker for "field unused"
+#define __(n)		o##n // enum marker for "undefined"
 #define _CB(v,l,s,d)	((((v)>>(s))&((1<<(l))-1))<<(d)) // copy l bits
 
 // NB everything privileged or unneeded at 1st sight is left out
@@ -148,8 +137,16 @@ enum { OPS_STD, OPS_STDU /*,OPS_STQ*/ };
 // AA and LK in I,B-forms branches
 #define BAA	(1<<1)
 #define BLK	(1<<0)
+// BO and BI condition codes in B-form, BO0-BO4:BI2-BI4 since we only need CR0
+#define BLT	0x60
+#define BGE	0x20
+#define BGT	0x61
+#define BLE	0x21
+#define BEQ	0x62
+#define BNE	0x22
+#define BXX	0xa0	// unconditional, aka always
 
-#define	PPC_NOP \
+#define PPC_NOP \
 	PPC_INSN(OP_ORI, 0, 0, _, 0) // ori r0, r0, 0
 
 // arithmetic/logical
@@ -331,7 +328,7 @@ enum { OPS_STD, OPS_STDU /*,OPS_STQ*/ };
 #define PPC_BL(offs26) \
 	PPC_OP_IMM(OP_B,_,_,((offs26)&~3)|BLK)
 #define PPC_RET() \
-	PPC_OP_REG(OP__CR,OPC_BCLR,PPC_AL>>3,_,_)
+	PPC_OP_REG(OP__CR,OPC_BCLR,BXX>>3,_,_)
 #define PPC_RETCOND(cond) \
 	PPC_OP_REG(OP__CR,OPC_BCLR,(cond)>>3,(cond)&0x7,_)
 #define PPC_BCTRCOND(cond) \
@@ -411,6 +408,8 @@ enum { OPS_STD, OPS_STDU /*,OPS_STQ*/ };
 #define PPC_STP_REG			PPC_STX_REG
 #define PPC_BFXP_IMM			PPC_BFX_IMM
 
+#define emith_uext_ptr(r)		EMIT(PPC_EXTUW_REG(r, r))
+
 // "long" multiplication, 32x32 bit = 64 bit
 #define EMIT_PPC_MULLU_REG(dlo, dhi, s1, s2) do { \
 	EMIT(PPC_EXTUW_REG(s1, s1)); \
@@ -442,6 +441,8 @@ enum { OPS_STD, OPS_STDU /*,OPS_STQ*/ };
 #define PPC_STP_REG			PPC_STW_REG
 #define PPC_BFXP_IMM			PPC_BFXW_IMM
 
+#define emith_uext_ptr(r)		/**/
+
 // "long" multiplication, 32x32 bit = 64 bit
 #define EMIT_PPC_MULLU_REG(dlo, dhi, s1, s2) do { \
 	int at = (dlo == s1 || dlo == s2 ? AT : dlo); \
@@ -467,23 +468,7 @@ enum { OPS_STD, OPS_STDU /*,OPS_STQ*/ };
 #endif
 #define PTR_SIZE	(1<<PTR_SCALE)
 
-// "emulated" RISCV-insns for the flag handling stuff
-#define EMIT_PPC_SLTW_IMM(rt, ra, imm) do { \
-	EMIT(PPC_CMPW_IMM(ra, imm)); \
-	EMIT(PPC_MFCR_REG(rt)); \
-	EMIT(PPC_BFXW_IMM(rt, rt, 0, 1)); \
-} while (0)
-#define EMIT_PPC_SLTWU_IMM(rt, ra, imm) do { \
-	EMIT(PPC_CMPLW_IMM(ra, imm)); \
-	EMIT(PPC_MFCR_REG(rt)); \
-	EMIT(PPC_BFXW_IMM(rt, rt, 0, 1)); \
-} while (0)
-
-#define EMIT_PPC_SLTW_REG(rt, ra, rb) do { \
-	EMIT(PPC_CMPW_REG(ra, rb)); \
-	EMIT(PPC_MFCR_REG(rt)); \
-	EMIT(PPC_BFXW_IMM(rt, rt, 0, 1)); \
-} while (0)
+// "emulated" RISC-V SLTU insn for the flag handling stuff XXX cumbersome
 #define EMIT_PPC_SLTWU_REG(rt, ra, rb) do { \
 	EMIT(PPC_CMPLW_REG(ra, rb)); \
 	EMIT(PPC_MFCR_REG(rt)); \
@@ -612,9 +597,8 @@ static void emith_set_arith_flags(int rt, int ra, int rb, s32 imm, int sub)
 	emith_cmp_ra = emith_cmp_rb = -1;
 }
 
-// since R5 has less-than and compare-branch insns, handle cmp separately by
-// storing the involved regs for later use in one of those R5 insns.
-// This works for all conditions but VC/VS, but this is fortunately never used.
+// handle cmp separately by storing the involved regs for later use.
+// this works for all conditions but VC/VS, but this is fortunately never used.
 static void emith_set_compare_flags(int ra, int rb, s32 imm)
 {
 	emith_cmp_rb = rb;
@@ -873,7 +857,7 @@ static void emith_set_compare_flags(int ra, int rb, s32 imm)
 static void emith_move_imm(int r, int ptr, uintptr_t imm)
 {
 #ifdef __powerpc64__
-	if ((u32)imm != imm && ptr) {
+	if (ptr && (s32)imm != imm) {
 		emith_move_imm(r, 0, imm >> 32);
 		if (imm >> 32)
 			EMIT(PPC_LSL_IMM(r, r, 32));
@@ -883,23 +867,11 @@ static void emith_move_imm(int r, int ptr, uintptr_t imm)
 			EMIT(PPC_ORT_IMM(r, r, (imm & 0xffff0000) >> 16));
 	} else
 #endif
-	{
-		int s = Z0, d = 0, c = 0;
-		if ((u16)imm) {
-			EMIT(PPC_ADD_IMM(r, s, (u16)imm));
-			s = r, d = 1, c = (s16)imm < 0;
-		}
-		// adjust for sign extension in ADDI
-		if (!d)  // low part == 0
-			EMIT(PPC_ADDT_IMM(r, s, (u16)(imm>>16)));
-		else if (c && (u16)(~imm>>16)) // low part < 0
-			EMIT(PPC_XORT_IMM(r, s, (u16)(~imm>>16)));
-		else if (!c && (u16)(imm>>16))   // low part > 0
-			EMIT(PPC_ORT_IMM(r, s, (u16)(imm>>16)));
-		// make sure to clear upper half if this is a ptr
-		if (ptr && !(imm >> 32) && c)
-			EMIT(PPC_EXTUW_REG(r, r));
-	}
+	if ((s16)imm != (s32)imm) {
+		EMIT(PPC_ADDT_IMM(r, Z0, (u16)(imm>>16)));
+		if ((s16)imm)
+			EMIT(PPC_OR_IMM(r, r, (u16)(imm)));
+	} else	EMIT(PPC_ADD_IMM(r, Z0, (u16)imm));
 }
 
 #define emith_move_r_ptr_imm(r, imm) \
@@ -1176,9 +1148,6 @@ static void emith_add_imm(int rt, int ra, u32 imm)
 	} \
 } while (0)
 
-#define emith_uext_ptr(r) \
-	EMIT(PPC_EXTUW_REG(r, r))
-
 // multiply Rd = Rn*Rm (+ Ra)
 
 #define emith_mul(d, s1, s2) \
@@ -1248,13 +1217,17 @@ static void emith_add_imm(int rt, int ra, u32 imm)
 #define emith_read8s_r_r_r_c(cond, r, ra, rm) \
 	emith_read8s_r_r_r(r, ra, rm)
 
-#define emith_read16s_r_r_offs(r, ra, offs) \
-	EMIT(PPC_LDSH_IMM(r, ra, offs))
+#define emith_read16s_r_r_offs(r, ra, offs) do { \
+	EMIT(PPC_LDH_IMM(r, ra, offs)); \
+	EMIT(PPC_EXTSH_REG(r, r)); \
+} while (0)
 #define emith_read16s_r_r_offs_c(cond, r, ra, offs) \
 	emith_read16s_r_r_offs(r, ra, offs)
 
-#define emith_read16s_r_r_r(r, ra, rm) \
-	EMIT(PPC_LDSH_REG(r, ra, rm))
+#define emith_read16s_r_r_r(r, ra, rm) do { \
+	EMIT(PPC_LDH_REG(r, ra, rm)); \
+	EMIT(PPC_EXTSH_REG(r, r)); \
+} while (0)
 #define emith_read16s_r_r_r_c(cond, r, ra, rm) \
 	emith_read16s_r_r_r(r, ra, rm)
 
@@ -1346,16 +1319,16 @@ static int emith_cmpr_check(int rs, int rt, int cond, u32 *op)
 
 	// condition check for comparing 2 registers
 	switch (cond) {
-	case DCOND_EQ:	*op = PPC_CMPW_REG(rs, rt); b = PPC_EQ; break;
-	case DCOND_NE:	*op = PPC_CMPW_REG(rs, rt); b = PPC_NE; break;
-	case DCOND_LO:	*op = PPC_CMPLW_REG(rs, rt); b = PPC_LT; break;
-	case DCOND_HS:	*op = PPC_CMPLW_REG(rs, rt); b = PPC_GE; break;
-	case DCOND_LS:	*op = PPC_CMPLW_REG(rs, rt); b = PPC_LE; break;
-	case DCOND_HI:	*op = PPC_CMPLW_REG(rs, rt); b = PPC_GT; break;
-	case DCOND_LT:	*op = PPC_CMPW_REG(rs, rt); b = PPC_LT; break;
-	case DCOND_GE:	*op = PPC_CMPW_REG(rs, rt); b = PPC_GE; break;
-	case DCOND_LE:	*op = PPC_CMPW_REG(rs, rt); b = PPC_LE; break;
-	case DCOND_GT:	*op = PPC_CMPW_REG(rs, rt); b = PPC_GT; break;
+	case DCOND_EQ:	*op = PPC_CMPW_REG(rs, rt); b = BEQ; break;
+	case DCOND_NE:	*op = PPC_CMPW_REG(rs, rt); b = BNE; break;
+	case DCOND_LO:	*op = PPC_CMPLW_REG(rs, rt); b = BLT; break;
+	case DCOND_HS:	*op = PPC_CMPLW_REG(rs, rt); b = BGE; break;
+	case DCOND_LS:	*op = PPC_CMPLW_REG(rs, rt); b = BLE; break;
+	case DCOND_HI:	*op = PPC_CMPLW_REG(rs, rt); b = BGT; break;
+	case DCOND_LT:	*op = PPC_CMPW_REG(rs, rt); b = BLT; break;
+	case DCOND_GE:	*op = PPC_CMPW_REG(rs, rt); b = BGE; break;
+	case DCOND_LE:	*op = PPC_CMPW_REG(rs, rt); b = BLE; break;
+	case DCOND_GT:	*op = PPC_CMPW_REG(rs, rt); b = BGT; break;
 	}
 
 	return b;
@@ -1367,16 +1340,16 @@ static int emith_cmpi_check(int rs, s32 imm, int cond, u32 *op)
 
 	// condition check for comparing register with immediate
 	switch (cond) {
-	case DCOND_EQ:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = PPC_EQ; break;
-	case DCOND_NE:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = PPC_NE; break;
-	case DCOND_LO:	*op = PPC_CMPLW_IMM(rs, (u16)imm), b = PPC_LT; break;
-	case DCOND_HS:	*op = PPC_CMPLW_IMM(rs, (u16)imm), b = PPC_GE; break;
-	case DCOND_LS:	*op = PPC_CMPLW_IMM(rs, (u16)imm), b = PPC_LE; break;
-	case DCOND_HI:	*op = PPC_CMPLW_IMM(rs, (u16)imm), b = PPC_GT; break;
-	case DCOND_LT:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = PPC_LT; break;
-	case DCOND_GE:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = PPC_GE; break;
-	case DCOND_LE:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = PPC_LE; break;
-	case DCOND_GT:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = PPC_GT; break;
+	case DCOND_EQ:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = BEQ; break;
+	case DCOND_NE:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = BNE; break;
+	case DCOND_LO:	*op = PPC_CMPLW_IMM(rs, (u16)imm), b = BLT; break;
+	case DCOND_HS:	*op = PPC_CMPLW_IMM(rs, (u16)imm), b = BGE; break;
+	case DCOND_LS:	*op = PPC_CMPLW_IMM(rs, (u16)imm), b = BLE; break;
+	case DCOND_HI:	*op = PPC_CMPLW_IMM(rs, (u16)imm), b = BGT; break;
+	case DCOND_LT:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = BLT; break;
+	case DCOND_GE:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = BGE; break;
+	case DCOND_LE:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = BLE; break;
+	case DCOND_GT:	*op = PPC_CMPW_IMM(rs, (u16)imm), b = BGT; break;
 	}
 
 	return b;
@@ -1396,29 +1369,29 @@ static int emith_cond_check(int cond)
 	// shortcut for V known to be 0
 	if (b < 0 && emith_flg_noV) switch (cond) {
 	case DCOND_VS:	/* no branch */	break;		// never
-	case DCOND_VC:	b = PPC_AL;	break;		// always
-	case DCOND_LT:	op = PPC_CMPW_IMM(FNZ, 0); b = PPC_LT; break; // N
-	case DCOND_GE:	op = PPC_CMPW_IMM(FNZ, 0); b = PPC_GE; break; // !N
-	case DCOND_LE:	op = PPC_CMPW_IMM(FNZ, 0); b = PPC_LE; break; // N || Z
-	case DCOND_GT:	op = PPC_CMPW_IMM(FNZ, 0); b = PPC_GT; break; // !N && !Z
+	case DCOND_VC:	b = BXX;	break;		// always
+	case DCOND_LT:	op = PPC_CMPW_IMM(FNZ, 0); b = BLT; break; // N
+	case DCOND_GE:	op = PPC_CMPW_IMM(FNZ, 0); b = BGE; break; // !N
+	case DCOND_LE:	op = PPC_CMPW_IMM(FNZ, 0); b = BLE; break; // N || Z
+	case DCOND_GT:	op = PPC_CMPW_IMM(FNZ, 0); b = BGT; break; // !N && !Z
 	}
 
 	// the full monty if no shortcut
 	if (b < 0) switch (cond) {
 	// conditions using NZ
-	case DCOND_EQ:	op = PPC_CMPW_IMM(FNZ, 0); b = PPC_EQ; break; // Z
-	case DCOND_NE:	op = PPC_CMPW_IMM(FNZ, 0); b = PPC_NE; break; // !Z
-	case DCOND_MI:	op = PPC_CMPW_IMM(FNZ, 0); b = PPC_LT; break; // N
-	case DCOND_PL:	op = PPC_CMPW_IMM(FNZ, 0); b = PPC_GE; break; // !N
+	case DCOND_EQ:	op = PPC_CMPW_IMM(FNZ, 0); b = BEQ; break; // Z
+	case DCOND_NE:	op = PPC_CMPW_IMM(FNZ, 0); b = BNE; break; // !Z
+	case DCOND_MI:	op = PPC_CMPW_IMM(FNZ, 0); b = BLT; break; // N
+	case DCOND_PL:	op = PPC_CMPW_IMM(FNZ, 0); b = BGE; break; // !N
 	// conditions using C
-	case DCOND_LO:	op = PPC_CMPW_IMM(FC , 0); b = PPC_NE; break; // C
-	case DCOND_HS:	op = PPC_CMPW_IMM(FC , 0); b = PPC_EQ; break; // !C
+	case DCOND_LO:	op = PPC_CMPW_IMM(FC , 0); b = BNE; break; // C
+	case DCOND_HS:	op = PPC_CMPW_IMM(FC , 0); b = BEQ; break; // !C
 	// conditions using CZ
 	case DCOND_LS:						// C || Z
 	case DCOND_HI:						// !C && !Z
 		EMIT(PPC_ADD_IMM(AT, FC, -1)); // !C && !Z
 		EMIT(PPC_AND_REG(AT, FNZ, AT));
-		op = PPC_CMPW_IMM(AT , 0); b = (cond == DCOND_HI ? PPC_NE : PPC_EQ);
+		op = PPC_CMPW_IMM(AT , 0); b = (cond == DCOND_HI ? BNE : BEQ);
 		break;
 
 	// conditions using V
@@ -1427,14 +1400,14 @@ static int emith_cond_check(int cond)
 		EMIT(PPC_XOR_REG(AT, FV, FNZ)); // V = Nt^Ns^Nd^C
 		EMIT(PPC_LSRW_IMM(AT, AT, 31));
 		EMIT(PPC_XOR_REG(AT, AT, FC));
-		op = PPC_CMPW_IMM(AT , 0); b = (cond == DCOND_VS ? PPC_NE : PPC_EQ);
+		op = PPC_CMPW_IMM(AT , 0); b = (cond == DCOND_VS ? BNE : BEQ);
 		break;
 	// conditions using VNZ
 	case DCOND_LT:						// N^V
 	case DCOND_GE:						// !(N^V)
 		EMIT(PPC_LSRW_IMM(AT, FV, 31)); // Nd^V = Nt^Ns^C
 		EMIT(PPC_XOR_REG(AT, FC, AT));
-		op = PPC_CMPW_IMM(AT , 0); b = (cond == DCOND_LT ? PPC_NE : PPC_EQ);
+		op = PPC_CMPW_IMM(AT , 0); b = (cond == DCOND_LT ? BNE : BEQ);
 		break;
 	case DCOND_LE:						// (N^V) || Z
 	case DCOND_GT:						// !(N^V) && !Z
@@ -1442,7 +1415,7 @@ static int emith_cond_check(int cond)
 		EMIT(PPC_XOR_REG(AT, FC, AT));
 		EMIT(PPC_ADD_IMM(AT, AT, -1)); // !(Nd^V) && !Z
 		EMIT(PPC_AND_REG(AT, FNZ, AT));
-		op = PPC_CMPW_IMM(AT , 0); b = (cond == DCOND_GT ? PPC_NE : PPC_EQ);
+		op = PPC_CMPW_IMM(AT , 0); b = (cond == DCOND_GT ? BNE : BEQ);
 		break;
 	}
 
@@ -1461,7 +1434,7 @@ static int emith_cond_check(int cond)
 #define emith_jump_cond(cond, target) do { \
 	int mcond_ = emith_cond_check(cond); \
 	u32 disp_ = (u8 *)target - (u8 *)tcache_ptr; \
-	EMIT(PPC_BCOND(mcond_,disp_ & 0x0000ffff)); \
+	if (mcond_ >= 0) EMIT(PPC_BCOND(mcond_,disp_ & 0x0000ffff)); \
 } while (0)
 #define emith_jump_cond_patchable(cond, target) \
 	emith_jump_cond(cond, target)
@@ -1495,7 +1468,7 @@ static int emith_cond_check(int cond)
 
 #define emith_jump_reg(r) do { \
 	EMIT(PPC_MTSP_REG(r, CTR)); \
-	EMIT(PPC_BCTRCOND(PPC_AL)); \
+	EMIT(PPC_BCTRCOND(BXX)); \
 } while(0)
 #define emith_jump_reg_c(cond, r) \
 	emith_jump_reg(r)
@@ -1516,7 +1489,7 @@ static int emith_cond_check(int cond)
 
 #define emith_call_reg(r) do { \
 	EMIT(PPC_MTSP_REG(r, CTR)); \
-	EMIT(PPC_BLCTRCOND(PPC_AL)); \
+	EMIT(PPC_BLCTRCOND(BXX)); \
 } while(0)
 
 #define emith_call_ctx(offs) do { \
@@ -1564,13 +1537,13 @@ static int emith_cond_check(int cond)
 #define emith_pool_check()	/**/
 #define emith_pool_commit(j)	/**/
 #define emith_insn_ptr()	((u8 *)tcache_ptr)
-#define	emith_flush()		/**/
+#define emith_flush()		/**/
 #define host_instructions_updated(base, end) __builtin___clear_cache(base, end)
-#define	emith_update_cache()	/**/
+#define emith_update_cache()	/**/
 #define emith_rw_offs_max()	0x7fff
 
 // SH2 drc specific
-#define STACK_EXTRA	(64+48)	// Param, ABI (LR,CR,FP etc) save areas
+#define STACK_EXTRA	((8+6)*PTR_SIZE) // Param, ABI (LR,CR,FP etc) save areas
 #define emith_sh2_drc_entry() do { \
 	int _c, _z = PTR_SIZE; u32 _m = 0xffffc000; /* r14-r30 */ \
 	if (__builtin_parity(_m) == 1) _m |= 0x1; /* ABI align for SP is 16 */ \
@@ -1579,7 +1552,7 @@ static int emith_cond_check(int cond)
 		if (_m & (1 << _c)) \
 			{ _o -= _z; if (_c) emith_write_r_r_offs_ptr(_c, SP, _o); } \
 	EMIT(PPC_MFSP_REG(10, LR)); \
-	emith_write_r_r_offs_ptr(10, SP, 16); \
+	emith_write_r_r_offs_ptr(10, SP, 2*PTR_SIZE); \
 	emith_write_r_r_offs_ptr(SP, SP, -_s-STACK_EXTRA); /* XXX stdu */ \
 	emith_add_r_r_ptr_imm(SP, SP, -_s-STACK_EXTRA); \
 } while (0)
@@ -1591,7 +1564,7 @@ static int emith_cond_check(int cond)
 		if (_m & (1 << _c)) \
 			{ if (_c) emith_read_r_r_offs_ptr(_c, SP, _o); _o += _z; } \
 	emith_add_r_r_ptr_imm(SP, SP, _s+STACK_EXTRA); \
-	emith_read_r_r_offs_ptr(10, SP, 16); \
+	emith_read_r_r_offs_ptr(10, SP, 2*PTR_SIZE); \
 	EMIT(PPC_MTSP_REG(10, LR)); \
 	emith_ret(); \
 } while (0)
@@ -1672,11 +1645,13 @@ static int emith_cond_check(int cond)
 	emith_tst_r_imm(sr, Q);  /* if (Q ^ M) */ \
 	EMITH_JMP3_START(DCOND_EQ);               \
 	emith_add_r_r_r(rn, t_, rm);              \
-	EMIT_PPC_SLTWU_REG(FC, rn, t_);           \
+	EMIT(PPC_CMPLW_REG(rn, t_));              \
 	EMITH_JMP3_MID(DCOND_EQ);                 \
 	emith_sub_r_r_r(rn, t_, rm);              \
-	EMIT_PPC_SLTWU_REG(FC, t_, rn);           \
+	EMIT(PPC_CMPLW_REG(t_, rn));              \
 	EMITH_JMP3_END();                         \
+	EMIT(PPC_MFCR_REG(FC));                   \
+	EMIT(PPC_BFXW_IMM(FC, FC, 0, 1));         \
 	emith_eor_r_r(sr, FC); /* T ^= carry */   \
 	rcache_free_tmp(t_);                      \
 } while (0)
@@ -1737,7 +1712,7 @@ static int emith_cond_check(int cond)
 	EMIT(PPC_BFIW_IMM(sr, srcr, 22, 10))
 
 #define emith_carry_to_t(sr, is_sub) \
-	EMIT(PPC_BFIW_IMM(sr, FC, 31, 1))
+	EMIT(PPC_BFIW_IMM(sr, FC, 32-__builtin_ffs(T), 1))
 
 #define emith_t_to_carry(sr, is_sub) \
 	emith_and_r_r_imm(FC, sr, 1)
@@ -1755,25 +1730,26 @@ static int emith_cond_check(int cond)
 	((cond) ^ 1)
 
 // T bit handling
-static void emith_clr_t_cond(int sr)
-{
-  emith_bic_r_imm(sr, T);
-}
-
 static void emith_set_t_cond(int sr, int cond)
 {
   int b;
-  u8 *ptr;
-  u32 val = 0;
 
-  // XXX optimization
-  b = emith_invert_branch(emith_cond_check(cond));
-  ptr = tcache_ptr;
-  EMIT(PPC_BCOND(b, 0));
-  emith_or_r_imm(sr, T);
-  val = (u8 *)tcache_ptr - (u8 *)(ptr);
-  EMIT_PTR(ptr, PPC_BCOND(b, val & 0x00001fff));
+  // catch never and always cases
+  if ((b = emith_cond_check(cond)) < 0)
+    return;
+  else if (b == BXX) {
+    emith_or_r_imm(sr, T);
+    return;
+  }
+
+  // extract bit from CR and insert into T
+  EMIT(PPC_MFCR_REG(AT));
+  EMIT(PPC_BFXW_IMM(AT, AT, (b&7), 1));
+  if (!(b & 0x40)) EMIT(PPC_XOR_IMM(AT, AT, 1));
+  EMIT(PPC_BFIW_IMM(sr, AT, 32-__builtin_ffs(T), 1));
 }
+
+#define emith_clr_t_cond(sr)	((void)sr)
 
 #define emith_get_t_cond()      -1
 

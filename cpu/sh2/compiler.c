@@ -189,7 +189,7 @@ static char sh2dasm_buff[64];
 		(sh2)->r[8], (sh2)->r[9], (sh2)->r[10], (sh2)->r[11], \
 		(sh2)->r[12], (sh2)->r[13], (sh2)->r[14], (sh2)->r[15]); \
 	printf("%csh2 pc-ml %08x %08x %08x %08x %08x %08x %08x %08x\n", ms, \
-		(sh2)->pc, (sh2)->ppc, (sh2)->pr, (sh2)->sr&0x3ff, \
+		(sh2)->pc, (sh2)->ppc, (sh2)->pr, (sh2)->sr&0xfff, \
 		(sh2)->gbr, (sh2)->vbr, (sh2)->mach, (sh2)->macl); \
 	printf("%csh2 tmp-p  %08x %08x %08x %08x %08x %08x %08x %08x\n", ms, \
 		(sh2)->drc_tmp, (sh2)->irq_cycles, \
@@ -246,6 +246,10 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
         SH2_DUMP(&fsh2, "file");
         SH2_DUMP(sh2, "current");
         SH2_DUMP(&csh2[idx][0], "previous");
+	char *ps = (char *)sh2, *pf = (char *)&fsh2;
+	for (idx = 0; idx < offsetof(SH2, read8_map); idx += sizeof(u32))
+		if (*(u32 *)(ps+idx) != *(u32 *)(pf+idx))
+			printf("diff reg %ld\n",idx/sizeof(u32));
         exit(1);
       }
       csh2[idx][0] = fsh2;
@@ -455,6 +459,8 @@ static void rcache_free_tmp(int hr);
 #include "../drc/emit_mips.c"
 #elif defined(__riscv__) || defined(__riscv)
 #include "../drc/emit_riscv.c"
+#elif defined(__powerpc__)
+#include "../drc/emit_ppc.c"
 #elif defined(__i386__)
 #include "../drc/emit_x86.c"
 #elif defined(__x86_64__)
@@ -2572,6 +2578,7 @@ static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmode, u32 *offs)
     u32 odd = a & 1; // need to fix odd address for correct byte addressing
     la -= (s32)((a & ~mask) - *offs - odd); // diff between reg and memory
     hr = hr2 = rcache_get_reg(r, rmode, NULL);
+    if ((s32)a < 0) emith_uext_ptr(hr2);
     if ((la & ~omask) - odd) {
       hr = rcache_get_tmp();
       emith_add_r_r_ptr_imm(hr, hr2, (la & ~omask) - odd);

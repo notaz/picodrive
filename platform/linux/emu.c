@@ -29,7 +29,7 @@ void pemu_prep_defconfig(void)
 
 void pemu_validate_config(void)
 {
-#if !defined(__arm__) && !defined(__aarch64__) && !defined(__mips__) && !defined(__riscv__) &&  !defined(__riscv) && !defined(__i386__) && !defined(__x86_64__)
+#if !defined(__arm__) && !defined(__aarch64__) && !defined(__mips__) && !defined(__riscv__) &&  !defined(__riscv) && !defined(__powerpc__) && !defined(__i386__) && !defined(__x86_64__)
 	PicoIn.opt &= ~POPT_EN_DRC;
 #endif
 }

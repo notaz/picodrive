@@ -1400,6 +1400,7 @@ static int emith_cond_check(int cond, int *r, int *s)
 #define host_instructions_updated(base, end) __builtin___clear_cache(base, end)
 #define	emith_update_cache()	/**/
 #define emith_rw_offs_max()	0x7ff
+#define emith_uext_ptr(r)	/**/
 
 // SH2 drc specific
 #define emith_sh2_drc_entry() do { \
