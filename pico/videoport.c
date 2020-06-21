@@ -164,7 +164,7 @@ static int PicoVideoFIFODrain(int level, int cycles, int bgdma)
 //int osl = fifo_slot;
 
   // process FIFO entries until low level is reached
-  while (vf->fifo_slot < vf->fifo_maxslot && cycles < 488 &&
+  while (vf->fifo_slot <= vf->fifo_maxslot && cycles < 488 &&
          ((vf->fifo_total > level) | (vf->fifo_queue[vf->fifo_qx] & bgdma))) {
     int b = vf->fifo_queue[vf->fifo_qx] & FQ_BYTE;
     int cnt = bgdma ? pv->fifo_cnt : ((vf->fifo_total-level)<<b) - (pv->fifo_cnt&b);
