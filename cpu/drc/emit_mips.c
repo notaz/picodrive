@@ -286,6 +286,7 @@ enum { RB_SRL=0, RB_ROTR=1 };
 #define FN_PSUBU			FN_SUBU
 #define PTR_SCALE			2
 #endif
+#define PTR_SIZE			(1<<PTR_SCALE)
 
 // XXX: tcache_ptr type for SVP and SH2 compilers differs..
 #define EMIT_PTR(ptr, x) \
@@ -1541,16 +1542,18 @@ static int emith_cond_check(int cond, int *r)
 #define emith_add_r_ret(r) \
 	emith_add_r_r_ptr(r, LR)
 
-// NB: ABI SP alignment is 8 for compatibility with MIPS IV
+// NB: ABI SP alignment is 8 for 64 bit, O32 has a 16 byte arg save area
 #define emith_push_ret(r) do { \
-	emith_add_r_r_ptr_imm(SP, SP, -8-16); /* O32: 16 byte arg save area */ \
-	emith_write_r_r_offs(LR, SP, 4+16); \
-	if ((r) > 0) emith_write_r_r_offs(r, SP, 0+16); \
+	int offs_ = 8+16 - 2*PTR_SIZE; \
+	emith_add_r_r_ptr_imm(SP, SP, -8-16); \
+	emith_write_r_r_offs_ptr(LR, SP, offs_ + PTR_SIZE); \
+	if ((r) > 0) emith_write_r_r_offs(r, SP, offs_); \
 } while (0)
 
 #define emith_pop_and_ret(r) do { \
-	if ((r) > 0) emith_read_r_r_offs(r, SP, 0+16); \
-	emith_read_r_r_offs(LR, SP, 4+16); \
+	int offs_ = 8+16 - 2*PTR_SIZE; \
+	if ((r) > 0) emith_read_r_r_offs(r, SP, offs_); \
+	emith_read_r_r_offs_ptr(LR, SP, offs_ + PTR_SIZE); \
 	emith_add_r_r_ptr_imm(SP, SP, 8+16); \
 	emith_ret(); \
 } while (0)
@@ -1567,21 +1570,21 @@ static int emith_cond_check(int cond, int *r)
 
 // SH2 drc specific
 #define emith_sh2_drc_entry() do { \
-	int _c; u32 _m = 0xd0ff0000; \
+	int _c, _z = PTR_SIZE; u32 _m = 0xd0ff0000; \
 	if (__builtin_parity(_m) == 1) _m |= 0x1; /* ABI align for SP is 8 */ \
-	int _s = count_bits(_m) * 4 + 16, _o = _s; /* 16 byte arg save area */ \
+	int _s = count_bits(_m) * _z + 16, _o = _s; /* 16 O32 arg save area */ \
 	if (_s) emith_add_r_r_ptr_imm(SP, SP, -_s); \
 	for (_c = HOST_REGS-1; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
 		if (_m & (1 << _c)) \
-			{ _o -= 4; if (_c) emith_write_r_r_offs(_c, SP, _o); } \
+			{ _o -= _z; if (_c) emith_write_r_r_offs_ptr(_c, SP, _o); } \
 } while (0)
 #define emith_sh2_drc_exit() do { \
-	int _c; u32 _m = 0xd0ff0000; \
+	int _c, _z = PTR_SIZE; u32 _m = 0xd0ff0000; \
 	if (__builtin_parity(_m) == 1) _m |= 0x1; \
-	int _s = count_bits(_m) * 4 + 16, _o = 16; \
+	int _s = count_bits(_m) * _z + 16, _o = 16; \
 	for (_c = 0; _m && _c < HOST_REGS; _m &= ~(1 << _c), _c++) \
 		if (_m & (1 << _c)) \
-			{ if (_c) emith_read_r_r_offs(_c, SP, _o); _o += 4; } \
+			{ if (_c) emith_read_r_r_offs_ptr(_c, SP, _o); _o += _z; } \
 	if (_s) emith_add_r_r_ptr_imm(SP, SP, _s); \
 	emith_ret(); \
 } while (0)
