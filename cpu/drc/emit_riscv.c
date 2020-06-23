@@ -244,6 +244,8 @@ enum { F2_ALT=0x20, F2_MULDIV=0x01 };
 } while (0)
 #endif
 
+#define PTR_SIZE	(1<<PTR_SCALE)
+
 #define R5_ADDW_REG(rd, rs, rt)		(R5_ADD_REG(rd, rs, rt)^R5_OP32)
 #define R5_SUBW_REG(rd, rs, rt)		(R5_SUB_REG(rd, rs, rt)^R5_OP32)
 #define R5_LSLW_REG(rd, rs, rt)		(R5_LSL_REG(rd, rs, rt)^R5_OP32)
@@ -1144,22 +1146,22 @@ static void emith_st_offs(int sz, int rt, int rs, int o12)
 
 // function call handling
 #define emith_save_caller_regs(mask) do { \
-	int _c; u32 _m = mask & 0x3fce0; /* x5-x7,x10-x17 */ \
+	int _c, _z = PTR_SIZE; u32 _m = mask & 0x3fce0; /* x5-x7,x10-x17 */ \
 	_c = count_bits(_m)&3; _m |= (1<<((4-_c)&3))-1; /* ABI align */ \
-	int _s = count_bits(_m) * 4, _o = _s; \
+	int _s = count_bits(_m) * _z, _o = _s; \
 	if (_s) emith_add_r_r_ptr_imm(SP, SP, -_s); \
 	for (_c = HOST_REGS-1; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
 		if (_m & (1 << _c)) \
-			{ _o -= 4; if (_c) emith_write_r_r_offs(_c, SP, _o); } \
+			{ _o -= _z; if (_c) emith_write_r_r_offs_ptr(_c, SP, _o); } \
 } while (0)
 
 #define emith_restore_caller_regs(mask) do { \
-	int _c; u32 _m = mask & 0x3fce0; \
+	int _c, _z =  PTR_SIZE; u32 _m = mask & 0x3fce0; \
 	_c = count_bits(_m)&3; _m |= (1<<((4-_c)&3))-1; /* ABI align */ \
-	int _s = count_bits(_m) * 4, _o = 0; \
+	int _s = count_bits(_m) * _z, _o = 0; \
 	for (_c = 0; _m && _c < HOST_REGS; _m &= ~(1 << _c), _c++) \
 		if (_m & (1 << _c)) \
-			{ if (_c) emith_read_r_r_offs(_c, SP, _o); _o += 4; } \
+			{ if (_c) emith_read_r_r_offs_ptr(_c, SP, _o); _o += _z; } \
 	if (_s) emith_add_r_r_ptr_imm(SP, SP, _s); \
 } while (0)
 
@@ -1312,6 +1314,7 @@ static int emith_cond_check(int cond, int *r, int *s)
 // NB: returns position of patch for cache maintenance
 #define emith_jump_patch(ptr, target, pos) do { \
 	u32 *ptr_ = (u32 *)ptr; /* must skip condition check code */ \
+	while ((*ptr_&0x77) != OP_BCOND && (*ptr_&0x77) != OP_LUI) ptr_ ++; \
 	if ((*ptr_&0x77) == OP_BCOND) { \
 		u32 *p_ = ptr_, disp_ = (u8 *)target - (u8 *)ptr_; \
 		u32 f1_ = _CB(*ptr_,3,12,0); \
@@ -1382,13 +1385,13 @@ static int emith_cond_check(int cond, int *r, int *s)
 
 #define emith_push_ret(r) do { \
 	emith_add_r_r_ptr_imm(SP, SP, -16); /* ABI requires 16 byte aligment */\
-	emith_write_r_r_offs(LR, SP, 4); \
+	emith_write_r_r_offs_ptr(LR, SP, 8); \
 	if ((r) > 0) emith_write_r_r_offs(r, SP, 0); \
 } while (0)
 
 #define emith_pop_and_ret(r) do { \
 	if ((r) > 0) emith_read_r_r_offs(r, SP, 0); \
-	emith_read_r_r_offs(LR, SP, 4); \
+	emith_read_r_r_offs_ptr(LR, SP, 8); \
 	emith_add_r_r_ptr_imm(SP, SP, 16); \
 	emith_ret(); \
 } while (0)
@@ -1404,21 +1407,21 @@ static int emith_cond_check(int cond, int *r, int *s)
 
 // SH2 drc specific
 #define emith_sh2_drc_entry() do { \
-	int _c; u32 _m = 0x0ffc0202; /* x1,x9,x18-x27 */ \
+	int _c, _z = PTR_SIZE; u32 _m = 0x0ffc0202; /* x1,x9,x18-x27 */ \
 	_c = count_bits(_m)&3; _m |= (1<<((4-_c)&3))-1; /* ABI align */ \
-	int _s = count_bits(_m) * 4, _o = _s; \
+	int _s = count_bits(_m) * _z, _o = _s; \
 	if (_s) emith_add_r_r_ptr_imm(SP, SP, -_s); \
 	for (_c = HOST_REGS-1; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
 		if (_m & (1 << _c)) \
-			{ _o -= 4; if (_c) emith_write_r_r_offs(_c, SP, _o); } \
+			{ _o -= _z; if (_c) emith_write_r_r_offs_ptr(_c, SP, _o); } \
 } while (0)
 #define emith_sh2_drc_exit() do { \
-	int _c; u32 _m = 0x0ffc0202; \
+	int _c, _z = PTR_SIZE; u32 _m = 0x0ffc0202; \
 	_c = count_bits(_m)&3; _m |= (1<<((4-_c)&3))-1; /* ABI align */ \
-	int _s = count_bits(_m) * 4, _o = 0; \
+	int _s = count_bits(_m) * _z, _o = 0; \
 	for (_c = 0; _m && _c < HOST_REGS; _m &= ~(1 << _c), _c++) \
 		if (_m & (1 << _c)) \
-			{ if (_c) emith_read_r_r_offs(_c, SP, _o); _o += 4; } \
+			{ if (_c) emith_read_r_r_offs_ptr(_c, SP, _o); _o += _z; } \
 	if (_s) emith_add_r_r_ptr_imm(SP, SP, _s); \
 	emith_ret(); \
 } while (0)
@@ -1428,7 +1431,7 @@ static int emith_cond_check(int cond, int *r, int *s)
 	emith_lsr(mask, a, SH2_READ_SHIFT); \
 	emith_add_r_r_r_lsl_ptr(tab, tab, mask, PTR_SCALE+1); \
 	emith_read_r_r_offs_ptr(func, tab, 0); \
-	emith_read_r_r_offs(mask, tab, 1 << PTR_SCALE); \
+	emith_read_r_r_offs(mask, tab, PTR_SIZE); \
 	emith_addf_r_r_r_ptr(func, func, func); \
 } while (0)
 

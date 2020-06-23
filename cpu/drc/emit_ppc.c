@@ -1545,7 +1545,7 @@ static int emith_cond_check(int cond)
 // SH2 drc specific
 #define STACK_EXTRA	((8+6)*PTR_SIZE) // Param, ABI (LR,CR,FP etc) save areas
 #define emith_sh2_drc_entry() do { \
-	int _c, _z = PTR_SIZE; u32 _m = 0xffffc000; /* r14-r30 */ \
+	int _c, _z = PTR_SIZE; u32 _m = 0xffffc000; /* r14-r31 */ \
 	if (__builtin_parity(_m) == 1) _m |= 0x1; /* ABI align for SP is 16 */ \
 	int _s = count_bits(_m) * _z, _o = 0; \
 	for (_c = HOST_REGS-1; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
