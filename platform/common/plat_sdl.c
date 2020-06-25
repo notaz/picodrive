@@ -136,9 +136,19 @@ void bgr_to_uyvy_init(void)
 
 void rgb565_to_uyvy(void *d, const void *s, int pixels)
 {
-  unsigned int *dst = d;
-  const unsigned short *src = s;
+  uint32_t *dst = d;
+  const uint16_t *src = s;
 
+  if (plat_sdl_overlay->w > 2*plat_sdl_overlay->h)
+  for (; pixels > 0; src += 4, dst += 4, pixels -= 4)
+  {
+    struct uyvy *uyvy0 = yuv_uyvy + src[0], *uyvy1 = yuv_uyvy + src[1];
+    struct uyvy *uyvy2 = yuv_uyvy + src[2], *uyvy3 = yuv_uyvy + src[3];
+    dst[0] = (uyvy0->y << 24) | uyvy0->vyu;
+    dst[1] = (uyvy1->y << 24) | uyvy1->vyu;
+    dst[2] = (uyvy2->y << 24) | uyvy2->vyu;
+    dst[3] = (uyvy3->y << 24) | uyvy3->vyu;
+  } else 
   for (; pixels > 0; src += 4, dst += 2, pixels -= 4)
   {
     struct uyvy *uyvy0 = yuv_uyvy + src[0], *uyvy1 = yuv_uyvy + src[1];
