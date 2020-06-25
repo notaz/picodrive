@@ -1801,7 +1801,7 @@ static void emith_set_t_cond(int sr, int cond)
                   EMIT(MIPS_SLTU_IMM(AT,AT, 1)); r=AT; val++; break;
       } else if ((b>>5) == OP_BNE) {
                   EMIT(MIPS_XOR_REG(AT, r, b&0x1f));
-                  EMIT(MIPS_SLTU_IMM(AT,Z0,AT)); r=AT; val++; break;
+                  EMIT(MIPS_SLTU_REG(AT,Z0,AT)); r=AT; val++; break;
       }
   }
   if (val) {

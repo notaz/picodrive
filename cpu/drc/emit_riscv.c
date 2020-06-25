@@ -1601,28 +1601,21 @@ static void emith_set_t_cond(int sr, int cond)
   u32 val = 0, inv = 0;
 
   // try to avoid jumping around if possible
-  if (emith_cmp_rs >= 0) {
-    if (emith_cmp_rt >= 0)
-      b = emith_cmpr_check(emith_cmp_rs, emith_cmp_rt,  cond, &r, &s);
-    else
-      b = emith_cmpi_check(emith_cmp_rs, emith_cmp_imm, cond, &r, &s);
-  } else {
-    b = emith_cond_check(cond, &r, &s);
-    if (r == Z0) {
-      if (b == F1_BEQ || b == F1_BGE || b == F1_BGEU)
-        emith_or_r_imm(sr, T);
-      return;
-    } else if (r == FC)
-      val++, inv = (b == F1_BEQ);
-  }
+  b = emith_cond_check(cond, &r, &s);
+  if (r == Z0) {
+    if (b == F1_BEQ || b == F1_BGE || b == F1_BGEU)
+      emith_or_r_imm(sr, T);
+    return;
+  } else if (r == FC)
+    val++, inv = (b == F1_BEQ);
 
   if (!val) switch (b) {
   case F1_BEQ:  if (s == Z0) { EMIT(R5_SLTU_IMM(AT,r ,1)); r=AT; val++; break; }
                 EMIT(R5_XOR_REG(AT, r, s));
                 EMIT(R5_SLTU_IMM(AT,AT, 1)); r=AT; val++; break;
-  case F1_BNE:  if (s == Z0) { EMIT(R5_SLTU_IMM(AT,Z0,r)); r=AT; val++; break; }
+  case F1_BNE:  if (s == Z0) { EMIT(R5_SLTU_REG(AT,Z0,r)); r=AT; val++; break; }
                 EMIT(R5_XOR_REG(AT, r, s));
-                EMIT(R5_SLTU_IMM(AT,Z0,AT)); r=AT; val++; break;
+                EMIT(R5_SLTU_REG(AT,Z0,AT)); r=AT; val++; break;
   case F1_BLTU: EMIT(R5_SLTU_REG(AT, r, s)); r=AT; val++; break;
   case F1_BGEU: EMIT(R5_SLTU_REG(AT, r, s)); r=AT; val++; inv++; break;
   case F1_BLT:  EMIT(R5_SLT_REG(AT, r, s)); r=AT; val++; break;
