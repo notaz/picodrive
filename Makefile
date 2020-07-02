@@ -121,6 +121,7 @@ OBJS += platform/libpicofe/gl_platform.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "generic"
+CFLAGS += -DSDL_OVERLAY_2X
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
 OBJS += platform/common/plat_sdl.o
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
