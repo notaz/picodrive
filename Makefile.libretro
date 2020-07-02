@@ -42,7 +42,7 @@ STATIC_LINKING:= 0
 TARGET_NAME := picodrive
 LIBM := -lm
 GIT_VERSION ?= $(shell git rev-parse --short HEAD || echo unknown)
-ifneq ($(GIT_VERSION)," unknown")
+ifneq ($(GIT_VERSION),"unknown")
 	CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 endif
 
@@ -756,6 +756,9 @@ endif
 SHARED ?= -shared
 LDFLAGS += $(SHARED) $(fpic)
 
+ifneq ($(ARCH), arm)
+ARCH = $(shell $(CC) -dumpmachine | awk -F '-' '{print $$1}')
+endif
 PLATFORM = libretro
 NO_CONFIG_MAK = yes
 
