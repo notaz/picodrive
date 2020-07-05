@@ -1,27 +1,8 @@
 $(LD) ?= $(CC)
 TARGET ?= PicoDrive
-CFLAGS += -Wall -ggdb -ffunction-sections -fdata-sections
 CFLAGS += -I.
 CYCLONE_CC ?= gcc
 CYCLONE_CXX ?= g++
-
-ifneq ("$(PLATFORM)", "libretro")
-	CFLAGS += -Wall -g
-	ifndef DEBUG
-	CFLAGS += -O3 -DNDEBUG
-	endif
-endif
-
-# This is actually needed, believe me.
-# If you really have to disable this, set NO_ALIGN_FUNCTIONS elsewhere.
-ifndef NO_ALIGN_FUNCTIONS
-CFLAGS += -falign-functions=2
-endif
-LDFLAGS += -Wl,--gc-sections
-
-# profiling
-pprof ?= 0
-gperf ?= 0
 
 all: config.mak target_
 
@@ -38,6 +19,31 @@ config.mak:
 endif
 else # NO_CONFIG_MAK
 config.mak:
+endif
+
+# This is actually needed, believe me.
+# If you really have to disable this, set NO_ALIGN_FUNCTIONS elsewhere.
+ifndef NO_ALIGN_FUNCTIONS
+CFLAGS += -falign-functions=2
+endif
+
+# profiling
+pprof ?= 0
+gperf ?= 0
+
+ifneq ("$(PLATFORM)", "libretro")
+	CFLAGS += -Wall -g
+ifneq ($(findstring gcc,$(CC)),)
+	CFLAGS += -ffunction-sections -fdata-sections
+	LDFLAGS += -Wl,--gc-sections
+endif
+	ifndef DEBUG
+	CFLAGS += -O3 -DNDEBUG
+	endif
+
+	LD = $(CC)
+	OBJOUT ?= -o
+	LINKOUT ?= -o
 endif
 
 ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","gp2x" "opendingux" "rpi1"))
