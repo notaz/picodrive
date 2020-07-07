@@ -52,6 +52,8 @@ asm_ym2612 = 0
 asm_misc = 0
 asm_cdmemory = 0
 asm_mix = 0
+asm_32xdraw = 0
+asm_32xmemory = 0
 
 fpic :=
 
@@ -97,8 +99,8 @@ else ifeq ($(platform), osx)
 	endif
 	ifeq ($(arch),ppc)
 		CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__ -DFAMEC_NO_GOTOS
-        else
-        use_sh2drc = 1
+	else
+		use_sh2drc = 1
 	endif
 	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
 	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
@@ -120,14 +122,14 @@ else ifeq ($(platform), staticios)
 	CXX    += -miphoneos-version-min=8.0
 	CC_AS  += -miphoneos-version-min=8.0
 	CFLAGS += -miphoneos-version-min=8.0
-	ARCH := arm
+	ARCH := aarch64
 
 	STATIC_LINKING = 1
 	use_cyclone = 0
 	use_fame = 1
 	use_drz80 = 0
 	use_cz80 = 1
-	use_sh2drc = 0
+	use_sh2drc = 1
 	use_svpdrc = 0
 
 # iOS
@@ -142,7 +144,7 @@ else ifneq (,$(findstring ios,$(platform)))
 	ifeq ($(platform),ios-arm64)
 	  CC = clang -arch arm64 -isysroot $(IOSSDK)
 	  CXX = clang++ -arch arm64 -isysroot $(IOSSDK)
-      CFLAGS += -marm -DARM -D__aarch64__=1 
+	  CFLAGS += -marm -DARM -D__aarch64__=1 
 	else
 	  CC = clang -arch armv7 -isysroot $(IOSSDK)
 	  CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
@@ -157,35 +159,32 @@ ifeq ($(platform),$(filter $(platform),ios9 ios-arm64))
 	CXX    += -miphoneos-version-min=8.0
 	CC_AS  += -miphoneos-version-min=8.0
 	CFLAGS += -miphoneos-version-min=8.0
+	ARCH := aarch64
 else
 	CC     += -miphoneos-version-min=5.0
 	CXX    += -miphoneos-version-min=5.0
 	CC_AS  += -miphoneos-version-min=5.0
 	CFLAGS += -miphoneos-version-min=5.0
-endif
 	ARCH := arm
+endif
 
 	use_cyclone = 0
 	use_fame = 1
 	use_drz80 = 0
 	use_cz80 = 1
-	ifeq ($(platform),ios-arm64)
-		use_sh2drc = 0
-		use_svpdrc = 0
-	else
-		use_sh2drc = 1
-		use_svpdrc = 1
-	endif
+	use_sh2drc = 1
+	use_svpdrc = 0
 
 # tvOS
 else ifeq ($(platform), tvos-arm64)
-	ARCH := arm
+	ARCH := aarch64
 	use_cyclone = 0
 	use_fame = 1
 	use_drz80 = 0
 	use_cz80 = 1
-	use_sh2drc = 0
+	use_sh2drc = 1
 	use_svpdrc = 0
+
 	TARGET := $(TARGET_NAME)_libretro_tvos.dylib
 	SHARED := -dynamiclib
 	fpic := -fPIC
@@ -194,6 +193,9 @@ else ifeq ($(platform), tvos-arm64)
 		IOSSDK := $(shell xcodebuild -version -sdk appletvos Path)
 	endif
 	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
+	CC = clang -arch arm64 -isysroot $(IOSSDK)
+	CXX = clang++ -arch arm64 -isysroot $(IOSSDK)
+	CFLAGS += -marm -DARM -D__aarch64__=1 
 	CFLAGS += -DIOS
 
 # PS3
@@ -206,17 +208,11 @@ else ifeq ($(platform), ps3)
 	NO_MMAP = 1
 	DONT_COMPILE_IN_ZLIB = 1
 
-	asm_memory = 0
-	asm_render = 0
-	asm_ym2612 = 0
-	asm_misc = 0
-	asm_cdpico = 0
-	asm_cdmemory = 0
-	asm_mix = 0
 	use_cyclone = 0
 	use_fame = 1
 	use_drz80 = 0
 	use_cz80 = 1
+	use_sh2drc = 1
 
 # sncps3
 else ifeq ($(platform), sncps3)
@@ -228,17 +224,11 @@ else ifeq ($(platform), sncps3)
 	NO_MMAP = 1
 	DONT_COMPILE_IN_ZLIB = 1
 
-	asm_memory = 0
-	asm_render = 0
-	asm_ym2612 = 0
-	asm_misc = 0
-	asm_cdpico = 0
-	asm_cdmemory = 0
-	asm_mix = 0
 	use_cyclone = 0
 	use_fame = 1
 	use_drz80 = 0
 	use_cz80 = 1
+	use_sh2drc = 1
 
 # Lightweight PS3 Homebrew SDK
 else ifeq ($(platform), psl1ght)
@@ -250,17 +240,11 @@ else ifeq ($(platform), psl1ght)
 	NO_MMAP = 1
 	DONT_COMPILE_IN_ZLIB = 1
 	
-	asm_memory = 0
-	asm_render = 0
-	asm_ym2612 = 0
-	asm_misc = 0
-	asm_cdpico = 0
-	asm_cdmemory = 0
-	asm_mix = 0
 	use_cyclone = 0
 	use_fame = 1
 	use_drz80 = 0
 	use_cz80 = 1
+	use_sh2drc = 1
 
 # PSP
 else ifeq ($(platform), psp1)
@@ -273,17 +257,11 @@ else ifeq ($(platform), psp1)
     NO_MMAP = 1
     DONT_COMPILE_IN_ZLIB = 1
 
-    asm_memory = 0
     asm_render = 1
-    asm_ym2612 = 0
-    asm_misc = 0
-    asm_cdpico = 0
-    asm_cdmemory = 0
-    asm_mix = 0
-    use_cyclone = 0
     use_fame = 1
     use_drz80 = 0
     use_cz80 = 1
+    use_sh2drc = 1
 
 # PS2
 else ifeq ($(platform), ps2)
@@ -297,17 +275,12 @@ else ifeq ($(platform), ps2)
     NO_MMAP = 1
     DONT_COMPILE_IN_ZLIB = 1
 
-    asm_memory = 0
     asm_render = 1
-    asm_ym2612 = 0
-    asm_misc = 0
-    asm_cdpico = 0
-    asm_cdmemory = 0
-    asm_mix = 0
     use_cyclone = 0
     use_fame = 1
     use_drz80 = 0
     use_cz80 = 1
+    use_sh2drc = 1
 
 	OBJS += platform/ps2/asm.o
 
@@ -326,14 +299,6 @@ else ifeq ($(platform), ctr)
    DONT_COMPILE_IN_ZLIB = 1
    ARCH = arm
    ARM_ASM = 1
-
-   asm_memory = 1
-   asm_render = 1
-   asm_ym2612 = 1
-   asm_misc = 1
-   asm_cdpico = 1
-   asm_cdmemory = 1
-   asm_mix = 1
 
    use_cyclone = 1
    use_fame = 0
@@ -357,14 +322,6 @@ else ifeq ($(platform), raspberrypi)
    fpic := -fPIC
    DONT_COMPILE_IN_ZLIB = 1
 
-   asm_memory = 1
-   asm_render = 1
-   asm_ym2612 = 1
-   asm_misc = 1
-   asm_cdpico = 1
-   asm_cdmemory = 1
-   asm_mix = 1
-
    use_cyclone = 1
    use_fame = 0
    use_drz80 = 1
@@ -386,14 +343,8 @@ else ifeq ($(platform), vita)
 	NO_MMAP = 1
 	DONT_COMPILE_IN_ZLIB = 1
 	ARCH = arm
+	ARM_ASM=1
 
-	asm_memory = 1
-	asm_render = 1
-	asm_ym2612 = 1
-	asm_misc = 1
-	asm_cdpico = 1
-	asm_cdmemory = 1
-	asm_mix = 1
 	use_cyclone = 1
 	use_fame = 0
 	use_drz80 = 1
@@ -443,13 +394,14 @@ else ifeq ($(platform), switch)
 else ifeq ($(platform), libnx)
    include $(DEVKITPRO)/libnx/switch_rules
    TARGET := $(TARGET_NAME)_libretro_$(platform).a
-   ARCH := arm64
+   ARCH := aarch64
    CFLAGS += -O3 -fomit-frame-pointer -ffast-math -I$(DEVKITPRO)/libnx/include/ -fPIE -Wl,--allow-multiple-definition
    CFLAGS += -specs=$(DEVKITPRO)/libnx/switch.specs
    CFLAGS += -D__SWITCH__ -DHAVE_LIBNX
    CFLAGS += -DARM -D__aarch64__=1 -march=armv8-a -mtune=cortex-a57 -mtp=soft -ffast-math -mcpu=cortex-a57+crc+fp+simd -ffunction-sections
    CFLAGS += -Ifrontend/switch -ftree-vectorize
    STATIC_LINKING=1
+   use_sh2drc = 1
 
 # QNX
 else ifeq ($(platform), qnx)
@@ -489,7 +441,6 @@ else ifeq ($(platform), classic_armv7_a7)
 	HAVE_NEON = 1
 	ARCH = arm
 	BUILTIN_GPU = neon
-	USE_DYNAREC = 1
 	ifeq ($(shell echo `$(CC) -dumpversion` "< 4.9" | bc -l), 1)
 	  CFLAGS += -march=armv7-a
 	else
@@ -499,6 +450,9 @@ else ifeq ($(platform), classic_armv7_a7)
 	    LDFLAGS += -static-libgcc -static-libstdc++
 	  endif
 	endif
+
+	use_sh2drc = 1
+	use_svpdrc = 1
 	
 # (armv8 a35, hard point, neon based) ###
 # Playstation Classic
@@ -518,19 +472,14 @@ else ifeq ($(platform), classic_armv8_a35)
         CPPFLAGS += $(CFLAGS)
         ASFLAGS += $(CFLAGS)
         HAVE_NEON = 1
-        ARCH = arm
+        ARCH = aarch64
         BUILTIN_GPU = neon
         CFLAGS += -march=armv8-a
         LDFLAGS += -static-libgcc -static-libstdc++
-        asm_memory = 0
-        asm_render = 0
-        asm_ym2612 = 0
-        asm_misc = 0
-        asm_cdpico = 0
-        asm_cdmemory = 0
-        asm_mix = 0
+
+        use_sh2drc = 1
         use_cyclone = 0
-	use_fame = 1
+        use_fame = 1
         use_drz80 = 0
         use_cz80 = 1	
 #######################################
@@ -597,21 +546,14 @@ else ifeq ($(platform), emscripten)
 # GCW0
 else ifeq ($(platform), gcw0)
 	TARGET := $(TARGET_NAME)_libretro.so
-	CC = /opt/gcw0-toolchain/usr/bin/mipsel-linux-gcc
-	AR = /opt/gcw0-toolchain/usr/bin/mipsel-linux-ar
+	CC = mipsel-linux-gcc
+	AR = mipsel-linux-ar
 	SHARED := -shared -nostdlib
         fpic := -fPIC
 	LIBM :=
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -ffast-math -march=mips32 -mtune=mips32r2 -mhard-float
 
-	asm_memory = 0
-	asm_render = 0
-	asm_ym2612 = 0
-	asm_misc = 0
-	asm_cdpico = 0
-	asm_cdmemory = 0
-	asm_mix = 0
 	use_cyclone = 0
 	use_fame = 1
 	use_drz80 = 0
@@ -744,6 +686,8 @@ asm_ym2612 = 1
 asm_misc = 1
 asm_cdmemory = 1
 asm_mix = 1
+asm_32xdraw = 1
+asm_32xmemory = 1
 endif
 
 CFLAGS += $(fpic)
