@@ -1,21 +1,6 @@
 TARGET ?= PicoDrive
 DEBUG ?= 0
-CFLAGS += -Wall -ggdb -ffunction-sections -fdata-sections
 CFLAGS += -I.
-ifeq "$(DEBUG)" "0"
-CFLAGS += -O3 -DNDEBUG
-endif
-
-# This is actually needed, believe me.
-# If you really have to disable this, set NO_ALIGN_FUNCTIONS elsewhere.
-ifndef NO_ALIGN_FUNCTIONS
-CFLAGS += -falign-functions=2
-endif
-LDFLAGS += -Wl,--gc-sections
-
-# profiling
-pprof ?= 0
-gperf ?= 0
 
 all: config.mak target_
 
@@ -32,6 +17,28 @@ config.mak:
 endif
 else # NO_CONFIG_MAK
 config.mak:
+endif
+
+# This is actually needed, believe me.
+# If you really have to disable this, set NO_ALIGN_FUNCTIONS elsewhere.
+ifndef NO_ALIGN_FUNCTIONS
+CFLAGS += -falign-functions=2
+endif
+LDFLAGS += -Wl,--gc-sections
+
+# profiling
+pprof ?= 0
+gperf ?= 0
+
+ifneq ("$(PLATFORM)", "libretro")
+	CFLAGS += -Wall -g
+ifneq ($(findstring gcc,$(CC)),)
+	CFLAGS += -ffunction-sections -fdata-sections
+	LDFLAGS += -Wl,--gc-sections
+endif
+ifeq "$(DEBUG)" "0"
+	CFLAGS += -O3 -DNDEBUG
+endif
 endif
 
 ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","gp2x" "opendingux" "rpi1"))
