@@ -8,6 +8,20 @@ CC=${CC:-gcc}
 # endianess of target (automagically determined below)
 ENDIAN=
 
+# don't do this if ELF format isn't used. it doesn't matter since offsets are
+# only needed for the asm parts (currently mips/arm32) and those have ELF
+check_elf ()
+{
+	echo '#include <stdint.h>' >/tmp/getoffs.c
+	echo "const int32_t val = 1;" >>/tmp/getoffs.c
+	$CC $CFLAGS -I .. -c /tmp/getoffs.c -o /tmp/getoffs.o || exit 1
+	if ! command -v readelf >/dev/null || ! file /tmp/getoffs.o | grep -q ELF; then
+		echo "/* mkoffset.sh: no readelf or not ELF, offset table not created */" >$fn
+		echo "WARNING: no readelf or not ELF, offset table not created"
+		exit
+	fi
+}
+
 # compile with target C compiler and extract value from .rodata section
 compile_rodata ()
 {
@@ -49,13 +63,7 @@ get_define () # prefix struct member member...
 fn="${1:-.}/pico_int_offs.h"
 if echo $CFLAGS | grep -qe -flto; then CFLAGS="$CFLAGS -fno-lto"; fi
 
-# don't do this if readelf isn't available. it doesn't matter since offsets are
-# only needed for the asm parts (currently mips/arm32) and those have readelf
-if ! command -v readelf >/dev/null; then
-	echo "/* mkoffset.sh: readelf not found, offset table not created */" >$fn
-	echo "WARNING: readelf not found, offset table not created"
-	exit
-fi
+check_elf
 # determine endianess
 echo '#include <stdint.h>' >/tmp/getoffs.c
 echo "const int32_t val = 1;" >>/tmp/getoffs.c

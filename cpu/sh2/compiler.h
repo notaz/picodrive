@@ -31,7 +31,7 @@ unsigned short scan_block(uint32_t base_pc, int is_slave,
 		unsigned char *op_flags, uint32_t *end_pc,
 		uint32_t *base_literals, uint32_t *end_literals);
 
-#if defined(DRC_SH2) && defined(__GNUC__)
+#if defined(DRC_SH2) && defined(__GNUC__) && !defined(__clang__)
 // direct access to some host CPU registers used by the DRC if gcc is used.
 // XXX MUST match SHR_SR definitions in cpu/drc/emit_*.c; should be moved there
 // XXX yuck, there's no portable way to determine register size. Use long long

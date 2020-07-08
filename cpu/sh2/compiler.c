@@ -1273,24 +1273,23 @@ static void dr_flush_tcache(int tcid)
   blink_free[tcid] = NULL;
   memset(unresolved_links[tcid], 0, sizeof(*unresolved_links[0]) * HASH_TABLE_SIZE(tcid));
   memset(hash_tables[tcid], 0, sizeof(*hash_tables[0]) * HASH_TABLE_SIZE(tcid));
-  if (Pico32xMem->sdram != NULL) {
-    if (tcid == 0) { // ROM, RAM
-      memset(Pico32xMem->drcblk_ram, 0, sizeof(Pico32xMem->drcblk_ram));
-      memset(Pico32xMem->drclit_ram, 0, sizeof(Pico32xMem->drclit_ram));
-      memset(sh2s[0].branch_cache, -1, sizeof(sh2s[0].branch_cache));
-      memset(sh2s[1].branch_cache, -1, sizeof(sh2s[1].branch_cache));
-      memset(sh2s[0].rts_cache, -1, sizeof(sh2s[0].rts_cache));
-      memset(sh2s[1].rts_cache, -1, sizeof(sh2s[1].rts_cache));
-      sh2s[0].rts_cache_idx = sh2s[1].rts_cache_idx = 0;
-    } else {
-      memset(Pico32xMem->drcblk_ram, 0, sizeof(Pico32xMem->drcblk_ram));
-      memset(Pico32xMem->drclit_ram, 0, sizeof(Pico32xMem->drclit_ram));
-      memset(Pico32xMem->drcblk_da[tcid - 1], 0, sizeof(Pico32xMem->drcblk_da[tcid - 1]));
-      memset(Pico32xMem->drclit_da[tcid - 1], 0, sizeof(Pico32xMem->drclit_da[tcid - 1]));
-      memset(sh2s[tcid - 1].branch_cache, -1, sizeof(sh2s[0].branch_cache));
-      memset(sh2s[tcid - 1].rts_cache, -1, sizeof(sh2s[0].rts_cache));
-      sh2s[tcid - 1].rts_cache_idx = 0;
-    }
+
+  if (tcid == 0) { // ROM, RAM
+    memset(Pico32xMem->drcblk_ram, 0, sizeof(Pico32xMem->drcblk_ram));
+    memset(Pico32xMem->drclit_ram, 0, sizeof(Pico32xMem->drclit_ram));
+    memset(sh2s[0].branch_cache, -1, sizeof(sh2s[0].branch_cache));
+    memset(sh2s[1].branch_cache, -1, sizeof(sh2s[1].branch_cache));
+    memset(sh2s[0].rts_cache, -1, sizeof(sh2s[0].rts_cache));
+    memset(sh2s[1].rts_cache, -1, sizeof(sh2s[1].rts_cache));
+    sh2s[0].rts_cache_idx = sh2s[1].rts_cache_idx = 0;
+  } else {
+    memset(Pico32xMem->drcblk_ram, 0, sizeof(Pico32xMem->drcblk_ram));
+    memset(Pico32xMem->drclit_ram, 0, sizeof(Pico32xMem->drclit_ram));
+    memset(Pico32xMem->drcblk_da[tcid - 1], 0, sizeof(Pico32xMem->drcblk_da[tcid - 1]));
+    memset(Pico32xMem->drclit_da[tcid - 1], 0, sizeof(Pico32xMem->drclit_da[tcid - 1]));
+    memset(sh2s[tcid - 1].branch_cache, -1, sizeof(sh2s[0].branch_cache));
+    memset(sh2s[tcid - 1].rts_cache, -1, sizeof(sh2s[0].rts_cache));
+    sh2s[tcid - 1].rts_cache_idx = 0;
   }
 #if (DRC_DEBUG & 4)
   tcache_dsm_ptrs[tcid] = tcache_ring[tcid].base;
