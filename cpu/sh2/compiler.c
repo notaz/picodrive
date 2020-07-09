@@ -5392,7 +5392,10 @@ int sh2_execute_drc(SH2 *sh2c, int cycles)
   // others are usual SH2 flags
   sh2c->sr &= 0x3f3;
   sh2c->sr |= cycles << 12;
+
+  sh2c->state |= SH2_IN_DRC;
   sh2_drc_entry(sh2c);
+  sh2c->state &= ~SH2_IN_DRC;
 
   // TODO: irq cycles
   ret_cycles = (int32_t)sh2c->sr >> 12;
