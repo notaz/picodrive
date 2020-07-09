@@ -76,7 +76,7 @@ SRCS_COMMON += $(R)pico/32x/draw_arm.S
 endif
 ifeq "$(asm_32xmemory)" "1"
 DEFINES += _ASM_32X_MEMORY_C
-SRCS_COMMON += $(R)pico/32x/memory_arm.s
+SRCS_COMMON += $(R)pico/32x/memory_arm.S
 endif
 ifeq "$(asm_mix)" "1"
 SRCS_COMMON += $(R)pico/sound/mix_arm.S

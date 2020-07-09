@@ -543,6 +543,10 @@ else ifeq ($(platform), emscripten)
 	TARGET := $(TARGET_NAME)_libretro_$(platform).bc
 	DONT_COMPILE_IN_ZLIB = 1
 
+	use_cyclone = 0
+	use_fame = 1
+	use_drz80 = 0
+	use_cz80 = 1
 # GCW0
 else ifeq ($(platform), gcw0)
 	TARGET := $(TARGET_NAME)_libretro.so

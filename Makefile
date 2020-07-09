@@ -302,6 +302,9 @@ endif
 pico/carthw_cfg.c: pico/carthw.cfg
 	tools/make_carthw_c $< $@
 
+# preprocessed asm files most probably include the offsets file
+$(filter %.S,$(SRCS_COMMON)): pico/pico_int_offs.h
+
 # random deps
 pico/carthw/svp/compiler.o : cpu/drc/emit_arm.c
 cpu/sh2/compiler.o : cpu/drc/emit_arm.c cpu/drc/emit_arm64.c cpu/drc/emit_ppc.c
