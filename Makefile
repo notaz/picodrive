@@ -72,7 +72,7 @@ asm_32xmemory ?= 1
 else
 use_fame ?= 1
 use_cz80 ?= 1
-ifneq (,$(filter "$(ARCH)","x86" "i386" "mips" "aarch64" "riscv" "powerpc"))
+ifneq (,$(filter x86% i386% mips% aarch% riscv% powerpc% ppc%, $(ARCH)))
 use_sh2drc ?= 1
 endif
 endif
