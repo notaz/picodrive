@@ -1,8 +1,11 @@
 TARGETS = amalgamate textfilter
-OBJS = $(addsuffix .o,$(TARGETS))
+HOSTCC ?= cc
 
-all: $(TARGETS)
+all:
 	CC="$(XCC)" CFLAGS="$(XCFLAGS)" sh ./mkoffsets.sh ../pico
+
+$(TARGETS): $(addsuffix .c,$(TARGETS))
+	$(HOSTCC) -o $@ -O $@.c
 
 clean:
 	$(RM) $(TARGETS) $(OBJS)
