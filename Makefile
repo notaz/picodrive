@@ -69,26 +69,12 @@ asm_cdmemory ?= 1
 asm_mix ?= 1
 asm_32xdraw ?= 1
 asm_32xmemory ?= 1
-else ifneq (,$(findstring 86,$(ARCH)))
+else
 use_fame ?= 1
 use_cz80 ?= 1
+ifneq (,$(filter x86% i386% mips% aarch% riscv% powerpc% ppc%, $(ARCH)))
 use_sh2drc ?= 1
-else ifneq (,$(findstring mips,$(ARCH)))
-use_fame ?= 1
-use_cz80 ?= 1
-use_sh2drc ?= 1
-else ifneq (,$(findstring aarch64,$(ARCH)))
-use_fame ?= 1
-use_cz80 ?= 1
-use_sh2drc ?= 1
-else ifneq (,$(findstring riscv,$(ARCH)))
-use_fame ?= 1
-use_cz80 ?= 1
-use_sh2drc ?= 1
-else ifneq (,$(findstring powerpc,$(ARCH)))
-use_fame ?= 1
-use_cz80 ?= 1
-use_sh2drc ?= 1
+endif
 endif
 
 -include Makefile.local
@@ -240,7 +226,7 @@ LDFLAGS += -Wl,-Map=$(TARGET).map
 endif
 endif
 
-target_: pico/pico_int_offs.h $(TARGET)
+target_: $(TARGET)
 
 clean:
 	$(RM) $(TARGET) $(OBJS) pico/pico_int_offs.h

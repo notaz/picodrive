@@ -15,10 +15,6 @@ ifeq ($(platform),)
 		platform = win
 	else ifneq ($(findstring Darwin,$(shell uname -a)),)
 		platform = osx
-		arch = intel
-		ifeq ($(shell uname -p),powerpc)
-			arch = ppc
-		endif
 	else ifneq ($(findstring win,$(shell uname -a)),)
 		platform = win
 	endif
@@ -46,15 +42,6 @@ ifneq ($(GIT_VERSION),"unknown")
 	CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 endif
 
-asm_memory = 0
-asm_render = 0
-asm_ym2612 = 0
-asm_misc = 0
-asm_cdmemory = 0
-asm_mix = 0
-asm_32xdraw = 0
-asm_32xmemory = 0
-
 fpic :=
 
 ifeq ($(STATIC_LINKING),1)
@@ -69,7 +56,6 @@ ifeq ($(platform), unix)
 	SHARED := -shared
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
-	use_sh2drc = 1
 ifneq ($(findstring SunOS,$(shell uname -a)),)
 	CC=gcc
 endif
@@ -83,7 +69,6 @@ else ifeq ($(platform), linux-portable)
 	LIBM :=
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
-	use_sh2drc = 1
 
 # OS X
 else ifeq ($(platform), osx)
@@ -92,15 +77,9 @@ else ifeq ($(platform), osx)
 	SHARED := -dynamiclib
 	fpic := -fPIC
 	APPLE := 1
-	arch = intel
 	ifeq ($(shell uname -p),powerpc)
-		arch = ppc
 		CFLAGS += -DHAVE_NO_LANGEXTRA
-	endif
-	ifeq ($(arch),ppc)
 		CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__ -DFAMEC_NO_GOTOS
-	else
-		use_sh2drc = 1
 	endif
 	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
 	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
@@ -122,15 +101,8 @@ else ifeq ($(platform), staticios)
 	CXX    += -miphoneos-version-min=8.0
 	CC_AS  += -miphoneos-version-min=8.0
 	CFLAGS += -miphoneos-version-min=8.0
-	ARCH := aarch64
 
 	STATIC_LINKING = 1
-	use_cyclone = 0
-	use_fame = 1
-	use_drz80 = 0
-	use_cz80 = 1
-	use_sh2drc = 1
-	use_svpdrc = 0
 
 # iOS
 else ifneq (,$(findstring ios,$(platform)))
@@ -148,10 +120,11 @@ else ifneq (,$(findstring ios,$(platform)))
 	else
 	  CC = clang -arch armv7 -isysroot $(IOSSDK)
 	  CXX = clang++ -arch armv7 -isysroot $(IOSSDK)
-  	  CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm 
+	  CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
+	  CFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon -marm 
 	  ASFLAGS += -mcpu=cortex-a8 -mtune=cortex-a8 -mfpu=neon
+	  NO_ARM_ASM = 1
 	endif
-	CC_AS = perl ./tools/gas-preprocessor.pl $(CC)
 	CFLAGS += -DIOS
 
 ifeq ($(platform),$(filter $(platform),ios9 ios-arm64))
@@ -159,32 +132,16 @@ ifeq ($(platform),$(filter $(platform),ios9 ios-arm64))
 	CXX    += -miphoneos-version-min=8.0
 	CC_AS  += -miphoneos-version-min=8.0
 	CFLAGS += -miphoneos-version-min=8.0
-	ARCH := aarch64
 else
 	CC     += -miphoneos-version-min=5.0
 	CXX    += -miphoneos-version-min=5.0
 	CC_AS  += -miphoneos-version-min=5.0
 	CFLAGS += -miphoneos-version-min=5.0
-	ARCH := arm
-endif
-
-	use_cyclone = 0
-	use_fame = 1
-	use_drz80 = 0
-	use_cz80 = 1
-	use_sh2drc = 1
 	use_svpdrc = 0
+endif
 
 # tvOS
 else ifeq ($(platform), tvos-arm64)
-	ARCH := aarch64
-	use_cyclone = 0
-	use_fame = 1
-	use_drz80 = 0
-	use_cz80 = 1
-	use_sh2drc = 1
-	use_svpdrc = 0
-
 	TARGET := $(TARGET_NAME)_libretro_tvos.dylib
 	SHARED := -dynamiclib
 	fpic := -fPIC
@@ -208,14 +165,9 @@ else ifeq ($(platform), ps3)
 	NO_MMAP = 1
 	DONT_COMPILE_IN_ZLIB = 1
 
-	use_cyclone = 0
-	use_fame = 1
-	use_drz80 = 0
-	use_cz80 = 1
-	use_sh2drc = 1
-
 # sncps3
 else ifeq ($(platform), sncps3)
+	ARCH = powerpc
 	TARGET := $(TARGET_NAME)_libretro_ps3.a
 	CC = $(CELL_SDK)/host-win32/sn/bin/ps3ppusnc.exe
 	AR = $(CELL_SDK)/host-win32/sn/bin/ps3snarl.exe
@@ -223,12 +175,6 @@ else ifeq ($(platform), sncps3)
 	STATIC_LINKING = 1
 	NO_MMAP = 1
 	DONT_COMPILE_IN_ZLIB = 1
-
-	use_cyclone = 0
-	use_fame = 1
-	use_drz80 = 0
-	use_cz80 = 1
-	use_sh2drc = 1
 
 # Lightweight PS3 Homebrew SDK
 else ifeq ($(platform), psl1ght)
@@ -240,94 +186,60 @@ else ifeq ($(platform), psl1ght)
 	NO_MMAP = 1
 	DONT_COMPILE_IN_ZLIB = 1
 	
-	use_cyclone = 0
-	use_fame = 1
-	use_drz80 = 0
-	use_cz80 = 1
-	use_sh2drc = 1
-
 # PSP
 else ifeq ($(platform), psp1)
-    TARGET := $(TARGET_NAME)_libretro_$(platform).a
-    CC = psp-gcc$(EXE_EXT)
-    AR = psp-ar$(EXE_EXT)
-    CFLAGS += -G0 -ftracer
-    CFLAGS += -DPSP
-    STATIC_LINKING = 1
-    NO_MMAP = 1
-    DONT_COMPILE_IN_ZLIB = 1
+	TARGET := $(TARGET_NAME)_libretro_$(platform).a
+	CC = psp-gcc$(EXE_EXT)
+	AR = psp-ar$(EXE_EXT)
+	CFLAGS += -G0 -ftracer
+	CFLAGS += -DPSP
+	STATIC_LINKING = 1
+	NO_MMAP = 1
+	DONT_COMPILE_IN_ZLIB = 1
 
-    asm_render = 1
-    use_fame = 1
-    use_drz80 = 0
-    use_cz80 = 1
-    use_sh2drc = 1
+	asm_render = 1
 
 # PS2
 else ifeq ($(platform), ps2)
-    TARGET := $(TARGET_NAME)_libretro_$(platform).a
-    CC = ee-gcc$(EXE_EXT)
-    AR = ee-ar$(EXE_EXT)
-    CFLAGS += -Wall -DPS2 -DUSE_BGR555 -DFAMEC_NO_GOTOS -DRENDER_GSKIT_PS2 -fsingle-precision-constant
+	TARGET := $(TARGET_NAME)_libretro_$(platform).a
+	CC = ee-gcc$(EXE_EXT)
+	AR = ee-ar$(EXE_EXT)
+	CFLAGS += -Wall -DPS2 -DUSE_BGR555 -DFAMEC_NO_GOTOS -DRENDER_GSKIT_PS2 -fsingle-precision-constant
 	CFLAGS += -I$(PS2DEV)/gsKit/include -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include
 	CFLAGS += -DHAVE_NO_LANGEXTRA
-    STATIC_LINKING = 1
-    NO_MMAP = 1
-    DONT_COMPILE_IN_ZLIB = 1
+	STATIC_LINKING = 1
+	NO_MMAP = 1
+	DONT_COMPILE_IN_ZLIB = 1
 
-    asm_render = 1
-    use_cyclone = 0
-    use_fame = 1
-    use_drz80 = 0
-    use_cz80 = 1
-    use_sh2drc = 1
-
+	asm_render = 1
 	OBJS += platform/ps2/asm.o
 
 # CTR (3DS)
 else ifeq ($(platform), ctr)
-   TARGET := $(TARGET_NAME)_libretro_$(platform).a
-   CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
-   CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
-   AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
-   CFLAGS += -DARM11 -D_3DS
-   CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp
-   CFLAGS += -Wall -mword-relocations
-   CFLAGS += -fomit-frame-pointer -ffast-math
-   STATIC_LINKING = 1
-   NO_MMAP = 1
-   DONT_COMPILE_IN_ZLIB = 1
-   ARCH = arm
-   ARM_ASM = 1
+	TARGET := $(TARGET_NAME)_libretro_$(platform).a
+	CC = $(DEVKITARM)/bin/arm-none-eabi-gcc$(EXE_EXT)
+	CXX = $(DEVKITARM)/bin/arm-none-eabi-g++$(EXE_EXT)
+	AR = $(DEVKITARM)/bin/arm-none-eabi-ar$(EXE_EXT)
+	CFLAGS += -DARM11 -D_3DS
+	CFLAGS += -march=armv6k -mtune=mpcore -mfloat-abi=hard -marm -mfpu=vfp
+	CFLAGS += -Wall -mword-relocations
+	CFLAGS += -fomit-frame-pointer -ffast-math
+	STATIC_LINKING = 1
+	NO_MMAP = 1
+	DONT_COMPILE_IN_ZLIB = 1
 
-   use_cyclone = 1
-   use_fame = 0
-   use_drz80 = 1
-   use_cz80 = 0
-   use_sh2drc = 1
-   use_svpdrc = 1
-
-   OBJS +=platform/libretro/3ds/3ds_utils.o
+	OBJS +=platform/libretro/3ds/3ds_utils.o
 
 # Raspberry Pi (original model) Raspbian
 else ifeq ($(platform), raspberrypi)
-   CFLAGS += -marm -mfpu=vfp -mfloat-abi=hard -march=armv6j
-   CFLAGS += -Wall -mword-relocations
-   CFLAGS += -fomit-frame-pointer -ffast-math
-   ARCH = arm
-   ARM_ASM = 1
+	CFLAGS += -marm -mfpu=vfp -mfloat-abi=hard -march=armv6j
+	CFLAGS += -Wall -mword-relocations
+	CFLAGS += -fomit-frame-pointer -ffast-math
 
-   TARGET := $(TARGET_NAME)_libretro.so
-   SHARED := -shared
-   fpic := -fPIC
-   DONT_COMPILE_IN_ZLIB = 1
-
-   use_cyclone = 1
-   use_fame = 0
-   use_drz80 = 1
-   use_cz80 = 0
-   use_sh2drc = 1
-   use_svpdrc = 1
+	TARGET := $(TARGET_NAME)_libretro.so
+	SHARED := -shared
+	fpic := -fPIC
+	DONT_COMPILE_IN_ZLIB = 1
 
 # Vita
 else ifeq ($(platform), vita)
@@ -342,15 +254,6 @@ else ifeq ($(platform), vita)
 	STATIC_LINKING = 1
 	NO_MMAP = 1
 	DONT_COMPILE_IN_ZLIB = 1
-	ARCH = arm
-	ARM_ASM=1
-
-	use_cyclone = 1
-	use_fame = 0
-	use_drz80 = 1
-	use_cz80 = 0
-	use_sh2drc = 1
-	use_svpdrc = 1
 
 # Xbox 360
 else ifeq ($(platform), xenon)
@@ -380,7 +283,7 @@ else ifeq ($(platform), wiiu)
 	CXX = $(DEVKITPPC)/bin/powerpc-eabi-g++$(EXE_EXT)
 	AR = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
 	COMMONFLAGS += -DGEKKO -DWIIU -DHW_RVL -mwup -mcpu=750 -meabi -mhard-float -D__POWERPC__ -D__ppc__ -DMSB_FIRST -DWORDS_BIGENDIAN=1 -I./deps/include/
-        COMMONFLAGS += -U__INT32_TYPE__ -U __UINT32_TYPE__ -D__INT32_TYPE__=int
+	COMMONFLAGS += -U__INT32_TYPE__ -U __UINT32_TYPE__ -D__INT32_TYPE__=int
 
 # Nintendo Switch (libtransistor)
 else ifeq ($(platform), switch)
@@ -388,20 +291,17 @@ else ifeq ($(platform), switch)
 	include $(LIBTRANSISTOR_HOME)/libtransistor.mk
 	STATIC_LINKING=1
 	NO_MMAP = 1
-	ARCH = aarch64
 
 # Nintendo Switch (libnx)
 else ifeq ($(platform), libnx)
-   include $(DEVKITPRO)/libnx/switch_rules
-   TARGET := $(TARGET_NAME)_libretro_$(platform).a
-   ARCH := aarch64
-   CFLAGS += -O3 -fomit-frame-pointer -ffast-math -I$(DEVKITPRO)/libnx/include/ -fPIE -Wl,--allow-multiple-definition
-   CFLAGS += -specs=$(DEVKITPRO)/libnx/switch.specs
-   CFLAGS += -D__SWITCH__ -DHAVE_LIBNX
-   CFLAGS += -DARM -D__aarch64__=1 -march=armv8-a -mtune=cortex-a57 -mtp=soft -ffast-math -mcpu=cortex-a57+crc+fp+simd -ffunction-sections
-   CFLAGS += -Ifrontend/switch -ftree-vectorize
-   STATIC_LINKING=1
-   use_sh2drc = 1
+	include $(DEVKITPRO)/libnx/switch_rules
+	TARGET := $(TARGET_NAME)_libretro_$(platform).a
+	CFLAGS += -O3 -fomit-frame-pointer -ffast-math -I$(DEVKITPRO)/libnx/include/ -fPIE -Wl,--allow-multiple-definition
+	CFLAGS += -specs=$(DEVKITPRO)/libnx/switch.specs
+	CFLAGS += -D__SWITCH__ -DHAVE_LIBNX
+	CFLAGS += -DARM -D__aarch64__=1 -march=armv8-a -mtune=cortex-a57 -mtp=soft -ffast-math -mcpu=cortex-a57+crc+fp+simd -ffunction-sections
+	CFLAGS += -Ifrontend/switch -ftree-vectorize
+	STATIC_LINKING=1
 
 # QNX
 else ifeq ($(platform), qnx)
@@ -412,15 +312,7 @@ else ifeq ($(platform), qnx)
 	CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	ARCH = arm
-	ARM_ASM = 1
 
-	use_cyclone = 0
-	use_fame = 1
-	use_drz80 = 0
-	use_cz80 = 1
-	use_sh2drc = 1
-	use_svpdrc = 1
-	
 # (armv7 a7, hard point, neon based) ### 
 # NESC, SNESC, C64 mini 
 else ifeq ($(platform), classic_armv7_a7)
@@ -439,7 +331,6 @@ else ifeq ($(platform), classic_armv7_a7)
 	CPPFLAGS += $(CFLAGS)
 	ASFLAGS += $(CFLAGS)
 	HAVE_NEON = 1
-	ARCH = arm
 	BUILTIN_GPU = neon
 	ifeq ($(shell echo `$(CC) -dumpversion` "< 4.9" | bc -l), 1)
 	  CFLAGS += -march=armv7-a
@@ -451,43 +342,35 @@ else ifeq ($(platform), classic_armv7_a7)
 	  endif
 	endif
 
-	use_sh2drc = 1
-	use_svpdrc = 1
-	
 # (armv8 a35, hard point, neon based) ###
 # Playstation Classic
 else ifeq ($(platform), classic_armv8_a35)
-        TARGET := $(TARGET_NAME)_libretro.so
-        fpic := -fPIC
-        SHARED := -shared -Wl,--no-undefined,-Bsymbolic
-        CFLAGS += -Ofast \
-        -flto -fwhole-program -fuse-linker-plugin \
-        -fdata-sections -ffunction-sections -Wl,--gc-sections \
-        -fno-stack-protector -fno-ident -fomit-frame-pointer \
-        -falign-functions=1 -falign-jumps=1 -falign-loops=1 \
-        -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-unroll-loops \
-        -fmerge-all-constants -fno-math-errno -fno-strict-aliasing \
-        -marm -mtune=cortex-a35 -mfpu=neon-fp-armv8 -mfloat-abi=hard
-        CXXFLAGS += $(CFLAGS)
-        CPPFLAGS += $(CFLAGS)
-        ASFLAGS += $(CFLAGS)
-        HAVE_NEON = 1
-        ARCH = aarch64
-        BUILTIN_GPU = neon
-        CFLAGS += -march=armv8-a
-        LDFLAGS += -static-libgcc -static-libstdc++
+	TARGET := $(TARGET_NAME)_libretro.so
+	fpic := -fPIC
+	SHARED := -shared -Wl,--no-undefined,-Bsymbolic
+	CFLAGS += -Ofast \
+		-flto -fwhole-program -fuse-linker-plugin \
+		-fdata-sections -ffunction-sections -Wl,--gc-sections \
+		-fno-stack-protector -fno-ident -fomit-frame-pointer \
+		-falign-functions=1 -falign-jumps=1 -falign-loops=1 \
+		-fno-unwind-tables -fno-asynchronous-unwind-tables -fno-unroll-loops \
+		-fmerge-all-constants -fno-math-errno -fno-strict-aliasing \
+		-marm -mtune=cortex-a35 -mfpu=neon-fp-armv8 -mfloat-abi=hard
+	CXXFLAGS += $(CFLAGS)
+	CPPFLAGS += $(CFLAGS)
+	ASFLAGS += $(CFLAGS)
+	HAVE_NEON = 1
+	BUILTIN_GPU = neon
+	CFLAGS += -march=armv8-a
+	LDFLAGS += -static-libgcc -static-libstdc++
 
-        use_sh2drc = 1
-        use_cyclone = 0
-        use_fame = 1
-        use_drz80 = 0
-        use_cz80 = 1	
 #######################################
 
 # ARM-64
 else ifeq ($(platform), arm64)
 	EXT ?= so
 	TARGET := $(TARGET_NAME)_libretro.$(EXT)
+	ARCH = aarch64
 	fpic := -fPIC
 	SHARED := -shared
 	DONT_COMPILE_IN_ZLIB = 1
@@ -497,7 +380,7 @@ else ifeq ($(platform), arm64)
 else ifeq ($(platform), aarch64)
 	TARGET := $(TARGET_NAME)_libretro.so
 	ARCH = aarch64
-        fpic := -fPIC
+	fpic := -fPIC
 	SHARED := -shared
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
@@ -533,40 +416,30 @@ else ifneq (,$(findstring armv,$(platform)))
 		CFLAGS += -mfloat-abi=hard
 		ASFLAGS += -mfloat-abi=hard
 	endif
-	ifneq (,$(findstring armasm,$(platform)))
-		ARM_ASM = 1
+	ifeq (,$(findstring armasm,$(platform)))
+		NO_ARM_ASM = 1
 	endif
-	ARCH = arm
 
 # Emscripten
 else ifeq ($(platform), emscripten) 
 	TARGET := $(TARGET_NAME)_libretro_$(platform).bc
+	ARCH = unknown
 	DONT_COMPILE_IN_ZLIB = 1
 
-	use_cyclone = 0
-	use_fame = 1
-	use_drz80 = 0
-	use_cz80 = 1
 # GCW0
 else ifeq ($(platform), gcw0)
 	TARGET := $(TARGET_NAME)_libretro.so
 	CC = mipsel-linux-gcc
 	AR = mipsel-linux-ar
 	SHARED := -shared -nostdlib
-        fpic := -fPIC
+	fpic := -fPIC
 	LIBM :=
 	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -ffast-math -march=mips32 -mtune=mips32r2 -mhard-float
 
-	use_cyclone = 0
-	use_fame = 1
-	use_drz80 = 0
-	use_cz80 = 1
-	use_sh2drc = 1
-
 # Windows MSVC 2017 all architectures
 else ifneq (,$(findstring windows_msvc2017,$(platform)))
-    NO_GCC := 1
+	NO_GCC := 1
 
 	PlatformSuffix = $(subst windows_msvc2017_,,$(platform))
 	ifneq (,$(findstring desktop,$(PlatformSuffix)))
@@ -581,6 +454,7 @@ else ifneq (,$(findstring windows_msvc2017,$(platform)))
 		LDLIBS += WindowsApp.lib
 	endif
 
+	ARCH = x86_64
 	SHARED :=
 	LIBM :=
 	USE_LIBRETRO_VFS = 1
@@ -654,7 +528,7 @@ else ifneq (,$(findstring windows_msvc2017,$(platform)))
 	ifneq (,$(findstring uwp,$(PlatformSuffix)))
 		LIB := $(shell IFS=$$'\n'; cygpath -w "$(LIB)/store")
 	endif
-    
+
 	export INCLUDE := $(INCLUDE);$(WindowsSDKSharedIncludeDir);$(WindowsSDKUCRTIncludeDir);$(WindowsSDKUMIncludeDir)
 	export LIB := $(LIB);$(WindowsSDKUCRTLibDir);$(WindowsSDKUMLibDir)
 	TARGET := $(TARGET_NAME)_libretro.dll
@@ -663,7 +537,6 @@ else ifneq (,$(findstring windows_msvc2017,$(platform)))
 
 # Windows
 else
-	use_sh2drc = 1
 	TARGET := $(TARGET_NAME)_libretro.dll
 	CC = gcc
 	fpic := -fPIC
@@ -683,15 +556,20 @@ ifeq ($(NO_MMAP),1)
 	CFLAGS += -DNO_MMAP
 endif
 
-ifeq ($(ARM_ASM),1)
-asm_memory = 1
-asm_render = 1
-asm_ym2612 = 1
-asm_misc = 1
-asm_cdmemory = 1
-asm_mix = 1
-asm_32xdraw = 1
-asm_32xmemory = 1
+ifeq ($(NO_ARM_ASM),1)
+use_cyclone = 0
+use_fame ?= 1
+use_drz80 = 0
+use_cz80 ?= 1
+
+asm_memory = 0
+asm_render = 0
+asm_ym2612 = 0
+asm_misc = 0
+asm_cdmemory = 0
+asm_mix = 0
+asm_32xdraw = 0
+asm_32xmemory = 0
 endif
 
 CFLAGS += $(fpic)
@@ -700,11 +578,10 @@ ifeq ($(findstring Haiku,$(shell uname -a)),)
 	LDLIBS += $(LIBM)
 endif
 
-
 SHARED ?= -shared
 LDFLAGS += $(SHARED) $(fpic)
 
-ifneq ($(ARCH), arm)
+ifeq ($(ARCH),)
 ARCH = $(shell $(CC) -dumpmachine | awk -F '-' '{print $$1}')
 endif
 PLATFORM = libretro
