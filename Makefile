@@ -211,7 +211,7 @@ LDFLAGS += -Wl,-Map=$(TARGET).map
 endif
 
 
-target_: pico/pico_int_offs.h $(TARGET)
+target_: $(TARGET)
 
 clean:
 	$(RM) $(TARGET) $(OBJS) pico/pico_int_offs.h
