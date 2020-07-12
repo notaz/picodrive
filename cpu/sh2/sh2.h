@@ -1,6 +1,7 @@
 #ifndef __SH2_H__
 #define __SH2_H__
 
+#include "../../pico/pico_types.h"
 #include "../../pico/pico_port.h"
 
 // registers - matches structure order
@@ -129,12 +130,12 @@ static __inline int sh2_execute(SH2 *sh2, int cycles)
 
 // pico memhandlers
 // XXX: move somewhere else
-unsigned int REGPARM(2) p32x_sh2_read8(unsigned int a, SH2 *sh2);
-unsigned int REGPARM(2) p32x_sh2_read16(unsigned int a, SH2 *sh2);
-unsigned int REGPARM(2) p32x_sh2_read32(unsigned int a, SH2 *sh2);
-void REGPARM(3) p32x_sh2_write8 (unsigned int a, unsigned int d, SH2 *sh2);
-void REGPARM(3) p32x_sh2_write16(unsigned int a, unsigned int d, SH2 *sh2);
-void REGPARM(3) p32x_sh2_write32(unsigned int a, unsigned int d, SH2 *sh2);
+unsigned int REGPARM(2) p32x_sh2_read8(u32 a, SH2 *sh2);
+unsigned int REGPARM(2) p32x_sh2_read16(u32 a, SH2 *sh2);
+unsigned int REGPARM(2) p32x_sh2_read32(u32 a, SH2 *sh2);
+void REGPARM(3) p32x_sh2_write8 (u32 a, u32 d, SH2 *sh2);
+void REGPARM(3) p32x_sh2_write16(u32 a, u32 d, SH2 *sh2);
+void REGPARM(3) p32x_sh2_write32(u32 a, u32 d, SH2 *sh2);
 
 // debug
 #ifdef DRC_CMP
