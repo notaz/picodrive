@@ -9,7 +9,6 @@
 
 #ifndef PICO_INTERNAL_INCLUDED
 #define PICO_INTERNAL_INCLUDED
-
 #include <stdio.h>
 #include <string.h>
 #include "pico_port.h"
@@ -32,16 +31,7 @@
 extern "C" {
 #endif
 
-
-#ifndef UTYPES_DEFINED
-typedef uint8_t        u8;
-typedef int8_t         s8;
-typedef uint16_t       u16;
-typedef int16_t        s16;
-typedef uint32_t       u32;
-typedef int32_t        s32;
-#endif
-typedef uintptr_t      uptr; // unsigned pointer-sized int
+#include "pico_types.h"
 
 // ----------------------- 68000 CPU -----------------------
 #ifdef EMU_C68K
@@ -965,22 +955,22 @@ void p32x_schedule_hint(SH2 *sh2, unsigned int m68k_cycles);
 
 // 32x/memory.c
 extern struct Pico32xMem *Pico32xMem;
-unsigned int PicoRead8_32x(unsigned int a);
-unsigned int PicoRead16_32x(unsigned int a);
-void PicoWrite8_32x(unsigned int a, unsigned int d);
-void PicoWrite16_32x(unsigned int a, unsigned int d);
+unsigned int PicoRead8_32x(u32 a);
+unsigned int PicoRead16_32x(u32 a);
+void PicoWrite8_32x(u32 a, u32 d);
+void PicoWrite16_32x(u32 a, u32 d);
 void PicoMemSetup32x(void);
 void Pico32xSwapDRAM(int b);
 void Pico32xMemStateLoaded(void);
 void p32x_update_banks(void);
-void p32x_m68k_poll_event(unsigned int flags);
-unsigned int REGPARM(3) p32x_sh2_poll_memory8(unsigned int a, unsigned int d, SH2 *sh2);
-unsigned int REGPARM(3) p32x_sh2_poll_memory16(unsigned int a, unsigned int d, SH2 *sh2);
-unsigned int REGPARM(3) p32x_sh2_poll_memory32(unsigned int a, unsigned int d, SH2 *sh2);
+void p32x_m68k_poll_event(u32 flags);
+unsigned int REGPARM(3) p32x_sh2_poll_memory8(u32 a, u32 d, SH2 *sh2);
+unsigned int REGPARM(3) p32x_sh2_poll_memory16(u32 a, u32 d, SH2 *sh2);
+unsigned int REGPARM(3) p32x_sh2_poll_memory32(u32 a, u32 d, SH2 *sh2);
 void *p32x_sh2_get_mem_ptr(unsigned int a, unsigned int *mask, SH2 *sh2);
-void p32x_sh2_poll_detect(unsigned int a, SH2 *sh2, unsigned int flags, int maxcnt);
-void p32x_sh2_poll_event(SH2 *sh2, unsigned int flags, unsigned int m68k_cycles);
-int p32x_sh2_memcpy(unsigned int dst, unsigned int src, int count, int size, SH2 *sh2);
+void p32x_sh2_poll_detect(u32 a, SH2 *sh2, u32 flags, int maxcnt);
+void p32x_sh2_poll_event(SH2 *sh2, u32 flags, u32 m68k_cycles);
+int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2);
 
 // 32x/draw.c
 void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode);
@@ -1016,12 +1006,12 @@ void p32x_dreq1_trigger(void);
 void p32x_timers_recalc(void);
 void p32x_timer_do(SH2 *sh2, unsigned int m68k_slice);
 void sh2_peripheral_reset(SH2 *sh2);
-unsigned int REGPARM(2) sh2_peripheral_read8(unsigned int a, SH2 *sh2);
-unsigned int REGPARM(2) sh2_peripheral_read16(unsigned int a, SH2 *sh2);
-unsigned int REGPARM(2) sh2_peripheral_read32(unsigned int a, SH2 *sh2);
-void REGPARM(3) sh2_peripheral_write8(unsigned int a, unsigned int d, SH2 *sh2);
-void REGPARM(3) sh2_peripheral_write16(unsigned int a, unsigned int d, SH2 *sh2);
-void REGPARM(3) sh2_peripheral_write32(unsigned int a, unsigned int d, SH2 *sh2);
+u32 REGPARM(2) sh2_peripheral_read8(u32 a, SH2 *sh2);
+u32 REGPARM(2) sh2_peripheral_read16(u32 a, SH2 *sh2);
+u32 REGPARM(2) sh2_peripheral_read32(u32 a, SH2 *sh2);
+void REGPARM(3) sh2_peripheral_write8(u32 a, u32 d, SH2 *sh2);
+void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2);
+void REGPARM(3) sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2);
 
 #else
 #define Pico32xInit()
