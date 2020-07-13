@@ -49,6 +49,7 @@
 #define LOOP_DETECTION          1
 #define LOOP_OPTIMIZER          1
 #define T_OPTIMIZER             1
+#define DIV_OPTIMIZER           0
 
 #define MAX_LITERAL_OFFSET      0x200	// max. MOVA, MOV @(PC) offset
 #define MAX_LOCAL_TARGETS       (BLOCK_INSN_LIMIT / 4)
@@ -152,8 +153,17 @@ enum op_types {
   OP_RTE,       // RTE instruction
   OP_TRAPA,     // TRAPA instruction
   OP_LDC,       // LDC instruction
+  OP_DIV0,      // DIV0[US] instruction
   OP_UNDEFINED,
 };
+
+struct div {
+  u32 state:1;          // 0: expect DIV1/ROTCL, 1: expect DIV1
+  u32 rn:5, rm:5, ro:5; // rn and rm for DIV1, ro for ROTCL
+  u32 div1:8, rotcl:8;  // DIV1 count, ROTCL count
+};
+union _div { u32 imm; struct div div; };  // XXX tut-tut type punning...
+#define div(opd)	((union _div *)&((opd)->imm))->div
 
 // XXX consider trap insns: OP_TRAPA, OP_UNDEFINED?
 #define OP_ISBRANCH(op) ((BITRANGE(OP_BRANCH, OP_BRANCH_RF)| BITMASK1(OP_RTE)) \
@@ -2979,6 +2989,120 @@ static void emit_do_static_regs(int is_write, int tmpr)
   }
 }
 
+#if DIV_OPTIMIZER
+// divide operation replacement functions, called by compiled code. Only the
+// 32:16 cases and the 64:32 cases described in the SH2 prog man are replaced.
+
+static uint32_t REGPARM(2) sh2_drc_divu32(uint32_t dv, uint32_t ds)
+{
+  if (ds && ds >= dv) {
+    // good case: no divide by 0, and no result overflow
+    uint32_t quot = dv / (ds>>16), rem = dv - (quot * (ds>>16));
+    if (~quot&1) rem -= ds>>16;
+    return (uint16_t)quot | ((2*rem + (quot>>31)) << 16);
+  } else {
+    // bad case: use the sh2 algo to get the right result
+    int q = 0, t = 0, s = 16;
+    while (s--) {
+      uint32_t _ = dv>>31;
+      dv = (dv<<1) | t;
+      t = _;
+      _ = dv;
+      if (q)  dv += ds, q =   dv < _;
+      else    dv -= ds, q = !(dv < _);
+      q ^= t, t = !q;
+    }
+    return (dv<<1) | t;
+  }
+}
+
+static uint32_t REGPARM(3) sh2_drc_divu64(uint32_t dh, uint32_t *dl, uint32_t ds)
+{
+  if (ds > 1 && ds >= dh) {
+    // good case: no divide by 0, and no result overflow
+    uint64_t dv = *dl | ((uint64_t)dh << 32);
+    uint32_t quot = dv / ds, rem = dv - (quot * ds);
+    if (~quot&1) rem -= ds;
+    *dl = quot;
+    return rem;
+  } else {
+    // bad case: use the sh2 algo to get the right result
+    uint64_t dv = *dl | ((uint64_t)dh << 32);
+    int q = 0, t = 0, s = 32;
+    while (s--) {
+      uint64_t _ = dv>>63;
+      dv = (dv<<1) | t;
+      t = _;
+      _ = dv;
+      if (q)  dv += ((uint64_t)ds << 32), q =   dv < _;
+      else    dv -= ((uint64_t)ds << 32), q = !(dv < _);
+      q ^= t, t = !q;
+    }
+    *dl = (dv<<1) | t;
+    return (dv>>32);
+  }
+}
+
+static uint32_t REGPARM(2) sh2_drc_divs32(int32_t dv, int32_t ds)
+{
+  uint32_t adv = abs(dv), ads = abs(ds)>>16;
+  if (ads > 1 && ads > adv>>16 && (int32_t)ads > 0 && !(uint16_t)ds) {
+    // good case: no divide by 0, and no result overflow
+    uint32_t quot = adv / ads, rem = adv - (quot * ads);
+    int m1 = (rem ? dv^ds : ds) < 0;
+    if (rem && dv < 0)  rem = (quot&1 ? -rem : +ads-rem);
+    else                rem = (quot&1 ? +rem : -ads+rem);
+    quot = ((dv^ds)<0 ? -quot : +quot) - m1;
+    return (uint16_t)quot | ((2*rem + (quot>>31)) << 16);
+  } else {
+    // bad case: use the sh2 algo to get the right result
+    int m = (uint32_t)ds>>31, q = (uint32_t)dv>>31, t = m^q, s = 16;
+    while (s--) {
+      uint32_t _ = (uint32_t)dv>>31;
+      dv = (dv<<1) | t;
+      t = _;
+      _ = dv;
+      if (m^q)  dv += ds, q =   (uint32_t)dv < _;
+      else      dv -= ds, q = !((uint32_t)dv < _);
+      q ^= m^t, t = !(m^q);
+    }
+    return (dv<<1) | t;
+  }
+}
+
+static uint32_t REGPARM(3) sh2_drc_divs64(int32_t dh, uint32_t *dl, int32_t ds)
+{
+  int64_t _dv = *dl | ((int64_t)dh << 32);
+  uint64_t adv = (_dv < 0 ? -_dv : _dv); // llabs isn't in older toolchains
+  uint32_t ads = abs(ds);
+  if (ads > 1 && ads > adv>>32 && (int64_t)adv > 0) {
+    // good case: no divide by 0, and no result overflow
+    uint32_t quot = adv / ads, rem = adv - ((uint64_t)quot * ads);
+    int m1 = (rem ? dh^ds : ds) < 0;
+    if (rem && dh < 0) rem = (quot&1 ? -rem : +ads-rem);
+    else               rem = (quot&1 ? +rem : -ads+rem);
+    quot = ((dh^ds)<0 ? -quot : +quot) - m1;
+    *dl = quot;
+    return rem;
+  } else {
+    // bad case: use the sh2 algo to get the right result
+    uint64_t dv = *dl | ((uint64_t)dh << 32);
+    int m = (uint32_t)ds>>31, q = (uint64_t)dv>>63, t = m^q, s = 32;
+    while (s--) {
+      int64_t _ = (uint64_t)dv>>63;
+      dv = (dv<<1) | t;
+      t = _;
+      _ = dv;
+      if (m^q)  dv += ((uint64_t)ds << 32), q =   dv < _;
+      else      dv -= ((uint64_t)ds << 32), q = !(dv < _);
+      q ^= m^t, t = !(m^q);
+    }
+    *dl = (dv<<1) | t;
+    return (dv>>32);
+  }
+}
+#endif
+
 // block local link stuff
 struct linkage {
   u32 pc;
@@ -3115,6 +3239,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   u16 *dr_pc_base;
   struct op_data *opd;
   int blkid_main = 0;
+  int skip_op = 0;
   int tmp, tmp2;
   int cycles;
   int i, v;
@@ -3486,6 +3611,10 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
 #if (DRC_DEBUG & 2)
     insns_compiled++;
 #endif
+    if (skip_op > 0) {
+      skip_op--;
+      continue;
+    }
 
     if (op_flags[i] & OF_DELAY_OP)
     {
@@ -3772,6 +3901,60 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_invalidate_t();
           emith_bic_r_imm(sr, M|Q|T);
           drcf.Mflag = FLG_0;
+#if DIV_OPTIMIZER
+          if (div(opd).div1 == 16 && div(opd).ro == div(opd).rn) {
+            // divide 32/16
+            rcache_get_reg_arg(0, div(opd).rn, NULL);
+            rcache_get_reg_arg(1, div(opd).rm, NULL);
+            rcache_invalidate_tmp();
+            emith_call(sh2_drc_divu32);
+            tmp = rcache_get_tmp_ret();
+#if REMAP_REGISTER
+            tmp2 = rcache_map_reg(div(opd).rn, tmp);
+#else
+            tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
+#endif
+            if (tmp != tmp2)
+              emith_move_r_r(tmp2, tmp);
+
+            tmp3  = rcache_get_tmp();
+            emith_and_r_r_imm(tmp3, tmp2, 1);     // Q = !Rn[0]
+            emith_eor_r_r_imm(tmp3, tmp3, 1);
+            emith_or_r_r_lsl(sr, tmp3, Q_SHIFT);
+            rcache_free_tmp(tmp3);
+            emith_or_r_r_r_lsr(sr, sr, tmp2, 31); // T = Rn[31]
+            skip_op = div(opd).div1 + div(opd).rotcl;
+          }
+          else if (div(opd).div1 == 32 && div(opd).ro != div(opd).rn) {
+            // divide 64/32
+            tmp4 = rcache_get_reg(div(opd).ro, RC_GR_READ, NULL);
+            emith_ctx_write(tmp4, offsetof(SH2, drc_tmp));
+            tmp = rcache_get_tmp_arg(1);
+            emith_add_r_r_ptr_imm(tmp, CONTEXT_REG, offsetof(SH2, drc_tmp));
+            rcache_get_reg_arg(0, div(opd).rn, NULL);
+            rcache_get_reg_arg(2, div(opd).rm, NULL);
+            rcache_invalidate_tmp();
+            emith_call(sh2_drc_divu64);
+            tmp = rcache_get_tmp_ret();
+#if REMAP_REGISTER
+            tmp2 = rcache_map_reg(div(opd).rn, tmp);
+#else
+            tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
+#endif
+            tmp4 = rcache_get_reg(div(opd).ro, RC_GR_WRITE, NULL);
+            if (tmp != tmp2)
+              emith_move_r_r(tmp2, tmp);
+            emith_ctx_read(tmp4, offsetof(SH2, drc_tmp));
+
+            tmp3  = rcache_get_tmp();
+            emith_and_r_r_imm(tmp3, tmp4, 1);     // Q = !Ro[0]
+            emith_eor_r_r_imm(tmp3, tmp3, 1);
+            emith_or_r_r_lsl(sr, tmp3, Q_SHIFT);
+            rcache_free_tmp(tmp3);
+            emith_or_r_r_r_lsr(sr, sr, tmp4, 31); // T = Ro[31]
+            skip_op = div(opd).div1 + div(opd).rotcl;
+          }
+#endif
           break;
         case 2: // MOVT Rn    0000nnnn00101001
           sr   = rcache_get_reg(SHR_SR, RC_GR_READ, NULL);
@@ -3837,19 +4020,82 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         goto end_op;
       case 0x07: // DIV0S Rm,Rn         0010nnnnmmmm0111
         sr   = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
-        tmp2 = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
-        tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
-        tmp  = rcache_get_tmp();
         emith_invalidate_t();
         emith_bic_r_imm(sr, M|Q|T);
-        emith_lsr(tmp, tmp2, 31);       // Q = Nn
-        emith_or_r_r_lsl(sr, tmp, Q_SHIFT);
-        emith_lsr(tmp, tmp3, 31);       // M = Nm
-        emith_or_r_r_lsl(sr, tmp, M_SHIFT);
-        emith_eor_r_r_lsr(tmp, tmp2, 31);
-        emith_or_r_r(sr, tmp);          // T = Q^M
-        rcache_free(tmp);
         drcf.Mflag = FLG_UNKNOWN;
+#if DIV_OPTIMIZER
+        if (div(opd).div1 == 16 && div(opd).ro == div(opd).rn) {
+          // divide 32/16
+          rcache_get_reg_arg(0, div(opd).rn, NULL);
+          tmp2 = rcache_get_reg_arg(1, div(opd).rm, NULL);
+          tmp3 = rcache_get_tmp();
+          emith_lsr(tmp3, tmp2, 31);
+          emith_or_r_r_lsl(sr, tmp3, M_SHIFT);        // M = Rm[31]
+          rcache_invalidate_tmp();
+          emith_call(sh2_drc_divs32);
+          tmp = rcache_get_tmp_ret();
+#if REMAP_REGISTER
+          tmp2 = rcache_map_reg(div(opd).rn, tmp);
+#else
+          tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
+#endif
+          if (tmp != tmp2)
+            emith_move_r_r(tmp2, tmp);
+          tmp3  = rcache_get_tmp();
+
+          emith_eor_r_r_r_lsr(tmp3, tmp2, sr, M_SHIFT);
+          emith_and_r_r_imm(tmp3, tmp3, 1);
+          emith_eor_r_r_imm(tmp3, tmp3, 1);
+          emith_or_r_r_lsl(sr, tmp3, Q_SHIFT);        // Q = !Rn[0]^M
+          rcache_free_tmp(tmp3);
+          emith_or_r_r_r_lsr(sr, sr, tmp2, 31);       // T = Rn[31]
+          skip_op = div(opd).div1 + div(opd).rotcl;
+        }
+        else if (div(opd).div1 == 32 && div(opd).ro != div(opd).rn) {
+          // divide 64/32
+          tmp4 = rcache_get_reg(div(opd).ro, RC_GR_READ, NULL);
+          emith_ctx_write(tmp4, offsetof(SH2, drc_tmp));
+          rcache_get_reg_arg(0, div(opd).rn, NULL);
+          tmp2 = rcache_get_reg_arg(2, div(opd).rm, NULL);
+          tmp3 = rcache_get_tmp_arg(1);
+          emith_lsr(tmp3, tmp2, 31);
+          emith_or_r_r_lsl(sr, tmp3, M_SHIFT);         // M = Rm[31]
+          emith_add_r_r_ptr_imm(tmp3, CONTEXT_REG, offsetof(SH2, drc_tmp));
+          rcache_invalidate_tmp();
+          emith_call(sh2_drc_divs64);
+          tmp = rcache_get_tmp_ret();
+#if REMAP_REGISTER
+          tmp2 = rcache_map_reg(div(opd).rn, tmp);
+#else
+          tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
+#endif
+          tmp4 = rcache_get_reg(div(opd).ro, RC_GR_WRITE, NULL);
+          if (tmp != tmp2)
+            emith_move_r_r(tmp2, tmp);
+          emith_ctx_read(tmp4, offsetof(SH2, drc_tmp));
+
+          tmp3  = rcache_get_tmp();
+          emith_eor_r_r_r_lsr(tmp3, tmp4, sr, M_SHIFT);
+          emith_and_r_r_imm(tmp3, tmp3, 1);
+          emith_eor_r_r_imm(tmp3, tmp3, 1);
+          emith_or_r_r_lsl(sr, tmp3, Q_SHIFT);        // Q = !Ro[0]^M
+          rcache_free_tmp(tmp3);
+          emith_or_r_r_r_lsr(sr, sr, tmp4, 31);       // T = Ro[31]
+          skip_op = div(opd).div1 + div(opd).rotcl;
+        } else
+#endif
+        {
+          tmp2 = rcache_get_reg(GET_Rn(), RC_GR_READ, NULL);
+          tmp3 = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
+          tmp  = rcache_get_tmp();
+          emith_lsr(tmp, tmp2, 31);       // Q = Nn
+          emith_or_r_r_lsl(sr, tmp, Q_SHIFT);
+          emith_lsr(tmp, tmp3, 31);       // M = Nm
+          emith_or_r_r_lsl(sr, tmp, M_SHIFT);
+          emith_eor_r_r_lsr(tmp, tmp2, 31);
+          emith_or_r_r(sr, tmp);          // T = Q^M
+          rcache_free(tmp);
+        }
         goto end_op;
       case 0x08: // TST Rm,Rn           0010nnnnmmmm1000
         sr  = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
@@ -5758,7 +6004,8 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
   struct op_data *opd;
   int next_is_delay = 0;
   int end_block = 0;
-  int i, i_end;
+  int is_divop;
+  int i, i_end, i_div = -1;
   u32 crc = 0;
   // 2nd pass stuff
   int last_btarget; // loop detector 
@@ -5790,6 +6037,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
               (lowest_literal && lowest_literal <= pc))
       break; // text area collides with data area
 
+    is_divop = 0;
     op = FETCH_OP(pc);
     switch ((op & 0xf000) >> 12)
     {
@@ -5874,8 +6122,12 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
           break;
         case 1: // DIV0U      0000000000011001
           CHECK_UNHANDLED_BITS(0xf00, undefined);
+          opd->op = OP_DIV0;
           opd->source = BITMASK1(SHR_SR);
           opd->dest = BITMASK2(SHR_SR, SHR_T);
+          div(opd) = (struct div){ .rn=SHR_MEM, .rm=SHR_MEM, .ro=SHR_MEM };
+          i_div = i;
+          is_divop = 1;
           break;
         case 2: // MOVT Rn    0000nnnn00101001
           opd->source = BITMASK1(SHR_T);
@@ -5975,8 +6227,12 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
         opd->dest = BITMASK2(GET_Rn(), SHR_MEM);
         break;
       case 0x07: // DIV0S Rm,Rn         0010nnnnmmmm0111
+        opd->op = OP_DIV0;
         opd->source = BITMASK3(SHR_SR, GET_Rm(), GET_Rn());
         opd->dest = BITMASK2(SHR_SR, SHR_T);
+        div(opd) = (struct div){ .rn=GET_Rn(), .rm=GET_Rm(), .ro=SHR_MEM };
+        i_div = i;
+        is_divop = 1;
         break;
       case 0x08: // TST Rm,Rn           0010nnnnmmmm1000
         opd->source = BITMASK2(GET_Rm(), GET_Rn());
@@ -6021,6 +6277,19 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
       case 0x04: // DIV1    Rm,Rn       0011nnnnmmmm0100
         opd->source = BITMASK4(GET_Rm(), GET_Rn(), SHR_SR, SHR_T);
         opd->dest = BITMASK3(GET_Rn(), SHR_SR, SHR_T);
+        if (i_div >= 0) {
+          // divide operation: all DIV1 operations must use the same reg pair
+          if (div(&ops[i_div]).rn == SHR_MEM)
+            div(&ops[i_div]).rn=GET_Rn(), div(&ops[i_div]).rm=GET_Rm();
+          if (div(&ops[i_div]).rn == GET_Rn() && div(&ops[i_div]).rm == GET_Rm()) {
+            div(&ops[i_div]).div1 += 1;
+            div(&ops[i_div]).state = 0;
+            is_divop = 1;
+          } else {
+            ops[i_div].imm = 0;
+            i_div = -1;
+          }
+        }
         break;
       case 0x05: // DMULU.L Rm,Rn       0011nnnnmmmm0101
       case 0x0d: // DMULS.L Rm,Rn       0011nnnnmmmm1101
@@ -6126,6 +6395,19 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
           opd->dest = BITMASK2(GET_Rn(), SHR_T);
           break;
         case 0x24: // ROTCL  Rn          0100nnnn00100100
+          if (i_div >= 0) {
+            // divide operation: all ROTCL operations must use the same register
+            if (div(&ops[i_div]).ro == SHR_MEM)
+              div(&ops[i_div]).ro = GET_Rn();
+            if (div(&ops[i_div]).ro == GET_Rn() && !div(&ops[i_div]).state) {
+              div(&ops[i_div]).rotcl += 1;
+              div(&ops[i_div]).state = 1;
+              is_divop = 1;
+            } else {
+              ops[i_div].imm = 0;
+              i_div = -1;
+            }
+          }
         case 0x25: // ROTCR  Rn          0100nnnn00100101
           opd->source = BITMASK2(GET_Rn(), SHR_T);
           opd->dest = BITMASK2(GET_Rn(), SHR_T);
@@ -6556,7 +6838,8 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
         next_is_delay = 0;
         break;
       }
-    }
+    } else if (!is_divop && i_div >= 0)
+      i_div = -1;       // divide parser stop
   }
 end:
   i_end = i;
@@ -6567,6 +6850,8 @@ end:
   t = T_UNKNOWN;
   last_btarget = 0;
   op = 0; // delay/poll insns counter
+  is_divop = 0; // divide op insns counter
+  i_div = -1; // index of current divide op
   for (i = 0, pc = base_pc; i < i_end; i++, pc += 2) {
     opd = &ops[i];
     crc += FETCH_OP(pc);
@@ -6597,6 +6882,31 @@ end:
         if (i_end > i + 1 && !(op_flags[i + 1] & OF_BTARGET))
           i_end = i + 1;
       }
+    }
+
+    // divide operation verification:
+    // 1. there must not be a branch target inside
+    // 2. nothing is in a delay slot (could only be DIV0)
+    // 2. DIV0/n*(ROTCL+DIV1)/ROTCL:
+    //     div.div1 > 0 && div.rotcl == div.div1+1 && div.rn =! div.ro
+    // 3. DIV0/n*DIV1/ROTCL:
+    //     div.div1 > 0 && div.rotcl == 1 && div.ro == div.rn
+    if (i_div >= 0) {
+      if (op_flags[i] & OF_BTARGET) {   // condition 1
+        ops[i_div].imm = 0;
+        i_div = -1;
+      } else if (--is_divop == 0)
+        i_div = -1;
+    } else if (opd->op == OP_DIV0) {
+      struct div *div = &div(opd);
+      is_divop = div->div1 + div->rotcl;
+      if (op_flags[i] & OF_DELAY_OP)    // condition 2
+        opd->imm = 0;
+      else if (! div->div1 || ! ((div->ro == div->rn && div->rotcl == 1) ||
+               (div->ro != div->rn && div->rotcl == div->div1+1)))
+        opd->imm = 0;                   // condition 3+4
+      else if (is_divop)
+        i_div = i;
     }
 
     // literal pool size detection

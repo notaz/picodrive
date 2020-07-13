@@ -349,6 +349,15 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	} else	emith_or_r_r_r(d, s1, s2); \
 } while (0)
 
+#define emith_eor_r_r_r_lsr(d, s1, s2, lsrimm) do { \
+	if (lsrimm) { \
+		int tmp_ = rcache_get_tmp(); \
+		emith_lsr(tmp_, s2, lsrimm); \
+		emith_eor_r_r_r(d, s1, tmp_); \
+		rcache_free_tmp(tmp_); \
+	} else	emith_eor_r_r_r(d, s1, s2); \
+} while (0)
+
 // _r_r_shift
 #define emith_or_r_r_lsl(d, s, lslimm) \
 	emith_or_r_r_r_lsl(d, d, s, lslimm)
