@@ -2,7 +2,11 @@ TARGETS = amalgamate textfilter
 HOSTCC ?= cc
 
 all:
-	CC="$(XCC)" CFLAGS="$(XCFLAGS)" sh ./mkoffsets.sh ../pico
+	if [ -f "offsets/$(XPLATFORM)-offsets.h" ]; then \
+		ln -sf "../tools/offsets/$(XPLATFORM)-offsets.h" ../pico/pico_int_offs.h; \
+	else \
+		CC="$(XCC)" CFLAGS="$(XCFLAGS)" sh ./mkoffsets.sh ../pico; \
+	fi
 
 $(TARGETS): $(addsuffix .c,$(TARGETS))
 	$(HOSTCC) -o $@ -O $@.c
