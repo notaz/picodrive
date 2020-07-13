@@ -1,5 +1,6 @@
 
 /* svp */
+#include "../pico_types.h"
 #include "svp/ssp16.h"
 
 typedef struct {
@@ -18,7 +19,7 @@ void PicoSVPMemSetup(void);
 extern int carthw_ssf2_active;
 extern unsigned char carthw_ssf2_banks[8];
 void carthw_ssf2_startup(void);
-void carthw_ssf2_write8(unsigned int a, unsigned int d);
+void carthw_ssf2_write8(u32 a, u32 d);
 
 /* misc */
 void carthw_Xin1_startup(void);
