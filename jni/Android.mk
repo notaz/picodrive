@@ -27,16 +27,26 @@ asm_ym2612   := 0
 asm_misc     := 0
 asm_cdmemory := 0
 asm_mix      := 0
+asm_32xdraw  := 0
+asm_32xmemory := 0
 
 ifeq ($(TARGET_ARCH),arm)
-  use_cyclone := 1
-  use_sh2drc  := 1
-  use_svpdrc  := 1
-  asm_render  := 1
-  asm_misc    := 1
-  asm_mix     := 1
-  use_fame    := 0
-  use_sh2mame := 0
+  use_cyclone  := 1
+  use_fame     := 0
+  use_drz80    := 1
+  use_cz80     := 0
+  use_sh2mame  := 0
+  use_sh2drc   := 1
+  use_svpdrc   := 1
+
+  asm_memory   := 1
+  asm_render   := 1
+  asm_ym2612   := 1
+  asm_misc     := 1
+  asm_cdmemory := 1
+  asm_mix      := 1
+  asm_32xdraw  := 1
+  asm_32xmemory := 1
 endif
 
 ifeq ($(TARGET_ARCH_ABI),armeabi)
@@ -55,6 +65,13 @@ COREFLAGS := $(addprefix -D,$(DEFINES)) -fno-strict-aliasing
 GIT_VERSION := $(shell git rev-parse --short HEAD || echo unknown)
 ifneq ($(GIT_VERSION),"unknown")
   COREFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+endif
+
+ifneq ($(filter armeabi%, $(TARGET_ARCH_ABI)),)
+$(CORE_DIR)/pico/pico_int_offs.h:
+	cp $(CORE_DIR)/tools/offsets/generic32-offsets.h $@
+
+$(filter %.S,$(SRCS_COMMON)): $(CORE_DIR)/pico/pico_int_offs.h
 endif
 
 include $(CLEAR_VARS)
