@@ -137,7 +137,6 @@ else
 	CXX    += -miphoneos-version-min=5.0
 	CC_AS  += -miphoneos-version-min=5.0
 	CFLAGS += -miphoneos-version-min=5.0
-	use_svpdrc = 0
 endif
 
 # tvOS
@@ -558,9 +557,10 @@ endif
 
 ifeq ($(NO_ARM_ASM),1)
 use_cyclone = 0
-use_fame ?= 1
+use_fame = 1
 use_drz80 = 0
-use_cz80 ?= 1
+use_cz80 = 1
+use_svpdrc = 0
 
 asm_memory = 0
 asm_render = 0

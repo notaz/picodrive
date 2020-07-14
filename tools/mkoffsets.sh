@@ -51,8 +51,8 @@ check_obj ()
 		fi
 		# find the start line of the .rodata section; read the next line
 		ro=$($OBJDUMP -s /tmp/getoffs.o | awk '\
-		  /Contents of section.*(__const|.rodata|.sdata)/ {o=1; next} \
-		  {if(o) { gsub(/  .*/,""); $1=""; gsub(/ /,""); print; o=0}}')
+		  /Contents of section.*(__const|.r[o]?data|.sdata)/ {o=1; next} \
+		  {if(o) { gsub(/  .*/,""); $1=""; gsub(/ /,""); print; exit}}')
 		# no working tool for extracting the ro data; stop here
 		if [ -z "$ro" ]; then
 			echo "/* mkoffset.sh: no readelf or not ELF, offset table not created */" >$fn
@@ -79,8 +79,8 @@ compile_rodata ()
 	elif [ -n "$OBJDUMP" ]; then
 		# find the start line of the .rodata section; read the next line
 		ro=$($OBJDUMP -s /tmp/getoffs.o | awk '\
-		  /Contents of section.*(__const|.rodata|.sdata)/ {o=1; next} \
-		  {if(o) { gsub(/  .*/,""); $1=""; gsub(/ /,""); print; o=0}}')
+		  /Contents of section.*(__const|.r[o]?data|.sdata)/ {o=1; next} \
+		  {if(o) { gsub(/  .*/,""); $1=""; gsub(/ /,""); print; exit}}')
 	fi
 	if [ "$ENDIAN" = "le" ]; then
 		# swap needed for le target
@@ -104,7 +104,7 @@ get_define () # prefix struct member member...
 	name=$(echo $* | sed 's/ /_/g')
 	echo '#include <stdint.h>' > /tmp/getoffs.c
 	echo '#include "pico/pico_int.h"' >> /tmp/getoffs.c
-	echo "static const struct $struct p;" >> /tmp/getoffs.c
+	echo "static struct $struct p;" >> /tmp/getoffs.c
 	echo "const int32_t val = (char *)&p.$field - (char*)&p;" >>/tmp/getoffs.c
 	compile_rodata
 	line=$(printf "#define %-20s 0x%04x" $prefix$name $rodata)
