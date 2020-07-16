@@ -946,9 +946,9 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   {
     int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
     //elprintf(EL_STATUS, "%03i dac w %08x z80 %i", cycles, d, is_from_z80);
-    ym2612.dacout = ((int)d - 0x80) << 6;
     if (ym2612.dacen)
       PsndDoDAC(cycles);
+    ym2612.dacout = ((int)d - 0x80) << 6;
     return 0;
   }
 
@@ -1008,6 +1008,9 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
         case 0x27: { /* mode, timer control */
           int old_mode = ym2612.OPN.ST.mode;
           int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
+
+          if (ym2612.OPN.ST.mode != d)
+            PsndDoFM(cycles);
           ym2612.OPN.ST.mode = d;
 
           elprintf(EL_YMTIMER, "st mode %02x", d);
@@ -1066,6 +1069,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
 
 
 #define ym2612_read_local() \
+  PsndDoFM(xcycles>>8); \
   if (xcycles >= Pico.t.timer_a_next_oflow) \
     ym2612.OPN.ST.status |= (ym2612.OPN.ST.mode >> 2) & 1; \
   if (xcycles >= Pico.t.timer_b_next_oflow) \
