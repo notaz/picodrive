@@ -299,9 +299,9 @@ endif
 
 ifeq ($(NO_ARM_ASM),1)
 use_cyclone = 0
-use_fame ?= 1
+use_fame = 1
 use_drz80 = 0
-use_cz80 ?= 1
+use_cz80 = 1
 use_svpdrc = 0
 
 asm_memory = 0

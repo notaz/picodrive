@@ -48,6 +48,9 @@
 #define M6(x,y,z,a,b,c)	(M5(x,y,z,a,b)|M1(c))
 #define M10(a,b,c,d,e,f,g,h,i,j) (M5(a,b,c,d,e)|M5(f,g,h,i,j))
 
+// avoid a warning with clang
+static inline uintptr_t pabs(intptr_t v) { return labs(v); }
+
 // sys_cacheflush always flushes whole pages, and it's rather expensive on ARMs
 // hold a list of pending cache updates and merge requests to reduce cacheflush
 static struct { void *base, *end; } pageflush[4];
@@ -341,13 +344,13 @@ static void emith_flush(void)
 #define EOP_C_AM3_REG(cond,u,l,rn,rd,s,h,rm)       EOP_C_AM3(cond,u,0,l,rn,rd,s,h,rm)
 
 /* ldr and str */
-#define EOP_LDR_IMM2(cond,rd,rn,offset_12)  EOP_C_AM2_IMM(cond,(offset_12) >= 0,0,1,rn,rd,abs(offset_12))
-#define EOP_LDRB_IMM2(cond,rd,rn,offset_12) EOP_C_AM2_IMM(cond,(offset_12) >= 0,1,1,rn,rd,abs(offset_12))
-#define EOP_STR_IMM2(cond,rd,rn,offset_12)  EOP_C_AM2_IMM(cond,(offset_12) >= 0,0,0,rn,rd,abs(offset_12))
+#define EOP_LDR_IMM2(cond,rd,rn,offset_12)  EOP_C_AM2_IMM(cond,(offset_12) >= 0,0,1,rn,rd,pabs(offset_12))
+#define EOP_LDRB_IMM2(cond,rd,rn,offset_12) EOP_C_AM2_IMM(cond,(offset_12) >= 0,1,1,rn,rd,pabs(offset_12))
+#define EOP_STR_IMM2(cond,rd,rn,offset_12)  EOP_C_AM2_IMM(cond,(offset_12) >= 0,0,0,rn,rd,pabs(offset_12))
 
-#define EOP_LDR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,(offset_12) >= 0,0,1,rn,rd,abs(offset_12))
+#define EOP_LDR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,(offset_12) >= 0,0,1,rn,rd,pabs(offset_12))
 #define EOP_LDR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,1,rn,rd,0)
-#define EOP_STR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,(offset_12) >= 0,0,0,rn,rd,abs(offset_12))
+#define EOP_STR_IMM(   rd,rn,offset_12) EOP_C_AM2_IMM(A_COND_AL,(offset_12) >= 0,0,0,rn,rd,pabs(offset_12))
 #define EOP_STR_SIMPLE(rd,rn)           EOP_C_AM2_IMM(A_COND_AL,1,0,0,rn,rd,0)
 
 #define EOP_LDR_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,1,rn,rd,shift_imm,A_AM1_LSL,rm)
@@ -355,19 +358,19 @@ static void emith_flush(void)
 #define EOP_LDRB_REG_LSL(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,1,1,rn,rd,shift_imm,A_AM1_LSL,rm)
 #define EOP_STR_REG_LSL_WB(cond,rd,rn,rm,shift_imm) EOP_C_AM2_REG(cond,1,0,2,rn,rd,shift_imm,A_AM1_LSL,rm)
 
-#define EOP_LDRH_IMM2(cond,rd,rn,offset_8)  EOP_C_AM3_IMM(cond,(offset_8) >= 0,1,rn,rd,0,1,abs(offset_8))
+#define EOP_LDRH_IMM2(cond,rd,rn,offset_8)  EOP_C_AM3_IMM(cond,(offset_8) >= 0,1,rn,rd,0,1,pabs(offset_8))
 #define EOP_LDRH_REG2(cond,rd,rn,rm)        EOP_C_AM3_REG(cond,1,1,rn,rd,0,1,rm)
 
-#define EOP_LDRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,(offset_8) >= 0,1,rn,rd,0,1,abs(offset_8))
+#define EOP_LDRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,(offset_8) >= 0,1,rn,rd,0,1,pabs(offset_8))
 #define EOP_LDRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,1,rn,rd,0,1,0)
 #define EOP_LDRH_REG(   rd,rn,rm)        EOP_C_AM3_REG(A_COND_AL,1,1,rn,rd,0,1,rm)
-#define EOP_STRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,(offset_8) >= 0,0,rn,rd,0,1,abs(offset_8))
+#define EOP_STRH_IMM(   rd,rn,offset_8)  EOP_C_AM3_IMM(A_COND_AL,(offset_8) >= 0,0,rn,rd,0,1,pabs(offset_8))
 #define EOP_STRH_SIMPLE(rd,rn)           EOP_C_AM3_IMM(A_COND_AL,1,0,rn,rd,0,1,0)
 #define EOP_STRH_REG(   rd,rn,rm)        EOP_C_AM3_REG(A_COND_AL,1,0,rn,rd,0,1,rm)
 
-#define EOP_LDRSB_IMM2(cond,rd,rn,offset_8) EOP_C_AM3_IMM(cond,(offset_8) >= 0,1,rn,rd,1,0,abs(offset_8))
+#define EOP_LDRSB_IMM2(cond,rd,rn,offset_8) EOP_C_AM3_IMM(cond,(offset_8) >= 0,1,rn,rd,1,0,pabs(offset_8))
 #define EOP_LDRSB_REG2(cond,rd,rn,rm)       EOP_C_AM3_REG(cond,1,1,rn,rd,1,0,rm)
-#define EOP_LDRSH_IMM2(cond,rd,rn,offset_8) EOP_C_AM3_IMM(cond,(offset_8) >= 0,1,rn,rd,1,1,abs(offset_8))
+#define EOP_LDRSH_IMM2(cond,rd,rn,offset_8) EOP_C_AM3_IMM(cond,(offset_8) >= 0,1,rn,rd,1,1,pabs(offset_8))
 #define EOP_LDRSH_REG2(cond,rd,rn,rm)       EOP_C_AM3_REG(cond,1,1,rn,rd,1,1,rm)
 
 /* ldm and stm */
