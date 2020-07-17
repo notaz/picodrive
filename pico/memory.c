@@ -1009,8 +1009,6 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
           int old_mode = ym2612.OPN.ST.mode;
           int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
 
-          if (ym2612.OPN.ST.mode != d)
-            PsndDoFM(cycles);
           ym2612.OPN.ST.mode = d;
 
           elprintf(EL_YMTIMER, "st mode %02x", d);
@@ -1028,6 +1026,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
 #ifdef __GP2X__
             if (PicoIn.opt & POPT_EXT_FM) return YM2612Write_940(a, d, get_scanline(is_from_z80));
 #endif
+            PsndDoFM(cycles);
             return 1;
           }
           return 0;
@@ -1069,7 +1068,6 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
 
 
 #define ym2612_read_local() \
-  PsndDoFM(xcycles>>8); \
   if (xcycles >= Pico.t.timer_a_next_oflow) \
     ym2612.OPN.ST.status |= (ym2612.OPN.ST.mode >> 2) & 1; \
   if (xcycles >= Pico.t.timer_b_next_oflow) \
