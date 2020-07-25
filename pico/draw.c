@@ -36,8 +36,8 @@ int (*PicoScanBegin)(unsigned int num) = NULL;
 int (*PicoScanEnd)  (unsigned int num) = NULL;
 
 static unsigned char DefHighCol[8+320+8];
-static unsigned char *HighColBase = DefHighCol;
-static int HighColIncrement;
+unsigned char *HighColBase = DefHighCol;
+int HighColIncrement;
 
 static unsigned int DefOutBuff[320*2/2];
 void *DrawLineDestBase = DefOutBuff;
@@ -1848,7 +1848,9 @@ void PicoDrawUpdateHighPal(void)
     if ((PicoIn.opt & POPT_ALT_RENDERER) | (est->rendstatus & PDRAW_SONIC_MODE))
       sh = 0; // no s/h support
 
-    if (FinalizeLine == FinalizeLine8bit)
+    if (PicoIn.AHW & PAHW_SMS)
+      PicoDoHighPal555M4();
+    else if (FinalizeLine == FinalizeLine8bit)
       PicoDoHighPal555_8bit(sh, 0, est);
     else
       PicoDoHighPal555(sh, 0, est);
@@ -1863,6 +1865,7 @@ void PicoDrawUpdateHighPal(void)
 
 void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 {
+  PicoDrawSetInternalBuf(NULL, 0);
   switch (which)
   {
     case PDF_8BIT:
@@ -1878,6 +1881,7 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 
     default:
       FinalizeLine = NULL;
+      PicoDrawSetOutBufMD(Pico.est.Draw2FB+8, 328);
       break;
   }
   if (PicoIn.AHW & PAHW_32X)
