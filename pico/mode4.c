@@ -69,6 +69,8 @@ static void draw_sprites(int scanline)
 
   if (pv->reg[0] & 8)
     xoff = 0;
+  if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
+    xoff += 32;
 
   sat = (unsigned char *)PicoMem.vram + ((pv->reg[5] & 0x7e) << 7);
   if (pv->reg[1] & 2) {
@@ -177,6 +179,8 @@ static void DrawDisplayM4(int scanline)
   if (dx != 8)
     cells++; // have hscroll, need to draw 1 cell more
   dx += cellskip << 3;
+  if (!FinalizeLineM4 && !(PicoIn.opt & POPT_DIS_32C_BORDER))
+    dx += 32;
 
   // low priority tiles
   if (!(pv->debug_p & PVD_KILL_B))
@@ -190,9 +194,11 @@ static void DrawDisplayM4(int scanline)
   if (!(pv->debug_p & PVD_KILL_A))
     draw_strip(nametab, dx, cells, tilex | 0x1000 | (ty << 16));
 
-  if (pv->reg[0] & 0x20)
-    // first column masked
-    ((int *)Pico.est.HighCol)[2] = ((int *)Pico.est.HighCol)[3] = 0xe0e0e0e0;
+  if (pv->reg[0] & 0x20) {
+    // first column masked, caculate offset to start of line
+    dx = (dx&~0x1f) / 4;
+    ((u32 *)Pico.est.HighCol)[dx+2] = ((u32 *)Pico.est.HighCol)[dx+3] = 0xe0e0e0e0;
+  }
 }
 
 void PicoFrameStartMode4(void)
@@ -219,6 +225,7 @@ void PicoFrameStartMode4(void)
     rendlines = lines;
   }
 
+  Pico.est.HighCol = HighColBase + screen_offset * HighColIncrement;
   Pico.est.DrawLineDest = (char *)DrawLineDestBase + screen_offset * DrawLineDestIncrement;
 }
 
@@ -243,6 +250,7 @@ void PicoLineMode4(int line)
   if (PicoScanEnd != NULL)
     skip_next_line = PicoScanEnd(line + screen_offset);
 
+  Pico.est.HighCol += HighColIncrement;
   Pico.est.DrawLineDest = (char *)Pico.est.DrawLineDest + DrawLineDestIncrement;
 }
 
@@ -302,7 +310,8 @@ void PicoDrawSetOutputMode4(pdso_t which)
   {
     case PDF_8BIT:   FinalizeLineM4 = FinalizeLine8bitM4; break;
     case PDF_RGB555: FinalizeLineM4 = FinalizeLineRGB555M4; break;
-    default:         FinalizeLineM4 = NULL; break;
+    default:         FinalizeLineM4 = NULL;
+                     PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328); break;
   }
 }
 
