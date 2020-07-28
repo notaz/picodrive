@@ -37,6 +37,7 @@ const struct menu_keymap in_sdl_key_map[] =
 	{ SDLK_BACKSPACE,	PBTN_R },
 };
 
+#if !defined(__RG350__)
 const char * const in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_UP] = "UP",
 	[SDLK_DOWN] = "DOWN",
@@ -52,4 +53,33 @@ const char * const in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_ESCAPE] = "SELECT",
 	[SDLK_POWER] = "POWER",
 	[SDLK_PAUSE] = "LOCK",
+
+	[SDLK_PAGEUP] = "L2",
+	[SDLK_PAGEDOWN] = "R2",
+	[SDLK_KP_DIVIDE] = "L3",
+	[SDLK_KP_PERIOD] = "R3",
 };
+#else
+/* RG 350 */
+const char * const in_sdl_key_names[SDLK_LAST] = {
+	[SDLK_UP] = "UP",
+	[SDLK_DOWN] = "DOWN",
+	[SDLK_LEFT] = "LEFT",
+	[SDLK_RIGHT] = "RIGHT",
+	[SDLK_LCTRL] = "A",
+	[SDLK_LALT] = "B",
+	[SDLK_SPACE] = "X",
+	[SDLK_LSHIFT] = "Y",
+	[SDLK_TAB] = "L",
+	[SDLK_BACKSPACE] = "R",
+	[SDLK_RETURN] = "START",
+	[SDLK_ESCAPE] = "SELECT",
+	[SDLK_HOME] = "POWER",
+	[SDLK_PAUSE] = "LOCK",
+
+	[SDLK_PAGEUP] = "L2",
+	[SDLK_PAGEDOWN] = "R2",
+	[SDLK_KP_DIVIDE] = "L3",
+	[SDLK_KP_PERIOD] = "R3",
+};
+#endif

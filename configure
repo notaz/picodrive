@@ -38,7 +38,7 @@ check_define()
 # setting options to "yes" or "no" will make that choice default,
 # "" means "autodetect".
 
-platform_list="generic pandora gp2x wiz caanoo opendingux gcw0 rpi1 rpi2"
+platform_list="generic pandora gp2x wiz caanoo opendingux gcw0 rg350 rpi1 rpi2"
 platform="generic"
 sound_driver_list="oss alsa sdl"
 sound_drivers=""
@@ -62,7 +62,12 @@ CC="${CC-${CROSS_COMPILE}gcc}"
 CXX="${CXX-${CROSS_COMPILE}g++}"
 AS="${AS-${CROSS_COMPILE}as}"
 STRIP="${STRIP-${CROSS_COMPILE}strip}"
-test -n "$SDL_CONFIG" || SDL_CONFIG="`$CC $CFLAGS $LDFLAGS --print-sysroot 2> /dev/null || true`/usr/bin/sdl-config"
+SYSROOT=`$CC $CFLAGS $LDFLAGS --print-sysroot 2> /dev/null || true`
+test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*bin*/sdl-config 2>/dev/null | grep /bin/sdl-config | head -n 1)"
+test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*/*bin*/sdl-config 2>/dev/null | grep /bin/sdl-config | head -n 1)"
+#test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*bin*/sdl2-config 2>/dev/null | grep /bin/sdl2-config | head -n 1)"
+#test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*/*bin*/sdl2-config 2>/dev/null | grep /bin/sdl2-config | head -n 1)"
+SDLVERSION=sdl && echo $SDL_CONFIG | grep -q sdl2 && SDLVERSION=sdl2
 MAIN_LDLIBS="$LDLIBS -lm"
 config_mak="config.mak"
 
@@ -86,9 +91,10 @@ set_platform()
     ;;
   generic)
     ;;
-  opendingux | gcw0)
+  opendingux | gcw0 | rg350)
     sound_drivers="sdl"
     # both are really an opendingux
+    CFLAGS="$CFLAGS -D__`echo $platform | tr '[a-z]' '[A-Z]'`__"
     platform="opendingux"
     ;;
   pandora)
@@ -376,6 +382,9 @@ if [ "$need_sdl" = "yes" ]; then
   CFLAGS="$CFLAGS `$SDL_CONFIG --cflags`"
   MAIN_LDLIBS="`$SDL_CONFIG --libs` $MAIN_LDLIBS"
   check_sdl `$SDL_CONFIG --libs` || fail "please install libsdl (libsdl1.2-dev)"
+  if [ "$SDLVERSION" = "sdl2" ]; then
+    CFLAGS="$CFLAGS -D__USE_SDL2__"
+  fi
 fi
 
 if check_option -Wno-unused_result; then

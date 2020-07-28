@@ -1,9 +1,9 @@
 [Desktop Entry]
+Type=Application
 Name=Picodrive
 Comment=A megadrive/genesis emulator
-Exec=PicoDrive
-Terminal=false
-Type=Application
-StartupNotify=true
+Exec=PicoDrive %f
 Icon=megadrive
+Terminal=false
 Categories=emulators;
+MimeType=.md;.smd;.bin;.sms;.cue;.32x;.zip;.7z

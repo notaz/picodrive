@@ -4,3 +4,6 @@
 [submodule "cpu/cyclone"]
 	path = cpu/cyclone
 	url = https://github.com/notaz/cyclone68000.git
+[submodule "pico/sound/emu2413"]
+	path = pico/sound/emu2413
+	url = https://github.com/digital-sound-antiques/emu2413.git
