@@ -19,6 +19,12 @@ static void (*FinalizeLineM4)(int line);
 static int skip_next_line;
 static int screen_offset;
 
+static void TileBGM4(int sx, int pal)
+{
+  u32 *pd = (u32 *)(Pico.est.HighCol + sx);
+  pd[0] = pd[1] = pal ? 0x10101010 : 0;
+}
+
 #define PLANAR_PIXELL(x,p) \
   t = pack & (0x80808080 >> p); \
   t = ((t >> (7-p)) | (t >> (14-p)) | (t >> (21-p)) | (t >> (28-p))) & 0x0f; \
@@ -104,7 +110,7 @@ static void draw_sprites(int scanline)
 
   if (pv->reg[0] & 8)
     xoff = 0;
-  if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
+  if (!FinalizeLineM4 && !(PicoIn.opt & POPT_DIS_32C_BORDER))
     xoff += 32;
 
   sat = (unsigned char *)PicoMem.vram + ((pv->reg[5] & 0x7e) << 7);
@@ -145,10 +151,11 @@ static void draw_sprites(int scanline)
   }
 }
 
+
 // tilex_ty_prio merged to reduce register pressure
 static void draw_strip_low(const unsigned short *nametab, int dx, int cells, int tilex_ty_prio)
 {
-  int oldcode = -1, blank = -1; // The tile we know is blank
+  int oldcode = -1;
   int addr = 0, pal = 0;
 
   // Draw tiles across screen:
@@ -158,12 +165,6 @@ static void draw_strip_low(const unsigned short *nametab, int dx, int cells, int
     int code;
 
     code = nametab[tilex_ty_prio & 0x1f];
-    if (code == blank)
-      continue;
-      /*
-    if ((code ^ tilex_ty_prio) & 0x1000) // priority differs?
-      continue;
-      */
 
     if (code != oldcode) {
       oldcode = code;
@@ -177,14 +178,9 @@ static void draw_strip_low(const unsigned short *nametab, int dx, int cells, int
     }
 
     pack = *(unsigned int *)(PicoMem.vram + addr); /* Get 4 bitplanes / 8 pixels */
-    /*
-    if (pack == 0) {
-      blank = code;
-      continue;
-    }
-    */
-    if (code & 0x0200) TileFlipM4Low(dx, pack, pal);
-    else               TileNormM4Low(dx, pack, pal);
+    if (pack == 0)          TileBGM4(dx, pal);
+    else if (code & 0x0200) TileFlipM4Low(dx, pack, pal);
+    else                    TileNormM4Low(dx, pack, pal);
   }
 }
 // tilex_ty_prio merged to reduce register pressure
