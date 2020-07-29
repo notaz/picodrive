@@ -278,7 +278,7 @@ esac
 
 # basic compiler test
 cat > $TMPC <<EOF
-int main(void) { return 0; }
+int main (int argc, char *argv[]) { return 0; }
 EOF
 if ! compile_binary; then
   fail "compiler test failed, please check config.log"
@@ -289,7 +289,7 @@ check_zlib()
 {
   cat > $TMPC <<EOF
   #include <zlib.h>
-  int main(void) { uncompress(0, 0, 0, 0); }
+  int main (int argc, char *argv[]) { uncompress(0, 0, 0, 0); }
 EOF
   compile_binary "$@"
 }
@@ -298,7 +298,7 @@ check_libpng()
 {
   cat > $TMPC <<EOF
   #include <png.h>
-  void main() { png_init_io(0, 0); }
+  int main (int argc, char *argv[]) { png_init_io(0, 0); }
 EOF
 #  compile_binary
   compile_object
@@ -309,7 +309,7 @@ check_oss()
   cat > $TMPC <<EOF
   #include <sys/soundcard.h>
   #include <sys/ioctl.h>
-  void main() { int a=0; ioctl(0, SNDCTL_DSP_SETFMT, &a); }
+  int main (int argc, char *argv[]) { int a=0; ioctl(0, SNDCTL_DSP_SETFMT, &a); }
 EOF
   compile_binary
 }
@@ -318,7 +318,7 @@ check_alsa()
 {
   cat > $TMPC <<EOF
   #include <alsa/asoundlib.h>
-  void main() { snd_pcm_open(0, 0, 0, 0); }
+  int main (int argc, char *argv[]) { snd_pcm_open(0, 0, 0, 0); }
 EOF
   compile_binary "$@"
 }
@@ -327,7 +327,7 @@ check_sdl()
 {
   cat > $TMPC <<EOF
   #include <SDL.h>
-  void main() { SDL_OpenAudio(0, 0); }
+  int main (int argc, char *argv[]) { SDL_OpenAudio(0, 0); }
 EOF
   compile_binary "$@"
 }
@@ -336,7 +336,7 @@ check_libavcodec()
 {
   cat > $TMPC <<EOF
   #include <libavcodec/avcodec.h>
-  void main() { avcodec_decode_audio3(0, 0, 0, 0); }
+  int main (int argc, char *argv[]) { avcodec_decode_audio3(0, 0, 0, 0); }
 EOF
   compile_object "$@"
 }
