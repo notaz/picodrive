@@ -75,15 +75,15 @@ const struct menu_keymap in_sdl_joy_map[] __attribute__((weak)) =
 	{ SDLK_WORLD_3,	PBTN_MA3 },
 };
 
-extern const char * const in_sdl_key_names[] __attribute__((weak));
+const char *const *in_sdl_key_names_p __attribute__((weak)) = NULL;
 
-static const struct in_pdata in_sdl_platform_data = {
+
+static struct in_pdata in_sdl_platform_data = {
 	.defbinds = in_sdl_defbinds,
 	.key_map = in_sdl_key_map,
 	.kmap_size = sizeof(in_sdl_key_map) / sizeof(in_sdl_key_map[0]),
 	.joy_map = in_sdl_joy_map,
 	.jmap_size = sizeof(in_sdl_joy_map) / sizeof(in_sdl_joy_map[0]),
-	.key_names = in_sdl_key_names,
 };
 
 /* YUV stuff */
@@ -177,8 +177,10 @@ void plat_video_flip(void)
 		if (SDL_MUSTLOCK(plat_sdl_screen))
 			SDL_UnlockSurface(plat_sdl_screen);
 		SDL_Flip(plat_sdl_screen);
-		g_screen_ptr = plat_sdl_screen->pixels;
-		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
+		if (g_screen_ptr != shadow_fb) {
+			g_screen_ptr = plat_sdl_screen->pixels;
+			plat_video_toggle_renderer(0, 0);
+		}
 	}
 }
 
@@ -244,8 +246,8 @@ void plat_video_loop_prepare(void)
 		if (SDL_MUSTLOCK(plat_sdl_screen))
 			SDL_LockSurface(plat_sdl_screen);
 		g_screen_ptr = plat_sdl_screen->pixels;
+		plat_video_toggle_renderer(0, 0);
 	}
-	PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 }
 
 void plat_early_init(void)
@@ -292,6 +294,7 @@ void plat_init(void)
 	g_screen_ppitch = 320;
 	g_screen_ptr = shadow_fb;
 
+	in_sdl_platform_data.key_names = in_sdl_key_names_p;
 	in_sdl_init(&in_sdl_platform_data, plat_sdl_event_handler);
 	in_probe();
 

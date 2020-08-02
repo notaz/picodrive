@@ -83,3 +83,4 @@ const char * const in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_KP_PERIOD] = "R3",
 };
 #endif
+const char *const *in_sdl_key_names_p = in_sdl_key_names;

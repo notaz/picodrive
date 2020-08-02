@@ -10,6 +10,7 @@
 #ifndef PICO_H
 #define PICO_H
 
+#include <stdint.h> // [u]int<n>_t
 #include <stdlib.h> // size_t
 
 #ifdef __cplusplus
