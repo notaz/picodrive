@@ -107,7 +107,7 @@ static void apply_renderer(void)
 	case RT_8BIT_ACC:
 		PicoIn.opt &= ~POPT_ALT_RENDERER;
 		PicoDrawSetOutFormat(PDF_8BIT, 0);
-		PicoDrawSetOutBuf(Pico.est.Draw2FB + 8, 328);
+		PicoDrawSetOutBuf(Pico.est.Draw2FB, 328);
 		break;
 	case RT_8BIT_FAST:
 		PicoIn.opt |=  POPT_ALT_RENDERER;

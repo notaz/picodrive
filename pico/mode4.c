@@ -17,7 +17,7 @@
 
 static void (*FinalizeLineM4)(int line);
 static int skip_next_line;
-static int screen_offset;
+static int screen_offset, line_offset;
 
 static void TileBGM4(int sx, int pal)
 {
@@ -110,8 +110,7 @@ static void draw_sprites(int scanline)
 
   if (pv->reg[0] & 8)
     xoff = 0;
-  if (!FinalizeLineM4 && !(PicoIn.opt & POPT_DIS_32C_BORDER))
-    xoff += 32;
+  xoff += line_offset;
 
   sat = (unsigned char *)PicoMem.vram + ((pv->reg[5] & 0x7e) << 7);
   if (pv->reg[1] & 2) {
@@ -252,8 +251,7 @@ static void DrawDisplayM4(int scanline)
   if (dx != 8)
     cells++; // have hscroll, need to draw 1 cell more
   dx += cellskip << 3;
-  if (!FinalizeLineM4 && !(PicoIn.opt & POPT_DIS_32C_BORDER))
-    dx += 32;
+  dx += line_offset;
 
   // low priority tiles
   if (!(pv->debug_p & PVD_KILL_B))
@@ -365,18 +363,18 @@ static void FinalizeLine8bitM4(int line)
 {
   unsigned char *pd = Pico.est.DrawLineDest;
 
-  if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
-    pd += 32;
-
-  memcpy(pd, Pico.est.HighCol + 8, 256);
+  if (HighColBase != DrawLineDestBase)
+    memcpy(pd + line_offset, Pico.est.HighCol + line_offset + 8, 256);
 }
 
 void PicoDrawSetOutputMode4(pdso_t which)
 {
+  line_offset = PicoIn.opt & POPT_DIS_32C_BORDER ? 0 : 32;
   switch (which)
   {
     case PDF_8BIT:   FinalizeLineM4 = FinalizeLine8bitM4; break;
-    case PDF_RGB555: FinalizeLineM4 = FinalizeLineRGB555M4; break;
+    case PDF_RGB555: FinalizeLineM4 = FinalizeLineRGB555M4;
+                     line_offset = 0 /* done in FinalizeLine */; break;
     default:         FinalizeLineM4 = NULL;
                      PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328); break;
   }

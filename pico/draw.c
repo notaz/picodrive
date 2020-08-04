@@ -1582,7 +1582,10 @@ static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
     len = 256;
   }
 
-  if (!sh && (est->rendstatus & PDRAW_SONIC_MODE)) {
+  if (DrawLineDestBase == HighColBase) {
+    if (!sh && (est->rendstatus & PDRAW_SONIC_MODE))
+      blockcpy_or(pd+8, est->HighCol+8, len, est->SonicPalCount*0x40);
+  } else if (!sh && (est->rendstatus & PDRAW_SONIC_MODE)) {
     // select active backup palette
     blockcpy_or(pd, est->HighCol+8, len, est->SonicPalCount*0x40);
   } else {
@@ -1892,6 +1895,10 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 
 void PicoDrawSetOutBufMD(void *dest, int increment)
 {
+  if (FinalizeLine == FinalizeLine8bit && increment == 328) {
+    // kludge for no-copy mode
+    PicoDrawSetInternalBuf(dest, increment);
+  }
   if (dest != NULL) {
     DrawLineDestBase = dest;
     DrawLineDestIncrement = increment;

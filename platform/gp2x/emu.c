@@ -364,7 +364,7 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 			localPalSize = make_local_pal(1);
 		// a hack for VR
 		if (PicoIn.AHW & PAHW_SVP)
-			memset32((int *)(Pico.est.Draw2FB+328*8+328*223), 0xe0e0e0e0, 328);
+			memset32((int *)(Pico.est.Draw2FB+328*8+328*223), 0xe0e0e0e0, 328/4);
 		// do actual copy
 		vidcpyM2(g_screen_ptr, Pico.est.Draw2FB+328*8,
 			!(Pico.video.reg[12] & 1), !(PicoIn.opt & POPT_DIS_32C_BORDER));
