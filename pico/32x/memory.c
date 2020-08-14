@@ -1817,7 +1817,7 @@ static void REGPARM(3) sh2_write32_dram(u32 a, u32 d, SH2 *sh2)
 static void REGPARM(3) sh2_write32_sdram(u32 a, u32 d, SH2 *sh2)
 {
   u32 a1 = a & 0x3fffc;
-  *(u32 *)(sh2->p_sdram + a1) = (d << 16) | (d >> 16);
+  *(u32 *)((char*)sh2->p_sdram + a1) = (d << 16) | (d >> 16);
 #ifdef DRC_SH2
   u8 *p = sh2->p_drcblk_ram;
   u32 t = p[a1 >> SH2_DRCBLK_RAM_SHIFT];
@@ -1940,7 +1940,7 @@ void *p32x_sh2_get_mem_ptr(u32 a, u32 *mask, SH2 *sh2)
   } else if ((a & 0xc6000000) == 0x02000000) {
     // banked ROM. Return bank address
     u32 bank = carthw_ssf2_banks[(a >> 19) & 7] << 19;
-    ret = sh2->p_rom + bank;
+    ret = (char*)sh2->p_rom + bank;
     *mask = 0x07ffff;
   }
 
@@ -1958,7 +1958,7 @@ int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
     return 0;
   if ((ps = p32x_sh2_get_mem_ptr(src, &mask, sh2)) == (void *)-1)
     return 0;
-  ps += src & mask;
+  (char*)ps += src & mask;
   len = count * size;
 
   // DRAM in byte access is always in overwrite mode
@@ -1968,13 +1968,13 @@ int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
   // align dst to halfword
   if (dst & 1) {
     p32x_sh2_write8(dst, *(u8 *)((uptr)ps ^ 1), sh2);
-    ps++, dst++, len --;
+    ((char*)ps)++, dst++, len --;
   }
 
   // copy data
   if ((uptr)ps & 1) {
     // unaligned, use halfword copy mode to reduce memory bandwidth
-    u16 *sp = (u16 *)(ps - 1);
+    u16 *sp = (u16 *)((char*)ps - 1);
     u16 dl, dh = *sp++;
     for (i = 0; i < (len & ~1); i += 2, dst += 2, sp++) {
       dl = dh, dh = *sp;

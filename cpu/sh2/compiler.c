@@ -462,9 +462,9 @@ static void rcache_free_tmp(int hr);
 // SR must and R0 should by all means be statically mapped.
 // XXX the static definition of SR MUST match that in compiler.h
 
-#ifdef __arm__
+#ifdef __arm__ || defined(_M_ARM)
 #include "../drc/emit_arm.c"
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) || defined(_M_ARM64)
 #include "../drc/emit_arm64.c"
 #elif defined(__mips__)
 #include "../drc/emit_mips.c"
@@ -472,9 +472,9 @@ static void rcache_free_tmp(int hr);
 #include "../drc/emit_riscv.c"
 #elif defined(__powerpc__)
 #include "../drc/emit_ppc.c"
-#elif defined(__i386__)
+#elif defined(__i386__) || defined(_M_X86)
 #include "../drc/emit_x86.c"
-#elif defined(__x86_64__)
+#elif defined(__x86_64__) || defined(_M_X64)
 #include "../drc/emit_x86.c"
 #else
 #error unsupported arch
@@ -816,7 +816,7 @@ static void dr_block_link(struct block_entry *be, struct block_link *bl, int emi
         emith_jump_patch(jump, bl->blx, &jump);
         emith_jump_at(bl->blx, be->tcache_ptr);
         if ((((uintptr_t)bl->blx & 0x1f) + emith_jump_at_size()-1) > 0x1f)
-          host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size()-1);
+          host_instructions_updated(bl->blx, (char*)bl->blx + emith_jump_at_size()-1);
       }
     } else {
       printf("unknown BL type %d\n", bl->type);
@@ -855,7 +855,7 @@ static void dr_block_unlink(struct block_link *bl, int emit_jump)
         // via blx: @jump near jumpcc to blx; @blx load target_pc, far jump
         emith_jump_patch(bl->jump, bl->blx, &jump);
         memcpy(bl->blx, bl->jdisp, emith_jump_at_size());
-        host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size()-1);
+        host_instructions_updated(bl->blx, (char*)bl->blx + emith_jump_at_size()-1);
       } else {
         printf("unknown BL type %d\n", bl->type);
         exit(1);
@@ -4657,7 +4657,15 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x03: // MOV    Rm,Rn        0110nnnnmmmm0011
         emit_move_r_r(GET_Rn(), GET_Rm());
         goto end_op;
-      case 0x07 ... 0x0f:
+      case 0x07:
+      case 0x08:
+      case 0x09:
+      case 0x0a:
+      case 0x0b:
+      case 0x0c:
+      case 0x0d:
+      case 0x0e:
+      case 0x0f:
         tmp  = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
         tmp2 = rcache_get_reg(GET_Rn(), RC_GR_WRITE, NULL);
         switch (op & 0x0f)
@@ -5140,7 +5148,7 @@ end_op:
   // fill blx backup; do this last to backup final patched code
   for (i = 0; i < block->entry_count; i++)
     for (bl = block->entryp[i].o_links; bl; bl = bl->o_next)
-      memcpy(bl->jdisp, bl->blx ?: bl->jump, emith_jump_at_size());
+      memcpy(bl->jdisp, bl->blx ? bl->blx : bl->jump, emith_jump_at_size());
 
   ring_alloc(&tcache_ring[tcache_id], tcache_ptr - block_entry_ptr);
   host_instructions_updated(block_entry_ptr, tcache_ptr);
@@ -6987,9 +6995,9 @@ end:
 
   *end_pc_out = end_pc;
   if (base_literals_out != NULL)
-    *base_literals_out = (lowest_literal ?: end_pc);
+    *base_literals_out = (lowest_literal ? lowest_literal : end_pc);
   if (end_literals_out != NULL)
-    *end_literals_out = (end_literals ?: end_pc);
+    *end_literals_out = (end_literals ? lowest_literal : end_pc);
 
   // crc overflow handling, twice to collect all overflows
   crc = (crc & 0xffff) + (crc >> 16);
