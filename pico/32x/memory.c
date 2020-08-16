@@ -1958,7 +1958,11 @@ int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
     return 0;
   if ((ps = p32x_sh2_get_mem_ptr(src, &mask, sh2)) == (void *)-1)
     return 0;
+#if _MSC_VER
   (char*)ps += src & mask;
+#else
+  ps += src & mask;
+#endif
   len = count * size;
 
   // DRAM in byte access is always in overwrite mode
@@ -1968,7 +1972,11 @@ int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
   // align dst to halfword
   if (dst & 1) {
     p32x_sh2_write8(dst, *(u8 *)((uptr)ps ^ 1), sh2);
+#if _MSC_VER
     ((char*)ps)++, dst++, len --;
+#else
+    ps++, dst++, len --;
+#endif
   }
 
   // copy data

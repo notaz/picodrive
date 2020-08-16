@@ -462,7 +462,7 @@ static void rcache_free_tmp(int hr);
 // SR must and R0 should by all means be statically mapped.
 // XXX the static definition of SR MUST match that in compiler.h
 
-#ifdef __arm__ || defined(_M_ARM)
+#if defined(__arm__) || defined(_M_ARM)
 #include "../drc/emit_arm.c"
 #elif defined(__aarch64__) || defined(_M_ARM64)
 #include "../drc/emit_arm64.c"
