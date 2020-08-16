@@ -1891,7 +1891,7 @@ void PicoDrawSetOutBufMD(void *dest, int increment)
   if (dest != NULL) {
     DrawLineDestBase = dest;
     DrawLineDestIncrement = increment;
-    Pico.est.DrawLineDest = DrawLineDestBase + Pico.est.DrawScanline * increment;
+    Pico.est.DrawLineDest = (char*)DrawLineDestBase + Pico.est.DrawScanline * increment;
   }
   else {
     DrawLineDestBase = DefOutBuff;
