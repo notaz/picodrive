@@ -3004,12 +3004,12 @@ static uint32_t REGPARM(2) sh2_drc_divu32(uint32_t dv, uint32_t ds)
     // bad case: use the sh2 algo to get the right result
     int q = 0, t = 0, s = 16;
     while (s--) {
-      uint32_t _ = dv>>31;
+      uint32_t v = dv>>31;
       dv = (dv<<1) | t;
-      t = _;
-      _ = dv;
-      if (q)  dv += ds, q =   dv < _;
-      else    dv -= ds, q = !(dv < _);
+      t = v;
+      v = dv;
+      if (q)  dv += ds, q =   dv < v;
+      else    dv -= ds, q = !(dv < v);
       q ^= t, t = !q;
     }
     return (dv<<1) | t;
@@ -3030,12 +3030,12 @@ static uint32_t REGPARM(3) sh2_drc_divu64(uint32_t dh, uint32_t *dl, uint32_t ds
     uint64_t dv = *dl | ((uint64_t)dh << 32);
     int q = 0, t = 0, s = 32;
     while (s--) {
-      uint64_t _ = dv>>63;
+      uint64_t v = dv>>63;
       dv = (dv<<1) | t;
-      t = _;
-      _ = dv;
-      if (q)  dv += ((uint64_t)ds << 32), q =   dv < _;
-      else    dv -= ((uint64_t)ds << 32), q = !(dv < _);
+      t = v;
+      v = dv;
+      if (q)  dv += ((uint64_t)ds << 32), q =   dv < v;
+      else    dv -= ((uint64_t)ds << 32), q = !(dv < v);
       q ^= t, t = !q;
     }
     *dl = (dv<<1) | t;
@@ -3058,12 +3058,12 @@ static uint32_t REGPARM(2) sh2_drc_divs32(int32_t dv, int32_t ds)
     // bad case: use the sh2 algo to get the right result
     int m = (uint32_t)ds>>31, q = (uint32_t)dv>>31, t = m^q, s = 16;
     while (s--) {
-      uint32_t _ = (uint32_t)dv>>31;
+      uint32_t v = (uint32_t)dv>>31;
       dv = (dv<<1) | t;
-      t = _;
-      _ = dv;
-      if (m^q)  dv += ds, q =   (uint32_t)dv < _;
-      else      dv -= ds, q = !((uint32_t)dv < _);
+      t = v;
+      v = dv;
+      if (m^q)  dv += ds, q =   (uint32_t)dv < v;
+      else      dv -= ds, q = !((uint32_t)dv < v);
       q ^= m^t, t = !(m^q);
     }
     return (dv<<1) | t;
@@ -3089,12 +3089,12 @@ static uint32_t REGPARM(3) sh2_drc_divs64(int32_t dh, uint32_t *dl, int32_t ds)
     uint64_t dv = *dl | ((uint64_t)dh << 32);
     int m = (uint32_t)ds>>31, q = (uint64_t)dv>>63, t = m^q, s = 32;
     while (s--) {
-      int64_t _ = (uint64_t)dv>>63;
+      int64_t v = (uint64_t)dv>>63;
       dv = (dv<<1) | t;
-      t = _;
-      _ = dv;
-      if (m^q)  dv += ((uint64_t)ds << 32), q =   dv < _;
-      else      dv -= ((uint64_t)ds << 32), q = !(dv < _);
+      t = v;
+      v = dv;
+      if (m^q)  dv += ((uint64_t)ds << 32), q =   dv < v;
+      else      dv -= ((uint64_t)ds << 32), q = !(dv < v);
       q ^= m^t, t = !(m^q);
     }
     *dl = (dv<<1) | t;
