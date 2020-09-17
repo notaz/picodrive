@@ -11,6 +11,9 @@
 #define START_ROW  0 // which row of tiles to start rendering at?
 #define END_ROW   28 // ..end
 
+#define VSRAM      0 // 2-cell vscroll (broken for line based hscroll)
+#define INTERLACE  0 // interlace mode 2
+
 #define TILE_ROWS END_ROW-START_ROW
 
 // note: this is not implemented in ARM asm
@@ -22,8 +25,8 @@
 
 static unsigned char PicoDraw2FB_[(8+320) * (8+240+8) + 8];
 
-static int HighCache2A[41*(TILE_ROWS+1)+1+1]; // caches for high layers
-static int HighCache2B[41*(TILE_ROWS+1)+1+1];
+static int HighCache2A[2*41*(TILE_ROWS+1)+1+1]; // caches for high layers
+static int HighCache2B[2*41*(TILE_ROWS+1)+1+1];
 
 unsigned short *PicoCramHigh=PicoMem.cram; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 void (*PicoPrepareCram)()=0;            // prepares PicoCramHigh for renderer to use
@@ -40,12 +43,15 @@ void DrawSpriteFull(unsigned int *sprite, struct PicoEState *est);
 #else
 
 
-static int TileXnormYnorm(unsigned char *pd,int addr,unsigned char pal)
+static int TileXnormYnorm(unsigned char *pd,int addr,unsigned char pal, struct PicoVideo *pvid)
 {
 	unsigned int pack=0; unsigned int t=0, blank = 1;
-	int i;
+	int i, inc=2;
 
-	for(i=8; i; i--, addr+=2, pd += LINE_WIDTH) {
+#if INTERLACE
+	if ((pvid->reg[12]&6) == 6) inc = 4;
+#endif
+	for(i=8; i; i--, addr+=inc, pd += LINE_WIDTH) {
 		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
@@ -63,12 +69,15 @@ static int TileXnormYnorm(unsigned char *pd,int addr,unsigned char pal)
 	return blank; // Tile blank?
 }
 
-static int TileXflipYnorm(unsigned char *pd,int addr,unsigned char pal)
+static int TileXflipYnorm(unsigned char *pd,int addr,unsigned char pal, struct PicoVideo *pvid)
 {
 	unsigned int pack=0; unsigned int t=0, blank = 1;
-	int i;
+	int i, inc=2;
 
-	for(i=8; i; i--, addr+=2, pd += LINE_WIDTH) {
+#if INTERLACE
+	if ((pvid->reg[12]&6) == 6) inc = 4;
+#endif
+	for(i=8; i; i--, addr+=inc, pd += LINE_WIDTH) {
 		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
@@ -85,13 +94,16 @@ static int TileXflipYnorm(unsigned char *pd,int addr,unsigned char pal)
 	return blank; // Tile blank?
 }
 
-static int TileXnormYflip(unsigned char *pd,int addr,unsigned char pal)
+static int TileXnormYflip(unsigned char *pd,int addr,unsigned char pal, struct PicoVideo *pvid)
 {
 	unsigned int pack=0; unsigned int t=0, blank = 1;
-	int i;
+	int i, inc=2;
 
+#if INTERLACE
+	if ((pvid->reg[12]&6) == 6) inc = 4, addr += 16;
+#endif
 	addr+=14;
-	for(i=8; i; i--, addr-=2, pd += LINE_WIDTH) {
+	for(i=8; i; i--, addr-=inc, pd += LINE_WIDTH) {
 		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
@@ -109,13 +121,16 @@ static int TileXnormYflip(unsigned char *pd,int addr,unsigned char pal)
 	return blank; // Tile blank?
 }
 
-static int TileXflipYflip(unsigned char *pd,int addr,unsigned char pal)
+static int TileXflipYflip(unsigned char *pd,int addr,unsigned char pal, struct PicoVideo *pvid)
 {
 	unsigned int pack=0; unsigned int t=0, blank = 1;
-	int i;
+	int i, inc=2;
 
+#if INTERLACE
+	if ((pvid->reg[12]&6) == 6) inc = 4, addr += 16;
+#endif
 	addr+=14;
-	for(i=8; i; i--, addr-=2, pd += LINE_WIDTH) {
+	for(i=8; i; i--, addr-=inc, pd += LINE_WIDTH) {
 		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
@@ -187,10 +202,10 @@ static void DrawWindowFull(int start, int end, int prio, struct PicoEState *est)
 			pal=(unsigned char)((code>>9)&0x30);
 
 			switch((code>>11)&3) {
-				case 0: zero=TileXnormYnorm(scrpos+(tilex<<3),addr,pal); break;
-				case 1: zero=TileXflipYnorm(scrpos+(tilex<<3),addr,pal); break;
-				case 2: zero=TileXnormYflip(scrpos+(tilex<<3),addr,pal); break;
-				case 3: zero=TileXflipYflip(scrpos+(tilex<<3),addr,pal); break;
+				case 0: zero=TileXnormYnorm(scrpos+(tilex<<3),addr,pal,pvid); break;
+				case 1: zero=TileXflipYnorm(scrpos+(tilex<<3),addr,pal,pvid); break;
+				case 2: zero=TileXnormYflip(scrpos+(tilex<<3),addr,pal,pvid); break;
+				case 3: zero=TileXflipYflip(scrpos+(tilex<<3),addr,pal,pvid); break;
 			}
 			if(zero) blank=code; // We know this tile is blank now
 		}
@@ -204,7 +219,7 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
 			  struct PicoEState *est)
 {
 	struct PicoVideo *pvid=&Pico.video;
-	static char shift[4]={5,6,6,7}; // 32,64 or 128 sized tilemaps
+	static char shift[4]={5,6,5,7}; // 32,64 or 128 sized tilemaps
 	int width, height, ymask, htab;
 	int nametab, hscroll=0, vscroll, cells;
 	unsigned char *scrpos;
@@ -246,21 +261,25 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
 		scrpos += 32;
 	scrpos+=8*LINE_WIDTH*(planestart-START_ROW);
 
-	// Get vertical scroll value:
-	vscroll=PicoMem.vsram[plane]&0x1ff;
-	scrpos+=(8-(vscroll&7))*LINE_WIDTH;
-	if(vscroll&7) planeend++; // we have vertically clipped tiles due to vscroll, so we need 1 more row
-
-	*hcache++ = 8-(vscroll&7); // push y-offset to tilecache
-
-
+	if((pvid->reg[11]&4)||(PicoMem.vsram[plane]&7))
+		planeend++; // we (may) have vertically clipped tiles due to vscroll, so we need 1 more row
 	for(trow = planestart; trow < planeend; trow++) { // current tile row
-		int cellc=cells,tilex,dx;
+		int cellc=cells,tilex,dx,vsidx=0;
+
+		// Get vertical scroll value:
+		vscroll=PicoMem.vsram[plane];//&0x1ff;
+#if VSRAM
+		if (!(pvid->reg[12]&1) && (pvid->reg[11]&4)) // H32 + 2-cell mode
+			vscroll=PicoMem.vsram[plane+0x20];//&0x1ff;
+#endif
+#if INTERLACE
+		if ((pvid->reg[12]&6) == 6) vscroll >>= 1;
+#endif
+		nametab_row = nametab + (((trow+(vscroll>>3))&ymask)<<shift[width]); // pointer to nametable entries for this row
 
 		// Find the tile row in the name table
 		//ts.line=(vscroll+Scanline)&ymask;
 		//ts.nametab+=(ts.line>>3)<<shift[width];
-		nametab_row = nametab + (((trow+(vscroll>>3))&ymask)<<shift[width]); // pointer to nametable entries for this row
 
 		// update hscroll if needed
 		if(htab) {
@@ -272,33 +291,51 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
 		// Draw tiles across screen:
 		tilex=(-hscroll)>>3;
 		dx=((hscroll-1)&7)+1;
-		if(dx != 8) cellc++; // have hscroll, do more cells
+		if(dx != 8) cellc++, vsidx--; // have hscroll, do more cells
 
 		for (; cellc; dx+=8,tilex++,cellc--)
 		{
-			int code=0,addr=0,zero=0;
+			int code=0,addr=0,zero=0,scroff;
 //			unsigned short *pal=NULL;
 			unsigned char pal;
+
+#if VSRAM
+			if ((pvid->reg[11]&4) && !(vsidx&1)) { // 2-cell mode
+				vscroll=PicoMem.vsram[vsidx+plane];//&0x1ff;
+#if INTERLACE
+				if ((pvid->reg[12]&6) == 6) vscroll >>= 1;
+#endif
+				nametab_row = nametab + (((trow+(vscroll>>3))&ymask)<<shift[width]); // pointer to nametable entries for this row
+			}
+#endif
+			vsidx++;
 
 			code=PicoMem.vram[nametab_row+(tilex&xmask)];
 			if (code==blank) continue;
 
 			if (code>>15) { // high priority tile
 				*hcache++ = code|(dx<<16)|(trow<<27); // cache it
+				*hcache++ = 8-(vscroll&7); // push y-offset to tilecache
 				continue;
 			}
 
 			// Get tile address/2:
+#if INTERLACE
+		if ((pvid->reg[12]&6) == 6)
+			addr=(code&0x3ff)<<5;
+		else
+#endif
 			addr=(code&0x7ff)<<4;
 
 //			pal=PicoCramHigh+((code>>9)&0x30);
 			pal=(unsigned char)((code>>9)&0x30);
 
+			scroff=(8-(vscroll&7))*LINE_WIDTH;
 			switch((code>>11)&3) {
-				case 0: zero=TileXnormYnorm(scrpos+dx,addr,pal); break;
-				case 1: zero=TileXflipYnorm(scrpos+dx,addr,pal); break;
-				case 2: zero=TileXnormYflip(scrpos+dx,addr,pal); break;
-				case 3: zero=TileXflipYflip(scrpos+dx,addr,pal); break;
+				case 0: zero=TileXnormYnorm(scrpos+scroff+dx,addr,pal,pvid); break;
+				case 1: zero=TileXflipYnorm(scrpos+scroff+dx,addr,pal,pvid); break;
+				case 2: zero=TileXnormYflip(scrpos+scroff+dx,addr,pal,pvid); break;
+				case 3: zero=TileXflipYflip(scrpos+scroff+dx,addr,pal,pvid); break;
 			}
 			if(zero) blank=code; // We know this tile is blank now
 		}
@@ -312,7 +349,7 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
 
 static void DrawTilesFromCacheF(int *hc, struct PicoEState *est)
 {
-	int code, addr, zero = 0;
+	int code, addr, zero = 0, vscroll;
 	unsigned int prevy=0xFFFFFFFF;
 //	unsigned short *pal;
 	unsigned char pal;
@@ -321,10 +358,9 @@ static void DrawTilesFromCacheF(int *hc, struct PicoEState *est)
 
 	if (!(Pico.video.reg[12]&1) && !(PicoIn.opt&POPT_DIS_32C_BORDER))
 		scrpos += 32;
-	// *hcache++ = code|(dx<<16)|(trow<<27); // cache it
-	scrpos+=(*hc++)*LINE_WIDTH - START_ROW*LINE_WIDTH*8;
 
 	while((code=*hc++)) {
+		vscroll=(*hc++)*LINE_WIDTH - START_ROW*LINE_WIDTH*8;
 		if((short)code == blank) continue;
 
 		// y pos
@@ -334,15 +370,20 @@ static void DrawTilesFromCacheF(int *hc, struct PicoEState *est)
 		}
 
 		// Get tile address/2:
+#if INTERLACE
+		if ((Pico.video.reg[12]&6) == 6)
+		addr=(code&0x3ff)<<5;
+		else
+#endif
 		addr=(code&0x7ff)<<4;
 //		pal=PicoCramHigh+((code>>9)&0x30);
 		pal=(unsigned char)((code>>9)&0x30);
 
 		switch((code>>11)&3) {
-			case 0: zero=TileXnormYnorm(pd+((code>>16)&0x1ff),addr,pal); break;
-			case 1: zero=TileXflipYnorm(pd+((code>>16)&0x1ff),addr,pal); break;
-			case 2: zero=TileXnormYflip(pd+((code>>16)&0x1ff),addr,pal); break;
-			case 3: zero=TileXflipYflip(pd+((code>>16)&0x1ff),addr,pal); break;
+			case 0: zero=TileXnormYnorm(pd+vscroll+((code>>16)&0x1ff),addr,pal,&Pico.video); break;
+			case 1: zero=TileXflipYnorm(pd+vscroll+((code>>16)&0x1ff),addr,pal,&Pico.video); break;
+			case 2: zero=TileXnormYflip(pd+vscroll+((code>>16)&0x1ff),addr,pal,&Pico.video); break;
+			case 3: zero=TileXflipYflip(pd+vscroll+((code>>16)&0x1ff),addr,pal,&Pico.video); break;
 		}
 
 		if(zero) blank=(short)code;
@@ -362,6 +403,11 @@ static void DrawSpriteFull(unsigned int *sprite, struct PicoEState *est)
 
 	sy=sprite[0];
 	height=sy>>24;
+#if INTERLACE
+	if ((Pico.video.reg[12]&6) == 6)
+	sy = ((sy>>1)&0x1ff)-0x78;
+	else
+#endif
 	sy=(sy&0x1ff)-0x78; // Y
 	width=(height>>2)&3; height&=3;
 	width++; height++; // Width and height in tiles
@@ -372,8 +418,8 @@ static void DrawSpriteFull(unsigned int *sprite, struct PicoEState *est)
 	tile=code&0x7ff; // Tile number
 	tdeltax=height; // Delta to increase tile by going right
 	tdeltay=1;      // Delta to increase tile by going down
-	if (code&0x0800) { tdeltax=-tdeltax; tile+=height*(width-1); } // Flip X
-	if (code&0x1000) { tdeltay=-tdeltay; tile+=height-1; } // Flip Y
+	if (code&0x1000) { tile+=tdeltax-1; tdeltay=-tdeltay; } // Flip Y
+	if (code&0x0800) { tile+=tdeltax*(width-1); tdeltax=-tdeltax; } // Flip X
 
 	//delta<<=4; // Delta of address
 //	pal=PicoCramHigh+((code>>9)&0x30); // Get palette pointer
@@ -390,6 +436,7 @@ static void DrawSpriteFull(unsigned int *sprite, struct PicoEState *est)
 	for (; height > 0; height--, sy+=8, tile+=tdeltay)
 	{
 		int w = width, x=sx, t=tile;
+		int s=4;
 
 		if(sy >= END_ROW*8+8) return; // offscreen
 
@@ -399,11 +446,14 @@ static void DrawSpriteFull(unsigned int *sprite, struct PicoEState *est)
 			if(x>=328) break; // Offscreen
 
 			t&=0x7fff; // Clip tile address
+#if INTERLACE
+	if ((Pico.video.reg[12]&6) == 6) s=5;
+#endif
 			switch((code>>11)&3) {
-				case 0: TileXnormYnorm(scrpos+x,t<<4,pal); break;
-				case 1: TileXflipYnorm(scrpos+x,t<<4,pal); break;
-				case 2: TileXnormYflip(scrpos+x,t<<4,pal); break;
-				case 3: TileXflipYflip(scrpos+x,t<<4,pal); break;
+				case 0: TileXnormYnorm(scrpos+x,t<<s,pal,&Pico.video); break;
+				case 1: TileXflipYnorm(scrpos+x,t<<s,pal,&Pico.video); break;
+				case 2: TileXnormYflip(scrpos+x,t<<s,pal,&Pico.video); break;
+				case 3: TileXflipYflip(scrpos+x,t<<s,pal,&Pico.video); break;
 			}
 		}
 
@@ -437,6 +487,11 @@ static void DrawAllSpritesFull(int prio, int maxwidth)
 		code = sprite[0];
 
 		// check if it is not hidden vertically
+#if INTERLACE
+		if ((pvid->reg[12]&6) == 6)
+		sy = ((code>>1)&0x1ff)-0x80;
+		else
+#endif
 		sy = (code&0x1ff)-0x80;
 		height = (((code>>24)&3)+1)<<3;
 		if(sy+height <= y_min || sy > y_max) goto nextsprite;
@@ -564,7 +619,7 @@ static void DrawDisplayFull(void)
 
 	if (hvwin==1) { winend|=maxcolc<<16; planeend|=maxcolc<<16; }
 
-	HighCache2A[1] = HighCache2B[1] = 0;
+	HighCache2A[0] = HighCache2B[0] = 0;
 	if (!(pvid->debug_p & PVD_KILL_B))
 		DrawLayerFull(1, HighCache2B, START_ROW, (maxcolc<<16)|END_ROW, est);
 	if (!(pvid->debug_p & PVD_KILL_A)) switch (hvwin)
@@ -596,8 +651,8 @@ static void DrawDisplayFull(void)
 	if (!(pvid->debug_p & PVD_KILL_S_LO))
 		DrawAllSpritesFull(0, maxw);
 
-	if (HighCache2B[1]) DrawTilesFromCacheF(HighCache2B, est);
-	if (HighCache2A[1]) DrawTilesFromCacheF(HighCache2A, est);
+	if (HighCache2B[0]) DrawTilesFromCacheF(HighCache2B, est);
+	if (HighCache2A[0]) DrawTilesFromCacheF(HighCache2A, est);
 	if (!(pvid->debug_p & PVD_KILL_A)) switch (hvwin)
 	{
 		case 4:

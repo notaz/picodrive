@@ -73,7 +73,7 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	if (currentConfig.renderer != RT_16BIT && !(PicoIn.AHW & PAHW_32X)) {
 		unsigned short *pd = (unsigned short *)g_screen_ptr + out_y * g_screen_ppitch + out_x;
-		unsigned char *ps = Pico.est.Draw2FB + 328*out_y + out_x + 8;
+		unsigned char *ps = Pico.est.Draw2FB + 328*out_y + 8; //+ out_x;
 		unsigned short *pal = Pico.est.HighPal;
 		int i, x;
 
@@ -101,16 +101,19 @@ static void apply_renderer(void)
 	switch (currentConfig.renderer) {
 	case RT_16BIT:
 		PicoIn.opt &= ~POPT_ALT_RENDERER;
+		PicoIn.opt &= ~POPT_DIS_32C_BORDER;
 		PicoDrawSetOutFormat(PDF_RGB555, 0);
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 		break;
 	case RT_8BIT_ACC:
 		PicoIn.opt &= ~POPT_ALT_RENDERER;
+		PicoIn.opt |=  POPT_DIS_32C_BORDER;
 		PicoDrawSetOutFormat(PDF_8BIT, 0);
 		PicoDrawSetOutBuf(Pico.est.Draw2FB, 328);
 		break;
 	case RT_8BIT_FAST:
 		PicoIn.opt |=  POPT_ALT_RENDERER;
+		PicoIn.opt |=  POPT_DIS_32C_BORDER;
 		PicoDrawSetOutFormat(PDF_NONE, 0);
 		break;
 	}
@@ -163,6 +166,7 @@ void plat_update_volume(int has_changed, int is_up)
 
 void pemu_forced_frame(int no_scale, int do_emu)
 {
+	PicoIn.opt &= ~POPT_DIS_32C_BORDER;
 	PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
