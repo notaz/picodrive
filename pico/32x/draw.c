@@ -335,7 +335,7 @@ void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode)
   } else {
     // use the same layout as alt renderer
     PicoDrawSetInternalBuf(NULL, 0);
-    PicoDrawSetOutBufMD(Pico.est.Draw2FB + 8, 328);
+    PicoDrawSetOutBufMD(Pico.est.Draw2FB, 328);
   }
 
   if (use_32x_line_mode)
