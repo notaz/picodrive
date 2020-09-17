@@ -64,7 +64,7 @@ static struct VdpFIFO { // XXX this must go into save file!
   // queued FIFO transfers, ...x = index, ...l = queue length
   // each entry has 2 values: [n]>>3 = #writes, [n]&7 = flags (FQ_*)
   unsigned int fifo_queue[8], fifo_qx, fifo_ql;
-  unsigned int fifo_total;    // total# of pending FIFO entries (w/o BGDMA)
+  int fifo_total;             // total# of pending FIFO entries (w/o BGDMA)
 
   unsigned short fifo_slot;   // last executed slot in current scanline
   unsigned short fifo_maxslot;// #slots in scanline
@@ -85,7 +85,7 @@ static __inline int AdvanceFIFOEntry(struct VdpFIFO *vf, struct PicoVideo *pv, i
   if (l > cnt)
     l = cnt;
   if (!(vf->fifo_queue[vf->fifo_qx] & FQ_BGDMA))
-    vf->fifo_total -= ((cnt & b) + l) >> b;
+    if ((vf->fifo_total -= ((cnt & b) + l) >> b) < 0) vf->fifo_total = 0;
   cnt -= l;
 
   // if entry has been processed...
