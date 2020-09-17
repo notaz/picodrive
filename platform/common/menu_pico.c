@@ -941,7 +941,6 @@ static const char credits[] =
 	"MAME devs: SH2, YM2612 and SN76496 cores\n"
 	"Eke, Stef: some Sega CD code\n"
 	"Inder, ketchupgun: graphics\n"
-	"Irixxxx: SH2 drc improvements\n"
 #ifdef __GP2X__
 	"Squidge: mmuhack\n"
 	"Dzz: ARM940 sample\n"

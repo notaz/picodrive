@@ -29,6 +29,8 @@ Homepage: http://www.mame.net/
 Eke-Eke
 CD graphics processor and CD controller implementation (from Genesis Plus GX)
 
+Irixxxx
+Improvements to dynamic recompilers, 32X emulation, ARM asm, sound, VDP
 
 Additional thanks
 -----------------
