@@ -846,7 +846,7 @@ void ym2612_unpack_state(void);
 extern unsigned SATaddr, SATmask;
 static __inline void UpdateSAT(u32 a, u32 d)
 {
-  unsigned num = (a-SATaddr) >> 3;
+  unsigned num = (a^SATaddr) >> 3;
 
   Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
   if (!(a & 4) && num < 128) {
@@ -876,6 +876,7 @@ void PicoVideoFIFOMode(int active, int h40);
 int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask, unsigned sr_flags);
 void PicoVideoSave(void);
 void PicoVideoLoad(void);
+void PicoVideoCacheSAT(void);
 
 // misc.c
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);
