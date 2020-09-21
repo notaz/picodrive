@@ -418,7 +418,6 @@ void DrawStripInterlace(struct TileStrip *ts, int plane_sh)
     unsigned int pack;
 
     code = PicoMem.vram[ts->nametab + (tilex & ts->xmask)];
-    if (code==blank) continue;
     if (code>>15) { // high priority tile
       int cval = (code&0xfc00) | (dx<<16) | (ty<<25);
       cval|=(code&0x3ff)<<1;
@@ -426,6 +425,7 @@ void DrawStripInterlace(struct TileStrip *ts, int plane_sh)
       *ts->hc++ = cval; // cache it
       continue;
     }
+    if (code==blank) continue;
 
     if (code!=oldcode) {
       oldcode = code;
@@ -1358,7 +1358,7 @@ static NOINLINE void PrepareSprites(int max_lines)
         unsigned char *p = &HighLnSpr[y][0];
         int cnt = p[0];
         if (p[3] >= max_line_sprites) continue;         // sprite limit?
-        if ((p[1] & SPRL_MASKED) && !(entry & 0x80)) continue; // masked?
+        if (p[1] & SPRL_MASKED) continue;               // masked?
 
         w = width;
         if (p[2] + width > max_line_sprites*2) {        // tile limit?
@@ -1371,7 +1371,7 @@ static NOINLINE void PrepareSprites(int max_lines)
 
         if (sx == -0x78) {
           if (p[1] & (SPRL_HAVE_X|SPRL_TILE_OVFL))
-            p[1] |= SPRL_MASKED; // masked, no more low sprites for this line
+            p[1] |= SPRL_MASKED; // masked, no more sprites for this line
           if (!(p[1] & SPRL_HAVE_X) && cnt == 0)
             p[1] |= SPRL_HAVE_MASK0; // 1st sprite is masking
         } else
