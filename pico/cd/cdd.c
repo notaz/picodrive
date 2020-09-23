@@ -1212,6 +1212,11 @@ void cdd_process(void)
         /* PCM AUDIO track */
         fseek(cdd.toc.tracks[index].fd, (lba * 2352) - cdd.toc.tracks[index].offset, SEEK_SET);
       }
+#else
+      else
+      {
+        cdd_change_track(index, lba);
+      }
 #endif
 
       /* no audio track playing */
