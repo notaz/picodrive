@@ -676,30 +676,16 @@ void cdd_update(void)
   error("LBA = %d (track n°%d)(latency=%d)\n", cdd.lba, cdd.index, cdd.latency);
 #endif
   
-  /* seeking disc */
-  if (cdd.status == CD_SEEK)
+  /* drive latency */
+  if (cdd.latency > 0)
   {
-    /* drive latency */
-    if (cdd.latency > 0)
-    {
-      cdd.latency--;
-      return;
-    }
-
-    /* drive is ready */
-    cdd.status = CD_READY;
+    cdd.latency--;
+    return;
   }
 
   /* reading disc */
-  else if (cdd.status == CD_PLAY)
+  if (cdd.status == CD_PLAY)
   {
-    /* drive latency */
-    if (cdd.latency > 0)
-    {
-      cdd.latency--;
-      return;
-    }
-
     /* track type */
     if (!cdd.index)
     {
@@ -900,14 +886,12 @@ void cdd_process(void)
   {
     case 0x00:  /* Drive Status */
     {
-      /* RS1-RS8 normally unchanged */
-      Pico_mcd->s68k_regs[0x38+0] = cdd.status;
+      if (cdd.latency <= 3) {
+        /* RS1-RS8 normally unchanged */
+        Pico_mcd->s68k_regs[0x38+0] = cdd.status;
 
-      /* unless RS1 indicated invalid track infos */
-      if (Pico_mcd->s68k_regs[0x38+1] == 0x0f)
-      {
-        /* and SEEK has ended */
-        if (cdd.status != CD_SEEK)
+        /* unless RS1 indicated invalid track infos */
+        if (Pico_mcd->s68k_regs[0x38+1] == 0x0f)
         {
           /* then return valid track infos, e.g current track number in RS2-RS3 (fixes Lunar - The Silver Star) */
           Pico_mcd->s68k_regs[0x38+1] = 0x02;
@@ -1127,11 +1111,11 @@ void cdd_process(void)
       cdd.status = CD_PLAY;
 
       /* return track index in RS2-RS3 */
-      set_reg16(0x38, (CD_PLAY << 8) | 0x02);
-      set_reg16(0x3a, (cdd.index < cdd.toc.last) ? lut_BCD_16[index + 1] : 0x0A0A);
+      set_reg16(0x38, (CD_SEEK << 8) | 0x02);
+      set_reg16(0x3a, 0x0000);
       set_reg16(0x3c, 0x0000);
       set_reg16(0x3e, 0x0000);
-      Pico_mcd->s68k_regs[0x40+0] = 0x00;
+      set_reg16(0x40, ~(CD_SEEK + 0xf) & 0x0f);
       break;
     }
 
@@ -1223,7 +1207,7 @@ void cdd_process(void)
       Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* update status */
-      cdd.status = CD_SEEK;
+      cdd.status = CD_READY;
 
       /* unknown RS1-RS8 values (returning 0xF in RS1 invalidates track infos in RS2-RS8 and fixes Final Fight CD intro when seek time is emulated) */
       set_reg16(0x38, (CD_SEEK << 8) | 0x0f);
