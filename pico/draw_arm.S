@@ -14,7 +14,7 @@
 .extern DrawStripInterlace
 
 .equ PDRAW_SPRITES_MOVED, (1<<0)
-.equ PDRAW_WND_DIFF_PRIO, (1<<1)
+.equ PDRAW_WND_HIGH_PRIO, (1<<1)
 .equ PDRAW_PARSE_SPRITES, (1<<2)
 .equ PDRAW_DIRTY_SPRITES, (1<<4)
 .equ PDRAW_PLANE_HI_PRIO, (1<<6)
@@ -946,8 +946,8 @@ DrawSpritesSHi:
 
 DrawSpriteSHi:
     @ draw next sprite
-    ldrb    r0, [r10,#-1]!
     ldr     r7, [sp]        @ est
+    ldrb    r0, [r10,#-1]!
     ldr     r1, [r7, #OFS_EST_HighPreSpr]
     cmp     r0, #0xff
     ldmeqfd sp!, {r1,r3-r11,pc} @ end of list
@@ -966,6 +966,7 @@ DrawSpriteSHi:
     orr     r9, r9, #0x90000000 @ r9=scc1 ???? ... <code> (s=shadow/hilight, cc=pal)
     cmp     r12,r9, lsr #28 @ sh/hi with pal3?
     cmpne   r3, #1          @ if not, is it hi prio?
+    strne   r3, [sp, #4]    @ reset last sprite width
     bne     DrawSpriteSHi   @ non-operator low sprite, already drawn
 
     ldr     r3, [r0]        @ sprite[0]
@@ -1309,13 +1310,11 @@ DrawWindow:
     @ fetch the first code now
     ldrh    r7, [lr, r12]
 
-    ands    r6, r6, #PDRAW_WND_DIFF_PRIO
-    orr     r6, r6, r2
-
-    eoreq   r8, r2, r7, lsr #15   @ do prio bits differ?
-    cmpeq   r8, #1
+    ands    r6, r6, #PDRAW_WND_HIGH_PRIO
+    cmpeq   r2, #1                @ prio && !(rendstatus & WND_HIGH_PRIO)?
     ldmeqfd sp!, {r4-r11,pc}      @ yes, assume that whole window uses same priority
 
+    orr     r6, r6, r2
     orr     r6, r6, r3, lsl #8    @ shadow mode
 
     sub     r8, r1, r0
@@ -1340,7 +1339,7 @@ DrawWindow:
 
     eor     r5, r6, r7, lsr #15
     tst     r5, #1
-    orrne   r6, r6, #2      @ wrong pri
+    orrne   r6, r6, #PDRAW_WND_HIGH_PRIO @ wrong pri
     bne     .dwloop
 
     cmp     r7, r9
@@ -1406,7 +1405,7 @@ DrawWindow:
     b       .dw_shadow_done
 
 .dwloop_end:
-    and     r2, r6, #PDRAW_WND_DIFF_PRIO
+    and     r2, r6, #PDRAW_WND_HIGH_PRIO
     ldmfd   sp!, {r4-r11,lr}
     ldr     r0, [sp]
     ldr     r1, [r0, #OFS_EST_rendstatus]
