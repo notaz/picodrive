@@ -549,11 +549,9 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
 
   tilex=tstart<<1;
 
-  if (!(est->rendstatus & PDRAW_WND_DIFF_PRIO)) {
-    // check the first tile code
-    code = PicoMem.vram[nametab + tilex];
-    // if the whole window uses same priority (what is often the case), we may be able to skip this field
-    if ((code>>15) != prio) return;
+  if (prio && !(est->rendstatus & PDRAW_WND_HIGH_PRIO)) {
+    // all tiles processed in low prio pass
+    return;
   }
 
   tend<<=1;
@@ -569,11 +567,11 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       int pal;
 
       code = PicoMem.vram[nametab + tilex];
-      if (code==blank) continue;
       if ((code>>15) != prio) {
-        est->rendstatus |= PDRAW_WND_DIFF_PRIO;
+        est->rendstatus |= PDRAW_WND_HIGH_PRIO;
         continue;
       }
+      if (code==blank) continue;
 
       // Get tile address/2:
       addr=(code&0x7ff)<<4;
@@ -601,9 +599,8 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       int pal;
 
       code = PicoMem.vram[nametab + tilex];
-      if(code==blank) continue;
       if((code>>15) != prio) {
-        est->rendstatus |= PDRAW_WND_DIFF_PRIO;
+        est->rendstatus |= PDRAW_WND_HIGH_PRIO;
         continue;
       }
 
@@ -616,6 +613,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       } else {
         pal |= 0x80;
       }
+      if(code==blank) continue;
 
       // Get tile address/2:
       addr=(code&0x7ff)<<4;
@@ -1404,8 +1402,10 @@ static NOINLINE void PrepareSprites(int max_lines)
     int y;
     printf("c%03i: f %x c %2i/%2i w %2i: ", u, HighLnSpr[u][1],
            HighLnSpr[u][0], HighLnSpr[u][3], HighLnSpr[u][2]);
-    for (y = 0; y < HighLnSpr[u][0]; y++)
-      printf(" %i", HighLnSpr[u][y+4]);
+    for (y = 0; y < HighLnSpr[u][0]; y++) {
+      int *sp = HighPreSpr + (HighLnSpr[u][y+4]&0x7f) * 2;
+      printf(" %i(%x/%x)", HighLnSpr[u][y+4],sp[0],sp[1]);
+    }
     printf("\n");
   }
 #endif
@@ -1634,7 +1634,7 @@ static int DrawDisplay(int sh)
   int win=0, edge=0, hvwind=0, lflags;
   int maxw, maxcells;
 
-  est->rendstatus &= ~(PDRAW_SHHI_DONE|PDRAW_PLANE_HI_PRIO);
+  est->rendstatus &= ~(PDRAW_SHHI_DONE|PDRAW_PLANE_HI_PRIO|PDRAW_WND_HIGH_PRIO);
 
   if (pvid->reg[12]&1) {
     maxw = 328; maxcells = 40;
