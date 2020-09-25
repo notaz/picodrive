@@ -108,21 +108,21 @@ static unsigned char z80_sms_in(unsigned short a)
 
   elprintf(EL_IO, "z80 port %04x read", a);
   if((a&0xff)>= 0xf0){
-    switch((a&0xff))
-    {
-    case 0xf0:
-      // FM reg port
-      break;
-    case 0xf1:
-      // FM data port
-      break;
-    case 0xf2:
-      // bit 0 = 1 active FM Pac
-      if (PicoIn.opt & POPT_EN_YM2413){
+    if (PicoIn.opt & POPT_EN_YM2413){
+      switch((a&0xff))
+      {
+      case 0xf0:
+        // FM reg port
+        break;
+      case 0xf1:
+        // FM data port
+        break;
+      case 0xf2:
+        // bit 0 = 1 active FM Pac
         d = ymflag;
         //printf("read FM Check = %02x\n", d);
+        break;
       }
-      break;
     }
   }
   else{
@@ -171,25 +171,25 @@ static void z80_sms_out(unsigned short a, unsigned char d)
   elprintf(EL_IO, "z80 port %04x write %02x", a, d);
 
   if((a&0xff)>= 0xf0){
-    switch((a&0xff))
-    {
-      case 0xf0:
-        // FM reg port
-        YM2413_regWrite(d);
-        //printf("write FM register = %02x\n", d);
-        break;
-      case 0xf1:
-        // FM data port
-        YM2413_dataWrite(d);
-        //printf("write FM data = %02x\n", d);
-        break;
-      case 0xf2:
-        // bit 0 = 1 active FM Pac
-        if (PicoIn.opt & POPT_EN_YM2413){
+    if (PicoIn.opt & POPT_EN_YM2413){
+      switch((a&0xff))
+      {
+        case 0xf0:
+          // FM reg port
+          YM2413_regWrite(d);
+          //printf("write FM register = %02x\n", d);
+          break;
+        case 0xf1:
+          // FM data port
+          YM2413_dataWrite(d);
+          //printf("write FM data = %02x\n", d);
+          break;
+        case 0xf2:
+          // bit 0 = 1 active FM Pac
           ymflag = d;
           //printf("write FM Check = %02x\n", d);
-        }
-        break;
+          break;
+      }
     }
   }
   else{
