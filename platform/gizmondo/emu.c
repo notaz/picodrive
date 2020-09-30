@@ -294,7 +294,7 @@ void pemu_forced_frame(int no_scale, int do_emu)
 
 	PicoIn.opt &= ~0x10;
 	PicoIn.opt |= POPT_ACC_SPRITES;
-	if (!no_scale)
+	if (!no_scale && currentConfig.scaling)
 		PicoIn.opt |= POPT_EN_SOFTSCALE;
 	currentConfig.EmuOpt |= 0x80;
 
