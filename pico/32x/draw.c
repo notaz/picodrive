@@ -36,7 +36,6 @@ static void convert_pal555(int invert_prio)
 #else
     *pd = (((t & m1) << 11) | ((t & m2) << 1) | ((t & m3) >> 10)) ^ inv;
 #endif
-    
   }
 
   Pico32x.dirty_pal = 0;

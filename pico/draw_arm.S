@@ -14,7 +14,7 @@
 .extern DrawStripInterlace
 
 .equ PDRAW_SPRITES_MOVED, (1<<0)
-.equ PDRAW_WND_HIGH_PRIO, (1<<1)
+.equ PDRAW_WND_DIFF_PRIO, (1<<1)
 .equ PDRAW_PARSE_SPRITES, (1<<2)
 .equ PDRAW_DIRTY_SPRITES, (1<<4)
 .equ PDRAW_PLANE_HI_PRIO, (1<<6)
@@ -426,15 +426,10 @@ DrawLayer:
     add     r1, r1, #8
     add     r8, r8, #1
 
-    tst     r7, #0x8000
-    tsteq   r10, #1<<20     @ force?
-    bne     .DrawStrip_hiprio
-
     cmp     r7, r9
     beq     .DrawStrip_samecode @ we know stuff about this tile already
 
     mov     r9, r7          @ remember code
-    orr     r10, r10, #1<<21 @ seen non hi-prio tile
 
     movs    r2, r9, lsl #20 @ if (code&0x1000)
     mov     r2, r2, lsl #1
@@ -444,13 +439,18 @@ DrawLayer:
 
     ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
 
+.DrawStrip_samecode:
+    tst     r9, #0x8000
+    tsteq   r10, #1<<20     @ force?
+    bne     .DrawStrip_hiprio
+
+    orr     r10, r10, #1<<21 @ seen non hi-prio tile
+    tst     r2, r2
+    beq     .dsloop              @ tileline blank
+
     bic     r7, r3, #0x7f
     and     r3, r9, #0x6000
     add     r3, r7, r3, lsr #9 @ r3=pal=((code&0x6000)>>9);
-
-.DrawStrip_samecode:
-    tst     r2, r2
-    beq     .dsloop              @ tileline blank
 
     cmp     r2, r2, ror #4
     beq     .DrawStrip_SingleColor @ tileline singlecolor 
@@ -481,13 +481,18 @@ DrawLayer:
     b       .dsloop_subr1
 
 .DrawStrip_hiprio:
-    sub     r0, r1, r11
-    orr     r7, r7, r0,  lsl #16
+    tst     r10, #(1<<23)   @ sh[23]
+    tsteq   r2, r2          @ if (!sh[23] && code==blank) continue
+    beq     .dsloop
+
+@    orr     r10, r10, #1<<22 @ hi_not_empty[22]
+    sub     r7, r1, r11
+    orr     r7, r9, r7,  lsl #16
     orr     r7, r7, r10, lsl #25 @ (ty<<25)
-    tst     r7, #0x1000
-    eorne   r7, r7, #7<<26  @ if(code&0x1000) cval^=7<<26;
-    str     r7, [r6], #4    @ cache hi priority tile
-    mov     r0, #0xf
+    tst     r9, #0x1000
+    eorne   r7, r7, #0xe<<25 @ if(code&0x1000) cval^=0xe<<25;
+    str     r7, [r6], #4    @ cache hi priority tile code
+    str     r2, [r6], #4    @ cache hi priority tile data
     b       .dsloop
 
 .dsloop_exit:
@@ -499,8 +504,7 @@ DrawLayer:
     orreq   r2, r2, #PDRAW_PLANE_HI_PRIO @ had a layer with all hi-prio tiles
     streq   r2, [r1, #OFS_EST_rendstatus]
 
-    ldmfd   sp!, {r4-r11,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r11,pc}
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
@@ -593,15 +597,11 @@ DrawLayer:
     add     r1, r1, #8
     add     r8, r8, #1
 
-    tst     r7, #0x8000
-    bne     .DrawStrip_vs_hiprio
-
     orr     r7, r7, r10, lsl #24  @ code | (ty << 24)
     cmp     r7, r9
     beq     .DrawStrip_vs_samecode @ we know stuff about this tile already
 
     mov     r9, r7          @ remember code
-    orr     r8, r8, #(1<<24)@ seen non hi-prio tile
 
     movs    r2, r9, lsl #20 @ if (code&0x1000)
     mov     r2, r2, lsl #1
@@ -611,13 +611,18 @@ DrawLayer:
 
     ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
 
+.DrawStrip_vs_samecode:
+    tst     r9, #0x8000
+    tsteq   r10, #(1<<20)      @ force[20]
+    bne     .DrawStrip_vs_hiprio
+
+    orr     r8, r8, #(1<<24)@ seen non hi-prio tile
+    tst     r2, r2
+    beq     .dsloop_vs              @ tileline blank
+
     bic     r7, r3, #0x7f
     and     r3, r9, #0x6000
     add     r3, r7, r3, lsr #9 @ r3=pal=((code&0x6000)>>9);
-
-.DrawStrip_vs_samecode:
-    tst     r2, r2
-    beq     .dsloop_vs              @ tileline blank
 
     cmp     r2, r2, ror #4
     beq     .DrawStrip_vs_SingleColor @ tileline singlecolor 
@@ -648,13 +653,18 @@ DrawLayer:
     b       .dsloop_vs_subr1
 
 .DrawStrip_vs_hiprio:
-    sub     r0, r1, r11
-    orr     r7, r7, r0,  lsl #16
+    tst     r10, #(1<<23)   @ sh[23]
+    tsteq   r2, r2          @ if (!sh[23] && code==blank) continue
+    beq     .dsloop_vs
+
+@    orr     r10, r10, #1<<22 @ hi_not_empty[22]
+    sub     r7, r1, r11
+    orr     r7, r9, r7,  lsl #16
     orr     r7, r7, r10, lsl #25 @ (ty<<25)
-    tst     r7, #0x1000
+    tst     r9, #0x1000
     eorne   r7, r7, #7<<26  @ if(code&0x1000) cval^=7<<26;
-    str     r7, [r6], #4    @ cache hi priority tile
-    mov     r0, #0xf
+    str     r7, [r6], #4    @ cache hi priority tile code
+    str     r2, [r6], #4    @ cache hi priority tile data
     b       .dsloop_vs
 
 .dsloop_vs_exit:
@@ -666,8 +676,7 @@ DrawLayer:
     orreq   r2, r2, #PDRAW_PLANE_HI_PRIO @ had a layer with all hi-prio tiles
     streq   r2, [r1, #OFS_EST_rendstatus]
 
-    ldmfd   sp!, {r4-r11,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r11,pc}
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -696,8 +705,7 @@ DrawLayer:
     bl      DrawStripInterlace @ struct TileStrip *ts, int plane_sh
 
     add     sp, sp, #6*4
-    ldmfd   sp!, {r4-r11,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r11,pc}
 
 .pool
 
@@ -739,8 +747,7 @@ BackFill:
     stmia   lr!, {r0-r7}
     stmia   lr!, {r0-r7}
 
-    ldmfd   sp!, {r4-r9,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r9,pc}
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -758,7 +765,6 @@ DrawTilesFromCache:
     ldr     lr, [r3, #OFS_EST_PicoMem_vram]
     mov     r9, r3         @ est
 
-    mvn     r5, #0         @ r5=prevcode=-1
     ands    r8, r1, #1
     orr     r8, r8, r2, lsl #1
     bne     .dtfc_check_rendflags
@@ -771,22 +777,11 @@ DrawTilesFromCache:
     bic     r4, r1, #0xfe00
     add     r1, r11, r4     @ r1=pdest
 
-    movs    r7, r6, lsl #16
-    cmp     r5, r7, lsr #16
-    beq     .dtfc_samecode  @ if (code==prevcode)
+    ldr     r2, [r0], #4    @ read pixel data
 
-    mov     r5, r7, lsr #16
-
-    mov     r2, r5, lsl #21
-    mov     r2, r2, lsr #17 @ r2=addr=(code&0x7ff)<<4;
-    add     r2, r2, r6, lsr #25 @ addr+=ty
-
-    and     r3, r5, #0x6000
+    and     r3, r6, #0x6000
     mov     r3, r3, lsr #9  @ r3=pal=((code&0x6000)>>9);
 
-    ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
-
-.dtfc_samecode:
     rsbs    r4, r4, r8, lsr #1
     bmi     .dtfc_cut_tile
 
@@ -799,7 +794,7 @@ DrawTilesFromCache:
     cmp     r2, r2, ror #4
     beq     .dtfc_SingleColor @ tileline singlecolor 
 
-    tst     r5, #0x0800
+    tst     r6, #0x0800
     bne     .dtfc_TileFlip
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
@@ -831,7 +826,7 @@ DrawTilesFromCache:
     cmp     r2, r2, ror #4
     beq     .dtfc_SingleColor @ tileline singlecolor 
 
-    tst     r5, #0x0800
+    tst     r6, #0x0800
     bne     .dtfc_TileFlipShHP
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
@@ -871,7 +866,7 @@ DrawTilesFromCache:
     mov     r12,#0xf<<28
     mov     r12,r12,asr r4
     mov     r2, r2, ror #16
-    tst     r5, #0x0800     @ flipped?
+    tst     r6, #0x0800     @ flipped?
     mvnne   r12,r12
     and     r2, r2, r12
     mov     r2, r2, ror #16
@@ -880,7 +875,7 @@ DrawTilesFromCache:
     bne     .dtfc_shadow
     tst     r2, r2
     beq     .dtfc_loop
-    tst     r5, #0x0800
+    tst     r6, #0x0800
     beq     .dtfc_TileNorm
     b       .dtfc_TileFlip
 
@@ -1310,8 +1305,8 @@ DrawWindow:
     @ fetch the first code now
     ldrh    r7, [lr, r12]
 
-    ands    r6, r6, #PDRAW_WND_HIGH_PRIO
-    cmpeq   r2, #1                @ prio && !(rendstatus & WND_HIGH_PRIO)?
+    ands    r6, r6, #PDRAW_WND_DIFF_PRIO
+    cmpeq   r2, #1                @ prio && !(rendstatus & WND_DIFF_PRIO)?
     ldmeqfd sp!, {r4-r11,pc}      @ yes, assume that whole window uses same priority
 
     orr     r6, r6, r2
@@ -1339,7 +1334,7 @@ DrawWindow:
 
     eor     r5, r6, r7, lsr #15
     tst     r5, #1
-    orrne   r6, r6, #PDRAW_WND_HIGH_PRIO @ wrong pri
+    orrne   r6, r6, #PDRAW_WND_DIFF_PRIO @ wrong pri
     bne     .dwloop
 
     cmp     r7, r9
@@ -1405,7 +1400,7 @@ DrawWindow:
     b       .dw_shadow_done
 
 .dwloop_end:
-    and     r2, r6, #PDRAW_WND_HIGH_PRIO
+    and     r2, r6, #PDRAW_WND_DIFF_PRIO
     ldmfd   sp!, {r4-r11,lr}
     ldr     r0, [sp]
     ldr     r1, [r0, #OFS_EST_rendstatus]
@@ -1463,8 +1458,7 @@ vidConvCpyRGB565: @ void *to, void *from, int pixels
     orr     r8, r8, #0x0800
     orr     r8, r8, r8, lsl #16
     vidConvCpyRGB565_local
-    ldmfd   sp!, {r4-r9,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r9,pc}
 
 
 @ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
@@ -1532,14 +1526,11 @@ PicoDoHighPal555:
     stmia   r4!, {r1,r6}
     bne     .fl_loopcpRGB555_sh
 
-    @ fixup color 14 in palette 0,1,2 (always normal)
+    @ fixup shadowed color 14 in palette 0,1,2 (always normal)
     sub     r4, r3, #0x40*2
     ldrh    r1, [r4, #0x0e*2] @ 0x0e, 0x1e, 0x2e
     ldrh    r5, [r4, #0x1e*2]
     ldrh    r6, [r4, #0x2e*2]
-    strh    r1, [r3, #0x0e*2] @ 0x4e, 0x5e, 0x6e
-    strh    r5, [r3, #0x1e*2]
-    strh    r6, [r3, #0x2e*2]
     strh    r1, [r3, #0x4e*2] @ 0x8e, 0x9e, 0xae
     strh    r5, [r3, #0x5e*2]
     strh    r6, [r3, #0x6e*2]
@@ -1622,8 +1613,7 @@ FinalizeLine555:
     stmia   r0!, {r4,r5,r8,r12}
     bne     .fl_loopRGB555
 
-    ldmfd   sp!, {r4-r10,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r10,pc}
 
 
 .fl_32scale_RGB555:
@@ -1687,8 +1677,7 @@ FinalizeLine555:
     stmia   r0!, {r4,r5,r6,r8,r10}
     bne     .fl_loop32scale_RGB555
 
-    ldmfd   sp!, {r4-r10,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r10,pc}
 
 #ifdef UNALIGNED_DRAWLINEDEST
     @ unaligned versions of loops
@@ -1733,8 +1722,7 @@ FinalizeLine555:
 
     strh    r8, [r0], #2
 
-    ldmfd   sp!, {r4-r10,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r10,pc}
 
 
 .fl_32scale_RGB555u:
@@ -1799,8 +1787,7 @@ FinalizeLine555:
 
     strh    r4, [r0], #2
 
-    ldmfd   sp!, {r4-r10,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r10,pc}
 
 #endif /* UNALIGNED_DRAWLINEDEST */
 
