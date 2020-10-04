@@ -391,7 +391,7 @@ DrawLayer:
     movs    r3, r9, lsl #1  @ (force[31]|sh[30]) << 1
     mov     r3, #0
     orrmi   r10,r10, #1<<23 @ r10=cells[31:24]|sh[23]|hi_not_empty[22]
-    orrcs   r10,r10, #1<<20 @    |had_output[21]|force[20]|ty[15:0]
+@    orrcc   r10,r10, #1<<20 @    |had_output[21]|!force[20]|ty[15:0]
     movmi   r3, #0x80       @ default to shadowed pal on sh mode
 
     cmp     r7, #8
@@ -410,7 +410,8 @@ DrawLayer:
     mvn     r9, #0               @ r9=prevcode=-1
     add     r1, r11, r7          @ r1=pdest
 
-
+    @ r10=cells[31:24]|sh[23]|hi_not_empty[22]|had_output[21]|!force[20]|ty[15:0]
+    @ r1=pd+dx r2=pack r3=pal r5=xmask r6=hc r8=tilex r9=prevcode r11=HighCol r12=nametab lr=vram
     @ r4 & r7 are scratch in this loop
 .dsloop_subr1:
     sub     r1, r1, #8
@@ -441,7 +442,7 @@ DrawLayer:
 
 .DrawStrip_samecode:
     tst     r9, #0x8000
-    tsteq   r10, #1<<20     @ force?
+@    tstne   r10, #1<<20     @ !force[20]
     bne     .DrawStrip_hiprio
 
     orr     r10, r10, #1<<21 @ seen non hi-prio tile
@@ -515,7 +516,7 @@ DrawLayer:
     rsb     r8, r3, #0
     mov     r8, r8, lsr #3        @ r8=tilex=(-ts->hscroll)>>3
     bic     r8, r8, #0x3fc00000
-    orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|had_output[24]|tilex[21:0])
+    orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|had_output[24]|!force[23]|tilex[21:0])
 
     ldr     r11, [sp, #9*4]       @ est
     orr     r5, r1, r10, lsl #24
@@ -547,6 +548,8 @@ DrawLayer:
     mov     r3, #0
     orrne   r10,r10, #1<<23 @ r10=(cell[31:24]|sh[23]|hi_not_empty[22]|cells_max[21:16]|plane[15]|ty[14:0])
     movne   r3, #0x80       @ default to shadowed pal on sh mode
+@    tst     r9, #1<<31
+@    orreq   r8, r8, #1<<23
 
     and     r9, r9, #0xff00
     add     r8, r8, r9, lsr #8   @ tilex+=cellskip
@@ -561,6 +564,11 @@ DrawLayer:
     mvn     r9, #0               @ r9=prevcode=-1
     add     r1, r11, r7          @ r1=pdest
 
+    @ r10=cells[31:24]|sh[23]|hi_not_empty[22]|cells_max[21:16]|plane[15]|ty[14:0]
+    @ r8=xmask[31:25]|had_output[24]|!force[23]|tilex[21:0]
+    @ r5=shift_width[31:24]|scanline[23:16]|ymask[15:0]
+    @ r3=nametabadd[31:16]|must_be_0[15:8]|pal[7:0]
+    @ r1=pd+dx r2=pack r6=hc r9=prevcode r11=HighCol r12=nametab lr=vram
     @ r4 & r7 are scratch in this loop
 .dsloop_vs_subr1:
     sub     r1, r1, #8
@@ -569,6 +577,11 @@ DrawLayer:
     and     r4, r10, #0x003f0000
     cmp     r4, r10, asr #8
     ble     .dsloop_vs_exit
+
+    @ need to calc new ty?
+    lsls    r7, r10, #7           @ (cell&1) && ...
+    mvnmis  r7, r10               @ ... cell>=0
+    bmi     0f
 
     @ calc offset and read tileline code to r7, also calc ty
     add_c24 r7, lr, (OFS_PMEM_vsram-OFS_PMEM_vram)
@@ -588,10 +601,12 @@ DrawLayer:
     mov     r4, r4, lsr #19
     mov     r7, r5, lsr #24
     mov     r4, r4, lsl r7        @ nametabadd
-
+    and     r3, r3, #0xff
+    orr     r3, r3, r4, lsl #16   @ r3=(nametabadd[31:16],pal[15:0])
+0:
     and     r7, r8, r8, lsr #25
     add     r7, lr, r7, lsl #1    @ PicoMem.vram+((tilex&ts->xmask) as halfwords)
-    add     r7, r7, r4, lsl #1
+    add     r7, r7, r3, lsr #15
     ldrh    r7, [r7, r12]         @ r7=code (int, but from unsigned, no sign extend)
 
     add     r1, r1, #8
@@ -613,7 +628,7 @@ DrawLayer:
 
 .DrawStrip_vs_samecode:
     tst     r9, #0x8000
-    tsteq   r10, #(1<<20)      @ force[20]
+@    tstne   r8, #1<<23     @ !force[23]
     bne     .DrawStrip_vs_hiprio
 
     orr     r8, r8, #(1<<24)@ seen non hi-prio tile
@@ -905,7 +920,6 @@ DrawTilesFromCache:
     stmia   r1!,{r2,r4,r5,r7}
     bne     .dtfc_loop_shprep
 
-    mvn     r5, #0         @ r5=prevcode=-1
     b       .dtfc_loop
 
 .pool
