@@ -428,13 +428,13 @@ else ifeq ($(platform), emscripten)
 # GCW0
 else ifeq ($(platform), gcw0)
 	TARGET := $(TARGET_NAME)_libretro.so
-	CC = mipsel-linux-gcc
-	AR = mipsel-linux-ar
+	CC = /opt/gcw0-toolchain/usr/bin/mipsel-linux-gcc
+	AR = /opt/gcw0-toolchain/usr/bin/mipsel-linux-ar
 	SHARED := -shared -nostdlib
 	fpic := -fPIC
 	LIBM :=
 	DONT_COMPILE_IN_ZLIB = 1
-	CFLAGS += -ffast-math -march=mips32 -mtune=mips32r2 -mhard-float
+	CFLAGS += -fomit-frame-pointer -ffast-math -march=mips32 -mtune=mips32r2 -mhard-float
 
 # Windows MSVC 2017 all architectures
 else ifneq (,$(findstring windows_msvc2017,$(platform)))
