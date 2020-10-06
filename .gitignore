@@ -11,6 +11,7 @@
 tags
 cscope.out
 PicoDrive.map
+*.map
 config.mak
 config.log
 cpu/musashi/m68kmake

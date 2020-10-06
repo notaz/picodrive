@@ -87,7 +87,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "picodrive_ramcart",
       "MegaCD RAM cart",
-      "Emulate a MegaCD RAM cart, used for save game data.",
+      "Emulate a MegaCD RAM cart, used for save game data. WARNING: When enabled, internal save data (BRAM) will be discarded.",
       {
          { "disabled", NULL },
          { "enabled",  NULL },

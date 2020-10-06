@@ -1203,7 +1203,9 @@ void *retro_get_memory_data(unsigned type)
    switch(type)
    {
       case RETRO_MEMORY_SAVE_RAM:
-         if (PicoIn.AHW & PAHW_MCD)
+         /* Note: MCD RAM cart uses Pico.sv.data */
+         if ((PicoIn.AHW & PAHW_MCD) &&
+               !(PicoIn.opt & POPT_EN_MCD_RAMCART))
             data = Pico_mcd->bram;
          else
             data = Pico.sv.data;
@@ -1231,8 +1233,12 @@ size_t retro_get_memory_size(unsigned type)
    {
       case RETRO_MEMORY_SAVE_RAM:
          if (PicoIn.AHW & PAHW_MCD)
-            // bram
-            return 0x2000;
+         {
+            if (PicoIn.opt & POPT_EN_MCD_RAMCART)
+               return 0x12000;
+            else /* bram */
+               return 0x2000;
+         }
 
          if (Pico.m.frame_count == 0)
             return Pico.sv.size;
