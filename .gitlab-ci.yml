@@ -1,5 +1,6 @@
 .core-defs:
   variables:
+    GIT_SUBMODULE_STRATEGY: recursive
     JNI_PATH: .
     CORENAME: picodrive
 
