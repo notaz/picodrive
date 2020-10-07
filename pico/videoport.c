@@ -334,7 +334,7 @@ static NOINLINE void VideoWriteVRAM128(u32 a, u16 d)
   if (!((u16)(b^SATaddr) & SATmask))
     Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 
-  if (!((u16)(a^SATaddr) & SATmask))
+  if (((a^SATaddr) & SATmask) == 0)
     UpdateSAT(a, d);
 }
 
@@ -539,7 +539,7 @@ static void DmaCopy(int len)
   for (; len; len--)
   {
     vr[(u16)a] = vr[(u16)(source++)];
-    if (!((u16)(a^SATaddr) & SATmask))
+    if (((a^SATaddr) & SATmask) == 0)
       UpdateSAT(a, ((u16 *)vr)[(u16)a >> 1]);
     // AutoIncrement
     a = (a+inc) & ~0x20000;
@@ -579,7 +579,7 @@ static NOINLINE void DmaFill(int data)
         // Write upper byte to adjacent address
         // (here we are byteswapped, so address is already 'adjacent')
         vr[(u16)a] = high;
-        if (!((u16)(a^SATaddr) & SATmask))
+        if (((a^SATaddr) & SATmask) == 0)
           UpdateSAT(a, ((u16 *)vr)[(u16)a >> 1]);
 
         // Increment address register
