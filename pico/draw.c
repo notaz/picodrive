@@ -1794,6 +1794,7 @@ PICO_INTERNAL void PicoFrameStart(void)
   int offs = 8, lines = 224;
   int dirty = ((Pico.est.rendstatus & PDRAW_SONIC_MODE) || Pico.m.dirtyPal);
   int sprep = Pico.est.rendstatus & (PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES);
+  int skipped = Pico.est.rendstatus & PDRAW_SKIP_FRAME;
 
   // prepare to do this frame
   Pico.est.rendstatus = 0;
@@ -1813,7 +1814,9 @@ PICO_INTERNAL void PicoFrameStart(void)
       lines, (Pico.video.reg[12] & 1) ? 0 : 1);
     rendstatus_old = Pico.est.rendstatus;
   }
-  if (sprep)
+  if (PicoIn.skipFrame) // preserve this until something is rendered at last
+    Pico.est.rendstatus |= PDRAW_SKIP_FRAME;
+  if (sprep | skipped)
     Pico.est.rendstatus |= PDRAW_PARSE_SPRITES;
 
   Pico.est.HighCol = HighColBase + offs * HighColIncrement;
