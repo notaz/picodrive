@@ -277,9 +277,10 @@ static void DrawStrip(struct TileStrip *ts, int lflags, int cellskip)
   int *hc = ts->hc;
   int tilex, dx, ty, cells;
   int oldcode = -1, blank = -1; // The tile we know is blank
-  unsigned int pal = 0, pack = 0;
+  unsigned int pal = 0, pack = 0, sh;
 
   // Draw tiles across screen:
+  sh = (lflags & LF_SH) << 6; // shadow
   tilex=((-ts->hscroll)>>3)+cellskip;
   ty=(ts->line&7)<<1; // Y-Offset into tile
   dx=((ts->hscroll-1)&7)+1;
@@ -293,7 +294,7 @@ static void DrawStrip(struct TileStrip *ts, int lflags, int cellskip)
     u32 code = PicoMem.vram[ts->nametab + (tilex & ts->xmask)];
 //    code &= ~force; // forced always draw everything
 
-    if (code == blank && !((code & 0x8000) && (lflags & LF_SH)))
+    if (code == blank && !((code & 0x8000) && sh))
       continue;
 
     if (code!=oldcode) {
@@ -305,7 +306,7 @@ static void DrawStrip(struct TileStrip *ts, int lflags, int cellskip)
         u32 addr = ((code&0x7ff)<<4) + ty;
         if (code & 0x1000) addr ^= 0xe; // Y-flip
 
-        pal = ((code>>9)&0x30) | ((lflags&LF_SH)<<6); // shadow
+        pal = ((code>>9)&0x30) | sh; // shadow
 
         pack = *(unsigned int *)(PicoMem.vram + addr);
         if (!pack)
@@ -337,9 +338,11 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
   int *hc = ts->hc;
   int tilex, dx, ty = 0, addr = 0, cell = 0, nametabadd = 0;
   int oldcode = -1, blank = -1; // The tile we know is blank
-  unsigned int pal = 0, scan = Pico.est.DrawScanline;
+  unsigned int pal = 0, scan = Pico.est.DrawScanline, sh, plane;
 
   // Draw tiles across screen:
+  sh = (plane_sh & LF_SH) << 6; // shadow
+  plane = (plane_sh & LF_PLANE); // plane to draw
   tilex=(-ts->hscroll)>>3;
   dx=((ts->hscroll-1)&7)+1;
   if (ts->hscroll & 0x0f) {
@@ -360,7 +363,7 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
     if ((cell&1)==0 || cell<0)
     {
       int line,vscroll;
-      vscroll = PicoMem.vsram[(plane_sh&1) + (cell&0x3e)];
+      vscroll = PicoMem.vsram[plane + (cell&0x3e)];
 
       // Find the line in the name table
       line=(vscroll+scan)&ts->line&0xffff; // ts->line is really ymask ..
@@ -372,7 +375,7 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
 //    code &= ~force; // forced always draw everything
     code |= ty<<16; // add ty since that can change pixel row for every 2nd tile
 
-    if (code == blank && !((code & 0x8000) && (plane_sh & LF_SH)))
+    if (code == blank && !((code & 0x8000) && sh))
       continue;
 
     if (code!=oldcode) {
@@ -380,7 +383,7 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
       // Get tile address/2:
       addr = (code&0x7ff)<<4;
 
-      pal = ((code>>9)&0x30) | ((plane_sh&LF_SH)<<6); // shadow
+      pal = ((code>>9)&0x30) | sh; // shadow
     }
 
     pack = (code & 0x1000 ? ty^0xe : ty); // Y-flip
@@ -414,9 +417,10 @@ void DrawStripInterlace(struct TileStrip *ts, int plane_sh)
   int *hc = ts->hc;
   int tilex = 0, dx = 0, ty = 0, cells;
   int oldcode = -1, blank = -1; // The tile we know is blank
-  unsigned int pal = 0, pack = 0;
+  unsigned int pal = 0, pack = 0, sh;
 
   // Draw tiles across screen:
+  sh = (plane_sh & LF_SH) << 6; // shadow
   tilex=(-ts->hscroll)>>3;
   ty=(ts->line&15)<<1; // Y-Offset into tile
   dx=((ts->hscroll-1)&7)+1;
@@ -441,7 +445,7 @@ void DrawStripInterlace(struct TileStrip *ts, int plane_sh)
         u32 addr = ((code&0x3ff)<<5) + ty;
         if (code & 0x1000) addr ^= 0x1e; // Y-flip
 
-        pal = ((code>>9)&0x30) | ((plane_sh&LF_SH)<<6); // shadow
+        pal = ((code>>9)&0x30) | sh; // shadow
 
         pack = *(unsigned int *)(PicoMem.vram + addr);
         if (!pack)
@@ -1101,9 +1105,10 @@ static void DrawStripVSRamForced(struct TileStrip *ts, int plane_sh, int cellski
   unsigned char *pd = Pico.est.HighCol;
   int tilex, dx, ty=0, code=0, addr=0, cell=0, nametabadd=0;
   int oldcode=-1;
-  int pal=0,scan=Pico.est.DrawScanline;
+  int pal=0, scan=Pico.est.DrawScanline, plane;
 
   // Draw tiles across screen:
+  plane = plane_sh & LF_PLANE;
   tilex=(-ts->hscroll)>>3;
   dx=((ts->hscroll-1)&7)+1;
   if (ts->hscroll & 0x0f) {
@@ -1123,7 +1128,7 @@ static void DrawStripVSRamForced(struct TileStrip *ts, int plane_sh, int cellski
     if ((cell&1)==0 || cell<0)
     {
       int line,vscroll;
-      vscroll = PicoMem.vsram[(plane_sh&1)+(cell&0x3e)];
+      vscroll = PicoMem.vsram[plane + (cell&0x3e)];
 
       // Find the line in the name table
       line=(vscroll+scan)&ts->line&0xffff; // ts->line is really ymask ..
@@ -1581,7 +1586,7 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
       t |= (t >> 4) & 0x08610861;
       dpal[0x40/2 + i] = t;
     }
-    // pixels in color 14 always appear normal (hw bug?)
+    // shadowed pixels in color 14 always appear normal (hw bug?)
     unsigned short *hpal = est->HighPal;
     hpal[0x80 + 0x0e] = hpal[0x0e];
     hpal[0x80 + 0x1e] = hpal[0x1e];
