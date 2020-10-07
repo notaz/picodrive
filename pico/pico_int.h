@@ -857,7 +857,7 @@ static __inline void VideoWriteVRAM(u32 a, u16 d)
 {
   PicoMem.vram [(u16)a >> 1] = d;
 
-  if (!((u16)(a^SATaddr) & SATmask))
+  if (((a^SATaddr) & SATmask) == 0)
     UpdateSAT(a, d);
 }
 
