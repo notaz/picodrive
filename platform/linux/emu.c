@@ -24,6 +24,7 @@ enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 
 static int out_x, out_y;
 static int out_w, out_h;
+static int clr_cnt;
 
 void pemu_prep_defconfig(void)
 {
@@ -45,34 +46,21 @@ static void draw_cd_leds(void)
 	led_offs = 4;
 	scr_offs = pitch * 2 + 4;
 
-#if 0
-	if (currentConfig.renderer != RT_16BIT) {
-	#define p(x) px[(x) >> 2]
-		// 8-bit modes
-		unsigned int *px = (unsigned int *)((char *)g_screen_ptr + scr_offs);
-		unsigned int col_g = (led_reg & 2) ? 0xc0c0c0c0 : 0xe0e0e0e0;
-		unsigned int col_r = (led_reg & 1) ? 0xd0d0d0d0 : 0xe0e0e0e0;
-		p(pitch*0) = p(pitch*1) = p(pitch*2) = col_g;
-		p(pitch*0 + led_offs) = p(pitch*1 + led_offs) = p(pitch*2 + led_offs) = col_r;
-	#undef p
-	} else
-#endif
-	{
-	#define p(x) px[(x)*2 >> 2] = px[((x)*2 >> 2) + 1]
-		// 16-bit modes
-		unsigned int *px = (unsigned int *)((short *)g_screen_ptr + scr_offs);
-		unsigned int col_g = (led_reg & 2) ? 0x06000600 : 0;
-		unsigned int col_r = (led_reg & 1) ? 0xc000c000 : 0;
-		p(pitch*0) = p(pitch*1) = p(pitch*2) = col_g;
-		p(pitch*0 + led_offs) = p(pitch*1 + led_offs) = p(pitch*2 + led_offs) = col_r;
-	#undef p
-	}
+#define p(x) px[(x)*2 >> 2] = px[((x)*2 >> 2) + 1]
+	// 16-bit modes
+	unsigned int *px = (unsigned int *)((short *)g_screen_ptr + scr_offs);
+	unsigned int col_g = (led_reg & 2) ? 0x06000600 : 0;
+	unsigned int col_r = (led_reg & 1) ? 0xc000c000 : 0;
+	p(pitch*0) = p(pitch*1) = p(pitch*2) = col_g;
+	p(pitch*0 + led_offs) = p(pitch*1 + led_offs) = p(pitch*2 + led_offs) = col_r;
+#undef p
 }
 
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	if (currentConfig.renderer != RT_16BIT && !(PicoIn.AHW & PAHW_32X)) {
-		unsigned short *pd = (unsigned short *)g_screen_ptr + out_y * g_screen_ppitch + out_x;
+		unsigned short *pd = (unsigned short *)g_screen_ptr +
+					out_y * g_screen_ppitch + out_x;
 		unsigned char *ps = Pico.est.Draw2FB + 328*out_y + 8; //+ out_x;
 		unsigned short *pal = Pico.est.HighPal;
 		int i, x;
@@ -86,14 +74,22 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		}
 	}
 
-	if (notice || (currentConfig.EmuOpt & EOPT_SHOW_FPS)) {
-		if (notice)
-			emu_osd_text16(4, g_screen_height - 8, notice);
-		if (currentConfig.EmuOpt & EOPT_SHOW_FPS)
-			emu_osd_text16(g_screen_width - 60, g_screen_height - 8, fps);
-	}
+	if (notice)
+		emu_osd_text16(4, g_screen_height - 8, notice);
+	if (currentConfig.EmuOpt & EOPT_SHOW_FPS)
+		emu_osd_text16(g_screen_width - 60, g_screen_height - 8, fps);
 	if ((PicoIn.AHW & PAHW_MCD) && (currentConfig.EmuOpt & EOPT_EN_CD_LEDS))
 		draw_cd_leds();
+}
+
+void plat_video_set_buffer(void *buf)
+{
+	if (clr_cnt > 0) {
+		memset32(g_screen_ptr, 0, g_screen_ppitch*g_screen_height*2 / 4);
+		clr_cnt --;
+	}
+	if (currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
+		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 }
 
 static void apply_renderer(void)
@@ -156,7 +152,7 @@ void plat_status_msg_busy_next(const char *msg)
 
 void plat_status_msg_busy_first(const char *msg)
 {
-//	memset32(g_screen_ptr, 0, g_screen_ppitch * g_screen_height * 2 / 4);
+	clr_cnt = 4;
 	plat_status_msg_busy_next(msg);
 }
 
@@ -190,7 +186,8 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 	// clear whole screen in all buffers
 	if (currentConfig.renderer != RT_16BIT && !(PicoIn.AHW & PAHW_32X))
 		memset32(Pico.est.Draw2FB, 0xe0e0e0e0, (320+8) * (8+240+8) / 4);
-	memset32(g_screen_ptr, 0, g_screen_ppitch * g_screen_height * 2 / 4);
+	clr_cnt = 4;
+
 	out_y = start_line; out_x = (is_32cols ? 32 : 0);
 	out_h = line_count; out_w = (is_32cols ? 256:320);
 }

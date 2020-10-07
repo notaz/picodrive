@@ -1117,6 +1117,7 @@ static void run_events_ui(unsigned int which)
 			while (in_menu_wait_any(NULL, 50) & (PBTN_MOK | PBTN_MBACK))
 				;
 			in_set_config_int(0, IN_CFG_BLOCKING, 0);
+			plat_status_msg_clear();
 		}
 		if (do_it) {
 			plat_status_msg_busy_first((which & PEV_STATE_LOAD) ? "LOADING STATE" : "SAVING STATE");
@@ -1361,6 +1362,7 @@ void emu_loop(void)
 	char *notice_msg = NULL;
 	char fpsbuff[24];
 	int fskip_cnt = 0;
+	int statclr_cnt = 4;
 
 	fpsbuff[0] = 0;
 
@@ -1408,12 +1410,10 @@ void emu_loop(void)
 			     > ms_to_ticks(STATUS_MSG_TIMEOUT) * 3)
 			{
 				notice_msg_time = 0;
-				plat_status_msg_clear();
-#ifndef __GP2X__
-				plat_video_flip();
-				plat_status_msg_clear(); /* Do it again in case of double buffering */
-#endif
 				notice_msg = NULL;
+				/* clear all buffers if multi buffering */
+				plat_status_msg_clear();
+				statclr_cnt = 4;
 			}
 			else {
 				int sum = noticeMsg[0] + noticeMsg[1] + noticeMsg[2];
@@ -1522,6 +1522,12 @@ void emu_loop(void)
 
 		if (!skip && flip_after_sync)
 			plat_video_flip();
+
+		if (!skip && statclr_cnt > 0) {
+			// clear stat msg area in case of multi buffering
+			plat_status_msg_clear();
+			statclr_cnt --;
+		}
 
 		pprof_end(main);
 	}

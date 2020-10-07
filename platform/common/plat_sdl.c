@@ -9,6 +9,7 @@
 #include <stdio.h>
 
 #include "../libpicofe/input.h"
+#include "../libpicofe/plat.h"
 #include "../libpicofe/plat_sdl.h"
 #include "../libpicofe/in_sdl.h"
 #include "../libpicofe/gl.h"
@@ -174,13 +175,14 @@ void plat_video_flip(void)
 		gl_flip(shadow_fb, g_screen_ppitch, g_screen_height);
 	}
 	else {
-		if (SDL_MUSTLOCK(plat_sdl_screen))
+		if (SDL_MUSTLOCK(plat_sdl_screen)) {
 			SDL_UnlockSurface(plat_sdl_screen);
-		SDL_Flip(plat_sdl_screen);
-		if (g_screen_ptr != shadow_fb) {
-			g_screen_ptr = plat_sdl_screen->pixels;
-			plat_video_toggle_renderer(0, 0);
-		}
+			SDL_Flip(plat_sdl_screen);
+			SDL_LockSurface(plat_sdl_screen);
+		} else
+			SDL_Flip(plat_sdl_screen);
+		g_screen_ptr = plat_sdl_screen->pixels;
+		plat_video_set_buffer(g_screen_ptr);
 	}
 }
 
@@ -190,8 +192,11 @@ void plat_video_wait_vsync(void)
 
 void plat_video_menu_enter(int is_rom_loaded)
 {
+	if (SDL_MUSTLOCK(plat_sdl_screen))
+		SDL_UnlockSurface(plat_sdl_screen);
 	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 0);
 	g_screen_ptr = shadow_fb;
+	plat_video_set_buffer(g_screen_ptr);
 }
 
 void plat_video_menu_begin(void)
@@ -228,7 +233,6 @@ void plat_video_menu_end(void)
 		SDL_Flip(plat_sdl_screen);
 	}
 	g_menuscreen_ptr = NULL;
-
 }
 
 void plat_video_menu_leave(void)
@@ -246,8 +250,8 @@ void plat_video_loop_prepare(void)
 		if (SDL_MUSTLOCK(plat_sdl_screen))
 			SDL_LockSurface(plat_sdl_screen);
 		g_screen_ptr = plat_sdl_screen->pixels;
-		plat_video_toggle_renderer(0, 0);
 	}
+	plat_video_set_buffer(g_screen_ptr);
 }
 
 void plat_early_init(void)
@@ -268,6 +272,10 @@ void plat_init(void)
 	ret = plat_sdl_init();
 	if (ret != 0)
 		exit(1);
+#if defined(__RG350__) || defined(__GCW0__)
+	// opendingux on JZ47x0 may falsely report a HW overlay, fix to window
+	plat_target.vout_method = 0;
+#endif
 
 	plat_sdl_quit_cb = plat_sdl_quit;
 

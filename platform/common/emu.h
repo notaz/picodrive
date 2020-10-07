@@ -172,6 +172,7 @@ void plat_status_msg_clear(void);
 
 void plat_video_toggle_renderer(int change, int menu_call);
 void plat_video_loop_prepare(void);
+void plat_video_set_buffer(void *);
 
 void plat_update_volume(int has_changed, int is_up);
 
