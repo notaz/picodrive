@@ -1246,8 +1246,8 @@ static inline void emith_pool_adjust(int tcache_offs, int move_offs)
 	EOP_LDMFD_SP(M2(r_,PC)); \
 } while (0)
 
-#define host_instructions_updated(base, end) \
-	emith_update_add(base, end)
+#define host_instructions_updated(base, end, force) \
+	do { if (force) __builtin___clear_cache(base, end); } while (0)
 
 #define host_arg2reg(rd, arg) \
 	rd = arg

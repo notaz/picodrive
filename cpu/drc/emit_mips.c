@@ -1563,7 +1563,7 @@ static int emith_cond_check(int cond, int *r)
 #define emith_pool_check()	/**/
 #define emith_pool_commit(j)	/**/
 // NB: mips32r2 has SYNCI
-#define host_instructions_updated(base, end) __builtin___clear_cache(base, end)
+#define host_instructions_updated(base, end, force) __builtin___clear_cache(base, end)
 #define	emith_update_cache()	/**/
 #define emith_rw_offs_max()	0x7fff
 #define emith_uext_ptr(r)	/**/

@@ -618,7 +618,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	t >>= count; \
 	if (d != s) \
 		emith_move_r_r(d, s); \
-	emith_and_r_imm(d, t); \
+	if (count) emith_and_r_imm(d, t); \
 } while (0)
 
 #define emith_clear_msb_c(cond, d, s, count) do { \
@@ -1019,7 +1019,7 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 	emith_move_r_imm(rd, imm); \
 } while (0)
 
-#define host_instructions_updated(base, end)	(void)(base),(void)(end)
+#define host_instructions_updated(base, end, force)	(void)(base),(void)(end)
 #define	emith_update_cache()	/**/
 
 // NB this MUST be <0x40000000 to avoid overflow in address calculations
