@@ -118,6 +118,7 @@ static void apply_renderer(void)
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 
 	Pico.m.dirtyPal = 1;
+	clr_cnt = 4;
 }
 
 void plat_video_toggle_renderer(int change, int is_menu)
