@@ -1173,7 +1173,8 @@ static void emith_ldst_offs(int sz, int rd, int rn, int o9, int ld, int mode)
 #define emith_pool_commit(j)	/**/
 #define emith_insn_ptr()	((u8 *)tcache_ptr)
 #define	emith_flush()		/**/
-#define host_instructions_updated(base, end) __builtin___clear_cache(base, end)
+#define host_instructions_updated(base, end, force) \
+	do { if (force) __builtin___clear_cache(base, end); } while (0)
 #define	emith_update_cache()	/**/
 #define emith_rw_offs_max()	0xff
 #define emith_uext_ptr(r)	/**/

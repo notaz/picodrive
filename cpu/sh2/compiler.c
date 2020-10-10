@@ -815,16 +815,14 @@ static void dr_block_link(struct block_entry *be, struct block_link *bl, int emi
         // via blx: @jump near jumpcc to blx; @blx far jump
         emith_jump_patch(jump, bl->blx, &jump);
         emith_jump_at(bl->blx, be->tcache_ptr);
-        if ((((uintptr_t)bl->blx & 0x0f) + emith_jump_at_size()-1) > 0x0f)
-          host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size());
+        host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size(),
+            ((uintptr_t)bl->blx & 0x0f) + emith_jump_at_size()-1 > 0x0f);
       }
     } else {
       printf("unknown BL type %d\n", bl->type);
       exit(1);
     }
-    // only needs sync if patch is possibly crossing cacheline (assume 16 byte)
-    if ((((uintptr_t)jump & 0x0f) + jsz-1) > 0x0f)
-      host_instructions_updated(jump, jump + jsz);
+    host_instructions_updated(jump, jump + jsz, ((uintptr_t)jump & 0x0f) + jsz-1 > 0x0f);
   }
 
   // move bl to block_entry
@@ -855,13 +853,13 @@ static void dr_block_unlink(struct block_link *bl, int emit_jump)
         // via blx: @jump near jumpcc to blx; @blx load target_pc, far jump
         emith_jump_patch(bl->jump, bl->blx, &jump);
         memcpy(bl->blx, bl->jdisp, emith_jump_at_size());
-        host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size());
+        host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size(), 1);
       } else {
         printf("unknown BL type %d\n", bl->type);
         exit(1);
       }
       // update cpu caches since the previous jump target doesn't exist anymore
-      host_instructions_updated(jump, jump + jsz);
+      host_instructions_updated(jump, jump + jsz, 1);
     }
 
     if (bl->prev)
@@ -5143,7 +5141,7 @@ end_op:
       memcpy(bl->jdisp, bl->blx ?: bl->jump, emith_jump_at_size());
 
   ring_alloc(&tcache_ring[tcache_id], tcache_ptr - block_entry_ptr);
-  host_instructions_updated(block_entry_ptr, tcache_ptr);
+  host_instructions_updated(block_entry_ptr, tcache_ptr, 1);
 
   dr_activate_block(block, tcache_id, sh2->is_slave);
   emith_update_cache();
@@ -5879,7 +5877,7 @@ int sh2_drc_init(SH2 *sh2)
 
     tcache_ptr = tcache;
     sh2_generate_utils();
-    host_instructions_updated(tcache, tcache_ptr);
+    host_instructions_updated(tcache, tcache_ptr, 1);
     emith_update_cache();
 
     i = tcache_ptr - tcache;
