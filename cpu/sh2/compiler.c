@@ -815,16 +815,16 @@ static void dr_block_link(struct block_entry *be, struct block_link *bl, int emi
         // via blx: @jump near jumpcc to blx; @blx far jump
         emith_jump_patch(jump, bl->blx, &jump);
         emith_jump_at(bl->blx, be->tcache_ptr);
-        if ((((uintptr_t)bl->blx & 0x1f) + emith_jump_at_size()-1) > 0x1f)
-          host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size()-1);
+        if ((((uintptr_t)bl->blx & 0x0f) + emith_jump_at_size()-1) > 0x0f)
+          host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size());
       }
     } else {
       printf("unknown BL type %d\n", bl->type);
       exit(1);
     }
-    // only needs sync if patch is possibly crossing cacheline (assume 32 byte)
-    if ((((uintptr_t)jump & 0x1f) + jsz-1) > 0x1f)
-      host_instructions_updated(jump, jump + jsz-1);
+    // only needs sync if patch is possibly crossing cacheline (assume 16 byte)
+    if ((((uintptr_t)jump & 0x0f) + jsz-1) > 0x0f)
+      host_instructions_updated(jump, jump + jsz);
   }
 
   // move bl to block_entry
@@ -855,13 +855,13 @@ static void dr_block_unlink(struct block_link *bl, int emit_jump)
         // via blx: @jump near jumpcc to blx; @blx load target_pc, far jump
         emith_jump_patch(bl->jump, bl->blx, &jump);
         memcpy(bl->blx, bl->jdisp, emith_jump_at_size());
-        host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size()-1);
+        host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size());
       } else {
         printf("unknown BL type %d\n", bl->type);
         exit(1);
       }
       // update cpu caches since the previous jump target doesn't exist anymore
-      host_instructions_updated(jump, jump + jsz-1);
+      host_instructions_updated(jump, jump + jsz);
     }
 
     if (bl->prev)
@@ -3252,7 +3252,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   // get base/validate PC
   dr_pc_base = dr_get_pc_base(base_pc, sh2);
   if (dr_pc_base == (void *)-1) {
-    printf("invalid PC, aborting: %08x\n", base_pc);
+    printf("invalid PC, aborting: %08lx\n", (long)base_pc);
     // FIXME: be less destructive
     exit(1);
   }
