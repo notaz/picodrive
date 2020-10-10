@@ -6855,7 +6855,7 @@ end:
 
   // 2nd pass: some analysis
   lowest_literal = end_literals = lowest_mova = 0;
-  t = T_UNKNOWN;
+  t = T_UNKNOWN; // T flag state
   last_btarget = 0;
   op = 0; // delay/poll insns counter
   is_divop = 0; // divide op insns counter
@@ -6865,7 +6865,7 @@ end:
     crc += FETCH_OP(pc);
 
     // propagate T (TODO: DIV0U)
-    if ((op_flags[i] & OF_BTARGET) || (opd->dest & BITMASK1(SHR_T)))
+    if (op_flags[i] & OF_BTARGET)
       t = T_UNKNOWN;
 
     if ((opd->op == OP_BRANCH_CT && t == T_SET) ||
@@ -6875,10 +6875,12 @@ end:
     } else if ((opd->op == OP_BRANCH_CT && t == T_CLEAR) ||
                (opd->op == OP_BRANCH_CF && t == T_SET))
       opd->op = OP_BRANCH_N;
-    else if ((opd->op == OP_SETCLRT && !opd->imm) || opd->op == OP_BRANCH_CT)
-      t = T_CLEAR;
-    else if ((opd->op == OP_SETCLRT && opd->imm) || opd->op == OP_BRANCH_CF)
-      t = T_SET;
+    else if (OP_ISBRACND(opd->op))
+      t = (opd->op == OP_BRANCH_CF ? T_SET : T_CLEAR);
+    else if (opd->op == OP_SETCLRT)
+      t = (opd->imm ? T_SET : T_CLEAR);
+    else if (opd->dest & BITMASK1(SHR_T))
+      t = T_UNKNOWN;
 
     // "overscan" detection: unreachable code after unconditional branch
     // this can happen if the insn after a forward branch isn't a local target
