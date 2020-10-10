@@ -33,13 +33,14 @@
  *
  * low prio s/h rendering:
  * - plane and non-op sprite pixels have shadow
- * - sprite op pixel rendering is marked with hilight (deferred)
+ * - s/h sprite op pixel rendering is marked with hilight (deferred)
  * high prio s/h rendering:
  * - plane and non-op sprite pixels are normal
- * - all op sprite pixels (either marked or high prio) are rendered
+ * - all s/h sprite op pixels (either marked or high prio) are rendered
  *
  * not handled properly:
- * - high prio s/h sprite overlapping low prio sprite shows sprite, not A,B,G
+ * - high prio s/h sprite op overlapping low prio sprite shows sprite, not A,B,G
+ * - in debug sprite-masked, transparent high-prio sprite px don't remove shadow
  */
 
 #include "pico_int.h"
@@ -252,16 +253,18 @@ TileFlipMakerAS(TileFlipAS_onlymark, pix_sh_as_onlymark)
 // NB s/h already resolved by non-forced drawing
 // forced both layer draw (through debug reg)
 #define pix_and(x) \
-  pd[x] = (pd[x] & 0xc0) | (pd[x] & (pal | t))
+  pal |= 0xc0; /* leave s/h bits untouched in pixel "and" */ \
+  pd[x] &= pal | t
 
 TileNormMaker(TileNorm_and, pix_and)
 TileFlipMaker(TileFlip_and, pix_and)
 
 // forced sprite draw (through debug reg)
 #define pix_sh_as_and(x) \
+  pal |= 0xc0; /* leave s/h bits untouched in pixel "and" */ \
   if (m & (1<<(x+8))) { \
     m &= ~(1<<(x+8)); \
-    if (t<0xe) pd[x] = (pd[x] & 0xc0) | (pd[x] & (pal | t)); \
+    if (t<0xe) pd[x] &= pal | t; \
   }
  
 TileNormMakerAS(TileNormSH_AS_and, pix_sh_as_and)
@@ -356,11 +359,21 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
   dx+=cellskip<<3;
 
 //  int force = (plane_sh&LF_FORCE) << 13;
+  if ((cell&1)==1)
+  {
+    int line,vscroll;
+    vscroll = PicoMem.vsram[plane + (cell&0x3e)];
+
+    // Find the line in the name table
+    line=(vscroll+scan)&ts->line&0xffff; // ts->line is really ymask ..
+    nametabadd=(line>>3)<<(ts->line>>24);    // .. and shift[width]
+    ty=(line&7)<<1; // Y-Offset into tile
+  }
   for (; cell < ts->cells; dx+=8,tilex++,cell++)
   {
     u32 code, pack;
 
-    if ((cell&1)==0 || cell<0)
+    if ((cell&1)==0)
     {
       int line,vscroll;
       vscroll = PicoMem.vsram[plane + (cell&0x3e)];
@@ -1121,11 +1134,21 @@ static void DrawStripVSRamForced(struct TileStrip *ts, int plane_sh, int cellski
   tilex+=cellskip;
   dx+=cellskip<<3;
 
+  if ((cell&1)==1)
+  {
+    int line,vscroll;
+    vscroll = PicoMem.vsram[plane + (cell&0x3e)];
+
+    // Find the line in the name table
+    line=(vscroll+scan)&ts->line&0xffff; // ts->line is really ymask ..
+    nametabadd=(line>>3)<<(ts->line>>24);    // .. and shift[width]
+    ty=(line&7)<<1; // Y-Offset into tile
+  }
   for (; cell < ts->cells; dx+=8,tilex++,cell++)
   {
     unsigned int pack;
 
-    if ((cell&1)==0 || cell<0)
+    if ((cell&1)==0)
     {
       int line,vscroll;
       vscroll = PicoMem.vsram[plane + (cell&0x3e)];

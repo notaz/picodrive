@@ -570,6 +570,32 @@ DrawLayer:
     @ r3=nametabadd[31:16]|must_be_0[15:8]|pal[7:0]
     @ r1=pd+dx r2=pack r6=hc r9=prevcode r11=HighCol r12=nametab lr=vram
     @ r4 & r7 are scratch in this loop
+
+    @ need to calc new ty?
+    lsls    r7, r10, #7           @ (cell&1)?
+    bmi     .dsloop_vs_subr1
+
+    @ calc offset and read tileline code to r7, also calc ty
+    add_c24 r7, lr, (OFS_PMEM_vsram-OFS_PMEM_vram)
+    and     r4, r10, #0x3e000000
+    add     r7, r7, r4, asr #23   @ vsram + ((cell&0x3e)<<1)
+    tst     r10,#0x8000           @ plane1?
+    addne   r7, r7, #2
+    ldrh    r7, [r7]              @ r7=vscroll
+
+    bic     r10,r10,#0xff         @ clear old ty
+    and     r4, r5, #0xff0000     @ scanline
+    add     r4, r4, r7, lsl #16   @ ... += vscroll
+    and     r4, r4, r5, lsl #16   @ ... &= ymask
+    and     r7, r4, #0x70000
+    orr     r10,r10,r7, lsr #15   @ new ty
+
+    mov     r4, r4, lsr #19
+    mov     r7, r5, lsr #24
+    mov     r4, r4, lsl r7        @ nametabadd
+    and     r3, r3, #0xff
+    orr     r3, r3, r4, lsl #16   @ r3=(nametabadd[31:16],pal[15:0])
+
 .dsloop_vs_subr1:
     sub     r1, r1, #8
 .dsloop_vs: @ 40-41 times
@@ -579,8 +605,7 @@ DrawLayer:
     ble     .dsloop_vs_exit
 
     @ need to calc new ty?
-    lsls    r7, r10, #7           @ (cell&1) && ...
-    mvnmis  r7, r10               @ ... cell>=0
+    lsls    r7, r10, #7           @ (cell&1)?
     bmi     0f
 
     @ calc offset and read tileline code to r7, also calc ty
