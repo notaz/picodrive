@@ -52,7 +52,6 @@ CFLAGS += -finline-limit=42 -fno-unroll-loops -fno-ipa-cp -ffast-math
 # this gets you about 20% better execution speed on 32bit arm/mips
 CFLAGS += -fno-common -fno-stack-protector -fno-guess-branch-probability -fno-caller-saves -fno-tree-loop-if-convert -fno-regmove
 endif
-#OBJS += align.o
 
 # default settings
 ifeq "$(ARCH)" "arm"
@@ -89,7 +88,13 @@ $(TARGET).opk: $(TARGET)
 	$(STRIP) .opk_data/PicoDrive
 	mksquashfs .opk_data $@ -all-root -noappend -no-exports -no-xattrs
 
+all: opk
+
 OBJS += platform/opendingux/inputmap.o
+
+ifneq (,$(filter %__GCW0__ %__RG350__, $(CFLAGS)))
+CFLAGS += -DMIPS_USE_SYNCI # clear_cache uses SYNCI instead of a syscall
+endif
 
 # OpenDingux is a generic platform, really.
 PLATFORM := generic
