@@ -40,9 +40,7 @@ For gp2x, wiz, and caanoo you may need to compile libpng first.
 
 After configure, compile with
 
-> make opk # for opendingux and gcw0
-> 
-> make # for anything else
+> make
 
 ### helix MP3 decoder
 

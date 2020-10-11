@@ -1562,11 +1562,35 @@ static int emith_cond_check(int cond, int *r)
 // emitter ABI stuff
 #define emith_pool_check()	/**/
 #define emith_pool_commit(j)	/**/
-// NB: mips32r2 has SYNCI
-#define host_instructions_updated(base, end, force) __builtin___clear_cache(base, end)
 #define	emith_update_cache()	/**/
 #define emith_rw_offs_max()	0x7fff
 #define emith_uext_ptr(r)	/**/
+
+#if __mips_isa_rev >= 2 && defined(MIPS_USE_SYNCI) && defined(__GNUC__)
+// this should normally be in libc clear_cache; however, it sometimes isn't.
+// core function taken from SYNCI description, MIPS32 instruction set manual
+static NOINLINE void host_instructions_updated(void *base, void *end, int force)
+{
+	int step, tmp;
+	asm volatile(
+	"	bal	0f;" // needed to allow for jr.hb
+	"	b	3f;"
+
+	"0:	rdhwr	%2, $1;"
+	"	beqz	%2, 2f;"
+
+	"1:	synci	0(%0);"
+	"	sltu	%3, %0, %1;"
+	"	addu	%0, %0, %2;"
+	"	bnez	%3, 1b;"
+
+	"	sync;"
+	"2:	jr.hb	$ra;"
+	"3:	" : "+r"(base), "+r"(end), "=r"(step), "=r"(tmp) :: "$31");
+}
+#else
+#define host_instructions_updated(base, end, force) __builtin___clear_cache(base, end)
+#endif
 
 // SH2 drc specific
 #define emith_sh2_drc_entry() do { \
