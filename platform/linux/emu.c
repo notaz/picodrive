@@ -22,6 +22,8 @@ const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast
 const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
 enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 
+static int out_x, out_y;
+static int out_w, out_h;
 
 void pemu_prep_defconfig(void)
 {
@@ -70,15 +72,18 @@ static void draw_cd_leds(void)
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	if (currentConfig.renderer != RT_16BIT && !(PicoIn.AHW & PAHW_32X)) {
-		unsigned short *pd = (unsigned short *)g_screen_ptr + 8 * g_screen_ppitch;
-		unsigned char *ps = Pico.est.Draw2FB + 328*8 + 8;
+		unsigned short *pd = (unsigned short *)g_screen_ptr + out_y * g_screen_ppitch + out_x;
+		unsigned char *ps = Pico.est.Draw2FB + 328*out_y + 8; //+ out_x;
 		unsigned short *pal = Pico.est.HighPal;
 		int i, x;
 
 		PicoDrawUpdateHighPal();
-		for (i = 0; i < 224; i++, ps += 8)
-			for (x = 0; x < 320; x++)
+		for (i = 0; i < out_h; i++, ps += 8) {
+			for (x = 0; x < out_w; x++)
 				*pd++ = pal[*ps++];
+			pd += 320 - out_w;
+			ps += 320 - out_w;
+		}
 	}
 
 	if (notice || (currentConfig.EmuOpt & EOPT_SHOW_FPS)) {
@@ -96,16 +101,19 @@ static void apply_renderer(void)
 	switch (currentConfig.renderer) {
 	case RT_16BIT:
 		PicoIn.opt &= ~POPT_ALT_RENDERER;
+		PicoIn.opt &= ~POPT_DIS_32C_BORDER;
 		PicoDrawSetOutFormat(PDF_RGB555, 0);
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 		break;
 	case RT_8BIT_ACC:
 		PicoIn.opt &= ~POPT_ALT_RENDERER;
+		PicoIn.opt |=  POPT_DIS_32C_BORDER;
 		PicoDrawSetOutFormat(PDF_8BIT, 0);
 		PicoDrawSetOutBuf(Pico.est.Draw2FB + 8, 328);
 		break;
 	case RT_8BIT_FAST:
 		PicoIn.opt |=  POPT_ALT_RENDERER;
+		PicoIn.opt |=  POPT_DIS_32C_BORDER;
 		PicoDrawSetOutFormat(PDF_NONE, 0);
 		break;
 	}
@@ -158,6 +166,7 @@ void plat_update_volume(int has_changed, int is_up)
 
 void pemu_forced_frame(int no_scale, int do_emu)
 {
+	PicoIn.opt &= ~POPT_DIS_32C_BORDER;
 	PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
@@ -180,9 +189,10 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
 	// clear whole screen in all buffers
 	if (currentConfig.renderer != RT_16BIT && !(PicoIn.AHW & PAHW_32X))
-		memset32(Pico.est.Draw2FB, 0, (320+8) * (8+240+8) / 4);
-	else
-		memset32(g_screen_ptr, 0, g_screen_ppitch * g_screen_height * 2 / 4);
+		memset32(Pico.est.Draw2FB, 0xe0e0e0e0, (320+8) * (8+240+8) / 4);
+	memset32(g_screen_ptr, 0, g_screen_ppitch * g_screen_height * 2 / 4);
+	out_y = start_line; out_x = (is_32cols ? 32 : 0);
+	out_h = line_count; out_w = (is_32cols ? 256:320);
 }
 
 void pemu_loop_prep(void)

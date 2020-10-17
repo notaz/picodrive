@@ -36,11 +36,17 @@ static void convert_pal555(int invert_prio)
 #else
     *pd = (((t & m1) << 11) | ((t & m2) << 1) | ((t & m3) >> 10)) ^ inv;
 #endif
-    
   }
 
   Pico32x.dirty_pal = 0;
 }
+
+// 555 conversion for direct color mode
+#if defined(USE_BGR555)
+#define DC555(t)	t
+#else
+#define DC555(t)	((t&m1) << 11) | ((t&m2) << 1) | ((t&m3) >> 10)
+#endif
 
 // direct color mode
 #define do_line_dc(pd, p32x, pmd, inv, pmd_draw_code)             \
@@ -54,12 +60,12 @@ static void convert_pal555(int invert_prio)
   while (i > 0) {                                                 \
     for (; i > 0 && (*pmd & 0x3f) == mdbg; pd++, pmd++, i--) {    \
       t = *p32x++;                                                \
-      *pd = ((t&m1) << 11) | ((t&m2) << 1) | ((t&m3) >> 10);      \
+      *pd = DC555(t);                                             \
     }                                                             \
     for (; i > 0 && (*pmd & 0x3f) != mdbg; pd++, pmd++, i--) {    \
       t = *p32x++;                                                \
       if ((t ^ inv) & 0x8000)                                     \
-        *pd = ((t&m1) << 11) | ((t&m2) << 1) | ((t&m3) >> 10);    \
+        *pd = DC555(t);                                           \
       else                                                        \
         pmd_draw_code;                                            \
     }                                                             \
@@ -335,7 +341,7 @@ void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode)
   } else {
     // use the same layout as alt renderer
     PicoDrawSetInternalBuf(NULL, 0);
-    PicoDrawSetOutBufMD(Pico.est.Draw2FB + 8, 328);
+    PicoDrawSetOutBufMD(Pico.est.Draw2FB, 328);
   }
 
   if (use_32x_line_mode)

@@ -705,6 +705,8 @@ int PicoStateLoadGfx(const char *fname)
     areaRead(&Pico.video, 1, sizeof(Pico.video), afile);
   }
   areaClose(afile);
+
+  PicoVideoCacheSAT();
   return 0;
 }
 
@@ -714,6 +716,7 @@ struct PicoTmp
   unsigned short vram[0x8000];
   unsigned short cram[0x40];
   unsigned short vsram[0x40];
+  unsigned int satcache[0x80];
 
   //struct PicoMisc m;
   struct PicoVideo video;
@@ -736,6 +739,7 @@ void *PicoTmpStateSave(void)
   memcpy(t->vram, PicoMem.vram, sizeof(PicoMem.vram));
   memcpy(t->cram, PicoMem.cram, sizeof(PicoMem.cram));
   memcpy(t->vsram, PicoMem.vsram, sizeof(PicoMem.vsram));
+  memcpy(t->satcache, VdpSATCache, sizeof(VdpSATCache));
   memcpy(&t->video, &Pico.video, sizeof(Pico.video));
 
 #ifndef NO_32X
@@ -758,6 +762,7 @@ void PicoTmpStateRestore(void *data)
   memcpy(PicoMem.vram, t->vram, sizeof(PicoMem.vram));
   memcpy(PicoMem.cram, t->cram, sizeof(PicoMem.cram));
   memcpy(PicoMem.vsram, t->vsram, sizeof(PicoMem.vsram));
+  memcpy(VdpSATCache, t->satcache, sizeof(VdpSATCache));
   memcpy(&Pico.video, &t->video, sizeof(Pico.video));
   Pico.m.dirtyPal = 1;
 

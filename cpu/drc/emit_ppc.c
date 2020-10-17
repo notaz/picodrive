@@ -1538,7 +1538,7 @@ static int emith_cond_check(int cond)
 #define emith_pool_commit(j)	/**/
 #define emith_insn_ptr()	((u8 *)tcache_ptr)
 #define emith_flush()		/**/
-#define host_instructions_updated(base, end) __builtin___clear_cache(base, end)
+#define host_instructions_updated(base, end, force) __builtin___clear_cache(base, end)
 #define emith_update_cache()	/**/
 #define emith_rw_offs_max()	0x7fff
 

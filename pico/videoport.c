@@ -64,7 +64,7 @@ static struct VdpFIFO { // XXX this must go into save file!
   // queued FIFO transfers, ...x = index, ...l = queue length
   // each entry has 2 values: [n]>>3 = #writes, [n]&7 = flags (FQ_*)
   unsigned int fifo_queue[8], fifo_qx, fifo_ql;
-  unsigned int fifo_total;    // total# of pending FIFO entries (w/o BGDMA)
+  int fifo_total;             // total# of pending FIFO entries (w/o BGDMA)
 
   unsigned short fifo_slot;   // last executed slot in current scanline
   unsigned short fifo_maxslot;// #slots in scanline
@@ -85,7 +85,7 @@ static __inline int AdvanceFIFOEntry(struct VdpFIFO *vf, struct PicoVideo *pv, i
   if (l > cnt)
     l = cnt;
   if (!(vf->fifo_queue[vf->fifo_qx] & FQ_BGDMA))
-    vf->fifo_total -= ((cnt & b) + l) >> b;
+    if ((vf->fifo_total -= ((cnt & b) + l) >> b) < 0) vf->fifo_total = 0;
   cnt -= l;
 
   // if entry has been processed...
@@ -334,7 +334,7 @@ static NOINLINE void VideoWriteVRAM128(u32 a, u16 d)
   if (!((u16)(b^SATaddr) & SATmask))
     Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 
-  if (!((u16)(a^SATaddr) & SATmask))
+  if (((a^SATaddr) & SATmask) == 0)
     UpdateSAT(a, d);
 }
 
@@ -539,7 +539,7 @@ static void DmaCopy(int len)
   for (; len; len--)
   {
     vr[(u16)a] = vr[(u16)(source++)];
-    if (!((u16)(a^SATaddr) & SATmask))
+    if (((a^SATaddr) & SATmask) == 0)
       UpdateSAT(a, ((u16 *)vr)[(u16)a >> 1]);
     // AutoIncrement
     a = (a+inc) & ~0x20000;
@@ -579,7 +579,7 @@ static NOINLINE void DmaFill(int data)
         // Write upper byte to adjacent address
         // (here we are byteswapped, so address is already 'adjacent')
         vr[(u16)a] = high;
-        if (!((u16)(a^SATaddr) & SATmask))
+        if (((a^SATaddr) & SATmask) == 0)
           UpdateSAT(a, ((u16 *)vr)[(u16)a >> 1]);
 
         // Increment address register
@@ -999,6 +999,25 @@ unsigned char PicoVideoRead8HV_L(void)
   return d;
 }
 
+void PicoVideoCacheSAT(void)
+{
+  struct PicoVideo *pv = &Pico.video;
+  int l;
+
+  SATaddr = ((pv->reg[5]&0x7f) << 9) | ((pv->reg[6]&0x20) << 11);
+  SATmask = ~0x1ff;
+  if (pv->reg[12]&1)
+    SATaddr &= ~0x200, SATmask &= ~0x200; // H40, zero lowest SAT bit
+
+  // rebuild SAT cache XXX wrong since cache and memory can differ
+  for (l = 0; l < 80; l++) {
+    ((u16 *)VdpSATCache)[l*2    ] = PicoMem.vram[(SATaddr>>1) + l*4    ];
+    ((u16 *)VdpSATCache)[l*2 + 1] = PicoMem.vram[(SATaddr>>1) + l*4 + 1];
+  }
+
+  Pico.est.rendstatus |= PDRAW_SPRITES_MOVED;
+}
+
 void PicoVideoSave(void)
 {
   struct VdpFIFO *vf = &VdpFIFO;
@@ -1014,7 +1033,6 @@ void PicoVideoLoad(void)
 {
   struct VdpFIFO *vf = &VdpFIFO;
   struct PicoVideo *pv = &Pico.video;
-  int l;
 
   // convert former dma_xfers (why was this in PicoMisc anyway?)
   if (Pico.m.dma_xfers) {
@@ -1023,17 +1041,6 @@ void PicoVideoLoad(void)
     vf->fifo_total = Pico.m.dma_xfers;
     Pico.m.dma_xfers = 0;
   }
-
-  SATaddr = ((pv->reg[5]&0x7f) << 9) | ((pv->reg[6]&0x20) << 11);
-  SATmask = ~0x1ff;
-  if (pv->reg[12]&1)
-    SATaddr &= ~0x200, SATmask &= ~0x200; // H40, zero lowest SAT bit
-
-  // rebuild SAT cache XXX wrong since cache and memory can differ
-  for (l = 0; l < 80; l++) {
-    *((u16 *)VdpSATCache + 2*l  ) = PicoMem.vram[(SATaddr>>1) + l*4    ];
-    *((u16 *)VdpSATCache + 2*l+1) = PicoMem.vram[(SATaddr>>1) + l*4 + 1];
-  }
+  PicoVideoCacheSAT();
 }
-
 // vim:shiftwidth=2:ts=2:expandtab

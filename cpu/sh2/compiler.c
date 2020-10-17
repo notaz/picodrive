@@ -815,16 +815,14 @@ static void dr_block_link(struct block_entry *be, struct block_link *bl, int emi
         // via blx: @jump near jumpcc to blx; @blx far jump
         emith_jump_patch(jump, bl->blx, &jump);
         emith_jump_at(bl->blx, be->tcache_ptr);
-        if ((((uintptr_t)bl->blx & 0x1f) + emith_jump_at_size()-1) > 0x1f)
-          host_instructions_updated(bl->blx, (char*)bl->blx + emith_jump_at_size()-1);
+        host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size(),
+            ((uintptr_t)bl->blx & 0x0f) + emith_jump_at_size()-1 > 0x0f);
       }
     } else {
       printf("unknown BL type %d\n", bl->type);
       exit(1);
     }
-    // only needs sync if patch is possibly crossing cacheline (assume 32 byte)
-    if ((((uintptr_t)jump & 0x1f) + jsz-1) > 0x1f)
-      host_instructions_updated(jump, jump + jsz-1);
+    host_instructions_updated(jump, jump + jsz, ((uintptr_t)jump & 0x0f) + jsz-1 > 0x0f);
   }
 
   // move bl to block_entry
@@ -855,13 +853,13 @@ static void dr_block_unlink(struct block_link *bl, int emit_jump)
         // via blx: @jump near jumpcc to blx; @blx load target_pc, far jump
         emith_jump_patch(bl->jump, bl->blx, &jump);
         memcpy(bl->blx, bl->jdisp, emith_jump_at_size());
-        host_instructions_updated(bl->blx, (char*)bl->blx + emith_jump_at_size()-1);
+        host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size(), 1);
       } else {
         printf("unknown BL type %d\n", bl->type);
         exit(1);
       }
       // update cpu caches since the previous jump target doesn't exist anymore
-      host_instructions_updated(jump, jump + jsz-1);
+      host_instructions_updated(jump, jump + jsz, 1);
     }
 
     if (bl->prev)
@@ -3004,12 +3002,12 @@ static uint32_t REGPARM(2) sh2_drc_divu32(uint32_t dv, uint32_t ds)
     // bad case: use the sh2 algo to get the right result
     int q = 0, t = 0, s = 16;
     while (s--) {
-      uint32_t _ = dv>>31;
+      uint32_t v = dv>>31;
       dv = (dv<<1) | t;
-      t = _;
-      _ = dv;
-      if (q)  dv += ds, q =   dv < _;
-      else    dv -= ds, q = !(dv < _);
+      t = v;
+      v = dv;
+      if (q)  dv += ds, q =   dv < v;
+      else    dv -= ds, q = !(dv < v);
       q ^= t, t = !q;
     }
     return (dv<<1) | t;
@@ -3030,12 +3028,12 @@ static uint32_t REGPARM(3) sh2_drc_divu64(uint32_t dh, uint32_t *dl, uint32_t ds
     uint64_t dv = *dl | ((uint64_t)dh << 32);
     int q = 0, t = 0, s = 32;
     while (s--) {
-      uint64_t _ = dv>>63;
+      uint64_t v = dv>>63;
       dv = (dv<<1) | t;
-      t = _;
-      _ = dv;
-      if (q)  dv += ((uint64_t)ds << 32), q =   dv < _;
-      else    dv -= ((uint64_t)ds << 32), q = !(dv < _);
+      t = v;
+      v = dv;
+      if (q)  dv += ((uint64_t)ds << 32), q =   dv < v;
+      else    dv -= ((uint64_t)ds << 32), q = !(dv < v);
       q ^= t, t = !q;
     }
     *dl = (dv<<1) | t;
@@ -3058,12 +3056,12 @@ static uint32_t REGPARM(2) sh2_drc_divs32(int32_t dv, int32_t ds)
     // bad case: use the sh2 algo to get the right result
     int m = (uint32_t)ds>>31, q = (uint32_t)dv>>31, t = m^q, s = 16;
     while (s--) {
-      uint32_t _ = (uint32_t)dv>>31;
+      uint32_t v = (uint32_t)dv>>31;
       dv = (dv<<1) | t;
-      t = _;
-      _ = dv;
-      if (m^q)  dv += ds, q =   (uint32_t)dv < _;
-      else      dv -= ds, q = !((uint32_t)dv < _);
+      t = v;
+      v = dv;
+      if (m^q)  dv += ds, q =   (uint32_t)dv < v;
+      else      dv -= ds, q = !((uint32_t)dv < v);
       q ^= m^t, t = !(m^q);
     }
     return (dv<<1) | t;
@@ -3089,12 +3087,12 @@ static uint32_t REGPARM(3) sh2_drc_divs64(int32_t dh, uint32_t *dl, int32_t ds)
     uint64_t dv = *dl | ((uint64_t)dh << 32);
     int m = (uint32_t)ds>>31, q = (uint64_t)dv>>63, t = m^q, s = 32;
     while (s--) {
-      int64_t _ = (uint64_t)dv>>63;
+      int64_t v = (uint64_t)dv>>63;
       dv = (dv<<1) | t;
-      t = _;
-      _ = dv;
-      if (m^q)  dv += ((uint64_t)ds << 32), q =   dv < _;
-      else      dv -= ((uint64_t)ds << 32), q = !(dv < _);
+      t = v;
+      v = dv;
+      if (m^q)  dv += ((uint64_t)ds << 32), q =   dv < v;
+      else      dv -= ((uint64_t)ds << 32), q = !(dv < v);
       q ^= m^t, t = !(m^q);
     }
     *dl = (dv<<1) | t;
@@ -3252,7 +3250,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
   // get base/validate PC
   dr_pc_base = dr_get_pc_base(base_pc, sh2);
   if (dr_pc_base == (void *)-1) {
-    printf("invalid PC, aborting: %08x\n", base_pc);
+    printf("invalid PC, aborting: %08lx\n", (long)base_pc);
     // FIXME: be less destructive
     exit(1);
   }
@@ -5151,7 +5149,7 @@ end_op:
       memcpy(bl->jdisp, bl->blx ? bl->blx : bl->jump, emith_jump_at_size());
 
   ring_alloc(&tcache_ring[tcache_id], tcache_ptr - block_entry_ptr);
-  host_instructions_updated(block_entry_ptr, tcache_ptr);
+  host_instructions_updated(block_entry_ptr, tcache_ptr, 1);
 
   dr_activate_block(block, tcache_id, sh2->is_slave);
   emith_update_cache();
@@ -5887,7 +5885,7 @@ int sh2_drc_init(SH2 *sh2)
 
     tcache_ptr = tcache;
     sh2_generate_utils();
-    host_instructions_updated(tcache, tcache_ptr);
+    host_instructions_updated(tcache, tcache_ptr, 1);
     emith_update_cache();
 
     i = tcache_ptr - tcache;
@@ -6855,7 +6853,7 @@ end:
 
   // 2nd pass: some analysis
   lowest_literal = end_literals = lowest_mova = 0;
-  t = T_UNKNOWN;
+  t = T_UNKNOWN; // T flag state
   last_btarget = 0;
   op = 0; // delay/poll insns counter
   is_divop = 0; // divide op insns counter
@@ -6865,7 +6863,7 @@ end:
     crc += FETCH_OP(pc);
 
     // propagate T (TODO: DIV0U)
-    if ((op_flags[i] & OF_BTARGET) || (opd->dest & BITMASK1(SHR_T)))
+    if (op_flags[i] & OF_BTARGET)
       t = T_UNKNOWN;
 
     if ((opd->op == OP_BRANCH_CT && t == T_SET) ||
@@ -6875,10 +6873,12 @@ end:
     } else if ((opd->op == OP_BRANCH_CT && t == T_CLEAR) ||
                (opd->op == OP_BRANCH_CF && t == T_SET))
       opd->op = OP_BRANCH_N;
-    else if ((opd->op == OP_SETCLRT && !opd->imm) || opd->op == OP_BRANCH_CT)
-      t = T_CLEAR;
-    else if ((opd->op == OP_SETCLRT && opd->imm) || opd->op == OP_BRANCH_CF)
-      t = T_SET;
+    else if (OP_ISBRACND(opd->op))
+      t = (opd->op == OP_BRANCH_CF ? T_SET : T_CLEAR);
+    else if (opd->op == OP_SETCLRT)
+      t = (opd->imm ? T_SET : T_CLEAR);
+    else if (opd->dest & BITMASK1(SHR_T))
+      t = T_UNKNOWN;
 
     // "overscan" detection: unreachable code after unconditional branch
     // this can happen if the insn after a forward branch isn't a local target

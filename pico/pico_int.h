@@ -666,6 +666,8 @@ extern int (*PicoScanBegin)(unsigned int num);
 extern int (*PicoScanEnd)(unsigned int num);
 #define MAX_LINE_SPRITES 27	// +1 last sprite width, +4 hdr; total 32
 extern unsigned char HighLnSpr[240][4+MAX_LINE_SPRITES+1];
+extern unsigned char *HighColBase;
+extern int HighColIncrement;
 extern void *DrawLineDestBase;
 extern int DrawLineDestIncrement;
 extern unsigned int VdpSATCache[128];
@@ -843,7 +845,7 @@ void ym2612_unpack_state(void);
 extern unsigned SATaddr, SATmask;
 static __inline void UpdateSAT(u32 a, u32 d)
 {
-  unsigned num = (a-SATaddr) >> 3;
+  unsigned num = (a^SATaddr) >> 3;
 
   Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
   if (!(a & 4) && num < 128) {
@@ -854,7 +856,7 @@ static __inline void VideoWriteVRAM(u32 a, u16 d)
 {
   PicoMem.vram [(u16)a >> 1] = d;
 
-  if (!((u16)(a^SATaddr) & SATmask))
+  if (((a^SATaddr) & SATmask) == 0)
     UpdateSAT(a, d);
 }
 
@@ -873,6 +875,7 @@ void PicoVideoFIFOMode(int active, int h40);
 int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask, unsigned sr_flags);
 void PicoVideoSave(void);
 void PicoVideoLoad(void);
+void PicoVideoCacheSAT(void);
 
 // misc.c
 PICO_INTERNAL_ASM void memcpy16bswap(unsigned short *dest, void *src, int count);

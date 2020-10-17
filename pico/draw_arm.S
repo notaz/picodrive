@@ -76,7 +76,7 @@
 .endif
     ldreqb  r4, [r1,#\offs]
     orrne   r4, r3, r4
-    andeq   r4, r4, #0xbf
+    andeq   r4, r4, #0x7f
     strb    r4, [r1,#\offs]
 .endm
 
@@ -108,52 +108,48 @@
 @ TileSingleSh (r1=pdest, r2=pixels8, r3=pal) r4,r7: scratch, r0=sx; r12: helper pattern 0xf
 .macro TileSingleSh
     tst     r0, #1              @ not aligned?
-    mov     r7, #0x00c000
-    orr     r7, r7, #0xc0
-    ldrneb  r4, [r1]
-    ldreqh  r4, [r1]
-    orr     r4, r4, r7
-    strneb  r4, [r1], #1
-    streqh  r4, [r1], #2
-    ldrh    r4, [r1]
-    orr     r4, r4, r7
-    strh    r4, [r1], #2
-    ldrh    r4, [r1]
-    orr     r4, r4, r7
-    strh    r4, [r1], #2
-    ldrh    r4, [r1]
-    orr     r4, r4, r7
-    strh    r4, [r1], #2
-    ldrneb  r4, [r1]
-    orr     r4, r4, r7
-    strneb  r4, [r1], #1
+    mov     r7, #0x008000
+    orr     r7, r7, #0x80
+    ldrneb  r4,  [r1], #1
+    ldreqh  r4,  [r1], #2        @ 1ci
+    ldrh    r12, [r1], #2
+    orr     r4,  r4,  r7
+    strneb  r4,  [r1, #-3]
+    streqh  r4,  [r1, #-4]
+    ldrh    r4,  [r1], #2
+    orr     r12, r12, r7
+    strh    r12, [r1, #-4]
+    ldrh    r12, [r1], #2
+    orr     r4,  r4,  r7
+    strh    r4,  [r1, #-4]
+    ldrneb  r4,  [r1]
+    orr     r12, r12, r7
+    strh    r12, [r1, #-2]
+    orrne   r4,  r4,  r7
+    strneb  r4,  [r1], #1
+    mov     r12, #0xf
 .endm
 
 @ TileSingleHi (r1=pdest, r2=pixels8, r3=pal) r4,r7: scratch, r0=sx, r12: register with helper pattern 0xf
 .macro TileSingleHi
     tst     r1,  #1              @ not aligned?
-    mov     r7,  #0x008000
-    orr     r7,  r7, #0x80
+    mov     r7,  #0x004000
+    orr     r7,  r7, #0x40
     ldrneb  r4,  [r1], #1
     ldreqh  r4,  [r1], #2        @ 1ci
     ldrh    r12, [r1], #2
-    bic     r4,  r4,  r7, lsr #1
     orr     r4,  r4,  r7
     strneb  r4,  [r1, #-3]
     streqh  r4,  [r1, #-4]
     ldrh    r4,  [r1], #2
-    bic     r12, r12, r7, lsr #1
     orr     r12, r12, r7
     strh    r12, [r1, #-4]
     ldrh    r12, [r1], #2
-    bic     r4,  r4,  r7, lsr #1
     orr     r4,  r4,  r7
     strh    r4,  [r1, #-4]
     ldrneb  r4,  [r1]
-    bic     r12, r12, r7, lsr #1
     orr     r12, r12, r7
     strh    r12, [r1, #-2]
-    bicne   r4,  r4,  r7, lsr #1
     orrne   r4,  r4,  r7
     strneb  r4,  [r1], #1
     mov     r12, #0xf
@@ -170,7 +166,7 @@
     ldrgeb  r7, [r1,#\ofs]
     orrlt   r7, r3, r4            @ normal
 
-    bicge   r7, r7, #0xc0
+    subge   r4, r4, #1
     orrge   r7, r7, r4, lsl #6
     strb    r7, [r1,#\ofs]
 0:
@@ -210,7 +206,7 @@
     cmp     r4, #0xe
     ldrgeb  r4, [r1,#\ofs]
     orrlt   r4, r3, r4
-    orrge   r4, r4, #0x80
+    orrge   r4, r4, #0x40
     strb    r4, [r1,#\ofs]
 0:
 .endm
@@ -247,8 +243,9 @@
     cmp     r7, #0xe
     blt     0f
 
-    tst     r4, #0xc0
-    bicne   r4, r4, #0xc0
+    tst     r4, #0x40
+    bicne   r4, r4, #0x40
+    subne   r7, r7, #1
     orrne   r4, r4, r7, lsl #6
     strneb  r4, [r1,#\ofs]
 0:
@@ -394,8 +391,8 @@ DrawLayer:
     movs    r3, r9, lsl #1  @ (force[31]|sh[30]) << 1
     mov     r3, #0
     orrmi   r10,r10, #1<<23 @ r10=cells[31:24]|sh[23]|hi_not_empty[22]
-    orrcs   r10,r10, #1<<20 @    |had_output[21]|force[20]|ty[15:0]
-    movmi   r3, #0x40       @ default to shadowed pal on sh mode
+@    orrcc   r10,r10, #1<<20 @    |had_output[21]|!force[20]|ty[15:0]
+    movmi   r3, #0x80       @ default to shadowed pal on sh mode
 
     cmp     r7, #8
     addne   r10,r10, #0x01000000 @ we will loop cells+1 times if there is scroll
@@ -413,7 +410,8 @@ DrawLayer:
     mvn     r9, #0               @ r9=prevcode=-1
     add     r1, r11, r7          @ r1=pdest
 
-
+    @ r10=cells[31:24]|sh[23]|hi_not_empty[22]|had_output[21]|!force[20]|ty[15:0]
+    @ r1=pd+dx r2=pack r3=pal r5=xmask r6=hc r8=tilex r9=prevcode r11=HighCol r12=nametab lr=vram
     @ r4 & r7 are scratch in this loop
 .dsloop_subr1:
     sub     r1, r1, #8
@@ -429,15 +427,10 @@ DrawLayer:
     add     r1, r1, #8
     add     r8, r8, #1
 
-    tst     r7, #0x8000
-    tsteq   r10, #1<<20     @ force?
-    bne     .DrawStrip_hiprio
-
     cmp     r7, r9
     beq     .DrawStrip_samecode @ we know stuff about this tile already
 
     mov     r9, r7          @ remember code
-    orr     r10, r10, #1<<21 @ seen non hi-prio tile
 
     movs    r2, r9, lsl #20 @ if (code&0x1000)
     mov     r2, r2, lsl #1
@@ -447,13 +440,18 @@ DrawLayer:
 
     ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
 
-    bic     r7, r3, #0x3f
-    and     r3, r9, #0x6000
-    add     r3, r7, r3, lsr #9 @ r3=pal=((code&0x6000)>>9);
-
 .DrawStrip_samecode:
+    tst     r9, #0x8000
+@    tstne   r10, #1<<20     @ !force[20]
+    bne     .DrawStrip_hiprio
+
+    orr     r10, r10, #1<<21 @ seen non hi-prio tile
     tst     r2, r2
     beq     .dsloop              @ tileline blank
+
+    bic     r7, r3, #0x7f
+    and     r3, r9, #0x6000
+    add     r3, r7, r3, lsr #9 @ r3=pal=((code&0x6000)>>9);
 
     cmp     r2, r2, ror #4
     beq     .DrawStrip_SingleColor @ tileline singlecolor 
@@ -483,30 +481,19 @@ DrawLayer:
     strneb  r4, [r1], #1       @ have a remaining unaligned pixel?
     b       .dsloop_subr1
 
-.DrawStrip_hiprio_maybempt:
-    cmp     r7, r9
-    beq     .dsloop         @ must've been empty, otherwise we wouldn't get here
-    movs    r2, r7, lsl #20 @ if (code&0x1000)
-    mov     r2, r2, lsl #1
-    add     r2, r2, r10, lsl #17
-    mov     r2, r2, lsr #17
-    eorcs   r2, r2, #0x0e   @ if (code&0x1000) addr^=0xe;
-    ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
-    mov     r9, r7          @ remember code
-    tst     r2, r2
-    beq     .dsloop
-    orr     r10, r10, #1<<22
-
 .DrawStrip_hiprio:
-    tst     r10, #0x00d00000 @ sh[23]|hi_not_empty[22]|force[20]
-    beq     .DrawStrip_hiprio_maybempt
-    sub     r0, r1, r11
-    orr     r7, r7, r0,  lsl #16
+    tst     r10, #(1<<23)   @ sh[23]
+    tsteq   r2, r2          @ if (!sh[23] && code==blank) continue
+    beq     .dsloop
+
+@    orr     r10, r10, #1<<22 @ hi_not_empty[22]
+    sub     r7, r1, r11
+    orr     r7, r9, r7,  lsl #16
     orr     r7, r7, r10, lsl #25 @ (ty<<25)
-    tst     r7, #0x1000
-    eorne   r7, r7, #7<<26  @ if(code&0x1000) cval^=7<<26;
-    str     r7, [r6], #4    @ cache hi priority tile
-    mov     r0, #0xf
+    tst     r9, #0x1000
+    eorne   r7, r7, #0xe<<25 @ if(code&0x1000) cval^=0xe<<25;
+    str     r7, [r6], #4    @ cache hi priority tile code
+    str     r2, [r6], #4    @ cache hi priority tile data
     b       .dsloop
 
 .dsloop_exit:
@@ -518,8 +505,7 @@ DrawLayer:
     orreq   r2, r2, #PDRAW_PLANE_HI_PRIO @ had a layer with all hi-prio tiles
     streq   r2, [r1, #OFS_EST_rendstatus]
 
-    ldmfd   sp!, {r4-r11,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r11,pc}
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
@@ -530,7 +516,7 @@ DrawLayer:
     rsb     r8, r3, #0
     mov     r8, r8, lsr #3        @ r8=tilex=(-ts->hscroll)>>3
     bic     r8, r8, #0x3fc00000
-    orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|had_output[24]|tilex[21:0])
+    orr     r8, r8, r5, lsl #25   @ r8=(xmask[31:25]|had_output[24]|!force[23]|tilex[21:0])
 
     ldr     r11, [sp, #9*4]       @ est
     orr     r5, r1, r10, lsl #24
@@ -558,10 +544,12 @@ DrawLayer:
     ldreq   r3, [r1, #0x40]       @ r3=vsram[0x20..0x21]
     str     r3, [r1, #0x7c]       @ vsram[0x3e..0x3f]=r3
 0:
-    tst     r9, #1<<31
+    tst     r9, #1<<30
     mov     r3, #0
     orrne   r10,r10, #1<<23 @ r10=(cell[31:24]|sh[23]|hi_not_empty[22]|cells_max[21:16]|plane[15]|ty[14:0])
-    movne   r3, #0x40       @ default to shadowed pal on sh mode
+    movne   r3, #0x80       @ default to shadowed pal on sh mode
+@    tst     r9, #1<<31
+@    orreq   r8, r8, #1<<23
 
     and     r9, r9, #0xff00
     add     r8, r8, r9, lsr #8   @ tilex+=cellskip
@@ -576,14 +564,16 @@ DrawLayer:
     mvn     r9, #0               @ r9=prevcode=-1
     add     r1, r11, r7          @ r1=pdest
 
+    @ r10=cells[31:24]|sh[23]|hi_not_empty[22]|cells_max[21:16]|plane[15]|ty[14:0]
+    @ r8=xmask[31:25]|had_output[24]|!force[23]|tilex[21:0]
+    @ r5=shift_width[31:24]|scanline[23:16]|ymask[15:0]
+    @ r3=nametabadd[31:16]|must_be_0[15:8]|pal[7:0]
+    @ r1=pd+dx r2=pack r6=hc r9=prevcode r11=HighCol r12=nametab lr=vram
     @ r4 & r7 are scratch in this loop
-.dsloop_vs_subr1:
-    sub     r1, r1, #8
-.dsloop_vs: @ 40-41 times
-    add     r10,r10, #0x01000000
-    and     r4, r10, #0x003f0000
-    cmp     r4, r10, asr #8
-    ble     .dsloop_vs_exit
+
+    @ need to calc new ty?
+    lsls    r7, r10, #7           @ (cell&1)?
+    bmi     .dsloop_vs_subr1
 
     @ calc offset and read tileline code to r7, also calc ty
     add_c24 r7, lr, (OFS_PMEM_vsram-OFS_PMEM_vram)
@@ -603,24 +593,55 @@ DrawLayer:
     mov     r4, r4, lsr #19
     mov     r7, r5, lsr #24
     mov     r4, r4, lsl r7        @ nametabadd
+    and     r3, r3, #0xff
+    orr     r3, r3, r4, lsl #16   @ r3=(nametabadd[31:16],pal[15:0])
 
+.dsloop_vs_subr1:
+    sub     r1, r1, #8
+.dsloop_vs: @ 40-41 times
+    add     r10,r10, #0x01000000
+    and     r4, r10, #0x003f0000
+    cmp     r4, r10, asr #8
+    ble     .dsloop_vs_exit
+
+    @ need to calc new ty?
+    lsls    r7, r10, #7           @ (cell&1)?
+    bmi     0f
+
+    @ calc offset and read tileline code to r7, also calc ty
+    add_c24 r7, lr, (OFS_PMEM_vsram-OFS_PMEM_vram)
+    and     r4, r10, #0x3e000000
+    add     r7, r7, r4, asr #23   @ vsram + ((cell&0x3e)<<1)
+    tst     r10,#0x8000           @ plane1?
+    addne   r7, r7, #2
+    ldrh    r7, [r7]              @ r7=vscroll
+
+    bic     r10,r10,#0xff         @ clear old ty
+    and     r4, r5, #0xff0000     @ scanline
+    add     r4, r4, r7, lsl #16   @ ... += vscroll
+    and     r4, r4, r5, lsl #16   @ ... &= ymask
+    and     r7, r4, #0x70000
+    orr     r10,r10,r7, lsr #15   @ new ty
+
+    mov     r4, r4, lsr #19
+    mov     r7, r5, lsr #24
+    mov     r4, r4, lsl r7        @ nametabadd
+    and     r3, r3, #0xff
+    orr     r3, r3, r4, lsl #16   @ r3=(nametabadd[31:16],pal[15:0])
+0:
     and     r7, r8, r8, lsr #25
     add     r7, lr, r7, lsl #1    @ PicoMem.vram+((tilex&ts->xmask) as halfwords)
-    add     r7, r7, r4, lsl #1
+    add     r7, r7, r3, lsr #15
     ldrh    r7, [r7, r12]         @ r7=code (int, but from unsigned, no sign extend)
 
     add     r1, r1, #8
     add     r8, r8, #1
-
-    tst     r7, #0x8000
-    bne     .DrawStrip_vs_hiprio
 
     orr     r7, r7, r10, lsl #24  @ code | (ty << 24)
     cmp     r7, r9
     beq     .DrawStrip_vs_samecode @ we know stuff about this tile already
 
     mov     r9, r7          @ remember code
-    orr     r8, r8, #(1<<24)@ seen non hi-prio tile
 
     movs    r2, r9, lsl #20 @ if (code&0x1000)
     mov     r2, r2, lsl #1
@@ -630,13 +651,18 @@ DrawLayer:
 
     ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
 
-    bic     r7, r3, #0x3f
-    and     r3, r9, #0x6000
-    add     r3, r7, r3, lsr #9 @ r3=pal=((code&0x6000)>>9);
-
 .DrawStrip_vs_samecode:
+    tst     r9, #0x8000
+@    tstne   r8, #1<<23     @ !force[23]
+    bne     .DrawStrip_vs_hiprio
+
+    orr     r8, r8, #(1<<24)@ seen non hi-prio tile
     tst     r2, r2
     beq     .dsloop_vs              @ tileline blank
+
+    bic     r7, r3, #0x7f
+    and     r3, r9, #0x6000
+    add     r3, r7, r3, lsr #9 @ r3=pal=((code&0x6000)>>9);
 
     cmp     r2, r2, ror #4
     beq     .DrawStrip_vs_SingleColor @ tileline singlecolor 
@@ -667,30 +693,18 @@ DrawLayer:
     b       .dsloop_vs_subr1
 
 .DrawStrip_vs_hiprio:
-    tst     r10, #0x00c00000
-    beq     .DrawStrip_vs_hiprio_maybempt
-    sub     r0, r1, r11
-    orr     r7, r7, r0,  lsl #16
-    orr     r7, r7, r10, lsl #25 @ (ty<<25)
-    tst     r7, #0x1000
-    eorne   r7, r7, #7<<26  @ if(code&0x1000) cval^=7<<26;
-    str     r7, [r6], #4    @ cache hi priority tile
-    mov     r0, #0xf
-    b       .dsloop_vs
+    tst     r10, #(1<<23)   @ sh[23]
+    tsteq   r2, r2          @ if (!sh[23] && code==blank) continue
+    beq     .dsloop_vs
 
-.DrawStrip_vs_hiprio_maybempt:
-    cmp     r7, r9
-    beq     .dsloop_vs         @ must've been empty, otherwise we wouldn't get here
-    movs    r2, r7, lsl #20 @ if (code&0x1000)
-    mov     r2, r2, lsl #1
-    add     r2, r2, r10, lsl #17
-    mov     r2, r2, lsr #17
-    eorcs   r2, r2, #0x0e   @ if (code&0x1000) addr^=0xe;
-    ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
-    mov     r9, r7          @ remember code
-    tst     r2, r2
-    orrne   r10, r10, #1<<22
-    bne     .DrawStrip_vs_hiprio
+@    orr     r10, r10, #1<<22 @ hi_not_empty[22]
+    sub     r7, r1, r11
+    orr     r7, r9, r7,  lsl #16
+    orr     r7, r7, r10, lsl #25 @ (ty<<25)
+    tst     r9, #0x1000
+    eorne   r7, r7, #7<<26  @ if(code&0x1000) cval^=7<<26;
+    str     r7, [r6], #4    @ cache hi priority tile code
+    str     r2, [r6], #4    @ cache hi priority tile data
     b       .dsloop_vs
 
 .dsloop_vs_exit:
@@ -702,8 +716,7 @@ DrawLayer:
     orreq   r2, r2, #PDRAW_PLANE_HI_PRIO @ had a layer with all hi-prio tiles
     streq   r2, [r1, #OFS_EST_rendstatus]
 
-    ldmfd   sp!, {r4-r11,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r11,pc}
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -728,11 +741,11 @@ DrawLayer:
     stmia   sp, {r0,r2,r3,r5,r6,r9}
 
     mov     r0, sp
-    bl      DrawStripInterlace @ struct TileStrip *ts
+    mov     r1, r9, lsr #29
+    bl      DrawStripInterlace @ struct TileStrip *ts, int plane_sh
 
     add     sp, sp, #6*4
-    ldmfd   sp!, {r4-r11,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r11,pc}
 
 .pool
 
@@ -750,7 +763,7 @@ BackFill:
     mov     r0, r0, lsr #26
     add     lr, lr, #8
 
-    orr     r0, r0, r1, lsl #6
+    orr     r0, r0, r1, lsl #7
     orr     r0, r0, r0, lsl #8
     orr     r0, r0, r0, lsl #16
 
@@ -774,8 +787,7 @@ BackFill:
     stmia   lr!, {r0-r7}
     stmia   lr!, {r0-r7}
 
-    ldmfd   sp!, {r4-r9,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r9,pc}
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -793,7 +805,6 @@ DrawTilesFromCache:
     ldr     lr, [r3, #OFS_EST_PicoMem_vram]
     mov     r9, r3         @ est
 
-    mvn     r5, #0         @ r5=prevcode=-1
     ands    r8, r1, #1
     orr     r8, r8, r2, lsl #1
     bne     .dtfc_check_rendflags
@@ -806,22 +817,11 @@ DrawTilesFromCache:
     bic     r4, r1, #0xfe00
     add     r1, r11, r4     @ r1=pdest
 
-    movs    r7, r6, lsl #16
-    cmp     r5, r7, lsr #16
-    beq     .dtfc_samecode  @ if (code==prevcode)
+    ldr     r2, [r0], #4    @ read pixel data
 
-    mov     r5, r7, lsr #16
-
-    mov     r2, r5, lsl #21
-    mov     r2, r2, lsr #17 @ r2=addr=(code&0x7ff)<<4;
-    add     r2, r2, r6, lsr #25 @ addr+=ty
-
-    and     r3, r5, #0x6000
+    and     r3, r6, #0x6000
     mov     r3, r3, lsr #9  @ r3=pal=((code&0x6000)>>9);
 
-    ldr     r2, [lr, r2, lsl #1] @ pack=*(unsigned int *)(Pico.vram+addr); // Get 8 pixels
-
-.dtfc_samecode:
     rsbs    r4, r4, r8, lsr #1
     bmi     .dtfc_cut_tile
 
@@ -834,7 +834,7 @@ DrawTilesFromCache:
     cmp     r2, r2, ror #4
     beq     .dtfc_SingleColor @ tileline singlecolor 
 
-    tst     r5, #0x0800
+    tst     r6, #0x0800
     bne     .dtfc_TileFlip
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
@@ -866,7 +866,7 @@ DrawTilesFromCache:
     cmp     r2, r2, ror #4
     beq     .dtfc_SingleColor @ tileline singlecolor 
 
-    tst     r5, #0x0800
+    tst     r6, #0x0800
     bne     .dtfc_TileFlipShHP
 
     @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
@@ -881,8 +881,8 @@ DrawTilesFromCache:
 .dtfc_shadow_blank:
     tst     r1, #1
     ldrneb  r4, [r1]
-    mov     r6, #0xbf
-    and     r4, r4, #0xbf
+    mov     r6, #0x7f
+    and     r4, r4, r6
     strneb  r4, [r1], #1
     ldrh    r4, [r1]
     orr     r6, r6, r6, lsl #8
@@ -906,7 +906,7 @@ DrawTilesFromCache:
     mov     r12,#0xf<<28
     mov     r12,r12,asr r4
     mov     r2, r2, ror #16
-    tst     r5, #0x0800     @ flipped?
+    tst     r6, #0x0800     @ flipped?
     mvnne   r12,r12
     and     r2, r2, r12
     mov     r2, r2, ror #16
@@ -915,7 +915,7 @@ DrawTilesFromCache:
     bne     .dtfc_shadow
     tst     r2, r2
     beq     .dtfc_loop
-    tst     r5, #0x0800
+    tst     r6, #0x0800
     beq     .dtfc_TileNorm
     b       .dtfc_TileFlip
 
@@ -932,7 +932,7 @@ DrawTilesFromCache:
 
     add     r1, r11,#8
     mov     r3, #320/4/4
-    mov     r6, #0xbf
+    mov     r6, #0x7f
     orr     r6, r6, r6, lsl #8
     orr     r6, r6, r6, lsl #16
 .dtfc_loop_shprep:
@@ -945,7 +945,6 @@ DrawTilesFromCache:
     stmia   r1!,{r2,r4,r5,r7}
     bne     .dtfc_loop_shprep
 
-    mvn     r5, #0         @ r5=prevcode=-1
     b       .dtfc_loop
 
 .pool
@@ -981,8 +980,8 @@ DrawSpritesSHi:
 
 DrawSpriteSHi:
     @ draw next sprite
-    ldrb    r0, [r10,#-1]!
     ldr     r7, [sp]        @ est
+    ldrb    r0, [r10,#-1]!
     ldr     r1, [r7, #OFS_EST_HighPreSpr]
     cmp     r0, #0xff
     ldmeqfd sp!, {r1,r3-r11,pc} @ end of list
@@ -1001,6 +1000,7 @@ DrawSpriteSHi:
     orr     r9, r9, #0x90000000 @ r9=scc1 ???? ... <code> (s=shadow/hilight, cc=pal)
     cmp     r12,r9, lsr #28 @ sh/hi with pal3?
     cmpne   r3, #1          @ if not, is it hi prio?
+    strne   r3, [sp, #4]    @ reset last sprite width
     bne     DrawSpriteSHi   @ non-operator low sprite, already drawn
 
     ldr     r3, [r0]        @ sprite[0]
@@ -1231,7 +1231,7 @@ DrawSprite:
     orrs    r9, r9, #0x10000000 @ r9=scc1 ???? ... <code> (s=shadow/hilight, cc=pal)
 
     mov     r3, r4, lsr #9     @ r3=pal=((code>>9)&0x30);
-    orrmi   r3, r3, #0x40      @ for sh/hi
+    orrmi   r3, r3, #0x80      @ for sh/hi
 
     adds    r0, r2, #0         @ mov sx to r0 and set ZV flags
     b       .dspr_loop_enter
@@ -1345,12 +1345,10 @@ DrawWindow:
     ldrh    r7, [lr, r12]
 
     ands    r6, r6, #PDRAW_WND_DIFF_PRIO
-    orr     r6, r6, r2
-
-    eoreq   r8, r2, r7, lsr #15   @ do prio bits differ?
-    cmpeq   r8, #1
+    cmpeq   r2, #1                @ prio && !(rendstatus & WND_DIFF_PRIO)?
     ldmeqfd sp!, {r4-r11,pc}      @ yes, assume that whole window uses same priority
 
+    orr     r6, r6, r2
     orr     r6, r6, r3, lsl #8    @ shadow mode
 
     sub     r8, r1, r0
@@ -1375,7 +1373,7 @@ DrawWindow:
 
     eor     r5, r6, r7, lsr #15
     tst     r5, #1
-    orrne   r6, r6, #2      @ wrong pri
+    orrne   r6, r6, #PDRAW_WND_DIFF_PRIO @ wrong pri
     bne     .dwloop
 
     cmp     r7, r9
@@ -1427,10 +1425,10 @@ DrawWindow:
 
 .dw_shadow:
     tst     r6, #1             @ hi pri?
-    orreq   r3, r3, #0x40
+    orreq   r3, r3, #0x80
     beq     .dw_shadow_done
     ldr     r4, [r1]
-    mov     r5, #0x3f
+    mov     r5, #0x7f
     orr     r5, r5, r5, lsl #8
     orr     r5, r5, r5, lsl #16
     and     r4, r4, r5
@@ -1449,33 +1447,6 @@ DrawWindow:
     str     r1, [r0, #OFS_EST_rendstatus]
 
     bx      lr
-
-
-@ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-
-@ hilights 2 pixels in RGB444/BGR444 format
-.macro TileDoShHi2Pixels444 reg
-    mov     \reg, \reg, ror #12
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #28
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #28
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #24
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #28
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #28
-    adds    \reg, \reg, #0x40000000
-    orrcs   \reg, \reg, #0xf0000000
-    mov     \reg, \reg, ror #12
-.endm
 
 
 @ @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1526,8 +1497,7 @@ vidConvCpyRGB565: @ void *to, void *from, int pixels
     orr     r8, r8, #0x0800
     orr     r8, r8, r8, lsl #16
     vidConvCpyRGB565_local
-    ldmfd   sp!, {r4-r9,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r9,pc}
 
 
 @ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
@@ -1558,28 +1528,15 @@ PicoDoHighPal555:
     beq     PicoDoHighPal555_end
 
     add     r3, r10, #OFS_EST_HighPal
-
-    @ shadowed pixels:
-    mov     r12,    #0x008e
     add     r4, r3, #0x40*2
-    orr     r12,r12,#0x7300
-    add     r5, r3, #0xc0*2
-    orr     r12,r12,r12,lsl #16
-    mov     lr, #0x40/4
-.fl_loopcpRGB555_sh:
-    ldmia   r3!, {r1,r6}
-    subs    lr, lr, #1
-    and     r1, r12, r1, lsr #1
-    and     r6, r12, r6, lsr #1
-    stmia   r4!, {r1,r6}
-    stmia   r5!, {r1,r6}
-    bne     .fl_loopcpRGB555_sh
 
-    @ hilighted pixels:
+    @ hilighted pixels (0x40-0x7f):
     @  t = ((dpal[i] >> 1) & 0x738e738e) + 0x738e738e;
     @  t |= (t >> 4) & 0x08610861;
     @ r8=0x08610861
-    sub     r3, r3, #0x40*2
+    mov     r12,    #0x008e
+    orr     r12,r12,#0x7300
+    orr     r12,r12,r12,lsl #16
     mov     lr, #0x40/4
 .fl_loopcpRGB555_hi:
     ldmia   r3!, {r1,r6}
@@ -1594,8 +1551,30 @@ PicoDoHighPal555:
     stmia   r4!, {r1,r6}
     subs    lr, lr, #1
     bne     .fl_loopcpRGB555_hi
-    mov     r0, #1
 
+    sub     r3, r3, #0x40*2
+    @ shadowed (0x80-0xbf), shadow|hilight (aka normal, 0xc0-0xff) pixels:
+    add     r5, r3, #0xc0*2
+    mov     lr, #0x40/4
+.fl_loopcpRGB555_sh:
+    ldmia   r3!, {r1,r6}
+    subs    lr, lr, #1
+    stmia   r5!, {r1,r6} @ 0xc0, normal
+    and     r1, r12, r1, lsr #1
+    and     r6, r12, r6, lsr #1
+    stmia   r4!, {r1,r6}
+    bne     .fl_loopcpRGB555_sh
+
+    @ fixup shadowed color 14 in palette 0,1,2 (always normal)
+    sub     r4, r3, #0x40*2
+    ldrh    r1, [r4, #0x0e*2] @ 0x0e, 0x1e, 0x2e
+    ldrh    r5, [r4, #0x1e*2]
+    ldrh    r6, [r4, #0x2e*2]
+    strh    r1, [r3, #0x4e*2] @ 0x8e, 0x9e, 0xae
+    strh    r5, [r3, #0x5e*2]
+    strh    r6, [r3, #0x6e*2]
+
+    mov     r0, #1
 PicoDoHighPal555_end:
     ldmfd   sp!, {r4-r10,pc}
 
@@ -1673,8 +1652,7 @@ FinalizeLine555:
     stmia   r0!, {r4,r5,r8,r12}
     bne     .fl_loopRGB555
 
-    ldmfd   sp!, {r4-r10,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r10,pc}
 
 
 .fl_32scale_RGB555:
@@ -1738,8 +1716,7 @@ FinalizeLine555:
     stmia   r0!, {r4,r5,r6,r8,r10}
     bne     .fl_loop32scale_RGB555
 
-    ldmfd   sp!, {r4-r10,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r10,pc}
 
 #ifdef UNALIGNED_DRAWLINEDEST
     @ unaligned versions of loops
@@ -1784,8 +1761,7 @@ FinalizeLine555:
 
     strh    r8, [r0], #2
 
-    ldmfd   sp!, {r4-r10,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r10,pc}
 
 
 .fl_32scale_RGB555u:
@@ -1850,8 +1826,7 @@ FinalizeLine555:
 
     strh    r4, [r0], #2
 
-    ldmfd   sp!, {r4-r10,lr}
-    bx      lr
+    ldmfd   sp!, {r4-r10,pc}
 
 #endif /* UNALIGNED_DRAWLINEDEST */
 
