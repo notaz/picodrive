@@ -272,7 +272,12 @@ static NOINLINE u32 port_read(int i)
   u32 in, out;
 
   out = data_reg & ctrl_reg;
-  out |= 0x7f & ~ctrl_reg; // pull-ups
+
+  // pull-ups: should be 0x7f, but Decap Attack has a bug where it temp.
+  // disables output before doing TH-low read, so don't emulate it for TH.
+  // Decap Attack reportedly doesn't work on Nomad but works on must
+  // other MD revisions (different pull-up strength?).
+  out |= 0x3f & ~ctrl_reg;
 
   in = port_readers[i](i, out);
 
