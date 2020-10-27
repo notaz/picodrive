@@ -1573,11 +1573,10 @@ static NOINLINE void host_instructions_updated(void *base, void *end, int force)
 {
 	int step, tmp;
 	asm volatile(
-	"	bal	0f;" // needed to allow for jr.hb
-	"	b	3f;"
-
-	"0:	rdhwr	%2, $1;"
-	"	beqz	%2, 2f;"
+	"	rdhwr	%2, $1;"
+	"	bal	0f;"			// needed to allow for jr.hb:
+	"0:	addiu	$ra, $ra, 3f-0b;"	//   set ra to insn after jr.hb
+	"	beqz	%2, 3f;"
 
 	"1:	synci	0(%0);"
 	"	sltu	%3, %0, %1;"

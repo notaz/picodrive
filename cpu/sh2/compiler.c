@@ -816,13 +816,13 @@ static void dr_block_link(struct block_entry *be, struct block_link *bl, int emi
         emith_jump_patch(jump, bl->blx, &jump);
         emith_jump_at(bl->blx, be->tcache_ptr);
         host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size(),
-            ((uintptr_t)bl->blx & 0x0f) + emith_jump_at_size()-1 > 0x0f);
+            ((uintptr_t)bl->blx & 0x1f) + emith_jump_at_size()-1 > 0x1f);
       }
     } else {
       printf("unknown BL type %d\n", bl->type);
       exit(1);
     }
-    host_instructions_updated(jump, jump + jsz, ((uintptr_t)jump & 0x0f) + jsz-1 > 0x0f);
+    host_instructions_updated(jump, jump + jsz, ((uintptr_t)jump & 0x1f) + jsz-1 > 0x1f);
   }
 
   // move bl to block_entry
