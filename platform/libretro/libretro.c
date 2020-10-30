@@ -124,6 +124,71 @@ char **g_argv;
 #define SLASH '/'
 #endif
 
+/* Frameskipping Support */
+
+static unsigned frameskip_type             = 0;
+static unsigned frameskip_threshold        = 0;
+static uint16_t frameskip_counter          = 0;
+
+static bool retro_audio_buff_active        = false;
+static unsigned retro_audio_buff_occupancy = 0;
+static bool retro_audio_buff_underrun      = false;
+/* Maximum number of consecutive frames that
+ * can be skipped */
+#define FRAMESKIP_MAX 60
+
+static unsigned audio_latency              = 0;
+static bool update_audio_latency           = false;
+
+static void retro_audio_buff_status_cb(
+      bool active, unsigned occupancy, bool underrun_likely)
+{
+   retro_audio_buff_active    = active;
+   retro_audio_buff_occupancy = occupancy;
+   retro_audio_buff_underrun  = underrun_likely;
+}
+
+static void init_frameskip(void)
+{
+   if (frameskip_type > 0)
+   {
+      struct retro_audio_buffer_status_callback buf_status_cb;
+
+      buf_status_cb.callback = retro_audio_buff_status_cb;
+      if (!environ_cb(RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK,
+            &buf_status_cb))
+      {
+         if (log_cb)
+            log_cb(RETRO_LOG_WARN, "Frameskip disabled - frontend does not support audio buffer status monitoring.\n");
+
+         retro_audio_buff_active    = false;
+         retro_audio_buff_occupancy = 0;
+         retro_audio_buff_underrun  = false;
+         audio_latency              = 0;
+      }
+      else
+      {
+         /* Frameskip is enabled - increase frontend
+          * audio latency to minimise potential
+          * buffer underruns */
+         float frame_time_msec = 1000.0f / (Pico.m.pal ? 50.0f : 60.0f);
+
+         /* Set latency to 6x current frame time... */
+         audio_latency = (unsigned)((6.0f * frame_time_msec) + 0.5f);
+
+         /* ...then round up to nearest multiple of 32 */
+         audio_latency = (audio_latency + 0x1F) & ~0x1F;
+      }
+   }
+   else
+   {
+      environ_cb(RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK, NULL);
+      audio_latency = 0;
+   }
+
+   update_audio_latency = true;
+}
+
 /* functions called by the core */
 
 void cache_flush_d_inval_i(void *start, void *end)
@@ -1179,6 +1244,8 @@ bool retro_load_game(const struct retro_game_info *info)
    /* Setup retro memory maps */
    set_memory_maps();
 
+   init_frameskip();
+
    return true;
 }
 
@@ -1302,11 +1369,12 @@ static enum input_device input_name_to_val(const char *name)
    return PICO_INPUT_PAD_3BTN;
 }
 
-static void update_variables(void)
+static void update_variables(bool first_run)
 {
    struct retro_variable var;
    int OldPicoRegionOverride;
    float old_user_vout_width;
+   unsigned old_frameskip_type;
    double new_sound_rate;
 
    var.value = NULL;
@@ -1439,6 +1507,22 @@ static void update_variables(void)
       PicoIn.sndFilterRange = (atoi(var.value) * 65536) / 100;
    }
 
+   old_frameskip_type = frameskip_type;
+   frameskip_type     = 0;
+   var.key            = "picodrive_frameskip";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "auto") == 0)
+         frameskip_type = 1;
+      else if (strcmp(var.value, "manual") == 0)
+         frameskip_type = 2;
+   }
+
+   frameskip_threshold = 33;
+   var.key             = "picodrive_frameskip_threshold";
+   var.value           = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      frameskip_threshold = strtol(var.value, NULL, 10);
+
    var.value = NULL;
    var.key = "picodrive_renderer";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
@@ -1461,6 +1545,12 @@ static void update_variables(void)
          environ_cb(RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &av_info);
       }
    }
+
+   /* Reinitialise frameskipping, if required */
+   if (((frameskip_type != old_frameskip_type) ||
+        (Pico.rom && PicoIn.regionOverride != OldPicoRegionOverride)) &&
+       !first_run)
+      init_frameskip();
 }
 
 void retro_run(void)
@@ -1469,8 +1559,10 @@ void retro_run(void)
    int pad, i;
    static void *buff;
 
+   PicoIn.skipFrame = 0;
+
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
-      update_variables();
+      update_variables(false);
 
    input_poll_cb();
 
@@ -1480,8 +1572,48 @@ void retro_run(void)
          if (input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, i))
             PicoIn.pad[pad] |= retro_pico_map[i];
 
-   PicoPatchApply();
+   if (PicoPatches)
+      PicoPatchApply();
+
+   /* Check whether current frame should
+    * be skipped */
+   if ((frameskip_type > 0) && retro_audio_buff_active) {
+      switch (frameskip_type)
+      {
+         case 1: /* auto */
+            PicoIn.skipFrame = retro_audio_buff_underrun ? 1 : 0;
+            break;
+         case 2: /* manual */
+            PicoIn.skipFrame = (retro_audio_buff_occupancy < frameskip_threshold) ? 1 : 0;
+            break;
+         default:
+            PicoIn.skipFrame = 0;
+            break;
+      }
+
+      if (!PicoIn.skipFrame || (frameskip_counter >= FRAMESKIP_MAX)) {
+         PicoIn.skipFrame  = 0;
+         frameskip_counter = 0;
+      } else
+         frameskip_counter++;
+   }
+
+   /* If frameskip settings have changed, update
+    * frontend audio latency */
+   if (update_audio_latency) {
+      environ_cb(RETRO_ENVIRONMENT_SET_MINIMUM_AUDIO_LATENCY,
+            &audio_latency);
+      update_audio_latency = false;
+   }
+
    PicoFrame();
+
+   /* If frame was skipped, call video_cb() with
+    * a NULL buffer and return immediately */
+   if (PicoIn.skipFrame) {
+      video_cb(NULL, vout_width, vout_height, vout_width * 2);
+      return;
+   }
 
 #if defined(RENDER_GSKIT_PS2)
    buff = (uint32_t *)RETRO_HW_FRAME_BUFFER_VALID;
@@ -1656,7 +1788,16 @@ void retro_init(void)
    PicoIn.mcdTrayOpen = disk_tray_open;
    PicoIn.mcdTrayClose = disk_tray_close;
 
-   update_variables();
+   frameskip_type             = 0;
+   frameskip_threshold        = 0;
+   frameskip_counter          = 0;
+   retro_audio_buff_active    = false;
+   retro_audio_buff_occupancy = 0;
+   retro_audio_buff_underrun  = false;
+   audio_latency              = 0;
+   update_audio_latency       = false;
+
+   update_variables(true);
 }
 
 void retro_deinit(void)
