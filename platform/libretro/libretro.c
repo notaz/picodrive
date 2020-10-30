@@ -1740,6 +1740,7 @@ void retro_init(void)
 
 #ifdef _3DS
    ctr_svchack_successful = ctr_svchack_init();
+   check_rosalina();
 #elif defined(VITA)
    sceBlock = getVMBlock();
 #endif

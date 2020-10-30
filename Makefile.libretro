@@ -227,7 +227,7 @@ else ifeq ($(platform), ctr)
 	NO_MMAP = 1
 	DONT_COMPILE_IN_ZLIB = 1
 
-	OBJS +=platform/libretro/3ds/3ds_utils.o
+	OBJS += platform/libretro/3ds/3ds_utils.o platform/libretro/3ds/utils.o
 
 # Raspberry Pi (original model) Raspbian
 else ifeq ($(platform), raspberrypi)
