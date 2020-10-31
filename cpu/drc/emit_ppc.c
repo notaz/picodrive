@@ -1497,6 +1497,17 @@ static int emith_cond_check(int cond)
 	emith_call_reg(AT); \
 } while (0)
 
+#define emith_abijump_reg(r) \
+	emith_jump_reg(r)
+#define emith_abijump_reg_c(cond, r) \
+	emith_abijump_reg(r)
+#define emith_abicall(target) \
+	emith_call(target)
+#define emith_abicall_cond(cond, target) \
+	emith_abicall(target)
+#define emith_abicall_reg(r) \
+	emith_call_reg(r)
+
 #define emith_call_cleanup()	/**/
 
 #define emith_ret() \

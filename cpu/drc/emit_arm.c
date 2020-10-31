@@ -1221,6 +1221,17 @@ static inline void emith_pool_adjust(int tcache_offs, int move_offs)
 	emith_jump_ctx(offs); \
 } while (0)
 
+#define emith_abijump_reg(r) \
+	emith_jump_reg(r)
+#define emith_abijump_reg_c(cond, r) \
+	emith_jump_reg_c(cond, r)
+#define emith_abicall(target) \
+	emith_call(target)
+#define emith_abicall_cond(cond, target) \
+	emith_call_cond(cond, target)
+#define emith_abicall_reg(r) \
+	emith_call_reg(r)
+
 #define emith_call_cleanup()	/**/
 
 #define emith_ret_c(cond) \

@@ -3550,7 +3550,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       emith_move_r_imm(tmp4, pc);
       emith_ctx_write(tmp4, SHR_PC * 4);
       rcache_invalidate_tmp();
-      emith_call(sh2_drc_log_entry);
+      emith_abicall(sh2_drc_log_entry);
       emith_restore_caller_regs(tmp);
 #endif
 
@@ -3570,7 +3570,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       emith_save_caller_regs(tmp);
       emit_do_static_regs(1, 0);
       emith_pass_arg_r(0, CONTEXT_REG);
-      emith_call(do_sh2_cmp);
+      emith_abicall(do_sh2_cmp);
       emith_restore_caller_regs(tmp);
     }
 #endif
@@ -3905,7 +3905,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             rcache_get_reg_arg(0, div(opd).rn, NULL);
             rcache_get_reg_arg(1, div(opd).rm, NULL);
             rcache_invalidate_tmp();
-            emith_call(sh2_drc_divu32);
+            emith_abicall(sh2_drc_divu32);
             tmp = rcache_get_tmp_ret();
 #if REMAP_REGISTER
             tmp2 = rcache_map_reg(div(opd).rn, tmp);
@@ -3932,7 +3932,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             rcache_get_reg_arg(0, div(opd).rn, NULL);
             rcache_get_reg_arg(2, div(opd).rm, NULL);
             rcache_invalidate_tmp();
-            emith_call(sh2_drc_divu64);
+            emith_abicall(sh2_drc_divu64);
             tmp = rcache_get_tmp_ret();
 #if REMAP_REGISTER
             tmp2 = rcache_map_reg(div(opd).rn, tmp);
@@ -4030,7 +4030,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_lsr(tmp3, tmp2, 31);
           emith_or_r_r_lsl(sr, tmp3, M_SHIFT);        // M = Rm[31]
           rcache_invalidate_tmp();
-          emith_call(sh2_drc_divs32);
+          emith_abicall(sh2_drc_divs32);
           tmp = rcache_get_tmp_ret();
 #if REMAP_REGISTER
           tmp2 = rcache_map_reg(div(opd).rn, tmp);
@@ -4060,7 +4060,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_or_r_r_lsl(sr, tmp3, M_SHIFT);         // M = Rm[31]
           emith_add_r_r_ptr_imm(tmp3, CONTEXT_REG, offsetof(SH2, drc_tmp));
           rcache_invalidate_tmp();
-          emith_call(sh2_drc_divs64);
+          emith_abicall(sh2_drc_divs64);
           tmp = rcache_get_tmp_ret();
 #if REMAP_REGISTER
           tmp2 = rcache_map_reg(div(opd).rn, tmp);
@@ -5214,7 +5214,7 @@ static void sh2_generate_utils(void)
   emith_ret_c(DCOND_CC);
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
-  emith_jump_reg(arg2);
+  emith_abijump_reg(arg2);
   emith_flush();
 
   // d = sh2_drc_read16(u32 a)
@@ -5228,7 +5228,7 @@ static void sh2_generate_utils(void)
   emith_ret_c(DCOND_CC);
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
-  emith_jump_reg(arg2);
+  emith_abijump_reg(arg2);
   emith_flush();
 
   // d = sh2_drc_read32(u32 a)
@@ -5243,7 +5243,7 @@ static void sh2_generate_utils(void)
   emith_ret_c(DCOND_CC);
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
-  emith_jump_reg(arg2);
+  emith_abijump_reg(arg2);
   emith_flush();
 
   // d = sh2_drc_read8_poll(u32 a)
@@ -5253,14 +5253,14 @@ static void sh2_generate_utils(void)
   emith_sh2_rcall(arg0, arg1, arg2, arg3);
   EMITH_SJMP_START(DCOND_CC);
   emith_move_r_r_ptr_c(DCOND_CS, arg1, CONTEXT_REG);
-  emith_jump_reg_c(DCOND_CS, arg2);
+  emith_abijump_reg_c(DCOND_CS, arg2);
   EMITH_SJMP_END(DCOND_CC);
   emith_and_r_r_r(arg1, arg0, arg3);
   emith_eor_r_imm_ptr(arg1, 1);
   emith_read8s_r_r_r(arg1, arg2, arg1);
   emith_push_ret(arg1);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
-  emith_call(p32x_sh2_poll_memory8);
+  emith_abicall(p32x_sh2_poll_memory8);
   emith_pop_and_ret(arg1);
   emith_flush();
 
@@ -5271,13 +5271,13 @@ static void sh2_generate_utils(void)
   emith_sh2_rcall(arg0, arg1, arg2, arg3);
   EMITH_SJMP_START(DCOND_CC);
   emith_move_r_r_ptr_c(DCOND_CS, arg1, CONTEXT_REG);
-  emith_jump_reg_c(DCOND_CS, arg2);
+  emith_abijump_reg_c(DCOND_CS, arg2);
   EMITH_SJMP_END(DCOND_CC);
   emith_and_r_r_r(arg1, arg0, arg3);
   emith_read16s_r_r_r(arg1, arg2, arg1);
   emith_push_ret(arg1);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
-  emith_call(p32x_sh2_poll_memory16);
+  emith_abicall(p32x_sh2_poll_memory16);
   emith_pop_and_ret(arg1);
   emith_flush();
 
@@ -5288,14 +5288,14 @@ static void sh2_generate_utils(void)
   emith_sh2_rcall(arg0, arg1, arg2, arg3);
   EMITH_SJMP_START(DCOND_CC);
   emith_move_r_r_ptr_c(DCOND_CS, arg1, CONTEXT_REG);
-  emith_jump_reg_c(DCOND_CS, arg2);
+  emith_abijump_reg_c(DCOND_CS, arg2);
   EMITH_SJMP_END(DCOND_CC);
   emith_and_r_r_r(arg1, arg0, arg3);
   emith_read_r_r_r(arg1, arg2, arg1);
   emith_ror(arg1, arg1, 16);
   emith_push_ret(arg1);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
-  emith_call(p32x_sh2_poll_memory32);
+  emith_abicall(p32x_sh2_poll_memory32);
   emith_pop_and_ret(arg1);
   emith_flush();
 
@@ -5328,7 +5328,7 @@ static void sh2_generate_utils(void)
 #endif
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
   emith_add_r_r_ptr_imm(arg2, CONTEXT_REG, offsetof(SH2, drc_tmp));
-  emith_call(dr_lookup_block);
+  emith_abicall(dr_lookup_block);
   // store PC and block entry ptr (in arg0) in branch target cache
   emith_tst_r_r_ptr(RET_REG, RET_REG);
   EMITH_SJMP_START(DCOND_EQ);
@@ -5350,13 +5350,13 @@ static void sh2_generate_utils(void)
   // lookup failed, call sh2_translate()
   emith_move_r_r_ptr(arg0, CONTEXT_REG);
   emith_ctx_read(arg1, offsetof(SH2, drc_tmp)); // tcache_id
-  emith_call(sh2_translate);
+  emith_abicall(sh2_translate);
   emith_tst_r_r_ptr(RET_REG, RET_REG);
   EMITH_SJMP_START(DCOND_EQ);
   emith_jump_reg_c(DCOND_NE, RET_REG);
   EMITH_SJMP_END(DCOND_EQ);
   // XXX: can't translate, fail
-  emith_call(dr_failure);
+  emith_abicall(dr_failure);
   emith_flush();
 
 #if CALL_STACK
@@ -5428,13 +5428,13 @@ static void sh2_generate_utils(void)
   emith_clear_msb(tmp, tmp, 22);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
   rcache_invalidate_tmp();
-  emith_call(p32x_sh2_write32); // XXX: use sh2_drc_write32?
+  emith_abicall(p32x_sh2_write32); // XXX: use sh2_drc_write32?
   // push PC
   rcache_get_reg_arg(0, SHR_SP, NULL);
   rcache_get_reg_arg(1, SHR_PC, NULL);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
   rcache_invalidate_tmp();
-  emith_call(p32x_sh2_write32);
+  emith_abicall(p32x_sh2_write32);
   // update I, cycles, do callback
   emith_ctx_read(arg1, offsetof(SH2, pending_level));
   sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);

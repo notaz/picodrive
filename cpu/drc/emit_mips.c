@@ -11,6 +11,7 @@
 // saved: r16-r23,r30, reserved: r0(zero), r26-r27(irq), r28(gp), r29(sp)
 // r1,r15,r24,r25(at,t7-t9) are used internally by the code emitter
 // MIPSN32/MIPS64 ABI: params: r4-r11, no caller-reserved save area on stack
+// for PIC code, on function calls r25(t9) must contain the called address
 #define RET_REG		2 // v0
 #define PARAM_REGS	{ 4, 5, 6, 7 } // a0-a3
 #define	PRESERVED_REGS	{ 16, 17, 18, 19, 20, 21, 22, 23 } // s0-s7
@@ -26,6 +27,7 @@
 
 // registers usable for user code: r1-r25, others reserved or special
 #define Z0		0  // zero register
+#define	CR		25 // call register
 #define	GP		28 // global pointer
 #define	SP		29 // stack pointer
 #define	FP		30 // frame pointer
@@ -1510,8 +1512,8 @@ static int emith_cond_check(int cond, int *r)
 	emith_jump_reg(r)
 
 #define emith_jump_ctx(offs) do { \
-	emith_ctx_read_ptr(AT, offs); \
-	emith_jump_reg(AT); \
+	emith_ctx_read_ptr(CR, offs); \
+	emith_jump_reg(CR); \
 } while (0)
 #define emith_jump_ctx_c(cond, offs) \
 	emith_jump_ctx(offs)
@@ -1523,10 +1525,26 @@ static int emith_cond_check(int cond, int *r)
 
 #define emith_call_reg(r) \
 	emith_branch(MIPS_JALR(LR, r))
-
 #define emith_call_ctx(offs) do { \
-	emith_ctx_read_ptr(AT, offs); \
-	emith_call_reg(AT); \
+	emith_ctx_read_ptr(CR, offs); \
+	emith_call_reg(CR); \
+} while (0)
+
+#define emith_abijump_reg(r) do { \
+	if ((r) != CR) emith_move_r_r(CR, r); \
+	emith_branch(MIPS_JR(CR)); \
+} while (0)
+#define emith_abijump_reg_c(cond, r) \
+	emith_abijump_reg(r)
+#define emith_abicall(target) do { \
+	emith_move_r_imm(CR, target); \
+	emith_branch(MIPS_JALR(LR, CR)); \
+} while (0)
+#define emith_abicall_cond(cond, target) \
+	emith_abicall(target)
+#define emith_abicall_reg(r) do { \
+	if ((r) != CR) emith_move_r_r(CR, r); \
+	emith_branch(MIPS_JALR(LR, CR)); \
 } while (0)
 
 #define emith_call_cleanup()	/**/
@@ -1627,7 +1645,7 @@ static NOINLINE void host_instructions_updated(void *base, void *end, int force)
 	emith_lsl(func, func, PTR_SCALE); \
 	emith_read_r_r_r_ptr(func, tab, func); \
 	emith_move_r_r_ptr(6, CONTEXT_REG); /* arg2 */ \
-	emith_jump_reg(func); \
+	emith_abijump_reg(func); \
 } while (0)
 
 #define emith_sh2_delay_loop(cycles, reg) do {			\
