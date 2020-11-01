@@ -9,7 +9,8 @@ typedef enum {
   SHR_R0 = 0, SHR_SP = 15,
   SHR_PC,  SHR_PPC, SHR_PR,   SHR_SR,
   SHR_GBR, SHR_VBR, SHR_MACH, SHR_MACL,
-  SH2_REGS // register set size
+  SH2_REGS, // register set size
+  SHR_T = 29, SHR_MEM = 30, SHR_TMP = 31, // drc specific pseudo regs
 } sh2_reg_e;
 #define	SHR_R(n)	(SHR_R0+(n))
 

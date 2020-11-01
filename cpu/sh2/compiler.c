@@ -109,10 +109,6 @@ static int insns_compiled, hash_collisions, host_insn_count;
 #define GET_Rn() \
   ((op >> 8) & 0x0f)
 
-#define SHR_T	30  // separate T for not-used detection
-#define SHR_MEM	31
-#define SHR_TMP -1
-
 #define T	0x00000001
 #define S	0x00000002
 #define I	0x000000f0
