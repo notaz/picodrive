@@ -1111,7 +1111,7 @@ void cdd_process(void)
       cdd.status = CD_PLAY;
 
       /* return track index in RS2-RS3 */
-      set_reg16(0x38, (CD_SEEK << 8) | 0x02);
+      set_reg16(0x38, (CD_SEEK << 8) | 0x0f);
       set_reg16(0x3a, 0x0000);
       set_reg16(0x3c, 0x0000);
       set_reg16(0x3e, 0x0000);
