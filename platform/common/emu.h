@@ -176,6 +176,10 @@ void plat_video_set_buffer(void *);
 
 void plat_update_volume(int has_changed, int is_up);
 
+/* should be in libpicofe/plat.h */
+void plat_video_clear_status(void);
+void plat_video_clear_buffers(void);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -159,6 +159,8 @@ void rgb565_to_uyvy(void *d, const void *s, int pixels)
   }
 }
 
+static int clear_buf_cnt, clear_stat_cnt;
+
 void plat_video_flip(void)
 {
 	if (plat_sdl_overlay != NULL) {
@@ -183,11 +185,36 @@ void plat_video_flip(void)
 			SDL_Flip(plat_sdl_screen);
 		g_screen_ptr = plat_sdl_screen->pixels;
 		plat_video_set_buffer(g_screen_ptr);
+		if (clear_buf_cnt) {
+			memset(g_screen_ptr, 0, plat_sdl_screen->w*plat_sdl_screen->h * 2);
+			clear_buf_cnt--;
+		}
+	}
+	if (clear_stat_cnt) {
+		unsigned short *d = (unsigned short *)g_screen_ptr + g_screen_ppitch * g_screen_height;
+		int l = g_screen_ppitch * 8;
+		memset((int *)(d - l), 0, l * 2);
+		clear_stat_cnt--;
 	}
 }
 
 void plat_video_wait_vsync(void)
 {
+}
+
+void plat_video_clear_status(void)
+{
+	clear_stat_cnt = 3; // do it thrice in case of triple buffering
+}
+
+void plat_video_clear_buffers(void)
+{
+	if (plat_sdl_overlay != NULL || plat_sdl_gl_active)
+		memset(shadow_fb, 0, plat_sdl_screen->w*plat_sdl_screen->h * 2);
+	else {
+		memset(g_screen_ptr, 0, plat_sdl_screen->w*plat_sdl_screen->h * 2);
+		clear_buf_cnt = 3; // do it thrice in case of triple buffering
+	}
 }
 
 void plat_video_menu_enter(int is_rom_loaded)

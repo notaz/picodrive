@@ -24,7 +24,6 @@ enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 
 static int out_x, out_y;
 static int out_w, out_h;
-static int clr_cnt;
 
 void pemu_prep_defconfig(void)
 {
@@ -84,10 +83,6 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 
 void plat_video_set_buffer(void *buf)
 {
-	if (clr_cnt > 0) {
-		memset32(g_screen_ptr, 0, g_screen_ppitch*g_screen_height*2 / 4);
-		clr_cnt --;
-	}
 	if (currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 }
@@ -118,7 +113,6 @@ static void apply_renderer(void)
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 
 	Pico.m.dirtyPal = 1;
-	clr_cnt = 4;
 }
 
 void plat_video_toggle_renderer(int change, int is_menu)
@@ -137,9 +131,7 @@ void plat_video_toggle_renderer(int change, int is_menu)
 
 void plat_status_msg_clear(void)
 {
-	unsigned short *d = (unsigned short *)g_screen_ptr + g_screen_ppitch * g_screen_height;
-	int l = g_screen_ppitch * 8;
-	memset32((int *)(d - l), 0, l * 2 / 4);
+	plat_video_clear_status();
 }
 
 void plat_status_msg_busy_next(const char *msg)
@@ -153,7 +145,6 @@ void plat_status_msg_busy_next(const char *msg)
 
 void plat_status_msg_busy_first(const char *msg)
 {
-	clr_cnt = 4;
 	plat_status_msg_busy_next(msg);
 }
 
@@ -187,7 +178,7 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 	// clear whole screen in all buffers
 	if (currentConfig.renderer != RT_16BIT && !(PicoIn.AHW & PAHW_32X))
 		memset32(Pico.est.Draw2FB, 0xe0e0e0e0, (320+8) * (8+240+8) / 4);
-	clr_cnt = 4;
+	plat_video_clear_buffers();
 
 	out_y = start_line; out_x = (is_32cols ? 32 : 0);
 	out_h = line_count; out_w = (is_32cols ? 256:320);
@@ -196,6 +187,7 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 void pemu_loop_prep(void)
 {
 	apply_renderer();
+	plat_video_clear_buffers();
 }
 
 void pemu_loop_end(void)

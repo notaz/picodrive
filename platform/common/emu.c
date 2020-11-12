@@ -1366,7 +1366,6 @@ void emu_loop(void)
 	char *notice_msg = NULL;
 	char fpsbuff[24];
 	int fskip_cnt = 0;
-	int statclr_cnt = 4;
 
 	fpsbuff[0] = 0;
 
@@ -1415,9 +1414,7 @@ void emu_loop(void)
 			{
 				notice_msg_time = 0;
 				notice_msg = NULL;
-				/* clear all buffers if multi buffering */
 				plat_status_msg_clear();
-				statclr_cnt = 4;
 			}
 			else {
 				int sum = noticeMsg[0] + noticeMsg[1] + noticeMsg[2];
@@ -1526,12 +1523,6 @@ void emu_loop(void)
 
 		if (!skip && flip_after_sync)
 			plat_video_flip();
-
-		if (!skip && statclr_cnt > 0) {
-			// clear stat msg area in case of multi buffering
-			plat_status_msg_clear();
-			statclr_cnt --;
-		}
 
 		pprof_end(main);
 	}

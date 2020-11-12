@@ -433,27 +433,29 @@ void plat_video_wait_vsync(void)
 
 void plat_status_msg_clear(void)
 {
-	int is_8bit = !is_16bit_mode();
-	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
-		/* ugh.. */
-		int u, *p;
-		if (is_8bit) {
-			p = (int *)g_screen_ptr + (240-8) / 4;
-			for (u = 320; u > 0; u--, p += 240/4)
-				p[0] = p[1] = 0xe0e0e0e0;
+	int i, is_8bit = !is_16bit_mode();
+
+	for (i = 0; i < 4; i++) {
+		if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
+			/* ugh.. */
+			int u, *p;
+			if (is_8bit) {
+				p = (int *)gp2x_screens[i] + (240-8) / 4;
+				for (u = 320; u > 0; u--, p += 240/4)
+					p[0] = p[1] = 0xe0e0e0e0;
+			} else {
+				p = (int *)gp2x_screens[i] + (240-8)*2 / 4;
+				for (u = 320; u > 0; u--, p += 240*2/4)
+					p[0] = p[1] = p[2] = p[3] = 0;
+			}
 		} else {
-			p = (int *)g_screen_ptr + (240-8)*2 / 4;
-			for (u = 320; u > 0; u--, p += 240*2/4)
-				p[0] = p[1] = p[2] = p[3] = 0;
-		}
-		return;
-	} else {
-		if (is_8bit) {
-			char *d = (char *)g_screen_ptr + 320 * (240-8);
-			memset32((int *)d, 0xe0, 320 * 8 / 4);
-		} else {
-			short *d = (short *)g_screen_ptr + 320 * (240-8);
-			memset32((int *)d, 0, 2*320 * 8 / 4);
+			if (is_8bit) {
+				char *d = (char *)gp2x_screens[i] + 320 * (240-8);
+				memset32((int *)d, 0xe0, 320 * 8 / 4);
+			} else {
+				char *d = (char *)gp2x_screens[i] + 320*2 * (240-8);
+				memset32((int *)d, 0, 2*320 * 8 / 4);
+			}
 		}
 	}
 }
