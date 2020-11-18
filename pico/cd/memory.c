@@ -248,7 +248,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
     return d;
 
   cycles = SekCyclesDoneS68k();
-  if (!SekNotPolling && a == Pico_mcd->m.s68k_poll_a) {
+  if (!SekNotPollingS68k && a == Pico_mcd->m.s68k_poll_a) {
     u32 clkdiff = cycles - Pico_mcd->m.s68k_poll_clk;
     if (clkdiff <= POLL_CYCLES) {
       cnt = Pico_mcd->m.s68k_poll_cnt + 1;
