@@ -230,6 +230,13 @@ write_comm:
 
   pcd_sync_s68k(SekCyclesDone(), 0);
   Pico_mcd->s68k_regs[a] = d;
+  if (a == 0x03) {
+    // There are cases when master checks for successful switching of RAM to
+    // slave. This can produce race conditions where slave switches RAM back to
+    // master while master is delayed by interrupt before the check executes.
+    // Delay slave a bit to make sure master can check before slave changes.
+    SekCycleCntS68k += 24;
+  }
   if (Pico_mcd->m.s68k_poll_a == (a & ~1))
   {
     if (Pico_mcd->m.s68k_poll_cnt > POLL_LIMIT) {
