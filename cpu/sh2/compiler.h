@@ -1,7 +1,7 @@
 int  sh2_drc_init(SH2 *sh2);
 void sh2_drc_finish(SH2 *sh2);
-void sh2_drc_wcheck_ram(uint32_t a, unsigned len, SH2 *sh2);
-void sh2_drc_wcheck_da(uint32_t a, unsigned len, SH2 *sh2);
+void sh2_drc_wcheck_ram(u32 a, unsigned len, SH2 *sh2);
+void sh2_drc_wcheck_da(u32 a, unsigned len, SH2 *sh2);
 
 #ifdef DRC_SH2
 void sh2_drc_mem_setup(SH2 *sh2);
@@ -27,9 +27,8 @@ void sh2_drc_flush_all(void);
 #define OF_DELAY_LOOP (2 << 2)
 #define OF_POLL_LOOP  (3 << 2)
 
-unsigned short scan_block(uint32_t base_pc, int is_slave,
-		unsigned char *op_flags, uint32_t *end_pc,
-		uint32_t *base_literals, uint32_t *end_literals);
+u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc,
+		u32 *base_literals, u32 *end_literals);
 
 #if defined(DRC_SH2) && defined(__GNUC__) && !defined(__clang__)
 // direct access to some host CPU registers used by the DRC if gcc is used.

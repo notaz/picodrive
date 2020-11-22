@@ -1724,11 +1724,7 @@ static void rcache_remove_vreg_alias(int x, sh2_reg_e r)
 
 static void rcache_evict_vreg(int x)
 {
-#if REMAP_REGISTER
   rcache_remap_vreg(x);
-#else
-  rcache_clean_vreg(x);
-#endif
   rcache_unmap_vreg(x);
 }
 
@@ -1821,10 +1817,10 @@ static int rcache_allocate_temp(void)
   return x;
 }
 
-#if REMAP_REGISTER
 // maps a host register to a REG
 static int rcache_map_reg(sh2_reg_e r, int hr)
 {
+#if REMAP_REGISTER
   int i;
 
   gconst_kill(r);
@@ -1855,11 +1851,15 @@ static int rcache_map_reg(sh2_reg_e r, int hr)
   RCACHE_CHECK("after map");
 #endif
   return cache_regs[i].hreg;
+#else
+  return rcache_get_reg(r, RC_GR_WRITE, NULL);
+#endif
 }
 
 // remap vreg from a TEMP to a REG if it will be used (upcoming TEMP invalidation)
 static void rcache_remap_vreg(int x)
 {
+#if REMAP_REGISTER
   u32 rsl_d = rcache_regs_soon | rcache_regs_late;
   int d;
 
@@ -1898,12 +1898,14 @@ static void rcache_remap_vreg(int x)
 #if DRC_DEBUG & 64
   RCACHE_CHECK("after remap");
 #endif
-}
+#else
+  rcache_clean_vreg(x);
 #endif
+}
 
-#if ALIAS_REGISTERS
 static void rcache_alias_vreg(sh2_reg_e rd, sh2_reg_e rs)
 {
+#if ALIAS_REGISTERS
   int x;
 
   // if s isn't constant, it must be in cache for aliasing
@@ -1931,8 +1933,14 @@ static void rcache_alias_vreg(sh2_reg_e rd, sh2_reg_e rs)
 #if DRC_DEBUG & 64
   RCACHE_CHECK("after alias");
 #endif
-}
+#else
+  int hr_s = rcache_get_reg(rs, RC_GR_READ, NULL);
+  int hr_d = rcache_get_reg(rd, RC_GR_WRITE, NULL);
+
+  emith_move_r_r(hr_d, hr_s);
+  gconst_copy(rd, rs);
 #endif
+}
 
 // note: must not be called when doing conditional code
 static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr)
@@ -2380,11 +2388,7 @@ static void rcache_clean_tmp(void)
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++)
     if (cache_regs[i].type == HR_CACHED && (cache_regs[i].htype & HRT_TEMP)) {
       rcache_unlock(i);
-#if REMAP_REGISTER
       rcache_remap_vreg(i);
-#else
-      rcache_clean_vreg(i);
-#endif
     }
   rcache_regs_clean = 0;
 }
@@ -2658,16 +2662,9 @@ static void emit_move_r_imm32(sh2_reg_e dst, u32 imm)
 
 static void emit_move_r_r(sh2_reg_e dst, sh2_reg_e src)
 {
-  if (gconst_check(src) || rcache_is_cached(src)) {
-#if ALIAS_REGISTERS
+  if (gconst_check(src) || rcache_is_cached(src))
     rcache_alias_vreg(dst, src);
-#else
-    int hr_s = rcache_get_reg(src, RC_GR_READ, NULL);
-    int hr_d = rcache_get_reg(dst, RC_GR_WRITE, NULL);
-    emith_move_r_r(hr_d, hr_s);
-    gconst_copy(dst, src);
-#endif
-  } else {
+  else {
     int hr_d = rcache_get_reg(dst, RC_GR_WRITE, NULL);
     emith_ctx_read(hr_d, src * 4);
   }
@@ -2828,11 +2825,7 @@ static int emit_memhandler_read_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, u32 off
   if (rd == SHR_TMP)
     hr2 = hr;
   else
-#if REMAP_REGISTER
     hr2 = rcache_map_reg(rd, hr);
-#else
-    hr2 = rcache_get_reg(rd, RC_GR_WRITE, NULL);
-#endif
 
   if (hr != hr2) {
     emith_move_r_r(hr2, hr);
@@ -2902,11 +2895,7 @@ static int emit_indirect_indexed_read(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rx, sh2_
   if (rd == SHR_TMP)
     hr2 = hr;
   else
-#if REMAP_REGISTER
     hr2 = rcache_map_reg(rd, hr);
-#else
-    hr2 = rcache_get_reg(rd, RC_GR_WRITE, NULL);
-#endif
 
   if (hr != hr2) {
     emith_move_r_r(hr2, hr);
@@ -3795,11 +3784,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             emith_add_r_r_imm(tmp, tmp2, 2 + (op & 0xff) * 2);
         }
         tmp2 = emit_memhandler_read(opd->size);
-#if REMAP_REGISTER
         tmp3 = rcache_map_reg(GET_Rn(), tmp2);
-#else
-        tmp3 = rcache_get_reg(GET_Rn(), RC_GR_WRITE, NULL);
-#endif
         if (tmp3 != tmp2) {
           emith_move_r_r(tmp3, tmp2);
           rcache_free_tmp(tmp2);
@@ -3903,11 +3888,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             rcache_invalidate_tmp();
             emith_abicall(sh2_drc_divu32);
             tmp = rcache_get_tmp_ret();
-#if REMAP_REGISTER
             tmp2 = rcache_map_reg(div(opd).rn, tmp);
-#else
-            tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
-#endif
             if (tmp != tmp2)
               emith_move_r_r(tmp2, tmp);
 
@@ -3930,11 +3911,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             rcache_invalidate_tmp();
             emith_abicall(sh2_drc_divu64);
             tmp = rcache_get_tmp_ret();
-#if REMAP_REGISTER
             tmp2 = rcache_map_reg(div(opd).rn, tmp);
-#else
-            tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
-#endif
             tmp4 = rcache_get_reg(div(opd).ro, RC_GR_WRITE, NULL);
             if (tmp != tmp2)
               emith_move_r_r(tmp2, tmp);
@@ -4028,11 +4005,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           rcache_invalidate_tmp();
           emith_abicall(sh2_drc_divs32);
           tmp = rcache_get_tmp_ret();
-#if REMAP_REGISTER
           tmp2 = rcache_map_reg(div(opd).rn, tmp);
-#else
-          tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
-#endif
           if (tmp != tmp2)
             emith_move_r_r(tmp2, tmp);
           tmp3  = rcache_get_tmp();
@@ -4058,11 +4031,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           rcache_invalidate_tmp();
           emith_abicall(sh2_drc_divs64);
           tmp = rcache_get_tmp_ret();
-#if REMAP_REGISTER
           tmp2 = rcache_map_reg(div(opd).rn, tmp);
-#else
-          tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
-#endif
           tmp4 = rcache_get_reg(div(opd).ro, RC_GR_WRITE, NULL);
           if (tmp != tmp2)
             emith_move_r_r(tmp2, tmp);
