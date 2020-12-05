@@ -81,7 +81,7 @@ else ifeq ($(platform), osx)
 	endif
 	OSXVER = `sw_vers -productVersion | cut -d. -f 2`
 	OSX_LT_MAVERICKS = `(( $(OSXVER) <= 9)) && echo "YES"`
-	SHARED += -mmacosx-version-min=10.1
+	SHARED += -mmacosx-version-min=10.6
 
 else ifeq ($(platform), staticios)
 	TARGET := $(TARGET_NAME)_libretro_ios.a
