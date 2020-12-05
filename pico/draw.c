@@ -65,6 +65,16 @@ unsigned int VdpSATCache[128];  // VDP sprite cache (1st 32 sprite attr bits)
 
 // NB don't change any defines without checking their usage in ASM
 
+#if defined(USE_BGR555)
+#define PXCONV(t)   ((t & 0x000e000e)<< 1) | ((t & 0x00e000e0)<<2) | ((t & 0x0e000e00)<<3)
+#define PXMASKL     0x04210421  // 0x0c630c63, LSB for all colours
+#define PXMASKH     0x39ce39ce  // 0x3def3def, all but MSB for all colours
+#else // RGB565
+#define PXCONV(t)   ((t & 0x000e000e)<<12) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)>>7)
+#define PXMASKL     0x08610861  // 0x18e318e3
+#define PXMASKH     0x738e738e  // 0x7bef7bef
+#endif
+
 #define LF_PLANE   (1 << 0) // must be = 1
 #define LF_SH      (1 << 1) // must be = 2
 //#define LF_FORCE   (1 << 2)
@@ -1542,14 +1552,10 @@ void PicoDoHighPal555_8bit(int sh, int line, struct PicoEState *est)
   // additional palettes stored after in-frame changes
   for (i = 0; i < cnt * 0x40 / 2; i++) {
     t = spal[i];
-#ifdef USE_BGR555
-    t = ((t & 0x000e000e)<< 1) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)<<4);
-#else
-    t = ((t & 0x000e000e)<<12) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)>>7);
-#endif
     // treat it like it was 4-bit per channel, since in s/h mode it somewhat is that.
     // otherwise intensity difference between this and s/h will be wrong
-    t |= (t >> 4) & 0x08610861; // 0x18e318e3
+    t = PXCONV(t);
+    t |= (t >> 4) & PXMASKL;
     dpal[i] = dpal[0xc0/2 + i] = t;
   }
 
@@ -1558,11 +1564,11 @@ void PicoDoHighPal555_8bit(int sh, int line, struct PicoEState *est)
   {
     // shadowed pixels
     for (i = 0; i < 0x40 / 2; i++)
-      dpal[0x80/2 + i] = (dpal[i] >> 1) & 0x738e738e;
+      dpal[0x80/2 + i] = (dpal[i] >> 1) & PXMASKH;
     // hilighted pixels
     for (i = 0; i < 0x40 / 2; i++) {
-      t = ((dpal[i] >> 1) & 0x738e738e) + 0x738e738e; // 0x7bef7bef;
-      t |= (t >> 4) & 0x08610861;
+      t = ((dpal[i] >> 1) & PXMASKH) + PXMASKH;
+      t |= (t >> 4) & PXMASKL;
       dpal[0x40/2 + i] = t;
     }
     // shadowed pixels in color 14 always appear normal (hw bug?)
@@ -1586,14 +1592,10 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
 
   for (i = 0; i < 0x40 / 2; i++) {
     t = spal[i];
-#ifdef USE_BGR555
-    t = ((t & 0x0e000e00)<< 3) | ((t & 0x00e000e0)<<2) | ((t & 0x000e000e)<<1);
-#else
-    t = ((t & 0x000e000e)<<12) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)>>7);
-#endif
     // treat it like it was 4-bit per channel, since in s/h mode it somewhat is that.
     // otherwise intensity difference between this and s/h will be wrong
-    t |= (t >> 4) & 0x08610861; // 0x18e318e3
+    t = PXCONV(t);
+    t |= (t >> 4) & PXMASKL;
     dpal[i] = dpal[0xc0/2 + i] = t;
   }
 
@@ -1602,11 +1604,11 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
   {
     // shadowed pixels
     for (i = 0; i < 0x40 / 2; i++)
-      dpal[0x80/2 + i] = (dpal[i] >> 1) & 0x738e738e;
+      dpal[0x80/2 + i] = (dpal[i] >> 1) & PXMASKH;
     // hilighted pixels
     for (i = 0; i < 0x40 / 2; i++) {
-      t = ((dpal[i] >> 1) & 0x738e738e) + 0x738e738e; // 0x7bef7bef;
-      t |= (t >> 4) & 0x08610861;
+      t = ((dpal[i] >> 1) & PXMASKH) + PXMASKH;
+      t |= (t >> 4) & PXMASKL;
       dpal[0x40/2 + i] = t;
     }
     // shadowed pixels in color 14 always appear normal (hw bug?)
