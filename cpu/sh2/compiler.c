@@ -4620,15 +4620,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x03: // MOV    Rm,Rn        0110nnnnmmmm0011
         emit_move_r_r(GET_Rn(), GET_Rm());
         goto end_op;
-      case 0x07:
-      case 0x08:
-      case 0x09:
-      case 0x0a:
-      case 0x0b:
-      case 0x0c:
-      case 0x0d:
-      case 0x0e:
-      case 0x0f:
+      default: // 0x07 ... 0x0f
         tmp  = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
         tmp2 = rcache_get_reg(GET_Rn(), RC_GR_WRITE, NULL);
         switch (op & 0x0f)
@@ -6962,7 +6954,7 @@ end:
   if (base_literals_out != NULL)
     *base_literals_out = (lowest_literal ? lowest_literal : end_pc);
   if (end_literals_out != NULL)
-    *end_literals_out = (end_literals ? lowest_literal : end_pc);
+    *end_literals_out = (end_literals ? end_literals : end_pc);
 
   // crc overflow handling, twice to collect all overflows
   crc = (crc & 0xffff) + (crc >> 16);
