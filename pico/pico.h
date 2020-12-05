@@ -102,6 +102,8 @@ typedef struct
 	unsigned short overclockM68k;  // overclock the emulated 68k, in %
 
 	int sndRate;                   // rate in Hz
+	unsigned short sndFilter;      // Set low pass sound filter 0: off, 1: on (use integer in case we want to add other filter types later)
+	int32_t sndFilterRange;        // Low pass sound filter range [0, 65536]
 	short *sndOut;                 // PCM output buffer
 	void (*writeSound)(int len);   // write .sndOut callback, called once per frame
 

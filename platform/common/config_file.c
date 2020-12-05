@@ -18,6 +18,10 @@
 #include "../libpicofe/lprintf.h"
 #include "config_file.h"
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
 static char *mystrip(char *str);
 
 #ifndef _MSC_VER

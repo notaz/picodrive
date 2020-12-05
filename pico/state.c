@@ -14,6 +14,10 @@
 #include "sound/emu2413/emu2413.h"
 #include "state.h"
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
 // sn76496 & ym2413
 extern int *sn76496_regs;
 extern OPLL old_opll;

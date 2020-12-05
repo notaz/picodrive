@@ -13,6 +13,10 @@
 #include "../pico_int.h"
 // #define elprintf(w,f,...) printf(f "\n",##__VA_ARGS__);
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
 #ifdef _MSC_VER
 #define snprintf _snprintf
 #endif
@@ -74,9 +78,11 @@ static int get_ext(const char *fname, char ext[4],
 	strcpy(ext, fname + pos);
 
 	if (base != NULL) {
-		len = pos;
-		if (len + 1 < base_size)
-			len = base_size - 1;
+		if (pos + 1 < base_size)
+			pos = base_size - 1;
+
+		len = (pos < len) ? pos : len;
+
 		memcpy(base, fname, len);
 		base[len] = 0;
 	}

@@ -122,6 +122,9 @@ static const char* g_version = "3.31";
 #endif /* DECL_SPEC */
 
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
 
 /* ======================================================================== */
 /* ============================== PROTOTYPES ============================== */

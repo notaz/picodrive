@@ -51,7 +51,7 @@ check_obj ()
 		fi
 		# find the start line of the .rodata section; read the next line
 		ro=$($OBJDUMP -s /tmp/getoffs.o | awk '\
-		  /Contents of section.*(__const|.ro?data|.sdata)/ {o=1; next} \
+		  /Contents of section.*(__const|.r[o]?data|.sdata)/ {o=1; next} \
 		  {if(o) { gsub(/  .*/,""); $1=""; gsub(/ /,""); print; exit}}')
 		# no working tool for extracting the ro data; stop here
 		if [ -z "$ro" ]; then
@@ -79,7 +79,7 @@ compile_rodata ()
 	elif [ -n "$OBJDUMP" ]; then
 		# find the start line of the .rodata section; read the next line
 		ro=$($OBJDUMP -s /tmp/getoffs.o | awk '\
-		  /Contents of section.*(__const|.ro?data|.sdata)/ {o=1; next} \
+		  /Contents of section.*(__const|.r[o]?data|.sdata)/ {o=1; next} \
 		  {if(o) { gsub(/  .*/,""); $1=""; gsub(/ /,""); print; exit}}')
 	fi
 	if [ "$ENDIAN" = "le" ]; then

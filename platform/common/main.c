@@ -21,6 +21,9 @@
 #include "version.h"
 #include <cpu/debug.h>
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
 
 static int load_state_slot = -1;
 char **g_argv;

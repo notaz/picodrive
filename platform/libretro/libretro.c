@@ -15,7 +15,11 @@
 #include <string.h>
 #ifndef _WIN32
 #ifndef NO_MMAP
+#ifdef __SWITCH__
+#include "../switch/mman.h"
+#else
 #include <sys/mman.h>
+#endif
 #endif
 #else
 #include <io.h>
@@ -25,6 +29,15 @@
 #include <errno.h>
 #ifdef __MACH__
 #include <libkern/OSCacheControl.h>
+#endif
+
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
+#if defined(RENDER_GSKIT_PS2)
+#include "libretro-common/include/libretro_gskit_ps2.h"
+#include "../ps2/asm.h"
 #endif
 
 #ifdef _3DS
@@ -52,12 +65,14 @@ int _newlib_vm_size_user = 1 << TARGET_SIZE_2;
 
 #endif
 
+#include "libretro_core_options.h"
+
 #include <pico/pico_int.h>
 #include <pico/state.h>
 #include <pico/patch.h>
 #include "../common/input_pico.h"
 #include "../common/version.h"
-#include "libretro.h"
+#include <libretro.h>
 
 static retro_log_printf_t log_cb;
 static retro_video_refresh_t video_cb;
@@ -66,20 +81,38 @@ static retro_input_state_t input_state_cb;
 static retro_environment_t environ_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
 
+#if defined(RENDER_GSKIT_PS2)
+#define VOUT_MAX_WIDTH 328
+#else
 #define VOUT_MAX_WIDTH 320
+#define VOUT_32BIT_WIDTH 256
+#endif
 #define VOUT_MAX_HEIGHT 240
+#define INITIAL_SND_RATE 44100
 
 static const float VOUT_PAR = 0.0;
 static const float VOUT_4_3 = (224.0f * (4.0f / 3.0f));
 static const float VOUT_CRT = (224.0f * 1.29911f);
 
-bool show_overscan = false;
+static bool show_overscan = false;
+static bool old_show_overscan = false;
+
+/* Required to allow on the fly changes to 'show overscan' */
+static int vm_current_start_line = -1;
+static int vm_current_line_count = -1;
+static int vm_current_is_32cols = -1;
 
 static void *vout_buf;
 static int vout_width, vout_height, vout_offset;
 static float user_vout_width = 0.0;
 
-static short ALIGNED(4) sndBuffer[2*44100/50];
+#if defined(RENDER_GSKIT_PS2)
+RETRO_HW_RENDER_INTEFACE_GSKIT_PS2 *ps2 = NULL;
+static void *retro_palette;
+static struct retro_hw_ps2_insets padding;
+#endif
+
+static short ALIGNED(4) sndBuffer[2*INITIAL_SND_RATE/50];
 
 static void snd_write(int len);
 
@@ -90,6 +123,71 @@ char **g_argv;
 #else
 #define SLASH '/'
 #endif
+
+/* Frameskipping Support */
+
+static unsigned frameskip_type             = 0;
+static unsigned frameskip_threshold        = 0;
+static uint16_t frameskip_counter          = 0;
+
+static bool retro_audio_buff_active        = false;
+static unsigned retro_audio_buff_occupancy = 0;
+static bool retro_audio_buff_underrun      = false;
+/* Maximum number of consecutive frames that
+ * can be skipped */
+#define FRAMESKIP_MAX 60
+
+static unsigned audio_latency              = 0;
+static bool update_audio_latency           = false;
+
+static void retro_audio_buff_status_cb(
+      bool active, unsigned occupancy, bool underrun_likely)
+{
+   retro_audio_buff_active    = active;
+   retro_audio_buff_occupancy = occupancy;
+   retro_audio_buff_underrun  = underrun_likely;
+}
+
+static void init_frameskip(void)
+{
+   if (frameskip_type > 0)
+   {
+      struct retro_audio_buffer_status_callback buf_status_cb;
+
+      buf_status_cb.callback = retro_audio_buff_status_cb;
+      if (!environ_cb(RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK,
+            &buf_status_cb))
+      {
+         if (log_cb)
+            log_cb(RETRO_LOG_WARN, "Frameskip disabled - frontend does not support audio buffer status monitoring.\n");
+
+         retro_audio_buff_active    = false;
+         retro_audio_buff_occupancy = 0;
+         retro_audio_buff_underrun  = false;
+         audio_latency              = 0;
+      }
+      else
+      {
+         /* Frameskip is enabled - increase frontend
+          * audio latency to minimise potential
+          * buffer underruns */
+         float frame_time_msec = 1000.0f / (Pico.m.pal ? 50.0f : 60.0f);
+
+         /* Set latency to 6x current frame time... */
+         audio_latency = (unsigned)((6.0f * frame_time_msec) + 0.5f);
+
+         /* ...then round up to nearest multiple of 32 */
+         audio_latency = (audio_latency + 0x1F) & ~0x1F;
+      }
+   }
+   else
+   {
+      environ_cb(RETRO_ENVIRONMENT_SET_AUDIO_BUFFER_STATUS_CALLBACK, NULL);
+      audio_latency = 0;
+   }
+
+   update_audio_latency = true;
+}
 
 /* functions called by the core */
 
@@ -397,7 +495,7 @@ void *plat_mmap(unsigned long addr, size_t size, int need_exec, int is_fixed)
 
 void *plat_mremap(void *ptr, size_t oldsize, size_t newsize)
 {
-#ifdef __linux__
+#if defined(__linux__) && !defined(__SWITCH__)
    void *ret = mremap(ptr, oldsize, newsize, 0);
    if (ret == MAP_FAILED)
       return NULL;
@@ -486,14 +584,46 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
    struct retro_system_av_info av_info;
 
-   memset(vout_buf, 0, 320 * 240 * 2);
-   vout_width = is_32cols ? 256 : 320;
-   PicoDrawSetOutBuf(vout_buf, vout_width * 2);
-   if (show_overscan == true) line_count += 16;
-   if (show_overscan == true) start_line -= 8;
+   vm_current_start_line = start_line;
+   vm_current_line_count = line_count;
+   vm_current_is_32cols = is_32cols;
 
-   vout_height = line_count;
-   vout_offset = vout_width * start_line;
+#if defined(RENDER_GSKIT_PS2)
+   if (is_32cols) {
+      padding = (struct retro_hw_ps2_insets){start_line, 16.0f, VOUT_MAX_HEIGHT - line_count - start_line, 64.0f};
+   } else {
+      padding = (struct retro_hw_ps2_insets){start_line, 16.0f, VOUT_MAX_HEIGHT - line_count - start_line, 0.0f};
+   }
+
+   vout_width = VOUT_MAX_WIDTH;
+   vout_height = VOUT_MAX_HEIGHT;
+   memset(vout_buf, 0, vout_width * VOUT_MAX_HEIGHT);
+   memset(retro_palette, 0, gsKit_texture_size_ee(16, 16, GS_PSM_CT16));
+   PicoDrawSetOutBuf(vout_buf, vout_width);
+#else
+   vout_width = is_32cols ? VOUT_32BIT_WIDTH : VOUT_MAX_WIDTH;
+   memset(vout_buf, 0, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);  
+   PicoDrawSetOutBuf(vout_buf, vout_width * 2);
+
+   if (show_overscan)
+   {
+      vout_height = line_count + (start_line * 2);
+      vout_offset = 0;
+   }
+   else
+   {
+      vout_height = line_count;
+      /* Note: We multiply by 2 here to account for pitch */
+      vout_offset = vout_width * start_line * 2;
+   }
+
+   /* Redundant sanity check... */
+   vout_height = (vout_height > VOUT_MAX_HEIGHT) ?
+         VOUT_MAX_HEIGHT : vout_height;
+   vout_offset = (vout_offset > vout_width * (VOUT_MAX_HEIGHT - 1) * 2) ?
+         vout_width * (VOUT_MAX_HEIGHT - 1) * 2 : vout_offset;
+
+#endif
 
    // Update the geometry
    retro_get_system_av_info(&av_info);
@@ -521,24 +651,20 @@ void lprintf(const char *fmt, ...)
 /* libretro */
 void retro_set_environment(retro_environment_t cb)
 {
-   static const struct retro_variable vars[] = {
-      { "picodrive_input1",      "Input device 1; 3 button pad|6 button pad|None" },
-      { "picodrive_input2",      "Input device 2; 3 button pad|6 button pad|None" },
-      { "picodrive_sprlim",      "No sprite limit; disabled|enabled" },
-      { "picodrive_ramcart",     "MegaCD RAM cart; disabled|enabled" },
-      { "picodrive_region",      "Region; Auto|Japan NTSC|Japan PAL|US|Europe" },
-      { "picodrive_aspect",      "Core-provided aspect ratio; PAR|4/3|CRT" },
-      { "picodrive_overscan",    "Show Overscan; disabled|enabled" },
-      { "picodrive_overclk68k",  "68k overclock; disabled|+25%|+50%|+75%|+100%|+200%|+400%" },
-#ifdef DRC_SH2
-      { "picodrive_drc", "Dynamic recompilers; enabled|disabled" },
+#ifdef USE_LIBRETRO_VFS
+   struct retro_vfs_interface_info vfs_iface_info;
 #endif
-      { NULL, NULL },
-   };
 
    environ_cb = cb;
 
-   cb(RETRO_ENVIRONMENT_SET_VARIABLES, (void *)vars);
+   libretro_set_core_options(environ_cb);
+
+#ifdef USE_LIBRETRO_VFS
+   vfs_iface_info.required_interface_version = 1;
+   vfs_iface_info.iface = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VFS_INTERFACE, &vfs_iface_info))
+      filestream_vfs_init(&vfs_iface_info);
+#endif
 }
 
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
@@ -574,7 +700,7 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 
    memset(info, 0, sizeof(*info));
    info->timing.fps            = Pico.m.pal ? 50 : 60;
-   info->timing.sample_rate    = 44100;
+   info->timing.sample_rate    = PicoIn.sndRate;
    info->geometry.base_width   = vout_width;
    info->geometry.base_height  = vout_height;
    info->geometry.max_width    = vout_width;
@@ -747,8 +873,9 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 	char codeCopy[256];
 	char *buff;
 
-	if (code=='\0') return;
-	strcpy(codeCopy,code);
+	if (*code == '\0')
+      return;
+	strcpy(codeCopy, code);
 	buff = strtok(codeCopy,"+");
 
 	while (buff != NULL)
@@ -976,6 +1103,26 @@ static const char *find_bios(int *region, const char *cd_fname)
    return NULL;
 }
 
+static void set_memory_maps(void)
+{
+   if (PicoIn.AHW & PAHW_MCD)
+   {
+      const size_t SCD_BIT = 1ULL << 31ULL;
+      const uint64_t mem = RETRO_MEMDESC_SYSTEM_RAM;
+      struct retro_memory_map mmaps;
+      struct retro_memory_descriptor descs[] = {
+         { mem, PicoMem.ram,        0,           0xFF0000, 0, 0, 0x10000, "68KRAM" },
+         /* virtual address using SCD_BIT so all 512M of prg_ram can be accessed */
+         /* at address $80020000 */
+         { mem, Pico_mcd->prg_ram,  0, SCD_BIT | 0x020000, 0, 0, 0x80000, "PRGRAM" },
+      };
+
+      mmaps.descriptors = descs;
+      mmaps.num_descriptors = sizeof(descs) / sizeof(descs[0]);
+      environ_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &mmaps);
+   }
+}
+
 bool retro_load_game(const struct retro_game_info *info)
 {
    enum media_type_e media_type;
@@ -1094,6 +1241,11 @@ bool retro_load_game(const struct retro_game_info *info)
    PicoIn.sndOut = sndBuffer;
    PsndRerate(0);
 
+   /* Setup retro memory maps */
+   set_memory_maps();
+
+   init_frameskip();
+
    return true;
 }
 
@@ -1118,7 +1270,9 @@ void *retro_get_memory_data(unsigned type)
    switch(type)
    {
       case RETRO_MEMORY_SAVE_RAM:
-         if (PicoIn.AHW & PAHW_MCD)
+         /* Note: MCD RAM cart uses Pico.sv.data */
+         if ((PicoIn.AHW & PAHW_MCD) &&
+               !(PicoIn.opt & POPT_EN_MCD_RAMCART))
             data = Pico_mcd->bram;
          else
             data = Pico.sv.data;
@@ -1146,8 +1300,12 @@ size_t retro_get_memory_size(unsigned type)
    {
       case RETRO_MEMORY_SAVE_RAM:
          if (PicoIn.AHW & PAHW_MCD)
-            // bram
-            return 0x2000;
+         {
+            if (PicoIn.opt & POPT_EN_MCD_RAMCART)
+               return 0x12000;
+            else /* bram */
+               return 0x2000;
+         }
 
          if (Pico.m.frame_count == 0)
             return Pico.sv.size;
@@ -1211,11 +1369,13 @@ static enum input_device input_name_to_val(const char *name)
    return PICO_INPUT_PAD_3BTN;
 }
 
-static void update_variables(void)
+static void update_variables(bool first_run)
 {
    struct retro_variable var;
    int OldPicoRegionOverride;
    float old_user_vout_width;
+   unsigned old_frameskip_type;
+   double new_sound_rate;
 
    var.value = NULL;
    var.key = "picodrive_input1";
@@ -1281,21 +1441,32 @@ static void update_variables(void)
          user_vout_width = VOUT_PAR;
    }
 
-   var.value = NULL;
-   var.key = "picodrive_overscan";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
-      if (strcmp(var.value, "enabled") == 0)
-         show_overscan = true;
-      else
-         show_overscan = false;
-   }
-
    if (user_vout_width != old_user_vout_width)
    {
       // Update the geometry
       struct retro_system_av_info av_info;
       retro_get_system_av_info(&av_info);
       environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
+   }
+
+   old_show_overscan = show_overscan;
+   var.value = NULL;
+   var.key = "picodrive_overscan";
+   show_overscan = false;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "enabled") == 0)
+         show_overscan = true;
+   }
+
+   if (show_overscan != old_show_overscan)
+   {
+      if ((vm_current_start_line != -1) &&
+          (vm_current_line_count != -1) &&
+          (vm_current_is_32cols != -1))
+         emu_video_mode_change(
+               vm_current_start_line,
+               vm_current_line_count,
+               vm_current_is_32cols);
    }
 
    var.value = NULL;
@@ -1320,15 +1491,78 @@ static void update_variables(void)
    if(!ctr_svchack_successful)
       PicoIn.opt &= ~POPT_EN_DRC;
 #endif
+
+   var.value = NULL;
+   var.key = "picodrive_audio_filter";
+   PicoIn.sndFilter = 0;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "low-pass") == 0)
+         PicoIn.sndFilter = 1;
+   }
+
+   var.value = NULL;
+   var.key = "picodrive_lowpass_range";
+   PicoIn.sndFilterRange = (60 * 65536) / 100;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      PicoIn.sndFilterRange = (atoi(var.value) * 65536) / 100;
+   }
+
+   old_frameskip_type = frameskip_type;
+   frameskip_type     = 0;
+   var.key            = "picodrive_frameskip";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "auto") == 0)
+         frameskip_type = 1;
+      else if (strcmp(var.value, "manual") == 0)
+         frameskip_type = 2;
+   }
+
+   frameskip_threshold = 33;
+   var.key             = "picodrive_frameskip_threshold";
+   var.value           = NULL;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      frameskip_threshold = strtol(var.value, NULL, 10);
+
+   var.value = NULL;
+   var.key = "picodrive_renderer";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "fast") == 0)
+         PicoIn.opt |= POPT_ALT_RENDERER;
+      else
+         PicoIn.opt &= ~POPT_ALT_RENDERER;
+   }
+
+   var.value = NULL;
+   var.key = "picodrive_sound_rate";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      new_sound_rate = atoi(var.value);
+      if (new_sound_rate != PicoIn.sndRate) {
+         /* Update the sound rate */
+         PicoIn.sndRate = new_sound_rate;
+         PsndRerate(1);
+         struct retro_system_av_info av_info;
+         retro_get_system_av_info(&av_info);
+         environ_cb(RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &av_info);
+      }
+   }
+
+   /* Reinitialise frameskipping, if required */
+   if (((frameskip_type != old_frameskip_type) ||
+        (Pico.rom && PicoIn.regionOverride != OldPicoRegionOverride)) &&
+       !first_run)
+      init_frameskip();
 }
 
 void retro_run(void)
 {
    bool updated = false;
    int pad, i;
+   static void *buff;
+
+   PicoIn.skipFrame = 0;
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
-      update_variables();
+      update_variables(false);
 
    input_poll_cb();
 
@@ -1338,10 +1572,154 @@ void retro_run(void)
          if (input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, i))
             PicoIn.pad[pad] |= retro_pico_map[i];
 
-   PicoPatchApply();
+   if (PicoPatches)
+      PicoPatchApply();
+
+   /* Check whether current frame should
+    * be skipped */
+   if ((frameskip_type > 0) && retro_audio_buff_active) {
+      switch (frameskip_type)
+      {
+         case 1: /* auto */
+            PicoIn.skipFrame = retro_audio_buff_underrun ? 1 : 0;
+            break;
+         case 2: /* manual */
+            PicoIn.skipFrame = (retro_audio_buff_occupancy < frameskip_threshold) ? 1 : 0;
+            break;
+         default:
+            PicoIn.skipFrame = 0;
+            break;
+      }
+
+      if (!PicoIn.skipFrame || (frameskip_counter >= FRAMESKIP_MAX)) {
+         PicoIn.skipFrame  = 0;
+         frameskip_counter = 0;
+      } else
+         frameskip_counter++;
+   }
+
+   /* If frameskip settings have changed, update
+    * frontend audio latency */
+   if (update_audio_latency) {
+      environ_cb(RETRO_ENVIRONMENT_SET_MINIMUM_AUDIO_LATENCY,
+            &audio_latency);
+      update_audio_latency = false;
+   }
+
    PicoFrame();
 
-   video_cb((short *)vout_buf + vout_offset,
+   /* If frame was skipped, call video_cb() with
+    * a NULL buffer and return immediately */
+   if (PicoIn.skipFrame) {
+      video_cb(NULL, vout_width, vout_height, vout_width * 2);
+      return;
+   }
+
+#if defined(RENDER_GSKIT_PS2)
+   buff = (uint32_t *)RETRO_HW_FRAME_BUFFER_VALID;
+
+   if (!ps2) {
+      if (!environ_cb(RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE, (void **)&ps2) || !ps2) {
+         printf("Failed to get HW rendering interface!\n");
+         return;
+	   }
+
+      if (ps2->interface_version != RETRO_HW_RENDER_INTERFACE_GSKIT_PS2_VERSION) {
+         printf("HW render interface mismatch, expected %u, got %u!\n", 
+                  RETRO_HW_RENDER_INTERFACE_GSKIT_PS2_VERSION, ps2->interface_version);
+         return;
+      }
+
+      ps2->coreTexture->Width = vout_width;
+      ps2->coreTexture->Height = vout_height;
+      ps2->coreTexture->PSM = GS_PSM_T8;
+      ps2->coreTexture->ClutPSM = GS_PSM_CT16;
+      ps2->coreTexture->Filter = GS_FILTER_LINEAR;
+      ps2->coreTexture->Clut = retro_palette;
+   }
+
+   if (Pico.m.dirtyPal) {
+      int i;
+      unsigned short int *pal=(void *)ps2->coreTexture->Clut;
+
+      if (PicoIn.AHW & PAHW_SMS) {
+         // SMS
+         unsigned int *spal=(void *)PicoMem.cram;
+         unsigned int *dpal=(void *)pal;
+         unsigned int t;
+
+         /* cram is always stored as shorts, even though real hardware probably uses bytes */
+         for (i = 0x20/2; i > 0; i--, spal++, dpal++) {
+            t = *spal;
+            t = ((t & 0x00030003)<< 3) | ((t & 0x000c000c)<<6) | ((t & 0x00300030)<<9);
+            t |= t >> 2;
+            t |= (t >> 4) & 0x08610861;
+            *dpal = t;
+         }
+         pal[0xe0] = 0;
+
+
+      } else if (PicoIn.AHW & PAHW_32X) {
+         // MCD+32X
+      } else if (PicoIn.AHW & PAHW_MCD) {
+         // MCD
+      } else {
+         // MD
+         if(Pico.video.reg[0xC]&8){
+            do_pal_convert_with_shadows(pal, PicoMem.cram);
+         } else {
+            do_pal_convert(pal, PicoMem.cram);
+            if (Pico.est.rendstatus & PDRAW_SONIC_MODE) {
+               memcpy(&pal[0x80], pal, 0x40*2);
+            }
+         }
+      }
+
+
+  	   //Rotate CLUT.
+      for (i = 0; i < 256; i++) {
+         if ((i&0x18) == 8) {
+            unsigned short int tmp = pal[i];
+            pal[i] = pal[i+8];
+            pal[i+8] = tmp;
+         }
+      }
+
+      Pico.m.dirtyPal = 0;
+   }
+
+   if (PicoIn.AHW & PAHW_SMS) {
+      ps2->coreTexture->Mem = vout_buf;
+   } else {
+      ps2->coreTexture->Mem = Pico.est.Draw2FB;
+   }
+
+   ps2->padding = padding;
+
+#else
+   if (PicoIn.opt & POPT_ALT_RENDERER) {
+      /* In retro_init, PicoDrawSetOutBuf is called to make sure the output gets written to vout_buf, but this only
+       * applies to the line renderer (pico/draw.c). The faster tile-based renderer (pico/draw2.c) enabled by
+       * POPT_ALT_RENDERER writes to Pico.est.Draw2FB, so we need to manually copy that to vout_buf.
+       */
+      /* This section is mostly copied from pemu_finalize_frame in platform/linux/emu.c */
+      unsigned short *pd = (unsigned short *)vout_buf;
+      /* Skip the leftmost 8 columns (it seems to be used as some sort of caching or overscan area) */
+      unsigned char *ps = Pico.est.Draw2FB + 8;
+      unsigned short *pal = Pico.est.HighPal;
+      int x;
+      if (Pico.m.dirtyPal)
+         PicoDrawUpdateHighPal();
+      /* Copy up to the max height to include the overscan area, and skip the leftmost 8 columns again */
+      for (i = 0; i < VOUT_MAX_HEIGHT; i++, ps += 8)
+         for (x = 0; x < vout_width; x++)
+            *pd++ = pal[*ps++];
+   }
+
+   buff = (char*)vout_buf + vout_offset;
+#endif
+
+   video_cb((short *)buff,
       vout_width, vout_height, vout_width * 2);
 }
 
@@ -1362,6 +1740,7 @@ void retro_init(void)
 
 #ifdef _3DS
    ctr_svchack_successful = ctr_svchack_init();
+   check_rosalina();
 #elif defined(VITA)
    sceBlock = getVMBlock();
 #endif
@@ -1376,37 +1755,63 @@ void retro_init(void)
 #endif
       PicoIn.opt |= POPT_EN_DRC;
 #endif
-   PicoIn.sndRate = 44100;
+
+   struct retro_variable var = { .key = "picodrive_sound_rate" };
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+      PicoIn.sndRate = atoi(var.value);
+   else
+      PicoIn.sndRate = INITIAL_SND_RATE;
+
    PicoIn.autoRgnOrder = 0x184; // US, EU, JP
 
-   vout_width = 320;
-   vout_height = 240;
+   vout_width = VOUT_MAX_WIDTH;
+   vout_height = VOUT_MAX_HEIGHT;
 #ifdef _3DS
    vout_buf = linearMemAlign(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2, 0x80);
+#elif defined(RENDER_GSKIT_PS2)
+   vout_buf = memalign(128, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT);
+   retro_palette = memalign(128, gsKit_texture_size_ee(16, 16, GS_PSM_CT16));
 #else
    vout_buf = malloc(VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);
 #endif
 
    PicoInit();
+#if defined(RENDER_GSKIT_PS2)
+   PicoDrawSetOutFormat(PDF_NONE, 0);
+	PicoDrawSetOutBuf(vout_buf, vout_width);
+   PicoDrawSetOutputMode4(PDF_8BIT);
+#else
    PicoDrawSetOutFormat(PDF_RGB555, 0);
    PicoDrawSetOutBuf(vout_buf, vout_width * 2);
+#endif
 
    //PicoIn.osdMessage = plat_status_msg_busy_next;
    PicoIn.mcdTrayOpen = disk_tray_open;
    PicoIn.mcdTrayClose = disk_tray_close;
 
-   update_variables();
+   frameskip_type             = 0;
+   frameskip_threshold        = 0;
+   frameskip_counter          = 0;
+   retro_audio_buff_active    = false;
+   retro_audio_buff_occupancy = 0;
+   retro_audio_buff_underrun  = false;
+   audio_latency              = 0;
+   update_audio_latency       = false;
+
+   update_variables(true);
 }
 
 void retro_deinit(void)
 {
 #ifdef _3DS
    linearFree(vout_buf);
+#elif defined(RENDER_GSKIT_PS2)
+   free(vout_buf);
+   free(retro_palette);
+   ps2 = NULL;
 #else
    free(vout_buf);
 #endif
    vout_buf = NULL;
    PicoExit();
 }
-
-// vim:shiftwidth=3:ts=3:expandtab

@@ -1,6 +1,9 @@
+$(LD) ?= $(CC)
 TARGET ?= PicoDrive
 DEBUG ?= 0
 CFLAGS += -I.
+CYCLONE_CC ?= gcc
+CYCLONE_CXX ?= g++
 
 all: config.mak target_
 
@@ -38,6 +41,9 @@ endif
 ifeq "$(DEBUG)" "0"
 	CFLAGS += -O3 -DNDEBUG
 endif
+	LD = $(CC)
+	OBJOUT ?= -o
+	LINKOUT ?= -o
 endif
 
 ifeq ("$(PLATFORM)",$(filter "$(PLATFORM)","gp2x" "opendingux" "rpi1"))
@@ -153,6 +159,15 @@ HAVE_ARMv6 = 0
 endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += platform/libretro/libretro.o
+ifeq "$(USE_LIBRETRO_VFS)" "1"
+OBJS += platform/libretro/libretro-common/compat/compat_posix_string.o
+OBJS += platform/libretro/libretro-common/compat/compat_strl.o
+OBJS += platform/libretro/libretro-common/compat/fopen_utf8.o
+OBJS += platform/libretro/libretro-common/encodings/encoding_utf.o
+OBJS += platform/libretro/libretro-common/streams/file_stream.o
+OBJS += platform/libretro/libretro-common/streams/file_stream_transforms.o
+OBJS += platform/libretro/libretro-common/vfs/vfs_implementation.o
+endif
 PLATFORM_ZLIB = 1
 endif
 
@@ -217,9 +232,10 @@ CFLAGS += -DUSE_SDL
 endif
 
 ifneq ($(findstring gcc,$(CC)),)
+ifneq ($(findstring SunOS,$(shell uname -a)),SunOS)
 LDFLAGS += -Wl,-Map=$(TARGET).map
 endif
-
+endif
 
 target_: $(TARGET)
 
@@ -228,10 +244,11 @@ clean:
 	$(RM) -r .opk_data
 
 $(TARGET): $(OBJS)
+
 ifeq ($(STATIC_LINKING), 1)
 	$(AR) rcs $@ $^
 else
-	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS)
+	$(LD) $(LINKOUT)$@ $^ $(LDFLAGS) $(LDLIBS)
 endif
 
 pprof: platform/linux/pprof.c
@@ -239,6 +256,9 @@ pprof: platform/linux/pprof.c
 
 pico/pico_int_offs.h: tools/mkoffsets.sh
 	make -C tools/ XCC="$(CC)" XCFLAGS="$(CFLAGS)" XPLATFORM="$(platform)"
+
+%.o: %.c
+	$(CC) -c $(OBJOUT)$@ $< $(CFLAGS)
 
 .s.o:
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -269,7 +289,11 @@ endif
 # not using O3 and -fno-expensive-optimizations seems to also help, but you may
 # want to remove this stuff for better performance if your compiler can handle it
 ifeq "$(DEBUG)" "0"
+ifeq (,$(findstring msvc,$(platform)))
 cpu/fame/famec.o: CFLAGS += -g0 -O2 -fno-expensive-optimizations
+else
+cpu/fame/famec.o: CFLAGS += -Od
+endif
 endif
 
 pico/carthw_cfg.c: pico/carthw.cfg
