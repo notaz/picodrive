@@ -54,7 +54,6 @@ ifeq ($(platform), unix)
 	TARGET := $(TARGET_NAME)_libretro.$(EXT)
 	fpic := -fPIC
 	SHARED := -shared
-	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
 ifneq ($(findstring SunOS,$(shell uname -a)),)
 	CC=gcc
@@ -67,7 +66,6 @@ else ifeq ($(platform), linux-portable)
 	SHARED := -shared -nostdlib
 	fpic := -fPIC
 	LIBM :=
-	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
 
 # OS X
@@ -162,7 +160,6 @@ else ifeq ($(platform), ps3)
 	CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__ -DFAMEC_NO_GOTOS
 	STATIC_LINKING = 1
 	NO_MMAP = 1
-	DONT_COMPILE_IN_ZLIB = 1
 
 # sncps3
 else ifeq ($(platform), sncps3)
@@ -173,7 +170,6 @@ else ifeq ($(platform), sncps3)
 	CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__ -DFAMEC_NO_GOTOS
 	STATIC_LINKING = 1
 	NO_MMAP = 1
-	DONT_COMPILE_IN_ZLIB = 1
 
 # Lightweight PS3 Homebrew SDK
 else ifeq ($(platform), psl1ght)
@@ -183,7 +179,6 @@ else ifeq ($(platform), psl1ght)
 	CFLAGS += -DBLARGG_BIG_ENDIAN=1 -D__ppc__ -DFAMEC_NO_GOTOS
 	STATIC_LINKING = 1
 	NO_MMAP = 1
-	DONT_COMPILE_IN_ZLIB = 1
 
 # PSP
 else ifeq ($(platform), psp1)
@@ -194,7 +189,6 @@ else ifeq ($(platform), psp1)
 	CFLAGS += -DPSP
 	STATIC_LINKING = 1
 	NO_MMAP = 1
-	DONT_COMPILE_IN_ZLIB = 1
 
 	asm_render = 1
 
@@ -208,7 +202,6 @@ else ifeq ($(platform), ps2)
 	CFLAGS += -DHAVE_NO_LANGEXTRA
 	STATIC_LINKING = 1
 	NO_MMAP = 1
-	DONT_COMPILE_IN_ZLIB = 1
 
 	asm_render = 1
 	OBJS += platform/ps2/asm.o
@@ -225,7 +218,6 @@ else ifeq ($(platform), ctr)
 	CFLAGS += -fomit-frame-pointer -ffast-math
 	STATIC_LINKING = 1
 	NO_MMAP = 1
-	DONT_COMPILE_IN_ZLIB = 1
 
 	OBJS += platform/libretro/3ds/3ds_utils.o platform/libretro/3ds/utils.o
 
@@ -238,7 +230,6 @@ else ifeq ($(platform), raspberrypi)
 	TARGET := $(TARGET_NAME)_libretro.so
 	SHARED := -shared
 	fpic := -fPIC
-	DONT_COMPILE_IN_ZLIB = 1
 
 # Vita
 else ifeq ($(platform), vita)
@@ -252,7 +243,6 @@ else ifeq ($(platform), vita)
 	CFLAGS += -fno-optimize-sibling-calls
 	STATIC_LINKING = 1
 	NO_MMAP = 1
-	DONT_COMPILE_IN_ZLIB = 1
 
 # Xbox 360
 else ifeq ($(platform), xenon)
@@ -372,7 +362,6 @@ else ifeq ($(platform), arm64)
 	ARCH = aarch64
 	fpic := -fPIC
 	SHARED := -shared
-	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
 
 # AARCH64 generic
@@ -381,7 +370,6 @@ else ifeq ($(platform), aarch64)
 	ARCH = aarch64
 	fpic := -fPIC
 	SHARED := -shared
-	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -DFAMEC_NO_GOTOS
 
 # ARM
@@ -423,7 +411,6 @@ else ifneq (,$(findstring armv,$(platform)))
 else ifeq ($(platform), emscripten) 
 	TARGET := $(TARGET_NAME)_libretro_$(platform).bc
 	ARCH = unknown
-	DONT_COMPILE_IN_ZLIB = 1
 
 # GCW0
 else ifeq ($(platform), gcw0)
@@ -433,7 +420,6 @@ else ifeq ($(platform), gcw0)
 	SHARED := -shared -nostdlib
 	fpic := -fPIC
 	LIBM :=
-	DONT_COMPILE_IN_ZLIB = 1
 	CFLAGS += -fomit-frame-pointer -ffast-math -march=mips32 -mtune=mips32r2 -mhard-float
 
 # Windows MSVC 2017 all architectures

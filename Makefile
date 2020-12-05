@@ -169,7 +169,7 @@ OBJS += platform/libretro/libretro-common/streams/file_stream.o
 OBJS += platform/libretro/libretro-common/streams/file_stream_transforms.o
 OBJS += platform/libretro/libretro-common/vfs/vfs_implementation.o
 endif
-PLATFORM_ZLIB = 1
+PLATFORM_ZLIB ?= 1
 endif
 
 ifeq "$(USE_FRONTEND)" "1"
