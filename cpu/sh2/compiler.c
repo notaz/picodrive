@@ -380,7 +380,7 @@ static struct block_list *inactive_blocks[TCACHE_BUFFERS];
 // each array has len: sizeof(mem) / INVAL_PAGE_SIZE 
 static struct block_list **inval_lookup[TCACHE_BUFFERS];
 
-#define HASH_TABLE_SIZE(tcid)		((tcid) ? 512 : 64*512)
+#define HASH_TABLE_SIZE(tcid)		((tcid) ? 512 : 32*512)
 static struct block_entry **hash_tables[TCACHE_BUFFERS];
 
 #define HASH_FUNC(hash_tab, addr, mask) \

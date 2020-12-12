@@ -237,7 +237,6 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "33"
    },
-#if !defined(RENDER_GSKIT_PS2)
    {
       "picodrive_renderer",
       "Renderer",
@@ -250,7 +249,6 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "accurate"
    },
-#endif
    {
       "picodrive_sound_rate",
       "Sound quality",
