@@ -69,6 +69,45 @@
 
 @ shadow/hilight mode
 
+@ 
+.macro TilePixelNonSH pat lsrr offs
+.if !\lsrr
+    ands    r4, \pat, r2
+.else
+    ands    r4, \pat, r2, lsr #\lsrr
+.endif
+    beq     0f
+    cmp     r4, #0xe
+    orr     r4, r3, r4
+    biceq   r4, #0x80
+    strb    r4, [r1,#\offs]
+0:
+.endm
+
+@ TileNormNonSH (r1=pdest, r2=pixels8, r3=pal) r4: scratch, pat: register with helper pattern 0xf
+.macro TileNormNonSH pat
+    TilePixelNonSH \pat, 12, 0    @ #0x0000f000
+    TilePixelNonSH \pat,  8, 1    @ #0x00000f00
+    TilePixelNonSH \pat,  4, 2    @ #0x000000f0
+    TilePixelNonSH \pat,  0, 3    @ #0x0000000f
+    TilePixelNonSH \pat, 28, 4    @ #0xf0000000
+    TilePixelNonSH \pat, 24, 5    @ #0x0f000000
+    TilePixelNonSH \pat, 20, 6    @ #0x00f00000
+    TilePixelNonSH \pat, 16, 7    @ #0x000f0000
+.endm
+
+@ TileFlipNonSH (r1=pdest, r2=pixels8, r3=pal) r4: scratch, pat: register with helper pattern 0xf
+.macro TileFlipNonSH pat
+    TilePixelNonSH \pat, 16, 0    @ #0x000f0000
+    TilePixelNonSH \pat, 20, 1    @ #0x00f00000
+    TilePixelNonSH \pat, 24, 2    @ #0x0f000000
+    TilePixelNonSH \pat, 28, 3    @ #0xf0000000
+    TilePixelNonSH \pat,  0, 4    @ #0x0000000f
+    TilePixelNonSH \pat,  4, 5    @ #0x000000f0
+    TilePixelNonSH \pat,  8, 6    @ #0x00000f00
+    TilePixelNonSH \pat, 12, 7    @ #0x0000f000
+.endm
+
 @ this one is for hi priority layer
 .macro TilePixelShHP lsrr offs
 .if !\lsrr
@@ -1260,6 +1299,9 @@ DrawSprite:
     cmp     r12, r9, lsr #28
     beq     .dspr_shadow
 
+    tst     r9, #0x80000000
+    bne     .dspr_shnonsh
+
     cmp     r2, r2, ror #4
     beq     .dspr_SingleColor @ tileline singlecolor 
 
@@ -1291,6 +1333,20 @@ DrawSprite:
     strh    r4, [r1], #2
     strh    r4, [r1], #2
     strneb  r4, [r1], #1
+    b       .dspr_loop
+
+.dspr_shnonsh:
+    tst     r9, #0x0800
+    bne     .dspr_TileFlipNonSH
+
+    @ (r1=pdest, r2=pixels8, r3=pal) r4: scratch, r12: helper pattern
+@ scratch: r4, r7
+.dspr_TileNormNonSH:
+    TileNormNonSH r12
+    b       .dspr_loop
+
+.dspr_TileFlipNonSH:
+    TileFlipNonSH r12
     b       .dspr_loop
 
 .dspr_shadow:
@@ -1566,15 +1622,6 @@ PicoDoHighPal555:
     and     r6, r12, r6, lsr #1
     stmia   r4!, {r1,r6}
     bne     .fl_loopcpRGB555_sh
-
-    @ fixup shadowed color 14 in palette 0,1,2 (always normal)
-    sub     r4, r3, #0x40*2
-    ldrh    r1, [r4, #0x0e*2] @ 0x0e, 0x1e, 0x2e
-    ldrh    r5, [r4, #0x1e*2]
-    ldrh    r6, [r4, #0x2e*2]
-    strh    r1, [r3, #0x4e*2] @ 0x8e, 0x9e, 0xae
-    strh    r5, [r3, #0x5e*2]
-    strh    r6, [r3, #0x6e*2]
 
     mov     r0, #1
 PicoDoHighPal555_end:

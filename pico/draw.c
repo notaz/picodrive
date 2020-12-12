@@ -187,6 +187,14 @@ TileFlipMaker(TileFlip, pix_just_write)
 
 #ifndef _ASM_DRAW_C
 
+// draw low prio sprite non-s/h pixels in s/h mode
+#define pix_nonsh(x) \
+  if (t == 0xe) pd[x]=(pal|t)&~0x80; /* disable shadow for color 14 (hw bug?) */ \
+  else if (t) pd[x]=pal|t
+
+TileNormMaker(TileNormNonSH, pix_nonsh)
+TileFlipMaker(TileFlipNonSH, pix_nonsh)
+
 // draw sprite pixels, process operator colors
 #define pix_sh(x) \
   if (t) { \
@@ -824,6 +832,9 @@ static void DrawSprite(int *sprite, int sh, int w)
   if (sh && (code&0x6000) == 0x6000) {
     if(code&0x0800) fTileFunc=TileFlipSH_markop;
     else            fTileFunc=TileNormSH_markop;
+  } else if (sh) {
+    if(code&0x0800) fTileFunc=TileFlipNonSH;
+    else            fTileFunc=TileNormNonSH;
   } else {
     if(code&0x0800) fTileFunc=TileFlip;
     else            fTileFunc=TileNorm;
@@ -1556,26 +1567,23 @@ void PicoDoHighPal555_8bit(int sh, int line, struct PicoEState *est)
     // otherwise intensity difference between this and s/h will be wrong
     t = PXCONV(t);
     t |= (t >> 4) & PXMASKL;
-    dpal[i] = dpal[0xc0/2 + i] = t;
+    dpal[i] = t;
   }
 
   // norm: xxx0, sh: 0xxx, hi: 0xxx + 7
   if (sh)
   {
     // shadowed pixels
-    for (i = 0; i < 0x40 / 2; i++)
+    for (i = 0; i < 0x40 / 2; i++) {
+      dpal[0xc0/2 + i] = dpal[i];
       dpal[0x80/2 + i] = (dpal[i] >> 1) & PXMASKH;
+    }
     // hilighted pixels
     for (i = 0; i < 0x40 / 2; i++) {
       t = ((dpal[i] >> 1) & PXMASKH) + PXMASKH;
       t |= (t >> 4) & PXMASKL;
       dpal[0x40/2 + i] = t;
     }
-    // shadowed pixels in color 14 always appear normal (hw bug?)
-    unsigned short *hpal = est->HighPal;
-    hpal[0x80 + 0x0e] = hpal[0x0e];
-    hpal[0x80 + 0x1e] = hpal[0x1e];
-    hpal[0x80 + 0x2e] = hpal[0x2e];
   }
 }
 
@@ -1611,11 +1619,6 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
       t |= (t >> 4) & PXMASKL;
       dpal[0x40/2 + i] = t;
     }
-    // shadowed pixels in color 14 always appear normal (hw bug?)
-    unsigned short *hpal = est->HighPal;
-    hpal[0x80 + 0x0e] = hpal[0x0e];
-    hpal[0x80 + 0x1e] = hpal[0x1e];
-    hpal[0x80 + 0x2e] = hpal[0x2e];
   }
 }
 
