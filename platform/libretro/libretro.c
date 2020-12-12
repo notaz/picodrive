@@ -84,9 +84,10 @@ static retro_audio_sample_batch_t audio_batch_cb;
 #define VOUT_MAX_WIDTH 328
 #else
 #define VOUT_MAX_WIDTH 320
-#define VOUT_32BIT_WIDTH 256
+#define VOUT_32COL_WIDTH 256
 #endif
 #define VOUT_MAX_HEIGHT 240
+
 #define INITIAL_SND_RATE 44100
 
 static const float VOUT_PAR = 0.0;
@@ -101,6 +102,8 @@ static int vm_current_start_line = -1;
 static int vm_current_line_count = -1;
 static int vm_current_is_32cols = -1;
 
+static int vout_16bit = 1;
+static int vout_format = PDF_RGB555;
 static void *vout_buf;
 static int vout_width, vout_height, vout_offset;
 static float user_vout_width = 0.0;
@@ -597,6 +600,9 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
    vm_current_line_count = line_count;
    vm_current_is_32cols = is_32cols;
 
+   // 8bit renderes create a 328x256 CLUT image, while 16bit creates 320x240 RGB
+   vout_16bit = vout_format == PDF_RGB555 || (PicoIn.AHW & PAHW_32X);
+
 #if defined(RENDER_GSKIT_PS2)
    if (is_32cols) {
       padding = (struct retro_hw_ps2_insets){start_line, 16.0f, VOUT_MAX_HEIGHT - line_count - start_line, 64.0f};
@@ -610,9 +616,10 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
    memset(retro_palette, 0, gsKit_texture_size_ee(16, 16, GS_PSM_CT16));
    PicoDrawSetOutBuf(vout_buf, vout_width);
 #else
-   vout_width = is_32cols ? VOUT_32BIT_WIDTH : VOUT_MAX_WIDTH;
+   vout_width = is_32cols ? VOUT_32COL_WIDTH : VOUT_MAX_WIDTH;
    memset(vout_buf, 0, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);  
-   PicoDrawSetOutBuf(vout_buf, vout_width * 2);
+   if (vout_16bit)
+      PicoDrawSetOutBuf(vout_buf, vout_width * 2);
 
    if (show_overscan)
    {
@@ -631,8 +638,8 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
          VOUT_MAX_HEIGHT : vout_height;
    vout_offset = (vout_offset > vout_width * (VOUT_MAX_HEIGHT - 1) * 2) ?
          vout_width * (VOUT_MAX_HEIGHT - 1) * 2 : vout_offset;
-
 #endif
+   Pico.m.dirtyPal = 1;
 
    // Update the geometry
    retro_get_system_av_info(&av_info);
@@ -641,8 +648,14 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 
 void emu_32x_startup(void)
 {
-   PicoDrawSetOutFormat(PDF_RGB555, 0);
-   PicoDrawSetOutBuf(vout_buf, vout_width * 2);
+   PicoDrawSetOutFormat(vout_format, 0);
+   if ((vm_current_start_line != -1) &&
+       (vm_current_line_count != -1) &&
+       (vm_current_is_32cols != -1))
+      emu_video_mode_change(
+            vm_current_start_line,
+            vm_current_line_count,
+            vm_current_is_32cols);
 }
 
 void lprintf(const char *fmt, ...)
@@ -1386,6 +1399,7 @@ static void update_variables(bool first_run)
    int OldPicoRegionOverride;
    float old_user_vout_width;
    unsigned old_frameskip_type;
+   int old_vout_format;
    double new_sound_rate;
 
    var.value = NULL;
@@ -1469,17 +1483,6 @@ static void update_variables(bool first_run)
          show_overscan = true;
    }
 
-   if (show_overscan != old_show_overscan)
-   {
-      if ((vm_current_start_line != -1) &&
-          (vm_current_line_count != -1) &&
-          (vm_current_is_32cols != -1))
-         emu_video_mode_change(
-               vm_current_start_line,
-               vm_current_line_count,
-               vm_current_is_32cols);
-   }
-
    var.value = NULL;
    var.key = "picodrive_overclk68k";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
@@ -1534,13 +1537,21 @@ static void update_variables(bool first_run)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
       frameskip_threshold = strtol(var.value, NULL, 10);
 
+   old_vout_format = vout_format;
    var.value = NULL;
    var.key = "picodrive_renderer";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "fast") == 0)
+         vout_format = PDF_NONE;
+      else if (strcmp(var.value, "good") == 0)
+         vout_format = PDF_8BIT;
+      else if (strcmp(var.value, "accurate") == 0)
+         vout_format = PDF_RGB555;
+
+      PicoIn.opt &= ~POPT_ALT_RENDERER;
+      if (vout_format == PDF_NONE)
          PicoIn.opt |= POPT_ALT_RENDERER;
-      else
-         PicoIn.opt &= ~POPT_ALT_RENDERER;
+      PicoDrawSetOutFormat(vout_format, 0);
    }
 
    var.value = NULL;
@@ -1555,6 +1566,18 @@ static void update_variables(bool first_run)
          retro_get_system_av_info(&av_info);
          environ_cb(RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &av_info);
       }
+   }
+
+   /* setup video if required */
+   if (show_overscan != old_show_overscan || vout_format != old_vout_format)
+   {
+      if ((vm_current_start_line != -1) &&
+          (vm_current_line_count != -1) &&
+          (vm_current_is_32cols != -1))
+         emu_video_mode_change(
+               vm_current_start_line,
+               vm_current_line_count,
+               vm_current_is_32cols);
    }
 
    /* Reinitialise frameskipping, if required */
@@ -1708,23 +1731,29 @@ void retro_run(void)
    ps2->padding = padding;
 
 #else
-   if (PicoIn.opt & POPT_ALT_RENDERER) {
-      /* In retro_init, PicoDrawSetOutBuf is called to make sure the output gets written to vout_buf, but this only
-       * applies to the line renderer (pico/draw.c). The faster tile-based renderer (pico/draw2.c) enabled by
-       * POPT_ALT_RENDERER writes to Pico.est.Draw2FB, so we need to manually copy that to vout_buf.
+   if (!vout_16bit) {
+      /* The 8 bit renderers write a CLUT image in Pico.est.Draw2FB, while libretro wants RGB in vout_buf.
+       * We need to manually copy that to vout_buf, applying the CLUT on the way. Especially
+       * with the fast renderer this is improving performance, at the expense of accuracy.
        */
       /* This section is mostly copied from pemu_finalize_frame in platform/linux/emu.c */
       unsigned short *pd = (unsigned short *)vout_buf;
-      /* Skip the leftmost 8 columns (it seems to be used as some sort of caching or overscan area) */
+      /* Skip the leftmost 8 columns (it is used as an overlap area for rendering) */
       unsigned char *ps = Pico.est.Draw2FB + 8;
       unsigned short *pal = Pico.est.HighPal;
       int x;
       if (Pico.m.dirtyPal)
          PicoDrawUpdateHighPal();
       /* Copy up to the max height to include the overscan area, and skip the leftmost 8 columns again */
-      for (i = 0; i < VOUT_MAX_HEIGHT; i++, ps += 8)
-         for (x = 0; x < vout_width; x++)
+      for (i = 0; i < VOUT_MAX_HEIGHT; i++, ps += 8) {
+         for (x = 0; x < vout_width; x+=4) {
             *pd++ = pal[*ps++];
+            *pd++ = pal[*ps++];
+            *pd++ = pal[*ps++];
+            *pd++ = pal[*ps++];
+         }
+         ps += 320-vout_width; /* Advance to next line in case of 32col mode */
+      }
    }
 
    buff = (char*)vout_buf + vout_offset;

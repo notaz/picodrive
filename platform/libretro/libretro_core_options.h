@@ -244,6 +244,7 @@ struct retro_core_option_definition option_defs_us[] = {
       "Fast renderer can't render any mid-frame image changes so it is useful only for some games.",
       {
          { "accurate", "Accurate" },
+         { "good",     "Good" },
          { "fast",     "Fast" },
          { NULL, NULL },
       },
