@@ -299,6 +299,7 @@ void plat_init(void)
 	ret = plat_sdl_init();
 	if (ret != 0)
 		exit(1);
+	SDL_ShowCursor(0);
 #if defined(__RG350__) || defined(__GCW0__)
 	// opendingux on JZ47x0 may falsely report a HW overlay, fix to window
 	plat_target.vout_method = 0;
