@@ -62,7 +62,6 @@ static int ctr_svchack_successful = 0;
 static int sceBlock;
 int getVMBlock();
 int _newlib_vm_size_user = 1 << TARGET_SIZE_2;
-
 #endif
 
 #include "libretro_core_options.h"
@@ -697,9 +696,11 @@ void retro_get_system_info(struct retro_system_info *info)
    memset(info, 0, sizeof(*info));
    info->library_name = "PicoDrive";
 #ifndef GIT_VERSION
-#define GIT_VERSION ""
+#define _GIT_VERSION ""
+#else
+#define _GIT_VERSION "-" GIT_VERSION
 #endif
-   info->library_version = VERSION GIT_VERSION;
+   info->library_version = VERSION _GIT_VERSION;
    info->valid_extensions = "bin|gen|smd|md|32x|cue|iso|sms";
    info->need_fullpath = true;
 }
