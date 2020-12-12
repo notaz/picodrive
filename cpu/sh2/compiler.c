@@ -5932,6 +5932,11 @@ void sh2_drc_finish(SH2 *sh2)
       free(hash_tables[i]);
       hash_tables[i] = NULL;
     }
+
+    if (unresolved_links[i] != NULL) {
+      free(unresolved_links[i]);
+      unresolved_links[i] = NULL;
+    }
   }
 
   if (block_list_pool != NULL)

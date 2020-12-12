@@ -196,8 +196,15 @@ PICO_INTERNAL_ASM void memset32(void *dest_in, int c, int count)
 		dest[0] = dest[1] = dest[2] = dest[3] =
 		dest[4] = dest[5] = dest[6] = dest[7] = c;
 
-	while (count--)
-		*dest++ = c;
+	switch (count) {
+		case 7: *dest++ = c;
+		case 6: *dest++ = c;
+		case 5: *dest++ = c;
+		case 4: *dest++ = c;
+		case 3: *dest++ = c;
+		case 2: *dest++ = c;
+		case 1: *dest++ = c;
+	}
 }
 void memset32_uncached(int *dest, int c, int count) { memset32(dest, c, count); }
 #endif

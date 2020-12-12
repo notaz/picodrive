@@ -783,6 +783,7 @@ void PicoTmpStateRestore(void *data)
     Pico32x.dirty_pal = 1;
   }
 #endif
+  free(t);
 }
 
 // vim:shiftwidth=2:ts=2:expandtab

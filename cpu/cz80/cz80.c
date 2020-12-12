@@ -107,7 +107,7 @@ void Cz80_Init(cz80_struc *CPU)
 
 	for (i = 0; i < CZ80_FETCH_BANK; i++)
 	{
-		CPU->Fetch[i] = (FPTR)cz80_bad_address;
+		CPU->Fetch[i] = (FPTR)cz80_bad_address - (i << CZ80_FETCH_SFT);
 #if CZ80_ENCRYPTED_ROM
 		CPU->OPFetch[i] = 0;
 #endif

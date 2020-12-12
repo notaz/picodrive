@@ -131,8 +131,8 @@ static void fname_ext(char *dst, int dstlen, const char *prefix, const char *ext
 	strncpy(dst + prefix_len, p, dstlen - prefix_len - 1);
 
 	dst[dstlen - 8] = 0;
-	if (dst[strlen(dst) - 4] == '.')
-		dst[strlen(dst) - 4] = 0;
+	if ((p = strrchr(dst, '.')) != NULL)
+		dst[p-dst] = 0;
 	if (ext)
 		strcat(dst, ext);
 }
