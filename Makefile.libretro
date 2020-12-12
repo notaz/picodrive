@@ -415,8 +415,12 @@ else ifeq ($(platform), emscripten)
 # GCW0
 else ifeq ($(platform), gcw0)
 	TARGET := $(TARGET_NAME)_libretro.so
-	CC = mipsel-linux-gcc
-	AR = mipsel-linux-ar
+ifeq (,$(shell command -v $(GCW0_PREFIX)mipsel-gcw0-linux-uclibc-gcc 2>/dev/null))
+	# locate the toolchain for buildbot if it isn't in path or prefix not set
+	GCW0_PREFIX = /opt/gcw0-toolchain/usr/bin/
+endif
+	CC = $(GCW0_PREFIX)mipsel-linux-gcc
+	AR = $(GCW0_PREFIX)mipsel-linux-ar
 	SHARED := -shared -nostdlib
 	fpic := -fPIC
 	LIBM :=
