@@ -1855,9 +1855,6 @@ PICO_INTERNAL void PicoFrameStart(void)
     Pico.m.dirtyPal = (dirty ? 2 : 0); // mark as dirty but already copied
     blockcpy(Pico.est.SonicPal, PicoMem.cram, 0x40*2);
   }
-
-  if (PicoIn.opt & POPT_ALT_RENDERER)
-    return;
 }
 
 static void DrawBlankedLine(int line, int offs, int sh, int bgc)
@@ -1974,10 +1971,12 @@ void PicoDrawUpdateHighPal(void)
 void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 {
   PicoDrawSetInternalBuf(NULL, 0);
+  PicoDraw2SetOutBuf(NULL);
   switch (which)
   {
     case PDF_8BIT:
       FinalizeLine = FinalizeLine8bit;
+      PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328);
       break;
 
     case PDF_RGB555:
@@ -1989,13 +1988,13 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 
     default:
       FinalizeLine = NULL;
-      PicoDrawSetOutBufMD(Pico.est.Draw2FB+8, 328);
       break;
   }
   if (PicoIn.AHW & PAHW_32X)
     PicoDrawSetOutFormat32x(which, use_32x_line_mode);
   PicoDrawSetOutputMode4(which);
   rendstatus_old = -1;
+  Pico.m.dirtyPal = 1;
 }
 
 void PicoDrawSetOutBufMD(void *dest, int increment)
@@ -2004,7 +2003,10 @@ void PicoDrawSetOutBufMD(void *dest, int increment)
     // kludge for no-copy mode
     PicoDrawSetInternalBuf(dest, increment);
   }
-  if (dest != NULL) {
+
+  if (FinalizeLine == NULL)
+    PicoDraw2SetOutBuf(dest);
+  else if (dest != NULL) {
     DrawLineDestBase = dest;
     DrawLineDestIncrement = increment;
     Pico.est.DrawLineDest = (char *)DrawLineDestBase + Pico.est.DrawScanline * increment;

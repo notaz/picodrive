@@ -674,6 +674,7 @@ extern int DrawLineDestIncrement;
 extern unsigned int VdpSATCache[128];
 
 // draw2.c
+void PicoDraw2SetOutBuf(void *dest);
 void PicoDraw2Init(void);
 PICO_INTERNAL void PicoFrameFull();
 
