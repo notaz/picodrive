@@ -178,13 +178,13 @@ static int PicoFrameHints(void)
   }
 
   pv->status |= SR_VB | PVS_VB2; // go into vblank
-  PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
 
   // the following SekRun is there for several reasons:
   // there must be a delay after vblank bit is set and irq is asserted (Mazin Saga)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
+  PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
   do_timing_hacks_start(pv);
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
@@ -270,7 +270,6 @@ static int PicoFrameHints(void)
 
   pv->status &= ~(SR_VB | PVS_VB2);
   pv->status |= ((pv->reg[1] >> 3) ^ SR_VB) & SR_VB; // forced blanking
-  PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
 
   // last scanline
   Pico.m.scanline = y++;
@@ -289,6 +288,7 @@ static int PicoFrameHints(void)
 
   // Run scanline:
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
+  PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
   do_timing_hacks_start(pv);
   CPUS_RUN(CYCLES_M68K_LINE);
   do_timing_hacks_end(pv);
