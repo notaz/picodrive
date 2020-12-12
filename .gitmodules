@@ -7,3 +7,6 @@
 [submodule "pico/sound/emu2413"]
 	path = pico/sound/emu2413
 	url = https://github.com/digital-sound-antiques/emu2413.git
+[submodule "platform/common/minimp3"]
+	path = platform/common/minimp3
+	url = https://github.com/lieff/minimp3

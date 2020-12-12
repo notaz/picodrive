@@ -205,12 +205,11 @@ endif # USE_FRONTEND
 
 OBJS += platform/common/mp3.o platform/common/mp3_sync.o
 ifeq "$(PLATFORM_MP3)" "1"
-platform/common/mp3_helix.o: CFLAGS += -Iplatform/libpicofe
 OBJS += platform/common/mp3_helix.o
 else ifeq "$(HAVE_LIBAVCODEC)" "1"
 OBJS += platform/common/mp3_libavcodec.o
 else
-OBJS += platform/common/mp3_dummy.o
+OBJS += platform/common/mp3_minimp3.o
 endif
 
 ifeq "$(PLATFORM_ZLIB)" "1"
