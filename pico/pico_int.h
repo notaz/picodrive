@@ -864,12 +864,12 @@ static __inline void VideoWriteVRAM(u32 a, u16 d)
 
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
-unsigned char PicoVideoRead8DataH(void);
-unsigned char PicoVideoRead8DataL(void);
-unsigned char PicoVideoRead8CtlH(void);
-unsigned char PicoVideoRead8CtlL(void);
-unsigned char PicoVideoRead8HV_H(void);
-unsigned char PicoVideoRead8HV_L(void);
+unsigned char PicoVideoRead8DataH(int is_from_z80);
+unsigned char PicoVideoRead8DataL(int is_from_z80);
+unsigned char PicoVideoRead8CtlH(int is_from_z80);
+unsigned char PicoVideoRead8CtlL(int is_from_z80);
+unsigned char PicoVideoRead8HV_H(int is_from_z80);
+unsigned char PicoVideoRead8HV_L(int is_from_z80);
 extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask);
 void PicoVideoFIFOSync(int cycles);
 int PicoVideoFIFOHint(void);

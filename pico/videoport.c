@@ -362,13 +362,14 @@ static void VideoWrite(u16 d)
   AutoIncrement();
 }
 
-static unsigned int VideoRead(void)
+static unsigned int VideoRead(int is_from_z80)
 {
   unsigned int a, d = VdpFIFO.fifo_data[(VdpFIFO.fifo_dx+1)&3];
 
   a=Pico.video.addr; a>>=1;
 
-  SekCyclesBurnRun(PicoVideoFIFORead());
+  if (!is_from_z80)
+    SekCyclesBurnRun(PicoVideoFIFORead());
   switch (Pico.video.type)
   {
     case 0: d=PicoMem.vram [a & 0x7fff]; break;
@@ -940,23 +941,23 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
 
   if (a==0x00) // data port
   {
-    return VideoRead();
+    return VideoRead(0);
   }
 
   return 0;
 }
 
-unsigned char PicoVideoRead8DataH(void)
+unsigned char PicoVideoRead8DataH(int is_from_z80)
 {
-  return VideoRead() >> 8;
+  return VideoRead(is_from_z80) >> 8;
 }
 
-unsigned char PicoVideoRead8DataL(void)
+unsigned char PicoVideoRead8DataL(int is_from_z80)
 {
-  return VideoRead();
+  return VideoRead(is_from_z80);
 }
 
-unsigned char PicoVideoRead8CtlH(void)
+unsigned char PicoVideoRead8CtlH(int is_from_z80)
 {
   struct PicoVideo *pv = &Pico.video;
   u8 d = VideoSr(pv) >> 8;
@@ -968,7 +969,7 @@ unsigned char PicoVideoRead8CtlH(void)
   return d;
 }
 
-unsigned char PicoVideoRead8CtlL(void)
+unsigned char PicoVideoRead8CtlL(int is_from_z80)
 {
   struct PicoVideo *pv = &Pico.video;
   u8 d = VideoSr(pv);
@@ -980,14 +981,14 @@ unsigned char PicoVideoRead8CtlL(void)
   return d;
 }
 
-unsigned char PicoVideoRead8HV_H(void)
+unsigned char PicoVideoRead8HV_H(int is_from_z80)
 {
   elprintf(EL_HVCNT, "vcounter: %02x [%u] @ %06x", Pico.video.v_counter, SekCyclesDone(), SekPc);
   return Pico.video.v_counter;
 }
 
 // FIXME: broken
-unsigned char PicoVideoRead8HV_L(void)
+unsigned char PicoVideoRead8HV_L(int is_from_z80)
 {
   u32 d = (SekCyclesDone() - Pico.t.m68c_line_start) & 0x1ff; // FIXME
   if (Pico.video.reg[0]&2)

@@ -696,14 +696,14 @@ u32 PicoRead8_vdp(u32 a)
   if ((a & 0x00f0) == 0x0000) {
     switch (a & 0x0d)
     {
-      case 0x00: return PicoVideoRead8DataH();
-      case 0x01: return PicoVideoRead8DataL();
-      case 0x04: return PicoVideoRead8CtlH();
-      case 0x05: return PicoVideoRead8CtlL();
+      case 0x00: return PicoVideoRead8DataH(0);
+      case 0x01: return PicoVideoRead8DataL(0);
+      case 0x04: return PicoVideoRead8CtlH(0);
+      case 0x05: return PicoVideoRead8CtlL(0);
       case 0x08:
-      case 0x0c: return PicoVideoRead8HV_H();
+      case 0x0c: return PicoVideoRead8HV_H(0);
       case 0x09:
-      case 0x0d: return PicoVideoRead8HV_L();
+      case 0x0d: return PicoVideoRead8HV_L(0);
     }
   }
 
@@ -1195,10 +1195,10 @@ static unsigned char z80_md_vdp_read(unsigned short a)
   if ((a & 0x00f0) == 0x0000) {
     switch (a & 0x0d)
     {
-      case 0x00: return PicoVideoRead8DataH();
-      case 0x01: return PicoVideoRead8DataL();
-      case 0x04: return PicoVideoRead8CtlH();
-      case 0x05: return PicoVideoRead8CtlL();
+      case 0x00: return PicoVideoRead8DataH(1);
+      case 0x01: return PicoVideoRead8DataL(1);
+      case 0x04: return PicoVideoRead8CtlH(1);
+      case 0x05: return PicoVideoRead8CtlL(1);
       case 0x08:
       case 0x0c: return get_scanline(1); // FIXME: make it proper
       case 0x09:
