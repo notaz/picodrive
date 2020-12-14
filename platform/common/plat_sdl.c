@@ -135,12 +135,12 @@ void bgr_to_uyvy_init(void)
   }
 }
 
-void rgb565_to_uyvy(void *d, const void *s, int pixels)
+void rgb565_to_uyvy(void *d, const void *s, int pixels, int x2)
 {
   uint32_t *dst = d;
   const uint16_t *src = s;
 
-  if (plat_sdl_overlay->w > 2*plat_sdl_overlay->h)
+  if (x2)
   for (; pixels > 0; src += 4, dst += 4, pixels -= 4)
   {
     struct uyvy *uyvy0 = yuv_uyvy + src[0], *uyvy1 = yuv_uyvy + src[1];
@@ -169,7 +169,8 @@ void plat_video_flip(void)
 
 		SDL_LockYUVOverlay(plat_sdl_overlay);
 		rgb565_to_uyvy(plat_sdl_overlay->pixels[0], shadow_fb,
-				g_screen_ppitch * g_screen_height);
+				g_screen_ppitch * g_screen_height,
+				plat_sdl_overlay->w > 2*plat_sdl_overlay->h);
 		SDL_UnlockYUVOverlay(plat_sdl_overlay);
 		SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
 	}
@@ -246,7 +247,7 @@ void plat_video_menu_end(void)
 
 		SDL_LockYUVOverlay(plat_sdl_overlay);
 		rgb565_to_uyvy(plat_sdl_overlay->pixels[0], shadow_fb,
-				g_menuscreen_pp * g_menuscreen_h);
+				g_menuscreen_pp * g_menuscreen_h, 0);
 		SDL_UnlockYUVOverlay(plat_sdl_overlay);
 
 		SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
