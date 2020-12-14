@@ -163,7 +163,7 @@ void NOINLINE p32x_sh2_poll_event(SH2 *sh2, u32 flags, u32 m68k_cycles)
     sh2->poll_addr = sh2->poll_cycles = sh2->poll_cnt = 0;
 }
 
-static void sh2s_sync_on_read(SH2 *sh2, unsigned cycles)
+static NOINLINE void sh2s_sync_on_read(SH2 *sh2, unsigned cycles)
 {
   if (sh2->poll_cnt != 0)
     return;
@@ -1587,13 +1587,13 @@ static void sh2_sdram_poll(u32 a, u32 d, SH2 *sh2)
   DRC_RESTORE_SR(sh2);
 }
 
-void sh2_sdram_checks(u32 a, u32 d, SH2 *sh2, u32 t)
+void NOINLINE sh2_sdram_checks(u32 a, u32 d, SH2 *sh2, u32 t)
 {
   if (t & 0x80)         sh2_sdram_poll(a, d, sh2);
   if (t & 0x7f)         sh2_drc_wcheck_ram(a, 2, sh2);
 }
 
-void sh2_sdram_checks_l(u32 a, u32 d, SH2 *sh2, u32 t)
+void NOINLINE sh2_sdram_checks_l(u32 a, u32 d, SH2 *sh2, u32 t)
 {
   if (t & 0x000080)     sh2_sdram_poll(a, d>>16, sh2);
   if (t & 0x800000)     sh2_sdram_poll(a+2, d, sh2);

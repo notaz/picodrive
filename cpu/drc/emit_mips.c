@@ -384,7 +384,7 @@ static int emith_rd(u32 op)
 			ret =	emith_has_(rd,2,op, 0,0x3f) ? (op>>16)&0x1f :-1;
 		  if ((op>>26) == OP__RT)
 		  	ret =	-1;
-		  return (ret ?: -1);	// Z0 doesn't have dependencies
+		  return (ret ? ret : -1);	// Z0 doesn't have dependencies
 		}
 
 static int emith_b_isswap(u32 bop, u32 lop)
