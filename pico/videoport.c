@@ -166,7 +166,6 @@ static int PicoVideoFIFODrain(int level, int cycles, int bgdma)
   struct PicoVideo *pv = &Pico.video;
   unsigned ocyc = cycles;
   int burn = 0;
-//int osl = fifo_slot;
 
   // process FIFO entries until low level is reached
   while (vf->fifo_slot <= vf->fifo_maxslot && cycles < 488 &&
@@ -1042,7 +1041,7 @@ void PicoVideoLoad(void)
 
   // convert former dma_xfers (why was this in PicoMisc anyway?)
   if (Pico.m.dma_xfers) {
-    pv->status = SR_DMA|PVS_FIFORUN;
+    pv->status |= SR_DMA|PVS_FIFORUN;
     pv->fifo_cnt = Pico.m.dma_xfers * (pv->type == 1 ? 2 : 1);
     vf->fifo_total = Pico.m.dma_xfers;
     Pico.m.dma_xfers = 0;
