@@ -228,7 +228,11 @@ CFLAGS += $(addprefix -D,$(DEFINES))
 
 ifneq ($(findstring gcc,$(CC)),)
 ifneq ($(findstring SunOS,$(shell uname -a)),SunOS)
+ifeq ($(findstring Darwin,$(shell uname -a)),Darwin)
+LDFLAGS += -Wl,-map,$(TARGET).map
+else
 LDFLAGS += -Wl,-Map=$(TARGET).map
+endif
 endif
 endif
 
