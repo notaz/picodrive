@@ -709,12 +709,9 @@ OP_EI:
 				zR++;
 #endif
 			}
-			if (CPU->IRQState)
-			{
-				afterEI = 1;
-				CPU->ExtraCycles += 1 - CPU->ICount;
-				CPU->ICount = 1;
-			}
+			afterEI = 1;
+			CPU->ExtraCycles += 1 - CPU->ICount;
+			CPU->ICount = 1;
 		}
 		else zIFF2 = (1 << 2);
 		goto Cz80_Exec_nocheck;

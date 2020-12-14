@@ -275,23 +275,22 @@ Cz80_Check_Interrupt:
 			if (CPU->IRQState != CLEAR_LINE)
 			{
 				CHECK_INT
-				CPU->ICount -= CPU->ExtraCycles;
-				CPU->ExtraCycles = 0;
 			}
+			CPU->ICount -= CPU->ExtraCycles;
+			CPU->ExtraCycles = 0;
 			if (!CPU->HaltState)
 				goto Cz80_Exec;
 		}
 	}
-	else CPU->ICount = 0;
 
 Cz80_Exec_End:
 	CPU->PC = PC;
 #if CZ80_ENCRYPTED_ROM
 	CPU->OPBase = OPBase;
 #endif
-	if (CPU->HaltState)
-		CPU->ICount = 0;
-	cycles -= CPU->ICount;
+	if (!(CPU->HaltState && CPU->ICount > 0))
+		cycles -= CPU->ICount;
+	CPU->ICount = 0;
 #if !CZ80_EMULATE_R_EXACTLY
 	zR = (zR + (cycles >> 2)) & 0x7f;
 #endif
@@ -332,6 +331,11 @@ void Cz80_Set_IRQ(cz80_struc *CPU, INT32 line, INT32 state)
 			CPU->OPBase = OPBase;
 #endif
 		}
+	}
+	if (CPU->ICount > 0)
+	{
+		CPU->ICount -= CPU->ExtraCycles;
+		CPU->ExtraCycles  = 0;
 	}
 }
 
