@@ -1690,6 +1690,18 @@ static void REGPARM(3) sh2_write8_da(u32 a, u32 d, SH2 *sh2)
 }
 #endif
 
+static void REGPARM(3) sh2_write8_sdram_wt(u32 a, u32 d, SH2 *sh2)
+{
+  // xmen sync hack..
+  if (a < 0x26000200) {
+    DRC_SAVE_SR(sh2);
+    sh2_end_run(sh2, 32);
+    DRC_RESTORE_SR(sh2);
+  }
+
+  sh2_write8_sdram(a, d, sh2);
+}
+
 // write16
 static void REGPARM(3) sh2_write16_unmapped(u32 a, u32 d, SH2 *sh2)
 {
@@ -2380,6 +2392,8 @@ void PicoMemSetup32x(void)
   msh2_read16_map[0x06/2].addr  = msh2_read16_map[0x26/2].addr  =
   msh2_read32_map[0x06/2].addr  = msh2_read32_map[0x26/2].addr  = MAP_MEMORY(Pico32xMem->sdram);
   msh2_write8_map[0x06/2]       = msh2_write8_map[0x26/2]       = sh2_write8_sdram;
+  msh2_write8_map[0x26/2]       = sh2_write8_sdram_wt;
+
   msh2_write16_map[0x06/2]      = msh2_write16_map[0x26/2]      = sh2_write16_sdram;
   msh2_write32_map[0x06/2]      = msh2_write32_map[0x26/2]      = sh2_write32_sdram;
   msh2_read8_map[0x06/2].mask   = msh2_read8_map[0x26/2].mask   = 0x03ffff;
