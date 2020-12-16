@@ -124,6 +124,7 @@ endif
 # sound
 SRCS_COMMON += $(R)pico/sound/sound.c
 SRCS_COMMON += $(R)pico/sound/sn76496.c $(R)pico/sound/ym2612.c
+SRCS_COMMON += $(R)pico/sound/emu2413/emu2413.c
 ifneq "$(ARCH)$(asm_mix)" "arm1"
 SRCS_COMMON += $(R)pico/sound/mix.c
 endif

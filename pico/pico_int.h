@@ -183,7 +183,7 @@ extern struct DrZ80 drZ80;
 #define z80_int_assert(a)  Cz80_Set_IRQ(&CZ80, 0, (a) ? ASSERT_LINE : CLEAR_LINE)
 #define z80_nmi()          Cz80_Set_IRQ(&CZ80, IRQ_LINE_NMI, 0)
 
-#define z80_cyclesLeft     CZ80.ICount
+#define z80_cyclesLeft     (CZ80.ICount - CZ80.ExtraCycles)
 #define z80_subCLeft(c)    CZ80.ICount -= c
 #define z80_pc()           Cz80_Get_Reg(&CZ80, CZ80_PC)
 
@@ -434,6 +434,7 @@ struct PicoSound
   unsigned int dac_pos;                 // last DAC position in Q20
   unsigned int fm_pos;                  // last FM position in Q20
   unsigned int psg_pos;                 // last PSG position in Q16
+  unsigned int ym2413_pos;              // last YM2413 position
 };
 
 // run tools/mkoffsets pico/pico_int_offs.h if you change these
@@ -673,6 +674,7 @@ extern int DrawLineDestIncrement;
 extern unsigned int VdpSATCache[128];
 
 // draw2.c
+void PicoDraw2SetOutBuf(void *dest);
 void PicoDraw2Init(void);
 PICO_INTERNAL void PicoFrameFull();
 
@@ -862,12 +864,12 @@ static __inline void VideoWriteVRAM(u32 a, u16 d)
 
 PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d);
 PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a);
-unsigned char PicoVideoRead8DataH(void);
-unsigned char PicoVideoRead8DataL(void);
-unsigned char PicoVideoRead8CtlH(void);
-unsigned char PicoVideoRead8CtlL(void);
-unsigned char PicoVideoRead8HV_H(void);
-unsigned char PicoVideoRead8HV_L(void);
+unsigned char PicoVideoRead8DataH(int is_from_z80);
+unsigned char PicoVideoRead8DataL(int is_from_z80);
+unsigned char PicoVideoRead8CtlH(int is_from_z80);
+unsigned char PicoVideoRead8CtlL(int is_from_z80);
+unsigned char PicoVideoRead8HV_H(int is_from_z80);
+unsigned char PicoVideoRead8HV_L(int is_from_z80);
 extern int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask);
 void PicoVideoFIFOSync(int cycles);
 int PicoVideoFIFOHint(void);
@@ -898,10 +900,13 @@ PICO_INTERNAL_ASM void wram_2M_to_1M(unsigned char *m);
 PICO_INTERNAL_ASM void wram_1M_to_2M(unsigned char *m);
 
 // sound/sound.c
+PICO_INTERNAL void PsndInit(void);
+PICO_INTERNAL void PsndExit(void);
 PICO_INTERNAL void PsndReset(void);
 PICO_INTERNAL void PsndStartFrame(void);
 PICO_INTERNAL void PsndDoDAC(int cycle_to);
 PICO_INTERNAL void PsndDoPSG(int line_to);
+PICO_INTERNAL void PsndDoYM2413(int line_to);
 PICO_INTERNAL void PsndDoFM(int line_to);
 PICO_INTERNAL void PsndClear(void);
 PICO_INTERNAL void PsndGetSamples(int y);

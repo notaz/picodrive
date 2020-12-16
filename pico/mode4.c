@@ -17,7 +17,7 @@
 
 static void (*FinalizeLineM4)(int line);
 static int skip_next_line;
-static int screen_offset;
+static int screen_offset, line_offset;
 
 static void TileBGM4(int sx, int pal)
 {
@@ -110,8 +110,7 @@ static void draw_sprites(int scanline)
 
   if (pv->reg[0] & 8)
     xoff = 0;
-  if (!FinalizeLineM4 && !(PicoIn.opt & POPT_DIS_32C_BORDER))
-    xoff += 32;
+  xoff += line_offset;
 
   sat = (unsigned char *)PicoMem.vram + ((pv->reg[5] & 0x7e) << 7);
   if (pv->reg[1] & 2) {
@@ -252,8 +251,7 @@ static void DrawDisplayM4(int scanline)
   if (dx != 8)
     cells++; // have hscroll, need to draw 1 cell more
   dx += cellskip << 3;
-  if (!FinalizeLineM4 && !(PicoIn.opt & POPT_DIS_32C_BORDER))
-    dx += 32;
+  dx += line_offset;
 
   // low priority tiles
   if (!(pv->debug_p & PVD_KILL_B))
@@ -341,11 +339,11 @@ void PicoDoHighPal555M4(void)
     t = *spal;
 #ifdef USE_BGR555
     t = ((t & 0x00030003)<< 3) | ((t & 0x000c000c)<<6) | ((t & 0x00300030)<<9);
+    t |= (t >> 2) | ((t >> 4) & 0x04210421);
 #else
     t = ((t & 0x00030003)<<14) | ((t & 0x000c000c)<<7) | ((t & 0x00300030)>>1);
+    t |= (t >> 2) | ((t >> 4) & 0x08610861);
 #endif
-    t |= t >> 2;
-    t |= (t >> 4) & 0x08610861;
     *dpal = t;
   }
   Pico.est.HighPal[0xe0] = 0;
@@ -365,24 +363,18 @@ static void FinalizeLine8bitM4(int line)
 {
   unsigned char *pd = Pico.est.DrawLineDest;
 
-#if defined(RENDER_GSKIT_PS2)
-  memcpy(pd, Pico.est.HighCol, 328);
-#else
-  if (!(PicoIn.opt & POPT_DIS_32C_BORDER)) {
-    pd += 32;
-    memcpy(pd, Pico.est.HighCol + 8, 256);
-  } else {
-    memcpy(pd, Pico.est.HighCol + 8, 320);
-  }
-#endif
+  if (HighColBase != DrawLineDestBase)
+    memcpy(pd + line_offset, Pico.est.HighCol + line_offset + 8, 256);
 }
 
 void PicoDrawSetOutputMode4(pdso_t which)
 {
+  line_offset = PicoIn.opt & POPT_DIS_32C_BORDER ? 0 : 32;
   switch (which)
   {
     case PDF_8BIT:   FinalizeLineM4 = FinalizeLine8bitM4; break;
-    case PDF_RGB555: FinalizeLineM4 = FinalizeLineRGB555M4; break;
+    case PDF_RGB555: FinalizeLineM4 = FinalizeLineRGB555M4;
+                     line_offset = 0 /* done in FinalizeLine */; break;
     default:         FinalizeLineM4 = NULL;
                      PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328); break;
   }

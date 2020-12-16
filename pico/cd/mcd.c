@@ -12,6 +12,7 @@
 extern unsigned char formatted_bram[4*0x10];
 
 static unsigned int mcd_m68k_cycle_mult;
+static unsigned int mcd_s68k_cycle_mult;
 static unsigned int mcd_m68k_cycle_base;
 static unsigned int mcd_s68k_cycle_base;
 
@@ -138,16 +139,22 @@ static void SekRunS68k(unsigned int to)
 #elif defined(EMU_F68K)
   SekCycleCntS68k += fm68k_emulate(&PicoCpuFS68k, cyc_do, 0) - cyc_do;
 #endif
+  SekCyclesLeftS68k = 0;
   pprof_end(s68k);
 }
 
 static void pcd_set_cycle_mult(void)
 {
-  // ~1.63 for NTSC, ~1.645 for PAL
+  unsigned int div;
+
   if (Pico.m.pal)
-    mcd_m68k_cycle_mult = ((12500000ull << 16) / (50*313*488));
+    div = 50*313*488;
   else
-    mcd_m68k_cycle_mult = ((12500000ull << 16) / (60*262*488)) + 1;
+    div = 60*262*488;
+
+  // ~1.63 for NTSC, ~1.645 for PAL; round to nearest, x/y+0.5 -> (x+y/2)/y
+  mcd_m68k_cycle_mult = ((12500000ull << 16) + div/2) / div;
+  mcd_s68k_cycle_mult = ((1ull*div << 16)  + 6250000) / 12500000;
 }
 
 unsigned int pcd_cycles_m68k_to_s68k(unsigned int c)
@@ -287,7 +294,7 @@ int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
 
   if (Pico_mcd->m.busreq != 1) { /* busreq/reset */
     SekCycleCntS68k = SekCycleAimS68k = s68k_target;
-    pcd_run_events(m68k_target);
+    pcd_run_events(s68k_target);
     return 0;
   }
 
@@ -326,7 +333,7 @@ void pcd_run_cpus_normal(int m68k_cycles)
       Pico.t.m68c_cnt = Pico.t.m68c_aim;
       return;
     }
-    Pico.t.m68c_cnt = Pico.t.m68c_aim - (s68k_left * 40220 >> 16);
+    Pico.t.m68c_cnt = Pico.t.m68c_aim - (s68k_left * mcd_s68k_cycle_mult >> 16);
   }
 
   while (CYCLES_GT(Pico.t.m68c_aim, Pico.t.m68c_cnt)) {

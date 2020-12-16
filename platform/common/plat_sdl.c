@@ -9,6 +9,7 @@
 #include <stdio.h>
 
 #include "../libpicofe/input.h"
+#include "../libpicofe/plat.h"
 #include "../libpicofe/plat_sdl.h"
 #include "../libpicofe/in_sdl.h"
 #include "../libpicofe/gl.h"
@@ -75,15 +76,15 @@ const struct menu_keymap in_sdl_joy_map[] __attribute__((weak)) =
 	{ SDLK_WORLD_3,	PBTN_MA3 },
 };
 
-extern const char * const in_sdl_key_names[] __attribute__((weak));
+const char *const *in_sdl_key_names_p __attribute__((weak)) = NULL;
 
-static const struct in_pdata in_sdl_platform_data = {
+
+static struct in_pdata in_sdl_platform_data = {
 	.defbinds = in_sdl_defbinds,
 	.key_map = in_sdl_key_map,
 	.kmap_size = sizeof(in_sdl_key_map) / sizeof(in_sdl_key_map[0]),
 	.joy_map = in_sdl_joy_map,
 	.jmap_size = sizeof(in_sdl_joy_map) / sizeof(in_sdl_joy_map[0]),
-	.key_names = in_sdl_key_names,
 };
 
 /* YUV stuff */
@@ -134,12 +135,12 @@ void bgr_to_uyvy_init(void)
   }
 }
 
-void rgb565_to_uyvy(void *d, const void *s, int pixels)
+void rgb565_to_uyvy(void *d, const void *s, int pixels, int x2)
 {
   uint32_t *dst = d;
   const uint16_t *src = s;
 
-  if (plat_sdl_overlay->w > 2*plat_sdl_overlay->h)
+  if (x2)
   for (; pixels > 0; src += 4, dst += 4, pixels -= 4)
   {
     struct uyvy *uyvy0 = yuv_uyvy + src[0], *uyvy1 = yuv_uyvy + src[1];
@@ -158,6 +159,8 @@ void rgb565_to_uyvy(void *d, const void *s, int pixels)
   }
 }
 
+static int clear_buf_cnt, clear_stat_cnt;
+
 void plat_video_flip(void)
 {
 	if (plat_sdl_overlay != NULL) {
@@ -166,7 +169,8 @@ void plat_video_flip(void)
 
 		SDL_LockYUVOverlay(plat_sdl_overlay);
 		rgb565_to_uyvy(plat_sdl_overlay->pixels[0], shadow_fb,
-				g_screen_ppitch * g_screen_height);
+				g_screen_ppitch * g_screen_height,
+				plat_sdl_overlay->w > 2*plat_sdl_overlay->h);
 		SDL_UnlockYUVOverlay(plat_sdl_overlay);
 		SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
 	}
@@ -174,11 +178,24 @@ void plat_video_flip(void)
 		gl_flip(shadow_fb, g_screen_ppitch, g_screen_height);
 	}
 	else {
-		if (SDL_MUSTLOCK(plat_sdl_screen))
+		if (SDL_MUSTLOCK(plat_sdl_screen)) {
 			SDL_UnlockSurface(plat_sdl_screen);
-		SDL_Flip(plat_sdl_screen);
+			SDL_Flip(plat_sdl_screen);
+			SDL_LockSurface(plat_sdl_screen);
+		} else
+			SDL_Flip(plat_sdl_screen);
 		g_screen_ptr = plat_sdl_screen->pixels;
-		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
+		plat_video_set_buffer(g_screen_ptr);
+		if (clear_buf_cnt) {
+			memset(g_screen_ptr, 0, plat_sdl_screen->w*plat_sdl_screen->h * 2);
+			clear_buf_cnt--;
+		}
+	}
+	if (clear_stat_cnt) {
+		unsigned short *d = (unsigned short *)g_screen_ptr + g_screen_ppitch * g_screen_height;
+		int l = g_screen_ppitch * 8;
+		memset((int *)(d - l), 0, l * 2);
+		clear_stat_cnt--;
 	}
 }
 
@@ -186,10 +203,28 @@ void plat_video_wait_vsync(void)
 {
 }
 
+void plat_video_clear_status(void)
+{
+	clear_stat_cnt = 3; // do it thrice in case of triple buffering
+}
+
+void plat_video_clear_buffers(void)
+{
+	if (plat_sdl_overlay != NULL || plat_sdl_gl_active)
+		memset(shadow_fb, 0, plat_sdl_screen->w*plat_sdl_screen->h * 2);
+	else {
+		memset(g_screen_ptr, 0, plat_sdl_screen->w*plat_sdl_screen->h * 2);
+		clear_buf_cnt = 3; // do it thrice in case of triple buffering
+	}
+}
+
 void plat_video_menu_enter(int is_rom_loaded)
 {
+	if (SDL_MUSTLOCK(plat_sdl_screen))
+		SDL_UnlockSurface(plat_sdl_screen);
 	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 0);
 	g_screen_ptr = shadow_fb;
+	plat_video_set_buffer(g_screen_ptr);
 }
 
 void plat_video_menu_begin(void)
@@ -212,7 +247,7 @@ void plat_video_menu_end(void)
 
 		SDL_LockYUVOverlay(plat_sdl_overlay);
 		rgb565_to_uyvy(plat_sdl_overlay->pixels[0], shadow_fb,
-				g_menuscreen_pp * g_menuscreen_h);
+				g_menuscreen_pp * g_menuscreen_h, 0);
 		SDL_UnlockYUVOverlay(plat_sdl_overlay);
 
 		SDL_DisplayYUVOverlay(plat_sdl_overlay, &dstrect);
@@ -226,7 +261,6 @@ void plat_video_menu_end(void)
 		SDL_Flip(plat_sdl_screen);
 	}
 	g_menuscreen_ptr = NULL;
-
 }
 
 void plat_video_menu_leave(void)
@@ -245,7 +279,7 @@ void plat_video_loop_prepare(void)
 			SDL_LockSurface(plat_sdl_screen);
 		g_screen_ptr = plat_sdl_screen->pixels;
 	}
-	PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
+	plat_video_set_buffer(g_screen_ptr);
 }
 
 void plat_early_init(void)
@@ -266,6 +300,11 @@ void plat_init(void)
 	ret = plat_sdl_init();
 	if (ret != 0)
 		exit(1);
+	SDL_ShowCursor(0);
+#if defined(__RG350__) || defined(__GCW0__)
+	// opendingux on JZ47x0 may falsely report a HW overlay, fix to window
+	plat_target.vout_method = 0;
+#endif
 
 	plat_sdl_quit_cb = plat_sdl_quit;
 
@@ -292,6 +331,7 @@ void plat_init(void)
 	g_screen_ppitch = 320;
 	g_screen_ptr = shadow_fb;
 
+	in_sdl_platform_data.key_names = in_sdl_key_names_p;
 	in_sdl_init(&in_sdl_platform_data, plat_sdl_event_handler);
 	in_probe();
 

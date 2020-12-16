@@ -10,6 +10,7 @@
 #ifndef PICO_H
 #define PICO_H
 
+#include <stdint.h> // [u]int<n>_t
 #include <stdlib.h> // size_t
 
 #ifdef __cplusplus
@@ -55,7 +56,7 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define POPT_EN_Z80         (1<< 2)
 #define POPT_EN_STEREO      (1<< 3)
 #define POPT_ALT_RENDERER   (1<< 4) // 00 00x0
-// unused                   (1<< 5)
+#define POPT_EN_YM2413      (1<< 5)
 // unused                   (1<< 6)
 #define POPT_ACC_SPRITES    (1<< 7)
 #define POPT_DIS_32C_BORDER (1<< 8) // 00 0x00

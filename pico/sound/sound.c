@@ -13,6 +13,7 @@
 #include "../pico_int.h"
 #include "../cd/cue.h"
 #include "mix.h"
+#include "emu2413/emu2413.h"
 
 void (*PsndMix_32_to_16l)(short *dest, int *src, int count) = mix_32_to_16l_stereo;
 
@@ -92,6 +93,26 @@ static void low_pass_filter_mono(int *buf32, int length)
 
 void (*low_pass_filter)(int *buf32, int length) = low_pass_filter_stereo;
 
+// ym2413
+#define YM2413_CLK 3579545
+OPLL old_opll;
+static OPLL *opll = NULL;
+unsigned YM2413_reg;
+
+
+PICO_INTERNAL void PsndInit(void)
+{
+  opll = OPLL_new(YM2413_CLK, PicoIn.sndRate);
+  OPLL_setChipType(opll,0);
+  OPLL_reset(opll);
+}
+
+PICO_INTERNAL void PsndExit(void)
+{
+  OPLL_delete(opll);
+  opll = NULL;
+}
+
 PICO_INTERNAL void PsndReset(void)
 {
   // PsndRerate calls YM2612Init, which also resets
@@ -129,6 +150,12 @@ void PsndRerate(int preserve_state)
   if (preserve_state) memcpy(state, sn76496_regs, 28*4); // remember old state
   SN76496_init(Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15, PicoIn.sndRate);
   if (preserve_state) memcpy(sn76496_regs, state, 28*4); // restore old state
+
+  if(opll != NULL){
+    if (preserve_state) memcpy(&old_opll, opll, sizeof(OPLL)); // remember old state
+    OPLL_setRate(opll, PicoIn.sndRate);
+    OPLL_reset(opll);
+  }
 
   if (state)
     free(state);
@@ -235,6 +262,48 @@ PICO_INTERNAL void PsndDoPSG(int line_to)
   SN76496Update(PicoIn.sndOut + pos, len, stereo);
 }
 
+#if 0
+PICO_INTERNAL void PsndDoYM2413(int line_to)
+{
+  int pos, len;
+  int stereo = 0;
+  short *buf;
+
+  // Q16, number of samples since last call
+  len = ((line_to+1) * Pico.snd.smpl_mult) - Pico.snd.ym2413_pos;
+  if (len <= 0)
+    return;
+
+  // update position and calculate buffer offset and length
+  pos = (Pico.snd.ym2413_pos+0x8000) >> 16;
+  Pico.snd.ym2413_pos += len;
+  len = ((Pico.snd.ym2413_pos+0x8000) >> 16) - pos;
+
+  if (!PicoIn.sndOut || !(PicoIn.opt & POPT_EN_YM2413))
+    return;
+
+  if (PicoIn.opt & POPT_EN_STEREO) {
+    stereo = 1;
+    pos <<= 1;
+  }
+
+  buf = PicoIn.sndOut + pos;
+  while (len-- > 0) {
+    int16_t getdata = OPLL_calc(opll) * 3;
+    *buf++ += getdata;
+    buf += stereo; // only left for stereo, to be mixed to right later
+  }
+}
+#endif
+
+void YM2413_regWrite(unsigned data){
+  OPLL_writeIO(opll,0,data);
+}
+void YM2413_dataWrite(unsigned data){
+  OPLL_writeIO(opll,1,data);
+}
+
+
 PICO_INTERNAL void PsndDoFM(int cyc_to)
 {
   int pos, len;
@@ -323,7 +392,7 @@ PICO_INTERNAL void PsndClear(void)
   if (!(PicoIn.opt & POPT_EN_FM))
     memset32(PsndBuffer, 0, PicoIn.opt & POPT_EN_STEREO ? len*2 : len);
   // drop pos remainder to avoid rounding errors (not entirely correct though)
-  Pico.snd.dac_pos = Pico.snd.fm_pos = Pico.snd.psg_pos = 0;
+  Pico.snd.dac_pos = Pico.snd.fm_pos = Pico.snd.psg_pos = Pico.snd.ym2413_pos = 0;
 }
 
 
@@ -423,6 +492,7 @@ static int PsndRenderMS(int offset, int length)
 {
   int stereo = (PicoIn.opt & 8) >> 3;
   int psglen = ((Pico.snd.psg_pos+0x8000) >> 16);
+  int ym2413len = ((Pico.snd.ym2413_pos+0x8000) >> 16);
 
   pprof_start(sound);
 
@@ -434,11 +504,25 @@ static int PsndRenderMS(int offset, int length)
       SN76496Update(psgbuf, length-psglen, stereo);
   }
 
+  if (length-ym2413len > 0) {
+    short *ym2413buf = PicoIn.sndOut + (ym2413len << stereo);
+    Pico.snd.ym2413_pos += (length-ym2413len) << 16;
+    int len = (length-ym2413len);
+    if (PicoIn.opt & POPT_EN_YM2413){
+      while (len-- > 0) {
+        int16_t getdata = OPLL_calc(opll) * 3;
+        *ym2413buf += getdata;
+        ym2413buf += 1<<stereo;
+      }
+    }
+  }
+
   // upmix to "stereo" if needed
   if (PicoIn.opt & POPT_EN_STEREO) {
-    int i, *p;
-    for (i = length, p = (void *)PicoIn.sndOut; i > 0; i--, p++)
-      *p |= *p << 16;
+    int i;
+    short *p;
+    for (i = length, p = (short *)PicoIn.sndOut; i > 0; i--, p+=2)
+      *(p + 1) = *p;
   }
 
   pprof_end(sound);

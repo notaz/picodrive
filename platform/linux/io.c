@@ -310,7 +310,7 @@ void plat_video_flip(void)
 		ximage_realloc(xlib_display, DefaultVisual(xlib_display, 0));
 
 		// propagate new ponters to renderers
-		plat_video_toggle_renderer(0, 0);
+		plat_video_set_buffer(g_screen_ptr);
 	}
 }
 

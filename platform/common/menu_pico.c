@@ -168,6 +168,7 @@ static void load_progress_cb(int percent)
 		len = g_menuscreen_w;
 
 	menu_draw_begin(0, 1);
+	memcpy(g_menuscreen_ptr, g_menubg_ptr, g_menuscreen_w * g_menuscreen_h * 2);
 	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_pp * me_sfont_h * 2;
 	for (ln = me_sfont_h - 2; ln > 0; ln--, dst += g_menuscreen_pp)
 		memset(dst, 0xff, len * 2);
@@ -182,6 +183,7 @@ static void cdload_progress_cb(const char *fname, int percent)
 	menu_draw_begin(0, 1);
 	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_pp * me_sfont_h * 2;
 
+	memcpy(g_menuscreen_ptr, g_menubg_ptr, g_menuscreen_w * g_menuscreen_h * 2);
 	menuscreen_memset_lines(dst, 0xff, me_sfont_h - 2);
 
 	smalltext_out16(1, 3 * me_sfont_h, "Processing CD image / MP3s", 0xffff);
@@ -201,18 +203,16 @@ static void cdload_progress_cb(const char *fname, int percent)
 void menu_romload_prepare(const char *rom_name)
 {
 	const char *p = rom_name + strlen(rom_name);
-	int i;
 
 	while (p > rom_name && *p != '/')
 		p--;
 
-	/* fill all buffers, callbacks won't update in full */
-	for (i = 0; i < 3; i++) {
-		menu_draw_begin(1, 1);
-		smalltext_out16(1, 1, "Loading", 0xffff);
-		smalltext_out16(1, me_sfont_h, p, 0xffff);
-		menu_draw_end();
-	}
+	menu_draw_begin(1, 1);
+	smalltext_out16(1, 1, "Loading", 0xffff);
+	smalltext_out16(1, me_sfont_h, p, 0xffff);
+	/* background screen for callbacks */
+	memcpy(g_menubg_ptr, g_menuscreen_ptr, g_menuscreen_w * g_menuscreen_h * 2);
+	menu_draw_end();
 
 	PicoCartLoadProgressCB = load_progress_cb;
 	PicoCDLoadProgressCB = cdload_progress_cb;
@@ -225,6 +225,7 @@ void menu_romload_end(void)
 	PicoCDLoadProgressCB = NULL;
 
 	menu_draw_begin(0, 1);
+	memcpy(g_menuscreen_ptr, g_menubg_ptr, g_menuscreen_w * g_menuscreen_h * 2);
 	smalltext_out16(1, (cdload_called ? 6 : 3) * me_sfont_h,
 		"Starting emulation...", 0xffff);
 	menu_draw_end();
@@ -501,6 +502,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Emulate YM2612 (FM)",      MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM),
 	mee_onoff     ("Disable YM2612 SSG-EG",    MA_OPT2_DISABLE_YM_SSG,PicoIn.opt, POPT_DIS_FM_SSGEG),
 	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoIn.opt, POPT_EN_PSG),
+	mee_onoff     ("Emulate YM2413 (FM)",      MA_OPT2_ENABLE_YM2413 ,PicoIn.opt, POPT_EN_YM2413),
 	mee_onoff     ("gzip savestates",          MA_OPT2_GZIP_STATES,   currentConfig.EmuOpt, EOPT_GZIP_SAVES),
 	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoIn.opt, POPT_DIS_IDLE_DET),

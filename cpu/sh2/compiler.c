@@ -109,10 +109,6 @@ static int insns_compiled, hash_collisions, host_insn_count;
 #define GET_Rn() \
   ((op >> 8) & 0x0f)
 
-#define SHR_T	30  // separate T for not-used detection
-#define SHR_MEM	31
-#define SHR_TMP -1
-
 #define T	0x00000001
 #define S	0x00000002
 #define I	0x000000f0
@@ -384,7 +380,7 @@ static struct block_list *inactive_blocks[TCACHE_BUFFERS];
 // each array has len: sizeof(mem) / INVAL_PAGE_SIZE 
 static struct block_list **inval_lookup[TCACHE_BUFFERS];
 
-#define HASH_TABLE_SIZE(tcid)		((tcid) ? 512 : 64*512)
+#define HASH_TABLE_SIZE(tcid)		((tcid) ? 512 : 32*512)
 static struct block_entry **hash_tables[TCACHE_BUFFERS];
 
 #define HASH_FUNC(hash_tab, addr, mask) \
@@ -815,14 +811,14 @@ static void dr_block_link(struct block_entry *be, struct block_link *bl, int emi
         // via blx: @jump near jumpcc to blx; @blx far jump
         emith_jump_patch(jump, bl->blx, &jump);
         emith_jump_at(bl->blx, be->tcache_ptr);
-        host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size(),
-            ((uintptr_t)bl->blx & 0x0f) + emith_jump_at_size()-1 > 0x0f);
+        host_instructions_updated(bl->blx, (char *)bl->blx + emith_jump_at_size(),
+            ((uintptr_t)bl->blx & 0x1f) + emith_jump_at_size()-1 > 0x1f);
       }
     } else {
       printf("unknown BL type %d\n", bl->type);
       exit(1);
     }
-    host_instructions_updated(jump, jump + jsz, ((uintptr_t)jump & 0x0f) + jsz-1 > 0x0f);
+    host_instructions_updated(jump, jump + jsz, ((uintptr_t)jump & 0x1f) + jsz-1 > 0x1f);
   }
 
   // move bl to block_entry
@@ -853,7 +849,7 @@ static void dr_block_unlink(struct block_link *bl, int emit_jump)
         // via blx: @jump near jumpcc to blx; @blx load target_pc, far jump
         emith_jump_patch(bl->jump, bl->blx, &jump);
         memcpy(bl->blx, bl->jdisp, emith_jump_at_size());
-        host_instructions_updated(bl->blx, bl->blx + emith_jump_at_size(), 1);
+        host_instructions_updated(bl->blx, (char *)bl->blx + emith_jump_at_size(), 1);
       } else {
         printf("unknown BL type %d\n", bl->type);
         exit(1);
@@ -1728,11 +1724,7 @@ static void rcache_remove_vreg_alias(int x, sh2_reg_e r)
 
 static void rcache_evict_vreg(int x)
 {
-#if REMAP_REGISTER
   rcache_remap_vreg(x);
-#else
-  rcache_clean_vreg(x);
-#endif
   rcache_unmap_vreg(x);
 }
 
@@ -1825,10 +1817,10 @@ static int rcache_allocate_temp(void)
   return x;
 }
 
-#if REMAP_REGISTER
 // maps a host register to a REG
 static int rcache_map_reg(sh2_reg_e r, int hr)
 {
+#if REMAP_REGISTER
   int i;
 
   gconst_kill(r);
@@ -1859,11 +1851,15 @@ static int rcache_map_reg(sh2_reg_e r, int hr)
   RCACHE_CHECK("after map");
 #endif
   return cache_regs[i].hreg;
+#else
+  return rcache_get_reg(r, RC_GR_WRITE, NULL);
+#endif
 }
 
 // remap vreg from a TEMP to a REG if it will be used (upcoming TEMP invalidation)
 static void rcache_remap_vreg(int x)
 {
+#if REMAP_REGISTER
   u32 rsl_d = rcache_regs_soon | rcache_regs_late;
   int d;
 
@@ -1902,12 +1898,14 @@ static void rcache_remap_vreg(int x)
 #if DRC_DEBUG & 64
   RCACHE_CHECK("after remap");
 #endif
-}
+#else
+  rcache_clean_vreg(x);
 #endif
+}
 
-#if ALIAS_REGISTERS
 static void rcache_alias_vreg(sh2_reg_e rd, sh2_reg_e rs)
 {
+#if ALIAS_REGISTERS
   int x;
 
   // if s isn't constant, it must be in cache for aliasing
@@ -1935,8 +1933,14 @@ static void rcache_alias_vreg(sh2_reg_e rd, sh2_reg_e rs)
 #if DRC_DEBUG & 64
   RCACHE_CHECK("after alias");
 #endif
-}
+#else
+  int hr_s = rcache_get_reg(rs, RC_GR_READ, NULL);
+  int hr_d = rcache_get_reg(rd, RC_GR_WRITE, NULL);
+
+  emith_move_r_r(hr_d, hr_s);
+  gconst_copy(rd, rs);
 #endif
+}
 
 // note: must not be called when doing conditional code
 static int rcache_get_reg_(sh2_reg_e r, rc_gr_mode mode, int do_locking, int *hr)
@@ -2384,11 +2388,7 @@ static void rcache_clean_tmp(void)
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++)
     if (cache_regs[i].type == HR_CACHED && (cache_regs[i].htype & HRT_TEMP)) {
       rcache_unlock(i);
-#if REMAP_REGISTER
       rcache_remap_vreg(i);
-#else
-      rcache_clean_vreg(i);
-#endif
     }
   rcache_regs_clean = 0;
 }
@@ -2662,16 +2662,9 @@ static void emit_move_r_imm32(sh2_reg_e dst, u32 imm)
 
 static void emit_move_r_r(sh2_reg_e dst, sh2_reg_e src)
 {
-  if (gconst_check(src) || rcache_is_cached(src)) {
-#if ALIAS_REGISTERS
+  if (gconst_check(src) || rcache_is_cached(src))
     rcache_alias_vreg(dst, src);
-#else
-    int hr_s = rcache_get_reg(src, RC_GR_READ, NULL);
-    int hr_d = rcache_get_reg(dst, RC_GR_WRITE, NULL);
-    emith_move_r_r(hr_d, hr_s);
-    gconst_copy(dst, src);
-#endif
-  } else {
+  else {
     int hr_d = rcache_get_reg(dst, RC_GR_WRITE, NULL);
     emith_ctx_read(hr_d, src * 4);
   }
@@ -2832,11 +2825,7 @@ static int emit_memhandler_read_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, u32 off
   if (rd == SHR_TMP)
     hr2 = hr;
   else
-#if REMAP_REGISTER
     hr2 = rcache_map_reg(rd, hr);
-#else
-    hr2 = rcache_get_reg(rd, RC_GR_WRITE, NULL);
-#endif
 
   if (hr != hr2) {
     emith_move_r_r(hr2, hr);
@@ -2906,11 +2895,7 @@ static int emit_indirect_indexed_read(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rx, sh2_
   if (rd == SHR_TMP)
     hr2 = hr;
   else
-#if REMAP_REGISTER
     hr2 = rcache_map_reg(rd, hr);
-#else
-    hr2 = rcache_get_reg(rd, RC_GR_WRITE, NULL);
-#endif
 
   if (hr != hr2) {
     emith_move_r_r(hr2, hr);
@@ -3550,7 +3535,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       emith_move_r_imm(tmp4, pc);
       emith_ctx_write(tmp4, SHR_PC * 4);
       rcache_invalidate_tmp();
-      emith_call(sh2_drc_log_entry);
+      emith_abicall(sh2_drc_log_entry);
       emith_restore_caller_regs(tmp);
 #endif
 
@@ -3570,7 +3555,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       emith_save_caller_regs(tmp);
       emit_do_static_regs(1, 0);
       emith_pass_arg_r(0, CONTEXT_REG);
-      emith_call(do_sh2_cmp);
+      emith_abicall(do_sh2_cmp);
       emith_restore_caller_regs(tmp);
     }
 #endif
@@ -3799,11 +3784,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             emith_add_r_r_imm(tmp, tmp2, 2 + (op & 0xff) * 2);
         }
         tmp2 = emit_memhandler_read(opd->size);
-#if REMAP_REGISTER
         tmp3 = rcache_map_reg(GET_Rn(), tmp2);
-#else
-        tmp3 = rcache_get_reg(GET_Rn(), RC_GR_WRITE, NULL);
-#endif
         if (tmp3 != tmp2) {
           emith_move_r_r(tmp3, tmp2);
           rcache_free_tmp(tmp2);
@@ -3905,13 +3886,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             rcache_get_reg_arg(0, div(opd).rn, NULL);
             rcache_get_reg_arg(1, div(opd).rm, NULL);
             rcache_invalidate_tmp();
-            emith_call(sh2_drc_divu32);
+            emith_abicall(sh2_drc_divu32);
             tmp = rcache_get_tmp_ret();
-#if REMAP_REGISTER
             tmp2 = rcache_map_reg(div(opd).rn, tmp);
-#else
-            tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
-#endif
             if (tmp != tmp2)
               emith_move_r_r(tmp2, tmp);
 
@@ -3932,13 +3909,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
             rcache_get_reg_arg(0, div(opd).rn, NULL);
             rcache_get_reg_arg(2, div(opd).rm, NULL);
             rcache_invalidate_tmp();
-            emith_call(sh2_drc_divu64);
+            emith_abicall(sh2_drc_divu64);
             tmp = rcache_get_tmp_ret();
-#if REMAP_REGISTER
             tmp2 = rcache_map_reg(div(opd).rn, tmp);
-#else
-            tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
-#endif
             tmp4 = rcache_get_reg(div(opd).ro, RC_GR_WRITE, NULL);
             if (tmp != tmp2)
               emith_move_r_r(tmp2, tmp);
@@ -4030,13 +4003,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_lsr(tmp3, tmp2, 31);
           emith_or_r_r_lsl(sr, tmp3, M_SHIFT);        // M = Rm[31]
           rcache_invalidate_tmp();
-          emith_call(sh2_drc_divs32);
+          emith_abicall(sh2_drc_divs32);
           tmp = rcache_get_tmp_ret();
-#if REMAP_REGISTER
           tmp2 = rcache_map_reg(div(opd).rn, tmp);
-#else
-          tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
-#endif
           if (tmp != tmp2)
             emith_move_r_r(tmp2, tmp);
           tmp3  = rcache_get_tmp();
@@ -4060,13 +4029,9 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_or_r_r_lsl(sr, tmp3, M_SHIFT);         // M = Rm[31]
           emith_add_r_r_ptr_imm(tmp3, CONTEXT_REG, offsetof(SH2, drc_tmp));
           rcache_invalidate_tmp();
-          emith_call(sh2_drc_divs64);
+          emith_abicall(sh2_drc_divs64);
           tmp = rcache_get_tmp_ret();
-#if REMAP_REGISTER
           tmp2 = rcache_map_reg(div(opd).rn, tmp);
-#else
-          tmp2 = rcache_get_reg(div(opd).rn, RC_GR_WRITE, NULL);
-#endif
           tmp4 = rcache_get_reg(div(opd).ro, RC_GR_WRITE, NULL);
           if (tmp != tmp2)
             emith_move_r_r(tmp2, tmp);
@@ -4655,15 +4620,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       case 0x03: // MOV    Rm,Rn        0110nnnnmmmm0011
         emit_move_r_r(GET_Rn(), GET_Rm());
         goto end_op;
-      case 0x07:
-      case 0x08:
-      case 0x09:
-      case 0x0a:
-      case 0x0b:
-      case 0x0c:
-      case 0x0d:
-      case 0x0e:
-      case 0x0f:
+      default: // 0x07 ... 0x0f
         tmp  = rcache_get_reg(GET_Rm(), RC_GR_READ, NULL);
         tmp2 = rcache_get_reg(GET_Rn(), RC_GR_WRITE, NULL);
         switch (op & 0x0f)
@@ -5222,7 +5179,7 @@ static void sh2_generate_utils(void)
   emith_ret_c(DCOND_CC);
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
-  emith_jump_reg(arg2);
+  emith_abijump_reg(arg2);
   emith_flush();
 
   // d = sh2_drc_read16(u32 a)
@@ -5236,7 +5193,7 @@ static void sh2_generate_utils(void)
   emith_ret_c(DCOND_CC);
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
-  emith_jump_reg(arg2);
+  emith_abijump_reg(arg2);
   emith_flush();
 
   // d = sh2_drc_read32(u32 a)
@@ -5251,7 +5208,7 @@ static void sh2_generate_utils(void)
   emith_ret_c(DCOND_CC);
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
-  emith_jump_reg(arg2);
+  emith_abijump_reg(arg2);
   emith_flush();
 
   // d = sh2_drc_read8_poll(u32 a)
@@ -5261,14 +5218,14 @@ static void sh2_generate_utils(void)
   emith_sh2_rcall(arg0, arg1, arg2, arg3);
   EMITH_SJMP_START(DCOND_CC);
   emith_move_r_r_ptr_c(DCOND_CS, arg1, CONTEXT_REG);
-  emith_jump_reg_c(DCOND_CS, arg2);
+  emith_abijump_reg_c(DCOND_CS, arg2);
   EMITH_SJMP_END(DCOND_CC);
   emith_and_r_r_r(arg1, arg0, arg3);
   emith_eor_r_imm_ptr(arg1, 1);
   emith_read8s_r_r_r(arg1, arg2, arg1);
   emith_push_ret(arg1);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
-  emith_call(p32x_sh2_poll_memory8);
+  emith_abicall(p32x_sh2_poll_memory8);
   emith_pop_and_ret(arg1);
   emith_flush();
 
@@ -5279,13 +5236,13 @@ static void sh2_generate_utils(void)
   emith_sh2_rcall(arg0, arg1, arg2, arg3);
   EMITH_SJMP_START(DCOND_CC);
   emith_move_r_r_ptr_c(DCOND_CS, arg1, CONTEXT_REG);
-  emith_jump_reg_c(DCOND_CS, arg2);
+  emith_abijump_reg_c(DCOND_CS, arg2);
   EMITH_SJMP_END(DCOND_CC);
   emith_and_r_r_r(arg1, arg0, arg3);
   emith_read16s_r_r_r(arg1, arg2, arg1);
   emith_push_ret(arg1);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
-  emith_call(p32x_sh2_poll_memory16);
+  emith_abicall(p32x_sh2_poll_memory16);
   emith_pop_and_ret(arg1);
   emith_flush();
 
@@ -5296,14 +5253,14 @@ static void sh2_generate_utils(void)
   emith_sh2_rcall(arg0, arg1, arg2, arg3);
   EMITH_SJMP_START(DCOND_CC);
   emith_move_r_r_ptr_c(DCOND_CS, arg1, CONTEXT_REG);
-  emith_jump_reg_c(DCOND_CS, arg2);
+  emith_abijump_reg_c(DCOND_CS, arg2);
   EMITH_SJMP_END(DCOND_CC);
   emith_and_r_r_r(arg1, arg0, arg3);
   emith_read_r_r_r(arg1, arg2, arg1);
   emith_ror(arg1, arg1, 16);
   emith_push_ret(arg1);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
-  emith_call(p32x_sh2_poll_memory32);
+  emith_abicall(p32x_sh2_poll_memory32);
   emith_pop_and_ret(arg1);
   emith_flush();
 
@@ -5336,7 +5293,7 @@ static void sh2_generate_utils(void)
 #endif
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
   emith_add_r_r_ptr_imm(arg2, CONTEXT_REG, offsetof(SH2, drc_tmp));
-  emith_call(dr_lookup_block);
+  emith_abicall(dr_lookup_block);
   // store PC and block entry ptr (in arg0) in branch target cache
   emith_tst_r_r_ptr(RET_REG, RET_REG);
   EMITH_SJMP_START(DCOND_EQ);
@@ -5358,13 +5315,13 @@ static void sh2_generate_utils(void)
   // lookup failed, call sh2_translate()
   emith_move_r_r_ptr(arg0, CONTEXT_REG);
   emith_ctx_read(arg1, offsetof(SH2, drc_tmp)); // tcache_id
-  emith_call(sh2_translate);
+  emith_abicall(sh2_translate);
   emith_tst_r_r_ptr(RET_REG, RET_REG);
   EMITH_SJMP_START(DCOND_EQ);
   emith_jump_reg_c(DCOND_NE, RET_REG);
   EMITH_SJMP_END(DCOND_EQ);
   // XXX: can't translate, fail
-  emith_call(dr_failure);
+  emith_abicall(dr_failure);
   emith_flush();
 
 #if CALL_STACK
@@ -5436,13 +5393,13 @@ static void sh2_generate_utils(void)
   emith_clear_msb(tmp, tmp, 22);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
   rcache_invalidate_tmp();
-  emith_call(p32x_sh2_write32); // XXX: use sh2_drc_write32?
+  emith_abicall(p32x_sh2_write32); // XXX: use sh2_drc_write32?
   // push PC
   rcache_get_reg_arg(0, SHR_SP, NULL);
   rcache_get_reg_arg(1, SHR_PC, NULL);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
   rcache_invalidate_tmp();
-  emith_call(p32x_sh2_write32);
+  emith_abicall(p32x_sh2_write32);
   // update I, cycles, do callback
   emith_ctx_read(arg1, offsetof(SH2, pending_level));
   sr = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
@@ -5974,6 +5931,11 @@ void sh2_drc_finish(SH2 *sh2)
     if (hash_tables[i] != NULL) {
       free(hash_tables[i]);
       hash_tables[i] = NULL;
+    }
+
+    if (unresolved_links[i] != NULL) {
+      free(unresolved_links[i]);
+      unresolved_links[i] = NULL;
     }
   }
 
@@ -6997,7 +6959,7 @@ end:
   if (base_literals_out != NULL)
     *base_literals_out = (lowest_literal ? lowest_literal : end_pc);
   if (end_literals_out != NULL)
-    *end_literals_out = (end_literals ? lowest_literal : end_pc);
+    *end_literals_out = (end_literals ? end_literals : end_pc);
 
   // crc overflow handling, twice to collect all overflows
   crc = (crc & 0xffff) + (crc >> 16);

@@ -15,6 +15,10 @@
 #include "file_stream_transforms.h"
 #endif
 
+#if defined(__GNUC__) && __GNUC__ >= 7
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+
 static int handle_mp3(const char *fname, int index)
 {
   track_t *track = &cdd.toc.tracks[index];

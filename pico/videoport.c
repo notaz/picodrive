@@ -75,6 +75,11 @@ static struct VdpFIFO { // XXX this must go into save file!
 
 enum { FQ_BYTE = 1, FQ_BGDMA = 2, FQ_FGDMA = 4 }; // queue flags, NB: BYTE = 1!
 
+// NB must limit cyc2sl to table size in case 68k overdraws its aim. That can
+// happen if the last insn is a blocking acess to VDP, or for exceptions (e.g.irq)
+#define	Cyc2Sl(vf,lc)	((lc) < 256*2 ? vf->fifo_cyc2sl[(lc)>>1] : vf->fifo_cyc2sl[255])
+#define Sl2Cyc(vf,sl)   (vf->fifo_sl2cyc[sl]*2)
+
 // do the FIFO math
 static __inline int AdvanceFIFOEntry(struct VdpFIFO *vf, struct PicoVideo *pv, int slots)
 {
@@ -140,7 +145,7 @@ void PicoVideoFIFOSync(int cycles)
   int slots, done;
 
   // calculate #slots since last executed slot
-  slots = vf->fifo_cyc2sl[cycles>>1] - vf->fifo_slot;
+  slots = Cyc2Sl(vf, cycles) - vf->fifo_slot;
 
   // advance FIFO queue by #done slots
   done = slots;
@@ -161,7 +166,6 @@ static int PicoVideoFIFODrain(int level, int cycles, int bgdma)
   struct PicoVideo *pv = &Pico.video;
   unsigned ocyc = cycles;
   int burn = 0;
-//int osl = fifo_slot;
 
   // process FIFO entries until low level is reached
   while (vf->fifo_slot <= vf->fifo_maxslot && cycles < 488 &&
@@ -176,7 +180,7 @@ static int PicoVideoFIFODrain(int level, int cycles, int bgdma)
       cycles = 488;
     } else {
       // advance FIFO to target slot and CPU to cycles at that slot
-      cycles = vf->fifo_sl2cyc[slot]<<1;
+      cycles = Sl2Cyc(vf, slot);
     }
     if (slot > vf->fifo_slot) {
       AdvanceFIFOEntry(vf, pv, slot - vf->fifo_slot);
@@ -210,8 +214,8 @@ static int PicoVideoFIFORead(void)
     pv->status |= PVS_CPURD; // target slot is in later scanline
   else {
     // use next VDP access slot for reading, block 68k until then
-    vf->fifo_slot = vf->fifo_cyc2sl[lc>>1] + 1;
-    burn += (vf->fifo_sl2cyc[vf->fifo_slot]<<1) - lc;
+    vf->fifo_slot = Cyc2Sl(vf, lc) + 1;
+    burn += Sl2Cyc(vf, vf->fifo_slot) - lc;
   }
 
   return burn;
@@ -259,7 +263,7 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
 
     // update FIFO state if it was empty
     if (!(pv->status & PVS_FIFORUN)) {
-      vf->fifo_slot = vf->fifo_cyc2sl[(lc+8)>>1]; // FIFO latency ~3 vdp slots
+      vf->fifo_slot = Cyc2Sl(vf, lc+8); // FIFO latency ~3 vdp slots
       pv->status |= PVS_FIFORUN;
       pv->fifo_cnt = count << (flags & FQ_BYTE);
     }
@@ -312,8 +316,8 @@ void PicoVideoFIFOMode(int active, int h40)
   vf->fifo_cyc2sl = vdpcyc2sl[active][h40];
   vf->fifo_sl2cyc = vdpsl2cyc[active][h40];
   // recalculate FIFO slot for new mode
-  vf->fifo_slot = vf->fifo_cyc2sl[lc>>1]-1;
-  vf->fifo_maxslot = vf->fifo_cyc2sl[488>>1];
+  vf->fifo_slot = Cyc2Sl(vf, lc)-1;
+  vf->fifo_maxslot = Cyc2Sl(vf, 488);
 }
 
 
@@ -362,13 +366,14 @@ static void VideoWrite(u16 d)
   AutoIncrement();
 }
 
-static unsigned int VideoRead(void)
+static unsigned int VideoRead(int is_from_z80)
 {
   unsigned int a, d = VdpFIFO.fifo_data[(VdpFIFO.fifo_dx+1)&3];
 
   a=Pico.video.addr; a>>=1;
 
-  SekCyclesBurnRun(PicoVideoFIFORead());
+  if (!is_from_z80)
+    SekCyclesBurnRun(PicoVideoFIFORead());
   switch (Pico.video.type)
   {
     case 0: d=PicoMem.vram [a & 0x7fff]; break;
@@ -940,23 +945,23 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
 
   if (a==0x00) // data port
   {
-    return VideoRead();
+    return VideoRead(0);
   }
 
   return 0;
 }
 
-unsigned char PicoVideoRead8DataH(void)
+unsigned char PicoVideoRead8DataH(int is_from_z80)
 {
-  return VideoRead() >> 8;
+  return VideoRead(is_from_z80) >> 8;
 }
 
-unsigned char PicoVideoRead8DataL(void)
+unsigned char PicoVideoRead8DataL(int is_from_z80)
 {
-  return VideoRead();
+  return VideoRead(is_from_z80);
 }
 
-unsigned char PicoVideoRead8CtlH(void)
+unsigned char PicoVideoRead8CtlH(int is_from_z80)
 {
   struct PicoVideo *pv = &Pico.video;
   u8 d = VideoSr(pv) >> 8;
@@ -968,7 +973,7 @@ unsigned char PicoVideoRead8CtlH(void)
   return d;
 }
 
-unsigned char PicoVideoRead8CtlL(void)
+unsigned char PicoVideoRead8CtlL(int is_from_z80)
 {
   struct PicoVideo *pv = &Pico.video;
   u8 d = VideoSr(pv);
@@ -980,14 +985,14 @@ unsigned char PicoVideoRead8CtlL(void)
   return d;
 }
 
-unsigned char PicoVideoRead8HV_H(void)
+unsigned char PicoVideoRead8HV_H(int is_from_z80)
 {
   elprintf(EL_HVCNT, "vcounter: %02x [%u] @ %06x", Pico.video.v_counter, SekCyclesDone(), SekPc);
   return Pico.video.v_counter;
 }
 
 // FIXME: broken
-unsigned char PicoVideoRead8HV_L(void)
+unsigned char PicoVideoRead8HV_L(int is_from_z80)
 {
   u32 d = (SekCyclesDone() - Pico.t.m68c_line_start) & 0x1ff; // FIXME
   if (Pico.video.reg[0]&2)
@@ -1036,7 +1041,7 @@ void PicoVideoLoad(void)
 
   // convert former dma_xfers (why was this in PicoMisc anyway?)
   if (Pico.m.dma_xfers) {
-    pv->status = SR_DMA|PVS_FIFORUN;
+    pv->status |= SR_DMA|PVS_FIFORUN;
     pv->fifo_cnt = Pico.m.dma_xfers * (pv->type == 1 ? 2 : 1);
     vf->fifo_total = Pico.m.dma_xfers;
     Pico.m.dma_xfers = 0;

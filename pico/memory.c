@@ -272,7 +272,15 @@ static NOINLINE u32 port_read(int i)
   u32 in, out;
 
   out = data_reg & ctrl_reg;
-  out |= 0x7f & ~ctrl_reg; // pull-ups
+
+  // pull-ups: should be 0x7f, but Decap Attack has a bug where it temp.
+  // disables output before doing TH-low read, so don't emulate it for TH.
+  // Decap Attack reportedly doesn't work on Nomad but works on must
+  // other MD revisions (different pull-up strength?).
+  if (PicoIn.AHW & PAHW_32X) // don't do it on 32X, it breaks WWF Raw
+    out |= 0x7f & ~ctrl_reg;
+  else
+    out |= 0x3f & ~ctrl_reg;
 
   in = port_readers[i](i, out);
 
@@ -691,14 +699,14 @@ u32 PicoRead8_vdp(u32 a)
   if ((a & 0x00f0) == 0x0000) {
     switch (a & 0x0d)
     {
-      case 0x00: return PicoVideoRead8DataH();
-      case 0x01: return PicoVideoRead8DataL();
-      case 0x04: return PicoVideoRead8CtlH();
-      case 0x05: return PicoVideoRead8CtlL();
+      case 0x00: return PicoVideoRead8DataH(0);
+      case 0x01: return PicoVideoRead8DataL(0);
+      case 0x04: return PicoVideoRead8CtlH(0);
+      case 0x05: return PicoVideoRead8CtlL(0);
       case 0x08:
-      case 0x0c: return PicoVideoRead8HV_H();
+      case 0x0c: return PicoVideoRead8HV_H(0);
       case 0x09:
-      case 0x0d: return PicoVideoRead8HV_L();
+      case 0x0d: return PicoVideoRead8HV_L(0);
     }
   }
 
@@ -1190,10 +1198,10 @@ static unsigned char z80_md_vdp_read(unsigned short a)
   if ((a & 0x00f0) == 0x0000) {
     switch (a & 0x0d)
     {
-      case 0x00: return PicoVideoRead8DataH();
-      case 0x01: return PicoVideoRead8DataL();
-      case 0x04: return PicoVideoRead8CtlH();
-      case 0x05: return PicoVideoRead8CtlL();
+      case 0x00: return PicoVideoRead8DataH(1);
+      case 0x01: return PicoVideoRead8DataL(1);
+      case 0x04: return PicoVideoRead8CtlH(1);
+      case 0x05: return PicoVideoRead8CtlL(1);
       case 0x08:
       case 0x0c: return get_scanline(1); // FIXME: make it proper
       case 0x09:

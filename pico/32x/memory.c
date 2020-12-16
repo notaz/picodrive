@@ -163,7 +163,7 @@ void NOINLINE p32x_sh2_poll_event(SH2 *sh2, u32 flags, u32 m68k_cycles)
     sh2->poll_addr = sh2->poll_cycles = sh2->poll_cnt = 0;
 }
 
-static void sh2s_sync_on_read(SH2 *sh2, unsigned cycles)
+static NOINLINE void sh2s_sync_on_read(SH2 *sh2, unsigned cycles)
 {
   if (sh2->poll_cnt != 0)
     return;
@@ -1587,13 +1587,13 @@ static void sh2_sdram_poll(u32 a, u32 d, SH2 *sh2)
   DRC_RESTORE_SR(sh2);
 }
 
-void sh2_sdram_checks(u32 a, u32 d, SH2 *sh2, u32 t)
+void NOINLINE sh2_sdram_checks(u32 a, u32 d, SH2 *sh2, u32 t)
 {
   if (t & 0x80)         sh2_sdram_poll(a, d, sh2);
   if (t & 0x7f)         sh2_drc_wcheck_ram(a, 2, sh2);
 }
 
-void sh2_sdram_checks_l(u32 a, u32 d, SH2 *sh2, u32 t)
+void NOINLINE sh2_sdram_checks_l(u32 a, u32 d, SH2 *sh2, u32 t)
 {
   if (t & 0x000080)     sh2_sdram_poll(a, d>>16, sh2);
   if (t & 0x800000)     sh2_sdram_poll(a+2, d, sh2);
@@ -1689,6 +1689,18 @@ static void REGPARM(3) sh2_write8_da(u32 a, u32 d, SH2 *sh2)
 #endif
 }
 #endif
+
+static void REGPARM(3) sh2_write8_sdram_wt(u32 a, u32 d, SH2 *sh2)
+{
+  // xmen sync hack..
+  if (a < 0x26000200) {
+    DRC_SAVE_SR(sh2);
+    sh2_end_run(sh2, 32);
+    DRC_RESTORE_SR(sh2);
+  }
+
+  sh2_write8_sdram(a, d, sh2);
+}
 
 // write16
 static void REGPARM(3) sh2_write16_unmapped(u32 a, u32 d, SH2 *sh2)
@@ -1950,7 +1962,7 @@ void *p32x_sh2_get_mem_ptr(u32 a, u32 *mask, SH2 *sh2)
 int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
 {
   u32 mask;
-  void *ps, *pd;
+  u8 *ps, *pd;
   int len, i;
 
   // check if src and dst points to memory (rom/sdram/dram/da)
@@ -1958,11 +1970,7 @@ int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
     return 0;
   if ((ps = p32x_sh2_get_mem_ptr(src, &mask, sh2)) == (void *)-1)
     return 0;
-#if _MSC_VER
-  (char*)ps += src & mask;
-#else
   ps += src & mask;
-#endif
   len = count * size;
 
   // DRAM in byte access is always in overwrite mode
@@ -1972,17 +1980,13 @@ int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
   // align dst to halfword
   if (dst & 1) {
     p32x_sh2_write8(dst, *(u8 *)((uptr)ps ^ 1), sh2);
-#if _MSC_VER
-    ((char*)ps)++, dst++, len --;
-#else
     ps++, dst++, len --;
-#endif
   }
 
   // copy data
   if ((uptr)ps & 1) {
     // unaligned, use halfword copy mode to reduce memory bandwidth
-    u16 *sp = (u16 *)((char*)ps - 1);
+    u16 *sp = (u16 *)(ps - 1);
     u16 dl, dh = *sp++;
     for (i = 0; i < (len & ~1); i += 2, dst += 2, sp++) {
       dl = dh, dh = *sp;
@@ -2388,6 +2392,8 @@ void PicoMemSetup32x(void)
   msh2_read16_map[0x06/2].addr  = msh2_read16_map[0x26/2].addr  =
   msh2_read32_map[0x06/2].addr  = msh2_read32_map[0x26/2].addr  = MAP_MEMORY(Pico32xMem->sdram);
   msh2_write8_map[0x06/2]       = msh2_write8_map[0x26/2]       = sh2_write8_sdram;
+  msh2_write8_map[0x26/2]       = sh2_write8_sdram_wt;
+
   msh2_write16_map[0x06/2]      = msh2_write16_map[0x26/2]      = sh2_write16_sdram;
   msh2_write32_map[0x06/2]      = msh2_write32_map[0x26/2]      = sh2_write32_sdram;
   msh2_read8_map[0x06/2].mask   = msh2_read8_map[0x26/2].mask   = 0x03ffff;

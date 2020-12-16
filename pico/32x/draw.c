@@ -8,6 +8,15 @@
  */
 #include "../pico_int.h"
 
+// BGR555 to native conversion
+#if defined(USE_BGR555)
+#define PXCONV(t)   (t)
+#define PXPRIO      0x8000  // prio in MSB
+#else // RGB565 
+#define PXCONV(t)   ((((t)&m1) << 11) | (((t)&m2) << 1) | (((t)&m3) >> 10))
+#define PXPRIO      0x0020  // prio in LS green bit
+#endif
+
 int (*PicoScan32xBegin)(unsigned int num);
 int (*PicoScan32xEnd)(unsigned int num);
 int Pico32xDrawMode;
@@ -21,32 +30,20 @@ static void convert_pal555(int invert_prio)
   unsigned int *pd = (void *)Pico32xMem->pal_native;
   unsigned int m1 = 0x001f001f;
   unsigned int m2 = 0x03e003e0;
-  unsigned int m3 = 0xfc00fc00;
+  unsigned int m3 = 0xfc00fc00; // includes prio bit
   unsigned int inv = 0;
   int i;
 
   if (invert_prio)
-    inv = 0x00200020;
+    inv = 0x80008000;
 
-  // place prio to LS green bit
   for (i = 0x100/2; i > 0; i--, ps++, pd++) {
-    unsigned int t = *ps;
-#if defined(USE_BGR555)
-    *pd = t ^ inv;
-#else
-    *pd = (((t & m1) << 11) | ((t & m2) << 1) | ((t & m3) >> 10)) ^ inv;
-#endif
+    unsigned int t = *ps ^ inv;
+    *pd = PXCONV(t);
   }
 
   Pico32x.dirty_pal = 0;
 }
-
-// 555 conversion for direct color mode
-#if defined(USE_BGR555)
-#define DC555(t)	t
-#else
-#define DC555(t)	((t&m1) << 11) | ((t&m2) << 1) | ((t&m3) >> 10)
-#endif
 
 // direct color mode
 #define do_line_dc(pd, p32x, pmd, inv, pmd_draw_code)             \
@@ -60,12 +57,12 @@ static void convert_pal555(int invert_prio)
   while (i > 0) {                                                 \
     for (; i > 0 && (*pmd & 0x3f) == mdbg; pd++, pmd++, i--) {    \
       t = *p32x++;                                                \
-      *pd = DC555(t);                                             \
+      *pd = PXCONV(t);                                            \
     }                                                             \
     for (; i > 0 && (*pmd & 0x3f) != mdbg; pd++, pmd++, i--) {    \
-      t = *p32x++;                                                \
-      if ((t ^ inv) & 0x8000)                                     \
-        *pd = DC555(t);                                           \
+      t = *p32x++ ^ inv;                                          \
+      if (t & 0x8000)                                             \
+        *pd = PXCONV(t);                                          \
       else                                                        \
         pmd_draw_code;                                            \
     }                                                             \
@@ -84,7 +81,7 @@ static void convert_pal555(int invert_prio)
     }                                                             \
     for (; i > 0 && (*pmd & 0x3f) != mdbg; pd++, pmd++, i--) {    \
       t = pal[*(unsigned char *)((uintptr_t)(p32x++) ^ 1)];       \
-      if (t & 0x20)                                               \
+      if (t & PXPRIO)                                             \
         *pd = t;                                                  \
       else                                                        \
         pmd_draw_code;                                            \
@@ -100,7 +97,7 @@ static void convert_pal555(int invert_prio)
   for (i = 320; i > 0; p32x++) {                                  \
     t = pal[*p32x & 0xff];                                        \
     for (len = (*p32x >> 8) + 1; len > 0 && i > 0; len--, i--, pd++, pmd++) { \
-      if ((*pmd & 0x3f) == mdbg || (t & 0x20))                    \
+      if ((*pmd & 0x3f) == mdbg || (t & PXPRIO))                  \
         *pd = t;                                                  \
       else                                                        \
         pmd_draw_code;                                            \

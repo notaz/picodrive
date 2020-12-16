@@ -941,6 +941,7 @@ void cdd_process(void)
         case 0x01:  /* Current Track Relative Time (MM:SS:FF) */
         {
           int lba = cdd.lba - cdd.toc.tracks[cdd.index].start;
+          if (lba < 0) lba = 0;
           set_reg16(0x38, (cdd.status << 8) | 0x01);
           set_reg16(0x3a, lut_BCD_16[(lba/75)/60]);
           set_reg16(0x3c, lut_BCD_16[(lba/75)%60]);
@@ -1111,7 +1112,7 @@ void cdd_process(void)
       cdd.status = CD_PLAY;
 
       /* return track index in RS2-RS3 */
-      set_reg16(0x38, (CD_SEEK << 8) | 0x02);
+      set_reg16(0x38, (CD_SEEK << 8) | 0x0f);
       set_reg16(0x3a, 0x0000);
       set_reg16(0x3c, 0x0000);
       set_reg16(0x3e, 0x0000);

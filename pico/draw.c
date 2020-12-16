@@ -65,6 +65,16 @@ unsigned int VdpSATCache[128];  // VDP sprite cache (1st 32 sprite attr bits)
 
 // NB don't change any defines without checking their usage in ASM
 
+#if defined(USE_BGR555)
+#define PXCONV(t)   ((t & 0x000e000e)<< 1) | ((t & 0x00e000e0)<<2) | ((t & 0x0e000e00)<<3)
+#define PXMASKL     0x04210421  // 0x0c630c63, LSB for all colours
+#define PXMASKH     0x39ce39ce  // 0x3def3def, all but MSB for all colours
+#else // RGB565
+#define PXCONV(t)   ((t & 0x000e000e)<<12) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)>>7)
+#define PXMASKL     0x08610861  // 0x18e318e3
+#define PXMASKH     0x738e738e  // 0x7bef7bef
+#endif
+
 #define LF_PLANE   (1 << 0) // must be = 1
 #define LF_SH      (1 << 1) // must be = 2
 //#define LF_FORCE   (1 << 2)
@@ -176,6 +186,14 @@ TileNormMaker(TileNorm, pix_just_write)
 TileFlipMaker(TileFlip, pix_just_write)
 
 #ifndef _ASM_DRAW_C
+
+// draw low prio sprite non-s/h pixels in s/h mode
+#define pix_nonsh(x) \
+  if (t == 0xe) pd[x]=(pal|t)&~0x80; /* disable shadow for color 14 (hw bug?) */ \
+  else if (t) pd[x]=pal|t
+
+TileNormMaker(TileNormNonSH, pix_nonsh)
+TileFlipMaker(TileFlipNonSH, pix_nonsh)
 
 // draw sprite pixels, process operator colors
 #define pix_sh(x) \
@@ -814,6 +832,9 @@ static void DrawSprite(int *sprite, int sh, int w)
   if (sh && (code&0x6000) == 0x6000) {
     if(code&0x0800) fTileFunc=TileFlipSH_markop;
     else            fTileFunc=TileNormSH_markop;
+  } else if (sh) {
+    if(code&0x0800) fTileFunc=TileFlipNonSH;
+    else            fTileFunc=TileNormNonSH;
   } else {
     if(code&0x0800) fTileFunc=TileFlip;
     else            fTileFunc=TileNorm;
@@ -1542,34 +1563,27 @@ void PicoDoHighPal555_8bit(int sh, int line, struct PicoEState *est)
   // additional palettes stored after in-frame changes
   for (i = 0; i < cnt * 0x40 / 2; i++) {
     t = spal[i];
-#ifdef USE_BGR555
-    t = ((t & 0x000e000e)<< 1) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)<<4);
-#else
-    t = ((t & 0x000e000e)<<12) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)>>7);
-#endif
     // treat it like it was 4-bit per channel, since in s/h mode it somewhat is that.
     // otherwise intensity difference between this and s/h will be wrong
-    t |= (t >> 4) & 0x08610861; // 0x18e318e3
-    dpal[i] = dpal[0xc0/2 + i] = t;
+    t = PXCONV(t);
+    t |= (t >> 4) & PXMASKL;
+    dpal[i] = t;
   }
 
   // norm: xxx0, sh: 0xxx, hi: 0xxx + 7
   if (sh)
   {
     // shadowed pixels
-    for (i = 0; i < 0x40 / 2; i++)
-      dpal[0x80/2 + i] = (dpal[i] >> 1) & 0x738e738e;
+    for (i = 0; i < 0x40 / 2; i++) {
+      dpal[0xc0/2 + i] = dpal[i];
+      dpal[0x80/2 + i] = (dpal[i] >> 1) & PXMASKH;
+    }
     // hilighted pixels
     for (i = 0; i < 0x40 / 2; i++) {
-      t = ((dpal[i] >> 1) & 0x738e738e) + 0x738e738e; // 0x7bef7bef;
-      t |= (t >> 4) & 0x08610861;
+      t = ((dpal[i] >> 1) & PXMASKH) + PXMASKH;
+      t |= (t >> 4) & PXMASKL;
       dpal[0x40/2 + i] = t;
     }
-    // shadowed pixels in color 14 always appear normal (hw bug?)
-    unsigned short *hpal = est->HighPal;
-    hpal[0x80 + 0x0e] = hpal[0x0e];
-    hpal[0x80 + 0x1e] = hpal[0x1e];
-    hpal[0x80 + 0x2e] = hpal[0x2e];
   }
 }
 
@@ -1586,14 +1600,10 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
 
   for (i = 0; i < 0x40 / 2; i++) {
     t = spal[i];
-#ifdef USE_BGR555
-    t = ((t & 0x000e000e)<< 1) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)<<4);
-#else
-    t = ((t & 0x000e000e)<<12) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)>>7);
-#endif
     // treat it like it was 4-bit per channel, since in s/h mode it somewhat is that.
     // otherwise intensity difference between this and s/h will be wrong
-    t |= (t >> 4) & 0x08610861; // 0x18e318e3
+    t = PXCONV(t);
+    t |= (t >> 4) & PXMASKL;
     dpal[i] = dpal[0xc0/2 + i] = t;
   }
 
@@ -1602,18 +1612,13 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est)
   {
     // shadowed pixels
     for (i = 0; i < 0x40 / 2; i++)
-      dpal[0x80/2 + i] = (dpal[i] >> 1) & 0x738e738e;
+      dpal[0x80/2 + i] = (dpal[i] >> 1) & PXMASKH;
     // hilighted pixels
     for (i = 0; i < 0x40 / 2; i++) {
-      t = ((dpal[i] >> 1) & 0x738e738e) + 0x738e738e; // 0x7bef7bef;
-      t |= (t >> 4) & 0x08610861;
+      t = ((dpal[i] >> 1) & PXMASKH) + PXMASKH;
+      t |= (t >> 4) & PXMASKL;
       dpal[0x40/2 + i] = t;
     }
-    // shadowed pixels in color 14 always appear normal (hw bug?)
-    unsigned short *hpal = est->HighPal;
-    hpal[0x80 + 0x0e] = hpal[0x0e];
-    hpal[0x80 + 0x1e] = hpal[0x1e];
-    hpal[0x80 + 0x2e] = hpal[0x2e];
   }
 }
 
@@ -1682,7 +1687,10 @@ static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
     len = 256;
   }
 
-  if (!sh && (est->rendstatus & PDRAW_SONIC_MODE)) {
+  if (DrawLineDestBase == HighColBase) {
+    if (!sh && (est->rendstatus & PDRAW_SONIC_MODE))
+      blockcpy_or(pd+8, est->HighCol+8, len, est->SonicPalCount*0x40);
+  } else if (!sh && (est->rendstatus & PDRAW_SONIC_MODE)) {
     // select active backup palette
     blockcpy_or(pd, est->HighCol+8, len, est->SonicPalCount*0x40);
   } else {
@@ -1850,9 +1858,6 @@ PICO_INTERNAL void PicoFrameStart(void)
     Pico.m.dirtyPal = (dirty ? 2 : 0); // mark as dirty but already copied
     blockcpy(Pico.est.SonicPal, PicoMem.cram, 0x40*2);
   }
-
-  if (PicoIn.opt & POPT_ALT_RENDERER)
-    return;
 }
 
 static void DrawBlankedLine(int line, int offs, int sh, int bgc)
@@ -1969,10 +1974,12 @@ void PicoDrawUpdateHighPal(void)
 void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 {
   PicoDrawSetInternalBuf(NULL, 0);
+  PicoDraw2SetOutBuf(NULL);
   switch (which)
   {
     case PDF_8BIT:
       FinalizeLine = FinalizeLine8bit;
+      PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328);
       break;
 
     case PDF_RGB555:
@@ -1984,21 +1991,28 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 
     default:
       FinalizeLine = NULL;
-      PicoDrawSetOutBufMD(Pico.est.Draw2FB+8, 328);
       break;
   }
   if (PicoIn.AHW & PAHW_32X)
     PicoDrawSetOutFormat32x(which, use_32x_line_mode);
   PicoDrawSetOutputMode4(which);
   rendstatus_old = -1;
+  Pico.m.dirtyPal = 1;
 }
 
 void PicoDrawSetOutBufMD(void *dest, int increment)
 {
-  if (dest != NULL) {
+  if (FinalizeLine == FinalizeLine8bit && increment == 328) {
+    // kludge for no-copy mode
+    PicoDrawSetInternalBuf(dest, increment);
+  }
+
+  if (FinalizeLine == NULL)
+    PicoDraw2SetOutBuf(dest);
+  else if (dest != NULL) {
     DrawLineDestBase = dest;
     DrawLineDestIncrement = increment;
-    Pico.est.DrawLineDest = (char*)DrawLineDestBase + Pico.est.DrawScanline * increment;
+    Pico.est.DrawLineDest = (char *)DrawLineDestBase + Pico.est.DrawScanline * increment;
   }
   else {
     DrawLineDestBase = DefOutBuff;

@@ -431,6 +431,7 @@ static void keys_parse_all(FILE *f)
 		mystrip(var + 5);
 		in_config_bind_key(dev_id, var + 5, acts, type);
 	}
+	in_clean_binds();
 }
 
 static void parse(const char *var, const char *val, int *keys_encountered)

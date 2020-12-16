@@ -94,36 +94,36 @@
 #define IN(A)				CPU->IN_Port(A)
 #define OUT(A, D)			CPU->OUT_Port(A, D)
 
-#define CHECK_INT													\
-	if (zIFF1)														\
-	{																\
-		UINT32 IntVect;												\
-																	\
-		if (CPU->IRQState == HOLD_LINE)								\
-			CPU->IRQState = CLEAR_LINE;								\
-																	\
-		CPU->HaltState = 0;											\
-		zIFF1 = zIFF2 = 0;											\
-		IntVect = CPU->Interrupt_Callback(CPU->IRQLine);			\
-																	\
-		PUSH_16(zRealPC)											\
-																	\
-		if (zIM == 2)												\
-		{															\
-			IntVect = (IntVect & 0xff) | (zI << 8);					\
-			PC = READ_MEM16(IntVect);								\
-			CPU->ExtraCycles += 17;									\
-		}															\
-		else if (zIM == 1)											\
-		{															\
-			PC = 0x38;												\
-			CPU->ExtraCycles += 13;									\
-		}															\
-		else														\
-		{															\
-			PC = IntVect & 0x38;									\
-			CPU->ExtraCycles += 13;									\
-		}															\
-																	\
-		SET_PC(PC)													\
+#define CHECK_INT							\
+	if (zIFF1)							\
+	{								\
+		UINT32 IntVect;						\
+									\
+		if (CPU->IRQState == HOLD_LINE)				\
+			CPU->IRQState = CLEAR_LINE;			\
+									\
+		CPU->HaltState = 0;					\
+		zIFF1 = zIFF2 = 0;					\
+		IntVect = CPU->Interrupt_Callback(CPU->IRQLine);	\
+									\
+		PUSH_16(zRealPC)					\
+									\
+		if (zIM == 2)						\
+		{							\
+			IntVect = (IntVect & 0xff) | (zI << 8);		\
+			PC = READ_MEM16(IntVect);			\
+			CPU->ExtraCycles += 17;				\
+		}							\
+		else if (zIM == 1)					\
+		{							\
+			PC = 0x38;					\
+			CPU->ExtraCycles += 13;				\
+		}							\
+		else							\
+		{							\
+			PC = IntVect & 0x38;				\
+			CPU->ExtraCycles += 13;				\
+		}							\
+									\
+		SET_PC(PC)						\
 	}

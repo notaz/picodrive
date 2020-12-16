@@ -1470,6 +1470,8 @@ static void reset_channels(FM_CH *CH)
 			CH[c].SLOT[s].Incr = -1;
 			CH[c].SLOT[s].key = 0;
 			CH[c].SLOT[s].phase = 0;
+			CH[c].SLOT[s].ar = CH[c].SLOT[s].ksr = 0;
+			CH[c].SLOT[s].ar_ksr = 0;
 			CH[c].SLOT[s].ssg = CH[c].SLOT[s].ssgn = 0;
 			CH[c].SLOT[s].state= EG_OFF;
 			CH[c].SLOT[s].volume = MAX_ATT_INDEX;

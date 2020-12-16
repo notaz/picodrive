@@ -1,5 +1,6 @@
 $(LD) ?= $(CC)
 TARGET ?= PicoDrive
+DEBUG ?= 0
 CFLAGS += -I.
 CYCLONE_CC ?= gcc
 CYCLONE_CXX ?= g++
@@ -33,14 +34,14 @@ gperf ?= 0
 
 ifneq ("$(PLATFORM)", "libretro")
 	CFLAGS += -Wall -g
-ifneq ($(findstring gcc,$(CC)),)
+ifneq ($(findstring gcc,$(shell $(CC) -v 2>&1)),)
 	CFLAGS += -ffunction-sections -fdata-sections
 	LDFLAGS += -Wl,--gc-sections
 endif
-	ifndef DEBUG
-	CFLAGS += -O3 -DNDEBUG
-	endif
 
+ifeq "$(DEBUG)" "0"
+	CFLAGS += -O3 -DNDEBUG
+endif
 	LD = $(CC)
 	OBJOUT ?= -o
 	LINKOUT ?= -o
@@ -118,7 +119,7 @@ OBJS += platform/libpicofe/gl_platform.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "generic"
-CFLAGS += -DSDL_OVERLAY_2X
+CFLAGS += -DSDL_OVERLAY_2X -DSDL_BUFFER_3X
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
 OBJS += platform/common/plat_sdl.o
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
@@ -131,6 +132,7 @@ platform/libpicofe/linux/plat.o: CFLAGS += -DPANDORA
 OBJS += platform/pandora/plat.o
 OBJS += platform/pandora/asm_utils.o
 OBJS += platform/common/arm_utils.o 
+OBJS += platform/libpicofe/linux/in_evdev.o
 OBJS += platform/libpicofe/linux/fbdev.o 
 OBJS += platform/libpicofe/linux/xenv.o
 OBJS += platform/libpicofe/pandora/plat.o
@@ -138,6 +140,7 @@ USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "gp2x"
 OBJS += platform/common/arm_utils.o 
+OBJS += platform/libpicofe/linux/in_evdev.o
 OBJS += platform/libpicofe/gp2x/in_gp2x.o
 OBJS += platform/libpicofe/gp2x/soc.o 
 OBJS += platform/libpicofe/gp2x/soc_mmsp2.o 
@@ -166,7 +169,7 @@ OBJS += platform/libretro/libretro-common/streams/file_stream.o
 OBJS += platform/libretro/libretro-common/streams/file_stream_transforms.o
 OBJS += platform/libretro/libretro-common/vfs/vfs_implementation.o
 endif
-PLATFORM_ZLIB = 1
+PLATFORM_ZLIB ?= 1
 endif
 
 ifeq "$(USE_FRONTEND)" "1"
@@ -177,8 +180,7 @@ OBJS += platform/common/main.o platform/common/emu.o \
 
 # libpicofe
 OBJS += platform/libpicofe/input.o platform/libpicofe/readpng.o \
-	platform/libpicofe/fonts.o platform/libpicofe/linux/in_evdev.o \
-	platform/libpicofe/linux/plat.o
+	platform/libpicofe/fonts.o platform/libpicofe/linux/plat.o
 
 # libpicofe - sound
 OBJS += platform/libpicofe/sndout.o
@@ -203,12 +205,11 @@ endif # USE_FRONTEND
 
 OBJS += platform/common/mp3.o platform/common/mp3_sync.o
 ifeq "$(PLATFORM_MP3)" "1"
-platform/common/mp3_helix.o: CFLAGS += -Iplatform/libpicofe
 OBJS += platform/common/mp3_helix.o
 else ifeq "$(HAVE_LIBAVCODEC)" "1"
 OBJS += platform/common/mp3_libavcodec.o
 else
-OBJS += platform/common/mp3_dummy.o
+OBJS += platform/common/mp3_minimp3.o
 endif
 
 ifeq "$(PLATFORM_ZLIB)" "1"
@@ -225,6 +226,10 @@ include platform/common/common.mak
 
 OBJS += $(OBJS_COMMON)
 CFLAGS += $(addprefix -D,$(DEFINES))
+
+ifneq (,$(findstring sdl,$(OBJS)))
+CFLAGS += -DUSE_SDL
+endif
 
 ifneq ($(findstring gcc,$(CC)),)
 ifneq ($(findstring SunOS,$(shell uname -a)),SunOS)
@@ -243,9 +248,9 @@ clean:
 	$(RM) -r .opk_data
 
 $(TARGET): $(OBJS)
-	
+
 ifeq ($(STATIC_LINKING), 1)
-	$(AR) rcs $@ $(OBJS)
+	$(AR) rcs $@ $^
 else
 	$(LD) $(LINKOUT)$@ $^ $(LDFLAGS) $(LDLIBS)
 endif
@@ -287,7 +292,7 @@ endif
 # on x86, this is reduced by ~300MB when debug info is off (but not on ARM)
 # not using O3 and -fno-expensive-optimizations seems to also help, but you may
 # want to remove this stuff for better performance if your compiler can handle it
-ifndef DEBUG
+ifeq "$(DEBUG)" "0"
 ifeq (,$(findstring msvc,$(platform)))
 cpu/fame/famec.o: CFLAGS += -g0 -O2 -fno-expensive-optimizations
 else

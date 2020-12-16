@@ -692,7 +692,15 @@ PICO_INTERNAL void PicoFrameFull()
 	pprof_end(draw);
 }
 
+void PicoDraw2SetOutBuf(void *dest)
+{
+	if (dest)
+		Pico.est.Draw2FB = dest;
+	else
+		Pico.est.Draw2FB = PicoDraw2FB_;
+}
+
 void PicoDraw2Init(void)
 {
-	Pico.est.Draw2FB = PicoDraw2FB_;
+	PicoDraw2SetOutBuf(NULL);
 }

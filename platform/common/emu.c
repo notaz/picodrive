@@ -32,6 +32,10 @@
 #include "file_stream_transforms.h"
 #endif
 
+#if defined(__GNUC__) && __GNUC__ >= 7
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+
 #ifndef _WIN32
 #define PATH_SEP      "/"
 #define PATH_SEP_C    '/'
@@ -127,8 +131,8 @@ static void fname_ext(char *dst, int dstlen, const char *prefix, const char *ext
 	strncpy(dst + prefix_len, p, dstlen - prefix_len - 1);
 
 	dst[dstlen - 8] = 0;
-	if (dst[strlen(dst) - 4] == '.')
-		dst[strlen(dst) - 4] = 0;
+	if ((p = strrchr(dst, '.')) != NULL)
+		dst[p-dst] = 0;
 	if (ext)
 		strcat(dst, ext);
 }
@@ -1121,6 +1125,7 @@ static void run_events_ui(unsigned int which)
 			while (in_menu_wait_any(NULL, 50) & (PBTN_MOK | PBTN_MBACK))
 				;
 			in_set_config_int(0, IN_CFG_BLOCKING, 0);
+			plat_status_msg_clear();
 		}
 		if (do_it) {
 			plat_status_msg_busy_first((which & PEV_STATE_LOAD) ? "LOADING STATE" : "SAVING STATE");
@@ -1412,12 +1417,8 @@ void emu_loop(void)
 			     > ms_to_ticks(STATUS_MSG_TIMEOUT) * 3)
 			{
 				notice_msg_time = 0;
-				plat_status_msg_clear();
-#ifndef __GP2X__
-				plat_video_flip();
-				plat_status_msg_clear(); /* Do it again in case of double buffering */
-#endif
 				notice_msg = NULL;
+				plat_status_msg_clear();
 			}
 			else {
 				int sum = noticeMsg[0] + noticeMsg[1] + noticeMsg[2];

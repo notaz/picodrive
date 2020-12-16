@@ -232,7 +232,7 @@ static void do_pal_update(int allow_sh, int allow_as)
 		localPal[0xe0] = 0;
 		localPal[0xf0] = 0x001f;
 	}
- 	else if (allow_as)
+ 	else if (allow_as && (Pico.est.rendstatus & PDRAW_SPR_LO_ON_HI))
  	{
 		do_pal_convert(localPal, Pico.est.SonicPal, currentConfig.gamma, currentConfig.gamma2);
 		memcpy((int *)dpal+0x40/2, (void *)localPal, 0x40*2);
