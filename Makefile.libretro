@@ -425,7 +425,9 @@ endif
 	SHARED := -shared -nostdlib
 	fpic := -fPIC
 	LIBM :=
-	CFLAGS += -fomit-frame-pointer -ffast-math -march=mips32 -mtune=mips32r2 -mhard-float
+	CFLAGS += -fomit-frame-pointer -ffast-math -march=mips32 -mtune=mips32r2 -mhard-float -D__GCW0__
+	# clear_cache uses SYNCI instead of a syscall
+	CFLAGS += -DMIPS_USE_SYNCI
 
 # Windows MSVC 2017 all architectures
 else ifneq (,$(findstring windows_msvc2017,$(platform)))
