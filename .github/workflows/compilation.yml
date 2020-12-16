@@ -9,7 +9,14 @@ on:
 jobs:
   build-ps2:
     runs-on: ubuntu-latest
-    container: ps2dev/ps2dev:latest
+    strategy:
+      matrix:
+       include:
+         - docker: ps2dev/ps2dev:latest
+           platform: "ps2"
+         - docker: ps2dev/ps2dev:experimental
+           platform: "ps2_1"
+    container: ${{ matrix.docker }}
     steps:
     - name: Install dependencies
       run: |
@@ -24,16 +31,15 @@ jobs:
       id: core
       run: |
         echo "::set-output name=info::$(echo picodrive)"
-        echo "::set-output name=platform::$(echo ps2)"
         echo "::set-output name=sha8::$(echo ${GITHUB_SHA} | cut -c1-8)"
 
     - name: Compile picodrive core
       run: |
-        make -f Makefile.libretro platform=${{ steps.core.outputs.platform }} clean all
+        make -f Makefile.libretro platform=${{ matrix.platform }} clean all
 
     - name: Upload artifacts
       if: ${{ success() }}
       uses: actions/upload-artifact@v2
       with:
-        name: ${{ steps.core.outputs.info }}_libretro_${{ steps.core.outputs.platform }}-${{ steps.core.outputs.sha8 }}
-        path: ${{ steps.core.outputs.info }}_libretro_${{ steps.core.outputs.platform }}.a
+        name: ${{ steps.core.outputs.info }}_libretro_${{ matrix.platform }}-${{ steps.core.outputs.sha8 }}
+        path: ${{ steps.core.outputs.info }}_libretro_${{ matrix.platform }}.a
