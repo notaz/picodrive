@@ -97,6 +97,7 @@ ifneq (,$(filter %__GCW0__ %__RG350__, $(CFLAGS)))
 CFLAGS += -DMIPS_USE_SYNCI # clear_cache uses SYNCI instead of a syscall
 endif
 
+use_inputmap ?= 1
 # OpenDingux is a generic platform, really.
 PLATFORM := generic
 endif
@@ -111,7 +112,7 @@ else
 LDFLAGS += -lEGL -lGLESv2
 endif
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
-OBJS += platform/common/plat_sdl.o
+OBJS += platform/common/plat_sdl.o platform/common/input_sdlkbd.o
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
 OBJS += platform/libpicofe/plat_dummy.o
 OBJS += platform/libpicofe/gl.o
@@ -121,7 +122,11 @@ endif
 ifeq "$(PLATFORM)" "generic"
 CFLAGS += -DSDL_OVERLAY_2X -DSDL_BUFFER_3X
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
-OBJS += platform/common/plat_sdl.o
+ifeq "$(use_inputmap)" "1"
+OBJS += platform/common/plat_sdl.o platform/opendingux/inputmap.o
+else
+OBJS += platform/common/plat_sdl.o platform/common/inputmap_kbd.o
+endif
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
 OBJS += platform/libpicofe/plat_dummy.o
 USE_FRONTEND = 1
