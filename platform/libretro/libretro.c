@@ -70,6 +70,7 @@ int _newlib_vm_size_user = 1 << TARGET_SIZE_2;
 #include <pico/pico_int.h>
 #include <pico/state.h>
 #include <pico/patch.h>
+#include <pico/sound/mix.h>
 #include "../common/input_pico.h"
 #include "../common/version.h"
 #include <libretro.h>
@@ -1434,6 +1435,8 @@ static void update_variables(bool first_run)
    unsigned old_frameskip_type;
    int old_vout_format;
    double new_sound_rate;
+   unsigned short old_snd_filter;
+   int32_t old_snd_filter_range;
 
    var.value = NULL;
    var.key = "picodrive_input1";
@@ -1539,6 +1542,7 @@ static void update_variables(bool first_run)
       PicoIn.opt &= ~POPT_EN_DRC;
 #endif
 
+   old_snd_filter = PicoIn.sndFilter;
    var.value = NULL;
    var.key = "picodrive_audio_filter";
    PicoIn.sndFilter = 0;
@@ -1547,11 +1551,16 @@ static void update_variables(bool first_run)
          PicoIn.sndFilter = 1;
    }
 
+   old_snd_filter_range = PicoIn.sndFilterRange;
    var.value = NULL;
    var.key = "picodrive_lowpass_range";
    PicoIn.sndFilterRange = (60 * 65536) / 100;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       PicoIn.sndFilterRange = (atoi(var.value) * 65536) / 100;
+   }
+
+   if (old_snd_filter != PicoIn.sndFilter || old_snd_filter_range != PicoIn.sndFilterRange) {
+      mix_reset(PicoIn.sndFilter ? PicoIn.sndFilterRange : 0);
    }
 
    old_frameskip_type = frameskip_type;
