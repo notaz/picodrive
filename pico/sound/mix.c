@@ -1,6 +1,7 @@
 /*
  * some code for sample mixing
  * (C) notaz, 2006,2007
+ * (C) kub, 2019,2020		added filtering
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -13,78 +14,97 @@
 
 /* limitter */
 #define Limit16(val) \
+	val -= val >> 2; /* reduce level to avoid clipping */	\
 	if ((short)val != val) val = (val < 0 ? MINOUT : MAXOUT)
 
 int mix_32_to_16l_level;
 
-static struct iir2 { // 2-pole IIR
-	int	x[2];		// sample buffer
+static struct iir {
+	int	alpha;		// alpha for EMA low pass
 	int	y[2];		// filter intermediates
-	int	i;
 } lfi2, rfi2;
 
 // NB ">>" rounds to -infinity, "/" to 0. To compensate the effect possibly use
 // "-(-y>>n)" (round to +infinity) instead of "y>>n" in places.
 
-// NB uses Q12 fixpoint; samples mustn't have more than 20 bits for this.
+// NB uses fixpoint; samples mustn't have more than (32-QB) bits. Adding the
+// outputs of the sound sources together yields a max. of 18 bits, restricting
+// QB to a maximum of 14.
 #define QB	12
+// NB alpha for DC filtering shouldn't be smaller than 1/(1<<QB) to avoid loss.
 
+
+// exponential moving average combined DC filter and lowpass filter
+// y0[n] = (x[n]-y0[n-1])*alpha+y0[n-1], y1[n] = (y0[n] - y1[n-1])*(1-1/8192)
+static inline int filter_band(struct iir *fi2, int x)
+{
+	// low pass. alpha is Q8 to avoid loss by 32 bit overflow.
+//	fi2->y[0] += ((x<<(QB-8)) - (fi2->y[0]>>8)) * fi2->alpha;
+	fi2->y[0] += (x - (fi2->y[0]>>QB)) * fi2->alpha;
+	// DC filter. for alpha=1-1/8192 cutoff ~1HZ, for 1-1/1024 ~7Hz
+	fi2->y[1] += (fi2->y[0] - fi2->y[1]) >> QB;
+	return (fi2->y[0] - fi2->y[1]) >> QB;
+}
 
 // exponential moving average filter for DC filtering
-// y[n] = (x[n]-y[n-1])*(1/8192) (corner approx. 20Hz, gain 1)
-static inline int filter_exp(struct iir2 *fi2, int x)
+// y[n] = (x[n]-y[n-1])*(1-1/8192) (corner approx. 1Hz, gain 1)
+static inline int filter_exp(struct iir *fi2, int x)
 {
-	int xf = (x<<QB) - fi2->y[0];
-	fi2->y[0] += xf >> 13;
-	xf -= xf >> 2;	// level reduction to avoid clipping from overshoot
-	return xf>>QB;
+	fi2->y[1] += ((x << QB) - fi2->y[1]) >> QB;
+	return x - (fi2->y[1] >> QB);
 }
 
 // unfiltered (for testing)
-static inline int filter_null(struct iir2 *fi2, int x)
+static inline int filter_null(struct iir *fi2, int x)
 {
 	return x;
 }
 
+#define filter	filter_band
+
 #define mix_32_to_16l_stereo_core(dest, src, count, lv, fl) {	\
 	int l, r;						\
+	struct iir lf = lfi2, rf = rfi2;			\
 								\
 	for (; count > 0; count--)				\
 	{							\
 		l = r = *dest;					\
 		l += *src++ >> lv;				\
 		r += *src++ >> lv;				\
-		l = fl(&lfi2, l);				\
-		r = fl(&rfi2, r);				\
+		l = fl(&lf, l);					\
+		r = fl(&rf, r);					\
 		Limit16(l);					\
 		Limit16(r);					\
 		*dest++ = l;					\
 		*dest++ = r;					\
 	}							\
+	lfi2 = lf, rfi2 = rf;					\
 }
 
 void mix_32_to_16l_stereo_lvl(short *dest, int *src, int count)
 {
-	mix_32_to_16l_stereo_core(dest, src, count, mix_32_to_16l_level, filter_exp);
+	mix_32_to_16l_stereo_core(dest, src, count, mix_32_to_16l_level, filter);
 }
 
 void mix_32_to_16l_stereo(short *dest, int *src, int count)
 {
-	mix_32_to_16l_stereo_core(dest, src, count, 0, filter_exp);
+	mix_32_to_16l_stereo_core(dest, src, count, 0, filter);
 }
 
 void mix_32_to_16_mono(short *dest, int *src, int count)
 {
 	int l;
+	struct iir lf = lfi2;
 
 	for (; count > 0; count--)
 	{
 		l = *dest;
 		l += *src++;
-		l = filter_exp(&lfi2, l);
+		l = filter(&lf, l);
 		Limit16(l);
 		*dest++ = l;
 	}
+	lfi2 = lf;
 }
 
 
@@ -118,8 +138,9 @@ void mix_16h_to_32_s2(int *dest_buf, short *mp3_buf, int count)
 	}
 }
 
-void mix_reset(void)
+void mix_reset(int alpha_q16)
 {
 	memset(&lfi2, 0, sizeof(lfi2));
 	memset(&rfi2, 0, sizeof(rfi2));
+	lfi2.alpha = rfi2.alpha = (0x10000-alpha_q16) >> 4; // filter alpha, Q12
 }

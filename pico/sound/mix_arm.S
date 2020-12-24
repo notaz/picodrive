@@ -154,33 +154,45 @@ m16_32_s2_no_unal2:
 
 
 @ limit
-@ reg=int_sample, lr=1, r3=tmp, kills flags
+@ reg=int_sample, r12=1, r8=tmp, kills flags
 .macro Limit reg
-    add     r3, lr, \reg, asr #15
-    bics    r3, r3, #1			@ in non-overflow conditions r3 is 0 or 1
+    sub     \reg, \reg, \reg, asr #2	@ reduce audio lvl some to avoid clipping
+    add     r8, r12, \reg, asr #15
+    bics    r8, r8, #1			@ in non-overflow conditions r8 is 0 or 1
     movne   \reg, #0x8000
     subpl   \reg, \reg, #1
 .endm
 
-
 @ limit and shift up by 16
-@ reg=int_sample, lr=1, r3=tmp, kills flags
+@ reg=int_sample, r12=1, r8=tmp, kills flags
 .macro Limitsh reg
-    add     r3, lr, \reg, asr #15
-    bics    r3, r3, #1			@ in non-overflow conditions r3 is 0 or 1
+    sub     \reg, \reg, \reg, asr #2	@ reduce audio lvl some to avoid clipping
+    add     r8, r12,\reg, asr #15
+    bics    r8, r8, #1			@ in non-overflow conditions r8 is 0 or 1
     moveq   \reg, \reg, lsl #16
     movne   \reg, #0x80000000
     subpl   \reg, \reg, #0x00010000
 .endm
 
+
 @ filter out DC offset
-@ in=int_sample (max 20 bit), y=filter memory, r3=tmp
+@ in=int_sample (max 20 bit), y=filter memory, r8=tmp
 .macro DCfilt in y
-    rsb     r3, \y, \in, lsl #12		@ fixpoint 20.12
-    add     \y, \y, r3, asr #13
-    sub     r3, r3, r3, asr #2			@ reduce audio lvl some
-    asr     \in, r3, #12
+    rsb     r8, \y, \in, lsl #12	@ fixpoint 20.12
+    add     \y, \y, r8, asr #12		@ alpha = 1-1/4094
+    sub     \in, \in, \y, asr #12
 .endm
+
+@ lowpass filter
+@ in=int_sample (max 20 bit), y=filter memory, r12=alpha(Q8), r8=tmp
+.macro LPfilt in y
+@    asr     r8, \y, #8
+@    rsb     r8, r8, \in, lsl #4		@ fixpoint 20.12
+    sub     r8, \in, \y, asr #12		@ fixpoint 20.12
+    mla     \y, r8, r12, \y
+    asr     \in, \y, #12
+.endm
+
 
 @ mix 32bit audio (with 16bits really used, upper bits indicate overflow) with normal 16 bit audio with left channel only
 @ warning: this function assumes dest is word aligned
@@ -193,9 +205,10 @@ mix_32_to_16l_stereo:
     subs    r2, r2, #4
     bmi     m32_16l_st_end
 
-    mov     lr, #1
     ldr     r12, =filter
-    ldmia   r12, {r10-r11}
+    ldr     r8, [r12], #4
+    ldmia   r12, {r3,r10-r11,lr}
+    str     r8, [sp, #-4]!
 
 m32_16l_st_loop:
     ldmia   r0,  {r8,r12}
@@ -206,10 +219,16 @@ m32_16l_st_loop:
     add     r5, r5, r8, asr #16
     add     r6, r6, r12,asr #16
     add     r7, r7, r12,asr #16
+    ldr     r12,[sp]
+    LPfilt  r4, r3
+    LPfilt  r5, lr
+    LPfilt  r6, r3
+    LPfilt  r7, lr
     DCfilt  r4, r10
     DCfilt  r5, r11
     DCfilt  r6, r10
     DCfilt  r7, r11
+    mov     r12,#1
     Limitsh r4
     Limitsh r5
     Limitsh r6
@@ -228,8 +247,12 @@ m32_16l_st_end:
     ldmia   r1!,{r4,r5}
     add     r4, r4, r6
     add     r5, r5, r6
+    ldr     r12,[sp]
+    LPfilt  r4, r3
+    LPfilt  r5, lr
     DCfilt  r4, r10
     DCfilt  r5, r11
+    mov     r12,#1
     Limitsh r4
     Limitsh r5
     orr     r4, r5, r4, lsr #16
@@ -237,7 +260,9 @@ m32_16l_st_end:
 
 m32_16l_st_no_unal2:
     ldr     r12, =filter
-    stmia   r12, {r10-r11}
+    add     r12,r12, #4
+    stmia   r12, {r3,r10-r11,lr}
+    add     sp, sp, #4
     ldmfd   sp!, {r4-r8,r10-r11,lr}
     bx      lr
 
@@ -248,9 +273,10 @@ m32_16l_st_no_unal2:
 mix_32_to_16_mono:
     stmfd   sp!, {r4-r8,r10-r11,lr}
 
-    mov     lr, #1
     ldr     r12, =filter
-    ldr     r10, [r12]
+    ldr     r8, [r12], #4
+    ldmia   r12, {r10-r11}
+    str     r8, [sp, #-4]!
 
     @ check if dest is word aligned
     tst     r0, #2
@@ -259,6 +285,10 @@ mix_32_to_16_mono:
     ldr     r4, [r1], #4
     sub     r2, r2, #1
     add     r4, r4, r5
+    ldr     r12,[sp]
+    LPfilt  r4, r11
+    DCfilt  r4, r10
+    mov     r12,#1
     Limit   r4
     strh    r4, [r0], #2
 
@@ -275,10 +305,16 @@ m32_16_mo_loop:
     add     r7, r7, r12,asr #16
     mov     r12,r12,lsl #16
     add     r6, r6, r12,asr #16
+    ldr     r12,[sp]
+    LPfilt  r4, r11
+    LPfilt  r5, r11
+    LPfilt  r6, r11
+    LPfilt  r7, r11
     DCfilt  r4, r10
     DCfilt  r5, r10
     DCfilt  r6, r10
     DCfilt  r7, r10
+    mov     r12,#1
     Limitsh r4
     Limitsh r5
     Limitsh r6
@@ -298,8 +334,12 @@ m32_16_mo_end:
     add     r5, r5, r6, asr #16
     mov     r6, r6, lsl #16
     add     r4, r4, r6, asr #16
+    ldr     r12,[sp]
+    LPfilt  r4, r11
+    LPfilt  r5, r11
     DCfilt  r4, r10
     DCfilt  r5, r10
+    mov     r12,#1
     Limitsh r4
     Limitsh r5
     orr     r4, r5, r4, lsr #16
@@ -311,13 +351,18 @@ m32_16_mo_no_unal2:
     ldrsh   r5, [r0]
     ldr     r4, [r1], #4
     add     r4, r4, r5
+    ldr     r12,[sp]
+    LPfilt  r4, r11
     DCfilt  r4, r10
+    mov     r12,#1
     Limit   r4
     strh    r4, [r0], #2
 
 m32_16_mo_no_unal:
     ldr     r12, =filter
-    str     r10, [r12]
+    add     r12,r12, #4
+    stmia   r12, {r10-r11}
+    add     sp, sp, #4
     ldmfd   sp!, {r4-r8,r10-r11,lr}
     bx      lr
 
@@ -344,7 +389,9 @@ mix_32_to_16l_stereo_lvl:
     mov     lr, #1
     ldr     r9, [r9]
     ldr     r12, =filter
-    ldm     r12, {r10-r11}
+    ldr     r8, [r12], #4
+    ldmia   r12, {r3,r10-r11,lr}
+    str     r8, [sp, #-4]!
 
     mov     r2, r2, lsl #1
     subs    r2, r2, #4
@@ -363,10 +410,16 @@ m32_16l_st_l_loop:
     mov     r5, r5, asr r9
     mov     r6, r6, asr r9
     mov     r7, r7, asr r9
+    ldr     r12,[sp]
+    LPfilt  r4, r3
+    LPfilt  r5, lr
+    LPfilt  r6, r3
+    LPfilt  r7, lr
     DCfilt  r4, r10
     DCfilt  r5, r11
     DCfilt  r6, r10
     DCfilt  r7, r11
+    mov     r12,#1
     Limitsh r4
     Limitsh r5
     Limitsh r6
@@ -387,8 +440,12 @@ m32_16l_st_l_end:
     add     r5, r5, r6
     mov     r4, r4, asr r9
     mov     r5, r5, asr r9
+    ldr     r12,[sp]
+    LPfilt  r4, r3
+    LPfilt  r5, lr
     DCfilt  r4, r10
     DCfilt  r5, r11
+    mov     r12,#1
     Limitsh r4
     Limitsh r5
     orr     r4, r5, r4, lsr #16
@@ -396,22 +453,32 @@ m32_16l_st_l_end:
 
 m32_16l_st_l_no_unal2:
     ldr     r12, =filter
-    stmia   r12, {r10-r11}
+    add     r12,r12, #4
+    stmia   r12, {r3,r10-r11,lr}
+    add     sp, sp, #4
     ldmfd   sp!, {r4-r11,lr}
     bx      lr
 
 #endif /* __GP2X__ */
 
-.global mix_reset @ void
+.global mix_reset @ int alpha_q16
 mix_reset:
-    ldr     r0, =filter
+    ldr     r2, =filter
+    rsb     r0, r0, #0x10000
+@    asr     r0, r0, #8
+    asr     r0, r0, #4
+    str     r0, [r2], #4
     mov     r1, #0
-    str     r1, [r0]
-    str     r1, [r0, #4]
+    str     r1, [r2], #4
+    str     r1, [r2], #4
+    str     r1, [r2], #4
+    str     r1, [r2], #4
     bx      lr
 
 .data
 filter:
-    .ds     8
+    .ds     4				@ alpha_q8
+    .ds     8				@ filter history for left channel
+    .ds     8				@ filter history for right channel
 
 @ vim:filetype=armasm

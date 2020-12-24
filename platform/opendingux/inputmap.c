@@ -4,6 +4,7 @@
 #include "../libpicofe/input.h"
 #include "../libpicofe/in_sdl.h"
 #include "../common/input_pico.h"
+#include "../common/plat_sdl.h"
 
 const struct in_default_bind in_sdl_defbinds[] = {
 	{ SDLK_UP,	IN_BINDTYPE_PLAYER12, GBTN_UP },
@@ -23,8 +24,7 @@ const struct in_default_bind in_sdl_defbinds[] = {
 	{ 0, 0, 0 }
 };
 
-const struct menu_keymap in_sdl_key_map[] =
-{
+const struct menu_keymap in_sdl_key_map[] = {
 	{ SDLK_UP,	PBTN_UP },
 	{ SDLK_DOWN,	PBTN_DOWN },
 	{ SDLK_LEFT,	PBTN_LEFT },
@@ -36,8 +36,22 @@ const struct menu_keymap in_sdl_key_map[] =
 	{ SDLK_TAB,	PBTN_L },
 	{ SDLK_BACKSPACE,	PBTN_R },
 };
+const int in_sdl_key_map_sz = sizeof(in_sdl_key_map) / sizeof(in_sdl_key_map[0]);
 
-const char * const in_sdl_key_names[SDLK_LAST] = {
+const struct menu_keymap in_sdl_joy_map[] = {
+	{ SDLK_UP,	PBTN_UP },
+	{ SDLK_DOWN,	PBTN_DOWN },
+	{ SDLK_LEFT,	PBTN_LEFT },
+	{ SDLK_RIGHT,	PBTN_RIGHT },
+	/* joystick */
+	{ SDLK_WORLD_0,	PBTN_MOK },
+	{ SDLK_WORLD_1,	PBTN_MBACK },
+	{ SDLK_WORLD_2,	PBTN_MA2 },
+	{ SDLK_WORLD_3,	PBTN_MA3 },
+};
+const int in_sdl_joy_map_sz = sizeof(in_sdl_joy_map) / sizeof(in_sdl_joy_map[0]);
+
+const char * const _in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_UP] = "UP",
 	[SDLK_DOWN] = "DOWN",
 	[SDLK_LEFT] = "LEFT",
@@ -70,5 +84,4 @@ const char * const in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_PAUSE] = "LOCK",
 #endif
 };
-
-const char *const *in_sdl_key_names_p = in_sdl_key_names;
+const char * const (*in_sdl_key_names)[SDLK_LAST] = &_in_sdl_key_names;
