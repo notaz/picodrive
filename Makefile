@@ -161,7 +161,6 @@ OBJS += platform/gp2x/warm.o
 USE_FRONTEND = 1
 PLATFORM_MP3 = 1
 PLATFORM_ZLIB = 1
-HAVE_ARMv6 = 0
 endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += platform/libretro/libretro.o

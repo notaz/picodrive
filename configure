@@ -430,6 +430,10 @@ fi
 if [ "$need_zlib" = "yes" ]; then
   echo "PLATFORM_ZLIB = 1" >> $config_mak
 fi
+if [ "$ARCH" = "arm" -a "$have_armv6" != "yes" -a "$have_armv7" != "yes" ]; then
+  # pass info to cyclone not to use newer arm arch instructions
+  echo "HAVE_ARMv6 = 0" >> $config_mak
+fi
 
 # GP2X toolchains are too old for UAL asm,
 # so add this here to not litter main Makefile
