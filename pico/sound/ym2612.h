@@ -6,15 +6,16 @@
 #define _H_FM_FM_
 
 /* compiler dependence */
+#include <stdint.h>
 #ifndef UINT8
-typedef unsigned char	UINT8;   /* unsigned  8bit */
-typedef unsigned short	UINT16;  /* unsigned 16bit */
-typedef unsigned int	UINT32;  /* unsigned 32bit */
+typedef uint8_t		UINT8;   /* unsigned  8bit */
+typedef uint16_t	UINT16;  /* unsigned 16bit */
+typedef uint32_t	UINT32;  /* unsigned 32bit */
 #endif
 #ifndef INT8
-typedef signed char		INT8;    /* signed  8bit   */
-typedef signed short	INT16;   /* signed 16bit   */
-typedef signed int		INT32;   /* signed 32bit   */
+typedef int8_t		INT8;    /* signed  8bit   */
+typedef int16_t		INT16;   /* signed 16bit   */
+typedef int32_t		INT32;   /* signed 32bit   */
 #endif
 
 #if 1

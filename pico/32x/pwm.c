@@ -171,8 +171,7 @@ void p32x_pwm_irq_event(unsigned int m68k_now)
   p32x_pwm_schedule(m68k_now);
 }
 
-unsigned int p32x_pwm_read16(unsigned int a, SH2 *sh2,
-  unsigned int m68k_cycles)
+unsigned int p32x_pwm_read16(u32 a, SH2 *sh2, unsigned int m68k_cycles)
 {
   unsigned int d = 0;
 
@@ -206,8 +205,7 @@ unsigned int p32x_pwm_read16(unsigned int a, SH2 *sh2,
   return d;
 }
 
-void p32x_pwm_write16(unsigned int a, unsigned int d,
-  SH2 *sh2, unsigned int m68k_cycles)
+void p32x_pwm_write16(u32 a, unsigned int d, SH2 *sh2, unsigned int m68k_cycles)
 {
   unsigned short *fifo;
   int idx;

@@ -145,7 +145,7 @@ static void draw_sprites(int scanline)
 
   // now draw all sprites backwards
   for (--s; s >= 0; s--) {
-    pack = *(unsigned int *)(PicoMem.vram + sprites_addr[s]);
+    pack = *(u32 *)(PicoMem.vram + sprites_addr[s]);
     TileNormM4(sprites_x[s], pack, 0x10);
   }
 }
@@ -161,7 +161,7 @@ static void draw_strip_low(const unsigned short *nametab, int dx, int cells, int
   for (; cells > 0; dx += 8, tilex_ty_prio++, cells--)
   {
     unsigned int pack;
-    int code;
+    unsigned code;
 
     code = nametab[tilex_ty_prio & 0x1f];
 
@@ -176,7 +176,7 @@ static void draw_strip_low(const unsigned short *nametab, int dx, int cells, int
       pal = (code>>7) & 0x10;
     }
 
-    pack = *(unsigned int *)(PicoMem.vram + addr); /* Get 4 bitplanes / 8 pixels */
+    pack = *(u32 *)(PicoMem.vram + addr); /* Get 4 bitplanes / 8 pixels */
     if (pack == 0)          TileBGM4(dx, pal);
     else if (code & 0x0200) TileFlipM4Low(dx, pack, pal);
     else                    TileNormM4Low(dx, pack, pal);
@@ -192,7 +192,7 @@ static void draw_strip_high(const unsigned short *nametab, int dx, int cells, in
   for (; cells > 0; dx += 8, tilex_ty_prio++, cells--)
   {
     unsigned int pack;
-    int code;
+    unsigned code;
 
     code = nametab[tilex_ty_prio & 0x1f];
     if (code == blank)
@@ -211,7 +211,7 @@ static void draw_strip_high(const unsigned short *nametab, int dx, int cells, in
       pal = (code>>7) & 0x10;
     }
 
-    pack = *(unsigned int *)(PicoMem.vram + addr); /* Get 4 bitplanes / 8 pixels */
+    pack = *(u32 *)(PicoMem.vram + addr); /* Get 4 bitplanes / 8 pixels */
     if (pack == 0) {
       blank = code;
       continue;

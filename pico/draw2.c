@@ -25,8 +25,8 @@
 
 static unsigned char PicoDraw2FB_[(8+320) * (8+240+8) + 8];
 
-static int HighCache2A[2*41*(TILE_ROWS+1)+1+1]; // caches for high layers
-static int HighCache2B[2*41*(TILE_ROWS+1)+1+1];
+static u32 HighCache2A[2*41*(TILE_ROWS+1)+1+1]; // caches for high layers
+static u32 HighCache2B[2*41*(TILE_ROWS+1)+1+1];
 
 unsigned short *PicoCramHigh=PicoMem.cram; // pointer to CRAM buff (0x40 shorts), converted to native device color (works only with 16bit for now)
 void (*PicoPrepareCram)()=0;            // prepares PicoCramHigh for renderer to use
@@ -35,9 +35,9 @@ void (*PicoPrepareCram)()=0;            // prepares PicoCramHigh for renderer to
 // stuff available in asm:
 #ifdef _ASM_DRAW_C
 void BackFillFull(void *dst, int reg7);
-void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
+void DrawLayerFull(int plane, u32 *hcache, int planestart, int planeend,
                    struct PicoEState *est);
-void DrawTilesFromCacheF(int *hc, struct PicoEState *est);
+void DrawTilesFromCacheF(u32 *hc, struct PicoEState *est);
 void DrawWindowFull(int start, int end, int prio, struct PicoEState *est);
 void DrawSpriteFull(unsigned int *sprite, struct PicoEState *est);
 #else
@@ -52,7 +52,7 @@ static int TileXnormYnorm(unsigned char *pd,int addr,unsigned char pal, struct P
 	if ((pvid->reg[12]&6) == 6) inc = 4;
 #endif
 	for(i=8; i; i--, addr+=inc, pd += LINE_WIDTH) {
-		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
+		pack=*(u32 *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
 		t=pack&0x0000f000; if (t) pd[0]=(unsigned char)((t>>12)|pal);
@@ -78,7 +78,7 @@ static int TileXflipYnorm(unsigned char *pd,int addr,unsigned char pal, struct P
 	if ((pvid->reg[12]&6) == 6) inc = 4;
 #endif
 	for(i=8; i; i--, addr+=inc, pd += LINE_WIDTH) {
-		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
+		pack=*(u32 *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
 		t=pack&0x000f0000; if (t) pd[0]=(unsigned char)((t>>16)|pal);
@@ -104,7 +104,7 @@ static int TileXnormYflip(unsigned char *pd,int addr,unsigned char pal, struct P
 #endif
 	addr+=14;
 	for(i=8; i; i--, addr-=inc, pd += LINE_WIDTH) {
-		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
+		pack=*(u32 *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
 		t=pack&0x0000f000; if (t) pd[0]=(unsigned char)((t>>12)|pal);
@@ -131,7 +131,7 @@ static int TileXflipYflip(unsigned char *pd,int addr,unsigned char pal, struct P
 #endif
 	addr+=14;
 	for(i=8; i; i--, addr-=inc, pd += LINE_WIDTH) {
-		pack=*(unsigned int *)(PicoMem.vram+addr); // Get 8 pixels
+		pack=*(u32 *)(PicoMem.vram+addr); // Get 8 pixels
 		if(!pack) continue;
 
 		t=pack&0x000f0000; if (t) pd[0]=(unsigned char)((t>>16)|pal);
@@ -215,7 +215,7 @@ static void DrawWindowFull(int start, int end, int prio, struct PicoEState *est)
 }
 
 
-static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
+static void DrawLayerFull(int plane, u32 *hcache, int planestart, int planeend,
 			  struct PicoEState *est)
 {
 	struct PicoVideo *pvid=&Pico.video;
@@ -347,9 +347,10 @@ static void DrawLayerFull(int plane, int *hcache, int planestart, int planeend,
 }
 
 
-static void DrawTilesFromCacheF(int *hc, struct PicoEState *est)
+static void DrawTilesFromCacheF(u32 *hc, struct PicoEState *est)
 {
-	int code, addr, zero = 0, vscroll;
+	u32 code;
+	int addr, zero = 0, vscroll;
 	unsigned int prevy=0xFFFFFFFF;
 //	unsigned short *pal;
 	unsigned char pal;
@@ -481,7 +482,7 @@ static void DrawAllSpritesFull(int prio, int maxwidth)
 		unsigned int *sprite=NULL;
 		int code, code2, sx, sy, height;
 
-		sprite=(unsigned int *)(PicoMem.vram+((table+(link<<2))&0x7ffc)); // Find sprite
+		sprite=(u32 *)(PicoMem.vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
 		// get sprite info
 		code = sprite[0];

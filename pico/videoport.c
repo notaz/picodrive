@@ -20,7 +20,7 @@ extern const unsigned short vdpsl2cyc_32[], vdpsl2cyc_40[];
 
 static int blankline;           // display disabled for this line
 
-unsigned SATaddr, SATmask;      // VRAM addr of sprite attribute table
+u32 SATaddr, SATmask;      // VRAM addr of sprite attribute table
 
 int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask) = NULL;
 
@@ -335,7 +335,7 @@ static NOINLINE void VideoWriteVRAM128(u32 a, u16 d)
   u32 b = ((a & 2) >> 1) | ((a & 0x400) >> 9) | (a & 0x3FC) | ((a & 0x1F800) >> 1);
 
   ((u8 *)PicoMem.vram)[b] = d;
-  if (!((u16)(b^SATaddr) & SATmask))
+  if (!(u16)((b^SATaddr) & SATmask))
     Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 
   if (((a^SATaddr) & SATmask) == 0)
@@ -402,7 +402,7 @@ static int GetDmaLength(void)
   return len;
 }
 
-static void DmaSlow(int len, unsigned int source)
+static void DmaSlow(int len, u32 source)
 {
   u32 inc = Pico.video.reg[0xf];
   u32 a = Pico.video.addr | (Pico.video.addr_u << 16);
@@ -881,9 +881,10 @@ update_irq:
 
 static u32 VideoSr(const struct PicoVideo *pv)
 {
-  unsigned int c, d = pv->status;
   unsigned int hp = pv->reg[12]&1 ? 15*488/210+1 : 15*488/171+1; // HBLANK start
   unsigned int hl = pv->reg[12]&1 ? 37*488/210+1 : 28*488/171+1; // HBLANK len
+  unsigned int c;
+  u32 d = pv->status;
 
   c = SekCyclesDone() - Pico.t.m68c_line_start;
   if (c - hp < hl)
@@ -897,14 +898,14 @@ static u32 VideoSr(const struct PicoVideo *pv)
   return d;
 }
 
-PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
+PICO_INTERNAL_ASM u32 PicoVideoRead(u32 a)
 {
   a &= 0x1c;
 
   if (a == 0x04) // control port
   {
     struct PicoVideo *pv = &Pico.video;
-    unsigned int d = VideoSr(pv);
+    u32 d = VideoSr(pv);
     if (pv->pending) {
       CommandChange(pv);
       pv->pending = 0;
@@ -930,14 +931,15 @@ PICO_INTERNAL_ASM unsigned int PicoVideoRead(unsigned int a)
   // check: Sonic 3D Blast bonus, Cannon Fodder, Chase HQ II, 3 Ninjas kick back, Road Rash 3, Skitchin', Wheel of Fortune
   if ((a&0x1c)==0x08)
   {
-    unsigned int d;
+    unsigned int c;
+    u32 d;
 
-    d = (SekCyclesDone() - Pico.t.m68c_line_start) & 0x1ff; // FIXME
+    c = (SekCyclesDone() - Pico.t.m68c_line_start) & 0x1ff; // FIXME
     if (Pico.video.reg[0]&2)
          d = Pico.video.hv_latch;
     else if (Pico.video.reg[12]&1)
-         d = hcounts_40[d/2] | (Pico.video.v_counter << 8);
-    else d = hcounts_32[d/2] | (Pico.video.v_counter << 8);
+         d = hcounts_40[c/2] | (Pico.video.v_counter << 8);
+    else d = hcounts_32[c/2] | (Pico.video.v_counter << 8);
 
     elprintf(EL_HVCNT, "hv: %02x %02x [%u] @ %06x", d, Pico.video.v_counter, SekCyclesDone(), SekPc);
     return d;

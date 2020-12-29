@@ -11,7 +11,7 @@
 #include "cell_map.c"
 
 // check: Heart of the alien, jaguar xj 220
-PICO_INTERNAL void DmaSlowCell(unsigned int source, unsigned int a, int len, unsigned char inc)
+PICO_INTERNAL void DmaSlowCell(u32 source, u32 a, int len, unsigned char inc)
 {
   unsigned char *base;
   unsigned int asrc, a2;
