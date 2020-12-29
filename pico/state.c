@@ -205,7 +205,8 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 
 #define CHECKED_WRITE(name,len,data) { \
   if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT && chunk_names[name]) { \
-    strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff) - 9); \
+    strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff)-1 - 9); \
+    sbuff[sizeof(sbuff)-1] = '\0'; \
     PicoStateProgressCB(sbuff); \
   } \
   if (data == buf2 && len > CHUNK_LIMIT_W) \
@@ -216,7 +217,8 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 
 #define CHECKED_WRITE_BUFF(name,buff) { \
   if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT && chunk_names[name]) { \
-    strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff) - 9); \
+    strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff)-1 - 9); \
+    sbuff[sizeof(sbuff)-1] = '\0'; \
     PicoStateProgressCB(sbuff); \
   } \
   if (!write_chunk(name, sizeof(buff), &buff, file)) \

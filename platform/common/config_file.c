@@ -124,13 +124,15 @@ int config_write(const char *fname)
 			const char **names = (const char **)me->data;
 			for (t = 0; names[t] != NULL; t++) {
 				if (*(int *)me->var == t) {
-					strncpy(line, names[t], sizeof(line));
+					strncpy(line, names[t], sizeof(line)-1);
+					line[sizeof(line)-1] = '\0';
 					goto write_line;
 				}
 			}
 		}
 		else if (me->generate_name != NULL) {
-			strncpy(line, me->generate_name(0, &dummy), sizeof(line));
+			strncpy(line, me->generate_name(0, &dummy), sizeof(line)-1);
+			line[sizeof(line)-1] = '\0';
 			goto write_line;
 		}
 		else
@@ -238,9 +240,9 @@ int config_readlrom(const char *fname)
 		tmp++;
 		mystrip(tmp);
 
-		len = sizeof(rom_fname_loaded);
+		len = sizeof(rom_fname_loaded)-1;
 		strncpy(rom_fname_loaded, tmp, len);
-		rom_fname_loaded[len-1] = 0;
+		rom_fname_loaded[len] = 0;
 		ret = 0;
 		break;
 	}

@@ -1537,7 +1537,7 @@ static int emith_cond_check(int cond, int *r)
 #define emith_abijump_reg_c(cond, r) \
 	emith_abijump_reg(r)
 #define emith_abicall(target) do { \
-	emith_move_r_imm(CR, target); \
+	emith_move_r_ptr_imm(CR, target); \
 	emith_branch(MIPS_JALR(LR, CR)); \
 } while (0)
 #define emith_abicall_cond(cond, target) \

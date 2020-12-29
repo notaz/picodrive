@@ -50,7 +50,7 @@ void host_dasm(void *addr, int len)
 
     insn = *(unsigned long *)addr;
     printf("   %08lx %08lx ", (long)addr, insn);
-    if(disasm((unsigned)addr, insn, buf, sizeof(buf), &symaddr))
+    if(disasm((uintptr_t)addr, insn, buf, sizeof(buf), &symaddr))
     {
       if (symaddr)
         name = lookup_name((void *)symaddr);
