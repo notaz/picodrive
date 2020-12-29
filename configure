@@ -31,7 +31,7 @@ check_option()
 
 check_define()
 {
-  $CC -E -dD $CFLAGS pico/arm_features.h | grep -q $1 || return 1
+  $CC -E -dD $CFLAGS pico/arm_features.h | grep -q "define[ 	]*$1" || return 1
   return 0
 }
 
