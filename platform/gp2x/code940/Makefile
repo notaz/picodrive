@@ -14,7 +14,7 @@ CROSS ?= arm-linux-gnueabi-
 # settings
 #up = 1
 
-CFLAGS += -O2 -Wall -mno-thumb-interwork -fstrict-aliasing -ffast-math
+CFLAGS += -O3 -Wall -mno-thumb-interwork -fstrict-aliasing -fno-stack-protector -fno-common -ffast-math
 CFLAGS += -I../../common/helix/pub -I../../.. -I. -D__GP2X__ -DARM
 CFLAGS += -mcpu=arm940t -mtune=arm940t -mabi=apcs-gnu -mfloat-abi=soft -mfpu=fpa
 LDFLAGS = -static -e code940 -Ttext 0x0 -L$(lgcc_path) -lgcc
@@ -66,9 +66,6 @@ code940.elf : $(OBJS940) $(LIBHELIX)
 	@echo ">>>" $@
 	$(GCC) $(CFLAGS) -Os -DEXTERNAL_YM2612 -c $< -o $@
 
-mix.o : ../../../pico/sound/mix.s
-	@echo ">>>" $@
-	$(GCC) $(CFLAGS) -DEXTERNAL_YM2612 -c $< -o $@
 misc_arm.o : ../../../pico/misc_arm.s
 	@echo ">>>" $@
 	$(GCC) $(CFLAGS) -DEXTERNAL_YM2612 -c $< -o $@

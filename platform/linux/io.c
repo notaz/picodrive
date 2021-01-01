@@ -13,7 +13,7 @@
 #include "../libpicofe/input.h"
 #include "../common/emu.h"
 #include "../common/input_pico.h"
-#include "version.h"
+#include "../common/version.h"
 
 #include "log_io.h"
 

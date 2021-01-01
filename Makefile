@@ -1,7 +1,7 @@
 $(LD) ?= $(CC)
 TARGET ?= PicoDrive
 DEBUG ?= 0
-CFLAGS += -I.
+CFLAGS += -I$(PWD)
 CYCLONE_CC ?= gcc
 CYCLONE_CXX ?= g++
 

@@ -9,12 +9,12 @@
 
 // MAME types
 #ifndef INT8
-typedef signed char  INT8;
-typedef signed short INT16;
-typedef signed int   INT32;
-typedef unsigned int   UINT32;
-typedef unsigned short UINT16;
-typedef unsigned char  UINT8;
+typedef s8  INT8;
+typedef s16 INT16;
+typedef s32 INT32;
+typedef u32 UINT32;
+typedef u16 UINT16;
+typedef u8  UINT8;
 #endif
 
 #ifdef DRC_SH2

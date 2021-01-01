@@ -7,7 +7,7 @@
  */
 #include "../pico_int.h"
 #include "../sound/ym2612.h"
-#include "../../cpu/sh2/compiler.h"
+#include <cpu/sh2/compiler.h>
 
 struct Pico32x Pico32x;
 SH2 sh2s[2];

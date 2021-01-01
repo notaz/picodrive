@@ -33,7 +33,7 @@ static struct in_pdata in_sdl_platform_data = {
 static int yuv_ry[32], yuv_gy[32], yuv_by[32];
 static unsigned char yuv_u[32 * 2], yuv_v[32 * 2];
 static unsigned char yuv_y[256];
-static struct uyvy {  unsigned int y:8; unsigned int vyu:24; } yuv_uyvy[65536];
+static struct uyvy { uint32_t y:8; uint32_t vyu:24; } yuv_uyvy[65536];
 
 void bgr_to_uyvy_init(void)
 {

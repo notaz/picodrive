@@ -13,7 +13,7 @@
 
 @ vim:filetype=armasm
 
-#include "../arm_features.h"
+#include <pico/arm_features.h>
 
 @ very simple YM2612 output rate to sample rate adaption (~500k cycles @44100)
 #define INTERPOL

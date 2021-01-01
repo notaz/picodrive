@@ -9,7 +9,7 @@
 #include "pico_int.h"
 #include <zlib.h>
 
-#include "../cpu/sh2/sh2.h"
+#include <cpu/sh2/sh2.h>
 #include "sound/ym2612.h"
 #include "sound/emu2413/emu2413.h"
 #include "state.h"

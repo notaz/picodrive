@@ -8,11 +8,10 @@
 #include <windows.h>
 #include <stdio.h>
 
-#include "../common/lprintf.h"
 #include "../common/plat.h"
 #include "../common/emu.h"
-#include "../../pico/pico.h"
-#include "version.h"
+#include "../common/version.h"
+#include <pico/pico.h>
 #include "direct.h"
 #include "dsnd.h"
 #include "main.h"

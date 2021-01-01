@@ -26,19 +26,19 @@ int DrawLineDestIncrement32x;
 
 static void convert_pal555(int invert_prio)
 {
-  unsigned int *ps = (void *)Pico32xMem->pal;
-  unsigned int *pd = (void *)Pico32xMem->pal_native;
-  unsigned int m1 = 0x001f001f;
-  unsigned int m2 = 0x03e003e0;
-  unsigned int m3 = 0xfc00fc00; // includes prio bit
-  unsigned int inv = 0;
+  u32 *ps = (void *)Pico32xMem->pal;
+  u32 *pd = (void *)Pico32xMem->pal_native;
+  u32 m1 = 0x001f001f;
+  u32 m2 = 0x03e003e0;
+  u32 m3 = 0xfc00fc00; // includes prio bit
+  u32 inv = 0;
   int i;
 
   if (invert_prio)
     inv = 0x80008000;
 
   for (i = 0x100/2; i > 0; i--, ps++, pd++) {
-    unsigned int t = *ps ^ inv;
+    u32 t = *ps ^ inv;
     *pd = PXCONV(t);
   }
 
@@ -48,9 +48,9 @@ static void convert_pal555(int invert_prio)
 // direct color mode
 #define do_line_dc(pd, p32x, pmd, inv, pmd_draw_code)             \
 {                                                                 \
-  const unsigned int m1 = 0x001f;                                 \
-  const unsigned int m2 = 0x03e0;                                 \
-  const unsigned int m3 = 0x7c00;                                 \
+  const u16 m1 = 0x001f;                                          \
+  const u16 m2 = 0x03e0;                                          \
+  const u16 m3 = 0x7c00;                                          \
   unsigned short t;                                               \
   int i = 320;                                                    \
                                                                   \

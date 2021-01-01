@@ -21,8 +21,8 @@
 
 #include "psp.h"
 #include "emu.h"
-#include "../common/lprintf.h"
-#include "version.h"
+#include <pico/pico_int.h>
+#include "../common/version.h"
 
 extern int pico_main(void);
 

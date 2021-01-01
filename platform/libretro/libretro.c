@@ -17,7 +17,7 @@
 #ifndef _WIN32
 #ifndef NO_MMAP
 #ifdef __SWITCH__
-#include "../switch/mman.h"
+#include "switch/mman.h"
 #else
 #include <sys/mman.h>
 #endif
@@ -37,8 +37,9 @@
 #endif
 
 #if defined(RENDER_GSKIT_PS2)
+#include <malloc.h>
 #include "libretro-common/include/libretro_gskit_ps2.h"
-#include "../ps2/asm.h"
+#include "ps2/asm.h"
 #endif
 
 #ifdef _3DS

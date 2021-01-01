@@ -22,7 +22,7 @@ static int blankline;           // display disabled for this line
 
 u32 SATaddr, SATmask;      // VRAM addr of sprite attribute table
 
-int (*PicoDmaHook)(unsigned int source, int len, unsigned short **base, unsigned int *mask) = NULL;
+int (*PicoDmaHook)(u32 source, int len, unsigned short **base, unsigned int *mask) = NULL;
 
 
 /* VDP FIFO implementation

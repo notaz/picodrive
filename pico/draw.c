@@ -53,7 +53,7 @@ static unsigned char DefHighCol[8+320+8];
 unsigned char *HighColBase = DefHighCol;
 int HighColIncrement;
 
-static u16 DefOutBuff[320*2];
+static u16 DefOutBuff[320*2] ALIGNED(4);
 void *DrawLineDestBase = DefOutBuff;
 int DrawLineDestIncrement;
 
@@ -200,7 +200,7 @@ TileFlipMaker(TileFlipNonSH, pix_nonsh)
 // draw sprite pixels, process operator colors
 #define pix_sh(x) \
   if (likely(t)) \
-    pd[x]=(likely(t<0xe) ? pal|t : pd[x]|((t-1)<<6));
+    pd[x]=(likely(t<0xe) ? pal|t : pd[x]|((t-1)<<6))
 
 TileNormMaker(TileNormSH, pix_sh)
 TileFlipMaker(TileFlipSH, pix_sh)
@@ -208,7 +208,7 @@ TileFlipMaker(TileFlipSH, pix_sh)
 // draw sprite pixels, mark but don't process operator colors
 #define pix_sh_markop(x) \
   if (likely(t)) \
-    pd[x]=(likely(t<0xe) ? pal|t : pd[x]|0x40);
+    pd[x]=(likely(t<0xe) ? pal|t : pd[x]|0x40)
 
 TileNormMaker(TileNormSH_markop, pix_sh_markop)
 TileFlipMaker(TileFlipSH_markop, pix_sh_markop)

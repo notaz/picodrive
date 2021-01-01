@@ -8,8 +8,8 @@
  */
 
 #include "pico_int.h"
-#include "../cpu/debug.h"
-#include "../unzip/unzip.h"
+#include <cpu/debug.h>
+#include <unzip/unzip.h>
 #include <zlib.h>
 
 #ifdef USE_LIBRETRO_VFS

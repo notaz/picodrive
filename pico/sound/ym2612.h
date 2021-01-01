@@ -6,16 +6,16 @@
 #define _H_FM_FM_
 
 /* compiler dependence */
-#include <stdint.h>
+#include "../pico_types.h"
 #ifndef UINT8
-typedef uint8_t		UINT8;   /* unsigned  8bit */
-typedef uint16_t	UINT16;  /* unsigned 16bit */
-typedef uint32_t	UINT32;  /* unsigned 32bit */
+typedef u8		UINT8;   /* unsigned  8bit */
+typedef u16		UINT16;  /* unsigned 16bit */
+typedef u32		UINT32;  /* unsigned 32bit */
 #endif
 #ifndef INT8
-typedef int8_t		INT8;    /* signed  8bit   */
-typedef int16_t		INT16;   /* signed 16bit   */
-typedef int32_t		INT32;   /* signed 32bit   */
+typedef s8		INT8;    /* signed  8bit   */
+typedef s16		INT16;   /* signed 16bit   */
+typedef s32		INT32;   /* signed 32bit   */
 #endif
 
 #if 1
@@ -183,7 +183,7 @@ int  YM2612PicoStateLoad2(int *tat, int *tbt);
 #define YM2612PicoStateLoad YM2612PicoStateLoad_
 #else
 /* GP2X specific */
-#include "../../platform/gp2x/940ctl.h"
+#include <platform/gp2x/940ctl.h>
 #define YM2612Init(baseclock,rate,ssg) do { \
 	if (PicoIn.opt&POPT_EXT_FM) YM2612Init_940(baseclock, rate, ssg); \
 	else               YM2612Init_(baseclock, rate, ssg); \

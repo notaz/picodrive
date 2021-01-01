@@ -96,10 +96,6 @@ int main(int argc, char *argv[])
 
 	emu_init();
 
-#ifdef GPERF
-	ProfilerStart("gperf.out");
-#endif
-
 	engineState = PGS_Menu;
 
 	if (argc > 1)
@@ -142,7 +138,13 @@ int main(int argc, char *argv[])
 				/* vvv fallthrough */
 
 			case PGS_Running:
+#ifdef GPERF
+	ProfilerStart("gperf.out");
+#endif
 				emu_loop();
+#ifdef GPERF
+	ProfilerStop();
+#endif
 				break;
 
 			case PGS_Quit:
@@ -155,9 +157,6 @@ int main(int argc, char *argv[])
 	}
 
 	endloop:
-#ifdef GPERF
-	ProfilerStop();
-#endif
 
 	emu_finish();
 	plat_finish();

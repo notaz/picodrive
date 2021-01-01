@@ -270,7 +270,7 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
 
 /* idle loop detection, not to be used in CD mode */
 #ifdef EMU_C68K
-#include "cpu/cyclone/tools/idle.h"
+#include <cpu/cyclone/tools/idle.h>
 #endif
 
 static unsigned short **idledet_ptrs = NULL;

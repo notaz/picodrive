@@ -32,8 +32,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include "../../pico/pico_int.h"
-#include "../../pico/arm_features.h"
+#include <pico/pico_int.h>
+#include <pico/arm_features.h>
 #include "sh2.h"
 #include "compiler.h"
 #include "../drc/cmn.h"

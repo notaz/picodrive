@@ -1,8 +1,8 @@
 #ifndef __SH2_H__
 #define __SH2_H__
 
-#include "../../pico/pico_types.h"
-#include "../../pico/pico_port.h"
+#include <pico/pico_types.h>
+#include <pico/pico_port.h>
 
 // registers - matches structure order
 typedef enum {

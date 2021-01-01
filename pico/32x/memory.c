@@ -42,7 +42,7 @@
 #include "../pico_int.h"
 #include "../memory.h"
 
-#include "../../cpu/sh2/compiler.h"
+#include <cpu/sh2/compiler.h>
 DRC_DECLARE_SR;
 
 static const char str_mars[] = "MARS";

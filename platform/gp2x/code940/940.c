@@ -2,7 +2,7 @@
 // (c) Copyright 2006-2007, Grazvydas "notaz" Ignotas
 
 #include "940shared.h"
-#include "../../common/helix/pub/mp3dec.h"
+#include <platform/common/helix/pub/mp3dec.h>
 
 static _940_data_t *shared_data = (_940_data_t *)   0x00100000;
 static _940_ctl_t  *shared_ctl  = (_940_ctl_t *)    0x00200000;

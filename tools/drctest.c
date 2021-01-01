@@ -3,7 +3,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#include "cpu/sh2/compiler.c"
+#include <cpu/sh2/compiler.c>
 
 struct Pico Pico;
 SH2 sh2s[2];

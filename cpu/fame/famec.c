@@ -60,6 +60,8 @@
 #define FAMEC_EXTRA_INLINE INLINE
 #endif
 
+#include <pico/pico_types.h>
+/*
 #ifdef u8
 #undef u8
 #endif
@@ -95,6 +97,7 @@
 #define u32	unsigned int
 #define s32	signed int
 #define uptr	uintptr_t
+*/
 
 /*
 typedef unsigned char	u8;

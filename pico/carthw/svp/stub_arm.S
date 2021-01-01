@@ -6,7 +6,7 @@
 @* See COPYING file in the top-level directory.
 @*
 
-#include "../../arm_features.h"
+#include <pico/arm_features.h>
 
 @.syntax unified
 .text

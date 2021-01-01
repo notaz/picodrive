@@ -27,9 +27,8 @@
 #include "../common/menu.h"
 #include "../common/emu.h"
 #include "../common/readpng.h"
-#include "../common/lprintf.h"
 #include "../common/input.h"
-#include "version.h"
+#include "../common/version.h"
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
@@ -50,8 +49,6 @@ static unsigned short bg_buffer[480*272] __attribute__((aligned(16)));
 void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
 static void menu_prepare_bg(int use_game_bg, int use_fg);
 
-
-static unsigned int inp_prev = 0;
 
 void menu_draw_begin(void)
 {

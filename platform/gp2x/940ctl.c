@@ -22,9 +22,9 @@
 #include "../common/arm_utils.h"
 #include "../common/menu_pico.h"
 #include "../common/emu.h"
-#include "../../pico/pico_int.h"
-#include "../../pico/sound/ym2612.h"
-#include "../../pico/sound/mix.h"
+#include <pico/pico_int.h>
+#include <pico/sound/ym2612.h>
+#include <pico/sound/mix.h>
 #include "code940/940shared.h"
 #include "plat.h"
 #include "940ctl.h"

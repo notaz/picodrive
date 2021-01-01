@@ -205,7 +205,7 @@ else ifeq ($(platform), ps2)
 
 	ARCH = mipsel
 	asm_render = 1
-	OBJS += platform/ps2/asm.o
+	OBJS += platform/libretro/ps2/asm.o
 
 # CTR (3DS)
 else ifeq ($(platform), ctr)

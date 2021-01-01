@@ -7,7 +7,7 @@
  * See COPYING file in the top-level directory.
  */
 
-#include "string.h"
+#include <string.h>
 
 #define MAXOUT		(+32767)
 #define MINOUT		(-32768)

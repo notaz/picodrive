@@ -6,8 +6,8 @@
 @* See COPYING file in the top-level directory.
 @*
 
-#include "../arm_features.h"
-#include "../pico_int_offs.h"
+#include <pico/arm_features.h>
+#include <pico/pico_int_offs.h>
 
 .equiv PCM_STEP_SHIFT, 11
 

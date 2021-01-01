@@ -55,15 +55,15 @@ static unsigned short fname2color(const char *fname)
 	return 0xffff;
 }
 
-#include "../libpicofe/menu.c"
+#include <platform/libpicofe/menu.c>
 
 static const char *men_dummy[] = { NULL };
 
 /* platform specific options and handlers */
 #if   defined(__GP2X__)
-#include "../gp2x/menu.c"
+#include <platform/gp2x/menu.c>
 #elif defined(PANDORA)
-#include "../pandora/menu.c"
+#include <platform/pandora/menu.c>
 #else
 #define MENU_OPTIONS_GFX
 #define MENU_OPTIONS_ADV
@@ -84,7 +84,7 @@ static void make_bg(int no_scale)
 
 	if (!no_scale && g_menuscreen_w / w >= 2 && g_menuscreen_h / h >= 2)
 	{
-		unsigned int t, *d = g_menubg_ptr;
+		u32 t, *d = g_menubg_ptr;
 		d += (g_menuscreen_h / 2 - h * 2 / 2)
 			* g_menuscreen_w / 2;
 		d += (g_menuscreen_w / 2 - w * 2 / 2) / 2;

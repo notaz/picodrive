@@ -7,8 +7,8 @@
 @* See COPYING file in the top-level directory.
 @*
 
-#include "pico/arm_features.h"
-#include "pico/pico_int_offs.h"
+#include <pico/arm_features.h>
+#include <pico/pico_int_offs.h>
 
 .extern Pico32x
 .extern Pico

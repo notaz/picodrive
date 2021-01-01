@@ -28,7 +28,7 @@
 #include "../common/emu.h"
 #include "../common/readpng.h"
 #include "../common/input.h"
-#include "version.h"
+#include "../common/version.h"
 
 #include <pico/pico_int.h>
 #include <pico/patch.h>
@@ -48,8 +48,6 @@ unsigned char *menu_screen = gfx_buffer; /* draw here and blit later, to avoid f
 
 void menu_darken_bg(void *dst, const void *src, int pixels, int darker);
 static void menu_prepare_bg(int use_game_bg);
-
-static unsigned int inp_prev = 0;
 
 void menu_draw_begin(int use_bgbuff)
 {
@@ -1457,14 +1455,14 @@ static void menu_loop_root(void)
 // warning: alignment
 void menu_darken_bg(void *dst, const void *src, int pixels, int darker)
 {
-	unsigned int *dest = dst;
-	const unsigned int *srce = src;
+	u32 *dest = dst;
+	const u32 *srce = src;
 	pixels /= 2;
 	if (darker)
 	{
 		while (pixels--)
 		{
-			unsigned int p = *srce++;
+			u32 p = *srce++;
 			*dest++ = ((p&0xf79ef79e)>>1) - ((p&0xc618c618)>>3);
 		}
 	}
@@ -1472,7 +1470,7 @@ void menu_darken_bg(void *dst, const void *src, int pixels, int darker)
 	{
 		while (pixels--)
 		{
-			unsigned int p = *srce++;
+			u32 p = *srce++;
 			*dest++ = (p&0xf79ef79e)>>1;
 		}
 	}

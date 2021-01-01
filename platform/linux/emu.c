@@ -47,9 +47,9 @@ static void draw_cd_leds(void)
 
 #define p(x) px[(x)*2 >> 2] = px[((x)*2 >> 2) + 1]
 	// 16-bit modes
-	unsigned int *px = (unsigned int *)((short *)g_screen_ptr + scr_offs);
-	unsigned int col_g = (led_reg & 2) ? 0x06000600 : 0;
-	unsigned int col_r = (led_reg & 1) ? 0xc000c000 : 0;
+	uint32_t *px = (uint32_t *)((short *)g_screen_ptr + scr_offs);
+	uint32_t col_g = (led_reg & 2) ? 0x06000600 : 0;
+	uint32_t col_r = (led_reg & 1) ? 0xc000c000 : 0;
 	p(pitch*0) = p(pitch*1) = p(pitch*2) = col_g;
 	p(pitch*0 + led_offs) = p(pitch*1 + led_offs) = p(pitch*2 + led_offs) = col_r;
 #undef p

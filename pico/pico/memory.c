@@ -7,7 +7,6 @@
  */
 #include "../pico_int.h"
 #include "../memory.h"
-#include "../sound/sn76496.h"
 
 /*
 void dump(u16 w)

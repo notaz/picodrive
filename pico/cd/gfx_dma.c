@@ -14,7 +14,7 @@
 PICO_INTERNAL void DmaSlowCell(u32 source, u32 a, int len, unsigned char inc)
 {
   unsigned char *base;
-  unsigned int asrc, a2;
+  u32 asrc, a2;
   u16 *r;
 
   base = Pico_mcd->word_ram1M[Pico_mcd->s68k_regs[3]&1];

@@ -5,7 +5,7 @@
 
 ;@ For commercial use, separate licencing terms must be obtained.
 
-#include "../../pico/arm_features.h"
+#include <pico/arm_features.h>
 
       .data
       .align 4

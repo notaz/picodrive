@@ -311,7 +311,7 @@ static void gfx_render(uint32 bufferIndex, uint32 width)
   }
 }
 
-void gfx_start(unsigned int base)
+void gfx_start(uint32 base)
 {
   /* make sure 2M mode is enabled */
   if (!(Pico_mcd->s68k_regs[3] & 0x04))

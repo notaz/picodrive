@@ -6,8 +6,8 @@
  * See COPYING file in the top-level directory.
  */
 
-#include "../../pico_int.h"
-#include "../../../cpu/drc/cmn.h"
+#include <pico/pico_int.h>
+#include <cpu/drc/cmn.h>
 #include "compiler.h"
 
 // FIXME: asm has these hardcoded
@@ -39,7 +39,7 @@ void ssp_drc_end(void){}
 #endif
 
 #define COUNT_OP
-#include "../../../cpu/drc/emit_arm.c"
+#include <cpu/drc/emit_arm.c>
 
 // -----------------------------------------------------
 

@@ -14,7 +14,7 @@
 #include "../common/menu.h"
 #include "../common/emu.h"
 #include "../common/config.h"
-#include "../common/lprintf.h"
+#include "../libpicofe/lprintf.h"
 
 #ifdef GPROF
 #include <pspprof.h>

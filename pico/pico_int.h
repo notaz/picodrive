@@ -11,6 +11,7 @@
 #define PICO_INTERNAL_INCLUDED
 #include <stdio.h>
 #include <string.h>
+#include "pico_types.h"
 #include "pico_port.h"
 #include "pico.h"
 #include "carthw/carthw.h"
@@ -31,11 +32,9 @@
 extern "C" {
 #endif
 
-#include "pico_types.h"
-
 // ----------------------- 68000 CPU -----------------------
 #ifdef EMU_C68K
-#include "../cpu/cyclone/Cyclone.h"
+#include <cpu/cyclone/Cyclone.h>
 extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #define SekCyclesLeft     PicoCpuCM68k.cycles // cycles left for this run
 #define SekCyclesLeftS68k PicoCpuCS68k.cycles
@@ -60,7 +59,7 @@ extern struct Cyclone PicoCpuCM68k, PicoCpuCS68k;
 #endif
 
 #ifdef EMU_F68K
-#include "../cpu/fame/fame.h"
+#include <cpu/fame/fame.h>
 extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #define SekCyclesLeft     PicoCpuFM68k.io_cycle_counter
 #define SekCyclesLeftS68k PicoCpuFS68k.io_cycle_counter
@@ -91,7 +90,7 @@ extern M68K_CONTEXT PicoCpuFM68k, PicoCpuFS68k;
 #endif
 
 #ifdef EMU_M68K
-#include "../cpu/musashi/m68kcpu.h"
+#include <cpu/musashi/m68kcpu.h>
 extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #ifndef SekCyclesLeft
 #define SekCyclesLeft     PicoCpuMM68k.cyc_remaining_cycles
@@ -160,7 +159,7 @@ extern unsigned int SekCycleAimS68k;
 // ----------------------- Z80 CPU -----------------------
 
 #if defined(_USE_DRZ80)
-#include "../cpu/DrZ80/drz80.h"
+#include <cpu/DrZ80/drz80.h>
 
 extern struct DrZ80 drZ80;
 
@@ -175,7 +174,7 @@ extern struct DrZ80 drZ80;
 #define z80_pc()           (drZ80.Z80PC - drZ80.Z80PC_BASE)
 
 #elif defined(_USE_CZ80)
-#include "../cpu/cz80/cz80.h"
+#include <cpu/cz80/cz80.h>
 
 #define z80_run(cycles)    Cz80_Exec(&CZ80, cycles)
 #define z80_run_nr(cycles) Cz80_Exec(&CZ80, cycles)
@@ -209,7 +208,7 @@ extern struct DrZ80 drZ80;
 
 // ----------------------- SH2 CPU -----------------------
 
-#include "cpu/sh2/sh2.h"
+#include <cpu/sh2/sh2.h>
 
 extern SH2 sh2s[2];
 #define msh2 sh2s[0]
@@ -721,7 +720,7 @@ int load_cd_image(const char *cd_img_name, int *type);
 
 // cd/gfx.c
 void gfx_init(void);
-void gfx_start(unsigned int base);
+void gfx_start(u32 base);
 void gfx_update(unsigned int cycles);
 int gfx_context_save(unsigned char *state);
 int gfx_context_load(const unsigned char *state);
