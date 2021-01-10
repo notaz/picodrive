@@ -337,9 +337,12 @@ void PicoDoHighPal555M4(void)
   /* cram is always stored as shorts, even though real hardware probably uses bytes */
   for (i = 0x20/2; i > 0; i--, spal++, dpal++) {
     t = *spal;
-#ifdef USE_BGR555
+#if defined(USE_BGR555)
     t = ((t & 0x00030003)<< 3) | ((t & 0x000c000c)<<6) | ((t & 0x00300030)<<9);
     t |= (t >> 2) | ((t >> 4) & 0x04210421);
+#elif defined(USE_BGR565)
+    t = ((t & 0x00030003)<< 3) | ((t & 0x000c000c)<<7) | ((t & 0x00300030)<<10);
+    t |= (t >> 2) | ((t >> 4) & 0x08610861);
 #else
     t = ((t & 0x00030003)<<14) | ((t & 0x000c000c)<<7) | ((t & 0x00300030)>>1);
     t |= (t >> 2) | ((t >> 4) & 0x08610861);

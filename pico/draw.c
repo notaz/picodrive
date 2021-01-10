@@ -69,6 +69,10 @@ u32 VdpSATCache[128];  // VDP sprite cache (1st 32 sprite attr bits)
 #define PXCONV(t)   ((t & 0x000e000e)<< 1) | ((t & 0x00e000e0)<<2) | ((t & 0x0e000e00)<<3)
 #define PXMASKL     0x04210421  // 0x0c630c63, LSB for all colours
 #define PXMASKH     0x39ce39ce  // 0x3def3def, all but MSB for all colours
+#elif defined(USE_BGR565)
+#define PXCONV(t)   ((t & 0x000e000e)<< 1) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)<<4)
+#define PXMASKL     0x08610861  // 0x18e318e3
+#define PXMASKH     0x738e738e  // 0x7bef7bef
 #else // RGB565
 #define PXCONV(t)   ((t & 0x000e000e)<<12) | ((t & 0x00e000e0)<<3) | ((t & 0x0e000e00)>>7)
 #define PXMASKL     0x08610861  // 0x18e318e3
@@ -2004,7 +2008,7 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 
 void PicoDrawSetOutBufMD(void *dest, int increment)
 {
-  if (FinalizeLine == FinalizeLine8bit && increment == 328) {
+  if (FinalizeLine == FinalizeLine8bit && increment >= 328) {
     // kludge for no-copy mode
     PicoDrawSetInternalBuf(dest, increment);
   }

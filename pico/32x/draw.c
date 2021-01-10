@@ -12,6 +12,9 @@
 #if defined(USE_BGR555)
 #define PXCONV(t)   (t)
 #define PXPRIO      0x8000  // prio in MSB
+#elif defined(USE_BGR565)
+#define PXCONV(t)   (((t)&m1)  | (((t)&(m2|m3)) << 1))
+#define PXPRIO      0x0020  // prio in LS green bit
 #else // RGB565 
 #define PXCONV(t)   ((((t)&m1) << 11) | (((t)&m2) << 1) | (((t)&m3) >> 10))
 #define PXPRIO      0x0020  // prio in LS green bit

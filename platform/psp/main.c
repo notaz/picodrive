@@ -11,9 +11,8 @@
 #include "emu.h"
 #include "menu.h"
 #include "mp3.h"
-#include "../common/menu.h"
 #include "../common/emu.h"
-#include "../common/config.h"
+#include "../libpicofe/menu.h"
 #include "../libpicofe/lprintf.h"
 
 #ifdef GPROF

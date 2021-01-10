@@ -34,9 +34,11 @@ gperf ?= 0
 
 ifneq ("$(PLATFORM)", "libretro")
 	CFLAGS += -Wall -g
+ifneq ("$(PLATFORM)", "psp")
 ifneq ($(findstring gcc,$(shell $(CC) -v 2>&1)),)
 	CFLAGS += -ffunction-sections -fdata-sections
 	LDFLAGS += -Wl,--gc-sections
+endif
 endif
 
 ifeq "$(DEBUG)" "0"
@@ -162,6 +164,20 @@ USE_FRONTEND = 1
 PLATFORM_MP3 = 1
 PLATFORM_ZLIB = 1
 endif
+ifeq "$(PLATFORM)" "psp"
+CFLAGS += -DUSE_BGR565 -DDRAW2_OVERRIDE_LINE_WIDTH=512 -G8 # -DLPRINTF_STDIO -DFW15
+platform/common/main.o: CFLAGS += -Dmain=pico_main
+OBJS += platform/psp/plat.o
+OBJS += platform/psp/emu.o
+OBJS += platform/psp/in_psp.o
+OBJS += platform/psp/psp.o
+#OBJS += platform/psp/menu.o
+OBJS += platform/psp/asm_utils.o
+OBJS += platform/psp/mp3.o
+#OBJS += platform/psp/data/bg32.o
+#OBJS += platform/psp/data/bg40.o
+USE_FRONTEND = 1
+endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += platform/libretro/libretro.o
 ifeq "$(USE_LIBRETRO_VFS)" "1"
@@ -207,6 +223,7 @@ endif
 
 endif # USE_FRONTEND
 
+ifneq "$(PLATFORM)" "psp"
 OBJS += platform/common/mp3.o platform/common/mp3_sync.o
 ifeq "$(PLATFORM_MP3)" "1"
 OBJS += platform/common/mp3_helix.o
@@ -214,6 +231,7 @@ else ifeq "$(HAVE_LIBAVCODEC)" "1"
 OBJS += platform/common/mp3_libavcodec.o
 else
 OBJS += platform/common/mp3_minimp3.o
+endif
 endif
 
 ifeq "$(PLATFORM_ZLIB)" "1"
@@ -257,6 +275,15 @@ ifeq ($(STATIC_LINKING), 1)
 	$(AR) rcs $@ $^
 else
 	$(LD) $(LINKOUT)$@ $^ $(LDFLAGS) $(LDLIBS)
+endif
+
+ifeq "$(PLATFORM)" "psp"
+PSPSDK = /home/.build/opt/pspdev/psp/sdk
+PSP_EBOOT_TITLE = PicoDrive
+LIBS += -lpng -lm -lz -lpspgu -lpsppower -lpspaudio -lpsprtc -lpspaudiocodec
+EXTRA_TARGETS = EBOOT.PBP
+include /home/.build/opt/pspdev/psp/sdk/lib/build.mak
+# TODO image generation
 endif
 
 pprof: platform/linux/pprof.c

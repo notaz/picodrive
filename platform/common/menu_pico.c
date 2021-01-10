@@ -23,6 +23,17 @@
 #define MENU_X2 0
 #endif
 
+#if defined USE_BGR555
+#define COL_ROM	0x5eff
+#define COL_OTH	0x5ff5
+#elif defined USE_BGR565
+#define COL_ROM	0xfdf7
+#define COL_OTH	0xaff5
+#else
+#define COL_ROM	0xbdff
+#define	COL_OTH	0xaff5
+#endif
+
 // FIXME
 #define REVISION "0"
 
@@ -49,9 +60,9 @@ static unsigned short fname2color(const char *fname)
 	}
 
 	for (i = 0; rom_exts[i] != NULL; i++)
-		if (strcasecmp(ext, rom_exts[i]) == 0) return 0xbdff; // FIXME: mk defines
+		if (strcasecmp(ext, rom_exts[i]) == 0) return COL_ROM;
 	for (i = 0; i < array_size(other_exts); i++)
-		if (strcasecmp(ext, other_exts[i]) == 0) return 0xaff5;
+		if (strcasecmp(ext, other_exts[i]) == 0) return COL_OTH;
 	return 0xffff;
 }
 
@@ -62,6 +73,8 @@ static const char *men_dummy[] = { NULL };
 /* platform specific options and handlers */
 #if   defined(__GP2X__)
 #include <platform/gp2x/menu.c>
+#elif defined(__PSP__)
+#include <platform/psp/menu.c>
 #elif defined(PANDORA)
 #include <platform/pandora/menu.c>
 #else
@@ -72,8 +85,9 @@ static const char *men_dummy[] = { NULL };
 static void make_bg(int no_scale)
 {
 	unsigned short *src = (void *)g_menubg_src_ptr;
-	int w = g_screen_width, h = g_screen_height;
-	int pp = g_screen_ppitch;
+	int w = g_menubg_src_w ? g_menubg_src_w : g_screen_width;
+	int h = g_menubg_src_h ? g_menubg_src_h : g_screen_height;
+	int pp = g_menubg_src_pp ? g_menubg_src_pp : g_screen_ppitch;
 	short *dst;
 	int x, y;
 

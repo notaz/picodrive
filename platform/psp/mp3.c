@@ -12,7 +12,6 @@
 #include <pspkernel.h>
 #include <pspsdk.h>
 #include <pspaudiocodec.h>
-#include <kubridge.h>
 
 #include <pico/pico_int.h>
 #include <pico/sound/mix.h>
@@ -136,19 +135,11 @@ static int read_next_frame(int which_buffer)
 
 static SceUID load_start_module(const char *prxname)
 {
-	SceUID mod, mod1;
-	int status, ret;
+	SceUID mod;
 
 	mod = pspSdkLoadStartModule(prxname, PSP_MEMORY_PARTITION_KERNEL);
 	if (mod < 0) {
 		lprintf("failed to load %s (%08x), trying kuKernelLoadModule\n", prxname, mod);
-		mod1 = kuKernelLoadModule(prxname, 0, NULL);
-		if (mod1 < 0) lprintf("kuKernelLoadModule failed with %08x\n", mod1);
-		else {
-			ret = sceKernelStartModule(mod1, 0, NULL, &status, 0);
-			if (ret < 0) lprintf("sceKernelStartModule failed with %08x\n", ret);
-			else mod = mod1;
-		}
 	}
 	return mod;
 }
@@ -467,7 +458,7 @@ int mp3_get_offset(void) // 0-1023
 	int cdda_on;
 
 	cdda_on = (PicoIn.AHW & PAHW_MCD) && (PicoIn.opt&0x800) && !(Pico_mcd->s68k_regs[0x36] & 1) &&
-			(Pico_mcd->scd.Status_CDC & 1) && mp3_handle >= 0;
+			/* TODO (Pico_mcd->scd.Status_CDC & 1) &&*/ mp3_handle >= 0;
 
 	if (cdda_on) {
 		offs1024  = mp3_src_pos << 7;

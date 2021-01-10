@@ -8,7 +8,7 @@
  *
  * this is highly specialized, be careful if changing related C code!
  *
- * NB only does RGB565 output, BGR555 isn't supported
+ * NB only does RGB565 output, BGR isn't supported
  */
 
 #include "pico_int_offs.h"

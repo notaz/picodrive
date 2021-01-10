@@ -148,7 +148,11 @@ char *PDebugSpriteList(void)
 }
 
 #define GREEN1  0x0700
-#ifdef USE_BGR555
+#if defined(USE_BGR555)
+ #define YELLOW1 0x039c
+ #define BLUE1   0x7800
+ #define RED1    0x001e
+#elif defined(USE_BGR565)
  #define YELLOW1 0x071c
  #define BLUE1   0xf000
  #define RED1    0x001e

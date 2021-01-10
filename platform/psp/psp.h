@@ -50,24 +50,9 @@ char *psp_get_status_line(void);
 void psp_wait_suspend(void);
 void psp_resume_suspend(void);
 
-/* shorter btn names */
-#define PBTN_UP       PSP_CTRL_UP
-#define PBTN_LEFT     PSP_CTRL_LEFT
-#define PBTN_RIGHT    PSP_CTRL_RIGHT
-#define PBTN_DOWN     PSP_CTRL_DOWN
-#define PBTN_L        PSP_CTRL_LTRIGGER
-#define PBTN_R        PSP_CTRL_RTRIGGER
-#define PBTN_TRIANGLE PSP_CTRL_TRIANGLE
-#define PBTN_CIRCLE   PSP_CTRL_CIRCLE
-#define PBTN_X        PSP_CTRL_CROSS
-#define PBTN_SQUARE   PSP_CTRL_SQUARE
-#define PBTN_SELECT   PSP_CTRL_SELECT
-#define PBTN_START    PSP_CTRL_START
-#define PBTN_NOTE     PSP_CTRL_NOTE // doesn't seem to work?
-
-/* fake 'nub' btns */
-#define PBTN_NUB_UP    (1 << 28)
-#define PBTN_NUB_RIGHT (1 << 29)
-#define PBTN_NUB_DOWN  (1 << 30)
-#define PBTN_NUB_LEFT  (1 << 31)
+/* fake 'nub' btns, mapped to the 4 unused upper bits of ctrl buttons */
+#define PSP_NUB_UP    (1 << 28)
+#define PSP_NUB_RIGHT (1 << 29)
+#define PSP_NUB_DOWN  (1 << 30)
+#define PSP_NUB_LEFT  (1 << 31)
 

@@ -17,109 +17,26 @@
 #include <pspaudio.h>
 
 #include "psp.h"
-#include "menu.h"
 #include "emu.h"
 #include "mp3.h"
+#include "in_psp.h"
 #include "asm_utils.h"
 #include "../common/emu.h"
-#include "../common/config.h"
+#include "../common/input_pico.h"
+#include "platform/libpicofe/input.h"
+#include "platform/libpicofe/menu.h"
+
 #include <pico/pico_int.h>
+#include <pico/cd/genplus_macros.h>
+#include <pico/cd/cdd.h>
 #include <pico/cd/cue.h>
 
 #define OSD_FPS_X 432
 
-// additional pspaudio imports, credits to crazyc
-int sceAudio_38553111(unsigned short samples, unsigned short freq, char unknown);  // play with conversion?
-int sceAudio_5C37C0AE(void);				// end play?
-int sceAudio_E0727056(int volume, void *buffer);	// blocking output
-int sceAudioOutput2GetRestSample();
-
-
-//unsigned char *Draw2FB = (unsigned char *)VRAM_CACHED_STUFF + 8; // +8 to be able to skip border with 1 quadword..
 int engineStateSuspend;
 
 #define PICO_PEN_ADJUST_X 4
 #define PICO_PEN_ADJUST_Y 2
-static int pico_pen_x = 320/2, pico_pen_y = 240/2;
-
-static void sound_init(void);
-static void sound_deinit(void);
-static void blit2(const char *fps, const char *notice, int lagging_behind);
-static void clearArea(int full);
-
-int plat_get_root_dir(char *dst, int len)
-{
-	if (len > 0) *dst = 0;
-	return 0;
-}
-
-static void osd_text(int x, const char *text, int is_active, int clear_all)
-{
-	unsigned short *screen = is_active ? psp_video_get_active_fb() : psp_screen;
-	int len = clear_all ? (480 / 2) : (strlen(text) * 8 / 2);
-	int *p, h;
-	void *tmp;
-	for (h = 0; h < 8; h++) {
-		p = (int *) (screen+x+512*(264+h));
-		p = (int *) ((int)p & ~3); // align
-		memset32_uncached(p, 0, len);
-	}
-	if (is_active) { tmp = psp_screen; psp_screen = screen; } // nasty pointer tricks
-	emu_text_out16(x, 264, text);
-	if (is_active) psp_screen = tmp;
-}
-
-void emu_msg_cb(const char *msg)
-{
-	osd_text(4, msg, 1, 1);
-	noticeMsgTime = sceKernelGetSystemTimeLow() - 2000000;
-
-	/* assumption: emu_msg_cb gets called only when something slow is about to happen */
-	reset_timing = 1;
-}
-
-/* FIXME: move to plat */
-void emu_Init(void)
-{
-	sound_init();
-}
-
-void emu_Deinit(void)
-{
-	sound_deinit();
-}
-
-void pemu_prep_defconfig(void)
-{
-	defaultConfig.s_PsndRate = 22050;
-	defaultConfig.s_PicoCDBuffers = 64;
-	defaultConfig.CPUclock = 333;
-	defaultConfig.KeyBinds[ 4] = 1<<0; // SACB RLDU
-	defaultConfig.KeyBinds[ 6] = 1<<1;
-	defaultConfig.KeyBinds[ 7] = 1<<2;
-	defaultConfig.KeyBinds[ 5] = 1<<3;
-	defaultConfig.KeyBinds[14] = 1<<4;
-	defaultConfig.KeyBinds[13] = 1<<5;
-	defaultConfig.KeyBinds[15] = 1<<6;
-	defaultConfig.KeyBinds[ 3] = 1<<7;
-	defaultConfig.KeyBinds[12] = 1<<26; // switch rnd
-	defaultConfig.KeyBinds[ 8] = 1<<27; // save state
-	defaultConfig.KeyBinds[ 9] = 1<<28; // load state
-	defaultConfig.KeyBinds[28] = 1<<0; // num "buttons"
-	defaultConfig.KeyBinds[30] = 1<<1;
-	defaultConfig.KeyBinds[31] = 1<<2;
-	defaultConfig.KeyBinds[29] = 1<<3;
-	defaultConfig.scaling = 1;     // bilinear filtering for psp
-	defaultConfig.scale = 1.20;    // fullscreen
-	defaultConfig.hscale40 = 1.25;
-	defaultConfig.hscale32 = 1.56;
-}
-
-
-extern void amips_clut(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
-extern void amips_clut_6bit(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
-
-static void (*amips_clut_f)(unsigned short *dst, unsigned char *src, unsigned short *pal, int count) = NULL;
 
 struct Vertex
 {
@@ -129,8 +46,93 @@ struct Vertex
 
 static struct Vertex __attribute__((aligned(4))) g_vertices[2];
 static unsigned short __attribute__((aligned(16))) localPal[0x100];
-static int dynamic_palette = 0, need_pal_upload = 0, blit_16bit_mode = 0;
+static int need_pal_upload = 0;
 static int fbimg_offs = 0;
+static int h32_mode = 0;
+
+static const struct in_default_bind in_psp_defbinds[] =
+{
+	{ PSP_CTRL_UP,          IN_BINDTYPE_PLAYER12, GBTN_UP },
+	{ PSP_CTRL_DOWN,        IN_BINDTYPE_PLAYER12, GBTN_DOWN },
+	{ PSP_CTRL_LEFT,        IN_BINDTYPE_PLAYER12, GBTN_LEFT },
+	{ PSP_CTRL_RIGHT,       IN_BINDTYPE_PLAYER12, GBTN_RIGHT },
+	{ PSP_CTRL_SQUARE,      IN_BINDTYPE_PLAYER12, GBTN_A },
+	{ PSP_CTRL_CROSS,       IN_BINDTYPE_PLAYER12, GBTN_B },
+	{ PSP_CTRL_CIRCLE,      IN_BINDTYPE_PLAYER12, GBTN_C },
+	{ PSP_CTRL_START,       IN_BINDTYPE_PLAYER12, GBTN_START },
+	{ PSP_CTRL_TRIANGLE,    IN_BINDTYPE_EMU, PEVB_SWITCH_RND },
+	{ PSP_CTRL_LTRIGGER,    IN_BINDTYPE_EMU, PEVB_STATE_SAVE },
+	{ PSP_CTRL_RTRIGGER,    IN_BINDTYPE_EMU, PEVB_STATE_LOAD },
+	{ PSP_CTRL_SELECT,      IN_BINDTYPE_EMU, PEVB_MENU },
+	{ 0, 0, 0 }
+};
+
+
+const char *renderer_names[] = { "16bit accurate", " 8bit accurate", " 8bit fast", NULL };
+const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
+enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
+
+#define is_16bit_mode() \
+	(get_renderer() == RT_16BIT || (PicoIn.AHW & PAHW_32X))
+
+static int get_renderer(void)
+{
+	if (PicoIn.AHW & PAHW_32X)
+		return currentConfig.renderer32x;
+	else
+		return currentConfig.renderer;
+}
+
+static void change_renderer(int diff)
+{
+	int *r;
+	if (PicoIn.AHW & PAHW_32X)
+		r = &currentConfig.renderer32x;
+	else
+		r = &currentConfig.renderer;
+	*r += diff;
+
+	if      (*r >= RT_COUNT)
+		*r = 0;
+	else if (*r < 0)
+		*r = RT_COUNT - 1;
+}
+
+static void apply_renderer(void)
+{
+	PicoIn.opt &= ~POPT_ALT_RENDERER;
+	PicoIn.opt |=  POPT_DIS_32C_BORDER;
+
+	switch (currentConfig.renderer) {
+	case RT_16BIT:
+		PicoDrawSetOutFormat(PDF_RGB555, 0);
+		break;
+	case RT_8BIT_ACC:
+		PicoDrawSetOutFormat(PDF_8BIT, 0);
+		break;
+	case RT_8BIT_FAST:
+		PicoIn.opt |=  POPT_ALT_RENDERER;
+		PicoDrawSetOutFormat(PDF_NONE, 0);
+		break;
+	}
+}
+
+static void osd_text(int x, const char *text, int is_active, int clear_all)
+{
+	unsigned short *screen = is_active ? psp_video_get_active_fb() : psp_screen;
+	int len = clear_all ? (480 / 2) : (strlen(text) * 8 / 2);
+	int *p, h;
+	void *tmp = g_screen_ptr;
+	for (h = 0; h < 8; h++) {
+		p = (int *) (screen+x+512*(264+h));
+		p = (int *) ((int)p & ~3); // align
+		memset32_uncached(p, 0, len);
+	}
+	g_screen_ptr = screen; // nasty pointer tricks
+	emu_text_out16(x, 264, text);
+	g_screen_ptr = tmp;
+}
+
 
 static void set_scaling_params(void)
 {
@@ -139,7 +141,7 @@ static void set_scaling_params(void)
 	g_vertices[0].z = g_vertices[1].z = 0;
 
 	fbimg_height = (int)(240.0 * currentConfig.scale + 0.5);
-	if (Pico.video.reg[12] & 1) {
+	if (!h32_mode) {
 		fbimg_width = (int)(320.0 * currentConfig.scale * currentConfig.hscale40 + 0.5);
 		src_width = 320;
 	} else {
@@ -183,6 +185,11 @@ static void set_scaling_params(void)
 		g_vertices[1].u--;
 		g_vertices[1].x--;
 	}
+	if (!is_16bit_mode()) {
+		// 8-bit modes have an 8 px overlap area on the left
+		g_vertices[0].u += 8;
+		g_vertices[1].u += 8;
+	}
 	fbimg_offs = (fbimg_yoffs*512 + fbimg_xoffs) * 2; // dst is always 16bit
 
 	/*
@@ -193,107 +200,53 @@ static void set_scaling_params(void)
 	*/
 }
 
-static void do_pal_update(int allow_sh, int allow_as)
+static void do_pal_update(void)
 {
 	unsigned int *dpal=(void *)localPal;
 	int i;
 
 	//for (i = 0x3f/2; i >= 0; i--)
 	//	dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
-	if ((currentConfig.EmuOpt&0x80) || (PicoOpt&0x10)) {
-		do_pal_convert(localPal, Pico.cram, currentConfig.gamma, currentConfig.gamma2);
+	if (PicoIn.opt & POPT_ALT_RENDERER) {
+		do_pal_convert(localPal, PicoMem.cram, currentConfig.gamma, currentConfig.gamma2);
 		Pico.m.dirtyPal = 0;
 	}
-	else if (Pico.est.rendstatus&0x20)
+	else if (Pico.est.rendstatus & PDRAW_SONIC_MODE)
 	{
 		switch (Pico.est.SonicPalCount) {
-		case 3: do_pal_convert(localPal+0xc0, Pico.est.SonicPal+0xc0, currentConfig.gamma, currentConfig.gamma2);
-		case 2: do_pal_convert(localPal+0x80, Pico.est.SonicPal+0x80, currentConfig.gamma, currentConfig.gamma2);
-		case 1:	do_pal_convert(localPal+0x40, Pico.est.SonicPal+0x40, currentConfig.gamma, currentConfig.gamma2);
+		case 3: do_pal_convert(localPal+0xc0/2, Pico.est.SonicPal+0xc0, currentConfig.gamma, currentConfig.gamma2);
+		case 2: do_pal_convert(localPal+0x80/2, Pico.est.SonicPal+0x80, currentConfig.gamma, currentConfig.gamma2);
+		case 1:	do_pal_convert(localPal+0x40/2, Pico.est.SonicPal+0x40, currentConfig.gamma, currentConfig.gamma2);
 		default:do_pal_convert(localPal, Pico.est.SonicPal, currentConfig.gamma, currentConfig.gamma2);
 		}
 	}
-	else if (allow_sh && (Pico.video.reg[0xC]&8)) // shadow/hilight?
+	else if (Pico.video.reg[0xC]&8) // shadow/hilight?
 	{
 		do_pal_convert(localPal, Pico.est.SonicPal, currentConfig.gamma, currentConfig.gamma2);
 		// shadowed pixels
-		for (i = 0x3f/2; i >= 0; i--)
-			dpal[0x20|i] = dpal[0x60|i] = (dpal[i]>>1)&0x7bcf7bcf;
-		// hilighted pixels
-		for (i = 0x3f; i >= 0; i--) {
-			int t=localPal[i]&0xf79e;t+=0x4208;
-			if (t&0x20) t|=0x1e;
-			if (t&0x800) t|=0x780;
-			if (t&0x10000) t|=0xf000;
-			t&=0xf79e;
-			localPal[0x80|i]=(unsigned short)t;
+		for (i = 0; i < 0x40 / 2; i++) {
+			dpal[0xc0/2 + i] = dpal[i];
+			dpal[0x80/2 + i] = (dpal[i] >> 1) & 0x738e738e;
 		}
-		localPal[0xe0] = 0;
-		localPal[0xf0] = 0x001f;
+		// hilighted pixels
+		for (i = 0; i < 0x40 / 2; i++) {
+			u32 t = ((dpal[i] >> 1) & 0x738e738e) + 0x738e738e;
+			t |= (t >> 4) & 0x08610861;
+			dpal[0x40/2 + i] = t;
+		}
 	}
- 	else if (allow_as && (Pico.est.rendstatus & PDRAW_SPR_LO_ON_HI))
+ 	else
  	{
 		do_pal_convert(localPal, Pico.est.SonicPal, currentConfig.gamma, currentConfig.gamma2);
 		memcpy((int *)dpal+0x40/2, (void *)localPal, 0x40*2);
 		memcpy((int *)dpal+0x80/2, (void *)localPal, 0x80*2);
 	}
+	localPal[0xe0] = 0;
+	localPal[0xf0] = 0x001f;
 
 	if (Pico.m.dirtyPal == 2)
 		Pico.m.dirtyPal = 0;
 	need_pal_upload = 1;
-}
-
-static void do_slowmode_lines(int line_to)
-{
-	int line = 0, line_len = (Pico.video.reg[12]&1) ? 320 : 256;
-	unsigned short *dst = (unsigned short *)VRAM_STUFF + 512*240/2;
-	unsigned char  *src = (unsigned char  *)VRAM_CACHED_STUFF + 16;
-	if (!(Pico.video.reg[1]&8)) { line = 8; dst += 512*8; src += 512*8; }
-
-	for (; line < line_to; line++, dst+=512, src+=512)
-		amips_clut_f(dst, src, localPal, line_len);
-}
-
-static void EmuScanPrepare(void)
-{
-	Pico.est.HighCol = (unsigned char *)VRAM_CACHED_STUFF + 8;
-	if (!(Pico.video.reg[1]&8)) Pico.est.HighCol += 8*512;
-
-	if (dynamic_palette > 0)
-		dynamic_palette--;
-
-	if (Pico.m.dirtyPal)
-		do_pal_update(1, 1);
-	if (!(Pico.video.reg[0xC] & 8))
-	     amips_clut_f = amips_clut_6bit;
-	else amips_clut_f = amips_clut;
-}
-
-static int EmuScanSlowBegin(unsigned int num)
-{
-	if (!dynamic_palette)
-		Pico.est.HighCol = (unsigned char *)VRAM_CACHED_STUFF + num * 512 + 8;
-
-	return 0;
-}
-
-static int EmuScanSlowEnd(unsigned int num)
-{
-	if (Pico.m.dirtyPal) {
-		if (!dynamic_palette) {
-			do_slowmode_lines(num);
-			dynamic_palette = 3; // last for 2 more frames
-		}
-		do_pal_update(1, 1);
-	}
-
-	if (dynamic_palette) {
-		int line_len = (Pico.video.reg[12]&1) ? 320 : 256;
-		void *dst = (char *)VRAM_STUFF + 512*240 + 512*2*num;
-		amips_clut_f(dst, Pico.est.HighCol + 8, localPal, line_len);
-	}
-
-	return 0;
 }
 
 static void blitscreen_clut(void)
@@ -304,34 +257,17 @@ static void blitscreen_clut(void)
 	sceGuSync(0,0); // sync with prev
 	sceGuStart(GU_DIRECT, guCmdList);
 	sceGuDrawBuffer(GU_PSM_5650, (void *)offs, 512); // point to back buffer
+	sceGuTexMode(is_16bit_mode() ? GU_PSM_5650:GU_PSM_T8,0,0,0);
+	sceGuTexImage(0,512,512,512,g_screen_ptr);
 
-	if (dynamic_palette)
-	{
-		if (!blit_16bit_mode) { // the current mode is not 16bit
-			sceGuTexMode(GU_PSM_5650, 0, 0, 0);
-			sceGuTexImage(0,512,512,512,(char *)VRAM_STUFF + 512*240);
+	if (Pico.m.dirtyPal)
+		do_pal_update();
 
-			blit_16bit_mode = 1;
-		}
-	}
-	else
-	{
-		if (blit_16bit_mode) {
-			sceGuClutMode(GU_PSM_5650,0,0xff,0);
-			sceGuTexMode(GU_PSM_T8,0,0,0); // 8-bit image
-			sceGuTexImage(0,512,512,512,(char *)VRAM_STUFF + 16);
-			blit_16bit_mode = 0;
-		}
+	sceKernelDcacheWritebackAll();
 
-		if ((PicoIn.opt&0x10) && Pico.m.dirtyPal)
-			do_pal_update(0, 0);
-
-		sceKernelDcacheWritebackAll();
-
-		if (need_pal_upload) {
-			need_pal_upload = 0;
-			sceGuClutLoad((256/8), localPal); // upload 32*8 entries (256)
-		}
+	if (need_pal_upload) {
+		need_pal_upload = 0;
+		sceGuClutLoad((256/8), localPal); // upload 32*8 entries (256)
 	}
 
 #if 1
@@ -376,10 +312,10 @@ static void cd_leds(void)
 
 static void draw_pico_ptr(void)
 {
-	unsigned char *p = (unsigned char *)VRAM_STUFF + 16;
+	unsigned char *p = (unsigned char *)VRAM_CACHED_STUFF + 8;
 
 	// only if pen enabled and for 8bit mode
-	if (pico_inp_mode == 0 || blit_16bit_mode) return;
+	if (pico_inp_mode == 0 || is_16bit_mode()) return;
 
 	p += 512 * (pico_pen_y + PICO_PEN_ADJUST_Y);
 	p += pico_pen_x + PICO_PEN_ADJUST_X;
@@ -389,76 +325,17 @@ static void draw_pico_ptr(void)
 }
 
 
-#if 0
-static void dbg_text(void)
-{
-	int *p, h, len;
-	char text[128];
-
-	sprintf(text, "sl: %i, 16b: %i", g_vertices[0].u == 0 && g_vertices[1].u == g_vertices[1].x, blit_16bit_mode);
-	len = strlen(text) * 8 / 2;
-	for (h = 0; h < 8; h++) {
-		p = (int *) ((unsigned short *) psp_screen+2+512*(256+h));
-		p = (int *) ((int)p & ~3); // align
-		memset32_uncached(p, 0, len);
-	}
-	emu_text_out16(2, 256, text);
-}
-#endif
-
-/* called after rendering is done, but frame emulation is not finished */
-void blit1(void)
-{
-	if (PicoIn.opt&0x10)
-	{
-		int i;
-		unsigned char *pd;
-		// clear top and bottom trash
-		for (pd = Pico.est.Draw2FB+8, i = 8; i > 0; i--, pd += 512)
-			memset32((int *)pd, 0xe0e0e0e0, 320/4);
-		for (pd = Pico.est.Draw2FB+512*232+8, i = 8; i > 0; i--, pd += 512)
-			memset32((int *)pd, 0xe0e0e0e0, 320/4);
-	}
-
-	if (PicoIn.AHW & PAHW_PICO)
-		draw_pico_ptr();
-
-	blitscreen_clut();
-}
-
-
-static void blit2(const char *fps, const char *notice, int lagging_behind)
-{
-	int vsync = 0, emu_opt = currentConfig.EmuOpt;
-
-	if (notice || (emu_opt & 2)) {
-		if (notice)      osd_text(4, notice, 0, 0);
-		if (emu_opt & 2) osd_text(OSD_FPS_X, fps, 0, 0);
-	}
-
-	//dbg_text();
-
-	if ((emu_opt & 0x400) && (PicoIn.AHW & PAHW_MCD))
-		cd_leds();
-
-	if (currentConfig.EmuOpt & 0x2000) { // want vsync
-		if (!(currentConfig.EmuOpt & 0x10000) || !lagging_behind) vsync = 1;
-	}
-
-	psp_video_flip(vsync);
-}
-
 // clears whole screen or just the notice area (in all buffers)
 static void clearArea(int full)
 {
+	void *fb = psp_video_get_active_fb();
+
 	if (full) {
 		memset32_uncached(psp_screen, 0, 512*272*2/4);
-		psp_video_flip(0);
-		memset32_uncached(psp_screen, 0, 512*272*2/4);
+		memset32_uncached(fb, 0, 512*272*2/4);
 		memset32(VRAM_CACHED_STUFF, 0xe0e0e0e0, 512*240/4);
 		memset32((int *)VRAM_CACHED_STUFF+512*240/4, 0, 512*240*2/4);
 	} else {
-		void *fb = psp_video_get_active_fb();
 		memset32_uncached((int *)((char *)psp_screen + 512*264*2), 0, 512*8*2/4);
 		memset32_uncached((int *)((char *)fb         + 512*264*2), 0, 512*8*2/4);
 	}
@@ -471,7 +348,6 @@ static void vidResetMode(void)
 	sceGuStart(GU_DIRECT, guCmdList);
 
 	sceGuClutMode(GU_PSM_5650,0,0xff,0);
-	sceGuTexMode(GU_PSM_T8,0,0,0); // 8-bit image
 	sceGuTexFunc(GU_TFX_REPLACE,GU_TCC_RGB);
 	if (currentConfig.scaling)
 	     sceGuTexFilter(GU_LINEAR, GU_LINEAR);
@@ -479,27 +355,12 @@ static void vidResetMode(void)
 	sceGuTexScale(1.0f,1.0f);
 	sceGuTexOffset(0.0f,0.0f);
 
-	sceGuTexImage(0,512,512,512,(char *)VRAM_STUFF + 16);
-
-	// slow rend.
-	PicoDrawSetOutFormat(PDF_NONE, 0);
-	PicoDrawSetCallbacks(EmuScanSlowBegin, EmuScanSlowEnd);
-
-	localPal[0xe0] = 0;
-	localPal[0xf0] = 0x001f;
 	Pico.m.dirtyPal = 1;
-	blit_16bit_mode = dynamic_palette = 0;
 
 	sceGuFinish();
 	set_scaling_params();
 	sceGuSync(0,0);
 }
-
-void plat_debug_cat(char *str)
-{
-	strcat(str, blit_16bit_mode ? "soft clut\n" : "hard clut\n");
-}
-
 
 /* sound stuff */
 #define SOUND_BLOCK_SIZE_NTSC (1470*2) // 1024 // 1152
@@ -533,7 +394,7 @@ static int sound_thread(SceSize args, void *argp)
 
 		// lprintf("sthr: got data: %i\n", samples_made - samples_done);
 
-		ret = sceAudio_E0727056(PSP_AUDIO_VOLUME_MAX, snd_playptr);
+		ret = sceAudioSRCOutputBlocking(PSP_AUDIO_VOLUME_MAX, snd_playptr);
 
 		samples_done += samples_block;
 		snd_playptr  += samples_block;
@@ -541,7 +402,7 @@ static int sound_thread(SceSize args, void *argp)
 			snd_playptr = sndBuffer;
 		// 1.5 kernel returns 0, newer ones return # of samples queued
 		if (ret < 0)
-			lprintf("sthr: sceAudio_E0727056: %08x; pos %i/%i\n", ret, samples_done, samples_made);
+			lprintf("sthr: sceAudioSRCOutputBlocking: %08x; pos %i/%i\n", ret, samples_done, samples_made);
 
 		// shouln't happen, but just in case
 		if (samples_made - samples_done >= samples_block*3) {
@@ -581,9 +442,19 @@ static void sound_init(void)
 void pemu_sound_start(void)
 {
 	static int PsndRate_old = 0, PicoOpt_old = 0, pal_old = 0;
+	static int mp3_init_done;
 	int ret, stereo;
 
 	samples_made = samples_done = 0;
+
+	if (PicoIn.AHW & PAHW_MCD) {
+		// mp3...
+		if (!mp3_init_done) {
+			ret = mp3_init();
+			mp3_init_done = 1;
+			if (ret) emu_status_msg("mp3 init failed (%i)", ret);
+		}
+	}
 
 	if (PicoIn.sndRate != PsndRate_old || (PicoIn.opt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
 		PsndRerate(Pico.m.frame_count ? 1 : 0);
@@ -598,10 +469,10 @@ void pemu_sound_start(void)
 			PicoIn.sndRate, Pico.snd.len, stereo, Pico.m.pal, samples_block);
 
 	// while (sceAudioOutput2GetRestSample() > 0) psp_msleep(100);
-	// sceAudio_5C37C0AE();
-	ret = sceAudio_38553111(samples_block/2, PicoIn.sndRate, 2); // seems to not need that stupid 64byte alignment
+	// sceAudioSRCChRelease();
+	ret = sceAudioSRCChReserve(samples_block/2, PicoIn.sndRate, 2); // seems to not need that stupid 64byte alignment
 	if (ret < 0) {
-		lprintf("sceAudio_38553111() failed: %i\n", ret);
+		lprintf("sceAudioSRCChReserve() failed: %i\n", ret);
 		emu_status_msg("sound init failed (%i), snd disabled", ret);
 		currentConfig.EmuOpt &= ~EOPT_EN_SOUND;
 	} else {
@@ -621,8 +492,8 @@ void pemu_sound_stop(void)
 	int i;
 	if (samples_done == 0)
 	{
-		// if no data is written between sceAudio_38553111 and sceAudio_5C37C0AE calls,
-		// we get a deadlock on next sceAudio_38553111 call
+		// if no data is written between sceAudioSRCChReserve and sceAudioSRCChRelease calls,
+		// we get a deadlock on next sceAudioSRCChReserve call
 		// so this is yet another workaround:
 		memset32((int *)(void *)sndBuffer, 0, samples_block*4/4);
 		samples_made = samples_block * 3;
@@ -632,7 +503,7 @@ void pemu_sound_stop(void)
 	samples_made = samples_done = 0;
 	for (i = 0; sceAudioOutput2GetRestSample() > 0 && i < 16; i++)
 		psp_msleep(100);
-	sceAudio_5C37C0AE();
+	sceAudioSRCChRelease();
 }
 
 /* wait until we can write more sound */
@@ -676,387 +547,164 @@ static void writeSound(int len)
 }
 
 
-static void SkipFrame(void)
+/* set default configuration values */
+void pemu_prep_defconfig(void)
 {
-	PicoIn.skipFrame=1;
-	PicoFrame();
-	PicoIn.skipFrame=0;
+	defaultConfig.s_PsndRate = 22050;
+	defaultConfig.s_PicoCDBuffers = 64;
+	defaultConfig.CPUclock = 333;
+	defaultConfig.scaling = 1;     // bilinear filtering for psp
+	defaultConfig.scale = 1.20;    // fullscreen
+	defaultConfig.hscale40 = 1.25;
+	defaultConfig.hscale32 = 1.56;
 }
 
+/* check configuration for inconsistencies */
+void pemu_validate_config(void)
+{
+	if (currentConfig.CPUclock < 33 || currentConfig.CPUclock > 333)
+		currentConfig.CPUclock = 333;
+}
+
+/* finalize rendering a frame */
+void pemu_finalize_frame(const char *fps, const char *notice)
+{
+	int emu_opt = currentConfig.EmuOpt;
+
+	if (PicoIn.AHW & PAHW_PICO)
+		draw_pico_ptr();
+
+	blitscreen_clut();
+
+	// XXX move this to flip to give texture renderer more time?
+	if (notice)      osd_text(4, notice, 0, 0);
+	if (emu_opt & 2) osd_text(OSD_FPS_X, fps, 0, 0);
+
+	if ((emu_opt & 0x400) && (PicoIn.AHW & PAHW_MCD))
+		cd_leds();
+}
+
+/* FIXME: move plat_* to plat? */
+
+void plat_debug_cat(char *str)
+{
+}
+
+/* platform dependend emulator initialization */
+void plat_init(void)
+{
+	flip_after_sync = 1;
+	in_psp_init(in_psp_defbinds);
+	in_probe();
+	sound_init();
+}
+
+/* platform dependend emulator deinitialization */
+void plat_finish(void)
+{
+	sound_deinit();
+}
+
+/* display emulator status messages before holding emulation */
+void plat_status_msg_busy_first(const char *msg)
+{
+	plat_status_msg_busy_next(msg);
+}
+
+void plat_status_msg_busy_next(const char *msg)
+{
+	plat_status_msg_clear();
+	pemu_finalize_frame("", msg);
+	plat_video_flip();
+	emu_status_msg("");
+	reset_timing = 1;
+}
+
+/* clear status message area */
+void plat_status_msg_clear(void)
+{
+	clearArea(0);
+}
+
+/* change the audio volume setting */
+void plat_update_volume(int has_changed, int is_up)
+{
+}
+
+/* prepare for MD screen mode change */
+void emu_video_mode_change(int start_line, int line_count, int is_32cols)
+{
+	h32_mode = is_32cols;
+	vidResetMode();
+	if (h32_mode)	// clear borders from h40 remnants
+		clearArea(1);
+}
+
+/* render one frame in RGB */
 void pemu_forced_frame(int no_scale, int do_emu)
 {
-	int po_old = PicoIn.opt;
-	int eo_old = currentConfig.EmuOpt;
+	PicoIn.opt &= ~POPT_DIS_32C_BORDER;
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
+	Pico.m.dirtyPal = 1;
 
-	PicoIn.opt &= ~POPT_ALT_RENDERER;
-	PicoIn.opt |= POPT_ACC_SPRITES;
-	if (!no_scale && defaultConfig.scaling)
-		PicoIn.opt |= POPT_EN_SOFTSCALE;
-	currentConfig.EmuOpt |= 0x80;
+	if (!no_scale)
+		no_scale = currentConfig.scaling == EOPT_SCALE_NONE;
+	emu_cmn_forced_frame(no_scale, do_emu);
+}
 
+/* change the platform output rendering */
+void plat_video_toggle_renderer(int change, int is_menu_call)
+{
+	change_renderer(change);
+
+	if (is_menu_call)
+		return;
+
+	apply_renderer();
 	vidResetMode();
-	memset32(VRAM_CACHED_STUFF, 0xe0e0e0e0, 512*8/4); // borders
-	memset32((int *)VRAM_CACHED_STUFF + 512*232/4, 0xe0e0e0e0, 512*8/4);
-	memset32_uncached((int *)psp_screen + 512*264*2/4, 0, 512*8*2/4);
+	rendstatus_old = -1;
 
-	PicoDrawSetOutFormat(PDF_NONE, 0);
-	PicoDrawSetCallbacks(EmuScanSlowBegin, EmuScanSlowEnd);
-	EmuScanPrepare();
-	PicoFrameDrawOnly();
-	blit1();
-	sceGuSync(0,0);
-
-	PicoIn.opt = po_old;
-	currentConfig.EmuOpt = eo_old;
+	if (PicoIn.AHW & PAHW_32X)
+		emu_status_msg(renderer_names32x[get_renderer()]);
+	else
+		emu_status_msg(renderer_names[get_renderer()]);
 }
 
-
-static void RunEventsPico(unsigned int events, unsigned int keys)
+/* set the buffer for emulator output rendering */
+void plat_video_set_buffer(void *buf)
 {
-	emu_RunEventsPico(events);
-
-	if (pico_inp_mode != 0)
-	{
-		PicoIn.pad[0] &= ~0x0f; // release UDLR
-		if (keys & PBTN_UP)   { pico_pen_y--; if (pico_pen_y < 8) pico_pen_y = 8; }
-		if (keys & PBTN_DOWN) { pico_pen_y++; if (pico_pen_y > 224-PICO_PEN_ADJUST_Y) pico_pen_y = 224-PICO_PEN_ADJUST_Y; }
-		if (keys & PBTN_LEFT) { pico_pen_x--; if (pico_pen_x < 0) pico_pen_x = 0; }
-		if (keys & PBTN_RIGHT) {
-			int lim = (Pico.video.reg[12]&1) ? 319 : 255;
-			pico_pen_x++;
-			if (pico_pen_x > lim-PICO_PEN_ADJUST_X)
-				pico_pen_x = lim-PICO_PEN_ADJUST_X;
-		}
-		PicoPicohw.pen_pos[0] = pico_pen_x;
-		if (!(Pico.video.reg[12]&1)) PicoPicohw.pen_pos[0] += pico_pen_x/4;
-		PicoPicohw.pen_pos[0] += 0x3c;
-		PicoPicohw.pen_pos[1] = pico_inp_mode == 1 ? (0x2f8 + pico_pen_y) : (0x1fc + pico_pen_y);
-	}
+	if (currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
+		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
+	else
+		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch);
 }
 
-static void RunEvents(unsigned int which)
+/* prepare for emulator output rendering */
+void plat_video_loop_prepare(void) 
 {
-	if (which & 0x1800) // save or load (but not both)
-	{
-		int do_it = 1;
-
-		if ( emu_check_save_file(state_slot) &&
-				(( (which & 0x1000) && (currentConfig.EmuOpt & 0x800)) || // load
-				 (!(which & 0x1000) && (currentConfig.EmuOpt & 0x200))) ) // save
-		{
-			int keys;
-			sceGuSync(0,0);
-			blit2("", (which & 0x1000) ? "LOAD STATE? (X=yes, O=no)" : "OVERWRITE SAVE? (X=yes, O=no)", 0);
-			while( !((keys = psp_pad_read(1)) & (PBTN_X|PBTN_CIRCLE)) )
-				psp_msleep(50);
-			if (keys & PBTN_CIRCLE) do_it = 0;
-			while(  ((keys = psp_pad_read(1)) & (PBTN_X|PBTN_CIRCLE)) ) // wait for release
-				psp_msleep(50);
-			clearArea(0);
-		}
-
-		if (do_it)
-		{
-			osd_text(4, (which & 0x1000) ? "LOADING GAME" : "SAVING GAME", 1, 0);
-			PicoStateProgressCB = emu_msg_cb;
-			emu_save_load_game((which & 0x1000) >> 12, 0);
-			PicoStateProgressCB = NULL;
-			psp_msleep(0);
-		}
-
-		reset_timing = 1;
-	}
-	if (which & 0x0400) // switch renderer
-	{
-		if (PicoIn.opt&0x10) { PicoIn.opt&=~0x10; currentConfig.EmuOpt |=  0x80; }
-		else              { PicoIn.opt|= 0x10; currentConfig.EmuOpt &= ~0x80; }
-
-		vidResetMode();
-
-		if (PicoIn.opt & POPT_ALT_RENDERER)
-			emu_status_msg("fast renderer");
-		else if (currentConfig.EmuOpt&0x80)
-			emu_status_msg("accurate renderer");
-	}
-	if (which & 0x0300)
-	{
-		if(which&0x0200) {
-			state_slot -= 1;
-			if(state_slot < 0) state_slot = 9;
-		} else {
-			state_slot += 1;
-			if(state_slot > 9) state_slot = 0;
-		}
-		emu_status_msg("SAVE SLOT %i [%s]", state_slot,
-			emu_check_save_file(state_slot) ? "USED" : "FREE");
-	}
-}
-
-static void updateKeys(void)
-{
-	unsigned int keys, allActions[2] = { 0, 0 }, events;
-	static unsigned int prevEvents = 0;
-	int i;
-
-	/* FIXME: port to input fw, merge with emu.c:emu_update_input() */
-	keys = psp_pad_read(0);
-	if (keys & PSP_CTRL_HOME)
-		sceDisplayWaitVblankStart();
-
-	if (keys & PBTN_SELECT)
-		engineState = PGS_Menu;
-
-	keys &= CONFIGURABLE_KEYS;
-
-	PicoIn.pad[0] = allActions[0] & 0xfff;
-	PicoIn.pad[1] = allActions[1] & 0xfff;
-
-	if (allActions[0] & 0x7000) emu_DoTurbo(&PicoIn.pad[0], allActions[0]);
-	if (allActions[1] & 0x7000) emu_DoTurbo(&PicoIn.pad[1], allActions[1]);
-
-	events = (allActions[0] | allActions[1]) >> 16;
-
-	if ((events ^ prevEvents) & 0x40) {
-		emu_set_fastforward(events & 0x40);
-		reset_timing = 1;
-	}
-
-	events &= ~prevEvents;
-
-	if (PicoIn.AHW == PAHW_PICO)
-		RunEventsPico(events, keys);
-	if (events) RunEvents(events);
-	if (movie_data) emu_updateMovie();
-
-	prevEvents = (allActions[0] | allActions[1]) >> 16;
-}
-
-
-static void simpleWait(unsigned int until)
-{
-	unsigned int tval;
-	int diff;
-
-	tval = sceKernelGetSystemTimeLow();
-	diff = (int)until - (int)tval;
-	if (diff >= 512 && diff < 100*1024)
-		sceKernelDelayThread(diff);
-}
-
-void pemu_loop(void)
-{
-	static int mp3_init_done = 0;
-	char fpsbuff[24]; // fps count c string
-	unsigned int tval, tval_thissec = 0; // timing
-	int target_fps, target_frametime, lim_time, tval_diff, i, oldmodes = 0;
-	int pframes_done, pframes_shown; // "period" frames, used for sync
-	int  frames_done,  frames_shown, tval_fpsc = 0; // actual frames
-	char *notice = NULL;
-
-	lprintf("entered emu_Loop()\n");
-
-	fpsbuff[0] = 0;
-
-	if (currentConfig.CPUclock != psp_get_cpu_clock()) {
-		lprintf("setting cpu clock to %iMHz... ", currentConfig.CPUclock);
-		i = psp_set_cpu_clock(currentConfig.CPUclock);
-		lprintf(i ? "failed\n" : "done\n");
-		currentConfig.CPUclock = psp_get_cpu_clock();
-	}
-
-	// make sure we are in correct mode
+	apply_renderer();
 	vidResetMode();
 	clearArea(1);
-	Pico.m.dirtyPal = 1;
-	oldmodes = ((Pico.video.reg[12]&1)<<2) ^ 0xc;
-
-	// pal/ntsc might have changed, reset related stuff
-	target_fps = Pico.m.pal ? 50 : 60;
-	target_frametime = Pico.m.pal ? (1000000<<8)/50 : (1000000<<8)/60+1;
-	reset_timing = 1;
-
-	if (PicoIn.AHW & PAHW_MCD) {
-		// prepare CD buffer
-		PicoCDBufferInit();
-		// mp3...
-		if (!mp3_init_done) {
-			i = mp3_init();
-			mp3_init_done = 1;
-			if (i) { engineState = PGS_Menu; return; }
-		}
-	}
-
-	// prepare sound stuff
-	PicoIn.sndOut = NULL;
-	if (currentConfig.EmuOpt & EOPT_EN_SOUND)
-	{
-		pemu_sound_start();
-	}
-
-	sceDisplayWaitVblankStart();
-	pframes_shown = pframes_done =
-	 frames_shown =  frames_done = 0;
-
-	tval_fpsc = sceKernelGetSystemTimeLow();
-
-	// loop?
-	while (engineState == PGS_Running)
-	{
-		int modes;
-
-		tval = sceKernelGetSystemTimeLow();
-		if (reset_timing || tval < tval_fpsc) {
-			//stdbg("timing reset");
-			reset_timing = 0;
-			tval_thissec = tval;
-			pframes_shown = pframes_done = 0;
-		}
-
-		// show notice message?
-		if (noticeMsgTime) {
-			static int noticeMsgSum;
-			if (tval - noticeMsgTime > 2000000) { // > 2.0 sec
-				noticeMsgTime = 0;
-				clearArea(0);
-				notice = 0;
-			} else {
-				int sum = noticeMsg[0]+noticeMsg[1]+noticeMsg[2];
-				if (sum != noticeMsgSum) { clearArea(0); noticeMsgSum = sum; }
-				notice = noticeMsg;
-			}
-		}
-
-		// check for mode changes
-		modes = ((Pico.video.reg[12]&1)<<2)|(Pico.video.reg[1]&8);
-		if (modes != oldmodes) {
-			oldmodes = modes;
-			clearArea(1);
-			set_scaling_params();
-		}
-
-		// second passed?
-		if (tval - tval_fpsc >= 1000000)
-		{
-			if (currentConfig.EmuOpt & 2)
-				sprintf(fpsbuff, "%02i/%02i  ", frames_shown, frames_done);
-			frames_done = frames_shown = 0;
-			tval_fpsc += 1000000;
-		}
-
-		if (tval - tval_thissec >= 1000000)
-		{
-			// missing 1 frame?
-			if (currentConfig.Frameskip < 0 && pframes_done < target_fps) {
-				SkipFrame(); pframes_done++; frames_done++;
-			}
-
-			tval_thissec += 1000000;
-
-			if (currentConfig.Frameskip < 0) {
-				pframes_done  -= target_fps; if (pframes_done  < 0) pframes_done  = 0;
-				pframes_shown -= target_fps; if (pframes_shown < 0) pframes_shown = 0;
-				if (pframes_shown > pframes_done) pframes_shown = pframes_done;
-			} else {
-				pframes_done = pframes_shown = 0;
-			}
-		}
-#ifdef PFRAMES
-		sprintf(fpsbuff, "%i", Pico.m.frame_count);
-#endif
-
-		lim_time = (pframes_done+1) * target_frametime;
-		if (currentConfig.Frameskip >= 0) // frameskip enabled
-		{
-			for (i = 0; i < currentConfig.Frameskip; i++) {
-				updateKeys();
-				SkipFrame(); pframes_done++; frames_done++;
-				if (!(currentConfig.EmuOpt&0x40000)) { // do framelimitting if needed
-					int tval_diff;
-					tval = sceKernelGetSystemTimeLow();
-					tval_diff = (int)(tval - tval_thissec) << 8;
-					if (tval_diff < lim_time) // we are too fast
-						simpleWait(tval + ((lim_time - tval_diff)>>8));
-				}
-				lim_time += target_frametime;
-			}
-		}
-		else // auto frameskip
-		{
-			int tval_diff;
-			tval = sceKernelGetSystemTimeLow();
-			tval_diff = (int)(tval - tval_thissec) << 8;
-			if (tval_diff > lim_time && (pframes_done/16 < pframes_shown))
-			{
-				// no time left for this frame - skip
-				if (tval_diff - lim_time >= (300000<<8)) {
-					reset_timing = 1;
-					continue;
-				}
-				updateKeys();
-				SkipFrame(); pframes_done++; frames_done++;
-				continue;
-			}
-		}
-
-		updateKeys();
-
-		if (!(PicoIn.opt&0x10))
-			EmuScanPrepare();
-
-		PicoFrame();
-
-		sceGuSync(0,0);
-
-		// check time
-		tval = sceKernelGetSystemTimeLow();
-		tval_diff = (int)(tval - tval_thissec) << 8;
-
-		blit2(fpsbuff, notice, tval_diff > lim_time);
-
-		if (currentConfig.Frameskip < 0 && tval_diff - lim_time >= (300000<<8)) { // slowdown detection
-			reset_timing = 1;
-		}
-		else if (!(currentConfig.EmuOpt&0x40000) || currentConfig.Frameskip < 0)
-		{
-			// sleep if we are still too fast
-			if (tval_diff < lim_time)
-			{
-				// we are too fast
-				simpleWait(tval + ((lim_time - tval_diff) >> 8));
-			}
-		}
-
-		pframes_done++; pframes_shown++;
-		 frames_done++;  frames_shown++;
-	}
-
-
-	emu_set_fastforward(0);
-
-	if (PicoIn.AHW & PAHW_MCD) PicoCDBufferFree();
-
-	if (PicoIn.sndOut != NULL) {
-		pemu_sound_stop();
-		PicoIn.sndOut = NULL;
-	}
-
-	// save SRAM
-	if ((currentConfig.EmuOpt & 1) && SRam.changed) {
-		emu_msg_cb("Writing SRAM/BRAM..");
-		emu_save_load_game(0, 1);
-		SRam.changed = 0;
-	}
-
-	// clear fps counters and stuff
-	memset32_uncached((int *)psp_video_get_active_fb() + 512*264*2/4, 0, 512*8*2/4);
 }
 
-void emu_HandleResume(void)
+/* prepare for entering the emulator loop */
+void pemu_loop_prep(void)
+{
+}
+
+/* terminate the emulator loop */
+void pemu_loop_end(void)
+{
+	pemu_sound_stop();
+}
+
+// TODO 
+void emu_handle_resume(void)
 {
 	if (!(PicoIn.AHW & PAHW_MCD)) return;
 
 	// reopen first CD track
-	if (Pico_mcd->TOC.Tracks[0].F != NULL)
+	if (cdd.toc.tracks[0].fd != NULL)
 	{
 		char *fname = rom_fname_reload;
 		int len = strlen(rom_fname_reload);
@@ -1070,16 +718,18 @@ void emu_HandleResume(void)
 		}
 
 		lprintf("emu_HandleResume: reopen %s\n", fname);
-		pm_close(Pico_mcd->TOC.Tracks[0].F);
-		Pico_mcd->TOC.Tracks[0].F = pm_open(fname);
-		lprintf("reopen %s\n", Pico_mcd->TOC.Tracks[0].F != NULL ? "ok" : "failed");
+		pm_close(cdd.toc.tracks[0].fd);
+		cdd.toc.tracks[0].fd = pm_open(fname);
+		lprintf("reopen %s\n", cdd.toc.tracks[0].fd != NULL ? "ok" : "failed");
 
 		if (cue_data != NULL) cue_destroy(cue_data);
 	}
 
 	mp3_reopen_file();
 
-	if (!(Pico_mcd->s68k_regs[0x36] & 1) && (Pico_mcd->scd.Status_CDC & 1))
-		cdda_start_play();
+#if 0	// TODO
+	if (!(Pico_mcd->s68k_regs[0x36] & 1)/* && (Pico_mcd->scd.Status_CDC & 1)*/)
+		cdd_change_track(cdd.index, cdd.lba);
+#endif
 }
 
