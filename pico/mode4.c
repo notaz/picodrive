@@ -366,7 +366,7 @@ static void FinalizeLine8bitM4(int line)
 {
   unsigned char *pd = Pico.est.DrawLineDest;
 
-  if (HighColBase != DrawLineDestBase)
+  if (DrawLineDestIncrement)
     memcpy(pd + line_offset, Pico.est.HighCol + line_offset + 8, 256);
 }
 

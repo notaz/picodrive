@@ -179,6 +179,7 @@ static void do_loop_dc##name(unsigned short *dst,               \
     p32x = dram + dram[l];                                      \
     do_line_dc(dst, p32x, pmd, inv_bit, md_code);               \
     post_code;                                                  \
+    dst += DrawLineDestIncrement32x/2 - 320;                    \
   }                                                             \
 }                                                               \
                                                                 \
@@ -200,6 +201,7 @@ static void do_loop_pp##name(unsigned short *dst,               \
     p32x += (lines_sft_offs >> 8) & 1;                          \
     do_line_pp(dst, p32x, pmd, md_code);                        \
     post_code;                                                  \
+    dst += DrawLineDestIncrement32x/2 - 320;                    \
   }                                                             \
 }                                                               \
                                                                 \
@@ -220,6 +222,7 @@ static void do_loop_rl##name(unsigned short *dst,               \
     p32x = dram + dram[l];                                      \
     do_line_rl(dst, p32x, pmd, md_code);                        \
     post_code;                                                  \
+    dst += DrawLineDestIncrement32x/2 - 320;                    \
   }                                                             \
 }
 
@@ -337,7 +340,7 @@ void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode)
   if (which == PDF_RGB555) {
     // need CLUT pixels in PicoDraw2FB for layer transparency
     PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328);
-    PicoDrawSetOutBufMD(DrawLineDestBase32x, DrawLineDestIncrement32x);
+    PicoDrawSetOutBufMD(NULL, 0);
   } else {
     // use the same layout as alt renderer
     PicoDrawSetInternalBuf(NULL, 0);

@@ -1635,6 +1635,9 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
   unsigned short *pal=est->HighPal;
   int len;
 
+  if (DrawLineDestIncrement == 0)
+    return;
+
   PicoDrawUpdateHighPal();
 
   if (Pico.video.reg[12]&1) {
@@ -1693,7 +1696,7 @@ static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
     len = 256;
   }
 
-  if (DrawLineDestBase == HighColBase) {
+  if (DrawLineDestIncrement == 0) {
     if (!sh && (est->rendstatus & PDRAW_SONIC_MODE))
       blockcpy_or(pd+8, est->HighCol+8, len, est->SonicPalCount*0x40);
   } else if (!sh && (est->rendstatus & PDRAW_SONIC_MODE)) {
@@ -1980,6 +1983,7 @@ void PicoDrawUpdateHighPal(void)
 void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 {
   PicoDrawSetInternalBuf(NULL, 0);
+  PicoDrawSetOutBufMD(NULL, 0);
   PicoDraw2SetOutBuf(NULL);
   switch (which)
   {
@@ -2009,18 +2013,15 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 void PicoDrawSetOutBufMD(void *dest, int increment)
 {
   if (FinalizeLine == FinalizeLine8bit && increment >= 328) {
-    // kludge for no-copy mode
+    // kludge for no-copy mode, using ALT_RENDERER layout
     PicoDrawSetInternalBuf(dest, increment);
-  }
-
-  if (FinalizeLine == NULL)
+  } else if (FinalizeLine == NULL) {
     PicoDraw2SetOutBuf(dest);
-  else if (dest != NULL) {
+  } else if (dest != NULL) {
     DrawLineDestBase = dest;
     DrawLineDestIncrement = increment;
     Pico.est.DrawLineDest = (char *)DrawLineDestBase + Pico.est.DrawScanline * increment;
-  }
-  else {
+  } else {
     DrawLineDestBase = DefOutBuff;
     DrawLineDestIncrement = 0;
     Pico.est.DrawLineDest = DefOutBuff;
