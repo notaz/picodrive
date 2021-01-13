@@ -208,6 +208,10 @@ void in_psp_init(const struct in_default_bind *defbinds)
 	in_psp_keys[lg2(PSP_CTRL_CIRCLE)] = "Circle";
 	in_psp_keys[lg2(PSP_CTRL_CROSS)] = "Cross";
 	in_psp_keys[lg2(PSP_CTRL_SQUARE)] = "Square";
+	in_psp_keys[lg2(PSP_NUB_UP)] = "Analog up";
+	in_psp_keys[lg2(PSP_NUB_LEFT)] = "Analog left";
+	in_psp_keys[lg2(PSP_NUB_DOWN)] = "Analog down";
+	in_psp_keys[lg2(PSP_NUB_RIGHT)] = "Analog right";
 
 	in_register_driver(&in_psp_drv, defbinds, NULL);
 }

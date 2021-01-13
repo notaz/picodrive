@@ -155,7 +155,6 @@ void plat_update_volume(int has_changed, int is_up)
 void pemu_forced_frame(int no_scale, int do_emu)
 {
 	PicoIn.opt &= ~POPT_DIS_32C_BORDER;
-	PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
 

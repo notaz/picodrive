@@ -190,6 +190,7 @@ else ifeq ($(platform), psp1)
 	STATIC_LINKING = 1
 	NO_MMAP = 1
 
+	ARCH = mipsel
 	asm_render = 1
 
 # PS2

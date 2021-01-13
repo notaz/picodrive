@@ -126,6 +126,20 @@ static void make_bg(int no_scale)
 		menu_darken_bg(dst, src, w, 1);
 }
 
+static void copy_bg(int dir)
+{
+	unsigned short *bg = (void *)g_menubg_ptr;
+	unsigned short *sc = (void *)g_menuscreen_ptr;
+	int h = g_menuscreen_h;
+
+	for (; h > 0; sc += g_menuscreen_pp, bg += g_menuscreen_w, h--) {
+		if (dir)
+			memcpy(bg, sc, g_menuscreen_w * 2);
+		else
+			memcpy(sc, bg, g_menuscreen_w * 2);
+	}
+}
+
 static void menu_enter(int is_rom_loaded)
 {
 	if (is_rom_loaded)
@@ -182,7 +196,7 @@ static void load_progress_cb(int percent)
 		len = g_menuscreen_w;
 
 	menu_draw_begin(0, 1);
-	memcpy(g_menuscreen_ptr, g_menubg_ptr, g_menuscreen_w * g_menuscreen_h * 2);
+	copy_bg(0);
 	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_pp * me_sfont_h * 2;
 	for (ln = me_sfont_h - 2; ln > 0; ln--, dst += g_menuscreen_pp)
 		memset(dst, 0xff, len * 2);
@@ -197,7 +211,7 @@ static void cdload_progress_cb(const char *fname, int percent)
 	menu_draw_begin(0, 1);
 	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_pp * me_sfont_h * 2;
 
-	memcpy(g_menuscreen_ptr, g_menubg_ptr, g_menuscreen_w * g_menuscreen_h * 2);
+	copy_bg(0);
 	menuscreen_memset_lines(dst, 0xff, me_sfont_h - 2);
 
 	smalltext_out16(1, 3 * me_sfont_h, "Processing CD image / MP3s", 0xffff);
@@ -224,8 +238,8 @@ void menu_romload_prepare(const char *rom_name)
 	menu_draw_begin(1, 1);
 	smalltext_out16(1, 1, "Loading", 0xffff);
 	smalltext_out16(1, me_sfont_h, p, 0xffff);
-	/* background screen for callbacks */
-	memcpy(g_menubg_ptr, g_menuscreen_ptr, g_menuscreen_w * g_menuscreen_h * 2);
+	/* copy menu to bg for callbacks. OK since we are not in menu_loop here */
+	copy_bg(1);
 	menu_draw_end();
 
 	PicoCartLoadProgressCB = load_progress_cb;
@@ -239,7 +253,7 @@ void menu_romload_end(void)
 	PicoCDLoadProgressCB = NULL;
 
 	menu_draw_begin(0, 1);
-	memcpy(g_menuscreen_ptr, g_menubg_ptr, g_menuscreen_w * g_menuscreen_h * 2);
+	copy_bg(0);
 	smalltext_out16(1, (cdload_called ? 6 : 3) * me_sfont_h,
 		"Starting emulation...", 0xffff);
 	menu_draw_end();

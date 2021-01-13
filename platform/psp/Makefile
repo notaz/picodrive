@@ -23,7 +23,7 @@ ifeq "$(for_15fw)" "1"
 CFLAGS += -DFW15
 endif
 
-
+ifneq "$(BUILD)" ""
 # frontend and stuff
 OBJS += main.o emu.o mp3.o menu.o psp.o asm_utils.o
 
@@ -172,6 +172,7 @@ myclean:
 clean_prof:
 	find ../.. -name '*.gcno' -delete
 	find ../.. -name '*.gcda' -delete
+endif
 
 # ----------- release -----------
 ifneq ($(findstring rel,$(MAKECMDGOALS)),)

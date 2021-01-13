@@ -1227,6 +1227,7 @@ void emu_cmn_forced_frame(int no_scale, int do_emu)
 		PicoIn.opt |= POPT_EN_SOFTSCALE;
 
 	PicoDrawSetOutFormat(PDF_RGB555, 1);
+	PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 	Pico.m.dirtyPal = 1;
 	Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 	if (do_emu)

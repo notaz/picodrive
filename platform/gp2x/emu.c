@@ -98,10 +98,6 @@ static void change_renderer(int diff)
 		r = &currentConfig.renderer;
 	*r += diff;
 
-	// 8bpp fast is not there (yet?)
-	if ((PicoIn.AHW & PAHW_SMS) && *r == RT_8BIT_FAST)
-		(*r)++;
-
 	if      (*r >= RT_COUNT)
 		*r = 0;
 	else if (*r < 0)
@@ -723,7 +719,6 @@ void pemu_sound_stop(void)
 void pemu_forced_frame(int no_scale, int do_emu)
 {
 	doing_bg_frame = 1;
-	PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
 

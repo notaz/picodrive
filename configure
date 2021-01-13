@@ -38,7 +38,7 @@ check_define()
 # setting options to "yes" or "no" will make that choice default,
 # "" means "autodetect".
 
-platform_list="generic pandora gp2x wiz caanoo opendingux gcw0 rg350 rpi1 rpi2"
+platform_list="generic pandora gp2x wiz caanoo opendingux gcw0 rg350 rpi1 rpi2 psp"
 platform="generic"
 sound_driver_list="oss alsa sdl"
 sound_drivers=""
@@ -113,6 +113,12 @@ set_platform()
     # unified binary for all of them
     CFLAGS="$CFLAGS -D__GP2X__"
     platform="gp2x"
+    ;;
+  psp)
+    # use newlib
+    LDFLAGS="$LDFLAGS -lc -lpspuser -lpspkernel"
+    CFLAGS="$CFLAGS -D__PSP__"
+    ARCH=mipsel
     ;;
   *)
     fail "unsupported platform: $platform"
@@ -341,7 +347,7 @@ EOF
   compile_object "$@"
 }
 
-check_zlib -lz &&MAIN_LDLIBS="$MAIN_LDLIBS -lz" || need_zlib="yes"
+check_zlib -lz && MAIN_LDLIBS="$MAIN_LDLIBS -lz" || need_zlib="yes"
 
 MAIN_LDLIBS="-lpng $MAIN_LDLIBS"
 check_libpng || fail "please install libpng (libpng-dev)"

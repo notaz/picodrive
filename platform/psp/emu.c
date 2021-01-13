@@ -312,7 +312,7 @@ static void cd_leds(void)
 
 static void draw_pico_ptr(void)
 {
-	unsigned char *p = (unsigned char *)VRAM_CACHED_STUFF + 8;
+	unsigned char *p = (unsigned char *)g_screen_ptr + 8;
 
 	// only if pen enabled and for 8bit mode
 	if (pico_inp_mode == 0 || is_16bit_mode()) return;
@@ -571,6 +571,18 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
 
+	if (PicoIn.opt&POPT_ALT_RENDERER)
+	{
+		int i;
+		unsigned char *pd;
+
+		// clear top and bottom trash
+		for (pd = Pico.est.Draw2FB, i = 8; i > 0; i--, pd += 512)
+			memset32((int *)pd, 0xe0e0e0e0, 320/4);
+		for (pd = Pico.est.Draw2FB+512*232, i = 8; i > 0; i--, pd += 512)
+			memset32((int *)pd, 0xe0e0e0e0, 320/4);
+	}
+
 	if (PicoIn.AHW & PAHW_PICO)
 		draw_pico_ptr();
 
@@ -644,7 +656,6 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 void pemu_forced_frame(int no_scale, int do_emu)
 {
 	PicoIn.opt &= ~POPT_DIS_32C_BORDER;
-	PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 	Pico.m.dirtyPal = 1;
 
 	if (!no_scale)

@@ -111,12 +111,12 @@ LDFLAGS += -ldl -lbcm_host -L/opt/vc/lib
 ifneq (,$(wildcard /opt/vc/lib/libbrcmGLESv2.so))
 LDFLAGS += -lbrcmEGL -lbrcmGLESv2
 else
-LDFLAGS += -lEGL -lGLESv2
+LDFLAGS += -lEGL -lGLESv2 # on raspi GLESv1_CM is included in GLESv2
 endif
 OBJS += platform/linux/emu.o platform/linux/blit.o # FIXME
 OBJS += platform/common/plat_sdl.o platform/common/input_sdlkbd.o
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
-OBJS += platform/libpicofe/plat_dummy.o
+OBJS += platform/libpicofe/plat_dummy.o platform/libpicofe/linux/plat.o
 OBJS += platform/libpicofe/gl.o
 OBJS += platform/libpicofe/gl_platform.o
 USE_FRONTEND = 1
@@ -130,7 +130,7 @@ else
 OBJS += platform/common/plat_sdl.o platform/common/inputmap_kbd.o
 endif
 OBJS += platform/libpicofe/plat_sdl.o platform/libpicofe/in_sdl.o
-OBJS += platform/libpicofe/plat_dummy.o
+OBJS += platform/libpicofe/plat_dummy.o platform/libpicofe/linux/plat.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "pandora"
@@ -142,12 +142,14 @@ OBJS += platform/common/arm_utils.o
 OBJS += platform/libpicofe/linux/in_evdev.o
 OBJS += platform/libpicofe/linux/fbdev.o 
 OBJS += platform/libpicofe/linux/xenv.o
+OBJS += platform/libpicofe/linux/plat.o
 OBJS += platform/libpicofe/pandora/plat.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "gp2x"
 OBJS += platform/common/arm_utils.o 
 OBJS += platform/libpicofe/linux/in_evdev.o
+OBJS += platform/libpicofe/linux/plat.o
 OBJS += platform/libpicofe/gp2x/in_gp2x.o
 OBJS += platform/libpicofe/gp2x/soc.o 
 OBJS += platform/libpicofe/gp2x/soc_mmsp2.o 
@@ -166,16 +168,16 @@ PLATFORM_ZLIB = 1
 endif
 ifeq "$(PLATFORM)" "psp"
 CFLAGS += -DUSE_BGR565 -DDRAW2_OVERRIDE_LINE_WIDTH=512 -G8 # -DLPRINTF_STDIO -DFW15
+LDFLAGS := $(filter-out -lpsp%, $(LDFLAGS)) # collides with PSP image generation
+LDLIBS += -lpspnet_inet -lpspgu -lpspge -lpsppower -lpspaudio -lpspdisplay
+LDLIBS += -lpspaudiocodec -lpsprtc -lpspctrl -lpspsdk -lpspuser -lpspkernel
 platform/common/main.o: CFLAGS += -Dmain=pico_main
 OBJS += platform/psp/plat.o
 OBJS += platform/psp/emu.o
 OBJS += platform/psp/in_psp.o
 OBJS += platform/psp/psp.o
-#OBJS += platform/psp/menu.o
 OBJS += platform/psp/asm_utils.o
 OBJS += platform/psp/mp3.o
-#OBJS += platform/psp/data/bg32.o
-#OBJS += platform/psp/data/bg40.o
 USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "libretro"
@@ -200,7 +202,7 @@ OBJS += platform/common/main.o platform/common/emu.o \
 
 # libpicofe
 OBJS += platform/libpicofe/input.o platform/libpicofe/readpng.o \
-	platform/libpicofe/fonts.o platform/libpicofe/linux/plat.o
+	platform/libpicofe/fonts.o
 
 # libpicofe - sound
 OBJS += platform/libpicofe/sndout.o
@@ -278,11 +280,13 @@ else
 endif
 
 ifeq "$(PLATFORM)" "psp"
-PSPSDK = /home/.build/opt/pspdev/psp/sdk
+PSPSDK ?= $(shell psp-config --pspsdk-path)
+TARGET = PicoDrive
 PSP_EBOOT_TITLE = PicoDrive
+PSP_EBOOT_ICON = platform/psp/data/icon.png
 LIBS += -lpng -lm -lz -lpspgu -lpsppower -lpspaudio -lpsprtc -lpspaudiocodec
 EXTRA_TARGETS = EBOOT.PBP
-include /home/.build/opt/pspdev/psp/sdk/lib/build.mak
+include $(PSPSDK)/lib/build.mak
 # TODO image generation
 endif
 

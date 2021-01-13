@@ -110,7 +110,9 @@ void plat_early_init(void)
 /* base directory for configuration and save files */
 int plat_get_root_dir(char *dst, int len)
 {
-	if (len > 0) *dst = 0;
+ 	*dst = 0;
+	if (len > 4)
+		strcpy(dst, "ms0:/");
 	return 0;
 }
 
@@ -264,8 +266,8 @@ int scandir(const char *dir, struct dirent ***namelist_out,
 	{
 		ent = malloc(sizeof(*ent));
 		if (ent == NULL) { lprintf("%s:%i: OOM\n", __FILE__, __LINE__); goto fail; }
-	ent->d_stat = sce_ent.d_stat;
-	ent->d_stat.st_attr &= FIO_SO_IFMT; // serves as d_type
+		ent->d_stat = sce_ent.d_stat;
+		ent->d_stat.st_attr &= FIO_SO_IFMT; // serves as d_type
 		strncpy(ent->d_name, sce_ent.d_name, sizeof(ent->d_name));
 		ent->d_name[sizeof(ent->d_name)-1] = 0;
 		if (filter == NULL || filter(ent))
@@ -308,7 +310,8 @@ end:
 
 int _flush_cache (char *addr, const int size, const int op)
 {
-	sceKernelDcacheWritebackRange(addr, size);
-	sceKernelIcacheInvalidateRange(addr, size);
+	sceKernelDcacheWritebackAll();
+	//sceKernelDcacheWritebackRange(addr, size);
+	//sceKernelIcacheInvalidateRange(addr, size);
 	return 0;
 }
