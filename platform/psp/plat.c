@@ -110,17 +110,28 @@ void plat_early_init(void)
 /* base directory for configuration and save files */
 int plat_get_root_dir(char *dst, int len)
 {
- 	*dst = 0;
-	if (len > 4)
-		strcpy(dst, "ms0:/");
+ 	if (len > 0) *dst = 0;
 	return 0;
 }
 
 /* base directory for emulator resources */
 int plat_get_skin_dir(char *dst, int len)
 {
-	if (len > 0) *dst = 0;
-	return 0;
+	if (len > 4)
+		strcpy(dst, "skin/");
+	else if (len > 0)
+		*dst = 0;
+	return strlen(dst);
+}
+
+/* top directory for rom images */
+int plat_get_data_dir(char *dst, int len)
+{
+	if (len > 4)
+		strcpy(dst, "ms0:/");
+	else if (len > 0)
+		*dst = 0;
+	return strlen(dst);
 }
 
 /* check if path is a directory */

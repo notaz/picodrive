@@ -135,7 +135,7 @@ void psp_init(void)
 	lprintf("\n%s\n", "PicoDrive v" VERSION " " __DATE__ " " __TIME__);
 	lprintf("running on %08x kernel\n", sceKernelDevkitVersion()),
 	lprintf("entered psp_init, threadId %08x, priority %i\n", main_thread_id,
-	sceKernelGetThreadCurrentPriority());
+		sceKernelGetThreadCurrentPriority());
 
 	thid = sceKernelCreateThread("update_thread", callback_thread, 0x11, 0xFA0, 0, NULL);
 	if (thid >= 0)

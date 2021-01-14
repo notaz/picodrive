@@ -36,7 +36,7 @@ static int mh_scale(int id, int keys)
 	}
 	if (keys & PBTN_LEFT)	*val += -0.01;
 	if (keys & PBTN_RIGHT)	*val += +0.01;
-	if (*val <= 0)		*val  = +0.01;
+	if (*val < 0.01)	*val  = +0.01;
 	return 0;
 }
 

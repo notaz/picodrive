@@ -609,6 +609,7 @@ void plat_init(void)
 	in_psp_init(in_psp_defbinds);
 	in_probe();
 	sound_init();
+	plat_get_data_dir(rom_fname_loaded, sizeof(rom_fname_loaded));
 }
 
 /* platform dependend emulator deinitialization */
