@@ -131,7 +131,7 @@ int config_write(const char *fname)
 			}
 		}
 		else if (me->generate_name != NULL) {
-			strncpy(line, me->generate_name(0, &dummy), sizeof(line)-1);
+			strncpy(line, me->generate_name(me->id, &dummy), sizeof(line)-1);
 			line[sizeof(line)-1] = '\0';
 			goto write_line;
 		}
