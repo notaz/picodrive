@@ -985,7 +985,7 @@ static void menu_main_draw_status(void)
 {
 	static time_t last_bat_read = 0;
 	static int last_bat_val = -1;
-	unsigned short *bp = g_screen_ptr;
+	unsigned short *bp = g_menuscreen_ptr;
 	int bat_h = me_mfont_h * 2 / 3;
 	int i, u, w, wfill, batt_val;
 	struct tm *tmp;
@@ -999,7 +999,7 @@ static void menu_main_draw_status(void)
 	tmp = gmtime(&ltime);
 	strftime(time_s, sizeof(time_s), "%H:%M", tmp);
 
-	text_out16(g_screen_width - me_mfont_w * 6, me_mfont_h + 2, time_s);
+	text_out16(g_menuscreen_w - me_mfont_w * 6, me_mfont_h + 2, time_s);
 
 	if (ltime - last_bat_read > 10) {
 		last_bat_read = ltime;
@@ -1012,23 +1012,23 @@ static void menu_main_draw_status(void)
 		return;
 
 	/* battery info */
-	bp += (me_mfont_h * 2 + 2) * g_screen_ppitch + g_screen_width - me_mfont_w * 3 - 3;
+	bp += (me_mfont_h * 2 + 2) * g_menuscreen_pp + g_menuscreen_w - me_mfont_w * 3 - 3;
 	for (i = 0; i < me_mfont_w * 2; i++)
 		bp[i] = menu_text_color;
 	for (i = 0; i < me_mfont_w * 2; i++)
-		bp[i + g_screen_ppitch * bat_h] = menu_text_color;
+		bp[i + g_menuscreen_pp * bat_h] = menu_text_color;
 	for (i = 0; i <= bat_h; i++)
-		bp[i * g_screen_ppitch] =
-		bp[i * g_screen_ppitch + me_mfont_w * 2] = menu_text_color;
+		bp[i * g_menuscreen_pp] =
+		bp[i * g_menuscreen_pp + me_mfont_w * 2] = menu_text_color;
 	for (i = 2; i < bat_h - 1; i++)
-		bp[i * g_screen_ppitch - 1] =
-		bp[i * g_screen_ppitch - 2] = menu_text_color;
+		bp[i * g_menuscreen_pp - 1] =
+		bp[i * g_menuscreen_pp - 2] = menu_text_color;
 
 	w = me_mfont_w * 2 - 1;
 	wfill = batt_val * w / 100;
 	for (u = 1; u < bat_h; u++)
 		for (i = 0; i < wfill; i++)
-			bp[(w - i) + g_screen_ppitch * u] = menu_text_color;
+			bp[(w - i) + g_menuscreen_pp * u] = menu_text_color;
 }
 
 static int main_menu_handler(int id, int keys)
