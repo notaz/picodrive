@@ -1840,6 +1840,7 @@ PICO_INTERNAL void PicoFrameStart(void)
   if (!(Pico.video.reg[12] & 1))
     Pico.est.rendstatus |= PDRAW_32_COLS;
   if (Pico.video.reg[1] & 8) {
+    Pico.est.rendstatus |= PDRAW_30_ROWS;
     offs = 0;
     lines = 240;
   }
@@ -1984,7 +1985,7 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
 {
   PicoDrawSetInternalBuf(NULL, 0);
   PicoDrawSetOutBufMD(NULL, 0);
-  PicoDraw2SetOutBuf(NULL);
+  PicoDraw2SetOutBuf(NULL, 0);
   switch (which)
   {
     case PDF_8BIT:
@@ -2016,7 +2017,7 @@ void PicoDrawSetOutBufMD(void *dest, int increment)
     // kludge for no-copy mode, using ALT_RENDERER layout
     PicoDrawSetInternalBuf(dest, increment);
   } else if (FinalizeLine == NULL) {
-    PicoDraw2SetOutBuf(dest);
+    PicoDraw2SetOutBuf(dest, increment);
   } else if (dest != NULL) {
     DrawLineDestBase = dest;
     DrawLineDestIncrement = increment;

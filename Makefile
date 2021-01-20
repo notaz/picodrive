@@ -167,7 +167,7 @@ PLATFORM_MP3 = 1
 PLATFORM_ZLIB = 1
 endif
 ifeq "$(PLATFORM)" "psp"
-CFLAGS += -DUSE_BGR565 -DDRAW2_OVERRIDE_LINE_WIDTH=512 -G8 # -DLPRINTF_STDIO -DFW15
+CFLAGS += -DUSE_BGR565 -G8 # -DLPRINTF_STDIO -DFW15
 LDFLAGS := $(filter-out -lpsp%, $(LDFLAGS)) # collides with PSP image generation
 LDLIBS += -lpspnet_inet -lpspgu -lpspge -lpsppower -lpspaudio -lpspdisplay
 LDLIBS += -lpspaudiocodec -lpsprtc -lpspctrl -lpspsdk -lpspuser -lpspkernel

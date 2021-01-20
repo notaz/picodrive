@@ -208,9 +208,10 @@ void PicoDoHighPal555(int sh, int line, struct PicoEState *est);
 #define PDRAW_SONIC_MODE    (1<<5) // mid-frame palette changes for 8bit renderer
 #define PDRAW_PLANE_HI_PRIO (1<<6) // have layer with all hi prio tiles (mk3)
 #define PDRAW_SHHI_DONE     (1<<7) // layer sh/hi already processed
-#define PDRAW_32_COLS       (1<<8) // 32 column mode
+#define PDRAW_32_COLS       (1<<8) // 32 columns mode
 #define PDRAW_BORDER_32     (1<<9) // center H32 in buffer (32 px border)
 #define PDRAW_SKIP_FRAME   (1<<10) // frame is skipped
+#define PDRAW_30_ROWS      (1<<11) // 30 rows mode (240 lines)
 extern int rendstatus_old;
 extern int rendlines;
 

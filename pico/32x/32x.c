@@ -224,7 +224,7 @@ static void p32x_start_blank(void)
     pprof_start(draw);
 
     offs = 8; lines = 224;
-    if ((Pico.video.reg[1] & 8) && !(PicoIn.opt & POPT_ALT_RENDERER)) {
+    if (Pico.video.reg[1] & 8) {
       offs = 0;
       lines = 240;
     }

@@ -359,6 +359,8 @@ struct PicoEState
   void *PicoMem_cram;
   unsigned int  *PicoOpt;
   unsigned char *Draw2FB;
+  int Draw2Width;
+  int Draw2Start;
   unsigned short HighPal[0x100];
   unsigned short SonicPal[0x100];
   int SonicPalCount;
@@ -673,7 +675,7 @@ extern int DrawLineDestIncrement;
 extern u32 VdpSATCache[128];
 
 // draw2.c
-void PicoDraw2SetOutBuf(void *dest);
+void PicoDraw2SetOutBuf(void *dest, int incr);
 void PicoDraw2Init(void);
 PICO_INTERNAL void PicoFrameFull();
 
