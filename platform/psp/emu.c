@@ -25,6 +25,7 @@
 #include "../common/input_pico.h"
 #include "platform/libpicofe/input.h"
 #include "platform/libpicofe/menu.h"
+#include "platform/libpicofe/plat.h"
 
 #include <pico/pico_int.h>
 #include <pico/cd/genplus_macros.h>
@@ -47,8 +48,10 @@ struct Vertex
 static struct Vertex __attribute__((aligned(4))) g_vertices[2];
 static unsigned short __attribute__((aligned(16))) localPal[0x100];
 static int need_pal_upload = 0;
-static int fbimg_offs = 0;
+
 static int h32_mode = 0;
+static int out_x, out_y;
+static int out_w, out_h;
 
 static const struct in_default_bind in_psp_defbinds[] =
 {
@@ -73,7 +76,7 @@ const char *renderer_names32x[] = { "accurate", "faster", "fastest", NULL };
 enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 
 #define is_16bit_mode() \
-	(get_renderer() == RT_16BIT || (PicoIn.AHW & PAHW_32X))
+	(currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
 
 static int get_renderer(void)
 {
@@ -101,9 +104,8 @@ static void change_renderer(int diff)
 static void apply_renderer(void)
 {
 	PicoIn.opt &= ~POPT_ALT_RENDERER;
-	PicoIn.opt |=  POPT_DIS_32C_BORDER;
 
-	switch (currentConfig.renderer) {
+	switch (get_renderer()) {
 	case RT_16BIT:
 		PicoDrawSetOutFormat(PDF_RGB555, 0);
 		break;
@@ -136,61 +138,55 @@ static void osd_text(int x, const char *text, int is_active, int clear_all)
 
 static void set_scaling_params(void)
 {
-	int src_width, fbimg_width, fbimg_height, fbimg_xoffs, fbimg_yoffs, border_hack = 0;
-	g_vertices[0].x = g_vertices[0].y =
+	int fbimg_width, fbimg_height, fbimg_xoffs, fbimg_yoffs, border_hack = 0;
 	g_vertices[0].z = g_vertices[1].z = 0;
 
-	fbimg_height = (int)(240.0 * currentConfig.scale + 0.5);
-	if (!h32_mode) {
-		fbimg_width = (int)(320.0 * currentConfig.scale * currentConfig.hscale40 + 0.5);
-		src_width = 320;
-	} else {
-		fbimg_width = (int)(256.0 * currentConfig.scale * currentConfig.hscale32 + 0.5);
-		src_width = 256;
-	}
+	fbimg_height = (int)(out_h * currentConfig.scale + 0.5);
+	if (!h32_mode)
+		fbimg_width  = (int)(out_w * currentConfig.scale * currentConfig.hscale40 + 0.5);
+	else
+		fbimg_width  = (int)(out_w * currentConfig.scale * currentConfig.hscale32 + 0.5);
 
 	if (fbimg_width  & 1) fbimg_width++;  // make even
 	if (fbimg_height & 1) fbimg_height++;
 
 	if (fbimg_width >= 480) {
-		g_vertices[0].u = (fbimg_width-480)/2;
-		g_vertices[1].u = src_width - (fbimg_width-480)/2 - 1;
+		g_vertices[0].u = out_x + (fbimg_width-480)/2;
+		g_vertices[1].u = out_x + out_w - (fbimg_width-480)/2 - 1;
 		fbimg_width = 480;
 		fbimg_xoffs = 0;
 	} else {
-		g_vertices[0].u = 0;
-		g_vertices[1].u = src_width;
+		g_vertices[0].u = out_x;
+		g_vertices[1].u = out_x + out_w;
 		fbimg_xoffs = 240 - fbimg_width/2;
 	}
 	if (fbimg_width > 320 && fbimg_width <= 480) border_hack = 1;
 
 	if (fbimg_height >= 272) {
-		g_vertices[0].v = (fbimg_height-272)/2;
-		g_vertices[1].v = 240 - (fbimg_height-272)/2;
+		g_vertices[0].v = out_y + (fbimg_height-272)/2;
+		g_vertices[1].v = out_y + out_h - (fbimg_height-272)/2;
 		fbimg_height = 272;
 		fbimg_yoffs = 0;
 	} else {
-		g_vertices[0].v = 0;
-		g_vertices[1].v = 240;
+		g_vertices[0].v = out_y;
+		g_vertices[1].v = out_y + out_h;
 		fbimg_yoffs = 136 - fbimg_height/2;
 	}
 
-	g_vertices[1].x = fbimg_width;
-	g_vertices[1].y = fbimg_height;
 	if (fbimg_xoffs < 0) fbimg_xoffs = 0;
 	if (fbimg_yoffs < 0) fbimg_yoffs = 0;
-	if (border_hack) {
-		g_vertices[0].u++;
-		g_vertices[0].x++;
-		g_vertices[1].u--;
-		g_vertices[1].x--;
-	}
+	g_vertices[0].x = fbimg_xoffs;
+	g_vertices[0].y = fbimg_yoffs;
+	g_vertices[1].x = fbimg_xoffs + fbimg_width;
+	g_vertices[1].y = fbimg_yoffs + fbimg_height;
 	if (!is_16bit_mode()) {
 		// 8-bit modes have an 8 px overlap area on the left
-		g_vertices[0].u += 8;
-		g_vertices[1].u += 8;
+		g_vertices[0].u += 8; g_vertices[1].u += 8;
 	}
-	fbimg_offs = (fbimg_yoffs*512 + fbimg_xoffs) * 2; // dst is always 16bit
+	if (border_hack) {
+		g_vertices[0].u++;    g_vertices[1].u--;
+		g_vertices[0].x++;    g_vertices[1].x--;
+	}
 
 	/*
 	lprintf("set_scaling_params:\n");
@@ -202,12 +198,20 @@ static void set_scaling_params(void)
 
 static void do_pal_update(void)
 {
-	unsigned int *dpal=(void *)localPal;
+	u32 *dpal=(void *)localPal;
 	int i;
 
 	//for (i = 0x3f/2; i >= 0; i--)
 	//	dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
-	if (PicoIn.opt & POPT_ALT_RENDERER) {
+	if (PicoIn.AHW & PAHW_SMS) {
+		u32 *spal = (void *)PicoMem.cram; 
+		for (i = 0; i < 0x20 / 2; i++) {
+			u32 t = spal[i];
+			t = ((t & 0x00030003)<< 3) | ((t & 0x000c000c)<<7) | ((t & 0x00300030)<<10);
+			t |= (t >> 2) | ((t >> 4) & 0x08610861);
+			dpal[i] = t;
+		}
+	} else if (PicoIn.opt & POPT_ALT_RENDERER) {
 		do_pal_convert(localPal, PicoMem.cram, currentConfig.gamma, currentConfig.gamma2);
 		Pico.m.dirtyPal = 0;
 	}
@@ -251,8 +255,7 @@ static void do_pal_update(void)
 
 static void blitscreen_clut(void)
 {
-	int offs = fbimg_offs;
-	offs += (psp_screen == VRAM_FB0) ? VRAMOFFS_FB0 : VRAMOFFS_FB1;
+	int offs = (psp_screen == VRAM_FB0) ? VRAMOFFS_FB0 : VRAMOFFS_FB1;
 
 	sceGuSync(0,0); // sync with prev
 	sceGuStart(GU_DIRECT, guCmdList);
@@ -319,6 +322,9 @@ static void draw_pico_ptr(void)
 
 	p += 512 * (pico_pen_y + PICO_PEN_ADJUST_Y);
 	p += pico_pen_x + PICO_PEN_ADJUST_X;
+	if (!(Pico.video.reg[12]&1) && !(PicoIn.opt & POPT_DIS_32C_BORDER))
+		p += 32;
+
 	p[  -1] = 0xe0; p[   0] = 0xf0; p[   1] = 0xe0;
 	p[ 511] = 0xf0; p[ 512] = 0xf0; p[ 513] = 0xf0;
 	p[1023] = 0xe0; p[1024] = 0xf0; p[1025] = 0xe0;
@@ -331,10 +337,11 @@ static void clearArea(int full)
 	void *fb = psp_video_get_active_fb();
 
 	if (full) {
-		memset32_uncached(psp_screen, 0, 512*272*2/4);
-		memset32_uncached(fb, 0, 512*272*2/4);
-		memset32(VRAM_CACHED_STUFF, 0xe0e0e0e0, 512*240/4);
-		memset32((int *)VRAM_CACHED_STUFF+512*240/4, 0, 512*240*2/4);
+		u32  val  = (is_16bit_mode() ? 0x00000000 : 0xe0e0e0e0);
+		long sz = 512*272*2;
+		memset32_uncached(psp_screen, 0, 512*272*2/4); // frame buffer
+		memset32_uncached(fb, 0, 512*272*2/4); // frame buff on display
+		memset32(VRAM_CACHED_STUFF, val, 2*sz/4); // 2 draw buffers
 	} else {
 		memset32_uncached((int *)((char *)psp_screen + 512*264*2), 0, 512*8*2/4);
 		memset32_uncached((int *)((char *)fb         + 512*264*2), 0, 512*8*2/4);
@@ -564,24 +571,18 @@ void pemu_validate_config(void)
 {
 	if (currentConfig.CPUclock < 33 || currentConfig.CPUclock > 333)
 		currentConfig.CPUclock = 333;
+	if (currentConfig.scaling < 0.01)
+		currentConfig.scaling = 0.01;
+	if (currentConfig.hscale40 < 0.01)
+		currentConfig.hscale40 = 0.01;
+	if (currentConfig.hscale32 < 0.01)
+		currentConfig.hscale32 = 0.01;
 }
 
 /* finalize rendering a frame */
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
-
-	if (PicoIn.opt&POPT_ALT_RENDERER)
-	{
-		int i;
-		unsigned char *pd;
-
-		// clear top and bottom trash
-		for (pd = Pico.est.Draw2FB, i = 8; i > 0; i--, pd += 512)
-			memset32((int *)pd, 0xe0e0e0e0, 320/4);
-		for (pd = Pico.est.Draw2FB+512*232, i = 8; i > 0; i--, pd += 512)
-			memset32((int *)pd, 0xe0e0e0e0, 320/4);
-	}
 
 	if (PicoIn.AHW & PAHW_PICO)
 		draw_pico_ptr();
@@ -606,6 +607,7 @@ void plat_debug_cat(char *str)
 void plat_init(void)
 {
 	flip_after_sync = 1;
+	psp_menu_init();
 	in_psp_init(in_psp_defbinds);
 	in_probe();
 	sound_init();
@@ -648,6 +650,9 @@ void plat_update_volume(int has_changed, int is_up)
 void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
 	h32_mode = is_32cols;
+	out_y = start_line; out_x = (is_32cols ? 32 : 0);
+	out_h = line_count; out_w = (is_32cols ? 256:320);
+
 	vidResetMode();
 	if (h32_mode)	// clear borders from h40 remnants
 		clearArea(1);
@@ -656,7 +661,6 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 /* render one frame in RGB */
 void pemu_forced_frame(int no_scale, int do_emu)
 {
-	PicoIn.opt &= ~POPT_DIS_32C_BORDER;
 	Pico.m.dirtyPal = 1;
 
 	if (!no_scale)
@@ -685,7 +689,7 @@ void plat_video_toggle_renderer(int change, int is_menu_call)
 /* set the buffer for emulator output rendering */
 void plat_video_set_buffer(void *buf)
 {
-	if (currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
+	if (is_16bit_mode())
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 	else
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch);

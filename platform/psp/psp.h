@@ -14,10 +14,11 @@ void psp_finish(void);
 void psp_msleep(int ms);
 
 // vram usage map:
-// 000000-044000 fb0
+// 000000-044000 fb0: 512*272*2
 // 044000-088000 fb1
-// 088000-0cc000 depth (?)
-// 0cc000-126000 emu draw buffers: 512*240 + 512*240*2
+// 088000-0cc000 depth (Z)
+// 0cc000-110000 emu/menu draw buffer 0: 512*272*2
+// 110000-154000 emu/menu draw buffer 1
 
 #define VRAMOFFS_FB0    0x00000000
 #define VRAMOFFS_FB1    0x00044000
@@ -56,3 +57,5 @@ void psp_resume_suspend(void);
 #define PSP_NUB_DOWN  (1 << 30)
 #define PSP_NUB_LEFT  (1 << 31)
 
+/* from menu.c */
+void psp_menu_init(void);

@@ -1,4 +1,8 @@
 
+static const char h_scale43[]	= "Scales low and high res to 4:3 screen size.\n"
+				  "For 240 line PAL use Scale factor 1.12";
+static const char h_scalefull[] = "Scales low and high res to full screen.\n"
+				  "For 240 line PAL use scaling 1.12, 1.6, 1.28";
 #define MENU_OPTIONS_GFX \
 	mee_cust("Scale factor",                    MA_OPT3_SCALE,    mh_scale, ms_scale), \
 	mee_cust("Hor. scale (for low res. games)", MA_OPT3_HSCALE32, mh_scale, ms_scale), \
@@ -50,15 +54,31 @@ static int mh_preset_scale(int id, int keys)
 		currentConfig.hscale40 = 1.0;
 		break;
 	case MA_OPT3_PRES_SCALE43:
+		// parameters for 224 lines; for 240 lines scale = 1.125
+		// moreover, H32 and H40 had the same width on a TV.
 		currentConfig.scale = 1.2;
 		currentConfig.hscale32 = 1.25;
 		currentConfig.hscale40 = 1.0;
 		break;
 	case MA_OPT3_PRES_FULLSCR:
+		// uses width 460 to avoid some ugly moiree effects
 		currentConfig.scale = 1.2;
-		currentConfig.hscale32 = 1.56;
-		currentConfig.hscale40 = 1.25;
+		currentConfig.hscale32 = 1.5;
+		currentConfig.hscale40 = 1.2;
 		break;
 	}
 	return 0;
+}
+
+static menu_entry e_menu_gfx_options[];
+
+void psp_menu_init(void)
+{
+	int i;
+	for (i = 0; e_menu_gfx_options[i].name; i++) {
+		switch (e_menu_gfx_options[i].id) {
+		case MA_OPT3_PRES_SCALE43: e_menu_gfx_options[i].help = h_scale43; break;
+		case MA_OPT3_PRES_FULLSCR: e_menu_gfx_options[i].help = h_scalefull; break;
+		}
+	}
 }
