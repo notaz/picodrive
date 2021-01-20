@@ -36,6 +36,32 @@ void pemu_validate_config(void)
 #endif
 }
 
+#define is_16bit_mode() \
+	(currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
+
+static int get_renderer(void)
+{
+	if (PicoIn.AHW & PAHW_32X)
+		return currentConfig.renderer32x;
+	else
+		return currentConfig.renderer;
+}
+
+static void change_renderer(int diff)
+{
+	int *r;
+	if (PicoIn.AHW & PAHW_32X)
+		r = &currentConfig.renderer32x;
+	else
+		r = &currentConfig.renderer;
+	*r += diff;
+
+	if      (*r >= RT_COUNT)
+		*r = 0;
+	else if (*r < 0)
+		*r = RT_COUNT - 1;
+}
+
 static void draw_cd_leds(void)
 {
 	int led_reg, pitch, scr_offs, led_offs;
@@ -57,10 +83,11 @@ static void draw_cd_leds(void)
 
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
-	if (currentConfig.renderer != RT_16BIT && !(PicoIn.AHW & PAHW_32X)) {
+	if (!is_16bit_mode()) {
+		// convert the 8 bit CLUT output to 16 bit RGB
 		unsigned short *pd = (unsigned short *)g_screen_ptr +
 					out_y * g_screen_ppitch + out_x;
-		unsigned char *ps = Pico.est.Draw2FB + 328*out_y + 8; //+ out_x;
+		unsigned char *ps = Pico.est.Draw2FB + 328*out_y + 8;
 		unsigned short *pal = Pico.est.HighPal;
 		int i, x;
 
@@ -83,13 +110,13 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 
 void plat_video_set_buffer(void *buf)
 {
-	if (currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
+	if (is_16bit_mode())
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
 }
 
 static void apply_renderer(void)
 {
-	switch (currentConfig.renderer) {
+	switch (get_renderer()) {
 	case RT_16BIT:
 		PicoIn.opt &= ~POPT_ALT_RENDERER;
 		PicoIn.opt &= ~POPT_DIS_32C_BORDER;
@@ -117,16 +144,16 @@ static void apply_renderer(void)
 
 void plat_video_toggle_renderer(int change, int is_menu)
 {
-	currentConfig.renderer += change;
-	if      (currentConfig.renderer >= RT_COUNT)
-		currentConfig.renderer = 0;
-	else if (currentConfig.renderer < 0)
-		currentConfig.renderer = RT_COUNT - 1;
+	change_renderer(change);
 
-	if (!is_menu)
+	if (!is_menu) {
 		apply_renderer();
 
-	emu_status_msg(renderer_names[currentConfig.renderer]);
+		if (PicoIn.AHW & PAHW_32X)
+			emu_status_msg(renderer_names32x[get_renderer()]);
+		else
+			emu_status_msg(renderer_names[get_renderer()]);
+	}
 }
 
 void plat_status_msg_clear(void)
@@ -175,7 +202,7 @@ void plat_debug_cat(char *str)
 void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 {
 	// clear whole screen in all buffers
-	if (currentConfig.renderer != RT_16BIT && !(PicoIn.AHW & PAHW_32X))
+	if (!is_16bit_mode())
 		memset32(Pico.est.Draw2FB, 0xe0e0e0e0, (320+8) * (8+240+8) / 4);
 	plat_video_clear_buffers();
 
