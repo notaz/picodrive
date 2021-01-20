@@ -2017,6 +2017,7 @@ void PicoDrawSetOutBufMD(void *dest, int increment)
     // kludge for no-copy mode, using ALT_RENDERER layout
     PicoDrawSetInternalBuf(dest, increment);
   } else if (FinalizeLine == NULL) {
+    PicoDrawSetInternalBuf(dest, increment); // needed for Mode4
     PicoDraw2SetOutBuf(dest, increment);
   } else if (dest != NULL) {
     DrawLineDestBase = dest;
