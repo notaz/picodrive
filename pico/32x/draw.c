@@ -13,10 +13,10 @@
 #define PXCONV(t)   (t)
 #define PXPRIO      0x8000  // prio in MSB
 #elif defined(USE_BGR565)
-#define PXCONV(t)   (((t)&m1)  | (((t)&(m2|m3)) << 1))
+#define PXCONV(t)   (((t)&mr)  | (((t)&(mg|mb)) << 1) | (((t)&mp) >> 10))
 #define PXPRIO      0x0020  // prio in LS green bit
 #else // RGB565 
-#define PXCONV(t)   ((((t)&m1) << 11) | (((t)&m2) << 1) | (((t)&m3) >> 10))
+#define PXCONV(t)   ((((t)&mr) << 11) | (((t)&mg) << 1) | (((t)&(mp|mb)) >> 10))
 #define PXPRIO      0x0020  // prio in LS green bit
 #endif
 
@@ -31,9 +31,10 @@ static void convert_pal555(int invert_prio)
 {
   u32 *ps = (void *)Pico32xMem->pal;
   u32 *pd = (void *)Pico32xMem->pal_native;
-  u32 m1 = 0x001f001f;
-  u32 m2 = 0x03e003e0;
-  u32 m3 = 0xfc00fc00; // includes prio bit
+  u32 mr = 0x001f001f; // masks for red, green, blue, prio
+  u32 mg = 0x03e003e0;
+  u32 mb = 0x7c007c00;
+  u32 mp = 0x80008000;
   u32 inv = 0;
   int i;
 
@@ -51,9 +52,10 @@ static void convert_pal555(int invert_prio)
 // direct color mode
 #define do_line_dc(pd, p32x, pmd, inv, pmd_draw_code)             \
 {                                                                 \
-  const u16 m1 = 0x001f;                                          \
-  const u16 m2 = 0x03e0;                                          \
-  const u16 m3 = 0x7c00;                                          \
+  const u16 mr = 0x001f;                                          \
+  const u16 mg = 0x03e0;                                          \
+  const u16 mb = 0x7c00;                                          \
+  const u16 mp = 0x0000;                                          \
   unsigned short t;                                               \
   int i = 320;                                                    \
                                                                   \
@@ -308,7 +310,7 @@ void PicoDraw32xLayerMdOnly(int offs, int lines)
 
   if (!(Pico.video.reg[12] & 1)) {
     // 32col mode. for some render modes MD pixel data carries an offset
-    if (!(PicoIn.opt & (POPT_ALT_RENDERER|POPT_DIS_32C_BORDER)))
+    if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
       pmd += 32;
     poffs = 32;
     plen = 256;
@@ -338,11 +340,11 @@ void PicoDraw32xLayerMdOnly(int offs, int lines)
 void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode)
 {
   if (which == PDF_RGB555) {
-    // need CLUT pixels in PicoDraw2FB for layer transparency
+    // CLUT pixels needed as well, for layer priority
     PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328);
     PicoDrawSetOutBufMD(NULL, 0);
   } else {
-    // use the same layout as alt renderer
+    // store CLUT pixels, same layout as alt renderer
     PicoDrawSetInternalBuf(NULL, 0);
     PicoDrawSetOutBufMD(Pico.est.Draw2FB, 328);
   }
