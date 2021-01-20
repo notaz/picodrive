@@ -82,7 +82,7 @@ static const char *men_dummy[] = { NULL };
 #define MENU_OPTIONS_ADV
 #endif
 
-static void make_bg(int no_scale)
+static void make_bg(int no_scale, int from_screen)
 {
 	unsigned short *src = (void *)g_menubg_src_ptr;
 	int w = g_menubg_src_w ? g_menubg_src_w : g_screen_width;
@@ -90,6 +90,13 @@ static void make_bg(int no_scale)
 	int pp = g_menubg_src_pp ? g_menubg_src_pp : g_screen_ppitch;
 	short *dst;
 	int x, y;
+
+	if (from_screen) {
+		src = g_screen_ptr;
+		w = g_screen_width;
+		h = g_screen_height;
+		pp = g_screen_ppitch;
+	}
 
 	if (src == NULL) {
 		memset(g_menubg_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
@@ -144,7 +151,7 @@ static void menu_enter(int is_rom_loaded)
 {
 	if (is_rom_loaded)
 	{
-		make_bg(0);
+		make_bg(0, 0);
 	}
 	else
 	{
@@ -178,7 +185,7 @@ static void draw_savestate_bg(int slot)
 	/* do a frame and fetch menu bg */
 	pemu_forced_frame(0, 0);
 
-	make_bg(0);
+	make_bg(0, 1);
 
 	PicoTmpStateRestore(tmp_state);
 }
@@ -852,7 +859,7 @@ static void draw_frame_debug(void)
 	if (!(pv->debug_p & PVD_KILL_32X))  memcpy(layer_str + 26, "32x", 4);
 
 	pemu_forced_frame(1, 0);
-	make_bg(1);
+	make_bg(1, 1);
 
 	smalltext_out16(4, 1, "build: r" REVISION "  "__DATE__ " " __TIME__ " " COMPILER, 0xffff);
 	smalltext_out16(4, g_menuscreen_h - me_sfont_h, layer_str, 0xffff);
@@ -882,7 +889,7 @@ static void debug_menu_loop(void)
 			case 1: draw_frame_debug();
 				break;
 			case 2: pemu_forced_frame(1, 0);
-				make_bg(1);
+				make_bg(1, 1);
 				PDebugShowSpriteStats((unsigned short *)g_menuscreen_ptr
 					+ (g_menuscreen_h/2 - 240/2) * g_menuscreen_pp
 					+ g_menuscreen_w/2 - 320/2, g_menuscreen_pp);
