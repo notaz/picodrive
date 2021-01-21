@@ -144,6 +144,8 @@ get_define OFS_EST_ PicoEState PicoMem_vram	; echo "$line" >>$fn
 get_define OFS_EST_ PicoEState PicoMem_cram	; echo "$line" >>$fn
 get_define OFS_EST_ PicoEState PicoOpt		; echo "$line" >>$fn
 get_define OFS_EST_ PicoEState Draw2FB		; echo "$line" >>$fn
+get_define OFS_EST_ PicoEState Draw2Width	; echo "$line" >>$fn
+get_define OFS_EST_ PicoEState Draw2Start	; echo "$line" >>$fn
 get_define OFS_EST_ PicoEState HighPal		; echo "$line" >>$fn
 
 get_define OFS_PMEM_ PicoMem vram		; echo "$line" >>$fn

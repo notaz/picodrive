@@ -355,8 +355,8 @@ struct PicoEState
   unsigned char *HighCol;
   u32 *HighPreSpr;
   struct Pico *Pico;
-  void *PicoMem_vram;
-  void *PicoMem_cram;
+  unsigned short *PicoMem_vram;
+  unsigned short *PicoMem_cram;
   unsigned int  *PicoOpt;
   unsigned char *Draw2FB;
   int Draw2Width;

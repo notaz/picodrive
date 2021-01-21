@@ -34,7 +34,7 @@ void (*PicoPrepareCram)()=0;            // prepares PicoCramHigh for renderer to
 
 // stuff available in asm:
 #ifdef _ASM_DRAW_C
-void BackFillFull(void *dst, int reg7);
+void BackFillFull(void *dst, int reg7, int lwidth);
 void DrawLayerFull(int plane, u32 *hcache, int planestart, int planeend,
                    struct PicoEState *est);
 void DrawTilesFromCacheF(u32 *hc, struct PicoEState *est);
@@ -183,7 +183,7 @@ static void DrawWindowFull(int start, int end, int prio, struct PicoEState *est)
 	nametab += nametab_step*(start-scrstart);
 
 	// check priority
-	code=PicoMem.vram[nametab+tile_start];
+	code=est->PicoMem_vram[nametab+tile_start];
 	if ((code>>15) != prio) return; // hack: just assume that whole window uses same priority
 
 	scrpos+=8*est->Draw2Width+8;
@@ -197,7 +197,7 @@ static void DrawWindowFull(int start, int end, int prio, struct PicoEState *est)
 //			unsigned short *pal=NULL;
 			unsigned char pal;
 
-			code=PicoMem.vram[nametab+tilex];
+			code=est->PicoMem_vram[nametab+tilex];
 			if (code==blank) continue;
 
 			// Get tile address/2:
@@ -250,7 +250,7 @@ static void DrawLayerFull(int plane, u32 *hcache, int planestart, int planeend,
 
 	if(!(pvid->reg[11]&3)) { // full screen scroll
 		// Get horizontal scroll value
-		hscroll=PicoMem.vram[htab&0x7fff];
+		hscroll=est->PicoMem_vram[htab&0x7fff];
 		htab = 0; // this marks that we don't have to update scroll value
 	}
 
@@ -297,7 +297,7 @@ static void DrawLayerFull(int plane, u32 *hcache, int planestart, int planeend,
 		if(htab) {
 			int htaddr=htab+(trow<<4);
 			if(trow) htaddr-=(vscroll&7)<<1;
-			hscroll=PicoMem.vram[htaddr&0x7fff];
+			hscroll=est->PicoMem_vram[htaddr&0x7fff];
 		}
 
 		// Draw tiles across screen:
@@ -323,7 +323,7 @@ static void DrawLayerFull(int plane, u32 *hcache, int planestart, int planeend,
 #endif
 			vsidx++;
 
-			code=PicoMem.vram[nametab_row+(tilex&xmask)];
+			code=est->PicoMem_vram[nametab_row+(tilex&xmask)];
 			if (code==blank) continue;
 
 			if (code>>15) { // high priority tile
@@ -442,18 +442,19 @@ static void DrawSpriteFull(unsigned int *sprite, struct PicoEState *est)
 	pal=(unsigned char)((code>>9)&0x30);
 
 	// goto first vertically visible tile
-	while(sy <= scrstart*8) { sy+=8; tile+=tdeltay; height--; }
+	sy -= scrstart*8;
+	while(sy <= 0) { sy+=8; tile+=tdeltay; height--; }
 
 	scrpos = est->Draw2FB;
 	if (est->rendstatus&PDRAW_BORDER_32)
 		scrpos += 32;
-	scrpos+=(sy-scrstart*8)*est->Draw2Width;
+	scrpos+=sy*est->Draw2Width;
 
 	for (; height > 0; height--, sy+=8, tile+=tdeltay)
 	{
 		int w = width, x=sx, t=tile, s;
 
-		if((sy-scrstart*8) >= END_ROW*8+8) return; // offscreen
+		if(sy >= END_ROW*8+8) return; // offscreen
 
 		for (; w; w--,x+=8,t+=tdeltax)
 		{
@@ -502,7 +503,7 @@ static void DrawAllSpritesFull(int prio, int maxwidth, struct PicoEState *est)
 		unsigned int *sprite=NULL;
 		int code, code2, sx, sy, height;
 
-		sprite=(u32 *)(PicoMem.vram+((table+(link<<2))&0x7ffc)); // Find sprite
+		sprite=(u32 *)(est->PicoMem_vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
 		// get sprite info
 		code = sprite[0];
@@ -559,16 +560,18 @@ static void DrawAllSpritesFull(int prio, int maxwidth, struct PicoEState *est)
 }
 
 #ifndef _ASM_DRAW_C
-static void BackFillFull(void *dst, int reg7)
+static void BackFillFull(unsigned char *dst, int reg7, int lwidth)
 {
 	unsigned int back;
+	int i;
 
 	// Start with a background color:
 	back=reg7&0x3f;
 	back|=back<<8;
 	back|=back<<16;
 
-	memset32(dst, back, Pico.est.Draw2Width*(8+(END_ROW-START_ROW)*8)/4);
+	for (i = 0, dst += 8*lwidth; i < (END_ROW-START_ROW)*8; i++, dst += lwidth)
+		memset32(dst+8, back, 320/4);
 }
 #endif
 
@@ -589,18 +592,18 @@ static void DrawDisplayFull(void)
 	}
 	if(est->rendstatus & PDRAW_30_ROWS) {
 		// In 240 line mode, the top and bottom 8 lines are omitted
-		// since this renderer always renderers 224 lines
+		// since this renderer always renders 224 lines
 		scrstart ++, scrend ++;
 	}
 	est->Draw2Start = scrstart;
-
-	planestart = scrstart, planeend = scrend;
-	winstart = scrstart, winend = scrend;
 
 	// 32C border for centering? (for asm)
 	est->rendstatus &= ~PDRAW_BORDER_32;
 	if ((est->rendstatus&PDRAW_32_COLS) && !(PicoIn.opt&POPT_DIS_32C_BORDER))
 		est->rendstatus |= PDRAW_BORDER_32;
+
+	planestart = scrstart, planeend = scrend;
+	winstart = scrstart, winend = scrend;
 
 	// horizontal window?
 	if ((win=pvid->reg[0x12]))
@@ -716,7 +719,7 @@ PICO_INTERNAL void PicoFrameFull()
 	if (PicoPrepareCram) PicoPrepareCram();
 
 	// Draw screen:
-	BackFillFull(Pico.est.Draw2FB, Pico.video.reg[7]);
+	BackFillFull(Pico.est.Draw2FB, Pico.video.reg[7], Pico.est.Draw2Width);
 	if (Pico.video.reg[1] & 0x40)
 		DrawDisplayFull();
 
