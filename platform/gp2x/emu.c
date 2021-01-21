@@ -361,6 +361,11 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		// a hack for VR
 		if (PicoIn.AHW & PAHW_SVP)
 			memset32((int *)(Pico.est.Draw2FB+328*8+328*223), 0xe0e0e0e0, 328/4);
+		// clear top and bottom of overlap trash
+		if (!(Pico.est.rendstatus & PDRAW_30_ROWS)) {
+			memset32((int *)(Pico.est.Draw2FB+8*(224+8)), 0xe0e0e0e0, 328*8/4);
+			memset32((int *)(Pico.est.Draw2FB), 0xe0e0e0e0, 328*8/4);
+		}
 		// do actual copy
 		vidcpyM2(g_screen_ptr, Pico.est.Draw2FB+328*8,
 			!(Pico.video.reg[12] & 1), !(PicoIn.opt & POPT_DIS_32C_BORDER));
@@ -394,7 +399,10 @@ void plat_video_flip(void)
 
 	if (is_16bit_mode())
 		stride *= 2;
-	PicoDrawSetOutBuf(g_screen_ptr, stride);
+	// the fast renderer has overlap areas and can't directly render to
+	// screen buffers. Its output is copied to screen in finalize_frame
+	if (currentConfig.renderer != RT_8BIT_FAST || (PicoIn.AHW & PAHW_32X))
+		PicoDrawSetOutBuf(g_screen_ptr, stride);
 }
 
 /* XXX */
@@ -447,7 +455,7 @@ void plat_status_msg_clear(void)
 		} else {
 			if (is_8bit) {
 				char *d = (char *)gp2x_screens[i] + 320 * (240-8);
-				memset32((int *)d, 0xe0, 320 * 8 / 4);
+				memset32((int *)d, 0xe0e0e0e0, 320 * 8 / 4);
 			} else {
 				char *d = (char *)gp2x_screens[i] + 320*2 * (240-8);
 				memset32((int *)d, 0, 2*320 * 8 / 4);
