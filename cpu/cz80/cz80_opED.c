@@ -680,7 +680,7 @@ OP_OUTX:
 		res = (UINT32)zL + (UINT32)val;
 		if (val & SF) F |= NF;
 		if (res & 0x100) F |= HF | CF;
-		F |= SZP[(UINT8)(res & 0x07) - zB] & PF;
+		F |= SZP[(UINT8)(res & 0x07) ^ zB] & PF;
 		zF = F;
 		RET(12)
 
@@ -712,7 +712,7 @@ OP_OTXR:
 		res = (UINT32)zL + (UINT32)val;
 		if (val & SF) F |= NF;
 		if (res & 0x100) F |= HF | CF;
-		F |= SZP[(UINT8)(res & 0x07) - zB] & PF;
+		F |= SZP[(UINT8)(res & 0x07) ^ zB] & PF;
 		zF = F;
 		if (zB)
 		{
