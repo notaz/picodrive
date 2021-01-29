@@ -38,17 +38,20 @@
 
 // PPC64: params: r3-r10, return: r3, temp: r0,r11-r12, saved: r14-r31
 // reserved: r0(zero), r1(stack), r2(TOC), r13(TID)
+// additionally reserved on OSX: r31(PIC), r30(frame), r11(parentframe)
+// for OSX PIC code, on function calls r12 must contain the called address
 #define RET_REG		3
 #define PARAM_REGS	{ 3, 4, 5, 6, 7, 8, 9, 10 }
-#define PRESERVED_REGS	{ 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 }
-#define TEMPORARY_REGS	{ 11, 12 }
+#define PRESERVED_REGS	{ 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29 }
+#define TEMPORARY_REGS	{ 12 }
 
-#define CONTEXT_REG	31
-#define STATIC_SH2_REGS	{ SHR_SR,30 , SHR_R(0),29 , SHR_R(1),28 }
+#define CONTEXT_REG	29
+#define STATIC_SH2_REGS	{ SHR_SR,28 , SHR_R(0),27 , SHR_R(1),26 }
 
 // if RA is 0 in non-update memory insns, ADDI/ADDIS, ISEL, it aliases with zero
 #define Z0		0  // zero register
 #define SP		1  // stack pointer
+#define CR		12 // call register
 // SPR registers
 #define XER		-1 // exception register
 #define LR		-8 // link register
@@ -160,15 +163,13 @@ enum { OPS_STD, OPS_STDU /*,OPS_STQ*/ };
 #define PPC_ADD_REG(rt, ra, rb) \
 	PPC_OP_REG(OP__EXT,OPE_ADD,rt,ra,rb)
 #define PPC_ADDC_REG(rt, ra, rb) \
-	PPC_OP_REG(OP__EXT,OPE_ADD|XOE,rt,ra,rb)
+	PPC_OP_REG(OP__EXT,OPE_ADDC,rt,ra,rb)
 #define PPC_SUB_REG(rt, rb, ra) /* NB reversed args (rb-ra) */ \
 	PPC_OP_REG(OP__EXT,OPE_SUBF,rt,ra,rb)
 #define PPC_SUBC_REG(rt, rb, ra) \
-	PPC_OP_REG(OP__EXT,OPE_SUBF|XOE,rt,ra,rb)
+	PPC_OP_REG(OP__EXT,OPE_SUBFC,rt,ra,rb)
 #define PPC_NEG_REG(rt, ra) \
 	PPC_OP_REG(OP__EXT,OPE_NEG,rt,ra,_)
-#define PPC_NEGC_REG(rt, ra) \
-	PPC_OP_REG(OP__EXT,OPE_NEG|XOE,rt,ra,_)
 
 #define PPC_CMP_REG(ra, rb) \
 	PPC_OP_REG(OP__EXT,OPE_CMP,1,ra,rb)
@@ -1474,8 +1475,8 @@ static int emith_cond_check(int cond)
 	emith_jump_reg(r)
 
 #define emith_jump_ctx(offs) do { \
-	emith_ctx_read_ptr(AT, offs); \
-	emith_jump_reg(AT); \
+	emith_ctx_read_ptr(CR, offs); \
+	emith_jump_reg(CR); \
 } while (0)
 #define emith_jump_ctx_c(cond, offs) \
 	emith_jump_ctx(offs)
@@ -1493,20 +1494,23 @@ static int emith_cond_check(int cond)
 } while(0)
 
 #define emith_call_ctx(offs) do { \
-	emith_ctx_read_ptr(AT, offs); \
-	emith_call_reg(AT); \
+	emith_ctx_read_ptr(CR, offs); \
+	emith_call_reg(CR); \
 } while (0)
 
 #define emith_abijump_reg(r) \
-	emith_jump_reg(r)
+	if ((r) != CR) emith_move_r_r(CR, r); \
+	emith_jump_reg(CR)
 #define emith_abijump_reg_c(cond, r) \
 	emith_abijump_reg(r)
 #define emith_abicall(target) \
-	emith_call(target)
+	emith_move_r_ptr_imm(CR, target); \
+	emith_call_reg(CR);
 #define emith_abicall_cond(cond, target) \
 	emith_abicall(target)
 #define emith_abicall_reg(r) \
-	emith_call_reg(r)
+	if ((r) != CR) emith_move_r_r(CR, r); \
+	emith_call_reg(CR)
 
 #define emith_call_cleanup()	/**/
 
@@ -1544,12 +1548,37 @@ static int emith_cond_check(int cond)
 } while (0)
 
 
+// this should normally be in libc clear_cache; however, it sometimes isn't.
+static NOINLINE void host_instructions_updated(void *base, void *end, int force)
+{
+	int step = 32, lgstep = 5;
+	char *_base = base, *_end = end;
+	int count = (_end - _base + step-1) >> lgstep;
+
+	if (count <= 0) count = 1;	// make sure count is positive
+
+	asm volatile(
+	"	mtctr	%1;"
+	"0:	dcbst	0,%0;"
+	"	add	%0, %0, %2;"
+	"	bdnz	0b;"
+	"	sync"
+	: "+r"(_base) : "r"(count), "r"(step) : "ctr");
+
+	asm volatile(
+	"	mtctr	%1;"
+	"0:	icbi	0,%0;"
+	"	add	%0, %0, %2;"
+	"	bdnz	0b;"
+	"	isync"
+	: "+r"(base) : "r"(count), "r"(step) : "ctr");
+}
+
 // emitter ABI stuff
 #define emith_pool_check()	/**/
 #define emith_pool_commit(j)	/**/
 #define emith_insn_ptr()	((u8 *)tcache_ptr)
 #define emith_flush()		/**/
-#define host_instructions_updated(base, end, force) __builtin___clear_cache(base, end)
 #define emith_update_cache()	/**/
 #define emith_rw_offs_max()	0x7fff
 
