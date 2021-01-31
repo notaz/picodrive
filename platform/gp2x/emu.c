@@ -732,7 +732,7 @@ void pemu_forced_frame(int no_scale, int do_emu)
 
 	if (!no_scale)
 		no_scale = currentConfig.scaling == EOPT_SCALE_NONE;
-	emu_cmn_forced_frame(no_scale, do_emu);
+	emu_cmn_forced_frame(no_scale, do_emu, g_screen_ptr);
 
 	g_menubg_src_ptr = g_screen_ptr;
 	doing_bg_frame = 0;

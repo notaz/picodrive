@@ -146,7 +146,7 @@ void  emu_sound_stop(void);
 void  emu_sound_wait(void);
 
 /* used by some (but not all) platforms */
-void  emu_cmn_forced_frame(int no_scale, int do_emu);
+void  emu_cmn_forced_frame(int no_scale, int do_emu, void *buf);
 
 /* stuff to be implemented by platform code */
 extern const char *renderer_names[];

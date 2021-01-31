@@ -1212,7 +1212,7 @@ static void mkdir_path(char *path_with_reserve, int pos, const char *name)
 		lprintf("failed to create: %s\n", path_with_reserve);
 }
 
-void emu_cmn_forced_frame(int no_scale, int do_emu)
+void emu_cmn_forced_frame(int no_scale, int do_emu, void *buf)
 {
 	int po_old = PicoIn.opt;
 	int y;
@@ -1227,7 +1227,7 @@ void emu_cmn_forced_frame(int no_scale, int do_emu)
 		PicoIn.opt |= POPT_EN_SOFTSCALE;
 
 	PicoDrawSetOutFormat(PDF_RGB555, 1);
-	PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
+	PicoDrawSetOutBuf(buf, g_screen_ppitch * 2);
 	Pico.m.dirtyPal = 1;
 	Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 	if (do_emu)

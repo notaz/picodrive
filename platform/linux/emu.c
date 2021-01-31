@@ -81,6 +81,13 @@ static void draw_cd_leds(void)
 #undef p
 }
 
+static unsigned short *get_16bit_start(unsigned short *buf)
+{
+	// center the output on the screen
+	int offs = (g_screen_height-240)/2 * g_screen_ppitch + (g_screen_width-320)/2;
+	return buf + offs;
+}
+
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	if (!is_16bit_mode()) {
@@ -91,11 +98,12 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		unsigned short *pal = Pico.est.HighPal;
 		int i, x;
 
+		pd = get_16bit_start(pd);
 		PicoDrawUpdateHighPal();
 		for (i = 0; i < out_h; i++, ps += 8) {
 			for (x = 0; x < out_w; x++)
 				*pd++ = pal[*ps++];
-			pd += 320 - out_w;
+			pd += g_screen_ppitch - out_w;
 			ps += 320 - out_w;
 		}
 	}
@@ -111,7 +119,7 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 void plat_video_set_buffer(void *buf)
 {
 	if (is_16bit_mode())
-		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
+		PicoDrawSetOutBuf(get_16bit_start(buf), g_screen_ppitch * 2);
 }
 
 static void apply_renderer(void)
@@ -121,7 +129,7 @@ static void apply_renderer(void)
 		PicoIn.opt &= ~POPT_ALT_RENDERER;
 		PicoIn.opt &= ~POPT_DIS_32C_BORDER;
 		PicoDrawSetOutFormat(PDF_RGB555, 0);
-		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
+		PicoDrawSetOutBuf(get_16bit_start(g_screen_ptr), g_screen_ppitch * 2);
 		break;
 	case RT_8BIT_ACC:
 		PicoIn.opt &= ~POPT_ALT_RENDERER;
@@ -137,7 +145,7 @@ static void apply_renderer(void)
 	}
 
 	if (PicoIn.AHW & PAHW_32X)
-		PicoDrawSetOutBuf(g_screen_ptr, g_screen_ppitch * 2);
+		PicoDrawSetOutBuf(get_16bit_start(g_screen_ptr), g_screen_ppitch * 2);
 
 	Pico.m.dirtyPal = 1;
 }
@@ -181,11 +189,13 @@ void plat_update_volume(int has_changed, int is_up)
 
 void pemu_forced_frame(int no_scale, int do_emu)
 {
+	unsigned short *pd = get_16bit_start(g_screen_ptr);
+
 	PicoIn.opt &= ~POPT_DIS_32C_BORDER;
 	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
 
-	emu_cmn_forced_frame(no_scale, do_emu);
+	emu_cmn_forced_frame(no_scale, do_emu, pd);
 
 	g_menubg_src_ptr = g_screen_ptr;
 }
