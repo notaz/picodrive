@@ -60,54 +60,6 @@
 #define FAMEC_EXTRA_INLINE INLINE
 #endif
 
-#include <pico/pico_types.h>
-/*
-#ifdef u8
-#undef u8
-#endif
-
-#ifdef s8
-#undef s8
-#endif
-
-#ifdef u16
-#undef u16
-#endif
-
-#ifdef s16
-#undef s16
-#endif
-
-#ifdef u32
-#undef u32
-#endif
-
-#ifdef s32
-#undef s32
-#endif
-
-#ifdef uptr
-#undef uptr
-#endif
-
-#define u8	unsigned char
-#define s8	signed char
-#define u16	unsigned short
-#define s16	signed short
-#define u32	unsigned int
-#define s32	signed int
-#define uptr	uintptr_t
-*/
-
-/*
-typedef unsigned char	u8;
-typedef signed char	s8;
-typedef unsigned short	u16;
-typedef signed short	s16;
-typedef unsigned int	u32;
-typedef signed int	s32;
-*/
-
 #ifndef M68K_OK
     #define M68K_OK 0
 #endif
@@ -807,7 +759,7 @@ static FAMEC_EXTRA_INLINE u32 execute_exception_group_0(M68K_CONTEXT *ctx, s32 v
 // main exec function
 //////////////////////
 
-int fm68k_emulate(M68K_CONTEXT *ctx, s32 cycles, fm68k_call_reason reason)
+int fm68k_emulate(M68K_CONTEXT *ctx, int cycles, fm68k_call_reason reason)
 {
 #ifndef FAMEC_NO_GOTOS
 	u32 Opcode;

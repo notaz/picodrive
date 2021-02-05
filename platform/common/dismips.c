@@ -333,7 +333,7 @@ int dismips(uintptr_t pc, uint32_t insn, char *buf, size_t buflen, unsigned long
 
 	*sym = 0;
 	if (pi == NULL) {
-		snprintf(buf, buflen, "0x%x", insn);
+		snprintf(buf, buflen, "0x%08lx", (unsigned long)insn);
 		return 0;
 	}
 
@@ -348,7 +348,7 @@ int dismips(uintptr_t pc, uint32_t insn, char *buf, size_t buflen, unsigned long
 		break;
 	case REG_ST:
 		if ((insn & 0x38) == 0x30 /*T..*/)
-			snprintf(buf, buflen, "%s %s, %s (code %d)", pi->name, rs, rt, (insn>>6) & 0x3ff);
+			snprintf(buf, buflen, "%s %s, %s (code %d)", pi->name, rs, rt, (int)(insn>>6) & 0x3ff);
 		else
 			snprintf(buf, buflen, "%s %s, %s", pi->name, rs, rt);
 		break;
@@ -420,7 +420,7 @@ int dismips(uintptr_t pc, uint32_t insn, char *buf, size_t buflen, unsigned long
 		snprintf(buf, buflen, "%s %s, %d", pi->name, rs, imm);
 		break;
 	case SB_CODE:
-		snprintf(buf, buflen, "%s %d", pi->name, (insn>>6) & 0xfffff);
+		snprintf(buf, buflen, "%s %ld", pi->name, (unsigned long)(insn>>6) & 0xfffff);
 		break;
 	}
 	return 1;

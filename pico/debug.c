@@ -50,9 +50,9 @@ char *PDebugMain(void)
   r = (reg[5]<<9)+(reg[6]<<11);
   sprintf(dstrp, "sprite #0: %04x %04x %04x %04x\n",PicoMem.vram[r/2],PicoMem.vram[r/2+1],PicoMem.vram[r/2+2],PicoMem.vram[r/2+3]); MVP;
   sprintf(dstrp, "pal: %i, hw: %02x, frame#: %i, cycles: %u\n", Pico.m.pal, Pico.m.hardware, Pico.m.frame_count, SekCyclesDone()); MVP;
-  sprintf(dstrp, "M68k: PC: %06x, SR: %04x, irql: %i\n", SekPc, SekSr, SekIrqLevel); MVP;
+  sprintf(dstrp, "M68k: PC: %06lx, SR: %04x, irql: %i\n", (ulong)SekPc, SekSr, SekIrqLevel); MVP;
   for (r = 0; r < 8; r++) {
-    sprintf(dstrp, "d%i=%08x, a%i=%08x\n", r, SekDar(r), r, SekDar(r+8)); MVP;
+    sprintf(dstrp, "d%i=%08lx, a%i=%08lx\n", r, (ulong)SekDar(r), r, (ulong)SekDar(r+8)); MVP;
   }
   sprintf(dstrp, "z80Run: %i, z80_reset: %i, z80_bnk: %06x\n", Pico.m.z80Run, Pico.m.z80_reset, Pico.m.z80_bank68k<<15); MVP;
   z80_debug(dstrp); MVP;
@@ -86,12 +86,12 @@ char *PDebug32x(void)
     i*2, r[i+0], r[i+1], r[i+2], r[i+3], r[i+4], r[i+5], r[i+6], r[i+7]); MVP;
 
   sprintf(dstrp, "                   mSH2              sSH2\n"); MVP;
-  sprintf(dstrp, "PC,SR %08x,     %03x %08x,     %03x\n", sh2_pc(&msh2), sh2_sr(0), sh2_pc(&ssh2), sh2_sr(1)); MVP;
+  sprintf(dstrp, "PC,SR %08lx,     %03x %08lx,     %03x\n", (ulong)sh2_pc(&msh2), (uint)sh2_sr(0), (ulong)sh2_pc(&ssh2), (uint)sh2_sr(1)); MVP;
   for (i = 0; i < 16/2; i++) {
-    sprintf(dstrp, "R%d,%2d %08x,%08x %08x,%08x\n", i, i + 8,
-      sh2_reg(0,i), sh2_reg(0,i+8), sh2_reg(1,i), sh2_reg(1,i+8)); MVP;
+    sprintf(dstrp, "R%d,%2d %08lx,%08lx %08lx,%08lx\n", i, i + 8,
+      (ulong)sh2_reg(0,i), (ulong)sh2_reg(0,i+8), (ulong)sh2_reg(1,i), (ulong)sh2_reg(1,i+8)); MVP;
   }
-  sprintf(dstrp, "gb,vb %08x,%08x %08x,%08x\n", sh2_gbr(0), sh2_vbr(0), sh2_gbr(1), sh2_vbr(1)); MVP;
+  sprintf(dstrp, "gb,vb %08lx,%08lx %08lx,%08lx\n", (ulong)sh2_gbr(0), (ulong)sh2_vbr(0), (ulong)sh2_gbr(1), (ulong)sh2_vbr(1)); MVP;
   sprintf(dstrp, "IRQs/mask:        %02x/%02x             %02x/%02x\n",
     Pico32x.sh2irqi[0], Pico32x.sh2irq_mask[0], Pico32x.sh2irqi[1], Pico32x.sh2irq_mask[1]); MVP;
 #else

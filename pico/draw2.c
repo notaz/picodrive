@@ -407,7 +407,7 @@ static void DrawTilesFromCacheF(u32 *hc, struct PicoEState *est)
 
 
 // sx and sy are coords of virtual screen with 8pix borders on top and on left
-static void DrawSpriteFull(unsigned int *sprite, struct PicoEState *est)
+static void DrawSpriteFull(u32 *sprite, struct PicoEState *est)
 {
 	int width=0,height=0;
 //	unsigned short *pal=NULL;
@@ -487,7 +487,7 @@ static void DrawAllSpritesFull(int prio, int maxwidth, struct PicoEState *est)
 	struct PicoVideo *pvid=&est->Pico->video;
 	int table=0,maskrange=0;
 	int i,u,link=0;
-	unsigned int *sprites[80]; // Sprites
+	u32 *sprites[80]; // Sprites
 	int y_min=START_ROW*8, y_max=END_ROW*8; // for a simple sprite masking
 	int max_sprites = pvid->reg[12]&1 ? 80 : 64;
 
@@ -500,7 +500,7 @@ static void DrawAllSpritesFull(int prio, int maxwidth, struct PicoEState *est)
 
 	for (i = u = 0; u < max_sprites && link < max_sprites; u++)
 	{
-		unsigned int *sprite=NULL;
+		u32 *sprite=NULL;
 		int code, code2, sx, sy, height;
 
 		sprite=(u32 *)(est->PicoMem_vram+((table+(link<<2))&0x7ffc)); // Find sprite

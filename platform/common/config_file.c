@@ -401,7 +401,7 @@ static int parse_bind_val(const char *val, int *type)
 
 static void keys_parse_all(FILE *f)
 {
-	char line[256], *var, *val;
+	char line[640], *var, *val;
 	int dev_id = -1;
 	int acts, type;
 	int ret;

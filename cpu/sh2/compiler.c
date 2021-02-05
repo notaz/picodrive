@@ -187,20 +187,20 @@ static char sh2dasm_buff[64];
 
 #define SH2_DUMP(sh2, reason) { \
 	char ms = (sh2)->is_slave ? 's' : 'm'; \
-	printf("%csh2 %s %08x\n", ms, reason, (sh2)->pc); \
-	printf("%csh2 r0-7  %08x %08x %08x %08x %08x %08x %08x %08x\n", ms, \
-		(sh2)->r[0], (sh2)->r[1], (sh2)->r[2], (sh2)->r[3], \
-		(sh2)->r[4], (sh2)->r[5], (sh2)->r[6], (sh2)->r[7]); \
-	printf("%csh2 r8-15 %08x %08x %08x %08x %08x %08x %08x %08x\n", ms, \
-		(sh2)->r[8], (sh2)->r[9], (sh2)->r[10], (sh2)->r[11], \
-		(sh2)->r[12], (sh2)->r[13], (sh2)->r[14], (sh2)->r[15]); \
-	printf("%csh2 pc-ml %08x %08x %08x %08x %08x %08x %08x %08x\n", ms, \
-		(sh2)->pc, (sh2)->ppc, (sh2)->pr, (sh2)->sr&0xfff, \
-		(sh2)->gbr, (sh2)->vbr, (sh2)->mach, (sh2)->macl); \
-	printf("%csh2 tmp-p  %08x %08x %08x %08x %08x %08x %08x %08x\n", ms, \
+	printf("%csh2 %s %08lx\n", ms, reason, (ulong)(sh2)->pc); \
+	printf("%csh2 r0-7  %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n", ms, \
+		(ulong)(sh2)->r[0], (ulong)(sh2)->r[1], (ulong)(sh2)->r[2], (ulong)(sh2)->r[3], \
+		(ulong)(sh2)->r[4], (ulong)(sh2)->r[5], (ulong)(sh2)->r[6], (ulong)(sh2)->r[7]); \
+	printf("%csh2 r8-15 %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n", ms, \
+		(ulong)(sh2)->r[8], (ulong)(sh2)->r[9], (ulong)(sh2)->r[10], (ulong)(sh2)->r[11], \
+		(ulong)(sh2)->r[12], (ulong)(sh2)->r[13], (ulong)(sh2)->r[14], (ulong)(sh2)->r[15]); \
+	printf("%csh2 pc-ml %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n", ms, \
+		(ulong)(sh2)->pc, (ulong)(sh2)->ppc, (ulong)(sh2)->pr, (ulong)(sh2)->sr&0xfff, \
+		(ulong)(sh2)->gbr, (ulong)(sh2)->vbr, (ulong)(sh2)->mach, (ulong)(sh2)->macl); \
+	printf("%csh2 tmp-p  %08x %08x %08x %08x %08x %08lx %08x %08x\n", ms, \
 		(sh2)->drc_tmp, (sh2)->irq_cycles, \
 		(sh2)->pdb_io_csum[0], (sh2)->pdb_io_csum[1], (sh2)->state, \
-		(sh2)->poll_addr, (sh2)->poll_cycles, (sh2)->poll_cnt); \
+		(ulong)(sh2)->poll_addr, (sh2)->poll_cycles, (sh2)->poll_cnt); \
 }
 
 #if (DRC_DEBUG & (8|256|512|1024)) || defined(PDB)
@@ -255,7 +255,7 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
 	char *ps = (char *)sh2, *pf = (char *)&fsh2;
 	for (idx = 0; idx < offsetof(SH2, read8_map); idx += sizeof(u32))
 		if (*(u32 *)(ps+idx) != *(u32 *)(pf+idx))
-			printf("diff reg %ld\n",idx/sizeof(u32));
+			printf("diff reg %ld\n",(long)idx/sizeof(u32));
         exit(1);
       }
       csh2[idx][0] = fsh2;
@@ -716,8 +716,8 @@ static void add_to_hashlist(struct block_entry *be, int tcache_id)
 
 #if (DRC_DEBUG & 2)
   if (be->next != NULL) {
-    printf(" %08x@%p: entry hash collision with %08x@%p\n",
-      be->pc, be->tcache_ptr, be->next->pc, be->next->tcache_ptr);
+    printf(" %08lx@%p: entry hash collision with %08lx@%p\n",
+      (ulong)be->pc, be->tcache_ptr, (ulong)be->next->pc, be->next->tcache_ptr);
     hash_collisions++;
   }
 #endif
@@ -1378,7 +1378,7 @@ static int rcache_is_u16(int hr)
   for (i = 0; i < ARRAY_SIZE(cache_regs); i++) { \
     cp = &cache_regs[i]; \
     if (cp->type != HR_FREE || cp->gregs || cp->locked || cp->flags) \
-      printf("  %d: hr=%d t=%d f=%x c=%d m=%x\n", i, cp->hreg, cp->type, cp->flags, cp->locked, cp->gregs); \
+      printf("  %d: hr=%d t=%d f=%x c=%d m=%lx\n", i, cp->hreg, cp->type, cp->flags, cp->locked, (ulong)cp->gregs); \
   } \
   printf(" guest_regs:\n"); \
   for (i = 0; i < ARRAY_SIZE(guest_regs); i++) { \
@@ -1389,7 +1389,7 @@ static int rcache_is_u16(int hr)
   printf(" gconsts:\n"); \
   for (i = 0; i < ARRAY_SIZE(gconsts); i++) { \
     if (gconsts[i].gregs) \
-      printf("  %d: m=%x v=%x\n", i, gconsts[i].gregs, gconsts[i].val); \
+      printf("  %d: m=%lx v=%lx\n", i, (ulong)gconsts[i].gregs, (ulong)gconsts[i].val); \
   } \
 }
 
@@ -3587,7 +3587,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
       else                                              tmp3 = '*';
     } else if (drcf.loop_type)                          tmp3 = '.';
     else                                                tmp3 = ' ';
-    printf("%c%08x %04x %s\n", tmp3, pc, op, sh2dasm_buff);
+    printf("%c%08lx %04x %s\n", tmp3, (ulong)pc, op, sh2dasm_buff);
 #endif
 
     pc += 2;
@@ -5641,7 +5641,7 @@ static void block_stats(void)
     }
     if (maxb == NULL)
       break;
-    printf("%08x %p %9d %2.3f%%\n", maxb->addr, maxb->tcache_ptr, maxb->refcount,
+    printf("%08lx %p %9d %2.3f%%\n", (ulong)maxb->addr, maxb->tcache_ptr, maxb->refcount,
       (double)maxb->refcount / total * 100.0);
     maxb->refcount = 0;
   }
@@ -5682,7 +5682,7 @@ void entry_stats(void)
     }
     if (maxb == NULL)
       break;
-    printf("%08x %p %9d %2.3f%%\n", maxb->pc, maxb->tcache_ptr, maxb->entry_count,
+    printf("%08lx %p %9d %2.3f%%\n", (ulong)maxb->pc, maxb->tcache_ptr, maxb->entry_count,
       (double)100 * maxb->entry_count / total);
     maxb->entry_count = 0;
   }
@@ -5714,25 +5714,25 @@ static void state_dump(void)
   int i;
 
   SH2_DUMP(&sh2s[0], "master");
-  printf("VBR msh2: %x\n", sh2s[0].vbr);
+  printf("VBR msh2: %lx\n", (ulong)sh2s[0].vbr);
   for (i = 0; i < 0x60; i++) {
-    printf("%08x ",p32x_sh2_read32(sh2s[0].vbr + i*4, &sh2s[0]));
+    printf("%08lx ",(ulong)p32x_sh2_read32(sh2s[0].vbr + i*4, &sh2s[0]));
     if ((i+1) % 8 == 0) printf("\n");
   }
-  printf("stack msh2: %x\n", sh2s[0].r[15]);
+  printf("stack msh2: %lx\n", (ulong)sh2s[0].r[15]);
   for (i = -0x30; i < 0x30; i++) {
-    printf("%08x ",p32x_sh2_read32(sh2s[0].r[15] + i*4, &sh2s[0]));
+    printf("%08lx ",(ulong)p32x_sh2_read32(sh2s[0].r[15] + i*4, &sh2s[0]));
     if ((i+1) % 8 == 0) printf("\n");
   }
   SH2_DUMP(&sh2s[1], "slave");
-  printf("VBR ssh2: %x\n", sh2s[1].vbr);
+  printf("VBR ssh2: %lx\n", (ulong)sh2s[1].vbr);
   for (i = 0; i < 0x60; i++) {
-    printf("%08x ",p32x_sh2_read32(sh2s[1].vbr + i*4, &sh2s[1]));
+    printf("%08lx ",(ulong)p32x_sh2_read32(sh2s[1].vbr + i*4, &sh2s[1]));
     if ((i+1) % 8 == 0) printf("\n");
   }
-  printf("stack ssh2: %x\n", sh2s[1].r[15]);
+  printf("stack ssh2: %lx\n", (ulong)sh2s[1].r[15]);
   for (i = -0x30; i < 0x30; i++) {
-    printf("%08x ",p32x_sh2_read32(sh2s[1].r[15] + i*4, &sh2s[1]));
+    printf("%08lx ",(ulong)p32x_sh2_read32(sh2s[1].r[15] + i*4, &sh2s[1]));
     if ((i+1) % 8 == 0) printf("\n");
   }
 #endif
@@ -5748,11 +5748,11 @@ static void bcache_stats(void)
 
   printf("return cache hits:%d misses:%d depth: %d index: %d/%d\n", rchit, rcmiss, i,sh2s[0].rts_cache_idx,sh2s[1].rts_cache_idx);
   for (i = 0; i < ARRAY_SIZE(sh2s[0].rts_cache); i++) {
-    printf("%08x ",sh2s[0].rts_cache[i].pc);
+    printf("%08lx ",(ulong)sh2s[0].rts_cache[i].pc);
     if ((i+1) % 8 == 0) printf("\n");
   }
   for (i = 0; i < ARRAY_SIZE(sh2s[1].rts_cache); i++) {
-    printf("%08x ",sh2s[1].rts_cache[i].pc);
+    printf("%08lx ",(ulong)sh2s[1].rts_cache[i].pc);
     if ((i+1) % 8 == 0) printf("\n");
   }
 #endif
@@ -5760,12 +5760,12 @@ static void bcache_stats(void)
   printf("branch cache hits:%d misses:%d\n", bchit, bcmiss);
   printf("branch cache master:\n");
   for (i = 0; i < ARRAY_SIZE(sh2s[0].branch_cache); i++) {
-    printf("%08x ",sh2s[0].branch_cache[i].pc);
+    printf("%08lx ",(ulong)sh2s[0].branch_cache[i].pc);
     if ((i+1) % 8 == 0) printf("\n");
   }
   printf("branch cache slave:\n");
   for (i = 0; i < ARRAY_SIZE(sh2s[1].branch_cache); i++) {
-    printf("%08x ",sh2s[1].branch_cache[i].pc);
+    printf("%08lx ",(ulong)sh2s[1].branch_cache[i].pc);
     if ((i+1) % 8 == 0) printf("\n");
   }
 #endif

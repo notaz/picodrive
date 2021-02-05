@@ -16,4 +16,6 @@ typedef int32_t        s32;
 
 typedef uintptr_t      uptr; /* unsigned pointer-sized int */
 
+typedef unsigned int   uint; /* printf casts */
+typedef unsigned long  ulong;
 #endif

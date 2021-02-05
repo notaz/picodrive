@@ -98,14 +98,62 @@ extern "C" {
 /* Data definition */
 /*******************/
 
+#include <pico/pico_types.h>
+/*
+#ifdef u8
+#undef u8
+#endif
+
+#ifdef s8
+#undef s8
+#endif
+
+#ifdef u16
+#undef u16
+#endif
+
+#ifdef s16
+#undef s16
+#endif
+
+#ifdef u32
+#undef u32
+#endif
+
+#ifdef s32
+#undef s32
+#endif
+
+#ifdef uptr
+#undef uptr
+#endif
+
+#define u8	unsigned char
+#define s8	signed char
+#define u16	unsigned short
+#define s16	signed short
+#define u32	unsigned int
+#define s32	signed int
+#define uptr	uintptr_t
+*/
+
+/*
+typedef unsigned char	u8;
+typedef signed char	s8;
+typedef unsigned short	u16;
+typedef signed short	s16;
+typedef unsigned int	u32;
+typedef signed int	s32;
+*/
+
 typedef union
 {
-	unsigned char B;
-	signed char SB;
-	unsigned short W;
-	signed short SW;
-	unsigned int D;
-	signed int SD;
+	u8 B;
+	s8 SB;
+	u16 W;
+	s16 SW;
+	u32 D;
+	s32 SD;
 } famec_union32;
 
 /* M68K CPU CONTEXT */
@@ -167,7 +215,7 @@ int  fm68k_reset(M68K_CONTEXT *ctx);
 int  fm68k_emulate(M68K_CONTEXT *ctx, int n, fm68k_call_reason reason);
 int  fm68k_would_interrupt(M68K_CONTEXT *ctx); // to be called from fm68k_emulate()
 
-unsigned int fm68k_get_pc(const M68K_CONTEXT *ctx);
+u32 fm68k_get_pc(const M68K_CONTEXT *ctx);
 
 // PICODRIVE_HACK
 int fm68k_idle_install(void);

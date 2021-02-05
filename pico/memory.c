@@ -832,12 +832,12 @@ PICO_INTERNAL void PicoMemSetup(void)
   PicoCpuCM68k.fetch32 = NULL;
 #endif
 #ifdef EMU_F68K
-  PicoCpuFM68k.read_byte  = m68k_read8;
-  PicoCpuFM68k.read_word  = m68k_read16;
-  PicoCpuFM68k.read_long  = m68k_read32;
-  PicoCpuFM68k.write_byte = m68k_write8;
-  PicoCpuFM68k.write_word = m68k_write16;
-  PicoCpuFM68k.write_long = m68k_write32;
+  PicoCpuFM68k.read_byte  = (void *)m68k_read8;
+  PicoCpuFM68k.read_word  = (void *)m68k_read16;
+  PicoCpuFM68k.read_long  = (void *)m68k_read32;
+  PicoCpuFM68k.write_byte = (void *)m68k_write8;
+  PicoCpuFM68k.write_word = (void *)m68k_write16;
+  PicoCpuFM68k.write_long = (void *)m68k_write32;
 
   // setup FAME fetchmap
   {

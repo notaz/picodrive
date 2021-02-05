@@ -243,10 +243,10 @@ extern SH2 sh2s[2];
 #define sh2_cycles_done_m68k(sh2) \
   (unsigned)((sh2)->m68krcycles_done + C_SH2_TO_M68K(sh2, sh2_cycles_done(sh2)))
 
-#define sh2_reg(c, x) (c) ? ssh2.r[x] : msh2.r[x]
-#define sh2_gbr(c)    (c) ? ssh2.gbr : msh2.gbr
-#define sh2_vbr(c)    (c) ? ssh2.vbr : msh2.vbr
-#define sh2_sr(c)   (((c) ? ssh2.sr : msh2.sr) & 0xfff)
+#define sh2_reg(c, x) ((c) ? ssh2.r[x] : msh2.r[x])
+#define sh2_gbr(c)    ((c) ? ssh2.gbr : msh2.gbr)
+#define sh2_vbr(c)    ((c) ? ssh2.vbr : msh2.vbr)
+#define sh2_sr(c)    (((c) ? ssh2.sr : msh2.sr) & 0xfff)
 
 #define sh2_set_gbr(c, v) \
   { if (c) ssh2.gbr = v; else msh2.gbr = v; }
@@ -871,7 +871,7 @@ unsigned char PicoVideoRead8CtlH(int is_from_z80);
 unsigned char PicoVideoRead8CtlL(int is_from_z80);
 unsigned char PicoVideoRead8HV_H(int is_from_z80);
 unsigned char PicoVideoRead8HV_L(int is_from_z80);
-extern int (*PicoDmaHook)(u32 source, int len, unsigned short **base, unsigned int *mask);
+extern int (*PicoDmaHook)(u32 source, int len, unsigned short **base, u32 *mask);
 void PicoVideoFIFOSync(int cycles);
 int PicoVideoFIFOHint(void);
 void PicoVideoFIFOMode(int active, int h40);

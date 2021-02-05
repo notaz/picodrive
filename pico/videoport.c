@@ -22,7 +22,7 @@ static int blankline;           // display disabled for this line
 
 u32 SATaddr, SATmask;      // VRAM addr of sprite attribute table
 
-int (*PicoDmaHook)(u32 source, int len, unsigned short **base, unsigned int *mask) = NULL;
+int (*PicoDmaHook)(u32 source, int len, unsigned short **base, u32 *mask) = NULL;
 
 
 /* VDP FIFO implementation
@@ -709,7 +709,7 @@ static void DrawSync(int skip)
   }
 }
 
-PICO_INTERNAL_ASM void PicoVideoWrite(unsigned int a,unsigned short d)
+PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
 {
   struct PicoVideo *pvid=&Pico.video;
 
