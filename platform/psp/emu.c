@@ -53,7 +53,7 @@ static int h32_mode = 0;
 static int out_x, out_y;
 static int out_w, out_h;
 
-static const struct in_default_bind in_psp_defbinds[] =
+static struct in_default_bind in_psp_defbinds[] =
 {
 	{ PSP_CTRL_UP,          IN_BINDTYPE_PLAYER12, GBTN_UP },
 	{ PSP_CTRL_DOWN,        IN_BINDTYPE_PLAYER12, GBTN_DOWN },
@@ -211,6 +211,7 @@ static void do_pal_update(void)
 			t |= (t >> 2) | ((t >> 4) & 0x08610861);
 			dpal[i] = t;
 		}
+		Pico.m.dirtyPal = 0;
 	} else if (PicoIn.opt & POPT_ALT_RENDERER) {
 		do_pal_convert(localPal, PicoMem.cram, currentConfig.gamma, currentConfig.gamma2);
 		Pico.m.dirtyPal = 0;
@@ -263,7 +264,7 @@ static void blitscreen_clut(void)
 	sceGuTexMode(is_16bit_mode() ? GU_PSM_5650:GU_PSM_T8,0,0,0);
 	sceGuTexImage(0,512,512,512,g_screen_ptr);
 
-	if (Pico.m.dirtyPal)
+	if (!is_16bit_mode() && Pico.m.dirtyPal)
 		do_pal_update();
 
 	sceKernelDcacheWritebackAll();

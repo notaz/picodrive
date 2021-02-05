@@ -17,7 +17,7 @@ compile_object()
 
 compile_binary()
 {
-  c="$CC $CFLAGS $TMPC -o $TMPB $LDFLAGS $@"
+  c="$CC $CFLAGS $TMPC -o $TMPB $LDFLAGS $@ $SYSLIBS"
   echo $c >> config.log
   $c >> config.log 2>&1
 }
@@ -116,7 +116,7 @@ set_platform()
     ;;
   psp)
     # use newlib
-    LDFLAGS="$LDFLAGS -lc -lpspuser -lpspkernel"
+    SYSLIBS="-lc -lpspuser -lpspkernel"
     CFLAGS="$CFLAGS -D__PSP__"
     ARCH=mipsel
     ;;

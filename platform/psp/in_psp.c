@@ -36,9 +36,10 @@ static const char *in_psp_keys[IN_PSP_NBUTTONS] = {
 };
 
 
-/* credits to https://graphics.stanford.edu/~seander/bithacks.html */
+/* calculate bit number from bit mask (logarithm to the basis 2) */
 static int lg2(unsigned v)
 {
+	/* credits to https://graphics.stanford.edu/~seander/bithacks.html */
 	int r, s;
 
 	r = (v > 0xFFFF) << 4; v >>= r;
@@ -49,9 +50,9 @@ static int lg2(unsigned v)
 	return r;
 }
 
-static int in_psp_get_bits(void)
+static unsigned in_psp_get_bits(void)
 {
-	return psp_pad_read(0);
+	return psp_pad_read(0) & 0xf000ffff;
 }
 
 static void in_psp_probe(const in_drv_t *drv)
@@ -75,7 +76,8 @@ in_psp_get_key_names(const in_drv_t *drv, int *count)
 static int in_psp_update(void *drv_data, const int *binds, int *result)
 {
 	int type_start = 0;
-	int i, t, keys;
+	int i, t;
+	unsigned keys;
 
 	keys = in_psp_get_bits();
 
@@ -98,8 +100,8 @@ static int in_psp_update(void *drv_data, const int *binds, int *result)
 
 int in_psp_update_keycode(void *data, int *is_down)
 {
-	static int old_val = 0;
-	int val, diff, i;
+	static unsigned old_val = 0;
+	unsigned val, diff, i;
 
 	val = in_psp_get_bits();
 	diff = val ^ old_val;
@@ -118,9 +120,9 @@ int in_psp_update_keycode(void *data, int *is_down)
 	return i;
 }
 
-static const struct {
-	short key;
-	short pbtn;
+static struct {
+	unsigned key;
+	int pbtn;
 } key_pbtn_map[] =
 {
 	{ PSP_CTRL_UP,		PBTN_UP },
@@ -147,12 +149,12 @@ static int in_psp_menu_translate(void *drv_data, int keycode, char *charcode)
 		keycode = -keycode;
 		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
 			if (key_pbtn_map[i].pbtn == keycode)
-				return lg2(key_pbtn_map[i].key);
+				return key_pbtn_map[i].key;
 	}
 	else
 	{
 		for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
-			if (key_pbtn_map[i].key == 1<<keycode)
+			if (key_pbtn_map[i].key == keycode)
 				return key_pbtn_map[i].pbtn;
 	}
 
@@ -191,11 +193,19 @@ static const in_drv_t in_psp_drv = {
 	.menu_translate = in_psp_menu_translate,
 };
 
-void in_psp_init(const struct in_default_bind *defbinds)
+void in_psp_init(struct in_default_bind *defbinds)
 {
+	int i;
+
+	/* PSP keys have bit masks, Picodrive wants bit numbers */
+	for (i = 0; defbinds[i].code; i++)
+		defbinds[i].code = lg2(defbinds[i].code);
+	for (i = 0; i < KEY_PBTN_MAP_SIZE; i++)
+		key_pbtn_map[i].key = lg2(key_pbtn_map[i].key);
+
 	in_psp_combo_keys = in_psp_combo_acts = 0;
 
-	/* fill keys array, converting key bitmasks to indexes */
+	/* fill keys array, converting key bitmasks to bit numbers */
 	in_psp_keys[lg2(PSP_CTRL_UP)] = "Up";
 	in_psp_keys[lg2(PSP_CTRL_LEFT)] = "Left";
 	in_psp_keys[lg2(PSP_CTRL_DOWN)] = "Down";

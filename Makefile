@@ -168,9 +168,8 @@ PLATFORM_ZLIB = 1
 endif
 ifeq "$(PLATFORM)" "psp"
 CFLAGS += -DUSE_BGR565 -G8 # -DLPRINTF_STDIO -DFW15
-LDFLAGS := $(filter-out -lpsp%, $(LDFLAGS)) # collides with PSP image generation
-LDLIBS += -lpspnet_inet -lpspgu -lpspge -lpsppower -lpspaudio -lpspdisplay
-LDLIBS += -lpspaudiocodec -lpsprtc -lpspctrl -lpspsdk -lpspuser -lpspkernel
+LDLIBS += -lpspgu -lpspge -lpsppower -lpspaudio -lpspdisplay -lpspaudiocodec
+LDLIBS += -lpsprtc -lpspctrl -lpspsdk -lc -lpspnet_inet -lpspuser -lpspkernel
 platform/common/main.o: CFLAGS += -Dmain=pico_main
 OBJS += platform/psp/plat.o
 OBJS += platform/psp/emu.o

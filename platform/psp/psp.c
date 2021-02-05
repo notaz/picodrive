@@ -194,8 +194,9 @@ void psp_finish(void)
 
 void psp_video_flip(int wait_vsync)
 {
+	void *fb = (void *)((unsigned long)psp_screen & ~0x40000000);
 	if (wait_vsync) sceDisplayWaitVblankStart();
-	sceDisplaySetFrameBuf(psp_screen, 512, PSP_DISPLAY_PIXEL_FORMAT_565,
+	sceDisplaySetFrameBuf(fb, 512, PSP_DISPLAY_PIXEL_FORMAT_565,
 		wait_vsync ? PSP_DISPLAY_SETBUF_IMMEDIATE : PSP_DISPLAY_SETBUF_NEXTFRAME);
 	current_screen ^= 1;
 	psp_screen = current_screen ? VRAM_FB0 : VRAM_FB1;
