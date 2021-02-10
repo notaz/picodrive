@@ -46,8 +46,10 @@ struct Vertex
 };
 
 static struct Vertex __attribute__((aligned(4))) g_vertices[2];
-static unsigned short __attribute__((aligned(16))) localPal[0x100];
+static u16 __attribute__((aligned(16))) localPal[0x100];
 static int need_pal_upload = 0;
+
+static u16 __attribute__((aligned(16))) osd_buf[512*8]; // buffer for osd text
 
 static int h32_mode = 0;
 static int out_x, out_y;
@@ -119,20 +121,30 @@ static void apply_renderer(void)
 	}
 }
 
-static void osd_text(int x, const char *text, int is_active, int clear_all)
+static void osd_text(int x, const char *text)
 {
-	unsigned short *screen = is_active ? psp_video_get_active_fb() : psp_screen;
-	int len = clear_all ? (480 / 2) : (strlen(text) * 8 / 2);
+	struct Vertex* vx;
+	int len = strlen(text) * 8 / 2;
 	int *p, h;
 	void *tmp = g_screen_ptr;
+
+	g_screen_ptr = osd_buf;
 	for (h = 0; h < 8; h++) {
-		p = (int *) (screen+x+512*(264+h));
+		p = (int *) (osd_buf+x+512*h);
 		p = (int *) ((int)p & ~3); // align
 		memset32_uncached(p, 0, len);
 	}
-	g_screen_ptr = screen; // nasty pointer tricks
-	emu_text_out16(x, 264, text);
+	emu_text_out16(x, 0, text);
 	g_screen_ptr = tmp;
+
+	vx = (struct Vertex*)sceGuGetMemory(2 * sizeof(struct Vertex));
+	vx[0].u = x,         vx[0].v = 0;
+	vx[1].u = x + len*2, vx[1].v = 8;
+	vx[0].x = x,         vx[0].y = 264;
+	vx[1].x = x + len*2, vx[1].y = 272;
+	sceGuTexMode(GU_PSM_5650,0,0,0);
+	sceGuTexImage(0,512,8,512,osd_buf);
+	sceGuDrawArray(GU_SPRITES,GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D,2,0,vx);
 }
 
 
@@ -256,18 +268,12 @@ static void do_pal_update(void)
 
 static void blitscreen_clut(void)
 {
-	int offs = (psp_screen == VRAM_FB0) ? VRAMOFFS_FB0 : VRAMOFFS_FB1;
-
-	sceGuSync(0,0); // sync with prev
-	sceGuStart(GU_DIRECT, guCmdList);
-	sceGuDrawBuffer(GU_PSM_5650, (void *)offs, 512); // point to back buffer
 	sceGuTexMode(is_16bit_mode() ? GU_PSM_5650:GU_PSM_T8,0,0,0);
 	sceGuTexImage(0,512,512,512,g_screen_ptr);
 
 	if (!is_16bit_mode() && Pico.m.dirtyPal)
 		do_pal_update();
 
-	sceKernelDcacheWritebackAll();
 
 	if (need_pal_upload) {
 		need_pal_upload = 0;
@@ -295,23 +301,31 @@ static void blitscreen_clut(void)
 	else
 #endif
 		sceGuDrawArray(GU_SPRITES,GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D,2,0,g_vertices);
-
-	sceGuFinish();
 }
 
 
 static void cd_leds(void)
 {
+	struct Vertex* vx;
 	unsigned int reg, col_g, col_r, *p;
 
 	reg = Pico_mcd->s68k_regs[0];
 
-	p = (unsigned int *)((short *)psp_screen + 512*2+4+2);
+	p = (unsigned int *)((short *)osd_buf + 512*2+498);
 	col_g = (reg & 2) ? 0x06000600 : 0;
 	col_r = (reg & 1) ? 0x00180018 : 0;
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r; p += 512/2 - 12/2;
 	*p++ = col_g; *p++ = col_g; p+=2; *p++ = col_r; *p++ = col_r;
+
+	vx = (struct Vertex*)sceGuGetMemory(2 * sizeof(struct Vertex));
+	vx[0].u = 497,          vx[0].v = 1;
+	vx[1].u = 497+14,       vx[1].v = 6;
+	vx[0].x = 4,            vx[0].y = 1;
+	vx[1].x = 4+14,         vx[1].y = 6;
+	sceGuTexMode(GU_PSM_5650,0,0,0);
+	sceGuTexImage(0,512,8,512,osd_buf);
+	sceGuDrawArray(GU_SPRITES,GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D,2,0,vx);
 }
 
 static void draw_pico_ptr(void)
@@ -584,18 +598,25 @@ void pemu_validate_config(void)
 void pemu_finalize_frame(const char *fps, const char *notice)
 {
 	int emu_opt = currentConfig.EmuOpt;
+	int offs = (psp_screen == VRAM_FB0) ? VRAMOFFS_FB0 : VRAMOFFS_FB1;
 
 	if (PicoIn.AHW & PAHW_PICO)
 		draw_pico_ptr();
 
+	sceGuSync(0,0); // sync with prev
+	sceGuStart(GU_DIRECT, guCmdList);
+	sceGuDrawBuffer(GU_PSM_5650, (void *)offs, 512); // point to back buffer
+
 	blitscreen_clut();
 
-	// XXX move this to flip to give texture renderer more time?
-	if (notice)      osd_text(4, notice, 0, 0);
-	if (emu_opt & 2) osd_text(OSD_FPS_X, fps, 0, 0);
+	if (notice)      osd_text(4, notice);
+	if (emu_opt & 2) osd_text(OSD_FPS_X, fps);
 
 	if ((emu_opt & 0x400) && (PicoIn.AHW & PAHW_MCD))
 		cd_leds();
+
+	sceKernelDcacheWritebackAll();
+	sceGuFinish();
 }
 
 /* FIXME: move plat_* to plat? */
@@ -723,7 +744,7 @@ void emu_handle_resume(void)
 	// reopen first CD track
 	if (cdd.toc.tracks[0].fd != NULL)
 	{
-		char *fname = rom_fname_reload;
+		const char *fname = rom_fname_reload;
 		int len = strlen(rom_fname_reload);
 		cue_data_t *cue_data = NULL;
 

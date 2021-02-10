@@ -321,8 +321,8 @@ end:
 
 int _flush_cache (char *addr, const int size, const int op)
 {
-	sceKernelDcacheWritebackAll();
-	//sceKernelDcacheWritebackRange(addr, size);
-	//sceKernelIcacheInvalidateRange(addr, size);
+	//sceKernelDcacheWritebackAll();
+	sceKernelDcacheWritebackRange(addr, size);
+	sceKernelIcacheInvalidateRange(addr, size);
 	return 0;
 }
