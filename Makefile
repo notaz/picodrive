@@ -90,6 +90,7 @@ $(TARGET).opk: $(TARGET)
 	cp $< .opk_data/PicoDrive
 	$(STRIP) .opk_data/PicoDrive
 	mksquashfs .opk_data $@ -all-root -noappend -no-exports -no-xattrs
+	cd .opk_data && zip -9 -r $(TARGET).zip *
 
 all: opk
 

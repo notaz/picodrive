@@ -38,7 +38,8 @@ check_define()
 # setting options to "yes" or "no" will make that choice default,
 # "" means "autodetect".
 
-platform_list="generic pandora gp2x wiz caanoo opendingux gcw0 rg350 rpi1 rpi2 psp"
+# TODO this is annoyingly messy. should have platform and device
+platform_list="generic pandora gp2x wiz caanoo opendingux retrofw gcw0 rg350 rpi1 rpi2 psp"
 platform="generic"
 sound_driver_list="oss alsa sdl"
 sound_drivers=""
@@ -91,9 +92,9 @@ set_platform()
     ;;
   generic)
     ;;
-  opendingux | gcw0 | rg350)
+  opendingux | retrofw | gcw0 | rg350)
     sound_drivers="sdl"
-    # both are really an opendingux
+    # all are more or less based on opendingux. save device type as C define.
     CFLAGS="$CFLAGS -D__`echo $platform | tr '[a-z]' '[A-Z]'`__"
     platform="opendingux"
     ;;
@@ -110,7 +111,7 @@ set_platform()
     # always use static linking, since caanoo doesn't have OABI libs. Moreover,
     # dynamic linking slows Wiz 1-10%, and libm on F100 isn't compatible
     LDFLAGS="$LDFLAGS -static"
-    # unified binary for all of them
+    # unified binary for all of them. picodrive detects device type for itself.
     CFLAGS="$CFLAGS -D__GP2X__"
     platform="gp2x"
     ;;

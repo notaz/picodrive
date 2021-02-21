@@ -164,7 +164,7 @@ void plat_video_menu_enter(int is_rom_loaded)
 {
 	if (SDL_MUSTLOCK(plat_sdl_screen))
 		SDL_UnlockSurface(plat_sdl_screen);
-	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 0);
+	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 1);
 	g_screen_ptr = shadow_fb;
 	plat_video_set_buffer(g_screen_ptr);
 }
@@ -212,22 +212,22 @@ void plat_video_menu_leave(void)
 void plat_video_loop_prepare(void)
 {
 	if (plat_sdl_overlay != NULL || plat_sdl_gl_active) {
-		g_screen_ptr = shadow_fb;
 		g_screen_width = 320;
 		g_screen_height = 240;
 		g_screen_ppitch = g_screen_width;
+		plat_sdl_change_video_mode(g_screen_width, g_screen_height, 0);
+		g_screen_ptr = shadow_fb;
 	}
 	else {
-		if (SDL_MUSTLOCK(plat_sdl_screen))
-			SDL_LockSurface(plat_sdl_screen);
-		g_screen_ptr = plat_sdl_screen->pixels;
 		g_screen_width = g_menuscreen_w;
 		g_screen_height = g_menuscreen_h;
 		g_screen_ppitch = g_menuscreen_pp;
+		plat_sdl_change_video_mode(g_screen_width, g_screen_height, 0);
+		if (SDL_MUSTLOCK(plat_sdl_screen))
+			SDL_LockSurface(plat_sdl_screen);
+		g_screen_ptr = plat_sdl_screen->pixels;
 	}
 	plat_video_set_buffer(g_screen_ptr);
-
-	plat_sdl_change_video_mode(g_screen_width, g_screen_height, 0);
 }
 
 void plat_early_init(void)
