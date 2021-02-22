@@ -438,7 +438,7 @@ static u32 PicoRead8_sram(u32 a)
 
   // XXX: this is banking unfriendly
   if (a < Pico.romsize)
-    return Pico.rom[a ^ 1];
+    return Pico.rom[MEM_BE2(a)];
   
   return m68k_unmapped_read8(a);
 }

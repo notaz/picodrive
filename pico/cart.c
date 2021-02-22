@@ -184,6 +184,9 @@ zip_failed:
 
     if (fread(&cso->header, 1, sizeof(cso->header), f) != sizeof(cso->header))
       goto cso_failed;
+    cso->header.block_size = CPU_LE4(cso->header.block_size);
+    cso->header.total_bytes = CPU_LE4(cso->header.total_bytes);
+    cso->header.total_bytes_high = CPU_LE4(cso->header.total_bytes_high);
 
     if (strncmp(cso->header.magic, "CISO", 4) != 0) {
       elprintf(EL_STATUS, "cso: bad header");
@@ -453,6 +456,7 @@ int pm_close(pm_file *fp)
 // byteswap, data needs to be int aligned, src can match dst
 void Byteswap(void *dst, const void *src, int len)
 {
+#if CPU_IS_LE
   const unsigned int *ps = src;
   unsigned int *pd = dst;
   int i, m;
@@ -465,14 +469,15 @@ void Byteswap(void *dst, const void *src, int len)
     unsigned int t = ps[i];
     pd[i] = ((t & m) << 8) | ((t & ~m) >> 8);
   }
+#endif
 }
 
 // Interleve a 16k block and byteswap
 static int InterleveBlock(unsigned char *dest,unsigned char *src)
 {
   int i=0;
-  for (i=0;i<0x2000;i++) dest[(i<<1)  ]=src[       i]; // Odd
-  for (i=0;i<0x2000;i++) dest[(i<<1)+1]=src[0x2000+i]; // Even
+  for (i=0;i<0x2000;i++) dest[(i<<1)+MEM_BE2(1)]=src[       i]; // Odd
+  for (i=0;i<0x2000;i++) dest[(i<<1)+MEM_BE2(0)]=src[0x2000+i]; // Even
   return 0;
 }
 
@@ -615,7 +620,7 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
   // This will hang the emu, but will prevent nasty crashes.
   // note: 4 bytes are padded to every ROM
   if (rom != NULL)
-    *(unsigned long *)(rom+romsize) = 0xFFFE4EFA; // 4EFA FFFE byteswapped
+    *(unsigned long *)(rom+romsize) = CPU_BE2(0x4EFAFFFE);
 
   Pico.rom=rom;
   Pico.romsize=romsize;
@@ -714,7 +719,7 @@ static int rom_strcmp(int rom_offset, const char *s1)
   if (rom_offset + len > Pico.romsize)
     return 0;
   for (i = 0; i < len; i++)
-    if (s1[i] != s_rom[(i + rom_offset) ^ 1])
+    if (s1[i] != s_rom[MEM_BE2(i + rom_offset)])
       return 1;
   return 0;
 }

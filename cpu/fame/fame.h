@@ -98,44 +98,7 @@ extern "C" {
 /* Data definition */
 /*******************/
 
-#include <pico/pico_types.h>
-/*
-#ifdef u8
-#undef u8
-#endif
-
-#ifdef s8
-#undef s8
-#endif
-
-#ifdef u16
-#undef u16
-#endif
-
-#ifdef s16
-#undef s16
-#endif
-
-#ifdef u32
-#undef u32
-#endif
-
-#ifdef s32
-#undef s32
-#endif
-
-#ifdef uptr
-#undef uptr
-#endif
-
-#define u8	unsigned char
-#define s8	signed char
-#define u16	unsigned short
-#define s16	signed short
-#define u32	unsigned int
-#define s32	signed int
-#define uptr	uintptr_t
-*/
+#include <pico/pico_port.h>
 
 /*
 typedef unsigned char	u8;
@@ -148,10 +111,10 @@ typedef signed int	s32;
 
 typedef union
 {
-	u8 B;
-	s8 SB;
-	u16 W;
-	s16 SW;
+	u8 B[4];
+	s8 SB[4];
+	u16 W[2];
+	s16 SW[2];
 	u32 D;
 	s32 SD;
 } famec_union32;

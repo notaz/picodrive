@@ -569,8 +569,8 @@ typedef struct
 #define P32XI_CMD  (1 <<  8/2)
 #define P32XI_PWM  (1 <<  6/2)
 
-// peripheral reg access
-#define PREG8(regs,offs) ((unsigned char *)regs)[offs ^ 3]
+// peripheral reg access (32 bit regs)
+#define PREG8(regs,offs) ((unsigned char *)regs)[MEM_BE4(offs)]
 
 #define DMAC_FIFO_LEN (4*2)
 #define PWM_BUFF_LEN 1024 // in one channel samples

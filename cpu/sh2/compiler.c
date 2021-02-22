@@ -2568,6 +2568,28 @@ static void rcache_init(void)
 
 // ---------------------------------------------------------------
 
+// swap 32 bit value read from mem in generated code (same as CPU_BE2)
+static void emit_le_swap(int cond, int r)
+{
+#if CPU_IS_LE
+  if (cond == -1)
+		emith_ror(r, r, 16);
+  else
+		emith_ror_c(cond, r, r, 16);
+#endif
+}
+
+// fix memory byte ptr in generated code (same as MEM_BE2)
+static void emit_le_ptr8(int cond, int r)
+{
+#if CPU_IS_LE
+  if (cond == -1)
+                emith_eor_r_imm_ptr(r, 1);
+  else
+                emith_eor_r_imm_ptr_c(cond, r, 1);
+#endif
+}
+
 // NB may return either REG or TEMP
 static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmode, u32 *offs)
 {
@@ -2608,14 +2630,16 @@ static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmode, u32 *offs)
 
   // if r is in rcache or needed soon anyway, and offs is relative to region,
   // and address translation fits in add_ptr_imm (s32), then use rcached const 
-  if (la == (s32)la && !(*offs & ~mask) && rcache_is_cached(r)) {
-    u32 odd = a & 1; // need to fix odd address for correct byte addressing
-    la -= (s32)((a & ~mask) - *offs - odd); // diff between reg and memory
+  if (la == (s32)la && !(((a & mask) + *offs) & ~mask) && rcache_is_cached(r)) {
+#if CPU_IS_LE // need to fix odd address for correct byte addressing
+    if (a & 1) *offs += (*offs&1) ? 2 : -2;
+#endif
+    la -= (s32)((a & ~mask) - *offs); // diff between reg and memory
     hr = hr2 = rcache_get_reg(r, rmode, NULL);
     if ((s32)a < 0) emith_uext_ptr(hr2);
-    if ((la & ~omask) - odd) {
+    if (la & ~omask) {
       hr = rcache_get_tmp();
-      emith_add_r_r_ptr_imm(hr, hr2, (la & ~omask) - odd);
+      emith_add_r_r_ptr_imm(hr, hr2, la & ~omask);
       rcache_free(hr2);
     }
     *offs = (la & omask);
@@ -2792,9 +2816,9 @@ static int emit_memhandler_read_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, u32 off
     else
       hr2 = rcache_get_reg(rd, RC_GR_WRITE, NULL);
     switch (size & MF_SIZEMASK) {
-    case 0: emith_read8s_r_r_offs(hr2, hr, offs ^ 1);  break; // 8
-    case 1: emith_read16s_r_r_offs(hr2, hr, offs);     break; // 16
-    case 2: emith_read_r_r_offs(hr2, hr, offs); emith_ror(hr2, hr2, 16); break;
+    case 0: emith_read8s_r_r_offs(hr2, hr, MEM_BE2(offs));  break; // 8
+    case 1: emith_read16s_r_r_offs(hr2, hr, offs);          break; // 16
+    case 2: emith_read_r_r_offs(hr2, hr, offs); emit_le_swap(-1, hr2); break;
     }
     rcache_free(hr);
     if (size & MF_POSTINCR)
@@ -5174,7 +5198,7 @@ static void sh2_generate_utils(void)
   emith_sh2_rcall(arg0, arg1, arg2, arg3);
   EMITH_SJMP_START(DCOND_CS);
   emith_and_r_r_c(DCOND_CC, arg0, arg3);
-  emith_eor_r_imm_ptr_c(DCOND_CC, arg0, 1);
+  emit_le_ptr8(DCOND_CC, arg0);
   emith_read8s_r_r_r_c(DCOND_CC, RET_REG, arg2, arg0);
   emith_ret_c(DCOND_CC);
   EMITH_SJMP_END(DCOND_CS);
@@ -5204,7 +5228,7 @@ static void sh2_generate_utils(void)
   EMITH_SJMP_START(DCOND_CS);
   emith_and_r_r_c(DCOND_CC, arg0, arg3);
   emith_read_r_r_r_c(DCOND_CC, RET_REG, arg2, arg0);
-  emith_ror_c(DCOND_CC, RET_REG, RET_REG, 16);
+  emit_le_swap(DCOND_CC, RET_REG);
   emith_ret_c(DCOND_CC);
   EMITH_SJMP_END(DCOND_CS);
   emith_move_r_r_ptr(arg1, CONTEXT_REG);
@@ -5221,7 +5245,7 @@ static void sh2_generate_utils(void)
   emith_abijump_reg_c(DCOND_CS, arg2);
   EMITH_SJMP_END(DCOND_CC);
   emith_and_r_r_r(arg1, arg0, arg3);
-  emith_eor_r_imm_ptr(arg1, 1);
+  emit_le_ptr8(-1, arg1);
   emith_read8s_r_r_r(arg1, arg2, arg1);
   emith_push_ret(arg1);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
@@ -5257,7 +5281,7 @@ static void sh2_generate_utils(void)
   EMITH_SJMP_END(DCOND_CC);
   emith_and_r_r_r(arg1, arg0, arg3);
   emith_read_r_r_r(arg1, arg2, arg1);
-  emith_ror(arg1, arg1, 16);
+  emit_le_swap(-1, arg1);
   emith_push_ret(arg1);
   emith_move_r_r_ptr(arg2, CONTEXT_REG);
   emith_abicall(p32x_sh2_poll_memory32);

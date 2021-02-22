@@ -290,7 +290,7 @@ u32 REGPARM(2) sh2_peripheral_read16(u32 a, SH2 *sh2)
   u32 d;
 
   a &= 0x1fe;
-  d = r[(a / 2) ^ 1];
+  d = r[MEM_BE2(a / 2)];
 
   elprintf_sh2(sh2, EL_32XP, "peri r16 [%08x]     %04x @%06x",
     a | ~0x1ff, d, sh2_pc(sh2));
@@ -420,7 +420,7 @@ void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
     return;
   }
 
-  r[(a / 2) ^ 1] = d;
+  r[MEM_BE2(a / 2)] = d;
   if ((a & 0x1c0) == 0x140)
     p32x_sh2_poll_event(sh2, SH2_STATE_CPOLL, SekCyclesDone());
 }

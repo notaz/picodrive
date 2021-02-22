@@ -12,8 +12,8 @@
 #define int16  s16
 #define int32  s32
 
-#define READ_BYTE(BASE, ADDR) (BASE)[(ADDR)^1]
-#define WRITE_BYTE(BASE, ADDR, VAL) (BASE)[(ADDR)^1] = (VAL)
+#define READ_BYTE(BASE, ADDR) (BASE)[MEM_BE2(ADDR)]
+#define WRITE_BYTE(BASE, ADDR, VAL) (BASE)[MEM_BE2(ADDR)] = (VAL)
 
 #define load_param(param, size) \
   memcpy(param, &state[bufferptr], size); \

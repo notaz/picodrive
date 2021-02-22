@@ -331,7 +331,7 @@ static void DrawStrip(struct TileStrip *ts, int lflags, int cellskip)
 
         pal = ((code>>9)&0x30) | sh; // shadow
 
-        pack = *(u32 *)(PicoMem.vram + addr);
+        pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr));
         if (!pack)
           blank = code;
       }
@@ -420,7 +420,7 @@ static void DrawStripVSRam(struct TileStrip *ts, int plane_sh, int cellskip)
     }
 
     pack = (code & 0x1000 ? ty^0xe : ty); // Y-flip
-    pack = *(u32 *)(PicoMem.vram + addr+pack);
+    pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr+pack));
     if (!pack)
       blank = code;
 
@@ -480,7 +480,7 @@ void DrawStripInterlace(struct TileStrip *ts, int plane_sh)
 
         pal = ((code>>9)&0x30) | sh; // shadow
 
-        pack = *(u32 *)(PicoMem.vram + addr);
+        pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr));
         if (!pack)
           blank = code;
       }
@@ -630,7 +630,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       addr=(code&0x7ff)<<4;
       if (code&0x1000) addr+=14-ty; else addr+=ty; // Y-flip
 
-      pack = *(u32 *)(PicoMem.vram + addr);
+      pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr));
       if (!pack) {
         blank = code;
         continue;
@@ -672,7 +672,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
       addr=(code&0x7ff)<<4;
       if (code&0x1000) addr+=14-ty; else addr+=ty; // Y-flip
 
-      pack = *(u32 *)(PicoMem.vram + addr);
+      pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr));
       if (!pack) {
         blank = code;
         continue;
@@ -851,7 +851,7 @@ static void DrawSprite(u32 *sprite, int sh, int w)
     if(sx<=0)   continue;
     if(sx>=328) break; // Offscreen
 
-    pack = *(u32 *)(PicoMem.vram + (tile & 0x7fff));
+    pack = CPU_LE2(*(u32 *)(PicoMem.vram + (tile & 0x7fff)));
     fTileFunc(pd + sx, pack, pal);
   }
 }
@@ -867,7 +867,7 @@ static void DrawSpriteInterlace(u32 *sprite)
   int sx, sy;
 
   // parse the sprite data
-  sy=sprite[0];
+  sy=CPU_LE2(sprite[0]);
   height=sy>>24;
   sy=(sy&0x3ff)-0x100; // Y
   width=(height>>2)&3; height&=3;
@@ -875,7 +875,7 @@ static void DrawSpriteInterlace(u32 *sprite)
 
   row=(Pico.est.DrawScanline<<1)-sy; // Row of the sprite we are on
 
-  code=sprite[1];
+  code=CPU_LE2(sprite[1]);
   sx=((code>>16)&0x1ff)-0x78; // X
 
   if (code&0x1000) row^=(16<<height)-1; // Flip Y
@@ -897,7 +897,7 @@ static void DrawSpriteInterlace(u32 *sprite)
     if(sx<=0)   continue;
     if(sx>=328) break; // Offscreen
 
-    pack = *(u32 *)(PicoMem.vram + (tile & 0x7fff));
+    pack = CPU_LE2(*(u32 *)(PicoMem.vram + (tile & 0x7fff)));
     if (code & 0x0800) TileFlip(pd + sx, pack, pal);
     else               TileNorm(pd + sx, pack, pal);
   }
@@ -923,8 +923,8 @@ static NOINLINE void DrawAllSpritesInterlace(int pri, int sh)
     sprite=(u32 *)(PicoMem.vram+((table+(link<<2))&0x7ffc)); // Find sprite
 
     // get sprite info
-    code = sprite[0];
-    sx = sprite[1];
+    code = CPU_LE2(sprite[0]);
+    sx = CPU_LE2(sprite[1]);
     if(((sx>>15)&1) != pri) goto nextsprite; // wrong priority sprite
 
     // check if it is on this line
@@ -1020,7 +1020,7 @@ static void DrawSpritesSHi(unsigned char *sprited, const struct PicoEState *est)
       if(sx<=0)   continue;
       if(sx>=328) break; // Offscreen
 
-      pack = *(u32 *)(PicoMem.vram + (tile & 0x7fff));
+      pack = CPU_LE2(*(u32 *)(PicoMem.vram + (tile & 0x7fff)));
       fTileFunc(pd + sx, pack, pal);
     }
   }
@@ -1089,7 +1089,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
 
       if(sx>=328) break; // Offscreen
 
-      pack = *(u32 *)(PicoMem.vram + (tile & 0x7fff));
+      pack = CPU_LE2(*(u32 *)(PicoMem.vram + (tile & 0x7fff)));
 
       m |= mp[1] << 8; // next mask byte
       // shift mask bits to bits 8-15 for easier load/store handling
@@ -1132,7 +1132,7 @@ static void DrawStripForced(struct TileStrip *ts, int cellskip)
       pal = (code>>9)&0x30;
     }
 
-    pack = *(u32 *)(PicoMem.vram + addr);
+    pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr));
 
     if (code & 0x0800) TileFlip_and(pd + dx, pack, pal);
     else               TileNorm_and(pd + dx, pack, pal);
@@ -1196,7 +1196,7 @@ static void DrawStripVSRamForced(struct TileStrip *ts, int plane_sh, int cellski
     }
 
     pack = code & 0x1000 ? ty^0xe : ty; // Y-flip
-    pack = *(u32 *)(PicoMem.vram + addr+pack);
+    pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr+pack));
 
     if (code & 0x0800) TileFlip_and(pd + dx, pack, pal);
     else               TileNorm_and(pd + dx, pack, pal);
@@ -1230,7 +1230,7 @@ void DrawStripInterlaceForced(struct TileStrip *ts)
 
       pal = (code>>9)&0x30; // shadow
 
-      pack = *(u32 *)(PicoMem.vram + addr);
+      pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr));
     }
 
     if (code & 0x0800) TileFlip_and(pd + dx, pack, pal);
@@ -1363,11 +1363,11 @@ static void DrawSpritesForced(unsigned char *sprited)
     mp = mb+(sx>>3);
     for (m = *mp; width; width--, sx+=8, tile+=delta, *mp++ = m, m >>= 8)
     {
-      unsigned int pack;
+      u32 pack;
 
       if(sx>=328) break; // Offscreen
 
-      pack = *(u32 *)(PicoMem.vram + (tile & 0x7fff));
+      pack = CPU_LE2(*(u32 *)(PicoMem.vram + (tile & 0x7fff)));
 
       m |= mp[1] << 8; // next mask byte
       // shift mask bits to bits 8-15 for easier load/store handling
@@ -1428,13 +1428,13 @@ static NOINLINE void PrepareSprites(int max_lines)
 
     // parse sprite info. the 1st half comes from the VDPs internal cache,
     // the 2nd half is read from VRAM
-    code = VdpSATCache[link]; // normally but not always equal to sprite[0]
+    code = CPU_LE2(VdpSATCache[link]); // normally same as sprite[0]
     sy = (code&0x1ff)-0x80;
     hv = (code>>24)&0xf;
     height = (hv&3)+1;
     width  = (hv>>2)+1;
 
-    code2 = sprite[1];
+    code2 = CPU_LE2(sprite[1]);
     sx = (code2>>16)&0x1ff;
     sx -= 0x78; // Get X coordinate + 8
 

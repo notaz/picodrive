@@ -48,11 +48,7 @@
 #define READ_OP()			GET_OP(); PC++
 
 #define READ_ARG()			(*(UINT8 *)PC++)
-#if CZ80_LITTLE_ENDIAN
 #define READ_ARG16()		(*(UINT8 *)PC | (*(UINT8 *)(PC + 1) << 8)); PC += 2
-#else
-#define READ_ARG16()		(*(UINT8 *)(PC + 1) | (*(UINT8 *)PC << 8)); PC += 2
-#endif
 
 //#ifndef BUILD_CPS1PSP
 //#define READ_MEM8(A)		memory_region_cpu2[(A)]
@@ -63,11 +59,7 @@
 #define READ_MEM8(A)		CPU->Read_Byte(A)
 #endif
 //#endif
-#if CZ80_LITTLE_ENDIAN
 #define READ_MEM16(A)		(READ_MEM8(A) | (READ_MEM8((A) + 1) << 8))
-#else
-#define READ_MEM16(A)		((READ_MEM8(A) << 8) | READ_MEM8((A) + 1))
-#endif
 
 #if PICODRIVE_HACKS
 #define WRITE_MEM8(A, D) { \
@@ -82,11 +74,7 @@
 #else
 #define WRITE_MEM8(A, D)	CPU->Write_Byte(A, D);
 #endif
-#if CZ80_LITTLE_ENDIAN
 #define WRITE_MEM16(A, D)	{ WRITE_MEM8(A, D); WRITE_MEM8((A) + 1, (D) >> 8); }
-#else
-#define WRITE_MEM16(A, D)	{ WRITE_MEM8((A) + 1, D); WRITE_MEM8(A, (D) >> 8); }
-#endif
 
 #define PUSH_16(A)			{ UINT32 sp; zSP -= 2; sp = zSP; WRITE_MEM16(sp, A); }
 #define POP_16(A)			{ UINT32 sp; sp = zSP; A = READ_MEM16(sp); zSP = sp + 2; }

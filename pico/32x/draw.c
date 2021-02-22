@@ -81,11 +81,11 @@ static void convert_pal555(int invert_prio)
   int i = 320;                                                    \
   while (i > 0) {                                                 \
     for (; i > 0 && (*pmd & 0x3f) == mdbg; pd++, pmd++, i--) {    \
-      t = pal[*(unsigned char *)((uintptr_t)(p32x++) ^ 1)];       \
+      t = pal[*(unsigned char *)(MEM_BE2((uintptr_t)(p32x++)))];  \
       *pd = t;                                                    \
     }                                                             \
     for (; i > 0 && (*pmd & 0x3f) != mdbg; pd++, pmd++, i--) {    \
-      t = pal[*(unsigned char *)((uintptr_t)(p32x++) ^ 1)];       \
+      t = pal[*(unsigned char *)(MEM_BE2((uintptr_t)(p32x++)))];  \
       if (t & PXPRIO)                                             \
         *pd = t;                                                  \
       else                                                        \

@@ -63,7 +63,7 @@ u32 name(u32 a)                                 \
   if (map_flag_set(v))                          \
     return ((cpu68k_read_f *)(v << 1))(a);      \
   else                                          \
-    return *(u8 *)((v << 1) + (a ^ 1));         \
+    return *(u8 *)((v << 1) + MEM_BE2(a));      \
 }
 
 #define MAKE_68K_READ16(name, map)              \
@@ -106,7 +106,7 @@ void name(u32 a, u8 d)                          \
   if (map_flag_set(v))                          \
     ((cpu68k_write_f *)(v << 1))(a, d);         \
   else                                          \
-    *(u8 *)((v << 1) + (a ^ 1)) = d;            \
+    *(u8 *)((v << 1) + MEM_BE2(a)) = d;         \
 }
 
 #define MAKE_68K_WRITE16(name, map)             \

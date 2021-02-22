@@ -123,7 +123,6 @@ void Pico32xStartup(void)
   emu_32x_startup();
 }
 
-#define HWSWAP(x) (((x) << 16) | ((x) >> 16))
 void p32x_reset_sh2s(void)
 {
   elprintf(EL_32X, "sh2 reset");
@@ -143,9 +142,9 @@ void p32x_reset_sh2s(void)
       unsigned int vbr;
 
       // initial data
-      idl_src = HWSWAP(*(unsigned int *)(Pico.rom + 0x3d4)) & ~0xf0000000;
-      idl_dst = HWSWAP(*(unsigned int *)(Pico.rom + 0x3d8)) & ~0xf0000000;
-      idl_size= HWSWAP(*(unsigned int *)(Pico.rom + 0x3dc));
+      idl_src = CPU_BE2(*(unsigned int *)(Pico.rom + 0x3d4)) & ~0xf0000000;
+      idl_dst = CPU_BE2(*(unsigned int *)(Pico.rom + 0x3d8)) & ~0xf0000000;
+      idl_size= CPU_BE2(*(unsigned int *)(Pico.rom + 0x3dc));
       if (idl_size > Pico.romsize || idl_src + idl_size > Pico.romsize ||
           idl_size > 0x40000 || idl_dst + idl_size > 0x40000 || (idl_src & 3) || (idl_dst & 3)) {
         elprintf(EL_STATUS|EL_ANOMALY, "32x: invalid initial data ptrs: %06x -> %06x, %06x",
@@ -155,7 +154,7 @@ void p32x_reset_sh2s(void)
         memcpy(Pico32xMem->sdram + idl_dst, Pico.rom + idl_src, idl_size);
 
       // VBR
-      vbr = HWSWAP(*(unsigned int *)(Pico.rom + 0x3e8));
+      vbr = CPU_BE2(*(unsigned int *)(Pico.rom + 0x3e8));
       sh2_set_vbr(0, vbr);
 
       // checksum and M_OK
@@ -169,7 +168,7 @@ void p32x_reset_sh2s(void)
     unsigned int vbr;
 
     // GBR/VBR
-    vbr = HWSWAP(*(unsigned int *)(Pico.rom + 0x3ec));
+    vbr = CPU_BE2(*(unsigned int *)(Pico.rom + 0x3ec));
     sh2_set_gbr(1, 0x20004000);
     sh2_set_vbr(1, vbr);
     // program will set S_OK

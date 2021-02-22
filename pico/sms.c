@@ -28,7 +28,7 @@ static unsigned char vdp_data_read(void)
   struct PicoVideo *pv = &Pico.video;
   unsigned char d;
 
-  d = PicoMem.vramb[pv->addr];
+  d = PicoMem.vramb[MEM_LE2(pv->addr)];
   pv->addr = (pv->addr + 1) & 0x3fff;
   pv->pending = 0;
   return d;
@@ -56,7 +56,7 @@ static void vdp_data_write(unsigned char d)
     if (PicoMem.cram[pv->addr & 0x1f] != d) Pico.m.dirtyPal = 1;
     PicoMem.cram[pv->addr & 0x1f] = d;
   } else {
-    PicoMem.vramb[pv->addr] = d;
+    PicoMem.vramb[MEM_LE2(pv->addr)] = d;
   }
   pv->addr = (pv->addr + 1) & 0x3fff;
 

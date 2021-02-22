@@ -395,7 +395,7 @@ static u32 carthw_pier_prot_read8(u32 a)
   }
   elprintf(EL_UIO, "pier r8  [%06x] @%06x", a, SekPc);
 
-  return Pico.rom[(a & 0x7fff) ^ 1];
+  return Pico.rom[MEM_BE2(a & 0x7fff)];
 }
 
 static void carthw_pier_mem_setup(void)
