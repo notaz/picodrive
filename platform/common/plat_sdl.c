@@ -227,6 +227,9 @@ void plat_video_menu_leave(void)
 
 void plat_video_loop_prepare(void)
 {
+	// take over any new vout settings XXX ask plat_sdl for scaling instead!
+	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 0);
+	// switch over to scaled output if available
 	if (plat_sdl_overlay != NULL || plat_sdl_gl_active) {
 		g_screen_width = 320;
 		g_screen_height = 240;
@@ -238,7 +241,6 @@ void plat_video_loop_prepare(void)
 		g_screen_width = g_menuscreen_w;
 		g_screen_height = g_menuscreen_h;
 		g_screen_ppitch = g_menuscreen_pp;
-		plat_sdl_change_video_mode(g_screen_width, g_screen_height, 0);
 		if (SDL_MUSTLOCK(plat_sdl_screen))
 			SDL_LockSurface(plat_sdl_screen);
 		g_screen_ptr = plat_sdl_screen->pixels;
