@@ -237,8 +237,7 @@ endif
 endif
 
 ifneq (,$(HAVE_LIBCHDR))
-CFLAGS += -DUSE_LIBCHDR -Iplatform/common/libchdr/include
-LDFLAGS += -Lplatform/common/libchdr -lchdr
+CFLAGS += -DUSE_LIBCHDR
 endif
 
 ifeq "$(PLATFORM_ZLIB)" "1"
