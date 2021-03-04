@@ -59,7 +59,7 @@ int DrawLineDestIncrement;
 
 static u32 HighCacheA[41*2+1]; // caches for high layers
 static u32 HighCacheB[41*2+1];
-static u32 HighPreSpr[80*2+1]; // slightly preprocessed sprites
+static s32 HighPreSpr[80*2+1]; // slightly preprocessed sprites
 
 u32 VdpSATCache[128];  // VDP sprite cache (1st 32 sprite attr bits)
 
@@ -799,13 +799,13 @@ last_cut_tile:
 // Index + 0  :    hhhhvvvv ab--hhvv yyyyyyyy yyyyyyyy // a: offscreen h, b: offs. v, h: horiz. size
 // Index + 4  :    xxxxxxxx xxxxxxxx pccvhnnn nnnnnnnn // x: x coord + 8
 
-static void DrawSprite(u32 *sprite, int sh, int w)
+static void DrawSprite(s32 *sprite, int sh, int w)
 {
   void (*fTileFunc)(unsigned char *pd, unsigned int pack, unsigned char pal);
   unsigned char *pd = Pico.est.HighCol;
   int width=0,height=0;
   int row=0;
-  u32 code=0;
+  s32 code=0;
   int pal;
   int tile=0,delta=0;
   int sx, sy;
@@ -982,7 +982,7 @@ static void DrawSpritesSHi(unsigned char *sprited, const struct PicoEState *est)
   w = p[cnt]; // possibly clipped width of last sprite
   for (cnt--; cnt >= 0; cnt--, w = 0)
   {
-    u32 *sprite, code;
+    s32 *sprite, code;
     int pal, tile, sx, sy;
     int offs, delta, width, height, row;
 
@@ -1051,7 +1051,7 @@ static void DrawSpritesHiAS(unsigned char *sprited, int sh)
   // Go through sprites:
   for (entry = 0; entry < cnt; entry++)
   {
-    u32 *sprite, code;
+    s32 *sprite, code;
     int pal, tile, sx, sy;
     int offs, delta, width, height, row;
 
@@ -1328,7 +1328,7 @@ static void DrawSpritesForced(unsigned char *sprited)
   // Go through sprites:
   for (entry = 0; entry < cnt; entry++)
   {
-    u32 *sprite, code;
+    s32 *sprite, code;
     int pal, tile, sx, sy;
     int offs, delta, width, height, row;
 
@@ -1401,7 +1401,7 @@ static NOINLINE void PrepareSprites(int max_lines)
   const struct PicoEState *est=&Pico.est;
   int u,link=0,sh;
   int table=0;
-  u32 *pd = HighPreSpr;
+  s32 *pd = HighPreSpr;
   int max_sprites = 80, max_width = 328;
   int max_line_sprites = 20; // 20 sprites, 40 tiles
 
@@ -1501,7 +1501,7 @@ static NOINLINE void PrepareSprites(int max_lines)
     printf("c%03i: f %x c %2i/%2i w %2i: ", u, HighLnSpr[u][1],
            HighLnSpr[u][0], HighLnSpr[u][3], HighLnSpr[u][2]);
     for (y = 0; y < HighLnSpr[u][0]; y++) {
-      int *sp = HighPreSpr + (HighLnSpr[u][y+4]&0x7f) * 2;
+      s32 *sp = HighPreSpr + (HighLnSpr[u][y+4]&0x7f) * 2;
       printf(" %i(%x/%x)", HighLnSpr[u][y+4],sp[0],sp[1]);
     }
     printf("\n");
@@ -1527,7 +1527,7 @@ static void DrawAllSprites(unsigned char *sprited, int prio, int sh,
   w = p[cnt]; // possibly clipped width of last sprite
   for (cnt--; cnt >= 0; cnt--, w = 0)
   {
-    u32 *sp = HighPreSpr + (p[cnt]&0x7f) * 2;
+    s32 *sp = HighPreSpr + (p[cnt]&0x7f) * 2;
     if ((p[cnt] >> 7) != prio) continue;
     DrawSprite(sp, sh, w);
   }
