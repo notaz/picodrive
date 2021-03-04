@@ -353,7 +353,7 @@ struct PicoEState
   int rendstatus;
   void *DrawLineDest;          // draw destination
   unsigned char *HighCol;
-  u32 *HighPreSpr;
+  s32 *HighPreSpr;
   struct Pico *Pico;
   unsigned short *PicoMem_vram;
   unsigned short *PicoMem_cram;
