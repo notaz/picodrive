@@ -8,13 +8,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "cue.h"
 
 #include "../pico_int.h"
+#include "cd_parse.h"
 // #define elprintf(w,f,...) printf(f "\n",##__VA_ARGS__);
 
 #ifdef USE_LIBRETRO_VFS
 #include "file_stream_transforms.h"
+#endif
+
+#if defined(USE_LIBCHDR)
+#include "libchdr/chd.h"
+#include "libchdr/cdrom.h"
 #endif
 
 #ifdef _MSC_VER
@@ -75,7 +80,8 @@ static int get_ext(const char *fname, char ext[4],
 	if (len > 0)
 		pos = len;
 
-	strcpy(ext, fname + pos + 1);
+	strncpy(ext, fname + pos + 1, 4/*sizeof(ext)*/-1);
+	ext[4/*sizeof(ext)*/-1] = '\0';
 
 	if (base != NULL) {
 		if (pos + 1 < base_size)
@@ -111,15 +117,110 @@ static int file_openable(const char *fname)
 #define BEGINS(buff,str) (strncmp(buff,str,sizeof(str)-1) == 0)
 
 /* note: tracks[0] is not used */
-cue_data_t *cue_parse(const char *fname)
+cd_data_t *chd_parse(const char *fname)
+{
+	cd_data_t *data = NULL;
+#if defined(USE_LIBCHDR)
+	cd_data_t *tmp;
+	int count = 0, count_alloc = 2;
+	int sectors = 0;
+	char metadata[256];
+	chd_file *cf = NULL;
+
+	if (fname == NULL || *fname == '\0')
+		return NULL;
+
+	if (chd_open(fname, CHD_OPEN_READ, NULL, &cf) != CHDERR_NONE)
+		goto out;
+
+	data = calloc(1, sizeof(*data) + count_alloc * sizeof(cd_track_t));
+	if (data == NULL)
+		goto out;
+
+	// get track info
+	while (count < CD_MAX_TRACKS) {
+		int track = 0, frames = 0, pregap = 0, postgap = 0;
+		char type[16], subtype[16], pgtype[16], pgsub[16];
+		type[0] = subtype[0] = pgtype[0] = pgsub[0] = 0;
+
+		// get metadata for track
+		if (chd_get_metadata(cf, CDROM_TRACK_METADATA2_TAG, count,
+			metadata, sizeof(metadata), 0, 0, 0) == CHDERR_NONE) {
+			if (sscanf(metadata, CDROM_TRACK_METADATA2_FORMAT,
+				&track, &type[0], &subtype[0], &frames,
+				&pregap, &pgtype[0], &pgsub[0], &postgap) != 8)
+			break;
+		}
+		else if (chd_get_metadata(cf, CDROM_TRACK_METADATA_TAG, count,
+			metadata, sizeof(metadata), 0, 0, 0) == CHDERR_NONE) {
+			if (sscanf(metadata, CDROM_TRACK_METADATA_FORMAT,
+				&track, &type[0], &subtype[0], &frames) != 4)
+			break;
+		}
+		else break;	// all tracks completed
+
+		// metadata sanity check
+		if (track != count + 1 || frames < 0 || pregap < 0)
+			break;
+
+		// allocate track structure
+		count ++;
+		if (count >= count_alloc) {
+			count_alloc *= 2;
+			tmp = realloc(data, sizeof(*data) + count_alloc * sizeof(cd_track_t));
+			if (tmp == NULL) {
+				count--;
+				break;
+			}
+			data = tmp;
+		}
+		memset(&data->tracks[count], 0, sizeof(data->tracks[0]));
+
+		if (count == 1) {	// binary code
+			data->tracks[count].fname = strdup(fname);
+		        if (!strcmp(type, "MODE1_RAW") || !strcmp(type, "MODE2_RAW")) {
+			        data->tracks[count].type = CT_BIN;
+		        } else if (!strcmp(type, "MODE1") || !strcmp(type, "MODE2_FORM1")) {
+				data->tracks[count].type = CT_ISO;
+			} else
+				break;
+		} else {		// audio
+			if (strcmp(type, "AUDIO"))
+				break;
+			data->tracks[count].type = CT_CHD;
+		}
+
+		data->tracks[count].pregap = pregap;
+		if (pgtype[0] != 'V')	// VAUDIO includes pregap in file
+			pregap = 0;
+		data->tracks[count].sector_offset = sectors + pregap;
+		data->tracks[count].sector_xlength = frames - pregap;
+		sectors += (((frames + CD_TRACK_PADDING - 1) / CD_TRACK_PADDING) * CD_TRACK_PADDING);
+	}
+
+	// check if image id OK, i.e. there are tracks, and length <= 80 min
+	if (count && sectors < (80*60*75)) {
+		data->track_count = count;
+	}  else {
+		free(data);
+		data = NULL;
+	}
+
+out:
+	if (cf)
+		chd_close(cf);
+#endif
+	return data;
+}
+
+cd_data_t *cue_parse(const char *fname)
 {
 	char current_file[256], *current_filep, cue_base[256];
 	char buff[256], buff2[32], ext[4], *p;
 	int ret, count = 0, count_alloc = 2, pending_pregap = 0;
 	size_t current_filep_size, fname_len;
-	cue_data_t *data = NULL;
+	cd_data_t *data = NULL, *tmp;
 	FILE *f = NULL;
-	void *tmp;
 
 	if (fname == NULL || (fname_len = strlen(fname)) == 0)
 		return NULL;
@@ -156,14 +257,13 @@ cue_data_t *cue_parse(const char *fname)
 	p = strrchr(cue_base, '.');
 	if (p)	p[1] = '\0';
 
-	data = calloc(1, sizeof(*data) + count_alloc * sizeof(cue_track));
+	data = calloc(1, sizeof(*data) + count_alloc * sizeof(cd_track_t));
 	if (data == NULL)
 		goto out;
 
 	while (!feof(f))
 	{
-		tmp = fgets(buff, sizeof(buff), f);
-		if (tmp == NULL)
+		if (fgets(buff, sizeof(buff), f) == NULL)
 			break;
 
 		mystrip(buff);
@@ -180,7 +280,7 @@ cue_data_t *cue_parse(const char *fname)
 			count++;
 			if (count >= count_alloc) {
 				count_alloc *= 2;
-				tmp = realloc(data, sizeof(*data) + count_alloc * sizeof(cue_track));
+				tmp = realloc(data, sizeof(*data) + count_alloc * sizeof(cd_track_t));
 				if (tmp == NULL) {
 					count--;
 					break;
@@ -344,7 +444,7 @@ out:
 }
 
 
-void cue_destroy(cue_data_t *data)
+void cdparse_destroy(cd_data_t *data)
 {
 	int c;
 
@@ -360,7 +460,7 @@ void cue_destroy(cue_data_t *data)
 #if 0
 int main(int argc, char *argv[])
 {
-	cue_data_t *data = cue_parse(argv[1]);
+	cd_data_t *data = cue_parse(argv[1]);
 	int c;
 
 	if (data == NULL) return 1;
@@ -370,7 +470,7 @@ int main(int argc, char *argv[])
 			data->tracks[c].sector_offset / (75*60), data->tracks[c].sector_offset / 75 % 60,
 			data->tracks[c].sector_offset % 75, data->tracks[c].pregap, data->tracks[c].fname);
 
-	cue_destroy(data);
+	cdparse_destroy(data);
 
 	return 0;
 }

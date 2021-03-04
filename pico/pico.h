@@ -161,7 +161,8 @@ typedef enum
 {
 	PMT_UNCOMPRESSED = 0,
 	PMT_ZIP,
-	PMT_CSO
+	PMT_CSO,
+	PMT_CHD
 } pm_type;
 typedef struct
 {
@@ -172,7 +173,9 @@ typedef struct
 	char ext[4];
 } pm_file;
 pm_file *pm_open(const char *path);
+void     pm_sectorsize(int length, pm_file *stream);
 size_t   pm_read(void *ptr, size_t bytes, pm_file *stream);
+size_t   pm_read_audio(void *ptr, size_t bytes, pm_file *stream);
 int      pm_seek(pm_file *stream, long offset, int whence);
 int      pm_close(pm_file *fp);
 int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms);
@@ -255,13 +258,33 @@ enum media_type_e {
   PM_CD,
 };
 
-enum cd_img_type
+enum cd_track_type
 {
-  CIT_NOT_CD = 0,
-  CIT_ISO,
-  CIT_BIN,
-  CIT_CUE
+  CT_UNKNOWN = 0,
+  // data tracks
+  CT_ISO = 1,	/* 2048 B/sector */
+  CT_BIN = 2,	/* 2352 B/sector */
+  // audio tracks
+  CT_MP3 = 3,
+  CT_WAV = 4,
+  CT_CHD = 5,
 };
+
+typedef struct
+{
+	char *fname;
+	int pregap;		/* pregap for current track */
+	int sector_offset;	/* in current file */
+	int sector_xlength;
+	enum cd_track_type type;
+} cd_track_t;
+
+typedef struct
+{
+	int track_count;
+	cd_track_t tracks[0];
+} cd_data_t;
+
 
 enum media_type_e PicoLoadMedia(const char *filename,
   const char *carthw_cfg_fname,

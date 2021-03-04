@@ -236,6 +236,11 @@ OBJS += platform/common/mp3_minimp3.o
 endif
 endif
 
+ifneq (,$(HAVE_LIBCHDR))
+CFLAGS += -DUSE_LIBCHDR -Iplatform/common/libchdr/include
+LDFLAGS += -Lplatform/common/libchdr -lchdr
+endif
+
 ifeq "$(PLATFORM_ZLIB)" "1"
 # zlib
 OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \

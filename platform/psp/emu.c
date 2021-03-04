@@ -30,7 +30,6 @@
 #include <pico/pico_int.h>
 #include <pico/cd/genplus_macros.h>
 #include <pico/cd/cdd.h>
-#include <pico/cd/cue.h>
 
 #define OSD_FPS_X 432
 
@@ -744,23 +743,10 @@ void emu_handle_resume(void)
 	// reopen first CD track
 	if (cdd.toc.tracks[0].fd != NULL)
 	{
-		const char *fname = rom_fname_reload;
-		int len = strlen(rom_fname_reload);
-		cue_data_t *cue_data = NULL;
-
-		if (len > 4 && strcasecmp(fname + len - 4,  ".cue") == 0)
-		{
-			cue_data = cue_parse(rom_fname_reload);
-			if (cue_data != NULL)
-				fname = cue_data->tracks[1].fname;
-		}
-
-		lprintf("emu_HandleResume: reopen %s\n", fname);
+		lprintf("emu_HandleResume: reopen %s\n", cdd.toc.tracks[0].fname);
 		pm_close(cdd.toc.tracks[0].fd);
-		cdd.toc.tracks[0].fd = pm_open(fname);
+		cdd.toc.tracks[0].fd = pm_open(cdd.toc.tracks[0].fname);
 		lprintf("reopen %s\n", cdd.toc.tracks[0].fd != NULL ? "ok" : "failed");
-
-		if (cue_data != NULL) cue_destroy(cue_data);
 	}
 
 	mp3_reopen_file();

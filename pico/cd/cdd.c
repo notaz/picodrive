@@ -38,7 +38,7 @@
 
 #include "../pico_int.h"
 #include "genplus_macros.h"
-#include "cue.h"
+#include "cd_parse.h"
 #include "cdd.h"
 
 #ifdef USE_LIBTREMOR
@@ -321,6 +321,7 @@ int cdd_load(const char *filename, int type)
   ret = (type == CT_BIN) ? 2352 : 2048;
   if (ret != cdd.sectorSize)
     elprintf(EL_STATUS|EL_ANOMALY, "cd: type detection mismatch");
+  pm_sectorsize(cdd.sectorSize, cdd.toc.tracks[0].fd);
 
   /* read CD image header + security code */
   pm_read(header + 0x10, 0x200, cdd.toc.tracks[0].fd);
@@ -448,6 +449,9 @@ int cdd_unload(void)
     {
       pm_close(cdd.toc.tracks[0].fd);
       cdd.toc.tracks[0].fd = NULL;
+      if (cdd.toc.tracks[0].fname)
+        free(cdd.toc.tracks[0].fd);
+      cdd.toc.tracks[0].fname = NULL;
     }
 
     for (i = 1; i < cdd.toc.last; i++)
@@ -466,7 +470,11 @@ int cdd_unload(void)
         if (Pico_mcd->cdda_type == CT_MP3)
           fclose(cdd.toc.tracks[i].fd);
         else
-          pm_close(cdd.toc.tracks[0].fd);
+          pm_close(cdd.toc.tracks[i].fd);
+        cdd.toc.tracks[i].fd = NULL;
+        if (cdd.toc.tracks[i].fname)
+          free(cdd.toc.tracks[i].fd);
+        cdd.toc.tracks[i].fname = NULL;
 
         /* detect single file images */
         if (cdd.toc.tracks[i+1].fd == cdd.toc.tracks[i].fd)

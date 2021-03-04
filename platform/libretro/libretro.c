@@ -749,7 +749,7 @@ void retro_get_system_info(struct retro_system_info *info)
 #define _GIT_VERSION "-" GIT_VERSION
 #endif
    info->library_version = VERSION _GIT_VERSION;
-   info->valid_extensions = "bin|gen|smd|md|32x|cue|iso|sms";
+   info->valid_extensions = "bin|gen|smd|md|32x|cue|iso|chd|sms";
    info->need_fullpath = true;
 }
 
@@ -1002,7 +1002,7 @@ static unsigned int disk_get_image_index(void)
 
 static bool disk_set_image_index(unsigned int index)
 {
-   enum cd_img_type cd_type;
+   enum cd_track_type cd_type;
    int ret;
 
    if (index >= sizeof(disks) / sizeof(disks[0]))
@@ -1024,7 +1024,7 @@ static bool disk_set_image_index(unsigned int index)
 
    ret = -1;
    cd_type = PicoCdCheck(disks[index].fname, NULL);
-   if (cd_type != CIT_NOT_CD)
+   if (cd_type >= 0 && cd_type != CT_UNKNOWN)
       ret = cdd_load(disks[index].fname, cd_type);
    if (ret != 0) {
       if (log_cb)

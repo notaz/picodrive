@@ -11,7 +11,6 @@
 #include "ym2612.h"
 #include "sn76496.h"
 #include "../pico_int.h"
-#include "../cd/cue.h"
 #include "mix.h"
 #include "emu2413/emu2413.h"
 
@@ -266,7 +265,7 @@ static void cdda_raw_update(int *buffer, int length)
   if (PicoIn.sndRate <  22050 - 100) mult = 4;
   cdda_bytes *= mult;
 
-  ret = pm_read(cdda_out_buffer, cdda_bytes, Pico_mcd->cdda_stream);
+  ret = pm_read_audio(cdda_out_buffer, cdda_bytes, Pico_mcd->cdda_stream);
   if (ret < cdda_bytes) {
     memset((char *)cdda_out_buffer + ret, 0, cdda_bytes - ret);
     Pico_mcd->cdda_stream = NULL;

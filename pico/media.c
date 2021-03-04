@@ -8,7 +8,7 @@
 
 #include <string.h>
 #include "pico_int.h"
-#include "cd/cue.h"
+#include "cd/cd_parse.h"
 
 unsigned char media_id_header[0x100];
 
@@ -49,7 +49,7 @@ static int detect_media(const char *fname)
     return PM_BAD_DETECT;
 
   /* don't believe in extensions, except .cue */
-  if (strcasecmp(ext, ".cue") == 0)
+  if (strcasecmp(ext, ".cue") == 0 || strcasecmp(ext, ".chd") == 0)
     return PM_CD;
 
   pmf = pm_open(fname);
@@ -129,26 +129,31 @@ int PicoCdCheck(const char *fname_in, int *pregion)
   pm_file *cd_f;
   int region = 4; // 1: Japan, 4: US, 8: Europe
   char ext[5];
-  cue_track_type type = CT_UNKNOWN;
-  cue_data_t *cue_data = NULL;
+  enum cd_track_type type = CT_UNKNOWN;
+  cd_data_t *cd_data = NULL;
 
   // opens a cue, or searches for one
-  cue_data = cue_parse(fname_in);
-  if (cue_data != NULL) {
-    fname = cue_data->tracks[1].fname;
-    type  = cue_data->tracks[1].type;
-  }
-  else {
+  if (!cd_data && (cd_data = cue_parse(fname_in)) == NULL) {
     get_ext(fname_in, ext);
     if (strcasecmp(ext, ".cue") == 0)
       return -1;
   }
+  // opens a chd
+  if (!cd_data && (cd_data = chd_parse(fname_in)) == NULL) {
+    get_ext(fname_in, ext);
+    if (strcasecmp(ext, ".chd") == 0)
+      return -1;
+  }
+
+  if (cd_data != NULL) {
+    // 1st track contains the code
+    fname = cd_data->tracks[1].fname;
+    type  = cd_data->tracks[1].type;
+  }
 
   cd_f = pm_open(fname);
-  if (cue_data != NULL)
-    cue_destroy(cue_data);
-
-  if (cd_f == NULL) return 0; // let the upper level handle this
+  cdparse_destroy(cd_data);
+  if (cd_f == NULL) return CT_UNKNOWN; // let the upper level handle this
 
   if (pm_read(buf, 32, cd_f) != 32) {
     pm_close(cd_f);
@@ -198,7 +203,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
 {
   const char *rom_fname = filename;
   enum media_type_e media_type;
-  enum cd_img_type cd_img_type = CIT_NOT_CD;
+  enum cd_track_type cd_img_type = CT_UNKNOWN;
   unsigned char *rom_data = NULL;
   unsigned int rom_size = 0;
   pm_file *rom = NULL;
@@ -219,7 +224,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
   {
     // check for MegaCD image
     cd_img_type = PicoCdCheck(filename, &cd_region);
-    if ((int)cd_img_type >= 0 && cd_img_type != CIT_NOT_CD)
+    if ((int)cd_img_type >= 0 && cd_img_type != CT_UNKNOWN)
     {
       // valid CD image, ask frontend for BIOS..
       rom_fname = NULL;
@@ -290,7 +295,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
   Pico.m.ncart_in = 0;
 
   // insert CD if it was detected
-  if (cd_img_type != CIT_NOT_CD) {
+  if (cd_img_type != CT_UNKNOWN) {
     ret = cdd_load(filename, cd_img_type);
     if (ret != 0) {
       PicoCartUnload();

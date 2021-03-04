@@ -40,7 +40,7 @@
 static const char *rom_exts[] = {
 	"zip",
 	"bin", "smd", "gen", "md",
-	"iso", "cso", "cue",
+	"iso", "cso", "cue", "chd",
 	"32x",
 	"sms",
 	NULL

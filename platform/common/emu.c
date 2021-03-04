@@ -539,11 +539,11 @@ out:
 
 int emu_swap_cd(const char *fname)
 {
-	enum cd_img_type cd_type;
+	enum cd_track_type cd_type;
 	int ret = -1;
 
 	cd_type = PicoCdCheck(fname, NULL);
-	if (cd_type != CIT_NOT_CD)
+	if (cd_type != CT_UNKNOWN)
 		ret = cdd_load(fname, cd_type);
 	if (ret != 0) {
 		menu_update_msg("Load failed, invalid CD image?");
