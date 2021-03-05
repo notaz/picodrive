@@ -1543,25 +1543,26 @@ static void update_variables(bool first_run)
       PicoIn.opt &= ~POPT_EN_DRC;
 #endif
 
-   old_snd_filter = PicoIn.sndFilter;
+   old_snd_filter = PicoIn.opt & POPT_EN_SNDFILTER;
    var.value = NULL;
    var.key = "picodrive_audio_filter";
-   PicoIn.sndFilter = 0;
+   PicoIn.opt &= ~POPT_EN_SNDFILTER;
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "low-pass") == 0)
-         PicoIn.sndFilter = 1;
+         PicoIn.opt |= POPT_EN_SNDFILTER;
    }
 
-   old_snd_filter_range = PicoIn.sndFilterRange;
+   old_snd_filter_range = PicoIn.sndFilterAlpha;
    var.value = NULL;
    var.key = "picodrive_lowpass_range";
-   PicoIn.sndFilterRange = (60 * 65536) / 100;
+   PicoIn.sndFilterAlpha = (60 * 0x10000 / 100);
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
-      PicoIn.sndFilterRange = (atoi(var.value) * 65536) / 100;
+      PicoIn.sndFilterAlpha = (atoi(var.value) * 0x10000 / 100);
    }
 
-   if (old_snd_filter != PicoIn.sndFilter || old_snd_filter_range != PicoIn.sndFilterRange) {
-      mix_reset(PicoIn.sndFilter ? PicoIn.sndFilterRange : 0);
+   if (((old_snd_filter ^ PicoIn.opt) & POPT_EN_SNDFILTER) ||
+         old_snd_filter_range != PicoIn.sndFilterAlpha) {
+      mix_reset (PicoIn.opt & POPT_EN_SNDFILTER ? PicoIn.sndFilterAlpha : 0);
    }
 
    old_frameskip_type = frameskip_type;

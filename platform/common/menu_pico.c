@@ -530,7 +530,6 @@ static const char h_ovrclk[] = "Will break some games, keep at 0";
 
 static menu_entry e_menu_adv_options[] =
 {
-	mee_onoff     ("SRAM/BRAM saves",          MA_OPT_SRAM_STATES,    currentConfig.EmuOpt, EOPT_EN_SRAM),
 	mee_onoff     ("Disable sprite limit",     MA_OPT2_NO_SPRITE_LIM, PicoIn.opt, POPT_DIS_SPRITE_LIM),
 	mee_range_h   ("Overclock M68k (%)",       MA_OPT2_OVERCLOCK_M68K,currentConfig.overclock_68k, 0, 1000, h_ovrclk),
 	mee_onoff     ("Emulate Z80",              MA_OPT2_ENABLE_Z80,    PicoIn.opt, POPT_EN_Z80),
@@ -538,12 +537,9 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Disable YM2612 SSG-EG",    MA_OPT2_DISABLE_YM_SSG,PicoIn.opt, POPT_DIS_FM_SSGEG),
 	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoIn.opt, POPT_EN_PSG),
 	mee_onoff     ("Emulate YM2413 (FM)",      MA_OPT2_ENABLE_YM2413 ,PicoIn.opt, POPT_EN_YM2413),
-	mee_onoff     ("gzip savestates",          MA_OPT2_GZIP_STATES,   currentConfig.EmuOpt, EOPT_GZIP_SAVES),
-	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoIn.opt, POPT_DIS_IDLE_DET),
 	mee_onoff     ("Disable frame limiter",    MA_OPT2_NO_FRAME_LIMIT,currentConfig.EmuOpt, EOPT_NO_FRMLIMIT),
 	mee_onoff     ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoIn.opt, POPT_EN_DRC),
-	mee_onoff     ("Status line in main menu", MA_OPT2_STATUS_LINE,   currentConfig.EmuOpt, EOPT_SHOW_RTC),
 	mee_range     ("Max auto frameskip",       MA_OPT2_MAX_FRAMESKIP, currentConfig.max_skip, 1, 10),
 	mee_onoff     ("PWM IRQ optimization",     MA_OPT2_PWM_IRQ_OPT,   PicoIn.opt, POPT_PWM_IRQ_OPT),
 	MENU_OPTIONS_ADV
@@ -556,6 +552,85 @@ static int menu_loop_adv_options(int id, int keys)
 
 	me_loop(e_menu_adv_options, &sel);
 	PicoIn.overclockM68k = currentConfig.overclock_68k; // int vs short
+
+	return 0;
+}
+
+// ------------ sound options menu ------------
+
+static int sndrate_prevnext(int rate, int dir)
+{
+	static const int rates[] = { 8000, 11025, 16000, 22050, 44100 };
+	int i;
+
+	for (i = 0; i < 5; i++)
+		if (rates[i] == rate) break;
+
+	i += dir ? 1 : -1;
+	if (i > 4) {
+		if (!(PicoIn.opt & POPT_EN_STEREO)) {
+			PicoIn.opt |= POPT_EN_STEREO;
+			return rates[0];
+		}
+		return rates[4];
+	}
+	if (i < 0) {
+		if (PicoIn.opt & POPT_EN_STEREO) {
+			PicoIn.opt &= ~POPT_EN_STEREO;
+			return rates[4];
+		}
+		return rates[0];
+	}
+	return rates[i];
+}
+
+static int mh_opt_snd(int id, int keys)
+{
+	PicoIn.sndRate = sndrate_prevnext(PicoIn.sndRate, keys & PBTN_RIGHT);
+	return 0;
+}
+
+static const char *mgn_opt_sound(int id, int *offs)
+{
+	const char *str2;
+	*offs = -8;
+	str2 = (PicoIn.opt & POPT_EN_STEREO) ? "stereo" : "mono";
+	sprintf(static_buff, "%5iHz %s", PicoIn.sndRate, str2);
+	return static_buff;
+}
+
+static int mh_opt_alpha(int id, int keys)
+{
+	int val = (PicoIn.sndFilterAlpha * 100 + 0x08000) / 0x10000;
+	if (keys & PBTN_LEFT)	val--;
+	if (keys & PBTN_RIGHT)	val++;
+	if (val <  1)           val = 1;
+	if (val > 99)           val = 99;
+	PicoIn.sndFilterAlpha = val * 0x10000 / 100;
+	return 0;
+}
+
+static const char *mgn_opt_alpha(int id, int *offs)
+{
+	int val = (PicoIn.sndFilterAlpha * 100 + 0x08000) / 0x10000;
+	sprintf(static_buff, "0.%02d", val);
+	return static_buff;
+}
+
+static menu_entry e_menu_snd_options[] =
+{
+	mee_onoff     ("Enable sound",             MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, EOPT_EN_SOUND),
+	mee_cust      ("Sound Quality",            MA_OPT_SOUND_QUALITY, mh_opt_snd, mgn_opt_sound),
+	mee_onoff     ("Sound filter (low pass)",  MA_OPT_SOUND_FILTER,  PicoIn.opt, POPT_EN_SNDFILTER),
+	mee_cust      ("Filter strength (alpha)",  MA_OPT_SOUND_ALPHA,   mh_opt_alpha, mgn_opt_alpha),
+	mee_end,
+};
+
+static int menu_loop_snd_options(int id, int keys)
+{
+	static int sel = 0;
+
+	me_loop(e_menu_snd_options, &sel);
 
 	return 0;
 }
@@ -590,35 +665,31 @@ static int menu_loop_gfx_options(int id, int keys)
 	return 0;
 }
 
+// ------------ UI options menu ------------
+
+static const char *men_confirm_save[] = { "OFF", "writes", "loads", "both", NULL };
+static const char h_confirm_save[]    = "Ask for confirmation when overwriting save,\n"
+					"loading state or both";
+
+static menu_entry e_menu_ui_options[] =
+{
+	mee_enum_h    ("Confirm savestate",        MA_OPT_CONFIRM_STATES, currentConfig.confirm_save, men_confirm_save, h_confirm_save),
+	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
+	mee_end,
+};
+
+static int menu_loop_ui_options(int id, int keys)
+{
+	static int sel = 0;
+
+	me_loop(e_menu_ui_options, &sel);
+
+	return 0;
+}
+
 // ------------ options menu ------------
 
 static menu_entry e_menu_options[];
-
-static int sndrate_prevnext(int rate, int dir)
-{
-	static const int rates[] = { 8000, 11025, 16000, 22050, 44100 };
-	int i;
-
-	for (i = 0; i < 5; i++)
-		if (rates[i] == rate) break;
-
-	i += dir ? 1 : -1;
-	if (i > 4) {
-		if (!(PicoIn.opt & POPT_EN_STEREO)) {
-			PicoIn.opt |= POPT_EN_STEREO;
-			return rates[0];
-		}
-		return rates[4];
-	}
-	if (i < 0) {
-		if (PicoIn.opt & POPT_EN_STEREO) {
-			PicoIn.opt &= ~POPT_EN_STEREO;
-			return rates[4];
-		}
-		return rates[0];
-	}
-	return rates[i];
-}
 
 static void region_prevnext(int right)
 {
@@ -651,9 +722,6 @@ static void region_prevnext(int right)
 static int mh_opt_misc(int id, int keys)
 {
 	switch (id) {
-	case MA_OPT_SOUND_QUALITY:
-		PicoIn.sndRate = sndrate_prevnext(PicoIn.sndRate, keys & PBTN_RIGHT);
-		break;
 	case MA_OPT_REGION:
 		region_prevnext(keys & PBTN_RIGHT);
 		break;
@@ -711,15 +779,6 @@ static const char *mgn_opt_fskip(int id, int *offs)
 	return static_buff;
 }
 
-static const char *mgn_opt_sound(int id, int *offs)
-{
-	const char *str2;
-	*offs = -8;
-	str2 = (PicoIn.opt & POPT_EN_STEREO) ? "stereo" : "mono";
-	sprintf(static_buff, "%5iHz %s", PicoIn.sndRate, str2);
-	return static_buff;
-}
-
 static const char *mgn_opt_region(int id, int *offs)
 {
 	static const char *names[] = { "Auto", "      Japan NTSC", "      Japan PAL", "      USA", "      Europe" };
@@ -754,21 +813,16 @@ static const char *mgn_saveloadcfg(int id, int *offs)
 	return static_buff;
 }
 
-static const char *men_confirm_save[] = { "OFF", "writes", "loads", "both", NULL };
-static const char h_confirm_save[]    = "Ask for confirmation when overwriting save,\n"
-					"loading state or both";
-
 static menu_entry e_menu_options[] =
 {
 	mee_range     ("Save slot",                MA_OPT_SAVE_SLOT,     state_slot, 0, 9),
 	mee_range_cust("Frameskip",                MA_OPT_FRAMESKIP,     currentConfig.Frameskip, -1, 16, mgn_opt_fskip),
 	mee_cust      ("Region",                   MA_OPT_REGION,        mh_opt_misc, mgn_opt_region),
 	mee_onoff     ("Show FPS",                 MA_OPT_SHOW_FPS,      currentConfig.EmuOpt, EOPT_SHOW_FPS),
-	mee_onoff     ("Enable sound",             MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, EOPT_EN_SOUND),
-	mee_cust      ("Sound Quality",            MA_OPT_SOUND_QUALITY, mh_opt_misc, mgn_opt_sound),
-	mee_enum_h    ("Confirm savestate",        MA_OPT_CONFIRM_STATES,currentConfig.confirm_save, men_confirm_save, h_confirm_save),
 	mee_range     ("",                         MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 3200),
+	mee_handler   ("[Interface options]",      menu_loop_ui_options),
 	mee_handler   ("[Display options]",        menu_loop_gfx_options),
+	mee_handler   ("[Sound options]",          menu_loop_snd_options),
 	mee_handler   ("[Sega/Mega CD options]",   menu_loop_cd_options),
 #ifndef NO_32X
 	mee_handler   ("[32X options]",            menu_loop_32x_options),
@@ -1219,7 +1273,7 @@ void menu_update_msg(const char *msg)
 /* hidden options for config engine only */
 static menu_entry e_menu_hidden[] =
 {
-	mee_onoff("Accurate sprites", MA_OPT_ACC_SPRITES, PicoIn.opt, 0x080),
+	mee_onoff("Accurate sprites", MA_OPT_ACC_SPRITES, PicoIn.opt, POPT_ACC_SPRITES),
 	mee_onoff("autoload savestates", MA_OPT_AUTOLOAD_SAVE, g_autostateld_opt, 1),
 	mee_end,
 };
@@ -1227,6 +1281,8 @@ static menu_entry e_menu_hidden[] =
 static menu_entry *e_menu_table[] =
 {
 	e_menu_options,
+	e_menu_ui_options,
+	e_menu_snd_options,
 	e_menu_gfx_options,
 	e_menu_adv_options,
 	e_menu_cd_options,

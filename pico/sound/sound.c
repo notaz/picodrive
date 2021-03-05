@@ -50,8 +50,6 @@ PICO_INTERNAL void PsndReset(void)
   // PsndRerate calls YM2612Init, which also resets
   PsndRerate(0);
   timers_reset();
-
-  mix_reset(PicoIn.sndFilter ? PicoIn.sndFilterRange : 0);
 }
 
 
@@ -106,6 +104,7 @@ void PsndRerate(int preserve_state)
 
   // set mixer
   PsndMix_32_to_16l = (PicoIn.opt & POPT_EN_STEREO) ? mix_32_to_16l_stereo : mix_32_to_16_mono;
+  mix_reset(PicoIn.opt & POPT_EN_SNDFILTER ? PicoIn.sndFilterAlpha : 0);
 
   if (PicoIn.AHW & PAHW_PICO)
     PicoReratePico();

@@ -55,6 +55,7 @@ typedef struct _currentConfig_t {
 	int s_PicoRegion;
 	int s_PicoAutoRgnOrder;
 	int s_PicoCDBuffers;
+	int s_PicoSndFilterAlpha;
 	int Frameskip;
 	int input_dev0;
 	int input_dev1;

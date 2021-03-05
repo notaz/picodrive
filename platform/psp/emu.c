@@ -477,7 +477,8 @@ void pemu_sound_start(void)
 		}
 	}
 
-	if (PicoIn.sndRate != PsndRate_old || (PicoIn.opt&0x0b) != (PicoOpt_old&0x0b) || Pico.m.pal != pal_old) {
+	ret = POPT_EN_FM|POPT_EN_PSG|POPT_EN_STEREO;
+	if (PicoIn.sndRate != PsndRate_old || (PicoIn.opt&ret) != (PicoOpt_old&ret) || Pico.m.pal != pal_old) {
 		PsndRerate(Pico.m.frame_count ? 1 : 0);
 	}
 	stereo=(PicoIn.opt&8)>>3;
@@ -578,6 +579,7 @@ void pemu_prep_defconfig(void)
 	defaultConfig.scale = 1.20;    // fullscreen
 	defaultConfig.hscale40 = 1.25;
 	defaultConfig.hscale32 = 1.56;
+	defaultConfig.EmuOpt |= EOPT_SHOW_RTC;
 }
 
 /* check configuration for inconsistencies */

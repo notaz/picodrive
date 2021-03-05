@@ -279,6 +279,11 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 				return 0;
 			return 1;
 
+		case MA_OPT_SOUND_ALPHA:
+			if (strcasecmp(var, "Filter strength (alpha)") != 0) return 0;
+			PicoIn.sndFilterAlpha = 0x10000 * atof(val);
+			return 1;
+
 		case MA_OPT_REGION:
 			if (strcasecmp(var, "Region") != 0) return 0;
 			if       (strncasecmp(val, "Auto: ", 6) == 0)
@@ -349,12 +354,12 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			// XXX: use enum
 			if (strcasecmp(var, "Wait for vsync") != 0) return 0;
 			if        (strcasecmp(val, "never") == 0) {
-				currentConfig.EmuOpt &= ~0x12000;
+				currentConfig.EmuOpt &= ~(EOPT_VSYNC|EOPT_VSYNC_MODE);
 			} else if (strcasecmp(val, "sometimes") == 0) {
-				currentConfig.EmuOpt |=  0x12000;
+				currentConfig.EmuOpt |=  (EOPT_VSYNC|EOPT_VSYNC_MODE);
 			} else if (strcasecmp(val, "always") == 0) {
-				currentConfig.EmuOpt &= ~0x12000;
-				currentConfig.EmuOpt |=  0x02000;
+				currentConfig.EmuOpt &= ~EOPT_VSYNC_MODE;
+				currentConfig.EmuOpt |=  EOPT_VSYNC;
 			} else
 				return 0;
 			return 1;

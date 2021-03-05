@@ -585,8 +585,10 @@ static void make_config_cfg(char *cfg_buff_512)
 void emu_prep_defconfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
-	defaultConfig.EmuOpt    = 0x9d | EOPT_EN_CD_LEDS;
-	defaultConfig.s_PicoOpt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80 |
+	defaultConfig.EmuOpt    = EOPT_EN_SRAM | EOPT_EN_SOUND | EOPT_16BPP |
+				  EOPT_EN_CD_LEDS | EOPT_GZIP_SAVES | 0x10/*?*/;
+	defaultConfig.s_PicoOpt = POPT_EN_SNDFILTER|
+				  POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80 |
 				  POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX |
 				  POPT_EN_DRC|POPT_ACC_SPRITES |
 				  POPT_EN_32X|POPT_EN_PWM;
@@ -594,6 +596,7 @@ void emu_prep_defconfig(void)
 	defaultConfig.s_PicoRegion = 0; // auto
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
 	defaultConfig.s_PicoCDBuffers = 0;
+	defaultConfig.s_PicoSndFilterAlpha = 0x10000 * 60 / 100;
 	defaultConfig.confirm_save = EOPT_CONFIRM_SAVE;
 	defaultConfig.Frameskip = -1; // auto
 	defaultConfig.input_dev0 = PICO_INPUT_PAD_3BTN;
@@ -617,6 +620,7 @@ void emu_set_defconfig(void)
 	PicoIn.sndRate = currentConfig.s_PsndRate;
 	PicoIn.regionOverride = currentConfig.s_PicoRegion;
 	PicoIn.autoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
+	PicoIn.sndFilterAlpha = currentConfig.s_PicoSndFilterAlpha;
 }
 
 int emu_read_config(const char *rom_fname, int no_defaults)
@@ -974,7 +978,7 @@ void emu_set_fastforward(int set_on)
 		PicoIn.sndOut = NULL;
 		currentConfig.Frameskip = 8;
 		currentConfig.EmuOpt &= ~4;
-		currentConfig.EmuOpt |= 0x40000;
+		currentConfig.EmuOpt |= EOPT_NO_FRMLIMIT;
 		is_on = 1;
 		emu_status_msg("FAST FORWARD");
 	}
