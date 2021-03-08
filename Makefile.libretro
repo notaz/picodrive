@@ -564,8 +564,6 @@ asm_32xdraw = 0
 asm_32xmemory = 0
 endif
 
-#HAVE_LIBCHDR = 1
-
 CFLAGS += $(fpic)
 
 ifeq ($(findstring Haiku,$(shell uname -a)),)

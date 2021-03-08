@@ -57,6 +57,7 @@ CFLAGS += -fno-common -fno-stack-protector -fno-guess-branch-probability -fno-ca
 endif
 
 # default settings
+use_libchdr ?= 1
 ifeq "$(ARCH)" "arm"
 use_cyclone ?= 1
 use_drz80 ?= 1
@@ -236,8 +237,39 @@ OBJS += platform/common/mp3_minimp3.o
 endif
 endif
 
-ifneq (,$(HAVE_LIBCHDR))
+ifeq (1,$(use_libchdr))
+# yuck, cmake looks like a nightmare to embed in a multi-platform make env :-/
+# Moreover, static library linking isn't working.
+# Reference all source files directly and hope for the best. Tested on linux,
+# might not work on other platforms, and misses autodetected optimizations.
 CFLAGS += -DUSE_LIBCHDR
+
+# chdr
+CHDR = pico/cd/libchdr
+CHDR_OBJS += $(CHDR)/src/libchdr_chd.o $(CHDR)/src/libchdr_cdrom.o
+CHDR_OBJS += $(CHDR)/src/libchdr_flac.o
+CHDR_OBJS += $(CHDR)/src/libchdr_bitstream.o $(CHDR)/src/libchdr_huffman.o
+
+# flac
+FLAC = $(CHDR)/deps/flac-1.3.3
+FLAC_OBJS += $(FLAC)/src/format.o $(FLAC)/src/lpc.o $(FLAC)/src/cpu.o
+FLAC_OBJS += $(FLAC)/src/metadata_object.o $(FLAC)/src/metadata_iterators.o
+FLAC_OBJS += $(FLAC)/src/bitmath.o $(FLAC)/src/bitreader.o $(FLAC)/src/md5.o
+FLAC_OBJS += $(FLAC)/src/memory.o $(FLAC)/src/fixed.o $(FLAC)/src/crc.o
+FLAC_OBJS += $(FLAC)/src/window.o $(FLAC)/src/stream_decoder.o
+$(FLAC_OBJS): CFLAGS += -DPACKAGE_VERSION=\"1.3.3\" -DFLAC__HAS_OGG=0
+$(FLAC_OBJS): CFLAGS += -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H # ugh...
+
+# lzma
+LZMA = $(CHDR)/deps/lzma-19.00
+LZMA_OBJS += $(LZMA)/src/CpuArch.o $(LZMA)/src/Alloc.o $(LZMA)/src/LzmaEnc.o
+LZMA_OBJS += $(LZMA)/src/Sort.o $(LZMA)/src/LzmaDec.o $(LZMA)/src/LzFind.o
+LZMA_OBJS += $(LZMA)/src/Delta.o
+$(LZMA_OBJS): CFLAGS += -D_7ZIP_ST
+
+OBJS += $(CHDR_OBJS) $(FLAC_OBJS) $(LZMA_OBJS)
+CHDR_I = $(shell find $(CHDR) -name 'include')
+CFLAGS += $(patsubst %, -I%, $(CHDR_I)) # tsk...
 endif
 
 ifeq "$(PLATFORM_ZLIB)" "1"

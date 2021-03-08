@@ -754,7 +754,7 @@ void emu_handle_resume(void)
 	mp3_reopen_file();
 
 #if 0	// TODO
-	if (!(Pico_mcd->s68k_regs[0x36] & 1)/* && (Pico_mcd->scd.Status_CDC & 1)*/)
+	if (!(Pico_mcd->s68k_regs[0x36] & 1))
 		cdd_change_track(cdd.index, cdd.lba);
 #endif
 }
