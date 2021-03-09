@@ -239,7 +239,7 @@ endif
 
 ifeq (1,$(use_libchdr))
 # yuck, cmake looks like a nightmare to embed in a multi-platform make env :-/
-# Moreover, static library linking isn't working.
+# Moreover, libchdr uses -flto which apparently prevents static library linking.
 # Reference all source files directly and hope for the best. Tested on linux,
 # might not work on other platforms, and misses autodetected optimizations.
 CFLAGS += -DUSE_LIBCHDR
@@ -249,6 +249,7 @@ CHDR = pico/cd/libchdr
 CHDR_OBJS += $(CHDR)/src/libchdr_chd.o $(CHDR)/src/libchdr_cdrom.o
 CHDR_OBJS += $(CHDR)/src/libchdr_flac.o
 CHDR_OBJS += $(CHDR)/src/libchdr_bitstream.o $(CHDR)/src/libchdr_huffman.o
+$(CHDR_OBJS): CFLAGS += -DHAVE_FSEEKO
 
 # flac
 FLAC = $(CHDR)/deps/flac-1.3.3
@@ -258,7 +259,7 @@ FLAC_OBJS += $(FLAC)/src/bitmath.o $(FLAC)/src/bitreader.o $(FLAC)/src/md5.o
 FLAC_OBJS += $(FLAC)/src/memory.o $(FLAC)/src/fixed.o $(FLAC)/src/crc.o
 FLAC_OBJS += $(FLAC)/src/window.o $(FLAC)/src/stream_decoder.o
 $(FLAC_OBJS): CFLAGS += -DPACKAGE_VERSION=\"1.3.3\" -DFLAC__HAS_OGG=0
-$(FLAC_OBJS): CFLAGS += -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H # ugh...
+$(FLAC_OBJS): CFLAGS += -DHAVE_FSEEKO -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H # ugh...
 
 # lzma
 LZMA = $(CHDR)/deps/lzma-19.00
@@ -268,8 +269,9 @@ LZMA_OBJS += $(LZMA)/src/Delta.o
 $(LZMA_OBJS): CFLAGS += -D_7ZIP_ST
 
 OBJS += $(CHDR_OBJS) $(FLAC_OBJS) $(LZMA_OBJS)
+# ouf... prepend includes to overload headers available in the toolchain
 CHDR_I = $(shell find $(CHDR) -name 'include')
-CFLAGS += $(patsubst %, -I%, $(CHDR_I)) # tsk...
+CFLAGS := $(patsubst %, -I%, $(CHDR_I)) $(CFLAGS)
 endif
 
 ifeq "$(PLATFORM_ZLIB)" "1"

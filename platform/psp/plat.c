@@ -331,9 +331,5 @@ int _flush_cache (char *addr, const int size, const int op)
 int chown(const char *pathname, uid_t owner, gid_t group) { return -1; }
 int chmod(const char *pathname, mode_t mode) { return -1; }
 int utime(const char *filename, const struct utimbuf *times) { return -1; }
-int fseeko64(FILE *stream, _off64_t offset, int whence)
-	{ return fseeko(stream, offset, whence); }
-_off64_t ftello64(FILE *stream)
-	{ return ftello(stream); }
 int posix_memalign(void **memptr, size_t alignment, size_t size)
 	{ *memptr = memalign(alignment, size); return 0; }
