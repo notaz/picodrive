@@ -249,7 +249,6 @@ CHDR = pico/cd/libchdr
 CHDR_OBJS += $(CHDR)/src/libchdr_chd.o $(CHDR)/src/libchdr_cdrom.o
 CHDR_OBJS += $(CHDR)/src/libchdr_flac.o
 CHDR_OBJS += $(CHDR)/src/libchdr_bitstream.o $(CHDR)/src/libchdr_huffman.o
-$(CHDR_OBJS): CFLAGS += -DHAVE_FSEEKO
 
 # flac
 FLAC = $(CHDR)/deps/flac-1.3.3
@@ -258,6 +257,7 @@ FLAC_OBJS += $(FLAC)/src/metadata_object.o $(FLAC)/src/metadata_iterators.o
 FLAC_OBJS += $(FLAC)/src/bitmath.o $(FLAC)/src/bitreader.o $(FLAC)/src/md5.o
 FLAC_OBJS += $(FLAC)/src/memory.o $(FLAC)/src/fixed.o $(FLAC)/src/crc.o
 FLAC_OBJS += $(FLAC)/src/window.o $(FLAC)/src/stream_decoder.o
+FLAC_OBJS += $(FLAC)/src/windows_unicode_filenames.o
 $(FLAC_OBJS): CFLAGS += -DPACKAGE_VERSION=\"1.3.3\" -DFLAC__HAS_OGG=0
 $(FLAC_OBJS): CFLAGS += -DHAVE_FSEEKO -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H # ugh...
 

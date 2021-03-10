@@ -328,6 +328,9 @@ int _flush_cache (char *addr, const int size, const int op)
 }
 
 /* stubs for libflac (embedded in libchdr) */
+#include <utime.h>
+#include <malloc.h>
+
 int chown(const char *pathname, uid_t owner, gid_t group) { return -1; }
 int chmod(const char *pathname, mode_t mode) { return -1; }
 int utime(const char *filename, const struct utimbuf *times) { return -1; }

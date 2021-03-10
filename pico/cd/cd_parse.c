@@ -83,7 +83,7 @@ static int get_ext(const char *fname, char ext[4],
 	strncpy(ext, fname + pos + 1, 4/*sizeof(ext)*/-1);
 	ext[4/*sizeof(ext)*/-1] = '\0';
 
-	if (base != NULL) {
+	if (base != NULL && base_size > 0) {
 		if (pos + 1 < base_size)
 			pos = base_size - 1;
 
