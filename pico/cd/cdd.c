@@ -450,7 +450,7 @@ int cdd_unload(void)
       pm_close(cdd.toc.tracks[0].fd);
       cdd.toc.tracks[0].fd = NULL;
       if (cdd.toc.tracks[0].fname)
-        free(cdd.toc.tracks[0].fd);
+        free(cdd.toc.tracks[0].fname);
       cdd.toc.tracks[0].fname = NULL;
     }
 
@@ -473,7 +473,7 @@ int cdd_unload(void)
           pm_close(cdd.toc.tracks[i].fd);
         cdd.toc.tracks[i].fd = NULL;
         if (cdd.toc.tracks[i].fname)
-          free(cdd.toc.tracks[i].fd);
+          free(cdd.toc.tracks[i].fname);
         cdd.toc.tracks[i].fname = NULL;
 
         /* detect single file images */

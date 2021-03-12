@@ -24,6 +24,7 @@ PICO_INTERNAL void PicoInitMCD(void)
 
 PICO_INTERNAL void PicoExitMCD(void)
 {
+  cdd_unload();
 }
 
 PICO_INTERNAL void PicoPowerMCD(void)
