@@ -182,6 +182,7 @@ else ifeq ($(platform), psl1ght)
 
 # PSP
 else ifeq ($(platform), psp1)
+	ARCH = mipsel
 	TARGET := $(TARGET_NAME)_libretro_$(platform).a
 	CC = psp-gcc$(EXE_EXT)
 	AR = psp-ar$(EXE_EXT)
@@ -190,11 +191,9 @@ else ifeq ($(platform), psp1)
 	STATIC_LINKING = 1
 	NO_MMAP = 1
 
-	ARCH = mipsel
-	asm_render = 1
-
 # PS2
 else ifeq ($(platform), ps2)
+	ARCH = mipsel
 	TARGET := $(TARGET_NAME)_libretro_$(platform).a
 	CC = ee-gcc$(EXE_EXT)
 	AR = ee-ar$(EXE_EXT)
@@ -203,10 +202,6 @@ else ifeq ($(platform), ps2)
 	CFLAGS += -DHAVE_NO_LANGEXTRA
 	STATIC_LINKING = 1
 	NO_MMAP = 1
-
-	ARCH = mipsel
-	asm_render = 1
-	OBJS += platform/libretro/ps2/asm.o
 
 # CTR (3DS)
 else ifeq ($(platform), ctr)
@@ -296,13 +291,13 @@ else ifeq ($(platform), libnx)
 
 # QNX
 else ifeq ($(platform), qnx)
+	ARCH = arm
 	TARGET := $(TARGET_NAME)_libretro_$(platform).so
 	fpic := -fPIC
 	CC = qcc -Vgcc_ntoarmv7le
 	CC_AS = $(CC)
 	CFLAGS += -DBASE_ADDR_FIXED=0 -D__BLACKBERRY_QNX__ -marm -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
 	ASFLAGS +=  -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=softfp
-	ARCH = arm
 
 # (armv7 a7, hard point, neon based) ### 
 # NESC, SNESC, C64 mini 
