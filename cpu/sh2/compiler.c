@@ -5108,7 +5108,7 @@ end_op:
   else
     opd = &ops[i-1];
 
-  if (! OP_ISBRAUC(opd->op))
+  if (! OP_ISBRAUC(opd->op) || (opd->dest & BITMASK1(SHR_PR)))
   {
     tmp = rcache_get_reg(SHR_SR, RC_GR_RMW, NULL);
     FLUSH_CYCLES(tmp);
