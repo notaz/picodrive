@@ -2590,8 +2590,21 @@ static void emit_le_ptr8(int cond, int r)
 #endif
 }
 
+// split address by mask, in base part (upper) and offset (lower, signed!)
+static uptr split_address(uptr la, uptr mask, s32 *offs)
+{
+  uptr sign = (mask>>1) + 1; // sign bit in offset
+  *offs = (la & mask) | (la & sign ? ~mask : 0); // offset part, sign extended
+  la = (la & ~mask) + ((la & sign) << 1); // base part, corrected for offs sign
+  if (~mask && la == ~mask && !(*offs & sign)) { // special case la=-1 & offs>0
+    *offs = -*offs;
+    la = 0;
+  }
+  return la;
+}
+
 // NB may return either REG or TEMP
-static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmode, u32 *offs)
+static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmode, s32 *offs)
 {
   uptr omask = emith_rw_offs_max(); // offset mask
   u32 mask = 0;
@@ -2614,14 +2627,14 @@ static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmode, u32 *offs)
     a = (a + *offs) & mask;
     if (poffs == offsetof(SH2, p_da)) {
       // access sh2->data_array directly
-      a += offsetof(SH2, data_array);
-      emith_add_r_r_ptr_imm(hr, CONTEXT_REG, a & ~omask);
+      a = split_address(a + offsetof(SH2, data_array), omask, offs);
+      emith_add_r_r_ptr_imm(hr, CONTEXT_REG, a);
     } else {
+      a = split_address(a, omask, offs);
       emith_ctx_read_ptr(hr, poffs);
-      if (a & ~omask)
-        emith_add_r_r_ptr_imm(hr, hr, a & ~omask);
+      if (a)
+        emith_add_r_r_ptr_imm(hr, hr, a);
     }
-    *offs = a & omask;
     return hr;
   }
 
@@ -2637,24 +2650,23 @@ static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmode, u32 *offs)
     la -= (s32)((a & ~mask) - *offs); // diff between reg and memory
     hr = hr2 = rcache_get_reg(r, rmode, NULL);
     if ((s32)a < 0) emith_uext_ptr(hr2);
-    if (la & ~omask) {
+    la = split_address(la, omask, offs);
+    if (la) {
       hr = rcache_get_tmp();
-      emith_add_r_r_ptr_imm(hr, hr2, la & ~omask);
+      emith_add_r_r_ptr_imm(hr, hr2, la);
       rcache_free(hr2);
     }
-    *offs = (la & omask);
   } else {
     // known fixed host address
-    la += (a + *offs) & mask;
+    la = split_address(la + ((a + *offs) & mask), omask, offs);
     hr = rcache_get_tmp();
-    emith_move_r_ptr_imm(hr, la & ~omask);
-    *offs = la & omask;
+    emith_move_r_ptr_imm(hr, la);
   }
   return hr;
 }
 
 // read const data from const ROM address
-static int emit_get_rom_data(SH2 *sh2, sh2_reg_e r, u32 offs, int size, u32 *val)
+static int emit_get_rom_data(SH2 *sh2, sh2_reg_e r, s32 offs, int size, u32 *val)
 {
   u32 a, mask;
 
@@ -2788,7 +2800,7 @@ static void emit_memhandler_write(int size)
 }
 
 // rd = @(Rs,#offs); rd < 0 -> return a temp
-static int emit_memhandler_read_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, u32 offs, int size)
+static int emit_memhandler_read_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, s32 offs, int size)
 {
   int hr, hr2;
   u32 val;
@@ -2859,7 +2871,7 @@ static int emit_memhandler_read_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, u32 off
 }
 
 // @(Rs,#offs) = rd; rd < 0 -> write arg1
-static void emit_memhandler_write_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, u32 offs, int size)
+static void emit_memhandler_write_rr(SH2 *sh2, sh2_reg_e rd, sh2_reg_e rs, s32 offs, int size)
 {
   int hr, hr2;
   u32 val;
