@@ -1263,7 +1263,7 @@ static inline void emith_pool_adjust(int tcache_offs, int move_offs)
 #define host_arg2reg(rd, arg) \
 	rd = arg
 
-#define emith_rw_offs_max()	0xff
+#define emith_rw_offs_max()	0x1ff	// minimum of offset in AM2 and AM3
 
 /* SH2 drc specific */
 /* pushes r12 for eabi alignment */
