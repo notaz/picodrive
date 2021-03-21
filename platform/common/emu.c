@@ -669,12 +669,6 @@ int emu_read_config(const char *rom_fname, int no_defaults)
 	PicoIn.overclockM68k = currentConfig.overclock_68k;
 
 	// some sanity checks
-#ifdef PSP
-	/* TODO: mv to plat_validate_config() */
-	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;
-	if (currentConfig.gamma < -4 || currentConfig.gamma >  16) currentConfig.gamma = 0;
-	if (currentConfig.gamma2 < 0 || currentConfig.gamma2 > 2)  currentConfig.gamma2 = 0;
-#endif
 	if (currentConfig.volume < 0 || currentConfig.volume > 99)
 		currentConfig.volume = 50;
 

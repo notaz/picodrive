@@ -593,6 +593,10 @@ void pemu_validate_config(void)
 		currentConfig.hscale40 = 0.01;
 	if (currentConfig.hscale32 < 0.01)
 		currentConfig.hscale32 = 0.01;
+	if (currentConfig.gamma < -4 || currentConfig.gamma >  16)
+		currentConfig.gamma = 0;
+	if (currentConfig.gamma2 < 0 || currentConfig.gamma2 > 2)
+		currentConfig.gamma2 = 0;
 }
 
 /* finalize rendering a frame */
