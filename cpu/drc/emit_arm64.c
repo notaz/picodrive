@@ -7,14 +7,14 @@
  */
 #define HOST_REGS	32
 
-// AAPCS64: params: r0-r7, return: r0-r1, temp: r8-r17, saved: r19-r29
-// reserved: r18 (for platform use)
+// AAPCS64: params: r0-r7, return: r0-r1, temp: r8-r17, saved: r19-r28
+// reserved: r18 (for platform use), r29 (frame pointer)
 #define RET_REG		0
 #define PARAM_REGS	{ 0, 1, 2, 3, 4, 5, 6, 7 }
-#define PRESERVED_REGS	{ 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29 }
+#define PRESERVED_REGS	{ 19, 20, 21, 22, 23, 24, 25, 26, 27, 28 }
 #define TEMPORARY_REGS	{ 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
 
-#define CONTEXT_REG	29
+#define CONTEXT_REG	19
 #define STATIC_SH2_REGS	{ SHR_SR,28 , SHR_R(0),27 , SHR_R(1),26 }
 
 // R31 doesn't exist, it aliases either with zero or SP
