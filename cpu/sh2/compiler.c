@@ -207,6 +207,7 @@ static char sh2dasm_buff[64];
 #if (DRC_DEBUG & (256|512|1024))
 static SH2 csh2[2][8];
 static FILE *trace[2];
+static int topen[2];
 #endif
 static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
 {
@@ -217,12 +218,13 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
     pdb_step(sh2, sh2->pc);
 #elif (DRC_DEBUG & 256)
   {
+    static SH2 fsh2;
     int idx = sh2->is_slave;
-    if (!trace[0]) {
+    if (!trace[0] && !topen[0]++) {
       trace[0] = fopen("pico.trace0", "wb");
       trace[1] = fopen("pico.trace1", "wb");
     }
-    if (csh2[idx][0].pc != sh2->pc) {
+    if (trace[idx] && csh2[idx][0].pc != sh2->pc) {
       fwrite(sh2, offsetof(SH2, read8_map), 1, trace[idx]);
       fwrite(&sh2->pdb_io_csum, sizeof(sh2->pdb_io_csum), 1, trace[idx]);
       memcpy(&csh2[idx][0], sh2, offsetof(SH2, poll_cnt)+4);
@@ -233,11 +235,11 @@ static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
   {
     static SH2 fsh2;
     int idx = sh2->is_slave;
-    if (!trace[0]) {
+    if (!trace[0] && !topen[0]++) {
       trace[0] = fopen("pico.trace0", "rb");
       trace[1] = fopen("pico.trace1", "rb");
     }
-    if (csh2[idx][0].pc != sh2->pc) {
+    if (trace[idx] && csh2[idx][0].pc != sh2->pc) {
       if (!fread(&fsh2, offsetof(SH2, read8_map), 1, trace[idx]) ||
           !fread(&fsh2.pdb_io_csum, sizeof(sh2->pdb_io_csum), 1, trace[idx])) {
         printf("trace eof at %08lx\n",ftell(trace[idx]));
