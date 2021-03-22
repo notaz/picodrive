@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/mman.h>
 
 #include "../libpicofe/menu.h"
 #include "../libpicofe/plat.h"
@@ -247,5 +248,10 @@ void plat_wait_till_us(unsigned int us_to)
 
 void *plat_mem_get_for_drc(size_t size)
 {
+#ifdef MAP_JIT
+	// newer versions of OSX, IOS or TvOS need this
+	return plat_mmap(0, size, 1, 0);
+#else
 	return NULL;
+#endif
 }
