@@ -263,7 +263,7 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
 
     // update FIFO state if it was empty
     if (!(pv->status & PVS_FIFORUN)) {
-      vf->fifo_slot = Cyc2Sl(vf, lc+8); // FIFO latency ~3 vdp slots
+      vf->fifo_slot = Cyc2Sl(vf, lc+9); // FIFO latency ~3 vdp slots
       pv->status |= PVS_FIFORUN;
       pv->fifo_cnt = count << (flags & FQ_BYTE);
     }
