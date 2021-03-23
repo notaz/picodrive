@@ -22,7 +22,7 @@ else # NO_CONFIG_MAK
 config.mak:
 endif
 
-# This is actually needed, believe me.
+# This is actually needed, believe me - one bit is used as a flag in some tables
 # If you really have to disable this, set NO_ALIGN_FUNCTIONS elsewhere.
 ifndef NO_ALIGN_FUNCTIONS
 CFLAGS += -falign-functions=2
@@ -83,25 +83,34 @@ endif
 -include Makefile.local
 
 ifeq "$(PLATFORM)" "opendingux"
-opk: $(TARGET).opk
 
-$(TARGET).opk: $(TARGET)
-	$(RM) -rf .opk_data
-	cp -r platform/opendingux/data .opk_data
-	cp $< .opk_data/PicoDrive
-	$(STRIP) .opk_data/PicoDrive
-	mksquashfs .opk_data $@ -all-root -noappend -no-exports -no-xattrs
-	cd .opk_data && zip -9 -r $(TARGET).zip *
+# TODO this should somehow go to the platform/opendingux directory?
+.od_data: $(TARGET)
+	$(RM) -rf .od_data
+	cp -r platform/opendingux/data .od_data
+	cp $< .od_data/PicoDrive
+	$(STRIP) .od_data/PicoDrive
 
-all: opk
-
-OBJS += platform/opendingux/inputmap.o
-
-ifneq (,$(filter %__GCW0__ %__RG350__, $(CFLAGS)))
-CFLAGS += -DMIPS_USE_SYNCI # clear_cache uses SYNCI instead of a syscall
+ifneq (,$(filter %__OPENDINGUX__, $(CFLAGS)))
+# "legacy" opendingux without opk support
+$(TARGET)-dge.zip: .od_data
+	rm -f .od_data/default.*.desktop
+	cd .od_data && zip -9 -r ../$@ *
+all: $(TARGET)-dge.zip
+else
+$(TARGET).opk: .od_data
+	rm -f .od_data/PicoDrive.dge
+	mksquashfs .od_data $@ -all-root -noappend -no-exports -no-xattrs
+all: $(TARGET).opk
 endif
 
+ifneq (,$(filter %__GCW0__ %__RG350__, $(CFLAGS)))
+CFLAGS += -DMIPS_USE_SYNCI # mips32r2 clear_cache uses SYNCI instead of syscall
+endif
+
+OBJS += platform/opendingux/inputmap.o
 use_inputmap ?= 1
+
 # OpenDingux is a generic platform, really.
 PLATFORM := generic
 endif
@@ -238,10 +247,6 @@ endif
 endif
 
 ifeq (1,$(use_libchdr))
-# yuck, cmake looks like a nightmare to embed in a multi-platform make env :-/
-# Moreover, libchdr uses -flto which apparently prevents static library linking.
-# Reference all source files directly and hope for the best. Tested on linux,
-# might not work on other platforms, and misses autodetected optimizations.
 CFLAGS += -DUSE_LIBCHDR
 
 # chdr
@@ -250,7 +255,6 @@ CHDR_OBJS += $(CHDR)/src/libchdr_chd.o $(CHDR)/src/libchdr_cdrom.o
 CHDR_OBJS += $(CHDR)/src/libchdr_flac.o
 CHDR_OBJS += $(CHDR)/src/libchdr_bitstream.o $(CHDR)/src/libchdr_huffman.o
 
-
 # lzma
 LZMA = $(CHDR)/deps/lzma-19.00
 LZMA_OBJS += $(LZMA)/src/CpuArch.o $(LZMA)/src/Alloc.o $(LZMA)/src/LzmaEnc.o
@@ -258,7 +262,7 @@ LZMA_OBJS += $(LZMA)/src/Sort.o $(LZMA)/src/LzmaDec.o $(LZMA)/src/LzFind.o
 LZMA_OBJS += $(LZMA)/src/Delta.o
 $(LZMA_OBJS): CFLAGS += -D_7ZIP_ST
 
-OBJS += $(CHDR_OBJS) $(FLAC_OBJS) $(LZMA_OBJS)
+OBJS += $(CHDR_OBJS) $(LZMA_OBJS)
 # ouf... prepend includes to overload headers available in the toolchain
 CHDR_I = $(shell find $(CHDR) -name 'include')
 CFLAGS := $(patsubst %, -I%, $(CHDR_I)) $(CFLAGS)
@@ -297,7 +301,7 @@ target_: $(TARGET)
 
 clean:
 	$(RM) $(TARGET) $(OBJS) pico/pico_int_offs.h
-	$(RM) -r .opk_data
+	$(RM) -r .od_data
 
 $(TARGET): $(OBJS)
 
