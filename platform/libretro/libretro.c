@@ -1300,6 +1300,8 @@ bool retro_load_game(const struct retro_game_info *info)
    PicoIn.sndOut = sndBuffer;
    PsndRerate(0);
 
+   PicoDrawSetOutFormat(vout_format, 0);
+
    /* Setup retro memory maps */
    set_memory_maps();
 
