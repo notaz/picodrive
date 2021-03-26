@@ -617,12 +617,14 @@ static const char *mgn_opt_alpha(int id, int *offs)
 	return static_buff;
 }
 
+static const char h_lowpass[] = "Low pass filter for sound closer to real hardware";
+
 static menu_entry e_menu_snd_options[] =
 {
-	mee_onoff     ("Enable sound",             MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, EOPT_EN_SOUND),
-	mee_cust      ("Sound Quality",            MA_OPT_SOUND_QUALITY, mh_opt_snd, mgn_opt_sound),
-	mee_onoff     ("Sound filter (low pass)",  MA_OPT_SOUND_FILTER,  PicoIn.opt, POPT_EN_SNDFILTER),
-	mee_cust      ("Filter strength (alpha)",  MA_OPT_SOUND_ALPHA,   mh_opt_alpha, mgn_opt_alpha),
+	mee_onoff     ("Enable sound",    MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, EOPT_EN_SOUND),
+	mee_cust      ("Sound Quality",   MA_OPT_SOUND_QUALITY, mh_opt_snd, mgn_opt_sound),
+	mee_onoff_h   ("Sound filter",    MA_OPT_SOUND_FILTER,  PicoIn.opt, POPT_EN_SNDFILTER, h_lowpass),
+	mee_cust      ("Filter strength", MA_OPT_SOUND_ALPHA,   mh_opt_alpha, mgn_opt_alpha),
 	mee_end,
 };
 
@@ -639,6 +641,14 @@ static int menu_loop_snd_options(int id, int keys)
 
 static const char h_gamma[] = "Gamma/brightness adjustment (default 1.00)";
 
+static const char *mgn_opt_fskip(int id, int *offs)
+{
+	if (currentConfig.Frameskip < 0)
+		return "Auto";
+	sprintf(static_buff, "%d", currentConfig.Frameskip);
+	return static_buff;
+}
+
 static const char *mgn_aopt_gamma(int id, int *offs)
 {
 	sprintf(static_buff, "%i.%02i", currentConfig.gamma / 100, currentConfig.gamma % 100);
@@ -649,6 +659,7 @@ static menu_entry e_menu_gfx_options[] =
 {
 	mee_enum   ("Video output mode", MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
 	mee_enum   ("Renderer",          MA_OPT_RENDERER, currentConfig.renderer, renderer_names),
+	mee_range_cust("Frameskip",      MA_OPT_FRAMESKIP, currentConfig.Frameskip, -1, 16, mgn_opt_fskip),
 	mee_enum   ("Filter",            MA_OPT3_FILTERING, currentConfig.filter, men_dummy),
 	mee_range_cust_h("Gamma correction", MA_OPT2_GAMMA, currentConfig.gamma, 1, 300, mgn_aopt_gamma, h_gamma),
 	MENU_OPTIONS_GFX
@@ -673,6 +684,7 @@ static const char h_confirm_save[]    = "Ask for confirmation when overwriting s
 
 static menu_entry e_menu_ui_options[] =
 {
+	mee_onoff     ("Show FPS",                 MA_OPT_SHOW_FPS,       currentConfig.EmuOpt, EOPT_SHOW_FPS),
 	mee_enum_h    ("Confirm savestate",        MA_OPT_CONFIRM_STATES, currentConfig.confirm_save, men_confirm_save, h_confirm_save),
 	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
 	mee_end,
@@ -771,14 +783,6 @@ static int mh_restore_defaults(int id, int keys)
 	return 1;
 }
 
-static const char *mgn_opt_fskip(int id, int *offs)
-{
-	if (currentConfig.Frameskip < 0)
-		return "Auto";
-	sprintf(static_buff, "%d", currentConfig.Frameskip);
-	return static_buff;
-}
-
 static const char *mgn_opt_region(int id, int *offs)
 {
 	static const char *names[] = { "Auto", "      Japan NTSC", "      Japan PAL", "      USA", "      Europe" };
@@ -816,9 +820,7 @@ static const char *mgn_saveloadcfg(int id, int *offs)
 static menu_entry e_menu_options[] =
 {
 	mee_range     ("Save slot",                MA_OPT_SAVE_SLOT,     state_slot, 0, 9),
-	mee_range_cust("Frameskip",                MA_OPT_FRAMESKIP,     currentConfig.Frameskip, -1, 16, mgn_opt_fskip),
 	mee_cust      ("Region",                   MA_OPT_REGION,        mh_opt_misc, mgn_opt_region),
-	mee_onoff     ("Show FPS",                 MA_OPT_SHOW_FPS,      currentConfig.EmuOpt, EOPT_SHOW_FPS),
 	mee_range     ("",                         MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 3200),
 	mee_handler   ("[Interface options]",      menu_loop_ui_options),
 	mee_handler   ("[Display options]",        menu_loop_gfx_options),
