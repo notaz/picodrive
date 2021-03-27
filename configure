@@ -39,7 +39,7 @@ check_define()
 # "" means "autodetect".
 
 # TODO this is annoyingly messy. should have platform and device
-platform_list="generic pandora gp2x wiz caanoo opendingux retrofw gcw0 rg350 rpi1 rpi2 psp"
+platform_list="generic pandora gp2x wiz caanoo dingux retrofw gcw0 rg350 opendingux rpi1 rpi2 psp"
 platform="generic"
 sound_driver_list="oss alsa sdl"
 sound_drivers=""
@@ -93,16 +93,32 @@ set_platform()
     ;;
   generic)
     ;;
-  opendingux | retrofw | gcw0 | rg350)
+  dingux)
+    # dingoo a320, ritmix rzx-50, the like. all have ingenic MIPS cpus <= JZ4755
+    sound_drivers="sdl"
+    # uses a predecessor of opendingux
+    CFLAGS="$CFLAGS -D__DINGUX__ -march=mips32 -msoft-float"
+    platform="opendingux"
+    ;;
+  retrofw)
+    # devices using retrofw. AFAIK all have ingenic MIPS cpus JZ4760 with fpu
+    sound_drivers="sdl"
+    # uses it's own modified version of opendingux
+    CFLAGS="$CFLAGS -D__RETROFW__ -march=mips32"
+    platform="opendingux"
+    ;;
+  opendingux | gcw0 | rg350)
+    # more modern devices using opendingux, generally using cpus >= JZ4770
     sound_drivers="sdl"
     # all are more or less based on opendingux. save device type as C define.
-    CFLAGS="$CFLAGS -D__`echo $platform | tr '[a-z]' '[A-Z]'`__"
+    CFLAGS="$CFLAGS -D__`echo $platform | tr '[a-z]' '[A-Z]'`__ -march=mips32r2"
     platform="opendingux"
     ;;
   pandora)
     sound_drivers="oss alsa"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
+    have_libavcodec="yes"
     ;;
   gp2x | wiz | caanoo)
     sound_drivers="oss"
@@ -137,6 +153,8 @@ for opt do
   ;;
   --sound-drivers=*) sound_drivers="$optarg"
   ;;
+  --with-libavcodec=*) have_libavcodec="$optarg"
+  ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
   esac
@@ -149,6 +167,7 @@ if [ "$show_help" = "yes" ]; then
   echo "                           available: $platform_list"
   echo "  --sound-drivers=LIST     sound output drivers [guessed]"
   echo "                           available: $sound_driver_list"
+  echo "  --with-libavcodec=yes|no use libavcodec for mp3 decoding"
   echo "influential environment variables:"
   echo "  CROSS_COMPILE CC CXX AS STRIP CFLAGS ASFLAGS LDFLAGS LDLIBS"
   exit 1
@@ -363,14 +382,20 @@ check_zlib -lz && MAIN_LDLIBS="$MAIN_LDLIBS -lz" || need_zlib="yes"
 MAIN_LDLIBS="-lpng $MAIN_LDLIBS"
 check_libpng || fail "please install libpng (libpng-dev)"
 
-if check_libavcodec; then
-  have_libavcodec="yes"
-  # add -ldl if needed
-  case "$MAIN_LDLIBS" in
-    *"-ldl"*) ;;
-    *) MAIN_LDLIBS="-ldl $MAIN_LDLIBS" ;;
-  esac
-fi
+case "$have_libavcodec" in
+y|Y|yes)
+  if check_libavcodec; then
+    have_libavcodec="yes"
+    # add -ldl if needed
+    case "$MAIN_LDLIBS" in
+      *"-ldl"*) ;;
+      *) MAIN_LDLIBS="-ldl $MAIN_LDLIBS" ;;
+    esac
+  else
+    have_libavcodec="no"
+  fi ;;
+*) have_libavcodec="no" ;;
+esac
 
 #if check_libchdr; then
 #  have_libchdr="yes"

@@ -91,12 +91,13 @@ ifeq "$(PLATFORM)" "opendingux"
 	cp $< .od_data/PicoDrive
 	$(STRIP) .od_data/PicoDrive
 
-ifneq (,$(filter %__OPENDINGUX__, $(CFLAGS)))
-# "legacy" opendingux without opk support
+ifneq (,$(filter %__DINGUX__, $(CFLAGS)))
+# "legacy" dingux without opk support
 $(TARGET)-dge.zip: .od_data
 	rm -f .od_data/default.*.desktop
 	cd .od_data && zip -9 -r ../$@ *
 all: $(TARGET)-dge.zip
+CFLAGS += -DSDL_SURFACE_SW # some legacy dinguces had bugs in HWSURFACE
 else
 $(TARGET).opk: .od_data
 	rm -f .od_data/PicoDrive.dge
@@ -104,8 +105,8 @@ $(TARGET).opk: .od_data
 all: $(TARGET).opk
 endif
 
-ifneq (,$(filter %__GCW0__ %__RG350__, $(CFLAGS)))
-CFLAGS += -DMIPS_USE_SYNCI # mips32r2 clear_cache uses SYNCI instead of syscall
+ifneq (,$(filter %mips32r2, $(CFLAGS)))
+CFLAGS += -DMIPS_USE_SYNCI # mips32r2 clear_cache uses SYNCI instead of a syscall
 endif
 
 OBJS += platform/opendingux/inputmap.o
