@@ -58,7 +58,7 @@ const char * const _in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_RIGHT] = "RIGHT",
 	[SDLK_LCTRL] = "A",
 	[SDLK_LALT] = "B",
-#ifdef __GCW0__
+#if defined(__GCW0__)
 	[SDLK_LSHIFT] = "X",
 	[SDLK_SPACE] = "Y",
 #else
@@ -68,7 +68,7 @@ const char * const _in_sdl_key_names[SDLK_LAST] = {
 	[SDLK_RETURN] = "START",
 	[SDLK_ESCAPE] = "SELECT",
 
-#ifdef __RG350__
+#if defined(__RG350__) || defined(__OPENDINGUX__)
 	[SDLK_HOME] = "POWER",
 
 	[SDLK_TAB] = "L1",

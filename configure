@@ -94,23 +94,25 @@ set_platform()
   generic)
     ;;
   dingux)
-    # dingoo a320, ritmix rzx-50, the like. all have ingenic MIPS cpus <= JZ4755
+    # dingoo a320, ritmix rzx-50, the like. all have Ingenic MIPS cpu <= JZ4755
     sound_drivers="sdl"
+    # use static linking since the lib situation is ... let's say vague
+    LDFLAGS="$LDFLAGS -static"
     # uses a predecessor of opendingux
     CFLAGS="$CFLAGS -D__DINGUX__ -march=mips32 -msoft-float"
     platform="opendingux"
     ;;
   retrofw)
-    # devices using retrofw. AFAIK all have ingenic MIPS cpus JZ4760 with fpu
+    # devices using retrofw. AFAIK all have Ingenic MIPS JZ4760 with fpu
     sound_drivers="sdl"
     # uses it's own modified version of opendingux
     CFLAGS="$CFLAGS -D__RETROFW__ -march=mips32"
     platform="opendingux"
     ;;
   opendingux | gcw0 | rg350)
-    # more modern devices using opendingux, generally using cpus >= JZ4770
+    # more modern devices using opendingux, with Ingenic MIPS JZ4770 or newer
     sound_drivers="sdl"
-    # all are more or less based on opendingux. save device type as C define.
+    # mostly based on opendingux for gcw0, save device type as C define.
     CFLAGS="$CFLAGS -D__`echo $platform | tr '[a-z]' '[A-Z]'`__ -march=mips32r2"
     platform="opendingux"
     ;;
@@ -274,10 +276,7 @@ arm*)
   fi
 
   # add -ldl for helix support
-  case "$MAIN_LDLIBS" in
-    *"-ldl"*) ;;
-    *) MAIN_LDLIBS="-ldl $MAIN_LDLIBS" ;;
-  esac
+  need_dl=yes
 
   # warn about common mistakes
   if [ "$platform" != "gp2x" -a "$have_armv5" != "yes" ]; then
@@ -386,11 +385,7 @@ case "$have_libavcodec" in
 y|Y|yes)
   if check_libavcodec; then
     have_libavcodec="yes"
-    # add -ldl if needed
-    case "$MAIN_LDLIBS" in
-      *"-ldl"*) ;;
-      *) MAIN_LDLIBS="-ldl $MAIN_LDLIBS" ;;
-    esac
+    need_dl=yes
   else
     have_libavcodec="no"
   fi ;;
@@ -428,10 +423,20 @@ if [ "$need_sdl" = "yes" ]; then
     fail "sdl-config is missing; please install libsdl (libsdl1.2-dev)"
   CFLAGS="$CFLAGS `$SDL_CONFIG --cflags`"
   MAIN_LDLIBS="`$SDL_CONFIG --libs` $MAIN_LDLIBS"
+  SYSLIBS="$SYSLIBS -ldl"
+  need_dl=yes
   check_sdl `$SDL_CONFIG --libs` || fail "please install libsdl (libsdl1.2-dev)"
   if [ "$SDLVERSION" = "sdl2" ]; then
     CFLAGS="$CFLAGS -D__USE_SDL2__"
   fi
+fi
+
+# add -ldl if needed
+if [ "$need_dl" = "yes" ]; then
+  case "$MAIN_LDLIBS" in
+    *"-ldl"*) ;;
+    *) MAIN_LDLIBS="$MAIN_LDLIBS -ldl" ;;
+  esac
 fi
 
 if check_option -Wno-unused_result; then
