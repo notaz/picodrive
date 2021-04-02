@@ -383,12 +383,9 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 // _r_imm
 #define emith_move_r_imm(r, imm) do { \
-	if (imm) { \
-		EMIT_REX_IF(0, 0, r); \
-		EMIT_OP(0xb8 + ((r)&7)); \
-		EMIT(imm, u32); \
-	} else \
-		emith_eor_r_r(r, r); \
+	EMIT_REX_IF(0, 0, r); \
+	EMIT_OP(0xb8 + ((r)&7)); \
+	EMIT(imm, u32); \
 } while (0)
 
 #define emith_move_r_ptr_imm(r, imm) do { \
