@@ -1690,16 +1690,21 @@ static void REGPARM(3) sh2_write8_da(u32 a, u32 d, SH2 *sh2)
 }
 #endif
 
+static NOINLINE void REGPARM(3) sh2_write8_sdram_sync(u32 a, u32 d, SH2 *sh2)
+{
+  DRC_SAVE_SR(sh2);
+  sh2_end_run(sh2, 32);
+  DRC_RESTORE_SR(sh2);
+  sh2_write8_sdram(a, d, sh2);
+}
+
 static void REGPARM(3) sh2_write8_sdram_wt(u32 a, u32 d, SH2 *sh2)
 {
   // xmen sync hack..
-  if (a < 0x26000200) {
-    DRC_SAVE_SR(sh2);
-    sh2_end_run(sh2, 32);
-    DRC_RESTORE_SR(sh2);
-  }
-
-  sh2_write8_sdram(a, d, sh2);
+  if ((a << 8) >> 17) // ((a & 0x00ffffff) < 0x200)
+    sh2_write8_sdram(a, d, sh2);
+  else
+    sh2_write8_sdram_sync(a, d, sh2);
 }
 
 // write16
