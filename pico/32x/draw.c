@@ -10,7 +10,7 @@
 
 // BGR555 to native conversion
 #if defined(USE_BGR555)
-#define PXCONV(t)   (t)
+#define PXCONV(t)   ((t)&(mr|mg|mb|mp))
 #define PXPRIO      0x8000  // prio in MSB
 #elif defined(USE_BGR565)
 #define PXCONV(t)   (((t)&mr)  | (((t)&(mg|mb)) << 1) | (((t)&mp) >> 10))
