@@ -101,10 +101,46 @@
     mov     r6, #320
     add     r5, r1, r12, lsl #1 @ p32x = dram + dram[l]
 
+    ldrh    r7, [r5], #2
 2: @ loop_inner:
-    ldrh    r8, [r5], #2
+    mov     r8, r7
     subs    lr, r6, #1
     blt     0b @ loop_outer
+    beq     7f @ single_pix
+    ldrh    r7, [r5], #2     @ 32x pixel
+    cmp     r7, r8           @ do RLE only if we have at least 2 px
+@    ldreqh  r7, [r5]
+@    cmpeq   r7, r8
+    subeq   lr, lr, #1
+    beq     3f @ loop_innermost
+
+7: @ single_pix:
+    mov     r6, lr
+
+    eor     r12,r8, r10
+    tst     r12, #0x8000     @ !((t ^ inv) & 0x8000)
+    addeq   r11,r11,#1
+    beq     8f @ single_pix_32x
+
+    ldrb    r12,[r11], #1    @ MD pixel
+    cmp     r3, r12,lsl #26  @ MD has bg pixel?
+.if \do_md
+    movne   r12,r12,lsl #1
+    ldrneh  r12,[r9, r12]
+    strneh  r12,[r0], #2     @ *dst++ = palmd[*pmd]
+.else
+    addne   r0, r0, #2
+.endif
+    bne     2b @ loop_inner
+
+8: @ single_pix_32x:
+    and     r12,r8, #0x03e0
+    mov     r8, r8, lsl #11
+    orr     r8, r8, r8, lsr #(10+11)
+    orr     r8, r8, r12,lsl #1
+    bic     r8, r8, #0x0020  @ kill prio bit
+    strh    r8, [r0], #2
+    b       2b @ loop_inner
 
 3: @ loop_innermost:
     ldrh    r7, [r5], #2     @ 32x pixel
@@ -112,7 +148,6 @@
     cmpge   r7, r8
     beq     3b @ loop_innermost
 
-    sub     r5, r5, #2
     add     lr, lr, #1
     sub     lr, r6, lr
     sub     r6, r6, lr
@@ -121,10 +156,10 @@
     tst     r12, #0x8000     @ !((t ^ inv) & 0x8000)
     bne     5f @ draw_md
 
-    and     r7 ,r8, #0x03e0
+    and     r12,r8, #0x03e0
     mov     r8, r8, lsl #11
     orr     r8, r8, r8, lsr #(10+11)
-    orr     r8, r8, r7 ,lsl #1
+    orr     r8, r8, r12,lsl #1
     bic     r8, r8, #0x0020  @ kill prio bit
 
     add     r11,r11,lr
@@ -148,35 +183,35 @@
 
 5: @ draw_md:
     subs    lr, lr, #1
-    ldrgeb  r7, [r11], #1    @ MD pixel
+    ldrgeb  r12,[r11], #1    @ MD pixel
     blt     2b @ loop_inner
-    cmp     r3, r7, lsl #26  @ MD has bg pixel?
+    cmp     r3, r12,lsl #26  @ MD has bg pixel?
 .if \do_md
-    mov     r7, r7, lsl #1
-    ldrneh  r7 ,[r9, r7]
-    strneh  r7 ,[r0], #2     @ *dst++ = palmd[*pmd]
+    mov     r12,r12,lsl #1
+    ldrneh  r12,[r9, r12]
+    strneh  r12,[r0], #2     @ *dst++ = palmd[*pmd]
 .else
     addne   r0, r0, #2
 .endif
     bne     5b @ draw_md
 
-    and     r7 ,r8, #0x03e0
+    and     r12,r8, #0x03e0
     mov     r8, r8, lsl #11
     orr     r8, r8, r8, lsr #(10+11)
-    orr     r8, r8, r7 ,lsl #1
+    orr     r8, r8, r12,lsl #1
     bic     r8, r8, #0x0020  @ kill prio bit
     strh    r8, [r0], #2     @ *dst++ = bgr2rgb(*p32x++)
 
 6: @ draw_md_32x:
     subs    lr, lr, #1
-    ldrgeb  r7, [r11], #1    @ MD pixel
+    ldrgeb  r12,[r11], #1    @ MD pixel
     blt     2b @ loop_inner
-    cmp     r3, r7, lsl #26  @ MD has bg pixel?
+    cmp     r3, r12,lsl #26  @ MD has bg pixel?
 .if \do_md
-    mov     r7, r7, lsl #1
-    ldrneh  r7 ,[r9, r7]     @ *dst++ = palmd[*pmd]
-    moveq   r7 ,r8           @ *dst++ = bgr2rgb(*p32x++)
-    strh    r7 ,[r0], #2
+    mov     r12,r12,lsl #1
+    ldrneh  r12,[r9, r12]    @ *dst++ = palmd[*pmd]
+    moveq   r12,r8           @ *dst++ = bgr2rgb(*p32x++)
+    strh    r12,[r0], #2
 .else
     streqh  r8, [r0]         @ *dst++ = bgr2rgb(*p32x++)
     add     r0, r0, #2
