@@ -56,14 +56,14 @@ void p32x_update_irls(SH2 *active_sh2, unsigned int m68k_cycles)
   if (mrun) {
     p32x_sh2_poll_event(&msh2, SH2_IDLE_STATES, m68k_cycles);
     if (msh2.state & SH2_STATE_RUN)
-      sh2_end_run(&msh2, 1);
+      sh2_end_run(&msh2, 0);
   }
 
   srun = sh2_irl_irq(&ssh2, slvl, ssh2.state & SH2_STATE_RUN);
   if (srun) {
     p32x_sh2_poll_event(&ssh2, SH2_IDLE_STATES, m68k_cycles);
     if (ssh2.state & SH2_STATE_RUN)
-      sh2_end_run(&ssh2, 1);
+      sh2_end_run(&ssh2, 0);
   }
 
   elprintf(EL_32X, "update_irls: m %d/%d, s %d/%d", mlvl, mrun, slvl, srun);
@@ -328,7 +328,7 @@ void p32x_event_schedule_sh2(SH2 *sh2, enum p32x_event event, int after)
   left_to_next = C_M68K_TO_SH2(sh2, (int)(event_time_next - now));
   if (sh2_cycles_left(sh2) > left_to_next) {
     if (left_to_next < 1)
-      left_to_next = 1;
+      left_to_next = 0;
     sh2_end_run(sh2, left_to_next);
   }
 }
@@ -421,7 +421,7 @@ void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target)
     left_to_event = C_M68K_TO_SH2(sh2, (int)(event_time_next - m68k_target));
     if (sh2_cycles_left(sh2) > left_to_event) {
       if (left_to_event < 1)
-        left_to_event = 1;
+        left_to_event = 0;
       sh2_end_run(sh2, left_to_event);
     }
   }

@@ -126,7 +126,7 @@ void NOINLINE p32x_sh2_poll_detect(u32 a, SH2 *sh2, u32 flags, int maxcnt)
           sh2->state, sh2->state | flags);
 
       sh2->state |= flags;
-      sh2_end_run(sh2, 1);
+      sh2_end_run(sh2, 0);
       pevt_log_sh2(sh2, EVT_POLL_START);
 #ifdef DRC_SH2
       // mark this as an address used for polling if SDRAM
@@ -855,7 +855,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
         p32x_m68k_poll_event(P32XF_68KCPOLL);
         p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
         if (p32x_sh2_ready(sh2->other_sh2, cycles+8))
-          sh2_end_run(sh2, 1);
+          sh2_end_run(sh2, 0);
         sh2_poll_write(a & ~1, r[a / 2], cycles, sh2);
       }
       return;
@@ -948,7 +948,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
         p32x_m68k_poll_event(P32XF_68KCPOLL);
         p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
         if (p32x_sh2_ready(sh2->other_sh2, cycles+8))
-          sh2_end_run(sh2, 1);
+          sh2_end_run(sh2, 0);
         sh2_poll_write(a, d, cycles, sh2);
       }
       return;
@@ -1583,7 +1583,7 @@ static void sh2_sdram_poll(u32 a, u32 d, SH2 *sh2)
   sh2_poll_write(a, d, cycles, sh2);
   p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_RPOLL, cycles);
   if (p32x_sh2_ready(sh2->other_sh2, cycles+8))
-    sh2_end_run(sh2, 1);
+    sh2_end_run(sh2, 0);
   DRC_RESTORE_SR(sh2);
 }
 
