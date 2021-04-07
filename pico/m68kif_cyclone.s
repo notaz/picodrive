@@ -81,9 +81,9 @@ cyclone_fetch32:
     ldr     r1, [r1, r2, lsl #2]
     bic     r0, r0, #1
     movs    r1, r1, lsl #1
-    ldrcch  r0, [r1, r0]!
+    ldrcch  r2, [r1, r0]!
     ldrcch  r1, [r1, #2]
-    orrcc   r0, r1, r0, lsl #16
+    orrcc   r0, r1, r2, lsl #16
     bxcc    lr
 
     stmfd   sp!,{r0,r1,r2,lr}
