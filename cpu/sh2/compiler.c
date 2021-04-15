@@ -1339,6 +1339,7 @@ static void rcache_add_vreg_alias(int x, sh2_reg_e r);
 static void rcache_remove_vreg_alias(int x, sh2_reg_e r);
 static void rcache_evict_vreg(int x);
 static void rcache_remap_vreg(int x);
+static int rcache_get_reg(sh2_reg_e r, rc_gr_mode mode, int *hr);
 
 static void rcache_set_x16(int hr, int s16_, int u16_)
 {
@@ -1444,7 +1445,6 @@ static int rcache_is_u16(int hr)
   } */ \
 }
 
-#if PROPAGATE_CONSTANTS
 static inline int gconst_alloc(sh2_reg_e r)
 {
   int i, n = -1;
@@ -1481,7 +1481,6 @@ static void gconst_new(sh2_reg_e r, u32 val)
   if (guest_regs[r].vreg >= 0)
     rcache_remove_vreg_alias(guest_regs[r].vreg, r);
 }
-#endif
 
 static int gconst_get(sh2_reg_e r, u32 *val)
 {
