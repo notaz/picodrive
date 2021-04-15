@@ -280,7 +280,7 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			return 1;
 
 		case MA_OPT_SOUND_ALPHA:
-			if (strcasecmp(var, "Filter strength (alpha)") != 0) return 0;
+			if (strcasecmp(var, "Filter strength") != 0) return 0;
 			PicoIn.sndFilterAlpha = 0x10000 * atof(val);
 			return 1;
 
