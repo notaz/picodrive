@@ -2661,6 +2661,10 @@ static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmode, s32 *offs)
   } else {
     // known fixed host address
     la = split_address(la + ((a + *offs) & mask), omask, offs);
+    if (la == 0) {
+      la = *offs;
+      *offs = 0;
+    }
     hr = rcache_get_tmp();
     emith_move_r_ptr_imm(hr, la);
   }
