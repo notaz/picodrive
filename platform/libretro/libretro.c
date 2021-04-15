@@ -16,9 +16,9 @@
 #include <string.h>
 #ifndef _WIN32
 #ifndef NO_MMAP
-#if defined __SWITCH__
+#ifdef __SWITCH__
 #include "switch/mman.h"
-#elif ! defined NO_MMAP
+#else
 #include <sys/mman.h>
 #endif
 #endif
@@ -706,6 +706,8 @@ void lprintf(const char *fmt, ...)
 }
 
 /* libretro */
+bool libretro_supports_bitmasks = false;
+
 void retro_set_environment(retro_environment_t cb)
 {
 #ifdef USE_LIBRETRO_VFS
@@ -1638,6 +1640,7 @@ void retro_run(void)
    bool updated = false;
    int pad, i;
    static void *buff;
+   int16_t input;
 
    PicoIn.skipFrame = 0;
 
@@ -1647,10 +1650,18 @@ void retro_run(void)
    input_poll_cb();
 
    PicoIn.pad[0] = PicoIn.pad[1] = 0;
-   for (pad = 0; pad < 2; pad++)
-      for (i = 0; i < RETRO_PICO_MAP_LEN; i++)
-         if (input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, i))
-            PicoIn.pad[pad] |= retro_pico_map[i];
+   for (pad = 0; pad < 2; pad++) {
+      if (libretro_supports_bitmasks) {
+         input = input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_MASK);
+         for (i = 0; i < RETRO_PICO_MAP_LEN; i++)
+            if (input & (1 << i))
+               PicoIn.pad[pad] |= retro_pico_map[i];
+      } else {
+         for (i = 0; i < RETRO_PICO_MAP_LEN; i++)
+            if (input_state_cb(pad, RETRO_DEVICE_JOYPAD, 0, i))
+               PicoIn.pad[pad] |= retro_pico_map[i];
+      }
+   }
 
    if (PicoPatches)
       PicoPatchApply();
@@ -1785,6 +1796,9 @@ void retro_init(void)
 
    environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_control);
 
+   if (environ_cb(RETRO_ENVIRONMENT_GET_INPUT_BITMASKS, NULL))
+      libretro_supports_bitmasks = true;
+
 #ifdef _3DS
    ctr_svchack_successful = ctr_svchack_init();
    check_rosalina();
@@ -1853,4 +1867,6 @@ void retro_deinit(void)
 #endif
    vout_buf = NULL;
    PicoExit();
+
+   libretro_supports_bitmasks = false;
 }
