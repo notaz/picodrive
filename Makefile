@@ -245,7 +245,8 @@ OBJS += platform/common/mp3_helix.o
 else ifeq "$(HAVE_LIBAVCODEC)" "1"
 OBJS += platform/common/mp3_libavcodec.o
 else
-OBJS += platform/common/mp3_minimp3.o
+#OBJS += platform/common/mp3_minimp3.o
+OBJS += platform/common/mp3_drmp3.o
 endif
 endif
 
