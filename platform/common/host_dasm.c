@@ -7,10 +7,10 @@
 #include <stdint.h>
 #include <string.h>
 
-#ifdef __mips__
+#if defined __mips__
 #include "dismips.c"
 #define disasm dismips
-#else
+#elif defined __arm__
 #include "disarm.c"
 #define disasm disarm
 #endif
@@ -36,6 +36,7 @@ static const char *lookup_name(void *addr)
   return NULL;
 }
 
+#ifdef disasm
 void host_dasm(void *addr, int len)
 {
   void *end = (char *)addr + len;
@@ -65,6 +66,30 @@ void host_dasm(void *addr, int len)
     addr = (char *)addr + sizeof(long);
   }
 }
+#else
+void host_dasm(void *addr, int len)
+{
+  char *end = (char *)addr + len;
+  char buf[64];
+  char *p = addr;
+  int i = 0, o = 0;
+
+  o = snprintf(buf, sizeof(buf), "%p:	", p);
+  while (p < end) {
+    o += snprintf(buf+o, sizeof(buf)-o, "%02x ", *p++);
+    if (++i >= 16) {
+      buf[o] = '\0';
+      printf("%s\n", buf);
+      o = snprintf(buf, sizeof(buf), "%p:	", p);
+      i = 0;
+    }
+  }
+  if (i) {
+    buf[o] = '\0';
+    printf("%s\n", buf);
+  }
+}
+#endif
 
 void host_dasm_new_symbol_(void *addr, const char *name)
 {
