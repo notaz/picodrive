@@ -362,6 +362,11 @@ enum { OPS_STD, OPS_STDU /*,OPS_STQ*/ };
 #define	PPC_STB_IMM(rt, ra, offs16) \
 	PPC_OP_IMM(OP_STB,rt,ra,(u16)(offs16))
 
+#define	PPC_STXU_IMM(rt, ra, offs16) \
+	PPC_OP_IMM(OP__ST,rt,ra,((u16)(offs16)&~3)|OPS_STDU)
+#define	PPC_STWU_IMM(rt, ra, offs16) \
+	PPC_OP_IMM(OP_STWU,rt,ra,(u16)(offs16))
+
 // load/store, indexed
 
 #define PPC_LDX_REG(rt, ra, rb) \
@@ -407,6 +412,7 @@ enum { OPS_STD, OPS_STDU /*,OPS_STQ*/ };
 #define PPC_LDP_REG			PPC_LDX_REG
 #define PPC_STP_IMM			PPC_STX_IMM
 #define PPC_STP_REG			PPC_STX_REG
+#define PPC_STPU_IMM			PPC_STXU_IMM
 #define PPC_BFXP_IMM			PPC_BFX_IMM
 
 #define emith_uext_ptr(r)		EMIT(PPC_EXTUW_REG(r, r))
@@ -440,6 +446,7 @@ enum { OPS_STD, OPS_STDU /*,OPS_STQ*/ };
 #define PPC_LDP_REG			PPC_LDW_REG
 #define PPC_STP_IMM			PPC_STW_IMM
 #define PPC_STP_REG			PPC_STW_REG
+#define PPC_STPU_IMM			PPC_STWU_IMM
 #define PPC_BFXP_IMM			PPC_BFXW_IMM
 
 #define emith_uext_ptr(r)		/**/
@@ -1587,25 +1594,24 @@ static NOINLINE void host_instructions_updated(void *base, void *end, int force)
 #define emith_sh2_drc_entry() do { \
 	int _c, _z = PTR_SIZE; u32 _m = 0xffffc000; /* r14-r31 */ \
 	if (__builtin_parity(_m) == 1) _m |= 0x1; /* ABI align for SP is 16 */ \
-	int _s = count_bits(_m) * _z, _o = 0; \
-	for (_c = HOST_REGS-1; _m && _c >= 0; _m &= ~(1 << _c), _c--) \
+	int _s = count_bits(_m) * _z, _o = STACK_EXTRA; \
+	EMIT(PPC_STPU_IMM(SP, SP, -_s-STACK_EXTRA)); \
+	EMIT(PPC_MFSP_REG(AT, LR)); \
+	for (_c = 0; _m && _c < HOST_REGS; _m &= ~(1 << _c), _c++) \
 		if (_m & (1 << _c)) \
-			{ _o -= _z; if (_c) emith_write_r_r_offs_ptr(_c, SP, _o); } \
-	EMIT(PPC_MFSP_REG(10, LR)); \
-	emith_write_r_r_offs_ptr(10, SP, 2*PTR_SIZE); \
-	emith_write_r_r_offs_ptr(SP, SP, -_s-STACK_EXTRA); /* XXX stdu */ \
-	emith_add_r_r_ptr_imm(SP, SP, -_s-STACK_EXTRA); \
+			{ if (_c) emith_write_r_r_offs_ptr(_c, SP, _o); _o += _z; } \
+	emith_write_r_r_offs_ptr(AT, SP, _o + _z); \
 } while (0)
 #define emith_sh2_drc_exit() do { \
 	int _c, _z = PTR_SIZE; u32 _m = 0xffffc000; \
 	if (__builtin_parity(_m) == 1) _m |= 0x1; \
 	int _s = count_bits(_m) * _z, _o = STACK_EXTRA; \
+	emith_read_r_r_offs_ptr(AT, SP, _o+_s + _z); \
+	EMIT(PPC_MTSP_REG(AT, LR)); \
 	for (_c = 0; _m && _c < HOST_REGS; _m &= ~(1 << _c), _c++) \
 		if (_m & (1 << _c)) \
 			{ if (_c) emith_read_r_r_offs_ptr(_c, SP, _o); _o += _z; } \
 	emith_add_r_r_ptr_imm(SP, SP, _s+STACK_EXTRA); \
-	emith_read_r_r_offs_ptr(10, SP, 2*PTR_SIZE); \
-	EMIT(PPC_MTSP_REG(10, LR)); \
 	emith_ret(); \
 } while (0)
 
