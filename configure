@@ -84,7 +84,7 @@ set_platform()
     # dingoo a320, ritmix rzx-50, the like. all have Ingenic MIPS cpu <= JZ4755
     sound_drivers="sdl"
     # use static linking since the lib situation is ... let's say vague
-    LDFLAGS="$LDFLAGS -static"
+    #LDFLAGS="$LDFLAGS -static"
     # uses a pre-gcw0 version of opendingux
     CFLAGS="$CFLAGS -D__DINGUX__"
     MFLAGS="-march=mips32 -msoft-float"
