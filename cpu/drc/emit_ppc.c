@@ -1559,10 +1559,11 @@ static int emith_cond_check(int cond)
 static NOINLINE void host_instructions_updated(void *base, void *end, int force)
 {
 	int step = 32, lgstep = 5;
-	char *_base = base, *_end = end;
-	int count = (_end - _base + step-1) >> lgstep;
+	char *_base = (char *)((uptr)base & ~(step-1));
+	int count = (((char *)end - _base) >> lgstep) + 1;
 
 	if (count <= 0) count = 1;	// make sure count is positive
+	base = _base;
 
 	asm volatile(
 	"	mtctr	%1;"
