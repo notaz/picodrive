@@ -10,14 +10,14 @@ rm -f config.log
 
 compile_object()
 {
-  c="$CC $CFLAGS -c $TMPC -o $TMPO $@"
+  c="$CC $MFLAGS $CFLAGS -c $TMPC -o $TMPO $@"
   echo $c >> config.log
   $c >> config.log 2>&1
 }
 
 compile_binary()
 {
-  c="$CC $CFLAGS $TMPC -o $TMPB $LDFLAGS $@ $SYSLIBS"
+  c="$CC $MFLAGS $CFLAGS $TMPC -o $TMPB $LDFLAGS $@ $SYSLIBS"
   echo $c >> config.log
   $c >> config.log 2>&1
 }
@@ -31,7 +31,7 @@ check_option()
 
 check_define()
 {
-  $CC -E -dD $CFLAGS pico/arm_features.h | grep -q "define[ 	]*$1" || return 1
+  $CC -E -dD $MFLAGS $CFLAGS pico/arm_features.h | grep -q "define[ 	]*$1" || return 1
   return 0
 }
 
@@ -52,12 +52,6 @@ have_libavcodec=""
 have_libchdr=""
 need_sdl="no"
 need_zlib="no"
-# these are for known platforms
-optimize_cortexa8="no"
-optimize_cortexa7="no"
-optimize_arm1176jzf="no"
-optimize_arm926ej="no"
-optimize_arm920="no"
 
 # hardcoded stuff
 CC="${CC-${CROSS_COMPILE}gcc}"
@@ -65,12 +59,6 @@ CXX="${CXX-${CROSS_COMPILE}g++}"
 AS="${AS-${CROSS_COMPILE}as}"
 STRIP="${STRIP-${CROSS_COMPILE}strip}"
 SYSROOT=`$CC $CFLAGS $LDFLAGS --print-sysroot 2> /dev/null || true`
-test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*bin*/sdl-config 2>/dev/null | grep /bin/sdl-config | head -n 1)"
-test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*/*bin*/sdl-config 2>/dev/null | grep /bin/sdl-config | head -n 1)"
-#test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*bin*/sdl2-config 2>/dev/null | grep /bin/sdl2-config | head -n 1)"
-#test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*/*bin*/sdl2-config 2>/dev/null | grep /bin/sdl2-config | head -n 1)"
-SDLVERSION=sdl && echo $SDL_CONFIG | grep -q sdl2 && SDLVERSION=sdl2
-MAIN_LDLIBS="$LDLIBS -lm"
 config_mak="config.mak"
 
 fail()
@@ -85,11 +73,10 @@ set_platform()
   platform=$1
   case "$platform" in
   rpi1)
-    optimize_arm1176jzf="yes"
+    MFLAGS="mcpu=arm1176jzf-s -mfpu=vfp"
     ;;
   rpi2)
-    optimize_cortexa7="yes"
-    have_arm_neon="yes"
+    MFLAGS="mcpu=cortex-a7 -mfpu=neon"
     ;;
   generic)
     ;;
@@ -98,33 +85,34 @@ set_platform()
     sound_drivers="sdl"
     # use static linking since the lib situation is ... let's say vague
     LDFLAGS="$LDFLAGS -static"
-    # uses a predecessor of opendingux
-    CFLAGS="$CFLAGS -D__DINGUX__ -march=mips32 -msoft-float"
+    # uses a pre-gcw0 version of opendingux
+    CFLAGS="$CFLAGS -D__DINGUX__"
+    MFLAGS="-march=mips32 -msoft-float"
     platform="opendingux"
     ;;
   retrofw)
     # devices using retrofw. AFAIK all have Ingenic MIPS JZ4760 with fpu
     sound_drivers="sdl"
     # uses it's own modified version of opendingux
-    CFLAGS="$CFLAGS -D__RETROFW__ -march=mips32"
+    CFLAGS="$CFLAGS -D__RETROFW__"
+    MFLAGS="-march=mips32"
     platform="opendingux"
     ;;
   opendingux | gcw0 | rg350)
     # more modern devices using opendingux, with Ingenic MIPS JZ4770 or newer
     sound_drivers="sdl"
     # mostly based on opendingux for gcw0, save device type as C define.
-    CFLAGS="$CFLAGS -D__`echo $platform | tr '[a-z]' '[A-Z]'`__ -march=mips32r2"
+    CFLAGS="$CFLAGS -D__`echo $platform | tr '[a-z]' '[A-Z]'`__"
+    MFLAGS="-march=mips32r2"
     platform="opendingux"
     ;;
   pandora)
     sound_drivers="oss alsa"
-    optimize_cortexa8="yes"
-    have_arm_neon="yes"
     have_libavcodec="yes"
+    MFLAGS="-mcpu=cortex-a8 -mfpu=neon -mfloat-abi=hard"
     ;;
   gp2x | wiz | caanoo)
     sound_drivers="oss"
-    optimize_arm920="yes"
     # compile for OABI if toolchain provides it (faster code on caanoo)
     have_arm_oabi="yes"
     # always use static linking, since caanoo doesn't have OABI libs. Moreover,
@@ -132,12 +120,15 @@ set_platform()
     LDFLAGS="$LDFLAGS -static"
     # unified binary for all of them. picodrive detects device type for itself.
     CFLAGS="$CFLAGS -D__GP2X__"
+    # add -mfpu=fpa to select correct parameter passing for -msoft-float :-/
+    MFLAGS="-mcpu=arm920t -mfloat-abi=soft -mfpu=fpa"
     platform="gp2x"
     ;;
   psp)
     # use newlib
     SYSLIBS="-lc -lpspuser -lpspkernel"
     CFLAGS="$CFLAGS -D__PSP__"
+    MFLAGS="-march=mips32r2"
     ARCH=mipsel
     ;;
   *)
@@ -204,25 +195,10 @@ arm*)
   # ARM stuff
   ARCH="arm"
 
-  if [ "$optimize_cortexa8" = "yes" ]; then
-    CFLAGS="$CFLAGS -mcpu=cortex-a8 -mtune=cortex-a8"
-    ASFLAGS="$ASFLAGS -mcpu=cortex-a8"
-  fi
-  if [ "$optimize_cortexa7" = "yes" ]; then
-    CFLAGS="$CFLAGS -mcpu=cortex-a7"
-    ASFLAGS="$ASFLAGS -mcpu=cortex-a7"
-  fi
-  if [ "$optimize_arm1176jzf" = "yes" ]; then
-    CFLAGS="$CFLAGS -mcpu=arm1176jzf-s -mfloat-abi=hard"
-    ASFLAGS="$ASFLAGS -mcpu=arm1176jzf-s -mfloat-abi=hard"
-  fi
-  if [ "$optimize_arm926ej" = "yes" ]; then
-    CFLAGS="$CFLAGS -mcpu=arm926ej-s -mtune=arm926ej-s"
-    ASFLAGS="$ASFLAGS -mcpu=arm926ej-s -mfloat-abi=softfp"
-  fi
-  if [ "$optimize_arm920" = "yes" ]; then
-    CFLAGS="$CFLAGS -mcpu=arm920t -mtune=arm920t"
-    ASFLAGS="$ASFLAGS -mcpu=arm920t -mfloat-abi=soft"
+  # OABI/EABI selection
+  if [ "$have_arm_oabi" = "yes" ] &&  check_option -mabi=apcs-gnu; then
+    echo "$CFLAGS" | grep -q -- '-mabi=' || MFLAGS="$MFLAGS -mabi=apcs-gnu"
+    echo "$CFLAGS" | grep -q -- '-m\(no-\)*thumb-interwork' || CFLAGS="$CFLAGS -mno-thumb-interwork"
   fi
 
   if [ "x$have_arm_neon" = "x" ]; then
@@ -249,30 +225,6 @@ arm*)
   # must disable thumb as recompiler can't handle it
   if check_define __thumb__; then
     CFLAGS="$CFLAGS -marm"
-  fi
-  # OABI/EABI selection
-  if [ "$have_arm_oabi" = "yes" ] &&  check_option -mabi=apcs-gnu; then
-    echo "$CFLAGS" | grep -q -- '-mabi=' || CFLAGS="$CFLAGS -mabi=apcs-gnu"
-    echo "$CFLAGS" | grep -q -- '-m\(no-\)*thumb-interwork' || CFLAGS="$CFLAGS -mno-thumb-interwork"
-    echo "$ASFLAGS" | grep -q -- '-mabi=' || ASFLAGS="$ASFLAGS -mabi=apcs-gnu"
-  fi
-
-  # automatically set mfpu and mfloat-abi if they are not set
-  if [ "$have_arm_neon" = "yes" ]; then
-    fpu="neon"
-    abi="hard"
-  elif [ "$have_armv6" = "yes" ]; then
-    fpu="vfp"
-    abi="softfp"
-  elif check_option -mfpu=fpa; then
-    fpu="fpa" # compatibility option for arm-linux-gnueabi-gcc on ubuntu
-    abi="soft"
-  fi
-  if [ "x$fpu" != "x" ]; then
-    echo "$CFLAGS" | grep -q -- '-mfpu=' || CFLAGS="$CFLAGS -mfpu=$fpu"
-    echo "$ASFLAGS" | grep -q -- '-mfpu=' || ASFLAGS="$ASFLAGS -mfpu=$fpu"
-    echo "$CFLAGS" | grep -q -- '-mfloat-abi=' || CFLAGS="$CFLAGS -mfloat-abi=$abi"
-    echo "$ASFLAGS" | grep -q -- '-mfloat-abi=' || ASFLAGS="$ASFLAGS -mfloat-abi=$abi"
   fi
 
   # add -ldl for helix support
@@ -376,6 +328,14 @@ EOF
   compile_object "$@"
 }
 
+test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*bin*/sdl-config 2>/dev/null | grep /bin/sdl-config | head -n 1)"
+test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*/*bin*/sdl-config 2>/dev/null | grep /bin/sdl-config | head -n 1)"
+#test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*bin*/sdl2-config 2>/dev/null | grep /bin/sdl2-config | head -n 1)"
+#test -n "$SDL_CONFIG" || SDL_CONFIG="$(ls $SYSROOT/*/*bin*/sdl2-config 2>/dev/null | grep /bin/sdl2-config | head -n 1)"
+SDLVERSION=sdl && echo $SDL_CONFIG | grep -q sdl2 && SDLVERSION=sdl2
+
+MAIN_LDLIBS="$LDLIBS -lm"
+
 check_zlib -lz && MAIN_LDLIBS="$MAIN_LDLIBS -lz" || need_zlib="yes"
 
 MAIN_LDLIBS="-lpng $MAIN_LDLIBS"
@@ -453,7 +413,7 @@ echo "architecture        $ARCH"
 echo "platform            $platform"
 echo "sound drivers       $sound_drivers"
 echo "C compiler          $CC"
-echo "C compiler flags    $CFLAGS"
+echo "C compiler flags    $MFLAGS $CFLAGS"
 echo "libraries           $MAIN_LDLIBS"
 echo "linker flags        $LDFLAGS"
 echo "libavcodec (mp3)    $have_libavcodec"
@@ -469,8 +429,8 @@ echo "CC = $CC" >> $config_mak
 echo "CXX = $CXX" >> $config_mak
 echo "AS = $AS" >> $config_mak
 echo "STRIP = $STRIP" >> $config_mak
-echo "CFLAGS += $CFLAGS" >> $config_mak
-echo "ASFLAGS += $ASFLAGS" >> $config_mak
+echo "CFLAGS += $MFLAGS $CFLAGS" >> $config_mak
+echo "ASFLAGS += $MFLAGS $ASFLAGS" >> $config_mak
 echo "LDFLAGS += $LDFLAGS" >> $config_mak
 echo "LDLIBS += $MAIN_LDLIBS" >> $config_mak
 echo >> $config_mak
