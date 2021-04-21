@@ -203,19 +203,35 @@ static char sh2dasm_buff[64];
 		(ulong)(sh2)->poll_addr, (sh2)->poll_cycles, (sh2)->poll_cnt); \
 }
 
-#if (DRC_DEBUG & (8|256|512|1024)) || defined(PDB)
 #if (DRC_DEBUG & (256|512|1024))
 static SH2 csh2[2][8];
 static FILE *trace[2];
 static int topen[2];
 #endif
+#if (DRC_DEBUG & 8)
+static u32 lastpc, lastcnt;
+static void *lastblock;
+#endif
+#if (DRC_DEBUG & (8|256|512|1024)) || defined(PDB)
 static void REGPARM(3) *sh2_drc_log_entry(void *block, SH2 *sh2, u32 sr)
 {
   if (block != NULL) {
-    dbg(8, "= %csh2 enter %08x %p, c=%d", sh2->is_slave ? 's' : 'm',
-      sh2->pc, block, (signed int)sr >> 12);
 #if defined PDB
+    dbg(8, "= %csh2 enter %08x %p, c=%d", sh2->is_slave?'s':'m',
+      sh2->pc, block, (signed int)sr >> 12);
     pdb_step(sh2, sh2->pc);
+#elif (DRC_DEBUG & 8)
+    if (lastpc != sh2->pc) {
+      if (lastcnt)
+        dbg(8, "= %csh2 enter %08x %p (%d times), c=%d", sh2->is_slave?'s':'m',
+          lastpc, lastblock, lastcnt, (signed int)sr >> 12);
+      dbg(8, "= %csh2 enter %08x %p, c=%d", sh2->is_slave?'s':'m',
+        sh2->pc, block, (signed int)sr >> 12);
+      lastpc = sh2->pc;
+      lastblock = block;
+      lastcnt = 0;
+    } else
+      lastcnt++;
 #elif (DRC_DEBUG & 256)
   {
     static SH2 fsh2;
@@ -5661,6 +5677,9 @@ int sh2_execute_drc(SH2 *sh2c, int cycles)
   // others are usual SH2 flags
   sh2c->sr &= 0x3f3;
   sh2c->sr |= cycles << 12;
+#if (DRC_DEBUG & 8)
+  lastpc = lastcnt = 0;
+#endif
 
   sh2c->state |= SH2_IN_DRC;
   sh2_drc_entry(sh2c);
@@ -5670,6 +5689,11 @@ int sh2_execute_drc(SH2 *sh2c, int cycles)
   ret_cycles = (int32_t)sh2c->sr >> 12;
   if (ret_cycles > 0)
     dbg(1, "warning: drc returned with cycles: %d, pc %08x", ret_cycles, sh2c->pc);
+#if (DRC_DEBUG & 8)
+  if (lastcnt)
+    dbg(8, "= %csh2 enter %08x %p (%d times), c=%d", sh2c->is_slave?'s':'m',
+      lastpc, lastblock, lastcnt, (signed int)sh2c->sr >> 12);
+#endif
 
   sh2c->sr &= 0x3f3;
   return ret_cycles;
