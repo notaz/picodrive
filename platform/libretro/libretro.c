@@ -353,7 +353,7 @@ static void munmap(void *addr, size_t length)
 
 void* mmap(void *desired_addr, size_t len, int mmap_prot, int mmap_flags, int fildes, size_t off)
 {
-   return malloc(len);
+   return calloc(1, len);
 }
 
 void munmap(void *base_addr, size_t len)
