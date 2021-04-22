@@ -120,7 +120,7 @@ end:
   Pico_mcd->pcm_mixpos += steps;
 }
 
-void pcd_pcm_update(int *buf32, int length, int stereo)
+void pcd_pcm_update(s32 *buf32, int length, int stereo)
 {
   int step, *pcm;
   int p = 0;

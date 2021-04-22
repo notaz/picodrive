@@ -324,7 +324,7 @@ static u32 sh2_comm_faker(u32 a)
   static int f = 0;
   if (a == 0x28 && !p32x_csum_faked) {
     p32x_csum_faked = 1;
-    return *(unsigned short *)(Pico.rom + 0x18e);
+    return *(u16 *)(Pico.rom + 0x18e);
   }
   if (f >= sizeof(comm_fakevals) / sizeof(comm_fakevals[0]))
     f = 0;

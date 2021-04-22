@@ -192,14 +192,14 @@ PICO_INTERNAL void SekSetRealTAS(int use_real)
 // XXX: rename
 PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
 {
-  unsigned int pc=0;
+  u32 pc=0;
 
 #if defined(EMU_C68K)
   struct Cyclone *context = is_sub ? &PicoCpuCS68k : &PicoCpuCM68k;
   memcpy(cpu,context->d,0x40);
   pc=context->pc-context->membase;
-  *(unsigned int *)(cpu+0x44)=CycloneGetSr(context);
-  *(unsigned int *)(cpu+0x48)=context->osp;
+  *(u32 *)(cpu+0x44)=CycloneGetSr(context);
+  *(u32 *)(cpu+0x48)=context->osp;
   cpu[0x4c] = context->irq;
   cpu[0x4d] = context->state_flags & 1;
 #elif defined(EMU_M68K)
@@ -207,8 +207,8 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
   m68k_set_context(is_sub ? &PicoCpuMS68k : &PicoCpuMM68k);
   memcpy(cpu,m68ki_cpu_p->dar,0x40);
   pc=m68ki_cpu_p->pc;
-  *(unsigned int  *)(cpu+0x44)=m68k_get_reg(NULL, M68K_REG_SR);
-  *(unsigned int  *)(cpu+0x48)=m68ki_cpu_p->sp[m68ki_cpu_p->s_flag^SFLAG_SET];
+  *(u32  *)(cpu+0x44)=m68k_get_reg(NULL, M68K_REG_SR);
+  *(u32  *)(cpu+0x48)=m68ki_cpu_p->sp[m68ki_cpu_p->s_flag^SFLAG_SET];
   cpu[0x4c] = CPU_INT_LEVEL>>8;
   cpu[0x4d] = CPU_STOPPED;
   m68k_set_context(oldcontext);
@@ -216,14 +216,14 @@ PICO_INTERNAL void SekPackCpu(unsigned char *cpu, int is_sub)
   M68K_CONTEXT *context = is_sub ? &PicoCpuFS68k : &PicoCpuFM68k;
   memcpy(cpu,context->dreg,0x40);
   pc=context->pc;
-  *(unsigned int  *)(cpu+0x44)=context->sr;
-  *(unsigned int  *)(cpu+0x48)=context->asp;
+  *(u32  *)(cpu+0x44)=context->sr;
+  *(u32  *)(cpu+0x48)=context->asp;
   cpu[0x4c] = context->interrupts[0];
   cpu[0x4d] = (context->execinfo & FM68K_HALTED) ? 1 : 0;
 #endif
 
-  *(unsigned int *)(cpu+0x40) = pc;
-  *(unsigned int *)(cpu+0x50) =
+  *(u32 *)(cpu+0x40) = pc;
+  *(u32 *)(cpu+0x50) =
     is_sub ? SekCycleCntS68k : Pico.t.m68c_cnt;
 }
 
@@ -231,11 +231,11 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
 {
 #if defined(EMU_C68K)
   struct Cyclone *context = is_sub ? &PicoCpuCS68k : &PicoCpuCM68k;
-  CycloneSetSr(context, *(unsigned int *)(cpu+0x44));
-  context->osp=*(unsigned int *)(cpu+0x48);
+  CycloneSetSr(context, *(u32 *)(cpu+0x44));
+  context->osp=*(u32 *)(cpu+0x48);
   memcpy(context->d,cpu,0x40);
   context->membase = 0;
-  context->pc = *(unsigned int *)(cpu+0x40);
+  context->pc = *(u32 *)(cpu+0x40);
   CycloneUnpack(context, NULL); // rebase PC
   context->irq = cpu[0x4c];
   context->state_flags = 0;
@@ -244,27 +244,27 @@ PICO_INTERNAL void SekUnpackCpu(const unsigned char *cpu, int is_sub)
 #elif defined(EMU_M68K)
   void *oldcontext = m68ki_cpu_p;
   m68k_set_context(is_sub ? &PicoCpuMS68k : &PicoCpuMM68k);
-  m68k_set_reg(M68K_REG_SR, *(unsigned int *)(cpu+0x44));
+  m68k_set_reg(M68K_REG_SR, *(u32 *)(cpu+0x44));
   memcpy(m68ki_cpu_p->dar,cpu,0x40);
-  m68ki_cpu_p->pc=*(unsigned int *)(cpu+0x40);
-  m68ki_cpu_p->sp[m68ki_cpu_p->s_flag^SFLAG_SET]=*(unsigned int *)(cpu+0x48);
+  m68ki_cpu_p->pc=*(u32 *)(cpu+0x40);
+  m68ki_cpu_p->sp[m68ki_cpu_p->s_flag^SFLAG_SET]=*(u32 *)(cpu+0x48);
   CPU_INT_LEVEL = cpu[0x4c] << 8;
   CPU_STOPPED = cpu[0x4d];
   m68k_set_context(oldcontext);
 #elif defined(EMU_F68K)
   M68K_CONTEXT *context = is_sub ? &PicoCpuFS68k : &PicoCpuFM68k;
   memcpy(context->dreg,cpu,0x40);
-  context->pc =*(unsigned int *)(cpu+0x40);
-  context->sr =*(unsigned int *)(cpu+0x44);
-  context->asp=*(unsigned int *)(cpu+0x48);
+  context->pc =*(u32 *)(cpu+0x40);
+  context->sr =*(u32 *)(cpu+0x44);
+  context->asp=*(u32 *)(cpu+0x48);
   context->interrupts[0] = cpu[0x4c];
   context->execinfo &= ~FM68K_HALTED;
   if (cpu[0x4d]&1) context->execinfo |= FM68K_HALTED;
 #endif
   if (is_sub)
-    SekCycleCntS68k = *(unsigned int *)(cpu+0x50);
+    SekCycleCntS68k = *(u32 *)(cpu+0x50);
   else
-    Pico.t.m68c_cnt = *(unsigned int *)(cpu+0x50);
+    Pico.t.m68c_cnt = *(u32 *)(cpu+0x50);
 }
 
 

@@ -17,10 +17,10 @@
 void (*PsndMix_32_to_16l)(short *dest, int *src, int count) = mix_32_to_16l_stereo;
 
 // master int buffer to mix to
-static int PsndBuffer[2*(44100+100)/50];
+static s32 PsndBuffer[2*(44100+100)/50];
 
 // cdda output buffer
-short cdda_out_buffer[2*1152];
+s16 cdda_out_buffer[2*1152];
 
 // sn76496
 extern int *sn76496_regs;
@@ -236,7 +236,7 @@ PICO_INTERNAL void PsndDoFM(int cyc_to)
   // Q16, number of samples since last call
   len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.fm_pos;
 
-  // don't do this too often (about once every canline)
+  // don't do this too often (about once every scanline)
   if (len >> 16 <= PicoIn.sndRate >> 10)
     return;
 

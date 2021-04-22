@@ -1094,7 +1094,7 @@ void pcd_state_loaded_mem(void)
   Pico_mcd->m.dmna_ret_2m &= 3;
 
   // restore hint vector
-  *(unsigned short *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
+  *(u16 *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
 }
 
 #ifdef EMU_M68K
