@@ -187,7 +187,7 @@ zip_failed:
   else if (strcasecmp(ext, "cso") == 0)
   {
     cso_struct *cso = NULL, *tmp = NULL;
-    int size;
+    int i, size;
     f = fopen(path, "rb");
     if (f == NULL)
       goto cso_failed;
@@ -229,6 +229,8 @@ zip_failed:
       elprintf(EL_STATUS, "cso: premature EOF");
       goto cso_failed;
     }
+    for (i = 0; i < size/4; i++)
+      cso->index[i] = CPU_LE4(cso->index[i]);
 
     // all ok
     cso->fpos_in = ftell(f);
@@ -280,7 +282,7 @@ cso_failed:
     chd->file.file = chd;
     chd->file.type = PMT_CHD;
     // subchannel data is skipped, remove it from total size
-    chd->file.size = chd_get_header(cf)->logicalbytes / CD_FRAME_SIZE * CD_MAX_SECTOR_DATA;
+    chd->file.size = head->logicalbytes / CD_FRAME_SIZE * CD_MAX_SECTOR_DATA;
     strncpy(chd->file.ext, ext, sizeof(chd->file.ext) - 1);
     return &chd->file;
 
@@ -359,7 +361,7 @@ static size_t _pm_read_chd(void *ptr, size_t bytes, pm_file *stream, int is_audi
       if (len > bytes)
         len = bytes;
 
-#ifdef CPU_IS_LE
+#if CPU_IS_LE
       if (is_audio) {
         // convert big endian audio samples
         u16 *dst = ptr, v;
@@ -1309,7 +1311,7 @@ static void PicoCartDetect(const char *carthw_cfg)
 
   // Unusual region 'code'
   if (rom_strcmp(0x1f0, "EUROPE") == 0 || rom_strcmp(0x1f0, "Europe") == 0)
-    *(int *) (Pico.rom + 0x1f0) = 0x20204520;
+    *(u32 *) (Pico.rom + 0x1f0) = CPU_LE4(0x20204520);
 }
 
 // vim:shiftwidth=2:expandtab

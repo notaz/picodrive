@@ -205,10 +205,10 @@ void m68k_reg_write8(u32 a, u32 d)
 
       goto write_comm;
     case 6:
-      Pico_mcd->bios[0x72 + 1] = d; // simple hint vector changer
+      Pico_mcd->bios[MEM_BE2(0x72)] = d; // simple hint vector changer
       return;
     case 7:
-      Pico_mcd->bios[0x72] = d;
+      Pico_mcd->bios[MEM_BE2(0x73)] = d;
       elprintf(EL_CDREGS, "hint vector set to %04x%04x",
         ((u16 *)Pico_mcd->bios)[0x70/2], ((u16 *)Pico_mcd->bios)[0x72/2]);
       return;
@@ -277,7 +277,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
 
 #define READ_FONT_DATA(basemask) \
 { \
-      unsigned int fnt = *(unsigned int *)(Pico_mcd->s68k_regs + 0x4c); \
+      unsigned int fnt = CPU_LE4(*(u32 *)(Pico_mcd->s68k_regs + 0x4c)); \
       unsigned int col0 = (fnt >> 8) & 0x0f, col1 = (fnt >> 12) & 0x0f;   \
       if (fnt & (basemask << 0)) d  = col1      ; else d  = col0;       \
       if (fnt & (basemask << 1)) d |= col1 <<  4; else d |= col0 <<  4; \

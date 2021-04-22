@@ -88,7 +88,7 @@ void pcd_pcm_sync(unsigned int to)
     }
 
     addr = ch->addr;
-    inc = *(unsigned short *)&ch->regs[2];
+    inc = ch->regs[2] + (ch->regs[3]<<8);
     mul_l = ((int)ch->regs[0] * (ch->regs[1] & 0xf)) >> (5+1); 
     mul_r = ((int)ch->regs[0] * (ch->regs[1] >>  4)) >> (5+1);
 
@@ -99,7 +99,7 @@ void pcd_pcm_sync(unsigned int to)
       // test for loop signal
       if (smp == 0xff)
       {
-        addr = *(unsigned short *)&ch->regs[4]; // loop_addr
+        addr = ch->regs[4] + (ch->regs[5]<<8); // loop_addr
         smp = Pico_mcd->pcm_ram[addr];
         addr <<= PCM_STEP_SHIFT;
         if (smp == 0xff)

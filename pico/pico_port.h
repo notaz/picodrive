@@ -57,7 +57,7 @@
 #define MEM_LE2(a)	(a)
 #define MEM_LE4(a)	(a)
 // swapping
-#define CPU_BE2(v)	((u32)((u64)(v)<<16)|((v)>>16))
+#define CPU_BE2(v)	((u32)((u64)(v)<<16)|((u32)(v)>>16))
 #define CPU_BE4(v)	(((u32)(v)>>24)|(((v)>>8)&0x00ff00)| \
 			(((v)<<8)&0xff0000)|(u32)((v)<<24))
 #define CPU_LE2(v)	(v)		// swap of 2*u16 in u32
@@ -71,7 +71,7 @@
 // swapping
 #define CPU_BE2(v)	(v)
 #define CPU_BE4(v)	(v)
-#define CPU_LE2(v)	((u32)((u64)(v)<<16)|((v)>>16))
+#define CPU_LE2(v)	((u32)((u64)(v)<<16)|((u32)(v)>>16))
 #define CPU_LE4(v)	(((u32)(v)>>24)|(((v)>>8)&0x00ff00)| \
 			(((v)<<8)&0xff0000)|(u32)((v)<<24))
 #endif
