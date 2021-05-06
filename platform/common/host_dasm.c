@@ -69,9 +69,9 @@ void host_dasm(void *addr, int len)
 #else
 void host_dasm(void *addr, int len)
 {
-  char *end = (char *)addr + len;
+  uint8_t *end = (uint8_t *)addr + len;
   char buf[64];
-  char *p = addr;
+  uint8_t *p = addr;
   int i = 0, o = 0;
 
   o = snprintf(buf, sizeof(buf), "%p:	", p);
