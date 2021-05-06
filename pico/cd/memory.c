@@ -331,7 +331,7 @@ u32 s68k_reg_read16(u32 a)
 
   d = (Pico_mcd->s68k_regs[a]<<8) | Pico_mcd->s68k_regs[a+1];
 
-  if (a >= 0x0e && a < 0x30)
+  if (a >= 0x0e && a < 0x20)
     return s68k_poll_detect(a, d);
 
   return d;

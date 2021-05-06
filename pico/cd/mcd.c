@@ -124,9 +124,6 @@ static void SekRunS68k(unsigned int to)
   if ((cyc_do = SekCycleAimS68k - SekCycleCntS68k) <= 0)
     return;
 
-  if (SekShouldInterrupt())
-    Pico_mcd->m.s68k_poll_a = 0;
-
   pprof_start(s68k);
   SekCycleCntS68k += cyc_do;
 #if defined(EMU_C68K)
@@ -317,7 +314,11 @@ int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)
     if (event_time_next && CYCLES_GT(target, event_time_next))
       target = event_time_next;
 
-    SekRunS68k(target);
+    if (SekIsStoppedS68k())
+      SekCycleCntS68k = SekCycleAimS68k = target;
+    else
+      SekRunS68k(target);
+
     if (m68k_poll_sync && Pico_mcd->m.m68k_poll_cnt == 0)
       break;
   }
@@ -334,20 +335,27 @@ static void SekSyncM68k(void);
 void pcd_run_cpus_normal(int m68k_cycles)
 {
   Pico.t.m68c_aim += m68k_cycles;
-  if (SekShouldInterrupt() || Pico_mcd->m.m68k_poll_cnt < 12)
-    Pico_mcd->m.m68k_poll_cnt = 0;
-  else if (Pico_mcd->m.m68k_poll_cnt >= 16) {
-    int s68k_left = pcd_sync_s68k(Pico.t.m68c_aim, 1);
-    if (s68k_left <= 0) {
-      elprintf(EL_CDPOLL, "m68k poll [%02x] x%d @%06x",
-        Pico_mcd->m.m68k_poll_a, Pico_mcd->m.m68k_poll_cnt, SekPc);
-      Pico.t.m68c_cnt = Pico.t.m68c_aim;
-      return;
-    }
-    Pico.t.m68c_cnt = Pico.t.m68c_aim - (s68k_left * mcd_s68k_cycle_mult >> 16);
-  }
 
   while (CYCLES_GT(Pico.t.m68c_aim, Pico.t.m68c_cnt)) {
+    if (SekShouldInterrupt())
+      Pico_mcd->m.m68k_poll_cnt = 0;
+
+#ifdef USE_POLL_DETECT
+    if (Pico_mcd->m.m68k_poll_cnt >= 16) {
+      // main CPU is polling, (wake and) run sub only
+      SekSetStopS68k(0);
+      pcd_sync_s68k(Pico.t.m68c_aim, 1);
+
+      Pico.t.m68c_cnt = Pico.t.m68c_aim;
+      if (SekIsStoppedS68k()) {
+        // slave has stopped, wake master to avoid lockups
+        Pico_mcd->m.m68k_poll_cnt = 0;
+      }
+      elprintf(EL_CDPOLL, "m68k poll [%02x] x%d @%06x",
+        Pico_mcd->m.m68k_poll_a, Pico_mcd->m.m68k_poll_cnt, SekPc);
+    }
+#endif
+
     SekRunM68kOnce();
     if (Pico_mcd->m.need_sync) {
       Pico_mcd->m.need_sync = 0;
