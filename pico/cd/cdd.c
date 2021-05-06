@@ -444,6 +444,9 @@ int cdd_unload(void)
   {
     int i;
 
+    /* stop audio streaming */
+    Pico_mcd->cdda_stream = NULL;
+
     /* close CD tracks */
     if (cdd.toc.tracks[0].fd)
     {
