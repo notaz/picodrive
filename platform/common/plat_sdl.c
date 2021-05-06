@@ -230,7 +230,7 @@ void plat_video_loop_prepare(void)
 	// take over any new vout settings XXX ask plat_sdl for scaling instead!
 	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 0);
 	// switch over to scaled output if available
-	if (plat_sdl_overlay != NULL || plat_sdl_gl_active) {
+	if (plat_sdl_overlay != NULL || plat_sdl_gl_active || currentConfig.scaling != EOPT_SCALE_NONE) {
 		g_screen_width = 320;
 		g_screen_height = 240;
 		g_screen_ppitch = g_screen_width;
