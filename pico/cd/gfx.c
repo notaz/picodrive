@@ -421,7 +421,7 @@ void gfx_update(unsigned int cycles)
 
     if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN1) {
       elprintf(EL_INTS|EL_CD, "s68k: gfx_cd irq 1");
-      SekInterruptS68k(1);
+      pcd_irq_s68k(1, 1);
     }
   }
   else {

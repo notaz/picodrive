@@ -177,7 +177,7 @@ static void pcd_cdc_event(unsigned int now)
 
     if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) {
       elprintf(EL_INTS|EL_CD, "s68k: cdd irq 4");
-      SekInterruptS68k(4);
+      pcd_irq_s68k(4, 1);
     }
   }
 
@@ -188,7 +188,7 @@ static void pcd_int3_timer_event(unsigned int now)
 {
   if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN3) {
     elprintf(EL_INTS|EL_CD, "s68k: timer irq 3");
-    SekInterruptS68k(3);
+    pcd_irq_s68k(3, 1);
   }
 
   if (Pico_mcd->s68k_regs[0x31] != 0)
@@ -278,6 +278,16 @@ static void pcd_run_events(unsigned int until)
   if (oldest != -1)
     elprintf(EL_CD, "cd: next event #%d at %u",
       oldest, event_time_next);
+}
+
+void pcd_irq_s68k(int irq, int state)
+{
+  if (state) {
+    SekInterruptS68k(irq);
+    SekSetStopS68k(0);
+    Pico_mcd->m.s68k_poll_a = 0;
+  } else
+    SekInterruptClearS68k(irq);
 }
 
 int pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync)

@@ -773,6 +773,7 @@ void pcd_event_schedule(unsigned int now, enum pcd_event event, int after);
 void pcd_event_schedule_s68k(enum pcd_event event, int after);
 void pcd_prepare_frame(void);
 unsigned int pcd_cycles_m68k_to_s68k(unsigned int c);
+void pcd_irq_s68k(int irq, int state);
 int  pcd_sync_s68k(unsigned int m68k_target, int m68k_poll_sync);
 void pcd_run_cpus(int m68k_cycles);
 void pcd_soft_reset(void);

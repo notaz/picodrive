@@ -150,7 +150,7 @@ void m68k_reg_write8(u32 a, u32 d)
       if (d && (Pico_mcd->s68k_regs[0x33] & PCDS_IEN2)) {
         elprintf(EL_INTS, "m68k: s68k irq 2");
         pcd_sync_s68k(SekCyclesDone(), 0);
-        SekInterruptS68k(2);
+        pcd_irq_s68k(2, 1);
       }
       return;
     case 1:
@@ -425,7 +425,7 @@ void s68k_reg_write8(u32 a, u32 d)
         // XXX: emulate pending irq instead?
         if (Pico_mcd->s68k_regs[0x37] & 4) {
           elprintf(EL_INTS, "cdd export irq 4 (unmask)");
-          SekInterruptS68k(4);
+          pcd_irq_s68k(4, 1);
         }
       }
       break;
@@ -443,7 +443,7 @@ void s68k_reg_write8(u32 a, u32 d)
 
         if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) {
           elprintf(EL_INTS, "cdd export irq 4");
-          SekInterruptS68k(4);
+          pcd_irq_s68k(4, 1);
         }
       }
       return;

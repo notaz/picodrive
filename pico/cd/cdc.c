@@ -367,7 +367,7 @@ void cdc_dma_update(void)
       {
         /* update IRQ level */
         elprintf(EL_INTS, "cdc DTE irq 5");
-        SekInterruptS68k(5);
+        pcd_irq_s68k(5, 1);
       }
     }
 
@@ -411,7 +411,7 @@ int cdc_decoder_update(uint8 header[4])
       {
         /* update IRQ level */
         elprintf(EL_INTS, "cdc DEC irq 5");
-        SekInterruptS68k(5);
+        pcd_irq_s68k(5, 1);
       }
     }
 
@@ -469,13 +469,13 @@ void cdc_reg_w(unsigned char data)
         {
           /* update IRQ level */
           elprintf(EL_INTS, "cdc pending irq 5");
-          SekInterruptS68k(5);
+          pcd_irq_s68k(5, 1);
         }
       }
       else // if (scd.pending & (1 << 5))
       {
         /* clear pending level 5 interrupts */
-        SekInterruptClearS68k(5);
+        pcd_irq_s68k(5, 0);
       }
 
       /* abort any data transfer if data output is disabled */
@@ -614,7 +614,7 @@ void cdc_reg_w(unsigned char data)
       if ((cdc.ifstat | BIT_DECI) || !(cdc.ifctrl & BIT_DECIEN))
       {
         /* clear pending level 5 interrupt */
-        SekInterruptClearS68k(5);
+        pcd_irq_s68k(5, 0);
       }
 #endif
       Pico_mcd->s68k_regs[0x04+1] = 0x08;
@@ -774,7 +774,7 @@ unsigned char cdc_reg_r(void)
       if ((cdc.ifstat | BIT_DTEI) || !(cdc.ifctrl & BIT_DTEIEN))
       {
         /* clear pending level 5 interrupt */
-        SekInterruptClearS68k(5);
+        pcd_irq_s68k(5, 0);
       }
 #endif
 
@@ -826,7 +826,7 @@ unsigned short cdc_host_r(void)
         {
           /* update IRQ level */
           elprintf(EL_INTS, "cdc DTE irq 5");
-          SekInterruptS68k(5);
+          pcd_irq_s68k(5, 1);
         }
       }
 
