@@ -1256,11 +1256,11 @@ static void PicoCartDetect(const char *carthw_cfg)
   int fill_sram = 0;
 
   memset(&Pico.sv, 0, sizeof(Pico.sv));
-  if (Pico.rom[0x1B1] == 'R' && Pico.rom[0x1B0] == 'A')
+  if (Pico.rom[MEM_BE2(0x1B0)] == 'R' && Pico.rom[MEM_BE2(0x1B1)] == 'A')
   {
     Pico.sv.start =  rom_read32(0x1B4) & ~0xff000001; // align
     Pico.sv.end   = (rom_read32(0x1B8) & ~0xff000000) | 1;
-    if (Pico.rom[0x1B2] & 0x40)
+    if (Pico.rom[MEM_BE2(0x1B3)] & 0x40)
       // EEPROM
       Pico.sv.flags |= SRF_EEPROM;
     Pico.sv.flags |= SRF_ENABLED;
