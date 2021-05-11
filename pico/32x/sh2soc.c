@@ -480,10 +480,12 @@ void REGPARM(3) sh2_peripheral_write32(u32 a, u32 d, SH2 *sh2)
       if (!(dmac->dmaor & DMA_DME))
         return;
 
+      DRC_SAVE_SR(sh2);
       if ((dmac->chan[0].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
         dmac_trigger(sh2, &dmac->chan[0]);
       if ((dmac->chan[1].chcr & (DMA_TE|DMA_DE)) == DMA_DE)
         dmac_trigger(sh2, &dmac->chan[1]);
+      DRC_RESTORE_SR(sh2);
       break;
   }
 
@@ -538,7 +540,9 @@ static void dreq1_do(SH2 *sh2, struct dma_chan *chan)
   if ((chan->dar & ~0xf) != 0x20004030)
     elprintf(EL_32XP|EL_ANOMALY, "dreq1: bad dar?: %08x\n", chan->dar);
 
+  sh2->state |= SH2_STATE_SLEEP;
   dmac_transfer_one(sh2, chan);
+  sh2->state &= ~SH2_STATE_SLEEP;
   if (chan->tcr == 0)
     dmac_transfer_complete(sh2, chan);
 }
