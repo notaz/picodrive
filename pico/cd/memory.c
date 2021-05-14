@@ -63,19 +63,22 @@ static void remap_prg_window(u32 r1, u32 r3);
 static void remap_word_ram(u32 r3);
 
 // poller detection
-#define POLL_LIMIT 16
+#define POLL_LIMIT 32
 #define POLL_CYCLES 64
 
 void m68k_comm_check(u32 a)
 {
-  pcd_sync_s68k(SekCyclesDone(), 0);
+  u32 cycles = SekCyclesDone();
+  u32 clkdiff = cycles - Pico_mcd->m.m68k_poll_clk;
+  pcd_sync_s68k(cycles, 0);
   if (a >= 0x0e && !Pico_mcd->m.need_sync) {
     // there are cases when slave updates comm and only switches RAM
     // over after that (mcd1b), so there must be a resync..
     SekEndRun(64);
     Pico_mcd->m.need_sync = 1;
   }
-  if (SekNotPolling || a != Pico_mcd->m.m68k_poll_a) {
+  Pico_mcd->m.m68k_poll_clk = cycles;
+  if (SekNotPolling || a != Pico_mcd->m.m68k_poll_a || clkdiff > POLL_CYCLES) {
     Pico_mcd->m.m68k_poll_a = a;
     Pico_mcd->m.m68k_poll_cnt = 0;
     SekNotPolling = 0;

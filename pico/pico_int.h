@@ -491,7 +491,8 @@ struct mcd_misc
   unsigned char  dmna_ret_2m;
   unsigned char  need_sync;
   unsigned char  pad3;
-  int pad4[9];
+  unsigned int   m68k_poll_clk;
+  int pad4[8];
 };
 
 typedef struct
