@@ -144,6 +144,8 @@ void m68k_reg_write8(u32 a, u32 d)
   u32 dold;
   a &= 0x3f;
 
+  Pico_mcd->m.m68k_poll_cnt = 0;
+
   switch (a) {
     case 0:
       d &= 1;
@@ -180,8 +182,7 @@ void m68k_reg_write8(u32 a, u32 d)
       return;
     case 2:
       elprintf(EL_CDREGS, "m68k: prg wp=%02x", d);
-      Pico_mcd->s68k_regs[2] = d; // really use s68k side register
-      return;
+      goto write_comm;
     case 3:
       dold = Pico_mcd->s68k_regs[3];
       elprintf(EL_CDREG3, "m68k_regs w3: %02x @%06x", (u8)d, SekPc);
@@ -331,7 +332,7 @@ u32 s68k_reg_read16(u32 a)
 
   d = (Pico_mcd->s68k_regs[a]<<8) | Pico_mcd->s68k_regs[a+1];
 
-  if (a >= 0x0e && a < 0x20)
+  if (a >= 0x0e && a < 0x30)
     return s68k_poll_detect(a, d);
 
   return d;
@@ -494,6 +495,8 @@ void s68k_reg_write16(u32 a, u32 d)
 {
   u8 *r = Pico_mcd->s68k_regs;
 
+  Pico_mcd->m.s68k_poll_cnt = 0;
+
   if ((a & 0x1f0) == 0x20)
     goto write_comm;
 
@@ -501,8 +504,8 @@ void s68k_reg_write16(u32 a, u32 d)
     case 0x0e:
       // special case, 2 byte writes would be handled differently
       // TODO: verify
-      r[0xf] = d;
-      return;
+      d = (u8)d | (r[0xe] << 8);
+      goto write_comm;
     case 0x58: // stamp data size
       r[0x59] = d & 7;
       return;

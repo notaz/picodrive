@@ -281,7 +281,8 @@ void pcd_irq_s68k(int irq, int state)
 {
   if (state) {
     SekInterruptS68k(irq);
-    SekSetStopS68k(0);
+    if (SekIsStoppedS68k())
+      SekSetStopS68k(0);
     Pico_mcd->m.s68k_poll_a = 0;
   } else
     SekInterruptClearS68k(irq);
@@ -342,21 +343,24 @@ void pcd_run_cpus_normal(int m68k_cycles)
 
 #ifdef USE_POLL_DETECT
     if (Pico_mcd->m.m68k_poll_cnt >= 16) {
+      int s68k_left;
       // main CPU is polling, (wake and) run sub only
-      SekSetStopS68k(0);
-      pcd_sync_s68k(Pico.t.m68c_aim, 1);
+      if (SekIsStoppedS68k())
+        SekSetStopS68k(0);
+      s68k_left = pcd_sync_s68k(Pico.t.m68c_aim, 1);
 
       Pico.t.m68c_cnt = Pico.t.m68c_aim;
+      if (s68k_left > 0)
+        Pico.t.m68c_cnt -= ((long long)s68k_left * mcd_s68k_cycle_mult >> 16);
       if (SekIsStoppedS68k()) {
         // slave has stopped, wake master to avoid lockups
         Pico_mcd->m.m68k_poll_cnt = 0;
       }
       elprintf(EL_CDPOLL, "m68k poll [%02x] x%d @%06x",
         Pico_mcd->m.m68k_poll_a, Pico_mcd->m.m68k_poll_cnt, SekPc);
-    }
+    } else
 #endif
-
-    SekRunM68kOnce();
+      SekRunM68kOnce();
     if (Pico_mcd->m.need_sync) {
       Pico_mcd->m.need_sync = 0;
       pcd_sync_s68k(Pico.t.m68c_cnt, 0);
