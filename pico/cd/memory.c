@@ -63,7 +63,7 @@ static void remap_prg_window(u32 r1, u32 r3);
 static void remap_word_ram(u32 r3);
 
 // poller detection
-#define POLL_LIMIT 32
+#define POLL_LIMIT 16
 #define POLL_CYCLES 64
 
 void m68k_comm_check(u32 a)
@@ -78,13 +78,15 @@ void m68k_comm_check(u32 a)
     Pico_mcd->m.need_sync = 1;
   }
   Pico_mcd->m.m68k_poll_clk = cycles;
-  if (SekNotPolling || a != Pico_mcd->m.m68k_poll_a || clkdiff > POLL_CYCLES) {
+  if (SekNotPolling || a != Pico_mcd->m.m68k_poll_a || clkdiff > POLL_CYCLES || clkdiff <= 16) {
     Pico_mcd->m.m68k_poll_a = a;
     Pico_mcd->m.m68k_poll_cnt = 0;
     SekNotPolling = 0;
     return;
   }
   Pico_mcd->m.m68k_poll_cnt++;
+  if(Pico_mcd->m.m68k_poll_cnt == POLL_LIMIT)
+    SekEndRun(0);
 }
 
 #ifndef _ASM_CD_MEMORY_C

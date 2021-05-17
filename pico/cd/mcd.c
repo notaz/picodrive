@@ -342,7 +342,7 @@ void pcd_run_cpus_normal(int m68k_cycles)
       Pico_mcd->m.m68k_poll_cnt = 0;
 
 #ifdef USE_POLL_DETECT
-    if (Pico_mcd->m.m68k_poll_cnt >= 32) {
+    if (Pico_mcd->m.m68k_poll_cnt >= 16) {
       int s68k_left;
       // main CPU is polling, (wake and) run sub only
       if (SekIsStoppedS68k())
