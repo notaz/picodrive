@@ -4614,7 +4614,7 @@ OPCODE(0x013C)
 	src = 1 << (src & 7);
 	FETCH_BYTE(res);
 	flag_NotZ = res & src;
-RET(8)
+RET(10)
 }
 
 // BTST
@@ -24027,11 +24027,7 @@ OPCODE(0x5048)
 	dst = AREGu32((Opcode >> 0) & 7);
 	res = dst + src;
 	AREG((Opcode >> 0) & 7) = res;
-#ifdef USE_CYCLONE_TIMING
-RET(4)
-#else
 RET(8)
-#endif
 }
 
 // ADDQ
