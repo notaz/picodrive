@@ -569,7 +569,7 @@ INLINE void FM_KEYON(int c , int s )
 		} else {
 			SLOT->volume = MIN_ATT_INDEX;
 		}
-//		recalc_volout(SLOT);
+		recalc_volout(SLOT);
 		ym2612.slot_mask |= (1<<s) << (c*4);
 	}
 }
@@ -608,8 +608,8 @@ INLINE void set_det_mul(FM_CH *CH, FM_SLOT *SLOT, int v)
 INLINE void set_tl(FM_SLOT *SLOT, int v)
 {
 	SLOT->tl = (v&0x7f)<<(ENV_BITS-7); /* 7bit TL */
-//	if (SLOT->state > EG_REL)
-//		recalc_volout(SLOT);
+	if (SLOT->state > EG_REL)
+		recalc_volout(SLOT);
 }
 
 /* set attack rate & key scale  */
