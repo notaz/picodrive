@@ -511,7 +511,7 @@ static void p32x_reg_write8(u32 a, u32 d)
     case 0x2d:
     case 0x2e:
     case 0x2f:
-      if (REG8IN16(r, a) != d) {
+      if (REG8IN16(r, a) != (u8)d) {
         unsigned int cycles = SekCyclesDone();
 
         if (CYCLES_GT(cycles - msh2.m68krcycles_done, 64))
@@ -608,7 +608,7 @@ static void p32x_reg_write16(u32 a, u32 d)
     case 0x2a/2:
     case 0x2c/2:
     case 0x2e/2:
-      if (r[a / 2] != d) {
+      if (r[a / 2] != (u16)d) {
         unsigned int cycles = SekCyclesDone();
 
         if (CYCLES_GT(cycles - msh2.m68krcycles_done, 64))
@@ -823,7 +823,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
       return;
     case 0x05: // H count
       d &= 0xff;
-      if (Pico32x.sh2_regs[4 / 2] != d) {
+      if (Pico32x.sh2_regs[4 / 2] != (u8)d) {
         unsigned int cycles = sh2_cycles_done_m68k(sh2);
         Pico32x.sh2_regs[4 / 2] = d;
         p32x_sh2_poll_event(sh2->other_sh2, SH2_STATE_CPOLL, cycles);
@@ -848,7 +848,7 @@ static void p32x_sh2reg_write8(u32 a, u32 d, SH2 *sh2)
     case 0x2d:
     case 0x2e:
     case 0x2f:
-      if (REG8IN16(r, a) != d) {
+      if (REG8IN16(r, a) != (u8)d) {
         unsigned int cycles = sh2_cycles_done_m68k(sh2);
 
         REG8IN16(r, a) = d;
@@ -941,7 +941,7 @@ static void p32x_sh2reg_write16(u32 a, u32 d, SH2 *sh2)
     case 0x2a/2:
     case 0x2c/2:
     case 0x2e/2:
-      if (Pico32x.regs[a / 2] != d) {
+      if (Pico32x.regs[a / 2] != (u16)d) {
         unsigned int cycles = sh2_cycles_done_m68k(sh2);
 
         Pico32x.regs[a / 2] = d;
