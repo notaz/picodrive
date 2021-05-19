@@ -221,7 +221,7 @@ int sh2_execute_interpreter(SH2 *sh2, int cycles)
 				|| pc_expect != sh2->pc) // branched
 			{
 				pc_expect = sh2->pc;
-				if (sh2->icount < 0)
+				if (sh2->icount <= 0)
 					break;
 			}
 

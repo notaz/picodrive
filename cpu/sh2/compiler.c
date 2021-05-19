@@ -3540,7 +3540,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
         // if exiting a pinned loop pinned regs must be written back to ctx
         // since they are reloaded in the loop entry code
         emith_cmp_r_imm(sr, 0);
-        EMITH_JMP_START(DCOND_GT);
+        EMITH_JMP_START(DCOND_GE);
         rcache_save_pinned();
 
         if (blx_target_count < ARRAY_SIZE(blx_targets)) {
@@ -3564,13 +3564,13 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           emith_cmp_r_imm(sr, 0);
           blx_targets[blx_target_count++] =
               (struct linkage) { .pc = pc, .ptr = tcache_ptr, .mask = 0x1 };
-          emith_jump_cond_patchable(DCOND_LE, tcache_ptr);
+          emith_jump_cond_patchable(DCOND_LT, tcache_ptr);
         } else {
           // blx table full, must inline exit code
           tmp = rcache_get_tmp_arg(0);
           emith_cmp_r_imm(sr, 0);
           EMITH_SJMP_START(DCOND_GT);
-          emith_move_r_imm_c(DCOND_LE, tmp, pc);
+          emith_move_r_imm_c(DCOND_LT, tmp, pc);
           emith_jump_cond(DCOND_LE, sh2_drc_exit);
           EMITH_SJMP_END(DCOND_GT);
           rcache_free_tmp(tmp);
@@ -5676,7 +5676,7 @@ int sh2_execute_drc(SH2 *sh2c, int cycles)
   // bit11 contains T saved for delay slot
   // others are usual SH2 flags
   sh2c->sr &= 0x3f3;
-  sh2c->sr |= cycles << 12;
+  sh2c->sr |= (cycles-1) << 12;
 #if (DRC_DEBUG & 8)
   lastpc = lastcnt = 0;
 #endif
@@ -5687,7 +5687,7 @@ int sh2_execute_drc(SH2 *sh2c, int cycles)
 
   // TODO: irq cycles
   ret_cycles = (int32_t)sh2c->sr >> 12;
-  if (ret_cycles > 0)
+  if (ret_cycles >= 0)
     dbg(1, "warning: drc returned with cycles: %d, pc %08x", ret_cycles, sh2c->pc);
 #if (DRC_DEBUG & 8)
   if (lastcnt)
@@ -5696,7 +5696,7 @@ int sh2_execute_drc(SH2 *sh2c, int cycles)
 #endif
 
   sh2c->sr &= 0x3f3;
-  return ret_cycles;
+  return ret_cycles+1;
 }
 
 static void block_stats(void)
@@ -6223,6 +6223,7 @@ u16 scan_block(u32 base_pc, int is_slave, u8 *op_flags, u32 *end_pc_out,
           break;
         case 1: // SLEEP      0000000000011011
           opd->op = OP_SLEEP;
+          opd->cycles = 3;
           end_block = 1;
           break;
         case 2: // RTE        0000000000101011
