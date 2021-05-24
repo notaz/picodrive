@@ -916,6 +916,7 @@ typedef struct
 	void (*instr_hook_callback)(void);                /* Called every instruction cycle prior to execution */
 
 	// notaz
+	sint cyc_initial_cycles;
 	sint cyc_remaining_cycles;
 	sint not_polling;
 } m68ki_cpu_core;
@@ -923,6 +924,7 @@ typedef struct
 // notaz
 extern m68ki_cpu_core *m68ki_cpu_p;
 #define m68ki_cpu (*m68ki_cpu_p)
+#define m68ki_initial_cycles m68ki_cpu_p->cyc_initial_cycles
 #define m68ki_remaining_cycles m68ki_cpu_p->cyc_remaining_cycles
 
 

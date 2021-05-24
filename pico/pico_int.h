@@ -102,16 +102,16 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #define SekSr     m68k_get_reg(&PicoCpuMM68k, M68K_REG_SR)
 #define SekSrS68k m68k_get_reg(&PicoCpuMS68k, M68K_REG_SR)
 #define SekSetStop(x) { \
-	if(x) { SET_CYCLES(0); PicoCpuMM68k.stopped=STOP_LEVEL_STOP; } \
+	if(x) { PicoCpuMM68k.cyc_remaining_cycles = 0; PicoCpuMM68k.stopped=STOP_LEVEL_STOP; } \
 	else PicoCpuMM68k.stopped=0; \
 }
 #define SekSetStopS68k(x) { \
-	if(x) { SET_CYCLES(0); PicoCpuMS68k.stopped=STOP_LEVEL_STOP; } \
+	if(x) { PicoCpuMS68k.cyc_remaining_cycles = 0; PicoCpuMS68k.stopped=STOP_LEVEL_STOP; } \
 	else PicoCpuMS68k.stopped=0; \
 }
 #define SekIsStoppedM68k() (PicoCpuMM68k.stopped==STOP_LEVEL_STOP)
 #define SekIsStoppedS68k() (PicoCpuMS68k.stopped==STOP_LEVEL_STOP)
-#define SekShouldInterrupt() (CPU_INT_LEVEL > FLAG_INT_MASK)
+#define SekShouldInterrupt() (PicoCpuMM68k.int_level > PicoCpuMM68k.int_mask)
 
 #define SekNotPolling     PicoCpuMM68k.not_polling
 #define SekNotPollingS68k PicoCpuMS68k.not_polling
