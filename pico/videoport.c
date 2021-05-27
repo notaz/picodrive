@@ -2,7 +2,7 @@
  * PicoDrive
  * (c) Copyright Dave, 2004
  * (C) notaz, 2006-2009
- * (C) kub, 2020
+ * (C) kub, 2020,2021
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -12,11 +12,118 @@
 #define NEED_DMA_SOURCE
 #include "memory.h"
 
-extern const unsigned char  hcounts_32[], hcounts_40[];
-extern const unsigned char  vdpcyc2sl_32_bl[], vdpcyc2sl_40_bl[];
-extern const unsigned char  vdpcyc2sl_32[], vdpcyc2sl_40[];
-extern const unsigned short vdpsl2cyc_32_bl[], vdpsl2cyc_40_bl[];
-extern const unsigned short vdpsl2cyc_32[], vdpsl2cyc_40[];
+
+enum { clkdiv = 2 };    // CPU clock granularity: one of 1,2,4,8
+
+// VDP Slot timing, taken from http://gendev.spritesmind.net/
+//     forum/viewtopic.php?f=22&t=851&sid=d5701a71396ee7f700c74fb7cd85cb09
+// Thank you very much for the great work, Nemesis!
+
+// 1 slot is 488/171 = 2.8538 68k cycles in h32, and 488/210 = 2.3238 in h40.
+
+// VDP has a slot counter running from 0x00 to 0xff every scanline, but it has
+// a gap depending on the video mode. The slot in which a horizontal interrupt
+// is generated also depends on the video mode.
+enum { hint32 = 0x84, gapstart32 = 0x94, gapend32 = 0xe9 };
+enum { hint40 = 0xa4, gapstart40 = 0xb7, gapend40 = 0xe5 };
+
+// number of slots in a scanline
+#define slots32	(0x100-(gapend32-gapstart32)) // 171
+#define slots40	(0x100-(gapend40-gapstart40)) // 210
+
+// In blanked display, all slots but the refresh slots are usable for transfers,
+// in active display only 16(h32) / 18(h40) slots can be used.
+
+// dma and refresh slots for active display, 16 for H32
+static u8 dmaslots32[] =
+    { 145,243, 2,10,18, 34,42,50, 66,74,82, 98,106,114, 129,130 };
+static u8 refslots32[] =
+    {        250,     26,       58,       90,         122 };
+// dma and refresh slots for active display, 18 for H40
+static u8 dmaslots40[] =
+    {     232, 2,10,18, 34,42,50, 66,74,82, 98,106,114, 130,138,146, 161,162 };
+static u8 refslots40[] =
+    {        250,     26,       58,       90,         122,         154 };
+
+// table sizes
+enum { cycsz = 488/clkdiv };
+enum { sl32blsz=slots32-sizeof(refslots32)+1, sl32acsz=sizeof(dmaslots32)+1 };
+enum { sl40blsz=slots40-sizeof(refslots40)+1, sl40acsz=sizeof(dmaslots40)+1 };
+
+// Tables must be considerably larger than one scanline, since 68k emulation
+// isn't stopping in the middle of an operation. If the last op is a 32 bit
+// VDP write 2 slots may need to be taken from the next scanline, which can be
+// more than 100 CPU cycles. For safety just cover 2 scanlines.
+
+// table for mapping hvcounter reads
+static u8  hcounts_32[2*cycsz], hcounts_40[2*cycsz];
+// tables mapping cycles to slots
+static u16 vdpcyc2sl_32_bl[2*cycsz],vdpcyc2sl_40_bl[2*cycsz];
+static u16 vdpcyc2sl_32_ac[2*cycsz],vdpcyc2sl_40_ac[2*cycsz];
+// tables mapping slots to cycles
+// NB the sl2cyc tables must cover all slots present in the cyc2sl tables.
+static u16 vdpsl2cyc_32_bl[2*sl32blsz],vdpsl2cyc_40_bl[2*sl40blsz];
+static u16 vdpsl2cyc_32_ac[2*sl32acsz],vdpsl2cyc_40_ac[2*sl40acsz];
+
+
+// calculate timing tables for one mode (H32 or H40)
+// NB tables aligned to HINT, since the main loop uses HINT as synchronization
+#define INITTABLES(s) { \
+  float factor = 488./slots##s;						\
+  int ax, bx, rx, ac, bc;						\
+  int i, n;								\
+									\
+  /* calculate internal VDP slot numbers */				\
+  for (i = 0; i < cycsz; i++) {						\
+    n = hint##s + i*clkdiv/factor;					\
+    if (n >= gapstart##s) n += gapend##s-gapstart##s;			\
+       hcounts_##s[i] = n % 256;					\
+  }									\
+  memcpy(hcounts_##s+cycsz, hcounts_##s, ARRAY_SIZE(hcounts_##s)-cycsz);\
+									\
+  ax = bx = ac = bc = rx = 0;						\
+  for (i = 0; i < cycsz; i++) {						\
+    n = hcounts_##s[i];							\
+    if (i == 0 || n != hcounts_##s[i-1]) {				\
+      /* fill slt <=> cycle tables, active scanline */			\
+      if (ax < ARRAY_SIZE(dmaslots##s) && dmaslots##s[ax] == n) {	\
+        vdpsl2cyc_##s##_ac[++ax]=i;					\
+        while (ac < i) vdpcyc2sl_##s##_ac[ac++] = ax-1;			\
+      }									\
+      /* fill slt <=> cycle tables, scanline off */			\
+      if (rx >= ARRAY_SIZE(refslots##s) || refslots##s[rx] != n) {	\
+        vdpsl2cyc_##s##_bl[++bx]=i;					\
+        while (bc < i) vdpcyc2sl_##s##_bl[bc++] = bx-1;			\
+      } else								\
+        ++rx;								\
+    }									\
+  }									\
+  /* fill up cycle to slot mappings for last slot */			\
+  while (ac < cycsz)							\
+    vdpcyc2sl_##s##_ac[ac] = ARRAY_SIZE(dmaslots##s),		ac++;	\
+  while (bc < cycsz)							\
+    vdpcyc2sl_##s##_bl[bc] = slots##s-ARRAY_SIZE(refslots##s),	bc++;	\
+  /* extend tables for 2nd scanline */					\
+  i = ARRAY_SIZE(dmaslots##s);						\
+  while (ac < ARRAY_SIZE(vdpcyc2sl_##s##_ac))				\
+    vdpcyc2sl_##s##_ac[ac] = vdpcyc2sl_##s##_ac[ac-cycsz]+i,	ac++;	\
+  while (ax < ARRAY_SIZE(vdpsl2cyc_##s##_ac)-1)			ax++,	\
+    vdpsl2cyc_##s##_ac[ax] = vdpsl2cyc_##s##_ac[ax-i]+cycsz;\
+  i = slots##s - ARRAY_SIZE(refslots##s);				\
+  while (bc < ARRAY_SIZE(vdpcyc2sl_##s##_bl))				\
+    vdpcyc2sl_##s##_bl[bc] = vdpcyc2sl_##s##_bl[bc-cycsz]+i,	bc++;	\
+  while (bx < ARRAY_SIZE(vdpsl2cyc_##s##_bl)-1)			bx++,	\
+    vdpsl2cyc_##s##_bl[bx] = vdpsl2cyc_##s##_bl[bx-i]+cycsz;		\
+}
+ 
+
+// initialize VDP timing tables
+void PicoVideoInit(void)
+{
+  INITTABLES(32);
+  INITTABLES(40);
+}
+
 
 static int blankline;           // display disabled for this line
 
@@ -69,16 +176,17 @@ static struct VdpFIFO { // XXX this must go into save file!
   unsigned short fifo_slot;   // last executed slot in current scanline
   unsigned short fifo_maxslot;// #slots in scanline
 
-  const unsigned char *fifo_cyc2sl;
+  const unsigned short *fifo_cyc2sl;
   const unsigned short *fifo_sl2cyc;
 } VdpFIFO;
 
 enum { FQ_BYTE = 1, FQ_BGDMA = 2, FQ_FGDMA = 4 }; // queue flags, NB: BYTE = 1!
 
-// NB must limit cyc2sl to table size in case 68k overdraws its aim. That can
-// happen if the last insn is a blocking acess to VDP, or for exceptions (e.g.irq)
-#define	Cyc2Sl(vf,lc)	((lc) < 256*2 ? vf->fifo_cyc2sl[(lc)>>1] : vf->fifo_cyc2sl[255])
-#define Sl2Cyc(vf,sl)   (vf->fifo_sl2cyc[sl]*2)
+
+// NB should limit cyc2sl to table size in case 68k overdraws its aim. That can
+// happen if the last op is a blocking acess to VDP, or for exceptions (e.g.irq)
+#define	Cyc2Sl(vf,lc)	(vf->fifo_cyc2sl[(lc)/clkdiv])
+#define Sl2Cyc(vf,sl)   (vf->fifo_sl2cyc[sl]*clkdiv)
 
 // do the FIFO math
 static __inline int AdvanceFIFOEntry(struct VdpFIFO *vf, struct PicoVideo *pv, int slots)
@@ -263,7 +371,7 @@ int PicoVideoFIFOWrite(int count, int flags, unsigned sr_mask,unsigned sr_flags)
 
     // update FIFO state if it was empty
     if (!(pv->status & PVS_FIFORUN)) {
-      vf->fifo_slot = Cyc2Sl(vf, lc+9); // FIFO latency ~3 vdp slots
+      vf->fifo_slot = Cyc2Sl(vf, lc+5); // FIFO latency ~3 vdp slots
       pv->status |= PVS_FIFORUN;
       pv->fifo_cnt = count << (flags & FQ_BYTE);
     }
@@ -300,10 +408,10 @@ int PicoVideoFIFOHint(void)
 // switch FIFO mode between active/inactive display
 void PicoVideoFIFOMode(int active, int h40)
 {
-  static const unsigned char *vdpcyc2sl[2][2] =
-        { {vdpcyc2sl_32_bl, vdpcyc2sl_40_bl} , {vdpcyc2sl_32, vdpcyc2sl_40} };
+  static const unsigned short *vdpcyc2sl[2][2] =
+      { {vdpcyc2sl_32_bl, vdpcyc2sl_40_bl},{vdpcyc2sl_32_ac, vdpcyc2sl_40_ac} };
   static const unsigned short *vdpsl2cyc[2][2] =
-        { {vdpsl2cyc_32_bl, vdpsl2cyc_40_bl} , {vdpsl2cyc_32, vdpsl2cyc_40} };
+      { {vdpsl2cyc_32_bl, vdpsl2cyc_40_bl},{vdpsl2cyc_32_ac, vdpsl2cyc_40_ac} };
 
   struct VdpFIFO *vf = &VdpFIFO;
   struct PicoVideo *pv = &Pico.video;
@@ -316,10 +424,9 @@ void PicoVideoFIFOMode(int active, int h40)
   vf->fifo_cyc2sl = vdpcyc2sl[active][h40];
   vf->fifo_sl2cyc = vdpsl2cyc[active][h40];
   // recalculate FIFO slot for new mode
-  vf->fifo_slot = Cyc2Sl(vf, lc)-1;
+  vf->fifo_slot = Cyc2Sl(vf, lc);
   vf->fifo_maxslot = Cyc2Sl(vf, 488);
 }
-
 
 // VDP memory rd/wr
 

@@ -40,6 +40,7 @@ void PicoInit(void)
   Pico32xInit();
   PsndInit();
 
+  PicoVideoInit();
   PicoDrawInit();
   PicoDraw2Init();
 }
