@@ -9,7 +9,7 @@
 	url = https://github.com/digital-sound-antiques/emu2413.git
 [submodule "pico/cd/libchdr"]
 	path = pico/cd/libchdr
-	url = https://github.com/irixxxx/libchdr-picodrive.git
+	url = https://github.com/rtissera/libchdr.git
 [submodule "platform/common/minimp3"]
 	path = platform/common/minimp3
 	url = https://github.com/lieff/minimp3
