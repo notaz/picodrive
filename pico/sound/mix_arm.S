@@ -156,7 +156,7 @@ m16_32_s2_no_unal2:
 @ limit
 @ reg=int_sample, r12=1, r8=tmp, kills flags
 .macro Limit reg
-    sub     \reg, \reg, \reg, asr #2	@ reduce audio lvl some to avoid clipping
+    sub     \reg, \reg, \reg, asr #3	@ reduce audio lvl some to avoid clipping
     add     r8, r12, \reg, asr #15
     bics    r8, r8, #1			@ in non-overflow conditions r8 is 0 or 1
     movne   \reg, #0x8000
@@ -166,7 +166,7 @@ m16_32_s2_no_unal2:
 @ limit and shift up by 16
 @ reg=int_sample, r12=1, r8=tmp, kills flags
 .macro Limitsh reg
-    sub     \reg, \reg, \reg, asr #2	@ reduce audio lvl some to avoid clipping
+    sub     \reg, \reg, \reg, asr #3	@ reduce audio lvl some to avoid clipping
     add     r8, r12,\reg, asr #15
     bics    r8, r8, #1			@ in non-overflow conditions r8 is 0 or 1
     moveq   \reg, \reg, lsl #16

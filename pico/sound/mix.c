@@ -14,7 +14,7 @@
 
 /* limitter */
 #define Limit16(val) \
-	val -= val >> 2; /* reduce level to avoid clipping */	\
+	val -= val >> 3; /* reduce level to avoid clipping */	\
 	if ((short)val != val) val = (val < 0 ? MINOUT : MAXOUT)
 
 int mix_32_to_16l_level;
