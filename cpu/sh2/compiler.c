@@ -763,6 +763,7 @@ static void rm_from_hashlist(struct block_entry *be, int tcache_id)
 }
 
 
+#if LINK_BRANCHES
 static void add_to_hashlist_unresolved(struct block_link *bl, int tcache_id)
 {
   u32 tcmask = HASH_TABLE_SIZE(tcache_id) - 1;
@@ -805,7 +806,6 @@ static void rm_from_hashlist_unresolved(struct block_link *bl, int tcache_id)
     bl->next->prev = bl->prev;
 }
 
-#if LINK_BRANCHES
 static void dr_block_link(struct block_entry *be, struct block_link *bl, int emit_jump)
 {
   dbg(2, "- %slink from %p to pc %08x entry %p", emit_jump ? "":"early ",
@@ -1033,23 +1033,23 @@ static void dr_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit, i
     return;
   }
 
-#if LINK_BRANCHES
   // remove from hash table, make incoming links unresolved
   if (bd->active) {
     for (i = 0; i < bd->entry_count; i++) {
       rm_from_hashlist(&bd->entryp[i], tcache_id);
 
+#if LINK_BRANCHES
       while ((bl = bd->entryp[i].links) != NULL) {
         dr_block_unlink(bl, 1);
         add_to_hashlist_unresolved(bl, tcache_id);
       }
+#endif
     }
 
     dr_mark_memory(-1, bd, tcache_id, nolit);
     add_to_block_list(&inactive_blocks[tcache_id], bd);
   }
   bd->active = 0;
-#endif
 
   if (free) {
 #if LINK_BRANCHES
@@ -1069,7 +1069,6 @@ static void dr_rm_block_entry(struct block_desc *bd, int tcache_id, u32 nolit, i
     rm_from_block_lists(bd);
     bd->addr = bd->size = bd->addr_lit = bd->size_lit = 0;
     bd->entry_count = 0;
-    bd->entryp = NULL;
   }
   emith_update_cache();
 }
