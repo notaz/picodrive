@@ -2185,6 +2185,7 @@ int YM2612PicoStateLoad2(int *tat, int *tbt)
 		blk = ym2612.CH[c].block_fnum >> 11;
 		ym2612.CH[c].kcode= (blk<<2) | opn_fktable[fn >> 7];
 		ym2612.CH[c].fc = fn_table[fn*2]>>(7-blk);
+		refresh_fc_eg_chan( &ym2612.CH[c] );
 	}
 	// chans 4,5,6
 	ptr = &ym2612.REGS[0x1b8];
@@ -2205,6 +2206,7 @@ int YM2612PicoStateLoad2(int *tat, int *tbt)
 		blk = ym2612.CH[c].block_fnum >> 11;
 		ym2612.CH[c].kcode= (blk<<2) | opn_fktable[fn >> 7];
 		ym2612.CH[c].fc = fn_table[fn*2]>>(7-blk);
+		refresh_fc_eg_chan( &ym2612.CH[c] );
 	}
 	for (c = 0; c < 3; c++)
 	{
