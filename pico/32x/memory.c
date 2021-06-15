@@ -119,7 +119,7 @@ void NOINLINE p32x_sh2_poll_detect(u32 a, SH2 *sh2, u32 flags, int maxcnt)
   // reading 2 consecutive 16bit values is probably a 32bit access. detect this
   // by checking address (max 2 bytes away) and cycles (max 2 cycles later).
   // no polling if more than 20 cycles have passed since last detect call.
-  if (a - sh2->poll_addr <= 2 && CYCLES_GE(20, cycles_diff)) {
+  if (a - sh2->poll_addr <= 2 && CYCLES_GE(10, cycles_diff)) {
     if (CYCLES_GT(cycles_diff, 2) && ++sh2->poll_cnt >= maxcnt) {
       if (!(sh2->state & flags))
         elprintf_sh2(sh2, EL_32X, "state: %02x->%02x",
@@ -736,7 +736,7 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
       return (r[0] & P32XS_FM) | Pico32x.sh2_regs[0]
         | Pico32x.sh2irq_mask[sh2->is_slave];
     case 0x04/2: // H count (often as comm too)
-      p32x_sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 9);
+      p32x_sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 5);
       cycles = sh2_cycles_done_m68k(sh2);
       sh2s_sync_on_read(sh2, cycles);
       return sh2_poll_read(a, Pico32x.sh2_regs[4 / 2], cycles, sh2);
@@ -770,7 +770,7 @@ static u32 p32x_sh2reg_read16(u32 a, SH2 *sh2)
     case 0x2a/2:
     case 0x2c/2:
     case 0x2e/2:
-      p32x_sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 9);
+      p32x_sh2_poll_detect(a, sh2, SH2_STATE_CPOLL, 5);
       cycles = sh2_cycles_done_m68k(sh2);
       sh2s_sync_on_read(sh2, cycles);
       return sh2_poll_read(a, r[a / 2], cycles, sh2);
@@ -1457,7 +1457,7 @@ static u32 REGPARM(2) sh2_read8_cs0(u32 a, SH2 *sh2)
 
   if ((a & 0x3fff0) == 0x4100) {
     d = p32x_vdp_read16(a);
-    p32x_sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 9);
+    p32x_sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 7);
     goto out_16to8;
   }
 
@@ -1520,7 +1520,7 @@ static u32 REGPARM(2) sh2_read16_cs0(u32 a, SH2 *sh2)
 
   if ((a & 0x3fff0) == 0x4100) {
     d = p32x_vdp_read16(a);
-    p32x_sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 9);
+    p32x_sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 7);
     goto out;
   }
 
