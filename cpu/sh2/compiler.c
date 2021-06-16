@@ -2612,8 +2612,8 @@ static uptr split_address(uptr la, uptr mask, s32 *offs)
   uptr sign = (mask>>1) + 1; // sign bit in offset
   *offs = (la & mask) | (la & sign ? ~mask : 0); // offset part, sign extended
   la = (la & ~mask) + ((la & sign) << 1); // base part, corrected for offs sign
-  if (~mask && la == ~mask && !(*offs & sign)) { // special case la=-1 & offs>0
-    *offs = -*offs;
+  if (~mask && la == ~mask && *offs > 0) { // special case la=-1&~mask && offs>0
+    *offs -= mask+1;
     la = 0;
   }
   return la;
@@ -2676,8 +2676,9 @@ static int emit_get_rbase_and_offs(SH2 *sh2, sh2_reg_e r, int rmode, s32 *offs)
     // known fixed host address
     la = split_address(la + ((a + *offs) & mask), omask, offs);
     if (la == 0) {
-      la = *offs;
-      *offs = 0;
+      // offset only. optimize for hosts having short indexed addressing
+      la = *offs & ~0x7f;  // keep the lower bits for endianess handling
+      *offs &= 0x7f;
     }
     hr = rcache_get_tmp();
     emith_move_r_ptr_imm(hr, la);
