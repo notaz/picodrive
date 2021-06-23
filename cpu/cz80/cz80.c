@@ -211,7 +211,8 @@ void Cz80_Init(cz80_struc *CPU)
 
 void Cz80_Reset(cz80_struc *CPU)
 {
-	memset(CPU, 0, (FPTR)&CPU->BasePC - (FPTR)CPU);
+	// I, R, CPU and interrupts logic is reset, registers are untouched
+	memset(&CPU->R, 0, (FPTR)&CPU->BasePC - (FPTR)&CPU->R);
 	Cz80_Set_Reg(CPU, CZ80_PC, 0);
 }
 
