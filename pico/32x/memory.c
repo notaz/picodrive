@@ -511,16 +511,17 @@ static void p32x_reg_write8(u32 a, u32 d)
     case 0x2d:
     case 0x2e:
     case 0x2f:
-      if (REG8IN16(r, a) != (u8)d) {
-        unsigned int cycles = SekCyclesDone();
+      { unsigned int cycles = SekCyclesDone();
 
         if (CYCLES_GT(cycles - msh2.m68krcycles_done, 64))
           p32x_sync_sh2s(cycles);
 
-        REG8IN16(r, a) = d;
-        p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
-        p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
-        sh2_poll_write(a & ~1, r[a / 2], cycles, NULL);
+        if (REG8IN16(r, a) != (u8)d) {
+          REG8IN16(r, a) = d;
+          p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
+          p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
+          sh2_poll_write(a & ~1, r[a / 2], cycles, NULL);
+        }
       }
       return;
     case 0x30:
@@ -608,16 +609,17 @@ static void p32x_reg_write16(u32 a, u32 d)
     case 0x2a/2:
     case 0x2c/2:
     case 0x2e/2:
-      if (r[a / 2] != (u16)d) {
-        unsigned int cycles = SekCyclesDone();
+      { unsigned int cycles = SekCyclesDone();
 
         if (CYCLES_GT(cycles - msh2.m68krcycles_done, 64))
           p32x_sync_sh2s(cycles);
 
-        r[a / 2] = d;
-        p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
-        p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
-        sh2_poll_write(a, (u16)d, cycles, NULL);
+        if (r[a / 2] != (u16)d) {
+          r[a / 2] = d;
+          p32x_sh2_poll_event(&sh2s[0], SH2_STATE_CPOLL, cycles);
+          p32x_sh2_poll_event(&sh2s[1], SH2_STATE_CPOLL, cycles);
+          sh2_poll_write(a, (u16)d, cycles, NULL);
+        }
       }
       return;
     case 0x30/2: // PWM control
