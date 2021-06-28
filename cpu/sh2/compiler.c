@@ -4417,6 +4417,7 @@ static void REGPARM(2) *sh2_translate(SH2 *sh2, int tcache_id)
           EMITH_HINT_COND(DCOND_EQ);
           emith_subf_r_r_imm(tmp, tmp2, 1);
           emith_set_t_cond(sr, DCOND_EQ);
+          emith_or_r_imm(sr, SH2_NO_POLLING);
           goto end_op;
         }
         goto default_;

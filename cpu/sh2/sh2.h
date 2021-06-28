@@ -56,6 +56,9 @@ typedef struct SH2_
 	uint32_t	poll_addr;
 	int		poll_cycles;
 	int		poll_cnt;
+// NB MUST be a bit unused in SH2 SR, see also cpu/sh2/compiler.c!
+#define SH2_NO_POLLING	(1 << 10)	// poll detection control
+	int		no_polling;
 
 	// DRC branch cache. size must be 2^n and <=128
 	int rts_cache_idx;

@@ -224,6 +224,8 @@ extern SH2 sh2s[2];
 # define sh2_cycles_left(sh2) (sh2)->icount
 # define sh2_burn_cycles(sh2, n) (sh2)->icount -= n
 # define sh2_pc(sh2) (sh2)->ppc
+# define sh2_not_polling(sh2) (sh2)->no_polling
+# define sh2_set_polling(sh2) (sh2)->no_polling = 0
 #else
 # define sh2_end_run(sh2, after_) do { \
   int left_ = ((signed int)(sh2)->sr >> 12) - (after_); \
@@ -235,6 +237,8 @@ extern SH2 sh2s[2];
 # define sh2_cycles_left(sh2) ((signed int)(sh2)->sr >> 12)
 # define sh2_burn_cycles(sh2, n) (sh2)->sr -= ((n) << 12)
 # define sh2_pc(sh2) (sh2)->pc
+# define sh2_not_polling(sh2) ((sh2)->sr & SH2_NO_POLLING)
+# define sh2_set_polling(sh2) ((sh2)->sr &= ~SH2_NO_POLLING)
 #endif
 
 #define sh2_cycles_done(sh2) (unsigned)((int)(sh2)->cycles_timeslice - sh2_cycles_left(sh2))

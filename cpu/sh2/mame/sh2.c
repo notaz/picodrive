@@ -800,6 +800,7 @@ INLINE void DT(sh2_state *sh2, UINT32 n)
 		sh2->sr |= T;
 	else
 		sh2->sr &= ~T;
+	sh2->no_polling = SH2_NO_POLLING;
 #if BUSY_LOOP_HACKS
 	{
 		UINT32 next_opcode = (UINT32)(UINT16)RW( sh2, sh2->ppc & AM );
