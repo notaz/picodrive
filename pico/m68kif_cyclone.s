@@ -27,7 +27,8 @@ cyclone_checkpc:
     and     r3, r0, #0xff000000
     bic     r0, r0, #1
     bics    r2, r0, #0xff000000
-    beq     crashed
+    @ ouf, some Codemasters titles actually start at address 0
+    @ beq     crashed
 
     ldr     r1, [r7, #0x6c]  @ read16 map
     mov     r2, r2, lsr #M68K_MEM_SHIFT
