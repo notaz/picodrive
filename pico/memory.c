@@ -116,13 +116,13 @@ void cpu68k_map_all_ram(int start_addr, int end_addr, void *ptr, int is_sub)
 static u32 m68k_unmapped_read8(u32 a)
 {
   elprintf(EL_UIO, "m68k unmapped r8  [%06x] @%06x", a, SekPc);
-  return 0; // assume pulldown, as if MegaCD2 was attached
+  return (PicoIn.AHW & PAHW_MCD) ? 0x00 : 0xff; // pulldown if MegaCD2 attached
 }
 
 static u32 m68k_unmapped_read16(u32 a)
 {
   elprintf(EL_UIO, "m68k unmapped r16 [%06x] @%06x", a, SekPc);
-  return 0;
+  return (PicoIn.AHW & PAHW_MCD) ? 0x00 : 0xffff;
 }
 
 static void m68k_unmapped_write8(u32 a, u32 d)
