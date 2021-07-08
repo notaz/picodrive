@@ -38,7 +38,7 @@
 
 #include "../pico_int.h"
 #include "genplus_macros.h"
-#include "cue.h"
+#include "cd_parse.h"
 #include "cdd.h"
 
 #ifdef USE_LIBTREMOR
@@ -321,6 +321,7 @@ int cdd_load(const char *filename, int type)
   ret = (type == CT_BIN) ? 2352 : 2048;
   if (ret != cdd.sectorSize)
     elprintf(EL_STATUS|EL_ANOMALY, "cd: type detection mismatch");
+  pm_sectorsize(cdd.sectorSize, cdd.toc.tracks[0].fd);
 
   /* read CD image header + security code */
   pm_read(header + 0x10, 0x200, cdd.toc.tracks[0].fd);
@@ -443,11 +444,17 @@ int cdd_unload(void)
   {
     int i;
 
+    /* stop audio streaming */
+    Pico_mcd->cdda_stream = NULL;
+
     /* close CD tracks */
     if (cdd.toc.tracks[0].fd)
     {
       pm_close(cdd.toc.tracks[0].fd);
       cdd.toc.tracks[0].fd = NULL;
+      if (cdd.toc.tracks[0].fname)
+        free(cdd.toc.tracks[0].fname);
+      cdd.toc.tracks[0].fname = NULL;
     }
 
     for (i = 1; i < cdd.toc.last; i++)
@@ -466,7 +473,11 @@ int cdd_unload(void)
         if (Pico_mcd->cdda_type == CT_MP3)
           fclose(cdd.toc.tracks[i].fd);
         else
-          pm_close(cdd.toc.tracks[0].fd);
+          pm_close(cdd.toc.tracks[i].fd);
+        cdd.toc.tracks[i].fd = NULL;
+        if (cdd.toc.tracks[i].fname)
+          free(cdd.toc.tracks[i].fname);
+        cdd.toc.tracks[i].fname = NULL;
 
         /* detect single file images */
         if (cdd.toc.tracks[i+1].fd == cdd.toc.tracks[i].fd)
@@ -676,30 +687,16 @@ void cdd_update(void)
   error("LBA = %d (track n°%d)(latency=%d)\n", cdd.lba, cdd.index, cdd.latency);
 #endif
   
-  /* seeking disc */
-  if (cdd.status == CD_SEEK)
+  /* drive latency */
+  if (cdd.latency > 0)
   {
-    /* drive latency */
-    if (cdd.latency > 0)
-    {
-      cdd.latency--;
-      return;
-    }
-
-    /* drive is ready */
-    cdd.status = CD_READY;
+    cdd.latency--;
+    return;
   }
 
   /* reading disc */
-  else if (cdd.status == CD_PLAY)
+  if (cdd.status == CD_PLAY)
   {
-    /* drive latency */
-    if (cdd.latency > 0)
-    {
-      cdd.latency--;
-      return;
-    }
-
     /* track type */
     if (!cdd.index)
     {
@@ -900,14 +897,12 @@ void cdd_process(void)
   {
     case 0x00:  /* Drive Status */
     {
-      /* RS1-RS8 normally unchanged */
-      Pico_mcd->s68k_regs[0x38+0] = cdd.status;
+      if (cdd.latency <= 3) {
+        /* RS1-RS8 normally unchanged */
+        Pico_mcd->s68k_regs[0x38+0] = cdd.status;
 
-      /* unless RS1 indicated invalid track infos */
-      if (Pico_mcd->s68k_regs[0x38+1] == 0x0f)
-      {
-        /* and SEEK has ended */
-        if (cdd.status != CD_SEEK)
+        /* unless RS1 indicated invalid track infos */
+        if (Pico_mcd->s68k_regs[0x38+1] == 0x0f)
         {
           /* then return valid track infos, e.g current track number in RS2-RS3 (fixes Lunar - The Silver Star) */
           Pico_mcd->s68k_regs[0x38+1] = 0x02;
@@ -957,6 +952,7 @@ void cdd_process(void)
         case 0x01:  /* Current Track Relative Time (MM:SS:FF) */
         {
           int lba = cdd.lba - cdd.toc.tracks[cdd.index].start;
+          if (lba < 0) lba = 0;
           set_reg16(0x38, (cdd.status << 8) | 0x01);
           set_reg16(0x3a, lut_BCD_16[(lba/75)/60]);
           set_reg16(0x3c, lut_BCD_16[(lba/75)%60]);
@@ -1127,11 +1123,11 @@ void cdd_process(void)
       cdd.status = CD_PLAY;
 
       /* return track index in RS2-RS3 */
-      set_reg16(0x38, (CD_PLAY << 8) | 0x02);
-      set_reg16(0x3a, (cdd.index < cdd.toc.last) ? lut_BCD_16[index + 1] : 0x0A0A);
+      set_reg16(0x38, (CD_SEEK << 8) | 0x0f);
+      set_reg16(0x3a, 0x0000);
       set_reg16(0x3c, 0x0000);
       set_reg16(0x3e, 0x0000);
-      Pico_mcd->s68k_regs[0x40+0] = 0x00;
+      set_reg16(0x40, ~(CD_SEEK + 0xf) & 0x0f);
       break;
     }
 
@@ -1212,13 +1208,18 @@ void cdd_process(void)
         /* PCM AUDIO track */
         fseek(cdd.toc.tracks[index].fd, (lba * 2352) - cdd.toc.tracks[index].offset, SEEK_SET);
       }
+#else
+      else
+      {
+        cdd_change_track(index, lba);
+      }
 #endif
 
       /* no audio track playing */
       Pico_mcd->s68k_regs[0x36+0] = 0x01;
 
       /* update status */
-      cdd.status = CD_SEEK;
+      cdd.status = CD_READY;
 
       /* unknown RS1-RS8 values (returning 0xF in RS1 invalidates track infos in RS2-RS8 and fixes Final Fight CD intro when seek time is emulated) */
       set_reg16(0x38, (CD_SEEK << 8) | 0x0f);

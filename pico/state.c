@@ -9,12 +9,18 @@
 #include "pico_int.h"
 #include <zlib.h>
 
-#include "../cpu/sh2/sh2.h"
+#include <cpu/sh2/sh2.h>
 #include "sound/ym2612.h"
+#include "sound/emu2413/emu2413.h"
 #include "state.h"
 
-// sn76496
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
+// sn76496 & ym2413
 extern int *sn76496_regs;
+extern OPLL old_opll;
 
 static arearw    *areaRead;
 static arearw    *areaWrite;
@@ -123,6 +129,8 @@ typedef enum {
   CHUNK_DRAM,
   CHUNK_32XPAL,
   CHUNK_32X_EVT,
+  CHUNK_YM2413,   //40
+  //rename
   CHUNK_32X_FIRST = CHUNK_MSH2,
   CHUNK_32X_LAST = CHUNK_32X_EVT,
   // add new stuff here
@@ -133,6 +141,7 @@ typedef enum {
   //
   CHUNK_DEFAULT_COUNT,
   CHUNK_CARTHW_ = CHUNK_CARTHW,  // 64 (defined in PicoInt)
+
 } chunk_name_e;
 
 static const char * const chunk_names[CHUNK_DEFAULT_COUNT] = {
@@ -179,6 +188,7 @@ static const char * const chunk_names[CHUNK_DEFAULT_COUNT] = {
   "DRAM",
   "PAL",
   "events",
+  "YM2413",   //40
 };
 
 static int write_chunk(chunk_name_e name, int len, void *data, void *file)
@@ -195,7 +205,8 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 
 #define CHECKED_WRITE(name,len,data) { \
   if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT && chunk_names[name]) { \
-    strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff) - 9); \
+    strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff)-1 - 9); \
+    sbuff[sizeof(sbuff)-1] = '\0'; \
     PicoStateProgressCB(sbuff); \
   } \
   if (data == buf2 && len > CHUNK_LIMIT_W) \
@@ -206,7 +217,8 @@ static int write_chunk(chunk_name_e name, int len, void *data, void *file)
 
 #define CHECKED_WRITE_BUFF(name,buff) { \
   if (PicoStateProgressCB && name < CHUNK_DEFAULT_COUNT && chunk_names[name]) { \
-    strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff) - 9); \
+    strncpy(sbuff + 9, chunk_names[name], sizeof(sbuff)-1 - 9); \
+    sbuff[sizeof(sbuff)-1] = '\0'; \
     PicoStateProgressCB(sbuff); \
   } \
   if (!write_chunk(name, sizeof(buff), &buff, file)) \
@@ -250,6 +262,8 @@ static int state_save(void *file)
   CHECKED_WRITE_BUFF(CHUNK_ZRAM,  PicoMem.zram);
   CHECKED_WRITE_BUFF(CHUNK_CRAM,  PicoMem.cram);
   CHECKED_WRITE_BUFF(CHUNK_MISC,  Pico.m);
+
+  PicoVideoSave();
   CHECKED_WRITE_BUFF(CHUNK_VIDEO, Pico.video);
 
   z80_pack(buff_z80);
@@ -280,6 +294,8 @@ static int state_save(void *file)
     memset(buff, 0, 0x40);
     memcpy(buff, pcd_event_times, sizeof(pcd_event_times));
     CHECKED_WRITE(CHUNK_CD_EVT, 0x40, buff);
+
+    CHECKED_WRITE(CHUNK_YM2413, sizeof(OPLL), &old_opll);
 
     len = gfx_context_save(buf2);
     CHECKED_WRITE(CHUNK_CD_GFX, len, buf2);
@@ -433,9 +449,14 @@ static int state_load(void *file)
       case CHUNK_CRAM:    CHECKED_READ_BUFF(PicoMem.cram); break;
       case CHUNK_VSRAM:   CHECKED_READ_BUFF(PicoMem.vsram); break;
       case CHUNK_MISC:    CHECKED_READ_BUFF(Pico.m); break;
-      case CHUNK_VIDEO:   CHECKED_READ_BUFF(Pico.video); break;
+      case CHUNK_VIDEO:
+        CHECKED_READ_BUFF(Pico.video);
+        PicoVideoLoad();
+        break;
+
       case CHUNK_IOPORTS: CHECKED_READ_BUFF(PicoMem.ioports); break;
       case CHUNK_PSG:     CHECKED_READ2(28*4, sn76496_regs); break;
+      case CHUNK_YM2413:  CHECKED_READ2(sizeof(OPLL), &old_opll); break;
       case CHUNK_FM:
         ym2612_regs = YM2612GetRegs();
         CHECKED_READ2(0x200+4, ym2612_regs);
@@ -559,7 +580,7 @@ readend:
   z80_unpack(buff_z80);
 
   // due to dep from 68k cycles..
-  Pico.t.m68c_aim = Pico.t.m68c_cnt;
+  Pico.t.m68c_frame_start = Pico.t.m68c_aim = Pico.t.m68c_cnt;
   if (PicoIn.AHW & PAHW_32X)
     Pico32xStateLoaded(0);
   if (PicoIn.AHW & PAHW_MCD)
@@ -695,6 +716,8 @@ int PicoStateLoadGfx(const char *fname)
     areaRead(&Pico.video, 1, sizeof(Pico.video), afile);
   }
   areaClose(afile);
+
+  PicoVideoCacheSAT();
   return 0;
 }
 
@@ -704,6 +727,7 @@ struct PicoTmp
   unsigned short vram[0x8000];
   unsigned short cram[0x40];
   unsigned short vsram[0x40];
+  unsigned int satcache[0x80];
 
   //struct PicoMisc m;
   struct PicoVideo video;
@@ -726,6 +750,7 @@ void *PicoTmpStateSave(void)
   memcpy(t->vram, PicoMem.vram, sizeof(PicoMem.vram));
   memcpy(t->cram, PicoMem.cram, sizeof(PicoMem.cram));
   memcpy(t->vsram, PicoMem.vsram, sizeof(PicoMem.vsram));
+  memcpy(t->satcache, VdpSATCache, sizeof(VdpSATCache));
   memcpy(&t->video, &Pico.video, sizeof(Pico.video));
 
 #ifndef NO_32X
@@ -748,6 +773,7 @@ void PicoTmpStateRestore(void *data)
   memcpy(PicoMem.vram, t->vram, sizeof(PicoMem.vram));
   memcpy(PicoMem.cram, t->cram, sizeof(PicoMem.cram));
   memcpy(PicoMem.vsram, t->vsram, sizeof(PicoMem.vsram));
+  memcpy(VdpSATCache, t->satcache, sizeof(VdpSATCache));
   memcpy(&Pico.video, &t->video, sizeof(Pico.video));
   Pico.m.dirtyPal = 1;
 
@@ -759,6 +785,7 @@ void PicoTmpStateRestore(void *data)
     Pico32x.dirty_pal = 1;
   }
 #endif
+  free(t);
 }
 
 // vim:shiftwidth=2:ts=2:expandtab

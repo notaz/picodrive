@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#ifdef USE_SDL
+#include <SDL.h>
+#endif
 
 #include "../libpicofe/input.h"
 #include "../libpicofe/plat.h"
@@ -18,6 +21,9 @@
 #include "version.h"
 #include <cpu/debug.h>
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
 
 static int load_state_slot = -1;
 char **g_argv;
@@ -83,12 +89,12 @@ int main(int argc, char *argv[])
 
 	plat_target_init();
 	plat_init();
+	menu_init();
 
 	emu_prep_defconfig(); // depends on input
 	emu_read_config(NULL, 0);
 
 	emu_init();
-	menu_init();
 
 	engineState = PGS_Menu;
 
@@ -132,7 +138,13 @@ int main(int argc, char *argv[])
 				/* vvv fallthrough */
 
 			case PGS_Running:
+#ifdef GPERF
+	ProfilerStart("gperf.out");
+#endif
 				emu_loop();
+#ifdef GPERF
+	ProfilerStop();
+#endif
 				break;
 
 			case PGS_Quit:

@@ -22,27 +22,30 @@
 #endif
 
 // sync m68k to Pico.t.m68c_aim
+static void SekExecM68k(int cyc_do)
+{
+  Pico.t.m68c_cnt += cyc_do;
+
+#if defined(EMU_C68K)
+  PicoCpuCM68k.cycles = cyc_do;
+  CycloneRun(&PicoCpuCM68k);
+  Pico.t.m68c_cnt -= PicoCpuCM68k.cycles;
+#elif defined(EMU_M68K)
+  Pico.t.m68c_cnt += m68k_execute(cyc_do) - cyc_do;
+#elif defined(EMU_F68K)
+  Pico.t.m68c_cnt += fm68k_emulate(&PicoCpuFM68k, cyc_do, 0) - cyc_do;
+#endif
+  SekCyclesLeft = 0;
+}
+
 static void SekSyncM68k(void)
 {
   int cyc_do;
   pprof_start(m68k);
   pevt_log_m68k_o(EVT_RUN_START);
 
-  while ((cyc_do = Pico.t.m68c_aim - Pico.t.m68c_cnt) > 0) {
-    Pico.t.m68c_cnt += cyc_do;
-
-#if defined(EMU_C68K)
-    PicoCpuCM68k.cycles = cyc_do;
-    CycloneRun(&PicoCpuCM68k);
-    Pico.t.m68c_cnt -= PicoCpuCM68k.cycles;
-#elif defined(EMU_M68K)
-    Pico.t.m68c_cnt += m68k_execute(cyc_do) - cyc_do;
-#elif defined(EMU_F68K)
-    Pico.t.m68c_cnt += fm68k_emulate(&PicoCpuFM68k, cyc_do, 0) - cyc_do;
-#endif
-  }
-
-  SekCyclesLeft = 0;
+  while ((cyc_do = Pico.t.m68c_aim - Pico.t.m68c_cnt) > 0)
+    SekExecM68k(cyc_do);
 
   SekTrace(0);
   pevt_log_m68k_o(EVT_RUN_END);
@@ -52,10 +55,10 @@ static void SekSyncM68k(void)
 static __inline void SekRunM68k(int cyc)
 {
   Pico.t.m68c_aim += cyc;
+  Pico.t.m68c_cnt += cyc >> 6; // refresh slowdowns
   cyc = Pico.t.m68c_aim - Pico.t.m68c_cnt;
   if (cyc <= 0)
     return;
-  Pico.t.m68c_cnt += cyc >> 6; // refresh slowdowns
   SekSyncM68k();
 }
 
@@ -64,32 +67,24 @@ static void do_hint(struct PicoVideo *pv)
   pv->pending_ints |= 0x10;
   if (pv->reg[0] & 0x10) {
     elprintf(EL_INTS, "hint: @ %06x [%u]", SekPc, SekCyclesDone());
-    SekInterrupt(4);
+    if (SekIrqLevel < 4)
+      SekInterrupt(4);
   }
 }
 
-static void do_timing_hacks_as(struct PicoVideo *pv, int vdp_slots)
+static void do_timing_hacks_end(struct PicoVideo *pv)
 {
-  pv->lwrite_cnt += vdp_slots - Pico.m.dma_xfers * 2; // wrong *2
-  if (pv->lwrite_cnt > vdp_slots)
-    pv->lwrite_cnt = vdp_slots;
-  else if (pv->lwrite_cnt < 0)
-    pv->lwrite_cnt = 0;
-  if (Pico.m.dma_xfers)
-    SekCyclesBurn(CheckDMA());
+  PicoVideoFIFOSync(488);
 }
 
-static void do_timing_hacks_vb(void)
+static void do_timing_hacks_start(struct PicoVideo *pv)
 {
-  if (unlikely(Pico.m.dma_xfers))
-    SekCyclesBurn(CheckDMA());
+  SekCyclesBurn(PicoVideoFIFOHint()); // prolong cpu HOLD if necessary
 }
 
 static int PicoFrameHints(void)
 {
   struct PicoVideo *pv = &Pico.video;
-  int line_sample = Pico.m.pal ? 68 : 93;
-  int vdp_slots = (Pico.video.reg[12] & 1) ? 18 : 16;
   int lines, y, lines_vis, skip;
   int vcnt_wrap, vcnt_adj;
   unsigned int cycles;
@@ -150,27 +145,11 @@ static int PicoFrameHints(void)
       }
     }
 
-    // get samples from sound chips
-    if ((y == 224 || y == line_sample) && PicoIn.sndOut)
-    {
-      cycles = SekCyclesDone();
-
-      if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
-        PicoSyncZ80(cycles);
-#ifdef PICO_CD
-      if (PicoIn.AHW & PAHW_MCD)
-        pcd_sync_s68k(cycles, 0);
-#endif
-#ifdef PICO_32X
-      p32x_sync_sh2s(cycles);
-#endif
-      PsndGetSamples(y);
-    }
-
     // Run scanline:
     Pico.t.m68c_line_start = Pico.t.m68c_aim;
-    do_timing_hacks_as(pv, vdp_slots);
+    do_timing_hacks_start(pv);
     CPUS_RUN(CYCLES_M68K_LINE);
+    do_timing_hacks_end(pv);
 
     if (PicoLineHook) PicoLineHook();
     pevt_log_m68k_o(EVT_NEXT_LINE);
@@ -189,10 +168,6 @@ static int PicoFrameHints(void)
 #endif
   }
 
-  // VDP FIFO
-  pv->lwrite_cnt = 0;
-  Pico.video.status |= SR_EMPT;
-
   memcpy(PicoIn.padInt, PicoIn.pad, sizeof(PicoIn.padInt));
   PAD_DELAY();
 
@@ -210,19 +185,20 @@ static int PicoFrameHints(void)
   // also delay between F bit (bit 7) is set in SR and IRQ happens (Ex-Mutants)
   // also delay between last H-int and V-int (Golden Axe 3)
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
-  do_timing_hacks_vb();
+  PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
+  do_timing_hacks_start(pv);
   CPUS_RUN(CYCLES_M68K_VINT_LAG);
 
   pv->status |= SR_F;
   pv->pending_ints |= 0x20;
   if (pv->reg[1] & 0x20) {
-    Pico.t.m68c_aim = Pico.t.m68c_cnt + 11; // HACK
-    SekSyncM68k();
+    if (Pico.t.m68c_cnt - Pico.t.m68c_aim < 60) // CPU blocked?
+      SekExecM68k(11); // HACK
     elprintf(EL_INTS, "vint: @ %06x [%u]", SekPc, SekCyclesDone());
     SekInterrupt(6);
   }
 
-  cycles = SekCyclesDone();
+  cycles = Pico.t.m68c_aim;
   if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80)) {
     PicoSyncZ80(cycles);
     elprintf(EL_INTS, "zint");
@@ -238,12 +214,9 @@ static int PicoFrameHints(void)
   p32x_start_blank();
 #endif
 
-  // get samples from sound chips
-  if (y == 224 && PicoIn.sndOut)
-    PsndGetSamples(y);
-
   // Run scanline:
   CPUS_RUN(CYCLES_M68K_LINE - CYCLES_M68K_VINT_LAG);
+  do_timing_hacks_end(pv);
 
   if (PicoLineHook) PicoLineHook();
   pevt_log_m68k_o(EVT_NEXT_LINE);
@@ -278,8 +251,9 @@ static int PicoFrameHints(void)
 
     // Run scanline:
     Pico.t.m68c_line_start = Pico.t.m68c_aim;
-    do_timing_hacks_vb();
+    do_timing_hacks_start(pv);
     CPUS_RUN(CYCLES_M68K_LINE);
+    do_timing_hacks_end(pv);
 
     if (PicoLineHook) PicoLineHook();
     pevt_log_m68k_o(EVT_NEXT_LINE);
@@ -289,8 +263,9 @@ static int PicoFrameHints(void)
     unsigned int l = PicoIn.overclockM68k * lines / 100;
     while (l-- > 0) {
       Pico.t.m68c_cnt -= CYCLES_M68K_LINE;
-      do_timing_hacks_vb();
+      do_timing_hacks_start(pv);
       SekSyncM68k();
+      do_timing_hacks_end(pv);
     }
   }
 
@@ -298,9 +273,8 @@ static int PicoFrameHints(void)
   pv->status |= ((pv->reg[1] >> 3) ^ SR_VB) & SR_VB; // forced blanking
 
   // last scanline
-  Pico.m.scanline = y;
+  Pico.m.scanline = y++;
   pv->v_counter = 0xff;
-  pv->lwrite_cnt = 0;
 
   PAD_DELAY();
 
@@ -315,20 +289,18 @@ static int PicoFrameHints(void)
 
   // Run scanline:
   Pico.t.m68c_line_start = Pico.t.m68c_aim;
-  do_timing_hacks_as(pv, vdp_slots);
+  PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
+  do_timing_hacks_start(pv);
   CPUS_RUN(CYCLES_M68K_LINE);
+  do_timing_hacks_end(pv);
 
   if (PicoLineHook) PicoLineHook();
   pevt_log_m68k_o(EVT_NEXT_LINE);
 
   // sync cpus
-  cycles = SekCyclesDone();
+  cycles = Pico.t.m68c_aim;
   if (Pico.m.z80Run && !Pico.m.z80_reset && (PicoIn.opt&POPT_EN_Z80))
     PicoSyncZ80(cycles);
-  if (PicoIn.sndOut && ym2612.dacen && Pico.snd.dac_line < lines)
-    PsndDoDAC(lines - 1);
-  if (PicoIn.sndOut && Pico.snd.psg_line < lines)
-    PsndDoPSG(lines - 1);
 
 #ifdef PICO_CD
   if (PicoIn.AHW & PAHW_MCD)
@@ -337,6 +309,11 @@ static int PicoFrameHints(void)
 #ifdef PICO_32X
   p32x_sync_sh2s(cycles);
 #endif
+
+  // get samples from sound chips
+  if (PicoIn.sndOut)
+    PsndGetSamples(y);
+
   timers_cycle();
 
   pv->hint_cnt = hint;

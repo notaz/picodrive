@@ -14,12 +14,14 @@ uptr s68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
 uptr s68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
 uptr s68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
 
+#ifndef _ASM_CD_MEMORY_C
 MAKE_68K_READ8(s68k_read8, s68k_read8_map)
 MAKE_68K_READ16(s68k_read16, s68k_read16_map)
 MAKE_68K_READ32(s68k_read32, s68k_read16_map)
 MAKE_68K_WRITE8(s68k_write8, s68k_write8_map)
 MAKE_68K_WRITE16(s68k_write16, s68k_write16_map)
 MAKE_68K_WRITE32(s68k_write32, s68k_write16_map)
+#endif
 
 // -----------------------------------------------------------------
 
@@ -66,20 +68,25 @@ static void remap_word_ram(u32 r3);
 
 void m68k_comm_check(u32 a)
 {
-  pcd_sync_s68k(SekCyclesDone(), 0);
+  u32 cycles = SekCyclesDone();
+  u32 clkdiff = cycles - Pico_mcd->m.m68k_poll_clk;
+  pcd_sync_s68k(cycles, 0);
   if (a >= 0x0e && !Pico_mcd->m.need_sync) {
     // there are cases when slave updates comm and only switches RAM
     // over after that (mcd1b), so there must be a resync..
     SekEndRun(64);
     Pico_mcd->m.need_sync = 1;
   }
-  if (SekNotPolling || a != Pico_mcd->m.m68k_poll_a) {
+  Pico_mcd->m.m68k_poll_clk = cycles;
+  if (SekNotPolling || a != Pico_mcd->m.m68k_poll_a || clkdiff > POLL_CYCLES || clkdiff <= 16) {
     Pico_mcd->m.m68k_poll_a = a;
     Pico_mcd->m.m68k_poll_cnt = 0;
     SekNotPolling = 0;
     return;
   }
   Pico_mcd->m.m68k_poll_cnt++;
+  if(Pico_mcd->m.m68k_poll_cnt == POLL_LIMIT)
+    SekEndRun(0);
 }
 
 #ifndef _ASM_CD_MEMORY_C
@@ -142,13 +149,15 @@ void m68k_reg_write8(u32 a, u32 d)
   u32 dold;
   a &= 0x3f;
 
+  Pico_mcd->m.m68k_poll_cnt = 0;
+
   switch (a) {
     case 0:
       d &= 1;
       if (d && (Pico_mcd->s68k_regs[0x33] & PCDS_IEN2)) {
         elprintf(EL_INTS, "m68k: s68k irq 2");
         pcd_sync_s68k(SekCyclesDone(), 0);
-        SekInterruptS68k(2);
+        pcd_irq_s68k(2, 1);
       }
       return;
     case 1:
@@ -178,8 +187,7 @@ void m68k_reg_write8(u32 a, u32 d)
       return;
     case 2:
       elprintf(EL_CDREGS, "m68k: prg wp=%02x", d);
-      Pico_mcd->s68k_regs[2] = d; // really use s68k side register
-      return;
+      goto write_comm;
     case 3:
       dold = Pico_mcd->s68k_regs[3];
       elprintf(EL_CDREG3, "m68k_regs w3: %02x @%06x", (u8)d, SekPc);
@@ -203,10 +211,10 @@ void m68k_reg_write8(u32 a, u32 d)
 
       goto write_comm;
     case 6:
-      Pico_mcd->bios[0x72 + 1] = d; // simple hint vector changer
+      Pico_mcd->bios[MEM_BE2(0x72)] = d; // simple hint vector changer
       return;
     case 7:
-      Pico_mcd->bios[0x72] = d;
+      Pico_mcd->bios[MEM_BE2(0x73)] = d;
       elprintf(EL_CDREGS, "hint vector set to %04x%04x",
         ((u16 *)Pico_mcd->bios)[0x70/2], ((u16 *)Pico_mcd->bios)[0x72/2]);
       return;
@@ -228,6 +236,13 @@ write_comm:
 
   pcd_sync_s68k(SekCyclesDone(), 0);
   Pico_mcd->s68k_regs[a] = d;
+  if (a == 0x03) {
+    // There are cases when master checks for successful switching of RAM to
+    // slave. This can produce race conditions where slave switches RAM back to
+    // master while master is delayed by interrupt before the check executes.
+    // Delay slave a bit to make sure master can check before slave changes.
+    SekCycleCntS68k += 24;
+  }
   if (Pico_mcd->m.s68k_poll_a == (a & ~1))
   {
     if (Pico_mcd->m.s68k_poll_cnt > POLL_LIMIT) {
@@ -246,7 +261,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
     return d;
 
   cycles = SekCyclesDoneS68k();
-  if (!SekNotPolling && a == Pico_mcd->m.s68k_poll_a) {
+  if (!SekNotPollingS68k && a == Pico_mcd->m.s68k_poll_a) {
     u32 clkdiff = cycles - Pico_mcd->m.s68k_poll_clk;
     if (clkdiff <= POLL_CYCLES) {
       cnt = Pico_mcd->m.s68k_poll_cnt + 1;
@@ -268,7 +283,7 @@ u32 s68k_poll_detect(u32 a, u32 d)
 
 #define READ_FONT_DATA(basemask) \
 { \
-      unsigned int fnt = *(unsigned int *)(Pico_mcd->s68k_regs + 0x4c); \
+      unsigned int fnt = CPU_LE4(*(u32 *)(Pico_mcd->s68k_regs + 0x4c)); \
       unsigned int col0 = (fnt >> 8) & 0x0f, col1 = (fnt >> 12) & 0x0f;   \
       if (fnt & (basemask << 0)) d  = col1      ; else d  = col0;       \
       if (fnt & (basemask << 1)) d |= col1 <<  4; else d |= col0 <<  4; \
@@ -416,7 +431,7 @@ void s68k_reg_write8(u32 a, u32 d)
         // XXX: emulate pending irq instead?
         if (Pico_mcd->s68k_regs[0x37] & 4) {
           elprintf(EL_INTS, "cdd export irq 4 (unmask)");
-          SekInterruptS68k(4);
+          pcd_irq_s68k(4, 1);
         }
       }
       break;
@@ -434,7 +449,7 @@ void s68k_reg_write8(u32 a, u32 d)
 
         if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN4) {
           elprintf(EL_INTS, "cdd export irq 4");
-          SekInterruptS68k(4);
+          pcd_irq_s68k(4, 1);
         }
       }
       return;
@@ -485,6 +500,8 @@ void s68k_reg_write16(u32 a, u32 d)
 {
   u8 *r = Pico_mcd->s68k_regs;
 
+  Pico_mcd->m.s68k_poll_cnt = 0;
+
   if ((a & 0x1f0) == 0x20)
     goto write_comm;
 
@@ -492,8 +509,8 @@ void s68k_reg_write16(u32 a, u32 d)
     case 0x0e:
       // special case, 2 byte writes would be handled differently
       // TODO: verify
-      r[0xf] = d;
-      return;
+      d = (u8)d | (r[0xe] << 8);
+      goto write_comm;
     case 0x58: // stamp data size
       r[0x59] = d & 7;
       return;
@@ -551,13 +568,13 @@ write_comm:
 static u32 PicoReadM68k8_cell0(u32 a)
 {
   a = (a&3) | (cell_map(a >> 2) << 2); // cell arranged
-  return Pico_mcd->word_ram1M[0][a ^ 1];
+  return Pico_mcd->word_ram1M[0][MEM_BE2(a)];
 }
 
 static u32 PicoReadM68k8_cell1(u32 a)
 {
   a = (a&3) | (cell_map(a >> 2) << 2);
-  return Pico_mcd->word_ram1M[1][a ^ 1];
+  return Pico_mcd->word_ram1M[1][MEM_BE2(a)];
 }
 
 static u32 PicoReadM68k16_cell0(u32 a)
@@ -575,13 +592,13 @@ static u32 PicoReadM68k16_cell1(u32 a)
 static void PicoWriteM68k8_cell0(u32 a, u32 d)
 {
   a = (a&3) | (cell_map(a >> 2) << 2);
-  Pico_mcd->word_ram1M[0][a ^ 1] = d;
+  Pico_mcd->word_ram1M[0][MEM_BE2(a)] = d;
 }
 
 static void PicoWriteM68k8_cell1(u32 a, u32 d)
 {
   a = (a&3) | (cell_map(a >> 2) << 2);
-  Pico_mcd->word_ram1M[1][a ^ 1] = d;
+  Pico_mcd->word_ram1M[1][MEM_BE2(a)] = d;
 }
 
 static void PicoWriteM68k16_cell0(u32 a, u32 d)
@@ -745,7 +762,7 @@ static void s68k_unmapped_write16(u32 a, u32 d)
 static void PicoWriteS68k8_prgwp(u32 a, u32 d)
 {
   if (a >= (Pico_mcd->s68k_regs[2] << 9))
-    Pico_mcd->prg_ram[a ^ 1] = d;
+    Pico_mcd->prg_ram[MEM_BE2(a)] = d;
 }
 
 static void PicoWriteS68k16_prgwp(u32 a, u32 d)
@@ -759,7 +776,7 @@ static void PicoWriteS68k16_prgwp(u32 a, u32 d)
 // decode (080000 - 0bffff, in 1M mode)
 static u32 PicoReadS68k8_dec0(u32 a)
 {
-  u32 d = Pico_mcd->word_ram1M[0][((a >> 1) ^ 1) & 0x1ffff];
+  u32 d = Pico_mcd->word_ram1M[0][MEM_BE2(a >> 1) & 0x1ffff];
   if (a & 1)
     d &= 0x0f;
   else
@@ -769,7 +786,7 @@ static u32 PicoReadS68k8_dec0(u32 a)
 
 static u32 PicoReadS68k8_dec1(u32 a)
 {
-  u32 d = Pico_mcd->word_ram1M[1][((a >> 1) ^ 1) & 0x1ffff];
+  u32 d = Pico_mcd->word_ram1M[1][MEM_BE2(a >> 1) & 0x1ffff];
   if (a & 1)
     d &= 0x0f;
   else
@@ -779,7 +796,7 @@ static u32 PicoReadS68k8_dec1(u32 a)
 
 static u32 PicoReadS68k16_dec0(u32 a)
 {
-  u32 d = Pico_mcd->word_ram1M[0][((a >> 1) ^ 1) & 0x1ffff];
+  u32 d = Pico_mcd->word_ram1M[0][MEM_BE2(a >> 1) & 0x1ffff];
   d |= d << 4;
   d &= ~0xf0;
   return d;
@@ -787,7 +804,7 @@ static u32 PicoReadS68k16_dec0(u32 a)
 
 static u32 PicoReadS68k16_dec1(u32 a)
 {
-  u32 d = Pico_mcd->word_ram1M[1][((a >> 1) ^ 1) & 0x1ffff];
+  u32 d = Pico_mcd->word_ram1M[1][MEM_BE2(a >> 1) & 0x1ffff];
   d |= d << 4;
   d &= ~0xf0;
   return d;
@@ -797,7 +814,7 @@ static u32 PicoReadS68k16_dec1(u32 a)
 #define mk_decode_w8(bank)                                        \
 static void PicoWriteS68k8_dec_m0b##bank(u32 a, u32 d)            \
 {                                                                 \
-  u8 *pd = &Pico_mcd->word_ram1M[bank][((a >> 1) ^ 1) & 0x1ffff]; \
+  u8 *pd = &Pico_mcd->word_ram1M[bank][MEM_BE2(a >> 1) & 0x1ffff];\
                                                                   \
   if (!(a & 1))                                                   \
     *pd = (*pd & 0x0f) | (d << 4);                                \
@@ -807,7 +824,7 @@ static void PicoWriteS68k8_dec_m0b##bank(u32 a, u32 d)            \
                                                                   \
 static void PicoWriteS68k8_dec_m1b##bank(u32 a, u32 d)            \
 {                                                                 \
-  u8 *pd = &Pico_mcd->word_ram1M[bank][((a >> 1) ^ 1) & 0x1ffff]; \
+  u8 *pd = &Pico_mcd->word_ram1M[bank][MEM_BE2(a >> 1) & 0x1ffff];\
   u8 mask = (a & 1) ? 0x0f : 0xf0;                                \
                                                                   \
   if (!(*pd & mask) && (d & 0x0f)) /* underwrite */               \
@@ -826,7 +843,7 @@ mk_decode_w8(1)
 #define mk_decode_w16(bank)                                       \
 static void PicoWriteS68k16_dec_m0b##bank(u32 a, u32 d)           \
 {                                                                 \
-  u8 *pd = &Pico_mcd->word_ram1M[bank][((a >> 1) ^ 1) & 0x1ffff]; \
+  u8 *pd = &Pico_mcd->word_ram1M[bank][MEM_BE2(a >> 1) & 0x1ffff];\
                                                                   \
   d &= 0x0f0f;                                                    \
   *pd = d | (d >> 4);                                             \
@@ -834,7 +851,7 @@ static void PicoWriteS68k16_dec_m0b##bank(u32 a, u32 d)           \
                                                                   \
 static void PicoWriteS68k16_dec_m1b##bank(u32 a, u32 d)           \
 {                                                                 \
-  u8 *pd = &Pico_mcd->word_ram1M[bank][((a >> 1) ^ 1) & 0x1ffff]; \
+  u8 *pd = &Pico_mcd->word_ram1M[bank][MEM_BE2(a >> 1) & 0x1ffff];\
                                                                   \
   d &= 0x0f0f; /* underwrite */                                   \
   if (!(*pd & 0xf0)) *pd |= d >> 4;                               \
@@ -843,7 +860,7 @@ static void PicoWriteS68k16_dec_m1b##bank(u32 a, u32 d)           \
                                                                   \
 static void PicoWriteS68k16_dec_m2b##bank(u32 a, u32 d)           \
 {                                                                 \
-  u8 *pd = &Pico_mcd->word_ram1M[bank][((a >> 1) ^ 1) & 0x1ffff]; \
+  u8 *pd = &Pico_mcd->word_ram1M[bank][MEM_BE2(a >> 1) & 0x1ffff];\
                                                                   \
   d &= 0x0f0f; /* overwrite */                                    \
   d |= d >> 4;                                                    \
@@ -1085,7 +1102,7 @@ void pcd_state_loaded_mem(void)
   Pico_mcd->m.dmna_ret_2m &= 3;
 
   // restore hint vector
-  *(unsigned short *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
+  *(u16 *)(Pico_mcd->bios + 0x72) = Pico_mcd->m.hint_vector;
 }
 
 #ifdef EMU_M68K
@@ -1156,12 +1173,12 @@ PICO_INTERNAL void PicoMemSetupCD(void)
 #endif
 #ifdef EMU_F68K
   // s68k
-  PicoCpuFS68k.read_byte  = s68k_read8;
-  PicoCpuFS68k.read_word  = s68k_read16;
-  PicoCpuFS68k.read_long  = s68k_read32;
-  PicoCpuFS68k.write_byte = s68k_write8;
-  PicoCpuFS68k.write_word = s68k_write16;
-  PicoCpuFS68k.write_long = s68k_write32;
+  PicoCpuFS68k.read_byte  = (void *)s68k_read8;
+  PicoCpuFS68k.read_word  = (void *)s68k_read16;
+  PicoCpuFS68k.read_long  = (void *)s68k_read32;
+  PicoCpuFS68k.write_byte = (void *)s68k_write8;
+  PicoCpuFS68k.write_word = (void *)s68k_write16;
+  PicoCpuFS68k.write_long = (void *)s68k_write32;
 
   // setup FAME fetchmap
   {

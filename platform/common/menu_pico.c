@@ -23,13 +23,24 @@
 #define MENU_X2 0
 #endif
 
+#if defined USE_BGR555
+#define COL_ROM	0x5eff
+#define COL_OTH	0x5ff5
+#elif defined USE_BGR565
+#define COL_ROM	0xfdf7
+#define COL_OTH	0xaff5
+#else
+#define COL_ROM	0xbdff
+#define	COL_OTH	0xaff5
+#endif
+
 // FIXME
 #define REVISION "0"
 
 static const char *rom_exts[] = {
 	"zip",
 	"bin", "smd", "gen", "md",
-	"iso", "cso", "cue",
+	"iso", "cso", "cue", "chd",
 	"32x",
 	"sms",
 	NULL
@@ -49,33 +60,42 @@ static unsigned short fname2color(const char *fname)
 	}
 
 	for (i = 0; rom_exts[i] != NULL; i++)
-		if (strcasecmp(ext, rom_exts[i]) == 0) return 0xbdff; // FIXME: mk defines
+		if (strcasecmp(ext, rom_exts[i]) == 0) return COL_ROM;
 	for (i = 0; i < array_size(other_exts); i++)
-		if (strcasecmp(ext, other_exts[i]) == 0) return 0xaff5;
+		if (strcasecmp(ext, other_exts[i]) == 0) return COL_OTH;
 	return 0xffff;
 }
 
-#include "../libpicofe/menu.c"
+#include <platform/libpicofe/menu.c>
 
 static const char *men_dummy[] = { NULL };
 
 /* platform specific options and handlers */
 #if   defined(__GP2X__)
-#include "../gp2x/menu.c"
+#include <platform/gp2x/menu.c>
+#elif defined(__PSP__)
+#include <platform/psp/menu.c>
 #elif defined(PANDORA)
-#include "../pandora/menu.c"
+#include <platform/pandora/menu.c>
 #else
-#define MENU_OPTIONS_GFX
-#define MENU_OPTIONS_ADV
+#include <platform/linux/menu.c>
 #endif
 
-static void make_bg(int no_scale)
+static void make_bg(int no_scale, int from_screen)
 {
 	unsigned short *src = (void *)g_menubg_src_ptr;
-	int w = g_screen_width, h = g_screen_height;
-	int pp = g_screen_ppitch;
+	int w = g_menubg_src_w ? g_menubg_src_w : g_screen_width;
+	int h = g_menubg_src_h ? g_menubg_src_h : g_screen_height;
+	int pp = g_menubg_src_pp ? g_menubg_src_pp : g_screen_ppitch;
 	short *dst;
 	int x, y;
+
+	if (from_screen) {
+		src = g_screen_ptr;
+		w = g_screen_width;
+		h = g_screen_height;
+		pp = g_screen_ppitch;
+	}
 
 	if (src == NULL) {
 		memset(g_menubg_ptr, 0, g_menuscreen_w * g_menuscreen_h * 2);
@@ -84,7 +104,7 @@ static void make_bg(int no_scale)
 
 	if (!no_scale && g_menuscreen_w / w >= 2 && g_menuscreen_h / h >= 2)
 	{
-		unsigned int t, *d = g_menubg_ptr;
+		u32 t, *d = g_menubg_ptr;
 		d += (g_menuscreen_h / 2 - h * 2 / 2)
 			* g_menuscreen_w / 2;
 		d += (g_menuscreen_w / 2 - w * 2 / 2) / 2;
@@ -112,11 +132,25 @@ static void make_bg(int no_scale)
 		menu_darken_bg(dst, src, w, 1);
 }
 
+static void copy_bg(int dir)
+{
+	unsigned short *bg = (void *)g_menubg_ptr;
+	unsigned short *sc = (void *)g_menuscreen_ptr;
+	int h = g_menuscreen_h;
+
+	for (; h > 0; sc += g_menuscreen_pp, bg += g_menuscreen_w, h--) {
+		if (dir)
+			memcpy(bg, sc, g_menuscreen_w * 2);
+		else
+			memcpy(sc, bg, g_menuscreen_w * 2);
+	}
+}
+
 static void menu_enter(int is_rom_loaded)
 {
 	if (is_rom_loaded)
 	{
-		make_bg(0);
+		make_bg(0, 0);
 	}
 	else
 	{
@@ -150,7 +184,7 @@ static void draw_savestate_bg(int slot)
 	/* do a frame and fetch menu bg */
 	pemu_forced_frame(0, 0);
 
-	make_bg(0);
+	make_bg(0, 1);
 
 	PicoTmpStateRestore(tmp_state);
 }
@@ -168,6 +202,7 @@ static void load_progress_cb(int percent)
 		len = g_menuscreen_w;
 
 	menu_draw_begin(0, 1);
+	copy_bg(0);
 	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_pp * me_sfont_h * 2;
 	for (ln = me_sfont_h - 2; ln > 0; ln--, dst += g_menuscreen_pp)
 		memset(dst, 0xff, len * 2);
@@ -182,6 +217,7 @@ static void cdload_progress_cb(const char *fname, int percent)
 	menu_draw_begin(0, 1);
 	dst = (unsigned short *)g_menuscreen_ptr + g_menuscreen_pp * me_sfont_h * 2;
 
+	copy_bg(0);
 	menuscreen_memset_lines(dst, 0xff, me_sfont_h - 2);
 
 	smalltext_out16(1, 3 * me_sfont_h, "Processing CD image / MP3s", 0xffff);
@@ -201,18 +237,16 @@ static void cdload_progress_cb(const char *fname, int percent)
 void menu_romload_prepare(const char *rom_name)
 {
 	const char *p = rom_name + strlen(rom_name);
-	int i;
 
 	while (p > rom_name && *p != '/')
 		p--;
 
-	/* fill all buffers, callbacks won't update in full */
-	for (i = 0; i < 3; i++) {
-		menu_draw_begin(1, 1);
-		smalltext_out16(1, 1, "Loading", 0xffff);
-		smalltext_out16(1, me_sfont_h, p, 0xffff);
-		menu_draw_end();
-	}
+	menu_draw_begin(1, 1);
+	smalltext_out16(1, 1, "Loading", 0xffff);
+	smalltext_out16(1, me_sfont_h, p, 0xffff);
+	/* copy menu to bg for callbacks. OK since we are not in menu_loop here */
+	copy_bg(1);
+	menu_draw_end();
 
 	PicoCartLoadProgressCB = load_progress_cb;
 	PicoCDLoadProgressCB = cdload_progress_cb;
@@ -225,6 +259,7 @@ void menu_romload_end(void)
 	PicoCDLoadProgressCB = NULL;
 
 	menu_draw_begin(0, 1);
+	copy_bg(0);
 	smalltext_out16(1, (cdload_called ? 6 : 3) * me_sfont_h,
 		"Starting emulation...", 0xffff);
 	menu_draw_end();
@@ -494,18 +529,18 @@ static const char h_ovrclk[] = "Will break some games, keep at 0";
 
 static menu_entry e_menu_adv_options[] =
 {
-	mee_onoff     ("SRAM/BRAM saves",          MA_OPT_SRAM_STATES,    currentConfig.EmuOpt, EOPT_EN_SRAM),
 	mee_onoff     ("Disable sprite limit",     MA_OPT2_NO_SPRITE_LIM, PicoIn.opt, POPT_DIS_SPRITE_LIM),
 	mee_range_h   ("Overclock M68k (%)",       MA_OPT2_OVERCLOCK_M68K,currentConfig.overclock_68k, 0, 1000, h_ovrclk),
 	mee_onoff     ("Emulate Z80",              MA_OPT2_ENABLE_Z80,    PicoIn.opt, POPT_EN_Z80),
 	mee_onoff     ("Emulate YM2612 (FM)",      MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM),
+	mee_onoff     ("Disable YM2612 SSG-EG",    MA_OPT2_DISABLE_YM_SSG,PicoIn.opt, POPT_DIS_FM_SSGEG),
 	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoIn.opt, POPT_EN_PSG),
-	mee_onoff     ("gzip savestates",          MA_OPT2_GZIP_STATES,   currentConfig.EmuOpt, EOPT_GZIP_SAVES),
-	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
+	mee_onoff     ("Emulate YM2413 (FM)",      MA_OPT2_ENABLE_YM2413 ,PicoIn.opt, POPT_EN_YM2413),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoIn.opt, POPT_DIS_IDLE_DET),
 	mee_onoff     ("Disable frame limiter",    MA_OPT2_NO_FRAME_LIMIT,currentConfig.EmuOpt, EOPT_NO_FRMLIMIT),
 	mee_onoff     ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoIn.opt, POPT_EN_DRC),
-	mee_onoff     ("Status line in main menu", MA_OPT2_STATUS_LINE,   currentConfig.EmuOpt, EOPT_SHOW_RTC),
+	mee_range     ("Max auto frameskip",       MA_OPT2_MAX_FRAMESKIP, currentConfig.max_skip, 1, 10),
+	mee_onoff     ("PWM IRQ optimization",     MA_OPT2_PWM_IRQ_OPT,   PicoIn.opt, POPT_PWM_IRQ_OPT),
 	MENU_OPTIONS_ADV
 	mee_end,
 };
@@ -520,39 +555,7 @@ static int menu_loop_adv_options(int id, int keys)
 	return 0;
 }
 
-// ------------ gfx options menu ------------
-
-static const char h_gamma[] = "Gamma/brightness adjustment (default 1.00)";
-
-static const char *mgn_aopt_gamma(int id, int *offs)
-{
-	sprintf(static_buff, "%i.%02i", currentConfig.gamma / 100, currentConfig.gamma % 100);
-	return static_buff;
-}
-
-static menu_entry e_menu_gfx_options[] =
-{
-	mee_enum   ("Video output mode", MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
-	mee_enum   ("Renderer",          MA_OPT_RENDERER, currentConfig.renderer, renderer_names),
-	mee_enum   ("Filter",            MA_OPT3_FILTERING, currentConfig.filter, men_dummy),
-	mee_range_cust_h("Gamma correction", MA_OPT2_GAMMA, currentConfig.gamma, 1, 300, mgn_aopt_gamma, h_gamma),
-	MENU_OPTIONS_GFX
-	mee_end,
-};
-
-static int menu_loop_gfx_options(int id, int keys)
-{
-	static int sel = 0;
-
-	me_enable(e_menu_gfx_options, MA_OPT_RENDERER, renderer_names[0] != NULL);
-	me_loop(e_menu_gfx_options, &sel);
-
-	return 0;
-}
-
-// ------------ options menu ------------
-
-static menu_entry e_menu_options[];
+// ------------ sound options menu ------------
 
 static int sndrate_prevnext(int rate, int dir)
 {
@@ -579,6 +582,125 @@ static int sndrate_prevnext(int rate, int dir)
 	}
 	return rates[i];
 }
+
+static int mh_opt_snd(int id, int keys)
+{
+	PicoIn.sndRate = sndrate_prevnext(PicoIn.sndRate, keys & PBTN_RIGHT);
+	return 0;
+}
+
+static const char *mgn_opt_sound(int id, int *offs)
+{
+	const char *str2;
+	*offs = -8;
+	str2 = (PicoIn.opt & POPT_EN_STEREO) ? "stereo" : "mono";
+	sprintf(static_buff, "%5iHz %s", PicoIn.sndRate, str2);
+	return static_buff;
+}
+
+static int mh_opt_alpha(int id, int keys)
+{
+	int val = (PicoIn.sndFilterAlpha * 100 + 0x08000) / 0x10000;
+	if (keys & PBTN_LEFT)	val--;
+	if (keys & PBTN_RIGHT)	val++;
+	if (val <  1)           val = 1;
+	if (val > 99)           val = 99;
+	PicoIn.sndFilterAlpha = val * 0x10000 / 100;
+	return 0;
+}
+
+static const char *mgn_opt_alpha(int id, int *offs)
+{
+	int val = (PicoIn.sndFilterAlpha * 100 + 0x08000) / 0x10000;
+	sprintf(static_buff, "0.%02d", val);
+	return static_buff;
+}
+
+static const char h_lowpass[] = "Low pass filter for sound closer to real hardware";
+
+static menu_entry e_menu_snd_options[] =
+{
+	mee_onoff     ("Enable sound",    MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, EOPT_EN_SOUND),
+	mee_cust      ("Sound Quality",   MA_OPT_SOUND_QUALITY, mh_opt_snd, mgn_opt_sound),
+	mee_onoff_h   ("Sound filter",    MA_OPT_SOUND_FILTER,  PicoIn.opt, POPT_EN_SNDFILTER, h_lowpass),
+	mee_cust      ("Filter strength", MA_OPT_SOUND_ALPHA,   mh_opt_alpha, mgn_opt_alpha),
+	mee_end,
+};
+
+static int menu_loop_snd_options(int id, int keys)
+{
+	static int sel = 0;
+
+	me_loop(e_menu_snd_options, &sel);
+
+	return 0;
+}
+
+// ------------ gfx options menu ------------
+
+static const char h_gamma[] = "Gamma/brightness adjustment (default 1.00)";
+
+static const char *mgn_opt_fskip(int id, int *offs)
+{
+	if (currentConfig.Frameskip < 0)
+		return "Auto";
+	sprintf(static_buff, "%d", currentConfig.Frameskip);
+	return static_buff;
+}
+
+static const char *mgn_aopt_gamma(int id, int *offs)
+{
+	sprintf(static_buff, "%i.%02i", currentConfig.gamma / 100, currentConfig.gamma % 100);
+	return static_buff;
+}
+
+static menu_entry e_menu_gfx_options[] =
+{
+	mee_enum   ("Video output mode", MA_OPT_VOUT_MODE, plat_target.vout_method, men_dummy),
+	mee_enum   ("Renderer",          MA_OPT_RENDERER, currentConfig.renderer, renderer_names),
+	mee_range_cust("Frameskip",      MA_OPT_FRAMESKIP, currentConfig.Frameskip, -1, 16, mgn_opt_fskip),
+	mee_enum   ("Filter",            MA_OPT3_FILTERING, currentConfig.filter, men_dummy),
+	mee_range_cust_h("Gamma correction", MA_OPT2_GAMMA, currentConfig.gamma, 1, 300, mgn_aopt_gamma, h_gamma),
+	MENU_OPTIONS_GFX
+	mee_end,
+};
+
+static int menu_loop_gfx_options(int id, int keys)
+{
+	static int sel = 0;
+
+	me_enable(e_menu_gfx_options, MA_OPT_RENDERER, renderer_names[0] != NULL);
+	me_loop(e_menu_gfx_options, &sel);
+
+	return 0;
+}
+
+// ------------ UI options menu ------------
+
+static const char *men_confirm_save[] = { "OFF", "writes", "loads", "both", NULL };
+static const char h_confirm_save[]    = "Ask for confirmation when overwriting save,\n"
+					"loading state or both";
+
+static menu_entry e_menu_ui_options[] =
+{
+	mee_onoff     ("Show FPS",                 MA_OPT_SHOW_FPS,       currentConfig.EmuOpt, EOPT_SHOW_FPS),
+	mee_enum_h    ("Confirm savestate",        MA_OPT_CONFIRM_STATES, currentConfig.confirm_save, men_confirm_save, h_confirm_save),
+	mee_onoff     ("Don't save last used ROM", MA_OPT2_NO_LAST_ROM,   currentConfig.EmuOpt, EOPT_NO_AUTOSVCFG),
+	mee_end,
+};
+
+static int menu_loop_ui_options(int id, int keys)
+{
+	static int sel = 0;
+
+	me_loop(e_menu_ui_options, &sel);
+
+	return 0;
+}
+
+// ------------ options menu ------------
+
+static menu_entry e_menu_options[];
 
 static void region_prevnext(int right)
 {
@@ -611,9 +733,6 @@ static void region_prevnext(int right)
 static int mh_opt_misc(int id, int keys)
 {
 	switch (id) {
-	case MA_OPT_SOUND_QUALITY:
-		PicoIn.sndRate = sndrate_prevnext(PicoIn.sndRate, keys & PBTN_RIGHT);
-		break;
 	case MA_OPT_REGION:
 		region_prevnext(keys & PBTN_RIGHT);
 		break;
@@ -663,23 +782,6 @@ static int mh_restore_defaults(int id, int keys)
 	return 1;
 }
 
-static const char *mgn_opt_fskip(int id, int *offs)
-{
-	if (currentConfig.Frameskip < 0)
-		return "Auto";
-	sprintf(static_buff, "%d", currentConfig.Frameskip);
-	return static_buff;
-}
-
-static const char *mgn_opt_sound(int id, int *offs)
-{
-	const char *str2;
-	*offs = -8;
-	str2 = (PicoIn.opt & POPT_EN_STEREO) ? "stereo" : "mono";
-	sprintf(static_buff, "%5iHz %s", PicoIn.sndRate, str2);
-	return static_buff;
-}
-
 static const char *mgn_opt_region(int id, int *offs)
 {
 	static const char *names[] = { "Auto", "      Japan NTSC", "      Japan PAL", "      USA", "      Europe" };
@@ -714,21 +816,14 @@ static const char *mgn_saveloadcfg(int id, int *offs)
 	return static_buff;
 }
 
-static const char *men_confirm_save[] = { "OFF", "writes", "loads", "both", NULL };
-static const char h_confirm_save[]    = "Ask for confirmation when overwriting save,\n"
-					"loading state or both";
-
 static menu_entry e_menu_options[] =
 {
 	mee_range     ("Save slot",                MA_OPT_SAVE_SLOT,     state_slot, 0, 9),
-	mee_range_cust("Frameskip",                MA_OPT_FRAMESKIP,     currentConfig.Frameskip, -1, 16, mgn_opt_fskip),
 	mee_cust      ("Region",                   MA_OPT_REGION,        mh_opt_misc, mgn_opt_region),
-	mee_onoff     ("Show FPS",                 MA_OPT_SHOW_FPS,      currentConfig.EmuOpt, EOPT_SHOW_FPS),
-	mee_onoff     ("Enable sound",             MA_OPT_ENABLE_SOUND,  currentConfig.EmuOpt, EOPT_EN_SOUND),
-	mee_cust      ("Sound Quality",            MA_OPT_SOUND_QUALITY, mh_opt_misc, mgn_opt_sound),
-	mee_enum_h    ("Confirm savestate",        MA_OPT_CONFIRM_STATES,currentConfig.confirm_save, men_confirm_save, h_confirm_save),
 	mee_range     ("",                         MA_OPT_CPU_CLOCKS,    currentConfig.CPUclock, 20, 3200),
+	mee_handler   ("[Interface options]",      menu_loop_ui_options),
 	mee_handler   ("[Display options]",        menu_loop_gfx_options),
+	mee_handler   ("[Sound options]",          menu_loop_snd_options),
 	mee_handler   ("[Sega/Mega CD options]",   menu_loop_cd_options),
 #ifndef NO_32X
 	mee_handler   ("[32X options]",            menu_loop_32x_options),
@@ -819,7 +914,7 @@ static void draw_frame_debug(void)
 	if (!(pv->debug_p & PVD_KILL_32X))  memcpy(layer_str + 26, "32x", 4);
 
 	pemu_forced_frame(1, 0);
-	make_bg(1);
+	make_bg(1, 1);
 
 	smalltext_out16(4, 1, "build: r" REVISION "  "__DATE__ " " __TIME__ " " COMPILER, 0xffff);
 	smalltext_out16(4, g_menuscreen_h - me_sfont_h, layer_str, 0xffff);
@@ -849,7 +944,7 @@ static void debug_menu_loop(void)
 			case 1: draw_frame_debug();
 				break;
 			case 2: pemu_forced_frame(1, 0);
-				make_bg(1);
+				make_bg(1, 1);
 				PDebugShowSpriteStats((unsigned short *)g_menuscreen_ptr
 					+ (g_menuscreen_h/2 - 240/2) * g_menuscreen_pp
 					+ g_menuscreen_w/2 - 320/2, g_menuscreen_pp);
@@ -920,7 +1015,8 @@ static void draw_frame_credits(void)
 }
 
 static const char credits[] =
-	"PicoDrive v" VERSION " (c) notaz, 2006-2013\n\n\n"
+	"PicoDrive v" VERSION "\n"
+	"(c) notaz, 2006-2013; irixxxx, 2018-2020\n\n"
 	"Credits:\n"
 	"fDave: initial code\n"
 #ifdef EMU_C68K
@@ -951,7 +1047,7 @@ static void menu_main_draw_status(void)
 {
 	static time_t last_bat_read = 0;
 	static int last_bat_val = -1;
-	unsigned short *bp = g_screen_ptr;
+	unsigned short *bp = g_menuscreen_ptr;
 	int bat_h = me_mfont_h * 2 / 3;
 	int i, u, w, wfill, batt_val;
 	struct tm *tmp;
@@ -965,7 +1061,7 @@ static void menu_main_draw_status(void)
 	tmp = gmtime(&ltime);
 	strftime(time_s, sizeof(time_s), "%H:%M", tmp);
 
-	text_out16(g_screen_width - me_mfont_w * 6, me_mfont_h + 2, time_s);
+	text_out16(g_menuscreen_w - me_mfont_w * 6, me_mfont_h + 2, time_s);
 
 	if (ltime - last_bat_read > 10) {
 		last_bat_read = ltime;
@@ -978,23 +1074,23 @@ static void menu_main_draw_status(void)
 		return;
 
 	/* battery info */
-	bp += (me_mfont_h * 2 + 2) * g_screen_ppitch + g_screen_width - me_mfont_w * 3 - 3;
+	bp += (me_mfont_h * 2 + 2) * g_menuscreen_pp + g_menuscreen_w - me_mfont_w * 3 - 3;
 	for (i = 0; i < me_mfont_w * 2; i++)
 		bp[i] = menu_text_color;
 	for (i = 0; i < me_mfont_w * 2; i++)
-		bp[i + g_screen_ppitch * bat_h] = menu_text_color;
+		bp[i + g_menuscreen_pp * bat_h] = menu_text_color;
 	for (i = 0; i <= bat_h; i++)
-		bp[i * g_screen_ppitch] =
-		bp[i * g_screen_ppitch + me_mfont_w * 2] = menu_text_color;
+		bp[i * g_menuscreen_pp] =
+		bp[i * g_menuscreen_pp + me_mfont_w * 2] = menu_text_color;
 	for (i = 2; i < bat_h - 1; i++)
-		bp[i * g_screen_ppitch - 1] =
-		bp[i * g_screen_ppitch - 2] = menu_text_color;
+		bp[i * g_menuscreen_pp - 1] =
+		bp[i * g_menuscreen_pp - 2] = menu_text_color;
 
 	w = me_mfont_w * 2 - 1;
 	wfill = batt_val * w / 100;
 	for (u = 1; u < bat_h; u++)
 		for (i = 0; i < wfill; i++)
-			bp[(w - i) + g_screen_ppitch * u] = menu_text_color;
+			bp[(w - i) + g_menuscreen_pp * u] = menu_text_color;
 }
 
 static int main_menu_handler(int id, int keys)
@@ -1178,7 +1274,7 @@ void menu_update_msg(const char *msg)
 /* hidden options for config engine only */
 static menu_entry e_menu_hidden[] =
 {
-	mee_onoff("Accurate sprites", MA_OPT_ACC_SPRITES, PicoIn.opt, 0x080),
+	mee_onoff("Accurate sprites", MA_OPT_ACC_SPRITES, PicoIn.opt, POPT_ACC_SPRITES),
 	mee_onoff("autoload savestates", MA_OPT_AUTOLOAD_SAVE, g_autostateld_opt, 1),
 	mee_end,
 };
@@ -1186,6 +1282,8 @@ static menu_entry e_menu_hidden[] =
 static menu_entry *e_menu_table[] =
 {
 	e_menu_options,
+	e_menu_ui_options,
+	e_menu_snd_options,
 	e_menu_gfx_options,
 	e_menu_adv_options,
 	e_menu_cd_options,

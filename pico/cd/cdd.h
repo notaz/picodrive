@@ -60,6 +60,7 @@
 /* CD track */
 typedef struct
 {
+  char *fname;
   void *fd;
 #ifdef USE_LIBTREMOR
   OggVorbis_File vf;

@@ -28,6 +28,10 @@
 #include <pico/pico_int.h>
 #include <pico/patch.h>
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
 #if defined(__GNUC__) && __GNUC__ >= 7
 #pragma GCC diagnostic ignored "-Wformat-truncation"
 #endif
@@ -127,8 +131,8 @@ static void fname_ext(char *dst, int dstlen, const char *prefix, const char *ext
 	strncpy(dst + prefix_len, p, dstlen - prefix_len - 1);
 
 	dst[dstlen - 8] = 0;
-	if (dst[strlen(dst) - 4] == '.')
-		dst[strlen(dst) - 4] = 0;
+	if ((p = strrchr(dst, '.')) != NULL)
+		dst[p-dst] = 0;
 	if (ext)
 		strcat(dst, ext);
 }
@@ -535,11 +539,11 @@ out:
 
 int emu_swap_cd(const char *fname)
 {
-	enum cd_img_type cd_type;
+	enum cd_track_type cd_type;
 	int ret = -1;
 
 	cd_type = PicoCdCheck(fname, NULL);
-	if (cd_type != CIT_NOT_CD)
+	if (cd_type != CT_UNKNOWN)
 		ret = cdd_load(fname, cd_type);
 	if (ret != 0) {
 		menu_update_msg("Load failed, invalid CD image?");
@@ -581,8 +585,10 @@ static void make_config_cfg(char *cfg_buff_512)
 void emu_prep_defconfig(void)
 {
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
-	defaultConfig.EmuOpt    = 0x9d | EOPT_EN_CD_LEDS;
-	defaultConfig.s_PicoOpt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80 |
+	defaultConfig.EmuOpt    = EOPT_EN_SRAM | EOPT_EN_SOUND | EOPT_16BPP |
+				  EOPT_EN_CD_LEDS | EOPT_GZIP_SAVES | 0x10/*?*/;
+	defaultConfig.s_PicoOpt = POPT_EN_SNDFILTER|POPT_EN_YM2413|
+				  POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80 |
 				  POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX |
 				  POPT_EN_DRC|POPT_ACC_SPRITES |
 				  POPT_EN_32X|POPT_EN_PWM;
@@ -590,6 +596,7 @@ void emu_prep_defconfig(void)
 	defaultConfig.s_PicoRegion = 0; // auto
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
 	defaultConfig.s_PicoCDBuffers = 0;
+	defaultConfig.s_PicoSndFilterAlpha = 0x10000 * 60 / 100;
 	defaultConfig.confirm_save = EOPT_CONFIRM_SAVE;
 	defaultConfig.Frameskip = -1; // auto
 	defaultConfig.input_dev0 = PICO_INPUT_PAD_3BTN;
@@ -600,6 +607,7 @@ void emu_prep_defconfig(void)
 	defaultConfig.turbo_rate = 15;
 	defaultConfig.msh2_khz = PICO_MSH2_HZ / 1000;
 	defaultConfig.ssh2_khz = PICO_SSH2_HZ / 1000;
+	defaultConfig.max_skip = 4;
 
 	// platform specific overrides
 	pemu_prep_defconfig();
@@ -612,6 +620,7 @@ void emu_set_defconfig(void)
 	PicoIn.sndRate = currentConfig.s_PsndRate;
 	PicoIn.regionOverride = currentConfig.s_PicoRegion;
 	PicoIn.autoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
+	PicoIn.sndFilterAlpha = currentConfig.s_PicoSndFilterAlpha;
 }
 
 int emu_read_config(const char *rom_fname, int no_defaults)
@@ -660,12 +669,6 @@ int emu_read_config(const char *rom_fname, int no_defaults)
 	PicoIn.overclockM68k = currentConfig.overclock_68k;
 
 	// some sanity checks
-#ifdef PSP
-	/* TODO: mv to plat_validate_config() */
-	if (currentConfig.CPUclock < 10 || currentConfig.CPUclock > 4096) currentConfig.CPUclock = 200;
-	if (currentConfig.gamma < -4 || currentConfig.gamma >  16) currentConfig.gamma = 0;
-	if (currentConfig.gamma2 < 0 || currentConfig.gamma2 > 2)  currentConfig.gamma2 = 0;
-#endif
 	if (currentConfig.volume < 0 || currentConfig.volume > 99)
 		currentConfig.volume = 50;
 
@@ -969,7 +972,7 @@ void emu_set_fastforward(int set_on)
 		PicoIn.sndOut = NULL;
 		currentConfig.Frameskip = 8;
 		currentConfig.EmuOpt &= ~4;
-		currentConfig.EmuOpt |= 0x40000;
+		currentConfig.EmuOpt |= EOPT_NO_FRMLIMIT;
 		is_on = 1;
 		emu_status_msg("FAST FORWARD");
 	}
@@ -1120,6 +1123,7 @@ static void run_events_ui(unsigned int which)
 			while (in_menu_wait_any(NULL, 50) & (PBTN_MOK | PBTN_MBACK))
 				;
 			in_set_config_int(0, IN_CFG_BLOCKING, 0);
+			plat_status_msg_clear();
 		}
 		if (do_it) {
 			plat_status_msg_busy_first((which & PEV_STATE_LOAD) ? "LOADING STATE" : "SAVING STATE");
@@ -1206,7 +1210,7 @@ static void mkdir_path(char *path_with_reserve, int pos, const char *name)
 		lprintf("failed to create: %s\n", path_with_reserve);
 }
 
-void emu_cmn_forced_frame(int no_scale, int do_emu)
+void emu_cmn_forced_frame(int no_scale, int do_emu, void *buf)
 {
 	int po_old = PicoIn.opt;
 	int y;
@@ -1217,11 +1221,13 @@ void emu_cmn_forced_frame(int no_scale, int do_emu)
 
 	PicoIn.opt &= ~POPT_ALT_RENDERER;
 	PicoIn.opt |= POPT_ACC_SPRITES;
-	if (!no_scale)
+	if (!no_scale && currentConfig.scaling)
 		PicoIn.opt |= POPT_EN_SOFTSCALE;
 
 	PicoDrawSetOutFormat(PDF_RGB555, 1);
+	PicoDrawSetOutBuf(buf, g_screen_ppitch * 2);
 	Pico.m.dirtyPal = 1;
+	Pico.est.rendstatus |= PDRAW_DIRTY_SPRITES;
 	if (do_emu)
 		PicoFrame();
 	else
@@ -1352,6 +1358,7 @@ static void emu_loop_prep(void)
 /* our tick here is 1 us right now */
 #define ms_to_ticks(x) (unsigned int)(x * 1000)
 #define get_ticks() plat_get_ticks_us()
+#define vsync_delay_x3	3*ms_to_ticks(1)
 
 void emu_loop(void)
 {
@@ -1410,10 +1417,8 @@ void emu_loop(void)
 			     > ms_to_ticks(STATUS_MSG_TIMEOUT) * 3)
 			{
 				notice_msg_time = 0;
-				plat_status_msg_clear();
-				plat_video_flip();
-				plat_status_msg_clear(); /* Do it again in case of double buffering */
 				notice_msg = NULL;
+				plat_status_msg_clear();
 			}
 			else {
 				int sum = noticeMsg[0] + noticeMsg[1] + noticeMsg[2];
@@ -1465,10 +1470,16 @@ void emu_loop(void)
 		else if (diff < -target_frametime_x3)
 		{
 			/* no time left for this frame - skip */
-			/* limit auto frameskip to 8 */
-			if (frames_done / 8 <= frames_shown)
+			/* limit auto frameskip to max_skip */
+			if (fskip_cnt < currentConfig.max_skip) {
+				fskip_cnt++;
 				skip = 1;
-		}
+			}
+			else {
+				fskip_cnt = 0;
+			}
+		} else
+			fskip_cnt = 0;
 
 		// don't go in debt too much
 		while (diff < -target_frametime_x3 * 3) {
@@ -1502,13 +1513,13 @@ void emu_loop(void)
 			diff = timestamp_aim_x3 - timestamp * 3;
 
 			// sleep or vsync if we are still too fast
-			if (diff > target_frametime_x3 && (currentConfig.EmuOpt & EOPT_VSYNC)) {
+			if (diff > target_frametime_x3 + vsync_delay_x3 && (currentConfig.EmuOpt & EOPT_VSYNC)) {
 				// we are too fast
 				plat_video_wait_vsync();
 				timestamp = get_ticks();
 				diff = timestamp * 3 - timestamp_aim_x3;
 			}
-			if (diff > target_frametime_x3) {
+			if (diff > target_frametime_x3 + vsync_delay_x3) {
 				// still too fast
 				plat_wait_till_us(timestamp + (diff - target_frametime_x3) / 3);
 			}

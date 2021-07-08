@@ -6,8 +6,8 @@
  * See COPYING file in the top-level directory.
  */
 
-#include "../../pico_int.h"
-#include "../../../cpu/drc/cmn.h"
+#include <pico/pico_int.h>
+#include <cpu/drc/cmn.h>
 #include "compiler.h"
 
 // FIXME: asm has these hardcoded
@@ -39,7 +39,7 @@ void ssp_drc_end(void){}
 #endif
 
 #define COUNT_OP
-#include "../../../cpu/drc/emit_arm.c"
+#include <cpu/drc/emit_arm.c>
 
 // -----------------------------------------------------
 
@@ -693,9 +693,9 @@ static int tr_aop_ssp2arm(int op)
 /* spacial version of call for calling C needed on ios, since we use r9.. */
 static void emith_call_c_func(void *target)
 {
-	EOP_STMFD_SP(A_R7M|A_R9M);
+	EOP_STMFD_SP(M2(7,9));
 	emith_call(target);
-	EOP_LDMFD_SP(A_R7M|A_R9M);
+	EOP_LDMFD_SP(M2(7,9));
 }
 #else
 #define emith_call_c_func emith_call
@@ -1438,12 +1438,9 @@ static int translate_op(unsigned int op, int *pc, int imm, int *end_cond, int *j
 			}
 			tr_mov16(0, *pc);
 			tr_r0_to_STACK(*pc);
-			if (tmpv != A_COND_AL) {
-				u32 *real_ptr = tcache_ptr;
-				tcache_ptr = jump_op;
-				EOP_C_B(tr_neg_cond(tmpv),0,real_ptr - jump_op - 2);
-				tcache_ptr = real_ptr;
-			}
+			if (tmpv != A_COND_AL)
+				EOP_C_B_PTR(jump_op, tr_neg_cond(tmpv), 0,
+						tcache_ptr - jump_op - 2);
 			tr_mov16_cond(tmpv, 0, imm);
 			if (tmpv != A_COND_AL)
 				tr_mov16_cond(tr_neg_cond(tmpv), 0, *pc);
@@ -1712,12 +1709,8 @@ static void *emit_block_epilogue(int cycles, int cond, int pc, int end_pc)
 			ssp_block_table[pc];
 		if (target != NULL)
 			emith_jump(target);
-		else {
-			int ops = emith_jump(ssp_drc_next);
-			end_ptr = tcache_ptr;
-			// cause the next block to be emitted over jump instruction
-			tcache_ptr -= ops;
-		}
+		else
+			emith_jump(ssp_drc_next);
 	}
 	else {
 		u32 *target1 = (pc     < 0x400) ?
@@ -1795,6 +1788,8 @@ void *ssp_translate_block(int pc)
 	tr_flush_dirty_ST();
 	tr_flush_dirty_pmcrs();
 	block_end = emit_block_epilogue(ccount, end_cond, jump_pc, pc);
+	emith_pool_commit(0);
+	emith_flush();
 
 	if (tcache_ptr - (u32 *)tcache > DRC_TCACHE_SIZE/4) {
 		elprintf(EL_ANOMALY|EL_STATUS|EL_SVP, "tcache overflow!\n");

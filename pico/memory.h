@@ -2,11 +2,6 @@
 
 #include "pico_port.h"
 
-typedef unsigned char  u8;
-typedef unsigned short u16;
-typedef unsigned int   u32;
-typedef uintptr_t      uptr; // unsigned pointer-sized int
-
 #define M68K_MEM_SHIFT 16
 // minimum size we can map
 #define M68K_BANK_SIZE (1 << M68K_MEM_SHIFT)
@@ -30,8 +25,17 @@ typedef void (cpu68k_write_f)(u32 a, u32 d);
 
 extern u32 m68k_read8(u32 a);
 extern u32 m68k_read16(u32 a);
+extern u32 m68k_read32(u32 a);
 extern void m68k_write8(u32 a, u8 d);
 extern void m68k_write16(u32 a, u16 d);
+extern void m68k_write32(u32 a, u32 d);
+
+extern u32 s68k_read8(u32 a);
+extern u32 s68k_read16(u32 a);
+extern u32 s68k_read32(u32 a);
+extern void s68k_write8(u32 a, u8 d);
+extern void s68k_write16(u32 a, u16 d);
+extern void s68k_write32(u32 a, u32 d);
 
 // z80
 #define Z80_MEM_SHIFT 13
@@ -59,7 +63,7 @@ u32 name(u32 a)                                 \
   if (map_flag_set(v))                          \
     return ((cpu68k_read_f *)(v << 1))(a);      \
   else                                          \
-    return *(u8 *)((v << 1) + (a ^ 1));         \
+    return *(u8 *)((v << 1) + MEM_BE2(a));      \
 }
 
 #define MAKE_68K_READ16(name, map)              \
@@ -102,7 +106,7 @@ void name(u32 a, u8 d)                          \
   if (map_flag_set(v))                          \
     ((cpu68k_write_f *)(v << 1))(a, d);         \
   else                                          \
-    *(u8 *)((v << 1) + (a ^ 1)) = d;            \
+    *(u8 *)((v << 1) + MEM_BE2(a)) = d;         \
 }
 
 #define MAKE_68K_WRITE16(name, map)             \

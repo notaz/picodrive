@@ -233,11 +233,10 @@ void plat_update_volume(int has_changed, int is_up)
 void pemu_forced_frame(int no_scale, int do_emu)
 {
 	doing_bg_frame = 1;
-	emu_cmn_forced_frame(no_scale, do_emu);
+	// making a copy because enabling the layer clears it's mem
+	emu_cmn_forced_frame(no_scale, do_emu, fb_copy);
 	doing_bg_frame = 0;
 
-	// making a copy because enabling the layer clears it's mem
-	memcpy((void *)fb_copy, g_screen_ptr, sizeof(fb_copy));
 	g_menubg_src_ptr = fb_copy;
 }
 

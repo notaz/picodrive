@@ -173,9 +173,12 @@ void SN76496Update(short *buffer, int length, int stereo)
 			/* If we exit the loop in the middle, Output[i] has to be inverted */
 			/* and vol[i] incremented only if the exit status of the square */
 			/* wave is 1. */
+			left = 0;
 			while (R->Count[i] <= 0)
 			{
-				R->Count[i] += R->Period[i];
+				if (R->Count[i] + R->Period[i]*4 < R->Period[i])
+					left+= 4, R->Count[i] += R->Period[i]*4;
+				else	left++,   R->Count[i] += R->Period[i];
 				if (R->Count[i] > 0)
 				{
 					R->Output[i] ^= 1;
@@ -186,6 +189,9 @@ void SN76496Update(short *buffer, int length, int stereo)
 				vol[i] += R->Period[i];
 			}
 			if (R->Output[i]) vol[i] -= R->Count[i];
+			/* Cut of anything above the sample freqency. It will only create */
+			/* aliasing and hearable distortions anyway. */
+			if (left > 1) vol[i] = STEP/2;
 		}
 
 		left = STEP;

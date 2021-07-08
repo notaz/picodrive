@@ -311,7 +311,7 @@ static void gfx_render(uint32 bufferIndex, uint32 width)
   }
 }
 
-void gfx_start(unsigned int base)
+void gfx_start(uint32 base)
 {
   /* make sure 2M mode is enabled */
   if (!(Pico_mcd->s68k_regs[3] & 0x04))
@@ -421,7 +421,7 @@ void gfx_update(unsigned int cycles)
 
     if (Pico_mcd->s68k_regs[0x33] & PCDS_IEN1) {
       elprintf(EL_INTS|EL_CD, "s68k: gfx_cd irq 1");
-      SekInterruptS68k(1);
+      pcd_irq_s68k(1, 1);
     }
   }
   else {

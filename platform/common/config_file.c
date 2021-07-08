@@ -18,6 +18,10 @@
 #include "../libpicofe/lprintf.h"
 #include "config_file.h"
 
+#ifdef USE_LIBRETRO_VFS
+#include "file_stream_transforms.h"
+#endif
+
 static char *mystrip(char *str);
 
 #ifndef _MSC_VER
@@ -35,7 +39,7 @@ static char *mystrip(char *str);
 
 static int seek_sect(FILE *f, const char *section)
 {
-	char line[128], *tmp;
+	char line[640], *tmp;
 	int len;
 
 	len = strlen(section);
@@ -96,7 +100,7 @@ int config_write(const char *fname)
 	FILE *fn = NULL;
 	menu_entry *me;
 	int t;
-	char line[128];
+	char line[640];
 
 	fn = fopen(fname, "w");
 	if (fn == NULL)
@@ -120,13 +124,15 @@ int config_write(const char *fname)
 			const char **names = (const char **)me->data;
 			for (t = 0; names[t] != NULL; t++) {
 				if (*(int *)me->var == t) {
-					strncpy(line, names[t], sizeof(line));
+					strncpy(line, names[t], sizeof(line)-1);
+					line[sizeof(line)-1] = '\0';
 					goto write_line;
 				}
 			}
 		}
 		else if (me->generate_name != NULL) {
-			strncpy(line, me->generate_name(0, &dummy), sizeof(line));
+			strncpy(line, me->generate_name(me->id, &dummy), sizeof(line)-1);
+			line[sizeof(line)-1] = '\0';
 			goto write_line;
 		}
 		else
@@ -165,7 +171,7 @@ write_line:
 
 int config_writelrom(const char *fname)
 {
-	char line[128], *tmp, *optr = NULL;
+	char line[640], *tmp, *optr = NULL;
 	char *old_data = NULL;
 	int size;
 	FILE *f;
@@ -212,7 +218,7 @@ int config_writelrom(const char *fname)
 
 int config_readlrom(const char *fname)
 {
-	char line[128], *tmp;
+	char line[640], *tmp;
 	int i, len, ret = -1;
 	FILE *f;
 
@@ -234,9 +240,9 @@ int config_readlrom(const char *fname)
 		tmp++;
 		mystrip(tmp);
 
-		len = sizeof(rom_fname_loaded);
+		len = sizeof(rom_fname_loaded)-1;
 		strncpy(rom_fname_loaded, tmp, len);
-		rom_fname_loaded[len-1] = 0;
+		rom_fname_loaded[len] = 0;
 		ret = 0;
 		break;
 	}
@@ -271,6 +277,11 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 				PicoIn.opt &= ~POPT_EN_STEREO;
 			} else
 				return 0;
+			return 1;
+
+		case MA_OPT_SOUND_ALPHA:
+			if (strcasecmp(var, "Filter strength") != 0) return 0;
+			PicoIn.sndFilterAlpha = 0x10000 * atof(val);
 			return 1;
 
 		case MA_OPT_REGION:
@@ -322,6 +333,10 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			currentConfig.gamma = atoi(val);
 			return 1;
 
+		case MA_OPT2_MAX_FRAMESKIP:
+			currentConfig.max_skip = atoi(val);
+			return 1;
+
 		/* PSP */
 		case MA_OPT3_SCALE:
 			if (strcasecmp(var, "Scale factor") != 0) return 0;
@@ -339,12 +354,12 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			// XXX: use enum
 			if (strcasecmp(var, "Wait for vsync") != 0) return 0;
 			if        (strcasecmp(val, "never") == 0) {
-				currentConfig.EmuOpt &= ~0x12000;
+				currentConfig.EmuOpt &= ~(EOPT_VSYNC|EOPT_VSYNC_MODE);
 			} else if (strcasecmp(val, "sometimes") == 0) {
-				currentConfig.EmuOpt |=  0x12000;
+				currentConfig.EmuOpt |=  (EOPT_VSYNC|EOPT_VSYNC_MODE);
 			} else if (strcasecmp(val, "always") == 0) {
-				currentConfig.EmuOpt &= ~0x12000;
-				currentConfig.EmuOpt |=  0x02000;
+				currentConfig.EmuOpt &= ~EOPT_VSYNC_MODE;
+				currentConfig.EmuOpt |=  EOPT_VSYNC;
 			} else
 				return 0;
 			return 1;
@@ -391,7 +406,7 @@ static int parse_bind_val(const char *val, int *type)
 
 static void keys_parse_all(FILE *f)
 {
-	char line[256], *var, *val;
+	char line[640], *var, *val;
 	int dev_id = -1;
 	int acts, type;
 	int ret;
@@ -423,6 +438,7 @@ static void keys_parse_all(FILE *f)
 		mystrip(var + 5);
 		in_config_bind_key(dev_id, var + 5, acts, type);
 	}
+	in_clean_binds();
 }
 
 static void parse(const char *var, const char *val, int *keys_encountered)
@@ -499,7 +515,7 @@ bad_val:
 
 int config_readsect(const char *fname, const char *section)
 {
-	char line[128], *var, *val;
+	char line[640], *var, *val;
 	int keys_encountered = 0;
 	FILE *f;
 	int ret;

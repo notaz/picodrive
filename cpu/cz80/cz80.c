@@ -14,6 +14,7 @@
 #include "cz80.h"
 
 #if PICODRIVE_HACKS
+#include <pico/pico_int.h>
 #include <pico/memory.h>
 #endif
 
@@ -106,7 +107,7 @@ void Cz80_Init(cz80_struc *CPU)
 
 	for (i = 0; i < CZ80_FETCH_BANK; i++)
 	{
-		CPU->Fetch[i] = (FPTR)cz80_bad_address;
+		CPU->Fetch[i] = (FPTR)cz80_bad_address - (i << CZ80_FETCH_SFT);
 #if CZ80_ENCRYPTED_ROM
 		CPU->OPFetch[i] = 0;
 #endif
@@ -210,7 +211,8 @@ void Cz80_Init(cz80_struc *CPU)
 
 void Cz80_Reset(cz80_struc *CPU)
 {
-	memset(CPU, 0, (FPTR)&CPU->BasePC - (FPTR)CPU);
+	// I, R, CPU and interrupts logic is reset, registers are untouched
+	memset(&CPU->R, 0, (FPTR)&CPU->BasePC - (FPTR)&CPU->R);
 	Cz80_Set_Reg(CPU, CZ80_PC, 0);
 }
 
@@ -274,20 +276,22 @@ Cz80_Check_Interrupt:
 			if (CPU->IRQState != CLEAR_LINE)
 			{
 				CHECK_INT
-				CPU->ICount -= CPU->ExtraCycles;
-				CPU->ExtraCycles = 0;
 			}
-			goto Cz80_Exec;
+			CPU->ICount -= CPU->ExtraCycles;
+			CPU->ExtraCycles = 0;
+			if (!CPU->HaltState)
+				goto Cz80_Exec;
 		}
 	}
-	else CPU->ICount = 0;
 
 Cz80_Exec_End:
 	CPU->PC = PC;
 #if CZ80_ENCRYPTED_ROM
 	CPU->OPBase = OPBase;
 #endif
-	cycles -= CPU->ICount;
+	if (!(CPU->HaltState && CPU->ICount > 0))
+		cycles -= CPU->ICount;
+	CPU->ICount = 0;
 #if !CZ80_EMULATE_R_EXACTLY
 	zR = (zR + (cycles >> 2)) & 0x7f;
 #endif
@@ -328,6 +332,11 @@ void Cz80_Set_IRQ(cz80_struc *CPU, INT32 line, INT32 state)
 			CPU->OPBase = OPBase;
 #endif
 		}
+	}
+	if (CPU->ICount > 0)
+	{
+		CPU->ICount -= CPU->ExtraCycles;
+		CPU->ExtraCycles  = 0;
 	}
 }
 

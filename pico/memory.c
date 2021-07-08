@@ -116,13 +116,13 @@ void cpu68k_map_all_ram(int start_addr, int end_addr, void *ptr, int is_sub)
 static u32 m68k_unmapped_read8(u32 a)
 {
   elprintf(EL_UIO, "m68k unmapped r8  [%06x] @%06x", a, SekPc);
-  return 0; // assume pulldown, as if MegaCD2 was attached
+  return (PicoIn.AHW & PAHW_MCD) ? 0x00 : 0xff; // pulldown if MegaCD2 attached
 }
 
 static u32 m68k_unmapped_read16(u32 a)
 {
   elprintf(EL_UIO, "m68k unmapped r16 [%06x] @%06x", a, SekPc);
-  return 0;
+  return (PicoIn.AHW & PAHW_MCD) ? 0x00 : 0xffff;
 }
 
 static void m68k_unmapped_write8(u32 a, u32 d)
@@ -163,12 +163,14 @@ void m68k_map_unmap(int start_addr, int end_addr)
     m68k_write16_map[i] = (addr >> 1) | MAP_FLAG;
 }
 
+#ifndef _ASM_MEMORY_C
 MAKE_68K_READ8(m68k_read8, m68k_read8_map)
 MAKE_68K_READ16(m68k_read16, m68k_read16_map)
 MAKE_68K_READ32(m68k_read32, m68k_read16_map)
 MAKE_68K_WRITE8(m68k_write8, m68k_write8_map)
 MAKE_68K_WRITE16(m68k_write16, m68k_write16_map)
 MAKE_68K_WRITE32(m68k_write32, m68k_write16_map)
+#endif
 
 // -----------------------------------------------------------------
 
@@ -275,7 +277,10 @@ static NOINLINE u32 port_read(int i)
   // disables output before doing TH-low read, so don't emulate it for TH.
   // Decap Attack reportedly doesn't work on Nomad but works on must
   // other MD revisions (different pull-up strength?).
-  out |= 0x3f & ~ctrl_reg;
+  if (PicoIn.AHW & PAHW_32X) // don't do it on 32X, it breaks WWF Raw
+    out |= 0x7f & ~ctrl_reg;
+  else
+    out |= 0x3f & ~ctrl_reg;
 
   in = port_readers[i](i, out);
 
@@ -394,7 +399,7 @@ static int get_scanline(int is_from_z80);
 static void psg_write_68k(u32 d)
 {
   // look for volume write and update if needed
-  if ((d & 0x90) == 0x90 && Pico.snd.psg_line < Pico.m.scanline)
+  if ((d & 0x90) == 0x90)
     PsndDoPSG(Pico.m.scanline);
 
   SN76496Write(d);
@@ -404,8 +409,7 @@ static void psg_write_z80(u32 d)
 {
   if ((d & 0x90) == 0x90) {
     int scanline = get_scanline(1);
-    if (Pico.snd.psg_line < scanline)
-      PsndDoPSG(scanline);
+    PsndDoPSG(scanline);
   }
 
   SN76496Write(d);
@@ -425,6 +429,7 @@ static u32 PicoRead8_sram(u32 a)
       d = EEPROM_read();
       if (!(a & 1))
         d >>= 8;
+      d &= 0xff;
     } else
       d = *(u8 *)(Pico.sv.data - Pico.sv.start + a);
     elprintf(EL_SRAMIO, "sram r8  [%06x]   %02x @ %06x", a, d, SekPc);
@@ -433,7 +438,7 @@ static u32 PicoRead8_sram(u32 a)
 
   // XXX: this is banking unfriendly
   if (a < Pico.romsize)
-    return Pico.rom[a ^ 1];
+    return Pico.rom[MEM_BE2(a)];
   
   return m68k_unmapped_read8(a);
 }
@@ -548,7 +553,7 @@ static void PicoWrite8_z80(u32 a, u32 d)
   }
   if ((a & 0x6000) == 0x4000) { // FM Sound
     if (PicoIn.opt & POPT_EN_FM)
-      Pico.m.status |= ym2612_write_local(a & 3, d & 0xff, 0) & 1;
+      ym2612_write_local(a & 3, d & 0xff, 0);
     return;
   }
   // TODO: probably other VDP access too? Maybe more mirrors?
@@ -694,14 +699,14 @@ u32 PicoRead8_vdp(u32 a)
   if ((a & 0x00f0) == 0x0000) {
     switch (a & 0x0d)
     {
-      case 0x00: return PicoVideoRead8DataH();
-      case 0x01: return PicoVideoRead8DataL();
-      case 0x04: return PicoVideoRead8CtlH();
-      case 0x05: return PicoVideoRead8CtlL();
+      case 0x00: return PicoVideoRead8DataH(0);
+      case 0x01: return PicoVideoRead8DataL(0);
+      case 0x04: return PicoVideoRead8CtlH(0);
+      case 0x05: return PicoVideoRead8CtlL(0);
       case 0x08:
-      case 0x0c: return PicoVideoRead8HV_H();
+      case 0x0c: return PicoVideoRead8HV_H(0);
       case 0x09:
-      case 0x0d: return PicoVideoRead8HV_L();
+      case 0x0d: return PicoVideoRead8HV_L(0);
     }
   }
 
@@ -735,8 +740,10 @@ static void PicoWrite8_vdp(u32 a, u32 d)
 
 static void PicoWrite16_vdp(u32 a, u32 d)
 {
-  if ((a & 0x00f9) == 0x0010) // PSG Sound
+  if ((a & 0x00f9) == 0x0010) { // PSG Sound
     psg_write_68k(d);
+    return;
+  }
   if ((a & 0x00e0) == 0x0000) {
     PicoVideoWrite(a, d);
     return;
@@ -825,12 +832,12 @@ PICO_INTERNAL void PicoMemSetup(void)
   PicoCpuCM68k.fetch32 = NULL;
 #endif
 #ifdef EMU_F68K
-  PicoCpuFM68k.read_byte  = m68k_read8;
-  PicoCpuFM68k.read_word  = m68k_read16;
-  PicoCpuFM68k.read_long  = m68k_read32;
-  PicoCpuFM68k.write_byte = m68k_write8;
-  PicoCpuFM68k.write_word = m68k_write16;
-  PicoCpuFM68k.write_long = m68k_write32;
+  PicoCpuFM68k.read_byte  = (void *)m68k_read8;
+  PicoCpuFM68k.read_word  = (void *)m68k_read16;
+  PicoCpuFM68k.read_long  = (void *)m68k_read32;
+  PicoCpuFM68k.write_byte = (void *)m68k_write8;
+  PicoCpuFM68k.write_word = (void *)m68k_write16;
+  PicoCpuFM68k.write_long = (void *)m68k_write32;
 
   // setup FAME fetchmap
   {
@@ -884,7 +891,7 @@ static void m68k_mem_setup(void)
 static int get_scanline(int is_from_z80)
 {
   if (is_from_z80) {
-    int mclk_z80 = z80_cyclesDone() * 15;
+    int mclk_z80 = (z80_cyclesLeft<0 ? Pico.t.z80c_aim : z80_cyclesDone()) * 15;
     int mclk_line = Pico.t.z80_scanline * 488 * 7;
     while (mclk_z80 - mclk_line >= 488 * 7)
       Pico.t.z80_scanline++, mclk_line += 488 * 7;
@@ -900,10 +907,10 @@ void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new)
   int xcycles = z80_cycles << 8;
 
   /* check for overflows */
-  if ((mode_old & 4) && xcycles > Pico.t.timer_a_next_oflow)
+  if ((mode_old & 4) && xcycles >= Pico.t.timer_a_next_oflow)
     ym2612.OPN.ST.status |= 1;
 
-  if ((mode_old & 8) && xcycles > Pico.t.timer_b_next_oflow)
+  if ((mode_old & 8) && xcycles >= Pico.t.timer_b_next_oflow)
     ym2612.OPN.ST.status |= 2;
 
   /* update timer a */
@@ -945,11 +952,11 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   a &= 3;
   if (a == 1 && ym2612.OPN.ST.address == 0x2a) /* DAC data */
   {
-    int scanline = get_scanline(is_from_z80);
-    //elprintf(EL_STATUS, "%03i -> %03i dac w %08x z80 %i", Pico.snd.dac_line, scanline, d, is_from_z80);
-    ym2612.dacout = ((int)d - 0x80) << 6;
+    int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
+    //elprintf(EL_STATUS, "%03i dac w %08x z80 %i", cycles, d, is_from_z80);
     if (ym2612.dacen)
-      PsndDoDAC(scanline);
+      PsndDoDAC(cycles);
+    ym2612.dacout = ((int)d - 0x80) << 6;
     return 0;
   }
 
@@ -1009,6 +1016,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
         case 0x27: { /* mode, timer control */
           int old_mode = ym2612.OPN.ST.mode;
           int cycles = is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k();
+
           ym2612.OPN.ST.mode = d;
 
           elprintf(EL_YMTIMER, "st mode %02x", d);
@@ -1026,18 +1034,15 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
 #ifdef __GP2X__
             if (PicoIn.opt & POPT_EXT_FM) return YM2612Write_940(a, d, get_scanline(is_from_z80));
 #endif
+            PsndDoFM(cycles);
             return 1;
           }
           return 0;
         }
         case 0x2b: { /* DAC Sel  (YM2612) */
-          int scanline = get_scanline(is_from_z80);
-          if (ym2612.dacen != (d & 0x80)) {
-            ym2612.dacen = d & 0x80;
-            Pico.snd.dac_line = scanline;
-          }
+          ym2612.dacen = d & 0x80;
 #ifdef __GP2X__
-          if (PicoIn.opt & POPT_EXT_FM) YM2612Write_940(a, d, scanline);
+          if (PicoIn.opt & POPT_EXT_FM) YM2612Write_940(a, d, get_scanline(is_from_z80));
 #endif
           return 0;
         }
@@ -1065,6 +1070,7 @@ static int ym2612_write_local(u32 a, u32 d, int is_from_z80)
   if (PicoIn.opt & POPT_EXT_FM)
     return YM2612Write_940(a, d, get_scanline(is_from_z80));
 #endif
+  PsndDoFM(is_from_z80 ? z80_cyclesDone() : z80_cycles_from_68k());
   return YM2612Write_(a, d);
 }
 
@@ -1192,10 +1198,10 @@ static unsigned char z80_md_vdp_read(unsigned short a)
   if ((a & 0x00f0) == 0x0000) {
     switch (a & 0x0d)
     {
-      case 0x00: return PicoVideoRead8DataH();
-      case 0x01: return PicoVideoRead8DataL();
-      case 0x04: return PicoVideoRead8CtlH();
-      case 0x05: return PicoVideoRead8CtlL();
+      case 0x00: return PicoVideoRead8DataH(1);
+      case 0x01: return PicoVideoRead8DataL(1);
+      case 0x04: return PicoVideoRead8CtlH(1);
+      case 0x05: return PicoVideoRead8CtlL(1);
       case 0x08:
       case 0x0c: return get_scanline(1); // FIXME: make it proper
       case 0x09:
@@ -1226,7 +1232,7 @@ static unsigned char z80_md_bank_read(unsigned short a)
 static void z80_md_ym2612_write(unsigned int a, unsigned char data)
 {
   if (PicoIn.opt & POPT_EN_FM)
-    Pico.m.status |= ym2612_write_local(a, data, 1) & 1;
+    ym2612_write_local(a, data, 1);
 }
 
 static void z80_md_vdp_br_write(unsigned int a, unsigned char data)

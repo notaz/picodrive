@@ -21,24 +21,26 @@
 
 #include "psp.h"
 #include "emu.h"
-#include "../common/lprintf.h"
-#include "version.h"
 
-extern int pico_main(void);
+#include <pico/pico_int.h>
+#include "../common/emu.h"
+#include "../common/version.h"
+
+extern int pico_main(int argc, char *argv[]);
 
 #ifndef FW15
 
-PSP_MODULE_INFO("PicoDrive", 0, 1, 51);
+PSP_MODULE_INFO("PicoDrive", 0, 1, 97);
 PSP_HEAP_SIZE_MAX();
 
-int main() { return pico_main(); }	/* just a wrapper */
+int main(int argc, char *argv[]) { return pico_main(argc, argv); }	/* just a wrapper */
 
 #else
 
-PSP_MODULE_INFO("PicoDrive", 0x1000, 1, 51);
+PSP_MODULE_INFO("PicoDrive", 0x1000, 1, 97);
 PSP_MAIN_THREAD_ATTR(0);
 
-int main()
+int main(int argc, char *argv[])
 {
 	SceUID thid;
 
@@ -47,7 +49,7 @@ int main()
 
 	thid = sceKernelCreateThread("pico_main", (SceKernelThreadEntry) pico_main, 32, 0x2000, PSP_THREAD_ATTR_USER, NULL);
 	if (thid >= 0)
-		sceKernelStartThread(thid, 0, 0);
+		sceKernelStartThread(thid, argc, argv);
 #ifndef GCOV
 	sceKernelExitDeleteThread(0);
 #else
@@ -153,8 +155,8 @@ void psp_init(void)
 	sceGuStart(GU_DIRECT, guCmdList);
 	sceGuDrawBuffer(GU_PSM_5650, (void *)VRAMOFFS_FB0, 512);
 	sceGuDispBuffer(480, 272, (void *)VRAMOFFS_FB1, 512); // don't care
-	sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
 	sceGuDepthBuffer((void *)VRAMOFFS_DEPTH, 512);
+	sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
 	sceGuOffset(2048 - (480 / 2), 2048 - (272 / 2));
 	sceGuViewport(2048, 2048, 480, 272);
 	sceGuDepthRange(0xc350, 0x2710);
@@ -192,8 +194,10 @@ void psp_finish(void)
 
 void psp_video_flip(int wait_vsync)
 {
+	void *fb = (void *)((unsigned long)psp_screen & ~0x40000000);
+	sceGuSync(0, 0);
 	if (wait_vsync) sceDisplayWaitVblankStart();
-	sceDisplaySetFrameBuf(psp_screen, 512, PSP_DISPLAY_PIXEL_FORMAT_565,
+	sceDisplaySetFrameBuf(fb, 512, PSP_DISPLAY_PIXEL_FORMAT_565,
 		wait_vsync ? PSP_DISPLAY_SETBUF_IMMEDIATE : PSP_DISPLAY_SETBUF_NEXTFRAME);
 	current_screen ^= 1;
 	psp_screen = current_screen ? VRAM_FB0 : VRAM_FB1;
@@ -226,11 +230,11 @@ unsigned int psp_pad_read(int blocking)
 	buttons = pad.Buttons;
 
 	// analog..
-	buttons &= ~(PBTN_NUB_UP|PBTN_NUB_DOWN|PBTN_NUB_LEFT|PBTN_NUB_RIGHT);
-	if (pad.Lx < 128 - ANALOG_DEADZONE) buttons |= PBTN_NUB_LEFT;
-	if (pad.Lx > 128 + ANALOG_DEADZONE) buttons |= PBTN_NUB_RIGHT;
-	if (pad.Ly < 128 - ANALOG_DEADZONE) buttons |= PBTN_NUB_UP;
-	if (pad.Ly > 128 + ANALOG_DEADZONE) buttons |= PBTN_NUB_DOWN;
+	buttons &= ~(PSP_NUB_UP|PSP_NUB_DOWN|PSP_NUB_LEFT|PSP_NUB_RIGHT);
+	if (pad.Lx < 128 - ANALOG_DEADZONE) buttons |= PSP_NUB_LEFT;
+	if (pad.Lx > 128 + ANALOG_DEADZONE) buttons |= PSP_NUB_RIGHT;
+	if (pad.Ly < 128 - ANALOG_DEADZONE) buttons |= PSP_NUB_UP;
+	if (pad.Ly > 128 + ANALOG_DEADZONE) buttons |= PSP_NUB_DOWN;
 
 	return buttons;
 }
