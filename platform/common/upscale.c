@@ -82,7 +82,7 @@ void upscale_clut_nn_256_320x224_240(u8 *__restrict di, int ds, u8 *__restrict s
 			h_upscale_nn_4_5(di, ds, si, ss, 256, f_nop);
 		}
 		/* line 7 */
-		di += 8*ds;
+		di -= 8*ds;
 		v_copy(&di[0], &di[-ds], 320, f_nop);
 		di += 8*ds;
 	}
@@ -149,7 +149,7 @@ void upscale_rgb_bln_256_320x224_240(u16 *__restrict di, int ds, u8 *__restrict 
 		/* mixing line 3: line 2 = -ds, line 3 = +ds */
 			v_mix(&di[0], &di[-ds], &di[ds], 320, p_025, f_nop);
 			di += ds;
-		/* mixing lines 4-5: line n = 0, line n+1 = +ds */
+		/* mixing lines 4-5: line n-1 = 0, line n = +ds */
 		for (j = 0; j < 2; j++) {
 			v_mix(&di[0], &di[0], &di[ds], 320, p_025, f_nop);
 			di += ds;
@@ -183,7 +183,7 @@ void upscale_clut_nn_320x224_240(u8 *__restrict di, int ds, u8 *__restrict si, i
 			h_copy(di, ds, si, ss, 320, f_nop);
 		}
 
-		di += 8*ds;
+		di -= 8*ds;
 		v_copy(&di[0], &di[-ds], 320, f_nop);
 		di += 8*ds;
 
