@@ -1868,7 +1868,7 @@ static void REGPARM(3) sh2_write32_rom(u32 a, u32 d, SH2 *sh2)
   sh2_write16_rom(a + 2, d, sh2);
 }
 
-typedef u32 (sh2_read_handler)(u32 a, SH2 *sh2);
+typedef u32 REGPARM(2) (sh2_read_handler)(u32 a, SH2 *sh2);
 typedef void REGPARM(3) (sh2_write_handler)(u32 a, u32 d, SH2 *sh2);
 
 #define SH2MAP_ADDR2OFFS_R(a) \
