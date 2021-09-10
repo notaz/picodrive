@@ -50,9 +50,9 @@ static int need_pal_upload = 0;
 
 static u16 __attribute__((aligned(16))) osd_buf[512*8]; // buffer for osd text
 
-static int h32_mode = 0;
 static int out_x, out_y;
 static int out_w, out_h;
+static float hscale, vscale;
 
 static struct in_default_bind in_psp_defbinds[] =
 {
@@ -152,11 +152,8 @@ static void set_scaling_params(void)
 	int fbimg_width, fbimg_height, fbimg_xoffs, fbimg_yoffs, border_hack = 0;
 	g_vertices[0].z = g_vertices[1].z = 0;
 
-	fbimg_height = (int)(out_h * currentConfig.scale + 0.5);
-	if (!h32_mode)
-		fbimg_width  = (int)(out_w * currentConfig.scale * currentConfig.hscale40 + 0.5);
-	else
-		fbimg_width  = (int)(out_w * currentConfig.scale * currentConfig.hscale32 + 0.5);
+	fbimg_height = (int)(out_h * vscale + 0.5);
+	fbimg_width  = (int)(out_w * hscale + 0.5);
 
 	if (fbimg_width  & 1) fbimg_width++;  // make even
 	if (fbimg_height & 1) fbimg_height++;
@@ -370,7 +367,7 @@ static void vidResetMode(void)
 
 	sceGuClutMode(GU_PSM_5650,0,0xff,0);
 	sceGuTexFunc(GU_TFX_REPLACE,GU_TCC_RGB);
-	if (currentConfig.scaling)
+	if (currentConfig.filter)
 	     sceGuTexFilter(GU_LINEAR, GU_LINEAR);
 	else sceGuTexFilter(GU_NEAREST, GU_NEAREST);
 	sceGuTexScale(1.0f,1.0f);
@@ -575,10 +572,9 @@ void pemu_prep_defconfig(void)
 	defaultConfig.s_PsndRate = 22050;
 	defaultConfig.s_PicoCDBuffers = 64;
 	defaultConfig.CPUclock = 333;
-	defaultConfig.scaling = 1;     // bilinear filtering for psp
-	defaultConfig.scale = 1.20;    // fullscreen
-	defaultConfig.hscale40 = 1.25;
-	defaultConfig.hscale32 = 1.56;
+	defaultConfig.filter = EOPT_FILTER_BILINEAR; // bilinear filtering
+	defaultConfig.scaling = EOPT_SCALE_43;
+	defaultConfig.vscaling = EOPT_VSCALE_FULL;
 	defaultConfig.EmuOpt |= EOPT_SHOW_RTC;
 }
 
@@ -587,12 +583,6 @@ void pemu_validate_config(void)
 {
 	if (currentConfig.CPUclock < 33 || currentConfig.CPUclock > 333)
 		currentConfig.CPUclock = 333;
-	if (currentConfig.scaling < 0.01)
-		currentConfig.scaling = 0.01;
-	if (currentConfig.hscale40 < 0.01)
-		currentConfig.hscale40 = 0.01;
-	if (currentConfig.hscale32 < 0.01)
-		currentConfig.hscale32 = 0.01;
 	if (currentConfig.gamma < -4 || currentConfig.gamma >  16)
 		currentConfig.gamma = 0;
 	if (currentConfig.gamma2 < 0 || currentConfig.gamma2 > 2)
@@ -676,12 +666,37 @@ void plat_update_volume(int has_changed, int is_up)
 /* prepare for MD screen mode change */
 void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count)
 {
-	h32_mode = col_count < 320;
-	out_y = start_line; out_x = (h32_mode ? 32 : 0);
-	out_h = line_count; out_w = (h32_mode ? 256:320);
+	out_y = start_line; out_x = start_col;
+	out_h = line_count; out_w = col_count;
+
+	switch (currentConfig.vscaling) {
+	case EOPT_VSCALE_PAL:
+		vscale = (float)270/240;
+		break;
+	case EOPT_VSCALE_FULL:
+		vscale = (float)270/line_count;
+		break;
+	default:
+		vscale = 1;
+		break;
+	}
+	switch (currentConfig.scaling) {
+	case EOPT_SCALE_43:
+		hscale = (float)360/col_count;
+		break;
+	case EOPT_SCALE_WIDE:
+		hscale = (float)420/col_count;
+		break;
+	case EOPT_SCALE_FULL:
+		hscale = (float)480/col_count;
+		break;
+	default:
+		hscale = 1;
+		break;
+	}
 
 	vidResetMode();
-	if (h32_mode)	// clear borders from h40 remnants
+	if (col_count < 320)	// clear borders from h40 remnants
 		clearArea(1);
 }
 

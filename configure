@@ -128,7 +128,7 @@ set_platform()
     # use newlib
     SYSLIBS="-lc -lpspuser -lpspkernel"
     CFLAGS="$CFLAGS -D__PSP__"
-    MFLAGS="-march=mips32r2"
+    MFLAGS="-march=allegrex"
     ARCH=mipsel
     ;;
   *)

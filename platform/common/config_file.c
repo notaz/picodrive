@@ -338,18 +338,6 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			return 1;
 
 		/* PSP */
-		case MA_OPT3_SCALE:
-			if (strcasecmp(var, "Scale factor") != 0) return 0;
-			currentConfig.scale = atof(val);
-			return 1;
-		case MA_OPT3_HSCALE32:
-			if (strcasecmp(var, "Hor. scale (for low res. games)") != 0) return 0;
-			currentConfig.hscale32 = atof(val);
-			return 1;
-		case MA_OPT3_HSCALE40:
-			if (strcasecmp(var, "Hor. scale (for hi res. games)") != 0) return 0;
-			currentConfig.hscale40 = atof(val);
-			return 1;
 		case MA_OPT3_VSYNC:
 			// XXX: use enum
 			if (strcasecmp(var, "Wait for vsync") != 0) return 0;

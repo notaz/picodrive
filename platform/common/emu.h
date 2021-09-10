@@ -40,10 +40,19 @@ enum {
 	// linux, GP2X:
 	EOPT_SCALE_SW = 1,
 	EOPT_SCALE_HW,
+	// PSP horiz:
+	EOPT_SCALE_43 = 1,	// DAR 4:3 (12:9)
+	EOPT_SCALE_WIDE,	// DAR 14:9
+	EOPT_SCALE_FULL,	// DAR 16:9
+	// PSP vert:
+	EOPT_VSCALE_PAL = 1,	// always 240 lines
+	EOPT_VSCALE_FULL,	// zoomed to full height
 };
 
 enum {
 	EOPT_FILTER_NONE = 0,
+	// PSP texture filtering
+	EOPT_FILTER_BILINEAR = 1,
 	// software scalers
 	EOPT_FILTER_SMOOTHER = 1,
 	EOPT_FILTER_BILINEAR1,
@@ -75,8 +84,6 @@ typedef struct _currentConfig_t {
 	int scaling;  // EOPT_SCALE_*
 	int vscaling;
 	int rotation; // for UIQ
-	float scale; // psp: screen scale
-	float hscale32, hscale40; // psp: horizontal scale
 	int gamma2;  // psp: black level
 	int turbo_rate;
 	int renderer;
