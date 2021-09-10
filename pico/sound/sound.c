@@ -236,8 +236,8 @@ PICO_INTERNAL void PsndDoFM(int cyc_to)
   // Q16, number of samples since last call
   len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.fm_pos;
 
-  // don't do this too often (about once every scanline)
-  if (len >> 16 <= PicoIn.sndRate >> 10)
+  // don't do this too often (about once every 4 scanlines)
+  if (len <= PicoIn.sndRate << 4) // Q16, (PicoIn.sndRate << 16) >> 12
     return;
 
   // update position and calculate buffer offset and length
