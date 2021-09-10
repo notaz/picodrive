@@ -1653,9 +1653,9 @@ FinalizeLine555:
     tst     r12, #1
     movne   r2, #320/8           @ len
     bne     .fl_no32colRGB555
-    ldr     r4, [r10, #OFS_EST_PicoOpt]
+    ldr     r5, [r10, #OFS_EST_PicoOpt]
     mov     r2, #256/8
-    ldr     r4, [r4]
+    ldr     r4, [r5]
     tst     r4, #0x4000
     bne     .fl_32scale_RGB555
     tst     r4, #0x0100
@@ -1705,15 +1705,167 @@ FinalizeLine555:
 
 
 .fl_32scale_RGB555:
-    mov     r9, #0x3900 @ f800 07e0 001f | e000 0780 001c | 3800 01e0 0007
-    orr     r9, r9, #0x00e7
+    ldr     r5, [r5, #OFS_PicoIn_filter-OFS_PicoIn_opt]
+
+    mov     r9, #0xf700 @ f800 07e0 001f | e000 0780 001c | 3800 01e0 0007
+    orr     r9, r9, #0x00de
 
 #ifdef UNALIGNED_DRAWLINEDEST
     tst     r0, #2
     bne     .fl_32scale_RGB555u
 #endif
 
-.fl_loop32scale_RGB555:
+    ands    r5, r5, #0x3
+    addne   pc, pc, r5, lsl #2
+    b       .fl_32scale_nn
+    b       .fl_32scale_nn
+    b       .fl_32scale_snn
+    b       .fl_32scale_bl2
+    b       .fl_32scale_bl4
+
+.fl_32scale_nn:
+    ldr     r12, [r1], #4
+    ldr     r7,  [r1], #4
+
+    and     r4, lr, r12, lsl #1
+    ldrh    r4, [r3, r4]
+    and     r5, lr, r12, lsr #7
+    ldrh    r5, [r3, r5]
+    and     r6, lr, r12, lsr #15
+    ldrh    r6, [r3, r6]
+    and     r10,lr, r12, lsr #23
+    ldrh    r10,[r3, r10]
+
+    orr     r4, r4, r5, lsl #16
+    orr     r5, r6, r6, lsl #16
+
+    and     r6, lr, r7, lsl #1
+    ldrh    r6, [r3, r6]
+    and     r8, lr, r7, lsr #7
+    ldrh    r8, [r3, r8]
+    and     r12,lr, r7, lsr #15
+    ldrh    r12,[r3, r12]
+    and     r7, lr, r7, lsr #23
+    ldrh    r7, [r3, r7]
+
+    orr     r6, r10,r6, lsl  #16
+    orr     r8, r8,r12, lsl #16
+
+    subs    r2, r2, #1
+
+    orr     r10,r12,r7, lsl #16
+
+    stmia   r0!, {r4,r5,r6,r8,r10}
+    bne     .fl_32scale_nn
+
+    ldmfd   sp!, {r4-r10,pc}
+
+.fl_32scale_snn:
+    ldr     r12, [r1], #4
+    ldr     r7,  [r1], #4
+
+    and     r4, lr, r12, lsl #1
+    ldrh    r4, [r3, r4]
+    and     r5, lr, r12, lsr #7
+    ldrh    r5, [r3, r5]
+    and     r6, lr, r12, lsr #15
+    ldrh    r6, [r3, r6]
+    and     r10,lr, r12, lsr #23
+    ldrh    r10,[r3, r10]
+
+    and     r4, r4, r9
+    and     r5, r5, r9
+    orr     r4, r4, r5, lsl #16
+    and     r6, r6, r9
+    add     r5, r5, r6
+    mov     r5, r5, lsr #1
+    orr     r5, r5, r6, lsl #16
+
+    and     r6, lr, r7, lsl #1
+    ldrh    r6, [r3, r6]
+    and     r8, lr, r7, lsr #7
+    ldrh    r8, [r3, r8]
+    and     r12,lr, r7, lsr #15
+    ldrh    r12,[r3, r12]
+    and     r7, lr, r7, lsr #23
+    ldrh    r7, [r3, r7]
+
+    and     r6, r6, r9
+    and     r10,r10,r9
+    orr     r6, r10,r6, lsl  #16
+    and     r12,r12,r9
+    and     r7, r7, r9
+    orr     r10,r12,r7, lsl #16
+
+    and     r8, r8, r9
+    add     r12,r12,r8
+    mov     r12,r12,lsr #1
+    orr     r8, r8,r12, lsl #16
+
+    subs    r2, r2, #1
+
+    stmia   r0!, {r4,r5,r6,r8,r10}
+    bne     .fl_32scale_snn
+
+    ldmfd   sp!, {r4-r10,pc}
+
+.fl_32scale_bl2:
+    ldr     r12, [r1], #4
+    ldr     r7,  [r1], #4
+
+    and     r4, lr, r12, lsl #1
+    ldrh    r4, [r3, r4]
+    and     r5, lr, r12, lsr #7
+    ldrh    r5, [r3, r5]
+    and     r6, lr, r12, lsr #15
+    ldrh    r6, [r3, r6]
+
+    and     r4, r4, r9
+    and     r5, r5, r9
+    add     r10,r4, r5
+    mov     r10,r10,lsr #1
+    orr     r4, r4, r10,lsl #16		@ px0 | (px0+px1)/2
+
+    and     r6, r6, r9
+    add     r5, r5, r6
+    mov     r5, r5, lsr #1
+    orr     r5, r5, r6, lsl #16		@ (px1+px2)/2 | px2
+
+    and     r10,lr, r12, lsr #23
+    ldrh    r10,[r3, r10]
+    and     r8, lr, r7, lsl #1
+    ldrh    r8, [r3, r8]
+
+    and     r10,r10,r9
+    and     r8, r8, r9
+    orr     r6, r10,r8, lsl  #16	@ px3 | px4
+
+    and     r12,lr, r7, lsr #15
+    ldrh    r12,[r3, r12]
+    and     r10, lr, r7, lsr #23
+    ldrh    r10, [r3, r10]
+    and     r7, lr, r7, lsr #7
+    ldrh    r7, [r3, r7]
+
+    and     r12,r12,r9
+    and     r10,r10,r9
+    orr     r10,r12,r10, lsl #16	@ px6 | px7
+
+    and     r7, r7, r9
+    add     r12,r12,r7
+    add     r8, r8, r7
+    mov     r8, r8, lsr #1
+    mov     r12,r12,lsr #1
+    orr     r8, r8,r12, lsl #16		@ (px4+px5)/2 | (px5+px6)/2
+
+    subs    r2, r2, #1
+
+    stmia   r0!, {r4,r5,r6,r8,r10}
+    bne     .fl_32scale_bl2
+
+    ldmfd   sp!, {r4-r10,pc}
+
+.fl_32scale_bl4:
     ldr     r12, [r1], #4
     ldr     r7,  [r1], #4
 
@@ -1721,16 +1873,21 @@ FinalizeLine555:
     ldrh    r4, [r3, r4]
     and     r5, lr, r12,lsr #7
     ldrh    r5, [r3, r5]
-    and     r4, r4, r9, lsl #2
+
+    @ r4 = 1/4px0+3/4px1 : px0
+    and     r4, r4, r9
     orr     r4, r4, r4, lsl #14       @ r4[31:16] = 1/4 pix_s 0
-    and     r5, r5, r9, lsl #2
+    and     r5, r5, r9
     sub     r6, r5, r5, lsr #2        @ r6 = 3/4 pix_s 1
     add     r4, r4, r6, lsl #16       @ pix_d 0, 1
+
     and     r6, lr, r12,lsr #15
     ldrh    r6, [r3, r6]
     and     r12,lr, r12,lsr #23
     ldrh    r12,[r3, r12]
-    and     r6, r6, r9, lsl #2
+
+    @ r5 = 3/4px2+1/4px3 : (px1+px2)/2
+    and     r6, r6, r9
     add     r5, r5, r6
     mov     r5, r5, lsr #1
     sub     r6, r6, r6, lsr #2        @ r6 = 3/4 pix_s 2
@@ -1738,32 +1895,38 @@ FinalizeLine555:
 
     and     r6, lr, r7, lsl #1
     ldrh    r6, [r3, r6]
-    and     r12,r12,r9, lsl #2
+    and     r12,r12,r9
     add     r5, r5, r12,lsl #14       @ pix_d 2, 3
-    and     r6, r6, r9, lsl #2
+
+    @ r6 = px4 : px3
+    and     r6, r6, r9
     orr     r6, r12,r6, lsl #16       @ pix_d 4, 5
 
+    @ r8 = (px5+px6)/2 : 1/4px4+3/4px5
     and     r12,lr, r7, lsr #7
     ldrh    r12,[r3, r12]
     and     r10,lr, r7, lsr #15
     ldrh    r10,[r3, r10]
-    and     r12,r12,r9, lsl #2
+    and     r12,r12,r9
     sub     r8, r12,r12,lsr #2        @ r8 = 3/4 pix_s 1
     add     r8, r8, r6, lsr #18
+
     and     r7, lr, r7, lsr #23
     ldrh    r7, [r3, r7]
-    and     r10,r10,r9, lsl #2
+    and     r10,r10,r9
     orr     r8, r8, r10,lsl #15
     add     r8, r8, r12,lsl #15       @ pix_d 6, 7
+
+    @ r10 = px7 : 3/4px6+1/4px7
     sub     r10,r10,r10,lsr #2        @ r10= 3/4 pix_s 2
-    and     r7, r7, r9, lsl #2
+    and     r7, r7, r9
     add     r10,r10,r7, lsr #2        @ += 1/4 pix_s 3
     orr     r10,r10,r7, lsl #16       @ pix_d 8, 9
 
     subs    r2, r2, #1
 
     stmia   r0!, {r4,r5,r6,r8,r10}
-    bne     .fl_loop32scale_RGB555
+    bne     .fl_32scale_bl4
 
     ldmfd   sp!, {r4-r10,pc}
 
@@ -1826,10 +1989,10 @@ FinalizeLine555:
     ldrh    r6, [r3, r6]
     and     r5, lr, r12,lsr #7
     ldrh    r5, [r3, r5]
-    and     r6, r6, r9, lsl #2
+    and     r6, r6, r9
     orr     r4, r4, r6, lsl #16       @ r4 = pix_d -1, 0
 
-    and     r5, r5, r9, lsl #2
+    and     r5, r5, r9
     sub     r8, r5, r5, lsr #2        @ r8 = 3/4 pix_s 1
     add     r6, r8, r6, lsr #2        @ r6 = (1/4 pix_s 0) + (3/4 pix_s 1)
     orr     r5, r6, r5, lsl #15
@@ -1838,20 +2001,20 @@ FinalizeLine555:
     ldrh    r6, [r3, r6]
     and     r12,lr, r12,lsr #23
     ldrh    r12,[r3, r12]
-    and     r6, r6, r9, lsl #2
+    and     r6, r6, r9
     add     r5, r5, r6, lsl #15       @ r5 = pix_d 1, 2
 
     and     r8, lr, r7, lsl #1
     ldrh    r8, [r3, r8]
     and     r10,lr, r7, lsr #7
     ldrh    r10,[r3, r10]
-    and     r12,r12,r9, lsl #2
+    and     r12,r12,r9
     sub     r6, r6, r6, lsr #2        @ r6 = 3/4 pix_s 2
     add     r6, r6, r12,lsr #2
     orr     r6, r6, r12,lsl #16       @ r6 = pix_d 3, 4
 
-    and     r8, r8, r9, lsl #2
-    and     r10,r10,r9, lsl #2
+    and     r8, r8, r9
+    and     r10,r10,r9
     sub     r12,r10,r10,lsr #2        @ r12 = 3/4 pix_s 5
     orr     r8, r8, r8, lsl #14
     add     r8, r8, r12,lsl #16       @ r8 = pix_d 5, 6
@@ -1859,12 +2022,12 @@ FinalizeLine555:
     ldrh    r12,[r3, r12]
     and     r7, lr, r7, lsr #23
     ldrh    r7, [r3, r7]
-    and     r12,r12,r9, lsl #2
+    and     r12,r12,r9
     add     r10,r10,r12
     mov     r10,r10,    lsr #1
     sub     r12,r12,r12,lsr #2        @ r12 = 3/4 pix_s 6
     orr     r10,r10,r12,lsl #16
-    and     r7, r7, r9, lsl #2
+    and     r7, r7, r9
     add     r10,r10,r7, lsl #14       @ r10 = pix_d 7, 8
 
     subs    r2, r2, #1

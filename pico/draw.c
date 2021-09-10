@@ -44,6 +44,8 @@
  */
 
 #include "pico_int.h"
+#include <platform/common/upscale.h>
+
 #define FORCE	// layer forcing via debug register?
 
 int (*PicoScanBegin)(unsigned int num) = NULL;
@@ -1407,7 +1409,7 @@ static NOINLINE void PrepareSprites(int max_lines)
 
   if (!(Pico.video.reg[12]&1))
     max_sprites = 64, max_line_sprites = 16, max_width = 264;
-  if (PicoIn.opt & POPT_DIS_SPRITE_LIM)
+  if (*est->PicoOpt & POPT_DIS_SPRITE_LIM)
     max_line_sprites = MAX_LINE_SPRITES;
 
   sh = Pico.video.reg[0xC]&8; // shadow/hilight?
@@ -1643,20 +1645,20 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
   if (Pico.video.reg[12]&1) {
     len = 320;
   } else {
-    if (!(PicoIn.opt&POPT_DIS_32C_BORDER)) pd+=32;
     len = 256;
   }
 
-  {
-#if 1
-    int i;
-
-    for (i = len; i > 0; i-=4) {
-      *pd++ = pal[*ps++];
-      *pd++ = pal[*ps++];
-      *pd++ = pal[*ps++];
-      *pd++ = pal[*ps++];
+  if ((*est->PicoOpt & POPT_EN_SOFTSCALE) && len == 256) {
+    switch (PicoIn.filter) {
+    case 3: h_upscale_bl4_4_5(pd, 320, ps, 256, 256, f_pal); break;
+    case 2: h_upscale_bl2_4_5(pd, 320, ps, 256, 256, f_pal); break;
+    case 1: h_upscale_snn_4_5(pd, 320, ps, 256, 256, f_pal); break;
+    default: h_upscale_nn_4_5(pd, 320, ps, 256, 256, f_pal); break;
     }
+  } else {
+    if (!(*est->PicoOpt & POPT_DIS_32C_BORDER) && len == 256) pd += 32;
+#if 1
+    h_copy(pd, 320, ps, 320, len, f_pal);
 #else
     extern void amips_clut(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
     extern void amips_clut_6bit(unsigned short *dst, unsigned char *src, unsigned short *pal, int count);
@@ -1691,19 +1693,32 @@ static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
   if (Pico.video.reg[12]&1) {
     len = 320;
   } else {
-    if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
-      pd += 32;
     len = 256;
   }
 
-  if (DrawLineDestIncrement == 0) {
+  if ((PicoIn.opt & POPT_EN_SOFTSCALE) && len == 256) {
+    unsigned char *ps = est->HighCol+8;
+    unsigned char pal = 0;
+
     if (!sh && (est->rendstatus & PDRAW_SONIC_MODE))
-      blockcpy_or(pd+8, est->HighCol+8, len, est->SonicPalCount*0x40);
-  } else if (!sh && (est->rendstatus & PDRAW_SONIC_MODE)) {
-    // select active backup palette
-    blockcpy_or(pd, est->HighCol+8, len, est->SonicPalCount*0x40);
+      pal = est->SonicPalCount*0x40;
+    if (DrawLineDestIncrement == 0)
+      pd = est->HighCol+8;
+    // Smoothing can't be used with CLUT, hence it's always Nearest Neighbour.
+    // use reverse version since src and dest ptr may be the same.
+    rh_upscale_nn_4_5(pd, 320, ps, 256, len, f_or);
+  } else if (DrawLineDestIncrement == 0) {
+    if (!sh && (est->rendstatus & PDRAW_SONIC_MODE))
+      blockcpy_or(est->HighCol+8, est->HighCol+8, len, est->SonicPalCount*0x40);
   } else {
-    blockcpy(pd, est->HighCol+8, len);
+    if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
+      pd += 32;
+    if (!sh && (est->rendstatus & PDRAW_SONIC_MODE)) {
+      // select active backup palette
+      blockcpy_or(pd, est->HighCol+8, len, est->SonicPalCount*0x40);
+    } else {
+      blockcpy(pd, est->HighCol+8, len);
+    }
   }
 }
 
@@ -1828,7 +1843,7 @@ static int DrawDisplay(int sh)
 // MUST be called every frame
 PICO_INTERNAL void PicoFrameStart(void)
 {
-  int offs = 8, lines = 224;
+  int loffs = 8, lines = 224, coffs = 0, columns = 320;
   int dirty = ((Pico.est.rendstatus & PDRAW_SONIC_MODE) || Pico.m.dirtyPal);
   int sprep = Pico.est.rendstatus & (PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES);
   int skipped = Pico.est.rendstatus & PDRAW_SKIP_FRAME;
@@ -1837,19 +1852,25 @@ PICO_INTERNAL void PicoFrameStart(void)
   Pico.est.rendstatus = 0;
   if ((Pico.video.reg[12] & 6) == 6)
     Pico.est.rendstatus |= PDRAW_INTERLACE; // interlace mode
-  if (!(Pico.video.reg[12] & 1))
+  if (!(Pico.video.reg[12] & 1)) {
     Pico.est.rendstatus |= PDRAW_32_COLS;
+    if (!(PicoIn.opt & POPT_EN_SOFTSCALE)) {
+      columns = 256;
+      coffs = 32;
+    }
+  }
   if (Pico.video.reg[1] & 8) {
     Pico.est.rendstatus |= PDRAW_30_ROWS;
-    offs = 0;
     lines = 240;
+    loffs = 0;
   }
+  if (PicoIn.opt & POPT_DIS_32C_BORDER)
+    coffs = 0;
 
   if (Pico.est.rendstatus != rendstatus_old || lines != rendlines) {
     rendlines = lines;
     // mode_change() might reset rendstatus_old by calling SetColorFormat
-    emu_video_mode_change((lines == 240) ? 0 : 8,
-      lines, (Pico.video.reg[12] & 1) ? 0 : 1);
+    emu_video_mode_change(loffs, lines, coffs, columns);
     rendstatus_old = Pico.est.rendstatus;
   }
   if (PicoIn.skipFrame) // preserve this until something is rendered at last
@@ -1857,8 +1878,8 @@ PICO_INTERNAL void PicoFrameStart(void)
   if (sprep | skipped)
     Pico.est.rendstatus |= PDRAW_PARSE_SPRITES;
 
-  Pico.est.HighCol = HighColBase + offs * HighColIncrement;
-  Pico.est.DrawLineDest = (char *)DrawLineDestBase + offs * DrawLineDestIncrement;
+  Pico.est.HighCol = HighColBase + loffs * HighColIncrement;
+  Pico.est.DrawLineDest = (char *)DrawLineDestBase + loffs * DrawLineDestIncrement;
   Pico.est.DrawScanline = 0;
   skip_next_line = 0;
 

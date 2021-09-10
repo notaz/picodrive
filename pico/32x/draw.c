@@ -122,7 +122,7 @@ void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
   FinalizeLine555(sh, line, est);
 
   if ((Pico32x.vdp_regs[0] & P32XV_Mx) == 0 || // 32x blanking
-      // XXX: how is 32col mode hadled by real hardware?
+      // XXX: how is 32col mode handled by real hardware?
       !(Pico.video.reg[12] & 1) || // 32col mode
       (Pico.video.debug_p & PVD_KILL_32X))
   {
@@ -162,6 +162,7 @@ void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
 
 #define PICOSCAN_POST \
   PicoScan32xEnd(l + (lines_sft_offs & 0xff)); \
+  Pico.est.DrawLineDest = (char *)Pico.est.DrawLineDest + DrawLineDestIncrement32x; \
 
 #define make_do_loop(name, pre_code, post_code, md_code)        \
 /* Direct Color Mode */                                         \
@@ -260,6 +261,7 @@ void PicoDraw32xLayer(int offs, int lines, int md_bg)
   int which_func;
 
   Pico.est.DrawLineDest = (char *)DrawLineDestBase32x + offs * DrawLineDestIncrement32x;
+  Pico.est.DrawLineDestIncr = DrawLineDestIncrement32x;
   dram = Pico32xMem->dram[Pico32x.vdp_regs[0x0a/2] & P32XV_FS];
 
   if (Pico32xDrawMode == PDM32X_BOTH)
@@ -330,7 +332,7 @@ void PicoDraw32xLayerMdOnly(int offs, int lines)
       dst[p + 2] = pal[*pmd++];
       dst[p + 3] = pal[*pmd++];
     }
-    dst = (void *)((char *)dst + DrawLineDestIncrement32x);
+    dst = Pico.est.DrawLineDest = (char *)dst + DrawLineDestIncrement32x;
     pmd += 328 - plen;
     if (have_scan)
       PicoScan32xEnd(l + offs);

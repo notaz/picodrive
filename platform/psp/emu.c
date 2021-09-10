@@ -674,11 +674,11 @@ void plat_update_volume(int has_changed, int is_up)
 }
 
 /* prepare for MD screen mode change */
-void emu_video_mode_change(int start_line, int line_count, int is_32cols)
+void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count)
 {
-	h32_mode = is_32cols;
-	out_y = start_line; out_x = (is_32cols ? 32 : 0);
-	out_h = line_count; out_w = (is_32cols ? 256:320);
+	h32_mode = col_count < 320;
+	out_y = start_line; out_x = (h32_mode ? 32 : 0);
+	out_h = line_count; out_w = (h32_mode ? 256:320);
 
 	vidResetMode();
 	if (h32_mode)	// clear borders from h40 remnants

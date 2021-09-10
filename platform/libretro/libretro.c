@@ -84,7 +84,6 @@ static retro_environment_t environ_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
 
 #define VOUT_MAX_WIDTH 320
-#define VOUT_32COL_WIDTH 256
 #define VOUT_MAX_HEIGHT 240
 
 #define INITIAL_SND_RATE 44100
@@ -99,7 +98,8 @@ static bool old_show_overscan = false;
 /* Required to allow on the fly changes to 'show overscan' */
 static int vm_current_start_line = -1;
 static int vm_current_line_count = -1;
-static int vm_current_is_32cols = -1;
+static int vm_current_start_col = -1;
+static int vm_current_col_count = -1;
 
 static int vout_16bit = 1;
 static int vout_format = PDF_RGB555;
@@ -615,13 +615,14 @@ int plat_mem_set_exec(void *ptr, size_t size)
    return ret;
 }
 
-void emu_video_mode_change(int start_line, int line_count, int is_32cols)
+void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count)
 {
    struct retro_system_av_info av_info;
 
    vm_current_start_line = start_line;
    vm_current_line_count = line_count;
-   vm_current_is_32cols = is_32cols;
+   vm_current_start_col = start_col;
+   vm_current_col_count = col_count;
 
    // 8bit renderes create a 328x256 CLUT image, while 16bit creates 320x240 RGB
    vout_16bit = vout_format == PDF_RGB555 || (PicoIn.AHW & PAHW_32X);
@@ -631,13 +632,7 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
    vout_width = (vout_16bit ? VOUT_MAX_WIDTH : VOUT_8BIT_WIDTH);
    vout_height = (vout_16bit ? VOUT_MAX_HEIGHT : VOUT_8BIT_HEIGHT);
    vout_offset = (vout_16bit ? 0 : 8); // 8bit has 8 px overlap area on the left
-   if (is_32cols) {
-      // 256x240, with or w/o overlap on the left and 64 px on the right
-      padding = (struct retro_hw_ps2_insets){start_line, vout_offset, vout_height - line_count - start_line, vout_width - 256.0f - vout_offset};
-   } else {
-      // 320x240, with or w/o overlap on the left and none on the right
-      padding = (struct retro_hw_ps2_insets){start_line, vout_offset, vout_height - line_count - start_line, vout_width - 320.0f - vout_offset};
-   }
+   padding = (struct retro_hw_ps2_insets){start_line, vout_offset, vout_height - line_count - start_line, vout_width - col_count - vout_offset};
 
    int pxsz = (vout_16bit ? 2 : 1); // pixel size: RGB = 16 bits, CLUT = 8 bits
    memset(vout_buf, 0, pxsz * vout_width * vout_height);
@@ -651,7 +646,7 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
       ps2->padding = padding;
    }
 #else
-   vout_width = is_32cols ? VOUT_32COL_WIDTH : VOUT_MAX_WIDTH;
+   vout_width = col_count;
    memset(vout_buf, 0, VOUT_MAX_WIDTH * VOUT_MAX_HEIGHT * 2);  
    if (vout_16bit)
       PicoDrawSetOutBuf(vout_buf, vout_width * 2);
@@ -686,11 +681,11 @@ void emu_32x_startup(void)
    PicoDrawSetOutFormat(vout_format, 0);
    if ((vm_current_start_line != -1) &&
        (vm_current_line_count != -1) &&
-       (vm_current_is_32cols != -1))
+       (vm_current_start_col != -1) &&
+       (vm_current_col_count != -1))
       emu_video_mode_change(
-            vm_current_start_line,
-            vm_current_line_count,
-            vm_current_is_32cols);
+            vm_current_start_line, vm_current_line_count,
+            vm_current_start_col, vm_current_col_count);
 }
 
 void lprintf(const char *fmt, ...)
@@ -1621,11 +1616,11 @@ static void update_variables(bool first_run)
    {
       if ((vm_current_start_line != -1) &&
           (vm_current_line_count != -1) &&
-          (vm_current_is_32cols != -1))
+          (vm_current_start_col != -1) &&
+          (vm_current_col_count != -1))
          emu_video_mode_change(
-               vm_current_start_line,
-               vm_current_line_count,
-               vm_current_is_32cols);
+               vm_current_start_line, vm_current_line_count,
+               vm_current_start_col, vm_current_col_count);
    }
 
    /* Reinitialise frameskipping, if required */

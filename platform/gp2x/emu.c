@@ -558,14 +558,16 @@ static void vid_reset_mode(void)
 	Pico.m.dirtyPal = 1;
 
 	PicoIn.opt &= ~POPT_EN_SOFTSCALE;
-	if (currentConfig.scaling == EOPT_SCALE_SW)
+	if (currentConfig.scaling == EOPT_SCALE_SW) {
 		PicoIn.opt |= POPT_EN_SOFTSCALE;
+		PicoIn.filter = EOPT_FILTER_BILINEAR2;
+	}
 
 	// palette converters for 8bit modes
 	make_local_pal = (PicoIn.AHW & PAHW_SMS) ? make_local_pal_sms : make_local_pal_md;
 }
 
-void emu_video_mode_change(int start_line, int line_count, int is_32cols)
+void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count)
 {
 	int scalex = 320, scaley = 240;
 	int ln_offs = 0;
@@ -578,10 +580,10 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 
 	/* set up hwscaling here */
 	PicoIn.opt &= ~POPT_DIS_32C_BORDER;
-	if (is_32cols && currentConfig.scaling == EOPT_SCALE_HW) {
-		scalex = 256;
+	if (col_count < 320 && currentConfig.scaling == EOPT_SCALE_HW) {
+		scalex = col_count;
 		PicoIn.opt |= POPT_DIS_32C_BORDER;
-		osd_fps_x = OSD_FPS_X - 64;
+		osd_fps_x = col_count - (320-OSD_FPS_X);
 	}
 
 	if (currentConfig.vscaling == EOPT_SCALE_HW) {

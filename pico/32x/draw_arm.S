@@ -20,11 +20,11 @@
 
     PIC_LDR_INIT()
 
-.macro call_scan_prep cond est   @ &Pico.est
+.macro call_scan_prep cond pico   @ &Pico
 .if \cond
     PIC_LDR(r4, r6, PicoScan32xBegin)
     PIC_LDR(r5, r6, PicoScan32xEnd)
-    ldr     r6, [\est, #OFS_EST_DrawLineDest]
+    add     r6, \pico, #OFS_Pico_est
     ldr     r4, [r4]
     ldr     r5, [r5]
     stmfd   sp!, {r4,r5,r6}
@@ -44,9 +44,9 @@
     add     r0, r0, r4
     mov     lr, pc
     ldr     pc, [sp, #(3+0)*4]
-    ldr     r0, [sp, #(3+2)*4] @ &DrawLineDest
+    ldr     r0, [sp, #(3+2)*4] @ &Pico.est
     ldmfd   sp!, {r1-r3}
-    ldr     r0, [r0]
+    ldr     r0, [r0, #OFS_EST_DrawLineDest]
 .endif
 .endm
 
@@ -57,6 +57,11 @@
     add     r0, r0, r4
     mov     lr, pc
     ldr     pc, [sp, #(4+1)*4]
+    ldr     r1, [sp, #(3+2)*4] @ &Pico.est
+    ldr     r0, [r1, #OFS_EST_DrawLineDest]
+    ldr     r2, [r1, #OFS_EST_DrawLineDestIncr]
+    add     r0, r0, r2
+    str     r0, [r1]
     ldmfd   sp!, {r0-r3}
 .endif
 .endm
@@ -71,6 +76,7 @@
     PIC_LDR(lr, r9, Pico)
     PIC_LDR(r10,r9, Pico32x)
     ldr     r11, [lr, #OFS_Pico_est+OFS_EST_Draw2FB]
+    ldr     r12, [lr, #OFS_Pico_est+OFS_EST_DrawLineDestIncr]
     ldrh    r10,[r10, #0x40] @ Pico32x.vdp_regs[0]
     add     r9, lr, #OFS_Pico_est+OFS_EST_HighPal   @ palmd
 
@@ -88,6 +94,9 @@
 
 0: @ loop_outer:
     call_scan_end \call_scan
+    ldr     r12, [r9, #OFS_EST_DrawLineDestIncr-OFS_EST_HighPal]
+    sub     r0, r0, #320*2
+    add     r0, r0, r12
     add     r4, r4, #1
     cmp     r4, r2, lsr #16
     call_scan_fin_ge \call_scan
@@ -231,7 +240,7 @@
 
     PIC_LDR(lr, r9, Pico)
     PIC_LDR(r10,r9, Pico32xMem)
-    ldr     r9,=OFS_PMEM32x_pal_native
+    ldr     r9, =OFS_PMEM32x_pal_native
     ldr     r10, [r10]
     ldr     r11, [lr, #OFS_Pico_est+OFS_EST_Draw2FB]
     add     r10,r10,r9
@@ -248,6 +257,9 @@
 
 0: @ loop_outer:
     call_scan_end \call_scan
+    ldr     r12, [r9, #OFS_EST_DrawLineDestIncr-OFS_EST_HighPal]
+    sub     r0, r0, #320*2
+    add     r0, r0, r12
     add     r4, r4, #1
     cmp     r4, r2, lsr #16
     call_scan_fin_ge \call_scan
@@ -400,7 +412,7 @@
 
     PIC_LDR(lr, r9, Pico)
     PIC_LDR(r10,r9, Pico32xMem)
-    ldr     r9,=OFS_PMEM32x_pal_native
+    ldr     r9, =OFS_PMEM32x_pal_native
     ldr     r10, [r10]
     ldr     r11, [lr, #OFS_Pico_est+OFS_EST_Draw2FB]
     add     r10,r10,r9
@@ -417,6 +429,9 @@
 
 0: @ loop_outer:
     call_scan_end \call_scan
+    ldr     r12, [r9, #OFS_EST_DrawLineDestIncr-OFS_EST_HighPal]
+    sub     r0, r0, #320*2
+    add     r0, r0, r12
     add     r4, r4, #1
     cmp     r4, r2, lsr #16
     call_scan_fin_ge \call_scan

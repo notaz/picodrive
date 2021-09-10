@@ -134,9 +134,13 @@ get_define OFS_Pico_ Pico rom			; echo "$line" >>$fn
 get_define OFS_Pico_ Pico romsize		; echo "$line" >>$fn
 get_define OFS_Pico_ Pico est			; echo "$line" >>$fn
 
+get_define OFS_PicoIn_ PicoInterface opt	; echo "$line" >>$fn
+get_define OFS_PicoIn_ PicoInterface filter	; echo "$line" >>$fn
+
 get_define OFS_EST_ PicoEState DrawScanline	; echo "$line" >>$fn
 get_define OFS_EST_ PicoEState rendstatus	; echo "$line" >>$fn
 get_define OFS_EST_ PicoEState DrawLineDest	; echo "$line" >>$fn
+get_define OFS_EST_ PicoEState DrawLineDestIncr	; echo "$line" >>$fn
 get_define OFS_EST_ PicoEState HighCol		; echo "$line" >>$fn
 get_define OFS_EST_ PicoEState HighPreSpr	; echo "$line" >>$fn
 get_define OFS_EST_ PicoEState Pico		; echo "$line" >>$fn

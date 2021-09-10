@@ -37,8 +37,17 @@ extern int g_screen_ppitch; // pitch in pixels
 
 enum {
 	EOPT_SCALE_NONE = 0,
-	EOPT_SCALE_SW,
+	// linux, GP2X:
+	EOPT_SCALE_SW = 1,
 	EOPT_SCALE_HW,
+};
+
+enum {
+	EOPT_FILTER_NONE = 0,
+	// software scalers
+	EOPT_FILTER_SMOOTHER = 1,
+	EOPT_FILTER_BILINEAR1,
+	EOPT_FILTER_BILINEAR2,
 };
 
 enum {
@@ -63,7 +72,7 @@ typedef struct _currentConfig_t {
 	int CPUclock;
 	int volume;
 	int gamma;
-	int scaling;  // gp2x: EOPT_SCALE_*; psp: bilinear filtering
+	int scaling;  // EOPT_SCALE_*
 	int vscaling;
 	int rotation; // for UIQ
 	float scale; // psp: screen scale
@@ -72,7 +81,7 @@ typedef struct _currentConfig_t {
 	int turbo_rate;
 	int renderer;
 	int renderer32x;
-	int filter; // pandora
+	int filter;  // EOPT_FILTER_* video filter
 	int analog_deadzone;
 	int msh2_khz;
 	int ssh2_khz;
@@ -180,6 +189,7 @@ void plat_update_volume(int has_changed, int is_up);
 /* should be in libpicofe/plat.h */
 void plat_video_clear_status(void);
 void plat_video_clear_buffers(void);
+void plat_video_set_size(int w, int h);
 
 #ifdef __cplusplus
 } // extern "C"

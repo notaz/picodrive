@@ -41,7 +41,7 @@ extern void *plat_mem_get_for_drc(size_t size);
 extern int   plat_mem_set_exec(void *ptr, size_t size);
 
 // this one should handle display mode changes
-extern void emu_video_mode_change(int start_line, int line_count, int is_32cols);
+extern void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count);
 
 // this must switch to 16bpp mode
 extern void emu_32x_startup(void);
@@ -86,7 +86,7 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 
 // the emulator is configured and some status is reported
 // through this global state (not saved in savestates)
-typedef struct
+typedef struct PicoInterface
 {
 	unsigned int opt; // POPT_* bitfield
 
@@ -100,6 +100,8 @@ typedef struct
 
 	unsigned short quirks;         // game-specific quirks: PQUIRK_*
 	unsigned short overclockM68k;  // overclock the emulated 68k, in %
+
+	unsigned short filter;         // softscale filter type
 
 	int sndRate;                   // rate in Hz
 	int sndFilterAlpha;            // Low pass sound filter alpha (Q16)

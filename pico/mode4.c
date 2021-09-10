@@ -291,7 +291,7 @@ void PicoFrameStartMode4(void)
   }
 
   if (Pico.est.rendstatus != rendstatus_old || lines != rendlines) {
-    emu_video_mode_change(screen_offset, lines, 1);
+    emu_video_mode_change(screen_offset, lines, line_offset, 256);
     rendstatus_old = Pico.est.rendstatus;
     rendlines = lines;
   }
@@ -352,6 +352,8 @@ void PicoDoHighPal555M4(void)
   Pico.est.HighPal[0xe0] = 0;
 }
 
+#include <platform/common/upscale.h>
+
 static void FinalizeLineRGB555M4(int line)
 {
   if (Pico.m.dirtyPal)
@@ -364,15 +366,20 @@ static void FinalizeLineRGB555M4(int line)
 
 static void FinalizeLine8bitM4(int line)
 {
-  unsigned char *pd = Pico.est.DrawLineDest;
+  unsigned char *pd = Pico.est.DrawLineDest + line_offset;
+  unsigned char *ps = Pico.est.HighCol + line_offset + 8;
 
-  if (DrawLineDestIncrement)
-    memcpy(pd + line_offset, Pico.est.HighCol + line_offset + 8, 256);
+  if (DrawLineDestIncrement) {
+    if (PicoIn.opt & POPT_EN_SOFTSCALE)
+      rh_upscale_nn_4_5(pd, 320, ps, 256, 256, f_nop);
+    else
+      memcpy(pd, ps, 256);
+  }
 }
 
 void PicoDrawSetOutputMode4(pdso_t which)
 {
-  line_offset = PicoIn.opt & POPT_DIS_32C_BORDER ? 0 : 32;
+  line_offset = PicoIn.opt & (POPT_DIS_32C_BORDER|POPT_EN_SOFTSCALE) ? 0 : 32;
   switch (which)
   {
     case PDF_8BIT:   FinalizeLineM4 = FinalizeLine8bitM4; break;

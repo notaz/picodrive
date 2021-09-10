@@ -331,17 +331,16 @@ void pnd_restore_layer_data(void)
 	plat_video_flip();
 }
 
-void emu_video_mode_change(int start_line, int line_count, int is_32cols)
+void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count)
 {
 	int fb_w = 320, fb_h = 240, fb_left = 0, fb_right = 0, fb_top = 0, fb_bottom = 0;
 
 	if (doing_bg_frame)
 		return;
 
-	if (is_32cols) {
-		fb_w = 256;
-		fb_left = fb_right = 32;
-	}
+	fb_w = col_count;
+	fb_left = start_col;
+	fb_right = 320 - (fb_w+fb_left);;
 
 	switch (currentConfig.scaling) {
 	case SCALE_1x1:
@@ -349,7 +348,7 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 		g_layer_h = fb_h;
 		break;
 	case SCALE_2x2_3x2:
-		g_layer_w = fb_w * (is_32cols ? 3 : 2);
+		g_layer_w = fb_w * (col_count < 320 ? 3 : 2);
 		g_layer_h = fb_h * 2;
 		break;
 	case SCALE_2x2_2x2:
@@ -381,7 +380,7 @@ void emu_video_mode_change(int start_line, int line_count, int is_32cols)
 		fb_h = line_count;
 		break;
 	}
-	g_osd_fps_x = is_32cols ? 232 : 264;
+	g_osd_fps_x = col_count < 320 ? 232 : 264;
 	g_osd_y = fb_top + fb_h - 8;
 
 	pnd_setup_layer(1, g_layer_x, g_layer_y, g_layer_w, g_layer_h);

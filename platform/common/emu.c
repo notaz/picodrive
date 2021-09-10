@@ -1219,7 +1219,7 @@ void emu_cmn_forced_frame(int no_scale, int do_emu, void *buf)
 		memset32((short *)g_screen_ptr + g_screen_ppitch * y, 0,
 			 g_screen_width * 2 / 4);
 
-	PicoIn.opt &= ~POPT_ALT_RENDERER;
+	PicoIn.opt &= ~(POPT_ALT_RENDERER|POPT_EN_SOFTSCALE);
 	PicoIn.opt |= POPT_ACC_SPRITES;
 	if (!no_scale && currentConfig.scaling)
 		PicoIn.opt |= POPT_EN_SOFTSCALE;

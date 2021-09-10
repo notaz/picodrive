@@ -210,7 +210,7 @@ endif
 ifeq "$(USE_FRONTEND)" "1"
 
 # common
-OBJS += platform/common/main.o platform/common/emu.o \
+OBJS += platform/common/main.o platform/common/emu.o platform/common/upscale.o \
 	platform/common/menu_pico.o platform/common/config_file.o
 
 # libpicofe

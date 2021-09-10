@@ -356,6 +356,7 @@ struct PicoEState
   int DrawScanline;
   int rendstatus;
   void *DrawLineDest;          // draw destination
+  int DrawLineDestIncr;
   unsigned char *HighCol;
   s32 *HighPreSpr;
   struct Pico *Pico;
