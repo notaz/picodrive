@@ -97,12 +97,8 @@ static void draw_cd_leds(void)
 
 static u16 *screen_buffer(u16 *buf)
 {
-	// center the emulator display on the screen if screen is larger
-	if (currentConfig.scaling != EOPT_SCALE_HW)
-		buf += (g_screen_width-320)/2;
-	if (currentConfig.vscaling != EOPT_SCALE_HW)
-		buf += (g_screen_height-240)/2 * g_screen_ppitch;
-	return buf;
+	return buf + screen_y * g_screen_ppitch + screen_x -
+			(out_y * g_screen_ppitch + out_x);
 }
 
 void screen_blit(u16 *pd, int pp, u8* ps, int ss, u16 *pal)
@@ -151,8 +147,8 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 	if (!is_16bit_mode()) {
 		// convert the 8 bit CLUT output to 16 bit RGB
 		u16 *pd = screen_buffer(g_screen_ptr) +
-					screen_y * g_screen_ppitch + screen_x;
-		u8  *ps = Pico.est.Draw2FB + 328*out_y + out_x + 8;
+				out_y * g_screen_ppitch + out_x;
+		u8  *ps = Pico.est.Draw2FB + out_y * 328 + out_x + 8;
 
 		PicoDrawUpdateHighPal();
 
@@ -260,7 +256,6 @@ void plat_debug_cat(char *str)
 
 void pemu_forced_frame(int no_scale, int do_emu)
 {
-	u16 *pd = screen_buffer(g_screen_ptr);
 	int hs = currentConfig.scaling, vs = currentConfig.vscaling;
 
 	// create centered and sw scaled (if scaling enabled) 16 bit output
@@ -268,11 +263,11 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	Pico.m.dirtyPal = 1;
 	if (currentConfig.scaling)  currentConfig.scaling  = EOPT_SCALE_SW;
 	if (currentConfig.vscaling) currentConfig.vscaling = EOPT_SCALE_SW;
-	plat_video_set_size(320, 240);
+	plat_video_set_size(g_menuscreen_w, g_menuscreen_h);
 
 	// render a frame in 16 bit mode
 	render_bg = 1;
-	emu_cmn_forced_frame(no_scale, do_emu, pd);
+	emu_cmn_forced_frame(no_scale, do_emu, screen_buffer(g_screen_ptr));
 	render_bg = 0;
 
 	g_menubg_src_ptr = g_screen_ptr;
@@ -289,8 +284,8 @@ static int cb_vscaling_begin(unsigned int line)
 	// at start of new frame?
 	if (line < prevline) {
 		// set y frame offset (see emu_change_video_mode)
-		u16 *dest = g_screen_ptr;
-		Pico.est.DrawLineDest = dest + screen_y * g_screen_ppitch;
+		Pico.est.DrawLineDest = screen_buffer(g_screen_ptr) +
+				(out_y * g_screen_ppitch + out_x);
 		vscale_state = 0;
 	}
 	prevline = line;
@@ -326,42 +321,44 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	out_h = line_count; out_w = col_count;
 
 	PicoDrawSetCallbacks(NULL, NULL);
-	screen_x = screen_y = 0;
-	screen_w = 320, screen_h = 240;
+	// center output in screen
+	screen_w = g_screen_width,  screen_x = (screen_w - out_w)/2;
+	screen_h = g_screen_height, screen_y = (screen_h - out_h)/2;
+
 
 	switch (currentConfig.scaling) {
 	case EOPT_SCALE_HW:
 		screen_w = out_w;
+		screen_x = 0;
 		break;
-	case EOPT_SCALE_NONE:
-		// center output in screen
-		screen_x = (screen_w - out_w)/2;
+	case EOPT_SCALE_SW:
+		screen_x = (screen_w - 320)/2;
 		break;
 	}
 	switch (currentConfig.vscaling) {
 	case EOPT_SCALE_HW:
-		// NTSC always has 224 visible lines, anything smaller has bars
 		screen_h = (out_h < 224 ? 224 : out_h);
+		screen_y = 0;
+		// NTSC always has 224 visible lines, anything smaller has bars
+		if (out_h < 224)
+			screen_y += (224 - out_h)/2;
 		// handle vertical centering for 16 bit mode
-		screen_y = (screen_h - out_h) / 2;
 		if (is_16bit_mode())
-			PicoDrawSetCallbacks(cb_vscaling_begin, cb_vscaling_nop);
+			PicoDrawSetCallbacks(cb_vscaling_begin,cb_vscaling_nop);
 		break;
 	case EOPT_SCALE_SW:
+		screen_y = (screen_h - 240)/2;
 		// NTSC always has 224 visible lines, anything smaller has bars
-		if (out_y > 7)
-			screen_y = out_y - 7;
+		if (out_h < 224)
+			screen_y += (224 - out_h)/2;
 		// in 16 bit mode sw scaling is divided between core and platform
 		if (is_16bit_mode() && out_h < 240)
-			PicoDrawSetCallbacks(cb_vscaling_begin, cb_vscaling_end);
-		break;
-	case EOPT_SCALE_NONE:
-		// center output in screen
-		screen_y = (screen_h - out_h)/2;
+			PicoDrawSetCallbacks(cb_vscaling_begin,cb_vscaling_end);
 		break;
 	}
 
-	plat_video_set_size(screen_w, screen_h);
+	if (screen_w != g_screen_width || screen_h != g_screen_height)
+		plat_video_set_size(screen_w, screen_h);
 	plat_video_set_buffer(g_screen_ptr);
 
 	// clear whole screen in all buffers

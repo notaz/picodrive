@@ -253,9 +253,9 @@ void plat_video_loop_prepare(void)
 {
 	// take over any new vout settings
 	plat_sdl_change_video_mode(g_menuscreen_w, g_menuscreen_h, 0);
-	// switch over to scaled output if available
+	// switch over to scaled output if available, but keep the aspect ratio
 	if (plat_sdl_overlay != NULL || plat_sdl_gl_active) {
-		g_screen_width = 320;
+		g_screen_width = (240 * g_menuscreen_w / g_menuscreen_h) & ~1;
 		g_screen_height = 240;
 		g_screen_ppitch = g_screen_width;
 		plat_sdl_change_video_mode(g_screen_width, g_screen_height, 0);
