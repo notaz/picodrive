@@ -14,6 +14,7 @@
  * - doubled sprites
  */
 #include "pico_int.h"
+#include <platform/common/upscale.h>
 
 static void (*FinalizeLineM4)(int line);
 static int skip_next_line;
@@ -272,9 +273,10 @@ static void DrawDisplayM4(int scanline)
   }
 }
 
+static void FinalizeLineRGB555M4(int line);
 void PicoFrameStartMode4(void)
 {
-  int lines = 192;
+  int lines = 192, coffs;
   skip_next_line = 0;
   screen_offset = 24;
   Pico.est.rendstatus = PDRAW_32_COLS;
@@ -289,9 +291,13 @@ void PicoFrameStartMode4(void)
       lines = 224;
     }
   }
+  line_offset = PicoIn.opt & (POPT_DIS_32C_BORDER|POPT_EN_SOFTSCALE) ? 0 : 32;
+  coffs = line_offset;
+  if (FinalizeLineM4 == FinalizeLineRGB555M4)
+    line_offset = 0 /* done in FinalizeLine */;
 
   if (Pico.est.rendstatus != rendstatus_old || lines != rendlines) {
-    emu_video_mode_change(screen_offset, lines, line_offset, 256);
+    emu_video_mode_change(screen_offset, lines, coffs, 256);
     rendstatus_old = Pico.est.rendstatus;
     rendlines = lines;
   }
@@ -352,8 +358,6 @@ void PicoDoHighPal555M4(void)
   Pico.est.HighPal[0xe0] = 0;
 }
 
-#include <platform/common/upscale.h>
-
 static void FinalizeLineRGB555M4(int line)
 {
   if (Pico.m.dirtyPal)
@@ -379,15 +383,14 @@ static void FinalizeLine8bitM4(int line)
 
 void PicoDrawSetOutputMode4(pdso_t which)
 {
-  line_offset = PicoIn.opt & (POPT_DIS_32C_BORDER|POPT_EN_SOFTSCALE) ? 0 : 32;
   switch (which)
   {
     case PDF_8BIT:   FinalizeLineM4 = FinalizeLine8bitM4; break;
-    case PDF_RGB555: FinalizeLineM4 = FinalizeLineRGB555M4;
-                     line_offset = 0 /* done in FinalizeLine */; break;
+    case PDF_RGB555: FinalizeLineM4 = FinalizeLineRGB555M4; break;
     default:         FinalizeLineM4 = NULL;
                      PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328); break;
   }
+  rendstatus_old = -1;
 }
 
 // vim:shiftwidth=2:ts=2:expandtab

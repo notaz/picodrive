@@ -172,6 +172,7 @@ void plat_video_set_buffer(void *buf)
 static void apply_renderer(void)
 {
 	PicoIn.opt &= ~(POPT_ALT_RENDERER|POPT_EN_SOFTSCALE|POPT_DIS_32C_BORDER);
+
 	switch (get_renderer()) {
 	case RT_16BIT:
 		// 32X uses line mode for vscaling with accurate renderer, since
@@ -195,7 +196,7 @@ static void apply_renderer(void)
 
 	if (PicoIn.AHW & PAHW_32X)
 		PicoDrawSetOutBuf(screen_buffer(g_screen_ptr), g_screen_ppitch * 2);
-	else if (is_16bit_mode()) {
+	if (is_16bit_mode()) {
 		if (currentConfig.scaling == EOPT_SCALE_SW) {
 			PicoIn.opt |= POPT_EN_SOFTSCALE;
 			PicoIn.filter = currentConfig.filter;
@@ -324,7 +325,6 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	// center output in screen
 	screen_w = g_screen_width,  screen_x = (screen_w - out_w)/2;
 	screen_h = g_screen_height, screen_y = (screen_h - out_h)/2;
-
 
 	switch (currentConfig.scaling) {
 	case EOPT_SCALE_HW:
