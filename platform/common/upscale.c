@@ -25,6 +25,11 @@
  * 160x144 -> 320x240: GG, PAR 6:5, scaling to 320x240 for DAR 4:3
  * 
  * (C) 2021 kub <derkub@gmail.com>
+ *
+ * This work is licensed under the terms of any of these licenses
+ * (at your option):
+ *  - GNU GPL, version 2 or later.
+ *  - MAME license.
  */
 
 #include "upscale.h"
@@ -371,7 +376,7 @@ void upscale_rgb_bl2_y_16_17(u16 *__restrict di, int ds, u8 *__restrict si, int 
 		for (j = 0; j < 12; j++) {
 			h_copy(di, ds, si, ss, width, f_pal);
 		}
-		/* mix lines 3-10 */
+		/* mix lines 4-11 */
 		di -= 13*ds;
 			v_mix(&di[0], &di[-ds], &di[ds], width, p_05, f_nop);
 		for (j = 0; j < 7; j++) {

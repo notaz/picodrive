@@ -27,7 +27,10 @@
  *
  * (C) 2021 kub <derkub@gmail.com>
  *
- * This work is licensed under the terms of MAME license.
+ * This work is licensed under the terms of any of these licenses
+ * (at your option):
+ *  - GNU GPL, version 2 or later.
+ *  - MAME license.
  * See COPYING file in the top-level directory.
  */
 #include <pico/pico_types.h>
