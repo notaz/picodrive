@@ -61,7 +61,7 @@
     ldr     r0, [r1, #OFS_EST_DrawLineDest]
     ldr     r2, [r1, #OFS_EST_DrawLineDestIncr]
     add     r0, r0, r2
-    str     r0, [r1]
+    str     r0, [r1, #OFS_EST_DrawLineDest]
     ldmfd   sp!, {r0-r3}
 .endif
 .endm
