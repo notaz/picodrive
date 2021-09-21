@@ -26,6 +26,9 @@ void carthw_Xin1_startup(void);
 void carthw_realtec_startup(void);
 void carthw_radica_startup(void);
 void carthw_pier_startup(void);
+void carthw_sf001_startup(void);
+void carthw_sf002_startup(void);
+void carthw_sf004_startup(void);
 
 void carthw_sprot_startup(void);
 void carthw_sprot_new_location(unsigned int a,

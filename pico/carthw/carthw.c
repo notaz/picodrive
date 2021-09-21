@@ -483,7 +483,7 @@ void carthw_pier_startup(void)
   carthw_chunks     = carthw_pier_state;
 }
 
-/* superfighter mappers */
+/* superfighter mappers, see mame: mame/src/devices/bus/megadrive/rom.cpp */
 unsigned int carthw_sf00x_reg;
 
 static carthw_state_chunk carthw_sf00x_state[] =
@@ -492,37 +492,39 @@ static carthw_state_chunk carthw_sf00x_state[] =
 	{ 0,            0,                         NULL }
 };
 
-// hack to remap SRAM from 0x400000 to 0x3c0000 (there are 2 versions of sf001)
-u32 carthw_sf001_read8_sram(u32 a)
+// SF-001
+
+// additionally map SRAM at 0x3c0000 for the newer version of sf001
+static u32 carthw_sf001_read8_sram(u32 a)
 {
-  return m68k_read8((a & 0xffff) + 0x400000);
+  return m68k_read8((a & 0xffff) + Pico.sv.start);
 }
 
-u32 carthw_sf001_read16_sram(u32 a)
+static u32 carthw_sf001_read16_sram(u32 a)
 {
-  return m68k_read16((a & 0xffff) + 0x400000);
+  return m68k_read16((a & 0xffff) + Pico.sv.start);
 }
 
-void carthw_sf001_write8_sram(u32 a, u32 d)
+static void carthw_sf001_write8_sram(u32 a, u32 d)
 {
-  m68k_write8((a & 0xffff) + 0x400000, d);
+  m68k_write8((a & 0xffff) + Pico.sv.start, d);
 }
 
-void carthw_sf001_write16_sram(u32 a, u32 d)
+static void carthw_sf001_write16_sram(u32 a, u32 d)
 {
-  m68k_write16((a & 0xffff) + 0x400000, d);
+  m68k_write16((a & 0xffff) + Pico.sv.start, d);
 }
 
-void carthw_sf001_write8(u32 a, u32 d)
+static void carthw_sf001_write8(u32 a, u32 d)
 {
-  if ((a & 0xf00) != 0x0e00)
+  if ((a & 0xf00) != 0xe00 || (carthw_sf00x_reg & 0x20)) // wrong addr / locked
     return;
 
   if (d & 0x80) {
     // bank 0xe at addr 0x000000
     cpu68k_map_set(m68k_read8_map,  0x000000, 0x040000-1, Pico.rom+0x380000, 0);
     cpu68k_map_set(m68k_read16_map, 0x000000, 0x040000-1, Pico.rom+0x380000, 0);
-    // SRAM at 0x3c0000; hack to map SRAM from old to new location
+    // SRAM also at 0x3c0000 for newer mapper version
     cpu68k_map_set(m68k_read8_map,  0x3c0000, 0x400000-1, carthw_sf001_read8_sram, 1);
     cpu68k_map_set(m68k_read16_map, 0x3c0000, 0x400000-1, carthw_sf001_read16_sram, 1);
     cpu68k_map_set(m68k_write8_map, 0x3c0000, 0x400000-1, carthw_sf001_write8_sram, 1);
@@ -540,25 +542,29 @@ void carthw_sf001_write8(u32 a, u32 d)
   carthw_sf00x_reg = d;
 }
 
-void carthw_sf001_write16(u32 a, u32 d)
+static void carthw_sf001_write16(u32 a, u32 d)
 {
   carthw_sf001_write8(a + 1, d);
 }
 
 static void carthw_sf001_mem_setup(void)
 {
+  // writing to low cartridge addresses
   cpu68k_map_set(m68k_write8_map,  0x000000, 0x00ffff, carthw_sf001_write8, 1);
   cpu68k_map_set(m68k_write16_map, 0x000000, 0x00ffff, carthw_sf001_write16, 1);
 }
 
 static void carthw_sf001_reset(void)
 {
+  carthw_sf00x_reg = 0;
   carthw_sf001_write8(0x0e01, 0);
 }
 
 static void carthw_sf001_statef(void)
 {
-  carthw_sf001_write8(0x0e01, carthw_sf00x_reg);
+  int reg = carthw_sf00x_reg;
+  carthw_sf00x_reg = 0;
+  carthw_sf001_write8(0x0e01, reg);
 }
 
 void carthw_sf001_startup(void)
@@ -569,10 +575,11 @@ void carthw_sf001_startup(void)
   carthw_chunks     = carthw_sf00x_state;
 }
 
+// SF-002
 
-void carthw_sf002_write8(u32 a, u32 d)
+static void carthw_sf002_write8(u32 a, u32 d)
 {
-  if ((a & 0xf00) != 0x0e00)
+  if ((a & 0xf00) != 0xe00)
     return;
 
   if (d & 0x80) {
@@ -587,13 +594,14 @@ void carthw_sf002_write8(u32 a, u32 d)
   carthw_sf00x_reg = d;
 }
 
-void carthw_sf002_write16(u32 a, u32 d)
+static void carthw_sf002_write16(u32 a, u32 d)
 {
   carthw_sf002_write8(a + 1, d);
 }
 
 static void carthw_sf002_mem_setup(void)
 {
+  // writing to low cartridge addresses
   cpu68k_map_set(m68k_write8_map,  0x000000, 0x00ffff, carthw_sf002_write8, 1);
   cpu68k_map_set(m68k_write16_map, 0x000000, 0x00ffff, carthw_sf002_write16, 1);
 }
@@ -613,6 +621,104 @@ void carthw_sf002_startup(void)
   PicoCartMemSetup  = carthw_sf002_mem_setup;
   PicoResetHook     = carthw_sf002_reset;
   PicoLoadStateHook = carthw_sf002_statef;
+  carthw_chunks     = carthw_sf00x_state;
+}
+
+// SF-004
+
+// reading from cartridge I/O region returns the current bank index
+static u32 carthw_sf004_read8(u32 a)
+{
+  if ((a & ~0xff) == 0xa13000)
+    return carthw_sf00x_reg & 0xf0; // bank index
+  return PicoRead8_io(a);
+}
+
+static u32 carthw_sf004_read16(u32 a)
+{
+  if ((a & ~0xff) == 0xa13000)
+    return carthw_sf00x_reg & 0xf0;
+  return PicoRead16_io(a);
+}
+
+// writing to low cartridge adresses changes mappings
+static void carthw_sf004_write8(u32 a, u32 d)
+{
+  int idx, i;
+  unsigned bs = 0x40000; // bank size
+
+  // there are 3 byte-sized regs, stored together in carthw_sf00x_reg
+  if (!(carthw_sf00x_reg & 0x8000))
+    return; // locked
+
+  switch (a & 0xf00) {
+  case 0xd00:
+    carthw_sf00x_reg = (carthw_sf00x_reg & ~0xff0000) | ((d & 0xff) << 16);
+    return PicoWrite8_io(0xa130f1, (d & 0x80) ? SRR_MAPPED : 0); // SRAM mapping
+  case 0xe00:
+    carthw_sf00x_reg = (carthw_sf00x_reg & ~0x00ff00) | ((d & 0xff) << 8);
+    break;
+  case 0xf00:
+    carthw_sf00x_reg = (carthw_sf00x_reg & ~0x0000ff) | ((d & 0xff) << 0);
+    break;
+  default:
+    return; // wrong addr
+  }
+
+  // bank mapping changed
+  idx = ((carthw_sf00x_reg>>4) & 0x7); // bank index
+  if ((carthw_sf00x_reg>>8) & 0x40) {
+    // linear bank mapping, starting at idx
+    for (i = 0; i < 8; i++, idx = (idx+1) & 0x7) {
+      cpu68k_map_set(m68k_read8_map,  i*bs, (i+1)*bs-1, Pico.rom + idx*bs, 0);
+      cpu68k_map_set(m68k_read16_map, i*bs, (i+1)*bs-1, Pico.rom + idx*bs, 0);
+    }
+  } else {
+    // single bank mapping
+    for (i = 0; i < 8; i++) {
+      cpu68k_map_set(m68k_read8_map,  i*bs, (i+1)*bs-1, Pico.rom + idx*bs, 0);
+      cpu68k_map_set(m68k_read16_map, i*bs, (i+1)*bs-1, Pico.rom + idx*bs, 0);
+    }
+  }
+}
+
+static void carthw_sf004_write16(u32 a, u32 d)
+{
+  carthw_sf004_write8(a + 1, d);
+}
+
+static void carthw_sf004_mem_setup(void)
+{
+  // writing to low cartridge addresses
+  cpu68k_map_set(m68k_write8_map,  0x000000, 0x00ffff, carthw_sf004_write8, 1);
+  cpu68k_map_set(m68k_write16_map, 0x000000, 0x00ffff, carthw_sf004_write16, 1);
+  // reading from the cartridge I/O region
+  cpu68k_map_set(m68k_read8_map,   0xa10000, 0xa1ffff, carthw_sf004_read8, 1);
+  cpu68k_map_set(m68k_read16_map,  0xa10000, 0xa1ffff, carthw_sf004_read16, 1);
+}
+
+static void carthw_sf004_reset(void)
+{
+  carthw_sf00x_reg = -1;
+  carthw_sf004_write8(0x0d01, 0);
+  carthw_sf004_write8(0x0f01, 0);
+  carthw_sf004_write8(0x0e01, 0x80);
+}
+
+static void carthw_sf004_statef(void)
+{
+  int reg = carthw_sf00x_reg;
+  carthw_sf00x_reg = -1;
+  carthw_sf004_write8(0x0d01, reg >> 16);
+  carthw_sf004_write8(0x0f01, reg >> 0);
+  carthw_sf004_write8(0x0e01, reg >> 8);
+}
+
+void carthw_sf004_startup(void)
+{
+  PicoCartMemSetup  = carthw_sf004_mem_setup;
+  PicoResetHook     = carthw_sf004_reset;
+  PicoLoadStateHook = carthw_sf004_statef;
   carthw_chunks     = carthw_sf00x_state;
 }
 
