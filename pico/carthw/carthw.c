@@ -35,7 +35,7 @@ void carthw_ssf2_write8(u32 a, u32 d)
 {
   u32 target, base;
 
-  if ((a & ~0x0e) != 0xa130f1) {
+  if ((a & ~0x0e) != 0xa130f1 || a == 0xa130f1) {
     PicoWrite8_io(a, d);
     return;
   }
