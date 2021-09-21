@@ -777,7 +777,7 @@ PICO_INTERNAL void PicoMemSetup(void)
 
   // Common case of on-cart (save) RAM, usually at 0x200000-...
   if ((Pico.sv.flags & SRF_ENABLED) && Pico.sv.data != NULL) {
-    sstart = Pico.sv.start;
+    sstart = Pico.sv.start & ~mask;
     rs = Pico.sv.end - sstart;
     rs = (rs + mask) & ~mask;
     if (sstart + rs >= 0x1000000)

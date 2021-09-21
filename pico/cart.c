@@ -1133,6 +1133,10 @@ static void parse_carthw(const char *carthw_cfg, int *fill_sram,
         carthw_radica_startup();
       else if (strcmp(p, "piersolar_mapper") == 0)
         carthw_pier_startup();
+      else if (strcmp(p, "sf001_mapper") == 0)
+        carthw_sf001_startup();
+      else if (strcmp(p, "sf002_mapper") == 0)
+        carthw_sf002_startup();
       else if (strcmp(p, "prot_lk3") == 0)
         carthw_prot_lk3_startup();
       else {

@@ -483,6 +483,139 @@ void carthw_pier_startup(void)
   carthw_chunks     = carthw_pier_state;
 }
 
+/* superfighter mappers */
+unsigned int carthw_sf00x_reg;
+
+static carthw_state_chunk carthw_sf00x_state[] =
+{
+	{ CHUNK_CARTHW, sizeof(carthw_sf00x_reg), &carthw_sf00x_reg },
+	{ 0,            0,                         NULL }
+};
+
+// hack to remap SRAM from 0x400000 to 0x3c0000 (there are 2 versions of sf001)
+u32 carthw_sf001_read8_sram(u32 a)
+{
+  return m68k_read8((a & 0xffff) + 0x400000);
+}
+
+u32 carthw_sf001_read16_sram(u32 a)
+{
+  return m68k_read16((a & 0xffff) + 0x400000);
+}
+
+void carthw_sf001_write8_sram(u32 a, u32 d)
+{
+  m68k_write8((a & 0xffff) + 0x400000, d);
+}
+
+void carthw_sf001_write16_sram(u32 a, u32 d)
+{
+  m68k_write16((a & 0xffff) + 0x400000, d);
+}
+
+void carthw_sf001_write8(u32 a, u32 d)
+{
+  if ((a & 0xf00) != 0x0e00)
+    return;
+
+  if (d & 0x80) {
+    // bank 0xe at addr 0x000000
+    cpu68k_map_set(m68k_read8_map,  0x000000, 0x040000-1, Pico.rom+0x380000, 0);
+    cpu68k_map_set(m68k_read16_map, 0x000000, 0x040000-1, Pico.rom+0x380000, 0);
+    // SRAM at 0x3c0000; hack to map SRAM from old to new location
+    cpu68k_map_set(m68k_read8_map,  0x3c0000, 0x400000-1, carthw_sf001_read8_sram, 1);
+    cpu68k_map_set(m68k_read16_map, 0x3c0000, 0x400000-1, carthw_sf001_read16_sram, 1);
+    cpu68k_map_set(m68k_write8_map, 0x3c0000, 0x400000-1, carthw_sf001_write8_sram, 1);
+    cpu68k_map_set(m68k_write16_map,0x3c0000, 0x400000-1, carthw_sf001_write16_sram, 1);
+  } else {
+    // bank 0x0 at addr 0x000000
+    cpu68k_map_set(m68k_read8_map,  0x000000, 0x040000-1, Pico.rom, 0);
+    cpu68k_map_set(m68k_read16_map, 0x000000, 0x040000-1, Pico.rom, 0);
+    // SRAM off, bank 0xf at addr 0x3c0000
+    cpu68k_map_set(m68k_read8_map,  0x3c0000, 0x400000-1, Pico.rom+0x3c0000, 0);
+    cpu68k_map_set(m68k_read16_map, 0x3c0000, 0x400000-1, Pico.rom+0x3c0000, 0);
+    cpu68k_map_set(m68k_write8_map, 0x3c0000, 0x400000-1, Pico.rom+0x3c0000, 0);
+    cpu68k_map_set(m68k_write16_map,0x3c0000, 0x400000-1, Pico.rom+0x3c0000, 0);
+  }
+  carthw_sf00x_reg = d;
+}
+
+void carthw_sf001_write16(u32 a, u32 d)
+{
+  carthw_sf001_write8(a + 1, d);
+}
+
+static void carthw_sf001_mem_setup(void)
+{
+  cpu68k_map_set(m68k_write8_map,  0x000000, 0x00ffff, carthw_sf001_write8, 1);
+  cpu68k_map_set(m68k_write16_map, 0x000000, 0x00ffff, carthw_sf001_write16, 1);
+}
+
+static void carthw_sf001_reset(void)
+{
+  carthw_sf001_write8(0x0e01, 0);
+}
+
+static void carthw_sf001_statef(void)
+{
+  carthw_sf001_write8(0x0e01, carthw_sf00x_reg);
+}
+
+void carthw_sf001_startup(void)
+{
+  PicoCartMemSetup  = carthw_sf001_mem_setup;
+  PicoResetHook     = carthw_sf001_reset;
+  PicoLoadStateHook = carthw_sf001_statef;
+  carthw_chunks     = carthw_sf00x_state;
+}
+
+
+void carthw_sf002_write8(u32 a, u32 d)
+{
+  if ((a & 0xf00) != 0x0e00)
+    return;
+
+  if (d & 0x80) {
+    // bank 0x00-0x0e on addr 0x20000
+    cpu68k_map_set(m68k_read8_map,  0x200000, 0x3c0000-1, Pico.rom, 0);
+    cpu68k_map_set(m68k_read16_map, 0x200000, 0x3c0000-1, Pico.rom, 0);
+  } else {
+    // bank 0x10-0x1e on addr 0x20000
+    cpu68k_map_set(m68k_read8_map,  0x200000, 0x3c0000-1, Pico.rom+0x200000, 0);
+    cpu68k_map_set(m68k_read16_map, 0x200000, 0x3c0000-1, Pico.rom+0x200000, 0);
+  }
+  carthw_sf00x_reg = d;
+}
+
+void carthw_sf002_write16(u32 a, u32 d)
+{
+  carthw_sf002_write8(a + 1, d);
+}
+
+static void carthw_sf002_mem_setup(void)
+{
+  cpu68k_map_set(m68k_write8_map,  0x000000, 0x00ffff, carthw_sf002_write8, 1);
+  cpu68k_map_set(m68k_write16_map, 0x000000, 0x00ffff, carthw_sf002_write16, 1);
+}
+
+static void carthw_sf002_reset(void)
+{
+  carthw_sf002_write8(0x0e01, 0);
+}
+
+static void carthw_sf002_statef(void)
+{
+  carthw_sf002_write8(0x0e01, carthw_sf00x_reg);
+}
+
+void carthw_sf002_startup(void)
+{
+  PicoCartMemSetup  = carthw_sf002_mem_setup;
+  PicoResetHook     = carthw_sf002_reset;
+  PicoLoadStateHook = carthw_sf002_statef;
+  carthw_chunks     = carthw_sf00x_state;
+}
+
 /* Simple unlicensed ROM protection emulation */
 static struct {
   u32 addr;
