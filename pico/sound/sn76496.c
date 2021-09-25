@@ -90,7 +90,6 @@ void SN76496Write(int data)
 		case 4:	/* tone 2 : frequency */
 			R->Period[c] = R->UpdateStep * data;
 			if (R->Period[c] == 0) R->Period[c] = R->UpdateStep;
-			R->Count[c] = 0;
 			if (r == 4)
 			{
 				/* update noise shift frequency */
@@ -109,8 +108,7 @@ void SN76496Write(int data)
 			R->NoiseFB = (n & 4) ? FB_WNOISE : FB_PNOISE;
 			n &= 3;
 			/* N/512,N/1024,N/2048,Tone #3 output */
-			R->Period[3] = (n == 3) ? 2 * R->Period[2] : (R->UpdateStep << (4 + n));
-			R->Count[3] = 0;
+			R->Period[3] = 2 * (n == 3 ? R->Period[2] : R->UpdateStep << (4 + n));
 
 			/* reset noise shifter */
 			R->RNG = FB_PNOISE;
@@ -156,7 +154,7 @@ void SN76496Update(short *buffer, int length, int stereo)
 			/* If we exit the loop in the middle, Output[i] has to be inverted */
 			/* and vol[i] incremented only if the exit status of the square */
 			/* wave is 1. */
-			if (R->Count[i] < -2*R->Period[i]) {
+			if (R->Count[i] < -2*R->Period[i] || R->Volume[i] == 0) {
 				/* Cut of anything above the Nyquist freqency */
 				/* It will only create aliasing anyway */
 				vol[i] += STEP/2; // mean value
@@ -200,7 +198,7 @@ void SN76496Update(short *buffer, int length, int stereo)
 			}
 
 			left -= nextevent;
-		} while (left > 0);
+		} while (left > 0 && R->Volume[3]);
 		if (R->Output[3]) vol[3] -= R->Count[3];
 
 		out = vol[0] * R->Volume[0] + vol[1] * R->Volume[1] +
