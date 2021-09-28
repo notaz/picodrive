@@ -90,6 +90,7 @@ void SN76496Write(int data)
 		case 4:	/* tone 2 : frequency */
 			R->Period[c] = R->UpdateStep * data;
 			if (R->Period[c] == 0) R->Period[c] = R->UpdateStep;
+			if (R->Count[c] > R->Period[c]) R->Count[c] = R->Period[c];
 			if (r == 4)
 			{
 				/* update noise shift frequency */
@@ -155,8 +156,9 @@ void SN76496Update(short *buffer, int length, int stereo)
 			/* and vol[i] incremented only if the exit status of the square */
 			/* wave is 1. */
 			if (R->Count[i] < -2*R->Period[i] || R->Volume[i] == 0) {
-				/* Cut of anything above the Nyquist freqency */
-				/* It will only create aliasing anyway */
+				/* Cut off anything above the Nyquist frequency. */
+				/* It will only create aliasing anyway. This is actually an */
+				/* ideal lowpass filter with Nyquist corner frequency. */
 				vol[i] += STEP/2; // mean value
 				R->Count[i] = R->Output[i] = 0;
 			}
