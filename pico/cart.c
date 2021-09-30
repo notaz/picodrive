@@ -772,7 +772,7 @@ int PicoCartLoad(pm_file *f,unsigned char **prom,unsigned int *psize,int is_sms)
       ret = pm_read(p,todo,f);
       bytes_read += ret;
       p += ret;
-      PicoCartLoadProgressCB(bytes_read * 100 / size);
+      PicoCartLoadProgressCB(bytes_read * 100LL / size);
     }
     while (ret > 0);
   }
