@@ -161,20 +161,24 @@ PICO_INTERNAL void PsndDoDAC(int cyc_to)
   Pico.snd.dac_val = dout;
 }
 
-PICO_INTERNAL void PsndDoPSG(int line_to)
+PICO_INTERNAL void PsndDoPSG(int cyc_to)
 {
   int pos, len;
   int stereo = 0;
 
-  // Q16, number of samples since last call
-  len = ((line_to+1) * Pico.snd.smpl_mult) - Pico.snd.psg_pos;
-  if (len <= 0)
-    return;
+  // number of samples to fill in buffer (Q20)
+  len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.psg_pos;
 
   // update position and calculate buffer offset and length
-  pos = (Pico.snd.psg_pos+0x8000) >> 16;
+  pos = (Pico.snd.psg_pos+0x80000) >> 20;
   Pico.snd.psg_pos += len;
-  len = ((Pico.snd.psg_pos+0x8000) >> 16) - pos;
+  len = ((Pico.snd.psg_pos+0x80000) >> 20) - pos;
+
+  // avoid loss of the 1st sample of a new block (Q rounding issues)
+  if (pos+len == 0)
+    len = 1, Pico.snd.psg_pos += 0x80000;
+  if (len <= 0)
+    return;
 
   if (!PicoIn.sndOut || !(PicoIn.opt & POPT_EN_PSG))
     return;
@@ -187,21 +191,25 @@ PICO_INTERNAL void PsndDoPSG(int line_to)
 }
 
 #if 0
-PICO_INTERNAL void PsndDoYM2413(int line_to)
+PICO_INTERNAL void PsndDoYM2413(int cyc_to)
 {
   int pos, len;
   int stereo = 0;
   short *buf;
 
-  // Q16, number of samples since last call
-  len = ((line_to+1) * Pico.snd.smpl_mult) - Pico.snd.ym2413_pos;
-  if (len <= 0)
-    return;
+  // number of samples to fill in buffer (Q20)
+  len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.ym2413_pos;
 
   // update position and calculate buffer offset and length
-  pos = (Pico.snd.ym2413_pos+0x8000) >> 16;
+  pos = (Pico.snd.ym2413_pos+0x80000) >> 20;
   Pico.snd.ym2413_pos += len;
-  len = ((Pico.snd.ym2413_pos+0x8000) >> 16) - pos;
+  len = ((Pico.snd.ym2413_pos+0x80000) >> 20) - pos;
+
+  // avoid loss of the 1st sample of a new block (Q rounding issues)
+  if (pos+len == 0)
+    len = 1, Pico.snd.ym2413_pos += 0x80000;
+  if (len <= 0)
+    return;
 
   if (!PicoIn.sndOut || !(PicoIn.opt & POPT_EN_YM2413))
     return;

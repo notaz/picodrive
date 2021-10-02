@@ -394,13 +394,11 @@ void NOINLINE ctl_write_z80reset(u32 d)
   }
 }
 
-static int get_scanline(int is_from_z80);
-
 static void psg_write_68k(u32 d)
 {
   // look for volume write and update if needed
   if ((d & 0x90) == 0x90)
-    PsndDoPSG(Pico.m.scanline);
+    PsndDoPSG(z80_cycles_from_68k());
 
   SN76496Write(d);
 }
@@ -408,8 +406,7 @@ static void psg_write_68k(u32 d)
 static void psg_write_z80(u32 d)
 {
   if ((d & 0x90) == 0x90) {
-    int scanline = get_scanline(1);
-    PsndDoPSG(scanline);
+    PsndDoPSG(z80_cyclesDone());
   }
 
   SN76496Write(d);
