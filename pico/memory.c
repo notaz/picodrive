@@ -396,19 +396,13 @@ void NOINLINE ctl_write_z80reset(u32 d)
 
 static void psg_write_68k(u32 d)
 {
-  // look for volume write and update if needed
-  if ((d & 0x90) == 0x90)
-    PsndDoPSG(z80_cycles_from_68k());
-
+  PsndDoPSG(z80_cycles_from_68k());
   SN76496Write(d);
 }
 
 static void psg_write_z80(u32 d)
 {
-  if ((d & 0x90) == 0x90) {
-    PsndDoPSG(z80_cyclesDone());
-  }
-
+  PsndDoPSG(z80_cyclesDone());
   SN76496Write(d);
 }
 

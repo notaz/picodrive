@@ -202,8 +202,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
 
       case 0x40:
       case 0x41:
-        if ((d & 0x90) == 0x90)
-          PsndDoPSG(Pico.m.scanline);
+        PsndDoPSG(z80_cyclesDone());
         SN76496Write(d);
         break;
 
@@ -373,6 +372,7 @@ void PicoFrameMS(void)
     }
 
     cycles_aim += cycles_line;
+    Pico.t.z80c_aim = cycles_aim >> 8;
     cycles_done += z80_run((cycles_aim - cycles_done) >> 8) << 8;
   }
 
