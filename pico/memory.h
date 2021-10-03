@@ -38,7 +38,7 @@ extern void s68k_write16(u32 a, u16 d);
 extern void s68k_write32(u32 a, u32 d);
 
 // z80
-#define Z80_MEM_SHIFT 13
+#define Z80_MEM_SHIFT 10 // must be <=10 to allow 1KB pages for SMS Sega mapper
 extern uptr z80_read_map [0x10000 >> Z80_MEM_SHIFT];
 extern uptr z80_write_map[0x10000 >> Z80_MEM_SHIFT];
 typedef unsigned char (z80_read_f)(unsigned short a);

@@ -219,17 +219,30 @@ static void z80_sms_out(unsigned short a, unsigned char d)
 
 static int bank_mask;
 
+static void xwrite(unsigned int a, unsigned char d);
+
+static void write_sram(unsigned short a, unsigned char d)
+{
+  // SRAM is mapped in 2 16KB banks, selected by bit 2 in control reg
+  a &= 0x3fff;
+  a += ((Pico.ms.carthw[0x0c] & 0x04) >> 2) * 0x4000;
+
+  Pico.sv.changed |= (Pico.sv.data[a] != d);
+  Pico.sv.data[a] = d;
+}
+
 static void write_bank(unsigned short a, unsigned char d)
 {
   elprintf(EL_Z80BNK, "bank %04x %02x @ %04x", a, d, z80_pc());
+  Pico.ms.carthw[a & 0x0f] = d;
   switch (a & 0x0f)
   {
-    case 0x0c:
-      elprintf(EL_STATUS|EL_ANOMALY, "%02x written to control reg!", d);
-      break;
     case 0x0d:
-      if (d != 0)
-        elprintf(EL_STATUS|EL_ANOMALY, "bank0 changed to %d!", d);
+      d &= bank_mask;
+      z80_map_set(z80_read_map, 0x0400, 0x3fff, Pico.rom+0x400 + (d << 14), 0);
+#ifdef _USE_CZ80
+      Cz80_Set_Fetch(&CZ80, 0x0400, 0x3fff, (FPTR)Pico.rom+0x400 + (d << 14));
+#endif
       break;
     case 0x0e:
       d &= bank_mask;
@@ -238,15 +251,29 @@ static void write_bank(unsigned short a, unsigned char d)
       Cz80_Set_Fetch(&CZ80, 0x4000, 0x7fff, (FPTR)Pico.rom + (d << 14));
 #endif
       break;
+
+    case 0x0c:
+      if (d & ~0x8c)
+        elprintf(EL_STATUS|EL_ANOMALY, "%02x written to control reg!", d);
+      /*FALLTHROUGH*/
     case 0x0f:
-      d &= bank_mask;
-      z80_map_set(z80_read_map, 0x8000, 0xbfff, Pico.rom + (d << 14), 0);
+      if (Pico.ms.carthw[0xc] & 0x08) {
+        d = (Pico.ms.carthw[0xc] & 0x04) >> 2;
+        z80_map_set(z80_read_map, 0x8000, 0xbfff, Pico.sv.data + d*0x4000, 0);
 #ifdef _USE_CZ80
-      Cz80_Set_Fetch(&CZ80, 0x8000, 0xbfff, (FPTR)Pico.rom + (d << 14));
+        Cz80_Set_Fetch(&CZ80, 0x8000, 0xbfff, (FPTR)Pico.sv.data + d*0x4000);
 #endif
+        z80_map_set(z80_write_map, 0x8000, 0xbfff, write_sram, 1);
+      } else {
+        d = Pico.ms.carthw[0xf] & bank_mask;
+        z80_map_set(z80_read_map, 0x8000, 0xbfff, Pico.rom + (d << 14), 0);
+#ifdef _USE_CZ80
+        Cz80_Set_Fetch(&CZ80, 0x8000, 0xbfff, (FPTR)Pico.rom + (d << 14));
+#endif
+        z80_map_set(z80_write_map, 0x8000, 0xbfff, xwrite, 1);
+      }
       break;
   }
-  Pico.ms.carthw[a & 0x0f] = d;
 }
 
 static void xwrite(unsigned int a, unsigned char d)
@@ -256,6 +283,16 @@ static void xwrite(unsigned int a, unsigned char d)
     PicoMem.zram[a & 0x1fff] = d;
   if (a >= 0xfff8)
     write_bank(a, d);
+  // codemasters
+  if (a == 0x0000)
+    write_bank(0xfffd, d);
+  if (a == 0x4000)
+    write_bank(0xfffe, d);
+  if (a == 0x8000)
+    write_bank(0xffff, d);
+  // korean
+  if (a == 0xa000)
+    write_bank(0xffff, d);
 }
 
 void PicoResetMS(void)
@@ -284,6 +321,8 @@ void PicoPowerMS(void)
   tmp = 1 << s;
   bank_mask = (tmp - 1) >> 14;
 
+  Pico.ms.carthw[0x0c] = 0;
+  Pico.ms.carthw[0x0d] = 0;
   Pico.ms.carthw[0x0e] = 1;
   Pico.ms.carthw[0x0f] = 2;
 
@@ -315,6 +354,8 @@ void PicoMemSetupMS(void)
 
 void PicoStateLoadedMS(void)
 {
+  write_bank(0xfffc, Pico.ms.carthw[0x0c]);
+  write_bank(0xfffd, Pico.ms.carthw[0x0d]);
   write_bank(0xfffe, Pico.ms.carthw[0x0e]);
   write_bank(0xffff, Pico.ms.carthw[0x0f]);
 }

@@ -59,7 +59,8 @@ extern "C" {
 /* Z80 core Structures & definitions */
 /*************************************/
 
-#define CZ80_FETCH_BITS			4   // [4-12]   default = 8
+// NB this must have at least the value of (16-Z80_MEM_SHIFT)
+#define CZ80_FETCH_BITS			6   // [4-12]   default = 8
 
 #define CZ80_FETCH_SFT			(16 - CZ80_FETCH_BITS)
 #define CZ80_FETCH_BANK			(1 << CZ80_FETCH_BITS)

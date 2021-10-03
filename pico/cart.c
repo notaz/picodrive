@@ -34,6 +34,7 @@ void (*PicoCDLoadProgressCB)(const char *fname, int percent) = NULL; // handled 
 int PicoGameLoaded;
 
 static void PicoCartDetect(const char *carthw_cfg);
+static void PicoCartDetectMS(void);
 
 /* cso struct */
 typedef struct _cso_struct
@@ -850,6 +851,8 @@ int PicoCartInsert(unsigned char *rom, unsigned int romsize, const char *carthw_
 
   if (!(PicoIn.AHW & (PAHW_MCD|PAHW_SMS)))
     PicoCartDetect(carthw_cfg);
+  else if (PicoIn.AHW & PAHW_SMS)
+    PicoCartDetectMS();
 
   // setup correct memory map for loaded ROM
   switch (PicoIn.AHW) {
@@ -1320,4 +1323,17 @@ static void PicoCartDetect(const char *carthw_cfg)
     *(u32 *) (Pico.rom + 0x1f0) = CPU_LE4(0x20204520);
 }
 
+static void PicoCartDetectMS(void)
+{
+  memset(&Pico.sv, 0, sizeof(Pico.sv));
+
+  // Always map SRAM, since there's no indicator in ROM if it's needed or not
+  // TODO: this should somehow be coming from a cart database!
+
+  Pico.sv.size  = 0x8000; // Sega mapper, 2 banks of 16 KB each
+  Pico.sv.flags |= SRF_ENABLED;
+  Pico.sv.data = calloc(Pico.sv.size, 1);
+  if (Pico.sv.data == NULL)
+    Pico.sv.flags &= ~SRF_ENABLED;
+}
 // vim:shiftwidth=2:expandtab
