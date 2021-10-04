@@ -20,7 +20,7 @@
       .equiv DRZ80_XMAP_MORE_INLINE, 1
 
 .if DRZ80_XMAP
-      .equ Z80_MEM_SHIFT, 13
+      .equ Z80_MEM_SHIFT, 10
 .endif
 
 .if INTERRUPT_MODE
