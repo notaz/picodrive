@@ -232,12 +232,14 @@ static void DrawDisplayM4(int scanline)
 
   // Find the line in the name table
   line = pv->reg[9] + scanline; // vscroll + scanline
-  if (line >= 224)
-    line -= 224;
+  line &= 0xff;
 
   // Find name table:
   nametab = PicoMem.vram;
-  nametab += (pv->reg[2] & 0x0e) << (10-1);
+  if ((Pico.video.reg[0] & 6) == 6 && (Pico.video.reg[1] & 0x18))
+    nametab += ((pv->reg[2] & 0x0c) << (10-1)) + (0x700 >> 1);
+  else
+    nametab += (pv->reg[2] & 0x0e) << (10-1);
   nametab += (line>>3) << (6-1);
 
   dx = pv->reg[8]; // hscroll
@@ -276,7 +278,7 @@ static void DrawDisplayM4(int scanline)
 static void FinalizeLineRGB555M4(int line);
 void PicoFrameStartMode4(void)
 {
-  int lines = 192, coffs;
+  int lines = 192, columns = 256, coffs;
   skip_next_line = 0;
   screen_offset = 24;
   Pico.est.rendstatus = PDRAW_32_COLS;
@@ -291,13 +293,18 @@ void PicoFrameStartMode4(void)
       lines = 224;
     }
   }
-  line_offset = PicoIn.opt & (POPT_DIS_32C_BORDER|POPT_EN_SOFTSCALE) ? 0 : 32;
+  if (PicoIn.opt & POPT_EN_SOFTSCALE) {
+    line_offset = 0;
+    columns = 320;
+  } else
+    line_offset = PicoIn.opt & POPT_DIS_32C_BORDER ? 0 : 32;
+
   coffs = line_offset;
   if (FinalizeLineM4 == FinalizeLineRGB555M4)
     line_offset = 0 /* done in FinalizeLine */;
 
   if (Pico.est.rendstatus != rendstatus_old || lines != rendlines) {
-    emu_video_mode_change(screen_offset, lines, coffs, 256);
+    emu_video_mode_change(screen_offset, lines, coffs, columns);
     rendstatus_old = Pico.est.rendstatus;
     rendlines = lines;
   }
