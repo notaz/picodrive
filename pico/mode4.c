@@ -232,14 +232,18 @@ static void DrawDisplayM4(int scanline)
 
   // Find the line in the name table
   line = pv->reg[9] + scanline; // vscroll + scanline
-  line &= 0xff;
 
   // Find name table:
   nametab = PicoMem.vram;
-  if ((Pico.video.reg[0] & 6) == 6 && (Pico.video.reg[1] & 0x18))
+  if ((pv->reg[0] & 6) == 6 && (pv->reg[1] & 0x18)) {
+    line &= 0xff;
     nametab += ((pv->reg[2] & 0x0c) << (10-1)) + (0x700 >> 1);
-  else
+  } else {
+    while (line >= 224) line -= 224;
     nametab += (pv->reg[2] & 0x0e) << (10-1);
+    // old SMS only, masks line:7 with reg[2]:0 for address calculation
+    //if ((pv->reg[2] & 0x01) == 0) line &= 0x7f;
+  }
   nametab += (line>>3) << (6-1);
 
   dx = pv->reg[8]; // hscroll

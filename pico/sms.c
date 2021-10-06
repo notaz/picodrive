@@ -380,8 +380,8 @@ void PicoFrameMS(void)
     z80_nmi();
   Pico.ms.nmi_state = nmi;
 
-  if ((Pico.video.reg[0] & 6) == 6 && (Pico.video.reg[1] & 0x18))
-    lines_vis = (Pico.video.reg[1] & 0x08) ? 240 : 224;
+  if ((pv->reg[0] & 6) == 6 && (pv->reg[1] & 0x18))
+    lines_vis = (pv->reg[1] & 0x08) ? 240 : 224;
   PicoFrameStartMode4();
   hint = pv->reg[0x0a];
 
