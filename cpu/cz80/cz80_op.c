@@ -686,8 +686,8 @@ OP_CCF:
 
 	OP(0x76):   // HALT
 OP_HALT:
-		CPU->HaltState = 1;
-		goto Cz80_Check_Interrupt;
+		CPU->Status |= CZ80_HALTED;
+		RET(4)
 
 	OP(0xf3):   // DI
 OP_DI:
@@ -709,9 +709,12 @@ OP_EI:
 				zR++;
 #endif
 			}
-			afterEI = 1;
-			CPU->ExtraCycles += 1 - CPU->ICount;
-			CPU->ICount = 1;
+			if (CPU->IRQState)
+			{
+				CPU->Status |= CZ80_HAS_INT;
+				CPU->ExtraCycles -= CPU->ICount;
+				CPU->ICount = 0;
+			}
 		}
 		else zIFF2 = (1 << 2);
 		goto Cz80_Exec_nocheck;

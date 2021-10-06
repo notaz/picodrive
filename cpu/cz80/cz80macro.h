@@ -90,7 +90,7 @@
 		if (CPU->IRQState == HOLD_LINE)				\
 			CPU->IRQState = CLEAR_LINE;			\
 									\
-		CPU->HaltState = 0;					\
+		CPU->Status &= ~(CZ80_HALTED|CZ80_HAS_INT);		\
 		zIFF1 = zIFF2 = 0;					\
 		IntVect = CPU->Interrupt_Callback(CPU->IRQLine);	\
 									\

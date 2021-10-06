@@ -170,6 +170,10 @@ extern "C" {
 #define CZ80_IFF_SFT	CZ80_PF_SFT
 #define CZ80_IFF		CZ80_PF
 
+#define	CZ80_HAS_INT	0x1
+#define	CZ80_HAS_NMI	0x2
+#define	CZ80_HALTED	0x4
+
 #ifndef IRQ_LINE_STATE
 #define IRQ_LINE_STATE
 #define CLEAR_LINE		0		/* clear (a fired, held or pulsed) line */
@@ -247,7 +251,7 @@ typedef struct cz80_t
 
 	UINT8 I;
 	UINT8 IM;
-	UINT8 HaltState;
+	UINT8 Status;
 	UINT8 dummy;
 
 	INT32 IRQLine;
