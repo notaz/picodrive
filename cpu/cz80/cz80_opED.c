@@ -491,27 +491,23 @@ OP_LDX:
 -----------------------------------------*/
 
 	OPED(0xb0): // LDIR
-		if (zBC != 1)
-			PC -= 2;
 		do
 		{
 			val = READ_MEM8(zHL++);
 			WRITE_MEM8(zDE++, val);
 			zBC--;
 			USE_CYCLES(21)
-		} while (zBC > 1 && (CPU->ICount > 0) && !CPU->Status);
+		} while (zBC && (CPU->ICount > -4) && !CPU->Status);
 		goto OP_LDXR;
 
 	OPED(0xb8): // LDDR
-		if (zBC != 1)
-			PC -= 2;
 		do
 		{
 			val = READ_MEM8(zHL--);
 			WRITE_MEM8(zDE--, val);
 			zBC--;
 			USE_CYCLES(21)
-		} while (zBC > 1 && (CPU->ICount > 0) && !CPU->Status);
+		} while (zBC && (CPU->ICount > -4) && !CPU->Status);
 
 OP_LDXR:
 		F = zF & (SF | ZF | CF);
@@ -520,6 +516,7 @@ OP_LDXR:
 		if (zBC)
 		{
 			zF = F | VF;
+			PC -= 2;
 #if CZ80_EMULATE_R_EXACTLY
 			zR--;
 #endif
@@ -556,8 +553,6 @@ OP_CPX:
 -----------------------------------------*/
 
 	OPED(0xb1): // CPIR
-		if (zBC != 1)
-			PC -= 2;
 		do
 		{
 			val = READ_MEM8(zHL++);
@@ -570,12 +565,10 @@ OP_CPX:
 			if (zBC) F |= VF;
 			zF = F;
 			USE_CYCLES(21)
-		} while (zBC > 1 && !(F & ZF) && (CPU->ICount > 0) && !CPU->Status);
+		} while (zBC && !(F & ZF) && (CPU->ICount > -4) && !CPU->Status);
 		goto OP_CPXR;
 
 	OPED(0xb9): // CPDR
-		if (zBC != 1)
-			PC -= 2;
 		do
 		{
 			val = READ_MEM8(zHL--);
@@ -588,11 +581,12 @@ OP_CPX:
 			if (zBC) F |= VF;
 			zF = F;
 			USE_CYCLES(21)
-		} while (zBC > 1 && !(F & ZF) && (CPU->ICount > 0) && !CPU->Status);
+		} while (zBC && !(F & ZF) && (CPU->ICount > -4) && !CPU->Status);
 
 OP_CPXR:
 		if (zBC && !(F & ZF))
 		{
+			PC -= 2;
 #if CZ80_EMULATE_R_EXACTLY
 			zR--;
 #endif
@@ -631,27 +625,23 @@ OP_INX:
 -----------------------------------------*/
 
 	OPED(0xb2): // INIR
-		if (zB != 1)
-			PC -= 2;
 		do
 		{
 			val = IN(zBC);
 			zB--;
 			WRITE_MEM8(zHL++, val);
 			USE_CYCLES(21)
-		} while (zB > 1 && (CPU->ICount > 0) && !CPU->Status);
+		} while (zB && (CPU->ICount > -4) && !CPU->Status);
 		goto OP_INXR;
 
 	OPED(0xba): // INDR
-		if (zB != 1)
-			PC -= 2;
 		do
 		{
 			val = IN(zBC);
 			zB--;
 			WRITE_MEM8(zHL--, val);
 			USE_CYCLES(21)
-		} while (zB > 1 && (CPU->ICount > 0) && !CPU->Status);
+		} while (zB && (CPU->ICount > -4) && !CPU->Status);
 
 OP_INXR:
 		F = SZ[zB];
@@ -662,6 +652,7 @@ OP_INXR:
 		zF = F;
 		if (zB)
 		{
+			PC -= 2;
 #if CZ80_EMULATE_R_EXACTLY
 			zR--;
 #endif
@@ -700,27 +691,23 @@ OP_OUTX:
 -----------------------------------------*/
 
 	OPED(0xb3): // OTIR
-		if (zB != 1)
-			PC -= 2;
 		do
 		{
 			val = READ_MEM8(zHL++);
 			zB--;
 			OUT(zBC, val);
 			USE_CYCLES(21)
-		} while (zB > 1 && (CPU->ICount > 0) && !CPU->Status);
+		} while (zB && (CPU->ICount > -4) && !CPU->Status);
 		goto OP_OTXR;
 
 	OPED(0xbb): // OTDR
-		if (zB != 1)
-			PC -= 2;
 		do
 		{
 			val = READ_MEM8(zHL--);
 			zB--;
 			OUT(zBC, val);
 			USE_CYCLES(21)
-		} while (zB > 1 && (CPU->ICount > 0) && !CPU->Status);
+		} while (zB && (CPU->ICount > -4) && !CPU->Status);
 
 OP_OTXR:
 		F = SZ[zB];
@@ -731,6 +718,7 @@ OP_OTXR:
 		zF = F;
 		if (zB)
 		{
+			PC -= 2;
 #if CZ80_EMULATE_R_EXACTLY
 			zR--;
 #endif
