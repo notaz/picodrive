@@ -57,6 +57,10 @@ void z80_map_set(uptr *map, int start_addr, int end_addr,
     const void *func_or_mh, int is_func)
 {
   xmap_set(map, Z80_MEM_SHIFT, start_addr, end_addr, func_or_mh, is_func);
+#ifdef _USE_CZ80
+  if (!is_func)
+    Cz80_Set_Fetch(&CZ80, start_addr, end_addr, (FPTR)func_or_mh);
+#endif
 }
 
 void cpu68k_map_set(uptr *map, int start_addr, int end_addr,
@@ -1290,8 +1294,6 @@ static void z80_mem_setup(void)
   drZ80.z80_out = z80_md_out;
 #endif
 #ifdef _USE_CZ80
-  Cz80_Set_Fetch(&CZ80, 0x0000, 0x1fff, (FPTR)PicoMem.zram); // main RAM
-  Cz80_Set_Fetch(&CZ80, 0x2000, 0x3fff, (FPTR)PicoMem.zram); // mirror
   Cz80_Set_INPort(&CZ80, z80_md_in);
   Cz80_Set_OUTPort(&CZ80, z80_md_out);
 #endif

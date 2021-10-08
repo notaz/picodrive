@@ -347,7 +347,8 @@ struct PicoMS
   unsigned char carthw[0x10];
   unsigned char io_ctl;
   unsigned char nmi_state;
-  unsigned char pad[0x4e];
+  unsigned char mapper;
+  unsigned char pad[0x4d];
 };
 
 // emu state and data for the asm code

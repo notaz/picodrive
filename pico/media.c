@@ -35,8 +35,8 @@ static int detect_media(const char *fname)
 {
   static const short sms_offsets[] = { 0x7ff0, 0x3ff0, 0x1ff0 };
   static const char *sms_exts[] = { "sms", "gg", "sg" };
-  static const char *md_exts[] = { "gen", "bin", "smd" };
-  char buff0[32], buff[32];
+  static const char *md_exts[] = { "gen", "smd" };
+  char buff0[512], buff[32];
   unsigned short *d16;
   pm_file *pmf;
   char ext[5];
@@ -56,7 +56,7 @@ static int detect_media(const char *fname)
   if (pmf == NULL)
     return PM_BAD_DETECT;
 
-  if (pm_read(buff0, 32, pmf) != 32) {
+  if (pm_read(buff0, 512, pmf) != 512) {
     pm_close(pmf);
     return PM_BAD_DETECT;
   }
@@ -109,6 +109,11 @@ extension_check:
   d16 = (unsigned short *)(buff0 + 4);
   if ((((d16[0] << 16) | d16[1]) & 0xffffff) >= pmf->size) {
     lprintf("bad MD reset vector, assuming SMS\n");
+    goto looks_like_sms;
+  }
+  d16 = (unsigned short *)(buff0 + 0x1a0);
+  if ((((d16[0] << 16) | d16[1]) & 0xffffff) != 0) {
+    lprintf("bad MD rom start, assuming SMS\n");
     goto looks_like_sms;
   }
 

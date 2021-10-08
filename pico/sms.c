@@ -8,7 +8,6 @@
 /*
  * TODO:
  * - start in a state as if BIOS ran
- * - RAM support in mapper
  * - region support
  * - H counter
  */
@@ -231,7 +230,8 @@ static void write_sram(unsigned short a, unsigned char d)
   Pico.sv.data[a] = d;
 }
 
-static void write_bank(unsigned short a, unsigned char d)
+// 16KB bank mapping for Sega mapper
+static void write_bank_sega(unsigned short a, unsigned char d)
 {
   elprintf(EL_Z80BNK, "bank %04x %02x @ %04x", a, d, z80_pc());
   Pico.ms.carthw[a & 0x0f] = d;
@@ -240,16 +240,10 @@ static void write_bank(unsigned short a, unsigned char d)
     case 0x0d:
       d &= bank_mask;
       z80_map_set(z80_read_map, 0x0400, 0x3fff, Pico.rom+0x400 + (d << 14), 0);
-#ifdef _USE_CZ80
-      Cz80_Set_Fetch(&CZ80, 0x0400, 0x3fff, (FPTR)Pico.rom+0x400 + (d << 14));
-#endif
       break;
     case 0x0e:
       d &= bank_mask;
       z80_map_set(z80_read_map, 0x4000, 0x7fff, Pico.rom + (d << 14), 0);
-#ifdef _USE_CZ80
-      Cz80_Set_Fetch(&CZ80, 0x4000, 0x7fff, (FPTR)Pico.rom + (d << 14));
-#endif
       break;
 
     case 0x0c:
@@ -260,39 +254,50 @@ static void write_bank(unsigned short a, unsigned char d)
       if (Pico.ms.carthw[0xc] & 0x08) {
         d = (Pico.ms.carthw[0xc] & 0x04) >> 2;
         z80_map_set(z80_read_map, 0x8000, 0xbfff, Pico.sv.data + d*0x4000, 0);
-#ifdef _USE_CZ80
-        Cz80_Set_Fetch(&CZ80, 0x8000, 0xbfff, (FPTR)Pico.sv.data + d*0x4000);
-#endif
         z80_map_set(z80_write_map, 0x8000, 0xbfff, write_sram, 1);
       } else {
         d = Pico.ms.carthw[0xf] & bank_mask;
         z80_map_set(z80_read_map, 0x8000, 0xbfff, Pico.rom + (d << 14), 0);
-#ifdef _USE_CZ80
-        Cz80_Set_Fetch(&CZ80, 0x8000, 0xbfff, (FPTR)Pico.rom + (d << 14));
-#endif
         z80_map_set(z80_write_map, 0x8000, 0xbfff, xwrite, 1);
       }
       break;
   }
 }
 
+// 8KB ROM mapping for MSX mapper
+static void write_bank_msx(unsigned short a, unsigned char d)
+{
+  Pico.ms.mapper = 1; // TODO define (more) mapper types
+  Pico.ms.carthw[a] = d;
+
+  a = (a^2)*0x2000 + 0x4000;
+  d &= 2*bank_mask + 1;
+  z80_map_set(z80_read_map, a, a+0x1fff, Pico.rom + (d << 13), 0);
+}
+
+// TODO mapping is currently auto-selecting, but that's not very reliable.
 static void xwrite(unsigned int a, unsigned char d)
 {
   elprintf(EL_IO, "z80 write [%04x] %02x", a, d);
   if (a >= 0xc000)
     PicoMem.zram[a & 0x1fff] = d;
-  if (a >= 0xfff8)
-    write_bank(a, d);
-  // codemasters
-  if (a == 0x0000)
-    write_bank(0xfffd, d);
+
+  // Sega. Maps 4 bank 16KB each
+  if (a >= 0xfff8 /*&& !Pico.ms.mapper*/)
+    write_bank_sega(a, d);
+  // Codemasters. Similar to Sega, but different addresses
+  if (a == 0x0000 && !Pico.ms.mapper)
+    write_bank_sega(0xfffd, d);
   if (a == 0x4000)
-    write_bank(0xfffe, d);
+    write_bank_sega(0xfffe, d);
   if (a == 0x8000)
-    write_bank(0xffff, d);
-  // korean
+    write_bank_sega(0xffff, d);
+  // Korean. 1 selectable 16KB bank at the top
   if (a == 0xa000)
-    write_bank(0xffff, d);
+    write_bank_sega(0xffff, d);
+  // MSX. 4 selectable 8KB banks at the top
+  if (a <= 0x0003 && (a || Pico.ms.mapper))
+    write_bank_msx(a, d);
 }
 
 void PicoResetMS(void)
@@ -300,6 +305,10 @@ void PicoResetMS(void)
   z80_reset();
   PsndReset(); // pal must be known here
   ymflag = 0xffff;
+  Pico.m.dirtyPal = 1;
+
+  // reset memory mapping
+  PicoMemSetupMS();
 }
 
 void PicoPowerMS(void)
@@ -321,11 +330,6 @@ void PicoPowerMS(void)
   tmp = 1 << s;
   bank_mask = (tmp - 1) >> 14;
 
-  Pico.ms.carthw[0x0c] = 0;
-  Pico.ms.carthw[0x0d] = 0;
-  Pico.ms.carthw[0x0e] = 1;
-  Pico.ms.carthw[0x0f] = 2;
-
   PicoReset();
 }
 
@@ -344,20 +348,36 @@ void PicoMemSetupMS(void)
   drZ80.z80_out = z80_sms_out;
 #endif
 #ifdef _USE_CZ80
-  Cz80_Set_Fetch(&CZ80, 0x0000, 0xbfff, (FPTR)Pico.rom);
-  Cz80_Set_Fetch(&CZ80, 0xc000, 0xdfff, (FPTR)PicoMem.zram);
-  Cz80_Set_Fetch(&CZ80, 0xe000, 0xffff, (FPTR)PicoMem.zram);
   Cz80_Set_INPort(&CZ80, z80_sms_in);
   Cz80_Set_OUTPort(&CZ80, z80_sms_out);
 #endif
+
+  // memory mapper setup, linearly mapped, default is Sega mapper
+  Pico.ms.carthw[0x00] = 4;
+  Pico.ms.carthw[0x01] = 5;
+  Pico.ms.carthw[0x02] = 2;
+  Pico.ms.carthw[0x03] = 3;
+
+  Pico.ms.carthw[0x0c] = 0;
+  Pico.ms.carthw[0x0d] = 0;
+  Pico.ms.carthw[0x0e] = 1;
+  Pico.ms.carthw[0x0f] = 2;
+  Pico.ms.mapper = 0;
 }
 
 void PicoStateLoadedMS(void)
 {
-  write_bank(0xfffc, Pico.ms.carthw[0x0c]);
-  write_bank(0xfffd, Pico.ms.carthw[0x0d]);
-  write_bank(0xfffe, Pico.ms.carthw[0x0e]);
-  write_bank(0xffff, Pico.ms.carthw[0x0f]);
+  if (Pico.ms.mapper) {
+    xwrite(0x0000, Pico.ms.carthw[0]);
+    xwrite(0x0001, Pico.ms.carthw[1]);
+    xwrite(0x0002, Pico.ms.carthw[2]);
+    xwrite(0x0003, Pico.ms.carthw[3]);
+  } else {
+    xwrite(0xfffc, Pico.ms.carthw[0x0c]);
+    xwrite(0xfffd, Pico.ms.carthw[0x0d]);
+    xwrite(0xfffe, Pico.ms.carthw[0x0e]);
+    xwrite(0xffff, Pico.ms.carthw[0x0f]);
+  }
 }
 
 void PicoFrameMS(void)
