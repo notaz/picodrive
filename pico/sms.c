@@ -402,7 +402,7 @@ void PicoFrameMS(void)
 
   if ((pv->reg[0] & 6) == 6 && (pv->reg[1] & 0x18))
     lines_vis = (pv->reg[1] & 0x08) ? 240 : 224;
-  PicoFrameStartMode4();
+  PicoFrameStartSMS();
   hint = pv->reg[0x0a];
 
   for (y = 0; y < lines; y++)
@@ -412,7 +412,7 @@ void PicoFrameMS(void)
       pv->v_counter = y - 6;
 
     if (y < lines_vis && !skip)
-      PicoLineMode4(y);
+      PicoLineSMS(y);
 
     if (y <= lines_vis)
     {
@@ -448,10 +448,10 @@ void PicoFrameDrawOnlyMS(void)
   int lines_vis = 192;
   int y;
 
-  PicoFrameStartMode4();
+  PicoFrameStartSMS();
 
   for (y = 0; y < lines_vis; y++)
-    PicoLineMode4(y);
+    PicoLineSMS(y);
 }
 
 // vim:ts=2:sw=2:expandtab

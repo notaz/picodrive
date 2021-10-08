@@ -687,10 +687,10 @@ void PicoDraw2Init(void);
 PICO_INTERNAL void PicoFrameFull();
 
 // mode4.c
-void PicoFrameStartMode4(void);
-void PicoLineMode4(int line);
-void PicoDoHighPal555M4(void);
-void PicoDrawSetOutputMode4(pdso_t which);
+void PicoFrameStartSMS(void);
+void PicoLineSMS(int line);
+void PicoDoHighPal555SMS(void);
+void PicoDrawSetOutputSMS(pdso_t which);
 
 // memory.c
 PICO_INTERNAL void PicoMemSetup(void);

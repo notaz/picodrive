@@ -1988,7 +1988,7 @@ void PicoDrawUpdateHighPal(void)
       sh = 0; // no s/h support
 
     if (PicoIn.AHW & PAHW_SMS)
-      PicoDoHighPal555M4();
+      PicoDoHighPal555SMS();
     else if (FinalizeLine == FinalizeLine8bit)
       PicoDoHighPal555_8bit(sh, 0, est);
     else
@@ -2027,7 +2027,7 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
   }
   if (PicoIn.AHW & PAHW_32X)
     PicoDrawSetOutFormat32x(which, use_32x_line_mode);
-  PicoDrawSetOutputMode4(which);
+  PicoDrawSetOutputSMS(which);
   rendstatus_old = -1;
   Pico.m.dirtyPal = 1;
 }
@@ -2038,7 +2038,7 @@ void PicoDrawSetOutBufMD(void *dest, int increment)
     // kludge for no-copy mode, using ALT_RENDERER layout
     PicoDrawSetInternalBuf(dest, increment);
   } else if (FinalizeLine == NULL) {
-    PicoDrawSetInternalBuf(dest, increment); // needed for Mode4
+    PicoDrawSetInternalBuf(dest, increment); // needed for SMS
     PicoDraw2SetOutBuf(dest, increment);
   } else if (dest != NULL) {
     DrawLineDestBase = dest;
