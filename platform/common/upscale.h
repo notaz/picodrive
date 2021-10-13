@@ -35,12 +35,20 @@
  */
 #include <pico/pico_types.h>
 
+
+/* LSB of all colors in a pixel */
+#if defined(USE_BGR555)
+#define PXLSB		0x0421
+#else
+#define PXLSB		0x0821
+#endif
+
 /* RGB565 pixel mixing, see https://www.compuphase.com/graphic/scale3.htm and
   			    http://blargg.8bitalley.com/info/rgb_mixing.html */
 /* 2-level mixing */
-//#define p_05(d,p1,p2)	d=(((p1)+(p2)  + ( ((p1)^(p2))&0x0821))>>1) // round up
-//#define p_05(d,p1,p2)	d=(((p1)+(p2)  - ( ((p1)^(p2))&0x0821))>>1) // round down
-#define p_05(d,p1,p2)	d=(((p1)&(p2)) + ((((p1)^(p2))&~0x0821)>>1))
+//#define p_05(d,p1,p2)	d=(((p1)+(p2)  + ( ((p1)^(p2))&PXLSB))>>1) // round up
+//#define p_05(d,p1,p2)	d=(((p1)+(p2)  - ( ((p1)^(p2))&PXLSB))>>1) // round down
+#define p_05(d,p1,p2)	d=(((p1)&(p2)) + ((((p1)^(p2))&~PXLSB)>>1))
 /* 4-level mixing, 2 times slower */
 // 1/4*p1 + 3/4*p2 = 1/2*(1/2*(p1+p2) + p2)
 #define p_025(d,p1,p2)	p_05(t, p1, p2); p_05( d, t, p2)
@@ -322,6 +330,21 @@ scalers h:
 	si += ss - w;					\
 } while (0)
 
+// reverse version for overlapping buffers
+#define rh_upscale_nn_1_2(di,ds,si,ss,w,f) do {	\
+	int i;						\
+	di += w*2;					\
+	si += w;					\
+	for (i = w/2; i > 0; i--, si -= 2, di -= 4) {	\
+		di[-1] = f(si[-1]);			\
+		di[-2] = f(si[-1]);			\
+		di[-3] = f(si[-2]);			\
+		di[-4] = f(si[-2]);			\
+	}						\
+	di += ds;					\
+	si += ss;					\
+} while (0)
+
 #define h_upscale_bl2_1_2(di,ds,si,ss,w,f) do {		\
 	int i; uint p = f(si[0]);			\
 	for (i = w/2; i > 0; i--, si += 2, di += 4) {	\
@@ -514,11 +537,12 @@ scalers v:
 	} else  {					\
 		int j;					\
 		l = 0;					\
-		di -= 4*ds;				\
+		di -= 3*ds;				\
 		for (j = 0; j < 2; j++) {		\
 			v_copy(&di[0], &di[-ds], w, f_nop); \
 			di += 2*ds;			\
 		}					\
+		di -= ds;			\
 	}						\
 } while (0)
 
@@ -528,11 +552,12 @@ scalers v:
 	} else  {					\
 		int j;					\
 		l = 0;					\
-		di -= 4*ds;				\
+		di -= 3*ds;				\
 		for (j = 0; j < 2; j++) {		\
 			v_mix(&di[0], &di[-ds], &di[ds], w, p_05, f_nop); \
 			di += 2*ds;			\
 		}					\
+		di -= ds;			\
 	}						\
 } while (0)
 

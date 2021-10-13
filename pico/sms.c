@@ -52,8 +52,17 @@ static void vdp_data_write(unsigned char d)
   struct PicoVideo *pv = &Pico.video;
 
   if (pv->type == 3) {
-    if (PicoMem.cram[pv->addr & 0x1f] != d) Pico.m.dirtyPal = 1;
-    PicoMem.cram[pv->addr & 0x1f] = d;
+    if (Pico.m.hardware & 0x1) { // GG, same layout as MD
+      unsigned a = pv->addr & 0x3f;
+      if (a & 0x1) d &= 0x0f;
+      if (((u8 *)PicoMem.cram)[MEM_LE2(a)] != d) Pico.m.dirtyPal = 1;
+      ((u8 *)PicoMem.cram)[MEM_LE2(a)] = d;
+    } else { // SMS, convert to MD layout (00BbGgRr to 0000BbBbGgGgRrRr)
+      unsigned a = pv->addr & 0x1f;
+      u16 c = (d&0x30)*0x40 + (d&0x0c)*0x10 + (d&0x03)*0x04;
+      if (PicoMem.cram[a] != (c | (c>>2))) Pico.m.dirtyPal = 1;
+      PicoMem.cram[a] = c | (c>>2);
+    }
   } else {
     PicoMem.vramb[MEM_LE2(pv->addr)] = d;
   }
@@ -130,7 +139,7 @@ static unsigned char z80_sms_in(unsigned short a)
     {
       case 0x00:
       case 0x01:
-        d = 0xff;
+        d = 0xff & ~(PicoIn.pad[0] & 0x80);
         break;
 
       case 0x40: /* V counter */

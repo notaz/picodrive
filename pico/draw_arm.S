@@ -1642,27 +1642,42 @@ FinalizeLine555:
     add     r3, r10, #OFS_EST_HighPal
 
     mov     lr, #0xff
-
-    ldr     r1, [r10, #OFS_EST_HighCol]
-    ldr     r0, [r10, #OFS_EST_DrawLineDest]
-    add     r1, r1, #8
-
-    ldrb    r12, [r8, #OFS_Pico_video_reg+12]
     mov     lr, lr, lsl #1
 
-    tst     r12, #1
-    movne   r2, #320/8           @ len
-    bne     .fl_no32colRGB555
     ldr     r5, [r10, #OFS_EST_PicoOpt]
-    mov     r2, #256/8
+    ldr     r1, [r10, #OFS_EST_HighCol]
+    ldr     r0, [r10, #OFS_EST_DrawLineDest]
     ldr     r4, [r5]
-    tst     r4, #0x4000
-    bne     .fl_32scale_RGB555
-    tst     r4, #0x0100
-    addeq   r0, r0, #32*2
+    ldr     r7, [r5, #OFS_PicoIn_AHW-OFS_PicoIn_opt]
+    ldrb    r12,[r8, #OFS_Pico_video_reg+12]
+    ldr     r2, [r8, #OFS_Pico_m_hardware]
+    add     r1, r1, #8
+
+    tst     r7, #0x10
+    beq     .fl_no20colRGB555
+    and     r7, r2, #0x3
+    cmp     r7, #0x3		@ Game Gear, LCD?
+    bne     .fl_no20colRGB555
+
+    mov     r2, #160/8		@ len = 160
+    tst     r4, #0x4000		@ EN_SOFTSCALE?
+    bne     .fl_20scale_RGB555	@ scale 160->320
+    beq     .fl_checkborder
+
+.fl_no20colRGB555:
+    tst     r12, #1		@ h32?
+    movne   r2, #320/8          @ len = 320
+    bne     .fl_no32colRGB555
+    moveq   r2, #256/8		@ len = 256
+    tst     r4, #0x4000		@ EN_SOFTSCALE?
+    bne     .fl_32scale_RGB555	@ scale 256->320
+
+.fl_checkborder:
+    tst     r4, #0x0100		@ DIS_32C_BORDER?
+    rsbeq   r4, r2, #320/8	@ pd += (320-len)/2
+    addeq   r0, r0, r4, lsl #3
 
 .fl_no32colRGB555:
-
 #ifdef UNALIGNED_DRAWLINEDEST
     @ this is basically for Gizmondo, which has unaligned odd lines in the framebuffer
     tst     r0, #2
@@ -1715,9 +1730,9 @@ FinalizeLine555:
     bne     .fl_32scale_RGB555u
 #endif
 
-    ands    r5, r5, #0x3
-    addne   pc, pc, r5, lsl #2
-    b       .fl_32scale_nn
+    and     r5, r5, #0x3
+    add     pc, pc, r5, lsl #2
+    nop
     b       .fl_32scale_nn
     b       .fl_32scale_snn
     b       .fl_32scale_bl2
@@ -1866,6 +1881,9 @@ FinalizeLine555:
     ldmfd   sp!, {r4-r10,pc}
 
 .fl_32scale_bl4:
+    // TODO this should reflect the bl4 C algorithm, but it doesn't, it's bln.
+    and     r9, r9, r9, lsl #1        @ nuke 2 LSBs to avoid spilling for n/4
+.fl_32loop_bl4:
     ldr     r12, [r1], #4
     ldr     r7,  [r1], #4
 
@@ -1926,9 +1944,146 @@ FinalizeLine555:
     subs    r2, r2, #1
 
     stmia   r0!, {r4,r5,r6,r8,r10}
-    bne     .fl_32scale_bl4
+    bne     .fl_32loop_bl4
 
     ldmfd   sp!, {r4-r10,pc}
+
+.fl_20scale_RGB555:
+    ldr     r5, [r5, #OFS_PicoIn_filter-OFS_PicoIn_opt]
+
+    mov     r9, #0xf700 @ f800 07e0 001f | e000 0780 001c | 3800 01e0 0007
+    orr     r9, r9, #0x00de
+
+#ifdef UNALIGNED_DRAWLINEDEST
+    tst     r0, #2
+    bne     .fl_20scale_RGB555u
+#endif
+
+    and     r5, r5, #0x2
+    add     pc, pc, r5, lsl #1
+    nop
+    b       .fl_20scale_nn
+    b       .fl_20scale_bl2
+
+.fl_20scale_nn:
+    ldr     r12, [r1], #4
+    ldr     r7,  [r1], #4
+
+    and     r4, lr, r12, lsl #1
+    ldrh    r4, [r3, r4]
+    and     r5, lr, r12, lsr #7
+    ldrh    r5, [r3, r5]
+    and     r6, lr, r12, lsr #15
+    ldrh    r6, [r3, r6]
+    and     r8 ,lr, r12, lsr #23
+    ldrh    r8 ,[r3, r8 ]
+
+    orr     r4, r4, r4, lsl #16
+    orr     r5, r5, r5, lsl #16
+    orr     r6, r6, r6, lsl #16
+    orr     r8, r8, r8, lsl #16
+    stmia   r0!, {r4,r5,r6,r8}
+
+    and     r4, lr, r7, lsl #1
+    ldrh    r4, [r3, r4]
+    and     r5, lr, r7, lsr #7
+    ldrh    r5, [r3, r5]
+    and     r6 ,lr, r7, lsr #15
+    ldrh    r6 ,[r3, r6]
+    and     r8, lr, r7, lsr #23
+    ldrh    r8, [r3, r8]
+
+    orr     r4, r4, r4, lsl #16
+    orr     r5, r5, r5, lsl #16
+    orr     r6, r6, r6, lsl #16
+    orr     r8, r8, r8, lsl #16
+    stmia   r0!, {r4,r5,r6,r8}
+
+    subs    r2, r2, #1
+    bne     .fl_20scale_nn
+
+    ldmfd   sp!, {r4-r10,pc}
+
+
+.fl_20scale_bl2:
+    ldr     r8,  [r1]
+    and     r8, lr, r8, lsl #1
+    ldrh    r8, [r3, r8]
+    and     r8, r8, r9
+    lsl     r8, r8, #16
+
+.fl_20loop_bl2:
+    ldr     r12, [r1], #4
+    ldr     r7,  [r1], #4
+
+    and     r4, lr, r12, lsl #1
+    ldrh    r4, [r3, r4]
+    and     r5, lr, r12, lsr #7
+    ldrh    r5, [r3, r5]
+    and     r6, lr, r12, lsr #15
+    ldrh    r6, [r3, r6]
+
+    and     r4, r4, r9
+    add     r10,r4, r8, lsr #16
+    mov     r10,r10,lsr #1
+    orr     r4, r10,r4, lsl #16		@ (px-1+px0)/2 | px0
+
+    and     r8 ,lr, r12, lsr #23
+    ldrh    r8 ,[r3, r8]
+
+    and     r5, r5, r9
+    add     r10,r5, r4, lsr #16
+    mov     r10,r10,lsr #1
+    orr     r5, r10,r5, lsl #16		@ (px0 +px1)/2 | px1
+
+    and     r6, r6, r9
+    add     r10,r6, r5, lsr #16
+    mov     r10,r10,lsr #1
+    orr     r6, r10,r6, lsl #16		@ (px1 +px2)/2 | px2
+
+    and     r8, r8, r9
+    add     r10,r8, r6, lsr #16
+    mov     r10,r10,lsr #1
+    orr     r8, r10,r8, lsl #16		@ (px2 +px3)/2 | px3
+
+    stmia   r0!, {r4,r5,r6,r8}
+
+    and     r4, lr, r7, lsl #1
+    ldrh    r4, [r3, r4]
+    and     r5, lr, r7, lsr #7
+    ldrh    r5, [r3, r5]
+    and     r6, lr, r7, lsr #15
+    ldrh    r6, [r3, r6]
+
+    and     r4, r4, r9
+    add     r10,r4, r8, lsr #16
+    mov     r10,r10,lsr #1
+    orr     r4, r10,r4, lsl #16		@ (px-1+px0)/2 | px0
+
+    and     r8 ,lr, r7, lsr #23
+    ldrh    r8 ,[r3, r8]
+
+    and     r5, r5, r9
+    add     r10,r5, r4, lsr #16
+    mov     r10,r10,lsr #1
+    orr     r5, r10,r5, lsl #16		@ (px0 +px1)/2 | px1
+
+    and     r6, r6, r9
+    add     r10,r6, r5, lsr #16
+    mov     r10,r10,lsr #1
+    orr     r6, r10,r6, lsl #16		@ (px1 +px2)/2 | px2
+
+    and     r8, r8, r9
+    add     r10,r8, r6, lsr #16
+    mov     r10,r10,lsr #1
+    orr     r8, r10,r8, lsl #16		@ (px2 +px3)/2 | px3
+
+    subs    r2, r2, #1
+    stmia   r0!, {r4,r5,r6,r8}
+    bne     .fl_20loop_bl2
+
+    ldmfd   sp!, {r4-r10,pc}
+
 
 #ifdef UNALIGNED_DRAWLINEDEST
     @ unaligned versions of loops

@@ -95,7 +95,7 @@ static void draw_cd_leds(void)
  * for display isn't always possible.
  */
 
-static u16 *screen_buffer(u16 *buf)
+static inline u16 *screen_buffer(u16 *buf)
 {
 	return buf + screen_y * g_screen_ppitch + screen_x -
 			(out_y * g_screen_ppitch + out_x);
@@ -105,34 +105,46 @@ void screen_blit(u16 *pd, int pp, u8* ps, int ss, u16 *pal)
 {
 	typedef void (*upscale_t)
 			(u16 *di,int ds, u8 *si,int ss, int w,int h, u16 *pal);
-	upscale_t upscale_hv[] = {
+	static const upscale_t upscale_256_224_hv[] = {
 		upscale_rgb_nn_x_4_5_y_16_17,	upscale_rgb_snn_x_4_5_y_16_17,
 		upscale_rgb_bl2_x_4_5_y_16_17,	upscale_rgb_bl4_x_4_5_y_16_17,
 	};
-	upscale_t upscale_h[] = {
+	static const upscale_t upscale_256_224_h[] = {
 		upscale_rgb_nn_x_4_5,		upscale_rgb_snn_x_4_5,
 		upscale_rgb_bl2_x_4_5,		upscale_rgb_bl4_x_4_5,
 	};
-	upscale_t upscale_v[] = {
+	static const upscale_t upscale_256_224_v[] = {
 		upscale_rgb_nn_y_16_17,		upscale_rgb_snn_y_16_17,
 		upscale_rgb_bl2_y_16_17,	upscale_rgb_bl4_y_16_17,
 	};
-	upscale_t *upscale;
+	static const upscale_t upscale_160_144_hv[] = {
+		upscale_rgb_nn_x_1_2_y_3_5,	upscale_rgb_nn_x_1_2_y_3_5,
+		upscale_rgb_bl2_x_1_2_y_3_5,	upscale_rgb_bl4_x_1_2_y_3_5,
+	};
+	static const upscale_t upscale_160_144_h[] = {
+		upscale_rgb_nn_x_1_2,		upscale_rgb_nn_x_1_2,
+		upscale_rgb_bl2_x_1_2,		upscale_rgb_bl2_x_1_2,
+	};
+	static const upscale_t upscale_160_144_v[] = {
+		upscale_rgb_nn_y_3_5,		upscale_rgb_nn_y_3_5,
+		upscale_rgb_bl2_y_3_5,		upscale_rgb_bl4_y_3_5,
+	};
+	const upscale_t *upscale;
 	int y;
 
 	// handle software upscaling
 	upscale = NULL;
-	if (currentConfig.scaling == EOPT_SCALE_SW && out_w == 256) {
-		if (currentConfig.vscaling == EOPT_SCALE_SW && out_h <= 224)
-			// h+v scaling
-			upscale = upscale_hv;
-		else
-			// h scaling
-			upscale = upscale_h;
-	} else if (currentConfig.vscaling == EOPT_SCALE_SW && out_h <= 224) {
-			// v scaling
-			upscale = upscale_v;
-	} else {
+	if (currentConfig.scaling == EOPT_SCALE_SW) {
+	    if (currentConfig.vscaling == EOPT_SCALE_SW && out_h <= 224)
+		// h+v scaling
+		upscale = out_w == 256 ? upscale_256_224_hv: upscale_160_144_hv;
+	    else
+		// h scaling
+		upscale = out_w == 256 ? upscale_256_224_h : upscale_160_144_h;
+	} else if (currentConfig.vscaling == EOPT_SCALE_SW && out_h <= 224)
+		// v scaling
+		upscale = out_w == 256 ? upscale_256_224_v : upscale_160_144_v;
+	if (!upscale) {
 		// no scaling
 		for (y = 0; y < out_h; y++)
 			h_copy(pd, pp, ps, 328, out_w, f_pal);
@@ -280,16 +292,16 @@ static int vscale_state;
 
 static int cb_vscaling_begin(unsigned int line)
 {
-	static int prevline = 999;
-
 	// at start of new frame?
-	if (line < prevline) {
-		// set y frame offset (see emu_change_video_mode)
+	if (line <= out_y) {
+		// set y frame offset (see emu_video_mode_change)
 		Pico.est.DrawLineDest = screen_buffer(g_screen_ptr) +
-				(out_y * g_screen_ppitch + out_x);
+				(out_y * g_screen_ppitch /*+ out_x*/);
 		vscale_state = 0;
-	}
-	prevline = line;
+		return out_y - line;
+	} else if (line > out_y + out_h)
+		return 1;
+
 	return 0;
 }
 
@@ -301,16 +313,25 @@ static int cb_vscaling_nop(unsigned int line)
 static int cb_vscaling_end(unsigned int line)
 {
 	u16 *dest = Pico.est.DrawLineDest;
-	switch (currentConfig.filter) {
-	case 3: v_upscale_bl4_16_17(dest, g_screen_ppitch, 320, vscale_state);
-		break;
-	case 2: v_upscale_bl2_16_17(dest, g_screen_ppitch, 320, vscale_state);
-		break;
-	case 1: v_upscale_snn_16_17(dest, g_screen_ppitch, 320, vscale_state);
-		break;
-	default: v_upscale_nn_16_17(dest, g_screen_ppitch, 320, vscale_state);
-		break;
-	}
+
+	if (out_h == 144)
+	  switch (currentConfig.filter) {
+	  case 0: v_upscale_nn_3_5(dest, g_screen_ppitch, 320, vscale_state);
+		  break;
+	  default: v_upscale_snn_3_5(dest, g_screen_ppitch, 320, vscale_state);
+		  break;
+	  }
+	else
+	  switch (currentConfig.filter) {
+	  case 3: v_upscale_bl4_16_17(dest, g_screen_ppitch, 320, vscale_state);
+		  break;
+	  case 2: v_upscale_bl2_16_17(dest, g_screen_ppitch, 320, vscale_state);
+		  break;
+	  case 1: v_upscale_snn_16_17(dest, g_screen_ppitch, 320, vscale_state);
+		  break;
+	  default: v_upscale_nn_16_17(dest, g_screen_ppitch, 320, vscale_state);
+		  break;
+	  }
 	Pico.est.DrawLineDest = dest;
 	return 0;
 }
@@ -337,10 +358,10 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	}
 	switch (currentConfig.vscaling) {
 	case EOPT_SCALE_HW:
-		screen_h = (out_h < 224 ? 224 : out_h);
+		screen_h = (out_h < 224 && out_h > 144 ? 224 : out_h);
 		screen_y = 0;
 		// NTSC always has 224 visible lines, anything smaller has bars
-		if (out_h < 224)
+		if (out_h < 224 && out_h > 144)
 			screen_y += (224 - out_h)/2;
 		// handle vertical centering for 16 bit mode
 		if (is_16bit_mode())
@@ -349,7 +370,7 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	case EOPT_SCALE_SW:
 		screen_y = (screen_h - 240)/2;
 		// NTSC always has 224 visible lines, anything smaller has bars
-		if (out_h < 224)
+		if (out_h < 224 && out_h > 144)
 			screen_y += (224 - out_h)/2;
 		// in 16 bit mode sw scaling is divided between core and platform
 		if (is_16bit_mode() && out_h < 240)

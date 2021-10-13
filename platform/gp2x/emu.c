@@ -105,7 +105,7 @@ static void change_renderer(int diff)
 }
 
 #define is_16bit_mode() \
-	(currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X))
+	(currentConfig.renderer == RT_16BIT || (PicoIn.AHW & PAHW_32X) || doing_bg_frame)
 
 static void (*osd_text)(int x, int y, const char *text);
 
@@ -248,7 +248,7 @@ static int EmuScanEnd8_rot(unsigned int num)
 
 /* line doublers */
 static unsigned int ld_counter;
-static int ld_left, ld_lines;
+static int ld_left, ld_lines; // numbers in Q1 format
 
 static int EmuScanBegin16_ld(unsigned int num)
 {
@@ -271,9 +271,9 @@ static int EmuScanEnd16_ld(unsigned int num)
 		emu_scan_end(ld_counter);
 
 	ld_counter++;
-	ld_left--;
+	ld_left -= 2;
 	if (ld_left <= 0) {
-		ld_left = ld_lines;
+		ld_left += ld_lines;
 
 		EmuScanBegin16_ld(num);
 		memcpy(Pico.est.DrawLineDest, oldline, 320 * gp2x_current_bpp / 8);
@@ -313,6 +313,7 @@ static int make_local_pal_md(int fast_mode)
 	else if (Pico.video.reg[0xC] & 8) { // shadow/hilight mode
 		bgr444_to_rgb32(localPal, Pico.est.SonicPal);
 		bgr444_to_rgb32_sh(localPal, Pico.est.SonicPal);
+		memcpy(localPal+0xc0, localPal, 0x40*4); // for spr prio mess
 	}
 	else {
 		bgr444_to_rgb32(localPal, Pico.est.SonicPal);
@@ -331,18 +332,7 @@ static int make_local_pal_md(int fast_mode)
 
 static int make_local_pal_sms(int fast_mode)
 {
-	unsigned short *spal = PicoMem.cram;
-	unsigned int *dpal = (void *)localPal;
-	unsigned int i, t;
-
-	for (i = 0x40; i > 0; i--) {
-		t = *spal++;
-		t = ((t & 0x0003) << 22) | ((t & 0x000c) << 12) | ((t & 0x0030) << 2);
-		t |= t >> 2;
-		t |= t >> 4;
-		*dpal++ = t;
-	}
-
+	bgr444_to_rgb32(localPal, PicoMem.cram);
 	Pico.m.dirtyPal = 0;
 	return 0x40;
 }
@@ -486,6 +476,9 @@ static void vid_reset_mode(void)
 	int gp2x_mode = 16;
 	int renderer = get_renderer();
 
+	if (doing_bg_frame)
+		renderer = RT_16BIT;
+
 	PicoIn.opt &= ~POPT_ALT_RENDERER;
 	emu_scan_begin = NULL;
 	emu_scan_end = NULL;
@@ -557,11 +550,13 @@ static void vid_reset_mode(void)
 
 	Pico.m.dirtyPal = 1;
 
-	PicoIn.opt &= ~POPT_EN_SOFTSCALE;
+	PicoIn.opt &= ~(POPT_DIS_32C_BORDER|POPT_EN_SOFTSCALE);
 	if (currentConfig.scaling == EOPT_SCALE_SW) {
 		PicoIn.opt |= POPT_EN_SOFTSCALE;
 		PicoIn.filter = EOPT_FILTER_BILINEAR2;
-	}
+	} else if (currentConfig.scaling == EOPT_SCALE_HW && is_16bit_mode())
+		// hw scaling, render without any padding
+		PicoIn.opt |= POPT_DIS_32C_BORDER;
 
 	// palette converters for 8bit modes
 	make_local_pal = (PicoIn.AHW & PAHW_SMS) ? make_local_pal_sms : make_local_pal_md;
@@ -572,6 +567,12 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	int scalex = 320, scaley = 240;
 	int ln_offs = 0;
 
+	/* line doubling for swscaling, also needed for bg frames */
+	if (currentConfig.vscaling == EOPT_SCALE_SW && line_count < 240) {
+		ld_lines = ld_left = 2*line_count / (240 - line_count);
+		PicoDrawSetCallbacks(EmuScanBegin16_ld, EmuScanEnd16_ld);
+	}
+
 	if (doing_bg_frame)
 		return;
 
@@ -579,10 +580,8 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 	osd_y = 232;
 
 	/* set up hwscaling here */
-	PicoIn.opt &= ~POPT_DIS_32C_BORDER;
 	if (col_count < 320 && currentConfig.scaling == EOPT_SCALE_HW) {
 		scalex = col_count;
-		PicoIn.opt |= POPT_DIS_32C_BORDER;
 		osd_fps_x = col_count - (320-OSD_FPS_X);
 	}
 
@@ -594,11 +593,6 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 
 	gp2x_video_RGB_setscaling(ln_offs, scalex, scaley);
 
-	/* line doubling */
-	if (currentConfig.vscaling == EOPT_SCALE_SW && line_count < 240) {
-		ld_lines = ld_left = line_count / (240 - line_count);
-		PicoDrawSetCallbacks(EmuScanBegin16_ld, EmuScanEnd16_ld);
-	}
 
 	// clear whole screen in all buffers
 	if (!is_16bit_mode())
@@ -731,6 +725,8 @@ void pemu_forced_frame(int no_scale, int do_emu)
 	doing_bg_frame = 1;
 	PicoDrawSetCallbacks(NULL, NULL);
 	Pico.m.dirtyPal = 1;
+	PicoIn.opt &= ~POPT_DIS_32C_BORDER;
+	gp2x_current_bpp = 16;
 
 	if (!no_scale)
 		no_scale = currentConfig.scaling == EOPT_SCALE_NONE;
@@ -749,6 +745,7 @@ void plat_video_loop_prepare(void)
 	// make sure we are in correct mode
 	change_renderer(0);
 	vid_reset_mode();
+	rendstatus_old = -1;
 }
 
 void pemu_loop_prep(void)

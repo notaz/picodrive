@@ -58,9 +58,6 @@
 .endif
 
     orr     r2,  r2,   r2,  lsr #3
-.if \sh == 1
-    str     r2, [r0, #0x40*2*4]
-.endif
     str     r2, [r0], #4
 .endm
 
@@ -101,10 +98,10 @@ bgr444_to_rgb32_sh:
     subs    r12, r12, #1
 
     ldmia    r1!, {r4-r7}
-    convRGB32_2 r4, 1
-    convRGB32_2 r5, 1
-    convRGB32_2 r6, 1
-    convRGB32_2 r7, 1
+    convRGB32_2 r4, 2
+    convRGB32_2 r5, 2
+    convRGB32_2 r6, 2
+    convRGB32_2 r7, 2
     bgt     .loopRGB32sh
 
     mov     r12, #0x40>>3 @ repeats
@@ -112,10 +109,10 @@ bgr444_to_rgb32_sh:
 
 .loopRGB32hi:
      ldmia    r1!, {r4-r7}
-    convRGB32_2 r4, 2
-    convRGB32_2 r5, 2
-    convRGB32_2 r6, 2
-    convRGB32_2 r7, 2
+    convRGB32_2 r4, 1
+    convRGB32_2 r5, 1
+    convRGB32_2 r6, 1
+    convRGB32_2 r7, 1
 
     subs    r12, r12, #1
     bgt     .loopRGB32hi

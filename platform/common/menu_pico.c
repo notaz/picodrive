@@ -42,7 +42,7 @@ static const char *rom_exts[] = {
 	"bin", "smd", "gen", "md",
 	"iso", "cso", "cue", "chd",
 	"32x",
-	"sms",
+	"sms", "gg",
 	NULL
 };
 
@@ -536,6 +536,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Disable YM2612 SSG-EG",    MA_OPT2_DISABLE_YM_SSG,PicoIn.opt, POPT_DIS_FM_SSGEG),
 	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoIn.opt, POPT_EN_PSG),
 	mee_onoff     ("Emulate YM2413 (FM)",      MA_OPT2_ENABLE_YM2413 ,PicoIn.opt, POPT_EN_YM2413),
+	mee_onoff     ("Emulate Game Gear LCD",    MA_OPT2_ENABLE_GGLCD  ,PicoIn.opt, POPT_EN_GG_LCD),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoIn.opt, POPT_DIS_IDLE_DET),
 	mee_onoff     ("Disable frame limiter",    MA_OPT2_NO_FRAME_LIMIT,currentConfig.EmuOpt, EOPT_NO_FRMLIMIT),
 	mee_onoff     ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoIn.opt, POPT_EN_DRC),

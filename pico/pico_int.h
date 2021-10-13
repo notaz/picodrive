@@ -670,6 +670,7 @@ PICO_INTERNAL void PicoFrameStart(void);
 void PicoDrawSync(int to, int blank_last_line);
 void BackFill(int reg7, int sh, struct PicoEState *est);
 void FinalizeLine555(int sh, int line, struct PicoEState *est);
+void FinalizeLine8bit(int sh, int line, struct PicoEState *est);
 void PicoDrawSetOutBufMD(void *dest, int increment);
 extern int (*PicoScanBegin)(unsigned int num);
 extern int (*PicoScanEnd)(unsigned int num);

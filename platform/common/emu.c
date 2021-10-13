@@ -326,6 +326,8 @@ static void system_announce(void)
 
 	if (PicoIn.AHW & PAHW_SMS) {
 		sys_name = "Master System";
+		if (Pico.m.hardware & 0x1)
+			sys_name = "Game Gear";
 #ifdef NO_SMS
 		extra = " [no support]";
 #endif
@@ -587,7 +589,7 @@ void emu_prep_defconfig(void)
 	memset(&defaultConfig, 0, sizeof(defaultConfig));
 	defaultConfig.EmuOpt    = EOPT_EN_SRAM | EOPT_EN_SOUND | EOPT_16BPP |
 				  EOPT_EN_CD_LEDS | EOPT_GZIP_SAVES | 0x10/*?*/;
-	defaultConfig.s_PicoOpt = POPT_EN_SNDFILTER|POPT_EN_YM2413|
+	defaultConfig.s_PicoOpt = POPT_EN_SNDFILTER|POPT_EN_YM2413|POPT_EN_GG_LCD |
 				  POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80 |
 				  POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX |
 				  POPT_EN_DRC|POPT_ACC_SPRITES |

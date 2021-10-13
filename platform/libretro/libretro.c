@@ -89,8 +89,8 @@ static retro_audio_sample_batch_t audio_batch_cb;
 #define INITIAL_SND_RATE 44100
 
 static const float VOUT_PAR = 0.0;
-static const float VOUT_4_3 = (224.0f * (4.0f / 3.0f));
-static const float VOUT_CRT = (224.0f * 1.29911f);
+static const float VOUT_4_3 = (4.0f / 3.0f);
+static const float VOUT_CRT = (1.29911f);
 
 static bool show_overscan = false;
 static bool old_show_overscan = false;
@@ -746,7 +746,7 @@ void retro_get_system_info(struct retro_system_info *info)
 #define _GIT_VERSION "-" GIT_VERSION
 #endif
    info->library_version = VERSION _GIT_VERSION;
-   info->valid_extensions = "bin|gen|smd|md|32x|cue|iso|chd|sms";
+   info->valid_extensions = "bin|gen|smd|md|32x|cue|iso|chd|sms|gg";
    info->need_fullpath = true;
 }
 
@@ -899,7 +899,7 @@ typedef struct patch
 } patch;
 
 extern void decode(char *buff, patch *dest);
-extern uint16_t m68k_read16(uint32_t a);
+extern uint32_t m68k_read16(uint32_t a);
 extern void m68k_write16(uint32_t a, uint16_t d);
 
 void retro_cheat_reset(void)
@@ -1494,12 +1494,13 @@ static void update_variables(bool first_run)
    var.value = NULL;
    var.key = "picodrive_aspect";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      int height = vout_height >= 192 && vout_height <= 224 ? 224 : vout_height;
       if (strcmp(var.value, "4/3") == 0)
-         user_vout_width = VOUT_4_3;
+         user_vout_width = VOUT_4_3 * height;
       else if (strcmp(var.value, "CRT") == 0)
-         user_vout_width = VOUT_CRT;
+         user_vout_width = VOUT_CRT * height;
       else
-         user_vout_width = VOUT_PAR;
+         user_vout_width = VOUT_PAR * height;
    }
 
    if (user_vout_width != old_user_vout_width)
@@ -1801,7 +1802,8 @@ void retro_init(void)
    sceBlock = getVMBlock();
 #endif
 
-   PicoIn.opt = POPT_EN_STEREO|POPT_EN_FM|POPT_EN_PSG|POPT_EN_Z80|POPT_EN_YM2413
+   PicoIn.opt = POPT_EN_STEREO|POPT_EN_FM
+      | POPT_EN_PSG|POPT_EN_Z80|POPT_EN_YM2413|POPT_EN_GG_LCD
       | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX
       | POPT_EN_32X|POPT_EN_PWM
       | POPT_ACC_SPRITES|POPT_DIS_32C_BORDER;

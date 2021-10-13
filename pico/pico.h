@@ -64,7 +64,7 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define POPT_EN_MCD_PCM     (1<<10)
 #define POPT_EN_MCD_CDDA    (1<<11)
 #define POPT_EN_MCD_GFX     (1<<12) // 00 x000
-// unused                   (1<<13)
+#define POPT_EN_GG_LCD      (1<<13)
 #define POPT_EN_SOFTSCALE   (1<<14)
 #define POPT_EN_MCD_RAMCART (1<<15)
 #define POPT_DIS_VDP_FIFO   (1<<16) // 0x 0000

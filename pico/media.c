@@ -248,7 +248,6 @@ enum media_type_e PicoLoadMedia(const char *filename,
     }
   }
   else if (media_type == PM_MARK3) {
-    lprintf("detected SMS ROM\n");
     PicoIn.AHW = PAHW_SMS;
   }
 
@@ -297,9 +296,18 @@ enum media_type_e PicoLoadMedia(const char *filename,
     goto out;
   }
   rom_data = NULL; // now belongs to PicoCart
-  Pico.m.ncart_in = 0;
+
+  // simple test for GG. Do this here since m.hardware is nulled in Insert
+  if (PicoIn.AHW & PAHW_SMS) {
+    if (strstr(filename,".gg")) {
+      Pico.m.hardware |= 0x1;
+      lprintf("detected GG ROM\n");
+    } else
+      lprintf("detected SMS ROM\n");
+  }
 
   // insert CD if it was detected
+  Pico.m.ncart_in = 0;
   if (cd_img_type != CT_UNKNOWN) {
     ret = cdd_load(filename, cd_img_type);
     if (ret != 0) {

@@ -135,7 +135,7 @@ void blockcpy_or(void *dst, void *src, size_t n, int pat)
   for (; n; n--)
     *pd++ = (unsigned char) (*ps++ | pat);
 }
-#define blockcpy memcpy
+#define blockcpy memmove
 #endif
 
 #define TileNormMaker_(pix_func,ret)                         \
@@ -1642,21 +1642,28 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
 
   PicoDrawUpdateHighPal();
 
-  if (Pico.video.reg[12]&1) {
-    len = 320;
-  } else {
-    len = 256;
-  }
+  if ((PicoIn.AHW & PAHW_SMS) && (Pico.m.hardware & 0x3) == 0x3)
+                                        len = 160;
+  else if (Pico.video.reg[12]&1)        len = 320;
+  else                                  len = 256;
 
-  if ((*est->PicoOpt & POPT_EN_SOFTSCALE) && len == 256) {
-    switch (PicoIn.filter) {
-    case 3: h_upscale_bl4_4_5(pd, 320, ps, 256, 256, f_pal); break;
-    case 2: h_upscale_bl2_4_5(pd, 320, ps, 256, 256, f_pal); break;
-    case 1: h_upscale_snn_4_5(pd, 320, ps, 256, 256, f_pal); break;
-    default: h_upscale_nn_4_5(pd, 320, ps, 256, 256, f_pal); break;
-    }
+  if ((*est->PicoOpt & POPT_EN_SOFTSCALE) && len < 320) {
+    if (len == 256)
+      switch (PicoIn.filter) {
+      case 3: h_upscale_bl4_4_5(pd, 320, ps, 256, len, f_pal); break;
+      case 2: h_upscale_bl2_4_5(pd, 320, ps, 256, len, f_pal); break;
+      case 1: h_upscale_snn_4_5(pd, 320, ps, 256, len, f_pal); break;
+      default: h_upscale_nn_4_5(pd, 320, ps, 256, len, f_pal); break;
+      }
+    else if (len == 160)
+      switch (PicoIn.filter) {
+      case 3:
+      case 2: h_upscale_bl2_1_2(pd, 320, ps, 160, len, f_pal); break;
+      default: h_upscale_nn_1_2(pd, 320, ps, 160, len, f_pal); break;
+      }
   } else {
-    if (!(*est->PicoOpt & POPT_DIS_32C_BORDER) && len == 256) pd += 32;
+    if (!(*est->PicoOpt & POPT_DIS_32C_BORDER) && len < 320)
+      pd += (320-len) / 2;
 #if 1
     h_copy(pd, 320, ps, 320, len, f_pal);
 #else
@@ -1670,9 +1677,10 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
 }
 #endif
 
-static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
+void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
 {
   unsigned char *pd = est->DrawLineDest;
+  unsigned char *ps = est->HighCol+8;
   int len;
   static int dirty_line;
 
@@ -1680,8 +1688,8 @@ static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
   {
     // a hack for mid-frame palette changes
     if (!(est->rendstatus & PDRAW_SONIC_MODE) | (line - dirty_line > 4)) {
-      // store a maximum of 2 additional palettes in SonicPal
-      if (est->SonicPalCount < 2)
+      // store a maximum of 3 additional palettes in SonicPal
+      if (est->SonicPalCount < 3)
         est->SonicPalCount ++;
       dirty_line = line;
       est->rendstatus |= PDRAW_SONIC_MODE;
@@ -1690,35 +1698,33 @@ static void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
     Pico.m.dirtyPal = 2;
   }
 
-  if (Pico.video.reg[12]&1) {
-    len = 320;
-  } else {
-    len = 256;
-  }
+  if ((PicoIn.AHW & PAHW_SMS) && (Pico.m.hardware & 0x3) == 0x3)
+                                        len = 160;
+  else if (Pico.video.reg[12]&1)        len = 320;
+  else                                  len = 256;
 
-  if ((PicoIn.opt & POPT_EN_SOFTSCALE) && len == 256) {
-    unsigned char *ps = est->HighCol+8;
+  if (DrawLineDestIncrement == 0)
+    pd = est->HighCol+8;
+
+  if ((PicoIn.opt & POPT_EN_SOFTSCALE) && len < 320) {
     unsigned char pal = 0;
 
     if (!sh && (est->rendstatus & PDRAW_SONIC_MODE))
       pal = est->SonicPalCount*0x40;
-    if (DrawLineDestIncrement == 0)
-      pd = est->HighCol+8;
     // Smoothing can't be used with CLUT, hence it's always Nearest Neighbour.
-    // use reverse version since src and dest ptr may be the same.
-    rh_upscale_nn_4_5(pd, 320, ps, 256, len, f_or);
-  } else if (DrawLineDestIncrement == 0) {
-    if (!sh && (est->rendstatus & PDRAW_SONIC_MODE))
-      blockcpy_or(est->HighCol+8, est->HighCol+8, len, est->SonicPalCount*0x40);
+    if (len == 256)
+      // use reverse version since src and dest ptr may be the same.
+      rh_upscale_nn_4_5(pd, 320, ps, 256, len, f_or);
+    else
+      rh_upscale_nn_1_2(pd, 320, ps, 256, len, f_or);
   } else {
-    if (!(PicoIn.opt & POPT_DIS_32C_BORDER))
-      pd += 32;
-    if (!sh && (est->rendstatus & PDRAW_SONIC_MODE)) {
+    if (!(*est->PicoOpt & POPT_DIS_32C_BORDER) && len < 320)
+      pd += (320-len) / 2;
+    if (!sh && (est->rendstatus & PDRAW_SONIC_MODE))
       // select active backup palette
-      blockcpy_or(pd, est->HighCol+8, len, est->SonicPalCount*0x40);
-    } else {
-      blockcpy(pd, est->HighCol+8, len);
-    }
+      blockcpy_or(pd, ps, len, est->SonicPalCount*0x40);
+    else if (pd != ps)
+      blockcpy(pd, ps, len);
   }
 }
 
@@ -1893,8 +1899,15 @@ PICO_INTERNAL void PicoFrameStart(void)
 
 static void DrawBlankedLine(int line, int offs, int sh, int bgc)
 {
-  if (PicoScanBegin != NULL)
-    PicoScanBegin(line + offs);
+  int skip = skip_next_line;
+
+  if (PicoScanBegin != NULL && skip == 0)
+    skip = PicoScanBegin(line + offs);
+
+  if (skip) {
+    skip_next_line = skip - 1;
+    return;
+  }
 
   BackFill(bgc, sh, &Pico.est);
 
@@ -1902,7 +1915,7 @@ static void DrawBlankedLine(int line, int offs, int sh, int bgc)
     FinalizeLine(sh, line, &Pico.est);
 
   if (PicoScanEnd != NULL)
-    PicoScanEnd(line + offs);
+    skip_next_line = PicoScanEnd(line + offs);
 
   Pico.est.HighCol += HighColIncrement;
   Pico.est.DrawLineDest = (char *)Pico.est.DrawLineDest + DrawLineDestIncrement;
@@ -1910,15 +1923,10 @@ static void DrawBlankedLine(int line, int offs, int sh, int bgc)
 
 static void PicoLine(int line, int offs, int sh, int bgc)
 {
-  int skip = 0;
-
-  if (skip_next_line > 0) {
-    skip_next_line--;
-    return;
-  }
+  int skip = skip_next_line;
 
   Pico.est.DrawScanline = line;
-  if (PicoScanBegin != NULL)
+  if (PicoScanBegin != NULL && skip == 0)
     skip = PicoScanBegin(line + offs);
 
   if (skip) {

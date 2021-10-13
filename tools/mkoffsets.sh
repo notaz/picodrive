@@ -136,6 +136,7 @@ get_define OFS_Pico_ Pico est			; echo "$line" >>$fn
 
 get_define OFS_PicoIn_ PicoInterface opt	; echo "$line" >>$fn
 get_define OFS_PicoIn_ PicoInterface filter	; echo "$line" >>$fn
+get_define OFS_PicoIn_ PicoInterface AHW	; echo "$line" >>$fn
 
 get_define OFS_EST_ PicoEState DrawScanline	; echo "$line" >>$fn
 get_define OFS_EST_ PicoEState rendstatus	; echo "$line" >>$fn
