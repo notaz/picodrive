@@ -26,104 +26,90 @@ static int screen_offset, line_offset;
 static void TileBGM4(u16 sx, int pal)
 {
   u32 *pd = (u32 *)(Pico.est.HighCol + sx);
-  pd[0] = pd[1] = pal ? 0x10101010 : 0;
+  pd[0] = pd[1] = pal * 0x01010101;
 }
 
 // 8 pixels are arranged to have 1 bit in each byte of a 32 bit word. To pull
 // the 4 bitplanes together multiply with each bit distance (multiples of 1<<7)
-#define PLANAR_PIXELL(x,p) \
+#define PLANAR_PIXELBG(x,p) \
   t = (pack>>(7-p)) & 0x01010101; \
   t = (t*0x10204080) >> 28; \
   pd[x] = pal|t;
 
-static void TileNormLowM4(u16 sx, unsigned int pack, int pal)
+static void TileNormBGM4(u16 sx, unsigned int pack, int pal)
 {
   u8 *pd = Pico.est.HighCol + sx;
   u32 t;
 
-  PLANAR_PIXELL(0, 0)
-  PLANAR_PIXELL(1, 1)
-  PLANAR_PIXELL(2, 2)
-  PLANAR_PIXELL(3, 3)
-  PLANAR_PIXELL(4, 4)
-  PLANAR_PIXELL(5, 5)
-  PLANAR_PIXELL(6, 6)
-  PLANAR_PIXELL(7, 7)
+  PLANAR_PIXELBG(0, 0)
+  PLANAR_PIXELBG(1, 1)
+  PLANAR_PIXELBG(2, 2)
+  PLANAR_PIXELBG(3, 3)
+  PLANAR_PIXELBG(4, 4)
+  PLANAR_PIXELBG(5, 5)
+  PLANAR_PIXELBG(6, 6)
+  PLANAR_PIXELBG(7, 7)
 }
 
-static void TileFlipLowM4(u16 sx, unsigned int pack, int pal)
+static void TileFlipBGM4(u16 sx, unsigned int pack, int pal)
 {
   u8 *pd = Pico.est.HighCol + sx;
   u32 t;
 
-  PLANAR_PIXELL(0, 7)
-  PLANAR_PIXELL(1, 6)
-  PLANAR_PIXELL(2, 5)
-  PLANAR_PIXELL(3, 4)
-  PLANAR_PIXELL(4, 3)
-  PLANAR_PIXELL(5, 2)
-  PLANAR_PIXELL(6, 1)
-  PLANAR_PIXELL(7, 0)
+  PLANAR_PIXELBG(0, 7)
+  PLANAR_PIXELBG(1, 6)
+  PLANAR_PIXELBG(2, 5)
+  PLANAR_PIXELBG(3, 4)
+  PLANAR_PIXELBG(4, 3)
+  PLANAR_PIXELBG(5, 2)
+  PLANAR_PIXELBG(6, 1)
+  PLANAR_PIXELBG(7, 0)
 }
 
-#define PLANAR_PIXEL(x,p) \
+// non-transparent sprite pixels apply if no higher prio pixel is already there
+#define PLANAR_PIXELSP(x,p) \
   t = (pack>>(7-p)) & 0x01010101; \
-  if (t) { \
+  if (t && (pd[x] & 0x2f) <= 0x20) { \
     t = (t*0x10204080) >> 28; \
     pd[x] = pal|t; \
   }
 
-static void TileNormM4(u16 sx, unsigned int pack, int pal)
+static void TileNormSprM4(u16 sx, unsigned int pack, int pal)
 {
   u8 *pd = Pico.est.HighCol + sx;
   u32 t;
 
-  PLANAR_PIXEL(0, 0)
-  PLANAR_PIXEL(1, 1)
-  PLANAR_PIXEL(2, 2)
-  PLANAR_PIXEL(3, 3)
-  PLANAR_PIXEL(4, 4)
-  PLANAR_PIXEL(5, 5)
-  PLANAR_PIXEL(6, 6)
-  PLANAR_PIXEL(7, 7)
+  PLANAR_PIXELSP(0, 0)
+  PLANAR_PIXELSP(1, 1)
+  PLANAR_PIXELSP(2, 2)
+  PLANAR_PIXELSP(3, 3)
+  PLANAR_PIXELSP(4, 4)
+  PLANAR_PIXELSP(5, 5)
+  PLANAR_PIXELSP(6, 6)
+  PLANAR_PIXELSP(7, 7)
 }
 
-static void TileFlipM4(u16 sx, unsigned int pack, int pal)
+static void TileDoubleSprM4(int sx, unsigned int pack, int pal)
 {
   u8 *pd = Pico.est.HighCol + sx;
   u32 t;
 
-  PLANAR_PIXEL(0, 7)
-  PLANAR_PIXEL(1, 6)
-  PLANAR_PIXEL(2, 5)
-  PLANAR_PIXEL(3, 4)
-  PLANAR_PIXEL(4, 3)
-  PLANAR_PIXEL(5, 2)
-  PLANAR_PIXEL(6, 1)
-  PLANAR_PIXEL(7, 0)
-}
-
-static void TileDoubleM4(int sx, unsigned int pack, int pal)
-{
-  u8 *pd = Pico.est.HighCol + sx;
-  u32 t;
-
-  PLANAR_PIXEL(0, 0)
-  PLANAR_PIXEL(1, 0)
-  PLANAR_PIXEL(2, 1)
-  PLANAR_PIXEL(3, 1)
-  PLANAR_PIXEL(4, 2)
-  PLANAR_PIXEL(5, 2)
-  PLANAR_PIXEL(6, 3)
-  PLANAR_PIXEL(7, 3)
-  PLANAR_PIXEL(8, 4)
-  PLANAR_PIXEL(9, 4)
-  PLANAR_PIXEL(10, 5)
-  PLANAR_PIXEL(11, 5)
-  PLANAR_PIXEL(12, 6)
-  PLANAR_PIXEL(13, 6)
-  PLANAR_PIXEL(14, 7)
-  PLANAR_PIXEL(15, 7)
+  PLANAR_PIXELSP(0, 0)
+  PLANAR_PIXELSP(1, 0)
+  PLANAR_PIXELSP(2, 1)
+  PLANAR_PIXELSP(3, 1)
+  PLANAR_PIXELSP(4, 2)
+  PLANAR_PIXELSP(5, 2)
+  PLANAR_PIXELSP(6, 3)
+  PLANAR_PIXELSP(7, 3)
+  PLANAR_PIXELSP(8, 4)
+  PLANAR_PIXELSP(9, 4)
+  PLANAR_PIXELSP(10, 5)
+  PLANAR_PIXELSP(11, 5)
+  PLANAR_PIXELSP(12, 6)
+  PLANAR_PIXELSP(13, 6)
+  PLANAR_PIXELSP(14, 7)
+  PLANAR_PIXELSP(15, 7)
 }
 
 static void DrawSpritesM4(int scanline)
@@ -181,13 +167,13 @@ static void DrawSpritesM4(int scanline)
   // now draw all sprites backwards
   for (--s; s >= 0; s--) {
     pack = CPU_LE2(*(u32 *)(PicoMem.vram + sprites_addr[s]));
-    if (zoomed) TileDoubleM4(sprites_x[s], pack, 0x10);
-    else        TileNormM4(sprites_x[s], pack, 0x10);
+    if (zoomed) TileDoubleSprM4(sprites_x[s], pack, 0x10);
+    else        TileNormSprM4(sprites_x[s], pack, 0x10);
   }
 }
 
 // cells_dx, tilex_ty merged to reduce register pressure
-static void DrawStripLowM4(const u16 *nametab, int cells_dx, int tilex_ty)
+static void DrawStripM4(const u16 *nametab, int cells_dx, int tilex_ty)
 {
   int oldcode = -1;
   int addr = 0, pal = 0;
@@ -208,51 +194,13 @@ static void DrawStripLowM4(const u16 *nametab, int cells_dx, int tilex_ty)
       if (code & 0x0400)
         addr ^= 0xe; // Y-flip
 
-      pal = (code>>7) & 0x10;
+      pal = (code>>7) & 0x30;  // prio | palette select
     }
 
     pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr)); /* Get 4 bitplanes / 8 pixels */
     if (pack == 0)          TileBGM4(cells_dx, pal);
-    else if (code & 0x0200) TileFlipLowM4(cells_dx, pack, pal);
-    else                    TileNormLowM4(cells_dx, pack, pal);
-  }
-}
-
-static void DrawStripHighM4(const u16 *nametab, int cells_dx, int tilex_ty)
-{
-  int oldcode = -1, blank = -1; // The tile we know is blank
-  int addr = 0, pal = 0;
-
-  // Draw tiles across screen:
-  for (; cells_dx > 0; cells_dx += 8, tilex_ty++, cells_dx -= 0x10000)
-  {
-    unsigned int pack;
-    unsigned code;
-
-    code = nametab[tilex_ty& 0x1f];
-    if (code == blank)
-      continue;
-    if (!(code & 0x1000)) // priority low?
-      continue;
-
-    if (code != oldcode) {
-      oldcode = code;
-      // Get tile address/2:
-      addr = (code & 0x1ff) << 4;
-      addr += tilex_ty>> 16;
-      if (code & 0x0400)
-        addr ^= 0xe; // Y-flip
-
-      pal = (code>>7) & 0x10;
-    }
-
-    pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr)); /* Get 4 bitplanes / 8 pixels */
-    if (pack == 0) {
-      blank = code;
-      continue;
-    }
-    if (code & 0x0200) TileFlipM4(cells_dx, pack, pal);
-    else               TileNormM4(cells_dx, pack, pal);
+    else if (code & 0x0200) TileFlipBGM4(cells_dx, pack, pal);
+    else                    TileNormBGM4(cells_dx, pack, pal);
   }
 }
 
@@ -296,37 +244,25 @@ static void DrawDisplayM4(int scanline)
   dx += cellskip << 3;
   dx += line_offset;
 
-  // low priority tiles
+  // tiles
   if (!(pv->debug_p & PVD_KILL_B)) {
     if ((Pico.m.hardware & 0x3) == 0x3) {
       // on GG render only the center 160 px
-      DrawStripLowM4(nametab , dx | ((cells-12)<< 16),(tilex+6) | (ty  << 16));
+      DrawStripM4(nametab , dx | ((cells-12)<< 16),(tilex+6) | (ty  << 16));
     } else if (pv->reg[0] & 0x80) {
       // vscroll disabled for rightmost 8 columns (e.g. Gauntlet)
       int dx2 = dx + (cells-8)*8, tilex2 = tilex + (cells-8), ty2 = scanline&7;
-      DrawStripLowM4(nametab,  dx | ((cells-8) << 16), tilex  | (ty  << 16));
-      DrawStripLowM4(nametab2, dx2 |       (8  << 16), tilex2 | (ty2 << 17));
+      DrawStripM4(nametab,  dx | ((cells-8) << 16), tilex  | (ty  << 16));
+      DrawStripM4(nametab2, dx2 |       (8  << 16), tilex2 | (ty2 << 17));
     } else
-      DrawStripLowM4(nametab , dx | ( cells    << 16), tilex  | (ty  << 16));
+      DrawStripM4(nametab , dx | ( cells    << 16), tilex  | (ty  << 16));
   }
 
   // sprites
   if (!(pv->debug_p & PVD_KILL_S_LO))
     DrawSpritesM4(scanline);
 
-  // high priority tiles (use virtual layer switch just for fun)
-  if (!(pv->debug_p & PVD_KILL_A)) {
-    if ((Pico.m.hardware & 0x3) == 0x3) {
-      DrawStripHighM4(nametab , dx | ((cells-12)<< 16),(tilex+6) | (ty  << 16));
-    } else if (pv->reg[0] & 0x80) {
-      int dx2 = dx + (cells-8)*8, tilex2 = tilex + (cells-8), ty2 = scanline&7;
-      DrawStripHighM4(nametab,  dx | ((cells-8) << 16), tilex  | (ty  << 16));
-      DrawStripHighM4(nametab2, dx2 |       (8  << 16), tilex2 | (ty2 << 17));
-    } else
-      DrawStripHighM4(nametab , dx | ( cells    << 16), tilex  | (ty  << 16));
-  }
-
-  if ((pv->reg[0] & 0x20) && (Pico.m.hardware & 0x3) != 3) {
+  if ((pv->reg[0] & 0x20) && (Pico.m.hardware & 0x3) != 0x3) {
     // first column masked with background, caculate offset to start of line
     dx = (dx&~0x1f) / 4;
     ty = 0xe0e0e0e0; // really (pv->reg[7]&0x3f) * 0x01010101, but the looks...
@@ -646,6 +582,7 @@ void PicoDoHighPal555SMS(void)
 #endif
     *dpal = t;
   }
+  memcpy(&Pico.est.HighPal[0x20], Pico.est.HighPal, 0x20*2); // for prio bit
   Pico.est.HighPal[0xe0] = 0;
 }
 
