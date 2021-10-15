@@ -105,7 +105,7 @@ static int vout_16bit = 1;
 static int vout_format = PDF_RGB555;
 static void *vout_buf;
 static int vout_width, vout_height, vout_offset;
-static float user_vout_width = 0.0;
+static float vout_aspect = 0.0;
 
 #if defined(RENDER_GSKIT_PS2)
 #define VOUT_8BIT_WIDTH 328
@@ -752,6 +752,7 @@ void retro_get_system_info(struct retro_system_info *info)
 
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
+   int common_height;
    float common_width;
 
    memset(info, 0, sizeof(*info));
@@ -763,10 +764,11 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->geometry.max_height   = vout_height;
 
    common_width = vout_width;
-   if (user_vout_width != 0)
-      common_width = user_vout_width;
+   common_height = vout_height >= 192 && vout_height <= 224 ? 224 : vout_height;
+   if (vout_aspect != 0)
+      common_width = vout_aspect * common_height;
 
-   info->geometry.aspect_ratio = common_width / vout_height;
+   info->geometry.aspect_ratio = common_width / common_height;
 }
 
 /* savestates */
@@ -1431,7 +1433,7 @@ static void update_variables(bool first_run)
 {
    struct retro_variable var;
    int OldPicoRegionOverride;
-   float old_user_vout_width;
+   float old_vout_aspect;
    unsigned old_frameskip_type;
    int old_vout_format;
    double new_sound_rate;
@@ -1490,20 +1492,19 @@ static void update_variables(bool first_run)
       PsndRerate(1);
    }
 
-   old_user_vout_width = user_vout_width;
+   old_vout_aspect = vout_aspect;
    var.value = NULL;
    var.key = "picodrive_aspect";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
-      int height = vout_height >= 192 && vout_height <= 224 ? 224 : vout_height;
       if (strcmp(var.value, "4/3") == 0)
-         user_vout_width = VOUT_4_3 * height;
+         vout_aspect = VOUT_4_3;
       else if (strcmp(var.value, "CRT") == 0)
-         user_vout_width = VOUT_CRT * height;
+         vout_aspect = VOUT_CRT;
       else
-         user_vout_width = VOUT_PAR * height;
+         vout_aspect = VOUT_PAR;
    }
 
-   if (user_vout_width != old_user_vout_width)
+   if (vout_aspect != old_vout_aspect)
    {
       // Update the geometry
       struct retro_system_av_info av_info;
