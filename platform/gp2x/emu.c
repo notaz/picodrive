@@ -83,6 +83,10 @@ void pemu_validate_config(void)
 
 static int get_renderer(void)
 {
+	if (doing_bg_frame)
+		return RT_16BIT;
+	if ((PicoIn.AHW & PAHW_SMS) && currentConfig.renderer == RT_8BIT_FAST)
+		return RT_8BIT_ACC;	// 8bpp fast is not there (yet?)
 	if (PicoIn.AHW & PAHW_32X)
 		return currentConfig.renderer32x;
 	else
@@ -391,7 +395,7 @@ void plat_video_flip(void)
 		stride *= 2;
 	// the fast renderer has overlap areas and can't directly render to
 	// screen buffers. Its output is copied to screen in finalize_frame
-	if (currentConfig.renderer != RT_8BIT_FAST || (PicoIn.AHW & PAHW_32X))
+	if (get_renderer() != RT_8BIT_FAST || (PicoIn.AHW & PAHW_32X))
 		PicoDrawSetOutBuf(g_screen_ptr, stride);
 }
 
@@ -476,9 +480,6 @@ static void vid_reset_mode(void)
 	int gp2x_mode = 16;
 	int renderer = get_renderer();
 
-	if (doing_bg_frame)
-		renderer = RT_16BIT;
-
 	PicoIn.opt &= ~POPT_ALT_RENDERER;
 	emu_scan_begin = NULL;
 	emu_scan_end = NULL;
@@ -554,7 +555,7 @@ static void vid_reset_mode(void)
 	if (currentConfig.scaling == EOPT_SCALE_SW) {
 		PicoIn.opt |= POPT_EN_SOFTSCALE;
 		PicoIn.filter = EOPT_FILTER_BILINEAR2;
-	} else if (currentConfig.scaling == EOPT_SCALE_HW && is_16bit_mode())
+	} else if (currentConfig.scaling == EOPT_SCALE_HW)
 		// hw scaling, render without any padding
 		PicoIn.opt |= POPT_DIS_32C_BORDER;
 

@@ -9,10 +9,10 @@
 .text
 .align 4
 
-@ Convert 0000bbb0 ggg0rrr0 0000bbb0 ggg0rrr0
-@ to      00000000 rrr00000 ggg00000 bbb00000 ...
+@ Convert 0000bbbb ggggrrrr 0000bbbb ggggrrrr
+@ to      00000000 rrrr0000 gggg0000 bbbb0000 ...
 
-@ lr =  0x00e000e0, out: r3=lower_pix, r2=higher_pix; trashes rin
+@ lr =  0x00f000f0, out: r3=lower_pix, r2=higher_pix; trashes rin
 .macro convRGB32_2 rin sh=0
     and     r2,  lr, \rin, lsr #4 @ blue
     and     r3,  \rin, lr
@@ -25,13 +25,13 @@
     mov     r3,  r3,  ror #17             @ shadow mode
 .elseif \sh == 2
     adds    r3,  r3,  #0x40000000         @ green
-    orrcs   r3,  r3,  #0xe0000000
+    orrcs   r3,  r3,  lr, lsl #24
     mov     r3,  r3,  ror #8
     adds    r3,  r3,  #0x40000000
-    orrcs   r3,  r3,  #0xe0000000
+    orrcs   r3,  r3,  lr, lsl #24
     mov     r3,  r3,  ror #16
     adds    r3,  r3,  #0x40000000
-    orrcs   r3,  r3,  #0xe0000000
+    orrcs   r3,  r3,  lr, lsl #24
     mov     r3,  r3,  ror #24
 .else
     mov     r3,  r3,  ror #16             @ r3=low
@@ -47,13 +47,13 @@
 .elseif \sh == 2
     mov     r2,  r2,  ror #8
     adds    r2,  r2,  #0x40000000         @ blue
-    orrcs   r2,  r2,  #0xe0000000
+    orrcs   r2,  r2,  lr, lsl #24
     mov     r2,  r2,  ror #8
     adds    r2,  r2,  #0x40000000
-    orrcs   r2,  r2,  #0xe0000000
+    orrcs   r2,  r2,  lr, lsl #24
     mov     r2,  r2,  ror #8
     adds    r2,  r2,  #0x40000000
-    orrcs   r2,  r2,  #0xe0000000
+    orrcs   r2,  r2,  lr, lsl #24
     mov     r2,  r2,  ror #8
 .endif
 
@@ -68,17 +68,17 @@ bgr444_to_rgb32:
     stmfd   sp!, {r4-r7,lr}
 
     mov     r12, #0x40>>3 @ repeats
-    mov     lr, #0x00e00000
-    orr     lr, lr, #0x00e0
+    mov     lr, #0x00f00000
+    orr     lr, lr, #0x00f0
 
 .loopRGB32:
-    subs    r12, r12, #1
-
     ldmia    r1!, {r4-r7}
     convRGB32_2 r4
     convRGB32_2 r5
     convRGB32_2 r6
     convRGB32_2 r7
+
+    subs    r12, r12, #1
     bgt     .loopRGB32
 
     ldmfd   sp!, {r4-r7,pc}
@@ -91,24 +91,25 @@ bgr444_to_rgb32_sh:
 
     mov     r12, #0x40>>3 @ repeats
     add     r0, r0, #0x40*4
-    mov     lr, #0x00e00000
-    orr     lr, lr, #0x00e0
+    mov     lr, #0x00f00000
+    orr     lr, lr, #0x00f0
 
 .loopRGB32sh:
-    subs    r12, r12, #1
-
     ldmia    r1!, {r4-r7}
     convRGB32_2 r4, 2
     convRGB32_2 r5, 2
     convRGB32_2 r6, 2
     convRGB32_2 r7, 2
+
+    subs    r12, r12, #1
     bgt     .loopRGB32sh
 
     mov     r12, #0x40>>3 @ repeats
     sub     r1, r1, #0x40*2
+    and     lr, lr, lr, lsl #1  @ kill LSB for correct shadow colors
 
 .loopRGB32hi:
-     ldmia    r1!, {r4-r7}
+    ldmia    r1!, {r4-r7}
     convRGB32_2 r4, 1
     convRGB32_2 r5, 1
     convRGB32_2 r6, 1
