@@ -259,7 +259,6 @@ enum media_type_e PicoLoadMedia(const char *filename,
   }
 
   ret = PicoCartLoad(rom, &rom_data, &rom_size, (PicoIn.AHW & PAHW_SMS) ? 1 : 0);
-  pm_close(rom);
   if (ret != 0) {
     if      (ret == 2) lprintf("Out of memory\n");
     else if (ret == 3) lprintf("Read failed\n");
@@ -299,7 +298,7 @@ enum media_type_e PicoLoadMedia(const char *filename,
 
   // simple test for GG. Do this here since m.hardware is nulled in Insert
   if (PicoIn.AHW & PAHW_SMS) {
-    if (strstr(filename,".gg")) {
+    if (!strcmp(rom->ext,"gg")) {
       Pico.m.hardware |= 0x1;
       lprintf("detected GG ROM\n");
     } else
@@ -322,6 +321,8 @@ enum media_type_e PicoLoadMedia(const char *filename,
     PicoSetInputDevice(0, PICO_INPUT_PAD_6BTN);
 
 out:
+  if (rom)
+    pm_close(rom);
   if (rom_data)
     free(rom_data);
   return media_type;

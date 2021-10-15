@@ -243,6 +243,7 @@ zip_failed:
     file->param = cso;
     file->size  = cso->header.total_bytes;
     file->type  = PMT_CSO;
+    strncpy(file->ext, ext, sizeof(file->ext) - 1);
     return file;
 
 cso_failed:

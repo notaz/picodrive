@@ -323,6 +323,7 @@ void PicoResetMS(void)
 void PicoPowerMS(void)
 {
   int s, tmp;
+  unsigned tmr;
 
   memset(&PicoMem,0,sizeof(PicoMem));
   memset(&Pico.video,0,sizeof(Pico.video));
@@ -338,6 +339,15 @@ void PicoPowerMS(void)
     s++;
   tmp = 1 << s;
   bank_mask = (tmp - 1) >> 14;
+
+  // check if the ROM header contains more system information to detect GG
+  for (tmr = 0x2000; tmr < 0xbfff && tmr <= Pico.romsize; tmr *= 2) {
+    if (!memcmp(Pico.rom + tmr-16, "TMR SEGA", 8)) {
+      if (Pico.rom[tmr-1] >= 0x50 && Pico.rom[tmr-1] < 0x80)
+        Pico.m.hardware |= 0x1;
+      break;
+    }
+  }
 
   PicoReset();
 }
