@@ -6,4 +6,4 @@ Exec=PicoDrive %f
 Icon=megadrive
 Terminal=false
 Categories=emulators;
-MimeType=.md;.smd;.bin;.sms;.cue;.chd;.32x;.zip;.7z
+MimeType=.md;.smd;.bin;.sms;.gg;.cue;.chd;.32x;.zip;.7z
