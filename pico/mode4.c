@@ -199,8 +199,6 @@ static void DrawStripLowM4(const u16 *nametab, int cells_dx, int tilex_ty)
     unsigned code;
 
     code = nametab[tilex_ty& 0x1f];
-    if (code & 0x1000) // priority high?
-      continue;
 
     if (code != oldcode) {
       oldcode = code;
@@ -328,7 +326,7 @@ static void DrawDisplayM4(int scanline)
       DrawStripHighM4(nametab , dx | ( cells    << 16), tilex  | (ty  << 16));
   }
 
-  if (pv->reg[0] & 0x20) {
+  if ((pv->reg[0] & 0x20) && (Pico.m.hardware & 0x3) != 3) {
     // first column masked with background, caculate offset to start of line
     dx = (dx&~0x1f) / 4;
     ty = 0xe0e0e0e0; // really (pv->reg[7]&0x3f) * 0x01010101, but the looks...
@@ -566,7 +564,7 @@ void PicoFrameStartSMS(void)
     columns = 320;
   } else
     coffs = PicoIn.opt & POPT_DIS_32C_BORDER ? 0:(320-columns)/2;
-  line_offset = (PicoIn.opt & POPT_ALT_RENDERER ? coffs : 0);
+  line_offset = (FinalizeLineSMS == NULL ? coffs : 0);
 
   if (FinalizeLineSMS == FinalizeLineRGB555SMS)
     line_offset = 0 /* done in FinalizeLine */;
@@ -672,7 +670,8 @@ void PicoDrawSetOutputSMS(pdso_t which)
   {
     case PDF_8BIT:   FinalizeLineSMS = FinalizeLine8bitSMS; break;
     case PDF_RGB555: FinalizeLineSMS = FinalizeLineRGB555SMS; break;
-    default:         FinalizeLineSMS = NULL;
+    // there's no fast renderer yet, just treat it like PDF_8BIT
+    default:         FinalizeLineSMS = FinalizeLine8bitSMS;
                      PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328); break;
   }
   rendstatus_old = -1;
