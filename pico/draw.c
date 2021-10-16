@@ -132,8 +132,12 @@ void blockcpy_or(void *dst, void *src, size_t n, int pat);
 void blockcpy_or(void *dst, void *src, size_t n, int pat)
 {
   unsigned char *pd = dst, *ps = src;
-  for (; n; n--)
-    *pd++ = (unsigned char) (*ps++ | pat);
+  if (dst > src) {
+    for (pd += n, ps += n; n; n--)
+      *--pd = (unsigned char) (*--ps | pat);
+  } else
+    for (; n; n--)
+      *pd++ = (unsigned char) (*ps++ | pat);
 }
 #define blockcpy memmove
 #endif
@@ -2019,7 +2023,6 @@ void PicoDrawSetOutFormat(pdso_t which, int use_32x_line_mode)
   {
     case PDF_8BIT:
       FinalizeLine = FinalizeLine8bit;
-      PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328);
       break;
 
     case PDF_RGB555:

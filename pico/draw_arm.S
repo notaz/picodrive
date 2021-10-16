@@ -2205,12 +2205,27 @@ FinalizeLine555:
 
 blockcpy:
     stmfd   sp!, {r4,r5}
+    cmp     r0, r1
+    bhs     blockcpyhi
+
     mov     r2, r2, lsr #4
 blockcpy_loop:
     ldmia   r1!, {r3-r5,r12}
     subs    r2, r2, #1
     stmia   r0!, {r3-r5,r12}
     bne     blockcpy_loop
+    ldmfd   sp!, {r4,r5}
+    bx      lr
+
+blockcpyhi:
+    add     r0, r0, r2
+    add     r1, r1, r2
+    mov     r2, r2, lsr #4
+blockcpyhi_loop:
+    ldmdb   r1!, {r3-r5,r12}
+    subs    r2, r2, #1
+    stmdb   r0!, {r3-r5,r12}
+    bne     blockcpyhi_loop
     ldmfd   sp!, {r4,r5}
     bx      lr
 
@@ -2221,6 +2236,9 @@ blockcpy_or:
     stmfd   sp!, {r4-r6}
     orr     r3, r3, r3, lsl #8
     orr     r3, r3, r3, lsl #16
+    cmp     r0, r1
+    bhs     blockcpyhi_or
+
     mov     r2, r2, lsr #4
 blockcpy_loop_or:
     ldmia   r1!, {r4-r6,r12}
@@ -2231,6 +2249,22 @@ blockcpy_loop_or:
     orr     r12,r12,r3
     stmia   r0!, {r4-r6,r12}
     bne     blockcpy_loop_or
+    ldmfd   sp!, {r4-r6}
+    bx      lr
+
+blockcpyhi_or:
+    add     r0, r0, r2
+    add     r1, r1, r2
+    mov     r2, r2, lsr #4
+blockcpyhi_loop_or:
+    ldmdb   r1!, {r4-r6,r12}
+    subs    r2, r2, #1
+    orr     r4, r4, r3
+    orr     r5, r5, r3
+    orr     r6, r6, r3
+    orr     r12,r12,r3
+    stmdb   r0!, {r4-r6,r12}
+    bne     blockcpyhi_loop_or
     ldmfd   sp!, {r4-r6}
     bx      lr
 
