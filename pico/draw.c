@@ -1688,13 +1688,13 @@ void FinalizeLine8bit(int sh, int line, struct PicoEState *est)
   int len;
   static int dirty_line;
 
+  // a hack for mid-frame palette changes
   if (Pico.m.dirtyPal == 1)
   {
-    // a hack for mid-frame palette changes
-    if (!(est->rendstatus & PDRAW_SONIC_MODE) | (line - dirty_line > 4)) {
-      // store a maximum of 3 additional palettes in SonicPal
-      if (est->SonicPalCount < 3)
-        est->SonicPalCount ++;
+    // store a maximum of 2 additional palettes in SonicPal
+    if (est->SonicPalCount < 2 &&
+        (!(est->rendstatus & PDRAW_SONIC_MODE) || (line - dirty_line > 4))) {
+      est->SonicPalCount ++;
       dirty_line = line;
       est->rendstatus |= PDRAW_SONIC_MODE;
     }
@@ -1854,7 +1854,6 @@ static int DrawDisplay(int sh)
 PICO_INTERNAL void PicoFrameStart(void)
 {
   int loffs = 8, lines = 224, coffs = 0, columns = 320;
-  int dirty = ((Pico.est.rendstatus & PDRAW_SONIC_MODE) || Pico.m.dirtyPal);
   int sprep = Pico.est.rendstatus & (PDRAW_SPRITES_MOVED|PDRAW_DIRTY_SPRITES);
   int skipped = Pico.est.rendstatus & PDRAW_SKIP_FRAME;
 
@@ -1896,7 +1895,7 @@ PICO_INTERNAL void PicoFrameStart(void)
   if (FinalizeLine == FinalizeLine8bit) {
     // make a backup of the current palette in case Sonic mode is detected later
     Pico.est.SonicPalCount = 0;
-    Pico.m.dirtyPal = (dirty ? 2 : 0); // mark as dirty but already copied
+    Pico.m.dirtyPal = (Pico.m.dirtyPal ? 2 : 0); // mark as dirty but copied
     blockcpy(Pico.est.SonicPal, PicoMem.cram, 0x40*2);
   }
 }
@@ -2011,6 +2010,8 @@ void PicoDrawUpdateHighPal(void)
       blockcpy(est->HighPal+0x40, est->HighPal, 0x40*2);
       blockcpy(est->HighPal+0x80, est->HighPal, 0x80*2);
     }
+    Pico.est.HighPal[0xe0] = 0x0000; // black and white, reserved for OSD
+    Pico.est.HighPal[0xf0] = 0xffff;
   }
 }
 

@@ -465,6 +465,7 @@ static void DrawDisplayM2(int scanline)
 /*===============*/
 
 static void FinalizeLineRGB555SMS(int line);
+static void FinalizeLine8bitSMS(int line);
 
 void PicoFrameStartSMS(void)
 {
@@ -513,6 +514,12 @@ void PicoFrameStartSMS(void)
 
   Pico.est.HighCol = HighColBase + screen_offset * HighColIncrement;
   Pico.est.DrawLineDest = (char *)DrawLineDestBase + screen_offset * DrawLineDestIncrement;
+
+  if (FinalizeLineSMS == FinalizeLine8bitSMS) {
+    Pico.est.SonicPalCount = 0;
+    Pico.m.dirtyPal = (Pico.m.dirtyPal ? 2 : 0);
+    memcpy(Pico.est.SonicPal, PicoMem.cram, 0x20*2);
+  }
 }
 
 void PicoLineSMS(int line)
@@ -557,32 +564,45 @@ static u16 tmspal[32] = {
 
 void PicoDoHighPal555SMS(void)
 {
-  u32 *spal=(void *)PicoMem.cram;
-  u32 *dpal=(void *)Pico.est.HighPal;
+  u32 *spal = (void *)Pico.est.SonicPal;
+  u32 *dpal = (void *)Pico.est.HighPal;
+  unsigned int cnt = Pico.est.SonicPalCount+1;
   unsigned int t;
-  int i;
+  int i, j;
+ 
+  if (FinalizeLineSMS != FinalizeLine8bitSMS || Pico.m.dirtyPal == 2)
+    Pico.m.dirtyPal = 0;
 
-  Pico.m.dirtyPal = 0;
-  if (!(Pico.video.reg[0] & 0x4))
+  // use hardware palette for 16bit accurate mode
+  if (FinalizeLineSMS == FinalizeLineRGB555SMS)
+    spal = (void *)PicoMem.cram;
+
+  // fixed palette in TMS modes
+  if (!(Pico.video.reg[0] & 0x4)) {
     spal = (u32 *)tmspal;
+    cnt = 1;
+  }
 
   /* SMS 6 bit cram data was already converted to MD/GG format by vdp write,
    * hence GG/SMS/TMS can all be handled the same here */
-  for (i = 0x20/2; i > 0; i--, spal++, dpal++) { 
-    t = *spal;
+  for (j = cnt; j > 0; j--) {
+    for (i = 0x20/2; i > 0; i--, spal++, dpal++) { 
+     t = *spal;
 #if defined(USE_BGR555)
-    t = ((t & 0x000f000f)<< 1) | ((t & 0x00f000f0)<<2) | ((t & 0x0f000f00)<<3);
-    t |= (t >> 4) & 0x04210421;
+     t = ((t & 0x000f000f)<< 1) | ((t & 0x00f000f0)<<2) | ((t & 0x0f000f00)<<3);
+     t |= (t >> 4) & 0x04210421;
 #elif defined(USE_BGR565)
-    t = ((t & 0x000f000f)<< 1) | ((t & 0x00f000f0)<<3) | ((t & 0x0f000f00)<<4);
-    t |= (t >> 4) & 0x08610861;
+     t = ((t & 0x000f000f)<< 1) | ((t & 0x00f000f0)<<3) | ((t & 0x0f000f00)<<4);
+     t |= (t >> 4) & 0x08610861;
 #else
-    t = ((t & 0x000f000f)<<12) | ((t & 0x00f000f0)<<3) | ((t & 0x0f000f00)>>7);
-    t |= (t >> 4) & 0x08610861;
+     t = ((t & 0x000f000f)<<12) | ((t & 0x00f000f0)<<3) | ((t & 0x0f000f00)>>7);
+     t |= (t >> 4) & 0x08610861;
 #endif
-    *dpal = t;
+     *dpal = t;
+    }
+    memcpy(dpal, dpal-0x20/2, 0x20*2); // for prio bit
+    spal += 0x20/2, dpal += 0x20/2;
   }
-  memcpy(&Pico.est.HighPal[0x20], Pico.est.HighPal, 0x20*2); // for prio bit
   Pico.est.HighPal[0xe0] = 0;
 }
 
