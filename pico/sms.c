@@ -21,13 +21,15 @@ extern void YM2413_dataWrite(unsigned data);
 
 
 static unsigned short ymflag = 0xffff;
+static u8 vdp_buffer;
 
 static unsigned char vdp_data_read(void)
 {
   struct PicoVideo *pv = &Pico.video;
   unsigned char d;
 
-  d = PicoMem.vramb[MEM_LE2(pv->addr)];
+  d = vdp_buffer;
+  vdp_buffer = PicoMem.vramb[MEM_LE2(pv->addr)];
   pv->addr = (pv->addr + 1) & 0x3fff;
   pv->pending = 0;
   return d;
@@ -54,12 +56,14 @@ static void vdp_data_write(unsigned char d)
   if (pv->type == 3) {
     if (Pico.m.hardware & 0x1) { // GG, same layout as MD
       unsigned a = pv->addr & 0x3f;
-      if (a & 0x1) d &= 0x0f;
-      if (((u8 *)PicoMem.cram)[MEM_LE2(a)] != d) Pico.m.dirtyPal = 1;
-      ((u8 *)PicoMem.cram)[MEM_LE2(a)] = d;
+      if (a & 0x1) { // write complete color on high byte write
+        u16 c = ((d&0x0f) << 8) | vdp_buffer;
+        if (PicoMem.cram[a >> 1] != c) Pico.m.dirtyPal = 1;
+        PicoMem.cram[a >> 1] = c;
+      }
     } else { // SMS, convert to MD layout (00BbGgRr to 0000BbBbGgGgRrRr)
       unsigned a = pv->addr & 0x1f;
-      u16 c = (d&0x30)*0x40 + (d&0x0c)*0x10 + (d&0x03)*0x04;
+      u16 c = ((d&0x30)<<6) + ((d&0x0c)<<4) + ((d&0x03)<<2);
       if (PicoMem.cram[a] != (c | (c>>2))) Pico.m.dirtyPal = 1;
       PicoMem.cram[a] = c | (c>>2);
     }
@@ -68,6 +72,7 @@ static void vdp_data_write(unsigned char d)
   }
   pv->addr = (pv->addr + 1) & 0x3fff;
 
+  vdp_buffer = d;
   pv->pending = 0;
 }
 
@@ -95,14 +100,18 @@ static void vdp_ctl_write(u8 d)
   struct PicoVideo *pv = &Pico.video;
 
   if (pv->pending) {
-    if ((d >> 6) == 2) {
+    pv->type = d >> 6;
+    if (pv->type == 2) {
       elprintf(EL_IO, "  VDP r%02x=%02x", d & 0x0f, pv->addr & 0xff);
       if (pv->reg[d & 0x0f] != (u8)pv->addr)
         vdp_reg_write(pv, d & 0x0f, pv->addr);
     }
-    pv->type = d >> 6;
     pv->addr &= 0x00ff;
     pv->addr |= (d & 0x3f) << 8;
+    if (pv->type == 0) {
+      vdp_buffer = PicoMem.vramb[MEM_LE2(pv->addr)];
+      pv->addr = (pv->addr + 1) & 0x3fff;
+    }
   } else {
     pv->addr &= 0x3f00;
     pv->addr |= d;
@@ -147,8 +156,12 @@ static unsigned char z80_sms_in(unsigned short a)
         elprintf(EL_HVCNT, "V counter read: %02x", d);
         break;
 
-      case 0x41: /* H counter */
-        d = Pico.m.rotate++;
+      case 0x41: /* H counter, TODO: latched by toggle of pad TH line */
+        // 171 slots per scanline of 228 clocks, runs from 0x85-0x93,0xe9-0x84
+#define CYC2SLOT (256 * 171/228) // cycles to slot factor in Q8
+        d = 228-z80_cyclesLeft;
+        if (d <= 19)	d = (( d     * CYC2SLOT)>>8) + 0x85;
+        else		d = (((d-20) * CYC2SLOT)>>8) + 0xe9;
         elprintf(EL_HVCNT, "H counter read: %02x", d);
         break;
 
