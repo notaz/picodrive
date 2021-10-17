@@ -404,7 +404,7 @@ void PicoFrameMS(void)
   struct PicoVideo *pv = &Pico.video;
   int is_pal = Pico.m.pal;
   int lines = is_pal ? 313 : 262;
-  int cycles_line = is_pal ? 58020 : 58293; /* (226.6 : 227.7) * 256 */
+  int cycles_line = 228;
   int cycles_done = 0, cycles_aim = 0;
   int skip = PicoIn.skipFrame;
   int lines_vis = 192;
@@ -454,8 +454,8 @@ void PicoFrameMS(void)
     }
 
     cycles_aim += cycles_line;
-    Pico.t.z80c_aim = cycles_aim >> 8;
-    cycles_done += z80_run((cycles_aim - cycles_done) >> 8) << 8;
+    Pico.t.z80c_aim = cycles_aim;
+    cycles_done += z80_run(cycles_aim - cycles_done);
   }
 
   if (PicoIn.sndOut)
