@@ -22,6 +22,7 @@ extern void YM2413_dataWrite(unsigned data);
 
 static unsigned short ymflag = 0xffff;
 static u8 vdp_buffer;
+static u8 vdp_hlatch;
 
 static unsigned char vdp_data_read(void)
 {
@@ -156,12 +157,8 @@ static unsigned char z80_sms_in(unsigned short a)
         elprintf(EL_HVCNT, "V counter read: %02x", d);
         break;
 
-      case 0x41: /* H counter, TODO: latched by toggle of pad TH line */
-        // 171 slots per scanline of 228 clocks, runs from 0x85-0x93,0xe9-0x84
-#define CYC2SLOT (256 * 171/228) // cycles to slot factor in Q8
-        d = 228-z80_cyclesLeft;
-        if (d <= 19)	d = (( d     * CYC2SLOT)>>8) + 0x85;
-        else		d = (((d-20) * CYC2SLOT)>>8) + 0xe9;
+      case 0x41: /* H counter */
+	d = vdp_hlatch;
         elprintf(EL_HVCNT, "H counter read: %02x", d);
         break;
 
@@ -218,6 +215,15 @@ static void z80_sms_out(unsigned short a, unsigned char d)
     switch (a)
     {
       case 0x01:
+        // latch hcounter if one of the TH lines is switched to 1
+        if ((Pico.ms.io_ctl ^ d) & d & 0xa0) {
+          unsigned c = 228-z80_cyclesLeft;
+          // 171 slots per scanline of 228 clocks, runs from 0xf4-0x93,0xe9-0xf3
+          // this matches h counter tables in SMSVDPTest
+          c = (((c+2) * ((171<<8)/228))>>8)-1 + 0xf4; // Q8 to avoid dividing
+          if (c > 0x193) c += 0xe9-0x93-1;
+          vdp_hlatch = (u8)c;
+        }
         Pico.ms.io_ctl = d;
         break;
 
