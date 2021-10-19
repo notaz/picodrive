@@ -523,6 +523,29 @@ static int menu_loop_32x_options(int id, int keys)
 
 #endif
 
+// ------------ SMS options menu ------------
+
+#ifndef NO_SMS
+
+static const char *sms_hardwares[] = { "auto", "Game Gear", "Master System", NULL };
+
+static menu_entry e_menu_sms_options[] =
+{
+	mee_enum      ("System", MA_SMSOPT_HARDWARE, currentConfig.s_hwSelect, sms_hardwares ),
+};
+
+static int menu_loop_sms_options(int id, int keys)
+{
+	static int sel = 0;
+
+	me_loop(e_menu_sms_options, &sel);
+
+	PicoIn.hwSelect = currentConfig.s_hwSelect;
+	return 0;
+}
+
+#endif
+
 // ------------ adv options menu ------------
 
 static const char h_ovrclk[] = "Will break some games, keep at 0";
@@ -828,6 +851,9 @@ static menu_entry e_menu_options[] =
 	mee_handler   ("[Sega/Mega CD options]",   menu_loop_cd_options),
 #ifndef NO_32X
 	mee_handler   ("[32X options]",            menu_loop_32x_options),
+#endif
+#ifndef NO_SMS
+	mee_handler   ("[SMS options]",            menu_loop_sms_options),
 #endif
 	mee_handler   ("[Advanced options]",       menu_loop_adv_options),
 	mee_cust_nosave("Save global config",      MA_OPT_SAVECFG, mh_saveloadcfg, mgn_saveloadcfg),
@@ -1290,6 +1316,9 @@ static menu_entry *e_menu_table[] =
 	e_menu_cd_options,
 #ifndef NO_32X
 	e_menu_32x_options,
+#endif
+#ifndef NO_SMS
+	e_menu_sms_options,
 #endif
 	e_menu_keyconfig,
 	e_menu_hidden,

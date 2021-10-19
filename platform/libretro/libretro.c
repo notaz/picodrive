@@ -1451,21 +1451,23 @@ static void update_variables(bool first_run)
       PicoSetInputDevice(1, input_name_to_val(var.value));
 
    var.value = NULL;
-   var.key = "picodrive_sprlim";
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
-      if (strcmp(var.value, "enabled") == 0)
-         PicoIn.opt |= POPT_DIS_SPRITE_LIM;
-      else
-         PicoIn.opt &= ~POPT_DIS_SPRITE_LIM;
-   }
-
-   var.value = NULL;
    var.key = "picodrive_ramcart";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
       if (strcmp(var.value, "enabled") == 0)
          PicoIn.opt |= POPT_EN_MCD_RAMCART;
       else
          PicoIn.opt &= ~POPT_EN_MCD_RAMCART;
+   }
+
+   var.value = NULL;
+   var.key = "picodrive_smstype";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "Auto") == 0)
+         PicoIn.hwSelect = PHWS_AUTO;
+      else if (strcmp(var.value, "Game Gear") == 0)
+         PicoIn.hwSelect = PHWS_GG;
+      else
+         PicoIn.hwSelect = PHWS_SMS;
    }
 
    OldPicoRegionOverride = PicoIn.regionOverride;
@@ -1510,6 +1512,15 @@ static void update_variables(bool first_run)
       struct retro_system_av_info av_info;
       retro_get_system_av_info(&av_info);
       environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
+   }
+
+   var.value = NULL;
+   var.key = "picodrive_sprlim";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "enabled") == 0)
+         PicoIn.opt |= POPT_DIS_SPRITE_LIM;
+      else
+         PicoIn.opt &= ~POPT_DIS_SPRITE_LIM;
    }
 
    old_show_overscan = show_overscan;

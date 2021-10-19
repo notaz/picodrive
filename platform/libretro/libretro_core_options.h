@@ -74,9 +74,9 @@ struct retro_core_option_definition option_defs_us[] = {
       "3 button pad"
    },
    {
-      "picodrive_sprlim",
-      "No sprite limit",
-      "Enable this to remove the sprite limit.",
+      "picodrive_ramcart",
+      "MegaCD RAM cart",
+      "Emulate a MegaCD RAM cart, used for save game data. WARNING: When enabled, internal save data (BRAM) will be discarded.",
       {
          { "disabled", NULL },
          { "enabled",  NULL },
@@ -85,12 +85,13 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled"
    },
    {
-      "picodrive_ramcart",
-      "MegaCD RAM cart",
-      "Emulate a MegaCD RAM cart, used for save game data. WARNING: When enabled, internal save data (BRAM) will be discarded.",
+      "picodrive_smstype",
+      "Master System type",
+      "Choose which type of system the core should emulate for Master system",
       {
-         { "disabled", NULL },
-         { "enabled",  NULL },
+         { "Auto", NULL },
+         { "Game Gear",  NULL },
+         { "Master System",  NULL },
          { NULL, NULL },
       },
       "disabled"
@@ -120,6 +121,17 @@ struct retro_core_option_definition option_defs_us[] = {
          { NULL, NULL },
       },
       "PAR"
+   },
+   {
+      "picodrive_sprlim",
+      "No sprite limit",
+      "Enable this to remove the sprite limit.",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
+         { NULL, NULL },
+      },
+      "disabled"
    },
    {
       "picodrive_overscan",

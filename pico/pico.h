@@ -82,6 +82,10 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define PAHW_PICO (1<<3)
 #define PAHW_SMS  (1<<4)
 
+#define PHWS_AUTO 0
+#define PHWS_GG   1
+#define PHWS_SMS  2
+
 #define PQUIRK_FORCE_6BTN   (1<<0)
 
 // the emulator is configured and some status is reported
@@ -97,6 +101,7 @@ typedef struct PicoInterface
 	unsigned short skipFrame;      // skip rendering frame, but still do sound (if enabled) and emulation stuff
 	unsigned short regionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 	unsigned short autoRgnOrder;   // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
+	unsigned short hwSelect;       // hardware preselected via option menu
 
 	unsigned short quirks;         // game-specific quirks: PQUIRK_*
 	unsigned short overclockM68k;  // overclock the emulated 68k, in %

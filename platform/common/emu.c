@@ -597,6 +597,7 @@ void emu_prep_defconfig(void)
 	defaultConfig.s_PsndRate = 44100;
 	defaultConfig.s_PicoRegion = 0; // auto
 	defaultConfig.s_PicoAutoRgnOrder = 0x184; // US, EU, JP
+	defaultConfig.s_hwSelect = PHWS_AUTO;
 	defaultConfig.s_PicoCDBuffers = 0;
 	defaultConfig.s_PicoSndFilterAlpha = 0x10000 * 60 / 100;
 	defaultConfig.confirm_save = EOPT_CONFIRM_SAVE;
@@ -622,6 +623,7 @@ void emu_set_defconfig(void)
 	PicoIn.sndRate = currentConfig.s_PsndRate;
 	PicoIn.regionOverride = currentConfig.s_PicoRegion;
 	PicoIn.autoRgnOrder = currentConfig.s_PicoAutoRgnOrder;
+	PicoIn.hwSelect = currentConfig.s_hwSelect;
 	PicoIn.sndFilterAlpha = currentConfig.s_PicoSndFilterAlpha;
 }
 
