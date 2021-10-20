@@ -531,7 +531,7 @@ static const char *sms_hardwares[] = { "auto", "Game Gear", "Master System", NUL
 
 static menu_entry e_menu_sms_options[] =
 {
-	mee_enum      ("System", MA_SMSOPT_HARDWARE, currentConfig.s_hwSelect, sms_hardwares ),
+	mee_enum      ("System", MA_SMSOPT_HARDWARE, PicoIn.hwSelect, sms_hardwares ),
 };
 
 static int menu_loop_sms_options(int id, int keys)
@@ -540,7 +540,6 @@ static int menu_loop_sms_options(int id, int keys)
 
 	me_loop(e_menu_sms_options, &sel);
 
-	PicoIn.hwSelect = currentConfig.s_hwSelect;
 	return 0;
 }
 
