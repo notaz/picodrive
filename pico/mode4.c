@@ -27,18 +27,21 @@ static int CollisionDetect(u8 *mb, u16 sx, unsigned int pack, int zoomed)
                            0xc0,0xc3,0xcc,0xcf,0xf0,0xf3,0xfc,0xff };
   u8 *mp = mb + (sx>>3);
   unsigned col, m;
-  // create a pixel bitmap of the sprite pixels from the 4 bitplanes in pack
-  pack = ((pack | (pack>>16)) | ((pack | (pack>>16))>>8)) & 0xff;
-  if (zoomed)   pack = morton[pack&0x0f] | (morton[(pack>>4)&0x0f] << 8);
-  // get the corresponding data from the sprite map
-  m = mp[0] | (mp[1]<<8);
-  if (zoomed)   m |= (mp[2]<<16);
-  // collision if bits in pixel bitmap overlap bits in sprite map
-  col = m & (pack<<(sx&7));
-  // update sprite map data with our pixel bitmap
-  m |= pack<<(sx&7);
-  mp[0] = m, mp[1] = m>>8;
-  if (zoomed)   mp[2] = m>>16;
+
+  // check sprite map for collision and update map with current sprite
+  if (!zoomed) { // 8 sprite pixels
+    m = mp[0] | (mp[1]<<8);
+    col = m & (pack<<(sx&7)); // collision if current sprite overlaps sprite map
+    m |= pack<<(sx&7);
+    mp[0] = m, mp[1] = m>>8;
+  } else { // 16 sprite pixels in zoom mode
+    pack = morton[pack&0x0f] | (morton[(pack>>4)&0x0f] << 8);
+    m = mp[0] | (mp[1]<<8) | (mp[2]<<16);
+    col = m & (pack<<(sx&7));
+    m |= pack<<(sx&7);
+    mp[0] = m, mp[1] = m>>8, mp[2] = m>>16;
+  }
+
   // invisible overscan area, not tested for collision
   mb[0] = mb[33] = 0;
   return col;
@@ -53,7 +56,7 @@ static void TileBGM4(u16 sx, int pal)
   pd[0] = pd[1] = pal * 0x01010101;
 }
 
-// 8 pixels are arranged to have 1 bit in each byte of a 32 bit word. To pull
+// 8 pixels are arranged are arranged in 4 bitplanes in a 32 bit word. To pull
 // the 4 bitplanes together multiply with each bit distance (multiples of 1<<7)
 #define PLANAR_PIXELBG(x,p) \
   t = (pack>>(7-p)) & 0x01010101; \
@@ -191,6 +194,8 @@ static void DrawSpritesM4(int scanline)
     pack = CPU_LE2(*(u32 *)(PicoMem.vram + sprites_addr[s]));
     if (zoomed) TileDoubleSprM4(sprites_x[s], pack, 0x10);
     else        TileNormSprM4(sprites_x[s], pack, 0x10);
+    // make sprite pixel map by merging the 4 bitplanes
+    pack = ((pack | (pack>>16)) | ((pack | (pack>>16))>>8)) & 0xff;
     if (!m)     m = CollisionDetect(mb, sprites_x[s], pack, zoomed);
   }
   if (m)
@@ -209,20 +214,20 @@ static void DrawStripM4(const u16 *nametab, int cells_dx, int tilex_ty)
     unsigned int pack;
     unsigned code;
 
-    code = nametab[tilex_ty& 0x1f];
+    code = nametab[tilex_ty & 0x1f];
 
     if (code != oldcode) {
       oldcode = code;
       // Get tile address/2:
       addr = (code & 0x1ff) << 4;
-      addr += tilex_ty>> 16;
+      addr += tilex_ty >> 16;
       if (code & 0x0400)
         addr ^= 0xe; // Y-flip
 
       pal = (code>>7) & 0x30;  // prio | palette select
     }
 
-    pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr)); /* Get 4 bitplanes / 8 pixels */
+    pack = CPU_LE2(*(u32 *)(PicoMem.vram + addr)); // Get 4 bitplanes / 8 pixels
     if (pack == 0)          TileBGM4(cells_dx, pal);
     else if (code & 0x0200) TileFlipBGM4(cells_dx, pack, pal);
     else                    TileNormBGM4(cells_dx, pack, pal);
@@ -296,17 +301,17 @@ static void DrawDisplayM4(int scanline)
 }
 
 
-/* Mode 2 */
-/*========*/
+/* TMS Modes */
+/*===========*/
 
-/* Background */
+/* Background, Graphics modes */
 
 #define TMS_PIXELBG(x,p) \
   t = (pack>>(7-p)) & 0x01; \
   t = (pal >> (t << 2)) & 0x0f; \
   pd[x] = t;
 
-static void TileNormBgM2(u16 sx, unsigned int pack, int pal)
+static void TileNormBgGr(u16 sx, unsigned int pack, int pal)
 {
   u8 *pd = Pico.est.HighCol + sx;
   unsigned int t;
@@ -328,7 +333,7 @@ static void TileNormBgM2(u16 sx, unsigned int pack, int pal)
   if (t) \
     pd[x] = pal;
 
-static void TileNormSprM2(u16 sx, unsigned int pack, int pal)
+static void TileNormSprTMS(u16 sx, unsigned int pack, int pal)
 {
   u8 *pd = Pico.est.HighCol + sx;
   unsigned int t;
@@ -343,7 +348,7 @@ static void TileNormSprM2(u16 sx, unsigned int pack, int pal)
   TMS_PIXELSP(7, 7)
 }
 
-static void TileDoubleSprM2(u16 sx, unsigned int pack, int pal)
+static void TileDoubleSprTMS(u16 sx, unsigned int pack, int pal)
 {
   u8 *pd = Pico.est.HighCol + sx;
   unsigned int t;
@@ -367,7 +372,7 @@ static void TileDoubleSprM2(u16 sx, unsigned int pack, int pal)
 }
 
 /* Draw sprites into a scanline, max 4 */
-static void DrawSpritesM2(int scanline)
+static void DrawSpritesTMS(int scanline)
 {
   struct PicoVideo *pv = &Pico.video;
   unsigned char mb[256/8+2] = {0};
@@ -425,20 +430,23 @@ static void DrawSpritesM2(int scanline)
     c = sat[MEM_LE2(i+3)] & 0x0f;
     if (x > 0) {
       pack = PicoMem.vramb[MEM_LE2(sprites_addr[s])];
-      if (zoomed) TileDoubleSprM2(x, pack, c);
-      else        TileNormSprM2(x, pack, c);
+      if (zoomed) TileDoubleSprTMS(x, pack, c);
+      else        TileNormSprTMS(x, pack, c);
       if (!m)     m = CollisionDetect(mb, x, pack, zoomed);
     }
     if((pv->reg[1] & 0x2) && (x+=w) > 0) {
       pack = PicoMem.vramb[MEM_LE2(sprites_addr[s]+0x10)];
-      if (zoomed) TileDoubleSprM2(x, pack, c);
-      else        TileNormSprM2(x, pack, c);
+      if (zoomed) TileDoubleSprTMS(x, pack, c);
+      else        TileNormSprTMS(x, pack, c);
       if (!m)     m = CollisionDetect(mb, x, pack, zoomed);
     }
   }
   if (m)
     pv->status |= SR_C;
 }
+
+/* Mode 2 */
+/*========*/
 
 /* Draw the background into a scanline; cells, dx, tilex, ty merged to reduce registers */
 static void DrawStripM2(const u8 *nametab, const u8 *coltab, const u8 *pattab, int cells_dx, int tilex_ty)
@@ -449,10 +457,10 @@ static void DrawStripM2(const u8 *nametab, const u8 *coltab, const u8 *pattab, i
     unsigned int pack, pal;
     unsigned code;
 
-    code = nametab[tilex_ty& 0x1f] << 3;
+    code = nametab[tilex_ty & 0x1f] << 3;
     pal  = coltab[code];
     pack = pattab[code];
-    TileNormBgM2(cells_dx, pack, pal);
+    TileNormBgGr(cells_dx, pack, pal);
   }
 }
 
@@ -484,7 +492,56 @@ static void DrawDisplayM2(int scanline)
 
   // sprites
   if (!(pv->debug_p & PVD_KILL_S_LO))
-    DrawSpritesM2(scanline);
+    DrawSpritesTMS(scanline);
+}
+
+/* Mode 1 */
+/*========*/
+
+/* Draw the background into a scanline; cells, dx, tilex, ty merged to reduce registers */
+static void DrawStripM1(const u8 *nametab, const u8 *coltab, const u8 *pattab, int cells_dx, int tilex_ty)
+{
+  // Draw tiles across screen:
+  for (; cells_dx > 0; cells_dx += 8, tilex_ty++, cells_dx -= 0x10000)
+  {
+    unsigned int pack, pal;
+    unsigned code;
+
+    code = nametab[tilex_ty & 0x1f];
+    pal  = coltab[code >> 3];
+    pack = pattab[code << 3];
+    TileNormBgGr(cells_dx, pack, pal);
+  }
+}
+
+/* Draw a scanline */
+static void DrawDisplayM1(int scanline)
+{
+  struct PicoVideo *pv = &Pico.video;
+  u8 *nametab, *coltab, *pattab;
+  int tilex, dx, cells;
+  int cellskip = 0; // XXX
+  int maxcells = 32;
+
+  // name, color, pattern table:
+  nametab = PicoMem.vramb + ((pv->reg[2]<<10) & 0x3c00);
+  coltab  = PicoMem.vramb + ((pv->reg[3]<< 6) & 0x3fc0);
+  pattab  = PicoMem.vramb + ((pv->reg[4]<<11) & 0x3800);
+
+  nametab += (scanline>>3) << 5;
+  pattab  += (scanline & 0x7);
+
+  tilex = cellskip & 0x1f;
+  cells = maxcells - cellskip;
+  dx = (cellskip << 3) + line_offset + 8;
+
+  // tiles
+  if (!(pv->debug_p & PVD_KILL_B))
+    DrawStripM1(nametab, coltab, pattab, dx | (cells << 16), tilex | (scanline << 16));
+
+  // sprites
+  if (!(pv->debug_p & PVD_KILL_S_LO))
+    DrawSpritesTMS(scanline);
 }
 
 
@@ -568,8 +625,9 @@ void PicoLineSMS(int line)
   // Draw screen:
   BackFill(Pico.video.reg[7] & 0x0f, 0, &Pico.est);
   if (Pico.video.reg[1] & 0x40) {
-    if (Pico.video.reg[0] & 0x04) DrawDisplayM4(line);
-    else                          DrawDisplayM2(line);
+    if      (Pico.video.reg[0] & 0x04) DrawDisplayM4(line);
+    else if (Pico.video.reg[0] & 0x02) DrawDisplayM2(line);
+    else                               DrawDisplayM1(line);
   }
 
   if (FinalizeLineSMS != NULL)
