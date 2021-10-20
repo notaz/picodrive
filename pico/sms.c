@@ -195,17 +195,14 @@ static void z80_sms_out(unsigned short a, unsigned char d)
         case 0xf0:
           // FM reg port
           YM2413_regWrite(d);
-          //printf("write FM register = %02x\n", d);
           break;
         case 0xf1:
           // FM data port
           YM2413_dataWrite(d);
-          //printf("write FM data = %02x\n", d);
           break;
         case 0xf2:
           // bit 0 = 1 active FM Pac
           ymflag = d;
-          //printf("write FM Check = %02x\n", d);
           break;
       }
     }
@@ -261,8 +258,11 @@ static void write_sram(unsigned short a, unsigned char d)
 // 16KB bank mapping for Sega mapper
 static void write_bank_sega(unsigned short a, unsigned char d)
 {
-  elprintf(EL_Z80BNK, "bank %04x %02x @ %04x", a, d, z80_pc());
+  if (Pico.ms.mapper != 1 && d == 0) return;
+  elprintf(EL_Z80BNK, "bank 16k %04x %02x @ %04x", a, d, z80_pc());
+  Pico.ms.mapper = 1;
   Pico.ms.carthw[a & 0x0f] = d;
+
   switch (a & 0x0f)
   {
     case 0x0d:
@@ -295,7 +295,8 @@ static void write_bank_sega(unsigned short a, unsigned char d)
 // 8KB ROM mapping for MSX mapper
 static void write_bank_msx(unsigned short a, unsigned char d)
 {
-  Pico.ms.mapper = 1; // TODO define (more) mapper types
+  elprintf(EL_Z80BNK, "bank  8k %04x %02x @ %04x", a, d, z80_pc());
+  Pico.ms.mapper = 2; // TODO define (more) mapper types
   Pico.ms.carthw[a] = d;
 
   a = (a^2)*0x2000 + 0x4000;
@@ -311,20 +312,20 @@ static void xwrite(unsigned int a, unsigned char d)
     PicoMem.zram[a & 0x1fff] = d;
 
   // Sega. Maps 4 bank 16KB each
-  if (a >= 0xfff8 /*&& !Pico.ms.mapper*/)
+  if (a >= 0xfff8 && Pico.ms.mapper != 2)
     write_bank_sega(a, d);
   // Codemasters. Similar to Sega, but different addresses
-  if (a == 0x0000 && !Pico.ms.mapper)
-    write_bank_sega(0xfffd, d);
-  if (a == 0x4000)
+//  if (a == 0x0000 && Pico.ms.mapper != 2)
+//    write_bank_sega(0xfffd, d);
+  if (a == 0x4000 && Pico.ms.mapper != 2)
     write_bank_sega(0xfffe, d);
-  if (a == 0x8000)
+  if (a == 0x8000 && Pico.ms.mapper != 2)
     write_bank_sega(0xffff, d);
   // Korean. 1 selectable 16KB bank at the top
-  if (a == 0xa000)
+  if (a == 0xa000 && Pico.ms.mapper != 2)
     write_bank_sega(0xffff, d);
   // MSX. 4 selectable 8KB banks at the top
-  if (a <= 0x0003 && (a || Pico.ms.mapper))
+  if (a <= 0x0003 && Pico.ms.mapper != 1 && (a|d))
     write_bank_msx(a, d);
 }
 
@@ -376,6 +377,7 @@ void PicoPowerMS(void)
   tmp = 1 << s;
   bank_mask = (tmp - 1) >> 14;
 
+  Pico.ms.mapper = 0;
   PicoReset();
 }
 
@@ -398,22 +400,26 @@ void PicoMemSetupMS(void)
   Cz80_Set_OUTPort(&CZ80, z80_sms_out);
 #endif
 
-  // memory mapper setup, linearly mapped, default is Sega mapper
-  Pico.ms.carthw[0x00] = 4;
-  Pico.ms.carthw[0x01] = 5;
-  Pico.ms.carthw[0x02] = 2;
-  Pico.ms.carthw[0x03] = 3;
-
-  Pico.ms.carthw[0x0c] = 0;
-  Pico.ms.carthw[0x0d] = 0;
-  Pico.ms.carthw[0x0e] = 1;
-  Pico.ms.carthw[0x0f] = 2;
-  Pico.ms.mapper = 0;
+  // memory mapper setup
+  u8 mapper = Pico.ms.mapper;
+  if (Pico.ms.mapper == 2) {
+    xwrite(0x0000, 0);
+    xwrite(0x0001, 0);
+    xwrite(0x0002, 0);
+    xwrite(0x0003, 0);
+  } else {
+    xwrite(0xfffc, 0);
+    xwrite(0xfffd, 0);
+    xwrite(0xfffe, 1);
+    xwrite(0xffff, 2);
+  }
+  Pico.ms.mapper = mapper;
 }
 
 void PicoStateLoadedMS(void)
 {
-  if (Pico.ms.mapper) {
+  u8 mapper = Pico.ms.mapper;
+  if (Pico.ms.mapper == 2) {
     xwrite(0x0000, Pico.ms.carthw[0]);
     xwrite(0x0001, Pico.ms.carthw[1]);
     xwrite(0x0002, Pico.ms.carthw[2]);
@@ -424,6 +430,7 @@ void PicoStateLoadedMS(void)
     xwrite(0xfffe, Pico.ms.carthw[0x0e]);
     xwrite(0xffff, Pico.ms.carthw[0x0f]);
   }
+  Pico.ms.mapper = mapper;
 }
 
 void PicoFrameMS(void)
