@@ -56,8 +56,8 @@ static void TileBGM4(u16 sx, int pal)
   pd[0] = pd[1] = pal * 0x01010101;
 }
 
-// 8 pixels are arranged are arranged in 4 bitplanes in a 32 bit word. To pull
-// the 4 bitplanes together multiply with each bit distance (multiples of 1<<7)
+// 8 pixels are arranged in 4 bitplane bytes in a 32 bit word. To pull the
+// 4 bitplanes together multiply with each bit distance (multiples of 1<<7)
 #define PLANAR_PIXELBG(x,p) \
   t = (pack>>(7-p)) & 0x01010101; \
   t = (t*0x10204080) >> 28; \
@@ -142,7 +142,7 @@ static void TileDoubleSprM4(int sx, unsigned int pack, int pal)
 static void DrawSpritesM4(int scanline)
 {
   struct PicoVideo *pv = &Pico.video;
-  unsigned char mb[256/8+2] = {0};
+  unsigned char mb[1+256/8+2] = {0}; // zoomed
   unsigned int sprites_addr[8];
   unsigned int sprites_x[8];
   unsigned int pack;
@@ -375,7 +375,7 @@ static void TileDoubleSprTMS(u16 sx, unsigned int pack, int pal)
 static void DrawSpritesTMS(int scanline)
 {
   struct PicoVideo *pv = &Pico.video;
-  unsigned char mb[256/8+2] = {0};
+  unsigned char mb[1+256/8+4] = {0}; // zoomed+doublesize
   unsigned int sprites_addr[4];
   unsigned int sprites_x[4];
   unsigned int pack;

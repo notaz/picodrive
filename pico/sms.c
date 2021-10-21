@@ -295,6 +295,7 @@ static void write_bank_sega(unsigned short a, unsigned char d)
 // 8KB ROM mapping for MSX mapper
 static void write_bank_msx(unsigned short a, unsigned char d)
 {
+  if (Pico.ms.mapper != 2 && (a|d) == 0) return;
   elprintf(EL_Z80BNK, "bank  8k %04x %02x @ %04x", a, d, z80_pc());
   Pico.ms.mapper = 2; // TODO define (more) mapper types
   Pico.ms.carthw[a] = d;
@@ -325,7 +326,7 @@ static void xwrite(unsigned int a, unsigned char d)
   if (a == 0xa000 && Pico.ms.mapper != 2)
     write_bank_sega(0xffff, d);
   // MSX. 4 selectable 8KB banks at the top
-  if (a <= 0x0003 && Pico.ms.mapper != 1 && (a|d))
+  if (a <= 0x0003 && Pico.ms.mapper != 1)
     write_bank_msx(a, d);
 }
 
@@ -476,15 +477,20 @@ void PicoFrameMS(void)
         if (pv->reg[0] & 0x10) {
           elprintf(EL_INTS, "hint");
           z80_int_assert(1);
-        }
+	}
+      } else if (pv->pending_ints & 2) {
+        pv->pending_ints &= ~2;
+        z80_int_assert(0);
       }
     }
     else if (y == lines_vis + 1) {
+      pv->pending_ints &= ~2;
       pv->pending_ints |= 1;
       if (pv->reg[1] & 0x20) {
         elprintf(EL_INTS, "vint");
         z80_int_assert(1);
-      }
+      } else
+        z80_int_assert(0);
     }
 
     cycles_aim += cycles_line;
