@@ -756,25 +756,10 @@ void pemu_loop_end(void)
 	pemu_sound_stop();
 }
 
-// TODO 
+/* resume from suspend: change to main menu if emu was running */
 void emu_handle_resume(void)
 {
-	if (!(PicoIn.AHW & PAHW_MCD)) return;
-
-	// reopen first CD track
-	if (cdd.toc.tracks[0].fd != NULL)
-	{
-		lprintf("emu_HandleResume: reopen %s\n", cdd.toc.tracks[0].fname);
-		pm_close(cdd.toc.tracks[0].fd);
-		cdd.toc.tracks[0].fd = pm_open(cdd.toc.tracks[0].fname);
-		lprintf("reopen %s\n", cdd.toc.tracks[0].fd != NULL ? "ok" : "failed");
-	}
-
-	mp3_reopen_file();
-
-#if 0	// TODO
-	if (!(Pico_mcd->s68k_regs[0x36] & 1))
-		cdd_change_track(cdd.index, cdd.lba);
-#endif
+	if (engineState == PGS_Running)
+		engineState = PGS_Menu;
 }
 
