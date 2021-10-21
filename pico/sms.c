@@ -137,8 +137,7 @@ static unsigned char z80_sms_in(unsigned short a)
         break;
       case 0xf2:
         // bit 0 = 1 active FM Pac
-        d = ymflag;
-        //printf("read FM Check = %02x\n", d);
+        d = 0xf8 | ymflag;
         break;
       }
     }
@@ -202,7 +201,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
           break;
         case 0xf2:
           // bit 0 = 1 active FM Pac
-          ymflag = d;
+          ymflag = d & 0x1;
           break;
       }
     }

@@ -528,10 +528,13 @@ static int menu_loop_32x_options(int id, int keys)
 #ifndef NO_SMS
 
 static const char *sms_hardwares[] = { "auto", "Game Gear", "Master System", NULL };
+static const char h_smsfm[] = "FM sound is only supported by few games\nOther games may crash with FM enabled";
 
 static menu_entry e_menu_sms_options[] =
 {
-	mee_enum      ("System", MA_SMSOPT_HARDWARE, PicoIn.hwSelect, sms_hardwares ),
+	mee_enum      ("System",        MA_SMSOPT_HARDWARE,    PicoIn.hwSelect, sms_hardwares ),
+	mee_onoff_h   ("FM Sound Unit", MA_OPT2_ENABLE_YM2413, PicoIn.opt, POPT_EN_YM2413, h_smsfm),
+	mee_end,
 };
 
 static int menu_loop_sms_options(int id, int keys)
@@ -557,7 +560,6 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Emulate YM2612 (FM)",      MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM),
 	mee_onoff     ("Disable YM2612 SSG-EG",    MA_OPT2_DISABLE_YM_SSG,PicoIn.opt, POPT_DIS_FM_SSGEG),
 	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoIn.opt, POPT_EN_PSG),
-	mee_onoff     ("Emulate YM2413 (FM)",      MA_OPT2_ENABLE_YM2413 ,PicoIn.opt, POPT_EN_YM2413),
 	mee_onoff     ("Emulate Game Gear LCD",    MA_OPT2_ENABLE_GGLCD  ,PicoIn.opt, POPT_EN_GG_LCD),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoIn.opt, POPT_DIS_IDLE_DET),
 	mee_onoff     ("Disable frame limiter",    MA_OPT2_NO_FRAME_LIMIT,currentConfig.EmuOpt, EOPT_NO_FRMLIMIT),
