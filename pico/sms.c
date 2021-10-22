@@ -20,17 +20,15 @@ extern void YM2413_regWrite(unsigned reg);
 extern void YM2413_dataWrite(unsigned data);
 
 
-static unsigned short ymflag = 0xffff;
-static u8 vdp_buffer;
-static u8 vdp_hlatch;
+static int vdp_lastline;
 
 static unsigned char vdp_data_read(void)
 {
   struct PicoVideo *pv = &Pico.video;
   unsigned char d;
 
-  d = vdp_buffer;
-  vdp_buffer = PicoMem.vramb[MEM_LE2(pv->addr)];
+  d = Pico.ms.vdp_buffer;
+  Pico.ms.vdp_buffer = PicoMem.vramb[MEM_LE2(pv->addr)];
   pv->addr = (pv->addr + 1) & 0x3fff;
   pv->pending = 0;
   return d;
@@ -46,6 +44,14 @@ static unsigned char vdp_ctl_read(void)
   pv->pending = pv->pending_ints = 0;
   pv->status = 0;
 
+  if (pv->reg[0] & 0x04)
+    d |= 0x1f; // unused bits in mode 4 read as 1
+
+  // the vint state must be set one instruction in advance, else reading status
+  // would never report vint before the irq handler, which it does on a real SMS
+  if (vdp_lastline && z80_cyclesLeft < 10) // e.g. Chicago GG
+    d |= 0x80;
+
   elprintf(EL_SR, "VDP sr: %02x", d);
   return d;
 }
@@ -58,7 +64,7 @@ static void vdp_data_write(unsigned char d)
     if (Pico.m.hardware & 0x1) { // GG, same layout as MD
       unsigned a = pv->addr & 0x3f;
       if (a & 0x1) { // write complete color on high byte write
-        u16 c = ((d&0x0f) << 8) | vdp_buffer;
+        u16 c = ((d&0x0f) << 8) | Pico.ms.vdp_buffer;
         if (PicoMem.cram[a >> 1] != c) Pico.m.dirtyPal = 1;
         PicoMem.cram[a >> 1] = c;
       }
@@ -73,7 +79,7 @@ static void vdp_data_write(unsigned char d)
   }
   pv->addr = (pv->addr + 1) & 0x3fff;
 
-  vdp_buffer = d;
+  Pico.ms.vdp_buffer = d;
   pv->pending = 0;
 }
 
@@ -110,7 +116,7 @@ static void vdp_ctl_write(u8 d)
     pv->addr &= 0x00ff;
     pv->addr |= (d & 0x3f) << 8;
     if (pv->type == 0) {
-      vdp_buffer = PicoMem.vramb[MEM_LE2(pv->addr)];
+      Pico.ms.vdp_buffer = PicoMem.vramb[MEM_LE2(pv->addr)];
       pv->addr = (pv->addr + 1) & 0x3fff;
     }
   } else {
@@ -122,12 +128,13 @@ static void vdp_ctl_write(u8 d)
 
 static unsigned char z80_sms_in(unsigned short a)
 {
-  unsigned char d = 0;
+  unsigned char d = 0xff;
 
+  a &= 0xff;
   elprintf(EL_IO, "z80 port %04x read", a);
-  if((a&0xff)>= 0xf0){
+  if(a >= 0xf0){
     if (PicoIn.opt & POPT_EN_YM2413){
-      switch((a&0xff))
+      switch(a)
       {
       case 0xf0:
         // FM reg port
@@ -137,18 +144,24 @@ static unsigned char z80_sms_in(unsigned short a)
         break;
       case 0xf2:
         // bit 0 = 1 active FM Pac
-        d = 0xf8 | ymflag;
+        d = 0xf8 | Pico.ms.fm_ctl;
         break;
       }
     }
   }
   else{
-    a &= 0xc1;
-    switch (a)
+    switch (a & 0xc1)
     {
       case 0x00:
       case 0x01:
-        d = 0xff & ~(PicoIn.pad[0] & 0x80);
+        if ((Pico.m.hardware & 0x1) && a < 0x8) { // GG I/O area
+          switch (a) {
+          case 0: d = 0xff & ~(PicoIn.pad[0] & 0x80); break;
+          case 1: d = Pico.ms.io_gg[1] | Pico.ms.io_gg[2]; break;
+          case 5: d = Pico.ms.io_gg[5] & 0xf8; break;
+          default: d = Pico.ms.io_gg[a]; break;
+          }
+        }
         break;
 
       case 0x40: /* V counter */
@@ -157,7 +170,7 @@ static unsigned char z80_sms_in(unsigned short a)
         break;
 
       case 0x41: /* H counter */
-	d = vdp_hlatch;
+	d = Pico.ms.vdp_hlatch;
         elprintf(EL_HVCNT, "H counter read: %02x", d);
         break;
 
@@ -187,9 +200,10 @@ static void z80_sms_out(unsigned short a, unsigned char d)
 {
   elprintf(EL_IO, "z80 port %04x write %02x", a, d);
 
-  if((a&0xff)>= 0xf0){
+  a &= 0xff;
+  if(a >= 0xf0){
     if (PicoIn.opt & POPT_EN_YM2413){
-      switch((a&0xff))
+      switch(a)
       {
         case 0xf0:
           // FM reg port
@@ -201,26 +215,33 @@ static void z80_sms_out(unsigned short a, unsigned char d)
           break;
         case 0xf2:
           // bit 0 = 1 active FM Pac
-          ymflag = d & 0x1;
+          Pico.ms.fm_ctl = d & 0x1;
           break;
       }
     }
   }
   else{
-    a &= 0xc1;
-    switch (a)
+    switch (a & 0xc1)
     {
+      case 0x00:
+        if ((Pico.m.hardware & 0x1) && a < 0x8)   // GG I/O area
+          Pico.ms.io_gg[a] = d;
+        break;
       case 0x01:
-        // latch hcounter if one of the TH lines is switched to 1
-        if ((Pico.ms.io_ctl ^ d) & d & 0xa0) {
-          unsigned c = 228-z80_cyclesLeft;
-          // 171 slots per scanline of 228 clocks, runs from 0xf4-0x93,0xe9-0xf3
-          // this matches h counter tables in SMSVDPTest
-          c = (((c+2) * ((171<<8)/228))>>8)-1 + 0xf4; // Q8 to avoid dividing
-          if (c > 0x193) c += 0xe9-0x93-1;
-          vdp_hlatch = (u8)c;
+        if ((Pico.m.hardware & 0x1) && a < 0x8) { // GG I/O area
+          Pico.ms.io_gg[a] = d;
+        } else {
+          // pad. latch hcounter if one of the TH lines is switched to 1
+          if ((Pico.ms.io_ctl ^ d) & d & 0xa0) {
+            unsigned c = 228-z80_cyclesLeft;
+            // 171 slots per scanline of 228 clocks, counted 0xf4-0x93,0xe9-0xf3
+            // this matches h counter tables in SMSVDPTest
+            c = (((c+2) * ((171<<8)/228))>>8)-1 + 0xf4; // Q8 to avoid dividing
+            if (c > 0x193) c += 0xe9-0x93-1;
+            Pico.ms.vdp_hlatch = (u8)c;
+          }
+          Pico.ms.io_ctl = d;
         }
-        Pico.ms.io_ctl = d;
         break;
 
       case 0x40:
@@ -333,7 +354,7 @@ void PicoResetMS(void)
 {
   z80_reset();
   PsndReset(); // pal must be known here
-  ymflag = 0xffff;
+  Pico.ms.fm_ctl = 0xff;
   Pico.m.dirtyPal = 1;
 
   if (PicoIn.hwSelect) {
@@ -460,6 +481,7 @@ void PicoFrameMS(void)
 
   for (y = 0; y < lines; y++)
   {
+    vdp_lastline = lines_vis == y;
     pv->v_counter = Pico.m.scanline = y;
     if (y > 218)
       pv->v_counter = y - 6;
