@@ -225,7 +225,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
 
       case 0x40:
       case 0x41:
-        PsndDoPSG(z80_cyclesDone());
+        PsndDoPSG(Pico.m.scanline*228 + 228-z80_cyclesLeft);
         SN76496Write(d);
         break;
 

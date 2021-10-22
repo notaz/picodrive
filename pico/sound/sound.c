@@ -130,10 +130,6 @@ PICO_INTERNAL void PsndDoDAC(int cyc_to)
   // number of samples to fill in buffer (Q20)
   len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.dac_pos;
 
-  // don't do this too often (about once every 2 scanlines)
-  if (len <= PicoIn.sndRate << 3) // Q16, (PicoIn.sndRate << 16) >> 13
-    return;
-
   // update position and calculate buffer offset and length
   pos = (Pico.snd.dac_pos+0x80000) >> 20;
   Pico.snd.dac_pos += len;
@@ -173,10 +169,6 @@ PICO_INTERNAL void PsndDoPSG(int cyc_to)
   // number of samples to fill in buffer (Q20)
   len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.psg_pos;
 
-  // don't do this too often (about once every 2 scanlines)
-  if (len <= PicoIn.sndRate << 3) // Q16, (PicoIn.sndRate << 16) >> 13
-    return;
-
   // update position and calculate buffer offset and length
   pos = (Pico.snd.psg_pos+0x80000) >> 20;
   Pico.snd.psg_pos += len;
@@ -203,10 +195,6 @@ PICO_INTERNAL void PsndDoYM2413(int cyc_to)
 
   // number of samples to fill in buffer (Q20)
   len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.ym2413_pos;
-
-  // don't do this too often (about once every 2 scanlines)
-  if (len <= PicoIn.sndRate << 3) // Q16, (PicoIn.sndRate << 16) >> 13
-    return;
 
   // update position and calculate buffer offset and length
   pos = (Pico.snd.ym2413_pos+0x80000) >> 20;
@@ -245,12 +233,8 @@ PICO_INTERNAL void PsndDoFM(int cyc_to)
   int pos, len;
   int stereo = 0;
 
-  // Q16, number of samples since last call
+  // Q20, number of samples since last call
   len = (cyc_to * Pico.snd.clkl_mult) - Pico.snd.fm_pos;
-
-  // don't do this too often (about once every 2 scanlines)
-  if (len <= PicoIn.sndRate << 3) // Q16, (PicoIn.sndRate << 16) >> 13
-    return;
 
   // update position and calculate buffer offset and length
   pos = (Pico.snd.fm_pos+0x80000) >> 20;
@@ -351,7 +335,7 @@ static int PsndRender(int offset, int length)
     return length;
   }
 
-  // Fill up DAC output in case of missing samples (Q16 rounding errors)
+  // Fill up DAC output in case of missing samples (Q rounding errors)
   if (length-daclen > 0) {
     short *dacbuf = PicoIn.sndOut + (daclen << stereo);
     Pico.snd.dac_pos += (length-daclen) << 20;
