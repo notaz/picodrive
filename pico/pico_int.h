@@ -348,7 +348,11 @@ struct PicoMS
   unsigned char io_ctl;
   unsigned char nmi_state;
   unsigned char mapper;
-  unsigned char pad[0x4d];
+  unsigned char fm_ctl;
+  unsigned char vdp_buffer;
+  unsigned char vdp_hlatch;
+  unsigned char io_gg[0x08];
+  unsigned char pad[0x42];
 };
 
 // emu state and data for the asm code
