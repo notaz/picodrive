@@ -20,8 +20,6 @@ extern void YM2413_regWrite(unsigned reg);
 extern void YM2413_dataWrite(unsigned data);
 
 
-static int vdp_lastline;
-
 static unsigned char vdp_data_read(void)
 {
   struct PicoVideo *pv = &Pico.video;
@@ -46,11 +44,6 @@ static unsigned char vdp_ctl_read(void)
 
   if (pv->reg[0] & 0x04)
     d |= 0x1f; // unused bits in mode 4 read as 1
-
-  // the vint state must be set one instruction in advance, else reading status
-  // would never report vint before the irq handler, which it does on a real SMS
-  if (vdp_lastline && z80_cyclesLeft < 10) // e.g. Chicago GG
-    d |= 0x80;
 
   elprintf(EL_SR, "VDP sr: %02x", d);
   return d;
@@ -481,7 +474,6 @@ void PicoFrameMS(void)
 
   for (y = 0; y < lines; y++)
   {
-    vdp_lastline = lines_vis == y;
     pv->v_counter = Pico.m.scanline = y;
     if (y > 218)
       pv->v_counter = y - 6;
@@ -489,29 +481,32 @@ void PicoFrameMS(void)
     if (y < lines_vis && !skip)
       PicoLineSMS(y);
 
+    // Interrupt handling. Simulate interrupt flagged and immediately reset in
+    // same insn by flagging the irq, execute for 1 insn, then checking if the
+    // irq is still pending. (GG Chicago, SMS Back to the Future III)
     if (y <= lines_vis)
     {
       if (--hint < 0)
       {
         hint = pv->reg[0x0a];
         pv->pending_ints |= 2;
-        if (pv->reg[0] & 0x10) {
+        cycles_done += z80_run(1);
+        if ((pv->reg[0] & 0x10) && (pv->pending_ints & 2)) {
           elprintf(EL_INTS, "hint");
           z80_int_assert(1);
 	}
-      } else if (pv->pending_ints & 2) {
         pv->pending_ints &= ~2;
-        z80_int_assert(0);
       }
     }
     else if (y == lines_vis + 1) {
       pv->pending_ints &= ~2;
       pv->pending_ints |= 1;
-      if (pv->reg[1] & 0x20) {
+      cycles_done += z80_run(1);
+
+      if ((pv->reg[1] & 0x20) && (pv->pending_ints & 1)) {
         elprintf(EL_INTS, "vint");
         z80_int_assert(1);
-      } else
-        z80_int_assert(0);
+      }
     }
 
     cycles_aim += cycles_line;
