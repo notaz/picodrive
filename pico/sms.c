@@ -1,6 +1,7 @@
 /*
  * SMS emulation
  * (C) notaz, 2009-2010
+ * (C) kub, 2021
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -149,10 +150,10 @@ static unsigned char z80_sms_in(unsigned short a)
       case 0x01:
         if ((Pico.m.hardware & 0x1) && a < 0x8) { // GG I/O area
           switch (a) {
-          case 0: d = 0xff & ~(PicoIn.pad[0] & 0x80); break;
-          case 1: d = Pico.ms.io_gg[1] | Pico.ms.io_gg[2]; break;
-          case 5: d = Pico.ms.io_gg[5] & 0xf8; break;
-          default: d = Pico.ms.io_gg[a]; break;
+          case 0: d = 0xff & ~(PicoIn.pad[0] & 0x80);               break;
+          case 1: d = Pico.ms.io_gg[1] | (Pico.ms.io_gg[2] & 0x7f); break;
+          case 5: d = Pico.ms.io_gg[5] & 0xf8;                      break;
+          default: d = Pico.ms.io_gg[a];                            break;
           }
         }
         break;
@@ -397,6 +398,9 @@ void PicoPowerMS(void)
   memset(&Pico.video,0,sizeof(Pico.video));
   memset(&Pico.m,0,sizeof(Pico.m));
   Pico.m.pal = 0;
+
+  for (s = 0; s < sizeof(PicoMem.zram); s++)
+    PicoMem.zram[s] = rand();
 
   // calculate a mask for bank writes.
   // ROM loader has aligned the size for us, so this is safe.

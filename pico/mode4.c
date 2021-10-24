@@ -18,7 +18,7 @@
 static void (*FinalizeLineSMS)(int line);
 static int skip_next_line;
 static int screen_offset, line_offset;
-
+static u8 mode;
 
 /* sprite collision detection */
 static int CollisionDetect(u8 *mb, u16 sx, unsigned int pack, int zoomed)
@@ -558,6 +558,12 @@ void PicoFrameStartSMS(void)
   loffs = screen_offset = 24; // 192 lines is really 224 with top/bottom bars
   Pico.est.rendstatus = PDRAW_32_COLS;
 
+  // if mode changes make palette dirty since some modes switch to a fixed one
+  if (mode != ((Pico.video.reg[0]&0x06) | (Pico.video.reg[1]&0x18))) {
+    mode = (Pico.video.reg[0]&0x06) | (Pico.video.reg[1]&0x18);
+    Pico.m.dirtyPal = 1;
+  }
+
   // Copy LCD enable flag for easier handling
   Pico.m.hardware &= ~0x2;
   if (PicoIn.opt & POPT_EN_GG_LCD)
@@ -569,7 +575,7 @@ void PicoFrameStartSMS(void)
     loffs = 48;
     lines = 144;
     columns = 160;
-  } else switch ((Pico.video.reg[0]&0x06) | (Pico.video.reg[1]&0x18)) {
+  } else switch (mode) {
   // SMS2 only 224/240 line modes, e.g. Micro Machines
   case 0x06|0x08:
       loffs = screen_offset = 0;
@@ -717,6 +723,7 @@ void PicoDrawSetOutputSMS(pdso_t which)
                      PicoDrawSetInternalBuf(Pico.est.Draw2FB, 328); break;
   }
   rendstatus_old = -1;
+  mode = -1;
 }
 
 // vim:shiftwidth=2:ts=2:expandtab
