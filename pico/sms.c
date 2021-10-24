@@ -177,11 +177,15 @@ static unsigned char z80_sms_in(unsigned short a)
 
       case 0xc0: /* I/O port A and B */
         d = ~((PicoIn.pad[0] & 0x3f) | (PicoIn.pad[1] << 6));
+        if (Pico.ms.io_ctl & 0x01) d &= ~0x20;
         break;
 
       case 0xc1: /* I/O port B and miscellaneous */
         d = (Pico.ms.io_ctl & 0x80) | ((Pico.ms.io_ctl << 1) & 0x40) | 0x30;
         d |= ~(PicoIn.pad[1] >> 2) & 0x0f;
+        if (Pico.ms.io_ctl & 0x08) d &= ~0x80;
+        if (Pico.ms.io_ctl & 0x04) d &= ~0x08;
+        if (Pico.ms.io_ctl & 0x02) d &= ~0x40;
         break;
     }
   }
@@ -370,6 +374,19 @@ void PicoResetMS(void)
 
   // reset memory mapping
   PicoMemSetupMS();
+
+  // BIOS values for VDP initialisation
+  Pico.video.reg[0] = 0x36;
+  Pico.video.reg[1] = 0xa0;
+  Pico.video.reg[2] = 0xff;
+  Pico.video.reg[3] = 0xff;
+  Pico.video.reg[4] = 0xff;
+  Pico.video.reg[5] = 0xff;
+  Pico.video.reg[6] = 0xfb;
+  Pico.video.reg[7] = 0x00;
+  Pico.video.reg[8] = 0x00;
+  Pico.video.reg[9] = 0x00;
+  Pico.video.reg[10] = 0xff;
 }
 
 void PicoPowerMS(void)
