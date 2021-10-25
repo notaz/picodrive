@@ -281,12 +281,9 @@ else ifeq ($(platform), wiiu)
 	CC = $(DEVKITPPC)/bin/powerpc-eabi-gcc$(EXE_EXT)
 	CXX = $(DEVKITPPC)/bin/powerpc-eabi-g++$(EXE_EXT)
 	AR = $(DEVKITPPC)/bin/powerpc-eabi-ar$(EXE_EXT)
-	CFLAGS += -DGEKKO -DWIIU -DHW_RVL -mwup -mcpu=750 -meabi -mhard-float -D__ppc__ -DMSB_FIRST
+	CFLAGS += -DGEKKO -DWIIU -DHW_RVL -DHW_WUP -mwup -mcpu=750 -meabi -mhard-float -D__ppc__ -DMSB_FIRST
 	STATIC_LINKING = 1
 	NO_MMAP = 1
-	# Wii U has memory mapped in a way not suitable for DRC
-	use_sh2drc = 0
-	use_svpdrc = 0
 
 # Nintendo Switch (libtransistor)
 else ifeq ($(platform), switch)

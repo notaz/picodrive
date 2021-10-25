@@ -572,8 +572,12 @@ void plat_munmap(void *ptr, size_t size)
 void *plat_mem_get_for_drc(size_t size)
 {
    void *mem = NULL;
-#ifdef VITA
+#if defined VITA
    sceKernelGetMemBlockBase(sceBlock, &mem);
+#elif defined HW_WUP
+   // For WiiU, a slice of RWX memory left from the exploit is used, see:
+   // https://github.com/embercold/pcsx_rearmed/commit/af0453223
+   mem = (void *)(0x01000000 - size);
 #endif
    return mem;
 }
