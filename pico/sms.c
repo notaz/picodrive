@@ -10,7 +10,6 @@
  * TODO:
  * - start in a state as if BIOS ran
  * - region support
- * - H counter
  */
 #include "pico_int.h"
 #include "memory.h"
@@ -164,7 +163,7 @@ static unsigned char z80_sms_in(unsigned short a)
         break;
 
       case 0x41: /* H counter */
-	d = Pico.ms.vdp_hlatch;
+        d = Pico.ms.vdp_hlatch;
         elprintf(EL_HVCNT, "H counter read: %02x", d);
         break;
 
@@ -178,15 +177,13 @@ static unsigned char z80_sms_in(unsigned short a)
 
       case 0xc0: /* I/O port A and B */
         d = ~((PicoIn.pad[0] & 0x3f) | (PicoIn.pad[1] << 6));
-        if (Pico.ms.io_ctl & 0x01) d &= ~0x20;
         break;
 
       case 0xc1: /* I/O port B and miscellaneous */
         d = (Pico.ms.io_ctl & 0x80) | ((Pico.ms.io_ctl << 1) & 0x40) | 0x30;
         d |= ~(PicoIn.pad[1] >> 2) & 0x0f;
-        if (Pico.ms.io_ctl & 0x08) d &= ~0x80;
-        if (Pico.ms.io_ctl & 0x04) d &= ~0x08;
-        if (Pico.ms.io_ctl & 0x02) d &= ~0x40;
+        if (Pico.ms.io_ctl & 0x08) d |= 0x80; // TH as input is unconnected
+        if (Pico.ms.io_ctl & 0x02) d |= 0x40;
         break;
     }
   }
@@ -244,7 +241,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
 
       case 0x40:
       case 0x41:
-        PsndDoPSG(Pico.m.scanline*228 + 228-z80_cyclesLeft);
+        PsndDoPSG(z80_cyclesDone());
         SN76496Write(d);
         break;
 
@@ -276,7 +273,7 @@ static void write_sram(unsigned short a, unsigned char d)
 // 16KB bank mapping for Sega mapper
 static void write_bank_sega(unsigned short a, unsigned char d)
 {
-  if (Pico.ms.mapper != 1 && d == 0) return;
+  if (Pico.ms.mapper != 1 && (Pico.ms.mapper || d == 0)) return;
   elprintf(EL_Z80BNK, "bank 16k %04x %02x @ %04x", a, d, z80_pc());
   Pico.ms.mapper = 1;
   Pico.ms.carthw[a & 0x0f] = d;
@@ -313,7 +310,7 @@ static void write_bank_sega(unsigned short a, unsigned char d)
 // 8KB ROM mapping for MSX mapper
 static void write_bank_msx(unsigned short a, unsigned char d)
 {
-  if (Pico.ms.mapper != 2 && (a|d) == 0) return;
+  if (Pico.ms.mapper != 2 && (Pico.ms.mapper || (a|d) == 0)) return;
   elprintf(EL_Z80BNK, "bank  8k %04x %02x @ %04x", a, d, z80_pc());
   Pico.ms.mapper = 2; // TODO define (more) mapper types
   Pico.ms.carthw[a] = d;
@@ -323,6 +320,17 @@ static void write_bank_msx(unsigned short a, unsigned char d)
   z80_map_set(z80_read_map, a, a+0x1fff, Pico.rom + (d << 13), 0);
 }
 
+static void write_bank_32k(unsigned short a, unsigned char d)
+{
+  if (Pico.ms.mapper != 3 && (Pico.ms.mapper || z80_pc() < 0xc000)) return;
+  elprintf(EL_Z80BNK, "bank 32k %04x %02x @ %04x", a, d, z80_pc());
+  Pico.ms.mapper = 3; // TODO define (more) mapper types
+  Pico.ms.carthw[0xf] = d;
+
+  d &= bank_mask >> 1;
+  z80_map_set(z80_read_map, 0, 0x7fff, Pico.rom + (d << 15), 0);
+}
+
 // TODO mapping is currently auto-selecting, but that's not very reliable.
 static void xwrite(unsigned int a, unsigned char d)
 {
@@ -330,21 +338,25 @@ static void xwrite(unsigned int a, unsigned char d)
   if (a >= 0xc000)
     PicoMem.zram[a & 0x1fff] = d;
 
+  // korean 32k. 1 selectable 32KB bank at the bottom
+  if (a == 0xffff)
+    write_bank_32k(a, d);
   // Sega. Maps 4 bank 16KB each
-  if (a >= 0xfff8 && Pico.ms.mapper != 2)
+  if (a >= 0xfff8)
     write_bank_sega(a, d);
   // Codemasters. Similar to Sega, but different addresses
-//  if (a == 0x0000 && Pico.ms.mapper != 2)
+// NB mapping on 0x0000 collides with MSX mapper, but AFAICT CM isn't using it
+//  if (a == 0x0000)
 //    write_bank_sega(0xfffd, d);
-  if (a == 0x4000 && Pico.ms.mapper != 2)
+  if (a == 0x4000)
     write_bank_sega(0xfffe, d);
-  if (a == 0x8000 && Pico.ms.mapper != 2)
+  if (a == 0x8000)
     write_bank_sega(0xffff, d);
   // Korean. 1 selectable 16KB bank at the top
-  if (a == 0xa000 && Pico.ms.mapper != 2)
+  if (a == 0xa000)
     write_bank_sega(0xffff, d);
   // MSX. 4 selectable 8KB banks at the top
-  if (a <= 0x0003 && Pico.ms.mapper != 1)
+  if (a <= 0x0003)
     write_bank_msx(a, d);
 }
 
@@ -376,7 +388,7 @@ void PicoResetMS(void)
   // reset memory mapping
   PicoMemSetupMS();
 
-  // BIOS values for VDP initialisation
+  // BIOS, VDP intialisation
   Pico.video.reg[0] = 0x36;
   Pico.video.reg[1] = 0xa0;
   Pico.video.reg[2] = 0xff;
@@ -388,6 +400,9 @@ void PicoResetMS(void)
   Pico.video.reg[8] = 0x00;
   Pico.video.reg[9] = 0x00;
   Pico.video.reg[10] = 0xff;
+
+  // BIOS, clean zram
+  memset(PicoMem.zram, 0, sizeof(PicoMem.zram));
 }
 
 void PicoPowerMS(void)
@@ -398,9 +413,6 @@ void PicoPowerMS(void)
   memset(&Pico.video,0,sizeof(Pico.video));
   memset(&Pico.m,0,sizeof(Pico.m));
   Pico.m.pal = 0;
-
-  for (s = 0; s < sizeof(PicoMem.zram); s++)
-    PicoMem.zram[s] = rand();
 
   // calculate a mask for bank writes.
   // ROM loader has aligned the size for us, so this is safe.
@@ -442,6 +454,8 @@ void PicoMemSetupMS(void)
     xwrite(0x0001, 0);
     xwrite(0x0002, 0);
     xwrite(0x0003, 0);
+  } else if (Pico.ms.mapper == 3) {
+    xwrite(0xffff, 0);
   } else {
     xwrite(0xfffc, 0);
     xwrite(0xfffd, 0);
@@ -459,6 +473,8 @@ void PicoStateLoadedMS(void)
     xwrite(0x0001, Pico.ms.carthw[1]);
     xwrite(0x0002, Pico.ms.carthw[2]);
     xwrite(0x0003, Pico.ms.carthw[3]);
+  } else if (Pico.ms.mapper == 3) {
+    xwrite(0xffff, Pico.ms.carthw[0x0f]);
   } else {
     xwrite(0xfffc, Pico.ms.carthw[0x0c]);
     xwrite(0xfffd, Pico.ms.carthw[0x0d]);
@@ -515,7 +531,7 @@ void PicoFrameMS(void)
         if ((pv->reg[0] & 0x10) && (pv->pending_ints & 2)) {
           elprintf(EL_INTS, "hint");
           z80_int_assert(1);
-	}
+        }
         pv->pending_ints &= ~2;
       }
     }
