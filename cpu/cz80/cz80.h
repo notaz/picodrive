@@ -79,12 +79,12 @@ extern "C" {
 #define zR8(A)		(*CPU->pzR8[A])
 #define zR16(A)		(CPU->pzR16[A]->W)
 
-#define pzAF		&(CPU->AF)
-#define zAF			CPU->AF.W
-#define zlAF		CPU->AF.B.L
-#define zhAF		CPU->AF.B.H
-#define zA			zhAF
-#define zF			zlAF
+#define pzFA		&(CPU->FA)
+#define zFA			CPU->FA.W
+#define zlFA		CPU->FA.B.L
+#define zhFA		CPU->FA.B.H
+#define zA			zlFA
+#define zF			zhFA
 
 #define pzBC		&(CPU->BC)
 #define zBC			CPU->BC.W
@@ -107,11 +107,11 @@ extern "C" {
 #define zH			zhHL
 #define zL			zlHL
 
-#define zAF2		CPU->AF2.W
-#define zlAF2		CPU->AF2.B.L
-#define zhAF2		CPU->AF2.B.H
-#define zA2			zhAF2
-#define zF2			zlAF2
+#define zFA2		CPU->FA2.W
+#define zlFA2		CPU->FA2.B.L
+#define zhFA2		CPU->FA2.B.H
+#define zA2			zhFA2
+#define zF2			zlFA2
 
 #define zBC2		CPU->BC2.W
 #define zDE2		CPU->DE2.W
@@ -187,13 +187,13 @@ enum
 {
 	CZ80_PC = 1,
 	CZ80_SP,
-	CZ80_AF,
+	CZ80_FA,
 	CZ80_BC,
 	CZ80_DE,
 	CZ80_HL,
 	CZ80_IX,
 	CZ80_IY,
-	CZ80_AF2,
+	CZ80_FA2,
 	CZ80_BC2,
 	CZ80_DE2,
 	CZ80_HL2,
@@ -232,7 +232,7 @@ typedef struct cz80_t
 			union16 BC;
 			union16 DE;
 			union16 HL;
-			union16 AF;
+			union16 FA;
 		};
 	};
 
@@ -244,7 +244,7 @@ typedef struct cz80_t
 	union16 BC2;
 	union16 DE2;
 	union16 HL2;
-	union16 AF2;
+	union16 FA2;
 
 	union16 R;
 	union16 IFF;

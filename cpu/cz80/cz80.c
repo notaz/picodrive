@@ -196,7 +196,7 @@ void Cz80_Init(cz80_struc *CPU)
 	CPU->pzR16[0] = pzBC;
 	CPU->pzR16[1] = pzDE;
 	CPU->pzR16[2] = pzHL;
-	CPU->pzR16[3] = pzAF;
+	CPU->pzR16[3] = pzFA;
 
 	zIX = zIY = 0xffff;
 
@@ -339,13 +339,13 @@ UINT32 Cz80_Get_Reg(cz80_struc *CPU, INT32 regnum)
 	{
 	case CZ80_PC:   return (CPU->PC - CPU->BasePC);
 	case CZ80_SP:   return zSP;
-	case CZ80_AF:   return zAF;
+	case CZ80_FA:   return zFA;
 	case CZ80_BC:   return zBC;
 	case CZ80_DE:   return zDE;
 	case CZ80_HL:   return zHL;
 	case CZ80_IX:   return zIX;
 	case CZ80_IY:   return zIY;
-	case CZ80_AF2:  return zAF2;
+	case CZ80_FA2:  return zFA2;
 	case CZ80_BC2:  return zBC2;
 	case CZ80_DE2:  return zDE2;
 	case CZ80_HL2:  return zHL2;
@@ -378,13 +378,13 @@ void Cz80_Set_Reg(cz80_struc *CPU, INT32 regnum, UINT32 val)
 		break;
 
 	case CZ80_SP:   zSP = val; break;
-	case CZ80_AF:   zAF = val; break;
+	case CZ80_FA:   zFA = val; break;
 	case CZ80_BC:   zBC = val; break;
 	case CZ80_DE:   zDE = val; break;
 	case CZ80_HL:   zHL = val; break;
 	case CZ80_IX:   zIX = val; break;
 	case CZ80_IY:   zIY = val; break;
-	case CZ80_AF2:  zAF2 = val; break;
+	case CZ80_FA2:  zFA2 = val; break;
 	case CZ80_BC2:  zBC2 = val; break;
 	case CZ80_DE2:  zDE2 = val; break;
 	case CZ80_HL2:  zHL2 = val; break;
