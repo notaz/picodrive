@@ -428,17 +428,18 @@ static void DrawSpritesTMS(int scanline)
     if (sat[MEM_LE2(i+3)] & 0x80)
       x -= 32;
     c = sat[MEM_LE2(i+3)] & 0x0f;
+    // c may be 0 (transparent): sprite invisible
     if (x > 0) {
       pack = PicoMem.vramb[MEM_LE2(sprites_addr[s])];
-      if (zoomed) TileDoubleSprTMS(x, pack, c);
-      else        TileNormSprTMS(x, pack, c);
-      if (!m)     m = CollisionDetect(mb, x, pack, zoomed);
+      if (zoomed && c) TileDoubleSprTMS(x, pack, c);
+      else if (c)      TileNormSprTMS(x, pack, c);
+      if (!m)          m = CollisionDetect(mb, x, pack, zoomed);
     }
     if((pv->reg[1] & 0x2) && (x+=w) > 0) {
       pack = PicoMem.vramb[MEM_LE2(sprites_addr[s]+0x10)];
-      if (zoomed) TileDoubleSprTMS(x, pack, c);
-      else        TileNormSprTMS(x, pack, c);
-      if (!m)     m = CollisionDetect(mb, x, pack, zoomed);
+      if (zoomed && c) TileDoubleSprTMS(x, pack, c);
+      else if (c)      TileNormSprTMS(x, pack, c);
+      if (!m)          m = CollisionDetect(mb, x, pack, zoomed);
     }
   }
   if (m)
@@ -615,6 +616,7 @@ void PicoFrameStartSMS(void)
 void PicoLineSMS(int line)
 {
   int skip = skip_next_line;
+  unsigned bgcolor;
 
   // GG LCD, render only visible part of screen
   if ((Pico.m.hardware & 0x3) == 0x3 && (line < 24 || line >= 24+144))
@@ -629,7 +631,8 @@ void PicoLineSMS(int line)
   }
 
   // Draw screen:
-  BackFill(Pico.video.reg[7] & 0x0f, 0, &Pico.est);
+  bgcolor = (Pico.video.reg[7] & 0x0f) | ((Pico.video.reg[0] & 0x04) << 2);
+  BackFill(bgcolor, 0, &Pico.est); // bgcolor is from 2nd palette in mode 4
   if (Pico.video.reg[1] & 0x40) {
     if      (Pico.video.reg[0] & 0x04) DrawDisplayM4(line);
     else if (Pico.video.reg[0] & 0x02) DrawDisplayM2(line);
@@ -649,8 +652,13 @@ norender:
 
 /* Fixed palette for TMS9918 modes */
 static u16 tmspal[32] = {
+#if 1  // SMS palette
   0x0000, 0x0000, 0x00a0, 0x00f0, 0x0500, 0x0f00, 0x0005, 0x0ff0,
   0x000a, 0x000f, 0x0055, 0x00ff, 0x0050, 0x0f0f, 0x0555, 0x0fff,
+#else  // TMS palette
+  0x0000, 0x0000, 0x04c2, 0x07d5, 0x0e55, 0x0f77, 0x045d, 0x0fe4,
+  0x055f, 0x077f, 0x05cd, 0x08ce, 0x03b2, 0x0b5c, 0x0ccc, 0x0fff,
+#endif
 };
 
 void PicoDoHighPal555SMS(void)
@@ -668,15 +676,11 @@ void PicoDoHighPal555SMS(void)
   if (FinalizeLineSMS == FinalizeLineRGB555SMS)
     spal = (void *)PicoMem.cram;
 
-  // fixed palette in TMS modes
-  if (!(Pico.video.reg[0] & 0x4)) {
-    spal = (u32 *)tmspal;
-    cnt = 1;
-  }
-
   /* SMS 6 bit cram data was already converted to MD/GG format by vdp write,
    * hence GG/SMS/TMS can all be handled the same here */
   for (j = cnt; j > 0; j--) {
+    if (!(Pico.video.reg[0] & 0x4))
+      spal = (u32 *)tmspal; // fixed palette in TMS modes
     for (i = 0x20/2; i > 0; i--, spal++, dpal++) { 
      t = *spal;
 #if defined(USE_BGR555)
