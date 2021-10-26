@@ -84,6 +84,16 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "disabled"
    },
+      "picodrive_smstype",
+      "Master System type",
+      "Choose which type of system the core should emulate for Master system",
+       {
+         { "Auto", NULL },
+         { "Game Gear",  NULL },
+         { "Master System",  NULL },
+         { NULL, NULL },
+       },
+      "Auto"
    {
       "picodrive_smsfm",
       "Master System FM sound unit",
