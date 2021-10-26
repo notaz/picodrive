@@ -342,6 +342,14 @@ struct PicoMisc
   unsigned int  frame_count;   // 1c for movies and idle det
 };
 
+#define PMS_MAP_AUTO	0
+#define PMS_MAP_SEGA	1
+#define PMS_MAP_CODEM	2
+#define PMS_MAP_KOREA	3
+#define PMS_MAP_MSX	4
+#define PMS_MAP_N32K	5
+#define PMS_MAP_N16K	6
+
 struct PicoMS
 {
   unsigned char carthw[0x10];
