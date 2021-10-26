@@ -1474,6 +1474,15 @@ static void update_variables(bool first_run)
          PicoIn.hwSelect = PHWS_SMS;
    }
 
+   var.value = NULL;
+   var.key = "picodrive_smsfm";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "on") == 0)
+         PicoIn.opt |= POPT_EN_YM2413;
+      else
+         PicoIn.opt &= ~POPT_EN_YM2413;
+   }
+
    OldPicoRegionOverride = PicoIn.regionOverride;
    var.value = NULL;
    var.key = "picodrive_region";
@@ -1819,9 +1828,10 @@ void retro_init(void)
 #endif
 
    PicoIn.opt = POPT_EN_STEREO|POPT_EN_FM
-      | POPT_EN_PSG|POPT_EN_Z80|POPT_EN_YM2413|POPT_EN_GG_LCD
+      | POPT_EN_PSG|POPT_EN_Z80|POPT_EN_GG_LCD
       | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX
       | POPT_EN_32X|POPT_EN_PWM
+//|POPT_DIS_IDLE_DET
       | POPT_ACC_SPRITES|POPT_DIS_32C_BORDER;
 #ifdef __arm__
 #ifdef _3DS

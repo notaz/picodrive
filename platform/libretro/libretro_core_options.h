@@ -85,16 +85,15 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled"
    },
    {
-      "picodrive_smstype",
-      "Master System type",
-      "Choose which type of system the core should emulate for Master system",
+      "picodrive_smsfm",
+      "Master System FM sound unit",
+      "Enable the FM Sound Unit emulation. Some MS games produce much better sound, but non-Japanese titles might possibly not run.",
       {
-         { "Auto", NULL },
-         { "Game Gear",  NULL },
-         { "Master System",  NULL },
+         { "off", NULL },
+         { "on",  NULL },
          { NULL, NULL },
       },
-      "disabled"
+      "off"
    },
    {
       "picodrive_region",
