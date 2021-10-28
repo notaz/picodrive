@@ -101,7 +101,8 @@ typedef struct PicoInterface
 	unsigned short skipFrame;      // skip rendering frame, but still do sound (if enabled) and emulation stuff
 	unsigned short regionOverride; // override the region detection 0: auto, 1: Japan NTSC, 2: Japan PAL, 4: US, 8: Europe
 	unsigned short autoRgnOrder;   // packed priority list of regions, for example 0x148 means this detection order: EUR, USA, JAP
-	unsigned short hwSelect;       // hardware preselected via option menu
+	unsigned int hwSelect;         // hardware preselected via option menu
+	unsigned int mapper;           // mapper selection for SMS, 0 = auto
 
 	unsigned short quirks;         // game-specific quirks: PQUIRK_*
 	unsigned short overclockM68k;  // overclock the emulated 68k, in %

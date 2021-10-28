@@ -10,7 +10,7 @@
  * TODO:
  * - start in a state as if BIOS ran (partly done for VDP registers, RAM)
  * - region support (currently only very limited PAL and Mark-III support)
- * - mappers: EEPROM, some obscure Korean (Nemesis, Janggun)
+ * - mapper for EEPROM support
  */
 #include "pico_int.h"
 #include "memory.h"
@@ -261,11 +261,16 @@ static void z80_sms_out(unsigned short a, unsigned char d)
   }
 }
 
+
+// ROM/SRAM bank mapping, see https://www.smspower.org/Development/Mappers
+
 static int bank_mask;
 
 static void xwrite(unsigned int a, unsigned char d);
 
-static void write_sram(unsigned short a, unsigned char d)
+
+// Sega mapper. Maps 3 banks 16KB each, with SRAM support
+static void write_sram_sega(unsigned short a, unsigned char d)
 {
   // SRAM is mapped in 2 16KB banks, selected by bit 2 in control reg
   a &= 0x3fff;
@@ -275,12 +280,13 @@ static void write_sram(unsigned short a, unsigned char d)
   Pico.sv.data[a] = d;
 }
 
-// 16KB bank mapping for Sega mapper
 static void write_bank_sega(unsigned short a, unsigned char d)
 {
+  if (a < 0xfff8) return;
   // avoid mapper detection for RAM fill with 0
   if (Pico.ms.mapper != PMS_MAP_SEGA && (Pico.ms.mapper || d == 0)) return;
-  elprintf(EL_Z80BNK, "bank 16k %04x %02x @ %04x", a, d, z80_pc());
+
+  elprintf(EL_Z80BNK, "bank sega %04x %02x @ %04x", a, d, z80_pc());
   Pico.ms.mapper = PMS_MAP_SEGA;
   Pico.ms.carthw[a & 0x0f] = d;
 
@@ -303,7 +309,7 @@ static void write_bank_sega(unsigned short a, unsigned char d)
       if (Pico.ms.carthw[0xc] & 0x08) {
         d = (Pico.ms.carthw[0xc] & 0x04) >> 2;
         z80_map_set(z80_read_map, 0x8000, 0xbfff, Pico.sv.data + d*0x4000, 0);
-        z80_map_set(z80_write_map, 0x8000, 0xbfff, write_sram, 1);
+        z80_map_set(z80_write_map, 0x8000, 0xbfff, write_sram_sega, 1);
       } else {
         d = Pico.ms.carthw[0xf] & bank_mask;
         z80_map_set(z80_read_map, 0x8000, 0xbfff, Pico.rom + (d << 14), 0);
@@ -313,12 +319,13 @@ static void write_bank_sega(unsigned short a, unsigned char d)
   }
 }
 
-// 16KB bank mapping for Codemasters mapper, TODO: SRAM support
+// Codemasters mapper. Similar to Sega, but different addresses, TODO: SRAM
 static void write_bank_codem(unsigned short a, unsigned char d)
 {
-  // don't detect @0x0 to avoid confusing with MSX
-  if (Pico.ms.mapper != PMS_MAP_CODEM && (Pico.ms.mapper || (a|d) == 0)) return;
-  elprintf(EL_Z80BNK, "bank 16k %04x %02x @ %04x", a, d, z80_pc());
+  if (a >= 0xc000 || (a & 0x3fff)) return; // address is 0x0000, 0x4000, 0x8000?
+  // don't detect linear mapping to avoid confusing with MSX
+  if (Pico.ms.mapper != PMS_MAP_CODEM && (Pico.ms.mapper || (a>>14) == d)) return;
+  elprintf(EL_Z80BNK, "bank codem %04x %02x @ %04x", a, d, z80_pc());
   Pico.ms.mapper = PMS_MAP_CODEM;
   Pico.ms.carthw[a>>14] = d;
 
@@ -326,12 +333,13 @@ static void write_bank_codem(unsigned short a, unsigned char d)
   z80_map_set(z80_read_map, a, a+0x3fff, Pico.rom + (d << 14), 0);
 }
 
-// 8KB bank mapping for MSX mapper
+// MSX mapper. 4 selectable 8KB banks at the top
 static void write_bank_msx(unsigned short a, unsigned char d)
 {
-  // don't detect @0x0 to avoid confusing with Codemasters
+  if (a > 0x0003) return;
+  // don't detect linear mapping to avoid confusing with Codemasters
   if (Pico.ms.mapper != PMS_MAP_MSX && (Pico.ms.mapper || (a|d) == 0)) return;
-  elprintf(EL_Z80BNK, "bank  8k %04x %02x @ %04x", a, d, z80_pc());
+  elprintf(EL_Z80BNK, "bank msx %04x %02x @ %04x", a, d, z80_pc());
   Pico.ms.mapper = PMS_MAP_MSX;
   Pico.ms.carthw[a] = d;
 
@@ -340,9 +348,23 @@ static void write_bank_msx(unsigned short a, unsigned char d)
   z80_map_set(z80_read_map, a, a+0x1fff, Pico.rom + (d << 13), 0);
 }
 
-// 32KB bank mapping for Korean n-in-1 packs
+// Korea mapping, 1 selectable 16KB bank at the top
+static void write_bank_korea(unsigned short a, unsigned char d)
+{
+  if (a != 0xa000) return;
+  if (Pico.ms.mapper != PMS_MAP_KOREA && (Pico.ms.mapper)) return;
+  elprintf(EL_Z80BNK, "bank korea %04x %02x @ %04x", a, d, z80_pc());
+  Pico.ms.mapper = PMS_MAP_KOREA;
+  Pico.ms.carthw[0xf] = d;
+
+  d &= bank_mask;
+  z80_map_set(z80_read_map, 0x8000, 0xbfff, Pico.rom + (d << 14), 0);
+}
+
+// Korean n-in-1 mapping. 1 selectable 32KB bank at the bottom
 static void write_bank_n32k(unsigned short a, unsigned char d)
 {
+  if (a != 0xffff) return;
   // code must be in RAM since all visible ROM space is swapped
   if (Pico.ms.mapper != PMS_MAP_N32K && (Pico.ms.mapper || z80_pc() < 0xc000)) return;
   elprintf(EL_Z80BNK, "bank 32k %04x %02x @ %04x", a, d, z80_pc());
@@ -353,9 +375,10 @@ static void write_bank_n32k(unsigned short a, unsigned char d)
   z80_map_set(z80_read_map, 0,   0x7fff, Pico.rom + (d << 15), 0);
 }
 
-// 16KB bank mapping for Korean n-in-1 packs
+// Korean 4-in-1. 2 selectable 16KB banks, top bank is shifted by bottom one
 static void write_bank_n16k(unsigned short a, unsigned char d)
 {
+  if (a != 0x3ffe && a != 0x7fff && a != 0xbfff) return;
   // code must be in RAM since all visible ROM space is swapped
   if (Pico.ms.mapper != PMS_MAP_N16K && (Pico.ms.mapper || z80_pc() < 0xc000)) return;
   elprintf(EL_Z80BNK, "bank 16k %04x %02x @ %04x", a, d, z80_pc());
@@ -369,7 +392,61 @@ static void write_bank_n16k(unsigned short a, unsigned char d)
   z80_map_set(z80_read_map, a, a+0x3fff, Pico.rom + (d << 14), 0);
 }
 
-// TODO mapping is currently auto-selecting, but that's not totally reliable.
+// MSX-Nemesis mapper. 4 selectable 8KB banks at the top
+static void write_bank_msxn(unsigned short a, unsigned char d)
+{
+  if (a > 0x0003) return;
+  // never autodetected, selectable only via config
+  if (Pico.ms.mapper != PMS_MAP_NEMESIS) return;
+  elprintf(EL_Z80BNK, "bank nems %04x %02x @ %04x", a, d, z80_pc());
+  Pico.ms.carthw[a] = d;
+
+  a = (a^2)*0x2000 + 0x4000;
+  d &= 2*bank_mask + 1;
+  z80_map_set(z80_read_map, a, a+0x1fff, Pico.rom + (d << 13), 0);
+}
+
+// Korean Janggun mapper. 4 selectable 8KB banks at the top, hardware byte flip
+static unsigned char read_flipped_jang(unsigned a)
+{
+  static unsigned char flipper[16] = // reversed nibble bit order
+      { 0x0,0x8,0x4,0xc,0x2,0xa,0x6,0xe,0x1,0x9,0x5,0xd,0x3,0xb,0x7,0xf };
+  unsigned char c;
+
+  // return value at address a in reversed bit order
+  c = Pico.rom[(Pico.ms.carthw[a>>13] << 13) + (a & 0x1fff)];
+  return (flipper[c&0xf]<<4) | flipper[c>>4];
+}
+
+static void write_bank_jang(unsigned short a, unsigned char d)
+{
+  // address is 0xfffe, 0xffff, 0x4000, 0x6000, 0x8000, 0xa000
+  if ((a|1) != 0xffff && (!((a^(a<<1)) & 0x8000) || (a & 0x1fff))) return;
+  // never autodetected, selectable only via config
+  if (Pico.ms.mapper != PMS_MAP_JANGGUN) return;
+  elprintf(EL_Z80BNK, "bank jang %04x %02x @ %04x", a, d, z80_pc());
+
+  if ((a|1) == 0xffff) {
+    int x = a & 1, f = d & 0x40;
+    Pico.ms.carthw[x] = d;
+    d &= bank_mask;
+    Pico.ms.carthw[2*x + 2] = 2*d, Pico.ms.carthw[2*x + 3] = 2*d+1;
+    a = (x+1) * 0x4000;
+    if (!f)
+      z80_map_set(z80_read_map, a, a+0x3fff, Pico.rom + (d << 14), 0);
+    else
+      z80_map_set(z80_read_map, a, a+0x3fff, read_flipped_jang, 1);
+  } else {
+    d &= 2*bank_mask + 1;
+    Pico.ms.carthw[a>>13] = d;
+    if (!(Pico.ms.carthw[(a>>15)&1] & 0x40))
+      z80_map_set(z80_read_map, a, a+0x1fff, Pico.rom + (d << 13), 0);
+    else
+      z80_map_set(z80_read_map, a, a+0x1fff, read_flipped_jang, 1);
+  }
+}
+
+// TODO auto-selecting is not really reliable.
 // Before adding more mappers this should be revised.
 static void xwrite(unsigned int a, unsigned char d)
 {
@@ -377,51 +454,57 @@ static void xwrite(unsigned int a, unsigned char d)
   if (a >= 0xc000)
     PicoMem.zram[a & 0x1fff] = d;
 
-  // NB the sequence of mappers is crucial for the auto detection
-  // Korean n-in-1. 1 selectable 32KB bank at the bottom
-  if (a == 0xffff)
-    write_bank_n32k(a, d);
-  // Sega. Maps 3 banks 16KB each, SRAM
-  if (a >= 0xfff8)
-    write_bank_sega(a, d);
-  // MSX. 4 selectable 8KB banks at the top
-  if (a <= 0x0003)
-    write_bank_msx(a, d);
-  // Codemasters. Similar to Sega, but different addresses
-  if (a <  0xc000 && (a & 0x3fff) == 0)
-    write_bank_codem(a, d);
-  // Korean. 1 selectable 16KB bank at the top
-  if (a == 0xa000)
-    write_bank_codem(0x8000, d);
-  // Korean n-in-1. 2 selectable 16KB banks, top bank has offset from bottom one
-  if (a == 0x3ffe || a == 0x7fff || a == 0xbfff)
-    write_bank_n16k(a, d);
+  switch (Pico.ms.mapper) { // via config, or auto detected
+  case PMS_MAP_SEGA:    write_bank_sega(a, d);  break;
+  case PMS_MAP_CODEM:	write_bank_codem(a, d); break;
+  case PMS_MAP_MSX:	write_bank_msx(a, d);   break;
+  case PMS_MAP_KOREA:	write_bank_korea(a, d); break;
+  case PMS_MAP_N32K:	write_bank_n32k(a, d);  break;
+  case PMS_MAP_N16K:	write_bank_n16k(a, d);  break;
+  case PMS_MAP_JANGGUN: write_bank_jang(a, d);  break;
+  case PMS_MAP_NEMESIS: write_bank_msxn(a, d);  break;
+
+  case PMS_MAP_AUTO:
+        // NB the sequence of mappers is crucial for the auto detection
+        write_bank_n32k(a, d);
+        write_bank_sega(a, d);
+        write_bank_msx(a, d);
+        write_bank_codem(a, d);
+        write_bank_korea(a, d);
+        write_bank_n16k(a, d);
+        break;
+  }
 }
 
 void PicoResetMS(void)
 {
-  z80_reset();
-  PsndReset(); // pal must be known here
-  Pico.ms.fm_ctl = 0xff;
-  Pico.m.dirtyPal = 1;
+  unsigned tmr;
+  int hw;
 
+  // set preselected hw/mapper from config
   if (PicoIn.hwSelect) {
     switch (PicoIn.hwSelect) {
     case PHWS_GG:  Pico.m.hardware |=  0x1; break;
     default:       Pico.m.hardware &= ~0x1; break;
     }
-  } else {
-    unsigned tmr;
+  }
+  if (PicoIn.mapper)
+    Pico.ms.mapper = PicoIn.mapper;
 
-    // check if the ROM header contains more system information to detect GG
-    for (tmr = 0x2000; tmr < 0xbfff && tmr <= Pico.romsize; tmr *= 2) {
-      if (!memcmp(Pico.rom + tmr-16, "TMR SEGA", 8)) {
-        if (Pico.rom[tmr-1] >= 0x50 && Pico.rom[tmr-1] < 0x80)
-          Pico.m.hardware |= 0x1;
-        break;
-      }
+  // check if the ROM header contains more system information
+  for (tmr = 0x2000; tmr < 0xbfff && tmr <= Pico.romsize; tmr *= 2) {
+    if (!memcmp(Pico.rom + tmr-16, "TMR SEGA", 8)) {
+      hw = Pico.rom[tmr-1] >> 4;
+      if (hw >= 0x5 && hw < 0x8 && !PicoIn.hwSelect)
+        Pico.m.hardware |= 0x1; // GG cartridge detected
+      break;
     }
   }
+
+  z80_reset();
+  PsndReset(); // pal must be known here
+  Pico.ms.fm_ctl = 0xff;
+  Pico.m.dirtyPal = 1;
 
   // reset memory mapping
   PicoMemSetupMS();
@@ -439,7 +522,7 @@ void PicoResetMS(void)
   Pico.video.reg[9] = 0x00;
   Pico.video.reg[10] = 0xff;
 
-  // BIOS, clear zram (fake unitialized on japanese NTSC devices)
+  // BIOS, clear zram (unitialized on Mark-III, cf src/mame/drivers/sms.cpp)
   memset(PicoMem.zram, PicoIn.regionOverride&1 ? 0xf0:0, sizeof(PicoMem.zram));
 }
 
@@ -463,7 +546,7 @@ void PicoPowerMS(void)
   bank_mask = (tmp - 1) >> 14;
 
   PicoMem.ioports[0] = 0xc3; // hack to jump @0 at end of RAM to wrap around
-  Pico.ms.mapper = 0;
+  Pico.ms.mapper = PicoIn.mapper;
   PicoReset();
 }
 
@@ -477,6 +560,9 @@ void PicoMemSetupMS(void)
   z80_map_set(z80_write_map, 0xc000, 0xdfff, PicoMem.zram, 0);
   z80_map_set(z80_write_map, 0xe000, 0xffff, xwrite, 1);
  
+  // Nemesis mapper maps last 8KB rom bank #15 to adress 0
+  if (Pico.ms.mapper == PMS_MAP_NEMESIS && Pico.romsize > 0x1e000)
+    z80_map_set(z80_read_map, 0x0000, 0x1fff, Pico.rom + 0x1e000, 0);
 #ifdef _USE_DRZ80
   drZ80.z80_in = z80_sms_in;
   drZ80.z80_out = z80_sms_out;
@@ -488,14 +574,21 @@ void PicoMemSetupMS(void)
 
   // memory mapper setup, linear mapping of 1st 48KB
   u8 mapper = Pico.ms.mapper;
-  if (Pico.ms.mapper == PMS_MAP_MSX) {
+  if (mapper == PMS_MAP_MSX || mapper == PMS_MAP_NEMESIS) {
     xwrite(0x0000, 4);
     xwrite(0x0001, 5);
     xwrite(0x0002, 2);
     xwrite(0x0003, 3);
-  } else if (Pico.ms.mapper == PMS_MAP_N32K) {
+  } else if (mapper == PMS_MAP_N32K) {
     xwrite(0xffff, 0);
-  } else if (Pico.ms.mapper == PMS_MAP_CODEM) {
+  } else if (mapper == PMS_MAP_N16K) {
+    xwrite(0x3ffe, 0);
+    xwrite(0x7fff, 1);
+    xwrite(0xbfff, 2);
+  } else if (mapper == PMS_MAP_JANGGUN) {
+    xwrite(0xfffe, 1);
+    xwrite(0xffff, 2);
+  } else if (mapper == PMS_MAP_CODEM) {
     xwrite(0x0000, 0);
     xwrite(0x4000, 1);
     xwrite(0x8000, 2);
@@ -511,13 +604,22 @@ void PicoMemSetupMS(void)
 void PicoStateLoadedMS(void)
 {
   u8 mapper = Pico.ms.mapper;
-  if (Pico.ms.mapper == PMS_MAP_MSX) {
+  if (Pico.ms.mapper == PMS_MAP_MSX || Pico.ms.mapper == PMS_MAP_NEMESIS) {
     xwrite(0x0000, Pico.ms.carthw[0]);
     xwrite(0x0001, Pico.ms.carthw[1]);
     xwrite(0x0002, Pico.ms.carthw[2]);
     xwrite(0x0003, Pico.ms.carthw[3]);
   } else if (Pico.ms.mapper == PMS_MAP_N32K) {
     xwrite(0xffff, Pico.ms.carthw[0x0f]);
+  } else if (Pico.ms.mapper == PMS_MAP_N16K) {
+    xwrite(0x3ffe, Pico.ms.carthw[0]);
+    xwrite(0x7fff, Pico.ms.carthw[1]);
+    xwrite(0xbfff, Pico.ms.carthw[2]);
+  } else if (Pico.ms.mapper == PMS_MAP_JANGGUN) {
+    xwrite(0x4000, Pico.ms.carthw[2]);
+    xwrite(0x6000, Pico.ms.carthw[3]);
+    xwrite(0x8000, Pico.ms.carthw[4]);
+    xwrite(0xa000, Pico.ms.carthw[5]);
   } else if (Pico.ms.mapper == PMS_MAP_CODEM) {
     xwrite(0x0000, Pico.ms.carthw[0]);
     xwrite(0x4000, Pico.ms.carthw[1]);

@@ -84,6 +84,7 @@ struct retro_core_option_definition option_defs_us[] = {
       },
       "disabled"
    },
+   {
       "picodrive_smstype",
       "Master System type",
       "Choose which type of system the core should emulate for Master system",
@@ -94,6 +95,7 @@ struct retro_core_option_definition option_defs_us[] = {
          { NULL, NULL },
        },
       "Auto"
+   },
    {
       "picodrive_smsfm",
       "Master System FM sound unit",
@@ -104,6 +106,24 @@ struct retro_core_option_definition option_defs_us[] = {
          { NULL, NULL },
       },
       "off"
+   },
+   {
+      "picodrive_smsmapper",
+      "Master System ROM mapping",
+      "Choose which ROM mapper the core should apply. Auto will work for a wide range, but in some cases automatic detection fails.",
+       {
+         { "Auto", NULL },
+         { "Sega",  NULL },
+         { "Codemasters",  NULL },
+         { "Korea",  NULL },
+         { "Korea MSX",  NULL },
+         { "Korea X-in-1",  NULL },
+         { "Korea 4-Pak",  NULL },
+         { "Korea Janggun",  NULL },
+         { "Korea Nemesis",  NULL },
+         { NULL, NULL },
+       },
+      "Auto"
    },
    {
       "picodrive_region",

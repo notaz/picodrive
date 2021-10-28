@@ -349,6 +349,8 @@ struct PicoMisc
 #define PMS_MAP_MSX	4
 #define PMS_MAP_N32K	5
 #define PMS_MAP_N16K	6
+#define PMS_MAP_JANGGUN	7
+#define PMS_MAP_NEMESIS	8
 
 struct PicoMS
 {

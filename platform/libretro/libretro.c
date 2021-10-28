@@ -1483,6 +1483,29 @@ static void update_variables(bool first_run)
          PicoIn.opt &= ~POPT_EN_YM2413;
    }
 
+   var.value = NULL;
+   var.key = "picodrive_smsmapper";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "Auto") == 0)
+         PicoIn.hwSelect = PMS_MAP_AUTO;
+      else if (strcmp(var.value, "Codemasters") == 0)
+         PicoIn.hwSelect = PMS_MAP_CODEM;
+      else if (strcmp(var.value, "Korea") == 0)
+         PicoIn.hwSelect = PMS_MAP_KOREA;
+      else if (strcmp(var.value, "Korea MSX") == 0)
+         PicoIn.hwSelect = PMS_MAP_MSX;
+      else if (strcmp(var.value, "Korea X-in-1") == 0)
+         PicoIn.hwSelect = PMS_MAP_N32K;
+      else if (strcmp(var.value, "Korea 4-Pak") == 0)
+         PicoIn.hwSelect = PMS_MAP_N16K;
+      else if (strcmp(var.value, "Korea Janggun") == 0)
+         PicoIn.hwSelect = PMS_MAP_JANGGUN;
+      else if (strcmp(var.value, "Korea Nemesis") == 0)
+         PicoIn.hwSelect = PMS_MAP_NEMESIS;
+      else
+         PicoIn.hwSelect = PMS_MAP_SEGA;
+   }
+
    OldPicoRegionOverride = PicoIn.regionOverride;
    var.value = NULL;
    var.key = "picodrive_region";
