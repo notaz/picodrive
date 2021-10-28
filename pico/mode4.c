@@ -3,7 +3,7 @@
  * (C) notaz, 2009-2010
  * (C) kub, 2021
  *
- * currently supports VDP mode 4 (SMS and GG) and mode 2
+ * currently supports VDP mode 4 (SMS and GG) and mode 2+0 (TMS)
  *
  * This work is licensed under the terms of MAME license.
  * See COPYING file in the top-level directory.
@@ -43,7 +43,7 @@ static int CollisionDetect(u8 *mb, u16 sx, unsigned int pack, int zoomed)
   }
 
   // invisible overscan area, not tested for collision
-  mb[0] = mb[33] = 0;
+  mb[0] = mb[33] = mb[34] = 0;
   return col;
 }
 
@@ -173,6 +173,8 @@ static void DrawSpritesM4(int scanline)
     y = (sat[MEM_LE2(i)] + 1) & 0xff;
     if (y == 0xd1 && !((pv->reg[0] & 6) == 6 && (pv->reg[1] & 0x18)))
       break;
+    if (y > 0xe0)
+      y -= 256;
     if (y + h <= scanline || scanline < y)
       continue; // not on this line
     if (s >= 8) {
@@ -295,7 +297,7 @@ static void DrawDisplayM4(int scanline)
   if ((pv->reg[0] & 0x20) && (Pico.m.hardware & 0x3) != 0x3) {
     // first column masked with background, caculate offset to start of line
     dx = (dx&~0x1f) / 4;
-    ty = 0xe0e0e0e0; // really (pv->reg[7]&0x3f) * 0x01010101, but the looks...
+    ty = ((pv->reg[7]&0x0f)|0x10) * 0x01010101;
     ((u32 *)Pico.est.HighCol)[dx+2] = ((u32 *)Pico.est.HighCol)[dx+3] = ty;
   }
 }
@@ -435,7 +437,7 @@ static void DrawSpritesTMS(int scanline)
       else if (c)      TileNormSprTMS(x, pack, c);
       if (!m)          m = CollisionDetect(mb, x, pack, zoomed);
     }
-    if((pv->reg[1] & 0x2) && (x+=w) > 0) {
+    if((pv->reg[1] & 0x2) && (x+=w) > 0 && x < 8+256) {
       pack = PicoMem.vramb[MEM_LE2(sprites_addr[s]+0x10)];
       if (zoomed && c) TileDoubleSprTMS(x, pack, c);
       else if (c)      TileNormSprTMS(x, pack, c);
@@ -496,11 +498,11 @@ static void DrawDisplayM2(int scanline)
     DrawSpritesTMS(scanline);
 }
 
-/* Mode 1 */
+/* Mode 0 */
 /*========*/
 
 /* Draw the background into a scanline; cells, dx, tilex, ty merged to reduce registers */
-static void DrawStripM1(const u8 *nametab, const u8 *coltab, const u8 *pattab, int cells_dx, int tilex_ty)
+static void DrawStripM0(const u8 *nametab, const u8 *coltab, const u8 *pattab, int cells_dx, int tilex_ty)
 {
   // Draw tiles across screen:
   for (; cells_dx > 0; cells_dx += 8, tilex_ty++, cells_dx -= 0x10000)
@@ -516,7 +518,7 @@ static void DrawStripM1(const u8 *nametab, const u8 *coltab, const u8 *pattab, i
 }
 
 /* Draw a scanline */
-static void DrawDisplayM1(int scanline)
+static void DrawDisplayM0(int scanline)
 {
   struct PicoVideo *pv = &Pico.video;
   u8 *nametab, *coltab, *pattab;
@@ -538,7 +540,7 @@ static void DrawDisplayM1(int scanline)
 
   // tiles
   if (!(pv->debug_p & PVD_KILL_B))
-    DrawStripM1(nametab, coltab, pattab, dx | (cells << 16), tilex | (scanline << 16));
+    DrawStripM0(nametab, coltab, pattab, dx | (cells << 16), tilex | (scanline << 16));
 
   // sprites
   if (!(pv->debug_p & PVD_KILL_S_LO))
@@ -636,7 +638,7 @@ void PicoLineSMS(int line)
   if (Pico.video.reg[1] & 0x40) {
     if      (Pico.video.reg[0] & 0x04) DrawDisplayM4(line);
     else if (Pico.video.reg[0] & 0x02) DrawDisplayM2(line);
-    else                               DrawDisplayM1(line);
+    else                               DrawDisplayM0(line);
   }
 
   if (FinalizeLineSMS != NULL)
