@@ -239,7 +239,7 @@ static void z80_sms_out(unsigned short a, unsigned char d)
         } else {
           // pad. latch hcounter if one of the TH lines is switched to 1
           if ((Pico.ms.io_ctl ^ d) & d & 0xa0)
-            Pico.ms.vdp_hlatch = vdp_hcounter(228 - z80_cyclesLeft);
+            Pico.ms.vdp_hlatch = vdp_hcounter(z80_cyclesDone() - Pico.t.z80c_line_start);
           Pico.ms.io_ctl = d;
         }
         break;
@@ -259,6 +259,12 @@ static void z80_sms_out(unsigned short a, unsigned char d)
         break;
     }
   }
+}
+
+static void z80_exec(int aim)
+{
+  Pico.t.z80c_aim = aim;
+  Pico.t.z80c_cnt += z80_run(Pico.t.z80c_aim - Pico.t.z80c_cnt);
 }
 
 
@@ -639,13 +645,13 @@ void PicoFrameMS(void)
   int is_pal = Pico.m.pal;
   int lines = is_pal ? 313 : 262;
   int cycles_line = 228;
-  int cycles_done = 0, cycles_aim = 0;
   int skip = PicoIn.skipFrame;
   int lines_vis = 192;
   int hint; // Hint counter
   int nmi;
   int y;
 
+  z80_resetCycles();
   PsndStartFrame();
 
   nmi = (PicoIn.pad[0] >> 7) & 1;
@@ -661,11 +667,18 @@ void PicoFrameMS(void)
   for (y = 0; y < lines; y++)
   {
     pv->v_counter = Pico.m.scanline = y;
-    if (y > 218)
-      pv->v_counter = y - 6;
+    switch (is_pal ? -lines_vis : lines_vis) {
+    case  192: if (y > 218) pv->v_counter = y - (lines-256); break;
+    case  224: if (y > 234) pv->v_counter = y - (lines-256); break;
+    case -192: if (y > 242) pv->v_counter = y - (lines-256); break;
+    case -224: if (y > 258) pv->v_counter = y - (lines-256); break;
+    case -240: if (y > 266) pv->v_counter = y - (lines-256); break;
+    }
 
     if (y < lines_vis && !skip)
       PicoLineSMS(y);
+
+    Pico.t.z80c_line_start = Pico.t.z80c_aim;
 
     // Interrupt handling. Simulate interrupt flagged and immediately reset in
     // same insn by flagging the irq, execute for 1 insn, then checking if the
@@ -676,18 +689,19 @@ void PicoFrameMS(void)
       {
         hint = pv->reg[0x0a];
         pv->pending_ints |= 2;
-        cycles_done += z80_run(1);
+        z80_exec(Pico.t.z80c_cnt + 1);
+
         if ((pv->reg[0] & 0x10) && (pv->pending_ints & 2)) {
           elprintf(EL_INTS, "hint");
           z80_int_assert(1);
         }
-        pv->pending_ints &= ~2;
+        pv->pending_ints &= ~2; // lost if not caught immediately
       }
     }
     else if (y == lines_vis + 1) {
       pv->pending_ints &= ~2;
       pv->pending_ints |= 1;
-      cycles_done += z80_run(1);
+      z80_exec(Pico.t.z80c_cnt + 1);
 
       if ((pv->reg[1] & 0x20) && (pv->pending_ints & 1)) {
         elprintf(EL_INTS, "vint");
@@ -695,9 +709,7 @@ void PicoFrameMS(void)
       }
     }
 
-    cycles_aim += cycles_line;
-    Pico.t.z80c_aim = cycles_aim;
-    cycles_done += z80_run(cycles_aim - cycles_done);
+    z80_exec(Pico.t.z80c_line_start + cycles_line);
   }
 
   if (PicoIn.sndOut)

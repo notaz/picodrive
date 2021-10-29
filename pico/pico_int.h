@@ -199,7 +199,7 @@ extern struct DrZ80 drZ80;
 #define Z80_STATE_SIZE 0x60
 
 #define z80_resetCycles() \
-  Pico.t.z80c_cnt = Pico.t.z80c_aim = Pico.t.z80_scanline = 0
+  Pico.t.z80c_cnt -= Pico.t.z80c_aim, Pico.t.z80c_aim = Pico.t.z80_scanline = 0
 
 #define z80_cyclesDone() \
   (Pico.t.z80c_aim - z80_cyclesLeft)
@@ -437,6 +437,7 @@ struct PicoTiming
 
   unsigned int z80c_cnt;                // z80 cycles done (this frame)
   unsigned int z80c_aim;
+  unsigned int z80c_line_start;
   int z80_scanline;
 
   int timer_a_next_oflow, timer_a_step; // in z80 cycles
