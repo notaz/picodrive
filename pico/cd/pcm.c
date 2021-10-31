@@ -92,7 +92,7 @@ void pcd_pcm_sync(unsigned int to)
     mul_l = (int)ch->regs[0] * (ch->regs[1] & 0xf); 
     mul_r = (int)ch->regs[0] * (ch->regs[1] >>  4);
 
-    for (s = 0; s < steps; s++, addr = (addr + inc) & 0x07FFFFFF)
+    for (s = 0; s < steps; s++)
     {
       smp = Pico_mcd->pcm_ram[addr >> PCM_STEP_SHIFT];
 
@@ -104,7 +104,8 @@ void pcd_pcm_sync(unsigned int to)
         addr <<= PCM_STEP_SHIFT;
         if (smp == 0xff)
           break;
-      }
+      } else
+        addr = (addr + inc) & 0x07FFFFFF;
 
       if (smp & 0x80)
         smp = -(smp & 0x7f);
