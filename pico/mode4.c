@@ -143,8 +143,8 @@ static void DrawSpritesM4(int scanline)
 {
   struct PicoVideo *pv = &Pico.video;
   unsigned char mb[1+256/8+2] = {0}; // zoomed
-  unsigned int sprites_addr[8];
-  unsigned int sprites_x[8];
+  unsigned int sprites_addr[64];
+  unsigned int sprites_x[64];
   unsigned int pack;
   u8 *sat;
   int xoff = 8; // relative to HighCol, which is (screen - 8)
@@ -157,6 +157,7 @@ static void DrawSpritesM4(int scanline)
   xoff += line_offset;
   if ((Pico.m.hardware & 0x3) == 0x3)
     xoff -= 48; // GG LCD, adjust to center 160 px
+  scanline --;
 
   sat = (u8 *)PicoMem.vram + ((pv->reg[5] & 0x7e) << 7);
   if (pv->reg[1] & 2) {
@@ -170,16 +171,18 @@ static void DrawSpritesM4(int scanline)
   for (i = s = 0; i < 64; i++)
   {
     int y;
-    y = (sat[MEM_LE2(i)] + 1) & 0xff;
-    if (y == 0xd1 && !((pv->reg[0] & 6) == 6 && (pv->reg[1] & 0x18)))
+    y = sat[MEM_LE2(i)];
+    if (y == 0xd0 && !((pv->reg[0] & 6) == 6 && (pv->reg[1] & 0x18)))
       break;
-    if (y > 0xe0)
+    if (y >= 0xe0)
       y -= 256;
+    y &= ~zoomed; // zoomed sprites apparently only on even lines, see GG Tarzan
     if (y + h <= scanline || scanline < y)
       continue; // not on this line
     if (s >= 8) {
       pv->status |= SR_SOVR;
-      break;
+      if (!(PicoIn.opt & POPT_DIS_SPRITE_LIM) || s >= 64)
+        break;
     }
 
     if (xoff + sat[MEM_LE2(0x80 + i*2)] >= 0) {
@@ -378,8 +381,8 @@ static void DrawSpritesTMS(int scanline)
 {
   struct PicoVideo *pv = &Pico.video;
   unsigned char mb[1+256/8+4] = {0}; // zoomed+doublesize
-  unsigned int sprites_addr[4];
-  unsigned int sprites_x[4];
+  unsigned int sprites_addr[32];
+  unsigned int sprites_x[32];
   unsigned int pack;
   u8 *sat;
   int xoff = 8; // relative to HighCol, which is (screen - 8)
@@ -388,6 +391,7 @@ static void DrawSpritesTMS(int scanline)
   int i, s, h, m;
 
   xoff += line_offset;
+  scanline --;
 
   sat = (u8 *)PicoMem.vramb + ((pv->reg[5] & 0x7e) << 7);
   if (pv->reg[1] & 2) {
@@ -403,16 +407,18 @@ static void DrawSpritesTMS(int scanline)
   for (i = s = 0; i < 32; i++)
   {
     int y;
-    y = (sat[MEM_LE2(4*i)] + 1) & 0xff;
-    if (y == 0xd1)
+    y = sat[MEM_LE2(4*i)];
+    if (y == 0xd0)
       break;
-    if (y > 0xe0)
+    if (y >= 0xe0)
       y -= 256;
+    y &= ~zoomed;
     if (y + h <= scanline || scanline < y)
       continue; // not on this line
     if (s >= 4) {
       pv->status |= SR_SOVR | i;
-      break;
+      if (!(PicoIn.opt & POPT_DIS_SPRITE_LIM) || s >= 32)
+        break;
     }
 
     sprites_x[s] = 4*i;
