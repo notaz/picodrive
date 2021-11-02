@@ -482,10 +482,21 @@ static void xwrite(unsigned int a, unsigned char d)
   }
 }
 
+// TMR product codes and hardware type for know 50Hz-only games */
+static u32 region_pal[] = { // cf. GX+, core/cart_hw/sms_cartc.c
+  0x40207067 /* Addams Family */, 0x40207020 /* Back.Future 3 */,
+  0x40207058 /* Battlemaniacs */, 0x40007105 /* Cal.Games 2 */,
+  0x40207065 /* Dracula */      , 0x40007109 /* Home Alone */,
+  0x40009024 /* Pwr.Strike 2 */ , 0x40207047 /* Predator 2 EU */,
+  0x40002519 /* Quest.Yak */    , 0x40207064 /* Robocop 3 */,
+  0x40205014 /* Sens.Soccer */  , 0x40002573 /* Sonic Blast */,
+  0x40007080 /* S.Harrier EU */ , 0x40007038 /* Taito Chase */,
+};
+
 void PicoResetMS(void)
 {
   unsigned tmr;
-  int hw;
+  int id, hw, i;
 
   // set preselected hw/mapper from config
   if (PicoIn.hwSelect) {
@@ -503,6 +514,13 @@ void PicoResetMS(void)
       hw = Pico.rom[tmr-1] >> 4;
       if (hw >= 0x5 && hw < 0x8 && !PicoIn.hwSelect)
         Pico.m.hardware |= 0x1; // GG cartridge detected
+
+      id = CPU_LE4(*(u32 *)&Pico.rom[tmr-4]) & 0xf0f0ffff;
+      for (i = 0; i < sizeof(region_pal)/sizeof(*region_pal); i++)
+        if (id == region_pal[i] && !PicoIn.regionOverride) {
+          Pico.m.pal = 1; // requires 50Hz timing
+          break;
+        }
       break;
     }
   }
