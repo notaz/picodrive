@@ -90,6 +90,7 @@ typedef struct _currentConfig_t {
 	int renderer;
 	int renderer32x;
 	int filter;  // EOPT_FILTER_* video filter
+	int ghosting;
 	int analog_deadzone;
 	int msh2_khz;
 	int ssh2_khz;

@@ -40,6 +40,8 @@
 #include <malloc.h>
 #include "libretro-common/include/libretro_gskit_ps2.h"
 #include "ps2/asm.h"
+#else
+#include <platform/common/upscale.h>
 #endif
 
 #ifdef _3DS
@@ -93,7 +95,6 @@ static const float VOUT_4_3 = (4.0f / 3.0f);
 static const float VOUT_CRT = (1.29911f);
 
 static bool show_overscan = false;
-static bool old_show_overscan = false;
 
 /* Required to allow on the fly changes to 'show overscan' */
 static int vm_current_start_line = -1;
@@ -103,9 +104,10 @@ static int vm_current_col_count = -1;
 
 static int vout_16bit = 1;
 static int vout_format = PDF_RGB555;
-static void *vout_buf;
+static void *vout_buf, *vout_ghosting_buf;
 static int vout_width, vout_height, vout_offset;
 static float vout_aspect = 0.0;
+static int vout_ghosting = 0;
 
 #if defined(RENDER_GSKIT_PS2)
 #define VOUT_8BIT_WIDTH 328
@@ -672,6 +674,12 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
          VOUT_MAX_HEIGHT : vout_height;
    vout_offset = (vout_offset > vout_width * (VOUT_MAX_HEIGHT - 1) * 2) ?
          vout_width * (VOUT_MAX_HEIGHT - 1) * 2 : vout_offset;
+
+   /* LCD ghosting */
+   if (vout_ghosting && vout_height == 144) {
+      vout_ghosting_buf = realloc(vout_ghosting_buf, VOUT_MAX_HEIGHT*vout_width*2);
+      memset(vout_ghosting_buf, 0, vout_width*vout_height*2);
+   }
 #endif
    Pico.m.dirtyPal = 1;
 
@@ -1443,6 +1451,7 @@ static void update_variables(bool first_run)
    double new_sound_rate;
    unsigned short old_snd_filter;
    int32_t old_snd_filter_range;
+   bool old_show_overscan;
 
    var.value = NULL;
    var.key = "picodrive_input1";
@@ -1504,6 +1513,17 @@ static void update_variables(bool first_run)
          PicoIn.hwSelect = PMS_MAP_NEMESIS;
       else
          PicoIn.hwSelect = PMS_MAP_SEGA;
+   }
+
+   var.value = NULL;
+   var.key = "picodrive_ggghost";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+      if (strcmp(var.value, "normal") == 0)
+         vout_ghosting = 2;
+      else if (strcmp(var.value, "weak") == 0)
+         vout_ghosting = 1;
+      else
+         vout_ghosting = 0;
    }
 
    OldPicoRegionOverride = PicoIn.regionOverride;
@@ -1818,6 +1838,20 @@ void retro_run(void)
       }
    }
 
+   if (vout_ghosting && vout_height == 144) {
+      unsigned short *pd = (unsigned short *)vout_buf;
+      unsigned short *ps = (unsigned short *)vout_ghosting_buf;
+      int y;
+      for (y = 0; y < VOUT_MAX_HEIGHT; y++) {
+         if (vout_ghosting == 1)
+            v_blend(pd, ps, vout_width, p_075_round);
+         else
+            v_blend(pd, ps, vout_width, p_05_round);
+         pd += vout_width;
+         ps += vout_width;
+      }
+   }
+
    buff = (char*)vout_buf + vout_offset;
 #endif
 
@@ -1913,6 +1947,10 @@ void retro_deinit(void)
    free(vout_buf);
 #endif
    vout_buf = NULL;
+   if (vout_ghosting_buf)
+      free(vout_ghosting_buf);
+   vout_ghosting_buf = NULL;
+
    PicoExit();
 
    for (i = 0; i < sizeof(disks) / sizeof(disks[0]); i++) {

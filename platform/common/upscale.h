@@ -36,16 +36,16 @@
 #include <pico/pico_types.h>
 
 
-/* LSB of all colors in a pixel */
+/* LSB of all colors in 1 or 2 pixels */
 #if defined(USE_BGR555)
-#define PXLSB		0x0421
+#define PXLSB		0x04210421
 #else
-#define PXLSB		0x0821
+#define PXLSB		0x08210821
 #endif
 
 /* RGB565 pixel mixing, see https://www.compuphase.com/graphic/scale3.htm and
   			    http://blargg.8bitalley.com/info/rgb_mixing.html */
-/* 2-level mixing */
+/* 2-level mixing. NB blargg version isn't 2-pixel-at-once safe for RGB565 */
 //#define p_05(d,p1,p2)	d=(((p1)+(p2)  + ( ((p1)^(p2))&PXLSB))>>1) // round up
 //#define p_05(d,p1,p2)	d=(((p1)+(p2)  - ( ((p1)^(p2))&PXLSB))>>1) // round down
 #define p_05(d,p1,p2)	d=(((p1)&(p2)) + ((((p1)^(p2))&~PXLSB)>>1))
@@ -379,7 +379,7 @@ scalers v:
 */
 
 #define v_mix(di,li,ri,w,p_mix,f) do {			\
-	u16 i, t, u; (void)t, (void)u;			\
+	int i; u32 t, u; (void)t, (void)u;		\
 	for (i = 0; i < w; i += 4) {			\
 		p_mix((di)[i  ], f((li)[i  ]),f((ri)[i  ])); \
 		p_mix((di)[i+1], f((li)[i+1]),f((ri)[i+1])); \
@@ -583,6 +583,35 @@ scalers v:
 		di -= 2*ds;				\
 		v_mix(&di[0], &di[-ds], &di[ds], w, p_05, f_nop); \
 		di += 2*ds;				\
+	}						\
+} while (0)
+
+
+/* exponentially smoothing (for LCD ghosting): y[n] = x[n]*a + y[n-1]*(1-a) */
+
+#define PXLSBn (PXLSB*15) // using 4 LSBs of each subpixel for subtracting
+// NB implement rounding to x[n] by adding 1 to counter round down if y[n] is
+// smaller than x[n]: use some of the lower bits to implement subtraction on
+// subpixels, with an additional bit to detect borrow, then add the borrow.
+// It's doing the increment wrongly in a lot of cases, which doesn't matter
+// much since it will converge to x[n] in a few frames anyway if x[n] is static
+#define p_05_round(d,p1,p2)				\
+	p_05(u, p1, p2);				\
+	t=(u|~PXLSBn)-(p1&PXLSBn); d = u+(~(t>>4)&PXLSB)
+// Unfortunately this won't work for p_025, where adding 1 isn't enough and
+// adding 2 would be too much, so offer only p_075 here
+#define p_075_round(d,p1,p2)				\
+	p_075(u, p1, p2);				\
+	t=(u|~PXLSBn)-(p1&PXLSBn); d = u+(~(t>>4)&PXLSB)
+
+// this is essentially v_mix and v_copy combined
+#define v_blend(di,ri,w,p_mix) do {			\
+	int i; u32 t, u; (void)t, (void)u;		\
+	for (i = 0; i < w; i += 4) {			\
+		p_mix((ri)[i  ], (di)[i  ],(ri)[i  ]); (di)[i  ] = (ri)[i  ]; \
+		p_mix((ri)[i+1], (di)[i+1],(ri)[i+1]); (di)[i+1] = (ri)[i+1]; \
+		p_mix((ri)[i+2], (di)[i+2],(ri)[i+2]); (di)[i+2] = (ri)[i+2]; \
+		p_mix((ri)[i+3], (di)[i+3],(ri)[i+3]); (di)[i+3] = (ri)[i+3]; \
 	}						\
 } while (0)
 

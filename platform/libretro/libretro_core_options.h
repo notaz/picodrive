@@ -126,6 +126,18 @@ struct retro_core_option_definition option_defs_us[] = {
       "Auto"
    },
    {
+      "picodrive_ggghost",
+      "Game Gear LCD ghosting",
+      "Enable LCD ghosting emulation.",
+      {
+         { "off", NULL },
+         { "weak",  NULL },
+         { "normal",  NULL },
+         { NULL, NULL },
+      },
+      "off"
+   },
+   {
       "picodrive_region",
       "Region",
       "Force a specific region.",

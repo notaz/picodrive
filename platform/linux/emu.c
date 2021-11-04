@@ -27,6 +27,7 @@ enum renderer_types { RT_16BIT, RT_8BIT_ACC, RT_8BIT_FAST, RT_COUNT };
 static int out_x, out_y, out_w, out_h;	// renderer output in render buffer
 static int screen_x, screen_y, screen_w, screen_h; // final render destination 
 static int render_bg;			// force 16bit mode for bg render
+static u16 *ghost_buf;			// backbuffer to simulate LCD ghosting
 
 void pemu_prep_defconfig(void)
 {
@@ -165,6 +166,23 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		PicoDrawUpdateHighPal();
 
 		screen_blit(pd, g_screen_ppitch, ps, 328, Pico.est.HighPal);
+	}
+
+	if (currentConfig.ghosting && out_h == 144) {
+		// GG LCD ghosting emulation
+		u16 *pd = screen_buffer(g_screen_ptr) +
+				out_y * g_screen_ppitch + out_x;
+		u16 *ps = ghost_buf;
+		int y, h = currentConfig.vscaling == EOPT_SCALE_SW ? 240:out_h;
+		int w = currentConfig.scaling == EOPT_SCALE_SW ? 320:out_w;
+		for (y = 0; y < h; y++) {
+			if (currentConfig.ghosting == 1)
+				v_blend((u32 *)pd, (u32 *)ps, w/2, p_075_round);
+			else
+				v_blend((u32 *)pd, (u32 *)ps, w/2, p_05_round);
+			pd += g_screen_ppitch;
+			ps += w;
+		}
 	}
 
 	if (notice)
@@ -312,27 +330,30 @@ static int cb_vscaling_nop(unsigned int line)
 
 static int cb_vscaling_end(unsigned int line)
 {
-	u16 *dest = Pico.est.DrawLineDest;
+	u16 *dest = (u16 *)Pico.est.DrawLineDest + out_x;
+	// helpers for 32 bit operation (2 pixels at once):
+	u32 *dest32 = (u32 *)dest;
+	int pp = g_screen_ppitch;
 
 	if (out_h == 144)
 	  switch (currentConfig.filter) {
-	  case 0: v_upscale_nn_3_5(dest, g_screen_ppitch, 320, vscale_state);
+	  case 0: v_upscale_nn_3_5(dest32, pp/2, out_w/2, vscale_state);
 		  break;
-	  default: v_upscale_snn_3_5(dest, g_screen_ppitch, 320, vscale_state);
+	  default: v_upscale_snn_3_5(dest32, pp/2, out_w/2, vscale_state);
 		  break;
 	  }
 	else
 	  switch (currentConfig.filter) {
-	  case 3: v_upscale_bl4_16_17(dest, g_screen_ppitch, 320, vscale_state);
+	  case 3: v_upscale_bl4_16_17(dest32, pp/2, out_w/2, vscale_state);
 		  break;
-	  case 2: v_upscale_bl2_16_17(dest, g_screen_ppitch, 320, vscale_state);
+	  case 2: v_upscale_bl2_16_17(dest32, pp/2, out_w/2, vscale_state);
 		  break;
-	  case 1: v_upscale_snn_16_17(dest, g_screen_ppitch, 320, vscale_state);
+	  case 1: v_upscale_snn_16_17(dest32, pp/2, out_w/2, vscale_state);
 		  break;
-	  default: v_upscale_nn_16_17(dest, g_screen_ppitch, 320, vscale_state);
+	  default: v_upscale_nn_16_17(dest32, pp/2, out_w/2, vscale_state);
 		  break;
 	  }
-	Pico.est.DrawLineDest = dest;
+	Pico.est.DrawLineDest = (u16 *)dest32 - out_x;
 	return 0;
 }
 
@@ -382,6 +403,14 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 		plat_video_set_size(screen_w, screen_h);
 	plat_video_set_buffer(g_screen_ptr);
 
+	// create a backing buffer for emulating the bad GG lcd display
+	if (currentConfig.ghosting && out_h == 144) {
+		int h = currentConfig.vscaling == EOPT_SCALE_SW ? 240:out_h;
+		int w = currentConfig.scaling == EOPT_SCALE_SW ? 320:out_w;
+		ghost_buf = realloc(ghost_buf, w * h * 2);
+		memset(ghost_buf, 0, w * h * 2);
+	}
+
 	// clear whole screen in all buffers
 	if (!is_16bit_mode())
 		memset32(Pico.est.Draw2FB, 0xe0e0e0e0, (320+8) * (8+240+8) / 4);
@@ -398,6 +427,10 @@ void pemu_loop_end(void)
 {
 	/* do one more frame for menu bg */
 	pemu_forced_frame(0, 1);
+	if (ghost_buf) {
+		free(ghost_buf);
+		ghost_buf = NULL;
+	}
 }
 
 void plat_wait_till_us(unsigned int us_to)
