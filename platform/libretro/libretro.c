@@ -1854,7 +1854,6 @@ void retro_init(void)
       | POPT_EN_PSG|POPT_EN_Z80|POPT_EN_GG_LCD
       | POPT_EN_MCD_PCM|POPT_EN_MCD_CDDA|POPT_EN_MCD_GFX
       | POPT_EN_32X|POPT_EN_PWM
-//|POPT_DIS_IDLE_DET
       | POPT_ACC_SPRITES|POPT_DIS_32C_BORDER;
 #ifdef __arm__
 #ifdef _3DS
@@ -1902,6 +1901,8 @@ void retro_init(void)
 
 void retro_deinit(void)
 {
+   size_t i;
+
 #ifdef _3DS
    linearFree(vout_buf);
 #elif defined(RENDER_GSKIT_PS2)
@@ -1913,6 +1914,13 @@ void retro_deinit(void)
 #endif
    vout_buf = NULL;
    PicoExit();
+
+   for (i = 0; i < sizeof(disks) / sizeof(disks[0]); i++) {
+      if (disks[i].fname != NULL) {
+         free(disks[i].fname);
+         disks[i].fname = NULL;
+      }
+   }
 
    libretro_supports_bitmasks = false;
 }
