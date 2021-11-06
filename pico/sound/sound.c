@@ -17,7 +17,8 @@
 void (*PsndMix_32_to_16l)(short *dest, int *src, int count) = mix_32_to_16l_stereo;
 
 // master int buffer to mix to
-static s32 PsndBuffer[2*(44100+100)/50];
+// +1 for a fill triggered by an instruction overhanging into the next scanline
+static s32 PsndBuffer[2*(44100+100)/50+2];
 
 // cdda output buffer
 s16 cdda_out_buffer[2*1152];
