@@ -20,6 +20,7 @@
 extern void YM2413_regWrite(unsigned reg);
 extern void YM2413_dataWrite(unsigned data);
 
+extern unsigned sprites_status; // TODO put in some hdr file!
 
 static unsigned char vdp_data_read(void)
 {
@@ -583,7 +584,7 @@ void PicoMemSetupMS(void)
   z80_map_set(z80_write_map, 0x0000, 0xbfff, xwrite, 1);
   z80_map_set(z80_write_map, 0xc000, 0xdfff, PicoMem.zram, 0);
   z80_map_set(z80_write_map, 0xe000, 0xffff, xwrite, 1);
- 
+
   // Nemesis mapper maps last 8KB rom bank #15 to adress 0
   if (Pico.ms.mapper == PMS_MAP_NEMESIS && Pico.romsize > 0x1e000)
     z80_map_set(z80_read_map, 0x0000, 0x1fff, Pico.rom + 0x1e000, 0);
@@ -682,9 +683,15 @@ void PicoFrameMS(void)
   PicoFrameStartSMS();
   hint = pv->reg[0x0a];
 
+  // SMS: xscroll:f3 sprovr,vint,   vcount:fc, hint:fd
+  // GG:  xscroll:f5 sprovr,vint:fd vcount:fe, hint:ff
   for (y = 0; y < lines; y++)
   {
-    pv->v_counter = Pico.m.scanline = y;
+    Pico.t.z80c_line_start = Pico.t.z80c_aim;
+
+    // advance the line counter. It is set back at some point in the VBLANK so
+    // that the line count in the active area (-32..lines+1) is contiguous.
+    pv->v_counter = Pico.m.scanline = (u8)y;
     switch (is_pal ? -lines_vis : lines_vis) {
     case  192: if (y > 218) pv->v_counter = y - (lines-256); break;
     case  224: if (y > 234) pv->v_counter = y - (lines-256); break;
@@ -693,14 +700,24 @@ void PicoFrameMS(void)
     case -240: if (y > 266) pv->v_counter = y - (lines-256); break;
     }
 
+    // Parse sprites for the next line
+    if (y < lines_vis)
+      PicoParseSATSMS(y-1);
+    else if (y > lines-32)
+      PicoParseSATSMS(y-1-lines);
+
+    // render next line
     if (y < lines_vis && !skip)
       PicoLineSMS(y);
 
-    Pico.t.z80c_line_start = Pico.t.z80c_aim;
+    // take over status bits from previously rendered line TODO: cycle exact?
+    pv->status |= sprites_status;
+    sprites_status = 0;
 
     // Interrupt handling. Simulate interrupt flagged and immediately reset in
     // same insn by flagging the irq, execute for 1 insn, then checking if the
     // irq is still pending. (GG Chicago, SMS Back to the Future III)
+    pv->pending_ints &= ~2; // lost if not caught in the same line
     if (y <= lines_vis)
     {
       if (--hint < 0)
@@ -713,11 +730,9 @@ void PicoFrameMS(void)
           elprintf(EL_INTS, "hint");
           z80_int_assert(1);
         }
-        pv->pending_ints &= ~2; // lost if not caught immediately
       }
     }
     else if (y == lines_vis + 1) {
-      pv->pending_ints &= ~2;
       pv->pending_ints |= 1;
       z80_exec(Pico.t.z80c_cnt + 1);
 
@@ -736,13 +751,18 @@ void PicoFrameMS(void)
 
 void PicoFrameDrawOnlyMS(void)
 {
+  struct PicoVideo *pv = &Pico.video;
   int lines_vis = 192;
   int y;
 
+  if ((pv->reg[0] & 6) == 6 && (pv->reg[1] & 0x18))
+    lines_vis = (pv->reg[1] & 0x08) ? 240 : 224;
   PicoFrameStartSMS();
 
-  for (y = 0; y < lines_vis; y++)
+  for (y = 0; y < lines_vis; y++) {
+    PicoParseSATSMS(y-1);
     PicoLineSMS(y);
+  }
 }
 
 // vim:ts=2:sw=2:expandtab

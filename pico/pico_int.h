@@ -704,6 +704,7 @@ PICO_INTERNAL void PicoFrameFull();
 
 // mode4.c
 void PicoFrameStartSMS(void);
+void PicoParseSATSMS(int line);
 void PicoLineSMS(int line);
 void PicoDoHighPal555SMS(void);
 void PicoDrawSetOutputSMS(pdso_t which);

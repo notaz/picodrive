@@ -20,6 +20,14 @@ static int skip_next_line;
 static int screen_offset, line_offset;
 static u8 mode;
 
+static unsigned int sprites_addr[32]; // bitmap address
+static unsigned char sprites_c[32]; // TMS sprites color
+static int sprites_x[32]; // x position
+static int sprites; // count
+static unsigned char sprites_map[2+256/8+2]; // collision detection map
+
+unsigned int sprites_status;
+
 /* sprite collision detection */
 static int CollisionDetect(u8 *mb, u16 sx, unsigned int pack, int zoomed)
 {
@@ -139,17 +147,14 @@ static void TileDoubleSprM4(int sx, unsigned int pack, int pal)
   PLANAR_PIXELSP(15, 7)
 }
 
-static void DrawSpritesM4(int scanline)
+static void ParseSpritesM4(int scanline)
 {
   struct PicoVideo *pv = &Pico.video;
-  unsigned char mb[1+256/8+2] = {0}; // zoomed
-  unsigned int sprites_addr[64];
-  unsigned int sprites_x[64];
-  unsigned int pack;
   u8 *sat;
   int xoff = 8; // relative to HighCol, which is (screen - 8)
   int sprite_base, addr_mask;
   int zoomed = pv->reg[1] & 0x1; // zoomed sprites, e.g. Earthworm Jim
+  unsigned int pack;
   int i, s, h, m;
 
   if (pv->reg[0] & 8)
@@ -157,7 +162,6 @@ static void DrawSpritesM4(int scanline)
   xoff += line_offset;
   if ((Pico.m.hardware & 0x3) == 0x3)
     xoff -= 48; // GG LCD, adjust to center 160 px
-  scanline --;
 
   sat = (u8 *)PicoMem.vram + ((pv->reg[5] & 0x7e) << 7);
   if (pv->reg[1] & 2) {
@@ -168,6 +172,8 @@ static void DrawSpritesM4(int scanline)
   if (zoomed) h *= 2;
   sprite_base = (pv->reg[6] & 4) << (13-2-1);
 
+  m = 0;
+  memset(sprites_map, 0, sizeof(sprites_map));
   for (i = s = 0; i < 64; i++)
   {
     int y;
@@ -180,8 +186,8 @@ static void DrawSpritesM4(int scanline)
     if (y + h <= scanline || scanline < y)
       continue; // not on this line
     if (s >= 8) {
-      pv->status |= SR_SOVR;
-      if (!(PicoIn.opt & POPT_DIS_SPRITE_LIM) || s >= 64)
+      if (scanline >= 0) sprites_status |= SR_SOVR;
+      if (!(PicoIn.opt & POPT_DIS_SPRITE_LIM) || s >= 32)
         break;
     }
 
@@ -189,22 +195,34 @@ static void DrawSpritesM4(int scanline)
       sprites_x[s] = xoff + sat[MEM_LE2(0x80 + i*2)];
       sprites_addr[s] = sprite_base + ((sat[MEM_LE2(0x80 + i*2 + 1)] & addr_mask) << (5-1)) +
         ((scanline - y) >> zoomed << (2-1));
+      if (Pico.video.reg[1] & 0x40) {
+        // collision detection. Do it here since off-screen lines aren't drawn
+        pack = CPU_LE2(*(u32 *)(PicoMem.vram + sprites_addr[s]));
+        // make sprite pixel map by merging the 4 bitplanes
+        pack = ((pack | (pack>>16)) | ((pack | (pack>>16))>>8)) & 0xff;
+        if (!m) m = CollisionDetect(sprites_map, sprites_x[s], pack, zoomed);
+      }
       s++;
     }
   }
+  if (m)
+    sprites_status |= SR_C;
+  sprites = s;
+}
+
+static void DrawSpritesM4(void)
+{
+  struct PicoVideo *pv = &Pico.video;
+  unsigned int pack;
+  int zoomed = pv->reg[1] & 0x1; // zoomed sprites, e.g. Earthworm Jim
+  int s = sprites;
 
   // now draw all sprites backwards
-  m = 0;
   for (--s; s >= 0; s--) {
     pack = CPU_LE2(*(u32 *)(PicoMem.vram + sprites_addr[s]));
     if (zoomed) TileDoubleSprM4(sprites_x[s], pack, 0x10);
     else        TileNormSprM4(sprites_x[s], pack, 0x10);
-    // make sprite pixel map by merging the 4 bitplanes
-    pack = ((pack | (pack>>16)) | ((pack | (pack>>16))>>8)) & 0xff;
-    if (!m)     m = CollisionDetect(mb, sprites_x[s], pack, zoomed);
   }
-  if (m)
-    pv->status |= SR_C;
 }
 
 // cells_dx, tilex_ty merged to reduce register pressure
@@ -295,7 +313,7 @@ static void DrawDisplayM4(int scanline)
 
   // sprites
   if (!(pv->debug_p & PVD_KILL_S_LO))
-    DrawSpritesM4(scanline);
+    DrawSpritesM4();
 
   if ((pv->reg[0] & 0x20) && (Pico.m.hardware & 0x3) != 0x3) {
     // first column masked with background, caculate offset to start of line
@@ -376,13 +394,9 @@ static void TileDoubleSprTMS(u16 sx, unsigned int pack, int pal)
   TMS_PIXELSP(15, 7)
 }
 
-/* Draw sprites into a scanline, max 4 */
-static void DrawSpritesTMS(int scanline)
+static void ParseSpritesTMS(int scanline)
 {
   struct PicoVideo *pv = &Pico.video;
-  unsigned char mb[1+256/8+4] = {0}; // zoomed+doublesize
-  unsigned int sprites_addr[32];
-  unsigned int sprites_x[32];
   unsigned int pack;
   u8 *sat;
   int xoff = 8; // relative to HighCol, which is (screen - 8)
@@ -391,7 +405,6 @@ static void DrawSpritesTMS(int scanline)
   int i, s, h, m;
 
   xoff += line_offset;
-  scanline --;
 
   sat = (u8 *)PicoMem.vramb + ((pv->reg[5] & 0x7e) << 7);
   if (pv->reg[1] & 2) {
@@ -400,13 +413,14 @@ static void DrawSpritesTMS(int scanline)
     addr_mask = 0xff; h = 8;
   }
   if (zoomed) h *= 2;
-
   sprite_base = (pv->reg[6] & 0x7) << 11;
 
+  m = 0;
+  memset(sprites_map, 0, sizeof(sprites_map));
   /* find sprites on this scanline */
   for (i = s = 0; i < 32; i++)
   {
-    int y;
+    int x, y;
     y = sat[MEM_LE2(4*i)];
     if (y == 0xd0)
       break;
@@ -416,42 +430,62 @@ static void DrawSpritesTMS(int scanline)
     if (y + h <= scanline || scanline < y)
       continue; // not on this line
     if (s >= 4) {
-      pv->status |= SR_SOVR | i;
+      if (scanline >= 0) sprites_status |= SR_SOVR | i;
       if (!(PicoIn.opt & POPT_DIS_SPRITE_LIM) || s >= 32)
         break;
     }
+    x = sat[MEM_LE2(4*i+1)] + xoff;
+    if (sat[MEM_LE2(4*i+3)] & 0x80)
+      x -= 32;
 
-    sprites_x[s] = 4*i;
+    sprites_c[s] = sat[MEM_LE2(4*i+3)] & 0x0f;
+    sprites_x[s] = x;
     sprites_addr[s] = sprite_base + ((sat[MEM_LE2(4*i + 2)] & addr_mask) << 3) +
       ((scanline - y) >> zoomed);
+    if (Pico.video.reg[1] & 0x40) {
+      // collision detection. Do it here since off-screen lines aren't drawn
+      if (sprites_c[s] && x > 0) {
+        pack = PicoMem.vramb[MEM_LE2(sprites_addr[s])];
+        if (!m) m = CollisionDetect(sprites_map, x, pack, zoomed);
+      }
+      x += (zoomed ? 16:8);
+      if (sprites_c[s] && (pv->reg[1] & 0x2) && x > 0 && x < 8+256) {
+        pack = PicoMem.vramb[MEM_LE2(sprites_addr[s]+0x10)];
+        if (!m) m = CollisionDetect(sprites_map, x, pack, zoomed);
+      }
+    }
     s++;
   }
+  if (m)
+    sprites_status |= SR_C;
+  sprites = s;
+}
+
+/* Draw sprites into a scanline, max 4 */
+static void DrawSpritesTMS(void)
+{
+  struct PicoVideo *pv = &Pico.video;
+  unsigned int pack;
+  int zoomed = pv->reg[1] & 0x1; // zoomed sprites
+  int s = sprites;
 
   // now draw all sprites backwards
-  m = 0;
   for (--s; s >= 0; s--) {
     int x, c, w = (zoomed ? 16: 8);
-    i = sprites_x[s];
-    x = sat[MEM_LE2(i+1)] + xoff;
-    if (sat[MEM_LE2(i+3)] & 0x80)
-      x -= 32;
-    c = sat[MEM_LE2(i+3)] & 0x0f;
+    x = sprites_x[s];
+    c = sprites_c[s];
     // c may be 0 (transparent): sprite invisible
-    if (x > 0) {
+    if (c && x > 0) {
       pack = PicoMem.vramb[MEM_LE2(sprites_addr[s])];
-      if (zoomed && c) TileDoubleSprTMS(x, pack, c);
-      else if (c)      TileNormSprTMS(x, pack, c);
-      if (!m)          m = CollisionDetect(mb, x, pack, zoomed);
+      if (zoomed) TileDoubleSprTMS(x, pack, c);
+      else        TileNormSprTMS(x, pack, c);
     }
-    if((pv->reg[1] & 0x2) && (x+=w) > 0 && x < 8+256) {
+    if (c && (pv->reg[1] & 0x2) && (x+=w) > 0 && x < 8+256) {
       pack = PicoMem.vramb[MEM_LE2(sprites_addr[s]+0x10)];
-      if (zoomed && c) TileDoubleSprTMS(x, pack, c);
-      else if (c)      TileNormSprTMS(x, pack, c);
-      if (!m)          m = CollisionDetect(mb, x, pack, zoomed);
+      if (zoomed) TileDoubleSprTMS(x, pack, c);
+      else        TileNormSprTMS(x, pack, c);
     }
   }
-  if (m)
-    pv->status |= SR_C;
 }
 
 /* Mode 2 */
@@ -501,7 +535,7 @@ static void DrawDisplayM2(int scanline)
 
   // sprites
   if (!(pv->debug_p & PVD_KILL_S_LO))
-    DrawSpritesTMS(scanline);
+    DrawSpritesTMS();
 }
 
 /* Mode 0 */
@@ -550,7 +584,7 @@ static void DrawDisplayM0(int scanline)
 
   // sprites
   if (!(pv->debug_p & PVD_KILL_S_LO))
-    DrawSpritesTMS(scanline);
+    DrawSpritesTMS();
 }
 
 
@@ -609,6 +643,7 @@ void PicoFrameStartSMS(void)
     emu_video_mode_change(loffs, lines, coffs, columns);
     rendstatus_old = Pico.est.rendstatus;
     rendlines = lines;
+    sprites = 0;
   }
 
   Pico.est.HighCol = HighColBase + screen_offset * HighColIncrement;
@@ -619,6 +654,12 @@ void PicoFrameStartSMS(void)
     Pico.m.dirtyPal = (Pico.m.dirtyPal ? 2 : 0);
     memcpy(Pico.est.SonicPal, PicoMem.cram, 0x20*2);
   }
+}
+
+void PicoParseSATSMS(int line)
+{
+  if (Pico.video.reg[0] & 0x04) ParseSpritesM4(line);
+  else                          ParseSpritesTMS(line);
 }
 
 void PicoLineSMS(int line)
