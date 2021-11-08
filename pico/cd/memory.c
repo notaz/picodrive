@@ -1185,7 +1185,7 @@ PICO_INTERNAL void PicoMemSetupCD(void)
 #ifdef __clang__
     volatile // prevent strange relocs from clang
 #endif
-    unsigned long ptr_ram = (uptr)PicoMem.ram;
+    uptr ptr_ram = (uptr)PicoMem.ram;
     int i;
 
     // M68k
