@@ -38,7 +38,7 @@
 // some well known non-standard macros for detection.
 #if defined __BYTE_ORDER__
 #define	CPU_IS_LE	__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#elif defined _BYTE_ORDER
+#elif defined __BYTE_ORDER
 #define	CPU_IS_LE	__BYTE_ORDER == __LITTLE_ENDIAN
 #elif defined __BIG_ENDIAN__ || defined _M_PPC // Windows on PPC was big endian
 #define	CPU_IS_LE	0
