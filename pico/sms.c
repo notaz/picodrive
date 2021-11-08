@@ -508,6 +508,8 @@ void PicoResetMS(void)
   }
   if (PicoIn.mapper)
     Pico.ms.mapper = PicoIn.mapper;
+  if (PicoIn.regionOverride & 1)
+    Pico.m.hardware |= 0x4;
 
   // check if the ROM header contains more system information
   for (tmr = 0x2000; tmr < 0xbfff && tmr <= Pico.romsize; tmr *= 2) {
@@ -515,6 +517,8 @@ void PicoResetMS(void)
       hw = Pico.rom[tmr-1] >> 4;
       if (hw >= 0x5 && hw < 0x8 && !PicoIn.hwSelect)
         Pico.m.hardware |= 0x1; // GG cartridge detected
+      if ((hw == 0x5 || hw == 0x3) && !PicoIn.regionOverride)
+        Pico.m.hardware |= 0x4; // Region Japan
 
       id = CPU_LE4(*(u32 *)&Pico.rom[tmr-4]) & 0xf0f0ffff;
       for (i = 0; i < sizeof(region_pal)/sizeof(*region_pal); i++)
@@ -548,7 +552,7 @@ void PicoResetMS(void)
   Pico.video.reg[10] = 0xff;
 
   // BIOS, clear zram (unitialized on Mark-III, cf src/mame/drivers/sms.cpp)
-  memset(PicoMem.zram, PicoIn.regionOverride&1 ? 0xf0:0, sizeof(PicoMem.zram));
+  memset(PicoMem.zram, Pico.m.hardware & 0x4 ? 0xf0:0, sizeof(PicoMem.zram));
 }
 
 void PicoPowerMS(void)
