@@ -552,7 +552,7 @@ void PicoResetMS(void)
   Pico.video.reg[10] = 0xff;
 
   // BIOS, clear zram (unitialized on Mark-III, cf src/mame/drivers/sms.cpp)
-  memset(PicoMem.zram, Pico.m.hardware & 0x4 ? 0xf0:0, sizeof(PicoMem.zram));
+  memset(PicoMem.zram, (Pico.m.hardware&5) == 4 ? 0xf0:0, sizeof(PicoMem.zram));
 }
 
 void PicoPowerMS(void)
