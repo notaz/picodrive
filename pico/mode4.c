@@ -60,8 +60,14 @@ static int CollisionDetect(u8 *mb, u16 sx, unsigned int pack, int zoomed)
 
 static void TileBGM4(u16 sx, int pal)
 {
-  u32 *pd = (u32 *)(Pico.est.HighCol + sx);
-  pd[0] = pd[1] = pal * 0x01010101;
+  if (sx & 3) {
+    u8 *pd = (u8 *)(Pico.est.HighCol + sx);
+    pd[0] = pd[1] = pd[2] = pd[3] = pal;
+    pd[4] = pd[5] = pd[6] = pd[7] = pal;
+  } else {
+    u32 *pd = (u32 *)(Pico.est.HighCol + sx);
+    pd[0] = pd[1] = pal * 0x01010101;
+  }
 }
 
 // 8 pixels are arranged in 4 bitplane bytes in a 32 bit word. To pull the
