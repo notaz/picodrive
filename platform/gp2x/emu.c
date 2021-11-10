@@ -256,8 +256,11 @@ static int ld_left, ld_lines; // numbers in Q1 format
 
 static int EmuScanBegin16_ld(unsigned int num)
 {
-	if ((signed int)(ld_counter - num) > 100)
-		ld_counter = 0;
+	if ((signed int)(ld_counter - num) > 100) {
+		// vsync, offset so that the upscaled image is centered
+		ld_counter = 120 - (120-num) * (ld_lines+2)/ld_lines;
+		ld_left = ld_lines;
+	}
 
 	if (emu_scan_begin)
 		return emu_scan_begin(ld_counter);
@@ -585,6 +588,12 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 {
 	int scalex = 320, scaley = 240;
 	int ln_offs = 0;
+
+	/* NTSC always has 224 visible lines, anything smaller has bars */
+	if (line_count < 224 && line_count > 144) {
+		start_line -= (224-line_count) /2;
+		line_count = 224;
+	}
 
 	/* line doubling for swscaling, also needed for bg frames */
 	if (currentConfig.vscaling == EOPT_SCALE_SW && line_count < 240) {

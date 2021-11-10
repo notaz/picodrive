@@ -679,6 +679,12 @@ void plat_update_volume(int has_changed, int is_up)
 /* prepare for MD screen mode change */
 void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count)
 {
+	/* NTSC always has 224 visible lines, anything smaller has bars */
+	if (line_count < 224 && line_count > 144) {
+		start_line -= (224-line_count) /2;
+		line_count = 224;
+	}
+
 	out_y = start_line; out_x = start_col;
 	out_h = line_count; out_w = col_count;
 
