@@ -656,10 +656,10 @@ void PicoFrameStartSMS(void)
   Pico.est.DrawLineDest = (char *)DrawLineDestBase + screen_offset * DrawLineDestIncrement;
 
   if (FinalizeLineSMS == FinalizeLine8bitSMS) {
-    Pico.est.SonicPalCount = 0;
-    Pico.m.dirtyPal = (Pico.m.dirtyPal ? 2 : 0);
-    memcpy(Pico.est.SonicPal, PicoMem.cram, 0x20*2);
+    Pico.m.dirtyPal = (Pico.m.dirtyPal || Pico.est.SonicPalCount ? 2 : 0);
+    memcpy(Pico.est.SonicPal, PicoMem.cram, 0x40*2);
   }
+  Pico.est.SonicPalCount = 0;
 }
 
 void PicoParseSATSMS(int line)
@@ -707,13 +707,12 @@ norender:
 
 /* Fixed palette for TMS9918 modes */
 static u16 tmspal[32] = {
-#if 1  // SMS palette
+  // SMS palette
   0x0000, 0x0000, 0x00a0, 0x00f0, 0x0500, 0x0f00, 0x0005, 0x0ff0,
   0x000a, 0x000f, 0x0055, 0x00ff, 0x0050, 0x0f0f, 0x0555, 0x0fff,
-#else  // TMS palette
+  // TMS palette
   0x0000, 0x0000, 0x04c2, 0x07d5, 0x0e55, 0x0f77, 0x045d, 0x0fe4,
   0x055f, 0x077f, 0x05cd, 0x08ce, 0x03b2, 0x0b5c, 0x0ccc, 0x0fff,
-#endif
 };
 
 void PicoDoHighPal555SMS(void)
@@ -737,18 +736,18 @@ void PicoDoHighPal555SMS(void)
     if (!(Pico.video.reg[0] & 0x4))
       spal = (u32 *)tmspal; // fixed palette in TMS modes
     for (i = 0x20/2; i > 0; i--, spal++, dpal++) { 
-     t = *spal;
+      t = *spal;
 #if defined(USE_BGR555)
-     t = ((t & 0x000f000f)<< 1) | ((t & 0x00f000f0)<<2) | ((t & 0x0f000f00)<<3);
-     t |= (t >> 4) & 0x04210421;
+      t = ((t & 0x000f000f)<<1) | ((t & 0x00f000f0)<<2) | ((t & 0x0f000f00)<<3);
+      t |= (t >> 4) & 0x04210421;
 #elif defined(USE_BGR565)
-     t = ((t & 0x000f000f)<< 1) | ((t & 0x00f000f0)<<3) | ((t & 0x0f000f00)<<4);
-     t |= (t >> 4) & 0x08610861;
+      t = ((t & 0x000f000f)<<1) | ((t & 0x00f000f0)<<3) | ((t & 0x0f000f00)<<4);
+      t |= (t >> 4) & 0x08610861;
 #else
-     t = ((t & 0x000f000f)<<12) | ((t & 0x00f000f0)<<3) | ((t & 0x0f000f00)>>7);
-     t |= (t >> 4) & 0x08610861;
+      t = ((t & 0x000f000f)<<12)| ((t & 0x00f000f0)<<3) | ((t & 0x0f000f00)>>7);
+      t |= (t >> 4) & 0x08610861;
 #endif
-     *dpal = t;
+      *dpal = t;
     }
     memcpy(dpal, dpal-0x20/2, 0x20*2); // for prio bit
     spal += 0x20/2, dpal += 0x20/2;

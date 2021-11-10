@@ -1894,10 +1894,10 @@ PICO_INTERNAL void PicoFrameStart(void)
 
   if (FinalizeLine == FinalizeLine8bit) {
     // make a backup of the current palette in case Sonic mode is detected later
-    Pico.est.SonicPalCount = 0;
-    Pico.m.dirtyPal = (Pico.m.dirtyPal ? 2 : 0); // mark as dirty but copied
+    Pico.m.dirtyPal = (Pico.m.dirtyPal || Pico.est.SonicPalCount ? 2 : 0);
     blockcpy(Pico.est.SonicPal, PicoMem.cram, 0x40*2);
   }
+  Pico.est.SonicPalCount = 0;
 }
 
 static void DrawBlankedLine(int line, int offs, int sh, int bgc)

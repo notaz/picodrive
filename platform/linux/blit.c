@@ -10,13 +10,13 @@
 // to      00000000 rrr00000 ggg00000 bbb00000 ...
 // TODO: rm when gp2x/emu.c is no longer used
 
-void bgr444_to_rgb32(void *to, void *from)
+void bgr444_to_rgb32(void *to, void *from, unsigned entries)
 {
 	unsigned short *ps = from;
 	unsigned int   *pd = to;
 	int pixels;
 
-	for (pixels = 0x40; pixels; pixels--, ps++, pd++)
+	for (pixels = entries; pixels; pixels--, ps++, pd++)
 	{
 		*pd = ((*ps<<20)&0xe00000) | ((*ps<<8)&0xe000) | ((*ps>>4)&0xe0);
 		*pd |= *pd >> 3;

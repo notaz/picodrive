@@ -1,5 +1,5 @@
 
-void bgr444_to_rgb32(void *to, void *from);
+void bgr444_to_rgb32(void *to, void *from, unsigned entries);
 void bgr444_to_rgb32_sh(void *to, void *from);
 
 void vidcpy_m2(void *dest, void *src, int m32col, int with_32c_border);

@@ -204,32 +204,42 @@ static void set_scaling_params(void)
 	*/
 }
 
+static void do_pal_update_sms(void)
+{
+	static u16 tmspal[32] = {
+		// SMS palette
+		0x0000, 0x0000, 0x00a0, 0x00f0, 0x0500, 0x0f00, 0x0005, 0x0ff0,
+		0x000a, 0x000f, 0x0055, 0x00ff, 0x0050, 0x0f0f, 0x0555, 0x0fff,
+	};
+	int i;
+	
+	if (!(Pico.video.reg[0] & 0x4)) {
+		for (i = Pico.est.SonicPalCount; i >= 0; i--)
+			do_pal_convert(localPal+i*0x40, tmspal, currentConfig.gamma, currentConfig.gamma2);
+	} else {
+		for (i = Pico.est.SonicPalCount; i >= 0; i--)
+			do_pal_convert(localPal+i*0x40, Pico.est.SonicPal+i*0x40, currentConfig.gamma, currentConfig.gamma2);
+	}
+	if (Pico.m.dirtyPal == 2)
+		Pico.m.dirtyPal = 0;
+	need_pal_upload = 1;
+}
+
 static void do_pal_update(void)
 {
 	u32 *dpal=(void *)localPal;
 	int i;
 
-	//for (i = 0x3f/2; i >= 0; i--)
-	//	dpal[i] = ((spal[i]&0x000f000f)<< 1)|((spal[i]&0x00f000f0)<<3)|((spal[i]&0x0f000f00)<<4);
-	if (PicoIn.AHW & PAHW_SMS) {
-		u32 *spal = (void *)PicoMem.cram; 
-		for (i = 0; i < 0x20 / 2; i++) {
-			u32 t = spal[i];
-			t = ((t & 0x00030003)<< 3) | ((t & 0x000c000c)<<7) | ((t & 0x00300030)<<10);
-			t |= (t >> 2) | ((t >> 4) & 0x08610861);
-			dpal[i] = t;
-		}
-		Pico.m.dirtyPal = 0;
-	} else if (PicoIn.opt & POPT_ALT_RENDERER) {
+	if (PicoIn.opt & POPT_ALT_RENDERER) {
 		do_pal_convert(localPal, PicoMem.cram, currentConfig.gamma, currentConfig.gamma2);
 		Pico.m.dirtyPal = 0;
 	}
 	else if (Pico.est.rendstatus & PDRAW_SONIC_MODE)
 	{
 		switch (Pico.est.SonicPalCount) {
-		case 3: do_pal_convert(localPal+0xc0/2, Pico.est.SonicPal+0xc0, currentConfig.gamma, currentConfig.gamma2);
-		case 2: do_pal_convert(localPal+0x80/2, Pico.est.SonicPal+0x80, currentConfig.gamma, currentConfig.gamma2);
-		case 1:	do_pal_convert(localPal+0x40/2, Pico.est.SonicPal+0x40, currentConfig.gamma, currentConfig.gamma2);
+		case 3: do_pal_convert(localPal+0xc0, Pico.est.SonicPal+0xc0, currentConfig.gamma, currentConfig.gamma2);
+		case 2: do_pal_convert(localPal+0x80, Pico.est.SonicPal+0x80, currentConfig.gamma, currentConfig.gamma2);
+		case 1:	do_pal_convert(localPal+0x40, Pico.est.SonicPal+0x40, currentConfig.gamma, currentConfig.gamma2);
 		default:do_pal_convert(localPal, Pico.est.SonicPal, currentConfig.gamma, currentConfig.gamma2);
 		}
 	}
@@ -267,9 +277,12 @@ static void blitscreen_clut(void)
 	sceGuTexMode(is_16bit_mode() ? GU_PSM_5650:GU_PSM_T8,0,0,0);
 	sceGuTexImage(0,512,512,512,g_screen_ptr);
 
-	if (!is_16bit_mode() && Pico.m.dirtyPal)
-		do_pal_update();
-
+	if (!is_16bit_mode() && Pico.m.dirtyPal) {
+		if (PicoIn.AHW & PAHW_SMS)
+			do_pal_update_sms();
+		else
+			do_pal_update();
+	}
 
 	if (need_pal_upload) {
 		need_pal_upload = 0;

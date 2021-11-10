@@ -62,12 +62,12 @@
 .endm
 
 
-.global bgr444_to_rgb32 @ void *to, void *from
+.global bgr444_to_rgb32 @ void *to, void *from, unsigned entries
 
 bgr444_to_rgb32:
     stmfd   sp!, {r4-r7,lr}
 
-    mov     r12, #0x40>>3 @ repeats
+    mov     r12, r2, lsr #3 @ repeats
     mov     lr, #0x00f00000
     orr     lr, lr, #0x00f0
 

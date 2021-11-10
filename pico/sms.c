@@ -56,18 +56,19 @@ static void vdp_data_write(unsigned char d)
   struct PicoVideo *pv = &Pico.video;
 
   if (pv->type == 3) {
+    // cram. 32 on SMS, but 64 on MD. Fill 2nd half of cram for prio bit mirror
     if (Pico.m.hardware & 0x1) { // GG, same layout as MD
       unsigned a = pv->addr & 0x3f;
       if (a & 0x1) { // write complete color on high byte write
         u16 c = ((d&0x0f) << 8) | Pico.ms.vdp_buffer;
         if (PicoMem.cram[a >> 1] != c) Pico.m.dirtyPal = 1;
-        PicoMem.cram[a >> 1] = c;
+        PicoMem.cram[a >> 1] = PicoMem.cram[(a >> 1)+0x20] = c;
       }
     } else { // SMS, convert to MD layout (00BbGgRr to 0000BbBbGgGgRrRr)
       unsigned a = pv->addr & 0x1f;
       u16 c = ((d&0x30)<<6) + ((d&0x0c)<<4) + ((d&0x03)<<2);
       if (PicoMem.cram[a] != (c | (c>>2))) Pico.m.dirtyPal = 1;
-      PicoMem.cram[a] = c | (c>>2);
+      PicoMem.cram[a] = PicoMem.cram[a+0x20] = c | (c>>2);
     }
   } else {
     PicoMem.vramb[MEM_LE2(pv->addr)] = d;
