@@ -140,15 +140,6 @@ struct retro_core_option_definition option_defs_tr[] = {
       "PAR"
    },
    {
-      "picodrive_overscan",
-      "Tarama Taşmasını Göster",
-      "Standart tanımlı bir televizyon ekranının kenar çevresinde, çerçeve tarafından gizlenmiş olabilecek rastgele video çıkışını kesin.",
-      {
-         { NULL, NULL },
-      },
-      "disabled"
-   },
-   {
       "picodrive_overclk68k",
       "68K Hızaşırtma",
       "Öykünülmüş 68K yongasına Hızaşırtma uygulayın.",

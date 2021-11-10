@@ -94,9 +94,7 @@ static const float VOUT_PAR = 0.0;
 static const float VOUT_4_3 = (4.0f / 3.0f);
 static const float VOUT_CRT = (1.29911f);
 
-static bool show_overscan = false;
-
-/* Required to allow on the fly changes to 'show overscan' */
+/* Required to allow on the fly changes to 'renderer' */
 static int vm_current_start_line = -1;
 static int vm_current_line_count = -1;
 static int vm_current_start_col = -1;
@@ -657,17 +655,9 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
    if (vout_16bit)
       PicoDrawSetOutBuf(vout_buf, vout_width * 2);
 
-   if (show_overscan)
-   {
-      vout_height = line_count + (start_line * 2);
-      vout_offset = 0;
-   }
-   else
-   {
-      vout_height = line_count;
-      /* Note: We multiply by 2 here to account for pitch */
-      vout_offset = vout_width * start_line * 2;
-   }
+   vout_height = line_count;
+   /* Note: We multiply by 2 here to account for pitch */
+   vout_offset = vout_width * start_line * 2;
 
    /* Redundant sanity check... */
    vout_height = (vout_height > VOUT_MAX_HEIGHT) ?
@@ -764,7 +754,7 @@ void retro_get_system_info(struct retro_system_info *info)
 
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
-   int common_height;
+   float tv_height = (vout_height > 144 ? Pico.m.pal ? 240 : 224 : 144);
    float common_width;
 
    memset(info, 0, sizeof(*info));
@@ -776,11 +766,10 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->geometry.max_height   = vout_height;
 
    common_width = vout_width;
-   common_height = vout_height >= 192 && vout_height <= 224 ? 224 : vout_height;
    if (vout_aspect != 0)
-      common_width = vout_aspect * common_height;
+      common_width = vout_aspect * tv_height;
 
-   info->geometry.aspect_ratio = common_width / common_height;
+   info->geometry.aspect_ratio = common_width / vout_height;
 }
 
 /* savestates */
@@ -1312,6 +1301,8 @@ bool retro_load_game(const struct retro_game_info *info)
    PsndRerate(0);
 
    PicoDrawSetOutFormat(vout_format, 0);
+   if (vout_format == PDF_8BIT)
+      PicoDrawSetOutBuf(Pico.est.Draw2FB, 328);
 
    /* Setup retro memory maps */
    set_memory_maps();
@@ -1407,18 +1398,18 @@ void retro_reset(void)
 }
 
 static const unsigned short retro_pico_map[] = {
-   1 << GBTN_B,
-   1 << GBTN_A,
-   1 << GBTN_MODE,
-   1 << GBTN_START,
-   1 << GBTN_UP,
-   1 << GBTN_DOWN,
-   1 << GBTN_LEFT,
-   1 << GBTN_RIGHT,
-   1 << GBTN_C,
-   1 << GBTN_Y,
-   1 << GBTN_X,
-   1 << GBTN_Z,
+   [RETRO_DEVICE_ID_JOYPAD_B]      = 1 << GBTN_B,
+   [RETRO_DEVICE_ID_JOYPAD_Y]      = 1 << GBTN_A,
+   [RETRO_DEVICE_ID_JOYPAD_SELECT] = 1 << GBTN_MODE,
+   [RETRO_DEVICE_ID_JOYPAD_START]  = 1 << GBTN_START,
+   [RETRO_DEVICE_ID_JOYPAD_UP]     = 1 << GBTN_UP,
+   [RETRO_DEVICE_ID_JOYPAD_DOWN]   = 1 << GBTN_DOWN,
+   [RETRO_DEVICE_ID_JOYPAD_LEFT]   = 1 << GBTN_LEFT,
+   [RETRO_DEVICE_ID_JOYPAD_RIGHT]  = 1 << GBTN_RIGHT,
+   [RETRO_DEVICE_ID_JOYPAD_A]      = 1 << GBTN_C,
+   [RETRO_DEVICE_ID_JOYPAD_X]      = 1 << GBTN_Y,
+   [RETRO_DEVICE_ID_JOYPAD_L]      = 1 << GBTN_X,
+   [RETRO_DEVICE_ID_JOYPAD_R]      = 1 << GBTN_Z,
 };
 #define RETRO_PICO_MAP_LEN (sizeof(retro_pico_map) / sizeof(retro_pico_map[0]))
 
@@ -1451,7 +1442,6 @@ static void update_variables(bool first_run)
    double new_sound_rate;
    unsigned short old_snd_filter;
    int32_t old_snd_filter_range;
-   bool old_show_overscan;
 
    var.value = NULL;
    var.key = "picodrive_input1";
@@ -1579,15 +1569,6 @@ static void update_variables(bool first_run)
          PicoIn.opt &= ~POPT_DIS_SPRITE_LIM;
    }
 
-   old_show_overscan = show_overscan;
-   var.value = NULL;
-   var.key = "picodrive_overscan";
-   show_overscan = false;
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
-      if (strcmp(var.value, "enabled") == 0)
-         show_overscan = true;
-   }
-
    var.value = NULL;
    var.key = "picodrive_overclk68k";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
@@ -1664,6 +1645,8 @@ static void update_variables(bool first_run)
       if (vout_format == PDF_NONE)
          PicoIn.opt |= POPT_ALT_RENDERER;
       PicoDrawSetOutFormat(vout_format, 0);
+      if (vout_format == PDF_8BIT)
+         PicoDrawSetOutBuf(Pico.est.Draw2FB, 328);
    }
 
    var.value = NULL;
@@ -1681,7 +1664,7 @@ static void update_variables(bool first_run)
    }
 
    /* setup video if required */
-   if (show_overscan != old_show_overscan || vout_format != old_vout_format)
+   if (vout_format != old_vout_format)
    {
       if ((vm_current_start_line != -1) &&
           (vm_current_line_count != -1) &&
@@ -1819,15 +1802,15 @@ void retro_run(void)
        * with the fast renderer this is improving performance, at the expense of accuracy.
        */
       /* This section is mostly copied from pemu_finalize_frame in platform/linux/emu.c */
-      unsigned short *pd = (unsigned short *)vout_buf;
+      unsigned short *pd = (unsigned short *)((char *)vout_buf + vout_offset);
       /* Skip the leftmost 8 columns (it is used as an overlap area for rendering) */
-      unsigned char *ps = Pico.est.Draw2FB + 8;
+      unsigned char *ps = Pico.est.Draw2FB + vm_current_start_line * 328 + 8;
       unsigned short *pal = Pico.est.HighPal;
       int x;
       if (Pico.m.dirtyPal)
          PicoDrawUpdateHighPal();
-      /* Copy up to the max height to include the overscan area, and skip the leftmost 8 columns again */
-      for (i = 0; i < VOUT_MAX_HEIGHT; i++, ps += 8) {
+      /* Copy, and skip the leftmost 8 columns again */
+      for (i = 0; i < vout_height; i++, ps += 8) {
          for (x = 0; x < vout_width; x+=4) {
             *pd++ = pal[*ps++];
             *pd++ = pal[*ps++];
@@ -1842,7 +1825,7 @@ void retro_run(void)
       unsigned short *pd = (unsigned short *)vout_buf;
       unsigned short *ps = (unsigned short *)vout_ghosting_buf;
       int y;
-      for (y = 0; y < VOUT_MAX_HEIGHT; y++) {
+      for (y = 0; y < vout_height; y++) {
          if (vout_ghosting == 1)
             v_blend(pd, ps, vout_width, p_075_round);
          else

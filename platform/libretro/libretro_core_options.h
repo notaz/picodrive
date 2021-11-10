@@ -175,17 +175,6 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled"
    },
    {
-      "picodrive_overscan",
-      "Show Overscan",
-      "Crop out the potentially random glitchy video output that would have been hidden by the bezel around the edge of a standard-definition television screen.",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL },
-      },
-      "disabled"
-   },
-   {
       "picodrive_overclk68k",
       "68K Overclock",
       "Overclock the emulated 68K chip.",
