@@ -11,9 +11,10 @@
 
 /*
  ********************************
- * VERSION: 1.3
+ * VERSION: 2.0
  ********************************
  *
+ * - 2.0: Add support for core options v2 interface
  * - 1.3: Move translations to libretro_core_options_intl.h
  *        - libretro_core_options_intl.h includes BOM and utf-8
  *          fix for MSVC 2010-2013
@@ -73,11 +74,19 @@ extern "C" {
 
 /* RETRO_LANGUAGE_TURKISH */
 
-struct retro_core_option_definition option_defs_tr[] = {
+
+struct retro_core_option_v2_category option_cats_tr[] = {
+   { NULL, NULL, NULL },
+};
+
+struct retro_core_option_v2_definition option_defs_tr[] = {
    {
       "picodrive_input1",
       "Giriş cihazı 1",
+      NULL,
       "Hangi tür kontrolör'ün yuva 1'e takılı olduğunu seçin.",
+      NULL,
+      NULL,
       {
          { "3 button pad", NULL },
          { "6 button pad", NULL },
@@ -89,7 +98,10 @@ struct retro_core_option_definition option_defs_tr[] = {
    {
       "picodrive_input2",
       "Giriş cihazı 2",
+      NULL,
       "Hangi tür kontrolör'ün yuva 2'e takılı olduğunu seçin",
+      NULL,
+      NULL,
       {
          { "3 button pad", NULL },
          { "6 button pad", NULL },
@@ -101,7 +113,10 @@ struct retro_core_option_definition option_defs_tr[] = {
    {
       "picodrive_sprlim",
       "Sprite sınırı yok",
+      NULL,
       "Sprite sınırını kaldırmak için bunu etkinleştirin.",
+      NULL,
+      NULL,
       {
          { NULL, NULL },
       },
@@ -110,7 +125,10 @@ struct retro_core_option_definition option_defs_tr[] = {
    {
       "picodrive_ramcart",
       "Sega CD RAM Kartuşu",
+      NULL,
       "Oyun verilerini kaydetmek için kullanılan bir MegaCD RAM kartuşunu taklit edin.",
+      NULL,
+      NULL,
       {
          { NULL, NULL },
       },
@@ -119,7 +137,10 @@ struct retro_core_option_definition option_defs_tr[] = {
    {
       "picodrive_region",
       "Bölge",
+      NULL,
       "Belirli bir bölgeye zorlayın.",
+      NULL,
+      NULL,
       {
          { "Auto",       "Otomatik" },
          { "Japan NTSC", "Japonya NTSC" },
@@ -133,7 +154,10 @@ struct retro_core_option_definition option_defs_tr[] = {
    {
       "picodrive_aspect",
       "Core tarafından belirlenen en boy oranı",
+      NULL,
       "Core tarafından sağlanan en boy oranını seçin. RetroArch'ın en boy oranı, Video ayarlarında sağlanan Core olarak ayarlanmalıdır.",
+      NULL,
+      NULL,
       {
          { NULL, NULL },
       },
@@ -142,7 +166,10 @@ struct retro_core_option_definition option_defs_tr[] = {
    {
       "picodrive_overclk68k",
       "68K Hızaşırtma",
+      NULL,
       "Öykünülmüş 68K yongasına Hızaşırtma uygulayın.",
+      NULL,
+      NULL,
       {
          { NULL, NULL },
       },
@@ -152,7 +179,10 @@ struct retro_core_option_definition option_defs_tr[] = {
    {
       "picodrive_drc",
       "Dinamik Yeniden Derleyici",
+      NULL,
       "Performansı artırmaya yardımcı olan dinamik yeniden derleyicileri etkinleştirin. Tercüman CPU çekirdeğinden daha az hassas, ancak çok daha hızlıdır.",
+      NULL,
+      NULL,
       {
          { NULL, NULL },
       },
@@ -162,7 +192,10 @@ struct retro_core_option_definition option_defs_tr[] = {
    {
       "picodrive_audio_filter",
       "Ses Filtresi",
+      NULL,
       "Model 1 Genesis'in karakteristik sesini daha iyi simüle etmek için düşük geçişli bir ses filtresini etkinleştirin. Master System ve PICO başlıkları kullanılırken bu seçenek yoksayılır. Sadece Genesis ve eklenti donanımı (Sega CD, 32X) fiziksel düşük geçiş filtresi kullanır.",
+      NULL,
+      NULL,
       {
          { "disabled", "devre dışı" },
          { "low-pass", "alçak geçiş" },
@@ -173,13 +206,21 @@ struct retro_core_option_definition option_defs_tr[] = {
    {
       "picodrive_lowpass_range",
       "Alçak geçiş filtresi %",
+      NULL,
       "Ses düşük geçiş filtresinin kesme frekansını belirtin. Daha yüksek bir değer, yüksek frekans spektrumunun daha geniş bir aralığı azaltıldığı için filtrenin algılanan gücünü arttırır.",
+      NULL,
+      NULL,
       {
          { NULL, NULL },
       },
       "60"
    },
-   { NULL, NULL, NULL, {{0}}, NULL },
+   { NULL, NULL, NULL, NULL, NULL, NULL, {{0}}, NULL },
+};
+
+struct retro_core_options_v2 options_tr = {
+   option_cats_tr,
+   option_defs_tr
 };
 
 #ifdef __cplusplus

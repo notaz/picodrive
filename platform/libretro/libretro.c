@@ -707,13 +707,15 @@ bool libretro_supports_bitmasks = false;
 
 void retro_set_environment(retro_environment_t cb)
 {
+   bool option_categories_supported;
 #ifdef USE_LIBRETRO_VFS
    struct retro_vfs_interface_info vfs_iface_info;
 #endif
 
    environ_cb = cb;
 
-   libretro_set_core_options(environ_cb);
+   libretro_set_core_options(environ_cb,
+         &option_categories_supported);
 
 #ifdef USE_LIBRETRO_VFS
    vfs_iface_info.required_interface_version = 1;
