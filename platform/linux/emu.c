@@ -110,11 +110,11 @@ void screen_blit(u16 *pd, int pp, u8* ps, int ss, u16 *pal)
 		upscale_rgb_nn_x_4_5_y_16_17,	upscale_rgb_snn_x_4_5_y_16_17,
 		upscale_rgb_bl2_x_4_5_y_16_17,	upscale_rgb_bl4_x_4_5_y_16_17,
 	};
-	static const upscale_t upscale_256_224_h[] = {
+	static const upscale_t upscale_256_____h[] = {
 		upscale_rgb_nn_x_4_5,		upscale_rgb_snn_x_4_5,
 		upscale_rgb_bl2_x_4_5,		upscale_rgb_bl4_x_4_5,
 	};
-	static const upscale_t upscale_256_224_v[] = {
+	static const upscale_t upscale_____224_v[] = {
 		upscale_rgb_nn_y_16_17,		upscale_rgb_snn_y_16_17,
 		upscale_rgb_bl2_y_16_17,	upscale_rgb_bl4_y_16_17,
 	};
@@ -122,11 +122,11 @@ void screen_blit(u16 *pd, int pp, u8* ps, int ss, u16 *pal)
 		upscale_rgb_nn_x_1_2_y_3_5,	upscale_rgb_nn_x_1_2_y_3_5,
 		upscale_rgb_bl2_x_1_2_y_3_5,	upscale_rgb_bl4_x_1_2_y_3_5,
 	};
-	static const upscale_t upscale_160_144_h[] = {
+	static const upscale_t upscale_160_____h[] = {
 		upscale_rgb_nn_x_1_2,		upscale_rgb_nn_x_1_2,
 		upscale_rgb_bl2_x_1_2,		upscale_rgb_bl2_x_1_2,
 	};
-	static const upscale_t upscale_160_144_v[] = {
+	static const upscale_t upscale_____144_v[] = {
 		upscale_rgb_nn_y_3_5,		upscale_rgb_nn_y_3_5,
 		upscale_rgb_bl2_y_3_5,		upscale_rgb_bl4_y_3_5,
 	};
@@ -135,16 +135,16 @@ void screen_blit(u16 *pd, int pp, u8* ps, int ss, u16 *pal)
 
 	// handle software upscaling
 	upscale = NULL;
-	if (currentConfig.scaling == EOPT_SCALE_SW) {
+	if (currentConfig.scaling == EOPT_SCALE_SW && out_w <= 256) {
 	    if (currentConfig.vscaling == EOPT_SCALE_SW && out_h <= 224)
 		// h+v scaling
-		upscale = out_w == 256 ? upscale_256_224_hv: upscale_160_144_hv;
+		upscale = out_w >= 256 ? upscale_256_224_hv: upscale_160_144_hv;
 	    else
 		// h scaling
-		upscale = out_w == 256 ? upscale_256_224_h : upscale_160_144_h;
+		upscale = out_w >= 256 ? upscale_256_____h : upscale_160_____h;
 	} else if (currentConfig.vscaling == EOPT_SCALE_SW && out_h <= 224)
 		// v scaling
-		upscale = out_w == 256 ? upscale_256_224_v : upscale_160_144_v;
+		upscale = out_w >= 256 ? upscale_____224_v : upscale_____144_v;
 	if (!upscale) {
 		// no scaling
 		for (y = 0; y < out_h; y++)
