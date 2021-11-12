@@ -180,7 +180,7 @@ extern struct DrZ80 drZ80;
 #define z80_run_nr(cycles) Cz80_Exec(&CZ80, cycles)
 #define z80_int()          Cz80_Set_IRQ(&CZ80, 0, HOLD_LINE)
 #define z80_int_assert(a)  Cz80_Set_IRQ(&CZ80, 0, (a) ? ASSERT_LINE : CLEAR_LINE)
-#define z80_nmi()          Cz80_Set_IRQ(&CZ80, IRQ_LINE_NMI, 0)
+#define z80_nmi()          Cz80_Set_IRQ(&CZ80, IRQ_LINE_NMI, ASSERT_LINE)
 
 #define z80_cyclesLeft     (CZ80.ICount - CZ80.ExtraCycles)
 #define z80_subCLeft(c)    CZ80.ICount -= c
