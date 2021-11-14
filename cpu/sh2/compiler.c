@@ -2615,7 +2615,7 @@ static uptr split_address(uptr la, uptr mask, s32 *offs)
   // arm32 offset has an add/sub flag and an unsigned 8 bit value, which only
   // allows values of [-255...255]. the value -256 thus can't be used.
   if (*offs + sign == 0) {
-    la += sign;
+    la -= sign;
     *offs += sign;
   }
 #endif
