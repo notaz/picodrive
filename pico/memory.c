@@ -20,7 +20,7 @@ uptr m68k_read16_map [0x1000000 >> M68K_MEM_SHIFT];
 uptr m68k_write8_map [0x1000000 >> M68K_MEM_SHIFT];
 uptr m68k_write16_map[0x1000000 >> M68K_MEM_SHIFT];
 
-static void xmap_set(uptr *map, int shift, int start_addr, int end_addr,
+static void xmap_set(uptr *map, int shift, u32 start_addr, u32 end_addr,
     const void *func_or_mh, int is_func)
 {
 #ifdef __clang__
@@ -53,7 +53,7 @@ static void xmap_set(uptr *map, int shift, int start_addr, int end_addr,
   }
 }
 
-void z80_map_set(uptr *map, int start_addr, int end_addr,
+void z80_map_set(uptr *map, u16 start_addr, u16 end_addr,
     const void *func_or_mh, int is_func)
 {
   xmap_set(map, Z80_MEM_SHIFT, start_addr, end_addr, func_or_mh, is_func);
@@ -63,7 +63,7 @@ void z80_map_set(uptr *map, int start_addr, int end_addr,
 #endif
 }
 
-void cpu68k_map_set(uptr *map, int start_addr, int end_addr,
+void cpu68k_map_set(uptr *map, u32 start_addr, u32 end_addr,
     const void *func_or_mh, int is_func)
 {
   xmap_set(map, M68K_MEM_SHIFT, start_addr, end_addr, func_or_mh, is_func);
@@ -81,7 +81,7 @@ void cpu68k_map_set(uptr *map, int start_addr, int end_addr,
 }
 
 // more specialized/optimized function (does same as above)
-void cpu68k_map_all_ram(int start_addr, int end_addr, void *ptr, int is_sub)
+void cpu68k_map_all_ram(u32 start_addr, u32 end_addr, void *ptr, int is_sub)
 {
   uptr *r8map, *r16map, *w8map, *w16map;
   uptr addr = (uptr)ptr;
@@ -139,7 +139,7 @@ static void m68k_unmapped_write16(u32 a, u32 d)
   elprintf(EL_UIO, "m68k unmapped w16 [%06x] %04x @%06x", a, d & 0xffff, SekPc);
 }
 
-void m68k_map_unmap(int start_addr, int end_addr)
+void m68k_map_unmap(u32 start_addr, u32 end_addr)
 {
 #ifdef __clang__
   // workaround bug (segfault) in 

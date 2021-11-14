@@ -44,12 +44,12 @@ extern uptr z80_write_map[0x10000 >> Z80_MEM_SHIFT];
 typedef unsigned char (z80_read_f)(unsigned short a);
 typedef void (z80_write_f)(unsigned int a, unsigned char data);
 
-void z80_map_set(uptr *map, int start_addr, int end_addr,
+void z80_map_set(uptr *map, u16 start_addr, u16 end_addr,
     const void *func_or_mh, int is_func);
-void cpu68k_map_set(uptr *map, int start_addr, int end_addr,
+void cpu68k_map_set(uptr *map, u32 start_addr, u32 end_addr,
     const void *func_or_mh, int is_func);
-void cpu68k_map_all_ram(int start_addr, int end_addr, void *ptr, int is_sub);
-void m68k_map_unmap(int start_addr, int end_addr);
+void cpu68k_map_all_ram(u32 start_addr, u32 end_addr, void *ptr, int is_sub);
+void m68k_map_unmap(u32 start_addr, u32 end_addr);
 
 #define MAP_FLAG ((uptr)1 << (sizeof(uptr) * 8 - 1))
 #define map_flag_set(x) ((x) & MAP_FLAG)
