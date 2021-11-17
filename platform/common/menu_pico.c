@@ -561,6 +561,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Emulate Z80",              MA_OPT2_ENABLE_Z80,    PicoIn.opt, POPT_EN_Z80),
 	mee_onoff     ("Emulate YM2612 (FM)",      MA_OPT2_ENABLE_YM2612, PicoIn.opt, POPT_EN_FM),
 	mee_onoff     ("Disable YM2612 SSG-EG",    MA_OPT2_DISABLE_YM_SSG,PicoIn.opt, POPT_DIS_FM_SSGEG),
+	mee_onoff     ("Enable YM2612 ladder effect",MA_OPT2_DISABLE_YM_LAD,PicoIn.opt, POPT_EN_FM_LADDER),
 	mee_onoff     ("Emulate SN76496 (PSG)",    MA_OPT2_ENABLE_SN76496,PicoIn.opt, POPT_EN_PSG),
 	mee_onoff     ("Emulate Game Gear LCD",    MA_OPT2_ENABLE_GGLCD  ,PicoIn.opt, POPT_EN_GG_LCD),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoIn.opt, POPT_DIS_IDLE_DET),

@@ -108,6 +108,9 @@ typedef struct
 	INT32	dt_tab[8][32];/* DeTune table       */
 } FM_ST;
 
+#define ST_SSG		1
+#define ST_LADDER	2
+
 /***********************************************************/
 /* OPN unit                                                */
 /***********************************************************/
@@ -162,7 +165,7 @@ typedef struct
 extern YM2612 ym2612;
 #endif
 
-void YM2612Init_(int baseclock, int rate, int ssg);
+void YM2612Init_(int baseclock, int rate, int flags);
 void YM2612ResetChip_(void);
 int  YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty);
 
@@ -184,9 +187,9 @@ int  YM2612PicoStateLoad2(int *tat, int *tbt);
 #else
 /* GP2X specific */
 #include <platform/gp2x/940ctl.h>
-#define YM2612Init(baseclock,rate,ssg) do { \
-	if (PicoIn.opt&POPT_EXT_FM) YM2612Init_940(baseclock, rate, ssg); \
-	else               YM2612Init_(baseclock, rate, ssg); \
+#define YM2612Init(baseclock,rate,flags) do { \
+	if (PicoIn.opt&POPT_EXT_FM) YM2612Init_940(baseclock, rate, flags); \
+	else               YM2612Init_(baseclock, rate, flags); \
 } while (0)
 #define YM2612ResetChip() do { \
 	if (PicoIn.opt&POPT_EXT_FM) YM2612ResetChip_940(); \

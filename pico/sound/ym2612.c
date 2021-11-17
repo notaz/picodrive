@@ -918,6 +918,14 @@ typedef struct
 
 
 #if !defined(_ASM_YM2612_C) || defined(EXTERNAL_YM2612)
+#include <limits.h>
+static int clip(int n) 
+{
+    unsigned b = 14, s = n < 0;
+    if (s + (n>>(b-1))) n = (int)(s + INT_MAX) >> (8*sizeof(int)-b);
+    return n;
+}
+
 static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 {
 	int scounter;					/* sample counter */
@@ -1226,6 +1234,7 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 
 		/* mix sample to output buffer */
 		if (smp) {
+			smp = clip(smp);  /* saturate to 14 bit */
 			if (ct->pack & 1) { /* stereo */
 				if (ct->pack & 0x20) /* L */ /* TODO: check correctness */
 					buffer[scounter*2] += smp;
@@ -1256,12 +1265,21 @@ static void chan_render_prep(void)
 	crct.lfo_inc = ym2612.OPN.lfo_inc;
 }
 
-static void chan_render_finish(void)
+static void chan_render_finish(int *buffer, unsigned short length, int active_chans)
 {
 	ym2612.OPN.eg_cnt = crct.eg_cnt;
 	ym2612.OPN.eg_timer = crct.eg_timer;
 	g_lfo_ampm = crct.pack >> 16; // need_save
 	ym2612.OPN.lfo_cnt = crct.lfo_cnt;
+
+	/* apply ladder effect. NB only works if buffer was empty beforehand! */
+	if (active_chans && (ym2612.OPN.ST.flags & ST_LADDER)) {
+		length <<= crct.pack & 1;
+		while (length--) {
+			*buffer -= (*buffer < 0)*4 << 5;
+			buffer++;
+		}
+	}
 }
 
 static UINT32 update_lfo_phase(FM_SLOT *SLOT, UINT32 block_fnum)
@@ -1835,21 +1853,21 @@ int YM2612UpdateOne_(int *buffer, int length, int stereo, int is_buf_empty)
 	BIT_IF(flags, 1, (ym2612.ssg_mask & 0xf00000) && (ym2612.OPN.ST.flags & 1));
 	if (ym2612.slot_mask & 0xf00000) active_chs |= chan_render(buffer, length, 5, flags|((pan&0xc00)>>6)|(!!ym2612.dacen<<2)) << 5;
 #undef	BIT_IF
-	chan_render_finish();
+	chan_render_finish(buffer, length, active_chs);
 
 	return active_chs; // 1 if buffer updated
 }
 
 
 /* initialize YM2612 emulator */
-void YM2612Init_(int clock, int rate, int ssg)
+void YM2612Init_(int clock, int rate, int flags)
 {
 	memset(&ym2612, 0, sizeof(ym2612));
 	init_tables();
 
 	ym2612.OPN.ST.clock = clock;
 	ym2612.OPN.ST.rate = rate;
-	ym2612.OPN.ST.flags = (ssg ? 1:0);
+	ym2612.OPN.ST.flags = flags;
 
 	OPNSetPres( 6*24 );
 

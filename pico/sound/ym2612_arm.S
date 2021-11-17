@@ -924,6 +924,10 @@ crl_algo_done:
     tst     r0, r0
     beq     ctl_sample_skip
     orr     r4, r4, #8              @ have_output
+    lsr     r1, r0, #31             @ clip (saturate) sample to 14 bit
+    adds    r2, r1, r0, asr #13
+    subne   r0, r1, #0x80000001
+    asrne   r0, r0, #18
     tst     r12, #1
     beq     ctl_sample_mono
 
