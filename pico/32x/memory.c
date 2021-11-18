@@ -1999,11 +1999,7 @@ int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
     u16 dl, dh = *sp++;
     for (i = 0; i < (len & ~1); i += 2, dst += 2, sp++) {
       dl = dh, dh = *sp;
-#if CPU_IS_LE
       p32x_sh2_write16(dst, (dh >> 8) | (dl << 8), sh2);
-#else
-      p32x_sh2_write16(dst, (dl >> 8) | (dh << 8), sh2);
-#endif
     }
     if (len & 1)
       p32x_sh2_write8(dst, dh, sh2);
@@ -2035,7 +2031,7 @@ int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
       dst += 2;
     }
     if (len & 1)
-      p32x_sh2_write8(dst, ((u8 *)sp)[MEM_BE2(0)], sh2);
+      p32x_sh2_write8(dst, *sp >> 8, sh2);
   }
 
   return count;
