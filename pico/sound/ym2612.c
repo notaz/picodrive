@@ -922,7 +922,8 @@ typedef struct
 static int clip(int n) 
 {
     unsigned b = 14, s = n < 0;
-    if (s + (n>>(b-1))) n = (int)(s + INT_MAX) >> (8*sizeof(int)-b);
+    int m = s + INT_MAX;
+    if (s + (n>>(b-1))) n = m >> (8*sizeof(int)-b);
     return n;
 }
 
@@ -1234,7 +1235,11 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 
 		/* mix sample to output buffer */
 		if (smp) {
-			smp = clip(smp);  /* saturate to 14 bit */
+			smp = clip(smp); /* saturate to 14 bit */
+			if (ct->algo & 0x80) {
+				smp &= ~0x1f; /* drop bits (DAC has 9 bits) */
+				smp -= (smp < 0 ? 7:0) << 5; /* discontinuity */
+			}
 			if (ct->pack & 1) { /* stereo */
 				if (ct->pack & 0x20) /* L */ /* TODO: check correctness */
 					buffer[scounter*2] += smp;
@@ -1271,15 +1276,6 @@ static void chan_render_finish(int *buffer, unsigned short length, int active_ch
 	ym2612.OPN.eg_timer = crct.eg_timer;
 	g_lfo_ampm = crct.pack >> 16; // need_save
 	ym2612.OPN.lfo_cnt = crct.lfo_cnt;
-
-	/* apply ladder effect. NB only works if buffer was empty beforehand! */
-	if (active_chans && (ym2612.OPN.ST.flags & ST_LADDER)) {
-		length <<= crct.pack & 1;
-		while (length--) {
-			*buffer -= (*buffer < 0)*4 << 5;
-			buffer++;
-		}
-	}
 }
 
 static UINT32 update_lfo_phase(FM_SLOT *SLOT, UINT32 block_fnum)
@@ -1339,6 +1335,8 @@ static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: s
 
 	crct.op1_out = crct.CH->op1_out;
 	crct.algo = crct.CH->ALGO & 7;
+	if (ym2612.OPN.ST.flags & ST_DAC)
+		crct.algo |= 0x80;
 
 	if(crct.CH->pms && (ym2612.OPN.ST.mode & 0xC0) && c == 2) {
 		/* 3 slot mode */

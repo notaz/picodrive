@@ -109,7 +109,7 @@ typedef struct
 } FM_ST;
 
 #define ST_SSG		1
-#define ST_LADDER	2
+#define ST_DAC		2
 
 /***********************************************************/
 /* OPN unit                                                */

@@ -677,7 +677,7 @@
 
 
 @ lr=context, r12=pack (stereo, ssg_enabled, disabled, lfo_enabled | pan_r, pan_l, ams[2] | AMmasks[4] | FB[4] | lfo_ampm[16])
-@ r0-r2=scratch, r3=sin_tab/scratch, r4=(length<<8)|unused[3],ssg_update,was_update,algo[3], r5=tl_tab/slot,
+@ r0-r2=scratch, r3=sin_tab/scratch, r4=(length<<8)|dac,unused[2],ssg_update,was_update,algo[3], r5=tl_tab/slot,
 @ r6-r7=vol_out[4], r8=eg_timer, r9=eg_timer_add[31:16], r10=op1_out, r11=buffer
 .global chan_render_loop @ chan_rend_context *ct, int *buffer, int length
 
@@ -688,8 +688,8 @@ chan_render_loop:
     ldr     r12, [lr, #0x4c]
     ldr     r0,  [lr, #0x50]
     mov     r11, r1
-    and     r0,  r0, #7
-    orr     r4,  r4, r0          @ (length<<8)|algo
+    and     r0,  r0, #0x87
+    orr     r4,  r4, r0          @ (length<<8)|dac,unused[4],algo[3]
     ldr     r8, [lr, #0x44]      @ eg_timer
     ldr     r9, [lr, #0x48]      @ eg_timer_add
     ldr     r10, [lr, #0x54]     @ op1_out
@@ -925,9 +925,12 @@ crl_algo_done:
     beq     ctl_sample_skip
     orr     r4, r4, #8              @ have_output
     lsr     r1, r0, #31             @ clip (saturate) sample to 14 bit
-    adds    r2, r1, r0, asr #13
+    cmn     r1, r0, asr #13
     subne   r0, r1, #0x80000001
     asrne   r0, r0, #18
+    tst     r4, r1, lsl #7          @ (sample < 0) && dac?
+    bicne   r0, r0, #0x1f
+    subne   r0, r0, #7<<5
     tst     r12, #1
     beq     ctl_sample_mono
 

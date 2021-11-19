@@ -64,7 +64,7 @@ struct retro_core_option_v2_category option_cats_us[] = {
    {
       "audio",
       "Audio",
-      "Configure sample rate / emulated audio devices / low pass filter."
+      "Configure sample rate / emulated audio devices / low pass filter / DAC noise."
    },
    {
       "input",
@@ -232,10 +232,24 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "off"
    },
    {
+      "picodrive_dacnoise",
+      "Mega Drive FM DAC noise",
+      NULL,
+      "Enable emulation of YM2612 DAC noise. This option generates a distortion which existed on most Model 1 Mega Drive/Genesis, but not on newer models.",
+      NULL,
+      "audio",
+      {
+         { "off", "disabled" },
+         { "on",  "enabled" },
+         { NULL, NULL },
+      },
+      "off"
+   },
+   {
       "picodrive_audio_filter",
       "Audio Filter",
       NULL,
-      "Enable a low pass audio filter to better simulate the characteristic sound of a Model 1 Genesis. This option is ignored when running Master System and PICO titles. Only the Genesis and its add-on hardware (Sega CD, 32X) employed a physical low pass filter.",
+      "Enable a low pass audio filter to better simulate the characteristic sound of a Model 1 Mega Drive/Genesis. Note that although only the Genesis and its add-on hardware (Sega CD, 32X) employed a physical low pass filter, the filter setting is not restricted to that.",
       NULL,
       "audio",
       {
