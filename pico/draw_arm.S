@@ -21,6 +21,7 @@
 .equ PDRAW_DIRTY_SPRITES, (1<<4)
 .equ PDRAW_PLANE_HI_PRIO, (1<<6)
 .equ PDRAW_SHHI_DONE,     (1<<7)
+.equ PDRAW_32X_SCALE,     (1<<12)
 
 @ helpers
 .macro add_c24 d s c
@@ -1633,20 +1634,20 @@ PicoDoHighPal555_end:
 .global FinalizeLine555
 
 FinalizeLine555:
-    stmfd   sp!, {r4-r10,lr}
-    mov     r10,r2               @ est
-    ldr     r8, [r10, #OFS_EST_Pico]
+    stmfd   sp!, {r4-r11,lr}
+    mov     r11,r2               @ est
+    ldr     r8, [r11, #OFS_EST_Pico]
 
     bl      PicoDrawUpdateHighPal
 
-    add     r3, r10, #OFS_EST_HighPal
+    add     r3, r11, #OFS_EST_HighPal
 
     mov     lr, #0xff
     mov     lr, lr, lsl #1
 
-    ldr     r5, [r10, #OFS_EST_PicoOpt]
-    ldr     r1, [r10, #OFS_EST_HighCol]
-    ldr     r0, [r10, #OFS_EST_DrawLineDest]
+    ldr     r5, [r11, #OFS_EST_PicoOpt]
+    ldr     r1, [r11, #OFS_EST_HighCol]
+    ldr     r0, [r11, #OFS_EST_DrawLineDest]
     ldr     r4, [r5]
     ldr     r7, [r5, #OFS_PicoIn_AHW-OFS_PicoIn_opt]
     ldrb    r12,[r8, #OFS_Pico_video_reg+12]
@@ -1716,7 +1717,7 @@ FinalizeLine555:
     stmia   r0!, {r4,r5,r8,r12}
     bne     .fl_loopRGB555
 
-    ldmfd   sp!, {r4-r10,pc}
+    ldmfd   sp!, {r4-r11,pc}
 
 
 .fl_32scale_RGB555:
@@ -1773,7 +1774,7 @@ FinalizeLine555:
     stmia   r0!, {r4,r5,r6,r8,r10}
     bne     .fl_32scale_nn
 
-    ldmfd   sp!, {r4-r10,pc}
+    b       .fl_32scale_8bit
 
 .fl_32scale_snn:
     ldr     r12, [r1], #4
@@ -1822,7 +1823,7 @@ FinalizeLine555:
     stmia   r0!, {r4,r5,r6,r8,r10}
     bne     .fl_32scale_snn
 
-    ldmfd   sp!, {r4-r10,pc}
+    b       .fl_32scale_8bit
 
 .fl_32scale_bl2:
     ldr     r12, [r1], #4
@@ -1878,7 +1879,7 @@ FinalizeLine555:
     stmia   r0!, {r4,r5,r6,r8,r10}
     bne     .fl_32scale_bl2
 
-    ldmfd   sp!, {r4-r10,pc}
+    b       .fl_32scale_8bit
 
 .fl_32scale_bl4:
     // TODO this should reflect the bl4 C algorithm, but it doesn't, it's bln.
@@ -1946,7 +1947,48 @@ FinalizeLine555:
     stmia   r0!, {r4,r5,r6,r8,r10}
     bne     .fl_32loop_bl4
 
-    ldmfd   sp!, {r4-r10,pc}
+.fl_32scale_8bit:
+    ldr     r4, [r11, #OFS_EST_rendstatus]
+    add     r0, r1, #320-256
+    mov     r2, #256/8
+    tst     r4, #PDRAW_32X_SCALE
+    ldmeqfd sp!, {r4-r11,pc}
+    mov     lr, #0xff
+
+.fl_32scale_8bit_nn:
+    ldr     r7,  [r1, #-4]!
+    ldr     r12, [r1, #-4]!
+
+    and     r4, lr, r12, lsl #0
+    and     r5, lr, r12, lsr #8
+    and     r6, lr, r12, lsr #16
+    and     r10,lr, r12, lsr #24
+    
+    orr     r4, r4, r5, lsl #8
+    orr     r5, r6, r6, lsl #8
+
+    and     r6, lr, r7, lsl #0
+    and     r8, lr, r7, lsr #8
+    and     r12,lr, r7, lsr #16
+    and     r7, lr, r7, lsr #24
+
+    orr     r6, r10,r6, lsl  #8
+    orr     r8, r8,r12, lsl #8
+
+    subs    r2, r2, #1
+
+    orr     r10,r12,r7, lsl #8
+
+    strh    r10, [r0, #-2]!
+    strh    r8, [r0, #-2]!
+    strh    r6, [r0, #-2]!
+    strh    r5, [r0, #-2]!
+    strh    r4, [r0, #-2]!
+
+    bne     .fl_32scale_8bit_nn
+
+    ldmfd   sp!, {r4-r11,pc}
+
 
 .fl_20scale_RGB555:
     ldr     r5, [r5, #OFS_PicoIn_filter-OFS_PicoIn_opt]
@@ -2002,7 +2044,7 @@ FinalizeLine555:
     subs    r2, r2, #1
     bne     .fl_20scale_nn
 
-    ldmfd   sp!, {r4-r10,pc}
+    ldmfd   sp!, {r4-r11,pc}
 
 
 .fl_20scale_bl2:
@@ -2082,7 +2124,7 @@ FinalizeLine555:
     stmia   r0!, {r4,r5,r6,r8}
     bne     .fl_20loop_bl2
 
-    ldmfd   sp!, {r4-r10,pc}
+    ldmfd   sp!, {r4-r11,pc}
 
 
 #ifdef UNALIGNED_DRAWLINEDEST
@@ -2128,7 +2170,7 @@ FinalizeLine555:
 
     strh    r8, [r0], #2
 
-    ldmfd   sp!, {r4-r10,pc}
+    ldmfd   sp!, {r4-r11,pc}
 
 
 .fl_32scale_RGB555u:
@@ -2193,7 +2235,7 @@ FinalizeLine555:
 
     strh    r4, [r0], #2
 
-    ldmfd   sp!, {r4-r10,pc}
+    ldmfd   sp!, {r4-r11,pc}
 
 #endif /* UNALIGNED_DRAWLINEDEST */
 

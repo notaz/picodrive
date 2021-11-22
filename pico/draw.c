@@ -1652,14 +1652,18 @@ void FinalizeLine555(int sh, int line, struct PicoEState *est)
   else                                  len = 256;
 
   if ((*est->PicoOpt & POPT_EN_SOFTSCALE) && len < 320) {
-    if (len == 256)
+    if (len == 256) {
       switch (PicoIn.filter) {
       case 3: h_upscale_bl4_4_5(pd, 320, ps, 256, len, f_pal); break;
       case 2: h_upscale_bl2_4_5(pd, 320, ps, 256, len, f_pal); break;
       case 1: h_upscale_snn_4_5(pd, 320, ps, 256, len, f_pal); break;
       default: h_upscale_nn_4_5(pd, 320, ps, 256, len, f_pal); break;
       }
-    else if (len == 160)
+      if (est->rendstatus & PDRAW_32X_SCALE) { // 32X needs scaled CLUT data
+        unsigned char *psc = ps - 256, *pdc = psc;
+        rh_upscale_nn_4_5(pdc, 320, psc, 256, 256, f_nop);
+      }
+    } else if (len == 160)
       switch (PicoIn.filter) {
       case 3:
       case 2: h_upscale_bl2_1_2(pd, 320, ps, 160, len, f_pal); break;
@@ -1886,6 +1890,8 @@ PICO_INTERNAL void PicoFrameStart(void)
     Pico.est.rendstatus |= PDRAW_SKIP_FRAME;
   if (sprep | skipped)
     Pico.est.rendstatus |= PDRAW_PARSE_SPRITES;
+  if (PicoIn.AHW & PAHW_32X)
+    Pico.est.rendstatus |= PDRAW_32X_SCALE;
 
   Pico.est.HighCol = HighColBase + loffs * HighColIncrement;
   Pico.est.DrawLineDest = (char *)DrawLineDestBase + loffs * DrawLineDestIncrement;

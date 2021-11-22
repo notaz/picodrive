@@ -57,7 +57,7 @@
     add     r0, r0, r4
     mov     lr, pc
     ldr     pc, [sp, #(4+1)*4]
-    ldr     r1, [sp, #(3+2)*4] @ &Pico.est
+    ldr     r1, [sp, #(4+2)*4] @ &Pico.est
     ldr     r0, [r1, #OFS_EST_DrawLineDest]
     ldr     r2, [r1, #OFS_EST_DrawLineDestIncr]
     add     r0, r0, r2

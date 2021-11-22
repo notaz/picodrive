@@ -230,7 +230,6 @@ static void p32x_start_blank(void)
 
     // XXX: no proper handling of 32col mode..
     if ((Pico32x.vdp_regs[0] & P32XV_Mx) != 0 && // 32x not blanking
-        (Pico.video.reg[12] & 1) && // 40col mode
         (!(Pico.video.debug_p & PVD_KILL_32X)))
     {
       int md_bg = Pico.video.reg[7] & 0x3f;
@@ -238,7 +237,7 @@ static void p32x_start_blank(void)
       // we draw full layer (not line-by-line)
       PicoDraw32xLayer(offs, lines, md_bg);
     }
-    else if (Pico32xDrawMode != PDM32X_32X_ONLY)
+    else if (Pico32xDrawMode == PDM32X_BOTH)
       PicoDraw32xLayerMdOnly(offs, lines);
 
     pprof_end(draw);
