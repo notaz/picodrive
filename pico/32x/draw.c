@@ -350,6 +350,7 @@ void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode)
   }
   // always need upscaling for H32, before mixing in 32X layer
   PicoIn.opt |= POPT_EN_SOFTSCALE;
+  PicoIn.opt &= ~POPT_DIS_32C_BORDER;
 
   if (use_32x_line_mode)
     // we'll draw via FinalizeLine32xRGB555 (rare)

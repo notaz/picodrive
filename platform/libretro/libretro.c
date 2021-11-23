@@ -43,6 +43,7 @@
 #else
 #include <platform/common/upscale.h>
 #endif
+#include <platform/common/emu.h>
 
 #ifdef _3DS
 #include "3ds/3ds_utils.h"
@@ -619,6 +620,17 @@ int plat_mem_set_exec(void *ptr, size_t size)
    return ret;
 }
 
+static void apply_renderer()
+{
+   PicoIn.opt &= ~(POPT_ALT_RENDERER|POPT_EN_SOFTSCALE);
+   PicoIn.opt |= POPT_DIS_32C_BORDER;
+   if (vout_format == PDF_NONE)
+      PicoIn.opt |= POPT_ALT_RENDERER;
+   PicoDrawSetOutFormat(vout_format, 0);
+   if (!vout_16bit && vout_format == PDF_8BIT)
+      PicoDrawSetOutBuf(Pico.est.Draw2FB, 328);
+}
+
 void emu_video_mode_change(int start_line, int line_count, int start_col, int col_count)
 {
    struct retro_system_av_info av_info;
@@ -629,8 +641,6 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
    vm_current_col_count = col_count;
 
    // 8bit renderes create a 328x256 CLUT image, while 16bit creates 320x240 RGB
-   vout_16bit = vout_format == PDF_RGB555 || (PicoIn.AHW & PAHW_32X);
-
 #if defined(RENDER_GSKIT_PS2)
    // calculate the borders of the real image inside the picodrive image
    vout_width = (vout_16bit ? VOUT_MAX_WIDTH : VOUT_8BIT_WIDTH);
@@ -680,7 +690,10 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 
 void emu_32x_startup(void)
 {
+   PicoIn.filter = EOPT_FILTER_SMOOTHER; // for H32 upscaling
    PicoDrawSetOutFormat(vout_format, 0);
+   vout_16bit = 1;
+
    if ((vm_current_start_line != -1) &&
        (vm_current_line_count != -1) &&
        (vm_current_start_col != -1) &&
@@ -1302,9 +1315,7 @@ bool retro_load_game(const struct retro_game_info *info)
    PicoIn.sndOut = sndBuffer;
    PsndRerate(0);
 
-   PicoDrawSetOutFormat(vout_format, 0);
-   if (vout_format == PDF_8BIT)
-      PicoDrawSetOutBuf(Pico.est.Draw2FB, 328);
+   apply_renderer();
 
    /* Setup retro memory maps */
    set_memory_maps();
@@ -1651,13 +1662,9 @@ static void update_variables(bool first_run)
          vout_format = PDF_8BIT;
       else if (strcmp(var.value, "accurate") == 0)
          vout_format = PDF_RGB555;
+      vout_16bit = vout_format == PDF_RGB555 || (PicoIn.AHW & PAHW_32X);
 
-      PicoIn.opt &= ~POPT_ALT_RENDERER;
-      if (vout_format == PDF_NONE)
-         PicoIn.opt |= POPT_ALT_RENDERER;
-      PicoDrawSetOutFormat(vout_format, 0);
-      if (vout_format == PDF_8BIT)
-         PicoDrawSetOutBuf(Pico.est.Draw2FB, 328);
+      apply_renderer();
    }
 
    var.value = NULL;

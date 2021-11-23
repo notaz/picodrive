@@ -501,9 +501,13 @@ static void vid_reset_mode(void)
 	int gp2x_mode = 16;
 	int renderer = get_renderer();
 
-	PicoIn.opt &= ~POPT_ALT_RENDERER;
-	emu_scan_begin = NULL;
-	emu_scan_end = NULL;
+	PicoIn.opt &= ~(POPT_ALT_RENDERER|POPT_DIS_32C_BORDER|POPT_EN_SOFTSCALE);
+	if (currentConfig.scaling == EOPT_SCALE_SW) {
+		PicoIn.opt |= POPT_EN_SOFTSCALE;
+		PicoIn.filter = EOPT_FILTER_BILINEAR2;
+	} else if (currentConfig.scaling == EOPT_SCALE_HW)
+		// hw scaling, render without any padding
+		PicoIn.opt |= POPT_DIS_32C_BORDER;
 
 	switch (renderer) {
 	case RT_16BIT:
@@ -534,6 +538,9 @@ static void vid_reset_mode(void)
 		PicoDrawSetOutBuf(g_screen_ptr, g_screen_width * 2);
 		gp2x_mode = 16;
 	}
+
+	emu_scan_begin = NULL;
+	emu_scan_end = NULL;
 
 	if (currentConfig.EmuOpt & EOPT_WIZ_TEAR_FIX) {
 		if ((PicoIn.AHW & PAHW_32X) || renderer == RT_16BIT) {
@@ -571,14 +578,6 @@ static void vid_reset_mode(void)
 	gp2x_video_changemode(gp2x_mode, Pico.m.pal);
 
 	Pico.m.dirtyPal = 1;
-
-	PicoIn.opt &= ~(POPT_DIS_32C_BORDER|POPT_EN_SOFTSCALE);
-	if (currentConfig.scaling == EOPT_SCALE_SW) {
-		PicoIn.opt |= POPT_EN_SOFTSCALE;
-		PicoIn.filter = EOPT_FILTER_BILINEAR2;
-	} else if (currentConfig.scaling == EOPT_SCALE_HW)
-		// hw scaling, render without any padding
-		PicoIn.opt |= POPT_DIS_32C_BORDER;
 
 	// palette converters for 8bit modes
 	make_local_pal = (PicoIn.AHW & PAHW_SMS) ? make_local_pal_sms : make_local_pal_md;

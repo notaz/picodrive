@@ -202,6 +202,15 @@ void plat_video_set_buffer(void *buf)
 static void apply_renderer(void)
 {
 	PicoIn.opt &= ~(POPT_ALT_RENDERER|POPT_EN_SOFTSCALE|POPT_DIS_32C_BORDER);
+	if (is_16bit_mode()) {
+		if (currentConfig.scaling == EOPT_SCALE_SW) {
+			PicoIn.opt |= POPT_EN_SOFTSCALE;
+			PicoIn.filter = currentConfig.filter;
+		} else if (currentConfig.scaling == EOPT_SCALE_HW)
+			// hw scaling, render without any padding
+			PicoIn.opt |= POPT_DIS_32C_BORDER;
+	} else
+		PicoIn.opt |= POPT_DIS_32C_BORDER;
 
 	switch (get_renderer()) {
 	case RT_16BIT:
@@ -226,16 +235,6 @@ static void apply_renderer(void)
 
 	if (PicoIn.AHW & PAHW_32X)
 		PicoDrawSetOutBuf(screen_buffer(g_screen_ptr), g_screen_ppitch * 2);
-	if (is_16bit_mode()) {
-		if (currentConfig.scaling == EOPT_SCALE_SW) {
-			PicoIn.opt |= POPT_EN_SOFTSCALE;
-			PicoIn.filter = currentConfig.filter;
-		} else if (currentConfig.scaling == EOPT_SCALE_HW)
-			// hw scaling, render without any padding
-			PicoIn.opt |= POPT_DIS_32C_BORDER;
-	} else
-		PicoIn.opt |= POPT_DIS_32C_BORDER;
-
 	Pico.m.dirtyPal = 1;
 }
 
@@ -389,7 +388,7 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 			PicoDrawSetCallbacks(cb_vscaling_begin,cb_vscaling_nop);
 		break;
 	case EOPT_SCALE_SW:
-		screen_y = (screen_h - 240)/2;
+		screen_y = (screen_h - 240)/2 + (out_h > 144);
 		// NTSC always has 224 visible lines, anything smaller has bars
 		if (out_h < 224 && out_h > 144)
 			screen_y += (224 - out_h)/2;
