@@ -240,9 +240,9 @@ static u32 read_pad_6btn(int i, u32 out_bits)
   }
   else if(phase == 3) {
     if (out_bits & 0x40)
-      return (pad & 0x30) | ((pad >> 8) & 0xf);  // ?1CB MXYZ
+      value = (pad & 0x30) | ((pad >> 8) & 0xf); // ?1CB MXYZ
     else
-      return ((pad & 0xc0) >> 2) | 0x0f;         // ?0SA 1111
+      value = ((pad & 0xc0) >> 2) | 0x0f;        // ?0SA 1111
     goto out;
   }
 
@@ -281,7 +281,7 @@ static NOINLINE u32 port_read(int i)
   // disables output before doing TH-low read, so don't emulate it for TH.
   // Decap Attack reportedly doesn't work on Nomad but works on must
   // other MD revisions (different pull-up strength?).
-  if (PicoIn.AHW & PAHW_32X) // don't do it on 32X, it breaks WWF Raw
+  if (PicoIn.AHW & (PAHW_32X|PAHW_MCD)) // don't do it on 32X, it breaks WWF Raw
     out |= 0x7f & ~ctrl_reg;
   else
     out |= 0x3f & ~ctrl_reg;
