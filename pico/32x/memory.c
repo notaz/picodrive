@@ -1461,7 +1461,7 @@ static u32 REGPARM(2) sh2_read8_cs0(u32 a, SH2 *sh2)
 
   if ((a & 0x3fff0) == 0x4100) {
     d = p32x_vdp_read16(a);
-    p32x_sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 7);
+    p32x_sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 9);
     goto out_16to8;
   }
 
@@ -1524,7 +1524,7 @@ static u32 REGPARM(2) sh2_read16_cs0(u32 a, SH2 *sh2)
 
   if ((a & 0x3fff0) == 0x4100) {
     d = p32x_vdp_read16(a);
-    p32x_sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 7);
+    p32x_sh2_poll_detect(a, sh2, SH2_STATE_VPOLL, 9);
     goto out;
   }
 
