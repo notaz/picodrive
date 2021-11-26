@@ -175,14 +175,18 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 		u16 *ps = ghost_buf;
 		int y, h = currentConfig.vscaling == EOPT_SCALE_SW ? 240:out_h;
 		int w = currentConfig.scaling == EOPT_SCALE_SW ? 320:out_w;
-		for (y = 0; y < h; y++) {
-			if (currentConfig.ghosting == 1)
+		if (currentConfig.ghosting == 1)
+			for (y = 0; y < h; y++) {
 				v_blend((u32 *)pd, (u32 *)ps, w/2, p_075_round);
-			else
+				pd += g_screen_ppitch;
+				ps += w;
+			}
+		else
+			for (y = 0; y < h; y++) {
 				v_blend((u32 *)pd, (u32 *)ps, w/2, p_05_round);
-			pd += g_screen_ppitch;
-			ps += w;
-		}
+				pd += g_screen_ppitch;
+				ps += w;
+			}
 	}
 
 	if (notice)
@@ -388,7 +392,7 @@ void emu_video_mode_change(int start_line, int line_count, int start_col, int co
 			PicoDrawSetCallbacks(cb_vscaling_begin,cb_vscaling_nop);
 		break;
 	case EOPT_SCALE_SW:
-		screen_y = (screen_h - 240)/2 + (out_h > 144);
+		screen_y = (screen_h - 240)/2 + (out_h < 240 && out_h > 144);
 		// NTSC always has 224 visible lines, anything smaller has bars
 		if (out_h < 224 && out_h > 144)
 			screen_y += (224 - out_h)/2;

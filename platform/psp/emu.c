@@ -104,7 +104,7 @@ static void change_renderer(int diff)
 
 static void apply_renderer(void)
 {
-	PicoIn.opt &= ~POPT_ALT_RENDERER;
+	PicoIn.opt &= ~(POPT_ALT_RENDERER|POPT_EN_SOFTSCALE);
 
 	switch (get_renderer()) {
 	case RT_16BIT:
