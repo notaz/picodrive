@@ -145,13 +145,13 @@ void p32x_reset_sh2s(void)
       idl_src = CPU_BE2(*(u32 *)(Pico.rom + 0x3d4)) & ~0xf0000000;
       idl_dst = CPU_BE2(*(u32 *)(Pico.rom + 0x3d8)) & ~0xf0000000;
       idl_size= CPU_BE2(*(u32 *)(Pico.rom + 0x3dc));
-      if (idl_size > Pico.romsize || idl_src + idl_size > Pico.romsize ||
-          idl_size > 0x40000 || idl_dst + idl_size > 0x40000 || (idl_src & 3) || (idl_dst & 3)) {
-        elprintf(EL_STATUS|EL_ANOMALY, "32x: invalid initial data ptrs: %06x -> %06x, %06x",
-          idl_src, idl_dst, idl_size);
+      // copy in guest memory space
+      idl_src += 0x2000000;
+      idl_dst += 0x6000000;
+      while (idl_size >= 4) {
+        p32x_sh2_write32(idl_dst, p32x_sh2_read32(idl_src, &msh2), &msh2);
+        idl_src += 4, idl_dst += 4, idl_size -= 4;
       }
-      else
-        memcpy(Pico32xMem->sdram + idl_dst, Pico.rom + idl_src, idl_size);
 
       // VBR
       vbr = CPU_BE2(*(u32 *)(Pico.rom + 0x3e8));

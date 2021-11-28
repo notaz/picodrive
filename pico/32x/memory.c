@@ -2382,9 +2382,10 @@ void PicoMemSetup32x(void)
   msh2_write32_map[0x00/2] = msh2_write32_map[0x20/2] = sh2_write32_cs0;
   // CS1 - ROM
   bank_switch_rom_sh2();
-  msh2_read8_map[0x02/2].mask  = msh2_read8_map[0x22/2].mask  = 0x3fffff; // FIXME
-  msh2_read16_map[0x02/2].mask = msh2_read16_map[0x22/2].mask = 0x3ffffe; // FIXME
-  msh2_read32_map[0x02/2].mask = msh2_read32_map[0x22/2].mask = 0x3ffffc; // FIXME
+  for (rs = 0x8000; rs < Pico.romsize && rs < 0x400000; rs *= 2) ; 
+  msh2_read8_map[0x02/2].mask  = msh2_read8_map[0x22/2].mask  = rs-1;
+  msh2_read16_map[0x02/2].mask = msh2_read16_map[0x22/2].mask = rs-1;
+  msh2_read32_map[0x02/2].mask = msh2_read32_map[0x22/2].mask = rs-1;
   msh2_write16_map[0x02/2] = msh2_write16_map[0x22/2] = sh2_write16_rom;
   msh2_write32_map[0x02/2] = msh2_write32_map[0x22/2] = sh2_write32_rom;
   // CS2 - DRAM 
