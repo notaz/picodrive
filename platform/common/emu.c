@@ -1288,6 +1288,9 @@ void emu_init(void)
 	PicoIn.mcdTrayClose = emu_tray_close;
 
 	sndout_init();
+
+	PicoSetInputDevice(0, currentConfig.input_dev0);
+	PicoSetInputDevice(1, currentConfig.input_dev1);
 }
 
 void emu_finish(void)
