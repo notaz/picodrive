@@ -508,6 +508,9 @@ int emu_reload_rom(const char *rom_fname_in)
 	}
 	else
 	{
+		PicoSetInputDevice(0, currentConfig.input_dev0);
+		PicoSetInputDevice(1, currentConfig.input_dev1);
+
 		system_announce();
 		PicoIn.opt &= ~POPT_DIS_VDP_FIFO;
 	}
@@ -1288,9 +1291,6 @@ void emu_init(void)
 	PicoIn.mcdTrayClose = emu_tray_close;
 
 	sndout_init();
-
-	PicoSetInputDevice(0, currentConfig.input_dev0);
-	PicoSetInputDevice(1, currentConfig.input_dev1);
 }
 
 void emu_finish(void)
