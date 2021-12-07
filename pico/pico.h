@@ -308,6 +308,8 @@ enum input_device {
   PICO_INPUT_NOTHING,
   PICO_INPUT_PAD_3BTN,
   PICO_INPUT_PAD_6BTN,
+  PICO_INPUT_PAD_TEAM,
+  PICO_INPUT_PAD_4WAY,
 };
 void PicoSetInputDevice(int port, enum input_device device);
 
