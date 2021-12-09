@@ -50,8 +50,9 @@ mv PicoDrive.opk release-$1/PicoDrive-gcw0_$1.opk
 #TC=$HOME/opt/rg350-toolchain PATH=$TC/usr/bin:$PATH make clean all
 
 # rg350, gkd350h etc: JZ4770 or newer, newer generic gcc
-# NB this may or may not work on the newer opendingux beta
-TC=$HOME/opt/rg350-toolchain PATH=$HOME/opt/mips-toolchain/bin:$PATH CROSS_COMPILE=mipsel-linux- TS=$TC/usr/mipsel-gcw0-linux-uclibc/sysroot CFLAGS="-I$TS/usr/include -I$TS/usr/include/SDL -mabicalls" LDFLAGS="--sysroot $TS -Wl,--dynamic-linker=/lib/ld-uClibc.so.0" ./configure --platform=opendingux
+# NB this may or may not work on the newer opendingux beta. undefine frame_info
+# symbols to force linking them from libgcc.a - they might not be in the libc
+TC=$HOME/opt/rg350-toolchain PATH=$HOME/opt/mips-toolchain/bin:$PATH CROSS_COMPILE=mipsel-linux- TS=$TC/usr/mipsel-gcw0-linux-uclibc/sysroot CFLAGS="-I$TS/usr/include -I$TS/usr/include/SDL -mabicalls" LDFLAGS="--sysroot $TS -Wl,--dynamic-linker=/lib/ld-uClibc.so.0 -u__register_frame_info -u__deregister_frame_info" ./configure --platform=opendingux
 PATH=$HOME/opt/mips-toolchain/usr/bin:$PATH make clean all
 mv PicoDrive.opk release-$1/PicoDrive-opendingux_$1.opk
 
