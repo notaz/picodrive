@@ -71,9 +71,12 @@ static void carthw_ssf2_mem_setup(void)
 
 static void carthw_ssf2_statef(void)
 {
-  int i;
-  for (i = 1; i < 8; i++)
-    carthw_ssf2_write8(0xa130f0 | (i << 1), carthw_ssf2_banks[i]);
+  int i, reg;
+  for (i = 1; i < 8; i++) {
+    reg = carthw_ssf2_banks[i];
+    carthw_ssf2_banks[i] = i;
+    carthw_ssf2_write8(0xa130f1 | (i << 1), reg);
+  }
 }
 
 static void carthw_ssf2_unload(void)
