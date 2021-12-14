@@ -32,6 +32,7 @@ DrZ80Ver: .long 0x0001
 ;@ --------------------------- Defines ----------------------------
 ;@ Make sure that regs/pointers for z80pc to z80sp match up!
 
+	eabi_align .req r2	@ pushed for EABI alignment all over the place
 	z80_icount .req r3
 	opcodes    .req r4
 	cpucontext .req r5
@@ -163,14 +164,14 @@ z80_xmap_read16: @ addr
 
 0:
     @ z80_xmap_read8 will save r3 and r12 for us
-    stmfd sp!,{r8,r9,lr}
+    stmfd sp!,{r2,r8,r9,lr}
     mov r8,r0
     bl z80_xmap_read8
     mov r9,r0
     add r0,r8,#1
     bl z80_xmap_read8
     orr r0,r9,r0,lsl #8
-    ldmfd sp!,{r8,r9,pc}
+    ldmfd sp!,{r2,r8,r9,pc}
 
 z80_xmap_write16: @ data, addr
     add r2,r1,#1
@@ -190,14 +191,14 @@ z80_xmap_write16: @ data, addr
     bx lr
 
 0:
-    stmfd sp!,{r8,r9,lr}
+    stmfd sp!,{r2,r8,r9,lr}
     mov r8,r0
     mov r9,r1
     bl z80_xmap_write8
     mov r0,r8,lsr #8
     add r1,r9,#1
     bl z80_xmap_write8
-    ldmfd sp!,{r8,r9,pc}
+    ldmfd sp!,{r2,r8,r9,pc}
 
 z80_xmap_rebase_pc:
     ldr r1,[cpucontext,#z80_read8]
@@ -209,11 +210,11 @@ z80_xmap_rebase_pc:
     bxcc lr
 
 z80_bad_jump:
-    stmfd sp!,{r3,r12,lr}
+    stmfd sp!,{r2,r3,r12,lr}
     mov lr,pc
     ldr pc,[cpucontext,#z80_rebasePC]
     mov z80pc,r0
-    ldmfd sp!,{r3,r12,pc}
+    ldmfd sp!,{r2,r3,r12,pc}
 
 .if FAST_Z80SP
 z80_xmap_rebase_sp:
@@ -227,11 +228,11 @@ z80_xmap_rebase_sp:
     addcc z80sp,r1,r0
     bxcc lr
 
-    stmfd sp!,{r3,r12,lr}
+    stmfd sp!,{r2,r3,r12,lr}
     mov lr,pc
     ldr pc,[cpucontext,#z80_rebaseSP]
     mov z80sp,r0
-    ldmfd sp!,{r3,r12,pc}
+    ldmfd sp!,{r2,r3,r12,pc}
 .endif @ FAST_Z80SP
  
 .endif @ DRZ80_XMAP
@@ -676,10 +677,12 @@ z80_xmap_rebase_sp:
 ;@---------------------------------------
 
 .macro opIN
-	stmfd sp!,{r3,r12}
+	str z80_icount,[cpucontext,#cycles_pointer]
+	stmfd sp!,{r2,r12}
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_in]				;@ r0=port - data returned in r0
-	ldmfd sp!,{r3,r12}
+	ldr z80_icount,[cpucontext,#cycles_pointer]
+	ldmfd sp!,{r2,r12}
 .endm
 
 .macro opIN_C
@@ -744,10 +747,12 @@ z80_xmap_rebase_sp:
 ;@---------------------------------------
 
 .macro opOUT
-	stmfd sp!,{r3,r12}
+	str z80_icount,[cpucontext,#cycles_pointer]
+	stmfd sp!,{r2,r12}
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_out]			;@ r0=port r1=data
-	ldmfd sp!,{r3,r12}
+	ldr z80_icount,[cpucontext,#cycles_pointer]
+	ldmfd sp!,{r2,r12}
 .endm
 
 .macro opOUT_C
@@ -840,18 +845,18 @@ z80_xmap_rebase_sp:
 
 .macro opRESmem bit
 .if DRZ80_XMAP
-	stmfd sp!,{r0}							;@ save addr as well
+	stmfd sp!,{r0,r2}						;@ save addr as well
 	bl z80_xmap_read8
 	bic r0,r0,#1<<\bit
-	ldmfd sp!,{r1}							;@ restore addr into r1
+	ldmfd sp!,{r1,r2}						;@ restore addr into r1
 	bl z80_xmap_write8
 .else
 	stmfd sp!,{r3,r12}
-	stmfd sp!,{r0}							;@ save addr as well
+	stmfd sp!,{r0,r2}						;@ save addr as well
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_read8]			;@ r0=addr - data returned in r0
 	bic r0,r0,#1<<\bit
-	ldmfd sp!,{r1}							;@ restore addr into r1
+	ldmfd sp!,{r1,r2}						;@ restore addr into r1
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_write8]			;@ r0=data r1=addr
 	ldmfd sp!,{r3,r12}
@@ -1121,18 +1126,18 @@ z80_xmap_rebase_sp:
 
 .macro opSETmem bit
 .if DRZ80_XMAP
-	stmfd sp!,{r0}	;@ save addr as well
+	stmfd sp!,{r0,r2}	;@ save addr as well
 	bl z80_xmap_read8
 	orr r0,r0,#1<<\bit
-	ldmfd sp!,{r1}	;@ restore addr into r1
+	ldmfd sp!,{r1,r2}	;@ restore addr into r1
 	bl z80_xmap_write8
 .else
 	stmfd sp!,{r3,r12}
-	stmfd sp!,{r0}	;@ save addr as well
+	stmfd sp!,{r0,r2}	;@ save addr as well
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_read8]			;@ r0=addr - data returned in r0
 	orr r0,r0,#1<<\bit
-	ldmfd sp!,{r1}	;@ restore addr into r1
+	ldmfd sp!,{r1,r2}	;@ restore addr into r1
 	mov lr,pc
 	ldr pc,[cpucontext,#z80_write8]			;@ r0=data r1=addr
 	ldmfd sp!,{r3,r12}
@@ -1404,7 +1409,7 @@ DoInterrupt:
 .else
 
 	;@ r0 == z80if
-	stmfd sp!,{lr}
+	stmfd sp!,{r2,lr}
 
 	tst r0,#4 ;@ check halt
 	addne z80pc,z80pc,#1
@@ -1517,11 +1522,11 @@ DoInterrupt_end:
 	mov lr,pc
 	mov pc,r0    ;@ call callback function
 	ldmfd sp!,{r3,r12}
-	ldmfd sp!,{pc} ;@ return
+	ldmfd sp!,{r2,pc} ;@ return
 .endif
 
 DoNMI:
-	stmfd sp!,{lr}
+	stmfd sp!,{r2,lr}
 
 	bic r0,r0,#((Z80_NMI|Z80_HALT|Z80_IF1)<<8)
 	strh r0,[cpucontext,#z80irq] @ 0x4C, irq and IFF bits
@@ -1547,7 +1552,7 @@ DoNMI:
 .endif
 	ldrh r0,[cpucontext,#z80irq] @ 0x4C, irq and IFF bits
 	eatcycles 11
-	ldmfd sp!,{pc}
+	ldmfd sp!,{r2,pc}
 
 
 .data
@@ -6734,9 +6739,9 @@ opcode_DD_2A:
 	ldrb r0,[z80pc],#1
 	ldrb r1,[z80pc],#1
 	orr r0,r0,r1, lsl #8
-	stmfd sp!,{z80xx}
+	stmfd sp!,{r2,z80xx}
 	readmem16
-	ldmfd sp!,{z80xx}
+	ldmfd sp!,{r2,z80xx}
 	strh r0,[z80xx,#2]
 	fetch 20
 ;@DEC IX
@@ -6768,10 +6773,10 @@ opcode_DD_34:
 	ldr r1,[z80xx]
 	add r0,r1,r0, lsl #16
 	mov r0,r0,lsr #16
-	stmfd sp!,{r0}	;@ save addr
+	stmfd sp!,{r0,r2}	;@ save addr
 	readmem8
 	opINC8b
-	ldmfd sp!,{r1}	;@ restore addr into r1
+	ldmfd sp!,{r1,r2}	;@ restore addr into r1
 	writemem8
 	fetch 23
 ;@DEC (IX+N)
@@ -6780,10 +6785,10 @@ opcode_DD_35:
 	ldr r1,[z80xx]
 	add r0,r1,r0, lsl #16
 	mov r0,r0,lsr #16
-	stmfd sp!,{r0}	;@ save addr
+	stmfd sp!,{r0,r2}	;@ save addr
 	readmem8
 	opDEC8b
-	ldmfd sp!,{r1}	;@ restore addr into r1
+	ldmfd sp!,{r1,r2}	;@ restore addr into r1
 	writemem8
 	fetch 23
 ;@LD (IX+N),N
@@ -7278,67 +7283,67 @@ opcodes_DD_CB:
 
 ;@RLC (IX+N) 
 opcode_DD_CB_06:
-	stmfd sp!,{r0}		;@ save addr
+	stmfd sp!,{r0,r2}		;@ save addr
 	readmem8
 	opRLCb
-	ldmfd sp!,{r1}		;@ restore addr into r1
+	ldmfd sp!,{r1,r2}		;@ restore addr into r1
 	writemem8
 	fetch 23
 ;@RRC (IX+N) 
 opcode_DD_CB_0E:
-	stmfd sp!,{r0}		;@ save addr
+	stmfd sp!,{r0,r2}		;@ save addr
 	readmem8
 	opRRCb
-	ldmfd sp!,{r1}		;@ restore addr into r1
+	ldmfd sp!,{r1,r2}		;@ restore addr into r1
 	writemem8
 	fetch 23
 ;@RL (IX+N) 
 opcode_DD_CB_16:
-	stmfd sp!,{r0}		;@ save addr
+	stmfd sp!,{r0,r2}		;@ save addr
 	readmem8
 	opRLb
-	ldmfd sp!,{r1}		;@ restore addr into r1
+	ldmfd sp!,{r1,r2}		;@ restore addr into r1
 	writemem8
 	fetch 23
 ;@RR (IX+N) 
 opcode_DD_CB_1E:
-	stmfd sp!,{r0}		;@ save addr 
+	stmfd sp!,{r0,r2}		;@ save addr 
 	readmem8
 	opRRb
-	ldmfd sp!,{r1}		;@ restore addr into r1
+	ldmfd sp!,{r1,r2}		;@ restore addr into r1
 	writemem8
 	fetch 23
 
 ;@SLA (IX+N) 
 opcode_DD_CB_26:
-	stmfd sp!,{r0}		;@ save addr 
+	stmfd sp!,{r0,r2}		;@ save addr 
 	readmem8
 	opSLAb
-	ldmfd sp!,{r1}		;@ restore addr into r1
+	ldmfd sp!,{r1,r2}		;@ restore addr into r1
 	writemem8
 	fetch 23
 ;@SRA (IX+N) 
 opcode_DD_CB_2E:
-	stmfd sp!,{r0}		;@ save addr 
+	stmfd sp!,{r0,r2}		;@ save addr 
 	readmem8
 	opSRAb
-	ldmfd sp!,{r1}		;@ restore addr into r1
+	ldmfd sp!,{r1,r2}		;@ restore addr into r1
 	writemem8
 	fetch 23
 ;@SLL (IX+N) 
 opcode_DD_CB_36:
-	stmfd sp!,{r0}		;@ save addr 
+	stmfd sp!,{r0,r2}		;@ save addr 
 	readmem8
 	opSLLb
-	ldmfd sp!,{r1}		;@ restore addr into r1
+	ldmfd sp!,{r1,r2}		;@ restore addr into r1
 	writemem8
 	fetch 23
 ;@SRL (IX+N)
 opcode_DD_CB_3E:
-	stmfd sp!,{r0}		;@ save addr 
+	stmfd sp!,{r0,r2}		;@ save addr 
 	readmem8
 	opSRLb
-	ldmfd sp!,{r1}		;@ restore addr into r1
+	ldmfd sp!,{r1,r2}		;@ restore addr into r1
 	writemem8
 	fetch 23
 
@@ -7440,9 +7445,9 @@ opcode_DD_E1:
 	opPOP
 .else
 	mov r0,z80sp
-	stmfd sp!,{z80xx}
+	stmfd sp!,{r2,z80xx}
 	readmem16
-	ldmfd sp!,{z80xx}
+	ldmfd sp!,{r2,z80xx}
 	add z80sp,z80sp,#2
 .endif
 	strh r0,[z80xx,#2]
@@ -7460,9 +7465,9 @@ opcode_DD_E3:
 	strh r2,[z80xx,#2]
 .else
 	mov r0,z80sp
-	stmfd sp!,{z80xx}
+	stmfd sp!,{r2,z80xx}
 	readmem16
-	ldmfd sp!,{z80xx}
+	ldmfd sp!,{r2,z80xx}
 	mov r2,r0
 	ldrh r0,[z80xx,#2]
 	strh r2,[z80xx,#2]
