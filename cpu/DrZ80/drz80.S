@@ -1517,7 +1517,7 @@ DoInterrupt_end:
 	ldr r0,[cpucontext, #z80irqcallback]
 	tst r0,r0
 	streqb r0,[cpucontext,#z80irq]       ;@ default handling
-	ldmeqfd sp!,{pc}
+	ldmeqfd sp!,{r2,pc}
 	stmfd sp!,{r3,r12}
 	mov lr,pc
 	mov pc,r0    ;@ call callback function
