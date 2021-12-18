@@ -76,7 +76,6 @@
     PIC_LDR(lr, r9, Pico)
     PIC_LDR(r10,r9, Pico32x)
     ldr     r11, [lr, #OFS_Pico_est+OFS_EST_Draw2FB]
-    ldr     r12, [lr, #OFS_Pico_est+OFS_EST_DrawLineDestIncr]
     ldrh    r10,[r10, #0x40] @ Pico32x.vdp_regs[0]
     add     r9, lr, #OFS_Pico_est+OFS_EST_HighPal   @ palmd
 
@@ -85,8 +84,8 @@
     mov     r3, r3, lsl #26  @ mdbg << 26
     mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
     tst     r10,#P32XV_PRI
-    movne   r10,#0
-    moveq   r10,#0x8000      @ r10 = inv_bit
+    moveq   r10,#0
+    movne   r10,#0x8000      @ r10 = inv_bit
     call_scan_prep \call_scan lr
 
     mov     r4, #0           @ line
@@ -107,125 +106,143 @@
     mov     r12,r4, lsl #1
     ldrh    r12,[r1, r12]
     add     r11,r11,#8
-    mov     r6, #320
+    mov     r6, #320/2
     add     r5, r1, r12, lsl #1 @ p32x = dram + dram[l]
 
-    ldrh    r7, [r5], #2
 2: @ loop_inner:
-    mov     r8, r7
-    subs    lr, r6, #1
+@ r4,r6 - counters; r5 - 32x data; r9 - md pal; r10 - inv_prio; r11 - md data
+@ r7,r8,r12,lr - temp
+    ldrh    r7, [r5], #2
+    ldrh    r8, [r5], #2
+    subs    r6, r6, #1
     blt     0b @ loop_outer
-    beq     7f @ single_pix
-    ldrh    r7, [r5], #2     @ 32x pixel
-    cmp     r7, r8           @ do RLE only if we have at least 2 px
-@    ldreqh  r7, [r5]
-@    cmpeq   r7, r8
-    subeq   lr, lr, #1
-    beq     3f @ loop_innermost
+    cmp     r7, r8
+    beq     5f @ check_fill
 
-7: @ single_pix:
-    mov     r6, lr
-
-    eor     r12,r8, r10
-    tst     r12, #0x8000     @ !((t ^ inv) & 0x8000)
-    addeq   r11,r11,#1
-    beq     8f @ single_pix_32x
-
-    ldrb    r12,[r11], #1    @ MD pixel
-    cmp     r3, r12,lsl #26  @ MD has bg pixel?
-.if \do_md
-    movne   r12,r12,lsl #1
-    ldrneh  r12,[r9, r12]
-    strneh  r12,[r0], #2     @ *dst++ = palmd[*pmd]
-.else
-    addne   r0, r0, #2
-.endif
-    bne     2b @ loop_inner
-
-8: @ single_pix_32x:
+3: @ no_fill:
+    eor     r7, r7, r10
+    and     r12,r7, #0x03e0  @ convert BGR555 -> RGB565
+    mov     r7, r7, ror #5
+    orr     r7, r7, r7, ror #10+11
+    orr     r7, r7, r12,lsl #1+16
+    eor     r8, r8, r10
     and     r12,r8, #0x03e0
-    mov     r8, r8, lsl #11
-    orr     r8, r8, r8, lsr #(10+11)
-    orr     r8, r8, r12,lsl #1
-    bic     r8, r8, #0x0020  @ kill prio bit
-    strh    r8, [r0], #2
+    mov     r8, r8, ror #5
+    orr     r8, r8, r8, ror #10+11
+    orr     r8, r8, r12,lsl #1+16
+
+    ldrb    r12,[r11], #1    @ MD pixel 0
+    ldrb    lr, [r11], #1    @ MD pixel 1
+    lsr     r7, #16
+    lsr     r8, #16
+
+.if \do_md
+    cmp     r3, r12, lsl #26
+    movne   r12,r12, lsl #1  @ load MD color if not bg
+    ldrneh  r12,[r9, r12]
+    orreq   r7, r7, #0x20    @ accumulate MD bg info into prio bit
+    cmp     r3, lr,  lsl #26
+    movne   lr, lr,  lsl #1
+    ldrneh  lr, [r9, lr]
+    orreq   r8, r8, #0x20
+
+    tst     r7, #0x20        @ replace 32X with MD color if no prio and not bg
+    moveq   r7, r12
+    tst     r8, #0x20
+    moveq   r8, lr
+    orr     r7, r7, r8, lsl #16 @ combine 2 pixels to optimize memory bandwidth
+    str     r7, [r0], #4     @ (no write combining on ARM9)
+.else
+    cmp     r3, r12, lsl #26 @ replace MD bg info into prio bit
+    orreq   r7, r7, #0x20
+    cmp     r3, lr,  lsl #26
+    orreq   r8, r8, #0x20
+
+    add     r0, r0, #4       @ store 32x pixels if 32X prio or MD bg
+    tst     r7, #0x20
+    strneh  r7, [r0, #-4]
+    tst     r8, #0x20
+    strneh  r8, [r0, #-2]
+.endif
     b       2b @ loop_inner
 
-3: @ loop_innermost:
-    ldrh    r7, [r5], #2     @ 32x pixel
-    subs    lr, lr, #1
-    cmpge   r7, r8
-    beq     3b @ loop_innermost
+5: @ check_fill:
+    @ count pixels, align if needed
+    ldrh    r12,[r5, #0]     @ only do this for at least 4 pixels
+    ldrh    lr ,[r5, #2]
+    cmp     r12,r7
+    cmpeq   lr ,r7
+    bne     3b @ no_fill
+    add     r5, r5, #4       @ adjust for the check above
 
-    add     lr, lr, #1
-    sub     lr, r6, lr
-    sub     r6, r6, lr
+    sub     lr, r5, #4+4     @ starting r5 (32x render data start)
+    add     r6, r6, #1       @ restore from dec
+6: @ count_loop:
+    sub     r12,r5, lr       @ loop checks 2 pixels
+    ldrh    r8, [r5], #2
+    cmp     r12,r6, lsl #2
+    ldrh    r12,[r5], #2
+    bge     7f @ count_done
+    cmp     r8, r7
+    cmpeq   r12,r7
+    beq     6b
 
-    eor     r12,r8, r10
-    tst     r12, #0x8000     @ !((t ^ inv) & 0x8000)
-    bne     5f @ draw_md
+7: @ count_done:
+    sub     r5, r5, #4       @ undo readahead
 
-    and     r12,r8, #0x03e0
-    mov     r8, r8, lsl #11
-    orr     r8, r8, r8, lsr #(10+11)
-    orr     r8, r8, r12,lsl #1
-    bic     r8, r8, #0x0020  @ kill prio bit
+    sub     r8, r5, lr       @ pixel count
+    mov     r8, r8, lsr #1
 
-    add     r11,r11,lr
-    tst     r0, #2           @ dst unaligned?
-    strneh  r8, [r0], #2
-    subne   lr, lr, #1
-    cmp     lr, #0
+    cmp     r8, r6, lsl #1   @ limit count to line length
+    movgt   r8, r6, lsl #1
+    sub     r6, r6, r8, lsr #1 @ consume pixels
+
+    eor     r7, r7, r10
+    and     r12,r7, #0x03e0  @ convert BGR555 -> RGB565
+    mov     r7, r7, ror #5
+    orr     r7, r7, r7, ror #10+11
+    orr     r7, r7, r12,lsl #1+16
+    lsr     r7, #16
+
+    tst     r7, #0x20        @ check for prio transfer
+    beq     9f @ bg_loop
+
+    add     r11,r11,r8       @ consume md pixels (not used)
+    orr     r12,r7, r7, lsl #16
+    mov     r7 ,r12
+8: @ 32x_loop:
+    subs    r8, r8, #4       @ store 4 pixels
+    stmgeia r0!, {r7, r12}
+    bgt     8b @ 32x_loop
     beq     2b @ loop_inner
-    mov     r8, r8, lsl #16
-    orr     r12,r8, r8, lsr #16
-    mov     r8 ,r12
-4: @ draw_32x:
-    subs    lr, lr, #4       @ store 4 pixels
-    stmgeia r0!, {r8, r12}
-    bgt     4b @ draw_32x
-    beq     2b @ loop_inner
-    adds    lr, lr, #2       @ store 1-3 leftover pixels
-    strge   r8, [r0], #4
-    strneh  r8, [r0], #2
+    adds    r8, r8, #2
+    strge   r7, [r0], #4     @ store 2 leftover pixels
     b       2b @ loop_inner
 
-5: @ draw_md:
-    subs    lr, lr, #1
-    ldrgeb  r12,[r11], #1    @ MD pixel
-    blt     2b @ loop_inner
-    cmp     r3, r12,lsl #26  @ MD has bg pixel?
+9: @ bg_loop:
+    ldrb    r12,[r11],#1     @ MD pixel 0,1
+    ldrb    lr, [r11],#1
 .if \do_md
+    cmp     r3, r12,lsl #26  @ MD pixel 0 has bg?
     mov     r12,r12,lsl #1
-    ldrneh  r12,[r9, r12]
-    strneh  r12,[r0], #2     @ *dst++ = palmd[*pmd]
+    ldrneh  r12,[r9, r12]    @ t = palmd[*pmd]
+    moveq   r12,r7
+    cmp     r3, lr, lsl #26  @ MD pixel 1 has bg?
+    mov     lr, lr, lsl #1
+    ldrneh  lr, [r9, lr]
+    moveq   lr, r7
+    orr     r12,r12,lr, lsl #16 @ combine 2 pixels to optimize memory bandwidth
+    str     r12,[r0], #4     @ (no write combining on ARM9)
 .else
-    addne   r0, r0, #2
+    add     r0, r0, #4
+    cmp     r3, r12,lsl #26  @ MD pixel 0 has bg?
+    streqh  r7, [r0, #-4]
+    cmp     r3, lr, lsl #26  @ MD pixel 1 has bg?
+    streqh  r7, [r0, #-2]
 .endif
-    bne     5b @ draw_md
-
-    and     r12,r8, #0x03e0
-    mov     r8, r8, lsl #11
-    orr     r8, r8, r8, lsr #(10+11)
-    orr     r8, r8, r12,lsl #1
-    bic     r8, r8, #0x0020  @ kill prio bit
-    strh    r8, [r0], #2     @ *dst++ = bgr2rgb(*p32x++)
-
-6: @ draw_md_32x:
-    subs    lr, lr, #1
-    ldrgeb  r12,[r11], #1    @ MD pixel
-    blt     2b @ loop_inner
-    cmp     r3, r12,lsl #26  @ MD has bg pixel?
-.if \do_md
-    mov     r12,r12,lsl #1
-    ldrneh  r12,[r9, r12]    @ *dst++ = palmd[*pmd]
-    moveq   r12,r8           @ *dst++ = bgr2rgb(*p32x++)
-    strh    r12,[r0], #2
-.else
-    streqh  r8, [r0]         @ *dst++ = bgr2rgb(*p32x++)
-    add     r0, r0, #2
-.endif
-    b       6b @ draw_md_32x
+    subs    r8, r8, #2
+    bgt     9b @ bg_loop
+    b       2b @ loop_inner
 .endm
 
 
@@ -281,91 +298,95 @@
     tst     r5, #1
     ldreqb  r8, [r5], #2
     ldrb    r7, [r5, #-1]
-    ldrneb  r8, [r5, #2]!    @ r7,r8 - pixel 0,1 index
+    ldrneb  r8, [r5, #2]!    @ r7,r8 - 32X pixel 0,1
     subs    r6, r6, #1
     blt     0b @ loop_outer
     cmp     r7, r8
-    beq     5f @ check_fill @ +8
+    beq     5f @ check_fill
 
 3: @ no_fill:
-    mov     r12,r7, lsl #1
-    mov     lr, r8, lsl #1
-    ldrh    r7, [r10,r12]
-    ldrh    r8, [r10,lr]
-    add     r11,r11,#2
+    ldrb    r12,[r11], #1    @ MD pixel 0
+    ldrb    lr, [r11], #1    @ MD pixel 1
 
-    eor     r12,r7, #0x20
-    tst     r12,#0x20
-    ldrneb  r12,[r11,#-2]    @ MD pixel 0
-    eor     lr, r8, #0x20
-    cmpne   r3, r12, lsl #26 @ MD has bg pixel?
+    mov     r7, r7, lsl #1
+    mov     r8, r8, lsl #1
+    ldrh    r7, [r10,r7]     @ 32X color 0
+    ldrh    r8, [r10,r8]     @ 32X color 1
+
 .if \do_md
-    mov     r12,r12,lsl #1
-    ldrneh  r7, [r9, r12]    @ t = palmd[pmd[0]]
-    tst     lr, #0x20
-    ldrneb  lr, [r11,#-1]    @ MD pixel 1
-    cmpne   r3, lr, lsl #26  @ MD has bg pixel?
-    mov     lr, lr, lsl #1
-    ldrneh  r8, [r9, lr]     @ t = palmd[pmd[1]]
+    cmp     r3, r12, lsl #26
+    movne   r12,r12, lsl #1  @ load MD color if not bg
+    ldrneh  r12,[r9, r12]
+    orreq   r7, r7, #0x20    @ accumulate MD bg info into prio bit
+    cmp     r3, lr,  lsl #26
+    movne   lr, lr,  lsl #1
+    ldrneh  lr, [r9, lr]
+    orreq   r8, r8, #0x20
+
+    tst     r7, #0x20        @ replace 32X with MD color if no prio and not bg
+    moveq   r7, r12
+    tst     r8, #0x20
+    moveq   r8, lr
     orr     r7, r7, r8, lsl #16 @ combine 2 pixels to optimize memory bandwidth
     str     r7, [r0], #4     @ (no write combining on ARM9)
 .else
-    streqh  r7, [r0]
-    tst     lr, #0x20
-    ldrneb  lr, [r11,#-1]    @ MD pixel 1
-    add     r0, r0, #4
-    cmpne   r3, lr, lsl #26  @ MD has bg pixel?
-    streqh  r8, [r0, #-2]
+    cmp     r3, r12, lsl #26 @ replace MD bg info into prio bit
+    orreq   r7, r7, #0x20
+    cmp     r3, lr,  lsl #26
+    orreq   r8, r8, #0x20
+
+    add     r0, r0, #4       @ store 32x pixels if 32X prio or MD bg
+    tst     r7, #0x20
+    strneh  r7, [r0, #-4]
+    tst     r8, #0x20
+    strneh  r8, [r0, #-2]
 .endif
     b       2b @ loop_inner
 
 5: @ check_fill:
     @ count pixels, align if needed
     bic     r12,r5, #1
-    ldrh    lr ,[r12, #2]    @ only do this for at least 4 pixels
-    ldrh    r12,[r12]
-    orr     r12,lr,r12, lsl #16
+    ldrh    r12,[r12, #0]    @ only do this for at least 4 pixels
     orr     lr, r7, r7, lsl #8
-    orr     lr, lr, lr, lsl #16
     cmp     r12,lr
     bne     3b @ no_fill
+    add     r5, r5, #2       @ adjust for the check above
 
-    tst     r5, #1
-    sub     lr, r5, #2       @ starting r5 (32x render data start)
-    addeq   r5, r5, #4
-    addne   r5, r5, #3       @ add for the check above
+    sub     lr, r5, #4       @ starting r5 (32x render data start)
+    bic     r5, r5, #1
     add     r6, r6, #1       @ restore from dec
     orr     r7, r7, r7, lsl #8
-6:
-    sub     r12,r5, lr
+6: @ count_loop:
+    sub     r12,r5, lr       @ loop checks 4 pixels
     ldrh    r8, [r5], #2
     cmp     r12,r6, lsl #1
     ldrh    r12,[r5], #2
     bge     7f @ count_done
     cmp     r8, r7
-    subne   r5, r5, #2       @ undo readahead
     cmpeq   r12,r7
     beq     6b
+    cmp     r8, r7
+    addeq   r5, r5, #2       @ adjust if 2 pixels where ok
 
 7: @ count_done:
-    sub     r5, r5, #2       @ undo readahead
+    sub     r5, r5, #4       @ undo readahead
 
-    @ fix alignment and check type
-    sub     r8, r5, lr
-    tst     r8, #1
+    tst     lr, #1           @ fix alignment and calculate count
     subne   r5, r5, #1
-    subne   r8, r8, #1
+    sub     r8, r5, lr
 
-    and     r7, r7, #0xff
-    cmp     r8, r6, lsl #1
+    and     r7, r7, #0xff    @ 32x pixel color
     mov     r7, r7, lsl #1
-    movgt   r8, r6, lsl #1  @ r8=count
     ldrh    r7, [r10,r7]
-    sub     r6, r6, r8, lsr #1 @ adjust counter
-    tst     r7, #0x20
-    beq     9f @ bg_mode
 
-    add     r11,r11,r8
+    cmp     r8, r6, lsl #1   @ limit count to line length
+    movgt   r8, r6, lsl #1
+    sub     r6, r6, r8, lsr #1 @ consume pixels
+
+    tst     r7, #0x20        @ check for prio transfer
+    beq     9f @ bg_loop
+
+    add     r11,r11,r8       @ consume md pixels (not used)
     orr     r12,r7, r7, lsl #16
     mov     r7 ,r12
 8: @ 32x_loop:
@@ -377,11 +398,11 @@
     strge   r7, [r0], #4     @ store 2 leftover pixels
     b       2b @ loop_inner
 
-9: @ bg_mode:
+9: @ bg_loop:
     ldrb    r12,[r11],#1     @ MD pixel 0,1
     ldrb    lr, [r11],#1
-    cmp     r3, r12,lsl #26  @ MD pixel 0 has bg?
 .if \do_md
+    cmp     r3, r12,lsl #26  @ MD pixel 0 has bg?
     mov     r12,r12,lsl #1
     ldrneh  r12,[r9, r12]    @ t = palmd[*pmd]
     moveq   r12,r7
@@ -392,13 +413,14 @@
     orr     r12,r12,lr, lsl #16 @ combine 2 pixels to optimize memory bandwidth
     str     r12,[r0], #4     @ (no write combining on ARM9)
 .else
-    streqh  r7, [r0]
-    cmp     r3, lr, lsl #26  @ MD pixel 1 has bg?
-    streqh  r7, [r0, #2]
     add     r0, r0, #4
+    cmp     r3, r12,lsl #26  @ MD pixel 0 has bg?
+    streqh  r7, [r0, #-4]
+    cmp     r3, lr, lsl #26  @ MD pixel 1 has bg?
+    streqh  r7, [r0, #-2]
 .endif
     subs    r8, r8, #2
-    bgt     9b @ bg_mode
+    bgt     9b @ bg_loop
     b       2b @ loop_inner
 .endm
 
