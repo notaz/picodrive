@@ -207,12 +207,12 @@ static void apply_renderer(void)
 {
 	PicoIn.opt &= ~(POPT_ALT_RENDERER|POPT_EN_SOFTSCALE|POPT_DIS_32C_BORDER);
 	if (is_16bit_mode()) {
-		if (currentConfig.scaling == EOPT_SCALE_SW) {
+		if (currentConfig.scaling == EOPT_SCALE_SW)
 			PicoIn.opt |= POPT_EN_SOFTSCALE;
-			PicoIn.filter = currentConfig.filter;
-		} else if (currentConfig.scaling == EOPT_SCALE_HW)
+		else if (currentConfig.scaling == EOPT_SCALE_HW)
 			// hw scaling, render without any padding
 			PicoIn.opt |= POPT_DIS_32C_BORDER;
+		PicoIn.filter = currentConfig.filter;
 	} else
 		PicoIn.opt |= POPT_DIS_32C_BORDER;
 

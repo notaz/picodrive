@@ -84,8 +84,8 @@
     mov     r3, r3, lsl #26  @ mdbg << 26
     mla     r11,r4,r5,r11    @ r11 = pmd = PicoDraw2FB + offs*328: md data
     tst     r10,#P32XV_PRI
-    moveq   r10,#0
-    movne   r10,#0x8000      @ r10 = inv_bit
+    movne   r10,#0
+    moveq   r10,#0x8000      @ r10 = !inv_bit
     call_scan_prep \call_scan lr
 
     mov     r4, #0           @ line
@@ -120,49 +120,48 @@
     beq     5f @ check_fill
 
 3: @ no_fill:
+    ldrb    r12,[r11], #1    @ MD pixel 0
+
     eor     r7, r7, r10
-    and     r12,r7, #0x03e0  @ convert BGR555 -> RGB565
+    and     lr, r7, #0x03e0  @ convert BGR555 -> RGB565
     mov     r7, r7, ror #5
     orr     r7, r7, r7, ror #10+11
-    orr     r7, r7, r12,lsl #1+16
+    orr     r7, r7, lr, lsl #1+16
     eor     r8, r8, r10
-    and     r12,r8, #0x03e0
+    and     lr, r8, #0x03e0
     mov     r8, r8, ror #5
     orr     r8, r8, r8, ror #10+11
-    orr     r8, r8, r12,lsl #1+16
+    orr     r8, r8, lr, lsl #1+16
 
-    ldrb    r12,[r11], #1    @ MD pixel 0
     ldrb    lr, [r11], #1    @ MD pixel 1
-    lsr     r7, #16
-    lsr     r8, #16
 
 .if \do_md
     cmp     r3, r12, lsl #26
-    movne   r12,r12, lsl #1  @ load MD color if not bg
+    tstne   r7, #0x20<<16
+    movne   r12,r12, lsl #1  @ load MD color if no 32X prio and not bg
     ldrneh  r12,[r9, r12]
-    orreq   r7, r7, #0x20    @ accumulate MD bg info into prio bit
-    cmp     r3, lr,  lsl #26
-    movne   lr, lr,  lsl #1
-    ldrneh  lr, [r9, lr]
-    orreq   r8, r8, #0x20
+    moveq   r12,r7, lsr #16  @ else replace with 32X color
 
-    tst     r7, #0x20        @ replace 32X with MD color if no prio and not bg
-    moveq   r7, r12
-    tst     r8, #0x20
-    moveq   r8, lr
-    orr     r7, r7, r8, lsl #16 @ combine 2 pixels to optimize memory bandwidth
-    str     r7, [r0], #4     @ (no write combining on ARM9)
+    cmp     r3, lr,  lsl #26
+    tstne   r8, #0x20<<16
+    movne   lr, lr,  lsl #1  @ load MD color if no 32X prio and not bg
+    ldrneh  lr, [r9, lr]
+    moveq   lr, r8, lsr #16  @ else replace with 32X color
+
+    orr     r12,r12, lr, lsl #16 @ combine 2 pixels to optimize memory bandwidth
+    str     r12,[r0], #4     @ (no write combining on ARM9)
 .else
     cmp     r3, r12, lsl #26 @ replace MD bg info into prio bit
-    orreq   r7, r7, #0x20
+    tstne   r7, #0x20<<16
+    moveq   r7, r7, lsr #16
+    streqh  r7, [r0, #0]
+
     cmp     r3, lr,  lsl #26
-    orreq   r8, r8, #0x20
+    tstne   r8, #0x20<<16
+    moveq   r8, r8, lsr #16
+    streqh  r8, [r0, #2]
 
     add     r0, r0, #4       @ store 32x pixels if 32X prio or MD bg
-    tst     r7, #0x20
-    strneh  r7, [r0, #-4]
-    tst     r8, #0x20
-    strneh  r8, [r0, #-2]
 .endif
     b       2b @ loop_inner
 
@@ -205,7 +204,7 @@
     lsr     r7, #16
 
     tst     r7, #0x20        @ check for prio transfer
-    beq     9f @ bg_loop
+    bne     9f @ bg_loop
 
     add     r11,r11,r8       @ consume md pixels (not used)
     orr     r12,r7, r7, lsl #16
