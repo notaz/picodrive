@@ -59,7 +59,7 @@ typedef struct
 	UINT8	ssgn;
 	UINT16	ar_ksr;		/* 0x32 ar+ksr */
 	UINT16	vol_out;	/* 0x34 current output from EG (without LFO) */
-	UINT16	vol_ipol;	/* 0x36 interpolator memory */
+	UINT16	pad;
 } FM_SLOT;
 
 
@@ -79,7 +79,7 @@ typedef struct
 
 	UINT8	kcode;		/* +11 key code:                        */
 	UINT8   fn_h;		/* freq latch           */
-	UINT8	pad2;
+	UINT8	upd_cnt;	/* eg update counter */
 	UINT32	fc;		/* fnum,blk:adjusted to sample rate */
 	UINT32	block_fnum;	/* current blk/fnum value for this slot (can be different betweeen slots of one channel in 3slot mode) */
 

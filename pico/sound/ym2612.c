@@ -8,7 +8,6 @@
 **
 ** updated with fixes from mame 0.216 (file version 1.5.1) (kub)
 ** SSG-EG readded from GenPlus (kub)
-** linear sample interpolation for chip to output rate adaption (kub)
 */
 
 /*
@@ -909,7 +908,7 @@ typedef struct
 	UINT32 eg_timer;
 	UINT32 eg_timer_add;
 	UINT32 pack;     // 4c: stereo, lastchan, disabled, lfo_enabled | pan_r, pan_l, ams[2] | AMmasks[4] | FB[4] | lfo_ampm[16]
-	UINT32 algo;     /* 50: algo[3], was_update */
+	UINT32 algo;     /* 50: algo[3], was_update, unsued, upd_cnt[2], dac */
 	INT32  op1_out;
 #ifdef _MIPS_ARCH_ALLEGREX
 	UINT32 pad1[3+8];
@@ -921,10 +920,211 @@ typedef struct
 #include <limits.h>
 static int clip(int n) 
 {
-    unsigned b = 14, s = n < 0;
-    int m = s + INT_MAX;
-    if (s + (n>>(b-1))) n = m >> (8*sizeof(int)-b);
-    return n;
+	unsigned b = 14, s = n < 0;
+	int m = s + INT_MAX;
+	if (s + (n>>(b-1))) n = m >> (8*sizeof(int)-b);
+	return n;
+}
+
+static void update_ssg_eg_channel(chan_rend_context *ct)
+{
+	FM_SLOT *SLOT;
+
+	SLOT = &ct->CH->SLOT[SLOT1];
+	if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
+		ct->phase1 = update_ssg_eg_phase(SLOT, ct->phase1);
+	SLOT = &ct->CH->SLOT[SLOT2];
+	if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
+		ct->phase2 = update_ssg_eg_phase(SLOT, ct->phase2);
+	SLOT = &ct->CH->SLOT[SLOT3];
+	if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
+		ct->phase3 = update_ssg_eg_phase(SLOT, ct->phase3);
+	SLOT = &ct->CH->SLOT[SLOT4];
+	if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
+		ct->phase4 = update_ssg_eg_phase(SLOT, ct->phase4);
+}
+
+static void update_eg_phase_channel(chan_rend_context *ct)
+{
+	FM_SLOT *SLOT;
+
+	SLOT = &ct->CH->SLOT[SLOT1];
+	if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
+	SLOT = &ct->CH->SLOT[SLOT2];
+	if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
+	SLOT = &ct->CH->SLOT[SLOT3];
+	if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
+	SLOT = &ct->CH->SLOT[SLOT4];
+	if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
+}
+
+static int update_algo_channel(chan_rend_context *ct, unsigned int eg_out, unsigned int eg_out2, unsigned int eg_out4)
+{
+	int m2,c1,c2=0;	/* Phase Modulation input for operators 2,3,4 */
+	int smp = 0;
+
+	switch( ct->algo&0x7 )
+	{
+		case 0:
+		{
+			/* M1---C1---MEM---M2---C2---OUT */
+			m2 = ct->mem;
+			c1 = ct->op1_out>>16;
+			if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
+				ct->mem = op_calc(ct->phase2, eg_out2, c1);
+			}
+			else ct->mem = 0;
+			if (ct->eg_timer >= (1<<EG_SH)) break;
+
+			if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
+				c2  = op_calc(ct->phase3, eg_out,  m2);
+			}
+			if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
+				smp = op_calc(ct->phase4, eg_out4, c2);
+			}
+			break;
+		}
+		case 1:
+		{
+			/* M1------+-MEM---M2---C2---OUT */
+			/*      C1-+                     */
+			m2 = ct->mem;
+			ct->mem = ct->op1_out>>16;
+			if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
+				ct->mem+= op_calc(ct->phase2, eg_out2, 0);
+			}
+			if (ct->eg_timer >= (1<<EG_SH)) break;
+
+			if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
+				c2  = op_calc(ct->phase3, eg_out,  m2);
+			}
+			if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
+				smp = op_calc(ct->phase4, eg_out4, c2);
+			}
+			break;
+		}
+		case 2:
+		{
+			/* M1-----------------+-C2---OUT */
+			/*      C1---MEM---M2-+          */
+			m2 = ct->mem;
+			c2 = ct->op1_out>>16;
+			if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
+				ct->mem = op_calc(ct->phase2, eg_out2, 0);
+			}
+			else ct->mem = 0;
+			if (ct->eg_timer >= (1<<EG_SH)) break;
+
+			if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
+				c2 += op_calc(ct->phase3, eg_out,  m2);
+			}
+			if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
+				smp = op_calc(ct->phase4, eg_out4, c2);
+			}
+			break;
+		}
+		case 3:
+		{
+			/* M1---C1---MEM------+-C2---OUT */
+			/*                 M2-+          */
+			c2 = ct->mem;
+			c1 = ct->op1_out>>16;
+			if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
+				ct->mem = op_calc(ct->phase2, eg_out2, c1);
+			}
+			else ct->mem = 0;
+			if (ct->eg_timer >= (1<<EG_SH)) break;
+
+			if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
+				c2 += op_calc(ct->phase3, eg_out,  0);
+			}
+			if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
+				smp = op_calc(ct->phase4, eg_out4, c2);
+			}
+			break;
+		}
+		case 4:
+		{
+			/* M1---C1-+-OUT */
+			/* M2---C2-+     */
+			/* MEM: not used */
+			if (ct->eg_timer >= (1<<EG_SH)) break;
+
+			c1 = ct->op1_out>>16;
+			if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
+				c2  = op_calc(ct->phase3, eg_out,  0);
+			}
+			if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
+				smp = op_calc(ct->phase2, eg_out2, c1);
+			}
+			if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
+				smp+= op_calc(ct->phase4, eg_out4, c2);
+			}
+			break;
+		}
+		case 5:
+		{
+			/*    +----C1----+     */
+			/* M1-+-MEM---M2-+-OUT */
+			/*    +----C2----+     */
+			if (ct->eg_timer >= (1<<EG_SH)) break;
+
+			m2 = ct->mem;
+			ct->mem = c1 = c2 = ct->op1_out>>16;
+			if( eg_out < ENV_QUIET ) {		/* SLOT 3 */
+				smp = op_calc(ct->phase3, eg_out, m2);
+			}
+			if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
+				smp+= op_calc(ct->phase2, eg_out2, c1);
+			}
+			if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
+				smp+= op_calc(ct->phase4, eg_out4, c2);
+			}
+			break;
+		}
+		case 6:
+		{
+			/* M1---C1-+     */
+			/*      M2-+-OUT */
+			/*      C2-+     */
+			/* MEM: not used */
+			if (ct->eg_timer >= (1<<EG_SH)) break;
+
+			c1 = ct->op1_out>>16;
+			if( eg_out < ENV_QUIET ) {		/* SLOT 3 */
+				smp = op_calc(ct->phase3, eg_out,  0);
+			}
+			if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
+				smp+= op_calc(ct->phase2, eg_out2, c1);
+			}
+			if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
+				smp+= op_calc(ct->phase4, eg_out4, 0);
+			}
+			break;
+		}
+		case 7:
+		{
+			/* M1-+     */
+			/* C1-+-OUT */
+			/* M2-+     */
+			/* C2-+     */
+			/* MEM: not used*/
+			if (ct->eg_timer >= (1<<EG_SH)) break;
+
+			smp = ct->op1_out>>16;
+			if( eg_out < ENV_QUIET ) {		/* SLOT 3 */
+				smp += op_calc(ct->phase3, eg_out,  0);
+			}
+			if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
+				smp += op_calc(ct->phase2, eg_out2, 0);
+			}
+			if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
+				smp += op_calc(ct->phase4, eg_out4, 0);
+			}
+			break;
+		}
+	}
+	return smp;
 }
 
 static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
@@ -936,302 +1136,76 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 	{
 		int smp = 0;		/* produced sample */
 		unsigned int eg_out, eg_out2, eg_out4;
-		FM_SLOT *SLOT;
-		UINT32 cnt = ct->eg_timer_add+(ct->eg_timer & ((1<<EG_SH)-1));
-
-		if (ct->pack & 2) while (cnt >= 1<<EG_SH) {
-			cnt -= 1<<EG_SH;
-			SLOT = &ct->CH->SLOT[SLOT1];
-			if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
-				ct->phase1 = update_ssg_eg_phase(SLOT, ct->phase1);
-			SLOT = &ct->CH->SLOT[SLOT2];
-			if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
-				ct->phase2 = update_ssg_eg_phase(SLOT, ct->phase2);
-			SLOT = &ct->CH->SLOT[SLOT3];
-			if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
-				ct->phase3 = update_ssg_eg_phase(SLOT, ct->phase3);
-			SLOT = &ct->CH->SLOT[SLOT4];
-			if ((SLOT->ssg&0x08) && SLOT->state > EG_REL && SLOT->volume >= 0x200)
-				ct->phase4 = update_ssg_eg_phase(SLOT, ct->phase4);
-		}
-
-		if (ct->pack & 8) { /* LFO enabled ? (test Earthworm Jim in between demo 1 and 2) */
-			ct->pack = (ct->pack&0xffff) | (advance_lfo(ct->pack >> 16, ct->lfo_cnt, ct->lfo_cnt + ct->lfo_inc) << 16);
-			ct->lfo_cnt += ct->lfo_inc;
-		}
 
 		ct->eg_timer += ct->eg_timer_add;
-		if (ct->eg_timer < EG_TIMER_OVERFLOW) {
-			SLOT = &ct->CH->SLOT[SLOT1];
-			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state > EG_REL) recalc_volout(SLOT);
-			SLOT = &ct->CH->SLOT[SLOT2];
-			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state > EG_REL) recalc_volout(SLOT);
-			SLOT = &ct->CH->SLOT[SLOT3];
-			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state > EG_REL) recalc_volout(SLOT);
-			SLOT = &ct->CH->SLOT[SLOT4];
-			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state > EG_REL) recalc_volout(SLOT);
-		}
-		else while (ct->eg_timer >= EG_TIMER_OVERFLOW)
-		{
-			ct->eg_timer -= EG_TIMER_OVERFLOW;
-			ct->eg_cnt++;
-			if (ct->eg_cnt >= 4096) ct->eg_cnt = 1;
+		while (ct->eg_timer >= 1<<EG_SH) {
+			ct->eg_timer -= 1<<EG_SH;
 
-			SLOT = &ct->CH->SLOT[SLOT1];
-			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
-			SLOT = &ct->CH->SLOT[SLOT2];
-			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
-			SLOT = &ct->CH->SLOT[SLOT3];
-			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
-			SLOT = &ct->CH->SLOT[SLOT4];
-			SLOT->vol_ipol = SLOT->vol_out;
-			if (SLOT->state != EG_OFF) update_eg_phase(SLOT, ct->eg_cnt, ct->pack & 2);
-		}
+			if (ct->pack & 8) { /* LFO enabled ? (test Earthworm Jim in between demo 1 and 2) */
+				ct->pack = (ct->pack&0xffff) | (advance_lfo(ct->pack >> 16, ct->lfo_cnt, ct->lfo_cnt + ct->lfo_inc) << 16);
+				ct->lfo_cnt += ct->lfo_inc;
+			}
+			if (ct->pack & 2)
+				update_ssg_eg_channel(ct);
 
-#if 0
-		UINT32 ifrac0 = ct->eg_timer / (EG_TIMER_OVERFLOW>>EG_SH);
-		UINT32 ifrac1 = (1<<EG_SH) - ifrac0;
-		SLOT = &ct->CH->SLOT[SLOT1];
-		ct->vol_out1 = (SLOT->vol_ipol*ifrac1 + SLOT->vol_out*ifrac0) >> EG_SH;
-		SLOT = &ct->CH->SLOT[SLOT2];
-		ct->vol_out2 = (SLOT->vol_ipol*ifrac1 + SLOT->vol_out*ifrac0) >> EG_SH;
-		SLOT = &ct->CH->SLOT[SLOT3];
-		ct->vol_out3 = (SLOT->vol_ipol*ifrac1 + SLOT->vol_out*ifrac0) >> EG_SH;
-		SLOT = &ct->CH->SLOT[SLOT4];
-		ct->vol_out4 = (SLOT->vol_ipol*ifrac1 + SLOT->vol_out*ifrac0) >> EG_SH;
-#elif 1
-		switch (ct->eg_timer >> EG_SH)
-		{
-			case 0:
-				ct->vol_out1 =  ct->CH->SLOT[SLOT1].vol_ipol;
-				ct->vol_out2 =  ct->CH->SLOT[SLOT2].vol_ipol;
-				ct->vol_out3 =  ct->CH->SLOT[SLOT3].vol_ipol;
-				ct->vol_out4 =  ct->CH->SLOT[SLOT4].vol_ipol;
-				break;
-			case (EG_TIMER_OVERFLOW>>EG_SH)-1:
-				ct->vol_out1 =  ct->CH->SLOT[SLOT1].vol_out;
-				ct->vol_out2 =  ct->CH->SLOT[SLOT2].vol_out;
-				ct->vol_out3 =  ct->CH->SLOT[SLOT3].vol_out;
-				ct->vol_out4 =  ct->CH->SLOT[SLOT4].vol_out;
-				break;
-			default:
-				ct->vol_out1 =  (ct->CH->SLOT[SLOT1].vol_ipol +
-					ct->CH->SLOT[SLOT1].vol_out) >> 1;
-				ct->vol_out2 =  (ct->CH->SLOT[SLOT2].vol_ipol +
-					ct->CH->SLOT[SLOT2].vol_out) >> 1;
-				ct->vol_out3 =  (ct->CH->SLOT[SLOT3].vol_ipol +
-					ct->CH->SLOT[SLOT3].vol_out) >> 1;
-				ct->vol_out4 =  (ct->CH->SLOT[SLOT4].vol_ipol +
-					ct->CH->SLOT[SLOT4].vol_out) >> 1;
-				break;
-		}
-#elif 0
-		if (ct->eg_timer >> (EG_SH-1) < EG_TIMER_OVERFLOW >> EG_SH) {
-			ct->vol_out1 =  ct->CH->SLOT[SLOT1].vol_ipol;
-			ct->vol_out2 =  ct->CH->SLOT[SLOT2].vol_ipol;
-			ct->vol_out3 =  ct->CH->SLOT[SLOT3].vol_ipol;
-			ct->vol_out4 =  ct->CH->SLOT[SLOT4].vol_ipol;
-		} else {
+			if (ct->algo & 0x30)
+				ct->algo -= 0x10;
+			if (!(ct->algo & 0x30)) {
+				ct->algo |= 0x30;
+				ct->eg_cnt++;
+				if (ct->eg_cnt >= 4096) ct->eg_cnt = 1;
+
+				update_eg_phase_channel(ct);
+			}
+
 			ct->vol_out1 =  ct->CH->SLOT[SLOT1].vol_out;
 			ct->vol_out2 =  ct->CH->SLOT[SLOT2].vol_out;
 			ct->vol_out3 =  ct->CH->SLOT[SLOT3].vol_out;
 			ct->vol_out4 =  ct->CH->SLOT[SLOT4].vol_out;
+
+			if (ct->pack & 4) goto disabled; /* output disabled */
+
+			/* calculate channel sample */
+			if (ct->eg_timer < (2<<EG_SH) || (ct->pack&0xf000)) {
+				eg_out = ct->vol_out1;
+				if ( (ct->pack & 8) && (ct->pack&(1<<(SLOT1+8))) )
+					eg_out += ct->pack >> (((ct->pack&0xc0)>>6)+24);
+
+				if( eg_out < ENV_QUIET )	/* SLOT 1 */
+				{
+					int out = 0;
+
+					if (ct->pack&0xf000) out = ((ct->op1_out>>16) + ((ct->op1_out<<16)>>16)) << ((ct->pack&0xf000)>>12); /* op1_out0 + op1_out1 */
+					ct->op1_out <<= 16;
+					ct->op1_out |= (unsigned short)op_calc1(ct->phase1, eg_out, out);
+				} else {
+					ct->op1_out <<= 16; /* op1_out0 = op1_out1; op1_out1 = 0; */
+				}
+			}
+
+			if (ct->eg_timer < (2<<EG_SH)) {
+				eg_out  = ct->vol_out3; // volume_calc(&CH->SLOT[SLOT3]);
+				eg_out2 = ct->vol_out2; // volume_calc(&CH->SLOT[SLOT2]);
+				eg_out4 = ct->vol_out4; // volume_calc(&CH->SLOT[SLOT4]);
+
+				if (ct->pack & 8) {
+					unsigned int add = ct->pack >> (((ct->pack&0xc0)>>6)+24);
+					if (ct->pack & (1<<(SLOT3+8))) eg_out  += add;
+					if (ct->pack & (1<<(SLOT2+8))) eg_out2 += add;
+					if (ct->pack & (1<<(SLOT4+8))) eg_out4 += add;
+				}
+
+				smp = update_algo_channel(ct, eg_out, eg_out2, eg_out4);
+			}
+			/* done calculating channel sample */
+
+disabled:
+			/* update phase counters AFTER output calculations */
+			ct->phase1 += ct->incr1;
+			ct->phase2 += ct->incr2;
+			ct->phase3 += ct->incr3;
+			ct->phase4 += ct->incr4;
 		}
-#else
-		ct->vol_out1 =  ct->CH->SLOT[SLOT1].vol_out;
-		ct->vol_out2 =  ct->CH->SLOT[SLOT2].vol_out;
-		ct->vol_out3 =  ct->CH->SLOT[SLOT3].vol_out;
-		ct->vol_out4 =  ct->CH->SLOT[SLOT4].vol_out;
-#endif
-
-		if (ct->pack & 4) continue; /* output disabled */
-
-		/* calculate channel sample */
-		eg_out = ct->vol_out1;
-		if ( (ct->pack & 8) && (ct->pack&(1<<(SLOT1+8))) ) eg_out += ct->pack >> (((ct->pack&0xc0)>>6)+24);
-
-		if( eg_out < ENV_QUIET )	/* SLOT 1 */
-		{
-			int out = 0;
-
-			if (ct->pack&0xf000) out = ((ct->op1_out>>16) + ((ct->op1_out<<16)>>16)) << ((ct->pack&0xf000)>>12); /* op1_out0 + op1_out1 */
-			ct->op1_out <<= 16;
-			ct->op1_out |= (unsigned short)op_calc1(ct->phase1, eg_out, out);
-		} else {
-			ct->op1_out <<= 16; /* op1_out0 = op1_out1; op1_out1 = 0; */
-		}
-
-		eg_out  = ct->vol_out3; // volume_calc(&CH->SLOT[SLOT3]);
-		eg_out2 = ct->vol_out2; // volume_calc(&CH->SLOT[SLOT2]);
-		eg_out4 = ct->vol_out4; // volume_calc(&CH->SLOT[SLOT4]);
-
-		if (ct->pack & 8) {
-			unsigned int add = ct->pack >> (((ct->pack&0xc0)>>6)+24);
-			if (ct->pack & (1<<(SLOT3+8))) eg_out  += add;
-			if (ct->pack & (1<<(SLOT2+8))) eg_out2 += add;
-			if (ct->pack & (1<<(SLOT4+8))) eg_out4 += add;
-		}
-
-		switch( ct->algo&0x7 )
-		{
-			case 0:
-			{
-				/* M1---C1---MEM---M2---C2---OUT */
-				int m2,c1,c2=0;	/* Phase Modulation input for operators 2,3,4 */
-				m2 = ct->mem;
-				c1 = ct->op1_out>>16;
-				if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
-					c2  = op_calc(ct->phase3, eg_out,  m2);
-				}
-				if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
-					ct->mem = op_calc(ct->phase2, eg_out2, c1);
-				}
-				else ct->mem = 0;
-				if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
-					smp = op_calc(ct->phase4, eg_out4, c2);
-				}
-				break;
-			}
-			case 1:
-			{
-				/* M1------+-MEM---M2---C2---OUT */
-				/*      C1-+                     */
-				int m2,c2=0;
-				m2 = ct->mem;
-				ct->mem = ct->op1_out>>16;
-				if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
-					c2  = op_calc(ct->phase3, eg_out,  m2);
-				}
-				if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
-					ct->mem+= op_calc(ct->phase2, eg_out2, 0);
-				}
-				if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
-					smp = op_calc(ct->phase4, eg_out4, c2);
-				}
-				break;
-			}
-			case 2:
-			{
-				/* M1-----------------+-C2---OUT */
-				/*      C1---MEM---M2-+          */
-				int m2,c2;
-				m2 = ct->mem;
-				c2 = ct->op1_out>>16;
-				if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
-					c2 += op_calc(ct->phase3, eg_out,  m2);
-				}
-				if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
-					ct->mem = op_calc(ct->phase2, eg_out2, 0);
-				}
-				else ct->mem = 0;
-				if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
-					smp = op_calc(ct->phase4, eg_out4, c2);
-				}
-				break;
-			}
-			case 3:
-			{
-				/* M1---C1---MEM------+-C2---OUT */
-				/*                 M2-+          */
-				int c1,c2;
-				c2 = ct->mem;
-				c1 = ct->op1_out>>16;
-				if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
-					c2 += op_calc(ct->phase3, eg_out,  0);
-				}
-				if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
-					ct->mem = op_calc(ct->phase2, eg_out2, c1);
-				}
-				else ct->mem = 0;
-				if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
-					smp = op_calc(ct->phase4, eg_out4, c2);
-				}
-				break;
-			}
-			case 4:
-			{
-				/* M1---C1-+-OUT */
-				/* M2---C2-+     */
-				/* MEM: not used */
-				int c1,c2=0;
-				c1 = ct->op1_out>>16;
-				if( eg_out  < ENV_QUIET ) {		/* SLOT 3 */
-					c2  = op_calc(ct->phase3, eg_out,  0);
-				}
-				if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
-					smp = op_calc(ct->phase2, eg_out2, c1);
-				}
-				if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
-					smp+= op_calc(ct->phase4, eg_out4, c2);
-				}
-				break;
-			}
-			case 5:
-			{
-				/*    +----C1----+     */
-				/* M1-+-MEM---M2-+-OUT */
-				/*    +----C2----+     */
-				int m2,c1,c2;
-				m2 = ct->mem;
-				ct->mem = c1 = c2 = ct->op1_out>>16;
-				if( eg_out < ENV_QUIET ) {		/* SLOT 3 */
-					smp = op_calc(ct->phase3, eg_out, m2);
-				}
-				if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
-					smp+= op_calc(ct->phase2, eg_out2, c1);
-				}
-				if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
-					smp+= op_calc(ct->phase4, eg_out4, c2);
-				}
-				break;
-			}
-			case 6:
-			{
-				/* M1---C1-+     */
-				/*      M2-+-OUT */
-				/*      C2-+     */
-				/* MEM: not used */
-				int c1;
-				c1 = ct->op1_out>>16;
-				if( eg_out < ENV_QUIET ) {		/* SLOT 3 */
-					smp = op_calc(ct->phase3, eg_out,  0);
-				}
-				if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
-					smp+= op_calc(ct->phase2, eg_out2, c1);
-				}
-				if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
-					smp+= op_calc(ct->phase4, eg_out4, 0);
-				}
-				break;
-			}
-			case 7:
-			{
-				/* M1-+     */
-				/* C1-+-OUT */
-				/* M2-+     */
-				/* C2-+     */
-				/* MEM: not used*/
-				smp = ct->op1_out>>16;
-				if( eg_out < ENV_QUIET ) {		/* SLOT 3 */
-					smp += op_calc(ct->phase3, eg_out,  0);
-				}
-				if( eg_out2 < ENV_QUIET ) {		/* SLOT 2 */
-					smp += op_calc(ct->phase2, eg_out2, 0);
-				}
-				if( eg_out4 < ENV_QUIET ) {		/* SLOT 4 */
-					smp += op_calc(ct->phase4, eg_out4, 0);
-				}
-				break;
-			}
-		}
-		/* done calculating channel sample */
 
 		/* mix sample to output buffer */
 		if (smp) {
@@ -1250,12 +1224,6 @@ static void chan_render_loop(chan_rend_context *ct, int *buffer, int length)
 			}
 			ct->algo |= 8;
 		}
-
-		/* update phase counters AFTER output calculations */
-		ct->phase1 += ct->incr1;
-		ct->phase2 += ct->incr2;
-		ct->phase3 += ct->incr3;
-		ct->phase4 += ct->incr4;
 	}
 }
 #else
@@ -1335,6 +1303,7 @@ static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: s
 
 	crct.op1_out = crct.CH->op1_out;
 	crct.algo = crct.CH->ALGO & 7;
+	crct.algo |= crct.CH->upd_cnt << 4;
 	if (ym2612.OPN.ST.flags & ST_DAC)
 		crct.algo |= 0x80;
 
@@ -1373,6 +1342,7 @@ static int chan_render(int *buffer, int length, int c, UINT32 flags) // flags: s
 	}
 	else
 		ym2612.slot_mask &= ~(0xf << (c*4));
+	crct.CH->upd_cnt = (crct.algo >> 4) & 0x7;
 
 	return (crct.algo & 8) >> 3; // had output
 }
@@ -1625,9 +1595,10 @@ static void OPNSetPres(int pres)
 	int i;
 
 	/* frequency base */
-	ym2612.OPN.ST.freqbase = (ym2612.OPN.ST.rate) ? ((double)ym2612.OPN.ST.clock / ym2612.OPN.ST.rate) / pres : 0;
+	double freqbase = (ym2612.OPN.ST.rate) ? ((double)ym2612.OPN.ST.clock / ym2612.OPN.ST.rate) / pres : 0;
 
-	ym2612.OPN.eg_timer_add  = (1<<EG_SH) * ym2612.OPN.ST.freqbase;
+	ym2612.OPN.eg_timer_add  = (1<<EG_SH) * freqbase;
+	ym2612.OPN.ST.freqbase = 1.0; // freqbase
 
 	/* make time tables */
 	init_timetables( dt_tab );
