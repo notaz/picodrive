@@ -712,14 +712,9 @@ crl_loop:
     subs    r8, r8, #(1<<EG_SH)
     blt     crl_smp_loop_end
 
-
-    @ r12=lfo_ampm[31:16], r1=lfo_cnt_old, r2=lfo_cnt
-    advance_lfo_m
-
 crl_smp_loop:
     tst     r12, #8              @ lfo?
     beq     lfo_done
-
 
     ldr     r2, [lr, #0x34]      @ lfo_inc
     ldr     r1, [lr, #0x30]      @ lfo_cnt
@@ -888,6 +883,7 @@ crl_algo_done:
 
 crl_smp_loop_end:
     add     r8, r8, #(1<<EG_SH)
+
     @ -- WRITE SAMPLE --
     tst     r0, r0
     beq     ctl_sample_skip
