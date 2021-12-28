@@ -80,8 +80,7 @@
     cmp     r2, #2
     mov     r2, #1
     mov     r2, r2, lsl r3
-    mov     r2, r2, lsr #1       @ eg_inc_val
-    add     r0, r0, r2
+    add     r0, r0, r2, lsr #1   @ volume += eg_inc_val
     blt     1f                   @ EG_REL
     beq     2f                   @ EG_SUS
 
@@ -138,7 +137,7 @@
     movlt   r3, r0, lsl r3
     ldrlth  r0, [r5,#0x1a]       @ volume, unsigned (0-1023)
     movlt   r3, r3, lsr #1       @ eg_inc_val
-    addlt   r0, r0, r3, lsl #2
+    addlt   r0, r0, r3, lsl #2   @ ...*4
 
     cmp     r2, #2
     blt     1f                   @ EG_REL
@@ -213,9 +212,9 @@
     orrne   r0, r0, #0x400                @ ssgn = 4
     strneh  r0, [r5,#0x30]
 
-    eor     r0, r0, #0x4                  @ if ( !(ssg&0x04) )
-    tst     r0, #0x4
-    cmpne   r2, #EG_ATT                   @ if ( state != EG_ATT )
+    tst     r0, #0x4                      @ if ( !(ssg&0x04) )
+    bne     9f
+    cmp     r2, #EG_ATT                   @ if ( state != EG_ATT )
     movne   r3, #0x400
     subne   r3, r3, #1
     strneh  r3, [r5,#0x1a]                @ volume = MAX_ATT
@@ -273,15 +272,16 @@
     cmp     r2, r1, lsr #LFO_SH
     beq     0f
     and     r3, r2, #0x3f
-    cmp     r2, #0x40
-    eorlt   r3, r3, #0x3f
+    tst     r2, #0x40
+    eoreq   r3, r3, #0x3f
     bic     r12,r12, #0xff000000          @ lfo_ampm &= 0xff
     orr     r12,r12, r3, lsl #1+24
 
     mov     r2, r2, lsr #2
     cmp     r2, r1, lsr #LFO_SH+2
+    andne   r3, r2, #0x1f
     bicne   r12,r12, #0xff0000
-    orrne   r12,r12, r2, lsl #16
+    orrne   r12,r12, r3, lsl #16
 
 0:
 .endm
@@ -306,7 +306,6 @@
     movne   r2, r2,  lsr #6
     addne   r2, r2,  #24
     addne   r1, r1,  r12, lsr r2
-    bic     r1, r1,  #1
 .endm
 
 
@@ -316,6 +315,7 @@
     eorne   \r, \r, #0xff   @ if (sin & 0x100) sin = 0xff - (sin&0xff);
     tst     \r, #0x200
     and     \r, \r, #0xff
+    bic     r1, r1, #1
     orr     \r, \r, r1, lsl #7
     mov     \r, \r, lsl #1
     ldrh    \r, [r3, \r]    @ 2ci if ne
@@ -338,18 +338,17 @@
     ldr     r2, [lr, #0x18]
     ldr     r0, [lr, #0x38] @ mem (signed)
     mov     r2, r2, lsr #16
-    add     r0, r2, r0, lsr #1
+    add     r0, r2, r0, asr #1
     lookup_tl r0                  @ r0=c2
 
 0:
-
     @ SLOT4
     make_eg_out SLOT4
     cmp     r1, #ENV_QUIET
     movcs   r0, #0
     bcs     1f
     ldr     r2, [lr, #0x1c]
-    mov     r0, r0, lsr #1
+    mov     r0, r0, asr #1
     add     r0, r0, r2, lsr #16
     lookup_tl r0                  @ r0=output smp
 
@@ -360,7 +359,7 @@
     movcs   r2, #0
     bcs     2f
     ldr     r2, [lr, #0x14]       @ 1ci
-    mov     r5, r10, lsr #17
+    mov     r5, r10, asr #17
     add     r2, r5, r2, lsr #16
     lookup_tl r2                  @ r2=mem
 
@@ -382,7 +381,7 @@
     ldr     r2, [lr, #0x18]
     ldr     r0, [lr, #0x38] @ mem (signed)
     mov     r2, r2, lsr #16
-    add     r0, r2, r0, lsr #1
+    add     r0, r2, r0, asr #1
     lookup_tl r0                 @ r0=c2
 
 0:
@@ -392,7 +391,7 @@
     movcs   r0, #0
     bcs     1f
     ldr     r2, [lr, #0x1c]
-    mov     r0, r0, lsr #1
+    mov     r0, r0, asr #1
     add     r0, r0, r2, lsr #16
     lookup_tl r0                 @ r0=output smp
 
@@ -425,7 +424,7 @@
     ldr     r2, [lr, #0x18]
     ldr     r0, [lr, #0x38] @ mem (signed)
     mov     r2, r2, lsr #16
-    add     r0, r2, r0, lsr #1
+    add     r0, r2, r0, asr #1
     lookup_tl r0                 @ r0=c2
 
 0:
@@ -437,7 +436,7 @@
     movcs   r0, #0
     bcs     1f
     ldr     r2, [lr, #0x1c]
-    mov     r0, r0, lsr #1
+    mov     r0, r0, asr #1
     add     r0, r0, r2, lsr #16
     lookup_tl r0                 @ r0=output smp
 
@@ -480,7 +479,7 @@
     movcs   r0, #0
     bcs     1f
     ldr     r2, [lr, #0x1c]
-    mov     r0, r0, lsr #1
+    mov     r0, r0, asr #1
     add     r0, r0, r2, lsr #16
     lookup_tl r0                 @ r0=output smp
 
@@ -491,7 +490,7 @@
     movcs   r2, #0
     bcs     2f
     ldr     r2, [lr, #0x14]      @ phase2
-    mov     r5, r10, lsr #17
+    mov     r5, r10, asr #17
     add     r2, r5, r2, lsr #16
     lookup_tl r2                 @ r2=mem
 
@@ -521,7 +520,7 @@
     movcs   r0, #0
     bcs     1f
     ldr     r2, [lr, #0x1c]
-    mov     r0, r0, lsr #1
+    mov     r0, r0, asr #1
     add     r0, r0, r2, lsr #16
     lookup_tl r0                 @ r0=output smp
 
@@ -531,7 +530,7 @@
     cmp     r1, #ENV_QUIET
     bcs     2f
     ldr     r2, [lr, #0x14]
-    mov     r5, r10, lsr #17
+    mov     r5, r10, asr #17
     add     r2, r5, r2, lsr #16
     lookup_tl r2
     add     r0, r0, r2            @ add to smp
@@ -553,7 +552,7 @@
     ldr     r2, [lr, #0x18]
     ldr     r0, [lr, #0x38] @ mem (signed)
     mov     r2, r2, lsr #16
-    add     r0, r2, r0, lsr #1
+    add     r0, r2, r0, asr #1
     lookup_tl r0                 @ r0=output smp
 
 0:
@@ -562,7 +561,7 @@
     cmp     r1, #ENV_QUIET
     bcs     1f
     ldr     r2, [lr, #0x1c]
-    mov     r5, r10, lsr #17
+    mov     r5, r10, asr #17
     add     r2, r5, r2, lsr #16
     lookup_tl r2
     add     r0, r0, r2           @ add to smp
@@ -572,7 +571,7 @@
     cmp     r1, #ENV_QUIET
     bcs     2f
     ldr     r2, [lr, #0x14]
-    mov     r5, r10, lsr #17
+    mov     r5, r10, asr #17
     add     r2, r5, r2, lsr #16
     lookup_tl r2
     add     r0, r0, r2           @ add to smp
@@ -612,7 +611,7 @@
     cmp     r1, #ENV_QUIET
     bcs     2f
     ldr     r2, [lr, #0x14]
-    mov     r5, r10, lsr #17
+    mov     r5, r10, asr #17
     add     r2, r5, r2, lsr #16
     lookup_tl r2
     add     r0, r0, r2           @ add to smp
@@ -712,12 +711,20 @@ crl_loop:
     subs    r8, r8, #(1<<EG_SH)
     blt     crl_smp_loop_end
 
-crl_smp_loop:
+    cmp     r8, #(2<<EG_SH)      @ calculate only for operator memory, sample,
+    tstge   r12, #0xf000         @ ...feedback
+    bne     crl_smp_loop
+
+    @ -- LFO+PHASE UPDATE, FF --
+    mov     r0, r8, lsr #EG_SH
+    sub     r0, r0, #1
+
     tst     r12, #8              @ lfo?
-    beq     lfo_done
+    beq     lfo_done_ff
 
     ldr     r2, [lr, #0x34]      @ lfo_inc
     ldr     r1, [lr, #0x30]      @ lfo_cnt
+    mul     r2, r0, r2
 
     add     r2, r2, r1
     str     r2, [lr, #0x30]
@@ -725,7 +732,23 @@ crl_smp_loop:
     @ r12=lfo_ampm[31:16], r1=lfo_cnt_old, r2=lfo_cnt
     advance_lfo_m
 
-lfo_done:
+lfo_done_ff:
+    add     lr, lr, #0x10
+    ldmia   lr, {r1-r3,r5-r7}
+    mul     r6, r0, r6
+    mul     r7, r0, r7
+    add     r1, r1, r6
+    add     r2, r2, r7
+    ldr     r6, [lr, #0x18]
+    ldr     r7, [lr, #0x1c]
+    mul     r6, r0, r6
+    mul     r7, r0, r7
+    add     r3, r3, r6
+    add     r5, r5, r7
+    stmia   lr, {r1-r3,r5}
+    sub     lr, lr, #0x10
+
+crl_smp_loop:
     ldr     r5, [lr, #0x40]      @ CH
 #if defined(SSG_EG)
     tst     r12, #0x02              @ ssg_enabled?
@@ -758,7 +781,8 @@ ssg_done:
 
     @ -- EG --
     tst     r4, #0x30
-    subnes  r4, r4, #0x10
+    subne   r4, r4, #0x10
+    tst     r4, #0x30
     bne     eg_done
     orr     r4, r4, #0x30
 
@@ -784,15 +808,28 @@ eg_upd_loop:
     sub     r5, r5, #SLOT_STRUCT_SIZE*3
 
 eg_done:
-    @ -- disabled? --
-    tst     r12, #0x4
-    mov     r0, #0
-    bne     crl_algo_done
-
     cmp     r8, #(2<<EG_SH)      @ calculate only for operator memory, sample,
     tstge   r12, #0xf000         @ ...feedback
-    beq     crl_algo_done
+    beq     crl_ff
 
+    @ -- disabled? --
+    mov     r0, #0
+    tst     r12, #0x4
+    bne     crl_algo_done
+
+    tst     r12, #8              @ lfo?
+    beq     lfo_done
+
+    ldr     r2, [lr, #0x34]      @ lfo_inc
+    ldr     r1, [lr, #0x30]      @ lfo_cnt
+
+    add     r2, r2, r1
+    str     r2, [lr, #0x30]
+
+    @ r12=lfo_ampm[31:16], r1=lfo_cnt_old, r2=lfo_cnt
+    advance_lfo_m
+
+lfo_done:
     ldrh    r6, [r5, #0x34]      @ vol_out values for all slots
     ldrh    r2, [r5, #0x34+SLOT_STRUCT_SIZE*2]
     ldrh    r7, [r5, #0x34+SLOT_STRUCT_SIZE]
@@ -878,6 +915,7 @@ crl_algo_done:
     stmia   lr, {r1-r3,r5}
     sub     lr, lr, #0x10
 
+crl_ff:
     subs    r8, r8, #(1<<EG_SH)
     bge     crl_smp_loop
 
