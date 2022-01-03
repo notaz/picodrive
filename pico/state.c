@@ -347,6 +347,7 @@ static int state_save(void *file)
       CHECKED_WRITE(chwc->chunk, chwc->size, chwc->ptr);
   }
 
+  CHECKED_WRITE(0, 0, NULL);
   retval = 0;
 
 out:
@@ -540,6 +541,8 @@ static int state_load(void *file)
         break;
 #endif
       default:
+        if (len|chunk == 0)
+           goto readend;
         if (carthw_chunks != NULL)
         {
           carthw_state_chunk *chwc;

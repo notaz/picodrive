@@ -872,9 +872,14 @@ int state_fseek(void *file, long offset, int whence)
 size_t retro_serialize_size(void)
 {
    struct savestate_state state = { 0, };
+   unsigned AHW = PicoIn.AHW;
    int ret;
 
+   /* we need the max possible size here, so include 32X for MD and MCD */
+   if (!(AHW & (PAHW_SMS|PAHW_PICO|PAHW_SVP)))
+      PicoIn.AHW |= PAHW_32X;
    ret = PicoStateFP(&state, 1, NULL, state_skip, NULL, state_fseek);
+   PicoIn.AHW = AHW;
    if (ret != 0)
       return 0;
 
