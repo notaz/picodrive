@@ -256,6 +256,7 @@ static int state_save(void *file)
   }
   else {
     CHECKED_WRITE_BUFF(CHUNK_SMS, Pico.ms);
+    CHECKED_WRITE_BUFF(CHUNK_YM2413, old_opll);
   }
 
   CHECKED_WRITE_BUFF(CHUNK_VRAM,  PicoMem.vram);
@@ -294,8 +295,6 @@ static int state_save(void *file)
     memset(buff, 0, 0x40);
     memcpy(buff, pcd_event_times, sizeof(pcd_event_times));
     CHECKED_WRITE(CHUNK_CD_EVT, 0x40, buff);
-
-    CHECKED_WRITE(CHUNK_YM2413, sizeof(OPLL), &old_opll);
 
     len = gfx_context_save(buf2);
     CHECKED_WRITE(CHUNK_CD_GFX, len, buf2);
@@ -456,7 +455,7 @@ static int state_load(void *file)
 
       case CHUNK_IOPORTS: CHECKED_READ_BUFF(PicoMem.ioports); break;
       case CHUNK_PSG:     CHECKED_READ2(28*4, sn76496_regs); break;
-      case CHUNK_YM2413:  CHECKED_READ2(sizeof(OPLL), &old_opll); break;
+      case CHUNK_YM2413:  CHECKED_READ_BUFF(old_opll); break;
       case CHUNK_FM:
         ym2612_regs = YM2612GetRegs();
         CHECKED_READ2(0x200+4, ym2612_regs);
