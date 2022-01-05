@@ -519,15 +519,23 @@ enum { xAX = 0, xCX, xDX, xBX, xSP, xBP, xSI, xDI,	// x86-64,i386 common
 
 // _r_r_imm - use lea
 #define emith_add_r_r_imm(d, s, imm) do { \
-	EMIT_REX_IF(0, d, s); \
-	emith_deref_modrm(0x8d, 2, d, s); \
-	EMIT(imm, s32); \
+	if (imm == 0) \
+		emith_move_r_r(d, s); \
+	else { \
+		EMIT_REX_IF(0, d, s); \
+		emith_deref_modrm(0x8d, 2, d, s); \
+		EMIT(imm, s32); \
+	} \
 } while (0)
 
 #define emith_add_r_r_ptr_imm(d, s, imm) do { \
-	EMIT_REX_IF(1, d, s); \
-	emith_deref_modrm(0x8d, 2, d, s); \
-	EMIT(imm, s32); \
+	if (imm == 0) \
+		emith_move_r_r_ptr(d, s); \
+	else { \
+		EMIT_REX_IF(1, d, s); \
+		emith_deref_modrm(0x8d, 2, d, s); \
+		EMIT(imm, s32); \
+	} \
 } while (0)
 
 #define emith_sub_r_r_imm(d, s, imm) do { \
